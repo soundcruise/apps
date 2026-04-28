@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>音感クルーズ | おすすめ動画</title>
+    <link rel="stylesheet" href="../shared/style.css?v=97">
+    <link rel="stylesheet" href="../shared/pro-theme.css?v=98">
+    <link rel="stylesheet" href="./theme.css?v=1">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body class="info-page">
+    <div class="app-container">
+        <main class="info-card">
+            <div class="info-nav">
+                <div class="info-nav-group">
+                    <a class="icon-btn info-nav-link" href="./info.html" id="recommended-back-link">← 戻る</a>
+                </div>
+                <div class="info-nav-group">
+                    <a class="icon-btn info-nav-link" href="./standard/index.html" id="recommended-home-link" aria-label="ホーム画面"
+                        title="ホーム画面">🏠</a>
+                </div>
+            </div>
+            <h1>おすすめ動画</h1>
+            <div class="info-links">
+                <a class="info-link-card" href="https://youtu.be/OjQAnqiIYXE" target="_blank" rel="noopener noreferrer">
+                    <span class="info-link-title">音感って何？</span>
+                </a>
+                <a class="info-link-card" href="https://youtu.be/zG0cnN2ZQI0" target="_blank" rel="noopener noreferrer">
+                    <span class="info-link-title">キーを知る</span>
+                </a>
+                <a class="info-link-card" href="https://youtu.be/igA_JLLckCs" target="_blank" rel="noopener noreferrer">
+                    <span class="info-link-title">指板を知る</span>
+                </a>
+                <a class="info-link-card" href="https://youtu.be/TwtjfWjnjKA" target="_blank" rel="noopener noreferrer">
+                    <span class="info-link-title">音楽理論を丸ごと知る</span>
+                </a>
+            </div>
+        </main>
+    </div>
+    <script>
+        (function () {
+            var homeLink = document.getElementById('recommended-home-link');
+            var backLink = document.getElementById('recommended-back-link');
+            var defaultHome = './standard/index.html';
+            var currentUrl = new URL(window.location.href);
+            var fromHome = currentUrl.searchParams.get('from') === 'home';
+            var editionParam = currentUrl.searchParams.get('edition');
+
+            function resolveHomePath() {
+                if (editionParam === 'pro') return './pro_x9v7q2m8/index.html';
+                if (editionParam === 'standard') return './standard/index.html';
+                try {
+                    var referrerUrl = document.referrer ? new URL(document.referrer) : null;
+                    if (referrerUrl && referrerUrl.origin === window.location.origin) {
+                        if (referrerUrl.pathname.indexOf('/pro_x9v7q2m8/') !== -1) {
+                            return './pro_x9v7q2m8/index.html';
+                        }
+                        if (referrerUrl.pathname.indexOf('/standard/') !== -1) {
+                            return './standard/index.html';
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Failed to resolve referrer for recommended videos navigation.', error);
+                }
+                return defaultHome;
+            }
+
+            var homePath = resolveHomePath();
+            homeLink.href = homePath;
+            if (backLink && fromHome) {
+                backLink.href = './info.html?from=home&edition=' + encodeURIComponent(editionParam || (homePath.indexOf('/pro_x9v7q2m8/') !== -1 ? 'pro' : 'standard'));
+            }
+
+            // Same iOS standalone workaround as info.html: open external links via
+            // window.location.href so iOS uses a separate Safari process.
+            if (window.navigator.standalone) {
+                document.querySelectorAll('a[target="_blank"]').forEach(function (a) {
+                    a.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        window.location.href = this.href;
+                    });
+                });
+            }
+        }());
+    </script>
+</body>
+
+</html>

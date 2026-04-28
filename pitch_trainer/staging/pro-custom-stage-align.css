@@ -1,0 +1,11 @@
+/**
+ * Staging 検証用: URL に ?stagingPreview=1 付きで Pro を開いたとき、
+ * PROカスタムSTAGE ボタンの字まわりを通常版の「PROカスタムSTAGE」に近づける。
+ * （pro-stage-teaser の薄さ・グレーは Pro 本番では付けない）
+ */
+html.staging-pro-custom-stage #btn-level-pro.pro-stage-teaser.custom-stage-btn,
+html.staging-pro-custom-stage #btn-level-pro-chord.pro-stage-teaser.custom-stage-btn,
+html.staging-pro-custom-stage .staging-pro-slot-dynamic .staging-slot-main-btn.custom-stage-btn.pro-stage-teaser {
+    opacity: 1;
+    filter: none;
+}

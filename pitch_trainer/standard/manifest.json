@@ -1,0 +1,26 @@
+{
+  "id": "./",
+  "name": "音感クルーズ",
+  "short_name": "音感クルーズ",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#121212",
+  "theme_color": "#00ff88",
+  "description": "絶対音感トレーニングアプリ。メロディとコードの聞き取り練習ができます。",
+  "icons": [
+    {
+      "src": "../icon_pwa_192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icon_pwa_512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

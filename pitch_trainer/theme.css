@@ -1,0 +1,15 @@
+/* 音感クルーズ テーマカラー */
+/* 新しいアプリを作るときはこのファイルをコピーして変数を上書きする */
+:root {
+    --bg-color: #121212;
+    --surface-color: #1e1e1e;
+    --primary-color: #00ff88;
+    --secondary-color: #00d2ff;
+    --text-color: #ffffff;
+    --white-key-color: #fdfdfd;
+    --black-key-color: #333333;
+    --key-active-color: #00ff88;
+    --error-color: #ff3366;
+    /* 右下「Ver＋ページを更新」とホーム等のモーダルが重ならないよう確保（特に iOS Safari） */
+    --in-game-refresh-stack-height: 96px;
+}

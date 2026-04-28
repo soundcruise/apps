@@ -1,0 +1,136 @@
+/* Pro版 初回入室ゲート（全画面） */
+#pro-gate-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+        max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    box-sizing: border-box;
+    background: rgba(10, 10, 12, 0.97);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+}
+
+#pro-gate-overlay.pro-gate-overlay--missing {
+    background: rgba(30, 12, 12, 0.98);
+}
+
+.pro-gate-panel {
+    width: 100%;
+    max-width: 360px;
+    padding: 28px 22px 26px;
+    border-radius: 16px;
+    background: linear-gradient(165deg, rgba(40, 40, 44, 0.98), rgba(22, 22, 26, 0.99));
+    border: 1px solid rgba(255, 210, 90, 0.35);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+    text-align: center;
+}
+
+.pro-gate-box {
+    width: 100%;
+    max-width: 360px;
+    text-align: center;
+}
+
+.pro-gate-box .pro-gate-panel {
+    max-width: none;
+}
+
+.pro-gate-password-link {
+    display: inline-block;
+    margin-top: 14px;
+    color: rgba(255, 229, 102, 0.92);
+    font-size: 0.86rem;
+    font-weight: 600;
+    line-height: 1.5;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}
+
+.pro-gate-password-link:focus,
+.pro-gate-password-link:hover {
+    color: #fff1a6;
+}
+
+.pro-gate-password-updated {
+    margin-top: 4px;
+    color: rgba(255, 255, 255, 0.46);
+    font-size: 0.72rem;
+    line-height: 1.4;
+}
+
+#pro-gate-title {
+    margin: 0 0 10px;
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #fff;
+}
+
+.pro-gate-hint {
+    margin: 0 0 18px;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.62);
+}
+
+#pro-gate-input {
+    width: 100%;
+    max-width: 200px;
+    margin: 0 auto 14px;
+    display: block;
+    padding: 14px 16px;
+    font-size: 1.5rem;
+    letter-spacing: 0.35em;
+    text-align: center;
+    font-family: ui-monospace, monospace;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(0, 0, 0, 0.35);
+    color: #fff;
+    box-sizing: border-box;
+}
+
+#pro-gate-input:focus {
+    outline: none;
+    border-color: rgba(255, 210, 90, 0.55);
+    box-shadow: 0 0 0 2px rgba(255, 210, 90, 0.15);
+}
+
+#pro-gate-error {
+    min-height: 1.35em;
+    margin: 0 0 12px;
+    font-size: 0.82rem;
+    color: #ff8899;
+}
+
+#pro-gate-error:empty {
+    margin-bottom: 0;
+}
+
+#pro-gate-submit {
+    min-width: 140px;
+    padding: 12px 28px;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+body.pro-gate-active {
+    overflow: hidden;
+}
+
+.pro-gate-settings-note {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    text-align: center;
+}
+
+#pro-gate-reset {
+    font-size: 0.78rem;
+    padding: 8px 14px;
+    opacity: 0.85;
+}

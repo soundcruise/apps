@@ -1,0 +1,26 @@
+{
+  "id": "./",
+  "name": "音感クルーズ ベータ",
+  "short_name": "音感クルーズβ",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#121212",
+  "theme_color": "#121212",
+  "description": "音感クルーズのお試しベータ版（メロディ・コードとも STAGE 1〜4）。",
+  "icons": [
+    {
+      "src": "beta_pwa_192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "beta_pwa_512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
