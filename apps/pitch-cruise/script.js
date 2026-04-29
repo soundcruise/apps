@@ -1,5 +1,5 @@
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '1.19.2';
+const PITCH_TRAINER_APP_VERSION = '1.19.3';
 
 /** 検証ハブ（Staging）の Ver 表記の括弧内。小さな更新は原則ここだけ増やす（版番号の変更は別指示時のみ） */
 const PITCH_TRAINER_APP_BUILD = '43';
@@ -214,15 +214,6 @@ function unregisterLegacyRootServiceWorker() {
                     pl.endsWith('/apps/pitch-cruise/pro_x9v7q2m8/service-worker.js') ||
                     pl.endsWith('/apps/pitch-cruise/staging/service-worker.js') ||
                     pl.endsWith('/apps/pitch-cruise/beta/service-worker.js')
-                ) {
-                    return;
-                }
-                /* soundcruise.jp 新構成: /pitch_trainer/… */
-                if (
-                    pl.endsWith('/pitch_trainer/standard/service-worker.js') ||
-                    pl.endsWith('/pitch_trainer/pro_x9v7q2m8/service-worker.js') ||
-                    pl.endsWith('/pitch_trainer/staging/service-worker.js') ||
-                    pl.endsWith('/pitch_trainer/beta/service-worker.js')
                 ) {
                     return;
                 }
