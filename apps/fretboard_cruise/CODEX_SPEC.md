@@ -115,18 +115,44 @@ apps/                              ← リポジトリルート（soundcruise.jp
 
 ```html
 <script>
-    window.__SOUNDCRUISE_PRO_GATE__ = { rotationId: 1, password: '0000' };
+    window.__SOUNDCRUISE_PRO_GATE__ = { password: '0000' };
 </script>
-<script src="../../shared/pro-gate.js?v=15"></script>
+<script src="../../shared/pro-gate.js?v=16"></script>
 ```
 
 - `data-app-edition="Pro"` を `<html>` タグに付与する
 - `<title>` は「指板クルーズ」（Pro表記なし）
 
+## manifest.json（全エディション共通パターン）
+
+アイコンは pitch-cruise と共用（`apps/` 直下の `icon_pwa_192.png` / `icon_pwa_512.png` を参照）。
+各エディションのフォルダから見た相対パスは `../../icon_pwa_192.png`。
+
+```json
+{
+  "name": "指板クルーズ",
+  "short_name": "指板クルーズ",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d1117",
+  "theme_color": "#4f9cf9",
+  "description": "ギター指板の音名を覚えるトレーニングアプリ。",
+  "icons": [
+    { "src": "../../icon_pwa_192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "../../icon_pwa_512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
+```
+
+- Standard・Staging 版はこのまま使う
+- Pro 版は `"src"` を `"../../pro_icon_192.png"` に変更する（pitch-cruise と共用）
+
 ## service-worker.js（全エディション共通パターン）
 
 ```javascript
-const GATE_VERSION = 1;
+const GATE_VERSION = 5; // パスワード変更時に +1（開きっぱなしのユーザーも即退出させたい場合）
 const CACHE_NAME = 'fretboard-cruise-{edition}-v1';
 
 self.addEventListener('install', () => { self.skipWaiting(); });

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>指板クルーズ</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="../../icon_pwa_192.png">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="../../shared/style.css?v=97">
+    <link rel="stylesheet" href="../../shared/pro-theme.css?v=98">
+    <link rel="stylesheet" href="../theme.css?v=1">
+</head>
+<body>
+    <!-- App Container -->
+    <div id="app" class="app-container">
+        <!-- Dynamic content will be rendered here by script.js -->
+    </div>
+
+    <!-- Update Bar -->
+    <div id="in-game-refresh-bar" class="in-game-refresh-bar hidden">
+        <span id="app-version-display" class="app-version-display"></span>
+        <button type="button" class="btn-secondary btn-in-game-refresh js-reload-app">ページを更新</button>
+    </div>
+
+    <script src="../script.js?v=1.0.0"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('service-worker.js').catch(err => {
+                    console.error('ServiceWorker registration failed: ', err);
+                });
+            });
+        }
+    </script>
+</body>
+</html>

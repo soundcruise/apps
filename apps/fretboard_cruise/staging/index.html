@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>指板クルーズ - Staging Hub</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="../../icon_pwa_192.png">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="../../shared/style.css?v=97">
+    <link rel="stylesheet" href="../../shared/pro-theme.css?v=98">
+    <link rel="stylesheet" href="../theme.css?v=1">
+
+    <style>
+        body { padding: 40px 20px; flex-direction: column; justify-content: center; align-items: center; }
+        .hub-container { background: rgba(255,255,255,0.05); padding: 40px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); width: 100%; max-width: 500px; text-align: center; }
+        .hub-title { font-size: 2rem; margin-bottom: 30px; font-weight: bold; color: var(--primary-color); }
+        .hub-links { display: flex; flex-direction: column; gap: 15px; }
+        .hub-link { display: block; padding: 15px 20px; background: rgba(255,255,255,0.1); border-radius: 12px; text-decoration: none; color: white; font-weight: bold; font-size: 1.2rem; transition: background 0.2s; }
+        .hub-link:hover { background: rgba(255,255,255,0.2); }
+        .hub-link.pro-link { border: 1px solid #ffd93d; color: #ffd93d; }
+        .error-message { color: var(--error-color); font-size: 1.5rem; font-weight: bold; margin-top: 50px; }
+    </style>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('k') !== 'x9v7q2m8') {
+            document.documentElement.innerHTML = '<body style="background:#000;color:#fff;display:flex;justify-content:center;align-items:center;height:100vh;"><h1 class="error-message">404 Not Found</h1></body>';
+        }
+    </script>
+</head>
+<body>
+    <div class="hub-container">
+        <h1 class="hub-title">指板クルーズ<br>Staging Hub</h1>
+        <div class="hub-links">
+            <a href="../standard/index.html" class="hub-link">Standard Edition</a>
+            <a href="../pro_x9v7q2m8/index.html?stagingPreview=1" class="hub-link pro-link">Pro Edition (Preview)</a>
+        </div>
+    </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('service-worker.js').catch(err => {
+                    console.error('ServiceWorker registration failed: ', err);
+                });
+            });
+        }
+    </script>
+</body>
+</html>

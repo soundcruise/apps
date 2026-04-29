@@ -1,0 +1,477 @@
+:root {
+    --bg-color: #0d1117;
+    --surface-color: #161b22;
+    --primary-color: #4f9cf9;
+    --secondary-color: #7c6af7;
+    --text-color: #f0f6fc;
+    --white-key-color: #fdfdfd;
+    --black-key-color: #333333;
+    --key-active-color: #4f9cf9;
+    --error-color: #ff4f6e;
+    --in-game-refresh-stack-height: 96px;
+
+    /* Fretboard specific colors */
+    --fretboard-wood: linear-gradient(to right, #2a1508, #3b2010 30%, #4a2914 50%, #3b2010 70%, #2a1508);
+    --fret-wire: linear-gradient(to right, #999, #eee 30%, #fff 50%, #eee 70%, #999);
+    --dot-color: radial-gradient(circle at 30% 30%, #fff, #d4cfc7 60%, #a8a39a);
+
+    --root-color: #ff4f6e;   /* 赤 */
+    --third-color: #4f9cf9;  /* 青 */
+    --fifth-color: #6bcb77;  /* 緑 */
+    --seventh-color: #c77dff;/* 紫 */
+    --non-target-color: #555555; /* グレー薄表示 */
+}
+
+/* Fretboard Layout */
+.fretboard-scroll-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    padding: 10px 0 35px 0; /* Added bottom padding to prevent scrollbar overlap */
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    justify-content: flex-start;
+}
+
+.fretboard-container {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    min-width: max-content;
+    margin: 30px 10px;
+    transform-style: preserve-3d;
+    transition: transform 0.1s ease;
+}
+
+.neck-face {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    border-radius: 6px;
+    pointer-events: none; /* Decorative faces must not block clicks */
+}
+
+.neck-front {
+    position: relative;
+    background: var(--fretboard-wood);
+    border: 3px solid #1a0d04;
+    padding: 15px 0;
+    box-shadow: inset 0 0 15px rgba(0,0,0,0.5);
+    transform: translateZ(15px);
+    z-index: 2;
+}
+
+.neck-back {
+    background: linear-gradient(to right, #3b2010, #1a0d04);
+    border: 3px solid #0d0602;
+    transform: translateZ(-15px);
+    box-shadow: 0 30px 50px rgba(0, 0, 0, 0.8);
+}
+
+.neck-top {
+    height: 30px;
+    top: -15px;
+    bottom: auto;
+    background: #3b2010;
+    border: 2px solid #1a0d04;
+    transform: rotateX(90deg);
+}
+
+.neck-bottom {
+    height: 30px;
+    top: auto;
+    bottom: -15px;
+    background: #1a0d04;
+    border: 2px solid #000;
+    transform: rotateX(-90deg);
+}
+
+.neck-left {
+    width: 30px;
+    left: -15px;
+    right: auto;
+    background: #2a1508;
+    border: 2px solid #1a0d04;
+    transform: rotateY(-90deg);
+}
+
+.neck-right {
+    width: 30px;
+    left: auto;
+    right: -15px;
+    background: #2a1508;
+    border: 2px solid #1a0d04;
+    transform: rotateY(90deg);
+}
+
+.view-mode-btn.active {
+    background-color: var(--primary-color) !important;
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 10px var(--primary-color);
+}
+
+.strings-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 180px; /* 6 strings spacing */
+    position: relative;
+}
+
+.string-row {
+    display: flex;
+    align-items: center;
+    height: 16.66%; /* 100% / 6 */
+    position: relative;
+}
+
+.string-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(to bottom, #dcdcdc 0%, #ffffff 30%, #a0a0a0 100%);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.9);
+    z-index: 1;
+}
+
+/* String Highlighting for Memorize mode */
+.strings-container.has-highlight .string-row:not(.highlighted-string) {
+    opacity: 0.2; /* Dim other strings heavily */
+}
+
+.string-row.highlighted-string .string-line {
+    background: #ffea70 !important;
+    box-shadow: 0 0 15px #ffea70, 0 0 5px #ffea70 !important;
+    z-index: 5;
+}
+
+/* Thicker lines for lower strings (wound strings) */
+.string-row[data-string="6"] .string-line { 
+    height: 5px; 
+    background: repeating-linear-gradient(to right, #b8b8b8, #b8b8b8 1px, #909090 1px, #909090 2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.9);
+}
+.string-row[data-string="5"] .string-line { 
+    height: 4px; 
+    background: repeating-linear-gradient(to right, #c0c0c0, #c0c0c0 1px, #989898 1px, #989898 2px);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.9);
+}
+.string-row[data-string="4"] .string-line { 
+    height: 3px; 
+    background: repeating-linear-gradient(to right, #c8c8c8, #c8c8c8 1px, #a0a0a0 1px, #a0a0a0 2px);
+}
+.string-row[data-string="3"] .string-line { height: 2.5px; }
+.string-row[data-string="2"] .string-line { height: 2px; }
+.string-row[data-string="1"] .string-line { height: 1.5px; }
+
+.fret-column {
+    position: relative;
+    width: 65px; /* Slightly wider */
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2;
+}
+
+/* Fret wire using ::after to make it 3D */
+.fret-column::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--fret-wire);
+    box-shadow: -1px 0 2px rgba(0,0,0,0.5), 1px 0 1px rgba(255,255,255,0.2);
+    border-radius: 2px;
+}
+
+.fret-column[data-fret="0"] {
+    width: 45px;
+    background-color: rgba(0,0,0,0.3); /* Darker before nut */
+}
+
+/* The Nut */
+.fret-column[data-fret="0"]::after {
+    width: 8px;
+    background: linear-gradient(to right, #d4d0c8, #f0ede6 30%, #fff 50%, #d4d0c8 80%);
+    box-shadow: 2px 0 5px rgba(0,0,0,0.8);
+    border-radius: 3px;
+}
+
+.fret-column:last-child::after {
+    display: none;
+}
+
+.fret-dot {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background: var(--dot-color);
+    border-radius: 50%;
+    z-index: 0;
+    box-shadow: inset -2px -2px 4px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.5);
+}
+
+/* Frets 3, 5, 7, 9 get one dot in the middle. Fret 12 gets two. */
+/* Will position them via JS or CSS. For simplicity, will inject via JS */
+
+.note-marker-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 20;
+    pointer-events: auto;
+}
+
+.note-marker {
+    width: 32px; /* Slightly larger for easier tapping */
+    height: 32px;
+    border-radius: 50%;
+    background-color: #fff;
+    color: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 0.9rem;
+    font-weight: 700;
+    z-index: 21;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.6);
+    cursor: pointer;
+    transition: transform 0.1s, background-color 0.2s;
+    user-select: none;
+    pointer-events: auto;
+}
+
+.note-marker:active {
+    transform: scale(0.85);
+}
+
+.note-marker.hidden-note {
+    opacity: 0;
+    pointer-events: auto; /* Still allow tapping even if hidden */
+}
+
+/* Fret interaction for memorize mode */
+.fret-column.interactive {
+    cursor: pointer;
+    transition: background-color 0.2s;
+    pointer-events: auto;
+}
+
+@media (hover: hover) {
+    .fret-column.interactive:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+}
+
+.fret-column.interactive:active {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.note-marker.target-note {
+    background-color: var(--primary-color);
+    color: #fff;
+    box-shadow: 0 0 10px var(--primary-color);
+}
+
+.note-marker.correct-note {
+    background-color: var(--primary-color) !important;
+    color: #000 !important;
+    box-shadow: 0 0 15px var(--primary-color) !important;
+}
+
+.note-marker.wrong-note {
+    background-color: var(--error-color) !important;
+    color: #fff !important;
+    box-shadow: 0 0 15px var(--error-color) !important;
+}
+
+.note-marker.grey-note {
+    background-color: rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.5);
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+}
+
+/* Colors for Pro mode (Degree/Chord) */
+.note-marker.role-root { background-color: var(--root-color); color: #fff; }
+.note-marker.role-third { background-color: var(--third-color); color: #fff; }
+.note-marker.role-fifth { background-color: var(--fifth-color); color: #000; }
+.note-marker.role-seventh { background-color: var(--seventh-color); color: #fff; }
+.note-marker.role-other { background-color: var(--text-color); color: #000; }
+.note-marker.role-non-target { background-color: var(--non-target-color); color: #aaa; }
+
+.fretboard-labels {
+    display: flex;
+    position: absolute;
+    bottom: -30px;
+    left: 0;
+    height: 25px;
+    width: 100%;
+}
+
+.fret-label {
+    width: 65px;
+    text-align: center;
+    font-size: 1rem;
+    color: #ffffff;
+    font-weight: 700;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
+.fret-label[data-fret="0"] {
+    width: 45px;
+}
+
+.question-text {
+    font-size: 1.5rem;
+    font-weight: 700;
+    text-align: center;
+    margin: 20px 0;
+    min-height: 40px;
+}
+
+/* Setup Panel for Pro mode */
+.setup-panel {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 20px;
+    background: rgba(255,255,255,0.05);
+    padding: 15px;
+    border-radius: 12px;
+}
+
+.setup-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+.setup-item label {
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.7);
+}
+
+.setup-item select {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-family: inherit;
+    outline: none;
+}
+
+.mode-buttons {
+    display: flex;
+    gap: 5px;
+    background: rgba(0,0,0,0.3);
+    padding: 3px;
+    border-radius: 8px;
+}
+
+.mode-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.5);
+    padding: 8px 15px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.mode-btn.active {
+    background: rgba(255,255,255,0.2);
+    color: #fff;
+    font-weight: bold;
+}
+
+/* Degree mode colors for generic markers (if used outside role-*) */
+.degree-1 { background-color: var(--root-color); color: white; }
+.degree-2 { background-color: #ffb74d; color: black; }
+.degree-3 { background-color: var(--third-color); color: white; }
+.degree-4 { background-color: #4db6ac; color: black; }
+.degree-5 { background-color: var(--fifth-color); color: black; }
+.degree-6 { background-color: #ba68c8; color: white; }
+.degree-7 { background-color: var(--seventh-color); color: white; }
+
+.chord-list {
+    display: flex;
+    overflow-x: auto;
+    gap: 10px;
+    padding: 10px 0;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+}
+
+.chord-btn {
+    flex: 0 0 auto;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.chord-btn.active {
+    background: var(--primary-color);
+    color: #000;
+    border-color: var(--primary-color);
+}
+
+/* STAGE Selection Screen */
+.stage-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.stage-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    padding: 15px 20px;
+    border-radius: 12px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.stage-btn .stage-desc {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 400;
+}
+
+@media (hover: hover) {
+    .stage-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: var(--primary-color);
+        transform: translateY(-2px);
+    }
+}
+
+.stage-btn:active {
+    transform: translateY(0);
+    background: rgba(255, 255, 255, 0.15);
+}
