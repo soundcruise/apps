@@ -57,6 +57,7 @@
     box-shadow: inset 0 0 15px rgba(0,0,0,0.5);
     transform: translateZ(15px);
     z-index: 2;
+    pointer-events: auto;
 }
 
 .neck-back {
@@ -216,50 +217,37 @@
 /* Frets 3, 5, 7, 9 get one dot in the middle. Fret 12 gets two. */
 /* Will position them via JS or CSS. For simplicity, will inject via JS */
 
-.note-marker-wrapper {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 20;
-    pointer-events: auto;
-}
-
 .note-marker {
-    width: 32px; /* Slightly larger for easier tapping */
-    height: 32px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     background-color: #fff;
     color: #000;
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 700;
-    z-index: 21;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.6);
+    z-index: 10;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
     cursor: pointer;
     transition: transform 0.1s, background-color 0.2s;
     user-select: none;
-    pointer-events: auto;
 }
 
 .note-marker:active {
-    transform: scale(0.85);
+    transform: scale(0.9);
 }
 
 .note-marker.hidden-note {
     opacity: 0;
-    pointer-events: auto; /* Still allow tapping even if hidden */
+    pointer-events: none;
 }
 
 /* Fret interaction for memorize mode */
 .fret-column.interactive {
     cursor: pointer;
     transition: background-color 0.2s;
-    pointer-events: auto;
 }
 
 @media (hover: hover) {
@@ -474,4 +462,202 @@
 .stage-btn:active {
     transform: translateY(0);
     background: rgba(255, 255, 255, 0.15);
+}
+
+/* ─── Settings Screen ─── */
+.settings-card {
+    width: 100%;
+    padding: 20px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    margin-bottom: 16px;
+    box-sizing: border-box;
+}
+
+.settings-card-title {
+    color: var(--primary-color);
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 14px;
+}
+
+.settings-range {
+    width: 100%;
+    accent-color: var(--primary-color);
+    cursor: pointer;
+    display: block;
+    box-sizing: border-box;
+}
+
+.settings-value-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    color: rgba(255,255,255,0.6);
+}
+
+.settings-value-badge {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    text-align: center;
+}
+
+.settings-value-badge-sm {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    min-width: 36px;
+    text-align: right;
+}
+
+.settings-note {
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.45);
+    margin-top: 10px;
+    line-height: 1.55;
+}
+
+.settings-toggle-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.settings-toggle-btn {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.7);
+    font-family: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.settings-toggle-btn.active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #000;
+    font-weight: 700;
+}
+
+.settings-preview-area {
+    position: relative;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 8px 0;
+}
+
+.settings-preview-clip {
+    width: 100%;
+    overflow: hidden;
+}
+
+.settings-trackball {
+    position: absolute;
+    width: 130px;
+    height: 130px;
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.25), rgba(0,0,0,0.45));
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.35);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.5), inset 0 0 16px rgba(255,255,255,0.04);
+    cursor: grab;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+}
+
+.settings-trackball-dot {
+    width: 12px;
+    height: 12px;
+    background: #4f9cf9;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #4f9cf9;
+    transition: transform 0.1s ease;
+}
+
+.settings-row-between {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.settings-label {
+    font-size: 0.88rem;
+    color: rgba(255,255,255,0.75);
+}
+
+.settings-btn-small {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.6);
+    border-radius: 4px;
+    padding: 3px 10px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.settings-presets {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.settings-preset-btn {
+    flex: 1;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.75);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.85rem;
+    transition: background 0.2s;
+}
+
+.settings-preset-btn:active {
+    background: rgba(255,255,255,0.15);
+}
+
+.settings-axes {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.settings-axis-item {
+    width: 100%;
+}
+
+.settings-axis-label {
+    font-size: 0.82rem;
+    color: var(--primary-color);
+}
+
+.settings-axis-val {
+    font-size: 0.82rem;
+    color: rgba(255,255,255,0.75);
+    min-width: 34px;
+    text-align: right;
+}
+
+.settings-axis-zero {
+    background: none;
+    border: 1px solid #555;
+    color: #aaa;
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    font-family: inherit;
 }

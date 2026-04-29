@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.0.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.1.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -42,6 +42,23 @@ let state = {
 let currentScrollLeft = 0;
 let autoScrollRequested = false;
 let nextTargetTime = 0;
+const fretboardDocumentHandlers = new Map();
+
+function cleanupFretboardDocumentHandlers(containerId) {
+    if (containerId) {
+        const handler = fretboardDocumentHandlers.get(containerId);
+        if (handler) {
+            document.removeEventListener('click', handler, true);
+            fretboardDocumentHandlers.delete(containerId);
+        }
+        return;
+    }
+
+    fretboardDocumentHandlers.forEach(handler => {
+        document.removeEventListener('click', handler, true);
+    });
+    fretboardDocumentHandlers.clear();
+}
 
 // Load state
 const savedState = localStorage.getItem('fretboard_cruise_state');
@@ -359,7 +376,13 @@ function generateQuestion() {
 
 function renderApp() {
     const app = document.getElementById('app');
-    
+    cleanupFretboardDocumentHandlers();
+
+    // Reset settings-screen styles
+    app.style.height = '';
+    app.style.overflowY = '';
+    app.style.overflowX = '';
+
     // Save scroll position
     const oldWrapper = document.querySelector('.fretboard-scroll-wrapper');
     if (oldWrapper) currentScrollLeft = oldWrapper.scrollLeft;
@@ -441,7 +464,13 @@ function renderApp() {
 function renderHome(app) {
     app.innerHTML = `
         <header>
-            <h1 class="home-title">指板クルーズ</h1>
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%;">
+                <div style="width:60px;"></div>
+                <h1 class="home-title" style="flex:1; text-align:center;">指板クルーズ</h1>
+                <div style="width:60px; display:flex; justify-content:flex-end; padding-top:4px;">
+                    <button class="icon-btn" id="btn-settings-home" style="padding:8px 12px;">⚙️</button>
+                </div>
+            </div>
         </header>
         <div class="action-btns" style="flex-direction: column; gap: 20px; align-items: center; width: 100%;">
             <button class="btn-primary" id="btn-memorize" style="width: 80%; padding: 20px; font-size: 1.2rem;">覚えるコース</button>
@@ -457,6 +486,12 @@ function renderHome(app) {
 
     document.getElementById('btn-visualize').onclick = () => {
         state.course = 'visualize';
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-settings-home').onclick = () => {
+        state.course = 'settings';
         saveState();
         renderApp();
     };
@@ -485,6 +520,12 @@ function renderModeSelect(app) {
 
     document.getElementById('btn-back').onclick = () => {
         state.course = null;
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-settings').onclick = () => {
+        state.course = 'settings';
         saveState();
         renderApp();
     };
@@ -891,129 +932,110 @@ function renderVisualize(app) {
 function renderSettings(app) {
     app.innerHTML = `
         <header style="padding-top: 10px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:20px;">
                 <button class="icon-btn" id="btn-back-settings">◀ 戻る</button>
-                <h2 style="font-size: 1.5rem; margin:0;">設定</h2>
+                <h2 style="font-size:1.5rem; margin:0;">設定</h2>
+                <div style="width:80px;"></div>
             </div>
         </header>
-        
-        <div style="padding: 20px; background: rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 20px;">
-            <h3 style="color: var(--primary-color); margin-bottom: 15px;">クルージングモードのテンポ</h3>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+
+        <div class="settings-card">
+            <h3 class="settings-card-title">クルージングモードのテンポ</h3>
+            <div class="settings-value-row">
                 <span>遅い</span>
-                <span style="font-size: 1.2rem; font-weight: bold;" id="tempo-display">BPM: ${state.settings.tempo}</span>
+                <span class="settings-value-badge" id="tempo-display">BPM ${state.settings.tempo}</span>
                 <span>速い</span>
             </div>
-            <input type="range" id="tempo-slider" min="40" max="120" value="${state.settings.tempo}" style="width: 100%;">
-            <p style="font-size: 0.8rem; color: #aaa; margin-top: 15px;">
-                ※BPM 75 が初心者向けの推奨スピードです。<br>
-                「ドン・タン・ドン・タン」の「タン」の瞬間に合わせてタップしてください。
-            </p>
+            <input type="range" id="tempo-slider" min="40" max="120" value="${state.settings.tempo}" class="settings-range">
+            <p class="settings-note">BPM 75 が初心者向けの推奨スピードです。「ドン・タン・ドン・タン」の「タン」に合わせてタップ。</p>
         </div>
 
-        <div style="padding: 20px; background: rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 20px;">
-            <h3 style="color: var(--primary-color); margin-bottom: 15px;">問題モードの制限時間</h3>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <div class="settings-card">
+            <h3 class="settings-card-title">問題モードの制限時間</h3>
+            <div class="settings-value-row">
                 <span>短い</span>
-                <span style="font-size: 1.2rem; font-weight: bold;" id="timer-display">${state.settings.quizTimeLimit} 秒</span>
+                <span class="settings-value-badge" id="timer-display">${state.settings.quizTimeLimit} 秒</span>
                 <span>長い</span>
             </div>
-            <input type="range" id="timer-slider" min="1" max="10" step="1" value="${state.settings.quizTimeLimit}" style="width: 100%;">
-            <p style="font-size: 0.8rem; color: #aaa; margin-top: 15px;">
-                ※設定した秒数以内に答えないとMissになります。（推奨: 3秒）
-            </p>
+            <input type="range" id="timer-slider" min="1" max="10" step="1" value="${state.settings.quizTimeLimit}" class="settings-range">
+            <p class="settings-note">設定した秒数以内に答えないとMissになります。（推奨: 3秒）</p>
         </div>
 
-        <div style="padding: 20px; background: rgba(255,255,255,0.05); border-radius: 12px; margin-bottom: 20px;">
-            <h3 style="color: var(--primary-color); margin-bottom: 15px;">指板の視点</h3>
-            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                <button class="view-mode-btn ${state.settings.viewMode === 'front' ? 'active' : ''}" id="btn-view-front" style="flex:1; padding: 10px; border-radius: 8px; border: 1px solid #444; background: #222; color: #fff; cursor: pointer;">正面（図面）</button>
-                <button class="view-mode-btn ${state.settings.viewMode === 'player' ? 'active' : ''}" id="btn-view-player" style="flex:1; padding: 10px; border-radius: 8px; border: 1px solid #444; background: #222; color: #fff; cursor: pointer;">演奏者（リアル）</button>
+        <div class="settings-card">
+            <h3 class="settings-card-title">指板の視点</h3>
+            <div class="settings-toggle-row">
+                <button class="settings-toggle-btn ${state.settings.viewMode === 'front' ? 'active' : ''}" id="btn-view-front">正面（図面）</button>
+                <button class="settings-toggle-btn ${state.settings.viewMode === 'player' ? 'active' : ''}" id="btn-view-player">演奏者（リアル）</button>
             </div>
 
-            <div style="display: flex; flex-direction: column; align-items: center; margin: 20px 0;">
-                <div style="position: relative; width: 100%; display: flex; justify-content: center; align-items: center; overflow: visible;">
-                    <div id="tilt-preview-container" style="width: 100%; pointer-events: none;"></div>
-                    
-                    <!-- Trackball UI (only visible in player mode) -->
-                    <div id="trackball-area" style="position: absolute; width: 160px; height: 160px; background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.3), rgba(0,0,0,0.4)); border-radius: 50%; border: 2px solid rgba(255,255,255,0.4); box-shadow: 0 10px 20px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.5); cursor: grab; display: flex; justify-content: center; align-items: center; z-index: 10; display: ${state.settings.viewMode === 'player' ? 'flex' : 'none'};">
-                        <div id="trackball-pointer" style="width: 12px; height: 12px; background: #4f9cf9; border-radius: 50%; box-shadow: 0 0 10px #4f9cf9; transition: transform 0.1s ease;"></div>
-                    </div>
+            <div class="settings-preview-area">
+                <div class="settings-preview-clip">
+                    <div id="tilt-preview-container" style="pointer-events:none;"></div>
+                </div>
+                <div id="trackball-area" class="settings-trackball" style="display:${state.settings.viewMode === 'player' ? 'flex' : 'none'};">
+                    <div id="trackball-pointer" class="settings-trackball-dot"></div>
                 </div>
             </div>
-            
-            <div id="tilt-setting-group" style="display: ${state.settings.viewMode === 'player' ? 'block' : 'none'}; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; margin-top: 5px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <span style="font-size: 0.9rem;">指板の傾き（3Dぐりぐり操作）</span>
-                    <button id="btn-reset-tilt" style="background:none; border:1px solid #666; color:#ccc; border-radius:4px; padding:2px 8px; font-size:0.8rem; cursor:pointer;">リセット</button>
-                </div>
-                <p style="font-size: 0.8rem; color: #888; margin-bottom: 15px;">
-                    ※中央をドラッグで「上下左右」、端をドラッグで「回転」します。<br>
-                    ※プレビューは本番と同じ実寸大です。はみ出ている場合は横スクロールできます。
-                </p>
 
-                <div style="display: flex; gap: 8px; margin-bottom: 20px;">
-                    <button class="preset-btn" data-preset="front" style="flex:1; padding: 8px; border-radius: 6px; border: 1px solid #444; background: #222; color: #fff; cursor: pointer; font-size: 0.85rem;">正面</button>
-                    <button class="preset-btn" data-preset="diagonal" style="flex:1; padding: 8px; border-radius: 6px; border: 1px solid #444; background: #222; color: #fff; cursor: pointer; font-size: 0.85rem;">斜め</button>
+            <div id="tilt-setting-group" style="display:${state.settings.viewMode === 'player' ? 'block' : 'none'}; border-top:1px solid rgba(255,255,255,0.1); padding-top:16px; margin-top:8px;">
+                <div class="settings-row-between" style="margin-bottom:8px;">
+                    <span class="settings-label">指板の傾き（ドラッグで操作）</span>
+                    <button id="btn-reset-tilt" class="settings-btn-small">リセット</button>
+                </div>
+                <p class="settings-note" style="margin-top:0; margin-bottom:14px;">中央をドラッグで上下左右、端をドラッグで回転します。</p>
+
+                <div class="settings-presets">
+                    <button class="settings-preset-btn" data-preset="front">正面</button>
+                    <button class="settings-preset-btn" data-preset="diagonal">斜め</button>
                 </div>
 
-                <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
-                    <div>
-                        <div style="display:flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--primary-color); margin-bottom: 4px;">
-                            <span>X軸（前後）</span>
-                            <div style="display:flex; align-items:center; gap: 6px;">
-                                <span id="rot-x-disp">${Math.round(state.settings.rotation.x)}°</span>
-                                <button class="axis-reset-btn" data-axis="x" style="background:none; border:1px solid #555; color:#aaa; border-radius:3px; padding:1px 5px; font-size:0.7rem; cursor:pointer;">0°</button>
+                <div class="settings-axes">
+                    <div class="settings-axis-item">
+                        <div class="settings-row-between" style="margin-bottom:4px;">
+                            <span class="settings-axis-label">X軸（前後）</span>
+                            <div style="display:flex; align-items:center; gap:6px;">
+                                <span class="settings-axis-val" id="rot-x-disp">${Math.round(state.settings.rotation.x)}°</span>
+                                <button class="axis-reset-btn settings-axis-zero" data-axis="x">0°</button>
                             </div>
                         </div>
-                        <input type="range" id="rot-x-slider" min="-90" max="90" step="1" value="${state.settings.rotation.x}" style="width: 100%;">
+                        <input type="range" id="rot-x-slider" min="-90" max="90" step="1" value="${state.settings.rotation.x}" class="settings-range">
                     </div>
-
-                    <div>
-                        <div style="display:flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--primary-color); margin-bottom: 4px;">
-                            <span>Y軸（左右）</span>
-                            <div style="display:flex; align-items:center; gap: 6px;">
-                                <span id="rot-y-disp">${Math.round(state.settings.rotation.y)}°</span>
-                                <button class="axis-reset-btn" data-axis="y" style="background:none; border:1px solid #555; color:#aaa; border-radius:3px; padding:1px 5px; font-size:0.7rem; cursor:pointer;">0°</button>
+                    <div class="settings-axis-item">
+                        <div class="settings-row-between" style="margin-bottom:4px;">
+                            <span class="settings-axis-label">Y軸（左右）</span>
+                            <div style="display:flex; align-items:center; gap:6px;">
+                                <span class="settings-axis-val" id="rot-y-disp">${Math.round(state.settings.rotation.y)}°</span>
+                                <button class="axis-reset-btn settings-axis-zero" data-axis="y">0°</button>
                             </div>
                         </div>
-                        <input type="range" id="rot-y-slider" min="-90" max="90" step="1" value="${state.settings.rotation.y}" style="width: 100%;">
+                        <input type="range" id="rot-y-slider" min="-90" max="90" step="1" value="${state.settings.rotation.y}" class="settings-range">
                     </div>
-
-                    <div>
-                        <div style="display:flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--primary-color); margin-bottom: 4px;">
-                            <span>Z軸（回転）</span>
-                            <div style="display:flex; align-items:center; gap: 6px;">
-                                <span id="rot-z-disp">${Math.round(state.settings.rotation.z)}°</span>
-                                <button class="axis-reset-btn" data-axis="z" style="background:none; border:1px solid #555; color:#aaa; border-radius:3px; padding:1px 5px; font-size:0.7rem; cursor:pointer;">0°</button>
+                    <div class="settings-axis-item">
+                        <div class="settings-row-between" style="margin-bottom:4px;">
+                            <span class="settings-axis-label">Z軸（回転）</span>
+                            <div style="display:flex; align-items:center; gap:6px;">
+                                <span class="settings-axis-val" id="rot-z-disp">${Math.round(state.settings.rotation.z)}°</span>
+                                <button class="axis-reset-btn settings-axis-zero" data-axis="z">0°</button>
                             </div>
                         </div>
-                        <input type="range" id="rot-z-slider" min="-180" max="180" step="1" value="${state.settings.rotation.z}" style="width: 100%;">
+                        <input type="range" id="rot-z-slider" min="-180" max="180" step="1" value="${state.settings.rotation.z}" class="settings-range">
                     </div>
                 </div>
 
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <span style="font-size: 0.9rem;">遠近感（弱 ← → 強）</span>
-                    <span style="font-weight: bold; color: var(--primary-color);" id="persp-display">${state.settings.perspective}</span>
+                <div class="settings-row-between" style="margin-top:16px; margin-bottom:6px;">
+                    <span class="settings-label">遠近感（上下）</span>
+                    <span class="settings-value-badge-sm" id="persp-display">${state.settings.perspective}</span>
                 </div>
-                <input type="range" id="persp-slider" min="0" max="100" step="1" value="${state.settings.perspective}" style="width: 100%;">
-                <p style="font-size: 0.75rem; color: #888; margin-top: 5px; margin-bottom: 15px;">
-                    ※上下方向の遠近感を調整します。
-                </p>
+                <input type="range" id="persp-slider" min="0" max="100" step="1" value="${state.settings.perspective}" class="settings-range" style="margin-bottom:16px;">
 
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <span style="font-size: 0.9rem;">横の遠近感（ヘッド ← → 12F）</span>
-                    <span style="font-weight: bold; color: var(--primary-color);" id="persp-origin-display">${state.settings.perspOriginX}</span>
+                <div class="settings-row-between" style="margin-bottom:6px;">
+                    <span class="settings-label">遠近感（横 ヘッド ← → 12F）</span>
+                    <span class="settings-value-badge-sm" id="persp-origin-display">${state.settings.perspOriginX}</span>
                 </div>
-                <input type="range" id="persp-origin-slider" min="0" max="100" step="1" value="${state.settings.perspOriginX}" style="width: 100%;">
-                <p style="font-size: 0.75rem; color: #888; margin-top: 5px;">
-                    ※数値を上げると12フレット側が大きく、ヘッド側が小さくなります。
-                </p>
+                <input type="range" id="persp-origin-slider" min="0" max="100" step="1" value="${state.settings.perspOriginX}" class="settings-range">
             </div>
-            
-            <p style="font-size: 0.8rem; color: #aaa; margin-top: 10px;">
-                ※「演奏者」を選ぶと、ギターを抱えた時のように6弦が一番上に表示されます。
-            </p>
+
+            <p class="settings-note" style="margin-top:12px;">「演奏者」を選ぶと、ギターを抱えた時のように6弦が一番上に表示されます。</p>
         </div>
     `;
 
@@ -1027,7 +1049,7 @@ function renderSettings(app) {
     const tempoDisplay = document.getElementById('tempo-display');
     tempoSlider.oninput = (e) => {
         state.settings.tempo = parseInt(e.target.value);
-        tempoDisplay.textContent = `BPM: ${state.settings.tempo}`;
+        tempoDisplay.textContent = `BPM ${state.settings.tempo}`;
         saveState();
     };
 
@@ -1075,7 +1097,6 @@ function renderSettings(app) {
         updatePreview();
     };
 
-    // Render real-size preview
     renderFretboardHTML('tilt-preview-container', {
         mode: 'visualize',
         question: null,
@@ -1086,7 +1107,6 @@ function renderSettings(app) {
         onFretClick: null
     });
 
-    // Drag logic for Trackball
     const dragArea = document.getElementById('trackball-area');
     const dispX = document.getElementById('rot-x-disp');
     const dispY = document.getElementById('rot-y-disp');
@@ -1095,31 +1115,26 @@ function renderSettings(app) {
     const perspDisp = document.getElementById('persp-display');
     const perspOriginSlider = document.getElementById('persp-origin-slider');
     const perspOriginDisp = document.getElementById('persp-origin-display');
-    
+
     let isDragging = false;
     let startX = 0, startY = 0;
     let initRotX = 0, initRotY = 0, initRotZ = 0;
-    let dragMode = 'xy'; // 'xy' or 'z'
+    let dragMode = 'xy';
 
     function updatePreviewTransform() {
         const r = state.settings.rotation;
-        const p_intensity = state.settings.perspective; // 0 to 100
-        const p_px = 2000 - (p_intensity * 17); // 0 -> 2000px, 100 -> 300px
-        
-        // Horizontal perspective: perspOriginX 0->0%, 50->50%, 100->100%
+        const p_intensity = state.settings.perspective;
+        const p_px = 2000 - (p_intensity * 17);
         const originX = state.settings.perspOriginX || 50;
-        
-        // Update fretboard
+
         const previewContainer = document.querySelector('#tilt-preview-container .fretboard-container');
         const perspectiveWrapper = document.querySelector('#tilt-preview-container .fretboard-perspective-wrapper');
-        
         if (perspectiveWrapper && previewContainer) {
             perspectiveWrapper.style.perspectiveOrigin = `${100 - originX}% 50%`;
             perspectiveWrapper.style.perspective = `${p_px}px`;
             previewContainer.style.transform = `rotateX(${r.x}deg) rotateY(${r.y}deg) rotateZ(${r.z}deg)`;
         }
-        
-        // Update trackball pointer
+
         const pointer = document.getElementById('trackball-pointer');
         if (pointer) {
             const ptX = (r.y / 80) * 60;
@@ -1131,56 +1146,29 @@ function renderSettings(app) {
         dispX.textContent = `${Math.round(r.x)}°`;
         dispY.textContent = `${Math.round(r.y)}°`;
         dispZ.textContent = `${Math.round(r.z)}°`;
-        
         document.getElementById('rot-x-slider').value = r.x;
         document.getElementById('rot-y-slider').value = r.y;
         document.getElementById('rot-z-slider').value = r.z;
-
         perspDisp.textContent = `${p_intensity}`;
         perspOriginDisp.textContent = `${originX}`;
         perspOriginSlider.value = originX;
     }
 
-    perspSlider.oninput = (e) => {
-        state.settings.perspective = parseInt(e.target.value);
-        updatePreviewTransform();
-        saveState();
-    };
+    perspSlider.oninput = (e) => { state.settings.perspective = parseInt(e.target.value); updatePreviewTransform(); saveState(); };
+    perspOriginSlider.oninput = (e) => { state.settings.perspOriginX = parseInt(e.target.value); updatePreviewTransform(); saveState(); };
+    document.getElementById('rot-x-slider').oninput = (e) => { state.settings.rotation.x = parseInt(e.target.value); updatePreviewTransform(); saveState(); };
+    document.getElementById('rot-y-slider').oninput = (e) => { state.settings.rotation.y = parseInt(e.target.value); updatePreviewTransform(); saveState(); };
+    document.getElementById('rot-z-slider').oninput = (e) => { state.settings.rotation.z = parseInt(e.target.value); updatePreviewTransform(); saveState(); };
 
-    perspOriginSlider.oninput = (e) => {
-        state.settings.perspOriginX = parseInt(e.target.value);
-        updatePreviewTransform();
-        saveState();
-    };
-
-    document.getElementById('rot-x-slider').oninput = (e) => {
-        state.settings.rotation.x = parseInt(e.target.value);
-        updatePreviewTransform();
-        saveState();
-    };
-    document.getElementById('rot-y-slider').oninput = (e) => {
-        state.settings.rotation.y = parseInt(e.target.value);
-        updatePreviewTransform();
-        saveState();
-    };
-    document.getElementById('rot-z-slider').oninput = (e) => {
-        state.settings.rotation.z = parseInt(e.target.value);
-        updatePreviewTransform();
-        saveState();
-    };
-
-    // Axis reset buttons
     document.querySelectorAll('.axis-reset-btn').forEach(btn => {
         btn.onclick = () => {
-            const axis = btn.getAttribute('data-axis');
-            state.settings.rotation[axis] = 0;
+            state.settings.rotation[btn.getAttribute('data-axis')] = 0;
             updatePreviewTransform();
             saveState();
         };
     });
 
-    const presetBtns = document.querySelectorAll('.preset-btn');
-    presetBtns.forEach(btn => {
+    document.querySelectorAll('.settings-preset-btn').forEach(btn => {
         btn.onclick = () => {
             const preset = btn.getAttribute('data-preset');
             if (preset === 'front') {
@@ -1203,75 +1191,44 @@ function renderSettings(app) {
         isDragging = true;
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        startX = clientX;
-        startY = clientY;
-        
+        startX = clientX; startY = clientY;
         initRotX = state.settings.rotation.x;
         initRotY = state.settings.rotation.y;
         initRotZ = state.settings.rotation.z;
-
-        // Determine if dragging near edges of the trackball
         if (dragArea) {
             const rect = dragArea.getBoundingClientRect();
-            const relX = clientX - rect.left;
-            const relY = clientY - rect.top;
-            const cx = rect.width / 2;
-            const cy = rect.height / 2;
-            
-            // Distance from center
-            const dist = Math.sqrt(Math.pow(relX - cx, 2) + Math.pow(relY - cy, 2));
-            const radius = rect.width / 2;
-            
-            // If dragging in the outer 30% of the trackball, it's Z rotation
-            if (dist > radius * 0.7) {
-                dragMode = 'z';
-            } else {
-                dragMode = 'xy';
-            }
+            const dist = Math.sqrt(Math.pow(clientX - rect.left - rect.width/2, 2) + Math.pow(clientY - rect.top - rect.height/2, 2));
+            dragMode = dist > (rect.width / 2) * 0.7 ? 'z' : 'xy';
         }
-        
-        updatePreviewTransform(); // update color immediately
+        updatePreviewTransform();
         dragArea.style.cursor = 'grabbing';
-        // Only prevent default if it's touch to avoid scrolling while rotating, but we might want scroll?
-        // Let's not prevent default on mouse down so they can still scroll the container horizontally.
     }
 
     function handleDragMove(e) {
         if (!isDragging) return;
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        
-        const deltaX = clientX - startX;
-        const deltaY = clientY - startY;
-
+        const dx = clientX - startX;
+        const dy = clientY - startY;
         if (dragMode === 'xy') {
-            state.settings.rotation.y = initRotY + deltaX * 0.5;
-            state.settings.rotation.x = initRotX - deltaY * 0.5;
+            state.settings.rotation.y = initRotY + dx * 0.5;
+            state.settings.rotation.x = initRotX - dy * 0.5;
         } else {
-            // Simple Z rotation based on vertical + horizontal drag combined
-            state.settings.rotation.z = initRotZ + (deltaX + deltaY) * 0.5;
+            state.settings.rotation.z = initRotZ + (dx + dy) * 0.5;
         }
-
-        // Clamp
         state.settings.rotation.x = Math.max(-80, Math.min(80, state.settings.rotation.x));
         state.settings.rotation.y = Math.max(-80, Math.min(80, state.settings.rotation.y));
         state.settings.rotation.z = Math.max(-180, Math.min(180, state.settings.rotation.z));
-
         updatePreviewTransform();
     }
 
     function handleDragEnd() {
-        if (isDragging) {
-            isDragging = false;
-            dragArea.style.cursor = 'grab';
-            saveState();
-        }
+        if (isDragging) { isDragging = false; dragArea.style.cursor = 'grab'; saveState(); }
     }
 
     dragArea.addEventListener('mousedown', handleDragStart);
     document.addEventListener('mousemove', handleDragMove);
     document.addEventListener('mouseup', handleDragEnd);
-
     dragArea.addEventListener('touchstart', handleDragStart, {passive: false});
     document.addEventListener('touchmove', handleDragMove, {passive: false});
     document.addEventListener('touchend', handleDragEnd);
@@ -1286,7 +1243,9 @@ function renderSettings(app) {
         saveState();
     };
 
-    // Cleanup listeners when unmounting would be good, but innerHTML replace clears DOM
+    app.style.height = '100vh';
+    app.style.overflowY = 'auto';
+    app.style.overflowX = 'hidden';
 }
 
 function renderFretboardHTML(containerId, options) {
@@ -1411,8 +1370,7 @@ function renderFretboardHTML(containerId, options) {
                 }
             }
 
-            let markerClass = isInteractive ? 'note-marker-wrapper interactive' : 'note-marker-wrapper';
-            html += `<div class="${fretClass}" data-string="${stringNum}" data-fret="${f}"><div class="${markerClass}">${markerHtml}</div></div>`;
+            html += `<div class="${fretClass}" data-string="${stringNum}" data-fret="${f}">${markerHtml}</div>`;
         }
         html += `</div>`;
     }
@@ -1433,27 +1391,38 @@ function renderFretboardHTML(containerId, options) {
 
     addFretboardDots(containerId);
 
-    // Attach events
-    if (onFretClick) {
-        const interactiveFrets = containerEl.querySelectorAll('.fret-column.interactive');
-        interactiveFrets.forEach(el => {
-            el.onclick = () => {
-                let s = parseInt(el.getAttribute('data-string'));
-                let f = parseInt(el.getAttribute('data-fret'));
-                onFretClick(s, f);
-            };
-        });
-    } else if (mode === 'visualize') {
-        const frets = containerEl.querySelectorAll('.fret-column');
-        frets.forEach(el => {
-            el.onclick = () => {
-                let s = parseInt(el.getAttribute('data-string'));
-                let f = parseInt(el.getAttribute('data-fret'));
-                let stringIdx = 6 - s;
-                playTone(stringIdx, f);
-            };
-        });
-    }
+    cleanupFretboardDocumentHandlers(containerId);
+
+    // Attach on document capture because player-view rotation can project frets outside
+    // the container's layout box. Hit-test the projected 2D fret rectangles instead.
+    const handleFretboardClick = (e) => {
+        if (!document.body.contains(containerEl)) {
+            cleanupFretboardDocumentHandlers(containerId);
+            return;
+        }
+        const cx = e.clientX, cy = e.clientY;
+        const cols = containerEl.querySelectorAll('.fret-column');
+        let bestCol = null, bestDistance = Infinity;
+        for (const col of cols) {
+            const r = col.getBoundingClientRect();
+            if (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom) {
+                const dx = cx - (r.left + r.width / 2);
+                const dy = cy - (r.top + r.height / 2);
+                const distance = dx * dx + dy * dy;
+                if (distance < bestDistance) { bestDistance = distance; bestCol = col; }
+            }
+        }
+        if (!bestCol) return;
+        const s = parseInt(bestCol.getAttribute('data-string'));
+        const f = parseInt(bestCol.getAttribute('data-fret'));
+        if (onFretClick && bestCol.classList.contains('interactive')) {
+            onFretClick(s, f);
+        } else if (mode === 'visualize') {
+            playTone(6 - s, f);
+        }
+    };
+    document.addEventListener('click', handleFretboardClick, true);
+    fretboardDocumentHandlers.set(containerId, handleFretboardClick);
 }
 
 function addFretboardDots(containerId) {
