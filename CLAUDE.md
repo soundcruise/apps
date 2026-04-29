@@ -3,7 +3,7 @@
 ## リポジトリ構成
 
 ```
-apps/（このリポジトリのルート）
+Cruise_apps/（このリポジトリのルート）
     shared/              ← 全アプリ共通CSS・JS
     pitch_trainer/       ← 音感クルーズ
     fretboard_cruise/    ← フレットボードクルーズ（開発予定）
@@ -60,14 +60,12 @@ pitch_trainer/staging/index.html    ← script.js?v=
 
 ## Pro版パスワード変更手順
 
-パスワードを変えるときは **以下3つを必ずセットで更新** する。どれか1つでも漏れると強制ログアウトが機能しない。
+パスワードを変えると、**次回ページを開いたとき自動で全員が強制退出**される。
+アプリを開きっぱなしのユーザーも即退出させたい場合は GATE_VERSION も +1 する。
 
-### 音感クルーズ（pitch_trainer）
+### 音感クルーズ（apps/pitch-cruise）
 
 | ファイル | 変更箇所 | 操作 |
 |---|---|---|
-| `pitch_trainer/pro_x9v7q2m8/index.html` | `window.__SOUNDCRUISE_PRO_GATE__` の `password` | 新しいパスワードに変更 |
-| `pitch_trainer/pro_x9v7q2m8/index.html` | `window.__SOUNDCRUISE_PRO_GATE__` の `rotationId` | +1 |
-| `pitch_trainer/pro_x9v7q2m8/service-worker.js` | `GATE_VERSION` | +1（rotationId と同じ値にする） |
-
-`pitch_trainer/pro_x9v7q2m8/index.html` 内の `pro-gate.js?v=` も +1 すること。
+| `apps/pitch-cruise/pro_x9v7q2m8/index.html` | `window.__SOUNDCRUISE_PRO_GATE__` の `password` | 新しいパスワードに変更（これだけで次回アクセス時に全員退出） |
+| `apps/pitch-cruise/pro_x9v7q2m8/service-worker.js` | `GATE_VERSION` | +1（開きっぱなしのユーザーも即退出させたいときのみ） |

@@ -1,21 +1,25 @@
 /**
  * 共通 Pro ゲート
  * パスワード設定は各アプリの pro_x9v7q2m8/index.html にインラインで定義:
- *   window.__SOUNDCRUISE_PRO_GATE__ = { rotationId: N, password: '0000' };
- * rotationId を +1 すると全アプリで再入力が必要になります。
+ *   window.__SOUNDCRUISE_PRO_GATE__ = { password: '0000' };
+ * password を変更すると全ユーザーが自動的に再入力を求められます。
  */
 (function () {
     // ---- パスワード設定を index.html のインラインスクリプトから読み込む ----
     var _g = window.__SOUNDCRUISE_PRO_GATE__;
-    var CONFIG = (_g && typeof _g.password === 'string' && Number.isFinite(Number(_g.rotationId)))
-        ? { rotationId: Number(_g.rotationId), password: String(_g.password).trim() }
+    var CONFIG = (_g && typeof _g.password === 'string')
+        ? { password: String(_g.password).trim() }
         : null;
     // -----------------------------------------------------------------------
 
     const STORAGE_KEY_LEGACY = 'pitchTrainerProGateOk';
-    const LS_ROTATION_KEY = 'soundcruise_pro_gate_rotation';
+    const LS_AUTH_KEY = 'soundcruise_pro_gate_rotation';
     const COOKIE_NAME = 'soundcruise_pro_gate_rid';
     const SW_GATE_VERSION_KEY = 'soundcruise_pro_sw_gate_v';
+
+    function authToken(password) {
+        try { return btoa(password); } catch (_) { return password; }
+    }
 
     function sharedDomainForCookie() {
         const h = location.hostname;
@@ -24,41 +28,35 @@
         return null;
     }
 
-    function getStoredRotationId() {
+    function getStoredAuth() {
         const d = sharedDomainForCookie();
         if (d) {
             const re = new RegExp('(?:^|; )' + COOKIE_NAME + '=([^;]*)');
             const m = document.cookie.match(re);
-            if (m) {
-                const v = parseInt(decodeURIComponent(m[1]), 10);
-                if (!Number.isNaN(v)) return v;
-            }
+            if (m) return decodeURIComponent(m[1]);
         }
         try {
-            const s = localStorage.getItem(LS_ROTATION_KEY);
-            if (s != null) {
-                const v = parseInt(s, 10);
-                if (!Number.isNaN(v)) return v;
-            }
+            const s = localStorage.getItem(LS_AUTH_KEY);
+            if (s != null) return s;
         } catch (_) { /* ignore */ }
-        return NaN;
+        return null;
     }
 
-    function setStoredRotation(rid) {
+    function setStoredAuth(token) {
         const d = sharedDomainForCookie();
         if (d) {
             const sec = location.protocol === 'https:' ? '; Secure' : '';
             document.cookie =
                 COOKIE_NAME +
                 '=' +
-                encodeURIComponent(String(rid)) +
+                encodeURIComponent(token) +
                 '; Path=/; Domain=' +
                 d +
                 '; Max-Age=31536000; SameSite=Lax' +
                 sec;
         }
         try {
-            localStorage.setItem(LS_ROTATION_KEY, String(rid));
+            localStorage.setItem(LS_AUTH_KEY, token);
         } catch (_) { /* ignore */ }
     }
 
@@ -74,27 +72,13 @@
                 sec;
         }
         try {
-            localStorage.removeItem(LS_ROTATION_KEY);
+            localStorage.removeItem(LS_AUTH_KEY);
             localStorage.removeItem(STORAGE_KEY_LEGACY);
         } catch (_) { /* ignore */ }
     }
 
     function isUnlocked() {
-        const stored = getStoredRotationId();
-        if (stored === CONFIG.rotationId) return true;
-        /* 移行前の localStorage のみのユーザー（一度だけ救済） */
-        try {
-            if (
-                localStorage.getItem(STORAGE_KEY_LEGACY) === '1' &&
-                CONFIG.rotationId === 1 &&
-                Number.isNaN(stored)
-            ) {
-                setStoredRotation(CONFIG.rotationId);
-                localStorage.removeItem(STORAGE_KEY_LEGACY);
-                return true;
-            }
-        } catch (_) { /* ignore */ }
-        return false;
+        return getStoredAuth() === authToken(CONFIG.password);
     }
 
     function dismissOverlay(overlay) {
@@ -191,7 +175,7 @@
             try {
                 localStorage.removeItem(STORAGE_KEY_LEGACY);
             } catch (_) { /* ignore */ }
-            setStoredRotation(CONFIG.rotationId);
+            setStoredAuth(authToken(CONFIG.password));
             dismissOverlay(overlay);
             attachResetButton();
         }
