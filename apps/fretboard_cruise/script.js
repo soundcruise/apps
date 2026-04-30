@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.10.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.10.3';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -56,6 +56,8 @@ let state = {
     },
     visualize: {
         key: 0, // C
+        capo: 0,
+        displayMode: 'note',
         chordType: 'M',
         degreeMode: false
     },
@@ -74,6 +76,9 @@ let state = {
 let currentScrollLeft = 0;
 let autoScrollRequested = false;
 let nextTargetTime = 0;
+let settingsReturnCourse = null;
+let quizAdvanceTimeout = null;
+let quizToneTimeout = null;
 const fretboardDocumentHandlers = new Map();
 const fretboardDebugScrollHandlers = new Map();
 
@@ -117,6 +122,10 @@ if (savedState) {
         // Deep merge for settings
         state = { ...state, ...loaded };
         if (!state.settings) state.settings = { tempo: 75, quizTimeLimit: 3, stringSpacing: 100, viewMode: 'front', rotation: { x: 0, y: 0, z: 0 }, perspective: DEFAULT_VERTICAL_PERSPECTIVE, perspOriginX: DEFAULT_HORIZONTAL_PERSPECTIVE, neckModelVersion: FRETBOARD_NECK_MODEL_VERSION };
+        if (!state.visualize) state.visualize = { key: 0, capo: 0, displayMode: 'note', chordType: 'M', degreeMode: false };
+        if (typeof state.visualize.key === 'undefined') state.visualize.key = 0;
+        if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
+        if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
         if (typeof state.settings.quizTimeLimit === 'undefined') state.settings.quizTimeLimit = 3;
         if (typeof state.settings.stringSpacing === 'undefined') state.settings.stringSpacing = 100;
         if (typeof state.settings.viewMode === 'undefined') state.settings.viewMode = 'front';
@@ -142,6 +151,24 @@ state.settings.viewMode = 'custom';
 
 function saveState() {
     localStorage.setItem('fretboard_cruise_state', JSON.stringify(state));
+}
+
+function openSettings(returnCourse = state.course) {
+    settingsReturnCourse = returnCourse;
+    state.course = 'settings';
+    saveState();
+    renderApp();
+}
+
+function clearQuizAdvanceTimers() {
+    if (quizAdvanceTimeout) {
+        clearTimeout(quizAdvanceTimeout);
+        quizAdvanceTimeout = null;
+    }
+    if (quizToneTimeout) {
+        clearTimeout(quizToneTimeout);
+        quizToneTimeout = null;
+    }
 }
 
 function lerp(a, b, t) {
@@ -437,6 +464,10 @@ function startQuizTimer() {
 }
 
 function handleQuizTimeout() {
+    if (state.course !== 'memorize' || state.memorize.playMode !== 'quiz') return;
+    const container = document.getElementById('fretboard-container');
+    if (!container) return;
+
     state.memorize.combo = 0;
     state.memorize.tempFeedback = { text: 'Miss... (時間切れ)', className: 'feedback-display feedback-wrong' };
     
@@ -456,13 +487,17 @@ function handleQuizTimeout() {
         fb.className = 'feedback-display feedback-wrong';
     }
     
-    setTimeout(() => {
+    clearQuizAdvanceTimers();
+    quizAdvanceTimeout = setTimeout(() => {
+        quizAdvanceTimeout = null;
+        if (state.course !== 'memorize' || state.memorize.playMode !== 'quiz') return;
         generateQuestion();
         renderApp();
     }, 1000);
 }
 
 function stopQuizTimer() {
+    clearQuizAdvanceTimers();
     if (quizTimerInterval) {
         clearInterval(quizTimerInterval);
         quizTimerInterval = null;
@@ -661,6 +696,9 @@ function generateQuestion() {
 
 function renderApp() {
     const app = document.getElementById('app');
+    if (app && typeof app._cleanupSettingsHandlers === 'function') {
+        app._cleanupSettingsHandlers();
+    }
     cleanupFretboardDocumentHandlers();
 
     // Reset settings-screen styles
@@ -776,9 +814,7 @@ function renderHome(app) {
     };
 
     document.getElementById('btn-settings-home').onclick = () => {
-        state.course = 'settings';
-        saveState();
-        renderApp();
+        openSettings(null);
     };
 }
 
@@ -810,9 +846,7 @@ function renderModeSelect(app) {
     };
 
     document.getElementById('btn-settings').onclick = () => {
-        state.course = 'settings';
-        saveState();
-        renderApp();
+        openSettings('modeSelect');
     };
 
     document.querySelectorAll('.stage-btn').forEach(btn => {
@@ -851,9 +885,7 @@ function renderStageSelect(app) {
     };
 
     document.getElementById('btn-settings-stage').onclick = () => {
-        state.course = 'settings';
-        saveState();
-        renderApp();
+        openSettings('stageSelect');
     };
 
     document.querySelectorAll('.stage-btn').forEach(btn => {
@@ -1079,6 +1111,7 @@ function handleFretClick(stringNum, fret) {
     if (isCorrect) {
         state.memorize.correct++;
         state.memorize.combo++;
+        updateMemorizeScoreDisplay();
         fb.textContent = '正解！';
         fb.className = 'feedback-display feedback-correct';
         
@@ -1092,6 +1125,7 @@ function handleFretClick(stringNum, fret) {
 
     } else {
         state.memorize.combo = 0;
+        updateMemorizeScoreDisplay();
         fb.textContent = `不正解... 正解はここ！`;
         fb.className = 'feedback-display feedback-wrong';
         
@@ -1106,12 +1140,16 @@ function handleFretClick(stringNum, fret) {
 
     saveState();
 
-    setTimeout(() => {
+    clearQuizAdvanceTimers();
+    quizAdvanceTimeout = setTimeout(() => {
+        quizAdvanceTimeout = null;
+        if (state.course !== 'memorize' || state.memorize.playMode !== 'quiz') return;
         generateQuestion();
         renderApp();
         // Play the next question note
-        setTimeout(() => {
-            if (state.memorize.currentQuestion) {
+        quizToneTimeout = setTimeout(() => {
+            quizToneTimeout = null;
+            if (state.course === 'memorize' && state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
                 playTone(state.memorize.currentQuestion.stringIdx, state.memorize.currentQuestion.fret);
             }
         }, 100);
@@ -1133,7 +1171,17 @@ function showLiveFeedback(text, type) {
     }
 }
 
+function updateMemorizeScoreDisplay() {
+    const sc = document.getElementById('score-correct');
+    const scombo = document.getElementById('score-combo');
+    if (sc) sc.textContent = state.memorize.correct;
+    if (scombo) scombo.textContent = state.memorize.combo;
+}
+
 function renderVisualize(app) {
+    if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
+    if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
+
     app.innerHTML = `
         <header style="padding-top: 10px; margin-bottom: 5px;">
             <div style="display: flex; justify-content: space-between; width: 100%;">
@@ -1215,6 +1263,7 @@ function renderVisualize(app) {
 }
 
 function renderSettings(app) {
+    const settingsDocumentHandlers = [];
     app.innerHTML = `
         <header style="padding-top: 10px;">
             <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:20px;">
@@ -1325,7 +1374,8 @@ function renderSettings(app) {
     `;
 
     document.getElementById('btn-back-settings').onclick = () => {
-        state.course = 'modeSelect';
+        state.course = settingsReturnCourse;
+        settingsReturnCourse = null;
         saveState();
         renderApp();
     };
@@ -1388,6 +1438,12 @@ function renderSettings(app) {
     let dragMode = 'xy';
 
     function updatePreviewTransform() {
+        if (!document.getElementById('tilt-preview-container')) return;
+        const rotXSlider = document.getElementById('rot-x-slider');
+        const rotYSlider = document.getElementById('rot-y-slider');
+        const rotZSlider = document.getElementById('rot-z-slider');
+        if (!dispX || !dispY || !dispZ || !perspDisp || !perspOriginDisp || !perspOriginSlider || !stringSpacingDisp || !stringSpacingSlider || !rotXSlider || !rotYSlider || !rotZSlider) return;
+
         const r = state.settings.rotation;
         const p_intensity = state.settings.perspective || 0;
         const p_px = 2000;
@@ -1459,9 +1515,9 @@ function renderSettings(app) {
         dispX.textContent = `${Math.round(r.x)}°`;
         dispY.textContent = `${Math.round(r.y)}°`;
         dispZ.textContent = `${Math.round(r.z)}°`;
-        document.getElementById('rot-x-slider').value = r.x;
-        document.getElementById('rot-y-slider').value = r.y;
-        document.getElementById('rot-z-slider').value = r.z;
+        rotXSlider.value = r.x;
+        rotYSlider.value = r.y;
+        rotZSlider.value = r.z;
         perspDisp.textContent = `${p_intensity}`;
         perspOriginDisp.textContent = `${originX}`;
         perspOriginSlider.value = originX;
@@ -1561,10 +1617,20 @@ function renderSettings(app) {
 
     dragArea.addEventListener('mousedown', handleDragStart);
     document.addEventListener('mousemove', handleDragMove);
+    settingsDocumentHandlers.push(['mousemove', handleDragMove]);
     document.addEventListener('mouseup', handleDragEnd);
+    settingsDocumentHandlers.push(['mouseup', handleDragEnd]);
     dragArea.addEventListener('touchstart', handleDragStart, {passive: false});
     document.addEventListener('touchmove', handleDragMove, {passive: false});
+    settingsDocumentHandlers.push(['touchmove', handleDragMove]);
     document.addEventListener('touchend', handleDragEnd);
+    settingsDocumentHandlers.push(['touchend', handleDragEnd]);
+    app._cleanupSettingsHandlers = () => {
+        settingsDocumentHandlers.forEach(([eventName, handler]) => {
+            document.removeEventListener(eventName, handler);
+        });
+        app._cleanupSettingsHandlers = null;
+    };
 
     document.getElementById('btn-reset-tilt').onclick = () => {
         state.settings.viewMode = 'custom';
@@ -1592,8 +1658,6 @@ function renderFretboardHTML(containerId, options) {
         keyIndex, capo, displayMode 
     } = options;
 
-    const r = state.settings.rotation || {x:0, y:0, z:0};
-    
     // If old perspective value (>100), migrate it to the 0-100 range.
     if (state.settings.perspective > 100) {
         state.settings.perspective = Math.round((2000 - state.settings.perspective) / 17);
@@ -1615,13 +1679,9 @@ function renderFretboardHTML(containerId, options) {
     const neckTop = neckBounds.top;
     const neckBottom = neckBounds.bottom;
 
-    const baseTransform = isTiltPreview
-        ? 'none'
-        : `rotateX(${r.x}deg) rotateY(${r.y}deg) rotateZ(${r.z}deg)`;
-
     let html = `<div class="fretboard-scroll-wrapper">`;
     html += `<div class="fretboard-perspective-wrapper" style="perspective: ${p_px}px; perspective-origin: 50% 50%; transform-style: preserve-3d;">`;
-    html += `<div class="${containerClass}" style="transform: ${baseTransform}; transform-style: preserve-3d;">`;
+    html += `<div class="${containerClass}" style="transform: none;">`;
 
     // Front face — exactly the fingerboard height (SVG overflows for fret numbers)
     html += `<div class="neck-face neck-front projected-neck" style="width:${FRETBOARD_WIDTH}px; height:${neckBottom}px; transform: translateZ(0); background: transparent; border: none; box-shadow: none;">`;
@@ -1927,6 +1987,7 @@ function renderFretboardHTML(containerId, options) {
     addFretboardDots(containerId);
 
     cleanupFretboardDocumentHandlers(containerId);
+    if (isTiltPreview) return;
 
     // Attach on document capture because player-view rotation can project frets outside
     // the container's layout box. Hit-test the projected 2D fret rectangles instead.
