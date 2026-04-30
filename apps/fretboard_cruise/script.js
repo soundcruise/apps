@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.10.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.10.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -375,26 +375,35 @@ const STRING_BASE_PITCHES = [40, 45, 50, 55, 59, 64]; // E2, A2, D3, G3, B3, E4
 function playTone(stringIdx, fret) {
     initAudio();
     if (!audioCtx) return;
-    
-    let midiNote = STRING_BASE_PITCHES[stringIdx] + fret;
-    let freq = 440 * Math.pow(2, (midiNote - 69) / 12);
-    
-    let t = audioCtx.currentTime;
-    let osc = audioCtx.createOscillator();
-    let gain = audioCtx.createGain();
-    
-    osc.type = 'triangle'; // Plucked string-like base
-    osc.frequency.setValueAtTime(freq, t);
-    
-    gain.gain.setValueAtTime(0, t);
-    gain.gain.linearRampToValueAtTime(0.8, t + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 2.0);
-    
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    
-    osc.start(t);
-    osc.stop(t + 2.0);
+
+    const doPlay = () => {
+        let midiNote = STRING_BASE_PITCHES[stringIdx] + fret;
+        let freq = 440 * Math.pow(2, (midiNote - 69) / 12);
+
+        let t = audioCtx.currentTime;
+        let osc = audioCtx.createOscillator();
+        let gain = audioCtx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, t);
+
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.8, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 2.0);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start(t);
+        osc.stop(t + 2.0);
+    };
+
+    // On iOS the context can be suspended or interrupted — resume first
+    if (audioCtx.state !== 'running') {
+        audioCtx.resume().then(doPlay).catch(() => {});
+    } else {
+        doPlay();
+    }
 }
 
 // --- Rhythm Machine & Timers ---
@@ -1878,20 +1887,39 @@ function renderFretboardHTML(containerId, options) {
     const containerEl = document.getElementById(containerId);
     containerEl.innerHTML = html;
 
-    // Scale fretboard to fit container width in game mode so open strings
-    // sit at the left edge and all frets are visible without horizontal scrolling.
+    // Scale the fretboard to fill the full viewport width in game mode.
+    // Key constraints:
+    //  1. Use window.innerWidth (not containerEl width) to break out of the
+    //     app container's max-width: 600px constraint.
+    //  2. Set scroll-wrapper width = FRETBOARD_WIDTH before applying scale so
+    //     all frets (not just the clipped portion) are visible after scaling.
+    //  3. Avoid overflow:hidden on the container — it can block iOS touch events
+    //     for children whose layout position exceeds the container height.
     if (!isTiltPreview) {
         const scrollWrapper = containerEl.querySelector('.fretboard-scroll-wrapper');
         if (scrollWrapper) {
-            const availW = containerEl.clientWidth || window.innerWidth;
-            const scale = availW / FRETBOARD_WIDTH;
+            const screenW = window.innerWidth;
+            const scale = screenW / FRETBOARD_WIDTH;
+
+            // Break out of the app container's max-width by offsetting to the left
+            // viewport edge. position:relative keeps the element in the flex flow.
+            const containerRect = containerEl.getBoundingClientRect();
+            containerEl.style.position = 'relative';
+            containerEl.style.left = `${-Math.round(containerRect.left)}px`;
+            containerEl.style.width = `${screenW}px`;
+
             if (scale < 1) {
+                // Expand scroll wrapper to the full fretboard width first, then
+                // scale the entire wrapper down so all frets fit on screen.
                 const wrapperLayoutH = neckBottom + 45; // padding-top(10) + neckBottom + padding-bottom(35)
+                const visualH = Math.ceil(wrapperLayoutH * scale);
+                scrollWrapper.style.width = `${FRETBOARD_WIDTH}px`;
+                scrollWrapper.style.overflowX = 'hidden';
                 scrollWrapper.style.transformOrigin = 'top left';
                 scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
-                scrollWrapper.style.overflowX = 'hidden';
-                containerEl.style.height = `${Math.ceil(wrapperLayoutH * scale)}px`;
-                containerEl.style.overflow = 'hidden';
+                // Pull up the following content to remove the excess layout space
+                // left behind by the scaled-down wrapper (transform doesn't affect layout).
+                containerEl.style.marginBottom = `${-(wrapperLayoutH - visualH)}px`;
             }
         }
     }
