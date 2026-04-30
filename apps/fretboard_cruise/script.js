@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.10.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.10.4';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -34,8 +34,12 @@ const FRET_DOT_Z = 0.6;
 const FRET_NUMBER_Z = -1.5;
 const NOTE_MARKER_Z = 2.2;
 const FRETBOARD_NECK_MODEL_VERSION = 2;
-const DEFAULT_VERTICAL_PERSPECTIVE = 70;
-const DEFAULT_HORIZONTAL_PERSPECTIVE = 80;
+const DEFAULT_TEMPO = 75;
+const DEFAULT_QUIZ_TIME_LIMIT = 5;
+const DEFAULT_STRING_SPACING = 100;
+const DEFAULT_VERTICAL_PERSPECTIVE = 0;
+const DEFAULT_HORIZONTAL_PERSPECTIVE = 0;
+const DEFAULT_ROTATION = { x: 0, y: 0, z: 0 };
 
 // Default States
 let state = {
@@ -62,11 +66,11 @@ let state = {
         degreeMode: false
     },
     settings: {
-        tempo: 75,
-        quizTimeLimit: 3,
-        stringSpacing: 100, // 100% = default
+        tempo: DEFAULT_TEMPO,
+        quizTimeLimit: DEFAULT_QUIZ_TIME_LIMIT,
+        stringSpacing: DEFAULT_STRING_SPACING, // 100% = default
         viewMode: 'front',
-        rotation: { x: 0, y: 0, z: 0 },
+        rotation: { ...DEFAULT_ROTATION },
         perspective: DEFAULT_VERTICAL_PERSPECTIVE, // 遠近感 (0-100)
         perspOriginX: DEFAULT_HORIZONTAL_PERSPECTIVE, // 横の遠近感 (0-100, 100=12F大きく)
         neckModelVersion: FRETBOARD_NECK_MODEL_VERSION
@@ -121,15 +125,16 @@ if (savedState) {
         let loaded = JSON.parse(savedState);
         // Deep merge for settings
         state = { ...state, ...loaded };
-        if (!state.settings) state.settings = { tempo: 75, quizTimeLimit: 3, stringSpacing: 100, viewMode: 'front', rotation: { x: 0, y: 0, z: 0 }, perspective: DEFAULT_VERTICAL_PERSPECTIVE, perspOriginX: DEFAULT_HORIZONTAL_PERSPECTIVE, neckModelVersion: FRETBOARD_NECK_MODEL_VERSION };
+        if (!state.settings) state.settings = getDefaultSettings();
         if (!state.visualize) state.visualize = { key: 0, capo: 0, displayMode: 'note', chordType: 'M', degreeMode: false };
         if (typeof state.visualize.key === 'undefined') state.visualize.key = 0;
         if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
         if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
-        if (typeof state.settings.quizTimeLimit === 'undefined') state.settings.quizTimeLimit = 3;
-        if (typeof state.settings.stringSpacing === 'undefined') state.settings.stringSpacing = 100;
+        if (typeof state.settings.tempo === 'undefined') state.settings.tempo = DEFAULT_TEMPO;
+        if (typeof state.settings.quizTimeLimit === 'undefined') state.settings.quizTimeLimit = DEFAULT_QUIZ_TIME_LIMIT;
+        if (typeof state.settings.stringSpacing === 'undefined') state.settings.stringSpacing = DEFAULT_STRING_SPACING;
         if (typeof state.settings.viewMode === 'undefined') state.settings.viewMode = 'front';
-        if (typeof state.settings.rotation === 'undefined') state.settings.rotation = { x: 0, y: 0, z: 0 };
+        if (typeof state.settings.rotation === 'undefined') state.settings.rotation = { ...DEFAULT_ROTATION };
         if (typeof state.settings.perspective === 'undefined') state.settings.perspective = DEFAULT_VERTICAL_PERSPECTIVE;
         if (typeof state.settings.perspOriginX === 'undefined') state.settings.perspOriginX = DEFAULT_HORIZONTAL_PERSPECTIVE;
     } catch (e) {}
@@ -137,7 +142,7 @@ if (savedState) {
 
 if (state.settings.neckModelVersion !== FRETBOARD_NECK_MODEL_VERSION) {
     if (state.settings.viewMode === 'front' || (state.settings.perspective === 0 && state.settings.perspOriginX === 0)) {
-        state.settings.rotation = { x: 0, y: 0, z: 0 };
+        state.settings.rotation = { ...DEFAULT_ROTATION };
         state.settings.perspective = DEFAULT_VERTICAL_PERSPECTIVE;
         state.settings.perspOriginX = DEFAULT_HORIZONTAL_PERSPECTIVE;
     }
@@ -145,12 +150,32 @@ if (state.settings.neckModelVersion !== FRETBOARD_NECK_MODEL_VERSION) {
 }
 
 if (state.settings.viewMode === 'front') {
-    state.settings.rotation = { x: 0, y: 0, z: 0 };
+    state.settings.rotation = { ...DEFAULT_ROTATION };
 }
 state.settings.viewMode = 'custom';
 
 function saveState() {
     localStorage.setItem('fretboard_cruise_state', JSON.stringify(state));
+}
+
+function getDefaultSettings() {
+    return {
+        tempo: DEFAULT_TEMPO,
+        quizTimeLimit: DEFAULT_QUIZ_TIME_LIMIT,
+        stringSpacing: DEFAULT_STRING_SPACING,
+        viewMode: 'custom',
+        rotation: { ...DEFAULT_ROTATION },
+        perspective: DEFAULT_VERTICAL_PERSPECTIVE,
+        perspOriginX: DEFAULT_HORIZONTAL_PERSPECTIVE,
+        neckModelVersion: FRETBOARD_NECK_MODEL_VERSION
+    };
+}
+
+function cloneSettings(settings) {
+    return {
+        ...settings,
+        rotation: { ...(settings.rotation || DEFAULT_ROTATION) }
+    };
 }
 
 function openSettings(returnCourse = state.course) {
@@ -1264,6 +1289,7 @@ function renderVisualize(app) {
 
 function renderSettings(app) {
     const settingsDocumentHandlers = [];
+    const settingsSnapshot = cloneSettings(state.settings);
     app.innerHTML = `
         <header style="padding-top: 10px;">
             <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:20px;">
@@ -1292,7 +1318,7 @@ function renderSettings(app) {
                 <span>長い</span>
             </div>
             <input type="range" id="timer-slider" min="1" max="10" step="1" value="${state.settings.quizTimeLimit}" class="settings-range">
-            <p class="settings-note">設定した秒数以内に答えないとMissになります。（推奨: 3秒）</p>
+            <p class="settings-note">設定した秒数以内に答えないとMissになります。（推奨: 5秒）</p>
         </div>
 
         <div class="settings-card">
@@ -1310,7 +1336,6 @@ function renderSettings(app) {
             <div id="tilt-setting-group" style="border-top:1px solid rgba(255,255,255,0.1); padding-top:16px; margin-top:8px;">
                 <div class="settings-row-between" style="margin-bottom:8px;">
                     <span class="settings-label">カメラの向き（ドラッグで操作）</span>
-                    <button id="btn-reset-tilt" class="settings-btn-small">リセット</button>
                 </div>
                 <p class="settings-note" style="margin-top:0; margin-bottom:14px;">中央をドラッグで上下左右、端をドラッグで回転します。まずはプリセットを選んでから微調整すると簡単です。</p>
 
@@ -1323,69 +1348,91 @@ function renderSettings(app) {
                     <div class="settings-axis-item">
                         <div class="settings-row-between" style="margin-bottom:4px;">
                             <span class="settings-axis-label">X軸（前後）</span>
-                            <div style="display:flex; align-items:center; gap:6px;">
-                                <span class="settings-axis-val" id="rot-x-disp">${Math.round(state.settings.rotation.x)}°</span>
-                                <button class="axis-reset-btn settings-axis-zero" data-axis="x">0°</button>
-                            </div>
-                        </div>
+	                            <div style="display:flex; align-items:center; gap:6px;">
+	                                <span class="settings-axis-val" id="rot-x-disp">${Math.round(state.settings.rotation.x)}°</span>
+	                                <button class="settings-reset-btn" data-reset="rot-x">初期値</button>
+	                            </div>
+	                        </div>
                         <input type="range" id="rot-x-slider" min="-90" max="90" step="1" value="${state.settings.rotation.x}" class="settings-range">
                     </div>
                     <div class="settings-axis-item">
                         <div class="settings-row-between" style="margin-bottom:4px;">
                             <span class="settings-axis-label">Y軸（左右）</span>
-                            <div style="display:flex; align-items:center; gap:6px;">
-                                <span class="settings-axis-val" id="rot-y-disp">${Math.round(state.settings.rotation.y)}°</span>
-                                <button class="axis-reset-btn settings-axis-zero" data-axis="y">0°</button>
-                            </div>
-                        </div>
+	                            <div style="display:flex; align-items:center; gap:6px;">
+	                                <span class="settings-axis-val" id="rot-y-disp">${Math.round(state.settings.rotation.y)}°</span>
+	                                <button class="settings-reset-btn" data-reset="rot-y">初期値</button>
+	                            </div>
+	                        </div>
                         <input type="range" id="rot-y-slider" min="-90" max="90" step="1" value="${state.settings.rotation.y}" class="settings-range">
                     </div>
                     <div class="settings-axis-item">
                         <div class="settings-row-between" style="margin-bottom:4px;">
                             <span class="settings-axis-label">Z軸（回転）</span>
-                            <div style="display:flex; align-items:center; gap:6px;">
-                                <span class="settings-axis-val" id="rot-z-disp">${Math.round(state.settings.rotation.z)}°</span>
-                                <button class="axis-reset-btn settings-axis-zero" data-axis="z">0°</button>
-                            </div>
-                        </div>
+	                            <div style="display:flex; align-items:center; gap:6px;">
+	                                <span class="settings-axis-val" id="rot-z-disp">${Math.round(state.settings.rotation.z)}°</span>
+	                                <button class="settings-reset-btn" data-reset="rot-z">初期値</button>
+	                            </div>
+	                        </div>
                         <input type="range" id="rot-z-slider" min="-180" max="180" step="1" value="${state.settings.rotation.z}" class="settings-range">
                     </div>
                 </div>
 
-                <div class="settings-row-between" style="margin-top:16px; margin-bottom:6px;">
-                    <span class="settings-label">カメラ奥行（上下）</span>
-                    <span class="settings-value-badge-sm" id="persp-display">${state.settings.perspective}</span>
-                </div>
+	                <div class="settings-row-between" style="margin-top:16px; margin-bottom:6px;">
+	                    <span class="settings-label">カメラ奥行（上下）</span>
+	                    <div class="settings-value-control">
+	                        <span class="settings-value-badge-sm" id="persp-display">${state.settings.perspective}</span>
+	                        <button class="settings-reset-btn" data-reset="perspective">初期値</button>
+	                    </div>
+	                </div>
                 <input type="range" id="persp-slider" min="0" max="100" step="1" value="${state.settings.perspective}" class="settings-range" style="margin-bottom:16px;">
 
-                <div class="settings-row-between" style="margin-bottom:6px;">
-                    <span class="settings-label">カメラ奥行（横 ヘッド小 ← → 12F大）</span>
-                    <span class="settings-value-badge-sm" id="persp-origin-display">${state.settings.perspOriginX}</span>
-                </div>
+	                <div class="settings-row-between" style="margin-bottom:6px;">
+	                    <span class="settings-label">カメラ奥行（横 ヘッド小 ← → 12F大）</span>
+	                    <div class="settings-value-control">
+	                        <span class="settings-value-badge-sm" id="persp-origin-display">${state.settings.perspOriginX}</span>
+	                        <button class="settings-reset-btn" data-reset="persp-origin">初期値</button>
+	                    </div>
+	                </div>
                 <input type="range" id="persp-origin-slider" min="0" max="100" step="1" value="${state.settings.perspOriginX}" class="settings-range">
-                <div class="settings-row-between" style="margin-top:16px; margin-bottom:6px;">
-                    <span class="settings-label">弦間の広さ（一律）</span>
-                    <span class="settings-value-badge-sm" id="string-spacing-display">${state.settings.stringSpacing}%</span>
-                </div>
+	                <div class="settings-row-between" style="margin-top:16px; margin-bottom:6px;">
+	                    <span class="settings-label">弦間の広さ（一律）</span>
+	                    <div class="settings-value-control">
+	                        <span class="settings-value-badge-sm" id="string-spacing-display">${state.settings.stringSpacing}%</span>
+	                        <button class="settings-reset-btn" data-reset="string-spacing">初期値</button>
+	                    </div>
+	                </div>
                 <input type="range" id="string-spacing-slider" min="80" max="150" step="1" value="${state.settings.stringSpacing}" class="settings-range">
                 <p class="settings-note" style="margin-top:10px;">横の奥行は「ヘッド側を小さくしたい時」に上げます。迷ったら 70〜90 がおすすめです。</p>
             </div>
-        </div>
-    `;
+	        </div>
+	        <div class="settings-actions-footer">
+	            <button class="settings-bottom-btn settings-apply-btn" id="btn-settings-apply">決定</button>
+	            <div class="settings-secondary-actions">
+	                <button class="btn-secondary settings-bottom-btn" id="btn-settings-cancel">キャンセル</button>
+	                <button class="btn-secondary settings-bottom-btn settings-danger-btn" id="btn-settings-defaults">全ての項目をデフォルトに戻す</button>
+	            </div>
+	        </div>
+	    `;
 
-    document.getElementById('btn-back-settings').onclick = () => {
+    const closeSettings = (shouldSave) => {
+        if (!shouldSave) {
+            state.settings = cloneSettings(settingsSnapshot);
+        }
         state.course = settingsReturnCourse;
         settingsReturnCourse = null;
         saveState();
         renderApp();
     };
 
+    document.getElementById('btn-back-settings').onclick = () => closeSettings(true);
+    document.getElementById('btn-settings-cancel').onclick = () => closeSettings(false);
+    document.getElementById('btn-settings-apply').onclick = () => closeSettings(true);
+
     const tempoSlider = document.getElementById('tempo-slider');
     const tempoDisplay = document.getElementById('tempo-display');
     tempoSlider.oninput = (e) => {
         state.settings.tempo = parseInt(e.target.value);
         tempoDisplay.textContent = `BPM ${state.settings.tempo}`;
-        saveState();
     };
 
     const timerSlider = document.getElementById('timer-slider');
@@ -1393,7 +1440,6 @@ function renderSettings(app) {
     timerSlider.oninput = (e) => {
         state.settings.quizTimeLimit = parseInt(e.target.value);
         timerDisplay.textContent = `${state.settings.quizTimeLimit} 秒`;
-        saveState();
     };
 
     const updatePreview = () => {
@@ -1431,6 +1477,19 @@ function renderSettings(app) {
     const perspOriginDisp = document.getElementById('persp-origin-display');
     const stringSpacingSlider = document.getElementById('string-spacing-slider');
     const stringSpacingDisp = document.getElementById('string-spacing-display');
+
+    function refreshSettingsControls() {
+        tempoSlider.value = state.settings.tempo;
+        tempoDisplay.textContent = `BPM ${state.settings.tempo}`;
+        timerSlider.value = state.settings.quizTimeLimit;
+        timerDisplay.textContent = `${state.settings.quizTimeLimit} 秒`;
+        perspSlider.value = state.settings.perspective;
+        perspOriginSlider.value = state.settings.perspOriginX;
+        stringSpacingSlider.value = state.settings.stringSpacing;
+        stringSpacingDisp.textContent = `${state.settings.stringSpacing}%`;
+        updatePreview();
+        updatePreviewTransform();
+    }
 
     let isDragging = false;
     let startX = 0, startY = 0;
@@ -1525,26 +1584,29 @@ function renderSettings(app) {
         stringSpacingSlider.value = state.settings.stringSpacing;
     }
 
-    perspSlider.oninput = (e) => { state.settings.viewMode = 'custom'; state.settings.perspective = parseInt(e.target.value); updatePreview(); updatePreviewTransform(); saveState(); };
-    perspOriginSlider.oninput = (e) => { state.settings.viewMode = 'custom'; state.settings.perspOriginX = parseInt(e.target.value); updatePreview(); updatePreviewTransform(); saveState(); };
+    perspSlider.oninput = (e) => { state.settings.viewMode = 'custom'; state.settings.perspective = parseInt(e.target.value); updatePreview(); updatePreviewTransform(); };
+    perspOriginSlider.oninput = (e) => { state.settings.viewMode = 'custom'; state.settings.perspOriginX = parseInt(e.target.value); updatePreview(); updatePreviewTransform(); };
     stringSpacingSlider.oninput = (e) => {
         state.settings.stringSpacing = parseInt(e.target.value);
         stringSpacingDisp.textContent = `${state.settings.stringSpacing}%`;
         updatePreview();
         updatePreviewTransform();
-        saveState();
     };
-    document.getElementById('rot-x-slider').oninput = (e) => { state.settings.viewMode = 'custom'; state.settings.rotation.x = parseInt(e.target.value); updatePreview(); updatePreviewTransform(); saveState(); };
-    document.getElementById('rot-y-slider').oninput = (e) => { state.settings.viewMode = 'custom'; state.settings.rotation.y = parseInt(e.target.value); updatePreview(); updatePreviewTransform(); saveState(); };
-    document.getElementById('rot-z-slider').oninput = (e) => { state.settings.viewMode = 'custom'; state.settings.rotation.z = parseInt(e.target.value); updatePreview(); updatePreviewTransform(); saveState(); };
+    document.getElementById('rot-x-slider').oninput = (e) => { state.settings.viewMode = 'custom'; state.settings.rotation.x = parseInt(e.target.value); updatePreview(); updatePreviewTransform(); };
+    document.getElementById('rot-y-slider').oninput = (e) => { state.settings.viewMode = 'custom'; state.settings.rotation.y = parseInt(e.target.value); updatePreview(); updatePreviewTransform(); };
+    document.getElementById('rot-z-slider').oninput = (e) => { state.settings.viewMode = 'custom'; state.settings.rotation.z = parseInt(e.target.value); updatePreview(); updatePreviewTransform(); };
 
-    document.querySelectorAll('.axis-reset-btn').forEach(btn => {
+    document.querySelectorAll('.settings-reset-btn').forEach(btn => {
         btn.onclick = () => {
             state.settings.viewMode = 'custom';
-            state.settings.rotation[btn.getAttribute('data-axis')] = 0;
-            updatePreview();
-            updatePreviewTransform();
-            saveState();
+            const resetTarget = btn.getAttribute('data-reset');
+            if (resetTarget === 'rot-x') state.settings.rotation.x = DEFAULT_ROTATION.x;
+            if (resetTarget === 'rot-y') state.settings.rotation.y = DEFAULT_ROTATION.y;
+            if (resetTarget === 'rot-z') state.settings.rotation.z = DEFAULT_ROTATION.z;
+            if (resetTarget === 'perspective') state.settings.perspective = DEFAULT_VERTICAL_PERSPECTIVE;
+            if (resetTarget === 'persp-origin') state.settings.perspOriginX = DEFAULT_HORIZONTAL_PERSPECTIVE;
+            if (resetTarget === 'string-spacing') state.settings.stringSpacing = DEFAULT_STRING_SPACING;
+            refreshSettingsControls();
         };
     });
 
@@ -1553,26 +1615,25 @@ function renderSettings(app) {
             const preset = btn.getAttribute('data-preset');
             state.settings.viewMode = 'custom';
             if (preset === 'front') {
-                state.settings.rotation = {x: 0, y: 0, z: 0};
+                state.settings.rotation = { ...DEFAULT_ROTATION };
                 state.settings.perspective = 0;
                 state.settings.perspOriginX = 0;
             } else if (preset === 'diagonal') {
                 state.settings.rotation = {x: 18, y: 0, z: 0};
-                state.settings.perspective = 85;
+                state.settings.perspective = 30;
                 state.settings.perspOriginX = 90;
             }
             if (preset === 'front') {
-                state.settings.stringSpacing = 100;
+                state.settings.stringSpacing = DEFAULT_STRING_SPACING;
             }
-            perspSlider.value = state.settings.perspective;
-            perspOriginSlider.value = state.settings.perspOriginX;
-            stringSpacingSlider.value = state.settings.stringSpacing;
-            stringSpacingDisp.textContent = `${state.settings.stringSpacing}%`;
-            updatePreview();
-            updatePreviewTransform();
-            saveState();
+            refreshSettingsControls();
         };
     });
+
+    document.getElementById('btn-settings-defaults').onclick = () => {
+        state.settings = getDefaultSettings();
+        refreshSettingsControls();
+    };
 
     function handleDragStart(e) {
         isDragging = true;
@@ -1612,7 +1673,7 @@ function renderSettings(app) {
     }
 
     function handleDragEnd() {
-        if (isDragging) { isDragging = false; dragArea.style.cursor = 'grab'; saveState(); }
+        if (isDragging) { isDragging = false; dragArea.style.cursor = 'grab'; }
     }
 
     dragArea.addEventListener('mousedown', handleDragStart);
@@ -1630,21 +1691,6 @@ function renderSettings(app) {
             document.removeEventListener(eventName, handler);
         });
         app._cleanupSettingsHandlers = null;
-    };
-
-    document.getElementById('btn-reset-tilt').onclick = () => {
-        state.settings.viewMode = 'custom';
-        state.settings.rotation = { x: 0, y: 0, z: 0 };
-        state.settings.perspective = DEFAULT_VERTICAL_PERSPECTIVE;
-        state.settings.perspOriginX = DEFAULT_HORIZONTAL_PERSPECTIVE;
-        state.settings.stringSpacing = 100;
-        perspSlider.value = DEFAULT_VERTICAL_PERSPECTIVE;
-        perspOriginSlider.value = DEFAULT_HORIZONTAL_PERSPECTIVE;
-        stringSpacingSlider.value = 100;
-        stringSpacingDisp.textContent = '100%';
-        updatePreview();
-        updatePreviewTransform();
-        saveState();
     };
 
     app.style.height = '100vh';

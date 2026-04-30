@@ -555,7 +555,7 @@
 
 .settings-range {
     width: 100%;
-    accent-color: var(--primary-color);
+    accent-color: #31c46b;
     cursor: pointer;
     display: block;
     box-sizing: border-box;
@@ -573,16 +573,22 @@
 .settings-value-badge {
     font-size: 1.2rem;
     font-weight: 700;
-    color: var(--primary-color);
+    color: #31c46b;
     text-align: center;
 }
 
 .settings-value-badge-sm {
     font-size: 0.95rem;
     font-weight: 700;
-    color: var(--primary-color);
+    color: #31c46b;
     min-width: 36px;
     text-align: right;
+}
+
+.settings-value-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .settings-note {
@@ -725,7 +731,7 @@
 
 .settings-axis-label {
     font-size: 0.82rem;
-    color: var(--primary-color);
+    color: #31c46b;
 }
 
 .settings-axis-val {
@@ -744,6 +750,69 @@
     font-size: 0.7rem;
     cursor: pointer;
     font-family: inherit;
+}
+
+.settings-reset-btn {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.28);
+    color: rgba(255,255,255,0.72);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.settings-reset-btn:active {
+    background: rgba(255,255,255,0.15);
+}
+
+.settings-actions-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    margin: 8px 0 24px;
+}
+
+.settings-secondary-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.settings-secondary-actions .settings-bottom-btn {
+    font-size: 0.78rem;
+    line-height: 1.35;
+}
+
+.settings-bottom-btn {
+    width: 100%;
+    min-height: 44px;
+    padding: 12px 14px;
+    font-size: 0.95rem;
+}
+
+.settings-apply-btn {
+    border: 1px solid rgba(49, 196, 107, 0.9);
+    border-radius: 8px;
+    background: #31c46b;
+    color: #06160b;
+    font-family: inherit;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 0 12px rgba(49, 196, 107, 0.22);
+}
+
+.settings-apply-btn:active {
+    transform: translateY(1px);
+    background: #28ad5d;
+}
+
+.settings-danger-btn {
+    border-color: rgba(255, 79, 110, 0.45);
+    color: #ff9aac;
 }
 
 .hit-debug-overlay {
