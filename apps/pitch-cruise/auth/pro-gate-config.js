@@ -4,5 +4,5 @@
  * 同時に pro-gate.js の「YYYY.M.D更新」表示も更新してください。
  */
 window.__SOUNDCRUISE_PRO_GATE__ = {
-    password: '8392',
+    password: '7392',
 };
