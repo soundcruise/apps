@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.1.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.10.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -6,6 +6,36 @@ const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const OPEN_STRINGS = [4, 9, 2, 7, 11, 4]; // E A D G B E (6弦 -> 1弦)
 const STRINGS_REV = [6, 5, 4, 3, 2, 1];
 const MAX_FRET = 12;
+const FRETBOARD_HIT_DEBUG = new URLSearchParams(window.location.search).has('hitDebug');
+const TARGET_HIT_PADDING_X_PX = 0;
+const TARGET_HIT_PADDING_Y_PX = 20;
+const FRET_WIDTHS = Array(MAX_FRET + 1).fill(65);
+const FRETBOARD_WIDTH = FRET_WIDTHS.reduce((sum, width) => sum + width, 0);
+const FRETBOARD_TOP_Y = 15;
+const FRETBOARD_STRING_GAP = 30;
+const FRETBOARD_STRING_AREA_HEIGHT = 180;
+const FRETBOARD_HEIGHT = FRETBOARD_TOP_Y * 2 + FRETBOARD_STRING_AREA_HEIGHT;
+const FRETBOARD_CENTER_Y = FRETBOARD_HEIGHT / 2;
+const FRETBOARD_BODY_BOTTOM_Y = FRETBOARD_HEIGHT - FRETBOARD_TOP_Y;
+const FRET_NUMBER_STRIP_HEIGHT = 34;
+const FRET_NUMBER_STRIP_BOTTOM_Y = FRETBOARD_BODY_BOTTOM_Y + FRET_NUMBER_STRIP_HEIGHT;
+const FRETBOARD_VIEWBOX_HEIGHT = 330;
+const HORIZONTAL_FAR_SCALE = 0.65;
+const HORIZONTAL_NEAR_SCALE = 1.25;
+const VERTICAL_NEAR_EXPONENT = 1.55;
+const VERTICAL_FAR_SCALE = 0.92;
+const VERTICAL_NEAR_SCALE = 1.1;
+const FRETBOARD_SIDE_DEPTH = 24;
+const NECK_GRIP_DEPTH = 74;
+const NECK_GRIP_OUTSET = 34;
+const FRETBOARD_SURFACE_Z = 0;
+const STRING_Z = 1.2;
+const FRET_DOT_Z = 0.6;
+const FRET_NUMBER_Z = -1.5;
+const NOTE_MARKER_Z = 2.2;
+const FRETBOARD_NECK_MODEL_VERSION = 2;
+const DEFAULT_VERTICAL_PERSPECTIVE = 70;
+const DEFAULT_HORIZONTAL_PERSPECTIVE = 80;
 
 // Default States
 let state = {
@@ -32,10 +62,12 @@ let state = {
     settings: {
         tempo: 75,
         quizTimeLimit: 3,
-        viewMode: 'front', // 'front' (1st top) or 'player' (6th top)
-        rotation: { x: 12, y: 0, z: 0 }, // Degrees for player view
-        perspective: 50, // 遠近感 (0-100)
-        perspOriginX: 50 // 横の遠近感 (0-100, 100=12F大きく)
+        stringSpacing: 100, // 100% = default
+        viewMode: 'front',
+        rotation: { x: 0, y: 0, z: 0 },
+        perspective: DEFAULT_VERTICAL_PERSPECTIVE, // 遠近感 (0-100)
+        perspOriginX: DEFAULT_HORIZONTAL_PERSPECTIVE, // 横の遠近感 (0-100, 100=12F大きく)
+        neckModelVersion: FRETBOARD_NECK_MODEL_VERSION
     }
 };
 
@@ -43,6 +75,7 @@ let currentScrollLeft = 0;
 let autoScrollRequested = false;
 let nextTargetTime = 0;
 const fretboardDocumentHandlers = new Map();
+const fretboardDebugScrollHandlers = new Map();
 
 function cleanupFretboardDocumentHandlers(containerId) {
     if (containerId) {
@@ -51,6 +84,15 @@ function cleanupFretboardDocumentHandlers(containerId) {
             document.removeEventListener('click', handler, true);
             fretboardDocumentHandlers.delete(containerId);
         }
+        const debugScrollHandler = fretboardDebugScrollHandlers.get(containerId);
+        if (debugScrollHandler) {
+            const containerEl = document.getElementById(containerId);
+            const wrapper = containerEl ? containerEl.querySelector('.fretboard-scroll-wrapper') : null;
+            if (wrapper) wrapper.removeEventListener('scroll', debugScrollHandler);
+            fretboardDebugScrollHandlers.delete(containerId);
+        }
+        const debugOverlay = document.getElementById(`hit-debug-${containerId}`);
+        if (debugOverlay) debugOverlay.remove();
         return;
     }
 
@@ -58,6 +100,13 @@ function cleanupFretboardDocumentHandlers(containerId) {
         document.removeEventListener('click', handler, true);
     });
     fretboardDocumentHandlers.clear();
+    fretboardDebugScrollHandlers.forEach((handler, id) => {
+        const containerEl = document.getElementById(id);
+        const wrapper = containerEl ? containerEl.querySelector('.fretboard-scroll-wrapper') : null;
+        if (wrapper) wrapper.removeEventListener('scroll', handler);
+    });
+    fretboardDebugScrollHandlers.clear();
+    document.querySelectorAll('.hit-debug-overlay').forEach(el => el.remove());
 }
 
 // Load state
@@ -67,17 +116,244 @@ if (savedState) {
         let loaded = JSON.parse(savedState);
         // Deep merge for settings
         state = { ...state, ...loaded };
-        if (!state.settings) state.settings = { tempo: 75, quizTimeLimit: 3, viewMode: 'front', rotation: { x: 12, y: 0, z: 0 }, perspective: 50, perspOriginX: 50 };
+        if (!state.settings) state.settings = { tempo: 75, quizTimeLimit: 3, stringSpacing: 100, viewMode: 'front', rotation: { x: 0, y: 0, z: 0 }, perspective: DEFAULT_VERTICAL_PERSPECTIVE, perspOriginX: DEFAULT_HORIZONTAL_PERSPECTIVE, neckModelVersion: FRETBOARD_NECK_MODEL_VERSION };
         if (typeof state.settings.quizTimeLimit === 'undefined') state.settings.quizTimeLimit = 3;
+        if (typeof state.settings.stringSpacing === 'undefined') state.settings.stringSpacing = 100;
         if (typeof state.settings.viewMode === 'undefined') state.settings.viewMode = 'front';
-        if (typeof state.settings.rotation === 'undefined') state.settings.rotation = { x: 12, y: 0, z: 0 };
-        if (typeof state.settings.perspective === 'undefined') state.settings.perspective = 50;
-        if (typeof state.settings.perspOriginX === 'undefined') state.settings.perspOriginX = 50;
+        if (typeof state.settings.rotation === 'undefined') state.settings.rotation = { x: 0, y: 0, z: 0 };
+        if (typeof state.settings.perspective === 'undefined') state.settings.perspective = DEFAULT_VERTICAL_PERSPECTIVE;
+        if (typeof state.settings.perspOriginX === 'undefined') state.settings.perspOriginX = DEFAULT_HORIZONTAL_PERSPECTIVE;
     } catch (e) {}
 }
 
+if (state.settings.neckModelVersion !== FRETBOARD_NECK_MODEL_VERSION) {
+    if (state.settings.viewMode === 'front' || (state.settings.perspective === 0 && state.settings.perspOriginX === 0)) {
+        state.settings.rotation = { x: 0, y: 0, z: 0 };
+        state.settings.perspective = DEFAULT_VERTICAL_PERSPECTIVE;
+        state.settings.perspOriginX = DEFAULT_HORIZONTAL_PERSPECTIVE;
+    }
+    state.settings.neckModelVersion = FRETBOARD_NECK_MODEL_VERSION;
+}
+
+if (state.settings.viewMode === 'front') {
+    state.settings.rotation = { x: 0, y: 0, z: 0 };
+}
+state.settings.viewMode = 'custom';
+
 function saveState() {
     localStorage.setItem('fretboard_cruise_state', JSON.stringify(state));
+}
+
+function lerp(a, b, t) {
+    return a + (b - a) * t;
+}
+
+// ----------------------------------------------------
+// 3D Math Base (STEP 1: foundation only)
+// ----------------------------------------------------
+function createVec3(x = 0, y = 0, z = 0) {
+    return { x, y, z };
+}
+
+function degToRad(deg) {
+    return (deg * Math.PI) / 180;
+}
+
+function rotateVec3(point, rotationDeg) {
+    const rx = degToRad(rotationDeg.x || 0);
+    const ry = degToRad(rotationDeg.y || 0);
+    const rz = degToRad(rotationDeg.z || 0);
+
+    let x = point.x;
+    let y = point.y;
+    let z = point.z;
+
+    // Rotate around X axis
+    let y1 = y * Math.cos(rx) - z * Math.sin(rx);
+    let z1 = y * Math.sin(rx) + z * Math.cos(rx);
+    y = y1;
+    z = z1;
+
+    // Rotate around Y axis
+    let x2 = x * Math.cos(ry) + z * Math.sin(ry);
+    let z2 = -x * Math.sin(ry) + z * Math.cos(ry);
+    x = x2;
+    z = z2;
+
+    // Rotate around Z axis
+    let x3 = x * Math.cos(rz) - y * Math.sin(rz);
+    let y3 = x * Math.sin(rz) + y * Math.cos(rz);
+
+    return createVec3(x3, y3, z);
+}
+
+function getCameraPoseFromSettings() {
+    const rotation = state.settings.rotation || { x: 0, y: 0, z: 0 };
+    const verticalStrength = getVerticalPerspectiveStrength();
+    const horizontalStrength = getHorizontalPerspectiveStrength();
+    const perspectivePx = lerp(2400, 900, verticalStrength);
+    const cameraOffsetX = lerp(0, 260, horizontalStrength);
+    return {
+        position: createVec3(cameraOffsetX, 0, perspectivePx),
+        rotation: createVec3(rotation.x, rotation.y, rotation.z),
+        perspectivePx
+    };
+}
+
+function projectWorldToScreenBase(worldPoint, cameraPose, viewportCenterY = FRETBOARD_CENTER_Y) {
+    // STEP 1 keeps output behavior unchanged on purpose.
+    // This helper exists so STEP 2 can switch to full camera projection safely.
+    const projected = projectPoint(worldPoint.x, worldPoint.y, worldPoint.z);
+    return {
+        x: projected.x,
+        y: projected.y - FRETBOARD_CENTER_Y + viewportCenterY,
+        scale: projected.scale
+    };
+}
+
+function safeNumber(value, fallback = 0) {
+    return Number.isFinite(value) ? value : fallback;
+}
+
+function getProjectionScaleAtDepth(depthZ, cameraPose) {
+    const camDistance = Math.max(300, safeNumber(cameraPose.perspectivePx, 1200));
+    const z = safeNumber(depthZ, 0);
+    const denom = camDistance + z;
+    if (denom <= 1) return 1;
+    return camDistance / denom;
+}
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function getHorizontalPerspectiveStrength() {
+    const raw = state.settings.perspOriginX || 0;
+    return Math.max(0, Math.min(1, raw / 100));
+}
+
+function getVerticalPerspectiveStrength() {
+    const raw = state.settings.perspective || 0;
+    return Math.max(0, Math.min(1, raw / 100));
+}
+
+function getFretXEdges() {
+    const edges = [0];
+    FRET_WIDTHS.forEach(width => edges.push(edges[edges.length - 1] + width));
+    return edges;
+}
+
+function getHorizontalScaleAtX(x) {
+    const depth = Math.max(0, Math.min(1, x / FRETBOARD_WIDTH));
+    const perspectiveScale = lerp(HORIZONTAL_FAR_SCALE, HORIZONTAL_NEAR_SCALE, depth);
+    return lerp(1, perspectiveScale, getHorizontalPerspectiveStrength());
+}
+
+function getStringSpacingScale() {
+    return clamp((state.settings.stringSpacing || 100) / 100, 0.8, 1.6);
+}
+
+function getNeckYBounds() {
+    const baseTop = FRETBOARD_TOP_Y;
+    const baseBottom = FRETBOARD_BODY_BOTTOM_Y;
+    const center = (baseTop + baseBottom) / 2;
+    const halfHeight = (baseBottom - baseTop) / 2;
+    const scaledHalfHeight = halfHeight * getStringSpacingScale();
+    return {
+        top: center - scaledHalfHeight,
+        bottom: center + scaledHalfHeight
+    };
+}
+
+function getVerticalScaleAtY(y) {
+    const neck = getNeckYBounds();
+    const stripBottom = neck.bottom + FRET_NUMBER_STRIP_HEIGHT;
+    const depth = Math.max(0, Math.min(1, (y - neck.top) / (stripBottom - neck.top)));
+    const perspectiveScale = lerp(VERTICAL_FAR_SCALE, VERTICAL_NEAR_SCALE, depth);
+    return lerp(1, perspectiveScale, getVerticalPerspectiveStrength());
+}
+
+function projectPoint(x, y, z = 0) {
+    const worldPoint = createVec3(x - FRETBOARD_WIDTH / 2, y - FRETBOARD_CENTER_Y, z);
+    const rotated = rotateVec3(worldPoint, state.settings.rotation || { x: 0, y: 0, z: 0 });
+
+    // Base projection: axis rotation only.
+    const baseX = FRETBOARD_WIDTH / 2 + safeNumber(rotated.x, 0);
+    const baseY = FRETBOARD_CENTER_Y + safeNumber(rotated.y, 0);
+
+    // Trapezoid / perspective effect is controlled only by the camera-depth sliders.
+    const hScale = getHorizontalScaleAtX(x);
+    const vScale = getVerticalScaleAtY(y);
+    const scale = hScale * vScale;
+    const projectedX = FRETBOARD_WIDTH / 2 + (baseX - FRETBOARD_WIDTH / 2) * hScale;
+    const projectedY = FRETBOARD_CENTER_Y + (baseY - FRETBOARD_CENTER_Y) * scale;
+
+    return {
+        x: projectedX,
+        y: projectedY,
+        scale
+    };
+}
+
+function projectFretboardY(originalY, x) {
+    return projectPoint(x, originalY, 0).y;
+}
+
+function getStringOriginalY(rowIndex) {
+    const t = rowIndex / 5;
+    const exponent = lerp(1, VERTICAL_NEAR_EXPONENT, getVerticalPerspectiveStrength());
+    const easedT = Math.pow(t, exponent);
+    const neck = getNeckYBounds();
+    const stringTopY = neck.top + FRETBOARD_STRING_GAP / 2;
+    const stringBottomY = neck.bottom - FRETBOARD_STRING_GAP / 2;
+    const baseY = lerp(stringTopY, stringBottomY, easedT);
+    const centerY = (stringTopY + stringBottomY) / 2;
+    return centerY + (baseY - centerY) * 1;
+}
+
+function getStringOriginalBounds(rowIndex) {
+    const neck = getNeckYBounds();
+    const centers = Array.from({ length: 6 }, (_, i) => getStringOriginalY(i));
+    const top = rowIndex === 0 ? neck.top : (centers[rowIndex - 1] + centers[rowIndex]) / 2;
+    const bottom = rowIndex === centers.length - 1 ? neck.bottom : (centers[rowIndex] + centers[rowIndex + 1]) / 2;
+    return { top, bottom };
+}
+
+function getStringThickness(stringNum) {
+    if (stringNum === 6) return 5;
+    if (stringNum === 5) return 4;
+    if (stringNum === 4) return 3;
+    if (stringNum === 3) return 2.5;
+    if (stringNum === 2) return 2;
+    return 1.5;
+}
+
+function buildSvgPath(points) {
+    return points.map((p, index) => `${index === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ');
+}
+
+function buildClosedPolygon(points) {
+    return points.map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+}
+
+function buildProjectedBandPolygon(yTop, yBottom, z = 0, xSamples = getFretXEdges()) {
+    const topPoints = xSamples.map(x => projectPoint(x, yTop, z));
+    const bottomPoints = xSamples.slice().reverse().map(x => projectPoint(x, yBottom, z));
+    return buildClosedPolygon([...topPoints, ...bottomPoints]);
+}
+
+function buildProjectedDepthStrip(y, zFront, zBack, xSamples = getFretXEdges()) {
+    const frontPoints = xSamples.map(x => projectPoint(x, y, zFront));
+    const backPoints = xSamples.slice().reverse().map(x => projectPoint(x, y, zBack));
+    return buildClosedPolygon([...frontPoints, ...backPoints]);
+}
+
+function buildProjectedSideWall(x, yTop, yBottom, zFront, zBack) {
+    const p1 = projectPoint(x, yTop, zFront);
+    const p2 = projectPoint(x, yBottom, zFront);
+    const p3 = projectPoint(x, yBottom, zBack);
+    const p4 = projectPoint(x, yTop, zBack);
+    return buildClosedPolygon([p1, p2, p3, p4]);
 }
 
 // ----------------------------------------------------
@@ -963,30 +1239,26 @@ function renderSettings(app) {
 
         <div class="settings-card">
             <h3 class="settings-card-title">指板の視点</h3>
-            <div class="settings-toggle-row">
-                <button class="settings-toggle-btn ${state.settings.viewMode === 'front' ? 'active' : ''}" id="btn-view-front">正面（図面）</button>
-                <button class="settings-toggle-btn ${state.settings.viewMode === 'player' ? 'active' : ''}" id="btn-view-player">演奏者（リアル）</button>
-            </div>
 
             <div class="settings-preview-area">
                 <div class="settings-preview-clip">
                     <div id="tilt-preview-container" style="pointer-events:none;"></div>
                 </div>
-                <div id="trackball-area" class="settings-trackball" style="display:${state.settings.viewMode === 'player' ? 'flex' : 'none'};">
+                <div id="trackball-area" class="settings-trackball">
                     <div id="trackball-pointer" class="settings-trackball-dot"></div>
                 </div>
             </div>
 
-            <div id="tilt-setting-group" style="display:${state.settings.viewMode === 'player' ? 'block' : 'none'}; border-top:1px solid rgba(255,255,255,0.1); padding-top:16px; margin-top:8px;">
+            <div id="tilt-setting-group" style="border-top:1px solid rgba(255,255,255,0.1); padding-top:16px; margin-top:8px;">
                 <div class="settings-row-between" style="margin-bottom:8px;">
-                    <span class="settings-label">指板の傾き（ドラッグで操作）</span>
+                    <span class="settings-label">カメラの向き（ドラッグで操作）</span>
                     <button id="btn-reset-tilt" class="settings-btn-small">リセット</button>
                 </div>
-                <p class="settings-note" style="margin-top:0; margin-bottom:14px;">中央をドラッグで上下左右、端をドラッグで回転します。</p>
+                <p class="settings-note" style="margin-top:0; margin-bottom:14px;">中央をドラッグで上下左右、端をドラッグで回転します。まずはプリセットを選んでから微調整すると簡単です。</p>
 
                 <div class="settings-presets">
-                    <button class="settings-preset-btn" data-preset="front">正面</button>
-                    <button class="settings-preset-btn" data-preset="diagonal">斜め</button>
+                    <button class="settings-preset-btn" data-preset="front">正面カメラ</button>
+                    <button class="settings-preset-btn" data-preset="diagonal">斜めカメラ</button>
                 </div>
 
                 <div class="settings-axes">
@@ -1023,19 +1295,23 @@ function renderSettings(app) {
                 </div>
 
                 <div class="settings-row-between" style="margin-top:16px; margin-bottom:6px;">
-                    <span class="settings-label">遠近感（上下）</span>
+                    <span class="settings-label">カメラ奥行（上下）</span>
                     <span class="settings-value-badge-sm" id="persp-display">${state.settings.perspective}</span>
                 </div>
                 <input type="range" id="persp-slider" min="0" max="100" step="1" value="${state.settings.perspective}" class="settings-range" style="margin-bottom:16px;">
 
                 <div class="settings-row-between" style="margin-bottom:6px;">
-                    <span class="settings-label">遠近感（横 ヘッド ← → 12F）</span>
+                    <span class="settings-label">カメラ奥行（横 ヘッド小 ← → 12F大）</span>
                     <span class="settings-value-badge-sm" id="persp-origin-display">${state.settings.perspOriginX}</span>
                 </div>
                 <input type="range" id="persp-origin-slider" min="0" max="100" step="1" value="${state.settings.perspOriginX}" class="settings-range">
+                <div class="settings-row-between" style="margin-top:16px; margin-bottom:6px;">
+                    <span class="settings-label">弦間の広さ（一律）</span>
+                    <span class="settings-value-badge-sm" id="string-spacing-display">${state.settings.stringSpacing}%</span>
+                </div>
+                <input type="range" id="string-spacing-slider" min="80" max="150" step="1" value="${state.settings.stringSpacing}" class="settings-range">
+                <p class="settings-note" style="margin-top:10px;">横の奥行は「ヘッド側を小さくしたい時」に上げます。迷ったら 70〜90 がおすすめです。</p>
             </div>
-
-            <p class="settings-note" style="margin-top:12px;">「演奏者」を選ぶと、ギターを抱えた時のように6弦が一番上に表示されます。</p>
         </div>
     `;
 
@@ -1061,11 +1337,6 @@ function renderSettings(app) {
         saveState();
     };
 
-    const btnFront = document.getElementById('btn-view-front');
-    const btnPlayer = document.getElementById('btn-view-player');
-    const tiltGroup = document.getElementById('tilt-setting-group');
-    const trackballArea = document.getElementById('trackball-area');
-
     const updatePreview = () => {
         renderFretboardHTML('tilt-preview-container', {
             mode: 'visualize',
@@ -1078,25 +1349,6 @@ function renderSettings(app) {
         });
     };
 
-    btnFront.onclick = () => {
-        state.settings.viewMode = 'front';
-        tiltGroup.style.display = 'none';
-        trackballArea.style.display = 'none';
-        btnFront.classList.add('active');
-        btnPlayer.classList.remove('active');
-        saveState();
-        updatePreview();
-    };
-    btnPlayer.onclick = () => {
-        state.settings.viewMode = 'player';
-        tiltGroup.style.display = 'block';
-        trackballArea.style.display = 'flex';
-        btnPlayer.classList.add('active');
-        btnFront.classList.remove('active');
-        saveState();
-        updatePreview();
-    };
-
     renderFretboardHTML('tilt-preview-container', {
         mode: 'visualize',
         question: null,
@@ -1106,6 +1358,9 @@ function renderSettings(app) {
         capo: 0,
         onFretClick: null
     });
+    // Call transform immediately after HTML is injected
+    setTimeout(() => { if(typeof updatePreviewTransform === 'function') updatePreviewTransform(); }, 0);
+
 
     const dragArea = document.getElementById('trackball-area');
     const dispX = document.getElementById('rot-x-disp');
@@ -1115,6 +1370,8 @@ function renderSettings(app) {
     const perspDisp = document.getElementById('persp-display');
     const perspOriginSlider = document.getElementById('persp-origin-slider');
     const perspOriginDisp = document.getElementById('persp-origin-display');
+    const stringSpacingSlider = document.getElementById('string-spacing-slider');
+    const stringSpacingDisp = document.getElementById('string-spacing-display');
 
     let isDragging = false;
     let startX = 0, startY = 0;
@@ -1123,16 +1380,63 @@ function renderSettings(app) {
 
     function updatePreviewTransform() {
         const r = state.settings.rotation;
-        const p_intensity = state.settings.perspective;
-        const p_px = 2000 - (p_intensity * 17);
-        const originX = state.settings.perspOriginX || 50;
+        const p_intensity = state.settings.perspective || 0;
+        const p_px = 2000;
+        const originX = state.settings.perspOriginX || 0;
 
         const previewContainer = document.querySelector('#tilt-preview-container .fretboard-container');
         const perspectiveWrapper = document.querySelector('#tilt-preview-container .fretboard-perspective-wrapper');
         if (perspectiveWrapper && previewContainer) {
-            perspectiveWrapper.style.perspectiveOrigin = `${100 - originX}% 50%`;
+            perspectiveWrapper.style.perspectiveOrigin = `50% 50%`;
             perspectiveWrapper.style.perspective = `${p_px}px`;
-            previewContainer.style.transform = `rotateX(${r.x}deg) rotateY(${r.y}deg) rotateZ(${r.z}deg)`;
+
+            // Center around 3rd string, 5th fret in projected space and fit full neck in the preview area.
+            const xEdges = getFretXEdges();
+            const fret6CenterX = (xEdges[6] + xEdges[7]) / 2;
+            const anchorY = getStringOriginalBounds(2).bottom; // exact boundary between 3rd and 4th strings
+            const projectedAnchor = projectPoint(fret6CenterX, anchorY, FRETBOARD_SURFACE_Z);
+
+            const clipEl = document.querySelector('.settings-preview-clip');
+            const clipW = clipEl ? clipEl.offsetWidth : 360;
+            const clipH = clipEl ? clipEl.offsetHeight : 180;
+            // Keep base scale fixed; for horizontal depth, shrink only when needed to keep 0-12F visible.
+            let scale = 0.56;
+            const targetX = clipW / 2;
+            const targetY = clipH / 2 - 8; // lift fretboard slightly so center sits between 3rd/4th strings visually
+            // Keep the anchor point fixed at preview center.
+            // This makes Z rotation orbit around that center (0F/12F trace arcs).
+            const tx = targetX - projectedAnchor.x * scale;
+            let ty = targetY - projectedAnchor.y * scale;
+            let adjustedTx = tx;
+
+            // Keep 12F side inside frame only for horizontal camera-depth changes.
+            // Other sliders keep their original behavior from 1.9.0.
+            if (originX > 0) {
+                const neckBounds = getNeckYBounds();
+                const sampleTop = xEdges.map(x => projectPoint(x, neckBounds.top, FRETBOARD_SURFACE_Z));
+                const sampleBottom = xEdges.map(x => projectPoint(x, neckBounds.bottom, FRETBOARD_SURFACE_Z));
+                const allSamples = [...sampleTop, ...sampleBottom];
+                const minProjectedX = Math.min(...allSamples.map(p => p.x));
+                const maxProjectedX = Math.max(...allSamples.map(p => p.x));
+                const leftMargin = 8;
+                const rightMargin = 8;
+                const maxVisibleWidth = Math.max(1, clipW - leftMargin - rightMargin);
+                const currentWidth = Math.max(1, maxProjectedX - minProjectedX);
+                const fitScale = maxVisibleWidth / currentWidth;
+                if (fitScale < scale) scale = fitScale;
+
+                adjustedTx = targetX - projectedAnchor.x * scale;
+                ty = targetY - projectedAnchor.y * scale;
+                const currentLeft = minProjectedX * scale + adjustedTx;
+                const currentRight = maxProjectedX * scale + adjustedTx;
+                if (currentLeft < leftMargin) adjustedTx += (leftMargin - currentLeft);
+                if (currentRight > clipW - rightMargin) adjustedTx -= (currentRight - (clipW - rightMargin));
+            }
+
+            // Rotation is already reflected in projected geometry (projectPoint).
+            // Keep preview container transform to layout-only (center/fit) to avoid double rotation.
+            previewContainer.style.transformOrigin = `0 0`;
+            previewContainer.style.transform = `translateX(${adjustedTx.toFixed(1)}px) translateY(${ty.toFixed(1)}px) scale(${scale.toFixed(3)})`;
         }
 
         const pointer = document.getElementById('trackball-pointer');
@@ -1152,17 +1456,28 @@ function renderSettings(app) {
         perspDisp.textContent = `${p_intensity}`;
         perspOriginDisp.textContent = `${originX}`;
         perspOriginSlider.value = originX;
+        stringSpacingDisp.textContent = `${state.settings.stringSpacing}%`;
+        stringSpacingSlider.value = state.settings.stringSpacing;
     }
 
-    perspSlider.oninput = (e) => { state.settings.perspective = parseInt(e.target.value); updatePreviewTransform(); saveState(); };
-    perspOriginSlider.oninput = (e) => { state.settings.perspOriginX = parseInt(e.target.value); updatePreviewTransform(); saveState(); };
-    document.getElementById('rot-x-slider').oninput = (e) => { state.settings.rotation.x = parseInt(e.target.value); updatePreviewTransform(); saveState(); };
-    document.getElementById('rot-y-slider').oninput = (e) => { state.settings.rotation.y = parseInt(e.target.value); updatePreviewTransform(); saveState(); };
-    document.getElementById('rot-z-slider').oninput = (e) => { state.settings.rotation.z = parseInt(e.target.value); updatePreviewTransform(); saveState(); };
+    perspSlider.oninput = (e) => { state.settings.viewMode = 'custom'; state.settings.perspective = parseInt(e.target.value); updatePreview(); updatePreviewTransform(); saveState(); };
+    perspOriginSlider.oninput = (e) => { state.settings.viewMode = 'custom'; state.settings.perspOriginX = parseInt(e.target.value); updatePreview(); updatePreviewTransform(); saveState(); };
+    stringSpacingSlider.oninput = (e) => {
+        state.settings.stringSpacing = parseInt(e.target.value);
+        stringSpacingDisp.textContent = `${state.settings.stringSpacing}%`;
+        updatePreview();
+        updatePreviewTransform();
+        saveState();
+    };
+    document.getElementById('rot-x-slider').oninput = (e) => { state.settings.viewMode = 'custom'; state.settings.rotation.x = parseInt(e.target.value); updatePreview(); updatePreviewTransform(); saveState(); };
+    document.getElementById('rot-y-slider').oninput = (e) => { state.settings.viewMode = 'custom'; state.settings.rotation.y = parseInt(e.target.value); updatePreview(); updatePreviewTransform(); saveState(); };
+    document.getElementById('rot-z-slider').oninput = (e) => { state.settings.viewMode = 'custom'; state.settings.rotation.z = parseInt(e.target.value); updatePreview(); updatePreviewTransform(); saveState(); };
 
     document.querySelectorAll('.axis-reset-btn').forEach(btn => {
         btn.onclick = () => {
+            state.settings.viewMode = 'custom';
             state.settings.rotation[btn.getAttribute('data-axis')] = 0;
+            updatePreview();
             updatePreviewTransform();
             saveState();
         };
@@ -1171,17 +1486,24 @@ function renderSettings(app) {
     document.querySelectorAll('.settings-preset-btn').forEach(btn => {
         btn.onclick = () => {
             const preset = btn.getAttribute('data-preset');
+            state.settings.viewMode = 'custom';
             if (preset === 'front') {
                 state.settings.rotation = {x: 0, y: 0, z: 0};
                 state.settings.perspective = 0;
-                state.settings.perspOriginX = 50;
+                state.settings.perspOriginX = 0;
             } else if (preset === 'diagonal') {
-                state.settings.rotation = {x: 45, y: 0, z: 0};
-                state.settings.perspective = 30;
-                state.settings.perspOriginX = 50;
+                state.settings.rotation = {x: 18, y: 0, z: 0};
+                state.settings.perspective = 85;
+                state.settings.perspOriginX = 90;
+            }
+            if (preset === 'front') {
+                state.settings.stringSpacing = 100;
             }
             perspSlider.value = state.settings.perspective;
             perspOriginSlider.value = state.settings.perspOriginX;
+            stringSpacingSlider.value = state.settings.stringSpacing;
+            stringSpacingDisp.textContent = `${state.settings.stringSpacing}%`;
+            updatePreview();
             updatePreviewTransform();
             saveState();
         };
@@ -1206,6 +1528,7 @@ function renderSettings(app) {
 
     function handleDragMove(e) {
         if (!isDragging) return;
+        state.settings.viewMode = 'custom';
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
         const dx = clientX - startX;
@@ -1219,6 +1542,7 @@ function renderSettings(app) {
         state.settings.rotation.x = Math.max(-80, Math.min(80, state.settings.rotation.x));
         state.settings.rotation.y = Math.max(-80, Math.min(80, state.settings.rotation.y));
         state.settings.rotation.z = Math.max(-180, Math.min(180, state.settings.rotation.z));
+        updatePreview();
         updatePreviewTransform();
     }
 
@@ -1234,11 +1558,16 @@ function renderSettings(app) {
     document.addEventListener('touchend', handleDragEnd);
 
     document.getElementById('btn-reset-tilt').onclick = () => {
-        state.settings.rotation = { x: 12, y: 0, z: 0 };
-        state.settings.perspective = 50;
-        state.settings.perspOriginX = 50;
-        perspSlider.value = 50;
-        perspOriginSlider.value = 50;
+        state.settings.viewMode = 'custom';
+        state.settings.rotation = { x: 0, y: 0, z: 0 };
+        state.settings.perspective = DEFAULT_VERTICAL_PERSPECTIVE;
+        state.settings.perspOriginX = DEFAULT_HORIZONTAL_PERSPECTIVE;
+        state.settings.stringSpacing = 100;
+        perspSlider.value = DEFAULT_VERTICAL_PERSPECTIVE;
+        perspOriginSlider.value = DEFAULT_HORIZONTAL_PERSPECTIVE;
+        stringSpacingSlider.value = 100;
+        stringSpacingDisp.textContent = '100%';
+        updatePreview();
         updatePreviewTransform();
         saveState();
     };
@@ -1254,52 +1583,192 @@ function renderFretboardHTML(containerId, options) {
         keyIndex, capo, displayMode 
     } = options;
 
-    const isPlayerView = state.settings.viewMode === 'player';
-    const r = isPlayerView ? state.settings.rotation : {x:0, y:0, z:0};
+    const r = state.settings.rotation || {x:0, y:0, z:0};
     
-    // Default perspective intensity is 50. If old value (>100), migrate it.
+    // If old perspective value (>100), migrate it to the 0-100 range.
     if (state.settings.perspective > 100) {
         state.settings.perspective = Math.round((2000 - state.settings.perspective) / 17);
         if (state.settings.perspective < 0) state.settings.perspective = 0;
         if (state.settings.perspective > 100) state.settings.perspective = 100;
         saveState();
     }
-    const p_intensity = state.settings.perspective !== undefined ? state.settings.perspective : 50;
-    const p_px = 2000 - (p_intensity * 17);
-    const originX = isPlayerView ? (state.settings.perspOriginX || 50) : 50;
+    const p_intensity = state.settings.perspective !== undefined ? state.settings.perspective : 0;
+    const isTiltPreview = containerId === 'tilt-preview-container';
+    // Keep preview perspective stable to prevent one-frame zoom flicker while sliders drag.
+    const p_px = isTiltPreview ? 2000 : (1000 + (100 - p_intensity) * 10);
     
     let hasHighlight = mode === 'memorize' && !showAnswer;
-    let containerClass = isPlayerView ? 'fretboard-container view-player' : 'fretboard-container';
+    let containerClass = 'fretboard-container view-custom';
+    const xEdges = getFretXEdges();
+    const stringOrder = [1, 2, 3, 4, 5, 6];
     
-    // We use a perspective wrapper to apply the origin, and rotate the child container.
+    const neckBounds = getNeckYBounds();
+    const neckTop = neckBounds.top;
+    const neckBottom = neckBounds.bottom;
+
+    const baseTransform = isTiltPreview
+        ? 'none'
+        : `rotateX(${r.x}deg) rotateY(${r.y}deg) rotateZ(${r.z}deg)`;
+
     let html = `<div class="fretboard-scroll-wrapper">`;
-    html += `<div class="fretboard-perspective-wrapper" style="perspective: ${p_px}px; perspective-origin: ${100 - originX}% 50%; transform-style: preserve-3d;">`;
-    html += `<div class="${containerClass}" style="transform: rotateX(${r.x}deg) rotateY(${r.y}deg) rotateZ(${r.z}deg);">`;
-    
-    // 3D Neck faces
-    if (isPlayerView) {
-        html += `<div class="neck-face neck-back"></div>`;
-        html += `<div class="neck-face neck-top"></div>`;
-        html += `<div class="neck-face neck-bottom"></div>`;
-        html += `<div class="neck-face neck-left"></div>`;
-        html += `<div class="neck-face neck-right"></div>`;
+    html += `<div class="fretboard-perspective-wrapper" style="perspective: ${p_px}px; perspective-origin: 50% 50%; transform-style: preserve-3d;">`;
+    html += `<div class="${containerClass}" style="transform: ${baseTransform}; transform-style: preserve-3d;">`;
+
+    // Front face — exactly the fingerboard height (SVG overflows for fret numbers)
+    html += `<div class="neck-face neck-front projected-neck" style="width:${FRETBOARD_WIDTH}px; height:${neckBottom}px; transform: translateZ(0); background: transparent; border: none; box-shadow: none;">`;
+
+    const gradientId = `neck-wood-grad-${containerId}`;
+    const fretGradientId = `fret-wire-grad-${containerId}`;
+    const nutGradientId = `nut-grad-${containerId}`;
+    const sideGradientId = `neck-side-grad-${containerId}`;
+    const numberStripGradientId = `fret-number-strip-grad-${containerId}`;
+    const neckDropShadowId = `neck-drop-shadow-${containerId}`;
+    const topEdgeGlowId = `top-edge-glow-${containerId}`;
+    const edgeH = 3; // px — black edge line thickness
+
+    // SVG with explicit pixel size so it overflows beyond the front face for fret numbers
+    html += `<svg class="projected-fretboard-svg" style="width:${FRETBOARD_WIDTH}px; height:${FRETBOARD_VIEWBOX_HEIGHT}px;" viewBox="0 0 ${FRETBOARD_WIDTH} ${FRETBOARD_VIEWBOX_HEIGHT}" preserveAspectRatio="none" aria-hidden="true">`;
+    html += `<defs>
+        <linearGradient id="${gradientId}" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#17100b"/>
+            <stop offset="14%" stop-color="#2d1e14"/>
+            <stop offset="33%" stop-color="#3f2a1a"/>
+            <stop offset="52%" stop-color="#5a3a23"/>
+            <stop offset="68%" stop-color="#442b1b"/>
+            <stop offset="84%" stop-color="#2c1c12"/>
+            <stop offset="100%" stop-color="#18110c"/>
+        </linearGradient>
+        <linearGradient id="${fretGradientId}" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#777"/>
+            <stop offset="18%" stop-color="#b8b8b8"/>
+            <stop offset="38%" stop-color="#f2f2f2"/>
+            <stop offset="50%" stop-color="#ffffff"/>
+            <stop offset="64%" stop-color="#dfdfdf"/>
+            <stop offset="82%" stop-color="#9a9a9a"/>
+            <stop offset="100%" stop-color="#5e5e5e"/>
+        </linearGradient>
+        <linearGradient id="${nutGradientId}" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#c7c1b0"/>
+            <stop offset="35%" stop-color="#ece6d6"/>
+            <stop offset="55%" stop-color="#faf4e6"/>
+            <stop offset="78%" stop-color="#dcd5c5"/>
+            <stop offset="100%" stop-color="#b9b3a4"/>
+        </linearGradient>
+        <linearGradient id="${sideGradientId}" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#4a2d1b"/>
+            <stop offset="45%" stop-color="#2c1a11"/>
+            <stop offset="100%" stop-color="#120b07"/>
+        </linearGradient>
+        <linearGradient id="${numberStripGradientId}" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#050505"/>
+            <stop offset="45%" stop-color="#0b0b0b"/>
+            <stop offset="70%" stop-color="#080808"/>
+            <stop offset="100%" stop-color="#040404"/>
+        </linearGradient>
+        <linearGradient id="${topEdgeGlowId}" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="rgba(255,244,220,0.24)"/>
+            <stop offset="50%" stop-color="rgba(255,244,220,0.34)"/>
+            <stop offset="100%" stop-color="rgba(255,244,220,0.18)"/>
+        </linearGradient>
+        <filter id="${neckDropShadowId}" x="-20%" y="-20%" width="140%" height="180%">
+            <feDropShadow dx="-3" dy="8" stdDeviation="5" flood-color="rgba(0,0,0,0.55)"/>
+            <feDropShadow dx="2" dy="10" stdDeviation="6" flood-color="rgba(0,0,0,0.35)"/>
+        </filter>
+    </defs>`;
+
+    // Fingerboard wood and edge lines are projected with the same rule as strings/frets.
+    if (isTiltPreview) {
+        // Preview thickness uses screen-space extrusion so Y rotation won't create front popping/stretch.
+        const r = state.settings.rotation || { x: 0, y: 0, z: 0 };
+        const dx = clamp((-r.y * 0.45) + (r.z * 0.08), -34, 34);
+        const dyMagnitude = clamp(16 + (Math.abs(r.x) * 0.24), 12, 38);
+        const dy = (r.x >= 0 ? 1 : -1) * dyMagnitude;
+        const depthEdges = xEdges.slice(1);
+        const frontTop = depthEdges.map(x => projectPoint(x, neckTop + edgeH, FRETBOARD_SURFACE_Z));
+        const frontBottom = depthEdges.map(x => projectPoint(x, neckBottom - edgeH, FRETBOARD_SURFACE_Z));
+        const backTop = frontTop.map(p => ({ x: p.x + dx, y: p.y + dy }));
+        const backBottom = frontBottom.map(p => ({ x: p.x + dx, y: p.y + dy }));
+        const backWoodPoly = buildClosedPolygon([...backTop, ...backBottom.slice().reverse()]);
+        const topDepthPoly = buildClosedPolygon([...frontTop, ...backTop.slice().reverse()]);
+        const bottomDepthPoly = buildClosedPolygon([...frontBottom, ...backBottom.slice().reverse()]);
+        const bassSidePoly = buildClosedPolygon([frontTop[0], frontBottom[0], backBottom[0], backTop[0]]);
+        const trebleSidePoly = buildClosedPolygon([
+            frontTop[frontTop.length - 1],
+            frontBottom[frontBottom.length - 1],
+            backBottom[backBottom.length - 1],
+            backTop[backTop.length - 1]
+        ]);
+        html += `<polygon points="${backWoodPoly}" fill="url(#${sideGradientId})"></polygon>`;
+        if (dy >= 0) {
+            html += `<polygon points="${topDepthPoly}" fill="rgba(240,215,185,0.20)"></polygon>`;
+            html += `<polygon points="${bottomDepthPoly}" fill="url(#${sideGradientId})"></polygon>`;
+        } else {
+            html += `<polygon points="${topDepthPoly}" fill="url(#${sideGradientId})"></polygon>`;
+            html += `<polygon points="${bottomDepthPoly}" fill="rgba(240,215,185,0.18)"></polygon>`;
+        }
+        html += `<polygon points="${bassSidePoly}" fill="url(#${sideGradientId})"></polygon>`;
+        html += `<polygon points="${trebleSidePoly}" fill="url(#${sideGradientId})"></polygon>`;
     }
 
-    // Front face
-    html += `<div class="neck-face neck-front">`;
-    html += `<div class="strings-container ${hasHighlight ? 'has-highlight' : ''}">`;
+    const boardEdges = xEdges.slice(1);
+    const projectedWood = buildProjectedBandPolygon(neckTop + edgeH, neckBottom - edgeH, FRETBOARD_SURFACE_Z, boardEdges);
+    const projectedTopEdge = buildProjectedBandPolygon(neckTop, neckTop + edgeH, FRETBOARD_SURFACE_Z, boardEdges);
+    const projectedBottomEdge = buildProjectedBandPolygon(neckBottom - edgeH, neckBottom, FRETBOARD_SURFACE_Z, boardEdges);
+    html += `<polygon points="${projectedWood}" fill="url(#${gradientId})" filter="url(#${neckDropShadowId})"></polygon>`;
+    html += `<polygon points="${projectedTopEdge}" fill="url(#${topEdgeGlowId})"></polygon>`;
+    html += `<polygon points="${projectedBottomEdge}" fill="rgba(8,6,4,0.92)"></polygon>`;
 
-    const stringOrder = isPlayerView ? [6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6];
 
-    for (let s of stringOrder) { // Order based on view mode
-        let stringNum = s;
+
+    const dotPoints = [
+        ...[3, 5, 7, 9].map(f => ({ fret: f, y: FRETBOARD_CENTER_Y })),
+        { fret: 12, y: FRETBOARD_CENTER_Y },
+        { fret: 12, y: (getStringOriginalY(1) + getStringOriginalY(4)) / 2 }
+    ];
+    dotPoints.forEach(dot => {
+        const x = (xEdges[dot.fret] + xEdges[dot.fret + 1]) / 2;
+        const p = projectPoint(x, dot.y, FRET_DOT_Z);
+        html += `<circle class="projected-fret-dot" cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="${(8 * p.scale).toFixed(2)}"></circle>`;
+    });
+
+    stringOrder.forEach((stringNum, rowIndex) => {
+        const originalY = getStringOriginalY(rowIndex);
+        const stringClass = hasHighlight && stringNum !== question.stringName ? 'projected-string dimmed' : (hasHighlight ? 'projected-string highlighted' : 'projected-string');
+        for (let i = 0; i < xEdges.length - 1; i++) {
+            const p1 = projectPoint(xEdges[i], originalY, STRING_Z);
+            const p2 = projectPoint(xEdges[i + 1], originalY, STRING_Z);
+            const strokeWidth = getStringThickness(stringNum) * ((p1.scale + p2.scale) / 2);
+            html += `<path class="${stringClass}" data-string="${stringNum}" d="${buildSvgPath([p1, p2])}" stroke-width="${strokeWidth.toFixed(2)}"></path>`;
+        }
+    });
+
+    xEdges.forEach((x, index) => {
+        if (index === 0) return; // remove fret wire left of open strings
+        const topPoint = projectPoint(x, neckTop, FRETBOARD_SURFACE_Z);
+        const bottomPoint = projectPoint(x, neckBottom, FRETBOARD_SURFACE_Z);
+        const wireWidth = index === 1 ? 8 : 4;
+        const gradId = index === 1 ? nutGradientId : fretGradientId;
+        const wireClass = index === 1 ? 'projected-fret-wire nut' : 'projected-fret-wire';
+        html += `<line class="${wireClass}" x1="${topPoint.x.toFixed(2)}" y1="${topPoint.y.toFixed(2)}" x2="${bottomPoint.x.toFixed(2)}" y2="${bottomPoint.y.toFixed(2)}" stroke="url(#${gradId})" stroke-width="${wireWidth}"></line>`;
+    });
+
+    for (let f = 0; f <= MAX_FRET; f++) {
+        if (f === 0) continue;
+        const x = (xEdges[f] + xEdges[f + 1]) / 2;
+        const labelY = f === 0
+            ? (neckBottom - edgeH - 8)
+            : (neckBottom + FRET_NUMBER_STRIP_HEIGHT * 0.58);
+        const labelPoint = projectPoint(x, labelY, FRET_NUMBER_Z);
+        const scale = labelPoint.scale;
+        html += `<text class="projected-fret-number" data-fret="${f}" x="${labelPoint.x.toFixed(2)}" y="${labelPoint.y.toFixed(2)}" font-size="${(19 * scale).toFixed(2)}">${f}</text>`;
+    }
+
+    html += `</svg>`;
+    html += `<div class="projected-hit-layer" style="height:${neckBottom}px;">`;
+
+    for (let rowIndex = 0; rowIndex < stringOrder.length; rowIndex++) {
+        let stringNum = stringOrder[rowIndex];
         let stringIdx = 6 - stringNum;
-        
-        let isStringHighlighted = hasHighlight && (stringNum === question.stringName);
-        let rowClass = isStringHighlighted ? 'string-row highlighted-string' : 'string-row';
-        
-        html += `<div class="${rowClass}" data-string="${stringNum}">`;
-        html += `<div class="string-line"></div>`;
 
         for (let f = 0; f <= MAX_FRET; f++) {
             let noteIdx = (OPEN_STRINGS[stringIdx] + f) % 12;
@@ -1317,6 +1786,11 @@ function renderFretboardHTML(containerId, options) {
                 let isTargetQuiz = (question && stringNum === question.stringName && noteIdx === question.noteIdx);
                 let isTargetCruise = (question && stringNum === question.stringName && f === question.fret);
                 let isClicked = clicked && (clicked.stringNum === stringNum && clicked.fret === f);
+
+                // 正解のフレットには特別なクラスを付与して視覚化できるようにする
+                if (isTargetCruise || (state.memorize.playMode === 'quiz' && isTargetQuiz)) {
+                    fretClass += ' is-target-fret';
+                }
 
                 if (state.memorize.playMode === 'cruise') {
                     // Cruise mode: always show answer, user must click it
@@ -1370,24 +1844,57 @@ function renderFretboardHTML(containerId, options) {
                 }
             }
 
-            html += `<div class="${fretClass}" data-string="${stringNum}" data-fret="${f}">${markerHtml}</div>`;
+            const leftX = xEdges[f];
+            const rightX = xEdges[f + 1];
+            const centerX = (leftX + rightX) / 2;
+            const { top: rowTopY, bottom: rowBottomY } = getStringOriginalBounds(rowIndex);
+            const pTL = projectPoint(leftX, rowTopY, NOTE_MARKER_Z);
+            const pTR = projectPoint(rightX, rowTopY, NOTE_MARKER_Z);
+            const pBL = projectPoint(leftX, rowBottomY, NOTE_MARKER_Z);
+            const pBR = projectPoint(rightX, rowBottomY, NOTE_MARKER_Z);
+            const projectedLeft = Math.min(pTL.x, pTR.x, pBL.x, pBR.x);
+            const projectedRight = Math.max(pTL.x, pTR.x, pBL.x, pBR.x);
+            const projectedTopY = Math.min(pTL.y, pTR.y, pBL.y, pBR.y);
+            const projectedBottomY = Math.max(pTL.y, pTR.y, pBL.y, pBR.y);
+            const projectedHeight = projectedBottomY - projectedTopY;
+            const projectedWidth = projectedRight - projectedLeft;
+            const markerScale = projectPoint(centerX, getStringOriginalY(rowIndex), NOTE_MARKER_Z).scale;
+            const markerSize = Math.max(20, 30 * markerScale);
+            const markerFontSize = 0.85 * markerScale;
+            const markerStyle = `width:${markerSize.toFixed(2)}px; height:${markerSize.toFixed(2)}px; font-size:${markerFontSize.toFixed(2)}rem;`;
+            markerHtml = markerHtml.replace('<div class="note-marker', `<div style="${markerStyle}" class="note-marker`);
+            const rotX = (state.settings.rotation && typeof state.settings.rotation.x === 'number') ? state.settings.rotation.x : 0;
+            const layerOrder = rotX < 0 ? (7 - stringNum) : stringNum;
+            const cellStyle = `left:${projectedLeft.toFixed(2)}px; top:${projectedTopY.toFixed(2)}px; width:${projectedWidth.toFixed(2)}px; height:${projectedHeight.toFixed(2)}px; z-index:${layerOrder};`;
+
+            html += `<div class="${fretClass}" data-string="${stringNum}" data-fret="${f}" style="${cellStyle}">${markerHtml}</div>`;
         }
-        html += `</div>`;
     }
     html += `</div>`;
 
-    // Labels
-    html += `<div class="fretboard-labels">`;
-    for (let f = 0; f <= MAX_FRET; f++) {
-        html += `<div class="fret-label" data-fret="${f}">${f}</div>`;
-    }
-    html += `</div>`;
-    
     html += `</div>`; // neck-front
     html += `</div></div></div>`; // container & perspective-wrapper & scroll-wrapper
     
     const containerEl = document.getElementById(containerId);
     containerEl.innerHTML = html;
+
+    // Scale fretboard to fit container width in game mode so open strings
+    // sit at the left edge and all frets are visible without horizontal scrolling.
+    if (!isTiltPreview) {
+        const scrollWrapper = containerEl.querySelector('.fretboard-scroll-wrapper');
+        if (scrollWrapper) {
+            const availW = containerEl.clientWidth || window.innerWidth;
+            const scale = availW / FRETBOARD_WIDTH;
+            if (scale < 1) {
+                const wrapperLayoutH = neckBottom + 45; // padding-top(10) + neckBottom + padding-bottom(35)
+                scrollWrapper.style.transformOrigin = 'top left';
+                scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
+                scrollWrapper.style.overflowX = 'hidden';
+                containerEl.style.height = `${Math.ceil(wrapperLayoutH * scale)}px`;
+                containerEl.style.overflow = 'hidden';
+            }
+        }
+    }
 
     addFretboardDots(containerId);
 
@@ -1403,13 +1910,48 @@ function renderFretboardHTML(containerId, options) {
         const cx = e.clientX, cy = e.clientY;
         const cols = containerEl.querySelectorAll('.fret-column');
         let bestCol = null, bestDistance = Infinity;
+
+        // 正解判定のための情報を取得（判定を甘くするため）
+        const q = (mode === 'memorize') ? question : null;
+
         for (const col of cols) {
             const r = col.getBoundingClientRect();
-            if (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom) {
+            const s = parseInt(col.getAttribute('data-string'));
+            const f = parseInt(col.getAttribute('data-fret'));
+
+            // このカラムが現在の正解かどうかを判定
+            let isTarget = false;
+            if (q) {
+                if (state.memorize.playMode === 'cruise') {
+                    // クルーズモードは特定のフレットが正解
+                    isTarget = (s === q.stringName && f === q.fret);
+                } else {
+                    // クイズモードは同じ弦の同じ音名なら正解
+                    const sIdx = 6 - s;
+                    const nIdx = (OPEN_STRINGS[sIdx] + f) % 12;
+                    isTarget = (s === q.stringName && nIdx === q.noteIdx);
+                }
+            }
+
+            // 正解のフレットには判定エリアに余裕（パディング）を持たせる
+            // また、距離計算でも優遇することで、隣接フレットより優先されやすくする
+            const paddingX = isTarget ? TARGET_HIT_PADDING_X_PX : 0;
+            const paddingY = isTarget ? TARGET_HIT_PADDING_Y_PX : 0;
+            
+            if (cx >= r.left - paddingX && cx <= r.right + paddingX && 
+                cy >= r.top - paddingY && cy <= r.bottom + paddingY) {
+                
                 const dx = cx - (r.left + r.width / 2);
                 const dy = cy - (r.top + r.height / 2);
-                const distance = dx * dx + dy * dy;
-                if (distance < bestDistance) { bestDistance = distance; bestCol = col; }
+                let distance = dx * dx + dy * dy;
+
+                // 正解の場合は距離を大幅に小さく見積もり、吸い付きやすくする
+                if (isTarget) distance *= 0.1;
+
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    bestCol = col;
+                }
             }
         }
         if (!bestCol) return;
@@ -1423,6 +1965,97 @@ function renderFretboardHTML(containerId, options) {
     };
     document.addEventListener('click', handleFretboardClick, true);
     fretboardDocumentHandlers.set(containerId, handleFretboardClick);
+    renderFretboardHitDebug(containerId, mode, question);
+}
+
+function renderFretboardHitDebug(containerId, mode, question) {
+    if (!FRETBOARD_HIT_DEBUG) return;
+
+    const containerEl = document.getElementById(containerId);
+    if (!containerEl) return;
+
+    let overlay = document.getElementById(`hit-debug-${containerId}`);
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = `hit-debug-${containerId}`;
+        overlay.className = 'hit-debug-overlay';
+        document.body.appendChild(overlay);
+    }
+
+    const draw = () => {
+        if (!document.body.contains(containerEl)) {
+            cleanupFretboardDocumentHandlers(containerId);
+            return;
+        }
+
+        const q = mode === 'memorize' ? question : null;
+        const cols = containerEl.querySelectorAll('.fret-column');
+        let html = '';
+        let targetSummary = [];
+
+        cols.forEach(col => {
+            const r = col.getBoundingClientRect();
+            const s = parseInt(col.getAttribute('data-string'));
+            const f = parseInt(col.getAttribute('data-fret'));
+            let isTarget = false;
+
+            if (q) {
+                if (state.memorize.playMode === 'cruise') {
+                    isTarget = (s === q.stringName && f === q.fret);
+                } else {
+                    const sIdx = 6 - s;
+                    const nIdx = (OPEN_STRINGS[sIdx] + f) % 12;
+                    isTarget = (s === q.stringName && nIdx === q.noteIdx);
+                }
+            }
+
+            const padX = isTarget ? TARGET_HIT_PADDING_X_PX : 0;
+            const padY = isTarget ? TARGET_HIT_PADDING_Y_PX : 0;
+            const left = Math.round(r.left - padX);
+            const top = Math.round(r.top - padY);
+            const width = Math.round(r.width + padX * 2);
+            const height = Math.round(r.height + padY * 2);
+            const centerX = Math.round(r.left + r.width / 2);
+            const centerY = Math.round(r.top + r.height / 2);
+            const boxClass = isTarget ? 'hit-debug-box target' : 'hit-debug-box';
+            const label = isTarget
+                ? `${s}弦${f}F 正解 ${width}x${height}px`
+                : `${s}-${f}`;
+
+            if (isTarget) {
+                targetSummary.push(`${s}弦${f}F: ${width} x ${height} CSS px`);
+            }
+
+            html += `
+                <div class="${boxClass}" style="left:${left}px; top:${top}px; width:${width}px; height:${height}px;">
+                    <span>${label}</span>
+                </div>
+                <div class="hit-debug-center ${isTarget ? 'target' : ''}" style="left:${centerX}px; top:${centerY}px;"></div>
+            `;
+        });
+
+        html += `
+            <div class="hit-debug-panel">
+                <strong>Hit Debug</strong>
+                <div>単位: CSS px（getBoundingClientRect）</div>
+                <div>通常: 投影後フレット矩形そのまま</div>
+                <div>正解: 横 +${TARGET_HIT_PADDING_X_PX}px / 縦 +${TARGET_HIT_PADDING_Y_PX}px</div>
+                <div>幅はフレット間隔そのまま、高さは +${TARGET_HIT_PADDING_Y_PX * 2}px</div>
+                <div>${targetSummary.length ? targetSummary.join('<br>') : '正解対象なし'}</div>
+            </div>
+        `;
+        overlay.innerHTML = html;
+    };
+
+    requestAnimationFrame(draw);
+
+    const wrapper = containerEl.querySelector('.fretboard-scroll-wrapper');
+    if (wrapper && !fretboardDebugScrollHandlers.has(containerId)) {
+        const scrollHandler = () => requestAnimationFrame(draw);
+        wrapper.addEventListener('scroll', scrollHandler, { passive: true });
+        fretboardDebugScrollHandlers.set(containerId, scrollHandler);
+    }
+    window.addEventListener('resize', draw, { once: true });
 }
 
 function addFretboardDots(containerId) {

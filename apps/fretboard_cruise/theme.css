@@ -37,7 +37,7 @@
     flex-direction: column;
     position: relative;
     min-width: max-content;
-    margin: 30px 10px;
+    margin: 0;
     transform-style: preserve-3d;
     transition: transform 0.1s ease;
 }
@@ -52,55 +52,106 @@
 .neck-front {
     position: relative;
     background: var(--fretboard-wood);
-    border: 3px solid #1a0d04;
-    padding: 15px 0;
+    border: 2px solid #1a0d04;
+    border-radius: 4px;
     box-shadow: inset 0 0 15px rgba(0,0,0,0.5);
-    transform: translateZ(15px);
     z-index: 2;
     pointer-events: auto;
+    transform: translateZ(0); /* Front face at Z=0 */
+    transform-style: preserve-3d;
 }
 
-.neck-back {
-    background: linear-gradient(to right, #3b2010, #1a0d04);
-    border: 3px solid #0d0602;
-    transform: translateZ(-15px);
-    box-shadow: 0 30px 50px rgba(0, 0, 0, 0.8);
+.projected-fretboard-svg,
+.projected-hit-layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    transform: translateZ(1px); /* Slightly above front face to avoid z-fighting */
 }
 
-.neck-top {
-    height: 30px;
-    top: -15px;
-    bottom: auto;
-    background: #3b2010;
-    border: 2px solid #1a0d04;
-    transform: rotateX(90deg);
+.projected-fretboard-svg {
+    overflow: visible;
+    z-index: 1;
 }
 
-.neck-bottom {
-    height: 30px;
-    top: auto;
-    bottom: -15px;
-    background: #1a0d04;
-    border: 2px solid #000;
-    transform: rotateX(-90deg);
+.projected-hit-layer {
+    z-index: 3;
 }
 
-.neck-left {
-    width: 30px;
-    left: -15px;
-    right: auto;
-    background: #2a1508;
-    border: 2px solid #1a0d04;
-    transform: rotateY(-90deg);
+.projected-fret-number {
+    fill: rgba(248, 243, 233, 0.96);
+    font-weight: 800;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    paint-order: stroke;
+    stroke: rgba(0,0,0,0.78);
+    stroke-width: 2.2px;
+    text-shadow: 0 1px 1px rgba(0,0,0,0.4);
 }
 
-.neck-right {
-    width: 30px;
-    left: auto;
-    right: -15px;
-    background: #2a1508;
-    border: 2px solid #1a0d04;
-    transform: rotateY(90deg);
+.projected-fret-wire {
+    stroke: #bcbcbc;
+    stroke-width: 4;
+    stroke-linecap: round;
+    filter: drop-shadow(0 -0.4px 0 rgba(255,255,255,0.7)) drop-shadow(0 1px 1px rgba(0,0,0,0.45));
+}
+
+.projected-fret-wire.nut {
+    stroke-width: 8;
+    filter: drop-shadow(0 -0.5px 0 rgba(255,255,255,0.7)) drop-shadow(1px 1px 1px rgba(0,0,0,0.35));
+}
+
+.projected-string {
+    fill: none;
+    stroke: #c6b9a7;
+    stroke-linecap: round;
+    filter: drop-shadow(0 -0.4px 0 rgba(255,245,228,0.65)) drop-shadow(0 2px 1px rgba(0,0,0,0.62));
+}
+
+.projected-string.dimmed {
+    opacity: 0.2;
+}
+
+.projected-string.highlighted {
+    stroke: #ffea70;
+    filter: drop-shadow(0 0 5px #ffea70);
+}
+
+.projected-fret-dot {
+    fill: #c9c2b8;
+    stroke: rgba(0,0,0,0.4);
+    stroke-width: 1;
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,0.35));
+}
+
+.projected-hit-layer .fret-column {
+    position: absolute;
+    width: auto;
+    height: auto;
+}
+
+.projected-hit-layer .fret-column::after {
+    display: none;
+}
+
+.projected-hit-layer .fret-column[data-fret="0"] {
+    width: auto;
+    background-color: transparent;
+}
+
+/* Real 3D Neck Parts */
+.neck-part {
+    position: absolute;
+    background: linear-gradient(to bottom, #5b3520 0%, #3a2215 45%, #1a100b 100%);
+    box-shadow: inset 0 1px 0 rgba(255,228,190,0.2), inset 0 -6px 12px rgba(0,0,0,0.58);
+    pointer-events: none;
+}
+
+.neck-part-back {
+    background: radial-gradient(ellipse at 50% 46%, #7a4a2c 0%, #5a361f 36%, #2d1a10 68%, #120a07 100%);
+    box-shadow: inset 0 0 2px rgba(255,223,185,0.2), inset 0 -12px 20px rgba(0,0,0,0.55), 0 9px 16px rgba(0,0,0,0.5);
 }
 
 .view-mode-btn.active {
@@ -248,6 +299,27 @@
 .fret-column.interactive {
     cursor: pointer;
     transition: background-color 0.2s;
+}
+
+/* 正解判定範囲の視覚化（デバッグ/確認用） */
+.fret-column.is-target-fret {
+    outline: 2px dashed rgba(79, 156, 249, 0.8);
+    outline-offset: 0;
+    z-index: 100;
+    position: relative;
+}
+
+.fret-column.is-target-fret::before {
+    content: '';
+    position: absolute;
+    top: -20px;
+    bottom: -20px;
+    left: 0;
+    right: 0;
+    background: rgba(79, 156, 249, 0.1);
+    pointer-events: none;
+    z-index: -1;
+    border-radius: 8px;
 }
 
 @media (hover: hover) {
@@ -549,19 +621,31 @@
 .settings-preview-area {
     position: relative;
     width: 100%;
+    height: 180px;
     display: flex;
     justify-content: center;
     align-items: center;
     margin: 8px 0;
+    background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.03) 0%, transparent 70%);
 }
 
 .settings-preview-clip {
     width: 100%;
+    height: 180px;
     overflow: hidden;
+    flex-shrink: 0;
+}
+
+.settings-preview-clip .fretboard-container {
+    transition: none;
 }
 
 .settings-trackball {
     position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
     width: 130px;
     height: 130px;
     background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.25), rgba(0,0,0,0.45));
@@ -660,4 +744,74 @@
     font-size: 0.7rem;
     cursor: pointer;
     font-family: inherit;
+}
+
+.hit-debug-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    font-family: monospace;
+}
+
+.hit-debug-box {
+    position: fixed;
+    border: 1px solid rgba(79, 156, 249, 0.6);
+    background: rgba(79, 156, 249, 0.08);
+    box-sizing: border-box;
+}
+
+.hit-debug-box.target {
+    border: 2px solid rgba(45, 255, 148, 0.95);
+    background: rgba(45, 255, 148, 0.18);
+    box-shadow: 0 0 12px rgba(45, 255, 148, 0.35);
+}
+
+.hit-debug-box span {
+    position: absolute;
+    left: 2px;
+    top: 2px;
+    padding: 1px 3px;
+    color: #d9ecff;
+    background: rgba(0, 0, 0, 0.65);
+    border-radius: 3px;
+    font-size: 9px;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.hit-debug-box.target span {
+    color: #bfffdc;
+    font-size: 10px;
+}
+
+.hit-debug-center {
+    position: fixed;
+    width: 6px;
+    height: 6px;
+    margin: -3px 0 0 -3px;
+    border-radius: 50%;
+    background: rgba(79, 156, 249, 0.8);
+}
+
+.hit-debug-center.target {
+    width: 10px;
+    height: 10px;
+    margin: -5px 0 0 -5px;
+    background: #2dff94;
+    box-shadow: 0 0 8px rgba(45, 255, 148, 0.9);
+}
+
+.hit-debug-panel {
+    position: fixed;
+    left: 10px;
+    bottom: 10px;
+    max-width: min(360px, calc(100vw - 20px));
+    padding: 8px 10px;
+    border: 1px solid rgba(45, 255, 148, 0.45);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.78);
+    color: #fff;
+    font-size: 11px;
+    line-height: 1.45;
 }
