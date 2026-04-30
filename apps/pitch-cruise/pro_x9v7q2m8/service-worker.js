@@ -13,7 +13,7 @@ self.addEventListener('activate', (e) => {
             }),
             self.clients.matchAll({ includeUncontrolled: true, type: 'window' }).then((clients) => {
                 clients.forEach((client) => {
-                    client.postMessage({ type: 'PRO_GATE_INVALIDATE', version: GATE_VERSION });
+                    client.postMessage({ type: 'PRO_GATE_INVALIDATE', version: GATE_VERSION, resetGate: true });
                 });
             })
         ])

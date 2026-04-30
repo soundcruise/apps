@@ -113,9 +113,11 @@
     }
 
     function mountGate() {
+        var isPasswordReset = false;
         try {
             const q = new URLSearchParams(location.search || '');
             if (q.get('resetGate') === '1') {
+                isPasswordReset = true;
                 clearGateStorage();
                 q.delete('resetGate');
                 const qs = q.toString();
@@ -139,6 +141,9 @@
         overlay.setAttribute('role', 'dialog');
         overlay.setAttribute('aria-modal', 'true');
         overlay.setAttribute('aria-labelledby', 'pro-gate-title');
+        const resetMessageHTML = isPasswordReset
+            ? '<div class="pro-gate-reset-message-popup">パスワードがリセットされました</div>'
+            : '';
         overlay.innerHTML =
             '<div class="pro-gate-box">' +
             '<div class="pro-gate-panel">' +
@@ -148,8 +153,11 @@
             '<p id="pro-gate-error" aria-live="polite"></p>' +
             '<button type="button" id="pro-gate-submit" class="btn-primary">入る</button>' +
             '</div>' +
+            '<div class="pro-gate-password-section">' +
+            resetMessageHTML +
             '<a class="pro-gate-password-link" href="https://www.youtube.com/post/UgkxGGd0QKGyDd3-mMWvhusmK4ZvqmH8I6Er" target="_blank" rel="noopener noreferrer">パスワードはこちら(メンバーのみ閲覧可能)</a>' +
-            '<div class="pro-gate-password-updated">2026.4.29更新</div>' +
+            '</div>' +
+            '<div class="pro-gate-password-updated">2026.5.1更新</div>' +
             '</div>';
 
         document.body.classList.add('pro-gate-active');
@@ -207,7 +215,12 @@
             if (Number.isNaN(knownVer) || newVer > knownVer) {
                 try { localStorage.setItem(SW_GATE_VERSION_KEY, String(newVer)); } catch (_) {}
                 clearGateStorage();
-                window.location.reload();
+                var url = location.href;
+                if (event.data.resetGate) {
+                    var sep = url.indexOf('?') > -1 ? '&' : '?';
+                    url += sep + 'resetGate=1';
+                }
+                window.location.href = url;
             }
         });
     }
