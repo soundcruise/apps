@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.10.4';
+const FRETBOARD_CRUISE_APP_VERSION = '1.10.7';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -40,6 +40,7 @@ const DEFAULT_STRING_SPACING = 100;
 const DEFAULT_VERTICAL_PERSPECTIVE = 0;
 const DEFAULT_HORIZONTAL_PERSPECTIVE = 0;
 const DEFAULT_ROTATION = { x: 0, y: 0, z: 0 };
+const DEFAULT_FRETBOARD_VIEW = 'full';
 
 // Default States
 let state = {
@@ -73,6 +74,7 @@ let state = {
         rotation: { ...DEFAULT_ROTATION },
         perspective: DEFAULT_VERTICAL_PERSPECTIVE, // 遠近感 (0-100)
         perspOriginX: DEFAULT_HORIZONTAL_PERSPECTIVE, // 横の遠近感 (0-100, 100=12F大きく)
+        fretboardView: DEFAULT_FRETBOARD_VIEW,
         neckModelVersion: FRETBOARD_NECK_MODEL_VERSION
     }
 };
@@ -137,6 +139,7 @@ if (savedState) {
         if (typeof state.settings.rotation === 'undefined') state.settings.rotation = { ...DEFAULT_ROTATION };
         if (typeof state.settings.perspective === 'undefined') state.settings.perspective = DEFAULT_VERTICAL_PERSPECTIVE;
         if (typeof state.settings.perspOriginX === 'undefined') state.settings.perspOriginX = DEFAULT_HORIZONTAL_PERSPECTIVE;
+        if (typeof state.settings.fretboardView === 'undefined') state.settings.fretboardView = DEFAULT_FRETBOARD_VIEW;
     } catch (e) {}
 }
 
@@ -167,6 +170,7 @@ function getDefaultSettings() {
         rotation: { ...DEFAULT_ROTATION },
         perspective: DEFAULT_VERTICAL_PERSPECTIVE,
         perspOriginX: DEFAULT_HORIZONTAL_PERSPECTIVE,
+        fretboardView: DEFAULT_FRETBOARD_VIEW,
         neckModelVersion: FRETBOARD_NECK_MODEL_VERSION
     };
 }
@@ -406,6 +410,30 @@ function buildProjectedSideWall(x, yTop, yBottom, zFront, zBack) {
     const p3 = projectPoint(x, yBottom, zBack);
     const p4 = projectPoint(x, yTop, zBack);
     return buildClosedPolygon([p1, p2, p3, p4]);
+}
+
+function getProjectedFretboardBounds(neckTop, neckBottom) {
+    const stringCenters = Array.from({ length: 6 }, (_, i) => getStringOriginalY(i));
+    const samplePoints = [];
+    getFretXEdges().forEach(x => {
+        samplePoints.push(projectPoint(x, neckTop, NOTE_MARKER_Z));
+        samplePoints.push(projectPoint(x, neckBottom, NOTE_MARKER_Z));
+        samplePoints.push(projectPoint(x, FRET_NUMBER_STRIP_BOTTOM_Y + 8, FRET_NUMBER_Z));
+        stringCenters.forEach(y => samplePoints.push(projectPoint(x, y, NOTE_MARKER_Z)));
+    });
+    const minX = Math.min(...samplePoints.map(p => p.x));
+    const maxX = Math.max(...samplePoints.map(p => p.x));
+    const minY = Math.min(...samplePoints.map(p => p.y));
+    const maxY = Math.max(...samplePoints.map(p => p.y));
+    const padding = 28;
+    return {
+        minX: minX - padding,
+        maxX: maxX + padding,
+        minY: minY - padding,
+        maxY: maxY + padding,
+        width: Math.max(1, maxX - minX + padding * 2),
+        height: Math.max(1, maxY - minY + padding * 2)
+    };
 }
 
 // ----------------------------------------------------
@@ -711,6 +739,7 @@ function generateQuestion() {
     saveState();
     
     if (state.memorize.playMode === 'quiz') {
+        autoScrollRequested = true;
         startQuizTimer();
     }
 }
@@ -757,7 +786,7 @@ function renderApp() {
             
             if (state.course === 'memorize' && state.memorize.playMode === 'cruise') {
                 const q = state.memorize.currentQuestion;
-                if (q) {
+                if (q && state.settings.fretboardView === 'zoom') {
                     const fretCol = newWrapper.querySelector(`.fret-column[data-fret="${q.fret}"]`);
                     if (fretCol) {
                         const fretLeft = fretCol.offsetLeft;
@@ -777,14 +806,28 @@ function renderApp() {
                             newWrapper.scrollLeft = currentScrollLeft;
                         }
                     }
+                } else {
+                    newWrapper.scrollLeft = 0;
                 }
             } else if (state.course === 'memorize' && state.memorize.playMode === 'quiz') {
-                let minFret = 0;
-                if (state.memorize.stage === 3 || state.memorize.stage === 4) minFret = 5;
-                if (minFret > 0) {
-                    const fretCol = newWrapper.querySelector(`.fret-column[data-fret="${minFret}"]`);
-                    if (fretCol) {
-                        newWrapper.scrollLeft = fretCol.offsetLeft - 20;
+                const q = state.memorize.currentQuestion;
+                if (q && state.settings.fretboardView === 'zoom') {
+                    const targetCol = newWrapper.querySelector(`.fret-column[data-string="${q.stringName}"][data-fret="${q.fret}"]`);
+                    if (targetCol) {
+                        const wrapperCenter = newWrapper.clientWidth / 2;
+                        const fretCenter = targetCol.offsetLeft + (targetCol.clientWidth / 2);
+                        setTimeout(() => {
+                            newWrapper.scrollTo({ left: fretCenter - wrapperCenter, behavior: 'smooth' });
+                        }, 10);
+                    }
+                } else {
+                    let minFret = 0;
+                    if (state.memorize.stage === 3 || state.memorize.stage === 4) minFret = 5;
+                    if (minFret > 0) {
+                        const fretCol = newWrapper.querySelector(`.fret-column[data-fret="${minFret}"]`);
+                        if (fretCol) {
+                            newWrapper.scrollLeft = fretCol.offsetLeft - 20;
+                        }
                     }
                 }
             }
@@ -1306,7 +1349,7 @@ function renderSettings(app) {
                 <span class="settings-value-badge" id="tempo-display">BPM ${state.settings.tempo}</span>
                 <span>速い</span>
             </div>
-            <input type="range" id="tempo-slider" min="40" max="120" value="${state.settings.tempo}" class="settings-range">
+            <input type="range" id="tempo-slider" min="40" max="200" value="${state.settings.tempo}" class="settings-range">
             <p class="settings-note">BPM 75 が初心者向けの推奨スピードです。「ドン・タン・ドン・タン」の「タン」に合わせてタップ。</p>
         </div>
 
@@ -1343,6 +1386,15 @@ function renderSettings(app) {
                     <button class="settings-preset-btn" data-preset="front">正面カメラ</button>
                     <button class="settings-preset-btn" data-preset="diagonal">斜めカメラ</button>
                 </div>
+
+                <div class="settings-row-between" style="margin-bottom:8px;">
+                    <span class="settings-label">問題画面の表示</span>
+                </div>
+                <div class="settings-view-buttons">
+                    <button class="settings-view-btn ${state.settings.fretboardView === 'full' ? 'active' : ''}" data-view="full">全体ビュー</button>
+                    <button class="settings-view-btn ${state.settings.fretboardView === 'zoom' ? 'active' : ''}" data-view="zoom">拡大ビュー</button>
+                </div>
+                <p class="settings-note" style="margin-top:0; margin-bottom:14px;">全体ビューは0〜12フレットを表示、拡大ビューは約5フレット分を大きく表示します。</p>
 
                 <div class="settings-axes">
                     <div class="settings-axis-item">
@@ -1515,7 +1567,7 @@ function renderSettings(app) {
             perspectiveWrapper.style.perspectiveOrigin = `50% 50%`;
             perspectiveWrapper.style.perspective = `${p_px}px`;
 
-            // Center around 3rd string, 5th fret in projected space and fit full neck in the preview area.
+            // Center around 3rd string, 5th fret in projected space.
             const xEdges = getFretXEdges();
             const fret6CenterX = (xEdges[6] + xEdges[7]) / 2;
             const anchorY = getStringOriginalBounds(2).bottom; // exact boundary between 3rd and 4th strings
@@ -1524,8 +1576,12 @@ function renderSettings(app) {
             const clipEl = document.querySelector('.settings-preview-clip');
             const clipW = clipEl ? clipEl.offsetWidth : 360;
             const clipH = clipEl ? clipEl.offsetHeight : 180;
-            // Keep base scale fixed; for horizontal depth, shrink only when needed to keep 0-12F visible.
-            let scale = 0.56;
+            const projectedBounds = getProjectedFretboardBounds(getNeckYBounds().top, getNeckYBounds().bottom);
+            const isZoomPreview = state.settings.fretboardView === 'zoom';
+            const zoomFretWidth = FRET_WIDTHS[0] * 5.2;
+            let scale = isZoomPreview
+                ? Math.min(1.15, Math.max(0.7, clipW / zoomFretWidth))
+                : Math.min(0.56, (clipW - 16) / projectedBounds.width, (clipH - 16) / projectedBounds.height);
             const targetX = clipW / 2;
             const targetY = clipH / 2 - 8; // lift fretboard slightly so center sits between 3rd/4th strings visually
             // Keep the anchor point fixed at preview center.
@@ -1534,28 +1590,19 @@ function renderSettings(app) {
             let ty = targetY - projectedAnchor.y * scale;
             let adjustedTx = tx;
 
-            // Keep 12F side inside frame only for horizontal camera-depth changes.
-            // Other sliders keep their original behavior from 1.9.0.
-            if (originX > 0) {
-                const neckBounds = getNeckYBounds();
-                const sampleTop = xEdges.map(x => projectPoint(x, neckBounds.top, FRETBOARD_SURFACE_Z));
-                const sampleBottom = xEdges.map(x => projectPoint(x, neckBounds.bottom, FRETBOARD_SURFACE_Z));
-                const allSamples = [...sampleTop, ...sampleBottom];
-                const minProjectedX = Math.min(...allSamples.map(p => p.x));
-                const maxProjectedX = Math.max(...allSamples.map(p => p.x));
+            if (!isZoomPreview) {
                 const leftMargin = 8;
                 const rightMargin = 8;
-                const maxVisibleWidth = Math.max(1, clipW - leftMargin - rightMargin);
-                const currentWidth = Math.max(1, maxProjectedX - minProjectedX);
-                const fitScale = maxVisibleWidth / currentWidth;
-                if (fitScale < scale) scale = fitScale;
-
                 adjustedTx = targetX - projectedAnchor.x * scale;
                 ty = targetY - projectedAnchor.y * scale;
-                const currentLeft = minProjectedX * scale + adjustedTx;
-                const currentRight = maxProjectedX * scale + adjustedTx;
+                const currentLeft = projectedBounds.minX * scale + adjustedTx;
+                const currentRight = projectedBounds.maxX * scale + adjustedTx;
+                const currentTop = projectedBounds.minY * scale + ty;
+                const currentBottom = projectedBounds.maxY * scale + ty;
                 if (currentLeft < leftMargin) adjustedTx += (leftMargin - currentLeft);
                 if (currentRight > clipW - rightMargin) adjustedTx -= (currentRight - (clipW - rightMargin));
+                if (currentTop < 8) ty += (8 - currentTop);
+                if (currentBottom > clipH - 8) ty -= (currentBottom - (clipH - 8));
             }
 
             // Rotation is already reflected in projected geometry (projectPoint).
@@ -1620,14 +1667,24 @@ function renderSettings(app) {
                 state.settings.perspective = 0;
                 state.settings.perspOriginX = 0;
             } else if (preset === 'diagonal') {
-                state.settings.rotation = {x: 18, y: 0, z: 0};
+                state.settings.rotation = {x: 30, y: -12, z: 1};
                 state.settings.perspective = 30;
                 state.settings.perspOriginX = 90;
+                state.settings.stringSpacing = DEFAULT_STRING_SPACING;
             }
             if (preset === 'front') {
                 state.settings.stringSpacing = DEFAULT_STRING_SPACING;
             }
             refreshSettingsControls();
+        };
+    });
+
+    document.querySelectorAll('.settings-view-btn').forEach(btn => {
+        btn.onclick = () => {
+            state.settings.fretboardView = btn.getAttribute('data-view');
+            document.querySelectorAll('.settings-view-btn').forEach(b => b.classList.toggle('active', b === btn));
+            updatePreview();
+            updatePreviewTransform();
         };
     });
 
@@ -1718,6 +1775,9 @@ function renderFretboardHTML(containerId, options) {
     const p_px = isTiltPreview ? 2000 : (1000 + (100 - p_intensity) * 10);
     
     let hasHighlight = mode === 'memorize' && !showAnswer;
+    const nextCruiseTarget = (mode === 'memorize' && state.memorize.playMode === 'cruise')
+        ? state.memorize.cruiseTargets[state.memorize.cruiseIndex + 1]
+        : null;
     let containerClass = 'fretboard-container view-custom';
     const xEdges = getFretXEdges();
     const stringOrder = [1, 2, 3, 4, 5, 6];
@@ -1911,8 +1971,11 @@ function renderFretboardHTML(containerId, options) {
                 if (state.memorize.playMode === 'cruise') {
                     // Cruise mode: always show answer, user must click it
                     let isScope = state.memorize.cruiseScope.some(t => t.stringName === stringNum && t.fret === f);
+                    let isNextCruise = nextCruiseTarget && stringNum === nextCruiseTarget.stringName && f === nextCruiseTarget.fret && !isTargetCruise;
                     if (isTargetCruise) {
                         markerHtml = `<div class="note-marker target-note correct-note">${NOTES[noteIdx]}</div>`;
+                    } else if (isNextCruise) {
+                        markerHtml = `<div class="note-marker target-note next-note">${NOTES[noteIdx]}</div>`;
                     } else if (isScope) {
                         markerHtml = `<div class="note-marker target-note grey-note">${NOTES[noteIdx]}</div>`;
                     } else {
@@ -2006,7 +2069,8 @@ function renderFretboardHTML(containerId, options) {
         const scrollWrapper = containerEl.querySelector('.fretboard-scroll-wrapper');
         if (scrollWrapper) {
             const screenW = window.innerWidth;
-            const scale = screenW / FRETBOARD_WIDTH;
+            const isZoomView = mode === 'memorize' && state.settings.fretboardView === 'zoom';
+            const perspectiveWrapper = containerEl.querySelector('.fretboard-perspective-wrapper');
 
             // Break out of the app container's max-width by offsetting to the left
             // viewport edge. position:relative keeps the element in the flex flow.
@@ -2015,18 +2079,46 @@ function renderFretboardHTML(containerId, options) {
             containerEl.style.left = `${-Math.round(containerRect.left)}px`;
             containerEl.style.width = `${screenW}px`;
 
-            if (scale < 1) {
-                // Expand scroll wrapper to the full fretboard width first, then
-                // scale the entire wrapper down so all frets fit on screen.
-                const wrapperLayoutH = neckBottom + 45; // padding-top(10) + neckBottom + padding-bottom(35)
+            if (isZoomView) {
+                const projectedBounds = getProjectedFretboardBounds(neckTop, neckBottom);
+                const maxZoomViewH = Math.max(190, window.innerHeight * 0.36);
+                const zoomScale = Math.min(1, maxZoomViewH / projectedBounds.height);
+                scrollWrapper.style.width = `${screenW}px`;
+                scrollWrapper.style.height = `${Math.ceil(projectedBounds.height * zoomScale)}px`;
+                scrollWrapper.style.overflowX = 'auto';
+                scrollWrapper.style.overflowY = 'hidden';
+                scrollWrapper.style.transform = '';
+                scrollWrapper.style.transformOrigin = '';
+                containerEl.style.marginBottom = '';
+                if (perspectiveWrapper) {
+                    perspectiveWrapper.style.transformOrigin = 'top left';
+                    perspectiveWrapper.style.transform = `translateY(${(-projectedBounds.minY).toFixed(2)}px) scale(${zoomScale.toFixed(4)})`;
+                }
+            } else {
+                const projectedBounds = getProjectedFretboardBounds(neckTop, neckBottom);
+                const maxFullViewH = Math.max(180, window.innerHeight * 0.34);
+                const scale = Math.min(1, (screenW - 8) / projectedBounds.width, maxFullViewH / projectedBounds.height);
+                const wrapperLayoutH = projectedBounds.height + 45; // padding-top(10) + projected board + padding-bottom(35)
                 const visualH = Math.ceil(wrapperLayoutH * scale);
-                scrollWrapper.style.width = `${FRETBOARD_WIDTH}px`;
+                scrollWrapper.style.width = `${projectedBounds.width}px`;
+                scrollWrapper.style.height = `${projectedBounds.height}px`;
                 scrollWrapper.style.overflowX = 'hidden';
+                scrollWrapper.style.overflowY = 'hidden';
                 scrollWrapper.style.transformOrigin = 'top left';
                 scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
+                if (perspectiveWrapper) {
+                    perspectiveWrapper.style.transformOrigin = 'top left';
+                    perspectiveWrapper.style.transform = `translate(${(-projectedBounds.minX).toFixed(2)}px, ${(-projectedBounds.minY).toFixed(2)}px)`;
+                }
                 // Pull up the following content to remove the excess layout space
                 // left behind by the scaled-down wrapper (transform doesn't affect layout).
                 containerEl.style.marginBottom = `${-(wrapperLayoutH - visualH)}px`;
+            }
+
+            const wrapperRect = scrollWrapper.getBoundingClientRect();
+            if (Math.abs(wrapperRect.left) > 1) {
+                const currentLeft = parseFloat(containerEl.style.left) || 0;
+                containerEl.style.left = `${Math.round(currentLeft - wrapperRect.left)}px`;
             }
         }
     }
