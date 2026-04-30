@@ -547,7 +547,7 @@
 }
 
 .settings-card-title {
-    color: var(--primary-color);
+    color: #fff;
     font-size: 1rem;
     font-weight: 700;
     margin-bottom: 14px;
@@ -573,14 +573,14 @@
 .settings-value-badge {
     font-size: 1.2rem;
     font-weight: 700;
-    color: #31c46b;
+    color: #fff;
     text-align: center;
 }
 
 .settings-value-badge-sm {
     font-size: 0.95rem;
     font-weight: 700;
-    color: #31c46b;
+    color: #fff;
     min-width: 36px;
     text-align: right;
 }
@@ -731,7 +731,7 @@
 
 .settings-axis-label {
     font-size: 0.82rem;
-    color: #31c46b;
+    color: #fff;
 }
 
 .settings-axis-val {

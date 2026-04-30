@@ -1377,25 +1377,26 @@ function renderSettings(app) {
                     </div>
                 </div>
 
-	                <div class="settings-row-between" style="margin-top:16px; margin-bottom:6px;">
-	                    <span class="settings-label">カメラ奥行（上下）</span>
-	                    <div class="settings-value-control">
-	                        <span class="settings-value-badge-sm" id="persp-display">${state.settings.perspective}</span>
-	                        <button class="settings-reset-btn" data-reset="perspective">初期値</button>
-	                    </div>
-	                </div>
-                <input type="range" id="persp-slider" min="0" max="100" step="1" value="${state.settings.perspective}" class="settings-range" style="margin-bottom:16px;">
-
-	                <div class="settings-row-between" style="margin-bottom:6px;">
-	                    <span class="settings-label">カメラ奥行（横 ヘッド小 ← → 12F大）</span>
-	                    <div class="settings-value-control">
+		                <div class="settings-row-between" style="margin-bottom:6px;">
+		                    <span class="settings-label">カメラ奥行（横 ヘッド小 ← → 12F大）</span>
+		                    <div class="settings-value-control">
 	                        <span class="settings-value-badge-sm" id="persp-origin-display">${state.settings.perspOriginX}</span>
 	                        <button class="settings-reset-btn" data-reset="persp-origin">初期値</button>
 	                    </div>
-	                </div>
-                <input type="range" id="persp-origin-slider" min="0" max="100" step="1" value="${state.settings.perspOriginX}" class="settings-range">
-	                <div class="settings-row-between" style="margin-top:16px; margin-bottom:6px;">
-	                    <span class="settings-label">弦間の広さ（一律）</span>
+		                </div>
+	                <input type="range" id="persp-origin-slider" min="0" max="100" step="1" value="${state.settings.perspOriginX}" class="settings-range">
+
+		                <div class="settings-row-between" style="margin-top:16px; margin-bottom:6px;">
+		                    <span class="settings-label">弦間の広さ（1弦小、6弦大）</span>
+		                    <div class="settings-value-control">
+		                        <span class="settings-value-badge-sm" id="persp-display">${state.settings.perspective}</span>
+		                        <button class="settings-reset-btn" data-reset="perspective">初期値</button>
+		                    </div>
+		                </div>
+	                <input type="range" id="persp-slider" min="0" max="100" step="1" value="${state.settings.perspective}" class="settings-range" style="margin-bottom:16px;">
+
+		                <div class="settings-row-between" style="margin-top:16px; margin-bottom:6px;">
+		                    <span class="settings-label">弦間の広さ（一律）</span>
 	                    <div class="settings-value-control">
 	                        <span class="settings-value-badge-sm" id="string-spacing-display">${state.settings.stringSpacing}%</span>
 	                        <button class="settings-reset-btn" data-reset="string-spacing">初期値</button>
