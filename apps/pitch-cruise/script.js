@@ -1,5 +1,5 @@
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '2.1.0';
+const PITCH_TRAINER_APP_VERSION = '2.2.0';
 
 /** 検証ハブ（Staging）の Ver 表記の括弧内。小さな更新は原則ここだけ増やす（版番号の変更は別指示時のみ） */
 const PITCH_TRAINER_APP_BUILD = '43';
@@ -4266,6 +4266,11 @@ class Game {
         this.isRoundOver = false;
         this.standardProPreviewMode = options.standardProPreview === true;
 
+        const noticeEl = document.getElementById('standard-pro-preview-notice');
+        if (noticeEl) {
+            noticeEl.style.display = this.standardProPreviewMode ? 'block' : 'none';
+        }
+
         const cfg = this.stageConfig[this.stage] || this.stageConfig[3];
         const pool = cfg.pool;
 
@@ -4681,6 +4686,8 @@ class Game {
         this.audio.stopAllScheduledSounds();
         this.isPlaying = false;
         this.standardProPreviewMode = false;
+        const noticeEl = document.getElementById('standard-pro-preview-notice');
+        if (noticeEl) noticeEl.style.display = 'none';
         this.updateInGameProSettingsButton();
         this.overlay.classList.remove('hidden');
         // 最後に選んだカテゴリ画面に戻る
@@ -4695,6 +4702,8 @@ class Game {
         this.audio.stopAllScheduledSounds();
         this.isPlaying = false;
         this.standardProPreviewMode = false;
+        const noticeEl = document.getElementById('standard-pro-preview-notice');
+        if (noticeEl) noticeEl.style.display = 'none';
         this.updateInGameProSettingsButton();
         this.overlay.classList.remove('hidden');
         ['screen-home', 'screen-melody', 'screen-chord'].forEach(id => {

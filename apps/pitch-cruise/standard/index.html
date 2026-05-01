@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>音感クルーズ</title>
-    <link rel="stylesheet" href="../../shared/style.css?v=98">
+    <link rel="stylesheet" href="../../shared/style.css?v=99">
     <link rel="stylesheet" href="../../shared/pro-theme.css?v=98">
     <link rel="stylesheet" href="../theme.css?v=1">
     <link rel="stylesheet" href="../staging/staging-hub-nav.css?v=1">
@@ -141,6 +141,11 @@
                     <span id="answer-mode-status"
                         style="font-size: 0.85rem; font-weight: 500; color: rgba(255,255,255,0.8);">回答ON</span>
                 </label>
+            </div>
+
+            <div id="standard-pro-preview-notice" style="display: none; margin-top: 20px; padding: 16px; background: rgba(255, 214, 94, 0.1); border-radius: 8px; text-align: center; border: 1px solid rgba(255, 214, 94, 0.3);">
+                <div style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.7); margin-bottom: 12px;">Pro版の機能を体験できます</div>
+                <a href="./pro-access.html" style="display: inline-block; padding: 10px 16px; background: linear-gradient(90deg, #ffd25a 0%, #ffb900 100%); color: #000; text-decoration: none; border-radius: 8px; font-size: 0.88rem; font-weight: 600; transition: all 0.3s ease;">Pro版はこちら</a>
             </div>
 
             <div id="in-game-refresh-bar" class="in-game-refresh-bar" aria-label="バージョンとページの再読み込み">
@@ -665,8 +670,11 @@
                 </div>
                 <div class="settings-pro-only-block" aria-label="Pro版専用の設定">
                     <div class="settings-pro-only-banner">
-                        <span class="pro-only-settings-badge">PRO</span>
-                        <span class="settings-pro-only-text">Pro版で変更できます(通常版は固定です)</span>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="pro-only-settings-badge">PRO</span>
+                            <span class="settings-pro-only-text">Pro版で変更できます(通常版は固定です)</span>
+                        </div>
+                        <a href="../pro-access.html" style="color: rgba(255, 214, 94, 0.9); font-size: 0.75rem; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; margin-top: 6px; display: inline-block;">Pro版の入手はこちら</a>
                     </div>
                     <div class="setting-item settings-pro-only-row">
                         <label>基準オクターブ</label>
@@ -777,7 +785,7 @@
         </div>
     </div>
     <script src="../staging/staging-hub-nav.js?v=3"></script>
-    <script src="../script.js?v=2.1.0"></script>
+    <script src="../script.js?v=2.2.0"></script>
 </body>
 
 </html>
