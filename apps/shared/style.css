@@ -562,7 +562,8 @@ html[data-app-edition="Pro"] .home-info-link--final {
     }
 }
 
-.info-new-badge {
+/* New badge design (saved for future use; currently disabled in standard edition) */
+/*.info-new-badge {
     position: absolute;
     display: inline-flex;
     align-items: center;
@@ -593,9 +594,10 @@ html[data-app-edition="Pro"] .home-info-link--final {
 .recommended-link-new-badge {
     top: -10px;
     right: 14px;
-}
+}*/
 
-@keyframes infoNewBadgePop {
+/* New badge pop animation (saved for future use) */
+/*@keyframes infoNewBadgePop {
     0%,
     100% {
         transform: translateY(0) scale(1);
@@ -604,7 +606,7 @@ html[data-app-edition="Pro"] .home-info-link--final {
     50% {
         transform: translateY(-3px) scale(1.04);
     }
-}
+}*/
 
 .info-page {
     min-height: 100vh;
@@ -857,7 +859,8 @@ body:has(#screen-home:not(.hidden)) .in-game-info-link {
         font-size: 0.74rem;
     }
 
-    .info-new-badge {
+    /* New badge design mobile responsive (saved for future use) */
+    /*.info-new-badge {
         min-width: 44px;
         height: 24px;
         padding: 0 9px;
@@ -872,7 +875,7 @@ body:has(#screen-home:not(.hidden)) .in-game-info-link {
     .recommended-link-new-badge {
         top: -8px;
         right: 10px;
-    }
+    }*/
 
     .screen-info-link,
     .in-game-info-link {

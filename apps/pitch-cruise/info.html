@@ -27,9 +27,12 @@
             </div>
             <h1>インフォメーション</h1>
             <div class="info-links">
-                <a class="info-link-card info-link-card--primary" href="https://youtu.be/a-gLbJ0_Cvc?t=78" target="_blank" rel="noopener noreferrer">
+                <a class="info-link-card info-link-card--primary" id="first-link" href="https://youtu.be/a-gLbJ0_Cvc?t=78" target="_blank" rel="noopener noreferrer">
                     <span class="info-link-title">【動画】最短でクリアする3つのコツ</span>
                     <span class="info-link-note">※感想や要望などもこちらにコメントしてください♪</span>
+                </a>
+                <a class="info-link-card info-link-card--compact" id="pro-usage-link" href="https://youtu.be/6GUBv8i4dq4" target="_blank" rel="noopener noreferrer" style="display: none; width: 100%; max-width: 100%;">
+                    <span class="info-link-title">【動画】PRO版の使い方</span>
                 </a>
                 <a class="info-link-card recommended-link-with-badge" href="./recommended-videos.html" id="recommended-videos-link">
                     <span class="info-link-title">おすすめの関連動画リスト</span>
@@ -73,19 +76,40 @@
             }
 
             var homePath = resolveHomePath();
+            var isProEdition = editionParam === 'pro' || homePath.indexOf('/pro_x9v7q2m8/') !== -1;
             homeLink.href = homePath;
+            var firstLink = document.getElementById('first-link');
+            if (firstLink && isProEdition) {
+                firstLink.classList.remove('info-link-card--primary');
+                firstLink.classList.add('info-link-card--compact');
+                firstLink.style.width = '100%';
+                firstLink.style.maxWidth = '100%';
+                firstLink.querySelector('.info-link-title').textContent = '【動画】通常版のクリアの仕方';
+                var noteSpan = firstLink.querySelector('.info-link-note');
+                if (noteSpan) {
+                    noteSpan.remove();
+                }
+            }
+            var proUsageLink = document.getElementById('pro-usage-link');
+            if (proUsageLink && isProEdition) {
+                proUsageLink.style.display = '';
+            }
             var recommendedLink = document.getElementById('recommended-videos-link');
             if (recommendedLink && fromHome) {
-                recommendedLink.href = './recommended-videos.html?from=home&edition=' + encodeURIComponent(editionParam || (homePath.indexOf('/pro_x9v7q2m8/') !== -1 ? 'pro' : 'standard'));
+                recommendedLink.href = './recommended-videos.html?from=home&edition=' + encodeURIComponent(editionParam || (isProEdition ? 'pro' : 'standard'));
             }
             if (recommendedNewBadge) {
-                try {
-                    if (localStorage.getItem(recommendedNewKey) !== '1') {
+                if (isProEdition) {
+                    try {
+                        if (localStorage.getItem(recommendedNewKey) !== '1') {
+                            recommendedNewBadge.classList.remove('hidden');
+                            localStorage.setItem(recommendedNewKey, '1');
+                        }
+                    } catch (error) {
                         recommendedNewBadge.classList.remove('hidden');
-                        localStorage.setItem(recommendedNewKey, '1');
                     }
-                } catch (error) {
-                    recommendedNewBadge.classList.remove('hidden');
+                } else {
+                    recommendedNewBadge.style.display = 'none';
                 }
             }
 
