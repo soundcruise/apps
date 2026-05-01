@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.11.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.11.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1374,9 +1374,11 @@ function renderVisualize(app) {
         };
     });
 
-    document.querySelectorAll('.chord-btn').forEach(btn => {
-        btn.onclick = () => {
+    document.querySelectorAll('.chord-btn').forEach((btn, idx) => {
+        btn.onclick = (e) => {
+            e.preventDefault();
             const chordIndex = parseInt(btn.getAttribute('data-chord-index'));
+            console.log('Chord clicked:', chordIndex, 'Current:', state.visualize.selectedChordIndex);
             state.visualize.selectedChordIndex = state.visualize.selectedChordIndex === chordIndex ? null : chordIndex;
             saveState();
             renderApp();
@@ -2077,22 +2079,33 @@ function renderFretboardHTML(containerId, options) {
                     }
 
                     let label = '';
-                    if (shouldShow && isScale) {
-                        label = displayMode === 'degree' ? scaleDegrees[degreeRaw] : NOTES[noteIdx];
-                    } else if (shouldShow && !isScale) {
-                        label = displayMode === 'degree' ? '' : NOTES[noteIdx];
-                    }
-
                     let roleClass = 'role-non-target';
-                    if (shouldShow && isScale) {
-                        if (degreeRaw === 0) roleClass = 'role-root';
-                        else if (degreeRaw === 4) roleClass = 'role-third';
-                        else if (degreeRaw === 7) roleClass = 'role-fifth';
-                        else if (degreeRaw === 11) roleClass = 'role-seventh';
-                        else roleClass = 'role-other';
-                    }
 
-                    if (label === '') roleClass = 'role-non-target';
+                    if (shouldShow) {
+                        if (displayMode === 'degree') {
+                            label = isScale ? scaleDegrees[degreeRaw] : NOTES[noteIdx];
+                            if (isScale) {
+                                if (degreeRaw === 0) roleClass = 'role-root';
+                                else if (degreeRaw === 4) roleClass = 'role-third';
+                                else if (degreeRaw === 7) roleClass = 'role-fifth';
+                                else if (degreeRaw === 11) roleClass = 'role-seventh';
+                                else roleClass = 'role-other';
+                            } else {
+                                roleClass = 'role-non-target grayed-note';
+                            }
+                        } else {
+                            label = NOTES[noteIdx];
+                            if (isScale) {
+                                if (degreeRaw === 0) roleClass = 'role-root';
+                                else if (degreeRaw === 4) roleClass = 'role-third';
+                                else if (degreeRaw === 7) roleClass = 'role-fifth';
+                                else if (degreeRaw === 11) roleClass = 'role-seventh';
+                                else roleClass = 'role-other';
+                            } else {
+                                roleClass = 'role-non-target grayed-note';
+                            }
+                        }
+                    }
 
                     markerHtml = `<div class="note-marker ${roleClass}">${label}</div>`;
                 }
