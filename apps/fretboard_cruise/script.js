@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.10.9';
+const FRETBOARD_CRUISE_APP_VERSION = '1.10.10';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -2074,7 +2074,7 @@ function renderFretboardHTML(containerId, options) {
                 containerEl.style.marginBottom = '';
                 if (perspectiveWrapper) {
                     perspectiveWrapper.style.transformOrigin = 'top left';
-                    perspectiveWrapper.style.transform = `translateY(${(-projectedBounds.minY).toFixed(2)}px) scale(${zoomScale.toFixed(4)})`;
+                    perspectiveWrapper.style.transform = `translate(${(-projectedBounds.minX).toFixed(2)}px, ${(-projectedBounds.minY).toFixed(2)}px) scale(${zoomScale.toFixed(4)})`;
                 }
             } else {
                 const projectedBounds = getProjectedFretboardBounds(neckTop, neckBottom);
