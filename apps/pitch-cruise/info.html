@@ -5,12 +5,65 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>音感クルーズ | インフォメーション</title>
-    <link rel="stylesheet" href="../shared/style.css?v=97">
+    <link rel="stylesheet" href="../shared/style.css?v=98">
     <link rel="stylesheet" href="../shared/pro-theme.css?v=98">
     <link rel="stylesheet" href="./theme.css?v=1">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        .info-card h1 {
+            font-size: 1.8rem !important;
+            color: #fff !important;
+            -webkit-text-fill-color: unset !important;
+            background: none !important;
+            animation: none !important;
+            filter: none !important;
+        }
+
+        .info-links-bottom {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .info-pro-access-button {
+            background: linear-gradient(135deg,
+                    #fff2ac 0%,
+                    #bf953f 25%,
+                    #fcf6ba 50%,
+                    #b38728 75%,
+                    #fbf5b7 100%);
+            background-size: 200% auto;
+            border-color: #d4af37 !important;
+            color: #1a1a1a !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.6) !important;
+            animation: goldSweep 4s ease-in-out infinite;
+        }
+
+        .info-pro-access-button:hover {
+            border-color: #e8c547 !important;
+        }
+
+        .info-pro-access-button .info-link-title {
+            color: #1a1a1a !important;
+        }
+
+        @keyframes goldSweep {
+            0% {
+                background-position: 0% center;
+            }
+
+            50% {
+                background-position: 100% center;
+            }
+
+            100% {
+                background-position: 0% center;
+            }
+        }
+    </style>
 </head>
 
 <body class="info-page">
@@ -38,15 +91,44 @@
                     <span class="info-link-title">おすすめの関連動画リスト</span>
                     <span id="recommended-videos-new-badge" class="info-new-badge recommended-link-new-badge hidden" aria-hidden="true">New</span>
                 </a>
+            </div>
+            <div class="info-links-bottom">
                 <a class="info-link-card info-link-card--compact" href="https://www.youtube.com/channel/UC4ncQuk56I8SK6lJGZcGwJQ"
                     target="_blank" rel="noopener noreferrer">
                     <span class="info-link-title">YouTube Chトップ</span>
+                </a>
+                <a class="info-link-card info-link-card--compact info-pro-access-button" id="standard-pro-access-link" href="./pro-access.html" style="display: none; position: relative;">
+                    <span class="info-link-title">PRO版の入手方法</span>
+                    <span id="pro-access-new-badge" class="info-new-badge recommended-link-new-badge hidden" aria-hidden="true" style="top: -10px; right: 14px;">New</span>
                 </a>
             </div>
         </main>
     </div>
     <script>
         (function () {
+            // 「New」バッジ version 管理（script.js に依存しない独立実装）
+            var INFO_NEW_VERSION_KEY = 'pitchCruiseInfoNewSeen';
+            var CURRENT_APP_VERSION = '2.0.4';
+            var proAccessNewBadge = document.getElementById('pro-access-new-badge');
+
+            try {
+                var storedVersion = localStorage.getItem(INFO_NEW_VERSION_KEY);
+                var shouldShowBadge = storedVersion !== CURRENT_APP_VERSION;
+
+                if (proAccessNewBadge) {
+                    if (shouldShowBadge) {
+                        proAccessNewBadge.classList.remove('hidden');
+                    } else {
+                        proAccessNewBadge.classList.add('hidden');
+                    }
+                }
+
+                // このページを見たので version を記録する
+                localStorage.setItem(INFO_NEW_VERSION_KEY, CURRENT_APP_VERSION);
+            } catch (error) {
+                // localStorage が使えない場合は表示制御をスキップ
+            }
+
             var backLink = document.getElementById('info-back-link');
             var homeLink = document.getElementById('info-home-link');
             var defaultHome = './standard/index.html';
@@ -93,6 +175,10 @@
             var proUsageLink = document.getElementById('pro-usage-link');
             if (proUsageLink && isProEdition) {
                 proUsageLink.style.display = '';
+            }
+            var standardProAccessLink = document.getElementById('standard-pro-access-link');
+            if (standardProAccessLink && !isProEdition) {
+                standardProAccessLink.style.display = '';
             }
             var recommendedLink = document.getElementById('recommended-videos-link');
             if (recommendedLink && fromHome) {

@@ -562,8 +562,38 @@ html[data-app-edition="Pro"] .home-info-link--final {
     }
 }
 
-/* New badge design (saved for future use; currently disabled in standard edition) */
-/*.info-new-badge {
+/* New badge design - same as info-intro-callout */
+.home-info-new-badge {
+    position: absolute;
+    left: 84px;
+    bottom: -72px;
+    max-width: 188px;
+    padding: 10px 14px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, rgba(255, 214, 94, 0.96), rgba(255, 242, 186, 0.96));
+    color: #1b1608;
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1.35;
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
+    animation: infoIntroFloat 1.9s ease-in-out infinite;
+    text-decoration: none;
+    pointer-events: auto;
+}
+
+.home-info-new-badge::before {
+    content: "";
+    position: absolute;
+    left: -10px;
+    bottom: 18px;
+    width: 16px;
+    height: 16px;
+    background: inherit;
+    transform: rotate(45deg);
+    border-radius: 4px;
+}
+
+.info-new-badge {
     position: absolute;
     display: inline-flex;
     align-items: center;
@@ -572,19 +602,14 @@ html[data-app-edition="Pro"] .home-info-link--final {
     height: 26px;
     padding: 0 10px;
     border-radius: 999px;
-    background: linear-gradient(135deg, #ff6b6b, #ffd93d);
-    color: #1f1205;
+    background: linear-gradient(135deg, rgba(255, 214, 94, 0.96), rgba(255, 242, 186, 0.96));
+    color: #1b1608;
     font-size: 0.72rem;
     font-weight: 800;
     letter-spacing: 0.06em;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
-    animation: infoNewBadgePop 1.8s ease-in-out infinite;
+    animation: infoIntroFloat 1.9s ease-in-out infinite;
     pointer-events: none;
-}
-
-.home-info-new-badge {
-    left: 58px;
-    bottom: -48px;
 }
 
 .recommended-link-with-badge {
@@ -594,7 +619,7 @@ html[data-app-edition="Pro"] .home-info-link--final {
 .recommended-link-new-badge {
     top: -10px;
     right: 14px;
-}*/
+}
 
 /* New badge pop animation (saved for future use) */
 /*@keyframes infoNewBadgePop {

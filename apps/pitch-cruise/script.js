@@ -4,6 +4,50 @@ const PITCH_TRAINER_APP_VERSION = '2.0.4';
 /** 検証ハブ（Staging）の Ver 表記の括弧内。小さな更新は原則ここだけ増やす（版番号の変更は別指示時のみ） */
 const PITCH_TRAINER_APP_BUILD = '43';
 
+/** インフォメーション「New」バッジ管理 */
+(function initInfoNewBadge() {
+    const INFO_NEW_VERSION_KEY = 'pitchCruiseInfoNewSeen';
+    const currentVersion = PITCH_TRAINER_APP_VERSION;
+    const lastSeenVersion = localStorage.getItem(INFO_NEW_VERSION_KEY);
+
+    // 初回起動 or バージョンアップ時のみ表示
+    window.shouldShowInfoNewBadge = !lastSeenVersion || lastSeenVersion !== currentVersion;
+
+    // Service Worker からのメッセージを受け取り
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'INFO_VERSION_UPDATED') {
+                localStorage.removeItem(INFO_NEW_VERSION_KEY);
+                window.shouldShowInfoNewBadge = true;
+            }
+        });
+    }
+
+    // インフォメーションページで確認時に localStorage を更新
+    window.markInfoAsViewed = function() {
+        localStorage.setItem(INFO_NEW_VERSION_KEY, currentVersion);
+        window.shouldShowInfoNewBadge = false;
+    };
+
+    // トップページで「New」バッジの表示制御
+    function updateInfoNewBadgeDisplay() {
+        var badge = document.getElementById('home-info-new-badge');
+        if (badge) {
+            if (window.shouldShowInfoNewBadge) {
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', updateInfoNewBadgeDisplay);
+    } else {
+        updateInfoNewBadgeDisplay();
+    }
+}());
+
 /** Staging 検証（?stagingPreview=1）: メロディ Pro に「STAGEに追加」で保存したスロット ID 範囲 */
 const STAGING_PRO_MELODY_SLOT_MIN = 5001;
 const STAGING_PRO_MELODY_SLOT_MAX = 5099;
@@ -4684,9 +4728,8 @@ class Game {
             this.homeInfoIntroEl.classList.add('hidden');
             return;
         }
-        // First-time user: permanently suppress the NEW badge so it never shows,
-        // neither now nor in any future session. The intro callout is sufficient.
-        try { localStorage.setItem(this.infoNewBadgeStorageKey, '1'); } catch (_) {}
+        // First-time user: record version so NEW badge shows on next version update
+        try { localStorage.setItem(this.infoNewBadgeStorageKey, PITCH_TRAINER_APP_VERSION); } catch (_) {}
         this.homeInfoIntroEl.classList.remove('hidden');
         try {
             localStorage.setItem(this.infoIntroStorageKey, '1');
@@ -4710,22 +4753,18 @@ class Game {
         if (!this.homeInfoNewBadgeEl) return;
         const homeScreen = document.getElementById('screen-home');
         if (!homeScreen || homeScreen.classList.contains('hidden')) return;
-        let seen = false;
+        let shouldShow = false;
         try {
-            seen = localStorage.getItem(this.infoNewBadgeStorageKey) === '1';
+            const storedVersion = localStorage.getItem(this.infoNewBadgeStorageKey);
+            shouldShow = storedVersion !== PITCH_TRAINER_APP_VERSION;
         } catch (error) {
-            seen = false;
+            shouldShow = false;
         }
-        if (seen) {
+        if (!shouldShow) {
             this.homeInfoNewBadgeEl.classList.add('hidden');
             return;
         }
         this.homeInfoNewBadgeEl.classList.remove('hidden');
-        try {
-            localStorage.setItem(this.infoNewBadgeStorageKey, '1');
-        } catch (error) {
-            // ignore storage failures
-        }
         clearTimeout(this._infoNewBadgeTimer);
         this._infoNewBadgeTimer = setTimeout(() => this.dismissInfoNewBadge(), 7000);
     }

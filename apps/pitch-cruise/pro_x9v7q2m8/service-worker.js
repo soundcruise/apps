@@ -1,5 +1,6 @@
 const GATE_VERSION = 7; // パスワード変更時に rotationId と合わせて +1
 const CACHE_NAME = 'pitch-trainer-pro-scope-v14-apps-pitch-cruise';
+const INFO_NEW_VERSION_KEY = 'infoNewVersionSeen';
 
 self.addEventListener('install', () => {
     self.skipWaiting();
@@ -14,6 +15,7 @@ self.addEventListener('activate', (e) => {
             self.clients.matchAll({ includeUncontrolled: true, type: 'window' }).then((clients) => {
                 clients.forEach((client) => {
                     client.postMessage({ type: 'PRO_GATE_INVALIDATE', version: GATE_VERSION, resetGate: true });
+                    client.postMessage({ type: 'INFO_VERSION_UPDATED', version: GATE_VERSION });
                 });
             })
         ])
