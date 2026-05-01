@@ -167,13 +167,13 @@ body.pro-gate-active {
 }
 
 .pro-gate-reset-message-popup {
-    display: inline-block;
+    display: block;
     margin: 0 0 2px 0;
     color: #81c784;
     padding: 0;
     font-size: 0.75rem;
     font-weight: 500;
-    white-space: nowrap;
+    text-align: center;
     pointer-events: none;
     animation: pro-gate-fadeInDown 0.5s ease-out;
 }
@@ -181,11 +181,11 @@ body.pro-gate-active {
 @keyframes pro-gate-fadeInDown {
     from {
         opacity: 0;
-        transform: translateX(-50%) translateY(-10px);
+        transform: translateY(-10px);
     }
     to {
         opacity: 1;
-        transform: translateX(-50%) translateY(0);
+        transform: translateY(0);
     }
 }
 

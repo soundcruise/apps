@@ -5,11 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>メンバー限定ページが見られない場合</title>
     <link rel="stylesheet" href="../../shared/style.css">
-    <link rel="stylesheet" href="../../shared/pro-gate.css">
+    <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
     <style>
         body {
             background: #0a0a0c;
             color: #fff;
+            overflow: auto;
         }
 
         .troubleshoot-container {
@@ -127,6 +128,21 @@
 
         .troubleshoot-back a:hover {
             color: #ffeb99;
+        }
+
+        @media (max-width: 768px) {
+            .troubleshoot-container {
+                display: block;
+                min-height: auto;
+                align-items: unset;
+                justify-content: unset;
+                padding-top: max(16px, env(safe-area-inset-top));
+                padding-bottom: max(16px, env(safe-area-inset-bottom));
+            }
+
+            .troubleshoot-panel {
+                margin: 20px auto;
+            }
         }
     </style>
 </head>
