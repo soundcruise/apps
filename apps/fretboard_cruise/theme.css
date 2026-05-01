@@ -30,6 +30,7 @@
     -webkit-overflow-scrolling: touch;
     display: flex;
     justify-content: flex-start;
+    clip-path: inset(0 0 0 24px); /* ネック側面を隠して指板を左寄せ */
 }
 
 .fretboard-container {
