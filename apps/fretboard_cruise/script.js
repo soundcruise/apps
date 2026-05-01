@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.10.10';
+const FRETBOARD_CRUISE_APP_VERSION = '1.11.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -64,7 +64,9 @@ let state = {
         capo: 0,
         displayMode: 'note',
         chordType: 'M',
-        degreeMode: false
+        degreeMode: false,
+        scale: 'major',
+        selectedChordIndex: null
     },
     settings: {
         tempo: DEFAULT_TEMPO,
@@ -1228,9 +1230,67 @@ function updateMemorizeScoreDisplay() {
     if (scombo) scombo.textContent = state.memorize.combo;
 }
 
+const DIATONIC_CHORDS = {
+    major: [
+        { label: 'I', degrees: [0, 4, 7] },
+        { label: 'IIm', degrees: [2, 5, 9] },
+        { label: 'IIIm', degrees: [4, 7, 11] },
+        { label: 'IV', degrees: [5, 9, 0] },
+        { label: 'V', degrees: [7, 11, 2] },
+        { label: 'VIm', degrees: [9, 0, 4] },
+        { label: 'VIIm7b5', degrees: [11, 2, 5] }
+    ],
+    minor: [
+        { label: 'Im', degrees: [0, 3, 7] },
+        { label: 'IIm7b5', degrees: [2, 5, 8] },
+        { label: 'III', degrees: [3, 7, 10] },
+        { label: 'IVm', degrees: [5, 8, 0] },
+        { label: 'Vm', degrees: [7, 10, 2] },
+        { label: 'VI', degrees: [8, 0, 3] },
+        { label: 'VII', degrees: [10, 2, 5] }
+    ],
+    pentaMajor: [
+        { label: 'I', degrees: [0, 4, 7] },
+        { label: 'II', degrees: [2, 6, 9] },
+        { label: 'III', degrees: [4, 7, 11] },
+        { label: 'V', degrees: [7, 11, 2] },
+        { label: 'VI', degrees: [9, 0, 4] }
+    ],
+    pentaMinor: [
+        { label: 'Im', degrees: [0, 3, 7] },
+        { label: 'III', degrees: [3, 7, 10] },
+        { label: 'IVm', degrees: [5, 8, 0] },
+        { label: 'Vm', degrees: [7, 10, 2] },
+        { label: 'VII', degrees: [10, 2, 5] }
+    ]
+};
+
+function getScaleDegrees(scaleType) {
+    switch(scaleType) {
+        case 'major':
+            return { 0: '1', 2: '2', 4: '3', 5: '4', 7: '5', 9: '6', 11: '7' };
+        case 'minor':
+            return { 0: '1', 2: '2b', 3: '3', 5: '4', 7: '5', 8: '6b', 10: '7b' };
+        case 'pentaMajor':
+            return { 0: '1', 2: '2', 4: '3', 7: '5', 9: '6' };
+        case 'pentaMinor':
+            return { 0: '1', 3: '3b', 5: '4', 7: '5', 10: '7b' };
+        default:
+            return { 0: '1', 2: '2', 4: '3', 5: '4', 7: '5', 9: '6', 11: '7' };
+    }
+}
+
 function renderVisualize(app) {
     if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
     if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
+    if (typeof state.visualize.scale === 'undefined') state.visualize.scale = 'major';
+    if (typeof state.visualize.selectedChordIndex === 'undefined') state.visualize.selectedChordIndex = null;
+
+    const chords = DIATONIC_CHORDS[state.visualize.scale] || DIATONIC_CHORDS.major;
+    const chordButtonsHtml = chords.map((chord, idx) => {
+        const isSelected = state.visualize.selectedChordIndex === idx;
+        return `<button class="chord-btn ${isSelected ? 'active' : ''}" data-chord-index="${idx}">${chord.label}</button>`;
+    }).join('');
 
     app.innerHTML = `
         <header style="padding-top: 10px; margin-bottom: 5px;">
@@ -1254,6 +1314,15 @@ function renderVisualize(app) {
                 </select>
             </div>
             <div class="setup-item">
+                <label>Scale</label>
+                <select id="vis-scale">
+                    <option value="major" ${state.visualize.scale==='major'?'selected':''}>Major</option>
+                    <option value="minor" ${state.visualize.scale==='minor'?'selected':''}>Minor</option>
+                    <option value="pentaMajor" ${state.visualize.scale==='pentaMajor'?'selected':''}>Penta Major</option>
+                    <option value="pentaMinor" ${state.visualize.scale==='pentaMinor'?'selected':''}>Penta Minor</option>
+                </select>
+            </div>
+            <div class="setup-item">
                 <label>Display</label>
                 <div class="mode-buttons">
                     <button class="mode-btn ${state.visualize.displayMode==='note'?'active':''}" data-mode="note">音名</button>
@@ -1265,15 +1334,9 @@ function renderVisualize(app) {
         <div id="fretboard-container" style="width: 100%;"></div>
 
         <div style="margin-top: 20px; width: 100%;">
-            <h3 style="font-size: 1rem; color: rgba(255,255,255,0.7); margin-bottom: 10px;">Diatonic Chords (UI Only)</h3>
+            <h3 style="font-size: 1rem; color: rgba(255,255,255,0.7); margin-bottom: 10px;">Diatonic Chords</h3>
             <div class="chord-list">
-                <button class="chord-btn active">I</button>
-                <button class="chord-btn">IIm</button>
-                <button class="chord-btn">IIIm</button>
-                <button class="chord-btn">IV</button>
-                <button class="chord-btn">V</button>
-                <button class="chord-btn">VIm</button>
-                <button class="chord-btn">VIIm7b5</button>
+                ${chordButtonsHtml}
             </div>
         </div>
     `;
@@ -1296,9 +1359,25 @@ function renderVisualize(app) {
         renderApp();
     };
 
+    document.getElementById('vis-scale').onchange = (e) => {
+        state.visualize.scale = e.target.value;
+        state.visualize.selectedChordIndex = null;
+        saveState();
+        renderApp();
+    };
+
     document.querySelectorAll('.mode-btn').forEach(btn => {
         btn.onclick = () => {
             state.visualize.displayMode = btn.getAttribute('data-mode');
+            saveState();
+            renderApp();
+        };
+    });
+
+    document.querySelectorAll('.chord-btn').forEach(btn => {
+        btn.onclick = () => {
+            const chordIndex = parseInt(btn.getAttribute('data-chord-index'));
+            state.visualize.selectedChordIndex = state.visualize.selectedChordIndex === chordIndex ? null : chordIndex;
             saveState();
             renderApp();
         };
@@ -1308,7 +1387,9 @@ function renderVisualize(app) {
         mode: 'visualize',
         keyIndex: state.visualize.key,
         capo: state.visualize.capo,
-        displayMode: state.visualize.displayMode
+        displayMode: state.visualize.displayMode,
+        scale: state.visualize.scale,
+        selectedChordIndex: state.visualize.selectedChordIndex
     });
 }
 
@@ -1739,9 +1820,9 @@ function renderSettings(app) {
 }
 
 function renderFretboardHTML(containerId, options) {
-    const { 
+    const {
         mode, question, showAnswer, clicked, onFretClick,
-        keyIndex, capo, displayMode 
+        keyIndex, capo, displayMode, scale, selectedChordIndex
     } = options;
 
     // If old perspective value (>100), migrate it to the 0-100 range.
@@ -1985,18 +2066,30 @@ function renderFretboardHTML(containerId, options) {
                     markerHtml = `<div class="note-marker hidden-note"></div>`;
                 } else {
                     let degreeRaw = (noteIdx - keyIndex + 12) % 12;
-                    const scaleDegrees = {0: '1', 2: '2', 4: '3', 5: '4', 7: '5', 9: '6', 11: '7'};
+                    const scaleDegrees = getScaleDegrees(scale || 'major');
                     let isScale = scaleDegrees.hasOwnProperty(degreeRaw);
-                    
-                    let label = displayMode === 'degree' ? (isScale ? scaleDegrees[degreeRaw] : '') : NOTES[noteIdx];
-                    
+
+                    let shouldShow = true;
+                    if (selectedChordIndex !== null && selectedChordIndex !== undefined) {
+                        const chords = DIATONIC_CHORDS[scale || 'major'] || DIATONIC_CHORDS.major;
+                        const selectedChord = chords[selectedChordIndex];
+                        shouldShow = selectedChord && selectedChord.degrees.includes(degreeRaw);
+                    }
+
+                    let label = '';
+                    if (shouldShow && isScale) {
+                        label = displayMode === 'degree' ? scaleDegrees[degreeRaw] : NOTES[noteIdx];
+                    } else if (shouldShow && !isScale) {
+                        label = displayMode === 'degree' ? '' : NOTES[noteIdx];
+                    }
+
                     let roleClass = 'role-non-target';
-                    if (isScale) {
+                    if (shouldShow && isScale) {
                         if (degreeRaw === 0) roleClass = 'role-root';
                         else if (degreeRaw === 4) roleClass = 'role-third';
                         else if (degreeRaw === 7) roleClass = 'role-fifth';
                         else if (degreeRaw === 11) roleClass = 'role-seventh';
-                        else roleClass = 'role-other'; 
+                        else roleClass = 'role-other';
                     }
 
                     if (label === '') roleClass = 'role-non-target';
