@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.11.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.11.4';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -750,6 +750,25 @@ function generateQuestion() {
 // UI Rendering
 // ----------------------------------------------------
 
+const setupChordListeners = () => {
+    const chordListContainer = document.querySelector('.chord-list');
+    if (!chordListContainer || chordListContainer.__chordListenerAttached) return;
+
+    chordListContainer.addEventListener('click', (e) => {
+        const btn = e.target.closest('.chord-btn');
+        if (btn) {
+            const chordIndex = parseInt(btn.getAttribute('data-chord-index'));
+            console.log('Chord button clicked:', chordIndex);
+            state.visualize.selectedChordIndex =
+                state.visualize.selectedChordIndex === chordIndex ? null : chordIndex;
+            console.log('Updated selectedChordIndex to:', state.visualize.selectedChordIndex);
+            saveState();
+            setTimeout(() => renderApp(), 0);
+        }
+    });
+    chordListContainer.__chordListenerAttached = true;
+};
+
 function renderApp() {
     const app = document.getElementById('app');
     if (app && typeof app._cleanupSettingsHandlers === 'function') {
@@ -833,6 +852,11 @@ function renderApp() {
                 window.location.reload();
             };
         }
+    }
+
+    // Setup event listeners for visualize mode
+    if (state.course === 'visualize') {
+        setupChordListeners();
     }
 }
 
@@ -1394,24 +1418,10 @@ function renderVisualize(app) {
     });
 
     const chordBtns = document.querySelectorAll('.chord-btn');
-    console.log('Found chord buttons:', chordBtns.length);
+    console.log('Chord buttons found:', chordBtns.length);
     chordBtns.forEach((btn, idx) => {
         const chordIndex = parseInt(btn.getAttribute('data-chord-index'));
-        const chord = DIATONIC_CHORDS[state.visualize.scale || 'major'][chordIndex];
-        console.log('Setting up listener for chord button', idx, '- Index:', chordIndex, 'Label:', chord?.label);
-
-        btn.addEventListener('click', (e) => {
-            console.log('=== CHORD BUTTON CLICKED ===');
-            console.log('Button label:', btn.textContent);
-            console.log('Chord index:', chordIndex);
-            console.log('Current selectedChordIndex:', state.visualize.selectedChordIndex);
-            console.log('Will toggle to:', state.visualize.selectedChordIndex === chordIndex ? 'null' : chordIndex);
-
-            state.visualize.selectedChordIndex = state.visualize.selectedChordIndex === chordIndex ? null : chordIndex;
-            console.log('New selectedChordIndex:', state.visualize.selectedChordIndex);
-            saveState();
-            renderApp();
-        });
+        console.log(`Button ${idx}: index=${chordIndex}, text=${btn.textContent}`);
     });
 
     renderFretboardHTML('fretboard-container', {
@@ -2108,10 +2118,12 @@ function renderFretboardHTML(containerId, options) {
                         shouldShow = selectedChord && selectedChord.degrees.includes(degreeRaw);
                     }
 
-                    let label = '';
-                    let roleClass = 'role-non-target';
+                    if (!shouldShow) {
+                        markerHtml = `<div class="note-marker hidden-note"></div>`;
+                    } else {
+                        let label = '';
+                        let roleClass = 'role-non-target';
 
-                    if (shouldShow) {
                         if (displayMode === 'degree') {
                             label = allDegrees[degreeRaw] || NOTES[noteIdx];
                             if (isScale) {
@@ -2135,9 +2147,9 @@ function renderFretboardHTML(containerId, options) {
                                 roleClass = 'role-non-target grayed-note';
                             }
                         }
-                    }
 
-                    markerHtml = `<div class="note-marker ${roleClass}">${label}</div>`;
+                        markerHtml = `<div class="note-marker ${roleClass}">${label}</div>`;
+                    }
                 }
             }
 
@@ -2249,6 +2261,17 @@ function renderFretboardHTML(containerId, options) {
     // Attach on document capture because player-view rotation can project frets outside
     // the container's layout box. Hit-test the projected 2D fret rectangles instead.
     const handleFretboardClick = (e) => {
+        // コードボタンのクリックを最優先で処理
+        const chordBtn = e.target.closest('.chord-btn');
+        if (chordBtn) {
+            const chordIndex = parseInt(chordBtn.getAttribute('data-chord-index'));
+            state.visualize.selectedChordIndex =
+                state.visualize.selectedChordIndex === chordIndex ? null : chordIndex;
+            saveState();
+            setTimeout(() => renderApp(), 0);
+            return;
+        }
+
         if (!document.body.contains(containerEl)) {
             cleanupFretboardDocumentHandlers(containerId);
             return;
