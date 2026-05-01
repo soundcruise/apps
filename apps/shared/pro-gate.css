@@ -20,7 +20,7 @@
 
 .pro-gate-panel {
     width: 100%;
-    max-width: 360px;
+    max-width: 320px;
     padding: 28px 22px 26px;
     border-radius: 16px;
     background: linear-gradient(165deg, rgba(40, 40, 44, 0.98), rgba(22, 22, 26, 0.99));
@@ -31,7 +31,7 @@
 
 .pro-gate-box {
     width: 100%;
-    max-width: 360px;
+    max-width: 320px;
     text-align: center;
 }
 
@@ -138,6 +138,7 @@ body.pro-gate-active {
 .pro-gate-password-section {
     margin-top: 20px;
     position: relative;
+    overflow: visible;
 }
 
 .pro-gate-password-link {
@@ -147,7 +148,7 @@ body.pro-gate-active {
     background: rgba(255, 210, 90, 0.08);
     transition: all 0.3s ease;
     cursor: pointer;
-    animation: pro-gate-pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation: pro-gate-pulse 5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 .pro-gate-password-link:hover {
@@ -166,25 +167,15 @@ body.pro-gate-active {
 }
 
 .pro-gate-reset-message-popup {
-    position: absolute;
-    bottom: 48px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: linear-gradient(135deg, rgba(76, 175, 80, 0.15), rgba(56, 142, 60, 0.1));
-    border: 1px solid rgba(76, 175, 80, 0.4);
+    display: inline-block;
+    margin: 0 0 2px 0;
     color: #81c784;
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-size: 0.85rem;
+    padding: 0;
+    font-size: 0.75rem;
     font-weight: 500;
     white-space: nowrap;
     pointer-events: none;
     animation: pro-gate-fadeInDown 0.5s ease-out;
-}
-
-.pro-gate-reset-message-popup::before {
-    content: "ℹ ";
-    font-weight: bold;
 }
 
 @keyframes pro-gate-fadeInDown {
@@ -196,4 +187,21 @@ body.pro-gate-active {
         opacity: 1;
         transform: translateX(-50%) translateY(0);
     }
+}
+
+.pro-gate-troubleshoot-link {
+    margin-top: 12px;
+    text-align: center;
+}
+
+.pro-gate-troubleshoot-link a {
+    font-size: 0.75rem;
+    color: rgba(255, 229, 102, 0.6);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    transition: color 0.3s ease;
+}
+
+.pro-gate-troubleshoot-link a:hover {
+    color: rgba(255, 229, 102, 0.92);
 }

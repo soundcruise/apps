@@ -156,8 +156,9 @@
             '<div class="pro-gate-password-section">' +
             resetMessageHTML +
             '<a class="pro-gate-password-link" href="https://www.youtube.com/post/UgkxGGd0QKGyDd3-mMWvhusmK4ZvqmH8I6Er" target="_blank" rel="noopener noreferrer">パスワードはこちら(メンバーのみ閲覧可能)</a>' +
-            '</div>' +
             '<div class="pro-gate-password-updated">2026.5.1更新</div>' +
+            '<div class="pro-gate-troubleshoot-link"><a href="./troubleshoot.html">メンバーなのに見られない方</a></div>' +
+            '</div>' +
             '</div>';
 
         document.body.classList.add('pro-gate-active');
