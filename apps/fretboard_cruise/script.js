@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.10.8';
+const FRETBOARD_CRUISE_APP_VERSION = '1.10.9';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -2176,6 +2176,15 @@ function renderFretboardHTML(containerId, options) {
     document.addEventListener('click', handleFretboardClick, true);
     fretboardDocumentHandlers.set(containerId, handleFretboardClick);
     renderFretboardHitDebug(containerId, mode, question);
+
+    // 問題画面で指板を左側に強制的に寄せる
+    setTimeout(() => {
+        const wrapper = document.querySelector('.fretboard-scroll-wrapper');
+        if (wrapper && wrapper.firstChild) {
+            wrapper.scrollLeft = 0;
+            wrapper.firstChild.style.marginLeft = '0';
+        }
+    }, 10);
 }
 
 function renderFretboardHitDebug(containerId, mode, question) {
