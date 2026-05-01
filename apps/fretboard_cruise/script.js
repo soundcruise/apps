@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.10.7';
+const FRETBOARD_CRUISE_APP_VERSION = '1.10.8';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -810,26 +810,8 @@ function renderApp() {
                     newWrapper.scrollLeft = 0;
                 }
             } else if (state.course === 'memorize' && state.memorize.playMode === 'quiz') {
-                const q = state.memorize.currentQuestion;
-                if (q && state.settings.fretboardView === 'zoom') {
-                    const targetCol = newWrapper.querySelector(`.fret-column[data-string="${q.stringName}"][data-fret="${q.fret}"]`);
-                    if (targetCol) {
-                        const wrapperCenter = newWrapper.clientWidth / 2;
-                        const fretCenter = targetCol.offsetLeft + (targetCol.clientWidth / 2);
-                        setTimeout(() => {
-                            newWrapper.scrollTo({ left: fretCenter - wrapperCenter, behavior: 'smooth' });
-                        }, 10);
-                    }
-                } else {
-                    let minFret = 0;
-                    if (state.memorize.stage === 3 || state.memorize.stage === 4) minFret = 5;
-                    if (minFret > 0) {
-                        const fretCol = newWrapper.querySelector(`.fret-column[data-fret="${minFret}"]`);
-                        if (fretCol) {
-                            newWrapper.scrollLeft = fretCol.offsetLeft - 20;
-                        }
-                    }
-                }
+                // Always scroll to the left edge in quiz mode
+                newWrapper.scrollLeft = 0;
             }
         } else {
             newWrapper.scrollLeft = currentScrollLeft;
