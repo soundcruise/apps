@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.11.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.11.3';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1281,40 +1281,22 @@ function getScaleDegrees(scaleType) {
 }
 
 function getAllDegreesWithAccidentals(scaleType) {
-    const scaleDegrees = getScaleDegrees(scaleType);
-    const allDegrees = {};
-
-    for (let i = 0; i < 12; i++) {
-        if (scaleDegrees.hasOwnProperty(i)) {
-            allDegrees[i] = scaleDegrees[i];
-        } else {
-            // スケール外の音を度数で表現
-            const baseDegrees = scaleType === 'major' ? [0, 2, 4, 5, 7, 9, 11] :
-                               scaleType === 'minor' ? [0, 2, 3, 5, 7, 8, 10] :
-                               scaleType === 'pentaMajor' ? [0, 2, 4, 7, 9] :
-                               scaleType === 'pentaMinor' ? [0, 3, 5, 7, 10] :
-                               [0, 2, 4, 5, 7, 9, 11];
-
-            let closest = baseDegrees[0];
-            let minDist = Math.abs(i - baseDegrees[0]);
-            for (let d of baseDegrees) {
-                const dist = Math.abs(i - d);
-                if (dist < minDist) {
-                    minDist = dist;
-                    closest = d;
-                }
-            }
-
-            const baseDegreeLabel = scaleDegrees[closest] || '1';
-            const diff = (i - closest + 12) % 12;
-            if (diff === 1 || diff === 11) {
-                allDegrees[i] = diff === 1 ? baseDegreeLabel + '♯' : baseDegreeLabel + '♭';
-            } else {
-                allDegrees[i] = baseDegreeLabel;
-            }
-        }
-    }
-    return allDegrees;
+    // 標準的な音楽理論の度数表記: P1, m2, M2, m3, M3, P4, dim5, P5, m6, M6, m7, M7
+    const intervalsFromRoot = {
+        0: 'P1',   // 完全1度
+        1: 'm2',   // 短2度
+        2: 'M2',   // 長2度
+        3: 'm3',   // 短3度
+        4: 'M3',   // 長3度
+        5: 'P4',   // 完全4度
+        6: 'dim5', // 減5度
+        7: 'P5',   // 完全5度
+        8: 'm6',   // 短6度
+        9: 'M6',   // 長6度
+        10: 'm7',  // 短7度
+        11: 'M7'   // 長7度
+    };
+    return intervalsFromRoot;
 }
 
 function renderVisualize(app) {
@@ -1414,21 +1396,19 @@ function renderVisualize(app) {
     const chordBtns = document.querySelectorAll('.chord-btn');
     console.log('Found chord buttons:', chordBtns.length);
     chordBtns.forEach((btn, idx) => {
-        console.log('Setting up listener for chord button', idx, btn.getAttribute('data-chord-index'));
-        btn.onclick = (e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            const chordIndex = parseInt(btn.getAttribute('data-chord-index'));
-            console.log('Chord clicked:', chordIndex, 'Current:', state.visualize.selectedChordIndex);
-            state.visualize.selectedChordIndex = state.visualize.selectedChordIndex === chordIndex ? null : chordIndex;
-            saveState();
-            renderApp();
-        };
+        const chordIndex = parseInt(btn.getAttribute('data-chord-index'));
+        const chord = DIATONIC_CHORDS[state.visualize.scale || 'major'][chordIndex];
+        console.log('Setting up listener for chord button', idx, '- Index:', chordIndex, 'Label:', chord?.label);
+
         btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const chordIndex = parseInt(btn.getAttribute('data-chord-index'));
-            console.log('Chord clicked (addEventListener):', chordIndex);
+            console.log('=== CHORD BUTTON CLICKED ===');
+            console.log('Button label:', btn.textContent);
+            console.log('Chord index:', chordIndex);
+            console.log('Current selectedChordIndex:', state.visualize.selectedChordIndex);
+            console.log('Will toggle to:', state.visualize.selectedChordIndex === chordIndex ? 'null' : chordIndex);
+
             state.visualize.selectedChordIndex = state.visualize.selectedChordIndex === chordIndex ? null : chordIndex;
+            console.log('New selectedChordIndex:', state.visualize.selectedChordIndex);
             saveState();
             renderApp();
         });
