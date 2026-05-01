@@ -4760,22 +4760,7 @@ class Game {
 
     maybeShowInfoNewBadge() {
         if (!this.homeInfoNewBadgeEl) return;
-        const homeScreen = document.getElementById('screen-home');
-        if (!homeScreen || homeScreen.classList.contains('hidden')) return;
-        let shouldShow = false;
-        try {
-            const storedVersion = localStorage.getItem(this.infoNewBadgeStorageKey);
-            shouldShow = storedVersion !== PITCH_TRAINER_APP_VERSION;
-        } catch (error) {
-            shouldShow = false;
-        }
-        if (!shouldShow) {
-            this.homeInfoNewBadgeEl.classList.add('hidden');
-            return;
-        }
-        this.homeInfoNewBadgeEl.classList.remove('hidden');
-        clearTimeout(this._infoNewBadgeTimer);
-        this._infoNewBadgeTimer = setTimeout(() => this.dismissInfoNewBadge(), 7000);
+        this.homeInfoNewBadgeEl.classList.add('hidden');
     }
 
     dismissInfoNewBadge() {
