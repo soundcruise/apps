@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.11.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.11.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1280,6 +1280,43 @@ function getScaleDegrees(scaleType) {
     }
 }
 
+function getAllDegreesWithAccidentals(scaleType) {
+    const scaleDegrees = getScaleDegrees(scaleType);
+    const allDegrees = {};
+
+    for (let i = 0; i < 12; i++) {
+        if (scaleDegrees.hasOwnProperty(i)) {
+            allDegrees[i] = scaleDegrees[i];
+        } else {
+            // スケール外の音を度数で表現
+            const baseDegrees = scaleType === 'major' ? [0, 2, 4, 5, 7, 9, 11] :
+                               scaleType === 'minor' ? [0, 2, 3, 5, 7, 8, 10] :
+                               scaleType === 'pentaMajor' ? [0, 2, 4, 7, 9] :
+                               scaleType === 'pentaMinor' ? [0, 3, 5, 7, 10] :
+                               [0, 2, 4, 5, 7, 9, 11];
+
+            let closest = baseDegrees[0];
+            let minDist = Math.abs(i - baseDegrees[0]);
+            for (let d of baseDegrees) {
+                const dist = Math.abs(i - d);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closest = d;
+                }
+            }
+
+            const baseDegreeLabel = scaleDegrees[closest] || '1';
+            const diff = (i - closest + 12) % 12;
+            if (diff === 1 || diff === 11) {
+                allDegrees[i] = diff === 1 ? baseDegreeLabel + '♯' : baseDegreeLabel + '♭';
+            } else {
+                allDegrees[i] = baseDegreeLabel;
+            }
+        }
+    }
+    return allDegrees;
+}
+
 function renderVisualize(app) {
     if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
     if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
@@ -1374,8 +1411,12 @@ function renderVisualize(app) {
         };
     });
 
-    document.querySelectorAll('.chord-btn').forEach((btn, idx) => {
+    const chordBtns = document.querySelectorAll('.chord-btn');
+    console.log('Found chord buttons:', chordBtns.length);
+    chordBtns.forEach((btn, idx) => {
+        console.log('Setting up listener for chord button', idx, btn.getAttribute('data-chord-index'));
         btn.onclick = (e) => {
+            e.stopPropagation();
             e.preventDefault();
             const chordIndex = parseInt(btn.getAttribute('data-chord-index'));
             console.log('Chord clicked:', chordIndex, 'Current:', state.visualize.selectedChordIndex);
@@ -1383,6 +1424,14 @@ function renderVisualize(app) {
             saveState();
             renderApp();
         };
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const chordIndex = parseInt(btn.getAttribute('data-chord-index'));
+            console.log('Chord clicked (addEventListener):', chordIndex);
+            state.visualize.selectedChordIndex = state.visualize.selectedChordIndex === chordIndex ? null : chordIndex;
+            saveState();
+            renderApp();
+        });
     });
 
     renderFretboardHTML('fretboard-container', {
@@ -2069,6 +2118,7 @@ function renderFretboardHTML(containerId, options) {
                 } else {
                     let degreeRaw = (noteIdx - keyIndex + 12) % 12;
                     const scaleDegrees = getScaleDegrees(scale || 'major');
+                    const allDegrees = getAllDegreesWithAccidentals(scale || 'major');
                     let isScale = scaleDegrees.hasOwnProperty(degreeRaw);
 
                     let shouldShow = true;
@@ -2083,7 +2133,7 @@ function renderFretboardHTML(containerId, options) {
 
                     if (shouldShow) {
                         if (displayMode === 'degree') {
-                            label = isScale ? scaleDegrees[degreeRaw] : NOTES[noteIdx];
+                            label = allDegrees[degreeRaw] || NOTES[noteIdx];
                             if (isScale) {
                                 if (degreeRaw === 0) roleClass = 'role-root';
                                 else if (degreeRaw === 4) roleClass = 'role-third';
