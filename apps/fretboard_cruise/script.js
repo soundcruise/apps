@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.13.35';
+const FRETBOARD_CRUISE_APP_VERSION = '1.13.36';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -69,7 +69,9 @@ let state = {
         scale: 'major',
         selectedChordIndex: null,
         /** 'movable' = キー主音を1度（P1）, 'fixed' = Cを1度（P1） */
-        doMode: 'movable'
+        doMode: 'movable',
+        /** '3' = 3和音, '7' = 7thコード */
+        chordType: '3'
     },
     settings: {
         tempo: DEFAULT_TEMPO,
@@ -139,6 +141,7 @@ if (savedState) {
         if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
         if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
         if (typeof state.visualize.doMode === 'undefined') state.visualize.doMode = 'movable';
+        if (typeof state.visualize.chordType === 'undefined') state.visualize.chordType = '3';
         if (typeof state.settings.tempo === 'undefined') state.settings.tempo = DEFAULT_TEMPO;
         if (typeof state.settings.quizTimeLimit === 'undefined') state.settings.quizTimeLimit = DEFAULT_QUIZ_TIME_LIMIT;
         if (typeof state.settings.stringSpacing === 'undefined') state.settings.stringSpacing = DEFAULT_STRING_SPACING;
@@ -1388,40 +1391,40 @@ const SCALE_INTERVALS = {
 
 const DIATONIC_CHORDS = {
     major: [
-        { label: 'I', degrees: [0, 4, 7] },
-        { label: 'IIm', degrees: [2, 5, 9] },
-        { label: 'IIIm', degrees: [4, 7, 11] },
-        { label: 'IV', degrees: [5, 9, 0] },
-        { label: 'V', degrees: [7, 11, 2] },
-        { label: 'VIm', degrees: [9, 0, 4] },
-        { label: 'VIIm7b5', degrees: [11, 2, 5] }
+        { label: 'I', degrees: [0, 4, 7], degrees7: [0, 4, 7, 11] },
+        { label: 'IIm', degrees: [2, 5, 9], degrees7: [2, 5, 9, 0] },
+        { label: 'IIIm', degrees: [4, 7, 11], degrees7: [4, 7, 11, 2] },
+        { label: 'IV', degrees: [5, 9, 0], degrees7: [5, 9, 0, 4] },
+        { label: 'V', degrees: [7, 11, 2], degrees7: [7, 11, 2, 5] },
+        { label: 'VIm', degrees: [9, 0, 4], degrees7: [9, 0, 4, 7] },
+        { label: 'VIIm7b5', degrees: [11, 2, 5], degrees7: [11, 2, 5, 8] }
     ],
     minor: [
-        { label: 'Im', degrees: [0, 3, 7] },
-        { label: 'IIm7b5', degrees: [2, 5, 8] },
-        { label: 'III', degrees: [3, 7, 10] },
-        { label: 'IVm', degrees: [5, 8, 0] },
-        { label: 'Vm', degrees: [7, 10, 2] },
-        { label: 'VI', degrees: [8, 0, 3] },
-        { label: 'VII', degrees: [10, 2, 5] }
+        { label: 'Im', degrees: [0, 3, 7], degrees7: [0, 3, 7, 10] },
+        { label: 'IIm7b5', degrees: [2, 5, 8], degrees7: [2, 5, 8, 11] },
+        { label: 'III', degrees: [3, 7, 10], degrees7: [3, 7, 10, 2] },
+        { label: 'IVm', degrees: [5, 8, 0], degrees7: [5, 8, 0, 3] },
+        { label: 'Vm', degrees: [7, 10, 2], degrees7: [7, 10, 2, 5] },
+        { label: 'VI', degrees: [8, 0, 3], degrees7: [8, 0, 3, 7] },
+        { label: 'VII', degrees: [10, 2, 5], degrees7: [10, 2, 5, 8] }
     ],
     pentaMajor: [
-        { label: 'I', degrees: [0, 4, 7] },
-        { label: 'II', degrees: [2, 6, 9] },
-        { label: 'III', degrees: [4, 7, 11] },
-        { label: 'V', degrees: [7, 11, 2] },
-        { label: 'VI', degrees: [9, 0, 4] }
+        { label: 'I', degrees: [0, 4, 7], degrees7: [0, 4, 7, 11] },
+        { label: 'II', degrees: [2, 6, 9], degrees7: [2, 6, 9, 0] },
+        { label: 'III', degrees: [4, 7, 11], degrees7: [4, 7, 11, 2] },
+        { label: 'V', degrees: [7, 11, 2], degrees7: [7, 11, 2, 5] },
+        { label: 'VI', degrees: [9, 0, 4], degrees7: [9, 0, 4, 7] }
     ],
     pentaMinor: [
-        { label: 'Im', degrees: [0, 3, 7] },
-        { label: 'III', degrees: [3, 7, 10] },
-        { label: 'IVm', degrees: [5, 8, 0] },
-        { label: 'Vm', degrees: [7, 10, 2] },
-        { label: 'VII', degrees: [10, 2, 5] }
+        { label: 'Im', degrees: [0, 3, 7], degrees7: [0, 3, 7, 10] },
+        { label: 'III', degrees: [3, 7, 10], degrees7: [3, 7, 10, 2] },
+        { label: 'IVm', degrees: [5, 8, 0], degrees7: [5, 8, 0, 3] },
+        { label: 'Vm', degrees: [7, 10, 2], degrees7: [7, 10, 2, 5] },
+        { label: 'VII', degrees: [10, 2, 5], degrees7: [10, 2, 5, 8] }
     ]
 };
 
-function getDiatonicChordsForKey(keyIndex, scaleType) {
+function getDiatonicChordsForKey(keyIndex, scaleType, use7Chords) {
     const baseChords = DIATONIC_CHORDS[scaleType] || DIATONIC_CHORDS.major;
     const scaleIntervals = SCALE_INTERVALS[scaleType] || SCALE_INTERVALS.major;
 
@@ -1432,11 +1435,12 @@ function getDiatonicChordsForKey(keyIndex, scaleType) {
         const rootNoteName = NOTES[rootNoteIndex];
 
         const chordQuality = chord.label.replace(/^[IViv]+/, '');
-        const newLabel = rootNoteName + chordQuality;
+        const newLabel = use7Chords ? (rootNoteName + chordQuality + '7') : (rootNoteName + chordQuality);
+        const degreesArray = use7Chords ? (chord.degrees7 || chord.degrees) : chord.degrees;
 
         return {
             label: newLabel,
-            degrees: chord.degrees
+            degrees: degreesArray
         };
     });
 }
@@ -1539,7 +1543,7 @@ function renderVisualize(app) {
     if (typeof state.visualize.selectedChordIndex === 'undefined') state.visualize.selectedChordIndex = null;
     if (typeof state.visualize.doMode === 'undefined') state.visualize.doMode = 'movable';
 
-    const chords = getDiatonicChordsForKey(state.visualize.key, state.visualize.scale);
+    const chords = getDiatonicChordsForKey(state.visualize.key, state.visualize.scale, state.visualize.chordType === '7');
     const chordButtonsHtml = chords.map((chord, idx) => {
         const isSelected = state.visualize.selectedChordIndex === idx;
         return `<button class="chord-btn ${isSelected ? 'active' : ''}" data-chord-index="${idx}">${chord.label}</button>`;
@@ -1589,6 +1593,13 @@ function renderVisualize(app) {
                 <div class="mode-buttons">
                     <button type="button" class="do-mode-btn ${state.visualize.doMode==='movable'?'active':''}" data-do-mode="movable">移動ド</button>
                     <button type="button" class="do-mode-btn ${state.visualize.doMode==='fixed'?'active':''}" data-do-mode="fixed">固定ド</button>
+                </div>
+            </div>
+            <div class="setup-item">
+                <label>コード</label>
+                <div class="mode-buttons">
+                    <button type="button" class="chord-type-btn ${state.visualize.chordType==='3'?'active':''}" data-chord-type="3">3和音</button>
+                    <button type="button" class="chord-type-btn ${state.visualize.chordType==='7'?'active':''}" data-chord-type="7">4和音</button>
                 </div>
             </div>
         </div>
@@ -1643,6 +1654,14 @@ function renderVisualize(app) {
     document.querySelectorAll('.do-mode-btn').forEach(btn => {
         btn.onclick = () => {
             state.visualize.doMode = btn.getAttribute('data-do-mode');
+            saveState();
+            renderApp();
+        };
+    });
+
+    document.querySelectorAll('.chord-type-btn').forEach(btn => {
+        btn.onclick = () => {
+            state.visualize.chordType = btn.getAttribute('data-chord-type');
             saveState();
             renderApp();
         };
