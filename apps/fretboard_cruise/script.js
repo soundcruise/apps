@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.13.32';
+const FRETBOARD_CRUISE_APP_VERSION = '1.13.33';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -2555,8 +2555,13 @@ function renderFretboardHTML(containerId, options) {
                 let scale = Math.min(1, scaleByW, scaleByH);
                 const scaledW = projectedBounds.width * scale;
                 let centerTx = Math.max(0, Math.round((layoutW - scaledW) / 2));
-                if (visualizeFretHost && land) {
-                    const rightOffset = layoutW < 500 ? 0 : (layoutW < 700 ? 10 : 20);
+                if (visualizeFretHost) {
+                    let rightOffset;
+                    if (land) {
+                        rightOffset = layoutW < 500 ? 0 : (layoutW < 700 ? 10 : 20);
+                    } else {
+                        rightOffset = 20;
+                    }
                     centerTx += rightOffset;
                 }
                 scrollWrapper.style.width = `${projectedBounds.width}px`;
@@ -2598,8 +2603,13 @@ function renderFretboardHTML(containerId, options) {
                                 scale = s1;
                                 const sw = projectedBounds.width * scale;
                                 centerTx = Math.max(0, Math.round((layoutW - sw) / 2));
-                                if (visualizeFretHost && land) {
-                                    const rightOffset = layoutW < 500 ? 0 : (layoutW < 700 ? 10 : 20);
+                                if (visualizeFretHost) {
+                                    let rightOffset;
+                                    if (land) {
+                                        rightOffset = layoutW < 500 ? 0 : (layoutW < 700 ? 10 : 20);
+                                    } else {
+                                        rightOffset = 20;
+                                    }
                                     centerTx += rightOffset;
                                 }
                                 scrollWrapper.style.marginLeft = `${centerTx}px`;
