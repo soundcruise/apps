@@ -1293,3 +1293,12 @@ input:checked + .toggle-slider:before {
     font-size: 11px;
     line-height: 1.45;
 }
+
+/* Settings help button explanations */
+.settings-note {
+    display: none;
+}
+
+.settings-note.visible {
+    display: block;
+}

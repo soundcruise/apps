@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.13.51';
+const FRETBOARD_CRUISE_APP_VERSION = '1.13.52';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1727,7 +1727,10 @@ function renderSettings(app) {
                 <span>速い</span>
             </div>
             <input type="range" id="tempo-slider" min="40" max="200" value="${state.settings.tempo}" class="settings-range">
-            <p class="settings-note">BPM 75 が初心者向けの推奨スピードです。「ドン・タン・ドン・タン」の「タン」に合わせてタップ。</p>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <button class="settings-help-btn" data-target="note-tempo" style="background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; font-size: 1.2rem; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%; flex-shrink: 0;">?</button>
+                <p class="settings-note" id="note-tempo" style="margin: 0;">BPM 75 が初心者向けの推奨スピードです。「ドン・タン・ドン・タン」の「タン」に合わせてタップ。</p>
+            </div>
         </div>
 
         <div class="settings-card">
@@ -1738,7 +1741,10 @@ function renderSettings(app) {
                 <span>長い</span>
             </div>
             <input type="range" id="timer-slider" min="1" max="10" step="1" value="${state.settings.quizTimeLimit}" class="settings-range">
-            <p class="settings-note">設定した秒数以内に答えないとMissになります。（推奨: 5秒）</p>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <button class="settings-help-btn" data-target="note-timer" style="background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; font-size: 1.2rem; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%; flex-shrink: 0;">?</button>
+                <p class="settings-note" id="note-timer" style="margin: 0;">設定した秒数以内に答えないとMissになります。（推奨: 5秒）</p>
+            </div>
         </div>
 
         <div class="settings-card">
@@ -1758,17 +1764,26 @@ function renderSettings(app) {
                     <label for="fretboard-orientation-auto" class="settings-label" style="cursor:pointer;">画面の向きで自動切替</label>
                     <input type="checkbox" id="fretboard-orientation-auto" class="settings-checkbox-native" ${state.settings.fretboardViewAutoOrientation ? 'checked' : ''}>
                 </div>
-                <p class="settings-note" style="margin-top:0; margin-bottom:12px;">オンにすると、横持ちでは全体ビュー、縦持ちでは拡大ビューになります。オフのときは下のボタンで選べます。</p>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <button class="settings-help-btn" data-target="note-orientation" style="background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; font-size: 1.2rem; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%; flex-shrink: 0;">?</button>
+                    <p class="settings-note" id="note-orientation" style="margin-top:0; margin-bottom:12px; margin: 0;">オンにすると、横持ちでは全体ビュー、縦持ちでは拡大ビューになります。オフのときは下のボタンで選べます。</p>
+                </div>
                 <div class="settings-view-buttons">
                     <button class="settings-view-btn ${state.settings.fretboardView === 'full' ? 'active' : ''}" data-view="full" ${state.settings.fretboardViewAutoOrientation ? 'disabled' : ''}>全体ビュー</button>
                     <button class="settings-view-btn ${state.settings.fretboardView === 'zoom' ? 'active' : ''}" data-view="zoom" ${state.settings.fretboardViewAutoOrientation ? 'disabled' : ''}>拡大ビュー</button>
                 </div>
-                <p class="settings-note" style="margin-top:6px; margin-bottom:14px;">全体ビューは0〜12フレットを表示、拡大ビューは約5フレット分を大きく表示します。</p>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <button class="settings-help-btn" data-target="note-viewmode" style="background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; font-size: 1.2rem; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%; flex-shrink: 0;">?</button>
+                    <p class="settings-note" id="note-viewmode" style="margin-top:6px; margin-bottom:14px; margin: 0;">全体ビューは0〜12フレットを表示、拡大ビューは約5フレット分を大きく表示します。</p>
+                </div>
 
                 <div class="settings-row-between" style="margin-bottom:8px;">
                     <span class="settings-label">カメラの向き（ドラッグで操作）</span>
                 </div>
-                <p class="settings-note" style="margin-top:0; margin-bottom:14px;">中央をドラッグで上下左右、端をドラッグで回転します。まずはプリセットを選んでから微調整すると簡単です。</p>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <button class="settings-help-btn" data-target="note-camera" style="background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; font-size: 1.2rem; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%; flex-shrink: 0;">?</button>
+                    <p class="settings-note" id="note-camera" style="margin-top:0; margin-bottom:14px; margin: 0;">中央をドラッグで上下左右、端をドラッグで回転します。まずはプリセットを選んでから微調整すると簡単です。</p>
+                </div>
 
                 <div class="settings-presets">
                     <button class="settings-preset-btn" data-preset="front">正面カメラ</button>
@@ -1834,7 +1849,10 @@ function renderSettings(app) {
 	                    </div>
 	                </div>
                 <input type="range" id="string-spacing-slider" min="80" max="150" step="1" value="${state.settings.stringSpacing}" class="settings-range">
-                <p class="settings-note" style="margin-top:10px;">横の奥行は「ヘッド側を小さくしたい時」に上げます。迷ったら 70〜90 がおすすめです。</p>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <button class="settings-help-btn" data-target="note-spacing" style="background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; font-size: 1.2rem; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%; flex-shrink: 0;">?</button>
+                    <p class="settings-note" id="note-spacing" style="margin-top:10px; margin: 0;">横の奥行は「ヘッド側を小さくしたい時」に上げます。迷ったら 70〜90 がおすすめです。</p>
+                </div>
             </div>
 	        </div>
 	        <div class="settings-actions-footer">
@@ -1846,6 +1864,18 @@ function renderSettings(app) {
 	        </div>
 	        <div style="height: 200px;"></div>
 	    `;
+
+    // Attach help button listeners
+    const helpButtons = document.querySelectorAll('.settings-help-btn');
+    helpButtons.forEach(button => {
+        button.onclick = () => {
+            const targetId = button.getAttribute('data-target');
+            const targetElement = document.getElementById(targetId);
+            if (targetElement) {
+                targetElement.classList.toggle('visible');
+            }
+        };
+    });
 
     const closeSettings = (shouldSave) => {
         if (!shouldSave) {
