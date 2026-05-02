@@ -18,7 +18,7 @@
     --root-color: #ff4f6e;   /* C: 赤 */
     --third-color: #ffd93d;  /* E: 黄色 */
     --fifth-color: #4f9cf9;  /* G: 青 */
-    --seventh-color: #8b6f47;/* B: 茶色 */
+    --seventh-color: #ffffff;/* B: 白 */
     --non-target-color: #555555; /* グレー薄表示 */
 }
 
@@ -380,7 +380,7 @@
 .note-marker.role-root { background-color: var(--root-color); color: #fff; }
 .note-marker.role-third { background-color: var(--third-color); color: #000; }
 .note-marker.role-fifth { background-color: var(--fifth-color); color: #fff; }
-.note-marker.role-seventh { background-color: var(--seventh-color); color: #fff; }
+.note-marker.role-seventh { background-color: var(--seventh-color); color: #000; }
 .note-marker.role-other { background-color: var(--text-color); color: #000; }
 .note-marker.role-non-target { background-color: var(--non-target-color); color: #aaa; }
 
@@ -764,7 +764,7 @@
 .degree-4 { background-color: #4db6ac; color: black; }
 .degree-5 { background-color: var(--fifth-color); color: black; }
 .degree-6 { background-color: #ba68c8; color: white; }
-.degree-7 { background-color: var(--seventh-color); color: white; }
+.degree-7 { background-color: var(--seventh-color); color: black; }
 
 /* 指板コンテナの負の margin で上に詰まったとき、3D ヒットレイヤーより前面でクリックを受け取る */
 .visualize-chords-afterboard {
