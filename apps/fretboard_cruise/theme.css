@@ -779,11 +779,10 @@
 
 .chord-list {
     display: flex;
-    overflow-x: auto;
-    gap: 10px;
+    flex-wrap: wrap;
+    gap: 8px;
     padding: 10px 0;
     width: 100%;
-    -webkit-overflow-scrolling: touch;
     position: relative;
     z-index: 1;
 }
@@ -793,9 +792,9 @@
     background: rgba(255,255,255,0.1);
     border: 1px solid rgba(255,255,255,0.2);
     color: #fff;
-    padding: 10px 20px;
+    padding: 8px 14px;
     border-radius: 20px;
-    font-size: 1rem;
+    font-size: 0.85rem;
     font-weight: bold;
     cursor: pointer;
     transition: all 0.2s;
