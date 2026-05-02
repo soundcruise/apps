@@ -18,7 +18,7 @@
     --root-color: #ff4f6e;   /* C: 赤 */
     --third-color: #ffd93d;  /* E: 黄色 */
     --fifth-color: #4f9cf9;  /* G: 青 */
-    --seventh-color: #c77dff;/* B: 紫 */
+    --seventh-color: #8b6f47;/* B: 茶色 */
     --non-target-color: #555555; /* グレー薄表示 */
 }
 
@@ -378,8 +378,8 @@
 
 /* Colors for Pro mode (Degree/Chord) */
 .note-marker.role-root { background-color: var(--root-color); color: #fff; }
-.note-marker.role-third { background-color: var(--third-color); color: #fff; }
-.note-marker.role-fifth { background-color: var(--fifth-color); color: #000; }
+.note-marker.role-third { background-color: var(--third-color); color: #000; }
+.note-marker.role-fifth { background-color: var(--fifth-color); color: #fff; }
 .note-marker.role-seventh { background-color: var(--seventh-color); color: #fff; }
 .note-marker.role-other { background-color: var(--text-color); color: #000; }
 .note-marker.role-non-target { background-color: var(--non-target-color); color: #aaa; }
@@ -760,7 +760,7 @@
 /* Degree mode colors for generic markers (if used outside role-*) */
 .degree-1 { background-color: var(--root-color); color: white; }
 .degree-2 { background-color: #ffb74d; color: black; }
-.degree-3 { background-color: var(--third-color); color: white; }
+.degree-3 { background-color: var(--third-color); color: black; }
 .degree-4 { background-color: #4db6ac; color: black; }
 .degree-5 { background-color: var(--fifth-color); color: black; }
 .degree-6 { background-color: #ba68c8; color: white; }
