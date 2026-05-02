@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.13.39';
+const FRETBOARD_CRUISE_APP_VERSION = '1.13.40';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1400,11 +1400,11 @@ const DIATONIC_CHORDS = {
         { label: 'IV',      suffix3: '', suffix7: 'M7', degrees: [5, 9, 0],    degrees7: [5, 9, 0, 4]  },
         { label: 'V',       suffix3: '', suffix7: '7',    degrees: [7, 11, 2],   degrees7: [7, 11, 2, 5] },
         { label: 'VIm',     suffix3: 'm', suffix7: 'm7',   degrees: [9, 0, 4],    degrees7: [9, 0, 4, 7]  },
-        { label: 'VIIm7b5', suffix3: 'mb5', suffix7: 'm7b5', degrees: [11, 2, 5],   degrees7: [11, 2, 5, 8] }
+        { label: 'VIIm7b5', suffix3: 'mb5', suffix7: 'm7b5', degrees: [11, 2, 5],   degrees7: [11, 2, 5, 9] }
     ],
     minor: [
         { label: 'Im',      suffix3: 'm', suffix7: 'm7',   degrees: [0, 3, 7],    degrees7: [0, 3, 7, 10]  },
-        { label: 'IIm7b5',  suffix3: 'mb5', suffix7: 'm7b5', degrees: [2, 5, 8],    degrees7: [2, 5, 8, 11]  },
+        { label: 'IIm7b5',  suffix3: 'mb5', suffix7: 'm7b5', degrees: [2, 5, 8],    degrees7: [2, 5, 9, 11]  },
         { label: 'III',     suffix3: '', suffix7: 'M7', degrees: [3, 7, 10],   degrees7: [3, 7, 10, 2]  },
         { label: 'IVm',     suffix3: 'm', suffix7: 'm7',   degrees: [5, 8, 0],    degrees7: [5, 8, 0, 3]   },
         { label: 'Vm',      suffix3: 'm', suffix7: 'm7',   degrees: [7, 10, 2],   degrees7: [7, 10, 2, 5]  },
