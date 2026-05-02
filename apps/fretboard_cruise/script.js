@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.13.33';
+const FRETBOARD_CRUISE_APP_VERSION = '1.13.34';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1568,7 +1568,7 @@ function renderVisualize(app) {
 
         <div id="fretboard-container" style="width: 100%;"></div>
 
-        <div class="visualize-chords-afterboard">
+        <div class="visualize-chords-afterboard" style="margin-bottom: 120px;">
             <h3 style="font-size: 1rem; color: rgba(255,255,255,0.7); margin-bottom: 10px;">ダイアトニックコード</h3>
             <div class="chord-list">
                 ${chordButtonsHtml}
