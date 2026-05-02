@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.11.4';
+const FRETBOARD_CRUISE_APP_VERSION = '1.13.31';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -41,6 +41,7 @@ const DEFAULT_VERTICAL_PERSPECTIVE = 0;
 const DEFAULT_HORIZONTAL_PERSPECTIVE = 0;
 const DEFAULT_ROTATION = { x: 0, y: 0, z: 0 };
 const DEFAULT_FRETBOARD_VIEW = 'full';
+const DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION = false;
 
 // Default States
 let state = {
@@ -66,7 +67,9 @@ let state = {
         chordType: 'M',
         degreeMode: false,
         scale: 'major',
-        selectedChordIndex: null
+        selectedChordIndex: null,
+        /** 'movable' = キー主音を1度（P1）, 'fixed' = Cを1度（P1） */
+        doMode: 'movable'
     },
     settings: {
         tempo: DEFAULT_TEMPO,
@@ -77,6 +80,7 @@ let state = {
         perspective: DEFAULT_VERTICAL_PERSPECTIVE, // 遠近感 (0-100)
         perspOriginX: DEFAULT_HORIZONTAL_PERSPECTIVE, // 横の遠近感 (0-100, 100=12F大きく)
         fretboardView: DEFAULT_FRETBOARD_VIEW,
+        fretboardViewAutoOrientation: DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION,
         neckModelVersion: FRETBOARD_NECK_MODEL_VERSION
     }
 };
@@ -134,6 +138,7 @@ if (savedState) {
         if (typeof state.visualize.key === 'undefined') state.visualize.key = 0;
         if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
         if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
+        if (typeof state.visualize.doMode === 'undefined') state.visualize.doMode = 'movable';
         if (typeof state.settings.tempo === 'undefined') state.settings.tempo = DEFAULT_TEMPO;
         if (typeof state.settings.quizTimeLimit === 'undefined') state.settings.quizTimeLimit = DEFAULT_QUIZ_TIME_LIMIT;
         if (typeof state.settings.stringSpacing === 'undefined') state.settings.stringSpacing = DEFAULT_STRING_SPACING;
@@ -142,6 +147,9 @@ if (savedState) {
         if (typeof state.settings.perspective === 'undefined') state.settings.perspective = DEFAULT_VERTICAL_PERSPECTIVE;
         if (typeof state.settings.perspOriginX === 'undefined') state.settings.perspOriginX = DEFAULT_HORIZONTAL_PERSPECTIVE;
         if (typeof state.settings.fretboardView === 'undefined') state.settings.fretboardView = DEFAULT_FRETBOARD_VIEW;
+        if (typeof state.settings.fretboardViewAutoOrientation === 'undefined') {
+            state.settings.fretboardViewAutoOrientation = DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION;
+        }
     } catch (e) {}
 }
 
@@ -163,6 +171,44 @@ function saveState() {
     localStorage.setItem('fretboard_cruise_state', JSON.stringify(state));
 }
 
+function getFretboardViewForWindowOrientation() {
+    return window.innerWidth > window.innerHeight ? 'full' : 'zoom';
+}
+
+/** 向き自動モードのとき、必要なら fretboardView を更新。変更があれば true */
+function applyFretboardViewFromOrientationIfAuto() {
+    if (!state.settings || !state.settings.fretboardViewAutoOrientation) return false;
+    const next = getFretboardViewForWindowOrientation();
+    if (state.settings.fretboardView !== next) {
+        state.settings.fretboardView = next;
+        return true;
+    }
+    return false;
+}
+
+let _fretboardOrientationApplyTimer = null;
+function scheduleApplyFretboardViewFromOrientation() {
+    if (_fretboardOrientationApplyTimer) clearTimeout(_fretboardOrientationApplyTimer);
+    _fretboardOrientationApplyTimer = setTimeout(() => {
+        _fretboardOrientationApplyTimer = null;
+        const autoChanged = applyFretboardViewFromOrientationIfAuto();
+        if (autoChanged) saveState();
+        if (state.course === 'memorize') {
+            renderApp();
+        } else if (autoChanged && (state.course === 'settings' || state.course === 'visualize')) {
+            renderApp();
+        }
+    }, 120);
+}
+
+function initFretboardViewOrientationListeners() {
+    if (initFretboardViewOrientationListeners._done) return;
+    initFretboardViewOrientationListeners._done = true;
+    window.addEventListener('orientationchange', () => setTimeout(scheduleApplyFretboardViewFromOrientation, 200));
+    window.addEventListener('resize', scheduleApplyFretboardViewFromOrientation);
+}
+initFretboardViewOrientationListeners();
+
 function getDefaultSettings() {
     return {
         tempo: DEFAULT_TEMPO,
@@ -173,6 +219,7 @@ function getDefaultSettings() {
         perspective: DEFAULT_VERTICAL_PERSPECTIVE,
         perspOriginX: DEFAULT_HORIZONTAL_PERSPECTIVE,
         fretboardView: DEFAULT_FRETBOARD_VIEW,
+        fretboardViewAutoOrientation: DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION,
         neckModelVersion: FRETBOARD_NECK_MODEL_VERSION
     };
 }
@@ -750,27 +797,30 @@ function generateQuestion() {
 // UI Rendering
 // ----------------------------------------------------
 
-const setupChordListeners = () => {
-    const chordListContainer = document.querySelector('.chord-list');
-    if (!chordListContainer || chordListContainer.__chordListenerAttached) return;
-
-    chordListContainer.addEventListener('click', (e) => {
-        const btn = e.target.closest('.chord-btn');
-        if (btn) {
-            const chordIndex = parseInt(btn.getAttribute('data-chord-index'));
-            console.log('Chord button clicked:', chordIndex);
-            state.visualize.selectedChordIndex =
-                state.visualize.selectedChordIndex === chordIndex ? null : chordIndex;
-            console.log('Updated selectedChordIndex to:', state.visualize.selectedChordIndex);
-            saveState();
-            setTimeout(() => renderApp(), 0);
-        }
-    });
-    chordListContainer.__chordListenerAttached = true;
-};
+/** 指板のヒットレイヤーがコードボタンの上に重なる場合、e.target がボタンにならないため座標から解決する */
+function findChordButtonFromPointerEvent(e) {
+    const t = e.target;
+    if (t && typeof t.closest === 'function') {
+        const byClosest = t.closest('.chord-btn');
+        if (byClosest) return byClosest;
+    }
+    if (typeof e.clientX !== 'number' || typeof e.clientY !== 'number' || !document.elementsFromPoint) {
+        return null;
+    }
+    const stack = document.elementsFromPoint(e.clientX, e.clientY);
+    if (!stack || !stack.length) return null;
+    for (let i = 0; i < stack.length; i++) {
+        const el = stack[i];
+        if (el && el.classList && el.classList.contains('chord-btn')) return el;
+    }
+    return null;
+}
 
 function renderApp() {
     const app = document.getElementById('app');
+    if (applyFretboardViewFromOrientationIfAuto()) {
+        saveState();
+    }
     if (app && typeof app._cleanupSettingsHandlers === 'function') {
         app._cleanupSettingsHandlers();
     }
@@ -780,10 +830,61 @@ function renderApp() {
     app.style.height = '';
     app.style.overflowY = '';
     app.style.overflowX = '';
+    app.style.maxWidth = '';
+    app.style.width = '';
+    app.style.display = '';
+    app.style.flexDirection = '';
+    app.style.alignItems = '';
+    app.style.alignSelf = '';
+    app.style.gap = '';
+    app.style.maxHeight = '';
+    app.style.minHeight = '';
+    app.style.paddingTop = '';
+    app.style.paddingBottom = '';
+    app.style.paddingLeft = '';
+    app.style.paddingRight = '';
 
-    // Save scroll position
+    // 直前の指板の scrollLeft は「同じ画面種別」のときだけ引き継ぐ（メモライズ→自由探索でズーム横スクロールが残らないようにする）
     const oldWrapper = document.querySelector('.fretboard-scroll-wrapper');
-    if (oldWrapper) currentScrollLeft = oldWrapper.scrollLeft;
+    const oldScrollGroup = oldWrapper && oldWrapper.getAttribute('data-scroll-group');
+    if (oldScrollGroup === 'memorize' && state.course === 'memorize') {
+        currentScrollLeft = oldWrapper.scrollLeft;
+    } else if (
+        oldScrollGroup === 'visualize' &&
+        state.course === 'visualize' &&
+        state.settings.fretboardView === 'zoom'
+    ) {
+        currentScrollLeft = oldWrapper.scrollLeft;
+    } else {
+        currentScrollLeft = 0;
+    }
+
+    // 指板ゲーム画面は max-width を外してビューポート幅いっぱいにする（横で 600px クリップと innerWidth 前提のズレを防ぐ）
+    if (state.course === 'memorize' || state.course === 'visualize') {
+        app.style.maxWidth = 'none';
+        app.style.width = '100vw';
+        app.style.boxSizing = 'border-box';
+    }
+    // 覚えるコース: 縦方向に余白を確保し、指板エリアに flex で残り高さを渡す（横画面で下弦が切れないようにする）
+    if (state.course === 'memorize') {
+        app.style.display = 'flex';
+        app.style.flexDirection = 'column';
+        app.style.alignItems = 'stretch';
+        app.style.alignSelf = 'stretch';
+        app.style.gap = '0';
+        app.style.height = '100dvh';
+        app.style.maxHeight = '100dvh';
+        app.style.minHeight = '0';
+        app.style.overflow = 'hidden';
+        const memorizeLandApp = window.innerWidth > window.innerHeight;
+        app.style.paddingTop = memorizeLandApp
+            ? 'max(2px, env(safe-area-inset-top))'
+            : 'max(4px, env(safe-area-inset-top))';
+        app.style.paddingBottom =
+            'calc(var(--in-game-refresh-stack-height, 96px) + max(8px, env(safe-area-inset-bottom)))';
+        app.style.paddingLeft = 'max(10px, env(safe-area-inset-left))';
+        app.style.paddingRight = 'max(10px, env(safe-area-inset-right))';
+    }
 
     if (state.course === null) {
         renderHome(app);
@@ -799,12 +900,13 @@ function renderApp() {
         renderSettings(app);
     }
     
-    // Restore or auto-adjust scroll position
+    // Restore or auto-adjust scroll position（メインの #fretboard-container のラッパーのみ）
     const newWrapper = document.querySelector('.fretboard-scroll-wrapper');
-    if (newWrapper) {
+    const newScrollGroup = newWrapper && newWrapper.getAttribute('data-scroll-group');
+    if (newWrapper && newScrollGroup) {
         if (autoScrollRequested) {
             autoScrollRequested = false;
-            
+
             if (state.course === 'memorize' && state.memorize.playMode === 'cruise') {
                 const q = state.memorize.currentQuestion;
                 if (q && state.settings.fretboardView === 'zoom') {
@@ -814,7 +916,7 @@ function renderApp() {
                         const fretRight = fretLeft + fretCol.clientWidth;
                         const visibleLeft = currentScrollLeft;
                         const visibleRight = currentScrollLeft + newWrapper.clientWidth;
-                        
+
                         // If the target is out of bounds (with 20px margin), then auto-scroll to center it
                         if (fretLeft < visibleLeft + 20 || fretRight > visibleRight - 20) {
                             const wrapperCenter = newWrapper.clientWidth / 2;
@@ -823,7 +925,6 @@ function renderApp() {
                                 newWrapper.scrollTo({ left: fretCenter - wrapperCenter, behavior: 'smooth' });
                             }, 10);
                         } else {
-                            // Otherwise just restore the current scroll state
                             newWrapper.scrollLeft = currentScrollLeft;
                         }
                     }
@@ -831,12 +932,19 @@ function renderApp() {
                     newWrapper.scrollLeft = 0;
                 }
             } else if (state.course === 'memorize' && state.memorize.playMode === 'quiz') {
-                // Always scroll to the left edge in quiz mode
+                newWrapper.scrollLeft = 0;
+            } else {
                 newWrapper.scrollLeft = 0;
             }
-        } else {
+        } else if (state.course === 'memorize') {
             newWrapper.scrollLeft = currentScrollLeft;
+        } else if (state.course === 'visualize' && state.settings.fretboardView === 'zoom') {
+            newWrapper.scrollLeft = currentScrollLeft;
+        } else {
+            newWrapper.scrollLeft = 0;
         }
+    } else if (newWrapper) {
+        newWrapper.scrollLeft = 0;
     }
 
     // Refresh state bar
@@ -854,10 +962,6 @@ function renderApp() {
         }
     }
 
-    // Setup event listeners for visualize mode
-    if (state.course === 'visualize') {
-        setupChordListeners();
-    }
 }
 
 function renderHome(app) {
@@ -1096,22 +1200,42 @@ function renderMemorize(app) {
         state.memorize.tempFeedback = null; // consume
     }
 
-    app.innerHTML = `
-        <header style="padding-top: 10px;">
-            <div style="display: flex; justify-content: space-between; width: 100%; margin-bottom: 20px;">
-                <button class="icon-btn" id="btn-back">◀ ステージ</button>
-                <div class="stats" style="gap: 15px;">
-                    ${!isCruise ? `<div class="stat-item" style="color: ${quizTimeLeft <= 1.0 ? 'var(--error-color)' : 'inherit'}; min-width: 50px;"><span class="label">残り時間</span><span class="value" id="quiz-timer">${quizTimeLeft.toFixed(1)}s</span></div>` : ''}
-                    <div class="stat-item"><span class="label">STAGE</span><span class="value">${state.memorize.stage}</span></div>
-                    <div class="stat-item"><span class="label">正解</span><span class="value" id="score-correct">${state.memorize.correct}</span></div>
-                    <div class="stat-item"><span class="label">連続</span><span class="value" id="score-combo">${state.memorize.combo}</span></div>
-                </div>
-            </div>
-            <div class="question-text">${q.stringName}弦 の <span style="color: var(--primary-color); font-size: 2rem;">${q.noteName}</span> ${isCruise ? 'をタップ！' : 'を探せ！'}</div>
-            <div id="feedback" class="${fbClass}" style="margin-bottom: 15px;">${fbText}</div>
-        </header>
+    const quizTimerHtml = !isCruise
+        ? `<div class="memorize-quiz-timer stat-item" style="color: ${quizTimeLeft <= 1.0 ? 'var(--error-color)' : 'inherit'};"><span class="label">残り時間</span><span class="value" id="quiz-timer">${quizTimeLeft.toFixed(1)}s</span></div>`
+        : '';
 
-        <div id="fretboard-container" style="width: 100%;"></div>
+    const stageStatsHtml = `
+                    <div class="stats memorize-stats memorize-stats--near-question">
+                        <div class="stat-item"><span class="label">STAGE</span><span class="value">${state.memorize.stage}</span></div>
+                        <div class="stat-item"><span class="label">正解</span><span class="value" id="score-correct">${state.memorize.correct}</span></div>
+                        <div class="stat-item"><span class="label">連続</span><span class="value" id="score-combo">${state.memorize.combo}</span></div>
+                    </div>`;
+
+    const memorizeLand =
+        typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
+    const memorizeRootClass = memorizeLand
+        ? 'memorize-screen memorize-screen--landscape'
+        : 'memorize-screen';
+
+    app.innerHTML = `
+        <div class="${memorizeRootClass}" data-fretboard-view="${state.settings.fretboardView}">
+            <header class="memorize-header">
+                <div class="memorize-top-row ${isCruise ? 'memorize-top-row--cruise-only' : ''}">
+                    <button class="icon-btn" id="btn-back">◀ ステージ</button>
+                    ${quizTimerHtml}
+                </div>
+            </header>
+            <div class="memorize-body-stack">
+                <div class="memorize-copy-block">
+                    <div class="memorize-question-row">
+                        ${stageStatsHtml}
+                        <div class="question-text memorize-question memorize-question-main">${q.stringName}弦 の <span class="memorize-question-note" style="color: var(--primary-color);">${q.noteName}</span> ${isCruise ? 'をタップ！' : 'を探せ！'}</div>
+                    </div>
+                    <div id="feedback" class="${fbClass} memorize-feedback">${fbText}</div>
+                </div>
+                <div id="fretboard-container" class="memorize-fretboard-host"></div>
+            </div>
+        </div>
     `;
 
     document.getElementById('btn-back').onclick = () => {
@@ -1129,6 +1253,7 @@ function renderMemorize(app) {
         clicked: null,
         onFretClick: handleFretClick
     });
+
 }
 
 function handleFretClick(stringNum, fret) {
@@ -1304,6 +1429,63 @@ function getScaleDegrees(scaleType) {
     }
 }
 
+/**
+ * 移動ド＋CDE: キー主音を「表記上のC」とみなし、スケール内を C 大調の音名で出す（Major は C,D,E,F,G,A,B）。
+ * 移動ド＋ドレミ: 同じくスケール内を ドレミファソラシ。固定ドは絶対音高で C=ド（半音は ♯ 表記）。
+ * 度数は常にキー（＋カポ）基準の P1 / M2 など。CDE・ドレミのみ固定ド・移動ドで分岐。
+ */
+const MOVABLE_DIATONIC_LETTERS = {
+    major: { 0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B' },
+    minor: { 0: 'C', 2: 'D', 3: 'Eb', 5: 'F', 7: 'G', 8: 'Ab', 10: 'Bb' },
+    pentaMajor: { 0: 'C', 2: 'D', 4: 'E', 7: 'G', 9: 'A' },
+    pentaMinor: { 0: 'C', 3: 'Eb', 5: 'F', 7: 'G', 10: 'Bb' }
+};
+
+function getMovableDiatonicLetterLabel(degreeFromKey, scaleType) {
+    const map = MOVABLE_DIATONIC_LETTERS[scaleType || 'major'] || MOVABLE_DIATONIC_LETTERS.major;
+    return map.hasOwnProperty(degreeFromKey) ? map[degreeFromKey] : undefined;
+}
+
+const MOVABLE_DIATONIC_SOLFEGE = {
+    major: { 0: 'ド', 2: 'レ', 4: 'ミ', 5: 'ファ', 7: 'ソ', 9: 'ラ', 11: 'シ' },
+    minor: { 0: 'ド', 2: 'レ', 3: '♭ミ', 5: 'ファ', 7: 'ソ', 8: '♭ラ', 10: '♭シ' },
+    pentaMajor: { 0: 'ド', 2: 'レ', 4: 'ミ', 7: 'ソ', 9: 'ラ' },
+    pentaMinor: { 0: 'ド', 3: '♭ミ', 5: 'ファ', 7: 'ソ', 10: '♭シ' }
+};
+
+/** 固定ド＝C をドとした絶対表記（NOTES の半音と対応） */
+const FIXED_SOLFEGE = ['ド', 'ド♯', 'レ', 'レ♯', 'ミ', 'ファ', 'ファ♯', 'ソ', 'ソ♯', 'ラ', 'ラ♯', 'シ'];
+
+function getMovableDiatonicSolfegeLabel(degreeFromKey, scaleType) {
+    const map = MOVABLE_DIATONIC_SOLFEGE[scaleType || 'major'] || MOVABLE_DIATONIC_SOLFEGE.major;
+    return map.hasOwnProperty(degreeFromKey) ? map[degreeFromKey] : undefined;
+}
+
+/** 自由探索のマーカー文字（CDE / 度数 / ドレミ × 固定ド・移動ド） */
+function getVisualizeMarkerLabel(noteIdx, scaleType, displayMode, doMode, isScale, degreeFromKey, allDegrees) {
+    if (displayMode === 'degree') {
+        return allDegrees[degreeFromKey] || NOTES[noteIdx];
+    }
+    if (displayMode === 'solfege') {
+        if (doMode === 'fixed') {
+            return FIXED_SOLFEGE[noteIdx] || NOTES[noteIdx];
+        }
+        if (isScale) {
+            const s = getMovableDiatonicSolfegeLabel(degreeFromKey, scaleType);
+            if (s) return s;
+        }
+        return FIXED_SOLFEGE[noteIdx] || NOTES[noteIdx];
+    }
+    if (doMode === 'fixed') {
+        return NOTES[noteIdx];
+    }
+    if (isScale) {
+        const letter = getMovableDiatonicLetterLabel(degreeFromKey, scaleType);
+        if (letter) return letter;
+    }
+    return NOTES[noteIdx];
+}
+
 function getAllDegreesWithAccidentals(scaleType) {
     // 標準的な音楽理論の度数表記: P1, m2, M2, m3, M3, P4, dim5, P5, m6, M6, m7, M7
     const intervalsFromRoot = {
@@ -1328,6 +1510,7 @@ function renderVisualize(app) {
     if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
     if (typeof state.visualize.scale === 'undefined') state.visualize.scale = 'major';
     if (typeof state.visualize.selectedChordIndex === 'undefined') state.visualize.selectedChordIndex = null;
+    if (typeof state.visualize.doMode === 'undefined') state.visualize.doMode = 'movable';
 
     const chords = DIATONIC_CHORDS[state.visualize.scale] || DIATONIC_CHORDS.major;
     const chordButtonsHtml = chords.map((chord, idx) => {
@@ -1337,27 +1520,28 @@ function renderVisualize(app) {
 
     app.innerHTML = `
         <header style="padding-top: 10px; margin-bottom: 5px;">
-            <div style="display: flex; justify-content: space-between; width: 100%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                 <button class="icon-btn" id="btn-back">◀ ホーム</button>
-                <h2 style="font-size: 1.5rem; margin:0;">自由探索モード</h2>
+                <h2 style="font-size: 1.5rem; margin:0; flex:1; text-align:center;">自由探索モード</h2>
+                <button class="icon-btn" id="btn-settings-visualize" style="font-size: 1.5rem; background: none; border: none; padding: 0; cursor: pointer;" title="設定">⚙️</button>
             </div>
         </header>
 
         <div class="setup-panel">
             <div class="setup-item">
-                <label>Key</label>
+                <label>キー</label>
                 <select id="vis-key">
                     ${NOTES.map((note, idx) => `<option value="${idx}" ${state.visualize.key===idx?'selected':''}>${note}</option>`).join('')}
                 </select>
             </div>
             <div class="setup-item">
-                <label>Capo</label>
+                <label>カポ</label>
                 <select id="vis-capo">
                     ${[0,1,2,3,4,5,6,7].map(c => `<option value="${c}" ${state.visualize.capo===c?'selected':''}>${c}</option>`).join('')}
                 </select>
             </div>
             <div class="setup-item">
-                <label>Scale</label>
+                <label>スケール</label>
                 <select id="vis-scale">
                     <option value="major" ${state.visualize.scale==='major'?'selected':''}>Major</option>
                     <option value="minor" ${state.visualize.scale==='minor'?'selected':''}>Minor</option>
@@ -1366,18 +1550,26 @@ function renderVisualize(app) {
                 </select>
             </div>
             <div class="setup-item">
-                <label>Display</label>
+                <label>表示</label>
                 <div class="mode-buttons">
-                    <button class="mode-btn ${state.visualize.displayMode==='note'?'active':''}" data-mode="note">音名</button>
+                    <button class="mode-btn ${state.visualize.displayMode==='solfege'?'active':''}" data-mode="solfege">ドレミ</button>
+                    <button class="mode-btn ${state.visualize.displayMode==='note'?'active':''}" data-mode="note">CDE</button>
                     <button class="mode-btn ${state.visualize.displayMode==='degree'?'active':''}" data-mode="degree">度数</button>
+                </div>
+            </div>
+            <div class="setup-item">
+                <label>音名・度数の基準</label>
+                <div class="mode-buttons">
+                    <button type="button" class="do-mode-btn ${state.visualize.doMode==='movable'?'active':''}" data-do-mode="movable">移動ド</button>
+                    <button type="button" class="do-mode-btn ${state.visualize.doMode==='fixed'?'active':''}" data-do-mode="fixed">固定ド</button>
                 </div>
             </div>
         </div>
 
         <div id="fretboard-container" style="width: 100%;"></div>
 
-        <div style="margin-top: 20px; width: 100%;">
-            <h3 style="font-size: 1rem; color: rgba(255,255,255,0.7); margin-bottom: 10px;">Diatonic Chords</h3>
+        <div class="visualize-chords-afterboard">
+            <h3 style="font-size: 1rem; color: rgba(255,255,255,0.7); margin-bottom: 10px;">ダイアトニックコード</h3>
             <div class="chord-list">
                 ${chordButtonsHtml}
             </div>
@@ -1388,6 +1580,10 @@ function renderVisualize(app) {
         state.course = null;
         saveState();
         renderApp();
+    };
+
+    document.getElementById('btn-settings-visualize').onclick = () => {
+        openSettings('visualize');
     };
 
     document.getElementById('vis-key').onchange = (e) => {
@@ -1409,7 +1605,7 @@ function renderVisualize(app) {
         renderApp();
     };
 
-    document.querySelectorAll('.mode-btn').forEach(btn => {
+    document.querySelectorAll('.mode-btn[data-mode]').forEach(btn => {
         btn.onclick = () => {
             state.visualize.displayMode = btn.getAttribute('data-mode');
             saveState();
@@ -1417,11 +1613,12 @@ function renderVisualize(app) {
         };
     });
 
-    const chordBtns = document.querySelectorAll('.chord-btn');
-    console.log('Chord buttons found:', chordBtns.length);
-    chordBtns.forEach((btn, idx) => {
-        const chordIndex = parseInt(btn.getAttribute('data-chord-index'));
-        console.log(`Button ${idx}: index=${chordIndex}, text=${btn.textContent}`);
+    document.querySelectorAll('.do-mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            state.visualize.doMode = btn.getAttribute('data-do-mode');
+            saveState();
+            renderApp();
+        };
     });
 
     renderFretboardHTML('fretboard-container', {
@@ -1430,8 +1627,14 @@ function renderVisualize(app) {
         capo: state.visualize.capo,
         displayMode: state.visualize.displayMode,
         scale: state.visualize.scale,
-        selectedChordIndex: state.visualize.selectedChordIndex
+        selectedChordIndex: state.visualize.selectedChordIndex,
+        doMode: state.visualize.doMode
     });
+
+    // body は overflow:hidden のため、縦長コンテンツは #app 内でスクロール（設定画面と同じ）
+    app.style.height = '100vh';
+    app.style.overflowY = 'auto';
+    app.style.overflowX = 'hidden';
 }
 
 function renderSettings(app) {
@@ -1481,6 +1684,17 @@ function renderSettings(app) {
             </div>
 
             <div id="tilt-setting-group" style="border-top:1px solid rgba(255,255,255,0.1); padding-top:16px; margin-top:8px;">
+                <div class="settings-row-between" style="margin-bottom:10px;">
+                    <label for="fretboard-orientation-auto" class="settings-label" style="cursor:pointer;">画面の向きで自動切替</label>
+                    <input type="checkbox" id="fretboard-orientation-auto" class="settings-checkbox-native" ${state.settings.fretboardViewAutoOrientation ? 'checked' : ''}>
+                </div>
+                <p class="settings-note" style="margin-top:0; margin-bottom:12px;">オンにすると、横持ちでは全体ビュー、縦持ちでは拡大ビューになります。オフのときは下のボタンで選べます。</p>
+                <div class="settings-view-buttons">
+                    <button class="settings-view-btn ${state.settings.fretboardView === 'full' ? 'active' : ''}" data-view="full" ${state.settings.fretboardViewAutoOrientation ? 'disabled' : ''}>全体ビュー</button>
+                    <button class="settings-view-btn ${state.settings.fretboardView === 'zoom' ? 'active' : ''}" data-view="zoom" ${state.settings.fretboardViewAutoOrientation ? 'disabled' : ''}>拡大ビュー</button>
+                </div>
+                <p class="settings-note" style="margin-top:6px; margin-bottom:14px;">全体ビューは0〜12フレットを表示、拡大ビューは約5フレット分を大きく表示します。</p>
+
                 <div class="settings-row-between" style="margin-bottom:8px;">
                     <span class="settings-label">カメラの向き（ドラッグで操作）</span>
                 </div>
@@ -1490,15 +1704,6 @@ function renderSettings(app) {
                     <button class="settings-preset-btn" data-preset="front">正面カメラ</button>
                     <button class="settings-preset-btn" data-preset="diagonal">斜めカメラ</button>
                 </div>
-
-                <div class="settings-row-between" style="margin-bottom:8px;">
-                    <span class="settings-label">問題画面の表示</span>
-                </div>
-                <div class="settings-view-buttons">
-                    <button class="settings-view-btn ${state.settings.fretboardView === 'full' ? 'active' : ''}" data-view="full">全体ビュー</button>
-                    <button class="settings-view-btn ${state.settings.fretboardView === 'zoom' ? 'active' : ''}" data-view="zoom">拡大ビュー</button>
-                </div>
-                <p class="settings-note" style="margin-top:0; margin-bottom:14px;">全体ビューは0〜12フレットを表示、拡大ビューは約5フレット分を大きく表示します。</p>
 
                 <div class="settings-axes">
                     <div class="settings-axis-item">
@@ -1635,6 +1840,16 @@ function renderSettings(app) {
     const stringSpacingSlider = document.getElementById('string-spacing-slider');
     const stringSpacingDisp = document.getElementById('string-spacing-display');
 
+    function syncFretboardViewSettingsUI() {
+        const chk = document.getElementById('fretboard-orientation-auto');
+        if (chk) chk.checked = !!state.settings.fretboardViewAutoOrientation;
+        document.querySelectorAll('.settings-view-btn').forEach(b => {
+            const v = b.getAttribute('data-view');
+            b.disabled = !!state.settings.fretboardViewAutoOrientation;
+            b.classList.toggle('active', v === state.settings.fretboardView);
+        });
+    }
+
     function refreshSettingsControls() {
         tempoSlider.value = state.settings.tempo;
         tempoDisplay.textContent = `BPM ${state.settings.tempo}`;
@@ -1644,6 +1859,7 @@ function renderSettings(app) {
         perspOriginSlider.value = state.settings.perspOriginX;
         stringSpacingSlider.value = state.settings.stringSpacing;
         stringSpacingDisp.textContent = `${state.settings.stringSpacing}%`;
+        syncFretboardViewSettingsUI();
         updatePreview();
         updatePreviewTransform();
     }
@@ -1785,12 +2001,28 @@ function renderSettings(app) {
 
     document.querySelectorAll('.settings-view-btn').forEach(btn => {
         btn.onclick = () => {
+            if (state.settings.fretboardViewAutoOrientation) return;
             state.settings.fretboardView = btn.getAttribute('data-view');
-            document.querySelectorAll('.settings-view-btn').forEach(b => b.classList.toggle('active', b === btn));
+            syncFretboardViewSettingsUI();
             updatePreview();
             updatePreviewTransform();
+            saveState();
         };
     });
+
+    const fretboardOrientationAuto = document.getElementById('fretboard-orientation-auto');
+    if (fretboardOrientationAuto) {
+        fretboardOrientationAuto.onchange = () => {
+            state.settings.fretboardViewAutoOrientation = fretboardOrientationAuto.checked;
+            if (fretboardOrientationAuto.checked) {
+                applyFretboardViewFromOrientationIfAuto();
+            }
+            syncFretboardViewSettingsUI();
+            updatePreview();
+            updatePreviewTransform();
+            saveState();
+        };
+    }
 
     document.getElementById('btn-settings-defaults').onclick = () => {
         state.settings = getDefaultSettings();
@@ -1863,8 +2095,10 @@ function renderSettings(app) {
 function renderFretboardHTML(containerId, options) {
     const {
         mode, question, showAnswer, clicked, onFretClick,
-        keyIndex, capo, displayMode, scale, selectedChordIndex
+        keyIndex, capo, displayMode, scale, selectedChordIndex,
+        doMode: doModeOpt
     } = options;
+    const doMode = doModeOpt || 'movable';
 
     // If old perspective value (>100), migrate it to the 0-100 range.
     if (state.settings.perspective > 100) {
@@ -1890,7 +2124,13 @@ function renderFretboardHTML(containerId, options) {
     const neckTop = neckBounds.top;
     const neckBottom = neckBounds.bottom;
 
-    let html = `<div class="fretboard-scroll-wrapper">`;
+    const scrollWrapperClass =
+        mode === 'visualize'
+            ? 'fretboard-scroll-wrapper fretboard-scroll-wrapper--visualize'
+            : 'fretboard-scroll-wrapper';
+    const scrollGroupAttr =
+        containerId === 'fretboard-container' ? ` data-scroll-group="${mode}"` : '';
+    let html = `<div class="${scrollWrapperClass}"${scrollGroupAttr}>`;
     html += `<div class="fretboard-perspective-wrapper" style="perspective: ${p_px}px; perspective-origin: 50% 50%; transform-style: preserve-3d;">`;
     html += `<div class="${containerClass}" style="transform: none;">`;
 
@@ -2106,46 +2346,42 @@ function renderFretboardHTML(containerId, options) {
                 if (isBelowCapo) {
                     markerHtml = `<div class="note-marker hidden-note"></div>`;
                 } else {
-                    let degreeRaw = (noteIdx - keyIndex + 12) % 12;
+                    const capoVal = capo | 0;
+                    // カポで実際に鳴るキーが上がる分、度数・移動ド表記の基準もずらす
+                    const keyPcForHarmony = (keyIndex + capoVal) % 12;
+                    const degreeFromKey = (noteIdx - keyPcForHarmony + 12) % 12;
                     const scaleDegrees = getScaleDegrees(scale || 'major');
                     const allDegrees = getAllDegreesWithAccidentals(scale || 'major');
-                    let isScale = scaleDegrees.hasOwnProperty(degreeRaw);
+                    let isScale = scaleDegrees.hasOwnProperty(degreeFromKey);
 
                     let shouldShow = true;
                     if (selectedChordIndex !== null && selectedChordIndex !== undefined) {
                         const chords = DIATONIC_CHORDS[scale || 'major'] || DIATONIC_CHORDS.major;
                         const selectedChord = chords[selectedChordIndex];
-                        shouldShow = selectedChord && selectedChord.degrees.includes(degreeRaw);
+                        shouldShow = selectedChord && selectedChord.degrees.includes(degreeFromKey);
                     }
 
                     if (!shouldShow) {
                         markerHtml = `<div class="note-marker hidden-note"></div>`;
                     } else {
-                        let label = '';
+                        const label = getVisualizeMarkerLabel(
+                            noteIdx,
+                            scale || 'major',
+                            displayMode,
+                            doMode,
+                            isScale,
+                            degreeFromKey,
+                            allDegrees
+                        );
                         let roleClass = 'role-non-target';
-
-                        if (displayMode === 'degree') {
-                            label = allDegrees[degreeRaw] || NOTES[noteIdx];
-                            if (isScale) {
-                                if (degreeRaw === 0) roleClass = 'role-root';
-                                else if (degreeRaw === 4) roleClass = 'role-third';
-                                else if (degreeRaw === 7) roleClass = 'role-fifth';
-                                else if (degreeRaw === 11) roleClass = 'role-seventh';
-                                else roleClass = 'role-other';
-                            } else {
-                                roleClass = 'role-non-target grayed-note';
-                            }
+                        if (isScale) {
+                            if (degreeFromKey === 0) roleClass = 'role-root';
+                            else if (degreeFromKey === 4) roleClass = 'role-third';
+                            else if (degreeFromKey === 7) roleClass = 'role-fifth';
+                            else if (degreeFromKey === 11) roleClass = 'role-seventh';
+                            else roleClass = 'role-other';
                         } else {
-                            label = NOTES[noteIdx];
-                            if (isScale) {
-                                if (degreeRaw === 0) roleClass = 'role-root';
-                                else if (degreeRaw === 4) roleClass = 'role-third';
-                                else if (degreeRaw === 7) roleClass = 'role-fifth';
-                                else if (degreeRaw === 11) roleClass = 'role-seventh';
-                                else roleClass = 'role-other';
-                            } else {
-                                roleClass = 'role-non-target grayed-note';
-                            }
+                            roleClass = 'role-non-target grayed-note';
                         }
 
                         markerHtml = `<div class="note-marker ${roleClass}">${label}</div>`;
@@ -2199,7 +2435,13 @@ function renderFretboardHTML(containerId, options) {
         const scrollWrapper = containerEl.querySelector('.fretboard-scroll-wrapper');
         if (scrollWrapper) {
             const screenW = window.innerWidth;
-            const isZoomView = mode === 'memorize' && state.settings.fretboardView === 'zoom';
+            const appEl = document.getElementById('app');
+            if (appEl && containerId === 'fretboard-container') {
+                void appEl.offsetHeight;
+            }
+            const layoutW =
+                appEl && appEl.clientWidth > 0 ? appEl.clientWidth : screenW;
+            const isZoomView = (mode === 'memorize' || mode === 'visualize') && state.settings.fretboardView === 'zoom';
             const perspectiveWrapper = containerEl.querySelector('.fretboard-perspective-wrapper');
 
             // Break out of the app container's max-width by offsetting to the left
@@ -2207,13 +2449,30 @@ function renderFretboardHTML(containerId, options) {
             const containerRect = containerEl.getBoundingClientRect();
             containerEl.style.position = 'relative';
             containerEl.style.left = `${-Math.round(containerRect.left)}px`;
-            containerEl.style.width = `${screenW}px`;
+            containerEl.style.width = `${layoutW}px`;
+            containerEl.style.overflow = '';
+            containerEl.style.removeProperty('-webkit-overflow-scrolling');
 
             if (isZoomView) {
+                scrollWrapper.style.marginLeft = '';
                 const projectedBounds = getProjectedFretboardBounds(neckTop, neckBottom);
-                const maxZoomViewH = Math.max(190, window.innerHeight * 0.36);
+                const land = window.innerWidth > window.innerHeight;
+                let maxZoomViewH =
+                    mode === 'memorize' && containerId === 'fretboard-container'
+                        ? Math.max(160, window.innerHeight * (land ? 0.56 : 0.36))
+                        : Math.max(190, window.innerHeight * 0.36);
+                if (mode === 'memorize' && containerId === 'fretboard-container') {
+                    void containerEl.offsetHeight;
+                    const ch = containerEl.clientHeight;
+                    if (ch > 72) {
+                        const zSlack = land ? 0 : 4;
+                        /** 横・拡大: 下端UIとの隙間をやや詰め、指板の縦スケール上限を上げる */
+                        const zBottomClear = land ? 34 : 0;
+                        maxZoomViewH = Math.max(130, ch - zSlack - zBottomClear);
+                    }
+                }
                 const zoomScale = Math.min(1, maxZoomViewH / projectedBounds.height);
-                scrollWrapper.style.width = `${screenW}px`;
+                scrollWrapper.style.width = `${layoutW}px`;
                 scrollWrapper.style.height = `${Math.ceil(projectedBounds.height * zoomScale)}px`;
                 scrollWrapper.style.overflowX = 'auto';
                 scrollWrapper.style.overflowY = 'hidden';
@@ -2226,29 +2485,131 @@ function renderFretboardHTML(containerId, options) {
                 }
             } else {
                 const projectedBounds = getProjectedFretboardBounds(neckTop, neckBottom);
-                const maxFullViewH = Math.max(180, window.innerHeight * 0.34);
-                const scale = Math.min(1, (screenW - 8) / projectedBounds.width, maxFullViewH / projectedBounds.height);
-                const wrapperLayoutH = projectedBounds.height + 45; // padding-top(10) + projected board + padding-bottom(35)
-                const visualH = Math.ceil(wrapperLayoutH * scale);
+                const land = window.innerWidth > window.innerHeight;
+                const memorizeFretHost =
+                    mode === 'memorize' && containerId === 'fretboard-container';
+                const visualizeFretHost =
+                    mode === 'visualize' && containerId === 'fretboard-container';
+                /** 横・覚える・全体: 上段テキストを詰めた分、scale 用の高さ目安を少し上げる */
+                const fallbackFullH = Math.max(
+                    120,
+                    Math.round(
+                        window.innerHeight *
+                            ((memorizeFretHost || visualizeFretHost) && land ? 0.605 : land ? 0.41 : 0.3) -
+                        ((memorizeFretHost || visualizeFretHost) && land ? 48 : land ? 108 : 100)
+                    )
+                );
+                let maxFullViewH = Math.max(180, window.innerHeight * 0.35);
+                const memorizeLandBottomUiClearPx =
+                    (memorizeFretHost || visualizeFretHost) && land ? 22 : land ? 36 : 0;
+                const readMemorizeHostMaxH = () => {
+                    if ((mode !== 'memorize' && mode !== 'visualize') || containerId !== 'fretboard-container' || !appEl) {
+                        return null;
+                    }
+                    void containerEl.offsetHeight;
+                    void appEl.offsetHeight;
+                    const cr = containerEl.getBoundingClientRect();
+                    const appR = appEl.getBoundingClientRect();
+                    const slack = land ? 0 : 5;
+                    const ch = containerEl.clientHeight;
+                    const fromClient =
+                        ch > 72 ? ch - slack - memorizeLandBottomUiClearPx : 0;
+                    const fromAppRect =
+                        appR.height > 20
+                            ? Math.max(
+                                  0,
+                                  Math.floor(
+                                      appR.bottom -
+                                          cr.top -
+                                          slack -
+                                          1 -
+                                          memorizeLandBottomUiClearPx
+                                  )
+                              )
+                            : 0;
+                    const h = Math.max(
+                        110,
+                        fallbackFullH,
+                        fromClient,
+                        fromAppRect > 72 ? fromAppRect : 0
+                    );
+                    if (land) {
+                        return Math.max(
+                            h,
+                            Math.floor(
+                                window.innerHeight * 0.585 -
+                                    memorizeLandBottomUiClearPx -
+                                    2
+                            )
+                        );
+                    }
+                    return h;
+                };
+                const mh0 = readMemorizeHostMaxH();
+                if (mh0 !== null) {
+                    maxFullViewH = mh0;
+                }
+                const layoutPad = (memorizeFretHost || visualizeFretHost) ? (land ? 0 : 2) : 4;
+                const scaleByW = (layoutW - layoutPad) / projectedBounds.width;
+                const scaleByH = maxFullViewH / projectedBounds.height;
+                let scale = Math.min(1, scaleByW, scaleByH);
+                const scaledW = projectedBounds.width * scale;
+                let centerTx = Math.max(0, Math.round((layoutW - scaledW) / 2));
                 scrollWrapper.style.width = `${projectedBounds.width}px`;
                 scrollWrapper.style.height = `${projectedBounds.height}px`;
                 scrollWrapper.style.overflowX = 'hidden';
                 scrollWrapper.style.overflowY = 'hidden';
                 scrollWrapper.style.transformOrigin = 'top left';
+                scrollWrapper.style.marginLeft = `${centerTx}px`;
                 scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
                 if (perspectiveWrapper) {
                     perspectiveWrapper.style.transformOrigin = 'top left';
                     perspectiveWrapper.style.transform = `translate(${(-projectedBounds.minX).toFixed(2)}px, ${(-projectedBounds.minY).toFixed(2)}px)`;
                 }
-                // Pull up the following content to remove the excess layout space
-                // left behind by the scaled-down wrapper (transform doesn't affect layout).
-                containerEl.style.marginBottom = `${-(wrapperLayoutH - visualH)}px`;
+                const syncFretboardLayoutCollapse = () => {
+                    if (!scrollWrapper.isConnected) return;
+                    void scrollWrapper.offsetHeight;
+                    const layoutH = scrollWrapper.offsetHeight;
+                    const visualH = scrollWrapper.getBoundingClientRect().height;
+                    if (layoutH > 1 && visualH > 1) {
+                        containerEl.style.marginBottom = `${-Math.round(layoutH - visualH)}px`;
+                    }
+                };
+                syncFretboardLayoutCollapse();
+                if ((mode === 'memorize' || mode === 'visualize') && containerId === 'fretboard-container') {
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            if (!scrollWrapper.isConnected || !containerEl.isConnected) return;
+                            const mh1 = readMemorizeHostMaxH();
+                            if (mh1 === null) {
+                                syncFretboardLayoutCollapse();
+                                return;
+                            }
+                            const s1 = Math.min(
+                                1,
+                                scaleByW,
+                                mh1 / projectedBounds.height
+                            );
+                            if (Math.abs(s1 - scale) > 0.002) {
+                                scale = s1;
+                                const sw = projectedBounds.width * scale;
+                                centerTx = Math.max(0, Math.round((layoutW - sw) / 2));
+                                scrollWrapper.style.marginLeft = `${centerTx}px`;
+                                scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
+                            }
+                            syncFretboardLayoutCollapse();
+                        });
+                    });
+                }
             }
 
-            const wrapperRect = scrollWrapper.getBoundingClientRect();
-            if (Math.abs(wrapperRect.left) > 1) {
-                const currentLeft = parseFloat(containerEl.style.left) || 0;
-                containerEl.style.left = `${Math.round(currentLeft - wrapperRect.left)}px`;
+            // 全体ビューは marginLeft でビューポート中央に寄せているので、left 補正はズレの原因になる（スキップ）
+            if (isZoomView) {
+                const wrapperRect = scrollWrapper.getBoundingClientRect();
+                if (Math.abs(wrapperRect.left) > 1) {
+                    const currentLeft = parseFloat(containerEl.style.left) || 0;
+                    containerEl.style.left = `${Math.round(currentLeft - wrapperRect.left)}px`;
+                }
             }
         }
     }
@@ -2261,8 +2622,7 @@ function renderFretboardHTML(containerId, options) {
     // Attach on document capture because player-view rotation can project frets outside
     // the container's layout box. Hit-test the projected 2D fret rectangles instead.
     const handleFretboardClick = (e) => {
-        // コードボタンのクリックを最優先で処理
-        const chordBtn = e.target.closest('.chord-btn');
+        const chordBtn = findChordButtonFromPointerEvent(e);
         if (chordBtn) {
             const chordIndex = parseInt(chordBtn.getAttribute('data-chord-index'));
             state.visualize.selectedChordIndex =
@@ -2336,14 +2696,16 @@ function renderFretboardHTML(containerId, options) {
     fretboardDocumentHandlers.set(containerId, handleFretboardClick);
     renderFretboardHitDebug(containerId, mode, question);
 
-    // 問題画面で指板を左側に強制的に寄せる
-    setTimeout(() => {
-        const wrapper = document.querySelector('.fretboard-scroll-wrapper');
-        if (wrapper && wrapper.firstChild) {
-            wrapper.scrollLeft = 0;
-            wrapper.firstChild.style.marginLeft = '0';
-        }
-    }, 10);
+    // メモライズのズーム指板だけ、描画直後にスクロール位置を整える（自由探索の全体ビューでは中央寄せ margin を壊さない）
+    if (mode === 'memorize' && containerId === 'fretboard-container') {
+        setTimeout(() => {
+            const wrapper = containerEl.querySelector('.fretboard-scroll-wrapper');
+            if (wrapper && wrapper.firstChild) {
+                wrapper.scrollLeft = 0;
+                wrapper.firstChild.style.marginLeft = '0';
+            }
+        }, 10);
+    }
 }
 
 function renderFretboardHitDebug(containerId, mode, question) {
