@@ -33,6 +33,11 @@
     clip-path: inset(0 0 0 24px); /* ネック側面を隠して指板を左寄せ */
 }
 
+/* 自由探索は開放弦〜12Fを欠けなく見せる（左クリップしない） */
+.fretboard-scroll-wrapper--visualize {
+    clip-path: none !important;
+}
+
 .fretboard-container {
     display: flex;
     flex-direction: column;
@@ -409,6 +414,285 @@
     min-height: 40px;
 }
 
+/* 覚えるコース: 縦は従来、横はヘッダーを詰めて指板に残り高さを渡す */
+.memorize-screen {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.memorize-header {
+    flex-shrink: 0;
+    padding-top: 14px;
+}
+
+.memorize-body-stack {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.memorize-copy-block {
+    flex-shrink: 0;
+    width: 100%;
+}
+
+.memorize-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 8px;
+    gap: 10px;
+}
+
+.memorize-top-row--cruise-only {
+    justify-content: flex-start;
+}
+
+.memorize-quiz-timer {
+    flex-shrink: 0;
+}
+
+.memorize-question-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.memorize-question-row .memorize-question-main {
+    margin: 0;
+    text-align: center;
+    max-width: calc(100% - 1rem);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.memorize-stats {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 15px;
+}
+
+.memorize-stats--near-question {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 8px 14px;
+    margin: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.memorize-question {
+    margin: 12px 0;
+}
+
+.memorize-question-note {
+    font-size: 2rem;
+}
+
+.memorize-feedback {
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.memorize-fretboard-host {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    align-self: stretch;
+}
+
+/* 縦＋拡大/全体: 問題〜STAGE〜フィードバックは同じ。指板は内容の高さのみ（flex:1 をやめて縦中央にまとまる）。拡大/全体の違いは script のスケール */
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-body-stack,
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="full"] .memorize-body-stack {
+    justify-content: center;
+    gap: 4px;
+}
+
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-header,
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="full"] .memorize-header {
+    padding-top: 10px;
+    padding-bottom: 0;
+}
+
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-top-row,
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="full"] .memorize-top-row {
+    margin-bottom: 4px;
+}
+
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-question-row,
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="full"] .memorize-question-row {
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-question-row .memorize-question-main.question-text,
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="full"] .memorize-question-row .memorize-question-main.question-text {
+    margin: 0;
+}
+
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-feedback,
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="full"] .memorize-feedback {
+    margin-bottom: 4px;
+    margin-top: 0;
+}
+
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-feedback.feedback-display,
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="full"] .memorize-feedback.feedback-display {
+    height: auto;
+    min-height: 2rem;
+    padding: 2px 0 2px;
+}
+
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-fretboard-host,
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="full"] .memorize-fretboard-host {
+    flex: 0 1 auto;
+    min-height: 0;
+}
+
+/*
+ * 横画面・覚えるコース: shared の header { padding-top: 50px+; margin-bottom: 20px; } を上書きし、
+ * 指板に回す縦スペースを増やす（レイアウトは縦の2段のまま）
+ */
+.memorize-screen--landscape .memorize-body-stack {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+/* 横のみ: ステージボタンが上で切れないよう最低限の余白（STAGE ブロックは下段のまま） */
+.memorize-screen--landscape .memorize-header {
+    padding-top: max(6px, env(safe-area-inset-top, 0px));
+    margin-bottom: 0;
+}
+
+.memorize-screen--landscape .memorize-top-row {
+    margin-bottom: 0;
+    align-items: center;
+}
+
+.memorize-screen--landscape .memorize-copy-block {
+    margin-top: -4px;
+    padding-top: 0;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.memorize-screen--landscape .memorize-question-row {
+    margin-top: 0;
+    margin-bottom: 2px;
+    gap: 2px;
+}
+
+.memorize-screen--landscape .memorize-quiz-timer .label {
+    font-size: 0.65rem;
+}
+
+.memorize-screen--landscape .memorize-quiz-timer .value {
+    font-size: 0.9rem;
+}
+
+.memorize-screen--landscape .memorize-top-row .icon-btn {
+    padding: 5px 10px;
+    font-size: 0.82rem;
+}
+
+.memorize-screen--landscape .memorize-stats--near-question {
+    gap: 2px 6px;
+}
+
+.memorize-screen--landscape .memorize-stats--near-question .stat-item .label {
+    font-size: 0.68rem;
+}
+
+.memorize-screen--landscape .memorize-stats--near-question .stat-item .value {
+    font-size: 0.95rem;
+}
+
+.memorize-screen--landscape .memorize-question-main.question-text {
+    margin: 0;
+    min-height: 0;
+    font-size: 1.05rem;
+}
+
+.memorize-screen--landscape .memorize-question-note {
+    font-size: 1.45rem;
+}
+
+.memorize-screen--landscape .memorize-feedback {
+    margin-bottom: 0;
+    margin-top: -2px;
+}
+
+.memorize-screen--landscape .memorize-feedback.feedback-display {
+    font-size: 0.95rem;
+    min-height: 0;
+    height: auto;
+    padding: 0;
+    line-height: 1.2;
+}
+
+.memorize-screen--landscape .memorize-fretboard-host {
+    margin-top: -14px;
+}
+
+/* 横＋拡大のみ: STAGE/問題を上に詰めて指板エリアの縦を広げる（全体ビューは従来の横スタイルのまま） */
+.memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-question-row {
+    margin-bottom: 2px;
+    gap: 2px;
+}
+
+.memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-stats--near-question {
+    gap: 2px 6px;
+}
+
+.memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-stats--near-question .stat-item .label {
+    font-size: 0.62rem;
+}
+
+.memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-stats--near-question .stat-item .value {
+    font-size: 0.88rem;
+}
+
+.memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-question-main.question-text {
+    font-size: 1rem;
+}
+
+.memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-question-note {
+    font-size: 1.35rem;
+}
+
+.memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-feedback {
+    margin-bottom: 0;
+    margin-top: 0;
+}
+
+.memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-feedback.feedback-display {
+    font-size: 0.88rem;
+    padding: 0;
+    line-height: 1.2;
+}
+
+.memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-body-stack {
+    justify-content: flex-start;
+}
+
+.memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-fretboard-host {
+    margin-top: -14px;
+}
+
 /* Setup Panel for Pro mode */
 .setup-panel {
     display: flex;
@@ -446,13 +730,16 @@
 
 .mode-buttons {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 5px;
     background: rgba(0,0,0,0.3);
     padding: 3px;
     border-radius: 8px;
 }
 
-.mode-btn {
+.mode-btn,
+.do-mode-btn {
     background: transparent;
     border: none;
     color: rgba(255,255,255,0.5);
@@ -463,7 +750,8 @@
     transition: all 0.2s;
 }
 
-.mode-btn.active {
+.mode-btn.active,
+.do-mode-btn.active {
     background: rgba(255,255,255,0.2);
     color: #fff;
     font-weight: bold;
@@ -478,6 +766,15 @@
 .degree-6 { background-color: #ba68c8; color: white; }
 .degree-7 { background-color: var(--seventh-color); color: white; }
 
+/* 指板コンテナの負の margin で上に詰まったとき、3D ヒットレイヤーより前面でクリックを受け取る */
+.visualize-chords-afterboard {
+    position: relative;
+    z-index: 40;
+    margin-top: 20px;
+    width: 100%;
+    isolation: isolate;
+}
+
 .chord-list {
     display: flex;
     overflow-x: auto;
@@ -485,6 +782,8 @@
     padding: 10px 0;
     width: 100%;
     -webkit-overflow-scrolling: touch;
+    position: relative;
+    z-index: 1;
 }
 
 .chord-btn {
@@ -514,6 +813,14 @@
     width: 100%;
     max-width: 400px;
     margin: 0 auto;
+}
+
+@media (orientation: landscape) {
+    .stage-list {
+        max-height: calc(100vh - 160px);
+        overflow-y: auto;
+        padding-right: 8px;
+    }
 }
 
 .stage-btn {
@@ -757,6 +1064,19 @@
     background: rgba(49, 196, 107, 0.22);
     color: #fff;
     font-weight: 700;
+}
+
+.settings-view-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.settings-checkbox-native {
+    width: 22px;
+    height: 22px;
+    accent-color: var(--primary-color);
+    cursor: pointer;
+    flex-shrink: 0;
 }
 
 .settings-axes {
