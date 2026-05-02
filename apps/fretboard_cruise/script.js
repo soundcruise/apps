@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.13.38';
+const FRETBOARD_CRUISE_APP_VERSION = '1.13.39';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -71,7 +71,9 @@ let state = {
         /** 'movable' = キー主音を1度（P1）, 'fixed' = Cを1度（P1） */
         doMode: 'movable',
         /** '3' = 3和音, '7' = 7thコード */
-        chordType: '3'
+        chordType: '3',
+        /** autoSelectRootChord: Iコード自動選択（オン時）*/
+        autoSelectRootChord: false
     },
     settings: {
         tempo: DEFAULT_TEMPO,
@@ -142,6 +144,7 @@ if (savedState) {
         if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
         if (typeof state.visualize.doMode === 'undefined') state.visualize.doMode = 'movable';
         if (typeof state.visualize.chordType === 'undefined') state.visualize.chordType = '3';
+        if (typeof state.visualize.autoSelectRootChord === 'undefined') state.visualize.autoSelectRootChord = false;
         if (typeof state.settings.tempo === 'undefined') state.settings.tempo = DEFAULT_TEMPO;
         if (typeof state.settings.quizTimeLimit === 'undefined') state.settings.quizTimeLimit = DEFAULT_QUIZ_TIME_LIMIT;
         if (typeof state.settings.stringSpacing === 'undefined') state.settings.stringSpacing = DEFAULT_STRING_SPACING;
@@ -1549,8 +1552,13 @@ function renderVisualize(app) {
 
     const chords = getDiatonicChordsForKey(state.visualize.key, state.visualize.scale, state.visualize.chordType === '7');
     const chordButtonsHtml = chords.map((chord, idx) => {
-        const isSelected = state.visualize.selectedChordIndex === idx;
-        return `<button class="chord-btn ${isSelected ? 'active' : ''}" data-chord-index="${idx}">${chord.label}</button>`;
+        let isSelected = state.visualize.selectedChordIndex === idx;
+        if (state.visualize.autoSelectRootChord && idx === 0) {
+            isSelected = true;
+        }
+        const isDisabled = !state.visualize.autoSelectRootChord;
+        const disabledAttr = isDisabled ? 'disabled' : '';
+        return `<button class="chord-btn ${isSelected ? 'active' : ''} ${isDisabled ? 'disabled' : ''}" data-chord-index="${idx}" ${disabledAttr}>${chord.label}</button>`;
     }).join('');
 
     app.innerHTML = `
@@ -1611,7 +1619,13 @@ function renderVisualize(app) {
         <div id="fretboard-container" style="width: 100%;"></div>
 
         <div class="visualize-chords-afterboard" style="margin-bottom: 120px;">
-            <h3 style="font-size: 1rem; color: rgba(255,255,255,0.7); margin-bottom: 10px;">ダイアトニックコード</h3>
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                <h3 style="font-size: 1rem; color: rgba(255,255,255,0.7); margin: 0;">ダイアトニックコード</h3>
+                <label class="toggle-switch" style="margin-left: 10px;">
+                    <input type="checkbox" id="auto-select-root-chord" ${state.visualize.autoSelectRootChord ? 'checked' : ''}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
             <div class="chord-list">
                 ${chordButtonsHtml}
             </div>
@@ -1670,6 +1684,20 @@ function renderVisualize(app) {
             renderApp();
         };
     });
+
+    const autoSelectToggle = document.getElementById('auto-select-root-chord');
+    if (autoSelectToggle) {
+        autoSelectToggle.onchange = () => {
+            state.visualize.autoSelectRootChord = autoSelectToggle.checked;
+            if (autoSelectToggle.checked) {
+                state.visualize.selectedChordIndex = 0;
+            } else {
+                state.visualize.selectedChordIndex = null;
+            }
+            saveState();
+            renderApp();
+        };
+    }
 
     renderFretboardHTML('fretboard-container', {
         mode: 'visualize',
@@ -2697,6 +2725,9 @@ function renderFretboardHTML(containerId, options) {
     const handleFretboardClick = (e) => {
         const chordBtn = findChordButtonFromPointerEvent(e);
         if (chordBtn) {
+            if (state.visualize.autoSelectRootChord) {
+                return;
+            }
             const chordIndex = parseInt(chordBtn.getAttribute('data-chord-index'));
             state.visualize.selectedChordIndex =
                 state.visualize.selectedChordIndex === chordIndex ? null : chordIndex;
