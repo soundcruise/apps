@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.13.54';
+const FRETBOARD_CRUISE_APP_VERSION = '1.13.55';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1756,7 +1756,7 @@ function renderSettings(app) {
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <label for="fretboard-orientation-auto" class="settings-label" style="cursor:pointer;">画面の向きで自動切替</label>
                         <button class="settings-help-btn" data-target="note-orientation" style="background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; font-size: 1.2rem; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%; flex-shrink: 0;">⊕</button>
-                        <p class="settings-note" id="note-orientation" style="margin: 0; display: none;">オンにすると、横持ちでは全体ビュー、縦持ちでは拡大ビューになります。オフのときは下のボタンで選べます。</p>
+                        <p class="settings-note" id="note-orientation" style="margin: 0;">オンにすると、横持ちでは全体ビュー、縦持ちでは拡大ビューになります。オフのときは下のボタンで選べます。</p>
                     </div>
                     <input type="checkbox" id="fretboard-orientation-auto" class="settings-checkbox-native" ${state.settings.fretboardViewAutoOrientation ? 'checked' : ''}>
                 </div>
