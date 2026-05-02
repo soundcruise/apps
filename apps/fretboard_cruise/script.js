@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.13.31';
+const FRETBOARD_CRUISE_APP_VERSION = '1.13.32';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -2556,7 +2556,8 @@ function renderFretboardHTML(containerId, options) {
                 const scaledW = projectedBounds.width * scale;
                 let centerTx = Math.max(0, Math.round((layoutW - scaledW) / 2));
                 if (visualizeFretHost && land) {
-                    centerTx += 20;
+                    const rightOffset = layoutW < 500 ? 0 : (layoutW < 700 ? 10 : 20);
+                    centerTx += rightOffset;
                 }
                 scrollWrapper.style.width = `${projectedBounds.width}px`;
                 scrollWrapper.style.height = `${projectedBounds.height}px`;
@@ -2598,7 +2599,8 @@ function renderFretboardHTML(containerId, options) {
                                 const sw = projectedBounds.width * scale;
                                 centerTx = Math.max(0, Math.round((layoutW - sw) / 2));
                                 if (visualizeFretHost && land) {
-                                    centerTx += 20;
+                                    const rightOffset = layoutW < 500 ? 0 : (layoutW < 700 ? 10 : 20);
+                                    centerTx += rightOffset;
                                 }
                                 scrollWrapper.style.marginLeft = `${centerTx}px`;
                                 scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
