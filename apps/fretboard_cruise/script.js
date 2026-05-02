@@ -2555,6 +2555,9 @@ function renderFretboardHTML(containerId, options) {
                 let scale = Math.min(1, scaleByW, scaleByH);
                 const scaledW = projectedBounds.width * scale;
                 let centerTx = Math.max(0, Math.round((layoutW - scaledW) / 2));
+                if (visualizeFretHost && land) {
+                    centerTx += 20;
+                }
                 scrollWrapper.style.width = `${projectedBounds.width}px`;
                 scrollWrapper.style.height = `${projectedBounds.height}px`;
                 scrollWrapper.style.overflowX = 'hidden';
@@ -2594,6 +2597,9 @@ function renderFretboardHTML(containerId, options) {
                                 scale = s1;
                                 const sw = projectedBounds.width * scale;
                                 centerTx = Math.max(0, Math.round((layoutW - sw) / 2));
+                                if (visualizeFretHost && land) {
+                                    centerTx += 20;
+                                }
                                 scrollWrapper.style.marginLeft = `${centerTx}px`;
                                 scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
                             }
