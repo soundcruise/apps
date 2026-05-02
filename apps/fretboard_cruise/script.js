@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.13.49';
+const FRETBOARD_CRUISE_APP_VERSION = '1.13.50';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1840,6 +1840,7 @@ function renderSettings(app) {
 	                <button class="btn-secondary settings-bottom-btn settings-danger-btn" id="btn-settings-defaults">全ての項目をデフォルトに戻す</button>
 	            </div>
 	        </div>
+	        <div style="height: 200px;"></div>
 	    `;
 
     const closeSettings = (shouldSave) => {
