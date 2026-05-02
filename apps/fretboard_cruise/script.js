@@ -1552,10 +1552,7 @@ function renderVisualize(app) {
 
     const chords = getDiatonicChordsForKey(state.visualize.key, state.visualize.scale, state.visualize.chordType === '7');
     const chordButtonsHtml = chords.map((chord, idx) => {
-        let isSelected = state.visualize.selectedChordIndex === idx;
-        if (state.visualize.autoSelectRootChord && idx === 0) {
-            isSelected = true;
-        }
+        const isSelected = state.visualize.selectedChordIndex === idx;
         const isDisabled = !state.visualize.autoSelectRootChord;
         const disabledAttr = isDisabled ? 'disabled' : '';
         return `<button class="chord-btn ${isSelected ? 'active' : ''} ${isDisabled ? 'disabled' : ''}" data-chord-index="${idx}" ${disabledAttr}>${chord.label}</button>`;
@@ -1689,11 +1686,6 @@ function renderVisualize(app) {
     if (autoSelectToggle) {
         autoSelectToggle.onchange = () => {
             state.visualize.autoSelectRootChord = autoSelectToggle.checked;
-            if (autoSelectToggle.checked) {
-                state.visualize.selectedChordIndex = 0;
-            } else {
-                state.visualize.selectedChordIndex = null;
-            }
             saveState();
             renderApp();
         };
@@ -2725,7 +2717,7 @@ function renderFretboardHTML(containerId, options) {
     const handleFretboardClick = (e) => {
         const chordBtn = findChordButtonFromPointerEvent(e);
         if (chordBtn) {
-            if (state.visualize.autoSelectRootChord) {
+            if (!state.visualize.autoSelectRootChord) {
                 return;
             }
             const chordIndex = parseInt(chordBtn.getAttribute('data-chord-index'));
