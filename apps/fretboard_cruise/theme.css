@@ -739,7 +739,8 @@
 }
 
 .mode-btn,
-.do-mode-btn {
+.do-mode-btn,
+.chord-type-btn {
     background: transparent;
     border: none;
     color: rgba(255,255,255,0.5);
@@ -751,7 +752,8 @@
 }
 
 .mode-btn.active,
-.do-mode-btn.active {
+.do-mode-btn.active,
+.chord-type-btn.active {
     background: rgba(255,255,255,0.2);
     color: #fff;
     font-weight: bold;

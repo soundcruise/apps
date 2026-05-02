@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.13.37';
+const FRETBOARD_CRUISE_APP_VERSION = '1.13.38';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1391,36 +1391,36 @@ const SCALE_INTERVALS = {
 
 const DIATONIC_CHORDS = {
     major: [
-        { label: 'I',       suffix7: 'maj7', degrees: [0, 4, 7],    degrees7: [0, 4, 7, 11] },
-        { label: 'IIm',     suffix7: 'm7',   degrees: [2, 5, 9],    degrees7: [2, 5, 9, 0]  },
-        { label: 'IIIm',    suffix7: 'm7',   degrees: [4, 7, 11],   degrees7: [4, 7, 11, 2] },
-        { label: 'IV',      suffix7: 'maj7', degrees: [5, 9, 0],    degrees7: [5, 9, 0, 4]  },
-        { label: 'V',       suffix7: '7',    degrees: [7, 11, 2],   degrees7: [7, 11, 2, 5] },
-        { label: 'VIm',     suffix7: 'm7',   degrees: [9, 0, 4],    degrees7: [9, 0, 4, 7]  },
-        { label: 'VIIm7b5', suffix7: 'm7b5', degrees: [11, 2, 5],   degrees7: [11, 2, 5, 8] }
+        { label: 'I',       suffix3: '', suffix7: 'M7', degrees: [0, 4, 7],    degrees7: [0, 4, 7, 11] },
+        { label: 'IIm',     suffix3: 'm', suffix7: 'm7',   degrees: [2, 5, 9],    degrees7: [2, 5, 9, 0]  },
+        { label: 'IIIm',    suffix3: 'm', suffix7: 'm7',   degrees: [4, 7, 11],   degrees7: [4, 7, 11, 2] },
+        { label: 'IV',      suffix3: '', suffix7: 'M7', degrees: [5, 9, 0],    degrees7: [5, 9, 0, 4]  },
+        { label: 'V',       suffix3: '', suffix7: '7',    degrees: [7, 11, 2],   degrees7: [7, 11, 2, 5] },
+        { label: 'VIm',     suffix3: 'm', suffix7: 'm7',   degrees: [9, 0, 4],    degrees7: [9, 0, 4, 7]  },
+        { label: 'VIIm7b5', suffix3: 'mb5', suffix7: 'm7b5', degrees: [11, 2, 5],   degrees7: [11, 2, 5, 8] }
     ],
     minor: [
-        { label: 'Im',      suffix7: 'm7',   degrees: [0, 3, 7],    degrees7: [0, 3, 7, 10]  },
-        { label: 'IIm7b5',  suffix7: 'm7b5', degrees: [2, 5, 8],    degrees7: [2, 5, 8, 11]  },
-        { label: 'III',     suffix7: 'maj7', degrees: [3, 7, 10],   degrees7: [3, 7, 10, 2]  },
-        { label: 'IVm',     suffix7: 'm7',   degrees: [5, 8, 0],    degrees7: [5, 8, 0, 3]   },
-        { label: 'Vm',      suffix7: 'm7',   degrees: [7, 10, 2],   degrees7: [7, 10, 2, 5]  },
-        { label: 'VI',      suffix7: 'maj7', degrees: [8, 0, 3],    degrees7: [8, 0, 3, 7]   },
-        { label: 'VII',     suffix7: '7',    degrees: [10, 2, 5],   degrees7: [10, 2, 5, 8]  }
+        { label: 'Im',      suffix3: 'm', suffix7: 'm7',   degrees: [0, 3, 7],    degrees7: [0, 3, 7, 10]  },
+        { label: 'IIm7b5',  suffix3: 'mb5', suffix7: 'm7b5', degrees: [2, 5, 8],    degrees7: [2, 5, 8, 11]  },
+        { label: 'III',     suffix3: '', suffix7: 'M7', degrees: [3, 7, 10],   degrees7: [3, 7, 10, 2]  },
+        { label: 'IVm',     suffix3: 'm', suffix7: 'm7',   degrees: [5, 8, 0],    degrees7: [5, 8, 0, 3]   },
+        { label: 'Vm',      suffix3: 'm', suffix7: 'm7',   degrees: [7, 10, 2],   degrees7: [7, 10, 2, 5]  },
+        { label: 'VI',      suffix3: '', suffix7: 'M7', degrees: [8, 0, 3],    degrees7: [8, 0, 3, 7]   },
+        { label: 'VII',     suffix3: '', suffix7: '7',    degrees: [10, 2, 5],   degrees7: [10, 2, 5, 8]  }
     ],
     pentaMajor: [
-        { label: 'I',   suffix7: 'maj7', degrees: [0, 4, 7],  degrees7: [0, 4, 7, 11] },
-        { label: 'II',  suffix7: 'maj7', degrees: [2, 6, 9],  degrees7: [2, 6, 9, 0]  },
-        { label: 'III', suffix7: 'm7',   degrees: [4, 7, 11], degrees7: [4, 7, 11, 2] },
-        { label: 'V',   suffix7: '7',    degrees: [7, 11, 2], degrees7: [7, 11, 2, 5] },
-        { label: 'VI',  suffix7: 'm7',   degrees: [9, 0, 4],  degrees7: [9, 0, 4, 7]  }
+        { label: 'I',   suffix3: '', suffix7: 'M7', degrees: [0, 4, 7],  degrees7: [0, 4, 7, 11] },
+        { label: 'II',  suffix3: '', suffix7: 'M7', degrees: [2, 6, 9],  degrees7: [2, 6, 9, 0]  },
+        { label: 'III', suffix3: 'm', suffix7: 'm7',   degrees: [4, 7, 11], degrees7: [4, 7, 11, 2] },
+        { label: 'V',   suffix3: '', suffix7: '7',    degrees: [7, 11, 2], degrees7: [7, 11, 2, 5] },
+        { label: 'VI',  suffix3: 'm', suffix7: 'm7',   degrees: [9, 0, 4],  degrees7: [9, 0, 4, 7]  }
     ],
     pentaMinor: [
-        { label: 'Im',  suffix7: 'm7',   degrees: [0, 3, 7],  degrees7: [0, 3, 7, 10] },
-        { label: 'III', suffix7: 'maj7', degrees: [3, 7, 10], degrees7: [3, 7, 10, 2] },
-        { label: 'IVm', suffix7: 'm7',   degrees: [5, 8, 0],  degrees7: [5, 8, 0, 3]  },
-        { label: 'Vm',  suffix7: 'm7',   degrees: [7, 10, 2], degrees7: [7, 10, 2, 5] },
-        { label: 'VII', suffix7: '7',    degrees: [10, 2, 5], degrees7: [10, 2, 5, 8] }
+        { label: 'Im',  suffix3: 'm', suffix7: 'm7',   degrees: [0, 3, 7],  degrees7: [0, 3, 7, 10] },
+        { label: 'III', suffix3: '', suffix7: 'M7', degrees: [3, 7, 10], degrees7: [3, 7, 10, 2] },
+        { label: 'IVm', suffix3: 'm', suffix7: 'm7',   degrees: [5, 8, 0],  degrees7: [5, 8, 0, 3]  },
+        { label: 'Vm',  suffix3: 'm', suffix7: 'm7',   degrees: [7, 10, 2], degrees7: [7, 10, 2, 5] },
+        { label: 'VII', suffix3: '', suffix7: '7',    degrees: [10, 2, 5], degrees7: [10, 2, 5, 8] }
     ]
 };
 
@@ -1434,8 +1434,12 @@ function getDiatonicChordsForKey(keyIndex, scaleType, use7Chords) {
         const rootNoteIndex = (keyIndex + rootInterval) % 12;
         const rootNoteName = NOTES[rootNoteIndex];
 
-        const chordQuality = chord.label.replace(/^[IViv]+/, '');
-        const newLabel = use7Chords ? (rootNoteName + chord.suffix7) : (rootNoteName + chordQuality);
+        let newLabel;
+        if (use7Chords) {
+            newLabel = rootNoteName + chord.suffix7;
+        } else {
+            newLabel = rootNoteName + chord.suffix3;
+        }
         const degreesArray = use7Chords ? (chord.degrees7 || chord.degrees) : chord.degrees;
 
         return {
