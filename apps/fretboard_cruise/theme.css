@@ -911,10 +911,9 @@ input:checked + .toggle-slider:before {
 .settings-card {
     width: 100%;
     padding: 20px;
-    padding-bottom: 0px;
     background: rgba(255,255,255,0.05);
     border-radius: 12px;
-    margin-bottom: 0px;
+    margin-bottom: 4px;
     box-sizing: border-box;
 }
 
