@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.13.36';
+const FRETBOARD_CRUISE_APP_VERSION = '1.13.37';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1391,36 +1391,36 @@ const SCALE_INTERVALS = {
 
 const DIATONIC_CHORDS = {
     major: [
-        { label: 'I', degrees: [0, 4, 7], degrees7: [0, 4, 7, 11] },
-        { label: 'IIm', degrees: [2, 5, 9], degrees7: [2, 5, 9, 0] },
-        { label: 'IIIm', degrees: [4, 7, 11], degrees7: [4, 7, 11, 2] },
-        { label: 'IV', degrees: [5, 9, 0], degrees7: [5, 9, 0, 4] },
-        { label: 'V', degrees: [7, 11, 2], degrees7: [7, 11, 2, 5] },
-        { label: 'VIm', degrees: [9, 0, 4], degrees7: [9, 0, 4, 7] },
-        { label: 'VIIm7b5', degrees: [11, 2, 5], degrees7: [11, 2, 5, 8] }
+        { label: 'I',       suffix7: 'maj7', degrees: [0, 4, 7],    degrees7: [0, 4, 7, 11] },
+        { label: 'IIm',     suffix7: 'm7',   degrees: [2, 5, 9],    degrees7: [2, 5, 9, 0]  },
+        { label: 'IIIm',    suffix7: 'm7',   degrees: [4, 7, 11],   degrees7: [4, 7, 11, 2] },
+        { label: 'IV',      suffix7: 'maj7', degrees: [5, 9, 0],    degrees7: [5, 9, 0, 4]  },
+        { label: 'V',       suffix7: '7',    degrees: [7, 11, 2],   degrees7: [7, 11, 2, 5] },
+        { label: 'VIm',     suffix7: 'm7',   degrees: [9, 0, 4],    degrees7: [9, 0, 4, 7]  },
+        { label: 'VIIm7b5', suffix7: 'm7b5', degrees: [11, 2, 5],   degrees7: [11, 2, 5, 8] }
     ],
     minor: [
-        { label: 'Im', degrees: [0, 3, 7], degrees7: [0, 3, 7, 10] },
-        { label: 'IIm7b5', degrees: [2, 5, 8], degrees7: [2, 5, 8, 11] },
-        { label: 'III', degrees: [3, 7, 10], degrees7: [3, 7, 10, 2] },
-        { label: 'IVm', degrees: [5, 8, 0], degrees7: [5, 8, 0, 3] },
-        { label: 'Vm', degrees: [7, 10, 2], degrees7: [7, 10, 2, 5] },
-        { label: 'VI', degrees: [8, 0, 3], degrees7: [8, 0, 3, 7] },
-        { label: 'VII', degrees: [10, 2, 5], degrees7: [10, 2, 5, 8] }
+        { label: 'Im',      suffix7: 'm7',   degrees: [0, 3, 7],    degrees7: [0, 3, 7, 10]  },
+        { label: 'IIm7b5',  suffix7: 'm7b5', degrees: [2, 5, 8],    degrees7: [2, 5, 8, 11]  },
+        { label: 'III',     suffix7: 'maj7', degrees: [3, 7, 10],   degrees7: [3, 7, 10, 2]  },
+        { label: 'IVm',     suffix7: 'm7',   degrees: [5, 8, 0],    degrees7: [5, 8, 0, 3]   },
+        { label: 'Vm',      suffix7: 'm7',   degrees: [7, 10, 2],   degrees7: [7, 10, 2, 5]  },
+        { label: 'VI',      suffix7: 'maj7', degrees: [8, 0, 3],    degrees7: [8, 0, 3, 7]   },
+        { label: 'VII',     suffix7: '7',    degrees: [10, 2, 5],   degrees7: [10, 2, 5, 8]  }
     ],
     pentaMajor: [
-        { label: 'I', degrees: [0, 4, 7], degrees7: [0, 4, 7, 11] },
-        { label: 'II', degrees: [2, 6, 9], degrees7: [2, 6, 9, 0] },
-        { label: 'III', degrees: [4, 7, 11], degrees7: [4, 7, 11, 2] },
-        { label: 'V', degrees: [7, 11, 2], degrees7: [7, 11, 2, 5] },
-        { label: 'VI', degrees: [9, 0, 4], degrees7: [9, 0, 4, 7] }
+        { label: 'I',   suffix7: 'maj7', degrees: [0, 4, 7],  degrees7: [0, 4, 7, 11] },
+        { label: 'II',  suffix7: 'maj7', degrees: [2, 6, 9],  degrees7: [2, 6, 9, 0]  },
+        { label: 'III', suffix7: 'm7',   degrees: [4, 7, 11], degrees7: [4, 7, 11, 2] },
+        { label: 'V',   suffix7: '7',    degrees: [7, 11, 2], degrees7: [7, 11, 2, 5] },
+        { label: 'VI',  suffix7: 'm7',   degrees: [9, 0, 4],  degrees7: [9, 0, 4, 7]  }
     ],
     pentaMinor: [
-        { label: 'Im', degrees: [0, 3, 7], degrees7: [0, 3, 7, 10] },
-        { label: 'III', degrees: [3, 7, 10], degrees7: [3, 7, 10, 2] },
-        { label: 'IVm', degrees: [5, 8, 0], degrees7: [5, 8, 0, 3] },
-        { label: 'Vm', degrees: [7, 10, 2], degrees7: [7, 10, 2, 5] },
-        { label: 'VII', degrees: [10, 2, 5], degrees7: [10, 2, 5, 8] }
+        { label: 'Im',  suffix7: 'm7',   degrees: [0, 3, 7],  degrees7: [0, 3, 7, 10] },
+        { label: 'III', suffix7: 'maj7', degrees: [3, 7, 10], degrees7: [3, 7, 10, 2] },
+        { label: 'IVm', suffix7: 'm7',   degrees: [5, 8, 0],  degrees7: [5, 8, 0, 3]  },
+        { label: 'Vm',  suffix7: 'm7',   degrees: [7, 10, 2], degrees7: [7, 10, 2, 5] },
+        { label: 'VII', suffix7: '7',    degrees: [10, 2, 5], degrees7: [10, 2, 5, 8] }
     ]
 };
 
@@ -1435,7 +1435,7 @@ function getDiatonicChordsForKey(keyIndex, scaleType, use7Chords) {
         const rootNoteName = NOTES[rootNoteIndex];
 
         const chordQuality = chord.label.replace(/^[IViv]+/, '');
-        const newLabel = use7Chords ? (rootNoteName + chordQuality + '7') : (rootNoteName + chordQuality);
+        const newLabel = use7Chords ? (rootNoteName + chord.suffix7) : (rootNoteName + chordQuality);
         const degreesArray = use7Chords ? (chord.degrees7 || chord.degrees) : chord.degrees;
 
         return {
@@ -1674,7 +1674,8 @@ function renderVisualize(app) {
         displayMode: state.visualize.displayMode,
         scale: state.visualize.scale,
         selectedChordIndex: state.visualize.selectedChordIndex,
-        doMode: state.visualize.doMode
+        doMode: state.visualize.doMode,
+        chordType: state.visualize.chordType
     });
 
     // body は overflow:hidden のため、縦長コンテンツは #app 内でスクロール（設定画面と同じ）
@@ -2142,9 +2143,10 @@ function renderFretboardHTML(containerId, options) {
     const {
         mode, question, showAnswer, clicked, onFretClick,
         keyIndex, capo, displayMode, scale, selectedChordIndex,
-        doMode: doModeOpt
+        doMode: doModeOpt, chordType
     } = options;
     const doMode = doModeOpt || 'movable';
+    const use7Chords = chordType === '7';
 
     // If old perspective value (>100), migrate it to the 0-100 range.
     if (state.settings.perspective > 100) {
@@ -2404,7 +2406,10 @@ function renderFretboardHTML(containerId, options) {
                     if (selectedChordIndex !== null && selectedChordIndex !== undefined) {
                         const chords = DIATONIC_CHORDS[scale || 'major'] || DIATONIC_CHORDS.major;
                         const selectedChord = chords[selectedChordIndex];
-                        shouldShow = selectedChord && selectedChord.degrees.includes(degreeFromKey);
+                        const degreesToCheck = use7Chords
+                            ? (selectedChord.degrees7 || selectedChord.degrees)
+                            : selectedChord.degrees;
+                        shouldShow = selectedChord && degreesToCheck.includes(degreeFromKey);
                     }
 
                     if (!shouldShow) {
