@@ -26,7 +26,7 @@
 .fretboard-scroll-wrapper {
     width: 100%;
     overflow-x: auto;
-    padding: 10px 0 35px 0; /* Added bottom padding to prevent scrollbar overlap */
+    padding: 0 0 35px 0; /* Added bottom padding to prevent scrollbar overlap */
     -webkit-overflow-scrolling: touch;
     display: flex;
     justify-content: flex-start;
@@ -697,11 +697,11 @@
 .setup-panel {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 12px;
     justify-content: center;
-    margin-bottom: 20px;
+    margin-bottom: 0;
     background: rgba(255,255,255,0.05);
-    padding: 15px;
+    padding: 8px;
     border-radius: 12px;
 }
 

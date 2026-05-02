@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.13.41';
+const FRETBOARD_CRUISE_APP_VERSION = '1.13.48';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1554,12 +1554,11 @@ function renderVisualize(app) {
     const chordButtonsHtml = chords.map((chord, idx) => {
         const isSelected = state.visualize.selectedChordIndex === idx;
         const isDisabled = !state.visualize.autoSelectRootChord;
-        const disabledAttr = isDisabled ? 'disabled' : '';
-        return `<button class="chord-btn ${isSelected ? 'active' : ''} ${isDisabled ? 'disabled' : ''}" data-chord-index="${idx}" ${disabledAttr}>${chord.label}</button>`;
+        return `<button class="chord-btn ${isSelected ? 'active' : ''} ${isDisabled ? 'disabled' : ''}" data-chord-index="${idx}">${chord.label}</button>`;
     }).join('');
 
     app.innerHTML = `
-        <header style="padding-top: 10px; margin-bottom: 5px;">
+        <header style="padding-top: 10px; margin-bottom: 0;">
             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                 <button class="icon-btn" id="btn-back">◀ ホーム</button>
                 <h2 style="font-size: 1.5rem; margin:0; flex:1; text-align:center;">自由探索モード</h2>
@@ -1590,7 +1589,6 @@ function renderVisualize(app) {
                 </select>
             </div>
             <div class="setup-item">
-                <label>表示</label>
                 <div class="mode-buttons">
                     <button class="mode-btn ${state.visualize.displayMode==='solfege'?'active':''}" data-mode="solfege">ドレミ</button>
                     <button class="mode-btn ${state.visualize.displayMode==='note'?'active':''}" data-mode="note">CDE</button>
@@ -1598,17 +1596,9 @@ function renderVisualize(app) {
                 </div>
             </div>
             <div class="setup-item">
-                <label>音名・度数の基準</label>
                 <div class="mode-buttons">
                     <button type="button" class="do-mode-btn ${state.visualize.doMode==='movable'?'active':''}" data-do-mode="movable">移動ド</button>
                     <button type="button" class="do-mode-btn ${state.visualize.doMode==='fixed'?'active':''}" data-do-mode="fixed">固定ド</button>
-                </div>
-            </div>
-            <div class="setup-item">
-                <label>コード</label>
-                <div class="mode-buttons">
-                    <button type="button" class="chord-type-btn ${state.visualize.chordType==='3'?'active':''}" data-chord-type="3">3和音</button>
-                    <button type="button" class="chord-type-btn ${state.visualize.chordType==='7'?'active':''}" data-chord-type="7">4和音</button>
                 </div>
             </div>
         </div>
@@ -1625,6 +1615,10 @@ function renderVisualize(app) {
             </div>
             <div class="chord-list">
                 ${chordButtonsHtml}
+            </div>
+            <div style="display: flex; gap: 15px; margin-top: 20px; justify-content: center;">
+                <button type="button" class="chord-type-btn ${state.visualize.chordType==='3'?'active':''}" data-chord-type="3">3和音</button>
+                <button type="button" class="chord-type-btn ${state.visualize.chordType==='7'?'active':''}" data-chord-type="7">4和音</button>
             </div>
         </div>
     `;
@@ -1699,7 +1693,8 @@ function renderVisualize(app) {
         scale: state.visualize.scale,
         selectedChordIndex: state.visualize.selectedChordIndex,
         doMode: state.visualize.doMode,
-        chordType: state.visualize.chordType
+        chordType: state.visualize.chordType,
+        autoSelectRootChord: state.visualize.autoSelectRootChord
     });
 
     // body は overflow:hidden のため、縦長コンテンツは #app 内でスクロール（設定画面と同じ）
@@ -2167,7 +2162,7 @@ function renderFretboardHTML(containerId, options) {
     const {
         mode, question, showAnswer, clicked, onFretClick,
         keyIndex, capo, displayMode, scale, selectedChordIndex,
-        doMode: doModeOpt, chordType
+        doMode: doModeOpt, chordType, autoSelectRootChord
     } = options;
     const doMode = doModeOpt || 'movable';
     const use7Chords = chordType === '7';
@@ -2427,13 +2422,15 @@ function renderFretboardHTML(containerId, options) {
                     let isScale = scaleDegrees.hasOwnProperty(degreeFromKey);
 
                     let shouldShow = true;
-                    if (selectedChordIndex !== null && selectedChordIndex !== undefined) {
+                    if (autoSelectRootChord && selectedChordIndex !== null && selectedChordIndex !== undefined) {
                         const chords = DIATONIC_CHORDS[scale || 'major'] || DIATONIC_CHORDS.major;
                         const selectedChord = chords[selectedChordIndex];
                         const degreesToCheck = use7Chords
                             ? (selectedChord.degrees7 || selectedChord.degrees)
                             : selectedChord.degrees;
                         shouldShow = selectedChord && degreesToCheck.includes(degreeFromKey);
+                    } else if (!autoSelectRootChord) {
+                        shouldShow = isScale;
                     }
 
                     if (!shouldShow) {
@@ -2646,6 +2643,9 @@ function renderFretboardHTML(containerId, options) {
                 scrollWrapper.style.transformOrigin = 'top left';
                 scrollWrapper.style.marginLeft = `${centerTx}px`;
                 scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
+                if (visualizeFretHost) {
+                    containerEl.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
+                }
                 if (perspectiveWrapper) {
                     perspectiveWrapper.style.transformOrigin = 'top left';
                     perspectiveWrapper.style.transform = `translate(${(-projectedBounds.minX).toFixed(2)}px, ${(-projectedBounds.minY).toFixed(2)}px)`;
@@ -2717,9 +2717,6 @@ function renderFretboardHTML(containerId, options) {
     const handleFretboardClick = (e) => {
         const chordBtn = findChordButtonFromPointerEvent(e);
         if (chordBtn) {
-            if (!state.visualize.autoSelectRootChord) {
-                return;
-            }
             const chordIndex = parseInt(chordBtn.getAttribute('data-chord-index'));
             state.visualize.selectedChordIndex =
                 state.visualize.selectedChordIndex === chordIndex ? null : chordIndex;
