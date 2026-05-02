@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.13.48';
+const FRETBOARD_CRUISE_APP_VERSION = '1.13.49';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -2550,6 +2550,7 @@ function renderFretboardHTML(containerId, options) {
                 scrollWrapper.style.overflowY = 'hidden';
                 scrollWrapper.style.transform = '';
                 scrollWrapper.style.transformOrigin = '';
+                containerEl.style.height = '';
                 containerEl.style.marginBottom = '';
                 if (perspectiveWrapper) {
                     perspectiveWrapper.style.transformOrigin = 'top left';
@@ -2656,7 +2657,12 @@ function renderFretboardHTML(containerId, options) {
                     const layoutH = scrollWrapper.offsetHeight;
                     const visualH = scrollWrapper.getBoundingClientRect().height;
                     if (layoutH > 1 && visualH > 1) {
-                        containerEl.style.marginBottom = `${-Math.round(layoutH - visualH)}px`;
+                        if (visualizeFretHost) {
+                            // height設定済みのためmarginBottomは不要
+                            containerEl.style.marginBottom = '';
+                        } else {
+                            containerEl.style.marginBottom = `${-Math.round(layoutH - visualH)}px`;
+                        }
                     }
                 };
                 syncFretboardLayoutCollapse();
@@ -2686,6 +2692,7 @@ function renderFretboardHTML(containerId, options) {
                                         rightOffset = 20;
                                     }
                                     centerTx += rightOffset;
+                                    containerEl.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
                                 }
                                 scrollWrapper.style.marginLeft = `${centerTx}px`;
                                 scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
