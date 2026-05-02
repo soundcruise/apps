@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.13.34';
+const FRETBOARD_CRUISE_APP_VERSION = '1.13.35';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1379,6 +1379,13 @@ function updateMemorizeScoreDisplay() {
     if (scombo) scombo.textContent = state.memorize.combo;
 }
 
+const SCALE_INTERVALS = {
+    major: [0, 2, 4, 5, 7, 9, 11],
+    minor: [0, 2, 3, 5, 7, 8, 10],
+    pentaMajor: [0, 2, 4, 7, 9],
+    pentaMinor: [0, 3, 5, 7, 10]
+};
+
 const DIATONIC_CHORDS = {
     major: [
         { label: 'I', degrees: [0, 4, 7] },
@@ -1413,6 +1420,26 @@ const DIATONIC_CHORDS = {
         { label: 'VII', degrees: [10, 2, 5] }
     ]
 };
+
+function getDiatonicChordsForKey(keyIndex, scaleType) {
+    const baseChords = DIATONIC_CHORDS[scaleType] || DIATONIC_CHORDS.major;
+    const scaleIntervals = SCALE_INTERVALS[scaleType] || SCALE_INTERVALS.major;
+
+    return baseChords.map((chord, idx) => {
+        const rootScaleDegree = idx;
+        const rootInterval = scaleIntervals[rootScaleDegree];
+        const rootNoteIndex = (keyIndex + rootInterval) % 12;
+        const rootNoteName = NOTES[rootNoteIndex];
+
+        const chordQuality = chord.label.replace(/^[IViv]+/, '');
+        const newLabel = rootNoteName + chordQuality;
+
+        return {
+            label: newLabel,
+            degrees: chord.degrees
+        };
+    });
+}
 
 function getScaleDegrees(scaleType) {
     switch(scaleType) {
@@ -1512,7 +1539,7 @@ function renderVisualize(app) {
     if (typeof state.visualize.selectedChordIndex === 'undefined') state.visualize.selectedChordIndex = null;
     if (typeof state.visualize.doMode === 'undefined') state.visualize.doMode = 'movable';
 
-    const chords = DIATONIC_CHORDS[state.visualize.scale] || DIATONIC_CHORDS.major;
+    const chords = getDiatonicChordsForKey(state.visualize.key, state.visualize.scale);
     const chordButtonsHtml = chords.map((chord, idx) => {
         const isSelected = state.visualize.selectedChordIndex === idx;
         return `<button class="chord-btn ${isSelected ? 'active' : ''}" data-chord-index="${idx}">${chord.label}</button>`;
