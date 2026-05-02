@@ -15,10 +15,10 @@
     --fret-wire: linear-gradient(to right, #999, #eee 30%, #fff 50%, #eee 70%, #999);
     --dot-color: radial-gradient(circle at 30% 30%, #fff, #d4cfc7 60%, #a8a39a);
 
-    --root-color: #ff4f6e;   /* 赤 */
-    --third-color: #4f9cf9;  /* 青 */
-    --fifth-color: #6bcb77;  /* 緑 */
-    --seventh-color: #c77dff;/* 紫 */
+    --root-color: #ff4f6e;   /* C: 赤 */
+    --third-color: #ffd93d;  /* E: 黄色 */
+    --fifth-color: #4f9cf9;  /* G: 青 */
+    --seventh-color: #c77dff;/* B: 紫 */
     --non-target-color: #555555; /* グレー薄表示 */
 }
 
