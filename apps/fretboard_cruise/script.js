@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.13.50';
+const FRETBOARD_CRUISE_APP_VERSION = '1.13.51';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -985,6 +985,7 @@ function renderHome(app) {
             <button class="btn-primary" id="btn-memorize" style="width: 80%; padding: 20px; font-size: 1.2rem;">覚えるコース</button>
             <button class="btn-secondary" id="btn-visualize" style="width: 80%; padding: 20px; font-size: 1.2rem;">自由探索モード</button>
         </div>
+        <div style="height: 200px;"></div>
     `;
 
     document.getElementById('btn-memorize').onclick = () => {
@@ -1023,6 +1024,7 @@ function renderModeSelect(app) {
                 <span class="stage-desc">自力で音を探すテスト形式！</span>
             </button>
         </div>
+        <div style="height: 200px;"></div>
     `;
 
     document.getElementById('btn-back').onclick = () => {
@@ -1062,6 +1064,7 @@ function renderStageSelect(app) {
             <button class="stage-btn" data-stage="5">STAGE 5<span class="stage-desc">総復習メドレー (STAGE 1〜4)</span></button>
             <button class="stage-btn" data-stage="6">STAGE 6<span class="stage-desc">全指板マスター (0〜12フレット)</span></button>
         </div>
+        <div style="height: 200px;"></div>
     `;
 
     document.getElementById('btn-back').onclick = () => {
@@ -1242,6 +1245,7 @@ function renderMemorize(app) {
                 <div id="fretboard-container" class="memorize-fretboard-host"></div>
             </div>
         </div>
+        <div style="height: 200px;"></div>
     `;
 
     document.getElementById('btn-back').onclick = () => {
