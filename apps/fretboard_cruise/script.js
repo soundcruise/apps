@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.38.18';
+const FRETBOARD_CRUISE_APP_VERSION = '1.38.19';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1318,7 +1318,7 @@ function renderHome(app) {
         <div class="action-btns" style="flex-direction: column; gap: 20px; align-items: center; width: 100%;">
             <button type="button" class="btn-primary home-memorize-btn" id="btn-cruise-mode">🛳️ 指板をたどる</button>
             <button type="button" class="btn-primary home-memorize-btn" id="btn-quiz-mode">🎯 指板クイズ</button>
-            <button type="button" class="btn-primary home-explore-btn" id="btn-home-board-view">指板を探索する</button>
+            <button type="button" class="btn-primary home-memorize-btn" id="btn-home-board-view">🧭 指板を探索する</button>
         </div>
         <div style="height: 200px;"></div>
     `;
