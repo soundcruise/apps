@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.40.5';
+const FRETBOARD_CRUISE_APP_VERSION = '1.40.6';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -6288,33 +6288,16 @@ function addGlowHighlight(overlay, currentCell, nextCell) {
 
     const glow1 = document.createElement('div');
     glow1.style.position = 'absolute';
-    glow1.style.width = '60px';
-    glow1.style.height = '60px';
+    glow1.style.width = '30px';
+    glow1.style.height = '30px';
     glow1.style.backgroundColor = 'rgba(255, 215, 0, 0.3)';
     glow1.style.borderRadius = '50%';
-    glow1.style.top = (currentY - 30) + 'px';
-    glow1.style.left = (currentX - 30) + 'px';
-    glow1.style.boxShadow = '0 0 20px rgba(255, 215, 0, 0.8)';
+    glow1.style.top = (currentY - 15) + 'px';
+    glow1.style.left = (currentX - 15) + 'px';
+    glow1.style.boxShadow = '0 0 15px rgba(255, 215, 0, 0.8)';
     glow1.style.animation = 'glow 1s ease-in-out infinite';
+    glow1.style.zIndex = '-1';
     overlay.appendChild(glow1);
-
-    // Next glow
-    if (nextCell) {
-        const nextRect = nextCell.getBoundingClientRect();
-        const nextX = nextRect.left - containerRect.left + nextRect.width / 2;
-        const nextY = nextRect.top - containerRect.top + nextRect.height / 2;
-
-        const glow2 = document.createElement('div');
-        glow2.style.position = 'absolute';
-        glow2.style.width = '50px';
-        glow2.style.height = '50px';
-        glow2.style.backgroundColor = 'rgba(100, 150, 255, 0.2)';
-        glow2.style.borderRadius = '50%';
-        glow2.style.top = (nextY - 25) + 'px';
-        glow2.style.left = (nextX - 25) + 'px';
-        glow2.style.boxShadow = '0 0 15px rgba(100, 150, 255, 0.6)';
-        overlay.appendChild(glow2);
-    }
 }
 
 function addBackgroundHighlight(overlay, currentCell, nextCell) {
