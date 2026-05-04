@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.40.7';
+const FRETBOARD_CRUISE_APP_VERSION = '1.40.8';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -4047,41 +4047,36 @@ function showLiveFeedback(text, type) {
         if (scombo) scombo.textContent = state.memorize.combo;
     }
 
-    // Fretboard flash effect based on timing result
-    flashFretboard(type);
+    // Flash the target note cell based on timing result
+    flashCell(type);
 }
 
-function flashFretboard(type) {
+function flashCell(type) {
+    const q = state.memorize.currentQuestion;
+    if (!q) return;
     const container = document.getElementById('fretboard-container');
     if (!container) return;
 
-    // Create flash overlay
+    const cell = container.querySelector(`[data-string="${q.stringName}"][data-fret="${q.fret}"]`);
+    if (!cell) return;
+
     const flash = document.createElement('div');
     flash.style.position = 'absolute';
-    flash.style.top = '0';
-    flash.style.left = '0';
-    flash.style.width = '100%';
-    flash.style.height = '100%';
+    flash.style.inset = '0';
+    flash.style.borderRadius = '8px';
     flash.style.pointerEvents = 'none';
-    flash.style.zIndex = '5';
-    flash.style.borderRadius = '0';
+    flash.style.zIndex = '10';
 
     if (type === 'good') {
-        // Blue flash for Perfect
-        flash.style.backgroundColor = 'rgba(0, 150, 255, 0.3)';
-        flash.style.animation = 'none';
+        flash.style.backgroundColor = 'rgba(0, 150, 255, 0.5)';
+        flash.style.boxShadow = '0 0 20px rgba(0, 150, 255, 0.8)';
     } else if (type === 'miss') {
-        // Red flash for Miss/Early/Late
-        flash.style.backgroundColor = 'rgba(255, 80, 80, 0.3)';
-        flash.style.animation = 'none';
+        flash.style.backgroundColor = 'rgba(255, 80, 80, 0.5)';
+        flash.style.boxShadow = '0 0 20px rgba(255, 80, 80, 0.8)';
     }
 
-    container.appendChild(flash);
-
-    // Remove flash after 300ms
-    setTimeout(() => {
-        flash.remove();
-    }, 300);
+    cell.appendChild(flash);
+    setTimeout(() => flash.remove(), 300);
 }
 
 function updateMemorizeScoreDisplay() {
@@ -6219,6 +6214,9 @@ function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode) {
     const existingOverlay = container.querySelector('.highlight-overlay');
     if (existingOverlay) existingOverlay.remove();
 
+    // Remove any glow effects inserted directly into cells
+    container.querySelectorAll('.fret-glow-effect').forEach(el => el.remove());
+
     // Create overlay container
     const overlay = document.createElement('div');
     overlay.className = 'highlight-overlay';
@@ -6315,25 +6313,22 @@ function addRingHighlight(overlay, currentCell, nextCell, currentColor, nextColo
 }
 
 function addGlowHighlight(overlay, currentCell, nextCell) {
-    const containerRect = overlay.parentElement.getBoundingClientRect();
-
-    // Current glow
-    const currentRect = currentCell.getBoundingClientRect();
-    const currentX = currentRect.left - containerRect.left + currentRect.width / 2;
-    const currentY = currentRect.top - containerRect.top + currentRect.height / 2;
-
-    const glow1 = document.createElement('div');
-    glow1.style.position = 'absolute';
-    glow1.style.width = '30px';
-    glow1.style.height = '30px';
-    glow1.style.backgroundColor = 'rgba(255, 215, 0, 0.3)';
-    glow1.style.borderRadius = '50%';
-    glow1.style.top = (currentY - 15) + 'px';
-    glow1.style.left = (currentX - 15) + 'px';
-    glow1.style.boxShadow = '0 0 15px rgba(255, 215, 0, 0.8)';
-    glow1.style.animation = 'glow 1s ease-in-out infinite';
-    glow1.style.zIndex = '-1';
-    overlay.appendChild(glow1);
+    // Insert glow directly inside the target cell (before note-marker) so it renders behind the note text
+    const glow = document.createElement('div');
+    glow.className = 'fret-glow-effect';
+    glow.style.position = 'absolute';
+    glow.style.width = '30px';
+    glow.style.height = '30px';
+    glow.style.left = '50%';
+    glow.style.top = '50%';
+    glow.style.transform = 'translate(-50%, -50%)';
+    glow.style.backgroundColor = 'rgba(255, 215, 0, 0.3)';
+    glow.style.borderRadius = '50%';
+    glow.style.boxShadow = '0 0 15px rgba(255, 215, 0, 0.8)';
+    glow.style.animation = 'glow 1s ease-in-out infinite';
+    glow.style.pointerEvents = 'none';
+    // Insert before note-marker so note-marker (later in DOM) renders on top
+    currentCell.insertBefore(glow, currentCell.firstChild);
 }
 
 function addBackgroundHighlight(overlay, currentCell, nextCell) {
