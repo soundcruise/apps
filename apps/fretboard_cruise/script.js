@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.40.6';
+const FRETBOARD_CRUISE_APP_VERSION = '1.40.7';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -4040,12 +4040,48 @@ function showLiveFeedback(text, type) {
         if (type === 'good') fb.className = 'feedback-display feedback-correct';
         else if (type === 'miss') fb.className = 'feedback-display feedback-wrong';
         else fb.className = 'feedback-display';
-        
+
         const sc = document.getElementById('score-correct');
         const scombo = document.getElementById('score-combo');
         if (sc) sc.textContent = state.memorize.correct;
         if (scombo) scombo.textContent = state.memorize.combo;
     }
+
+    // Fretboard flash effect based on timing result
+    flashFretboard(type);
+}
+
+function flashFretboard(type) {
+    const container = document.getElementById('fretboard-container');
+    if (!container) return;
+
+    // Create flash overlay
+    const flash = document.createElement('div');
+    flash.style.position = 'absolute';
+    flash.style.top = '0';
+    flash.style.left = '0';
+    flash.style.width = '100%';
+    flash.style.height = '100%';
+    flash.style.pointerEvents = 'none';
+    flash.style.zIndex = '5';
+    flash.style.borderRadius = '0';
+
+    if (type === 'good') {
+        // Blue flash for Perfect
+        flash.style.backgroundColor = 'rgba(0, 150, 255, 0.3)';
+        flash.style.animation = 'none';
+    } else if (type === 'miss') {
+        // Red flash for Miss/Early/Late
+        flash.style.backgroundColor = 'rgba(255, 80, 80, 0.3)';
+        flash.style.animation = 'none';
+    }
+
+    container.appendChild(flash);
+
+    // Remove flash after 300ms
+    setTimeout(() => {
+        flash.remove();
+    }, 300);
 }
 
 function updateMemorizeScoreDisplay() {
@@ -6192,7 +6228,7 @@ function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode) {
     overlay.style.width = '100%';
     overlay.style.height = '100%';
     overlay.style.pointerEvents = 'none';
-    overlay.style.zIndex = '10';
+    overlay.style.zIndex = '0';
 
     // Find current and next note positions
     const currentFret = currentQuestion.fret;
