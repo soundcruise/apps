@@ -3620,7 +3620,7 @@ function renderStageSelect(app) {
     `;
 
     document.getElementById('btn-back').onclick = () => {
-        state.course = 'modeSelect';
+        state.course = null;
         saveState();
         renderApp();
     };
