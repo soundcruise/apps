@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.40.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.40.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -63,7 +63,8 @@ let state = {
         hasTappedCurrentNote: false,
         isFirstNote: true,
         tempFeedback: null,
-        highlightMode: 1 // 1-5: Visual highlight pattern for current/next note
+        highlightMode: 1, // 1-5: Visual highlight pattern for current/next note
+        isCruisePlaying: true // Is cruise rhythm currently playing
     },
     visualize: {
         key: 0, // C
@@ -3829,7 +3830,7 @@ function renderMemorize(app) {
                 ${isCruise ? `
                     <div style="display: flex; gap: 6px; justify-content: center; margin-top: 12px; padding: 0 16px;">
                         <button type="button" class="btn-secondary" id="btn-cruise-prev" style="padding: 6px 12px; font-size: 0.85rem; flex: 1;">← 1つ戻る</button>
-                        <button type="button" class="btn-secondary" id="btn-cruise-stop" style="padding: 6px 12px; font-size: 0.85rem; flex: 1;">⏹️ 停止</button>
+                        <button type="button" class="btn-secondary" id="btn-cruise-stop" style="padding: 6px 12px; font-size: 0.85rem; flex: 1;">${state.memorize.isCruisePlaying ? '⏹️ 停止' : '▶️ 再生'}</button>
                         <button type="button" class="btn-secondary" id="btn-cruise-next" style="padding: 6px 12px; font-size: 0.85rem; flex: 1;">1つ進む →</button>
                     </div>
                     ${state.memorize.stage === 1 ? `
@@ -3875,8 +3876,14 @@ function renderMemorize(app) {
         };
 
         document.getElementById('btn-cruise-stop').onclick = () => {
-            stopRhythm();
+            state.memorize.isCruisePlaying = !state.memorize.isCruisePlaying;
+            if (!state.memorize.isCruisePlaying) {
+                stopRhythm();
+            } else {
+                startRhythm();
+            }
             saveState();
+            renderApp();
         };
 
         document.getElementById('btn-cruise-next').onclick = () => {
@@ -3915,11 +3922,13 @@ function renderMemorize(app) {
 
     // Apply highlight overlay for cruise mode on STAGE1
     if (isCruise && state.memorize.stage === 1 && state.memorize.highlightMode) {
-        setTimeout(() => {
-            renderHighlightOverlay(q, isCruise && state.memorize.cruiseIndex < state.memorize.cruiseTargets.length - 1
-                ? state.memorize.cruiseTargets[state.memorize.cruiseIndex + 1]
-                : null, state.memorize.highlightMode);
-        }, 50);
+        const nextQ = state.memorize.cruiseIndex < state.memorize.cruiseTargets.length - 1
+            ? state.memorize.cruiseTargets[state.memorize.cruiseIndex + 1]
+            : null;
+        // Call after DOM has been updated
+        requestAnimationFrame(() => {
+            renderHighlightOverlay(q, nextQ, state.memorize.highlightMode);
+        });
     }
 
 }
