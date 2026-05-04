@@ -401,26 +401,6 @@
     transition: background-color 0.2s;
 }
 
-/* 正解判定範囲の視覚化（デバッグ/確認用） */
-.fret-column.is-target-fret {
-    outline: 2px dashed rgba(79, 156, 249, 0.8);
-    outline-offset: 0;
-    z-index: 100;
-    position: relative;
-}
-
-.fret-column.is-target-fret::before {
-    content: '';
-    position: absolute;
-    top: -20px;
-    bottom: -20px;
-    left: 0;
-    right: 0;
-    background: rgba(79, 156, 249, 0.1);
-    pointer-events: none;
-    z-index: -1;
-    border-radius: 8px;
-}
 
 @media (hover: hover) {
     .fret-column.interactive:hover {
