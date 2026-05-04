@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.38.20';
+const FRETBOARD_CRUISE_APP_VERSION = '1.38.21';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1465,7 +1465,7 @@ function renderBasicRules(app) {
     app.innerHTML = `
         ${buildPageHeader({
             headerClass: 'page-header--stage-select',
-            titleText: '基本ルール',
+            titleText: '🔰 基本ルール',
             leftHtml: `
                 ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
             `,
@@ -3598,7 +3598,7 @@ function scheduleRuleStep31PairLineUpdates() {
 }
 
 function renderStageSelect(app) {
-    const stageSelectTitle = state.memorize.playMode === 'cruise' ? '指板をたどる' : '指板クイズ';
+    const stageSelectTitle = state.memorize.playMode === 'cruise' ? '🛳️ 指板をたどる' : '🎯 指板クイズ';
     app.innerHTML = `
         ${buildPageHeader({
             headerClass: 'page-header--stage-select',
@@ -4154,7 +4154,7 @@ function renderVisualize(app) {
 
     app.innerHTML = `
         ${buildPageHeader({
-            titleText: '指板を探索する',
+            titleText: '🧭 指板を探索する',
             leftHtml: `
                 ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
             `,
