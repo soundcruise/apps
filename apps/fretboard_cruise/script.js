@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.40.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.40.3';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -64,7 +64,7 @@ let state = {
         isFirstNote: true,
         tempFeedback: null,
         highlightMode: 1, // 1-5: Visual highlight pattern for current/next note
-        isCruisePlaying: false // Is cruise rhythm currently playing (default: stopped)
+        isCruisePlaying: true // Is cruise rhythm currently playing (default: playing)
     },
     visualize: {
         key: 0, // C
@@ -6242,10 +6242,12 @@ function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode) {
 
 function addRingHighlight(overlay, currentCell, nextCell, currentColor, nextColor) {
     const ringSize = 60;
+    const containerRect = overlay.parentElement.getBoundingClientRect();
 
     // Current ring
     const currentRect = currentCell.getBoundingClientRect();
-    const containerRect = currentCell.parentElement.parentElement.getBoundingClientRect();
+    const currentX = currentRect.left - containerRect.left + currentRect.width / 2;
+    const currentY = currentRect.top - containerRect.top + currentRect.height / 2;
 
     const ring1 = document.createElement('div');
     ring1.style.position = 'absolute';
@@ -6253,94 +6255,124 @@ function addRingHighlight(overlay, currentCell, nextCell, currentColor, nextColo
     ring1.style.height = ringSize + 'px';
     ring1.style.border = '4px solid ' + currentColor;
     ring1.style.borderRadius = '50%';
-    ring1.style.top = (currentCell.offsetTop + currentCell.offsetHeight / 2 - ringSize / 2) + 'px';
-    ring1.style.left = (currentCell.offsetLeft + currentCell.offsetWidth / 2 - ringSize / 2) + 'px';
+    ring1.style.top = (currentY - ringSize / 2) + 'px';
+    ring1.style.left = (currentX - ringSize / 2) + 'px';
     ring1.style.animation = 'pulse 1s infinite';
     overlay.appendChild(ring1);
 
     // Next ring
     if (nextCell) {
+        const nextRect = nextCell.getBoundingClientRect();
+        const nextX = nextRect.left - containerRect.left + nextRect.width / 2;
+        const nextY = nextRect.top - containerRect.top + nextRect.height / 2;
+
         const ring2 = document.createElement('div');
         ring2.style.position = 'absolute';
         ring2.style.width = (ringSize - 20) + 'px';
         ring2.style.height = (ringSize - 20) + 'px';
         ring2.style.border = '3px solid ' + nextColor;
         ring2.style.borderRadius = '50%';
-        ring2.style.top = (nextCell.offsetTop + nextCell.offsetHeight / 2 - (ringSize - 20) / 2) + 'px';
-        ring2.style.left = (nextCell.offsetLeft + nextCell.offsetWidth / 2 - (ringSize - 20) / 2) + 'px';
+        ring2.style.top = (nextY - (ringSize - 20) / 2) + 'px';
+        ring2.style.left = (nextX - (ringSize - 20) / 2) + 'px';
         overlay.appendChild(ring2);
     }
 }
 
 function addGlowHighlight(overlay, currentCell, nextCell) {
+    const containerRect = overlay.parentElement.getBoundingClientRect();
+
     // Current glow
+    const currentRect = currentCell.getBoundingClientRect();
+    const currentX = currentRect.left - containerRect.left + currentRect.width / 2;
+    const currentY = currentRect.top - containerRect.top + currentRect.height / 2;
+
     const glow1 = document.createElement('div');
     glow1.style.position = 'absolute';
     glow1.style.width = '70px';
     glow1.style.height = '70px';
     glow1.style.backgroundColor = 'rgba(255, 215, 0, 0.3)';
     glow1.style.borderRadius = '50%';
-    glow1.style.top = (currentCell.offsetTop + currentCell.offsetHeight / 2 - 35) + 'px';
-    glow1.style.left = (currentCell.offsetLeft + currentCell.offsetWidth / 2 - 35) + 'px';
+    glow1.style.top = (currentY - 35) + 'px';
+    glow1.style.left = (currentX - 35) + 'px';
     glow1.style.boxShadow = '0 0 20px rgba(255, 215, 0, 0.8)';
     glow1.style.animation = 'glow 1s ease-in-out infinite';
     overlay.appendChild(glow1);
 
     // Next glow
     if (nextCell) {
+        const nextRect = nextCell.getBoundingClientRect();
+        const nextX = nextRect.left - containerRect.left + nextRect.width / 2;
+        const nextY = nextRect.top - containerRect.top + nextRect.height / 2;
+
         const glow2 = document.createElement('div');
         glow2.style.position = 'absolute';
         glow2.style.width = '60px';
         glow2.style.height = '60px';
         glow2.style.backgroundColor = 'rgba(100, 150, 255, 0.2)';
         glow2.style.borderRadius = '50%';
-        glow2.style.top = (nextCell.offsetTop + nextCell.offsetHeight / 2 - 30) + 'px';
-        glow2.style.left = (nextCell.offsetLeft + nextCell.offsetWidth / 2 - 30) + 'px';
+        glow2.style.top = (nextY - 30) + 'px';
+        glow2.style.left = (nextX - 30) + 'px';
         glow2.style.boxShadow = '0 0 15px rgba(100, 150, 255, 0.6)';
         overlay.appendChild(glow2);
     }
 }
 
 function addBackgroundHighlight(overlay, currentCell, nextCell) {
+    const containerRect = overlay.parentElement.getBoundingClientRect();
+
     // Current background
+    const currentRect = currentCell.getBoundingClientRect();
+    const currentWidth = currentRect.width * 1.3;
+    const currentHeight = currentRect.height * 1.3;
+
     const bg1 = document.createElement('div');
     bg1.style.position = 'absolute';
-    bg1.style.width = currentCell.offsetWidth * 1.3 + 'px';
-    bg1.style.height = currentCell.offsetHeight * 1.3 + 'px';
+    bg1.style.width = currentWidth + 'px';
+    bg1.style.height = currentHeight + 'px';
     bg1.style.backgroundColor = 'rgba(255, 100, 100, 0.25)';
-    bg1.style.top = (currentCell.offsetTop - (currentCell.offsetHeight * 0.3) / 2) + 'px';
-    bg1.style.left = (currentCell.offsetLeft - (currentCell.offsetWidth * 0.3) / 2) + 'px';
+    bg1.style.top = (currentRect.top - containerRect.top + currentRect.height / 2 - currentHeight / 2) + 'px';
+    bg1.style.left = (currentRect.left - containerRect.left + currentRect.width / 2 - currentWidth / 2) + 'px';
     bg1.style.borderRadius = '8px';
     overlay.appendChild(bg1);
 
     // Next background
     if (nextCell) {
+        const nextRect = nextCell.getBoundingClientRect();
+        const nextWidth = nextRect.width * 1.2;
+        const nextHeight = nextRect.height * 1.2;
+
         const bg2 = document.createElement('div');
         bg2.style.position = 'absolute';
-        bg2.style.width = nextCell.offsetWidth * 1.2 + 'px';
-        bg2.style.height = nextCell.offsetHeight * 1.2 + 'px';
+        bg2.style.width = nextWidth + 'px';
+        bg2.style.height = nextHeight + 'px';
         bg2.style.backgroundColor = 'rgba(100, 150, 255, 0.15)';
-        bg2.style.top = (nextCell.offsetTop - (nextCell.offsetHeight * 0.2) / 2) + 'px';
-        bg2.style.left = (nextCell.offsetLeft - (nextCell.offsetWidth * 0.2) / 2) + 'px';
+        bg2.style.top = (nextRect.top - containerRect.top + nextRect.height / 2 - nextHeight / 2) + 'px';
+        bg2.style.left = (nextRect.left - containerRect.left + nextRect.width / 2 - nextWidth / 2) + 'px';
         bg2.style.borderRadius = '6px';
         overlay.appendChild(bg2);
     }
 }
 
 function addScaleGlowHighlight(overlay, currentCell, nextCell) {
+    const containerRect = overlay.parentElement.getBoundingClientRect();
+
     // Current highlight
     addRingHighlight(overlay, currentCell, nextCell, 'gold', 'lightblue');
 
     // Next scaled up
     if (nextCell) {
+        const nextRect = nextCell.getBoundingClientRect();
+        const scaleWidth = nextRect.width * 1.4;
+        const scaleHeight = nextRect.height * 1.4;
+
         const scale = document.createElement('div');
         scale.style.position = 'absolute';
-        scale.style.width = nextCell.offsetWidth * 1.4 + 'px';
-        scale.style.height = nextCell.offsetHeight * 1.4 + 'px';
+        scale.style.width = scaleWidth + 'px';
+        scale.style.height = scaleHeight + 'px';
         scale.style.backgroundColor = 'rgba(100, 200, 255, 0.2)';
         scale.style.borderRadius = '10px';
-        scale.style.top = (nextCell.offsetTop - (nextCell.offsetHeight * 0.4) / 2) + 'px';
-        scale.style.left = (nextCell.offsetLeft - (nextCell.offsetWidth * 0.4) / 2) + 'px';
+        scale.style.top = (nextRect.top - containerRect.top + nextRect.height / 2 - scaleHeight / 2) + 'px';
+        scale.style.left = (nextRect.left - containerRect.left + nextRect.width / 2 - scaleWidth / 2) + 'px';
         scale.style.boxShadow = 'inset 0 0 10px rgba(100, 200, 255, 0.4)';
         scale.style.animation = 'pulse 1.5s ease-in-out infinite';
         overlay.appendChild(scale);
@@ -6348,18 +6380,23 @@ function addScaleGlowHighlight(overlay, currentCell, nextCell) {
 }
 
 function addPathLineHighlight(overlay, currentCell, nextCell) {
+    const containerRect = overlay.parentElement.getBoundingClientRect();
+
     // Current ring
     addRingHighlight(overlay, currentCell, nextCell, 'gold', 'lightblue');
 
     // Path line
     if (nextCell) {
+        const currentRect = currentCell.getBoundingClientRect();
+        const nextRect = nextCell.getBoundingClientRect();
+
         const currentCenter = {
-            x: currentCell.offsetLeft + currentCell.offsetWidth / 2,
-            y: currentCell.offsetTop + currentCell.offsetHeight / 2
+            x: currentRect.left - containerRect.left + currentRect.width / 2,
+            y: currentRect.top - containerRect.top + currentRect.height / 2
         };
         const nextCenter = {
-            x: nextCell.offsetLeft + nextCell.offsetWidth / 2,
-            y: nextCell.offsetTop + nextCell.offsetHeight / 2
+            x: nextRect.left - containerRect.left + nextRect.width / 2,
+            y: nextRect.top - containerRect.top + nextRect.height / 2
         };
 
         const line = document.createElement('div');
