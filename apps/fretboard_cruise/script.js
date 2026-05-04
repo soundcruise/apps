@@ -1,11 +1,15 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.13.61';
+const FRETBOARD_CRUISE_APP_VERSION = '1.38.16';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const OPEN_STRINGS = [4, 9, 2, 7, 11, 4]; // E A D G B E (6弦 -> 1弦)
 const STRINGS_REV = [6, 5, 4, 3, 2, 1];
-const MAX_FRET = 12;
+/** 描画できる指板の右端。通常表示は12Fまでに絞る */
+const MAX_FRET = 24;
+const DEFAULT_VISIBLE_MAX_FRET = 12;
+const PRACTICE_MAX_FRET = 17;
+const EXTENDED_VISIBLE_MAX_FRET = 24;
 const FRETBOARD_HIT_DEBUG = new URLSearchParams(window.location.search).has('hitDebug');
 const TARGET_HIT_PADDING_X_PX = 0;
 const TARGET_HIT_PADDING_Y_PX = 20;
@@ -41,11 +45,11 @@ const DEFAULT_VERTICAL_PERSPECTIVE = 0;
 const DEFAULT_HORIZONTAL_PERSPECTIVE = 0;
 const DEFAULT_ROTATION = { x: 0, y: 0, z: 0 };
 const DEFAULT_FRETBOARD_VIEW = 'full';
-const DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION = false;
+const DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION = true;
 
 // Default States
 let state = {
-    course: null, // 'modeSelect' | 'stageSelect' | 'memorize' | 'visualize'
+    course: null, // 'modeSelect' | 'ruleSelect' | 'basicRules' | 'basicRuleStep' | 'stageSelect' | 'memorize' | 'visualize'
     memorize: {
         playMode: 'quiz', // 'cruise' | 'quiz'
         stage: 1,
@@ -73,12 +77,33 @@ let state = {
         /** '3' = 3和音, '7' = 7thコード */
         chordType: '3',
         /** autoSelectRootChord: Iコード自動選択（オン時）*/
-        autoSelectRootChord: false
+        autoSelectRootChord: false,
+        /** 自由探索だけ、13F以降を任意で表示 */
+        showExtendedFrets: false
+    },
+    rules: {
+        step: 1,
+        page: 0,
+        tapIndex: 0,
+        phase: 'intro',
+        labelMode: 'solfege',
+        /** 0=1枚目のイントロ文、1=learnThemeIntro2（同じスライド内の2枚目） */
+        ruleIntroStage: 0,
+        celebration: null,
+        /** STEP4-2 実践：画角スライド演出の第2段階へ進んだか */
+        step4Slide2RevealDone: false,
+        /** STEP4-3 実践：STEP4-2の横位置からスライド済みか */
+        step4Slide3ScrollRevealDone: false,
+        /** STEP5-1：チェックで練習から外したマス */
+        step5ExcludedSlots: {},
+        /** STEP5-2：同上（STEP5-1 とは別に保存） */
+        step5ExcludedSlotsPart2: {}
     },
     settings: {
         tempo: DEFAULT_TEMPO,
         quizTimeLimit: DEFAULT_QUIZ_TIME_LIMIT,
         stringSpacing: DEFAULT_STRING_SPACING, // 100% = default
+        noteLabelMode: 'solfege',
         viewMode: 'front',
         rotation: { ...DEFAULT_ROTATION },
         perspective: DEFAULT_VERTICAL_PERSPECTIVE, // 遠近感 (0-100)
@@ -95,6 +120,22 @@ let nextTargetTime = 0;
 let settingsReturnCourse = null;
 let quizAdvanceTimeout = null;
 let quizToneTimeout = null;
+let ruleAdvanceLocked = false;
+let ruleMissFeedbackTimeout = null;
+let ruleCueScrollCleanup = null;
+/** STEP3-1：太い弦↔開放の黄線レイアウト用スクロール／resize の解除 */
+let ruleStep31LineCleanup = null;
+let ruleStep31LineTimeoutIds = [];
+/** 「半音！」ポップ：同じペア内では位置を付け直さない（チラつき防止） */
+let ruleHalfToneLastPair = null;
+let ruleHalfToneLastScroll = -1;
+/** innerHTML で消えないよう、再描画前に外しておく既存ノード */
+let ruleHalfTonePopDetached = null;
+let ruleStep3GapPopDetached = null;
+/** STEP4-3「1フレットずれる」吹き出し */
+let ruleStep43GapPopDetached = null;
+let ruleStep43GapCleanup = null;
+let ruleStep43GapTimeoutIds = [];
 const fretboardDocumentHandlers = new Map();
 const fretboardDebugScrollHandlers = new Map();
 
@@ -138,16 +179,70 @@ if (savedState) {
         // Deep merge for settings
         state = { ...state, ...loaded };
         if (!state.settings) state.settings = getDefaultSettings();
-        if (!state.visualize) state.visualize = { key: 0, capo: 0, displayMode: 'note', chordType: 'M', degreeMode: false };
+        if (!state.visualize) {
+            state.visualize = {
+                key: 0,
+                capo: 0,
+                displayMode: 'note',
+                chordType: 'M',
+                degreeMode: false,
+                showExtendedFrets: false
+            };
+        }
+        if (!state.rules) {
+            state.rules = {
+                step: 1,
+                page: 0,
+                tapIndex: 0,
+                phase: 'intro',
+                labelMode: 'solfege',
+                ruleIntroStage: 0,
+                celebration: null,
+                step4Slide2RevealDone: false,
+                step4Slide3ScrollRevealDone: false,
+                step5ExcludedSlots: {},
+                step5ExcludedSlotsPart2: {}
+            };
+        }
+        if (typeof state.rules.step === 'undefined') state.rules.step = 1;
+        if (typeof state.rules.page === 'undefined') state.rules.page = 0;
+        if (typeof state.rules.tapIndex === 'undefined') state.rules.tapIndex = 0;
+        if (typeof state.rules.phase === 'undefined') state.rules.phase = 'intro';
+        if (typeof state.rules.labelMode === 'undefined') state.rules.labelMode = 'solfege';
+        if (typeof state.rules.ruleIntroStage !== 'number') state.rules.ruleIntroStage = 0;
+        if (typeof state.rules.step4Slide2RevealDone !== 'boolean') state.rules.step4Slide2RevealDone = false;
+        if (typeof state.rules.step4Slide3ScrollRevealDone !== 'boolean') state.rules.step4Slide3ScrollRevealDone = false;
+        if (
+            !state.rules.step5ExcludedSlots ||
+            typeof state.rules.step5ExcludedSlots !== 'object' ||
+            Array.isArray(state.rules.step5ExcludedSlots)
+        ) {
+            state.rules.step5ExcludedSlots = {};
+        }
+        if (
+            !state.rules.step5ExcludedSlotsPart2 ||
+            typeof state.rules.step5ExcludedSlotsPart2 !== 'object' ||
+            Array.isArray(state.rules.step5ExcludedSlotsPart2)
+        ) {
+            state.rules.step5ExcludedSlotsPart2 = {};
+        }
+        if (typeof state.rules.step === 'number' && state.rules.step > 5) {
+            state.rules.step = 5;
+            state.rules.page = 0;
+            state.rules.phase = 'intro';
+            state.rules.tapIndex = 0;
+        }
         if (typeof state.visualize.key === 'undefined') state.visualize.key = 0;
         if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
         if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
         if (typeof state.visualize.doMode === 'undefined') state.visualize.doMode = 'movable';
         if (typeof state.visualize.chordType === 'undefined') state.visualize.chordType = '3';
         if (typeof state.visualize.autoSelectRootChord === 'undefined') state.visualize.autoSelectRootChord = false;
+        if (typeof state.visualize.showExtendedFrets === 'undefined') state.visualize.showExtendedFrets = false;
         if (typeof state.settings.tempo === 'undefined') state.settings.tempo = DEFAULT_TEMPO;
         if (typeof state.settings.quizTimeLimit === 'undefined') state.settings.quizTimeLimit = DEFAULT_QUIZ_TIME_LIMIT;
         if (typeof state.settings.stringSpacing === 'undefined') state.settings.stringSpacing = DEFAULT_STRING_SPACING;
+        if (typeof state.settings.noteLabelMode === 'undefined') state.settings.noteLabelMode = state.rules?.labelMode || 'solfege';
         if (typeof state.settings.viewMode === 'undefined') state.settings.viewMode = 'front';
         if (typeof state.settings.rotation === 'undefined') state.settings.rotation = { ...DEFAULT_ROTATION };
         if (typeof state.settings.perspective === 'undefined') state.settings.perspective = DEFAULT_VERTICAL_PERSPECTIVE;
@@ -201,7 +296,7 @@ function scheduleApplyFretboardViewFromOrientation() {
         if (autoChanged) saveState();
         if (state.course === 'memorize') {
             renderApp();
-        } else if (autoChanged && (state.course === 'settings' || state.course === 'visualize')) {
+        } else if (autoChanged && (state.course === 'settings' || state.course === 'visualize' || state.course === 'ruleSelect' || state.course === 'basicRules' || state.course === 'basicRuleStep')) {
             renderApp();
         }
     }, 120);
@@ -220,6 +315,7 @@ function getDefaultSettings() {
         tempo: DEFAULT_TEMPO,
         quizTimeLimit: DEFAULT_QUIZ_TIME_LIMIT,
         stringSpacing: DEFAULT_STRING_SPACING,
+        noteLabelMode: 'solfege',
         viewMode: 'custom',
         rotation: { ...DEFAULT_ROTATION },
         perspective: DEFAULT_VERTICAL_PERSPECTIVE,
@@ -242,6 +338,37 @@ function openSettings(returnCourse = state.course) {
     state.course = 'settings';
     saveState();
     renderApp();
+}
+
+function navButtonHtml({ id, text, extraClass = '', disabled = false, ariaLabel = text }) {
+    const classes = ['icon-btn', 'page-nav-btn', extraClass].filter(Boolean).join(' ');
+    return `<button class="${classes}" id="${id}" ${ariaLabel ? `aria-label="${ariaLabel}"` : ''} ${disabled ? 'disabled' : ''}>${text}</button>`;
+}
+
+function buildPageHeader({
+    titleTag = 'h2',
+    titleClass = '',
+    titleText = '',
+    titleSubText = '',
+    leftHtml = '',
+    rightHtml = '',
+    headerClass = ''
+}) {
+    const subHtml = titleSubText
+        ? `<p class="page-header-title-sub">${titleSubText}</p>`
+        : '';
+    return `
+        <header class="page-header ${headerClass}">
+            <div class="page-header-top">
+                <div class="page-header-actions page-header-actions--left">${leftHtml}</div>
+                <div class="page-header-actions page-header-actions--right">${rightHtml}</div>
+            </div>
+            <div class="page-header-title-wrap">
+                <${titleTag} class="page-header-title ${titleClass}">${titleText}</${titleTag}>
+                ${subHtml}
+            </div>
+        </header>
+    `;
 }
 
 function clearQuizAdvanceTimers() {
@@ -467,10 +594,12 @@ function buildProjectedSideWall(x, yTop, yBottom, zFront, zBack) {
     return buildClosedPolygon([p1, p2, p3, p4]);
 }
 
-function getProjectedFretboardBounds(neckTop, neckBottom) {
+function getProjectedFretboardBounds(neckTop, neckBottom, maxFret = MAX_FRET) {
+    const renderMaxFret = clamp(Math.floor(maxFret), 0, MAX_FRET);
+    const visibleEdges = getFretXEdges().slice(0, renderMaxFret + 2);
     const stringCenters = Array.from({ length: 6 }, (_, i) => getStringOriginalY(i));
     const samplePoints = [];
-    getFretXEdges().forEach(x => {
+    visibleEdges.forEach(x => {
         samplePoints.push(projectPoint(x, neckTop, NOTE_MARKER_Z));
         samplePoints.push(projectPoint(x, neckBottom, NOTE_MARKER_Z));
         samplePoints.push(projectPoint(x, FRET_NUMBER_STRIP_BOTTOM_Y + 8, FRET_NUMBER_Z));
@@ -489,6 +618,159 @@ function getProjectedFretboardBounds(neckTop, neckBottom) {
         width: Math.max(1, maxX - minX + padding * 2),
         height: Math.max(1, maxY - minY + padding * 2)
     };
+}
+
+/** 投影後の指板のうち、fretMin〜fretMaxInclusive の列だけの外接矩形（横幅に使う） */
+function getProjectedFretboardBoundsForFretRange(neckTop, neckBottom, fretMin, fretMaxInclusive) {
+    const xEdges = getFretXEdges();
+    const fm = clamp(fretMin, 0, MAX_FRET);
+    const fM = clamp(fretMaxInclusive, 0, MAX_FRET);
+    const stringCenters = Array.from({ length: 6 }, (_, i) => getStringOriginalY(i));
+    const samplePoints = [];
+    for (let xi = fm; xi <= fM + 1; xi++) {
+        const x = xEdges[xi];
+        samplePoints.push(projectPoint(x, neckTop, NOTE_MARKER_Z));
+        samplePoints.push(projectPoint(x, neckBottom, NOTE_MARKER_Z));
+    }
+    for (let f = fm; f <= fM; f++) {
+        const midX = (xEdges[f] + xEdges[f + 1]) / 2;
+        samplePoints.push(projectPoint(midX, FRET_NUMBER_STRIP_BOTTOM_Y + 8, FRET_NUMBER_Z));
+        stringCenters.forEach(y => samplePoints.push(projectPoint(midX, y, NOTE_MARKER_Z)));
+    }
+    const minX = Math.min(...samplePoints.map(p => p.x));
+    const maxX = Math.max(...samplePoints.map(p => p.x));
+    const minY = Math.min(...samplePoints.map(p => p.y));
+    const maxY = Math.max(...samplePoints.map(p => p.y));
+    const padding = 28;
+    return {
+        minX: minX - padding,
+        maxX: maxX + padding,
+        minY: minY - padding,
+        maxY: maxY + padding,
+        width: Math.max(1, maxX - minX + padding * 2),
+        height: Math.max(1, maxY - minY + padding * 2)
+    };
+}
+
+/**
+ * 自由探索で13F以降表示のとき、「〜12Fぶんが画面幅に収まる」程度まで拡大するためのスケール上限。
+ * 投影だけだと12F帯の横幅がフルボードに近く見積もられることがあるので、フレット間の実長比も混ぜる。
+ */
+function getVisualizeExtended12FretWidthFitScale(
+    layoutW,
+    layoutPad,
+    projectedBounds,
+    neckTop,
+    neckBottom,
+    renderMaxFret
+) {
+    const xEdges = getFretXEdges();
+    const fm = clamp(Math.floor(renderMaxFret), 0, MAX_FRET);
+    const lin12 = Math.max(1e-6, xEdges[DEFAULT_VISIBLE_MAX_FRET + 1] - xEdges[0]);
+    const linFull = Math.max(1e-6, xEdges[fm + 1] - xEdges[0]);
+    const bounds12Proj = getProjectedFretboardBoundsForFretRange(
+        neckTop,
+        neckBottom,
+        0,
+        DEFAULT_VISIBLE_MAX_FRET
+    ).width;
+    const geoW12 = projectedBounds.width * (lin12 / linFull);
+    const effectiveW12 = Math.min(bounds12Proj, geoW12);
+    return (layoutW - layoutPad) / Math.max(1, effectiveW12);
+}
+
+/** 投影後の指板のうち、fretLo〜fretHi（小数可）の帯の外接矩形（開放側・高フレット側を半フレット分見切る画角用） */
+function getProjectedFretboardBoundsForFretFloatRange(neckTop, neckBottom, fretLoIn, fretHiIn) {
+    const xEdges = getFretXEdges();
+    let fretLo = Math.min(fretLoIn, fretHiIn);
+    let fretHi = Math.max(fretLoIn, fretHiIn);
+    fretLo = clamp(fretLo, 0, MAX_FRET + 1 - 1e-6);
+    fretHi = clamp(fretHi, 0, MAX_FRET + 1 - 1e-6);
+    const fretToX = f => {
+        const fCl = clamp(f, 0, MAX_FRET + 1 - 1e-9);
+        const fi = Math.floor(fCl);
+        const fr = fCl - fi;
+        const i0 = clamp(fi, 0, MAX_FRET);
+        const i1 = clamp(fi + 1, 0, MAX_FRET + 1);
+        return xEdges[i0] * (1 - fr) + xEdges[i1] * fr;
+    };
+    const stringCenters = Array.from({ length: 6 }, (_, i) => getStringOriginalY(i));
+    const samplePoints = [];
+    const xAtLo = fretToX(fretLo);
+    const xAtHi = fretToX(fretHi);
+    samplePoints.push(projectPoint(xAtLo, neckTop, NOTE_MARKER_Z));
+    samplePoints.push(projectPoint(xAtLo, neckBottom, NOTE_MARKER_Z));
+    samplePoints.push(projectPoint(xAtHi, neckTop, NOTE_MARKER_Z));
+    samplePoints.push(projectPoint(xAtHi, neckBottom, NOTE_MARKER_Z));
+    const xiStart = Math.max(0, Math.floor(fretLo));
+    const xiEnd = Math.min(MAX_FRET, Math.ceil(fretHi));
+    for (let xi = xiStart; xi <= xiEnd + 1; xi++) {
+        const x = xEdges[clamp(xi, 0, MAX_FRET + 1)];
+        samplePoints.push(projectPoint(x, neckTop, NOTE_MARKER_Z));
+        samplePoints.push(projectPoint(x, neckBottom, NOTE_MARKER_Z));
+    }
+    for (let f = Math.ceil(fretLo - 1e-9); f <= Math.floor(fretHi + 1e-9); f++) {
+        if (f < 0 || f > MAX_FRET) continue;
+        const midX = (xEdges[f] + xEdges[f + 1]) / 2;
+        samplePoints.push(projectPoint(midX, FRET_NUMBER_STRIP_BOTTOM_Y + 8, FRET_NUMBER_Z));
+        stringCenters.forEach(y => samplePoints.push(projectPoint(midX, y, NOTE_MARKER_Z)));
+    }
+    const minX = Math.min(...samplePoints.map(p => p.x));
+    const maxX = Math.max(...samplePoints.map(p => p.x));
+    const minY = Math.min(...samplePoints.map(p => p.y));
+    const maxY = Math.max(...samplePoints.map(p => p.y));
+    const padding = 28;
+    return {
+        minX: minX - padding,
+        maxX: maxX + padding,
+        minY: minY - padding,
+        maxY: maxY + padding,
+        width: Math.max(1, maxX - minX + padding * 2),
+        height: Math.max(1, maxY - minY + padding * 2)
+    };
+}
+
+/** STEP3・ペアタップ用：指定フレット列をラッパー中央付近に寄せる */
+function alignRuleStep3FretColumnCenter(wrapper, fretNum) {
+    const col =
+        wrapper.querySelector(`.fret-column[data-string="4"][data-fret="${fretNum}"]`) ||
+        wrapper.querySelector(`.fret-column[data-fret="${fretNum}"]`);
+    if (!col) {
+        wrapper.scrollLeft = 0;
+        return;
+    }
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const colRect = col.getBoundingClientRect();
+    const colCenter = colRect.left + colRect.width / 2;
+    const wrapperCenter = wrapperRect.left + wrapperRect.width / 2;
+    const delta = colCenter - wrapperCenter;
+    wrapper.scrollLeft += Math.round(delta);
+    const maxScroll = Math.max(0, wrapper.scrollWidth - wrapper.clientWidth);
+    wrapper.scrollLeft = clamp(wrapper.scrollLeft, 0, maxScroll);
+}
+
+function animateRuleWrapperScrollLeft(wrapper, targetLeft, durationMs = 950) {
+    const startLeft = wrapper.scrollLeft;
+    const maxScroll = Math.max(0, wrapper.scrollWidth - wrapper.clientWidth);
+    const endLeft = clamp(Math.round(targetLeft), 0, maxScroll);
+    const delta = endLeft - startLeft;
+    if (Math.abs(delta) < 2) return;
+    const startTime = performance.now();
+    const easeInOut = t => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+    const step = now => {
+        if (!wrapper.isConnected) return;
+        const t = clamp((now - startTime) / durationMs, 0, 1);
+        wrapper.scrollLeft = startLeft + delta * easeInOut(t);
+        if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+}
+
+/**
+ * STEP3-1（開放〜5F が収まる拡大のあと）：4弦3F 付近を基準に 3フレット列がラッパー中央に来るよう scrollLeft を調整する。
+ */
+function alignRuleStep3Page0Fret3Center(wrapper) {
+    alignRuleStep3FretColumnCenter(wrapper, 3);
 }
 
 // ----------------------------------------------------
@@ -534,6 +816,34 @@ function playTone(stringIdx, fret) {
     };
 
     // On iOS the context can be suspended or interrupted — resume first
+    if (audioCtx.state !== 'running') {
+        audioCtx.resume().then(doPlay).catch(() => {});
+    } else {
+        doPlay();
+    }
+}
+
+function playMidiTone(midiNote) {
+    initAudio();
+    if (!audioCtx) return;
+
+    const doPlay = () => {
+        const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
+        const t = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.72, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 1.35);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(t);
+        osc.stop(t + 1.35);
+    };
+
     if (audioCtx.state !== 'running') {
         audioCtx.resume().then(doPlay).catch(() => {});
     } else {
@@ -755,7 +1065,7 @@ function getRandomInt(min, max) {
 function getStageTargets(stage) {
     let targets = [];
     for (let s = 0; s < 6; s++) {
-        for (let f = 0; f <= 12; f++) {
+        for (let f = 0; f <= PRACTICE_MAX_FRET; f++) {
             let noteIdx = (OPEN_STRINGS[s] + f) % 12;
             let isNat = [0, 2, 4, 5, 7, 9, 11].includes(noteIdx); // Keep natural notes only for beginners
             
@@ -764,9 +1074,9 @@ function getStageTargets(stage) {
                 case 1: if (f >= 0 && f <= 3 && isNat) add = true; break;
                 case 2: if (f >= 0 && f <= 5 && isNat) add = true; break;
                 case 3: if (f >= 5 && f <= 9 && isNat) add = true; break;
-                case 4: if (f >= 5 && f <= 12 && isNat) add = true; break;
-                case 5: if (f >= 0 && f <= 12 && isNat) add = true; break;
-                case 6: if (f >= 0 && f <= 12 && isNat) add = true; break;
+                case 4: if (f >= 5 && f <= PRACTICE_MAX_FRET && isNat) add = true; break;
+                case 5: if (f >= 0 && f <= PRACTICE_MAX_FRET && isNat) add = true; break;
+                case 6: if (f >= 0 && f <= PRACTICE_MAX_FRET && isNat) add = true; break;
             }
             if (add) {
                 targets.push({ stringIdx: s, stringName: 6 - s, fret: f, noteIdx: noteIdx, noteName: NOTES[noteIdx] });
@@ -858,15 +1168,26 @@ function renderApp() {
     } else if (
         oldScrollGroup === 'visualize' &&
         state.course === 'visualize' &&
-        state.settings.fretboardView === 'zoom'
+        state.visualize.showExtendedFrets
+    ) {
+        currentScrollLeft = oldWrapper.scrollLeft;
+    } else if (
+        oldScrollGroup === 'rule' &&
+        state.course === 'basicRuleStep' &&
+        state.settings.fretboardView === 'zoom' &&
+        state.rules.phase === 'play'
     ) {
         currentScrollLeft = oldWrapper.scrollLeft;
     } else {
         currentScrollLeft = 0;
     }
 
-    // 指板ゲーム画面は max-width を外してビューポート幅いっぱいにする（横で 600px クリップと innerWidth 前提のズレを防ぐ）
-    if (state.course === 'memorize' || state.course === 'visualize') {
+    const isLandscapeRuleStep =
+        state.course === 'basicRuleStep' &&
+        window.innerWidth > window.innerHeight;
+
+    // 指板ゲーム画面と横画面の基本ルールは max-width を外してビューポート幅いっぱいにする
+    if (state.course === 'memorize' || state.course === 'visualize' || isLandscapeRuleStep) {
         app.style.maxWidth = 'none';
         app.style.width = '100vw';
         app.style.boxSizing = 'border-box';
@@ -896,6 +1217,12 @@ function renderApp() {
         renderHome(app);
     } else if (state.course === 'modeSelect') {
         renderModeSelect(app);
+    } else if (state.course === 'ruleSelect') {
+        renderRuleSelect(app);
+    } else if (state.course === 'basicRules') {
+        renderBasicRules(app);
+    } else if (state.course === 'basicRuleStep') {
+        renderBasicRuleStep(app);
     } else if (state.course === 'stageSelect') {
         renderStageSelect(app);
     } else if (state.course === 'memorize') {
@@ -944,7 +1271,14 @@ function renderApp() {
             }
         } else if (state.course === 'memorize') {
             newWrapper.scrollLeft = currentScrollLeft;
-        } else if (state.course === 'visualize' && state.settings.fretboardView === 'zoom') {
+        } else if (state.course === 'visualize' && state.visualize.showExtendedFrets) {
+            newWrapper.scrollLeft = currentScrollLeft;
+        } else if (
+            state.course === 'basicRuleStep' &&
+            newScrollGroup === 'rule' &&
+            state.settings.fretboardView === 'zoom' &&
+            state.rules.phase === 'play'
+        ) {
             newWrapper.scrollLeft = currentScrollLeft;
         } else {
             newWrapper.scrollLeft = 0;
@@ -972,18 +1306,18 @@ function renderApp() {
 
 function renderHome(app) {
     app.innerHTML = `
-        <header>
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%;">
-                <div style="width:60px;"></div>
-                <h1 class="home-title" style="flex:1; text-align:center;">指板クルーズ</h1>
-                <div style="width:60px; display:flex; justify-content:flex-end; padding-top:4px;">
-                    <button class="icon-btn" id="btn-settings-home" style="padding:8px 12px;">⚙️</button>
-                </div>
-            </div>
-        </header>
+        ${buildPageHeader({
+            titleTag: 'h1',
+            titleClass: 'home-title',
+            titleText: '指板クルーズ',
+            rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-home" aria-label="設定">⚙️</button>`
+        })}
+        <div class="home-basic-rules-slot" style="display: flex; justify-content: center; width: 100%; margin-top: 6px; margin-bottom: 28px;">
+            <button type="button" class="btn-secondary" id="btn-home-basic-rules" style="padding: 10px 18px; font-size: 0.92rem; line-height: 1.35;">🔰 基本ルール</button>
+        </div>
         <div class="action-btns" style="flex-direction: column; gap: 20px; align-items: center; width: 100%;">
-            <button class="btn-primary" id="btn-memorize" style="width: 80%; padding: 20px; font-size: 1.2rem;">覚えるコース</button>
-            <button class="btn-secondary" id="btn-visualize" style="width: 80%; padding: 20px; font-size: 1.2rem;">自由探索モード</button>
+            <button type="button" class="btn-primary home-memorize-btn" id="btn-memorize">指板を覚える</button>
+            <button type="button" class="btn-primary home-explore-btn" id="btn-home-board-view">指板を探索する</button>
         </div>
         <div style="height: 200px;"></div>
     `;
@@ -994,7 +1328,13 @@ function renderHome(app) {
         renderApp();
     };
 
-    document.getElementById('btn-visualize').onclick = () => {
+    document.getElementById('btn-home-basic-rules').onclick = () => {
+        state.course = 'basicRules';
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-home-board-view').onclick = () => {
         state.course = 'visualize';
         saveState();
         renderApp();
@@ -1007,13 +1347,14 @@ function renderHome(app) {
 
 function renderModeSelect(app) {
     app.innerHTML = `
-        <header style="padding-top: 10px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 20px;">
-                <button class="icon-btn" id="btn-back">◀ ホーム</button>
-                <h2 style="font-size: 1.5rem; margin:0;">モード選択</h2>
-                <button class="icon-btn" id="btn-settings" style="font-size: 1.5rem; background: none; border: none; padding: 0; cursor: pointer;" title="設定">⚙️</button>
-            </div>
-        </header>
+        ${buildPageHeader({
+            headerClass: 'page-header--mode-select',
+            titleText: 'モード選択',
+            leftHtml: `
+                ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+            `,
+            rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings" aria-label="設定">⚙️</button>`
+        })}
         <div class="stage-list">
             <button class="stage-btn" data-mode="cruise">
                 🛳️ クルージングモード
@@ -1047,15 +1388,2217 @@ function renderModeSelect(app) {
     });
 }
 
+function renderRuleSelect(app) {
+    app.innerHTML = `
+        ${buildPageHeader({
+            headerClass: 'page-header--stage-select',
+            titleText: 'ルールを知る',
+            leftHtml: `
+                ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+            `,
+            rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-rules" aria-label="設定">⚙️</button>`
+        })}
+        <div class="stage-list">
+            <button class="stage-btn" data-rules="basic">
+                🟨 基本ルール
+                <span class="stage-desc">このアプリの遊び方を先に確認する</span>
+            </button>
+            <button class="stage-btn" data-rules="visualize">
+                指板を探索する
+                <span class="stage-desc">キー・スケール・コードを見ながら指板を確認する</span>
+            </button>
+        </div>
+        <div style="height: 200px;"></div>
+    `;
+
+    document.getElementById('btn-back').onclick = () => {
+        state.course = null;
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-settings-rules').onclick = () => {
+        openSettings('ruleSelect');
+    };
+
+    document.querySelectorAll('.stage-btn[data-rules="visualize"]').forEach(btn => {
+        btn.onclick = () => {
+            state.course = 'visualize';
+            saveState();
+            renderApp();
+        };
+    });
+
+    document.querySelectorAll('.stage-btn[data-rules="basic"]').forEach(btn => {
+        btn.onclick = () => {
+            state.course = 'basicRules';
+            saveState();
+            renderApp();
+        };
+    });
+}
+
+/** 基本ルール STEP の表題（一覧・各STEP画面ヘッダーで共通） */
+const BASIC_RULE_STEP_HEADLINES = [
+    '半音の位置を知る',
+    'オクターブ違い',
+    '隣の弦との間隔',
+    'ドレミの形',
+    '形を広げる'
+];
+
+function getBasicRuleStepHeadline(step) {
+    const i = clamp(step, 1, 5) - 1;
+    return BASIC_RULE_STEP_HEADLINES[i] || '';
+}
+
+function renderBasicRules(app) {
+    app.innerHTML = `
+        ${buildPageHeader({
+            headerClass: 'page-header--stage-select',
+            titleText: '基本ルール',
+            leftHtml: `
+                ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+            `,
+            rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-basic-rules" aria-label="設定">⚙️</button>`
+        })}
+        <div class="stage-list">
+            ${BASIC_RULE_STEP_HEADLINES.map((headline, idx) => {
+                const num = idx + 1;
+                return `
+                <button class="stage-btn" data-rule-step="${num}">
+                    STEP ${num} ${headline}
+                </button>`;
+            }).join('')}
+        </div>
+        <div style="height: 200px;"></div>
+    `;
+
+    document.getElementById('btn-back').onclick = () => {
+        state.course = null;
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-settings-basic-rules').onclick = () => {
+        openSettings('basicRules');
+    };
+
+    document.querySelectorAll('.stage-btn[data-rule-step]').forEach(btn => {
+        btn.onclick = () => {
+            state.rules.step = parseInt(btn.getAttribute('data-rule-step'), 10);
+            state.rules.page = 0;
+            state.rules.tapIndex = 0;
+            state.rules.phase = 'intro';
+            state.rules.ruleIntroStage = 0;
+            state.rules.celebration = null;
+            state.course = 'basicRuleStep';
+            saveState();
+            renderApp();
+        };
+    });
+}
+
+function getNotationLabel(noteIdx) {
+    return state.settings.noteLabelMode === 'note' ? NOTES[noteIdx] : FIXED_SOLFEGE[noteIdx].replace('♯', '#');
+}
+
+function getRuleLabel(noteIdx) {
+    return getNotationLabel(noteIdx);
+}
+
+/** STEP2〜4：C長調の音名＝設定の度数色（.degree-1〜7）と揃える */
+function getRuleStep2CMajorDegreeClass(noteIdx) {
+    if (typeof noteIdx !== 'number') return 'role-other';
+    const degByPc = { 0: 1, 2: 2, 4: 3, 5: 4, 7: 5, 9: 6, 11: 7 };
+    const d = degByPc[((noteIdx % 12) + 12) % 12];
+    return d ? `degree-${d}` : 'role-other';
+}
+
+function getCMajorNoteLabel(noteIdx) {
+    const solfege = { 0: 'ド', 2: 'レ', 4: 'ミ', 5: 'ファ', 7: 'ソ', 9: 'ラ', 11: 'シ' };
+    return state.settings.noteLabelMode === 'note' ? NOTES[noteIdx] : solfege[noteIdx];
+}
+
+function getCMajorMarkersForString(stringNum, options = {}) {
+    const showIndex = options.showIndex !== false;
+    const stringIdx = 6 - stringNum;
+    const frets = [];
+    for (let f = 0; f <= MAX_FRET; f++) {
+        const noteIdx = (OPEN_STRINGS[stringIdx] + f) % 12;
+        if ([0, 2, 4, 5, 7, 9, 11].includes(noteIdx)) {
+            frets.push({ fret: f, noteIdx });
+        }
+    }
+    const firstC = frets.findIndex(item => item.noteIdx === 0);
+    const ordered = firstC >= 0
+        ? [...frets.slice(firstC), ...frets.slice(0, firstC)]
+        : frets;
+    return ordered.map((item, index) => ({
+        stringNum,
+        fret: item.fret,
+        noteIdx: item.noteIdx,
+        label: showIndex ? `${index + 1}${getCMajorNoteLabel(item.noteIdx)}` : getCMajorNoteLabel(item.noteIdx),
+        className: item.noteIdx === 0 ? 'rule-root' : ([4, 11].includes(item.noteIdx) ? 'rule-half' : 'rule-scale')
+    }));
+}
+
+function withRuleNoteIdx(marker) {
+    const noteIdx = typeof marker.noteIdx === 'number'
+        ? marker.noteIdx
+        : (OPEN_STRINGS[6 - marker.stringNum] + marker.fret) % 12;
+    return { ...marker, noteIdx };
+}
+
+/** STEP5 ドレミファソラシドの音級（ピッチクラス） */
+const STEP5_FREE_SHAPE_PITCH_SEQUENCE = [0, 2, 4, 5, 7, 9, 11, 0];
+
+/**
+ * STEP5：開放〜maxFret にあるその音のマスを列挙するが、同一弦で「ちょうど12フレット離れた同じ音名」は片方だけ残す（オクターブ重ねない）。
+ * ペアがあるときは低いフレットを残す（例：6弦ミは開放のみ／12フレットは付けない。4弦レは開放のみ）。
+ */
+function rulePositionsForPitchUpToMaxFret(noteIdx, maxFret) {
+    const pc = ((noteIdx % 12) + 12) % 12;
+    const hi = clamp(Math.floor(maxFret), 0, MAX_FRET);
+    const out = [];
+    for (let sn = 6; sn >= 1; sn--) {
+        const si = 6 - sn;
+        const hits = [];
+        for (let f = 0; f <= hi; f++) {
+            if ((OPEN_STRINGS[si] + f) % 12 === pc) hits.push(f);
+        }
+        const pending = new Set(hits);
+        while (pending.size > 0) {
+            const f = Math.min(...pending);
+            pending.delete(f);
+            if (pending.has(f + 12)) {
+                pending.delete(f + 12);
+                out.push({ stringNum: sn, fret: f });
+            } else {
+                out.push({ stringNum: sn, fret: f });
+            }
+        }
+    }
+    return out;
+}
+
+/** STEP5：ステップごとに候補を足す／削る（ベースは rulePositionsForPitchUpToMaxFret）。最終ドではスタートマスだけ除外 */
+function ruleStep5AdjustPositionsForStep(stepIndex, pitchClass, positions, anchorStringNum, anchorFret) {
+    const pc = ((pitchClass % 12) + 12) % 12;
+    const hasSlot = (list, sn, fr) => list.some(p => p.stringNum === sn && p.fret === fr);
+    const list = positions.map(p => ({ stringNum: p.stringNum, fret: p.fret }));
+    if (stepIndex === 2 && pc === 4 && !hasSlot(list, 6, 12)) {
+        list.push({ stringNum: 6, fret: 12 });
+    }
+    if (stepIndex === 5 && pc === 9 && !hasSlot(list, 5, 12)) {
+        list.push({ stringNum: 5, fret: 12 });
+    }
+    if (stepIndex === 7 && pc === 0) {
+        return list.filter(p => !(p.stringNum === anchorStringNum && p.fret === anchorFret));
+    }
+    return list;
+}
+
+/** STEP5：スタート地点ごとのドレミ〜ド（開放〜12F・adjust 適用） */
+function makeStep5FreeShapeStepPairs(startStringNum, startFret) {
+    const STEP5_CANDIDATE_MAX_FRET = 12;
+    return STEP5_FREE_SHAPE_PITCH_SEQUENCE.map((pc, i) => {
+        if (i === 0) return [{ stringNum: startStringNum, fret: startFret }];
+        const raw = rulePositionsForPitchUpToMaxFret(pc, STEP5_CANDIDATE_MAX_FRET);
+        return ruleStep5AdjustPositionsForStep(i, pc, raw, startStringNum, startFret);
+    });
+}
+
+/** STEP5-2 用：各ターンで「その音」が鳴る 1〜6弦の12フレットを必ず候補に（オクターブ違いを選べる） */
+function ruleStep5Augment12FretAllStrings(stepPairs) {
+    return stepPairs.map((spots, i) => {
+        if (i === 0) return spots;
+        const pc = ((STEP5_FREE_SHAPE_PITCH_SEQUENCE[i] % 12) + 12) % 12;
+        const list = spots.map(p => ({ stringNum: p.stringNum, fret: p.fret }));
+        const hasSlot = (sn, fr) => list.some(p => p.stringNum === sn && p.fret === fr);
+        for (let sn = 1; sn <= 6; sn++) {
+            const si = 6 - sn;
+            const npc = ((OPEN_STRINGS[si] + 12) % 12 + 12) % 12;
+            if (npc === pc && !hasSlot(sn, 12)) {
+                list.push({ stringNum: sn, fret: 12 });
+            }
+        }
+        return list;
+    });
+}
+
+/** STEP5：ステップごとのタップ候補（弦・フレットのリスト） */
+function buildRuleFreeShapeMarkersFromStepPairs(stepPairs) {
+    const map = new Map();
+    for (let i = 0; i < stepPairs.length; i++) {
+        const spots = stepPairs[i];
+        for (let j = 0; j < spots.length; j++) {
+            const pos = spots[j];
+            const si = 6 - pos.stringNum;
+            const npc = ((OPEN_STRINGS[si] + pos.fret) % 12 + 12) % 12;
+            const key = `${pos.stringNum}-${pos.fret}`;
+            map.set(key, {
+                stringNum: pos.stringNum,
+                fret: pos.fret,
+                noteIdx: npc,
+                label: getCMajorNoteLabel(npc),
+                className:
+                    npc === 0 ? 'rule-root' : [4, 11].includes(npc) ? 'rule-half' : 'rule-scale'
+            });
+        }
+    }
+    return [...map.values()];
+}
+
+function buildRuleFreeShapeTargetSequence(slide) {
+    const pairs = slide.ruleFreeShapeStepPairs;
+    return pairs.map(spots => {
+        const p0 = spots[0];
+        const si = 6 - p0.stringNum;
+        const pc = ((OPEN_STRINGS[si] + p0.fret) % 12 + 12) % 12;
+        if (spots.length === 1) {
+            return withRuleNoteIdx({
+                stringNum: p0.stringNum,
+                fret: p0.fret,
+                noteIdx: pc,
+                label: getCMajorNoteLabel(pc),
+                cueLabel: getCMajorNoteLabel(pc),
+                cue: `${p0.stringNum}弦${p0.fret}フレット`
+            });
+        }
+        return {
+            noteIdx: pc,
+            ruleFlexibleMulti: true,
+            acceptedPositions: spots,
+            label: getCMajorNoteLabel(pc),
+            cueLabel: getCMajorNoteLabel(pc)
+        };
+    });
+}
+
+function ruleStep5SlotKey(stringNum, fret) {
+    return `${stringNum}-${fret}`;
+}
+
+/** STEP5：除外マップ（スライド別）。Part2 は STEP5-2 専用で STEP5-1 と独立 */
+function ruleStep5ExcludedRawForPartition(part) {
+    if (part === 2) {
+        if (
+            !state.rules.step5ExcludedSlotsPart2 ||
+            typeof state.rules.step5ExcludedSlotsPart2 !== 'object' ||
+            Array.isArray(state.rules.step5ExcludedSlotsPart2)
+        ) {
+            state.rules.step5ExcludedSlotsPart2 = {};
+        }
+        return state.rules.step5ExcludedSlotsPart2;
+    }
+    if (
+        !state.rules.step5ExcludedSlots ||
+        typeof state.rules.step5ExcludedSlots !== 'object' ||
+        Array.isArray(state.rules.step5ExcludedSlots)
+    ) {
+        state.rules.step5ExcludedSlots = {};
+    }
+    return state.rules.step5ExcludedSlots;
+}
+
+function ruleStep5ExcludedPartitionFromSlide(slide) {
+    return slide.ruleFreeShapeExcludedSlotPartition === 2 ? 2 : 1;
+}
+
+/** STEP5：チェックで練習から外す（現在の STEP5 スライドに応じたマップへ保存） */
+function ruleStep5SetSlotExcluded(stringNum, fret, excluded) {
+    const step = state.rules.step || 1;
+    const page = state.rules.page || 0;
+    const slides = step === 5 ? getRuleSlides(5) : [];
+    const slide = slides[clamp(page, 0, Math.max(0, slides.length - 1))];
+    const part =
+        slide && slide.ruleFreeShapeStepPairs && slide.ruleFreeShapeStepPairs.length
+            ? ruleStep5ExcludedPartitionFromSlide(slide)
+            : 1;
+    const map = ruleStep5ExcludedRawForPartition(part);
+    const key = ruleStep5SlotKey(stringNum, fret);
+    if (excluded) map[key] = true;
+    else delete map[key];
+    saveState();
+    renderApp();
+}
+
+/** STEP5：チェックで除外したマスをタップ候補から外す（全部オフになるときは元に戻す） */
+function ruleStep5ApplyExcludedSlots(targets, excludedRaw) {
+    const excluded =
+        excludedRaw && typeof excludedRaw === 'object' && !Array.isArray(excludedRaw) ? excludedRaw : {};
+    return targets.map(t => {
+        if (!t.ruleFlexibleMulti || !t.acceptedPositions || !t.acceptedPositions.length) {
+            return t;
+        }
+        const filtered = t.acceptedPositions.filter(
+            p => !excluded[ruleStep5SlotKey(p.stringNum, p.fret)]
+        );
+        if (filtered.length === 0) {
+            return { ...t, acceptedPositions: [...t.acceptedPositions] };
+        }
+        if (filtered.length === t.acceptedPositions.length) return t;
+        return { ...t, acceptedPositions: filtered };
+    });
+}
+
+function getRuleTargetSequence(slide) {
+    if (slide.soundSequence) return slide.soundSequence;
+    if (slide.ruleFreeShapeStepPairs && slide.ruleFreeShapeStepPairs.length) {
+        const seq = buildRuleFreeShapeTargetSequence(slide);
+        const part = ruleStep5ExcludedPartitionFromSlide(slide);
+        return ruleStep5ApplyExcludedSlots(seq, ruleStep5ExcludedRawForPartition(part));
+    }
+    return (slide.markers || []).map(withRuleNoteIdx);
+}
+
+function getRuleTargetLabel(target) {
+    if (!target) return '';
+    if (target.cueLabel) return target.cueLabel;
+    if (target.label) return String(target.label).replace(/^\d+/, '');
+    if (typeof target.noteIdx === 'number') return getRuleLabel(target.noteIdx);
+    return '';
+}
+
+function showRuleMissFeedback(message = '光る丸をタップしてね') {
+    const feedback = document.getElementById('rule-miss-feedback');
+    const area = document.getElementById('rule-touch-area');
+    if (!feedback) return;
+    feedback.textContent = message;
+    feedback.classList.add('is-visible');
+    if (area) area.classList.add('is-miss');
+    if (navigator.vibrate) navigator.vibrate(25);
+    if (ruleMissFeedbackTimeout) clearTimeout(ruleMissFeedbackTimeout);
+    ruleMissFeedbackTimeout = setTimeout(() => {
+        feedback.classList.remove('is-visible');
+        if (area) area.classList.remove('is-miss');
+    }, 1100);
+}
+
+function getRuleSlides(step) {
+    const dedupeMarkersByStringFret = list => {
+        const map = new Map();
+        for (let i = 0; i < list.length; i++) {
+            const m = list[i];
+            if (!m || typeof m.stringNum !== 'number') continue;
+            map.set(`${m.stringNum}-${m.fret}`, m);
+        }
+        return [...map.values()];
+    };
+    const label = n => getRuleLabel(n);
+    const cLabel = n => getCMajorNoteLabel(n);
+    /** options の追加フィールド（例：STEP5-1 の ruleSamePitchGroup）を残す */
+    const marker = (stringNum, fret, noteIdx, options = {}) => ({
+        ...options,
+        stringNum,
+        fret,
+        noteIdx,
+        label: options.label || label(noteIdx),
+        cueLabel: options.cueLabel,
+        cue: options.cue,
+        className: options.className || 'rule-scale'
+    });
+    const cMajorMarker = (stringNum, fret, noteIdx, index, options = {}) => marker(stringNum, fret, noteIdx, {
+        label: options.showIndex === false ? cLabel(noteIdx) : `${index}${cLabel(noteIdx)}`,
+        cueLabel: cLabel(noteIdx),
+        className: noteIdx === 0 ? 'rule-root' : ([4, 11].includes(noteIdx) ? 'rule-half' : 'rule-scale'),
+        ...options
+    });
+    /** STEP2-1／STEP2-2：各弦の開放（ミラソレシミ） */
+    const step2OpenStringMarkers = [6, 5, 4, 3, 2, 1].map(sn => {
+        const stringIdx = 6 - sn;
+        const noteIdx = OPEN_STRINGS[stringIdx] % 12;
+        return marker(sn, 0, noteIdx, {
+            className: sn === 6 ? 'rule-root' : 'rule-scale',
+            cue: 'タップ'
+        });
+    });
+    /** STEP2-2：12フレット（開放と同じ音名・1オクターブ上）— 実践のタップ順はこれのみ */
+    const step2TwelfthFretMarkers = [6, 5, 4, 3, 2, 1].map(sn => {
+        const stringIdx = 6 - sn;
+        const noteIdx = (OPEN_STRINGS[stringIdx] + 12) % 12;
+        return marker(sn, 12, noteIdx, {
+            className: sn === 6 ? 'rule-root' : 'rule-scale',
+            cue: 'タップ'
+        });
+    });
+    /** STEP2-3：6弦のみ、開放〜12FのC長調の音をネック上の順に */
+    const step2SixStringCMajorTo12Markers = [0, 1, 3, 5, 7, 8, 10, 12].map(fret => {
+        const stringNum = 6;
+        const stringIdx = 6 - stringNum;
+        const noteIdx = (OPEN_STRINGS[stringIdx] + fret) % 12;
+        const className = noteIdx === 0 ? 'rule-root' : ([4, 11].includes(noteIdx) ? 'rule-half' : 'rule-scale');
+        return marker(stringNum, fret, noteIdx, { className, cue: 'タップ' });
+    });
+    /** STEP2-4：1弦も6弦と同じ音程間隔（ミ〜ミの並び） */
+    const step2OneStringCMajorTo12Markers = [0, 1, 3, 5, 7, 8, 10, 12].map(fret => {
+        const stringNum = 1;
+        const stringIdx = 6 - stringNum;
+        const noteIdx = (OPEN_STRINGS[stringIdx] + fret) % 12;
+        const className = noteIdx === 0 ? 'rule-root' : ([4, 11].includes(noteIdx) ? 'rule-half' : 'rule-scale');
+        return marker(stringNum, fret, noteIdx, { className, cue: 'タップ' });
+    });
+    /** STEP4-1：ミ＝4弦2F、ラ＝3弦2F まわりのC長調形 */
+    const step4Slide1Shape = [
+        marker(5, 3, 0, { className: 'rule-root' }),
+        marker(5, 5, 2, { className: 'rule-scale' }),
+        marker(4, 2, 4, { className: 'rule-half' }),
+        marker(4, 3, 5, { className: 'rule-scale' }),
+        marker(4, 5, 7, { className: 'rule-scale' }),
+        marker(3, 2, 9, { className: 'rule-scale' }),
+        marker(3, 4, 11, { className: 'rule-half' }),
+        marker(3, 5, 0, { className: 'rule-root' })
+    ];
+    const step4Slide1ShapeNoteOnly = step4Slide1Shape.map(m => ({
+        ...m,
+        label: getCMajorNoteLabel(m.noteIdx)
+    }));
+    /** STEP4-2：6弦8Fのドを起点に、STEP4-1と同じ形のドレミファソラシド（5,3→6,8 に平行移動） */
+    const step4Slide2Shape = [
+        marker(6, 8, 0, { className: 'rule-root' }),
+        marker(6, 10, 2, { className: 'rule-scale' }),
+        marker(5, 7, 4, { className: 'rule-half' }),
+        marker(5, 8, 5, { className: 'rule-scale' }),
+        marker(5, 10, 7, { className: 'rule-scale' }),
+        marker(4, 7, 9, { className: 'rule-scale' }),
+        marker(4, 9, 11, { className: 'rule-half' }),
+        marker(4, 10, 0, { className: 'rule-root' })
+    ];
+    const step4Slide2ShapeNoteOnly = step4Slide2Shape.map(m => ({
+        ...m,
+        label: getCMajorNoteLabel(m.noteIdx)
+    }));
+    /** STEP4-3：4弦10Fのドからドレミファソラシド（タップ順どおりにたどる） */
+    const step4Slide3Shape = [
+        marker(4, 10, 0, { className: 'rule-root' }),
+        marker(4, 12, 2, { className: 'rule-scale' }),
+        marker(3, 9, 4, { className: 'rule-half' }),
+        marker(3, 10, 5, { className: 'rule-scale' }),
+        marker(3, 12, 7, { className: 'rule-scale' }),
+        marker(2, 10, 9, { className: 'rule-scale' }),
+        marker(2, 12, 11, { className: 'rule-half' }),
+        marker(2, 13, 0, { className: 'rule-root' })
+    ];
+    const step4Slide3ShapeNoteOnly = step4Slide3Shape.map(m => ({
+        ...m,
+        label: getCMajorNoteLabel(m.noteIdx)
+    }));
+
+    /** STEP5-1：同じオクターブの同じ音を、ドレミ順に2オクターブ分たどる */
+    const step5SamePitchBridgeGroups = [
+        [[6, 8, 0], [5, 3, 0]],
+        [[6, 10, 2], [5, 5, 2], [4, 0, 2]],
+        [[6, 12, 4], [5, 7, 4], [4, 2, 4]],
+        [[5, 8, 5], [4, 3, 5]],
+        [[5, 10, 7], [4, 5, 7], [3, 0, 7]],
+        [[5, 12, 9], [4, 7, 9], [3, 2, 9]],
+        [[4, 9, 11], [3, 4, 11], [2, 0, 11]],
+        [[4, 10, 0], [3, 5, 0], [2, 1, 0]],
+        [[4, 12, 2], [3, 7, 2], [2, 3, 2]],
+        [[3, 9, 4], [2, 5, 4], [1, 0, 4]],
+        [[3, 10, 5], [2, 6, 5], [1, 1, 5]],
+        [[3, 12, 7], [2, 8, 7], [1, 3, 7]],
+        [[2, 10, 9], [1, 5, 9]],
+        [[2, 12, 11], [1, 7, 11]],
+        [[1, 8, 0]]
+    ];
+    const step5SamePitchBridgeMarkers = step5SamePitchBridgeGroups.flatMap((group, groupIndex) =>
+        group.map(([stringNum, fret, noteIdx]) =>
+            marker(stringNum, fret, noteIdx, {
+                label: getCMajorNoteLabel(noteIdx),
+                cue: 'タップ',
+                className: noteIdx === 0 ? 'rule-root' : [4, 11].includes(noteIdx) ? 'rule-half' : 'rule-scale',
+                ruleSamePitchGroup: groupIndex
+            })
+        )
+    );
+
+    /** STEP5-2：開放〜12F ＋ステップ調整。同一弦の開放／12重複は基本は低い方のみ */
+    const step5FreeShapeStepPairs21 = ruleStep5Augment12FretAllStrings(
+        makeStep5FreeShapeStepPairs(2, 1)
+    );
+    const step5FreeShapeMarkers21 = buildRuleFreeShapeMarkersFromStepPairs(step5FreeShapeStepPairs21);
+
+    /** STEP1の2弦スケール共通：1〜13F のドレミファソラシド（♯を飛ばす） */
+    const step1TwoStringScaleMarkers = [1, 3, 5, 6, 8, 10, 12, 13].map(fret => {
+        const stringNum = 2;
+        const stringIdx = 6 - stringNum;
+        const noteIdx = (OPEN_STRINGS[stringIdx] + fret) % 12;
+        const className = fret === 1 || fret === 13 ? 'rule-root' : 'rule-scale';
+        return marker(stringNum, fret, noteIdx, { className, cue: 'タップ' });
+    });
+
+    const slides = {
+        1: [
+            {
+                learnTheme: '「1フレットは半音ずつ」と知ろう！',
+                summaryLearn: 'フレットには#などの音も入っていますね。',
+                markers: [
+                    marker(6, 0, 4, { className: 'rule-root', cue: 'タップ' }),
+                    marker(6, 1, 5, { className: 'rule-half', cue: 'タップ' }),
+                    marker(6, 2, 6, { cue: 'タップ' }),
+                    marker(6, 3, 7, { cue: 'タップ' }),
+                    marker(6, 4, 8, { cue: 'タップ' }),
+                    marker(6, 5, 9, { cue: 'タップ' }),
+                    marker(6, 6, 10, { cue: 'タップ' })
+                ]
+            },
+            {
+                learnTheme: 'では、ドレミファソラシドだけをたどってみましょう',
+                summaryLearn: '気づきましたか？',
+                markers: step1TwoStringScaleMarkers
+            },
+            {
+                learnTheme: 'ミファとシドだけ半音です',
+                learnThemeIntro2: 'もう1度たどってみましょう',
+                summaryLearn: 'ミファとシドだけ半音と覚えておきましょう',
+                markers: step1TwoStringScaleMarkers
+            }
+        ],
+        2: [
+            {
+                learnTheme: '開放弦の音を覚えよう',
+                summaryLearn: '開放弦はミラソレシミ',
+                summaryLearnSubline: '英名でEAGDBE',
+                suppressFloatingCue: true,
+                markers: step2OpenStringMarkers
+            },
+            {
+                learnTheme: '12フレット先はオクターブ上の音',
+                summaryLearn: '12フレットも同じ「ミラレソシミ」です',
+                suppressFloatingCue: true,
+                /** 実践でも開放の音名を残しつつ、タップは12Fの順だけ（STEP2-4と同パターン） */
+                markers: [...step2OpenStringMarkers, ...step2TwelfthFretMarkers],
+                soundSequence: step2TwelfthFretMarkers.map(m => withRuleNoteIdx(m))
+            },
+            {
+                learnTheme: '次は6弦の音をたどってみよう',
+                summaryLearn: '6弦は開放弦から12フレットが\nミから1オクターブ上のミですね',
+                suppressFloatingCue: true,
+                markers: step2SixStringCMajorTo12Markers
+            },
+            {
+                learnTheme: '1弦も6弦と同じ音の並びですので\nたどってみましょう',
+                summaryLearn: '1弦は6弦の2オクターブ上の音となっています',
+                suppressFloatingCue: true,
+                /** 6弦の音名も常時表示し、タップの正解順は1弦だけ */
+                markers: [...step2SixStringCMajorTo12Markers, ...step2OneStringCMajorTo12Markers],
+                soundSequence: step2OneStringCMajorTo12Markers.map(m => withRuleNoteIdx(m))
+            }
+        ],
+        3: [
+            {
+                learnTheme: '隣の弦と同じ音をたどろう！',
+                summaryLearn: '気づきましたか？',
+                summaryLearn2: '3弦→2弦だけ4フレット違い',
+                summaryLearnSubline: '他は5フレット',
+                suppressFloatingCue: true,
+                step3PairTapSequence: true,
+                /** STEP3-1：ガイド線・「◯フレット」吹き出しなし（STEP3-2/3 は従来どおり） */
+                step3PairTapHideLineAndGapHint: true,
+                markers: [
+                    marker(6, 5, 9, { className: 'rule-root' }),
+                    marker(5, 0, 9, { className: 'rule-root' }),
+                    marker(4, 5, 7, { className: 'rule-root' }),
+                    marker(3, 0, 7, { className: 'rule-root' }),
+                    marker(3, 4, 11, { className: 'rule-half' }),
+                    marker(2, 0, 11, { className: 'rule-half' }),
+                    marker(2, 5, 4, { className: 'rule-root' }),
+                    marker(1, 0, 4, { className: 'rule-root' })
+                ]
+            },
+            {
+                learnTheme: 'もう1度たどろう！',
+                summaryLearn: 'これが指板の覚えられない原因No.1です',
+                suppressFloatingCue: true,
+                step3PairTapSequence: true,
+                markers: [
+                    marker(6, 5, 9, { className: 'rule-root' }),
+                    marker(5, 0, 9, { className: 'rule-root' }),
+                    marker(4, 5, 7, { className: 'rule-root' }),
+                    marker(3, 0, 7, { className: 'rule-root' }),
+                    marker(3, 4, 11, { className: 'rule-half' }),
+                    marker(2, 0, 11, { className: 'rule-half' }),
+                    marker(2, 5, 4, { className: 'rule-root' }),
+                    marker(1, 0, 4, { className: 'rule-root' })
+                ]
+            },
+            {
+                learnTheme: '他のフレットも当然同じです',
+                summaryLearn: '3→2弦だけ4フレット分と覚えておきましょう',
+                suppressFloatingCue: true,
+                step3PairTapSequence: true,
+                /** 実践で全マーカー常時表示（タップ先は rule-next の光のみ） */
+                step3PairTapShowAllMarkersInPlay: true,
+                /** 画角：この範囲が収まるようスケール・横位置を固定 */
+                ruleTapLayoutFretRange: [7, 12],
+                markers: [
+                    marker(6, 12, 4, { className: 'rule-root' }),
+                    marker(5, 7, 4, { className: 'rule-root' }),
+                    marker(5, 12, 9, { className: 'rule-root' }),
+                    marker(4, 7, 9, { className: 'rule-root' }),
+                    marker(4, 12, 2, { className: 'rule-root' }),
+                    marker(3, 7, 2, { className: 'rule-root' }),
+                    marker(3, 12, 7, { className: 'rule-root' }),
+                    marker(2, 8, 7, { className: 'rule-root' }),
+                    marker(2, 12, 11, { className: 'rule-half' }),
+                    marker(1, 7, 11, { className: 'rule-half' })
+                ]
+            }
+        ],
+        4: [
+            {
+                learnTheme: '5弦3フレットから始まるドレミ',
+                summaryLearn: 'ここが1番重要なポジションです',
+                /** STEP4-2 と同一倍率（7〜10F 幅でフィット）。低フレット側はスクロールで見せる */
+                ruleTapLayoutZoomFitFloatRange: [6.5, 10.5],
+                ruleTapLayoutZoomExtra: 1.08,
+                ruleTapLayoutLockScroll: true,
+                markers: step4Slide1ShapeNoteOnly
+            },
+            {
+                learnTheme: '6弦8フレットにも同じ形があります',
+                summaryLearn: 'ここもすぐに弾けるようにしましょう',
+                ruleTapLayoutZoomFitFloatRange: [6.5, 10.5],
+                ruleTapLayoutZoomExtra: 1.08,
+                markers: step4Slide2ShapeNoteOnly
+            },
+            {
+                learnTheme: '4弦10フレットからのドレミは落とし穴があります',
+                summaryLearn: 'やっぱり2弦にいく時は、半音ずれますね',
+                /** STEP4-2 と同一倍率。高フレット側はスクロールで見せる */
+                ruleTapLayoutZoomFitFloatRange: [6.5, 10.5],
+                ruleTapLayoutZoomExtra: 1.08,
+                ruleTapLayoutLockScroll: true,
+                markers: step4Slide3ShapeNoteOnly
+            }
+        ],
+        5: [
+            {
+                learnTheme: '同じ音をたどってみよう',
+                suppressFloatingCue: true,
+                skipSummaryPhase: true,
+                markers: step5SamePitchBridgeMarkers,
+                ruleSamePitchBridgeSequence: true,
+                ruleSlowAutoScrollToNext: true,
+                /** STEP4-1 と同程度の拡大。横スクロールで開放〜12Fを自分で見られる */
+                ruleTapLayoutZoomFitFloatRange: [6.5, 10.5],
+                ruleTapLayoutZoomExtra: 1.08,
+                ruleTapLayoutLockScroll: false,
+                text: '同じ音をたどってみよう'
+            }
+        ]
+    };
+    return slides[step] || slides[1];
+}
+
+function renderRuleDiagram(type, activeIndex = 0) {
+    if (type !== 'intervals') return '';
+    const notes = state.settings.noteLabelMode === 'note'
+        ? ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'C']
+        : ['ド', 'レ', 'ミ', 'ファ', 'ソ', 'ラ', 'シ', 'ド'];
+    const gaps = ['全音', '全音', '半音', '全音', '全音', '全音', '半音'];
+    return `
+        <div class="rule-interval-diagram">
+            ${notes.map((note, idx) => `
+                <button type="button" class="rule-interval-note ${idx === activeIndex ? 'is-next' : ''}" data-rule-diagram-note="${idx}">${note}</button>
+                ${idx < gaps.length ? `<div class="rule-interval-gap ${gaps[idx] === '半音' ? 'is-half' : ''}">${gaps[idx]}</div>` : ''}
+            `).join('')}
+        </div>
+    `;
+}
+
+function getMemorizeQuestionLabel(noteIdx) {
+    return getNotationLabel(noteIdx);
+}
+
+function openRulesInVisualize() {
+    state.visualize.key = 0;
+    state.visualize.capo = 0;
+    state.visualize.scale = 'major';
+    state.visualize.displayMode = state.settings.noteLabelMode === 'note' ? 'note' : 'solfege';
+    state.visualize.doMode = 'movable';
+    state.visualize.selectedChordIndex = null;
+    state.visualize.autoSelectRootChord = false;
+    state.course = 'visualize';
+    saveState();
+    renderApp();
+}
+
+function goToRuleOffset(delta) {
+    const step = state.rules.step || 1;
+    const slides = getRuleSlides(step);
+    const page = state.rules.page || 0;
+    const nextPage = page + delta;
+    if (nextPage >= 0 && nextPage < slides.length) {
+        state.rules.page = nextPage;
+        state.rules.tapIndex = 0;
+        state.rules.phase = 'intro';
+    } else if (delta > 0 && step < 5) {
+        state.rules.step = step + 1;
+        state.rules.page = 0;
+        state.rules.tapIndex = 0;
+        state.rules.phase = 'intro';
+    } else if (delta > 0) {
+        state.course = 'basicRules';
+        state.rules.ruleIntroStage = 0;
+        saveState();
+        renderApp();
+        return;
+    } else if (delta < 0 && step > 1) {
+        state.rules.step = step - 1;
+        state.rules.page = getRuleSlides(state.rules.step).length - 1;
+        state.rules.tapIndex = 0;
+        state.rules.phase = 'intro';
+    } else {
+        state.course = 'basicRules';
+    }
+    state.rules.ruleIntroStage = 0;
+    saveState();
+    renderApp();
+}
+
+/** まとめ画面から：最終スライドならCLEAR祝い、それ以外は次スライドへ */
+function ruleTryAdvanceFromSummary() {
+    const step = state.rules.step || 1;
+    const slides = getRuleSlides(step);
+    const page = clamp(state.rules.page || 0, 0, slides.length - 1);
+    const slide = slides[page];
+    const summary2 = slide && (slide.summaryLearn2 || '').trim();
+    if (summary2 && (state.rules.ruleIntroStage || 0) === 0) {
+        state.rules.ruleIntroStage = 1;
+        saveState();
+        renderApp();
+        return;
+    }
+    if (page >= slides.length - 1) {
+        state.rules.celebration = { completedStep: step };
+        saveState();
+        renderApp();
+        return;
+    }
+    goToRuleOffset(1);
+}
+
+function dismissRuleCelebrationAndAdvance() {
+    state.rules.celebration = null;
+    goToRuleOffset(1);
+}
+
+/** 「1つ戻る」：直前の1アクションだけ戻す（スライド跨ぎ・STEP跨ぎあり） */
+function ruleUndoOneAction() {
+    if (state.rules.celebration) {
+        state.rules.celebration = null;
+        saveState();
+        renderApp();
+        return;
+    }
+    const step = state.rules.step || 1;
+    const slides = getRuleSlides(step);
+    const page = clamp(state.rules.page || 0, 0, slides.length - 1);
+    const slide = slides[page];
+    const targets = getRuleTargetSequence(slide);
+    const n = targets.length;
+    const introFollowUp = (slide.learnThemeIntro2 || '').trim();
+
+    if (state.rules.phase === 'intro' && introFollowUp && (state.rules.ruleIntroStage || 0) === 1) {
+        state.rules.ruleIntroStage = 0;
+        saveState();
+        renderApp();
+        return;
+    }
+    if (state.rules.phase === 'summary') {
+        const summary2 = (slide.summaryLearn2 || '').trim();
+        if (summary2 && (state.rules.ruleIntroStage || 0) === 1) {
+            state.rules.ruleIntroStage = 0;
+            saveState();
+            renderApp();
+            return;
+        }
+        if (n > 0) {
+            state.rules.phase = 'play';
+            state.rules.tapIndex = n - 1;
+            state.rules.ruleIntroStage = 0;
+        } else {
+            state.rules.phase = 'intro';
+            state.rules.tapIndex = 0;
+            state.rules.ruleIntroStage = 0;
+        }
+        saveState();
+        renderApp();
+        return;
+    }
+    if (state.rules.phase === 'play') {
+        if ((state.rules.tapIndex || 0) > 0) {
+            state.rules.tapIndex = (state.rules.tapIndex || 0) - 1;
+        } else {
+            state.rules.phase = 'intro';
+            state.rules.ruleIntroStage = introFollowUp ? 1 : 0;
+        }
+        saveState();
+        renderApp();
+        return;
+    }
+    if (page > 0) {
+        const prevIdx = page - 1;
+        state.rules.page = prevIdx;
+        const prevSlide = slides[prevIdx];
+        const prevTargets = getRuleTargetSequence(prevSlide);
+        if (prevSlide.skipSummaryPhase && prevTargets.length > 0) {
+            state.rules.phase = 'play';
+            state.rules.tapIndex = prevTargets.length - 1;
+        } else {
+            state.rules.phase = 'summary';
+            state.rules.tapIndex = 0;
+        }
+        state.rules.ruleIntroStage = 0;
+        saveState();
+        renderApp();
+        return;
+    }
+    if (step > 1) {
+        const prevStep = step - 1;
+        const prevSlides = getRuleSlides(prevStep);
+        state.rules.step = prevStep;
+        state.rules.page = prevSlides.length - 1;
+        state.rules.phase = 'summary';
+        state.rules.tapIndex = 0;
+        state.rules.ruleIntroStage = 0;
+        saveState();
+        renderApp();
+        return;
+    }
+    state.course = 'basicRules';
+    saveState();
+    renderApp();
+}
+
+/** 「1つ進む」：次の1アクションだけ進める（音は鳴らさない・スライド跨ぎ・STEP跨ぎあり） */
+function ruleAdvanceOneAction() {
+    const step = state.rules.step || 1;
+    const slides = getRuleSlides(step);
+    const page = clamp(state.rules.page || 0, 0, slides.length - 1);
+    const slide = slides[page];
+    const targets = getRuleTargetSequence(slide);
+    const n = targets.length;
+
+    if (state.rules.phase === 'intro') {
+        const introFollowUp = (slide.learnThemeIntro2 || '').trim();
+        if (introFollowUp && (state.rules.ruleIntroStage || 0) === 0) {
+            state.rules.ruleIntroStage = 1;
+            saveState();
+            renderApp();
+            return;
+        }
+        state.rules.phase = 'play';
+        state.rules.tapIndex = 0;
+        state.rules.ruleIntroStage = 0;
+        saveState();
+        renderApp();
+        return;
+    }
+    if (state.rules.phase === 'play') {
+        const idx = state.rules.tapIndex || 0;
+        if (n === 0) {
+            ruleFinishPlaySlide(slide);
+        } else if (idx < n - 1) {
+            state.rules.tapIndex = idx + 1;
+            state.rules.phase = 'play';
+        } else {
+            ruleFinishPlaySlide(slide);
+        }
+        saveState();
+        renderApp();
+        return;
+    }
+    if (state.rules.phase === 'summary') {
+        ruleTryAdvanceFromSummary();
+    }
+}
+
+/** 進捗バー：同じSTEP内の指定スライドへ（イントロからやり直し） */
+function ruleJumpToSlideWithinStep(targetPage) {
+    const step = state.rules.step || 1;
+    const slides = getRuleSlides(step);
+    const max = Math.max(0, slides.length - 1);
+    state.rules.page = clamp(targetPage, 0, max);
+    state.rules.phase = 'intro';
+    state.rules.tapIndex = 0;
+    state.rules.ruleIntroStage = 0;
+    state.rules.celebration = null;
+    saveState();
+    renderApp();
+}
+
+function playRuleTarget(target) {
+    if (!target) return;
+    if (typeof target.midiNote === 'number') {
+        playMidiTone(target.midiNote);
+        return;
+    }
+    if (typeof target.stringNum === 'number' && typeof target.fret === 'number') {
+        playTone(6 - target.stringNum, target.fret);
+    }
+}
+
+/** 実践フェーズ終了時：まとめへ／または skip のときは次スライドのイントロ or STEP クリア */
+function ruleFinishPlaySlide(slide) {
+    state.rules.tapIndex = 0;
+    state.rules.ruleIntroStage = 0;
+    const step = state.rules.step || 1;
+    const slides = getRuleSlides(step);
+    const page = clamp(state.rules.page || 0, 0, slides.length - 1);
+    if (slide.skipSummaryPhase) {
+        if (page < slides.length - 1) {
+            state.rules.page = page + 1;
+            state.rules.phase = 'intro';
+        } else {
+            state.rules.celebration = { completedStep: step };
+        }
+    } else {
+        state.rules.phase = 'summary';
+    }
+}
+
+function advanceRuleAfterSound(slide) {
+    const targets = getRuleTargetSequence(slide);
+    const nextIndex = (state.rules.tapIndex || 0) + 1;
+    if (nextIndex < targets.length) {
+        state.rules.tapIndex = nextIndex;
+        state.rules.phase = 'play';
+        saveState();
+        renderApp();
+    } else {
+        ruleFinishPlaySlide(slide);
+        saveState();
+        renderApp();
+    }
+}
+
+function playCurrentRuleTarget(slide) {
+    if (ruleAdvanceLocked) return;
+    ruleAdvanceLocked = true;
+    setTimeout(() => {
+        ruleAdvanceLocked = false;
+    }, 180);
+    if (state.rules.phase === 'intro') {
+        const slides0 = getRuleSlides(state.rules.step || 1);
+        const page0 = clamp(state.rules.page || 0, 0, slides0.length - 1);
+        const slide0 = slides0[page0];
+        const introFollowUp = ((slide0 && slide0.learnThemeIntro2) || '').trim();
+        if (introFollowUp && (state.rules.ruleIntroStage || 0) === 0) {
+            state.rules.ruleIntroStage = 1;
+            saveState();
+            renderApp();
+            return;
+        }
+        state.rules.phase = 'play';
+        state.rules.tapIndex = 0;
+        state.rules.ruleIntroStage = 0;
+        saveState();
+        renderApp();
+        return;
+    }
+    if (state.rules.phase === 'summary') {
+        ruleTryAdvanceFromSummary();
+        return;
+    }
+    const targets = getRuleTargetSequence(slide);
+    const target = targets[state.rules.tapIndex || 0];
+    if (!target) {
+        ruleFinishPlaySlide(slide);
+        saveState();
+        renderApp();
+        return;
+    }
+    if (target.ruleFlexibleMulti) return;
+    playRuleTarget(target);
+    advanceRuleAfterSound(slide);
+}
+
+/** STEP完了時：案4（CLEAR＋進捗ドット＋STEP表記） */
+function renderRuleClearCelebration(app) {
+    const done = clamp(state.rules.celebration.completedStep || 1, 1, 5);
+    if (done >= 5) {
+        const pieces = Array.from({ length: 30 }, (_, i) => `
+            <span class="rule-master-confetti-piece" style="--x:${(i * 37) % 100}; --d:${(i % 7) * 0.18}s; --r:${(i * 29) % 360}deg;"></span>
+        `).join('');
+        app.innerHTML = `
+            ${buildPageHeader({
+                headerClass: 'page-header--stage-select',
+                titleText: '基本ルール クリア',
+                titleSubText: 'STEP 5 おわり',
+                leftHtml: `${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}`,
+                rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-rule-clear" aria-label="設定">⚙️</button>`
+            })}
+            <div class="rule-clear-celebration rule-master-clear">
+                <div class="rule-master-confetti" aria-hidden="true">${pieces}</div>
+                <div class="rule-clear-card rule-master-clear-card">
+                    <p class="rule-master-clear-head" aria-live="polite">ルール制覇！！</p>
+                    <p class="rule-master-clear-lead">指板を「覚える」には<br>こちらをやりましょう！</p>
+                    <button type="button" class="btn-primary rule-clear-next-btn" id="btn-rule-clear-memorize">覚えるモードへ</button>
+                </div>
+                <div style="height:120px"></div>
+            </div>
+        `;
+        document.getElementById('btn-back').onclick = () => {
+            state.rules.celebration = null;
+            state.course = 'basicRules';
+            saveState();
+            renderApp();
+        };
+        document.getElementById('btn-settings-rule-clear').onclick = () => openSettings('basicRuleStep');
+        document.getElementById('btn-rule-clear-memorize').onclick = () => {
+            state.rules.celebration = null;
+            state.course = 'modeSelect';
+            saveState();
+            renderApp();
+        };
+        app.style.height = '100vh';
+        app.style.overflowY = 'auto';
+        app.style.overflowX = 'hidden';
+        return;
+    }
+    const nextLabel = done >= 5 ? '基本ルール一覧へ' : '次のSTEPへ';
+    const dots = [1, 2, 3, 4, 5].map(n => `
+        <span class="rule-clear-dot ${n <= done ? 'is-done' : ''}" aria-hidden="true"></span>
+    `).join('');
+    app.innerHTML = `
+        ${buildPageHeader({
+            headerClass: 'page-header--stage-select',
+            titleText: 'STEP クリア',
+            titleSubText: `STEP ${done} おわり`,
+            leftHtml: `${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}`,
+            rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-rule-clear" aria-label="設定">⚙️</button>`
+        })}
+        <div class="rule-clear-celebration">
+            <div class="rule-clear-card">
+                <p class="rule-clear-head" aria-live="polite">CLEAR！</p>
+                <p class="rule-clear-steptext">STEP ${done} / 5 完了</p>
+                <div class="rule-clear-dots" role="img" aria-label="STEP 1から5までの進み">${dots}</div>
+                <button type="button" class="btn-primary rule-clear-next-btn" id="btn-rule-clear-next">${nextLabel}</button>
+            </div>
+            <div style="height:120px"></div>
+        </div>
+    `;
+    document.getElementById('btn-back').onclick = () => {
+        state.rules.celebration = null;
+        state.course = 'basicRules';
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-settings-rule-clear').onclick = () => openSettings('basicRuleStep');
+    document.getElementById('btn-rule-clear-next').onclick = () => {
+        dismissRuleCelebrationAndAdvance();
+    };
+    app.style.height = '100vh';
+    app.style.overflowY = 'auto';
+    app.style.overflowX = 'hidden';
+}
+
+function renderBasicRuleStep(app) {
+    if (state.rules.celebration) {
+        const cs = state.rules.celebration.completedStep;
+        if (typeof cs !== 'number' || cs < 1 || cs > 5) {
+            state.rules.celebration = null;
+        } else {
+            renderRuleClearCelebration(app);
+            return;
+        }
+    }
+    cleanupRuleStep31PairLine();
+    cleanupRuleStep43GapHintSchedule();
+    if (state.rules._step42RevealTimer) {
+        clearTimeout(state.rules._step42RevealTimer);
+        state.rules._step42RevealTimer = null;
+    }
+    if (state.rules._step42RevealTimer2) {
+        clearTimeout(state.rules._step42RevealTimer2);
+        state.rules._step42RevealTimer2 = null;
+    }
+    if (state.rules._step43RevealTimer) {
+        clearTimeout(state.rules._step43RevealTimer);
+        state.rules._step43RevealTimer = null;
+    }
+    if (state.rules._step43RevealTimer2) {
+        clearTimeout(state.rules._step43RevealTimer2);
+        state.rules._step43RevealTimer2 = null;
+    }
+    const step = clamp(state.rules.step || 1, 1, 5);
+    const slides = getRuleSlides(step);
+    const page = clamp(state.rules.page || 0, 0, slides.length - 1);
+    state.rules.step = step;
+    state.rules.page = page;
+    if (!['intro', 'play', 'summary'].includes(state.rules.phase)) state.rules.phase = 'intro';
+    if (step === 4 && page === 1 && state.rules.phase === 'intro') {
+        state.rules.step4Slide2RevealDone = false;
+    }
+    if (step === 4 && page === 2 && state.rules.phase === 'intro') {
+        state.rules.step4Slide3ScrollRevealDone = false;
+    }
+    const slide = slides[page];
+    if (
+        !state.rules.step5ExcludedSlots ||
+        typeof state.rules.step5ExcludedSlots !== 'object' ||
+        Array.isArray(state.rules.step5ExcludedSlots)
+    ) {
+        state.rules.step5ExcludedSlots = {};
+    }
+    if (
+        !state.rules.step5ExcludedSlotsPart2 ||
+        typeof state.rules.step5ExcludedSlotsPart2 !== 'object' ||
+        Array.isArray(state.rules.step5ExcludedSlotsPart2)
+    ) {
+        state.rules.step5ExcludedSlotsPart2 = {};
+    }
+    const markersForRuleBoard =
+        step === 5 && slide.ruleFreeShapeStepPairs && slide.ruleFreeShapeStepPairs.length
+            ? (() => {
+                  const part = ruleStep5ExcludedPartitionFromSlide(slide);
+                  const excl = ruleStep5ExcludedRawForPartition(part);
+                  return (slide.markers || []).filter(
+                      m => !excl[ruleStep5SlotKey(m.stringNum, m.fret)]
+                  );
+              })()
+            : slide.markers || [];
+    const targets = getRuleTargetSequence(slide);
+    state.rules.tapIndex = clamp(state.rules.tapIndex || 0, 0, Math.max(0, targets.length - 1));
+    const isPlayPhase = state.rules.phase === 'play';
+    const isSummaryPhase = state.rules.phase === 'summary';
+    const currentTarget = targets[state.rules.tapIndex] || null;
+    const hasFretboard = !!(slide.markers && slide.markers.length);
+    /**
+     * STEP3・ペアタップ：偶数 tapIndex＝太い側のみ表示（※全表示スライドは別）→奇数＝ペア＋黄線→細い側タップで次へ
+     */
+    const step3PairTapUI = step === 3 && !!slide.step3PairTapSequence && hasFretboard;
+    const ruleFreeShapeUI = !!(slide.ruleFreeShapeStepPairs && slide.ruleFreeShapeStepPairs.length)
+        && hasFretboard;
+    let markersSource = markersForRuleBoard;
+    if (ruleFreeShapeUI) {
+        const src = markersForRuleBoard;
+        if (!isPlayPhase || isSummaryPhase || slide.ruleFreeShapeShowAllMarkersInPlay) {
+            markersSource = src;
+        } else {
+            const t = targets[state.rules.tapIndex || 0];
+            if (!t) {
+                markersSource = [];
+            } else if (t.ruleFlexibleMulti && t.acceptedPositions && t.acceptedPositions.length) {
+                markersSource = src.filter(m =>
+                    t.acceptedPositions.some(p => p.stringNum === m.stringNum && p.fret === m.fret)
+                );
+            } else if (t.ruleFlexibleMulti) {
+                const pc = ((t.noteIdx % 12) + 12) % 12;
+                markersSource = src.filter(m => {
+                    const raw =
+                        typeof m.noteIdx === 'number'
+                            ? m.noteIdx
+                            : (OPEN_STRINGS[6 - m.stringNum] + m.fret) % 12;
+                    return ((raw % 12) + 12) % 12 === pc;
+                });
+            } else {
+                markersSource = src.filter(m => m.stringNum === t.stringNum && m.fret === t.fret);
+            }
+        }
+    } else if (slide.ruleSamePitchBridgeSequence && isPlayPhase && currentTarget) {
+        const currentGroup =
+            typeof currentTarget.ruleSamePitchGroup === 'number'
+                ? currentTarget.ruleSamePitchGroup
+                : null;
+        markersSource =
+            currentGroup === null
+                ? markersForRuleBoard.filter(
+                      m => m.stringNum === currentTarget.stringNum && m.fret === currentTarget.fret
+                  )
+                : markersForRuleBoard.filter(m => m.ruleSamePitchGroup === currentGroup);
+    } else if (step === 4 && page === 1 && isPlayPhase && !state.rules.step4Slide2RevealDone) {
+        const s4 = getRuleSlides(4);
+        const dedupeMR = list => {
+            const map = new Map();
+            for (let i = 0; i < list.length; i++) {
+                const m = list[i];
+                if (!m || typeof m.stringNum !== 'number') continue;
+                map.set(`${m.stringNum}-${m.fret}`, m);
+            }
+            return [...map.values()];
+        };
+        markersSource = dedupeMR([...(s4[0]?.markers || []), ...(s4[1]?.markers || [])]);
+    }
+    if (step3PairTapUI) {
+        const src = slide.markers || [];
+        if (isSummaryPhase) {
+            markersSource = [];
+        } else if (!isPlayPhase) {
+            const t0 = targets[0];
+            markersSource = t0
+                ? src.filter(m => m.stringNum === t0.stringNum && m.fret === t0.fret)
+                : [];
+        } else if (slide.step3PairTapShowAllMarkersInPlay) {
+            markersSource = src;
+        } else {
+            const idx = state.rules.tapIndex || 0;
+            if (idx % 2 === 0) {
+                const t = targets[idx];
+                markersSource = t
+                    ? src.filter(m => m.stringNum === t.stringNum && m.fret === t.fret)
+                    : [];
+            } else {
+                const t0 = targets[idx - 1];
+                const t1 = targets[idx];
+                const pick = t =>
+                    src.find(m => m.stringNum === t.stringNum && m.fret === t.fret);
+                markersSource = [pick(t0), pick(t1)].filter(Boolean);
+            }
+        }
+    }
+    const markersForRender = markersSource.map(marker => {
+        let matchCurrent = false;
+        if (currentTarget) {
+            if (currentTarget.ruleFlexibleMulti) {
+                if (currentTarget.acceptedPositions && currentTarget.acceptedPositions.length) {
+                    matchCurrent = currentTarget.acceptedPositions.some(
+                        p => p.stringNum === marker.stringNum && p.fret === marker.fret
+                    );
+                } else {
+                    const raw =
+                        typeof marker.noteIdx === 'number'
+                            ? marker.noteIdx
+                            : (OPEN_STRINGS[6 - marker.stringNum] + marker.fret) % 12;
+                    const mPc = ((raw % 12) + 12) % 12;
+                    const tPc = ((currentTarget.noteIdx % 12) + 12) % 12;
+                    matchCurrent = mPc === tPc;
+                }
+            } else if (
+                marker.stringNum === currentTarget.stringNum &&
+                marker.fret === currentTarget.fret
+            ) {
+                matchCurrent = true;
+            }
+        }
+        const targetMatch =
+            (isPlayPhase && matchCurrent) ||
+            (step3PairTapUI &&
+                !isSummaryPhase &&
+                !isPlayPhase &&
+                targets[0] &&
+                marker.stringNum === targets[0].stringNum &&
+                marker.fret === targets[0].fret);
+        return {
+            ...marker,
+            className: `${marker.className || 'rule-scale'}${targetMatch ? ' rule-next' : ''}`
+        };
+    });
+    const themeMain = (slide.learnTheme || slide.introText || slide.text || '').trim();
+    const introFollowUp = (slide.learnThemeIntro2 || '').trim();
+    const summaryFollowUp = (slide.summaryLearn2 || '').trim();
+    const hasDoubleIntro = introFollowUp.length > 0 && state.rules.phase === 'intro';
+    const hasDoubleSummary = summaryFollowUp.length > 0 && isSummaryPhase;
+    if (state.rules.phase === 'intro' && hasDoubleIntro) {
+        state.rules.ruleIntroStage = clamp(state.rules.ruleIntroStage || 0, 0, 1);
+    } else if (isSummaryPhase && hasDoubleSummary) {
+        state.rules.ruleIntroStage = clamp(state.rules.ruleIntroStage || 0, 0, 1);
+    } else {
+        state.rules.ruleIntroStage = 0;
+    }
+    const introOverlayMain = hasDoubleIntro && (state.rules.ruleIntroStage || 0) === 1
+        ? introFollowUp
+        : themeMain;
+    let summaryMain = (slide.summaryLearn || slide.summaryText || '').trim();
+    if (isSummaryPhase && hasDoubleSummary && (state.rules.ruleIntroStage || 0) === 1) {
+        summaryMain = summaryFollowUp;
+    }
+    let summarySubline = (slide.summaryLearnSubline ? String(slide.summaryLearnSubline) : '').trim();
+    if (isSummaryPhase && hasDoubleSummary && (state.rules.ruleIntroStage || 0) === 0) {
+        summarySubline = '';
+    }
+    const summarySublineHtml = isSummaryPhase && summarySubline
+        ? `<span class="rule-phase-overlay-note">${summarySubline}</span>`
+        : '';
+    const playLine = (slide.text || '').trim();
+    const isFinalRuleSummary = isSummaryPhase && step === 5 && page === slides.length - 1;
+    const overlayIntroHtml = `
+                        <span class="rule-phase-overlay-main">${introOverlayMain}</span>
+                        <button type="button" class="rule-start-btn" id="rule-start-btn">タップで開始</button>`;
+    const overlaySummaryHtml = `
+                        <span class="rule-phase-overlay-main">${summaryMain}</span>
+                        ${summarySublineHtml}
+                        <button type="button" class="rule-start-btn" id="rule-start-btn">タップで次へ</button>`;
+    const phaseClass = 'rule-phase-banner--intro';
+    const touchPhaseClass = isPlayPhase ? 'rule-touch-area--play' : 'rule-touch-area--intro';
+    const halfTonePopEl = document.getElementById('rule-half-tone-pop');
+    if (halfTonePopEl) {
+        halfTonePopEl.remove();
+        ruleHalfTonePopDetached = halfTonePopEl;
+    }
+    const step3GapPopEl = document.getElementById('rule-step3-gap-pop');
+    if (step3GapPopEl) {
+        step3GapPopEl.remove();
+        ruleStep3GapPopDetached = step3GapPopEl;
+    }
+    const step43GapPopEl = document.getElementById('rule-step43-gap-pop');
+    if (step43GapPopEl) {
+        step43GapPopEl.remove();
+        ruleStep43GapPopDetached = step43GapPopEl;
+    }
+    app.innerHTML = `
+        ${buildPageHeader({
+            headerClass: 'page-header--stage-select',
+            titleText: `STEP ${step}`,
+            titleSubText: getBasicRuleStepHeadline(step),
+            leftHtml: `
+                ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+            `,
+            rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-rule-step" aria-label="設定">⚙️</button>`
+        })}
+        <div class="rule-step-card ${window.innerWidth > window.innerHeight ? 'rule-step-card--landscape' : ''}">
+            <div class="rule-step-head">
+                <span class="settings-card-subtitle rule-step-page-count">${page + 1} / ${slides.length}</span>
+            </div>
+            <div class="rule-step-progress" role="group" aria-label="このSTEPのスライドへ移動">
+                ${slides.map((_, idx) => `
+                    <button type="button" class="rule-step-progress-segment ${idx < page ? 'is-done' : ''} ${idx === page ? 'is-current' : ''}"
+                        data-rule-progress-index="${idx}"
+                        aria-label="STEP ${step}-${idx + 1}"
+                        ${idx === page ? 'aria-current="true"' : ''}>
+                        <span class="rule-step-progress-bar" aria-hidden="true"></span>
+                    </button>
+                `).join('')}
+            </div>
+            ${isPlayPhase && playLine ? `<p class="rule-step-text">${playLine}</p>` : ''}
+            <div id="rule-touch-area" class="rule-touch-area ${touchPhaseClass}">
+                ${hasFretboard ? `
+                <div class="rule-fretboard-stack" id="rule-fretboard-stack">
+                    <div id="rule-fretboard-container" class="rule-fretboard-host"></div>
+                    ${step === 3 && slide.step3PairTapSequence && !slide.step3PairTapHideLineAndGapHint ? '<svg id="rule-step31-pair-line" class="rule-step31-pair-line" aria-hidden="true"></svg>' : ''}
+                </div>` : renderRuleDiagram(slide.diagram, currentTarget ? currentTarget.diagramIndex : 0)}
+                ${isPlayPhase ? '' : `
+                    <div class="rule-phase-overlay ${phaseClass}" id="rule-phase-overlay" role="presentation">
+                        ${isSummaryPhase ? overlaySummaryHtml : overlayIntroHtml}
+                    </div>
+                `}
+                ${slide.specialGap ? `<div class="rule-special-gap-note">3弦〜2弦だけ狭い</div>` : ''}
+            </div>
+            <p id="rule-miss-feedback" class="rule-miss-feedback" role="status" aria-live="polite"></p>
+            <div class="rule-step-actions">
+                <button type="button" class="btn-secondary" id="btn-rule-prev">1つ戻る</button>
+                <button type="button" class="btn-secondary" id="btn-rule-advance">1つ進む</button>
+            </div>
+            ${isFinalRuleSummary ? '<p class="rule-complete-note">おつかれ！いつでもSTEPから復習できるよ</p>' : ''}
+        </div>
+        <div style="height: 180px;"></div>
+    `;
+
+    document.getElementById('btn-back').onclick = () => {
+        state.course = 'basicRules';
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-settings-rule-step').onclick = () => openSettings('basicRuleStep');
+    document.getElementById('btn-rule-prev').onclick = () => ruleUndoOneAction();
+    document.getElementById('btn-rule-advance').onclick = () => ruleAdvanceOneAction();
+    document.querySelectorAll('.rule-step-progress-segment[data-rule-progress-index]').forEach(btn => {
+        btn.onclick = () => {
+            const idx = parseInt(btn.getAttribute('data-rule-progress-index'), 10);
+            if (!Number.isNaN(idx)) ruleJumpToSlideWithinStep(idx);
+        };
+    });
+    const ruleTouchArea = document.getElementById('rule-touch-area');
+    if (ruleTouchArea && !isPlayPhase) {
+        ruleTouchArea.onclick = () => playCurrentRuleTarget(slide);
+    }
+    if (!hasFretboard) {
+        ruleTouchArea.onclick = (e) => {
+            if (!isPlayPhase) {
+                playCurrentRuleTarget(slide);
+                return;
+            }
+            if (!isPlayPhase) return;
+            const noteButton = e.target.closest('[data-rule-diagram-note]');
+            if (!noteButton) {
+                showRuleMissFeedback('光る場所をタップしてね');
+                return;
+            }
+            const tappedIndex = parseInt(noteButton.getAttribute('data-rule-diagram-note'), 10);
+            if (currentTarget && tappedIndex === currentTarget.diagramIndex) {
+                playCurrentRuleTarget(slide);
+            } else {
+                showRuleMissFeedback('光る場所をタップしてね');
+            }
+        };
+    }
+    const ruleStep3TapFitFretRange = (() => {
+        if (step === 4 && page === 2 && isPlayPhase) {
+            if (state.rules.step4Slide3ScrollRevealDone) {
+                return [9, 13];
+            }
+            return false;
+        }
+        if (step === 4 && page === 1 && isPlayPhase) {
+            if (state.rules.step4Slide2RevealDone) {
+                return [7, 10];
+            }
+            return false;
+        }
+        if (Array.isArray(slide.ruleTapLayoutFretRange) && slide.ruleTapLayoutFretRange.length === 2) {
+            return slide.ruleTapLayoutFretRange;
+        }
+        if (slide.step3PairTapSequence) {
+            return [0, typeof slide.step3PairTapViewFretMax === 'number' ? slide.step3PairTapViewFretMax : 5];
+        }
+        return false;
+    })();
+    const ruleTapLayoutZoomFitFloatRange =
+        Array.isArray(slide.ruleTapLayoutZoomFitFloatRange) && slide.ruleTapLayoutZoomFitFloatRange.length === 2
+            ? slide.ruleTapLayoutZoomFitFloatRange
+            : null;
+    const ruleTapLayoutZoomExtra =
+        typeof slide.ruleTapLayoutZoomExtra === 'number' && slide.ruleTapLayoutZoomExtra > 0
+            ? slide.ruleTapLayoutZoomExtra
+            : 1;
+    /** STEP4：共通ズームでも見せたい位置へ寄せる（float の中央代替） */
+    let ruleTapZoomScrollAnchorFret = null;
+    if (step === 5 && hasFretboard && state.settings.fretboardView === 'zoom') {
+        ruleTapZoomScrollAnchorFret = page === 0 ? (isPlayPhase ? null : 8) : 1;
+    } else if (step === 4 && hasFretboard && state.settings.fretboardView === 'zoom') {
+        if (page === 0) {
+            ruleTapZoomScrollAnchorFret = 3;
+        } else if (page === 1) {
+            if (!isPlayPhase) ruleTapZoomScrollAnchorFret = 3;
+            else if (!state.rules.step4Slide2RevealDone) ruleTapZoomScrollAnchorFret = 3;
+            else ruleTapZoomScrollAnchorFret = 8;
+        } else if (page === 2) {
+            if (!isPlayPhase) {
+                ruleTapZoomScrollAnchorFret = 8;
+            } else if (!state.rules.step4Slide3ScrollRevealDone) {
+                ruleTapZoomScrollAnchorFret = 8;
+            } else {
+                ruleTapZoomScrollAnchorFret = 11;
+            }
+        }
+    }
+    const effectiveRuleTapLockScroll =
+        step === 4 && page === 1 && isPlayPhase
+            ? !!state.rules.step4Slide2RevealDone
+            : step === 4 && page === 2 && isPlayPhase
+              ? !!state.rules.step4Slide3ScrollRevealDone
+              : slide.ruleTapLayoutLockScroll === true;
+    const step5AnchorDisableSlot =
+        step === 5 &&
+        slide.ruleFreeShapeStepPairs &&
+        slide.ruleFreeShapeStepPairs[0] &&
+        slide.ruleFreeShapeStepPairs[0][0]
+            ? slide.ruleFreeShapeStepPairs[0][0]
+            : null;
+    if (hasFretboard) {
+        renderFretboardHTML('rule-fretboard-container', {
+            mode: 'rule',
+            ruleMarkers: markersForRender,
+            displayMode: state.settings.noteLabelMode,
+            rulePitchToneByAccidental: step === 1 && (page === 0 || page === 1 || page === 2),
+            ruleTapCueBesideNote: step === 2 && (page === 0 || page === 1 || page === 2 || page === 3),
+            ruleTapCueBubbleAboveNote: step === 2 && page === 2,
+            ruleStep2DegreeColors: step === 2 || step === 3 || step === 4 || step === 5,
+            ruleStep3TapFitFretRange,
+            ruleTapLayoutZoomFitFloatRange,
+            ruleTapLayoutZoomExtra,
+            ruleTapZoomScrollAnchorFret,
+            ruleSlowAutoScrollToNext: slide.ruleSlowAutoScrollToNext === true,
+            ruleTapLayoutLockScroll: effectiveRuleTapLockScroll,
+            ruleStep3PairTapLine:
+                !!slide.step3PairTapSequence && !slide.step3PairTapHideLineAndGapHint,
+            ruleStep5ExcludeInlineCheckboxes: step === 5 && isPlayPhase && ruleFreeShapeUI,
+            ruleStep5ExcludedSlotsLookup:
+                step === 5 && slide.ruleFreeShapeStepPairs && slide.ruleFreeShapeStepPairs.length
+                    ? ruleStep5ExcludedRawForPartition(ruleStep5ExcludedPartitionFromSlide(slide))
+                    : null,
+            ruleStep5AnchorDisableSlot: step5AnchorDisableSlot,
+            onFretClick: (stringNum, fret) => {
+                if (!isPlayPhase || !currentTarget) return;
+                const fShape = !!(slide.ruleFreeShapeStepPairs && slide.ruleFreeShapeStepPairs.length);
+                if (fShape) {
+                    const tappedPc = ((OPEN_STRINGS[6 - stringNum] + fret) % 12 + 12) % 12;
+                    const wantPc = ((currentTarget.noteIdx % 12) + 12) % 12;
+                    if (currentTarget.ruleFlexibleMulti) {
+                        const spots = currentTarget.acceptedPositions;
+                        const posOk =
+                            spots && spots.length
+                                ? spots.some(p => p.stringNum === stringNum && p.fret === fret)
+                                : tappedPc === wantPc;
+                        if (posOk) {
+                            playTone(6 - stringNum, fret);
+                            advanceRuleAfterSound(slide);
+                        } else {
+                            showRuleMissFeedback('光る丸をタップしてね');
+                        }
+                    } else if (
+                        stringNum === currentTarget.stringNum &&
+                        fret === currentTarget.fret
+                    ) {
+                        playCurrentRuleTarget(slide);
+                    } else {
+                        showRuleMissFeedback('光る丸をタップしてね');
+                    }
+                    return;
+                }
+                if (
+                    stringNum === currentTarget.stringNum &&
+                    fret === currentTarget.fret
+                ) {
+                    playCurrentRuleTarget(slide);
+                } else {
+                    showRuleMissFeedback('光る丸をタップしてね');
+                }
+            }
+        });
+        if (step === 4 && page === 1 && isPlayPhase && !state.rules.step4Slide2RevealDone) {
+            if (state.settings.fretboardView === 'zoom') {
+                state.rules._step42RevealTimer = setTimeout(() => {
+                    state.rules._step42RevealTimer = null;
+                    const wrap = document.querySelector('#rule-fretboard-container .fretboard-scroll-wrapper');
+                    if (!wrap) return;
+                    alignRuleStep3Page0Fret3Center(wrap);
+                    const scrollBefore = wrap.scrollLeft;
+                    alignRuleStep3FretColumnCenter(wrap, 8);
+                    const scrollTarget = wrap.scrollLeft;
+                    wrap.scrollLeft = scrollBefore;
+                    wrap.scrollTo({ left: scrollTarget, behavior: 'smooth' });
+                    state.rules._step42RevealTimer2 = setTimeout(() => {
+                        state.rules._step42RevealTimer2 = null;
+                        state.rules.step4Slide2RevealDone = true;
+                        saveState();
+                        renderApp();
+                    }, 780);
+                }, 140);
+            } else {
+                state.rules._step42RevealTimer = setTimeout(() => {
+                    state.rules._step42RevealTimer = null;
+                    state.rules.step4Slide2RevealDone = true;
+                    saveState();
+                    renderApp();
+                }, 650);
+            }
+        }
+        if (step === 4 && page === 2 && isPlayPhase && !state.rules.step4Slide3ScrollRevealDone) {
+            if (state.settings.fretboardView === 'zoom') {
+                state.rules._step43RevealTimer = setTimeout(() => {
+                    state.rules._step43RevealTimer = null;
+                    const wrap = document.querySelector('#rule-fretboard-container .fretboard-scroll-wrapper');
+                    if (!wrap) return;
+                    alignRuleStep3FretColumnCenter(wrap, 8);
+                    const scrollBefore = wrap.scrollLeft;
+                    alignRuleStep3FretColumnCenter(wrap, 11);
+                    const scrollTarget = wrap.scrollLeft;
+                    wrap.scrollLeft = scrollBefore;
+                    wrap.scrollTo({ left: scrollTarget, behavior: 'smooth' });
+                    state.rules._step43RevealTimer2 = setTimeout(() => {
+                        state.rules._step43RevealTimer2 = null;
+                        state.rules.step4Slide3ScrollRevealDone = true;
+                        saveState();
+                        renderApp();
+                    }, 780);
+                }, 140);
+            } else {
+                state.rules._step43RevealTimer = setTimeout(() => {
+                    state.rules._step43RevealTimer = null;
+                    state.rules.step4Slide3ScrollRevealDone = true;
+                    saveState();
+                    renderApp();
+                }, 650);
+            }
+        }
+    }
+
+    syncRuleStepHalfTonePop();
+    syncRuleStep3GapHintPop();
+    syncRuleStep43GapHintPop();
+    if (
+        hasFretboard &&
+        step === 3 &&
+        slide.step3PairTapSequence &&
+        !slide.step3PairTapHideLineAndGapHint
+    ) {
+        scheduleRuleStep31PairLineUpdates();
+    }
+    if (hasFretboard && step === 4 && page === 2) {
+        scheduleRuleStep43GapHintUpdates();
+    }
+
+    app.style.height = '100vh';
+    app.style.overflowY = 'auto';
+    app.style.overflowX = 'hidden';
+}
+
+function getRuleHalfTonePopPairFromTarget(t) {
+    if (!t || t.stringNum !== 2) return null;
+    if (t.fret === 5 || t.fret === 6) return 'miFa';
+    if (t.fret === 12 || t.fret === 13) return 'siDo';
+    return null;
+}
+
+function getRuleHalfTonePairFromState() {
+    const step = state.rules.step || 1;
+    const page = state.rules.page || 0;
+    if (step !== 1 || page !== 2 || state.rules.phase !== 'play') return null;
+    const slides = getRuleSlides(step);
+    const slide = slides[page];
+    if (!slide) return null;
+    const targets = getRuleTargetSequence(slide);
+    const t = targets[state.rules.tapIndex || 0] || null;
+    return getRuleHalfTonePopPairFromTarget(t);
+}
+
+function removeRuleHalfTonePopElement() {
+    const pop = document.getElementById('rule-half-tone-pop') || ruleHalfTonePopDetached;
+    if (pop) pop.remove();
+    ruleHalfTonePopDetached = null;
+    ruleHalfToneLastPair = null;
+    ruleHalfToneLastScroll = -1;
+}
+
+function pickRuleFretColumnNoteMarker(col) {
+    if (!col) return col;
+    const nodes = col.querySelectorAll('.note-marker');
+    for (let i = 0; i < nodes.length; i++) {
+        const n = nodes[i];
+        if (!n.classList.contains('hidden-note')) return n;
+    }
+    return col.querySelector('.note-marker') || col;
+}
+
+/** 音名丸の外周同士を結ぶ線分の端点（ビューポート座標） */
+function ruleStep3PairNoteEdgesViewport(elA, elB) {
+    const ma = pickRuleFretColumnNoteMarker(elA);
+    const mb = pickRuleFretColumnNoteMarker(elB);
+    const rma = ma.getBoundingClientRect();
+    const rmb = mb.getBoundingClientRect();
+    const cx1 = rma.left + rma.width / 2;
+    const cy1 = rma.top + rma.height / 2;
+    const cx2 = rmb.left + rmb.width / 2;
+    const cy2 = rmb.top + rmb.height / 2;
+    const rad1 = Math.max(4, Math.min(rma.width, rma.height) / 2);
+    const rad2 = Math.max(4, Math.min(rmb.width, rmb.height) / 2);
+    let dx = cx2 - cx1;
+    let dy = cy2 - cy1;
+    const dist = Math.hypot(dx, dy) || 1;
+    dx /= dist;
+    dy /= dist;
+    return {
+        x1: cx1 + dx * rad1,
+        y1: cy1 + dy * rad1,
+        x2: cx2 - dx * rad2,
+        y2: cy2 - dy * rad2
+    };
+}
+
+/** 3弦→2弦で同じ音のときだけ、間隔は5フレットではなく4フレット */
+function ruleStep3PairGapIsFourFret(tA, tB) {
+    if (!tA || !tB || tA.stringNum !== 3 || tB.stringNum !== 2) return false;
+    const nA =
+        typeof tA.noteIdx === 'number'
+            ? tA.noteIdx % 12
+            : (OPEN_STRINGS[6 - tA.stringNum] + tA.fret) % 12;
+    const nB =
+        typeof tB.noteIdx === 'number'
+            ? tB.noteIdx % 12
+            : (OPEN_STRINGS[6 - tB.stringNum] + tB.fret) % 12;
+    if (nA !== nB) return false;
+    return tA.fret - tB.fret === 4;
+}
+
+/** STEP3・太い弦→細い弦の黄線フェーズ：例外は「4フレット」オレンジ、その他は「5フレット」白背景 */
+function getRuleStep3GapHintState() {
+    if (state.rules.step !== 3 || state.rules.phase !== 'play') return null;
+    const slides = getRuleSlides(3);
+    const page = clamp(state.rules.page || 0, 0, slides.length - 1);
+    const slide = slides[page];
+    if (!slide || !slide.step3PairTapSequence) return null;
+    if (slide.step3PairTapHideLineAndGapHint) return null;
+    const idx = state.rules.tapIndex || 0;
+    if (idx % 2 === 0) return null;
+    const targets = getRuleTargetSequence(slide);
+    const tA = targets[idx - 1];
+    const tB = targets[idx];
+    if (!tA || !tB) return null;
+    return { variant: ruleStep3PairGapIsFourFret(tA, tB) ? 'four' : 'five', tA, tB };
+}
+
+function removeRuleStep3GapPopElement() {
+    const pop = document.getElementById('rule-step3-gap-pop') || ruleStep3GapPopDetached;
+    if (pop) pop.remove();
+    ruleStep3GapPopDetached = null;
+}
+
+function syncRuleStep3GapHintPop() {
+    const area = document.getElementById('rule-touch-area');
+    const st = getRuleStep3GapHintState();
+    if (!st || !area) {
+        removeRuleStep3GapPopElement();
+        return;
+    }
+    const text = st.variant === 'four' ? '4フレット' : '5フレット';
+    const cls =
+        st.variant === 'four'
+            ? 'rule-half-tone-pop rule-half-tone-pop--compact'
+            : 'rule-step3-five-fret-pop';
+    let pop = document.getElementById('rule-step3-gap-pop') || ruleStep3GapPopDetached;
+    if (!pop) {
+        pop = document.createElement('div');
+        pop.id = 'rule-step3-gap-pop';
+        pop.setAttribute('role', 'status');
+        ruleStep3GapPopDetached = pop;
+    } else {
+        ruleStep3GapPopDetached = pop;
+    }
+    pop.className = cls;
+    pop.textContent = text;
+    const reattached = !pop.parentNode || pop.parentNode !== area;
+    if (reattached) {
+        area.appendChild(pop);
+    }
+    positionRuleStep3GapHintPop(0);
+}
+
+function positionRuleStep3GapHintPop(delayMs = 0) {
+    const run = () => {
+        const st = getRuleStep3GapHintState();
+        if (!st) {
+            removeRuleStep3GapPopElement();
+            return;
+        }
+        const pop = document.getElementById('rule-step3-gap-pop') || ruleStep3GapPopDetached;
+        const area = document.getElementById('rule-touch-area');
+        const host = document.getElementById('rule-fretboard-container');
+        if (!area || !pop || !host) return;
+        const elA = host.querySelector(
+            `.fret-column[data-string="${st.tA.stringNum}"][data-fret="${st.tA.fret}"]`
+        );
+        const elB = host.querySelector(
+            `.fret-column[data-string="${st.tB.stringNum}"][data-fret="${st.tB.fret}"]`
+        );
+        if (!elA || !elB) return;
+        const edge = ruleStep3PairNoteEdgesViewport(elA, elB);
+        const midVx = (edge.x1 + edge.x2) / 2;
+        const midVy = (edge.y1 + edge.y2) / 2;
+        const areaRect = area.getBoundingClientRect();
+        const midX = midVx - areaRect.left;
+        const midY = midVy - areaRect.top;
+        const w = pop.offsetWidth || (st.variant === 'four' ? 56 : 58);
+        const h = pop.offsetHeight || 22;
+        const leftPx = clamp(
+            Math.round(midX - w / 2),
+            6,
+            Math.max(6, areaRect.width - w - 6)
+        );
+        const topPx = clamp(
+            Math.round(midY - h / 2),
+            4,
+            Math.max(4, areaRect.height - h - 4)
+        );
+        pop.style.position = 'absolute';
+        pop.style.left = `${leftPx}px`;
+        pop.style.top = `${topPx}px`;
+        pop.classList.add('is-positioned');
+    };
+    if (delayMs > 0) {
+        setTimeout(run, delayMs);
+    } else {
+        run();
+    }
+}
+
+/** STEP4-3：ソ→ラで「1フレットずれる」吹き出し（タップインデックス5〜、まとめでは消す） */
+const STEP43_LA_GAP_HINT_FROM_TAP_INDEX = 5;
+
+function ruleStep43GapHintShouldShow() {
+    if (state.rules.step !== 4) return false;
+    const page = clamp(state.rules.page || 0, 0, 99);
+    if (page !== 2) return false;
+    const ph = state.rules.phase;
+    if (ph === 'summary') return false;
+    if (ph !== 'play') return false;
+    return (state.rules.tapIndex || 0) >= STEP43_LA_GAP_HINT_FROM_TAP_INDEX;
+}
+
+function cleanupRuleStep43GapHintSchedule() {
+    ruleStep43GapTimeoutIds.forEach(id => clearTimeout(id));
+    ruleStep43GapTimeoutIds = [];
+    if (ruleStep43GapCleanup) {
+        ruleStep43GapCleanup();
+        ruleStep43GapCleanup = null;
+    }
+}
+
+function removeRuleStep43GapPopElement() {
+    const pop = document.getElementById('rule-step43-gap-pop') || ruleStep43GapPopDetached;
+    if (pop) pop.remove();
+    ruleStep43GapPopDetached = null;
+}
+
+function syncRuleStep43GapHintPop() {
+    const area = document.getElementById('rule-touch-area');
+    if (!ruleStep43GapHintShouldShow() || !area) {
+        removeRuleStep43GapPopElement();
+        return;
+    }
+    let pop = document.getElementById('rule-step43-gap-pop') || ruleStep43GapPopDetached;
+    if (!pop) {
+        pop = document.createElement('div');
+        pop.id = 'rule-step43-gap-pop';
+        pop.setAttribute('role', 'note');
+        ruleStep43GapPopDetached = pop;
+    } else {
+        ruleStep43GapPopDetached = pop;
+    }
+    pop.className = 'rule-step43-gap-pop';
+    pop.textContent = '1フレットずれる';
+    const reattached = !pop.parentNode || pop.parentNode !== area;
+    if (reattached) {
+        area.appendChild(pop);
+    }
+    positionRuleStep43GapHintPop(0);
+}
+
+function positionRuleStep43GapHintPop(delayMs = 0) {
+    const run = () => {
+        if (!ruleStep43GapHintShouldShow()) {
+            removeRuleStep43GapPopElement();
+            return;
+        }
+        const pop = document.getElementById('rule-step43-gap-pop') || ruleStep43GapPopDetached;
+        const area = document.getElementById('rule-touch-area');
+        const host = document.getElementById('rule-fretboard-container');
+        if (!area || !pop || !host) return;
+        /** ラ（2弦10）の音名丸の左隣・被り回避 */
+        const tRa = { stringNum: 2, fret: 10 };
+        const colRa = host.querySelector(
+            `.fret-column[data-string="${tRa.stringNum}"][data-fret="${tRa.fret}"]`
+        );
+        if (!colRa) return;
+        const noteEl = pickRuleFretColumnNoteMarker(colRa);
+        if (!noteEl) return;
+        const r = noteEl.getBoundingClientRect();
+        const areaRect = area.getBoundingClientRect();
+        const gap = 6;
+        pop.style.visibility = 'hidden';
+        pop.style.left = '0';
+        pop.style.top = '0';
+        void pop.offsetWidth;
+        const w = pop.offsetWidth;
+        const h = pop.offsetHeight;
+        let leftPx = Math.round(r.left - areaRect.left - gap - w);
+        let topPx = Math.round(r.top - areaRect.top + (r.height - h) / 2);
+        /** 左に十分な隙間がないときだけ、ノートの上にずらす */
+        if (leftPx < 8) {
+            leftPx = Math.round(r.left - areaRect.left + (r.width - w) / 2);
+            topPx = Math.round(r.top - areaRect.top - h - gap);
+        }
+        leftPx = clamp(leftPx, 6, Math.max(6, areaRect.width - w - 6));
+        topPx = clamp(topPx, 4, Math.max(4, areaRect.height - h - 4));
+        pop.style.visibility = '';
+        pop.style.position = 'absolute';
+        pop.style.left = `${leftPx}px`;
+        pop.style.top = `${topPx}px`;
+        pop.classList.add('is-positioned');
+    };
+    if (delayMs > 0) {
+        setTimeout(run, delayMs);
+    } else {
+        run();
+    }
+}
+
+function scheduleRuleStep43GapHintUpdates() {
+    cleanupRuleStep43GapHintSchedule();
+    if (!ruleStep43GapHintShouldShow()) return;
+    const host = document.getElementById('rule-fretboard-container');
+    const wrapper = host?.querySelector('.fretboard-scroll-wrapper');
+    const update = () => positionRuleStep43GapHintPop(0);
+    [0, 45, 120, 280, 520].forEach(d => {
+        ruleStep43GapTimeoutIds.push(setTimeout(update, d));
+    });
+    if (!wrapper) return;
+    let rafId = null;
+    const onScrollOrResize = () => {
+        if (rafId) return;
+        rafId = requestAnimationFrame(() => {
+            rafId = null;
+            update();
+        });
+    };
+    wrapper.addEventListener('scroll', onScrollOrResize, { passive: true });
+    window.addEventListener('resize', onScrollOrResize);
+    ruleStep43GapCleanup = () => {
+        wrapper.removeEventListener('scroll', onScrollOrResize);
+        window.removeEventListener('resize', onScrollOrResize);
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = null;
+    };
+}
+
+/** STEP1・スライド3（page 2）：半音ペアの下に「半音！」ポップ（DOMは付け替えで維持） */
+function syncRuleStepHalfTonePop() {
+    const pair = getRuleHalfTonePairFromState();
+    const area = document.getElementById('rule-touch-area');
+    if (!pair || !area) {
+        removeRuleHalfTonePopElement();
+        return;
+    }
+    const host = document.getElementById('rule-fretboard-container');
+    if (!host) {
+        removeRuleHalfTonePopElement();
+        return;
+    }
+    let pop = document.getElementById('rule-half-tone-pop') || ruleHalfTonePopDetached;
+    if (!pop) {
+        pop = document.createElement('div');
+        pop.id = 'rule-half-tone-pop';
+        pop.setAttribute('role', 'status');
+        pop.textContent = '半音！';
+        ruleHalfTonePopDetached = pop;
+    } else {
+        ruleHalfTonePopDetached = pop;
+    }
+    pop.className = 'rule-half-tone-pop rule-half-tone-pop--step1-practice';
+    pop.textContent = '半音！';
+    const reattached = !pop.parentNode || pop.parentNode !== area;
+    if (reattached) {
+        area.appendChild(pop);
+        ruleHalfToneLastPair = null;
+        ruleHalfToneLastScroll = -1;
+    }
+    positionRuleHalfTonePop(0);
+}
+
+/** STEP1・page 2：半音ポップを2弦の該当フレット列の直下に置く（同一ペア内はスクロール以外レイアウトしない） */
+function positionRuleHalfTonePop(delayMs = 0) {
+    const run = () => {
+        const pair = getRuleHalfTonePairFromState();
+        const pop = document.getElementById('rule-half-tone-pop') || ruleHalfTonePopDetached;
+        const area = document.getElementById('rule-touch-area');
+        const host = document.getElementById('rule-fretboard-container');
+        if (!pair) {
+            removeRuleHalfTonePopElement();
+            return;
+        }
+        if (!area || !pop || !host) return;
+        const wrapper = host.querySelector('.fretboard-scroll-wrapper');
+        const sc = wrapper ? wrapper.scrollLeft : 0;
+        if (
+            ruleHalfToneLastPair === pair &&
+            Math.abs(ruleHalfToneLastScroll - sc) < 0.5 &&
+            pop.classList.contains('is-positioned')
+        ) {
+            return;
+        }
+        const frets = pair === 'miFa' ? [5, 6] : [12, 13];
+        const c1 = host.querySelector(`.fret-column[data-string="2"][data-fret="${frets[0]}"]`);
+        const c2 = host.querySelector(`.fret-column[data-string="2"][data-fret="${frets[1]}"]`);
+        if (!c1 || !c2) return;
+        const areaRect = area.getBoundingClientRect();
+        const r1 = c1.getBoundingClientRect();
+        const r2 = c2.getBoundingClientRect();
+        const left = Math.min(r1.left, r2.left);
+        const right = Math.max(r1.right, r2.right);
+        const bottom = Math.max(r1.bottom, r2.bottom);
+        const centerX = (left + right) / 2 - areaRect.left;
+        const topY = bottom - areaRect.top + 6;
+        const w = pop.offsetWidth || 72;
+        const h = pop.offsetHeight || 36;
+        const leftPx = clamp(
+            Math.round(centerX - w / 2),
+            6,
+            Math.max(6, areaRect.width - w - 6)
+        );
+        const topPx = clamp(
+            Math.round(topY),
+            4,
+            Math.max(4, areaRect.height - h - 4)
+        );
+        pop.style.position = 'absolute';
+        pop.style.left = `${leftPx}px`;
+        pop.style.top = `${topPx}px`;
+        pop.classList.add('is-positioned');
+        ruleHalfToneLastPair = pair;
+        ruleHalfToneLastScroll = sc;
+    };
+    if (delayMs > 0) {
+        setTimeout(run, delayMs);
+    } else {
+        run();
+    }
+}
+
+function positionRuleFloatingCue(delayMs = 0) {
+    const update = () => {
+        const area = document.getElementById('rule-touch-area');
+        const cue = document.getElementById('rule-floating-cue');
+        const target = document.querySelector('#rule-fretboard-container .rule-next');
+        if (!area || !cue || !target) return;
+        const areaRect = area.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        const cueRect = cue.getBoundingClientRect();
+        const left = clamp(
+            targetRect.left + targetRect.width / 2 - areaRect.left - cueRect.width / 2,
+            8,
+            Math.max(8, areaRect.width - cueRect.width - 8)
+        );
+        const top = clamp(
+            targetRect.top - areaRect.top - cueRect.height - 10,
+            4,
+            Math.max(4, areaRect.height - cueRect.height - 4)
+        );
+        cue.style.left = `${Math.round(left)}px`;
+        cue.style.top = `${Math.round(top)}px`;
+        const arrowLeft = clamp(
+            targetRect.left + targetRect.width / 2 - areaRect.left - left - 6,
+            12,
+            Math.max(12, cueRect.width - 18)
+        );
+        cue.style.setProperty('--rule-cue-arrow-left', `${Math.round(arrowLeft)}px`);
+        cue.classList.add('is-positioned');
+    };
+    if (delayMs > 0) {
+        setTimeout(update, delayMs);
+    } else {
+        update();
+    }
+}
+
+function scheduleRuleFloatingCuePosition() {
+    [0, 80, 180, 320, 520].forEach(delay => {
+        positionRuleFloatingCue(delay);
+        positionRuleHalfTonePop(delay);
+    });
+    const wrapper = document.querySelector('#rule-fretboard-container .fretboard-scroll-wrapper');
+    if (!wrapper) return;
+    if (ruleCueScrollCleanup) ruleCueScrollCleanup();
+    let rafId = null;
+    let cleanupTimer = null;
+    const onScroll = () => {
+        if (rafId) return;
+        rafId = requestAnimationFrame(() => {
+            rafId = null;
+            positionRuleFloatingCue();
+            positionRuleHalfTonePop();
+        });
+    };
+    wrapper.addEventListener('scroll', onScroll, { passive: true });
+    ruleCueScrollCleanup = () => {
+        wrapper.removeEventListener('scroll', onScroll);
+        if (rafId) cancelAnimationFrame(rafId);
+        if (cleanupTimer) clearTimeout(cleanupTimer);
+        ruleCueScrollCleanup = null;
+        positionRuleFloatingCue();
+        positionRuleHalfTonePop();
+    };
+    cleanupTimer = setTimeout(ruleCueScrollCleanup, 1800);
+}
+
+function cleanupRuleStep31PairLine() {
+    ruleStep31LineTimeoutIds.forEach(id => clearTimeout(id));
+    ruleStep31LineTimeoutIds = [];
+    if (ruleStep31LineCleanup) {
+        ruleStep31LineCleanup();
+        ruleStep31LineCleanup = null;
+    }
+    const svg = document.getElementById('rule-step31-pair-line');
+    if (svg) svg.innerHTML = '';
+}
+
+/** STEP3・ペアタップ各スライド：開放へ進んだあと、太い弦と開放を黄線で結ぶ（座標は #rule-fretboard-stack 基準） */
+function updateRuleStep31PairLine() {
+    const svg = document.getElementById('rule-step31-pair-line');
+    const stack = document.getElementById('rule-fretboard-stack');
+    if (!svg || !stack) return;
+    if (state.rules.step !== 3 || state.rules.phase !== 'play') {
+        svg.innerHTML = '';
+        return;
+    }
+    const slides = getRuleSlides(3);
+    const page = clamp(state.rules.page || 0, 0, slides.length - 1);
+    const slide = slides[page];
+    if (!slide || !slide.step3PairTapSequence || slide.step3PairTapHideLineAndGapHint) {
+        svg.innerHTML = '';
+        return;
+    }
+    const targets = getRuleTargetSequence(slide);
+    const idx = state.rules.tapIndex || 0;
+    if (idx % 2 === 0) {
+        svg.innerHTML = '';
+        return;
+    }
+    const tA = targets[idx - 1];
+    const tB = targets[idx];
+    if (!tA || !tB) return;
+    const elA = document.querySelector(
+        `#rule-fretboard-container .fret-column[data-string="${tA.stringNum}"][data-fret="${tA.fret}"]`
+    );
+    const elB = document.querySelector(
+        `#rule-fretboard-container .fret-column[data-string="${tB.stringNum}"][data-fret="${tB.fret}"]`
+    );
+    if (!elA || !elB) return;
+    const edgeV = ruleStep3PairNoteEdgesViewport(elA, elB);
+    const sb = stack.getBoundingClientRect();
+    const x1 = edgeV.x1 - sb.left;
+    const y1 = edgeV.y1 - sb.top;
+    const x2 = edgeV.x2 - sb.left;
+    const y2 = edgeV.y2 - sb.top;
+    const w = Math.max(1, Math.round(stack.clientWidth));
+    const h = Math.max(1, Math.round(stack.clientHeight));
+    svg.setAttribute('width', String(w));
+    svg.setAttribute('height', String(h));
+    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    svg.innerHTML = `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" />`;
+}
+
+function scheduleRuleStep31PairLineUpdates() {
+    cleanupRuleStep31PairLine();
+    if (state.rules.step !== 3) return;
+    const slides = getRuleSlides(3);
+    const page = clamp(state.rules.page || 0, 0, slides.length - 1);
+    const slide = slides[page];
+    if (!slide || !slide.step3PairTapSequence || slide.step3PairTapHideLineAndGapHint) return;
+    const update = () => {
+        updateRuleStep31PairLine();
+        positionRuleStep3GapHintPop(0);
+    };
+    [0, 45, 120, 280, 520].forEach(d => {
+        ruleStep31LineTimeoutIds.push(setTimeout(update, d));
+    });
+    const wrapper = document.querySelector('#rule-fretboard-container .fretboard-scroll-wrapper');
+    if (!wrapper) return;
+    let rafId = null;
+    const onScrollOrResize = () => {
+        if (rafId) return;
+        rafId = requestAnimationFrame(() => {
+            rafId = null;
+            update();
+        });
+    };
+    wrapper.addEventListener('scroll', onScrollOrResize, { passive: true });
+    window.addEventListener('resize', onScrollOrResize);
+    ruleStep31LineCleanup = () => {
+        wrapper.removeEventListener('scroll', onScrollOrResize);
+        window.removeEventListener('resize', onScrollOrResize);
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = null;
+        ruleStep31LineCleanup = null;
+        const svg = document.getElementById('rule-step31-pair-line');
+        if (svg) svg.innerHTML = '';
+    };
+}
+
 function renderStageSelect(app) {
     app.innerHTML = `
-        <header style="padding-top: 10px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 20px;">
-                <button class="icon-btn" id="btn-back">◀ モード選択</button>
-                <h2 style="font-size: 1.5rem; margin:0;">ステージ選択</h2>
-                <button class="icon-btn" id="btn-settings-stage" style="font-size: 1.5rem; background: none; border: none; padding: 0; cursor: pointer;" title="設定">⚙️</button>
-            </div>
-        </header>
+        ${buildPageHeader({
+            headerClass: 'page-header--stage-select',
+            titleText: 'ステージ選択',
+            leftHtml: `
+                ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+                ${navButtonHtml({ id: 'btn-home-stage', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
+            `,
+            rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-stage" aria-label="設定">⚙️</button>`
+        })}
         <div class="stage-list">
             <button class="stage-btn" data-stage="1">STAGE 1<span class="stage-desc">開放弦〜3フレット (#なし)</span></button>
             <button class="stage-btn" data-stage="2">STAGE 2<span class="stage-desc">開放弦〜5フレット (#なし)</span></button>
@@ -1069,6 +3612,12 @@ function renderStageSelect(app) {
 
     document.getElementById('btn-back').onclick = () => {
         state.course = 'modeSelect';
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-home-stage').onclick = () => {
+        state.course = null;
         saveState();
         renderApp();
     };
@@ -1187,12 +3736,31 @@ function renderMemorize(app) {
 
     if (state.memorize.isCleared) {
         app.innerHTML = `
-            <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh; text-align:center;">
-                <h1 style="color:var(--primary-color); font-size:3rem; margin-bottom:20px;">CLEAR!</h1>
-                <p style="font-size:1.2rem; margin-bottom:30px;">ルート制覇おめでとうございます！</p>
-                <button class="btn-primary" id="btn-back-clear" style="padding:15px 30px; font-size:1.2rem;">ステージ選択へ戻る</button>
+            <div class="${memorizeRootClass}">
+                ${buildPageHeader({
+                    titleText: 'クリア',
+                    leftHtml: `
+                        ${navButtonHtml({ id: 'btn-back-clear-top', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+                        ${navButtonHtml({ id: 'btn-home-clear', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
+                    `
+                })}
+                <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh; text-align:center;">
+                    <h1 style="color:var(--primary-color); font-size:3rem; margin-bottom:20px;">CLEAR!</h1>
+                    <p style="font-size:1.2rem; margin-bottom:30px;">ルート制覇おめでとうございます！</p>
+                    <button class="btn-primary" id="btn-back-clear" style="padding:15px 30px; font-size:1.2rem;">ステージ選択へ戻る</button>
+                </div>
             </div>
         `;
+        document.getElementById('btn-home-clear').onclick = () => {
+            state.course = null;
+            saveState();
+            renderApp();
+        };
+        document.getElementById('btn-back-clear-top').onclick = () => {
+            state.course = 'stageSelect';
+            saveState();
+            renderApp();
+        };
         document.getElementById('btn-back-clear').onclick = () => {
             state.course = 'stageSelect';
             saveState();
@@ -1225,20 +3793,24 @@ function renderMemorize(app) {
     const memorizeRootClass = memorizeLand
         ? 'memorize-screen memorize-screen--landscape'
         : 'memorize-screen';
+    const memorizeQuestionLabel = q ? getMemorizeQuestionLabel(q.noteIdx) : '';
 
     app.innerHTML = `
         <div class="${memorizeRootClass}" data-fretboard-view="${state.settings.fretboardView}">
-            <header class="memorize-header">
-                <div class="memorize-top-row ${isCruise ? 'memorize-top-row--cruise-only' : ''}">
-                    <button class="icon-btn" id="btn-back">◀ ステージ</button>
-                    ${quizTimerHtml}
-                </div>
-            </header>
+            ${buildPageHeader({
+                titleText: '',
+                headerClass: 'page-header--memorize',
+                leftHtml: `
+                    ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+                    ${navButtonHtml({ id: 'btn-home-memorize', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
+                `,
+                rightHtml: quizTimerHtml
+            })}
             <div class="memorize-body-stack">
                 <div class="memorize-copy-block">
                     <div class="memorize-question-row">
                         ${stageStatsHtml}
-                        <div class="question-text memorize-question memorize-question-main">${q.stringName}弦 の <span class="memorize-question-note" style="color: var(--primary-color);">${q.noteName}</span> ${isCruise ? 'をタップ！' : 'を探せ！'}</div>
+                        <div class="question-text memorize-question memorize-question-main">${q.stringName}弦 の <span class="memorize-question-note" style="color: var(--primary-color);">${memorizeQuestionLabel}</span> ${isCruise ? 'をタップ！' : 'を探せ！'}</div>
                     </div>
                     <div id="feedback" class="${fbClass} memorize-feedback">${fbText}</div>
                 </div>
@@ -1252,6 +3824,14 @@ function renderMemorize(app) {
         stopRhythm();
         stopQuizTimer();
         state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-home-memorize').onclick = () => {
+        stopRhythm();
+        stopQuizTimer();
+        state.course = null;
         saveState();
         renderApp();
     };
@@ -1553,6 +4133,7 @@ function renderVisualize(app) {
     if (typeof state.visualize.scale === 'undefined') state.visualize.scale = 'major';
     if (typeof state.visualize.selectedChordIndex === 'undefined') state.visualize.selectedChordIndex = null;
     if (typeof state.visualize.doMode === 'undefined') state.visualize.doMode = 'movable';
+    if (typeof state.visualize.showExtendedFrets === 'undefined') state.visualize.showExtendedFrets = false;
 
     const chords = getDiatonicChordsForKey(state.visualize.key, state.visualize.scale, state.visualize.chordType === '7');
     const chordButtonsHtml = chords.map((chord, idx) => {
@@ -1562,13 +4143,13 @@ function renderVisualize(app) {
     }).join('');
 
     app.innerHTML = `
-        <header style="padding-top: 10px; margin-bottom: 0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                <button class="icon-btn" id="btn-back">◀ ホーム</button>
-                <h2 style="font-size: 1.5rem; margin:0; flex:1; text-align:center;">自由探索モード</h2>
-                <button class="icon-btn" id="btn-settings-visualize" style="font-size: 1.5rem; background: none; border: none; padding: 0; cursor: pointer;" title="設定">⚙️</button>
-            </div>
-        </header>
+        ${buildPageHeader({
+            titleText: '指板を探索する',
+            leftHtml: `
+                ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+            `,
+            rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-visualize" aria-label="設定">⚙️</button>`
+        })}
 
         <div class="setup-panel">
             <div class="setup-item">
@@ -1604,6 +4185,11 @@ function renderVisualize(app) {
                     <button type="button" class="do-mode-btn ${state.visualize.doMode==='movable'?'active':''}" data-do-mode="movable">移動ド</button>
                     <button type="button" class="do-mode-btn ${state.visualize.doMode==='fixed'?'active':''}" data-do-mode="fixed">固定ド</button>
                 </div>
+            </div>
+            <div class="setup-item setup-item--wide">
+                <button type="button" id="vis-extended-frets" class="extended-frets-btn ${state.visualize.showExtendedFrets ? 'active' : ''}" aria-pressed="${state.visualize.showExtendedFrets ? 'true' : 'false'}">
+                    13フレット以降を表示
+                </button>
             </div>
         </div>
 
@@ -1672,6 +4258,13 @@ function renderVisualize(app) {
         };
     });
 
+    document.getElementById('vis-extended-frets').onclick = () => {
+        state.visualize.showExtendedFrets = !state.visualize.showExtendedFrets;
+        currentScrollLeft = 0;
+        saveState();
+        renderApp();
+    };
+
     document.querySelectorAll('.chord-type-btn').forEach(btn => {
         btn.onclick = () => {
             state.visualize.chordType = btn.getAttribute('data-chord-type');
@@ -1711,16 +4304,25 @@ function renderSettings(app) {
     const settingsDocumentHandlers = [];
     const settingsSnapshot = cloneSettings(state.settings);
     app.innerHTML = `
-        <header style="padding-top: 10px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:20px;">
-                <button class="icon-btn" id="btn-back-settings">◀ 戻る</button>
-                <h2 style="font-size:1.5rem; margin:0;">設定</h2>
-                <div style="width:80px;"></div>
-            </div>
-        </header>
+        <div class="settings-screen">
+        ${buildPageHeader({
+            titleText: '設定',
+            titleClass: 'settings-screen-title',
+            leftHtml: `
+                ${navButtonHtml({ id: 'btn-back-settings', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+                ${navButtonHtml({ id: 'btn-home-settings', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
+            `
+        })}
 
+        <div class="settings-page-stack settings-page-stack--proposed">
         <div class="settings-card">
-            <h3 class="settings-card-title">クルージングモードのテンポ</h3>
+            <div class="settings-card-header">
+                <div class="settings-card-title-wrap">
+                    <h3 class="settings-card-title">テンポ</h3>
+                    <span class="settings-card-subtitle">クルージングモード</span>
+                </div>
+                <button class="settings-card-reset-btn" type="button" data-reset-card="tempo">リセット</button>
+            </div>
             <div class="settings-value-row">
                 <span>遅い</span>
                 <span class="settings-value-badge" id="tempo-display">BPM ${state.settings.tempo}</span>
@@ -1730,7 +4332,13 @@ function renderSettings(app) {
         </div>
 
         <div class="settings-card">
-            <h3 class="settings-card-title">問題モードの制限時間</h3>
+            <div class="settings-card-header">
+                <div class="settings-card-title-wrap">
+                    <h3 class="settings-card-title">制限時間</h3>
+                    <span class="settings-card-subtitle">問題モード</span>
+                </div>
+                <button class="settings-card-reset-btn" type="button" data-reset-card="timer">リセット</button>
+            </div>
             <div class="settings-value-row">
                 <span>短い</span>
                 <span class="settings-value-badge" id="timer-display">${state.settings.quizTimeLimit} 秒</span>
@@ -1740,7 +4348,24 @@ function renderSettings(app) {
         </div>
 
         <div class="settings-card">
-            <h3 class="settings-card-title">指板の視点</h3>
+            <div class="settings-card-header">
+                <div class="settings-card-title-wrap">
+                    <h3 class="settings-card-title">表記</h3>
+                    <span class="settings-card-subtitle">共通</span>
+                </div>
+            </div>
+            <div class="mode-buttons settings-notation-buttons">
+                <button class="mode-btn ${state.settings.noteLabelMode === 'solfege' ? 'active' : ''}" data-notation-mode="solfege">ドレミ</button>
+                <button class="mode-btn ${state.settings.noteLabelMode === 'note' ? 'active' : ''}" data-notation-mode="note">CDE</button>
+            </div>
+            <p class="settings-note settings-note--animated visible" style="margin-top:10px;">覚えるコースの指板に反映されます。</p>
+        </div>
+
+        <div class="settings-card">
+            <div class="settings-card-header">
+                <h3 class="settings-card-title">指板の視点</h3>
+                <button class="settings-card-reset-btn" type="button" data-reset-card="view">リセット</button>
+            </div>
 
             <div class="settings-preview-area">
                 <div class="settings-preview-clip">
@@ -1755,11 +4380,11 @@ function renderSettings(app) {
                 <div class="settings-row-between" style="margin-bottom:10px;">
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <label for="fretboard-orientation-auto" class="settings-label" style="cursor:pointer;">画面の向きで自動切替</label>
-                        <button class="settings-help-btn" data-target="note-orientation" style="background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; font-size: 1.2rem; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%; flex-shrink: 0;">⊕</button>
+                        <button class="settings-help-btn" type="button" data-target="note-orientation" aria-label="説明を表示">⊕</button>
                     </div>
                     <input type="checkbox" id="fretboard-orientation-auto" class="settings-checkbox-native" ${state.settings.fretboardViewAutoOrientation ? 'checked' : ''}>
                 </div>
-                <p class="settings-note" id="note-orientation" style="margin: 0; margin-top: 8px;">オンにすると、横持ちでは全体ビュー、縦持ちでは拡大ビューになります。オフのときは下のボタンで選べます。</p>
+                <p class="settings-note settings-note--animated" id="note-orientation">オンにすると、横持ちでは全体ビュー、縦持ちでは拡大ビューになります。オフのときは下のボタンで選べます。</p>
                 <div class="settings-view-buttons">
                     <button class="settings-view-btn ${state.settings.fretboardView === 'full' ? 'active' : ''}" data-view="full" ${state.settings.fretboardViewAutoOrientation ? 'disabled' : ''}>全体ビュー</button>
                     <button class="settings-view-btn ${state.settings.fretboardView === 'zoom' ? 'active' : ''}" data-view="zoom" ${state.settings.fretboardViewAutoOrientation ? 'disabled' : ''}>拡大ビュー</button>
@@ -1831,18 +4456,18 @@ function renderSettings(app) {
 	                        <span class="settings-value-badge-sm" id="string-spacing-display">${state.settings.stringSpacing}%</span>
 	                        <button class="settings-reset-btn" data-reset="string-spacing">初期値</button>
 	                    </div>
-	                </div>
+                </div>
                 <input type="range" id="string-spacing-slider" min="80" max="150" step="1" value="${state.settings.stringSpacing}" class="settings-range">
             </div>
-	        </div>
-	        <div class="settings-actions-footer">
-	            <button class="settings-bottom-btn settings-apply-btn" id="btn-settings-apply">決定</button>
-	            <div class="settings-secondary-actions">
-	                <button class="btn-secondary settings-bottom-btn" id="btn-settings-cancel">キャンセル</button>
-	                <button class="btn-secondary settings-bottom-btn settings-danger-btn" id="btn-settings-defaults">全ての項目をデフォルトに戻す</button>
-	            </div>
-	        </div>
-	        <div style="height: 200px;"></div>
+        </div>
+        <div class="settings-actions-footer settings-actions-footer--proposed">
+            <button class="settings-bottom-btn settings-apply-btn" id="btn-settings-apply">決定</button>
+            <div class="settings-secondary-actions">
+                <button class="btn-secondary settings-bottom-btn" id="btn-settings-cancel">キャンセル</button>
+                <button class="btn-secondary settings-bottom-btn settings-danger-btn" id="btn-settings-defaults">全てリセット</button>
+            </div>
+        </div>
+        </div>
 	    `;
 
     // Attach help button listeners
@@ -1857,16 +4482,45 @@ function renderSettings(app) {
         };
     });
 
-    const closeSettings = (shouldSave) => {
+    const cardResetButtons = document.querySelectorAll('.settings-card-reset-btn');
+    cardResetButtons.forEach(button => {
+        button.onclick = () => {
+            const resetCard = button.getAttribute('data-reset-card');
+            if (resetCard === 'tempo') {
+                state.settings.tempo = DEFAULT_TEMPO;
+                refreshSettingsControls();
+                return;
+            }
+            if (resetCard === 'timer') {
+                state.settings.quizTimeLimit = DEFAULT_QUIZ_TIME_LIMIT;
+                refreshSettingsControls();
+                return;
+            }
+            if (resetCard === 'view') {
+                state.settings.fretboardViewAutoOrientation = DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION;
+                state.settings.fretboardView = DEFAULT_FRETBOARD_VIEW;
+                state.settings.viewMode = 'front';
+                state.settings.rotation = { ...DEFAULT_ROTATION };
+                state.settings.perspective = DEFAULT_VERTICAL_PERSPECTIVE;
+                state.settings.perspOriginX = DEFAULT_HORIZONTAL_PERSPECTIVE;
+                state.settings.stringSpacing = DEFAULT_STRING_SPACING;
+                applyFretboardViewFromOrientationIfAuto();
+                refreshSettingsControls();
+            }
+        };
+    });
+
+    const closeSettings = (shouldSave, targetCourse = settingsReturnCourse) => {
         if (!shouldSave) {
             state.settings = cloneSettings(settingsSnapshot);
         }
-        state.course = settingsReturnCourse;
+        state.course = targetCourse;
         settingsReturnCourse = null;
         saveState();
         renderApp();
     };
 
+    document.getElementById('btn-home-settings').onclick = () => closeSettings(true, null);
     document.getElementById('btn-back-settings').onclick = () => closeSettings(true);
     document.getElementById('btn-settings-cancel').onclick = () => closeSettings(false);
     document.getElementById('btn-settings-apply').onclick = () => closeSettings(true);
@@ -1884,6 +4538,15 @@ function renderSettings(app) {
         state.settings.quizTimeLimit = parseInt(e.target.value);
         timerDisplay.textContent = `${state.settings.quizTimeLimit} 秒`;
     };
+
+    document.querySelectorAll('.settings-notation-buttons .mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            state.settings.noteLabelMode = btn.getAttribute('data-notation-mode');
+            syncNotationSettingsUI();
+            saveState();
+            renderApp();
+        };
+    });
 
     const updatePreview = () => {
         renderFretboardHTML('tilt-preview-container', {
@@ -1931,11 +4594,19 @@ function renderSettings(app) {
         });
     }
 
+    function syncNotationSettingsUI() {
+        document.querySelectorAll('.settings-notation-buttons .mode-btn').forEach(b => {
+            const mode = b.getAttribute('data-notation-mode');
+            b.classList.toggle('active', mode === state.settings.noteLabelMode);
+        });
+    }
+
     function refreshSettingsControls() {
         tempoSlider.value = state.settings.tempo;
         tempoDisplay.textContent = `BPM ${state.settings.tempo}`;
         timerSlider.value = state.settings.quizTimeLimit;
         timerDisplay.textContent = `${state.settings.quizTimeLimit} 秒`;
+        syncNotationSettingsUI();
         perspSlider.value = state.settings.perspective;
         perspOriginSlider.value = state.settings.perspOriginX;
         stringSpacingSlider.value = state.settings.stringSpacing;
@@ -1977,7 +4648,11 @@ function renderSettings(app) {
             const clipEl = document.querySelector('.settings-preview-clip');
             const clipW = clipEl ? clipEl.offsetWidth : 360;
             const clipH = clipEl ? clipEl.offsetHeight : 180;
-            const projectedBounds = getProjectedFretboardBounds(getNeckYBounds().top, getNeckYBounds().bottom);
+            const projectedBounds = getProjectedFretboardBounds(
+                getNeckYBounds().top,
+                getNeckYBounds().bottom,
+                DEFAULT_VISIBLE_MAX_FRET
+            );
             const isZoomPreview = state.settings.fretboardView === 'zoom';
             const zoomFretWidth = FRET_WIDTHS[0] * 5.2;
             let scale = isZoomPreview
@@ -2171,14 +4846,130 @@ function renderSettings(app) {
     app.style.height = '100vh';
     app.style.overflowY = 'auto';
     app.style.overflowX = 'hidden';
+    app.style.gap = '0';
+    app.style.alignItems = 'stretch';
+    app.style.paddingBottom = 'calc(var(--in-game-refresh-stack-height, 96px) + max(8px, env(safe-area-inset-bottom)))';
+}
+
+function getHighestFretFromPositions(positions) {
+    if (!Array.isArray(positions)) return 0;
+    return positions.reduce((max, item) => {
+        if (!item) return max;
+        let fret = typeof item.fret === 'number' ? item.fret : 0;
+        if (Array.isArray(item.acceptedPositions)) {
+            fret = Math.max(fret, getHighestFretFromPositions(item.acceptedPositions));
+        }
+        return Math.max(max, fret);
+    }, 0);
+}
+
+function getRenderMaxFret(mode, options) {
+    if (mode === 'visualize') {
+        return state.visualize.showExtendedFrets ? EXTENDED_VISIBLE_MAX_FRET : DEFAULT_VISIBLE_MAX_FRET;
+    }
+
+    let maxFret = DEFAULT_VISIBLE_MAX_FRET;
+
+    if (mode === 'rule') {
+        maxFret = Math.max(maxFret, getHighestFretFromPositions(options.ruleMarkers));
+        if (Array.isArray(options.ruleStep3TapFitFretRange)) {
+            maxFret = Math.max(maxFret, options.ruleStep3TapFitFretRange[1] || 0);
+        }
+        if (Array.isArray(options.ruleTapLayoutZoomFitFloatRange)) {
+            maxFret = Math.max(maxFret, Math.ceil(options.ruleTapLayoutZoomFitFloatRange[1] || 0));
+        }
+    } else if (mode === 'memorize') {
+        maxFret = Math.max(
+            maxFret,
+            options.question && typeof options.question.fret === 'number' ? options.question.fret : 0,
+            getHighestFretFromPositions(state.memorize.cruiseTargets),
+            getHighestFretFromPositions(state.memorize.cruiseScope)
+        );
+    }
+
+    return clamp(Math.floor(maxFret), DEFAULT_VISIBLE_MAX_FRET, MAX_FRET);
 }
 
 function renderFretboardHTML(containerId, options) {
     const {
         mode, question, showAnswer, clicked, onFretClick,
         keyIndex, capo, displayMode, scale, selectedChordIndex,
-        doMode: doModeOpt, chordType, autoSelectRootChord
+        doMode: doModeOpt, chordType, autoSelectRootChord,         ruleMarkers,
+        rulePitchToneByAccidental = false,
+        ruleTapCueBesideNote = false,
+        /** true のとき音名マーカーはそのまま、吹き出しだけ上に絶対配置 */
+        ruleTapCueBubbleAboveNote = false,
+        ruleStep2DegreeColors = false,
+        /**
+         * STEP3 などルール指板：false でオフ。[最小F, 最大F] の範囲幅に合わせてスケールする（両端含む）。
+         * ペアタップでは render 側で [0, 5] などを渡す。
+         */
+        ruleStep3TapFitFretRange = false,
+        /** true のときだけ黄線 SVG の追従を開始（ペアタップ専用） */
+        ruleStep3PairTapLine = false,
+        /** ルール指板：true のとき拡大ビューで横スクロールを出さず画角を固定 */
+        ruleTapLayoutLockScroll = false,
+        /** [fretLo, fretHi] 小数可。横幅フィットに使う（開放側・高F側を半分見切る等） */
+        ruleTapLayoutZoomFitFloatRange = null,
+        /** 1 より大きいと横幅の許容量を広げ、同じ画角でもさらに拡大 */
+        ruleTapLayoutZoomExtra = 1,
+        /** 指定時はルール指板ズームの初期横スクロールをこのフレット列基準にする（STEP4 共通ズーム用） */
+        ruleTapZoomScrollAnchorFret = null,
+        /** true のとき拡大ビューの次ターゲットへの横スクロールをゆっくり動かす */
+        ruleSlowAutoScrollToNext = false,
+        /** STEP5 実践：「いま光っているマス」の音名横にチェック（チェックで光らせない） */
+        ruleStep5ExcludeInlineCheckboxes = false,
+        /** STEP5：スタート地点はチェックで除外しない（その弦フレット） */
+        ruleStep5AnchorDisableSlot = null,
+        /** STEP5：このスライド用の除外マップ（null 時は step5ExcludedSlots のみ参照） */
+        ruleStep5ExcludedSlotsLookup = null
     } = options;
+    let step3TapRange = null;
+    if (
+        ruleStep3TapFitFretRange !== false &&
+        Array.isArray(ruleStep3TapFitFretRange) &&
+        ruleStep3TapFitFretRange.length === 2
+    ) {
+        let lo = clamp(Math.floor(ruleStep3TapFitFretRange[0]), 0, MAX_FRET);
+        let hi = clamp(Math.floor(ruleStep3TapFitFretRange[1]), 0, MAX_FRET);
+        if (lo > hi) {
+            const t = lo;
+            lo = hi;
+            hi = t;
+        }
+        step3TapRange = [lo, hi];
+    }
+    let step3TapFloatRange = null;
+    if (Array.isArray(ruleTapLayoutZoomFitFloatRange) && ruleTapLayoutZoomFitFloatRange.length === 2) {
+        let lo = Number(ruleTapLayoutZoomFitFloatRange[0]);
+        let hi = Number(ruleTapLayoutZoomFitFloatRange[1]);
+        if (Number.isFinite(lo) && Number.isFinite(hi)) {
+            if (lo > hi) {
+                const t = lo;
+                lo = hi;
+                hi = t;
+            }
+            step3TapFloatRange = [lo, hi];
+        }
+    }
+    const ruleTapZoomMul =
+        typeof ruleTapLayoutZoomExtra === 'number' && ruleTapLayoutZoomExtra > 0
+            ? ruleTapLayoutZoomExtra
+            : 1;
+    const renderMaxFret = getRenderMaxFret(mode, options);
+    const isRuleMode = mode === 'rule';
+    const ruleViewSnapshot = isRuleMode ? {
+        rotation: { ...(state.settings.rotation || DEFAULT_ROTATION) },
+        perspective: state.settings.perspective,
+        perspOriginX: state.settings.perspOriginX,
+        stringSpacing: state.settings.stringSpacing
+    } : null;
+    if (isRuleMode) {
+        state.settings.rotation = { ...DEFAULT_ROTATION };
+        state.settings.perspective = DEFAULT_VERTICAL_PERSPECTIVE;
+        state.settings.perspOriginX = DEFAULT_HORIZONTAL_PERSPECTIVE;
+        state.settings.stringSpacing = DEFAULT_STRING_SPACING;
+    }
     const doMode = doModeOpt || 'movable';
     const use7Chords = chordType === '7';
 
@@ -2201,17 +4992,20 @@ function renderFretboardHTML(containerId, options) {
     let containerClass = 'fretboard-container view-custom';
     const xEdges = getFretXEdges();
     const stringOrder = [1, 2, 3, 4, 5, 6];
+    const ruleMarkerMap = new Map((ruleMarkers || []).map(marker => [`${marker.stringNum}-${marker.fret}`, marker]));
     
     const neckBounds = getNeckYBounds();
     const neckTop = neckBounds.top;
     const neckBottom = neckBounds.bottom;
 
     const scrollWrapperClass =
-        mode === 'visualize'
+        mode === 'visualize' || mode === 'rule'
             ? 'fretboard-scroll-wrapper fretboard-scroll-wrapper--visualize'
             : 'fretboard-scroll-wrapper';
     const scrollGroupAttr =
-        containerId === 'fretboard-container' ? ` data-scroll-group="${mode}"` : '';
+        (containerId === 'fretboard-container' || (mode === 'rule' && containerId === 'rule-fretboard-container'))
+            ? ` data-scroll-group="${mode}"`
+            : '';
     let html = `<div class="${scrollWrapperClass}"${scrollGroupAttr}>`;
     html += `<div class="fretboard-perspective-wrapper" style="perspective: ${p_px}px; perspective-origin: 50% 50%; transform-style: preserve-3d;">`;
     html += `<div class="${containerClass}" style="transform: none;">`;
@@ -2285,7 +5079,7 @@ function renderFretboardHTML(containerId, options) {
         const dx = clamp((-r.y * 0.45) + (r.z * 0.08), -34, 34);
         const dyMagnitude = clamp(16 + (Math.abs(r.x) * 0.24), 12, 38);
         const dy = (r.x >= 0 ? 1 : -1) * dyMagnitude;
-        const depthEdges = xEdges.slice(1);
+        const depthEdges = xEdges.slice(1, renderMaxFret + 2);
         const frontTop = depthEdges.map(x => projectPoint(x, neckTop + edgeH, FRETBOARD_SURFACE_Z));
         const frontBottom = depthEdges.map(x => projectPoint(x, neckBottom - edgeH, FRETBOARD_SURFACE_Z));
         const backTop = frontTop.map(p => ({ x: p.x + dx, y: p.y + dy }));
@@ -2312,7 +5106,7 @@ function renderFretboardHTML(containerId, options) {
         html += `<polygon points="${trebleSidePoly}" fill="url(#${sideGradientId})"></polygon>`;
     }
 
-    const boardEdges = xEdges.slice(1);
+    const boardEdges = xEdges.slice(1, renderMaxFret + 2);
     const projectedWood = buildProjectedBandPolygon(neckTop + edgeH, neckBottom - edgeH, FRETBOARD_SURFACE_Z, boardEdges);
     const projectedTopEdge = buildProjectedBandPolygon(neckTop, neckTop + edgeH, FRETBOARD_SURFACE_Z, boardEdges);
     const projectedBottomEdge = buildProjectedBandPolygon(neckBottom - edgeH, neckBottom, FRETBOARD_SURFACE_Z, boardEdges);
@@ -2326,7 +5120,7 @@ function renderFretboardHTML(containerId, options) {
         ...[3, 5, 7, 9].map(f => ({ fret: f, y: FRETBOARD_CENTER_Y })),
         { fret: 12, y: FRETBOARD_CENTER_Y },
         { fret: 12, y: (getStringOriginalY(1) + getStringOriginalY(4)) / 2 }
-    ];
+    ].filter(dot => dot.fret <= renderMaxFret);
     dotPoints.forEach(dot => {
         const x = (xEdges[dot.fret] + xEdges[dot.fret + 1]) / 2;
         const p = projectPoint(x, dot.y, FRET_DOT_Z);
@@ -2336,7 +5130,7 @@ function renderFretboardHTML(containerId, options) {
     stringOrder.forEach((stringNum, rowIndex) => {
         const originalY = getStringOriginalY(rowIndex);
         const stringClass = hasHighlight && stringNum !== question.stringName ? 'projected-string dimmed' : (hasHighlight ? 'projected-string highlighted' : 'projected-string');
-        for (let i = 0; i < xEdges.length - 1; i++) {
+        for (let i = 0; i <= renderMaxFret; i++) {
             const p1 = projectPoint(xEdges[i], originalY, STRING_Z);
             const p2 = projectPoint(xEdges[i + 1], originalY, STRING_Z);
             const strokeWidth = getStringThickness(stringNum) * ((p1.scale + p2.scale) / 2);
@@ -2344,7 +5138,7 @@ function renderFretboardHTML(containerId, options) {
         }
     });
 
-    xEdges.forEach((x, index) => {
+    xEdges.slice(0, renderMaxFret + 2).forEach((x, index) => {
         if (index === 0) return; // remove fret wire left of open strings
         const topPoint = projectPoint(x, neckTop, FRETBOARD_SURFACE_Z);
         const bottomPoint = projectPoint(x, neckBottom, FRETBOARD_SURFACE_Z);
@@ -2354,7 +5148,7 @@ function renderFretboardHTML(containerId, options) {
         html += `<line class="${wireClass}" x1="${topPoint.x.toFixed(2)}" y1="${topPoint.y.toFixed(2)}" x2="${bottomPoint.x.toFixed(2)}" y2="${bottomPoint.y.toFixed(2)}" stroke="url(#${gradId})" stroke-width="${wireWidth}"></line>`;
     });
 
-    for (let f = 0; f <= MAX_FRET; f++) {
+    for (let f = 0; f <= renderMaxFret; f++) {
         if (f === 0) continue;
         const x = (xEdges[f] + xEdges[f + 1]) / 2;
         const labelY = f === 0
@@ -2372,7 +5166,7 @@ function renderFretboardHTML(containerId, options) {
         let stringNum = stringOrder[rowIndex];
         let stringIdx = 6 - stringNum;
 
-        for (let f = 0; f <= MAX_FRET; f++) {
+        for (let f = 0; f <= renderMaxFret; f++) {
             let noteIdx = (OPEN_STRINGS[stringIdx] + f) % 12;
             let markerHtml = '';
             
@@ -2399,11 +5193,11 @@ function renderFretboardHTML(containerId, options) {
                     let isScope = state.memorize.cruiseScope.some(t => t.stringName === stringNum && t.fret === f);
                     let isNextCruise = nextCruiseTarget && stringNum === nextCruiseTarget.stringName && f === nextCruiseTarget.fret && !isTargetCruise;
                     if (isTargetCruise) {
-                        markerHtml = `<div class="note-marker target-note correct-note">${NOTES[noteIdx]}</div>`;
+                        markerHtml = `<div class="note-marker target-note correct-note">${getNotationLabel(noteIdx)}</div>`;
                     } else if (isNextCruise) {
-                        markerHtml = `<div class="note-marker target-note next-note">${NOTES[noteIdx]}</div>`;
+                        markerHtml = `<div class="note-marker target-note next-note">${getNotationLabel(noteIdx)}</div>`;
                     } else if (isScope) {
-                        markerHtml = `<div class="note-marker target-note grey-note">${NOTES[noteIdx]}</div>`;
+                        markerHtml = `<div class="note-marker target-note grey-note">${getNotationLabel(noteIdx)}</div>`;
                     } else {
                         markerHtml = `<div class="note-marker hidden-note"></div>`;
                     }
@@ -2411,11 +5205,11 @@ function renderFretboardHTML(containerId, options) {
                     // Quiz mode
                     if (showAnswer) {
                         if (isTargetQuiz && isClicked) {
-                            markerHtml = `<div class="note-marker target-note correct-note">${NOTES[noteIdx]}</div>`;
+                            markerHtml = `<div class="note-marker target-note correct-note">${getNotationLabel(noteIdx)}</div>`;
                         } else if (isTargetQuiz) {
-                            markerHtml = `<div class="note-marker target-note correct-note">${NOTES[noteIdx]}</div>`;
+                            markerHtml = `<div class="note-marker target-note correct-note">${getNotationLabel(noteIdx)}</div>`;
                         } else if (isClicked && !clicked.isCorrect) {
-                            markerHtml = `<div class="note-marker target-note wrong-note">${NOTES[noteIdx]}</div>`;
+                            markerHtml = `<div class="note-marker target-note wrong-note">${getNotationLabel(noteIdx)}</div>`;
                         } else {
                             markerHtml = `<div class="note-marker hidden-note"></div>`;
                         }
@@ -2474,6 +5268,32 @@ function renderFretboardHTML(containerId, options) {
                         markerHtml = `<div class="note-marker ${roleClass}">${label}</div>`;
                     }
                 }
+            } else if (mode === 'rule') {
+                const ruleMarker = ruleMarkerMap.get(`${stringNum}-${f}`);
+                if (ruleMarker) {
+                    const markerAriaLabel = `${stringNum}弦 ${f}フレット ${ruleMarker.label}`;
+                    const rc = ruleMarker.className || 'rule-scale';
+                    const ruleNIdx = typeof ruleMarker.noteIdx === 'number'
+                        ? ruleMarker.noteIdx
+                        : (OPEN_STRINGS[6 - ruleMarker.stringNum] + f) % 12;
+                    const hasRuleNext = rc.includes('rule-next');
+                    let innerMarkerClass;
+                    if (ruleStep2DegreeColors) {
+                        const degCls = getRuleStep2CMajorDegreeClass(ruleNIdx);
+                        innerMarkerClass = `${degCls}${hasRuleNext ? ' rule-next' : ''}`;
+                    } else {
+                        const isRulePalette = rc.includes('rule-root') || rc.includes('rule-half') || rc.includes('rule-scale');
+                        const pitchToneClass = rulePitchToneByAccidental && isRulePalette
+                            ? ([1, 3, 6, 8, 10].includes(ruleNIdx) ? 'rule-pitch-sharp' : 'rule-pitch-natural')
+                            : '';
+                        const pitchPart = pitchToneClass ? ` ${pitchToneClass}` : '';
+                        innerMarkerClass = `${rc}${pitchPart}`;
+                    }
+                    const innerMarker = `<div class="note-marker ${innerMarkerClass}" aria-label="${markerAriaLabel}" title="${markerAriaLabel}">${ruleMarker.label}</div>`;
+                    markerHtml = innerMarker;
+                } else {
+                    markerHtml = `<div class="note-marker hidden-note"></div>`;
+                }
             }
 
             const leftX = xEdges[f];
@@ -2492,9 +5312,29 @@ function renderFretboardHTML(containerId, options) {
             const projectedWidth = projectedRight - projectedLeft;
             const markerScale = projectPoint(centerX, getStringOriginalY(rowIndex), NOTE_MARKER_Z).scale;
             const markerSize = Math.max(20, 30 * markerScale);
-            const markerFontSize = 0.85 * markerScale;
+            const markerFontSize = (mode === 'rule' ? 0.66 : 0.85) * markerScale;
             const markerStyle = `width:${markerSize.toFixed(2)}px; height:${markerSize.toFixed(2)}px; font-size:${markerFontSize.toFixed(2)}rem;`;
             markerHtml = markerHtml.replace('<div class="note-marker', `<div style="${markerStyle}" class="note-marker`);
+            if (
+                mode === 'rule' &&
+                ruleStep5ExcludeInlineCheckboxes &&
+                markerHtml.includes('rule-next')
+            ) {
+                const anchorDisable =
+                    ruleStep5AnchorDisableSlot &&
+                    stringNum === ruleStep5AnchorDisableSlot.stringNum &&
+                    f === ruleStep5AnchorDisableSlot.fret;
+                const ex =
+                    ruleStep5ExcludedSlotsLookup && typeof ruleStep5ExcludedSlotsLookup === 'object'
+                        ? ruleStep5ExcludedSlotsLookup
+                        : state.rules.step5ExcludedSlots || {};
+                const checked = anchorDisable ? false : !!ex[ruleStep5SlotKey(stringNum, f)];
+                markerHtml = `<div class="rule-step5-marker-row">${markerHtml}<label class="rule-step5-inline-exclude"${
+                    anchorDisable ? ' data-rule-step5-exclude-anchor="1"' : ''
+                }><input type="checkbox" class="rule-step5-inline-exclude-cb" data-sn="${stringNum}" data-fr="${f}"${
+                    anchorDisable ? ' disabled' : ''
+                }${checked ? ' checked' : ''} aria-label="チェックでこのマスを練習から外す" title="チェックで練習から外す" /></label></div>`;
+            }
             const rotX = (state.settings.rotation && typeof state.settings.rotation.x === 'number') ? state.settings.rotation.x : 0;
             const layerOrder = rotX < 0 ? (7 - stringNum) : stringNum;
             const cellStyle = `left:${projectedLeft.toFixed(2)}px; top:${projectedTopY.toFixed(2)}px; width:${projectedWidth.toFixed(2)}px; height:${projectedHeight.toFixed(2)}px; z-index:${layerOrder};`;
@@ -2509,6 +5349,23 @@ function renderFretboardHTML(containerId, options) {
     
     const containerEl = document.getElementById(containerId);
     containerEl.innerHTML = html;
+
+    if (mode === 'rule' && ruleStep5ExcludeInlineCheckboxes && containerId === 'rule-fretboard-container') {
+        containerEl.querySelectorAll('.rule-step5-inline-exclude').forEach(el => {
+            el.addEventListener('click', e => e.stopPropagation());
+            el.addEventListener('mousedown', e => e.stopPropagation());
+        });
+        containerEl.querySelectorAll('.rule-step5-inline-exclude-cb').forEach(cb => {
+            cb.addEventListener('click', e => e.stopPropagation());
+            cb.addEventListener('change', () => {
+                if (cb.disabled) return;
+                const sn = parseInt(cb.getAttribute('data-sn'), 10);
+                const fr = parseInt(cb.getAttribute('data-fr'), 10);
+                if (Number.isNaN(sn) || Number.isNaN(fr)) return;
+                ruleStep5SetSlotExcluded(sn, fr, cb.checked);
+            });
+        });
+    }
 
     // Scale the fretboard to fill the full viewport width in game mode.
     // Key constraints:
@@ -2526,23 +5383,56 @@ function renderFretboardHTML(containerId, options) {
             if (appEl && containerId === 'fretboard-container') {
                 void appEl.offsetHeight;
             }
-            const layoutW =
-                appEl && appEl.clientWidth > 0 ? appEl.clientWidth : screenW;
-            const isZoomView = (mode === 'memorize' || mode === 'visualize') && state.settings.fretboardView === 'zoom';
+            const isRuleFretHost = mode === 'rule' && containerId === 'rule-fretboard-container';
+            const ruleHostW = isRuleFretHost && containerEl.parentElement
+                ? Math.floor(containerEl.parentElement.clientWidth)
+                : 0;
+            const layoutW = isRuleFretHost && ruleHostW > 0
+                ? ruleHostW
+                : (appEl && appEl.clientWidth > 0 ? appEl.clientWidth : screenW);
+            const ruleTapCapZoomByFretWidth = (zMax, layoutPad, innerMin) => {
+                if (!isRuleFretHost) return Math.min(1, zMax);
+                let bW = 0;
+                if (step3TapFloatRange !== null) {
+                    bW = getProjectedFretboardBoundsForFretFloatRange(
+                        neckTop,
+                        neckBottom,
+                        step3TapFloatRange[0],
+                        step3TapFloatRange[1]
+                    ).width;
+                } else if (step3TapRange !== null) {
+                    bW = getProjectedFretboardBoundsForFretRange(
+                        neckTop,
+                        neckBottom,
+                        step3TapRange[0],
+                        step3TapRange[1]
+                    ).width;
+                } else {
+                    return Math.min(1, zMax);
+                }
+                const widthCap = Math.max(innerMin, layoutW - layoutPad) * ruleTapZoomMul;
+                return Math.min(1, zMax, widthCap / Math.max(1, bW));
+            };
+            const isZoomView = (mode === 'memorize' || mode === 'visualize' || mode === 'rule') && state.settings.fretboardView === 'zoom';
+            const visualizeExtendedNeedsHorizScroll =
+                mode === 'visualize' &&
+                containerId === 'fretboard-container' &&
+                !!state.visualize.showExtendedFrets &&
+                renderMaxFret > DEFAULT_VISIBLE_MAX_FRET;
             const perspectiveWrapper = containerEl.querySelector('.fretboard-perspective-wrapper');
 
             // Break out of the app container's max-width by offsetting to the left
             // viewport edge. position:relative keeps the element in the flex flow.
             const containerRect = containerEl.getBoundingClientRect();
             containerEl.style.position = 'relative';
-            containerEl.style.left = `${-Math.round(containerRect.left)}px`;
+            containerEl.style.left = isRuleFretHost ? '0px' : `${-Math.round(containerRect.left)}px`;
             containerEl.style.width = `${layoutW}px`;
             containerEl.style.overflow = '';
             containerEl.style.removeProperty('-webkit-overflow-scrolling');
 
             if (isZoomView) {
                 scrollWrapper.style.marginLeft = '';
-                const projectedBounds = getProjectedFretboardBounds(neckTop, neckBottom);
+                const projectedBounds = getProjectedFretboardBounds(neckTop, neckBottom, renderMaxFret);
                 const land = window.innerWidth > window.innerHeight;
                 let maxZoomViewH =
                     mode === 'memorize' && containerId === 'fretboard-container'
@@ -2558,10 +5448,44 @@ function renderFretboardHTML(containerId, options) {
                         maxZoomViewH = Math.max(130, ch - zSlack - zBottomClear);
                     }
                 }
-                const zoomScale = Math.min(1, maxZoomViewH / projectedBounds.height);
+                if (
+                    (step3TapRange !== null || step3TapFloatRange !== null) &&
+                    isRuleFretHost &&
+                    containerId === 'rule-fretboard-container'
+                ) {
+                    void containerEl.offsetHeight;
+                    const ch = containerEl.clientHeight;
+                    if (ch > 72) {
+                        const zSlack = land ? 0 : 4;
+                        const zBottomClear = land ? 34 : 0;
+                        maxZoomViewH = Math.max(130, ch - zSlack - zBottomClear);
+                    }
+                }
+                let zoomScale = Math.min(1, maxZoomViewH / projectedBounds.height);
+                if (isRuleFretHost) {
+                    zoomScale = ruleTapCapZoomByFretWidth(zoomScale, 18, 160);
+                }
+                if (visualizeExtendedNeedsHorizScroll && containerId === 'fretboard-container') {
+                    const layoutPadZ = land ? 0 : 2;
+                    zoomScale = Math.min(
+                        zoomScale,
+                        getVisualizeExtended12FretWidthFitScale(
+                            layoutW,
+                            layoutPadZ,
+                            projectedBounds,
+                            neckTop,
+                            neckBottom,
+                            renderMaxFret
+                        )
+                    );
+                }
                 scrollWrapper.style.width = `${layoutW}px`;
                 scrollWrapper.style.height = `${Math.ceil(projectedBounds.height * zoomScale)}px`;
-                scrollWrapper.style.overflowX = 'auto';
+                scrollWrapper.style.overflowX =
+                    ruleTapLayoutLockScroll &&
+                    (step3TapRange !== null || step3TapFloatRange !== null)
+                        ? 'hidden'
+                        : 'auto';
                 scrollWrapper.style.overflowY = 'hidden';
                 scrollWrapper.style.transform = '';
                 scrollWrapper.style.transformOrigin = '';
@@ -2572,12 +5496,16 @@ function renderFretboardHTML(containerId, options) {
                     perspectiveWrapper.style.transform = `translate(${(-projectedBounds.minX).toFixed(2)}px, ${(-projectedBounds.minY).toFixed(2)}px) scale(${zoomScale.toFixed(4)})`;
                 }
             } else {
-                const projectedBounds = getProjectedFretboardBounds(neckTop, neckBottom);
+                const projectedBounds = getProjectedFretboardBounds(neckTop, neckBottom, renderMaxFret);
                 const land = window.innerWidth > window.innerHeight;
                 const memorizeFretHost =
                     mode === 'memorize' && containerId === 'fretboard-container';
                 const visualizeFretHost =
-                    mode === 'visualize' && containerId === 'fretboard-container';
+                    (mode === 'visualize' && containerId === 'fretboard-container') ||
+                    (mode === 'rule' && containerId === 'rule-fretboard-container');
+                /** 自由探索・全体ビュー・13F以降ON: ズーム時と同様にラッパーで横スクロール（縮めて全体を収めない） */
+                const visualizeExtendedFullScrollLayout =
+                    visualizeExtendedNeedsHorizScroll && state.settings.fretboardView === 'full';
                 /** 横・覚える・全体: 上段テキストを詰めた分、scale 用の高さ目安を少し上げる */
                 const fallbackFullH = Math.max(
                     120,
@@ -2591,7 +5519,11 @@ function renderFretboardHTML(containerId, options) {
                 const memorizeLandBottomUiClearPx =
                     (memorizeFretHost || visualizeFretHost) && land ? 22 : land ? 36 : 0;
                 const readMemorizeHostMaxH = () => {
-                    if ((mode !== 'memorize' && mode !== 'visualize') || containerId !== 'fretboard-container' || !appEl) {
+                    if (
+                        (mode !== 'memorize' && mode !== 'visualize' && mode !== 'rule') ||
+                        (containerId !== 'fretboard-container' && containerId !== 'rule-fretboard-container') ||
+                        !appEl
+                    ) {
                         return null;
                     }
                     void containerEl.offsetHeight;
@@ -2640,31 +5572,92 @@ function renderFretboardHTML(containerId, options) {
                 const layoutPad = (memorizeFretHost || visualizeFretHost) ? (land ? 0 : 2) : 4;
                 const scaleByW = (layoutW - layoutPad) / projectedBounds.width;
                 const scaleByH = maxFullViewH / projectedBounds.height;
-                let scale = Math.min(1, scaleByW, scaleByH);
-                const scaledW = projectedBounds.width * scale;
-                let centerTx = Math.max(0, Math.round((layoutW - scaledW) / 2));
-                if (visualizeFretHost) {
-                    let rightOffset;
-                    if (land) {
-                        rightOffset = layoutW < 500 ? 0 : (layoutW < 700 ? 10 : 20);
-                    } else {
-                        rightOffset = 20;
-                    }
-                    centerTx += rightOffset;
+                let scale;
+                if (visualizeExtendedFullScrollLayout) {
+                    scale = Math.min(
+                        1,
+                        scaleByH,
+                        getVisualizeExtended12FretWidthFitScale(
+                            layoutW,
+                            layoutPad,
+                            projectedBounds,
+                            neckTop,
+                            neckBottom,
+                            renderMaxFret
+                        )
+                    );
+                } else {
+                    scale = Math.min(1, scaleByW, scaleByH);
                 }
-                scrollWrapper.style.width = `${projectedBounds.width}px`;
-                scrollWrapper.style.height = `${projectedBounds.height}px`;
-                scrollWrapper.style.overflowX = 'hidden';
-                scrollWrapper.style.overflowY = 'hidden';
-                scrollWrapper.style.transformOrigin = 'top left';
-                scrollWrapper.style.marginLeft = `${centerTx}px`;
-                scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
-                if (visualizeFretHost) {
+                if (mode === 'rule' && step3TapRange === null && step3TapFloatRange === null) {
+                    scale = Math.min(scale, Math.max(0.72, (layoutW - layoutPad) / projectedBounds.width));
+                }
+                if (
+                    (step3TapRange !== null || step3TapFloatRange !== null) &&
+                    mode === 'rule' &&
+                    containerId === 'rule-fretboard-container'
+                ) {
+                    const bFitW =
+                        step3TapFloatRange !== null
+                            ? getProjectedFretboardBoundsForFretFloatRange(
+                                  neckTop,
+                                  neckBottom,
+                                  step3TapFloatRange[0],
+                                  step3TapFloatRange[1]
+                              ).width
+                            : getProjectedFretboardBoundsForFretRange(
+                                  neckTop,
+                                  neckBottom,
+                                  step3TapRange[0],
+                                  step3TapRange[1]
+                              ).width;
+                    const wCap = Math.max(140, layoutW - layoutPad) * ruleTapZoomMul;
+                    scale = Math.min(scale, wCap / Math.max(1, bFitW));
+                }
+                let centerTx = 0;
+                if (visualizeExtendedFullScrollLayout) {
+                    scrollWrapper.style.marginLeft = '0px';
+                    scrollWrapper.style.width = `${layoutW}px`;
+                    scrollWrapper.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
+                    scrollWrapper.style.overflowX = 'auto';
+                    scrollWrapper.style.overflowY = 'hidden';
+                    scrollWrapper.style.transform = '';
+                    scrollWrapper.style.transformOrigin = '';
                     containerEl.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
-                }
-                if (perspectiveWrapper) {
-                    perspectiveWrapper.style.transformOrigin = 'top left';
-                    perspectiveWrapper.style.transform = `translate(${(-projectedBounds.minX).toFixed(2)}px, ${(-projectedBounds.minY).toFixed(2)}px)`;
+                    if (perspectiveWrapper) {
+                        perspectiveWrapper.style.transformOrigin = 'top left';
+                        perspectiveWrapper.style.transform = `translate(${(-projectedBounds.minX).toFixed(
+                            2
+                        )}px, ${(-projectedBounds.minY).toFixed(2)}px) scale(${scale.toFixed(4)})`;
+                    }
+                } else {
+                    const scaledW = projectedBounds.width * scale;
+                    centerTx = Math.max(0, Math.round((layoutW - scaledW) / 2));
+                    if (visualizeFretHost && mode !== 'rule') {
+                        let rightOffset;
+                        if (land) {
+                            rightOffset = layoutW < 500 ? 0 : layoutW < 700 ? 10 : 20;
+                        } else {
+                            rightOffset = 20;
+                        }
+                        centerTx += rightOffset;
+                    }
+                    scrollWrapper.style.width = `${projectedBounds.width}px`;
+                    scrollWrapper.style.height = `${projectedBounds.height}px`;
+                    scrollWrapper.style.overflowX = 'hidden';
+                    scrollWrapper.style.overflowY = 'hidden';
+                    scrollWrapper.style.transformOrigin = 'top left';
+                    scrollWrapper.style.marginLeft = `${centerTx}px`;
+                    scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
+                    if (visualizeFretHost) {
+                        containerEl.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
+                    }
+                    if (perspectiveWrapper) {
+                        perspectiveWrapper.style.transformOrigin = 'top left';
+                        perspectiveWrapper.style.transform = `translate(${(-projectedBounds.minX).toFixed(
+                            2
+                        )}px, ${(-projectedBounds.minY).toFixed(2)}px)`;
+                    }
                 }
                 const syncFretboardLayoutCollapse = () => {
                     if (!scrollWrapper.isConnected) return;
@@ -2681,7 +5674,11 @@ function renderFretboardHTML(containerId, options) {
                     }
                 };
                 syncFretboardLayoutCollapse();
-                if ((mode === 'memorize' || mode === 'visualize') && containerId === 'fretboard-container') {
+                /** 基本ルールの指板は全体ビューで rAF 後にスケールを差し替えると、再描画のたびに一瞬ズームしたように見える */
+                const refineScaleAfterPaint =
+                    containerId === 'fretboard-container' &&
+                    (mode === 'memorize' || mode === 'visualize');
+                if (refineScaleAfterPaint) {
                     requestAnimationFrame(() => {
                         requestAnimationFrame(() => {
                             if (!scrollWrapper.isConnected || !containerEl.isConnected) return;
@@ -2690,27 +5687,73 @@ function renderFretboardHTML(containerId, options) {
                                 syncFretboardLayoutCollapse();
                                 return;
                             }
-                            const s1 = Math.min(
-                                1,
-                                scaleByW,
-                                mh1 / projectedBounds.height
-                            );
+                            let s1 =
+                                visualizeExtendedFullScrollLayout && mode === 'visualize'
+                                    ? Math.min(
+                                          1,
+                                          mh1 / projectedBounds.height,
+                                          getVisualizeExtended12FretWidthFitScale(
+                                              layoutW,
+                                              layoutPad,
+                                              projectedBounds,
+                                              neckTop,
+                                              neckBottom,
+                                              renderMaxFret
+                                          )
+                                      )
+                                    : Math.min(1, scaleByW, mh1 / projectedBounds.height);
+                            if (
+                                (step3TapRange !== null || step3TapFloatRange !== null) &&
+                                mode === 'rule' &&
+                                containerId === 'rule-fretboard-container'
+                            ) {
+                                const bFitRW =
+                                    step3TapFloatRange !== null
+                                        ? getProjectedFretboardBoundsForFretFloatRange(
+                                              neckTop,
+                                              neckBottom,
+                                              step3TapFloatRange[0],
+                                              step3TapFloatRange[1]
+                                          ).width
+                                        : getProjectedFretboardBoundsForFretRange(
+                                              neckTop,
+                                              neckBottom,
+                                              step3TapRange[0],
+                                              step3TapRange[1]
+                                          ).width;
+                                const wCapR = Math.max(140, layoutW - layoutPad) * ruleTapZoomMul;
+                                s1 = Math.min(s1, wCapR / Math.max(1, bFitRW));
+                            }
+                            if (mode === 'rule' && step3TapRange === null && step3TapFloatRange === null) {
+                                s1 = Math.min(s1, Math.max(0.72, (layoutW - layoutPad) / projectedBounds.width));
+                            }
                             if (Math.abs(s1 - scale) > 0.002) {
                                 scale = s1;
-                                const sw = projectedBounds.width * scale;
-                                centerTx = Math.max(0, Math.round((layoutW - sw) / 2));
-                                if (visualizeFretHost) {
-                                    let rightOffset;
-                                    if (land) {
-                                        rightOffset = layoutW < 500 ? 0 : (layoutW < 700 ? 10 : 20);
-                                    } else {
-                                        rightOffset = 20;
-                                    }
-                                    centerTx += rightOffset;
+                                if (visualizeExtendedFullScrollLayout) {
+                                    scrollWrapper.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
                                     containerEl.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
+                                    scrollWrapper.style.marginLeft = '0px';
+                                    if (perspectiveWrapper) {
+                                        perspectiveWrapper.style.transform = `translate(${(-projectedBounds.minX).toFixed(
+                                            2
+                                        )}px, ${(-projectedBounds.minY).toFixed(2)}px) scale(${scale.toFixed(4)})`;
+                                    }
+                                } else {
+                                    const sw = projectedBounds.width * scale;
+                                    centerTx = Math.max(0, Math.round((layoutW - sw) / 2));
+                                    if (visualizeFretHost && mode !== 'rule') {
+                                        let rightOffset;
+                                        if (land) {
+                                            rightOffset = layoutW < 500 ? 0 : layoutW < 700 ? 10 : 20;
+                                        } else {
+                                            rightOffset = 20;
+                                        }
+                                        centerTx += rightOffset;
+                                        containerEl.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
+                                    }
+                                    scrollWrapper.style.marginLeft = `${centerTx}px`;
+                                    scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
                                 }
-                                scrollWrapper.style.marginLeft = `${centerTx}px`;
-                                scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
                             }
                             syncFretboardLayoutCollapse();
                         });
@@ -2719,7 +5762,7 @@ function renderFretboardHTML(containerId, options) {
             }
 
             // 全体ビューは marginLeft でビューポート中央に寄せているので、left 補正はズレの原因になる（スキップ）
-            if (isZoomView) {
+            if (isZoomView && !isRuleFretHost) {
                 const wrapperRect = scrollWrapper.getBoundingClientRect();
                 if (Math.abs(wrapperRect.left) > 1) {
                     const currentLeft = parseFloat(containerEl.style.left) || 0;
@@ -2730,6 +5773,12 @@ function renderFretboardHTML(containerId, options) {
     }
 
     addFretboardDots(containerId);
+    if (isRuleMode && ruleViewSnapshot) {
+        state.settings.rotation = ruleViewSnapshot.rotation;
+        state.settings.perspective = ruleViewSnapshot.perspective;
+        state.settings.perspOriginX = ruleViewSnapshot.perspOriginX;
+        state.settings.stringSpacing = ruleViewSnapshot.stringSpacing;
+    }
 
     cleanupFretboardDocumentHandlers(containerId);
     if (isTiltPreview) return;
@@ -2749,6 +5798,15 @@ function renderFretboardHTML(containerId, options) {
 
         if (!document.body.contains(containerEl)) {
             cleanupFretboardDocumentHandlers(containerId);
+            return;
+        }
+        // STEP5：音名横のチェックUIはフレット矩形ヒットと別扱い（タップ判定と二重にならないよう除外）
+        if (
+            mode === 'rule' &&
+            e.target &&
+            typeof e.target.closest === 'function' &&
+            e.target.closest('.rule-step5-inline-exclude')
+        ) {
             return;
         }
         const cx = e.clientX, cy = e.clientY;
@@ -2805,11 +5863,88 @@ function renderFretboardHTML(containerId, options) {
             onFretClick(s, f);
         } else if (mode === 'visualize') {
             playTone(6 - s, f);
+        } else if (mode === 'rule' && onFretClick) {
+            onFretClick(s, f);
         }
     };
     document.addEventListener('click', handleFretboardClick, true);
     fretboardDocumentHandlers.set(containerId, handleFretboardClick);
     renderFretboardHitDebug(containerId, mode, question);
+
+    if (mode === 'rule' && containerId === 'rule-fretboard-container' && state.settings.fretboardView === 'zoom') {
+        setTimeout(() => {
+            const wrapper = containerEl.querySelector('.fretboard-scroll-wrapper');
+            if (!wrapper) return;
+            if (ruleSlowAutoScrollToNext) {
+                const targetCol = wrapper.querySelector('.rule-next')?.closest('.fret-column');
+                if (!targetCol) return;
+                const wrapperRect = wrapper.getBoundingClientRect();
+                const targetRect = targetCol.getBoundingClientRect();
+                const targetCenter = targetRect.left + targetRect.width / 2;
+                const wrapperCenter = wrapperRect.left + wrapperRect.width / 2;
+                const delta = targetCenter - wrapperCenter;
+                if (Math.abs(delta) > 12) {
+                    animateRuleWrapperScrollLeft(wrapper, wrapper.scrollLeft + delta, 1100);
+                    scheduleRuleFloatingCuePosition();
+                } else {
+                    positionRuleFloatingCue();
+                }
+                return;
+            }
+            // STEP3 など：指定フレット幅に合わせたあと、見せたい範囲の中央付近へ横スクロール
+            if (typeof ruleTapZoomScrollAnchorFret === 'number') {
+                alignRuleStep3FretColumnCenter(wrapper, ruleTapZoomScrollAnchorFret);
+                if (ruleStep3PairTapLine) {
+                    scheduleRuleStep31PairLineUpdates();
+                }
+                return;
+            }
+            if (step3TapFloatRange !== null) {
+                const [fl, fh] = step3TapFloatRange;
+                if (fl < 1 && fh <= 6.5) {
+                    alignRuleStep3Page0Fret3Center(wrapper);
+                } else {
+                    alignRuleStep3FretColumnCenter(wrapper, Math.round((fl + fh) / 2));
+                }
+                if (ruleStep3PairTapLine) {
+                    scheduleRuleStep31PairLineUpdates();
+                }
+                return;
+            }
+            if (step3TapRange !== null) {
+                const [fMin, fMax] = step3TapRange;
+                if (fMin === 0 && fMax <= 5) {
+                    alignRuleStep3Page0Fret3Center(wrapper);
+                } else {
+                    alignRuleStep3FretColumnCenter(
+                        wrapper,
+                        Math.round((fMin + fMax) / 2)
+                    );
+                }
+                if (ruleStep3PairTapLine) {
+                    scheduleRuleStep31PairLineUpdates();
+                }
+                return;
+            }
+            const targetCol = wrapper.querySelector('.rule-next')?.closest('.fret-column');
+            if (!targetCol) return;
+            const wrapperRect = wrapper.getBoundingClientRect();
+            const targetRect = targetCol.getBoundingClientRect();
+            const targetCenter = targetRect.left + targetRect.width / 2;
+            const wrapperCenter = wrapperRect.left + wrapperRect.width / 2;
+            const delta = targetCenter - wrapperCenter;
+            if (Math.abs(delta) > 12) {
+                if (ruleSlowAutoScrollToNext) {
+                    animateRuleWrapperScrollLeft(wrapper, wrapper.scrollLeft + delta, 1100);
+                } else {
+                    wrapper.scrollBy({ left: delta, behavior: 'smooth' });
+                }
+                scheduleRuleFloatingCuePosition();
+            } else {
+                positionRuleFloatingCue();
+            }
+        }, 30);
+    }
 
     // メモライズのズーム指板だけ、描画直後にスクロール位置を整える（自由探索の全体ビューでは中央寄せ margin を壊さない）
     if (mode === 'memorize' && containerId === 'fretboard-container') {
