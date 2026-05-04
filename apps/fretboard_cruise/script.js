@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.40.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.40.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -64,7 +64,7 @@ let state = {
         isFirstNote: true,
         tempFeedback: null,
         highlightMode: 1, // 1-5: Visual highlight pattern for current/next note
-        isCruisePlaying: true // Is cruise rhythm currently playing
+        isCruisePlaying: false // Is cruise rhythm currently playing (default: stopped)
     },
     visualize: {
         key: 0, // C
@@ -3895,18 +3895,17 @@ function renderMemorize(app) {
                 renderApp();
             }
         };
-
-        if (state.memorize.stage === 1) {
-            document.querySelectorAll('.highlight-mode-btn').forEach(btn => {
-                btn.onclick = () => {
-                    const mode = parseInt(btn.getAttribute('data-mode'));
-                    state.memorize.highlightMode = mode;
-                    saveState();
-                    renderApp();
-                };
-            });
-        }
     }
+
+    // Pattern selection buttons (STAGE1 only)
+    document.querySelectorAll('.highlight-mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            const mode = parseInt(btn.getAttribute('data-mode'));
+            state.memorize.highlightMode = mode;
+            saveState();
+            renderApp();
+        };
+    });
 
     renderFretboardHTML('fretboard-container', {
         mode: 'memorize',
@@ -6201,11 +6200,22 @@ function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode) {
     const nextFret = nextQuestion ? nextQuestion.fret : null;
     const nextString = nextQuestion ? nextQuestion.stringName : null;
 
-    // Get fret and string positions from DOM
-    const currentCell = container.querySelector(`.string-row[data-string="${currentString}"] .fret-column[data-fret="${currentFret}"]`);
-    const nextCell = nextQuestion ? container.querySelector(`.string-row[data-string="${nextString}"] .fret-column[data-fret="${nextFret}"]`) : null;
+    // Try multiple selectors for compatibility
+    let currentCell = container.querySelector(`[data-string="${currentString}"][data-fret="${currentFret}"]`);
+    if (!currentCell) {
+        currentCell = container.querySelector(`.string-row[data-string="${currentString}"] .fret-column[data-fret="${currentFret}"]`);
+    }
+    if (!currentCell) {
+        return;
+    }
 
-    if (!currentCell) return;
+    let nextCell = null;
+    if (nextQuestion) {
+        nextCell = container.querySelector(`[data-string="${nextString}"][data-fret="${nextFret}"]`);
+        if (!nextCell) {
+            nextCell = container.querySelector(`.string-row[data-string="${nextString}"] .fret-column[data-fret="${nextFret}"]`);
+        }
+    }
 
     // Apply highlight based on mode
     switch(highlightMode) {
