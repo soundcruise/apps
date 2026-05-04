@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.40.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.40.4';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -6217,7 +6217,10 @@ function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode) {
         }
     }
 
-    // Apply highlight based on mode
+    container.style.position = 'relative';
+    container.appendChild(overlay);
+
+    // Apply highlight based on mode (after overlay is added to container)
     switch(highlightMode) {
         case 1: // Simple rings
             addRingHighlight(overlay, currentCell, nextCell, 'gold', 'lightblue');
@@ -6235,9 +6238,6 @@ function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode) {
             addPathLineHighlight(overlay, currentCell, nextCell);
             break;
     }
-
-    container.style.position = 'relative';
-    container.appendChild(overlay);
 }
 
 function addRingHighlight(overlay, currentCell, nextCell, currentColor, nextColor) {
