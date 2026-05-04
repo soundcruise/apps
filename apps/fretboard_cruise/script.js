@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.38.21';
+const FRETBOARD_CRUISE_APP_VERSION = '1.39.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -3823,6 +3823,13 @@ function renderMemorize(app) {
                         <div class="question-text memorize-question memorize-question-main">${q.stringName}弦 の <span class="memorize-question-note" style="color: var(--primary-color);">${memorizeQuestionLabel}</span> ${isCruise ? 'をタップ！' : 'を探せ！'}</div>
                     </div>
                     <div id="feedback" class="${fbClass} memorize-feedback">${fbText}</div>
+                    ${isCruise ? `
+                        <div style="display: flex; gap: 10px; justify-content: center; margin-top: 16px;">
+                            <button type="button" class="btn-secondary" id="btn-cruise-prev" style="flex: 1;">← 前に戻る</button>
+                            <button type="button" class="btn-secondary" id="btn-cruise-stop" style="flex: 1;">⏹️ 停止</button>
+                            <button type="button" class="btn-secondary" id="btn-cruise-next" style="flex: 1;">先に進む →</button>
+                        </div>
+                    ` : ''}
                 </div>
                 <div id="fretboard-container" class="memorize-fretboard-host"></div>
             </div>
@@ -3845,6 +3852,33 @@ function renderMemorize(app) {
         saveState();
         renderApp();
     };
+
+    if (isCruise) {
+        document.getElementById('btn-cruise-prev').onclick = () => {
+            if (state.memorize.cruiseIndex > 0) {
+                state.memorize.cruiseIndex--;
+                state.memorize.currentQuestion = state.memorize.cruiseTargets[state.memorize.cruiseIndex];
+                state.memorize.hasTappedCurrentNote = false;
+                saveState();
+                renderApp();
+            }
+        };
+
+        document.getElementById('btn-cruise-stop').onclick = () => {
+            stopRhythm();
+            saveState();
+        };
+
+        document.getElementById('btn-cruise-next').onclick = () => {
+            if (state.memorize.cruiseIndex < state.memorize.cruiseTargets.length - 1) {
+                state.memorize.cruiseIndex++;
+                state.memorize.currentQuestion = state.memorize.cruiseTargets[state.memorize.cruiseIndex];
+                state.memorize.hasTappedCurrentNote = false;
+                saveState();
+                renderApp();
+            }
+        };
+    }
 
     renderFretboardHTML('fretboard-container', {
         mode: 'memorize',
