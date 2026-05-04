@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.38.19';
+const FRETBOARD_CRUISE_APP_VERSION = '1.38.20';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -3598,10 +3598,11 @@ function scheduleRuleStep31PairLineUpdates() {
 }
 
 function renderStageSelect(app) {
+    const stageSelectTitle = state.memorize.playMode === 'cruise' ? '指板をたどる' : '指板クイズ';
     app.innerHTML = `
         ${buildPageHeader({
             headerClass: 'page-header--stage-select',
-            titleText: 'ステージ選択',
+            titleText: stageSelectTitle,
             leftHtml: `
                 ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
                 ${navButtonHtml({ id: 'btn-home-stage', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
