@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.39.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.40.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -62,7 +62,8 @@ let state = {
         isCleared: false,
         hasTappedCurrentNote: false,
         isFirstNote: true,
-        tempFeedback: null
+        tempFeedback: null,
+        highlightMode: 1 // 1-5: Visual highlight pattern for current/next note
     },
     visualize: {
         key: 0, // C
@@ -3823,15 +3824,24 @@ function renderMemorize(app) {
                         <div class="question-text memorize-question memorize-question-main">${q.stringName}弦 の <span class="memorize-question-note" style="color: var(--primary-color);">${memorizeQuestionLabel}</span> ${isCruise ? 'をタップ！' : 'を探せ！'}</div>
                     </div>
                     <div id="feedback" class="${fbClass} memorize-feedback">${fbText}</div>
-                    ${isCruise ? `
-                        <div style="display: flex; gap: 10px; justify-content: center; margin-top: 16px;">
-                            <button type="button" class="btn-secondary" id="btn-cruise-prev" style="flex: 1;">← 前に戻る</button>
-                            <button type="button" class="btn-secondary" id="btn-cruise-stop" style="flex: 1;">⏹️ 停止</button>
-                            <button type="button" class="btn-secondary" id="btn-cruise-next" style="flex: 1;">先に進む →</button>
-                        </div>
-                    ` : ''}
                 </div>
                 <div id="fretboard-container" class="memorize-fretboard-host"></div>
+                ${isCruise ? `
+                    <div style="display: flex; gap: 6px; justify-content: center; margin-top: 12px; padding: 0 16px;">
+                        <button type="button" class="btn-secondary" id="btn-cruise-prev" style="padding: 6px 12px; font-size: 0.85rem; flex: 1;">← 1つ戻る</button>
+                        <button type="button" class="btn-secondary" id="btn-cruise-stop" style="padding: 6px 12px; font-size: 0.85rem; flex: 1;">⏹️ 停止</button>
+                        <button type="button" class="btn-secondary" id="btn-cruise-next" style="padding: 6px 12px; font-size: 0.85rem; flex: 1;">1つ進む →</button>
+                    </div>
+                    ${state.memorize.stage === 1 ? `
+                        <div style="display: flex; gap: 4px; justify-content: center; margin-top: 10px; padding: 0 16px; flex-wrap: wrap;">
+                            <button type="button" class="highlight-mode-btn ${state.memorize.highlightMode === 1 ? 'active' : ''}" data-mode="1" style="padding: 4px 8px; font-size: 0.75rem;">1: リング</button>
+                            <button type="button" class="highlight-mode-btn ${state.memorize.highlightMode === 2 ? 'active' : ''}" data-mode="2" style="padding: 4px 8px; font-size: 0.75rem;">2: グロー</button>
+                            <button type="button" class="highlight-mode-btn ${state.memorize.highlightMode === 3 ? 'active' : ''}" data-mode="3" style="padding: 4px 8px; font-size: 0.75rem;">3: 背景</button>
+                            <button type="button" class="highlight-mode-btn ${state.memorize.highlightMode === 4 ? 'active' : ''}" data-mode="4" style="padding: 4px 8px; font-size: 0.75rem;">4: 拡大</button>
+                            <button type="button" class="highlight-mode-btn ${state.memorize.highlightMode === 5 ? 'active' : ''}" data-mode="5" style="padding: 4px 8px; font-size: 0.75rem;">5: パス線</button>
+                        </div>
+                    ` : ''}
+                ` : ''}
             </div>
         </div>
         <div style="height: 200px;"></div>
@@ -3878,6 +3888,17 @@ function renderMemorize(app) {
                 renderApp();
             }
         };
+
+        if (state.memorize.stage === 1) {
+            document.querySelectorAll('.highlight-mode-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const mode = parseInt(btn.getAttribute('data-mode'));
+                    state.memorize.highlightMode = mode;
+                    saveState();
+                    renderApp();
+                };
+            });
+        }
     }
 
     renderFretboardHTML('fretboard-container', {
@@ -3885,8 +3906,21 @@ function renderMemorize(app) {
         question: q,
         showAnswer: isCruise, // Cruise mode shows answer immediately
         clicked: null,
-        onFretClick: handleFretClick
+        onFretClick: handleFretClick,
+        highlightMode: isCruise ? state.memorize.highlightMode : null,
+        nextQuestion: isCruise && state.memorize.cruiseIndex < state.memorize.cruiseTargets.length - 1
+            ? state.memorize.cruiseTargets[state.memorize.cruiseIndex + 1]
+            : null
     });
+
+    // Apply highlight overlay for cruise mode on STAGE1
+    if (isCruise && state.memorize.stage === 1 && state.memorize.highlightMode) {
+        setTimeout(() => {
+            renderHighlightOverlay(q, isCruise && state.memorize.cruiseIndex < state.memorize.cruiseTargets.length - 1
+                ? state.memorize.cruiseTargets[state.memorize.cruiseIndex + 1]
+                : null, state.memorize.highlightMode);
+        }, 50);
+    }
 
 }
 
@@ -4937,6 +4971,7 @@ function getRenderMaxFret(mode, options) {
 function renderFretboardHTML(containerId, options) {
     const {
         mode, question, showAnswer, clicked, onFretClick,
+        highlightMode = null, nextQuestion = null,
         keyIndex, capo, displayMode, scale, selectedChordIndex,
         doMode: doModeOpt, chordType, autoSelectRootChord,         ruleMarkers,
         rulePitchToneByAccidental = false,
@@ -6127,6 +6162,204 @@ function addFretboardDots(containerId) {
         dot.style.left = '50%';
         dot.style.transform = 'translate(-50%, -50%)';
         fret12RowB.appendChild(dot);
+    }
+}
+
+function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode) {
+    if (!currentQuestion) return;
+
+    const container = document.getElementById('fretboard-container');
+    if (!container) return;
+
+    // Remove existing overlay
+    const existingOverlay = container.querySelector('.highlight-overlay');
+    if (existingOverlay) existingOverlay.remove();
+
+    // Create overlay container
+    const overlay = document.createElement('div');
+    overlay.className = 'highlight-overlay';
+    overlay.style.position = 'absolute';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.pointerEvents = 'none';
+    overlay.style.zIndex = '10';
+
+    // Find current and next note positions
+    const currentFret = currentQuestion.fret;
+    const currentString = currentQuestion.stringName;
+    const nextFret = nextQuestion ? nextQuestion.fret : null;
+    const nextString = nextQuestion ? nextQuestion.stringName : null;
+
+    // Get fret and string positions from DOM
+    const currentCell = container.querySelector(`.string-row[data-string="${currentString}"] .fret-column[data-fret="${currentFret}"]`);
+    const nextCell = nextQuestion ? container.querySelector(`.string-row[data-string="${nextString}"] .fret-column[data-fret="${nextFret}"]`) : null;
+
+    if (!currentCell) return;
+
+    // Apply highlight based on mode
+    switch(highlightMode) {
+        case 1: // Simple rings
+            addRingHighlight(overlay, currentCell, nextCell, 'gold', 'lightblue');
+            break;
+        case 2: // Glow effect
+            addGlowHighlight(overlay, currentCell, nextCell);
+            break;
+        case 3: // Background colors
+            addBackgroundHighlight(overlay, currentCell, nextCell);
+            break;
+        case 4: // Scale + Glow
+            addScaleGlowHighlight(overlay, currentCell, nextCell);
+            break;
+        case 5: // Path line + Highlight
+            addPathLineHighlight(overlay, currentCell, nextCell);
+            break;
+    }
+
+    container.style.position = 'relative';
+    container.appendChild(overlay);
+}
+
+function addRingHighlight(overlay, currentCell, nextCell, currentColor, nextColor) {
+    const ringSize = 60;
+
+    // Current ring
+    const currentRect = currentCell.getBoundingClientRect();
+    const containerRect = currentCell.parentElement.parentElement.getBoundingClientRect();
+
+    const ring1 = document.createElement('div');
+    ring1.style.position = 'absolute';
+    ring1.style.width = ringSize + 'px';
+    ring1.style.height = ringSize + 'px';
+    ring1.style.border = '4px solid ' + currentColor;
+    ring1.style.borderRadius = '50%';
+    ring1.style.top = (currentCell.offsetTop + currentCell.offsetHeight / 2 - ringSize / 2) + 'px';
+    ring1.style.left = (currentCell.offsetLeft + currentCell.offsetWidth / 2 - ringSize / 2) + 'px';
+    ring1.style.animation = 'pulse 1s infinite';
+    overlay.appendChild(ring1);
+
+    // Next ring
+    if (nextCell) {
+        const ring2 = document.createElement('div');
+        ring2.style.position = 'absolute';
+        ring2.style.width = (ringSize - 20) + 'px';
+        ring2.style.height = (ringSize - 20) + 'px';
+        ring2.style.border = '3px solid ' + nextColor;
+        ring2.style.borderRadius = '50%';
+        ring2.style.top = (nextCell.offsetTop + nextCell.offsetHeight / 2 - (ringSize - 20) / 2) + 'px';
+        ring2.style.left = (nextCell.offsetLeft + nextCell.offsetWidth / 2 - (ringSize - 20) / 2) + 'px';
+        overlay.appendChild(ring2);
+    }
+}
+
+function addGlowHighlight(overlay, currentCell, nextCell) {
+    // Current glow
+    const glow1 = document.createElement('div');
+    glow1.style.position = 'absolute';
+    glow1.style.width = '70px';
+    glow1.style.height = '70px';
+    glow1.style.backgroundColor = 'rgba(255, 215, 0, 0.3)';
+    glow1.style.borderRadius = '50%';
+    glow1.style.top = (currentCell.offsetTop + currentCell.offsetHeight / 2 - 35) + 'px';
+    glow1.style.left = (currentCell.offsetLeft + currentCell.offsetWidth / 2 - 35) + 'px';
+    glow1.style.boxShadow = '0 0 20px rgba(255, 215, 0, 0.8)';
+    glow1.style.animation = 'glow 1s ease-in-out infinite';
+    overlay.appendChild(glow1);
+
+    // Next glow
+    if (nextCell) {
+        const glow2 = document.createElement('div');
+        glow2.style.position = 'absolute';
+        glow2.style.width = '60px';
+        glow2.style.height = '60px';
+        glow2.style.backgroundColor = 'rgba(100, 150, 255, 0.2)';
+        glow2.style.borderRadius = '50%';
+        glow2.style.top = (nextCell.offsetTop + nextCell.offsetHeight / 2 - 30) + 'px';
+        glow2.style.left = (nextCell.offsetLeft + nextCell.offsetWidth / 2 - 30) + 'px';
+        glow2.style.boxShadow = '0 0 15px rgba(100, 150, 255, 0.6)';
+        overlay.appendChild(glow2);
+    }
+}
+
+function addBackgroundHighlight(overlay, currentCell, nextCell) {
+    // Current background
+    const bg1 = document.createElement('div');
+    bg1.style.position = 'absolute';
+    bg1.style.width = currentCell.offsetWidth * 1.3 + 'px';
+    bg1.style.height = currentCell.offsetHeight * 1.3 + 'px';
+    bg1.style.backgroundColor = 'rgba(255, 100, 100, 0.25)';
+    bg1.style.top = (currentCell.offsetTop - (currentCell.offsetHeight * 0.3) / 2) + 'px';
+    bg1.style.left = (currentCell.offsetLeft - (currentCell.offsetWidth * 0.3) / 2) + 'px';
+    bg1.style.borderRadius = '8px';
+    overlay.appendChild(bg1);
+
+    // Next background
+    if (nextCell) {
+        const bg2 = document.createElement('div');
+        bg2.style.position = 'absolute';
+        bg2.style.width = nextCell.offsetWidth * 1.2 + 'px';
+        bg2.style.height = nextCell.offsetHeight * 1.2 + 'px';
+        bg2.style.backgroundColor = 'rgba(100, 150, 255, 0.15)';
+        bg2.style.top = (nextCell.offsetTop - (nextCell.offsetHeight * 0.2) / 2) + 'px';
+        bg2.style.left = (nextCell.offsetLeft - (nextCell.offsetWidth * 0.2) / 2) + 'px';
+        bg2.style.borderRadius = '6px';
+        overlay.appendChild(bg2);
+    }
+}
+
+function addScaleGlowHighlight(overlay, currentCell, nextCell) {
+    // Current highlight
+    addRingHighlight(overlay, currentCell, nextCell, 'gold', 'lightblue');
+
+    // Next scaled up
+    if (nextCell) {
+        const scale = document.createElement('div');
+        scale.style.position = 'absolute';
+        scale.style.width = nextCell.offsetWidth * 1.4 + 'px';
+        scale.style.height = nextCell.offsetHeight * 1.4 + 'px';
+        scale.style.backgroundColor = 'rgba(100, 200, 255, 0.2)';
+        scale.style.borderRadius = '10px';
+        scale.style.top = (nextCell.offsetTop - (nextCell.offsetHeight * 0.4) / 2) + 'px';
+        scale.style.left = (nextCell.offsetLeft - (nextCell.offsetWidth * 0.4) / 2) + 'px';
+        scale.style.boxShadow = 'inset 0 0 10px rgba(100, 200, 255, 0.4)';
+        scale.style.animation = 'pulse 1.5s ease-in-out infinite';
+        overlay.appendChild(scale);
+    }
+}
+
+function addPathLineHighlight(overlay, currentCell, nextCell) {
+    // Current ring
+    addRingHighlight(overlay, currentCell, nextCell, 'gold', 'lightblue');
+
+    // Path line
+    if (nextCell) {
+        const currentCenter = {
+            x: currentCell.offsetLeft + currentCell.offsetWidth / 2,
+            y: currentCell.offsetTop + currentCell.offsetHeight / 2
+        };
+        const nextCenter = {
+            x: nextCell.offsetLeft + nextCell.offsetWidth / 2,
+            y: nextCell.offsetTop + nextCell.offsetHeight / 2
+        };
+
+        const line = document.createElement('div');
+        line.style.position = 'absolute';
+        line.style.height = '3px';
+        line.style.backgroundColor = 'rgba(255, 200, 0, 0.5)';
+
+        const distance = Math.sqrt(
+            Math.pow(nextCenter.x - currentCenter.x, 2) +
+            Math.pow(nextCenter.y - currentCenter.y, 2)
+        );
+        const angle = Math.atan2(nextCenter.y - currentCenter.y, nextCenter.x - currentCenter.x) * 180 / Math.PI;
+
+        line.style.width = distance + 'px';
+        line.style.top = currentCenter.y + 'px';
+        line.style.left = currentCenter.x + 'px';
+        line.style.transformOrigin = '0 50%';
+        line.style.transform = 'rotate(' + angle + 'deg)';
+        overlay.appendChild(line);
     }
 }
 

@@ -2537,3 +2537,47 @@ input:checked + .toggle-slider:before {
     opacity: 1;
     margin-top: 8px;
 }
+
+/* Highlight Mode Styles */
+.highlight-mode-btn {
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--text-color);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.75rem;
+}
+
+.highlight-mode-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.highlight-mode-btn.active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #000;
+}
+
+/* Highlight overlay animations */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 0.6;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+}
+
+@keyframes glow {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+    }
+    50% {
+        box-shadow: 0 0 30px rgba(255, 215, 0, 1);
+    }
+}
