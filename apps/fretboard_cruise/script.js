@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.38.17';
+const FRETBOARD_CRUISE_APP_VERSION = '1.38.18';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1316,8 +1316,8 @@ function renderHome(app) {
             <button type="button" class="btn-secondary" id="btn-home-basic-rules" style="padding: 10px 18px; font-size: 0.92rem; line-height: 1.35;">🔰 基本ルール</button>
         </div>
         <div class="action-btns" style="flex-direction: column; gap: 20px; align-items: center; width: 100%;">
-            <button type="button" class="btn-primary home-memorize-btn" id="btn-cruise-mode">🛳️ クルージングモード</button>
-            <button type="button" class="btn-primary home-memorize-btn" id="btn-quiz-mode">🎯 問題モード</button>
+            <button type="button" class="btn-primary home-memorize-btn" id="btn-cruise-mode">🛳️ 指板をたどる</button>
+            <button type="button" class="btn-primary home-memorize-btn" id="btn-quiz-mode">🎯 指板クイズ</button>
             <button type="button" class="btn-primary home-explore-btn" id="btn-home-board-view">指板を探索する</button>
         </div>
         <div style="height: 200px;"></div>
@@ -1366,11 +1366,11 @@ function renderModeSelect(app) {
         })}
         <div class="stage-list">
             <button class="stage-btn" data-mode="cruise">
-                🛳️ クルージングモード
+                🛳️ 指板をたどる
                 <span class="stage-desc">光る場所をなぞって指板を覚えよう！</span>
             </button>
             <button class="stage-btn" data-mode="quiz">
-                🎯 問題モード
+                🎯 指板クイズ
                 <span class="stage-desc">自力で音を探すテスト形式！</span>
             </button>
         </div>
