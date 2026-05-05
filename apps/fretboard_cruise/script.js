@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.40.11';
+const FRETBOARD_CRUISE_APP_VERSION = '1.40.12';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -963,6 +963,7 @@ function autoAdvanceCruise() {
     if (!state.memorize.hasTappedCurrentNote) {
         state.memorize.combo = 0;
         state.memorize.tempFeedback = { text: 'Miss... (時間切れ)', className: 'feedback-display feedback-wrong' };
+        flashCell('miss');
     } else {
         state.memorize.tempFeedback = null;
     }
@@ -3724,6 +3725,7 @@ function renderStageSelect(app) {
                 state.memorize.isFirstNote = true;
                 state.memorize.hasTappedCurrentNote = false;
                 state.memorize.tempFeedback = null;
+                state.memorize.isCruisePlaying = true;
                 
                 autoScrollRequested = true;
                 startRhythm(); // Start the drum loop. It will trigger autoAdvanceCruise.
@@ -3848,6 +3850,7 @@ function renderMemorize(app) {
                 state.memorize.combo = 0;
                 state.memorize.currentQuestion = state.memorize.cruiseTargets[0];
                 state.memorize.hasTappedCurrentNote = false;
+                state.memorize.isFirstNote = true;
                 state.memorize.isCruisePlaying = true;
                 startRhythm();
             } else {
