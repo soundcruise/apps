@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.40.15';
+const FRETBOARD_CRUISE_APP_VERSION = '1.40.16';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -3783,7 +3783,7 @@ function renderMemorize(app) {
                     ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
                     ${navButtonHtml({ id: 'btn-home-memorize', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
                 `,
-                rightHtml: quizTimerHtml
+                rightHtml: `${quizTimerHtml}${navButtonHtml({ id: 'btn-memorize-settings', text: '⚙️ 設定', extraClass: 'page-nav-btn--settings' })}`
             })}
             <div class="memorize-body-stack">
                 <div class="memorize-copy-block">
@@ -3802,6 +3802,7 @@ function renderMemorize(app) {
                                 ? 'もう1度やる'
                                 : (state.memorize.isCruisePlaying ? '⏹️ 停止' : '▶️ 再生')}
                         </button>
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-reset">最初から</button>
                         <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-next">
                             ${state.memorize.isCleared ? '次のステージ' : '1つ進む →'}
                         </button>
@@ -3880,7 +3881,30 @@ function renderMemorize(app) {
             saveState();
             renderApp();
         };
+
+        document.getElementById('btn-cruise-reset').onclick = () => {
+            // Reset to the beginning of the course
+            state.memorize.isCleared = false;
+            state.memorize.cruiseIndex = 0;
+            state.memorize.correct = 0;
+            state.memorize.combo = 0;
+            state.memorize.currentQuestion = state.memorize.cruiseTargets[0];
+            state.memorize.hasTappedCurrentNote = false;
+            state.memorize.isFirstNote = true;
+            state.memorize.isCruisePlaying = true;
+            startRhythm();
+            saveState();
+            renderApp();
+        };
     }
+
+    document.getElementById('btn-memorize-settings').onclick = () => {
+        stopRhythm();
+        stopQuizTimer();
+        state.course = 'settings';
+        saveState();
+        renderApp();
+    };
 
     // Pattern selection buttons (STAGE1 only)
     document.querySelectorAll('.highlight-mode-btn').forEach(btn => {
