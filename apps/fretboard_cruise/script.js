@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.40.14';
+const FRETBOARD_CRUISE_APP_VERSION = '1.40.15';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -907,8 +907,6 @@ function handleQuizTimeout() {
         fb.className = 'feedback-display feedback-wrong';
     }
 
-    flashCell('miss');
-
     clearQuizAdvanceTimers();
     quizAdvanceTimeout = setTimeout(() => {
         quizAdvanceTimeout = null;
@@ -964,7 +962,6 @@ function autoAdvanceCruise() {
     if (isTimeoutMiss) {
         state.memorize.combo = 0;
         state.memorize.tempFeedback = { text: 'Miss... (時間切れ)', className: 'feedback-display feedback-wrong' };
-        flashCell('miss');
     } else {
         state.memorize.tempFeedback = null;
     }
