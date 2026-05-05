@@ -2399,6 +2399,10 @@ input:checked + .toggle-slider:before {
         gap: 18px;
     }
 
+    .page-header.page-header--memorize {
+        gap: 18px;
+    }
+
     .page-header--stage-select .page-header-title-wrap {
         transform: translateY(12px);
     }
