@@ -652,20 +652,20 @@
     position: relative;
     z-index: 2;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 6px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
     width: 100%;
-    margin-top: 12px;
-    padding: 0 16px;
+    margin-top: 10px;
+    padding: 0 12px;
     box-sizing: border-box;
 }
 
 .memorize-cruise-control-btn {
     min-width: 0;
     width: 100%;
-    padding: 6px 10px;
-    font-size: 0.85rem;
-    line-height: 1.2;
+    padding: 5px 6px;
+    font-size: 0.75rem;
+    line-height: 1.15;
     white-space: normal;
 }
 
@@ -2265,8 +2265,9 @@ input:checked + .toggle-slider:before {
 }
 
 .page-header--memorize {
-    gap: 0;
-    padding-bottom: 0;
+    gap: 20px;
+    padding-top: 4px;
+    padding-bottom: 4px;
 }
 
 .page-header--memorize .page-header-title-wrap {
