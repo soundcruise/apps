@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.40.12';
+const FRETBOARD_CRUISE_APP_VERSION = '1.40.13';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -63,7 +63,7 @@ let state = {
         hasTappedCurrentNote: false,
         isFirstNote: true,
         tempFeedback: null,
-        highlightMode: 1, // 1-5: Visual highlight pattern for current/next note
+        highlightMode: 2, // 1-5: Visual highlight pattern for current/next note (2=Glow)
         isCruisePlaying: true // Is cruise rhythm currently playing (default: playing)
     },
     visualize: {
@@ -960,34 +960,44 @@ function autoAdvanceCruise() {
     }
     
     // Evaluate previous window (timeout miss)
-    if (!state.memorize.hasTappedCurrentNote) {
+    const isTimeoutMiss = !state.memorize.hasTappedCurrentNote;
+    if (isTimeoutMiss) {
         state.memorize.combo = 0;
         state.memorize.tempFeedback = { text: 'Miss... (時間切れ)', className: 'feedback-display feedback-wrong' };
         flashCell('miss');
     } else {
         state.memorize.tempFeedback = null;
     }
-    
-    // Move to next note
-    let nextIdx = state.memorize.cruiseIndex + 1;
-    if (nextIdx >= state.memorize.cruiseTargets.length) {
-        state.memorize.isCleared = true;
-        stopRhythm();
+
+    const advanceToNext = () => {
+        // Move to next note
+        let nextIdx = state.memorize.cruiseIndex + 1;
+        if (nextIdx >= state.memorize.cruiseTargets.length) {
+            state.memorize.isCleared = true;
+            stopRhythm();
+            saveState();
+            renderApp();
+            return;
+        }
+
+        state.memorize.cruiseIndex = nextIdx;
+        state.memorize.currentQuestion = state.memorize.cruiseTargets[nextIdx];
+        state.memorize.hasTappedCurrentNote = false;
+
+        let q = state.memorize.currentQuestion;
+        playTone(q.stringIdx, q.fret);
+
+        autoScrollRequested = true;
         saveState();
         renderApp();
-        return;
+    };
+
+    if (isTimeoutMiss) {
+        // Delay rendering to let flash be visible for 300ms
+        setTimeout(advanceToNext, 300);
+    } else {
+        advanceToNext();
     }
-    
-    state.memorize.cruiseIndex = nextIdx;
-    state.memorize.currentQuestion = state.memorize.cruiseTargets[nextIdx];
-    state.memorize.hasTappedCurrentNote = false;
-    
-    let q = state.memorize.currentQuestion;
-    playTone(q.stringIdx, q.fret);
-    
-    autoScrollRequested = true;
-    saveState();
-    renderApp();
 }
 
 function nextRhythmNote() {
@@ -1139,6 +1149,7 @@ function findChordButtonFromPointerEvent(e) {
 
 function renderApp() {
     const app = document.getElementById('app');
+    if (!app) return;
     if (applyFretboardViewFromOrientationIfAuto()) {
         saveState();
     }
@@ -1325,7 +1336,6 @@ function renderHome(app) {
             <button type="button" class="btn-primary home-memorize-btn" id="btn-quiz-mode">🎯 指板クイズ</button>
             <button type="button" class="btn-primary home-memorize-btn" id="btn-home-board-view">🧭 指板を探索する</button>
         </div>
-        <div style="height: 200px;"></div>
     `;
 
     document.getElementById('btn-cruise-mode').onclick = () => {
@@ -1379,7 +1389,6 @@ function renderModeSelect(app) {
                 <span class="stage-desc">自力で音を探すテスト形式！</span>
             </button>
         </div>
-        <div style="height: 200px;"></div>
     `;
 
     document.getElementById('btn-back').onclick = () => {
@@ -1422,7 +1431,6 @@ function renderRuleSelect(app) {
                 <span class="stage-desc">キー・スケール・コードを見ながら指板を確認する</span>
             </button>
         </div>
-        <div style="height: 200px;"></div>
     `;
 
     document.getElementById('btn-back').onclick = () => {
@@ -1485,7 +1493,6 @@ function renderBasicRules(app) {
                 </button>`;
             }).join('')}
         </div>
-        <div style="height: 200px;"></div>
     `;
 
     document.getElementById('btn-back').onclick = () => {
@@ -2799,7 +2806,6 @@ function renderBasicRuleStep(app) {
             </div>
             ${isFinalRuleSummary ? '<p class="rule-complete-note">おつかれ！いつでもSTEPから復習できるよ</p>' : ''}
         </div>
-        <div style="height: 180px;"></div>
     `;
 
     document.getElementById('btn-back').onclick = () => {
@@ -3622,7 +3628,6 @@ function renderStageSelect(app) {
             <button class="stage-btn" data-stage="5">STAGE 5<span class="stage-desc">総復習メドレー (STAGE 1〜4)</span></button>
             <button class="stage-btn" data-stage="6">STAGE 6<span class="stage-desc">全指板マスター (0〜12フレット)</span></button>
         </div>
-        <div style="height: 200px;"></div>
     `;
 
     document.getElementById('btn-back').onclick = () => {
@@ -3797,21 +3802,20 @@ function renderMemorize(app) {
                 </div>
                 <div id="fretboard-container" class="memorize-fretboard-host"></div>
                 ${isCruise ? `
-                    <div style="display: flex; gap: 6px; justify-content: center; margin-top: 12px; padding: 0 16px;">
-                        <button type="button" class="btn-secondary" id="btn-cruise-prev" style="padding: 6px 12px; font-size: 0.85rem; flex: 1;">← 1つ戻る</button>
-                        <button type="button" class="btn-secondary" id="btn-cruise-stop" style="padding: 6px 12px; font-size: 0.85rem; flex: 1;">
+                    <div class="memorize-cruise-controls">
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-prev">← 1つ戻る</button>
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-stop">
                             ${state.memorize.isCleared
                                 ? 'もう1度やる'
                                 : (state.memorize.isCruisePlaying ? '⏹️ 停止' : '▶️ 再生')}
                         </button>
-                        <button type="button" class="btn-secondary" id="btn-cruise-next" style="padding: 6px 12px; font-size: 0.85rem; flex: 1;">
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-next">
                             ${state.memorize.isCleared ? '次のステージ' : '1つ進む →'}
                         </button>
                     </div>
                 ` : ''}
             </div>
         </div>
-        <div style="height: 200px;"></div>
     `;
 
     document.getElementById('btn-back').onclick = () => {
@@ -5609,21 +5613,34 @@ function renderFretboardHTML(containerId, options) {
                 const visualizeFretHost =
                     (mode === 'visualize' && containerId === 'fretboard-container') ||
                     (mode === 'rule' && containerId === 'rule-fretboard-container');
+                const memorizeCruiseLandscape =
+                    mode === 'memorize' &&
+                    containerId === 'fretboard-container' &&
+                    land &&
+                    state.memorize.playMode === 'cruise';
                 /** 自由探索・全体ビュー・13F以降ON: ズーム時と同様にラッパーで横スクロール（縮めて全体を収めない） */
                 const visualizeExtendedFullScrollLayout =
                     visualizeExtendedNeedsHorizScroll && state.settings.fretboardView === 'full';
                 /** 横・覚える・全体: 上段テキストを詰めた分、scale 用の高さ目安を少し上げる */
-                const fallbackFullH = Math.max(
-                    120,
-                    Math.round(
-                        window.innerHeight *
-                            ((memorizeFretHost || visualizeFretHost) && land ? 0.605 : land ? 0.41 : 0.3) -
-                        ((memorizeFretHost || visualizeFretHost) && land ? 48 : land ? 108 : 100)
-                    )
-                );
+                const fallbackFullH = memorizeCruiseLandscape
+                    ? Math.max(84, Math.round(window.innerHeight * 0.22))
+                    : Math.max(
+                        120,
+                        Math.round(
+                            window.innerHeight *
+                                ((memorizeFretHost || visualizeFretHost) && land ? 0.605 : land ? 0.41 : 0.3) -
+                            ((memorizeFretHost || visualizeFretHost) && land ? 48 : land ? 108 : 100)
+                        )
+                    );
                 let maxFullViewH = Math.max(180, window.innerHeight * 0.35);
                 const memorizeLandBottomUiClearPx =
-                    (memorizeFretHost || visualizeFretHost) && land ? 22 : land ? 36 : 0;
+                    memorizeCruiseLandscape
+                        ? 146
+                        : (memorizeFretHost || visualizeFretHost) && land
+                            ? 22
+                            : land
+                                ? 36
+                                : 0;
                 const readMemorizeHostMaxH = () => {
                     if (
                         (mode !== 'memorize' && mode !== 'visualize' && mode !== 'rule') ||
@@ -5654,7 +5671,7 @@ function renderFretboardHTML(containerId, options) {
                               )
                             : 0;
                     const h = Math.max(
-                        110,
+                        memorizeCruiseLandscape ? 84 : 110,
                         fallbackFullH,
                         fromClient,
                         fromAppRect > 72 ? fromAppRect : 0
@@ -5773,6 +5790,9 @@ function renderFretboardHTML(containerId, options) {
                     if (layoutH > 1 && visualH > 1) {
                         if (visualizeFretHost) {
                             // height設定済みのためmarginBottomは不要
+                            containerEl.style.marginBottom = '';
+                        } else if (memorizeCruiseLandscape) {
+                            // クルーズ横画面は下部ボタン列を優先し、指板下の空きを残す
                             containerEl.style.marginBottom = '';
                         } else {
                             containerEl.style.marginBottom = `${-Math.round(layoutH - visualH)}px`;

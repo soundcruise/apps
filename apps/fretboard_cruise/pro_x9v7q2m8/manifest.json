@@ -9,7 +9,7 @@
   "theme_color": "#4f9cf9",
   "description": "ギター指板の音名を覚えるトレーニングアプリ。",
   "icons": [
-    { "src": "../../pro_icon_192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "../../pro_icon_512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "../pro_icon_192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "../pro_icon_512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }
