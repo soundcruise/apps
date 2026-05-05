@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.40.8';
+const FRETBOARD_CRUISE_APP_VERSION = '1.40.9';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -3830,18 +3830,15 @@ function renderMemorize(app) {
                 ${isCruise ? `
                     <div style="display: flex; gap: 6px; justify-content: center; margin-top: 12px; padding: 0 16px;">
                         <button type="button" class="btn-secondary" id="btn-cruise-prev" style="padding: 6px 12px; font-size: 0.85rem; flex: 1;">← 1つ戻る</button>
-                        <button type="button" class="btn-secondary" id="btn-cruise-stop" style="padding: 6px 12px; font-size: 0.85rem; flex: 1;">${state.memorize.isCruisePlaying ? '⏹️ 停止' : '▶️ 再生'}</button>
-                        <button type="button" class="btn-secondary" id="btn-cruise-next" style="padding: 6px 12px; font-size: 0.85rem; flex: 1;">1つ進む →</button>
+                        <button type="button" class="btn-secondary" id="btn-cruise-stop" style="padding: 6px 12px; font-size: 0.85rem; flex: 1;">
+                            ${state.memorize.isCleared
+                                ? 'もう1度やる'
+                                : (state.memorize.isCruisePlaying ? '⏹️ 停止' : '▶️ 再生')}
+                        </button>
+                        <button type="button" class="btn-secondary" id="btn-cruise-next" style="padding: 6px 12px; font-size: 0.85rem; flex: 1;">
+                            ${state.memorize.isCleared ? '次のステージ' : '1つ進む →'}
+                        </button>
                     </div>
-                    ${state.memorize.stage === 1 ? `
-                        <div style="display: flex; gap: 4px; justify-content: center; margin-top: 10px; padding: 0 16px; flex-wrap: wrap;">
-                            <button type="button" class="highlight-mode-btn ${state.memorize.highlightMode === 1 ? 'active' : ''}" data-mode="1" style="padding: 4px 8px; font-size: 0.75rem;">1: リング</button>
-                            <button type="button" class="highlight-mode-btn ${state.memorize.highlightMode === 2 ? 'active' : ''}" data-mode="2" style="padding: 4px 8px; font-size: 0.75rem;">2: グロー</button>
-                            <button type="button" class="highlight-mode-btn ${state.memorize.highlightMode === 3 ? 'active' : ''}" data-mode="3" style="padding: 4px 8px; font-size: 0.75rem;">3: 背景</button>
-                            <button type="button" class="highlight-mode-btn ${state.memorize.highlightMode === 4 ? 'active' : ''}" data-mode="4" style="padding: 4px 8px; font-size: 0.75rem;">4: 拡大</button>
-                            <button type="button" class="highlight-mode-btn ${state.memorize.highlightMode === 5 ? 'active' : ''}" data-mode="5" style="padding: 4px 8px; font-size: 0.75rem;">5: パス線</button>
-                        </div>
-                    ` : ''}
                 ` : ''}
             </div>
         </div>
@@ -3876,24 +3873,45 @@ function renderMemorize(app) {
         };
 
         document.getElementById('btn-cruise-stop').onclick = () => {
-            state.memorize.isCruisePlaying = !state.memorize.isCruisePlaying;
-            if (!state.memorize.isCruisePlaying) {
-                stopRhythm();
-            } else {
+            if (state.memorize.isCleared) {
+                // Restart course: reset state and play
+                state.memorize.isCleared = false;
+                state.memorize.cruiseIndex = 0;
+                state.memorize.correct = 0;
+                state.memorize.combo = 0;
+                state.memorize.currentQuestion = state.memorize.cruiseTargets[0];
+                state.memorize.hasTappedCurrentNote = false;
+                state.memorize.isCruisePlaying = true;
                 startRhythm();
+            } else {
+                // Toggle play/stop
+                state.memorize.isCruisePlaying = !state.memorize.isCruisePlaying;
+                if (!state.memorize.isCruisePlaying) {
+                    stopRhythm();
+                } else {
+                    startRhythm();
+                }
             }
             saveState();
             renderApp();
         };
 
         document.getElementById('btn-cruise-next').onclick = () => {
-            if (state.memorize.cruiseIndex < state.memorize.cruiseTargets.length - 1) {
-                state.memorize.cruiseIndex++;
-                state.memorize.currentQuestion = state.memorize.cruiseTargets[state.memorize.cruiseIndex];
-                state.memorize.hasTappedCurrentNote = false;
-                saveState();
-                renderApp();
+            if (state.memorize.isCleared) {
+                // Go back to stage select
+                stopRhythm();
+                stopQuizTimer();
+                state.course = 'stageSelect';
+            } else {
+                // Advance to next note
+                if (state.memorize.cruiseIndex < state.memorize.cruiseTargets.length - 1) {
+                    state.memorize.cruiseIndex++;
+                    state.memorize.currentQuestion = state.memorize.cruiseTargets[state.memorize.cruiseIndex];
+                    state.memorize.hasTappedCurrentNote = false;
+                }
             }
+            saveState();
+            renderApp();
         };
     }
 
