@@ -2271,7 +2271,7 @@ input:checked + .toggle-slider:before {
 }
 
 .page-header--memorize .page-header-title-wrap {
-    display: none;
+    visibility: hidden;
 }
 
 .page-header--stage-select {
