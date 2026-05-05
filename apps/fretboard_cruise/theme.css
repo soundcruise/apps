@@ -2264,6 +2264,11 @@ input:checked + .toggle-slider:before {
     transform: translateY(-28px);
 }
 
+.page-header--memorize {
+    gap: 0;
+    padding-bottom: 0;
+}
+
 .page-header--memorize .page-header-title-wrap {
     display: none;
 }

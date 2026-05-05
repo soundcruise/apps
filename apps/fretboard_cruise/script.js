@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.40.16';
+const FRETBOARD_CRUISE_APP_VERSION = '1.40.17';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -3797,12 +3797,12 @@ function renderMemorize(app) {
                 ${isCruise ? `
                     <div class="memorize-cruise-controls">
                         <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-prev">← 1つ戻る</button>
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-reset">最初から</button>
                         <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-stop">
                             ${state.memorize.isCleared
                                 ? 'もう1度やる'
                                 : (state.memorize.isCruisePlaying ? '⏹️ 停止' : '▶️ 再生')}
                         </button>
-                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-reset">最初から</button>
                         <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-next">
                             ${state.memorize.isCleared ? '次のステージ' : '1つ進む →'}
                         </button>
