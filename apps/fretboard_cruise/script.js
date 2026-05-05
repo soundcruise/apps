@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.40.9';
+const FRETBOARD_CRUISE_APP_VERSION = '1.40.10';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -3745,41 +3745,6 @@ function renderMemorize(app) {
     }
 
     const isCruise = state.memorize.playMode === 'cruise';
-
-    if (state.memorize.isCleared) {
-        app.innerHTML = `
-            <div class="${memorizeRootClass}">
-                ${buildPageHeader({
-                    titleText: 'クリア',
-                    leftHtml: `
-                        ${navButtonHtml({ id: 'btn-back-clear-top', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
-                        ${navButtonHtml({ id: 'btn-home-clear', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
-                    `
-                })}
-                <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh; text-align:center;">
-                    <h1 style="color:var(--primary-color); font-size:3rem; margin-bottom:20px;">CLEAR!</h1>
-                    <p style="font-size:1.2rem; margin-bottom:30px;">ルート制覇おめでとうございます！</p>
-                    <button class="btn-primary" id="btn-back-clear" style="padding:15px 30px; font-size:1.2rem;">ステージ選択へ戻る</button>
-                </div>
-            </div>
-        `;
-        document.getElementById('btn-home-clear').onclick = () => {
-            state.course = null;
-            saveState();
-            renderApp();
-        };
-        document.getElementById('btn-back-clear-top').onclick = () => {
-            state.course = 'stageSelect';
-            saveState();
-            renderApp();
-        };
-        document.getElementById('btn-back-clear').onclick = () => {
-            state.course = 'stageSelect';
-            saveState();
-            renderApp();
-        };
-        return;
-    }
 
     let fbText = isCruise ? 'リズムに合わせてタップ！' : '指板をタップして回答してください';
     let fbClass = 'feedback-display';
