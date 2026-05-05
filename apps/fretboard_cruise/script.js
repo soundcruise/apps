@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.40.13';
+const FRETBOARD_CRUISE_APP_VERSION = '1.40.14';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -992,12 +992,8 @@ function autoAdvanceCruise() {
         renderApp();
     };
 
-    if (isTimeoutMiss) {
-        // Delay rendering to let flash be visible for 300ms
-        setTimeout(advanceToNext, 300);
-    } else {
-        advanceToNext();
-    }
+    // Flash shows for 300ms automatically; advance immediately
+    advanceToNext();
 }
 
 function nextRhythmNote() {
