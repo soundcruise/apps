@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.40.10';
+const FRETBOARD_CRUISE_APP_VERSION = '1.40.11';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -906,7 +906,9 @@ function handleQuizTimeout() {
         fb.textContent = 'Miss... (時間切れ)';
         fb.className = 'feedback-display feedback-wrong';
     }
-    
+
+    flashCell('miss');
+
     clearQuizAdvanceTimers();
     quizAdvanceTimeout = setTimeout(() => {
         quizAdvanceTimeout = null;
