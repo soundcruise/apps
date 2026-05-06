@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.54.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.54.4';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -5063,7 +5063,7 @@ function renderMemorize(app) {
     if (isCruise && state.memorize.stage === 2 && isPortrait) {
         fretboardOptions.ruleTapLayoutZoomFitFloatRange = [0, 6];
         fretboardOptions.ruleTapLayoutLockScroll = true;
-        fretboardOptions.ruleTapZoomScrollAnchorFret = 3;
+        fretboardOptions.ruleTapZoomScrollAnchorFret = -1.5;
         autoScrollRequested = false;
     }
 
