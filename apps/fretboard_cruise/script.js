@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.47.4';
+const FRETBOARD_CRUISE_APP_VERSION = '1.47.9';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -80,8 +80,6 @@ let state = {
         demoReturnStage: null,
         stage1RepeatHintMode: 1,
         stage1IsContinuedRepeat: false, // True while 2nd note of a repeated pair is playing
-        stage1RepeatHintFlash: false, // True only during transition flash (short-lived)
-        stage1RepeatHintFlashTimeout: null, // Timer ID for auto-reset of flash
         highlightMode: 2, // 1-5: Visual highlight pattern for current/next note (2=Glow)
         isCruisePlaying: true // Is cruise rhythm currently playing (default: playing)
     },
@@ -313,8 +311,10 @@ if (savedState) {
         if (typeof state.memorize.isDemoPlayback !== 'boolean') state.memorize.isDemoPlayback = false;
         if (typeof state.memorize.demoReturnCourse === 'undefined') state.memorize.demoReturnCourse = null;
         if (typeof state.memorize.demoReturnStage === 'undefined') state.memorize.demoReturnStage = null;
-        if (typeof state.memorize.stage1RepeatHintMode !== 'number') state.memorize.stage1RepeatHintMode = 1;
-        if (typeof state.memorize.stage1RepeatHintFlash !== 'boolean') state.memorize.stage1RepeatHintFlash = false;
+        if (typeof state.memorize.stage1RepeatHintMode !== 'number' || state.memorize.stage1RepeatHintMode < 1 || state.memorize.stage1RepeatHintMode > 2) {
+            state.memorize.stage1RepeatHintMode = 1;
+        }
+        state.memorize.stage1IsContinuedRepeat = false;
         if (typeof state.visualize.key === 'undefined') state.visualize.key = 0;
         if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
         if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
@@ -392,6 +392,10 @@ state.settings.viewMode = 'custom';
 
 function saveState() {
     localStorage.setItem('fretboard_cruise_state', JSON.stringify(state));
+}
+
+function clearStage1RepeatHintState() {
+    state.memorize.stage1IsContinuedRepeat = false;
 }
 
 function markRuleStepCompleted(step) {
@@ -1110,12 +1114,11 @@ function autoAdvanceCruise() {
             const currentLoop = state.memorize.cruiseCurrentLoop;
             if (maxLoops === 0 || currentLoop + 1 < maxLoops) {
                 // ループ続行：周回カウントを進め、先頭に戻る
+                clearStage1RepeatHintState();
                 state.memorize.cruiseCurrentLoop = currentLoop + 1;
                 state.memorize.cruiseIndex = 0;
                 state.memorize.currentQuestion = state.memorize.cruiseTargets[0];
                 state.memorize.hasTappedCurrentNote = false;
-                state.memorize.stage1IsContinuedRepeat = false;
-                state.memorize.stage1RepeatHintFlash = false;
 
                 let q = state.memorize.currentQuestion;
                 playTone(q.stringIdx, q.fret);
@@ -1126,6 +1129,7 @@ function autoAdvanceCruise() {
                 return;
             }
             // 規定ループ完了：STOP
+            clearStage1RepeatHintState();
             state.memorize.isCleared = true;
             stopRhythm();
             saveState();
@@ -1140,24 +1144,10 @@ function autoAdvanceCruise() {
         if (state.memorize.stage === 1 && prevQuestion &&
             prevQuestion.stringName === state.memorize.currentQuestion.stringName &&
             prevQuestion.fret === state.memorize.currentQuestion.fret) {
-            if (state.memorize.stage1RepeatHintFlashTimeout) {
-                clearTimeout(state.memorize.stage1RepeatHintFlashTimeout);
-            }
+            clearStage1RepeatHintState();
             state.memorize.stage1IsContinuedRepeat = true;  // 2回目の音（表示用）
-            state.memorize.stage1RepeatHintFlash = true;    // 切り替え瞬間の点滅
-            // 点滅は0.4s後に自動解除、表示（IsContinuedRepeat）は維持
-            state.memorize.stage1RepeatHintFlashTimeout = setTimeout(() => {
-                state.memorize.stage1RepeatHintFlash = false;
-                state.memorize.stage1RepeatHintFlashTimeout = null;
-                renderApp();
-            }, 500);
         } else {
-            if (state.memorize.stage1RepeatHintFlashTimeout) {
-                clearTimeout(state.memorize.stage1RepeatHintFlashTimeout);
-                state.memorize.stage1RepeatHintFlashTimeout = null;
-            }
-            state.memorize.stage1IsContinuedRepeat = false;
-            state.memorize.stage1RepeatHintFlash = false;
+            clearStage1RepeatHintState();
         }
 
         state.memorize.hasTappedCurrentNote = false;
@@ -1170,7 +1160,6 @@ function autoAdvanceCruise() {
         renderApp();
     };
 
-    // Flash shows for 300ms automatically; advance immediately
     advanceToNext();
 }
 
@@ -1806,6 +1795,7 @@ function startCruisePlaybackFromSequence(sequence, cruiseScope = null, stage = n
     if (!Array.isArray(sequence) || !sequence.length) return false;
     stopRhythm();
     stopQuizTimer();
+    clearStage1RepeatHintState();
     if (Number.isFinite(parseInt(stage, 10))) {
         state.memorize.stage = clamp(parseInt(stage, 10), 1, 6);
     }
@@ -4456,6 +4446,7 @@ function renderStageSelect(app) {
             if (state.memorize.playMode === 'cruise') {
                 const { sequence, cruiseScope } = buildCruiseStageSequence(state.memorize.stage);
                 
+                clearStage1RepeatHintState();
                 state.memorize.cruiseScope = cruiseScope;
                 state.memorize.cruiseTargets = sequence;
                 state.memorize.cruiseIndex = 0;
@@ -4849,19 +4840,16 @@ function renderMemorize(app) {
                         <div class="stat-item"><span class="label">正解</span><span class="value" id="score-correct">${state.memorize.correct}</span></div>
                         <div class="stat-item"><span class="label">連続</span><span class="value" id="score-combo">${state.memorize.combo}</span></div>
                     </div>`;
-    const repeatHintMode = clamp(parseInt(state.memorize.stage1RepeatHintMode, 10) || 1, 1, 4);
+    const repeatHintMode = clamp(parseInt(state.memorize.stage1RepeatHintMode, 10) || 1, 1, 2);
     const repeatHintTabsHtml = isCruise && state.memorize.stage === 1 ? `
-        <div class="memorize-repeat-hint-tabs" role="tablist" aria-label="同じ音が続くときの表示">
+        <div class="memorize-repeat-hint-tabs" role="group" aria-label="同じ音が続くときの表示">
             ${[
-                { mode: 1, label: '×2' },
-                { mode: 2, label: '二重輪' },
-                { mode: 3, label: 'Pulse' },
-                { mode: 4, label: '短文' }
+                { mode: 1, label: '1/2' },
+                { mode: 2, label: 'バッジ' }
             ].map(item => `
                 <button type="button"
                     class="highlight-mode-btn memorize-repeat-hint-btn${repeatHintMode === item.mode ? ' active' : ''}"
-                    role="tab"
-                    aria-selected="${repeatHintMode === item.mode ? 'true' : 'false'}"
+                    aria-pressed="${repeatHintMode === item.mode ? 'true' : 'false'}"
                     data-repeat-hint-mode="${item.mode}">${item.label}</button>
             `).join('')}
         </div>
@@ -4916,6 +4904,7 @@ function renderMemorize(app) {
     document.getElementById('btn-back').onclick = () => {
         stopRhythm();
         stopQuizTimer();
+        clearStage1RepeatHintState();
         if (state.memorize.isDemoPlayback && state.memorize.demoReturnCourse === 'routeEditor') {
             state.course = 'routeEditor';
             if (Number.isFinite(parseInt(state.memorize.demoReturnStage, 10))) {
@@ -4934,6 +4923,7 @@ function renderMemorize(app) {
     document.getElementById('btn-home-memorize').onclick = () => {
         stopRhythm();
         stopQuizTimer();
+        clearStage1RepeatHintState();
         state.course = null;
         saveState();
         renderApp();
@@ -4942,6 +4932,7 @@ function renderMemorize(app) {
     if (isCruise) {
         document.getElementById('btn-cruise-prev').onclick = () => {
             if (state.memorize.cruiseIndex > 0) {
+                clearStage1RepeatHintState();
                 state.memorize.cruiseIndex--;
                 state.memorize.currentQuestion = state.memorize.cruiseTargets[state.memorize.cruiseIndex];
                 state.memorize.hasTappedCurrentNote = false;
@@ -4953,6 +4944,7 @@ function renderMemorize(app) {
         document.getElementById('btn-cruise-stop').onclick = () => {
             if (state.memorize.isCleared) {
                 // Restart course: reset state and play
+                clearStage1RepeatHintState();
                 state.memorize.isCleared = false;
                 state.memorize.cruiseIndex = 0;
                 state.memorize.correct = 0;
@@ -4984,6 +4976,7 @@ function renderMemorize(app) {
             } else {
                 // Advance to next note
                 if (state.memorize.cruiseIndex < state.memorize.cruiseTargets.length - 1) {
+                    clearStage1RepeatHintState();
                     state.memorize.cruiseIndex++;
                     state.memorize.currentQuestion = state.memorize.cruiseTargets[state.memorize.cruiseIndex];
                     state.memorize.hasTappedCurrentNote = false;
@@ -4995,6 +4988,7 @@ function renderMemorize(app) {
 
         document.getElementById('btn-cruise-reset').onclick = () => {
             // Reset to the beginning of the course
+            clearStage1RepeatHintState();
             state.memorize.isCleared = false;
             state.memorize.cruiseIndex = 0;
             state.memorize.cruiseCurrentLoop = 0;
@@ -5013,6 +5007,7 @@ function renderMemorize(app) {
     document.getElementById('btn-memorize-settings').onclick = () => {
         stopRhythm();
         stopQuizTimer();
+        clearStage1RepeatHintState();
         state.memorize.isCruisePlaying = false;
         openSettings();
     };
@@ -5052,10 +5047,8 @@ function renderMemorize(app) {
         const nextQ = state.memorize.cruiseIndex < state.memorize.cruiseTargets.length - 1
             ? state.memorize.cruiseTargets[state.memorize.cruiseIndex + 1]
             : null;
-        const isContinuedRepeat = state.memorize.stage1IsContinuedRepeat;
-        const isFlashing = state.memorize.stage1RepeatHintFlash;
         requestAnimationFrame(() => {
-            renderHighlightOverlay(q, nextQ, state.memorize.highlightMode, repeatHintMode, isFlashing, isContinuedRepeat);
+            renderHighlightOverlay(q, nextQ, state.memorize.highlightMode, repeatHintMode, state.memorize.stage1IsContinuedRepeat);
         });
     }
 
@@ -7670,7 +7663,7 @@ function addFretboardDots(containerId) {
     }
 }
 
-function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode, repeatHintMode = 1, isFlashing = false, isContinuedRepeat = false) {
+function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode, repeatHintMode = 1, isContinuedRepeat = false) {
     if (!currentQuestion) return;
 
     const container = document.getElementById('fretboard-container');
@@ -7720,19 +7713,13 @@ function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode, re
     container.style.position = 'relative';
     container.appendChild(overlay);
 
-    // Case 1: Transition flash (1回目→2回目の切り替え瞬間のみ点滅)
-    if (isFlashing) {
-        renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, true);
-        return;
-    }
-
-    // 1回目の音が鳴っている（nextQが同じ音）
+    // 同じ音が続く場合は、1回目/2回目の両方を安定表示する
     const isRepeatedSameCell = !!(nextQuestion
         && currentQuestion.stringName === nextQuestion.stringName
         && currentQuestion.fret === nextQuestion.fret);
 
-    if (isRepeatedSameCell) {
-        renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, false);
+    if (isRepeatedSameCell || isContinuedRepeat) {
+        renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, isContinuedRepeat);
         return;
     }
 
@@ -7756,7 +7743,7 @@ function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode, re
     }
 }
 
-function renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, isFlashing = false) {
+function renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, isSecondNote = false) {
     const containerRect = overlay.parentElement.getBoundingClientRect();
     const currentRect = currentCell.getBoundingClientRect();
     const currentX = currentRect.left - containerRect.left + currentRect.width / 2;
@@ -7768,8 +7755,7 @@ function renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, i
 
     const addElement = (className, styles = {}, text = '') => {
         const el = document.createElement('div');
-        const finalClassName = isFlashing ? `${className} repeat-hint-flash` : className;
-        el.className = finalClassName;
+        el.className = className;
         el.style.position = 'absolute';
         el.style.pointerEvents = 'none';
         Object.entries(styles).forEach(([key, value]) => {
@@ -7788,85 +7774,58 @@ function renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, i
         borderRadius: '50%'
     };
 
-    switch (repeatHintMode) {
-        case 2: {
-            addElement('repeat-note-ring repeat-note-ring--outer', {
-                ...baseRing,
-                border: '3px solid rgba(49, 196, 107, 0.95)',
-                boxShadow: '0 0 14px rgba(49, 196, 107, 0.25)'
-            });
-            addElement('repeat-note-ring repeat-note-ring--inner', {
-                left: `${currentX - 15}px`,
-                top: `${currentY - 15}px`,
-                width: '30px',
-                height: '30px',
-                borderRadius: '50%',
-                border: '2px solid rgba(255,255,255,0.72)',
-                boxShadow: '0 0 10px rgba(255,255,255,0.15)'
-            });
-            break;
-        }
-        case 3: {
-            addElement('repeat-note-pulse repeat-note-pulse--ring', {
-                ...baseRing,
-                border: '3px solid rgba(49, 196, 107, 0.8)',
-                boxShadow: '0 0 18px rgba(49, 196, 107, 0.45)',
-                animation: 'pulse 1.05s infinite'
-            });
-            addElement('repeat-note-pulse repeat-note-pulse--core', {
-                left: `${currentX - 11}px`,
-                top: `${currentY - 11}px`,
-                width: '22px',
-                height: '22px',
-                borderRadius: '50%',
-                background: 'rgba(49, 196, 107, 0.38)',
-                boxShadow: '0 0 12px rgba(49, 196, 107, 0.4)',
-                animation: 'glow 1.05s ease-in-out infinite'
-            });
-            break;
-        }
-        case 4: {
-            addElement('repeat-note-text', {
-                left: `${currentX - 26}px`,
-                top: `${currentY + 18}px`,
-                minWidth: '52px',
-                padding: '2px 8px',
-                borderRadius: '999px',
-                background: 'rgba(8, 18, 10, 0.78)',
-                border: '1px solid rgba(49, 196, 107, 0.72)',
-                color: '#dfffea',
-                fontSize: '0.72rem',
-                fontWeight: '800',
-                textAlign: 'center',
-                transform: 'translateY(-50%)'
-            }, 'もう1回');
-            break;
-        }
-        case 1:
-        default: {
-            addElement('repeat-note-ring repeat-note-ring--badge', {
-                ...baseRing,
-                border: '3px solid rgba(49, 196, 107, 0.95)',
-                boxShadow: '0 0 15px rgba(49, 196, 107, 0.25)'
-            });
-            addElement('repeat-note-badge', {
-                left: `${currentX + 11}px`,
-                top: `${currentY - 19}px`,
-                minWidth: '24px',
-                height: '18px',
-                padding: '0 5px',
-                borderRadius: '999px',
-                background: 'rgba(8, 18, 10, 0.9)',
-                border: '1px solid rgba(49, 196, 107, 0.95)',
-                color: '#dfffea',
-                fontSize: '0.68rem',
-                fontWeight: '900',
-                lineHeight: '18px',
-                textAlign: 'center',
-                boxShadow: '0 0 10px rgba(49, 196, 107, 0.22)'
-            }, '×2');
-            break;
-        }
+    if (repeatHintMode === 1) {
+        addElement('repeat-note-badge repeat-note-badge--fraction', {
+            left: `${currentX + 11}px`,
+            top: `${currentY - 19}px`,
+            minWidth: '30px',
+            height: '18px',
+            padding: '0 6px',
+            borderRadius: '999px',
+            background: 'rgba(8, 18, 10, 0.9)',
+            border: '1px solid rgba(49, 196, 107, 0.95)',
+            color: '#dfffea',
+            fontSize: '0.68rem',
+            fontWeight: '900',
+            lineHeight: '18px',
+            textAlign: 'center',
+            boxShadow: '0 0 10px rgba(49, 196, 107, 0.22)'
+        }, isSecondNote ? '2/2' : '1/2');
+        return;
+    }
+
+    addElement('repeat-note-badge repeat-note-badge--digit', {
+        left: `${currentX + 10}px`,
+        top: `${currentY - 18}px`,
+        minWidth: '22px',
+        height: '18px',
+        padding: '0 5px',
+        borderRadius: '999px',
+        background: isSecondNote ? 'rgba(49, 196, 107, 0.92)' : 'rgba(8, 18, 10, 0.9)',
+        border: '1px solid rgba(49, 196, 107, 0.95)',
+        color: isSecondNote ? '#07130b' : '#dfffea',
+        fontSize: '0.72rem',
+        fontWeight: '900',
+        lineHeight: '18px',
+        textAlign: 'center',
+        boxShadow: isSecondNote ? '0 0 12px rgba(49, 196, 107, 0.3)' : '0 0 10px rgba(49, 196, 107, 0.22)'
+    }, isSecondNote ? '2' : '1');
+    if (isSecondNote) {
+        addElement('repeat-note-check', {
+            left: `${currentX - 16}px`,
+            top: `${currentY + 10}px`,
+            width: '18px',
+            height: '18px',
+            borderRadius: '50%',
+            background: 'rgba(49, 196, 107, 0.18)',
+            border: '1px solid rgba(49, 196, 107, 0.6)',
+            color: '#dfffea',
+            fontSize: '0.74rem',
+            fontWeight: '900',
+            lineHeight: '17px',
+            textAlign: 'center',
+            boxShadow: '0 0 10px rgba(49, 196, 107, 0.2)'
+        }, '✓');
     }
 }
 
