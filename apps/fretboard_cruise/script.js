@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.47.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.47.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -80,6 +80,8 @@ let state = {
         demoReturnStage: null,
         stage1RepeatHintMode: 1,
         stage1RepeatHintFlash: false, // Indicates 2nd note of repeated same note
+        stage1RepeatHintFlashTimeout: null, // Timer ID for auto-reset
+        stage1RepeatLastCellPos: null, // { x, y, ringSize, ringLeft, ringTop } - cache for position
         highlightMode: 2, // 1-5: Visual highlight pattern for current/next note (2=Glow)
         isCruisePlaying: true // Is cruise rhythm currently playing (default: playing)
     },
@@ -1137,8 +1139,22 @@ function autoAdvanceCruise() {
         if (state.memorize.stage === 1 && prevQuestion &&
             prevQuestion.stringName === state.memorize.currentQuestion.stringName &&
             prevQuestion.fret === state.memorize.currentQuestion.fret) {
+            // Clear any existing timeout
+            if (state.memorize.stage1RepeatHintFlashTimeout) {
+                clearTimeout(state.memorize.stage1RepeatHintFlashTimeout);
+            }
             state.memorize.stage1RepeatHintFlash = true;
+            // Auto-reset flash flag after animation completes (0.4s + 100ms buffer)
+            state.memorize.stage1RepeatHintFlashTimeout = setTimeout(() => {
+                state.memorize.stage1RepeatHintFlash = false;
+                state.memorize.stage1RepeatHintFlashTimeout = null;
+                renderApp();
+            }, 500);
         } else {
+            if (state.memorize.stage1RepeatHintFlashTimeout) {
+                clearTimeout(state.memorize.stage1RepeatHintFlashTimeout);
+                state.memorize.stage1RepeatHintFlashTimeout = null;
+            }
             state.memorize.stage1RepeatHintFlash = false;
         }
 
@@ -7742,8 +7758,32 @@ function renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, i
     const currentX = currentRect.left - containerRect.left + currentRect.width / 2;
     const currentY = currentRect.top - containerRect.top + currentRect.height / 2;
     const ringSize = Math.max(currentRect.width, currentRect.height) + 8;
-    const ringLeft = currentX - ringSize / 2;
-    const ringTop = currentY - ringSize / 2;
+
+    // Use cached position if available for same cell (avoid position shift)
+    let ringLeft, ringTop;
+    const currentCellString = currentCell.getAttribute('data-string');
+    const currentCellFret = currentCell.getAttribute('data-fret');
+
+    if (state.memorize.stage1RepeatLastCellPos &&
+        state.memorize.stage1RepeatLastCellPos.string === currentCellString &&
+        state.memorize.stage1RepeatLastCellPos.fret === currentCellFret) {
+        // Use cached position
+        ringLeft = state.memorize.stage1RepeatLastCellPos.ringLeft;
+        ringTop = state.memorize.stage1RepeatLastCellPos.ringTop;
+    } else {
+        // Calculate new position and cache it
+        ringLeft = currentX - ringSize / 2;
+        ringTop = currentY - ringSize / 2;
+        state.memorize.stage1RepeatLastCellPos = {
+            string: currentCellString,
+            fret: currentCellFret,
+            x: currentX,
+            y: currentY,
+            ringSize: ringSize,
+            ringLeft: ringLeft,
+            ringTop: ringTop
+        };
+    }
 
     const addElement = (className, styles = {}, text = '') => {
         const el = document.createElement('div');
