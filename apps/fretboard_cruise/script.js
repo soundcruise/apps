@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.47.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.47.4';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -7720,19 +7720,13 @@ function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode, re
     container.style.position = 'relative';
     container.appendChild(overlay);
 
-    // Case 1: Transition flash (1回目→2回目の切り替え瞬間)
+    // Case 1: Transition flash (1回目→2回目の切り替え瞬間のみ点滅)
     if (isFlashing) {
         renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, true);
         return;
     }
 
-    // Case 2: 2回目の音が鳴っている（点滅後、エフェクトは維持・点滅なし）
-    if (isContinuedRepeat) {
-        renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, false);
-        return;
-    }
-
-    // Case 3: 1回目の音が鳴っている（nextQが同じ音）
+    // 1回目の音が鳴っている（nextQが同じ音）
     const isRepeatedSameCell = !!(nextQuestion
         && currentQuestion.stringName === nextQuestion.stringName
         && currentQuestion.fret === nextQuestion.fret);
