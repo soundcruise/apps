@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.49.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.50.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -311,9 +311,8 @@ if (savedState) {
         if (typeof state.memorize.isDemoPlayback !== 'boolean') state.memorize.isDemoPlayback = false;
         if (typeof state.memorize.demoReturnCourse === 'undefined') state.memorize.demoReturnCourse = null;
         if (typeof state.memorize.demoReturnStage === 'undefined') state.memorize.demoReturnStage = null;
-        if (typeof state.memorize.stage1RepeatHintMode !== 'number' || state.memorize.stage1RepeatHintMode < 1 || state.memorize.stage1RepeatHintMode > 2) {
-            state.memorize.stage1RepeatHintMode = 1;
-        }
+        // Official specification: always use mode 1 (1/2 display)
+        state.memorize.stage1RepeatHintMode = 1;
         state.memorize.stage1IsContinuedRepeat = false;
         if (typeof state.visualize.key === 'undefined') state.visualize.key = 0;
         if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
@@ -4849,20 +4848,8 @@ function renderMemorize(app) {
                         <div class="stat-item"><span class="label">正解</span><span class="value" id="score-correct">${state.memorize.correct}</span></div>
                         <div class="stat-item"><span class="label">連続</span><span class="value" id="score-combo">${state.memorize.combo}</span></div>
                     </div>`;
-    const repeatHintMode = clamp(parseInt(state.memorize.stage1RepeatHintMode, 10) || 1, 1, 2);
-    const repeatHintTabsHtml = isCruise && state.memorize.stage === 1 ? `
-        <div class="memorize-repeat-hint-tabs" role="group" aria-label="同じ音が続くときの表示">
-            ${[
-                { mode: 1, label: '1/2' },
-                { mode: 2, label: 'バッジ' }
-            ].map(item => `
-                <button type="button"
-                    class="highlight-mode-btn memorize-repeat-hint-btn${repeatHintMode === item.mode ? ' active' : ''}"
-                    aria-pressed="${repeatHintMode === item.mode ? 'true' : 'false'}"
-                    data-repeat-hint-mode="${item.mode}">${item.label}</button>
-            `).join('')}
-        </div>
-    ` : '';
+    const repeatHintMode = 1;  // Official specification: fixed to mode 1 (1/2 display)
+    const repeatHintTabsHtml = '';  // Tab UI removed - using official 1/2 display only
 
     const memorizeLand =
         typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
@@ -5021,17 +5008,9 @@ function renderMemorize(app) {
         openSettings();
     };
 
-    // Pattern selection buttons (STAGE1 only)
+    // Highlight mode selection buttons
     document.querySelectorAll('.highlight-mode-btn').forEach(btn => {
         btn.onclick = () => {
-            const repeatHintModeAttr = btn.getAttribute('data-repeat-hint-mode');
-            if (repeatHintModeAttr !== null) {
-                const mode = clamp(parseInt(repeatHintModeAttr, 10) || 1, 1, 4);
-                state.memorize.stage1RepeatHintMode = mode;
-                saveState();
-                renderApp();
-                return;
-            }
             const mode = parseInt(btn.getAttribute('data-mode'));
             state.memorize.highlightMode = mode;
             saveState();
@@ -7831,59 +7810,23 @@ function renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, i
         return;
     }
 
-    if (repeatHintMode === 1) {
-        addElement('repeat-note-badge repeat-note-badge--fraction', {
-            left: `${currentX + 11}px`,
-            top: `${currentY - 19}px`,
-            minWidth: '30px',
-            height: '18px',
-            padding: '0 6px',
-            borderRadius: '999px',
-            background: 'rgba(8, 18, 10, 0.9)',
-            border: '1px solid rgba(49, 196, 107, 0.95)',
-            color: '#dfffea',
-            fontSize: '0.68rem',
-            fontWeight: '900',
-            lineHeight: '18px',
-            textAlign: 'center',
-            boxShadow: '0 0 10px rgba(49, 196, 107, 0.22)'
-        }, isSecondNote ? '2/2' : '1/2');
-        return;
-    }
-
-    addElement('repeat-note-badge repeat-note-badge--digit', {
-        left: `${currentX + 10}px`,
-        top: `${currentY - 18}px`,
-        minWidth: '22px',
+    // Display "1/2" or "2/2" badge (official specification)
+    addElement('repeat-note-badge repeat-note-badge--fraction', {
+        left: `${currentX + 11}px`,
+        top: `${currentY - 19}px`,
+        minWidth: '30px',
         height: '18px',
-        padding: '0 5px',
+        padding: '0 6px',
         borderRadius: '999px',
-        background: isSecondNote ? 'rgba(49, 196, 107, 0.92)' : 'rgba(8, 18, 10, 0.9)',
+        background: 'rgba(8, 18, 10, 0.9)',
         border: '1px solid rgba(49, 196, 107, 0.95)',
-        color: isSecondNote ? '#07130b' : '#dfffea',
-        fontSize: '0.72rem',
+        color: '#dfffea',
+        fontSize: '0.68rem',
         fontWeight: '900',
         lineHeight: '18px',
         textAlign: 'center',
-        boxShadow: isSecondNote ? '0 0 12px rgba(49, 196, 107, 0.3)' : '0 0 10px rgba(49, 196, 107, 0.22)'
-    }, isSecondNote ? '2' : '1');
-    if (isSecondNote) {
-        addElement('repeat-note-check', {
-            left: `${currentX - 16}px`,
-            top: `${currentY + 10}px`,
-            width: '18px',
-            height: '18px',
-            borderRadius: '50%',
-            background: 'rgba(49, 196, 107, 0.18)',
-            border: '1px solid rgba(49, 196, 107, 0.6)',
-            color: '#dfffea',
-            fontSize: '0.74rem',
-            fontWeight: '900',
-            lineHeight: '17px',
-            textAlign: 'center',
-            boxShadow: '0 0 10px rgba(49, 196, 107, 0.2)'
-        }, '✓');
-    }
+        boxShadow: '0 0 10px rgba(49, 196, 107, 0.22)'
+    }, isSecondNote ? '2/2' : '1/2');
 }
 
 function addRingHighlight(overlay, currentCell, nextCell, currentColor, nextColor) {
