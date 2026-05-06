@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.40.21';
+const FRETBOARD_CRUISE_APP_VERSION = '1.47.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -46,10 +46,21 @@ const DEFAULT_HORIZONTAL_PERSPECTIVE = 0;
 const DEFAULT_ROTATION = { x: 0, y: 0, z: 0 };
 const DEFAULT_FRETBOARD_VIEW = 'full';
 const DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION = true;
+const DEFAULT_CRUISE_LOOP_COUNT = 1;
+const ROUTE_EDITOR_MAX_GROUPS = 20;
+const ROUTE_EDITOR_SCALE_GUIDE_LABELS = {
+    0: 'ド',
+    2: 'レ',
+    4: 'ミ',
+    5: 'ファ',
+    7: 'ソ',
+    9: 'ラ',
+    11: 'シ'
+};
 
 // Default States
 let state = {
-    course: null, // 'modeSelect' | 'ruleSelect' | 'basicRules' | 'basicRuleStep' | 'stageSelect' | 'memorize' | 'visualize'
+    course: null, // 'modeSelect' | 'ruleSelect' | 'basicRules' | 'basicRuleStep' | 'stageSelect' | 'memorize' | 'routeEditor' | 'visualize'
     memorize: {
         playMode: 'quiz', // 'cruise' | 'quiz'
         stage: 1,
@@ -59,10 +70,16 @@ let state = {
         cruiseTargets: [],
         cruiseScope: [], // Unique targets for rendering grey notes
         cruiseIndex: 0,
+        cruiseCurrentLoop: 0,
         isCleared: false,
         hasTappedCurrentNote: false,
         isFirstNote: true,
         tempFeedback: null,
+        isDemoPlayback: false,
+        demoReturnCourse: null,
+        demoReturnStage: null,
+        stage1RepeatHintMode: 1,
+        stage1RepeatHintFlash: false, // Indicates 2nd note of repeated same note
         highlightMode: 2, // 1-5: Visual highlight pattern for current/next note (2=Glow)
         isCruisePlaying: true // Is cruise rhythm currently playing (default: playing)
     },
@@ -99,7 +116,20 @@ let state = {
         /** STEP5-1：チェックで練習から外したマス */
         step5ExcludedSlots: {},
         /** STEP5-2：同上（STEP5-1 とは別に保存） */
-        step5ExcludedSlotsPart2: {}
+        step5ExcludedSlotsPart2: {},
+        completedSteps: {}
+    },
+    routeEditor: {
+        stage: 1,
+        draft: [],
+        deleteMode: false,
+        history: [],
+        deletePicker: null,
+        groupBreaks: [],
+        selectedGroupIndex: 0,
+        visibleGroupIndices: [],
+        forceHideAllGroups: false,
+        groupPanelOffset: { x: 0, y: 0 }
     },
     settings: {
         tempo: DEFAULT_TEMPO,
@@ -112,6 +142,9 @@ let state = {
         perspOriginX: DEFAULT_HORIZONTAL_PERSPECTIVE, // 横の遠近感 (0-100, 100=12F大きく)
         fretboardView: DEFAULT_FRETBOARD_VIEW,
         fretboardViewAutoOrientation: DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION,
+        cruiseLoopCount: DEFAULT_CRUISE_LOOP_COUNT,
+        cruiseStageRoutes: {},
+        cruiseStageRouteGroups: {},
         neckModelVersion: FRETBOARD_NECK_MODEL_VERSION
     }
 };
@@ -120,6 +153,7 @@ let currentScrollLeft = 0;
 let autoScrollRequested = false;
 let nextTargetTime = 0;
 let settingsReturnCourse = null;
+let settingsPausedState = null;
 let quizAdvanceTimeout = null;
 let quizToneTimeout = null;
 let ruleAdvanceLocked = false;
@@ -140,6 +174,10 @@ let ruleStep43GapCleanup = null;
 let ruleStep43GapTimeoutIds = [];
 const fretboardDocumentHandlers = new Map();
 const fretboardDebugScrollHandlers = new Map();
+const routeEditorDragHandlers = new Map();
+const routeEditorGroupPanelDragHandlers = new Map();
+let routeEditorDragSuppressRouteIndex = null;
+let routeEditorDragSuppressNextClick = false;
 
 function cleanupFretboardDocumentHandlers(containerId) {
     if (containerId) {
@@ -147,6 +185,21 @@ function cleanupFretboardDocumentHandlers(containerId) {
         if (handler) {
             document.removeEventListener('click', handler, true);
             fretboardDocumentHandlers.delete(containerId);
+        }
+        const dragHandlers = routeEditorDragHandlers.get(containerId);
+        if (dragHandlers) {
+            document.removeEventListener('pointerdown', dragHandlers.pointerdown, true);
+            document.removeEventListener('pointermove', dragHandlers.pointermove, true);
+            document.removeEventListener('pointerup', dragHandlers.pointerup, true);
+            document.removeEventListener('pointercancel', dragHandlers.pointercancel, true);
+            routeEditorDragHandlers.delete(containerId);
+        }
+        const groupPanelDragHandlers = routeEditorGroupPanelDragHandlers.get(containerId);
+        if (groupPanelDragHandlers) {
+            document.removeEventListener('pointermove', groupPanelDragHandlers.pointermove, true);
+            document.removeEventListener('pointerup', groupPanelDragHandlers.pointerup, true);
+            document.removeEventListener('pointercancel', groupPanelDragHandlers.pointercancel, true);
+            routeEditorGroupPanelDragHandlers.delete(containerId);
         }
         const debugScrollHandler = fretboardDebugScrollHandlers.get(containerId);
         if (debugScrollHandler) {
@@ -164,6 +217,19 @@ function cleanupFretboardDocumentHandlers(containerId) {
         document.removeEventListener('click', handler, true);
     });
     fretboardDocumentHandlers.clear();
+    routeEditorDragHandlers.forEach(handlers => {
+        document.removeEventListener('pointerdown', handlers.pointerdown, true);
+        document.removeEventListener('pointermove', handlers.pointermove, true);
+        document.removeEventListener('pointerup', handlers.pointerup, true);
+        document.removeEventListener('pointercancel', handlers.pointercancel, true);
+    });
+    routeEditorDragHandlers.clear();
+    routeEditorGroupPanelDragHandlers.forEach(handlers => {
+        document.removeEventListener('pointermove', handlers.pointermove, true);
+        document.removeEventListener('pointerup', handlers.pointerup, true);
+        document.removeEventListener('pointercancel', handlers.pointercancel, true);
+    });
+    routeEditorGroupPanelDragHandlers.clear();
     fretboardDebugScrollHandlers.forEach((handler, id) => {
         const containerEl = document.getElementById(id);
         const wrapper = containerEl ? containerEl.querySelector('.fretboard-scroll-wrapper') : null;
@@ -203,7 +269,8 @@ if (savedState) {
                 step4Slide2RevealDone: false,
                 step4Slide3ScrollRevealDone: false,
                 step5ExcludedSlots: {},
-                step5ExcludedSlotsPart2: {}
+                step5ExcludedSlotsPart2: {},
+                completedSteps: {}
             };
         }
         if (typeof state.rules.step === 'undefined') state.rules.step = 1;
@@ -228,12 +295,24 @@ if (savedState) {
         ) {
             state.rules.step5ExcludedSlotsPart2 = {};
         }
+        if (
+            !state.rules.completedSteps ||
+            typeof state.rules.completedSteps !== 'object' ||
+            Array.isArray(state.rules.completedSteps)
+        ) {
+            state.rules.completedSteps = {};
+        }
         if (typeof state.rules.step === 'number' && state.rules.step > 5) {
             state.rules.step = 5;
             state.rules.page = 0;
             state.rules.phase = 'intro';
             state.rules.tapIndex = 0;
         }
+        if (typeof state.memorize.isDemoPlayback !== 'boolean') state.memorize.isDemoPlayback = false;
+        if (typeof state.memorize.demoReturnCourse === 'undefined') state.memorize.demoReturnCourse = null;
+        if (typeof state.memorize.demoReturnStage === 'undefined') state.memorize.demoReturnStage = null;
+        if (typeof state.memorize.stage1RepeatHintMode !== 'number') state.memorize.stage1RepeatHintMode = 1;
+        if (typeof state.memorize.stage1RepeatHintFlash !== 'boolean') state.memorize.stage1RepeatHintFlash = false;
         if (typeof state.visualize.key === 'undefined') state.visualize.key = 0;
         if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
         if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
@@ -252,6 +331,45 @@ if (savedState) {
         if (typeof state.settings.fretboardView === 'undefined') state.settings.fretboardView = DEFAULT_FRETBOARD_VIEW;
         if (typeof state.settings.fretboardViewAutoOrientation === 'undefined') {
             state.settings.fretboardViewAutoOrientation = DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION;
+        }
+        if (typeof state.settings.cruiseLoopCount === 'undefined') {
+            state.settings.cruiseLoopCount = DEFAULT_CRUISE_LOOP_COUNT;
+        }
+        state.settings.routeEditorScaleGuideVariant = 3;
+        if (
+            !state.settings.cruiseStageRoutes ||
+            typeof state.settings.cruiseStageRoutes !== 'object' ||
+            Array.isArray(state.settings.cruiseStageRoutes)
+        ) {
+            state.settings.cruiseStageRoutes = {};
+        }
+        if (
+            !state.settings.cruiseStageRouteGroups ||
+            typeof state.settings.cruiseStageRouteGroups !== 'object' ||
+            Array.isArray(state.settings.cruiseStageRouteGroups)
+        ) {
+            state.settings.cruiseStageRouteGroups = {};
+        }
+        if (
+            !state.routeEditor ||
+            typeof state.routeEditor !== 'object' ||
+            Array.isArray(state.routeEditor)
+        ) {
+            state.routeEditor = { stage: 1, draft: [], deleteMode: false, history: [], deletePicker: null, groupBreaks: [], selectedGroupIndex: 0 };
+        }
+        if (!Array.isArray(state.routeEditor.draft)) state.routeEditor.draft = [];
+        if (typeof state.routeEditor.stage !== 'number') state.routeEditor.stage = 1;
+        if (typeof state.routeEditor.deleteMode !== 'boolean') state.routeEditor.deleteMode = false;
+        if (!Array.isArray(state.routeEditor.history)) state.routeEditor.history = [];
+        if (state.routeEditor.deletePicker && typeof state.routeEditor.deletePicker !== 'object') {
+            state.routeEditor.deletePicker = null;
+        }
+        if (!Array.isArray(state.routeEditor.groupBreaks)) state.routeEditor.groupBreaks = [];
+        if (typeof state.routeEditor.selectedGroupIndex !== 'number') state.routeEditor.selectedGroupIndex = 0;
+        if (!Array.isArray(state.routeEditor.visibleGroupIndices)) state.routeEditor.visibleGroupIndices = [];
+        if (typeof state.routeEditor.forceHideAllGroups !== 'boolean') state.routeEditor.forceHideAllGroups = false;
+        if (!state.routeEditor.groupPanelOffset || typeof state.routeEditor.groupPanelOffset !== 'object') {
+            state.routeEditor.groupPanelOffset = { x: 0, y: 0 };
         }
     } catch (e) {}
 }
@@ -272,6 +390,14 @@ state.settings.viewMode = 'custom';
 
 function saveState() {
     localStorage.setItem('fretboard_cruise_state', JSON.stringify(state));
+}
+
+function markRuleStepCompleted(step) {
+    const doneStep = clamp(parseInt(step, 10), 1, 5);
+    if (!state.rules.completedSteps || typeof state.rules.completedSteps !== 'object' || Array.isArray(state.rules.completedSteps)) {
+        state.rules.completedSteps = {};
+    }
+    state.rules.completedSteps[String(doneStep)] = true;
 }
 
 function getFretboardViewForWindowOrientation() {
@@ -296,7 +422,7 @@ function scheduleApplyFretboardViewFromOrientation() {
         _fretboardOrientationApplyTimer = null;
         const autoChanged = applyFretboardViewFromOrientationIfAuto();
         if (autoChanged) saveState();
-        if (state.course === 'memorize') {
+        if (state.course === 'memorize' || state.course === 'routeEditor') {
             renderApp();
         } else if (autoChanged && (state.course === 'settings' || state.course === 'visualize' || state.course === 'ruleSelect' || state.course === 'basicRules' || state.course === 'basicRuleStep')) {
             renderApp();
@@ -324,6 +450,9 @@ function getDefaultSettings() {
         perspOriginX: DEFAULT_HORIZONTAL_PERSPECTIVE,
         fretboardView: DEFAULT_FRETBOARD_VIEW,
         fretboardViewAutoOrientation: DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION,
+        cruiseLoopCount: DEFAULT_CRUISE_LOOP_COUNT,
+        cruiseStageRoutes: {},
+        cruiseStageRouteGroups: {},
         neckModelVersion: FRETBOARD_NECK_MODEL_VERSION
     };
 }
@@ -331,7 +460,9 @@ function getDefaultSettings() {
 function cloneSettings(settings) {
     return {
         ...settings,
-        rotation: { ...(settings.rotation || DEFAULT_ROTATION) }
+        rotation: { ...(settings.rotation || DEFAULT_ROTATION) },
+        cruiseStageRoutes: JSON.parse(JSON.stringify(settings.cruiseStageRoutes || {})),
+        cruiseStageRouteGroups: JSON.parse(JSON.stringify(settings.cruiseStageRouteGroups || {}))
     };
 }
 
@@ -967,9 +1098,31 @@ function autoAdvanceCruise() {
     }
 
     const advanceToNext = () => {
+        // Save previous question for repeat hint detection
+        const prevQuestion = state.memorize.currentQuestion;
+
         // Move to next note
         let nextIdx = state.memorize.cruiseIndex + 1;
         if (nextIdx >= state.memorize.cruiseTargets.length) {
+            const maxLoops = state.settings.cruiseLoopCount; // 0 = 無制限
+            const currentLoop = state.memorize.cruiseCurrentLoop;
+            if (maxLoops === 0 || currentLoop + 1 < maxLoops) {
+                // ループ続行：周回カウントを進め、先頭に戻る
+                state.memorize.cruiseCurrentLoop = currentLoop + 1;
+                state.memorize.cruiseIndex = 0;
+                state.memorize.currentQuestion = state.memorize.cruiseTargets[0];
+                state.memorize.hasTappedCurrentNote = false;
+                state.memorize.stage1RepeatHintFlash = false; // Reset flash on loop
+
+                let q = state.memorize.currentQuestion;
+                playTone(q.stringIdx, q.fret);
+
+                autoScrollRequested = true;
+                saveState();
+                renderApp();
+                return;
+            }
+            // 規定ループ完了：STOP
             state.memorize.isCleared = true;
             stopRhythm();
             saveState();
@@ -979,6 +1132,16 @@ function autoAdvanceCruise() {
 
         state.memorize.cruiseIndex = nextIdx;
         state.memorize.currentQuestion = state.memorize.cruiseTargets[nextIdx];
+
+        // Check if same note is repeated (STAGE1 only)
+        if (state.memorize.stage === 1 && prevQuestion &&
+            prevQuestion.stringName === state.memorize.currentQuestion.stringName &&
+            prevQuestion.fret === state.memorize.currentQuestion.fret) {
+            state.memorize.stage1RepeatHintFlash = true;
+        } else {
+            state.memorize.stage1RepeatHintFlash = false;
+        }
+
         state.memorize.hasTappedCurrentNote = false;
 
         let q = state.memorize.currentQuestion;
@@ -1094,6 +1257,564 @@ function getStageTargets(stage) {
     return targets;
 }
 
+function makeCruiseTarget(stringName, fret) {
+    const normalizedStringName = clamp(parseInt(stringName, 10), 1, 6);
+    const normalizedFret = clamp(parseInt(fret, 10), 0, MAX_FRET);
+    const stringIdx = 6 - normalizedStringName;
+    const noteIdx = (OPEN_STRINGS[stringIdx] + normalizedFret) % 12;
+    return {
+        stringIdx,
+        stringName: normalizedStringName,
+        fret: normalizedFret,
+        noteIdx,
+        noteName: NOTES[noteIdx],
+        midiNote: STRING_BASE_PITCHES[stringIdx] + normalizedFret
+    };
+}
+
+function cruiseRouteSlotFromTarget(target) {
+    return {
+        stringName: target.stringName,
+        fret: target.fret
+    };
+}
+
+function normalizeCruiseRouteSlot(slot) {
+    if (!slot || typeof slot !== 'object') return null;
+    const stringName = parseInt(slot.stringName, 10);
+    const fret = parseInt(slot.fret, 10);
+    if (!Number.isFinite(stringName) || !Number.isFinite(fret)) return null;
+    if (stringName < 1 || stringName > 6 || fret < 0 || fret > MAX_FRET) return null;
+    return { stringName, fret };
+}
+
+function cloneCruiseRouteSlots(slots) {
+    if (!Array.isArray(slots)) return [];
+    return slots.map(normalizeCruiseRouteSlot).filter(Boolean).map(slot => ({ ...slot }));
+}
+
+function getSavedCruiseRouteSlots(stage) {
+    const routes = state.settings.cruiseStageRoutes || {};
+    const saved = routes[String(stage)];
+    if (!Array.isArray(saved)) return [];
+    return cloneCruiseRouteSlots(saved);
+}
+
+function findLastCruiseRouteSlotIndex(route, stringName, fret) {
+    if (!Array.isArray(route)) return -1;
+    for (let i = route.length - 1; i >= 0; i--) {
+        const slot = normalizeCruiseRouteSlot(route[i]);
+        if (!slot) continue;
+        if (slot.stringName === stringName && slot.fret === fret) return i;
+    }
+    return -1;
+}
+
+function getRouteEditorSnapshot(stage = null) {
+    const currentStage = clamp(parseInt(stage ?? state.routeEditor?.stage ?? 1, 10), 1, 6);
+    const routeKey = String(currentStage);
+    return {
+        stage: currentStage,
+        draft: cloneCruiseRouteSlots(state.routeEditor?.draft),
+        deleteMode: !!state.routeEditor?.deleteMode,
+        savedRoute: cloneCruiseRouteSlots(state.settings?.cruiseStageRoutes?.[routeKey]),
+        deletePicker: null,
+        groupBreaks: Array.isArray(state.routeEditor?.groupBreaks) ? state.routeEditor.groupBreaks.slice() : [],
+        selectedGroupIndex: typeof state.routeEditor?.selectedGroupIndex === 'number' ? state.routeEditor.selectedGroupIndex : 0,
+        visibleGroupIndices: Array.isArray(state.routeEditor?.visibleGroupIndices) ? state.routeEditor.visibleGroupIndices.slice() : [],
+        forceHideAllGroups: !!state.routeEditor?.forceHideAllGroups,
+        groupPanelOffset: {
+            x: clamp(parseInt(state.routeEditor?.groupPanelOffset?.x ?? 0, 10), -9999, 9999),
+            y: clamp(parseInt(state.routeEditor?.groupPanelOffset?.y ?? 0, 10), -9999, 9999)
+        }
+    };
+}
+
+function pushRouteEditorHistory(stage = null) {
+    if (!state.routeEditor || typeof state.routeEditor !== 'object') return;
+    const snapshot = getRouteEditorSnapshot(stage);
+    if (!Array.isArray(state.routeEditor.history)) state.routeEditor.history = [];
+    state.routeEditor.history.push(snapshot);
+    if (state.routeEditor.history.length > 40) state.routeEditor.history.shift();
+}
+
+function restoreRouteEditorSnapshot(snapshot) {
+    if (!snapshot) return false;
+    const stage = clamp(parseInt(snapshot.stage ?? state.routeEditor?.stage ?? 1, 10), 1, 6);
+    state.routeEditor.stage = stage;
+    state.routeEditor.draft = cloneCruiseRouteSlots(snapshot.draft);
+    state.routeEditor.deleteMode = !!snapshot.deleteMode;
+    state.routeEditor.deletePicker = null;
+    state.routeEditor.groupBreaks = Array.isArray(snapshot.groupBreaks) ? snapshot.groupBreaks.slice() : [];
+    state.routeEditor.selectedGroupIndex = typeof snapshot.selectedGroupIndex === 'number' ? snapshot.selectedGroupIndex : 0;
+    state.routeEditor.visibleGroupIndices = Array.isArray(snapshot.visibleGroupIndices) ? snapshot.visibleGroupIndices.slice() : [];
+    state.routeEditor.forceHideAllGroups = !!snapshot.forceHideAllGroups;
+    state.routeEditor.groupPanelOffset = {
+        x: clamp(parseInt(snapshot.groupPanelOffset?.x ?? 0, 10), -9999, 9999),
+        y: clamp(parseInt(snapshot.groupPanelOffset?.y ?? 0, 10), -9999, 9999)
+    };
+
+    if (!state.settings.cruiseStageRoutes || typeof state.settings.cruiseStageRoutes !== 'object') {
+        state.settings.cruiseStageRoutes = {};
+    }
+    const routeKey = String(stage);
+    if (Array.isArray(snapshot.savedRoute) && snapshot.savedRoute.length) {
+        state.settings.cruiseStageRoutes[routeKey] = cloneCruiseRouteSlots(snapshot.savedRoute);
+    } else {
+        delete state.settings.cruiseStageRoutes[routeKey];
+    }
+    if (!state.settings.cruiseStageRouteGroups || typeof state.settings.cruiseStageRouteGroups !== 'object') {
+        state.settings.cruiseStageRouteGroups = {};
+    }
+    if (Array.isArray(snapshot.groupBreaks) && snapshot.groupBreaks.length) {
+        state.settings.cruiseStageRouteGroups[routeKey] = snapshot.groupBreaks.slice();
+    } else {
+        delete state.settings.cruiseStageRouteGroups[routeKey];
+    }
+    return true;
+}
+
+function getRouteEditorDeleteOptions(route, stringName, fret) {
+    if (!Array.isArray(route)) return [];
+    const options = [];
+    route.forEach((slot, index) => {
+        const normalized = normalizeCruiseRouteSlot(slot);
+        if (!normalized) return;
+        if (normalized.stringName === stringName && normalized.fret === fret) {
+            options.push({
+                index,
+                label: `${options.length + 1}番目`,
+                slot: normalized
+            });
+        }
+    });
+    return options;
+}
+
+function getRouteEditorSlotInfo(slot) {
+    const normalized = normalizeCruiseRouteSlot(slot);
+    if (!normalized) return null;
+    const target = makeCruiseTarget(normalized.stringName, normalized.fret);
+    return {
+        ...normalized,
+        noteIdx: target.noteIdx,
+        noteName: target.noteName
+    };
+}
+
+function buildAutoRouteEditorGroupBreaks(draft) {
+    if (!Array.isArray(draft) || !draft.length) return [];
+    const breaks = [0];
+    let prevInfo = getRouteEditorSlotInfo(draft[0]);
+    for (let i = 1; i < draft.length; i++) {
+        const currInfo = getRouteEditorSlotInfo(draft[i]);
+        if (!currInfo || !prevInfo) {
+            prevInfo = currInfo;
+            continue;
+        }
+        const splitByBoundary =
+            prevInfo.noteIdx === 11 ||
+            currInfo.noteIdx <= prevInfo.noteIdx ||
+            (currInfo.fret < prevInfo.fret && Math.abs(currInfo.stringName - prevInfo.stringName) <= 1);
+        if (splitByBoundary && breaks[breaks.length - 1] !== i) {
+            breaks.push(i);
+        }
+        prevInfo = currInfo;
+    }
+    return breaks;
+}
+
+function normalizeRouteEditorGroupBreaks(breaks, draftLength) {
+    const normalized = (Array.isArray(breaks) ? breaks : [])
+        .map(value => parseInt(value, 10))
+        .filter(Number.isFinite)
+        .map(value => clamp(value, 0, Math.max(0, draftLength + ROUTE_EDITOR_MAX_GROUPS - 1)))
+        .sort((a, b) => a - b);
+    const deduped = [];
+    normalized.forEach(value => {
+        if (!deduped.length || deduped[deduped.length - 1] !== value) deduped.push(value);
+    });
+    if (!deduped.length || deduped[0] !== 0) deduped.unshift(0);
+    if (deduped.length > ROUTE_EDITOR_MAX_GROUPS) deduped.length = ROUTE_EDITOR_MAX_GROUPS;
+    return deduped;
+}
+
+function buildRouteEditorGroupsFromBreaks(draft, breaks) {
+    const normalizedDraft = Array.isArray(draft) ? draft : [];
+    const normalizedBreaks = normalizeRouteEditorGroupBreaks(
+        breaks,
+        Math.max(1, normalizedDraft.length)
+    );
+    if (!normalizedBreaks.length) {
+        return [{
+            name: 'グループ1',
+            start: 0,
+            end: -1,
+            isEmpty: true
+        }];
+    }
+    return normalizedBreaks.map((start, index) => {
+        const end = index + 1 < normalizedBreaks.length ? normalizedBreaks[index + 1] - 1 : normalizedDraft.length - 1;
+        return {
+            name: `グループ${index + 1}`,
+            start,
+            end: start >= normalizedDraft.length ? start - 1 : end,
+            isEmpty: end < start || start >= normalizedDraft.length
+        };
+    });
+}
+
+function normalizeRouteEditorGroupPanelOffset(offset) {
+    return {
+        x: clamp(parseInt(offset?.x ?? 0, 10), -9999, 9999),
+        y: clamp(parseInt(offset?.y ?? 0, 10), -9999, 9999)
+    };
+}
+
+function getRouteEditorSavedGroupBreaks(stage) {
+    const groups = state.settings.cruiseStageRouteGroups || {};
+    const saved = groups[String(stage)];
+    return Array.isArray(saved) ? saved : [];
+}
+
+function setRouteEditorSavedGroupBreaks(stage, breaks) {
+    if (!state.settings.cruiseStageRouteGroups || typeof state.settings.cruiseStageRouteGroups !== 'object') {
+        state.settings.cruiseStageRouteGroups = {};
+    }
+    state.settings.cruiseStageRouteGroups[String(stage)] = Array.isArray(breaks) ? breaks.slice() : [];
+}
+
+function shiftRouteEditorGroupBreaks(breaks, draftLength, groupIndex, delta) {
+    const normalized = normalizeRouteEditorGroupBreaks(breaks, draftLength);
+    const next = normalized.slice();
+    if (!next.length) return next;
+    const boundaryIndex = groupIndex + 1;
+    if (boundaryIndex <= 0 || boundaryIndex >= next.length) return next;
+    const leftStart = next[boundaryIndex - 1];
+    const rightStart = next[boundaryIndex];
+    const maxIndex = Math.max(0, draftLength - 1);
+    const newValue = clamp(rightStart + delta, leftStart + 1, boundaryIndex + 1 < next.length ? next[boundaryIndex + 1] - 1 : maxIndex);
+    next[boundaryIndex] = newValue;
+    return normalizeRouteEditorGroupBreaks(next, draftLength);
+}
+
+function insertRouteEditorGroupBreak(breaks, draftLength, groupIndex) {
+    const normalized = normalizeRouteEditorGroupBreaks(breaks, draftLength);
+    const groups = buildRouteEditorGroupsFromBreaks(Array(draftLength).fill(null), normalized);
+    const targetGroup = groups[groupIndex];
+    if (!targetGroup) return normalized;
+    const span = targetGroup.end - targetGroup.start + 1;
+    if (span < 2) return normalized;
+    const split = targetGroup.start + Math.floor(span / 2);
+    if (split <= targetGroup.start) return normalized;
+    const next = normalized.slice();
+    next.splice(groupIndex + 1, 0, split);
+    return normalizeRouteEditorGroupBreaks(next, draftLength);
+}
+
+function adjustRouteEditorGroupBreaksForInsert(breaks, insertedIndex, draftLength) {
+    const next = (Array.isArray(breaks) ? breaks : []).map(start => {
+        const n = parseInt(start, 10);
+        if (!Number.isFinite(n)) return null;
+        return n > insertedIndex ? n + 1 : n;
+    }).filter(value => value !== null);
+    return normalizeRouteEditorGroupBreaks(next, draftLength);
+}
+
+function adjustRouteEditorGroupBreaksForDelete(breaks, deletedIndex, draftLength) {
+    const next = (Array.isArray(breaks) ? breaks : []).map(start => {
+        const n = parseInt(start, 10);
+        if (!Number.isFinite(n)) return null;
+        return n > deletedIndex ? n - 1 : n;
+    }).filter(value => value !== null);
+    return normalizeRouteEditorGroupBreaks(next, draftLength);
+}
+
+function getRouteEditorGroups(draft, breaks) {
+    return buildRouteEditorGroupsFromBreaks(draft, breaks);
+}
+
+function getRouteEditorVisibleGroupIndices(groupCount) {
+    if (!groupCount) return [];
+    const raw = Array.isArray(state.routeEditor?.visibleGroupIndices)
+        ? state.routeEditor.visibleGroupIndices
+        : [];
+    const indices = raw
+        .map(value => parseInt(value, 10))
+        .filter(Number.isFinite)
+        .filter(value => value >= 0 && value < groupCount);
+    const unique = [];
+    indices.sort((a, b) => a - b).forEach(index => {
+        if (!unique.includes(index)) unique.push(index);
+    });
+    return unique.length ? unique : [0];
+}
+
+function getRouteEditorVisibleGroups(groups) {
+    const visibleIndices = getRouteEditorVisibleGroupIndices(groups.length);
+    return visibleIndices
+        .map(index => ({
+            ...groups[index],
+            index
+        }))
+        .filter(group => !!group);
+}
+
+function getRouteEditorOperationGroupIndex(visibleGroups, selectedGroupIndex) {
+    const parsedSelected = clamp(parseInt(selectedGroupIndex ?? 0, 10), 0, Number.MAX_SAFE_INTEGER);
+    const visibleIndices = Array.isArray(visibleGroups)
+        ? visibleGroups.map(group => parseInt(group?.index, 10)).filter(Number.isFinite)
+        : [];
+    if (visibleIndices.length <= 1) {
+        return visibleIndices.length === 1 ? visibleIndices[0] : parsedSelected;
+    }
+    return Math.max(...visibleIndices);
+}
+
+function getRouteEditorGroupIndexForRouteIndex(draft, breaks, routeIndex) {
+    const normalizedDraft = Array.isArray(draft) ? draft : [];
+    const normalizedBreaks = normalizeRouteEditorGroupBreaks(breaks, normalizedDraft.length);
+    if (!Number.isFinite(routeIndex) || routeIndex < 0 || routeIndex >= normalizedDraft.length) return 0;
+    let groupIndex = 0;
+    for (let i = 0; i < normalizedBreaks.length; i++) {
+        if (normalizedBreaks[i] <= routeIndex) groupIndex = i;
+        else break;
+    }
+    return groupIndex;
+}
+
+function findRouteEditorRouteIndexInGroup(draft, breaks, groupIndex, stringName, fret) {
+    const normalizedDraft = Array.isArray(draft) ? draft : [];
+    const groups = getRouteEditorGroups(normalizedDraft, breaks);
+    const group = groups[groupIndex];
+    if (!group || group.end < group.start) return -1;
+    for (let i = group.end; i >= group.start; i--) {
+        const slot = normalizeCruiseRouteSlot(normalizedDraft[i]);
+        if (!slot) continue;
+        if (slot.stringName === stringName && slot.fret === fret) return i;
+    }
+    return -1;
+}
+
+function insertRouteEditorSlotIntoGroup(draft, breaks, groupIndex, slot) {
+    const normalizedDraft = Array.isArray(draft) ? draft.slice() : [];
+    const oldLength = normalizedDraft.length;
+    const normalizedBreaks = normalizeRouteEditorGroupBreaks(breaks, oldLength);
+    const groups = getRouteEditorGroups(normalizedDraft, normalizedBreaks);
+    const targetGroupIndex = clamp(parseInt(groupIndex ?? 0, 10), 0, Math.max(0, groups.length - 1));
+    const targetGroup = groups[targetGroupIndex];
+    const insertIndex = targetGroup
+        ? clamp(
+            targetGroup.end >= targetGroup.start ? targetGroup.end + 1 : targetGroup.start,
+            0,
+            oldLength
+        )
+        : oldLength;
+    const nextBreaks = normalizedBreaks.slice();
+    if (!nextBreaks.length) nextBreaks.push(0);
+    while (nextBreaks.length <= targetGroupIndex && nextBreaks.length < ROUTE_EDITOR_MAX_GROUPS) {
+        nextBreaks.push(Math.max(oldLength, nextBreaks[nextBreaks.length - 1] + 1));
+    }
+    if (targetGroupIndex > 0 && targetGroup?.isEmpty) {
+        nextBreaks[targetGroupIndex] = insertIndex;
+    }
+    for (let i = targetGroupIndex + 1; i < nextBreaks.length; i++) {
+        if (nextBreaks[i] >= insertIndex && nextBreaks[i] <= oldLength) {
+            nextBreaks[i] += 1;
+        }
+    }
+    normalizedDraft.splice(insertIndex, 0, slot);
+    return {
+        draft: normalizedDraft,
+        groupBreaks: normalizeRouteEditorGroupBreaks(nextBreaks, normalizedDraft.length)
+    };
+}
+
+function getRouteEditorGroupColorStyle(groupIndex) {
+    const palette = [
+        { bg: '#4f9cf9', fg: '#06111f', ring: 'rgba(79, 156, 249, 0.28)' },
+        { bg: '#7ee081', fg: '#08130b', ring: 'rgba(126, 224, 129, 0.26)' },
+        { bg: '#f7b955', fg: '#1c1204', ring: 'rgba(247, 185, 85, 0.28)' },
+        { bg: '#e38df0', fg: '#16091a', ring: 'rgba(227, 141, 240, 0.26)' },
+        { bg: '#7cd6ff', fg: '#07131a', ring: 'rgba(124, 214, 255, 0.26)' },
+        { bg: '#ff8d8d', fg: '#1e0909', ring: 'rgba(255, 141, 141, 0.26)' },
+        { bg: '#c8e06d', fg: '#101507', ring: 'rgba(200, 224, 109, 0.26)' },
+        { bg: '#89a8ff', fg: '#09111d', ring: 'rgba(137, 168, 255, 0.26)' },
+        { bg: '#6fe0c0', fg: '#071513', ring: 'rgba(111, 224, 192, 0.26)' },
+        { bg: '#ffb36b', fg: '#1d1205', ring: 'rgba(255, 179, 107, 0.28)' },
+        { bg: '#ff6fa8', fg: '#1d0914', ring: 'rgba(255, 111, 168, 0.26)' },
+        { bg: '#b89cff', fg: '#0f0a1d', ring: 'rgba(184, 156, 255, 0.26)' },
+        { bg: '#61d4ff', fg: '#07131a', ring: 'rgba(97, 212, 255, 0.26)' },
+        { bg: '#ffd66a', fg: '#1b1305', ring: 'rgba(255, 214, 106, 0.28)' },
+        { bg: '#97ed7d', fg: '#09150a', ring: 'rgba(151, 237, 125, 0.26)' },
+        { bg: '#ff9aa0', fg: '#1e090b', ring: 'rgba(255, 154, 160, 0.26)' },
+        { bg: '#8be3d6', fg: '#071615', ring: 'rgba(139, 227, 214, 0.26)' },
+        { bg: '#d79cff', fg: '#14091d', ring: 'rgba(215, 156, 255, 0.26)' },
+        { bg: '#ffc57c', fg: '#1d1105', ring: 'rgba(255, 197, 124, 0.28)' },
+        { bg: '#8fb0ff', fg: '#08111d', ring: 'rgba(143, 176, 255, 0.26)' }
+    ];
+    const index = ((parseInt(groupIndex, 10) % palette.length) + palette.length) % palette.length;
+    const color = palette[index];
+    return `--route-edit-note-bg: ${color.bg}; --route-edit-note-fg: ${color.fg}; --route-edit-note-ring: ${color.ring};`;
+}
+
+function getRouteEditorSelectedGroupIndex(groupCount) {
+    if (!groupCount) return 0;
+    return clamp(parseInt(state.routeEditor?.selectedGroupIndex ?? 0, 10), 0, groupCount - 1);
+}
+
+function getRouteEditorSelectedGroupRange(draft, breaks, groupIndex) {
+    const groups = getRouteEditorGroups(draft, breaks);
+    return groups[groupIndex] || null;
+}
+
+function getRouteEditorGroupSlots(draft, groupRange) {
+    if (!groupRange || !Array.isArray(draft)) return [];
+    if (groupRange.end < groupRange.start) return [];
+    return draft.slice(groupRange.start, groupRange.end + 1);
+}
+
+function shiftRouteEditorGroupRange(groups, groupIndex, delta, draftLength) {
+    const ranges = Array.isArray(groups) ? groups.map(group => ({ ...group })) : [];
+    if (!ranges.length) return ranges;
+    const current = ranges[groupIndex];
+    if (!current) return ranges;
+    if (delta === 0) return ranges;
+    if (delta < 0) {
+        if (groupIndex === 0) return ranges;
+        const prev = ranges[groupIndex - 1];
+        if (!prev || prev.end <= prev.start) return ranges;
+        prev.end -= 1;
+        current.start -= 1;
+    } else {
+        if (groupIndex >= ranges.length - 1) return ranges;
+        const next = ranges[groupIndex + 1];
+        if (!next || next.end <= next.start) return ranges;
+        current.end += 1;
+        next.start += 1;
+    }
+    return ranges.filter((group, index) => index === 0 || group.start <= group.end).map(group => ({
+        ...group,
+        start: clamp(group.start, 0, Math.max(0, draftLength - 1)),
+        end: clamp(group.end, 0, Math.max(0, draftLength - 1))
+    }));
+}
+
+function makeCruiseScopeFromSequence(sequence) {
+    const seen = new Set();
+    const scope = [];
+    sequence.forEach(target => {
+        const key = `${target.stringName}-${target.fret}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        scope.push(target);
+    });
+    return scope;
+}
+
+function getCruiseUniqueTargetsForStage(stage) {
+    const targets = getStageTargets(stage).map(t => ({
+        ...t,
+        midiNote: STRING_BASE_PITCHES[t.stringIdx] + t.fret
+    }));
+    if (stage === 6) {
+        return targets.sort((a, b) => a.midiNote - b.midiNote);
+    }
+    const grouped = {};
+    targets.forEach(t => {
+        if (!grouped[t.midiNote] || t.stringIdx < grouped[t.midiNote].stringIdx) {
+            grouped[t.midiNote] = t;
+        }
+    });
+    return Object.values(grouped).sort((a, b) => a.midiNote - b.midiNote);
+}
+
+function buildCruiseWalkSequence(uniqueTargets) {
+    let startIdx = uniqueTargets.findIndex(t => t.stringName === 5 && t.fret === 3);
+    if (startIdx === -1) startIdx = uniqueTargets.findIndex(t => t.stringName === 6 && t.fret === 8);
+    if (startIdx === -1) startIdx = uniqueTargets.findIndex(t => t.noteIdx === 0);
+    if (startIdx === -1) startIdx = 0;
+
+    const sequence = [];
+    for (let i = startIdx; i >= 0; i--) sequence.push(uniqueTargets[i]);
+    for (let i = 1; i < uniqueTargets.length; i++) sequence.push(uniqueTargets[i]);
+    for (let i = uniqueTargets.length - 2; i >= startIdx; i--) sequence.push(uniqueTargets[i]);
+    return sequence;
+}
+
+function buildDefaultCruiseStageSequence(stage) {
+    const sequence = [];
+    const cruiseScope = [];
+
+    if (stage === 5) {
+        for (let s = 1; s <= 4; s++) {
+            const uniqueTargets = getCruiseUniqueTargetsForStage(s);
+            cruiseScope.push(...uniqueTargets);
+
+            const subSeq = buildCruiseWalkSequence(uniqueTargets);
+            if (s < 4) subSeq.pop();
+            sequence.push(...subSeq);
+        }
+    } else {
+        const uniqueTargets = getCruiseUniqueTargetsForStage(stage);
+        cruiseScope.push(...uniqueTargets);
+        sequence.push(...buildCruiseWalkSequence(uniqueTargets));
+    }
+
+    return { sequence, cruiseScope };
+}
+
+function buildCruiseStageSequence(stage) {
+    const savedSlots = getSavedCruiseRouteSlots(stage);
+    if (savedSlots.length > 0) {
+        return buildCruiseSequenceFromSlots(savedSlots, true);
+    }
+    return {
+        ...buildDefaultCruiseStageSequence(stage),
+        isCustom: false
+    };
+}
+
+function buildCruiseSequenceFromSlots(slots, isCustom = false) {
+    const sequence = cloneCruiseRouteSlots(slots).map(slot => makeCruiseTarget(slot.stringName, slot.fret));
+    return {
+        sequence,
+        cruiseScope: makeCruiseScopeFromSequence(sequence),
+        isCustom
+    };
+}
+
+function startCruisePlaybackFromSequence(sequence, cruiseScope = null, stage = null) {
+    if (!Array.isArray(sequence) || !sequence.length) return false;
+    stopRhythm();
+    stopQuizTimer();
+    if (Number.isFinite(parseInt(stage, 10))) {
+        state.memorize.stage = clamp(parseInt(stage, 10), 1, 6);
+    }
+    state.memorize.playMode = 'cruise';
+    state.memorize.cruiseTargets = sequence.map(target => ({ ...target }));
+    state.memorize.cruiseScope = Array.isArray(cruiseScope) && cruiseScope.length
+        ? cruiseScope.map(target => ({ ...target }))
+        : makeCruiseScopeFromSequence(state.memorize.cruiseTargets);
+    state.memorize.cruiseIndex = 0;
+    state.memorize.cruiseCurrentLoop = 0;
+    state.memorize.currentQuestion = state.memorize.cruiseTargets[0];
+    state.memorize.isCleared = false;
+    state.memorize.hasTappedCurrentNote = false;
+    state.memorize.isFirstNote = true;
+    state.memorize.tempFeedback = null;
+    state.memorize.isDemoPlayback = true;
+    state.memorize.demoReturnCourse = 'routeEditor';
+    state.memorize.demoReturnStage = Number.isFinite(parseInt(stage, 10)) ? clamp(parseInt(stage, 10), 1, 6) : state.routeEditor?.stage || 1;
+    state.memorize.isCruisePlaying = true;
+    state.course = 'memorize';
+    autoScrollRequested = true;
+    startRhythm();
+    saveState();
+    renderApp();
+    return true;
+}
+
 function generateQuestion() {
     let targets = getStageTargets(state.memorize.stage);
     if (targets.length === 0) return;
@@ -1110,7 +1831,7 @@ function generateQuestion() {
     state.memorize.currentQuestion = target;
     state.memorize.hasTappedCurrentNote = false;
     saveState();
-    
+
     if (state.memorize.playMode === 'quiz') {
         autoScrollRequested = true;
         startQuizTimer();
@@ -1194,12 +1915,25 @@ function renderApp() {
     const isLandscapeRuleStep =
         state.course === 'basicRuleStep' &&
         window.innerWidth > window.innerHeight;
+    const isGameLikeCourse =
+        state.course === 'memorize' ||
+        state.course === 'routeEditor' ||
+        state.course === 'visualize' ||
+        isLandscapeRuleStep;
 
-    // 指板ゲーム画面と横画面の基本ルールは max-width を外してビューポート幅いっぱいにする
-    if (state.course === 'memorize' || state.course === 'visualize' || isLandscapeRuleStep) {
+    // 指板ゲーム画面・順番編集・横画面の基本ルールは max-width を外してビューポート幅いっぱいにする
+    if (isGameLikeCourse) {
         app.style.maxWidth = 'none';
         app.style.width = '100vw';
         app.style.boxSizing = 'border-box';
+    }
+
+    if (!isGameLikeCourse) {
+        app.style.maxHeight = '100dvh';
+        app.style.overflowY = 'auto';
+        app.style.overflowX = 'hidden';
+        app.style.boxSizing = 'border-box';
+        app.style.paddingBottom = 'calc(var(--in-game-refresh-stack-height, 96px) + max(12px, env(safe-area-inset-bottom)))';
     }
     // 覚えるコース: 縦方向に余白を確保し、指板エリアに flex で残り高さを渡す（横画面で下弦が切れないようにする）
     if (state.course === 'memorize') {
@@ -1236,6 +1970,8 @@ function renderApp() {
         renderStageSelect(app);
     } else if (state.course === 'memorize') {
         renderMemorize(app);
+    } else if (state.course === 'routeEditor') {
+        renderRouteEditor(app);
     } else if (state.course === 'visualize') {
         renderVisualize(app);
     } else if (state.course === 'settings') {
@@ -1468,6 +2204,9 @@ function getBasicRuleStepHeadline(step) {
 }
 
 function renderBasicRules(app) {
+    const completedSteps = state.rules?.completedSteps && typeof state.rules.completedSteps === 'object'
+        ? state.rules.completedSteps
+        : {};
     app.innerHTML = `
         ${buildPageHeader({
             headerClass: 'page-header--stage-select',
@@ -1480,9 +2219,11 @@ function renderBasicRules(app) {
         <div class="stage-list">
             ${BASIC_RULE_STEP_HEADLINES.map((headline, idx) => {
                 const num = idx + 1;
+                const isDone = !!completedSteps[String(num)];
                 return `
-                <button class="stage-btn" data-rule-step="${num}">
-                    STEP ${num} ${headline}
+                <button class="stage-btn basic-rule-step-btn ${isDone ? 'is-complete' : ''}" data-rule-step="${num}" aria-label="STEP ${num} ${headline}${isDone ? ' クリア済み' : ''}">
+                    <span class="basic-rule-step-main">STEP ${num} ${headline}</span>
+                    ${isDone ? '<span class="basic-rule-step-badge" aria-hidden="true">✓ クリア</span>' : ''}
                 </button>`;
             }).join('')}
         </div>
@@ -2187,6 +2928,7 @@ function ruleTryAdvanceFromSummary() {
         return;
     }
     if (page >= slides.length - 1) {
+        markRuleStepCompleted(step);
         state.rules.celebration = { completedStep: step };
         saveState();
         renderApp();
@@ -2368,6 +3110,7 @@ function ruleFinishPlaySlide(slide) {
             state.rules.page = page + 1;
             state.rules.phase = 'intro';
         } else {
+            markRuleStepCompleted(step);
             state.rules.celebration = { completedStep: step };
         }
     } else {
@@ -3603,6 +4346,28 @@ function scheduleRuleStep31PairLineUpdates() {
 
 function renderStageSelect(app) {
     const stageSelectTitle = state.memorize.playMode === 'cruise' ? '🛳️ 指板をたどる' : '🎯 指板クイズ';
+    const stageDefs = [
+        { stage: 1, title: 'STAGE 1', desc: '開放弦〜3フレット (#なし)' },
+        { stage: 2, title: 'STAGE 2', desc: '開放弦〜5フレット (#なし)' },
+        { stage: 3, title: 'STAGE 3', desc: '5〜9フレット (#なし)' },
+        { stage: 4, title: 'STAGE 4', desc: '5〜12フレット (#なし)' },
+        { stage: 5, title: 'STAGE 5', desc: '総復習メドレー (STAGE 1〜4)' },
+        { stage: 6, title: 'STAGE 6', desc: '全指板マスター (0〜12フレット)' }
+    ];
+    const stageButtonsHtml = stageDefs.map(def => {
+        const savedCount = getSavedCruiseRouteSlots(def.stage).length;
+        const savedBadge = state.memorize.playMode === 'cruise' && savedCount > 0
+            ? `<span class="stage-route-saved">${savedCount}手 保存済み</span>`
+            : '';
+        const mainButton = `<button class="stage-btn" data-stage="${def.stage}">${def.title}<span class="stage-desc">${def.desc}</span>${savedBadge}</button>`;
+        if (state.memorize.playMode !== 'cruise') return mainButton;
+        return `
+            <div class="stage-route-row">
+                ${mainButton}
+                <button class="stage-route-edit-btn" type="button" data-edit-stage="${def.stage}" aria-label="${def.title}の順番を編集">編集</button>
+            </div>
+        `;
+    }).join('');
     app.innerHTML = `
         ${buildPageHeader({
             headerClass: 'page-header--stage-select',
@@ -3614,12 +4379,7 @@ function renderStageSelect(app) {
             rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-stage" aria-label="設定">⚙️</button>`
         })}
         <div class="stage-list">
-            <button class="stage-btn" data-stage="1">STAGE 1<span class="stage-desc">開放弦〜3フレット (#なし)</span></button>
-            <button class="stage-btn" data-stage="2">STAGE 2<span class="stage-desc">開放弦〜5フレット (#なし)</span></button>
-            <button class="stage-btn" data-stage="3">STAGE 3<span class="stage-desc">5〜9フレット (#なし)</span></button>
-            <button class="stage-btn" data-stage="4">STAGE 4<span class="stage-desc">5〜12フレット (#なし)</span></button>
-            <button class="stage-btn" data-stage="5">STAGE 5<span class="stage-desc">総復習メドレー (STAGE 1〜4)</span></button>
-            <button class="stage-btn" data-stage="6">STAGE 6<span class="stage-desc">全指板マスター (0〜12フレット)</span></button>
+            ${stageButtonsHtml}
         </div>
     `;
 
@@ -3639,6 +4399,34 @@ function renderStageSelect(app) {
         openSettings('stageSelect');
     };
 
+    document.querySelectorAll('.stage-route-edit-btn').forEach(btn => {
+        btn.onclick = () => {
+            const stage = parseInt(btn.getAttribute('data-edit-stage'), 10);
+            const savedSlots = getSavedCruiseRouteSlots(stage);
+            const savedGroupBreaks = normalizeRouteEditorGroupBreaks(getRouteEditorSavedGroupBreaks(stage), savedSlots.length);
+            const initialGroupBreaks = savedGroupBreaks.length
+                ? savedGroupBreaks
+                : buildAutoRouteEditorGroupBreaks(savedSlots);
+            const initialGroups = buildRouteEditorGroupsFromBreaks(savedSlots, initialGroupBreaks);
+            stopRhythm();
+            state.routeEditor = {
+                stage,
+                draft: savedSlots,
+                deleteMode: false,
+                history: [],
+                deletePicker: null,
+                groupBreaks: savedSlots.length ? initialGroupBreaks : [0],
+                selectedGroupIndex: 0,
+                visibleGroupIndices: initialGroups.length ? initialGroups.map((_, index) => index) : [0],
+                forceHideAllGroups: false,
+                groupPanelOffset: { x: 0, y: 0 }
+            };
+            state.course = 'routeEditor';
+            saveState();
+            renderApp();
+        };
+    });
+
     document.querySelectorAll('.stage-btn').forEach(btn => {
         btn.onclick = () => {
             initAudio(); // Initialize audio on first user gesture
@@ -3648,77 +4436,12 @@ function renderStageSelect(app) {
             state.course = 'memorize';
             
             if (state.memorize.playMode === 'cruise') {
-                let sequence = [];
-                let cruiseScope = [];
-
-                if (state.memorize.stage === 5) {
-                    // Medley Mode: combine stage 1, 2, 3, 4 sequences
-                    for (let s = 1; s <= 4; s++) {
-                        let targets = getStageTargets(s);
-                        targets.forEach(t => t.midiNote = STRING_BASE_PITCHES[t.stringIdx] + t.fret);
-                        
-                        let grouped = {};
-                        targets.forEach(t => {
-                            if (!grouped[t.midiNote] || t.stringIdx < grouped[t.midiNote].stringIdx) {
-                                grouped[t.midiNote] = t;
-                            }
-                        });
-                        let uniqueTargets = Object.values(grouped);
-                        uniqueTargets.sort((a, b) => a.midiNote - b.midiNote);
-                        
-                        cruiseScope.push(...uniqueTargets);
-                        
-                        let startIdx = uniqueTargets.findIndex(t => t.stringName === 5 && t.fret === 3);
-                        if (startIdx === -1) startIdx = uniqueTargets.findIndex(t => t.stringName === 6 && t.fret === 8);
-                        if (startIdx === -1) startIdx = uniqueTargets.findIndex(t => t.noteIdx === 0);
-                        if (startIdx === -1) startIdx = 0;
-
-                        let subSeq = [];
-                        for (let i = startIdx; i >= 0; i--) subSeq.push(uniqueTargets[i]);
-                        for (let i = 1; i < uniqueTargets.length; i++) subSeq.push(uniqueTargets[i]);
-                        for (let i = uniqueTargets.length - 2; i >= startIdx; i--) subSeq.push(uniqueTargets[i]);
-                        
-                        // Connect seamlessly by skipping the return-to-start note for stages 1-3
-                        if (s < 4) {
-                            subSeq.pop();
-                        }
-                        sequence.push(...subSeq);
-                    }
-                } else {
-                    let targets = getStageTargets(state.memorize.stage);
-                    targets.forEach(t => t.midiNote = STRING_BASE_PITCHES[t.stringIdx] + t.fret);
-                    
-                    // Deduplicate by pitch, preferring lower fret / higher string (Skip for Stage 6)
-                    let uniqueTargets;
-                    if (state.memorize.stage === 6) {
-                        uniqueTargets = [...targets];
-                    } else {
-                        let grouped = {};
-                        targets.forEach(t => {
-                            if (!grouped[t.midiNote] || t.stringIdx < grouped[t.midiNote].stringIdx) {
-                                grouped[t.midiNote] = t;
-                            }
-                        });
-                        uniqueTargets = Object.values(grouped);
-                    }
-                    uniqueTargets.sort((a, b) => a.midiNote - b.midiNote);
-                    
-                    cruiseScope = uniqueTargets;
-                    
-                    // Find starting C (5th string 3rd fret, or 6th string 8th fret, or any C)
-                    let startIdx = uniqueTargets.findIndex(t => t.stringName === 5 && t.fret === 3);
-                    if (startIdx === -1) startIdx = uniqueTargets.findIndex(t => t.stringName === 6 && t.fret === 8);
-                    if (startIdx === -1) startIdx = uniqueTargets.findIndex(t => t.noteIdx === 0);
-                    if (startIdx === -1) startIdx = 0;
-
-                    for (let i = startIdx; i >= 0; i--) sequence.push(uniqueTargets[i]);
-                    for (let i = 1; i < uniqueTargets.length; i++) sequence.push(uniqueTargets[i]);
-                    for (let i = uniqueTargets.length - 2; i >= startIdx; i--) sequence.push(uniqueTargets[i]);
-                }
+                const { sequence, cruiseScope } = buildCruiseStageSequence(state.memorize.stage);
                 
                 state.memorize.cruiseScope = cruiseScope;
                 state.memorize.cruiseTargets = sequence;
                 state.memorize.cruiseIndex = 0;
+                state.memorize.cruiseCurrentLoop = 0;
                 state.memorize.currentQuestion = sequence[0];
                 state.memorize.isFirstNote = true;
                 state.memorize.hasTappedCurrentNote = false;
@@ -3728,6 +4451,7 @@ function renderStageSelect(app) {
                 autoScrollRequested = true;
                 startRhythm(); // Start the drum loop. It will trigger autoAdvanceCruise.
             } else {
+                state.memorize.tempFeedback = null;
                 generateQuestion();
                 autoScrollRequested = true;
             }
@@ -3736,6 +4460,345 @@ function renderStageSelect(app) {
             renderApp();
         };
     });
+}
+
+function renderRouteEditor(app) {
+    const stage = clamp(parseInt(state.routeEditor?.stage || 1, 10), 1, 6);
+    const scaleGuideVariant = 3;
+    const isLandscape = window.innerWidth > window.innerHeight;
+    const draft = Array.isArray(state.routeEditor?.draft)
+        ? state.routeEditor.draft.map(normalizeCruiseRouteSlot).filter(Boolean)
+        : [];
+    const deleteMode = !!state.routeEditor?.deleteMode;
+    const history = Array.isArray(state.routeEditor?.history) ? state.routeEditor.history : [];
+    let groupBreaks = Array.isArray(state.routeEditor?.groupBreaks) ? state.routeEditor.groupBreaks.slice() : [];
+    const savedGroupBreaks = normalizeRouteEditorGroupBreaks(groupBreaks.length ? groupBreaks : getRouteEditorSavedGroupBreaks(stage), draft.length);
+    const autoGroupBreaks = buildAutoRouteEditorGroupBreaks(draft);
+    groupBreaks = savedGroupBreaks.length ? savedGroupBreaks : autoGroupBreaks;
+    if (!groupBreaks.length) groupBreaks = [0];
+    const groups = getRouteEditorGroups(draft, groupBreaks);
+    const visibleGroupIndices = state.routeEditor?.forceHideAllGroups ? [] : getRouteEditorVisibleGroupIndices(groups.length);
+    const visibleGroups = visibleGroupIndices
+        .map(index => ({ ...(groups[index] || {}), index }))
+        .filter(group => Number.isFinite(group.start) && Number.isFinite(group.end));
+    const interactionGroupIndex = getRouteEditorOperationGroupIndex(visibleGroups, state.routeEditor?.selectedGroupIndex ?? 0);
+    const selectedGroupIndex = groups.length
+        ? clamp(parseInt(state.routeEditor?.selectedGroupIndex ?? visibleGroupIndices[visibleGroupIndices.length - 1] ?? 0, 10), 0, groups.length - 1)
+        : 0;
+    const selectedGroup = groups[selectedGroupIndex] || null;
+    const groupPanelOffset = normalizeRouteEditorGroupPanelOffset(state.routeEditor?.groupPanelOffset);
+    state.routeEditor = {
+        stage,
+        draft,
+        deleteMode,
+        history,
+        deletePicker: null,
+        groupBreaks,
+        selectedGroupIndex,
+        visibleGroupIndices,
+        forceHideAllGroups: !!state.routeEditor?.forceHideAllGroups,
+        groupPanelOffset
+    };
+
+    const groupPanelStyle = `--route-editor-group-panel-shift-x: ${groupPanelOffset.x}px; --route-editor-group-panel-shift-y: ${groupPanelOffset.y}px;`;
+
+    const groupButtonsHtml = groups.length
+        ? groups.map((group, index) => `
+            <button class="route-editor-group-btn ${visibleGroupIndices.includes(index) ? 'active' : ''}" type="button" data-group-index="${index}" aria-label="${group.name}" aria-pressed="${visibleGroupIndices.includes(index) ? 'true' : 'false'}">
+                ${group.name}
+            </button>
+        `).join('')
+        : '<p class="route-editor-empty">グループがありません</p>';
+
+    app.innerHTML = `
+        <div class="route-editor-screen route-editor-scale-guide-variant-${scaleGuideVariant}">
+            ${buildPageHeader({
+                headerClass: 'page-header--route-editor',
+                titleText: `STAGE ${stage} 順番編集`,
+                leftHtml: `
+                    ${navButtonHtml({ id: 'btn-route-editor-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+                    ${navButtonHtml({ id: 'btn-route-editor-home', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
+                `
+            })}
+            <div class="route-editor-toolbar">
+                <button class="icon-btn route-editor-tool-btn" id="btn-route-editor-clear" ${draft.length ? '' : 'disabled'}>全消し</button>
+                <button class="icon-btn route-editor-tool-btn" id="btn-route-editor-load-default">初期順</button>
+                <button class="icon-btn route-editor-tool-btn" id="btn-route-editor-undo" ${history.length ? '' : 'disabled'}>↶ 戻す</button>
+            </div>
+            <div class="route-editor-group-panel ${isLandscape ? 'route-editor-group-panel--floating' : ''}" style="${groupPanelStyle}">
+                <button class="route-editor-group-panel-handle" id="btn-route-editor-group-panel-handle" type="button" title="ドラッグして移動" aria-label="グループ設定を移動">⋮⋮</button>
+                <div class="route-editor-group-list">${groupButtonsHtml}</div>
+                <div class="route-editor-group-actions">
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-add-btn" id="btn-route-editor-group-split">＋</button>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-toggle-btn ${visibleGroupIndices.length === groups.length && !state.routeEditor?.forceHideAllGroups ? 'active' : ''}" id="btn-route-editor-show-all" ${groups.length ? '' : 'disabled'}>全て表示</button>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-toggle-btn ${state.routeEditor?.forceHideAllGroups ? 'active' : ''}" id="btn-route-editor-hide-all" ${groups.length ? '' : 'disabled'}>全て非表示</button>
+                </div>
+            </div>
+            <div id="fretboard-container" class="route-editor-fretboard-host"></div>
+            <div class="route-editor-save-row">
+                <button type="button" class="btn-secondary route-editor-demo-btn" id="btn-route-editor-demo" ${draft.length ? '' : 'disabled'}>現在の順番でデモ</button>
+                <button class="btn-primary route-editor-save-btn" id="btn-route-editor-save" ${draft.length ? '' : 'disabled'}>この順番で保存</button>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('btn-route-editor-back').onclick = () => {
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-route-editor-home').onclick = () => {
+        state.course = null;
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-route-editor-undo').onclick = () => {
+        const historyItem = Array.isArray(state.routeEditor.history) ? state.routeEditor.history.pop() : null;
+        if (!historyItem) return;
+        restoreRouteEditorSnapshot(historyItem);
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-route-editor-clear').onclick = () => {
+        pushRouteEditorHistory(stage);
+        state.routeEditor.draft = [];
+        state.routeEditor.deleteMode = false;
+        state.routeEditor.groupBreaks = [0];
+        state.routeEditor.selectedGroupIndex = 0;
+        state.routeEditor.visibleGroupIndices = [0];
+        state.routeEditor.forceHideAllGroups = false;
+        setRouteEditorSavedGroupBreaks(stage, [0]);
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-route-editor-load-default').onclick = () => {
+        pushRouteEditorHistory(stage);
+        const { sequence } = buildDefaultCruiseStageSequence(stage);
+        state.routeEditor.draft = sequence.map(cruiseRouteSlotFromTarget);
+        state.routeEditor.deleteMode = false;
+        state.routeEditor.groupBreaks = buildAutoRouteEditorGroupBreaks(state.routeEditor.draft);
+        state.routeEditor.selectedGroupIndex = 0;
+        state.routeEditor.visibleGroupIndices = buildRouteEditorGroupsFromBreaks(state.routeEditor.draft, state.routeEditor.groupBreaks).map((_, index) => index);
+        state.routeEditor.forceHideAllGroups = false;
+        setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-route-editor-save').onclick = () => {
+        pushRouteEditorHistory(stage);
+        if (!state.settings.cruiseStageRoutes) state.settings.cruiseStageRoutes = {};
+        if (!state.settings.cruiseStageRouteGroups) state.settings.cruiseStageRouteGroups = {};
+        state.settings.cruiseStageRoutes[String(stage)] = state.routeEditor.draft
+            .map(normalizeCruiseRouteSlot)
+            .filter(Boolean);
+        state.settings.cruiseStageRouteGroups[String(stage)] = state.routeEditor.groupBreaks.slice();
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-route-editor-demo').onclick = () => {
+        const { sequence, cruiseScope } = buildCruiseSequenceFromSlots(state.routeEditor.draft, true);
+        if (!sequence.length) return;
+        startCruisePlaybackFromSequence(sequence, cruiseScope, stage);
+    };
+
+    document.getElementById('btn-route-editor-group-split').onclick = () => {
+        if (groups.length >= ROUTE_EDITOR_MAX_GROUPS) return;
+        pushRouteEditorHistory(stage);
+        const nextBreaks = state.routeEditor.groupBreaks.slice();
+        const nextIndex = groups.length;
+        const nextStart = Math.max(draft.length, groups.length);
+        nextBreaks.push(nextStart);
+        state.routeEditor.groupBreaks = normalizeRouteEditorGroupBreaks(nextBreaks, draft.length);
+        state.routeEditor.forceHideAllGroups = false;
+        state.routeEditor.visibleGroupIndices = [nextIndex];
+        state.routeEditor.selectedGroupIndex = Math.min(nextIndex, state.routeEditor.groupBreaks.length - 1);
+        setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-route-editor-show-all').onclick = () => {
+        if (!groups.length) return;
+        state.routeEditor.forceHideAllGroups = false;
+        state.routeEditor.visibleGroupIndices = groups.map((_, index) => index);
+        state.routeEditor.selectedGroupIndex = Math.min(selectedGroupIndex, groups.length - 1);
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-route-editor-hide-all').onclick = () => {
+        if (!groups.length) return;
+        state.routeEditor.forceHideAllGroups = true;
+        state.routeEditor.visibleGroupIndices = [];
+        state.routeEditor.selectedGroupIndex = Math.min(selectedGroupIndex, groups.length - 1);
+        saveState();
+        renderApp();
+    };
+
+    const groupPanelEl = app.querySelector('.route-editor-group-panel');
+    const groupPanelHandleEl = document.getElementById('btn-route-editor-group-panel-handle');
+    if (isLandscape && groupPanelEl && groupPanelHandleEl) {
+        const dragState = {
+            pointerId: null,
+            startX: 0,
+            startY: 0,
+            startOffsetX: groupPanelOffset.x,
+            startOffsetY: groupPanelOffset.y,
+            startRect: null,
+            dragging: false
+        };
+        const applyGroupPanelOffset = (x, y) => {
+            const nextOffset = {
+                x: Math.round(x),
+                y: Math.round(y)
+            };
+            groupPanelEl.style.setProperty('--route-editor-group-panel-shift-x', `${nextOffset.x}px`);
+            groupPanelEl.style.setProperty('--route-editor-group-panel-shift-y', `${nextOffset.y}px`);
+            state.routeEditor.groupPanelOffset = nextOffset;
+        };
+        const finishDrag = () => {
+            document.removeEventListener('pointermove', onPointerMove, true);
+            document.removeEventListener('pointerup', onPointerUp, true);
+            document.removeEventListener('pointercancel', onPointerCancel, true);
+            groupPanelEl.classList.remove('route-editor-group-panel--dragging');
+            groupPanelHandleEl.classList.remove('route-editor-group-panel-handle--dragging');
+            if (dragState.dragging) {
+                saveState();
+            }
+            dragState.pointerId = null;
+            dragState.dragging = false;
+        };
+        const onPointerMove = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            const dx = e.clientX - dragState.startX;
+            const dy = e.clientY - dragState.startY;
+            if (!dragState.dragging) {
+                if (Math.abs(dx) + Math.abs(dy) < 4) return;
+                dragState.dragging = true;
+                dragState.startRect = groupPanelEl.getBoundingClientRect();
+                groupPanelEl.classList.add('route-editor-group-panel--dragging');
+                groupPanelHandleEl.classList.add('route-editor-group-panel-handle--dragging');
+            }
+            const rect = dragState.startRect || groupPanelEl.getBoundingClientRect();
+            const margin = 8;
+            const minDx = margin - rect.left;
+            const maxDx = window.innerWidth - margin - rect.right;
+            const minDy = margin - rect.top;
+            const maxDy = window.innerHeight - margin - rect.bottom;
+            const nextX = clamp(dragState.startOffsetX + dx, dragState.startOffsetX + Math.min(minDx, maxDx), dragState.startOffsetX + Math.max(minDx, maxDx));
+            const nextY = clamp(dragState.startOffsetY + dy, dragState.startOffsetY + Math.min(minDy, maxDy), dragState.startOffsetY + Math.max(minDy, maxDy));
+            applyGroupPanelOffset(nextX, nextY);
+        };
+        const onPointerUp = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            finishDrag();
+        };
+        const onPointerCancel = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            finishDrag();
+        };
+        const onPointerDown = e => {
+            if (e.button !== undefined && e.button !== 0) return;
+            if (dragState.pointerId !== null) return;
+            e.preventDefault();
+            e.stopPropagation();
+            dragState.pointerId = typeof e.pointerId === 'number' ? e.pointerId : null;
+            dragState.startX = e.clientX;
+            dragState.startY = e.clientY;
+            dragState.startOffsetX = groupPanelOffset.x;
+            dragState.startOffsetY = groupPanelOffset.y;
+            dragState.startRect = groupPanelEl.getBoundingClientRect();
+            document.addEventListener('pointermove', onPointerMove, true);
+            document.addEventListener('pointerup', onPointerUp, true);
+            document.addEventListener('pointercancel', onPointerCancel, true);
+        };
+        groupPanelHandleEl.addEventListener('pointerdown', onPointerDown, { passive: false });
+        routeEditorGroupPanelDragHandlers.set('routeEditor-group-panel', {
+            pointermove: onPointerMove,
+            pointerup: onPointerUp,
+            pointercancel: onPointerCancel
+        });
+    }
+
+    document.querySelectorAll('.route-editor-group-btn').forEach(btn => {
+        btn.onclick = () => {
+            const index = parseInt(btn.getAttribute('data-group-index'), 10);
+            if (!Number.isFinite(index)) return;
+            const nextVisible = new Set(visibleGroupIndices);
+            if (nextVisible.has(index)) {
+                if (nextVisible.size === 1) return;
+                nextVisible.delete(index);
+            } else {
+                nextVisible.add(index);
+            }
+            const normalizedVisible = Array.from(nextVisible).sort((a, b) => a - b);
+            state.routeEditor.forceHideAllGroups = false;
+            state.routeEditor.visibleGroupIndices = normalizedVisible;
+            state.routeEditor.selectedGroupIndex = index;
+            saveState();
+            renderApp();
+        };
+    });
+
+    renderFretboardHTML('fretboard-container', {
+        mode: 'routeEditor',
+        question: null,
+        showAnswer: true,
+        routeEditorDraft: draft,
+        routeEditorVisibleGroups: visibleGroups,
+        onRouteEditorMarkerClick: (routeIndex) => {
+            if (!Number.isFinite(routeIndex)) return;
+            if (routeIndex < 0 || routeIndex >= state.routeEditor.draft.length) return;
+            pushRouteEditorHistory(stage);
+            const clickedSlot = normalizeCruiseRouteSlot(state.routeEditor.draft[routeIndex]);
+            let deleteIndex = routeIndex;
+            if (clickedSlot && visibleGroupIndices.length >= 2) {
+                const preferredIndex = findRouteEditorRouteIndexInGroup(
+                    state.routeEditor.draft,
+                    state.routeEditor.groupBreaks,
+                    interactionGroupIndex,
+                    clickedSlot.stringName,
+                    clickedSlot.fret
+                );
+                if (preferredIndex >= 0) {
+                    deleteIndex = preferredIndex;
+                }
+            }
+            state.routeEditor.draft.splice(deleteIndex, 1);
+            state.routeEditor.groupBreaks = adjustRouteEditorGroupBreaksForDelete(state.routeEditor.groupBreaks, deleteIndex, state.routeEditor.draft.length);
+            setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
+            saveState();
+            renderApp();
+        },
+        onFretClick: (stringName, fret) => {
+            const insertTargetGroupIndex = interactionGroupIndex;
+            pushRouteEditorHistory(stage);
+            const inserted = insertRouteEditorSlotIntoGroup(
+                state.routeEditor.draft,
+                state.routeEditor.groupBreaks,
+                insertTargetGroupIndex,
+                { stringName, fret }
+            );
+            state.routeEditor.draft = inserted.draft;
+            state.routeEditor.groupBreaks = inserted.groupBreaks;
+            setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
+            saveState();
+            playTone(6 - stringName, fret);
+            renderApp();
+        }
+    });
+
+    app.style.height = '100vh';
+    app.style.overflowY = 'auto';
+    app.style.overflowX = 'hidden';
+    app.style.alignItems = 'stretch';
+    app.style.gap = '0';
+    app.style.paddingTop = 'max(4px, env(safe-area-inset-top))';
+    app.style.paddingBottom = 'calc(var(--in-game-refresh-stack-height, 96px) + max(8px, env(safe-area-inset-bottom)))';
+    app.style.paddingLeft = 'max(10px, env(safe-area-inset-left))';
+    app.style.paddingRight = 'max(10px, env(safe-area-inset-right))';
 }
 
 function renderMemorize(app) {
@@ -3748,7 +4811,9 @@ function renderMemorize(app) {
 
     const isCruise = state.memorize.playMode === 'cruise';
 
-    let fbText = isCruise ? 'リズムに合わせてタップ！' : '指板をタップして回答してください';
+    let fbText = isCruise
+        ? 'リズムに合わせてタップ！'
+        : '指板をタップして回答してください';
     let fbClass = 'feedback-display';
     if (state.memorize.tempFeedback) {
         fbText = state.memorize.tempFeedback.text;
@@ -3766,6 +4831,23 @@ function renderMemorize(app) {
                         <div class="stat-item"><span class="label">正解</span><span class="value" id="score-correct">${state.memorize.correct}</span></div>
                         <div class="stat-item"><span class="label">連続</span><span class="value" id="score-combo">${state.memorize.combo}</span></div>
                     </div>`;
+    const repeatHintMode = clamp(parseInt(state.memorize.stage1RepeatHintMode, 10) || 1, 1, 4);
+    const repeatHintTabsHtml = isCruise && state.memorize.stage === 1 ? `
+        <div class="memorize-repeat-hint-tabs" role="tablist" aria-label="同じ音が続くときの表示">
+            ${[
+                { mode: 1, label: '×2' },
+                { mode: 2, label: '二重輪' },
+                { mode: 3, label: 'Pulse' },
+                { mode: 4, label: '短文' }
+            ].map(item => `
+                <button type="button"
+                    class="highlight-mode-btn memorize-repeat-hint-btn${repeatHintMode === item.mode ? ' active' : ''}"
+                    role="tab"
+                    aria-selected="${repeatHintMode === item.mode ? 'true' : 'false'}"
+                    data-repeat-hint-mode="${item.mode}">${item.label}</button>
+            `).join('')}
+        </div>
+    ` : '';
 
     const memorizeLand =
         typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
@@ -3792,6 +4874,7 @@ function renderMemorize(app) {
                         <div class="question-text memorize-question memorize-question-main">${q.stringName}弦 の <span class="memorize-question-note" style="color: var(--primary-color);">${memorizeQuestionLabel}</span> ${isCruise ? 'をタップ！' : 'を探せ！'}</div>
                     </div>
                     <div id="feedback" class="${fbClass} memorize-feedback">${fbText}</div>
+                    ${repeatHintTabsHtml}
                 </div>
                 <div id="fretboard-container" class="memorize-fretboard-host"></div>
                 ${isCruise ? `
@@ -3815,7 +4898,17 @@ function renderMemorize(app) {
     document.getElementById('btn-back').onclick = () => {
         stopRhythm();
         stopQuizTimer();
-        state.course = 'stageSelect';
+        if (state.memorize.isDemoPlayback && state.memorize.demoReturnCourse === 'routeEditor') {
+            state.course = 'routeEditor';
+            if (Number.isFinite(parseInt(state.memorize.demoReturnStage, 10))) {
+                state.routeEditor.stage = clamp(parseInt(state.memorize.demoReturnStage, 10), 1, 6);
+            }
+            state.memorize.isDemoPlayback = false;
+            state.memorize.demoReturnCourse = null;
+            state.memorize.demoReturnStage = null;
+        } else {
+            state.course = 'stageSelect';
+        }
         saveState();
         renderApp();
     };
@@ -3886,6 +4979,7 @@ function renderMemorize(app) {
             // Reset to the beginning of the course
             state.memorize.isCleared = false;
             state.memorize.cruiseIndex = 0;
+            state.memorize.cruiseCurrentLoop = 0;
             state.memorize.correct = 0;
             state.memorize.combo = 0;
             state.memorize.currentQuestion = state.memorize.cruiseTargets[0];
@@ -3901,14 +4995,21 @@ function renderMemorize(app) {
     document.getElementById('btn-memorize-settings').onclick = () => {
         stopRhythm();
         stopQuizTimer();
-        state.course = 'settings';
-        saveState();
-        renderApp();
+        state.memorize.isCruisePlaying = false;
+        openSettings();
     };
 
     // Pattern selection buttons (STAGE1 only)
     document.querySelectorAll('.highlight-mode-btn').forEach(btn => {
         btn.onclick = () => {
+            const repeatHintModeAttr = btn.getAttribute('data-repeat-hint-mode');
+            if (repeatHintModeAttr !== null) {
+                const mode = clamp(parseInt(repeatHintModeAttr, 10) || 1, 1, 4);
+                state.memorize.stage1RepeatHintMode = mode;
+                saveState();
+                renderApp();
+                return;
+            }
             const mode = parseInt(btn.getAttribute('data-mode'));
             state.memorize.highlightMode = mode;
             saveState();
@@ -3935,7 +5036,7 @@ function renderMemorize(app) {
             : null;
         // Call after DOM has been updated
         requestAnimationFrame(() => {
-            renderHighlightOverlay(q, nextQ, state.memorize.highlightMode);
+            renderHighlightOverlay(q, nextQ, state.memorize.highlightMode, repeatHintMode, state.memorize.stage1RepeatHintFlash);
         });
     }
 
@@ -4445,7 +5546,7 @@ function renderSettings(app) {
             <div class="settings-card-header">
                 <div class="settings-card-title-wrap">
                     <h3 class="settings-card-title">テンポ</h3>
-                    <span class="settings-card-subtitle">クルージングモード</span>
+                    <span class="settings-card-subtitle">テンポをたどるモード</span>
                 </div>
                 <button class="settings-card-reset-btn" type="button" data-reset-card="tempo">リセット</button>
             </div>
@@ -4460,8 +5561,24 @@ function renderSettings(app) {
         <div class="settings-card">
             <div class="settings-card-header">
                 <div class="settings-card-title-wrap">
+                    <h3 class="settings-card-title">ループ回数</h3>
+                    <span class="settings-card-subtitle">テンポをたどるモード</span>
+                </div>
+                <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-loop">リセット</button>
+            </div>
+            <div class="mode-buttons settings-loop-count-buttons">
+                <button class="mode-btn ${state.settings.cruiseLoopCount === 1 ? 'active' : ''}" data-loop-count="1">1周</button>
+                <button class="mode-btn ${state.settings.cruiseLoopCount === 2 ? 'active' : ''}" data-loop-count="2">2周</button>
+                <button class="mode-btn ${state.settings.cruiseLoopCount === 3 ? 'active' : ''}" data-loop-count="3">3周</button>
+                <button class="mode-btn ${state.settings.cruiseLoopCount === 0 ? 'active' : ''}" data-loop-count="0">無限</button>
+            </div>
+        </div>
+
+        <div class="settings-card">
+            <div class="settings-card-header">
+                <div class="settings-card-title-wrap">
                     <h3 class="settings-card-title">制限時間</h3>
-                    <span class="settings-card-subtitle">問題モード</span>
+                    <span class="settings-card-subtitle">指板クイズモード</span>
                 </div>
                 <button class="settings-card-reset-btn" type="button" data-reset-card="timer">リセット</button>
             </div>
@@ -4633,6 +5750,11 @@ function renderSettings(app) {
                 applyFretboardViewFromOrientationIfAuto();
                 refreshSettingsControls();
             }
+            if (resetCard === 'cruise-loop') {
+                state.settings.cruiseLoopCount = DEFAULT_CRUISE_LOOP_COUNT;
+                syncLoopCountSettingsUI();
+                return;
+            }
         };
     });
 
@@ -4641,6 +5763,7 @@ function renderSettings(app) {
             state.settings = cloneSettings(settingsSnapshot);
         }
         state.course = targetCourse;
+        // 設定画面から戻ってきた場合、一時停止状態（isCruisePlaying = false）を保持
         settingsReturnCourse = null;
         saveState();
         renderApp();
@@ -4671,6 +5794,14 @@ function renderSettings(app) {
             syncNotationSettingsUI();
             saveState();
             renderApp();
+        };
+    });
+
+    document.querySelectorAll('.settings-loop-count-buttons .mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            state.settings.cruiseLoopCount = parseInt(btn.getAttribute('data-loop-count'));
+            syncLoopCountSettingsUI();
+            saveState();
         };
     });
 
@@ -4727,12 +5858,20 @@ function renderSettings(app) {
         });
     }
 
+    function syncLoopCountSettingsUI() {
+        document.querySelectorAll('.settings-loop-count-buttons .mode-btn').forEach(b => {
+            const count = parseInt(b.getAttribute('data-loop-count'));
+            b.classList.toggle('active', count === state.settings.cruiseLoopCount);
+        });
+    }
+
     function refreshSettingsControls() {
         tempoSlider.value = state.settings.tempo;
         tempoDisplay.textContent = `BPM ${state.settings.tempo}`;
         timerSlider.value = state.settings.quizTimeLimit;
         timerDisplay.textContent = `${state.settings.quizTimeLimit} 秒`;
         syncNotationSettingsUI();
+        syncLoopCountSettingsUI();
         perspSlider.value = state.settings.perspective;
         perspOriginSlider.value = state.settings.perspOriginX;
         stringSpacingSlider.value = state.settings.stringSpacing;
@@ -5011,6 +6150,11 @@ function getRenderMaxFret(mode, options) {
             getHighestFretFromPositions(state.memorize.cruiseTargets),
             getHighestFretFromPositions(state.memorize.cruiseScope)
         );
+    } else if (mode === 'routeEditor') {
+        maxFret = Math.max(
+            maxFret,
+            getHighestFretFromPositions(options.routeEditorDraft)
+        );
     }
 
     return clamp(Math.floor(maxFret), DEFAULT_VISIBLE_MAX_FRET, MAX_FRET);
@@ -5049,7 +6193,11 @@ function renderFretboardHTML(containerId, options) {
         /** STEP5：スタート地点はチェックで除外しない（その弦フレット） */
         ruleStep5AnchorDisableSlot = null,
         /** STEP5：このスライド用の除外マップ（null 時は step5ExcludedSlots のみ参照） */
-        ruleStep5ExcludedSlotsLookup = null
+        ruleStep5ExcludedSlotsLookup = null,
+        routeEditorDraft = [],
+        routeEditorVisibleIndices = null,
+        routeEditorVisibleGroups = null,
+        onRouteEditorMarkerClick = null
     } = options;
     let step3TapRange = null;
     if (
@@ -5084,6 +6232,50 @@ function renderFretboardHTML(containerId, options) {
             ? ruleTapLayoutZoomExtra
             : 1;
     const renderMaxFret = getRenderMaxFret(mode, options);
+    const routeEditorVisibleIndexSet = Array.isArray(routeEditorVisibleIndices)
+        ? new Set(routeEditorVisibleIndices.map(index => parseInt(index, 10)).filter(Number.isFinite))
+        : null;
+    const routeEditorVisibleGroupList = Array.isArray(routeEditorVisibleGroups)
+        ? routeEditorVisibleGroups.map(group => ({
+            ...group,
+            index: parseInt(group?.index, 10)
+        })).filter(group => Number.isFinite(group.index))
+        : null;
+    const routeEditorGroupIndexBySlot = new Map();
+    if (mode === 'routeEditor' && Array.isArray(routeEditorVisibleGroupList)) {
+        routeEditorVisibleGroupList.forEach(group => {
+            const start = parseInt(group.start, 10);
+            const end = parseInt(group.end, 10);
+            if (!Number.isFinite(start) || !Number.isFinite(end)) return;
+            if (end < start) return;
+            const normalizedStart = Math.max(0, start);
+            const normalizedEnd = Math.max(normalizedStart, end);
+            for (let i = normalizedStart; i <= normalizedEnd; i++) {
+                routeEditorGroupIndexBySlot.set(i, group.index);
+            }
+        });
+    }
+    const routeEditorOrderMap = new Map();
+    if (mode === 'routeEditor' && Array.isArray(routeEditorDraft)) {
+        const groupOrderMap = new Map();
+        routeEditorDraft.map(normalizeCruiseRouteSlot).filter(Boolean).forEach((slot, index) => {
+            if (routeEditorVisibleGroupList && !routeEditorGroupIndexBySlot.has(index)) return;
+            if (routeEditorVisibleIndexSet && !routeEditorVisibleIndexSet.has(index)) return;
+            const key = `${slot.stringName}-${slot.fret}`;
+            const groupIndex = routeEditorVisibleGroupList && routeEditorGroupIndexBySlot.has(index)
+                ? routeEditorGroupIndexBySlot.get(index)
+                : 0;
+            const groupOrder = (groupOrderMap.get(groupIndex) || 0) + 1;
+            groupOrderMap.set(groupIndex, groupOrder);
+            const orders = routeEditorOrderMap.get(key) || [];
+            orders.push({
+                index,
+                order: groupOrder,
+                groupIndex
+            });
+            routeEditorOrderMap.set(key, orders);
+        });
+    }
     const isRuleMode = mode === 'rule';
     const ruleViewSnapshot = isRuleMode ? {
         rotation: { ...(state.settings.rotation || DEFAULT_ROTATION) },
@@ -5126,7 +6318,7 @@ function renderFretboardHTML(containerId, options) {
     const neckBottom = neckBounds.bottom;
 
     const scrollWrapperClass =
-        mode === 'visualize' || mode === 'rule'
+        mode === 'visualize' || mode === 'rule' || mode === 'routeEditor'
             ? 'fretboard-scroll-wrapper fretboard-scroll-wrapper--visualize'
             : 'fretboard-scroll-wrapper';
     const scrollGroupAttr =
@@ -5297,15 +6489,60 @@ function renderFretboardHTML(containerId, options) {
             let noteIdx = (OPEN_STRINGS[stringIdx] + f) % 12;
             let markerHtml = '';
             
-            // Interaction logic: in memorize mode, everything is interactive unless it's showing the answer in quiz mode
-            let isInteractive = (mode === 'memorize'); 
+            // Interaction logic: route editor and memorize mode need direct fret taps.
+            let isInteractive = (mode === 'memorize' || mode === 'routeEditor');
             if (mode === 'memorize' && showAnswer && state.memorize.playMode === 'quiz') {
                 isInteractive = false; // Disable clicking after answering in quiz mode
             }
             
             let fretClass = isInteractive ? 'fret-column interactive' : 'fret-column';
             
-            if (mode === 'memorize') {
+            if (mode === 'routeEditor') {
+                const orders = (routeEditorOrderMap.get(`${stringNum}-${f}`) || []).slice().sort((a, b) => {
+                    if (a.groupIndex !== b.groupIndex) return b.groupIndex - a.groupIndex;
+                    return b.index - a.index;
+                });
+                const guideLabel = ROUTE_EDITOR_SCALE_GUIDE_LABELS[noteIdx] || '';
+                const guideHtml = guideLabel
+                    ? `<button type="button" class="note-marker route-editor-scale-guide" aria-hidden="true" tabindex="-1" disabled>${guideLabel}</button>`
+                    : '';
+                if (orders.length) {
+                    let orderHtml = '';
+                    if (orders.length >= 3) {
+                        const visibleOrders = orders.slice(0, 3);
+                        const denseOffsets = [
+                            { x: -5, y: 0 },
+                            { x: 0, y: 0 },
+                            { x: 5, y: 0 }
+                        ];
+                        orderHtml = visibleOrders
+                            .map(({ index: routeIndex, groupIndex }, stackIndex) => {
+                                const groupStyle = getRouteEditorGroupColorStyle(groupIndex);
+                                const offset = denseOffsets[stackIndex] || denseOffsets[denseOffsets.length - 1];
+                                const denseZIndex = visibleOrders.length - stackIndex;
+                                return `
+                                <button type="button" class="note-marker route-edit-note route-edit-note-button route-edit-note--stacked route-edit-note--dense" data-route-index="${routeIndex}" aria-label="グループ${groupIndex + 1} ${stringNum}弦 ${f}フレット" style="${groupStyle}; --route-edit-stack-x: ${offset.x}px; --route-edit-stack-y: ${offset.y}px; z-index:${denseZIndex};"></button>
+                            `;
+                            })
+                            .join('');
+                    } else {
+                        const stackedClass = orders.length > 1 ? ' route-edit-note--stacked' : '';
+                        orderHtml = orders
+                            .map(({ index: routeIndex, order, groupIndex }) => {
+                                const groupStyle = getRouteEditorGroupColorStyle(groupIndex);
+                                return `
+                                <button type="button" class="note-marker route-edit-note route-edit-note-button${stackedClass}" data-route-index="${routeIndex}" aria-label="グループ${groupIndex + 1} ${order}番目 ${stringNum}弦 ${f}フレット" style="${groupStyle}">
+                                    <span class="route-edit-note-order">${order}</span>
+                                </button>
+                            `; })
+                            .join('');
+                    }
+                    const stackModeClass = orders.length >= 3 ? ' route-edit-note-stack--dense' : '';
+                    markerHtml = `${guideHtml}<div class="route-edit-note-stack${stackModeClass}" data-string="${stringNum}" data-fret="${f}">${orderHtml}</div>`;
+                } else {
+                    markerHtml = `${guideHtml}<div class="note-marker hidden-note"></div>`;
+                }
+            } else if (mode === 'memorize') {
                 let isTargetQuiz = (question && stringNum === question.stringName && noteIdx === question.noteIdx);
                 let isTargetCruise = (question && stringNum === question.stringName && f === question.fret);
                 let isClicked = clicked && (clicked.stringNum === stringNum && clicked.fret === f);
@@ -5540,7 +6777,7 @@ function renderFretboardHTML(containerId, options) {
                 const widthCap = Math.max(innerMin, layoutW - layoutPad) * ruleTapZoomMul;
                 return Math.min(1, zMax, widthCap / Math.max(1, bW));
             };
-            const isZoomView = (mode === 'memorize' || mode === 'visualize' || mode === 'rule') && state.settings.fretboardView === 'zoom';
+            const isZoomView = (mode === 'memorize' || mode === 'visualize' || mode === 'rule' || mode === 'routeEditor') && state.settings.fretboardView === 'zoom';
             const visualizeExtendedNeedsHorizScroll =
                 mode === 'visualize' &&
                 containerId === 'fretboard-container' &&
@@ -5627,9 +6864,12 @@ function renderFretboardHTML(containerId, options) {
                 const land = window.innerWidth > window.innerHeight;
                 const memorizeFretHost =
                     mode === 'memorize' && containerId === 'fretboard-container';
+                const routeEditorFretHost =
+                    mode === 'routeEditor' && containerId === 'fretboard-container';
                 const visualizeFretHost =
                     (mode === 'visualize' && containerId === 'fretboard-container') ||
-                    (mode === 'rule' && containerId === 'rule-fretboard-container');
+                    (mode === 'rule' && containerId === 'rule-fretboard-container') ||
+                    routeEditorFretHost;
                 const memorizeCruiseLandscape =
                     mode === 'memorize' &&
                     containerId === 'fretboard-container' &&
@@ -5639,32 +6879,36 @@ function renderFretboardHTML(containerId, options) {
                 const visualizeExtendedFullScrollLayout =
                     visualizeExtendedNeedsHorizScroll && state.settings.fretboardView === 'full';
                 /** 横・覚える・全体: 上段テキストを詰めた分、scale 用の高さ目安を少し上げる */
-                const fallbackFullH = memorizeCruiseLandscape
-                    ? Math.max(84, Math.round(window.innerHeight * 0.22))
-                    : Math.max(
-                        120,
-                        Math.round(
-                            window.innerHeight *
-                                ((memorizeFretHost || visualizeFretHost) && land ? 0.605 : land ? 0.41 : 0.3) -
-                            ((memorizeFretHost || visualizeFretHost) && land ? 48 : land ? 108 : 100)
-                        )
-                    );
+                const fallbackFullH = routeEditorFretHost && land
+                    ? Math.max(150, Math.round(window.innerHeight * 0.44))
+                    : memorizeCruiseLandscape
+                        ? Math.max(150, Math.round(window.innerHeight * 0.46))
+                        : Math.max(
+                            120,
+                            Math.round(
+                                window.innerHeight *
+                                    ((memorizeFretHost || visualizeFretHost) && land ? 0.605 : land ? 0.41 : 0.3) -
+                                ((memorizeFretHost || visualizeFretHost) && land ? 48 : land ? 108 : 100)
+                            )
+                        );
                 let maxFullViewH = Math.max(180, window.innerHeight * 0.35);
                 const memorizeLandBottomUiClearPx =
-                    memorizeCruiseLandscape
-                        ? 146
-                        : (memorizeFretHost || visualizeFretHost) && land
-                            ? 22
-                            : land
-                                ? 36
-                                : 0;
+                    routeEditorFretHost && land
+                        ? 72
+                        : memorizeCruiseLandscape
+                            ? 70
+                            : (memorizeFretHost || visualizeFretHost) && land
+                                ? 22
+                                : land
+                                    ? 36
+                                    : 0;
                 const readMemorizeHostMaxH = () => {
                     if (
                         (mode !== 'memorize' && mode !== 'visualize' && mode !== 'rule') ||
                         (containerId !== 'fretboard-container' && containerId !== 'rule-fretboard-container') ||
                         !appEl
                     ) {
-                        return null;
+                        if (!routeEditorFretHost) return null;
                     }
                     void containerEl.offsetHeight;
                     void appEl.offsetHeight;
@@ -5688,7 +6932,7 @@ function renderFretboardHTML(containerId, options) {
                               )
                             : 0;
                     const h = Math.max(
-                        memorizeCruiseLandscape ? 84 : 110,
+                        routeEditorFretHost && land ? 150 : memorizeCruiseLandscape ? 150 : 110,
                         fallbackFullH,
                         fromClient,
                         fromAppRect > 72 ? fromAppRect : 0
@@ -5820,7 +7064,7 @@ function renderFretboardHTML(containerId, options) {
                 /** 基本ルールの指板は全体ビューで rAF 後にスケールを差し替えると、再描画のたびに一瞬ズームしたように見える */
                 const refineScaleAfterPaint =
                     containerId === 'fretboard-container' &&
-                    (mode === 'memorize' || mode === 'visualize');
+                    (mode === 'memorize' || mode === 'visualize' || mode === 'routeEditor');
                 if (refineScaleAfterPaint) {
                     requestAnimationFrame(() => {
                         requestAnimationFrame(() => {
@@ -5926,9 +7170,187 @@ function renderFretboardHTML(containerId, options) {
     cleanupFretboardDocumentHandlers(containerId);
     if (isTiltPreview) return;
 
+    let routeEditorDragState = null;
+
+    const findFretColumnAtClientPoint = (clientX, clientY, paddingX = 0, paddingY = 0) => {
+        const cols = containerEl.querySelectorAll('.fret-column');
+        let bestCol = null;
+        let bestDistance = Infinity;
+        cols.forEach(col => {
+            const r = col.getBoundingClientRect();
+            if (
+                clientX < r.left - paddingX ||
+                clientX > r.right + paddingX ||
+                clientY < r.top - paddingY ||
+                clientY > r.bottom + paddingY
+            ) {
+                return;
+            }
+            const dx = clientX - (r.left + r.width / 2);
+            const dy = clientY - (r.top + r.height / 2);
+            const distance = dx * dx + dy * dy;
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestCol = col;
+            }
+        });
+        return bestCol;
+    };
+
+    const getRouteEditorDropTarget = (clientX, clientY) => {
+        return findFretColumnAtClientPoint(clientX, clientY, 18, 18);
+    };
+
+    const clearRouteEditorDragState = () => {
+        if (routeEditorDragState?.previewEl) {
+            routeEditorDragState.previewEl.remove();
+        }
+        if (routeEditorDragState?.buttonEl) {
+            routeEditorDragState.buttonEl.classList.remove('route-edit-note-button--dragging');
+        }
+        routeEditorDragState = null;
+        document.body.style.userSelect = '';
+    };
+
+    const beginRouteEditorDragPreview = (state, clientX, clientY) => {
+        const rect = state.buttonEl.getBoundingClientRect();
+        const preview = state.buttonEl.cloneNode(true);
+        preview.classList.add('route-edit-note-drag-preview');
+        preview.style.position = 'fixed';
+        preview.style.left = `${rect.left + rect.width / 2}px`;
+        preview.style.top = `${rect.top + rect.height / 2}px`;
+        preview.style.margin = '0';
+        preview.style.pointerEvents = 'none';
+        preview.style.zIndex = '99999';
+        preview.style.opacity = '0.95';
+        preview.style.transform = 'translate(-50%, -50%) scale(1.06)';
+        preview.style.transition = 'none';
+        document.body.appendChild(preview);
+        state.previewEl = preview;
+        state.previewOffsetX = clientX - (rect.left + rect.width / 2);
+        state.previewOffsetY = clientY - (rect.top + rect.height / 2);
+    };
+
+    const updateRouteEditorDragPreview = (state, clientX, clientY) => {
+        if (!state.previewEl) return;
+        state.previewEl.style.left = `${clientX - state.previewOffsetX}px`;
+        state.previewEl.style.top = `${clientY - state.previewOffsetY}px`;
+    };
+
+    const handleRouteEditorPointerDown = (e) => {
+        if (mode !== 'routeEditor') return;
+        if (typeof e.button === 'number' && e.button !== 0) return;
+        const button = e.target && typeof e.target.closest === 'function'
+            ? e.target.closest('.route-edit-note-button')
+            : null;
+        if (!button || !containerEl.contains(button)) return;
+        const routeIndex = parseInt(button.getAttribute('data-route-index'), 10);
+        if (!Number.isFinite(routeIndex)) return;
+        routeEditorDragState = {
+            routeIndex,
+            pointerId: typeof e.pointerId === 'number' ? e.pointerId : null,
+            startX: e.clientX,
+            startY: e.clientY,
+            dragging: false,
+            buttonEl: button,
+            previewEl: null,
+            previewOffsetX: 0,
+            previewOffsetY: 0
+        };
+    };
+
+    const handleRouteEditorPointerMove = (e) => {
+        if (!routeEditorDragState) return;
+        if (routeEditorDragState.pointerId !== null && typeof e.pointerId === 'number' && e.pointerId !== routeEditorDragState.pointerId) return;
+        const dx = e.clientX - routeEditorDragState.startX;
+        const dy = e.clientY - routeEditorDragState.startY;
+        const movedEnough = Math.hypot(dx, dy) >= 6;
+        if (!routeEditorDragState.dragging && !movedEnough) return;
+        if (!routeEditorDragState.dragging) {
+            routeEditorDragState.dragging = true;
+            routeEditorDragState.buttonEl.classList.add('route-edit-note-button--dragging');
+            document.body.style.userSelect = 'none';
+            beginRouteEditorDragPreview(routeEditorDragState, e.clientX, e.clientY);
+        }
+        updateRouteEditorDragPreview(routeEditorDragState, e.clientX, e.clientY);
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const handleRouteEditorPointerEnd = (e) => {
+        if (!routeEditorDragState) return;
+        if (routeEditorDragState.pointerId !== null && typeof e.pointerId === 'number' && e.pointerId !== routeEditorDragState.pointerId) return;
+        const endedState = routeEditorDragState;
+        const wasDragging = endedState.dragging;
+        const routeIndex = endedState.routeIndex;
+        const targetCol = wasDragging ? getRouteEditorDropTarget(e.clientX, e.clientY) : null;
+        clearRouteEditorDragState();
+        if (!wasDragging) return;
+        e.preventDefault();
+        e.stopPropagation();
+        routeEditorDragSuppressNextClick = true;
+        routeEditorDragSuppressRouteIndex = routeIndex;
+        setTimeout(() => {
+            if (routeEditorDragSuppressRouteIndex === routeIndex) {
+                routeEditorDragSuppressRouteIndex = null;
+            }
+            routeEditorDragSuppressNextClick = false;
+        }, 350);
+        if (!targetCol) return;
+        const stringName = parseInt(targetCol.getAttribute('data-string'), 10);
+        const fret = parseInt(targetCol.getAttribute('data-fret'), 10);
+        if (!Number.isFinite(stringName) || !Number.isFinite(fret)) return;
+        if (routeIndex < 0 || routeIndex >= state.routeEditor.draft.length) return;
+        const currentSlot = normalizeCruiseRouteSlot(state.routeEditor.draft[routeIndex]);
+        if (currentSlot && currentSlot.stringName === stringName && currentSlot.fret === fret) return;
+        pushRouteEditorHistory(state.routeEditor?.stage);
+        state.routeEditor.draft[routeIndex] = { stringName, fret };
+        saveState();
+        renderApp();
+    };
+
+    const handleRouteEditorPointerCancel = (e) => {
+        if (!routeEditorDragState) return;
+        if (routeEditorDragState.pointerId !== null && typeof e.pointerId === 'number' && e.pointerId !== routeEditorDragState.pointerId) return;
+        clearRouteEditorDragState();
+    };
+
+    if (mode === 'routeEditor') {
+        document.addEventListener('pointerdown', handleRouteEditorPointerDown, true);
+        document.addEventListener('pointermove', handleRouteEditorPointerMove, true);
+        document.addEventListener('pointerup', handleRouteEditorPointerEnd, true);
+        document.addEventListener('pointercancel', handleRouteEditorPointerCancel, true);
+        routeEditorDragHandlers.set(containerId, {
+            pointerdown: handleRouteEditorPointerDown,
+            pointermove: handleRouteEditorPointerMove,
+            pointerup: handleRouteEditorPointerEnd,
+            pointercancel: handleRouteEditorPointerCancel
+        });
+    }
+
     // Attach on document capture because player-view rotation can project frets outside
     // the container's layout box. Hit-test the projected 2D fret rectangles instead.
     const handleFretboardClick = (e) => {
+        if (routeEditorDragSuppressNextClick) {
+            routeEditorDragSuppressNextClick = false;
+            return;
+        }
+        const routeEditorMarkerButton = mode === 'routeEditor' && e.target && typeof e.target.closest === 'function'
+            ? e.target.closest('.route-edit-note-button')
+            : null;
+        if (routeEditorMarkerButton && typeof onRouteEditorMarkerClick === 'function') {
+            const routeIndex = parseInt(routeEditorMarkerButton.getAttribute('data-route-index'), 10);
+            if (routeEditorDragSuppressRouteIndex !== null && routeEditorDragSuppressRouteIndex === routeIndex) {
+                routeEditorDragSuppressRouteIndex = null;
+                return;
+            }
+            routeEditorDragSuppressRouteIndex = null;
+            if (Number.isFinite(routeIndex)) {
+                onRouteEditorMarkerClick(routeIndex);
+            }
+            return;
+        }
+
         const chordBtn = findChordButtonFromPointerEvent(e);
         if (chordBtn) {
             const chordIndex = parseInt(chordBtn.getAttribute('data-chord-index'));
@@ -6229,7 +7651,7 @@ function addFretboardDots(containerId) {
     }
 }
 
-function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode) {
+function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode, repeatHintMode = 1, isFlashing = false) {
     if (!currentQuestion) return;
 
     const container = document.getElementById('fretboard-container');
@@ -6251,7 +7673,7 @@ function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode) {
     overlay.style.width = '100%';
     overlay.style.height = '100%';
     overlay.style.pointerEvents = 'none';
-    overlay.style.zIndex = '0';
+    overlay.style.zIndex = '12';
 
     // Find current and next note positions
     const currentFret = currentQuestion.fret;
@@ -6279,6 +7701,15 @@ function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode) {
     container.style.position = 'relative';
     container.appendChild(overlay);
 
+    const isRepeatedSameCell = !!(nextQuestion
+        && currentQuestion.stringName === nextQuestion.stringName
+        && currentQuestion.fret === nextQuestion.fret);
+
+    if (isRepeatedSameCell) {
+        renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, isFlashing);
+        return;
+    }
+
     // Apply highlight based on mode (after overlay is added to container)
     switch(highlightMode) {
         case 1: // Simple rings
@@ -6296,6 +7727,119 @@ function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode) {
         case 5: // Path line + Highlight
             addPathLineHighlight(overlay, currentCell, nextCell);
             break;
+    }
+}
+
+function renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, isFlashing = false) {
+    const containerRect = overlay.parentElement.getBoundingClientRect();
+    const currentRect = currentCell.getBoundingClientRect();
+    const currentX = currentRect.left - containerRect.left + currentRect.width / 2;
+    const currentY = currentRect.top - containerRect.top + currentRect.height / 2;
+    const ringSize = Math.max(currentRect.width, currentRect.height) + 8;
+    const ringLeft = currentX - ringSize / 2;
+    const ringTop = currentY - ringSize / 2;
+
+    const addElement = (className, styles = {}, text = '') => {
+        const el = document.createElement('div');
+        const finalClassName = isFlashing ? `${className} repeat-hint-flash` : className;
+        el.className = finalClassName;
+        el.style.position = 'absolute';
+        el.style.pointerEvents = 'none';
+        Object.entries(styles).forEach(([key, value]) => {
+            el.style[key] = value;
+        });
+        if (text) el.textContent = text;
+        overlay.appendChild(el);
+        return el;
+    };
+
+    const baseRing = {
+        left: `${ringLeft}px`,
+        top: `${ringTop}px`,
+        width: `${ringSize}px`,
+        height: `${ringSize}px`,
+        borderRadius: '50%'
+    };
+
+    switch (repeatHintMode) {
+        case 2: {
+            addElement('repeat-note-ring repeat-note-ring--outer', {
+                ...baseRing,
+                border: '3px solid rgba(49, 196, 107, 0.95)',
+                boxShadow: '0 0 14px rgba(49, 196, 107, 0.25)'
+            });
+            addElement('repeat-note-ring repeat-note-ring--inner', {
+                left: `${currentX - 15}px`,
+                top: `${currentY - 15}px`,
+                width: '30px',
+                height: '30px',
+                borderRadius: '50%',
+                border: '2px solid rgba(255,255,255,0.72)',
+                boxShadow: '0 0 10px rgba(255,255,255,0.15)'
+            });
+            break;
+        }
+        case 3: {
+            addElement('repeat-note-pulse repeat-note-pulse--ring', {
+                ...baseRing,
+                border: '3px solid rgba(49, 196, 107, 0.8)',
+                boxShadow: '0 0 18px rgba(49, 196, 107, 0.45)',
+                animation: 'pulse 1.05s infinite'
+            });
+            addElement('repeat-note-pulse repeat-note-pulse--core', {
+                left: `${currentX - 11}px`,
+                top: `${currentY - 11}px`,
+                width: '22px',
+                height: '22px',
+                borderRadius: '50%',
+                background: 'rgba(49, 196, 107, 0.38)',
+                boxShadow: '0 0 12px rgba(49, 196, 107, 0.4)',
+                animation: 'glow 1.05s ease-in-out infinite'
+            });
+            break;
+        }
+        case 4: {
+            addElement('repeat-note-text', {
+                left: `${currentX - 26}px`,
+                top: `${currentY + 18}px`,
+                minWidth: '52px',
+                padding: '2px 8px',
+                borderRadius: '999px',
+                background: 'rgba(8, 18, 10, 0.78)',
+                border: '1px solid rgba(49, 196, 107, 0.72)',
+                color: '#dfffea',
+                fontSize: '0.72rem',
+                fontWeight: '800',
+                textAlign: 'center',
+                transform: 'translateY(-50%)'
+            }, 'もう1回');
+            break;
+        }
+        case 1:
+        default: {
+            addElement('repeat-note-ring repeat-note-ring--badge', {
+                ...baseRing,
+                border: '3px solid rgba(49, 196, 107, 0.95)',
+                boxShadow: '0 0 15px rgba(49, 196, 107, 0.25)'
+            });
+            addElement('repeat-note-badge', {
+                left: `${currentX + 11}px`,
+                top: `${currentY - 19}px`,
+                minWidth: '24px',
+                height: '18px',
+                padding: '0 5px',
+                borderRadius: '999px',
+                background: 'rgba(8, 18, 10, 0.9)',
+                border: '1px solid rgba(49, 196, 107, 0.95)',
+                color: '#dfffea',
+                fontSize: '0.68rem',
+                fontWeight: '900',
+                lineHeight: '18px',
+                textAlign: 'center',
+                boxShadow: '0 0 10px rgba(49, 196, 107, 0.22)'
+            }, '×2');
+            break;
+        }
     }
 }
 
