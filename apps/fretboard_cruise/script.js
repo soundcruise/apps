@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.50.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.54.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -2003,23 +2003,51 @@ function renderApp() {
 
             if (state.course === 'memorize' && state.memorize.playMode === 'cruise') {
                 const q = state.memorize.currentQuestion;
-                if (q && state.settings.fretboardView === 'zoom') {
-                    const fretCol = newWrapper.querySelector(`.fret-column[data-fret="${q.fret}"]`);
-                    if (fretCol) {
-                        const fretLeft = fretCol.offsetLeft;
-                        const fretRight = fretLeft + fretCol.clientWidth;
-                        const visibleLeft = currentScrollLeft;
-                        const visibleRight = currentScrollLeft + newWrapper.clientWidth;
+                const zoomAnchorFretAttr = newWrapper.getAttribute('data-zoom-scroll-anchor-fret');
+                const zoomAnchorFret = zoomAnchorFretAttr !== null ? parseFloat(zoomAnchorFretAttr) : null;
 
-                        // If the target is out of bounds (with 20px margin), then auto-scroll to center it
-                        if (fretLeft < visibleLeft + 20 || fretRight > visibleRight - 20) {
+                if (q && state.settings.fretboardView === 'zoom') {
+                    if (Number.isFinite(zoomAnchorFret)) {
+                        // Use anchor fret as scroll reference
+                        const anchorFloor = Math.floor(zoomAnchorFret);
+                        const anchorCeil = Math.ceil(zoomAnchorFret);
+                        const fretColFloor = newWrapper.querySelector(`.fret-column[data-fret="${anchorFloor}"]`);
+                        const fretColCeil = newWrapper.querySelector(`.fret-column[data-fret="${anchorCeil}"]`);
+
+                        let scrollPos = 0;
+                        if (fretColFloor && fretColCeil) {
+                            const frac = zoomAnchorFret - anchorFloor;
+                            const floorLeft = fretColFloor.offsetLeft;
+                            const ceilLeft = fretColCeil.offsetLeft;
+                            const interpolatedLeft = floorLeft + (ceilLeft - floorLeft) * frac;
                             const wrapperCenter = newWrapper.clientWidth / 2;
-                            const fretCenter = fretLeft + (fretCol.clientWidth / 2);
-                            setTimeout(() => {
-                                newWrapper.scrollTo({ left: fretCenter - wrapperCenter, behavior: 'smooth' });
-                            }, 10);
-                        } else {
-                            newWrapper.scrollLeft = currentScrollLeft;
+                            scrollPos = Math.max(0, interpolatedLeft - wrapperCenter);
+                        } else if (fretColFloor) {
+                            const wrapperCenter = newWrapper.clientWidth / 2;
+                            scrollPos = Math.max(0, fretColFloor.offsetLeft - wrapperCenter);
+                        }
+
+                        setTimeout(() => {
+                            newWrapper.scrollTo({ left: scrollPos, behavior: 'smooth' });
+                        }, 10);
+                    } else {
+                        const fretCol = newWrapper.querySelector(`.fret-column[data-fret="${q.fret}"]`);
+                        if (fretCol) {
+                            const fretLeft = fretCol.offsetLeft;
+                            const fretRight = fretLeft + fretCol.clientWidth;
+                            const visibleLeft = currentScrollLeft;
+                            const visibleRight = currentScrollLeft + newWrapper.clientWidth;
+
+                            // If the target is out of bounds (with 20px margin), then auto-scroll to center it
+                            if (fretLeft < visibleLeft + 20 || fretRight > visibleRight - 20) {
+                                const wrapperCenter = newWrapper.clientWidth / 2;
+                                const fretCenter = fretLeft + (fretCol.clientWidth / 2);
+                                setTimeout(() => {
+                                    newWrapper.scrollTo({ left: fretCenter - wrapperCenter, behavior: 'smooth' });
+                                }, 10);
+                            } else {
+                                newWrapper.scrollLeft = currentScrollLeft;
+                            }
                         }
                     }
                 } else {
@@ -6344,7 +6372,11 @@ function renderFretboardHTML(containerId, options) {
         (containerId === 'fretboard-container' || (mode === 'rule' && containerId === 'rule-fretboard-container'))
             ? ` data-scroll-group="${mode}"`
             : '';
-    let html = `<div class="${scrollWrapperClass}"${scrollGroupAttr}>`;
+    const zoomAnchorAttr =
+        (mode === 'memorize' && containerId === 'fretboard-container' && ruleTapZoomScrollAnchorFret !== null)
+            ? ` data-zoom-scroll-anchor-fret="${ruleTapZoomScrollAnchorFret}"`
+            : '';
+    let html = `<div class="${scrollWrapperClass}"${scrollGroupAttr}${zoomAnchorAttr}>`;
     html += `<div class="fretboard-perspective-wrapper" style="perspective: ${p_px}px; perspective-origin: 50% 50%; transform-style: preserve-3d;">`;
     html += `<div class="${containerClass}" style="transform: none;">`;
 
@@ -6774,7 +6806,6 @@ function renderFretboardHTML(containerId, options) {
                 ? ruleHostW
                 : (appEl && appEl.clientWidth > 0 ? appEl.clientWidth : screenW);
             const ruleTapCapZoomByFretWidth = (zMax, layoutPad, innerMin) => {
-                if (!isRuleFretHost) return Math.min(1, zMax);
                 let bW = 0;
                 if (step3TapFloatRange !== null) {
                     bW = getProjectedFretboardBoundsForFretFloatRange(
@@ -6833,8 +6864,8 @@ function renderFretboardHTML(containerId, options) {
                 }
                 if (
                     (step3TapRange !== null || step3TapFloatRange !== null) &&
-                    isRuleFretHost &&
-                    containerId === 'rule-fretboard-container'
+                    (isRuleFretHost && containerId === 'rule-fretboard-container' ||
+                     mode === 'memorize' && containerId === 'fretboard-container')
                 ) {
                     void containerEl.offsetHeight;
                     const ch = containerEl.clientHeight;
@@ -6846,6 +6877,8 @@ function renderFretboardHTML(containerId, options) {
                 }
                 let zoomScale = Math.min(1, maxZoomViewH / projectedBounds.height);
                 if (isRuleFretHost) {
+                    zoomScale = ruleTapCapZoomByFretWidth(zoomScale, 18, 160);
+                } else if (mode === 'memorize' && containerId === 'fretboard-container' && (step3TapRange !== null || step3TapFloatRange !== null)) {
                     zoomScale = ruleTapCapZoomByFretWidth(zoomScale, 18, 160);
                 }
                 if (visualizeExtendedNeedsHorizScroll && containerId === 'fretboard-container') {
