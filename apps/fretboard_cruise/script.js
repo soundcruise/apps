@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.54.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.54.3';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -5046,17 +5046,28 @@ function renderMemorize(app) {
         };
     });
 
-    renderFretboardHTML('fretboard-container', {
+    const fretboardOptions = {
         mode: 'memorize',
         question: q,
-        showAnswer: isCruise, // Cruise mode shows answer immediately
+        showAnswer: isCruise,
         clicked: null,
         onFretClick: handleFretClick,
         highlightMode: isCruise ? state.memorize.highlightMode : null,
         nextQuestion: isCruise && state.memorize.cruiseIndex < state.memorize.cruiseTargets.length - 1
             ? state.memorize.cruiseTargets[state.memorize.cruiseIndex + 1]
             : null
-    });
+    };
+
+    // STAGE2縦画面：開放弦～6フレット固定、スクロールなし
+    const isPortrait = window.innerWidth <= window.innerHeight;
+    if (isCruise && state.memorize.stage === 2 && isPortrait) {
+        fretboardOptions.ruleTapLayoutZoomFitFloatRange = [0, 6];
+        fretboardOptions.ruleTapLayoutLockScroll = true;
+        fretboardOptions.ruleTapZoomScrollAnchorFret = 3;
+        autoScrollRequested = false;
+    }
+
+    renderFretboardHTML('fretboard-container', fretboardOptions);
 
     // Apply highlight overlay for cruise mode on STAGE1
     if (isCruise && state.memorize.stage === 1 && state.memorize.highlightMode) {
