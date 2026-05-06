@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.48.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.48.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -5053,9 +5053,19 @@ function renderMemorize(app) {
 
     // Apply highlight overlay for cruise mode on STAGE1
     if (isCruise && state.memorize.stage === 1 && state.memorize.highlightMode) {
-        const nextQ = state.memorize.cruiseIndex < state.memorize.cruiseTargets.length - 1
-            ? state.memorize.cruiseTargets[state.memorize.cruiseIndex + 1]
-            : null;
+        let nextQ = null;
+        if (state.memorize.cruiseIndex < state.memorize.cruiseTargets.length - 1) {
+            // Normal case: next note is within current loop
+            nextQ = state.memorize.cruiseTargets[state.memorize.cruiseIndex + 1];
+        } else {
+            // Loop boundary: at the last note, check if next loop exists
+            const maxLoops = state.settings.cruiseLoopCount; // 0 = 無制限
+            const currentLoop = state.memorize.cruiseCurrentLoop;
+            if (maxLoops === 0 || currentLoop + 1 < maxLoops) {
+                // Next loop exists, so nextQ is the first note of next loop
+                nextQ = state.memorize.cruiseTargets[0];
+            }
+        }
         requestAnimationFrame(() => {
             renderHighlightOverlay(q, nextQ, state.memorize.highlightMode, repeatHintMode, state.memorize.stage1IsContinuedRepeat);
         });
