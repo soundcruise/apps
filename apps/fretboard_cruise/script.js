@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.47.9';
+const FRETBOARD_CRUISE_APP_VERSION = '1.48.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1114,10 +1114,19 @@ function autoAdvanceCruise() {
             const currentLoop = state.memorize.cruiseCurrentLoop;
             if (maxLoops === 0 || currentLoop + 1 < maxLoops) {
                 // ループ続行：周回カウントを進め、先頭に戻る
-                clearStage1RepeatHintState();
+                // Check loop boundary for same note (STAGE1 only, 要望2)
+                const nextLoopFirstNote = state.memorize.cruiseTargets[0];
+                if (state.memorize.stage === 1 && prevQuestion && nextLoopFirstNote &&
+                    prevQuestion.stringName === nextLoopFirstNote.stringName &&
+                    prevQuestion.fret === nextLoopFirstNote.fret) {
+                    state.memorize.stage1IsContinuedRepeat = true;
+                } else {
+                    clearStage1RepeatHintState();
+                }
+
                 state.memorize.cruiseCurrentLoop = currentLoop + 1;
                 state.memorize.cruiseIndex = 0;
-                state.memorize.currentQuestion = state.memorize.cruiseTargets[0];
+                state.memorize.currentQuestion = nextLoopFirstNote;
                 state.memorize.hasTappedCurrentNote = false;
 
                 let q = state.memorize.currentQuestion;
