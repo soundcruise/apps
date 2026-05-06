@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.47.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.47.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -7700,6 +7700,12 @@ function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode, re
 
     container.style.position = 'relative';
     container.appendChild(overlay);
+
+    // If flash flag is set, render same-note repeat hint regardless of nextQuestion calculation
+    if (isFlashing) {
+        renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, isFlashing);
+        return;
+    }
 
     const isRepeatedSameCell = !!(nextQuestion
         && currentQuestion.stringName === nextQuestion.stringName
