@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.49.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.49.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -7812,8 +7812,8 @@ function renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, i
     if (loopPositionMarker === 'start' || loopPositionMarker === 'last') {
         const markerText = loopPositionMarker === 'start' ? 'スタート!' : 'ラスト!';
         addElement('loop-position-badge', {
-            left: `${currentX - 28}px`,
-            top: `${currentY - 25}px`,
+            left: `${currentX + 20}px`,
+            top: `${currentY - 32}px`,
             padding: '4px 10px',
             borderRadius: '6px',
             background: 'rgba(49, 196, 107, 0.92)',
