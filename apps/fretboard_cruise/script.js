@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.47.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.47.3';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -79,9 +79,9 @@ let state = {
         demoReturnCourse: null,
         demoReturnStage: null,
         stage1RepeatHintMode: 1,
-        stage1RepeatHintFlash: false, // Indicates 2nd note of repeated same note
-        stage1RepeatHintFlashTimeout: null, // Timer ID for auto-reset
-        stage1RepeatLastCellPos: null, // { x, y, ringSize, ringLeft, ringTop } - cache for position
+        stage1IsContinuedRepeat: false, // True while 2nd note of a repeated pair is playing
+        stage1RepeatHintFlash: false, // True only during transition flash (short-lived)
+        stage1RepeatHintFlashTimeout: null, // Timer ID for auto-reset of flash
         highlightMode: 2, // 1-5: Visual highlight pattern for current/next note (2=Glow)
         isCruisePlaying: true // Is cruise rhythm currently playing (default: playing)
     },
@@ -1114,7 +1114,8 @@ function autoAdvanceCruise() {
                 state.memorize.cruiseIndex = 0;
                 state.memorize.currentQuestion = state.memorize.cruiseTargets[0];
                 state.memorize.hasTappedCurrentNote = false;
-                state.memorize.stage1RepeatHintFlash = false; // Reset flash on loop
+                state.memorize.stage1IsContinuedRepeat = false;
+                state.memorize.stage1RepeatHintFlash = false;
 
                 let q = state.memorize.currentQuestion;
                 playTone(q.stringIdx, q.fret);
@@ -1139,12 +1140,12 @@ function autoAdvanceCruise() {
         if (state.memorize.stage === 1 && prevQuestion &&
             prevQuestion.stringName === state.memorize.currentQuestion.stringName &&
             prevQuestion.fret === state.memorize.currentQuestion.fret) {
-            // Clear any existing timeout
             if (state.memorize.stage1RepeatHintFlashTimeout) {
                 clearTimeout(state.memorize.stage1RepeatHintFlashTimeout);
             }
-            state.memorize.stage1RepeatHintFlash = true;
-            // Auto-reset flash flag after animation completes (0.4s + 100ms buffer)
+            state.memorize.stage1IsContinuedRepeat = true;  // 2回目の音（表示用）
+            state.memorize.stage1RepeatHintFlash = true;    // 切り替え瞬間の点滅
+            // 点滅は0.4s後に自動解除、表示（IsContinuedRepeat）は維持
             state.memorize.stage1RepeatHintFlashTimeout = setTimeout(() => {
                 state.memorize.stage1RepeatHintFlash = false;
                 state.memorize.stage1RepeatHintFlashTimeout = null;
@@ -1155,6 +1156,7 @@ function autoAdvanceCruise() {
                 clearTimeout(state.memorize.stage1RepeatHintFlashTimeout);
                 state.memorize.stage1RepeatHintFlashTimeout = null;
             }
+            state.memorize.stage1IsContinuedRepeat = false;
             state.memorize.stage1RepeatHintFlash = false;
         }
 
@@ -5050,9 +5052,10 @@ function renderMemorize(app) {
         const nextQ = state.memorize.cruiseIndex < state.memorize.cruiseTargets.length - 1
             ? state.memorize.cruiseTargets[state.memorize.cruiseIndex + 1]
             : null;
-        // Call after DOM has been updated
+        const isContinuedRepeat = state.memorize.stage1IsContinuedRepeat;
+        const isFlashing = state.memorize.stage1RepeatHintFlash;
         requestAnimationFrame(() => {
-            renderHighlightOverlay(q, nextQ, state.memorize.highlightMode, repeatHintMode, state.memorize.stage1RepeatHintFlash);
+            renderHighlightOverlay(q, nextQ, state.memorize.highlightMode, repeatHintMode, isFlashing, isContinuedRepeat);
         });
     }
 
@@ -7667,7 +7670,7 @@ function addFretboardDots(containerId) {
     }
 }
 
-function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode, repeatHintMode = 1, isFlashing = false) {
+function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode, repeatHintMode = 1, isFlashing = false, isContinuedRepeat = false) {
     if (!currentQuestion) return;
 
     const container = document.getElementById('fretboard-container');
@@ -7717,18 +7720,25 @@ function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode, re
     container.style.position = 'relative';
     container.appendChild(overlay);
 
-    // If flash flag is set, render same-note repeat hint regardless of nextQuestion calculation
+    // Case 1: Transition flash (1回目→2回目の切り替え瞬間)
     if (isFlashing) {
-        renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, isFlashing);
+        renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, true);
         return;
     }
 
+    // Case 2: 2回目の音が鳴っている（点滅後、エフェクトは維持・点滅なし）
+    if (isContinuedRepeat) {
+        renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, false);
+        return;
+    }
+
+    // Case 3: 1回目の音が鳴っている（nextQが同じ音）
     const isRepeatedSameCell = !!(nextQuestion
         && currentQuestion.stringName === nextQuestion.stringName
         && currentQuestion.fret === nextQuestion.fret);
 
     if (isRepeatedSameCell) {
-        renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, isFlashing);
+        renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, false);
         return;
     }
 
@@ -7759,31 +7769,8 @@ function renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, i
     const currentY = currentRect.top - containerRect.top + currentRect.height / 2;
     const ringSize = Math.max(currentRect.width, currentRect.height) + 8;
 
-    // Use cached position if available for same cell (avoid position shift)
-    let ringLeft, ringTop;
-    const currentCellString = currentCell.getAttribute('data-string');
-    const currentCellFret = currentCell.getAttribute('data-fret');
-
-    if (state.memorize.stage1RepeatLastCellPos &&
-        state.memorize.stage1RepeatLastCellPos.string === currentCellString &&
-        state.memorize.stage1RepeatLastCellPos.fret === currentCellFret) {
-        // Use cached position
-        ringLeft = state.memorize.stage1RepeatLastCellPos.ringLeft;
-        ringTop = state.memorize.stage1RepeatLastCellPos.ringTop;
-    } else {
-        // Calculate new position and cache it
-        ringLeft = currentX - ringSize / 2;
-        ringTop = currentY - ringSize / 2;
-        state.memorize.stage1RepeatLastCellPos = {
-            string: currentCellString,
-            fret: currentCellFret,
-            x: currentX,
-            y: currentY,
-            ringSize: ringSize,
-            ringLeft: ringLeft,
-            ringTop: ringTop
-        };
-    }
+    const ringLeft = currentX - ringSize / 2;
+    const ringTop = currentY - ringSize / 2;
 
     const addElement = (className, styles = {}, text = '') => {
         const el = document.createElement('div');
