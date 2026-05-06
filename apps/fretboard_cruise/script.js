@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.48.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.49.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -5066,8 +5066,17 @@ function renderMemorize(app) {
                 nextQ = state.memorize.cruiseTargets[0];
             }
         }
+
+        // Determine loop position marker
+        let loopPositionMarker = null;
+        if (state.memorize.cruiseIndex === 0) {
+            loopPositionMarker = 'start';  // スタート!
+        } else if (state.memorize.cruiseIndex === state.memorize.cruiseTargets.length - 1) {
+            loopPositionMarker = 'last';   // ラスト!
+        }
+
         requestAnimationFrame(() => {
-            renderHighlightOverlay(q, nextQ, state.memorize.highlightMode, repeatHintMode, state.memorize.stage1IsContinuedRepeat);
+            renderHighlightOverlay(q, nextQ, state.memorize.highlightMode, repeatHintMode, state.memorize.stage1IsContinuedRepeat, loopPositionMarker);
         });
     }
 
@@ -7682,7 +7691,7 @@ function addFretboardDots(containerId) {
     }
 }
 
-function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode, repeatHintMode = 1, isContinuedRepeat = false) {
+function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode, repeatHintMode = 1, isContinuedRepeat = false, loopPositionMarker = null) {
     if (!currentQuestion) return;
 
     const container = document.getElementById('fretboard-container');
@@ -7732,6 +7741,12 @@ function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode, re
     container.style.position = 'relative';
     container.appendChild(overlay);
 
+    // ループ位置マーカー（スタート! / ラスト!）を優先的に表示
+    if (loopPositionMarker) {
+        renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, null, loopPositionMarker);
+        return;
+    }
+
     // 同じ音が続く場合は、1回目/2回目の両方を安定表示する
     const isRepeatedSameCell = !!(nextQuestion
         && currentQuestion.stringName === nextQuestion.stringName
@@ -7762,7 +7777,7 @@ function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode, re
     }
 }
 
-function renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, isSecondNote = false) {
+function renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, isSecondNote = false, loopPositionMarker = null) {
     const containerRect = overlay.parentElement.getBoundingClientRect();
     const currentRect = currentCell.getBoundingClientRect();
     const currentX = currentRect.left - containerRect.left + currentRect.width / 2;
@@ -7792,6 +7807,26 @@ function renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, i
         height: `${ringSize}px`,
         borderRadius: '50%'
     };
+
+    // ループ位置マーカー表示（スタート! / ラスト!）
+    if (loopPositionMarker === 'start' || loopPositionMarker === 'last') {
+        const markerText = loopPositionMarker === 'start' ? 'スタート!' : 'ラスト!';
+        addElement('loop-position-badge', {
+            left: `${currentX - 28}px`,
+            top: `${currentY - 25}px`,
+            padding: '4px 10px',
+            borderRadius: '6px',
+            background: 'rgba(49, 196, 107, 0.92)',
+            color: '#07130b',
+            fontSize: '0.75rem',
+            fontWeight: '900',
+            lineHeight: '1.2',
+            textAlign: 'center',
+            boxShadow: '0 0 12px rgba(49, 196, 107, 0.3)',
+            whiteSpace: 'nowrap'
+        }, markerText);
+        return;
+    }
 
     if (repeatHintMode === 1) {
         addElement('repeat-note-badge repeat-note-badge--fraction', {
