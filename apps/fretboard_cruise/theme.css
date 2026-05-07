@@ -1392,7 +1392,6 @@ input:checked + .toggle-slider:before {
     gap: 8px;
     justify-content: center;
     width: 100%;
-    padding-bottom: clamp(28px, 5vh, 72px);
 }
 
 .route-editor-expanded-spacer {
@@ -1402,7 +1401,7 @@ input:checked + .toggle-slider:before {
 }
 
 .route-editor-expanded-spacer--visible {
-    height: clamp(140px, 18vh, 240px);
+    height: clamp(180px, 22vh, 320px);
 }
 
 .route-editor-demo-btn {
@@ -1672,7 +1671,7 @@ input:checked + .toggle-slider:before {
     }
 
     .route-editor-expanded-spacer--visible {
-        height: clamp(160px, 20vh, 280px);
+        height: clamp(220px, 26vh, 360px);
     }
 
     .route-editor-group-panel--dragging {
