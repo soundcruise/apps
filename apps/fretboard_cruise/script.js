@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.62.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.62.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -8286,6 +8286,10 @@ function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode, re
     // Remove any glow effects inserted directly into cells
     container.querySelectorAll('.fret-glow-effect').forEach(el => el.remove());
 
+    // 自動スクロールに追従させるため、オーバーレイをスクロール内のコンテンツ要素に追加する
+    // （.fretboard-container は position: relative & 全コンテンツ幅を持つ）
+    const overlayHost = container.querySelector('.fretboard-container') || container;
+
     // Create overlay container
     const overlay = document.createElement('div');
     overlay.className = 'highlight-overlay';
@@ -8321,7 +8325,7 @@ function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode, re
     }
 
     container.style.position = 'relative';
-    container.appendChild(overlay);
+    overlayHost.appendChild(overlay);
 
     // ループ位置マーカー（スタート! / ラスト!）を優先的に表示
     if (loopPositionMarker) {
