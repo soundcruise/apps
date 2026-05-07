@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.62.4';
+const FRETBOARD_CRUISE_APP_VERSION = '1.63.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -47,6 +47,18 @@ const DEFAULT_ROTATION = { x: 0, y: 0, z: 0 };
 const DEFAULT_FRETBOARD_VIEW = 'full';
 const DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION = true;
 const DEFAULT_CRUISE_LOOP_COUNT = 1;
+/** STAGE1 初期ルート（初回・未保存時・「初期順」）。`scripts/compute-stage1-shipped-default.mjs` で同内容を再生成可 */
+const SHIPPED_DEFAULT_STAGE_1_ROUTE_SLOTS = JSON.parse(
+    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":5,"fret":0},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":4,"fret":0},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":3,"fret":0},{"stringName":3,"fret":2},{"stringName":2,"fret":0},{"stringName":2,"fret":1},{"stringName":2,"fret":3},{"stringName":1,"fret":0},{"stringName":1,"fret":1},{"stringName":1,"fret":3},{"stringName":1,"fret":1},{"stringName":1,"fret":0},{"stringName":2,"fret":3},{"stringName":2,"fret":1},{"stringName":2,"fret":0},{"stringName":3,"fret":2},{"stringName":3,"fret":0},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":4,"fret":0},{"stringName":5,"fret":3}]'
+);
+
+function getShippedDefaultStage1RouteSlots() {
+    return SHIPPED_DEFAULT_STAGE_1_ROUTE_SLOTS.map(slot => ({
+        stringName: slot.stringName,
+        fret: slot.fret
+    }));
+}
+
 const ROUTE_EDITOR_MAX_GROUPS = 20;
 const ROUTE_EDITOR_SCALE_GUIDE_LABELS = {
     0: 'ド',
@@ -2047,6 +2059,13 @@ function buildCruiseWalkSequence(uniqueTargets) {
 }
 
 function buildDefaultCruiseStageSequence(stage) {
+    if (stage === 1) {
+        const slots = getShippedDefaultStage1RouteSlots();
+        const sequence = slots.map(slot => makeCruiseTarget(slot.stringName, slot.fret));
+        const cruiseScope = makeCruiseScopeFromSequence(sequence);
+        return { sequence, cruiseScope };
+    }
+
     const sequence = [];
     const cruiseScope = [];
 
@@ -4790,7 +4809,10 @@ function renderStageSelect(app) {
     document.querySelectorAll('.stage-route-edit-btn').forEach(btn => {
         btn.onclick = () => {
             const stage = parseInt(btn.getAttribute('data-edit-stage'), 10);
-            const savedSlots = getSavedCruiseRouteSlots(stage);
+            let savedSlots = getSavedCruiseRouteSlots(stage);
+            if (!savedSlots.length && stage === 1) {
+                savedSlots = cloneCruiseRouteSlots(getShippedDefaultStage1RouteSlots());
+            }
             const savedGroupBreaks = normalizeRouteEditorGroupBreaks(getRouteEditorSavedGroupBreaks(stage), savedSlots.length);
             const initialGroupBreaks = savedGroupBreaks.length
                 ? savedGroupBreaks
@@ -4803,6 +4825,7 @@ function renderStageSelect(app) {
                 deleteMode: false,
                 history: [],
                 deletePicker: null,
+                groupNames: buildRouteEditorGroupsFromBreaks(savedSlots, initialGroupBreaks).map((_, i) => `Gr.${i + 1}`),
                 groupBreaks: savedSlots.length ? initialGroupBreaks : [0],
                 selectedGroupIndex: 0,
                 visibleGroupIndices: initialGroups.length ? initialGroups.map((_, index) => index) : [0],
