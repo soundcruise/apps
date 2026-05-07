@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.63.8';
+const FRETBOARD_CRUISE_APP_VERSION = '1.63.9';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -5191,8 +5191,10 @@ function renderRouteEditor(app) {
         nextBreaks.push(nextStart);
         state.routeEditor.groupBreaks = normalizeRouteEditorGroupBreaks(nextBreaks, draft.length);
         state.routeEditor.forceHideAllGroups = false;
-        // 新Grのみ表示・アクティブ、他はすべて非表示
-        state.routeEditor.visibleGroupIndices = [nextIndex];
+        // 既存の可視Grは維持しつつ、新Grも可視にする。位置が開放弦側へ戻るのを防ぐ。
+        const nextVisible = new Set(Array.isArray(state.routeEditor.visibleGroupIndices) ? state.routeEditor.visibleGroupIndices : []);
+        nextVisible.add(nextIndex);
+        state.routeEditor.visibleGroupIndices = Array.from(nextVisible).sort((a, b) => a - b);
         state.routeEditor.selectedGroupIndex = nextIndex;
         state.routeEditor.showAllGroupsExpanded = false;
 
