@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.57.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.57.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1382,10 +1382,6 @@ function applyCruiseGroupScrollLeftDeferred(wrapper, targetScrollLeft, shouldSmo
             const left = clamp(target, 0, maxScroll);
             if (shouldSmooth) {
                 wrapper.scrollTo({ left, behavior: 'smooth' });
-                requestAnimationFrame(() => {
-                    if (!wrapper.isConnected) return;
-                    wrapper.scrollLeft = left;
-                });
             } else {
                 wrapper.scrollLeft = left;
             }
@@ -7156,7 +7152,7 @@ function renderFretboardHTML(containerId, options) {
                     mode === 'memorize' && containerId === 'fretboard-container'
                         ? Math.max(160, window.innerHeight * (land ? 0.56 : 0.36))
                         : Math.max(190, window.innerHeight * 0.36);
-                if (mode === 'memorize' && containerId === 'fretboard-container') {
+                if ((mode === 'memorize' || mode === 'routeEditor') && containerId === 'fretboard-container') {
                     void containerEl.offsetHeight;
                     const ch = containerEl.clientHeight;
                     if (ch > 72) {
