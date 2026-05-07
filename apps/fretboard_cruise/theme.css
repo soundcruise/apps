@@ -1329,15 +1329,26 @@ input:checked + .toggle-slider:before {
     border-radius: 999px;
     border: 1px solid rgba(255, 255, 255, 0.16);
     background: rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.88);
+    color: rgba(255, 255, 255, 0.68);
     font-weight: 800;
     font-size: 0.96rem;
 }
 
-.route-editor-group-btn.active {
-    border-color: var(--primary-color);
-    background: rgba(79, 156, 249, 0.22);
+.route-editor-group-btn.is-visible {
+    border-color: rgba(79, 156, 249, 0.78);
+    background: rgba(79, 156, 249, 0.16);
     color: #fff;
+}
+
+.route-editor-group-btn.is-hidden {
+    opacity: 0.72;
+}
+
+.route-editor-group-btn.is-active {
+    border-color: #7fd0ff;
+    background: rgba(79, 156, 249, 0.34);
+    color: #fff;
+    box-shadow: 0 0 0 1px rgba(127, 208, 255, 0.24) inset;
 }
 
 .route-editor-group-actions {

@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.55.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.56.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1642,6 +1642,9 @@ function getRouteEditorOperationGroupIndex(visibleGroups, selectedGroupIndex) {
     const visibleIndices = Array.isArray(visibleGroups)
         ? visibleGroups.map(group => parseInt(group?.index, 10)).filter(Number.isFinite)
         : [];
+    if (visibleIndices.includes(parsedSelected)) {
+        return parsedSelected;
+    }
     if (visibleIndices.length <= 1) {
         return visibleIndices.length === 1 ? visibleIndices[0] : parsedSelected;
     }
@@ -4665,11 +4668,15 @@ function renderRouteEditor(app) {
     const groupPanelStyle = `--route-editor-group-panel-shift-x: ${groupPanelOffset.x}px; --route-editor-group-panel-shift-y: ${groupPanelOffset.y}px;`;
 
     const groupButtonsHtml = groups.length
-        ? groups.map((group, index) => `
-            <button class="route-editor-group-btn ${visibleGroupIndices.includes(index) ? 'active' : ''}" type="button" data-group-index="${index}" aria-label="${group.name}" aria-pressed="${visibleGroupIndices.includes(index) ? 'true' : 'false'}">
+        ? groups.map((group, index) => {
+            const isVisible = visibleGroupIndices.includes(index);
+            const isActive = isVisible && clamp(parseInt(selectedGroupIndex ?? 0, 10), 0, Number.MAX_SAFE_INTEGER) === index;
+            return `
+            <button class="route-editor-group-btn ${isVisible ? 'is-visible' : 'is-hidden'} ${isActive ? 'is-active' : ''}" type="button" data-group-index="${index}" aria-label="${group.name}" aria-pressed="${isActive ? 'true' : 'false'}">
                 ${group.name}
             </button>
-        `).join('')
+        `;
+        }).join('')
         : '<p class="route-editor-empty">グループがありません</p>';
 
     app.innerHTML = `
@@ -4916,17 +4923,31 @@ function renderRouteEditor(app) {
         btn.onclick = () => {
             const index = parseInt(btn.getAttribute('data-group-index'), 10);
             if (!Number.isFinite(index)) return;
+            const isVisible = visibleGroupIndices.includes(index);
+            const isActive = isVisible && clamp(parseInt(state.routeEditor?.selectedGroupIndex ?? 0, 10), 0, Number.MAX_SAFE_INTEGER) === index;
             const nextVisible = new Set(visibleGroupIndices);
-            if (nextVisible.has(index)) {
-                if (nextVisible.size === 1) return;
-                nextVisible.delete(index);
-            } else {
+            if (!isVisible) {
                 nextVisible.add(index);
+                state.routeEditor.forceHideAllGroups = false;
+                state.routeEditor.visibleGroupIndices = Array.from(nextVisible).sort((a, b) => a - b);
+                saveState();
+                renderApp();
+                return;
             }
+            if (!isActive) {
+                state.routeEditor.forceHideAllGroups = false;
+                state.routeEditor.visibleGroupIndices = Array.from(nextVisible).sort((a, b) => a - b);
+                state.routeEditor.selectedGroupIndex = index;
+                saveState();
+                renderApp();
+                return;
+            }
+            if (nextVisible.size === 1) return;
+            nextVisible.delete(index);
             const normalizedVisible = Array.from(nextVisible).sort((a, b) => a - b);
             state.routeEditor.forceHideAllGroups = false;
             state.routeEditor.visibleGroupIndices = normalizedVisible;
-            state.routeEditor.selectedGroupIndex = index;
+            state.routeEditor.selectedGroupIndex = normalizedVisible[normalizedVisible.length - 1] ?? index;
             saveState();
             renderApp();
         };
