@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.54.8';
+const FRETBOARD_CRUISE_APP_VERSION = '1.54.9';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1115,9 +1115,9 @@ function autoAdvanceCruise() {
             const currentLoop = state.memorize.cruiseCurrentLoop;
             if (maxLoops === 0 || currentLoop + 1 < maxLoops) {
                 // ループ続行：周回カウントを進め、先頭に戻る
-                // Check loop boundary for same note (STAGE1 only, 要望2)
+                // Check loop boundary for same note
                 const nextLoopFirstNote = state.memorize.cruiseTargets[0];
-                if (state.memorize.stage === 1 && prevQuestion && nextLoopFirstNote &&
+                if (prevQuestion && nextLoopFirstNote &&
                     prevQuestion.stringName === nextLoopFirstNote.stringName &&
                     prevQuestion.fret === nextLoopFirstNote.fret) {
                     state.memorize.stage1IsContinuedRepeat = true;
@@ -1150,8 +1150,8 @@ function autoAdvanceCruise() {
         state.memorize.cruiseIndex = nextIdx;
         state.memorize.currentQuestion = state.memorize.cruiseTargets[nextIdx];
 
-        // Check if same note is repeated (STAGE1 only)
-        if (state.memorize.stage === 1 && prevQuestion &&
+        // Check if same note is repeated
+        if (prevQuestion &&
             prevQuestion.stringName === state.memorize.currentQuestion.stringName &&
             prevQuestion.fret === state.memorize.currentQuestion.fret) {
             clearStage1RepeatHintState();
@@ -5094,8 +5094,8 @@ function renderMemorize(app) {
 
     renderFretboardHTML('fretboard-container', fretboardOptions);
 
-    // Apply highlight overlay for cruise mode on STAGE1
-    if (isCruise && state.memorize.stage === 1 && state.memorize.highlightMode) {
+    // Apply highlight overlay for cruise mode
+    if (isCruise && state.memorize.highlightMode) {
         let nextQ = null;
         if (state.memorize.cruiseIndex < state.memorize.cruiseTargets.length - 1) {
             // Normal case: next note is within current loop
