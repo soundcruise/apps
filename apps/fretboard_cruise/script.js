@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.63.14';
+const FRETBOARD_CRUISE_APP_VERSION = '1.63.15';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -75,6 +75,13 @@ const SHIPPED_DEFAULT_STAGE_4_ROUTE_SLOTS = JSON.parse(
 const SHIPPED_DEFAULT_STAGE_4_ROUTE_GROUP_BREAKS = JSON.parse(
     '[0,8,16,20,24,32]'
 );
+/** STAGE5 初期ルート（現在の「初期順」）。`scripts/compute-stage5-shipped-default.mjs` で同内容を再生成可 */
+const SHIPPED_DEFAULT_STAGE_5_ROUTE_SLOTS = JSON.parse(
+    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":5,"fret":0},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":4,"fret":0},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":3,"fret":0},{"stringName":3,"fret":2},{"stringName":2,"fret":0},{"stringName":2,"fret":1},{"stringName":2,"fret":1},{"stringName":2,"fret":3},{"stringName":1,"fret":0},{"stringName":1,"fret":1},{"stringName":1,"fret":3},{"stringName":1,"fret":3},{"stringName":1,"fret":1},{"stringName":1,"fret":0},{"stringName":2,"fret":3},{"stringName":2,"fret":1},{"stringName":2,"fret":1},{"stringName":2,"fret":0},{"stringName":3,"fret":2},{"stringName":3,"fret":0},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":4,"fret":0},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":5,"fret":5},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":4,"fret":5},{"stringName":3,"fret":2},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":2,"fret":3},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":1,"fret":3},{"stringName":1,"fret":5},{"stringName":1,"fret":5},{"stringName":1,"fret":3},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":2,"fret":3},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":3,"fret":2},{"stringName":4,"fret":5},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":5,"fret":5},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":6,"fret":5},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":6,"fret":7},{"stringName":6,"fret":8},{"stringName":6,"fret":8},{"stringName":5,"fret":5},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":4,"fret":5},{"stringName":4,"fret":7},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":7},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":2,"fret":8},{"stringName":1,"fret":5},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":1,"fret":5},{"stringName":2,"fret":8},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":3,"fret":7},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":4,"fret":7},{"stringName":4,"fret":5},{"stringName":5,"fret":8},{"stringName":5,"fret":7},{"stringName":5,"fret":5},{"stringName":6,"fret":8},{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":5,"fret":10},{"stringName":4,"fret":7},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":3,"fret":7},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":2,"fret":8},{"stringName":2,"fret":10},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":2,"fret":10},{"stringName":2,"fret":8},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":3,"fret":7},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":4,"fret":7},{"stringName":5,"fret":10},{"stringName":5,"fret":8},{"stringName":5,"fret":7},{"stringName":6,"fret":10},{"stringName":6,"fret":8},{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":6,"fret":12},{"stringName":6,"fret":13},{"stringName":5,"fret":10},{"stringName":5,"fret":12},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":12},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":3,"fret":12},{"stringName":2,"fret":10},{"stringName":2,"fret":12},{"stringName":2,"fret":13},{"stringName":2,"fret":13},{"stringName":1,"fret":10},{"stringName":1,"fret":12},{"stringName":1,"fret":13},{"stringName":1,"fret":13},{"stringName":1,"fret":12},{"stringName":1,"fret":10},{"stringName":2,"fret":13},{"stringName":2,"fret":13},{"stringName":2,"fret":12},{"stringName":2,"fret":10},{"stringName":3,"fret":12},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":4,"fret":12},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":5,"fret":12},{"stringName":5,"fret":10},{"stringName":6,"fret":13},{"stringName":6,"fret":12},{"stringName":6,"fret":10},{"stringName":6,"fret":8}]'
+);
+const SHIPPED_DEFAULT_STAGE_5_ROUTE_GROUP_BREAKS = JSON.parse(
+    '[0,6,12,20,25,30,38,44,50,58,64,70,78,84,88,90,98,106,114,122,130,138,146,154,156,162,170,174,178,186]'
+);
 
 function getShippedDefaultStage1RouteSlots() {
     return SHIPPED_DEFAULT_STAGE_1_ROUTE_SLOTS.map(slot => ({
@@ -99,6 +106,13 @@ function getShippedDefaultStage3RouteSlots() {
 
 function getShippedDefaultStage4RouteSlots() {
     return SHIPPED_DEFAULT_STAGE_4_ROUTE_SLOTS.map(slot => ({
+        stringName: slot.stringName,
+        fret: slot.fret
+    }));
+}
+
+function getShippedDefaultStage5RouteSlots() {
+    return SHIPPED_DEFAULT_STAGE_5_ROUTE_SLOTS.map(slot => ({
         stringName: slot.stringName,
         fret: slot.fret
     }));
@@ -2181,24 +2195,22 @@ function buildDefaultCruiseStageSequence(stage) {
             groupBreaks: SHIPPED_DEFAULT_STAGE_4_ROUTE_GROUP_BREAKS.slice()
         };
     }
+    if (stage === 5) {
+        const slots = getShippedDefaultStage5RouteSlots();
+        const sequence = slots.map(slot => makeCruiseTarget(slot.stringName, slot.fret));
+        const cruiseScope = makeCruiseScopeFromSequence(sequence);
+        return {
+            sequence,
+            cruiseScope,
+            groupBreaks: SHIPPED_DEFAULT_STAGE_5_ROUTE_GROUP_BREAKS.slice()
+        };
+    }
 
     const sequence = [];
     const cruiseScope = [];
-
-    if (stage === 5) {
-        for (let s = 1; s <= 4; s++) {
-            const uniqueTargets = getCruiseUniqueTargetsForStage(s);
-            cruiseScope.push(...uniqueTargets);
-
-            const subSeq = buildCruiseWalkSequence(uniqueTargets);
-            if (s < 4) subSeq.pop();
-            sequence.push(...subSeq);
-        }
-    } else {
-        const uniqueTargets = getCruiseUniqueTargetsForStage(stage);
-        cruiseScope.push(...uniqueTargets);
-        sequence.push(...buildCruiseWalkSequence(uniqueTargets));
-    }
+    const uniqueTargets = getCruiseUniqueTargetsForStage(stage);
+    cruiseScope.push(...uniqueTargets);
+    sequence.push(...buildCruiseWalkSequence(uniqueTargets));
 
     return { sequence, cruiseScope };
 }
@@ -5161,7 +5173,7 @@ function renderRouteEditor(app) {
         const defaultStage = buildDefaultCruiseStageSequence(stage);
         const savedSlots = getSavedCruiseRouteSlots(stage);
         const hasSavedSlots = savedSlots.length > 0;
-        const useSavedSlots = hasSavedSlots && stage > 4;
+        const useSavedSlots = hasSavedSlots && stage > 5;
         const sequence = useSavedSlots
             ? savedSlots
             : defaultStage.sequence.map(cruiseRouteSlotFromTarget);
