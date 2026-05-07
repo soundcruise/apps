@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.58.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.58.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1470,7 +1470,7 @@ function getRouteEditorSnapshot(stage = null) {
 
 function reorderRouteEditorGroups(fromIndex, toIndex) {
     if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
-    const stage = state.memorize.stage;
+    const stage = parseInt(state.routeEditor?.stage || state.memorize.stage || 1, 10);
     const draft = (Array.isArray(state.routeEditor?.draft) ? state.routeEditor.draft : [])
         .map(normalizeCruiseRouteSlot).filter(Boolean);
     const rawBreaks = Array.isArray(state.routeEditor?.groupBreaks) ? state.routeEditor.groupBreaks.slice() : [];
@@ -1499,8 +1499,12 @@ function reorderRouteEditorGroups(fromIndex, toIndex) {
 
     // groupBreaks を再計算
     const newGroupBreaks = [0];
+    let cumSum = 0;
     for (let i = 0; i < newOrder.length - 1; i++) {
-        newGroupBreaks.push(newGroupBreaks[newGroupBreaks.length - 1] + slices[newOrder[i]].length);
+        cumSum += slices[newOrder[i]].length;
+        if (cumSum > newGroupBreaks[newGroupBreaks.length - 1]) {
+            newGroupBreaks.push(cumSum);
+        }
     }
 
     // スクロール保存位置をGr.ごと移動
@@ -5250,19 +5254,21 @@ function renderRouteEditor(app) {
                 }
             });
 
-            const onEnd = () => {
+            const onEnd = (e) => {
                 if (dragFromIdx < 0) return;
                 const from = dragFromIdx, to = dragOverIdx;
+                const wasDrag = didDrag;
+                didDrag = false;
+                if (wasDrag && e) e.preventDefault();
                 cleanupDrag();
                 dragFromIdx = -1; dragOverIdx = -1;
-                if (didDrag) {
+                if (wasDrag) {
                     routeEditorGroupDragBlocked = true;
-                    requestAnimationFrame(() => { routeEditorGroupDragBlocked = false; });
+                    setTimeout(() => { routeEditorGroupDragBlocked = false; }, 400);
                     if (to >= 0 && to !== from) reorderRouteEditorGroups(from, to);
                 }
-                didDrag = false;
             };
-            handle.addEventListener('pointerup', onEnd);
+            handle.addEventListener('pointerup', onEnd, { passive: false });
             handle.addEventListener('pointercancel', () => {
                 cleanupDrag(); dragFromIdx = -1; dragOverIdx = -1; didDrag = false;
             });
