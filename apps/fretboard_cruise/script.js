@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.62.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.62.4';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1386,6 +1386,20 @@ function clearCruiseFretboardHighlightOverlay() {
     const existingOverlay = container.querySelector('.highlight-overlay');
     if (existingOverlay) existingOverlay.remove();
     container.querySelectorAll('.fret-glow-effect').forEach(el => el.remove());
+}
+
+/** 指板スクロールに追従してオーバーレイをtransformで動かす（一度だけ登録）。 */
+function ensureFretboardOverlayScrollListener(wrapperEl) {
+    if (!wrapperEl || wrapperEl.dataset.overlayScrollListenerAttached === '1') return;
+    wrapperEl.dataset.overlayScrollListenerAttached = '1';
+    const updateOverlayTransform = () => {
+        const overlay = document.querySelector('#fretboard-container .highlight-overlay');
+        if (!overlay) return;
+        const initial = parseFloat(overlay.dataset.initialScrollLeft || '0');
+        const delta = initial - wrapperEl.scrollLeft;
+        overlay.style.transform = `translateX(${delta}px)`;
+    };
+    wrapperEl.addEventListener('scroll', updateOverlayTransform, { passive: true });
 }
 
 function applyCruiseGroupScrollLeftDeferred(wrapper, targetScrollLeft, shouldSmooth = false) {
@@ -8297,11 +8311,7 @@ function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode, re
     // Remove any glow effects inserted directly into cells
     container.querySelectorAll('.fret-glow-effect').forEach(el => el.remove());
 
-    // 自動スクロールに追従させるため、オーバーレイをスクロール内のコンテンツ要素に追加する
-    // （.fretboard-container は position: relative & 全コンテンツ幅を持つ）
-    const overlayHost = container.querySelector('.fretboard-container') || container;
-
-    // Create overlay container
+    // Create overlay container（外側 #fretboard-container に追加。clip-pathの影響を避けるため）
     const overlay = document.createElement('div');
     overlay.className = 'highlight-overlay';
     overlay.style.position = 'absolute';
@@ -8336,7 +8346,17 @@ function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode, re
     }
 
     container.style.position = 'relative';
-    overlayHost.appendChild(overlay);
+    container.appendChild(overlay);
+
+    // 自動スクロールに合わせて吹き出しを追従させる：作成時の scrollLeft を記録し、
+    // wrapper の scroll イベントで差分だけ overlay を transform でずらす。
+    const wrapperEl = container.querySelector('.fretboard-scroll-wrapper');
+    if (wrapperEl) {
+        const initialScrollLeft = wrapperEl.scrollLeft;
+        overlay.dataset.initialScrollLeft = String(initialScrollLeft);
+        overlay.style.willChange = 'transform';
+        ensureFretboardOverlayScrollListener(wrapperEl);
+    }
 
     // ループ位置マーカー（スタート! / ラスト!）を優先的に表示
     if (loopPositionMarker) {
