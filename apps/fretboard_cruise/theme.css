@@ -1332,6 +1332,8 @@ input:checked + .toggle-slider:before {
     color: rgba(255, 255, 255, 0.68);
     font-weight: 800;
     font-size: 0.96rem;
+    -webkit-touch-callout: none;
+    user-select: none;
 }
 
 .route-editor-group-btn.is-visible {
@@ -1351,15 +1353,13 @@ input:checked + .toggle-slider:before {
     box-shadow: 0 0 0 1px rgba(255, 106, 127, 0.28) inset;
 }
 
-.route-editor-group-drag-handle {
-    display: inline-block;
-    margin-right: 4px;
-    opacity: 0.45;
-    font-size: 0.78rem;
-    cursor: grab;
-    touch-action: none;
-    vertical-align: middle;
-    line-height: 1;
+@keyframes route-editor-long-press-activate {
+    0%   { transform: scale(1);    box-shadow: 0 0 0 0px rgba(255, 209, 102, 0); }
+    100% { transform: scale(1.06); box-shadow: 0 0 0 3px rgba(255, 209, 102, 0.55); }
+}
+
+.route-editor-group-btn.is-long-press-pending {
+    animation: route-editor-long-press-activate 0.5s ease forwards;
 }
 
 .route-editor-group-btn.is-dragging {
