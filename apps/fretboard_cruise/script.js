@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.56.7';
+const FRETBOARD_CRUISE_APP_VERSION = '1.56.9';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1374,6 +1374,65 @@ function setSavedCruiseGroupScrollLeft(stage, groupIndex, scrollLeft) {
 function getRouteEditorCurrentScrollLeft() {
     const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
     return wrapper ? Math.max(0, Math.round(wrapper.scrollLeft)) : 0;
+}
+
+function getRouteEditorCurrentScrollLeftForGroup(stage, groupIndex) {
+    const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+    if (!wrapper) return 0;
+    return Math.max(0, Math.round(wrapper.scrollLeft));
+}
+
+function saveRouteEditorStageState(stage, activeGroupIndex, { includeScrollLeft = true, recordHistory = true } = {}) {
+    const currentStage = clamp(parseInt(stage, 10), 1, 6);
+    const routeKey = String(currentStage);
+    if (recordHistory) {
+        pushRouteEditorHistory(currentStage);
+    }
+    if (!state.settings.cruiseStageRoutes || typeof state.settings.cruiseStageRoutes !== 'object') {
+        state.settings.cruiseStageRoutes = {};
+    }
+    if (!state.settings.cruiseStageRouteGroups || typeof state.settings.cruiseStageRouteGroups !== 'object') {
+        state.settings.cruiseStageRouteGroups = {};
+    }
+    state.settings.cruiseStageRoutes[routeKey] = state.routeEditor.draft
+        .map(normalizeCruiseRouteSlot)
+        .filter(Boolean);
+    state.settings.cruiseStageRouteGroups[routeKey] = state.routeEditor.groupBreaks.slice();
+    if (includeScrollLeft && Number.isFinite(parseInt(activeGroupIndex, 10)) && parseInt(activeGroupIndex, 10) >= 0) {
+        const scrollLeft = getRouteEditorCurrentScrollLeftForGroup(currentStage, activeGroupIndex);
+        setSavedCruiseGroupScrollLeft(currentStage, activeGroupIndex, scrollLeft);
+    }
+    saveState();
+}
+
+function routeEditorHasUnsavedChanges(stage, draft, groupBreaks, activeGroupIndex) {
+    const currentStage = clamp(parseInt(stage, 10), 1, 6);
+    const normalizedDraft = Array.isArray(draft)
+        ? draft.map(normalizeCruiseRouteSlot).filter(Boolean)
+        : [];
+    const currentDraftJson = JSON.stringify(normalizedDraft);
+    const savedDraftJson = JSON.stringify(getSavedCruiseRouteSlots(currentStage));
+    if (currentDraftJson !== savedDraftJson) return true;
+
+    const normalizedCurrentBreaks = normalizeRouteEditorGroupBreaks(groupBreaks, Math.max(1, normalizedDraft.length));
+    const normalizedSavedBreaks = normalizeRouteEditorGroupBreaks(
+        getRouteEditorSavedGroupBreaks(currentStage),
+        Math.max(1, normalizedDraft.length)
+    );
+    if (JSON.stringify(normalizedCurrentBreaks) !== JSON.stringify(normalizedSavedBreaks)) return true;
+
+    const parsedActive = parseInt(activeGroupIndex, 10);
+    if (!Number.isFinite(parsedActive) || parsedActive < 0) return false;
+    const savedScrollLeft = getSavedCruiseGroupScrollLeft(currentStage, parsedActive);
+    const currentScrollLeft = getRouteEditorCurrentScrollLeft();
+    return savedScrollLeft === null ? currentScrollLeft > 0 : savedScrollLeft !== currentScrollLeft;
+}
+
+function confirmRouteEditorSaveIfNeeded(stage, draft, groupBreaks, activeGroupIndex) {
+    if (!routeEditorHasUnsavedChanges(stage, draft, groupBreaks, activeGroupIndex)) return;
+    if (window.confirm('今の変更を保存しますか？')) {
+        saveRouteEditorStageState(stage, activeGroupIndex, { includeScrollLeft: true, recordHistory: false });
+    }
 }
 
 function findLastCruiseRouteSlotIndex(route, stringName, fret) {
@@ -4779,6 +4838,7 @@ function renderRouteEditor(app) {
                 <div class="route-editor-group-actions">
                     <button class="icon-btn route-editor-tool-btn route-editor-group-add-btn" id="btn-route-editor-group-split">＋</button>
                     <button class="icon-btn route-editor-tool-btn route-editor-group-remove-btn" id="btn-route-editor-group-remove" ${groups.length > 1 ? '' : 'disabled'}>－</button>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-save-btn" id="btn-route-editor-group-save" ${activeGroupIndex >= 0 ? '' : 'disabled'}>保存</button>
                     <button class="icon-btn route-editor-tool-btn route-editor-group-toggle-btn ${visibleGroupIndices.length === groups.length && !state.routeEditor?.forceHideAllGroups ? 'active' : ''}" id="btn-route-editor-show-all" ${groups.length ? '' : 'disabled'}>全て表示</button>
                     <button class="icon-btn route-editor-tool-btn route-editor-group-toggle-btn ${state.routeEditor?.forceHideAllGroups ? 'active' : ''}" id="btn-route-editor-hide-all" ${groups.length ? '' : 'disabled'}>全て非表示</button>
                 </div>
@@ -4795,16 +4855,19 @@ function renderRouteEditor(app) {
     `;
 
     document.getElementById('btn-route-editor-back').onclick = () => {
+        confirmRouteEditorSaveIfNeeded(stage, draft, groupBreaks, activeGroupIndex);
         state.course = 'stageSelect';
         saveState();
         renderApp();
     };
     document.getElementById('btn-route-editor-home').onclick = () => {
+        confirmRouteEditorSaveIfNeeded(stage, draft, groupBreaks, activeGroupIndex);
         state.course = null;
         saveState();
         renderApp();
     };
     document.getElementById('btn-route-editor-undo').onclick = () => {
+        confirmRouteEditorSaveIfNeeded(stage, draft, groupBreaks, activeGroupIndex);
         const historyItem = Array.isArray(state.routeEditor.history) ? state.routeEditor.history.pop() : null;
         if (!historyItem) return;
         restoreRouteEditorSnapshot(historyItem);
@@ -4812,11 +4875,13 @@ function renderRouteEditor(app) {
         renderApp();
     };
     document.getElementById('btn-route-editor-group-expand').onclick = () => {
+        confirmRouteEditorSaveIfNeeded(stage, draft, groupBreaks, activeGroupIndex);
         state.routeEditor.showAllGroupsExpanded = !state.routeEditor.showAllGroupsExpanded;
         saveState();
         renderApp();
     };
     document.getElementById('btn-route-editor-clear').onclick = () => {
+        confirmRouteEditorSaveIfNeeded(stage, draft, groupBreaks, activeGroupIndex);
         pushRouteEditorHistory(stage);
         state.routeEditor.draft = [];
         state.routeEditor.deleteMode = false;
@@ -4830,6 +4895,7 @@ function renderRouteEditor(app) {
         renderApp();
     };
     document.getElementById('btn-route-editor-load-default').onclick = () => {
+        confirmRouteEditorSaveIfNeeded(stage, draft, groupBreaks, activeGroupIndex);
         pushRouteEditorHistory(stage);
         const savedSlots = getSavedCruiseRouteSlots(stage);
         const hasSavedSlots = savedSlots.length > 0;
@@ -4849,15 +4915,14 @@ function renderRouteEditor(app) {
         renderApp();
     };
     document.getElementById('btn-route-editor-save').onclick = () => {
-        pushRouteEditorHistory(stage);
-        if (!state.settings.cruiseStageRoutes) state.settings.cruiseStageRoutes = {};
-        if (!state.settings.cruiseStageRouteGroups) state.settings.cruiseStageRouteGroups = {};
-        state.settings.cruiseStageRoutes[String(stage)] = state.routeEditor.draft
-            .map(normalizeCruiseRouteSlot)
-            .filter(Boolean);
-        state.settings.cruiseStageRouteGroups[String(stage)] = state.routeEditor.groupBreaks.slice();
+        saveRouteEditorStageState(stage, activeGroupIndex, { includeScrollLeft: true, recordHistory: true });
         state.course = 'stageSelect';
-        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-route-editor-group-save').onclick = () => {
+        if (activeGroupIndex < 0) return;
+        saveRouteEditorStageState(stage, activeGroupIndex, { includeScrollLeft: true, recordHistory: true });
         renderApp();
     };
 
@@ -4878,6 +4943,7 @@ function renderRouteEditor(app) {
     };
 
     document.getElementById('btn-route-editor-group-split').onclick = () => {
+        confirmRouteEditorSaveIfNeeded(stage, draft, groupBreaks, activeGroupIndex);
         if (groups.length >= ROUTE_EDITOR_MAX_GROUPS) return;
         pushRouteEditorHistory(stage);
         const nextBreaks = state.routeEditor.groupBreaks.slice();
@@ -4897,6 +4963,7 @@ function renderRouteEditor(app) {
     };
 
     document.getElementById('btn-route-editor-group-remove').onclick = () => {
+        confirmRouteEditorSaveIfNeeded(stage, draft, groupBreaks, activeGroupIndex);
         if (groups.length <= 1) return;
         if (activeGroupIndex < 0) return;
         pushRouteEditorHistory(stage);
@@ -4923,6 +4990,7 @@ function renderRouteEditor(app) {
     };
 
     document.getElementById('btn-route-editor-show-all').onclick = () => {
+        confirmRouteEditorSaveIfNeeded(stage, draft, groupBreaks, activeGroupIndex);
         if (!groups.length) return;
         state.routeEditor.forceHideAllGroups = false;
         state.routeEditor.visibleGroupIndices = groups.map((_, index) => index);
@@ -4932,6 +5000,7 @@ function renderRouteEditor(app) {
     };
 
     document.getElementById('btn-route-editor-hide-all').onclick = () => {
+        confirmRouteEditorSaveIfNeeded(stage, draft, groupBreaks, activeGroupIndex);
         if (!groups.length) return;
         state.routeEditor.forceHideAllGroups = true;
         state.routeEditor.visibleGroupIndices = [];
@@ -5033,6 +5102,7 @@ function renderRouteEditor(app) {
             const rawSelected = parseInt(state.routeEditor?.selectedGroupIndex ?? 0, 10);
             const isActive = isVisible && Number.isFinite(rawSelected) && rawSelected >= 0 && rawSelected === index;
             const nextVisible = new Set(visibleGroupIndices);
+            confirmRouteEditorSaveIfNeeded(stage, draft, groupBreaks, activeGroupIndex);
             if (!isVisible) {
                 nextVisible.add(index);
                 state.routeEditor.forceHideAllGroups = false;
