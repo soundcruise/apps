@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.56.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.56.4';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1659,6 +1659,18 @@ function getRouteEditorNextVisibleGroupIndex(visibleIndices, currentIndex) {
     const currentPos = Number.isFinite(parsedCurrent) ? sortedVisible.indexOf(parsedCurrent) : -1;
     if (currentPos < 0) return sortedVisible[sortedVisible.length - 1];
     return sortedVisible[(currentPos + 1) % sortedVisible.length];
+}
+
+function getRouteEditorPreviousVisibleGroupIndex(visibleIndices, currentIndex) {
+    const sortedVisible = Array.isArray(visibleIndices)
+        ? visibleIndices.map(value => parseInt(value, 10)).filter(Number.isFinite).sort((a, b) => a - b)
+        : [];
+    if (!sortedVisible.length) return -1;
+    if (sortedVisible.length === 1) return sortedVisible[0];
+    const parsedCurrent = parseInt(currentIndex, 10);
+    const currentPos = Number.isFinite(parsedCurrent) ? sortedVisible.indexOf(parsedCurrent) : -1;
+    if (currentPos < 0) return sortedVisible[0];
+    return sortedVisible[(currentPos - 1 + sortedVisible.length) % sortedVisible.length];
 }
 
 function getRouteEditorGroupIndexForRouteIndex(draft, breaks, routeIndex) {
@@ -4753,8 +4765,8 @@ function renderRouteEditor(app) {
                 <button class="route-editor-group-panel-handle" id="btn-route-editor-group-panel-handle" type="button" title="ドラッグして移動" aria-label="グループ設定を移動">⋮⋮</button>
                 <div class="route-editor-group-list">${groupButtonsHtml}</div>
                 <div class="route-editor-group-actions">
-                    <button class="icon-btn route-editor-tool-btn route-editor-group-remove-btn" id="btn-route-editor-group-remove" ${groups.length > 1 ? '' : 'disabled'}>－</button>
                     <button class="icon-btn route-editor-tool-btn route-editor-group-add-btn" id="btn-route-editor-group-split">＋</button>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-remove-btn" id="btn-route-editor-group-remove" ${groups.length > 1 ? '' : 'disabled'}>－</button>
                     <button class="icon-btn route-editor-tool-btn route-editor-group-toggle-btn ${visibleGroupIndices.length === groups.length && !state.routeEditor?.forceHideAllGroups ? 'active' : ''}" id="btn-route-editor-show-all" ${groups.length ? '' : 'disabled'}>全て表示</button>
                     <button class="icon-btn route-editor-tool-btn route-editor-group-toggle-btn ${state.routeEditor?.forceHideAllGroups ? 'active' : ''}" id="btn-route-editor-hide-all" ${groups.length ? '' : 'disabled'}>全て非表示</button>
                 </div>
@@ -5025,7 +5037,7 @@ function renderRouteEditor(app) {
             }
             state.routeEditor.forceHideAllGroups = false;
             state.routeEditor.visibleGroupIndices = Array.from(nextVisible).sort((a, b) => a - b);
-            state.routeEditor.selectedGroupIndex = getRouteEditorNextVisibleGroupIndex(state.routeEditor.visibleGroupIndices, index);
+            state.routeEditor.selectedGroupIndex = getRouteEditorPreviousVisibleGroupIndex(state.routeEditor.visibleGroupIndices, index);
             saveState();
             renderApp();
         };

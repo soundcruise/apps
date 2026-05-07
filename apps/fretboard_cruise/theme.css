@@ -1367,9 +1367,9 @@ input:checked + .toggle-slider:before {
     font-weight: 700;
 }
 
-.route-editor-group-add-btn {
+.route-editor-group-add-btn,
+.route-editor-group-remove-btn {
     min-width: 56px;
-    justify-self: start;
     padding: 0 20px;
     font-size: 1rem;
     font-weight: 900;
