@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.62.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.62.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1379,9 +1379,20 @@ function setSavedCruiseGroupScrollLeft(stage, groupIndex, scrollLeft) {
     state.settings.cruiseStageGroupScrollLefts[routeKey][String(groupIndex)] = nextLeft;
 }
 
+/** クルーズ中の指板オーバーレイ（1/2・スタート! 等）を除去。自動スクロール直前に呼ぶ。 */
+function clearCruiseFretboardHighlightOverlay() {
+    const container = document.getElementById('fretboard-container');
+    if (!container) return;
+    const existingOverlay = container.querySelector('.highlight-overlay');
+    if (existingOverlay) existingOverlay.remove();
+    container.querySelectorAll('.fret-glow-effect').forEach(el => el.remove());
+}
+
 function applyCruiseGroupScrollLeftDeferred(wrapper, targetScrollLeft, shouldSmooth = false) {
     if (!wrapper) return;
     const target = Math.max(0, Math.round(parseFloat(targetScrollLeft) || 0));
+    // 吹き出しをスクロール開始より先に消す（4拍目＝1拍遅延のタイミングと同時に見えるよう同フレームで先に除去）
+    clearCruiseFretboardHighlightOverlay();
     requestAnimationFrame(() => {
         if (!wrapper.isConnected) return;
         requestAnimationFrame(() => {
@@ -2348,6 +2359,7 @@ function renderApp() {
                         }
 
                         setTimeout(() => {
+                            clearCruiseFretboardHighlightOverlay();
                             newWrapper.scrollTo({ left: scrollPos, behavior: 'smooth' });
                         }, 10);
                     } else {
@@ -2362,6 +2374,7 @@ function renderApp() {
                                 const wrapperCenter = newWrapper.clientWidth / 2;
                                 const fretCenter = fretLeft + (fretCol.clientWidth / 2);
                                 setTimeout(() => {
+                                    clearCruiseFretboardHighlightOverlay();
                                     newWrapper.scrollTo({ left: fretCenter - wrapperCenter, behavior: 'smooth' });
                                 }, 10);
                             } else {
