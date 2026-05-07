@@ -80,6 +80,9 @@ let state = {
         demoReturnStage: null,
         stage1RepeatHintMode: 1,
         stage1IsContinuedRepeat: false, // True while 2nd note of a repeated pair is playing
+        cruiseGroupIndices: [],
+        cruiseCurrentGroupIndex: 0,
+        cruisePreviousGroupIndex: null,
         highlightMode: 2, // 1-5: Visual highlight pattern for current/next note (2=Glow)
         isCruisePlaying: true // Is cruise rhythm currently playing (default: playing)
     },
@@ -146,6 +149,7 @@ let state = {
         cruiseLoopCount: DEFAULT_CRUISE_LOOP_COUNT,
         cruiseStageRoutes: {},
         cruiseStageRouteGroups: {},
+        cruiseStageGroupScrollLefts: {},
         neckModelVersion: FRETBOARD_NECK_MODEL_VERSION
     }
 };
@@ -315,6 +319,11 @@ if (savedState) {
         // Official specification: always use mode 1 (1/2 display)
         state.memorize.stage1RepeatHintMode = 1;
         state.memorize.stage1IsContinuedRepeat = false;
+        if (!Array.isArray(state.memorize.cruiseGroupIndices)) state.memorize.cruiseGroupIndices = [];
+        if (typeof state.memorize.cruiseCurrentGroupIndex !== 'number') state.memorize.cruiseCurrentGroupIndex = 0;
+        if (typeof state.memorize.cruisePreviousGroupIndex !== 'number' && state.memorize.cruisePreviousGroupIndex !== null) {
+            state.memorize.cruisePreviousGroupIndex = null;
+        }
         if (typeof state.visualize.key === 'undefined') state.visualize.key = 0;
         if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
         if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
@@ -351,6 +360,13 @@ if (savedState) {
             Array.isArray(state.settings.cruiseStageRouteGroups)
         ) {
             state.settings.cruiseStageRouteGroups = {};
+        }
+        if (
+            !state.settings.cruiseStageGroupScrollLefts ||
+            typeof state.settings.cruiseStageGroupScrollLefts !== 'object' ||
+            Array.isArray(state.settings.cruiseStageGroupScrollLefts)
+        ) {
+            state.settings.cruiseStageGroupScrollLefts = {};
         }
         if (
             !state.routeEditor ||
@@ -467,6 +483,7 @@ function getDefaultSettings() {
         cruiseLoopCount: DEFAULT_CRUISE_LOOP_COUNT,
         cruiseStageRoutes: {},
         cruiseStageRouteGroups: {},
+        cruiseStageGroupScrollLefts: {},
         neckModelVersion: FRETBOARD_NECK_MODEL_VERSION
     };
 }
@@ -476,7 +493,8 @@ function cloneSettings(settings) {
         ...settings,
         rotation: { ...(settings.rotation || DEFAULT_ROTATION) },
         cruiseStageRoutes: JSON.parse(JSON.stringify(settings.cruiseStageRoutes || {})),
-        cruiseStageRouteGroups: JSON.parse(JSON.stringify(settings.cruiseStageRouteGroups || {}))
+        cruiseStageRouteGroups: JSON.parse(JSON.stringify(settings.cruiseStageRouteGroups || {})),
+        cruiseStageGroupScrollLefts: JSON.parse(JSON.stringify(settings.cruiseStageGroupScrollLefts || {}))
     };
 }
 
@@ -1114,6 +1132,9 @@ function autoAdvanceCruise() {
     const advanceToNext = () => {
         // Save previous question for repeat hint detection
         const prevQuestion = state.memorize.currentQuestion;
+        const prevGroupIndex = Number.isFinite(parseInt(state.memorize.cruiseCurrentGroupIndex, 10))
+            ? clamp(parseInt(state.memorize.cruiseCurrentGroupIndex, 10), 0, Number.MAX_SAFE_INTEGER)
+            : 0;
 
         // Move to next note
         let nextIdx = state.memorize.cruiseIndex + 1;
@@ -1135,6 +1156,8 @@ function autoAdvanceCruise() {
                 state.memorize.cruiseCurrentLoop = currentLoop + 1;
                 state.memorize.cruiseIndex = 0;
                 state.memorize.currentQuestion = nextLoopFirstNote;
+                state.memorize.cruisePreviousGroupIndex = prevGroupIndex;
+                state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices[0] ?? prevGroupIndex;
                 state.memorize.hasTappedCurrentNote = false;
 
                 let q = state.memorize.currentQuestion;
@@ -1156,6 +1179,8 @@ function autoAdvanceCruise() {
 
         state.memorize.cruiseIndex = nextIdx;
         state.memorize.currentQuestion = state.memorize.cruiseTargets[nextIdx];
+        state.memorize.cruisePreviousGroupIndex = prevGroupIndex;
+        state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices[nextIdx] ?? prevGroupIndex;
 
         // Check if same note is repeated
         if (prevQuestion &&
@@ -1322,6 +1347,32 @@ function getSavedCruiseRouteSlots(stage) {
     const saved = routes[String(stage)];
     if (!Array.isArray(saved)) return [];
     return cloneCruiseRouteSlots(saved);
+}
+
+function getSavedCruiseGroupScrollLeft(stage, groupIndex) {
+    const all = state.settings.cruiseStageGroupScrollLefts || {};
+    const stageMap = all[String(stage)];
+    if (!stageMap || typeof stageMap !== 'object' || Array.isArray(stageMap)) return null;
+    const value = stageMap[String(groupIndex)];
+    const scrollLeft = parseInt(value, 10);
+    return Number.isFinite(scrollLeft) ? Math.max(0, scrollLeft) : null;
+}
+
+function setSavedCruiseGroupScrollLeft(stage, groupIndex, scrollLeft) {
+    if (!state.settings.cruiseStageGroupScrollLefts || typeof state.settings.cruiseStageGroupScrollLefts !== 'object' || Array.isArray(state.settings.cruiseStageGroupScrollLefts)) {
+        state.settings.cruiseStageGroupScrollLefts = {};
+    }
+    const routeKey = String(stage);
+    if (!state.settings.cruiseStageGroupScrollLefts[routeKey] || typeof state.settings.cruiseStageGroupScrollLefts[routeKey] !== 'object' || Array.isArray(state.settings.cruiseStageGroupScrollLefts[routeKey])) {
+        state.settings.cruiseStageGroupScrollLefts[routeKey] = {};
+    }
+    const nextLeft = Math.max(0, Math.round(parseFloat(scrollLeft) || 0));
+    state.settings.cruiseStageGroupScrollLefts[routeKey][String(groupIndex)] = nextLeft;
+}
+
+function getRouteEditorCurrentScrollLeft() {
+    const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+    return wrapper ? Math.max(0, Math.round(wrapper.scrollLeft)) : 0;
 }
 
 function findLastCruiseRouteSlotIndex(route, stringName, fret) {
@@ -1793,24 +1844,46 @@ function buildDefaultCruiseStageSequence(stage) {
 function buildCruiseStageSequence(stage) {
     const savedSlots = getSavedCruiseRouteSlots(stage);
     if (savedSlots.length > 0) {
-        return buildCruiseSequenceFromSlots(savedSlots, true);
+        return buildCruiseSequenceFromSlots(savedSlots, true, stage);
     }
+    const defaultStage = buildDefaultCruiseStageSequence(stage);
+    const defaultSlots = defaultStage.sequence.map(cruiseRouteSlotFromTarget);
     return {
-        ...buildDefaultCruiseStageSequence(stage),
-        isCustom: false
+        ...defaultStage,
+        isCustom: false,
+        groupIndices: buildCruiseGroupIndicesFromSlots(stage, defaultSlots)
     };
 }
 
-function buildCruiseSequenceFromSlots(slots, isCustom = false) {
+function buildCruiseGroupIndicesFromSlots(stage, slots) {
+    const normalizedSlots = cloneCruiseRouteSlots(slots).map(normalizeCruiseRouteSlot).filter(Boolean);
+    if (!normalizedSlots.length) return [];
+    const savedGroupBreaks = normalizeRouteEditorGroupBreaks(getRouteEditorSavedGroupBreaks(stage), normalizedSlots.length);
+    const groupBreaks = savedGroupBreaks.length ? savedGroupBreaks : buildAutoRouteEditorGroupBreaks(normalizedSlots);
+    const groups = buildRouteEditorGroupsFromBreaks(normalizedSlots, groupBreaks);
+    const groupIndices = Array(normalizedSlots.length).fill(0);
+    groups.forEach((group, groupIndex) => {
+        if (!group || group.end < group.start) return;
+        for (let i = group.start; i <= group.end && i < groupIndices.length; i++) {
+            groupIndices[i] = groupIndex;
+        }
+    });
+    return groupIndices;
+}
+
+function buildCruiseSequenceFromSlots(slots, isCustom = false, stage = null) {
     const sequence = cloneCruiseRouteSlots(slots).map(slot => makeCruiseTarget(slot.stringName, slot.fret));
     return {
         sequence,
         cruiseScope: makeCruiseScopeFromSequence(sequence),
-        isCustom
+        isCustom,
+        groupIndices: Number.isFinite(parseInt(stage, 10))
+            ? buildCruiseGroupIndicesFromSlots(parseInt(stage, 10), slots)
+            : sequence.map(() => 0)
     };
 }
 
-function startCruisePlaybackFromSequence(sequence, cruiseScope = null, stage = null) {
+function startCruisePlaybackFromSequence(sequence, cruiseScope = null, stage = null, groupIndices = null) {
     if (!Array.isArray(sequence) || !sequence.length) return false;
     stopRhythm();
     stopQuizTimer();
@@ -1823,9 +1896,14 @@ function startCruisePlaybackFromSequence(sequence, cruiseScope = null, stage = n
     state.memorize.cruiseScope = Array.isArray(cruiseScope) && cruiseScope.length
         ? cruiseScope.map(target => ({ ...target }))
         : makeCruiseScopeFromSequence(state.memorize.cruiseTargets);
+    state.memorize.cruiseGroupIndices = Array.isArray(groupIndices) && groupIndices.length
+        ? groupIndices.map(index => clamp(parseInt(index, 10), 0, Number.MAX_SAFE_INTEGER))
+        : sequence.map(() => 0);
     state.memorize.cruiseIndex = 0;
     state.memorize.cruiseCurrentLoop = 0;
     state.memorize.currentQuestion = state.memorize.cruiseTargets[0];
+    state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices[0] ?? 0;
+    state.memorize.cruisePreviousGroupIndex = null;
     state.memorize.isCleared = false;
     state.memorize.hasTappedCurrentNote = false;
     state.memorize.isFirstNote = true;
@@ -2011,7 +2089,29 @@ function renderApp() {
     const newWrapper = document.querySelector('.fretboard-scroll-wrapper');
     const newScrollGroup = newWrapper && newWrapper.getAttribute('data-scroll-group');
     if (newWrapper && newScrollGroup) {
-        if (autoScrollRequested) {
+        const savedCruiseGroupScrollLeft =
+            state.course === 'memorize' && state.memorize.playMode === 'cruise'
+                ? getSavedCruiseGroupScrollLeft(state.memorize.stage, state.memorize.cruiseCurrentGroupIndex)
+                : null;
+
+        if (Number.isFinite(savedCruiseGroupScrollLeft)) {
+            autoScrollRequested = false;
+            const shouldSmooth =
+                state.memorize.cruisePreviousGroupIndex !== null &&
+                state.memorize.cruisePreviousGroupIndex !== state.memorize.cruiseCurrentGroupIndex;
+            if (shouldSmooth) {
+                newWrapper.scrollTo({ left: savedCruiseGroupScrollLeft, behavior: 'smooth' });
+            } else {
+                newWrapper.scrollLeft = savedCruiseGroupScrollLeft;
+            }
+            state.memorize.cruisePreviousGroupIndex = state.memorize.cruiseCurrentGroupIndex;
+        } else if (state.course === 'routeEditor') {
+            newWrapper.scrollLeft = currentScrollLeft;
+            requestAnimationFrame(() => {
+                if (!newWrapper.isConnected || state.course !== 'routeEditor') return;
+                newWrapper.scrollLeft = currentScrollLeft;
+            });
+        } else if (autoScrollRequested) {
             autoScrollRequested = false;
 
             if (state.course === 'memorize' && state.memorize.playMode === 'cruise') {
@@ -2021,7 +2121,6 @@ function renderApp() {
 
                 if (q && state.settings.fretboardView === 'zoom') {
                     if (Number.isFinite(zoomAnchorFret)) {
-                        // Use anchor fret as scroll reference
                         const anchorFloor = Math.floor(zoomAnchorFret);
                         const anchorCeil = Math.ceil(zoomAnchorFret);
                         const fretColFloor = newWrapper.querySelector(`.fret-column[data-fret="${anchorFloor}"]`);
@@ -2051,7 +2150,6 @@ function renderApp() {
                             const visibleLeft = currentScrollLeft;
                             const visibleRight = currentScrollLeft + newWrapper.clientWidth;
 
-                            // If the target is out of bounds (with 20px margin), then auto-scroll to center it
                             if (fretLeft < visibleLeft + 20 || fretRight > visibleRight - 20) {
                                 const wrapperCenter = newWrapper.clientWidth / 2;
                                 const fretCenter = fretLeft + (fretCol.clientWidth / 2);
@@ -2073,8 +2171,6 @@ function renderApp() {
             }
         } else if (state.course === 'memorize') {
             newWrapper.scrollLeft = currentScrollLeft;
-        } else if (state.course === 'routeEditor') {
-            newWrapper.scrollLeft = currentScrollLeft;
         } else if (state.course === 'visualize' && state.visualize.showExtendedFrets) {
             newWrapper.scrollLeft = currentScrollLeft;
         } else if (
@@ -2086,12 +2182,6 @@ function renderApp() {
             newWrapper.scrollLeft = currentScrollLeft;
         } else {
             newWrapper.scrollLeft = 0;
-        }
-        if (state.course === 'routeEditor') {
-            requestAnimationFrame(() => {
-                if (!newWrapper.isConnected || state.course !== 'routeEditor') return;
-                newWrapper.scrollLeft = currentScrollLeft;
-            });
         }
     } else if (newWrapper) {
         newWrapper.scrollLeft = 0;
@@ -4502,14 +4592,17 @@ function renderStageSelect(app) {
             state.course = 'memorize';
             
             if (state.memorize.playMode === 'cruise') {
-                const { sequence, cruiseScope } = buildCruiseStageSequence(state.memorize.stage);
+                const { sequence, cruiseScope, groupIndices } = buildCruiseStageSequence(state.memorize.stage);
                 
                 clearStage1RepeatHintState();
                 state.memorize.cruiseScope = cruiseScope;
                 state.memorize.cruiseTargets = sequence;
+                state.memorize.cruiseGroupIndices = Array.isArray(groupIndices) && groupIndices.length ? groupIndices.slice() : sequence.map(() => 0);
                 state.memorize.cruiseIndex = 0;
                 state.memorize.cruiseCurrentLoop = 0;
                 state.memorize.currentQuestion = sequence[0];
+                state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices[0] ?? 0;
+                state.memorize.cruisePreviousGroupIndex = null;
                 state.memorize.isFirstNote = true;
                 state.memorize.hasTappedCurrentNote = false;
                 state.memorize.tempFeedback = null;
@@ -4609,6 +4702,7 @@ function renderRouteEditor(app) {
             <div id="fretboard-container" class="route-editor-fretboard-host"></div>
             <div class="route-editor-expanded-gap ${showAllGroupsExpanded ? 'route-editor-expanded-gap--visible' : ''}" aria-hidden="true"></div>
             <div class="route-editor-save-row">
+                <button type="button" class="btn-secondary route-editor-camera-save-btn" id="btn-route-editor-save-position">この位置を保存</button>
                 <button type="button" class="btn-secondary route-editor-demo-btn" id="btn-route-editor-demo" ${draft.length ? '' : 'disabled'}>現在の順番でデモ</button>
                 <button class="btn-primary route-editor-save-btn" id="btn-route-editor-save" ${draft.length ? '' : 'disabled'}>この順番で保存</button>
             </div>
@@ -4683,10 +4777,19 @@ function renderRouteEditor(app) {
         renderApp();
     };
 
+    document.getElementById('btn-route-editor-save-position').onclick = () => {
+        if (!draft.length || !groups.length) return;
+        const targetGroupIndex = interactionGroupIndex;
+        const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+        const scrollLeft = wrapper ? wrapper.scrollLeft : 0;
+        setSavedCruiseGroupScrollLeft(stage, targetGroupIndex, scrollLeft);
+        saveState();
+    };
+
     document.getElementById('btn-route-editor-demo').onclick = () => {
-        const { sequence, cruiseScope } = buildCruiseSequenceFromSlots(state.routeEditor.draft, true);
+        const { sequence, cruiseScope, groupIndices } = buildCruiseSequenceFromSlots(state.routeEditor.draft, true, stage);
         if (!sequence.length) return;
-        startCruisePlaybackFromSequence(sequence, cruiseScope, stage);
+        startCruisePlaybackFromSequence(sequence, cruiseScope, stage, groupIndices);
     };
 
     document.getElementById('btn-route-editor-group-split').onclick = () => {

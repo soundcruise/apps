@@ -1419,6 +1419,11 @@ input:checked + .toggle-slider:before {
     min-height: 44px;
 }
 
+.route-editor-camera-save-btn {
+    width: min(420px, 100%);
+    min-height: 44px;
+}
+
 .route-editor-save-btn {
     width: min(420px, 100%);
     min-height: 44px;
