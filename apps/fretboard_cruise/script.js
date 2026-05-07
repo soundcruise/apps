@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.54.4';
+const FRETBOARD_CRUISE_APP_VERSION = '1.54.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -129,6 +129,7 @@ let state = {
         selectedGroupIndex: 0,
         visibleGroupIndices: [],
         forceHideAllGroups: false,
+        showAllGroupsExpanded: false,
         groupPanelOffset: { x: 0, y: 0 }
     },
     settings: {
@@ -356,7 +357,7 @@ if (savedState) {
             typeof state.routeEditor !== 'object' ||
             Array.isArray(state.routeEditor)
         ) {
-            state.routeEditor = { stage: 1, draft: [], deleteMode: false, history: [], deletePicker: null, groupBreaks: [], selectedGroupIndex: 0 };
+            state.routeEditor = { stage: 1, draft: [], deleteMode: false, history: [], deletePicker: null, groupBreaks: [], selectedGroupIndex: 0, showAllGroupsExpanded: false };
         }
         if (!Array.isArray(state.routeEditor.draft)) state.routeEditor.draft = [];
         if (typeof state.routeEditor.stage !== 'number') state.routeEditor.stage = 1;
@@ -369,6 +370,7 @@ if (savedState) {
         if (typeof state.routeEditor.selectedGroupIndex !== 'number') state.routeEditor.selectedGroupIndex = 0;
         if (!Array.isArray(state.routeEditor.visibleGroupIndices)) state.routeEditor.visibleGroupIndices = [];
         if (typeof state.routeEditor.forceHideAllGroups !== 'boolean') state.routeEditor.forceHideAllGroups = false;
+        if (typeof state.routeEditor.showAllGroupsExpanded !== 'boolean') state.routeEditor.showAllGroupsExpanded = false;
         if (!state.routeEditor.groupPanelOffset || typeof state.routeEditor.groupPanelOffset !== 'object') {
             state.routeEditor.groupPanelOffset = { x: 0, y: 0 };
         }
@@ -1338,6 +1340,7 @@ function getRouteEditorSnapshot(stage = null) {
         selectedGroupIndex: typeof state.routeEditor?.selectedGroupIndex === 'number' ? state.routeEditor.selectedGroupIndex : 0,
         visibleGroupIndices: Array.isArray(state.routeEditor?.visibleGroupIndices) ? state.routeEditor.visibleGroupIndices.slice() : [],
         forceHideAllGroups: !!state.routeEditor?.forceHideAllGroups,
+        showAllGroupsExpanded: !!state.routeEditor?.showAllGroupsExpanded,
         groupPanelOffset: {
             x: clamp(parseInt(state.routeEditor?.groupPanelOffset?.x ?? 0, 10), -9999, 9999),
             y: clamp(parseInt(state.routeEditor?.groupPanelOffset?.y ?? 0, 10), -9999, 9999)
@@ -1364,6 +1367,7 @@ function restoreRouteEditorSnapshot(snapshot) {
     state.routeEditor.selectedGroupIndex = typeof snapshot.selectedGroupIndex === 'number' ? snapshot.selectedGroupIndex : 0;
     state.routeEditor.visibleGroupIndices = Array.isArray(snapshot.visibleGroupIndices) ? snapshot.visibleGroupIndices.slice() : [];
     state.routeEditor.forceHideAllGroups = !!snapshot.forceHideAllGroups;
+    state.routeEditor.showAllGroupsExpanded = !!snapshot.showAllGroupsExpanded;
     state.routeEditor.groupPanelOffset = {
         x: clamp(parseInt(snapshot.groupPanelOffset?.x ?? 0, 10), -9999, 9999),
         y: clamp(parseInt(snapshot.groupPanelOffset?.y ?? 0, 10), -9999, 9999)
@@ -4463,6 +4467,7 @@ function renderStageSelect(app) {
                 selectedGroupIndex: 0,
                 visibleGroupIndices: initialGroups.length ? initialGroups.map((_, index) => index) : [0],
                 forceHideAllGroups: false,
+                showAllGroupsExpanded: false,
                 groupPanelOffset: { x: 0, y: 0 }
             };
             state.course = 'routeEditor';
@@ -4532,6 +4537,7 @@ function renderRouteEditor(app) {
         : 0;
     const selectedGroup = groups[selectedGroupIndex] || null;
     const groupPanelOffset = normalizeRouteEditorGroupPanelOffset(state.routeEditor?.groupPanelOffset);
+    const showAllGroupsExpanded = !!state.routeEditor?.showAllGroupsExpanded;
     state.routeEditor = {
         stage,
         draft,
@@ -4542,6 +4548,7 @@ function renderRouteEditor(app) {
         selectedGroupIndex,
         visibleGroupIndices,
         forceHideAllGroups: !!state.routeEditor?.forceHideAllGroups,
+        showAllGroupsExpanded,
         groupPanelOffset
     };
 
@@ -4570,7 +4577,10 @@ function renderRouteEditor(app) {
                 <button class="icon-btn route-editor-tool-btn" id="btn-route-editor-load-default">初期順</button>
                 <button class="icon-btn route-editor-tool-btn" id="btn-route-editor-undo" ${history.length ? '' : 'disabled'}>↶ 戻す</button>
             </div>
-            <div class="route-editor-group-panel ${isLandscape ? 'route-editor-group-panel--floating' : ''}" style="${groupPanelStyle}">
+            <div class="route-editor-group-panel ${isLandscape ? 'route-editor-group-panel--floating' : ''} ${showAllGroupsExpanded ? 'route-editor-group-panel--expanded' : ''}" style="${groupPanelStyle}">
+                <div class="route-editor-group-panel-top">
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-expand-btn ${showAllGroupsExpanded ? 'active' : ''}" id="btn-route-editor-group-expand" ${groups.length ? '' : 'disabled'}>${showAllGroupsExpanded ? '縮小' : '一覧'}</button>
+                </div>
                 <button class="route-editor-group-panel-handle" id="btn-route-editor-group-panel-handle" type="button" title="ドラッグして移動" aria-label="グループ設定を移動">⋮⋮</button>
                 <div class="route-editor-group-list">${groupButtonsHtml}</div>
                 <div class="route-editor-group-actions">
@@ -4604,6 +4614,11 @@ function renderRouteEditor(app) {
         saveState();
         renderApp();
     };
+    document.getElementById('btn-route-editor-group-expand').onclick = () => {
+        state.routeEditor.showAllGroupsExpanded = !state.routeEditor.showAllGroupsExpanded;
+        saveState();
+        renderApp();
+    };
     document.getElementById('btn-route-editor-clear').onclick = () => {
         pushRouteEditorHistory(stage);
         state.routeEditor.draft = [];
@@ -4612,6 +4627,7 @@ function renderRouteEditor(app) {
         state.routeEditor.selectedGroupIndex = 0;
         state.routeEditor.visibleGroupIndices = [0];
         state.routeEditor.forceHideAllGroups = false;
+        state.routeEditor.showAllGroupsExpanded = false;
         setRouteEditorSavedGroupBreaks(stage, [0]);
         saveState();
         renderApp();
@@ -4625,6 +4641,7 @@ function renderRouteEditor(app) {
         state.routeEditor.selectedGroupIndex = 0;
         state.routeEditor.visibleGroupIndices = buildRouteEditorGroupsFromBreaks(state.routeEditor.draft, state.routeEditor.groupBreaks).map((_, index) => index);
         state.routeEditor.forceHideAllGroups = false;
+        state.routeEditor.showAllGroupsExpanded = false;
         setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
         saveState();
         renderApp();
@@ -4659,6 +4676,7 @@ function renderRouteEditor(app) {
         state.routeEditor.forceHideAllGroups = false;
         state.routeEditor.visibleGroupIndices = [nextIndex];
         state.routeEditor.selectedGroupIndex = Math.min(nextIndex, state.routeEditor.groupBreaks.length - 1);
+        state.routeEditor.showAllGroupsExpanded = false;
         setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
         saveState();
         renderApp();

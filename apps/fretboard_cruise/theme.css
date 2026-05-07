@@ -1263,13 +1263,22 @@ input:checked + .toggle-slider:before {
 }
 
 .route-editor-group-panel {
-    display: grid;
+    display: flex;
+    flex-direction: column;
     gap: 8px;
     padding: 8px 10px;
     border: 1px solid rgba(79, 156, 249, 0.22);
     border-radius: 12px;
     background: rgba(79, 156, 249, 0.08);
     box-sizing: border-box;
+    --route-editor-group-btn-min-height: 40px;
+    --route-editor-group-list-gap: 6px;
+}
+
+.route-editor-group-panel-top {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
 }
 
 .route-editor-group-panel-handle {
@@ -1305,9 +1314,12 @@ input:checked + .toggle-slider:before {
 }
 
 .route-editor-group-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-auto-rows: minmax(var(--route-editor-group-btn-min-height), auto);
+    gap: var(--route-editor-group-list-gap);
+    max-height: calc((var(--route-editor-group-btn-min-height) * 2) + var(--route-editor-group-list-gap));
+    overflow: hidden;
 }
 
 .route-editor-group-btn {
@@ -1357,6 +1369,19 @@ input:checked + .toggle-slider:before {
     font-size: 0.92rem;
     font-weight: 800;
     min-height: 38px;
+}
+
+.route-editor-group-expand-btn {
+    min-width: 90px;
+    padding: 0 24px;
+    font-size: 0.92rem;
+    font-weight: 900;
+    min-height: 38px;
+}
+
+.route-editor-group-panel--expanded .route-editor-group-list {
+    max-height: none;
+    overflow: visible;
 }
 
 .route-editor-save-row {
@@ -1579,6 +1604,8 @@ input:checked + .toggle-slider:before {
         backdrop-filter: blur(8px);
         transform: translate(var(--route-editor-group-panel-shift-x, 0px), var(--route-editor-group-panel-shift-y, 0px));
         will-change: transform;
+        --route-editor-group-btn-min-height: 32px;
+        --route-editor-group-list-gap: 4px;
     }
 
     .route-editor-tool-btn {
@@ -1589,11 +1616,11 @@ input:checked + .toggle-slider:before {
     }
 
     .route-editor-group-list {
-        gap: 4px;
+        gap: var(--route-editor-group-list-gap);
     }
 
     .route-editor-group-btn {
-        min-height: 32px;
+        min-height: var(--route-editor-group-btn-min-height);
         padding: 0 10px;
         font-size: 0.74rem;
     }
@@ -1615,6 +1642,13 @@ input:checked + .toggle-slider:before {
         min-height: 38px;
     }
 
+    .route-editor-group-expand-btn {
+        min-width: 90px;
+        padding: 0 24px;
+        font-size: 0.86rem;
+        min-height: 38px;
+    }
+
     .route-editor-group-label {
         display: none;
     }
@@ -1626,6 +1660,14 @@ input:checked + .toggle-slider:before {
 
     .route-editor-group-panel--dragging {
         user-select: none;
+    }
+
+    .route-editor-group-panel--expanded.route-editor-group-panel--floating {
+        position: relative;
+        top: auto;
+        left: auto;
+        width: min(320px, calc(100vw - 196px));
+        transform: translate(var(--route-editor-group-panel-shift-x, 0px), var(--route-editor-group-panel-shift-y, 0px));
     }
 }
 
