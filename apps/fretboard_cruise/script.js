@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.62.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.62.3';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -2359,7 +2359,6 @@ function renderApp() {
                         }
 
                         setTimeout(() => {
-                            clearCruiseFretboardHighlightOverlay();
                             newWrapper.scrollTo({ left: scrollPos, behavior: 'smooth' });
                         }, 10);
                     } else {
@@ -2374,7 +2373,6 @@ function renderApp() {
                                 const wrapperCenter = newWrapper.clientWidth / 2;
                                 const fretCenter = fretLeft + (fretCol.clientWidth / 2);
                                 setTimeout(() => {
-                                    clearCruiseFretboardHighlightOverlay();
                                     newWrapper.scrollTo({ left: fretCenter - wrapperCenter, behavior: 'smooth' });
                                 }, 10);
                             } else {
