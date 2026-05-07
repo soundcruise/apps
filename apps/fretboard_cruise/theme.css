@@ -1345,10 +1345,10 @@ input:checked + .toggle-slider:before {
 }
 
 .route-editor-group-btn.is-active {
-    border-color: #7fd0ff;
-    background: rgba(79, 156, 249, 0.34);
+    border-color: #ff6a7f;
+    background: rgba(255, 79, 110, 0.18);
     color: #fff;
-    box-shadow: 0 0 0 1px rgba(127, 208, 255, 0.24) inset;
+    box-shadow: 0 0 0 1px rgba(255, 106, 127, 0.28) inset;
 }
 
 .route-editor-group-actions {

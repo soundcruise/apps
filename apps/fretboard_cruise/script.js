@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.56.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.56.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1638,15 +1638,18 @@ function getRouteEditorVisibleGroups(groups) {
 }
 
 function getRouteEditorOperationGroupIndex(visibleGroups, selectedGroupIndex) {
-    const parsedSelected = clamp(parseInt(selectedGroupIndex ?? 0, 10), 0, Number.MAX_SAFE_INTEGER);
+    const parsedSelectedRaw = parseInt(selectedGroupIndex ?? 0, 10);
+    const parsedSelected = Number.isFinite(parsedSelectedRaw) && parsedSelectedRaw >= 0
+        ? parsedSelectedRaw
+        : null;
     const visibleIndices = Array.isArray(visibleGroups)
         ? visibleGroups.map(group => parseInt(group?.index, 10)).filter(Number.isFinite)
         : [];
-    if (visibleIndices.includes(parsedSelected)) {
+    if (parsedSelected !== null && visibleIndices.includes(parsedSelected)) {
         return parsedSelected;
     }
     if (visibleIndices.length <= 1) {
-        return visibleIndices.length === 1 ? visibleIndices[0] : parsedSelected;
+        return visibleIndices.length === 1 ? visibleIndices[0] : (parsedSelected ?? 0);
     }
     return Math.max(...visibleIndices);
 }
@@ -4645,9 +4648,12 @@ function renderRouteEditor(app) {
         .map(index => ({ ...(groups[index] || {}), index }))
         .filter(group => Number.isFinite(group.start) && Number.isFinite(group.end));
     const interactionGroupIndex = getRouteEditorOperationGroupIndex(visibleGroups, state.routeEditor?.selectedGroupIndex ?? 0);
+    const selectedGroupIndexRaw = parseInt(state.routeEditor?.selectedGroupIndex ?? visibleGroupIndices[visibleGroupIndices.length - 1] ?? 0, 10);
     const selectedGroupIndex = groups.length
-        ? clamp(parseInt(state.routeEditor?.selectedGroupIndex ?? visibleGroupIndices[visibleGroupIndices.length - 1] ?? 0, 10), 0, groups.length - 1)
-        : 0;
+        ? (Number.isFinite(selectedGroupIndexRaw) && selectedGroupIndexRaw >= 0
+            ? clamp(selectedGroupIndexRaw, 0, groups.length - 1)
+            : -1)
+        : -1;
     const selectedGroup = groups[selectedGroupIndex] || null;
     const groupPanelOffset = normalizeRouteEditorGroupPanelOffset(state.routeEditor?.groupPanelOffset);
     const showAllGroupsExpanded = !!state.routeEditor?.showAllGroupsExpanded;
@@ -4670,7 +4676,7 @@ function renderRouteEditor(app) {
     const groupButtonsHtml = groups.length
         ? groups.map((group, index) => {
             const isVisible = visibleGroupIndices.includes(index);
-            const isActive = isVisible && clamp(parseInt(selectedGroupIndex ?? 0, 10), 0, Number.MAX_SAFE_INTEGER) === index;
+            const isActive = isVisible && selectedGroupIndex === index;
             return `
             <button class="route-editor-group-btn ${isVisible ? 'is-visible' : 'is-hidden'} ${isActive ? 'is-active' : ''}" type="button" data-group-index="${index}" aria-label="${group.name}" aria-pressed="${isActive ? 'true' : 'false'}">
                 ${group.name}
@@ -4924,7 +4930,8 @@ function renderRouteEditor(app) {
             const index = parseInt(btn.getAttribute('data-group-index'), 10);
             if (!Number.isFinite(index)) return;
             const isVisible = visibleGroupIndices.includes(index);
-            const isActive = isVisible && clamp(parseInt(state.routeEditor?.selectedGroupIndex ?? 0, 10), 0, Number.MAX_SAFE_INTEGER) === index;
+            const rawSelected = parseInt(state.routeEditor?.selectedGroupIndex ?? 0, 10);
+            const isActive = isVisible && Number.isFinite(rawSelected) && rawSelected >= 0 && rawSelected === index;
             const nextVisible = new Set(visibleGroupIndices);
             if (!isVisible) {
                 nextVisible.add(index);
@@ -4942,12 +4949,9 @@ function renderRouteEditor(app) {
                 renderApp();
                 return;
             }
-            if (nextVisible.size === 1) return;
-            nextVisible.delete(index);
-            const normalizedVisible = Array.from(nextVisible).sort((a, b) => a - b);
             state.routeEditor.forceHideAllGroups = false;
-            state.routeEditor.visibleGroupIndices = normalizedVisible;
-            state.routeEditor.selectedGroupIndex = normalizedVisible[normalizedVisible.length - 1] ?? index;
+            state.routeEditor.visibleGroupIndices = Array.from(nextVisible).sort((a, b) => a - b);
+            state.routeEditor.selectedGroupIndex = -1;
             saveState();
             renderApp();
         };
