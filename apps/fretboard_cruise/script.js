@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.59.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.59.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -5329,22 +5329,19 @@ function renderRouteEditor(app) {
             if (!Number.isFinite(routeIndex)) return;
             if (routeIndex < 0 || routeIndex >= state.routeEditor.draft.length) return;
             if (activeGroupIndex < 0) return;
+            const clickedSlot = normalizeCruiseRouteSlot(state.routeEditor.draft[routeIndex]);
+            if (!clickedSlot) return;
+            // アクティブGr内に同じ位置のノートがある場合のみ削除（他Grのノートは消さない）
+            const deleteIndex = findRouteEditorRouteIndexInGroup(
+                state.routeEditor.draft,
+                state.routeEditor.groupBreaks,
+                activeGroupIndex,
+                clickedSlot.stringName,
+                clickedSlot.fret
+            );
+            if (deleteIndex < 0) return;
             blurActiveElement();
             pushRouteEditorHistory(stage);
-            const clickedSlot = normalizeCruiseRouteSlot(state.routeEditor.draft[routeIndex]);
-            let deleteIndex = routeIndex;
-            if (clickedSlot && visibleGroupIndices.length >= 2) {
-                const preferredIndex = findRouteEditorRouteIndexInGroup(
-                    state.routeEditor.draft,
-                    state.routeEditor.groupBreaks,
-                    activeGroupIndex,
-                    clickedSlot.stringName,
-                    clickedSlot.fret
-                );
-                if (preferredIndex >= 0) {
-                    deleteIndex = preferredIndex;
-                }
-            }
             state.routeEditor.draft.splice(deleteIndex, 1);
             state.routeEditor.groupBreaks = adjustRouteEditorGroupBreaksForDelete(state.routeEditor.groupBreaks, deleteIndex, state.routeEditor.draft.length);
             setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
