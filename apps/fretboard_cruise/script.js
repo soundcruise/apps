@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.54.9';
+const FRETBOARD_CRUISE_APP_VERSION = '1.55.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -2063,6 +2063,8 @@ function renderApp() {
                 newWrapper.scrollLeft = 0;
             }
         } else if (state.course === 'memorize') {
+            newWrapper.scrollLeft = currentScrollLeft;
+        } else if (state.course === 'routeEditor') {
             newWrapper.scrollLeft = currentScrollLeft;
         } else if (state.course === 'visualize' && state.visualize.showExtendedFrets) {
             newWrapper.scrollLeft = currentScrollLeft;
