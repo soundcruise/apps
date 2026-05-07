@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.56.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.56.3';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1649,6 +1649,18 @@ function getRouteEditorActiveGroupIndex(visibleGroups, selectedGroupIndex) {
     return visibleIndices.includes(parsedSelected) ? parsedSelected : -1;
 }
 
+function getRouteEditorNextVisibleGroupIndex(visibleIndices, currentIndex) {
+    const sortedVisible = Array.isArray(visibleIndices)
+        ? visibleIndices.map(value => parseInt(value, 10)).filter(Number.isFinite).sort((a, b) => a - b)
+        : [];
+    if (!sortedVisible.length) return -1;
+    if (sortedVisible.length === 1) return sortedVisible[0];
+    const parsedCurrent = parseInt(currentIndex, 10);
+    const currentPos = Number.isFinite(parsedCurrent) ? sortedVisible.indexOf(parsedCurrent) : -1;
+    if (currentPos < 0) return sortedVisible[sortedVisible.length - 1];
+    return sortedVisible[(currentPos + 1) % sortedVisible.length];
+}
+
 function getRouteEditorGroupIndexForRouteIndex(draft, breaks, routeIndex) {
     const normalizedDraft = Array.isArray(draft) ? draft : [];
     const normalizedBreaks = normalizeRouteEditorGroupBreaks(breaks, normalizedDraft.length);
@@ -1705,6 +1717,41 @@ function insertRouteEditorSlotIntoGroup(draft, breaks, groupIndex, slot) {
     return {
         draft: normalizedDraft,
         groupBreaks: normalizeRouteEditorGroupBreaks(nextBreaks, normalizedDraft.length)
+    };
+}
+
+function deleteRouteEditorGroupAtIndex(draft, breaks, groupIndex) {
+    const normalizedDraft = Array.isArray(draft) ? draft.slice() : [];
+    const normalizedBreaks = normalizeRouteEditorGroupBreaks(breaks, normalizedDraft.length);
+    const groups = buildRouteEditorGroupsFromBreaks(normalizedDraft, normalizedBreaks);
+    if (groups.length <= 1) {
+        return {
+            draft: normalizedDraft,
+            groupBreaks: normalizedBreaks
+        };
+    }
+    const targetGroupIndex = clamp(parseInt(groupIndex ?? 0, 10), 0, groups.length - 1);
+    const targetGroup = groups[targetGroupIndex];
+    if (!targetGroup) {
+        return {
+            draft: normalizedDraft,
+            groupBreaks: normalizedBreaks
+        };
+    }
+    const remainingGroups = groups.filter((_, index) => index !== targetGroupIndex);
+    const nextDraft = [];
+    const nextBreaks = [0];
+    remainingGroups.forEach((group, index) => {
+        if (group.end >= group.start) {
+            nextDraft.push(...normalizedDraft.slice(group.start, group.end + 1));
+        }
+        if (index < remainingGroups.length - 1) {
+            nextBreaks.push(nextDraft.length);
+        }
+    });
+    return {
+        draft: nextDraft,
+        groupBreaks: normalizeRouteEditorGroupBreaks(nextBreaks, nextDraft.length)
     };
 }
 
@@ -4642,13 +4689,17 @@ function renderRouteEditor(app) {
     const visibleGroups = visibleGroupIndices
         .map(index => ({ ...(groups[index] || {}), index }))
         .filter(group => Number.isFinite(group.start) && Number.isFinite(group.end));
-    const activeGroupIndex = getRouteEditorActiveGroupIndex(visibleGroups, state.routeEditor?.selectedGroupIndex ?? 0);
+    let activeGroupIndex = getRouteEditorActiveGroupIndex(visibleGroups, state.routeEditor?.selectedGroupIndex ?? 0);
     const selectedGroupIndexRaw = parseInt(state.routeEditor?.selectedGroupIndex ?? visibleGroupIndices[visibleGroupIndices.length - 1] ?? 0, 10);
-    const selectedGroupIndex = groups.length
+    let selectedGroupIndex = groups.length
         ? (Number.isFinite(selectedGroupIndexRaw) && selectedGroupIndexRaw >= 0
             ? clamp(selectedGroupIndexRaw, 0, groups.length - 1)
             : -1)
         : -1;
+    if (activeGroupIndex < 0 && visibleGroupIndices.length > 0) {
+        activeGroupIndex = visibleGroupIndices[visibleGroupIndices.length - 1];
+        selectedGroupIndex = activeGroupIndex;
+    }
     const selectedGroup = groups[selectedGroupIndex] || null;
     const groupPanelOffset = normalizeRouteEditorGroupPanelOffset(state.routeEditor?.groupPanelOffset);
     const showAllGroupsExpanded = !!state.routeEditor?.showAllGroupsExpanded;
@@ -4697,11 +4748,12 @@ function renderRouteEditor(app) {
             </div>
             <div class="route-editor-group-panel ${isLandscape ? 'route-editor-group-panel--floating' : ''} ${showAllGroupsExpanded ? 'route-editor-group-panel--expanded' : ''}" style="${groupPanelStyle}">
                 <div class="route-editor-group-panel-top">
-                    <button class="icon-btn route-editor-tool-btn route-editor-group-expand-btn ${showAllGroupsExpanded ? 'active' : ''}" id="btn-route-editor-group-expand" ${groups.length ? '' : 'disabled'}>${showAllGroupsExpanded ? '縮小' : '一覧'}</button>
+                <button class="icon-btn route-editor-tool-btn route-editor-group-expand-btn ${showAllGroupsExpanded ? 'active' : ''}" id="btn-route-editor-group-expand" ${groups.length ? '' : 'disabled'}>${showAllGroupsExpanded ? '縮小' : '一覧'}</button>
                 </div>
                 <button class="route-editor-group-panel-handle" id="btn-route-editor-group-panel-handle" type="button" title="ドラッグして移動" aria-label="グループ設定を移動">⋮⋮</button>
                 <div class="route-editor-group-list">${groupButtonsHtml}</div>
                 <div class="route-editor-group-actions">
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-remove-btn" id="btn-route-editor-group-remove" ${groups.length > 1 ? '' : 'disabled'}>－</button>
                     <button class="icon-btn route-editor-tool-btn route-editor-group-add-btn" id="btn-route-editor-group-split">＋</button>
                     <button class="icon-btn route-editor-tool-btn route-editor-group-toggle-btn ${visibleGroupIndices.length === groups.length && !state.routeEditor?.forceHideAllGroups ? 'active' : ''}" id="btn-route-editor-show-all" ${groups.length ? '' : 'disabled'}>全て表示</button>
                     <button class="icon-btn route-editor-tool-btn route-editor-group-toggle-btn ${state.routeEditor?.forceHideAllGroups ? 'active' : ''}" id="btn-route-editor-hide-all" ${groups.length ? '' : 'disabled'}>全て非表示</button>
@@ -4818,11 +4870,37 @@ function renderRouteEditor(app) {
         renderApp();
     };
 
+    document.getElementById('btn-route-editor-group-remove').onclick = () => {
+        if (groups.length <= 1) return;
+        if (activeGroupIndex < 0) return;
+        pushRouteEditorHistory(stage);
+        const deletedIndex = activeGroupIndex;
+        const removed = deleteRouteEditorGroupAtIndex(state.routeEditor.draft, state.routeEditor.groupBreaks, deletedIndex);
+        state.routeEditor.draft = removed.draft;
+        state.routeEditor.groupBreaks = removed.groupBreaks;
+        setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
+        const nextGroupCount = buildRouteEditorGroupsFromBreaks(state.routeEditor.draft, state.routeEditor.groupBreaks).length;
+        const nextVisible = Array.isArray(state.routeEditor.visibleGroupIndices)
+            ? state.routeEditor.visibleGroupIndices.map(index => {
+                const parsed = parseInt(index, 10);
+                if (!Number.isFinite(parsed)) return null;
+                if (parsed < deletedIndex) return parsed;
+                if (parsed === deletedIndex) return Math.min(deletedIndex, Math.max(0, nextGroupCount - 1));
+                return parsed - 1;
+            }).filter(index => index !== null && index >= 0 && index < nextGroupCount)
+            : [];
+        state.routeEditor.visibleGroupIndices = nextVisible.length ? Array.from(new Set(nextVisible)).sort((a, b) => a - b) : [Math.min(deletedIndex, Math.max(0, nextGroupCount - 1))];
+        state.routeEditor.selectedGroupIndex = Math.min(deletedIndex, Math.max(0, nextGroupCount - 1));
+        state.routeEditor.forceHideAllGroups = false;
+        saveState();
+        renderApp();
+    };
+
     document.getElementById('btn-route-editor-show-all').onclick = () => {
         if (!groups.length) return;
         state.routeEditor.forceHideAllGroups = false;
         state.routeEditor.visibleGroupIndices = groups.map((_, index) => index);
-        state.routeEditor.selectedGroupIndex = Math.min(selectedGroupIndex, groups.length - 1);
+        state.routeEditor.selectedGroupIndex = activeGroupIndex >= 0 ? activeGroupIndex : Math.min(selectedGroupIndex, groups.length - 1);
         saveState();
         renderApp();
     };
@@ -4831,7 +4909,7 @@ function renderRouteEditor(app) {
         if (!groups.length) return;
         state.routeEditor.forceHideAllGroups = true;
         state.routeEditor.visibleGroupIndices = [];
-        state.routeEditor.selectedGroupIndex = Math.min(selectedGroupIndex, groups.length - 1);
+        state.routeEditor.selectedGroupIndex = activeGroupIndex >= 0 ? activeGroupIndex : Math.min(selectedGroupIndex, groups.length - 1);
         saveState();
         renderApp();
     };
@@ -4947,7 +5025,7 @@ function renderRouteEditor(app) {
             }
             state.routeEditor.forceHideAllGroups = false;
             state.routeEditor.visibleGroupIndices = Array.from(nextVisible).sort((a, b) => a - b);
-            state.routeEditor.selectedGroupIndex = -1;
+            state.routeEditor.selectedGroupIndex = getRouteEditorNextVisibleGroupIndex(state.routeEditor.visibleGroupIndices, index);
             saveState();
             renderApp();
         };
