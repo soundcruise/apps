@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.56.5';
+const FRETBOARD_CRUISE_APP_VERSION = '1.56.6';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -157,6 +157,7 @@ let state = {
 let currentScrollLeft = 0;
 let autoScrollRequested = false;
 let nextTargetTime = 0;
+let routeEditorScrollAppliedKey = null;
 let settingsReturnCourse = null;
 let settingsPausedState = null;
 let quizAdvanceTimeout = null;
@@ -2077,6 +2078,9 @@ function renderApp() {
         currentScrollLeft = oldWrapper.scrollLeft;
     } else {
         currentScrollLeft = 0;
+    }
+    if (state.course === 'routeEditor' && oldScrollGroup !== 'routeEditor') {
+        routeEditorScrollAppliedKey = null;
     }
 
     const isLandscapeRuleStep =
@@ -4715,6 +4719,14 @@ function renderRouteEditor(app) {
     const selectedGroup = groups[selectedGroupIndex] || null;
     const groupPanelOffset = normalizeRouteEditorGroupPanelOffset(state.routeEditor?.groupPanelOffset);
     const showAllGroupsExpanded = !!state.routeEditor?.showAllGroupsExpanded;
+    const routeEditorScrollKey = `${stage}:${activeGroupIndex >= 0 ? activeGroupIndex : 'none'}`;
+    if (activeGroupIndex >= 0 && routeEditorScrollAppliedKey !== routeEditorScrollKey) {
+        const savedRouteEditorScrollLeft = getSavedCruiseGroupScrollLeft(stage, activeGroupIndex);
+        if (Number.isFinite(savedRouteEditorScrollLeft)) {
+            currentScrollLeft = savedRouteEditorScrollLeft;
+        }
+        routeEditorScrollAppliedKey = routeEditorScrollKey;
+    }
     state.routeEditor = {
         stage,
         draft,
