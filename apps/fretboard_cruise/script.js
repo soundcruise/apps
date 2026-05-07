@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.55.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.55.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -393,6 +393,13 @@ state.settings.viewMode = 'custom';
 
 function saveState() {
     localStorage.setItem('fretboard_cruise_state', JSON.stringify(state));
+}
+
+function blurActiveElement() {
+    const active = document.activeElement;
+    if (active && typeof active.blur === 'function') {
+        active.blur();
+    }
 }
 
 function clearStage1RepeatHintState() {
@@ -2079,6 +2086,12 @@ function renderApp() {
             newWrapper.scrollLeft = currentScrollLeft;
         } else {
             newWrapper.scrollLeft = 0;
+        }
+        if (state.course === 'routeEditor') {
+            requestAnimationFrame(() => {
+                if (!newWrapper.isConnected || state.course !== 'routeEditor') return;
+                newWrapper.scrollLeft = currentScrollLeft;
+            });
         }
     } else if (newWrapper) {
         newWrapper.scrollLeft = 0;
@@ -4825,6 +4838,7 @@ function renderRouteEditor(app) {
         onRouteEditorMarkerClick: (routeIndex) => {
             if (!Number.isFinite(routeIndex)) return;
             if (routeIndex < 0 || routeIndex >= state.routeEditor.draft.length) return;
+            blurActiveElement();
             pushRouteEditorHistory(stage);
             const clickedSlot = normalizeCruiseRouteSlot(state.routeEditor.draft[routeIndex]);
             let deleteIndex = routeIndex;
@@ -4847,6 +4861,7 @@ function renderRouteEditor(app) {
             renderApp();
         },
         onFretClick: (stringName, fret) => {
+            blurActiveElement();
             const insertTargetGroupIndex = interactionGroupIndex;
             pushRouteEditorHistory(stage);
             const inserted = insertRouteEditorSlotIntoGroup(
