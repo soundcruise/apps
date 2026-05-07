@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.63.7';
+const FRETBOARD_CRUISE_APP_VERSION = '1.63.8';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -204,6 +204,7 @@ let nextTargetTime = 0;
 let pendingCruiseGroupScrollTimeoutId = null;
 let routeEditorGroupDragBlocked = false;
 let routeEditorScrollAppliedKey = null;
+const routeEditorPendingGroupScrollLefts = new Map();
 let settingsReturnCourse = null;
 let settingsPausedState = null;
 let quizAdvanceTimeout = null;
@@ -1426,6 +1427,24 @@ function saveRouteEditorGroupScrollLeftIfMissing(stage, groupIndex, scrollLeft) 
     if (getSavedCruiseGroupScrollLeft(stage, groupIndex) !== null) return false;
     setSavedCruiseGroupScrollLeft(stage, groupIndex, scrollLeft);
     return true;
+}
+
+function setPendingRouteEditorGroupScrollLeft(stage, groupIndex, scrollLeft) {
+    const key = `${clamp(parseInt(stage, 10), 1, 6)}:${clamp(parseInt(groupIndex, 10), 0, ROUTE_EDITOR_MAX_GROUPS - 1)}`;
+    const nextLeft = Math.max(0, Math.round(parseFloat(scrollLeft) || 0));
+    routeEditorPendingGroupScrollLefts.set(key, nextLeft);
+}
+
+function getPendingRouteEditorGroupScrollLeft(stage, groupIndex) {
+    const key = `${clamp(parseInt(stage, 10), 1, 6)}:${clamp(parseInt(groupIndex, 10), 0, ROUTE_EDITOR_MAX_GROUPS - 1)}`;
+    const value = routeEditorPendingGroupScrollLefts.get(key);
+    const scrollLeft = parseInt(value, 10);
+    return Number.isFinite(scrollLeft) ? Math.max(0, scrollLeft) : null;
+}
+
+function clearPendingRouteEditorGroupScrollLeft(stage, groupIndex) {
+    const key = `${clamp(parseInt(stage, 10), 1, 6)}:${clamp(parseInt(groupIndex, 10), 0, ROUTE_EDITOR_MAX_GROUPS - 1)}`;
+    routeEditorPendingGroupScrollLefts.delete(key);
 }
 
 /** クルーズ中の指板オーバーレイ（1/2・スタート! 等）を除去。自動スクロール直前に呼ぶ。 */
@@ -4980,8 +4999,11 @@ function renderRouteEditor(app) {
     const routeEditorScrollKey = `${stage}:${activeGroupIndex >= 0 ? activeGroupIndex : 'none'}`;
     if (activeGroupIndex >= 0 && routeEditorScrollAppliedKey !== routeEditorScrollKey) {
         const savedRouteEditorScrollLeft = getSavedCruiseGroupScrollLeft(stage, activeGroupIndex);
+        const pendingRouteEditorScrollLeft = getPendingRouteEditorGroupScrollLeft(stage, activeGroupIndex);
         if (Number.isFinite(savedRouteEditorScrollLeft)) {
             currentScrollLeft = savedRouteEditorScrollLeft;
+        } else if (Number.isFinite(pendingRouteEditorScrollLeft)) {
+            currentScrollLeft = pendingRouteEditorScrollLeft;
         }
         routeEditorScrollAppliedKey = routeEditorScrollKey;
     }
@@ -5140,6 +5162,7 @@ function renderRouteEditor(app) {
         const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
         const scrollLeft = wrapper ? wrapper.scrollLeft : 0;
         setSavedCruiseGroupScrollLeft(stage, targetGroupIndex, scrollLeft);
+        clearPendingRouteEditorGroupScrollLeft(stage, targetGroupIndex);
         saveState();
     };
 
@@ -5180,6 +5203,7 @@ function renderRouteEditor(app) {
             return Number.isFinite(n) ? Math.max(m, n) : m;
         }, currentNames.length);
         state.routeEditor.groupNames = [...currentNames, `Gr.${maxNum + 1}`];
+        setPendingRouteEditorGroupScrollLeft(stage, nextIndex, currentScroll);
         setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
         saveState();
         renderApp();
@@ -5498,6 +5522,7 @@ function renderRouteEditor(app) {
             const currentScroll = wrapper ? wrapper.scrollLeft : 0;
             if (targetGroup && targetGroup.isEmpty) {
                 saveRouteEditorGroupScrollLeftIfMissing(stage, insertTargetGroupIndex, currentScroll);
+                clearPendingRouteEditorGroupScrollLeft(stage, insertTargetGroupIndex);
             }
             pushRouteEditorHistory(stage);
             const inserted = insertRouteEditorSlotIntoGroup(
