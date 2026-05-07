@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.63.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.63.4';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -54,9 +54,23 @@ const SHIPPED_DEFAULT_STAGE_1_ROUTE_SLOTS = JSON.parse(
 const SHIPPED_DEFAULT_STAGE_1_ROUTE_GROUP_BREAKS = JSON.parse(
     '[0,6,12,20,25,30]'
 );
+/** STAGE2 初期ルート（現在の「初期順」）。`scripts/compute-stage2-shipped-default.mjs` で同内容を再生成可 */
+const SHIPPED_DEFAULT_STAGE_2_ROUTE_SLOTS = JSON.parse(
+    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":6,"fret":5},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":5,"fret":5},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":4,"fret":5},{"stringName":3,"fret":2},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":2,"fret":3},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":1,"fret":3},{"stringName":1,"fret":5},{"stringName":1,"fret":5},{"stringName":1,"fret":3},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":2,"fret":3},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":3,"fret":2},{"stringName":4,"fret":5},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":5,"fret":5},{"stringName":5,"fret":3}]'
+);
+const SHIPPED_DEFAULT_STAGE_2_ROUTE_GROUP_BREAKS = JSON.parse(
+    '[0,6,12,20,26,32]'
+);
 
 function getShippedDefaultStage1RouteSlots() {
     return SHIPPED_DEFAULT_STAGE_1_ROUTE_SLOTS.map(slot => ({
+        stringName: slot.stringName,
+        fret: slot.fret
+    }));
+}
+
+function getShippedDefaultStage2RouteSlots() {
+    return SHIPPED_DEFAULT_STAGE_2_ROUTE_SLOTS.map(slot => ({
         stringName: slot.stringName,
         fret: slot.fret
     }));
@@ -2070,6 +2084,16 @@ function buildDefaultCruiseStageSequence(stage) {
             sequence,
             cruiseScope,
             groupBreaks: SHIPPED_DEFAULT_STAGE_1_ROUTE_GROUP_BREAKS.slice()
+        };
+    }
+    if (stage === 2) {
+        const slots = getShippedDefaultStage2RouteSlots();
+        const sequence = slots.map(slot => makeCruiseTarget(slot.stringName, slot.fret));
+        const cruiseScope = makeCruiseScopeFromSequence(sequence);
+        return {
+            sequence,
+            cruiseScope,
+            groupBreaks: SHIPPED_DEFAULT_STAGE_2_ROUTE_GROUP_BREAKS.slice()
         };
     }
 
@@ -5046,7 +5070,7 @@ function renderRouteEditor(app) {
         const defaultStage = buildDefaultCruiseStageSequence(stage);
         const savedSlots = getSavedCruiseRouteSlots(stage);
         const hasSavedSlots = savedSlots.length > 0;
-        const useSavedSlots = hasSavedSlots && stage !== 1;
+        const useSavedSlots = hasSavedSlots && stage > 2;
         const sequence = useSavedSlots
             ? savedSlots
             : defaultStage.sequence.map(cruiseRouteSlotFromTarget);
