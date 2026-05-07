@@ -1392,6 +1392,16 @@ input:checked + .toggle-slider:before {
     width: 100%;
 }
 
+.route-editor-expanded-spacer {
+    width: 100%;
+    height: 0;
+    flex: 0 0 auto;
+}
+
+.route-editor-expanded-spacer--visible {
+    height: clamp(88px, 12vh, 160px);
+}
+
 .route-editor-demo-btn {
     width: min(420px, 100%);
     min-height: 44px;
@@ -1656,6 +1666,10 @@ input:checked + .toggle-slider:before {
     .route-editor-fretboard-host {
         flex: 1 1 auto;
         min-height: 210px;
+    }
+
+    .route-editor-expanded-spacer--visible {
+        height: clamp(108px, 14vh, 192px);
     }
 
     .route-editor-group-panel--dragging {

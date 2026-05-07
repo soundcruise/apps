@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.54.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.54.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1466,7 +1466,7 @@ function buildRouteEditorGroupsFromBreaks(draft, breaks) {
     );
     if (!normalizedBreaks.length) {
         return [{
-            name: 'グループ1',
+            name: 'Gr.1',
             start: 0,
             end: -1,
             isEmpty: true
@@ -1475,7 +1475,7 @@ function buildRouteEditorGroupsFromBreaks(draft, breaks) {
     return normalizedBreaks.map((start, index) => {
         const end = index + 1 < normalizedBreaks.length ? normalizedBreaks[index + 1] - 1 : normalizedDraft.length - 1;
         return {
-            name: `グループ${index + 1}`,
+            name: `Gr.${index + 1}`,
             start,
             end: start >= normalizedDraft.length ? start - 1 : end,
             isEmpty: end < start || start >= normalizedDraft.length
@@ -4590,6 +4590,7 @@ function renderRouteEditor(app) {
                 </div>
             </div>
             <div id="fretboard-container" class="route-editor-fretboard-host"></div>
+            <div class="route-editor-expanded-spacer ${showAllGroupsExpanded ? 'route-editor-expanded-spacer--visible' : ''}" aria-hidden="true"></div>
             <div class="route-editor-save-row">
                 <button type="button" class="btn-secondary route-editor-demo-btn" id="btn-route-editor-demo" ${draft.length ? '' : 'disabled'}>現在の順番でデモ</button>
                 <button class="btn-primary route-editor-save-btn" id="btn-route-editor-save" ${draft.length ? '' : 'disabled'}>この順番で保存</button>
@@ -6601,7 +6602,7 @@ function renderFretboardHTML(containerId, options) {
                                 const offset = denseOffsets[stackIndex] || denseOffsets[denseOffsets.length - 1];
                                 const denseZIndex = visibleOrders.length - stackIndex;
                                 return `
-                                <button type="button" class="note-marker route-edit-note route-edit-note-button route-edit-note--stacked route-edit-note--dense" data-route-index="${routeIndex}" aria-label="グループ${groupIndex + 1} ${stringNum}弦 ${f}フレット" style="${groupStyle}; --route-edit-stack-x: ${offset.x}px; --route-edit-stack-y: ${offset.y}px; z-index:${denseZIndex};"></button>
+                                <button type="button" class="note-marker route-edit-note route-edit-note-button route-edit-note--stacked route-edit-note--dense" data-route-index="${routeIndex}" aria-label="Gr.${groupIndex + 1} ${stringNum}弦 ${f}フレット" style="${groupStyle}; --route-edit-stack-x: ${offset.x}px; --route-edit-stack-y: ${offset.y}px; z-index:${denseZIndex};"></button>
                             `;
                             })
                             .join('');
@@ -6611,7 +6612,7 @@ function renderFretboardHTML(containerId, options) {
                             .map(({ index: routeIndex, order, groupIndex }) => {
                                 const groupStyle = getRouteEditorGroupColorStyle(groupIndex);
                                 return `
-                                <button type="button" class="note-marker route-edit-note route-edit-note-button${stackedClass}" data-route-index="${routeIndex}" aria-label="グループ${groupIndex + 1} ${order}番目 ${stringNum}弦 ${f}フレット" style="${groupStyle}">
+                                <button type="button" class="note-marker route-edit-note route-edit-note-button${stackedClass}" data-route-index="${routeIndex}" aria-label="Gr.${groupIndex + 1} ${order}番目 ${stringNum}弦 ${f}フレット" style="${groupStyle}">
                                     <span class="route-edit-note-order">${order}</span>
                                 </button>
                             `; })
