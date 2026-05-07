@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.63.6';
+const FRETBOARD_CRUISE_APP_VERSION = '1.63.7';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -5451,6 +5451,7 @@ function renderRouteEditor(app) {
         question: null,
         showAnswer: true,
         routeEditorDraft: draft,
+        routeEditorStage: stage,
         routeEditorVisibleGroups: visibleGroups,
         onRouteEditorMarkerClick: (routeIndex) => {
             if (!Number.isFinite(routeIndex)) return;
@@ -6892,6 +6893,9 @@ function getRenderMaxFret(mode, options) {
             maxFret,
             getHighestFretFromPositions(options.routeEditorDraft)
         );
+        if (options.routeEditorStage === 4 || options.routeEditorStage === 5) {
+            maxFret = Math.max(maxFret, 13);
+        }
     }
 
     return clamp(Math.floor(maxFret), DEFAULT_VISIBLE_MAX_FRET, MAX_FRET);
