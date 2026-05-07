@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.63.16';
+const FRETBOARD_CRUISE_APP_VERSION = '1.63.17';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -68,12 +68,13 @@ const SHIPPED_DEFAULT_STAGE_3_ROUTE_SLOTS = JSON.parse(
 const SHIPPED_DEFAULT_STAGE_3_ROUTE_GROUP_BREAKS = JSON.parse(
     '[0,6,10,12,20,28,36]'
 );
-/** STAGE4 初期ルート（STAGE3 の複製）。`scripts/compute-stage4-shipped-default.mjs` で同内容を再生成可 */
-const SHIPPED_DEFAULT_STAGE_4_ROUTE_SLOTS = SHIPPED_DEFAULT_STAGE_3_ROUTE_SLOTS.map(slot => ({
-    stringName: slot.stringName,
-    fret: slot.fret
-}));
-const SHIPPED_DEFAULT_STAGE_4_ROUTE_GROUP_BREAKS = SHIPPED_DEFAULT_STAGE_3_ROUTE_GROUP_BREAKS.slice();
+/** STAGE4 初期ルート（現在保存されている STAGE4）。`scripts/compute-stage4-shipped-default.mjs` で同内容を再生成可 */
+const SHIPPED_DEFAULT_STAGE_4_ROUTE_SLOTS = JSON.parse(
+    '[{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":5,"fret":10},{"stringName":4,"fret":7},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":3,"fret":7},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":2,"fret":8},{"stringName":2,"fret":10},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":2,"fret":10},{"stringName":2,"fret":8},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":3,"fret":7},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":4,"fret":7},{"stringName":5,"fret":10},{"stringName":5,"fret":8},{"stringName":5,"fret":7},{"stringName":6,"fret":10},{"stringName":6,"fret":8}]'
+);
+const SHIPPED_DEFAULT_STAGE_4_ROUTE_GROUP_BREAKS = JSON.parse(
+    '[0,8,16,19,27]'
+);
 /** STAGE5 初期ルート（現在の「初期順」）。`scripts/compute-stage5-shipped-default.mjs` で同内容を再生成可 */
 const SHIPPED_DEFAULT_STAGE_5_ROUTE_SLOTS = JSON.parse(
     '[{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":6,"fret":12},{"stringName":6,"fret":13},{"stringName":5,"fret":10},{"stringName":5,"fret":12},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":12},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":3,"fret":12},{"stringName":2,"fret":10},{"stringName":2,"fret":12},{"stringName":2,"fret":13},{"stringName":2,"fret":13},{"stringName":1,"fret":10},{"stringName":1,"fret":12},{"stringName":1,"fret":13},{"stringName":1,"fret":13},{"stringName":1,"fret":12},{"stringName":1,"fret":10},{"stringName":2,"fret":13},{"stringName":2,"fret":13},{"stringName":2,"fret":12},{"stringName":2,"fret":10},{"stringName":3,"fret":12},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":4,"fret":12},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":5,"fret":12},{"stringName":5,"fret":10},{"stringName":6,"fret":13},{"stringName":6,"fret":12},{"stringName":6,"fret":10},{"stringName":6,"fret":8}]'
@@ -4968,7 +4969,7 @@ function renderStageSelect(app) {
         { stage: 1, title: 'STAGE 1', desc: '開放弦〜3フレット (#なし)' },
         { stage: 2, title: 'STAGE 2', desc: '開放弦〜5フレット (#なし)' },
         { stage: 3, title: 'STAGE 3', desc: '5〜9フレット (#なし)' },
-        { stage: 4, title: 'STAGE 4', desc: '5〜9フレット (#なし, STAGE 3複製)' },
+        { stage: 4, title: 'STAGE 4', desc: '7〜10フレット (#なし)' },
         { stage: 5, title: 'STAGE 5', desc: '5〜12フレット (#なし)' },
         { stage: 6, title: 'STAGE 6', desc: '総復習メドレー (STAGE 1〜4)' }
     ];
