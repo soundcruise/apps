@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.63.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.63.3';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -5043,10 +5043,11 @@ function renderRouteEditor(app) {
     };
     document.getElementById('btn-route-editor-load-default').onclick = () => {
         pushRouteEditorHistory(stage);
+        const defaultStage = buildDefaultCruiseStageSequence(stage);
         const savedSlots = getSavedCruiseRouteSlots(stage);
         const hasSavedSlots = savedSlots.length > 0;
-        const defaultStage = buildDefaultCruiseStageSequence(stage);
-        const sequence = hasSavedSlots
+        const useSavedSlots = hasSavedSlots && stage !== 1;
+        const sequence = useSavedSlots
             ? savedSlots
             : defaultStage.sequence.map(cruiseRouteSlotFromTarget);
         const defaultGroupBreaks = Array.isArray(defaultStage.groupBreaks) && defaultStage.groupBreaks.length
@@ -5055,7 +5056,7 @@ function renderRouteEditor(app) {
         const savedGroupBreaks = normalizeRouteEditorGroupBreaks(getRouteEditorSavedGroupBreaks(stage), sequence.length);
         state.routeEditor.draft = cloneCruiseRouteSlots(sequence);
         state.routeEditor.deleteMode = false;
-        state.routeEditor.groupBreaks = hasSavedSlots
+        state.routeEditor.groupBreaks = useSavedSlots
             ? (savedGroupBreaks.length ? savedGroupBreaks : defaultGroupBreaks.length ? defaultGroupBreaks : buildAutoRouteEditorGroupBreaks(state.routeEditor.draft))
             : (defaultGroupBreaks.length ? defaultGroupBreaks : buildAutoRouteEditorGroupBreaks(state.routeEditor.draft));
         state.routeEditor.selectedGroupIndex = 0;
