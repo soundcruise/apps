@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.56.7';
+const FRETBOARD_CRUISE_APP_VERSION = '1.56.8';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -4779,6 +4779,7 @@ function renderRouteEditor(app) {
                 <div class="route-editor-group-actions">
                     <button class="icon-btn route-editor-tool-btn route-editor-group-add-btn" id="btn-route-editor-group-split">＋</button>
                     <button class="icon-btn route-editor-tool-btn route-editor-group-remove-btn" id="btn-route-editor-group-remove" ${groups.length > 1 ? '' : 'disabled'}>－</button>
+                    <button type="button" class="btn-secondary route-editor-group-save-position-btn" id="btn-route-editor-save-position" ${activeGroupIndex >= 0 ? '' : 'disabled'}>位置保存</button>
                     <button class="icon-btn route-editor-tool-btn route-editor-group-toggle-btn ${visibleGroupIndices.length === groups.length && !state.routeEditor?.forceHideAllGroups ? 'active' : ''}" id="btn-route-editor-show-all" ${groups.length ? '' : 'disabled'}>全て表示</button>
                     <button class="icon-btn route-editor-tool-btn route-editor-group-toggle-btn ${state.routeEditor?.forceHideAllGroups ? 'active' : ''}" id="btn-route-editor-hide-all" ${groups.length ? '' : 'disabled'}>全て非表示</button>
                 </div>
@@ -4786,7 +4787,6 @@ function renderRouteEditor(app) {
             <div id="fretboard-container" class="route-editor-fretboard-host"></div>
             <div class="route-editor-expanded-gap ${showAllGroupsExpanded ? 'route-editor-expanded-gap--visible' : ''}" aria-hidden="true"></div>
             <div class="route-editor-save-row">
-                <button type="button" class="btn-secondary route-editor-camera-save-btn" id="btn-route-editor-save-position" ${activeGroupIndex >= 0 ? '' : 'disabled'}>この位置を保存</button>
                 <button type="button" class="btn-secondary route-editor-demo-btn" id="btn-route-editor-demo" ${draft.length ? '' : 'disabled'}>現在の順番でデモ</button>
                 <button class="btn-primary route-editor-save-btn" id="btn-route-editor-save" ${draft.length ? '' : 'disabled'}>この順番で保存</button>
             </div>
