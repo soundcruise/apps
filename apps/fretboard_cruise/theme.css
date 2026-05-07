@@ -1351,6 +1351,26 @@ input:checked + .toggle-slider:before {
     box-shadow: 0 0 0 1px rgba(255, 106, 127, 0.28) inset;
 }
 
+.route-editor-group-drag-handle {
+    display: inline-block;
+    margin-right: 4px;
+    opacity: 0.45;
+    font-size: 0.78rem;
+    cursor: grab;
+    touch-action: none;
+    vertical-align: middle;
+    line-height: 1;
+}
+
+.route-editor-group-btn.is-dragging {
+    opacity: 0.35;
+}
+
+.route-editor-group-btn.is-drag-over {
+    border-color: #ffd166 !important;
+    box-shadow: 0 0 0 2px rgba(255, 209, 102, 0.5) !important;
+}
+
 .route-editor-group-actions {
     display: flex;
     flex-wrap: nowrap;

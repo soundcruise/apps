@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.57.4';
+const FRETBOARD_CRUISE_APP_VERSION = '1.58.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -158,6 +158,7 @@ let currentScrollLeft = 0;
 let autoScrollRequested = false;
 let nextTargetTime = 0;
 let pendingCruiseGroupScrollTimeoutId = null;
+let routeEditorGroupDragBlocked = false;
 let routeEditorScrollAppliedKey = null;
 let settingsReturnCourse = null;
 let settingsPausedState = null;
@@ -1465,6 +1466,75 @@ function getRouteEditorSnapshot(stage = null) {
             y: clamp(parseInt(state.routeEditor?.groupPanelOffset?.y ?? 0, 10), -9999, 9999)
         }
     };
+}
+
+function reorderRouteEditorGroups(fromIndex, toIndex) {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+    const stage = state.memorize.stage;
+    const draft = (Array.isArray(state.routeEditor?.draft) ? state.routeEditor.draft : [])
+        .map(normalizeCruiseRouteSlot).filter(Boolean);
+    const rawBreaks = Array.isArray(state.routeEditor?.groupBreaks) ? state.routeEditor.groupBreaks.slice() : [];
+    const computedBreaks = normalizeRouteEditorGroupBreaks(
+        rawBreaks.length ? rawBreaks : getRouteEditorSavedGroupBreaks(stage),
+        draft.length
+    );
+    const groupBreaks = computedBreaks.length ? computedBreaks : [0];
+    const groups = getRouteEditorGroups(draft, groupBreaks);
+    const n = groups.length;
+    if (fromIndex >= n || toIndex >= n) return;
+
+    // ノートスライスを抽出
+    const slices = groups.map(g => draft.slice(g.start, g.end + 1));
+
+    // old→new インデックスマッピング
+    const newOrder = Array.from({ length: n }, (_, i) => i);
+    const [moved] = newOrder.splice(fromIndex, 1);
+    newOrder.splice(toIndex, 0, moved);
+    // newOrder[newIdx] = oldIdx
+    const oldToNew = {};
+    newOrder.forEach((oldIdx, newIdx) => { oldToNew[oldIdx] = newIdx; });
+
+    // スライスを並び替えて新draftを構築
+    const newDraft = newOrder.map(oldIdx => slices[oldIdx]).flat();
+
+    // groupBreaks を再計算
+    const newGroupBreaks = [0];
+    for (let i = 0; i < newOrder.length - 1; i++) {
+        newGroupBreaks.push(newGroupBreaks[newGroupBreaks.length - 1] + slices[newOrder[i]].length);
+    }
+
+    // スクロール保存位置をGr.ごと移動
+    const allScrollLefts = state.settings.cruiseStageGroupScrollLefts || {};
+    const oldScrolls = allScrollLefts[String(stage)] || {};
+    const newScrolls = {};
+    for (let oldIdx = 0; oldIdx < n; oldIdx++) {
+        if (oldScrolls[String(oldIdx)] !== undefined) {
+            newScrolls[String(oldToNew[oldIdx])] = oldScrolls[String(oldIdx)];
+        }
+    }
+    if (!state.settings.cruiseStageGroupScrollLefts) state.settings.cruiseStageGroupScrollLefts = {};
+    state.settings.cruiseStageGroupScrollLefts[String(stage)] = newScrolls;
+
+    // visibleGroupIndices を再マップ
+    const oldVisible = Array.isArray(state.routeEditor?.visibleGroupIndices) ? state.routeEditor.visibleGroupIndices : [];
+    const newVisible = oldVisible
+        .map(oldIdx => (oldToNew[oldIdx] !== undefined ? oldToNew[oldIdx] : -1))
+        .filter(i => i >= 0)
+        .sort((a, b) => a - b);
+
+    // selectedGroupIndex を再マップ
+    const oldSelected = parseInt(state.routeEditor?.selectedGroupIndex ?? -1, 10);
+    const newSelected = (Number.isFinite(oldSelected) && oldSelected >= 0 && oldToNew[oldSelected] !== undefined)
+        ? oldToNew[oldSelected]
+        : oldSelected;
+
+    pushRouteEditorHistory(stage);
+    state.routeEditor.draft = newDraft;
+    state.routeEditor.groupBreaks = newGroupBreaks;
+    state.routeEditor.visibleGroupIndices = newVisible;
+    state.routeEditor.selectedGroupIndex = newSelected;
+    saveState();
+    renderApp();
 }
 
 function pushRouteEditorHistory(stage = null) {
@@ -4812,7 +4882,7 @@ function renderRouteEditor(app) {
             const isActive = isVisible && selectedGroupIndex === index;
             return `
             <button class="route-editor-group-btn ${isVisible ? 'is-visible' : 'is-hidden'} ${isActive ? 'is-active' : ''}" type="button" data-group-index="${index}" aria-label="${group.name}" aria-pressed="${isActive ? 'true' : 'false'}">
-                ${group.name}
+                <span class="route-editor-group-drag-handle" aria-hidden="true">⠿</span>${group.name}
             </button>
         `;
         }).join('')
@@ -5090,6 +5160,7 @@ function renderRouteEditor(app) {
 
     document.querySelectorAll('.route-editor-group-btn').forEach(btn => {
         btn.onclick = () => {
+            if (routeEditorGroupDragBlocked) return;
             const index = parseInt(btn.getAttribute('data-group-index'), 10);
             if (!Number.isFinite(index)) return;
             const isVisible = visibleGroupIndices.includes(index);
@@ -5120,6 +5191,83 @@ function renderRouteEditor(app) {
             renderApp();
         };
     });
+
+    // グループカードのドラッグ並び替え
+    {
+        let dragFromIdx = -1, dragOverIdx = -1, didDrag = false;
+        let dragStartX = 0, dragStartY = 0, dragGhost = null;
+
+        const cleanupDrag = () => {
+            document.querySelectorAll('.route-editor-group-btn.is-dragging, .route-editor-group-btn.is-drag-over')
+                .forEach(b => { b.classList.remove('is-dragging'); b.classList.remove('is-drag-over'); });
+            if (dragGhost) { dragGhost.remove(); dragGhost = null; }
+        };
+
+        document.querySelectorAll('.route-editor-group-drag-handle').forEach(handle => {
+            handle.addEventListener('pointerdown', (e) => {
+                const btn = handle.closest('.route-editor-group-btn');
+                if (!btn) return;
+                dragFromIdx = parseInt(btn.getAttribute('data-group-index'), 10);
+                if (!Number.isFinite(dragFromIdx)) { dragFromIdx = -1; return; }
+                dragStartX = e.clientX; dragStartY = e.clientY;
+                didDrag = false; dragOverIdx = -1;
+                e.preventDefault();
+                handle.setPointerCapture(e.pointerId);
+            }, { passive: false });
+
+            handle.addEventListener('pointermove', (e) => {
+                if (dragFromIdx < 0) return;
+                if (!didDrag && Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY) > 6) {
+                    didDrag = true;
+                    const btn = document.querySelector(`.route-editor-group-btn[data-group-index="${dragFromIdx}"]`);
+                    if (btn) {
+                        btn.classList.add('is-dragging');
+                        dragGhost = btn.cloneNode(true);
+                        Object.assign(dragGhost.style, {
+                            position: 'fixed', pointerEvents: 'none', zIndex: '9999',
+                            opacity: '0.88', transform: 'scale(1.08)',
+                            width: btn.offsetWidth + 'px', margin: '0',
+                            top: (e.clientY - btn.offsetHeight / 2) + 'px',
+                            left: (e.clientX - btn.offsetWidth / 2) + 'px'
+                        });
+                        document.body.appendChild(dragGhost);
+                    }
+                }
+                if (!didDrag || !dragGhost) return;
+                dragGhost.style.top = (e.clientY - dragGhost.offsetHeight / 2) + 'px';
+                dragGhost.style.left = (e.clientX - dragGhost.offsetWidth / 2) + 'px';
+                dragGhost.style.visibility = 'hidden';
+                const el = document.elementFromPoint(e.clientX, e.clientY);
+                dragGhost.style.visibility = '';
+                const overBtn = el && el.closest('.route-editor-group-btn');
+                const overIdx = overBtn ? parseInt(overBtn.getAttribute('data-group-index'), 10) : -1;
+                document.querySelectorAll('.route-editor-group-btn.is-drag-over').forEach(b => b.classList.remove('is-drag-over'));
+                if (Number.isFinite(overIdx) && overIdx >= 0 && overIdx !== dragFromIdx) {
+                    dragOverIdx = overIdx;
+                    overBtn.classList.add('is-drag-over');
+                } else {
+                    dragOverIdx = -1;
+                }
+            });
+
+            const onEnd = () => {
+                if (dragFromIdx < 0) return;
+                const from = dragFromIdx, to = dragOverIdx;
+                cleanupDrag();
+                dragFromIdx = -1; dragOverIdx = -1;
+                if (didDrag) {
+                    routeEditorGroupDragBlocked = true;
+                    requestAnimationFrame(() => { routeEditorGroupDragBlocked = false; });
+                    if (to >= 0 && to !== from) reorderRouteEditorGroups(from, to);
+                }
+                didDrag = false;
+            };
+            handle.addEventListener('pointerup', onEnd);
+            handle.addEventListener('pointercancel', () => {
+                cleanupDrag(); dragFromIdx = -1; dragOverIdx = -1; didDrag = false;
+            });
+        });
+    }
 
     renderFretboardHTML('fretboard-container', {
         mode: 'routeEditor',
