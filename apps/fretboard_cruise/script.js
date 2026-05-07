@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.54.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.54.3';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -130,6 +130,7 @@ let state = {
         visibleGroupIndices: [],
         forceHideAllGroups: false,
         showAllGroupsExpanded: false,
+        groupExpandButtonStyleMode: 1,
         groupPanelOffset: { x: 0, y: 0 }
     },
     settings: {
@@ -357,7 +358,7 @@ if (savedState) {
             typeof state.routeEditor !== 'object' ||
             Array.isArray(state.routeEditor)
         ) {
-            state.routeEditor = { stage: 1, draft: [], deleteMode: false, history: [], deletePicker: null, groupBreaks: [], selectedGroupIndex: 0, showAllGroupsExpanded: false };
+            state.routeEditor = { stage: 1, draft: [], deleteMode: false, history: [], deletePicker: null, groupBreaks: [], selectedGroupIndex: 0, showAllGroupsExpanded: false, groupExpandButtonStyleMode: 1 };
         }
         if (!Array.isArray(state.routeEditor.draft)) state.routeEditor.draft = [];
         if (typeof state.routeEditor.stage !== 'number') state.routeEditor.stage = 1;
@@ -371,6 +372,7 @@ if (savedState) {
         if (!Array.isArray(state.routeEditor.visibleGroupIndices)) state.routeEditor.visibleGroupIndices = [];
         if (typeof state.routeEditor.forceHideAllGroups !== 'boolean') state.routeEditor.forceHideAllGroups = false;
         if (typeof state.routeEditor.showAllGroupsExpanded !== 'boolean') state.routeEditor.showAllGroupsExpanded = false;
+        if (typeof state.routeEditor.groupExpandButtonStyleMode !== 'number') state.routeEditor.groupExpandButtonStyleMode = 1;
         if (!state.routeEditor.groupPanelOffset || typeof state.routeEditor.groupPanelOffset !== 'object') {
             state.routeEditor.groupPanelOffset = { x: 0, y: 0 };
         }
@@ -1341,6 +1343,7 @@ function getRouteEditorSnapshot(stage = null) {
         visibleGroupIndices: Array.isArray(state.routeEditor?.visibleGroupIndices) ? state.routeEditor.visibleGroupIndices.slice() : [],
         forceHideAllGroups: !!state.routeEditor?.forceHideAllGroups,
         showAllGroupsExpanded: !!state.routeEditor?.showAllGroupsExpanded,
+        groupExpandButtonStyleMode: clamp(parseInt(state.routeEditor?.groupExpandButtonStyleMode ?? 1, 10), 1, 2),
         groupPanelOffset: {
             x: clamp(parseInt(state.routeEditor?.groupPanelOffset?.x ?? 0, 10), -9999, 9999),
             y: clamp(parseInt(state.routeEditor?.groupPanelOffset?.y ?? 0, 10), -9999, 9999)
@@ -1368,6 +1371,7 @@ function restoreRouteEditorSnapshot(snapshot) {
     state.routeEditor.visibleGroupIndices = Array.isArray(snapshot.visibleGroupIndices) ? snapshot.visibleGroupIndices.slice() : [];
     state.routeEditor.forceHideAllGroups = !!snapshot.forceHideAllGroups;
     state.routeEditor.showAllGroupsExpanded = !!snapshot.showAllGroupsExpanded;
+    state.routeEditor.groupExpandButtonStyleMode = clamp(parseInt(snapshot.groupExpandButtonStyleMode ?? 1, 10), 1, 2);
     state.routeEditor.groupPanelOffset = {
         x: clamp(parseInt(snapshot.groupPanelOffset?.x ?? 0, 10), -9999, 9999),
         y: clamp(parseInt(snapshot.groupPanelOffset?.y ?? 0, 10), -9999, 9999)
@@ -4468,6 +4472,7 @@ function renderStageSelect(app) {
                 visibleGroupIndices: initialGroups.length ? initialGroups.map((_, index) => index) : [0],
                 forceHideAllGroups: false,
                 showAllGroupsExpanded: false,
+                groupExpandButtonStyleMode: 1,
                 groupPanelOffset: { x: 0, y: 0 }
             };
             state.course = 'routeEditor';
@@ -4538,6 +4543,7 @@ function renderRouteEditor(app) {
     const selectedGroup = groups[selectedGroupIndex] || null;
     const groupPanelOffset = normalizeRouteEditorGroupPanelOffset(state.routeEditor?.groupPanelOffset);
     const showAllGroupsExpanded = !!state.routeEditor?.showAllGroupsExpanded;
+    const groupExpandButtonStyleMode = clamp(parseInt(state.routeEditor?.groupExpandButtonStyleMode ?? 1, 10), 1, 2);
     state.routeEditor = {
         stage,
         draft,
@@ -4549,6 +4555,7 @@ function renderRouteEditor(app) {
         visibleGroupIndices,
         forceHideAllGroups: !!state.routeEditor?.forceHideAllGroups,
         showAllGroupsExpanded,
+        groupExpandButtonStyleMode,
         groupPanelOffset
     };
 
@@ -4579,7 +4586,14 @@ function renderRouteEditor(app) {
             </div>
             <div class="route-editor-group-panel ${isLandscape ? 'route-editor-group-panel--floating' : ''} ${showAllGroupsExpanded ? 'route-editor-group-panel--expanded' : ''}" style="${groupPanelStyle}">
                 <div class="route-editor-group-panel-top">
-                    <button class="icon-btn route-editor-tool-btn route-editor-group-expand-btn ${showAllGroupsExpanded ? 'active' : ''}" id="btn-route-editor-group-expand" ${groups.length ? '' : 'disabled'}>${showAllGroupsExpanded ? '縮小' : '一覧'}</button>
+                    <div class="route-editor-group-expand-tabs" role="tablist" aria-label="一覧ボタンの見た目">
+                        <button type="button" class="route-editor-group-expand-tab ${groupExpandButtonStyleMode === 1 ? 'active' : ''}" id="btn-route-editor-group-expand-style-1" aria-pressed="${groupExpandButtonStyleMode === 1 ? 'true' : 'false'}">アイコン</button>
+                        <button type="button" class="route-editor-group-expand-tab ${groupExpandButtonStyleMode === 2 ? 'active' : ''}" id="btn-route-editor-group-expand-style-2" aria-pressed="${groupExpandButtonStyleMode === 2 ? 'true' : 'false'}">矩形</button>
+                    </div>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-expand-btn route-editor-group-expand-btn--mode-${groupExpandButtonStyleMode} ${showAllGroupsExpanded ? 'active' : ''}" id="btn-route-editor-group-expand" ${groups.length ? '' : 'disabled'}>
+                        ${groupExpandButtonStyleMode === 1 ? `<span class="route-editor-group-expand-btn-icon">${showAllGroupsExpanded ? '▥' : '▦'}</span>` : ''}
+                        <span class="route-editor-group-expand-btn-text">${showAllGroupsExpanded ? '縮小' : '一覧'}</span>
+                    </button>
                 </div>
                 <button class="route-editor-group-panel-handle" id="btn-route-editor-group-panel-handle" type="button" title="ドラッグして移動" aria-label="グループ設定を移動">⋮⋮</button>
                 <div class="route-editor-group-list">${groupButtonsHtml}</div>
@@ -4617,6 +4631,16 @@ function renderRouteEditor(app) {
     };
     document.getElementById('btn-route-editor-group-expand').onclick = () => {
         state.routeEditor.showAllGroupsExpanded = !state.routeEditor.showAllGroupsExpanded;
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-route-editor-group-expand-style-1').onclick = () => {
+        state.routeEditor.groupExpandButtonStyleMode = 1;
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-route-editor-group-expand-style-2').onclick = () => {
+        state.routeEditor.groupExpandButtonStyleMode = 2;
         saveState();
         renderApp();
     };
