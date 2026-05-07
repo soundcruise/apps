@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.55.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.55.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1914,6 +1914,8 @@ function renderApp() {
     const oldWrapper = document.querySelector('.fretboard-scroll-wrapper');
     const oldScrollGroup = oldWrapper && oldWrapper.getAttribute('data-scroll-group');
     if (oldScrollGroup === 'memorize' && state.course === 'memorize') {
+        currentScrollLeft = oldWrapper.scrollLeft;
+    } else if (oldScrollGroup === 'routeEditor' && state.course === 'routeEditor') {
         currentScrollLeft = oldWrapper.scrollLeft;
     } else if (
         oldScrollGroup === 'visualize' &&
