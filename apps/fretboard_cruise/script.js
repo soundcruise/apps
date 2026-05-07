@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.63.12';
+const FRETBOARD_CRUISE_APP_VERSION = '1.63.14';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -104,7 +104,7 @@ function getShippedDefaultStage4RouteSlots() {
     }));
 }
 
-const ROUTE_EDITOR_MAX_GROUPS = 20;
+const ROUTE_EDITOR_MAX_GROUPS = 60;
 const ROUTE_EDITOR_SCALE_GUIDE_LABELS = {
     0: 'ド',
     2: 'レ',
@@ -5233,8 +5233,6 @@ function renderRouteEditor(app) {
         // 「＋」は新規Grだけを表示・アクティブ化する共通ルールに戻す
         state.routeEditor.visibleGroupIndices = [nextIndex];
         state.routeEditor.selectedGroupIndex = nextIndex;
-        state.routeEditor.showAllGroupsExpanded = false;
-
         // 新グループの名前: 既存の最大番号 + 1
         const currentNames = Array.isArray(state.routeEditor.groupNames) ? state.routeEditor.groupNames : [];
         const maxNum = currentNames.reduce((m, name) => {
