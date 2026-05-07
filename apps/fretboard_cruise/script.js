@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.63.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.63.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -49,7 +49,10 @@ const DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION = true;
 const DEFAULT_CRUISE_LOOP_COUNT = 1;
 /** STAGE1 初期ルート（初回・未保存時・「初期順」）。`scripts/compute-stage1-shipped-default.mjs` で同内容を再生成可 */
 const SHIPPED_DEFAULT_STAGE_1_ROUTE_SLOTS = JSON.parse(
-    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":5,"fret":0},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":4,"fret":0},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":3,"fret":0},{"stringName":3,"fret":2},{"stringName":2,"fret":0},{"stringName":2,"fret":1},{"stringName":2,"fret":3},{"stringName":1,"fret":0},{"stringName":1,"fret":1},{"stringName":1,"fret":3},{"stringName":1,"fret":1},{"stringName":1,"fret":0},{"stringName":2,"fret":3},{"stringName":2,"fret":1},{"stringName":2,"fret":0},{"stringName":3,"fret":2},{"stringName":3,"fret":0},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":4,"fret":0},{"stringName":5,"fret":3}]'
+    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":5,"fret":0},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":4,"fret":0},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":3,"fret":0},{"stringName":3,"fret":2},{"stringName":2,"fret":0},{"stringName":2,"fret":1},{"stringName":2,"fret":1},{"stringName":2,"fret":3},{"stringName":1,"fret":0},{"stringName":1,"fret":1},{"stringName":1,"fret":3},{"stringName":1,"fret":3},{"stringName":1,"fret":1},{"stringName":1,"fret":0},{"stringName":2,"fret":3},{"stringName":2,"fret":1},{"stringName":2,"fret":1},{"stringName":2,"fret":0},{"stringName":3,"fret":2},{"stringName":3,"fret":0},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":4,"fret":0},{"stringName":5,"fret":3}]'
+);
+const SHIPPED_DEFAULT_STAGE_1_ROUTE_GROUP_BREAKS = JSON.parse(
+    '[0,6,12,20,25,30]'
 );
 
 function getShippedDefaultStage1RouteSlots() {
@@ -2063,7 +2066,11 @@ function buildDefaultCruiseStageSequence(stage) {
         const slots = getShippedDefaultStage1RouteSlots();
         const sequence = slots.map(slot => makeCruiseTarget(slot.stringName, slot.fret));
         const cruiseScope = makeCruiseScopeFromSequence(sequence);
-        return { sequence, cruiseScope };
+        return {
+            sequence,
+            cruiseScope,
+            groupBreaks: SHIPPED_DEFAULT_STAGE_1_ROUTE_GROUP_BREAKS.slice()
+        };
     }
 
     const sequence = [];
@@ -2097,15 +2104,20 @@ function buildCruiseStageSequence(stage) {
     return {
         ...defaultStage,
         isCustom: false,
-        groupIndices: buildCruiseGroupIndicesFromSlots(stage, defaultSlots)
+        groupIndices: buildCruiseGroupIndicesFromSlots(stage, defaultSlots, defaultStage.groupBreaks)
     };
 }
 
-function buildCruiseGroupIndicesFromSlots(stage, slots) {
+function buildCruiseGroupIndicesFromSlots(stage, slots, fallbackGroupBreaks = null) {
     const normalizedSlots = cloneCruiseRouteSlots(slots).map(normalizeCruiseRouteSlot).filter(Boolean);
     if (!normalizedSlots.length) return [];
     const savedGroupBreaks = normalizeRouteEditorGroupBreaks(getRouteEditorSavedGroupBreaks(stage), normalizedSlots.length);
-    const groupBreaks = savedGroupBreaks.length ? savedGroupBreaks : buildAutoRouteEditorGroupBreaks(normalizedSlots);
+    const defaultGroupBreaks = normalizeRouteEditorGroupBreaks(fallbackGroupBreaks, normalizedSlots.length);
+    const groupBreaks = savedGroupBreaks.length
+        ? savedGroupBreaks
+        : defaultGroupBreaks.length
+            ? defaultGroupBreaks
+            : buildAutoRouteEditorGroupBreaks(normalizedSlots);
     const groups = buildRouteEditorGroupsFromBreaks(normalizedSlots, groupBreaks);
     const groupIndices = Array(normalizedSlots.length).fill(0);
     groups.forEach((group, groupIndex) => {
