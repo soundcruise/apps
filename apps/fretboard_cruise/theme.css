@@ -1279,35 +1279,7 @@ input:checked + .toggle-slider:before {
     display: flex;
     gap: 8px;
     align-items: center;
-    justify-content: space-between;
-}
-
-.route-editor-group-expand-tabs {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    flex: 0 0 auto;
-}
-
-.route-editor-group-expand-tab {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 28px;
-    padding: 0 12px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.05);
-    color: rgba(255, 255, 255, 0.74);
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0;
-}
-
-.route-editor-group-expand-tab.active {
-    border-color: var(--primary-color);
-    background: rgba(79, 156, 249, 0.18);
-    color: #fff;
+    justify-content: flex-end;
 }
 
 .route-editor-group-panel-handle {
@@ -1353,12 +1325,13 @@ input:checked + .toggle-slider:before {
 
 .route-editor-group-btn {
     min-height: 40px;
-    padding: 0 12px;
+    padding: 0 11px;
     border-radius: 999px;
     border: 1px solid rgba(255, 255, 255, 0.16);
     background: rgba(255, 255, 255, 0.06);
     color: rgba(255, 255, 255, 0.88);
     font-weight: 800;
+    font-size: 0.96rem;
 }
 
 .route-editor-group-btn.active {
@@ -1401,34 +1374,11 @@ input:checked + .toggle-slider:before {
 }
 
 .route-editor-group-expand-btn {
-    min-width: 90px;
-    padding: 0 24px;
+    min-width: 102px;
+    padding: 0 26px;
     font-size: 0.92rem;
     font-weight: 900;
     min-height: 38px;
-}
-
-.route-editor-group-expand-btn--mode-1 {
-    border-radius: 999px;
-}
-
-.route-editor-group-expand-btn--mode-2 {
-    border-radius: 12px;
-    padding: 0 18px;
-}
-
-.route-editor-group-expand-btn-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 6px;
-    font-size: 0.9em;
-    line-height: 1;
-}
-
-.route-editor-group-expand-btn-text {
-    display: inline-flex;
-    align-items: center;
 }
 
 .route-editor-group-panel--expanded .route-editor-group-list {
@@ -1442,6 +1392,7 @@ input:checked + .toggle-slider:before {
     gap: 8px;
     justify-content: center;
     width: 100%;
+    padding-bottom: clamp(28px, 5vh, 72px);
 }
 
 .route-editor-expanded-spacer {
@@ -1451,7 +1402,7 @@ input:checked + .toggle-slider:before {
 }
 
 .route-editor-expanded-spacer--visible {
-    height: clamp(88px, 12vh, 160px);
+    height: clamp(140px, 18vh, 240px);
 }
 
 .route-editor-demo-btn {
@@ -1684,7 +1635,7 @@ input:checked + .toggle-slider:before {
     .route-editor-group-btn {
         min-height: var(--route-editor-group-btn-min-height);
         padding: 0 10px;
-        font-size: 0.74rem;
+        font-size: 0.78rem;
     }
 
     .route-editor-group-actions {
@@ -1705,14 +1656,10 @@ input:checked + .toggle-slider:before {
     }
 
     .route-editor-group-expand-btn {
-        min-width: 90px;
-        padding: 0 24px;
+        min-width: 102px;
+        padding: 0 26px;
         font-size: 0.86rem;
         min-height: 38px;
-    }
-
-    .route-editor-group-expand-btn--mode-2 {
-        padding: 0 18px;
     }
 
     .route-editor-group-label {
@@ -1725,7 +1672,7 @@ input:checked + .toggle-slider:before {
     }
 
     .route-editor-expanded-spacer--visible {
-        height: clamp(108px, 14vh, 192px);
+        height: clamp(160px, 20vh, 280px);
     }
 
     .route-editor-group-panel--dragging {
