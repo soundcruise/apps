@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.60.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.61.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1500,14 +1500,12 @@ function reorderRouteEditorGroups(fromIndex, toIndex) {
     // スライスを並び替えて新draftを構築
     const newDraft = newOrder.map(oldIdx => slices[oldIdx]).flat();
 
-    // groupBreaks を再計算
+    // groupBreaks を再計算（空グループは重複境界で保持）
     const newGroupBreaks = [0];
     let cumSum = 0;
     for (let i = 0; i < newOrder.length - 1; i++) {
         cumSum += slices[newOrder[i]].length;
-        if (cumSum > newGroupBreaks[newGroupBreaks.length - 1]) {
-            newGroupBreaks.push(cumSum);
-        }
+        newGroupBreaks.push(cumSum);
     }
 
     // スクロール保存位置をGr.ごと移動
@@ -1648,18 +1646,16 @@ function buildAutoRouteEditorGroupBreaks(draft) {
 }
 
 function normalizeRouteEditorGroupBreaks(breaks, draftLength) {
+    // 重複境界（空グループを表す）はそのまま保持する
     const normalized = (Array.isArray(breaks) ? breaks : [])
         .map(value => parseInt(value, 10))
         .filter(Number.isFinite)
         .map(value => clamp(value, 0, Math.max(0, draftLength + ROUTE_EDITOR_MAX_GROUPS - 1)))
         .sort((a, b) => a - b);
-    const deduped = [];
-    normalized.forEach(value => {
-        if (!deduped.length || deduped[deduped.length - 1] !== value) deduped.push(value);
-    });
-    if (!deduped.length || deduped[0] !== 0) deduped.unshift(0);
-    if (deduped.length > ROUTE_EDITOR_MAX_GROUPS) deduped.length = ROUTE_EDITOR_MAX_GROUPS;
-    return deduped;
+    const result = normalized.slice();
+    if (!result.length || result[0] !== 0) result.unshift(0);
+    if (result.length > ROUTE_EDITOR_MAX_GROUPS) result.length = ROUTE_EDITOR_MAX_GROUPS;
+    return result;
 }
 
 function buildRouteEditorGroupsFromBreaks(draft, breaks) {
@@ -4901,9 +4897,10 @@ function renderRouteEditor(app) {
         ? groups.map((group, index) => {
             const isVisible = visibleGroupIndices.includes(index);
             const isActive = isVisible && selectedGroupIndex === index;
+            const isEmpty = !!group.isEmpty;
             const displayName = storedGroupNames[index] ?? group.name;
             return `
-            <button class="route-editor-group-btn ${isVisible ? 'is-visible' : 'is-hidden'} ${isActive ? 'is-active' : ''}" type="button" data-group-index="${index}" aria-label="${displayName}" aria-pressed="${isActive ? 'true' : 'false'}">
+            <button class="route-editor-group-btn ${isVisible ? 'is-visible' : 'is-hidden'} ${isActive ? 'is-active' : ''} ${isEmpty ? 'is-empty' : ''}" type="button" data-group-index="${index}" aria-label="${displayName}" aria-pressed="${isActive ? 'true' : 'false'}">
                 ${displayName}
             </button>
         `;
