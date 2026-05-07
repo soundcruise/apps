@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.56.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.56.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1637,7 +1637,7 @@ function getRouteEditorVisibleGroups(groups) {
         .filter(group => !!group);
 }
 
-function getRouteEditorOperationGroupIndex(visibleGroups, selectedGroupIndex) {
+function getRouteEditorActiveGroupIndex(visibleGroups, selectedGroupIndex) {
     const parsedSelectedRaw = parseInt(selectedGroupIndex ?? 0, 10);
     const parsedSelected = Number.isFinite(parsedSelectedRaw) && parsedSelectedRaw >= 0
         ? parsedSelectedRaw
@@ -1645,13 +1645,8 @@ function getRouteEditorOperationGroupIndex(visibleGroups, selectedGroupIndex) {
     const visibleIndices = Array.isArray(visibleGroups)
         ? visibleGroups.map(group => parseInt(group?.index, 10)).filter(Number.isFinite)
         : [];
-    if (parsedSelected !== null && visibleIndices.includes(parsedSelected)) {
-        return parsedSelected;
-    }
-    if (visibleIndices.length <= 1) {
-        return visibleIndices.length === 1 ? visibleIndices[0] : (parsedSelected ?? 0);
-    }
-    return Math.max(...visibleIndices);
+    if (parsedSelected === null) return -1;
+    return visibleIndices.includes(parsedSelected) ? parsedSelected : -1;
 }
 
 function getRouteEditorGroupIndexForRouteIndex(draft, breaks, routeIndex) {
@@ -4647,7 +4642,7 @@ function renderRouteEditor(app) {
     const visibleGroups = visibleGroupIndices
         .map(index => ({ ...(groups[index] || {}), index }))
         .filter(group => Number.isFinite(group.start) && Number.isFinite(group.end));
-    const interactionGroupIndex = getRouteEditorOperationGroupIndex(visibleGroups, state.routeEditor?.selectedGroupIndex ?? 0);
+    const activeGroupIndex = getRouteEditorActiveGroupIndex(visibleGroups, state.routeEditor?.selectedGroupIndex ?? 0);
     const selectedGroupIndexRaw = parseInt(state.routeEditor?.selectedGroupIndex ?? visibleGroupIndices[visibleGroupIndices.length - 1] ?? 0, 10);
     const selectedGroupIndex = groups.length
         ? (Number.isFinite(selectedGroupIndexRaw) && selectedGroupIndexRaw >= 0
@@ -4715,7 +4710,7 @@ function renderRouteEditor(app) {
             <div id="fretboard-container" class="route-editor-fretboard-host"></div>
             <div class="route-editor-expanded-gap ${showAllGroupsExpanded ? 'route-editor-expanded-gap--visible' : ''}" aria-hidden="true"></div>
             <div class="route-editor-save-row">
-                <button type="button" class="btn-secondary route-editor-camera-save-btn" id="btn-route-editor-save-position">この位置を保存</button>
+                <button type="button" class="btn-secondary route-editor-camera-save-btn" id="btn-route-editor-save-position" ${activeGroupIndex >= 0 ? '' : 'disabled'}>この位置を保存</button>
                 <button type="button" class="btn-secondary route-editor-demo-btn" id="btn-route-editor-demo" ${draft.length ? '' : 'disabled'}>現在の順番でデモ</button>
                 <button class="btn-primary route-editor-save-btn" id="btn-route-editor-save" ${draft.length ? '' : 'disabled'}>この順番で保存</button>
             </div>
@@ -4792,7 +4787,8 @@ function renderRouteEditor(app) {
 
     document.getElementById('btn-route-editor-save-position').onclick = () => {
         if (!draft.length || !groups.length) return;
-        const targetGroupIndex = interactionGroupIndex;
+        const targetGroupIndex = activeGroupIndex;
+        if (targetGroupIndex < 0) return;
         const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
         const scrollLeft = wrapper ? wrapper.scrollLeft : 0;
         setSavedCruiseGroupScrollLeft(stage, targetGroupIndex, scrollLeft);
@@ -4966,6 +4962,7 @@ function renderRouteEditor(app) {
         onRouteEditorMarkerClick: (routeIndex) => {
             if (!Number.isFinite(routeIndex)) return;
             if (routeIndex < 0 || routeIndex >= state.routeEditor.draft.length) return;
+            if (activeGroupIndex < 0) return;
             blurActiveElement();
             pushRouteEditorHistory(stage);
             const clickedSlot = normalizeCruiseRouteSlot(state.routeEditor.draft[routeIndex]);
@@ -4974,7 +4971,7 @@ function renderRouteEditor(app) {
                 const preferredIndex = findRouteEditorRouteIndexInGroup(
                     state.routeEditor.draft,
                     state.routeEditor.groupBreaks,
-                    interactionGroupIndex,
+                    activeGroupIndex,
                     clickedSlot.stringName,
                     clickedSlot.fret
                 );
@@ -4989,8 +4986,9 @@ function renderRouteEditor(app) {
             renderApp();
         },
         onFretClick: (stringName, fret) => {
+            if (activeGroupIndex < 0) return;
             blurActiveElement();
-            const insertTargetGroupIndex = interactionGroupIndex;
+            const insertTargetGroupIndex = activeGroupIndex;
             pushRouteEditorHistory(stage);
             const inserted = insertRouteEditorSlotIntoGroup(
                 state.routeEditor.draft,
