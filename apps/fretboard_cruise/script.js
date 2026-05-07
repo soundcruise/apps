@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.57.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.57.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -2181,7 +2181,15 @@ function renderApp() {
             const shouldSmooth =
                 state.memorize.cruisePreviousGroupIndex !== null &&
                 state.memorize.cruisePreviousGroupIndex !== state.memorize.cruiseCurrentGroupIndex;
-            applyCruiseGroupScrollLeftDeferred(newWrapper, savedCruiseGroupScrollLeft, shouldSmooth);
+            if (shouldSmooth) {
+                applyCruiseGroupScrollLeftDeferred(newWrapper, savedCruiseGroupScrollLeft, true);
+            } else {
+                newWrapper.scrollLeft = savedCruiseGroupScrollLeft;
+                requestAnimationFrame(() => {
+                    if (!newWrapper.isConnected) return;
+                    newWrapper.scrollLeft = savedCruiseGroupScrollLeft;
+                });
+            }
             state.memorize.cruisePreviousGroupIndex = state.memorize.cruiseCurrentGroupIndex;
         } else if (state.course === 'routeEditor') {
             newWrapper.scrollLeft = currentScrollLeft;
