@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.56.9';
+const FRETBOARD_CRUISE_APP_VERSION = '1.57.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1371,6 +1371,28 @@ function setSavedCruiseGroupScrollLeft(stage, groupIndex, scrollLeft) {
     state.settings.cruiseStageGroupScrollLefts[routeKey][String(groupIndex)] = nextLeft;
 }
 
+function applyCruiseGroupScrollLeftDeferred(wrapper, targetScrollLeft, shouldSmooth = false) {
+    if (!wrapper) return;
+    const target = Math.max(0, Math.round(parseFloat(targetScrollLeft) || 0));
+    requestAnimationFrame(() => {
+        if (!wrapper.isConnected) return;
+        requestAnimationFrame(() => {
+            if (!wrapper.isConnected) return;
+            const maxScroll = Math.max(0, wrapper.scrollWidth - wrapper.clientWidth);
+            const left = clamp(target, 0, maxScroll);
+            if (shouldSmooth) {
+                wrapper.scrollTo({ left, behavior: 'smooth' });
+                requestAnimationFrame(() => {
+                    if (!wrapper.isConnected) return;
+                    wrapper.scrollLeft = left;
+                });
+            } else {
+                wrapper.scrollLeft = left;
+            }
+        });
+    });
+}
+
 function getRouteEditorCurrentScrollLeft() {
     const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
     return wrapper ? Math.max(0, Math.round(wrapper.scrollLeft)) : 0;
@@ -2163,11 +2185,7 @@ function renderApp() {
             const shouldSmooth =
                 state.memorize.cruisePreviousGroupIndex !== null &&
                 state.memorize.cruisePreviousGroupIndex !== state.memorize.cruiseCurrentGroupIndex;
-            if (shouldSmooth) {
-                newWrapper.scrollTo({ left: savedCruiseGroupScrollLeft, behavior: 'smooth' });
-            } else {
-                newWrapper.scrollLeft = savedCruiseGroupScrollLeft;
-            }
+            applyCruiseGroupScrollLeftDeferred(newWrapper, savedCruiseGroupScrollLeft, shouldSmooth);
             state.memorize.cruisePreviousGroupIndex = state.memorize.cruiseCurrentGroupIndex;
         } else if (state.course === 'routeEditor') {
             newWrapper.scrollLeft = currentScrollLeft;
@@ -7850,7 +7868,7 @@ function renderFretboardHTML(containerId, options) {
     }
 
     // メモライズのズーム指板だけ、描画直後にスクロール位置を整える（自由探索の全体ビューでは中央寄せ margin を壊さない）
-    if (mode === 'memorize' && containerId === 'fretboard-container') {
+    if (mode === 'memorize' && containerId === 'fretboard-container' && state.memorize.playMode !== 'cruise') {
         setTimeout(() => {
             const wrapper = containerEl.querySelector('.fretboard-scroll-wrapper');
             if (wrapper && wrapper.firstChild) {
