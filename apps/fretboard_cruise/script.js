@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.63.4';
+const FRETBOARD_CRUISE_APP_VERSION = '1.63.5';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1406,6 +1406,12 @@ function setSavedCruiseGroupScrollLeft(stage, groupIndex, scrollLeft) {
     }
     const nextLeft = Math.max(0, Math.round(parseFloat(scrollLeft) || 0));
     state.settings.cruiseStageGroupScrollLefts[routeKey][String(groupIndex)] = nextLeft;
+}
+
+function saveRouteEditorGroupScrollLeftIfMissing(stage, groupIndex, scrollLeft) {
+    if (getSavedCruiseGroupScrollLeft(stage, groupIndex) !== null) return false;
+    setSavedCruiseGroupScrollLeft(stage, groupIndex, scrollLeft);
+    return true;
 }
 
 /** クルーズ中の指板オーバーレイ（1/2・スタート! 等）を除去。自動スクロール直前に呼ぶ。 */
@@ -5129,10 +5135,7 @@ function renderRouteEditor(app) {
 
         // 直前のアクティブGrで「位置保存」未実行なら、現在位置を自動保存
         if (activeGroupIndex >= 0) {
-            const existing = getSavedCruiseGroupScrollLeft(stage, activeGroupIndex);
-            if (existing === null) {
-                setSavedCruiseGroupScrollLeft(stage, activeGroupIndex, currentScroll);
-            }
+            saveRouteEditorGroupScrollLeftIfMissing(stage, activeGroupIndex, currentScroll);
         }
 
         const nextBreaks = state.routeEditor.groupBreaks.slice();
@@ -5145,9 +5148,6 @@ function renderRouteEditor(app) {
         state.routeEditor.visibleGroupIndices = [nextIndex];
         state.routeEditor.selectedGroupIndex = nextIndex;
         state.routeEditor.showAllGroupsExpanded = false;
-
-        // 新Grの初期スクロール位置として現在位置を保存（次回再表示時もこの位置で開く）
-        setSavedCruiseGroupScrollLeft(stage, nextIndex, currentScroll);
 
         // 新グループの名前: 既存の最大番号 + 1
         const currentNames = Array.isArray(state.routeEditor.groupNames) ? state.routeEditor.groupNames : [];
@@ -5468,6 +5468,12 @@ function renderRouteEditor(app) {
             if (activeGroupIndex < 0) return;
             blurActiveElement();
             const insertTargetGroupIndex = activeGroupIndex;
+            const targetGroup = groups[insertTargetGroupIndex] || null;
+            const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+            const currentScroll = wrapper ? wrapper.scrollLeft : 0;
+            if (targetGroup && targetGroup.isEmpty) {
+                saveRouteEditorGroupScrollLeftIfMissing(stage, insertTargetGroupIndex, currentScroll);
+            }
             pushRouteEditorHistory(stage);
             const inserted = insertRouteEditorSlotIntoGroup(
                 state.routeEditor.draft,
