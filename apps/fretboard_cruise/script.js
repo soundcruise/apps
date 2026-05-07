@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.54.7';
+const FRETBOARD_CRUISE_APP_VERSION = '1.54.8';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -4636,15 +4636,20 @@ function renderRouteEditor(app) {
     };
     document.getElementById('btn-route-editor-load-default').onclick = () => {
         pushRouteEditorHistory(stage);
-        const { sequence } = buildDefaultCruiseStageSequence(stage);
-        state.routeEditor.draft = sequence.map(cruiseRouteSlotFromTarget);
+        const savedSlots = getSavedCruiseRouteSlots(stage);
+        const hasSavedSlots = savedSlots.length > 0;
+        const sequence = hasSavedSlots
+            ? savedSlots
+            : buildDefaultCruiseStageSequence(stage).sequence.map(cruiseRouteSlotFromTarget);
+        state.routeEditor.draft = cloneCruiseRouteSlots(sequence);
         state.routeEditor.deleteMode = false;
-        state.routeEditor.groupBreaks = buildAutoRouteEditorGroupBreaks(state.routeEditor.draft);
+        state.routeEditor.groupBreaks = hasSavedSlots
+            ? normalizeRouteEditorGroupBreaks(getRouteEditorSavedGroupBreaks(stage), state.routeEditor.draft.length)
+            : buildAutoRouteEditorGroupBreaks(state.routeEditor.draft);
         state.routeEditor.selectedGroupIndex = 0;
         state.routeEditor.visibleGroupIndices = buildRouteEditorGroupsFromBreaks(state.routeEditor.draft, state.routeEditor.groupBreaks).map((_, index) => index);
         state.routeEditor.forceHideAllGroups = false;
         state.routeEditor.showAllGroupsExpanded = false;
-        setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
         saveState();
         renderApp();
     };
