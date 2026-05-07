@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.61.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.62.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -5032,17 +5032,33 @@ function renderRouteEditor(app) {
     document.getElementById('btn-route-editor-group-split').onclick = () => {
         if (groups.length >= ROUTE_EDITOR_MAX_GROUPS) return;
         pushRouteEditorHistory(stage);
+
+        // 現在の指板スクロール位置を取得
+        const wrapperEl = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+        const currentScroll = wrapperEl ? wrapperEl.scrollLeft : 0;
+
+        // 直前のアクティブGrで「位置保存」未実行なら、現在位置を自動保存
+        if (activeGroupIndex >= 0) {
+            const existing = getSavedCruiseGroupScrollLeft(stage, activeGroupIndex);
+            if (existing === null) {
+                setSavedCruiseGroupScrollLeft(stage, activeGroupIndex, currentScroll);
+            }
+        }
+
         const nextBreaks = state.routeEditor.groupBreaks.slice();
         const nextIndex = groups.length;
         const nextStart = Math.max(draft.length, groups.length);
         nextBreaks.push(nextStart);
         state.routeEditor.groupBreaks = normalizeRouteEditorGroupBreaks(nextBreaks, draft.length);
         state.routeEditor.forceHideAllGroups = false;
-        const nextVisible = new Set(Array.isArray(state.routeEditor.visibleGroupIndices) ? state.routeEditor.visibleGroupIndices : []);
-        nextVisible.add(nextIndex);
-        state.routeEditor.visibleGroupIndices = Array.from(nextVisible).sort((a, b) => a - b);
-        state.routeEditor.selectedGroupIndex = Math.min(nextIndex, state.routeEditor.groupBreaks.length - 1);
+        // 新Grのみ表示・アクティブ、他はすべて非表示
+        state.routeEditor.visibleGroupIndices = [nextIndex];
+        state.routeEditor.selectedGroupIndex = nextIndex;
         state.routeEditor.showAllGroupsExpanded = false;
+
+        // 新Grの初期スクロール位置として現在位置を保存（次回再表示時もこの位置で開く）
+        setSavedCruiseGroupScrollLeft(stage, nextIndex, currentScroll);
+
         // 新グループの名前: 既存の最大番号 + 1
         const currentNames = Array.isArray(state.routeEditor.groupNames) ? state.routeEditor.groupNames : [];
         const maxNum = currentNames.reduce((m, name) => {
