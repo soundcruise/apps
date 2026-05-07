@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.57.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.57.3';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -157,6 +157,7 @@ let state = {
 let currentScrollLeft = 0;
 let autoScrollRequested = false;
 let nextTargetTime = 0;
+let pendingCruiseGroupScrollTimeoutId = null;
 let routeEditorScrollAppliedKey = null;
 let settingsReturnCourse = null;
 let settingsPausedState = null;
@@ -1273,6 +1274,7 @@ function stopRhythm() {
         clearTimeout(rhythmInterval);
         rhythmInterval = null;
     }
+    cancelPendingCruiseGroupScroll();
 }
 
 // ----------------------------------------------------
@@ -1387,6 +1389,24 @@ function applyCruiseGroupScrollLeftDeferred(wrapper, targetScrollLeft, shouldSmo
             }
         });
     });
+}
+
+function cancelPendingCruiseGroupScroll() {
+    if (pendingCruiseGroupScrollTimeoutId !== null) {
+        clearTimeout(pendingCruiseGroupScrollTimeoutId);
+        pendingCruiseGroupScrollTimeoutId = null;
+    }
+}
+
+function scheduleCruiseGroupScroll(targetScrollLeft) {
+    cancelPendingCruiseGroupScroll();
+    const oneBeatMs = 60000 / (state.settings.tempo || 120);
+    pendingCruiseGroupScrollTimeoutId = setTimeout(() => {
+        pendingCruiseGroupScrollTimeoutId = null;
+        if (state.course !== 'memorize' || state.memorize.playMode !== 'cruise') return;
+        const wrapper = document.querySelector('.fretboard-scroll-wrapper');
+        applyCruiseGroupScrollLeftDeferred(wrapper, targetScrollLeft, true);
+    }, oneBeatMs);
 }
 
 function getRouteEditorCurrentScrollLeft() {
@@ -2178,12 +2198,20 @@ function renderApp() {
 
         if (Number.isFinite(savedCruiseGroupScrollLeft)) {
             autoScrollRequested = false;
-            const shouldSmooth =
+            const isGroupChanged =
                 state.memorize.cruisePreviousGroupIndex !== null &&
                 state.memorize.cruisePreviousGroupIndex !== state.memorize.cruiseCurrentGroupIndex;
-            if (shouldSmooth) {
-                applyCruiseGroupScrollLeftDeferred(newWrapper, savedCruiseGroupScrollLeft, true);
+            if (isGroupChanged) {
+                // Gr.切り替わり: 現在の画角を維持しつつ、1拍後にsmooth scrollを発火
+                newWrapper.scrollLeft = currentScrollLeft;
+                requestAnimationFrame(() => {
+                    if (!newWrapper.isConnected) return;
+                    newWrapper.scrollLeft = currentScrollLeft;
+                });
+                scheduleCruiseGroupScroll(savedCruiseGroupScrollLeft);
             } else {
+                // 同一Gr.: 即時適用
+                cancelPendingCruiseGroupScroll();
                 newWrapper.scrollLeft = savedCruiseGroupScrollLeft;
                 requestAnimationFrame(() => {
                     if (!newWrapper.isConnected) return;
