@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.59.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.60.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -5331,19 +5331,32 @@ function renderRouteEditor(app) {
             if (activeGroupIndex < 0) return;
             const clickedSlot = normalizeCruiseRouteSlot(state.routeEditor.draft[routeIndex]);
             if (!clickedSlot) return;
-            // アクティブGr内に同じ位置のノートがある場合のみ削除（他Grのノートは消さない）
-            const deleteIndex = findRouteEditorRouteIndexInGroup(
-                state.routeEditor.draft,
-                state.routeEditor.groupBreaks,
-                activeGroupIndex,
-                clickedSlot.stringName,
-                clickedSlot.fret
+
+            // クリックされたノートが属するGrを特定
+            const allGroups = getRouteEditorGroups(state.routeEditor.draft, state.routeEditor.groupBreaks);
+            const clickedGroupIndex = allGroups.findIndex(g =>
+                Number.isFinite(g.start) && Number.isFinite(g.end) &&
+                g.end >= g.start && g.start <= routeIndex && routeIndex <= g.end
             );
-            if (deleteIndex < 0) return;
+
+            // 他Grのノートをタップ → そのGrをアクティブ化（削除しない）
+            if (clickedGroupIndex >= 0 && clickedGroupIndex !== activeGroupIndex) {
+                blurActiveElement();
+                const nextVisible = new Set(visibleGroupIndices);
+                nextVisible.add(clickedGroupIndex);
+                state.routeEditor.visibleGroupIndices = Array.from(nextVisible).sort((a, b) => a - b);
+                state.routeEditor.selectedGroupIndex = clickedGroupIndex;
+                state.routeEditor.forceHideAllGroups = false;
+                saveState();
+                renderApp();
+                return;
+            }
+
+            // アクティブGrのノートをタップ → 削除
             blurActiveElement();
             pushRouteEditorHistory(stage);
-            state.routeEditor.draft.splice(deleteIndex, 1);
-            state.routeEditor.groupBreaks = adjustRouteEditorGroupBreaksForDelete(state.routeEditor.groupBreaks, deleteIndex, state.routeEditor.draft.length);
+            state.routeEditor.draft.splice(routeIndex, 1);
+            state.routeEditor.groupBreaks = adjustRouteEditorGroupBreaksForDelete(state.routeEditor.groupBreaks, routeIndex, state.routeEditor.draft.length);
             setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
             saveState();
             renderApp();
