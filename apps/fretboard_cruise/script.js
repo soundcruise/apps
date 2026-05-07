@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.63.15';
+const FRETBOARD_CRUISE_APP_VERSION = '1.63.16';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -68,18 +68,24 @@ const SHIPPED_DEFAULT_STAGE_3_ROUTE_SLOTS = JSON.parse(
 const SHIPPED_DEFAULT_STAGE_3_ROUTE_GROUP_BREAKS = JSON.parse(
     '[0,6,10,12,20,28,36]'
 );
-/** STAGE4 初期ルート（現在の「初期順」）。`scripts/compute-stage4-shipped-default.mjs` で同内容を再生成可 */
-const SHIPPED_DEFAULT_STAGE_4_ROUTE_SLOTS = JSON.parse(
-    '[{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":6,"fret":12},{"stringName":6,"fret":13},{"stringName":5,"fret":10},{"stringName":5,"fret":12},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":12},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":3,"fret":12},{"stringName":2,"fret":10},{"stringName":2,"fret":12},{"stringName":2,"fret":13},{"stringName":2,"fret":13},{"stringName":1,"fret":10},{"stringName":1,"fret":12},{"stringName":1,"fret":13},{"stringName":1,"fret":13},{"stringName":1,"fret":12},{"stringName":1,"fret":10},{"stringName":2,"fret":13},{"stringName":2,"fret":13},{"stringName":2,"fret":12},{"stringName":2,"fret":10},{"stringName":3,"fret":12},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":4,"fret":12},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":5,"fret":12},{"stringName":5,"fret":10},{"stringName":6,"fret":13},{"stringName":6,"fret":12},{"stringName":6,"fret":10},{"stringName":6,"fret":8}]'
-);
-const SHIPPED_DEFAULT_STAGE_4_ROUTE_GROUP_BREAKS = JSON.parse(
-    '[0,8,16,20,24,32]'
-);
+/** STAGE4 初期ルート（STAGE3 の複製）。`scripts/compute-stage4-shipped-default.mjs` で同内容を再生成可 */
+const SHIPPED_DEFAULT_STAGE_4_ROUTE_SLOTS = SHIPPED_DEFAULT_STAGE_3_ROUTE_SLOTS.map(slot => ({
+    stringName: slot.stringName,
+    fret: slot.fret
+}));
+const SHIPPED_DEFAULT_STAGE_4_ROUTE_GROUP_BREAKS = SHIPPED_DEFAULT_STAGE_3_ROUTE_GROUP_BREAKS.slice();
 /** STAGE5 初期ルート（現在の「初期順」）。`scripts/compute-stage5-shipped-default.mjs` で同内容を再生成可 */
 const SHIPPED_DEFAULT_STAGE_5_ROUTE_SLOTS = JSON.parse(
-    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":5,"fret":0},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":4,"fret":0},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":3,"fret":0},{"stringName":3,"fret":2},{"stringName":2,"fret":0},{"stringName":2,"fret":1},{"stringName":2,"fret":1},{"stringName":2,"fret":3},{"stringName":1,"fret":0},{"stringName":1,"fret":1},{"stringName":1,"fret":3},{"stringName":1,"fret":3},{"stringName":1,"fret":1},{"stringName":1,"fret":0},{"stringName":2,"fret":3},{"stringName":2,"fret":1},{"stringName":2,"fret":1},{"stringName":2,"fret":0},{"stringName":3,"fret":2},{"stringName":3,"fret":0},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":4,"fret":0},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":5,"fret":5},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":4,"fret":5},{"stringName":3,"fret":2},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":2,"fret":3},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":1,"fret":3},{"stringName":1,"fret":5},{"stringName":1,"fret":5},{"stringName":1,"fret":3},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":2,"fret":3},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":3,"fret":2},{"stringName":4,"fret":5},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":5,"fret":5},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":6,"fret":5},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":6,"fret":7},{"stringName":6,"fret":8},{"stringName":6,"fret":8},{"stringName":5,"fret":5},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":4,"fret":5},{"stringName":4,"fret":7},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":7},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":2,"fret":8},{"stringName":1,"fret":5},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":1,"fret":5},{"stringName":2,"fret":8},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":3,"fret":7},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":4,"fret":7},{"stringName":4,"fret":5},{"stringName":5,"fret":8},{"stringName":5,"fret":7},{"stringName":5,"fret":5},{"stringName":6,"fret":8},{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":5,"fret":10},{"stringName":4,"fret":7},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":3,"fret":7},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":2,"fret":8},{"stringName":2,"fret":10},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":2,"fret":10},{"stringName":2,"fret":8},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":3,"fret":7},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":4,"fret":7},{"stringName":5,"fret":10},{"stringName":5,"fret":8},{"stringName":5,"fret":7},{"stringName":6,"fret":10},{"stringName":6,"fret":8},{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":6,"fret":12},{"stringName":6,"fret":13},{"stringName":5,"fret":10},{"stringName":5,"fret":12},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":12},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":3,"fret":12},{"stringName":2,"fret":10},{"stringName":2,"fret":12},{"stringName":2,"fret":13},{"stringName":2,"fret":13},{"stringName":1,"fret":10},{"stringName":1,"fret":12},{"stringName":1,"fret":13},{"stringName":1,"fret":13},{"stringName":1,"fret":12},{"stringName":1,"fret":10},{"stringName":2,"fret":13},{"stringName":2,"fret":13},{"stringName":2,"fret":12},{"stringName":2,"fret":10},{"stringName":3,"fret":12},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":4,"fret":12},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":5,"fret":12},{"stringName":5,"fret":10},{"stringName":6,"fret":13},{"stringName":6,"fret":12},{"stringName":6,"fret":10},{"stringName":6,"fret":8}]'
+    '[{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":6,"fret":12},{"stringName":6,"fret":13},{"stringName":5,"fret":10},{"stringName":5,"fret":12},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":12},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":3,"fret":12},{"stringName":2,"fret":10},{"stringName":2,"fret":12},{"stringName":2,"fret":13},{"stringName":2,"fret":13},{"stringName":1,"fret":10},{"stringName":1,"fret":12},{"stringName":1,"fret":13},{"stringName":1,"fret":13},{"stringName":1,"fret":12},{"stringName":1,"fret":10},{"stringName":2,"fret":13},{"stringName":2,"fret":13},{"stringName":2,"fret":12},{"stringName":2,"fret":10},{"stringName":3,"fret":12},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":4,"fret":12},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":5,"fret":12},{"stringName":5,"fret":10},{"stringName":6,"fret":13},{"stringName":6,"fret":12},{"stringName":6,"fret":10},{"stringName":6,"fret":8}]'
 );
 const SHIPPED_DEFAULT_STAGE_5_ROUTE_GROUP_BREAKS = JSON.parse(
+    '[0,8,16,20,24,32]'
+);
+/** STAGE6 初期ルート（現在の「初期順」）。`scripts/compute-stage6-shipped-default.mjs` で同内容を再生成可 */
+const SHIPPED_DEFAULT_STAGE_6_ROUTE_SLOTS = JSON.parse(
+    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":5,"fret":0},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":4,"fret":0},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":3,"fret":0},{"stringName":3,"fret":2},{"stringName":2,"fret":0},{"stringName":2,"fret":1},{"stringName":2,"fret":1},{"stringName":2,"fret":3},{"stringName":1,"fret":0},{"stringName":1,"fret":1},{"stringName":1,"fret":3},{"stringName":1,"fret":3},{"stringName":1,"fret":1},{"stringName":1,"fret":0},{"stringName":2,"fret":3},{"stringName":2,"fret":1},{"stringName":2,"fret":1},{"stringName":2,"fret":0},{"stringName":3,"fret":2},{"stringName":3,"fret":0},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":4,"fret":0},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":5,"fret":5},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":4,"fret":5},{"stringName":3,"fret":2},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":2,"fret":3},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":1,"fret":3},{"stringName":1,"fret":5},{"stringName":1,"fret":5},{"stringName":1,"fret":3},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":2,"fret":3},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":3,"fret":2},{"stringName":4,"fret":5},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":5,"fret":5},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":6,"fret":5},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":6,"fret":7},{"stringName":6,"fret":8},{"stringName":6,"fret":8},{"stringName":5,"fret":5},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":4,"fret":5},{"stringName":4,"fret":7},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":7},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":2,"fret":8},{"stringName":1,"fret":5},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":1,"fret":5},{"stringName":2,"fret":8},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":3,"fret":7},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":4,"fret":7},{"stringName":4,"fret":5},{"stringName":5,"fret":8},{"stringName":5,"fret":7},{"stringName":5,"fret":5},{"stringName":6,"fret":8},{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":5,"fret":10},{"stringName":4,"fret":7},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":3,"fret":7},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":2,"fret":8},{"stringName":2,"fret":10},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":2,"fret":10},{"stringName":2,"fret":8},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":3,"fret":7},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":4,"fret":7},{"stringName":5,"fret":10},{"stringName":5,"fret":8},{"stringName":5,"fret":7},{"stringName":6,"fret":10},{"stringName":6,"fret":8},{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":6,"fret":12},{"stringName":6,"fret":13},{"stringName":5,"fret":10},{"stringName":5,"fret":12},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":12},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":3,"fret":12},{"stringName":2,"fret":10},{"stringName":2,"fret":12},{"stringName":2,"fret":13},{"stringName":2,"fret":13},{"stringName":1,"fret":10},{"stringName":1,"fret":12},{"stringName":1,"fret":13},{"stringName":1,"fret":13},{"stringName":1,"fret":12},{"stringName":1,"fret":10},{"stringName":2,"fret":13},{"stringName":2,"fret":13},{"stringName":2,"fret":12},{"stringName":2,"fret":10},{"stringName":3,"fret":12},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":4,"fret":12},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":5,"fret":12},{"stringName":5,"fret":10},{"stringName":6,"fret":13},{"stringName":6,"fret":12},{"stringName":6,"fret":10},{"stringName":6,"fret":8}]'
+);
+const SHIPPED_DEFAULT_STAGE_6_ROUTE_GROUP_BREAKS = JSON.parse(
     '[0,6,12,20,25,30,38,44,50,58,64,70,78,84,88,90,98,106,114,122,130,138,146,154,156,162,170,174,178,186]'
 );
 
@@ -113,6 +119,13 @@ function getShippedDefaultStage4RouteSlots() {
 
 function getShippedDefaultStage5RouteSlots() {
     return SHIPPED_DEFAULT_STAGE_5_ROUTE_SLOTS.map(slot => ({
+        stringName: slot.stringName,
+        fret: slot.fret
+    }));
+}
+
+function getShippedDefaultStage6RouteSlots() {
+    return SHIPPED_DEFAULT_STAGE_6_ROUTE_SLOTS.map(slot => ({
         stringName: slot.stringName,
         fret: slot.fret
     }));
@@ -222,6 +235,7 @@ let state = {
         cruiseStageRoutes: {},
         cruiseStageRouteGroups: {},
         cruiseStageGroupScrollLefts: {},
+        routeNumberingVersion: 2,
         neckModelVersion: FRETBOARD_NECK_MODEL_VERSION
     }
 };
@@ -467,6 +481,9 @@ if (savedState) {
         if (!state.routeEditor.groupPanelOffset || typeof state.routeEditor.groupPanelOffset !== 'object') {
             state.routeEditor.groupPanelOffset = { x: 0, y: 0 };
         }
+        if (migrateCruiseStageNumberingIfNeeded()) {
+            saveState();
+        }
     } catch (e) {}
 }
 
@@ -561,6 +578,7 @@ function getDefaultSettings() {
         cruiseStageRoutes: {},
         cruiseStageRouteGroups: {},
         cruiseStageGroupScrollLefts: {},
+        routeNumberingVersion: 2,
         neckModelVersion: FRETBOARD_NECK_MODEL_VERSION
     };
 }
@@ -573,6 +591,56 @@ function cloneSettings(settings) {
         cruiseStageRouteGroups: JSON.parse(JSON.stringify(settings.cruiseStageRouteGroups || {})),
         cruiseStageGroupScrollLefts: JSON.parse(JSON.stringify(settings.cruiseStageGroupScrollLefts || {}))
     };
+}
+
+function shiftCruiseStageNumber(stage) {
+    if (stage === 4) return 5;
+    if (stage === 5) return 6;
+    return stage;
+}
+
+function migrateCruiseStageNumberingIfNeeded() {
+    const currentVersion = parseInt(state.settings?.routeNumberingVersion ?? 0, 10) || 0;
+    if (currentVersion >= 2) return false;
+    const cloneValue = value => JSON.parse(JSON.stringify(value));
+    const moveStageKey = (collection, fromStage, toStage) => {
+        if (!collection || typeof collection !== 'object' || Array.isArray(collection)) return;
+        const fromKey = String(fromStage);
+        const toKey = String(toStage);
+        if (Object.prototype.hasOwnProperty.call(collection, fromKey)) {
+            collection[toKey] = cloneValue(collection[fromKey]);
+        } else {
+            delete collection[toKey];
+        }
+        delete collection[fromKey];
+    };
+
+    moveStageKey(state.settings.cruiseStageRoutes, 5, 6);
+    moveStageKey(state.settings.cruiseStageRoutes, 4, 5);
+    moveStageKey(state.settings.cruiseStageRouteGroups, 5, 6);
+    moveStageKey(state.settings.cruiseStageRouteGroups, 4, 5);
+    moveStageKey(state.settings.cruiseStageGroupScrollLefts, 5, 6);
+    moveStageKey(state.settings.cruiseStageGroupScrollLefts, 4, 5);
+
+    if (state.memorize && typeof state.memorize.stage === 'number') {
+        state.memorize.stage = shiftCruiseStageNumber(state.memorize.stage);
+    }
+    if (state.routeEditor && typeof state.routeEditor.stage === 'number') {
+        state.routeEditor.stage = shiftCruiseStageNumber(state.routeEditor.stage);
+    }
+    if (Array.isArray(state.routeEditor?.history)) {
+        state.routeEditor.history = state.routeEditor.history.map(snapshot => {
+            if (!snapshot || typeof snapshot !== 'object') return snapshot;
+            const nextSnapshot = { ...snapshot };
+            if (typeof nextSnapshot.stage === 'number') {
+                nextSnapshot.stage = shiftCruiseStageNumber(nextSnapshot.stage);
+            }
+            return nextSnapshot;
+        });
+    }
+
+    state.settings.routeNumberingVersion = 2;
+    return true;
 }
 
 function openSettings(returnCourse = state.course) {
@@ -2203,6 +2271,16 @@ function buildDefaultCruiseStageSequence(stage) {
             sequence,
             cruiseScope,
             groupBreaks: SHIPPED_DEFAULT_STAGE_5_ROUTE_GROUP_BREAKS.slice()
+        };
+    }
+    if (stage === 6) {
+        const slots = getShippedDefaultStage6RouteSlots();
+        const sequence = slots.map(slot => makeCruiseTarget(slot.stringName, slot.fret));
+        const cruiseScope = makeCruiseScopeFromSequence(sequence);
+        return {
+            sequence,
+            cruiseScope,
+            groupBreaks: SHIPPED_DEFAULT_STAGE_6_ROUTE_GROUP_BREAKS.slice()
         };
     }
 
@@ -4890,9 +4968,9 @@ function renderStageSelect(app) {
         { stage: 1, title: 'STAGE 1', desc: '開放弦〜3フレット (#なし)' },
         { stage: 2, title: 'STAGE 2', desc: '開放弦〜5フレット (#なし)' },
         { stage: 3, title: 'STAGE 3', desc: '5〜9フレット (#なし)' },
-        { stage: 4, title: 'STAGE 4', desc: '5〜12フレット (#なし)' },
-        { stage: 5, title: 'STAGE 5', desc: '総復習メドレー (STAGE 1〜4)' },
-        { stage: 6, title: 'STAGE 6', desc: '全指板マスター (0〜12フレット)' }
+        { stage: 4, title: 'STAGE 4', desc: '5〜9フレット (#なし, STAGE 3複製)' },
+        { stage: 5, title: 'STAGE 5', desc: '5〜12フレット (#なし)' },
+        { stage: 6, title: 'STAGE 6', desc: '総復習メドレー (STAGE 1〜4)' }
     ];
     const stageButtonsHtml = stageDefs.map(def => {
         const savedCount = getSavedCruiseRouteSlots(def.stage).length;
@@ -4942,14 +5020,20 @@ function renderStageSelect(app) {
     document.querySelectorAll('.stage-route-edit-btn').forEach(btn => {
         btn.onclick = () => {
             const stage = parseInt(btn.getAttribute('data-edit-stage'), 10);
+            const defaultStage = buildDefaultCruiseStageSequence(stage);
             let savedSlots = getSavedCruiseRouteSlots(stage);
-            if (!savedSlots.length && stage === 1) {
+            const useDefaultSlots = !savedSlots.length && stage >= 4;
+            if (useDefaultSlots) {
+                savedSlots = cloneCruiseRouteSlots(defaultStage.sequence.map(cruiseRouteSlotFromTarget));
+            } else if (!savedSlots.length && stage === 1) {
                 savedSlots = cloneCruiseRouteSlots(getShippedDefaultStage1RouteSlots());
             }
             const savedGroupBreaks = normalizeRouteEditorGroupBreaks(getRouteEditorSavedGroupBreaks(stage), savedSlots.length);
             const initialGroupBreaks = savedGroupBreaks.length
                 ? savedGroupBreaks
-                : buildAutoRouteEditorGroupBreaks(savedSlots);
+                : (useDefaultSlots && Array.isArray(defaultStage.groupBreaks) && defaultStage.groupBreaks.length
+                    ? defaultStage.groupBreaks.slice()
+                    : buildAutoRouteEditorGroupBreaks(savedSlots));
             const initialGroups = buildRouteEditorGroupsFromBreaks(savedSlots, initialGroupBreaks);
             stopRhythm();
             state.routeEditor = {
@@ -5048,7 +5132,7 @@ function renderRouteEditor(app) {
     if (activeGroupIndex >= 0 && routeEditorScrollAppliedKey !== routeEditorScrollKey) {
         const savedRouteEditorScrollLeft = getSavedCruiseGroupScrollLeft(stage, activeGroupIndex);
         const pendingRouteEditorScrollLeft = getPendingRouteEditorGroupScrollLeft(stage, activeGroupIndex);
-        const preferPendingScroll = (stage === 4 || stage === 5) && Number.isFinite(pendingRouteEditorScrollLeft);
+        const preferPendingScroll = (stage === 4 || stage === 5 || stage === 6) && Number.isFinite(pendingRouteEditorScrollLeft);
         if (preferPendingScroll) {
             currentScrollLeft = pendingRouteEditorScrollLeft;
         } else if (Number.isFinite(savedRouteEditorScrollLeft)) {
@@ -5171,21 +5255,13 @@ function renderRouteEditor(app) {
     document.getElementById('btn-route-editor-load-default').onclick = () => {
         pushRouteEditorHistory(stage);
         const defaultStage = buildDefaultCruiseStageSequence(stage);
-        const savedSlots = getSavedCruiseRouteSlots(stage);
-        const hasSavedSlots = savedSlots.length > 0;
-        const useSavedSlots = hasSavedSlots && stage > 5;
-        const sequence = useSavedSlots
-            ? savedSlots
-            : defaultStage.sequence.map(cruiseRouteSlotFromTarget);
+        const sequence = defaultStage.sequence.map(cruiseRouteSlotFromTarget);
         const defaultGroupBreaks = Array.isArray(defaultStage.groupBreaks) && defaultStage.groupBreaks.length
             ? normalizeRouteEditorGroupBreaks(defaultStage.groupBreaks, sequence.length)
             : [];
-        const savedGroupBreaks = normalizeRouteEditorGroupBreaks(getRouteEditorSavedGroupBreaks(stage), sequence.length);
         state.routeEditor.draft = cloneCruiseRouteSlots(sequence);
         state.routeEditor.deleteMode = false;
-        state.routeEditor.groupBreaks = useSavedSlots
-            ? (savedGroupBreaks.length ? savedGroupBreaks : defaultGroupBreaks.length ? defaultGroupBreaks : buildAutoRouteEditorGroupBreaks(state.routeEditor.draft))
-            : (defaultGroupBreaks.length ? defaultGroupBreaks : buildAutoRouteEditorGroupBreaks(state.routeEditor.draft));
+        state.routeEditor.groupBreaks = defaultGroupBreaks.length ? defaultGroupBreaks : buildAutoRouteEditorGroupBreaks(state.routeEditor.draft);
         state.routeEditor.selectedGroupIndex = 0;
         state.routeEditor.visibleGroupIndices = buildRouteEditorGroupsFromBreaks(state.routeEditor.draft, state.routeEditor.groupBreaks).map((_, index) => index);
         state.routeEditor.forceHideAllGroups = false;
@@ -5253,8 +5329,8 @@ function renderRouteEditor(app) {
         }, currentNames.length);
         state.routeEditor.groupNames = [...currentNames, `Gr.${maxNum + 1}`];
         setPendingRouteEditorGroupScrollLeft(stage, nextIndex, currentScroll);
-        if (stage === 4 || stage === 5) {
-            // STAGE4/5 は 13F 追加後に古い保存位置へ戻ると表示が左端に寄りやすいので、
+        if (stage === 4 || stage === 5 || stage === 6) {
+            // STAGE4/5/6 は 13F 追加後に古い保存位置へ戻ると表示が左端に寄りやすいので、
             // 新規 Gr の既存保存値は捨てて、今見ている位置を優先する。
             clearSavedCruiseGroupScrollLeft(stage, nextIndex);
         }
