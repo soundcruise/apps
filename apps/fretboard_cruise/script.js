@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.56.6';
+const FRETBOARD_CRUISE_APP_VERSION = '1.56.7';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -5050,8 +5050,9 @@ function renderRouteEditor(app) {
                 return;
             }
             state.routeEditor.forceHideAllGroups = false;
+            nextVisible.delete(index);
             state.routeEditor.visibleGroupIndices = Array.from(nextVisible).sort((a, b) => a - b);
-            state.routeEditor.selectedGroupIndex = getRouteEditorPreviousVisibleGroupIndex(state.routeEditor.visibleGroupIndices, index);
+            state.routeEditor.selectedGroupIndex = -1;
             saveState();
             renderApp();
         };
