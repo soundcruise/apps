@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.63.9';
+const FRETBOARD_CRUISE_APP_VERSION = '1.63.10';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1421,6 +1421,18 @@ function setSavedCruiseGroupScrollLeft(stage, groupIndex, scrollLeft) {
     }
     const nextLeft = Math.max(0, Math.round(parseFloat(scrollLeft) || 0));
     state.settings.cruiseStageGroupScrollLefts[routeKey][String(groupIndex)] = nextLeft;
+}
+
+function clearSavedCruiseGroupScrollLeft(stage, groupIndex) {
+    const all = state.settings.cruiseStageGroupScrollLefts;
+    if (!all || typeof all !== 'object' || Array.isArray(all)) return;
+    const routeKey = String(stage);
+    const stageMap = all[routeKey];
+    if (!stageMap || typeof stageMap !== 'object' || Array.isArray(stageMap)) return;
+    delete stageMap[String(groupIndex)];
+    if (!Object.keys(stageMap).length) {
+        delete all[routeKey];
+    }
 }
 
 function saveRouteEditorGroupScrollLeftIfMissing(stage, groupIndex, scrollLeft) {
@@ -5000,7 +5012,10 @@ function renderRouteEditor(app) {
     if (activeGroupIndex >= 0 && routeEditorScrollAppliedKey !== routeEditorScrollKey) {
         const savedRouteEditorScrollLeft = getSavedCruiseGroupScrollLeft(stage, activeGroupIndex);
         const pendingRouteEditorScrollLeft = getPendingRouteEditorGroupScrollLeft(stage, activeGroupIndex);
-        if (Number.isFinite(savedRouteEditorScrollLeft)) {
+        const preferPendingScroll = (stage === 4 || stage === 5) && Number.isFinite(pendingRouteEditorScrollLeft);
+        if (preferPendingScroll) {
+            currentScrollLeft = pendingRouteEditorScrollLeft;
+        } else if (Number.isFinite(savedRouteEditorScrollLeft)) {
             currentScrollLeft = savedRouteEditorScrollLeft;
         } else if (Number.isFinite(pendingRouteEditorScrollLeft)) {
             currentScrollLeft = pendingRouteEditorScrollLeft;
@@ -5206,6 +5221,11 @@ function renderRouteEditor(app) {
         }, currentNames.length);
         state.routeEditor.groupNames = [...currentNames, `Gr.${maxNum + 1}`];
         setPendingRouteEditorGroupScrollLeft(stage, nextIndex, currentScroll);
+        if (stage === 4 || stage === 5) {
+            // STAGE4/5 は 13F 追加後に古い保存位置へ戻ると表示が左端に寄りやすいので、
+            // 新規 Gr の既存保存値は捨てて、今見ている位置を優先する。
+            clearSavedCruiseGroupScrollLeft(stage, nextIndex);
+        }
         setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
         saveState();
         renderApp();
