@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.57.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.57.4';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1119,6 +1119,7 @@ function autoAdvanceCruise() {
         let q = state.memorize.currentQuestion;
         playTone(q.stringIdx, q.fret);
         renderApp();
+        scheduleNextGroupScrollIfNeeded();
         return;
     }
     
@@ -1168,6 +1169,7 @@ function autoAdvanceCruise() {
                 autoScrollRequested = true;
                 saveState();
                 renderApp();
+                scheduleNextGroupScrollIfNeeded();
                 return;
             }
             // 規定ループ完了：STOP
@@ -1202,6 +1204,7 @@ function autoAdvanceCruise() {
         autoScrollRequested = true;
         saveState();
         renderApp();
+        scheduleNextGroupScrollIfNeeded();
     };
 
     advanceToNext();
@@ -1407,6 +1410,25 @@ function scheduleCruiseGroupScroll(targetScrollLeft) {
         const wrapper = document.querySelector('.fretboard-scroll-wrapper');
         applyCruiseGroupScrollLeftDeferred(wrapper, targetScrollLeft, true);
     }, oneBeatMs);
+}
+
+function scheduleNextGroupScrollIfNeeded() {
+    if (state.course !== 'memorize' || state.memorize.playMode !== 'cruise') return;
+    const currentGr = state.memorize.cruiseCurrentGroupIndex;
+    const targets = state.memorize.cruiseTargets;
+    const groupIndices = state.memorize.cruiseGroupIndices;
+    const nextIdx = state.memorize.cruiseIndex + 1;
+    const nextGr = nextIdx < targets.length
+        ? (groupIndices[nextIdx] ?? currentGr)
+        : (groupIndices[0] ?? currentGr); // ループ境界
+    if (nextGr !== currentGr) {
+        const nextScrollLeft = getSavedCruiseGroupScrollLeft(state.memorize.stage, nextGr);
+        if (Number.isFinite(nextScrollLeft)) {
+            scheduleCruiseGroupScroll(nextScrollLeft);
+            return;
+        }
+    }
+    cancelPendingCruiseGroupScroll();
 }
 
 function getRouteEditorCurrentScrollLeft() {
@@ -2201,23 +2223,14 @@ function renderApp() {
             const isGroupChanged =
                 state.memorize.cruisePreviousGroupIndex !== null &&
                 state.memorize.cruisePreviousGroupIndex !== state.memorize.cruiseCurrentGroupIndex;
-            if (isGroupChanged) {
-                // Gr.切り替わり: 現在の画角を維持しつつ、1拍後にsmooth scrollを発火
-                newWrapper.scrollLeft = currentScrollLeft;
-                requestAnimationFrame(() => {
-                    if (!newWrapper.isConnected) return;
-                    newWrapper.scrollLeft = currentScrollLeft;
-                });
-                scheduleCruiseGroupScroll(savedCruiseGroupScrollLeft);
-            } else {
-                // 同一Gr.: 即時適用
-                cancelPendingCruiseGroupScroll();
+            // Gr.切り替わり時はlook-aheadで1拍前にスクロール予約済み。
+            // renderApp時点では画角を確定させるため即時スナップ。
+            if (isGroupChanged) cancelPendingCruiseGroupScroll();
+            newWrapper.scrollLeft = savedCruiseGroupScrollLeft;
+            requestAnimationFrame(() => {
+                if (!newWrapper.isConnected) return;
                 newWrapper.scrollLeft = savedCruiseGroupScrollLeft;
-                requestAnimationFrame(() => {
-                    if (!newWrapper.isConnected) return;
-                    newWrapper.scrollLeft = savedCruiseGroupScrollLeft;
-                });
-            }
+            });
             state.memorize.cruisePreviousGroupIndex = state.memorize.cruiseCurrentGroupIndex;
         } else if (state.course === 'routeEditor') {
             newWrapper.scrollLeft = currentScrollLeft;
