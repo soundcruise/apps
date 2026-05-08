@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.64.6';
+const FRETBOARD_CRUISE_APP_VERSION = '1.64.7';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1535,6 +1535,13 @@ function clearSavedCruiseGroupScrollLeft(stage, groupIndex) {
     }
 }
 
+/** ステージ単位で全グループの saved スクロール位置を消す（全消し・初期順時に使う） */
+function clearAllSavedCruiseGroupScrollLeftsForStage(stage) {
+    const all = state.settings.cruiseStageGroupScrollLefts;
+    if (!all || typeof all !== 'object' || Array.isArray(all)) return;
+    delete all[String(stage)];
+}
+
 function saveRouteEditorGroupScrollLeftIfMissing(stage, groupIndex, scrollLeft) {
     if (getSavedCruiseGroupScrollLeft(stage, groupIndex) !== null) return false;
     setSavedCruiseGroupScrollLeft(stage, groupIndex, scrollLeft);
@@ -1590,8 +1597,20 @@ function tickRouteEditorScrollRaf() {
             routeEditorFretboardScrollSnapshot = s;
         }
     }
+    const stage = state.routeEditor?.stage;
+    const activeIdx = state.routeEditor?.selectedGroupIndex ?? -1;
+    let savedStr = '-';
+    if (Number.isFinite(stage) && activeIdx >= 0) {
+        const draft = state.routeEditor?.draft || [];
+        const breaks = state.routeEditor?.groupBreaks || [];
+        const allGroups = buildRouteEditorGroupsFromBreaks(draft, breaks);
+        const grAll = allGroups[activeIdx];
+        const grSize = grAll ? (grAll.end - grAll.start) : 0;
+        const sv = getSavedCruiseGroupScrollLeft(stage, activeIdx);
+        savedStr = `Gr.${activeIdx + 1} saved=${sv === null ? 'null' : sv} size=${grSize}`;
+    }
     const hud = ensureRouteEditorDebugHud();
-    hud.textContent = `live=${liveStr}\nsnap=${routeEditorFretboardScrollSnapshot}\nlast event=${routeEditorScrollDebugLastEvent}\nlast saved=${routeEditorScrollDebugLastSaved}`;
+    hud.textContent = `live=${liveStr}\nsnap=${routeEditorFretboardScrollSnapshot}\n${savedStr}\nlast event=${routeEditorScrollDebugLastEvent}\nlast saved=${routeEditorScrollDebugLastSaved}`;
     routeEditorScrollRafId = requestAnimationFrame(tickRouteEditorScrollRaf);
 }
 
@@ -5297,6 +5316,9 @@ function renderRouteEditor(app) {
         state.routeEditor.forceHideAllGroups = false;
         state.routeEditor.showAllGroupsExpanded = false;
         setRouteEditorSavedGroupBreaks(stage, [0]);
+        clearAllSavedCruiseGroupScrollLeftsForStage(stage);
+        routeEditorScrollDebugLastEvent = `CLEAR-ALL stage=${stage} (saved cleared)`;
+        routeEditorScrollDebugLastSaved = '-';
         saveState();
         renderApp();
     };
@@ -5314,6 +5336,9 @@ function renderRouteEditor(app) {
         state.routeEditor.visibleGroupIndices = buildRouteEditorGroupsFromBreaks(state.routeEditor.draft, state.routeEditor.groupBreaks).map((_, index) => index);
         state.routeEditor.forceHideAllGroups = false;
         state.routeEditor.showAllGroupsExpanded = false;
+        clearAllSavedCruiseGroupScrollLeftsForStage(stage);
+        routeEditorScrollDebugLastEvent = `LOAD-DEFAULT stage=${stage} (saved cleared)`;
+        routeEditorScrollDebugLastSaved = '-';
         saveState();
         renderApp();
     };
@@ -5710,12 +5735,14 @@ function renderRouteEditor(app) {
                 currentScroll = pendingScroll;
             }
             if (currentScroll > 0) routeEditorFretboardScrollSnapshot = currentScroll;
-            const noSavedScrollYet = getSavedCruiseGroupScrollLeft(stage, insertTargetGroupIndex) === null;
-            routeEditorScrollDebugLastEvent = `TAP live=${liveScroll} pend=${pendingScroll} snap=${routeEditorFretboardScrollSnapshot} noSaved=${noSavedScrollYet}`;
-            if (targetGroup && noSavedScrollYet) {
-                saveRouteEditorGroupScrollLeftIfMissing(stage, insertTargetGroupIndex, currentScroll);
+            // 「最初の音」=「グループが空」のときだけ saved を自動書き込み（必ず上書き）
+            const isGroupEmpty = !targetGroup || (targetGroup.end - targetGroup.start === 0);
+            const savedNow = getSavedCruiseGroupScrollLeft(stage, insertTargetGroupIndex);
+            routeEditorScrollDebugLastEvent = `TAP live=${liveScroll} pend=${pendingScroll} snap=${routeEditorFretboardScrollSnapshot} empty=${isGroupEmpty} saved=${savedNow}`;
+            if (isGroupEmpty) {
+                setSavedCruiseGroupScrollLeft(stage, insertTargetGroupIndex, currentScroll);
                 clearPendingRouteEditorGroupScrollLeft(stage, insertTargetGroupIndex);
-                routeEditorScrollDebugLastSaved = `Gr.${insertTargetGroupIndex + 1} = ${currentScroll} (auto)`;
+                routeEditorScrollDebugLastSaved = `Gr.${insertTargetGroupIndex + 1} = ${currentScroll} (first note)`;
             }
             pushRouteEditorHistory(stage);
             const inserted = insertRouteEditorSlotIntoGroup(
