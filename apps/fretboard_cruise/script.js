@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.63.19';
+const FRETBOARD_CRUISE_APP_VERSION = '1.63.20';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -5895,15 +5895,6 @@ function renderMemorize(app) {
             ? state.memorize.cruiseTargets[state.memorize.cruiseIndex + 1]
             : null
     };
-
-    // STAGE2縦画面：開放弦～6フレット固定、スクロールなし
-    const isPortrait = window.innerWidth <= window.innerHeight;
-    if (isCruise && state.memorize.stage === 2 && isPortrait) {
-        fretboardOptions.ruleTapLayoutZoomFitFloatRange = [0, 6];
-        fretboardOptions.ruleTapLayoutLockScroll = true;
-        fretboardOptions.ruleTapZoomScrollAnchorFret = -1.5;
-        autoScrollRequested = false;
-    }
 
     renderFretboardHTML('fretboard-container', fretboardOptions);
 
