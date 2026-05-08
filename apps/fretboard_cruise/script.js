@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.64.7';
+const FRETBOARD_CRUISE_APP_VERSION = '1.64.8';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1605,9 +1605,9 @@ function tickRouteEditorScrollRaf() {
         const breaks = state.routeEditor?.groupBreaks || [];
         const allGroups = buildRouteEditorGroupsFromBreaks(draft, breaks);
         const grAll = allGroups[activeIdx];
-        const grSize = grAll ? (grAll.end - grAll.start) : 0;
+        const noteCount = grAll ? Math.max(0, grAll.end - grAll.start + 1) : 0;
         const sv = getSavedCruiseGroupScrollLeft(stage, activeIdx);
-        savedStr = `Gr.${activeIdx + 1} saved=${sv === null ? 'null' : sv} size=${grSize}`;
+        savedStr = `Gr.${activeIdx + 1} saved=${sv === null ? 'null' : sv} notes=${noteCount}`;
     }
     const hud = ensureRouteEditorDebugHud();
     hud.textContent = `live=${liveStr}\nsnap=${routeEditorFretboardScrollSnapshot}\n${savedStr}\nlast event=${routeEditorScrollDebugLastEvent}\nlast saved=${routeEditorScrollDebugLastSaved}`;
@@ -5177,6 +5177,19 @@ function renderRouteEditor(app) {
     groupBreaks = savedGroupBreaks.length ? savedGroupBreaks : autoGroupBreaks;
     if (!groupBreaks.length) groupBreaks = [0];
     const groups = getRouteEditorGroups(draft, groupBreaks);
+    // 「ノートが0個のグループ」の saved は意味を持たないので、画面に入った瞬間に自動掃除する。
+    // これにより過去バージョンで残ったゴミ saved（=0 など）を残さない。
+    {
+        let didCleanup = false;
+        groups.forEach((g, idx) => {
+            const noteCount = Math.max(0, (g?.end ?? -1) - (g?.start ?? 0) + 1);
+            if (noteCount === 0 && getSavedCruiseGroupScrollLeft(stage, idx) !== null) {
+                clearSavedCruiseGroupScrollLeft(stage, idx);
+                didCleanup = true;
+            }
+        });
+        if (didCleanup) saveState();
+    }
     const visibleGroupIndices = state.routeEditor?.forceHideAllGroups ? [] : getRouteEditorVisibleGroupIndices(groups.length);
     const visibleGroups = visibleGroupIndices
         .map(index => ({ ...(groups[index] || {}), index }))
@@ -5735,10 +5748,13 @@ function renderRouteEditor(app) {
                 currentScroll = pendingScroll;
             }
             if (currentScroll > 0) routeEditorFretboardScrollSnapshot = currentScroll;
-            // 「最初の音」=「グループが空」のときだけ saved を自動書き込み（必ず上書き）
-            const isGroupEmpty = !targetGroup || (targetGroup.end - targetGroup.start === 0);
+            // 「最初の音」=「グループに音が0個」のときだけ saved を自動書き込み（必ず上書き）
+            // 注意: buildRouteEditorGroupsFromBreaks は空グループに end = start - 1 を返すので
+            //       isEmpty フラグまたは end < start で判定する（end - start === 0 では誤判定）
+            const noteCount = targetGroup ? Math.max(0, targetGroup.end - targetGroup.start + 1) : 0;
+            const isGroupEmpty = !targetGroup || targetGroup.isEmpty === true || noteCount === 0;
             const savedNow = getSavedCruiseGroupScrollLeft(stage, insertTargetGroupIndex);
-            routeEditorScrollDebugLastEvent = `TAP live=${liveScroll} pend=${pendingScroll} snap=${routeEditorFretboardScrollSnapshot} empty=${isGroupEmpty} saved=${savedNow}`;
+            routeEditorScrollDebugLastEvent = `TAP live=${liveScroll} pend=${pendingScroll} snap=${routeEditorFretboardScrollSnapshot} notes=${noteCount} empty=${isGroupEmpty} saved=${savedNow}`;
             if (isGroupEmpty) {
                 setSavedCruiseGroupScrollLeft(stage, insertTargetGroupIndex, currentScroll);
                 clearPendingRouteEditorGroupScrollLeft(stage, insertTargetGroupIndex);
