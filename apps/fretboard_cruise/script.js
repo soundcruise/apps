@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.64.8';
+const FRETBOARD_CRUISE_APP_VERSION = '1.65.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1567,50 +1567,20 @@ function clearPendingRouteEditorGroupScrollLeft(stage, groupIndex) {
 }
 
 let routeEditorScrollRafId = null;
-let routeEditorScrollDebugLastSaved = '-';
-let routeEditorScrollDebugLastEvent = '-';
 
-function ensureRouteEditorDebugHud() {
-    let hud = document.getElementById('route-editor-scroll-hud');
-    if (!hud) {
-        hud = document.createElement('div');
-        hud.id = 'route-editor-scroll-hud';
-        hud.style.cssText = 'position:fixed;top:6px;left:6px;z-index:99999;background:rgba(0,0,0,.85);color:#0f0;font:11px/1.3 monospace;padding:6px 8px;border-radius:6px;pointer-events:none;white-space:pre;max-width:90vw';
-        document.body.appendChild(hud);
-    }
-    return hud;
-}
-
+/** routeEditor 中の横スクロール量を RAF で追跡し、タップ時に wrapper.scrollLeft が 0 を返す場面でも保存できるようにする */
 function tickRouteEditorScrollRaf() {
     if (state.course !== 'routeEditor') {
-        const hud = document.getElementById('route-editor-scroll-hud');
-        if (hud) hud.remove();
         routeEditorScrollRafId = null;
         return;
     }
     const w = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
-    let liveStr = 'no-wrapper';
     if (w) {
         const s = Math.max(0, Math.round(w.scrollLeft));
-        liveStr = `${s} (cw=${w.clientWidth} sw=${w.scrollWidth})`;
         if (s > 0) {
             routeEditorFretboardScrollSnapshot = s;
         }
     }
-    const stage = state.routeEditor?.stage;
-    const activeIdx = state.routeEditor?.selectedGroupIndex ?? -1;
-    let savedStr = '-';
-    if (Number.isFinite(stage) && activeIdx >= 0) {
-        const draft = state.routeEditor?.draft || [];
-        const breaks = state.routeEditor?.groupBreaks || [];
-        const allGroups = buildRouteEditorGroupsFromBreaks(draft, breaks);
-        const grAll = allGroups[activeIdx];
-        const noteCount = grAll ? Math.max(0, grAll.end - grAll.start + 1) : 0;
-        const sv = getSavedCruiseGroupScrollLeft(stage, activeIdx);
-        savedStr = `Gr.${activeIdx + 1} saved=${sv === null ? 'null' : sv} notes=${noteCount}`;
-    }
-    const hud = ensureRouteEditorDebugHud();
-    hud.textContent = `live=${liveStr}\nsnap=${routeEditorFretboardScrollSnapshot}\n${savedStr}\nlast event=${routeEditorScrollDebugLastEvent}\nlast saved=${routeEditorScrollDebugLastSaved}`;
     routeEditorScrollRafId = requestAnimationFrame(tickRouteEditorScrollRaf);
 }
 
@@ -5330,8 +5300,6 @@ function renderRouteEditor(app) {
         state.routeEditor.showAllGroupsExpanded = false;
         setRouteEditorSavedGroupBreaks(stage, [0]);
         clearAllSavedCruiseGroupScrollLeftsForStage(stage);
-        routeEditorScrollDebugLastEvent = `CLEAR-ALL stage=${stage} (saved cleared)`;
-        routeEditorScrollDebugLastSaved = '-';
         saveState();
         renderApp();
     };
@@ -5350,8 +5318,6 @@ function renderRouteEditor(app) {
         state.routeEditor.forceHideAllGroups = false;
         state.routeEditor.showAllGroupsExpanded = false;
         clearAllSavedCruiseGroupScrollLeftsForStage(stage);
-        routeEditorScrollDebugLastEvent = `LOAD-DEFAULT stage=${stage} (saved cleared)`;
-        routeEditorScrollDebugLastSaved = '-';
         saveState();
         renderApp();
     };
@@ -5378,8 +5344,6 @@ function renderRouteEditor(app) {
         setSavedCruiseGroupScrollLeft(stage, targetGroupIndex, scrollLeft);
         clearPendingRouteEditorGroupScrollLeft(stage, targetGroupIndex);
         if (scrollLeft > 0) routeEditorFretboardScrollSnapshot = scrollLeft;
-        routeEditorScrollDebugLastEvent = `SAVE-BTN Gr.${targetGroupIndex + 1} live=${live} snap=${routeEditorFretboardScrollSnapshot}`;
-        routeEditorScrollDebugLastSaved = `Gr.${targetGroupIndex + 1} = ${scrollLeft}`;
         saveState();
     };
 
@@ -5397,7 +5361,6 @@ function renderRouteEditor(app) {
         const wrapperEl = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
         const rawLeft = wrapperEl ? wrapperEl.scrollLeft : 0;
         const currentScroll = Math.max(rawLeft, routeEditorFretboardScrollSnapshot);
-        routeEditorScrollDebugLastEvent = `+ raw=${rawLeft} snap=${routeEditorFretboardScrollSnapshot} → ${currentScroll}`;
 
         // saved を書き換えるのは「最初の音」と「位置保存」の 2 タイミングのみ。
         // 「+」では直前 Gr の saved には触らず、新 Gr の pending に現在位置を入れて画面復元に使う。
@@ -5753,12 +5716,9 @@ function renderRouteEditor(app) {
             //       isEmpty フラグまたは end < start で判定する（end - start === 0 では誤判定）
             const noteCount = targetGroup ? Math.max(0, targetGroup.end - targetGroup.start + 1) : 0;
             const isGroupEmpty = !targetGroup || targetGroup.isEmpty === true || noteCount === 0;
-            const savedNow = getSavedCruiseGroupScrollLeft(stage, insertTargetGroupIndex);
-            routeEditorScrollDebugLastEvent = `TAP live=${liveScroll} pend=${pendingScroll} snap=${routeEditorFretboardScrollSnapshot} notes=${noteCount} empty=${isGroupEmpty} saved=${savedNow}`;
             if (isGroupEmpty) {
                 setSavedCruiseGroupScrollLeft(stage, insertTargetGroupIndex, currentScroll);
                 clearPendingRouteEditorGroupScrollLeft(stage, insertTargetGroupIndex);
-                routeEditorScrollDebugLastSaved = `Gr.${insertTargetGroupIndex + 1} = ${currentScroll} (first note)`;
             }
             pushRouteEditorHistory(stage);
             const inserted = insertRouteEditorSlotIntoGroup(
