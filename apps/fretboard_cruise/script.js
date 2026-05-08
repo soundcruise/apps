@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.64.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.64.4';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1559,9 +1559,29 @@ function clearPendingRouteEditorGroupScrollLeft(stage, groupIndex) {
     routeEditorPendingGroupScrollLefts.delete(key);
 }
 
+/**
+ * 拡大ビュー等で wrapper.scrollLeft が 0 を返す場面でも視覚的な横スクロール量を拾えるよう、
+ * 0F の fret-column の bounding rect から「ラッパー左端 - 0F左端」を算出し、scrollLeft と大きい方を採用する。
+ */
+function getRouteEditorBestScrollLeft(wrapper) {
+    if (!wrapper) {
+        wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+    }
+    if (!wrapper) return 0;
+    const live = Math.max(0, Math.round(wrapper.scrollLeft));
+    const col0 = wrapper.querySelector('.fret-column[data-fret="0"][data-string="6"]');
+    if (col0) {
+        const wrapperRect = wrapper.getBoundingClientRect();
+        const col0Rect = col0.getBoundingClientRect();
+        const fromRects = Math.max(0, Math.round(wrapperRect.left - col0Rect.left));
+        return Math.max(live, fromRects);
+    }
+    return live;
+}
+
 function syncRouteEditorFretboardScrollSnapshotFromWrapper(wrapper) {
     if (!wrapper) return;
-    routeEditorFretboardScrollSnapshot = Math.max(0, Math.round(wrapper.scrollLeft));
+    routeEditorFretboardScrollSnapshot = getRouteEditorBestScrollLeft(wrapper);
 }
 
 /** 同一 wrapper に対して重複登録しない scroll リスナー（指のドラッグ後の scrollLeft を記録） */
@@ -5311,7 +5331,7 @@ function renderRouteEditor(app) {
         const targetGroupIndex = activeGroupIndex;
         if (targetGroupIndex < 0) return;
         const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
-        const live = wrapper ? wrapper.scrollLeft : 0;
+        const live = getRouteEditorBestScrollLeft(wrapper);
         const scrollLeft = Math.max(live, routeEditorFretboardScrollSnapshot);
         setSavedCruiseGroupScrollLeft(stage, targetGroupIndex, scrollLeft);
         clearPendingRouteEditorGroupScrollLeft(stage, targetGroupIndex);
@@ -5329,9 +5349,9 @@ function renderRouteEditor(app) {
         if (groups.length >= ROUTE_EDITOR_MAX_GROUPS) return;
         pushRouteEditorHistory(stage);
 
-        // 現在の指板スクロール位置を取得（拡大時は同期読み取りが 0 になりがちなのでスナップショットと併用）
+        // 現在の指板スクロール位置を取得（拡大時は同期読み取りが 0 になりがちなのでスナップショット・bounding rect と併用）
         const wrapperEl = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
-        const rawLeft = wrapperEl ? wrapperEl.scrollLeft : 0;
+        const rawLeft = getRouteEditorBestScrollLeft(wrapperEl);
         const currentScroll = Math.max(rawLeft, routeEditorFretboardScrollSnapshot);
 
         // saved を書き換えるのは「最初の音」と「位置保存」の 2 タイミングのみ。
@@ -5676,7 +5696,7 @@ function renderRouteEditor(app) {
             const targetGroup = groups[insertTargetGroupIndex] || null;
             const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
             syncRouteEditorFretboardScrollSnapshotFromWrapper(wrapper);
-            const liveScroll = wrapper ? wrapper.scrollLeft : 0;
+            const liveScroll = getRouteEditorBestScrollLeft(wrapper);
             const pendingScroll = getPendingRouteEditorGroupScrollLeft(stage, insertTargetGroupIndex);
             let currentScroll = Math.max(liveScroll, routeEditorFretboardScrollSnapshot);
             if (currentScroll === 0 && Number.isFinite(pendingScroll) && pendingScroll > 0) {
