@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.63.17';
+const FRETBOARD_CRUISE_APP_VERSION = '1.63.18';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1204,6 +1204,7 @@ function handleQuizTimeout() {
     let app = document.getElementById('app');
     renderFretboardHTML('fretboard-container', {
         mode: 'memorize',
+        memorizeStage: state.memorize.stage,
         question: state.memorize.currentQuestion,
         showAnswer: true,
         clicked: null,
@@ -5884,6 +5885,7 @@ function renderMemorize(app) {
 
     const fretboardOptions = {
         mode: 'memorize',
+        memorizeStage: state.memorize.stage,
         question: q,
         showAnswer: isCruise,
         clicked: null,
@@ -5998,6 +6000,7 @@ function handleFretClick(stringNum, fret) {
         
         renderFretboardHTML('fretboard-container', {
             mode: 'memorize',
+            memorizeStage: state.memorize.stage,
             question: q,
             showAnswer: true,
             clicked: { stringNum, fret, isCorrect: true },
@@ -6012,6 +6015,7 @@ function handleFretClick(stringNum, fret) {
         
         renderFretboardHTML('fretboard-container', {
             mode: 'memorize',
+            memorizeStage: state.memorize.stage,
             question: q,
             showAnswer: true,
             clicked: { stringNum, fret, isCorrect: false },
@@ -7044,12 +7048,15 @@ function getRenderMaxFret(mode, options) {
             getHighestFretFromPositions(state.memorize.cruiseTargets),
             getHighestFretFromPositions(state.memorize.cruiseScope)
         );
+        if (options.memorizeStage === 6) {
+            maxFret = Math.max(maxFret, 13);
+        }
     } else if (mode === 'routeEditor') {
         maxFret = Math.max(
             maxFret,
             getHighestFretFromPositions(options.routeEditorDraft)
         );
-        if (options.routeEditorStage === 4 || options.routeEditorStage === 5) {
+        if (options.routeEditorStage === 5 || options.routeEditorStage === 6) {
             maxFret = Math.max(maxFret, 13);
         }
     }
