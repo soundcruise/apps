@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.63.20';
+const FRETBOARD_CRUISE_APP_VERSION = '1.63.21';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -5134,7 +5134,7 @@ function renderRouteEditor(app) {
     if (activeGroupIndex >= 0 && routeEditorScrollAppliedKey !== routeEditorScrollKey) {
         const savedRouteEditorScrollLeft = getSavedCruiseGroupScrollLeft(stage, activeGroupIndex);
         const pendingRouteEditorScrollLeft = getPendingRouteEditorGroupScrollLeft(stage, activeGroupIndex);
-        const preferPendingScroll = (stage === 4 || stage === 5 || stage === 6) && Number.isFinite(pendingRouteEditorScrollLeft);
+        const preferPendingScroll = Number.isFinite(pendingRouteEditorScrollLeft);
         if (preferPendingScroll) {
             currentScrollLeft = pendingRouteEditorScrollLeft;
         } else if (Number.isFinite(savedRouteEditorScrollLeft)) {
