@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.64.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.63.21';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -5309,8 +5309,10 @@ function renderRouteEditor(app) {
         const wrapperEl = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
         const currentScroll = wrapperEl ? wrapperEl.scrollLeft : 0;
 
-        // saved を書き換えるのは「最初の音」と「位置保存」の 2 タイミングのみ。
-        // 「+」では直前 Gr の saved には触らず、新 Gr の pending に現在位置を入れて画面復元に使う。
+        // 直前のアクティブGrで「位置保存」未実行なら、現在位置を自動保存
+        if (activeGroupIndex >= 0) {
+            saveRouteEditorGroupScrollLeftIfMissing(stage, activeGroupIndex, currentScroll);
+        }
 
         const nextBreaks = state.routeEditor.groupBreaks.slice();
         const nextIndex = groups.length;
