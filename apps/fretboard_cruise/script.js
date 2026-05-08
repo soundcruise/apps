@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.63.18';
+const FRETBOARD_CRUISE_APP_VERSION = '1.63.19';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -7925,7 +7925,9 @@ function renderFretboardHTML(containerId, options) {
                     }
                 } else {
                     const scaledW = projectedBounds.width * scale;
-                    centerTx = Math.max(0, Math.round((layoutW - scaledW) / 2));
+                    centerTx = (mode === 'memorize' && !land)
+                        ? 0
+                        : Math.max(0, Math.round((layoutW - scaledW) / 2));
                     if (visualizeFretHost && mode !== 'rule') {
                         let rightOffset;
                         if (land) {
@@ -8036,7 +8038,9 @@ function renderFretboardHTML(containerId, options) {
                                     }
                                 } else {
                                     const sw = projectedBounds.width * scale;
-                                    centerTx = Math.max(0, Math.round((layoutW - sw) / 2));
+                                    centerTx = (mode === 'memorize' && !land)
+                                        ? 0
+                                        : Math.max(0, Math.round((layoutW - sw) / 2));
                                     if (visualizeFretHost && mode !== 'rule') {
                                         let rightOffset;
                                         if (land) {
