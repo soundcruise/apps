@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.64.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.64.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -5649,7 +5649,9 @@ function renderRouteEditor(app) {
             const insertTargetGroupIndex = activeGroupIndex;
             const targetGroup = groups[insertTargetGroupIndex] || null;
             const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
-            const currentScroll = wrapper ? wrapper.scrollLeft : 0;
+            const liveScroll = wrapper ? wrapper.scrollLeft : 0;
+            const pendingScroll = getPendingRouteEditorGroupScrollLeft(stage, insertTargetGroupIndex);
+            const currentScroll = Number.isFinite(pendingScroll) ? pendingScroll : liveScroll;
             if (targetGroup && targetGroup.isEmpty) {
                 saveRouteEditorGroupScrollLeftIfMissing(stage, insertTargetGroupIndex, currentScroll);
                 clearPendingRouteEditorGroupScrollLeft(stage, insertTargetGroupIndex);
