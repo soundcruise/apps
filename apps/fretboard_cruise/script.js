@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.64.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.64.3';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1568,13 +1568,12 @@ function syncRouteEditorFretboardScrollSnapshotFromWrapper(wrapper) {
 function ensureRouteEditorFretboardScrollTracking(wrapper) {
     if (!wrapper || wrapper.dataset.routeEditorScrollTracked === '1') return;
     wrapper.dataset.routeEditorScrollTracked = '1';
-    wrapper.addEventListener(
-        'scroll',
-        () => {
-            syncRouteEditorFretboardScrollSnapshotFromWrapper(wrapper);
-        },
-        { passive: true }
-    );
+    const sync = () => syncRouteEditorFretboardScrollSnapshotFromWrapper(wrapper);
+    wrapper.addEventListener('scroll', sync, { passive: true });
+    /** iOS 等: 慣性スクロールの途中でタップすると scrollLeft がまだ追いついていないことがある */
+    wrapper.addEventListener('pointerup', sync, { passive: true });
+    wrapper.addEventListener('touchend', sync, { passive: true });
+    wrapper.addEventListener('scrollend', sync, { passive: true });
 }
 
 /** クルーズ中の指板オーバーレイ（1/2・スタート! 等）を除去。自動スクロール直前に呼ぶ。 */
@@ -5676,6 +5675,7 @@ function renderRouteEditor(app) {
             const insertTargetGroupIndex = activeGroupIndex;
             const targetGroup = groups[insertTargetGroupIndex] || null;
             const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+            syncRouteEditorFretboardScrollSnapshotFromWrapper(wrapper);
             const liveScroll = wrapper ? wrapper.scrollLeft : 0;
             const pendingScroll = getPendingRouteEditorGroupScrollLeft(stage, insertTargetGroupIndex);
             let currentScroll = Math.max(liveScroll, routeEditorFretboardScrollSnapshot);
@@ -5683,7 +5683,8 @@ function renderRouteEditor(app) {
                 currentScroll = pendingScroll;
             }
             routeEditorFretboardScrollSnapshot = Math.max(routeEditorFretboardScrollSnapshot, currentScroll);
-            if (targetGroup && targetGroup.isEmpty) {
+            const noSavedScrollYet = getSavedCruiseGroupScrollLeft(stage, insertTargetGroupIndex) === null;
+            if (targetGroup && noSavedScrollYet) {
                 saveRouteEditorGroupScrollLeftIfMissing(stage, insertTargetGroupIndex, currentScroll);
                 clearPendingRouteEditorGroupScrollLeft(stage, insertTargetGroupIndex);
             }
