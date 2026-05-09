@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.79.5';
+const FRETBOARD_CRUISE_APP_VERSION = '1.79.6';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -2779,10 +2779,11 @@ function renderApp() {
         app.style.overflow = 'hidden';
         const memorizeLandApp = window.innerWidth > window.innerHeight;
         // 縦画面はSTAGE選択画面（.app-container { padding:20px }）と
-        // ヘッダー位置を揃えるため、上余白を 20px 起点にする。
-        // 横画面は指板領域がタイトなので従来どおり詰める。
+        // ヘッダー位置を揃えるため上余白を 20px 起点にする。
+        // 横画面は指板の縦サイズに影響しない範囲で
+        // 「戻る/TOP/設定」ボタン群が上端に張り付かないよう 10px 起点に拡張する。
         app.style.paddingTop = memorizeLandApp
-            ? 'max(2px, env(safe-area-inset-top))'
+            ? 'max(10px, env(safe-area-inset-top))'
             : 'max(20px, env(safe-area-inset-top))';
         app.style.paddingBottom =
             'calc(var(--in-game-refresh-stack-height, 96px) + max(8px, env(safe-area-inset-bottom)))';
