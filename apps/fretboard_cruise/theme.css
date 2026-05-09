@@ -707,61 +707,6 @@
     color: #333;
 }
 
-/* STAGE 1 横画面 cruise 専用: 指板拡大トライアルタブ。
-   layout flow に影響を与えないよう position:fixed で配置する。 */
-.cruise-layout-trial-tabs {
-    position: fixed;
-    top: max(8px, env(safe-area-inset-top));
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 140;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
-    border-radius: 999px;
-    background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
-    pointer-events: auto;
-}
-
-.cruise-layout-trial-tabs__label {
-    font-size: 0.68rem;
-    color: rgba(255, 255, 255, 0.72);
-    letter-spacing: 0.04em;
-    margin-right: 2px;
-    user-select: none;
-}
-
-.cruise-layout-trial-tab {
-    appearance: none;
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    background: transparent;
-    color: rgba(255, 255, 255, 0.78);
-    font-size: 0.78rem;
-    font-weight: 600;
-    line-height: 1;
-    padding: 4px 9px;
-    border-radius: 999px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
-}
-
-.cruise-layout-trial-tab:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #fff;
-}
-
-.cruise-layout-trial-tab.is-active {
-    background: var(--primary-color, #4f9cf9);
-    color: #fff;
-    border-color: var(--primary-color, #4f9cf9);
-    box-shadow: 0 0 8px rgba(79, 156, 249, 0.45);
-}
-
 .memorize-repeat-hint-tabs {
     display: flex;
     flex-wrap: wrap;
