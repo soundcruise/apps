@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.81.12';
+const FRETBOARD_CRUISE_APP_VERSION = '1.82.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -248,6 +248,12 @@ let state = {
         showAllGroupsExpanded: false,
         groupPanelOffset: { x: 0, y: 0 }
     },
+    quizEditor: {
+        stage: 1,
+        groups: [{ notes: [], scrollLeft: 0 }],
+        selectedGroupIndex: 0,
+        groupPanelOffset: { x: 0, y: 0 }
+    },
     settings: {
         tempo: DEFAULT_TEMPO,
         quizTimeLimit: DEFAULT_QUIZ_TIME_LIMIT,
@@ -265,6 +271,7 @@ let state = {
         cruiseStageRoutes: {},
         cruiseStageRouteGroups: {},
         cruiseStageGroupScrollLefts: {},
+        quizStageEditorSettings: {},
         routeNumberingVersion: 2,
         neckModelVersion: FRETBOARD_NECK_MODEL_VERSION
     }
@@ -1872,6 +1879,33 @@ function applyShippedDefaultCruiseGroupScrollLeftsForStage(stage) {
     state.settings.cruiseStageGroupScrollLefts[String(st)] = next;
 }
 
+function getQuizEditorSavedSettings(stage) {
+    const all = state.settings.quizStageEditorSettings;
+    if (!all || typeof all !== 'object') return null;
+    const s = all[String(stage)];
+    if (!s || !Array.isArray(s.groups) || s.groups.length === 0) return null;
+    return s;
+}
+
+function saveQuizEditorSettings(stage, groups) {
+    if (!state.settings.quizStageEditorSettings || typeof state.settings.quizStageEditorSettings !== 'object') {
+        state.settings.quizStageEditorSettings = {};
+    }
+    state.settings.quizStageEditorSettings[String(stage)] = {
+        groups: groups.map(g => ({
+            notes: (g.notes || [])
+                .filter(n => n && Number.isFinite(n.stringName) && Number.isFinite(n.fret))
+                .map(n => ({ stringName: n.stringName, fret: n.fret })),
+            scrollLeft: Number.isFinite(g.scrollLeft) ? Math.max(0, Math.round(g.scrollLeft)) : 0
+        }))
+    };
+}
+
+function getQuizEditorDefaultGroups(stage) {
+    const targets = getStageTargets(stage);
+    return [{ notes: targets.map(t => ({ stringName: t.stringName, fret: t.fret })), scrollLeft: 0 }];
+}
+
 function saveRouteEditorGroupScrollLeftIfMissing(stage, groupIndex, scrollLeft) {
     if (getSavedCruiseGroupScrollLeft(stage, groupIndex) !== null) return false;
     setSavedCruiseGroupScrollLeft(stage, groupIndex, scrollLeft);
@@ -2761,15 +2795,69 @@ function startCruisePlaybackFromSequence(sequence, cruiseScope = null, stage = n
 }
 
 function generateQuestion() {
-    let targets = getStageTargets(state.memorize.stage);
+    const savedSettings = getQuizEditorSavedSettings(state.memorize.stage);
+    let targets;
+    let noteGroupMap = null;
+    let savedGroups = null;
+
+    if (savedSettings && savedSettings.groups && savedSettings.groups.some(g => g.notes && g.notes.length > 0)) {
+        // カスタム設定が存在する場合: 全グループのノートからユニークなプールを作成
+        savedGroups = savedSettings.groups;
+        const poolMap = new Map();
+        savedGroups.forEach((group, groupIndex) => {
+            (group.notes || []).forEach(note => {
+                const key = `${note.stringName}-${note.fret}`;
+                if (!poolMap.has(key)) {
+                    const stringName = note.stringName;
+                    const fret = note.fret;
+                    const stringIdx = 6 - stringName;
+                    const noteIdx = (OPEN_STRINGS[stringIdx] + fret) % 12;
+                    poolMap.set(key, { stringIdx, stringName, fret, noteIdx, noteName: NOTES[noteIdx] });
+                }
+            });
+        });
+        targets = Array.from(poolMap.values());
+        // ノートごとにどのGrに属するか記録
+        noteGroupMap = new Map();
+        savedGroups.forEach((group, groupIndex) => {
+            (group.notes || []).forEach(note => {
+                const key = `${note.stringName}-${note.fret}`;
+                const arr = noteGroupMap.get(key) || [];
+                if (!arr.includes(groupIndex)) arr.push(groupIndex);
+                noteGroupMap.set(key, arr);
+            });
+        });
+    } else {
+        targets = getStageTargets(state.memorize.stage);
+    }
+
     if (targets.length === 0) return;
-    
+
     let target = targets[getRandomInt(0, targets.length - 1)];
-    
+
     // Prevent the exact same question string+note from appearing twice in a row if possible
     if (state.memorize.currentQuestion && targets.length > 1) {
-        while (target.stringIdx === state.memorize.currentQuestion.stringIdx && target.noteIdx === state.memorize.currentQuestion.noteIdx) {
+        let tries = 0;
+        while (
+            target.stringIdx === state.memorize.currentQuestion.stringIdx &&
+            target.noteIdx === state.memorize.currentQuestion.noteIdx &&
+            tries < 20
+        ) {
             target = targets[getRandomInt(0, targets.length - 1)];
+            tries++;
+        }
+    }
+
+    // カスタム設定がある場合、GrのscrollLeftを問題に付加
+    if (noteGroupMap && savedGroups) {
+        const key = `${target.stringName}-${target.fret}`;
+        const grIndices = noteGroupMap.get(key) || [];
+        if (grIndices.length > 0) {
+            const chosenGrIndex = grIndices[getRandomInt(0, grIndices.length - 1)];
+            const grScrollLeft = savedGroups[chosenGrIndex]?.scrollLeft;
+            if (Number.isFinite(grScrollLeft)) {
+                target = { ...target, quizGrScrollLeft: grScrollLeft };
+            }
         }
     }
 
@@ -2841,6 +2929,8 @@ function renderApp() {
     if (oldScrollGroup === 'memorize' && state.course === 'memorize') {
         currentScrollLeft = oldWrapper.scrollLeft;
     } else if (oldScrollGroup === 'routeEditor' && state.course === 'routeEditor') {
+        currentScrollLeft = oldWrapper.scrollLeft;
+    } else if (oldScrollGroup === 'quizEditor' && state.course === 'quizEditor') {
         currentScrollLeft = oldWrapper.scrollLeft;
     } else if (
         oldScrollGroup === 'visualize' &&
@@ -2938,6 +3028,8 @@ function renderApp() {
         renderMemorize(app);
     } else if (state.course === 'routeEditor') {
         renderRouteEditor(app);
+    } else if (state.course === 'quizEditor') {
+        renderQuizEditor(app);
     } else if (state.course === 'visualize') {
         renderVisualize(app);
     } else if (state.course === 'settings') {
@@ -2998,6 +3090,12 @@ function renderApp() {
                 newWrapper.scrollLeft = savedCruiseGroupScrollLeft;
             });
             state.memorize.cruisePreviousGroupIndex = state.memorize.cruiseCurrentGroupIndex;
+        } else if (state.course === 'quizEditor') {
+            newWrapper.scrollLeft = currentScrollLeft;
+            requestAnimationFrame(() => {
+                if (!newWrapper.isConnected || state.course !== 'quizEditor') return;
+                newWrapper.scrollLeft = currentScrollLeft;
+            });
         } else if (state.course === 'routeEditor') {
             newWrapper.scrollLeft = currentScrollLeft;
             routeEditorFretboardScrollSnapshot = currentScrollLeft;
@@ -3061,7 +3159,16 @@ function renderApp() {
                     newWrapper.scrollLeft = 0;
                 }
             } else if (state.course === 'memorize' && state.memorize.playMode === 'quiz') {
-                newWrapper.scrollLeft = 0;
+                // クイズGrスクロール: カスタム設定のGrに保存位置があれば適用
+                const qGrScroll = state.memorize.currentQuestion?.quizGrScrollLeft;
+                if (Number.isFinite(qGrScroll) && state.settings.fretboardView === 'zoom') {
+                    newWrapper.scrollLeft = qGrScroll;
+                    requestAnimationFrame(() => {
+                        if (newWrapper.isConnected) newWrapper.scrollLeft = qGrScroll;
+                    });
+                } else {
+                    newWrapper.scrollLeft = 0;
+                }
             } else {
                 newWrapper.scrollLeft = 0;
             }
@@ -5435,11 +5542,19 @@ function renderStageSelect(app) {
             : '';
         const stageBtnClass = clearBadge ? 'stage-btn stage-btn--has-side-badge' : 'stage-btn';
         const mainButton = `<button class="${stageBtnClass}" data-stage="${def.stage}">${clearBadge}${def.title}<span class="stage-desc">${def.desc}</span></button>`;
-        if (!isCruiseMode) return mainButton;
+        if (isCruiseMode) {
+            return `
+                <div class="stage-route-row">
+                    ${mainButton}
+                    <button class="stage-route-edit-btn stage-route-edit-btn--icon" type="button" data-edit-stage="${def.stage}" aria-label="${def.title}の順番を編集" title="編集">⋮</button>
+                </div>
+            `;
+        }
+        // クイズモード: 問題編集ボタンを表示
         return `
             <div class="stage-route-row">
                 ${mainButton}
-                <button class="stage-route-edit-btn stage-route-edit-btn--icon" type="button" data-edit-stage="${def.stage}" aria-label="${def.title}の順番を編集" title="編集">⋮</button>
+                <button class="stage-route-edit-btn stage-route-edit-btn--icon" type="button" data-quiz-edit-stage="${def.stage}" aria-label="${def.title}の問題を編集" title="編集">⋮</button>
             </div>
         `;
     }).join('');
@@ -5508,6 +5623,29 @@ function renderStageSelect(app) {
                 groupPanelOffset: { x: 0, y: 0 }
             };
             state.course = 'routeEditor';
+            saveState();
+            renderApp();
+        };
+    });
+
+    document.querySelectorAll('[data-quiz-edit-stage]').forEach(btn => {
+        btn.onclick = () => {
+            const stage = parseInt(btn.getAttribute('data-quiz-edit-stage'), 10);
+            const savedSettings = getQuizEditorSavedSettings(stage);
+            const initialGroups = savedSettings && savedSettings.groups && savedSettings.groups.length > 0
+                ? savedSettings.groups.map(g => ({
+                    notes: (g.notes || []).map(n => ({ stringName: n.stringName, fret: n.fret })),
+                    scrollLeft: g.scrollLeft || 0
+                }))
+                : getQuizEditorDefaultGroups(stage);
+            state.quizEditor = {
+                stage,
+                groups: initialGroups,
+                selectedGroupIndex: 0,
+                groupPanelOffset: { x: 0, y: 0 }
+            };
+            currentScrollLeft = initialGroups[0]?.scrollLeft || 0;
+            state.course = 'quizEditor';
             saveState();
             renderApp();
         };
@@ -6174,6 +6312,172 @@ function renderRouteEditor(app) {
             setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
             saveState();
             playTone(6 - stringName, fret);
+            renderApp();
+        }
+    });
+
+    app.style.height = '100vh';
+    app.style.overflowY = 'auto';
+    app.style.overflowX = 'hidden';
+    app.style.alignItems = 'stretch';
+    app.style.gap = '0';
+    app.style.paddingTop = 'max(4px, env(safe-area-inset-top))';
+    app.style.paddingBottom = 'calc(var(--in-game-refresh-stack-height, 96px) + max(8px, env(safe-area-inset-bottom)))';
+    app.style.paddingLeft = 'max(10px, env(safe-area-inset-left))';
+    app.style.paddingRight = 'max(10px, env(safe-area-inset-right))';
+}
+
+function renderQuizEditor(app) {
+    const stage = clamp(parseInt(state.quizEditor?.stage || 1, 10), 1, 6);
+    const groups = Array.isArray(state.quizEditor?.groups) ? state.quizEditor.groups : [{ notes: [], scrollLeft: 0 }];
+    const selectedGroupIndex = clamp(parseInt(state.quizEditor?.selectedGroupIndex ?? 0, 10), 0, Math.max(0, groups.length - 1));
+    const groupPanelOffset = normalizeRouteEditorGroupPanelOffset(state.quizEditor?.groupPanelOffset);
+    const groupPanelStyle = `--route-editor-group-panel-shift-x: ${groupPanelOffset.x}px; --route-editor-group-panel-shift-y: ${groupPanelOffset.y}px;`;
+
+    state.quizEditor = {
+        stage,
+        groups,
+        selectedGroupIndex,
+        groupPanelOffset
+    };
+
+    const hasAnyNote = groups.some(g => g.notes && g.notes.length > 0);
+
+    const groupButtonsHtml = groups.map((group, index) => {
+        const isActive = selectedGroupIndex === index;
+        const noteCount = Array.isArray(group.notes) ? group.notes.length : 0;
+        const grName = `Gr.${index + 1}`;
+        const hasPosition = Number.isFinite(group.scrollLeft) && group.scrollLeft > 0;
+        const positionIndicator = hasPosition ? ' 📍' : '';
+        return `
+            <button class="route-editor-group-btn ${isActive ? 'is-active is-visible' : 'is-visible'}" type="button" data-quiz-group-index="${index}" aria-label="${grName} (${noteCount}音)" aria-pressed="${isActive ? 'true' : 'false'}">
+                ${grName}<span style="font-size:0.75em; opacity:0.7;"> ${noteCount}音${positionIndicator}</span>
+            </button>
+        `;
+    }).join('');
+
+    app.innerHTML = `
+        <div class="route-editor-screen route-editor-scale-guide-variant-3">
+            ${buildPageHeader({
+                headerClass: 'page-header--route-editor',
+                titleText: `STAGE ${stage} 問題編集`,
+                leftHtml: `
+                    ${navButtonHtml({ id: 'btn-quiz-editor-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+                    ${navButtonHtml({ id: 'btn-quiz-editor-home', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
+                `
+            })}
+            <div class="route-editor-toolbar">
+                <button class="icon-btn route-editor-tool-btn" id="btn-quiz-editor-clear" ${hasAnyNote ? '' : 'disabled'}>全消し</button>
+                <button class="icon-btn route-editor-tool-btn" id="btn-quiz-editor-load-default">初期値</button>
+            </div>
+            <div class="route-editor-group-panel" style="${groupPanelStyle}">
+                <div class="route-editor-group-list">${groupButtonsHtml}</div>
+                <div class="route-editor-group-actions">
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-add-btn" id="btn-quiz-editor-group-add">＋</button>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-remove-btn" id="btn-quiz-editor-group-remove" ${groups.length > 1 ? '' : 'disabled'}>－</button>
+                    <button type="button" class="btn-secondary route-editor-group-save-position-btn" id="btn-quiz-editor-save-position">位置保存</button>
+                </div>
+            </div>
+            <div id="fretboard-container" class="memorize-fretboard-host"></div>
+            <div class="quiz-editor-save-row">
+                <button class="btn-primary quiz-editor-save-btn" id="btn-quiz-editor-save">この設定で保存</button>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('btn-quiz-editor-back').onclick = () => {
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-quiz-editor-home').onclick = () => {
+        state.course = null;
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-quiz-editor-clear').onclick = () => {
+        state.quizEditor.groups = state.quizEditor.groups.map(g => ({ ...g, notes: [] }));
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-quiz-editor-load-default').onclick = () => {
+        const defaultGroups = getQuizEditorDefaultGroups(stage);
+        state.quizEditor.groups = defaultGroups;
+        state.quizEditor.selectedGroupIndex = 0;
+        currentScrollLeft = defaultGroups[0]?.scrollLeft || 0;
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-quiz-editor-group-add').onclick = () => {
+        if (state.quizEditor.groups.length >= 8) return;
+        state.quizEditor.groups = [...state.quizEditor.groups, { notes: [], scrollLeft: 0 }];
+        state.quizEditor.selectedGroupIndex = state.quizEditor.groups.length - 1;
+        currentScrollLeft = 0;
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-quiz-editor-group-remove').onclick = () => {
+        if (state.quizEditor.groups.length <= 1) return;
+        const removeIndex = state.quizEditor.selectedGroupIndex;
+        state.quizEditor.groups = state.quizEditor.groups.filter((_, i) => i !== removeIndex);
+        state.quizEditor.selectedGroupIndex = clamp(removeIndex, 0, state.quizEditor.groups.length - 1);
+        const newGrScroll = state.quizEditor.groups[state.quizEditor.selectedGroupIndex]?.scrollLeft || 0;
+        currentScrollLeft = newGrScroll;
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-quiz-editor-save-position').onclick = () => {
+        const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+        const scrollLeft = wrapper ? Math.max(0, Math.round(wrapper.scrollLeft)) : 0;
+        state.quizEditor.groups[selectedGroupIndex].scrollLeft = scrollLeft;
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-quiz-editor-save').onclick = () => {
+        saveQuizEditorSettings(stage, state.quizEditor.groups);
+        saveState();
+        state.course = 'stageSelect';
+        renderApp();
+    };
+
+    document.querySelectorAll('[data-quiz-group-index]').forEach(btn => {
+        btn.onclick = () => {
+            const grIndex = parseInt(btn.getAttribute('data-quiz-group-index'), 10);
+            state.quizEditor.selectedGroupIndex = grIndex;
+            const grScroll = state.quizEditor.groups[grIndex]?.scrollLeft || 0;
+            currentScrollLeft = grScroll;
+            saveState();
+            renderApp();
+        };
+    });
+
+    renderFretboardHTML('fretboard-container', {
+        mode: 'quizEditor',
+        question: null,
+        showAnswer: false,
+        clicked: null,
+        quizEditorGroups: groups,
+        quizEditorSelectedGroupIndex: selectedGroupIndex,
+        onFretClick: (stringName, fret) => {
+            const grIndex = state.quizEditor.selectedGroupIndex;
+            const group = state.quizEditor.groups[grIndex];
+            if (!group) return;
+            const noteIndex = (group.notes || []).findIndex(n => n.stringName === stringName && n.fret === fret);
+            if (noteIndex >= 0) {
+                group.notes.splice(noteIndex, 1);
+            } else {
+                if (!Array.isArray(group.notes)) group.notes = [];
+                group.notes.push({ stringName, fret });
+                playTone(6 - stringName, fret);
+            }
+            saveState();
             renderApp();
         }
     });
@@ -7694,6 +7998,9 @@ function getRenderMaxFret(mode, options) {
         if (options.routeEditorStage === 5 || options.routeEditorStage === 6) {
             maxFret = Math.max(maxFret, 13);
         }
+    } else if (mode === 'quizEditor') {
+        const allNotes = (options.quizEditorGroups || []).flatMap(g => g.notes || []);
+        maxFret = Math.max(maxFret, getHighestFretFromPositions(allNotes));
     }
 
     return clamp(Math.floor(maxFret), DEFAULT_VISIBLE_MAX_FRET, MAX_FRET);
@@ -7736,7 +8043,9 @@ function renderFretboardHTML(containerId, options) {
         routeEditorDraft = [],
         routeEditorVisibleIndices = null,
         routeEditorVisibleGroups = null,
-        onRouteEditorMarkerClick = null
+        onRouteEditorMarkerClick = null,
+        quizEditorGroups = null,
+        quizEditorSelectedGroupIndex = 0
     } = options;
     let step3TapRange = null;
     if (
@@ -7861,7 +8170,7 @@ function renderFretboardHTML(containerId, options) {
     const neckBottom = neckBounds.bottom;
 
     const scrollWrapperClass =
-        mode === 'visualize' || mode === 'rule' || mode === 'routeEditor'
+        mode === 'visualize' || mode === 'rule' || mode === 'routeEditor' || mode === 'quizEditor'
             ? 'fretboard-scroll-wrapper fretboard-scroll-wrapper--visualize'
             : 'fretboard-scroll-wrapper';
     const scrollGroupAttr =
@@ -8037,14 +8346,41 @@ function renderFretboardHTML(containerId, options) {
             let markerHtml = '';
             
             // Interaction logic: route editor and memorize mode need direct fret taps.
-            let isInteractive = (mode === 'memorize' || mode === 'routeEditor');
+            let isInteractive = (mode === 'memorize' || mode === 'routeEditor' || mode === 'quizEditor');
             if (mode === 'memorize' && showAnswer && state.memorize.playMode === 'quiz') {
                 isInteractive = false; // Disable clicking after answering in quiz mode
             }
-            
+
             let fretClass = isInteractive ? 'fret-column interactive' : 'fret-column';
-            
-            if (mode === 'routeEditor') {
+
+            if (mode === 'quizEditor') {
+                const guideLabel = ROUTE_EDITOR_SCALE_GUIDE_LABELS[noteIdx] ? getNotationLabel(noteIdx) : '';
+                const guideHtml = guideLabel
+                    ? `<button type="button" class="note-marker route-editor-scale-guide" aria-hidden="true" tabindex="-1" disabled>${guideLabel}</button>`
+                    : '';
+                // このフレットがどのGrに属するかを調べる
+                const noteGroups = [];
+                if (Array.isArray(quizEditorGroups)) {
+                    quizEditorGroups.forEach((group, gIdx) => {
+                        if (Array.isArray(group.notes) && group.notes.some(n => n.stringName === stringNum && n.fret === f)) {
+                            noteGroups.push(gIdx);
+                        }
+                    });
+                }
+                if (noteGroups.length > 0) {
+                    const noteButtons = noteGroups.map(gIdx => {
+                        const isActive = gIdx === quizEditorSelectedGroupIndex;
+                        const groupStyle = getRouteEditorGroupColorStyle(gIdx);
+                        const stackedClass = noteGroups.length > 1 ? ' route-edit-note--stacked' : '';
+                        const activeClass = isActive ? ' quiz-edit-note--active' : ' quiz-edit-note--other';
+                        return `<button type="button" class="note-marker route-edit-note route-edit-note-button${stackedClass}${activeClass}" aria-label="Gr.${gIdx + 1} ${stringNum}弦 ${f}フレット" style="${groupStyle}; ${isActive ? '' : 'opacity:0.45;'}"></button>`;
+                    }).join('');
+                    const stackModeClass = noteGroups.length >= 3 ? ' route-edit-note-stack--dense' : '';
+                    markerHtml = `${guideHtml}<div class="route-edit-note-stack${stackModeClass}" data-string="${stringNum}" data-fret="${f}">${noteButtons}</div>`;
+                } else {
+                    markerHtml = guideHtml || `<div class="note-marker hidden-note"></div>`;
+                }
+            } else if (mode === 'routeEditor') {
                 const orders = (routeEditorOrderMap.get(`${stringNum}-${f}`) || []).slice().sort((a, b) => {
                     if (a.groupIndex !== b.groupIndex) return b.groupIndex - a.groupIndex;
                     return b.index - a.index;
@@ -8338,7 +8674,7 @@ function renderFretboardHTML(containerId, options) {
                 const widthCap = Math.max(innerMin, layoutW - layoutPad) * ruleTapZoomMul;
                 return Math.min(1, zMax, widthCap / Math.max(1, bW));
             };
-            const isZoomView = (mode === 'memorize' || mode === 'visualize' || mode === 'rule' || mode === 'routeEditor') && state.settings.fretboardView === 'zoom';
+            const isZoomView = (mode === 'memorize' || mode === 'visualize' || mode === 'rule' || mode === 'routeEditor' || mode === 'quizEditor') && state.settings.fretboardView === 'zoom';
             const visualizeExtendedNeedsHorizScroll =
                 mode === 'visualize' &&
                 containerId === 'fretboard-container' &&
@@ -8363,7 +8699,7 @@ function renderFretboardHTML(containerId, options) {
                     mode === 'memorize' && containerId === 'fretboard-container'
                         ? Math.max(160, window.innerHeight * (land ? 0.56 : 0.36))
                         : Math.max(190, window.innerHeight * 0.36);
-                if ((mode === 'memorize' || mode === 'routeEditor') && containerId === 'fretboard-container') {
+                if ((mode === 'memorize' || mode === 'routeEditor' || mode === 'quizEditor') && containerId === 'fretboard-container') {
                     void containerEl.offsetHeight;
                     const ch = containerEl.clientHeight;
                     if (ch > 72) {
@@ -8433,10 +8769,12 @@ function renderFretboardHTML(containerId, options) {
                     mode === 'memorize' && containerId === 'fretboard-container';
                 const routeEditorFretHost =
                     mode === 'routeEditor' && containerId === 'fretboard-container';
+                const quizEditorFretHost =
+                    mode === 'quizEditor' && containerId === 'fretboard-container';
                 const visualizeFretHost =
                     (mode === 'visualize' && containerId === 'fretboard-container') ||
                     (mode === 'rule' && containerId === 'rule-fretboard-container') ||
-                    routeEditorFretHost;
+                    routeEditorFretHost || quizEditorFretHost;
                 const memorizeCruiseLandscape =
                     mode === 'memorize' &&
                     containerId === 'fretboard-container' &&
@@ -8446,7 +8784,7 @@ function renderFretboardHTML(containerId, options) {
                 const visualizeExtendedFullScrollLayout =
                     visualizeExtendedNeedsHorizScroll && state.settings.fretboardView === 'full';
                 /** 横・覚える・全体: 上段テキストを詰めた分、scale 用の高さ目安を少し上げる */
-                const fallbackFullH = routeEditorFretHost && land
+                const fallbackFullH = (routeEditorFretHost || quizEditorFretHost) && land
                     ? Math.max(150, Math.round(window.innerHeight * 0.44))
                     : memorizeCruiseLandscape
                         ? Math.max(150, Math.round(window.innerHeight * 0.46))
@@ -8633,7 +8971,7 @@ function renderFretboardHTML(containerId, options) {
                 /** 基本ルールの指板は全体ビューで rAF 後にスケールを差し替えると、再描画のたびに一瞬ズームしたように見える */
                 const refineScaleAfterPaint =
                     containerId === 'fretboard-container' &&
-                    (mode === 'memorize' || mode === 'visualize' || mode === 'routeEditor');
+                    (mode === 'memorize' || mode === 'visualize' || mode === 'routeEditor' || mode === 'quizEditor');
                 if (refineScaleAfterPaint) {
                     requestAnimationFrame(() => {
                         requestAnimationFrame(() => {
