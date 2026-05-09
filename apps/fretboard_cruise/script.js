@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.76.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.76.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -6768,10 +6768,13 @@ function renderSettings(app) {
                     <span class="settings-card-section-title">音名の表示</span>
                 </div>
                 <div class="settings-row-between" style="margin-bottom:4px;">
-                    <label for="cruise-show-note-names-toggle" class="settings-label" style="cursor:pointer;">指板上の音名マーカー</label>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <label for="cruise-show-note-names-toggle" class="settings-label" style="cursor:pointer;">指板上の音名マーカー</label>
+                        <button class="settings-help-btn" type="button" data-target="note-cruise-show-names" aria-label="説明を表示">⊕</button>
+                    </div>
                     <input type="checkbox" id="cruise-show-note-names-toggle" class="settings-checkbox-native" ${state.settings.cruiseShowNoteNames !== false ? 'checked' : ''}>
                 </div>
-                <p class="settings-note settings-note--animated visible" style="margin-top:4px;">オフにすると、練習範囲の薄い音名・次の音・いまの音の丸表示を隠します（上の出題文はそのままです）。</p>
+                <p class="settings-note settings-note--animated" id="note-cruise-show-names">オフにすると、練習範囲の薄い音名・次の音・いまの音の丸表示を隠します（上の出題文はそのままです）。</p>
             </div>
         </div>
 
