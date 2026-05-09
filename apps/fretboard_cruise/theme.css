@@ -813,7 +813,8 @@
 .memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-feedback.feedback-display,
 .memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="full"] .memorize-feedback.feedback-display {
     height: auto;
-    min-height: 2rem;
+    /* 文言が変わっても高さが変わらないよう余裕を確保（タップ時の指板の縦ジャンプ防止） */
+    min-height: 2.75rem;
     padding: 2px 0 2px;
 }
 
@@ -908,7 +909,8 @@
 
 .memorize-screen--landscape .memorize-feedback.feedback-display {
     font-size: 0.95rem;
-    min-height: 0;
+    /* ヒント文〜結果表示で行数が変わってもブロック高さを固定し、指板が縦に跳ねないようにする */
+    min-height: 2.85rem;
     height: auto;
     padding: 0;
     line-height: 1.2;
@@ -973,6 +975,7 @@
 
 .memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-feedback.feedback-display {
     font-size: 0.88rem;
+    min-height: 2.85rem;
     padding: 0;
     line-height: 1.2;
 }
