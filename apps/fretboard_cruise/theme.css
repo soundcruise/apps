@@ -1419,6 +1419,7 @@ input:checked + .toggle-slider:before {
     min-height: 0;
 }
 
+
 .route-editor-toolbar {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1520,6 +1521,75 @@ input:checked + .toggle-slider:before {
     font-size: 0.96rem;
     -webkit-touch-callout: none;
     user-select: none;
+}
+
+.route-editor-group-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    min-width: 0;
+}
+
+.route-editor-group-cell .route-editor-group-btn {
+    width: 100%;
+}
+
+/* ===== 位置ラベル（フッター型・全 STAGE 共通） =====
+   Gr ボタンの真下にぴったり接着して「Gr名 + 位置」がワンセットに見えるようにする。 */
+.route-editor-group-cell .route-editor-group-btn {
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+}
+
+.route-editor-group-position-label {
+    appearance: none;
+    -webkit-appearance: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    width: 100%;
+    margin: -1px 0 0;
+    padding: 3px 6px;
+    border: 1px solid rgba(79, 156, 249, 0.42);
+    border-top: none;
+    border-bottom-left-radius: 999px;
+    border-bottom-right-radius: 999px;
+    background: rgba(79, 156, 249, 0.22);
+    color: #eaf3ff;
+    font-weight: 800;
+    font-size: 0.78rem;
+    line-height: 1.1;
+    text-align: center;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+}
+
+.route-editor-group-position-label .route-editor-group-position-pin {
+    font-size: 0.7rem;
+    opacity: 0.85;
+}
+
+.route-editor-group-position-label:hover {
+    background: rgba(79, 156, 249, 0.34);
+}
+
+.route-editor-group-position-label:focus-visible {
+    outline: 2px solid rgba(247, 185, 85, 0.85);
+    outline-offset: 1px;
+}
+
+.route-editor-group-position-label:active {
+    transform: translateY(1px);
+}
+
+.route-editor-group-position-label.is-empty {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.45);
 }
 
 .route-editor-group-btn.is-visible {
@@ -1828,10 +1898,21 @@ input:checked + .toggle-slider:before {
 }
 
 @media (orientation: landscape) {
-    .page-header--route-editor {
+    /* 横画面では page-header の余白は完全に詰める（縦画面で入れた追加 padding-top も無効化）。
+       詳細度を `.app-container` 付きの (0,2,0) に揃えて、縦画面用の同じ詳細度ルールに勝つ。 */
+    .app-container .page-header--route-editor {
         gap: 4px;
         padding-top: 0;
         padding-bottom: 0;
+    }
+
+    /* 横画面の編集画面に限り、共通の `.app-container { max-width: 600px; padding: 20px }` を解除して
+       指板表示を画面いっぱいに広げる。`body:has(.page-header--route-editor)` で
+       「ルート編集／クイズ編集を表示中のときだけ」に絞っているので、他画面は影響を受けない。 */
+    body:has(.page-header--route-editor) .app-container {
+        max-width: none;
+        padding-left: max(10px, env(safe-area-inset-left));
+        padding-right: max(10px, env(safe-area-inset-right));
     }
 
     .page-header--route-editor .page-header-title-wrap {
@@ -1892,8 +1973,30 @@ input:checked + .toggle-slider:before {
         gap: 4px;
     }
 
+    /* 横画面のドラッグハンドルは、グループパネルの左上（「一覧」ボタンと同じ高さ）に
+       絶対配置する。route-editor-group-panel が position: fixed なので、その内側に
+       absolute で重ねれば JS（HTML 構造）を変えずに済む。
+       中央には四方向矢印（✥）を表示し、「掴んで動かせる」を直感的に伝える。 */
     .route-editor-group-panel-handle {
         display: inline-flex;
+        position: absolute;
+        top: 7px;
+        left: 8px;
+        z-index: 2;
+        width: 36px;
+        height: 36px;
+        min-height: 36px;
+        margin: 0;
+        padding: 0 0 1px;
+        border-radius: 50%;
+        background: rgba(79, 156, 249, 0.32);
+        border: 1px solid rgba(79, 156, 249, 0.7);
+        color: #fff;
+        font-size: 1.18rem;
+        font-weight: 700;
+        letter-spacing: 0;
+        line-height: 1;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
     }
 
     .route-editor-group-toggle-btn {
@@ -1917,6 +2020,11 @@ input:checked + .toggle-slider:before {
         min-height: 38px;
     }
 
+    .route-editor-group-position-label {
+        font-size: 0.68rem;
+        padding: 2px 4px;
+    }
+
     .route-editor-group-label {
         display: none;
     }
@@ -1924,6 +2032,43 @@ input:checked + .toggle-slider:before {
     .route-editor-fretboard-host {
         flex: 1 1 auto;
         min-height: 210px;
+    }
+
+    /* 横画面では指板を視覚的に拡大して画面幅を活用する。
+       内部の HTML 要素のサイズは固定（FRETBOARD_WIDTH）なので、CSS の transform: scale で
+       「見た目だけ」拡大している。クリック判定は scale 後の見た目の位置に追従するため、
+       内部座標との不整合は起きない。 */
+    body:has(.page-header--route-editor) #fretboard-container {
+        --route-editor-fretboard-scale: 1.35;
+    }
+
+    body:has(.page-header--route-editor) #fretboard-container .fretboard-scroll-wrapper {
+        min-height: calc(210px * var(--route-editor-fretboard-scale, 1));
+        padding-bottom: 0;
+    }
+
+    body:has(.page-header--route-editor) #fretboard-container .fretboard-container {
+        transform: scale(var(--route-editor-fretboard-scale, 1));
+        transform-origin: top left;
+    }
+
+    /* 横画面では横幅に余裕があるので、保存ボタンを「自然な幅で横並び」にする。
+       横いっぱいに伸ばさず、適度な min/max 幅で中央寄せ。 */
+    .route-editor-save-row {
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .route-editor-demo-btn,
+    .route-editor-save-btn,
+    .route-editor-camera-save-btn {
+        width: auto;
+        flex: 0 1 auto;
+        min-width: 200px;
+        max-width: 280px;
     }
 
     .route-editor-expanded-spacer--visible {
@@ -3219,6 +3364,15 @@ input:checked + .toggle-slider:before {
 
 .page-header--stage-select {
     gap: 20px;
+}
+
+/* 縦画面のルート編集／クイズ編集は、route-editor-screen が画面いっぱいに広がる関係で
+   body の縦中央寄せが効かず、戻る／TOP が画面上端ぎりぎりに張り付いて見える。
+   そこで page-header に追加 padding-top を入れて全体を少し下に落とす。
+   `.app-container` を前に付けて詳細度 (0,2,0) にし、共通 `.page-header { padding-top: 4px }`
+   の上書きに勝てるようにしてある。横画面用の上書きも同じ詳細度で別途定義済み。 */
+.app-container .page-header--route-editor {
+    padding-top: 30px;
 }
 
 .page-header--stage-select .page-header-title-wrap {

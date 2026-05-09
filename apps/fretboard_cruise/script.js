@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.82.12';
+const FRETBOARD_CRUISE_APP_VERSION = '1.86.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -778,10 +778,12 @@ function migrateCruiseStageNumberingIfNeeded() {
         const toKey = String(toStage);
         if (Object.prototype.hasOwnProperty.call(collection, fromKey)) {
             collection[toKey] = cloneValue(collection[fromKey]);
-        } else {
-            delete collection[toKey];
+            delete collection[fromKey];
         }
-        delete collection[fromKey];
+        // 移動元が無いときは移動先を消さない。
+        // 昔のアプリでは STAGE 番号の振り直しマイグレーションの前に、すでに「6」だけ保存済み、
+        // などの並びだと、旧「5」が無い場合にここで「6」を delete してしまい、
+        // STAGE6 のスクロール保存が丸ごと失われていた。
     };
 
     moveStageKey(state.settings.cruiseStageRoutes, 5, 6);
@@ -3185,18 +3187,22 @@ function renderApp() {
                     newWrapper.scrollLeft = 0;
                 }
             } else if (state.course === 'memorize' && state.memorize.playMode === 'quiz') {
-                // クイズGrスクロール: カスタム設定のGrに保存位置があれば適用（fretboardViewに関わらず）
+                // クイズGrスクロール: 拡大ビューのときだけ保存位置を適用する
                 const qGrScroll = state.memorize.currentQuestion?.quizGrScrollLeft;
                 if (Number.isFinite(qGrScroll)) {
-                    newWrapper.scrollLeft = qGrScroll;
-                    requestAnimationFrame(() => {
-                        if (newWrapper.isConnected) newWrapper.scrollLeft = qGrScroll;
-                    });
-                    // refineScaleAfterPaint（二重RAF）がtransformを変更してscrollLeftをリセットするため、
-                    // その後に再設定する
-                    setTimeout(() => {
-                        if (newWrapper.isConnected) newWrapper.scrollLeft = qGrScroll;
-                    }, 50);
+                    if (state.settings.fretboardView === 'zoom') {
+                        newWrapper.scrollLeft = qGrScroll;
+                        requestAnimationFrame(() => {
+                            if (newWrapper.isConnected) newWrapper.scrollLeft = qGrScroll;
+                        });
+                        // refineScaleAfterPaint（二重RAF）がtransformを変更してscrollLeftをリセットするため、
+                        // その後に再設定する
+                        setTimeout(() => {
+                            if (newWrapper.isConnected) newWrapper.scrollLeft = qGrScroll;
+                        }, 50);
+                    } else {
+                        newWrapper.scrollLeft = 0;
+                    }
                 } else {
                     newWrapper.scrollLeft = 0;
                 }
@@ -3204,9 +3210,9 @@ function renderApp() {
                 newWrapper.scrollLeft = 0;
             }
         } else if (state.course === 'memorize' && state.memorize.playMode === 'quiz') {
-            // 回答後・正解発表フェーズでも quizGrScrollLeft の位置を維持する
+            // 回答後・正解発表フェーズでも、拡大ビューでは quizGrScrollLeft の位置を維持する
             const qGrScroll = state.memorize.currentQuestion?.quizGrScrollLeft;
-            if (Number.isFinite(qGrScroll)) {
+            if (Number.isFinite(qGrScroll) && state.settings.fretboardView === 'zoom') {
                 newWrapper.scrollLeft = qGrScroll;
                 setTimeout(() => {
                     if (newWrapper.isConnected) newWrapper.scrollLeft = qGrScroll;
@@ -5793,6 +5799,9 @@ function renderRouteEditor(app) {
     const selectedGroup = groups[selectedGroupIndex] || null;
     const groupPanelOffset = normalizeRouteEditorGroupPanelOffset(state.routeEditor?.groupPanelOffset);
     const showAllGroupsExpanded = !!state.routeEditor?.showAllGroupsExpanded;
+    // 「一覧」を開いている時は、各 Gr 直下に保存スクロール位置（📍N）を必ず表示する。
+    // ラベルはタップで編集できる（編集 UI は下部のクリックハンドラ参照）。
+    const showScrollPositions = showAllGroupsExpanded;
     const routeEditorScrollKey = `${stage}:${activeGroupIndex >= 0 ? activeGroupIndex : 'none'}`;
     if (activeGroupIndex >= 0 && routeEditorScrollAppliedKey !== routeEditorScrollKey) {
         const savedRouteEditorScrollLeft = getSavedCruiseGroupScrollLeft(stage, activeGroupIndex);
@@ -5829,16 +5838,30 @@ function renderRouteEditor(app) {
 
     const groupPanelStyle = `--route-editor-group-panel-shift-x: ${groupPanelOffset.x}px; --route-editor-group-panel-shift-y: ${groupPanelOffset.y}px;`;
 
+    const buildPositionLabelHtml = (index, savedScrollLeft) => {
+        if (!showScrollPositions) return '';
+        const hasValue = Number.isFinite(savedScrollLeft);
+        const valueText = hasValue ? String(savedScrollLeft) : '—';
+        const ariaLabel = hasValue ? `位置 ${savedScrollLeft}（タップで編集）` : '位置未設定（タップで設定）';
+        const emptyClass = hasValue ? '' : 'is-empty';
+        return `<button type="button" class="route-editor-group-position-label ${emptyClass}" data-position-group-index="${index}" aria-label="${ariaLabel}"><span class="route-editor-group-position-pin" aria-hidden="true">📍</span><span class="route-editor-group-position-value">${valueText}</span></button>`;
+    };
+
     const groupButtonsHtml = groups.length
         ? groups.map((group, index) => {
             const isVisible = visibleGroupIndices.includes(index);
             const isActive = isVisible && selectedGroupIndex === index;
             const isEmpty = !!group.isEmpty;
             const displayName = storedGroupNames[index] ?? group.name;
+            const savedScrollLeft = getSavedCruiseGroupScrollLeft(stage, index);
+            const positionLabelHtml = buildPositionLabelHtml(index, savedScrollLeft);
             return `
-            <button class="route-editor-group-btn ${isVisible ? 'is-visible' : 'is-hidden'} ${isActive ? 'is-active' : ''} ${isEmpty ? 'is-empty' : ''}" type="button" data-group-index="${index}" aria-label="${displayName}" aria-pressed="${isActive ? 'true' : 'false'}">
-                ${displayName}
-            </button>
+            <div class="route-editor-group-cell">
+                <button class="route-editor-group-btn ${isVisible ? 'is-visible' : 'is-hidden'} ${isActive ? 'is-active' : ''} ${isEmpty ? 'is-empty' : ''}" type="button" data-group-index="${index}" aria-label="${displayName}" aria-pressed="${isActive ? 'true' : 'false'}">
+                    ${displayName}
+                </button>
+                ${positionLabelHtml}
+            </div>
         `;
         }).join('')
         : '<p class="route-editor-empty">グループがありません</p>';
@@ -5862,7 +5885,7 @@ function renderRouteEditor(app) {
                 <div class="route-editor-group-panel-top">
                 <button class="icon-btn route-editor-tool-btn route-editor-group-expand-btn ${showAllGroupsExpanded ? 'active' : ''}" id="btn-route-editor-group-expand" ${groups.length ? '' : 'disabled'}>${showAllGroupsExpanded ? '縮小' : '一覧'}</button>
                 </div>
-                <button class="route-editor-group-panel-handle" id="btn-route-editor-group-panel-handle" type="button" title="ドラッグして移動" aria-label="グループ設定を移動">⋮⋮</button>
+                <button class="route-editor-group-panel-handle" id="btn-route-editor-group-panel-handle" type="button" title="ドラッグして移動" aria-label="グループ設定を移動">✥</button>
                 <div class="route-editor-group-list">${groupButtonsHtml}</div>
                 <div class="route-editor-group-actions">
                     <button class="icon-btn route-editor-tool-btn route-editor-group-add-btn" id="btn-route-editor-group-split">＋</button>
@@ -5904,6 +5927,37 @@ function renderRouteEditor(app) {
         saveState();
         renderApp();
     };
+
+    // 位置ラベル（📍N）をタップで直接編集できるようにする。
+    // 空文字またはキャンセルなら保存値をクリア（📍— 表示）。
+    document.querySelectorAll('.route-editor-group-position-label').forEach(label => {
+        label.onclick = (e) => {
+            e.stopPropagation();
+            const idx = parseInt(label.getAttribute('data-position-group-index'), 10);
+            if (!Number.isFinite(idx)) return;
+            const current = getSavedCruiseGroupScrollLeft(stage, idx);
+            const defaultText = Number.isFinite(current) ? String(current) : '';
+            const input = window.prompt(`Gr.${idx + 1} の保存スクロール位置を入力してください\n（空欄で未設定に戻ります）`, defaultText);
+            if (input === null) return;
+            const trimmed = String(input).trim();
+            if (trimmed === '') {
+                clearSavedCruiseGroupScrollLeft(stage, idx);
+                clearPendingRouteEditorGroupScrollLeft(stage, idx);
+                saveState();
+                renderApp();
+                return;
+            }
+            const next = parseInt(trimmed, 10);
+            if (!Number.isFinite(next) || next < 0) {
+                window.alert('0 以上の整数を入力してください。');
+                return;
+            }
+            setSavedCruiseGroupScrollLeft(stage, idx, next);
+            clearPendingRouteEditorGroupScrollLeft(stage, idx);
+            saveState();
+            renderApp();
+        };
+    });
     document.getElementById('btn-route-editor-clear').onclick = () => {
         pushRouteEditorHistory(stage);
         state.routeEditor.draft = [];
@@ -8660,10 +8714,11 @@ function renderFretboardHTML(containerId, options) {
     html += `</div></div></div>`; // container & perspective-wrapper & scroll-wrapper
     
     const containerEl = document.getElementById(containerId);
+    const shouldPreserveScrollLeft = state.settings.fretboardView === 'zoom' && Number.isFinite(preserveScrollLeft);
     containerEl.innerHTML = html;
 
     // クイズ正解発表フェーズ：innerHTML直後（ブラウザが0でレイアウトする前）にスクロール位置を設定
-    if (Number.isFinite(preserveScrollLeft)) {
+    if (shouldPreserveScrollLeft) {
         const pw = containerEl.querySelector('.fretboard-scroll-wrapper');
         if (pw) pw.scrollLeft = preserveScrollLeft;
     }
@@ -9041,7 +9096,7 @@ function renderFretboardHTML(containerId, options) {
                             const mh1 = readMemorizeHostMaxH();
                             if (mh1 === null) {
                                 syncFretboardLayoutCollapse();
-                                if (Number.isFinite(preserveScrollLeft) && scrollWrapper.isConnected) {
+                                if (shouldPreserveScrollLeft && scrollWrapper.isConnected) {
                                     scrollWrapper.scrollLeft = preserveScrollLeft;
                                 }
                                 return;
@@ -9116,7 +9171,7 @@ function renderFretboardHTML(containerId, options) {
                             }
                             syncFretboardLayoutCollapse();
                             // transform変更後もpreserveScrollLeftの位置を維持（クイズ正解発表フェーズ用）
-                            if (Number.isFinite(preserveScrollLeft) && scrollWrapper.isConnected) {
+                            if (shouldPreserveScrollLeft && scrollWrapper.isConnected) {
                                 scrollWrapper.scrollLeft = preserveScrollLeft;
                             }
                         });
@@ -9133,7 +9188,7 @@ function renderFretboardHTML(containerId, options) {
                 }
             }
             // ズームビュー：getBoundingClientRect()で強制レイアウト後に確定代入（一瞬0表示を防ぐ）
-            if (isZoomView && Number.isFinite(preserveScrollLeft)) {
+            if (shouldPreserveScrollLeft) {
                 scrollWrapper.scrollLeft = preserveScrollLeft;
             }
         }
