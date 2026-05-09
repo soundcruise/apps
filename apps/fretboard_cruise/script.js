@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.81.11';
+const FRETBOARD_CRUISE_APP_VERSION = '1.81.12';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -6224,15 +6224,15 @@ function renderMemorize(app) {
         ? `正解 ${clearedCorrectCount} / 全 ${clearedTotalNotes} 音`
         : `正解 ${clearedCorrectCount} 音`;
 
-    const quizTimerHtml = !isCruise
-        ? `<div class="memorize-quiz-timer stat-item" style="color: ${quizTimeLeft <= 1.0 ? 'var(--error-color)' : 'inherit'};"><span class="label">残り時間</span><span class="value" id="quiz-timer">${quizTimeLeft.toFixed(1)}s</span></div>`
+    const timerItemHtml = !isCruise
+        ? `<div class="stat-item"><span class="label">残り時間</span><span class="value" id="quiz-timer" style="color: ${quizTimeLeft <= 1.0 ? 'var(--error-color)' : 'inherit'};">${quizTimeLeft.toFixed(1)}s</span></div>`
         : '';
 
     const stageStatsHtml = `
                     <div class="stats memorize-stats memorize-stats--near-question">
                         <div class="stat-item"><span class="label">STAGE</span><span class="value">${state.memorize.stage}</span></div>
-                        <div class="stat-item"><span class="label">正解</span><span class="value" id="score-correct">${state.memorize.correct}</span></div>
                         <div class="stat-item"><span class="label">連続</span><span class="value" id="score-combo">${state.memorize.combo}</span></div>
+                        ${timerItemHtml}
                     </div>`;
     const repeatHintMode = 1;  // Official specification: fixed to mode 1 (1/2 display)
     const repeatHintTabsHtml = '';  // Tab UI removed - using official 1/2 display only
@@ -6253,7 +6253,7 @@ function renderMemorize(app) {
                     ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
                     ${navButtonHtml({ id: 'btn-home-memorize', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
                 `,
-                rightHtml: `${quizTimerHtml}<button class="icon-btn home-settings-btn" id="btn-memorize-settings" aria-label="設定">⚙️</button>`
+                rightHtml: `<button class="icon-btn home-settings-btn" id="btn-memorize-settings" aria-label="設定">⚙️</button>`
             })}
             <div class="memorize-body-stack">
                 <div class="memorize-copy-block">
