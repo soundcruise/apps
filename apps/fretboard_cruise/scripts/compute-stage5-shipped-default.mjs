@@ -46,5 +46,6 @@ const slots = [
 ];
 
 const groupBreaks = [0, 8, 16, 20, 24, 32];
+const groupScrollLefts = { 0: 407, 1: 407, 2: 407, 3: 407, 4: 407, 5: 407 };
 
-console.log(JSON.stringify({ slotCount: slots.length, slots, groupBreaks }, null, 2));
+console.log(JSON.stringify({ slotCount: slots.length, slots, groupBreaks, groupScrollLefts }, null, 2));
