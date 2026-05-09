@@ -662,16 +662,49 @@
     user-select: none;
 }
 
-/* クリア時の「お疲れ様でした」メッセージ */
-.memorize-question-main.memorize-question--cleared {
-    color: var(--success-color, #4caf50);
-    font-weight: 700;
+/* クリア時のサマリー表示（フィードバック領域は隠してオーバーレイで表示する） */
+.memorize-feedback.memorize-feedback--cleared {
+    display: none;
 }
 
-/* クリア時のサマリー表示 */
-.memorize-feedback.memorize-feedback--cleared {
+/* クリア時の「お疲れ様でした」カード（指板の上に被せる） */
+.memorize-cleared-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 6;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+.memorize-cleared-card {
+    background: rgba(255, 255, 255, 0.96);
+    border: 2px solid var(--success-color, #4caf50);
+    border-radius: 14px;
+    padding: 18px 26px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    text-align: center;
+    max-width: 90%;
+}
+
+.memorize-cleared-card__title {
+    font-size: clamp(1.3rem, 4vmin, 1.9rem);
+    font-weight: 700;
     color: var(--success-color, #4caf50);
+    line-height: 1.2;
+    margin-bottom: 8px;
+}
+
+.memorize-cleared-card__summary {
+    font-size: clamp(0.95rem, 3vmin, 1.2rem);
     font-weight: 600;
+    color: #333;
 }
 
 .memorize-repeat-hint-tabs {
@@ -731,18 +764,15 @@
     line-height: 1.15;
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
+    text-overflow: clip;
 }
 
-/* テキストラベル（「もう1度やる」「次のステージ」など）が入るときは
-   1行に収まるようにフォントを少し小さく */
-.memorize-cruise-control-btn:has(> :only-child),
-.memorize-cruise-control-btn {
-    /* 文字長が長い時に縮める */
-}
+/* クリア後の日本語テキストボタン（「もう1回」「次に進む」など）は省略されないよう
+   フォントを小さくして letter-spacing も詰める */
 .memorize-cruise-control-btn.memorize-cruise-control-btn--text {
-    font-size: 0.95rem;
+    font-size: 0.78rem;
     letter-spacing: 0;
+    padding: 5px 4px;
 }
 
 /* 縦＋拡大/全体: 問題〜STAGE〜フィードバックは同じ。指板は内容の高さのみ（flex:1 をやめて縦中央にまとまる）。拡大/全体の違いは script のスケール */

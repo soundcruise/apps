@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.73.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.73.3';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1768,9 +1768,23 @@ function scheduleNextGroupScrollIfNeeded() {
     const targets = state.memorize.cruiseTargets;
     const groupIndices = state.memorize.cruiseGroupIndices;
     const nextIdx = state.memorize.cruiseIndex + 1;
-    const nextGr = nextIdx < targets.length
-        ? (groupIndices[nextIdx] ?? currentGr)
-        : (groupIndices[0] ?? currentGr); // ループ境界
+
+    let nextGr;
+    if (nextIdx < targets.length) {
+        nextGr = groupIndices[nextIdx] ?? currentGr;
+    } else {
+        // ループ境界。次の周回がある場合のみ「次のループの先頭グループ」を見て
+        // 1拍前スクロールを予約する。最終ループでは先頭への戻りスクロールを行わない。
+        const maxLoops = state.settings.cruiseLoopCount; // 0 = 無制限
+        const currentLoop = state.memorize.cruiseCurrentLoop;
+        const willLoopAgain = (maxLoops === 0 || currentLoop + 1 < maxLoops);
+        if (!willLoopAgain) {
+            cancelPendingCruiseGroupScroll();
+            return;
+        }
+        nextGr = groupIndices[0] ?? currentGr;
+    }
+
     if (nextGr !== currentGr) {
         const nextScrollLeft = getSavedCruiseGroupScrollLeft(state.memorize.stage, nextGr);
         if (Number.isFinite(nextScrollLeft)) {
@@ -5914,17 +5928,20 @@ function renderMemorize(app) {
         : '指板をタップして回答してください';
     let fbClass = 'feedback-display';
     if (isCruiseCleared) {
-        const totalNotes = Array.isArray(state.memorize.cruiseTargets) ? state.memorize.cruiseTargets.length : 0;
-        const correctCount = state.memorize.correct || 0;
-        fbText = totalNotes > 0
-            ? `正解 ${correctCount} / 全 ${totalNotes} 音`
-            : `正解 ${correctCount} 音`;
+        // クリア時は質問テキスト・フィードバックは出さず、指板上にカードを重ねる
+        fbText = '';
         fbClass = 'feedback-display memorize-feedback--cleared';
     } else if (state.memorize.tempFeedback) {
         fbText = state.memorize.tempFeedback.text;
         fbClass = state.memorize.tempFeedback.className;
         state.memorize.tempFeedback = null; // consume
     }
+
+    const clearedTotalNotes = Array.isArray(state.memorize.cruiseTargets) ? state.memorize.cruiseTargets.length : 0;
+    const clearedCorrectCount = state.memorize.correct || 0;
+    const clearedSummary = clearedTotalNotes > 0
+        ? `正解 ${clearedCorrectCount} / 全 ${clearedTotalNotes} 音`
+        : `正解 ${clearedCorrectCount} 音`;
 
     const quizTimerHtml = !isCruise
         ? `<div class="memorize-quiz-timer stat-item" style="color: ${quizTimeLeft <= 1.0 ? 'var(--error-color)' : 'inherit'};"><span class="label">残り時間</span><span class="value" id="quiz-timer">${quizTimeLeft.toFixed(1)}s</span></div>`
@@ -5962,7 +5979,7 @@ function renderMemorize(app) {
                     <div class="memorize-question-row">
                         ${stageStatsHtml}
                         ${isCruiseCleared
-                            ? `<div class="question-text memorize-question memorize-question-main memorize-question--cleared">🎉 お疲れ様でした！</div>`
+                            ? ''
                             : `<div class="question-text memorize-question memorize-question-main">${q.stringName}弦 の <span class="memorize-question-note" style="color: var(--primary-color);">${memorizeQuestionLabel}</span> ${isCruise ? 'をタップ！' : 'を探せ！'}</div>`}
                     </div>
                     <div id="feedback" class="${fbClass} memorize-feedback">${fbText}</div>
@@ -5974,12 +5991,20 @@ function renderMemorize(app) {
                         <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-prev">⬅️</button>
                         <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-reset">⏮️</button>
                         <button type="button" class="btn-secondary memorize-cruise-control-btn${state.memorize.isCleared ? ' memorize-cruise-control-btn--text' : ''}" id="btn-cruise-stop">${state.memorize.isCleared
-                                ? 'もう1度やる'
+                                ? 'もう1回'
                                 : (state.memorize.isCruisePlaying ? '⏸️' : '▶️')}</button>
-                        <button type="button" class="btn-secondary memorize-cruise-control-btn${state.memorize.isCleared ? ' memorize-cruise-control-btn--text' : ''}" id="btn-cruise-next">${state.memorize.isCleared ? '次のステージ' : '➡️'}</button>
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn${state.memorize.isCleared ? ' memorize-cruise-control-btn--text' : ''}" id="btn-cruise-next">${state.memorize.isCleared ? '次に進む' : '➡️'}</button>
                     </div>
                 ` : ''}
                 ${isCruiseCounting ? `<div class="memorize-countdown-overlay" aria-hidden="true">${cruiseCountdownValue}</div>` : ''}
+                ${isCruiseCleared ? `
+                    <div class="memorize-cleared-overlay" aria-live="polite">
+                        <div class="memorize-cleared-card">
+                            <div class="memorize-cleared-card__title">🎉 お疲れ様でした！</div>
+                            <div class="memorize-cleared-card__summary">${clearedSummary}</div>
+                        </div>
+                    </div>
+                ` : ''}
             </div>
         </div>
     `;
@@ -6045,15 +6070,12 @@ function renderMemorize(app) {
                 startCruiseCountdownAndRhythm();
                 return;
             } else {
-                // Toggle play/stop（途中の一時停止→再開でもカウントを入れる）
+                // Toggle play/stop（一時停止からの再開はカウントなしで即再開）
                 state.memorize.isCruisePlaying = !state.memorize.isCruisePlaying;
                 if (!state.memorize.isCruisePlaying) {
                     stopRhythm();
                 } else {
-                    saveState();
-                    renderApp();
-                    startCruiseCountdownAndRhythm();
-                    return;
+                    startRhythm();
                 }
             }
             saveState();
