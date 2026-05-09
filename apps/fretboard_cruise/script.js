@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.79.6';
+const FRETBOARD_CRUISE_APP_VERSION = '1.80.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -196,7 +196,9 @@ let state = {
         cruisePreviousGroupIndex: null,
         highlightMode: 2, // 1-5: Visual highlight pattern for current/next note (2=Glow)
         isCruisePlaying: true, // Is cruise rhythm currently playing (default: playing)
-        cruiseCountdown: 0 // 開始前のBPMカウント（3→2→1→0で再生開始）
+        cruiseCountdown: 0, // 開始前のBPMカウント（3→2→1→0で再生開始）
+        // STAGE 1 横画面・指板最大化のトライアル ('A' | 'AB' | 'ABC')。STAGE 1 以外では未使用。
+        cruiseLayoutTrial: 'A'
     },
     visualize: {
         key: 0, // C
@@ -447,6 +449,9 @@ if (savedState) {
         }
         // 起動／復元直後はカウントダウンを必ず止める（タイマーは引き継げないため）
         state.memorize.cruiseCountdown = 0;
+        if (!['A', 'AB', 'ABC'].includes(state.memorize.cruiseLayoutTrial)) {
+            state.memorize.cruiseLayoutTrial = 'A';
+        }
         if (typeof state.visualize.key === 'undefined') state.visualize.key = 0;
         if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
         if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
@@ -572,6 +577,38 @@ function markRuleStepCompleted(step) {
 
 function getFretboardViewForWindowOrientation() {
     return window.innerWidth > window.innerHeight ? 'full' : 'zoom';
+}
+
+/**
+ * STAGE 1 横画面 cruise の指板最大化トライアル中かを判定し、設定を返す。
+ * - A    : 下端の予約余白を縮める
+ * - AB   : A + 指板コンテナを画面幅いっぱいまで拡張
+ * - ABC  : A + B + 指板下端の内部クリアランスをさらに圧縮
+ * 該当しない場合は active=false を返し、本番動作に影響を与えない。
+ */
+function getCruiseLayoutTrialConfig() {
+    if (typeof window === 'undefined') return { active: false };
+    const land = window.innerWidth > window.innerHeight;
+    const inMemorize = state.course === 'memorize';
+    const isCruise = state.memorize && state.memorize.playMode === 'cruise';
+    const isStage1 = state.memorize && state.memorize.stage === 1;
+    if (!(land && inMemorize && isCruise && isStage1)) return { active: false };
+    const trial = ['A', 'AB', 'ABC'].includes(state.memorize.cruiseLayoutTrial)
+        ? state.memorize.cruiseLayoutTrial
+        : 'A';
+    // 共通: 下端 paddingBottom をコントロール群直上まで縮める（cruiseControls bottom:max(16,safe) + 高さ48）
+    const paddingBottomCss = 'calc(max(16px, env(safe-area-inset-bottom)) + 48px)';
+    // B 系: 指板コンテナを画面幅いっぱいに広げる
+    const useFullViewportWidth = trial === 'AB' || trial === 'ABC';
+    // C 系: 内部クリアランスを縮めて指板を更に縦に伸ばす
+    const bottomClearOverride = trial === 'ABC' ? 28 : null;
+    return {
+        active: true,
+        trial,
+        paddingBottomCss,
+        useFullViewportWidth,
+        bottomClearOverride
+    };
 }
 
 /** 全体ビュー時のカメラ設定を一時保存（拡大ビュー切替時に呼ぶ） */
@@ -2785,8 +2822,10 @@ function renderApp() {
         app.style.paddingTop = memorizeLandApp
             ? 'max(10px, env(safe-area-inset-top))'
             : 'max(20px, env(safe-area-inset-top))';
-        app.style.paddingBottom =
-            'calc(var(--in-game-refresh-stack-height, 96px) + max(8px, env(safe-area-inset-bottom)))';
+        const cruiseTrial = getCruiseLayoutTrialConfig();
+        app.style.paddingBottom = cruiseTrial.active
+            ? cruiseTrial.paddingBottomCss
+            : 'calc(var(--in-game-refresh-stack-height, 96px) + max(8px, env(safe-area-inset-bottom)))';
         app.style.paddingLeft = 'max(10px, env(safe-area-inset-left))';
         app.style.paddingRight = 'max(10px, env(safe-area-inset-right))';
     }
@@ -6095,6 +6134,27 @@ function renderMemorize(app) {
         : 'memorize-screen';
     const memorizeQuestionLabel = q ? getMemorizeQuestionLabel(q.noteIdx) : '';
 
+    // STAGE 1 横画面 cruise 限定: 指板最大化トライアルのタブ（A / A+B / A+B+C）。
+    // 本番動作には影響させないため、position:fixed の独立要素として配置する。
+    const cruiseTrialActive =
+        memorizeLand && isCruise && state.memorize.stage === 1;
+    const cruiseTrialCurrent = ['A', 'AB', 'ABC'].includes(state.memorize.cruiseLayoutTrial)
+        ? state.memorize.cruiseLayoutTrial
+        : 'A';
+    const cruiseTrialTabsHtml = cruiseTrialActive
+        ? `
+            <div class="cruise-layout-trial-tabs" role="group" aria-label="指板レイアウト試作">
+                <span class="cruise-layout-trial-tabs__label">指板拡大</span>
+                ${['A', 'AB', 'ABC'].map(t => `
+                    <button type="button"
+                        class="cruise-layout-trial-tab${cruiseTrialCurrent === t ? ' is-active' : ''}"
+                        data-trial="${t}"
+                        aria-pressed="${cruiseTrialCurrent === t ? 'true' : 'false'}">${t === 'AB' ? 'A+B' : t === 'ABC' ? 'A+B+C' : 'A'}</button>
+                `).join('')}
+            </div>
+        `
+        : '';
+
     app.innerHTML = `
         <div class="${memorizeRootClass}" data-fretboard-view="${state.settings.fretboardView}">
             ${buildPageHeader({
@@ -6138,6 +6198,7 @@ function renderMemorize(app) {
                     </div>
                 ` : ''}
             </div>
+            ${cruiseTrialTabsHtml}
         </div>
     `;
 
@@ -6261,6 +6322,18 @@ function renderMemorize(app) {
         state.memorize.isCruisePlaying = false;
         openSettings();
     };
+
+    // STAGE 1 横画面 cruise の指板拡大トライアルタブ
+    document.querySelectorAll('.cruise-layout-trial-tab').forEach(btn => {
+        btn.onclick = () => {
+            const next = btn.getAttribute('data-trial');
+            if (!['A', 'AB', 'ABC'].includes(next)) return;
+            if (state.memorize.cruiseLayoutTrial === next) return;
+            state.memorize.cruiseLayoutTrial = next;
+            saveState();
+            renderApp();
+        };
+    });
 
     // Highlight mode selection buttons
     document.querySelectorAll('.highlight-mode-btn').forEach(btn => {
@@ -8118,9 +8191,15 @@ function renderFretboardHTML(containerId, options) {
             const ruleHostW = isRuleFretHost && containerEl.parentElement
                 ? Math.floor(containerEl.parentElement.clientWidth)
                 : 0;
+            const cruiseTrialCfg =
+                mode === 'memorize' && containerId === 'fretboard-container'
+                    ? getCruiseLayoutTrialConfig()
+                    : { active: false };
             const layoutW = isRuleFretHost && ruleHostW > 0
                 ? ruleHostW
-                : (appEl && appEl.clientWidth > 0 ? appEl.clientWidth : screenW);
+                : cruiseTrialCfg.active && cruiseTrialCfg.useFullViewportWidth
+                    ? screenW
+                    : (appEl && appEl.clientWidth > 0 ? appEl.clientWidth : screenW);
             const ruleTapCapZoomByFretWidth = (zMax, layoutPad, innerMin) => {
                 let bW = 0;
                 if (step3TapFloatRange !== null) {
@@ -8174,7 +8253,11 @@ function renderFretboardHTML(containerId, options) {
                     if (ch > 72) {
                         const zSlack = land ? 0 : 4;
                         /** 横・拡大: 下端UIとの隙間をやや詰め、指板の縦スケール上限を上げる */
-                        const zBottomClear = land ? 34 : 0;
+                        const zBottomClearBase = land ? 34 : 0;
+                        const zBottomClear =
+                            cruiseTrialCfg.active && cruiseTrialCfg.bottomClearOverride !== null
+                                ? cruiseTrialCfg.bottomClearOverride
+                                : zBottomClearBase;
                         maxZoomViewH = Math.max(130, ch - zSlack - zBottomClear);
                     }
                 }
@@ -8261,15 +8344,17 @@ function renderFretboardHTML(containerId, options) {
                         );
                 let maxFullViewH = Math.max(180, window.innerHeight * 0.35);
                 const memorizeLandBottomUiClearPx =
-                    routeEditorFretHost && land
-                        ? 72
-                        : memorizeCruiseLandscape
-                            ? 70
-                            : (memorizeFretHost || visualizeFretHost) && land
-                                ? 22
-                                : land
-                                    ? 36
-                                    : 0;
+                    cruiseTrialCfg.active && cruiseTrialCfg.bottomClearOverride !== null
+                        ? cruiseTrialCfg.bottomClearOverride
+                        : routeEditorFretHost && land
+                            ? 72
+                            : memorizeCruiseLandscape
+                                ? 70
+                                : (memorizeFretHost || visualizeFretHost) && land
+                                    ? 22
+                                    : land
+                                        ? 36
+                                        : 0;
                 const readMemorizeHostMaxH = () => {
                     if (
                         (mode !== 'memorize' && mode !== 'visualize' && mode !== 'rule') ||
