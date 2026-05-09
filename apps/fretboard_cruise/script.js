@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.79.4';
+const FRETBOARD_CRUISE_APP_VERSION = '1.79.5';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -2778,9 +2778,12 @@ function renderApp() {
         app.style.minHeight = '0';
         app.style.overflow = 'hidden';
         const memorizeLandApp = window.innerWidth > window.innerHeight;
+        // 縦画面はSTAGE選択画面（.app-container { padding:20px }）と
+        // ヘッダー位置を揃えるため、上余白を 20px 起点にする。
+        // 横画面は指板領域がタイトなので従来どおり詰める。
         app.style.paddingTop = memorizeLandApp
             ? 'max(2px, env(safe-area-inset-top))'
-            : 'max(4px, env(safe-area-inset-top))';
+            : 'max(20px, env(safe-area-inset-top))';
         app.style.paddingBottom =
             'calc(var(--in-game-refresh-stack-height, 96px) + max(8px, env(safe-area-inset-bottom)))';
         app.style.paddingLeft = 'max(10px, env(safe-area-inset-left))';
