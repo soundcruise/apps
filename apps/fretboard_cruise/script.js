@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.79.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.79.4';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -6100,7 +6100,7 @@ function renderMemorize(app) {
                     ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
                     ${navButtonHtml({ id: 'btn-home-memorize', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
                 `,
-                rightHtml: `${quizTimerHtml}${navButtonHtml({ id: 'btn-memorize-settings', text: '⚙️ 設定', extraClass: 'page-nav-btn--settings' })}`
+                rightHtml: `${quizTimerHtml}<button class="icon-btn home-settings-btn" id="btn-memorize-settings" aria-label="設定">⚙️</button>`
             })}
             <div class="memorize-body-stack">
                 <div class="memorize-copy-block">
