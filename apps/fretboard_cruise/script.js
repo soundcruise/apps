@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.67.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.68.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -53,6 +53,10 @@ const SHIPPED_DEFAULT_STAGE_1_ROUTE_SLOTS = JSON.parse(
 );
 const SHIPPED_DEFAULT_STAGE_1_ROUTE_GROUP_BREAKS = JSON.parse(
     '[0,6,12,20,25,30]'
+);
+/** STAGE1「初期順」で復元するグループ別 scrollLeft（上記と同じ保存データ） */
+const SHIPPED_DEFAULT_STAGE_1_GROUP_SCROLL_LEFTS = JSON.parse(
+    '{"0":0,"1":0,"2":0,"3":0,"4":0,"5":0}'
 );
 /** STAGE2 公式デフォルト（「この順番で保存」したルート・Gr構成・指板位置を埋め込み） */
 const SHIPPED_DEFAULT_STAGE_2_ROUTE_SLOTS = JSON.parse(
@@ -1553,7 +1557,9 @@ function clearAllSavedCruiseGroupScrollLeftsForStage(stage) {
 function applyShippedDefaultCruiseGroupScrollLeftsForStage(stage) {
     const st = clamp(parseInt(stage, 10), 1, 6);
     let shipped = null;
-    if (st === 2) {
+    if (st === 1) {
+        shipped = SHIPPED_DEFAULT_STAGE_1_GROUP_SCROLL_LEFTS;
+    } else if (st === 2) {
         shipped = SHIPPED_DEFAULT_STAGE_2_GROUP_SCROLL_LEFTS;
     }
     if (!shipped || typeof shipped !== 'object' || Array.isArray(shipped)) return;
