@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.66.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.67.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -60,6 +60,10 @@ const SHIPPED_DEFAULT_STAGE_2_ROUTE_SLOTS = JSON.parse(
 );
 const SHIPPED_DEFAULT_STAGE_2_ROUTE_GROUP_BREAKS = JSON.parse(
     '[0,6,12]'
+);
+/** STAGE2「初期順」で復元するグループ別 scrollLeft（「この順番で保存」と同一の公式デフォルト） */
+const SHIPPED_DEFAULT_STAGE_2_GROUP_SCROLL_LEFTS = JSON.parse(
+    '{"0":0,"1":0,"2":50}'
 );
 /** STAGE3 初期ルート（現在の「初期順」）。`scripts/compute-stage3-shipped-default.mjs` で同内容を再生成可 */
 const SHIPPED_DEFAULT_STAGE_3_ROUTE_SLOTS = JSON.parse(
@@ -1535,11 +1539,32 @@ function clearSavedCruiseGroupScrollLeft(stage, groupIndex) {
     }
 }
 
-/** ステージ単位で全グループの saved スクロール位置を消す（全消し・初期順時に使う） */
+/** ステージ単位で全グループの saved スクロール位置を消す（全消し時に使う） */
 function clearAllSavedCruiseGroupScrollLeftsForStage(stage) {
     const all = state.settings.cruiseStageGroupScrollLefts;
     if (!all || typeof all !== 'object' || Array.isArray(all)) return;
     delete all[String(stage)];
+}
+
+/**
+ * 「初期順」で、cruiseStageGroupScrollLefts を埋め込み既定で置き換える。
+ * 定数が無いステージは何もしない（既存スクロールを維持）。
+ */
+function applyShippedDefaultCruiseGroupScrollLeftsForStage(stage) {
+    const st = clamp(parseInt(stage, 10), 1, 6);
+    let shipped = null;
+    if (st === 2) {
+        shipped = SHIPPED_DEFAULT_STAGE_2_GROUP_SCROLL_LEFTS;
+    }
+    if (!shipped || typeof shipped !== 'object' || Array.isArray(shipped)) return;
+    if (!state.settings.cruiseStageGroupScrollLefts || typeof state.settings.cruiseStageGroupScrollLefts !== 'object' || Array.isArray(state.settings.cruiseStageGroupScrollLefts)) {
+        state.settings.cruiseStageGroupScrollLefts = {};
+    }
+    const next = {};
+    Object.keys(shipped).forEach(k => {
+        next[String(k)] = Math.max(0, Math.round(parseFloat(shipped[k]) || 0));
+    });
+    state.settings.cruiseStageGroupScrollLefts[String(st)] = next;
 }
 
 function saveRouteEditorGroupScrollLeftIfMissing(stage, groupIndex, scrollLeft) {
@@ -5318,8 +5343,8 @@ function renderRouteEditor(app) {
         state.routeEditor.forceHideAllGroups = false;
         state.routeEditor.showAllGroupsExpanded = false;
         // 「初期順」はルートとグループ区切りだけを埋め込み既定に戻す。
-        // 指板の保存スクロール（cruiseStageGroupScrollLefts）は消さない。
-        // 消すと問題画面で saved が無くなり、ズーム時の自動スクロールにフォールバックして画角が変わる。
+        // STAGE2 など、指板 scrollLeft の埋め込みがあるステージはそれを書き戻す。
+        applyShippedDefaultCruiseGroupScrollLeftsForStage(stage);
         saveState();
         renderApp();
     };
