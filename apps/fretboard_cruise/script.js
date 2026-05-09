@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.74.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.75.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -47,6 +47,8 @@ const DEFAULT_ROTATION = { x: 0, y: 0, z: 0 };
 const DEFAULT_FRETBOARD_VIEW = 'full';
 const DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION = true;
 const DEFAULT_CRUISE_LOOP_COUNT = 1;
+/** 「指板をたどる」で指板上にグレー／次／現在の音名マーカーを出す（OFF で非表示） */
+const DEFAULT_CRUISE_SHOW_NOTE_NAMES = true;
 /** STAGE1 初期ルート（初回・未保存時・「初期順」）。`scripts/compute-stage1-shipped-default.mjs` で同内容を再生成可 */
 const SHIPPED_DEFAULT_STAGE_1_ROUTE_SLOTS = JSON.parse(
     '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":5,"fret":0},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":4,"fret":0},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":3,"fret":0},{"stringName":3,"fret":2},{"stringName":2,"fret":0},{"stringName":2,"fret":1},{"stringName":2,"fret":1},{"stringName":2,"fret":3},{"stringName":1,"fret":0},{"stringName":1,"fret":1},{"stringName":1,"fret":3},{"stringName":1,"fret":3},{"stringName":1,"fret":1},{"stringName":1,"fret":0},{"stringName":2,"fret":3},{"stringName":2,"fret":1},{"stringName":2,"fret":1},{"stringName":2,"fret":0},{"stringName":3,"fret":2},{"stringName":3,"fret":0},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":4,"fret":0},{"stringName":5,"fret":3}]'
@@ -258,6 +260,7 @@ let state = {
         fretboardView: DEFAULT_FRETBOARD_VIEW,
         fretboardViewAutoOrientation: DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION,
         cruiseLoopCount: DEFAULT_CRUISE_LOOP_COUNT,
+        cruiseShowNoteNames: DEFAULT_CRUISE_SHOW_NOTE_NAMES,
         cruiseStageRoutes: {},
         cruiseStageRouteGroups: {},
         cruiseStageGroupScrollLefts: {},
@@ -466,6 +469,9 @@ if (savedState) {
         if (typeof state.settings.cruiseLoopCount === 'undefined') {
             state.settings.cruiseLoopCount = DEFAULT_CRUISE_LOOP_COUNT;
         }
+        if (typeof state.settings.cruiseShowNoteNames !== 'boolean') {
+            state.settings.cruiseShowNoteNames = DEFAULT_CRUISE_SHOW_NOTE_NAMES;
+        }
         state.settings.routeEditorScaleGuideVariant = 3;
         if (
             !state.settings.cruiseStageRoutes ||
@@ -612,6 +618,7 @@ function getDefaultSettings() {
         fretboardView: DEFAULT_FRETBOARD_VIEW,
         fretboardViewAutoOrientation: DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION,
         cruiseLoopCount: DEFAULT_CRUISE_LOOP_COUNT,
+        cruiseShowNoteNames: DEFAULT_CRUISE_SHOW_NOTE_NAMES,
         cruiseStageRoutes: {},
         cruiseStageRouteGroups: {},
         cruiseStageGroupScrollLefts: {},
@@ -6726,7 +6733,7 @@ function renderSettings(app) {
             <div class="settings-card-header">
                 <div class="settings-card-title-wrap">
                     <h3 class="settings-card-title">テンポ</h3>
-                    <span class="settings-card-subtitle">テンポをたどるモード</span>
+                    <span class="settings-card-subtitle">指板をたどるモード</span>
                 </div>
                 <button class="settings-card-reset-btn" type="button" data-reset-card="tempo">リセット</button>
             </div>
@@ -6742,7 +6749,7 @@ function renderSettings(app) {
             <div class="settings-card-header">
                 <div class="settings-card-title-wrap">
                     <h3 class="settings-card-title">ループ回数</h3>
-                    <span class="settings-card-subtitle">テンポをたどるモード</span>
+                    <span class="settings-card-subtitle">指板をたどるモード</span>
                 </div>
                 <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-loop">リセット</button>
             </div>
@@ -6752,6 +6759,20 @@ function renderSettings(app) {
                 <button class="mode-btn ${state.settings.cruiseLoopCount === 3 ? 'active' : ''}" data-loop-count="3">3周</button>
                 <button class="mode-btn ${state.settings.cruiseLoopCount === 0 ? 'active' : ''}" data-loop-count="0">無限</button>
             </div>
+        </div>
+
+        <div class="settings-card">
+            <div class="settings-card-header">
+                <div class="settings-card-title-wrap">
+                    <h3 class="settings-card-title">音名の表示</h3>
+                    <span class="settings-card-subtitle">指板をたどるモード</span>
+                </div>
+            </div>
+            <div class="settings-row-between" style="margin-bottom:4px;">
+                <label for="cruise-show-note-names-toggle" class="settings-label" style="cursor:pointer;">指板上の音名マーカー</label>
+                <input type="checkbox" id="cruise-show-note-names-toggle" class="settings-checkbox-native" ${state.settings.cruiseShowNoteNames !== false ? 'checked' : ''}>
+            </div>
+            <p class="settings-note settings-note--animated visible" style="margin-top:4px;">オフにすると、練習範囲の薄い音名・次の音・いまの音の丸表示を隠します（上の出題文はそのままです）。</p>
         </div>
 
         <div class="settings-card">
@@ -6985,6 +7006,14 @@ function renderSettings(app) {
         };
     });
 
+    const cruiseNoteNamesToggle = document.getElementById('cruise-show-note-names-toggle');
+    if (cruiseNoteNamesToggle) {
+        cruiseNoteNamesToggle.onchange = () => {
+            state.settings.cruiseShowNoteNames = cruiseNoteNamesToggle.checked;
+            saveState();
+        };
+    }
+
     const updatePreview = () => {
         renderFretboardHTML('tilt-preview-container', {
             mode: 'visualize',
@@ -7045,6 +7074,11 @@ function renderSettings(app) {
         });
     }
 
+    function syncCruiseNoteNamesSettingsUI() {
+        const el = document.getElementById('cruise-show-note-names-toggle');
+        if (el) el.checked = state.settings.cruiseShowNoteNames !== false;
+    }
+
     function refreshSettingsControls() {
         tempoSlider.value = state.settings.tempo;
         tempoDisplay.textContent = `BPM ${state.settings.tempo}`;
@@ -7052,6 +7086,7 @@ function renderSettings(app) {
         timerDisplay.textContent = `${state.settings.quizTimeLimit} 秒`;
         syncNotationSettingsUI();
         syncLoopCountSettingsUI();
+        syncCruiseNoteNamesSettingsUI();
         perspSlider.value = state.settings.perspective;
         perspOriginSlider.value = state.settings.perspOriginX;
         stringSpacingSlider.value = state.settings.stringSpacing;
@@ -7494,6 +7529,10 @@ function renderFretboardHTML(containerId, options) {
     const nextCruiseTarget = (mode === 'memorize' && state.memorize.playMode === 'cruise')
         ? state.memorize.cruiseTargets[state.memorize.cruiseIndex + 1]
         : null;
+    const hideCruiseNoteMarkers =
+        mode === 'memorize' &&
+        state.memorize.playMode === 'cruise' &&
+        state.settings.cruiseShowNoteNames === false;
     let containerClass = 'fretboard-container view-custom';
     const xEdges = getFretXEdges();
     const stringOrder = [1, 2, 3, 4, 5, 6];
@@ -7746,7 +7785,9 @@ function renderFretboardHTML(containerId, options) {
                     // Cruise mode: always show answer, user must click it
                     let isScope = state.memorize.cruiseScope.some(t => t.stringName === stringNum && t.fret === f);
                     let isNextCruise = nextCruiseTarget && stringNum === nextCruiseTarget.stringName && f === nextCruiseTarget.fret && !isTargetCruise;
-                    if (isTargetCruise) {
+                    if (hideCruiseNoteMarkers) {
+                        markerHtml = `<div class="note-marker hidden-note"></div>`;
+                    } else if (isTargetCruise) {
                         markerHtml = `<div class="note-marker target-note correct-note">${getNotationLabel(noteIdx)}</div>`;
                     } else if (isNextCruise) {
                         markerHtml = `<div class="note-marker target-note next-note">${getNotationLabel(noteIdx)}</div>`;
