@@ -1220,9 +1220,31 @@ input:checked + .toggle-slider:before {
 
 @media (orientation: landscape) {
     .stage-list {
-        max-height: calc(100vh - 160px);
+        /* 横画面: STAGE 一覧の縦スペースを最大化（最低でも2個分のSTAGEがしっかり見える） */
+        max-height: calc(100dvh - 96px);
         overflow-y: auto;
         padding-right: 8px;
+        gap: 10px;
+    }
+
+    /* 横画面のSTAGE/STEP選択画面に限り、画面全体を上寄せにして
+       上部の余白を詰め、一覧に縦スペースを譲る（縦画面は影響しない） */
+    body:has(.page-header--stage-select) {
+        align-items: flex-start;
+    }
+
+    body:has(.page-header--stage-select) .app-container {
+        gap: 16px;
+        padding-top: max(8px, env(safe-area-inset-top));
+        padding-bottom: max(8px, env(safe-area-inset-bottom));
+    }
+
+    .page-header--stage-select {
+        gap: 10px;
+    }
+
+    .page-header--stage-select .page-header-title-wrap {
+        transform: none;
     }
 }
 
