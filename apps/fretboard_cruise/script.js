@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.75.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.75.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -7786,7 +7786,12 @@ function renderFretboardHTML(containerId, options) {
                     let isScope = state.memorize.cruiseScope.some(t => t.stringName === stringNum && t.fret === f);
                     let isNextCruise = nextCruiseTarget && stringNum === nextCruiseTarget.stringName && f === nextCruiseTarget.fret && !isTargetCruise;
                     if (hideCruiseNoteMarkers) {
-                        markerHtml = `<div class="note-marker hidden-note"></div>`;
+                        // 音名OFF時：現在押す音だけは丸（ラベルなし）で表示し、次/範囲は完全非表示
+                        if (isTargetCruise) {
+                            markerHtml = `<div class="note-marker target-note correct-note note-marker--no-label" aria-label="${q ? `${q.stringName}弦 ${q.fret}フレット` : ''}"></div>`;
+                        } else {
+                            markerHtml = `<div class="note-marker hidden-note"></div>`;
+                        }
                     } else if (isTargetCruise) {
                         markerHtml = `<div class="note-marker target-note correct-note">${getNotationLabel(noteIdx)}</div>`;
                     } else if (isNextCruise) {
