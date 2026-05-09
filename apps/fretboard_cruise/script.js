@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.81.11';
+const FRETBOARD_CRUISE_APP_VERSION = '1.81.10';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1393,12 +1393,6 @@ function handleQuizTimeout() {
         if (state.course !== 'memorize' || state.memorize.playMode !== 'quiz') return;
         generateQuestion();
         renderApp();
-        // Play tone for next question after timeout
-        if (state.memorize.currentQuestion) {
-            initAudio();
-            const q = state.memorize.currentQuestion;
-            playTone(q.stringIdx, q.noteIdx);
-        }
     }, 1000);
 }
 
@@ -2755,12 +2749,6 @@ function startCruisePlaybackFromSequence(sequence, cruiseScope = null, stage = n
     autoScrollRequested = true;
     saveState();
     renderApp();
-    // Play quiz question tone on first problem
-    if (state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
-        initAudio();
-        const q = state.memorize.currentQuestion;
-        playTone(q.stringIdx, q.noteIdx);
-    }
     startCruiseCountdownAndRhythm();
     return true;
 }
@@ -2784,10 +2772,6 @@ function generateQuestion() {
 
     if (state.memorize.playMode === 'quiz') {
         autoScrollRequested = true;
-        // Play quiz question tone
-        initAudio();
-        const q = state.memorize.currentQuestion;
-        playTone(q.stringIdx, q.noteIdx);
         startQuizTimer();
     }
 }
