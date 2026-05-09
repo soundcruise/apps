@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.81.4';
+const FRETBOARD_CRUISE_APP_VERSION = '1.81.5';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -6161,7 +6161,7 @@ function renderMemorize(app) {
                 </div>
                 <div id="fretboard-container" class="memorize-fretboard-host"></div>
                 ${isCruise ? `
-                    <div class="memorize-cruise-controls">
+                    <div class="memorize-cruise-controls${state.memorize.isCleared ? ' memorize-cruise-controls--cleared' : ''}">
                         <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-prev">⬅️</button>
                         <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-reset">⏮️</button>
                         <button type="button" class="btn-secondary memorize-cruise-control-btn${state.memorize.isCleared ? ' memorize-cruise-control-btn--text' : ''}" id="btn-cruise-stop">${state.memorize.isCleared

@@ -944,6 +944,22 @@
     line-height: 1;
 }
 
+/* 横画面・クリア時: 「もう1回」「次に進む」の日本語が見切れないよう、
+   絵文字ボタンは 48px のまま、テキストボタンは文字幅に合わせて広げる */
+.memorize-screen--landscape .memorize-cruise-controls--cleared {
+    grid-template-columns: 48px 48px auto auto;
+}
+
+.memorize-screen--landscape .memorize-cruise-controls--cleared .memorize-cruise-control-btn--text {
+    padding: 0 12px;
+    font-size: 0.85rem;
+    letter-spacing: 0;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
+}
+
 /* 横＋拡大のみ: STAGE/問題を上に詰めて指板エリアの縦を広げる（全体ビューは従来の横スタイルのまま） */
 .memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-question-row {
     margin-bottom: 2px;
