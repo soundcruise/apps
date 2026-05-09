@@ -639,6 +639,27 @@
     text-align: center;
 }
 
+/* 開始時の BPM カウントダウン（3, 2, 1）を大きく表示 */
+.memorize-feedback.memorize-feedback--countdown {
+    font-size: 3rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    line-height: 1;
+    letter-spacing: 0.05em;
+}
+
+/* クリア時の「お疲れ様でした」メッセージ */
+.memorize-question-main.memorize-question--cleared {
+    color: var(--success-color, #4caf50);
+    font-weight: 700;
+}
+
+/* クリア時のサマリー表示 */
+.memorize-feedback.memorize-feedback--cleared {
+    color: var(--success-color, #4caf50);
+    font-weight: 600;
+}
+
 .memorize-repeat-hint-tabs {
     display: flex;
     flex-wrap: wrap;

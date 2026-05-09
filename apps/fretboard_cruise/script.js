@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.72.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.73.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -193,7 +193,8 @@ let state = {
         cruiseCurrentGroupIndex: 0,
         cruisePreviousGroupIndex: null,
         highlightMode: 2, // 1-5: Visual highlight pattern for current/next note (2=Glow)
-        isCruisePlaying: true // Is cruise rhythm currently playing (default: playing)
+        isCruisePlaying: true, // Is cruise rhythm currently playing (default: playing)
+        cruiseCountdown: 0 // 開始前のBPMカウント（3→2→1→0で再生開始）
     },
     visualize: {
         key: 0, // C
@@ -441,6 +442,8 @@ if (savedState) {
         if (typeof state.memorize.cruisePreviousGroupIndex !== 'number' && state.memorize.cruisePreviousGroupIndex !== null) {
             state.memorize.cruisePreviousGroupIndex = null;
         }
+        // 起動／復元直後はカウントダウンを必ず止める（タイマーは引き継げないため）
+        state.memorize.cruiseCountdown = 0;
         if (typeof state.visualize.key === 'undefined') state.visualize.key = 0;
         if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
         if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
@@ -1344,8 +1347,13 @@ function autoAdvanceCruise() {
                 return;
             }
             // 規定ループ完了：STOP
+            // 「ラスト!」表示後に次の音（先頭）への自動スクロールが入らないよう、
+            // 予約済みのGr切替スクロールと autoScrollRequested を無効化する。
             clearStage1RepeatHintState();
+            cancelPendingCruiseGroupScroll();
+            autoScrollRequested = false;
             state.memorize.isCleared = true;
+            state.memorize.isCruisePlaying = false;
             stopRhythm();
             saveState();
             renderApp();
@@ -1449,6 +1457,54 @@ function stopRhythm() {
         rhythmInterval = null;
     }
     cancelPendingCruiseGroupScroll();
+    clearCruiseCountdown();
+}
+
+let cruiseCountdownTimerId = null;
+
+function clearCruiseCountdown() {
+    if (cruiseCountdownTimerId !== null) {
+        clearTimeout(cruiseCountdownTimerId);
+        cruiseCountdownTimerId = null;
+    }
+    if (state.memorize.cruiseCountdown !== 0) {
+        state.memorize.cruiseCountdown = 0;
+    }
+}
+
+/**
+ * クルーズ問題画面の開始時に、BPMに合わせた 3→2→1 のカウントダウンを表示し、
+ * カウント終了でリズム再生を開始する。カウント中も最初の音は表示／ハイライト済み。
+ */
+function startCruiseCountdownAndRhythm() {
+    clearCruiseCountdown();
+    initAudio();
+    state.memorize.cruiseCountdown = 3;
+    renderApp();
+
+    const oneBeatMs = 60000 / (state.settings.tempo || DEFAULT_TEMPO);
+
+    const tick = () => {
+        cruiseCountdownTimerId = setTimeout(() => {
+            cruiseCountdownTimerId = null;
+            // 画面遷移などで cruise から外れていたら何もしない
+            if (state.course !== 'memorize' || state.memorize.playMode !== 'cruise') {
+                state.memorize.cruiseCountdown = 0;
+                return;
+            }
+            const next = state.memorize.cruiseCountdown - 1;
+            if (next > 0) {
+                state.memorize.cruiseCountdown = next;
+                renderApp();
+                tick();
+            } else {
+                state.memorize.cruiseCountdown = 0;
+                renderApp();
+                startRhythm();
+            }
+        }, oneBeatMs);
+    };
+    tick();
 }
 
 // ----------------------------------------------------
@@ -2460,9 +2516,9 @@ function startCruisePlaybackFromSequence(sequence, cruiseScope = null, stage = n
     state.memorize.isCruisePlaying = true;
     state.course = 'memorize';
     autoScrollRequested = true;
-    startRhythm();
     saveState();
     renderApp();
+    startCruiseCountdownAndRhythm();
     return true;
 }
 
@@ -2638,12 +2694,22 @@ function renderApp() {
     const newWrapper = document.querySelector('.fretboard-scroll-wrapper');
     const newScrollGroup = newWrapper && newWrapper.getAttribute('data-scroll-group');
     if (newWrapper && newScrollGroup) {
+        // 終了時（ラスト!表示後）は、現在のスクロール位置を保ったまま動かさない。
+        // 「次の音」へ画面が一瞬流れるのを防ぐ。
+        const isFinishedCruise =
+            state.course === 'memorize' &&
+            state.memorize.playMode === 'cruise' &&
+            state.memorize.isCleared === true;
+
         const savedCruiseGroupScrollLeft =
-            state.course === 'memorize' && state.memorize.playMode === 'cruise'
+            !isFinishedCruise && state.course === 'memorize' && state.memorize.playMode === 'cruise'
                 ? getSavedCruiseGroupScrollLeft(state.memorize.stage, state.memorize.cruiseCurrentGroupIndex)
                 : null;
 
-        if (Number.isFinite(savedCruiseGroupScrollLeft)) {
+        if (isFinishedCruise) {
+            autoScrollRequested = false;
+            cancelPendingCruiseGroupScroll();
+        } else if (Number.isFinite(savedCruiseGroupScrollLeft)) {
             autoScrollRequested = false;
             const isGroupChanged =
                 state.memorize.cruisePreviousGroupIndex !== null &&
@@ -5174,7 +5240,13 @@ function renderStageSelect(app) {
                 state.memorize.isCruisePlaying = true;
                 
                 autoScrollRequested = true;
-                startRhythm(); // Start the drum loop. It will trigger autoAdvanceCruise.
+                // 開始時に BPM カウント（3,2,1）を入れてから自動再生開始。
+                // saveState/renderApp はカウント関数内で呼ぶ。
+                saveState();
+                renderApp();
+                startCruiseCountdownAndRhythm();
+                // ここで return せず下の try 処理に流すと renderApp が二重になるため早期 return
+                return;
             } else {
                 state.memorize.tempFeedback = null;
                 generateQuestion();
@@ -5818,12 +5890,27 @@ function renderMemorize(app) {
     }
 
     const isCruise = state.memorize.playMode === 'cruise';
+    const isCruiseCleared = isCruise && state.memorize.isCleared === true;
+    const cruiseCountdownValue = isCruise && Number.isFinite(parseInt(state.memorize.cruiseCountdown, 10))
+        ? parseInt(state.memorize.cruiseCountdown, 10)
+        : 0;
+    const isCruiseCounting = isCruise && cruiseCountdownValue > 0;
 
     let fbText = isCruise
         ? 'リズムに合わせてタップ！'
         : '指板をタップして回答してください';
     let fbClass = 'feedback-display';
-    if (state.memorize.tempFeedback) {
+    if (isCruiseCleared) {
+        const totalNotes = Array.isArray(state.memorize.cruiseTargets) ? state.memorize.cruiseTargets.length : 0;
+        const correctCount = state.memorize.correct || 0;
+        fbText = totalNotes > 0
+            ? `正解 ${correctCount} / 全 ${totalNotes} 音`
+            : `正解 ${correctCount} 音`;
+        fbClass = 'feedback-display memorize-feedback--cleared';
+    } else if (isCruiseCounting) {
+        fbText = `${cruiseCountdownValue}`;
+        fbClass = 'feedback-display memorize-feedback--countdown';
+    } else if (state.memorize.tempFeedback) {
         fbText = state.memorize.tempFeedback.text;
         fbClass = state.memorize.tempFeedback.className;
         state.memorize.tempFeedback = null; // consume
@@ -5864,7 +5951,9 @@ function renderMemorize(app) {
                 <div class="memorize-copy-block">
                     <div class="memorize-question-row">
                         ${stageStatsHtml}
-                        <div class="question-text memorize-question memorize-question-main">${q.stringName}弦 の <span class="memorize-question-note" style="color: var(--primary-color);">${memorizeQuestionLabel}</span> ${isCruise ? 'をタップ！' : 'を探せ！'}</div>
+                        ${isCruiseCleared
+                            ? `<div class="question-text memorize-question memorize-question-main memorize-question--cleared">🎉 お疲れ様でした！</div>`
+                            : `<div class="question-text memorize-question memorize-question-main">${q.stringName}弦 の <span class="memorize-question-note" style="color: var(--primary-color);">${memorizeQuestionLabel}</span> ${isCruise ? 'をタップ！' : 'を探せ！'}</div>`}
                     </div>
                     <div id="feedback" class="${fbClass} memorize-feedback">${fbText}</div>
                     ${repeatHintTabsHtml}
@@ -5934,20 +6023,30 @@ function renderMemorize(app) {
                 clearStage1RepeatHintState();
                 state.memorize.isCleared = false;
                 state.memorize.cruiseIndex = 0;
+                state.memorize.cruiseCurrentLoop = 0;
                 state.memorize.correct = 0;
                 state.memorize.combo = 0;
                 state.memorize.currentQuestion = state.memorize.cruiseTargets[0];
+                state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices?.[0] ?? 0;
+                state.memorize.cruisePreviousGroupIndex = null;
                 state.memorize.hasTappedCurrentNote = false;
                 state.memorize.isFirstNote = true;
                 state.memorize.isCruisePlaying = true;
-                startRhythm();
+                autoScrollRequested = true;
+                saveState();
+                renderApp();
+                startCruiseCountdownAndRhythm();
+                return;
             } else {
-                // Toggle play/stop
+                // Toggle play/stop（途中の一時停止→再開でもカウントを入れる）
                 state.memorize.isCruisePlaying = !state.memorize.isCruisePlaying;
                 if (!state.memorize.isCruisePlaying) {
                     stopRhythm();
                 } else {
-                    startRhythm();
+                    saveState();
+                    renderApp();
+                    startCruiseCountdownAndRhythm();
+                    return;
                 }
             }
             saveState();
@@ -5982,12 +6081,15 @@ function renderMemorize(app) {
             state.memorize.correct = 0;
             state.memorize.combo = 0;
             state.memorize.currentQuestion = state.memorize.cruiseTargets[0];
+            state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices?.[0] ?? 0;
+            state.memorize.cruisePreviousGroupIndex = null;
             state.memorize.hasTappedCurrentNote = false;
             state.memorize.isFirstNote = true;
             state.memorize.isCruisePlaying = true;
-            startRhythm();
+            autoScrollRequested = true;
             saveState();
             renderApp();
+            startCruiseCountdownAndRhythm();
         };
     }
 
