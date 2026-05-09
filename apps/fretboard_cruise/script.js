@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.82.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.82.4';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -286,6 +286,8 @@ let routeEditorScrollAppliedKey = null;
 const routeEditorPendingGroupScrollLefts = new Map();
 /** ルート編集・拡大ビュー: 同期で読む scrollLeft が 0 にずれることがあるため、scroll で拾った直近値を保持 */
 let routeEditorFretboardScrollSnapshot = 0;
+/** クイズエディタ: Gr切り替え等で適用すべきスクロール位置。renderApp() 内で消費後 null にリセット */
+let quizEditorPendingScrollLeft = null;
 let settingsReturnCourse = null;
 let settingsPausedState = null;
 let quizAdvanceTimeout = null;
@@ -2800,7 +2802,7 @@ function generateQuestion() {
     let noteGroupMap = null;
     let savedGroups = null;
 
-    if (savedSettings && savedSettings.groups && savedSettings.groups.some(g => g.notes && g.notes.length > 0)) {
+    if (savedSettings && savedSettings.groups && savedSettings.groups.length > 0) {
         // カスタム設定が存在する場合: 全グループのノートからユニークなプールを作成
         savedGroups = savedSettings.groups;
         const poolMap = new Map();
@@ -2858,6 +2860,12 @@ function generateQuestion() {
             if (Number.isFinite(grScrollLeft)) {
                 target = { ...target, quizGrScrollLeft: grScrollLeft };
             }
+        }
+    } else if (savedGroups && savedGroups.length > 0) {
+        // Gr内にnoteがない場合、最初のGrのscrollLeftを使う
+        const grScrollLeft = savedGroups[0]?.scrollLeft;
+        if (Number.isFinite(grScrollLeft)) {
+            target = { ...target, quizGrScrollLeft: grScrollLeft };
         }
     }
 
@@ -3091,10 +3099,12 @@ function renderApp() {
             });
             state.memorize.cruisePreviousGroupIndex = state.memorize.cruiseCurrentGroupIndex;
         } else if (state.course === 'quizEditor') {
-            newWrapper.scrollLeft = currentScrollLeft;
+            const qeScrollTarget = quizEditorPendingScrollLeft !== null ? quizEditorPendingScrollLeft : currentScrollLeft;
+            quizEditorPendingScrollLeft = null;
+            newWrapper.scrollLeft = qeScrollTarget;
             requestAnimationFrame(() => {
                 if (!newWrapper.isConnected || state.course !== 'quizEditor') return;
-                newWrapper.scrollLeft = currentScrollLeft;
+                newWrapper.scrollLeft = qeScrollTarget;
             });
         } else if (state.course === 'routeEditor') {
             newWrapper.scrollLeft = currentScrollLeft;
@@ -5644,7 +5654,7 @@ function renderStageSelect(app) {
                 selectedGroupIndex: 0,
                 groupPanelOffset: { x: 0, y: 0 }
             };
-            currentScrollLeft = initialGroups[0]?.scrollLeft || 0;
+            quizEditorPendingScrollLeft = initialGroups[0]?.scrollLeft || 0;
             state.course = 'quizEditor';
             saveState();
             renderApp();
@@ -6407,7 +6417,7 @@ function renderQuizEditor(app) {
         const defaultGroups = getQuizEditorDefaultGroups(stage);
         state.quizEditor.groups = defaultGroups;
         state.quizEditor.selectedGroupIndex = 0;
-        currentScrollLeft = defaultGroups[0]?.scrollLeft || 0;
+        quizEditorPendingScrollLeft = defaultGroups[0]?.scrollLeft || 0;
         saveState();
         renderApp();
     };
@@ -6416,7 +6426,7 @@ function renderQuizEditor(app) {
         if (state.quizEditor.groups.length >= 8) return;
         state.quizEditor.groups = [...state.quizEditor.groups, { notes: [], scrollLeft: 0 }];
         state.quizEditor.selectedGroupIndex = state.quizEditor.groups.length - 1;
-        currentScrollLeft = 0;
+        quizEditorPendingScrollLeft = 0;
         saveState();
         renderApp();
     };
@@ -6427,7 +6437,7 @@ function renderQuizEditor(app) {
         state.quizEditor.groups = state.quizEditor.groups.filter((_, i) => i !== removeIndex);
         state.quizEditor.selectedGroupIndex = clamp(removeIndex, 0, state.quizEditor.groups.length - 1);
         const newGrScroll = state.quizEditor.groups[state.quizEditor.selectedGroupIndex]?.scrollLeft || 0;
-        currentScrollLeft = newGrScroll;
+        quizEditorPendingScrollLeft = newGrScroll;
         saveState();
         renderApp();
     };
@@ -6452,7 +6462,7 @@ function renderQuizEditor(app) {
             const grIndex = parseInt(btn.getAttribute('data-quiz-group-index'), 10);
             state.quizEditor.selectedGroupIndex = grIndex;
             const grScroll = state.quizEditor.groups[grIndex]?.scrollLeft || 0;
-            currentScrollLeft = grScroll;
+            quizEditorPendingScrollLeft = grScroll;
             saveState();
             renderApp();
         };
@@ -9888,5 +9898,15 @@ function addPathLineHighlight(overlay, currentCell, nextCell) {
 
 // Initial render
 document.addEventListener('DOMContentLoaded', () => {
+    // localStorage から状態を復元
+    const saved = localStorage.getItem('fretboard_cruise_state');
+    if (saved) {
+        try {
+            const loaded = JSON.parse(saved);
+            state = { ...state, ...loaded };
+        } catch (e) {
+            console.error('Failed to restore state from localStorage:', e);
+        }
+    }
     renderApp();
 });
