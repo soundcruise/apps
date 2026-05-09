@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.81.10';
+const FRETBOARD_CRUISE_APP_VERSION = '1.81.11';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1393,6 +1393,13 @@ function handleQuizTimeout() {
         if (state.course !== 'memorize' || state.memorize.playMode !== 'quiz') return;
         generateQuestion();
         renderApp();
+        // Play the next question note
+        quizToneTimeout = setTimeout(() => {
+            quizToneTimeout = null;
+            if (state.course === 'memorize' && state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+                playTone(state.memorize.currentQuestion.stringIdx, state.memorize.currentQuestion.fret);
+            }
+        }, 100);
     }, 1000);
 }
 
@@ -5544,9 +5551,18 @@ function renderStageSelect(app) {
                 generateQuestion();
                 autoScrollRequested = true;
             }
-            
+
             saveState();
             renderApp();
+            // Play the initial quiz question note
+            if (state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+                quizToneTimeout = setTimeout(() => {
+                    quizToneTimeout = null;
+                    if (state.course === 'memorize' && state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+                        playTone(state.memorize.currentQuestion.stringIdx, state.memorize.currentQuestion.fret);
+                    }
+                }, 100);
+            }
         };
     });
 }
