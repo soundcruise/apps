@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.82.10';
+const FRETBOARD_CRUISE_APP_VERSION = '1.82.11';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1381,6 +1381,7 @@ function handleQuizTimeout() {
     
     // Show answer briefly and move to next
     let app = document.getElementById('app');
+    const _timeoutScrollLeft = state.memorize.currentQuestion?.quizGrScrollLeft ?? null;
     renderFretboardHTML('fretboard-container', {
         mode: 'memorize',
         memorizeStage: state.memorize.stage,
@@ -1388,8 +1389,16 @@ function handleQuizTimeout() {
         showAnswer: true,
         clicked: null,
         onFretClick: null,
-        preserveScrollLeft: state.memorize.currentQuestion?.quizGrScrollLeft ?? null
+        preserveScrollLeft: _timeoutScrollLeft
     });
+
+    // refineScaleAfterPaint（二重RAF）完了後にscrollLeftを再適用
+    if (Number.isFinite(_timeoutScrollLeft)) {
+        setTimeout(() => {
+            const sw = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+            if (sw) sw.scrollLeft = _timeoutScrollLeft;
+        }, 50);
+    }
 
     const fb = document.getElementById('feedback');
     if (fb) {
@@ -6891,6 +6900,16 @@ function handleFretClick(stringNum, fret) {
         });
     }
 
+    // refineScaleAfterPaint（二重RAF）がtransformを変更してscrollLeftをリセットするため、
+    // RAF完了後（約33ms）にsetTimeoutでscrollLeftを再適用する
+    const _quizAnswerScrollLeft = q?.quizGrScrollLeft ?? null;
+    if (Number.isFinite(_quizAnswerScrollLeft)) {
+        setTimeout(() => {
+            const sw = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+            if (sw) sw.scrollLeft = _quizAnswerScrollLeft;
+        }, 50);
+    }
+
     saveState();
 
     clearQuizAdvanceTimers();
@@ -9022,6 +9041,9 @@ function renderFretboardHTML(containerId, options) {
                             const mh1 = readMemorizeHostMaxH();
                             if (mh1 === null) {
                                 syncFretboardLayoutCollapse();
+                                if (Number.isFinite(preserveScrollLeft) && scrollWrapper.isConnected) {
+                                    scrollWrapper.scrollLeft = preserveScrollLeft;
+                                }
                                 return;
                             }
                             let s1 =
