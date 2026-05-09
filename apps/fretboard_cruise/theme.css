@@ -639,13 +639,39 @@
     text-align: center;
 }
 
-/* 開始時の BPM カウントダウン（3, 2, 1）を大きく表示 */
-.memorize-feedback.memorize-feedback--countdown {
-    font-size: 3rem;
-    font-weight: 700;
+/* 指板を覆う透過カウントダウン（4, 3, 2, 1） */
+.memorize-fretboard-wrap {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    align-self: stretch;
+    display: flex;
+}
+
+.memorize-fretboard-wrap > .memorize-fretboard-host {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.memorize-countdown-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
     color: var(--primary-color);
+    opacity: 0.45;
+    font-size: clamp(6rem, 22vmin, 16rem);
+    font-weight: 800;
     line-height: 1;
-    letter-spacing: 0.05em;
+    text-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+    z-index: 5;
+    user-select: none;
 }
 
 /* クリア時の「お疲れ様でした」メッセージ */
@@ -715,7 +741,20 @@
     padding: 5px 6px;
     font-size: 1.2rem;
     line-height: 1.15;
-    white-space: normal;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* テキストラベル（「もう1度やる」「次のステージ」など）が入るときは
+   1行に収まるようにフォントを少し小さく */
+.memorize-cruise-control-btn:has(> :only-child),
+.memorize-cruise-control-btn {
+    /* 文字長が長い時に縮める */
+}
+.memorize-cruise-control-btn.memorize-cruise-control-btn--text {
+    font-size: 0.95rem;
+    letter-spacing: 0;
 }
 
 /* 縦＋拡大/全体: 問題〜STAGE〜フィードバックは同じ。指板は内容の高さのみ（flex:1 をやめて縦中央にまとまる）。拡大/全体の違いは script のスケール */

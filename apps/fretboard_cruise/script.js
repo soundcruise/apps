@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.73.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.73.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1287,6 +1287,12 @@ function scheduleRhythm() {
 function autoAdvanceCruise() {
     if (state.course !== 'memorize' || state.memorize.playMode !== 'cruise' || state.memorize.isCleared) return;
 
+    // BPM カウントダウン（4→3→2→1）の間は音の進行を止める。
+    // ドラム（リズム）は鳴らし続け、最初の音は表示・ハイライトされたまま。
+    if (Number.isFinite(parseInt(state.memorize.cruiseCountdown, 10)) && state.memorize.cruiseCountdown > 0) {
+        return;
+    }
+
     if (state.memorize.isFirstNote) {
         state.memorize.isFirstNote = false;
         state.memorize.hasTappedCurrentNote = false;
@@ -1473,35 +1479,30 @@ function clearCruiseCountdown() {
 }
 
 /**
- * クルーズ問題画面の開始時に、BPMに合わせた 3→2→1 のカウントダウンを表示し、
- * カウント終了でリズム再生を開始する。カウント中も最初の音は表示／ハイライト済み。
+ * クルーズ問題画面の開始時に、BPMに合わせた 4→3→2→1 のカウントダウンを表示する。
+ * カウント中もリズム（ドラム）は鳴らし、最初の音は表示／ハイライト済み。
+ * autoAdvanceCruise 側で cruiseCountdown > 0 の間は音の進行を抑制する。
  */
 function startCruiseCountdownAndRhythm() {
     clearCruiseCountdown();
     initAudio();
-    state.memorize.cruiseCountdown = 3;
+    state.memorize.cruiseCountdown = 4;
     renderApp();
+    startRhythm();
 
     const oneBeatMs = 60000 / (state.settings.tempo || DEFAULT_TEMPO);
 
     const tick = () => {
         cruiseCountdownTimerId = setTimeout(() => {
             cruiseCountdownTimerId = null;
-            // 画面遷移などで cruise から外れていたら何もしない
             if (state.course !== 'memorize' || state.memorize.playMode !== 'cruise') {
                 state.memorize.cruiseCountdown = 0;
                 return;
             }
             const next = state.memorize.cruiseCountdown - 1;
-            if (next > 0) {
-                state.memorize.cruiseCountdown = next;
-                renderApp();
-                tick();
-            } else {
-                state.memorize.cruiseCountdown = 0;
-                renderApp();
-                startRhythm();
-            }
+            state.memorize.cruiseCountdown = next > 0 ? next : 0;
+            renderApp();
+            if (next > 0) tick();
         }, oneBeatMs);
     };
     tick();
@@ -2709,6 +2710,18 @@ function renderApp() {
         if (isFinishedCruise) {
             autoScrollRequested = false;
             cancelPendingCruiseGroupScroll();
+            // 最後の音のグループの保存スクロール位置にスナップして、終了時に
+            // 指板が 0 位置（先頭）に戻る現象を防ぐ。
+            const lastGroupScroll = getSavedCruiseGroupScrollLeft(
+                state.memorize.stage,
+                state.memorize.cruiseCurrentGroupIndex
+            );
+            if (Number.isFinite(lastGroupScroll)) {
+                newWrapper.scrollLeft = lastGroupScroll;
+                requestAnimationFrame(() => {
+                    if (newWrapper.isConnected) newWrapper.scrollLeft = lastGroupScroll;
+                });
+            }
         } else if (Number.isFinite(savedCruiseGroupScrollLeft)) {
             autoScrollRequested = false;
             const isGroupChanged =
@@ -5907,9 +5920,6 @@ function renderMemorize(app) {
             ? `正解 ${correctCount} / 全 ${totalNotes} 音`
             : `正解 ${correctCount} 音`;
         fbClass = 'feedback-display memorize-feedback--cleared';
-    } else if (isCruiseCounting) {
-        fbText = `${cruiseCountdownValue}`;
-        fbClass = 'feedback-display memorize-feedback--countdown';
     } else if (state.memorize.tempFeedback) {
         fbText = state.memorize.tempFeedback.text;
         fbClass = state.memorize.tempFeedback.className;
@@ -5958,19 +5968,18 @@ function renderMemorize(app) {
                     <div id="feedback" class="${fbClass} memorize-feedback">${fbText}</div>
                     ${repeatHintTabsHtml}
                 </div>
-                <div id="fretboard-container" class="memorize-fretboard-host"></div>
+                <div class="memorize-fretboard-wrap">
+                    <div id="fretboard-container" class="memorize-fretboard-host"></div>
+                    ${isCruiseCounting ? `<div class="memorize-countdown-overlay" aria-hidden="true">${cruiseCountdownValue}</div>` : ''}
+                </div>
                 ${isCruise ? `
                     <div class="memorize-cruise-controls">
                         <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-prev">⬅️</button>
                         <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-reset">⏮️</button>
-                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-stop">
-                            ${state.memorize.isCleared
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn${state.memorize.isCleared ? ' memorize-cruise-control-btn--text' : ''}" id="btn-cruise-stop">${state.memorize.isCleared
                                 ? 'もう1度やる'
-                                : (state.memorize.isCruisePlaying ? '⏸️' : '▶️')}
-                        </button>
-                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-next">
-                            ${state.memorize.isCleared ? '次のステージ' : '➡️'}
-                        </button>
+                                : (state.memorize.isCruisePlaying ? '⏸️' : '▶️')}</button>
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn${state.memorize.isCleared ? ' memorize-cruise-control-btn--text' : ''}" id="btn-cruise-next">${state.memorize.isCleared ? '次のステージ' : '➡️'}</button>
                     </div>
                 ` : ''}
             </div>
