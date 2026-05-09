@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.82.9';
+const FRETBOARD_CRUISE_APP_VERSION = '1.82.10';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1387,20 +1387,9 @@ function handleQuizTimeout() {
         question: state.memorize.currentQuestion,
         showAnswer: true,
         clicked: null,
-        onFretClick: null
+        onFretClick: null,
+        preserveScrollLeft: state.memorize.currentQuestion?.quizGrScrollLeft ?? null
     });
-
-    // 時間切れ正解発表フェーズでも quizGrScrollLeft の位置を維持する
-    const timeoutQGrScroll = state.memorize.currentQuestion?.quizGrScrollLeft;
-    if (Number.isFinite(timeoutQGrScroll)) {
-        const timeoutWrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
-        if (timeoutWrapper) {
-            timeoutWrapper.scrollLeft = timeoutQGrScroll;
-            setTimeout(() => {
-                if (timeoutWrapper.isConnected) timeoutWrapper.scrollLeft = timeoutQGrScroll;
-            }, 50);
-        }
-    }
 
     const fb = document.getElementById('feedback');
     if (fb) {
@@ -6881,7 +6870,8 @@ function handleFretClick(stringNum, fret) {
             question: q,
             showAnswer: true,
             clicked: { stringNum, fret, isCorrect: true },
-            onFretClick: null // disable clicking
+            onFretClick: null, // disable clicking
+            preserveScrollLeft: q?.quizGrScrollLeft ?? null
         });
 
     } else {
@@ -6889,27 +6879,16 @@ function handleFretClick(stringNum, fret) {
         updateMemorizeScoreDisplay();
         fb.textContent = `不正解... 正解はここ！`;
         setMemorizeFeedbackTone(fb, 'wrong');
-        
+
         renderFretboardHTML('fretboard-container', {
             mode: 'memorize',
             memorizeStage: state.memorize.stage,
             question: q,
             showAnswer: true,
             clicked: { stringNum, fret, isCorrect: false },
-            onFretClick: null // disable clicking
+            onFretClick: null, // disable clicking
+            preserveScrollLeft: q?.quizGrScrollLeft ?? null
         });
-    }
-
-    // 正解発表フェーズでも quizGrScrollLeft の位置を維持する
-    const qGrScrollAnswer = q?.quizGrScrollLeft;
-    if (Number.isFinite(qGrScrollAnswer)) {
-        const answerWrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
-        if (answerWrapper) {
-            answerWrapper.scrollLeft = qGrScrollAnswer;
-            setTimeout(() => {
-                if (answerWrapper.isConnected) answerWrapper.scrollLeft = qGrScrollAnswer;
-            }, 50);
-        }
     }
 
     saveState();
@@ -8101,7 +8080,9 @@ function renderFretboardHTML(containerId, options) {
         routeEditorVisibleGroups = null,
         onRouteEditorMarkerClick = null,
         quizEditorGroups = null,
-        quizEditorSelectedGroupIndex = 0
+        quizEditorSelectedGroupIndex = 0,
+        /** クイズ正解発表フェーズで指板位置を維持するための scrollLeft（null で無効） */
+        preserveScrollLeft = null
     } = options;
     let step3TapRange = null;
     if (
@@ -8662,6 +8643,12 @@ function renderFretboardHTML(containerId, options) {
     const containerEl = document.getElementById(containerId);
     containerEl.innerHTML = html;
 
+    // クイズ正解発表フェーズ：innerHTML直後（ブラウザが0でレイアウトする前）にスクロール位置を設定
+    if (Number.isFinite(preserveScrollLeft)) {
+        const pw = containerEl.querySelector('.fretboard-scroll-wrapper');
+        if (pw) pw.scrollLeft = preserveScrollLeft;
+    }
+
     if (mode === 'rule' && ruleStep5ExcludeInlineCheckboxes && containerId === 'rule-fretboard-container') {
         containerEl.querySelectorAll('.rule-step5-inline-exclude').forEach(el => {
             el.addEventListener('click', e => e.stopPropagation());
@@ -9106,6 +9093,10 @@ function renderFretboardHTML(containerId, options) {
                                 }
                             }
                             syncFretboardLayoutCollapse();
+                            // transform変更後もpreserveScrollLeftの位置を維持（クイズ正解発表フェーズ用）
+                            if (Number.isFinite(preserveScrollLeft) && scrollWrapper.isConnected) {
+                                scrollWrapper.scrollLeft = preserveScrollLeft;
+                            }
                         });
                     });
                 }
