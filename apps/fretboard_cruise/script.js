@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.66.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.66.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -5317,7 +5317,9 @@ function renderRouteEditor(app) {
         state.routeEditor.visibleGroupIndices = buildRouteEditorGroupsFromBreaks(state.routeEditor.draft, state.routeEditor.groupBreaks).map((_, index) => index);
         state.routeEditor.forceHideAllGroups = false;
         state.routeEditor.showAllGroupsExpanded = false;
-        clearAllSavedCruiseGroupScrollLeftsForStage(stage);
+        // 「初期順」はルートとグループ区切りだけを埋め込み既定に戻す。
+        // 指板の保存スクロール（cruiseStageGroupScrollLefts）は消さない。
+        // 消すと問題画面で saved が無くなり、ズーム時の自動スクロールにフォールバックして画角が変わる。
         saveState();
         renderApp();
     };
