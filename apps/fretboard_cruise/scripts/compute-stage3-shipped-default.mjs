@@ -40,11 +40,12 @@ const slots = [
   { stringName: 3, fret: 5 },
   { stringName: 3, fret: 5 },
   { stringName: 3, fret: 4 },
-  { stringName: 4, fret: 3 },
-  { stringName: 4, fret: 2 },
-  { stringName: 4, fret: 0 },
-  { stringName: 5, fret: 3 },
-  { stringName: 5, fret: 2 }
+  { stringName: 4, fret: 7 },
+  { stringName: 4, fret: 5 },
+  { stringName: 5, fret: 8 },
+  { stringName: 5, fret: 7 },
+  { stringName: 5, fret: 5 },
+  { stringName: 6, fret: 8 }
 ];
 
 const groupBreaks = [0, 6, 9, 12, 20, 28, 36];
