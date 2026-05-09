@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.81.7';
+const FRETBOARD_CRUISE_APP_VERSION = '1.81.8';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -2795,7 +2795,17 @@ function renderApp() {
         app.style.overflowY = 'auto';
         app.style.overflowX = 'hidden';
         app.style.boxSizing = 'border-box';
-        app.style.paddingBottom = 'calc(var(--in-game-refresh-stack-height, 96px) + max(12px, env(safe-area-inset-bottom)))';
+        // 横画面のSTAGE/STEP選択画面ではリストを画面下端まで広げたいので
+        // 下余白を控えめにする（リストは中央寄せ max:400px、リフレッシュボタンは
+        // 右下 max:168px なので横方向に被らない）。
+        const isLandStageSelectLikeApp =
+            window.innerWidth > window.innerHeight &&
+            (state.course === 'stageSelect' ||
+             state.course === 'ruleSelect' ||
+             state.course === 'basicRules');
+        app.style.paddingBottom = isLandStageSelectLikeApp
+            ? 'max(16px, env(safe-area-inset-bottom))'
+            : 'calc(var(--in-game-refresh-stack-height, 96px) + max(12px, env(safe-area-inset-bottom)))';
     }
     // 覚えるコース: 縦方向に余白を確保し、指板エリアに flex で残り高さを渡す（横画面で下弦が切れないようにする）
     if (state.course === 'memorize') {
