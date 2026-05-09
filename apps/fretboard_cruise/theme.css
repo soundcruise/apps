@@ -2677,6 +2677,20 @@ input:checked + .toggle-slider:before {
     box-shadow: 0 6px 28px rgba(0, 0, 0, 0.22);
 }
 
+/* 共通カード（音名の表記 + 指板の視点） */
+.settings-card--common {
+    padding: 20px 18px 18px;
+    background: linear-gradient(165deg, rgba(79, 156, 249, 0.10) 0%, rgba(255, 255, 255, 0.05) 42%, rgba(255, 255, 255, 0.04) 100%);
+    border: 1px solid rgba(79, 156, 249, 0.28);
+    box-shadow: 0 6px 28px rgba(0, 0, 0, 0.22);
+}
+
+.settings-card--common .settings-card-section + .settings-card-section {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 .settings-card-header--major {
     margin-bottom: 16px;
     padding-bottom: 14px;

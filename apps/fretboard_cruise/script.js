@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.77.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.78.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -6823,26 +6823,33 @@ function renderSettings(app) {
             <input type="range" id="timer-slider" min="1" max="10" step="1" value="${state.settings.quizTimeLimit}" class="settings-range">
         </div>
 
-        <div class="settings-card">
-            <div class="settings-card-header">
+        <div class="settings-card settings-card--common">
+            <div class="settings-card-header settings-card-header--major">
                 <div class="settings-card-title-wrap">
-                    <h3 class="settings-card-title">表記</h3>
-                    <span class="settings-card-subtitle">共通</span>
+                    <h3 class="settings-card-title settings-card-title--major">共通</h3>
                 </div>
             </div>
-            <div class="mode-buttons settings-notation-buttons">
-                <button class="mode-btn ${state.settings.noteLabelMode === 'solfege' ? 'active' : ''}" data-notation-mode="solfege">ドレミ</button>
-                <button class="mode-btn ${state.settings.noteLabelMode === 'note' ? 'active' : ''}" data-notation-mode="note">CDE</button>
-                <button class="mode-btn ${state.settings.noteLabelMode === 'degree' ? 'active' : ''}" data-notation-mode="degree">度数</button>
-            </div>
-            <p class="settings-note settings-note--animated visible" style="margin-top:10px;">指板をたどる・指板クイズ・基本ルールなど、指板上の表記に反映されます。度数はCを基準に P1・m2 など（「指板を探索する」の度数表記と同じ）です。</p>
-        </div>
 
-        <div class="settings-card">
-            <div class="settings-card-header">
-                <h3 class="settings-card-title">指板の視点</h3>
-                <button class="settings-card-reset-btn" type="button" data-reset-card="view">リセット</button>
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="settings-card-section-title">音名の表記</span>
+                        <button class="settings-help-btn" type="button" data-target="note-notation-mode" aria-label="説明を表示">⊕</button>
+                    </div>
+                </div>
+                <div class="mode-buttons settings-notation-buttons">
+                    <button class="mode-btn ${state.settings.noteLabelMode === 'solfege' ? 'active' : ''}" data-notation-mode="solfege">ドレミ</button>
+                    <button class="mode-btn ${state.settings.noteLabelMode === 'note' ? 'active' : ''}" data-notation-mode="note">CDE</button>
+                    <button class="mode-btn ${state.settings.noteLabelMode === 'degree' ? 'active' : ''}" data-notation-mode="degree">度数</button>
+                </div>
+                <p class="settings-note settings-note--animated" id="note-notation-mode" style="margin-top:10px;">指板をたどる・指板クイズ・基本ルールなど、指板上の表記に反映されます。度数はCを基準に P1・m2 など（「指板を探索する」の度数表記と同じ）です。</p>
             </div>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <span class="settings-card-section-title">指板の視点</span>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="view">リセット</button>
+                </div>
 
             <div class="settings-preview-area">
                 <div class="settings-preview-clip">
@@ -6935,6 +6942,7 @@ function renderSettings(app) {
 	                    </div>
                 </div>
                 <input type="range" id="string-spacing-slider" min="80" max="150" step="1" value="${state.settings.stringSpacing}" class="settings-range">
+            </div>
             </div>
         </div>
         <div class="settings-actions-footer settings-actions-footer--proposed">
