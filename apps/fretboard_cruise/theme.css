@@ -812,10 +812,11 @@
 
 .memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-feedback.feedback-display,
 .memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="full"] .memorize-feedback.feedback-display {
-    height: auto;
-    /* 文言が変わっても高さが変わらないよう余裕を確保（タップ時の指板の縦ジャンプ防止） */
-    min-height: 2.75rem;
-    padding: 2px 0 2px;
+    /* 文言の長さに関係なく高さを完全固定（指板の縦ジャンプ防止）。
+       共通の display:flex; align-items:center で中身は中央寄せ */
+    height: 2.75rem;
+    min-height: 0;
+    padding: 0;
 }
 
 .memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-fretboard-host,
@@ -909,9 +910,10 @@
 
 .memorize-screen--landscape .memorize-feedback.feedback-display {
     font-size: 0.95rem;
-    /* ヒント文〜結果表示で行数が変わってもブロック高さを固定し、指板が縦に跳ねないようにする */
-    min-height: 2.85rem;
-    height: auto;
+    /* ヒント文〜結果表示で文言が変わっても高さを固定（指板の縦ジャンプ防止）。
+       共通の display:flex; align-items:center で中身は中央寄せ */
+    height: 1.6rem;
+    min-height: 0;
     padding: 0;
     line-height: 1.2;
 }
@@ -975,7 +977,8 @@
 
 .memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-feedback.feedback-display {
     font-size: 0.88rem;
-    min-height: 2.85rem;
+    height: 1.55rem;
+    min-height: 0;
     padding: 0;
     line-height: 1.2;
 }
