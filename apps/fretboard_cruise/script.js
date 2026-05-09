@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.73.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.74.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -489,6 +489,13 @@ if (savedState) {
             state.settings.cruiseStageGroupScrollLefts = {};
         }
         if (
+            !state.settings.cruiseStageClearCounts ||
+            typeof state.settings.cruiseStageClearCounts !== 'object' ||
+            Array.isArray(state.settings.cruiseStageClearCounts)
+        ) {
+            state.settings.cruiseStageClearCounts = {};
+        }
+        if (
             !state.routeEditor ||
             typeof state.routeEditor !== 'object' ||
             Array.isArray(state.routeEditor)
@@ -608,6 +615,7 @@ function getDefaultSettings() {
         cruiseStageRoutes: {},
         cruiseStageRouteGroups: {},
         cruiseStageGroupScrollLefts: {},
+        cruiseStageClearCounts: {},
         routeNumberingVersion: 2,
         neckModelVersion: FRETBOARD_NECK_MODEL_VERSION
     };
@@ -619,8 +627,31 @@ function cloneSettings(settings) {
         rotation: { ...(settings.rotation || DEFAULT_ROTATION) },
         cruiseStageRoutes: JSON.parse(JSON.stringify(settings.cruiseStageRoutes || {})),
         cruiseStageRouteGroups: JSON.parse(JSON.stringify(settings.cruiseStageRouteGroups || {})),
-        cruiseStageGroupScrollLefts: JSON.parse(JSON.stringify(settings.cruiseStageGroupScrollLefts || {}))
+        cruiseStageGroupScrollLefts: JSON.parse(JSON.stringify(settings.cruiseStageGroupScrollLefts || {})),
+        cruiseStageClearCounts: JSON.parse(JSON.stringify(settings.cruiseStageClearCounts || {}))
     };
+}
+
+/** クリア（最終ループ完了）したステージのクリア回数を1増やす */
+function incrementCruiseStageClearCount(stage) {
+    const st = clamp(parseInt(stage, 10), 1, 6);
+    if (
+        !state.settings.cruiseStageClearCounts ||
+        typeof state.settings.cruiseStageClearCounts !== 'object' ||
+        Array.isArray(state.settings.cruiseStageClearCounts)
+    ) {
+        state.settings.cruiseStageClearCounts = {};
+    }
+    const key = String(st);
+    const cur = parseInt(state.settings.cruiseStageClearCounts[key], 10) || 0;
+    state.settings.cruiseStageClearCounts[key] = cur + 1;
+}
+
+function getCruiseStageClearCount(stage) {
+    const st = clamp(parseInt(stage, 10), 1, 6);
+    const map = state.settings && state.settings.cruiseStageClearCounts;
+    if (!map || typeof map !== 'object' || Array.isArray(map)) return 0;
+    return parseInt(map[String(st)], 10) || 0;
 }
 
 function shiftCruiseStageNumber(stage) {
@@ -1361,6 +1392,8 @@ function autoAdvanceCruise() {
             state.memorize.isCleared = true;
             state.memorize.isCruisePlaying = false;
             stopRhythm();
+            // 完走（最後まで通せた）回数をステージごとにカウント
+            incrementCruiseStageClearCount(state.memorize.stage);
             saveState();
             renderApp();
             return;
@@ -5148,26 +5181,27 @@ function scheduleRuleStep31PairLineUpdates() {
 }
 
 function renderStageSelect(app) {
-    const stageSelectTitle = state.memorize.playMode === 'cruise' ? '🛳️ 指板をたどる' : '🎯 指板クイズ';
+    const isCruiseMode = state.memorize.playMode === 'cruise';
+    const stageSelectTitle = isCruiseMode ? '🛳️ 指板をたどる' : '🎯 指板クイズ';
     const stageDefs = [
-        { stage: 1, title: 'STAGE 1', desc: '開放弦〜3フレット (#なし)' },
-        { stage: 2, title: 'STAGE 2', desc: '開放弦〜5フレット (#なし)' },
-        { stage: 3, title: 'STAGE 3', desc: '5〜9フレット (#なし)' },
-        { stage: 4, title: 'STAGE 4', desc: '7〜10フレット (#なし)' },
-        { stage: 5, title: 'STAGE 5', desc: '5〜12フレット (#なし)' },
-        { stage: 6, title: 'STAGE 6', desc: '総復習メドレー (STAGE 1〜4)' }
+        { stage: 1, title: 'STAGE 1', desc: '開放弦〜3フレット' },
+        { stage: 2, title: 'STAGE 2', desc: '開放弦〜5フレット' },
+        { stage: 3, title: 'STAGE 3', desc: '5〜8フレット' },
+        { stage: 4, title: 'STAGE 4', desc: '7〜10フレット' },
+        { stage: 5, title: 'STAGE 5', desc: '8〜13フレット' },
+        { stage: 6, title: 'STAGE 6', desc: '総復習メドレー (STAGE 1〜5)' }
     ];
     const stageButtonsHtml = stageDefs.map(def => {
-        const savedCount = getSavedCruiseRouteSlots(def.stage).length;
-        const savedBadge = state.memorize.playMode === 'cruise' && savedCount > 0
-            ? `<span class="stage-route-saved">${savedCount}手 保存済み</span>`
+        const clearCount = isCruiseMode ? getCruiseStageClearCount(def.stage) : 0;
+        const clearBadge = isCruiseMode && clearCount > 0
+            ? `<span class="stage-clear-count" aria-label="${def.title} 完走 ${clearCount}回">🏁 ${clearCount}回</span>`
             : '';
-        const mainButton = `<button class="stage-btn" data-stage="${def.stage}">${def.title}<span class="stage-desc">${def.desc}</span>${savedBadge}</button>`;
-        if (state.memorize.playMode !== 'cruise') return mainButton;
+        const mainButton = `<button class="stage-btn" data-stage="${def.stage}">${def.title}<span class="stage-desc">${def.desc}</span>${clearBadge}</button>`;
+        if (!isCruiseMode) return mainButton;
         return `
             <div class="stage-route-row">
                 ${mainButton}
-                <button class="stage-route-edit-btn" type="button" data-edit-stage="${def.stage}" aria-label="${def.title}の順番を編集">編集</button>
+                <button class="stage-route-edit-btn stage-route-edit-btn--icon" type="button" data-edit-stage="${def.stage}" aria-label="${def.title}の順番を編集" title="編集">⋮</button>
             </div>
         `;
     }).join('');
