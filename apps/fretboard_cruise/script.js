@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.76.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.77.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -458,6 +458,9 @@ if (savedState) {
         if (typeof state.settings.quizTimeLimit === 'undefined') state.settings.quizTimeLimit = DEFAULT_QUIZ_TIME_LIMIT;
         if (typeof state.settings.stringSpacing === 'undefined') state.settings.stringSpacing = DEFAULT_STRING_SPACING;
         if (typeof state.settings.noteLabelMode === 'undefined') state.settings.noteLabelMode = state.rules?.labelMode || 'solfege';
+        if (!['solfege', 'note', 'degree'].includes(state.settings.noteLabelMode)) {
+            state.settings.noteLabelMode = 'solfege';
+        }
         if (typeof state.settings.viewMode === 'undefined') state.settings.viewMode = 'front';
         if (typeof state.settings.rotation === 'undefined') state.settings.rotation = { ...DEFAULT_ROTATION };
         if (typeof state.settings.perspective === 'undefined') state.settings.perspective = DEFAULT_VERTICAL_PERSPECTIVE;
@@ -3098,7 +3101,14 @@ function renderBasicRules(app) {
 }
 
 function getNotationLabel(noteIdx) {
-    return state.settings.noteLabelMode === 'note' ? NOTES[noteIdx] : FIXED_SOLFEGE[noteIdx].replace('♯', '#');
+    const pc = ((typeof noteIdx === 'number' ? noteIdx : 0) % 12 + 12) % 12;
+    const mode = state.settings.noteLabelMode;
+    if (mode === 'note') return NOTES[pc];
+    if (mode === 'degree') {
+        const allDegrees = getAllDegreesWithAccidentals('major');
+        return allDegrees[pc] || NOTES[pc];
+    }
+    return FIXED_SOLFEGE[pc].replace('♯', '#');
 }
 
 function getRuleLabel(noteIdx) {
@@ -3115,7 +3125,13 @@ function getRuleStep2CMajorDegreeClass(noteIdx) {
 
 function getCMajorNoteLabel(noteIdx) {
     const solfege = { 0: 'ド', 2: 'レ', 4: 'ミ', 5: 'ファ', 7: 'ソ', 9: 'ラ', 11: 'シ' };
-    return state.settings.noteLabelMode === 'note' ? NOTES[noteIdx] : solfege[noteIdx];
+    const pc = ((typeof noteIdx === 'number' ? noteIdx : 0) % 12 + 12) % 12;
+    if (state.settings.noteLabelMode === 'note') return NOTES[pc];
+    if (state.settings.noteLabelMode === 'degree') {
+        const allDegrees = getAllDegreesWithAccidentals('major');
+        return allDegrees[pc] || NOTES[pc];
+    }
+    return solfege[pc];
 }
 
 function getCMajorMarkersForString(stringNum, options = {}) {
@@ -3693,9 +3709,17 @@ function getRuleSlides(step) {
 
 function renderRuleDiagram(type, activeIndex = 0) {
     if (type !== 'intervals') return '';
-    const notes = state.settings.noteLabelMode === 'note'
-        ? ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'C']
-        : ['ド', 'レ', 'ミ', 'ファ', 'ソ', 'ラ', 'シ', 'ド'];
+    const mode = state.settings.noteLabelMode;
+    let notes;
+    if (mode === 'note') {
+        notes = ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'C'];
+    } else if (mode === 'degree') {
+        const ad = getAllDegreesWithAccidentals('major');
+        const majorSteps = [0, 2, 4, 5, 7, 9, 11, 0];
+        notes = majorSteps.map(idx => ad[idx]);
+    } else {
+        notes = ['ド', 'レ', 'ミ', 'ファ', 'ソ', 'ラ', 'シ', 'ド'];
+    }
     const gaps = ['全音', '全音', '半音', '全音', '全音', '全音', '半音'];
     return `
         <div class="rule-interval-diagram">
@@ -3715,7 +3739,8 @@ function openRulesInVisualize() {
     state.visualize.key = 0;
     state.visualize.capo = 0;
     state.visualize.scale = 'major';
-    state.visualize.displayMode = state.settings.noteLabelMode === 'note' ? 'note' : 'solfege';
+    const nm = state.settings.noteLabelMode;
+    state.visualize.displayMode = (nm === 'note' || nm === 'degree') ? nm : 'solfege';
     state.visualize.doMode = 'movable';
     state.visualize.selectedChordIndex = null;
     state.visualize.autoSelectRootChord = false;
@@ -6544,6 +6569,9 @@ function getAllDegreesWithAccidentals(scaleType) {
 function renderVisualize(app) {
     if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
     if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
+    if (['note', 'solfege', 'degree'].includes(state.settings.noteLabelMode)) {
+        state.visualize.displayMode = state.settings.noteLabelMode;
+    }
     if (typeof state.visualize.scale === 'undefined') state.visualize.scale = 'major';
     if (typeof state.visualize.selectedChordIndex === 'undefined') state.visualize.selectedChordIndex = null;
     if (typeof state.visualize.doMode === 'undefined') state.visualize.doMode = 'movable';
@@ -6658,7 +6686,9 @@ function renderVisualize(app) {
 
     document.querySelectorAll('.mode-btn[data-mode]').forEach(btn => {
         btn.onclick = () => {
-            state.visualize.displayMode = btn.getAttribute('data-mode');
+            const m = btn.getAttribute('data-mode');
+            state.visualize.displayMode = m;
+            state.settings.noteLabelMode = m;
             saveState();
             renderApp();
         };
@@ -6733,7 +6763,6 @@ function renderSettings(app) {
             <div class="settings-card-header settings-card-header--major">
                 <div class="settings-card-title-wrap">
                     <h3 class="settings-card-title settings-card-title--major">指板をたどるモード</h3>
-                    <span class="settings-card-subtitle settings-card-subtitle--major">テンポ・繰り返し・指板上の音名</span>
                 </div>
             </div>
 
@@ -6804,8 +6833,9 @@ function renderSettings(app) {
             <div class="mode-buttons settings-notation-buttons">
                 <button class="mode-btn ${state.settings.noteLabelMode === 'solfege' ? 'active' : ''}" data-notation-mode="solfege">ドレミ</button>
                 <button class="mode-btn ${state.settings.noteLabelMode === 'note' ? 'active' : ''}" data-notation-mode="note">CDE</button>
+                <button class="mode-btn ${state.settings.noteLabelMode === 'degree' ? 'active' : ''}" data-notation-mode="degree">度数</button>
             </div>
-            <p class="settings-note settings-note--animated visible" style="margin-top:10px;">覚えるコースの指板に反映されます。</p>
+            <p class="settings-note settings-note--animated visible" style="margin-top:10px;">指板をたどる・指板クイズ・基本ルールなど、指板上の表記に反映されます。度数はCを基準に P1・m2 など（「指板を探索する」の度数表記と同じ）です。</p>
         </div>
 
         <div class="settings-card">
@@ -7734,7 +7764,9 @@ function renderFretboardHTML(containerId, options) {
                     if (a.groupIndex !== b.groupIndex) return b.groupIndex - a.groupIndex;
                     return b.index - a.index;
                 });
-                const guideLabel = ROUTE_EDITOR_SCALE_GUIDE_LABELS[noteIdx] || '';
+                const guideLabel = ROUTE_EDITOR_SCALE_GUIDE_LABELS[noteIdx]
+                    ? getNotationLabel(noteIdx)
+                    : '';
                 const guideHtml = guideLabel
                     ? `<button type="button" class="note-marker route-editor-scale-guide" aria-hidden="true" tabindex="-1" disabled>${guideLabel}</button>`
                     : '';
