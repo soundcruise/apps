@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.82.6';
+const FRETBOARD_CRUISE_APP_VERSION = '1.82.7';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -3182,6 +3182,11 @@ function renderApp() {
                     requestAnimationFrame(() => {
                         if (newWrapper.isConnected) newWrapper.scrollLeft = qGrScroll;
                     });
+                    // refineScaleAfterPaint（二重RAF）がtransformを変更してscrollLeftをリセットするため、
+                    // その後に再設定する
+                    setTimeout(() => {
+                        if (newWrapper.isConnected) newWrapper.scrollLeft = qGrScroll;
+                    }, 50);
                 } else {
                     newWrapper.scrollLeft = 0;
                 }
