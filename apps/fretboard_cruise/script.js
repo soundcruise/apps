@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.81.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.81.4';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1371,7 +1371,7 @@ function handleQuizTimeout() {
     const fb = document.getElementById('feedback');
     if (fb) {
         fb.textContent = 'Miss... (時間切れ)';
-        fb.className = 'feedback-display feedback-wrong';
+        setMemorizeFeedbackTone(fb, 'wrong');
     }
 
     clearQuizAdvanceTimers();
@@ -6418,7 +6418,7 @@ function handleFretClick(stringNum, fret) {
         state.memorize.combo++;
         updateMemorizeScoreDisplay();
         fb.textContent = '正解！';
-        fb.className = 'feedback-display feedback-correct';
+        setMemorizeFeedbackTone(fb, 'correct');
         
         renderFretboardHTML('fretboard-container', {
             mode: 'memorize',
@@ -6433,7 +6433,7 @@ function handleFretClick(stringNum, fret) {
         state.memorize.combo = 0;
         updateMemorizeScoreDisplay();
         fb.textContent = `不正解... 正解はここ！`;
-        fb.className = 'feedback-display feedback-wrong';
+        setMemorizeFeedbackTone(fb, 'wrong');
         
         renderFretboardHTML('fretboard-container', {
             mode: 'memorize',
@@ -6463,13 +6463,27 @@ function handleFretClick(stringNum, fret) {
     }, 1000); // 1 second delay to see the result
 }
 
+/**
+ * #feedback の色味（feedback-correct / feedback-wrong）だけを切り替える。
+ * className を直接上書きすると memorize-feedback などの基底クラスが落ちて
+ * 共通スタイルの height:40px に戻り、指板が縦にズレる。それを防ぐためのヘルパー。
+ */
+function setMemorizeFeedbackTone(fb, tone) {
+    if (!fb) return;
+    fb.classList.add('feedback-display');
+    fb.classList.add('memorize-feedback');
+    fb.classList.remove('feedback-correct', 'feedback-wrong');
+    if (tone === 'correct') fb.classList.add('feedback-correct');
+    else if (tone === 'wrong') fb.classList.add('feedback-wrong');
+}
+
 function showLiveFeedback(text, type) {
     const fb = document.getElementById('feedback');
     if (fb) {
         fb.textContent = text;
-        if (type === 'good') fb.className = 'feedback-display feedback-correct';
-        else if (type === 'miss') fb.className = 'feedback-display feedback-wrong';
-        else fb.className = 'feedback-display';
+        if (type === 'good') setMemorizeFeedbackTone(fb, 'correct');
+        else if (type === 'miss') setMemorizeFeedbackTone(fb, 'wrong');
+        else setMemorizeFeedbackTone(fb, null);
 
         const sc = document.getElementById('score-correct');
         const scombo = document.getElementById('score-combo');
