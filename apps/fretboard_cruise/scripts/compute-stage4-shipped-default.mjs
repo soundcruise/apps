@@ -20,6 +20,9 @@ const slots = [
   { stringName: 1, fret: 7 },
   { stringName: 1, fret: 8 },
   { stringName: 1, fret: 8 },
+  { stringName: 1, fret: 10 },
+  { stringName: 1, fret: 8 },
+  { stringName: 1, fret: 8 },
   { stringName: 1, fret: 7 },
   { stringName: 2, fret: 10 },
   { stringName: 2, fret: 8 },
@@ -38,5 +41,6 @@ const slots = [
 ];
 
 const groupBreaks = [0, 8, 16, 19, 27];
+const groupScrollLefts = { 0: 306, 1: 306, 2: 306, 3: 306, 4: 306 };
 
-console.log(JSON.stringify({ slotCount: slots.length, slots, groupBreaks }, null, 2));
+console.log(JSON.stringify({ slotCount: slots.length, slots, groupBreaks, groupScrollLefts }, null, 2));
