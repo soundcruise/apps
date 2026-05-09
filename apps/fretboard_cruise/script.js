@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.82.4';
+const FRETBOARD_CRUISE_APP_VERSION = '1.82.5';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -2819,16 +2819,22 @@ function generateQuestion() {
             });
         });
         targets = Array.from(poolMap.values());
-        // ノートごとにどのGrに属するか記録
-        noteGroupMap = new Map();
-        savedGroups.forEach((group, groupIndex) => {
-            (group.notes || []).forEach(note => {
-                const key = `${note.stringName}-${note.fret}`;
-                const arr = noteGroupMap.get(key) || [];
-                if (!arr.includes(groupIndex)) arr.push(groupIndex);
-                noteGroupMap.set(key, arr);
+        if (targets.length === 0) {
+            // Gr内にnoteがない場合はデフォルトtargetsにフォールバック（scrollLeftのみ使う）
+            targets = getStageTargets(state.memorize.stage);
+            noteGroupMap = null;
+        } else {
+            // ノートごとにどのGrに属するか記録
+            noteGroupMap = new Map();
+            savedGroups.forEach((group, groupIndex) => {
+                (group.notes || []).forEach(note => {
+                    const key = `${note.stringName}-${note.fret}`;
+                    const arr = noteGroupMap.get(key) || [];
+                    if (!arr.includes(groupIndex)) arr.push(groupIndex);
+                    noteGroupMap.set(key, arr);
+                });
             });
-        });
+        }
     } else {
         targets = getStageTargets(state.memorize.stage);
     }
@@ -3169,9 +3175,9 @@ function renderApp() {
                     newWrapper.scrollLeft = 0;
                 }
             } else if (state.course === 'memorize' && state.memorize.playMode === 'quiz') {
-                // クイズGrスクロール: カスタム設定のGrに保存位置があれば適用
+                // クイズGrスクロール: カスタム設定のGrに保存位置があれば適用（fretboardViewに関わらず）
                 const qGrScroll = state.memorize.currentQuestion?.quizGrScrollLeft;
-                if (Number.isFinite(qGrScroll) && state.settings.fretboardView === 'zoom') {
+                if (Number.isFinite(qGrScroll)) {
                     newWrapper.scrollLeft = qGrScroll;
                     requestAnimationFrame(() => {
                         if (newWrapper.isConnected) newWrapper.scrollLeft = qGrScroll;
