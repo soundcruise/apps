@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.82.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.82.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -8373,7 +8373,7 @@ function renderFretboardHTML(containerId, options) {
                         const groupStyle = getRouteEditorGroupColorStyle(gIdx);
                         const stackedClass = noteGroups.length > 1 ? ' route-edit-note--stacked' : '';
                         const activeClass = isActive ? ' quiz-edit-note--active' : ' quiz-edit-note--other';
-                        return `<button type="button" class="note-marker route-edit-note route-edit-note-button${stackedClass}${activeClass}" aria-label="Gr.${gIdx + 1} ${stringNum}弦 ${f}フレット" style="${groupStyle}; ${isActive ? '' : 'opacity:0.45;'}"></button>`;
+                        return `<button type="button" class="note-marker route-edit-note route-edit-note-button${stackedClass}${activeClass}" aria-label="Gr.${gIdx + 1} ${stringNum}弦 ${f}フレット" style="${groupStyle}; ${isActive ? '' : 'opacity:0.45;'}">${getNotationLabel(noteIdx)}</button>`;
                     }).join('');
                     const stackModeClass = noteGroups.length >= 3 ? ' route-edit-note-stack--dense' : '';
                     markerHtml = `${guideHtml}<div class="route-edit-note-stack${stackModeClass}" data-string="${stringNum}" data-fret="${f}">${noteButtons}</div>`;
