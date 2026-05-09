@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.82.7';
+const FRETBOARD_CRUISE_APP_VERSION = '1.82.8';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -3190,6 +3190,17 @@ function renderApp() {
                 } else {
                     newWrapper.scrollLeft = 0;
                 }
+            } else {
+                newWrapper.scrollLeft = 0;
+            }
+        } else if (state.course === 'memorize' && state.memorize.playMode === 'quiz') {
+            // 回答後・正解発表フェーズでも quizGrScrollLeft の位置を維持する
+            const qGrScroll = state.memorize.currentQuestion?.quizGrScrollLeft;
+            if (Number.isFinite(qGrScroll)) {
+                newWrapper.scrollLeft = qGrScroll;
+                setTimeout(() => {
+                    if (newWrapper.isConnected) newWrapper.scrollLeft = qGrScroll;
+                }, 50);
             } else {
                 newWrapper.scrollLeft = 0;
             }
