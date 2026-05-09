@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.79.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.79.3';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -5287,9 +5287,10 @@ function renderStageSelect(app) {
     const stageButtonsHtml = stageDefs.map(def => {
         const clearCount = isCruiseMode ? getCruiseStageClearCount(def.stage) : 0;
         const clearBadge = isCruiseMode && clearCount > 0
-            ? `<span class="stage-clear-count" aria-label="${def.title} 完走 ${clearCount}回">🏁 ${clearCount}回</span>`
+            ? `<span class="stage-clear-count stage-clear-count--side" aria-label="${def.title} 完走 ${clearCount}回">🏁 ${clearCount}回</span>`
             : '';
-        const mainButton = `<button class="stage-btn" data-stage="${def.stage}">${def.title}<span class="stage-desc">${def.desc}</span>${clearBadge}</button>`;
+        const stageBtnClass = clearBadge ? 'stage-btn stage-btn--has-side-badge' : 'stage-btn';
+        const mainButton = `<button class="${stageBtnClass}" data-stage="${def.stage}">${clearBadge}${def.title}<span class="stage-desc">${def.desc}</span></button>`;
         if (!isCruiseMode) return mainButton;
         return `
             <div class="stage-route-row">

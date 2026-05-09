@@ -1302,6 +1302,20 @@ input:checked + .toggle-slider:before {
     letter-spacing: 0.02em;
 }
 
+/* STAGEボタン右端に固定するバッジ（縦方向中央寄せ） */
+.stage-btn.stage-btn--has-side-badge {
+    position: relative;
+    padding-right: 88px;
+}
+
+.stage-clear-count.stage-clear-count--side {
+    position: absolute;
+    top: 50%;
+    right: 14px;
+    transform: translateY(-50%);
+    margin-top: 0;
+}
+
 .stage-btn .stage-desc {
     font-size: 0.8rem;
     color: rgba(255, 255, 255, 0.6);
