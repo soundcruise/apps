@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.67.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.67.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -54,16 +54,16 @@ const SHIPPED_DEFAULT_STAGE_1_ROUTE_SLOTS = JSON.parse(
 const SHIPPED_DEFAULT_STAGE_1_ROUTE_GROUP_BREAKS = JSON.parse(
     '[0,6,12,20,25,30]'
 );
-/** STAGE2 初期ルート（編集画面から「この順番で保存」した内容を埋め込み） */
+/** STAGE2 公式デフォルト（「この順番で保存」したルート・Gr構成・指板位置を埋め込み） */
 const SHIPPED_DEFAULT_STAGE_2_ROUTE_SLOTS = JSON.parse(
-    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":5,"fret":5},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":4,"fret":5}]'
+    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":5,"fret":5},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":4,"fret":5},{"stringName":3,"fret":2},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":2,"fret":3},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":1,"fret":3},{"stringName":1,"fret":5},{"stringName":1,"fret":5},{"stringName":1,"fret":3},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":2,"fret":3},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":3,"fret":2},{"stringName":4,"fret":5},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":4,"fret":0}]'
 );
 const SHIPPED_DEFAULT_STAGE_2_ROUTE_GROUP_BREAKS = JSON.parse(
-    '[0,6,12]'
+    '[0,6,9,12,20,26,32]'
 );
-/** STAGE2「初期順」で復元するグループ別 scrollLeft（「この順番で保存」と同一の公式デフォルト） */
+/** STAGE2「初期順」で復元するグループ別 scrollLeft（上記と同じ保存データ） */
 const SHIPPED_DEFAULT_STAGE_2_GROUP_SCROLL_LEFTS = JSON.parse(
-    '{"0":0,"1":0,"2":50}'
+    '{"0":0,"1":0,"2":50,"3":50,"4":50,"5":50,"6":50}'
 );
 /** STAGE3 初期ルート（現在の「初期順」）。`scripts/compute-stage3-shipped-default.mjs` で同内容を再生成可 */
 const SHIPPED_DEFAULT_STAGE_3_ROUTE_SLOTS = JSON.parse(
