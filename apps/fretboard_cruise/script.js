@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.75.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.76.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -6729,50 +6729,50 @@ function renderSettings(app) {
         })}
 
         <div class="settings-page-stack settings-page-stack--proposed">
-        <div class="settings-card">
-            <div class="settings-card-header">
+        <div class="settings-card settings-card--cruise-mode">
+            <div class="settings-card-header settings-card-header--major">
                 <div class="settings-card-title-wrap">
-                    <h3 class="settings-card-title">テンポ</h3>
-                    <span class="settings-card-subtitle">指板をたどるモード</span>
+                    <h3 class="settings-card-title settings-card-title--major">指板をたどるモード</h3>
+                    <span class="settings-card-subtitle settings-card-subtitle--major">テンポ・繰り返し・指板上の音名</span>
                 </div>
-                <button class="settings-card-reset-btn" type="button" data-reset-card="tempo">リセット</button>
             </div>
-            <div class="settings-value-row">
-                <span>遅い</span>
-                <span class="settings-value-badge" id="tempo-display">BPM ${state.settings.tempo}</span>
-                <span>速い</span>
-            </div>
-            <input type="range" id="tempo-slider" min="40" max="200" value="${state.settings.tempo}" class="settings-range">
-        </div>
 
-        <div class="settings-card">
-            <div class="settings-card-header">
-                <div class="settings-card-title-wrap">
-                    <h3 class="settings-card-title">ループ回数</h3>
-                    <span class="settings-card-subtitle">指板をたどるモード</span>
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <span class="settings-card-section-title">テンポ</span>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="tempo">リセット</button>
                 </div>
-                <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-loop">リセット</button>
+                <div class="settings-value-row">
+                    <span>遅い</span>
+                    <span class="settings-value-badge" id="tempo-display">BPM ${state.settings.tempo}</span>
+                    <span>速い</span>
+                </div>
+                <input type="range" id="tempo-slider" min="40" max="200" value="${state.settings.tempo}" class="settings-range">
             </div>
-            <div class="mode-buttons settings-loop-count-buttons">
-                <button class="mode-btn ${state.settings.cruiseLoopCount === 1 ? 'active' : ''}" data-loop-count="1">1周</button>
-                <button class="mode-btn ${state.settings.cruiseLoopCount === 2 ? 'active' : ''}" data-loop-count="2">2周</button>
-                <button class="mode-btn ${state.settings.cruiseLoopCount === 3 ? 'active' : ''}" data-loop-count="3">3周</button>
-                <button class="mode-btn ${state.settings.cruiseLoopCount === 0 ? 'active' : ''}" data-loop-count="0">無限</button>
-            </div>
-        </div>
 
-        <div class="settings-card">
-            <div class="settings-card-header">
-                <div class="settings-card-title-wrap">
-                    <h3 class="settings-card-title">音名の表示</h3>
-                    <span class="settings-card-subtitle">指板をたどるモード</span>
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <span class="settings-card-section-title">ループ回数</span>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-loop">リセット</button>
+                </div>
+                <div class="mode-buttons settings-loop-count-buttons">
+                    <button class="mode-btn ${state.settings.cruiseLoopCount === 1 ? 'active' : ''}" data-loop-count="1">1周</button>
+                    <button class="mode-btn ${state.settings.cruiseLoopCount === 2 ? 'active' : ''}" data-loop-count="2">2周</button>
+                    <button class="mode-btn ${state.settings.cruiseLoopCount === 3 ? 'active' : ''}" data-loop-count="3">3周</button>
+                    <button class="mode-btn ${state.settings.cruiseLoopCount === 0 ? 'active' : ''}" data-loop-count="0">無限</button>
                 </div>
             </div>
-            <div class="settings-row-between" style="margin-bottom:4px;">
-                <label for="cruise-show-note-names-toggle" class="settings-label" style="cursor:pointer;">指板上の音名マーカー</label>
-                <input type="checkbox" id="cruise-show-note-names-toggle" class="settings-checkbox-native" ${state.settings.cruiseShowNoteNames !== false ? 'checked' : ''}>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <span class="settings-card-section-title">音名の表示</span>
+                </div>
+                <div class="settings-row-between" style="margin-bottom:4px;">
+                    <label for="cruise-show-note-names-toggle" class="settings-label" style="cursor:pointer;">指板上の音名マーカー</label>
+                    <input type="checkbox" id="cruise-show-note-names-toggle" class="settings-checkbox-native" ${state.settings.cruiseShowNoteNames !== false ? 'checked' : ''}>
+                </div>
+                <p class="settings-note settings-note--animated visible" style="margin-top:4px;">オフにすると、練習範囲の薄い音名・次の音・いまの音の丸表示を隠します（上の出題文はそのままです）。</p>
             </div>
-            <p class="settings-note settings-note--animated visible" style="margin-top:4px;">オフにすると、練習範囲の薄い音名・次の音・いまの音の丸表示を隠します（上の出題文はそのままです）。</p>
         </div>
 
         <div class="settings-card">

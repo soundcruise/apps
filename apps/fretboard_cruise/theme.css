@@ -2669,6 +2669,59 @@ input:checked + .toggle-slider:before {
     box-sizing: border-box;
 }
 
+/* 指板をたどる：テンポ・ループ・音名を1枚にまとめたカード */
+.settings-card--cruise-mode {
+    padding: 20px 18px 18px;
+    background: linear-gradient(165deg, rgba(49, 196, 107, 0.1) 0%, rgba(255, 255, 255, 0.05) 42%, rgba(255, 255, 255, 0.04) 100%);
+    border: 1px solid rgba(49, 196, 107, 0.28);
+    box-shadow: 0 6px 28px rgba(0, 0, 0, 0.22);
+}
+
+.settings-card-header--major {
+    margin-bottom: 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.settings-card-title--major {
+    font-size: 1.18rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+}
+
+.settings-card-subtitle--major {
+    font-size: 0.76rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.55);
+    margin-top: 4px;
+    display: block;
+}
+
+.settings-card-section {
+    padding-top: 0;
+}
+
+.settings-card--cruise-mode .settings-card-section + .settings-card-section {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.settings-card-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.settings-card-section-title {
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
 .settings-card-header {
     display: flex;
     justify-content: space-between;
