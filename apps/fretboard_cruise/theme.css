@@ -567,6 +567,7 @@
     display: flex;
     flex-direction: column;
     align-items: stretch;
+    position: relative; /* memorize-countdown-overlay の絶対配置の相対親 */
 }
 
 .memorize-copy-block {
@@ -639,21 +640,8 @@
     text-align: center;
 }
 
-/* 指板を覆う透過カウントダウン（4, 3, 2, 1） */
-.memorize-fretboard-wrap {
-    position: relative;
-    flex: 1 1 auto;
-    min-height: 0;
-    width: 100%;
-    align-self: stretch;
-    display: flex;
-}
-
-.memorize-fretboard-wrap > .memorize-fretboard-host {
-    flex: 1 1 auto;
-    min-height: 0;
-}
-
+/* 開始時の BPM カウントダウン（4, 3, 2, 1）を指板の上に半透明で重ねる
+   memorize-body-stack を相対親としてその全体に被せ、中央に大きな数字を表示 */
 .memorize-countdown-overlay {
     position: absolute;
     top: 0;

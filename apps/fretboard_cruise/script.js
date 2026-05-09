@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.73.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.73.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -5968,10 +5968,7 @@ function renderMemorize(app) {
                     <div id="feedback" class="${fbClass} memorize-feedback">${fbText}</div>
                     ${repeatHintTabsHtml}
                 </div>
-                <div class="memorize-fretboard-wrap">
-                    <div id="fretboard-container" class="memorize-fretboard-host"></div>
-                    ${isCruiseCounting ? `<div class="memorize-countdown-overlay" aria-hidden="true">${cruiseCountdownValue}</div>` : ''}
-                </div>
+                <div id="fretboard-container" class="memorize-fretboard-host"></div>
                 ${isCruise ? `
                     <div class="memorize-cruise-controls">
                         <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-prev">⬅️</button>
@@ -5982,6 +5979,7 @@ function renderMemorize(app) {
                         <button type="button" class="btn-secondary memorize-cruise-control-btn${state.memorize.isCleared ? ' memorize-cruise-control-btn--text' : ''}" id="btn-cruise-next">${state.memorize.isCleared ? '次のステージ' : '➡️'}</button>
                     </div>
                 ` : ''}
+                ${isCruiseCounting ? `<div class="memorize-countdown-overlay" aria-hidden="true">${cruiseCountdownValue}</div>` : ''}
             </div>
         </div>
     `;
