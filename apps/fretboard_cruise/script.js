@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.78.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.79.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -574,13 +574,58 @@ function getFretboardViewForWindowOrientation() {
     return window.innerWidth > window.innerHeight ? 'full' : 'zoom';
 }
 
+/** 全体ビュー時のカメラ設定を一時保存（拡大ビュー切替時に呼ぶ） */
+function snapshotFullViewSettings() {
+    state.settings.fullViewSnapshot = {
+        rotation: { ...(state.settings.rotation || DEFAULT_ROTATION) },
+        perspective: state.settings.perspective,
+        perspOriginX: state.settings.perspOriginX,
+        stringSpacing: state.settings.stringSpacing,
+        viewMode: state.settings.viewMode
+    };
+}
+
+/** 拡大ビュー → 全体ビュー復帰時にスナップショットを戻す */
+function restoreFullViewSettings() {
+    const snap = state.settings.fullViewSnapshot;
+    if (!snap) return;
+    state.settings.rotation = { ...DEFAULT_ROTATION, ...(snap.rotation || {}) };
+    state.settings.perspective = typeof snap.perspective === 'number' ? snap.perspective : DEFAULT_VERTICAL_PERSPECTIVE;
+    state.settings.perspOriginX = typeof snap.perspOriginX === 'number' ? snap.perspOriginX : DEFAULT_HORIZONTAL_PERSPECTIVE;
+    state.settings.stringSpacing = typeof snap.stringSpacing === 'number' ? snap.stringSpacing : DEFAULT_STRING_SPACING;
+    state.settings.viewMode = snap.viewMode || 'custom';
+}
+
+/** 拡大ビュー：常に正面カメラに固定 */
+function applyFrontCameraPresetForZoom() {
+    state.settings.rotation = { ...DEFAULT_ROTATION };
+    state.settings.perspective = DEFAULT_VERTICAL_PERSPECTIVE;
+    state.settings.perspOriginX = DEFAULT_HORIZONTAL_PERSPECTIVE;
+    state.settings.stringSpacing = DEFAULT_STRING_SPACING;
+    state.settings.viewMode = 'front';
+}
+
+/** fretboardView を切替。拡大に入る時は正面に固定、戻る時はスナップショット復元。 */
+function setFretboardView(nextView) {
+    if (nextView !== 'full' && nextView !== 'zoom') return false;
+    const cur = state.settings.fretboardView;
+    if (cur === nextView) return false;
+    if (nextView === 'zoom') {
+        snapshotFullViewSettings();
+        applyFrontCameraPresetForZoom();
+    } else {
+        restoreFullViewSettings();
+    }
+    state.settings.fretboardView = nextView;
+    return true;
+}
+
 /** 向き自動モードのとき、必要なら fretboardView を更新。変更があれば true */
 function applyFretboardViewFromOrientationIfAuto() {
     if (!state.settings || !state.settings.fretboardViewAutoOrientation) return false;
     const next = getFretboardViewForWindowOrientation();
     if (state.settings.fretboardView !== next) {
-        state.settings.fretboardView = next;
-        return true;
+        return setFretboardView(next);
     }
     return false;
 }
@@ -7060,7 +7105,7 @@ function renderSettings(app) {
             mode: 'visualize',
             question: null,
             showAnswer: true,
-            displayMode: 'note',
+            displayMode: state.settings.noteLabelMode,
             keyIndex: 0,
             capo: 0,
             onFretClick: null
@@ -7071,7 +7116,7 @@ function renderSettings(app) {
         mode: 'visualize',
         question: null,
         showAnswer: true,
-        displayMode: 'note',
+        displayMode: state.settings.noteLabelMode,
         keyIndex: 0,
         capo: 0,
         onFretClick: null
@@ -7099,6 +7144,29 @@ function renderSettings(app) {
             b.disabled = !!state.settings.fretboardViewAutoOrientation;
             b.classList.toggle('active', v === state.settings.fretboardView);
         });
+        syncTiltControlsLockedState();
+    }
+
+    function syncTiltControlsLockedState() {
+        const isZoom = state.settings.fretboardView === 'zoom';
+        const ids = [
+            'rot-x-slider', 'rot-y-slider', 'rot-z-slider',
+            'persp-slider', 'persp-origin-slider', 'string-spacing-slider'
+        ];
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = isZoom;
+        });
+        document.querySelectorAll('.settings-preset-btn').forEach(b => {
+            b.disabled = isZoom;
+        });
+        document.querySelectorAll('#tilt-setting-group .settings-reset-btn').forEach(b => {
+            b.disabled = isZoom;
+        });
+        const tiltGroup = document.getElementById('tilt-setting-group');
+        if (tiltGroup) tiltGroup.classList.toggle('is-zoom-locked', isZoom);
+        const drag = document.getElementById('trackball-area');
+        if (drag) drag.classList.toggle('is-zoom-locked', isZoom);
     }
 
     function syncNotationSettingsUI() {
@@ -7279,10 +7347,9 @@ function renderSettings(app) {
     document.querySelectorAll('.settings-view-btn').forEach(btn => {
         btn.onclick = () => {
             if (state.settings.fretboardViewAutoOrientation) return;
-            state.settings.fretboardView = btn.getAttribute('data-view');
-            syncFretboardViewSettingsUI();
-            updatePreview();
-            updatePreviewTransform();
+            const next = btn.getAttribute('data-view');
+            setFretboardView(next);
+            refreshSettingsControls();
             saveState();
         };
     });
@@ -7294,9 +7361,7 @@ function renderSettings(app) {
             if (fretboardOrientationAuto.checked) {
                 applyFretboardViewFromOrientationIfAuto();
             }
-            syncFretboardViewSettingsUI();
-            updatePreview();
-            updatePreviewTransform();
+            refreshSettingsControls();
             saveState();
         };
     }
@@ -7307,6 +7372,7 @@ function renderSettings(app) {
     };
 
     function handleDragStart(e) {
+        if (state.settings.fretboardView === 'zoom') return; // 拡大ビュー：カメラ操作不可
         isDragging = true;
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;

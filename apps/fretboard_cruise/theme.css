@@ -2999,6 +2999,25 @@ input:checked + .toggle-slider:before {
     width: 100%;
 }
 
+/* 拡大ビュー時：カメラ操作系を一括でグレー化（操作はJS側で disabled） */
+#tilt-setting-group.is-zoom-locked .settings-presets,
+#tilt-setting-group.is-zoom-locked .settings-axes,
+#tilt-setting-group.is-zoom-locked .settings-range,
+#tilt-setting-group.is-zoom-locked .settings-value-control,
+#tilt-setting-group.is-zoom-locked .settings-label,
+#tilt-setting-group.is-zoom-locked .settings-row-between {
+    opacity: 0.4;
+}
+
+#tilt-setting-group.is-zoom-locked input[type="range"] {
+    cursor: not-allowed;
+}
+
+.settings-trackball.is-zoom-locked {
+    pointer-events: none;
+    opacity: 0.4;
+}
+
 .settings-axis-label {
     font-size: 0.82rem;
     color: #fff;
