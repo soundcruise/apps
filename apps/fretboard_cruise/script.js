@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.81.8';
+const FRETBOARD_CRUISE_APP_VERSION = '1.81.10';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -251,6 +251,7 @@ let state = {
     settings: {
         tempo: DEFAULT_TEMPO,
         quizTimeLimit: DEFAULT_QUIZ_TIME_LIMIT,
+        quizCountdownSound: 'beep', // 'none' | 'beep' | 'gradual' | 'hat'
         stringSpacing: DEFAULT_STRING_SPACING, // 100% = default
         noteLabelMode: 'solfege',
         viewMode: 'front',
@@ -460,6 +461,7 @@ if (savedState) {
         if (typeof state.visualize.showExtendedFrets === 'undefined') state.visualize.showExtendedFrets = false;
         if (typeof state.settings.tempo === 'undefined') state.settings.tempo = DEFAULT_TEMPO;
         if (typeof state.settings.quizTimeLimit === 'undefined') state.settings.quizTimeLimit = DEFAULT_QUIZ_TIME_LIMIT;
+        if (typeof state.settings.quizCountdownSound === 'undefined') state.settings.quizCountdownSound = 'beep';
         if (typeof state.settings.stringSpacing === 'undefined') state.settings.stringSpacing = DEFAULT_STRING_SPACING;
         if (typeof state.settings.noteLabelMode === 'undefined') state.settings.noteLabelMode = state.rules?.labelMode || 'solfege';
         if (!['solfege', 'note', 'degree'].includes(state.settings.noteLabelMode)) {
@@ -1326,19 +1328,23 @@ let current16thNote = 0;
 
 let quizTimerInterval = null;
 let quizTimeLeft = 3.0;
+let quizTimeLeftPrevious = 3.0;
 
 function startQuizTimer() {
     clearInterval(quizTimerInterval);
     quizTimeLeft = state.settings.quizTimeLimit;
     
     quizTimerInterval = setInterval(() => {
+        const prevIntegerSecond = Math.ceil(quizTimeLeftPrevious);
         quizTimeLeft -= 0.1;
+        const currIntegerSecond = Math.ceil(quizTimeLeft);
+
         if (quizTimeLeft <= 0) {
             quizTimeLeft = 0;
             clearInterval(quizTimerInterval);
             handleQuizTimeout();
         }
-        
+
         const timerDisplay = document.getElementById('quiz-timer');
         if (timerDisplay) {
             timerDisplay.textContent = quizTimeLeft.toFixed(1) + 's';
@@ -1346,6 +1352,13 @@ function startQuizTimer() {
                 timerDisplay.parentElement.style.color = 'var(--error-color)';
             }
         }
+
+        // Play countdown sound when integer second changes
+        if (prevIntegerSecond > currIntegerSecond && currIntegerSecond > 0) {
+            playQuizCountdownSound(currIntegerSecond);
+        }
+
+        quizTimeLeftPrevious = quizTimeLeft;
     }, 100);
 }
 
@@ -1577,6 +1590,74 @@ function playDrumHat(time) {
     gain.gain.exponentialRampToValueAtTime(0.01, time + 0.05);
     osc.start(time);
     osc.stop(time + 0.05);
+}
+
+function playQuizCountdownSound(remainingSecond) {
+    const soundType = state.settings.quizCountdownSound;
+    if (soundType === 'none') return;
+
+    const time = audioCtx.currentTime;
+    switch (soundType) {
+        case 'beep':
+            playCountdownBeep(time);
+            break;
+        case 'gradual':
+            playGradualWarningTone(remainingSecond, time);
+            break;
+        case 'hat':
+            playCountdownHat(time);
+            break;
+    }
+}
+
+function playCountdownBeep(time) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.frequency.setValueAtTime(900, time);
+    gain.gain.setValueAtTime(0.2, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.15);
+    osc.start(time);
+    osc.stop(time + 0.15);
+}
+
+function playGradualWarningTone(remainingSecond, time) {
+    let frequency;
+    if (remainingSecond >= 3) {
+        frequency = 500;
+    } else if (remainingSecond === 2) {
+        frequency = 800;
+    } else if (remainingSecond === 1) {
+        frequency = 1200;
+    } else {
+        frequency = 1600;
+    }
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.frequency.setValueAtTime(frequency, time);
+    gain.gain.setValueAtTime(0.2, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+    osc.start(time);
+    osc.stop(time + 0.2);
+}
+
+function playCountdownHat(time) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.frequency.setValueAtTime(8000, time);
+    gain.gain.setValueAtTime(0.08, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.08);
+    osc.start(time);
+    osc.stop(time + 0.08);
 }
 
 function startRhythm() {
@@ -6939,20 +7020,37 @@ function renderSettings(app) {
             </div>
         </div>
 
-        <div class="settings-card">
-            <div class="settings-card-header">
+        <div class="settings-card settings-card--quiz-mode">
+            <div class="settings-card-header settings-card-header--major">
                 <div class="settings-card-title-wrap">
-                    <h3 class="settings-card-title">制限時間</h3>
-                    <span class="settings-card-subtitle">指板クイズモード</span>
+                    <h3 class="settings-card-title settings-card-title--major">指板クイズモード</h3>
                 </div>
-                <button class="settings-card-reset-btn" type="button" data-reset-card="timer">リセット</button>
             </div>
-            <div class="settings-value-row">
-                <span>短い</span>
-                <span class="settings-value-badge" id="timer-display">${state.settings.quizTimeLimit} 秒</span>
-                <span>長い</span>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <span class="settings-card-section-title">制限時間</span>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="timer">リセット</button>
+                </div>
+                <div class="settings-value-row">
+                    <span>短い</span>
+                    <span class="settings-value-badge" id="timer-display">${state.settings.quizTimeLimit} 秒</span>
+                    <span>長い</span>
+                </div>
+                <input type="range" id="timer-slider" min="1" max="10" step="1" value="${state.settings.quizTimeLimit}" class="settings-range">
             </div>
-            <input type="range" id="timer-slider" min="1" max="10" step="1" value="${state.settings.quizTimeLimit}" class="settings-range">
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <span class="settings-card-section-title">カウントダウン音</span>
+                </div>
+                <div class="mode-buttons settings-countdown-sound-buttons">
+                    <button class="mode-btn ${state.settings.quizCountdownSound === 'none' ? 'active' : ''}" data-countdown-sound="none">なし</button>
+                    <button class="mode-btn ${state.settings.quizCountdownSound === 'beep' ? 'active' : ''}" data-countdown-sound="beep">ビープ</button>
+                    <button class="mode-btn ${state.settings.quizCountdownSound === 'gradual' ? 'active' : ''}" data-countdown-sound="gradual">段階的</button>
+                    <button class="mode-btn ${state.settings.quizCountdownSound === 'hat' ? 'active' : ''}" data-countdown-sound="hat">ハット</button>
+                </div>
+            </div>
         </div>
 
         <div class="settings-card settings-card--common">
@@ -7162,6 +7260,15 @@ function renderSettings(app) {
         state.settings.quizTimeLimit = parseInt(e.target.value);
         timerDisplay.textContent = `${state.settings.quizTimeLimit} 秒`;
     };
+
+    document.querySelectorAll('.settings-countdown-sound-buttons .mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            state.settings.quizCountdownSound = btn.getAttribute('data-countdown-sound');
+            document.querySelectorAll('.settings-countdown-sound-buttons .mode-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            saveState();
+        };
+    });
 
     document.querySelectorAll('.settings-notation-buttons .mode-btn').forEach(btn => {
         btn.onclick = () => {

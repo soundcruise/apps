@@ -1064,6 +1064,18 @@
     flex: 1 1 0;
 }
 
+.settings-countdown-sound-buttons {
+    width: 100%;
+    gap: 2px;
+    padding: 2px;
+}
+
+.settings-countdown-sound-buttons .mode-btn {
+    flex: 1 1 0;
+    padding: 4px 4px;
+    font-size: 0.8rem;
+}
+
 .mode-btn,
 .do-mode-btn,
 .chord-type-btn {
@@ -2782,6 +2794,12 @@ input:checked + .toggle-slider:before {
 
 .settings-card--cruise-mode .settings-card-section + .settings-card-section {
     margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.settings-card--quiz-mode .settings-card-section + .settings-card-section {
+    margin-top: 24px;
     padding-top: 16px;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
