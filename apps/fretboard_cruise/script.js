@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.82.11';
+const FRETBOARD_CRUISE_APP_VERSION = '1.82.12';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -9131,6 +9131,10 @@ function renderFretboardHTML(containerId, options) {
                     const currentLeft = parseFloat(containerEl.style.left) || 0;
                     containerEl.style.left = `${Math.round(currentLeft - wrapperRect.left)}px`;
                 }
+            }
+            // ズームビュー：getBoundingClientRect()で強制レイアウト後に確定代入（一瞬0表示を防ぐ）
+            if (isZoomView && Number.isFinite(preserveScrollLeft)) {
+                scrollWrapper.scrollLeft = preserveScrollLeft;
             }
         }
     }
