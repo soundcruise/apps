@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.65.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.66.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -54,12 +54,12 @@ const SHIPPED_DEFAULT_STAGE_1_ROUTE_SLOTS = JSON.parse(
 const SHIPPED_DEFAULT_STAGE_1_ROUTE_GROUP_BREAKS = JSON.parse(
     '[0,6,12,20,25,30]'
 );
-/** STAGE2 初期ルート（現在の「初期順」）。`scripts/compute-stage2-shipped-default.mjs` で同内容を再生成可 */
+/** STAGE2 初期ルート（編集画面から「この順番で保存」した内容を埋め込み） */
 const SHIPPED_DEFAULT_STAGE_2_ROUTE_SLOTS = JSON.parse(
-    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":6,"fret":5},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":5,"fret":5},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":4,"fret":5},{"stringName":3,"fret":2},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":2,"fret":3},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":1,"fret":3},{"stringName":1,"fret":5},{"stringName":1,"fret":5},{"stringName":1,"fret":3},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":2,"fret":3},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":3,"fret":2},{"stringName":4,"fret":5},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":5,"fret":5},{"stringName":5,"fret":3}]'
+    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":5,"fret":5},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":4,"fret":5}]'
 );
 const SHIPPED_DEFAULT_STAGE_2_ROUTE_GROUP_BREAKS = JSON.parse(
-    '[0,6,12,20,26,32]'
+    '[0,6,12]'
 );
 /** STAGE3 初期ルート（現在の「初期順」）。`scripts/compute-stage3-shipped-default.mjs` で同内容を再生成可 */
 const SHIPPED_DEFAULT_STAGE_3_ROUTE_SLOTS = JSON.parse(
