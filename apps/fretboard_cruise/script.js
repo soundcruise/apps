@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.82.5';
+const FRETBOARD_CRUISE_APP_VERSION = '1.82.6';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -9904,12 +9904,14 @@ function addPathLineHighlight(overlay, currentCell, nextCell) {
 
 // Initial render
 document.addEventListener('DOMContentLoaded', () => {
-    // localStorage から状態を復元
+    // settings のみ復元（course や memorize 状態は復元しない）
     const saved = localStorage.getItem('fretboard_cruise_state');
     if (saved) {
         try {
             const loaded = JSON.parse(saved);
-            state = { ...state, ...loaded };
+            if (loaded.settings && typeof loaded.settings === 'object') {
+                state.settings = { ...state.settings, ...loaded.settings };
+            }
         } catch (e) {
             console.error('Failed to restore state from localStorage:', e);
         }
