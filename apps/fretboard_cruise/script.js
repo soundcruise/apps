@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.68.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.69.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -69,12 +69,16 @@ const SHIPPED_DEFAULT_STAGE_2_ROUTE_GROUP_BREAKS = JSON.parse(
 const SHIPPED_DEFAULT_STAGE_2_GROUP_SCROLL_LEFTS = JSON.parse(
     '{"0":0,"1":0,"2":50,"3":50,"4":50,"5":50,"6":50}'
 );
-/** STAGE3 初期ルート（現在の「初期順」）。`scripts/compute-stage3-shipped-default.mjs` で同内容を再生成可 */
+/** STAGE3 公式デフォルト（「この順番で保存」したルート・Gr構成・指板位置を埋め込み） */
 const SHIPPED_DEFAULT_STAGE_3_ROUTE_SLOTS = JSON.parse(
-    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":6,"fret":5},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":6,"fret":7},{"stringName":6,"fret":8},{"stringName":6,"fret":8},{"stringName":5,"fret":5},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":4,"fret":5},{"stringName":4,"fret":7},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":7},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":2,"fret":8},{"stringName":1,"fret":5},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":1,"fret":5},{"stringName":2,"fret":8},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":3,"fret":7},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":4,"fret":7},{"stringName":4,"fret":5},{"stringName":5,"fret":8},{"stringName":5,"fret":7},{"stringName":5,"fret":5},{"stringName":6,"fret":8}]'
+    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":6,"fret":7},{"stringName":6,"fret":8},{"stringName":6,"fret":8},{"stringName":5,"fret":5},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":4,"fret":5},{"stringName":4,"fret":7},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":7},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":2,"fret":8},{"stringName":1,"fret":5},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":1,"fret":5},{"stringName":2,"fret":8},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":3,"fret":7},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":4,"fret":0},{"stringName":5,"fret":3},{"stringName":5,"fret":2}]'
 );
 const SHIPPED_DEFAULT_STAGE_3_ROUTE_GROUP_BREAKS = JSON.parse(
-    '[0,6,10,12,20,28,36]'
+    '[0,6,9,12,20,28,36]'
+);
+/** STAGE3「初期順」で復元するグループ別 scrollLeft（上記と同じ保存データ） */
+const SHIPPED_DEFAULT_STAGE_3_GROUP_SCROLL_LEFTS = JSON.parse(
+    '{"0":2,"1":2,"2":180,"3":180,"4":180,"5":180,"6":180}'
 );
 /** STAGE4 初期ルート（現在保存されている STAGE4）。`scripts/compute-stage4-shipped-default.mjs` で同内容を再生成可 */
 const SHIPPED_DEFAULT_STAGE_4_ROUTE_SLOTS = JSON.parse(
@@ -1561,6 +1565,8 @@ function applyShippedDefaultCruiseGroupScrollLeftsForStage(stage) {
         shipped = SHIPPED_DEFAULT_STAGE_1_GROUP_SCROLL_LEFTS;
     } else if (st === 2) {
         shipped = SHIPPED_DEFAULT_STAGE_2_GROUP_SCROLL_LEFTS;
+    } else if (st === 3) {
+        shipped = SHIPPED_DEFAULT_STAGE_3_GROUP_SCROLL_LEFTS;
     }
     if (!shipped || typeof shipped !== 'object' || Array.isArray(shipped)) return;
     if (!state.settings.cruiseStageGroupScrollLefts || typeof state.settings.cruiseStageGroupScrollLefts !== 'object' || Array.isArray(state.settings.cruiseStageGroupScrollLefts)) {
