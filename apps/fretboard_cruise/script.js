@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.79.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.79.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -6919,6 +6919,7 @@ function renderSettings(app) {
                     <button class="settings-view-btn ${state.settings.fretboardView === 'zoom' ? 'active' : ''}" data-view="zoom" ${state.settings.fretboardViewAutoOrientation ? 'disabled' : ''}>拡大ビュー</button>
                 </div>
 
+                <p class="settings-beta-note">※ ここから下は <strong>ベータ版</strong> の項目です。組み合わせによっては表示が崩れたり、実際の画面と一致しないことがあります。</p>
                 <div class="settings-row-between" style="margin-bottom:8px;">
                     <span class="settings-label">カメラの向き（ドラッグで操作）</span>
                 </div>
