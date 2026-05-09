@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.81.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.81.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1894,6 +1894,11 @@ function scheduleCruiseGroupScroll(targetScrollLeft) {
 
 function scheduleNextGroupScrollIfNeeded() {
     if (state.course !== 'memorize' || state.memorize.playMode !== 'cruise') return;
+    // 全体ビューでは指板全体が見えているため、Gr切替時の保存位置スクロールは不要
+    if (state.settings.fretboardView === 'full') {
+        cancelPendingCruiseGroupScroll();
+        return;
+    }
     const currentGr = state.memorize.cruiseCurrentGroupIndex;
     const targets = state.memorize.cruiseTargets;
     const groupIndices = state.memorize.cruiseGroupIndices;
@@ -2852,25 +2857,34 @@ function renderApp() {
             state.memorize.playMode === 'cruise' &&
             state.memorize.isCleared === true;
 
+        // 全体ビューでは指板全体が見えているため、Gr ごとの保存位置スクロールは行わない
+        const isFullViewCruise =
+            state.course === 'memorize' &&
+            state.memorize.playMode === 'cruise' &&
+            state.settings.fretboardView === 'full';
+
         const savedCruiseGroupScrollLeft =
-            !isFinishedCruise && state.course === 'memorize' && state.memorize.playMode === 'cruise'
+            !isFinishedCruise && !isFullViewCruise && state.course === 'memorize' && state.memorize.playMode === 'cruise'
                 ? getSavedCruiseGroupScrollLeft(state.memorize.stage, state.memorize.cruiseCurrentGroupIndex)
                 : null;
 
         if (isFinishedCruise) {
             autoScrollRequested = false;
             cancelPendingCruiseGroupScroll();
-            // 最後の音のグループの保存スクロール位置にスナップして、終了時に
-            // 指板が 0 位置（先頭）に戻る現象を防ぐ。
-            const lastGroupScroll = getSavedCruiseGroupScrollLeft(
-                state.memorize.stage,
-                state.memorize.cruiseCurrentGroupIndex
-            );
-            if (Number.isFinite(lastGroupScroll)) {
-                newWrapper.scrollLeft = lastGroupScroll;
-                requestAnimationFrame(() => {
-                    if (newWrapper.isConnected) newWrapper.scrollLeft = lastGroupScroll;
-                });
+            // 全体ビュー時は指板全体が見えているのでスクロールスナップ不要
+            if (!isFullViewCruise) {
+                // 最後の音のグループの保存スクロール位置にスナップして、終了時に
+                // 指板が 0 位置（先頭）に戻る現象を防ぐ。
+                const lastGroupScroll = getSavedCruiseGroupScrollLeft(
+                    state.memorize.stage,
+                    state.memorize.cruiseCurrentGroupIndex
+                );
+                if (Number.isFinite(lastGroupScroll)) {
+                    newWrapper.scrollLeft = lastGroupScroll;
+                    requestAnimationFrame(() => {
+                        if (newWrapper.isConnected) newWrapper.scrollLeft = lastGroupScroll;
+                    });
+                }
             }
         } else if (Number.isFinite(savedCruiseGroupScrollLeft)) {
             autoScrollRequested = false;
