@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.82.8';
+const FRETBOARD_CRUISE_APP_VERSION = '1.82.9';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -1389,7 +1389,19 @@ function handleQuizTimeout() {
         clicked: null,
         onFretClick: null
     });
-    
+
+    // 時間切れ正解発表フェーズでも quizGrScrollLeft の位置を維持する
+    const timeoutQGrScroll = state.memorize.currentQuestion?.quizGrScrollLeft;
+    if (Number.isFinite(timeoutQGrScroll)) {
+        const timeoutWrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+        if (timeoutWrapper) {
+            timeoutWrapper.scrollLeft = timeoutQGrScroll;
+            setTimeout(() => {
+                if (timeoutWrapper.isConnected) timeoutWrapper.scrollLeft = timeoutQGrScroll;
+            }, 50);
+        }
+    }
+
     const fb = document.getElementById('feedback');
     if (fb) {
         fb.textContent = 'Miss... (時間切れ)';
@@ -6886,6 +6898,18 @@ function handleFretClick(stringNum, fret) {
             clicked: { stringNum, fret, isCorrect: false },
             onFretClick: null // disable clicking
         });
+    }
+
+    // 正解発表フェーズでも quizGrScrollLeft の位置を維持する
+    const qGrScrollAnswer = q?.quizGrScrollLeft;
+    if (Number.isFinite(qGrScrollAnswer)) {
+        const answerWrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+        if (answerWrapper) {
+            answerWrapper.scrollLeft = qGrScrollAnswer;
+            setTimeout(() => {
+                if (answerWrapper.isConnected) answerWrapper.scrollLeft = qGrScrollAnswer;
+            }, 50);
+        }
     }
 
     saveState();
