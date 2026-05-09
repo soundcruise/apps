@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.67.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.67.3';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -5342,8 +5342,13 @@ function renderRouteEditor(app) {
         state.routeEditor.visibleGroupIndices = buildRouteEditorGroupsFromBreaks(state.routeEditor.draft, state.routeEditor.groupBreaks).map((_, index) => index);
         state.routeEditor.forceHideAllGroups = false;
         state.routeEditor.showAllGroupsExpanded = false;
-        // 「初期順」はルートとグループ区切りだけを埋め込み既定に戻す。
-        // STAGE2 など、指板 scrollLeft の埋め込みがあるステージはそれを書き戻す。
+        // 「初期順」は問題画面まで含めて公式デフォルトに戻すボタン。
+        // 編集ドラフトだけでなく、問題画面が読む cruiseStageRoutes / RouteGroups / GroupScrollLefts も
+        // 同じ shipped 値で書き戻す（ユーザーがその後「この順番で保存」を押し忘れても整合する）。
+        if (!state.settings.cruiseStageRoutes) state.settings.cruiseStageRoutes = {};
+        if (!state.settings.cruiseStageRouteGroups) state.settings.cruiseStageRouteGroups = {};
+        state.settings.cruiseStageRoutes[String(stage)] = cloneCruiseRouteSlots(state.routeEditor.draft);
+        state.settings.cruiseStageRouteGroups[String(stage)] = state.routeEditor.groupBreaks.slice();
         applyShippedDefaultCruiseGroupScrollLeftsForStage(stage);
         saveState();
         renderApp();
