@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.79.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.79.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -631,15 +631,31 @@ function applyFretboardViewFromOrientationIfAuto() {
 }
 
 let _fretboardOrientationApplyTimer = null;
+let _lastFretboardOrientationLand =
+    typeof window !== 'undefined' ? window.innerWidth > window.innerHeight : null;
 function scheduleApplyFretboardViewFromOrientation() {
     if (_fretboardOrientationApplyTimer) clearTimeout(_fretboardOrientationApplyTimer);
     _fretboardOrientationApplyTimer = setTimeout(() => {
         _fretboardOrientationApplyTimer = null;
+        const land = window.innerWidth > window.innerHeight;
+        const orientationFlipped =
+            _lastFretboardOrientationLand !== null && _lastFretboardOrientationLand !== land;
+        _lastFretboardOrientationLand = land;
         const autoChanged = applyFretboardViewFromOrientationIfAuto();
         if (autoChanged) saveState();
+        // 自動切替がオフでも、向きが切り替わったタイミングでは
+        // 「全体／拡大」の見た目のサイズを各向き用に計算し直す必要がある。
+        // → memorize/routeEditor は従来どおり常に再描画。
+        //   その他の指板表示画面は、向きが反転したタイミングで再描画する。
+        const fretboardScreen =
+            state.course === 'settings' ||
+            state.course === 'visualize' ||
+            state.course === 'ruleSelect' ||
+            state.course === 'basicRules' ||
+            state.course === 'basicRuleStep';
         if (state.course === 'memorize' || state.course === 'routeEditor') {
             renderApp();
-        } else if (autoChanged && (state.course === 'settings' || state.course === 'visualize' || state.course === 'ruleSelect' || state.course === 'basicRules' || state.course === 'basicRuleStep')) {
+        } else if (fretboardScreen && (autoChanged || orientationFlipped)) {
             renderApp();
         }
     }, 120);
