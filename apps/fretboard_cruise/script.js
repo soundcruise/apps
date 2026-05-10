@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.94.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.94.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -5959,7 +5959,7 @@ function renderStageSelect(app) {
         { stage: 3, title: 'STAGE 3', desc: isCruiseMode ? '5〜8フレット' : '5〜9フレット' },
         { stage: 4, title: 'STAGE 4', desc: isCruiseMode ? '7〜10フレット' : '6〜10フレット' },
         { stage: 5, title: 'STAGE 5', desc: isCruiseMode ? '9〜13フレット' : '8〜13フレット' },
-        { stage: 6, title: 'STAGE 6', desc: isCruiseMode ? '全て' : 'STAGE1〜6全て' }
+        { stage: 6, title: 'STAGE 6', desc: isCruiseMode ? '全て' : 'STAGE1〜5全て' }
     ];
     const stageButtonsHtml = stageDefs.map(def => {
         const clearCount = isCruiseMode ? getCruiseStageClearCount(def.stage) : 0;
