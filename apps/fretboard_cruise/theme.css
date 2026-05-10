@@ -1507,7 +1507,26 @@ input:checked + .toggle-slider:before {
     grid-auto-rows: minmax(var(--route-editor-group-btn-min-height), auto);
     gap: var(--route-editor-group-list-gap);
     max-height: calc((var(--route-editor-group-btn-min-height) * 2) + var(--route-editor-group-list-gap));
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.32) transparent;
+}
+
+.route-editor-group-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.route-editor-group-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.32);
+    border-radius: 3px;
+}
+
+.route-editor-group-list::-webkit-scrollbar-track {
+    background: transparent;
 }
 
 .route-editor-group-btn {
