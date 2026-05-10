@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.87.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.88.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -295,6 +295,91 @@ const routeEditorPendingGroupScrollLefts = new Map();
 let routeEditorFretboardScrollSnapshot = 0;
 /** クイズエディタ: Gr切り替え等で適用すべきスクロール位置。renderApp() 内で消費後 null にリセット */
 let quizEditorPendingScrollLeft = null;
+/**
+ * クイズ：問題が切り替わって「保存指板位置」が変わるとき、
+ * 旧位置 → 新位置をユーザーの目で追える速度でスクロールするためのアニメ状態。
+ * { from, to, startedAt, duration } の間だけ getter は補間値を返す。
+ * アニメ中は preserveScrollLeft 系の上書きにこの値を流し込む。
+ */
+let quizScrollAnimState = null;
+let quizScrollAnimRafId = null;
+
+function easeInOutQuad(t) {
+    return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+}
+
+function getQuizScrollAnimationCurrentValue() {
+    if (!quizScrollAnimState) return null;
+    const elapsed = performance.now() - quizScrollAnimState.startedAt;
+    const t = Math.min(1, Math.max(0, elapsed / quizScrollAnimState.duration));
+    const eased = easeInOutQuad(t);
+    return quizScrollAnimState.from + (quizScrollAnimState.to - quizScrollAnimState.from) * eased;
+}
+
+function isQuizScrollAnimating() {
+    return quizScrollAnimState !== null;
+}
+
+function cancelQuizScrollAnimation() {
+    if (quizScrollAnimRafId !== null) {
+        cancelAnimationFrame(quizScrollAnimRafId);
+        quizScrollAnimRafId = null;
+    }
+    quizScrollAnimState = null;
+}
+
+function startQuizScrollAnimation(fromX, toX, durationMs) {
+    cancelQuizScrollAnimation();
+    const safeFrom = Math.max(0, Math.round(fromX));
+    const safeTo = Math.max(0, Math.round(toX));
+    if (Math.abs(safeTo - safeFrom) < 2) {
+        const wrapperImmediate = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+        if (wrapperImmediate) wrapperImmediate.scrollLeft = safeTo;
+        return;
+    }
+    quizScrollAnimState = {
+        from: safeFrom,
+        to: safeTo,
+        startedAt: performance.now(),
+        duration: Math.max(60, durationMs)
+    };
+    const tick = () => {
+        if (!quizScrollAnimState) {
+            quizScrollAnimRafId = null;
+            return;
+        }
+        if (state.course !== 'memorize' || state.memorize.playMode !== 'quiz') {
+            cancelQuizScrollAnimation();
+            return;
+        }
+        const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+        if (!wrapper || !wrapper.isConnected) {
+            // 次の paint で wrapper が現れる場合があるので、状態は維持しつつ次フレームで再試行
+            quizScrollAnimRafId = requestAnimationFrame(tick);
+            return;
+        }
+        const value = getQuizScrollAnimationCurrentValue();
+        if (value === null) {
+            quizScrollAnimRafId = null;
+            return;
+        }
+        wrapper.scrollLeft = Math.round(value);
+        const elapsed = performance.now() - quizScrollAnimState.startedAt;
+        if (elapsed >= quizScrollAnimState.duration) {
+            wrapper.scrollLeft = quizScrollAnimState.to;
+            quizScrollAnimState = null;
+            quizScrollAnimRafId = null;
+            return;
+        }
+        quizScrollAnimRafId = requestAnimationFrame(tick);
+    };
+    quizScrollAnimRafId = requestAnimationFrame(tick);
+}
+
+function computeQuizScrollAnimationDuration(distancePx) {
+    const ms = Math.round(distancePx * 1.2);
+    return Math.min(800, Math.max(350, ms));
+}
 let settingsReturnCourse = null;
 let settingsPausedState = null;
 let quizAdvanceTimeout = null;
@@ -1453,20 +1538,55 @@ function handleQuizTimeout() {
     clearQuizAdvanceTimers();
     quizAdvanceTimeout = setTimeout(() => {
         quizAdvanceTimeout = null;
-        if (state.course !== 'memorize' || state.memorize.playMode !== 'quiz') return;
-        generateQuestion();
-        renderApp();
-        // Play the next question note
-        quizToneTimeout = setTimeout(() => {
-            quizToneTimeout = null;
-            if (state.course === 'memorize' && state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
-                playTone(state.memorize.currentQuestion.stringIdx, state.memorize.currentQuestion.fret);
-            }
-        }, 100);
+        advanceQuizToNextQuestion();
     }, 1000);
 }
 
+/**
+ * クイズ：答え表示の 1 秒後に呼ばれて次の問題へ進む。
+ * Gr が変わって保存指板位置が変わるときは、現在位置 → 新位置を
+ * ユーザーの目で追える速度でスムーズスクロールする。
+ * 設計：
+ *  - 旧スクロール位置を読む
+ *  - generateQuestion で次の問題を確定（quizGrScrollLeft が決まる）
+ *  - 拡大ビュー＆距離が一定以上なら startQuizScrollAnimation を仕込む
+ *  - renderApp で新問題を描画（描画側はアニメ中なら補間値を採用）
+ *  - 音は描画 ~100ms 後（＝スクロール開始とほぼ同時）に再生
+ */
+function advanceQuizToNextQuestion() {
+    if (state.course !== 'memorize' || state.memorize.playMode !== 'quiz') return;
+
+    const wrapperBefore = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+    const fromScroll = wrapperBefore ? Math.max(0, Math.round(wrapperBefore.scrollLeft)) : 0;
+
+    generateQuestion();
+
+    const nextQ = state.memorize.currentQuestion;
+    const toScrollRaw = nextQ?.quizGrScrollLeft;
+    const toScroll = Number.isFinite(toScrollRaw) ? Math.max(0, Math.round(toScrollRaw)) : 0;
+
+    const distance = Math.abs(toScroll - fromScroll);
+    const shouldAnimate = state.settings.fretboardView === 'zoom' && distance >= 6;
+
+    if (shouldAnimate) {
+        const duration = computeQuizScrollAnimationDuration(distance);
+        startQuizScrollAnimation(fromScroll, toScroll, duration);
+    } else {
+        cancelQuizScrollAnimation();
+    }
+
+    renderApp();
+
+    quizToneTimeout = setTimeout(() => {
+        quizToneTimeout = null;
+        if (state.course === 'memorize' && state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+            playTone(state.memorize.currentQuestion.stringIdx, state.memorize.currentQuestion.fret);
+        }
+    }, 100);
+}
+
 function stopQuizTimer() {
+    cancelQuizScrollAnimation();
     clearQuizAdvanceTimers();
     if (quizTimerInterval) {
         clearInterval(quizTimerInterval);
@@ -3304,37 +3424,47 @@ function renderApp() {
                 }
             } else if (state.course === 'memorize' && state.memorize.playMode === 'quiz') {
                 // クイズGrスクロール: 拡大ビューのときだけ保存位置を適用する
-                const qGrScroll = state.memorize.currentQuestion?.quizGrScrollLeft;
-                if (Number.isFinite(qGrScroll)) {
-                    if (state.settings.fretboardView === 'zoom') {
-                        newWrapper.scrollLeft = qGrScroll;
-                        requestAnimationFrame(() => {
-                            if (newWrapper.isConnected) newWrapper.scrollLeft = qGrScroll;
-                        });
-                        // refineScaleAfterPaint（二重RAF）がtransformを変更してscrollLeftをリセットするため、
-                        // その後に再設定する
-                        setTimeout(() => {
-                            if (newWrapper.isConnected) newWrapper.scrollLeft = qGrScroll;
-                        }, 50);
+                const animVal = getQuizScrollAnimationCurrentValue();
+                if (animVal !== null && state.settings.fretboardView === 'zoom') {
+                    newWrapper.scrollLeft = Math.round(animVal);
+                } else {
+                    const qGrScroll = state.memorize.currentQuestion?.quizGrScrollLeft;
+                    if (Number.isFinite(qGrScroll)) {
+                        if (state.settings.fretboardView === 'zoom') {
+                            newWrapper.scrollLeft = qGrScroll;
+                            requestAnimationFrame(() => {
+                                if (newWrapper.isConnected) newWrapper.scrollLeft = qGrScroll;
+                            });
+                            // refineScaleAfterPaint（二重RAF）がtransformを変更してscrollLeftをリセットするため、
+                            // その後に再設定する
+                            setTimeout(() => {
+                                if (newWrapper.isConnected && !isQuizScrollAnimating()) newWrapper.scrollLeft = qGrScroll;
+                            }, 50);
+                        } else {
+                            newWrapper.scrollLeft = 0;
+                        }
                     } else {
                         newWrapper.scrollLeft = 0;
                     }
-                } else {
-                    newWrapper.scrollLeft = 0;
                 }
             } else {
                 newWrapper.scrollLeft = 0;
             }
         } else if (state.course === 'memorize' && state.memorize.playMode === 'quiz') {
             // 回答後・正解発表フェーズでも、拡大ビューでは quizGrScrollLeft の位置を維持する
-            const qGrScroll = state.memorize.currentQuestion?.quizGrScrollLeft;
-            if (Number.isFinite(qGrScroll) && state.settings.fretboardView === 'zoom') {
-                newWrapper.scrollLeft = qGrScroll;
-                setTimeout(() => {
-                    if (newWrapper.isConnected) newWrapper.scrollLeft = qGrScroll;
-                }, 50);
+            const animVal = getQuizScrollAnimationCurrentValue();
+            if (animVal !== null && state.settings.fretboardView === 'zoom') {
+                newWrapper.scrollLeft = Math.round(animVal);
             } else {
-                newWrapper.scrollLeft = 0;
+                const qGrScroll = state.memorize.currentQuestion?.quizGrScrollLeft;
+                if (Number.isFinite(qGrScroll) && state.settings.fretboardView === 'zoom') {
+                    newWrapper.scrollLeft = qGrScroll;
+                    setTimeout(() => {
+                        if (newWrapper.isConnected && !isQuizScrollAnimating()) newWrapper.scrollLeft = qGrScroll;
+                    }, 50);
+                } else {
+                    newWrapper.scrollLeft = 0;
+                }
             }
         } else if (state.course === 'memorize') {
             newWrapper.scrollLeft = currentScrollLeft;
@@ -7373,16 +7503,7 @@ function handleFretClick(stringNum, fret) {
     clearQuizAdvanceTimers();
     quizAdvanceTimeout = setTimeout(() => {
         quizAdvanceTimeout = null;
-        if (state.course !== 'memorize' || state.memorize.playMode !== 'quiz') return;
-        generateQuestion();
-        renderApp();
-        // Play the next question note
-        quizToneTimeout = setTimeout(() => {
-            quizToneTimeout = null;
-            if (state.course === 'memorize' && state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
-                playTone(state.memorize.currentQuestion.stringIdx, state.memorize.currentQuestion.fret);
-            }
-        }, 100);
+        advanceQuizToNextQuestion();
     }, 1000); // 1 second delay to see the result
 }
 
@@ -9126,12 +9247,18 @@ function renderFretboardHTML(containerId, options) {
     if (
         mode === 'memorize' &&
         state.memorize.playMode === 'quiz' &&
-        state.settings.fretboardView === 'zoom' &&
-        !Number.isFinite(effectivePreserveScrollLeft)
+        state.settings.fretboardView === 'zoom'
     ) {
-        const qsl = question?.quizGrScrollLeft ?? state.memorize.currentQuestion?.quizGrScrollLeft;
-        if (Number.isFinite(qsl)) {
-            effectivePreserveScrollLeft = qsl;
+        // 1) アニメ中はその瞬間の補間値を優先
+        const animVal = getQuizScrollAnimationCurrentValue();
+        if (animVal !== null) {
+            effectivePreserveScrollLeft = animVal;
+        } else if (!Number.isFinite(effectivePreserveScrollLeft)) {
+            // 2) 通常時は新問題の保存位置を補完
+            const qsl = question?.quizGrScrollLeft ?? state.memorize.currentQuestion?.quizGrScrollLeft;
+            if (Number.isFinite(qsl)) {
+                effectivePreserveScrollLeft = qsl;
+            }
         }
     }
 
@@ -9985,6 +10112,7 @@ function renderFretboardHTML(containerId, options) {
         const skipResetForQuizPreserve = shouldPreserveScrollLeft && effectivePreserveScrollLeft > 0;
         if (!skipResetForQuizPreserve) {
             setTimeout(() => {
+                if (isQuizScrollAnimating()) return;
                 const wrapper = containerEl.querySelector('.fretboard-scroll-wrapper');
                 if (wrapper && wrapper.firstChild) {
                     wrapper.scrollLeft = 0;
@@ -9997,6 +10125,7 @@ function renderFretboardHTML(containerId, options) {
                 wrapper.firstChild.style.marginLeft = '0';
             }
             setTimeout(() => {
+                if (isQuizScrollAnimating()) return;
                 const wrapper2 = containerEl.querySelector('.fretboard-scroll-wrapper');
                 if (wrapper2) wrapper2.scrollLeft = effectivePreserveScrollLeft;
             }, 10);
