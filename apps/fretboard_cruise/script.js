@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.95.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.96.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -634,6 +634,7 @@ if (savedState) {
         if (typeof state.memorize.demoReturnStage === 'undefined') state.memorize.demoReturnStage = null;
         if (typeof state.memorize.quizQuestionsAsked !== 'number') state.memorize.quizQuestionsAsked = 0;
         if (typeof state.memorize.isQuizCleared !== 'boolean') state.memorize.isQuizCleared = false;
+        if (typeof state.memorize.maxCombo !== 'number') state.memorize.maxCombo = 0;
         // Official specification: always use mode 1 (1/2 display)
         state.memorize.stage1RepeatHintMode = 1;
         state.memorize.stage1IsContinuedRepeat = false;
@@ -6126,12 +6127,16 @@ function renderStageSelect(app) {
             initAudio(); // Initialize audio on first user gesture
             state.memorize.stage = parseInt(btn.getAttribute('data-stage'));
             state.memorize.combo = 0;
+            state.memorize.maxCombo = 0;
             state.memorize.isCleared = false;
             // クイズ開始時はカウント・正解・クリア状態をリセット
             if (state.memorize.playMode === 'quiz') {
                 state.memorize.correct = 0;
                 state.memorize.quizQuestionsAsked = 0;
                 state.memorize.isQuizCleared = false;
+            } else {
+                // クルーズ：終了カードで正答率を出すため、ここでも 0 リセット
+                state.memorize.correct = 0;
             }
             state.course = 'memorize';
             
@@ -7117,6 +7122,7 @@ function renderQuizEditor(app) {
         state.memorize.stage = stage;
         state.memorize.playMode = 'quiz';
         state.memorize.combo = 0;
+        state.memorize.maxCombo = 0;
         state.memorize.correct = 0;
         state.memorize.quizQuestionsAsked = 0;
         state.memorize.isQuizCleared = false;
@@ -7371,24 +7377,52 @@ function renderMemorize(app) {
 
     const clearedTotalNotes = Array.isArray(state.memorize.cruiseTargets) ? state.memorize.cruiseTargets.length : 0;
     const clearedCorrectCount = state.memorize.correct || 0;
-    const clearedSummary = clearedTotalNotes > 0
-        ? `正解 ${clearedCorrectCount} / 全 ${clearedTotalNotes} 音`
-        : `正解 ${clearedCorrectCount} 音`;
+    const maxComboCount = parseInt(state.memorize.maxCombo ?? 0, 10) || 0;
+
+    // 終了カード共通：分母（クルーズは全音数 / クイズは設定問題数）を決める
+    const clearedTotal = isCruise
+        ? clearedTotalNotes
+        : (quizQuestionLimit > 0 ? quizQuestionLimit : quizQuestionsAsked);
+    const clearedRate = clearedTotal > 0
+        ? Math.round((clearedCorrectCount / clearedTotal) * 100)
+        : 0;
 
     const timerItemHtml = !isCruise
         ? `<div class="stat-item"><span class="label">残り時間</span><span class="value" id="quiz-timer" style="color: ${quizTimeLeft <= 1.0 ? 'var(--error-color)' : 'inherit'};">${quizTimeLeft.toFixed(1)}s</span></div>`
         : '';
-    const quizCountItemHtml = !isCruise && quizQuestionLimit > 0
-        ? `<div class="stat-item"><span class="label">問題</span><span class="value">${Math.min(quizQuestionsAsked, quizQuestionLimit)}/${quizQuestionLimit}</span></div>`
-        : '';
+
+    // クイズの「問題進行」はドット表示（10〜15個まで）。無制限のときは非表示。
+    let quizProgressItemHtml = '';
+    if (!isCruise && quizQuestionLimit > 0) {
+        const askedClamped = Math.min(quizQuestionsAsked, quizQuestionLimit);
+        const dotsHtml = Array.from({ length: quizQuestionLimit }).map((_, i) => {
+            const cls = i < askedClamped ? 'is-done' : '';
+            return `<span class="memorize-progress-dot ${cls}"></span>`;
+        }).join('');
+        quizProgressItemHtml = `
+            <div class="stat-item memorize-progress-stat">
+                <span class="label">問題</span>
+                <div class="memorize-progress-row">
+                    <div class="memorize-progress-dots">${dotsHtml}</div>
+                    <span class="memorize-progress-count">${askedClamped}/${quizQuestionLimit}</span>
+                </div>
+            </div>`;
+    }
 
     const stageStatsHtml = `
                     <div class="stats memorize-stats memorize-stats--near-question">
-                        <div class="stat-item"><span class="label">STAGE</span><span class="value">${state.memorize.stage}</span></div>
                         <div class="stat-item"><span class="label">連続</span><span class="value" id="score-combo">${state.memorize.combo}</span></div>
-                        ${quizCountItemHtml}
+                        ${quizProgressItemHtml}
                         ${timerItemHtml}
                     </div>`;
+
+    // ヘッダーに小さく「STAGE 1 ・ 指板クイズ」を表示（両モード共通）
+    const memorizeHeaderTitleHtml = `
+        <span class="memorize-header-meta">
+            <span class="memorize-header-stage">STAGE ${state.memorize.stage}</span>
+            <span class="memorize-header-divider" aria-hidden="true">・</span>
+            <span class="memorize-header-mode">${isCruise ? '指板をたどる' : '指板クイズ'}</span>
+        </span>`;
     const repeatHintMode = 1;  // Official specification: fixed to mode 1 (1/2 display)
     const repeatHintTabsHtml = '';  // Tab UI removed - using official 1/2 display only
 
@@ -7402,7 +7436,8 @@ function renderMemorize(app) {
     app.innerHTML = `
         <div class="${memorizeRootClass}" data-fretboard-view="${state.settings.fretboardView}">
             ${buildPageHeader({
-                titleText: '',
+                titleText: memorizeHeaderTitleHtml,
+                titleClass: 'memorize-header-title',
                 headerClass: 'page-header--memorize',
                 leftHtml: `
                     ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
@@ -7433,23 +7468,30 @@ function renderMemorize(app) {
                     </div>
                 ` : ''}
                 ${isCruiseCounting ? `<div class="memorize-countdown-overlay" aria-hidden="true">${cruiseCountdownValue}</div>` : ''}
-                ${isCruiseCleared ? `
-                    <div class="memorize-cleared-overlay" aria-live="polite">
-                        <div class="memorize-cleared-card">
-                            <div class="memorize-cleared-card__title">🎉 お疲れ様でした！</div>
-                            <div class="memorize-cleared-card__summary">${clearedSummary}</div>
-                        </div>
-                    </div>
-                ` : ''}
-                ${isQuizCleared ? `
-                    <div class="memorize-cleared-overlay" aria-live="polite">
-                        <div class="memorize-cleared-card">
-                            <div class="memorize-cleared-card__title">🎉 クイズ終了！</div>
-                            <div class="memorize-cleared-card__summary">正解 ${state.memorize.correct || 0} / 全 ${quizQuestionLimit}問</div>
-                            <div class="memorize-cleared-actions" style="display:flex; gap:12px; justify-content:center; margin-top:14px; flex-wrap:wrap;">
-                                <button type="button" class="btn-secondary" id="btn-quiz-restart">もう1回</button>
-                                <button type="button" class="btn-secondary" id="btn-quiz-finish">終了</button>
+                ${(isCruiseCleared || isQuizCleared) ? `
+                    <div class="memorize-cleared-overlay memorize-cleared-overlay--v2" aria-live="polite">
+                        <div class="memorize-cleared-card memorize-cleared-card--v2">
+                            <div class="memorize-cleared-card__title">${isCruiseCleared ? '🎉 お疲れ様でした！' : '🎉 クイズ終了！'}</div>
+                            <div class="memorize-cleared-card__hero">
+                                <div class="memorize-cleared-card__rate">${clearedRate}<span class="memorize-cleared-card__rate-unit">%</span></div>
+                                <div class="memorize-cleared-card__rate-label">正答率</div>
                             </div>
+                            <div class="memorize-cleared-card__metrics">
+                                <div class="memorize-cleared-card__metric">
+                                    <span class="memorize-cleared-card__metric-label">正解</span>
+                                    <span class="memorize-cleared-card__metric-value">${clearedCorrectCount}<span class="memorize-cleared-card__metric-sep">/</span>${clearedTotal || '?'}${isCruise ? '音' : '問'}</span>
+                                </div>
+                                <div class="memorize-cleared-card__metric">
+                                    <span class="memorize-cleared-card__metric-label">最大連続</span>
+                                    <span class="memorize-cleared-card__metric-value">${maxComboCount}</span>
+                                </div>
+                            </div>
+                            ${isQuizCleared ? `
+                                <div class="memorize-cleared-card__actions">
+                                    <button type="button" class="btn-primary memorize-cleared-card__btn memorize-cleared-card__btn--primary" id="btn-quiz-restart">もう1回</button>
+                                    <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-quiz-finish">終了</button>
+                                </div>
+                            ` : ''}
                         </div>
                     </div>
                 ` : ''}
@@ -7510,6 +7552,7 @@ function renderMemorize(app) {
                 state.memorize.cruiseCurrentLoop = 0;
                 state.memorize.correct = 0;
                 state.memorize.combo = 0;
+                state.memorize.maxCombo = 0;
                 state.memorize.currentQuestion = state.memorize.cruiseTargets[0];
                 state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices?.[0] ?? 0;
                 state.memorize.cruisePreviousGroupIndex = null;
@@ -7561,6 +7604,7 @@ function renderMemorize(app) {
             state.memorize.cruiseCurrentLoop = 0;
             state.memorize.correct = 0;
             state.memorize.combo = 0;
+            state.memorize.maxCombo = 0;
             state.memorize.currentQuestion = state.memorize.cruiseTargets[0];
             state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices?.[0] ?? 0;
             state.memorize.cruisePreviousGroupIndex = null;
@@ -7591,6 +7635,7 @@ function renderMemorize(app) {
             cancelQuizScrollAnimation();
             state.memorize.correct = 0;
             state.memorize.combo = 0;
+            state.memorize.maxCombo = 0;
             state.memorize.quizQuestionsAsked = 0;
             state.memorize.isQuizCleared = false;
             state.memorize.tempFeedback = null;
@@ -7717,6 +7762,9 @@ function handleFretClick(stringNum, fret) {
                 playTone(stringIdx, fret);
                 state.memorize.correct++;
                 state.memorize.combo++;
+                if ((state.memorize.combo || 0) > (state.memorize.maxCombo || 0)) {
+                    state.memorize.maxCombo = state.memorize.combo;
+                }
                 state.memorize.hasTappedCurrentNote = true;
                 showLiveFeedback('Perfect!', 'good');
             } else {
@@ -7739,6 +7787,9 @@ function handleFretClick(stringNum, fret) {
     if (isCorrect) {
         state.memorize.correct++;
         state.memorize.combo++;
+        if ((state.memorize.combo || 0) > (state.memorize.maxCombo || 0)) {
+            state.memorize.maxCombo = state.memorize.combo;
+        }
         updateMemorizeScoreDisplay();
         fb.textContent = '正解！';
         setMemorizeFeedbackTone(fb, 'correct');

@@ -707,6 +707,187 @@
     color: #333;
 }
 
+/* ============================================================
+   v2: 共通の終了カード（クルーズ・指板クイズで共有）
+   - 背面に薄いマスクを敷いて、フレットの透けを抑える
+   - 正答率を主役に大きく出し、サブ指標を 2 列で並べる
+   - クイズはカード内に「もう1回／終了」を縦置き
+   ============================================================ */
+.memorize-cleared-overlay--v2 {
+    background: rgba(0, 0, 0, 0.45);
+    pointer-events: auto;
+}
+
+.memorize-cleared-card--v2 {
+    background: linear-gradient(180deg, #1f2933 0%, #141a22 100%);
+    color: #fff;
+    border: 1px solid rgba(76, 175, 80, 0.55);
+    border-radius: 18px;
+    padding: 18px 22px 20px;
+    width: min(360px, 92%);
+    max-width: 92%;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    text-align: center;
+}
+
+.memorize-cleared-card--v2 .memorize-cleared-card__title {
+    margin: 0;
+    color: var(--success-color, #4caf50);
+    font-size: clamp(1.2rem, 4.4vmin, 1.7rem);
+    letter-spacing: 0.02em;
+}
+
+.memorize-cleared-card__hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 4px 0 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.memorize-cleared-card__rate {
+    font-size: clamp(2.4rem, 11vmin, 3.6rem);
+    font-weight: 800;
+    line-height: 1;
+    color: #fff;
+    letter-spacing: -0.02em;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
+}
+
+.memorize-cleared-card__rate-unit {
+    font-size: 0.45em;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.7);
+    margin-left: 2px;
+}
+
+.memorize-cleared-card__rate-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    letter-spacing: 0.08em;
+    margin-top: 2px;
+}
+
+.memorize-cleared-card__metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 8px;
+    padding: 2px 0 0;
+}
+
+.memorize-cleared-card__metric {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.memorize-cleared-card__metric-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.6);
+    letter-spacing: 0.06em;
+}
+
+.memorize-cleared-card__metric-value {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+.memorize-cleared-card__metric-sep {
+    margin: 0 2px;
+    color: rgba(255, 255, 255, 0.45);
+    font-weight: 600;
+}
+
+.memorize-cleared-card__actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.memorize-cleared-card__btn {
+    width: 100%;
+    border-radius: 12px;
+    padding: 11px 14px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.memorize-cleared-card__btn--primary {
+    background: var(--primary-color, #4f9cf9);
+    color: #fff;
+    border: none;
+    box-shadow: 0 4px 12px rgba(79, 156, 249, 0.35);
+}
+
+.memorize-cleared-card__btn--ghost {
+    background: transparent;
+    color: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* ============================================================
+   問題進行ドット（指板クイズの「問題」ステータス）
+   ============================================================ */
+.memorize-progress-stat {
+    align-items: center;
+}
+
+.memorize-progress-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.memorize-progress-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.memorize-progress-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.18);
+    transition: background-color 0.2s ease;
+}
+
+.memorize-progress-dot.is-done {
+    background: var(--primary-color, #4f9cf9);
+    box-shadow: 0 0 6px rgba(79, 156, 249, 0.5);
+}
+
+.memorize-progress-count {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.85);
+    min-width: 2.6em;
+    text-align: left;
+}
+
+@media (max-width: 380px) {
+    .memorize-progress-dot {
+        width: 6px;
+        height: 6px;
+        gap: 3px;
+    }
+}
+
 .memorize-repeat-hint-tabs {
     display: flex;
     flex-wrap: wrap;
@@ -891,6 +1072,42 @@
 
 .memorize-screen--landscape .memorize-stats--near-question .stat-item .value {
     font-size: 0.95rem;
+}
+
+/* 横画面：進行ドットを小さくし、行高をコンパクトに */
+.memorize-screen--landscape .memorize-progress-dot {
+    width: 6px;
+    height: 6px;
+}
+.memorize-screen--landscape .memorize-progress-dots {
+    gap: 3px;
+}
+.memorize-screen--landscape .memorize-progress-count {
+    font-size: 0.7rem;
+    min-width: 2.4em;
+}
+
+/* 横画面：終了カードは横にも縦にも収まるよう、最大高さに収める */
+.memorize-screen--landscape .memorize-cleared-card--v2 {
+    width: min(340px, 80%);
+    padding: 12px 18px 14px;
+    gap: 8px;
+}
+.memorize-screen--landscape .memorize-cleared-card--v2 .memorize-cleared-card__title {
+    font-size: clamp(1rem, 3.6vmin, 1.35rem);
+}
+.memorize-screen--landscape .memorize-cleared-card__rate {
+    font-size: clamp(2rem, 9vmin, 2.8rem);
+}
+.memorize-screen--landscape .memorize-cleared-card__rate-label {
+    font-size: 0.7rem;
+}
+.memorize-screen--landscape .memorize-cleared-card__metric-value {
+    font-size: 1rem;
+}
+.memorize-screen--landscape .memorize-cleared-card__btn {
+    padding: 9px 12px;
+    font-size: 0.88rem;
 }
 
 .memorize-screen--landscape .memorize-question-main.question-text {
@@ -3398,13 +3615,50 @@ input:checked + .toggle-slider:before {
 }
 
 .page-header--memorize {
-    gap: 20px;
+    gap: 6px;
     padding-top: 4px;
     padding-bottom: 4px;
 }
 
+/* memorize 画面ヘッダー：以前は空タイトルを隠していたが、今は
+   「STAGE 1 ・ 指板クイズ」を小さく出すので表示する。 */
 .page-header--memorize .page-header-title-wrap {
-    visibility: hidden;
+    visibility: visible;
+    transform: translateY(-2px);
+    margin-top: -4px;
+}
+
+.page-header-title.memorize-header-title {
+    font-size: 0;
+    line-height: 1.2;
+    font-weight: 600;
+}
+
+.memorize-header-meta {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 0.78rem;
+    line-height: 1.2;
+    color: rgba(255, 255, 255, 0.78);
+    letter-spacing: 0.02em;
+}
+
+.memorize-header-stage {
+    color: var(--primary-color, #4f9cf9);
+    font-weight: 700;
+    font-size: 0.84rem;
+    letter-spacing: 0.04em;
+}
+
+.memorize-header-divider {
+    opacity: 0.5;
+    font-size: 0.7rem;
+}
+
+.memorize-header-mode {
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
 }
 
 .page-header--stage-select {
