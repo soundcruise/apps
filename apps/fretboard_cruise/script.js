@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.99.4';
+const FRETBOARD_CRUISE_APP_VERSION = '1.99.5';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -841,18 +841,14 @@ function getFretboardViewForWindowOrientation() {
 }
 
 /**
- * 横画面 memorize cruise の指板最大化レイアウト設定を返す。
- * - 下端 paddingBottom を cruise controls 直上まで圧縮
- * - 指板コンテナを画面幅いっぱいに拡張
- * - 指板下端の内部クリアランスを 28px に圧縮
- * 該当しない場合は active=false を返し、他のモードには影響を与えない。
+ * 横画面の「指板をたどる / 指板クイズ」問題画面: 下余白と全幅指板用。
+ * 拡大ビュー/全体ビューに関わらず、横画面なら同じ（従来の全体ビューに近い）レイアウトに揃える。
  */
 function getCruiseLandscapeLayoutConfig() {
     if (typeof window === 'undefined') return { active: false };
     const land = window.innerWidth > window.innerHeight;
     const inMemorize = state.course === 'memorize';
-    const isCruise = state.memorize && state.memorize.playMode === 'cruise';
-    if (!(land && inMemorize && isCruise)) return { active: false };
+    if (!(land && inMemorize)) return { active: false };
     return {
         active: true,
         // cruiseControls bottom:max(16,safe) + 高さ48 にちょうど収まる
@@ -873,7 +869,6 @@ function shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId) {
     if (typeof window === 'undefined') return false;
     if (mode !== 'memorize' || containerId !== 'fretboard-container') return false;
     if (!state.memorize || state.memorize.playMode !== 'cruise') return false;
-    if (state.settings.fretboardView !== 'full') return false;
     return window.innerWidth > window.innerHeight;
 }
 
@@ -1787,7 +1782,11 @@ function advanceQuizToNextQuestion() {
     const toScroll = Number.isFinite(toScrollRaw) ? Math.max(0, Math.round(toScrollRaw)) : 0;
 
     const distance = Math.abs(toScroll - fromScroll);
-    const shouldAnimate = state.settings.fretboardView === 'zoom' && distance >= 6;
+    const landQuiz =
+        typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
+    const shouldAnimate =
+        distance >= 6 &&
+        (state.settings.fretboardView === 'zoom' || landQuiz);
 
     if (shouldAnimate) {
         const duration = computeQuizScrollAnimationDuration(distance);
@@ -9350,6 +9349,12 @@ function renderFretboardHTML(containerId, options) {
             ? ruleTapLayoutZoomExtra
             : 1;
     const renderMaxFret = getRenderMaxFret(mode, options);
+    /** 横画面の問題画面では、設定が「拡大」でも「全体」と同じスケール分岐（マージン・scale）を使う */
+    const memorizeLandscapeUnifiedFullLayout =
+        typeof window !== 'undefined' &&
+        window.innerWidth > window.innerHeight &&
+        mode === 'memorize' &&
+        containerId === 'fretboard-container';
     const routeEditorVisibleIndexSet = Array.isArray(routeEditorVisibleIndices)
         ? new Set(routeEditorVisibleIndices.map(index => parseInt(index, 10)).filter(Number.isFinite))
         : null;
@@ -9881,7 +9886,7 @@ function renderFretboardHTML(containerId, options) {
     if (
         mode === 'memorize' &&
         state.memorize.playMode === 'quiz' &&
-        state.settings.fretboardView === 'zoom'
+        (state.settings.fretboardView === 'zoom' || memorizeLandscapeUnifiedFullLayout)
     ) {
         // 1) アニメ中はその瞬間の補間値を優先
         const animVal = getQuizScrollAnimationCurrentValue();
@@ -9897,7 +9902,12 @@ function renderFretboardHTML(containerId, options) {
     }
 
     const containerEl = document.getElementById(containerId);
-    const shouldPreserveScrollLeft = state.settings.fretboardView === 'zoom' && Number.isFinite(effectivePreserveScrollLeft);
+    const shouldPreserveScrollLeft =
+        Number.isFinite(effectivePreserveScrollLeft) &&
+        (
+            (state.settings.fretboardView === 'zoom' && !memorizeLandscapeUnifiedFullLayout) ||
+            (memorizeLandscapeUnifiedFullLayout && state.memorize.playMode === 'quiz')
+        );
     containerEl.innerHTML = html;
 
     // クイズ：編集で保存した横位置を、innerHTML 差し替え直後から維持（解答表示で一瞬 scrollLeft=0 に見えるのを防ぐ）
@@ -9985,6 +9995,7 @@ function renderFretboardHTML(containerId, options) {
                 return Math.min(1, zMax, widthCap / Math.max(1, bW));
             };
             const isZoomView = (mode === 'memorize' || mode === 'visualize' || mode === 'rule' || mode === 'routeEditor' || mode === 'quizEditor') && state.settings.fretboardView === 'zoom';
+            const effectiveZoomView = memorizeLandscapeUnifiedFullLayout ? false : isZoomView;
             const visualizeExtendedNeedsHorizScroll =
                 mode === 'visualize' &&
                 containerId === 'fretboard-container' &&
@@ -10001,7 +10012,7 @@ function renderFretboardHTML(containerId, options) {
             containerEl.style.overflow = '';
             containerEl.style.removeProperty('-webkit-overflow-scrolling');
 
-            if (isZoomView) {
+            if (effectiveZoomView) {
                 scrollWrapper.style.marginLeft = '';
                 const projectedBounds = getProjectedFretboardBounds(neckTop, neckBottom, renderMaxFret);
                 const land = window.innerWidth > window.innerHeight;
@@ -10085,18 +10096,15 @@ function renderFretboardHTML(containerId, options) {
                     (mode === 'visualize' && containerId === 'fretboard-container') ||
                     (mode === 'rule' && containerId === 'rule-fretboard-container') ||
                     routeEditorFretHost || quizEditorFretHost;
-                const memorizeCruiseLandscape =
-                    mode === 'memorize' &&
-                    containerId === 'fretboard-container' &&
-                    land &&
-                    state.memorize.playMode === 'cruise';
+                const memorizeProblemLandscapeWide =
+                    memorizeFretHost && land && cruiseLandCfg.active;
                 /** 自由探索・全体ビュー・13F以降ON: ズーム時と同様にラッパーで横スクロール（縮めて全体を収めない） */
                 const visualizeExtendedFullScrollLayout =
                     visualizeExtendedNeedsHorizScroll && state.settings.fretboardView === 'full';
                 /** 横・覚える・全体: 上段テキストを詰めた分、scale 用の高さ目安を少し上げる */
                 const fallbackFullH = (routeEditorFretHost || quizEditorFretHost) && land
                     ? Math.max(150, Math.round(window.innerHeight * 0.44))
-                    : memorizeCruiseLandscape
+                    : memorizeProblemLandscapeWide
                         ? Math.max(150, Math.round(window.innerHeight * 0.46))
                         : Math.max(
                             120,
@@ -10112,7 +10120,7 @@ function renderFretboardHTML(containerId, options) {
                         ? cruiseLandCfg.bottomClearOverride
                         : routeEditorFretHost && land
                             ? 72
-                            : memorizeCruiseLandscape
+                            : memorizeProblemLandscapeWide
                                 ? 70
                                 : (memorizeFretHost || visualizeFretHost) && land
                                     ? 22
@@ -10149,7 +10157,7 @@ function renderFretboardHTML(containerId, options) {
                               )
                             : 0;
                     const h = Math.max(
-                        routeEditorFretHost && land ? 150 : memorizeCruiseLandscape ? 150 : 110,
+                        routeEditorFretHost && land ? 150 : memorizeLandscapeUnifiedFullLayout ? 150 : 110,
                         fallbackFullH,
                         fromClient,
                         fromAppRect > 72 ? fromAppRect : 0
@@ -10183,7 +10191,7 @@ function renderFretboardHTML(containerId, options) {
                  * 適用条件は厳密に絞っており、編集画面・自由探索・基本ルール・縦画面・指板クイズ
                  * には一切影響させない。
                  */
-                const allowMemorizeFullScaleAbove1 = memorizeCruiseLandscape;
+                const allowMemorizeFullScaleAbove1 = memorizeLandscapeUnifiedFullLayout;
                 let scale;
                 if (visualizeExtendedFullScrollLayout) {
                     scale = Math.min(
@@ -10271,6 +10279,16 @@ function renderFretboardHTML(containerId, options) {
                     scrollWrapper.style.transformOrigin = 'top left';
                     scrollWrapper.style.marginLeft = `${centerTx}px`;
                     scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
+                    if (
+                        memorizeLandscapeUnifiedFullLayout &&
+                        state.memorize.playMode === 'quiz' &&
+                        Number.isFinite(effectivePreserveScrollLeft)
+                    ) {
+                        /* 横画面は全体ビュー分岐だが、クイズは保存スクロール位置が必要なときだけ横スクロール可 */
+                        scrollWrapper.style.overflowX = 'auto';
+                        scrollWrapper.style.overscrollBehaviorX = 'auto';
+                        scrollWrapper.style.touchAction = 'manipulation';
+                    }
                     if (visualizeFretHost) {
                         containerEl.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
                     }
@@ -10290,8 +10308,8 @@ function renderFretboardHTML(containerId, options) {
                         if (visualizeFretHost) {
                             // height設定済みのためmarginBottomは不要
                             containerEl.style.marginBottom = '';
-                        } else if (memorizeCruiseLandscape) {
-                            // クルーズ横画面は下部ボタン列を優先し、指板下の空きを残す
+                        } else if (memorizeLandscapeUnifiedFullLayout) {
+                            // クルーズ/クイズの横画面は下部ボタン列を優先し、指板下の空きを残す
                             containerEl.style.marginBottom = '';
                         } else {
                             containerEl.style.marginBottom = `${-Math.round(layoutH - visualH)}px`;
@@ -10306,7 +10324,8 @@ function renderFretboardHTML(containerId, options) {
                 /** 基本ルールの指板は全体ビューで rAF 後にスケールを差し替えると、再描画のたびに一瞬ズームしたように見える */
                 const refineScaleAfterPaint =
                     containerId === 'fretboard-container' &&
-                    (mode === 'memorize' || mode === 'visualize' || mode === 'routeEditor' || mode === 'quizEditor');
+                    (mode === 'memorize' || mode === 'visualize' || mode === 'routeEditor' || mode === 'quizEditor') &&
+                    !(mode === 'memorize' && memorizeLandscapeUnifiedFullLayout);
                 if (refineScaleAfterPaint) {
                     requestAnimationFrame(() => {
                         requestAnimationFrame(() => {
@@ -10412,7 +10431,7 @@ function renderFretboardHTML(containerId, options) {
             }
 
             // 全体ビューは marginLeft でビューポート中央に寄せているので、left 補正はズレの原因になる（スキップ）
-            if (isZoomView && !isRuleFretHost) {
+            if (effectiveZoomView && !isRuleFretHost) {
                 const wrapperRect = scrollWrapper.getBoundingClientRect();
                 if (Math.abs(wrapperRect.left) > 1) {
                     const currentLeft = parseFloat(containerEl.style.left) || 0;
