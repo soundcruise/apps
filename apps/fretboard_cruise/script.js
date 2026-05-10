@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.99.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.99.4';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -860,6 +860,44 @@ function getCruiseLandscapeLayoutConfig() {
         useFullViewportWidth: true,
         bottomClearOverride: 28
     };
+}
+
+/**
+ * 指板をたどる・横画面・全体ビュー:
+ * 内部 DOM は常に全フレット幅（FRETBOARD_WIDTH）を持つため、ラッパーに対して
+ * scrollWidth > clientWidth になり横スワイプで scrollLeft がずれる（左にしか見えない状態になる）。
+ * STAGE の表示上限（例 0〜12F）は投影・スケールで画面に収めているので、横スクロールは不要。
+ * 常に scrollLeft=0（開放弦側固定）にし、横方向のパンを無効にする。
+ */
+function shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId) {
+    if (typeof window === 'undefined') return false;
+    if (mode !== 'memorize' || containerId !== 'fretboard-container') return false;
+    if (!state.memorize || state.memorize.playMode !== 'cruise') return false;
+    if (state.settings.fretboardView !== 'full') return false;
+    return window.innerWidth > window.innerHeight;
+}
+
+function applyMemorizeCruiseLandscapeFullScrollLock(scrollWrapper, mode, containerId) {
+    if (!scrollWrapper || !scrollWrapper.isConnected) return;
+    if (!shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId)) return;
+    scrollWrapper.scrollLeft = 0;
+    scrollWrapper.style.overflowX = 'hidden';
+    scrollWrapper.style.overflowY = 'hidden';
+    scrollWrapper.style.overscrollBehaviorX = 'none';
+    scrollWrapper.style.touchAction = 'pan-y';
+}
+
+function ensureMemorizeCruiseLandscapeFullScrollLockListener(scrollWrapper, mode, containerId) {
+    if (!scrollWrapper || scrollWrapper.dataset.cruiseFullScrollLockListener === '1') return;
+    scrollWrapper.dataset.cruiseFullScrollLockListener = '1';
+    scrollWrapper.addEventListener(
+        'scroll',
+        () => {
+            if (!shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId)) return;
+            if (scrollWrapper.scrollLeft !== 0) scrollWrapper.scrollLeft = 0;
+        },
+        { passive: true }
+    );
 }
 
 /** 全体ビュー時のカメラ設定を一時保存（拡大ビュー切替時に呼ぶ） */
@@ -10261,6 +10299,10 @@ function renderFretboardHTML(containerId, options) {
                     }
                 };
                 syncFretboardLayoutCollapse();
+                if (shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId)) {
+                    applyMemorizeCruiseLandscapeFullScrollLock(scrollWrapper, mode, containerId);
+                    ensureMemorizeCruiseLandscapeFullScrollLockListener(scrollWrapper, mode, containerId);
+                }
                 /** 基本ルールの指板は全体ビューで rAF 後にスケールを差し替えると、再描画のたびに一瞬ズームしたように見える */
                 const refineScaleAfterPaint =
                     containerId === 'fretboard-container' &&
@@ -10274,6 +10316,9 @@ function renderFretboardHTML(containerId, options) {
                                 syncFretboardLayoutCollapse();
                                 if (shouldPreserveScrollLeft && scrollWrapper.isConnected) {
                                     scrollWrapper.scrollLeft = effectivePreserveScrollLeft;
+                                } else if (shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId)) {
+                                    applyMemorizeCruiseLandscapeFullScrollLock(scrollWrapper, mode, containerId);
+                                    ensureMemorizeCruiseLandscapeFullScrollLockListener(scrollWrapper, mode, containerId);
                                 }
                                 return;
                             }
@@ -10357,6 +10402,10 @@ function renderFretboardHTML(containerId, options) {
                             if (shouldPreserveScrollLeft && scrollWrapper.isConnected) {
                                 scrollWrapper.scrollLeft = effectivePreserveScrollLeft;
                             }
+                            if (shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId)) {
+                                applyMemorizeCruiseLandscapeFullScrollLock(scrollWrapper, mode, containerId);
+                                ensureMemorizeCruiseLandscapeFullScrollLockListener(scrollWrapper, mode, containerId);
+                            }
                         });
                     });
                 }
@@ -10373,6 +10422,10 @@ function renderFretboardHTML(containerId, options) {
             // ズームビュー：getBoundingClientRect()で強制レイアウト後に確定代入（一瞬0表示を防ぐ）
             if (shouldPreserveScrollLeft) {
                 scrollWrapper.scrollLeft = effectivePreserveScrollLeft;
+            }
+            if (shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId)) {
+                applyMemorizeCruiseLandscapeFullScrollLock(scrollWrapper, mode, containerId);
+                ensureMemorizeCruiseLandscapeFullScrollLockListener(scrollWrapper, mode, containerId);
             }
         }
     }
@@ -10754,6 +10807,19 @@ function renderFretboardHTML(containerId, options) {
                 if (wrapper2) wrapper2.scrollLeft = effectivePreserveScrollLeft;
             }, 10);
         }
+    } else if (
+        mode === 'memorize' &&
+        containerId === 'fretboard-container' &&
+        state.memorize.playMode === 'cruise' &&
+        shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId)
+    ) {
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                const wrapper = containerEl.querySelector('.fretboard-scroll-wrapper');
+                applyMemorizeCruiseLandscapeFullScrollLock(wrapper, mode, containerId);
+                ensureMemorizeCruiseLandscapeFullScrollLockListener(wrapper, mode, containerId);
+            });
+        });
     }
 }
 
