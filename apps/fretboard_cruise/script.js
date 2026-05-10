@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.99.13';
+const FRETBOARD_CRUISE_APP_VERSION = '1.99.14';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -897,6 +897,13 @@ function ensureMemorizeCruiseLandscapeFullScrollLockListener(scrollWrapper, mode
     );
 }
 
+/** 横画面の指板クイズでは保存された scrollLeft を使わない（全体が画面に収まる・ロックと一致） */
+function shouldQuizLandscapeSkipSavedScrollLeft() {
+    if (typeof window === 'undefined') return false;
+    if (!state.memorize || state.memorize.playMode !== 'quiz') return false;
+    return window.innerWidth > window.innerHeight;
+}
+
 /** 全体ビュー時のカメラ設定を一時保存（拡大ビュー切替時に呼ぶ） */
 function snapshotFullViewSettings() {
     state.settings.fullViewSnapshot = {
@@ -1733,7 +1740,8 @@ function handleQuizTimeout() {
     });
 
     // refineScaleAfterPaint（二重RAF）完了後にscrollLeftを再適用
-    if (Number.isFinite(_timeoutScrollLeft)) {
+    // 横画面クイズでは保存スクロールを使わないためスキップ（ここで右にジャンプしていた）
+    if (Number.isFinite(_timeoutScrollLeft) && !shouldQuizLandscapeSkipSavedScrollLeft()) {
         setTimeout(() => {
             const sw = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
             if (sw) sw.scrollLeft = _timeoutScrollLeft;
@@ -3692,47 +3700,57 @@ function renderApp() {
                     newWrapper.scrollLeft = 0;
                 }
             } else if (state.course === 'memorize' && state.memorize.playMode === 'quiz') {
-                // クイズGrスクロール: 拡大ビューのときだけ保存位置を適用する
-                const animVal = getQuizScrollAnimationCurrentValue();
-                if (animVal !== null && state.settings.fretboardView === 'zoom') {
-                    newWrapper.scrollLeft = Math.round(animVal);
+                // クイズGrスクロール: 縦画面・拡大ビューのときだけ保存位置を適用する。
+                // 横画面では全体が画面に収まるため scrollLeft=0 固定（編集保存値は無視）。
+                if (shouldQuizLandscapeSkipSavedScrollLeft()) {
+                    newWrapper.scrollLeft = 0;
                 } else {
-                    const qGrScroll = state.memorize.currentQuestion?.quizGrScrollLeft;
-                    if (Number.isFinite(qGrScroll)) {
-                        if (state.settings.fretboardView === 'zoom') {
-                            newWrapper.scrollLeft = qGrScroll;
-                            requestAnimationFrame(() => {
-                                if (newWrapper.isConnected) newWrapper.scrollLeft = qGrScroll;
-                            });
-                            // refineScaleAfterPaint（二重RAF）がtransformを変更してscrollLeftをリセットするため、
-                            // その後に再設定する
-                            setTimeout(() => {
-                                if (newWrapper.isConnected && !isQuizScrollAnimating()) newWrapper.scrollLeft = qGrScroll;
-                            }, 50);
+                    const animVal = getQuizScrollAnimationCurrentValue();
+                    if (animVal !== null && state.settings.fretboardView === 'zoom') {
+                        newWrapper.scrollLeft = Math.round(animVal);
+                    } else {
+                        const qGrScroll = state.memorize.currentQuestion?.quizGrScrollLeft;
+                        if (Number.isFinite(qGrScroll)) {
+                            if (state.settings.fretboardView === 'zoom') {
+                                newWrapper.scrollLeft = qGrScroll;
+                                requestAnimationFrame(() => {
+                                    if (newWrapper.isConnected) newWrapper.scrollLeft = qGrScroll;
+                                });
+                                // refineScaleAfterPaint（二重RAF）がtransformを変更してscrollLeftをリセットするため、
+                                // その後に再設定する
+                                setTimeout(() => {
+                                    if (newWrapper.isConnected && !isQuizScrollAnimating()) newWrapper.scrollLeft = qGrScroll;
+                                }, 50);
+                            } else {
+                                newWrapper.scrollLeft = 0;
+                            }
                         } else {
                             newWrapper.scrollLeft = 0;
                         }
-                    } else {
-                        newWrapper.scrollLeft = 0;
                     }
                 }
             } else {
                 newWrapper.scrollLeft = 0;
             }
         } else if (state.course === 'memorize' && state.memorize.playMode === 'quiz') {
-            // 回答後・正解発表フェーズでも、拡大ビューでは quizGrScrollLeft の位置を維持する
-            const animVal = getQuizScrollAnimationCurrentValue();
-            if (animVal !== null && state.settings.fretboardView === 'zoom') {
-                newWrapper.scrollLeft = Math.round(animVal);
+            // 回答後・正解発表フェーズでも、縦・拡大ビューでは quizGrScrollLeft を維持。
+            // 横画面では保存スクロールを使わない。
+            if (shouldQuizLandscapeSkipSavedScrollLeft()) {
+                newWrapper.scrollLeft = 0;
             } else {
-                const qGrScroll = state.memorize.currentQuestion?.quizGrScrollLeft;
-                if (Number.isFinite(qGrScroll) && state.settings.fretboardView === 'zoom') {
-                    newWrapper.scrollLeft = qGrScroll;
-                    setTimeout(() => {
-                        if (newWrapper.isConnected && !isQuizScrollAnimating()) newWrapper.scrollLeft = qGrScroll;
-                    }, 50);
+                const animVal = getQuizScrollAnimationCurrentValue();
+                if (animVal !== null && state.settings.fretboardView === 'zoom') {
+                    newWrapper.scrollLeft = Math.round(animVal);
                 } else {
-                    newWrapper.scrollLeft = 0;
+                    const qGrScroll = state.memorize.currentQuestion?.quizGrScrollLeft;
+                    if (Number.isFinite(qGrScroll) && state.settings.fretboardView === 'zoom') {
+                        newWrapper.scrollLeft = qGrScroll;
+                        setTimeout(() => {
+                            if (newWrapper.isConnected && !isQuizScrollAnimating()) newWrapper.scrollLeft = qGrScroll;
+                        }, 50);
+                    } else {
+                        newWrapper.scrollLeft = 0;
+                    }
                 }
             }
         } else if (state.course === 'memorize') {
@@ -8056,7 +8074,7 @@ function handleFretClick(stringNum, fret) {
     // refineScaleAfterPaint（二重RAF）がtransformを変更してscrollLeftをリセットするため、
     // RAF完了後（約33ms）にsetTimeoutでscrollLeftを再適用する
     const _quizAnswerScrollLeft = q?.quizGrScrollLeft ?? null;
-    if (Number.isFinite(_quizAnswerScrollLeft)) {
+    if (Number.isFinite(_quizAnswerScrollLeft) && !shouldQuizLandscapeSkipSavedScrollLeft()) {
         setTimeout(() => {
             const sw = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
             if (sw) sw.scrollLeft = _quizAnswerScrollLeft;
