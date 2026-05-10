@@ -179,15 +179,30 @@
     z-index: 3;
 }
 
+/* フレット番号は SVG の <text> ではなく HTML の <div> として描画する（v1.99.8〜）。
+   neck-front の中にオーバーレイ層として置き、SVG と同じ座標系・同じスケール変換で
+   並ぶ。SVG のテキスト描画にあったブラウザごとの揺れ（消失・横ずれ・縦圧縮）を回避。 */
+.projected-fret-number-layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+    z-index: 2;
+    transform: translateZ(1px);
+}
+
 .projected-fret-number {
-    fill: rgba(248, 243, 233, 0.96);
+    position: absolute;
+    color: rgba(248, 243, 233, 0.96);
     font-weight: 800;
-    text-anchor: middle;
-    dominant-baseline: middle;
-    paint-order: stroke;
-    stroke: rgba(0,0,0,0.78);
-    stroke-width: 2.2px;
-    text-shadow: 0 1px 1px rgba(0,0,0,0.4);
+    line-height: 1;
+    white-space: nowrap;
+    transform: translate(-50%, -50%);
+    -webkit-text-stroke: 2.2px rgba(0, 0, 0, 0.78);
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .projected-fret-wire {

@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.99.7';
+const FRETBOARD_CRUISE_APP_VERSION = '1.99.8';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -9601,6 +9601,13 @@ function renderFretboardHTML(containerId, options) {
         html += `<line class="${wireClass}" x1="${topPoint.x.toFixed(2)}" y1="${topPoint.y.toFixed(2)}" x2="${bottomPoint.x.toFixed(2)}" y2="${bottomPoint.y.toFixed(2)}" stroke="url(#${gradId})" stroke-width="${wireWidth}"></line>`;
     });
 
+    html += `</svg>`;
+
+    /* フレット番号は SVG の <text> ではなく HTML の <div> として描画する。
+       SVG の <text> は端末ごとに初回ペイントの位置がずれる挙動があるため、
+       純粋な HTML レイヤーに切り出して全ブラウザで安定したレイアウトにする。
+       レイヤーは neck-front の中に絶対配置し、SVG と同じ座標系で並ぶ。 */
+    html += `<div class="projected-fret-number-layer" style="width:${FRETBOARD_WIDTH}px; height:${FRETBOARD_VIEWBOX_HEIGHT}px;">`;
     for (let f = 0; f <= renderMaxFret; f++) {
         if (f === 0) continue;
         const x = (xEdges[f] + xEdges[f + 1]) / 2;
@@ -9609,10 +9616,10 @@ function renderFretboardHTML(containerId, options) {
             : (neckBottom + FRET_NUMBER_STRIP_HEIGHT * 0.58);
         const labelPoint = projectPoint(x, labelY, FRET_NUMBER_Z);
         const scale = labelPoint.scale;
-        html += `<text class="projected-fret-number" data-fret="${f}" x="${labelPoint.x.toFixed(2)}" y="${labelPoint.y.toFixed(2)}" font-size="${(19 * scale).toFixed(2)}">${f}</text>`;
+        html += `<div class="projected-fret-number" data-fret="${f}" style="left:${labelPoint.x.toFixed(2)}px; top:${labelPoint.y.toFixed(2)}px; font-size:${(19 * scale).toFixed(2)}px;">${f}</div>`;
     }
+    html += `</div>`;
 
-    html += `</svg>`;
     html += `<div class="projected-hit-layer" style="height:${neckBottom}px;">`;
 
     for (let rowIndex = 0; rowIndex < stringOrder.length; rowIndex++) {
