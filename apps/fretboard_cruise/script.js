@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.99.14';
+const FRETBOARD_CRUISE_APP_VERSION = '1.99.15';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -8081,6 +8081,21 @@ function handleFretClick(stringNum, fret) {
         }, 50);
     }
 
+    // 横画面クイズ：タップ後にブラウザが「タップした要素を表示しよう」として
+    // scrollLeft を動かすことがある。複数フレームに渡って 0 を強制し、ロックを再適用する。
+    if (shouldQuizLandscapeSkipSavedScrollLeft()) {
+        const reapplyLock = () => {
+            const sw = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+            if (!sw) return;
+            applyMemorizeCruiseLandscapeFullScrollLock(sw, 'memorize', 'fretboard-container');
+            ensureMemorizeCruiseLandscapeFullScrollLockListener(sw, 'memorize', 'fretboard-container');
+        };
+        reapplyLock();
+        requestAnimationFrame(reapplyLock);
+        setTimeout(reapplyLock, 30);
+        setTimeout(reapplyLock, 80);
+    }
+
     saveState();
 
     clearQuizAdvanceTimers();
@@ -10842,7 +10857,27 @@ function renderFretboardHTML(containerId, options) {
     // メモライズのズーム指板だけ、描画直後にスクロール位置を整える（自由探索の全体ビューでは中央寄せ margin を壊さない）
     // ただし、クイズで quizGrScrollLeft（編集画面で保存した位置）を維持したい場合はスキップ。
     // ここを通すと 10ms 後に強制的に scrollLeft=0 へ戻され、解答表示の一瞬で指板が左端に飛んで見える。
-    if (mode === 'memorize' && containerId === 'fretboard-container' && state.memorize.playMode !== 'cruise') {
+    if (
+        mode === 'memorize' &&
+        containerId === 'fretboard-container' &&
+        shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId)
+    ) {
+        // 横画面・全体ビュー（cruise と quiz）はスクロールロック関数で統一する。
+        // ロック関数は scroll イベントを監視して 0 以外になった瞬間に 0 へ戻すので、
+        // 正解発表時にブラウザが「タップした要素を見せよう」として scrollLeft を動かしても
+        // すぐに戻り、指板が右にずれることがない。
+        const wrapper = containerEl.querySelector('.fretboard-scroll-wrapper');
+        applyMemorizeCruiseLandscapeFullScrollLock(wrapper, mode, containerId);
+        ensureMemorizeCruiseLandscapeFullScrollLockListener(wrapper, mode, containerId);
+        requestAnimationFrame(() => {
+            const w2 = containerEl.querySelector('.fretboard-scroll-wrapper');
+            applyMemorizeCruiseLandscapeFullScrollLock(w2, mode, containerId);
+            requestAnimationFrame(() => {
+                const w3 = containerEl.querySelector('.fretboard-scroll-wrapper');
+                applyMemorizeCruiseLandscapeFullScrollLock(w3, mode, containerId);
+            });
+        });
+    } else if (mode === 'memorize' && containerId === 'fretboard-container' && state.memorize.playMode !== 'cruise') {
         const skipResetForQuizPreserve = shouldPreserveScrollLeft && effectivePreserveScrollLeft > 0;
         if (!skipResetForQuizPreserve) {
             setTimeout(() => {
@@ -10864,19 +10899,6 @@ function renderFretboardHTML(containerId, options) {
                 if (wrapper2) wrapper2.scrollLeft = effectivePreserveScrollLeft;
             }, 10);
         }
-    } else if (
-        mode === 'memorize' &&
-        containerId === 'fretboard-container' &&
-        state.memorize.playMode === 'cruise' &&
-        shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId)
-    ) {
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                const wrapper = containerEl.querySelector('.fretboard-scroll-wrapper');
-                applyMemorizeCruiseLandscapeFullScrollLock(wrapper, mode, containerId);
-                ensureMemorizeCruiseLandscapeFullScrollLockListener(wrapper, mode, containerId);
-            });
-        });
     }
 }
 
