@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.87.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.87.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -9121,15 +9121,38 @@ function renderFretboardHTML(containerId, options) {
 
     html += `</div>`; // neck-front
     html += `</div></div></div>`; // container & perspective-wrapper & scroll-wrapper
-    
+
+    let effectivePreserveScrollLeft = preserveScrollLeft;
+    if (
+        mode === 'memorize' &&
+        state.memorize.playMode === 'quiz' &&
+        state.settings.fretboardView === 'zoom' &&
+        !Number.isFinite(effectivePreserveScrollLeft)
+    ) {
+        const qsl = question?.quizGrScrollLeft ?? state.memorize.currentQuestion?.quizGrScrollLeft;
+        if (Number.isFinite(qsl)) {
+            effectivePreserveScrollLeft = qsl;
+        }
+    }
+
     const containerEl = document.getElementById(containerId);
-    const shouldPreserveScrollLeft = state.settings.fretboardView === 'zoom' && Number.isFinite(preserveScrollLeft);
+    const shouldPreserveScrollLeft = state.settings.fretboardView === 'zoom' && Number.isFinite(effectivePreserveScrollLeft);
     containerEl.innerHTML = html;
 
-    // クイズ正解発表フェーズ：innerHTML直後（ブラウザが0でレイアウトする前）にスクロール位置を設定
+    // クイズ：編集で保存した横位置を、innerHTML 差し替え直後から維持（解答表示で一瞬 scrollLeft=0 に見えるのを防ぐ）
     if (shouldPreserveScrollLeft) {
         const pw = containerEl.querySelector('.fretboard-scroll-wrapper');
-        if (pw) pw.scrollLeft = preserveScrollLeft;
+        if (pw) {
+            void pw.offsetHeight;
+            pw.scrollLeft = effectivePreserveScrollLeft;
+            requestAnimationFrame(() => {
+                if (!pw.isConnected) return;
+                pw.scrollLeft = effectivePreserveScrollLeft;
+                requestAnimationFrame(() => {
+                    if (pw.isConnected) pw.scrollLeft = effectivePreserveScrollLeft;
+                });
+            });
+        }
     }
 
     if (mode === 'rule' && ruleStep5ExcludeInlineCheckboxes && containerId === 'rule-fretboard-container') {
@@ -9506,7 +9529,7 @@ function renderFretboardHTML(containerId, options) {
                             if (mh1 === null) {
                                 syncFretboardLayoutCollapse();
                                 if (shouldPreserveScrollLeft && scrollWrapper.isConnected) {
-                                    scrollWrapper.scrollLeft = preserveScrollLeft;
+                                    scrollWrapper.scrollLeft = effectivePreserveScrollLeft;
                                 }
                                 return;
                             }
@@ -9579,9 +9602,9 @@ function renderFretboardHTML(containerId, options) {
                                 }
                             }
                             syncFretboardLayoutCollapse();
-                            // transform変更後もpreserveScrollLeftの位置を維持（クイズ正解発表フェーズ用）
+                            // transform変更後も preserve の位置を維持（クイズ解答フェーズ用）
                             if (shouldPreserveScrollLeft && scrollWrapper.isConnected) {
-                                scrollWrapper.scrollLeft = preserveScrollLeft;
+                                scrollWrapper.scrollLeft = effectivePreserveScrollLeft;
                             }
                         });
                     });
@@ -9598,7 +9621,7 @@ function renderFretboardHTML(containerId, options) {
             }
             // ズームビュー：getBoundingClientRect()で強制レイアウト後に確定代入（一瞬0表示を防ぐ）
             if (shouldPreserveScrollLeft) {
-                scrollWrapper.scrollLeft = preserveScrollLeft;
+                scrollWrapper.scrollLeft = effectivePreserveScrollLeft;
             }
         }
     }
