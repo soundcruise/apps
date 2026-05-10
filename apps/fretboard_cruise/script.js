@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.94.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.94.4';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -3736,7 +3736,7 @@ function renderRuleSelect(app) {
         })}
         <div class="stage-list">
             <button class="stage-btn" data-rules="basic">
-                🟨 基本ルール
+                🟨 指板の基本ルール
                 <span class="stage-desc">このアプリの遊び方を先に確認する</span>
             </button>
             <button class="stage-btn" data-rules="visualize">
@@ -3794,7 +3794,7 @@ function renderBasicRules(app) {
     app.innerHTML = `
         ${buildPageHeader({
             headerClass: 'page-header--stage-select',
-            titleText: '🔰 基本ルール',
+            titleText: '🔰 指板の基本ルール',
             leftHtml: `
                 ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
             `,
@@ -4790,7 +4790,7 @@ function renderRuleClearCelebration(app) {
         app.innerHTML = `
             ${buildPageHeader({
                 headerClass: 'page-header--stage-select',
-                titleText: '基本ルール クリア',
+                titleText: '指板の基本ルール クリア',
                 titleSubText: 'STEP 5 おわり',
                 leftHtml: `${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}`,
                 rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-rule-clear" aria-label="設定">⚙️</button>`
@@ -4823,7 +4823,7 @@ function renderRuleClearCelebration(app) {
         app.style.overflowX = 'hidden';
         return;
     }
-    const nextLabel = done >= 5 ? '基本ルール一覧へ' : '次のSTEPへ';
+    const nextLabel = done >= 5 ? '指板の基本ルール一覧へ' : '次のSTEPへ';
     const dots = [1, 2, 3, 4, 5].map(n => `
         <span class="rule-clear-dot ${n <= done ? 'is-done' : ''}" aria-hidden="true"></span>
     `).join('');
@@ -8189,7 +8189,7 @@ function renderSettings(app) {
                     <button class="mode-btn ${state.settings.noteLabelMode === 'note' ? 'active' : ''}" data-notation-mode="note">CDE</button>
                     <button class="mode-btn ${state.settings.noteLabelMode === 'degree' ? 'active' : ''}" data-notation-mode="degree">度数</button>
                 </div>
-                <p class="settings-note settings-note--animated" id="note-notation-mode" style="margin-top:10px;">指板をたどる・指板クイズ・基本ルールなど、指板上の表記に反映されます。度数はCを基準に P1・m2 など（「指板を探索する」の度数表記と同じ）です。</p>
+                <p class="settings-note settings-note--animated" id="note-notation-mode" style="margin-top:10px;">指板をたどる・指板クイズ・指板の基本ルールなど、指板上の表記に反映されます。度数はCを基準に P1・m2 など（「指板を探索する」の度数表記と同じ）です。</p>
             </div>
 
             <div class="settings-card-section">
