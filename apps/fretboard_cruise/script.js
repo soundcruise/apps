@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.99.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.99.3';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -10135,6 +10135,17 @@ function renderFretboardHTML(containerId, options) {
                 const layoutPad = (memorizeFretHost || visualizeFretHost) ? (land ? 0 : 2) : 4;
                 const scaleByW = (layoutW - layoutPad) / projectedBounds.width;
                 const scaleByH = maxFullViewH / projectedBounds.height;
+                /**
+                 * 横画面・指板をたどる・全体ビューのときだけ、scale の「1 以下」上限を外す。
+                 * これにより、画面の縦に余裕がある分まで scaleByH が許す範囲で指板を拡大し、
+                 * 12F／13F が画面の左右いっぱいまで広がるようにする。
+                 * `getCruiseLandscapeLayoutConfig()` がすでに `useFullViewportWidth: true` で
+                 * `layoutW = screenW` に広げているので、ここで scale 上限を外すのが最後の一押し。
+                 *
+                 * 適用条件は厳密に絞っており、編集画面・自由探索・基本ルール・縦画面・指板クイズ
+                 * には一切影響させない。
+                 */
+                const allowMemorizeFullScaleAbove1 = memorizeCruiseLandscape;
                 let scale;
                 if (visualizeExtendedFullScrollLayout) {
                     scale = Math.min(
@@ -10149,6 +10160,8 @@ function renderFretboardHTML(containerId, options) {
                             renderMaxFret
                         )
                     );
+                } else if (allowMemorizeFullScaleAbove1) {
+                    scale = Math.min(scaleByW, scaleByH);
                 } else {
                     scale = Math.min(1, scaleByW, scaleByH);
                 }
@@ -10206,7 +10219,15 @@ function renderFretboardHTML(containerId, options) {
                         centerTx += rightOffset;
                     }
                     scrollWrapper.style.width = `${projectedBounds.width}px`;
-                    scrollWrapper.style.height = `${projectedBounds.height}px`;
+                    /* scale > 1 を許容するクルーズ横画面のときは、レイアウトボックスの高さも
+                       scale 後に追従させる。そうしないと layout 上の高さは元の projectedBounds.height のまま、
+                       見た目だけ拡大されて下の要素（cruise controls 等）に重なってしまう。
+                       overflowX/Y は hidden のままなのでスクロールは発生しない。 */
+                    scrollWrapper.style.height = `${
+                        allowMemorizeFullScaleAbove1
+                            ? Math.ceil(projectedBounds.height * scale)
+                            : projectedBounds.height
+                    }px`;
                     scrollWrapper.style.overflowX = 'hidden';
                     scrollWrapper.style.overflowY = 'hidden';
                     scrollWrapper.style.transformOrigin = 'top left';
@@ -10270,7 +10291,10 @@ function renderFretboardHTML(containerId, options) {
                                               renderMaxFret
                                           )
                                       )
-                                    : Math.min(1, scaleByW, mh1 / projectedBounds.height);
+                                    : allowMemorizeFullScaleAbove1
+                                        // クルーズ横画面・全体ビューだけ scale > 1 を許容して画面幅いっぱいに拡大
+                                        ? Math.min(scaleByW, mh1 / projectedBounds.height)
+                                        : Math.min(1, scaleByW, mh1 / projectedBounds.height);
                             if (
                                 (step3TapRange !== null || step3TapFloatRange !== null) &&
                                 mode === 'rule' &&
@@ -10319,6 +10343,10 @@ function renderFretboardHTML(containerId, options) {
                                         }
                                         centerTx += rightOffset;
                                         containerEl.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
+                                    }
+                                    if (allowMemorizeFullScaleAbove1) {
+                                        // scale > 1 のとき、レイアウト高さも scale 後に追従させる
+                                        scrollWrapper.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
                                     }
                                     scrollWrapper.style.marginLeft = `${centerTx}px`;
                                     scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
