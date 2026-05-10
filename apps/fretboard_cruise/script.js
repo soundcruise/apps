@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.94.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.94.3';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -3642,7 +3642,7 @@ function renderHome(app) {
             rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-home" aria-label="設定">⚙️</button>`
         })}
         <div class="home-basic-rules-slot" style="display: flex; justify-content: center; width: 100%; margin-top: 6px; margin-bottom: 28px;">
-            <button type="button" class="btn-secondary" id="btn-home-basic-rules" style="padding: 10px 18px; font-size: 0.92rem; line-height: 1.35;">🔰 基本ルール</button>
+            <button type="button" class="btn-secondary" id="btn-home-basic-rules" style="padding: 10px 18px; font-size: 0.92rem; line-height: 1.35;">🔰 指板の基本ルール</button>
         </div>
         <div class="action-btns" style="flex-direction: column; gap: 20px; align-items: center; width: 100%;">
             <button type="button" class="btn-primary home-memorize-btn" id="btn-cruise-mode">🛳️ 指板をたどる</button>
