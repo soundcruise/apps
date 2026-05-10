@@ -158,13 +158,13 @@
     transform-style: preserve-3d;
 }
 
+/* SVG はインラインで width/height を指定するため width:100%;height:100% を付けない。
+   付けると初回ペイントで親の neck に縮められ、preserveAspectRatio=none で縦潰れするブラウザがある。 */
 .projected-fretboard-svg,
 .projected-hit-layer {
     position: absolute;
     left: 0;
     top: 0;
-    width: 100%;
-    height: 100%;
     transform: translateZ(1px); /* Slightly above front face to avoid z-fighting */
 }
 
@@ -174,6 +174,8 @@
 }
 
 .projected-hit-layer {
+    width: 100%;
+    height: 100%;
     z-index: 3;
 }
 

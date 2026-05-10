@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.99.6';
+const FRETBOARD_CRUISE_APP_VERSION = '1.99.7';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -9476,7 +9476,7 @@ function renderFretboardHTML(containerId, options) {
     const edgeH = 3; // px — black edge line thickness
 
     // SVG with explicit pixel size so it overflows beyond the front face for fret numbers
-    html += `<svg class="projected-fretboard-svg" style="width:${FRETBOARD_WIDTH}px; height:${FRETBOARD_VIEWBOX_HEIGHT}px;" viewBox="0 0 ${FRETBOARD_WIDTH} ${FRETBOARD_VIEWBOX_HEIGHT}" preserveAspectRatio="none" aria-hidden="true">`;
+    html += `<svg class="projected-fretboard-svg" width="${FRETBOARD_WIDTH}" height="${FRETBOARD_VIEWBOX_HEIGHT}" style="width:${FRETBOARD_WIDTH}px; height:${FRETBOARD_VIEWBOX_HEIGHT}px;" viewBox="0 0 ${FRETBOARD_WIDTH} ${FRETBOARD_VIEWBOX_HEIGHT}" preserveAspectRatio="none" aria-hidden="true">`;
     html += `<defs>
         <linearGradient id="${gradientId}" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stop-color="#17100b"/>
