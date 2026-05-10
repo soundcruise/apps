@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.90.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.91.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -2155,7 +2155,12 @@ function getQuizEditorDefaultGroups(stage) {
     // STAGE 1〜3 は配布定数（ユーザー検証済みの推奨デフォルト）。
     const shipped = getShippedDefaultQuizGroups(stage);
     if (shipped) return shipped;
-    const targets = getStageTargets(stage);
+    const stNum = clamp(parseInt(stage, 10), 1, 6);
+    let targets = getStageTargets(stNum);
+    // STAGE 4 は指板表示を 12 フレットまでに固定するため、初期 Gr の音もフレット 12 以内に絞る
+    if (stNum === 4) {
+        targets = targets.filter(t => t.fret <= DEFAULT_VISIBLE_MAX_FRET);
+    }
     return [{ notes: targets.map(t => ({ stringName: t.stringName, fret: t.fret })), scrollLeft: 0 }];
 }
 
@@ -7176,6 +7181,7 @@ function renderQuizEditor(app) {
         quizEditorGroups: groups,
         quizEditorSelectedGroupIndex: fretEditorSelectedIndex,
         quizEditorVisibleIndices: visibleGroupIndices,
+        quizEditorStage: stage,
         onFretClick: (stringName, fret) => {
             if (activeGroupIndex < 0) return;
             pushQuizEditorHistory(stage);
@@ -8727,6 +8733,10 @@ function getRenderMaxFret(mode, options) {
             maxFret = Math.max(maxFret, 13);
         }
     } else if (mode === 'quizEditor') {
+        // STAGE 4 は指板表示を 12 フレットまでに固定（音が高フレットに残っていても拡張しない）
+        if (options.quizEditorStage === 4) {
+            return DEFAULT_VISIBLE_MAX_FRET;
+        }
         const allNotes = (options.quizEditorGroups || []).flatMap(g => g.notes || []);
         maxFret = Math.max(maxFret, getHighestFretFromPositions(allNotes));
     }
