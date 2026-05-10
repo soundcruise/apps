@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.99.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.99.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -6965,6 +6965,7 @@ function renderQuizEditor(app) {
     };
 
     const hasAnyNote = groups.some(g => g.notes && g.notes.length > 0);
+    const quizClearAllEnabled = hasAnyNote || groups.length > 1;
 
     const buildPositionLabelHtml = (index, scrollLeftVal) => {
         if (!showScrollPositions) return '';
@@ -7004,7 +7005,7 @@ function renderQuizEditor(app) {
                 rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-quiz-editor" aria-label="設定">⚙️</button>`
             })}
             <div class="route-editor-toolbar">
-                <button class="icon-btn route-editor-tool-btn" id="btn-quiz-editor-clear" ${hasAnyNote ? '' : 'disabled'}>全消し</button>
+                <button class="icon-btn route-editor-tool-btn" id="btn-quiz-editor-clear" ${quizClearAllEnabled ? '' : 'disabled'}>全消し</button>
                 <button class="icon-btn route-editor-tool-btn" id="btn-quiz-editor-load-default">初期値</button>
                 <button class="icon-btn route-editor-tool-btn" id="btn-quiz-editor-undo" ${history.length ? '' : 'disabled'}>↶ 戻す</button>
             </div>
@@ -7100,7 +7101,13 @@ function renderQuizEditor(app) {
 
     document.getElementById('btn-quiz-editor-clear').onclick = () => {
         pushQuizEditorHistory(stage);
-        state.quizEditor.groups = state.quizEditor.groups.map(g => ({ ...g, notes: [] }));
+        // 音符を消すだけでなく、空の Gr もまとめて削除して初期状態（Gr.1 ひとつ・空）に戻す。
+        state.quizEditor.groups = [{ notes: [], scrollLeft: null }];
+        state.quizEditor.selectedGroupIndex = 0;
+        state.quizEditor.visibleGroupIndices = [0];
+        state.quizEditor.forceHideAllGroups = false;
+        state.quizEditor.showAllGroupsExpanded = false;
+        quizEditorPendingScrollLeft = null;
         saveState();
         renderApp();
     };
