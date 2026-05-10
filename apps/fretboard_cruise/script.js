@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.93.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.94.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -6261,7 +6261,8 @@ function renderRouteEditor(app) {
                 leftHtml: `
                     ${navButtonHtml({ id: 'btn-route-editor-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
                     ${navButtonHtml({ id: 'btn-route-editor-home', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
-                `
+                `,
+                rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-route-editor" aria-label="設定">⚙️</button>`
             })}
             <div class="route-editor-toolbar">
                 <button class="icon-btn route-editor-tool-btn" id="btn-route-editor-clear" ${draft.length ? '' : 'disabled'}>全消し</button>
@@ -6301,6 +6302,9 @@ function renderRouteEditor(app) {
         state.course = null;
         saveState();
         renderApp();
+    };
+    document.getElementById('btn-settings-route-editor').onclick = () => {
+        openSettings('routeEditor');
     };
     document.getElementById('btn-route-editor-undo').onclick = () => {
         const historyItem = Array.isArray(state.routeEditor.history) ? state.routeEditor.history.pop() : null;
@@ -6881,7 +6885,8 @@ function renderQuizEditor(app) {
                 leftHtml: `
                     ${navButtonHtml({ id: 'btn-quiz-editor-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
                     ${navButtonHtml({ id: 'btn-quiz-editor-home', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
-                `
+                `,
+                rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-quiz-editor" aria-label="設定">⚙️</button>`
             })}
             <div class="route-editor-toolbar">
                 <button class="icon-btn route-editor-tool-btn" id="btn-quiz-editor-clear" ${hasAnyNote ? '' : 'disabled'}>全消し</button>
@@ -6924,6 +6929,10 @@ function renderQuizEditor(app) {
         state.course = null;
         saveState();
         renderApp();
+    };
+
+    document.getElementById('btn-settings-quiz-editor').onclick = () => {
+        openSettings('quizEditor');
     };
 
     document.getElementById('btn-quiz-editor-undo').onclick = () => {
