@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.94.4';
+const FRETBOARD_CRUISE_APP_VERSION = '1.95.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -57,7 +57,10 @@ const FRET_NUMBER_Z = -1.5;
 const NOTE_MARKER_Z = 2.2;
 const FRETBOARD_NECK_MODEL_VERSION = 2;
 const DEFAULT_TEMPO = 75;
-const DEFAULT_QUIZ_TIME_LIMIT = 5;
+const DEFAULT_QUIZ_TIME_LIMIT = 4;
+/** 指板クイズの 1 セッションあたりの問題数（0 = 無制限）。設定の選択肢は 5/10/15/0(無制限) */
+const DEFAULT_QUIZ_QUESTION_LIMIT = 10;
+const QUIZ_QUESTION_LIMIT_OPTIONS = [5, 10, 15, 0];
 const DEFAULT_STRING_SPACING = 100;
 const DEFAULT_VERTICAL_PERSPECTIVE = 0;
 const DEFAULT_HORIZONTAL_PERSPECTIVE = 0;
@@ -353,6 +356,7 @@ let state = {
     settings: {
         tempo: DEFAULT_TEMPO,
         quizTimeLimit: DEFAULT_QUIZ_TIME_LIMIT,
+        quizQuestionLimit: DEFAULT_QUIZ_QUESTION_LIMIT,
         quizCountdownSound: 'beep', // 'none' | 'beep' | 'gradual' | 'hat'
         stringSpacing: DEFAULT_STRING_SPACING, // 100% = default
         noteLabelMode: 'solfege',
@@ -628,6 +632,8 @@ if (savedState) {
         if (typeof state.memorize.isDemoPlayback !== 'boolean') state.memorize.isDemoPlayback = false;
         if (typeof state.memorize.demoReturnCourse === 'undefined') state.memorize.demoReturnCourse = null;
         if (typeof state.memorize.demoReturnStage === 'undefined') state.memorize.demoReturnStage = null;
+        if (typeof state.memorize.quizQuestionsAsked !== 'number') state.memorize.quizQuestionsAsked = 0;
+        if (typeof state.memorize.isQuizCleared !== 'boolean') state.memorize.isQuizCleared = false;
         // Official specification: always use mode 1 (1/2 display)
         state.memorize.stage1RepeatHintMode = 1;
         state.memorize.stage1IsContinuedRepeat = false;
@@ -651,6 +657,12 @@ if (savedState) {
         if (typeof state.visualize.showExtendedFrets === 'undefined') state.visualize.showExtendedFrets = false;
         if (typeof state.settings.tempo === 'undefined') state.settings.tempo = DEFAULT_TEMPO;
         if (typeof state.settings.quizTimeLimit === 'undefined') state.settings.quizTimeLimit = DEFAULT_QUIZ_TIME_LIMIT;
+        if (typeof state.settings.quizQuestionLimit === 'undefined') {
+            state.settings.quizQuestionLimit = DEFAULT_QUIZ_QUESTION_LIMIT;
+        } else {
+            const _qql = parseInt(state.settings.quizQuestionLimit, 10);
+            state.settings.quizQuestionLimit = QUIZ_QUESTION_LIMIT_OPTIONS.includes(_qql) ? _qql : DEFAULT_QUIZ_QUESTION_LIMIT;
+        }
         if (typeof state.settings.quizCountdownSound === 'undefined') state.settings.quizCountdownSound = 'beep';
         if (typeof state.settings.stringSpacing === 'undefined') state.settings.stringSpacing = DEFAULT_STRING_SPACING;
         if (typeof state.settings.noteLabelMode === 'undefined') state.settings.noteLabelMode = state.rules?.labelMode || 'solfege';
@@ -938,6 +950,7 @@ function getDefaultSettings() {
     return {
         tempo: DEFAULT_TEMPO,
         quizTimeLimit: DEFAULT_QUIZ_TIME_LIMIT,
+        quizQuestionLimit: DEFAULT_QUIZ_QUESTION_LIMIT,
         stringSpacing: DEFAULT_STRING_SPACING,
         noteLabelMode: 'solfege',
         viewMode: 'custom',
@@ -1663,6 +1676,13 @@ function advanceQuizToNextQuestion() {
     const fromScroll = wrapperBefore ? Math.max(0, Math.round(wrapperBefore.scrollLeft)) : 0;
 
     generateQuestion();
+
+    // 問題数の上限に達してクリア表示になった場合は、スクロール演出も次音再生もしない
+    if (state.memorize.isQuizCleared) {
+        cancelQuizScrollAnimation();
+        renderApp();
+        return;
+    }
 
     const nextQ = state.memorize.currentQuestion;
     const toScrollRaw = nextQ?.quizGrScrollLeft;
@@ -3170,6 +3190,18 @@ function startCruisePlaybackFromSequence(sequence, cruiseScope = null, stage = n
 }
 
 function generateQuestion() {
+    // 指板クイズ：問題数の上限を超えた場合はクリアを立てて即終了
+    if (state.memorize.playMode === 'quiz') {
+        const limit = parseInt(state.settings.quizQuestionLimit ?? DEFAULT_QUIZ_QUESTION_LIMIT, 10) || 0;
+        const asked = parseInt(state.memorize.quizQuestionsAsked ?? 0, 10) || 0;
+        if (limit > 0 && asked >= limit) {
+            state.memorize.isQuizCleared = true;
+            state.memorize.hasTappedCurrentNote = true;
+            stopQuizTimer();
+            saveState();
+            return;
+        }
+    }
     let savedSettings = getQuizEditorSavedSettings(state.memorize.stage);
     if (state.quizEditorPreview && state.quizEditorPreview.stage === state.memorize.stage) {
         savedSettings = { groups: cloneQuizEditorGroups(state.quizEditorPreview.groups) };
@@ -3256,6 +3288,10 @@ function generateQuestion() {
 
     state.memorize.currentQuestion = target;
     state.memorize.hasTappedCurrentNote = false;
+    if (state.memorize.playMode === 'quiz') {
+        const askedNow = parseInt(state.memorize.quizQuestionsAsked ?? 0, 10) || 0;
+        state.memorize.quizQuestionsAsked = askedNow + 1;
+    }
     saveState();
 
     if (state.memorize.playMode === 'quiz') {
@@ -6091,6 +6127,12 @@ function renderStageSelect(app) {
             state.memorize.stage = parseInt(btn.getAttribute('data-stage'));
             state.memorize.combo = 0;
             state.memorize.isCleared = false;
+            // クイズ開始時はカウント・正解・クリア状態をリセット
+            if (state.memorize.playMode === 'quiz') {
+                state.memorize.correct = 0;
+                state.memorize.quizQuestionsAsked = 0;
+                state.memorize.isQuizCleared = false;
+            }
             state.course = 'memorize';
             
             if (state.memorize.playMode === 'cruise') {
@@ -7075,6 +7117,9 @@ function renderQuizEditor(app) {
         state.memorize.stage = stage;
         state.memorize.playMode = 'quiz';
         state.memorize.combo = 0;
+        state.memorize.correct = 0;
+        state.memorize.quizQuestionsAsked = 0;
+        state.memorize.isQuizCleared = false;
         // 直前のクルーズモードで残っているシーケンス・スコープを必ず捨てる
         // （指板表示範囲や見えないノートに影響するため）
         state.memorize.cruiseTargets = [];
@@ -7286,6 +7331,11 @@ function renderQuizEditor(app) {
 function renderMemorize(app) {
     const q = state.memorize.currentQuestion;
     if (!q) {
+        // 万一クリア状態だけが残っていたらリセットして問題生成（無限ループ防止）
+        if (state.memorize.isQuizCleared) {
+            state.memorize.isQuizCleared = false;
+            state.memorize.quizQuestionsAsked = 0;
+        }
         generateQuestion();
         renderApp();
         return;
@@ -7293,6 +7343,13 @@ function renderMemorize(app) {
 
     const isCruise = state.memorize.playMode === 'cruise';
     const isCruiseCleared = isCruise && state.memorize.isCleared === true;
+    const isQuizCleared = !isCruise && state.memorize.isQuizCleared === true;
+    const quizQuestionLimit = !isCruise
+        ? (parseInt(state.settings.quizQuestionLimit ?? DEFAULT_QUIZ_QUESTION_LIMIT, 10) || 0)
+        : 0;
+    const quizQuestionsAsked = !isCruise
+        ? (parseInt(state.memorize.quizQuestionsAsked ?? 0, 10) || 0)
+        : 0;
     const cruiseCountdownValue = isCruise && Number.isFinite(parseInt(state.memorize.cruiseCountdown, 10))
         ? parseInt(state.memorize.cruiseCountdown, 10)
         : 0;
@@ -7302,7 +7359,7 @@ function renderMemorize(app) {
         ? 'リズムに合わせてタップ！'
         : '指板をタップして回答してください';
     let fbClass = 'feedback-display';
-    if (isCruiseCleared) {
+    if (isCruiseCleared || isQuizCleared) {
         // クリア時は質問テキスト・フィードバックは出さず、指板上にカードを重ねる
         fbText = '';
         fbClass = 'feedback-display memorize-feedback--cleared';
@@ -7321,11 +7378,15 @@ function renderMemorize(app) {
     const timerItemHtml = !isCruise
         ? `<div class="stat-item"><span class="label">残り時間</span><span class="value" id="quiz-timer" style="color: ${quizTimeLeft <= 1.0 ? 'var(--error-color)' : 'inherit'};">${quizTimeLeft.toFixed(1)}s</span></div>`
         : '';
+    const quizCountItemHtml = !isCruise && quizQuestionLimit > 0
+        ? `<div class="stat-item"><span class="label">問題</span><span class="value">${Math.min(quizQuestionsAsked, quizQuestionLimit)}/${quizQuestionLimit}</span></div>`
+        : '';
 
     const stageStatsHtml = `
                     <div class="stats memorize-stats memorize-stats--near-question">
                         <div class="stat-item"><span class="label">STAGE</span><span class="value">${state.memorize.stage}</span></div>
                         <div class="stat-item"><span class="label">連続</span><span class="value" id="score-combo">${state.memorize.combo}</span></div>
+                        ${quizCountItemHtml}
                         ${timerItemHtml}
                     </div>`;
     const repeatHintMode = 1;  // Official specification: fixed to mode 1 (1/2 display)
@@ -7353,7 +7414,7 @@ function renderMemorize(app) {
                 <div class="memorize-copy-block">
                     <div class="memorize-question-row">
                         ${stageStatsHtml}
-                        ${isCruiseCleared
+                        ${(isCruiseCleared || isQuizCleared)
                             ? ''
                             : `<div class="question-text memorize-question memorize-question-main">${q.stringName}弦 の <span class="memorize-question-note" style="color: var(--primary-color);">${memorizeQuestionLabel}</span> ${isCruise ? 'をタップ！' : 'を探せ！'}</div>`}
                     </div>
@@ -7377,6 +7438,18 @@ function renderMemorize(app) {
                         <div class="memorize-cleared-card">
                             <div class="memorize-cleared-card__title">🎉 お疲れ様でした！</div>
                             <div class="memorize-cleared-card__summary">${clearedSummary}</div>
+                        </div>
+                    </div>
+                ` : ''}
+                ${isQuizCleared ? `
+                    <div class="memorize-cleared-overlay" aria-live="polite">
+                        <div class="memorize-cleared-card">
+                            <div class="memorize-cleared-card__title">🎉 クイズ終了！</div>
+                            <div class="memorize-cleared-card__summary">正解 ${state.memorize.correct || 0} / 全 ${quizQuestionLimit}問</div>
+                            <div class="memorize-cleared-actions" style="display:flex; gap:12px; justify-content:center; margin-top:14px; flex-wrap:wrap;">
+                                <button type="button" class="btn-secondary" id="btn-quiz-restart">もう1回</button>
+                                <button type="button" class="btn-secondary" id="btn-quiz-finish">終了</button>
+                            </div>
                         </div>
                     </div>
                 ` : ''}
@@ -7509,6 +7582,51 @@ function renderMemorize(app) {
         openSettings();
     };
 
+    // 指板クイズ：問題数の上限に達したときの「もう1回／終了」操作
+    const btnQuizRestart = document.getElementById('btn-quiz-restart');
+    if (btnQuizRestart) {
+        btnQuizRestart.onclick = () => {
+            initAudio();
+            stopQuizTimer();
+            cancelQuizScrollAnimation();
+            state.memorize.correct = 0;
+            state.memorize.combo = 0;
+            state.memorize.quizQuestionsAsked = 0;
+            state.memorize.isQuizCleared = false;
+            state.memorize.tempFeedback = null;
+            state.memorize.hasTappedCurrentNote = false;
+            generateQuestion();
+            autoScrollRequested = true;
+            saveState();
+            renderApp();
+            if (state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+                quizToneTimeout = setTimeout(() => {
+                    quizToneTimeout = null;
+                    if (state.course === 'memorize' && state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+                        playTone(state.memorize.currentQuestion.stringIdx, state.memorize.currentQuestion.fret);
+                    }
+                }, 100);
+            }
+        };
+    }
+    const btnQuizFinish = document.getElementById('btn-quiz-finish');
+    if (btnQuizFinish) {
+        btnQuizFinish.onclick = () => {
+            stopQuizTimer();
+            cancelQuizScrollAnimation();
+            state.memorize.isQuizCleared = false;
+            // 「試す」経由なら問題編集に戻り、それ以外は STAGE 選択へ
+            if (state.quizEditorPreview && state.memorize.playMode === 'quiz') {
+                state.course = 'quizEditor';
+                state.quizEditorPreview = null;
+            } else {
+                state.course = 'stageSelect';
+            }
+            saveState();
+            renderApp();
+        };
+    }
+
     // Highlight mode selection buttons
     document.querySelectorAll('.highlight-mode-btn').forEach(btn => {
         btn.onclick = () => {
@@ -7523,9 +7641,9 @@ function renderMemorize(app) {
         mode: 'memorize',
         memorizeStage: state.memorize.stage,
         question: q,
-        showAnswer: isCruise,
+        showAnswer: isCruise || isQuizCleared,
         clicked: null,
-        onFretClick: handleFretClick,
+        onFretClick: isQuizCleared ? null : handleFretClick,
         highlightMode: isCruise ? state.memorize.highlightMode : null,
         nextQuestion: isCruise && state.memorize.cruiseIndex < state.memorize.cruiseTargets.length - 1
             ? state.memorize.cruiseTargets[state.memorize.cruiseIndex + 1]
@@ -8159,6 +8277,19 @@ function renderSettings(app) {
 
             <div class="settings-card-section">
                 <div class="settings-card-section-header">
+                    <span class="settings-card-section-title">問題数</span>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="quiz-question-limit">リセット</button>
+                </div>
+                <div class="mode-buttons settings-quiz-question-limit-buttons">
+                    <button class="mode-btn ${state.settings.quizQuestionLimit === 5 ? 'active' : ''}" data-quiz-question-limit="5">5問</button>
+                    <button class="mode-btn ${state.settings.quizQuestionLimit === 10 ? 'active' : ''}" data-quiz-question-limit="10">10問</button>
+                    <button class="mode-btn ${state.settings.quizQuestionLimit === 15 ? 'active' : ''}" data-quiz-question-limit="15">15問</button>
+                    <button class="mode-btn ${(!state.settings.quizQuestionLimit || state.settings.quizQuestionLimit === 0) ? 'active' : ''}" data-quiz-question-limit="0">無制限</button>
+                </div>
+            </div>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
                     <span class="settings-card-section-title">カウントダウン音</span>
                 </div>
                 <div class="mode-buttons settings-countdown-sound-buttons">
@@ -8329,6 +8460,11 @@ function renderSettings(app) {
                 refreshSettingsControls();
                 return;
             }
+            if (resetCard === 'quiz-question-limit') {
+                state.settings.quizQuestionLimit = DEFAULT_QUIZ_QUESTION_LIMIT;
+                syncQuizQuestionLimitSettingsUI();
+                return;
+            }
             if (resetCard === 'view') {
                 state.settings.fretboardViewAutoOrientation = DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION;
                 state.settings.fretboardView = DEFAULT_FRETBOARD_VIEW;
@@ -8383,6 +8519,15 @@ function renderSettings(app) {
             state.settings.quizCountdownSound = btn.getAttribute('data-countdown-sound');
             document.querySelectorAll('.settings-countdown-sound-buttons .mode-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
+            saveState();
+        };
+    });
+
+    document.querySelectorAll('.settings-quiz-question-limit-buttons .mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            const v = parseInt(btn.getAttribute('data-quiz-question-limit'), 10);
+            state.settings.quizQuestionLimit = QUIZ_QUESTION_LIMIT_OPTIONS.includes(v) ? v : DEFAULT_QUIZ_QUESTION_LIMIT;
+            syncQuizQuestionLimitSettingsUI();
             saveState();
         };
     });
@@ -8495,6 +8640,14 @@ function renderSettings(app) {
         });
     }
 
+    function syncQuizQuestionLimitSettingsUI() {
+        const current = parseInt(state.settings.quizQuestionLimit ?? DEFAULT_QUIZ_QUESTION_LIMIT, 10);
+        document.querySelectorAll('.settings-quiz-question-limit-buttons .mode-btn').forEach(b => {
+            const v = parseInt(b.getAttribute('data-quiz-question-limit'), 10);
+            b.classList.toggle('active', v === current);
+        });
+    }
+
     function syncCruiseNoteNamesSettingsUI() {
         const el = document.getElementById('cruise-show-note-names-toggle');
         if (el) el.checked = state.settings.cruiseShowNoteNames !== false;
@@ -8507,6 +8660,7 @@ function renderSettings(app) {
         timerDisplay.textContent = `${state.settings.quizTimeLimit} 秒`;
         syncNotationSettingsUI();
         syncLoopCountSettingsUI();
+        syncQuizQuestionLimitSettingsUI();
         syncCruiseNoteNamesSettingsUI();
         perspSlider.value = state.settings.perspective;
         perspOriginSlider.value = state.settings.perspOriginX;
