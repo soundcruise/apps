@@ -1666,6 +1666,32 @@ input:checked + .toggle-slider:before {
     font-weight: 900;
     min-height: 38px;
     white-space: nowrap;
+    transition: transform 0.12s ease, box-shadow 0.25s ease;
+}
+
+.route-editor-group-save-position-btn:active:not(:disabled) {
+    transform: scale(0.96);
+}
+
+@keyframes route-editor-save-position-flash {
+    0% {
+        box-shadow: 0 0 0 0 rgba(110, 220, 160, 0.55);
+        transform: scale(1);
+    }
+    40% {
+        box-shadow:
+            0 0 0 5px rgba(110, 220, 160, 0.35),
+            0 4px 14px rgba(0, 0, 0, 0.28);
+        transform: scale(1.04);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(110, 220, 160, 0);
+        transform: scale(1);
+    }
+}
+
+.route-editor-group-save-position-btn.is-save-position-flash {
+    animation: route-editor-save-position-flash 0.58s ease-out;
 }
 
 .route-editor-group-toggle-btn {

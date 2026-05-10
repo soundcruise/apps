@@ -1,5 +1,23 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.89.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.89.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
+
+let savePositionFlashTimer = null;
+/** 「位置保存」押下を視覚的にわかりやすくする（再描画後に呼ぶ場合は再取得できるよう ID で指定） */
+function flashRouteEditorSavePositionButton(buttonId) {
+    const run = () => {
+        const btn = document.getElementById(buttonId);
+        if (!btn || btn.disabled) return;
+        btn.classList.remove('is-save-position-flash');
+        void btn.offsetWidth;
+        btn.classList.add('is-save-position-flash');
+        if (savePositionFlashTimer) clearTimeout(savePositionFlashTimer);
+        savePositionFlashTimer = setTimeout(() => {
+            btn.classList.remove('is-save-position-flash');
+            savePositionFlashTimer = null;
+        }, 620);
+    };
+    requestAnimationFrame(() => requestAnimationFrame(run));
+}
 
 // Constants
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -6278,6 +6296,7 @@ function renderRouteEditor(app) {
         clearPendingRouteEditorGroupScrollLeft(stage, targetGroupIndex);
         if (scrollLeft > 0) routeEditorFretboardScrollSnapshot = scrollLeft;
         saveState();
+        flashRouteEditorSavePositionButton('btn-route-editor-save-position');
     };
 
     document.getElementById('btn-route-editor-demo').onclick = () => {
@@ -6914,6 +6933,7 @@ function renderQuizEditor(app) {
         state.quizEditor.groups[activeGroupIndex].scrollLeft = scrollLeft;
         saveState();
         renderApp();
+        flashRouteEditorSavePositionButton('btn-quiz-editor-save-position');
     };
 
     document.getElementById('btn-quiz-editor-save').onclick = () => {
