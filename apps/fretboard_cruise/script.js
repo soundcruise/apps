@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.88.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.89.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -650,7 +650,7 @@ if (savedState) {
                 forceHideAllGroups: false
             };
         }
-        if (!Array.isArray(state.quizEditor.groups)) state.quizEditor.groups = [{ notes: [], scrollLeft: 0 }];
+        if (!Array.isArray(state.quizEditor.groups)) state.quizEditor.groups = [{ notes: [], scrollLeft: null }];
         if (typeof state.quizEditor.stage !== 'number') state.quizEditor.stage = 1;
         if (typeof state.quizEditor.selectedGroupIndex !== 'number') state.quizEditor.selectedGroupIndex = 0;
         if (!Array.isArray(state.quizEditor.history)) state.quizEditor.history = [];
@@ -2072,7 +2072,8 @@ function saveQuizEditorSettings(stage, groups) {
             notes: (g.notes || [])
                 .filter(n => n && Number.isFinite(n.stringName) && Number.isFinite(n.fret))
                 .map(n => ({ stringName: n.stringName, fret: n.fret })),
-            scrollLeft: Number.isFinite(g.scrollLeft) ? Math.max(0, Math.round(g.scrollLeft)) : 0
+            // null = 未保存、数値 = 保存済み（0 を含む）
+            scrollLeft: Number.isFinite(g.scrollLeft) ? Math.max(0, Math.round(g.scrollLeft)) : null
         }))
     };
 }
@@ -2390,12 +2391,13 @@ function restoreRouteEditorSnapshot(snapshot) {
 }
 
 function cloneQuizEditorGroups(groups) {
-    if (!Array.isArray(groups)) return [{ notes: [], scrollLeft: 0 }];
+    if (!Array.isArray(groups)) return [{ notes: [], scrollLeft: null }];
     return groups.map(g => ({
         notes: (g.notes || [])
             .filter(n => n && Number.isFinite(n.stringName) && Number.isFinite(n.fret))
             .map(n => ({ stringName: n.stringName, fret: n.fret })),
-        scrollLeft: Number.isFinite(g.scrollLeft) ? Math.max(0, Math.round(g.scrollLeft)) : 0
+        // null = 未保存、0 以上の数値 = 保存済み（0 もユーザーが意図的に保存した位置として扱う）
+        scrollLeft: Number.isFinite(g.scrollLeft) ? Math.max(0, Math.round(g.scrollLeft)) : null
     }));
 }
 
@@ -2425,7 +2427,7 @@ function restoreQuizEditorSnapshot(snapshot) {
     const stage = clamp(parseInt(snapshot.stage ?? state.quizEditor?.stage ?? 1, 10), 1, 6);
     state.quizEditor.stage = stage;
     state.quizEditor.groups = cloneQuizEditorGroups(snapshot.groups);
-    if (!state.quizEditor.groups.length) state.quizEditor.groups = [{ notes: [], scrollLeft: 0 }];
+    if (!state.quizEditor.groups.length) state.quizEditor.groups = [{ notes: [], scrollLeft: null }];
     if (state.quizEditor.groups.length > QUIZ_EDITOR_MAX_GROUPS) {
         state.quizEditor.groups = state.quizEditor.groups.slice(0, QUIZ_EDITOR_MAX_GROUPS);
     }
@@ -5929,7 +5931,8 @@ function renderStageSelect(app) {
             const initialGroups = savedSettings && savedSettings.groups && savedSettings.groups.length > 0
                 ? savedSettings.groups.map(g => ({
                     notes: (g.notes || []).map(n => ({ stringName: n.stringName, fret: n.fret })),
-                    scrollLeft: g.scrollLeft || 0
+                    // null（未保存）と 0（保存済み 0）を区別する
+                    scrollLeft: Number.isFinite(g.scrollLeft) ? g.scrollLeft : null
                 }))
                 : getQuizEditorDefaultGroups(stage);
             const groupsForEditor = initialGroups.length > QUIZ_EDITOR_MAX_GROUPS ? initialGroups.slice(0, QUIZ_EDITOR_MAX_GROUPS) : initialGroups;
@@ -5944,7 +5947,8 @@ function renderStageSelect(app) {
                 forceHideAllGroups: false
             };
             state.quizEditorPreview = null;
-            quizEditorPendingScrollLeft = groupsForEditor[0]?.scrollLeft || 0;
+            const initialScroll = groupsForEditor[0]?.scrollLeft;
+            quizEditorPendingScrollLeft = Number.isFinite(initialScroll) ? initialScroll : null;
             state.course = 'quizEditor';
             saveState();
             renderApp();
@@ -6680,7 +6684,7 @@ function renderQuizEditor(app) {
     const stage = clamp(parseInt(state.quizEditor?.stage || 1, 10), 1, 6);
     const scaleGuideVariant = 3;
     const isLandscape = typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
-    let groups = Array.isArray(state.quizEditor?.groups) ? cloneQuizEditorGroups(state.quizEditor.groups) : [{ notes: [], scrollLeft: 0 }];
+    let groups = Array.isArray(state.quizEditor?.groups) ? cloneQuizEditorGroups(state.quizEditor.groups) : [{ notes: [], scrollLeft: null }];
     if (groups.length > QUIZ_EDITOR_MAX_GROUPS) {
         groups = groups.slice(0, QUIZ_EDITOR_MAX_GROUPS);
     }
@@ -6714,10 +6718,9 @@ function renderQuizEditor(app) {
 
     const buildPositionLabelHtml = (index, scrollLeftVal) => {
         if (!showScrollPositions) return '';
-        const sl = Number.isFinite(scrollLeftVal) ? scrollLeftVal : 0;
-        const hasValue = sl > 0;
-        const valueText = hasValue ? String(sl) : '—';
-        const ariaLabel = hasValue ? `位置 ${sl}（タップで編集）` : '位置未設定（タップで設定）';
+        const hasValue = Number.isFinite(scrollLeftVal);
+        const valueText = hasValue ? String(scrollLeftVal) : '—';
+        const ariaLabel = hasValue ? `位置 ${scrollLeftVal}（タップで編集）` : '位置未設定（タップで設定）';
         const emptyClass = hasValue ? '' : 'is-empty';
         return `<button type="button" class="route-editor-group-position-label ${emptyClass}" data-quiz-position-group-index="${index}" aria-label="${ariaLabel}"><span class="route-editor-group-position-pin" aria-hidden="true">📍</span><span class="route-editor-group-position-value">${valueText}</span></button>`;
     };
@@ -6728,12 +6731,11 @@ function renderQuizEditor(app) {
         const isActive = isVisible && Number.isFinite(rawSelected) && rawSelected >= 0 && rawSelected === index;
         const noteCount = Array.isArray(group.notes) ? group.notes.length : 0;
         const grName = `Gr.${index + 1}`;
-        const sl = Number.isFinite(group.scrollLeft) ? group.scrollLeft : 0;
-        const positionLabelHtml = buildPositionLabelHtml(index, sl);
+        const positionLabelHtml = buildPositionLabelHtml(index, group.scrollLeft);
         return `
             <div class="route-editor-group-cell">
                 <button class="route-editor-group-btn ${isVisible ? 'is-visible' : 'is-hidden'} ${isActive ? 'is-active' : ''}" type="button" data-group-index="${index}" aria-label="${grName} (${noteCount}音)" aria-pressed="${isActive ? 'true' : 'false'}">
-                    ${grName}<span style="font-size:0.75em; opacity:0.7;"> ${noteCount}音</span>
+                    ${grName}
                 </button>
                 ${positionLabelHtml}
             </div>
@@ -6799,7 +6801,8 @@ function renderQuizEditor(app) {
         restoreQuizEditorSnapshot(historyItem);
         const sel = state.quizEditor.selectedGroupIndex;
         const gi = sel >= 0 ? sel : 0;
-        quizEditorPendingScrollLeft = state.quizEditor.groups[gi]?.scrollLeft || 0;
+        const undoScroll = state.quizEditor.groups[gi]?.scrollLeft;
+        quizEditorPendingScrollLeft = Number.isFinite(undoScroll) ? undoScroll : null;
         saveState();
         renderApp();
     };
@@ -6816,12 +6819,12 @@ function renderQuizEditor(app) {
             const idx = parseInt(label.getAttribute('data-quiz-position-group-index'), 10);
             if (!Number.isFinite(idx) || idx < 0 || idx >= state.quizEditor.groups.length) return;
             const cur = state.quizEditor.groups[idx]?.scrollLeft;
-            const defaultText = Number.isFinite(cur) && cur > 0 ? String(cur) : '';
+            const defaultText = Number.isFinite(cur) ? String(cur) : '';
             const input = window.prompt(`Gr.${idx + 1} の保存スクロール位置を入力してください\n（空欄で未設定に戻ります）`, defaultText);
             if (input === null) return;
             const trimmed = String(input).trim();
             if (trimmed === '') {
-                state.quizEditor.groups[idx].scrollLeft = 0;
+                state.quizEditor.groups[idx].scrollLeft = null;
                 saveState();
                 renderApp();
                 return;
@@ -6855,7 +6858,8 @@ function renderQuizEditor(app) {
         state.quizEditor.visibleGroupIndices = [];
         state.quizEditor.forceHideAllGroups = false;
         state.quizEditor.showAllGroupsExpanded = false;
-        quizEditorPendingScrollLeft = defaultGroups[0]?.scrollLeft || 0;
+        const defScroll = defaultGroups[0]?.scrollLeft;
+        quizEditorPendingScrollLeft = Number.isFinite(defScroll) ? defScroll : null;
         saveState();
         renderApp();
     };
@@ -6864,11 +6868,13 @@ function renderQuizEditor(app) {
         if (state.quizEditor.groups.length >= QUIZ_EDITOR_MAX_GROUPS) return;
         pushQuizEditorHistory(stage);
         const nextIndex = state.quizEditor.groups.length;
-        state.quizEditor.groups = [...state.quizEditor.groups, { notes: [], scrollLeft: 0 }];
+        // 新 Gr は scrollLeft = null（未保存）。最初の音タップ時に現在位置を自動保存する。
+        state.quizEditor.groups = [...state.quizEditor.groups, { notes: [], scrollLeft: null }];
         state.quizEditor.forceHideAllGroups = false;
         state.quizEditor.visibleGroupIndices = [nextIndex];
         state.quizEditor.selectedGroupIndex = nextIndex;
-        quizEditorPendingScrollLeft = 0;
+        // 新 Gr 選択時はスクロールを動かさない（現在位置を維持して、そこで音をタップするだけで保存される）
+        quizEditorPendingScrollLeft = null;
         saveState();
         renderApp();
     };
@@ -6895,7 +6901,8 @@ function renderQuizEditor(app) {
             : [Math.min(deletedIndex, Math.max(0, nextGroupCount - 1))];
         state.quizEditor.selectedGroupIndex = Math.min(deletedIndex, Math.max(0, nextGroupCount - 1));
         state.quizEditor.forceHideAllGroups = false;
-        quizEditorPendingScrollLeft = state.quizEditor.groups[state.quizEditor.selectedGroupIndex]?.scrollLeft || 0;
+        const nextSel = state.quizEditor.groups[state.quizEditor.selectedGroupIndex]?.scrollLeft;
+        quizEditorPendingScrollLeft = Number.isFinite(nextSel) ? nextSel : null;
         saveState();
         renderApp();
     };
@@ -6980,7 +6987,9 @@ function renderQuizEditor(app) {
                 state.quizEditor.forceHideAllGroups = false;
                 state.quizEditor.visibleGroupIndices = Array.from(nextVisible).sort((a, b) => a - b);
                 state.quizEditor.selectedGroupIndex = index;
-                quizEditorPendingScrollLeft = state.quizEditor.groups[index]?.scrollLeft || 0;
+                const targetScroll = state.quizEditor.groups[index]?.scrollLeft;
+                // 未保存 Gr に切り替えるときはスクロールを動かさない（null を渡す）
+                quizEditorPendingScrollLeft = Number.isFinite(targetScroll) ? targetScroll : null;
                 saveState();
                 renderApp();
                 return;
@@ -7100,6 +7109,14 @@ function renderQuizEditor(app) {
                 group.notes.splice(noteIndex, 1);
             } else {
                 if (!Array.isArray(group.notes)) group.notes = [];
+                // 「最初の音」を追加するときは、現在の指板位置を自動で保存する
+                // （指板をたどる編集と同じ仕様）。0 でも保存対象。
+                const isFirstNote = group.notes.length === 0;
+                if (isFirstNote) {
+                    const wrapperEl = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+                    const liveScroll = wrapperEl ? Math.max(0, Math.round(wrapperEl.scrollLeft)) : 0;
+                    group.scrollLeft = liveScroll;
+                }
                 group.notes.push({ stringName, fret });
                 playTone(6 - stringName, fret);
             }
