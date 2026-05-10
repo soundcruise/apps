@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.97.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.98.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -7405,6 +7405,137 @@ function renderQuizEditor(app) {
     app.style.paddingRight = 'max(10px, env(safe-area-inset-right))';
 }
 
+/** 終了カード「もう1回」：クルーズは最初から、クイズは新セッションで再開 */
+function restartMemorizeFromCleared() {
+    initAudio();
+    stopQuizTimer();
+    cancelQuizScrollAnimation();
+    clearStage1RepeatHintState();
+    if (state.memorize.playMode === 'cruise') {
+        state.memorize.isCleared = false;
+        state.memorize.cruiseIndex = 0;
+        state.memorize.cruiseCurrentLoop = 0;
+        state.memorize.correct = 0;
+        state.memorize.combo = 0;
+        state.memorize.maxCombo = 0;
+        state.memorize.currentQuestion = state.memorize.cruiseTargets[0];
+        state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices?.[0] ?? 0;
+        state.memorize.cruisePreviousGroupIndex = null;
+        state.memorize.hasTappedCurrentNote = false;
+        state.memorize.isFirstNote = true;
+        state.memorize.isCruisePlaying = true;
+        autoScrollRequested = true;
+        saveState();
+        renderApp();
+        startCruiseCountdownAndRhythm();
+        return;
+    }
+    state.memorize.correct = 0;
+    state.memorize.combo = 0;
+    state.memorize.maxCombo = 0;
+    state.memorize.quizQuestionsAsked = 0;
+    state.memorize.quizQuestionResults = [];
+    state.memorize.isQuizCleared = false;
+    state.memorize.quizAttemptCounted = false;
+    state.memorize.tempFeedback = null;
+    state.memorize.hasTappedCurrentNote = false;
+    generateQuestion();
+    autoScrollRequested = true;
+    saveState();
+    renderApp();
+    if (state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+        quizToneTimeout = setTimeout(() => {
+            quizToneTimeout = null;
+            if (state.course === 'memorize' && state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+                playTone(state.memorize.currentQuestion.stringIdx, state.memorize.currentQuestion.fret);
+            }
+        }, 100);
+    }
+}
+
+/** 終了カード「終了」：STAGE 選択へ（「試す」中は問題編集へ） */
+function exitMemorizeClearedToStageOrEditor() {
+    stopRhythm();
+    stopQuizTimer();
+    cancelQuizScrollAnimation();
+    clearStage1RepeatHintState();
+    state.memorize.isCleared = false;
+    state.memorize.isQuizCleared = false;
+    if (state.quizEditorPreview && state.memorize.playMode === 'quiz') {
+        state.course = 'quizEditor';
+        state.quizEditorPreview = null;
+    } else {
+        state.course = 'stageSelect';
+    }
+    saveState();
+    renderApp();
+}
+
+/** 終了カード「次のSTAGEへ」：次の STAGE で練習を開始（STAGE6 のときは選択画面へ） */
+function navigateMemorizeToNextStageFromCleared() {
+    initAudio();
+    stopRhythm();
+    stopQuizTimer();
+    cancelQuizScrollAnimation();
+    clearStage1RepeatHintState();
+    const cur = clamp(parseInt(state.memorize.stage, 10) || 1, 1, 6);
+    if (cur >= 6) {
+        state.memorize.isCleared = false;
+        state.memorize.isQuizCleared = false;
+        state.course = 'stageSelect';
+        state.quizEditorPreview = null;
+        saveState();
+        renderApp();
+        return;
+    }
+    const next = cur + 1;
+    state.memorize.stage = next;
+    state.memorize.combo = 0;
+    state.memorize.maxCombo = 0;
+    state.memorize.isCleared = false;
+    state.memorize.correct = 0;
+    state.memorize.quizQuestionsAsked = 0;
+    state.memorize.quizQuestionResults = [];
+    state.memorize.isQuizCleared = false;
+    state.memorize.quizAttemptCounted = false;
+    state.memorize.tempFeedback = null;
+    state.course = 'memorize';
+
+    if (state.memorize.playMode === 'cruise') {
+        const { sequence, cruiseScope, groupIndices } = buildCruiseStageSequence(next);
+        state.memorize.cruiseScope = cruiseScope;
+        state.memorize.cruiseTargets = sequence;
+        state.memorize.cruiseGroupIndices = Array.isArray(groupIndices) && groupIndices.length ? groupIndices.slice() : sequence.map(() => 0);
+        state.memorize.cruiseIndex = 0;
+        state.memorize.cruiseCurrentLoop = 0;
+        state.memorize.currentQuestion = sequence[0];
+        state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices[0] ?? 0;
+        state.memorize.cruisePreviousGroupIndex = null;
+        state.memorize.isFirstNote = true;
+        state.memorize.hasTappedCurrentNote = false;
+        state.memorize.isCruisePlaying = true;
+        autoScrollRequested = true;
+        state.quizEditorPreview = null;
+        saveState();
+        renderApp();
+        startCruiseCountdownAndRhythm();
+        return;
+    }
+    state.quizEditorPreview = null;
+    generateQuestion();
+    autoScrollRequested = true;
+    saveState();
+    renderApp();
+    if (state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+        quizToneTimeout = setTimeout(() => {
+            quizToneTimeout = null;
+            if (state.course === 'memorize' && state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+                playTone(state.memorize.currentQuestion.stringIdx, state.memorize.currentQuestion.fret);
+            }
+        }, 100);
+    }
+}
+
 function renderMemorize(app) {
     const q = state.memorize.currentQuestion;
     if (!q) {
@@ -7565,18 +7696,11 @@ function renderMemorize(app) {
                                     <span class="memorize-cleared-card__metric-value">${maxComboCount}</span>
                                 </div>
                             </div>
-                            ${isQuizCleared ? `
-                                <div class="memorize-cleared-card__actions">
-                                    <button type="button" class="btn-primary memorize-cleared-card__btn memorize-cleared-card__btn--primary" id="btn-quiz-restart">もう1回</button>
-                                    <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-quiz-finish">終了</button>
-                                </div>
-                            ` : ''}
-                            ${isCruiseCleared ? `
-                                <div class="memorize-cleared-card__actions">
-                                    <button type="button" class="btn-primary memorize-cleared-card__btn memorize-cleared-card__btn--primary" id="btn-cruise-stop">もう1回</button>
-                                    <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-cruise-next">次に進む</button>
-                                </div>
-                            ` : ''}
+                            <div class="memorize-cleared-card__actions memorize-cleared-card__actions--three">
+                                <button type="button" class="btn-primary memorize-cleared-card__btn memorize-cleared-card__btn--primary" id="btn-memorize-cleared-restart">もう1回</button>
+                                <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-exit">終了</button>
+                                <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-next-stage"${state.memorize.stage >= 6 ? ' disabled' : ''}>次のSTAGEへ</button>
+                            </div>
                         </div>
                     </div>
                 ` : ''}
@@ -7630,7 +7754,8 @@ function renderMemorize(app) {
             }
         };
 
-        document.getElementById('btn-cruise-stop').onclick = () => {
+        const _btnCruiseStop = document.getElementById('btn-cruise-stop');
+        if (_btnCruiseStop) _btnCruiseStop.onclick = () => {
             if (state.memorize.isCleared) {
                 // Restart course: reset state and play
                 clearStage1RepeatHintState();
@@ -7664,7 +7789,8 @@ function renderMemorize(app) {
             renderApp();
         };
 
-        document.getElementById('btn-cruise-next').onclick = () => {
+        const _btnCruiseNext = document.getElementById('btn-cruise-next');
+        if (_btnCruiseNext) _btnCruiseNext.onclick = () => {
             if (state.memorize.isCleared) {
                 // Go back to stage select
                 stopRhythm();
@@ -7714,52 +7840,17 @@ function renderMemorize(app) {
         openSettings();
     };
 
-    // 指板クイズ：問題数の上限に達したときの「もう1回／終了」操作
-    const btnQuizRestart = document.getElementById('btn-quiz-restart');
-    if (btnQuizRestart) {
-        btnQuizRestart.onclick = () => {
-            initAudio();
-            stopQuizTimer();
-            cancelQuizScrollAnimation();
-            state.memorize.correct = 0;
-            state.memorize.combo = 0;
-            state.memorize.maxCombo = 0;
-            state.memorize.quizQuestionsAsked = 0;
-            state.memorize.quizQuestionResults = [];
-            state.memorize.isQuizCleared = false;
-            state.memorize.quizAttemptCounted = false;
-            state.memorize.tempFeedback = null;
-            state.memorize.hasTappedCurrentNote = false;
-            generateQuestion();
-            autoScrollRequested = true;
-            saveState();
-            renderApp();
-            if (state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
-                quizToneTimeout = setTimeout(() => {
-                    quizToneTimeout = null;
-                    if (state.course === 'memorize' && state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
-                        playTone(state.memorize.currentQuestion.stringIdx, state.memorize.currentQuestion.fret);
-                    }
-                }, 100);
-            }
-        };
+    const btnClearedRestart = document.getElementById('btn-memorize-cleared-restart');
+    if (btnClearedRestart) {
+        btnClearedRestart.onclick = () => restartMemorizeFromCleared();
     }
-    const btnQuizFinish = document.getElementById('btn-quiz-finish');
-    if (btnQuizFinish) {
-        btnQuizFinish.onclick = () => {
-            stopQuizTimer();
-            cancelQuizScrollAnimation();
-            state.memorize.isQuizCleared = false;
-            // 「試す」経由なら問題編集に戻り、それ以外は STAGE 選択へ
-            if (state.quizEditorPreview && state.memorize.playMode === 'quiz') {
-                state.course = 'quizEditor';
-                state.quizEditorPreview = null;
-            } else {
-                state.course = 'stageSelect';
-            }
-            saveState();
-            renderApp();
-        };
+    const btnClearedExit = document.getElementById('btn-memorize-cleared-exit');
+    if (btnClearedExit) {
+        btnClearedExit.onclick = () => exitMemorizeClearedToStageOrEditor();
+    }
+    const btnClearedNextStage = document.getElementById('btn-memorize-cleared-next-stage');
+    if (btnClearedNextStage && !btnClearedNextStage.disabled) {
+        btnClearedNextStage.onclick = () => navigateMemorizeToNextStageFromCleared();
     }
 
     // Highlight mode selection buttons

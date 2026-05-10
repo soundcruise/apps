@@ -819,6 +819,25 @@
     width: 100%;
 }
 
+.memorize-cleared-card__actions--three {
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+}
+
+.memorize-cleared-card__actions--three .memorize-cleared-card__btn {
+    font-size: 0.78rem;
+    padding: 10px 5px;
+    letter-spacing: 0;
+}
+
+.memorize-cleared-card__btn:disabled,
+.memorize-cleared-card__btn[disabled] {
+    opacity: 0.38;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 .memorize-cleared-card__btn {
     flex: 1 1 0;
     min-width: 0;
@@ -1118,6 +1137,11 @@
 .memorize-screen--landscape .memorize-cleared-card__btn {
     padding: 9px 12px;
     font-size: 0.88rem;
+}
+
+.memorize-screen--landscape .memorize-cleared-card__actions--three .memorize-cleared-card__btn {
+    padding: 8px 4px;
+    font-size: 0.72rem;
 }
 
 .memorize-screen--landscape .memorize-question-main.question-text {
