@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.99.10';
+const FRETBOARD_CRUISE_APP_VERSION = '1.99.11';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -10273,15 +10273,12 @@ function renderFretboardHTML(containerId, options) {
                         centerTx += rightOffset;
                     }
                     scrollWrapper.style.width = `${projectedBounds.width}px`;
-                    /* scale > 1 を許容するクルーズ横画面のときは、レイアウトボックスの高さも
-                       scale 後に追従させる。そうしないと layout 上の高さは元の projectedBounds.height のまま、
-                       見た目だけ拡大されて下の要素（cruise controls 等）に重なってしまう。
-                       overflowX/Y は hidden のままなのでスクロールは発生しない。 */
-                    scrollWrapper.style.height = `${
-                        allowMemorizeFullScaleAbove1
-                            ? Math.ceil(projectedBounds.height * scale)
-                            : projectedBounds.height
-                    }px`;
+                    /* layout box の高さは常に projectedBounds.height（=指板＋フレット番号
+                       ストリップを含む元の高さ）にする。これにより内部の指板・フレット番号
+                       はすべて box 内に収まり、overflow:hidden で切られない。
+                       scale 後の見た目高さとの差分は、syncFretboardLayoutCollapse 関数の
+                       margin-bottom 調整で吸収するので、cruise controls 等とは衝突しない。 */
+                    scrollWrapper.style.height = `${projectedBounds.height}px`;
                     scrollWrapper.style.overflowX = 'hidden';
                     scrollWrapper.style.overflowY = 'hidden';
                     scrollWrapper.style.transformOrigin = 'top left';
@@ -10316,10 +10313,9 @@ function renderFretboardHTML(containerId, options) {
                         if (visualizeFretHost) {
                             // height設定済みのためmarginBottomは不要
                             containerEl.style.marginBottom = '';
-                        } else if (memorizeLandscapeUnifiedFullLayout) {
-                            // クルーズ/クイズの横画面は下部ボタン列を優先し、指板下の空きを残す
-                            containerEl.style.marginBottom = '';
                         } else {
+                            // layoutH と visualH の差分を margin-bottom で吸収する。
+                            // scale<1 のときは負の値（layout を詰める）、scale>1 のときは正の値（layout を広げる）。
                             containerEl.style.marginBottom = `${-Math.round(layoutH - visualH)}px`;
                         }
                     }
@@ -10337,9 +10333,7 @@ function renderFretboardHTML(containerId, options) {
                             scale = sSync;
                             const swSync = projectedBounds.width * scale;
                             centerTx = Math.max(0, Math.round((layoutW - swSync) / 2));
-                            if (allowMemorizeFullScaleAbove1) {
-                                scrollWrapper.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
-                            }
+                            // box 高さは projectedBounds.height のまま固定（margin-bottom で吸収）
                             scrollWrapper.style.marginLeft = `${centerTx}px`;
                             scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
                             syncFretboardLayoutCollapse();
