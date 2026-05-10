@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.90.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.90.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -143,13 +143,13 @@ const SHIPPED_DEFAULT_QUIZ_STAGE_1_GROUPS = JSON.parse(
     '[{"notes":[{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":5,"fret":0},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":4,"fret":0},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":3,"fret":0},{"stringName":3,"fret":2},{"stringName":2,"fret":0},{"stringName":2,"fret":1},{"stringName":2,"fret":3},{"stringName":1,"fret":0},{"stringName":1,"fret":1},{"stringName":1,"fret":3}],"scrollLeft":0}]'
 );
 const SHIPPED_DEFAULT_QUIZ_STAGE_2_GROUPS = JSON.parse(
-    '[{"notes":[{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":5},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":4,"fret":5},{"stringName":3,"fret":2},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":2,"fret":3},{"stringName":2,"fret":5},{"stringName":1,"fret":3},{"stringName":1,"fret":5},{"stringName":2,"fret":6}],"scrollLeft":24}]'
+    '[{"notes":[{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":5},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":4,"fret":5},{"stringName":3,"fret":2},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":2,"fret":3},{"stringName":2,"fret":5},{"stringName":1,"fret":3},{"stringName":1,"fret":5},{"stringName":2,"fret":6}],"scrollLeft":43}]'
 );
 const SHIPPED_DEFAULT_QUIZ_STAGE_3_GROUPS = JSON.parse(
     '[{"notes":[{"stringName":6,"fret":5},{"stringName":6,"fret":7},{"stringName":6,"fret":8},{"stringName":5,"fret":5},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":4,"fret":5},{"stringName":4,"fret":7},{"stringName":4,"fret":9},{"stringName":3,"fret":5},{"stringName":3,"fret":7},{"stringName":3,"fret":9},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":2,"fret":8},{"stringName":1,"fret":5},{"stringName":1,"fret":7},{"stringName":1,"fret":8}],"scrollLeft":211}]'
 );
 /** バージョンを上げると、起動時に既存ユーザーの STAGE 1〜3 quiz 保存値が shipped で上書きされる。 */
-const QUIZ_SHIPPED_DEFAULTS_VERSION = 1;
+const QUIZ_SHIPPED_DEFAULTS_VERSION = 2;
 
 function getShippedDefaultQuizGroups(stage) {
     const st = clamp(parseInt(stage, 10), 1, 6);
