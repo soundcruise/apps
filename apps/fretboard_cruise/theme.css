@@ -1178,6 +1178,12 @@
     margin: 0;
     min-height: 0;
     font-size: 1.05rem;
+    /* 問題テキストは弦・音名で文字数が変わる。折り返すと高さが変わって、
+       maxFullViewH が変動し、scale → centerTx が変わって指板が左右にズレる。
+       1 行に固定して折り返さない。 */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
 }
 
 .memorize-screen--landscape .memorize-question-note {
@@ -1191,12 +1197,17 @@
 
 .memorize-screen--landscape .memorize-feedback.feedback-display {
     font-size: 0.95rem;
-    /* ヒント文〜結果表示で文言が変わっても高さを固定（指板の縦ジャンプ防止）。
-       共通の display:flex; align-items:center で中身は中央寄せ */
+    /* ヒント文〜結果表示で文言が変わっても高さを完全固定（指板の縦ジャンプ・横ズレ防止）。
+       white-space:nowrap + overflow:hidden で、長いテキストでも折り返さず高さが膨らまない。
+       共通の display:flex; align-items:center で中身は中央寄せ。 */
     height: 1.6rem;
+    max-height: 1.6rem;
     min-height: 0;
     padding: 0;
     line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
 }
 
 .memorize-screen--landscape .memorize-fretboard-host {
@@ -1275,8 +1286,12 @@
 .memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-feedback.feedback-display {
     font-size: 0.88rem;
     height: 1.55rem;
+    max-height: 1.55rem;
     min-height: 0;
     padding: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
     line-height: 1.2;
 }
 
