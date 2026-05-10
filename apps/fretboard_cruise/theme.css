@@ -2386,8 +2386,19 @@ input:checked + .toggle-slider:before {
         position: relative;
         top: auto;
         left: auto;
-        width: min(320px, calc(100vw - 196px));
+        /* 横画面の「一覧」状態では、Gr カードパネルを画面幅近くまで広げて
+           20 個の Gr を活用しやすくする。縮小状態（--floating 単独）には影響しない。
+           左右に 12px ずつ余白を残して、画面端に張り付かないようにする。 */
+        width: min(960px, calc(100vw - 24px));
+        max-width: calc(100vw - 24px);
         transform: translate(var(--route-editor-group-panel-shift-x, 0px), var(--route-editor-group-panel-shift-y, 0px));
+    }
+
+    /* 横画面の「一覧」状態のときだけ、Gr カード一覧を auto-fill のグリッドにして
+       横幅に応じて列数を自動的に増やす。`--floating` を組み合わせているので、
+       縦画面の一覧状態（5 列固定）には一切影響しない。 */
+    .route-editor-group-panel--expanded.route-editor-group-panel--floating .route-editor-group-list {
+        grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
     }
 }
 
