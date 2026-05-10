@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.92.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.92.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -8727,7 +8727,8 @@ function getRenderMaxFret(mode, options) {
             getHighestFretFromPositions(state.memorize.cruiseTargets),
             getHighestFretFromPositions(state.memorize.cruiseScope)
         );
-        if (options.memorizeStage === 6) {
+        // STAGE 5・6 は問題画面でも 13 フレットまで表示する（出題が低フレットでも縮まないよう固定）
+        if (options.memorizeStage === 5 || options.memorizeStage === 6) {
             maxFret = Math.max(maxFret, 13);
         }
     } else if (mode === 'routeEditor') {
