@@ -2222,7 +2222,10 @@ input:checked + .toggle-slider:before {
     .route-editor-toolbar {
         position: fixed;
         top: max(14px, env(safe-area-inset-top));
-        right: max(16px, env(safe-area-inset-right));
+        /* 横画面では page-header の右上にある ⚙️ ボタン（home-settings-btn）と
+           重ならないように、その幅＋ギャップ分だけ内側に寄せる。
+           縦画面側では .route-editor-toolbar は position: static なのでこの right は無視される。 */
+        right: calc(max(16px, env(safe-area-inset-right)) + 52px);
         z-index: 5;
         grid-template-columns: repeat(3, 66px);
         width: auto;
