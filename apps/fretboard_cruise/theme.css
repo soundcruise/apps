@@ -864,12 +864,17 @@
     height: 8px;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.18);
-    transition: background-color 0.2s ease;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.memorize-progress-dot.is-done {
+.memorize-progress-dot.is-correct {
     background: var(--primary-color, #4f9cf9);
     box-shadow: 0 0 6px rgba(79, 156, 249, 0.5);
+}
+
+.memorize-progress-dot.is-wrong {
+    background: var(--error-color, #ff5252);
+    box-shadow: 0 0 6px rgba(255, 82, 82, 0.55);
 }
 
 .memorize-progress-count {

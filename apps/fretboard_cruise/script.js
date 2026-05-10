@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.96.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.96.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -633,6 +633,7 @@ if (savedState) {
         if (typeof state.memorize.demoReturnCourse === 'undefined') state.memorize.demoReturnCourse = null;
         if (typeof state.memorize.demoReturnStage === 'undefined') state.memorize.demoReturnStage = null;
         if (typeof state.memorize.quizQuestionsAsked !== 'number') state.memorize.quizQuestionsAsked = 0;
+        if (!Array.isArray(state.memorize.quizQuestionResults)) state.memorize.quizQuestionResults = [];
         if (typeof state.memorize.isQuizCleared !== 'boolean') state.memorize.isQuizCleared = false;
         if (typeof state.memorize.maxCombo !== 'number') state.memorize.maxCombo = 0;
         // Official specification: always use mode 1 (1/2 display)
@@ -1623,6 +1624,8 @@ function handleQuizTimeout() {
     if (!container) return;
 
     state.memorize.combo = 0;
+    if (!Array.isArray(state.memorize.quizQuestionResults)) state.memorize.quizQuestionResults = [];
+    state.memorize.quizQuestionResults.push(false); // 時間切れ＝不正解として記録
     state.memorize.tempFeedback = { text: 'Miss... (時間切れ)', className: 'feedback-display feedback-wrong' };
     
     // Show answer briefly and move to next
@@ -6133,6 +6136,7 @@ function renderStageSelect(app) {
             if (state.memorize.playMode === 'quiz') {
                 state.memorize.correct = 0;
                 state.memorize.quizQuestionsAsked = 0;
+                state.memorize.quizQuestionResults = [];
                 state.memorize.isQuizCleared = false;
             } else {
                 // クルーズ：終了カードで正答率を出すため、ここでも 0 リセット
@@ -7125,6 +7129,7 @@ function renderQuizEditor(app) {
         state.memorize.maxCombo = 0;
         state.memorize.correct = 0;
         state.memorize.quizQuestionsAsked = 0;
+        state.memorize.quizQuestionResults = [];
         state.memorize.isQuizCleared = false;
         // 直前のクルーズモードで残っているシーケンス・スコープを必ず捨てる
         // （指板表示範囲や見えないノートに影響するため）
@@ -7391,12 +7396,17 @@ function renderMemorize(app) {
         ? `<div class="stat-item"><span class="label">残り時間</span><span class="value" id="quiz-timer" style="color: ${quizTimeLeft <= 1.0 ? 'var(--error-color)' : 'inherit'};">${quizTimeLeft.toFixed(1)}s</span></div>`
         : '';
 
-    // クイズの「問題進行」はドット表示（10〜15個まで）。無制限のときは非表示。
+    // クイズの「問題進行」はドット表示（5〜15個）。
+    // 各問題の結果を quizQuestionResults から読み、正解＝青／不正解＝赤／未回答＝灰 に色分けする。
     let quizProgressItemHtml = '';
     if (!isCruise && quizQuestionLimit > 0) {
         const askedClamped = Math.min(quizQuestionsAsked, quizQuestionLimit);
+        const results = Array.isArray(state.memorize.quizQuestionResults) ? state.memorize.quizQuestionResults : [];
         const dotsHtml = Array.from({ length: quizQuestionLimit }).map((_, i) => {
-            const cls = i < askedClamped ? 'is-done' : '';
+            let cls = '';
+            if (i < results.length) {
+                cls = results[i] ? 'is-correct' : 'is-wrong';
+            }
             return `<span class="memorize-progress-dot ${cls}"></span>`;
         }).join('');
         quizProgressItemHtml = `
@@ -7409,9 +7419,14 @@ function renderMemorize(app) {
             </div>`;
     }
 
+    // 「連続」はクルーズだけに残す（クイズはコンボ判定が単純なので外す）
+    const comboItemHtml = isCruise
+        ? `<div class="stat-item"><span class="label">連続</span><span class="value" id="score-combo">${state.memorize.combo}</span></div>`
+        : '';
+
     const stageStatsHtml = `
                     <div class="stats memorize-stats memorize-stats--near-question">
-                        <div class="stat-item"><span class="label">連続</span><span class="value" id="score-combo">${state.memorize.combo}</span></div>
+                        ${comboItemHtml}
                         ${quizProgressItemHtml}
                         ${timerItemHtml}
                     </div>`;
@@ -7457,14 +7472,12 @@ function renderMemorize(app) {
                     ${repeatHintTabsHtml}
                 </div>
                 <div id="fretboard-container" class="memorize-fretboard-host"></div>
-                ${isCruise ? `
-                    <div class="memorize-cruise-controls${state.memorize.isCleared ? ' memorize-cruise-controls--cleared' : ''}">
+                ${(isCruise && !isCruiseCleared) ? `
+                    <div class="memorize-cruise-controls">
                         <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-prev">⬅️</button>
                         <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-reset">⏮️</button>
-                        <button type="button" class="btn-secondary memorize-cruise-control-btn${state.memorize.isCleared ? ' memorize-cruise-control-btn--text' : ''}" id="btn-cruise-stop">${state.memorize.isCleared
-                                ? 'もう1回'
-                                : (state.memorize.isCruisePlaying ? '⏸️' : '▶️')}</button>
-                        <button type="button" class="btn-secondary memorize-cruise-control-btn${state.memorize.isCleared ? ' memorize-cruise-control-btn--text' : ''}" id="btn-cruise-next">${state.memorize.isCleared ? '次に進む' : '➡️'}</button>
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-stop">${state.memorize.isCruisePlaying ? '⏸️' : '▶️'}</button>
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-next">➡️</button>
                     </div>
                 ` : ''}
                 ${isCruiseCounting ? `<div class="memorize-countdown-overlay" aria-hidden="true">${cruiseCountdownValue}</div>` : ''}
@@ -7490,6 +7503,12 @@ function renderMemorize(app) {
                                 <div class="memorize-cleared-card__actions">
                                     <button type="button" class="btn-primary memorize-cleared-card__btn memorize-cleared-card__btn--primary" id="btn-quiz-restart">もう1回</button>
                                     <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-quiz-finish">終了</button>
+                                </div>
+                            ` : ''}
+                            ${isCruiseCleared ? `
+                                <div class="memorize-cleared-card__actions">
+                                    <button type="button" class="btn-primary memorize-cleared-card__btn memorize-cleared-card__btn--primary" id="btn-cruise-stop">もう1回</button>
+                                    <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-cruise-next">次に進む</button>
                                 </div>
                             ` : ''}
                         </div>
@@ -7532,7 +7551,9 @@ function renderMemorize(app) {
     };
 
     if (isCruise) {
-        document.getElementById('btn-cruise-prev').onclick = () => {
+        // クリア時は prev / reset ボタンは描画されないので存在チェックを行う
+        const _btnCruisePrev = document.getElementById('btn-cruise-prev');
+        if (_btnCruisePrev) _btnCruisePrev.onclick = () => {
             if (state.memorize.cruiseIndex > 0) {
                 clearStage1RepeatHintState();
                 state.memorize.cruiseIndex--;
@@ -7596,7 +7617,8 @@ function renderMemorize(app) {
             renderApp();
         };
 
-        document.getElementById('btn-cruise-reset').onclick = () => {
+        const _btnCruiseReset = document.getElementById('btn-cruise-reset');
+        if (_btnCruiseReset) _btnCruiseReset.onclick = () => {
             // Reset to the beginning of the course
             clearStage1RepeatHintState();
             state.memorize.isCleared = false;
@@ -7637,6 +7659,7 @@ function renderMemorize(app) {
             state.memorize.combo = 0;
             state.memorize.maxCombo = 0;
             state.memorize.quizQuestionsAsked = 0;
+            state.memorize.quizQuestionResults = [];
             state.memorize.isQuizCleared = false;
             state.memorize.tempFeedback = null;
             state.memorize.hasTappedCurrentNote = false;
@@ -7783,6 +7806,9 @@ function handleFretClick(stringNum, fret) {
     state.memorize.hasTappedCurrentNote = true;
 
     playTone(stringIdx, fret); // Play sound on any click
+
+    if (!Array.isArray(state.memorize.quizQuestionResults)) state.memorize.quizQuestionResults = [];
+    state.memorize.quizQuestionResults.push(!!isCorrect);
 
     if (isCorrect) {
         state.memorize.correct++;
