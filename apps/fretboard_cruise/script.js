@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.99.9';
+const FRETBOARD_CRUISE_APP_VERSION = '1.99.10';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -9603,23 +9603,6 @@ function renderFretboardHTML(containerId, options) {
 
     html += `</svg>`;
 
-    /* フレット番号は SVG の <text> ではなく HTML の <div> として描画する。
-       SVG の <text> は端末ごとに初回ペイントの位置がずれる挙動があるため、
-       純粋な HTML レイヤーに切り出して全ブラウザで安定したレイアウトにする。
-       レイヤーは neck-front の中に絶対配置し、SVG と同じ座標系で並ぶ。 */
-    html += `<div class="projected-fret-number-layer" style="width:${FRETBOARD_WIDTH}px; height:${FRETBOARD_VIEWBOX_HEIGHT}px;">`;
-    for (let f = 0; f <= renderMaxFret; f++) {
-        if (f === 0) continue;
-        const x = (xEdges[f] + xEdges[f + 1]) / 2;
-        const labelY = f === 0
-            ? (neckBottom - edgeH - 8)
-            : (neckBottom + FRET_NUMBER_STRIP_HEIGHT * 0.58);
-        const labelPoint = projectPoint(x, labelY, FRET_NUMBER_Z);
-        const scale = labelPoint.scale;
-        html += `<div class="projected-fret-number" data-fret="${f}" style="left:${labelPoint.x.toFixed(2)}px; top:${labelPoint.y.toFixed(2)}px; font-size:${(19 * scale).toFixed(2)}px;">${f}</div>`;
-    }
-    html += `</div>`;
-
     html += `<div class="projected-hit-layer" style="height:${neckBottom}px;">`;
 
     for (let rowIndex = 0; rowIndex < stringOrder.length; rowIndex++) {
@@ -9887,6 +9870,24 @@ function renderFretboardHTML(containerId, options) {
     html += `</div>`;
 
     html += `</div>`; // neck-front
+
+    /* フレット番号は SVG の <text> ではなく HTML の <div> として描画する。
+       SVG だと端末ごとに初回ペイントの位置がずれる挙動があり、また神経-front の中に置くと
+       小さい端末で scrollWrapper の overflow:hidden に押されて消える。
+       そこで neck-front の外（fretboard-container 直下）に置き、座標は同じ projectPoint で計算する。 */
+    html += `<div class="projected-fret-number-layer" style="width:${FRETBOARD_WIDTH}px;">`;
+    for (let f = 0; f <= renderMaxFret; f++) {
+        if (f === 0) continue;
+        const x = (xEdges[f] + xEdges[f + 1]) / 2;
+        const labelY = f === 0
+            ? (neckBottom - edgeH - 8)
+            : (neckBottom + FRET_NUMBER_STRIP_HEIGHT * 0.58);
+        const labelPoint = projectPoint(x, labelY, FRET_NUMBER_Z);
+        const scale = labelPoint.scale;
+        html += `<div class="projected-fret-number" data-fret="${f}" style="left:${labelPoint.x.toFixed(2)}px; top:${labelPoint.y.toFixed(2)}px; font-size:${(19 * scale).toFixed(2)}px;">${f}</div>`;
+    }
+    html += `</div>`;
+
     html += `</div></div></div>`; // container & perspective-wrapper & scroll-wrapper
 
     let effectivePreserveScrollLeft = preserveScrollLeft;
