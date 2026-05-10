@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.92.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.92.3';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -684,6 +684,13 @@ if (savedState) {
             state.settings.cruiseStageClearCounts = {};
         }
         if (
+            !state.settings.quizStageEditorSettings ||
+            typeof state.settings.quizStageEditorSettings !== 'object' ||
+            Array.isArray(state.settings.quizStageEditorSettings)
+        ) {
+            state.settings.quizStageEditorSettings = {};
+        }
+        if (
             !state.routeEditor ||
             typeof state.routeEditor !== 'object' ||
             Array.isArray(state.routeEditor)
@@ -928,6 +935,8 @@ function getDefaultSettings() {
         cruiseStageRouteGroups: {},
         cruiseStageGroupScrollLefts: {},
         cruiseStageClearCounts: {},
+        /** 指板クイズ・問題編集の保存（⚙️デフォルト復元でも消さない） */
+        quizStageEditorSettings: {},
         routeNumberingVersion: 2,
         neckModelVersion: FRETBOARD_NECK_MODEL_VERSION
     };
@@ -2147,8 +2156,8 @@ function saveQuizEditorSettings(stage, groups) {
     state.settings.quizStageEditorSettings[String(stage)] = {
         groups: groups.map(g => ({
             notes: (g.notes || [])
-                .filter(n => n && Number.isFinite(n.stringName) && Number.isFinite(n.fret))
-                .map(n => ({ stringName: n.stringName, fret: n.fret })),
+                .map(normalizeQuizNoteSlot)
+                .filter(Boolean),
             // null = 未保存、数値 = 保存済み（0 を含む）
             scrollLeft: Number.isFinite(g.scrollLeft) ? Math.max(0, Math.round(g.scrollLeft)) : null
         }))
@@ -2481,11 +2490,25 @@ function cloneQuizEditorGroups(groups) {
     if (!Array.isArray(groups)) return [{ notes: [], scrollLeft: null }];
     return groups.map(g => ({
         notes: (g.notes || [])
-            .filter(n => n && Number.isFinite(n.stringName) && Number.isFinite(n.fret))
-            .map(n => ({ stringName: n.stringName, fret: n.fret })),
+            .map(normalizeQuizNoteSlot)
+            .filter(Boolean),
         // null = 未保存、0 以上の数値 = 保存済み（0 もユーザーが意図的に保存した位置として扱う）
         scrollLeft: Number.isFinite(g.scrollLeft) ? Math.max(0, Math.round(g.scrollLeft)) : null
     }));
+}
+
+/** 保存データや JSON 由来で stringName/fret が文字列のときもクイズに使えるよう正規化する */
+function normalizeQuizNoteSlot(n) {
+    if (!n || typeof n !== 'object') return null;
+    const stringName = typeof n.stringName === 'number' && Number.isFinite(n.stringName)
+        ? n.stringName
+        : parseInt(n.stringName, 10);
+    const fret = typeof n.fret === 'number' && Number.isFinite(n.fret)
+        ? n.fret
+        : parseInt(n.fret, 10);
+    if (!Number.isFinite(stringName) || !Number.isFinite(fret)) return null;
+    if (stringName < 1 || stringName > 6 || fret < 0 || fret > MAX_FRET) return null;
+    return { stringName, fret };
 }
 
 function getQuizEditorSnapshot(stage = null) {
@@ -3133,6 +3156,9 @@ function generateQuestion() {
     let savedSettings = getQuizEditorSavedSettings(state.memorize.stage);
     if (state.quizEditorPreview && state.quizEditorPreview.stage === state.memorize.stage) {
         savedSettings = { groups: cloneQuizEditorGroups(state.quizEditorPreview.groups) };
+    } else if (savedSettings && Array.isArray(savedSettings.groups) && savedSettings.groups.length > 0) {
+        // localStorage 由来の弦／フレットの型ゆらぎを除去してからプールを構築する
+        savedSettings = { groups: cloneQuizEditorGroups(savedSettings.groups) };
     }
     let targets;
     let noteGroupMap = null;
@@ -8627,7 +8653,15 @@ function renderSettings(app) {
     }
 
     document.getElementById('btn-settings-defaults').onclick = () => {
+        const quizSaved = state.settings.quizStageEditorSettings;
+        const quizShippedVer = state.settings.quizShippedDefaultsAppliedVersion;
         state.settings = getDefaultSettings();
+        // 指板クイズの問題編集データは「アプリ設定のデフォルト」と別物なので消さない
+        state.settings.quizStageEditorSettings =
+            quizSaved && typeof quizSaved === 'object' && !Array.isArray(quizSaved) ? quizSaved : {};
+        if (quizShippedVer !== undefined && quizShippedVer !== null) {
+            state.settings.quizShippedDefaultsAppliedVersion = quizShippedVer;
+        }
         refreshSettingsControls();
     };
 
