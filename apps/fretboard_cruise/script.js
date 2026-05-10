@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.98.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.98.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -6064,11 +6064,10 @@ function renderStageSelect(app) {
             : getQuizStageAttemptCount(def.stage);
         let clearBadge = '';
         if (clearCount > 0) {
-            if (isCruiseMode) {
-                clearBadge = `<span class="stage-clear-count stage-clear-count--side" aria-label="${def.title} 完走 ${clearCount}回">🏁 ${clearCount}回</span>`;
-            } else {
-                clearBadge = `<span class="stage-clear-count stage-clear-count--side" aria-label="${def.title} 挑戦 ${clearCount}回">🎯 ${clearCount}回</span>`;
-            }
+            const ariaLabel = isCruiseMode
+                ? `${def.title} 完走 ${clearCount}回`
+                : `${def.title} 挑戦 ${clearCount}回`;
+            clearBadge = `<span class="stage-clear-count stage-clear-count--side" aria-label="${ariaLabel}">🏁 ${clearCount}回</span>`;
         }
         const stageBtnClass = clearBadge ? 'stage-btn stage-btn--has-side-badge' : 'stage-btn';
         const mainButton = `<button class="${stageBtnClass}" data-stage="${def.stage}">${clearBadge}${def.title}<span class="stage-desc">${def.desc}</span></button>`;
