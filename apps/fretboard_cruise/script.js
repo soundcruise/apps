@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.92.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.92.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -7023,6 +7023,11 @@ function renderQuizEditor(app) {
         state.memorize.stage = stage;
         state.memorize.playMode = 'quiz';
         state.memorize.combo = 0;
+        // 直前のクルーズモードで残っているシーケンス・スコープを必ず捨てる
+        // （指板表示範囲や見えないノートに影響するため）
+        state.memorize.cruiseTargets = [];
+        state.memorize.cruiseScope = [];
+        state.memorize.cruiseIndex = 0;
         state.course = 'memorize';
         generateQuestion();
         autoScrollRequested = true;
@@ -8721,15 +8726,27 @@ function getRenderMaxFret(mode, options) {
             maxFret = Math.max(maxFret, Math.ceil(options.ruleTapLayoutZoomFitFloatRange[1] || 0));
         }
     } else if (mode === 'memorize') {
+        // quiz モードでは cruise 用のシーケンス・スコープは指板範囲に影響させない
+        // （前のクルーズセッションで残った高フレットが quiz 画面に漏れるバグを防止）
+        const isQuizPlayMode = state.memorize.playMode === 'quiz';
         maxFret = Math.max(
             maxFret,
-            options.question && typeof options.question.fret === 'number' ? options.question.fret : 0,
-            getHighestFretFromPositions(state.memorize.cruiseTargets),
-            getHighestFretFromPositions(state.memorize.cruiseScope)
+            options.question && typeof options.question.fret === 'number' ? options.question.fret : 0
         );
+        if (!isQuizPlayMode) {
+            maxFret = Math.max(
+                maxFret,
+                getHighestFretFromPositions(state.memorize.cruiseTargets),
+                getHighestFretFromPositions(state.memorize.cruiseScope)
+            );
+        }
         // STAGE 5・6 は問題画面でも 13 フレットまで表示する（出題が低フレットでも縮まないよう固定）
         if (options.memorizeStage === 5 || options.memorizeStage === 6) {
             maxFret = Math.max(maxFret, 13);
+        }
+        // STAGE 5 の quiz は 13 フレットを上限に固定（編集画面と一致）
+        if (isQuizPlayMode && options.memorizeStage === 5) {
+            return clamp(Math.min(maxFret, 13), DEFAULT_VISIBLE_MAX_FRET, MAX_FRET);
         }
     } else if (mode === 'routeEditor') {
         maxFret = Math.max(
