@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.99.11';
+const FRETBOARD_CRUISE_APP_VERSION = '1.99.12';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -859,16 +859,18 @@ function getCruiseLandscapeLayoutConfig() {
 }
 
 /**
- * 指板をたどる・横画面・全体ビュー:
+ * 指板をたどる／指板クイズ・横画面・全体ビュー:
  * 内部 DOM は常に全フレット幅（FRETBOARD_WIDTH）を持つため、ラッパーに対して
  * scrollWidth > clientWidth になり横スワイプで scrollLeft がずれる（左にしか見えない状態になる）。
  * STAGE の表示上限（例 0〜12F）は投影・スケールで画面に収めているので、横スクロールは不要。
  * 常に scrollLeft=0（開放弦側固定）にし、横方向のパンを無効にする。
+ * クイズも全体ビューでは編集設定どおりの範囲を固定表示し、自動スクロールしない。
  */
 function shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId) {
     if (typeof window === 'undefined') return false;
     if (mode !== 'memorize' || containerId !== 'fretboard-container') return false;
-    if (!state.memorize || state.memorize.playMode !== 'cruise') return false;
+    if (!state.memorize) return false;
+    if (state.memorize.playMode !== 'cruise' && state.memorize.playMode !== 'quiz') return false;
     return window.innerWidth > window.innerHeight;
 }
 
@@ -1782,11 +1784,12 @@ function advanceQuizToNextQuestion() {
     const toScroll = Number.isFinite(toScrollRaw) ? Math.max(0, Math.round(toScrollRaw)) : 0;
 
     const distance = Math.abs(toScroll - fromScroll);
-    const landQuiz =
-        typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
+    // 横画面・全体ビューでは編集設定どおりの範囲を固定表示するため、自動スクロールしない。
+    // 縦画面・拡大ビューのときだけスムーススクロールを行う。
     const shouldAnimate =
         distance >= 6 &&
-        (state.settings.fretboardView === 'zoom' || landQuiz);
+        state.settings.fretboardView === 'zoom' &&
+        !(typeof window !== 'undefined' && window.innerWidth > window.innerHeight);
 
     if (shouldAnimate) {
         const duration = computeQuizScrollAnimationDuration(distance);
@@ -9894,8 +9897,12 @@ function renderFretboardHTML(containerId, options) {
     if (
         mode === 'memorize' &&
         state.memorize.playMode === 'quiz' &&
-        (state.settings.fretboardView === 'zoom' || memorizeLandscapeUnifiedFullLayout)
+        state.settings.fretboardView === 'zoom' &&
+        !memorizeLandscapeUnifiedFullLayout
     ) {
+        // 縦画面・拡大ビューのクイズだけ保存スクロール位置を反映する。
+        // 横画面・全体ビューでは編集で設定したフレット範囲を固定表示するため、
+        // スクロール位置は使わない（cruise と同じ振る舞い）。
         // 1) アニメ中はその瞬間の補間値を優先
         const animVal = getQuizScrollAnimationCurrentValue();
         if (animVal !== null) {
@@ -9912,10 +9919,8 @@ function renderFretboardHTML(containerId, options) {
     const containerEl = document.getElementById(containerId);
     const shouldPreserveScrollLeft =
         Number.isFinite(effectivePreserveScrollLeft) &&
-        (
-            (state.settings.fretboardView === 'zoom' && !memorizeLandscapeUnifiedFullLayout) ||
-            (memorizeLandscapeUnifiedFullLayout && state.memorize.playMode === 'quiz')
-        );
+        state.settings.fretboardView === 'zoom' &&
+        !memorizeLandscapeUnifiedFullLayout;
     containerEl.innerHTML = html;
 
     // クイズ：編集で保存した横位置を、innerHTML 差し替え直後から維持（解答表示で一瞬 scrollLeft=0 に見えるのを防ぐ）
@@ -10284,16 +10289,8 @@ function renderFretboardHTML(containerId, options) {
                     scrollWrapper.style.transformOrigin = 'top left';
                     scrollWrapper.style.marginLeft = `${centerTx}px`;
                     scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
-                    if (
-                        memorizeLandscapeUnifiedFullLayout &&
-                        state.memorize.playMode === 'quiz' &&
-                        Number.isFinite(effectivePreserveScrollLeft)
-                    ) {
-                        /* 横画面は全体ビュー分岐だが、クイズは保存スクロール位置が必要なときだけ横スクロール可 */
-                        scrollWrapper.style.overflowX = 'auto';
-                        scrollWrapper.style.overscrollBehaviorX = 'auto';
-                        scrollWrapper.style.touchAction = 'manipulation';
-                    }
+                    /* 横画面・全体ビューのクイズも cruise と同じく横スクロールを禁止する。
+                       スクロールロックは下の shouldLockMemorizeCruiseLandscapeFullScroll 経由で適用される。 */
                     if (visualizeFretHost) {
                         containerEl.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
                     }
