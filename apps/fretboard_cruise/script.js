@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.89.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.90.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -133,6 +133,56 @@ const SHIPPED_DEFAULT_STAGE_6_ROUTE_GROUP_BREAKS = JSON.parse(
 const SHIPPED_DEFAULT_STAGE_6_GROUP_SCROLL_LEFTS = JSON.parse(
     '{"0":0,"1":0,"2":0,"3":0,"4":0,"5":0,"6":0,"7":0,"8":68,"9":68,"10":68,"11":68,"12":68,"13":68,"14":5,"15":5,"16":180,"17":180,"18":180,"19":180,"20":180,"21":309,"22":309,"23":309,"24":309,"25":309,"26":309,"27":419,"28":419,"29":419,"30":419,"31":419,"32":419}'
 );
+
+/**
+ * 指板クイズ STAGE 1〜3 の公式デフォルト（初期値・新規ユーザー・「初期値」ボタン）。
+ * `quizStageEditorSettings[<stage>]` と同じ形式。
+ * 配布前のため、起動時に既存ユーザーの保存値も上書きする（QUIZ_SHIPPED_DEFAULTS_VERSION で管理）。
+ */
+const SHIPPED_DEFAULT_QUIZ_STAGE_1_GROUPS = JSON.parse(
+    '[{"notes":[{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":5,"fret":0},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":4,"fret":0},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":3,"fret":0},{"stringName":3,"fret":2},{"stringName":2,"fret":0},{"stringName":2,"fret":1},{"stringName":2,"fret":3},{"stringName":1,"fret":0},{"stringName":1,"fret":1},{"stringName":1,"fret":3}],"scrollLeft":0}]'
+);
+const SHIPPED_DEFAULT_QUIZ_STAGE_2_GROUPS = JSON.parse(
+    '[{"notes":[{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":5},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":4,"fret":5},{"stringName":3,"fret":2},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":2,"fret":3},{"stringName":2,"fret":5},{"stringName":1,"fret":3},{"stringName":1,"fret":5},{"stringName":2,"fret":6}],"scrollLeft":24}]'
+);
+const SHIPPED_DEFAULT_QUIZ_STAGE_3_GROUPS = JSON.parse(
+    '[{"notes":[{"stringName":6,"fret":5},{"stringName":6,"fret":7},{"stringName":6,"fret":8},{"stringName":5,"fret":5},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":4,"fret":5},{"stringName":4,"fret":7},{"stringName":4,"fret":9},{"stringName":3,"fret":5},{"stringName":3,"fret":7},{"stringName":3,"fret":9},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":2,"fret":8},{"stringName":1,"fret":5},{"stringName":1,"fret":7},{"stringName":1,"fret":8}],"scrollLeft":211}]'
+);
+/** バージョンを上げると、起動時に既存ユーザーの STAGE 1〜3 quiz 保存値が shipped で上書きされる。 */
+const QUIZ_SHIPPED_DEFAULTS_VERSION = 1;
+
+function getShippedDefaultQuizGroups(stage) {
+    const st = clamp(parseInt(stage, 10), 1, 6);
+    let raw = null;
+    if (st === 1) raw = SHIPPED_DEFAULT_QUIZ_STAGE_1_GROUPS;
+    else if (st === 2) raw = SHIPPED_DEFAULT_QUIZ_STAGE_2_GROUPS;
+    else if (st === 3) raw = SHIPPED_DEFAULT_QUIZ_STAGE_3_GROUPS;
+    if (!Array.isArray(raw)) return null;
+    // 配布定数を直接渡すと state 側で破壊的編集される恐れがあるためディープコピーで返す。
+    return raw.map(g => ({
+        notes: (g.notes || []).map(n => ({ stringName: n.stringName, fret: n.fret })),
+        scrollLeft: Number.isFinite(g.scrollLeft) ? g.scrollLeft : null
+    }));
+}
+
+/**
+ * 起動時に呼ぶ。指板クイズ STAGE 1〜3 の保存値を、配布定数で強制上書きする。
+ * 配布前のため一回だけ実行（QUIZ_SHIPPED_DEFAULTS_VERSION で多重実行を防ぐ）。
+ */
+function applyShippedDefaultQuizSettingsForcefullyIfNeeded() {
+    const appliedVersion = parseInt(state?.settings?.quizShippedDefaultsAppliedVersion, 10);
+    if (Number.isFinite(appliedVersion) && appliedVersion >= QUIZ_SHIPPED_DEFAULTS_VERSION) return false;
+    if (!state.settings.quizStageEditorSettings || typeof state.settings.quizStageEditorSettings !== 'object' || Array.isArray(state.settings.quizStageEditorSettings)) {
+        state.settings.quizStageEditorSettings = {};
+    }
+    [1, 2, 3].forEach(stage => {
+        const shipped = getShippedDefaultQuizGroups(stage);
+        if (!shipped) return;
+        state.settings.quizStageEditorSettings[String(stage)] = { groups: shipped };
+    });
+    state.settings.quizShippedDefaultsAppliedVersion = QUIZ_SHIPPED_DEFAULTS_VERSION;
+    return true;
+}
 
 function getShippedDefaultStage1RouteSlots() {
     return SHIPPED_DEFAULT_STAGE_1_ROUTE_SLOTS.map(slot => ({
@@ -706,6 +756,11 @@ if (state.settings.viewMode === 'front') {
     state.settings.rotation = { ...DEFAULT_ROTATION };
 }
 state.settings.viewMode = 'custom';
+
+// 配布前の片方向上書き：指板クイズ STAGE 1〜3 を公式デフォルトで強制セット
+if (applyShippedDefaultQuizSettingsForcefullyIfNeeded()) {
+    try { localStorage.setItem('fretboard_cruise_state', JSON.stringify(state)); } catch (e) {}
+}
 
 function saveState() {
     localStorage.setItem('fretboard_cruise_state', JSON.stringify(state));
@@ -2097,6 +2152,9 @@ function saveQuizEditorSettings(stage, groups) {
 }
 
 function getQuizEditorDefaultGroups(stage) {
+    // STAGE 1〜3 は配布定数（ユーザー検証済みの推奨デフォルト）。
+    const shipped = getShippedDefaultQuizGroups(stage);
+    if (shipped) return shipped;
     const targets = getStageTargets(stage);
     return [{ notes: targets.map(t => ({ stringName: t.stringName, fret: t.fret })), scrollLeft: 0 }];
 }
