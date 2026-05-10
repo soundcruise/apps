@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.87.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.87.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 // Constants
@@ -9979,14 +9979,28 @@ function renderFretboardHTML(containerId, options) {
     }
 
     // メモライズのズーム指板だけ、描画直後にスクロール位置を整える（自由探索の全体ビューでは中央寄せ margin を壊さない）
+    // ただし、クイズで quizGrScrollLeft（編集画面で保存した位置）を維持したい場合はスキップ。
+    // ここを通すと 10ms 後に強制的に scrollLeft=0 へ戻され、解答表示の一瞬で指板が左端に飛んで見える。
     if (mode === 'memorize' && containerId === 'fretboard-container' && state.memorize.playMode !== 'cruise') {
-        setTimeout(() => {
+        const skipResetForQuizPreserve = shouldPreserveScrollLeft && effectivePreserveScrollLeft > 0;
+        if (!skipResetForQuizPreserve) {
+            setTimeout(() => {
+                const wrapper = containerEl.querySelector('.fretboard-scroll-wrapper');
+                if (wrapper && wrapper.firstChild) {
+                    wrapper.scrollLeft = 0;
+                    wrapper.firstChild.style.marginLeft = '0';
+                }
+            }, 10);
+        } else {
             const wrapper = containerEl.querySelector('.fretboard-scroll-wrapper');
             if (wrapper && wrapper.firstChild) {
-                wrapper.scrollLeft = 0;
                 wrapper.firstChild.style.marginLeft = '0';
             }
-        }, 10);
+            setTimeout(() => {
+                const wrapper2 = containerEl.querySelector('.fretboard-scroll-wrapper');
+                if (wrapper2) wrapper2.scrollLeft = effectivePreserveScrollLeft;
+            }, 10);
+        }
     }
 }
 
