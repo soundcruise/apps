@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.92.4';
+const FRETBOARD_CRUISE_APP_VERSION = '1.93.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -135,7 +135,8 @@ const SHIPPED_DEFAULT_STAGE_6_GROUP_SCROLL_LEFTS = JSON.parse(
 );
 
 /**
- * 指板クイズ STAGE 1〜3 の公式デフォルト（初期値・新規ユーザー・「初期値」ボタン）。
+ * 指板クイズ STAGE 1〜5 の公式デフォルト（初期値・新規ユーザー・「初期値」ボタン）。
+ * STAGE 6 は下の getShippedDefaultQuizGroups(6) で STAGE1〜5 を Gr.1〜Gr.5 に合成する。
  * `quizStageEditorSettings[<stage>]` と同じ形式。
  * 配布前のため、起動時に既存ユーザーの保存値も上書きする（QUIZ_SHIPPED_DEFAULTS_VERSION で管理）。
  */
@@ -154,11 +155,23 @@ const SHIPPED_DEFAULT_QUIZ_STAGE_4_GROUPS = JSON.parse(
 const SHIPPED_DEFAULT_QUIZ_STAGE_5_GROUPS = JSON.parse(
     '[{"notes":[{"stringName":1,"fret":8},{"stringName":1,"fret":10},{"stringName":1,"fret":12},{"stringName":1,"fret":13},{"stringName":2,"fret":13},{"stringName":2,"fret":12},{"stringName":2,"fret":10},{"stringName":2,"fret":8},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":3,"fret":12},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":4,"fret":12},{"stringName":5,"fret":10},{"stringName":5,"fret":12},{"stringName":6,"fret":13},{"stringName":6,"fret":12},{"stringName":6,"fret":10},{"stringName":6,"fret":8},{"stringName":5,"fret":8}],"scrollLeft":381}]'
 );
-/** バージョンを上げると、起動時に既存ユーザーの STAGE 1〜5 quiz 保存値が shipped で上書きされる。 */
-const QUIZ_SHIPPED_DEFAULTS_VERSION = 4;
+/** バージョンを上げると、起動時に既存ユーザーの STAGE 1〜6 quiz 保存値が shipped で上書きされる。 */
+const QUIZ_SHIPPED_DEFAULTS_VERSION = 5;
 
 function getShippedDefaultQuizGroups(stage) {
     const st = clamp(parseInt(stage, 10), 1, 6);
+    // STAGE 6：Gr.1〜5 に STAGE1〜5 の shipped をそのまま対応付け（scrollLeft は案Bで各 STAGE の値を踏襲）
+    if (st === 6) {
+        const merged = [1, 2, 3, 4, 5].map(sn => {
+            const sub = getShippedDefaultQuizGroups(sn);
+            return sub && sub[0] ? sub[0] : null;
+        });
+        if (merged.some(g => !g)) return null;
+        return merged.map(g => ({
+            notes: (g.notes || []).map(n => ({ stringName: n.stringName, fret: n.fret })),
+            scrollLeft: Number.isFinite(g.scrollLeft) ? g.scrollLeft : null
+        }));
+    }
     let raw = null;
     if (st === 1) raw = SHIPPED_DEFAULT_QUIZ_STAGE_1_GROUPS;
     else if (st === 2) raw = SHIPPED_DEFAULT_QUIZ_STAGE_2_GROUPS;
@@ -174,7 +187,7 @@ function getShippedDefaultQuizGroups(stage) {
 }
 
 /**
- * 起動時に呼ぶ。指板クイズ STAGE 1〜3 の保存値を、配布定数で強制上書きする。
+ * 起動時に呼ぶ。指板クイズ STAGE 1〜6 の保存値を、配布定数で強制上書きする。
  * 配布前のため一回だけ実行（QUIZ_SHIPPED_DEFAULTS_VERSION で多重実行を防ぐ）。
  */
 function applyShippedDefaultQuizSettingsForcefullyIfNeeded() {
@@ -183,7 +196,7 @@ function applyShippedDefaultQuizSettingsForcefullyIfNeeded() {
     if (!state.settings.quizStageEditorSettings || typeof state.settings.quizStageEditorSettings !== 'object' || Array.isArray(state.settings.quizStageEditorSettings)) {
         state.settings.quizStageEditorSettings = {};
     }
-    [1, 2, 3, 4, 5].forEach(stage => {
+    [1, 2, 3, 4, 5, 6].forEach(stage => {
         const shipped = getShippedDefaultQuizGroups(stage);
         if (!shipped) return;
         state.settings.quizStageEditorSettings[String(stage)] = { groups: shipped };
@@ -772,7 +785,7 @@ if (state.settings.viewMode === 'front') {
 }
 state.settings.viewMode = 'custom';
 
-// 配布前の片方向上書き：指板クイズ STAGE 1〜3 を公式デフォルトで強制セット
+// 配布前の片方向上書き：指板クイズ STAGE 1〜6 を公式デフォルトで強制セット
 if (applyShippedDefaultQuizSettingsForcefullyIfNeeded()) {
     try { localStorage.setItem('fretboard_cruise_state', JSON.stringify(state)); } catch (e) {}
 }
@@ -2169,7 +2182,7 @@ function saveQuizEditorSettings(stage, groups) {
 }
 
 function getQuizEditorDefaultGroups(stage) {
-    // STAGE 1〜4 は配布定数（ユーザー検証済みの推奨デフォルト）。
+    // STAGE 1〜6 は配布定数（STAGE6 は STAGE1〜5 を Gr.1〜5 に合成）。
     const shipped = getShippedDefaultQuizGroups(stage);
     if (shipped) return shipped;
     const stNum = clamp(parseInt(stage, 10), 1, 6);
@@ -2177,7 +2190,7 @@ function getQuizEditorDefaultGroups(stage) {
     // ステージ別の編集時上限フレット（指板表示と初期データを揃える）
     if (stNum === 4) {
         targets = targets.filter(t => t.fret <= DEFAULT_VISIBLE_MAX_FRET);
-    } else if (stNum === 5) {
+    } else if (stNum === 5 || stNum === 6) {
         targets = targets.filter(t => t.fret <= 13);
     }
     return [{ notes: targets.map(t => ({ stringName: t.stringName, fret: t.fret })), scrollLeft: 0 }];
@@ -8782,8 +8795,8 @@ function getRenderMaxFret(mode, options) {
         if (options.memorizeStage === 5 || options.memorizeStage === 6) {
             maxFret = Math.max(maxFret, 13);
         }
-        // STAGE 5 の quiz は 13 フレットを上限に固定（編集画面と一致）
-        if (isQuizPlayMode && options.memorizeStage === 5) {
+        // STAGE 5・6 の quiz は 13 フレットを上限に固定（編集画面と一致）
+        if (isQuizPlayMode && (options.memorizeStage === 5 || options.memorizeStage === 6)) {
             return clamp(Math.min(maxFret, 13), DEFAULT_VISIBLE_MAX_FRET, MAX_FRET);
         }
     } else if (mode === 'routeEditor') {
@@ -8799,7 +8812,7 @@ function getRenderMaxFret(mode, options) {
         if (options.quizEditorStage === 4) {
             return DEFAULT_VISIBLE_MAX_FRET;
         }
-        if (options.quizEditorStage === 5) {
+        if (options.quizEditorStage === 5 || options.quizEditorStage === 6) {
             return 13;
         }
         const allNotes = (options.quizEditorGroups || []).flatMap(g => g.notes || []);
