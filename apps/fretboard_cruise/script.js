@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.99.5';
+const FRETBOARD_CRUISE_APP_VERSION = '1.99.6';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -10317,6 +10317,27 @@ function renderFretboardHTML(containerId, options) {
                     }
                 };
                 syncFretboardLayoutCollapse();
+                // 横画面のたどる/クイズはペイント前に同期で 1 回だけ再計測して、
+                // フレット番号と指板のズレ（仮値→正値の rAF 上書きで起きていたチラつき）を防ぐ
+                if (memorizeLandscapeUnifiedFullLayout) {
+                    const mhSync = readMemorizeHostMaxH();
+                    if (mhSync !== null && projectedBounds.height > 0) {
+                        const sSync = allowMemorizeFullScaleAbove1
+                            ? Math.min(scaleByW, mhSync / projectedBounds.height)
+                            : Math.min(1, scaleByW, mhSync / projectedBounds.height);
+                        if (Math.abs(sSync - scale) > 0.002) {
+                            scale = sSync;
+                            const swSync = projectedBounds.width * scale;
+                            centerTx = Math.max(0, Math.round((layoutW - swSync) / 2));
+                            if (allowMemorizeFullScaleAbove1) {
+                                scrollWrapper.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
+                            }
+                            scrollWrapper.style.marginLeft = `${centerTx}px`;
+                            scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
+                            syncFretboardLayoutCollapse();
+                        }
+                    }
+                }
                 if (shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId)) {
                     applyMemorizeCruiseLandscapeFullScrollLock(scrollWrapper, mode, containerId);
                     ensureMemorizeCruiseLandscapeFullScrollLockListener(scrollWrapper, mode, containerId);
