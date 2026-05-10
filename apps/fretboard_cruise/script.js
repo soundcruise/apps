@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.91.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.91.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -148,8 +148,11 @@ const SHIPPED_DEFAULT_QUIZ_STAGE_2_GROUPS = JSON.parse(
 const SHIPPED_DEFAULT_QUIZ_STAGE_3_GROUPS = JSON.parse(
     '[{"notes":[{"stringName":6,"fret":5},{"stringName":6,"fret":7},{"stringName":6,"fret":8},{"stringName":5,"fret":5},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":4,"fret":5},{"stringName":4,"fret":7},{"stringName":4,"fret":9},{"stringName":3,"fret":5},{"stringName":3,"fret":7},{"stringName":3,"fret":9},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":2,"fret":8},{"stringName":1,"fret":5},{"stringName":1,"fret":7},{"stringName":1,"fret":8}],"scrollLeft":211}]'
 );
-/** バージョンを上げると、起動時に既存ユーザーの STAGE 1〜3 quiz 保存値が shipped で上書きされる。 */
-const QUIZ_SHIPPED_DEFAULTS_VERSION = 2;
+const SHIPPED_DEFAULT_QUIZ_STAGE_4_GROUPS = JSON.parse(
+    '[{"notes":[{"stringName":6,"fret":7},{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":5,"fret":10},{"stringName":4,"fret":7},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":3,"fret":7},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":2,"fret":6},{"stringName":2,"fret":8},{"stringName":2,"fret":10},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":10}],"scrollLeft":263}]'
+);
+/** バージョンを上げると、起動時に既存ユーザーの STAGE 1〜4 quiz 保存値が shipped で上書きされる。 */
+const QUIZ_SHIPPED_DEFAULTS_VERSION = 3;
 
 function getShippedDefaultQuizGroups(stage) {
     const st = clamp(parseInt(stage, 10), 1, 6);
@@ -157,6 +160,7 @@ function getShippedDefaultQuizGroups(stage) {
     if (st === 1) raw = SHIPPED_DEFAULT_QUIZ_STAGE_1_GROUPS;
     else if (st === 2) raw = SHIPPED_DEFAULT_QUIZ_STAGE_2_GROUPS;
     else if (st === 3) raw = SHIPPED_DEFAULT_QUIZ_STAGE_3_GROUPS;
+    else if (st === 4) raw = SHIPPED_DEFAULT_QUIZ_STAGE_4_GROUPS;
     if (!Array.isArray(raw)) return null;
     // 配布定数を直接渡すと state 側で破壊的編集される恐れがあるためディープコピーで返す。
     return raw.map(g => ({
@@ -175,7 +179,7 @@ function applyShippedDefaultQuizSettingsForcefullyIfNeeded() {
     if (!state.settings.quizStageEditorSettings || typeof state.settings.quizStageEditorSettings !== 'object' || Array.isArray(state.settings.quizStageEditorSettings)) {
         state.settings.quizStageEditorSettings = {};
     }
-    [1, 2, 3].forEach(stage => {
+    [1, 2, 3, 4].forEach(stage => {
         const shipped = getShippedDefaultQuizGroups(stage);
         if (!shipped) return;
         state.settings.quizStageEditorSettings[String(stage)] = { groups: shipped };
