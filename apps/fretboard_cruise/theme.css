@@ -813,18 +813,23 @@
 
 .memorize-cleared-card__actions {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
+    flex-direction: row;
+    gap: 10px;
     margin-top: 6px;
+    width: 100%;
 }
 
 .memorize-cleared-card__btn {
-    width: 100%;
+    flex: 1 1 0;
+    min-width: 0;
     border-radius: 12px;
-    padding: 11px 14px;
-    font-size: 0.95rem;
+    padding: 11px 12px;
+    font-size: 0.92rem;
     font-weight: 700;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
 }
 
 .memorize-cleared-card__btn--primary {
