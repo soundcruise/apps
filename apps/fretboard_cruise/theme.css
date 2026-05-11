@@ -1376,6 +1376,18 @@
     outline: none;
 }
 
+.pro-custom-setup-panel .setup-item input {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-family: inherit;
+    outline: none;
+    width: min(240px, 72vw);
+}
+
 .mode-buttons {
     display: flex;
     flex-wrap: wrap;
@@ -4301,4 +4313,3 @@ input:checked + .toggle-slider:before {
 .settings-tab-panel.is-hidden {
     display: none;
 }
-
