@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.112.5';
+const FRETBOARD_CRUISE_APP_VERSION = '1.112.7';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -8511,6 +8511,14 @@ function exitMemorizeClearedToStageOrEditor() {
     if (state.quizEditorPreview && state.memorize.playMode === 'quiz') {
         state.course = 'quizEditor';
         state.quizEditorPreview = null;
+    } else if (state.memorize.isDemoPlayback && state.memorize.demoReturnCourse === 'routeEditor') {
+        state.course = 'routeEditor';
+        if (Number.isFinite(parseInt(state.memorize.demoReturnStage, 10))) {
+            state.routeEditor.stage = clamp(parseInt(state.memorize.demoReturnStage, 10), 1, 6);
+        }
+        state.memorize.isDemoPlayback = false;
+        state.memorize.demoReturnCourse = null;
+        state.memorize.demoReturnStage = null;
     } else if (state.memorize.isDemoPlayback && state.memorize.demoReturnCourse === 'proCustomRouteEditor') {
         state.course = 'proCustomRouteEditor';
         state.memorize.isDemoPlayback = false;
@@ -8524,7 +8532,9 @@ function exitMemorizeClearedToStageOrEditor() {
 }
 
 function returnMemorizeDemoToEditor() {
-    if (!state.memorize?.isDemoPlayback || state.memorize.demoReturnCourse !== 'proCustomRouteEditor') return;
+    if (!state.memorize?.isDemoPlayback) return;
+    const demoReturnCourse = state.memorize.demoReturnCourse;
+    if (demoReturnCourse !== 'routeEditor' && demoReturnCourse !== 'proCustomRouteEditor') return;
     stopRhythm();
     stopQuizTimer();
     cancelQuizScrollAnimation();
@@ -8534,7 +8544,14 @@ function returnMemorizeDemoToEditor() {
     state.memorize.isDemoPlayback = false;
     state.memorize.demoReturnCourse = null;
     state.memorize.demoReturnStage = null;
-    state.course = 'proCustomRouteEditor';
+    if (demoReturnCourse === 'routeEditor') {
+        state.course = 'routeEditor';
+        if (Number.isFinite(parseInt(state.memorize.demoReturnStage, 10))) {
+            state.routeEditor.stage = clamp(parseInt(state.memorize.demoReturnStage, 10), 1, 6);
+        }
+    } else {
+        state.course = 'proCustomRouteEditor';
+    }
     saveState();
     renderApp();
 }
@@ -8706,6 +8723,11 @@ function renderMemorize(app) {
         isProCustomCruise &&
         state.memorize.isDemoPlayback === true &&
         state.memorize.demoReturnCourse === 'proCustomRouteEditor';
+    const isRouteEditorDemoPlayback =
+        isCruise &&
+        state.memorize.isDemoPlayback === true &&
+        state.memorize.demoReturnCourse === 'routeEditor';
+    const isEditorDemoPlayback = isProCustomDemoPlayback || isRouteEditorDemoPlayback;
     const memorizeStageLabel = isProCustomCruise
         ? escapeHtml(state.memorize.proCustomCruise?.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)
         : `STAGE ${state.memorize.stage}`;
@@ -8759,7 +8781,7 @@ function renderMemorize(app) {
                         <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-next">➡️</button>
                     </div>
                 ` : ''}
-                ${isProCustomDemoPlayback && !isCruiseCleared ? `
+                ${isEditorDemoPlayback && !isCruiseCleared ? `
                     <div class="memorize-cruise-controls memorize-cruise-controls--pro-custom">
                         <button type="button" class="btn-secondary memorize-cruise-control-btn memorize-cruise-control-btn--pro-custom-return" id="btn-pro-custom-return-editor">編集画面に戻る</button>
                     </div>
@@ -8785,7 +8807,7 @@ function renderMemorize(app) {
                             </div>
                             <div class="memorize-cleared-card__actions memorize-cleared-card__actions--three">
                                 <button type="button" class="btn-primary memorize-cleared-card__btn memorize-cleared-card__btn--primary" id="btn-memorize-cleared-restart">もう1回</button>
-                                <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-exit">${isProCustomDemoPlayback ? '編集画面へ' : '終了'}</button>
+                                <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-exit">${isEditorDemoPlayback ? '編集画面へ' : '終了'}</button>
                                 <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-next-stage"${isProCustomCruise || state.memorize.stage >= 6 ? ' disabled' : ''}>次のSTAGEへ</button>
                             </div>
                         </div>
