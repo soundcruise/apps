@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.112.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.112.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -328,6 +328,7 @@ const ROUTE_EDITOR_MAX_GROUPS = 60;
 const QUIZ_EDITOR_MAX_GROUPS = 20;
 const PRO_CUSTOM_STAGE_MAX_GROUPS = 60;
 const PRO_CUSTOM_STAGE_DEFAULT_NAME = 'PROカスタムSTAGE';
+const PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET = 12;
 const PRO_CUSTOM_SCALE_KEYS = ['major', 'minor', 'harmonicMinor', 'melodicMinor', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'locrian', 'pentaMajor', 'pentaMinor', 'blues'];
 const ROUTE_EDITOR_SCALE_GUIDE_LABELS = {
     0: 'ド',
@@ -441,7 +442,7 @@ let state = {
         scale: 'major',
         displayMode: 'solfege',
         doMode: 'movable',
-        showExtendedFrets: false,
+        maxFret: PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET,
         scrollLefts: {}
     },
     quizEditor: {
@@ -1229,7 +1230,7 @@ function getDefaultProCustomStageSettings() {
         scale: 'major',
         displayMode: 'solfege',
         doMode: 'movable',
-        showExtendedFrets: false,
+        maxFret: PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET,
         route: getDefaultProCustomStageDraft(),
         groupBreaks: [0],
         groupNames: ['Gr.1'],
@@ -1245,6 +1246,9 @@ function normalizeProCustomStageSettings(raw) {
     const scale = PRO_CUSTOM_SCALE_KEYS.includes(raw.scale) ? raw.scale : defaults.scale;
     const displayMode = ['solfege', 'note', 'degree'].includes(raw.displayMode) ? raw.displayMode : defaults.displayMode;
     const doMode = raw.doMode === 'fixed' ? 'fixed' : 'movable';
+    const maxFret = Number.isFinite(parseInt(raw.maxFret, 10))
+        ? clamp(parseInt(raw.maxFret, 10), PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, MAX_FRET)
+        : (raw.showExtendedFrets ? MAX_FRET : PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET);
     const groupCount = Math.max(1, buildRouteEditorGroupsFromBreaks(route, groupBreaks.length ? groupBreaks : [0]).length);
     const groupNames = Array.isArray(raw.groupNames)
         ? raw.groupNames.slice(0, groupCount).map((name, index) => {
@@ -1271,7 +1275,7 @@ function normalizeProCustomStageSettings(raw) {
         scale,
         displayMode,
         doMode,
-        showExtendedFrets: !!raw.showExtendedFrets,
+        maxFret,
         route,
         groupBreaks: groupBreaks.length ? groupBreaks : [0],
         groupNames,
@@ -1324,7 +1328,9 @@ function normalizeProCustomEditorState(raw) {
         scale: PRO_CUSTOM_SCALE_KEYS.includes(source.scale) ? source.scale : (PRO_CUSTOM_SCALE_KEYS.includes(saved.scale) ? saved.scale : 'major'),
         displayMode: ['solfege', 'note', 'degree'].includes(source.displayMode) ? source.displayMode : saved.displayMode,
         doMode: source.doMode === 'fixed' ? 'fixed' : saved.doMode === 'fixed' ? 'fixed' : 'movable',
-        showExtendedFrets: typeof source.showExtendedFrets === 'boolean' ? source.showExtendedFrets : !!saved.showExtendedFrets,
+        maxFret: Number.isFinite(parseInt(source.maxFret ?? saved.maxFret, 10))
+            ? clamp(parseInt(source.maxFret ?? saved.maxFret, 10), PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, MAX_FRET)
+            : (source.showExtendedFrets || saved.showExtendedFrets ? MAX_FRET : PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET),
         scrollLefts
     };
 }
@@ -1343,7 +1349,7 @@ function saveProCustomStageFromEditor() {
         scale: editor.scale,
         displayMode: editor.displayMode,
         doMode: editor.doMode,
-        showExtendedFrets: editor.showExtendedFrets,
+        maxFret: editor.maxFret,
         route: editor.draft,
         groupBreaks: editor.groupBreaks,
         groupNames: editor.groupNames,
@@ -3794,6 +3800,9 @@ function startProCustomCruisePlayback(stageSettings, returnCourse = 'proCustomRo
         key: custom.key,
         capo: custom.capo,
         scale: custom.scale,
+        displayMode: custom.displayMode,
+        doMode: custom.doMode,
+        maxFret: custom.maxFret,
         groupScrollLefts: { ...(custom.groupScrollLefts || {}) }
     };
     state.memorize.isCruisePlaying = true;
@@ -6727,7 +6736,7 @@ function renderStageSelect(app) {
             scale: saved.scale,
             displayMode: saved.displayMode,
             doMode: saved.doMode,
-            showExtendedFrets: saved.showExtendedFrets,
+            maxFret: saved.maxFret,
             scrollLefts: saved.groupScrollLefts
         });
         state.course = 'proCustomRouteEditor';
@@ -7599,6 +7608,7 @@ function isProCustomSelectableFret(editor, stringName, fret) {
     const normalizedFret = parseInt(fret, 10);
     const normalizedString = parseInt(stringName, 10);
     if (!Number.isFinite(normalizedFret) || !Number.isFinite(normalizedString)) return false;
+    if (normalizedFret > normalizedEditor.maxFret) return false;
     if (normalizedFret < normalizedEditor.capo) return false;
     const stringIdx = 6 - normalizedString;
     if (stringIdx < 0 || stringIdx >= OPEN_STRINGS.length) return false;
@@ -7606,6 +7616,24 @@ function isProCustomSelectableFret(editor, stringName, fret) {
     const keyPcForHarmony = (normalizedEditor.key + normalizedEditor.capo) % 12;
     const degreeFromKey = (noteIdx - keyPcForHarmony + 12) % 12;
     return getScaleDegrees(normalizedEditor.scale || 'major').hasOwnProperty(degreeFromKey);
+}
+
+function getProCustomDisplayLabel(noteIdx, fret, custom) {
+    const capo = clamp(parseInt(custom?.capo, 10) || 0, 0, 7);
+    const key = clamp(parseInt(custom?.key, 10) || 0, 0, NOTES.length - 1);
+    const scaleType = PRO_CUSTOM_SCALE_KEYS.includes(custom?.scale) ? custom.scale : 'major';
+    const keyPcForHarmony = (key + capo) % 12;
+    const degreeFromKey = (noteIdx - keyPcForHarmony + 12) % 12;
+    const isScale = getScaleDegrees(scaleType).hasOwnProperty(degreeFromKey);
+    return getVisualizeMarkerLabel(
+        noteIdx,
+        scaleType,
+        custom?.displayMode || 'solfege',
+        custom?.doMode || 'movable',
+        isScale,
+        degreeFromKey,
+        getAllDegreesWithAccidentals(scaleType)
+    );
 }
 
 function filterProCustomDraftToCurrentScale(editor) {
@@ -7686,6 +7714,10 @@ function renderProCustomRouteEditor(app) {
         ['pentaMinor', 'マイナーペンタトニック'],
         ['blues', 'ブルース']
     ];
+    const maxFretOptions = Array.from(
+        { length: MAX_FRET - PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET + 1 },
+        (_, index) => PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET + index
+    );
 
     app.innerHTML = `
         <div class="route-editor-screen route-editor-scale-guide-variant-3 pro-custom-route-editor-screen">
@@ -7729,7 +7761,10 @@ function renderProCustomRouteEditor(app) {
                     </div>
                 </div>
                 <div class="setup-item setup-item--wide">
-                    <button type="button" id="pro-custom-extended-frets" class="extended-frets-btn ${state.proCustomRouteEditor.showExtendedFrets ? 'active' : ''}" aria-pressed="${state.proCustomRouteEditor.showExtendedFrets ? 'true' : 'false'}">13フレット以降を表示</button>
+                    <label>最大フレット</label>
+                    <select id="pro-custom-max-fret">
+                        ${maxFretOptions.map(fret => `<option value="${fret}" ${state.proCustomRouteEditor.maxFret===fret?'selected':''}>${fret}フレット</option>`).join('')}
+                    </select>
                 </div>
             </div>
             <div class="route-editor-toolbar">
@@ -7777,7 +7812,12 @@ function renderProCustomRouteEditor(app) {
     document.querySelectorAll('[data-pro-custom-do-mode]').forEach(btn => {
         btn.onclick = () => { state.proCustomRouteEditor.doMode = btn.getAttribute('data-pro-custom-do-mode'); saveState(); renderApp(); };
     });
-    document.getElementById('pro-custom-extended-frets').onclick = () => { state.proCustomRouteEditor.showExtendedFrets = !state.proCustomRouteEditor.showExtendedFrets; currentScrollLeft = 0; saveState(); renderApp(); };
+    document.getElementById('pro-custom-max-fret').onchange = e => {
+        pushProCustomEditorHistory();
+        state.proCustomRouteEditor.maxFret = clamp(parseInt(e.target.value, 10) || PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, MAX_FRET);
+        currentScrollLeft = 0;
+        rerenderAfterSettingChange();
+    };
     document.getElementById('btn-pro-custom-undo').onclick = () => {
         const historyItem = Array.isArray(state.proCustomRouteEditor.history) ? state.proCustomRouteEditor.history.pop() : null;
         if (!historyItem) return;
@@ -7869,7 +7909,7 @@ function renderProCustomRouteEditor(app) {
             scale: state.proCustomRouteEditor.scale,
             displayMode: state.proCustomRouteEditor.displayMode,
             doMode: state.proCustomRouteEditor.doMode,
-            showExtendedFrets: state.proCustomRouteEditor.showExtendedFrets,
+            maxFret: state.proCustomRouteEditor.maxFret,
             route: state.proCustomRouteEditor.draft,
             groupBreaks: state.proCustomRouteEditor.groupBreaks,
             groupNames: state.proCustomRouteEditor.groupNames,
@@ -7890,7 +7930,7 @@ function renderProCustomRouteEditor(app) {
             scale: state.proCustomRouteEditor.scale,
             displayMode: state.proCustomRouteEditor.displayMode,
             doMode: state.proCustomRouteEditor.doMode,
-            showExtendedFrets: state.proCustomRouteEditor.showExtendedFrets
+            maxFret: state.proCustomRouteEditor.maxFret
         },
         onRouteEditorMarkerClick: (routeIndex) => {
             if (!Number.isFinite(routeIndex) || routeIndex < 0 || routeIndex >= state.proCustomRouteEditor.draft.length || activeGroupIndex < 0) return;
@@ -10547,9 +10587,12 @@ function getRenderMaxFret(mode, options) {
                 getHighestFretFromPositions(state.memorize.cruiseTargets),
                 getHighestFretFromPositions(state.memorize.cruiseScope)
             );
+            if (state.memorize.proCustomCruise && Number.isFinite(parseInt(state.memorize.proCustomCruise.maxFret, 10))) {
+                maxFret = Math.max(maxFret, clamp(parseInt(state.memorize.proCustomCruise.maxFret, 10), DEFAULT_VISIBLE_MAX_FRET, MAX_FRET));
+            }
         }
         // STAGE 5・6 は問題画面でも 13 フレットまで表示する（出題が低フレットでも縮まないよう固定）
-        if (options.memorizeStage === 5 || options.memorizeStage === 6) {
+        if (!state.memorize.proCustomCruise && (options.memorizeStage === 5 || options.memorizeStage === 6)) {
             maxFret = Math.max(maxFret, 13);
         }
         // STAGE 5・6 の quiz は 13 フレットを上限に固定（編集画面と一致）
@@ -10561,10 +10604,10 @@ function getRenderMaxFret(mode, options) {
             maxFret,
             getHighestFretFromPositions(options.routeEditorDraft)
         );
-        if (options.proCustomGuide?.showExtendedFrets) {
-            maxFret = Math.max(maxFret, EXTENDED_VISIBLE_MAX_FRET);
+        if (Number.isFinite(parseInt(options.proCustomGuide?.maxFret, 10))) {
+            maxFret = Math.max(maxFret, clamp(parseInt(options.proCustomGuide.maxFret, 10), DEFAULT_VISIBLE_MAX_FRET, MAX_FRET));
         }
-        if (options.routeEditorStage === 5 || options.routeEditorStage === 6) {
+        if (!options.proCustomGuide && (options.routeEditorStage === 5 || options.routeEditorStage === 6)) {
             maxFret = Math.max(maxFret, 13);
         }
     } else if (mode === 'quizEditor') {
@@ -11069,6 +11112,9 @@ function renderFretboardHTML(containerId, options) {
                     // Cruise mode: always show answer, user must click it
                     let isScope = state.memorize.cruiseScope.some(t => t.stringName === stringNum && t.fret === f);
                     let isNextCruise = nextCruiseTarget && stringNum === nextCruiseTarget.stringName && f === nextCruiseTarget.fret && !isTargetCruise;
+                    const cruiseMarkerLabel = state.memorize.proCustomCruise
+                        ? getProCustomDisplayLabel(noteIdx, f, state.memorize.proCustomCruise)
+                        : getNotationLabel(noteIdx);
                     if (hideCruiseNoteMarkers) {
                         // 音名OFF時：現在押す音だけは丸（ラベルなし）で表示し、次/範囲は完全非表示
                         if (isTargetCruise) {
@@ -11077,11 +11123,11 @@ function renderFretboardHTML(containerId, options) {
                             markerHtml = `<div class="note-marker hidden-note"></div>`;
                         }
                     } else if (isTargetCruise) {
-                        markerHtml = `<div class="note-marker target-note correct-note">${getNotationLabel(noteIdx)}</div>`;
+                        markerHtml = `<div class="note-marker target-note correct-note">${cruiseMarkerLabel}</div>`;
                     } else if (isNextCruise) {
-                        markerHtml = `<div class="note-marker target-note next-note">${getNotationLabel(noteIdx)}</div>`;
+                        markerHtml = `<div class="note-marker target-note next-note">${cruiseMarkerLabel}</div>`;
                     } else if (isScope) {
-                        markerHtml = `<div class="note-marker target-note grey-note">${getNotationLabel(noteIdx)}</div>`;
+                        markerHtml = `<div class="note-marker target-note grey-note">${cruiseMarkerLabel}</div>`;
                     } else {
                         markerHtml = `<div class="note-marker hidden-note"></div>`;
                     }
