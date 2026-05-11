@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.112.14';
+const FRETBOARD_CRUISE_APP_VERSION = '1.112.16';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -7784,10 +7784,45 @@ function renderProCustomRouteEditor(app) {
             <div class="pro-custom-route-editor-tail-spacer" aria-hidden="true"></div>
             <div class="route-editor-expanded-spacer ${showAllGroupsExpanded ? 'route-editor-expanded-spacer--visible' : ''}" aria-hidden="true"></div>
         </div>
+        <div class="pro-custom-stage-name-modal" id="pro-custom-stage-name-modal" hidden>
+            <div class="pro-custom-stage-name-modal__backdrop" data-pro-custom-stage-name-cancel></div>
+            <div class="pro-custom-stage-name-modal__panel" role="dialog" aria-modal="true" aria-labelledby="pro-custom-stage-name-modal-title">
+                <div class="pro-custom-stage-name-modal__title" id="pro-custom-stage-name-modal-title">STAGE名を入力</div>
+                <label class="pro-custom-stage-name-modal__label" for="pro-custom-stage-name-input">保存する名前</label>
+                <input class="pro-custom-stage-name-modal__input" id="pro-custom-stage-name-input" type="text" maxlength="24" spellcheck="false" autocomplete="off" inputmode="text" />
+                <div class="pro-custom-stage-name-modal__actions">
+                    <button type="button" class="btn-secondary pro-custom-stage-name-modal__cancel" data-pro-custom-stage-name-cancel>キャンセル</button>
+                    <button type="button" class="btn-primary pro-custom-stage-name-modal__confirm" id="pro-custom-stage-name-confirm">保存</button>
+                </div>
+            </div>
+        </div>
     `;
 
     const rerenderAfterSettingChange = () => {
         state.proCustomRouteEditor = filterProCustomDraftToCurrentScale(state.proCustomRouteEditor);
+        saveState();
+        renderApp();
+    };
+    const nameModal = document.getElementById('pro-custom-stage-name-modal');
+    const nameInput = document.getElementById('pro-custom-stage-name-input');
+    const closeNameModal = () => {
+        nameModal.hidden = true;
+        nameModal.classList.remove('is-open');
+    };
+    const openNameModal = () => {
+        nameInput.value = String(state.proCustomRouteEditor.name || PRO_CUSTOM_STAGE_DEFAULT_NAME);
+        nameModal.hidden = false;
+        nameModal.classList.add('is-open');
+        setTimeout(() => {
+            nameInput.focus();
+            nameInput.select();
+        }, 0);
+    };
+    const confirmNameModal = () => {
+        state.proCustomRouteEditor.name = String(nameInput.value || '').trim() || PRO_CUSTOM_STAGE_DEFAULT_NAME;
+        closeNameModal();
+        saveProCustomStageFromEditor();
+        state.course = 'stageSelect';
         saveState();
         renderApp();
     };
@@ -7889,11 +7924,21 @@ function renderProCustomRouteEditor(app) {
         };
     });
     document.getElementById('btn-pro-custom-save').onclick = () => {
-        saveProCustomStageFromEditor();
-        state.course = 'stageSelect';
-        saveState();
-        renderApp();
+        openNameModal();
     };
+    document.getElementById('pro-custom-stage-name-confirm').onclick = confirmNameModal;
+    nameModal.querySelectorAll('[data-pro-custom-stage-name-cancel]').forEach(btn => {
+        btn.onclick = closeNameModal;
+    });
+    nameInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            confirmNameModal();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            closeNameModal();
+        }
+    });
     document.getElementById('btn-pro-custom-demo').onclick = () => {
         startProCustomCruisePlayback({
             name: state.proCustomRouteEditor.name,
