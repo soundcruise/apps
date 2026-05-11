@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.112.13';
+const FRETBOARD_CRUISE_APP_VERSION = '1.112.14';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -7732,11 +7732,6 @@ function renderProCustomRouteEditor(app) {
                 rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-pro-custom" aria-label="設定">⚙️</button>`
             })}
             <div class="setup-panel pro-custom-setup-panel">
-                <div class="setup-item setup-item--wide pro-custom-name-item">
-                    <button type="button" class="pro-custom-name-btn" id="btn-pro-custom-name-edit">
-                        <span class="pro-custom-name-btn__value">${escapeHtml(state.proCustomRouteEditor.name)}</span>
-                    </button>
-                </div>
                 <div class="setup-item">
                     <label>キー</label>
                     <select id="pro-custom-key">${NOTES.map((note, idx) => `<option value="${idx}" ${state.proCustomRouteEditor.key===idx?'selected':''}>${note}</option>`).join('')}</select>
@@ -7796,22 +7791,9 @@ function renderProCustomRouteEditor(app) {
         saveState();
         renderApp();
     };
-    const promptForProCustomStageName = () => {
-        const currentName = String(state.proCustomRouteEditor.name || PRO_CUSTOM_STAGE_DEFAULT_NAME);
-        const nextName = window.prompt('PROカスタムSTAGEの名前を入力してください', currentName);
-        if (nextName === null) return false;
-        state.proCustomRouteEditor.name = String(nextName).trim() || PRO_CUSTOM_STAGE_DEFAULT_NAME;
-        saveState();
-        renderApp();
-        return true;
-    };
     document.getElementById('btn-pro-custom-back').onclick = () => { state.course = 'stageSelect'; saveState(); renderApp(); };
     document.getElementById('btn-pro-custom-home').onclick = () => { state.course = null; saveState(); renderApp(); };
     document.getElementById('btn-settings-pro-custom').onclick = () => openSettings('proCustomRouteEditor');
-    const btnProCustomNameEdit = document.getElementById('btn-pro-custom-name-edit');
-    if (btnProCustomNameEdit) {
-        btnProCustomNameEdit.onclick = promptForProCustomStageName;
-    }
     document.getElementById('pro-custom-key').onchange = e => { pushProCustomEditorHistory(); state.proCustomRouteEditor.key = parseInt(e.target.value, 10) || 0; rerenderAfterSettingChange(); };
     document.getElementById('pro-custom-capo').onchange = e => { pushProCustomEditorHistory(); state.proCustomRouteEditor.capo = parseInt(e.target.value, 10) || 0; rerenderAfterSettingChange(); };
     document.getElementById('pro-custom-scale').onchange = e => { pushProCustomEditorHistory(); state.proCustomRouteEditor.scale = e.target.value; rerenderAfterSettingChange(); };
@@ -7907,7 +7889,6 @@ function renderProCustomRouteEditor(app) {
         };
     });
     document.getElementById('btn-pro-custom-save').onclick = () => {
-        if (!promptForProCustomStageName()) return;
         saveProCustomStageFromEditor();
         state.course = 'stageSelect';
         saveState();
