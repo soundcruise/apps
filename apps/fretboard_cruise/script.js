@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.112.7';
+const FRETBOARD_CRUISE_APP_VERSION = '1.112.11';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -7790,6 +7790,7 @@ function renderProCustomRouteEditor(app) {
                 <button type="button" class="btn-secondary route-editor-demo-btn" id="btn-pro-custom-demo" ${draft.length ? '' : 'disabled'}>現在の順番でデモ</button>
                 <button class="btn-primary route-editor-save-btn" id="btn-pro-custom-save" ${draft.length ? '' : 'disabled'}>このSTAGEで保存</button>
             </div>
+            <div class="pro-custom-route-editor-tail-spacer" aria-hidden="true"></div>
             <div class="route-editor-expanded-spacer ${showAllGroupsExpanded ? 'route-editor-expanded-spacer--visible' : ''}" aria-hidden="true"></div>
         </div>
     `;
@@ -7963,7 +7964,7 @@ function renderProCustomRouteEditor(app) {
     app.style.alignItems = 'stretch';
     app.style.gap = '0';
     app.style.paddingTop = 'max(4px, env(safe-area-inset-top))';
-    app.style.paddingBottom = 'calc(var(--in-game-refresh-stack-height, 96px) + max(8px, env(safe-area-inset-bottom)))';
+    app.style.paddingBottom = 'calc(var(--in-game-refresh-stack-height, 96px) + max(96px, env(safe-area-inset-bottom)))';
     app.style.paddingLeft = 'max(10px, env(safe-area-inset-left))';
     app.style.paddingRight = 'max(10px, env(safe-area-inset-right))';
 }

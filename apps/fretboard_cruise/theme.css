@@ -2136,6 +2136,21 @@ input:checked + .toggle-slider:before {
     width: 100%;
 }
 
+.pro-custom-route-editor-screen .route-editor-save-row {
+    margin-top: 28px;
+    margin-bottom: 84px;
+}
+
+.pro-custom-route-editor-screen {
+    padding-bottom: 72px;
+}
+
+.pro-custom-route-editor-tail-spacer {
+    width: 100%;
+    height: 180px;
+    flex: 0 0 auto;
+}
+
 .route-editor-expanded-gap {
     width: 100%;
     height: 0;
@@ -2156,6 +2171,10 @@ input:checked + .toggle-slider:before {
     height: clamp(120px, 16vh, 220px);
 }
 
+.pro-custom-route-editor-screen .route-editor-expanded-spacer--visible {
+    height: clamp(240px, 30vh, 420px);
+}
+
 .route-editor-demo-btn {
     width: min(420px, 100%);
     min-height: 44px;
@@ -2169,6 +2188,11 @@ input:checked + .toggle-slider:before {
 .route-editor-save-btn {
     width: min(420px, 100%);
     min-height: 44px;
+}
+
+.pro-custom-route-editor-screen .route-editor-demo-btn,
+.pro-custom-route-editor-screen .route-editor-save-btn {
+    min-height: 52px;
 }
 
 .route-editor-list {
