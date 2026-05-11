@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.112.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.112.4';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -8760,8 +8760,8 @@ function renderMemorize(app) {
                     </div>
                 ` : ''}
                 ${isProCustomDemoPlayback && !isCruiseCleared ? `
-                    <div class="memorize-cruise-controls">
-                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-pro-custom-return-editor">編集画面に戻る</button>
+                    <div class="memorize-cruise-controls memorize-cruise-controls--pro-custom">
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn memorize-cruise-control-btn--pro-custom-return" id="btn-pro-custom-return-editor">編集画面に戻る</button>
                     </div>
                 ` : ''}
                 ${isCruiseCounting ? `<div class="memorize-countdown-overlay" aria-hidden="true">${cruiseCountdownValue}</div>` : ''}

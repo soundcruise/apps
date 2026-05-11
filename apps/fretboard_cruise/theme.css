@@ -998,6 +998,42 @@
     text-overflow: clip;
 }
 
+.memorize-cruise-controls--pro-custom {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
+}
+
+.memorize-cruise-control-btn--pro-custom-return {
+    min-height: 46px;
+    padding: 9px 12px;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    line-height: 1.15;
+    font-size: 1rem;
+    font-weight: 800;
+    color: #f7fbff;
+    border: 1px solid rgba(117, 183, 255, 0.92);
+    background:
+        radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.26), transparent 52%),
+        linear-gradient(180deg, #4fa3ff 0%, #1f72e5 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.26),
+        0 10px 24px rgba(24, 96, 220, 0.38),
+        0 0 0 1px rgba(24, 96, 220, 0.15);
+    text-shadow: 0 1px 2px rgba(0, 28, 72, 0.48);
+}
+
+.memorize-cruise-control-btn--pro-custom-return:hover {
+    background:
+        radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.32), transparent 52%),
+        linear-gradient(180deg, #68b0ff 0%, #2a84ff 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.3),
+        0 12px 28px rgba(24, 96, 220, 0.46),
+        0 0 0 1px rgba(117, 183, 255, 0.24);
+}
+
 /* 縦＋拡大/全体: 問題〜STAGE〜フィードバックは同じ。指板は内容の高さのみ（flex:1 をやめて縦中央にまとまる）。拡大/全体の違いは script のスケール */
 .memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-body-stack,
 .memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="full"] .memorize-body-stack {
@@ -1319,6 +1355,11 @@
     transform: translateX(-50%);
 }
 
+.memorize-screen--landscape .memorize-cruise-controls--pro-custom {
+    width: min(320px, calc(100vw - 24px));
+    grid-template-columns: 1fr;
+}
+
 .memorize-screen--landscape .memorize-cruise-control-btn {
     display: grid;
     place-items: center;
@@ -1327,6 +1368,16 @@
     border-radius: 14px;
     font-size: 1.1rem;
     line-height: 1;
+}
+
+.memorize-screen--landscape .memorize-cruise-control-btn--pro-custom-return {
+    min-height: 50px;
+    padding: 8px 14px;
+    font-size: 0.95rem;
+    line-height: 1.18;
+    white-space: normal;
+    text-align: center;
+    align-content: center;
 }
 
 /* 横画面では memorizeLandscapeUnifiedFullLayout により、指板の scale と margin は
