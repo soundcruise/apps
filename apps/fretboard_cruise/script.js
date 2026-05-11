@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.112.16';
+const FRETBOARD_CRUISE_APP_VERSION = '1.112.17';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -7732,29 +7732,34 @@ function renderProCustomRouteEditor(app) {
                 rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-pro-custom" aria-label="設定">⚙️</button>`
             })}
             <div class="setup-panel pro-custom-setup-panel">
-                <div class="setup-item">
+                <div class="pro-custom-setup-row pro-custom-setup-row--triple">
+                <div class="setup-item pro-custom-setup-item pro-custom-setup-item--key">
                     <label>キー</label>
                     <select id="pro-custom-key">${NOTES.map((note, idx) => `<option value="${idx}" ${state.proCustomRouteEditor.key===idx?'selected':''}>${note}</option>`).join('')}</select>
                 </div>
-                <div class="setup-item">
+                <div class="setup-item pro-custom-setup-item pro-custom-setup-item--capo">
                     <label>カポ</label>
                     <select id="pro-custom-capo">${[0,1,2,3,4,5,6,7].map(c => `<option value="${c}" ${state.proCustomRouteEditor.capo===c?'selected':''}>${c}</option>`).join('')}</select>
                 </div>
-                <div class="setup-item">
+                <div class="setup-item pro-custom-setup-item pro-custom-setup-item--scale">
                     <label>スケール</label>
                     <select id="pro-custom-scale">${scaleOptions.map(([value, label]) => `<option value="${value}" ${state.proCustomRouteEditor.scale===value?'selected':''}>${label}</option>`).join('')}</select>
                 </div>
-                <div class="setup-item">
+                </div>
+                <div class="pro-custom-setup-row pro-custom-setup-row--double">
+                <div class="setup-item pro-custom-setup-item pro-custom-setup-item--display">
+                    <label>表示方法</label>
                     <div class="mode-buttons">
                         <button type="button" class="do-mode-btn ${state.proCustomRouteEditor.doMode==='movable'?'active':''}" data-pro-custom-do-mode="movable">移動ド</button>
                         <button type="button" class="do-mode-btn ${state.proCustomRouteEditor.doMode==='fixed'?'active':''}" data-pro-custom-do-mode="fixed">固定ド</button>
                     </div>
                 </div>
-                <div class="setup-item setup-item--wide">
+                <div class="setup-item pro-custom-setup-item pro-custom-setup-item--max-fret">
                     <label>最大フレット</label>
                     <select id="pro-custom-max-fret">
                         ${maxFretOptions.map(fret => `<option value="${fret}" ${state.proCustomRouteEditor.maxFret===fret?'selected':''}>${fret}フレット</option>`).join('')}
                     </select>
+                </div>
                 </div>
                 <p class="settings-note pro-custom-setup-note">表示方法は「設定」の「音名の表記」に従います。ここでは切り替えません。</p>
             </div>
@@ -7923,7 +7928,8 @@ function renderProCustomRouteEditor(app) {
             renderApp();
         };
     });
-    document.getElementById('btn-pro-custom-save').onclick = () => {
+    document.getElementById('btn-pro-custom-save').onclick = e => {
+        e.preventDefault();
         openNameModal();
     };
     document.getElementById('pro-custom-stage-name-confirm').onclick = confirmNameModal;

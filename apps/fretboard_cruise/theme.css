@@ -2152,6 +2152,56 @@ input:checked + .toggle-slider:before {
     font-size: 0.78rem;
 }
 
+.pro-custom-setup-panel {
+    display: grid;
+    gap: 14px;
+}
+
+.pro-custom-setup-row {
+    display: grid;
+    gap: 12px;
+    width: 100%;
+}
+
+.pro-custom-setup-row--triple {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 0.7fr) minmax(0, 1.8fr);
+    align-items: end;
+}
+
+.pro-custom-setup-row--double {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    align-items: end;
+}
+
+.pro-custom-setup-item {
+    width: 100%;
+    align-items: stretch;
+}
+
+.pro-custom-setup-item label {
+    text-align: center;
+    margin-bottom: 2px;
+}
+
+.pro-custom-setup-item select,
+.pro-custom-setup-item .mode-buttons {
+    width: 100%;
+}
+
+.pro-custom-setup-item--scale select {
+    min-width: 0;
+}
+
+.pro-custom-setup-item--display .mode-buttons {
+    min-height: 58px;
+    align-items: stretch;
+}
+
+.pro-custom-setup-item--display .do-mode-btn {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
 .pro-custom-route-editor-tail-spacer {
     width: 100%;
     height: 260px;
@@ -2292,6 +2342,16 @@ input:checked + .toggle-slider:before {
 
 .pro-custom-stage-name-modal__cancel {
     color: rgba(255, 255, 255, 0.86);
+}
+
+@media (max-width: 720px) {
+    .pro-custom-setup-row--triple {
+        grid-template-columns: minmax(0, 0.85fr) minmax(0, 0.75fr) minmax(0, 1.4fr);
+    }
+
+    .pro-custom-setup-row--double {
+        grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.95fr);
+    }
 }
 
 .route-editor-list {
