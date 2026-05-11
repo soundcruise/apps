@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.112.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.112.3';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -8511,9 +8511,30 @@ function exitMemorizeClearedToStageOrEditor() {
     if (state.quizEditorPreview && state.memorize.playMode === 'quiz') {
         state.course = 'quizEditor';
         state.quizEditorPreview = null;
+    } else if (state.memorize.isDemoPlayback && state.memorize.demoReturnCourse === 'proCustomRouteEditor') {
+        state.course = 'proCustomRouteEditor';
+        state.memorize.isDemoPlayback = false;
+        state.memorize.demoReturnCourse = null;
+        state.memorize.demoReturnStage = null;
     } else {
         state.course = 'stageSelect';
     }
+    saveState();
+    renderApp();
+}
+
+function returnMemorizeDemoToEditor() {
+    if (!state.memorize?.isDemoPlayback || state.memorize.demoReturnCourse !== 'proCustomRouteEditor') return;
+    stopRhythm();
+    stopQuizTimer();
+    cancelQuizScrollAnimation();
+    clearStage1RepeatHintState();
+    state.memorize.isCleared = false;
+    state.memorize.isQuizCleared = false;
+    state.memorize.isDemoPlayback = false;
+    state.memorize.demoReturnCourse = null;
+    state.memorize.demoReturnStage = null;
+    state.course = 'proCustomRouteEditor';
     saveState();
     renderApp();
 }
@@ -8681,6 +8702,10 @@ function renderMemorize(app) {
                     </div>`;
 
     const isProCustomCruise = isCruise && !!state.memorize.proCustomCruise;
+    const isProCustomDemoPlayback =
+        isProCustomCruise &&
+        state.memorize.isDemoPlayback === true &&
+        state.memorize.demoReturnCourse === 'proCustomRouteEditor';
     const memorizeStageLabel = isProCustomCruise
         ? escapeHtml(state.memorize.proCustomCruise?.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)
         : `STAGE ${state.memorize.stage}`;
@@ -8734,6 +8759,11 @@ function renderMemorize(app) {
                         <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-next">➡️</button>
                     </div>
                 ` : ''}
+                ${isProCustomDemoPlayback && !isCruiseCleared ? `
+                    <div class="memorize-cruise-controls">
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-pro-custom-return-editor">編集画面に戻る</button>
+                    </div>
+                ` : ''}
                 ${isCruiseCounting ? `<div class="memorize-countdown-overlay" aria-hidden="true">${cruiseCountdownValue}</div>` : ''}
                 ${(isCruiseCleared || isQuizCleared) ? `
                     <div class="memorize-cleared-overlay memorize-cleared-overlay--v2" aria-live="polite">
@@ -8755,7 +8785,7 @@ function renderMemorize(app) {
                             </div>
                             <div class="memorize-cleared-card__actions memorize-cleared-card__actions--three">
                                 <button type="button" class="btn-primary memorize-cleared-card__btn memorize-cleared-card__btn--primary" id="btn-memorize-cleared-restart">もう1回</button>
-                                <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-exit">終了</button>
+                                <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-exit">${isProCustomDemoPlayback ? '編集画面へ' : '終了'}</button>
                                 <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-next-stage"${isProCustomCruise || state.memorize.stage >= 6 ? ' disabled' : ''}>次のSTAGEへ</button>
                             </div>
                         </div>
@@ -8897,6 +8927,13 @@ function renderMemorize(app) {
             saveState();
             renderApp();
             startCruiseCountdownAndRhythm();
+        };
+    }
+
+    const btnProCustomReturnEditor = document.getElementById('btn-pro-custom-return-editor');
+    if (btnProCustomReturnEditor) {
+        btnProCustomReturnEditor.onclick = () => {
+            returnMemorizeDemoToEditor();
         };
     }
 
