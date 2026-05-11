@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.112.11';
+const FRETBOARD_CRUISE_APP_VERSION = '1.112.12';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -1347,7 +1347,7 @@ function saveProCustomStageFromEditor() {
         key: editor.key,
         capo: editor.capo,
         scale: editor.scale,
-        displayMode: editor.displayMode,
+        displayMode: state.settings.noteLabelMode,
         doMode: editor.doMode,
         maxFret: editor.maxFret,
         route: editor.draft,
@@ -7718,6 +7718,7 @@ function renderProCustomRouteEditor(app) {
         { length: MAX_FRET - PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET + 1 },
         (_, index) => PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET + index
     );
+    const proCustomDisplayMode = state.settings.noteLabelMode;
 
     app.innerHTML = `
         <div class="route-editor-screen route-editor-scale-guide-variant-3 pro-custom-route-editor-screen">
@@ -7731,9 +7732,11 @@ function renderProCustomRouteEditor(app) {
                 rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-pro-custom" aria-label="設定">⚙️</button>`
             })}
             <div class="setup-panel pro-custom-setup-panel">
-                <div class="setup-item setup-item--wide">
-                    <label>STAGE名</label>
-                    <input id="pro-custom-name" type="text" value="${escapeHtml(state.proCustomRouteEditor.name)}" maxlength="32">
+                <div class="setup-item setup-item--wide pro-custom-name-item">
+                    <button type="button" class="pro-custom-name-btn" id="btn-pro-custom-name-edit">
+                        <span class="pro-custom-name-btn__label">STAGE名を入力</span>
+                        <span class="pro-custom-name-btn__value">${escapeHtml(state.proCustomRouteEditor.name)}</span>
+                    </button>
                 </div>
                 <div class="setup-item">
                     <label>キー</label>
@@ -7749,13 +7752,6 @@ function renderProCustomRouteEditor(app) {
                 </div>
                 <div class="setup-item">
                     <div class="mode-buttons">
-                        <button type="button" class="mode-btn ${state.proCustomRouteEditor.displayMode==='solfege'?'active':''}" data-pro-custom-mode="solfege">ドレミ</button>
-                        <button type="button" class="mode-btn ${state.proCustomRouteEditor.displayMode==='note'?'active':''}" data-pro-custom-mode="note">CDE</button>
-                        <button type="button" class="mode-btn ${state.proCustomRouteEditor.displayMode==='degree'?'active':''}" data-pro-custom-mode="degree">度数</button>
-                    </div>
-                </div>
-                <div class="setup-item">
-                    <div class="mode-buttons">
                         <button type="button" class="do-mode-btn ${state.proCustomRouteEditor.doMode==='movable'?'active':''}" data-pro-custom-do-mode="movable">移動ド</button>
                         <button type="button" class="do-mode-btn ${state.proCustomRouteEditor.doMode==='fixed'?'active':''}" data-pro-custom-do-mode="fixed">固定ド</button>
                     </div>
@@ -7766,6 +7762,7 @@ function renderProCustomRouteEditor(app) {
                         ${maxFretOptions.map(fret => `<option value="${fret}" ${state.proCustomRouteEditor.maxFret===fret?'selected':''}>${fret}フレット</option>`).join('')}
                     </select>
                 </div>
+                <p class="settings-note pro-custom-setup-note">表示方法は「設定」の「音名の表記」に従います。ここでは切り替えません。</p>
             </div>
             <div class="route-editor-toolbar">
                 <button class="icon-btn route-editor-tool-btn" id="btn-pro-custom-clear" ${draft.length ? '' : 'disabled'}>全消し</button>
@@ -7800,16 +7797,25 @@ function renderProCustomRouteEditor(app) {
         saveState();
         renderApp();
     };
+    const promptForProCustomStageName = () => {
+        const currentName = String(state.proCustomRouteEditor.name || PRO_CUSTOM_STAGE_DEFAULT_NAME);
+        const nextName = window.prompt('PROカスタムSTAGEの名前を入力してください', currentName);
+        if (nextName === null) return false;
+        state.proCustomRouteEditor.name = String(nextName).trim() || PRO_CUSTOM_STAGE_DEFAULT_NAME;
+        saveState();
+        renderApp();
+        return true;
+    };
     document.getElementById('btn-pro-custom-back').onclick = () => { state.course = 'stageSelect'; saveState(); renderApp(); };
     document.getElementById('btn-pro-custom-home').onclick = () => { state.course = null; saveState(); renderApp(); };
     document.getElementById('btn-settings-pro-custom').onclick = () => openSettings('proCustomRouteEditor');
-    document.getElementById('pro-custom-name').onchange = e => { state.proCustomRouteEditor.name = String(e.target.value || '').trim() || PRO_CUSTOM_STAGE_DEFAULT_NAME; saveState(); };
+    const btnProCustomNameEdit = document.getElementById('btn-pro-custom-name-edit');
+    if (btnProCustomNameEdit) {
+        btnProCustomNameEdit.onclick = promptForProCustomStageName;
+    }
     document.getElementById('pro-custom-key').onchange = e => { pushProCustomEditorHistory(); state.proCustomRouteEditor.key = parseInt(e.target.value, 10) || 0; rerenderAfterSettingChange(); };
     document.getElementById('pro-custom-capo').onchange = e => { pushProCustomEditorHistory(); state.proCustomRouteEditor.capo = parseInt(e.target.value, 10) || 0; rerenderAfterSettingChange(); };
     document.getElementById('pro-custom-scale').onchange = e => { pushProCustomEditorHistory(); state.proCustomRouteEditor.scale = e.target.value; rerenderAfterSettingChange(); };
-    document.querySelectorAll('[data-pro-custom-mode]').forEach(btn => {
-        btn.onclick = () => { state.proCustomRouteEditor.displayMode = btn.getAttribute('data-pro-custom-mode'); saveState(); renderApp(); };
-    });
     document.querySelectorAll('[data-pro-custom-do-mode]').forEach(btn => {
         btn.onclick = () => { state.proCustomRouteEditor.doMode = btn.getAttribute('data-pro-custom-do-mode'); saveState(); renderApp(); };
     });
@@ -7901,14 +7907,20 @@ function renderProCustomRouteEditor(app) {
             renderApp();
         };
     });
-    document.getElementById('btn-pro-custom-save').onclick = () => { saveProCustomStageFromEditor(); state.course = 'stageSelect'; saveState(); renderApp(); };
+    document.getElementById('btn-pro-custom-save').onclick = () => {
+        if (!promptForProCustomStageName()) return;
+        saveProCustomStageFromEditor();
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
     document.getElementById('btn-pro-custom-demo').onclick = () => {
         startProCustomCruisePlayback({
             name: state.proCustomRouteEditor.name,
             key: state.proCustomRouteEditor.key,
             capo: state.proCustomRouteEditor.capo,
             scale: state.proCustomRouteEditor.scale,
-            displayMode: state.proCustomRouteEditor.displayMode,
+            displayMode: state.settings.noteLabelMode,
             doMode: state.proCustomRouteEditor.doMode,
             maxFret: state.proCustomRouteEditor.maxFret,
             route: state.proCustomRouteEditor.draft,
@@ -7929,7 +7941,7 @@ function renderProCustomRouteEditor(app) {
             key: state.proCustomRouteEditor.key,
             capo: state.proCustomRouteEditor.capo,
             scale: state.proCustomRouteEditor.scale,
-            displayMode: state.proCustomRouteEditor.displayMode,
+            displayMode: proCustomDisplayMode,
             doMode: state.proCustomRouteEditor.doMode,
             maxFret: state.proCustomRouteEditor.maxFret
         },
