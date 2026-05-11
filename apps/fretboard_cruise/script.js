@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.99.15';
+const FRETBOARD_CRUISE_APP_VERSION = '1.111.4';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -70,12 +70,16 @@ const DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION = true;
 const DEFAULT_CRUISE_LOOP_COUNT = 1;
 /** 「指板をたどる」で指板上にグレー／次／現在の音名マーカーを出す（OFF で非表示） */
 const DEFAULT_CRUISE_SHOW_NOTE_NAMES = true;
+/** 「指板をたどる」進行：アプリがギター音も鳴らす／タップ時のみギター音 */
+const DEFAULT_CRUISE_PROGRESSION = 'auto'; // 'auto' | 'tap'
+/** 指板をたどるの進み（half=キック同期・2拍に1回、full=四分音符頭ごと・毎拍）。アプリの音「有り」では full で自動ギターも同じタイミング */
+const DEFAULT_CRUISE_TAP_BEATS = 'half'; // 'half' | 'full'
 /** STAGE1 初期ルート（初回・未保存時・「初期順」）。`scripts/compute-stage1-shipped-default.mjs` で同内容を再生成可 */
 const SHIPPED_DEFAULT_STAGE_1_ROUTE_SLOTS = JSON.parse(
-    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":5,"fret":0},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":4,"fret":0},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":3,"fret":0},{"stringName":3,"fret":2},{"stringName":2,"fret":0},{"stringName":2,"fret":1},{"stringName":2,"fret":1},{"stringName":2,"fret":3},{"stringName":1,"fret":0},{"stringName":1,"fret":1},{"stringName":1,"fret":3},{"stringName":1,"fret":3},{"stringName":1,"fret":1},{"stringName":1,"fret":0},{"stringName":2,"fret":3},{"stringName":2,"fret":1},{"stringName":2,"fret":1},{"stringName":2,"fret":0},{"stringName":3,"fret":2},{"stringName":3,"fret":0},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":4,"fret":0},{"stringName":5,"fret":3}]'
+    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":5,"fret":0},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":4,"fret":0},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":3,"fret":0},{"stringName":3,"fret":2},{"stringName":2,"fret":0},{"stringName":2,"fret":1},{"stringName":2,"fret":3},{"stringName":1,"fret":0},{"stringName":1,"fret":1},{"stringName":1,"fret":3},{"stringName":1,"fret":1},{"stringName":1,"fret":0},{"stringName":2,"fret":3},{"stringName":2,"fret":1},{"stringName":2,"fret":0},{"stringName":3,"fret":2},{"stringName":3,"fret":0},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":4,"fret":0},{"stringName":5,"fret":3}]'
 );
 const SHIPPED_DEFAULT_STAGE_1_ROUTE_GROUP_BREAKS = JSON.parse(
-    '[0,6,12,20,25,30]'
+    '[0,5,10,17,21,25]'
 );
 /** STAGE1「初期順」で復元するグループ別 scrollLeft（上記と同じ保存データ） */
 const SHIPPED_DEFAULT_STAGE_1_GROUP_SCROLL_LEFTS = JSON.parse(
@@ -83,32 +87,32 @@ const SHIPPED_DEFAULT_STAGE_1_GROUP_SCROLL_LEFTS = JSON.parse(
 );
 /** STAGE2 公式デフォルト（「この順番で保存」したルート・Gr構成・指板位置を埋め込み） */
 const SHIPPED_DEFAULT_STAGE_2_ROUTE_SLOTS = JSON.parse(
-    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":5,"fret":5},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":4,"fret":5},{"stringName":3,"fret":2},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":2,"fret":3},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":1,"fret":3},{"stringName":1,"fret":5},{"stringName":1,"fret":5},{"stringName":1,"fret":3},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":2,"fret":3},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":3,"fret":2},{"stringName":4,"fret":5},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":5,"fret":5},{"stringName":5,"fret":3}]'
+    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":5},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":4,"fret":5},{"stringName":3,"fret":2},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":2,"fret":3},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":1,"fret":3},{"stringName":1,"fret":5},{"stringName":1,"fret":3},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":2,"fret":3},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":3,"fret":2},{"stringName":4,"fret":5},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":5,"fret":5},{"stringName":5,"fret":3}]'
 );
 const SHIPPED_DEFAULT_STAGE_2_ROUTE_GROUP_BREAKS = JSON.parse(
-    '[0,6,9,12,20,26,32]'
+    '[0,5,8,10,17,22,27]'
 );
 /** STAGE2「初期順」で復元するグループ別 scrollLeft（上記と同じ保存データ） */
 const SHIPPED_DEFAULT_STAGE_2_GROUP_SCROLL_LEFTS = JSON.parse(
-    '{"0":0,"1":0,"2":50,"3":50,"4":50,"5":50,"6":50}'
+    '{"0":0,"1":0,"2":55,"3":55,"4":55,"5":55,"6":55}'
 );
 /** STAGE3 公式デフォルト（「この順番で保存」したルート・Gr構成・指板位置を埋め込み） */
 const SHIPPED_DEFAULT_STAGE_3_ROUTE_SLOTS = JSON.parse(
-    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":6,"fret":7},{"stringName":6,"fret":8},{"stringName":6,"fret":8},{"stringName":5,"fret":5},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":4,"fret":5},{"stringName":4,"fret":7},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":7},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":2,"fret":8},{"stringName":1,"fret":5},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":1,"fret":5},{"stringName":2,"fret":8},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":3,"fret":7},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":4,"fret":7},{"stringName":4,"fret":5},{"stringName":5,"fret":8},{"stringName":5,"fret":7},{"stringName":5,"fret":5},{"stringName":6,"fret":8}]'
+    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":6,"fret":7},{"stringName":6,"fret":8},{"stringName":5,"fret":5},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":4,"fret":5},{"stringName":4,"fret":7},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":3,"fret":7},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":2,"fret":8},{"stringName":1,"fret":5},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":1,"fret":5},{"stringName":2,"fret":8},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":3,"fret":7},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":4,"fret":7},{"stringName":4,"fret":5},{"stringName":5,"fret":8},{"stringName":5,"fret":7},{"stringName":5,"fret":5},{"stringName":6,"fret":8}]'
 );
 const SHIPPED_DEFAULT_STAGE_3_ROUTE_GROUP_BREAKS = JSON.parse(
-    '[0,6,9,12,20,28,36]'
+    '[0,5,8,10,17,24,31]'
 );
 /** STAGE3「初期順」で復元するグループ別 scrollLeft（上記と同じ保存データ） */
 const SHIPPED_DEFAULT_STAGE_3_GROUP_SCROLL_LEFTS = JSON.parse(
-    '{"0":2,"1":2,"2":180,"3":180,"4":180,"5":180,"6":180}'
+    '{"0":0,"1":0,"2":173,"3":173,"4":173,"5":173,"6":173}'
 );
 /** STAGE4 公式デフォルト（「この順番で保存」したルート・Gr構成・指板位置を埋め込み） */
 const SHIPPED_DEFAULT_STAGE_4_ROUTE_SLOTS = JSON.parse(
-    '[{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":5,"fret":10},{"stringName":4,"fret":7},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":3,"fret":7},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":2,"fret":8},{"stringName":2,"fret":10},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":8},{"stringName":1,"fret":10},{"stringName":1,"fret":8},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":2,"fret":10},{"stringName":2,"fret":8},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":3,"fret":7},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":4,"fret":7},{"stringName":5,"fret":10},{"stringName":5,"fret":8},{"stringName":5,"fret":7},{"stringName":6,"fret":10},{"stringName":6,"fret":8}]'
+    '[{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":5,"fret":10},{"stringName":4,"fret":7},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":3,"fret":7},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":2,"fret":8},{"stringName":2,"fret":10},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":10},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":2,"fret":10},{"stringName":2,"fret":8},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":3,"fret":7},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":4,"fret":7},{"stringName":5,"fret":10},{"stringName":5,"fret":8},{"stringName":5,"fret":7},{"stringName":6,"fret":10},{"stringName":6,"fret":8}]'
 );
 const SHIPPED_DEFAULT_STAGE_4_ROUTE_GROUP_BREAKS = JSON.parse(
-    '[0,8,16,19,27]'
+    '[0,7,14,16,23]'
 );
 /** STAGE4「初期順」で復元するグループ別 scrollLeft（上記と同じ保存データ） */
 const SHIPPED_DEFAULT_STAGE_4_GROUP_SCROLL_LEFTS = JSON.parse(
@@ -116,10 +120,10 @@ const SHIPPED_DEFAULT_STAGE_4_GROUP_SCROLL_LEFTS = JSON.parse(
 );
 /** STAGE5 初期ルート（現在の「初期順」）。`scripts/compute-stage5-shipped-default.mjs` で同内容を再生成可 */
 const SHIPPED_DEFAULT_STAGE_5_ROUTE_SLOTS = JSON.parse(
-    '[{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":6,"fret":12},{"stringName":6,"fret":13},{"stringName":5,"fret":10},{"stringName":5,"fret":12},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":12},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":3,"fret":12},{"stringName":2,"fret":10},{"stringName":2,"fret":12},{"stringName":2,"fret":13},{"stringName":2,"fret":13},{"stringName":1,"fret":10},{"stringName":1,"fret":12},{"stringName":1,"fret":13},{"stringName":1,"fret":13},{"stringName":1,"fret":12},{"stringName":1,"fret":10},{"stringName":2,"fret":13},{"stringName":2,"fret":13},{"stringName":2,"fret":12},{"stringName":2,"fret":10},{"stringName":3,"fret":12},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":4,"fret":12},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":5,"fret":12},{"stringName":5,"fret":10},{"stringName":6,"fret":13},{"stringName":6,"fret":12},{"stringName":6,"fret":10},{"stringName":6,"fret":8}]'
+    '[{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":6,"fret":12},{"stringName":6,"fret":13},{"stringName":5,"fret":10},{"stringName":5,"fret":12},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":4,"fret":12},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":3,"fret":12},{"stringName":2,"fret":10},{"stringName":2,"fret":12},{"stringName":2,"fret":13},{"stringName":1,"fret":10},{"stringName":1,"fret":12},{"stringName":1,"fret":13},{"stringName":1,"fret":12},{"stringName":1,"fret":10},{"stringName":2,"fret":13},{"stringName":2,"fret":12},{"stringName":2,"fret":10},{"stringName":3,"fret":12},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":4,"fret":12},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":5,"fret":12},{"stringName":5,"fret":10},{"stringName":6,"fret":13},{"stringName":6,"fret":12},{"stringName":6,"fret":10},{"stringName":6,"fret":8}]'
 );
 const SHIPPED_DEFAULT_STAGE_5_ROUTE_GROUP_BREAKS = JSON.parse(
-    '[0,8,16,20,24,32]'
+    '[0,7,14,17,20,27]'
 );
 /** STAGE5「初期順」で復元するグループ別 scrollLeft（上記と同じ保存データ） */
 const SHIPPED_DEFAULT_STAGE_5_GROUP_SCROLL_LEFTS = JSON.parse(
@@ -127,14 +131,14 @@ const SHIPPED_DEFAULT_STAGE_5_GROUP_SCROLL_LEFTS = JSON.parse(
 );
 /** STAGE6 公式デフォルト（「この順番で保存」したルート・Gr構成・指板位置を埋め込み） */
 const SHIPPED_DEFAULT_STAGE_6_ROUTE_SLOTS = JSON.parse(
-    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":5,"fret":0},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":4,"fret":0},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":3,"fret":0},{"stringName":3,"fret":2},{"stringName":2,"fret":0},{"stringName":2,"fret":1},{"stringName":2,"fret":1},{"stringName":2,"fret":3},{"stringName":1,"fret":0},{"stringName":1,"fret":1},{"stringName":1,"fret":3},{"stringName":1,"fret":3},{"stringName":1,"fret":1},{"stringName":1,"fret":0},{"stringName":2,"fret":3},{"stringName":2,"fret":1},{"stringName":2,"fret":1},{"stringName":2,"fret":0},{"stringName":3,"fret":2},{"stringName":3,"fret":0},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":4,"fret":0},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":5,"fret":5},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":4,"fret":5},{"stringName":3,"fret":2},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":2,"fret":3},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":1,"fret":3},{"stringName":1,"fret":5},{"stringName":1,"fret":5},{"stringName":1,"fret":3},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":2,"fret":3},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":3,"fret":2},{"stringName":4,"fret":5},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":5,"fret":5},{"stringName":5,"fret":3},{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":6,"fret":5},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":6,"fret":7},{"stringName":6,"fret":8},{"stringName":6,"fret":8},{"stringName":5,"fret":5},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":4,"fret":5},{"stringName":4,"fret":7},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":7},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":2,"fret":8},{"stringName":1,"fret":5},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":1,"fret":5},{"stringName":2,"fret":8},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":3,"fret":7},{"stringName":3,"fret":5},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":4,"fret":7},{"stringName":4,"fret":5},{"stringName":5,"fret":8},{"stringName":5,"fret":7},{"stringName":5,"fret":5},{"stringName":6,"fret":8},{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":5,"fret":10},{"stringName":4,"fret":7},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":3,"fret":7},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":2,"fret":8},{"stringName":2,"fret":10},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":8},{"stringName":1,"fret":10},{"stringName":1,"fret":8},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":2,"fret":10},{"stringName":2,"fret":8},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":3,"fret":7},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":4,"fret":7},{"stringName":5,"fret":10},{"stringName":5,"fret":8},{"stringName":5,"fret":7},{"stringName":6,"fret":10},{"stringName":6,"fret":8},{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":6,"fret":12},{"stringName":6,"fret":13},{"stringName":5,"fret":10},{"stringName":5,"fret":12},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":12},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":3,"fret":12},{"stringName":2,"fret":10},{"stringName":2,"fret":12},{"stringName":2,"fret":13},{"stringName":2,"fret":13},{"stringName":1,"fret":10},{"stringName":1,"fret":12},{"stringName":1,"fret":13},{"stringName":1,"fret":13},{"stringName":1,"fret":12},{"stringName":1,"fret":10},{"stringName":2,"fret":13},{"stringName":2,"fret":13},{"stringName":2,"fret":12},{"stringName":2,"fret":10},{"stringName":3,"fret":12},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":4,"fret":12},{"stringName":4,"fret":10},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":5,"fret":12},{"stringName":5,"fret":10},{"stringName":6,"fret":13},{"stringName":6,"fret":12},{"stringName":6,"fret":10},{"stringName":6,"fret":8}]'
+    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":5,"fret":0},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":4,"fret":0},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":3,"fret":0},{"stringName":3,"fret":2},{"stringName":2,"fret":0},{"stringName":2,"fret":1},{"stringName":2,"fret":3},{"stringName":1,"fret":0},{"stringName":1,"fret":1},{"stringName":1,"fret":3},{"stringName":1,"fret":1},{"stringName":1,"fret":0},{"stringName":2,"fret":3},{"stringName":2,"fret":1},{"stringName":2,"fret":0},{"stringName":3,"fret":2},{"stringName":3,"fret":0},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":4,"fret":0},{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":5},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":4,"fret":5},{"stringName":3,"fret":2},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":2,"fret":3},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":1,"fret":3},{"stringName":1,"fret":5},{"stringName":1,"fret":3},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":2,"fret":3},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":3,"fret":2},{"stringName":4,"fret":5},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":5,"fret":5},{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":6,"fret":5},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":6,"fret":7},{"stringName":6,"fret":8},{"stringName":5,"fret":5},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":4,"fret":5},{"stringName":4,"fret":7},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":3,"fret":7},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":2,"fret":8},{"stringName":1,"fret":5},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":1,"fret":5},{"stringName":2,"fret":8},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":3,"fret":7},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":4,"fret":7},{"stringName":4,"fret":5},{"stringName":5,"fret":8},{"stringName":5,"fret":7},{"stringName":5,"fret":5},{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":5,"fret":10},{"stringName":4,"fret":7},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":3,"fret":7},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":2,"fret":8},{"stringName":2,"fret":10},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":10},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":2,"fret":10},{"stringName":2,"fret":8},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":3,"fret":7},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":4,"fret":7},{"stringName":5,"fret":10},{"stringName":5,"fret":8},{"stringName":5,"fret":7},{"stringName":6,"fret":10},{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":6,"fret":12},{"stringName":6,"fret":13},{"stringName":5,"fret":10},{"stringName":5,"fret":12},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":4,"fret":12},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":3,"fret":12},{"stringName":2,"fret":10},{"stringName":2,"fret":12},{"stringName":2,"fret":13},{"stringName":1,"fret":10},{"stringName":1,"fret":12},{"stringName":1,"fret":13},{"stringName":1,"fret":12},{"stringName":1,"fret":10},{"stringName":2,"fret":13},{"stringName":2,"fret":12},{"stringName":2,"fret":10},{"stringName":3,"fret":12},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":4,"fret":12},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":5,"fret":12},{"stringName":5,"fret":10},{"stringName":6,"fret":13},{"stringName":6,"fret":12},{"stringName":6,"fret":10},{"stringName":6,"fret":8}]'
 );
 const SHIPPED_DEFAULT_STAGE_6_ROUTE_GROUP_BREAKS = JSON.parse(
-    '[0,6,12,20,25,30,38,44,47,50,58,64,70,78,82,84,87,90,98,106,114,122,130,138,141,149,157,159,165,173,177,181,189]'
+    '[0,5,10,17,21,25,32,37,40,42,49,54,59,66,70,71,74,76,83,90,97,104,111,118,120,127,134,136,141,148,151,154,161]'
 );
 /** STAGE6「初期順」で復元するグループ別 scrollLeft（上記と同じ保存データ） */
 const SHIPPED_DEFAULT_STAGE_6_GROUP_SCROLL_LEFTS = JSON.parse(
-    '{"0":0,"1":0,"2":0,"3":0,"4":0,"5":0,"6":0,"7":0,"8":68,"9":68,"10":68,"11":68,"12":68,"13":68,"14":5,"15":5,"16":180,"17":180,"18":180,"19":180,"20":180,"21":309,"22":309,"23":309,"24":309,"25":309,"26":309,"27":419,"28":419,"29":419,"30":419,"31":419,"32":419}'
+    '{"0":0,"1":0,"2":0,"3":0,"4":0,"5":0,"6":0,"7":0,"8":60,"9":60,"10":60,"11":60,"12":60,"13":60,"14":7,"15":7,"16":178,"17":178,"18":178,"19":178,"20":178,"21":308,"22":308,"23":308,"24":308,"25":308,"26":308,"27":408,"28":408,"29":408,"30":408,"31":408,"32":408}'
 );
 
 /**
@@ -205,6 +209,76 @@ function applyShippedDefaultQuizSettingsForcefullyIfNeeded() {
         state.settings.quizStageEditorSettings[String(stage)] = { groups: shipped };
     });
     state.settings.quizShippedDefaultsAppliedVersion = QUIZ_SHIPPED_DEFAULTS_VERSION;
+    return true;
+}
+
+/**
+ * バージョンを上げると、起動時に「指板をたどる」STAGE 1〜6 の保存値（ルート／Gr／グループ別 scrollLeft）が
+ * SHIPPED_DEFAULT_STAGE_*_* で強制上書きされる。配布前のため一回だけ実行する。
+ * 履歴:
+ *   v1 (v1.104.0): STAGE 1〜5 を強制配布
+ *   v2 (v1.105.0): STAGE 6 も新データで強制配布対象に追加
+ */
+const CRUISE_SHIPPED_DEFAULTS_VERSION = 2;
+const CRUISE_SHIPPED_DEFAULTS_TARGET_STAGES = [1, 2, 3, 4, 5, 6];
+
+function getShippedDefaultCruiseRouteSlotsForStage(stage) {
+    const st = clamp(parseInt(stage, 10), 1, 6);
+    if (st === 1) return SHIPPED_DEFAULT_STAGE_1_ROUTE_SLOTS;
+    if (st === 2) return SHIPPED_DEFAULT_STAGE_2_ROUTE_SLOTS;
+    if (st === 3) return SHIPPED_DEFAULT_STAGE_3_ROUTE_SLOTS;
+    if (st === 4) return SHIPPED_DEFAULT_STAGE_4_ROUTE_SLOTS;
+    if (st === 5) return SHIPPED_DEFAULT_STAGE_5_ROUTE_SLOTS;
+    if (st === 6) return SHIPPED_DEFAULT_STAGE_6_ROUTE_SLOTS;
+    return null;
+}
+
+function getShippedDefaultCruiseGroupBreaksForStage(stage) {
+    const st = clamp(parseInt(stage, 10), 1, 6);
+    if (st === 1) return SHIPPED_DEFAULT_STAGE_1_ROUTE_GROUP_BREAKS;
+    if (st === 2) return SHIPPED_DEFAULT_STAGE_2_ROUTE_GROUP_BREAKS;
+    if (st === 3) return SHIPPED_DEFAULT_STAGE_3_ROUTE_GROUP_BREAKS;
+    if (st === 4) return SHIPPED_DEFAULT_STAGE_4_ROUTE_GROUP_BREAKS;
+    if (st === 5) return SHIPPED_DEFAULT_STAGE_5_ROUTE_GROUP_BREAKS;
+    if (st === 6) return SHIPPED_DEFAULT_STAGE_6_ROUTE_GROUP_BREAKS;
+    return null;
+}
+
+function getShippedDefaultCruiseGroupScrollLeftsForStage(stage) {
+    const st = clamp(parseInt(stage, 10), 1, 6);
+    if (st === 1) return SHIPPED_DEFAULT_STAGE_1_GROUP_SCROLL_LEFTS;
+    if (st === 2) return SHIPPED_DEFAULT_STAGE_2_GROUP_SCROLL_LEFTS;
+    if (st === 3) return SHIPPED_DEFAULT_STAGE_3_GROUP_SCROLL_LEFTS;
+    if (st === 4) return SHIPPED_DEFAULT_STAGE_4_GROUP_SCROLL_LEFTS;
+    if (st === 5) return SHIPPED_DEFAULT_STAGE_5_GROUP_SCROLL_LEFTS;
+    if (st === 6) return SHIPPED_DEFAULT_STAGE_6_GROUP_SCROLL_LEFTS;
+    return null;
+}
+
+function applyShippedDefaultCruiseSettingsForcefullyIfNeeded() {
+    const appliedVersion = parseInt(state?.settings?.cruiseShippedDefaultsAppliedVersion, 10);
+    if (Number.isFinite(appliedVersion) && appliedVersion >= CRUISE_SHIPPED_DEFAULTS_VERSION) return false;
+    if (!state.settings.cruiseStageRoutes || typeof state.settings.cruiseStageRoutes !== 'object' || Array.isArray(state.settings.cruiseStageRoutes)) {
+        state.settings.cruiseStageRoutes = {};
+    }
+    if (!state.settings.cruiseStageRouteGroups || typeof state.settings.cruiseStageRouteGroups !== 'object' || Array.isArray(state.settings.cruiseStageRouteGroups)) {
+        state.settings.cruiseStageRouteGroups = {};
+    }
+    if (!state.settings.cruiseStageGroupScrollLefts || typeof state.settings.cruiseStageGroupScrollLefts !== 'object' || Array.isArray(state.settings.cruiseStageGroupScrollLefts)) {
+        state.settings.cruiseStageGroupScrollLefts = {};
+    }
+    CRUISE_SHIPPED_DEFAULTS_TARGET_STAGES.forEach(stage => {
+        const slots = getShippedDefaultCruiseRouteSlotsForStage(stage);
+        const breaks = getShippedDefaultCruiseGroupBreaksForStage(stage);
+        const scrolls = getShippedDefaultCruiseGroupScrollLeftsForStage(stage);
+        if (!Array.isArray(slots) || !Array.isArray(breaks) || !scrolls || typeof scrolls !== 'object') return;
+        const k = String(stage);
+        // 配布定数を直接代入すると state 経由で破壊的編集される恐れがあるので毎回ディープコピー
+        state.settings.cruiseStageRoutes[k] = JSON.parse(JSON.stringify(slots));
+        state.settings.cruiseStageRouteGroups[k] = breaks.slice();
+        state.settings.cruiseStageGroupScrollLefts[k] = JSON.parse(JSON.stringify(scrolls));
+    });
+    state.settings.cruiseShippedDefaultsAppliedVersion = CRUISE_SHIPPED_DEFAULTS_VERSION;
     return true;
 }
 
@@ -289,7 +363,11 @@ let state = {
         cruisePreviousGroupIndex: null,
         highlightMode: 2, // 1-5: Visual highlight pattern for current/next note (2=Glow)
         isCruisePlaying: true, // Is cruise rhythm currently playing (default: playing)
-        cruiseCountdown: 0 // 開始前のBPMカウント（3→2→1→0で再生開始）
+        cruiseCountdown: 0, // 開始前のBPMカウント（3→2→1→0で再生開始）
+        /** 「次の拍」を先取りでタップ済み（毎拍モード専用、次の autoAdvanceCruise で current の hasTappedCurrentNote に引き継ぐ） */
+        cruisePreTapped: false,
+        /** 直近のタップ／時間切れ判定文（カウントダウン後はこれを常時表示し、Perfect/Miss などを残す） */
+        cruiseLastTapFeedback: null
     },
     visualize: {
         key: 0, // C
@@ -303,6 +381,8 @@ let state = {
         doMode: 'movable',
         /** '3' = 3和音, '7' = 7thコード */
         chordType: '3',
+        /** 'name' = コード名（C, Dm…）, 'degree' = 度数（I, IIm…） */
+        chordLabelMode: 'name',
         /** autoSelectRootChord: Iコード自動選択（オン時）*/
         autoSelectRootChord: false,
         /** 自由探索だけ、13F以降を任意で表示 */
@@ -368,13 +448,17 @@ let state = {
         fretboardViewAutoOrientation: DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION,
         cruiseLoopCount: DEFAULT_CRUISE_LOOP_COUNT,
         cruiseShowNoteNames: DEFAULT_CRUISE_SHOW_NOTE_NAMES,
+        cruiseProgression: DEFAULT_CRUISE_PROGRESSION,
+        cruiseTapBeats: DEFAULT_CRUISE_TAP_BEATS,
         cruiseStageRoutes: {},
         cruiseStageRouteGroups: {},
         cruiseStageGroupScrollLefts: {},
         quizStageEditorSettings: {},
         quizStageAttemptCounts: {},
         routeNumberingVersion: 2,
-        neckModelVersion: FRETBOARD_NECK_MODEL_VERSION
+        neckModelVersion: FRETBOARD_NECK_MODEL_VERSION,
+        /** 設定画面で最後に開いていたタブ（'cruise' | 'quiz' | 'common'） */
+        lastSettingsTab: 'cruise'
     }
 };
 
@@ -505,7 +589,7 @@ function cleanupFretboardDocumentHandlers(containerId) {
     if (containerId) {
         const handler = fretboardDocumentHandlers.get(containerId);
         if (handler) {
-            document.removeEventListener('click', handler, true);
+            document.removeEventListener('pointerdown', handler, true);
             fretboardDocumentHandlers.delete(containerId);
         }
         const dragHandlers = routeEditorDragHandlers.get(containerId);
@@ -536,7 +620,7 @@ function cleanupFretboardDocumentHandlers(containerId) {
     }
 
     fretboardDocumentHandlers.forEach(handler => {
-        document.removeEventListener('click', handler, true);
+        document.removeEventListener('pointerdown', handler, true);
     });
     fretboardDocumentHandlers.clear();
     routeEditorDragHandlers.forEach(handlers => {
@@ -643,6 +727,8 @@ if (savedState) {
         state.memorize.stage1IsContinuedRepeat = false;
         if (!Array.isArray(state.memorize.cruiseGroupIndices)) state.memorize.cruiseGroupIndices = [];
         if (typeof state.memorize.cruiseCurrentGroupIndex !== 'number') state.memorize.cruiseCurrentGroupIndex = 0;
+        if (typeof state.memorize.cruisePreTapped !== 'boolean') state.memorize.cruisePreTapped = false;
+        if (typeof state.memorize.cruiseLastTapFeedback === 'undefined') state.memorize.cruiseLastTapFeedback = null;
         if (typeof state.memorize.cruisePreviousGroupIndex !== 'number' && state.memorize.cruisePreviousGroupIndex !== null) {
             state.memorize.cruisePreviousGroupIndex = null;
         }
@@ -657,6 +743,9 @@ if (savedState) {
         if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
         if (typeof state.visualize.doMode === 'undefined') state.visualize.doMode = 'movable';
         if (typeof state.visualize.chordType === 'undefined') state.visualize.chordType = '3';
+        if (state.visualize.chordLabelMode !== 'name' && state.visualize.chordLabelMode !== 'degree') {
+            state.visualize.chordLabelMode = 'name';
+        }
         if (typeof state.visualize.autoSelectRootChord === 'undefined') state.visualize.autoSelectRootChord = false;
         if (typeof state.visualize.showExtendedFrets === 'undefined') state.visualize.showExtendedFrets = false;
         if (typeof state.settings.tempo === 'undefined') state.settings.tempo = DEFAULT_TEMPO;
@@ -686,6 +775,19 @@ if (savedState) {
         }
         if (typeof state.settings.cruiseShowNoteNames !== 'boolean') {
             state.settings.cruiseShowNoteNames = DEFAULT_CRUISE_SHOW_NOTE_NAMES;
+        }
+        if (typeof state.settings.cruiseProgression === 'undefined') {
+            state.settings.cruiseProgression = DEFAULT_CRUISE_PROGRESSION;
+        } else if (state.settings.cruiseProgression !== 'auto' && state.settings.cruiseProgression !== 'tap') {
+            state.settings.cruiseProgression = DEFAULT_CRUISE_PROGRESSION;
+        }
+        if (typeof state.settings.cruiseTapBeats === 'undefined') {
+            state.settings.cruiseTapBeats = DEFAULT_CRUISE_TAP_BEATS;
+        } else if (state.settings.cruiseTapBeats !== 'half' && state.settings.cruiseTapBeats !== 'full') {
+            state.settings.cruiseTapBeats = DEFAULT_CRUISE_TAP_BEATS;
+        }
+        if (!['cruise', 'quiz', 'common'].includes(state.settings.lastSettingsTab)) {
+            state.settings.lastSettingsTab = 'cruise';
         }
         state.settings.routeEditorScaleGuideVariant = 3;
         if (
@@ -813,6 +915,11 @@ if (applyShippedDefaultQuizSettingsForcefullyIfNeeded()) {
     try { localStorage.setItem('fretboard_cruise_state', JSON.stringify(state)); } catch (e) {}
 }
 
+// 配布前の片方向上書き：指板をたどる STAGE 1〜6 のルート／Gr／グループ位置を公式デフォルトで強制セット
+if (applyShippedDefaultCruiseSettingsForcefullyIfNeeded()) {
+    try { localStorage.setItem('fretboard_cruise_state', JSON.stringify(state)); } catch (e) {}
+}
+
 function saveState() {
     localStorage.setItem('fretboard_cruise_state', JSON.stringify(state));
 }
@@ -902,6 +1009,36 @@ function shouldQuizLandscapeSkipSavedScrollLeft() {
     if (typeof window === 'undefined') return false;
     if (!state.memorize || state.memorize.playMode !== 'quiz') return false;
     return window.innerWidth > window.innerHeight;
+}
+
+/* ============================================================
+ * 指板クイズ・横画面: 解答時の横ズレ対策
+ * ------------------------------------------------------------
+ * 現象: 解答表示時に containerEl.style.left が再計算されて、
+ *       指板コンテナ全体が水平方向に数〜十数px ジャンプして見える。
+ * 原因: 親レイアウトの高さがほんの少し変わると
+ *       getBoundingClientRect().left の読み取り値が変わるため、
+ *       「親位置を打ち消す left 補正値」が問題画面と解答画面で違う値になる。
+ * 対策: 同じ問題の間は最初の left を覚えておき、再描画でもその値を使い回す。
+ *       問題が変わったタイミング（generateQuestion）でキャッシュを破棄する。
+ * ============================================================ */
+let _memorizeQuizLeftFreezeCache = null;
+
+function shouldFreezeMemorizeQuizContainerLeft() {
+    if (typeof window === 'undefined') return false;
+    if (!state.memorize) return false;
+    if (state.memorize.playMode !== 'quiz') return false;
+    return window.innerWidth > window.innerHeight;
+}
+
+function getMemorizeQuizQuestionKey() {
+    const q = state?.memorize?.currentQuestion;
+    if (!q) return null;
+    return `${q.stringIdx}_${q.fret}_${q.noteIdx ?? ''}`;
+}
+
+function clearMemorizeQuizLeftFreezeCache() {
+    _memorizeQuizLeftFreezeCache = null;
 }
 
 /** 全体ビュー時のカメラ設定を一時保存（拡大ビュー切替時に呼ぶ） */
@@ -1014,10 +1151,13 @@ function getDefaultSettings() {
         fretboardViewAutoOrientation: DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION,
         cruiseLoopCount: DEFAULT_CRUISE_LOOP_COUNT,
         cruiseShowNoteNames: DEFAULT_CRUISE_SHOW_NOTE_NAMES,
+        cruiseProgression: DEFAULT_CRUISE_PROGRESSION,
+        cruiseTapBeats: DEFAULT_CRUISE_TAP_BEATS,
         cruiseStageRoutes: {},
         cruiseStageRouteGroups: {},
         cruiseStageGroupScrollLefts: {},
         cruiseStageClearCounts: {},
+        lastSettingsTab: 'cruise',
         /** 指板クイズ・問題編集の保存（⚙️デフォルト復元でも消さない） */
         quizStageEditorSettings: {},
         /** 指板クイズ・STAGE 別の挑戦回数（⚙️デフォルト復元でも消さない） */
@@ -1610,6 +1750,24 @@ function initAudio() {
     }
 }
 
+/**
+ * 指が触れた瞬間の Web Audio タイムライン上の時刻（秒）を推定する。
+ * click の遅れは event.timeStamp と performance.now() の差で相殺し、
+ * スピーカーまでの遅れ（outputLatency / baseLatency）が取れる環境では減算して「聞こえた拍」に寄せる。
+ */
+function estimateAudioTimeAtPointerEvent(ev) {
+    initAudio();
+    if (!audioCtx) return null;
+    const perfNow = performance.now();
+    const ts = typeof ev.timeStamp === 'number' && ev.timeStamp > 0 ? ev.timeStamp : perfNow;
+    const deltaSec = (perfNow - ts) / 1000;
+    let tTap = audioCtx.currentTime - deltaSec;
+    const outLat = typeof audioCtx.outputLatency === 'number' ? audioCtx.outputLatency : 0;
+    const baseLat = typeof audioCtx.baseLatency === 'number' ? audioCtx.baseLatency : 0;
+    tTap -= outLat + baseLat;
+    return tTap;
+}
+
 const STRING_BASE_PITCHES = [40, 45, 50, 55, 59, 64]; // E2, A2, D3, G3, B3, E4
 
 function playTone(stringIdx, fret) {
@@ -1825,19 +1983,57 @@ function stopQuizTimer() {
     }
 }
 
+/** 「タップで進行」：アプリ側の cruise 自動ギター音を鳴らさない（Perfect タップのみ handleFretClick で鳴らす） */
+function isCruiseTapProgression() {
+    return state.settings && state.settings.cruiseProgression === 'tap';
+}
+
+/** タップ判定の片側窓（秒）。BPM が速いほど自動で縮める。半拍／毎拍とも同じ厳しさにする。 */
+function getCruiseTimingHalfWindow() {
+    const bpm = parseInt(state.settings && state.settings.tempo, 10);
+    const safeBpm = Number.isFinite(bpm) && bpm > 0 ? bpm : 100;
+    const secondsPerBeat = 60.0 / safeBpm;
+    return Math.min(0.15, secondsPerBeat * 0.30);
+}
+
+/** 「いま」の次に出るお題（毎拍モードで先取りタップを判定するため）。ループ折り返しまで考慮。 */
+function getCruiseUpcomingQuestion() {
+    const targets = state.memorize && state.memorize.cruiseTargets;
+    if (!Array.isArray(targets) || targets.length === 0) return null;
+    const idx = parseInt(state.memorize.cruiseIndex, 10) || 0;
+    if (idx + 1 < targets.length) return targets[idx + 1];
+    const maxLoops = parseInt(state.settings && state.settings.cruiseLoopCount, 10);
+    const currentLoop = parseInt(state.memorize.cruiseCurrentLoop, 10) || 0;
+    if (maxLoops === 0 || currentLoop + 1 < maxLoops) {
+        return targets[0];
+    }
+    return null;
+}
+
 function scheduleRhythm() {
     if (!audioCtx) return;
     while (nextNoteTime < audioCtx.currentTime + 0.1) {
         playRhythmNote(current16thNote, nextNoteTime);
         
         if (state.course === 'memorize' && state.memorize.playMode === 'cruise' && !state.memorize.isCleared) {
-            if (current16thNote === 0 || current16thNote === 8) {
+            const fullBeats = state.settings.cruiseTapBeats === 'full';
+            const onKickTiming = current16thNote === 0 || current16thNote === 8;
+            const onQuarterHead =
+                current16thNote === 0 ||
+                current16thNote === 4 ||
+                current16thNote === 8 ||
+                current16thNote === 12;
+            const shouldScheduleAdvance = fullBeats ? onQuarterHead : onKickTiming;
+            if (shouldScheduleAdvance) {
                 let delayMs = (nextNoteTime - audioCtx.currentTime) * 1000;
                 setTimeout(autoAdvanceCruise, delayMs);
-                
-                // Target time is the next snare beat (4 16th notes later)
                 let secondsPerBeat = 60.0 / state.settings.tempo;
-                nextTargetTime = nextNoteTime + secondsPerBeat;
+                if (fullBeats) {
+                    nextTargetTime = nextNoteTime;
+                } else {
+                    // Target time is the next snare beat (4 16th notes later)
+                    nextTargetTime = nextNoteTime + secondsPerBeat;
+                }
             }
         }
         
@@ -1858,18 +2054,24 @@ function autoAdvanceCruise() {
     if (state.memorize.isFirstNote) {
         state.memorize.isFirstNote = false;
         state.memorize.hasTappedCurrentNote = false;
+        state.memorize.cruisePreTapped = false;
         let q = state.memorize.currentQuestion;
-        playTone(q.stringIdx, q.fret);
+        if (!isCruiseTapProgression()) {
+            playTone(q.stringIdx, q.fret);
+        }
         renderApp();
         scheduleNextGroupScrollIfNeeded();
         return;
     }
     
     // Evaluate previous window (timeout miss)
-    const isTimeoutMiss = !state.memorize.hasTappedCurrentNote;
+    // 「次の拍を先取りタップ」した場合も、現在の拍はノータップ扱いにせず Miss を出さない（ユーザー体験優先）。
+    const isTimeoutMiss = !state.memorize.hasTappedCurrentNote && !state.memorize.cruisePreTapped;
     if (isTimeoutMiss) {
         state.memorize.combo = 0;
-        state.memorize.tempFeedback = { text: 'Miss... (時間切れ)', className: 'feedback-display feedback-wrong' };
+        const timeoutFeedback = { text: 'Miss... (時間切れ)', className: 'feedback-display feedback-wrong' };
+        state.memorize.tempFeedback = timeoutFeedback;
+        state.memorize.cruiseLastTapFeedback = timeoutFeedback;
     } else {
         state.memorize.tempFeedback = null;
     }
@@ -1903,10 +2105,14 @@ function autoAdvanceCruise() {
                 state.memorize.currentQuestion = nextLoopFirstNote;
                 state.memorize.cruisePreviousGroupIndex = prevGroupIndex;
                 state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices[0] ?? prevGroupIndex;
-                state.memorize.hasTappedCurrentNote = false;
+                // 直前に「次の拍を先取りタップ」していたら、新しい current のタップ済みとして引き継ぐ
+                state.memorize.hasTappedCurrentNote = !!state.memorize.cruisePreTapped;
+                state.memorize.cruisePreTapped = false;
 
                 let q = state.memorize.currentQuestion;
-                playTone(q.stringIdx, q.fret);
+                if (!isCruiseTapProgression()) {
+                    playTone(q.stringIdx, q.fret);
+                }
 
                 autoScrollRequested = true;
                 saveState();
@@ -1945,10 +2151,14 @@ function autoAdvanceCruise() {
             clearStage1RepeatHintState();
         }
 
-        state.memorize.hasTappedCurrentNote = false;
+        // 直前に「次の拍を先取りタップ」していたら、新しい current のタップ済みとして引き継ぐ
+        state.memorize.hasTappedCurrentNote = !!state.memorize.cruisePreTapped;
+        state.memorize.cruisePreTapped = false;
 
         let q = state.memorize.currentQuestion;
-        playTone(q.stringIdx, q.fret);
+        if (!isCruiseTapProgression()) {
+            playTone(q.stringIdx, q.fret);
+        }
 
         autoScrollRequested = true;
         saveState();
@@ -3283,6 +3493,8 @@ function startCruisePlaybackFromSequence(sequence, cruiseScope = null, stage = n
     state.memorize.cruisePreviousGroupIndex = null;
     state.memorize.isCleared = false;
     state.memorize.hasTappedCurrentNote = false;
+    state.memorize.cruisePreTapped = false;
+    state.memorize.cruiseLastTapFeedback = null;
     state.memorize.isFirstNote = true;
     state.memorize.tempFeedback = null;
     state.memorize.isDemoPlayback = true;
@@ -3397,6 +3609,9 @@ function generateQuestion() {
 
     state.memorize.currentQuestion = target;
     state.memorize.hasTappedCurrentNote = false;
+    state.memorize.cruisePreTapped = false;
+    /* 横ズレ対策: 対象問題が変わったので、コンテナ位置の凍結値を破棄する */
+    clearMemorizeQuizLeftFreezeCache();
     if (state.memorize.playMode === 'quiz') {
         const askedNow = parseInt(state.memorize.quizQuestionsAsked ?? 0, 10) || 0;
         state.memorize.quizQuestionsAsked = askedNow + 1;
@@ -4584,6 +4799,8 @@ function getRuleSlides(step) {
         5: [
             {
                 learnTheme: '同じ音をたどってみよう',
+                /** イントロ／実践の見出し直下に出す補足（STEP5 専用） */
+                themeSubline: '※横画面がおすすめ',
                 suppressFloatingCue: true,
                 skipSummaryPhase: true,
                 markers: step5SamePitchBridgeMarkers,
@@ -4954,8 +5171,8 @@ function renderRuleClearCelebration(app) {
                 <div class="rule-master-confetti" aria-hidden="true">${pieces}</div>
                 <div class="rule-clear-card rule-master-clear-card">
                     <p class="rule-master-clear-head" aria-live="polite">ルール制覇！！</p>
-                    <p class="rule-master-clear-lead">指板を「覚える」には<br>こちらをやりましょう！</p>
-                    <button type="button" class="btn-primary rule-clear-next-btn" id="btn-rule-clear-memorize">覚えるモードへ</button>
+                    <p class="rule-master-clear-lead"><span class="rule-master-clear-nobr">「指板をたどる」と</span><span class="rule-master-clear-nobr">「指板クイズ」を使って、</span><br><span class="rule-master-clear-nobr">指板を覚えましょう！</span></p>
+                    <button type="button" class="btn-primary rule-clear-next-btn" id="btn-rule-clear-memorize">トップページへ</button>
                 </div>
                 <div style="height:120px"></div>
             </div>
@@ -4969,7 +5186,7 @@ function renderRuleClearCelebration(app) {
         document.getElementById('btn-settings-rule-clear').onclick = () => openSettings('basicRuleStep');
         document.getElementById('btn-rule-clear-memorize').onclick = () => {
             state.rules.celebration = null;
-            state.course = 'modeSelect';
+            state.course = null;
             saveState();
             renderApp();
         };
@@ -5233,9 +5450,14 @@ function renderBasicRuleStep(app) {
         ? `<span class="rule-phase-overlay-note">${summarySubline}</span>`
         : '';
     const playLine = (slide.text || '').trim();
+    const themeSubline = (slide.themeSubline || '').trim();
+    const themeSublineOverlayHtml = themeSubline ? `<span class="rule-theme-subline">${themeSubline}</span>` : '';
+    const themeSublineUnderHeadingHtml =
+        themeSubline ? `<p class="rule-theme-subline rule-theme-subline--below-heading">${themeSubline}</p>` : '';
     const isFinalRuleSummary = isSummaryPhase && step === 5 && page === slides.length - 1;
     const overlayIntroHtml = `
                         <span class="rule-phase-overlay-main">${introOverlayMain}</span>
+                        ${themeSublineOverlayHtml}
                         <button type="button" class="rule-start-btn" id="rule-start-btn">タップで開始</button>`;
     const overlaySummaryHtml = `
                         <span class="rule-phase-overlay-main">${summaryMain}</span>
@@ -5282,7 +5504,7 @@ function renderBasicRuleStep(app) {
                     </button>
                 `).join('')}
             </div>
-            ${isPlayPhase && playLine ? `<p class="rule-step-text">${playLine}</p>` : ''}
+            ${isPlayPhase && playLine ? `<p class="rule-step-text">${playLine}</p>${themeSublineUnderHeadingHtml}` : ''}
             <div id="rule-touch-area" class="rule-touch-area ${touchPhaseClass}">
                 ${hasFretboard ? `
                 <div class="rule-fretboard-stack" id="rule-fretboard-stack">
@@ -6280,6 +6502,8 @@ function renderStageSelect(app) {
                 state.memorize.cruisePreviousGroupIndex = null;
                 state.memorize.isFirstNote = true;
                 state.memorize.hasTappedCurrentNote = false;
+                state.memorize.cruisePreTapped = false;
+                state.memorize.cruiseLastTapFeedback = null;
                 state.memorize.tempFeedback = null;
                 state.memorize.isCruisePlaying = true;
                 
@@ -7486,6 +7710,8 @@ function restartMemorizeFromCleared() {
         state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices?.[0] ?? 0;
         state.memorize.cruisePreviousGroupIndex = null;
         state.memorize.hasTappedCurrentNote = false;
+        state.memorize.cruisePreTapped = false;
+        state.memorize.cruiseLastTapFeedback = null;
         state.memorize.isFirstNote = true;
         state.memorize.isCruisePlaying = true;
         autoScrollRequested = true;
@@ -7503,6 +7729,7 @@ function restartMemorizeFromCleared() {
     state.memorize.quizAttemptCounted = false;
     state.memorize.tempFeedback = null;
     state.memorize.hasTappedCurrentNote = false;
+    state.memorize.cruisePreTapped = false;
     generateQuestion();
     autoScrollRequested = true;
     saveState();
@@ -7577,6 +7804,8 @@ function navigateMemorizeToNextStageFromCleared() {
         state.memorize.cruisePreviousGroupIndex = null;
         state.memorize.isFirstNote = true;
         state.memorize.hasTappedCurrentNote = false;
+        state.memorize.cruisePreTapped = false;
+        state.memorize.cruiseLastTapFeedback = null;
         state.memorize.isCruisePlaying = true;
         autoScrollRequested = true;
         state.quizEditorPreview = null;
@@ -7639,6 +7868,10 @@ function renderMemorize(app) {
         fbText = state.memorize.tempFeedback.text;
         fbClass = state.memorize.tempFeedback.className;
         state.memorize.tempFeedback = null; // consume
+    } else if (isCruise && !isCruiseCounting && state.memorize.cruiseLastTapFeedback) {
+        // カウントダウン後は直近の判定結果（Perfect / Miss / Early / Late / 時間切れ）を常時表示
+        fbText = state.memorize.cruiseLastTapFeedback.text;
+        fbClass = state.memorize.cruiseLastTapFeedback.className;
     }
 
     const clearedTotalNotes = Array.isArray(state.memorize.cruiseTargets) ? state.memorize.cruiseTargets.length : 0;
@@ -7680,10 +7913,9 @@ function renderMemorize(app) {
             </div>`;
     }
 
-    // 「連続」はクルーズだけに残す（クイズはコンボ判定が単純なので外す）
-    const comboItemHtml = isCruise
-        ? `<div class="stat-item"><span class="label">連続</span><span class="value" id="score-combo">${state.memorize.combo}</span></div>`
-        : '';
+    // 「連続」はクルーズ・クイズとも非表示（ユーザー要望でクルーズ側からも削除）。
+    // 連続値の集計（state.memorize.combo / maxCombo）は終了カードの「最大連続」に使うので残す。
+    const comboItemHtml = '';
 
     const stageStatsHtml = `
                     <div class="stats memorize-stats memorize-stats--near-question">
@@ -7813,6 +8045,7 @@ function renderMemorize(app) {
                 state.memorize.cruiseIndex--;
                 state.memorize.currentQuestion = state.memorize.cruiseTargets[state.memorize.cruiseIndex];
                 state.memorize.hasTappedCurrentNote = false;
+                state.memorize.cruisePreTapped = false;
                 saveState();
                 renderApp();
             }
@@ -7833,6 +8066,8 @@ function renderMemorize(app) {
                 state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices?.[0] ?? 0;
                 state.memorize.cruisePreviousGroupIndex = null;
                 state.memorize.hasTappedCurrentNote = false;
+                state.memorize.cruisePreTapped = false;
+                state.memorize.cruiseLastTapFeedback = null;
                 state.memorize.isFirstNote = true;
                 state.memorize.isCruisePlaying = true;
                 autoScrollRequested = true;
@@ -7867,6 +8102,7 @@ function renderMemorize(app) {
                     state.memorize.cruiseIndex++;
                     state.memorize.currentQuestion = state.memorize.cruiseTargets[state.memorize.cruiseIndex];
                     state.memorize.hasTappedCurrentNote = false;
+                    state.memorize.cruisePreTapped = false;
                 }
             }
             saveState();
@@ -7887,6 +8123,8 @@ function renderMemorize(app) {
             state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices?.[0] ?? 0;
             state.memorize.cruisePreviousGroupIndex = null;
             state.memorize.hasTappedCurrentNote = false;
+            state.memorize.cruisePreTapped = false;
+            state.memorize.cruiseLastTapFeedback = null;
             state.memorize.isFirstNote = true;
             state.memorize.isCruisePlaying = true;
             autoScrollRequested = true;
@@ -7973,7 +8211,7 @@ function renderMemorize(app) {
 
 }
 
-function handleFretClick(stringNum, fret) {
+function handleFretClick(stringNum, fret, pointerEv) {
     const q = state.memorize.currentQuestion;
     const fb = document.getElementById('feedback');
     const isCruise = state.memorize.playMode === 'cruise';
@@ -7992,29 +8230,101 @@ function handleFretClick(stringNum, fret) {
     }
 
     if (isCruise) {
-        if (state.memorize.hasTappedCurrentNote || state.memorize.isCleared) return;
-        
-        let timeDiff = audioCtx.currentTime - nextTargetTime;
-        
-        // Check timing window (±150ms)
-        if (Math.abs(timeDiff) > 0.15) {
+        if (state.memorize.isCleared) return;
+
+        initAudio();
+        let tappedT = audioCtx ? audioCtx.currentTime : 0;
+        if (audioCtx && pointerEv) {
+            const est = estimateAudioTimeAtPointerEvent(pointerEv);
+            if (est != null) tappedT = est;
+        }
+
+        const fullBeats = state.settings.cruiseTapBeats === 'full';
+        const bpm = parseInt(state.settings.tempo, 10);
+        const safeBpm = Number.isFinite(bpm) && bpm > 0 ? bpm : 100;
+        const secondsPerBeat = 60.0 / safeBpm;
+        const halfWindow = getCruiseTimingHalfWindow();
+
+        // どの拍頭を狙ったタップか判定する。
+        // 毎拍モードでは「直近の過去の拍頭」と「直近の未来の拍頭」を比べ、近いほうのお題で評価する。
+        // 半拍モードはこれまで通り nextTargetTime（次のスネア）を中心に評価する。
+        let evaluateAgainstUpcoming = false;
+        let timeDiff;
+        if (fullBeats) {
+            let pastTime;
+            let nextTime;
+            if (nextTargetTime > tappedT) {
+                nextTime = nextTargetTime;
+                pastTime = nextTargetTime - secondsPerBeat;
+            } else {
+                pastTime = nextTargetTime;
+                nextTime = nextTargetTime + secondsPerBeat;
+            }
+            const distToPast = tappedT - pastTime;
+            const distToNext = nextTime - tappedT;
+            const upcomingExists = !!getCruiseUpcomingQuestion();
+            if (upcomingExists && distToNext < distToPast) {
+                evaluateAgainstUpcoming = true;
+                timeDiff = tappedT - nextTime;
+            } else {
+                timeDiff = tappedT - pastTime;
+            }
+        } else {
+            timeDiff = tappedT - nextTargetTime;
+        }
+
+        // 同じ拍に対して二重判定しない（タイプ別にゲート）。
+        if (evaluateAgainstUpcoming) {
+            if (state.memorize.cruisePreTapped) return;
+        } else {
+            if (state.memorize.hasTappedCurrentNote) return;
+        }
+
+        // 評価対象のお題（先取りなら次のお題、そうでなければ現在のお題）。
+        let targetQuestion = q;
+        if (evaluateAgainstUpcoming) {
+            const upcoming = getCruiseUpcomingQuestion();
+            if (upcoming) targetQuestion = upcoming;
+        }
+        const isCorrectAgainstTarget =
+            (stringNum === targetQuestion.stringName) && (fret === targetQuestion.fret);
+
+        const markTapped = () => {
+            if (evaluateAgainstUpcoming) {
+                state.memorize.cruisePreTapped = true;
+            } else {
+                state.memorize.hasTappedCurrentNote = true;
+            }
+        };
+
+        const setCruiseFeedback = (text, type) => {
+            const className = type === 'good'
+                ? 'feedback-display feedback-correct'
+                : 'feedback-display feedback-wrong';
+            state.memorize.cruiseLastTapFeedback = { text, className };
+        };
+
+        if (Math.abs(timeDiff) > halfWindow) {
             state.memorize.combo = 0;
-            state.memorize.hasTappedCurrentNote = true;
-            let fbText = timeDiff < 0 ? 'Early!' : 'Late!';
+            markTapped();
+            const fbText = timeDiff < 0 ? 'Early!' : 'Late!';
+            setCruiseFeedback(fbText, 'miss');
             showLiveFeedback(fbText, 'miss');
         } else {
-            if (isCorrect) {
+            if (isCorrectAgainstTarget) {
                 playTone(stringIdx, fret);
                 state.memorize.correct++;
                 state.memorize.combo++;
                 if ((state.memorize.combo || 0) > (state.memorize.maxCombo || 0)) {
                     state.memorize.maxCombo = state.memorize.combo;
                 }
-                state.memorize.hasTappedCurrentNote = true;
+                markTapped();
+                setCruiseFeedback('Perfect!', 'good');
                 showLiveFeedback('Perfect!', 'good');
             } else {
                 state.memorize.combo = 0;
-                state.memorize.hasTappedCurrentNote = true;
+                markTapped();
+                setCruiseFeedback('Miss!', 'miss');
                 showLiveFeedback('Miss!', 'miss');
             }
         }
@@ -8173,10 +8483,18 @@ function updateMemorizeScoreDisplay() {
 }
 
 const SCALE_INTERVALS = {
-    major: [0, 2, 4, 5, 7, 9, 11],
-    minor: [0, 2, 3, 5, 7, 8, 10],
-    pentaMajor: [0, 2, 4, 7, 9],
-    pentaMinor: [0, 3, 5, 7, 10]
+    major: [0, 2, 4, 5, 7, 9, 11],            // メジャー / アイオニアン
+    minor: [0, 2, 3, 5, 7, 8, 10],            // ナチュラルマイナー / エオリアン
+    harmonicMinor: [0, 2, 3, 5, 7, 8, 11],    // ハーモニックマイナー
+    melodicMinor: [0, 2, 3, 5, 7, 9, 11],     // メロディックマイナー（上行）
+    dorian: [0, 2, 3, 5, 7, 9, 10],           // ドリアン
+    phrygian: [0, 1, 3, 5, 7, 8, 10],         // フリジアン
+    lydian: [0, 2, 4, 6, 7, 9, 11],           // リディアン
+    mixolydian: [0, 2, 4, 5, 7, 9, 10],       // ミクソリディアン
+    locrian: [0, 1, 3, 5, 6, 8, 10],          // ロクリアン
+    pentaMajor: [0, 2, 4, 7, 9],              // メジャーペンタトニック
+    pentaMinor: [0, 3, 5, 7, 10],             // マイナーペンタトニック
+    blues: [0, 3, 5, 6, 7, 10]                // ブルース（マイナーペンタ + ♭5）
 };
 
 const DIATONIC_CHORDS = {
@@ -8211,24 +8529,114 @@ const DIATONIC_CHORDS = {
         { label: 'IVm', suffix3: 'm', suffix7: 'm7',   degrees: [5, 8, 0],  degrees7: [5, 8, 0, 3]  },
         { label: 'Vm',  suffix3: 'm', suffix7: 'm7',   degrees: [7, 10, 2], degrees7: [7, 10, 2, 5] },
         { label: 'VII', suffix3: '', suffix7: '7',    degrees: [10, 2, 5], degrees7: [10, 2, 5, 8] }
+    ],
+    // 教会モード（ダイアトニックは各旋法の度数で構築）
+    dorian: [
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [0, 3, 7],    degrees7: [0, 3, 7, 10] },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [2, 5, 9],    degrees7: [2, 5, 9, 0]  },
+        { suffix3: '',    suffix7: 'M7',   degrees: [3, 7, 10],   degrees7: [3, 7, 10, 2] },
+        { suffix3: '',    suffix7: '7',    degrees: [5, 9, 0],    degrees7: [5, 9, 0, 3]  },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [7, 10, 2],   degrees7: [7, 10, 2, 5] },
+        { suffix3: 'mb5', suffix7: 'm7b5', degrees: [9, 0, 3],    degrees7: [9, 0, 3, 7]  },
+        { suffix3: '',    suffix7: 'M7',   degrees: [10, 2, 5],   degrees7: [10, 2, 5, 9] }
+    ],
+    phrygian: [
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [0, 3, 7],    degrees7: [0, 3, 7, 10] },
+        { suffix3: '',    suffix7: 'M7',   degrees: [1, 5, 8],    degrees7: [1, 5, 8, 0]  },
+        { suffix3: '',    suffix7: '7',    degrees: [3, 7, 10],   degrees7: [3, 7, 10, 1] },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [5, 8, 0],    degrees7: [5, 8, 0, 3]  },
+        { suffix3: 'mb5', suffix7: 'm7b5', degrees: [7, 10, 1],   degrees7: [7, 10, 1, 5] },
+        { suffix3: '',    suffix7: 'M7',   degrees: [8, 0, 3],    degrees7: [8, 0, 3, 7]  },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [10, 1, 5],   degrees7: [10, 1, 5, 8] }
+    ],
+    lydian: [
+        { suffix3: '',    suffix7: 'M7',   degrees: [0, 4, 7],    degrees7: [0, 4, 7, 11] },
+        { suffix3: '',    suffix7: '7',    degrees: [2, 6, 9],    degrees7: [2, 6, 9, 0]  },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [4, 7, 11],   degrees7: [4, 7, 11, 2] },
+        { suffix3: 'mb5', suffix7: 'm7b5', degrees: [6, 9, 0],    degrees7: [6, 9, 0, 4]  },
+        { suffix3: '',    suffix7: 'M7',   degrees: [7, 11, 2],   degrees7: [7, 11, 2, 6] },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [9, 0, 4],    degrees7: [9, 0, 4, 7]  },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [11, 2, 6],   degrees7: [11, 2, 6, 9] }
+    ],
+    mixolydian: [
+        { suffix3: '',    suffix7: '7',    degrees: [0, 4, 7],    degrees7: [0, 4, 7, 10] },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [2, 5, 9],    degrees7: [2, 5, 9, 0]  },
+        { suffix3: 'mb5', suffix7: 'm7b5', degrees: [4, 7, 10],   degrees7: [4, 7, 10, 2] },
+        { suffix3: '',    suffix7: 'M7',   degrees: [5, 9, 0],    degrees7: [5, 9, 0, 4]  },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [7, 10, 2],   degrees7: [7, 10, 2, 5] },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [9, 0, 4],    degrees7: [9, 0, 4, 7]  },
+        { suffix3: '',    suffix7: 'M7',   degrees: [10, 2, 5],   degrees7: [10, 2, 5, 9] }
+    ],
+    locrian: [
+        { suffix3: 'mb5', suffix7: 'm7b5', degrees: [0, 3, 6],    degrees7: [0, 3, 6, 10] },
+        { suffix3: '',    suffix7: 'M7',   degrees: [1, 5, 8],    degrees7: [1, 5, 8, 0]  },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [3, 6, 10],   degrees7: [3, 6, 10, 1] },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [5, 8, 0],    degrees7: [5, 8, 0, 3]  },
+        { suffix3: '',    suffix7: 'M7',   degrees: [6, 10, 1],   degrees7: [6, 10, 1, 5] },
+        { suffix3: '',    suffix7: '7',    degrees: [8, 0, 3],    degrees7: [8, 0, 3, 6]  },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [10, 1, 5],   degrees7: [10, 1, 5, 8] }
+    ],
+    // ハーモニックマイナー：V が dominant 7 になるのが特徴
+    harmonicMinor: [
+        { suffix3: 'm',   suffix7: 'mM7',  degrees: [0, 3, 7],    degrees7: [0, 3, 7, 11] },
+        { suffix3: 'mb5', suffix7: 'm7b5', degrees: [2, 5, 8],    degrees7: [2, 5, 8, 0]  },
+        { suffix3: 'aug', suffix7: 'augM7',degrees: [3, 7, 11],   degrees7: [3, 7, 11, 2] },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [5, 8, 0],    degrees7: [5, 8, 0, 3]  },
+        { suffix3: '',    suffix7: '7',    degrees: [7, 11, 2],   degrees7: [7, 11, 2, 5] },
+        { suffix3: '',    suffix7: 'M7',   degrees: [8, 0, 3],    degrees7: [8, 0, 3, 7]  },
+        { suffix3: 'mb5', suffix7: 'dim7', degrees: [11, 2, 5],   degrees7: [11, 2, 5, 8] }
+    ],
+    // メロディックマイナー（上行形）
+    melodicMinor: [
+        { suffix3: 'm',   suffix7: 'mM7',  degrees: [0, 3, 7],    degrees7: [0, 3, 7, 11] },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [2, 5, 9],    degrees7: [2, 5, 9, 0]  },
+        { suffix3: 'aug', suffix7: 'augM7',degrees: [3, 7, 11],   degrees7: [3, 7, 11, 2] },
+        { suffix3: '',    suffix7: '7',    degrees: [5, 9, 0],    degrees7: [5, 9, 0, 3]  },
+        { suffix3: '',    suffix7: '7',    degrees: [7, 11, 2],   degrees7: [7, 11, 2, 5] },
+        { suffix3: 'mb5', suffix7: 'm7b5', degrees: [9, 0, 3],    degrees7: [9, 0, 3, 7]  },
+        { suffix3: 'mb5', suffix7: 'm7b5', degrees: [11, 2, 5],   degrees7: [11, 2, 5, 9] }
+    ],
+    // ブルース（伝統的に I7 / IV7 / V7 のみ表示）
+    blues: [
+        { suffix3: '',    suffix7: '7',    degrees: [0, 4, 7],    degrees7: [0, 4, 7, 10] },
+        { suffix3: '',    suffix7: '7',    degrees: [5, 9, 0],    degrees7: [5, 9, 0, 3]  },
+        { suffix3: '',    suffix7: '7',    degrees: [7, 11, 2],   degrees7: [7, 11, 2, 5] }
     ]
 };
 
-function getDiatonicChordsForKey(keyIndex, scaleType, use7Chords) {
+/** ダイアトニックの「度数（ローマ数字）」ラベル。DIATONIC_CHORDS と同じ並び順。 */
+const DIATONIC_ROMAN_ROOTS = {
+    major:         ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'],
+    minor:         ['I', 'II', '♭III', 'IV', 'V', '♭VI', '♭VII'],
+    harmonicMinor: ['I', 'II', '♭III', 'IV', 'V', '♭VI', 'VII'],
+    melodicMinor:  ['I', 'II', '♭III', 'IV', 'V', 'VI', 'VII'],
+    dorian:        ['I', 'II', '♭III', 'IV', 'V', 'VI', '♭VII'],
+    phrygian:      ['I', '♭II', '♭III', 'IV', 'V', '♭VI', '♭VII'],
+    lydian:        ['I', 'II', 'III', '#IV', 'V', 'VI', 'VII'],
+    mixolydian:    ['I', 'II', 'III', 'IV', 'V', 'VI', '♭VII'],
+    locrian:       ['I', '♭II', '♭III', 'IV', '♭V', '♭VI', '♭VII'],
+    pentaMajor:    ['I', 'II', 'III', 'V', 'VI'],
+    pentaMinor:    ['I', '♭III', 'IV', 'V', '♭VII'],
+    blues:         ['I', 'IV', 'V']
+};
+
+function getDiatonicChordsForKey(keyIndex, scaleType, use7Chords, labelMode = 'name') {
     const baseChords = DIATONIC_CHORDS[scaleType] || DIATONIC_CHORDS.major;
     const scaleIntervals = SCALE_INTERVALS[scaleType] || SCALE_INTERVALS.major;
+    const romanRoots = DIATONIC_ROMAN_ROOTS[scaleType] || DIATONIC_ROMAN_ROOTS.major;
 
     return baseChords.map((chord, idx) => {
-        const rootScaleDegree = idx;
-        const rootInterval = scaleIntervals[rootScaleDegree];
+        const rootInterval = scaleIntervals[idx];
         const rootNoteIndex = (keyIndex + rootInterval) % 12;
         const rootNoteName = NOTES[rootNoteIndex];
+        const suffix = use7Chords ? chord.suffix7 : chord.suffix3;
 
         let newLabel;
-        if (use7Chords) {
-            newLabel = rootNoteName + chord.suffix7;
+        if (labelMode === 'degree') {
+            const roman = romanRoots[idx] || '';
+            newLabel = roman + suffix;
         } else {
-            newLabel = rootNoteName + chord.suffix3;
+            newLabel = rootNoteName + suffix;
         }
         const degreesArray = use7Chords ? (chord.degrees7 || chord.degrees) : chord.degrees;
 
@@ -8244,11 +8652,27 @@ function getScaleDegrees(scaleType) {
         case 'major':
             return { 0: '1', 2: '2', 4: '3', 5: '4', 7: '5', 9: '6', 11: '7' };
         case 'minor':
-            return { 0: '1', 2: '2b', 3: '3', 5: '4', 7: '5', 8: '6b', 10: '7b' };
+            return { 0: '1', 2: '2', 3: '3b', 5: '4', 7: '5', 8: '6b', 10: '7b' };
+        case 'harmonicMinor':
+            return { 0: '1', 2: '2', 3: '3b', 5: '4', 7: '5', 8: '6b', 11: '7' };
+        case 'melodicMinor':
+            return { 0: '1', 2: '2', 3: '3b', 5: '4', 7: '5', 9: '6', 11: '7' };
+        case 'dorian':
+            return { 0: '1', 2: '2', 3: '3b', 5: '4', 7: '5', 9: '6', 10: '7b' };
+        case 'phrygian':
+            return { 0: '1', 1: '2b', 3: '3b', 5: '4', 7: '5', 8: '6b', 10: '7b' };
+        case 'lydian':
+            return { 0: '1', 2: '2', 4: '3', 6: '4#', 7: '5', 9: '6', 11: '7' };
+        case 'mixolydian':
+            return { 0: '1', 2: '2', 4: '3', 5: '4', 7: '5', 9: '6', 10: '7b' };
+        case 'locrian':
+            return { 0: '1', 1: '2b', 3: '3b', 5: '4', 6: '5b', 8: '6b', 10: '7b' };
         case 'pentaMajor':
             return { 0: '1', 2: '2', 4: '3', 7: '5', 9: '6' };
         case 'pentaMinor':
             return { 0: '1', 3: '3b', 5: '4', 7: '5', 10: '7b' };
+        case 'blues':
+            return { 0: '1', 3: '3b', 5: '4', 6: '5b', 7: '5', 10: '7b' };
         default:
             return { 0: '1', 2: '2', 4: '3', 5: '4', 7: '5', 9: '6', 11: '7' };
     }
@@ -8341,7 +8765,12 @@ function renderVisualize(app) {
     if (typeof state.visualize.doMode === 'undefined') state.visualize.doMode = 'movable';
     if (typeof state.visualize.showExtendedFrets === 'undefined') state.visualize.showExtendedFrets = false;
 
-    const chords = getDiatonicChordsForKey(state.visualize.key, state.visualize.scale, state.visualize.chordType === '7');
+    const chords = getDiatonicChordsForKey(
+        state.visualize.key,
+        state.visualize.scale,
+        state.visualize.chordType === '7',
+        state.visualize.chordLabelMode === 'degree' ? 'degree' : 'name'
+    );
     const chordButtonsHtml = chords.map((chord, idx) => {
         const isSelected = state.visualize.selectedChordIndex === idx;
         const isDisabled = !state.visualize.autoSelectRootChord;
@@ -8373,10 +8802,18 @@ function renderVisualize(app) {
             <div class="setup-item">
                 <label>スケール</label>
                 <select id="vis-scale">
-                    <option value="major" ${state.visualize.scale==='major'?'selected':''}>Major</option>
-                    <option value="minor" ${state.visualize.scale==='minor'?'selected':''}>Minor</option>
-                    <option value="pentaMajor" ${state.visualize.scale==='pentaMajor'?'selected':''}>Penta Major</option>
-                    <option value="pentaMinor" ${state.visualize.scale==='pentaMinor'?'selected':''}>Penta Minor</option>
+                    <option value="major" ${state.visualize.scale==='major'?'selected':''}>メジャー / アイオニアン</option>
+                    <option value="minor" ${state.visualize.scale==='minor'?'selected':''}>ナチュラルマイナー / エオリアン</option>
+                    <option value="harmonicMinor" ${state.visualize.scale==='harmonicMinor'?'selected':''}>ハーモニックマイナー</option>
+                    <option value="melodicMinor" ${state.visualize.scale==='melodicMinor'?'selected':''}>メロディックマイナー</option>
+                    <option value="dorian" ${state.visualize.scale==='dorian'?'selected':''}>ドリアン</option>
+                    <option value="phrygian" ${state.visualize.scale==='phrygian'?'selected':''}>フリジアン</option>
+                    <option value="lydian" ${state.visualize.scale==='lydian'?'selected':''}>リディアン</option>
+                    <option value="mixolydian" ${state.visualize.scale==='mixolydian'?'selected':''}>ミクソリディアン</option>
+                    <option value="locrian" ${state.visualize.scale==='locrian'?'selected':''}>ロクリアン</option>
+                    <option value="pentaMajor" ${state.visualize.scale==='pentaMajor'?'selected':''}>メジャーペンタトニック</option>
+                    <option value="pentaMinor" ${state.visualize.scale==='pentaMinor'?'selected':''}>マイナーペンタトニック</option>
+                    <option value="blues" ${state.visualize.scale==='blues'?'selected':''}>ブルース</option>
                 </select>
             </div>
             <div class="setup-item">
@@ -8415,6 +8852,10 @@ function renderVisualize(app) {
             <div style="display: flex; gap: 15px; margin-top: 20px; justify-content: center;">
                 <button type="button" class="chord-type-btn ${state.visualize.chordType==='3'?'active':''}" data-chord-type="3">3和音</button>
                 <button type="button" class="chord-type-btn ${state.visualize.chordType==='7'?'active':''}" data-chord-type="7">4和音</button>
+            </div>
+            <div style="display: flex; gap: 15px; margin-top: 12px; justify-content: center;">
+                <button type="button" class="chord-type-btn ${state.visualize.chordLabelMode==='name'?'active':''}" data-chord-label-mode="name">コード名</button>
+                <button type="button" class="chord-type-btn ${state.visualize.chordLabelMode==='degree'?'active':''}" data-chord-label-mode="degree">度数</button>
             </div>
         </div>
     `;
@@ -8473,9 +8914,18 @@ function renderVisualize(app) {
         renderApp();
     };
 
-    document.querySelectorAll('.chord-type-btn').forEach(btn => {
+    document.querySelectorAll('.chord-type-btn[data-chord-type]').forEach(btn => {
         btn.onclick = () => {
             state.visualize.chordType = btn.getAttribute('data-chord-type');
+            saveState();
+            renderApp();
+        };
+    });
+
+    document.querySelectorAll('.chord-type-btn[data-chord-label-mode]').forEach(btn => {
+        btn.onclick = () => {
+            const mode = btn.getAttribute('data-chord-label-mode');
+            state.visualize.chordLabelMode = (mode === 'degree') ? 'degree' : 'name';
             saveState();
             renderApp();
         };
@@ -8511,6 +8961,11 @@ function renderVisualize(app) {
 function renderSettings(app) {
     const settingsDocumentHandlers = [];
     const settingsSnapshot = cloneSettings(state.settings);
+    const activeTab = ['cruise', 'quiz', 'common'].includes(state.settings.lastSettingsTab)
+        ? state.settings.lastSettingsTab
+        : 'cruise';
+    const tabHidden = (name) => activeTab === name ? '' : ' is-hidden';
+    const tabActive = (name) => activeTab === name ? ' is-active' : '';
     app.innerHTML = `
         <div class="settings-screen">
         ${buildPageHeader({
@@ -8522,14 +8977,15 @@ function renderSettings(app) {
             `
         })}
 
-        <div class="settings-page-stack settings-page-stack--proposed">
-        <div class="settings-card settings-card--cruise-mode">
-            <div class="settings-card-header settings-card-header--major">
-                <div class="settings-card-title-wrap">
-                    <h3 class="settings-card-title settings-card-title--major">指板をたどるモード</h3>
-                </div>
-            </div>
+        <div class="settings-tabs" role="tablist">
+            <button type="button" class="settings-tab-btn${tabActive('cruise')}" role="tab" data-settings-tab="cruise">指板をたどる</button>
+            <button type="button" class="settings-tab-btn${tabActive('quiz')}" role="tab" data-settings-tab="quiz">指板クイズ</button>
+            <button type="button" class="settings-tab-btn${tabActive('common')}" role="tab" data-settings-tab="common">共通</button>
+        </div>
 
+        <div class="settings-page-stack settings-page-stack--proposed">
+        <div class="settings-tab-panel${tabHidden('cruise')}" data-settings-tab-panel="cruise">
+        <div class="settings-card settings-card--cruise-mode">
             <div class="settings-card-section">
                 <div class="settings-card-section-header">
                     <span class="settings-card-section-title">テンポ</span>
@@ -8558,26 +9014,48 @@ function renderSettings(app) {
 
             <div class="settings-card-section">
                 <div class="settings-card-section-header">
-                    <span class="settings-card-section-title">音名の表示</span>
-                </div>
-                <div class="settings-row-between" style="margin-bottom:4px;">
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <label for="cruise-show-note-names-toggle" class="settings-label" style="cursor:pointer;">指板上の音名マーカー</label>
+                        <span class="settings-card-section-title">アプリの音</span>
+                        <button class="settings-help-btn" type="button" data-target="note-cruise-progression" aria-label="説明を表示">⊕</button>
+                    </div>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-progression">リセット</button>
+                </div>
+                <div class="mode-buttons settings-cruise-progression-buttons">
+                    <button type="button" class="mode-btn ${state.settings.cruiseProgression === 'tap' ? '' : 'active'}" data-cruise-progression="auto">有り</button>
+                    <button type="button" class="mode-btn ${state.settings.cruiseProgression === 'tap' ? 'active' : ''}" data-cruise-progression="tap">無し</button>
+                </div>
+                <p class="settings-note settings-note--animated" id="note-cruise-progression" style="margin-top:8px;">「有り」はアプリがギター音も鳴らします。「無し」ではギターをタップした時だけ鳴ります。</p>
+                <div class="settings-card-section-header" style="margin-top:12px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="settings-card-section-title">タップする拍</span>
+                        <button class="settings-help-btn" type="button" data-target="note-cruise-tap-beats" aria-label="説明を表示">⊕</button>
+                    </div>
+                </div>
+                <div class="mode-buttons settings-cruise-tap-beats-buttons">
+                    <button type="button" class="mode-btn ${state.settings.cruiseTapBeats !== 'full' ? 'active' : ''}" data-cruise-tap-beats="half">2拍に1回（1・3拍目）</button>
+                    <button type="button" class="mode-btn ${state.settings.cruiseTapBeats === 'full' ? 'active' : ''}" data-cruise-tap-beats="full">毎拍（1〜4）</button>
+                </div>
+                <p class="settings-note settings-note--animated" id="note-cruise-tap-beats" style="margin-top:8px;">次の音に進む速さです。2拍に1回はゆっくり、毎拍は1拍ごとに進み、ペースが速くなります。</p>
+            </div>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="settings-card-section-title">指板上の音名マーカー</span>
                         <button class="settings-help-btn" type="button" data-target="note-cruise-show-names" aria-label="説明を表示">⊕</button>
                     </div>
-                    <input type="checkbox" id="cruise-show-note-names-toggle" class="settings-checkbox-native" ${state.settings.cruiseShowNoteNames !== false ? 'checked' : ''}>
                 </div>
-                <p class="settings-note settings-note--animated" id="note-cruise-show-names">オフにすると、練習範囲の薄い音名・次の音・いまの音の丸表示を隠します（上の出題文はそのままです）。</p>
+                <div class="mode-buttons settings-cruise-show-note-names-buttons">
+                    <button type="button" class="mode-btn ${state.settings.cruiseShowNoteNames !== false ? 'active' : ''}" data-cruise-show-note-names="on">オン</button>
+                    <button type="button" class="mode-btn ${state.settings.cruiseShowNoteNames === false ? 'active' : ''}" data-cruise-show-note-names="off">オフ</button>
+                </div>
+                <p class="settings-note settings-note--animated" id="note-cruise-show-names" style="margin-top:8px;">オフにすると、指板をたどる範囲に薄く表示されている音名ボタンが消えます。</p>
             </div>
         </div>
+        </div>
 
+        <div class="settings-tab-panel${tabHidden('quiz')}" data-settings-tab-panel="quiz">
         <div class="settings-card settings-card--quiz-mode">
-            <div class="settings-card-header settings-card-header--major">
-                <div class="settings-card-title-wrap">
-                    <h3 class="settings-card-title settings-card-title--major">指板クイズモード</h3>
-                </div>
-            </div>
-
             <div class="settings-card-section">
                 <div class="settings-card-section-header">
                     <span class="settings-card-section-title">制限時間</span>
@@ -8616,14 +9094,10 @@ function renderSettings(app) {
                 </div>
             </div>
         </div>
+        </div>
 
+        <div class="settings-tab-panel${tabHidden('common')}" data-settings-tab-panel="common">
         <div class="settings-card settings-card--common">
-            <div class="settings-card-header settings-card-header--major">
-                <div class="settings-card-title-wrap">
-                    <h3 class="settings-card-title settings-card-title--major">共通</h3>
-                </div>
-            </div>
-
             <div class="settings-card-section">
                 <div class="settings-card-section-header">
                     <div style="display: flex; align-items: center; gap: 8px;">
@@ -8740,6 +9214,8 @@ function renderSettings(app) {
             </div>
             </div>
         </div>
+        </div>
+        </div>
         <div class="settings-actions-footer settings-actions-footer--proposed">
             <button class="settings-bottom-btn settings-apply-btn" id="btn-settings-apply">決定</button>
             <div class="settings-secondary-actions">
@@ -8797,12 +9273,23 @@ function renderSettings(app) {
                 syncLoopCountSettingsUI();
                 return;
             }
+            if (resetCard === 'cruise-progression') {
+                state.settings.cruiseProgression = DEFAULT_CRUISE_PROGRESSION;
+                state.settings.cruiseTapBeats = DEFAULT_CRUISE_TAP_BEATS;
+                syncCruiseProgressionSettingsUI();
+                return;
+            }
         };
     });
 
     const closeSettings = (shouldSave, targetCourse = settingsReturnCourse) => {
         if (!shouldSave) {
+            // 「キャンセル」でも、最後に開いていたタブだけは復元せずユーザーの操作のまま残す
+            const preservedTab = state.settings.lastSettingsTab;
             state.settings = cloneSettings(settingsSnapshot);
+            if (['cruise', 'quiz', 'common'].includes(preservedTab)) {
+                state.settings.lastSettingsTab = preservedTab;
+            }
         }
         state.course = targetCourse;
         // 設定画面から戻ってきた場合、一時停止状態（isCruisePlaying = false）を保持
@@ -8810,6 +9297,30 @@ function renderSettings(app) {
         saveState();
         renderApp();
     };
+
+    const settingsTabButtons = document.querySelectorAll('.settings-tab-btn');
+    const settingsTabPanels = document.querySelectorAll('.settings-tab-panel');
+    settingsTabButtons.forEach(btn => {
+        btn.onclick = () => {
+            const target = btn.getAttribute('data-settings-tab');
+            if (!['cruise', 'quiz', 'common'].includes(target)) return;
+            state.settings.lastSettingsTab = target;
+            settingsTabButtons.forEach(b => {
+                b.classList.toggle('is-active', b.getAttribute('data-settings-tab') === target);
+            });
+            settingsTabPanels.forEach(p => {
+                p.classList.toggle('is-hidden', p.getAttribute('data-settings-tab-panel') !== target);
+            });
+            // 「共通」タブを開いたら 3D プレビューを再描画（display:none 中はサイズ 0 で描けないため）
+            if (target === 'common') {
+                if (typeof updatePreview === 'function') updatePreview();
+                setTimeout(() => {
+                    if (typeof updatePreviewTransform === 'function') updatePreviewTransform();
+                }, 0);
+            }
+            saveState();
+        };
+    });
 
     document.getElementById('btn-home-settings').onclick = () => closeSettings(true, null);
     document.getElementById('btn-back-settings').onclick = () => closeSettings(true);
@@ -8865,13 +9376,30 @@ function renderSettings(app) {
         };
     });
 
-    const cruiseNoteNamesToggle = document.getElementById('cruise-show-note-names-toggle');
-    if (cruiseNoteNamesToggle) {
-        cruiseNoteNamesToggle.onchange = () => {
-            state.settings.cruiseShowNoteNames = cruiseNoteNamesToggle.checked;
+    document.querySelectorAll('.settings-cruise-progression-buttons .mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            state.settings.cruiseProgression = btn.getAttribute('data-cruise-progression');
+            syncCruiseProgressionSettingsUI();
             saveState();
         };
-    }
+    });
+
+    document.querySelectorAll('.settings-cruise-tap-beats-buttons .mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            state.settings.cruiseTapBeats = btn.getAttribute('data-cruise-tap-beats');
+            syncCruiseProgressionSettingsUI();
+            saveState();
+        };
+    });
+
+    document.querySelectorAll('.settings-cruise-show-note-names-buttons .mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            const v = btn.getAttribute('data-cruise-show-note-names');
+            state.settings.cruiseShowNoteNames = v !== 'off';
+            syncCruiseNoteNamesSettingsUI();
+            saveState();
+        };
+    });
 
     const updatePreview = () => {
         renderFretboardHTML('tilt-preview-container', {
@@ -8965,8 +9493,24 @@ function renderSettings(app) {
     }
 
     function syncCruiseNoteNamesSettingsUI() {
-        const el = document.getElementById('cruise-show-note-names-toggle');
-        if (el) el.checked = state.settings.cruiseShowNoteNames !== false;
+        const on = state.settings.cruiseShowNoteNames !== false;
+        document.querySelectorAll('.settings-cruise-show-note-names-buttons .mode-btn').forEach(b => {
+            const v = b.getAttribute('data-cruise-show-note-names');
+            b.classList.toggle('active', on ? v === 'on' : v === 'off');
+        });
+    }
+
+    function syncCruiseProgressionSettingsUI() {
+        const tap = state.settings.cruiseProgression === 'tap';
+        document.querySelectorAll('.settings-cruise-progression-buttons .mode-btn').forEach(b => {
+            const v = b.getAttribute('data-cruise-progression');
+            b.classList.toggle('active', tap ? v === 'tap' : v === 'auto');
+        });
+        const full = state.settings.cruiseTapBeats === 'full';
+        document.querySelectorAll('.settings-cruise-tap-beats-buttons .mode-btn').forEach(b => {
+            const v = b.getAttribute('data-cruise-tap-beats');
+            b.classList.toggle('active', full ? v === 'full' : v === 'half');
+        });
     }
 
     function refreshSettingsControls() {
@@ -8978,6 +9522,7 @@ function renderSettings(app) {
         syncLoopCountSettingsUI();
         syncQuizQuestionLimitSettingsUI();
         syncCruiseNoteNamesSettingsUI();
+        syncCruiseProgressionSettingsUI();
         perspSlider.value = state.settings.perspective;
         perspOriginSlider.value = state.settings.perspOriginX;
         stringSpacingSlider.value = state.settings.stringSpacing;
@@ -9636,6 +10181,26 @@ function renderFretboardHTML(containerId, options) {
         const wireClass = index === 1 ? 'projected-fret-wire nut' : 'projected-fret-wire';
         html += `<line class="${wireClass}" x1="${topPoint.x.toFixed(2)}" y1="${topPoint.y.toFixed(2)}" x2="${bottomPoint.x.toFixed(2)}" y2="${bottomPoint.y.toFixed(2)}" stroke="url(#${gradId})" stroke-width="${wireWidth}"></line>`;
     });
+
+    // カポ：指板を探索するモードでカポが 1F 以上のときだけ描画。
+    // 「カポ N」は f<N を不可（既存実装）に合わせ、指板の「フレットNセル」の先頭側（左端）に重ねる。
+    const capoVal = parseInt(capo, 10) || 0;
+    if (mode === 'visualize' && capoVal > 0 && capoVal <= renderMaxFret) {
+        const cellLo = xEdges[capoVal];
+        const cellHi = xEdges[capoVal + 1];
+        const capoX = cellLo + (cellHi - cellLo) * 0.15;
+        const capoExtra = 18;
+        const topCapo = projectPoint(capoX, neckTop - capoExtra, NOTE_MARKER_Z);
+        const bottomCapo = projectPoint(capoX, neckBottom + capoExtra, NOTE_MARKER_Z);
+        // 本体（黒い棒）
+        html += `<line class="projected-capo-body" x1="${topCapo.x.toFixed(2)}" y1="${topCapo.y.toFixed(2)}" x2="${bottomCapo.x.toFixed(2)}" y2="${bottomCapo.y.toFixed(2)}" stroke="#0d0d0d" stroke-width="18" stroke-linecap="round" opacity="0.96"></line>`;
+        // ゴム（指板上の中央のみ、薄いグレー）
+        const padTop = projectPoint(capoX, neckTop + 1, NOTE_MARKER_Z);
+        const padBottom = projectPoint(capoX, neckBottom - 1, NOTE_MARKER_Z);
+        html += `<line class="projected-capo-pad" x1="${padTop.x.toFixed(2)}" y1="${padTop.y.toFixed(2)}" x2="${padBottom.x.toFixed(2)}" y2="${padBottom.y.toFixed(2)}" stroke="#bcb8b1" stroke-width="11" stroke-linecap="round" opacity="0.95"></line>`;
+        // ハイライト（光沢）
+        html += `<line class="projected-capo-shine" x1="${topCapo.x.toFixed(2)}" y1="${topCapo.y.toFixed(2)}" x2="${bottomCapo.x.toFixed(2)}" y2="${bottomCapo.y.toFixed(2)}" stroke="rgba(255,255,255,0.22)" stroke-width="2.5" stroke-linecap="round"></line>`;
+    }
 
     html += `</svg>`;
 
@@ -10370,6 +10935,27 @@ function renderFretboardHTML(containerId, options) {
                         }
                     }
                 }
+                /* === 指板クイズ・横画面: 解答時の横ズレ対策 ===
+                 * 同じ問題の間は containerEl.style.left を凍結する。
+                 * generateQuestion で問題が変わったときにキャッシュは破棄される。
+                 * → renderFretboardHTML 関数末尾に同条件のフォールバックも入れている。 */
+                if (mode === 'memorize' && containerId === 'fretboard-container' && shouldFreezeMemorizeQuizContainerLeft()) {
+                    const qKey = getMemorizeQuizQuestionKey();
+                    if (qKey) {
+                        if (
+                            _memorizeQuizLeftFreezeCache &&
+                            _memorizeQuizLeftFreezeCache.questionKey === qKey &&
+                            typeof _memorizeQuizLeftFreezeCache.containerLeftStyle === 'string'
+                        ) {
+                            containerEl.style.left = _memorizeQuizLeftFreezeCache.containerLeftStyle;
+                        } else {
+                            _memorizeQuizLeftFreezeCache = {
+                                questionKey: qKey,
+                                containerLeftStyle: containerEl.style.left
+                            };
+                        }
+                    }
+                }
                 if (shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId)) {
                     applyMemorizeCruiseLandscapeFullScrollLock(scrollWrapper, mode, containerId);
                     ensureMemorizeCruiseLandscapeFullScrollLockListener(scrollWrapper, mode, containerId);
@@ -10674,6 +11260,8 @@ function renderFretboardHTML(containerId, options) {
     // Attach on document capture because player-view rotation can project frets outside
     // the container's layout box. Hit-test the projected 2D fret rectangles instead.
     const handleFretboardClick = (e) => {
+        if (e.button !== 0) return;
+        if (e.isPrimary === false) return;
         if (routeEditorDragSuppressNextClick) {
             routeEditorDragSuppressNextClick = false;
             return;
@@ -10768,14 +11356,14 @@ function renderFretboardHTML(containerId, options) {
         const s = parseInt(bestCol.getAttribute('data-string'));
         const f = parseInt(bestCol.getAttribute('data-fret'));
         if (onFretClick && bestCol.classList.contains('interactive')) {
-            onFretClick(s, f);
+            onFretClick(s, f, e);
         } else if (mode === 'visualize') {
             playTone(6 - s, f);
         } else if (mode === 'rule' && onFretClick) {
-            onFretClick(s, f);
+            onFretClick(s, f, e);
         }
     };
-    document.addEventListener('click', handleFretboardClick, true);
+    document.addEventListener('pointerdown', handleFretboardClick, true);
     fretboardDocumentHandlers.set(containerId, handleFretboardClick);
     renderFretboardHitDebug(containerId, mode, question);
 

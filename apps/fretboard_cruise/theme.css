@@ -429,6 +429,7 @@
 .fret-column.interactive {
     cursor: pointer;
     transition: background-color 0.2s;
+    touch-action: manipulation; /* モバイルでタップ反応を速く（ダブルタップ待ち等を抑止） */
 }
 
 
@@ -614,10 +615,6 @@
     gap: 10px;
 }
 
-.memorize-top-row--cruise-only {
-    justify-content: flex-start;
-}
-
 .memorize-quiz-timer {
     flex-shrink: 0;
 }
@@ -729,12 +726,6 @@
     color: var(--success-color, #4caf50);
     line-height: 1.2;
     margin-bottom: 8px;
-}
-
-.memorize-cleared-card__summary {
-    font-size: clamp(0.95rem, 3vmin, 1.2rem);
-    font-weight: 600;
-    color: #333;
 }
 
 /* ============================================================
@@ -1007,14 +998,6 @@
     text-overflow: clip;
 }
 
-/* クリア後の日本語テキストボタン（「もう1回」「次に進む」など）は省略されないよう
-   フォントを小さくして letter-spacing も詰める */
-.memorize-cruise-control-btn.memorize-cruise-control-btn--text {
-    font-size: 0.78rem;
-    letter-spacing: 0;
-    padding: 5px 4px;
-}
-
 /* 縦＋拡大/全体: 問題〜STAGE〜フィードバックは同じ。指板は内容の高さのみ（flex:1 をやめて縦中央にまとまる）。拡大/全体の違いは script のスケール */
 .memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-body-stack,
 .memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="full"] .memorize-body-stack {
@@ -1074,6 +1057,15 @@
     min-height: 0;
 }
 
+/* 横画面: ノッチ機種で戻る/TOP/⚙️ ボタンが切れないよう左右に safe-area 分の余白を入れる。
+   指板コンテナは内部で window.innerWidth を基準にスケールし、`containerEl.style.left` で
+   親パディングを打ち消すため、指板の見た目幅・位置はこの padding で変化しない。 */
+.memorize-screen--landscape {
+    padding-left: max(8px, env(safe-area-inset-left, 0px));
+    padding-right: max(8px, env(safe-area-inset-right, 0px));
+    box-sizing: border-box;
+}
+
 /* 横のみ: ステージボタンが上で切れないよう最低限の余白（STAGE ブロックは下段のまま） */
 .memorize-screen--landscape .memorize-header {
     padding-top: max(6px, env(safe-area-inset-top, 0px));
@@ -1084,10 +1076,50 @@
     gap: 0;
     padding-top: 0;
     padding-bottom: 0;
+    /* 子の title-wrap を絶対配置で中央に置けるよう relative に */
+    position: relative;
 }
 
+/* 横画面ヘッダー: 「STAGE 1 ・ 指板クイズ」を absolute で中央に小さく出す。
+   - 戻る/TOP/⚙️ ボタンは page-header-top に居て flex 配置のまま動かない
+   - title-wrap を absolute にすることでヘッダーの高さが増えないので、
+     下にある memorize-copy-block / 指板の位置・サイズに一切影響しない
+   - pointer-events: none で万一ボタンと重なってもタップを邪魔しない */
 .memorize-screen--landscape .page-header--memorize .page-header-title-wrap {
-    display: none;
+    display: flex;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: auto;
+    margin: 0;
+    padding: 0;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.memorize-screen--landscape .page-header-title.memorize-header-title {
+    margin: 0;
+    line-height: 1;
+}
+
+.memorize-screen--landscape .memorize-header-meta {
+    font-size: 0.68rem;
+    gap: 6px;
+    color: rgba(255, 255, 255, 0.78);
+}
+
+.memorize-screen--landscape .memorize-header-stage {
+    font-size: 0.74rem;
+    letter-spacing: 0.04em;
+}
+
+.memorize-screen--landscape .memorize-header-mode {
+    font-size: 0.7rem;
+}
+
+.memorize-screen--landscape .memorize-header-divider {
+    font-size: 0.62rem;
 }
 
 .memorize-screen--landscape .memorize-top-row {
@@ -1123,6 +1155,15 @@
 
 .memorize-screen--landscape .memorize-stats--near-question {
     gap: 2px 6px;
+    /* 横画面では問題数15個でも1行に収めるため折り返さない */
+    flex-wrap: nowrap;
+    /* 中身が縮められるように */
+    min-width: 0;
+}
+
+.memorize-screen--landscape .memorize-stats--near-question .stat-item {
+    /* 中身が溢れず縮むように */
+    min-width: 0;
 }
 
 .memorize-screen--landscape .memorize-stats--near-question .stat-item .label {
@@ -1133,17 +1174,38 @@
     font-size: 0.95rem;
 }
 
-/* 横画面：進行ドットを小さくし、行高をコンパクトに */
-.memorize-screen--landscape .memorize-progress-dot {
-    width: 6px;
-    height: 6px;
+/* 横画面：ドットは少し大きく(7px)して視認性を確保しつつ、間隔は詰める */
+.memorize-screen--landscape .memorize-progress-stat {
+    /* 行が縮められるように */
+    min-width: 0;
+    flex-shrink: 1;
 }
+
+.memorize-screen--landscape .memorize-progress-row {
+    /* ドット数が多くても折り返さず1行で並ぶ */
+    flex-wrap: nowrap;
+    min-width: 0;
+    flex-shrink: 1;
+    gap: 6px;
+}
+
 .memorize-screen--landscape .memorize-progress-dots {
+    flex-wrap: nowrap;
     gap: 3px;
+    min-width: 0;
+    flex-shrink: 1;
 }
+
+.memorize-screen--landscape .memorize-progress-dot {
+    width: 7px;
+    height: 7px;
+    flex-shrink: 0;
+}
+
 .memorize-screen--landscape .memorize-progress-count {
     font-size: 0.7rem;
     min-width: 2.4em;
+    flex-shrink: 0;
 }
 
 /* 横画面：終了カードは横にも縦にも収まるよう、最大高さに収める */
@@ -1172,6 +1234,37 @@
 .memorize-screen--landscape .memorize-cleared-card__actions--three .memorize-cleared-card__btn {
     padding: 8px 4px;
     font-size: 0.72rem;
+}
+
+/* 小型機（iPhone SE/12 Pro など 横幅 480px 以下、または横画面 800px 未満）の終了カード:
+   3 ボタンを「もう1回／終了」「次のSTAGEへ」の 2 段にして、
+   特に「次のSTAGEへ」が ellipsis で「次のSTAG…」に切れないようにする。
+   - 縦画面: viewport の横幅 480px 以下を対象（iPhone SE 縦=375px, 12 Pro 縦=390px など）
+   - 横画面: viewport の横幅 800px 以下を対象（小型機の横画面はカード幅も狭くなる） */
+@media (max-width: 480px), (orientation: landscape) and (max-width: 800px) {
+    .memorize-cleared-card__actions--three {
+        gap: 6px 8px;
+    }
+
+    .memorize-cleared-card__actions--three .memorize-cleared-card__btn:nth-child(1),
+    .memorize-cleared-card__actions--three .memorize-cleared-card__btn:nth-child(2) {
+        flex: 1 1 calc(50% - 4px);
+        max-width: calc(50% - 4px);
+    }
+
+    .memorize-cleared-card__actions--three .memorize-cleared-card__btn:nth-child(3) {
+        flex: 1 1 100%;
+        max-width: 100%;
+        font-size: 0.84rem;
+        padding: 10px 12px;
+    }
+}
+
+/* 横画面の終了カードを少し上に寄せて、cruise controls の上端に近づきすぎないようにする。
+   フィードバック行が非表示でできた空きを吸収する。 */
+.memorize-screen--landscape .memorize-cleared-overlay--v2 {
+    align-items: flex-start;
+    padding-top: 8%;
 }
 
 .memorize-screen--landscape .memorize-question-main.question-text {
@@ -1236,72 +1329,13 @@
     line-height: 1;
 }
 
-/* 横画面・クリア時: 「もう1回」「次に進む」の日本語が見切れないよう、
-   絵文字ボタンは 48px のまま、テキストボタンは文字幅に合わせて広げる */
-.memorize-screen--landscape .memorize-cruise-controls--cleared {
-    grid-template-columns: 48px 48px auto auto;
-}
-
-.memorize-screen--landscape .memorize-cruise-controls--cleared .memorize-cruise-control-btn--text {
-    padding: 0 12px;
-    font-size: 0.85rem;
-    letter-spacing: 0;
-    min-width: 0;
-    white-space: nowrap;
-    overflow: visible;
-    text-overflow: clip;
-}
-
-/* 横＋拡大のみ: STAGE/問題を上に詰めて指板エリアの縦を広げる（全体ビューは従来の横スタイルのまま） */
-.memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-question-row {
-    margin-bottom: 2px;
-    gap: 2px;
-}
-
-.memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-stats--near-question {
-    gap: 2px 6px;
-}
-
-.memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-stats--near-question .stat-item .label {
-    font-size: 0.62rem;
-}
-
-.memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-stats--near-question .stat-item .value {
-    font-size: 0.88rem;
-}
-
-.memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-question-main.question-text {
-    font-size: 1rem;
-}
-
-.memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-question-note {
-    font-size: 1.35rem;
-}
-
-.memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-feedback {
-    margin-bottom: 0;
-    margin-top: 0;
-}
-
-.memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-feedback.feedback-display {
-    font-size: 0.88rem;
-    height: 1.55rem;
-    max-height: 1.55rem;
-    min-height: 0;
-    padding: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: clip;
-    line-height: 1.2;
-}
-
-.memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-body-stack {
-    justify-content: flex-start;
-}
-
-.memorize-screen--landscape[data-fretboard-view="zoom"] .memorize-fretboard-host {
-    margin-top: -14px;
-}
+/* 横画面では memorizeLandscapeUnifiedFullLayout により、指板の scale と margin は
+   ビュー設定（拡大/全体）に関係なく同じ値で計算される。
+   そのため UI（STAGE/問題/ステータス/フィードバック）も `[data-fretboard-view="zoom"]`
+   と `[data-fretboard-view="full"]` で出し分けず、`.memorize-screen--landscape` の
+   ベースルールに統一する。
+   （以前は zoom 専用に文字サイズ・行高を縮めていたが、指板サイズは同じなのに
+   文字だけ小さくなって不自然だったため削除。） */
 
 /* Setup Panel for Pro mode */
 .setup-panel {
@@ -2544,6 +2578,25 @@ input:checked + .toggle-slider:before {
     text-shadow: 0 1px 2px rgba(0,0,0,0.45);
 }
 
+.rule-theme-subline {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 0.76rem;
+    font-weight: 700;
+    line-height: 1.35;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+    text-align: center;
+    max-width: 22em;
+}
+
+.rule-theme-subline--below-heading {
+    margin: -4px auto 10px;
+}
+
+.rule-phase-overlay .rule-theme-subline {
+    display: block;
+}
+
 .rule-step-hint {
     margin: -2px 0 0;
     padding: 6px 9px;
@@ -2726,6 +2779,13 @@ input:checked + .toggle-slider:before {
     justify-content: center;
     gap: 8px;
     cursor: pointer;
+}
+
+/* 指板の基本ルール：各STEPの指板タップで出る、iOS/Android のデフォルト
+   タップハイライト（タップ位置に一瞬広がる青いハイライト）を非表示にする。 */
+.rule-touch-area,
+.rule-touch-area * {
+    -webkit-tap-highlight-color: transparent;
 }
 
 .rule-touch-area.is-miss {
@@ -3172,11 +3232,51 @@ input:checked + .toggle-slider:before {
 
 .rule-master-clear-lead {
     margin: 0 auto 24px;
-    max-width: 18em;
+    max-width: 22em;
     font-size: clamp(1rem, 4.2vw, 1.34rem);
     font-weight: 850;
     line-height: 1.55;
     color: rgba(255, 255, 255, 0.92);
+}
+
+/* 指板の基本ルール クリア：「指板をたどる」などの引用語が
+   途中で改行されないようにするためのインライン nowrap チャンク */
+.rule-master-clear-nobr {
+    white-space: nowrap;
+}
+
+/* 横画面（狭い高さ）：カードが上下に切れないように縮める */
+@media (orientation: landscape) and (max-height: 560px) {
+    .rule-master-clear {
+        min-height: 0;
+        align-items: flex-start;
+    }
+    .rule-clear-celebration.rule-master-clear {
+        padding: 8px 14px 16px;
+    }
+    .rule-master-clear-card {
+        padding: 22px 24px 22px;
+        max-width: min(560px, calc(100vw - 24px));
+    }
+    .rule-master-clear-head {
+        margin-bottom: 12px;
+        font-size: clamp(1.6rem, 5.4vw, 2.2rem);
+    }
+    .rule-master-clear-lead {
+        margin-bottom: 16px;
+        max-width: 32em;
+        font-size: clamp(0.9rem, 2.6vw, 1.08rem);
+        line-height: 1.5;
+    }
+    .rule-master-clear .rule-clear-next-btn {
+        margin-top: 4px;
+        padding: 10px 18px !important;
+        font-size: clamp(0.9rem, 2.6vw, 1.02rem) !important;
+    }
+    /* 横画面では下端余白用の 120px スペーサーが不要（コンテンツが収まる） */
+    .rule-clear-celebration.rule-master-clear > div[style*="120px"] {
+        display: none;
+    }
 }
 
 .rule-master-confetti {
@@ -4125,3 +4225,80 @@ input:checked + .toggle-slider:before {
 .quiz-edit-note--active {
     box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.5), 0 4px 14px rgba(0, 0, 0, 0.34) !important;
 }
+
+/* ==================== 設定タブ ==================== */
+
+.settings-tabs {
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+    width: 100%;
+    margin: 0 0 6px;
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.settings-tab-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 10px 6px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.78);
+    background: transparent;
+    border: none;
+    border-radius: 9px;
+    cursor: pointer;
+    text-align: center;
+    line-height: 1.2;
+    transition: background 0.15s, color 0.15s, transform 0.05s;
+    white-space: nowrap;
+    overflow: visible;
+}
+
+@media (max-width: 440px) {
+    .settings-tab-btn {
+        font-size: 0.85rem;
+        padding: 9px 4px;
+        letter-spacing: -0.02em;
+    }
+}
+
+@media (max-width: 360px) {
+    .settings-tab-btn {
+        font-size: 0.78rem;
+        padding: 8px 3px;
+        letter-spacing: -0.04em;
+    }
+}
+
+.settings-tab-btn:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+}
+
+.settings-tab-btn:active {
+    transform: scale(0.98);
+}
+
+.settings-tab-btn.is-active {
+    background: var(--primary-color, #4f9cf9);
+    color: #fff;
+    box-shadow: 0 2px 10px rgba(79, 156, 249, 0.35);
+}
+
+.settings-tab-panel {
+    width: 100%;
+}
+
+.settings-tab-panel.is-hidden {
+    display: none;
+}
+
