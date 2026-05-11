@@ -2170,12 +2170,6 @@ input:checked + .toggle-slider:before {
         0 8px 18px rgba(24, 96, 220, 0.18);
 }
 
-.pro-custom-name-btn__label {
-    font-size: 0.72rem;
-    opacity: 0.92;
-    letter-spacing: 0.04em;
-}
-
 .pro-custom-name-btn__value {
     font-size: 1.05rem;
     font-weight: 900;

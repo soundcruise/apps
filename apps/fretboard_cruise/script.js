@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.112.12';
+const FRETBOARD_CRUISE_APP_VERSION = '1.112.13';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -7734,7 +7734,6 @@ function renderProCustomRouteEditor(app) {
             <div class="setup-panel pro-custom-setup-panel">
                 <div class="setup-item setup-item--wide pro-custom-name-item">
                     <button type="button" class="pro-custom-name-btn" id="btn-pro-custom-name-edit">
-                        <span class="pro-custom-name-btn__label">STAGE名を入力</span>
                         <span class="pro-custom-name-btn__value">${escapeHtml(state.proCustomRouteEditor.name)}</span>
                     </button>
                 </div>
