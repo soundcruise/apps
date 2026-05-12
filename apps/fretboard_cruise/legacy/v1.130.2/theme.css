@@ -1,0 +1,5244 @@
+:root {
+    --bg-color: #0d1117;
+    --surface-color: #161b22;
+    --primary-color: #4f9cf9;
+    --secondary-color: #7c6af7;
+    --text-color: #f0f6fc;
+    --white-key-color: #fdfdfd;
+    --black-key-color: #333333;
+    --key-active-color: #4f9cf9;
+    --error-color: #ff4f6e;
+    --in-game-refresh-stack-height: 96px;
+
+    /* Fretboard specific colors */
+    --fretboard-wood: linear-gradient(to right, #2a1508, #3b2010 30%, #4a2914 50%, #3b2010 70%, #2a1508);
+    --fret-wire: linear-gradient(to right, #999, #eee 30%, #fff 50%, #eee 70%, #999);
+    --dot-color: radial-gradient(circle at 30% 30%, #fff, #d4cfc7 60%, #a8a39a);
+
+    --root-color: #ff4f6e;   /* C: 赤 */
+    --third-color: #ffd93d;  /* E: 黄色 */
+    --fifth-color: #4f9cf9;  /* G: 青 */
+    --seventh-color: #ffffff;/* B: 白 */
+    --non-target-color: #555555; /* グレー薄表示 */
+}
+
+/* Home */
+.home-memorize-btn {
+    width: 80%;
+    min-height: 76px;
+    padding: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 18px;
+    background:
+        radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.08), transparent 48%),
+        linear-gradient(180deg, #242424 0%, #1d1d1d 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 10px 28px rgba(0, 0, 0, 0.26);
+    color: rgba(255, 255, 255, 0.96);
+    font-size: 1.2rem;
+    font-weight: 800;
+    text-shadow: 0 2px 5px rgba(0, 0, 0, 0.72);
+}
+
+.home-memorize-btn:hover {
+    border-color: rgba(255, 255, 255, 0.24);
+    background:
+        radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.11), transparent 48%),
+        linear-gradient(180deg, #292929 0%, #202020 100%);
+}
+
+.home-explore-btn {
+    position: relative;
+    width: 80%;
+    min-height: 76px;
+    padding: 20px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 18px;
+    background:
+        radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.08), transparent 48%),
+        repeating-linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.12) 0 2px,
+            transparent 2px 52px
+        ),
+        repeating-linear-gradient(
+            0deg,
+            transparent 0 12px,
+            rgba(255, 255, 255, 0.08) 12px 14px,
+            transparent 14px 24px
+        ),
+        linear-gradient(180deg, #242424 0%, #1d1d1d 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 10px 28px rgba(0, 0, 0, 0.26);
+    color: rgba(255, 255, 255, 0.96);
+    font-size: 1.2rem;
+    font-weight: 800;
+    text-shadow: 0 2px 5px rgba(0, 0, 0, 0.72);
+}
+
+.home-explore-btn::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 32% 50%, rgba(255, 255, 255, 0.2) 0 5px, transparent 6px),
+        radial-gradient(circle at 68% 50%, rgba(255, 255, 255, 0.2) 0 5px, transparent 6px);
+    opacity: 0.9;
+    pointer-events: none;
+}
+
+.home-explore-btn:hover {
+    border-color: rgba(255, 255, 255, 0.24);
+    background:
+        radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.11), transparent 48%),
+        repeating-linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.14) 0 2px,
+            transparent 2px 52px
+        ),
+        repeating-linear-gradient(
+            0deg,
+            transparent 0 12px,
+            rgba(255, 255, 255, 0.1) 12px 14px,
+            transparent 14px 24px
+        ),
+        linear-gradient(180deg, #292929 0%, #202020 100%);
+}
+
+/* Fretboard Layout */
+.fretboard-scroll-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    padding: 0 0 35px 0; /* Added bottom padding to prevent scrollbar overlap */
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    justify-content: flex-start;
+    clip-path: inset(0 0 0 24px); /* ネック側面を隠して指板を左寄せ */
+}
+
+/* 自由探索は開放弦〜12Fを欠けなく見せる（左クリップしない） */
+.fretboard-scroll-wrapper--visualize {
+    clip-path: none !important;
+}
+
+.fretboard-container {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    min-width: max-content;
+    margin: 0;
+    transform-style: preserve-3d;
+    transition: transform 0.1s ease;
+}
+
+/* 基本ルールの指板は親要素ごと再レイアウトするので transform の transition がチラつきの原因になりやすい */
+.rule-fretboard-host .fretboard-container {
+    transition: none;
+}
+
+.neck-face {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    border-radius: 6px;
+    pointer-events: none; /* Decorative faces must not block clicks */
+}
+
+.neck-front {
+    position: relative;
+    background: var(--fretboard-wood);
+    border: 2px solid #1a0d04;
+    border-radius: 4px;
+    box-shadow: inset 0 0 15px rgba(0,0,0,0.5);
+    z-index: 2;
+    pointer-events: auto;
+    transform: translateZ(0); /* Front face at Z=0 */
+    transform-style: preserve-3d;
+}
+
+/* SVG はインラインで width/height を指定するため width:100%;height:100% を付けない。
+   付けると初回ペイントで親の neck に縮められ、preserveAspectRatio=none で縦潰れするブラウザがある。 */
+.projected-fretboard-svg,
+.projected-hit-layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform: translateZ(1px); /* Slightly above front face to avoid z-fighting */
+}
+
+.projected-fretboard-svg {
+    overflow: visible;
+    z-index: 1;
+}
+
+.projected-hit-layer {
+    width: 100%;
+    height: 100%;
+    z-index: 3;
+}
+
+/* フレット番号は SVG の <text> ではなく HTML の <div> として描画する（v1.99.8〜）。
+   neck-front の「外」（fretboard-container 直下）に置き、SVG と同じ座標系・同じ
+   transform で並ぶ。neck-front の中に置くと小さい端末で overflow:hidden に
+   押されて消えるため、外に逃がして overflow:visible で確実に描画する。 */
+.projected-fret-number-layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    overflow: visible;
+    pointer-events: none;
+    /* hit-layer(3) より上にしてタップは透過のまま（pointer-events:none） */
+    z-index: 4;
+    transform: translateZ(1px);
+}
+
+.projected-fret-number {
+    position: absolute;
+    color: rgba(248, 243, 233, 0.96);
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+    transform: translate(-50%, -50%);
+    /* -webkit-text-stroke は一部 WebKit で「黒い二重文字」に見えたり、文字そのものが消えたりする。
+       SVG の縁取りに近い見た目を text-shadow のみで再現する。 */
+    text-shadow:
+        -1px -1px 0 rgba(0, 0, 0, 0.82),
+        1px -1px 0 rgba(0, 0, 0, 0.82),
+        -1px 1px 0 rgba(0, 0, 0, 0.82),
+        1px 1px 0 rgba(0, 0, 0, 0.82),
+        0 -1px 0 rgba(0, 0, 0, 0.55),
+        0 1px 0 rgba(0, 0, 0, 0.55),
+        -1px 0 0 rgba(0, 0, 0, 0.55),
+        1px 0 0 rgba(0, 0, 0, 0.55),
+        0 1px 2px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.projected-fret-wire {
+    stroke: #bcbcbc;
+    stroke-width: 4;
+    stroke-linecap: round;
+    filter: drop-shadow(0 -0.4px 0 rgba(255,255,255,0.7)) drop-shadow(0 1px 1px rgba(0,0,0,0.45));
+}
+
+.projected-fret-wire.nut {
+    stroke-width: 8;
+    filter: drop-shadow(0 -0.5px 0 rgba(255,255,255,0.7)) drop-shadow(1px 1px 1px rgba(0,0,0,0.35));
+}
+
+.projected-string {
+    fill: none;
+    stroke: #c6b9a7;
+    stroke-linecap: round;
+    filter: drop-shadow(0 -0.4px 0 rgba(255,245,228,0.65)) drop-shadow(0 2px 1px rgba(0,0,0,0.62));
+}
+
+.projected-string.dimmed {
+    opacity: 0.2;
+}
+
+.projected-string.highlighted {
+    stroke: #ffea70;
+    filter: drop-shadow(0 0 5px #ffea70);
+}
+
+.projected-fret-dot {
+    fill: #c9c2b8;
+    stroke: rgba(0,0,0,0.4);
+    stroke-width: 1;
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,0.35));
+}
+
+.projected-hit-layer .fret-column {
+    position: absolute;
+    width: auto;
+    height: auto;
+}
+
+.projected-hit-layer .fret-column::after {
+    display: none;
+}
+
+.projected-hit-layer .fret-column[data-fret="0"] {
+    width: auto;
+    background-color: transparent;
+}
+
+/* Real 3D Neck Parts */
+.neck-part {
+    position: absolute;
+    background: linear-gradient(to bottom, #5b3520 0%, #3a2215 45%, #1a100b 100%);
+    box-shadow: inset 0 1px 0 rgba(255,228,190,0.2), inset 0 -6px 12px rgba(0,0,0,0.58);
+    pointer-events: none;
+}
+
+.neck-part-back {
+    background: radial-gradient(ellipse at 50% 46%, #7a4a2c 0%, #5a361f 36%, #2d1a10 68%, #120a07 100%);
+    box-shadow: inset 0 0 2px rgba(255,223,185,0.2), inset 0 -12px 20px rgba(0,0,0,0.55), 0 9px 16px rgba(0,0,0,0.5);
+}
+
+.view-mode-btn.active {
+    background-color: var(--primary-color) !important;
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 10px var(--primary-color);
+}
+
+.strings-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 180px; /* 6 strings spacing */
+    position: relative;
+}
+
+.string-row {
+    display: flex;
+    align-items: center;
+    height: 16.66%; /* 100% / 6 */
+    position: relative;
+}
+
+.string-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(to bottom, #dcdcdc 0%, #ffffff 30%, #a0a0a0 100%);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.9);
+    z-index: 1;
+}
+
+/* String Highlighting for Memorize mode */
+.strings-container.has-highlight .string-row:not(.highlighted-string) {
+    opacity: 0.2; /* Dim other strings heavily */
+}
+
+.string-row.highlighted-string .string-line {
+    background: #ffea70 !important;
+    box-shadow: 0 0 15px #ffea70, 0 0 5px #ffea70 !important;
+    z-index: 5;
+}
+
+/* Thicker lines for lower strings (wound strings) */
+.string-row[data-string="6"] .string-line { 
+    height: 5px; 
+    background: repeating-linear-gradient(to right, #b8b8b8, #b8b8b8 1px, #909090 1px, #909090 2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.9);
+}
+.string-row[data-string="5"] .string-line { 
+    height: 4px; 
+    background: repeating-linear-gradient(to right, #c0c0c0, #c0c0c0 1px, #989898 1px, #989898 2px);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.9);
+}
+.string-row[data-string="4"] .string-line { 
+    height: 3px; 
+    background: repeating-linear-gradient(to right, #c8c8c8, #c8c8c8 1px, #a0a0a0 1px, #a0a0a0 2px);
+}
+.string-row[data-string="3"] .string-line { height: 2.5px; }
+.string-row[data-string="2"] .string-line { height: 2px; }
+.string-row[data-string="1"] .string-line { height: 1.5px; }
+
+.fret-column {
+    position: relative;
+    width: 65px; /* Slightly wider */
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2;
+}
+
+/* Fret wire using ::after to make it 3D */
+.fret-column::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--fret-wire);
+    box-shadow: -1px 0 2px rgba(0,0,0,0.5), 1px 0 1px rgba(255,255,255,0.2);
+    border-radius: 2px;
+}
+
+.fret-column[data-fret="0"] {
+    width: 45px;
+    background-color: rgba(0,0,0,0.3); /* Darker before nut */
+}
+
+/* The Nut */
+.fret-column[data-fret="0"]::after {
+    width: 8px;
+    background: linear-gradient(to right, #d4d0c8, #f0ede6 30%, #fff 50%, #d4d0c8 80%);
+    box-shadow: 2px 0 5px rgba(0,0,0,0.8);
+    border-radius: 3px;
+}
+
+.fret-column:last-child::after {
+    display: none;
+}
+
+.fret-dot {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background: var(--dot-color);
+    border-radius: 50%;
+    z-index: 0;
+    box-shadow: inset -2px -2px 4px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.5);
+}
+
+/* Frets 3, 5, 7, 9 get one dot in the middle. Fret 12 gets two. */
+/* Will position them via JS or CSS. For simplicity, will inject via JS */
+
+.note-marker {
+    position: relative;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: #fff;
+    color: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 0.72rem;
+    line-height: 1;
+    font-weight: 700;
+    z-index: 10;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+    cursor: pointer;
+    transition: transform 0.1s, background-color 0.2s;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.note-marker:active {
+    transform: scale(0.9);
+}
+
+.note-marker.hidden-note {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Fret interaction for memorize mode */
+.fret-column.interactive {
+    cursor: pointer;
+    transition: background-color 0.2s;
+    touch-action: manipulation; /* モバイルでタップ反応を速く（ダブルタップ待ち等を抑止） */
+}
+
+
+@media (hover: hover) {
+    .fret-column.interactive:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+}
+
+.fret-column.interactive:active {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.note-marker.target-note {
+    background-color: var(--primary-color);
+    color: #fff;
+    box-shadow: 0 0 10px var(--primary-color);
+}
+
+.note-marker.correct-note {
+    background-color: var(--primary-color) !important;
+    color: #000 !important;
+    box-shadow: 0 0 15px var(--primary-color) !important;
+}
+
+.note-marker.wrong-note {
+    background-color: var(--error-color) !important;
+    color: #fff !important;
+    box-shadow: 0 0 15px var(--error-color) !important;
+}
+
+.note-marker.grey-note {
+    background-color: rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.5);
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+}
+
+.note-marker.grayed-note {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.4);
+    box-shadow: inset 0 0 3px rgba(0,0,0,0.5);
+    opacity: 0.6;
+}
+
+.note-marker.next-note {
+    background-color: rgba(49, 196, 107, 0.34);
+    color: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(49, 196, 107, 0.75);
+    box-shadow: 0 0 12px rgba(49, 196, 107, 0.35), inset 0 0 6px rgba(255,255,255,0.12);
+}
+
+/* Colors for Pro mode (Degree/Chord) */
+.note-marker.role-root { background-color: var(--root-color); color: #fff; }
+.note-marker.role-third { background-color: var(--third-color); color: #000; }
+.note-marker.role-fifth { background-color: var(--fifth-color); color: #fff; }
+.note-marker.role-seventh { background-color: var(--seventh-color); color: #000; }
+.note-marker.role-other { background-color: var(--text-color); color: #000; }
+.note-marker.role-non-target { background-color: var(--non-target-color); color: #aaa; }
+.note-marker.rule-root {
+    background-color: var(--root-color);
+    color: #fff;
+    box-shadow: 0 0 14px rgba(255, 79, 110, 0.55);
+}
+
+.note-marker.rule-half {
+    background-color: #31c46b;
+    color: #06130a;
+    box-shadow: 0 0 14px rgba(49, 196, 107, 0.5);
+}
+
+.note-marker.rule-scale {
+    background-color: #f0f6fc;
+    color: #0d1117;
+}
+.note-marker.rule-next {
+    outline: 3px solid #fff;
+    outline-offset: 3px;
+    transform: scale(1.08);
+    box-shadow: 0 0 18px rgba(255,255,255,0.55), 0 0 24px rgba(79, 156, 249, 0.45);
+}
+
+/* 旧STEP2「タップ」吹き出し：非表示（緑の吹き出し廃止） */
+.rule-marker-cluster--with-tap-cue {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.projected-hit-layer .fret-column:has(.rule-marker-cluster--with-tap-cue) {
+    overflow: visible;
+    z-index: 12;
+}
+
+.rule-tap-cue-bubble,
+.rule-tap-cue-bubble::before,
+.rule-tap-cue-bubble.rule-tap-cue-bubble--above-note,
+.rule-tap-cue-bubble.rule-tap-cue-bubble--above-note::before {
+    display: none !important;
+}
+
+/* 基本ルール・指板：♯の音（C# D# F# G# A#）とそれ以外でマーカー色を分ける */
+.note-marker.rule-pitch-natural {
+    background-color: rgba(130, 188, 255, 0.92);
+    color: #071018;
+    box-shadow: 0 0 11px rgba(100, 165, 240, 0.42);
+}
+
+.note-marker.rule-pitch-sharp {
+    background-color: rgba(255, 188, 118, 0.95);
+    color: #251208;
+    box-shadow: 0 0 11px rgba(255, 165, 85, 0.48);
+}
+
+.fretboard-labels {
+    display: flex;
+    position: absolute;
+    bottom: -30px;
+    left: 0;
+    height: 25px;
+    width: 100%;
+}
+
+.fret-label {
+    width: 65px;
+    text-align: center;
+    font-size: 1rem;
+    color: #ffffff;
+    font-weight: 700;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
+.fret-label[data-fret="0"] {
+    width: 45px;
+}
+
+.question-text {
+    font-size: 1.5rem;
+    font-weight: 700;
+    text-align: center;
+    margin: 20px 0;
+    min-height: 40px;
+}
+
+/* 覚えるコース: 縦は従来、横はヘッダーを詰めて指板に残り高さを渡す */
+.memorize-screen {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.memorize-header {
+    flex-shrink: 0;
+    padding-top: 50px;
+}
+
+.memorize-body-stack {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    position: relative; /* memorize-countdown-overlay の絶対配置の相対親 */
+}
+
+.memorize-copy-block {
+    flex-shrink: 0;
+    width: 100%;
+}
+
+.memorize-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 8px;
+    gap: 10px;
+}
+
+.memorize-quiz-timer {
+    flex-shrink: 0;
+}
+
+.memorize-question-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.memorize-question-row .memorize-question-main {
+    margin: 0;
+    text-align: center;
+    max-width: calc(100% - 1rem);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.memorize-stats {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 15px;
+}
+
+.memorize-stats--near-question {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 8px 14px;
+    margin: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.memorize-question {
+    margin: 12px 0;
+}
+
+.memorize-question-note {
+    font-size: 2rem;
+}
+
+.memorize-feedback {
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+/* 開始時の BPM カウントダウン（4, 3, 2, 1）を指板の上に半透明で重ねる
+   memorize-body-stack を相対親としてその全体に被せ、中央に大きな数字を表示 */
+.memorize-countdown-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    color: var(--primary-color);
+    opacity: 0.45;
+    font-size: clamp(6rem, 22vmin, 16rem);
+    font-weight: 800;
+    line-height: 1;
+    text-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+    z-index: 5;
+    user-select: none;
+}
+
+/* クリア時のサマリー表示（フィードバック領域は隠してオーバーレイで表示する） */
+.memorize-feedback.memorize-feedback--cleared {
+    display: none;
+}
+
+/* クリア時の「お疲れ様でした」カード（指板の上に被せる） */
+.memorize-cleared-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 6;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+.memorize-cleared-card {
+    background: rgba(255, 255, 255, 0.96);
+    border: 2px solid var(--success-color, #4caf50);
+    border-radius: 14px;
+    padding: 18px 26px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    text-align: center;
+    max-width: 90%;
+}
+
+.memorize-cleared-card__title {
+    font-size: clamp(1.3rem, 4vmin, 1.9rem);
+    font-weight: 700;
+    color: var(--success-color, #4caf50);
+    line-height: 1.2;
+    margin-bottom: 8px;
+}
+
+/* ============================================================
+   v2: 共通の終了カード（クルーズ・指板クイズで共有）
+   - 背面に薄いマスクを敷いて、フレットの透けを抑える
+   - 正答率を主役に大きく出し、サブ指標を 2 列で並べる
+   - クイズはカード内に「もう1回／終了」を縦置き
+   ============================================================ */
+.memorize-cleared-overlay--v2 {
+    background: rgba(0, 0, 0, 0.45);
+    pointer-events: auto;
+}
+
+.memorize-cleared-card--v2 {
+    background: linear-gradient(180deg, #1f2933 0%, #141a22 100%);
+    color: #fff;
+    border: 1px solid rgba(76, 175, 80, 0.55);
+    border-radius: 18px;
+    padding: 18px 22px 20px;
+    width: min(360px, 92%);
+    max-width: 92%;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    text-align: center;
+}
+
+.memorize-cleared-card--v2 .memorize-cleared-card__title {
+    margin: 0;
+    color: var(--success-color, #4caf50);
+    font-size: clamp(1.2rem, 4.4vmin, 1.7rem);
+    letter-spacing: 0.02em;
+}
+
+.memorize-cleared-card__hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 4px 0 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.memorize-cleared-card__rate {
+    font-size: clamp(2.4rem, 11vmin, 3.6rem);
+    font-weight: 800;
+    line-height: 1;
+    color: #fff;
+    letter-spacing: -0.02em;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
+}
+
+.memorize-cleared-card__rate-unit {
+    font-size: 0.45em;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.7);
+    margin-left: 2px;
+}
+
+.memorize-cleared-card__rate-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    letter-spacing: 0.08em;
+    margin-top: 2px;
+}
+
+.memorize-cleared-card__metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 8px;
+    padding: 2px 0 0;
+}
+
+.memorize-cleared-card__metric {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.memorize-cleared-card__metric-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.6);
+    letter-spacing: 0.06em;
+}
+
+.memorize-cleared-card__metric-value {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+.memorize-cleared-card__metric-sep {
+    margin: 0 2px;
+    color: rgba(255, 255, 255, 0.45);
+    font-weight: 600;
+}
+
+.memorize-cleared-card__actions {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    margin-top: 6px;
+    width: 100%;
+}
+
+.memorize-cleared-card__actions--three {
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+}
+
+.memorize-cleared-card__actions--three .memorize-cleared-card__btn {
+    font-size: 0.92rem;
+    padding: 10px 6px;
+    letter-spacing: 0;
+}
+
+.memorize-cleared-card__btn:disabled,
+.memorize-cleared-card__btn[disabled] {
+    opacity: 0.38;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.memorize-cleared-card__btn {
+    flex: 1 1 0;
+    min-width: 0;
+    border-radius: 12px;
+    padding: 11px 12px;
+    font-size: 0.92rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.memorize-cleared-card__btn--primary {
+    background: var(--primary-color, #4f9cf9);
+    color: #fff;
+    border: none;
+    box-shadow: 0 4px 12px rgba(79, 156, 249, 0.35);
+}
+
+.memorize-cleared-card__btn--ghost {
+    background: transparent;
+    color: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* 終了カード内「このSTAGEを保存」：編集画面・デモと同じ PRO 茶／シャンパン系ボタン */
+.memorize-cleared-card__actions--three .memorize-cleared-card__btn--pro-custom-saved.pro-custom-saved-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 48px;
+    padding: 10px 18px;
+    max-width: none;
+    font-size: inherit;
+    line-height: 1.2;
+    overflow: hidden;
+}
+
+.memorize-cleared-card__actions--three .memorize-cleared-card__btn--pro-custom-saved.pro-custom-saved-btn .pro-custom-saved-btn__title {
+    font-size: 0.98rem;
+    padding-right: 0;
+}
+
+.memorize-screen--landscape .memorize-cleared-card__actions--three .memorize-cleared-card__btn--pro-custom-saved.pro-custom-saved-btn .pro-custom-saved-btn__title {
+    font-size: 0.92rem;
+}
+
+/* ============================================================
+   問題進行ドット（指板クイズの「問題」ステータス）
+   ============================================================ */
+.memorize-progress-stat {
+    align-items: center;
+}
+
+.memorize-progress-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.memorize-progress-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.memorize-progress-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.18);
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.memorize-progress-dot.is-correct {
+    background: var(--primary-color, #4f9cf9);
+    box-shadow: 0 0 6px rgba(79, 156, 249, 0.5);
+}
+
+.memorize-progress-dot.is-wrong {
+    background: var(--error-color, #ff5252);
+    box-shadow: 0 0 6px rgba(255, 82, 82, 0.55);
+}
+
+.memorize-progress-count {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.85);
+    min-width: 2.6em;
+    text-align: left;
+}
+
+@media (max-width: 380px) {
+    .memorize-progress-dot {
+        width: 6px;
+        height: 6px;
+        gap: 3px;
+    }
+}
+
+.memorize-repeat-hint-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    margin: 0 0 8px;
+    padding: 0 8px;
+    box-sizing: border-box;
+}
+
+.memorize-repeat-hint-btn {
+    flex: 0 0 auto;
+    min-width: 66px;
+    padding: 6px 10px;
+    font-size: 0.74rem;
+    border-radius: 8px;
+}
+
+.memorize-repeat-hint-btn.active {
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.12) inset, 0 0 12px rgba(79,156,249,0.16);
+}
+
+.repeat-hint-flash {
+    animation: repeat-hint-flash 0.4s ease-in-out 1 !important;
+}
+
+.memorize-fretboard-host {
+    position: relative;
+    z-index: 1;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    align-self: stretch;
+}
+
+.memorize-cruise-controls {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+    width: 100%;
+    margin-top: 10px;
+    padding: 0 12px;
+    box-sizing: border-box;
+}
+
+.memorize-cruise-control-btn {
+    min-width: 0;
+    width: 100%;
+    padding: 5px 6px;
+    font-size: 1.2rem;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+}
+
+.memorize-cruise-controls--pro-custom {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
+    gap: 10px;
+}
+
+.memorize-cruise-control-btn--pro-custom-return {
+    min-height: 46px;
+    padding: 9px 12px;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    line-height: 1.15;
+    font-size: 1rem;
+    font-weight: 800;
+    color: #f7fbff;
+    border: 1px solid rgba(117, 183, 255, 0.92);
+    background:
+        radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.26), transparent 52%),
+        linear-gradient(180deg, #4fa3ff 0%, #1f72e5 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.26),
+        0 10px 24px rgba(24, 96, 220, 0.38),
+        0 0 0 1px rgba(24, 96, 220, 0.15);
+    text-shadow: 0 1px 2px rgba(0, 28, 72, 0.48);
+}
+
+.memorize-cruise-control-btn--pro-custom-return:hover {
+    background:
+        radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.32), transparent 52%),
+        linear-gradient(180deg, #68b0ff 0%, #2a84ff 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.3),
+        0 12px 28px rgba(24, 96, 220, 0.46),
+        0 0 0 1px rgba(117, 183, 255, 0.24);
+}
+
+/* 縦＋拡大/全体: 問題〜STAGE〜フィードバックは同じ。指板は内容の高さのみ（flex:1 をやめて縦中央にまとまる）。拡大/全体の違いは script のスケール */
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-body-stack,
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="full"] .memorize-body-stack {
+    justify-content: center;
+    gap: 4px;
+}
+
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-header,
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="full"] .memorize-header {
+    padding-top: 10px;
+    padding-bottom: 0;
+}
+
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-top-row,
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="full"] .memorize-top-row {
+    margin-bottom: 4px;
+}
+
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-question-row,
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="full"] .memorize-question-row {
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-question-row .memorize-question-main.question-text,
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="full"] .memorize-question-row .memorize-question-main.question-text {
+    margin: 0;
+}
+
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-feedback,
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="full"] .memorize-feedback {
+    margin-bottom: 4px;
+    margin-top: 0;
+}
+
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-feedback.feedback-display,
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="full"] .memorize-feedback.feedback-display {
+    /* 文言の長さに関係なく高さを完全固定（指板の縦ジャンプ防止）。
+       共通の display:flex; align-items:center で中身は中央寄せ */
+    height: 2.75rem;
+    min-height: 0;
+    padding: 0;
+}
+
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="zoom"] .memorize-fretboard-host,
+.memorize-screen:not(.memorize-screen--landscape)[data-fretboard-view="full"] .memorize-fretboard-host {
+    flex: 0 1 auto;
+    min-height: 0;
+}
+
+/*
+ * 横画面・覚えるコース: shared の header { padding-top: 50px+; margin-bottom: 20px; } を上書きし、
+ * 指板に回す縦スペースを増やす（レイアウトは縦の2段のまま）
+ */
+.memorize-screen--landscape .memorize-body-stack {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+/* 横画面: ノッチ機種で戻る/TOP/⚙️ ボタンが切れないよう左右に safe-area 分の余白を入れる。
+   指板コンテナは内部で window.innerWidth を基準にスケールし、`containerEl.style.left` で
+   親パディングを打ち消すため、指板の見た目幅・位置はこの padding で変化しない。 */
+.memorize-screen--landscape {
+    padding-left: max(8px, env(safe-area-inset-left, 0px));
+    padding-right: max(8px, env(safe-area-inset-right, 0px));
+    box-sizing: border-box;
+}
+
+/* 横のみ: ステージボタンが上で切れないよう最低限の余白（STAGE ブロックは下段のまま） */
+.memorize-screen--landscape .memorize-header {
+    padding-top: max(6px, env(safe-area-inset-top, 0px));
+    margin-bottom: 0;
+}
+
+.memorize-screen--landscape .page-header--memorize {
+    gap: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    /* 子の title-wrap を絶対配置で中央に置けるよう relative に */
+    position: relative;
+}
+
+/* 横画面ヘッダー: 「STAGE 1 ・ 指板クイズ」を absolute で中央に小さく出す。
+   - 戻る/TOP/⚙️ ボタンは page-header-top に居て flex 配置のまま動かない
+   - title-wrap を absolute にすることでヘッダーの高さが増えないので、
+     下にある memorize-copy-block / 指板の位置・サイズに一切影響しない
+   - pointer-events: none で万一ボタンと重なってもタップを邪魔しない */
+.memorize-screen--landscape .page-header--memorize .page-header-title-wrap {
+    display: flex;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: auto;
+    margin: 0;
+    padding: 0;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.memorize-screen--landscape .page-header-title.memorize-header-title {
+    margin: 0;
+    line-height: 1;
+}
+
+.memorize-screen--landscape .memorize-header-meta {
+    font-size: 0.68rem;
+    gap: 6px;
+    color: rgba(255, 255, 255, 0.78);
+}
+
+.memorize-screen--landscape .memorize-header-stage {
+    font-size: 0.74rem;
+    letter-spacing: 0.04em;
+}
+
+.memorize-screen--landscape .memorize-header-mode {
+    font-size: 0.7rem;
+}
+
+.memorize-screen--landscape .memorize-header-divider {
+    font-size: 0.62rem;
+}
+
+.memorize-screen--landscape .memorize-top-row {
+    margin-bottom: 0;
+    align-items: center;
+}
+
+.memorize-screen--landscape .memorize-copy-block {
+    margin-top: -20px;
+    padding-top: 0;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.memorize-screen--landscape .memorize-question-row {
+    margin-top: 0;
+    margin-bottom: 2px;
+    gap: 2px;
+}
+
+.memorize-screen--landscape .memorize-quiz-timer .label {
+    font-size: 0.65rem;
+}
+
+.memorize-screen--landscape .memorize-quiz-timer .value {
+    font-size: 0.9rem;
+}
+
+.memorize-screen--landscape .memorize-top-row .icon-btn {
+    padding: 5px 10px;
+    font-size: 0.82rem;
+}
+
+.memorize-screen--landscape .memorize-stats--near-question {
+    gap: 2px 6px;
+    /* 横画面では問題数15個でも1行に収めるため折り返さない */
+    flex-wrap: nowrap;
+    /* 中身が縮められるように */
+    min-width: 0;
+}
+
+.memorize-screen--landscape .memorize-stats--near-question .stat-item {
+    /* 中身が溢れず縮むように */
+    min-width: 0;
+}
+
+.memorize-screen--landscape .memorize-stats--near-question .stat-item .label {
+    font-size: 0.68rem;
+}
+
+.memorize-screen--landscape .memorize-stats--near-question .stat-item .value {
+    font-size: 0.95rem;
+}
+
+/* 横画面：ドットは少し大きく(7px)して視認性を確保しつつ、間隔は詰める */
+.memorize-screen--landscape .memorize-progress-stat {
+    /* 行が縮められるように */
+    min-width: 0;
+    flex-shrink: 1;
+}
+
+.memorize-screen--landscape .memorize-progress-row {
+    /* ドット数が多くても折り返さず1行で並ぶ */
+    flex-wrap: nowrap;
+    min-width: 0;
+    flex-shrink: 1;
+    gap: 6px;
+}
+
+.memorize-screen--landscape .memorize-progress-dots {
+    flex-wrap: nowrap;
+    gap: 3px;
+    min-width: 0;
+    flex-shrink: 1;
+}
+
+.memorize-screen--landscape .memorize-progress-dot {
+    width: 7px;
+    height: 7px;
+    flex-shrink: 0;
+}
+
+.memorize-screen--landscape .memorize-progress-count {
+    font-size: 0.7rem;
+    min-width: 2.4em;
+    flex-shrink: 0;
+}
+
+/* 横画面：終了カードは横にも縦にも収まるよう、最大高さに収める */
+.memorize-screen--landscape .memorize-cleared-card--v2 {
+    width: min(340px, 80%);
+    padding: 12px 18px 14px;
+    gap: 8px;
+}
+.memorize-screen--landscape .memorize-cleared-card--v2 .memorize-cleared-card__title {
+    font-size: clamp(1rem, 3.6vmin, 1.35rem);
+}
+.memorize-screen--landscape .memorize-cleared-card__rate {
+    font-size: clamp(2rem, 9vmin, 2.8rem);
+}
+.memorize-screen--landscape .memorize-cleared-card__rate-label {
+    font-size: 0.7rem;
+}
+.memorize-screen--landscape .memorize-cleared-card__metric-value {
+    font-size: 1rem;
+}
+.memorize-screen--landscape .memorize-cleared-card__btn {
+    padding: 9px 12px;
+    font-size: 0.88rem;
+}
+
+.memorize-screen--landscape .memorize-cleared-card__actions--three .memorize-cleared-card__btn {
+    padding: 8px 6px;
+    font-size: 0.86rem;
+}
+
+/* 小型機（iPhone SE/12 Pro など 横幅 480px 以下、または横画面 800px 未満）の終了カード:
+   3 ボタンを「もう1回／終了」「次のSTAGEへ」の 2 段にして、
+   特に「次のSTAGEへ」が ellipsis で「次のSTAG…」に切れないようにする。
+   - 縦画面: viewport の横幅 480px 以下を対象（iPhone SE 縦=375px, 12 Pro 縦=390px など）
+   - 横画面: viewport の横幅 800px 以下を対象（小型機の横画面はカード幅も狭くなる） */
+@media (max-width: 480px), (orientation: landscape) and (max-width: 800px) {
+    .memorize-cleared-card__actions--three {
+        gap: 6px 8px;
+    }
+
+    .memorize-cleared-card__actions--three .memorize-cleared-card__btn:nth-child(1),
+    .memorize-cleared-card__actions--three .memorize-cleared-card__btn:nth-child(2) {
+        flex: 1 1 calc(50% - 4px);
+        max-width: calc(50% - 4px);
+    }
+
+    .memorize-cleared-card__actions--three .memorize-cleared-card__btn:nth-child(3) {
+        flex: 1 1 100%;
+        max-width: 100%;
+        font-size: 0.95rem;
+        padding: 11px 12px;
+    }
+}
+
+/* 横画面の終了カードを少し上に寄せて、cruise controls の上端に近づきすぎないようにする。
+   フィードバック行が非表示でできた空きを吸収する。 */
+.memorize-screen--landscape .memorize-cleared-overlay--v2 {
+    align-items: flex-start;
+    padding-top: 8%;
+}
+
+.memorize-screen--landscape .memorize-question-main.question-text {
+    margin: 0;
+    min-height: 0;
+    font-size: 1.05rem;
+    /* 問題テキストは弦・音名で文字数が変わる。折り返すと高さが変わって、
+       maxFullViewH が変動し、scale → centerTx が変わって指板が左右にズレる。
+       1 行に固定して折り返さない。 */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+}
+
+.memorize-screen--landscape .memorize-question-note {
+    font-size: 1.45rem;
+}
+
+.memorize-screen--landscape .memorize-feedback {
+    margin-bottom: 0;
+    margin-top: -2px;
+}
+
+.memorize-screen--landscape .memorize-feedback.feedback-display {
+    font-size: 0.95rem;
+    /* ヒント文〜結果表示で文言が変わっても高さを完全固定（指板の縦ジャンプ・横ズレ防止）。
+       white-space:nowrap + overflow:hidden で、長いテキストでも折り返さず高さが膨らまない。
+       共通の display:flex; align-items:center で中身は中央寄せ。 */
+    height: 1.6rem;
+    max-height: 1.6rem;
+    min-height: 0;
+    padding: 0;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+}
+
+.memorize-screen--landscape .memorize-fretboard-host {
+    margin-top: -14px;
+}
+
+.memorize-screen--landscape .memorize-cruise-controls {
+    position: fixed;
+    left: 50%;
+    bottom: max(16px, env(safe-area-inset-bottom));
+    width: auto;
+    grid-template-columns: repeat(4, 48px);
+    gap: 6px;
+    margin-top: 0;
+    padding: 0;
+    transform: translateX(-50%);
+}
+
+.memorize-screen--landscape .memorize-cruise-controls--pro-custom {
+    width: min(320px, calc(100vw - 24px));
+    grid-template-columns: 1fr;
+}
+
+.memorize-screen--landscape .memorize-cruise-control-btn {
+    display: grid;
+    place-items: center;
+    min-height: 44px;
+    padding: 0;
+    border-radius: 14px;
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
+.memorize-screen--landscape .memorize-cruise-control-btn--pro-custom-return {
+    min-height: 50px;
+    padding: 8px 14px;
+    font-size: 0.95rem;
+    line-height: 1.18;
+    white-space: normal;
+    text-align: center;
+    align-content: center;
+}
+
+/* 横画面では memorizeLandscapeUnifiedFullLayout により、指板の scale と margin は
+   ビュー設定（拡大/全体）に関係なく同じ値で計算される。
+   そのため UI（STAGE/問題/ステータス/フィードバック）も `[data-fretboard-view="zoom"]`
+   と `[data-fretboard-view="full"]` で出し分けず、`.memorize-screen--landscape` の
+   ベースルールに統一する。
+   （以前は zoom 専用に文字サイズ・行高を縮めていたが、指板サイズは同じなのに
+   文字だけ小さくなって不自然だったため削除。） */
+
+/* Setup Panel for Pro mode */
+.setup-panel {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin-bottom: 0;
+    background: rgba(255,255,255,0.05);
+    padding: 8px;
+    border-radius: 12px;
+}
+
+.setup-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+.setup-item--wide {
+    justify-content: center;
+}
+
+.setup-item label {
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.7);
+}
+
+.setup-item select {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-family: inherit;
+    outline: none;
+}
+
+.pro-custom-setup-panel .setup-item input {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-family: inherit;
+    outline: none;
+    width: min(240px, 72vw);
+}
+
+.mode-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 5px;
+    background: rgba(0,0,0,0.3);
+    padding: 3px;
+    border-radius: 8px;
+}
+
+.settings-notation-buttons {
+    width: 100%;
+}
+
+.settings-notation-buttons .mode-btn {
+    flex: 1 1 0;
+}
+
+.settings-countdown-sound-buttons {
+    width: 100%;
+    gap: 2px;
+    padding: 2px;
+}
+
+.settings-countdown-sound-buttons .mode-btn {
+    flex: 1 1 0;
+    padding: 4px 4px;
+    font-size: 0.8rem;
+}
+
+.mode-btn,
+.do-mode-btn,
+.chord-type-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.5);
+    padding: 8px 15px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.mode-btn.active,
+.do-mode-btn.active,
+.chord-type-btn.active {
+    background: rgba(255,255,255,0.2);
+    color: #fff;
+    font-weight: bold;
+}
+
+/* Degree mode colors for generic markers (if used outside role-*) */
+.degree-1 { background-color: var(--root-color); color: white; }
+.degree-2 { background-color: var(--seventh-color); color: black; }
+.degree-3 { background-color: var(--third-color); color: black; }
+.degree-4 { background-color: var(--seventh-color); color: black; }
+.degree-5 { background-color: var(--fifth-color); color: black; }
+.degree-6 { background-color: var(--seventh-color); color: black; }
+.degree-7 { background-color: var(--seventh-color); color: black; }
+
+/* STEP2 基本ルール：上記度数色を指板マーカーにそのまま適用（.note-marker ベースより優先） */
+.note-marker.degree-1 { background-color: var(--root-color); color: white; }
+.note-marker.degree-2 { background-color: var(--seventh-color); color: black; }
+.note-marker.degree-3 { background-color: var(--third-color); color: black; }
+.note-marker.degree-4 { background-color: var(--seventh-color); color: black; }
+.note-marker.degree-5 { background-color: var(--fifth-color); color: black; }
+.note-marker.degree-6 { background-color: var(--seventh-color); color: black; }
+.note-marker.degree-7 { background-color: var(--seventh-color); color: black; }
+
+/* 指板コンテナの負の margin で上に詰まったとき、3D ヒットレイヤーより前面でクリックを受け取る */
+.visualize-chords-afterboard {
+    position: relative;
+    z-index: 40;
+    margin-top: 20px;
+    width: 100%;
+    isolation: isolate;
+}
+
+.chord-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 0;
+    width: 100%;
+    position: relative;
+    z-index: 1;
+}
+
+.chord-btn {
+    flex: 0 0 auto;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.chord-btn.active {
+    background: var(--primary-color);
+    color: #000;
+    border-color: var(--primary-color);
+}
+
+.chord-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.toggle-switch {
+    display: inline-block;
+    position: relative;
+    width: 50px;
+    height: 24px;
+}
+
+.toggle-switch input {
+    display: none;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255,255,255,0.2);
+    transition: 0.3s;
+    border-radius: 24px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+    background-color: var(--primary-color);
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(26px);
+}
+
+/* STAGE Selection Screen */
+.stage-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+@media (orientation: landscape) {
+    .stage-list {
+        /* 横画面: STAGE 一覧を「app-container の残りの縦スペース全部」に広げる。
+           内容が少なければ自然に収まり、多ければ内側でスクロールする。 */
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
+        overflow-y: auto;
+        padding-right: 8px;
+        gap: 10px;
+    }
+
+    /* 横画面のSTAGE/STEP選択画面に限り、app-container を画面の下端まで
+       縦に伸ばす。中身は上から積み、余りはすべて .stage-list に渡す。
+       縦画面・他画面のレイアウトには影響しない */
+    body:has(.page-header--stage-select) {
+        align-items: stretch;
+    }
+
+    body:has(.page-header--stage-select) .app-container {
+        min-height: 100dvh;
+        box-sizing: border-box;
+        justify-content: flex-start;
+        gap: 16px;
+        padding-top: max(8px, env(safe-area-inset-top));
+        padding-bottom: max(16px, env(safe-area-inset-bottom));
+    }
+
+    .page-header--stage-select {
+        gap: 10px;
+    }
+
+    .page-header--stage-select .page-header-title-wrap {
+        transform: none;
+    }
+}
+
+.stage-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    padding: 15px 20px;
+    border-radius: 12px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.basic-rule-step-btn {
+    position: relative;
+    gap: 8px;
+}
+
+.basic-rule-step-btn.is-complete {
+    border-color: rgba(49, 196, 107, 0.42);
+    background: rgba(49, 196, 107, 0.12);
+}
+
+.basic-rule-step-main {
+    display: block;
+}
+
+.basic-rule-step-badge {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    padding: 0 9px;
+    border-radius: 999px;
+    background: rgba(49, 196, 107, 0.2);
+    color: #b9ffd2;
+    font-size: 0.74rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.stage-route-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.stage-route-row .stage-btn {
+    min-width: 0;
+}
+
+.stage-route-edit-btn {
+    width: 68px;
+    border: 1px solid rgba(79, 156, 249, 0.42);
+    border-radius: 12px;
+    background: rgba(79, 156, 249, 0.12);
+    color: #fff;
+    cursor: pointer;
+    font-weight: 800;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+/* 編集ボタンを 3 点リーダー（縦）の小さなアイコンに変更 */
+.stage-route-edit-btn.stage-route-edit-btn--icon {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 1.4rem;
+    line-height: 1;
+    align-self: center;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ───────────────────────────────────────────────
+   PROカスタムSTAGE：控えめで大人なシャンパン／ブロンズ調ボタン
+   - 保存済み行（再生）／編集入口／編集画面の保存／デモ画面の保存
+     これらすべてで .pro-custom-saved-btn を共通利用してデザインを揃える。
+   - 動くシャイン（光沢）アニメーションは付けない（指示通り）。
+   - 光らせ過ぎず、深い炭色ベース＋ごく薄いシャンパンの縁取りで品良くまとめる。
+   ─────────────────────────────────────────────── */
+
+.pro-custom-saved-btn {
+    position: relative;
+    overflow: hidden;
+    padding: 16px 22px;
+    border-radius: 12px;
+    color: #f3e6bd;
+    font-weight: 700;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    /* シャンパン色をやや明るめにして、外側に細い金色のリング光をうっすら添える。
+       ベタ塗り感を消すため、ベース背景は3色グラデで奥行きを出す（やりすぎないラインを意識）。 */
+    border: 1px solid rgba(245, 220, 165, 0.72);
+    background: linear-gradient(180deg,
+        rgba(50, 42, 30, 0.96) 0%,
+        rgba(34, 29, 22, 0.97) 55%,
+        rgba(20, 17, 13, 0.98) 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(243, 222, 174, 0.26),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.5),
+        0 4px 14px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(232, 206, 148, 0.14);
+    transition: transform 0.2s ease, box-shadow 0.22s ease, border-color 0.22s ease, background 0.22s ease;
+}
+
+/* 縦方向の上下に細い金色のハイライトをのせて、メタル感を控えめに付与。 */
+.pro-custom-saved-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background:
+        linear-gradient(180deg,
+            rgba(243, 222, 174, 0.1) 0%,
+            transparent 28%,
+            transparent 72%,
+            rgba(0, 0, 0, 0.18) 100%);
+}
+
+.pro-custom-saved-btn__badge {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    color: #f7e9bd;
+    background: linear-gradient(135deg, rgba(243, 222, 174, 0.14) 0%, rgba(196, 168, 110, 0.06) 100%);
+    border: 1px solid rgba(220, 192, 132, 0.6);
+    box-shadow: 0 1px 0 rgba(243, 222, 174, 0.18) inset;
+    text-shadow: none;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.pro-custom-saved-btn__title {
+    position: relative;
+    z-index: 1;
+    display: block;
+    padding-right: 56px; /* PRO バッジと被らない逃げ（保存済みの再生ボタン用） */
+    font-size: 1.08rem;
+    line-height: 1.3;
+    color: #f4e6bd;
+    letter-spacing: 0.01em;
+    -webkit-text-fill-color: initial;
+    filter: none;
+}
+
+/* 編集入口（PROバッジなし）用：右側の逃げが要らないので 0 に戻す。 */
+.pro-custom-saved-btn--editor .pro-custom-saved-btn__title--editor {
+    padding-right: 0;
+}
+
+.pro-custom-saved-btn__title-emoji {
+    display: inline-block;
+    margin-right: 6px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* 編集画面・デモ画面の「このSTAGEを保存」用：見出しを中央寄せ。
+   バッジはボタン右上に絶対配置されているため、タイトルは padding をリセットして中央表示する。
+   .btn-primary 由来の max-width: 250px はこの控えめボタンでは狭すぎるので解除する。 */
+.pro-custom-saved-btn--save {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    max-width: none;
+}
+
+.pro-custom-saved-btn--save .pro-custom-saved-btn__title {
+    padding-right: 0;
+    text-align: center;
+}
+
+.pro-custom-saved-btn__desc {
+    position: relative;
+    z-index: 1;
+    color: rgba(232, 206, 148, 0.7);
+    font-weight: 500;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+}
+
+@media (hover: hover) {
+    .pro-custom-saved-btn:hover {
+        border-color: rgba(252, 236, 200, 0.88);
+        background: linear-gradient(180deg,
+            rgba(60, 50, 36, 0.96) 0%,
+            rgba(42, 35, 26, 0.97) 55%,
+            rgba(26, 22, 17, 0.98) 100%);
+        box-shadow:
+            inset 0 1px 0 rgba(252, 232, 188, 0.36),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.5),
+            0 6px 18px rgba(0, 0, 0, 0.45),
+            0 0 18px rgba(196, 168, 110, 0.14);
+        transform: translateY(-1px);
+    }
+}
+
+.pro-custom-saved-btn:active {
+    transform: translateY(0);
+    box-shadow:
+        inset 0 2px 5px rgba(0, 0, 0, 0.45),
+        0 1px 3px rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba(232, 206, 148, 0.1);
+}
+
+.pro-custom-saved-btn:disabled,
+.pro-custom-saved-btn[disabled] {
+    opacity: 0.42;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow:
+        inset 0 1px 0 rgba(214, 188, 132, 0.08),
+        0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+/* デモ画面（memorize-cruise-controls）に置く保存ボタンは
+   .memorize-cruise-control-btn 既定の white-space: nowrap / overflow: hidden を
+   そのまま使うが、絶対配置のバッジが切れないように padding を確保する。 */
+.memorize-cruise-control-btn--pro-custom-save.pro-custom-saved-btn {
+    min-height: 50px;
+    padding: 12px 22px;
+    font-size: 1rem;
+    line-height: 1.2;
+    overflow: hidden;
+}
+
+.memorize-cruise-control-btn--pro-custom-save .pro-custom-saved-btn__title {
+    font-size: 1rem;
+    padding-right: 0;
+}
+
+/* 保存済み PRO カスタム STAGE 行のレイアウト
+   メイン行：左に再生、右に [▼][⋮] を縦積み   ／   下段：操作群（▼で開閉） */
+.pro-custom-saved-row {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.pro-custom-saved-row__main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    gap: 6px 8px;
+    align-items: center;
+}
+
+.pro-custom-saved-row__main > .pro-custom-saved-btn {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: stretch;
+}
+
+.pro-custom-saved-row__main > .pro-custom-saved-toggle {
+    grid-column: 2;
+    grid-row: 1;
+}
+
+.pro-custom-saved-row__main > .pro-custom-saved-quick-edit {
+    grid-column: 2;
+    grid-row: 2;
+}
+
+/* メイン行の ⋮ ボタン（編集ショートカット）。シャンパン調で再生ボタンと馴染ませる。 */
+.pro-custom-saved-quick-edit {
+    box-sizing: border-box;
+    width: 32px;
+    min-width: 32px;
+    align-self: center;
+    justify-self: center;
+    height: 32px;
+    border-radius: 8px;
+    background: rgba(214, 188, 132, 0.06);
+    color: rgba(214, 188, 132, 0.82);
+    font-size: 1.4rem;
+    line-height: 1;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.pro-custom-saved-quick-edit:active {
+    background: rgba(214, 188, 132, 0.12);
+}
+
+@media (hover: hover) {
+    .pro-custom-saved-quick-edit:hover {
+        background: rgba(214, 188, 132, 0.12);
+        color: #f3e6bd;
+        border-color: rgba(232, 206, 148, 0.6);
+    }
+}
+
+.pro-custom-saved-toggle {
+    box-sizing: border-box;
+    width: 32px;
+    min-width: 32px;
+    align-self: center;
+    justify-self: center;
+    height: 32px;
+    padding: 0;
+    border: 1px solid rgba(196, 168, 110, 0.32);
+    border-radius: 8px;
+    background: rgba(214, 188, 132, 0.05);
+    color: rgba(214, 188, 132, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.pro-custom-saved-toggle:active {
+    background: rgba(214, 188, 132, 0.1);
+}
+
+@media (hover: hover) {
+    .pro-custom-saved-toggle:hover {
+        background: rgba(214, 188, 132, 0.1);
+        color: #ecdcb6;
+    }
+}
+
+.pro-custom-saved-toggle__chevron {
+    display: inline-block;
+    font-size: 0.6rem;
+    line-height: 1;
+    transition: transform 0.2s ease;
+}
+
+.pro-custom-saved-row.is-open .pro-custom-saved-toggle__chevron {
+    transform: rotate(180deg);
+}
+
+.pro-custom-saved-actions {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 4px 0 2px;
+}
+
+.pro-custom-saved-actions[hidden] {
+    display: none !important;
+}
+
+.pro-custom-saved-action-btn {
+    box-sizing: border-box;
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+    padding: 0;
+    margin: 0;
+    border-radius: 8px;
+    font-size: 1.05rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.92);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.pro-custom-saved-action-btn:active {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+@media (hover: hover) {
+    .pro-custom-saved-action-btn:hover {
+        background: rgba(255, 255, 255, 0.12);
+    }
+}
+
+.pro-custom-saved-action-btn:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+}
+
+.pro-custom-saved-action-btn--delete {
+    border-color: rgba(255, 110, 110, 0.32);
+    background: rgba(255, 110, 110, 0.08);
+}
+
+@media (hover: hover) {
+    .pro-custom-saved-action-btn--delete:hover {
+        background: rgba(255, 110, 110, 0.16);
+    }
+}
+
+/* 「複製」アクション：音感クルーズと同じ二重紙アイコン（assets/icon-duplicate.png）を使う。
+   暗い背景でも読みやすいよう invert で白抜きにする（音感クルーズと同じ処理）。 */
+.pro-custom-saved-action-btn--duplicate {
+    padding: 0;
+}
+
+.pro-custom-saved-action-icon {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    display: block;
+    filter: invert(1);
+    opacity: 0.92;
+    pointer-events: none;
+}
+
+/* 編集画面ヘッダーのサブ表示（〜を新規作成 / 〜を編集） */
+.pro-custom-header-sub {
+    font-size: 0.78em;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.55);
+    margin-left: 2px;
+}
+
+/* 名前モーダル：同名チェックなどのエラーメッセージ */
+.pro-custom-stage-name-modal__error {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(255, 110, 110, 0.1);
+    border: 1px solid rgba(255, 110, 110, 0.36);
+    color: #ffd2d2;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    text-align: center;
+}
+
+.pro-custom-stage-name-modal__error[hidden] {
+    display: none;
+}
+
+/* 完走回数バッジ（STAGE ボタン内） */
+.stage-clear-count {
+    display: inline-block;
+    margin-top: 6px;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.8rem;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2px 8px;
+    border-radius: 10px;
+    letter-spacing: 0.02em;
+}
+
+/* STAGEボタン右端に固定するバッジ（縦方向中央寄せ） */
+.stage-btn.stage-btn--has-side-badge {
+    position: relative;
+    padding-right: 88px;
+}
+
+.stage-clear-count.stage-clear-count--side {
+    position: absolute;
+    top: 50%;
+    right: 14px;
+    transform: translateY(-50%);
+    margin-top: 0;
+}
+
+.stage-btn .stage-desc {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 400;
+}
+
+@media (hover: hover) {
+    .stage-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: var(--primary-color);
+        transform: translateY(-2px);
+    }
+
+    .stage-route-edit-btn:hover {
+        background: rgba(79, 156, 249, 0.22);
+        transform: translateY(-2px);
+    }
+
+    .stage-route-edit-btn.stage-route-edit-btn--icon:hover {
+        background: rgba(255, 255, 255, 0.12);
+        color: rgba(255, 255, 255, 0.85);
+        transform: translateY(-1px);
+    }
+}
+
+.stage-btn:active {
+    transform: translateY(0);
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.route-editor-screen {
+    flex: 1 1 auto;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    min-height: 0;
+}
+
+
+.route-editor-toolbar {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    width: 100%;
+}
+
+.route-editor-tool-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    padding: 8px 6px;
+    font-size: 0.82rem;
+    line-height: 1.1;
+    text-align: center;
+}
+
+.route-editor-tool-btn.active {
+    border-color: var(--primary-color);
+    background: rgba(79, 156, 249, 0.22);
+    color: #fff;
+}
+
+.route-editor-fretboard-host {
+    width: 100%;
+    min-height: 180px;
+}
+
+.route-editor-group-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid rgba(79, 156, 249, 0.22);
+    border-radius: 12px;
+    background: rgba(79, 156, 249, 0.08);
+    box-sizing: border-box;
+    --route-editor-group-btn-min-height: 40px;
+    --route-editor-group-list-gap: 6px;
+}
+
+.route-editor-group-panel-top {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.route-editor-group-panel-handle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
+    width: 40px;
+    min-height: 26px;
+    margin: -2px 0 0;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.84);
+    cursor: grab;
+    touch-action: none;
+    font-size: 0.95rem;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: 0;
+}
+
+.route-editor-group-panel-handle:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.route-editor-group-panel-handle:active,
+.route-editor-group-panel-handle--dragging {
+    cursor: grabbing;
+    background: rgba(79, 156, 249, 0.18);
+    border-color: rgba(79, 156, 249, 0.4);
+}
+
+.route-editor-group-list {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-auto-rows: minmax(var(--route-editor-group-btn-min-height), auto);
+    gap: var(--route-editor-group-list-gap);
+    max-height: calc((var(--route-editor-group-btn-min-height) * 2) + var(--route-editor-group-list-gap));
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.32) transparent;
+}
+
+.route-editor-group-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.route-editor-group-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.32);
+    border-radius: 3px;
+}
+
+.route-editor-group-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.route-editor-group-btn {
+    min-height: 40px;
+    padding: 0 11px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.68);
+    font-weight: 800;
+    font-size: 0.96rem;
+    -webkit-touch-callout: none;
+    user-select: none;
+}
+
+.route-editor-group-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    min-width: 0;
+}
+
+.route-editor-group-cell .route-editor-group-btn {
+    width: 100%;
+}
+
+/* ===== 位置ラベル（フッター型・全 STAGE 共通） =====
+   Gr ボタンの真下にぴったり接着して「Gr名 + 位置」がワンセットに見えるようにする。 */
+.route-editor-group-cell .route-editor-group-btn {
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+}
+
+.route-editor-group-position-label {
+    appearance: none;
+    -webkit-appearance: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    width: 100%;
+    margin: -1px 0 0;
+    padding: 3px 6px;
+    border: 1px solid rgba(79, 156, 249, 0.42);
+    border-top: none;
+    border-bottom-left-radius: 999px;
+    border-bottom-right-radius: 999px;
+    background: rgba(79, 156, 249, 0.22);
+    color: #eaf3ff;
+    font-weight: 800;
+    font-size: 0.78rem;
+    line-height: 1.1;
+    text-align: center;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+}
+
+.route-editor-group-position-label .route-editor-group-position-pin {
+    font-size: 0.7rem;
+    opacity: 0.85;
+}
+
+.route-editor-group-position-label:hover {
+    background: rgba(79, 156, 249, 0.34);
+}
+
+.route-editor-group-position-label:focus-visible {
+    outline: 2px solid rgba(247, 185, 85, 0.85);
+    outline-offset: 1px;
+}
+
+.route-editor-group-position-label:active {
+    transform: translateY(1px);
+}
+
+.route-editor-group-position-label.is-empty {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.route-editor-group-btn.is-visible {
+    border-color: rgba(79, 156, 249, 0.78);
+    background: rgba(79, 156, 249, 0.16);
+    color: #fff;
+}
+
+.route-editor-group-btn.is-hidden {
+    opacity: 0.72;
+}
+
+.route-editor-group-btn.is-active {
+    border-color: #ff6a7f;
+    background: rgba(255, 79, 110, 0.18);
+    color: #fff;
+    box-shadow: 0 0 0 1px rgba(255, 106, 127, 0.28) inset;
+}
+
+.route-editor-group-btn.is-empty {
+    color: #ff5c5c;
+}
+
+@keyframes route-editor-long-press-activate {
+    0%   { transform: scale(1);    box-shadow: 0 0 0 0px rgba(255, 209, 102, 0); }
+    100% { transform: scale(1.06); box-shadow: 0 0 0 3px rgba(255, 209, 102, 0.55); }
+}
+
+.route-editor-group-btn.is-long-press-pending {
+    animation: route-editor-long-press-activate 0.5s ease forwards;
+}
+
+.route-editor-group-btn.is-dragging {
+    opacity: 0.35;
+}
+
+.route-editor-group-btn.is-drag-over {
+    border-color: #ffd166 !important;
+    box-shadow: 0 0 0 2px rgba(255, 209, 102, 0.5) !important;
+}
+
+.route-editor-group-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    align-items: center;
+    width: 100%;
+    overflow: hidden;
+}
+
+.route-editor-group-label {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    color: rgba(255, 255, 255, 0.82);
+    font-weight: 700;
+}
+
+.route-editor-group-add-btn,
+.route-editor-group-remove-btn {
+    min-width: 40px;
+    padding: 0 10px;
+    font-size: 0.78rem;
+    font-weight: 900;
+    min-height: 38px;
+    white-space: nowrap;
+}
+
+.route-editor-group-save-position-btn {
+    min-width: 82px;
+    padding: 0 10px;
+    font-size: 0.74rem;
+    font-weight: 900;
+    min-height: 38px;
+    white-space: nowrap;
+    transition: transform 0.12s ease, box-shadow 0.25s ease;
+}
+
+.route-editor-group-save-position-btn:active:not(:disabled) {
+    transform: scale(0.96);
+}
+
+@keyframes route-editor-save-position-flash {
+    0% {
+        box-shadow: 0 0 0 0 rgba(110, 220, 160, 0.55);
+        transform: scale(1);
+    }
+    40% {
+        box-shadow:
+            0 0 0 5px rgba(110, 220, 160, 0.35),
+            0 4px 14px rgba(0, 0, 0, 0.28);
+        transform: scale(1.04);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(110, 220, 160, 0);
+        transform: scale(1);
+    }
+}
+
+.route-editor-group-save-position-btn.is-save-position-flash {
+    animation: route-editor-save-position-flash 0.58s ease-out;
+}
+
+.route-editor-group-toggle-btn {
+    min-width: 68px;
+    padding: 0 10px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    min-height: 38px;
+    white-space: nowrap;
+}
+
+.route-editor-group-expand-btn {
+    min-width: 102px;
+    padding: 0 26px;
+    font-size: 0.92rem;
+    font-weight: 900;
+    min-height: 38px;
+}
+
+.route-editor-group-panel--expanded .route-editor-group-list {
+    max-height: none;
+    overflow: visible;
+}
+
+.route-editor-save-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    justify-content: center;
+    width: 100%;
+}
+
+.pro-custom-route-editor-screen .route-editor-save-row {
+    position: relative;
+    z-index: 20;
+    margin-top: 44px;
+    margin-bottom: 96px;
+    pointer-events: auto;
+}
+
+.pro-custom-route-editor-screen {
+    padding-bottom: 96px;
+}
+
+/* PRO編集カード下部の ⊕ ヘルプボタンと説明文の横並び。
+   ⊕ を左に、説明文をその右に表示する。説明文は ⊕ をタップしたときだけ表示。 */
+.pro-custom-setup-help-row {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 8px;
+    margin-top: -4px;
+}
+
+.pro-custom-setup-help-btn {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 1.15rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.pro-custom-setup-help-btn:active {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+@media (hover: hover) {
+    .pro-custom-setup-help-btn:hover {
+        color: rgba(255, 255, 255, 0.9);
+    }
+}
+
+/* 横並びのときは中央揃えではなく左寄せ・行頭揃えに */
+.pro-custom-setup-help-row .pro-custom-setup-note {
+    flex: 1 1 auto;
+    margin: 0;
+    text-align: left;
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+/* 折りたたみアニメーション中も横並びを保てるよう、表示時の max-height を少し広く */
+.pro-custom-setup-help-row .settings-note--animated.visible {
+    max-height: 160px;
+    margin-top: 0;
+}
+
+.pro-custom-setup-note {
+    width: 100%;
+    margin: 0;
+    text-align: center;
+    font-size: 0.78rem;
+}
+
+.pro-custom-setup-panel {
+    display: grid;
+    gap: 14px;
+}
+
+body:has(.pro-custom-route-editor-screen) {
+    align-items: flex-start;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+body:has(.pro-custom-route-editor-screen) .app-container {
+    min-height: 100dvh;
+}
+
+.pro-custom-setup-row {
+    display: grid;
+    gap: 12px;
+    width: 100%;
+}
+
+.pro-custom-setup-row--triple {
+    /* キーとカポは内容（C#・0 など）がしっかり読める固定幅にして、
+       残りをすべてスケールに割り当てる。長いカナ名は trigger 側のフォントを
+       少し小さくして対応する（.pro-custom-setup-item--scale 参照）。 */
+    grid-template-columns: 72px 60px minmax(0, 1fr);
+    align-items: end;
+}
+
+.pro-custom-setup-row--double {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    align-items: end;
+}
+
+.pro-custom-setup-item {
+    width: 100%;
+    align-items: stretch;
+}
+
+.pro-custom-setup-item label {
+    min-height: 18px;
+    text-align: center;
+    margin-bottom: 2px;
+    line-height: 1.2;
+}
+
+.pro-custom-setup-item select,
+.pro-custom-setup-item .mode-buttons {
+    width: 100%;
+}
+
+/* 閉じている select の文字サイズは「指板を探索する」と同じ .setup-item select に合わせる（1rem・8px 12px） */
+.pro-custom-setup-item select {
+    font-size: 1rem;
+    font-weight: inherit;
+    padding: 8px 12px;
+}
+
+/* プルダウンを開いたときの選択肢（ブラウザのリスト）。閉じている select と同じ 1rem に揃える */
+.pro-custom-setup-item select option {
+    font-size: 1rem;
+    font-weight: inherit;
+    line-height: 1.45;
+}
+
+/* ───────────────────────────────────────────────
+   PRO カスタム編集画面の「カスタムドロップダウン」（自前実装）
+   - OS標準の <select> ではプルダウン中の文字サイズを変えられないため、
+     キー・カポ・スケール・最大フレットの4つを独自UIで描画する。
+   - 閉じている枠は探索画面の <select> と同じ見た目（黒背景・薄い枠・1rem）。
+   - 開いた一覧の文字サイズも自由に大きくできる（タップしやすさ重視）。
+   ─────────────────────────────────────────────── */
+
+.pro-custom-dd {
+    position: relative;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.pro-custom-dd-trigger {
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    color: #fff;
+    font-size: 1rem;
+    font-family: inherit;
+    line-height: 1.3;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    text-align: left;
+    outline: none;
+    transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.pro-custom-dd.is-open .pro-custom-dd-trigger,
+.pro-custom-dd-trigger:focus-visible {
+    border-color: rgba(255, 255, 255, 0.45);
+}
+
+.pro-custom-dd-trigger__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pro-custom-dd-trigger__chevron {
+    flex: 0 0 auto;
+    font-size: 0.7rem;
+    line-height: 1;
+    color: rgba(255, 255, 255, 0.65);
+    transition: transform 0.18s ease;
+}
+
+.pro-custom-dd.is-open .pro-custom-dd-trigger__chevron {
+    transform: rotate(180deg);
+}
+
+/* 開いた一覧。トリガの直下に絶対配置して、画面端でも切れないよう left/right を 0 で固定。 */
+.pro-custom-dd-list {
+    list-style: none;
+    margin: 0;
+    padding: 6px;
+    position: absolute;
+    z-index: 50;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    min-width: 100%;
+    max-height: min(60vh, 360px);
+    overflow-y: auto;
+    background: rgba(20, 20, 24, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+    -webkit-overflow-scrolling: touch;
+}
+
+.pro-custom-dd-list[hidden] {
+    display: none;
+}
+
+.pro-custom-dd-option {
+    display: flex;
+    align-items: center;
+    padding: 5px 12px;
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1.25;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.12s ease, color 0.12s ease;
+}
+
+.pro-custom-dd-option + .pro-custom-dd-option {
+    margin-top: 1px;
+}
+
+.pro-custom-dd-option:active {
+    background: rgba(79, 156, 249, 0.32);
+}
+
+@media (hover: hover) {
+    .pro-custom-dd-option:hover {
+        background: rgba(79, 156, 249, 0.18);
+    }
+}
+
+.pro-custom-dd-option.is-selected {
+    background: rgba(79, 156, 249, 0.28);
+    color: #fff;
+}
+
+.pro-custom-dd-option.is-selected::before {
+    content: '✓';
+    margin-right: 8px;
+    color: #9ec8ff;
+    font-weight: 700;
+}
+
+/* 「指板を探索する」用：3段グリッド（キー/カポ/スケール → 表記/ド表記 → 最大フレット）に整列する。
+   PROカスタム編集と同様の落ち着いた行レイアウトで、要素を中央寄せにそろえる。 */
+.visualize-setup-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 14px;
+}
+
+.visualize-setup-row {
+    display: grid;
+    gap: 10px;
+    align-items: end;
+    justify-items: stretch;
+    width: 100%;
+}
+
+.visualize-setup-row--triple {
+    /* キー/カポは内容ぴったり、スケールは可変で広がる */
+    grid-template-columns: max-content max-content 1fr;
+    justify-content: center;
+    align-items: end;
+}
+
+.visualize-setup-row--double {
+    grid-template-columns: 1fr 1fr;
+    max-width: 460px;
+    margin: 0 auto;
+}
+
+.visualize-setup-row--notation {
+    grid-template-columns: minmax(220px, max-content);
+    justify-content: center;
+}
+
+.visualize-setup-row--notation .mode-buttons {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* 縦画面など幅が狭いとき「ドレミ」が「ドレ」+「ミ」と改行されないよう、ラベルは1行に固定。
+   3ボタン合計が狭い画面より広い場合は横スクロールで全体を見られるようにする。 */
+.visualize-setup-row--notation .mode-btn {
+    flex: 1 1 0;
+    white-space: nowrap;
+    min-width: max-content;
+}
+
+.visualize-setup-row .setup-item {
+    align-items: stretch;
+    width: 100%;
+}
+
+.visualize-setup-row .setup-item label {
+    text-align: center;
+}
+
+.visualize-setup-row .mode-buttons {
+    width: 100%;
+    justify-content: stretch;
+}
+
+.visualize-setup-row .mode-btn,
+.visualize-setup-row .do-mode-btn {
+    flex: 1 1 0;
+}
+
+.pro-custom-dd--visualize {
+    width: auto;
+}
+
+.visualize-setup-item--key .pro-custom-dd--visualize {
+    width: 80px;
+}
+
+.visualize-setup-item--capo .pro-custom-dd--visualize {
+    width: 70px;
+}
+
+.visualize-setup-item--scale .pro-custom-dd--visualize {
+    width: 100%;
+    min-width: 0;
+}
+
+.visualize-setup-item--max-fret .pro-custom-dd--visualize {
+    width: 100%;
+    min-width: 0;
+}
+
+@media (max-width: 420px) {
+    .visualize-setup-row--triple {
+        grid-template-columns: max-content max-content 1fr;
+        gap: 8px;
+    }
+}
+
+/* スケールは長いカナ名が省略されにくいよう、トリガだけ少しフォントを小さく */
+.pro-custom-dd--visualize-scale .pro-custom-dd-trigger {
+    font-size: 0.88rem;
+}
+
+.pro-custom-setup-item--scale select {
+    min-width: 0;
+}
+
+/* スケール欄は長いカナ名（メジャー / アイオニアン等）が入りやすいよう、
+   閉じた状態のトリガだけフォントを少し落とす（一覧側は元のサイズを維持）。 */
+.pro-custom-setup-item--scale .pro-custom-dd-trigger {
+    font-size: 0.88rem;
+}
+
+.pro-custom-setup-item--display .mode-buttons {
+    min-height: 39px;
+    align-items: stretch;
+    flex-wrap: nowrap;
+}
+
+.pro-custom-setup-item--display .do-mode-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 5px 10px;
+    font-size: 0.9rem;
+}
+
+.pro-custom-route-editor-tail-spacer {
+    width: 100%;
+    height: 260px;
+    flex: 0 0 auto;
+}
+
+.route-editor-expanded-gap {
+    width: 100%;
+    height: 0;
+    flex: 0 0 auto;
+}
+
+.route-editor-expanded-gap--visible {
+    height: clamp(72px, 10vh, 140px);
+}
+
+.route-editor-expanded-spacer {
+    width: 100%;
+    height: 0;
+    flex: 0 0 auto;
+}
+
+.route-editor-expanded-spacer--visible {
+    height: clamp(120px, 16vh, 220px);
+}
+
+.pro-custom-route-editor-screen .route-editor-expanded-spacer--visible {
+    height: clamp(240px, 30vh, 420px);
+}
+
+.route-editor-demo-btn {
+    width: min(420px, 100%);
+    min-height: 44px;
+}
+
+.route-editor-camera-save-btn {
+    width: min(420px, 100%);
+    min-height: 44px;
+}
+
+.route-editor-save-btn {
+    width: min(420px, 100%);
+    min-height: 44px;
+}
+
+.pro-custom-route-editor-screen .route-editor-demo-btn,
+.pro-custom-route-editor-screen .route-editor-save-btn {
+    min-height: 52px;
+}
+
+.pro-custom-stage-name-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(5, 10, 20, 0.72);
+    backdrop-filter: blur(10px);
+}
+
+.pro-custom-stage-name-modal[hidden] {
+    display: none;
+}
+
+.pro-custom-stage-name-modal__backdrop {
+    position: absolute;
+    inset: 0;
+}
+
+.pro-custom-stage-name-modal__panel {
+    position: relative;
+    z-index: 1;
+    width: min(420px, 100%);
+    border: 1px solid rgba(108, 171, 255, 0.35);
+    border-radius: 24px;
+    padding: 22px 20px 20px;
+    background: linear-gradient(180deg, rgba(15, 24, 40, 0.98), rgba(11, 18, 30, 0.98));
+    box-shadow: 0 24px 56px rgba(0, 0, 0, 0.5);
+}
+
+.pro-custom-stage-name-modal__title {
+    font-size: 1.1rem;
+    font-weight: 900;
+    color: #6ca7ff;
+    text-align: center;
+    margin-bottom: 14px;
+}
+
+.pro-custom-stage-name-modal__label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 800;
+    color: rgba(255, 255, 255, 0.72);
+    margin-bottom: 8px;
+}
+
+.pro-custom-stage-name-modal__input {
+    width: 100%;
+    min-height: 52px;
+    border-radius: 16px;
+    border: 1px solid rgba(108, 171, 255, 0.32);
+    background: rgba(0, 0, 0, 0.22);
+    color: #f4f8ff;
+    font-size: 1rem;
+    font-weight: 800;
+    padding: 0 16px;
+    outline: none;
+}
+
+.pro-custom-stage-name-modal__input:focus {
+    border-color: rgba(108, 171, 255, 0.9);
+    box-shadow: 0 0 0 3px rgba(108, 167, 255, 0.22);
+}
+
+.pro-custom-stage-name-modal__actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.pro-custom-stage-name-modal__actions button {
+    flex: 1 1 0;
+    min-height: 48px;
+}
+
+/* STAGE名入力モーダルの「保存」：PRO 茶系（pro-custom-saved-btn / --save）に統一。
+   モーダル幅にフィットさせるため余白とタイトル文字サイズを調整。 */
+.pro-custom-stage-name-modal__actions .pro-custom-stage-name-modal__confirm.pro-custom-saved-btn {
+    padding: 12px 18px;
+    border-radius: 12px;
+    max-width: none;
+}
+
+.pro-custom-stage-name-modal__actions .pro-custom-stage-name-modal__confirm.pro-custom-saved-btn .pro-custom-saved-btn__title {
+    font-size: 1rem;
+    padding-right: 0;
+}
+
+.pro-custom-stage-name-modal__cancel {
+    color: rgba(255, 255, 255, 0.86);
+}
+
+@media (max-width: 720px) {
+    /* スマホでも「キー・カポは中身が見える幅、スケールを広く」を維持する */
+    .pro-custom-setup-row--triple {
+        grid-template-columns: 68px 56px minmax(0, 1fr);
+    }
+
+    .pro-custom-setup-row--double {
+        grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.95fr);
+    }
+}
+
+.route-editor-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-height: 150px;
+    overflow-y: auto;
+    padding: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.route-editor-empty {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.64);
+    font-size: 0.9rem;
+}
+
+.route-editor-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 5px 8px 5px 5px;
+    border: 1px solid var(--route-edit-note-ring, rgba(79, 156, 249, 0.3));
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    font-weight: 700;
+}
+
+.route-editor-chip-index {
+    display: inline-grid;
+    place-items: center;
+    min-width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    background: var(--route-edit-note-bg, var(--primary-color));
+    color: var(--route-edit-note-fg, #06111f);
+    font-size: 0.78rem;
+}
+
+.route-edit-note-stack {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 2px;
+}
+
+.route-edit-note-stack--dense {
+    display: block;
+    padding: 0;
+}
+
+.note-marker.route-edit-note {
+    position: relative;
+    background: var(--route-edit-note-bg, var(--primary-color));
+    color: var(--route-edit-note-fg, #06111f);
+    box-shadow: 0 0 0 4px var(--route-edit-note-ring, rgba(79, 156, 249, 0.24)), 0 4px 14px rgba(0, 0, 0, 0.34);
+    font-weight: 900;
+    font-size: 0.72rem;
+    line-height: 1;
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    appearance: none;
+}
+
+.note-marker.route-edit-note-button {
+    cursor: grab;
+    touch-action: none;
+}
+
+.note-marker.route-edit-note-button:active {
+    cursor: grabbing;
+}
+
+.note-marker.route-edit-note-button--dragging {
+    opacity: 0.35;
+}
+
+.route-edit-note-drag-preview {
+    position: fixed;
+    pointer-events: none;
+    z-index: 99999;
+    margin: 0;
+}
+
+.route-editor-scale-guide {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.16);
+    color: rgba(255, 255, 255, 0.52);
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1;
+    box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.38);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    user-select: none;
+    z-index: 4;
+    mix-blend-mode: screen;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.route-editor-scale-guide:disabled {
+    opacity: 1;
+}
+
+.route-editor-scale-guide-variant-3 .route-editor-scale-guide {
+    background: rgba(0, 0, 0, 0.34);
+    color: rgba(255, 255, 255, 0.9);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95);
+    box-shadow: inset 0 0 4px rgba(255, 255, 255, 0.06), 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.note-marker.route-edit-note--stacked {
+    width: 22px;
+    height: 22px;
+    font-size: 0.64rem;
+}
+
+.note-marker.route-edit-note--dense {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    padding: 0;
+    box-sizing: border-box;
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    background-clip: padding-box;
+    transform: translate(calc(-50% + var(--route-edit-stack-x, 0px)), calc(-50% + var(--route-edit-stack-y, 0px)));
+    box-shadow: 0 0 0 3px var(--route-edit-note-ring, rgba(79, 156, 249, 0.24)), 0 4px 12px rgba(0, 0, 0, 0.28);
+}
+
+.route-edit-note-order {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    line-height: 1;
+    font-size: 1em;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (orientation: landscape) {
+    /* 横画面では page-header の余白は完全に詰める（縦画面で入れた追加 padding-top も無効化）。
+       詳細度を `.app-container` 付きの (0,2,0) に揃えて、縦画面用の同じ詳細度ルールに勝つ。 */
+    .app-container .page-header--route-editor {
+        gap: 4px;
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+
+    /* 横画面の編集画面に限り、共通の `.app-container { max-width: 600px; padding: 20px }` を解除して
+       指板表示を画面いっぱいに広げる。`body:has(.page-header--route-editor)` で
+       「ルート編集／クイズ編集を表示中のときだけ」に絞っているので、他画面は影響を受けない。 */
+    body:has(.page-header--route-editor) .app-container {
+        max-width: none;
+        padding-left: max(10px, env(safe-area-inset-left));
+        padding-right: max(10px, env(safe-area-inset-right));
+    }
+
+    .page-header--route-editor .page-header-title-wrap {
+        display: none;
+    }
+
+    .route-editor-screen {
+        gap: 6px;
+    }
+
+    .route-editor-toolbar {
+        position: fixed;
+        top: max(14px, env(safe-area-inset-top));
+        /* 横画面では page-header の右上にある ⚙️ ボタン（home-settings-btn）と
+           重ならないように、その幅＋ギャップ分だけ内側に寄せる。
+           縦画面側では .route-editor-toolbar は position: static なのでこの right は無視される。 */
+        right: calc(max(16px, env(safe-area-inset-right)) + 52px);
+        z-index: 5;
+        grid-template-columns: repeat(3, 66px);
+        width: auto;
+        max-width: none;
+        align-self: auto;
+        gap: 6px;
+    }
+
+    .route-editor-group-panel {
+        position: fixed;
+        top: max(58px, calc(env(safe-area-inset-top) + 36px));
+        left: max(12px, env(safe-area-inset-left));
+        z-index: 6;
+        width: min(320px, calc(100vw - 196px));
+        padding: 6px 8px;
+        gap: 6px;
+        backdrop-filter: blur(8px);
+        transform: translate(var(--route-editor-group-panel-shift-x, 0px), var(--route-editor-group-panel-shift-y, 0px));
+        will-change: transform;
+        --route-editor-group-btn-min-height: 32px;
+        --route-editor-group-list-gap: 4px;
+    }
+
+    .route-editor-tool-btn {
+        min-height: 44px;
+        padding: 0 6px;
+        border-radius: 14px;
+        font-size: 0.78rem;
+    }
+
+    .route-editor-group-list {
+        gap: var(--route-editor-group-list-gap);
+    }
+
+    .route-editor-group-btn {
+        min-height: var(--route-editor-group-btn-min-height);
+        padding: 0 10px;
+        font-size: 0.78rem;
+    }
+
+    .route-editor-group-actions {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 4px;
+    }
+
+    /* 横画面のドラッグハンドルは、グループパネルの左上（「一覧」ボタンと同じ高さ）に
+       絶対配置する。route-editor-group-panel が position: fixed なので、その内側に
+       absolute で重ねれば JS（HTML 構造）を変えずに済む。
+       中央には四方向矢印（✥）を表示し、「掴んで動かせる」を直感的に伝える。 */
+    .route-editor-group-panel-handle {
+        display: inline-flex;
+        position: absolute;
+        top: 7px;
+        left: 8px;
+        z-index: 2;
+        width: 36px;
+        height: 36px;
+        min-height: 36px;
+        margin: 0;
+        padding: 0 0 1px;
+        border-radius: 50%;
+        background: rgba(79, 156, 249, 0.32);
+        border: 1px solid rgba(79, 156, 249, 0.7);
+        color: #fff;
+        font-size: 1.18rem;
+        font-weight: 700;
+        letter-spacing: 0;
+        line-height: 1;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    }
+
+    .route-editor-group-toggle-btn {
+        min-width: 62px;
+        padding: 0 8px;
+        font-size: 0.68rem;
+        min-height: 38px;
+    }
+
+    .route-editor-group-save-position-btn {
+        min-width: 76px;
+        padding: 0 8px;
+        font-size: 0.7rem;
+        min-height: 38px;
+    }
+
+    .route-editor-group-expand-btn {
+        min-width: 102px;
+        padding: 0 26px;
+        font-size: 0.86rem;
+        min-height: 38px;
+    }
+
+    .route-editor-group-position-label {
+        font-size: 0.68rem;
+        padding: 2px 4px;
+    }
+
+    .route-editor-group-label {
+        display: none;
+    }
+
+    .route-editor-fretboard-host {
+        flex: 1 1 auto;
+        min-height: 210px;
+    }
+
+    /* 横画面では指板を視覚的に拡大して画面幅を活用する。
+       内部の HTML 要素のサイズは固定（FRETBOARD_WIDTH）なので、CSS の transform: scale で
+       「見た目だけ」拡大している。クリック判定は scale 後の見た目の位置に追従するため、
+       内部座標との不整合は起きない。 */
+    body:has(.page-header--route-editor) #fretboard-container {
+        --route-editor-fretboard-scale: 1.35;
+    }
+
+    body:has(.page-header--route-editor) #fretboard-container .fretboard-scroll-wrapper {
+        min-height: calc(210px * var(--route-editor-fretboard-scale, 1));
+        padding-bottom: 0;
+    }
+
+    body:has(.page-header--route-editor) #fretboard-container .fretboard-container {
+        transform: scale(var(--route-editor-fretboard-scale, 1));
+        transform-origin: top left;
+    }
+
+    /* 横画面では横幅に余裕があるので、保存ボタンを「自然な幅で横並び」にする。
+       横いっぱいに伸ばさず、適度な min/max 幅で中央寄せ。 */
+    .route-editor-save-row {
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .route-editor-demo-btn,
+    .route-editor-save-btn,
+    .route-editor-camera-save-btn {
+        width: auto;
+        flex: 0 1 auto;
+        min-width: 200px;
+        max-width: 280px;
+    }
+
+    .route-editor-expanded-spacer--visible {
+        height: clamp(160px, 20vh, 300px);
+    }
+
+    .route-editor-expanded-gap--visible {
+        height: clamp(88px, 12vh, 160px);
+    }
+
+    .route-editor-group-panel--dragging {
+        user-select: none;
+    }
+
+    .route-editor-group-panel--expanded.route-editor-group-panel--floating {
+        position: relative;
+        top: auto;
+        left: auto;
+        /* 横画面の「一覧」状態では、Gr カードパネルを画面幅近くまで広げて
+           20 個の Gr を活用しやすくする。縮小状態（--floating 単独）には影響しない。
+           左右に 12px ずつ余白を残して、画面端に張り付かないようにする。 */
+        width: min(960px, calc(100vw - 24px));
+        max-width: calc(100vw - 24px);
+        transform: translate(var(--route-editor-group-panel-shift-x, 0px), var(--route-editor-group-panel-shift-y, 0px));
+    }
+
+    /* 横画面の「一覧」状態のときだけ、Gr カード一覧を auto-fill のグリッドにして
+       横幅に応じて列数を自動的に増やす。`--floating` を組み合わせているので、
+       縦画面の一覧状態（5 列固定）には一切影響しない。 */
+    .route-editor-group-panel--expanded.route-editor-group-panel--floating .route-editor-group-list {
+        grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+    }
+}
+
+.rule-step-card {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    box-sizing: border-box;
+}
+
+.rule-step-card--landscape {
+    padding-left: max(8px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
+}
+
+.rule-step-card--landscape .rule-fretboard-stack {
+    margin-left: -4px;
+    margin-right: -4px;
+    width: calc(100% + 8px);
+}
+
+.rule-step-head {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    min-height: 0;
+}
+
+.rule-step-page-count {
+    font-weight: 800;
+}
+
+.rule-step-progress {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+}
+
+.rule-step-progress-segment {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 0 2px;
+    border: none;
+    margin: 0;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 6px;
+    font: inherit;
+    box-sizing: border-box;
+}
+
+.rule-step-progress-segment:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.85);
+    outline-offset: 2px;
+}
+
+.rule-step-progress-bar {
+    display: block;
+    width: 100%;
+    height: 5px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.rule-step-progress-segment.is-done .rule-step-progress-bar {
+    background: rgba(49, 196, 107, 0.58);
+}
+
+.rule-step-progress-segment.is-current .rule-step-progress-bar {
+    background: var(--primary-color);
+    box-shadow: 0 0 12px rgba(79, 156, 249, 0.45);
+}
+
+.rule-label-toggle {
+    flex-shrink: 0;
+}
+
+.rule-label-toggle .mode-btn {
+    padding: 6px 9px;
+    font-size: 0.74rem;
+}
+
+.rule-step-text {
+    margin: 0;
+    color: rgba(255,255,255,0.88);
+    line-height: 1.45;
+    font-size: 0.92rem;
+    font-weight: 800;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.45);
+}
+
+.rule-theme-subline {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 0.76rem;
+    font-weight: 700;
+    line-height: 1.35;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+    text-align: center;
+    max-width: 22em;
+}
+
+.rule-theme-subline--below-heading {
+    margin: -4px auto 10px;
+}
+
+.rule-phase-overlay .rule-theme-subline {
+    display: block;
+}
+
+.rule-step-hint {
+    margin: -2px 0 0;
+    padding: 6px 9px;
+    border-radius: 10px;
+    background: rgba(79,156,249,0.12);
+    border: 1px solid rgba(79,156,249,0.26);
+    color: rgba(255,255,255,0.78);
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.rule-step-note {
+    margin: -4px 0 0;
+    color: rgba(255,255,255,0.58);
+    font-size: 0.74rem;
+    line-height: 1.35;
+    font-weight: 700;
+}
+
+.rule-cue-bubble {
+    position: relative;
+    align-self: flex-start;
+    max-width: 100%;
+    padding: 6px 2px 2px;
+    border-radius: 0;
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.94);
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1.25;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+}
+
+.rule-phase-banner {
+    width: 100%;
+    padding: 14px 16px;
+    border-radius: 14px;
+    font-size: 1.08rem;
+    font-weight: 900;
+    line-height: 1.35;
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.08);
+}
+
+.rule-phase-banner--intro {
+    background: rgba(79,156,249,0.18);
+    border-color: rgba(79,156,249,0.4);
+}
+
+.rule-phase-overlay {
+    position: absolute;
+    inset: 12px;
+    z-index: 70;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 22px 20px;
+    border-radius: 16px;
+    color: #fff;
+    font-family: inherit;
+    text-align: center;
+    cursor: pointer;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+}
+
+.rule-phase-overlay.rule-phase-banner--intro {
+    background: rgba(18, 42, 72, 0.9);
+    border: 1px solid rgba(130, 190, 255, 0.42);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.rule-phase-overlay-main {
+    font-size: 1.38rem;
+    font-weight: 900;
+    line-height: 1.45;
+    max-width: 18em;
+    white-space: pre-line;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85), 0 2px 18px rgba(0, 0, 0, 0.45);
+}
+
+.rule-phase-overlay-sub {
+    font-size: 0.92rem;
+    font-weight: 800;
+    line-height: 1.35;
+    color: rgba(255, 255, 255, 0.94);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+}
+
+.rule-phase-overlay-note {
+    font-size: 0.86rem;
+    font-weight: 800;
+    line-height: 1.35;
+    letter-spacing: 0.02em;
+    color: rgba(255, 255, 255, 0.82);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+    margin-top: -4px;
+}
+
+.rule-start-btn {
+    margin-top: 2px;
+    padding: 6px 13px;
+    border: none;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 900;
+    font-family: inherit;
+    color: #0b120c;
+    background: var(--primary-color, #c8ff6a);
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    animation: rule-start-shake 2.1s ease-in-out infinite;
+}
+
+.rule-start-btn:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.85);
+    outline-offset: 2px;
+}
+
+@keyframes rule-start-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-2.5px); }
+    40% { transform: translateX(2.5px); }
+    60% { transform: translateX(-1.5px); }
+    80% { transform: translateX(1.5px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rule-start-btn {
+        animation: none;
+    }
+}
+
+.rule-touch-area--intro .rule-fretboard-host,
+.rule-touch-area--intro .rule-interval-diagram {
+    filter: grayscale(1);
+    opacity: 0.34;
+}
+
+.rule-cue-bubble--floating {
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    z-index: 60;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.rule-cue-bubble--floating.is-positioned {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.rule-cue-bubble--inline {
+    align-self: center;
+    margin-top: 4px;
+}
+
+.rule-cue-bubble--inline::after {
+    display: none;
+}
+
+.rule-cue-bubble::after {
+    display: none;
+}
+
+.rule-touch-area {
+    position: relative;
+    min-height: 190px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+/* 指板の基本ルール：各STEPの指板タップで出る、iOS/Android のデフォルト
+   タップハイライト（タップ位置に一瞬広がる青いハイライト）を非表示にする。 */
+.rule-touch-area,
+.rule-touch-area * {
+    -webkit-tap-highlight-color: transparent;
+}
+
+.rule-touch-area.is-miss {
+    animation: rule-miss-shake 0.22s ease;
+}
+
+@keyframes rule-miss-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+}
+
+.rule-miss-feedback {
+    min-height: 1.1rem;
+    margin: -6px 0 0;
+    color: #ffd37a;
+    text-align: center;
+    font-size: 0.76rem;
+    font-weight: 800;
+    opacity: 0;
+    transform: translateY(-2px);
+    transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.rule-miss-feedback.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.rule-fretboard-stack {
+    position: relative;
+    width: 100%;
+    align-self: stretch;
+}
+
+.rule-step31-pair-line {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 18;
+    overflow: visible;
+}
+
+.rule-step31-pair-line line {
+    stroke: #f5c642;
+    stroke-width: 3;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.4));
+}
+
+.rule-fretboard-host {
+    width: 100%;
+    min-height: 170px;
+}
+
+.rule-interval-diagram {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 5px;
+    align-items: center;
+}
+
+.rule-interval-note {
+    min-width: 42px;
+    min-height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    font-weight: 800;
+    color: #fff;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.rule-interval-note.is-next {
+    background: rgba(49, 196, 107, 0.24);
+    border-color: rgba(49, 196, 107, 0.8);
+    box-shadow: 0 0 16px rgba(49, 196, 107, 0.35);
+    transform: translateY(-2px);
+}
+
+.rule-interval-gap {
+    min-width: 38px;
+    color: rgba(255,255,255,0.58);
+    text-align: center;
+    font-size: 0.74rem;
+    padding: 4px 0;
+    border-top: 2px solid rgba(255,255,255,0.24);
+}
+
+.rule-interval-gap.is-half {
+    color: #31c46b;
+    border-color: #31c46b;
+    font-weight: 800;
+}
+
+.rule-special-gap-note {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(79, 156, 249, 0.14);
+    border: 1px solid rgba(130, 190, 255, 0.38);
+    color: rgba(255,255,255,0.88);
+    text-align: center;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.rule-step5-exclude-details {
+    margin: 12px 0 4px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.rule-step5-exclude-summary {
+    cursor: pointer;
+    font-weight: 800;
+    font-size: 0.88rem;
+    color: rgba(255, 255, 255, 0.92);
+    list-style-position: outside;
+}
+
+.rule-step5-exclude-hint,
+.rule-step5-exclude-hint-sub {
+    margin: 8px 0 0;
+    font-size: 0.74rem;
+    line-height: 1.45;
+    color: rgba(255, 255, 255, 0.62);
+}
+
+.rule-step5-exclude-hint-sub {
+    margin-top: 4px;
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.48);
+}
+
+.rule-step5-exclude-list {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: min(42vh, 320px);
+    overflow-y: auto;
+    padding-right: 4px;
+    -webkit-overflow-scrolling: touch;
+}
+
+.rule-step5-exclude-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.88);
+    cursor: pointer;
+}
+
+.rule-step5-exclude-row[data-rule-step5-exclude-anchor="1"] {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.rule-step5-exclude-row input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    accent-color: var(--primary-color, #31c46b);
+}
+
+.rule-step5-exclude-note {
+    margin-left: auto;
+    font-size: 0.76rem;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.rule-step5-exclude-reset {
+    margin-top: 12px;
+    width: 100%;
+}
+
+.rule-step5-marker-row {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    z-index: 12;
+}
+
+.rule-step5-inline-exclude {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    cursor: pointer;
+    margin: 0;
+    padding: 0;
+}
+
+.rule-step5-inline-exclude[data-rule-step5-exclude-anchor="1"] {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.rule-step5-inline-exclude input[type="checkbox"] {
+    width: 17px;
+    height: 17px;
+    margin: 0;
+    accent-color: var(--primary-color, #31c46b);
+}
+
+.rule-half-tone-pop {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 55;
+    padding: 10px 20px;
+    border-radius: 14px;
+    background: rgba(255, 200, 88, 0.95);
+    border: 2px solid rgba(255, 160, 40, 0.95);
+    color: #2a1600;
+    font-size: 1.05rem;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+/** STEP1・スライド3実践の「半音！」：本体とオレンジ部分（padding）を小さく */
+.rule-half-tone-pop--step1-practice {
+    padding: 5px 11px;
+    border-radius: 8px;
+    font-size: 0.76rem;
+    font-weight: 900;
+    letter-spacing: 0.045em;
+    border-width: 1px;
+    line-height: 1.18;
+    box-shadow: 0 4px 13px rgba(0, 0, 0, 0.3);
+}
+
+/** 「4フレット」用：半音ポップの約半分の見た目・余白詰め */
+.rule-half-tone-pop--compact {
+    padding: 4px 9px;
+    border-radius: 7px;
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.03em;
+    border-width: 1px;
+    line-height: 1.15;
+    box-shadow: 0 2px 9px rgba(0, 0, 0, 0.26);
+}
+
+/** STEP3：5フレット間隔のとき（白背景・黒字、コンパクト系の大きさ感） */
+/** STEP4-3：ラの左・音名丸と被らないよう小さめ */
+.rule-step43-gap-pop {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 72;
+    padding: 3px 7px;
+    border-radius: 6px;
+    background: rgba(255, 200, 88, 0.96);
+    border: 1px solid rgba(255, 160, 40, 0.9);
+    color: #2a1600;
+    font-size: 0.62rem;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
+    pointer-events: none;
+    white-space: nowrap;
+    text-align: center;
+}
+
+.rule-step3-five-fret-pop {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 56;
+    padding: 4px 9px;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(24, 24, 24, 0.32);
+    color: #101010;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    line-height: 1.15;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+.rule-step-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.rule-step-actions button,
+.rule-visualize-btn {
+    padding: 11px 12px;
+    font-size: 0.88rem;
+}
+
+.rule-visualize-btn--emphasis {
+    border-color: rgba(49,196,107,0.5);
+    background: rgba(49,196,107,0.14);
+    color: rgba(255,255,255,0.96);
+    font-weight: 800;
+}
+
+.rule-complete-note {
+    margin: -2px 0 0;
+    color: rgba(255,255,255,0.68);
+    text-align: center;
+    font-size: 0.76rem;
+    line-height: 1.4;
+    font-weight: 700;
+}
+
+@media (max-width: 480px) {
+    .rule-step-card {
+        padding: 14px;
+    }
+
+    .rule-step-head {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .rule-label-toggle {
+        align-self: flex-start;
+    }
+}
+
+/* ─── STEP CLEAR お祝い（進捗ドット＋STEP表記） ─── */
+.rule-clear-celebration {
+    padding: 16px 14px 24px;
+    box-sizing: border-box;
+}
+
+.rule-clear-card {
+    position: relative;
+    margin: 0 auto;
+    width: 100%;
+    max-width: min(540px, calc(100vw - 24px));
+    padding: 40px 28px 34px;
+    border-radius: 22px;
+    background: linear-gradient(165deg, rgba(30, 55, 95, 0.95), rgba(12, 22, 42, 0.98));
+    border: 1px solid rgba(130, 190, 255, 0.45);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    text-align: center;
+    overflow: hidden;
+}
+
+.rule-clear-head {
+    margin: 0 0 18px;
+    font-size: clamp(2.25rem, 11vw, 3.35rem);
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    line-height: 1.1;
+    color: #c8ff6a;
+    text-shadow: 0 2px 22px rgba(200, 255, 106, 0.4), 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.rule-clear-steptext {
+    margin: 0 0 20px;
+    font-size: clamp(1.05rem, 4.2vw, 1.35rem);
+    font-weight: 800;
+    line-height: 1.35;
+    color: rgba(255, 220, 140, 0.95);
+}
+
+.rule-clear-dots {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    margin: 10px 0 26px;
+    flex-wrap: wrap;
+}
+
+.rule-clear-dot {
+    width: clamp(18px, 5vw, 26px);
+    height: clamp(18px, 5vw, 26px);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    border: 2px solid rgba(255, 255, 255, 0.22);
+}
+
+.rule-clear-dot.is-done {
+    background: rgba(200, 255, 106, 0.88);
+    border-color: rgba(200, 255, 106, 0.95);
+    box-shadow: 0 0 14px rgba(200, 255, 106, 0.5);
+}
+
+.rule-clear-next-btn {
+    margin-top: 8px;
+    width: 100%;
+    max-width: min(360px, 92%);
+    padding: 14px 18px !important;
+    font-size: clamp(0.95rem, 3.8vw, 1.12rem) !important;
+    font-weight: 800 !important;
+}
+
+.rule-master-clear {
+    position: relative;
+    min-height: 68vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.rule-master-clear-card {
+    z-index: 2;
+    padding: 46px 26px 38px;
+    background:
+        radial-gradient(circle at 50% 0%, rgba(255, 220, 120, 0.28), transparent 45%),
+        linear-gradient(165deg, rgba(31, 73, 96, 0.98), rgba(13, 22, 39, 0.98));
+    border-color: rgba(255, 223, 118, 0.5);
+}
+
+.rule-master-clear-head {
+    margin: 0 0 18px;
+    font-size: clamp(2rem, 8.8vw, 3.45rem);
+    font-weight: 900;
+    line-height: 1.08;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    color: #ffef8a;
+    text-shadow: 0 0 22px rgba(255, 229, 105, 0.48), 0 3px 4px rgba(0, 0, 0, 0.75);
+}
+
+.rule-master-clear-lead {
+    margin: 0 auto 24px;
+    max-width: 22em;
+    font-size: clamp(1rem, 4.2vw, 1.34rem);
+    font-weight: 850;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.92);
+}
+
+/* 指板の基本ルール クリア：「指板をたどる」などの引用語が
+   途中で改行されないようにするためのインライン nowrap チャンク */
+.rule-master-clear-nobr {
+    white-space: nowrap;
+}
+
+/* 横画面（狭い高さ）：カードが上下に切れないように縮める */
+@media (orientation: landscape) and (max-height: 560px) {
+    .rule-master-clear {
+        min-height: 0;
+        align-items: flex-start;
+    }
+    .rule-clear-celebration.rule-master-clear {
+        padding: 8px 14px 16px;
+    }
+    .rule-master-clear-card {
+        padding: 22px 24px 22px;
+        max-width: min(560px, calc(100vw - 24px));
+    }
+    .rule-master-clear-head {
+        margin-bottom: 12px;
+        font-size: clamp(1.6rem, 5.4vw, 2.2rem);
+    }
+    .rule-master-clear-lead {
+        margin-bottom: 16px;
+        max-width: 32em;
+        font-size: clamp(0.9rem, 2.6vw, 1.08rem);
+        line-height: 1.5;
+    }
+    .rule-master-clear .rule-clear-next-btn {
+        margin-top: 4px;
+        padding: 10px 18px !important;
+        font-size: clamp(0.9rem, 2.6vw, 1.02rem) !important;
+    }
+    /* 横画面では下端余白用の 120px スペーサーが不要（コンテンツが収まる） */
+    .rule-clear-celebration.rule-master-clear > div[style*="120px"] {
+        display: none;
+    }
+}
+
+.rule-master-confetti {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 1;
+}
+
+.rule-master-confetti-piece {
+    position: absolute;
+    top: -18px;
+    left: calc(var(--x) * 1%);
+    width: 9px;
+    height: 16px;
+    border-radius: 3px;
+    background: hsl(calc(var(--x) * 3.6), 86%, 64%);
+    transform: rotate(var(--r));
+    animation: rule-master-confetti-fall 2.8s linear infinite;
+    animation-delay: var(--d);
+}
+
+.rule-master-confetti-piece:nth-child(3n) {
+    width: 12px;
+    height: 8px;
+}
+
+.rule-master-confetti-piece:nth-child(4n) {
+    background: #c8ff6a;
+}
+
+.rule-master-confetti-piece:nth-child(5n) {
+    background: #ffd37a;
+}
+
+@keyframes rule-master-confetti-fall {
+    0% {
+        transform: translate3d(0, -20px, 0) rotate(var(--r));
+        opacity: 0;
+    }
+    10% {
+        opacity: 1;
+    }
+    100% {
+        transform: translate3d(28px, 78vh, 0) rotate(calc(var(--r) + 360deg));
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rule-master-confetti-piece {
+        animation: none;
+        opacity: 0.8;
+        top: 18px;
+    }
+}
+
+/* ─── Settings Screen ─── */
+.settings-card {
+    width: 100%;
+    padding: 18px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 0;
+    box-sizing: border-box;
+}
+
+/* 指板をたどる：テンポ・ループ・音名を1枚にまとめたカード */
+.settings-card--cruise-mode {
+    padding: 20px 18px 18px;
+    background: linear-gradient(165deg, rgba(49, 196, 107, 0.1) 0%, rgba(255, 255, 255, 0.05) 42%, rgba(255, 255, 255, 0.04) 100%);
+    border: 1px solid rgba(49, 196, 107, 0.28);
+    box-shadow: 0 6px 28px rgba(0, 0, 0, 0.22);
+}
+
+/* 共通カード（音名の表記 + 指板の視点） */
+.settings-card--common {
+    padding: 20px 18px 18px;
+    background: linear-gradient(165deg, rgba(79, 156, 249, 0.10) 0%, rgba(255, 255, 255, 0.05) 42%, rgba(255, 255, 255, 0.04) 100%);
+    border: 1px solid rgba(79, 156, 249, 0.28);
+    box-shadow: 0 6px 28px rgba(0, 0, 0, 0.22);
+}
+
+.settings-card--common .settings-card-section + .settings-card-section {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.settings-card-header--major {
+    margin-bottom: 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.settings-card-title--major {
+    font-size: 1.18rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+}
+
+.settings-card-subtitle--major {
+    font-size: 0.76rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.55);
+    margin-top: 4px;
+    display: block;
+}
+
+.settings-card-section {
+    padding-top: 0;
+}
+
+.settings-card--cruise-mode .settings-card-section + .settings-card-section {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.settings-card--quiz-mode .settings-card-section + .settings-card-section {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.settings-card-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.settings-card-section-title {
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.settings-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.settings-card-title-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.settings-card-title {
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 0;
+    line-height: 1.35;
+}
+
+.settings-card-subtitle {
+    color: rgba(255,255,255,0.52);
+    font-size: 0.72rem;
+    font-weight: 500;
+    line-height: 1.2;
+}
+
+.settings-card-reset-btn {
+    flex: 0 0 auto;
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 999px;
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.78);
+    font-family: inherit;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 6px 10px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.settings-card-reset-btn:active {
+    background: rgba(255,255,255,0.14);
+}
+
+.settings-range {
+    width: 100%;
+    accent-color: #31c46b;
+    cursor: pointer;
+    display: block;
+    box-sizing: border-box;
+}
+
+.settings-value-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    color: rgba(255,255,255,0.6);
+}
+
+.settings-value-badge {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #fff;
+    text-align: center;
+}
+
+.settings-value-badge-sm {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #fff;
+    min-width: 36px;
+    text-align: right;
+}
+
+.settings-value-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.settings-note {
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.45);
+    margin-top: 10px;
+    line-height: 1.55;
+}
+
+.settings-toggle-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.settings-toggle-btn {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.7);
+    font-family: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.settings-toggle-btn.active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #000;
+    font-weight: 700;
+}
+
+.settings-preview-area {
+    position: relative;
+    width: 100%;
+    height: 180px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 8px 0;
+    background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.03) 0%, transparent 70%);
+}
+
+.settings-preview-clip {
+    width: 100%;
+    height: 180px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.settings-preview-clip .fretboard-container {
+    transition: none;
+}
+
+.settings-trackball {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    width: 130px;
+    height: 130px;
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.25), rgba(0,0,0,0.45));
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.35);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.5), inset 0 0 16px rgba(255,255,255,0.04);
+    cursor: grab;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+}
+
+.settings-trackball-dot {
+    width: 12px;
+    height: 12px;
+    background: #4f9cf9;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #4f9cf9;
+    transition: transform 0.1s ease;
+}
+
+.settings-row-between {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.settings-label {
+    font-size: 0.88rem;
+    color: rgba(255,255,255,0.75);
+}
+
+.settings-btn-small {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.6);
+    border-radius: 4px;
+    padding: 3px 10px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.settings-presets {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.settings-preset-btn {
+    flex: 1;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.75);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.85rem;
+    transition: background 0.2s;
+}
+
+.settings-preset-btn:active {
+    background: rgba(255,255,255,0.15);
+}
+
+.settings-view-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.settings-view-btn {
+    padding: 9px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.82);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.85rem;
+}
+
+.settings-view-btn.active {
+    border-color: rgba(49, 196, 107, 0.9);
+    background: rgba(49, 196, 107, 0.22);
+    color: #fff;
+    font-weight: 700;
+}
+
+.settings-view-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.settings-checkbox-native {
+    width: 22px;
+    height: 22px;
+    accent-color: var(--primary-color);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.settings-axes {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.settings-axis-item {
+    width: 100%;
+}
+
+/* 拡大ビュー時：カメラ操作系を一括でグレー化（操作はJS側で disabled） */
+#tilt-setting-group.is-zoom-locked .settings-presets,
+#tilt-setting-group.is-zoom-locked .settings-axes,
+#tilt-setting-group.is-zoom-locked .settings-range,
+#tilt-setting-group.is-zoom-locked .settings-value-control,
+#tilt-setting-group.is-zoom-locked .settings-label,
+#tilt-setting-group.is-zoom-locked .settings-row-between {
+    opacity: 0.4;
+}
+
+#tilt-setting-group.is-zoom-locked input[type="range"] {
+    cursor: not-allowed;
+}
+
+.settings-trackball.is-zoom-locked {
+    pointer-events: none;
+    opacity: 0.4;
+}
+
+.settings-beta-note {
+    margin: 0 0 12px;
+    padding: 8px 12px;
+    background: rgba(255, 196, 64, 0.08);
+    border: 1px solid rgba(255, 196, 64, 0.4);
+    border-radius: 8px;
+    color: rgba(255, 220, 150, 0.95);
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+.settings-beta-note strong {
+    color: #ffd770;
+    font-weight: 800;
+}
+
+.settings-axis-label {
+    font-size: 0.82rem;
+    color: #fff;
+}
+
+.settings-axis-val {
+    font-size: 0.82rem;
+    color: rgba(255,255,255,0.75);
+    min-width: 34px;
+    text-align: right;
+}
+
+.settings-axis-zero {
+    background: none;
+    border: 1px solid #555;
+    color: #aaa;
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.settings-reset-btn {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.28);
+    color: rgba(255,255,255,0.72);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.settings-reset-btn:active {
+    background: rgba(255,255,255,0.15);
+}
+
+.settings-actions-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    margin: 0;
+}
+
+.settings-page-stack {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.settings-page-stack--proposed {
+    gap: 26px;
+}
+
+.settings-screen {
+    width: 100%;
+    max-width: 440px;
+    margin: 0 auto;
+    padding: 28px 24px 24px;
+    background: var(--surface-color);
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 18px 40px rgba(0,0,0,0.28);
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 18px;
+}
+
+.page-header {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
+
+.page-header--mode-select {
+    padding-top: 0;
+}
+
+.page-header--mode-select .page-header-top {
+    transform: translateY(-28px);
+}
+
+.page-header--memorize {
+    gap: 6px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
+
+/* memorize 画面ヘッダー：以前は空タイトルを隠していたが、今は
+   「STAGE 1 ・ 指板クイズ」を小さく出すので表示する。 */
+.page-header--memorize .page-header-title-wrap {
+    visibility: visible;
+    transform: translateY(-2px);
+    margin-top: -4px;
+}
+
+.page-header-title.memorize-header-title {
+    font-size: 0;
+    line-height: 1.2;
+    font-weight: 600;
+}
+
+.memorize-header-meta {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 0.78rem;
+    line-height: 1.2;
+    color: rgba(255, 255, 255, 0.78);
+    letter-spacing: 0.02em;
+}
+
+.memorize-header-stage {
+    color: var(--primary-color, #4f9cf9);
+    font-weight: 700;
+    font-size: 0.84rem;
+    letter-spacing: 0.04em;
+}
+
+.memorize-header-divider {
+    opacity: 0.5;
+    font-size: 0.7rem;
+}
+
+.memorize-header-mode {
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.page-header--stage-select {
+    gap: 20px;
+}
+
+/* 縦画面のルート編集／クイズ編集は、route-editor-screen が画面いっぱいに広がる関係で
+   body の縦中央寄せが効かず、戻る／TOP が画面上端ぎりぎりに張り付いて見える。
+   そこで page-header に追加 padding-top を入れて全体を少し下に落とす。
+   `.app-container` を前に付けて詳細度 (0,2,0) にし、共通 `.page-header { padding-top: 4px }`
+   の上書きに勝てるようにしてある。横画面用の上書きも同じ詳細度で別途定義済み。 */
+.app-container .page-header--route-editor {
+    padding-top: 30px;
+}
+
+.page-header--stage-select .page-header-title-wrap {
+    transform: translateY(10px);
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.page-header-title-sub {
+    margin: 0;
+    width: 100%;
+    text-align: center;
+    font-size: 0.88rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.page-header-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    width: 100%;
+    column-gap: 12px;
+}
+
+.page-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.page-header-actions--left {
+    justify-self: start;
+}
+
+.page-header-actions--right {
+    justify-self: end;
+    justify-content: flex-end;
+}
+
+.page-header-title-wrap {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+.page-header-title {
+    margin: 0;
+    text-align: center;
+    line-height: 1.15;
+    width: 100%;
+}
+
+.page-header-title.home-title {
+    margin-bottom: 0;
+}
+
+.page-nav-btn {
+    padding: 7px 14px;
+    border-radius: 24px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.icon-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+.settings-screen-header {
+    width: 100%;
+    padding-top: 0;
+}
+
+.settings-screen-title {
+    font-size: 1.5rem;
+    margin: 0;
+    text-align: center;
+}
+
+.settings-screen--proposed .settings-actions-footer {
+    margin: 4px 0 12px;
+}
+
+.settings-nav-btn,
+.home-settings-btn {
+    padding: 8px 12px;
+    line-height: 1;
+    justify-content: center;
+}
+
+@media (max-width: 480px) {
+    .page-header-actions {
+        gap: 6px;
+    }
+
+    .page-header-top {
+        column-gap: 8px;
+    }
+
+    .page-nav-btn {
+        padding: 6px 10px;
+        font-size: 0.74rem;
+    }
+
+    .page-header {
+        gap: 10px;
+    }
+
+    .page-header--mode-select .page-header-top {
+        transform: translateY(-32px);
+    }
+
+    .page-header.page-header--stage-select {
+        gap: 18px;
+    }
+
+    .page-header.page-header--memorize {
+        gap: 18px;
+    }
+
+    .page-header--stage-select .page-header-title-wrap {
+        transform: translateY(12px);
+    }
+}
+
+.settings-help-btn {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    color: rgba(255,255,255,0.5);
+    cursor: pointer;
+    flex-shrink: 0;
+    font-size: 1.2rem;
+}
+
+.settings-help-btn:focus-visible {
+    outline: 2px solid rgba(49, 196, 107, 0.7);
+    outline-offset: 2px;
+}
+
+.settings-secondary-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.settings-secondary-actions .settings-bottom-btn {
+    font-size: 0.78rem;
+    line-height: 1.35;
+}
+
+.settings-bottom-btn {
+    width: 100%;
+    min-height: 44px;
+    padding: 12px 14px;
+    font-size: 0.95rem;
+}
+
+.settings-apply-btn {
+    border: 1px solid rgba(49, 196, 107, 0.9);
+    border-radius: 8px;
+    background: #31c46b;
+    color: #06160b;
+    font-family: inherit;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 0 12px rgba(49, 196, 107, 0.22);
+}
+
+.settings-apply-btn:active {
+    transform: translateY(1px);
+    background: #28ad5d;
+}
+
+.settings-danger-btn {
+    border-color: rgba(255, 79, 110, 0.45);
+    color: #ff9aac;
+}
+
+.hit-debug-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    font-family: monospace;
+}
+
+.hit-debug-box {
+    position: fixed;
+    border: 1px solid rgba(79, 156, 249, 0.6);
+    background: rgba(79, 156, 249, 0.08);
+    box-sizing: border-box;
+}
+
+.hit-debug-box.target {
+    border: 2px solid rgba(45, 255, 148, 0.95);
+    background: rgba(45, 255, 148, 0.18);
+    box-shadow: 0 0 12px rgba(45, 255, 148, 0.35);
+}
+
+.hit-debug-box span {
+    position: absolute;
+    left: 2px;
+    top: 2px;
+    padding: 1px 3px;
+    color: #d9ecff;
+    background: rgba(0, 0, 0, 0.65);
+    border-radius: 3px;
+    font-size: 9px;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.hit-debug-box.target span {
+    color: #bfffdc;
+    font-size: 10px;
+}
+
+.hit-debug-center {
+    position: fixed;
+    width: 6px;
+    height: 6px;
+    margin: -3px 0 0 -3px;
+    border-radius: 50%;
+    background: rgba(79, 156, 249, 0.8);
+}
+
+.hit-debug-center.target {
+    width: 10px;
+    height: 10px;
+    margin: -5px 0 0 -5px;
+    background: #2dff94;
+    box-shadow: 0 0 8px rgba(45, 255, 148, 0.9);
+}
+
+.hit-debug-panel {
+    position: fixed;
+    left: 10px;
+    bottom: 10px;
+    max-width: min(360px, calc(100vw - 20px));
+    padding: 8px 10px;
+    border: 1px solid rgba(45, 255, 148, 0.45);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.78);
+    color: #fff;
+    font-size: 11px;
+    line-height: 1.45;
+}
+
+/* Settings help button explanations */
+.settings-note {
+    display: none;
+}
+
+.settings-note.visible {
+    display: block;
+}
+
+.settings-note--animated {
+    display: block;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    margin-top: 0;
+    transition: max-height 0.24s ease, opacity 0.18s ease, margin-top 0.18s ease;
+}
+
+.settings-note--animated.visible {
+    max-height: 120px;
+    opacity: 1;
+    margin-top: 8px;
+}
+
+/* Highlight Mode Styles */
+.highlight-mode-btn {
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--text-color);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.75rem;
+}
+
+.highlight-mode-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.highlight-mode-btn.active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #000;
+}
+
+/* Highlight overlay animations */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 0.6;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+}
+
+@keyframes glow {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+    }
+    50% {
+        box-shadow: 0 0 30px rgba(255, 215, 0, 1);
+    }
+}
+
+@keyframes repeat-hint-flash {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+        filter: drop-shadow(0 0 8px rgba(49, 196, 107, 0.8));
+    }
+    50% {
+        opacity: 0;
+        transform: scale(0.95);
+        filter: drop-shadow(0 0 2px rgba(49, 196, 107, 0.3));
+    }
+}
+
+/* ==================== クイズエディタ ==================== */
+
+.quiz-editor-save-row {
+    display: flex;
+    justify-content: center;
+    padding: 12px 16px 8px;
+    flex-shrink: 0;
+}
+
+.quiz-editor-save-btn {
+    min-width: 200px;
+    font-size: 1rem;
+}
+
+.quiz-edit-note--active {
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.5), 0 4px 14px rgba(0, 0, 0, 0.34) !important;
+}
+
+/* ==================== 設定タブ ==================== */
+
+.settings-tabs {
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+    width: 100%;
+    margin: 0 0 6px;
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.settings-tab-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 10px 6px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.78);
+    background: transparent;
+    border: none;
+    border-radius: 9px;
+    cursor: pointer;
+    text-align: center;
+    line-height: 1.2;
+    transition: background 0.15s, color 0.15s, transform 0.05s;
+    white-space: nowrap;
+    overflow: visible;
+}
+
+@media (max-width: 440px) {
+    .settings-tab-btn {
+        font-size: 0.85rem;
+        padding: 9px 4px;
+        letter-spacing: -0.02em;
+    }
+}
+
+@media (max-width: 360px) {
+    .settings-tab-btn {
+        font-size: 0.78rem;
+        padding: 8px 3px;
+        letter-spacing: -0.04em;
+    }
+}
+
+.settings-tab-btn:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+}
+
+.settings-tab-btn:active {
+    transform: scale(0.98);
+}
+
+.settings-tab-btn.is-active {
+    background: var(--primary-color, #4f9cf9);
+    color: #fff;
+    box-shadow: 0 2px 10px rgba(79, 156, 249, 0.35);
+}
+
+.settings-tab-panel {
+    width: 100%;
+}
+
+.settings-tab-panel.is-hidden {
+    display: none;
+}

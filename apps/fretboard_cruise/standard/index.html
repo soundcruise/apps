@@ -14,7 +14,21 @@
     
     <link rel="stylesheet" href="../../shared/style.css?v=97">
     <link rel="stylesheet" href="../../shared/pro-theme.css?v=98">
-    <link rel="stylesheet" href="../theme.css?v=336">
+    <!-- 動作確認用: URL に ?legacy=1.130.2 を付けると legacy/v1.130.2 の theme を読み込み -->
+    <script>
+    (function () {
+        var root = '../';
+        try {
+            if (new URLSearchParams(location.search).get('legacy') === '1.130.2') {
+                root = '../legacy/v1.130.2/';
+            }
+        } catch (e) { /* ignore */ }
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = root + (root === '../' ? 'theme.css?v=336' : 'theme.css');
+        document.head.appendChild(link);
+    })();
+    </script>
 </head>
 <body>
     <!-- App Container -->
@@ -28,7 +42,21 @@
         <button type="button" class="btn-secondary btn-in-game-refresh js-reload-app">ページを更新</button>
     </div>
 
-    <script src="../script.js?v=1.131.2"></script>
+    <!-- 動作確認用: URL に ?legacy=1.130.2 を付けると legacy/v1.130.2 の script を読み込み -->
+    <script>
+    (function () {
+        var root = '../';
+        try {
+            if (new URLSearchParams(location.search).get('legacy') === '1.130.2') {
+                root = '../legacy/v1.130.2/';
+            }
+        } catch (e) { /* ignore */ }
+        var s = document.createElement('script');
+        s.src = root + (root === '../' ? 'script.js?v=1.131.3' : 'script.js');
+        s.async = false;
+        document.body.appendChild(s);
+    })();
+    </script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {

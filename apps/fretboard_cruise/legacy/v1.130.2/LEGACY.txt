@@ -1,0 +1,3 @@
+指板クルーズ v1.130.2 のスナップショット（コミット d01865f 時点の script.js / theme.css）。
+動作確認: エディションの index.html に ?legacy=1.130.2 を付けて開く。
+例: standard/index.html?legacy=1.130.2
