@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.132.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.132.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -386,6 +386,8 @@ let state = {
         degreeMode: false,
         scale: 'major',
         selectedChordIndex: null,
+        /** トグルOFF中も保持。ON時に前回選んでいたコード番号を復元する（未選択なら I=0） */
+        lastDiatonicChordPickIndex: null,
         /** 'movable' = キー主音を1度（P1）, 'fixed' = Cを1度（P1） */
         doMode: 'movable',
         /** '3' = 3和音, '7' = 7thコード */
@@ -814,6 +816,14 @@ if (savedState) {
             state.visualize.chordLabelMode = 'name';
         }
         if (typeof state.visualize.autoSelectRootChord === 'undefined') state.visualize.autoSelectRootChord = false;
+        if (typeof state.visualize.lastDiatonicChordPickIndex === 'undefined') {
+            const si = state.visualize.selectedChordIndex;
+            if (state.visualize.autoSelectRootChord && si !== null && si !== undefined && Number.isFinite(si)) {
+                state.visualize.lastDiatonicChordPickIndex = Math.floor(si);
+            } else {
+                state.visualize.lastDiatonicChordPickIndex = null;
+            }
+        }
         /** 旧 showExtendedFrets（13F以降の ON/OFF）が残っていれば maxFret に変換し、フィールドは削除。
             true → MAX_FRET、false → DEFAULT_VISIBLE_MAX_FRET。 */
         if (typeof state.visualize.maxFret === 'undefined') {
@@ -5674,6 +5684,7 @@ function openRulesInVisualize() {
     state.visualize.doMode = 'movable';
     state.visualize.selectedChordIndex = null;
     state.visualize.autoSelectRootChord = false;
+    state.visualize.lastDiatonicChordPickIndex = null;
     state.course = 'visualize';
     saveState();
     renderApp();
@@ -11330,6 +11341,9 @@ function renderVisualize(app) {
     }
     if (typeof state.visualize.scale === 'undefined') state.visualize.scale = 'major';
     if (typeof state.visualize.selectedChordIndex === 'undefined') state.visualize.selectedChordIndex = null;
+    if (typeof state.visualize.lastDiatonicChordPickIndex === 'undefined') {
+        state.visualize.lastDiatonicChordPickIndex = null;
+    }
     if (typeof state.visualize.doMode === 'undefined') state.visualize.doMode = 'movable';
     // 旧 showExtendedFrets を maxFret にマイグレーション（既に上の loadState 側で処理しているが、初回未読み込みの保険）
     if (typeof state.visualize.maxFret === 'undefined') {
@@ -11524,7 +11538,17 @@ function renderVisualize(app) {
             const on = autoSelectToggle.checked;
             state.visualize.autoSelectRootChord = on;
             if (on && chords.length > 0) {
-                state.visualize.selectedChordIndex = 0;
+                const mem = state.visualize.lastDiatonicChordPickIndex;
+                if (mem !== null && mem !== undefined && Number.isFinite(mem)) {
+                    state.visualize.selectedChordIndex = clamp(
+                        Math.floor(mem),
+                        0,
+                        chords.length - 1
+                    );
+                } else {
+                    state.visualize.selectedChordIndex = 0;
+                }
+                state.visualize.lastDiatonicChordPickIndex = state.visualize.selectedChordIndex;
             } else if (!on) {
                 state.visualize.selectedChordIndex = null;
             }
@@ -14002,6 +14026,14 @@ function renderFretboardHTML(containerId, options) {
             const chordIndex = parseInt(chordBtn.getAttribute('data-chord-index'));
             state.visualize.selectedChordIndex =
                 state.visualize.selectedChordIndex === chordIndex ? null : chordIndex;
+            if (mode === 'visualize') {
+                const next = state.visualize.selectedChordIndex;
+                if (next !== null && next !== undefined && Number.isFinite(next)) {
+                    state.visualize.lastDiatonicChordPickIndex = next;
+                } else {
+                    state.visualize.lastDiatonicChordPickIndex = null;
+                }
+            }
             saveState();
             setTimeout(() => renderApp(), 0);
             return;
