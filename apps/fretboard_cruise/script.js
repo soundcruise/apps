@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.131.13';
+const FRETBOARD_CRUISE_APP_VERSION = '1.132.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -11521,7 +11521,13 @@ function renderVisualize(app) {
     const autoSelectToggle = document.getElementById('auto-select-root-chord');
     if (autoSelectToggle) {
         autoSelectToggle.onchange = () => {
-            state.visualize.autoSelectRootChord = autoSelectToggle.checked;
+            const on = autoSelectToggle.checked;
+            state.visualize.autoSelectRootChord = on;
+            if (on && chords.length > 0) {
+                state.visualize.selectedChordIndex = 0;
+            } else if (!on) {
+                state.visualize.selectedChordIndex = null;
+            }
             saveState();
             renderApp();
         };
