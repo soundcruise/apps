@@ -1512,25 +1512,6 @@
     font-weight: bold;
 }
 
-.extended-frets-btn {
-    background: rgba(0,0,0,0.3);
-    border: 1px solid rgba(255,255,255,0.18);
-    color: rgba(255,255,255,0.78);
-    padding: 8px 14px;
-    border-radius: 999px;
-    font-size: 0.86rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.extended-frets-btn.active {
-    background: rgba(79,156,249,0.24);
-    border-color: rgba(79,156,249,0.72);
-    color: #fff;
-    box-shadow: 0 0 12px rgba(79,156,249,0.18);
-}
-
 /* Degree mode colors for generic markers (if used outside role-*) */
 .degree-1 { background-color: var(--root-color); color: white; }
 .degree-2 { background-color: var(--seventh-color); color: black; }
@@ -2802,6 +2783,10 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 
 .visualize-setup-item--scale .pro-custom-dd--visualize {
     width: min(260px, 70vw);
+}
+
+.visualize-setup-item--max-fret .pro-custom-dd--visualize {
+    width: 110px;
 }
 
 /* スケールは長いカナ名が省略されにくいよう、トリガだけ少しフォントを小さく */

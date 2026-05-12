@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.128.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.129.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。探索・PROカスタム編集・問題画面で共通。 */
@@ -394,8 +394,9 @@ let state = {
         chordLabelMode: 'name',
         /** autoSelectRootChord: Iコード自動選択（オン時）*/
         autoSelectRootChord: false,
-        /** 自由探索だけ、13F以降を任意で表示 */
-        showExtendedFrets: false
+        /** 自由探索の表示フレット上限（PROカスタム編集と同じ「最大フレット」方式）。
+            12〜MAX_FRET の整数。旧フラグ showExtendedFrets はマイグレーションで maxFret に変換する。 */
+        maxFret: DEFAULT_VISIBLE_MAX_FRET
     },
     rules: {
         step: 1,
@@ -712,7 +713,7 @@ if (savedState) {
                 displayMode: 'note',
                 chordType: 'M',
                 degreeMode: false,
-                showExtendedFrets: false
+                maxFret: DEFAULT_VISIBLE_MAX_FRET
             };
         }
         if (!state.rules) {
@@ -813,7 +814,18 @@ if (savedState) {
             state.visualize.chordLabelMode = 'name';
         }
         if (typeof state.visualize.autoSelectRootChord === 'undefined') state.visualize.autoSelectRootChord = false;
-        if (typeof state.visualize.showExtendedFrets === 'undefined') state.visualize.showExtendedFrets = false;
+        /** 旧 showExtendedFrets（13F以降の ON/OFF）が残っていれば maxFret に変換し、フィールドは削除。
+            true → MAX_FRET、false → DEFAULT_VISIBLE_MAX_FRET。 */
+        if (typeof state.visualize.maxFret === 'undefined') {
+            state.visualize.maxFret = state.visualize.showExtendedFrets ? MAX_FRET : DEFAULT_VISIBLE_MAX_FRET;
+        }
+        const _vmf = parseInt(state.visualize.maxFret, 10);
+        state.visualize.maxFret = Number.isFinite(_vmf)
+            ? clamp(_vmf, DEFAULT_VISIBLE_MAX_FRET, MAX_FRET)
+            : DEFAULT_VISIBLE_MAX_FRET;
+        if (typeof state.visualize.showExtendedFrets !== 'undefined') {
+            delete state.visualize.showExtendedFrets;
+        }
         if (typeof state.settings.tempo === 'undefined') state.settings.tempo = DEFAULT_TEMPO;
         if (typeof state.settings.quizTimeLimit === 'undefined') state.settings.quizTimeLimit = DEFAULT_QUIZ_TIME_LIMIT;
         if (typeof state.settings.quizQuestionLimit === 'undefined') {
@@ -4459,7 +4471,7 @@ function renderApp() {
     } else if (
         oldScrollGroup === 'visualize' &&
         state.course === 'visualize' &&
-        state.visualize.showExtendedFrets
+        (parseInt(state.visualize?.maxFret, 10) || DEFAULT_VISIBLE_MAX_FRET) > DEFAULT_VISIBLE_MAX_FRET
     ) {
         currentScrollLeft = oldWrapper.scrollLeft;
     } else if (
@@ -4772,7 +4784,7 @@ function renderApp() {
             }
         } else if (state.course === 'memorize') {
             newWrapper.scrollLeft = currentScrollLeft;
-        } else if (state.course === 'visualize' && state.visualize.showExtendedFrets) {
+        } else if (state.course === 'visualize' && (parseInt(state.visualize?.maxFret, 10) || DEFAULT_VISIBLE_MAX_FRET) > DEFAULT_VISIBLE_MAX_FRET) {
             newWrapper.scrollLeft = currentScrollLeft;
         } else if (
             state.course === 'basicRuleStep' &&
@@ -11139,7 +11151,18 @@ function renderVisualize(app) {
     if (typeof state.visualize.scale === 'undefined') state.visualize.scale = 'major';
     if (typeof state.visualize.selectedChordIndex === 'undefined') state.visualize.selectedChordIndex = null;
     if (typeof state.visualize.doMode === 'undefined') state.visualize.doMode = 'movable';
-    if (typeof state.visualize.showExtendedFrets === 'undefined') state.visualize.showExtendedFrets = false;
+    // 旧 showExtendedFrets を maxFret にマイグレーション（既に上の loadState 側で処理しているが、初回未読み込みの保険）
+    if (typeof state.visualize.maxFret === 'undefined') {
+        state.visualize.maxFret = state.visualize.showExtendedFrets ? MAX_FRET : DEFAULT_VISIBLE_MAX_FRET;
+    }
+    state.visualize.maxFret = clamp(
+        parseInt(state.visualize.maxFret, 10) || DEFAULT_VISIBLE_MAX_FRET,
+        DEFAULT_VISIBLE_MAX_FRET,
+        MAX_FRET
+    );
+    if (typeof state.visualize.showExtendedFrets !== 'undefined') {
+        delete state.visualize.showExtendedFrets;
+    }
 
     const chords = getDiatonicChordsForKey(
         state.visualize.key,
@@ -11155,6 +11178,10 @@ function renderVisualize(app) {
 
     const visKeyOptions = NOTES.map((note, idx) => ({ value: idx, label: note }));
     const visCapoOptions = [0,1,2,3,4,5,6,7].map(c => ({ value: c, label: String(c) }));
+    const visMaxFretOptions = Array.from(
+        { length: MAX_FRET - DEFAULT_VISIBLE_MAX_FRET + 1 },
+        (_, idx) => DEFAULT_VISIBLE_MAX_FRET + idx
+    ).map(fret => ({ value: fret, label: `${fret}フレット` }));
     const visScaleOptions = [
         ['major', 'メジャー / アイオニアン'],
         ['minor', 'ナチュラルマイナー / エオリアン'],
@@ -11204,10 +11231,9 @@ function renderVisualize(app) {
                     <button type="button" class="do-mode-btn ${state.visualize.doMode==='fixed'?'active':''}" data-do-mode="fixed">固定ド</button>
                 </div>
             </div>
-            <div class="setup-item setup-item--wide">
-                <button type="button" id="vis-extended-frets" class="extended-frets-btn ${state.visualize.showExtendedFrets ? 'active' : ''}" aria-pressed="${state.visualize.showExtendedFrets ? 'true' : 'false'}">
-                    13フレット以降を表示
-                </button>
+            <div class="setup-item visualize-setup-item visualize-setup-item--max-fret">
+                <label>最大フレット</label>
+                ${buildCustomDropdownHtml({ id: 'vis-max-fret', options: visMaxFretOptions, selectedValue: state.visualize.maxFret, ariaLabel: '最大フレット', wrapClass: 'pro-custom-dd--visualize' })}
             </div>
         </div>
 
@@ -11281,12 +11307,13 @@ function renderVisualize(app) {
         };
     });
 
-    document.getElementById('vis-extended-frets').onclick = () => {
-        state.visualize.showExtendedFrets = !state.visualize.showExtendedFrets;
+    wireCustomDropdown('vis-max-fret', (value) => {
+        const v = parseInt(value, 10);
+        state.visualize.maxFret = clamp(Number.isFinite(v) ? v : DEFAULT_VISIBLE_MAX_FRET, DEFAULT_VISIBLE_MAX_FRET, MAX_FRET);
         currentScrollLeft = 0;
         saveState();
         renderApp();
-    };
+    });
     document.querySelectorAll('.chord-type-btn[data-chord-type]').forEach(btn => {
         btn.onclick = () => {
             state.visualize.chordType = btn.getAttribute('data-chord-type');
@@ -12170,7 +12197,8 @@ function getHighestFretFromPositions(positions) {
 
 function getRenderMaxFret(mode, options) {
     if (mode === 'visualize') {
-        return state.visualize.showExtendedFrets ? EXTENDED_VISIBLE_MAX_FRET : DEFAULT_VISIBLE_MAX_FRET;
+        const vmf = parseInt(state.visualize?.maxFret, 10);
+        return clamp(Number.isFinite(vmf) ? vmf : DEFAULT_VISIBLE_MAX_FRET, DEFAULT_VISIBLE_MAX_FRET, MAX_FRET);
     }
 
     let maxFret = DEFAULT_VISIBLE_MAX_FRET;
@@ -13090,7 +13118,6 @@ function renderFretboardHTML(containerId, options) {
             const visualizeExtendedNeedsHorizScroll =
                 mode === 'visualize' &&
                 containerId === 'fretboard-container' &&
-                !!state.visualize.showExtendedFrets &&
                 renderMaxFret > DEFAULT_VISIBLE_MAX_FRET;
             const perspectiveWrapper = containerEl.querySelector('.fretboard-perspective-wrapper');
 
