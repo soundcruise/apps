@@ -7,7 +7,7 @@
     <title>音感クルーズ</title>
     <link rel="stylesheet" href="../../shared/style.css?v=99">
     <link rel="stylesheet" href="../../shared/pro-theme.css?v=98">
-    <link rel="stylesheet" href="../theme.css?v=1">
+    <link rel="stylesheet" href="../theme.css?v=2">
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
     <link rel="stylesheet" href="../staging/staging-hub-nav.css?v=1">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -105,6 +105,11 @@
             <a href="../info.html" class="home-info-link icon-btn in-game-info-link" aria-label="インフォメーション"
                 title="インフォメーション">i</a>
             <div class="feedback-display" id="feedback">Listen...</div>
+            <div id="test-mode-status-bar" class="test-mode-status-bar hidden">
+                <span class="test-mode-label">TEST MODE</span>
+                <span id="test-mode-progress">0 / 20</span>
+                <span id="test-mode-timer" class="test-mode-timer">--</span>
+            </div>
 
             <div class="action-btns">
                 <button id="replay-btn" class="icon-btn" aria-label="問題を聴く" title="問題をもう1度聴く（音階なし）">
@@ -305,6 +310,13 @@
                     <label for="scale-toggle">問題前の音階</label>
                     <label class="toggle-switch">
                         <input type="checkbox" id="scale-toggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <label for="test-mode-toggle">テストモード</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="test-mode-toggle">
                         <span class="toggle-slider"></span>
                     </label>
                 </div>
@@ -824,7 +836,7 @@
     <script>window.__SOUNDCRUISE_PRO_GATE__ = { password: '7392' };</script>
     <script src="../../shared/pro-gate.js?v=16"></script>
     <script src="../staging/staging-hub-nav.js?v=3"></script>
-    <script src="../script.js?v=2.3.0"></script>
+    <script src="../script.js?v=2.4.0"></script>
 </body>
 
 </html>

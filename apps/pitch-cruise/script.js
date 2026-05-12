@@ -1,5 +1,5 @@
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '2.3.0';
+const PITCH_TRAINER_APP_VERSION = '2.4.0';
 
 /** 検証ハブ（Staging）の Ver 表記の括弧内。小さな更新は原則ここだけ増やす（版番号の変更は別指示時のみ） */
 const PITCH_TRAINER_APP_BUILD = '43';
@@ -57,6 +57,408 @@ const STAGING_PRO_MELODY_SLOTS_KEY = 'pitchTrainerStagingProMelodySlots';
 const STAGING_PRO_CHORD_SLOT_MIN = 5101;
 const STAGING_PRO_CHORD_SLOT_MAX = 5199;
 const STAGING_PRO_CHORD_SLOTS_KEY = 'pitchTrainerStagingProChordSlots';
+
+// ===================== テストモード定数・状態 =====================
+
+const TEST_MODE_ENABLED_KEY = 'pitchTrainerTestModeEnabled';
+const TEST_MODE_RESULTS_KEY = 'pitchTrainerTestModeResults';
+const TEST_MODE_REQUIRED_CORRECT = 20;
+const TEST_MODE_TIME_LIMIT_MS = 4000;
+
+const testModeState = {
+    enabled: false,
+    active: false,
+    currentCategory: null,
+    currentStageKey: null,
+    currentStageId: null,
+    isRecordableStage: false,
+    correctCount: 0,
+    requiredCorrect: TEST_MODE_REQUIRED_CORRECT,
+    timeLimitMs: TEST_MODE_TIME_LIMIT_MS,
+    timerId: null,
+    countdownRafId: null,
+    questionStartedAt: null,
+    answerDeadlineAt: null,
+    failureReason: null
+};
+
+function isTestModeEnabled() {
+    return testModeState.enabled;
+}
+
+function getTestStageKey(category, stageId) {
+    if (category === 'melody' && stageId >= 1 && stageId <= 6) return 'stage-' + stageId;
+    if (category === 'chord' && stageId >= 101 && stageId <= 106) return 'stage-' + stageId;
+    if (category === 'melody' && stageId >= STAGING_PRO_MELODY_SLOT_MIN && stageId <= STAGING_PRO_MELODY_SLOT_MAX) return 'custom-' + stageId;
+    if (category === 'chord' && stageId >= STAGING_PRO_CHORD_SLOT_MIN && stageId <= STAGING_PRO_CHORD_SLOT_MAX) return 'custom-' + stageId;
+    return null; // 未保存カスタム (99/199) は記録しない
+}
+
+function loadTestModeResults() {
+    try {
+        const raw = localStorage.getItem(TEST_MODE_RESULTS_KEY);
+        if (!raw) return { melody: {}, chord: {} };
+        const parsed = JSON.parse(raw);
+        return { melody: parsed.melody || {}, chord: parsed.chord || {} };
+    } catch (e) {
+        return { melody: {}, chord: {} };
+    }
+}
+
+function saveTestModeResult(category, stageKey) {
+    if (!stageKey) return;
+    try {
+        const results = loadTestModeResults();
+        if (!results[category]) results[category] = {};
+        const prev = results[category][stageKey] || { clearCount: 0 };
+        results[category][stageKey] = {
+            clearCount: prev.clearCount + 1,
+            lastClearedAt: new Date().toISOString()
+        };
+        localStorage.setItem(TEST_MODE_RESULTS_KEY, JSON.stringify(results));
+    } catch (e) {
+        console.warn('PitchTrainer: Failed to save test mode result', e);
+    }
+}
+
+function startTestModeRun(game, stageId) {
+    const cfg = game.stageConfig[stageId];
+    const category = (cfg && cfg.isChord) ? 'chord' : 'melody';
+    const stageKey = getTestStageKey(category, stageId);
+    testModeState.active = true;
+    testModeState.currentCategory = category;
+    testModeState.currentStageKey = stageKey;
+    testModeState.currentStageId = stageId;
+    testModeState.isRecordableStage = stageKey !== null;
+    testModeState.correctCount = 0;
+    testModeState.failureReason = null;
+    clearTestModeAnswerTimer();
+    document.body.classList.add('test-mode-active');
+    updateTestModeInGameUI(game);
+}
+
+function stopTestModeRun(game) {
+    clearTestModeAnswerTimer();
+    testModeState.active = false;
+    testModeState.failureReason = null;
+    testModeState.answerDeadlineAt = null;
+    document.body.classList.remove('test-mode-active');
+    if (game) updateTestModeInGameUI(game);
+}
+
+function getPlaySequenceEndMs(game) {
+    const noteDuration = 0.8 / game.noteSpeed;
+    const gap = 0.2 / game.noteSpeed;
+    const seqLen = game.currentSequence.length;
+    return ((seqLen - 1) * (noteDuration + gap) + noteDuration + game.audio.sustainTime) * 1000;
+}
+
+function startTestModeAnswerTimer(game) {
+    clearTestModeAnswerTimer();
+    const playEndMs = getPlaySequenceEndMs(game);
+
+    testModeState.timerId = setTimeout(() => {
+        testModeState.timerId = null;
+        if (!testModeState.active) return;
+        const deadline = Date.now() + testModeState.timeLimitMs;
+        testModeState.answerDeadlineAt = deadline;
+
+        function tick() {
+            if (!testModeState.active || testModeState.answerDeadlineAt === null) return;
+            const remaining = testModeState.answerDeadlineAt - Date.now();
+            if (remaining <= 0) {
+                testModeState.answerDeadlineAt = null;
+                if (testModeState.active && !game.isRoundOver) {
+                    game.isRoundOver = true;
+                    clearTestModeAnswerTimer();
+                    handleTestModeFailure('timeout', game);
+                }
+                return;
+            }
+            _updateTestModeTimerDisplay(remaining);
+            testModeState.countdownRafId = requestAnimationFrame(tick);
+        }
+        testModeState.countdownRafId = requestAnimationFrame(tick);
+    }, playEndMs);
+}
+
+function clearTestModeAnswerTimer() {
+    if (testModeState.timerId !== null) {
+        clearTimeout(testModeState.timerId);
+        testModeState.timerId = null;
+    }
+    if (testModeState.countdownRafId !== null) {
+        cancelAnimationFrame(testModeState.countdownRafId);
+        testModeState.countdownRafId = null;
+    }
+    testModeState.answerDeadlineAt = null;
+}
+
+function _updateTestModeTimerDisplay(remainingMs) {
+    const timerEl = document.getElementById('test-mode-timer');
+    if (!timerEl) return;
+    timerEl.textContent = '残り ' + (remainingMs / 1000).toFixed(1) + '秒';
+    timerEl.classList.toggle('urgent', remainingMs < 1000);
+}
+
+function updateTestModeInGameUI(game) {
+    const bar = document.getElementById('test-mode-status-bar');
+    if (!bar) return;
+
+    if (!testModeState.active) {
+        bar.classList.add('hidden');
+        _setTestModeButtonRestrictions(false, game);
+        return;
+    }
+
+    bar.classList.remove('hidden');
+
+    const progressEl = document.getElementById('test-mode-progress');
+    const timerEl = document.getElementById('test-mode-timer');
+    if (progressEl) progressEl.textContent = testModeState.correctCount + ' / ' + testModeState.requiredCorrect;
+    if (timerEl && testModeState.answerDeadlineAt === null) {
+        timerEl.textContent = '--';
+        timerEl.classList.remove('urgent');
+    }
+
+    _setTestModeButtonRestrictions(true, game);
+
+    const answerToggle = document.getElementById('answer-mode-toggle');
+    const answerLabel = document.getElementById('answer-mode-status');
+    if (answerToggle) { answerToggle.disabled = true; answerToggle.checked = true; }
+    if (answerLabel) {
+        answerLabel.innerHTML = '回答ON固定<br><small style="font-size:0.7em;color:rgba(255,255,255,0.5)">テスト中は変更できません</small>';
+    }
+}
+
+function _setTestModeButtonRestrictions(restrict, game) {
+    ['replay-btn', 'tonic-btn', 'scale-btn', 'settings-btn'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        btn.disabled = restrict;
+        if (restrict) btn.setAttribute('aria-disabled', 'true');
+        else btn.removeAttribute('aria-disabled');
+    });
+
+    if (!restrict) {
+        const answerToggle = document.getElementById('answer-mode-toggle');
+        const answerLabel = document.getElementById('answer-mode-status');
+        if (answerToggle) {
+            answerToggle.disabled = false;
+            if (game) answerToggle.checked = game.isAnswerMode;
+        }
+        if (answerLabel && game) {
+            if (game.isAnswerMode) {
+                answerLabel.textContent = '回答ON';
+                answerLabel.style.color = '#fff';
+            } else {
+                answerLabel.textContent = '回答OFF (音確認のみ)';
+                answerLabel.style.color = 'rgba(255, 255, 255, 0.6)';
+            }
+        }
+    }
+}
+
+function handleTestModeCorrectAnswer(game) {
+    testModeState.correctCount++;
+    const progressEl = document.getElementById('test-mode-progress');
+    if (progressEl) progressEl.textContent = testModeState.correctCount + ' / ' + testModeState.requiredCorrect;
+
+    game.showFeedback('正解！ (' + testModeState.correctCount + '/' + testModeState.requiredCorrect + ')', 'correct');
+
+    const timerEl = document.getElementById('test-mode-timer');
+    if (timerEl) { timerEl.textContent = '--'; timerEl.classList.remove('urgent'); }
+
+    if (testModeState.correctCount >= testModeState.requiredCorrect) {
+        setTimeout(() => handleTestModeClear(game), 600 / game.noteSpeed);
+    } else {
+        setTimeout(() => void game.nextRound(), 750 / game.noteSpeed);
+    }
+}
+
+function handleTestModeFailure(reason, game) {
+    testModeState.failureReason = reason;
+    const failedAt = testModeState.correctCount;
+
+    const timerEl = document.getElementById('test-mode-timer');
+    if (timerEl) { timerEl.textContent = '--'; timerEl.classList.remove('urgent'); }
+
+    const stageId = testModeState.currentStageId;
+    stopTestModeRun(game);
+    game.isPlaying = false;
+    game.audio.stopAllScheduledSounds();
+    showTestModeFailureScreen(game, stageId, failedAt, reason);
+}
+
+function handleTestModeClear(game) {
+    if (testModeState.isRecordableStage) {
+        saveTestModeResult(testModeState.currentCategory, testModeState.currentStageKey);
+    }
+    const stageId = testModeState.currentStageId;
+    const stageKey = testModeState.currentStageKey;
+    const category = testModeState.currentCategory;
+    const isRecordable = testModeState.isRecordableStage;
+
+    let clearCount = 0;
+    if (isRecordable) {
+        const results = loadTestModeResults();
+        clearCount = (results[category] && results[category][stageKey]) ? results[category][stageKey].clearCount : 0;
+    }
+
+    stopTestModeRun(game);
+    game.isPlaying = false;
+    game.audio.stopAllScheduledSounds();
+    showTestModeClearScreen(game, stageId, clearCount);
+    updateTestModeStageButtons(game);
+}
+
+function showTestModeClearScreen(game, stageId, clearCount) {
+    const overlay = document.getElementById('overlay');
+    if (!overlay) return;
+    document.getElementById('screen-test-mode-clear')?.remove();
+    ['screen-home', 'screen-melody', 'screen-chord'].forEach(id => {
+        document.getElementById(id)?.classList.add('hidden');
+    });
+
+    const nextId = _getNextStageId(game, stageId);
+    const nextBtnHTML = nextId ? '<button class="btn-primary tm-clear-next">次のSTAGEへ</button>' : '';
+    const countText = clearCount > 0 ? '<p class="test-mode-clear-count">クリア回数：' + clearCount + '回目</p>' : '';
+
+    const screen = document.createElement('div');
+    screen.id = 'screen-test-mode-clear';
+    screen.className = 'modal';
+    screen.innerHTML = '<div class="test-mode-result-screen test-mode-clear-screen">' +
+        '<div class="test-mode-result-icon">🏁</div>' +
+        '<h2 class="test-mode-result-title">STAGE CLEAR!</h2>' +
+        '<p class="test-mode-result-msg">' + TEST_MODE_REQUIRED_CORRECT + '問連続正解！<br>' +
+        'このSTAGEの音の動きが、かなり耳に入ってきています。</p>' +
+        countText +
+        '<div class="test-mode-result-actions">' +
+        '<button class="btn-primary tm-clear-retry">もう1回挑戦する</button>' +
+        nextBtnHTML +
+        '<button class="btn-secondary tm-clear-back">STAGE選択に戻る</button>' +
+        '</div></div>';
+
+    overlay.classList.remove('hidden');
+    overlay.appendChild(screen);
+
+    screen.querySelector('.tm-clear-retry')?.addEventListener('click', () => {
+        screen.remove(); overlay.classList.add('hidden'); game.startGame(stageId);
+    });
+    screen.querySelector('.tm-clear-next')?.addEventListener('click', () => {
+        const nid = _getNextStageId(game, stageId);
+        if (nid) { screen.remove(); overlay.classList.add('hidden'); game.startGame(nid); }
+    });
+    screen.querySelector('.tm-clear-back')?.addEventListener('click', () => {
+        screen.remove(); game.showStageSelector();
+    });
+}
+
+function showTestModeFailureScreen(game, stageId, failedAt, reason) {
+    const overlay = document.getElementById('overlay');
+    if (!overlay) return;
+    document.getElementById('screen-test-mode-failure')?.remove();
+    ['screen-home', 'screen-melody', 'screen-chord'].forEach(id => {
+        document.getElementById(id)?.classList.add('hidden');
+    });
+
+    const reasonText = reason === 'timeout' ? '時間切れ' : '回答ミス';
+    const problemNum = failedAt + 1;
+
+    const screen = document.createElement('div');
+    screen.id = 'screen-test-mode-failure';
+    screen.className = 'modal';
+    screen.innerHTML = '<div class="test-mode-result-screen test-mode-failure-screen">' +
+        '<p class="test-mode-failure-heading">あと少し！</p>' +
+        '<p class="test-mode-result-msg">今回は <strong>' + problemNum + '問目</strong> でストップしました。<br>' +
+        'ここまで連続で聴き分けられているので、耳はちゃんと育っています。<br><br>' +
+        'もう一度、同じSTAGEに挑戦してみましょう。</p>' +
+        '<div class="test-mode-fail-stats">' +
+        '<span>連続正解：' + failedAt + '問</span>' +
+        '<span>失敗理由：' + reasonText + '</span>' +
+        '</div>' +
+        '<div class="test-mode-result-actions">' +
+        '<button class="btn-primary tm-fail-retry">もう1回挑戦する</button>' +
+        '<button class="btn-secondary tm-fail-practice">練習モードで確認する</button>' +
+        '<button class="btn-secondary tm-fail-back">STAGE選択に戻る</button>' +
+        '</div></div>';
+
+    overlay.classList.remove('hidden');
+    overlay.appendChild(screen);
+
+    screen.querySelector('.tm-fail-retry')?.addEventListener('click', () => {
+        screen.remove(); overlay.classList.add('hidden'); game.startGame(stageId);
+    });
+    screen.querySelector('.tm-fail-practice')?.addEventListener('click', () => {
+        screen.remove(); overlay.classList.add('hidden');
+        game.startGame(stageId, { _forceNormal: true });
+    });
+    screen.querySelector('.tm-fail-back')?.addEventListener('click', () => {
+        screen.remove(); game.showStageSelector();
+    });
+}
+
+function showTestModeAbortConfirm(game, onAbort) {
+    document.getElementById('test-mode-abort-modal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'test-mode-abort-modal';
+    modal.className = 'test-mode-abort-modal';
+    modal.innerHTML = '<div class="test-mode-abort-content">' +
+        '<p class="test-mode-abort-title">テストを中断しますか？</p>' +
+        '<p class="test-mode-abort-desc">現在のチャレンジは終了します。</p>' +
+        '<div class="test-mode-abort-actions">' +
+        '<button class="btn-secondary tm-abort-ok">中断する</button>' +
+        '<button class="btn-primary tm-abort-cancel">続ける</button>' +
+        '</div></div>';
+    document.body.appendChild(modal);
+    modal.querySelector('.tm-abort-ok').addEventListener('click', () => { modal.remove(); onAbort(); });
+    modal.querySelector('.tm-abort-cancel').addEventListener('click', () => { modal.remove(); });
+}
+
+function _getNextStageId(game, currentStageId) {
+    if (currentStageId >= 1 && currentStageId <= 5) return currentStageId + 1;
+    if (currentStageId >= 101 && currentStageId <= 105) return currentStageId + 1;
+    if (currentStageId >= STAGING_PRO_MELODY_SLOT_MIN && currentStageId <= STAGING_PRO_MELODY_SLOT_MAX) {
+        const ordered = game.getStagingMelodySlotIdsOrdered();
+        const idx = ordered.indexOf(currentStageId);
+        return idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null;
+    }
+    if (currentStageId >= STAGING_PRO_CHORD_SLOT_MIN && currentStageId <= STAGING_PRO_CHORD_SLOT_MAX) {
+        const ordered = game.getStagingChordSlotIdsOrdered();
+        const idx = ordered.indexOf(currentStageId);
+        return idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null;
+    }
+    return null;
+}
+
+function updateTestModeStageButtons(game) {
+    const results = loadTestModeResults();
+    const isEnabled = testModeState.enabled;
+    for (let i = 1; i <= 6; i++) {
+        const btn = document.querySelector('[data-stage="' + i + '"]:not(.custom-stage-btn)');
+        if (btn) _applyTestModeButtonStyle(btn, 'melody', 'stage-' + i, results, isEnabled);
+    }
+    for (let i = 101; i <= 106; i++) {
+        const btn = document.querySelector('[data-stage="' + i + '"]:not(.custom-stage-btn)');
+        if (btn) _applyTestModeButtonStyle(btn, 'chord', 'stage-' + i, results, isEnabled);
+    }
+}
+
+function _applyTestModeButtonStyle(btn, category, stageKey, results, isEnabled) {
+    btn.querySelectorAll('.test-mode-clear-badge').forEach(el => el.remove());
+    btn.classList.toggle('test-mode-stage', isEnabled);
+
+    const catResults = results[category] || {};
+    const stageResult = catResults[stageKey];
+    if (stageResult && stageResult.clearCount > 0) {
+        const badge = document.createElement('span');
+        badge.className = 'test-mode-clear-badge';
+        badge.textContent = '🏁' + stageResult.clearCount;
+        btn.appendChild(badge);
+    }
+}
+
+// ===================== テストモード定数・状態 ここまで =====================
 
 function isPitchTrainerPro() {
     return document.documentElement.dataset.appEdition === 'Pro';
@@ -1152,6 +1554,17 @@ class Game {
             });
         }
 
+        // テストモード ON/OFF トグル
+        const testModeToggle = document.getElementById('test-mode-toggle');
+        if (testModeToggle) {
+            testModeToggle.addEventListener('change', (e) => {
+                testModeState.enabled = e.target.checked;
+                document.body.classList.toggle('test-mode-enabled', testModeState.enabled);
+                try { localStorage.setItem(TEST_MODE_ENABLED_KEY, String(testModeState.enabled)); } catch (_) {}
+                updateTestModeStageButtons(this);
+            });
+        }
+
         // Octave controls
         if (isPitchTrainerPro()) {
             if (document.getElementById('octave-down')) {
@@ -1976,6 +2389,18 @@ class Game {
         this.clampStandardEditionSoundSettings();
         this.clampStandardEditionKeyOctave();
         this.updateKeyRandomDependentUi();
+
+        // テストモード ON/OFF を別キーから読み込む
+        try {
+            const tmVal = localStorage.getItem(TEST_MODE_ENABLED_KEY);
+            if (tmVal !== null) {
+                testModeState.enabled = tmVal === 'true';
+                const tmToggle = document.getElementById('test-mode-toggle');
+                if (tmToggle) tmToggle.checked = testModeState.enabled;
+            }
+        } catch (_) {}
+        document.body.classList.toggle('test-mode-enabled', testModeState.enabled);
+        updateTestModeStageButtons(this);
     }
 
     saveSettings() {
@@ -2090,6 +2515,7 @@ class Game {
     }
 
     openSettingsModal() {
+        if (testModeState.active) return; // テスト中は設定変更不可
         this.clampStandardEditionSoundSettings();
         this.clampStandardEditionKeyOctave();
         this.captureSettingsModalSnapshot();
@@ -3571,6 +3997,14 @@ class Game {
             wrap.appendChild(row);
         });
         anchor.insertAdjacentElement('afterend', wrap);
+        // テストモードのスタイル・バッジをカスタムSTAGEボタンに適用
+        if (isStagingProSlotsFeature()) {
+            const results = loadTestModeResults();
+            wrap.querySelectorAll('.staging-slot-main-btn[data-stage]').forEach(btn => {
+                const id = parseInt(btn.dataset.stage);
+                if (!isNaN(id)) _applyTestModeButtonStyle(btn, 'melody', 'custom-' + id, results, testModeState.enabled);
+            });
+        }
         if (isStagingProSlotsFeature() && orderLen >= 1) {
             const footer = document.createElement('div');
             footer.id = 'staging-melody-reorder-footer';
@@ -3951,6 +4385,14 @@ class Game {
             wrap.appendChild(row);
         });
         anchor.insertAdjacentElement('afterend', wrap);
+        // テストモードのスタイル・バッジをカスタムSTAGEボタンに適用
+        if (isStagingProSlotsFeature()) {
+            const results = loadTestModeResults();
+            wrap.querySelectorAll('.staging-slot-main-btn[data-stage]').forEach(btn => {
+                const id = parseInt(btn.dataset.stage);
+                if (!isNaN(id)) _applyTestModeButtonStyle(btn, 'chord', 'custom-' + id, results, testModeState.enabled);
+            });
+        }
         if (isStagingProSlotsFeature() && orderLen >= 1) {
             const footer = document.createElement('div');
             footer.id = 'staging-chord-reorder-footer';
@@ -4250,6 +4692,13 @@ class Game {
                 isStagingProSlotsFeature() &&
                 (isProMelodyStageId(level) || isProChordStageId(level));
             if (!okMelody && !okChord && !okStaging) return;
+        }
+        // テストモードが有効で、かつ強制通常モードでない場合はテストランを開始
+        if (testModeState.enabled && !options._forceNormal) {
+            startTestModeRun(this, level);
+        } else {
+            // 通常モード（またはテストモード off / 練習モードで確認）
+            if (testModeState.active) stopTestModeRun(this);
         }
         this.audio.stopAllScheduledSounds();
         const preserveProgress = options.preserveProgress === true;
@@ -4667,6 +5116,7 @@ class Game {
                 this.showFeedback('問題を聴いてください...');
                 await this.playSequence();
                 this.isBlockingInput = false;
+                if (testModeState.active) startTestModeAnswerTimer(this);
             });
         } else if (keyRand) {
             this.showFeedback('主音を聴いてください...');
@@ -4674,15 +5124,24 @@ class Game {
                 this.showFeedback('問題を聴いてください...');
                 await this.playSequence();
                 this.isBlockingInput = false;
+                if (testModeState.active) startTestModeAnswerTimer(this);
             });
         } else {
             this.showFeedback('問題を聴いてください...');
             await this.playSequence();
             this.isBlockingInput = false;
+            if (testModeState.active) startTestModeAnswerTimer(this);
         }
     }
 
     showStageSelector() {
+        if (testModeState.active) {
+            showTestModeAbortConfirm(this, () => {
+                stopTestModeRun(this);
+                this.showStageSelector();
+            });
+            return;
+        }
         this.audio.stopAllScheduledSounds();
         this.isPlaying = false;
         this.standardProPreviewMode = false;
@@ -4696,9 +5155,17 @@ class Game {
         });
         if (document.getElementById(this.lastCategory)) document.getElementById(this.lastCategory).classList.remove('hidden');
         if (isStagingProSlotsFeature()) this.renderStagingMelodySlotButtons();
+        updateTestModeStageButtons(this);
     }
 
     showHomeScreen() {
+        if (testModeState.active) {
+            showTestModeAbortConfirm(this, () => {
+                stopTestModeRun(this);
+                this.showHomeScreen();
+            });
+            return;
+        }
         this.audio.stopAllScheduledSounds();
         this.isPlaying = false;
         this.standardProPreviewMode = false;
@@ -4914,6 +5381,7 @@ class Game {
     }
 
     toggleAnswerMode(isChecked) {
+        if (testModeState.active) return; // テスト中は変更不可
         this.isAnswerMode = isChecked;
         const statusLabel = document.getElementById('answer-mode-status');
 
@@ -4934,11 +5402,16 @@ class Game {
 
     handleCorrect(note) {
         this.isRoundOver = true;
-        // Score logic removed from UI, but keep internal streak
         this.streak++;
         this.updateStats();
-        this.showFeedback('正解！ 素晴らしい！', 'correct');
 
+        if (testModeState.active) {
+            clearTestModeAnswerTimer();
+            handleTestModeCorrectAnswer(this);
+            return;
+        }
+
+        this.showFeedback('正解！ 素晴らしい！', 'correct');
         setTimeout(() => {
             void this.nextRound();
         }, 750 / this.noteSpeed);
@@ -4948,6 +5421,12 @@ class Game {
         this.isRoundOver = true;
         this.streak = 0;
         this.updateStats();
+
+        if (testModeState.active) {
+            clearTestModeAnswerTimer();
+            handleTestModeFailure('wrong', this);
+            return;
+        }
 
         let expectedNotes;
         const cfg = this.stageConfig[this.stage] || this.stageConfig[3];

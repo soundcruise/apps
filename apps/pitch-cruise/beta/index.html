@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>音感クルーズ ベータ</title>
     <link rel="stylesheet" href="../../shared/style.css?v=99">
-    <link rel="stylesheet" href="../theme.css?v=1">
+    <link rel="stylesheet" href="../theme.css?v=2">
     <link rel="stylesheet" href="../staging/staging-hub-nav.css?v=1">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -52,6 +52,12 @@
 
         <main>
             <div class="feedback-display" id="feedback">Listen...</div>
+
+            <div id="test-mode-status-bar" class="test-mode-status-bar hidden">
+                <span class="test-mode-label">TEST MODE</span>
+                <span id="test-mode-progress">0 / 20</span>
+                <span id="test-mode-timer" class="test-mode-timer">--</span>
+            </div>
 
             <div class="action-btns">
                 <button id="replay-btn" class="icon-btn" aria-label="問題を聴く" title="問題をもう1度聴く（音階なし）">
@@ -236,6 +242,13 @@
                         <span class="toggle-slider"></span>
                     </label>
                 </div>
+                <div class="setting-item">
+                    <label for="test-mode-toggle">テストモード</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="test-mode-toggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
                 <div class="settings-pro-only-block" aria-label="Pro版専用の設定">
                     <div class="settings-pro-only-banner">
                         <div style="display: flex; align-items: center; gap: 8px;">
@@ -316,7 +329,7 @@
         </div>
     </div>
     <script src="../staging/staging-hub-nav.js?v=3"></script>
-    <script src="../script.js?v=2.3.0"></script>
+    <script src="../script.js?v=2.4.0"></script>
 </body>
 
 </html>

@@ -13,3 +13,194 @@
     /* 右下「Ver＋ページを更新」とホーム等のモーダルが重ならないよう確保（特に iOS Safari） */
     --in-game-refresh-stack-height: 96px;
 }
+
+/* ─── Test Mode ────────────────────────────────────────── */
+
+.test-mode-status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 6px 16px;
+    background: rgba(255, 51, 102, 0.15);
+    border: 1px solid rgba(255, 51, 102, 0.35);
+    border-radius: 8px;
+    margin: 8px 0;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.test-mode-status-bar.hidden {
+    display: none;
+}
+
+.test-mode-label {
+    color: #ff3366;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    font-size: 0.75rem;
+}
+
+.test-mode-timer {
+    font-variant-numeric: tabular-nums;
+    min-width: 3.5ch;
+    text-align: right;
+}
+
+.test-mode-timer.urgent {
+    color: #ff3366;
+    animation: test-timer-pulse 0.45s ease-in-out infinite alternate;
+}
+
+@keyframes test-timer-pulse {
+    from { opacity: 1; }
+    to   { opacity: 0.35; }
+}
+
+/* Disable action buttons while test is active */
+body.test-mode-active #replay-btn,
+body.test-mode-active #tonic-btn,
+body.test-mode-active #scale-btn,
+body.test-mode-active #settings-btn,
+body.test-mode-active #home-settings-btn,
+body.test-mode-active #melody-settings-btn,
+body.test-mode-active #chord-settings-btn {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+body.test-mode-active .answer-toggle-label {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+/* Stage button red tint when test mode is enabled */
+body.test-mode-enabled .btn-primary.test-mode-stage {
+    border: 2px solid rgba(255, 51, 102, 0.5);
+    background: linear-gradient(135deg, rgba(255, 51, 102, 0.14), rgba(255, 51, 102, 0.07));
+}
+
+/* Clear count badge on stage buttons */
+.test-mode-clear-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(0, 255, 136, 0.15);
+    border: 1px solid rgba(0, 255, 136, 0.35);
+    color: #00ff88;
+    margin-left: 6px;
+    vertical-align: middle;
+    line-height: 1.4;
+}
+
+/* Result screens (clear / failure) — appended as .modal inside #overlay */
+.test-mode-result-screen {
+    text-align: center;
+    padding: 8px 0 4px;
+}
+
+.test-mode-result-icon {
+    font-size: 3.5rem;
+    line-height: 1;
+    margin-bottom: 12px;
+}
+
+.test-mode-result-title {
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin: 0 0 8px;
+}
+
+.test-mode-clear-screen .test-mode-result-title {
+    color: #00ff88;
+}
+
+.test-mode-result-msg {
+    font-size: 0.88rem;
+    color: rgba(255, 255, 255, 0.7);
+    line-height: 1.6;
+    margin: 0 0 16px;
+}
+
+.test-mode-clear-count {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #00ff88;
+    margin: 0 0 20px;
+}
+
+.test-mode-failure-heading {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #ff3366;
+    margin: 0 0 8px;
+}
+
+.test-mode-fail-stats {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.55);
+    margin-bottom: 20px;
+}
+
+.test-mode-result-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.test-mode-result-actions .btn-primary,
+.test-mode-result-actions .btn-secondary {
+    width: 100%;
+}
+
+/* Abort confirm modal — appended to body */
+.test-mode-abort-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 9100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.75);
+}
+
+.test-mode-abort-content {
+    width: min(88vw, 340px);
+    background: #1e1e1e;
+    border: 1px solid rgba(255, 51, 102, 0.35);
+    border-radius: 16px;
+    padding: 24px 20px;
+    text-align: center;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+}
+
+.test-mode-abort-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #ff3366;
+    margin: 0 0 10px;
+}
+
+.test-mode-abort-desc {
+    font-size: 0.88rem;
+    color: rgba(255, 255, 255, 0.65);
+    line-height: 1.5;
+    margin: 0 0 20px;
+}
+
+.test-mode-abort-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.test-mode-abort-actions button {
+    flex: 1;
+}
