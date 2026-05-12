@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.131.4';
+const FRETBOARD_CRUISE_APP_VERSION = '1.131.5';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。探索・PROカスタム編集・問題画面で共通。 */
@@ -1234,7 +1234,7 @@ function scheduleApplyFretboardViewFromOrientation() {
         if (autoChanged) saveState();
         // 自動切替がオフでも、向きが切り替わったタイミングでは
         // 「全体／拡大」の見た目のサイズを各向き用に計算し直す必要がある。
-        // → memorize/routeEditor は従来どおり常に再描画。
+        // → memorize/routeEditor/PROカスタム（たどる・クイズ）は従来どおり常に再描画。
         //   その他の指板表示画面は、向きが反転したタイミングで再描画する。
         const fretboardScreen =
             state.course === 'settings' ||
@@ -1242,7 +1242,13 @@ function scheduleApplyFretboardViewFromOrientation() {
             state.course === 'ruleSelect' ||
             state.course === 'basicRules' ||
             state.course === 'basicRuleStep';
-        if (state.course === 'memorize' || state.course === 'routeEditor' || state.course === 'quizEditor' || state.course === 'proCustomQuizEditor') {
+        if (
+            state.course === 'memorize' ||
+            state.course === 'routeEditor' ||
+            state.course === 'quizEditor' ||
+            state.course === 'proCustomRouteEditor' ||
+            state.course === 'proCustomQuizEditor'
+        ) {
             renderApp();
         } else if (fretboardScreen && (autoChanged || orientationFlipped)) {
             renderApp();
@@ -13620,7 +13626,7 @@ function renderFretboardHTML(containerId, options) {
                 syncFretboardLayoutCollapse();
                 // 横画面のたどる/クイズはペイント前に同期で 1 回だけ再計測して、
                 // フレット番号と指板のズレ（仮値→正値の rAF 上書きで起きていたチラつき）を防ぐ
-                if (memorizeLandscapeUnifiedFullLayout) {
+                if (memorizeLandscapeUnifiedFullLayout || proCustomEditorLandscapeLargeFretboard) {
                     const mhSync = readMemorizeHostMaxH();
                     if (mhSync !== null && projectedBounds.height > 0) {
                         const sSync = allowMemorizeFullScaleAbove1
@@ -13666,7 +13672,8 @@ function renderFretboardHTML(containerId, options) {
                 const refineScaleAfterPaint =
                     containerId === 'fretboard-container' &&
                     (mode === 'memorize' || mode === 'visualize' || mode === 'routeEditor' || mode === 'quizEditor') &&
-                    !(mode === 'memorize' && memorizeLandscapeUnifiedFullLayout);
+                    !(mode === 'memorize' && memorizeLandscapeUnifiedFullLayout) &&
+                    !proCustomEditorLandscapeLargeFretboard;
                 if (refineScaleAfterPaint) {
                     requestAnimationFrame(() => {
                         requestAnimationFrame(() => {
