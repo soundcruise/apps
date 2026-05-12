@@ -3422,101 +3422,11 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     }
 
     /* 横画面の PROカスタム編集（指板をたどる／指板クイズ）では、
-       設定カードを横1行のコンパクトバーに圧縮して、指板表示エリアを大きく確保する。
-       縦画面では従来通り3行構成のままなので影響しない。 */
-    .pro-custom-route-editor-screen .pro-custom-setup-panel {
-        flex-direction: row;
-        flex-wrap: nowrap;
-        align-items: flex-end;
-        justify-content: flex-start;
-        gap: 8px;
-        padding: 4px 8px;
-        margin: 0;
-        background: rgba(255, 255, 255, 0.04);
-        overflow-x: auto;
-        overflow-y: visible;
-    }
-
-    .pro-custom-route-editor-screen .pro-custom-setup-row {
-        display: flex;
-        flex-direction: row;
-        flex-wrap: nowrap;
-        gap: 8px;
-        width: auto;
-        align-items: flex-end;
-    }
-
-    .pro-custom-route-editor-screen .pro-custom-setup-row--triple,
-    .pro-custom-route-editor-screen .pro-custom-setup-row--double {
-        display: flex;
-        grid-template-columns: none;
-    }
-
-    .pro-custom-route-editor-screen .pro-custom-setup-item {
-        flex: 0 0 auto;
-        align-items: stretch;
-        width: auto;
-        min-width: 0;
-        gap: 2px;
-    }
-
-    .pro-custom-route-editor-screen .pro-custom-setup-item--key {
-        width: 64px;
-    }
-    .pro-custom-route-editor-screen .pro-custom-setup-item--capo {
-        width: 56px;
-    }
-    .pro-custom-route-editor-screen .pro-custom-setup-item--scale {
-        width: 130px;
-    }
-    .pro-custom-route-editor-screen .pro-custom-setup-item--display {
-        width: auto;
-    }
-    .pro-custom-route-editor-screen .pro-custom-setup-item--max-fret {
-        width: 96px;
-    }
-
-    .pro-custom-route-editor-screen .pro-custom-setup-item label {
-        font-size: 0.62rem;
-        margin-bottom: 0;
-        text-align: left;
-    }
-
-    .pro-custom-route-editor-screen .pro-custom-setup-item .pro-custom-dd-trigger {
-        padding: 4px 8px;
-        font-size: 0.86rem;
-        line-height: 1.2;
-    }
-
-    .pro-custom-route-editor-screen .pro-custom-setup-item--display .mode-buttons {
-        padding: 2px;
-        gap: 3px;
-    }
-
-    .pro-custom-route-editor-screen .pro-custom-setup-item--display .do-mode-btn {
-        padding: 3px 10px;
-        font-size: 0.82rem;
-        min-height: 30px;
-    }
-
-    .pro-custom-route-editor-screen .pro-custom-setup-help-row {
-        display: none;
-    }
-
-    /* 横画面では、本来の縦長のしっぽスペーサは不要。
-       縦画面で「最後まで完全に見える」ようにするためのものなので、横画面では潰す。 */
-    .pro-custom-route-editor-screen .pro-custom-route-editor-tail-spacer {
-        display: none;
-    }
-
-    /* PROカスタム編集画面の下部パディングを縮めて、指板表示の縦サイズを最大化する。 */
-    .pro-custom-route-editor-screen {
-        padding-bottom: 16px;
-    }
-
-    .pro-custom-route-editor-screen .route-editor-save-row {
-        margin-top: 8px;
-        margin-bottom: 8px;
+       Grカードパネルのデフォルト位置を「画面の右端」に変える。
+       縦画面の通常 STAGE（左寄せ）には影響しない。 */
+    .pro-custom-route-editor-screen .route-editor-group-panel {
+        left: auto;
+        right: max(12px, env(safe-area-inset-right));
     }
 }
 
