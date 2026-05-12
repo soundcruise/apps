@@ -2805,6 +2805,17 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 
 .visualize-setup-row--notation .mode-buttons {
     width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* 縦画面など幅が狭いとき「ドレミ」が「ドレ」+「ミ」と改行されないよう、ラベルは1行に固定。
+   3ボタン合計が狭い画面より広い場合は横スクロールで全体を見られるようにする。 */
+.visualize-setup-row--notation .mode-btn {
+    flex: 1 1 0;
+    white-space: nowrap;
+    min-width: max-content;
 }
 
 .visualize-setup-row .setup-item {
