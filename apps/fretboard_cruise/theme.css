@@ -2204,17 +2204,15 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 }
 
 .pro-custom-setup-item select {
-    min-height: 48px;
-    font-size: 1.08rem;
-    font-weight: 800;
-    line-height: 1.2;
-    padding: 10px 12px;
+    font-size: 1rem;
+    font-weight: inherit;
+    padding: 8px 12px;
 }
 
 .pro-custom-setup-item select option {
-    font-size: 1.08rem;
+    font-size: 1.18rem;
     font-weight: 700;
-    line-height: 1.4;
+    line-height: 1.45;
 }
 
 .pro-custom-setup-item--scale select {
@@ -2222,7 +2220,7 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 }
 
 .pro-custom-setup-item--display .mode-buttons {
-    min-height: 48px;
+    min-height: 39px;
     align-items: stretch;
     flex-wrap: nowrap;
 }
@@ -2230,8 +2228,8 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 .pro-custom-setup-item--display .do-mode-btn {
     flex: 1 1 0;
     min-width: 0;
-    padding: 6px 10px;
-    font-size: 0.92rem;
+    padding: 5px 10px;
+    font-size: 0.9rem;
 }
 
 .pro-custom-route-editor-tail-spacer {

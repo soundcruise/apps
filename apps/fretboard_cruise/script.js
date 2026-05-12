@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.112.18';
+const FRETBOARD_CRUISE_APP_VERSION = '1.112.21';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -7928,7 +7928,50 @@ function renderProCustomRouteEditor(app) {
             renderApp();
         };
     });
+    const startDemoFromEditor = () => {
+        startProCustomCruisePlayback({
+            name: state.proCustomRouteEditor.name,
+            key: state.proCustomRouteEditor.key,
+            capo: state.proCustomRouteEditor.capo,
+            scale: state.proCustomRouteEditor.scale,
+            displayMode: state.settings.noteLabelMode,
+            doMode: state.proCustomRouteEditor.doMode,
+            maxFret: state.proCustomRouteEditor.maxFret,
+            route: state.proCustomRouteEditor.draft,
+            groupBreaks: state.proCustomRouteEditor.groupBreaks,
+            groupNames: state.proCustomRouteEditor.groupNames,
+            groupScrollLefts: state.proCustomRouteEditor.scrollLefts
+        }, 'proCustomRouteEditor');
+    };
+    let lastFooterAction = { id: '', at: 0 };
+    const triggerFooterButtonFromPoint = e => {
+        const footerButtons = [
+            { id: 'btn-pro-custom-demo', run: startDemoFromEditor },
+            { id: 'btn-pro-custom-save', run: openNameModal }
+        ];
+        const hit = footerButtons.find(({ id }) => {
+            const btn = document.getElementById(id);
+            if (!btn || btn.disabled) return false;
+            const rect = btn.getBoundingClientRect();
+            return e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom;
+        });
+        if (!hit) return false;
+        const now = Date.now();
+        if (hit.id === lastFooterAction.id && now - lastFooterAction.at < 450) return true;
+        lastFooterAction = { id: hit.id, at: now };
+        e.preventDefault();
+        e.stopPropagation();
+        hit.run();
+        return true;
+    };
+    app.querySelector('.pro-custom-route-editor-screen').addEventListener('click', e => {
+        triggerFooterButtonFromPoint(e);
+    }, true);
+    app.querySelector('.pro-custom-route-editor-screen').addEventListener('pointerup', e => {
+        triggerFooterButtonFromPoint(e);
+    }, true);
     document.getElementById('btn-pro-custom-save').onclick = e => {
+        if (triggerFooterButtonFromPoint(e)) return;
         e.preventDefault();
         openNameModal();
     };
@@ -7945,20 +7988,9 @@ function renderProCustomRouteEditor(app) {
             closeNameModal();
         }
     });
-    document.getElementById('btn-pro-custom-demo').onclick = () => {
-        startProCustomCruisePlayback({
-            name: state.proCustomRouteEditor.name,
-            key: state.proCustomRouteEditor.key,
-            capo: state.proCustomRouteEditor.capo,
-            scale: state.proCustomRouteEditor.scale,
-            displayMode: state.settings.noteLabelMode,
-            doMode: state.proCustomRouteEditor.doMode,
-            maxFret: state.proCustomRouteEditor.maxFret,
-            route: state.proCustomRouteEditor.draft,
-            groupBreaks: state.proCustomRouteEditor.groupBreaks,
-            groupNames: state.proCustomRouteEditor.groupNames,
-            groupScrollLefts: state.proCustomRouteEditor.scrollLefts
-        }, 'proCustomRouteEditor');
+    document.getElementById('btn-pro-custom-demo').onclick = e => {
+        if (triggerFooterButtonFromPoint(e)) return;
+        startDemoFromEditor();
     };
 
     renderFretboardHTML('fretboard-container', {
