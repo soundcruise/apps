@@ -2554,9 +2554,10 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 }
 
 .pro-custom-setup-row--triple {
-    /* キーとカポはコンパクトに、スケールは長いカナ名（メジャー / アイオニアン等）が
-       省略されにくいよう、より広く確保する。 */
-    grid-template-columns: minmax(0, 0.42fr) minmax(0, 0.32fr) minmax(0, 2.6fr);
+    /* キーとカポは内容（C#・0 など）がしっかり読める固定幅にして、
+       残りをすべてスケールに割り当てる。長いカナ名は trigger 側のフォントを
+       少し小さくして対応する（.pro-custom-setup-item--scale 参照）。 */
+    grid-template-columns: 72px 60px minmax(0, 1fr);
     align-items: end;
 }
 
@@ -2725,6 +2726,12 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     min-width: 0;
 }
 
+/* スケール欄は長いカナ名（メジャー / アイオニアン等）が入りやすいよう、
+   閉じた状態のトリガだけフォントを少し落とす（一覧側は元のサイズを維持）。 */
+.pro-custom-setup-item--scale .pro-custom-dd-trigger {
+    font-size: 0.88rem;
+}
+
 .pro-custom-setup-item--display .mode-buttons {
     min-height: 39px;
     align-items: stretch;
@@ -2881,9 +2888,9 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 }
 
 @media (max-width: 720px) {
-    /* スマホでも「キー・カポは狭く、スケールを広く」を維持する */
+    /* スマホでも「キー・カポは中身が見える幅、スケールを広く」を維持する */
     .pro-custom-setup-row--triple {
-        grid-template-columns: minmax(0, 0.5fr) minmax(0, 0.4fr) minmax(0, 2.4fr);
+        grid-template-columns: 68px 56px minmax(0, 1fr);
     }
 
     .pro-custom-setup-row--double {
