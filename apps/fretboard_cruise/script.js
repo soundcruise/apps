@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.125.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.126.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -68,7 +68,6 @@ const DEFAULT_ROTATION = { x: 0, y: 0, z: 0 };
 const DEFAULT_FRETBOARD_VIEW = 'full';
 const DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION = true;
 const DEFAULT_CRUISE_LOOP_COUNT = 1;
-const DEFAULT_VISUALIZE_CAPO_STYLE = 'matte';
 /** 「指板をたどる」で指板上にグレー／次／現在の音名マーカーを出す（OFF で非表示） */
 const DEFAULT_CRUISE_SHOW_NOTE_NAMES = true;
 /** 「指板をたどる」進行：アプリがギター音も鳴らす／タップ時のみギター音 */
@@ -379,7 +378,6 @@ let state = {
     visualize: {
         key: 0, // C
         capo: 0,
-        capoStyle: DEFAULT_VISUALIZE_CAPO_STYLE,
         displayMode: 'note',
         chordType: 'M',
         degreeMode: false,
@@ -805,9 +803,6 @@ if (savedState) {
         }
         if (typeof state.visualize.key === 'undefined') state.visualize.key = 0;
         if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
-        if (!['width-trim', 'matte', 'overlap-tune'].includes(state.visualize.capoStyle)) {
-            state.visualize.capoStyle = DEFAULT_VISUALIZE_CAPO_STYLE;
-        }
         if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
         if (typeof state.visualize.doMode === 'undefined') state.visualize.doMode = 'movable';
         if (typeof state.visualize.chordType === 'undefined') state.visualize.chordType = '3';
@@ -11122,9 +11117,6 @@ function getAllDegreesWithAccidentals(scaleType) {
 
 function renderVisualize(app) {
     if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
-    if (!['width-trim', 'matte', 'overlap-tune'].includes(state.visualize.capoStyle)) {
-        state.visualize.capoStyle = DEFAULT_VISUALIZE_CAPO_STYLE;
-    }
     if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
     if (['note', 'solfege', 'degree'].includes(state.settings.noteLabelMode)) {
         state.visualize.displayMode = state.settings.noteLabelMode;
@@ -11310,7 +11302,6 @@ function renderVisualize(app) {
         mode: 'visualize',
         keyIndex: state.visualize.key,
         capo: state.visualize.capo,
-        visualizeCapoStyle: 'matte',
         displayMode: state.visualize.displayMode,
         scale: state.visualize.scale,
         selectedChordIndex: state.visualize.selectedChordIndex,
@@ -12234,33 +12225,30 @@ function getRenderMaxFret(mode, options) {
     return clamp(Math.floor(maxFret), DEFAULT_VISIBLE_MAX_FRET, MAX_FRET);
 }
 
-function getProjectedCapoSegments(capoStyle, projectPoint, capoX, neckTop, neckBottom, noteMarkerZ) {
+/**
+ * カポ画像（matteデザイン1本）を投影してSVG文字列を返す。
+ * 「指板を探索する」「指板をたどる/指板クイズ」のPROカスタムSTAGE編集と問題画面で共通利用する。
+ * overallOpacity を 1 未満にすると、4 層まとめて半透明化される。
+ */
+function getProjectedCapoSegments(projectPoint, capoX, neckTop, neckBottom, noteMarkerZ, overallOpacity = 1) {
     const capoGray = '#8e8881';
     const projectLine = (x, y1, y2, z, className, stroke, strokeWidth, opacity) => {
         const p1 = projectPoint(x, y1, z);
         const p2 = projectPoint(x, y2, z);
-        return `<line class="${className}" x1="${p1.x.toFixed(2)}" y1="${p1.y.toFixed(2)}" x2="${p2.x.toFixed(2)}" y2="${p2.y.toFixed(2)}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round"${opacity === undefined ? '' : ` opacity="${opacity}"`}></line>`;
+        return `<line class="${className}" x1="${p1.x.toFixed(2)}" y1="${p1.y.toFixed(2)}" x2="${p2.x.toFixed(2)}" y2="${p2.y.toFixed(2)}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round" opacity="${opacity}"></line>`;
     };
-    const baseLength = { bodyInset: 14, coreInset: 9, padInset: 6, shineInset: 4 };
-    const variantMap = {
-        'width-trim': { body: 38, core: 24, pad: 18, shine: 4.1, offset: 2.4, shineOffset: 4.8, bodyOpacity: 0.99, coreOpacity: 0.82, padOpacity: 0.96, shineOpacity: 0.58 },
-        'matte': { body: 41, core: 27, pad: 20, shine: 3.2, offset: 2.6, shineOffset: 5.2, bodyOpacity: 0.92, coreOpacity: 0.74, padOpacity: 0.84, shineOpacity: 0.22 },
-        'overlap-tune': { body: 44, core: 30, pad: 22, shine: 4.7, offset: 2.8, shineOffset: 5.6, bodyOpacity: 0.99, coreOpacity: 0.82, padOpacity: 0.96, shineOpacity: 0.58 }
-    };
-    const variant = variantMap[capoStyle];
-    if (variant) {
-        return [
-            projectLine(capoX, neckTop + baseLength.bodyInset, neckBottom - baseLength.bodyInset, noteMarkerZ, 'projected-capo-body', capoGray, variant.body, variant.bodyOpacity),
-            projectLine(capoX + variant.offset, neckTop + baseLength.coreInset, neckBottom - baseLength.coreInset, noteMarkerZ, 'projected-capo-clamp-core', capoGray, variant.core, variant.coreOpacity),
-            projectLine(capoX, neckTop + baseLength.padInset, neckBottom - baseLength.padInset, noteMarkerZ, 'projected-capo-pad', capoGray, variant.pad, variant.padOpacity),
-            projectLine(capoX - variant.shineOffset, neckTop + baseLength.shineInset, neckBottom - baseLength.shineInset, noteMarkerZ, 'projected-capo-shine', capoGray, variant.shine, variant.shineOpacity)
-        ].join('');
-    }
-    return [
-        projectLine(capoX, neckTop - 18, neckBottom + 18, noteMarkerZ, 'projected-capo-body', capoGray, 18, 0.96),
-        projectLine(capoX, neckTop + 1, neckBottom - 1, noteMarkerZ, 'projected-capo-pad', capoGray, 11, 0.95),
-        projectLine(capoX, neckTop - 18, neckBottom + 18, noteMarkerZ, 'projected-capo-shine', capoGray, 2.5, 0.58)
+    const body = 41, core = 27, pad = 20, shine = 3.2;
+    const offset = 2.6, shineOffset = 5.2;
+    const lines = [
+        projectLine(capoX, neckTop + 14, neckBottom - 14, noteMarkerZ, 'projected-capo-body', capoGray, body, 0.92),
+        projectLine(capoX + offset, neckTop + 9, neckBottom - 9, noteMarkerZ, 'projected-capo-clamp-core', capoGray, core, 0.74),
+        projectLine(capoX, neckTop + 6, neckBottom - 6, noteMarkerZ, 'projected-capo-pad', capoGray, pad, 0.84),
+        projectLine(capoX - shineOffset, neckTop + 4, neckBottom - 4, noteMarkerZ, 'projected-capo-shine', capoGray, shine, 0.22)
     ].join('');
+    if (overallOpacity < 1) {
+        return `<g class="projected-capo-group" opacity="${overallOpacity}">${lines}</g>`;
+    }
+    return lines;
 }
 
 function renderFretboardHTML(containerId, options) {
@@ -12268,7 +12256,6 @@ function renderFretboardHTML(containerId, options) {
         mode, question, showAnswer, clicked, onFretClick,
         highlightMode = null, nextQuestion = null,
         keyIndex, capo, displayMode, scale, selectedChordIndex,
-        visualizeCapoStyle = DEFAULT_VISUALIZE_CAPO_STYLE,
         doMode: doModeOpt, chordType, autoSelectRootChord,         ruleMarkers,
         rulePitchToneByAccidental = false,
         ruleTapCueBesideNote = false,
@@ -12410,7 +12397,6 @@ function renderFretboardHTML(containerId, options) {
     }
     const doMode = doModeOpt || 'movable';
     const use7Chords = chordType === '7';
-    const visualizeCapoVariant = mode === 'visualize' ? visualizeCapoStyle : 'current';
 
     // If old perspective value (>100), migrate it to the 0-100 range.
     if (state.settings.perspective > 100) {
@@ -12595,10 +12581,12 @@ function renderFretboardHTML(containerId, options) {
         html += `<line class="${wireClass}" x1="${topPoint.x.toFixed(2)}" y1="${topPoint.y.toFixed(2)}" x2="${bottomPoint.x.toFixed(2)}" y2="${bottomPoint.y.toFixed(2)}" stroke="url(#${gradId})" stroke-width="${wireWidth}"></line>`;
     });
 
-    // カポ：探索モードはデザイン比較用に位置・太さを切り替えられる。
-    // それ以外のモードは従来どおり、フレットセル先頭側に固定する。
-    // PROカスタムSTAGEのクルーズ/クイズ問題画面でもカポを反映するため、memorize モードで
-    // state.memorize.proCustomCruise / proCustomQuiz の capo を参照する。
+    // カポ画像：以下のモード/状況で、capo>=1 のときだけ描画する。デザインは全モード共通（matte）。
+    //  - 「指板を探索する」(visualize)
+    //  - 「指板をたどる/指板クイズ」のPROカスタムSTAGE編集 (routeEditor/quizEditor + proCustomGuide)
+    //  - 上記2モードのPROカスタムSTAGE問題画面 (memorize + proCustomCruise/proCustomQuiz)
+    // 位置はフレットセルの中央（50%）に固定し、見た目を統一する。
+    // 「指板をたどる」PROカスタムだけ、編集・問題画面とも半透明（0.5）にして音名マーカーが透けて見えるようにする。
     let capoVal = parseInt(proCustomGuide ? proCustomGuide.capo : capo, 10) || 0;
     let showCapoForMode = (mode === 'visualize' || ((mode === 'routeEditor' || mode === 'quizEditor') && proCustomGuide));
     if (mode === 'memorize') {
@@ -12611,10 +12599,14 @@ function renderFretboardHTML(containerId, options) {
     if (showCapoForMode && capoVal > 0 && capoVal <= renderMaxFret) {
         const cellLo = xEdges[capoVal];
         const cellHi = xEdges[capoVal + 1];
-        const capoX = mode === 'visualize'
-            ? cellLo + (cellHi - cellLo) * 0.5
-            : cellLo + (cellHi - cellLo) * 0.15;
-        html += getProjectedCapoSegments(visualizeCapoVariant, projectPoint, capoX, neckTop, neckBottom, NOTE_MARKER_Z);
+        const capoX = cellLo + (cellHi - cellLo) * 0.5;
+        let capoOverallOpacity = 1;
+        if (mode === 'routeEditor' && proCustomGuide) {
+            capoOverallOpacity = 0.5;
+        } else if (mode === 'memorize' && state.memorize.proCustomCruise) {
+            capoOverallOpacity = 0.5;
+        }
+        html += getProjectedCapoSegments(projectPoint, capoX, neckTop, neckBottom, NOTE_MARKER_Z, capoOverallOpacity);
     }
 
     html += `</svg>`;
@@ -12870,11 +12862,7 @@ function renderFretboardHTML(containerId, options) {
                             roleClass = 'role-non-target grayed-note';
                         }
 
-                        const capoOverlapClass =
-                            visualizeCapoVariant === 'overlap-tune' && f === capoVal
-                                ? ' note-marker--capo-overlap-tuned'
-                                : '';
-                        markerHtml = `<div class="note-marker ${roleClass}${capoOverlapClass}">${label}</div>`;
+                        markerHtml = `<div class="note-marker ${roleClass}">${label}</div>`;
                     }
                 }
             } else if (mode === 'rule') {

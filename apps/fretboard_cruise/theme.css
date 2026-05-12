@@ -425,10 +425,6 @@
     pointer-events: none;
 }
 
-.note-marker--capo-overlap-tuned {
-    left: 8px;
-}
-
 /* Fret interaction for memorize mode */
 .fret-column.interactive {
     cursor: pointer;
