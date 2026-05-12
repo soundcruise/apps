@@ -2767,8 +2767,61 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     font-weight: 700;
 }
 
-/* 「指板を探索する」用：.setup-panel は flex-wrap で項目が自動幅になるため、
-   キー・カポは内容が見える固定幅、スケールは長いカナ名が入る幅を確保する。 */
+/* 「指板を探索する」用：3段グリッド（キー/カポ/スケール → 表記/ド表記 → 最大フレット）に整列する。
+   PROカスタム編集と同様の落ち着いた行レイアウトで、要素を中央寄せにそろえる。 */
+.visualize-setup-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 14px;
+}
+
+.visualize-setup-row {
+    display: grid;
+    gap: 10px;
+    align-items: end;
+    justify-items: stretch;
+    width: 100%;
+}
+
+.visualize-setup-row--triple {
+    /* キー/カポは内容ぴったり、スケールは可変で広がる */
+    grid-template-columns: max-content max-content 1fr;
+    justify-content: center;
+    align-items: end;
+}
+
+.visualize-setup-row--double {
+    grid-template-columns: 1fr 1fr;
+    max-width: 460px;
+    margin: 0 auto;
+}
+
+.visualize-setup-row--single {
+    grid-template-columns: minmax(140px, max-content);
+    justify-content: center;
+}
+
+.visualize-setup-row .setup-item {
+    align-items: stretch;
+    width: 100%;
+}
+
+.visualize-setup-row .setup-item label {
+    text-align: center;
+}
+
+.visualize-setup-row .mode-buttons {
+    width: 100%;
+    justify-content: stretch;
+}
+
+.visualize-setup-row .mode-btn,
+.visualize-setup-row .do-mode-btn {
+    flex: 1 1 0;
+}
+
 .pro-custom-dd--visualize {
     width: auto;
 }
@@ -2782,11 +2835,20 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 }
 
 .visualize-setup-item--scale .pro-custom-dd--visualize {
-    width: min(260px, 70vw);
+    width: 100%;
+    min-width: 0;
 }
 
 .visualize-setup-item--max-fret .pro-custom-dd--visualize {
-    width: 110px;
+    width: 100%;
+    min-width: 0;
+}
+
+@media (max-width: 420px) {
+    .visualize-setup-row--triple {
+        grid-template-columns: max-content max-content 1fr;
+        gap: 8px;
+    }
 }
 
 /* スケールは長いカナ名が省略されにくいよう、トリガだけ少しフォントを小さく */

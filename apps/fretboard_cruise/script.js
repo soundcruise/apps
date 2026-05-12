@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.129.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.130.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。探索・PROカスタム編集・問題画面で共通。 */
@@ -11205,35 +11205,41 @@ function renderVisualize(app) {
             rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-visualize" aria-label="設定">⚙️</button>`
         })}
 
-        <div class="setup-panel">
-            <div class="setup-item visualize-setup-item visualize-setup-item--key">
-                <label>キー</label>
-                ${buildCustomDropdownHtml({ id: 'vis-key', options: visKeyOptions, selectedValue: state.visualize.key, ariaLabel: 'キー', wrapClass: 'pro-custom-dd--visualize' })}
-            </div>
-            <div class="setup-item visualize-setup-item visualize-setup-item--capo">
-                <label>カポ</label>
-                ${buildCustomDropdownHtml({ id: 'vis-capo', options: visCapoOptions, selectedValue: state.visualize.capo, ariaLabel: 'カポ', wrapClass: 'pro-custom-dd--visualize' })}
-            </div>
-            <div class="setup-item visualize-setup-item visualize-setup-item--scale">
-                <label>スケール</label>
-                ${buildCustomDropdownHtml({ id: 'vis-scale', options: visScaleOptions, selectedValue: state.visualize.scale, ariaLabel: 'スケール', wrapClass: 'pro-custom-dd--visualize pro-custom-dd--visualize-scale' })}
-            </div>
-            <div class="setup-item">
-                <div class="mode-buttons">
-                    <button class="mode-btn ${state.visualize.displayMode==='solfege'?'active':''}" data-mode="solfege">ドレミ</button>
-                    <button class="mode-btn ${state.visualize.displayMode==='note'?'active':''}" data-mode="note">CDE</button>
-                    <button class="mode-btn ${state.visualize.displayMode==='degree'?'active':''}" data-mode="degree">度数</button>
+        <div class="setup-panel visualize-setup-panel">
+            <div class="visualize-setup-row visualize-setup-row--triple">
+                <div class="setup-item visualize-setup-item visualize-setup-item--key">
+                    <label>キー</label>
+                    ${buildCustomDropdownHtml({ id: 'vis-key', options: visKeyOptions, selectedValue: state.visualize.key, ariaLabel: 'キー', wrapClass: 'pro-custom-dd--visualize' })}
+                </div>
+                <div class="setup-item visualize-setup-item visualize-setup-item--capo">
+                    <label>カポ</label>
+                    ${buildCustomDropdownHtml({ id: 'vis-capo', options: visCapoOptions, selectedValue: state.visualize.capo, ariaLabel: 'カポ', wrapClass: 'pro-custom-dd--visualize' })}
+                </div>
+                <div class="setup-item visualize-setup-item visualize-setup-item--scale">
+                    <label>スケール</label>
+                    ${buildCustomDropdownHtml({ id: 'vis-scale', options: visScaleOptions, selectedValue: state.visualize.scale, ariaLabel: 'スケール', wrapClass: 'pro-custom-dd--visualize pro-custom-dd--visualize-scale' })}
                 </div>
             </div>
-            <div class="setup-item">
-                <div class="mode-buttons">
-                    <button type="button" class="do-mode-btn ${state.visualize.doMode==='movable'?'active':''}" data-do-mode="movable">移動ド</button>
-                    <button type="button" class="do-mode-btn ${state.visualize.doMode==='fixed'?'active':''}" data-do-mode="fixed">固定ド</button>
+            <div class="visualize-setup-row visualize-setup-row--double">
+                <div class="setup-item visualize-setup-item visualize-setup-item--label">
+                    <div class="mode-buttons">
+                        <button class="mode-btn ${state.visualize.displayMode==='solfege'?'active':''}" data-mode="solfege">ドレミ</button>
+                        <button class="mode-btn ${state.visualize.displayMode==='note'?'active':''}" data-mode="note">CDE</button>
+                        <button class="mode-btn ${state.visualize.displayMode==='degree'?'active':''}" data-mode="degree">度数</button>
+                    </div>
+                </div>
+                <div class="setup-item visualize-setup-item visualize-setup-item--do">
+                    <div class="mode-buttons">
+                        <button type="button" class="do-mode-btn ${state.visualize.doMode==='movable'?'active':''}" data-do-mode="movable">移動ド</button>
+                        <button type="button" class="do-mode-btn ${state.visualize.doMode==='fixed'?'active':''}" data-do-mode="fixed">固定ド</button>
+                    </div>
                 </div>
             </div>
-            <div class="setup-item visualize-setup-item visualize-setup-item--max-fret">
-                <label>最大フレット</label>
-                ${buildCustomDropdownHtml({ id: 'vis-max-fret', options: visMaxFretOptions, selectedValue: state.visualize.maxFret, ariaLabel: '最大フレット', wrapClass: 'pro-custom-dd--visualize' })}
+            <div class="visualize-setup-row visualize-setup-row--single">
+                <div class="setup-item visualize-setup-item visualize-setup-item--max-fret">
+                    <label>最大フレット</label>
+                    ${buildCustomDropdownHtml({ id: 'vis-max-fret', options: visMaxFretOptions, selectedValue: state.visualize.maxFret, ariaLabel: '最大フレット', wrapClass: 'pro-custom-dd--visualize' })}
+                </div>
             </div>
         </div>
 
