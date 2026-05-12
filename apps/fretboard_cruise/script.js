@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.112.23';
+const FRETBOARD_CRUISE_APP_VERSION = '1.113.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -6677,15 +6677,27 @@ function renderStageSelect(app) {
         `;
     }).join('');
     const savedProCustomStage = isCruiseMode ? getSavedProCustomStage() : null;
-    const proCustomStageHtml = isCruiseMode ? `
+    const hasSavedProCustomStage = !!(savedProCustomStage && savedProCustomStage.route && savedProCustomStage.route.length);
+    /** 「PROカスタムSTAGE」行は常に編集画面の入口。⋮ は冗長なので付けない。 */
+    const proCustomEditorRowHtml = isCruiseMode ? `
         <div class="stage-route-row stage-route-row--pro-custom">
             <button class="stage-btn custom-stage-btn" type="button" id="btn-pro-custom-stage">
                 👑 PROカスタムSTAGE
-                <span class="stage-desc">${savedProCustomStage && savedProCustomStage.route.length ? `${savedProCustomStage.name} / ${savedProCustomStage.route.length}音` : 'スケール・カポ・キーを選んで順番を作成'}</span>
+                <span class="stage-desc">新しい順番を作る／編集する</span>
             </button>
-            <button class="stage-route-edit-btn stage-route-edit-btn--icon" type="button" id="btn-pro-custom-stage-edit" aria-label="PROカスタムSTAGEを編集" title="編集">⋮</button>
         </div>
     ` : '';
+    /** 保存済みのPROカスタムSTAGEがあれば、編集行の下に「再生」用の行を独立表示する。 */
+    const proCustomSavedRowHtml = (isCruiseMode && hasSavedProCustomStage) ? `
+        <div class="stage-route-row stage-route-row--pro-custom-saved">
+            <button class="stage-btn" type="button" id="btn-pro-custom-saved-play">
+                ${escapeHtml(savedProCustomStage.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}
+                <span class="stage-desc">${savedProCustomStage.route.length}音 / カポ${savedProCustomStage.capo}</span>
+            </button>
+            <button class="stage-route-edit-btn stage-route-edit-btn--icon" type="button" id="btn-pro-custom-saved-edit" aria-label="保存したPROカスタムSTAGEを編集" title="編集">⋮</button>
+        </div>
+    ` : '';
+    const proCustomStageHtml = `${proCustomEditorRowHtml}${proCustomSavedRowHtml}`;
     app.innerHTML = `
         ${buildPageHeader({
             headerClass: 'page-header--stage-select',
@@ -6746,20 +6758,29 @@ function renderStageSelect(app) {
 
     const proCustomBtn = document.getElementById('btn-pro-custom-stage');
     if (proCustomBtn) {
+        // 「PROカスタムSTAGE」は常に編集画面を開く（保存済みデータがあればそれを引き継いで編集できる）
         proCustomBtn.onclick = () => {
+            openProCustomEditor();
+        };
+    }
+
+    const proCustomSavedPlayBtn = document.getElementById('btn-pro-custom-saved-play');
+    if (proCustomSavedPlayBtn) {
+        proCustomSavedPlayBtn.onclick = () => {
             initAudio();
             const saved = getSavedProCustomStage();
-            if (saved && saved.route.length) {
+            if (saved && saved.route && saved.route.length) {
                 startProCustomCruisePlayback(saved, 'stageSelect');
             } else {
+                // 保存データが消えていた場合のフォールバック：編集画面へ
                 openProCustomEditor();
             }
         };
     }
 
-    const proCustomEditBtn = document.getElementById('btn-pro-custom-stage-edit');
-    if (proCustomEditBtn) {
-        proCustomEditBtn.onclick = openProCustomEditor;
+    const proCustomSavedEditBtn = document.getElementById('btn-pro-custom-saved-edit');
+    if (proCustomSavedEditBtn) {
+        proCustomSavedEditBtn.onclick = openProCustomEditor;
     }
 
     document.querySelectorAll('.stage-route-edit-btn[data-edit-stage]').forEach(btn => {
