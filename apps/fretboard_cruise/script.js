@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.128.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.128.3';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。探索・PROカスタム編集・問題画面で共通。 */
@@ -8706,7 +8706,7 @@ function renderProCustomRouteEditor(app) {
                 <div class="pro-custom-stage-name-modal__error" id="pro-custom-stage-name-error" hidden></div>
                 <div class="pro-custom-stage-name-modal__actions">
                     <button type="button" class="btn-secondary pro-custom-stage-name-modal__cancel" data-pro-custom-stage-name-cancel>キャンセル</button>
-                    <button type="button" class="btn-primary pro-custom-stage-name-modal__confirm" id="pro-custom-stage-name-confirm">保存</button>
+                    <button type="button" class="pro-custom-stage-name-modal__confirm pro-custom-saved-btn pro-custom-saved-btn--save" id="pro-custom-stage-name-confirm"><span class="pro-custom-saved-btn__title">保存</span></button>
                 </div>
             </div>
         </div>
@@ -9177,7 +9177,7 @@ function renderProCustomQuizEditor(app) {
                 <div class="pro-custom-stage-name-modal__error" id="pro-custom-quiz-stage-name-error" hidden></div>
                 <div class="pro-custom-stage-name-modal__actions">
                     <button type="button" class="btn-secondary pro-custom-stage-name-modal__cancel" data-pro-custom-quiz-stage-name-cancel>キャンセル</button>
-                    <button type="button" class="btn-primary pro-custom-stage-name-modal__confirm" id="pro-custom-quiz-stage-name-confirm">保存</button>
+                    <button type="button" class="pro-custom-stage-name-modal__confirm pro-custom-saved-btn pro-custom-saved-btn--save" id="pro-custom-quiz-stage-name-confirm"><span class="pro-custom-saved-btn__title">保存</span></button>
                 </div>
             </div>
         </div>

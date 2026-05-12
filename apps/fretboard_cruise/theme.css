@@ -2959,15 +2959,17 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     min-height: 48px;
 }
 
-.pro-custom-stage-name-modal__confirm {
-    background: linear-gradient(180deg, #5ea0ff, #2c73ff);
-    color: #fff;
-    border-color: rgba(110, 170, 255, 0.9);
-    box-shadow: 0 12px 26px rgba(44, 115, 255, 0.34);
+/* STAGE名入力モーダルの「保存」：PRO 茶系（pro-custom-saved-btn / --save）に統一。
+   モーダル幅にフィットさせるため余白とタイトル文字サイズを調整。 */
+.pro-custom-stage-name-modal__actions .pro-custom-stage-name-modal__confirm.pro-custom-saved-btn {
+    padding: 12px 18px;
+    border-radius: 12px;
+    max-width: none;
 }
 
-.pro-custom-stage-name-modal__confirm:hover {
-    filter: brightness(1.05);
+.pro-custom-stage-name-modal__actions .pro-custom-stage-name-modal__confirm.pro-custom-saved-btn .pro-custom-saved-btn__title {
+    font-size: 1rem;
+    padding-right: 0;
 }
 
 .pro-custom-stage-name-modal__cancel {
