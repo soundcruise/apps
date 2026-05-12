@@ -1,7 +1,7 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.131.12';
+const FRETBOARD_CRUISE_APP_VERSION = '1.131.13';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
-/** 指板上のカポ画像（matte）の全体の透明度。探索・PROカスタム編集・問題画面で共通。 */
+/** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
 const PROJECTED_CAPO_OVERALL_OPACITY = 0.7;
 
 let savePositionFlashTimer = null;
@@ -394,7 +394,7 @@ let state = {
         chordLabelMode: 'name',
         /** autoSelectRootChord: Iコード自動選択（オン時）*/
         autoSelectRootChord: false,
-        /** 自由探索の表示フレット上限（PROカスタム編集と同じ「最大フレット」方式）。
+        /** 指板を見るの表示フレット上限（PROカスタム編集と同じ「最大フレット」方式）。
             12〜MAX_FRET の整数。旧フラグ showExtendedFrets はマイグレーションで maxFret に変換する。 */
         maxFret: DEFAULT_VISIBLE_MAX_FRET
     },
@@ -2266,7 +2266,7 @@ function getProjectedFretboardBoundsForFretRange(neckTop, neckBottom, fretMin, f
 }
 
 /**
- * 自由探索で13F以降表示のとき、「〜12Fぶんが画面幅に収まる」程度まで拡大するためのスケール上限。
+ * 指板を見る画面で13F以降表示のとき、「〜12Fぶんが画面幅に収まる」程度まで拡大するためのスケール上限。
  * 投影だけだと12F帯の横幅がフルボードに近く見積もられることがあるので、フレット間の実長比も混ぜる。
  */
 function getVisualizeExtended12FretWidthFitScale(
@@ -4459,7 +4459,7 @@ function renderApp() {
     app.style.paddingLeft = '';
     app.style.paddingRight = '';
 
-    // 直前の指板の scrollLeft は「同じ画面種別」のときだけ引き継ぐ（メモライズ→自由探索でズーム横スクロールが残らないようにする）
+    // 直前の指板の scrollLeft は「同じ画面種別」のときだけ引き継ぐ（メモライズ→指板を見るでズーム横スクロールが残らないようにする）
     const oldWrapper = document.querySelector('.fretboard-scroll-wrapper');
     const oldScrollGroup = oldWrapper && oldWrapper.getAttribute('data-scroll-group');
     if (oldScrollGroup === 'memorize' && state.course === 'memorize') {
@@ -4837,7 +4837,7 @@ function renderHome(app) {
         <div class="action-btns" style="flex-direction: column; gap: 20px; align-items: center; width: 100%;">
             <button type="button" class="btn-primary home-memorize-btn" id="btn-cruise-mode">🛳️ 指板をたどる</button>
             <button type="button" class="btn-primary home-memorize-btn" id="btn-quiz-mode">🎯 指板クイズ</button>
-            <button type="button" class="btn-primary home-memorize-btn" id="btn-home-board-view">🧭 指板を探索する</button>
+            <button type="button" class="btn-primary home-memorize-btn" id="btn-home-board-view">🧭 指板を見る</button>
         </div>
     `;
 
@@ -4930,7 +4930,7 @@ function renderRuleSelect(app) {
                 <span class="stage-desc">このアプリの遊び方を先に確認する</span>
             </button>
             <button class="stage-btn" data-rules="visualize">
-                指板を探索する
+                指板を見る
                 <span class="stage-desc">キー・スケール・コードを見ながら指板を確認する</span>
             </button>
         </div>
@@ -8406,7 +8406,7 @@ function escapeHtml(value) {
    カスタムドロップダウン共通ヘルパー
    - <select> ではプルダウン中の文字サイズを変えられないため、
      <button>+<ul> による独自UIを描画する。
-   - 「指板を探索する」と「PROカスタムSTAGE 編集画面」で共通利用する。
+   - 「指板を見る」と「PROカスタムSTAGE 編集画面」で共通利用する。
    ─────────────────────────────────────────────── */
 function buildCustomDropdownHtml({ id, options, selectedValue, ariaLabel, wrapClass = '' }) {
     const selected = options.find(opt => String(opt.value) === String(selectedValue)) || options[0];
@@ -11278,7 +11278,7 @@ function getMovableDiatonicSolfegeLabel(degreeFromKey, scaleType) {
     return map.hasOwnProperty(degreeFromKey) ? map[degreeFromKey] : undefined;
 }
 
-/** 自由探索のマーカー文字（CDE / 度数 / ドレミ × 固定ド・移動ド） */
+/** 指板を見るのマーカー文字（CDE / 度数 / ドレミ × 固定ド・移動ド） */
 function getVisualizeMarkerLabel(noteIdx, scaleType, displayMode, doMode, isScale, degreeFromKey, allDegrees) {
     if (displayMode === 'degree') {
         return allDegrees[degreeFromKey] || NOTES[noteIdx];
@@ -11378,7 +11378,7 @@ function renderVisualize(app) {
     ].map(([value, label]) => ({ value, label }));
     app.innerHTML = `
         ${buildPageHeader({
-            titleText: '🧭 指板を探索する',
+            titleText: '🧭 指板を見る',
             leftHtml: `
                 ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
             `,
@@ -11697,7 +11697,7 @@ function renderSettings(app) {
                     <button class="mode-btn ${state.settings.noteLabelMode === 'note' ? 'active' : ''}" data-notation-mode="note">CDE</button>
                     <button class="mode-btn ${state.settings.noteLabelMode === 'degree' ? 'active' : ''}" data-notation-mode="degree">度数</button>
                 </div>
-                <p class="settings-note settings-note--animated" id="note-notation-mode" style="margin-top:10px;">指板をたどる・指板クイズ・指板の基本ルールなど、指板上の表記に反映されます。度数はCを基準に P1・m2 など（「指板を探索する」の度数表記と同じ）です。</p>
+                <p class="settings-note settings-note--animated" id="note-notation-mode" style="margin-top:10px;">指板をたどる・指板クイズ・指板の基本ルールなど、指板上の表記に反映されます。度数はCを基準に P1・m2 など（「指板を見る」の度数表記と同じ）です。</p>
             </div>
 
             <div class="settings-card-section">
@@ -12457,7 +12457,7 @@ function getRenderMaxFret(mode, options) {
 
 /**
  * カポ画像（matteデザイン1本）を投影してSVG文字列を返す。
- * 「指板を探索する」「指板をたどる/指板クイズ」のPROカスタムSTAGE編集と問題画面で共通利用する。
+ * 「指板を見る」「指板をたどる/指板クイズ」のPROカスタムSTAGE編集と問題画面で共通利用する。
  * overallOpacity を 1 未満にすると、4 層まとめて半透明化される。
  */
 function getProjectedCapoSegments(projectPoint, capoX, neckTop, neckBottom, noteMarkerZ, overallOpacity = 1) {
@@ -12568,7 +12568,7 @@ function renderFretboardHTML(containerId, options) {
     /** 横画面の PROカスタム編集（指板をたどる／指板クイズ）は、
         指板表示を問題画面と同じくらい大きく見せるため、scale > 1 を許可しつつ
         大きめの maxFullViewH（ビューポートの高い割合）を使う。
-        通常の STAGE1〜6 編集や指板探索には影響しない。 */
+        通常の STAGE1〜6 編集や「指板を見る」には影響しない。 */
     const proCustomEditorLandscapeLargeFretboard =
         typeof window !== 'undefined' &&
         window.innerWidth > window.innerHeight &&
@@ -12822,7 +12822,7 @@ function renderFretboardHTML(containerId, options) {
     });
 
     // カポ画像：以下のモード/状況で、capo>=1 のときだけ描画する。デザインは全モード共通（matte）。
-    //  - 「指板を探索する」(visualize)
+    //  - 「指板を見る」(visualize)
     //  - 「指板をたどる/指板クイズ」のPROカスタムSTAGE編集 (routeEditor/quizEditor + proCustomGuide)
     //  - 上記2モードのPROカスタムSTAGE問題画面 (memorize + proCustomCruise/proCustomQuiz)
     // 位置はフレットセルの中央（50%）に固定し、見た目を統一する。
@@ -13368,7 +13368,7 @@ function renderFretboardHTML(containerId, options) {
                 } else if (mode === 'memorize' && containerId === 'fretboard-container' && (step3TapRange !== null || step3TapFloatRange !== null)) {
                     zoomScale = ruleTapCapZoomByFretWidth(zoomScale, 18, 160);
                 }
-                // 「指板を探索する」拡大ビューでは、PROカスタム編集と同じく
+                // 「指板を見る」拡大ビューでは、PROカスタム編集と同じく
                 // 指板自体は縦の高さでスケールを決め、最大フレットを超える分は横スクロールで見られるようにする。
                 // 以前は 12フレット幅に収まるよう zoomScale を更に縮めていたため
                 // 縦画面で「全体ビュー」のように小さく見える不具合があったため撤去。
@@ -13403,7 +13403,7 @@ function renderFretboardHTML(containerId, options) {
                     routeEditorFretHost || quizEditorFretHost;
                 const memorizeProblemLandscapeWide =
                     memorizeFretHost && land && cruiseLandCfg.active;
-                /** 自由探索・全体ビュー・13F以降ON: ズーム時と同様にラッパーで横スクロール（縮めて全体を収めない） */
+                /** 指板を見る・全体ビュー・13F以降ON: ズーム時と同様にラッパーで横スクロール（縮めて全体を収めない） */
                 const visualizeExtendedFullScrollLayout =
                     visualizeExtendedNeedsHorizScroll && state.settings.fretboardView === 'full';
                 /** 横・覚える・全体: 上段テキストを詰めた分、scale 用の高さ目安を少し上げる */
@@ -13507,7 +13507,7 @@ function renderFretboardHTML(containerId, options) {
                  * `getCruiseLandscapeLayoutConfig()` がすでに `useFullViewportWidth: true` で
                  * `layoutW = screenW` に広げているので、ここで scale 上限を外すのが最後の一押し。
                  *
-                 * 適用条件は厳密に絞っており、編集画面・自由探索・基本ルール・縦画面・指板クイズ
+                 * 適用条件は厳密に絞っており、編集画面・指板を見る・基本ルール・縦画面・指板クイズ
                  * には一切影響させない。
                  */
                 const allowMemorizeFullScaleAbove1 = memorizeLandscapeUnifiedFullLayout || proCustomEditorLandscapeLargeFretboard;
@@ -14151,7 +14151,7 @@ function renderFretboardHTML(containerId, options) {
         }, 30);
     }
 
-    // メモライズのズーム指板だけ、描画直後にスクロール位置を整える（自由探索の全体ビューでは中央寄せ margin を壊さない）
+    // メモライズのズーム指板だけ、描画直後にスクロール位置を整える（指板を見るの全体ビューでは中央寄せ margin を壊さない）
     // ただし、クイズで quizGrScrollLeft（編集画面で保存した位置）を維持したい場合はスキップ。
     // ここを通すと 10ms 後に強制的に scrollLeft=0 へ戻され、解答表示の一瞬で指板が左端に飛んで見える。
     if (

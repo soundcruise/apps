@@ -119,7 +119,7 @@
     clip-path: inset(0 0 0 24px); /* ネック側面を隠して指板を左寄せ */
 }
 
-/* 自由探索は開放弦〜12Fを欠けなく見せる（左クリップしない） */
+/* 指板を見る: 開放弦〜12Fを欠けなく見せる（左クリップしない） */
 .fretboard-scroll-wrapper--visualize {
     clip-path: none !important;
 }
@@ -2712,7 +2712,7 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     width: 100%;
 }
 
-/* 閉じている select の文字サイズは「指板を探索する」と同じ .setup-item select に合わせる（1rem・8px 12px） */
+/* 閉じている select の文字サイズは「指板を見る」と同じ .setup-item select に合わせる（1rem・8px 12px） */
 .pro-custom-setup-item select {
     font-size: 1rem;
     font-weight: inherit;
@@ -2730,7 +2730,7 @@ body:has(.pro-custom-route-editor-screen) .app-container {
    PRO カスタム編集画面の「カスタムドロップダウン」（自前実装）
    - OS標準の <select> ではプルダウン中の文字サイズを変えられないため、
      キー・カポ・スケール・最大フレットの4つを独自UIで描画する。
-   - 閉じている枠は探索画面の <select> と同じ見た目（黒背景・薄い枠・1rem）。
+   - 閉じている枠は指板を見る画面の <select> と同じ見た目（黒背景・薄い枠・1rem）。
    - 開いた一覧の文字サイズも自由に大きくできる（タップしやすさ重視）。
    ─────────────────────────────────────────────── */
 
@@ -2851,7 +2851,7 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     font-weight: 700;
 }
 
-/* 「指板を探索する」用：3段グリッド（キー/カポ/スケール → 表記/ド表記 → 最大フレット）に整列する。
+/* 「指板を見る」用：3段グリッド（キー/カポ/スケール → 表記/ド表記 → 最大フレット）に整列する。
    PROカスタム編集と同様の落ち着いた行レイアウトで、要素を中央寄せにそろえる。 */
 .visualize-setup-panel {
     display: flex;
