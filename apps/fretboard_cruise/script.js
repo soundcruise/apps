@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.118.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.119.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -7853,6 +7853,80 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
+/* ───────────────────────────────────────────────
+   カスタムドロップダウン共通ヘルパー
+   - <select> ではプルダウン中の文字サイズを変えられないため、
+     <button>+<ul> による独自UIを描画する。
+   - 「指板を探索する」と「PROカスタムSTAGE 編集画面」で共通利用する。
+   ─────────────────────────────────────────────── */
+function buildCustomDropdownHtml({ id, options, selectedValue, ariaLabel, wrapClass = '' }) {
+    const selected = options.find(opt => String(opt.value) === String(selectedValue)) || options[0];
+    const items = options.map(opt => {
+        const isSelected = String(opt.value) === String(selected?.value);
+        return `<li role="option" class="pro-custom-dd-option ${isSelected ? 'is-selected' : ''}" data-pro-custom-dd-value="${escapeHtml(String(opt.value))}" aria-selected="${isSelected ? 'true' : 'false'}">${escapeHtml(opt.label)}</li>`;
+    }).join('');
+    return `
+        <div class="pro-custom-dd ${wrapClass}" id="${id}-wrap" data-pro-custom-dd-id="${id}">
+            <button type="button" class="pro-custom-dd-trigger" id="${id}" aria-haspopup="listbox" aria-expanded="false" aria-label="${escapeHtml(ariaLabel || '')}">
+                <span class="pro-custom-dd-trigger__label">${escapeHtml(selected ? selected.label : '')}</span>
+                <span class="pro-custom-dd-trigger__chevron" aria-hidden="true">▾</span>
+            </button>
+            <ul class="pro-custom-dd-list" role="listbox" hidden>${items}</ul>
+        </div>
+    `;
+}
+
+function closeAllCustomDropdowns() {
+    document.querySelectorAll('.pro-custom-dd.is-open').forEach(wrap => {
+        wrap.classList.remove('is-open');
+        const trigger = wrap.querySelector('.pro-custom-dd-trigger');
+        const list = wrap.querySelector('.pro-custom-dd-list');
+        if (trigger) trigger.setAttribute('aria-expanded', 'false');
+        if (list) list.hidden = true;
+    });
+}
+
+function wireCustomDropdown(id, onSelect) {
+    const wrap = document.getElementById(`${id}-wrap`);
+    const trigger = document.getElementById(id);
+    if (!wrap || !trigger) return;
+    const list = wrap.querySelector('.pro-custom-dd-list');
+    trigger.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const willOpen = !wrap.classList.contains('is-open');
+        closeAllCustomDropdowns();
+        if (willOpen) {
+            wrap.classList.add('is-open');
+            trigger.setAttribute('aria-expanded', 'true');
+            if (list) list.hidden = false;
+        }
+    };
+    if (list) {
+        list.querySelectorAll('[data-pro-custom-dd-value]').forEach(item => {
+            item.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const value = item.getAttribute('data-pro-custom-dd-value');
+                closeAllCustomDropdowns();
+                onSelect(value);
+            };
+        });
+    }
+}
+
+function ensureCustomDropdownDocHandlers() {
+    if (window.__customDropdownDocHandlersInstalled) return;
+    window.__customDropdownDocHandlersInstalled = true;
+    document.addEventListener('pointerdown', (e) => {
+        if (e.target && typeof e.target.closest === 'function' && e.target.closest('.pro-custom-dd')) return;
+        closeAllCustomDropdowns();
+    }, true);
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeAllCustomDropdowns();
+    });
+}
+
 function getProCustomEditorVisibleGroupIndices(groupCount) {
     if (!groupCount) return [];
     if (state.proCustomRouteEditor?.forceHideAllGroups) return [];
@@ -7992,26 +8066,6 @@ function renderProCustomRouteEditor(app) {
     );
     const proCustomDisplayMode = state.settings.noteLabelMode;
 
-    /** カスタムドロップダウンのHTMLを組み立てる小さなヘルパー。
-        OS標準の <select> ではプルダウン中の文字サイズが固定されるため、
-        ここでは <button> + <ul> を使い、CSSで自由に大きく表示できるようにしている。 */
-    const buildProCustomDropdown = ({ id, options, selectedValue, ariaLabel }) => {
-        const selected = options.find(opt => String(opt.value) === String(selectedValue)) || options[0];
-        const items = options.map(opt => {
-            const isSelected = String(opt.value) === String(selected?.value);
-            return `<li role="option" class="pro-custom-dd-option ${isSelected ? 'is-selected' : ''}" data-pro-custom-dd-value="${escapeHtml(String(opt.value))}" aria-selected="${isSelected ? 'true' : 'false'}">${escapeHtml(opt.label)}</li>`;
-        }).join('');
-        return `
-            <div class="pro-custom-dd" id="${id}-wrap" data-pro-custom-dd-id="${id}">
-                <button type="button" class="pro-custom-dd-trigger" id="${id}" aria-haspopup="listbox" aria-expanded="false" aria-label="${escapeHtml(ariaLabel || '')}">
-                    <span class="pro-custom-dd-trigger__label">${escapeHtml(selected ? selected.label : '')}</span>
-                    <span class="pro-custom-dd-trigger__chevron" aria-hidden="true">▾</span>
-                </button>
-                <ul class="pro-custom-dd-list" role="listbox" hidden>${items}</ul>
-            </div>
-        `;
-    };
-
     const proCustomKeyOptions = NOTES.map((note, idx) => ({ value: idx, label: note }));
     const proCustomCapoOptions = [0,1,2,3,4,5,6,7].map(c => ({ value: c, label: String(c) }));
     const proCustomScaleOptions = scaleOptions.map(([value, label]) => ({ value, label }));
@@ -8036,15 +8090,15 @@ function renderProCustomRouteEditor(app) {
                 <div class="pro-custom-setup-row pro-custom-setup-row--triple">
                 <div class="setup-item pro-custom-setup-item pro-custom-setup-item--key">
                     <label>キー</label>
-                    ${buildProCustomDropdown({ id: 'pro-custom-key', options: proCustomKeyOptions, selectedValue: state.proCustomRouteEditor.key, ariaLabel: 'キー' })}
+                    ${buildCustomDropdownHtml({ id: 'pro-custom-key', options: proCustomKeyOptions, selectedValue: state.proCustomRouteEditor.key, ariaLabel: 'キー' })}
                 </div>
                 <div class="setup-item pro-custom-setup-item pro-custom-setup-item--capo">
                     <label>カポ</label>
-                    ${buildProCustomDropdown({ id: 'pro-custom-capo', options: proCustomCapoOptions, selectedValue: state.proCustomRouteEditor.capo, ariaLabel: 'カポ' })}
+                    ${buildCustomDropdownHtml({ id: 'pro-custom-capo', options: proCustomCapoOptions, selectedValue: state.proCustomRouteEditor.capo, ariaLabel: 'カポ' })}
                 </div>
                 <div class="setup-item pro-custom-setup-item pro-custom-setup-item--scale">
                     <label>スケール</label>
-                    ${buildProCustomDropdown({ id: 'pro-custom-scale', options: proCustomScaleOptions, selectedValue: state.proCustomRouteEditor.scale, ariaLabel: 'スケール' })}
+                    ${buildCustomDropdownHtml({ id: 'pro-custom-scale', options: proCustomScaleOptions, selectedValue: state.proCustomRouteEditor.scale, ariaLabel: 'スケール' })}
                 </div>
                 </div>
                 <div class="pro-custom-setup-row pro-custom-setup-row--double">
@@ -8057,7 +8111,7 @@ function renderProCustomRouteEditor(app) {
                 </div>
                 <div class="setup-item pro-custom-setup-item pro-custom-setup-item--max-fret">
                     <label>最大フレット</label>
-                    ${buildProCustomDropdown({ id: 'pro-custom-max-fret', options: proCustomMaxFretOptions, selectedValue: state.proCustomRouteEditor.maxFret, ariaLabel: '最大フレット' })}
+                    ${buildCustomDropdownHtml({ id: 'pro-custom-max-fret', options: proCustomMaxFretOptions, selectedValue: state.proCustomRouteEditor.maxFret, ariaLabel: '最大フレット' })}
                 </div>
                 </div>
                 <div class="pro-custom-setup-help-row">
@@ -8176,87 +8230,23 @@ function renderProCustomRouteEditor(app) {
     document.getElementById('btn-pro-custom-back').onclick = () => { state.course = 'stageSelect'; saveState(); renderApp(); };
     document.getElementById('btn-pro-custom-home').onclick = () => { state.course = null; saveState(); renderApp(); };
     document.getElementById('btn-settings-pro-custom').onclick = () => openSettings('proCustomRouteEditor');
-    /** カスタムドロップダウン制御：トリガをタップしたらリストを開閉、項目選択で onSelect を呼ぶ。
-        外側をタップしたら閉じる。Escapeでも閉じる。 */
-    const closeAllProCustomDropdowns = () => {
-        document.querySelectorAll('.pro-custom-dd.is-open').forEach(wrap => {
-            wrap.classList.remove('is-open');
-            const trigger = wrap.querySelector('.pro-custom-dd-trigger');
-            const list = wrap.querySelector('.pro-custom-dd-list');
-            if (trigger) trigger.setAttribute('aria-expanded', 'false');
-            if (list) list.hidden = true;
-        });
-    };
-    const wireProCustomDropdown = (id, onSelect) => {
-        const wrap = document.getElementById(`${id}-wrap`);
-        const trigger = document.getElementById(id);
-        if (!wrap || !trigger) return;
-        const list = wrap.querySelector('.pro-custom-dd-list');
-        trigger.onclick = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            const willOpen = !wrap.classList.contains('is-open');
-            closeAllProCustomDropdowns();
-            if (willOpen) {
-                wrap.classList.add('is-open');
-                trigger.setAttribute('aria-expanded', 'true');
-                if (list) list.hidden = false;
-            }
-        };
-        if (list) {
-            list.querySelectorAll('[data-pro-custom-dd-value]').forEach(item => {
-                item.onclick = (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const value = item.getAttribute('data-pro-custom-dd-value');
-                    closeAllProCustomDropdowns();
-                    onSelect(value);
-                };
-            });
-        }
-    };
-    // ドキュメント全体のタップで開いているドロップダウンを閉じる（再描画ごとにリスナーが
-    // 重複登録されないよう、初回のみ登録するガードを使う）
-    if (!window.__proCustomDropdownDocHandlersInstalled) {
-        window.__proCustomDropdownDocHandlersInstalled = true;
-        document.addEventListener('pointerdown', (e) => {
-            if (e.target && typeof e.target.closest === 'function' && e.target.closest('.pro-custom-dd')) return;
-            document.querySelectorAll('.pro-custom-dd.is-open').forEach(wrap => {
-                wrap.classList.remove('is-open');
-                const trigger = wrap.querySelector('.pro-custom-dd-trigger');
-                const list = wrap.querySelector('.pro-custom-dd-list');
-                if (trigger) trigger.setAttribute('aria-expanded', 'false');
-                if (list) list.hidden = true;
-            });
-        }, true);
-        document.addEventListener('keydown', (e) => {
-            if (e.key !== 'Escape') return;
-            document.querySelectorAll('.pro-custom-dd.is-open').forEach(wrap => {
-                wrap.classList.remove('is-open');
-                const trigger = wrap.querySelector('.pro-custom-dd-trigger');
-                const list = wrap.querySelector('.pro-custom-dd-list');
-                if (trigger) trigger.setAttribute('aria-expanded', 'false');
-                if (list) list.hidden = true;
-            });
-        });
-    }
-
-    wireProCustomDropdown('pro-custom-key', (value) => {
+    ensureCustomDropdownDocHandlers();
+    wireCustomDropdown('pro-custom-key', (value) => {
         pushProCustomEditorHistory();
         state.proCustomRouteEditor.key = parseInt(value, 10) || 0;
         rerenderAfterSettingChange();
     });
-    wireProCustomDropdown('pro-custom-capo', (value) => {
+    wireCustomDropdown('pro-custom-capo', (value) => {
         pushProCustomEditorHistory();
         state.proCustomRouteEditor.capo = parseInt(value, 10) || 0;
         rerenderAfterSettingChange();
     });
-    wireProCustomDropdown('pro-custom-scale', (value) => {
+    wireCustomDropdown('pro-custom-scale', (value) => {
         pushProCustomEditorHistory();
         state.proCustomRouteEditor.scale = value;
         rerenderAfterSettingChange();
     });
-    wireProCustomDropdown('pro-custom-max-fret', (value) => {
+    wireCustomDropdown('pro-custom-max-fret', (value) => {
         pushProCustomEditorHistory();
         state.proCustomRouteEditor.maxFret = clamp(parseInt(value, 10) || PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, MAX_FRET);
         currentScrollLeft = 0;
@@ -10132,6 +10122,23 @@ function renderVisualize(app) {
         return `<button class="chord-btn ${isSelected ? 'active' : ''} ${isDisabled ? 'disabled' : ''}" data-chord-index="${idx}">${chord.label}</button>`;
     }).join('');
 
+    const visKeyOptions = NOTES.map((note, idx) => ({ value: idx, label: note }));
+    const visCapoOptions = [0,1,2,3,4,5,6,7].map(c => ({ value: c, label: String(c) }));
+    const visScaleOptions = [
+        ['major', 'メジャー / アイオニアン'],
+        ['minor', 'ナチュラルマイナー / エオリアン'],
+        ['harmonicMinor', 'ハーモニックマイナー'],
+        ['melodicMinor', 'メロディックマイナー'],
+        ['dorian', 'ドリアン'],
+        ['phrygian', 'フリジアン'],
+        ['lydian', 'リディアン'],
+        ['mixolydian', 'ミクソリディアン'],
+        ['locrian', 'ロクリアン'],
+        ['pentaMajor', 'メジャーペンタトニック'],
+        ['pentaMinor', 'マイナーペンタトニック'],
+        ['blues', 'ブルース']
+    ].map(([value, label]) => ({ value, label }));
+
     app.innerHTML = `
         ${buildPageHeader({
             titleText: '🧭 指板を探索する',
@@ -10142,34 +10149,17 @@ function renderVisualize(app) {
         })}
 
         <div class="setup-panel">
-            <div class="setup-item">
+            <div class="setup-item visualize-setup-item visualize-setup-item--key">
                 <label>キー</label>
-                <select id="vis-key">
-                    ${NOTES.map((note, idx) => `<option value="${idx}" ${state.visualize.key===idx?'selected':''}>${note}</option>`).join('')}
-                </select>
+                ${buildCustomDropdownHtml({ id: 'vis-key', options: visKeyOptions, selectedValue: state.visualize.key, ariaLabel: 'キー', wrapClass: 'pro-custom-dd--visualize' })}
             </div>
-            <div class="setup-item">
+            <div class="setup-item visualize-setup-item visualize-setup-item--capo">
                 <label>カポ</label>
-                <select id="vis-capo">
-                    ${[0,1,2,3,4,5,6,7].map(c => `<option value="${c}" ${state.visualize.capo===c?'selected':''}>${c}</option>`).join('')}
-                </select>
+                ${buildCustomDropdownHtml({ id: 'vis-capo', options: visCapoOptions, selectedValue: state.visualize.capo, ariaLabel: 'カポ', wrapClass: 'pro-custom-dd--visualize' })}
             </div>
-            <div class="setup-item">
+            <div class="setup-item visualize-setup-item visualize-setup-item--scale">
                 <label>スケール</label>
-                <select id="vis-scale">
-                    <option value="major" ${state.visualize.scale==='major'?'selected':''}>メジャー / アイオニアン</option>
-                    <option value="minor" ${state.visualize.scale==='minor'?'selected':''}>ナチュラルマイナー / エオリアン</option>
-                    <option value="harmonicMinor" ${state.visualize.scale==='harmonicMinor'?'selected':''}>ハーモニックマイナー</option>
-                    <option value="melodicMinor" ${state.visualize.scale==='melodicMinor'?'selected':''}>メロディックマイナー</option>
-                    <option value="dorian" ${state.visualize.scale==='dorian'?'selected':''}>ドリアン</option>
-                    <option value="phrygian" ${state.visualize.scale==='phrygian'?'selected':''}>フリジアン</option>
-                    <option value="lydian" ${state.visualize.scale==='lydian'?'selected':''}>リディアン</option>
-                    <option value="mixolydian" ${state.visualize.scale==='mixolydian'?'selected':''}>ミクソリディアン</option>
-                    <option value="locrian" ${state.visualize.scale==='locrian'?'selected':''}>ロクリアン</option>
-                    <option value="pentaMajor" ${state.visualize.scale==='pentaMajor'?'selected':''}>メジャーペンタトニック</option>
-                    <option value="pentaMinor" ${state.visualize.scale==='pentaMinor'?'selected':''}>マイナーペンタトニック</option>
-                    <option value="blues" ${state.visualize.scale==='blues'?'selected':''}>ブルース</option>
-                </select>
+                ${buildCustomDropdownHtml({ id: 'vis-scale', options: visScaleOptions, selectedValue: state.visualize.scale, ariaLabel: 'スケール', wrapClass: 'pro-custom-dd--visualize pro-custom-dd--visualize-scale' })}
             </div>
             <div class="setup-item">
                 <div class="mode-buttons">
@@ -10225,24 +10215,23 @@ function renderVisualize(app) {
         openSettings('visualize');
     };
 
-    document.getElementById('vis-key').onchange = (e) => {
-        state.visualize.key = parseInt(e.target.value);
+    ensureCustomDropdownDocHandlers();
+    wireCustomDropdown('vis-key', (value) => {
+        state.visualize.key = parseInt(value, 10) || 0;
         saveState();
         renderApp();
-    };
-
-    document.getElementById('vis-capo').onchange = (e) => {
-        state.visualize.capo = parseInt(e.target.value);
+    });
+    wireCustomDropdown('vis-capo', (value) => {
+        state.visualize.capo = parseInt(value, 10) || 0;
         saveState();
         renderApp();
-    };
-
-    document.getElementById('vis-scale').onchange = (e) => {
-        state.visualize.scale = e.target.value;
+    });
+    wireCustomDropdown('vis-scale', (value) => {
+        state.visualize.scale = value;
         state.visualize.selectedChordIndex = null;
         saveState();
         renderApp();
-    };
+    });
 
     document.querySelectorAll('.mode-btn[data-mode]').forEach(btn => {
         btn.onclick = () => {

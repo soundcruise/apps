@@ -2765,6 +2765,29 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     font-weight: 700;
 }
 
+/* 「指板を探索する」用：.setup-panel は flex-wrap で項目が自動幅になるため、
+   キー・カポは内容が見える固定幅、スケールは長いカナ名が入る幅を確保する。 */
+.pro-custom-dd--visualize {
+    width: auto;
+}
+
+.visualize-setup-item--key .pro-custom-dd--visualize {
+    width: 80px;
+}
+
+.visualize-setup-item--capo .pro-custom-dd--visualize {
+    width: 70px;
+}
+
+.visualize-setup-item--scale .pro-custom-dd--visualize {
+    width: min(260px, 70vw);
+}
+
+/* スケールは長いカナ名が省略されにくいよう、トリガだけ少しフォントを小さく */
+.pro-custom-dd--visualize-scale .pro-custom-dd-trigger {
+    font-size: 0.88rem;
+}
+
 .pro-custom-setup-item--scale select {
     min-width: 0;
 }
