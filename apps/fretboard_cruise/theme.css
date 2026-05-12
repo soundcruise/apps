@@ -2589,10 +2589,10 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     padding: 8px 12px;
 }
 
-/* プルダウンを開いたときの選択肢（ブラウザのリスト）。枠内より少し大きめで読みやすく */
+/* プルダウンを開いたときの選択肢（ブラウザのリスト）。閉じている select と同じ 1rem に揃える */
 .pro-custom-setup-item select option {
-    font-size: 1.1rem;
-    font-weight: 600;
+    font-size: 1rem;
+    font-weight: inherit;
     line-height: 1.45;
 }
 
