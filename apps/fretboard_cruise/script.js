@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.117.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.118.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -8060,7 +8060,10 @@ function renderProCustomRouteEditor(app) {
                     ${buildProCustomDropdown({ id: 'pro-custom-max-fret', options: proCustomMaxFretOptions, selectedValue: state.proCustomRouteEditor.maxFret, ariaLabel: '最大フレット' })}
                 </div>
                 </div>
-                <p class="settings-note pro-custom-setup-note">表示方法は「設定」の「音名の表記」に従います。ここでは切り替えません。</p>
+                <div class="pro-custom-setup-help-row">
+                    <button type="button" class="settings-help-btn pro-custom-setup-help-btn" data-target="pro-custom-display-help-note" aria-label="表示方法の説明を表示">⊕</button>
+                </div>
+                <p class="settings-note settings-note--animated pro-custom-setup-note" id="pro-custom-display-help-note">ドレミ / CDE / 度数の表記は設定の「共通」から変えることができます。</p>
             </div>
             <div class="route-editor-toolbar">
                 <button class="icon-btn route-editor-tool-btn" id="btn-pro-custom-clear" ${draft.length ? '' : 'disabled'}>全消し</button>
@@ -8261,6 +8264,14 @@ function renderProCustomRouteEditor(app) {
     });
     document.querySelectorAll('[data-pro-custom-do-mode]').forEach(btn => {
         btn.onclick = () => { state.proCustomRouteEditor.doMode = btn.getAttribute('data-pro-custom-do-mode'); saveState(); renderApp(); };
+    });
+    /** PRO編集カード下部の ⊕ ヘルプボタン：タップで補足説明をトグル表示。 */
+    document.querySelectorAll('.pro-custom-setup-help-btn').forEach(btn => {
+        btn.onclick = () => {
+            const targetId = btn.getAttribute('data-target');
+            const target = targetId ? document.getElementById(targetId) : null;
+            if (target) target.classList.toggle('visible');
+        };
     });
     document.getElementById('btn-pro-custom-undo').onclick = () => {
         const historyItem = Array.isArray(state.proCustomRouteEditor.history) ? state.proCustomRouteEditor.history.pop() : null;

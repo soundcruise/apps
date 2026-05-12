@@ -2527,9 +2527,33 @@ input:checked + .toggle-slider:before {
 
 .pro-custom-setup-note {
     width: 100%;
-    margin: 4px 0 0;
+    margin: 0;
     text-align: center;
     font-size: 0.78rem;
+}
+
+/* PRO編集カード下部の ⊕ ヘルプボタン：右寄せに小さく配置。 */
+.pro-custom-setup-help-row {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-top: -4px;
+}
+
+.pro-custom-setup-help-btn {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 1.15rem;
+    line-height: 1;
+}
+
+.pro-custom-setup-help-btn:active {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+@media (hover: hover) {
+    .pro-custom-setup-help-btn:hover {
+        color: rgba(255, 255, 255, 0.9);
+    }
 }
 
 .pro-custom-setup-panel {
