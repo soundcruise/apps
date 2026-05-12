@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.112.22';
+const FRETBOARD_CRUISE_APP_VERSION = '1.112.23';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -7810,11 +7810,15 @@ function renderProCustomRouteEditor(app) {
     };
     const nameModal = document.getElementById('pro-custom-stage-name-modal');
     const nameInput = document.getElementById('pro-custom-stage-name-input');
+    /** モーダルを開いた直後に届く「ボタン由来の遅延 click」がバックドロップに当たって
+        即座にモーダルを閉じてしまうのを防ぐためのガード。 */
+    let modalSuppressBackdropUntil = 0;
     const closeNameModal = () => {
         nameModal.hidden = true;
         nameModal.classList.remove('is-open');
     };
     const openNameModal = () => {
+        modalSuppressBackdropUntil = Date.now() + 400;
         nameInput.value = String(state.proCustomRouteEditor.name || PRO_CUSTOM_STAGE_DEFAULT_NAME);
         nameModal.hidden = false;
         nameModal.classList.add('is-open');
@@ -7977,7 +7981,14 @@ function renderProCustomRouteEditor(app) {
     };
     document.getElementById('pro-custom-stage-name-confirm').onclick = confirmNameModal;
     nameModal.querySelectorAll('[data-pro-custom-stage-name-cancel]').forEach(btn => {
-        btn.onclick = closeNameModal;
+        btn.onclick = (e) => {
+            if (Date.now() < modalSuppressBackdropUntil) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            closeNameModal();
+        };
     });
     nameInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
