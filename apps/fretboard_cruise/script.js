@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.115.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.116.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -6825,7 +6825,9 @@ function renderStageSelect(app) {
             </button>
         </div>
     ` : '';
-    /** 各保存済みSTAGEは「再生ボタン＋▼トグル」と、トグルで開く操作群（✏️名前変更・⚙️編集・📄複製・🗑️削除）。 */
+    /** 各保存済みSTAGEは「再生ボタン＋⋮編集ボタン＋▼トグル」を1行に並べ、
+        ▼トグルで開く操作群（✏️名前変更・⚙️編集・📋複製・🗑️削除）を別行に表示する。
+        ⋮ は素早く編集画面に飛ぶショートカット（▼→⚙️ と同じ動き）。 */
     const proCustomSavedRowsHtml = savedProCustomStages.map((stage) => {
         const safeId = escapeHtml(stage.id);
         return `
@@ -6836,6 +6838,7 @@ function renderStageSelect(app) {
                     <span class="pro-custom-saved-btn__title">${escapeHtml(stage.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}</span>
                     <span class="stage-desc pro-custom-saved-btn__desc">${stage.route.length}音 / カポ${stage.capo}</span>
                 </button>
+                <button type="button" class="pro-custom-saved-quick-edit" data-pro-custom-action="edit" data-pro-custom-target-id="${safeId}" aria-label="このSTAGEを編集" title="編集">⋮</button>
                 <button type="button" class="pro-custom-saved-toggle" data-pro-custom-toggle-id="${safeId}" aria-expanded="false" aria-haspopup="true" aria-label="その他の操作を表示" title="その他の操作">
                     <span class="pro-custom-saved-toggle__chevron" aria-hidden="true">▼</span>
                 </button>
@@ -6843,7 +6846,7 @@ function renderStageSelect(app) {
             <div class="pro-custom-saved-actions" hidden role="group" aria-label="PROカスタムSTAGEの操作" data-pro-custom-actions-id="${safeId}">
                 <button type="button" class="icon-btn pro-custom-saved-action-btn" data-pro-custom-action="rename" data-pro-custom-target-id="${safeId}" title="名前を変更" aria-label="名前を変更">✏️</button>
                 <button type="button" class="icon-btn pro-custom-saved-action-btn" data-pro-custom-action="edit" data-pro-custom-target-id="${safeId}" title="このSTAGEを編集" aria-label="このSTAGEを編集">⚙️</button>
-                <button type="button" class="icon-btn pro-custom-saved-action-btn" data-pro-custom-action="duplicate" data-pro-custom-target-id="${safeId}" title="複製" aria-label="複製" ${proCustomReachedLimit ? 'disabled' : ''}>📄</button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn pro-custom-saved-action-btn--duplicate" data-pro-custom-action="duplicate" data-pro-custom-target-id="${safeId}" title="複製" aria-label="複製" ${proCustomReachedLimit ? 'disabled' : ''}><img src="../assets/icon-duplicate.png?v=1" class="pro-custom-saved-action-icon" alt="" decoding="async" width="20" height="20"></button>
                 <button type="button" class="icon-btn pro-custom-saved-action-btn pro-custom-saved-action-btn--delete" data-pro-custom-action="delete" data-pro-custom-target-id="${safeId}" title="このSTAGEを削除" aria-label="このSTAGEを削除">🗑️</button>
             </div>
         </div>

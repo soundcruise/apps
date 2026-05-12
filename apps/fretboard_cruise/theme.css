@@ -1759,40 +1759,52 @@ input:checked + .toggle-slider:before {
     overflow: hidden;
     padding: 16px 22px;
     border-radius: 12px;
-    color: #ecdcb6;
+    color: #f3e6bd;
     font-weight: 700;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(196, 168, 110, 0.32);
-    background: linear-gradient(180deg, rgba(34, 30, 24, 0.96) 0%, rgba(22, 19, 15, 0.98) 100%);
+    /* シャンパン色をやや明るめにして、外側に細い金色のリング光をうっすら添える。
+       ベタ塗り感を消すため、ベース背景は3色グラデで奥行きを出す（やりすぎないラインを意識）。 */
+    border: 1px solid rgba(220, 192, 132, 0.5);
+    background: linear-gradient(180deg,
+        rgba(50, 42, 30, 0.96) 0%,
+        rgba(34, 29, 22, 0.97) 55%,
+        rgba(20, 17, 13, 0.98) 100%);
     box-shadow:
-        inset 0 1px 0 rgba(214, 188, 132, 0.14),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.45),
-        0 3px 10px rgba(0, 0, 0, 0.32);
-    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+        inset 0 1px 0 rgba(243, 222, 174, 0.26),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.5),
+        0 4px 14px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(196, 168, 110, 0.06);
+    transition: transform 0.2s ease, box-shadow 0.22s ease, border-color 0.22s ease, background 0.22s ease;
 }
 
+/* 縦方向の上下に細い金色のハイライトをのせて、メタル感を控えめに付与。 */
 .pro-custom-saved-btn::before {
     content: '';
     position: absolute;
     inset: 0;
     border-radius: inherit;
     pointer-events: none;
-    background: linear-gradient(180deg, rgba(214, 188, 132, 0.05) 0%, transparent 45%, transparent 55%, rgba(0, 0, 0, 0.12) 100%);
+    background:
+        linear-gradient(180deg,
+            rgba(243, 222, 174, 0.1) 0%,
+            transparent 28%,
+            transparent 72%,
+            rgba(0, 0, 0, 0.18) 100%);
 }
 
 .pro-custom-saved-btn__badge {
     position: absolute;
     top: 10px;
     right: 14px;
-    padding: 2px 8px;
+    padding: 2px 9px;
     border-radius: 999px;
     font-size: 0.6rem;
     font-weight: 700;
     letter-spacing: 0.16em;
-    color: rgba(236, 220, 182, 0.85);
-    background: rgba(236, 220, 182, 0.06);
-    border: 1px solid rgba(196, 168, 110, 0.42);
-    box-shadow: none;
+    color: #f7e9bd;
+    background: linear-gradient(135deg, rgba(243, 222, 174, 0.14) 0%, rgba(196, 168, 110, 0.06) 100%);
+    border: 1px solid rgba(220, 192, 132, 0.6);
+    box-shadow: 0 1px 0 rgba(243, 222, 174, 0.18) inset;
     text-shadow: none;
     pointer-events: none;
     z-index: 2;
@@ -1805,7 +1817,7 @@ input:checked + .toggle-slider:before {
     padding-right: 56px; /* PRO バッジと被らない逃げ（保存済みの再生ボタン用） */
     font-size: 1.08rem;
     line-height: 1.3;
-    color: #ecdcb6;
+    color: #f4e6bd;
     letter-spacing: 0.01em;
     -webkit-text-fill-color: initial;
     filter: none;
@@ -1842,19 +1854,23 @@ input:checked + .toggle-slider:before {
 .pro-custom-saved-btn__desc {
     position: relative;
     z-index: 1;
-    color: rgba(214, 188, 132, 0.62);
+    color: rgba(232, 206, 148, 0.7);
     font-weight: 500;
     text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
 }
 
 @media (hover: hover) {
     .pro-custom-saved-btn:hover {
-        border-color: rgba(214, 188, 132, 0.55);
-        background: linear-gradient(180deg, rgba(42, 36, 28, 0.96) 0%, rgba(28, 24, 18, 0.98) 100%);
+        border-color: rgba(232, 206, 148, 0.7);
+        background: linear-gradient(180deg,
+            rgba(60, 50, 36, 0.96) 0%,
+            rgba(42, 35, 26, 0.97) 55%,
+            rgba(26, 22, 17, 0.98) 100%);
         box-shadow:
-            inset 0 1px 0 rgba(214, 188, 132, 0.22),
-            inset 0 -1px 0 rgba(0, 0, 0, 0.45),
-            0 4px 14px rgba(0, 0, 0, 0.4);
+            inset 0 1px 0 rgba(252, 232, 188, 0.36),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.5),
+            0 6px 18px rgba(0, 0, 0, 0.45),
+            0 0 18px rgba(196, 168, 110, 0.14);
         transform: translateY(-1px);
     }
 }
@@ -1863,7 +1879,8 @@ input:checked + .toggle-slider:before {
     transform: translateY(0);
     box-shadow:
         inset 0 2px 5px rgba(0, 0, 0, 0.45),
-        0 1px 3px rgba(0, 0, 0, 0.3);
+        0 1px 3px rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba(196, 168, 110, 0.05);
 }
 
 .pro-custom-saved-btn:disabled,
@@ -1892,7 +1909,8 @@ input:checked + .toggle-slider:before {
     padding-right: 0;
 }
 
-/* 保存済み PRO カスタム STAGE 行のレイアウト（再生 + ▼ + 操作行） */
+/* 保存済み PRO カスタム STAGE 行のレイアウト
+   メイン行：[再生(1fr)] [⋮ 即編集] [▼ トグル]   ／   下段：操作群（▼で開閉） */
 .pro-custom-saved-row {
     display: flex;
     flex-direction: column;
@@ -1902,9 +1920,44 @@ input:checked + .toggle-slider:before {
 
 .pro-custom-saved-row__main {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     gap: 8px;
     align-items: stretch;
+}
+
+/* メイン行の ⋮ ボタン（編集ショートカット）。シャンパン調で再生ボタンと馴染ませる。 */
+.pro-custom-saved-quick-edit {
+    box-sizing: border-box;
+    width: 32px;
+    min-width: 32px;
+    align-self: center;
+    height: 32px;
+    padding: 0;
+    border: 1px solid rgba(196, 168, 110, 0.36);
+    border-radius: 8px;
+    background: rgba(214, 188, 132, 0.06);
+    color: rgba(214, 188, 132, 0.82);
+    font-size: 1.4rem;
+    line-height: 1;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.pro-custom-saved-quick-edit:active {
+    background: rgba(214, 188, 132, 0.12);
+}
+
+@media (hover: hover) {
+    .pro-custom-saved-quick-edit:hover {
+        background: rgba(214, 188, 132, 0.12);
+        color: #f3e6bd;
+        border-color: rgba(232, 206, 148, 0.6);
+    }
 }
 
 .pro-custom-saved-toggle {
@@ -2009,6 +2062,22 @@ input:checked + .toggle-slider:before {
     .pro-custom-saved-action-btn--delete:hover {
         background: rgba(255, 110, 110, 0.16);
     }
+}
+
+/* 「複製」アクション：音感クルーズと同じ二重紙アイコン（assets/icon-duplicate.png）を使う。
+   暗い背景でも読みやすいよう invert で白抜きにする（音感クルーズと同じ処理）。 */
+.pro-custom-saved-action-btn--duplicate {
+    padding: 0;
+}
+
+.pro-custom-saved-action-icon {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    display: block;
+    filter: invert(1);
+    opacity: 0.92;
+    pointer-events: none;
 }
 
 /* 編集画面ヘッダーのサブ表示（〜を新規作成 / 〜を編集） */
