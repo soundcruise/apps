@@ -1,5 +1,8 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.126.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.127.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
+
+/** 指板上のカポ画像（matte）の全体の透明度。探索・PROカスタム編集・問題画面で共通。 */
+const PROJECTED_CAPO_OVERALL_OPACITY = 0.7;
 
 let savePositionFlashTimer = null;
 /** 「位置保存」押下を視覚的にわかりやすくする（再描画後に呼ぶ場合は再取得できるよう ID で指定） */
@@ -12586,7 +12589,7 @@ function renderFretboardHTML(containerId, options) {
     //  - 「指板をたどる/指板クイズ」のPROカスタムSTAGE編集 (routeEditor/quizEditor + proCustomGuide)
     //  - 上記2モードのPROカスタムSTAGE問題画面 (memorize + proCustomCruise/proCustomQuiz)
     // 位置はフレットセルの中央（50%）に固定し、見た目を統一する。
-    // 半透明（0.5）も統一仕様。カポの下にある音名マーカーが透けて見えるようにする。
+    // 半透明は PROJECTED_CAPO_OVERALL_OPACITY（0.7）で統一。カポの下の音名マーカーが透けて見えるようにする。
     let capoVal = parseInt(proCustomGuide ? proCustomGuide.capo : capo, 10) || 0;
     let showCapoForMode = (mode === 'visualize' || ((mode === 'routeEditor' || mode === 'quizEditor') && proCustomGuide));
     if (mode === 'memorize') {
@@ -12600,7 +12603,7 @@ function renderFretboardHTML(containerId, options) {
         const cellLo = xEdges[capoVal];
         const cellHi = xEdges[capoVal + 1];
         const capoX = cellLo + (cellHi - cellLo) * 0.5;
-        html += getProjectedCapoSegments(projectPoint, capoX, neckTop, neckBottom, NOTE_MARKER_Z, 0.5);
+        html += getProjectedCapoSegments(projectPoint, capoX, neckTop, neckBottom, NOTE_MARKER_Z, PROJECTED_CAPO_OVERALL_OPACITY);
     }
 
     html += `</svg>`;
