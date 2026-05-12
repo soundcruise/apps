@@ -2525,18 +2525,14 @@ input:checked + .toggle-slider:before {
     padding-bottom: 96px;
 }
 
-.pro-custom-setup-note {
-    width: 100%;
-    margin: 0;
-    text-align: center;
-    font-size: 0.78rem;
-}
-
-/* PRO編集カード下部の ⊕ ヘルプボタン：右寄せに小さく配置。 */
+/* PRO編集カード下部の ⊕ ヘルプボタンと説明文の横並び。
+   ⊕ を左に、説明文をその右に表示する。説明文は ⊕ をタップしたときだけ表示。 */
 .pro-custom-setup-help-row {
     display: flex;
-    justify-content: flex-end;
+    flex-direction: row;
+    justify-content: flex-start;
     align-items: center;
+    gap: 8px;
     margin-top: -4px;
 }
 
@@ -2544,6 +2540,7 @@ input:checked + .toggle-slider:before {
     color: rgba(255, 255, 255, 0.6);
     font-size: 1.15rem;
     line-height: 1;
+    flex-shrink: 0;
 }
 
 .pro-custom-setup-help-btn:active {
@@ -2554,6 +2551,28 @@ input:checked + .toggle-slider:before {
     .pro-custom-setup-help-btn:hover {
         color: rgba(255, 255, 255, 0.9);
     }
+}
+
+/* 横並びのときは中央揃えではなく左寄せ・行頭揃えに */
+.pro-custom-setup-help-row .pro-custom-setup-note {
+    flex: 1 1 auto;
+    margin: 0;
+    text-align: left;
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+/* 折りたたみアニメーション中も横並びを保てるよう、表示時の max-height を少し広く */
+.pro-custom-setup-help-row .settings-note--animated.visible {
+    max-height: 160px;
+    margin-top: 0;
+}
+
+.pro-custom-setup-note {
+    width: 100%;
+    margin: 0;
+    text-align: center;
+    font-size: 0.78rem;
 }
 
 .pro-custom-setup-panel {

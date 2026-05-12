@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.118.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.118.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -8062,8 +8062,8 @@ function renderProCustomRouteEditor(app) {
                 </div>
                 <div class="pro-custom-setup-help-row">
                     <button type="button" class="settings-help-btn pro-custom-setup-help-btn" data-target="pro-custom-display-help-note" aria-label="表示方法の説明を表示">⊕</button>
+                    <p class="settings-note settings-note--animated pro-custom-setup-note" id="pro-custom-display-help-note">ドレミ / CDE / 度数の表記は設定の「共通」から変えることができます。</p>
                 </div>
-                <p class="settings-note settings-note--animated pro-custom-setup-note" id="pro-custom-display-help-note">ドレミ / CDE / 度数の表記は設定の「共通」から変えることができます。</p>
             </div>
             <div class="route-editor-toolbar">
                 <button class="icon-btn route-editor-tool-btn" id="btn-pro-custom-clear" ${draft.length ? '' : 'disabled'}>全消し</button>
