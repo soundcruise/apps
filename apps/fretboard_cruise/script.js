@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.131.7';
+const FRETBOARD_CRUISE_APP_VERSION = '1.131.8';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。探索・PROカスタム編集・問題画面で共通。 */
@@ -10518,7 +10518,7 @@ function renderMemorize(app) {
                                 <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-restart">もう1回</button>
                                 <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-exit">${isEditorDemoPlayback ? '編集画面へ' : '終了'}</button>
                                 ${(isProCustomDemoPlayback || isProCustomQuizDemoPlayback)
-                                    ? `<button type="button" class="memorize-cleared-card__btn memorize-cleared-card__btn--pro-custom-saved pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-memorize-cleared-pro-custom-save"><span class="pro-custom-saved-btn__title">このSTAGEを<br>保存</span></button>`
+                                    ? `<button type="button" class="memorize-cleared-card__btn memorize-cleared-card__btn--pro-custom-saved pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-memorize-cleared-pro-custom-save"><span class="pro-custom-saved-btn__title">このSTAGEを保存</span></button>`
                                     : `<button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-next-stage"${isProCustomCruise || isProCustomQuiz || state.memorize.stage >= 6 ? ' disabled' : ''}>次のSTAGEへ</button>`
                                 }
                             </div>

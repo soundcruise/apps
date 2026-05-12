@@ -894,20 +894,43 @@
     max-width: none;
     font-size: inherit;
     line-height: 1.25;
-    overflow: visible;
-    white-space: normal;
-    text-overflow: clip;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 .memorize-cleared-card__actions--three .memorize-cleared-card__btn--pro-custom-saved.pro-custom-saved-btn .pro-custom-saved-btn__title {
     font-size: 0.98rem;
     padding-right: 0;
-    white-space: normal;
+    white-space: nowrap;
     line-height: 1.3;
 }
 
 .memorize-screen--landscape .memorize-cleared-card__actions--three .memorize-cleared-card__btn--pro-custom-saved.pro-custom-saved-btn .pro-custom-saved-btn__title {
+    font-size: 0.88rem;
+    white-space: nowrap;
+}
+
+/* 横画面・PRO保存ありの終了カード：縦画面と同様「もう1回／編集へ」を上段、「保存」を下段の全幅に。
+   （viewport 幅が 800px 超でも 3 列にならないよう、:has で常に 2 段にする） */
+.memorize-screen--landscape .memorize-cleared-card__actions--three:has(.memorize-cleared-card__btn--pro-custom-saved) {
+    gap: 6px 8px;
+}
+
+.memorize-screen--landscape .memorize-cleared-card__actions--three:has(.memorize-cleared-card__btn--pro-custom-saved) .memorize-cleared-card__btn:nth-child(1),
+.memorize-screen--landscape .memorize-cleared-card__actions--three:has(.memorize-cleared-card__btn--pro-custom-saved) .memorize-cleared-card__btn:nth-child(2) {
+    flex: 1 1 calc(50% - 4px);
+    max-width: calc(50% - 4px);
+}
+
+.memorize-screen--landscape .memorize-cleared-card__actions--three:has(.memorize-cleared-card__btn--pro-custom-saved) .memorize-cleared-card__btn:nth-child(3) {
+    flex: 1 1 100%;
+    max-width: 100%;
     font-size: 0.92rem;
+    padding: 10px 12px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
 }
 
 /* ============================================================
