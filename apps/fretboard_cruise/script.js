@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.128.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.128.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。探索・PROカスタム編集・問題画面で共通。 */
@@ -8691,7 +8691,6 @@ function renderProCustomRouteEditor(app) {
             <div class="route-editor-save-row">
                 <button type="button" class="btn-secondary route-editor-demo-btn" id="btn-pro-custom-demo" ${draft.length ? '' : 'disabled'}>現在の順番でデモ</button>
                 <button type="button" class="btn-primary route-editor-save-btn pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-pro-custom-save" ${draft.length ? '' : 'disabled'}>
-                    <span class="pro-custom-saved-btn__badge" aria-hidden="true">PRO</span>
                     <span class="pro-custom-saved-btn__title">このSTAGEを保存</span>
                 </button>
             </div>
@@ -9163,7 +9162,6 @@ function renderProCustomQuizEditor(app) {
             <div class="route-editor-save-row">
                 <button type="button" class="btn-secondary route-editor-demo-btn" id="btn-pro-custom-quiz-try" ${hasAnyNote ? '' : 'disabled'}>この設定でクイズを試す</button>
                 <button type="button" class="btn-primary route-editor-save-btn pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-pro-custom-quiz-save" ${hasAnyNote ? '' : 'disabled'}>
-                    <span class="pro-custom-saved-btn__badge" aria-hidden="true">PRO</span>
                     <span class="pro-custom-saved-btn__title">このSTAGEを保存</span>
                 </button>
             </div>
@@ -10300,7 +10298,6 @@ function renderMemorize(app) {
                         <button type="button" class="btn-secondary memorize-cruise-control-btn memorize-cruise-control-btn--pro-custom-return" id="btn-pro-custom-return-editor">編集画面に戻る</button>
                         ${isProCustomDemoPlayback || isProCustomQuizDemoPlayback ? `
                             <button type="button" class="btn-primary memorize-cruise-control-btn pro-custom-saved-btn pro-custom-saved-btn--save memorize-cruise-control-btn--pro-custom-save" id="btn-pro-custom-save-from-demo">
-                                <span class="pro-custom-saved-btn__badge" aria-hidden="true">PRO</span>
                                 <span class="pro-custom-saved-btn__title">このSTAGEを保存</span>
                             </button>
                         ` : ''}
@@ -10326,10 +10323,10 @@ function renderMemorize(app) {
                                 </div>
                             </div>
                             <div class="memorize-cleared-card__actions memorize-cleared-card__actions--three">
-                                <button type="button" class="btn-primary memorize-cleared-card__btn memorize-cleared-card__btn--primary" id="btn-memorize-cleared-restart">もう1回</button>
+                                <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-restart">もう1回</button>
                                 <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-exit">${isEditorDemoPlayback ? '編集画面へ' : '終了'}</button>
                                 ${(isProCustomDemoPlayback || isProCustomQuizDemoPlayback)
-                                    ? `<button type="button" class="memorize-cleared-card__btn memorize-cleared-card__btn--pro-custom-saved pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-memorize-cleared-pro-custom-save"><span class="pro-custom-saved-btn__badge" aria-hidden="true">PRO</span><span class="pro-custom-saved-btn__title">このSTAGEを保存</span></button>`
+                                    ? `<button type="button" class="memorize-cleared-card__btn memorize-cleared-card__btn--pro-custom-saved pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-memorize-cleared-pro-custom-save"><span class="pro-custom-saved-btn__title">このSTAGEを保存</span></button>`
                                     : `<button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-next-stage"${isProCustomCruise || isProCustomQuiz || state.memorize.stage >= 6 ? ' disabled' : ''}>次のSTAGEへ</button>`
                                 }
                             </div>
