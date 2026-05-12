@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.131.5';
+const FRETBOARD_CRUISE_APP_VERSION = '1.131.6';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。探索・PROカスタム編集・問題画面で共通。 */
@@ -13574,7 +13574,7 @@ function renderFretboardHTML(containerId, options) {
                 } else {
                     const scaledW = projectedBounds.width * scale;
                     centerTx = Math.max(0, Math.round((layoutW - scaledW) / 2));
-                    if (visualizeFretHost && mode !== 'rule') {
+                    if (visualizeFretHost && mode !== 'rule' && !proCustomEditorLandscapeLargeFretboard) {
                         let rightOffset;
                         if (land) {
                             rightOffset = layoutW < 500 ? 0 : layoutW < 700 ? 10 : 20;
