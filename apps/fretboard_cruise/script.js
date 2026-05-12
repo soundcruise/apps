@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.112.21';
+const FRETBOARD_CRUISE_APP_VERSION = '1.112.22';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -8016,7 +8016,25 @@ function renderProCustomRouteEditor(app) {
             saveState();
             renderApp();
         },
-        onFretClick: (stringName, fret) => {
+        onFretClick: (stringName, fret, e) => {
+            // PROカスタム編集画面のフッターボタン（デモ／保存）や設定パネル・ツールバー上で
+            // タップが発生したときは、document レベルの pointerdown キャプチャ（renderFretboardHTML 内の
+            // handleFretboardClick）が getBoundingClientRect 矩形だけでフレットコラムを誤検出して
+            // ここに到達することがある。getBoundingClientRect は祖先の overflow:hidden で
+            // クリップされた領域も含むため、視覚的には指板の外でもヒットしてしまう。
+            // これによりフッターボタンを押したのにドラフトに音が追加されて即再描画され、
+            // 「ボタンが反応しない」ように見える現象が起きる。e.target が UI クローム配下なら
+            // 何もせず抜ける。
+            if (
+                e &&
+                e.target &&
+                typeof e.target.closest === 'function' &&
+                e.target.closest(
+                    '.route-editor-save-row, .route-editor-toolbar, .route-editor-group-panel, .setup-panel, .pro-custom-setup-panel, .page-header, .pro-custom-stage-name-modal'
+                )
+            ) {
+                return;
+            }
             if (activeGroupIndex < 0) return;
             if (!isProCustomSelectableFret(state.proCustomRouteEditor, stringName, fret)) return;
             blurActiveElement();
