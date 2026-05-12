@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.126.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.126.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -12586,7 +12586,7 @@ function renderFretboardHTML(containerId, options) {
     //  - 「指板をたどる/指板クイズ」のPROカスタムSTAGE編集 (routeEditor/quizEditor + proCustomGuide)
     //  - 上記2モードのPROカスタムSTAGE問題画面 (memorize + proCustomCruise/proCustomQuiz)
     // 位置はフレットセルの中央（50%）に固定し、見た目を統一する。
-    // 「指板をたどる」PROカスタムだけ、編集・問題画面とも半透明（0.5）にして音名マーカーが透けて見えるようにする。
+    // 半透明（0.5）も統一仕様。カポの下にある音名マーカーが透けて見えるようにする。
     let capoVal = parseInt(proCustomGuide ? proCustomGuide.capo : capo, 10) || 0;
     let showCapoForMode = (mode === 'visualize' || ((mode === 'routeEditor' || mode === 'quizEditor') && proCustomGuide));
     if (mode === 'memorize') {
@@ -12600,13 +12600,7 @@ function renderFretboardHTML(containerId, options) {
         const cellLo = xEdges[capoVal];
         const cellHi = xEdges[capoVal + 1];
         const capoX = cellLo + (cellHi - cellLo) * 0.5;
-        let capoOverallOpacity = 1;
-        if (mode === 'routeEditor' && proCustomGuide) {
-            capoOverallOpacity = 0.5;
-        } else if (mode === 'memorize' && state.memorize.proCustomCruise) {
-            capoOverallOpacity = 0.5;
-        }
-        html += getProjectedCapoSegments(projectPoint, capoX, neckTop, neckBottom, NOTE_MARKER_Z, capoOverallOpacity);
+        html += getProjectedCapoSegments(projectPoint, capoX, neckTop, neckBottom, NOTE_MARKER_Z, 0.5);
     }
 
     html += `</svg>`;
