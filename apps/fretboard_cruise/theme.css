@@ -1296,12 +1296,12 @@
 /* 横画面：終了カードは横にも縦にも収まるよう、最大高さに収める */
 .memorize-screen--landscape .memorize-cleared-card--v2 {
     width: min(340px, 80%);
-    padding: 12px 18px 14px;
-    gap: 8px;
-    max-height: min(92dvh, calc(100dvh - max(20px, env(safe-area-inset-top, 0px)) - max(20px, env(safe-area-inset-bottom, 0px))));
+    padding: 10px 16px 12px;
+    gap: 6px;
+    max-height: min(82dvh, calc(100dvh - max(24px, env(safe-area-inset-top, 0px)) - max(24px, env(safe-area-inset-bottom, 0px)) - 20px));
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    flex-shrink: 1;
+    flex-shrink: 0;
 }
 .memorize-screen--landscape .memorize-cleared-card--v2 .memorize-cleared-card__title {
     font-size: clamp(1rem, 3.6vmin, 1.35rem);
@@ -1349,11 +1349,17 @@
     }
 }
 
-/* 横画面の終了カード：上下中央に置き、カードが高いときはオーバーレイ内でスクロールして下端が切れないようにする */
+/* 横画面の終了カード：#app の overflow:hidden と body-stack の高さから外し、
+   画面全体に重ねて中央表示。極端に低い端末ではオーバーレイを縦スクロール。 */
 .memorize-screen--landscape .memorize-cleared-overlay--v2 {
+    position: fixed;
+    inset: 0;
+    width: auto;
+    height: auto;
+    z-index: 100;
     align-items: center;
     justify-content: center;
-    padding: max(8px, env(safe-area-inset-top, 0px)) 16px max(8px, env(safe-area-inset-bottom, 0px)) 16px;
+    padding: max(8px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(8px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
     box-sizing: border-box;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
