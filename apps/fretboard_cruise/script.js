@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.113.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.114.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -6678,21 +6678,24 @@ function renderStageSelect(app) {
     }).join('');
     const savedProCustomStage = isCruiseMode ? getSavedProCustomStage() : null;
     const hasSavedProCustomStage = !!(savedProCustomStage && savedProCustomStage.route && savedProCustomStage.route.length);
-    /** 「PROカスタムSTAGE」行は常に編集画面の入口。⋮ は冗長なので付けない。 */
+    /** 「PROカスタムSTAGE」行は常に編集画面の入口。⋮ は冗長なので付けない。
+        保存済み行とデザインを揃えるため pro-custom-saved-btn を共通利用し、
+        編集入口用の修飾子 --editor で見出し（👑 / 説明）を最適化する。 */
     const proCustomEditorRowHtml = isCruiseMode ? `
         <div class="stage-route-row stage-route-row--pro-custom">
-            <button class="stage-btn custom-stage-btn" type="button" id="btn-pro-custom-stage">
-                👑 PROカスタムSTAGE
-                <span class="stage-desc">新しい順番を作る／編集する</span>
+            <button class="stage-btn pro-custom-saved-btn pro-custom-saved-btn--editor" type="button" id="btn-pro-custom-stage">
+                <span class="pro-custom-saved-btn__title pro-custom-saved-btn__title--editor">
+                    <span class="pro-custom-saved-btn__title-emoji" aria-hidden="true">👑</span>PROカスタムSTAGE
+                </span>
+                <span class="stage-desc pro-custom-saved-btn__desc">新しい順番を作る／編集する</span>
             </button>
         </div>
     ` : '';
     /** 保存済みのPROカスタムSTAGEがあれば、編集行の下に「再生」用の行を独立表示する。
-        ボタン自体にPRO感（金の縁取り＋シャイン＋PROバッジ）を載せる。 */
+        ボタン自体にPRO感（金の縁取り＋PROバッジ）を載せる。光沢の動くアニメーションは付けない。 */
     const proCustomSavedRowHtml = (isCruiseMode && hasSavedProCustomStage) ? `
         <div class="stage-route-row stage-route-row--pro-custom-saved">
             <button class="stage-btn pro-custom-saved-btn" type="button" id="btn-pro-custom-saved-play">
-                <span class="pro-custom-saved-btn__shine" aria-hidden="true"></span>
                 <span class="pro-custom-saved-btn__badge" aria-hidden="true">PRO</span>
                 <span class="pro-custom-saved-btn__title">${escapeHtml(savedProCustomStage.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}</span>
                 <span class="stage-desc pro-custom-saved-btn__desc">${savedProCustomStage.route.length}音 / カポ${savedProCustomStage.capo}</span>
@@ -7673,6 +7676,11 @@ function filterProCustomDraftToCurrentScale(editor) {
     });
 }
 
+/** デモ再生画面の「このSTAGEを保存」ボタンから編集画面に戻ったとき、
+    着地直後に名前モーダルを自動で開くためのワンショットフラグ。
+    state には乗せず（normalize で落ちるため）、モジュール変数で持つ。 */
+let proCustomPendingOpenNameModal = false;
+
 function renderProCustomRouteEditor(app) {
     state.proCustomRouteEditor = normalizeProCustomEditorState(state.proCustomRouteEditor);
     const editor = state.proCustomRouteEditor;
@@ -7808,7 +7816,10 @@ function renderProCustomRouteEditor(app) {
             <div class="route-editor-expanded-gap ${showAllGroupsExpanded ? 'route-editor-expanded-gap--visible' : ''}" aria-hidden="true"></div>
             <div class="route-editor-save-row">
                 <button type="button" class="btn-secondary route-editor-demo-btn" id="btn-pro-custom-demo" ${draft.length ? '' : 'disabled'}>現在の順番でデモ</button>
-                <button type="button" class="btn-primary route-editor-save-btn" id="btn-pro-custom-save" ${draft.length ? '' : 'disabled'}>このSTAGEで保存</button>
+                <button type="button" class="btn-primary route-editor-save-btn pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-pro-custom-save" ${draft.length ? '' : 'disabled'}>
+                    <span class="pro-custom-saved-btn__badge" aria-hidden="true">PRO</span>
+                    <span class="pro-custom-saved-btn__title">このSTAGEを保存</span>
+                </button>
             </div>
             <div class="pro-custom-route-editor-tail-spacer" aria-hidden="true"></div>
             <div class="route-editor-expanded-spacer ${showAllGroupsExpanded ? 'route-editor-expanded-spacer--visible' : ''}" aria-hidden="true"></div>
@@ -8027,6 +8038,13 @@ function renderProCustomRouteEditor(app) {
         if (triggerFooterButtonFromPoint(e)) return;
         startDemoFromEditor();
     };
+
+    // デモ画面の「このSTAGEを保存」から戻ってきた直後は、自動で名前モーダルを開く
+    if (proCustomPendingOpenNameModal) {
+        proCustomPendingOpenNameModal = false;
+        // 直後の click 余韻でバックドロップが閉じてしまわないよう、ガードは openNameModal 側でセットされる
+        setTimeout(() => openNameModal(), 0);
+    }
 
     renderFretboardHTML('fretboard-container', {
         mode: 'routeEditor',
@@ -8913,6 +8931,12 @@ function renderMemorize(app) {
                 ${isEditorDemoPlayback && !isCruiseCleared ? `
                     <div class="memorize-cruise-controls memorize-cruise-controls--pro-custom">
                         <button type="button" class="btn-secondary memorize-cruise-control-btn memorize-cruise-control-btn--pro-custom-return" id="btn-pro-custom-return-editor">編集画面に戻る</button>
+                        ${isProCustomDemoPlayback ? `
+                            <button type="button" class="btn-primary memorize-cruise-control-btn pro-custom-saved-btn pro-custom-saved-btn--save memorize-cruise-control-btn--pro-custom-save" id="btn-pro-custom-save-from-demo">
+                                <span class="pro-custom-saved-btn__badge" aria-hidden="true">PRO</span>
+                                <span class="pro-custom-saved-btn__title">このSTAGEを保存</span>
+                            </button>
+                        ` : ''}
                     </div>
                 ` : ''}
                 ${isCruiseCounting ? `<div class="memorize-countdown-overlay" aria-hidden="true">${cruiseCountdownValue}</div>` : ''}
@@ -9084,6 +9108,15 @@ function renderMemorize(app) {
     const btnProCustomReturnEditor = document.getElementById('btn-pro-custom-return-editor');
     if (btnProCustomReturnEditor) {
         btnProCustomReturnEditor.onclick = () => {
+            returnMemorizeDemoToEditor();
+        };
+    }
+
+    const btnProCustomSaveFromDemo = document.getElementById('btn-pro-custom-save-from-demo');
+    if (btnProCustomSaveFromDemo) {
+        btnProCustomSaveFromDemo.onclick = () => {
+            // 編集画面に戻ったあと、自動で名前モーダルを開いて保存フローに入る
+            proCustomPendingOpenNameModal = true;
             returnMemorizeDemoToEditor();
         };
     }
