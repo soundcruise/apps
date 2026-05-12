@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.120.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.121.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -8814,6 +8814,8 @@ function renderProCustomRouteEditor(app) {
         const historyItem = Array.isArray(state.proCustomRouteEditor.history) ? state.proCustomRouteEditor.history.pop() : null;
         if (!historyItem) return;
         restoreProCustomEditorSnapshot(historyItem);
+        // 戻したあとに「保存スクロール位置」も指板に反映できるよう、適用済みキーをリセットする
+        proCustomRouteEditorScrollAppliedKey = null;
         saveState();
         renderApp();
     };
@@ -9266,6 +9268,8 @@ function renderProCustomQuizEditor(app) {
         const historyItem = Array.isArray(state.proCustomQuizEditor.history) ? state.proCustomQuizEditor.history.pop() : null;
         if (!historyItem) return;
         restoreProCustomQuizEditorSnapshot(historyItem);
+        // 戻したあとに「保存スクロール位置」も指板に反映できるよう、適用済みキーをリセットする
+        proCustomQuizEditorScrollAppliedKey = null;
         saveState();
         renderApp();
     };
@@ -12555,8 +12559,18 @@ function renderFretboardHTML(containerId, options) {
 
     // カポ：指板を探索するモードでカポが 1F 以上のときだけ描画。
     // 「カポ N」は f<N を不可（既存実装）に合わせ、指板の「フレットNセル」の先頭側（左端）に重ねる。
-    const capoVal = parseInt(proCustomGuide ? proCustomGuide.capo : capo, 10) || 0;
-    if ((mode === 'visualize' || ((mode === 'routeEditor' || mode === 'quizEditor') && proCustomGuide)) && capoVal > 0 && capoVal <= renderMaxFret) {
+    // PROカスタムSTAGEのクルーズ/クイズ問題画面でもカポを反映するため、memorize モードで
+    // state.memorize.proCustomCruise / proCustomQuiz の capo を参照する。
+    let capoVal = parseInt(proCustomGuide ? proCustomGuide.capo : capo, 10) || 0;
+    let showCapoForMode = (mode === 'visualize' || ((mode === 'routeEditor' || mode === 'quizEditor') && proCustomGuide));
+    if (mode === 'memorize') {
+        const memoPro = state.memorize.proCustomCruise || state.memorize.proCustomQuiz;
+        if (memoPro && Number.isFinite(parseInt(memoPro.capo, 10))) {
+            capoVal = parseInt(memoPro.capo, 10) || 0;
+            if (capoVal > 0) showCapoForMode = true;
+        }
+    }
+    if (showCapoForMode && capoVal > 0 && capoVal <= renderMaxFret) {
         const cellLo = xEdges[capoVal];
         const cellHi = xEdges[capoVal + 1];
         const capoX = cellLo + (cellHi - cellLo) * 0.15;
