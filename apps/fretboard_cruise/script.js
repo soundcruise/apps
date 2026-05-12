@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.131.8';
+const FRETBOARD_CRUISE_APP_VERSION = '1.131.9';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。探索・PROカスタム編集・問題画面で共通。 */
@@ -1249,9 +1249,9 @@ function scheduleApplyFretboardViewFromOrientation() {
             state.course === 'proCustomRouteEditor' ||
             state.course === 'proCustomQuizEditor'
         ) {
-            renderApp();
+            tryRenderApp('orientation');
         } else if (fretboardScreen && (autoChanged || orientationFlipped)) {
-            renderApp();
+            tryRenderApp('orientation');
         }
     }, 120);
 }
@@ -14655,6 +14655,23 @@ function addPathLineHighlight(overlay, currentCell, nextCell) {
     }
 }
 
+/** renderApp 内で例外が出ると #app が空のままになり真っ暗に見える。向き変更・初回描画はここから呼ぶ。 */
+function tryRenderApp(context) {
+    try {
+        renderApp();
+    } catch (e) {
+        console.error('renderApp failed' + (context ? ' (' + context + ')' : '') + ':', e);
+        const appEl = document.getElementById('app');
+        if (appEl) {
+            appEl.innerHTML =
+                '<div style="box-sizing:border-box;min-height:100dvh;padding:28px 20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#0f1419;color:#e8eef5;font-size:1rem;line-height:1.5;text-align:center;font-family:system-ui,sans-serif;">' +
+                '<p style="margin:0;max-width:22rem;">画面の描画で問題が起きました。もう一度ページを開き直してください。</p>' +
+                '<button type="button" class="btn-secondary" style="padding:12px 20px;border-radius:12px;cursor:pointer;" onclick="location.reload()">ページを再読み込み</button>' +
+                '</div>';
+        }
+    }
+}
+
 // Initial render
 document.addEventListener('DOMContentLoaded', () => {
     // settings のみ復元（course や memorize 状態は復元しない）
@@ -14669,5 +14686,5 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Failed to restore state from localStorage:', e);
         }
     }
-    renderApp();
+    tryRenderApp('load');
 });

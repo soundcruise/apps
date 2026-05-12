@@ -1298,6 +1298,10 @@
     width: min(340px, 80%);
     padding: 12px 18px 14px;
     gap: 8px;
+    max-height: min(92dvh, calc(100dvh - max(20px, env(safe-area-inset-top, 0px)) - max(20px, env(safe-area-inset-bottom, 0px))));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-shrink: 1;
 }
 .memorize-screen--landscape .memorize-cleared-card--v2 .memorize-cleared-card__title {
     font-size: clamp(1rem, 3.6vmin, 1.35rem);
@@ -1345,11 +1349,14 @@
     }
 }
 
-/* 横画面の終了カードを少し上に寄せて、cruise controls の上端に近づきすぎないようにする。
-   フィードバック行が非表示でできた空きを吸収する。 */
+/* 横画面の終了カード：上下中央に置き、カードが高いときはオーバーレイ内でスクロールして下端が切れないようにする */
 .memorize-screen--landscape .memorize-cleared-overlay--v2 {
-    align-items: flex-start;
-    padding-top: 8%;
+    align-items: center;
+    justify-content: center;
+    padding: max(8px, env(safe-area-inset-top, 0px)) 16px max(8px, env(safe-area-inset-bottom, 0px)) 16px;
+    box-sizing: border-box;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .memorize-screen--landscape .memorize-question-main.question-text {
