@@ -1583,14 +1583,19 @@
     margin-top: 20px;
     width: 100%;
     isolation: isolate;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .visualize-diatonic-header-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     margin-bottom: 10px;
-    width: 100%;
+    width: auto;
+    max-width: 100%;
+    gap: 10px;
 }
 
 .visualize-diatonic-title {
@@ -1600,32 +1605,7 @@
 }
 
 .visualize-diatonic-auto-toggle {
-    margin-left: 10px;
     flex-shrink: 0;
-}
-
-/* 横画面のみ：ダイアトニック見出し＋トグルを中央のまとまりに、コードボタン行も中央寄せ */
-@media (orientation: landscape) {
-    .visualize-chords-afterboard {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-    }
-
-    .visualize-diatonic-header-row {
-        justify-content: center;
-        width: auto;
-        max-width: 100%;
-        gap: 10px;
-    }
-
-    .visualize-diatonic-auto-toggle {
-        margin-left: 0;
-    }
-
-    .visualize-chords-afterboard .chord-list {
-        justify-content: center;
-    }
 }
 
 .chord-list {
@@ -1636,6 +1616,7 @@
     width: 100%;
     position: relative;
     z-index: 1;
+    justify-content: center;
 }
 
 .chord-btn {
