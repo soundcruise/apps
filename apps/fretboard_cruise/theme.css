@@ -2525,6 +2525,16 @@ input:checked + .toggle-slider:before {
     padding-bottom: 96px;
 }
 
+/* PROカスタム編集：「一覧」で内側スクロールなしに全 Gr を並べる（縦画面の 5 列固定を外す） */
+.pro-custom-route-editor-screen .route-editor-group-panel--expanded:not(.route-editor-group-panel--floating) .route-editor-group-list {
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+}
+
+/* 📍 を常時表示するのでセルが縦に伸びる。折りたたみ時は少し広い高さを確保（全件は「一覧」） */
+.pro-custom-route-editor-screen .route-editor-group-panel:not(.route-editor-group-panel--expanded) .route-editor-group-list {
+    max-height: min(420px, 58vh);
+}
+
 /* PRO編集カード下部の ⊕ ヘルプボタンと説明文の横並び。
    ⊕ を左に、説明文をその右に表示する。説明文は ⊕ をタップしたときだけ表示。 */
 .pro-custom-setup-help-row {

@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.119.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.120.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -342,7 +342,7 @@ const ROUTE_EDITOR_SCALE_GUIDE_LABELS = {
 
 // Default States
 let state = {
-    course: null, // 'modeSelect' | 'ruleSelect' | 'basicRules' | 'basicRuleStep' | 'stageSelect' | 'memorize' | 'routeEditor' | 'proCustomRouteEditor' | 'visualize'
+    course: null, // 'modeSelect' | 'ruleSelect' | 'basicRules' | 'basicRuleStep' | 'stageSelect' | 'memorize' | 'routeEditor' | 'proCustomRouteEditor' | 'proCustomQuizEditor' | 'visualize'
     memorize: {
         playMode: 'quiz', // 'cruise' | 'quiz'
         stage: 1,
@@ -372,7 +372,8 @@ let state = {
         cruisePreTapped: false,
         /** 直近のタップ／時間切れ判定文（カウントダウン後はこれを常時表示し、Perfect/Miss などを残す） */
         cruiseLastTapFeedback: null,
-        proCustomCruise: null
+        proCustomCruise: null,
+        proCustomQuiz: null
     },
     visualize: {
         key: 0, // C
@@ -455,6 +456,23 @@ let state = {
         visibleGroupIndices: [],
         forceHideAllGroups: false
     },
+    proCustomQuizEditor: {
+        groups: [{ notes: [], scrollLeft: null }],
+        selectedGroupIndex: 0,
+        groupPanelOffset: { x: 0, y: 0 },
+        history: [],
+        showAllGroupsExpanded: false,
+        visibleGroupIndices: [0],
+        forceHideAllGroups: false,
+        name: PRO_CUSTOM_STAGE_DEFAULT_NAME,
+        key: 0,
+        capo: 0,
+        scale: 'major',
+        displayMode: 'solfege',
+        doMode: 'movable',
+        maxFret: PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET,
+        editingStageId: null
+    },
     /** 問題編集から「試す」でクイズへ入ったとき、保存前のグループを generateQuestion が読む */
     quizEditorPreview: null,
     settings: {
@@ -479,6 +497,7 @@ let state = {
         cruiseStageGroupScrollLefts: {},
         cruiseProCustomStage: null,
         cruiseProCustomStages: [],
+        quizProCustomStages: [],
         quizStageEditorSettings: {},
         quizStageAttemptCounts: {},
         routeNumberingVersion: 2,
@@ -494,6 +513,8 @@ let nextTargetTime = 0;
 let pendingCruiseGroupScrollTimeoutId = null;
 let routeEditorGroupDragBlocked = false;
 let routeEditorScrollAppliedKey = null;
+/** PROカスタムSTAGE編集: Gr 切替時に保存スクロールを一度だけ currentScrollLeft に流し込むためのキー */
+let proCustomRouteEditorScrollAppliedKey = null;
 const routeEditorPendingGroupScrollLefts = new Map();
 /** ルート編集・拡大ビュー: 同期で読む scrollLeft が 0 にずれることがあるため、scroll で拾った直近値を保持 */
 let routeEditorFretboardScrollSnapshot = 0;
@@ -762,6 +783,13 @@ if (savedState) {
             state.memorize.proCustomCruise = null;
         }
         if (typeof state.memorize.proCustomCruise === 'undefined') state.memorize.proCustomCruise = null;
+        if (
+            state.memorize.proCustomQuiz &&
+            (typeof state.memorize.proCustomQuiz !== 'object' || Array.isArray(state.memorize.proCustomQuiz))
+        ) {
+            state.memorize.proCustomQuiz = null;
+        }
+        if (typeof state.memorize.proCustomQuiz === 'undefined') state.memorize.proCustomQuiz = null;
         if (typeof state.memorize.cruisePreviousGroupIndex !== 'number' && state.memorize.cruisePreviousGroupIndex !== null) {
             state.memorize.cruisePreviousGroupIndex = null;
         }
@@ -879,6 +907,20 @@ if (savedState) {
                 return { ...s, id };
             })
             .slice(0, PRO_CUSTOM_STAGE_MAX_SAVED);
+        if (!Array.isArray(state.settings.quizProCustomStages)) {
+            state.settings.quizProCustomStages = [];
+        }
+        const seenQuizIds = new Set();
+        state.settings.quizProCustomStages = state.settings.quizProCustomStages
+            .map(stage => normalizeProCustomQuizStageSettings(stage))
+            .filter(Boolean)
+            .map(stage => {
+                let id = stage.id;
+                if (!id || seenQuizIds.has(id)) id = generateProCustomStageId();
+                seenQuizIds.add(id);
+                return { ...stage, id };
+            })
+            .slice(0, PRO_CUSTOM_STAGE_MAX_SAVED);
         if (
             !state.settings.quizStageEditorSettings ||
             typeof state.settings.quizStageEditorSettings !== 'object' ||
@@ -917,6 +959,7 @@ if (savedState) {
             state.routeEditor.groupPanelOffset = { x: 0, y: 0 };
         }
         state.proCustomRouteEditor = normalizeProCustomEditorState(state.proCustomRouteEditor);
+        state.proCustomQuizEditor = normalizeProCustomQuizEditorState(state.proCustomQuizEditor);
         if (
             !state.quizEditor ||
             typeof state.quizEditor !== 'object' ||
@@ -1182,7 +1225,7 @@ function scheduleApplyFretboardViewFromOrientation() {
             state.course === 'ruleSelect' ||
             state.course === 'basicRules' ||
             state.course === 'basicRuleStep';
-        if (state.course === 'memorize' || state.course === 'routeEditor' || state.course === 'quizEditor') {
+        if (state.course === 'memorize' || state.course === 'routeEditor' || state.course === 'quizEditor' || state.course === 'proCustomQuizEditor') {
             renderApp();
         } else if (fretboardScreen && (autoChanged || orientationFlipped)) {
             renderApp();
@@ -1220,6 +1263,7 @@ function getDefaultSettings() {
         cruiseStageGroupScrollLefts: {},
         cruiseProCustomStage: null,
         cruiseProCustomStages: [],
+        quizProCustomStages: [],
         cruiseStageClearCounts: {},
         lastSettingsTab: 'cruise',
         /** 指板クイズ・問題編集の保存（⚙️デフォルト復元でも消さない） */
@@ -1243,6 +1287,9 @@ function cloneSettings(settings) {
             : null,
         cruiseProCustomStages: Array.isArray(settings.cruiseProCustomStages)
             ? JSON.parse(JSON.stringify(settings.cruiseProCustomStages))
+            : [],
+        quizProCustomStages: Array.isArray(settings.quizProCustomStages)
+            ? JSON.parse(JSON.stringify(settings.quizProCustomStages))
             : [],
         cruiseStageClearCounts: JSON.parse(JSON.stringify(settings.cruiseStageClearCounts || {})),
         quizStageEditorSettings: JSON.parse(JSON.stringify(settings.quizStageEditorSettings || {})),
@@ -1409,6 +1456,126 @@ function renameProCustomStageById(id, newName) {
     return !!saveProCustomStageInArray({ ...cur, name: trimmed });
 }
 
+function getDefaultProCustomQuizStageSettings() {
+    return {
+        id: null,
+        name: PRO_CUSTOM_STAGE_DEFAULT_NAME,
+        key: 0,
+        capo: 0,
+        scale: 'major',
+        displayMode: 'solfege',
+        doMode: 'movable',
+        maxFret: PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET,
+        groups: [{ notes: [], scrollLeft: null }]
+    };
+}
+
+function normalizeProCustomQuizGroups(groups) {
+    const normalized = Array.isArray(groups) ? groups.slice(0, PRO_CUSTOM_STAGE_MAX_GROUPS).map((group, index) => ({
+        name: String(group?.name || `Gr.${index + 1}`).trim() || `Gr.${index + 1}`,
+        notes: (group?.notes || []).map(normalizeQuizNoteSlot).filter(Boolean),
+        scrollLeft: Number.isFinite(group?.scrollLeft) ? Math.max(0, Math.round(group.scrollLeft)) : null
+    })) : [];
+    return normalized.length ? normalized : [{ name: 'Gr.1', notes: [], scrollLeft: null }];
+}
+
+function normalizeProCustomQuizStageSettings(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const defaults = getDefaultProCustomQuizStageSettings();
+    const scale = PRO_CUSTOM_SCALE_KEYS.includes(raw.scale) ? raw.scale : defaults.scale;
+    const displayMode = ['solfege', 'note', 'degree'].includes(raw.displayMode) ? raw.displayMode : defaults.displayMode;
+    const doMode = raw.doMode === 'fixed' ? 'fixed' : 'movable';
+    const maxFret = Number.isFinite(parseInt(raw.maxFret, 10))
+        ? clamp(parseInt(raw.maxFret, 10), PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, MAX_FRET)
+        : PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET;
+    return {
+        id: typeof raw.id === 'string' && raw.id ? raw.id : null,
+        name: String(raw.name || defaults.name).trim() || defaults.name,
+        key: clamp(parseInt(raw.key, 10) || 0, 0, NOTES.length - 1),
+        capo: clamp(parseInt(raw.capo, 10) || 0, 0, 7),
+        scale,
+        displayMode,
+        doMode,
+        maxFret,
+        groups: normalizeProCustomQuizGroups(raw.groups)
+    };
+}
+
+function getSavedProCustomQuizStages() {
+    const arr = state.settings && Array.isArray(state.settings.quizProCustomStages)
+        ? state.settings.quizProCustomStages
+        : [];
+    return arr.map(stage => normalizeProCustomQuizStageSettings(stage)).filter(Boolean);
+}
+
+function getSavedProCustomQuizStageById(id) {
+    if (!id) return null;
+    return getSavedProCustomQuizStages().find(stage => stage.id === id) || null;
+}
+
+function proCustomQuizStageNameExists(name, excludeId = null) {
+    const trimmed = String(name || '').trim();
+    if (!trimmed) return false;
+    return getSavedProCustomQuizStages().some(stage => stage.id !== excludeId && stage.name === trimmed);
+}
+
+function findFreshProCustomQuizStageName(baseName) {
+    const baseRaw = String(baseName || PRO_CUSTOM_STAGE_DEFAULT_NAME).trim() || PRO_CUSTOM_STAGE_DEFAULT_NAME;
+    if (!proCustomQuizStageNameExists(baseRaw)) return baseRaw;
+    for (let i = 2; i < 1000; i++) {
+        const candidate = `${baseRaw} (${i})`;
+        if (!proCustomQuizStageNameExists(candidate)) return candidate;
+    }
+    return `${baseRaw} ${Date.now().toString(36)}`;
+}
+
+function saveProCustomQuizStageInArray(stage) {
+    const incoming = normalizeProCustomQuizStageSettings(stage);
+    if (!incoming) return null;
+    const stages = getSavedProCustomQuizStages();
+    if (incoming.id) {
+        const idx = stages.findIndex(s => s.id === incoming.id);
+        if (idx >= 0) {
+            stages[idx] = incoming;
+        } else {
+            if (stages.length >= PRO_CUSTOM_STAGE_MAX_SAVED) return null;
+            stages.push(incoming);
+        }
+    } else {
+        if (stages.length >= PRO_CUSTOM_STAGE_MAX_SAVED) return null;
+        incoming.id = generateProCustomStageId();
+        stages.push(incoming);
+    }
+    state.settings.quizProCustomStages = stages;
+    return incoming;
+}
+
+function deleteProCustomQuizStageById(id) {
+    if (!id) return false;
+    const stages = getSavedProCustomQuizStages();
+    const filtered = stages.filter(stage => stage.id !== id);
+    if (filtered.length === stages.length) return false;
+    state.settings.quizProCustomStages = filtered;
+    return true;
+}
+
+function duplicateProCustomQuizStage(id) {
+    const original = getSavedProCustomQuizStageById(id);
+    if (!original) return null;
+    if (getSavedProCustomQuizStages().length >= PRO_CUSTOM_STAGE_MAX_SAVED) return null;
+    const copyName = findFreshProCustomQuizStageName(`${original.name} のコピー`);
+    return saveProCustomQuizStageInArray({ ...original, id: null, name: copyName });
+}
+
+function renameProCustomQuizStageById(id, newName) {
+    const trimmed = String(newName || '').trim();
+    if (!trimmed) return false;
+    if (proCustomQuizStageNameExists(trimmed, id)) return false;
+    const cur = getSavedProCustomQuizStageById(id);
+    if (!cur) return false;
+    return !!saveProCustomQuizStageInArray({ ...cur, name: trimmed });
+}
+
 function normalizeProCustomEditorState(raw) {
     /** 編集中STAGEがあればその保存済みデータを基底にする。新規作成中なら既定値。
         万一 id が指す STAGE が削除されていた場合は editingStageId を null に戻す（誤って別 id で新規追加されないように）。 */
@@ -1521,6 +1688,87 @@ function restoreProCustomEditorSnapshot(snapshot) {
     });
 }
 
+function normalizeProCustomQuizEditorState(raw) {
+    const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    const requestedId = typeof source.editingStageId === 'string' && source.editingStageId ? source.editingStageId : null;
+    const matchedStage = requestedId ? getSavedProCustomQuizStageById(requestedId) : null;
+    const editingId = matchedStage ? requestedId : null;
+    const saved = matchedStage || getDefaultProCustomQuizStageSettings();
+    const groups = normalizeProCustomQuizGroups(source.groups || saved.groups);
+    const groupCount = Math.max(1, groups.length);
+    const visibleGroupIndices = Array.isArray(source.visibleGroupIndices)
+        ? source.visibleGroupIndices.map(value => parseInt(value, 10)).filter(value => Number.isFinite(value) && value >= 0 && value < groupCount)
+        : [0];
+    return {
+        groups,
+        selectedGroupIndex: clamp(parseInt(source.selectedGroupIndex ?? 0, 10) || 0, -1, groupCount - 1),
+        groupPanelOffset: normalizeRouteEditorGroupPanelOffset(source.groupPanelOffset),
+        history: Array.isArray(source.history) ? source.history : [],
+        showAllGroupsExpanded: !!source.showAllGroupsExpanded,
+        visibleGroupIndices: source.forceHideAllGroups ? [] : (visibleGroupIndices.length ? Array.from(new Set(visibleGroupIndices)).sort((a, b) => a - b) : [0]),
+        forceHideAllGroups: !!source.forceHideAllGroups,
+        name: String(source.name || saved.name || PRO_CUSTOM_STAGE_DEFAULT_NAME).trim() || PRO_CUSTOM_STAGE_DEFAULT_NAME,
+        key: clamp(parseInt(source.key ?? saved.key, 10) || 0, 0, NOTES.length - 1),
+        capo: clamp(parseInt(source.capo ?? saved.capo, 10) || 0, 0, 7),
+        scale: PRO_CUSTOM_SCALE_KEYS.includes(source.scale) ? source.scale : (PRO_CUSTOM_SCALE_KEYS.includes(saved.scale) ? saved.scale : 'major'),
+        displayMode: ['solfege', 'note', 'degree'].includes(source.displayMode) ? source.displayMode : saved.displayMode,
+        doMode: source.doMode === 'fixed' ? 'fixed' : saved.doMode === 'fixed' ? 'fixed' : 'movable',
+        maxFret: Number.isFinite(parseInt(source.maxFret ?? saved.maxFret, 10))
+            ? clamp(parseInt(source.maxFret ?? saved.maxFret, 10), PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, MAX_FRET)
+            : PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET,
+        editingStageId: editingId
+    };
+}
+
+function saveProCustomQuizStageFromEditor() {
+    const editor = normalizeProCustomQuizEditorState(state.proCustomQuizEditor);
+    state.proCustomQuizEditor = editor;
+    const saved = saveProCustomQuizStageInArray({
+        id: editor.editingStageId,
+        name: editor.name,
+        key: editor.key,
+        capo: editor.capo,
+        scale: editor.scale,
+        displayMode: state.settings.noteLabelMode,
+        doMode: editor.doMode,
+        maxFret: editor.maxFret,
+        groups: editor.groups
+    });
+    if (saved) {
+        state.proCustomQuizEditor.editingStageId = saved.id;
+    }
+    return saved;
+}
+
+function pushProCustomQuizEditorHistory() {
+    const editor = normalizeProCustomQuizEditorState(state.proCustomQuizEditor);
+    const history = Array.isArray(editor.history) ? editor.history.slice() : [];
+    history.push({
+        groups: normalizeProCustomQuizGroups(editor.groups),
+        selectedGroupIndex: editor.selectedGroupIndex,
+        visibleGroupIndices: editor.visibleGroupIndices.slice(),
+        forceHideAllGroups: editor.forceHideAllGroups
+    });
+    editor.history = history.slice(-50);
+    state.proCustomQuizEditor = editor;
+}
+
+function restoreProCustomQuizEditorSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') return;
+    state.proCustomQuizEditor = normalizeProCustomQuizEditorState({
+        ...state.proCustomQuizEditor,
+        ...snapshot,
+        history: Array.isArray(state.proCustomQuizEditor?.history) ? state.proCustomQuizEditor.history : []
+    });
+}
+
+function isProCustomQuizSelectableFret(editor, stringName, fret) {
+    return isProCustomSelectableFret({
+        ...state.proCustomRouteEditor,
+        ...normalizeProCustomQuizEditorState(editor)
+    }, stringName, fret);
+}
+
 function getProCustomGroupScrollLeft(groupIndex) {
     const custom = state.memorize?.proCustomCruise;
     const source = state.course === 'memorize' && custom && typeof custom === 'object' && !Array.isArray(custom)
@@ -1610,6 +1858,7 @@ function getQuizStageAttemptCount(stage) {
  */
 function maybeRecordQuizStageAttempt() {
     if (state.memorize.playMode !== 'quiz') return;
+    if (state.memorize.proCustomQuiz) return;
     if (state.memorize.quizAttemptCounted) return;
     const limit = parseInt(state.settings.quizQuestionLimit ?? DEFAULT_QUIZ_QUESTION_LIMIT, 10) || 0;
     const asked = parseInt(state.memorize.quizQuestionsAsked ?? 0, 10) || 0;
@@ -2942,7 +3191,7 @@ let routeEditorScrollRafId = null;
 
 /** routeEditor 中の横スクロール量を RAF で追跡し、タップ時に wrapper.scrollLeft が 0 を返す場面でも保存できるようにする */
 function tickRouteEditorScrollRaf() {
-    if (state.course !== 'routeEditor') {
+    if (state.course !== 'routeEditor' && state.course !== 'proCustomRouteEditor') {
         routeEditorScrollRafId = null;
         return;
     }
@@ -3062,7 +3311,11 @@ function scheduleNextGroupScrollIfNeeded() {
 
 function getRouteEditorCurrentScrollLeft() {
     const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
-    return wrapper ? Math.max(0, Math.round(wrapper.scrollLeft)) : 0;
+    const live = wrapper ? Math.max(0, Math.round(wrapper.scrollLeft)) : 0;
+    if (state.course === 'routeEditor' || state.course === 'proCustomRouteEditor') {
+        return Math.max(live, routeEditorFretboardScrollSnapshot);
+    }
+    return live;
 }
 
 function findLastCruiseRouteSlotIndex(route, stringName, fret) {
@@ -3949,6 +4202,62 @@ function startProCustomCruisePlayback(stageSettings, returnCourse = 'proCustomRo
     return true;
 }
 
+function startProCustomQuizPlayback(stageSettings, returnCourse = 'stageSelect') {
+    const custom = normalizeProCustomQuizStageSettings(stageSettings);
+    if (!custom) return false;
+    const hasNotes = custom.groups.some(group => Array.isArray(group.notes) && group.notes.length > 0);
+    if (!hasNotes) return false;
+    stopRhythm();
+    stopQuizTimer();
+    cancelQuizScrollAnimation();
+    clearStage1RepeatHintState();
+    state.memorize.stage = 6;
+    state.memorize.playMode = 'quiz';
+    state.memorize.combo = 0;
+    state.memorize.maxCombo = 0;
+    state.memorize.correct = 0;
+    state.memorize.quizQuestionsAsked = 0;
+    state.memorize.quizQuestionResults = [];
+    state.memorize.isQuizCleared = false;
+    state.memorize.quizAttemptCounted = false;
+    state.memorize.isCleared = false;
+    state.memorize.hasTappedCurrentNote = false;
+    state.memorize.tempFeedback = null;
+    state.memorize.cruiseTargets = [];
+    state.memorize.cruiseScope = [];
+    state.memorize.cruiseIndex = 0;
+    state.memorize.proCustomCruise = null;
+    state.memorize.proCustomQuiz = {
+        id: custom.id,
+        name: custom.name,
+        key: custom.key,
+        capo: custom.capo,
+        scale: custom.scale,
+        displayMode: custom.displayMode,
+        doMode: custom.doMode,
+        maxFret: custom.maxFret,
+        groups: normalizeProCustomQuizGroups(custom.groups)
+    };
+    state.memorize.isDemoPlayback = returnCourse === 'proCustomQuizEditor';
+    state.memorize.demoReturnCourse = returnCourse;
+    state.memorize.demoReturnStage = null;
+    state.quizEditorPreview = null;
+    state.course = 'memorize';
+    generateQuestion();
+    autoScrollRequested = true;
+    saveState();
+    renderApp();
+    if (state.memorize.currentQuestion) {
+        quizToneTimeout = setTimeout(() => {
+            quizToneTimeout = null;
+            if (state.course === 'memorize' && state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+                playTone(state.memorize.currentQuestion.stringIdx, state.memorize.currentQuestion.fret);
+            }
+        }, 100);
+    }
+    return true;
+}
+
 function generateQuestion() {
     // 指板クイズ：問題数の上限を超えた場合はクリアを立てて即終了
     if (state.memorize.playMode === 'quiz') {
@@ -3964,7 +4273,9 @@ function generateQuestion() {
         }
     }
     let savedSettings = getQuizEditorSavedSettings(state.memorize.stage);
-    if (state.quizEditorPreview && state.quizEditorPreview.stage === state.memorize.stage) {
+    if (state.memorize.playMode === 'quiz' && state.memorize.proCustomQuiz) {
+        savedSettings = { groups: normalizeProCustomQuizGroups(state.memorize.proCustomQuiz.groups) };
+    } else if (state.quizEditorPreview && state.quizEditorPreview.stage === state.memorize.stage) {
         savedSettings = { groups: cloneQuizEditorGroups(state.quizEditorPreview.groups) };
     } else if (savedSettings && Array.isArray(savedSettings.groups) && savedSettings.groups.length > 0) {
         // localStorage 由来の弦／フレットの型ゆらぎを除去してからプールを構築する
@@ -4129,6 +4440,8 @@ function renderApp() {
         currentScrollLeft = oldWrapper.scrollLeft;
     } else if (oldScrollGroup === 'quizEditor' && state.course === 'quizEditor') {
         currentScrollLeft = oldWrapper.scrollLeft;
+    } else if (oldScrollGroup === 'quizEditor' && state.course === 'proCustomQuizEditor') {
+        currentScrollLeft = oldWrapper.scrollLeft;
     } else if (
         oldScrollGroup === 'visualize' &&
         state.course === 'visualize' &&
@@ -4148,6 +4461,13 @@ function renderApp() {
     if (state.course === 'routeEditor' && oldScrollGroup !== 'routeEditor') {
         routeEditorScrollAppliedKey = null;
     }
+    if (
+        state.course === 'proCustomRouteEditor' &&
+        oldScrollGroup !== 'routeEditor' &&
+        oldScrollGroup !== 'proCustomRouteEditor'
+    ) {
+        proCustomRouteEditorScrollAppliedKey = null;
+    }
 
     const isLandscapeRuleStep =
         state.course === 'basicRuleStep' &&
@@ -4157,6 +4477,7 @@ function renderApp() {
         state.course === 'routeEditor' ||
         state.course === 'proCustomRouteEditor' ||
         state.course === 'quizEditor' ||
+        state.course === 'proCustomQuizEditor' ||
         state.course === 'visualize' ||
         isLandscapeRuleStep;
 
@@ -4231,6 +4552,8 @@ function renderApp() {
         renderProCustomRouteEditor(app);
     } else if (state.course === 'quizEditor') {
         renderQuizEditor(app);
+    } else if (state.course === 'proCustomQuizEditor') {
+        renderProCustomQuizEditor(app);
     } else if (state.course === 'visualize') {
         renderVisualize(app);
     } else if (state.course === 'settings') {
@@ -4288,12 +4611,12 @@ function renderApp() {
                 newWrapper.scrollLeft = savedCruiseGroupScrollLeft;
             });
             state.memorize.cruisePreviousGroupIndex = state.memorize.cruiseCurrentGroupIndex;
-        } else if (state.course === 'quizEditor') {
+        } else if (state.course === 'quizEditor' || state.course === 'proCustomQuizEditor') {
             const qeScrollTarget = quizEditorPendingScrollLeft !== null ? quizEditorPendingScrollLeft : currentScrollLeft;
             quizEditorPendingScrollLeft = null;
             newWrapper.scrollLeft = qeScrollTarget;
             requestAnimationFrame(() => {
-                if (!newWrapper.isConnected || state.course !== 'quizEditor') return;
+                if (!newWrapper.isConnected || (state.course !== 'quizEditor' && state.course !== 'proCustomQuizEditor')) return;
                 newWrapper.scrollLeft = qeScrollTarget;
             });
         } else if (state.course === 'routeEditor') {
@@ -4302,6 +4625,15 @@ function renderApp() {
             startRouteEditorScrollRaf();
             requestAnimationFrame(() => {
                 if (!newWrapper.isConnected || state.course !== 'routeEditor') return;
+                newWrapper.scrollLeft = currentScrollLeft;
+                if (currentScrollLeft > 0) routeEditorFretboardScrollSnapshot = currentScrollLeft;
+            });
+        } else if (state.course === 'proCustomRouteEditor') {
+            newWrapper.scrollLeft = currentScrollLeft;
+            routeEditorFretboardScrollSnapshot = currentScrollLeft;
+            startRouteEditorScrollRaf();
+            requestAnimationFrame(() => {
+                if (!newWrapper.isConnected || state.course !== 'proCustomRouteEditor') return;
                 newWrapper.scrollLeft = currentScrollLeft;
                 if (currentScrollLeft > 0) routeEditorFretboardScrollSnapshot = currentScrollLeft;
             });
@@ -6813,6 +7145,8 @@ function renderStageSelect(app) {
     }).join('');
     const savedProCustomStages = isCruiseMode ? getSavedProCustomStages() : [];
     const proCustomReachedLimit = savedProCustomStages.length >= PRO_CUSTOM_STAGE_MAX_SAVED;
+    const savedProCustomQuizStages = !isCruiseMode ? getSavedProCustomQuizStages() : [];
+    const proCustomQuizReachedLimit = savedProCustomQuizStages.length >= PRO_CUSTOM_STAGE_MAX_SAVED;
     /** 「PROカスタムSTAGE」行は常に "新規追加" の入口。タップすると空の編集画面が開く。
         既存STAGEの編集は下に並ぶ各保存STAGE行の ▼ → ⚙️ から行う。 */
     const proCustomEditorRowHtml = isCruiseMode ? `
@@ -6852,7 +7186,44 @@ function renderStageSelect(app) {
         </div>
         `;
     }).join('');
-    const proCustomStageHtml = `${proCustomEditorRowHtml}${proCustomSavedRowsHtml}`;
+    const proCustomQuizEditorRowHtml = !isCruiseMode ? `
+        <div class="stage-route-row stage-route-row--pro-custom">
+            <button class="stage-btn pro-custom-saved-btn pro-custom-saved-btn--editor" type="button" id="btn-pro-custom-quiz-stage" ${proCustomQuizReachedLimit ? 'disabled' : ''}>
+                <span class="pro-custom-saved-btn__title pro-custom-saved-btn__title--editor">
+                    <span class="pro-custom-saved-btn__title-emoji" aria-hidden="true">👑</span>${proCustomQuizReachedLimit ? `PROカスタムSTAGE（上限${PRO_CUSTOM_STAGE_MAX_SAVED}件）` : 'PROカスタムSTAGE'}
+                </span>
+                <span class="stage-desc pro-custom-saved-btn__desc">${proCustomQuizReachedLimit ? '不要なSTAGEを削除してください' : '新しいSTAGEを追加する'}</span>
+            </button>
+        </div>
+    ` : '';
+    const proCustomQuizSavedRowsHtml = savedProCustomQuizStages.map((stage) => {
+        const safeId = escapeHtml(stage.id);
+        const noteCount = stage.groups.reduce((sum, group) => sum + (Array.isArray(group.notes) ? group.notes.length : 0), 0);
+        return `
+        <div class="stage-route-row stage-route-row--pro-custom-saved pro-custom-saved-row" data-pro-custom-quiz-row-id="${safeId}">
+            <div class="pro-custom-saved-row__main">
+                <button class="stage-btn pro-custom-saved-btn pro-custom-saved-btn--play" type="button" data-pro-custom-quiz-play-id="${safeId}">
+                    <span class="pro-custom-saved-btn__badge" aria-hidden="true">PRO</span>
+                    <span class="pro-custom-saved-btn__title">${escapeHtml(stage.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}</span>
+                    <span class="stage-desc pro-custom-saved-btn__desc">${noteCount}音 / カポ${stage.capo}</span>
+                </button>
+                <button type="button" class="pro-custom-saved-quick-edit" data-pro-custom-quiz-action="edit" data-pro-custom-quiz-target-id="${safeId}" aria-label="このSTAGEを編集" title="編集">⋮</button>
+                <button type="button" class="pro-custom-saved-toggle" data-pro-custom-quiz-toggle-id="${safeId}" aria-expanded="false" aria-haspopup="true" aria-label="その他の操作を表示" title="その他の操作">
+                    <span class="pro-custom-saved-toggle__chevron" aria-hidden="true">▼</span>
+                </button>
+            </div>
+            <div class="pro-custom-saved-actions" hidden role="group" aria-label="PROカスタムSTAGEの操作" data-pro-custom-quiz-actions-id="${safeId}">
+                <button type="button" class="icon-btn pro-custom-saved-action-btn" data-pro-custom-quiz-action="rename" data-pro-custom-quiz-target-id="${safeId}" title="名前を変更" aria-label="名前を変更">✏️</button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn" data-pro-custom-quiz-action="edit" data-pro-custom-quiz-target-id="${safeId}" title="このSTAGEを編集" aria-label="このSTAGEを編集">⚙️</button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn pro-custom-saved-action-btn--duplicate" data-pro-custom-quiz-action="duplicate" data-pro-custom-quiz-target-id="${safeId}" title="複製" aria-label="複製" ${proCustomQuizReachedLimit ? 'disabled' : ''}><img src="../assets/icon-duplicate.png?v=1" class="pro-custom-saved-action-icon" alt="" decoding="async" width="20" height="20"></button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn pro-custom-saved-action-btn--delete" data-pro-custom-quiz-action="delete" data-pro-custom-quiz-target-id="${safeId}" title="このSTAGEを削除" aria-label="このSTAGEを削除">🗑️</button>
+            </div>
+        </div>
+        `;
+    }).join('');
+    const proCustomStageHtml = isCruiseMode
+        ? `${proCustomEditorRowHtml}${proCustomSavedRowsHtml}`
+        : `${proCustomQuizEditorRowHtml}${proCustomQuizSavedRowsHtml}`;
     app.innerHTML = `
         ${buildPageHeader({
             headerClass: 'page-header--stage-select',
@@ -7029,6 +7400,139 @@ function renderStageSelect(app) {
         };
     });
 
+    const openProCustomQuizEditor = (options = {}) => {
+        const { newStage = false, stageId = null } = options;
+        let base;
+        let editingStageId = null;
+        if (stageId) {
+            const target = getSavedProCustomQuizStageById(stageId);
+            if (target) {
+                base = target;
+                editingStageId = target.id;
+            } else {
+                base = getDefaultProCustomQuizStageSettings();
+            }
+        } else if (newStage) {
+            base = getDefaultProCustomQuizStageSettings();
+            base.name = findFreshProCustomQuizStageName(PRO_CUSTOM_STAGE_DEFAULT_NAME);
+        } else {
+            base = getDefaultProCustomQuizStageSettings();
+            base.name = findFreshProCustomQuizStageName(PRO_CUSTOM_STAGE_DEFAULT_NAME);
+        }
+        state.proCustomQuizEditor = normalizeProCustomQuizEditorState({
+            groups: base.groups,
+            selectedGroupIndex: 0,
+            groupPanelOffset: { x: 0, y: 0 },
+            history: [],
+            showAllGroupsExpanded: false,
+            visibleGroupIndices: [0],
+            forceHideAllGroups: false,
+            name: base.name,
+            key: base.key,
+            capo: base.capo,
+            scale: base.scale,
+            displayMode: base.displayMode,
+            doMode: base.doMode,
+            maxFret: base.maxFret,
+            editingStageId
+        });
+        state.course = 'proCustomQuizEditor';
+        saveState();
+        renderApp();
+    };
+
+    const proCustomQuizBtn = document.getElementById('btn-pro-custom-quiz-stage');
+    if (proCustomQuizBtn) {
+        proCustomQuizBtn.onclick = () => {
+            if (proCustomQuizBtn.disabled) return;
+            openProCustomQuizEditor({ newStage: true });
+        };
+    }
+
+    document.querySelectorAll('[data-pro-custom-quiz-play-id]').forEach(btn => {
+        btn.onclick = () => {
+            initAudio();
+            const id = btn.getAttribute('data-pro-custom-quiz-play-id');
+            const stage = getSavedProCustomQuizStageById(id);
+            if (stage) startProCustomQuizPlayback(stage, 'stageSelect');
+        };
+    });
+
+    document.querySelectorAll('[data-pro-custom-quiz-toggle-id]').forEach(btn => {
+        btn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const id = btn.getAttribute('data-pro-custom-quiz-toggle-id');
+            const row = btn.closest('.pro-custom-saved-row');
+            const actions = row ? row.querySelector(`[data-pro-custom-quiz-actions-id="${id}"]`) : null;
+            if (!row || !actions) return;
+            const opening = !row.classList.contains('is-open');
+            document.querySelectorAll('.pro-custom-saved-row.is-open').forEach(other => {
+                if (other === row) return;
+                other.classList.remove('is-open');
+                const otherActions = other.querySelector('.pro-custom-saved-actions');
+                const otherToggle = other.querySelector('.pro-custom-saved-toggle');
+                if (otherActions) otherActions.hidden = true;
+                if (otherToggle) {
+                    otherToggle.setAttribute('aria-expanded', 'false');
+                    otherToggle.setAttribute('aria-label', 'その他の操作を表示');
+                }
+            });
+            row.classList.toggle('is-open', opening);
+            actions.hidden = !opening;
+            btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
+            btn.setAttribute('aria-label', opening ? 'その他の操作を閉じる' : 'その他の操作を表示');
+        };
+    });
+
+    document.querySelectorAll('[data-pro-custom-quiz-action]').forEach(btn => {
+        btn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (btn.disabled) return;
+            const action = btn.getAttribute('data-pro-custom-quiz-action');
+            const id = btn.getAttribute('data-pro-custom-quiz-target-id');
+            if (!id) return;
+            if (action === 'edit') {
+                openProCustomQuizEditor({ stageId: id });
+                return;
+            }
+            const cur = getSavedProCustomQuizStageById(id);
+            if (!cur) return;
+            if (action === 'rename') {
+                const next = window.prompt('新しいSTAGE名を入力してください', cur.name);
+                if (next === null) return;
+                const trimmed = String(next).trim();
+                if (!trimmed) {
+                    window.alert('名前を入力してください。');
+                    return;
+                }
+                if (proCustomQuizStageNameExists(trimmed, id)) {
+                    window.alert(`「${trimmed}」という名前のSTAGEはすでにあります。別の名前にしてください。`);
+                    return;
+                }
+                renameProCustomQuizStageById(id, trimmed);
+                saveState();
+                renderApp();
+            } else if (action === 'duplicate') {
+                if (getSavedProCustomQuizStages().length >= PRO_CUSTOM_STAGE_MAX_SAVED) {
+                    window.alert(`これ以上追加できません（上限${PRO_CUSTOM_STAGE_MAX_SAVED}件）。`);
+                    return;
+                }
+                const dup = duplicateProCustomQuizStage(id);
+                if (dup) {
+                    saveState();
+                    renderApp();
+                }
+            } else if (action === 'delete') {
+                if (!window.confirm(`「${cur.name}」を削除しますか？`)) return;
+                deleteProCustomQuizStageById(id);
+                saveState();
+                renderApp();
+            }
+        };
+    });
+
     document.querySelectorAll('.stage-route-edit-btn[data-edit-stage]').forEach(btn => {
         btn.onclick = () => {
             const stage = parseInt(btn.getAttribute('data-edit-stage'), 10);
@@ -7107,6 +7611,7 @@ function renderStageSelect(app) {
             state.memorize.maxCombo = 0;
             state.memorize.isCleared = false;
             state.memorize.proCustomCruise = null;
+            state.memorize.proCustomQuiz = null;
             // クイズ開始時はカウント・正解・クリア状態をリセット
             if (state.memorize.playMode === 'quiz') {
                 state.memorize.correct = 0;
@@ -7944,6 +8449,23 @@ function getProCustomEditorVisibleGroupIndices(groupCount) {
     return unique.length ? unique : [0];
 }
 
+function getProCustomQuizEditorVisibleGroupIndices(groupCount) {
+    if (!groupCount) return [];
+    if (state.proCustomQuizEditor?.forceHideAllGroups) return [];
+    const raw = Array.isArray(state.proCustomQuizEditor?.visibleGroupIndices)
+        ? state.proCustomQuizEditor.visibleGroupIndices
+        : [];
+    const indices = raw
+        .map(value => parseInt(value, 10))
+        .filter(Number.isFinite)
+        .filter(value => value >= 0 && value < groupCount);
+    const unique = [];
+    indices.sort((a, b) => a - b).forEach(index => {
+        if (!unique.includes(index)) unique.push(index);
+    });
+    return unique.length ? unique : [0];
+}
+
 function isProCustomSelectableFret(editor, stringName, fret) {
     const normalizedEditor = normalizeProCustomEditorState(editor);
     const normalizedFret = parseInt(fret, 10);
@@ -8040,7 +8562,7 @@ function renderProCustomRouteEditor(app) {
                     <button class="route-editor-group-btn ${isVisible ? 'is-visible' : 'is-hidden'} ${isActive ? 'is-active' : ''} ${noteCount ? '' : 'is-empty'}" type="button" data-group-index="${index}" aria-label="${groupNames[index]} (${noteCount}音)" aria-pressed="${isActive ? 'true' : 'false'}">
                         ${groupNames[index]}
                     </button>
-                    ${showAllGroupsExpanded ? `<button type="button" class="route-editor-group-position-label ${hasScroll ? '' : 'is-empty'}" data-pro-custom-position-group-index="${index}"><span class="route-editor-group-position-pin" aria-hidden="true">📍</span><span class="route-editor-group-position-value">${hasScroll ? savedScrollLeft : '—'}</span></button>` : ''}
+                    <button type="button" class="route-editor-group-position-label ${hasScroll ? '' : 'is-empty'}" data-pro-custom-position-group-index="${index}" aria-label="${hasScroll ? `位置 ${savedScrollLeft}（タップで編集）` : '位置未設定（タップで設定）'}"><span class="route-editor-group-position-pin" aria-hidden="true">📍</span><span class="route-editor-group-position-value">${hasScroll ? savedScrollLeft : '—'}</span></button>
                 </div>
             `;
         }).join('')
@@ -8307,6 +8829,7 @@ function renderProCustomRouteEditor(app) {
         if (activeGroupIndex < 0) return;
         setProCustomEditorGroupScrollLeft(activeGroupIndex, getRouteEditorCurrentScrollLeft());
         saveState();
+        renderApp();
         flashRouteEditorSavePositionButton('btn-pro-custom-save-position');
     };
     document.querySelectorAll('[data-pro-custom-position-group-index]').forEach(label => {
@@ -8404,6 +8927,14 @@ function renderProCustomRouteEditor(app) {
         setTimeout(() => openNameModal(), 0);
     }
 
+    const proCustomScrollStageKey = state.proCustomRouteEditor.editingStageId ?? 'new';
+    const proCustomRouteEditorScrollKey = `${proCustomScrollStageKey}:${activeGroupIndex >= 0 ? activeGroupIndex : 'none'}`;
+    if (activeGroupIndex >= 0 && proCustomRouteEditorScrollAppliedKey !== proCustomRouteEditorScrollKey) {
+        const savedLeft = getProCustomGroupScrollLeft(activeGroupIndex);
+        currentScrollLeft = Number.isFinite(savedLeft) ? savedLeft : 0;
+        proCustomRouteEditorScrollAppliedKey = proCustomRouteEditorScrollKey;
+    }
+
     renderFretboardHTML('fretboard-container', {
         mode: 'routeEditor',
         question: null,
@@ -8458,6 +8989,419 @@ function renderProCustomRouteEditor(app) {
             }
             saveState();
             playTone(6 - stringName, fret);
+            renderApp();
+        }
+    });
+
+    app.style.height = '100vh';
+    app.style.overflowY = 'auto';
+    app.style.overflowX = 'hidden';
+    app.style.alignItems = 'stretch';
+    app.style.gap = '0';
+    app.style.paddingTop = 'max(4px, env(safe-area-inset-top))';
+    app.style.paddingBottom = 'calc(var(--in-game-refresh-stack-height, 96px) + max(96px, env(safe-area-inset-bottom)))';
+    app.style.paddingLeft = 'max(10px, env(safe-area-inset-left))';
+    app.style.paddingRight = 'max(10px, env(safe-area-inset-right))';
+}
+
+function renderProCustomQuizEditor(app) {
+    state.proCustomQuizEditor = normalizeProCustomQuizEditorState(state.proCustomQuizEditor);
+    const editor = state.proCustomQuizEditor;
+    const isLandscape = typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
+    const groups = normalizeProCustomQuizGroups(editor.groups);
+    const visibleGroupIndices = getProCustomQuizEditorVisibleGroupIndices(groups.length);
+    let selectedGroupIndex = clamp(parseInt(editor.selectedGroupIndex ?? 0, 10) || 0, -1, Math.max(0, groups.length - 1));
+    let activeGroupIndex = getRouteEditorActiveGroupIndex(visibleGroupIndices.map(index => ({ index })), selectedGroupIndex);
+    if (activeGroupIndex < 0 && visibleGroupIndices.length > 0) {
+        activeGroupIndex = visibleGroupIndices[visibleGroupIndices.length - 1];
+        selectedGroupIndex = activeGroupIndex;
+    }
+    const groupPanelOffset = normalizeRouteEditorGroupPanelOffset(editor.groupPanelOffset);
+    const showAllGroupsExpanded = !!editor.showAllGroupsExpanded;
+    state.proCustomQuizEditor = {
+        ...editor,
+        groups,
+        selectedGroupIndex,
+        visibleGroupIndices,
+        groupPanelOffset,
+        showAllGroupsExpanded
+    };
+
+    const scaleOptions = [
+        ['major', 'メジャー / アイオニアン'],
+        ['minor', 'ナチュラルマイナー / エオリアン'],
+        ['harmonicMinor', 'ハーモニックマイナー'],
+        ['melodicMinor', 'メロディックマイナー'],
+        ['dorian', 'ドリアン'],
+        ['phrygian', 'フリジアン'],
+        ['lydian', 'リディアン'],
+        ['mixolydian', 'ミクソリディアン'],
+        ['locrian', 'ロクリアン'],
+        ['pentaMajor', 'メジャーペンタトニック'],
+        ['pentaMinor', 'マイナーペンタトニック'],
+        ['blues', 'ブルース']
+    ];
+    const maxFretOptions = Array.from(
+        { length: MAX_FRET - PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET + 1 },
+        (_, index) => PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET + index
+    );
+    const proCustomDisplayMode = state.settings.noteLabelMode;
+    const hasAnyNote = groups.some(group => Array.isArray(group.notes) && group.notes.length > 0);
+    const proCustomEditingId = state.proCustomQuizEditor.editingStageId || null;
+    const proCustomHeaderTitle = proCustomEditingId
+        ? `👑 ${escapeHtml(state.proCustomQuizEditor.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}<span class="pro-custom-header-sub"> を編集</span>`
+        : '👑 PROカスタムSTAGE<span class="pro-custom-header-sub"> を新規作成</span>';
+
+    const groupButtonsHtml = groups.map((group, index) => {
+        const isVisible = visibleGroupIndices.includes(index);
+        const isActive = isVisible && selectedGroupIndex === index;
+        const noteCount = Array.isArray(group.notes) ? group.notes.length : 0;
+        const hasScroll = Number.isFinite(group.scrollLeft);
+        return `
+            <div class="route-editor-group-cell">
+                <button class="route-editor-group-btn ${isVisible ? 'is-visible' : 'is-hidden'} ${isActive ? 'is-active' : ''} ${noteCount ? '' : 'is-empty'}" type="button" data-group-index="${index}" aria-label="${escapeHtml(group.name || `Gr.${index + 1}`)} (${noteCount}音)" aria-pressed="${isActive ? 'true' : 'false'}">
+                    ${escapeHtml(group.name || `Gr.${index + 1}`)}
+                </button>
+                ${showAllGroupsExpanded ? `<button type="button" class="route-editor-group-position-label ${hasScroll ? '' : 'is-empty'}" data-pro-custom-quiz-position-group-index="${index}"><span class="route-editor-group-position-pin" aria-hidden="true">📍</span><span class="route-editor-group-position-value">${hasScroll ? group.scrollLeft : '—'}</span></button>` : ''}
+            </div>
+        `;
+    }).join('');
+
+    app.innerHTML = `
+        <div class="route-editor-screen route-editor-scale-guide-variant-3 pro-custom-route-editor-screen pro-custom-quiz-editor-screen">
+            ${buildPageHeader({
+                headerClass: 'page-header--route-editor',
+                titleText: proCustomHeaderTitle,
+                leftHtml: `
+                    ${navButtonHtml({ id: 'btn-pro-custom-quiz-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+                    ${navButtonHtml({ id: 'btn-pro-custom-quiz-home', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
+                `,
+                rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-pro-custom-quiz" aria-label="設定">⚙️</button>`
+            })}
+            <div class="setup-panel pro-custom-setup-panel">
+                <div class="pro-custom-setup-row pro-custom-setup-row--triple">
+                    <div class="setup-item pro-custom-setup-item pro-custom-setup-item--key">
+                        <label>キー</label>
+                        ${buildCustomDropdownHtml({ id: 'pro-custom-quiz-key', options: NOTES.map((note, idx) => ({ value: idx, label: note })), selectedValue: editor.key, ariaLabel: 'キー' })}
+                    </div>
+                    <div class="setup-item pro-custom-setup-item pro-custom-setup-item--capo">
+                        <label>カポ</label>
+                        ${buildCustomDropdownHtml({ id: 'pro-custom-quiz-capo', options: [0,1,2,3,4,5,6,7].map(c => ({ value: c, label: String(c) })), selectedValue: editor.capo, ariaLabel: 'カポ' })}
+                    </div>
+                    <div class="setup-item pro-custom-setup-item pro-custom-setup-item--scale">
+                        <label>スケール</label>
+                        ${buildCustomDropdownHtml({ id: 'pro-custom-quiz-scale', options: scaleOptions.map(([value, label]) => ({ value, label })), selectedValue: editor.scale, ariaLabel: 'スケール' })}
+                    </div>
+                </div>
+                <div class="pro-custom-setup-row pro-custom-setup-row--double">
+                    <div class="setup-item pro-custom-setup-item pro-custom-setup-item--display">
+                        <label>表示方法</label>
+                        <div class="mode-buttons">
+                            <button type="button" class="do-mode-btn ${editor.doMode==='movable'?'active':''}" data-pro-custom-quiz-do-mode="movable">移動ド</button>
+                            <button type="button" class="do-mode-btn ${editor.doMode==='fixed'?'active':''}" data-pro-custom-quiz-do-mode="fixed">固定ド</button>
+                        </div>
+                    </div>
+                    <div class="setup-item pro-custom-setup-item pro-custom-setup-item--max-fret">
+                        <label>最大フレット</label>
+                        ${buildCustomDropdownHtml({ id: 'pro-custom-quiz-max-fret', options: maxFretOptions.map(fret => ({ value: fret, label: `${fret}フレット` })), selectedValue: editor.maxFret, ariaLabel: '最大フレット' })}
+                    </div>
+                </div>
+                <div class="pro-custom-setup-help-row">
+                    <button type="button" class="settings-help-btn pro-custom-setup-help-btn" data-target="pro-custom-quiz-display-help-note" aria-label="表示方法の説明を表示">⊕</button>
+                    <p class="settings-note settings-note--animated pro-custom-setup-note" id="pro-custom-quiz-display-help-note">ドレミ / CDE / 度数の表記は設定の「共通」から変えることができます。</p>
+                </div>
+            </div>
+            <div class="route-editor-toolbar">
+                <button class="icon-btn route-editor-tool-btn" id="btn-pro-custom-quiz-clear" ${hasAnyNote || groups.length > 1 ? '' : 'disabled'}>全消し</button>
+                <button class="icon-btn route-editor-tool-btn" id="btn-pro-custom-quiz-undo" ${editor.history.length ? '' : 'disabled'}>↶ 戻す</button>
+            </div>
+            <div class="route-editor-group-panel ${isLandscape ? 'route-editor-group-panel--floating' : ''} ${showAllGroupsExpanded ? 'route-editor-group-panel--expanded' : ''}" style="--route-editor-group-panel-shift-x: ${groupPanelOffset.x}px; --route-editor-group-panel-shift-y: ${groupPanelOffset.y}px;">
+                <div class="route-editor-group-panel-top">
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-expand-btn ${showAllGroupsExpanded ? 'active' : ''}" id="btn-pro-custom-quiz-group-expand" ${groups.length ? '' : 'disabled'}>${showAllGroupsExpanded ? '縮小' : '一覧'}</button>
+                </div>
+                <div class="route-editor-group-list">${groupButtonsHtml}</div>
+                <div class="route-editor-group-actions">
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-add-btn" id="btn-pro-custom-quiz-group-add">＋</button>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-remove-btn" id="btn-pro-custom-quiz-group-remove" ${groups.length > 1 ? '' : 'disabled'}>－</button>
+                    <button type="button" class="btn-secondary route-editor-group-save-position-btn" id="btn-pro-custom-quiz-save-position" ${activeGroupIndex >= 0 ? '' : 'disabled'}>位置保存</button>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-toggle-btn ${visibleGroupIndices.length === groups.length && !editor.forceHideAllGroups ? 'active' : ''}" id="btn-pro-custom-quiz-show-all" ${groups.length ? '' : 'disabled'}>全て表示</button>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-toggle-btn ${editor.forceHideAllGroups ? 'active' : ''}" id="btn-pro-custom-quiz-hide-all" ${groups.length ? '' : 'disabled'}>全て非表示</button>
+                </div>
+            </div>
+            <div id="fretboard-container" class="route-editor-fretboard-host"></div>
+            <div class="route-editor-expanded-gap ${showAllGroupsExpanded ? 'route-editor-expanded-gap--visible' : ''}" aria-hidden="true"></div>
+            <div class="route-editor-save-row">
+                <button type="button" class="btn-secondary route-editor-demo-btn" id="btn-pro-custom-quiz-try" ${hasAnyNote ? '' : 'disabled'}>この設定でクイズを試す</button>
+                <button type="button" class="btn-primary route-editor-save-btn pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-pro-custom-quiz-save" ${hasAnyNote ? '' : 'disabled'}>
+                    <span class="pro-custom-saved-btn__badge" aria-hidden="true">PRO</span>
+                    <span class="pro-custom-saved-btn__title">このSTAGEを保存</span>
+                </button>
+            </div>
+            <div class="pro-custom-route-editor-tail-spacer" aria-hidden="true"></div>
+            <div class="route-editor-expanded-spacer ${showAllGroupsExpanded ? 'route-editor-expanded-spacer--visible' : ''}" aria-hidden="true"></div>
+        </div>
+        <div class="pro-custom-stage-name-modal" id="pro-custom-quiz-stage-name-modal" hidden>
+            <div class="pro-custom-stage-name-modal__backdrop" data-pro-custom-quiz-stage-name-cancel></div>
+            <div class="pro-custom-stage-name-modal__panel" role="dialog" aria-modal="true" aria-labelledby="pro-custom-quiz-stage-name-modal-title">
+                <div class="pro-custom-stage-name-modal__title" id="pro-custom-quiz-stage-name-modal-title">STAGE名を入力</div>
+                <label class="pro-custom-stage-name-modal__label" for="pro-custom-quiz-stage-name-input">保存する名前</label>
+                <input class="pro-custom-stage-name-modal__input" id="pro-custom-quiz-stage-name-input" type="text" maxlength="24" spellcheck="false" autocomplete="off" inputmode="text" />
+                <div class="pro-custom-stage-name-modal__error" id="pro-custom-quiz-stage-name-error" hidden></div>
+                <div class="pro-custom-stage-name-modal__actions">
+                    <button type="button" class="btn-secondary pro-custom-stage-name-modal__cancel" data-pro-custom-quiz-stage-name-cancel>キャンセル</button>
+                    <button type="button" class="btn-primary pro-custom-stage-name-modal__confirm" id="pro-custom-quiz-stage-name-confirm">保存</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const filterToCurrentScale = () => {
+        const normalized = normalizeProCustomQuizEditorState(state.proCustomQuizEditor);
+        normalized.groups = normalized.groups.map(group => ({
+            ...group,
+            notes: group.notes.filter(note => isProCustomQuizSelectableFret(normalized, note.stringName, note.fret))
+        }));
+        state.proCustomQuizEditor = normalizeProCustomQuizEditorState(normalized);
+    };
+    const rerenderAfterSettingChange = () => {
+        filterToCurrentScale();
+        saveState();
+        renderApp();
+    };
+    const nameModal = document.getElementById('pro-custom-quiz-stage-name-modal');
+    const nameInput = document.getElementById('pro-custom-quiz-stage-name-input');
+    const nameError = document.getElementById('pro-custom-quiz-stage-name-error');
+    let modalSuppressBackdropUntil = 0;
+    const setNameModalError = msg => {
+        if (!nameError) return;
+        nameError.textContent = msg || '';
+        nameError.hidden = !msg;
+    };
+    const closeNameModal = () => {
+        nameModal.hidden = true;
+        nameModal.classList.remove('is-open');
+        setNameModalError('');
+    };
+    const openNameModal = () => {
+        modalSuppressBackdropUntil = Date.now() + 400;
+        nameInput.value = String(state.proCustomQuizEditor.name || PRO_CUSTOM_STAGE_DEFAULT_NAME);
+        setNameModalError('');
+        nameModal.hidden = false;
+        nameModal.classList.add('is-open');
+        setTimeout(() => {
+            nameInput.focus();
+            nameInput.select();
+        }, 0);
+    };
+    const confirmNameModal = () => {
+        const inputName = String(nameInput.value || '').trim() || PRO_CUSTOM_STAGE_DEFAULT_NAME;
+        const editingId = state.proCustomQuizEditor.editingStageId || null;
+        if (proCustomQuizStageNameExists(inputName, editingId)) {
+            setNameModalError(`「${inputName}」という名前のSTAGEはすでにあります。別の名前にしてください。`);
+            setTimeout(() => {
+                nameInput.focus();
+                nameInput.select();
+            }, 0);
+            return;
+        }
+        if (!editingId && getSavedProCustomQuizStages().length >= PRO_CUSTOM_STAGE_MAX_SAVED) {
+            setNameModalError(`PROカスタムSTAGEは最大${PRO_CUSTOM_STAGE_MAX_SAVED}件まで保存できます。`);
+            return;
+        }
+        state.proCustomQuizEditor.name = inputName;
+        const saved = saveProCustomQuizStageFromEditor();
+        if (!saved) {
+            setNameModalError('保存に失敗しました。もう一度お試しください。');
+            return;
+        }
+        closeNameModal();
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-pro-custom-quiz-back').onclick = () => { state.course = 'stageSelect'; saveState(); renderApp(); };
+    document.getElementById('btn-pro-custom-quiz-home').onclick = () => { state.course = null; saveState(); renderApp(); };
+    document.getElementById('btn-settings-pro-custom-quiz').onclick = () => openSettings('proCustomQuizEditor');
+    ensureCustomDropdownDocHandlers();
+    wireCustomDropdown('pro-custom-quiz-key', value => { pushProCustomQuizEditorHistory(); state.proCustomQuizEditor.key = parseInt(value, 10) || 0; rerenderAfterSettingChange(); });
+    wireCustomDropdown('pro-custom-quiz-capo', value => { pushProCustomQuizEditorHistory(); state.proCustomQuizEditor.capo = parseInt(value, 10) || 0; rerenderAfterSettingChange(); });
+    wireCustomDropdown('pro-custom-quiz-scale', value => { pushProCustomQuizEditorHistory(); state.proCustomQuizEditor.scale = value; rerenderAfterSettingChange(); });
+    wireCustomDropdown('pro-custom-quiz-max-fret', value => { pushProCustomQuizEditorHistory(); state.proCustomQuizEditor.maxFret = clamp(parseInt(value, 10) || PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, MAX_FRET); currentScrollLeft = 0; rerenderAfterSettingChange(); });
+    document.querySelectorAll('[data-pro-custom-quiz-do-mode]').forEach(btn => {
+        btn.onclick = () => { state.proCustomQuizEditor.doMode = btn.getAttribute('data-pro-custom-quiz-do-mode'); saveState(); renderApp(); };
+    });
+    document.querySelectorAll('.pro-custom-setup-help-btn').forEach(btn => {
+        btn.onclick = () => {
+            const target = document.getElementById(btn.getAttribute('data-target'));
+            if (target) target.classList.toggle('visible');
+        };
+    });
+    document.getElementById('btn-pro-custom-quiz-undo').onclick = () => {
+        const historyItem = Array.isArray(state.proCustomQuizEditor.history) ? state.proCustomQuizEditor.history.pop() : null;
+        if (!historyItem) return;
+        restoreProCustomQuizEditorSnapshot(historyItem);
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-quiz-clear').onclick = () => {
+        pushProCustomQuizEditorHistory();
+        Object.assign(state.proCustomQuizEditor, { groups: [{ name: 'Gr.1', notes: [], scrollLeft: null }], visibleGroupIndices: [0], selectedGroupIndex: 0, forceHideAllGroups: false, showAllGroupsExpanded: false });
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-quiz-group-expand').onclick = () => { state.proCustomQuizEditor.showAllGroupsExpanded = !state.proCustomQuizEditor.showAllGroupsExpanded; saveState(); renderApp(); };
+    document.getElementById('btn-pro-custom-quiz-group-add').onclick = () => {
+        if (groups.length >= PRO_CUSTOM_STAGE_MAX_GROUPS) return;
+        pushProCustomQuizEditorHistory();
+        const nextIndex = groups.length;
+        state.proCustomQuizEditor.groups = [...groups, { name: `Gr.${nextIndex + 1}`, notes: [], scrollLeft: null }];
+        state.proCustomQuizEditor.forceHideAllGroups = false;
+        state.proCustomQuizEditor.visibleGroupIndices = [nextIndex];
+        state.proCustomQuizEditor.selectedGroupIndex = nextIndex;
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-quiz-group-remove').onclick = () => {
+        if (groups.length <= 1 || activeGroupIndex < 0) return;
+        pushProCustomQuizEditorHistory();
+        state.proCustomQuizEditor.groups = groups.filter((_, index) => index !== activeGroupIndex);
+        state.proCustomQuizEditor.visibleGroupIndices = [Math.min(activeGroupIndex, Math.max(0, groups.length - 2))];
+        state.proCustomQuizEditor.selectedGroupIndex = state.proCustomQuizEditor.visibleGroupIndices[0] ?? 0;
+        state.proCustomQuizEditor.forceHideAllGroups = false;
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-quiz-show-all').onclick = () => { state.proCustomQuizEditor.forceHideAllGroups = false; state.proCustomQuizEditor.visibleGroupIndices = groups.map((_, index) => index); saveState(); renderApp(); };
+    document.getElementById('btn-pro-custom-quiz-hide-all').onclick = () => { state.proCustomQuizEditor.forceHideAllGroups = true; state.proCustomQuizEditor.visibleGroupIndices = []; saveState(); renderApp(); };
+    document.getElementById('btn-pro-custom-quiz-save-position').onclick = () => {
+        if (activeGroupIndex < 0) return;
+        const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+        state.proCustomQuizEditor.groups[activeGroupIndex].scrollLeft = wrapper ? Math.max(0, Math.round(wrapper.scrollLeft)) : 0;
+        saveState();
+        flashRouteEditorSavePositionButton('btn-pro-custom-quiz-save-position');
+    };
+    document.querySelectorAll('[data-pro-custom-quiz-position-group-index]').forEach(label => {
+        label.onclick = e => {
+            e.stopPropagation();
+            const idx = parseInt(label.getAttribute('data-pro-custom-quiz-position-group-index'), 10);
+            if (!Number.isFinite(idx) || idx < 0 || idx >= state.proCustomQuizEditor.groups.length) return;
+            const current = state.proCustomQuizEditor.groups[idx]?.scrollLeft;
+            const input = window.prompt(`Gr.${idx + 1} の保存スクロール位置を入力してください\n（空欄で未設定に戻ります）`, Number.isFinite(current) ? String(current) : '');
+            if (input === null) return;
+            const trimmed = String(input).trim();
+            if (trimmed === '') {
+                state.proCustomQuizEditor.groups[idx].scrollLeft = null;
+            } else {
+                const next = parseInt(trimmed, 10);
+                if (!Number.isFinite(next) || next < 0) {
+                    window.alert('0 以上の整数を入力してください。');
+                    return;
+                }
+                state.proCustomQuizEditor.groups[idx].scrollLeft = next;
+            }
+            saveState();
+            renderApp();
+        };
+    });
+    document.querySelectorAll('.route-editor-group-btn').forEach(btn => {
+        btn.onclick = () => {
+            const index = parseInt(btn.getAttribute('data-group-index'), 10);
+            if (!Number.isFinite(index)) return;
+            const nextVisible = new Set(visibleGroupIndices);
+            if (!nextVisible.has(index)) nextVisible.add(index);
+            state.proCustomQuizEditor.forceHideAllGroups = false;
+            state.proCustomQuizEditor.visibleGroupIndices = Array.from(nextVisible).sort((a, b) => a - b);
+            state.proCustomQuizEditor.selectedGroupIndex = index;
+            saveState();
+            renderApp();
+        };
+    });
+    document.getElementById('btn-pro-custom-quiz-try').onclick = e => {
+        e.preventDefault();
+        if (e.currentTarget.disabled) return;
+        startProCustomQuizPlayback({
+            name: state.proCustomQuizEditor.name,
+            key: state.proCustomQuizEditor.key,
+            capo: state.proCustomQuizEditor.capo,
+            scale: state.proCustomQuizEditor.scale,
+            displayMode: state.settings.noteLabelMode,
+            doMode: state.proCustomQuizEditor.doMode,
+            maxFret: state.proCustomQuizEditor.maxFret,
+            groups: state.proCustomQuizEditor.groups
+        }, 'proCustomQuizEditor');
+    };
+    document.getElementById('btn-pro-custom-quiz-save').onclick = e => {
+        e.preventDefault();
+        if (e.currentTarget.disabled) return;
+        openNameModal();
+    };
+    document.getElementById('pro-custom-quiz-stage-name-confirm').onclick = confirmNameModal;
+    nameModal.querySelectorAll('[data-pro-custom-quiz-stage-name-cancel]').forEach(btn => {
+        btn.onclick = e => {
+            if (Date.now() < modalSuppressBackdropUntil) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            closeNameModal();
+        };
+    });
+    nameInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            confirmNameModal();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            closeNameModal();
+        }
+    });
+    nameInput.addEventListener('input', () => setNameModalError(''));
+
+    renderFretboardHTML('fretboard-container', {
+        mode: 'quizEditor',
+        question: null,
+        showAnswer: false,
+        clicked: null,
+        quizEditorGroups: groups,
+        quizEditorSelectedGroupIndex: activeGroupIndex >= 0 ? activeGroupIndex : -1,
+        quizEditorVisibleIndices: visibleGroupIndices,
+        quizEditorStage: 6,
+        proCustomGuide: {
+            key: state.proCustomQuizEditor.key,
+            capo: state.proCustomQuizEditor.capo,
+            scale: state.proCustomQuizEditor.scale,
+            displayMode: proCustomDisplayMode,
+            doMode: state.proCustomQuizEditor.doMode,
+            maxFret: state.proCustomQuizEditor.maxFret
+        },
+        onFretClick: (stringName, fret, e) => {
+            if (
+                e &&
+                e.target &&
+                typeof e.target.closest === 'function' &&
+                e.target.closest('.route-editor-save-row, .route-editor-toolbar, .route-editor-group-panel, .setup-panel, .pro-custom-setup-panel, .page-header, .pro-custom-stage-name-modal')
+            ) {
+                return;
+            }
+            if (activeGroupIndex < 0) return;
+            if (!isProCustomQuizSelectableFret(state.proCustomQuizEditor, stringName, fret)) return;
+            pushProCustomQuizEditorHistory();
+            const group = state.proCustomQuizEditor.groups[activeGroupIndex];
+            if (!group) return;
+            const noteIndex = (group.notes || []).findIndex(note => note.stringName === stringName && note.fret === fret);
+            if (noteIndex >= 0) {
+                group.notes.splice(noteIndex, 1);
+            } else {
+                if (!Array.isArray(group.notes)) group.notes = [];
+                if (group.notes.length === 0 && !Number.isFinite(group.scrollLeft)) {
+                    const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+                    group.scrollLeft = wrapper ? Math.max(0, Math.round(wrapper.scrollLeft)) : 0;
+                }
+                group.notes.push({ stringName, fret });
+                playTone(6 - stringName, fret);
+            }
+            saveState();
             renderApp();
         }
     });
@@ -8751,6 +9695,7 @@ function renderQuizEditor(app) {
         state.memorize.cruiseTargets = [];
         state.memorize.cruiseScope = [];
         state.memorize.cruiseIndex = 0;
+        state.memorize.proCustomQuiz = null;
         state.course = 'memorize';
         generateQuestion();
         autoScrollRequested = true;
@@ -9029,6 +9974,11 @@ function exitMemorizeClearedToStageOrEditor() {
         state.memorize.isDemoPlayback = false;
         state.memorize.demoReturnCourse = null;
         state.memorize.demoReturnStage = null;
+    } else if (state.memorize.isDemoPlayback && state.memorize.demoReturnCourse === 'proCustomQuizEditor') {
+        state.course = 'proCustomQuizEditor';
+        state.memorize.isDemoPlayback = false;
+        state.memorize.demoReturnCourse = null;
+        state.memorize.demoReturnStage = null;
     } else {
         state.course = 'stageSelect';
     }
@@ -9039,7 +9989,7 @@ function exitMemorizeClearedToStageOrEditor() {
 function returnMemorizeDemoToEditor() {
     if (!state.memorize?.isDemoPlayback) return;
     const demoReturnCourse = state.memorize.demoReturnCourse;
-    if (demoReturnCourse !== 'routeEditor' && demoReturnCourse !== 'proCustomRouteEditor') return;
+    if (demoReturnCourse !== 'routeEditor' && demoReturnCourse !== 'proCustomRouteEditor' && demoReturnCourse !== 'proCustomQuizEditor') return;
     stopRhythm();
     stopQuizTimer();
     cancelQuizScrollAnimation();
@@ -9054,8 +10004,10 @@ function returnMemorizeDemoToEditor() {
         if (Number.isFinite(parseInt(state.memorize.demoReturnStage, 10))) {
             state.routeEditor.stage = clamp(parseInt(state.memorize.demoReturnStage, 10), 1, 6);
         }
-    } else {
+    } else if (demoReturnCourse === 'proCustomRouteEditor') {
         state.course = 'proCustomRouteEditor';
+    } else {
+        state.course = 'proCustomQuizEditor';
     }
     saveState();
     renderApp();
@@ -9224,17 +10176,24 @@ function renderMemorize(app) {
                     </div>`;
 
     const isProCustomCruise = isCruise && !!state.memorize.proCustomCruise;
+    const isProCustomQuiz = !isCruise && !!state.memorize.proCustomQuiz;
     const isProCustomDemoPlayback =
         isProCustomCruise &&
         state.memorize.isDemoPlayback === true &&
         state.memorize.demoReturnCourse === 'proCustomRouteEditor';
+    const isProCustomQuizDemoPlayback =
+        isProCustomQuiz &&
+        state.memorize.isDemoPlayback === true &&
+        state.memorize.demoReturnCourse === 'proCustomQuizEditor';
     const isRouteEditorDemoPlayback =
         isCruise &&
         state.memorize.isDemoPlayback === true &&
         state.memorize.demoReturnCourse === 'routeEditor';
-    const isEditorDemoPlayback = isProCustomDemoPlayback || isRouteEditorDemoPlayback;
+    const isEditorDemoPlayback = isProCustomDemoPlayback || isProCustomQuizDemoPlayback || isRouteEditorDemoPlayback;
     const memorizeStageLabel = isProCustomCruise
         ? escapeHtml(state.memorize.proCustomCruise?.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)
+        : isProCustomQuiz
+            ? escapeHtml(state.memorize.proCustomQuiz?.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)
         : `STAGE ${state.memorize.stage}`;
 
     // ヘッダーに小さく「STAGE 1 ・ 指板クイズ」を表示（PROカスタム再生時だけ保存名を表示）
@@ -9252,7 +10211,11 @@ function renderMemorize(app) {
     const memorizeRootClass = memorizeLand
         ? 'memorize-screen memorize-screen--landscape'
         : 'memorize-screen';
-    const memorizeQuestionLabel = q ? getMemorizeQuestionLabel(q.noteIdx) : '';
+    const memorizeQuestionLabel = q
+        ? (isProCustomQuiz
+            ? getProCustomDisplayLabel(q.noteIdx, q.fret, state.memorize.proCustomQuiz)
+            : getMemorizeQuestionLabel(q.noteIdx))
+        : '';
 
     app.innerHTML = `
         <div class="${memorizeRootClass}" data-fretboard-view="${state.settings.fretboardView}">
@@ -9319,7 +10282,7 @@ function renderMemorize(app) {
                             <div class="memorize-cleared-card__actions memorize-cleared-card__actions--three">
                                 <button type="button" class="btn-primary memorize-cleared-card__btn memorize-cleared-card__btn--primary" id="btn-memorize-cleared-restart">もう1回</button>
                                 <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-exit">${isEditorDemoPlayback ? '編集画面へ' : '終了'}</button>
-                                <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-next-stage"${isProCustomCruise || state.memorize.stage >= 6 ? ' disabled' : ''}>次のSTAGEへ</button>
+                                <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-next-stage"${isProCustomCruise || isProCustomQuiz || state.memorize.stage >= 6 ? ' disabled' : ''}>次のSTAGEへ</button>
                             </div>
                         </div>
                     </div>
@@ -9342,6 +10305,11 @@ function renderMemorize(app) {
             state.memorize.demoReturnStage = null;
         } else if (state.memorize.isDemoPlayback && state.memorize.demoReturnCourse === 'proCustomRouteEditor') {
             state.course = 'proCustomRouteEditor';
+            state.memorize.isDemoPlayback = false;
+            state.memorize.demoReturnCourse = null;
+            state.memorize.demoReturnStage = null;
+        } else if (state.memorize.isDemoPlayback && state.memorize.demoReturnCourse === 'proCustomQuizEditor') {
+            state.course = 'proCustomQuizEditor';
             state.memorize.isDemoPlayback = false;
             state.memorize.demoReturnCourse = null;
             state.memorize.demoReturnStage = null;
@@ -9571,7 +10539,9 @@ function handleFretClick(stringNum, fret, pointerEv) {
         isCorrect = (stringNum === q.stringName) && (fret === q.fret);
     } else {
         // Quiz mode: any fret with the correct note name on that string is fine
-        isCorrect = (stringNum === q.stringName) && (clickedNoteIdx === q.noteIdx);
+        isCorrect = state.memorize.proCustomQuiz
+            ? (stringNum === q.stringName && fret === q.fret)
+            : (stringNum === q.stringName) && (clickedNoteIdx === q.noteIdx);
     }
 
     if (isCruise) {
@@ -11039,6 +12009,7 @@ function renderSettings(app) {
 
     document.getElementById('btn-settings-defaults').onclick = () => {
         const quizSaved = state.settings.quizStageEditorSettings;
+        const quizProCustomStages = state.settings.quizProCustomStages;
         const quizShippedVer = state.settings.quizShippedDefaultsAppliedVersion;
         const quizAttempts = state.settings.quizStageAttemptCounts;
         const cruiseClears = state.settings.cruiseStageClearCounts;
@@ -11046,6 +12017,8 @@ function renderSettings(app) {
         // 指板クイズの問題編集データは「アプリ設定のデフォルト」と別物なので消さない
         state.settings.quizStageEditorSettings =
             quizSaved && typeof quizSaved === 'object' && !Array.isArray(quizSaved) ? quizSaved : {};
+        state.settings.quizProCustomStages =
+            Array.isArray(quizProCustomStages) ? quizProCustomStages : [];
         if (quizShippedVer !== undefined && quizShippedVer !== null) {
             state.settings.quizShippedDefaultsAppliedVersion = quizShippedVer;
         }
@@ -11168,13 +12141,15 @@ function getRenderMaxFret(mode, options) {
             if (state.memorize.proCustomCruise && Number.isFinite(parseInt(state.memorize.proCustomCruise.maxFret, 10))) {
                 maxFret = Math.max(maxFret, clamp(parseInt(state.memorize.proCustomCruise.maxFret, 10), DEFAULT_VISIBLE_MAX_FRET, MAX_FRET));
             }
+        } else if (state.memorize.proCustomQuiz && Number.isFinite(parseInt(state.memorize.proCustomQuiz.maxFret, 10))) {
+            maxFret = Math.max(maxFret, clamp(parseInt(state.memorize.proCustomQuiz.maxFret, 10), DEFAULT_VISIBLE_MAX_FRET, MAX_FRET));
         }
         // STAGE 5・6 は問題画面でも 13 フレットまで表示する（出題が低フレットでも縮まないよう固定）
         if (!state.memorize.proCustomCruise && (options.memorizeStage === 5 || options.memorizeStage === 6)) {
             maxFret = Math.max(maxFret, 13);
         }
         // STAGE 5・6 の quiz は 13 フレットを上限に固定（編集画面と一致）
-        if (isQuizPlayMode && (options.memorizeStage === 5 || options.memorizeStage === 6)) {
+        if (isQuizPlayMode && !state.memorize.proCustomQuiz && (options.memorizeStage === 5 || options.memorizeStage === 6)) {
             return clamp(Math.min(maxFret, 13), DEFAULT_VISIBLE_MAX_FRET, MAX_FRET);
         }
     } else if (mode === 'routeEditor') {
@@ -11189,6 +12164,9 @@ function getRenderMaxFret(mode, options) {
             maxFret = Math.max(maxFret, 13);
         }
     } else if (mode === 'quizEditor') {
+        if (Number.isFinite(parseInt(options.proCustomGuide?.maxFret, 10))) {
+            return clamp(parseInt(options.proCustomGuide.maxFret, 10), DEFAULT_VISIBLE_MAX_FRET, MAX_FRET);
+        }
         // ステージ別の指板表示上限（高フレットに音が残っていても拡張しない）
         if (options.quizEditorStage === 4) {
             return DEFAULT_VISIBLE_MAX_FRET;
@@ -11536,7 +12514,7 @@ function renderFretboardHTML(containerId, options) {
     // カポ：指板を探索するモードでカポが 1F 以上のときだけ描画。
     // 「カポ N」は f<N を不可（既存実装）に合わせ、指板の「フレットNセル」の先頭側（左端）に重ねる。
     const capoVal = parseInt(proCustomGuide ? proCustomGuide.capo : capo, 10) || 0;
-    if ((mode === 'visualize' || (mode === 'routeEditor' && proCustomGuide)) && capoVal > 0 && capoVal <= renderMaxFret) {
+    if ((mode === 'visualize' || ((mode === 'routeEditor' || mode === 'quizEditor') && proCustomGuide)) && capoVal > 0 && capoVal <= renderMaxFret) {
         const cellLo = xEdges[capoVal];
         const cellHi = xEdges[capoVal + 1];
         const capoX = cellLo + (cellHi - cellLo) * 0.15;
@@ -11576,11 +12554,38 @@ function renderFretboardHTML(containerId, options) {
                 const degreeFromKey = (noteIdx - keyPcForHarmony + 12) % 12;
                 isInteractive = f >= customCapo && getScaleDegrees(proCustomGuide.scale || 'major').hasOwnProperty(degreeFromKey);
             }
+            if (mode === 'quizEditor' && proCustomGuide) {
+                const customCapo = parseInt(proCustomGuide.capo, 10) || 0;
+                const keyPcForHarmony = ((parseInt(proCustomGuide.key, 10) || 0) + customCapo) % 12;
+                const degreeFromKey = (noteIdx - keyPcForHarmony + 12) % 12;
+                isInteractive = f >= customCapo && f <= (parseInt(proCustomGuide.maxFret, 10) || MAX_FRET) && getScaleDegrees(proCustomGuide.scale || 'major').hasOwnProperty(degreeFromKey);
+            }
 
             let fretClass = isInteractive ? 'fret-column interactive' : 'fret-column';
 
             if (mode === 'quizEditor') {
-                const guideLabel = ROUTE_EDITOR_SCALE_GUIDE_LABELS[noteIdx] ? getNotationLabel(noteIdx) : '';
+                let guideLabel = '';
+                if (proCustomGuide) {
+                    const customCapo = parseInt(proCustomGuide.capo, 10) || 0;
+                    if (f >= customCapo) {
+                        const keyPcForHarmony = ((parseInt(proCustomGuide.key, 10) || 0) + customCapo) % 12;
+                        const degreeFromKey = (noteIdx - keyPcForHarmony + 12) % 12;
+                        const isScale = getScaleDegrees(proCustomGuide.scale || 'major').hasOwnProperty(degreeFromKey);
+                        if (isScale) {
+                            guideLabel = getVisualizeMarkerLabel(
+                                noteIdx,
+                                proCustomGuide.scale || 'major',
+                                proCustomGuide.displayMode || 'solfege',
+                                proCustomGuide.doMode || 'movable',
+                                true,
+                                degreeFromKey,
+                                getAllDegreesWithAccidentals(proCustomGuide.scale || 'major')
+                            );
+                        }
+                    }
+                } else {
+                    guideLabel = ROUTE_EDITOR_SCALE_GUIDE_LABELS[noteIdx] ? getNotationLabel(noteIdx) : '';
+                }
                 const guideHtml = guideLabel
                     ? `<button type="button" class="note-marker route-editor-scale-guide" aria-hidden="true" tabindex="-1" disabled>${guideLabel}</button>`
                     : '';
@@ -11595,12 +12600,13 @@ function renderFretboardHTML(containerId, options) {
                     });
                 }
                 if (noteGroups.length > 0) {
+                    const quizEditorMarkerLabel = proCustomGuide && guideLabel ? guideLabel : getNotationLabel(noteIdx);
                     const noteButtons = noteGroups.map(gIdx => {
                         const isActive = gIdx === quizEditorSelectedGroupIndex;
                         const groupStyle = getRouteEditorGroupColorStyle(gIdx);
                         const stackedClass = noteGroups.length > 1 ? ' route-edit-note--stacked' : '';
                         const activeClass = isActive ? ' quiz-edit-note--active' : ' quiz-edit-note--other';
-                        return `<button type="button" class="note-marker route-edit-note route-edit-note-button${stackedClass}${activeClass}" aria-label="Gr.${gIdx + 1} ${stringNum}弦 ${f}フレット" style="${groupStyle}; ${isActive ? '' : 'opacity:0.45;'}">${getNotationLabel(noteIdx)}</button>`;
+                        return `<button type="button" class="note-marker route-edit-note route-edit-note-button${stackedClass}${activeClass}" aria-label="Gr.${gIdx + 1} ${stringNum}弦 ${f}フレット" style="${groupStyle}; ${isActive ? '' : 'opacity:0.45;'}">${quizEditorMarkerLabel}</button>`;
                     }).join('');
                     const stackModeClass = noteGroups.length >= 3 ? ' route-edit-note-stack--dense' : '';
                     markerHtml = `${guideHtml}<div class="route-edit-note-stack${stackModeClass}" data-string="${stringNum}" data-fret="${f}">${noteButtons}</div>`;
@@ -11677,7 +12683,9 @@ function renderFretboardHTML(containerId, options) {
                     markerHtml = `${guideHtml}<div class="note-marker hidden-note"></div>`;
                 }
             } else if (mode === 'memorize') {
-                let isTargetQuiz = (question && stringNum === question.stringName && noteIdx === question.noteIdx);
+                let isTargetQuiz = state.memorize.proCustomQuiz
+                    ? (question && stringNum === question.stringName && f === question.fret)
+                    : (question && stringNum === question.stringName && noteIdx === question.noteIdx);
                 let isTargetCruise = (question && stringNum === question.stringName && f === question.fret);
                 let isClicked = clicked && (clicked.stringNum === stringNum && clicked.fret === f);
 
@@ -11711,13 +12719,16 @@ function renderFretboardHTML(containerId, options) {
                     }
                 } else {
                     // Quiz mode
+                    const quizMarkerLabel = state.memorize.proCustomQuiz
+                        ? getProCustomDisplayLabel(noteIdx, f, state.memorize.proCustomQuiz)
+                        : getNotationLabel(noteIdx);
                     if (showAnswer) {
                         if (isTargetQuiz && isClicked) {
-                            markerHtml = `<div class="note-marker target-note correct-note">${getNotationLabel(noteIdx)}</div>`;
+                            markerHtml = `<div class="note-marker target-note correct-note">${quizMarkerLabel}</div>`;
                         } else if (isTargetQuiz) {
-                            markerHtml = `<div class="note-marker target-note correct-note">${getNotationLabel(noteIdx)}</div>`;
+                            markerHtml = `<div class="note-marker target-note correct-note">${quizMarkerLabel}</div>`;
                         } else if (isClicked && !clicked.isCorrect) {
-                            markerHtml = `<div class="note-marker target-note wrong-note">${getNotationLabel(noteIdx)}</div>`;
+                            markerHtml = `<div class="note-marker target-note wrong-note">${quizMarkerLabel}</div>`;
                         } else {
                             markerHtml = `<div class="note-marker hidden-note"></div>`;
                         }
