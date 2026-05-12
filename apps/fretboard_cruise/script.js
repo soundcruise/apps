@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.114.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.115.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -478,6 +478,7 @@ let state = {
         cruiseStageRouteGroups: {},
         cruiseStageGroupScrollLefts: {},
         cruiseProCustomStage: null,
+        cruiseProCustomStages: [],
         quizStageEditorSettings: {},
         quizStageAttemptCounts: {},
         routeNumberingVersion: 2,
@@ -850,7 +851,34 @@ if (savedState) {
         ) {
             state.settings.cruiseStageClearCounts = {};
         }
-        state.settings.cruiseProCustomStage = normalizeProCustomStageSettings(state.settings.cruiseProCustomStage);
+        // PROカスタムSTAGE: 旧シングル保存(cruiseProCustomStage) → 配列(cruiseProCustomStages) へマイグレーション
+        if (!Array.isArray(state.settings.cruiseProCustomStages)) {
+            state.settings.cruiseProCustomStages = [];
+        }
+        const legacySingleStage = state.settings.cruiseProCustomStage
+            ? normalizeProCustomStageSettings(state.settings.cruiseProCustomStage)
+            : null;
+        if (legacySingleStage) {
+            // 既に配列にあるかチェック（id が一致するかで判定。なければ id を付与して追加）
+            const alreadyMigrated = state.settings.cruiseProCustomStages.some(s => s && legacySingleStage.id && s.id === legacySingleStage.id);
+            if (!alreadyMigrated) {
+                if (!legacySingleStage.id) legacySingleStage.id = generateProCustomStageId();
+                state.settings.cruiseProCustomStages.unshift(legacySingleStage);
+            }
+        }
+        state.settings.cruiseProCustomStage = null;
+        // 配列の各要素を normalize し、id 重複や id 欠落を整える
+        const seenIds = new Set();
+        state.settings.cruiseProCustomStages = state.settings.cruiseProCustomStages
+            .map(s => normalizeProCustomStageSettings(s))
+            .filter(Boolean)
+            .map(s => {
+                let id = s.id;
+                if (!id || seenIds.has(id)) id = generateProCustomStageId();
+                seenIds.add(id);
+                return { ...s, id };
+            })
+            .slice(0, PRO_CUSTOM_STAGE_MAX_SAVED);
         if (
             !state.settings.quizStageEditorSettings ||
             typeof state.settings.quizStageEditorSettings !== 'object' ||
@@ -1191,6 +1219,7 @@ function getDefaultSettings() {
         cruiseStageRouteGroups: {},
         cruiseStageGroupScrollLefts: {},
         cruiseProCustomStage: null,
+        cruiseProCustomStages: [],
         cruiseStageClearCounts: {},
         lastSettingsTab: 'cruise',
         /** 指板クイズ・問題編集の保存（⚙️デフォルト復元でも消さない） */
@@ -1212,6 +1241,9 @@ function cloneSettings(settings) {
         cruiseProCustomStage: settings.cruiseProCustomStage
             ? JSON.parse(JSON.stringify(settings.cruiseProCustomStage))
             : null,
+        cruiseProCustomStages: Array.isArray(settings.cruiseProCustomStages)
+            ? JSON.parse(JSON.stringify(settings.cruiseProCustomStages))
+            : [],
         cruiseStageClearCounts: JSON.parse(JSON.stringify(settings.cruiseStageClearCounts || {})),
         quizStageEditorSettings: JSON.parse(JSON.stringify(settings.quizStageEditorSettings || {})),
         quizStageAttemptCounts: JSON.parse(JSON.stringify(settings.quizStageAttemptCounts || {}))
@@ -1222,8 +1254,18 @@ function getDefaultProCustomStageDraft() {
     return [];
 }
 
+/** PROカスタムSTAGE は複数件保存可能。上限件数。 */
+const PRO_CUSTOM_STAGE_MAX_SAVED = 12;
+
+function generateProCustomStageId() {
+    const ts = Date.now().toString(36);
+    const rand = Math.floor(Math.random() * 0xffffff).toString(36).padStart(4, '0');
+    return `pcs_${ts}_${rand}`;
+}
+
 function getDefaultProCustomStageSettings() {
     return {
+        id: null,
         name: PRO_CUSTOM_STAGE_DEFAULT_NAME,
         key: 0,
         capo: 0,
@@ -1269,6 +1311,7 @@ function normalizeProCustomStageSettings(raw) {
         }
     });
     return {
+        id: typeof raw.id === 'string' && raw.id ? raw.id : null,
         name: String(raw.name || defaults.name).trim() || defaults.name,
         key: clamp(parseInt(raw.key, 10) || 0, 0, NOTES.length - 1),
         capo: clamp(parseInt(raw.capo, 10) || 0, 0, 7),
@@ -1283,9 +1326,97 @@ function normalizeProCustomStageSettings(raw) {
     };
 }
 
+/** 保存済みPROカスタムSTAGE一覧を取得（normalize 済み・id 必須）。 */
+function getSavedProCustomStages() {
+    const arr = state.settings && Array.isArray(state.settings.cruiseProCustomStages)
+        ? state.settings.cruiseProCustomStages
+        : [];
+    return arr.map(s => normalizeProCustomStageSettings(s)).filter(Boolean);
+}
+
+function getSavedProCustomStageById(id) {
+    if (!id) return null;
+    return getSavedProCustomStages().find(s => s.id === id) || null;
+}
+
+/** 同名のSTAGEが存在するか判定（自分自身は除外する場合は excludeId を指定）。 */
+function proCustomStageNameExists(name, excludeId = null) {
+    const trimmed = String(name || '').trim();
+    if (!trimmed) return false;
+    return getSavedProCustomStages().some(s => s.id !== excludeId && s.name === trimmed);
+}
+
+/** 重複しないSTAGE名を自動生成（baseName / baseName (2) / baseName (3) ...）。 */
+function findFreshProCustomStageName(baseName) {
+    const baseRaw = String(baseName || PRO_CUSTOM_STAGE_DEFAULT_NAME).trim() || PRO_CUSTOM_STAGE_DEFAULT_NAME;
+    if (!proCustomStageNameExists(baseRaw)) return baseRaw;
+    for (let i = 2; i < 1000; i++) {
+        const candidate = `${baseRaw} (${i})`;
+        if (!proCustomStageNameExists(candidate)) return candidate;
+    }
+    return `${baseRaw} ${Date.now().toString(36)}`;
+}
+
+/** STAGEを保存（id あり：上書き／id なし：新規追加）。
+    上限超過の新規追加は null を返す。保存に成功したら最終的な stage オブジェクトを返す。 */
+function saveProCustomStageInArray(stage) {
+    const incoming = normalizeProCustomStageSettings(stage);
+    if (!incoming) return null;
+    const stages = getSavedProCustomStages();
+    if (incoming.id) {
+        const idx = stages.findIndex(s => s.id === incoming.id);
+        if (idx >= 0) {
+            stages[idx] = incoming;
+        } else {
+            if (stages.length >= PRO_CUSTOM_STAGE_MAX_SAVED) return null;
+            stages.push(incoming);
+        }
+    } else {
+        if (stages.length >= PRO_CUSTOM_STAGE_MAX_SAVED) return null;
+        incoming.id = generateProCustomStageId();
+        stages.push(incoming);
+    }
+    state.settings.cruiseProCustomStages = stages;
+    return incoming;
+}
+
+/** STAGEを id 指定で削除。削除できたら true。 */
+function deleteProCustomStageById(id) {
+    if (!id) return false;
+    const stages = getSavedProCustomStages();
+    const filtered = stages.filter(s => s.id !== id);
+    if (filtered.length === stages.length) return false;
+    state.settings.cruiseProCustomStages = filtered;
+    return true;
+}
+
+/** STAGEを複製（同名衝突を避けて「のコピー」を付ける）。上限到達なら null。 */
+function duplicateProCustomStage(id) {
+    const original = getSavedProCustomStageById(id);
+    if (!original) return null;
+    if (getSavedProCustomStages().length >= PRO_CUSTOM_STAGE_MAX_SAVED) return null;
+    const copyName = findFreshProCustomStageName(`${original.name} のコピー`);
+    return saveProCustomStageInArray({ ...original, id: null, name: copyName });
+}
+
+/** STAGE名のみを変更（同名衝突を防ぐ）。成功したら true。 */
+function renameProCustomStageById(id, newName) {
+    const trimmed = String(newName || '').trim();
+    if (!trimmed) return false;
+    if (proCustomStageNameExists(trimmed, id)) return false;
+    const cur = getSavedProCustomStageById(id);
+    if (!cur) return false;
+    return !!saveProCustomStageInArray({ ...cur, name: trimmed });
+}
+
 function normalizeProCustomEditorState(raw) {
-    const saved = normalizeProCustomStageSettings(state.settings?.cruiseProCustomStage) || getDefaultProCustomStageSettings();
+    /** 編集中STAGEがあればその保存済みデータを基底にする。新規作成中なら既定値。
+        万一 id が指す STAGE が削除されていた場合は editingStageId を null に戻す（誤って別 id で新規追加されないように）。 */
     const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    const requestedId = typeof source.editingStageId === 'string' && source.editingStageId ? source.editingStageId : null;
+    const matchedStage = requestedId ? getSavedProCustomStageById(requestedId) : null;
+    const editingId = matchedStage ? requestedId : null;
+    const saved = matchedStage || getDefaultProCustomStageSettings();
     const draft = cloneCruiseRouteSlots(source.draft || saved.route);
     const groupBreaks = normalizeRouteEditorGroupBreaks(
         Array.isArray(source.groupBreaks) ? source.groupBreaks : saved.groupBreaks,
@@ -1331,18 +1462,18 @@ function normalizeProCustomEditorState(raw) {
         maxFret: Number.isFinite(parseInt(source.maxFret ?? saved.maxFret, 10))
             ? clamp(parseInt(source.maxFret ?? saved.maxFret, 10), PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, MAX_FRET)
             : (source.showExtendedFrets || saved.showExtendedFrets ? MAX_FRET : PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET),
-        scrollLefts
+        scrollLefts,
+        editingStageId: editingId
     };
 }
 
-function getSavedProCustomStage() {
-    return normalizeProCustomStageSettings(state.settings?.cruiseProCustomStage);
-}
-
+/** 編集中の STAGE を配列に保存（新規 or 既存上書き）。
+    保存できなかった場合（上限到達など）は null を返す。 */
 function saveProCustomStageFromEditor() {
     const editor = normalizeProCustomEditorState(state.proCustomRouteEditor);
     state.proCustomRouteEditor = editor;
-    state.settings.cruiseProCustomStage = normalizeProCustomStageSettings({
+    const saved = saveProCustomStageInArray({
+        id: editor.editingStageId,
         name: editor.name,
         key: editor.key,
         capo: editor.capo,
@@ -1355,6 +1486,10 @@ function saveProCustomStageFromEditor() {
         groupNames: editor.groupNames,
         groupScrollLefts: editor.scrollLefts
     });
+    if (saved) {
+        state.proCustomRouteEditor.editingStageId = saved.id;
+    }
+    return saved;
 }
 
 function makeProCustomEditorSnapshot() {
@@ -6676,34 +6811,45 @@ function renderStageSelect(app) {
             </div>
         `;
     }).join('');
-    const savedProCustomStage = isCruiseMode ? getSavedProCustomStage() : null;
-    const hasSavedProCustomStage = !!(savedProCustomStage && savedProCustomStage.route && savedProCustomStage.route.length);
-    /** 「PROカスタムSTAGE」行は常に編集画面の入口。⋮ は冗長なので付けない。
-        保存済み行とデザインを揃えるため pro-custom-saved-btn を共通利用し、
-        編集入口用の修飾子 --editor で見出し（👑 / 説明）を最適化する。 */
+    const savedProCustomStages = isCruiseMode ? getSavedProCustomStages() : [];
+    const proCustomReachedLimit = savedProCustomStages.length >= PRO_CUSTOM_STAGE_MAX_SAVED;
+    /** 「PROカスタムSTAGE」行は常に "新規追加" の入口。タップすると空の編集画面が開く。
+        既存STAGEの編集は下に並ぶ各保存STAGE行の ▼ → ⚙️ から行う。 */
     const proCustomEditorRowHtml = isCruiseMode ? `
         <div class="stage-route-row stage-route-row--pro-custom">
-            <button class="stage-btn pro-custom-saved-btn pro-custom-saved-btn--editor" type="button" id="btn-pro-custom-stage">
+            <button class="stage-btn pro-custom-saved-btn pro-custom-saved-btn--editor" type="button" id="btn-pro-custom-stage" ${proCustomReachedLimit ? 'disabled' : ''}>
                 <span class="pro-custom-saved-btn__title pro-custom-saved-btn__title--editor">
-                    <span class="pro-custom-saved-btn__title-emoji" aria-hidden="true">👑</span>PROカスタムSTAGE
+                    <span class="pro-custom-saved-btn__title-emoji" aria-hidden="true">👑</span>${proCustomReachedLimit ? `PROカスタムSTAGE（上限${PRO_CUSTOM_STAGE_MAX_SAVED}件）` : 'PROカスタムSTAGE'}
                 </span>
-                <span class="stage-desc pro-custom-saved-btn__desc">新しい順番を作る／編集する</span>
+                <span class="stage-desc pro-custom-saved-btn__desc">${proCustomReachedLimit ? '不要なSTAGEを削除してください' : '新しいSTAGEを追加する'}</span>
             </button>
         </div>
     ` : '';
-    /** 保存済みのPROカスタムSTAGEがあれば、編集行の下に「再生」用の行を独立表示する。
-        ボタン自体にPRO感（金の縁取り＋PROバッジ）を載せる。光沢の動くアニメーションは付けない。 */
-    const proCustomSavedRowHtml = (isCruiseMode && hasSavedProCustomStage) ? `
-        <div class="stage-route-row stage-route-row--pro-custom-saved">
-            <button class="stage-btn pro-custom-saved-btn" type="button" id="btn-pro-custom-saved-play">
-                <span class="pro-custom-saved-btn__badge" aria-hidden="true">PRO</span>
-                <span class="pro-custom-saved-btn__title">${escapeHtml(savedProCustomStage.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}</span>
-                <span class="stage-desc pro-custom-saved-btn__desc">${savedProCustomStage.route.length}音 / カポ${savedProCustomStage.capo}</span>
-            </button>
-            <button class="stage-route-edit-btn stage-route-edit-btn--icon pro-custom-saved-edit-btn" type="button" id="btn-pro-custom-saved-edit" aria-label="保存したPROカスタムSTAGEを編集" title="編集">⋮</button>
+    /** 各保存済みSTAGEは「再生ボタン＋▼トグル」と、トグルで開く操作群（✏️名前変更・⚙️編集・📄複製・🗑️削除）。 */
+    const proCustomSavedRowsHtml = savedProCustomStages.map((stage) => {
+        const safeId = escapeHtml(stage.id);
+        return `
+        <div class="stage-route-row stage-route-row--pro-custom-saved pro-custom-saved-row" data-pro-custom-row-id="${safeId}">
+            <div class="pro-custom-saved-row__main">
+                <button class="stage-btn pro-custom-saved-btn pro-custom-saved-btn--play" type="button" data-pro-custom-play-id="${safeId}">
+                    <span class="pro-custom-saved-btn__badge" aria-hidden="true">PRO</span>
+                    <span class="pro-custom-saved-btn__title">${escapeHtml(stage.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}</span>
+                    <span class="stage-desc pro-custom-saved-btn__desc">${stage.route.length}音 / カポ${stage.capo}</span>
+                </button>
+                <button type="button" class="pro-custom-saved-toggle" data-pro-custom-toggle-id="${safeId}" aria-expanded="false" aria-haspopup="true" aria-label="その他の操作を表示" title="その他の操作">
+                    <span class="pro-custom-saved-toggle__chevron" aria-hidden="true">▼</span>
+                </button>
+            </div>
+            <div class="pro-custom-saved-actions" hidden role="group" aria-label="PROカスタムSTAGEの操作" data-pro-custom-actions-id="${safeId}">
+                <button type="button" class="icon-btn pro-custom-saved-action-btn" data-pro-custom-action="rename" data-pro-custom-target-id="${safeId}" title="名前を変更" aria-label="名前を変更">✏️</button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn" data-pro-custom-action="edit" data-pro-custom-target-id="${safeId}" title="このSTAGEを編集" aria-label="このSTAGEを編集">⚙️</button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn" data-pro-custom-action="duplicate" data-pro-custom-target-id="${safeId}" title="複製" aria-label="複製" ${proCustomReachedLimit ? 'disabled' : ''}>📄</button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn pro-custom-saved-action-btn--delete" data-pro-custom-action="delete" data-pro-custom-target-id="${safeId}" title="このSTAGEを削除" aria-label="このSTAGEを削除">🗑️</button>
+            </div>
         </div>
-    ` : '';
-    const proCustomStageHtml = `${proCustomEditorRowHtml}${proCustomSavedRowHtml}`;
+        `;
+    }).join('');
+    const proCustomStageHtml = `${proCustomEditorRowHtml}${proCustomSavedRowsHtml}`;
     app.innerHTML = `
         ${buildPageHeader({
             headerClass: 'page-header--stage-select',
@@ -6736,26 +6882,48 @@ function renderStageSelect(app) {
         openSettings('stageSelect');
     };
 
-    const openProCustomEditor = () => {
-        const saved = getSavedProCustomStage() || getDefaultProCustomStageSettings();
+    /** 新規 or 既存 STAGE の編集画面を開く。
+        - { newStage: true }   → 空のドラフトでスタート（id 未割当）
+        - { stageId: 'pcs_…' } → その保存済みSTAGEを編集 */
+    const openProCustomEditor = (options = {}) => {
+        const { newStage = false, stageId = null } = options;
+        let base;
+        let editingStageId = null;
+        if (stageId) {
+            const target = getSavedProCustomStageById(stageId);
+            if (target) {
+                base = target;
+                editingStageId = target.id;
+            } else {
+                base = getDefaultProCustomStageSettings();
+            }
+        } else if (newStage) {
+            base = getDefaultProCustomStageSettings();
+            base.name = findFreshProCustomStageName(PRO_CUSTOM_STAGE_DEFAULT_NAME);
+        } else {
+            // 後方互換: 引数なしで呼ばれた場合は新規作成として扱う
+            base = getDefaultProCustomStageSettings();
+            base.name = findFreshProCustomStageName(PRO_CUSTOM_STAGE_DEFAULT_NAME);
+        }
         state.proCustomRouteEditor = normalizeProCustomEditorState({
-            draft: saved.route,
+            draft: base.route,
             history: [],
-            groupBreaks: saved.groupBreaks,
-            groupNames: saved.groupNames,
+            groupBreaks: base.groupBreaks,
+            groupNames: base.groupNames,
             selectedGroupIndex: 0,
             visibleGroupIndices: [0],
             forceHideAllGroups: false,
             showAllGroupsExpanded: false,
             groupPanelOffset: { x: 0, y: 0 },
-            name: saved.name,
-            key: saved.key,
-            capo: saved.capo,
-            scale: saved.scale,
-            displayMode: saved.displayMode,
-            doMode: saved.doMode,
-            maxFret: saved.maxFret,
-            scrollLefts: saved.groupScrollLefts
+            name: base.name,
+            key: base.key,
+            capo: base.capo,
+            scale: base.scale,
+            displayMode: base.displayMode,
+            doMode: base.doMode,
+            maxFret: base.maxFret,
+            scrollLefts: base.groupScrollLefts,
+            editingStageId
         });
         state.course = 'proCustomRouteEditor';
         saveState();
@@ -6764,30 +6932,99 @@ function renderStageSelect(app) {
 
     const proCustomBtn = document.getElementById('btn-pro-custom-stage');
     if (proCustomBtn) {
-        // 「PROカスタムSTAGE」は常に編集画面を開く（保存済みデータがあればそれを引き継いで編集できる）
+        // 「PROカスタムSTAGE」は常に "新規追加" の入口
         proCustomBtn.onclick = () => {
-            openProCustomEditor();
+            if (proCustomBtn.disabled) return;
+            openProCustomEditor({ newStage: true });
         };
     }
 
-    const proCustomSavedPlayBtn = document.getElementById('btn-pro-custom-saved-play');
-    if (proCustomSavedPlayBtn) {
-        proCustomSavedPlayBtn.onclick = () => {
+    document.querySelectorAll('[data-pro-custom-play-id]').forEach(btn => {
+        btn.onclick = () => {
             initAudio();
-            const saved = getSavedProCustomStage();
-            if (saved && saved.route && saved.route.length) {
-                startProCustomCruisePlayback(saved, 'stageSelect');
-            } else {
-                // 保存データが消えていた場合のフォールバック：編集画面へ
-                openProCustomEditor();
+            const id = btn.getAttribute('data-pro-custom-play-id');
+            const stage = getSavedProCustomStageById(id);
+            if (stage && stage.route && stage.route.length) {
+                startProCustomCruisePlayback(stage, 'stageSelect');
             }
         };
-    }
+    });
 
-    const proCustomSavedEditBtn = document.getElementById('btn-pro-custom-saved-edit');
-    if (proCustomSavedEditBtn) {
-        proCustomSavedEditBtn.onclick = openProCustomEditor;
-    }
+    document.querySelectorAll('[data-pro-custom-toggle-id]').forEach(btn => {
+        btn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const id = btn.getAttribute('data-pro-custom-toggle-id');
+            const row = btn.closest('.pro-custom-saved-row');
+            const actions = row ? row.querySelector(`[data-pro-custom-actions-id="${id}"]`) : null;
+            if (!row || !actions) return;
+            const opening = !row.classList.contains('is-open');
+            // 同時に開く行は1つにする（他の開いている行は閉じる）
+            document.querySelectorAll('.pro-custom-saved-row.is-open').forEach(other => {
+                if (other === row) return;
+                other.classList.remove('is-open');
+                const otherActions = other.querySelector('.pro-custom-saved-actions');
+                const otherToggle = other.querySelector('.pro-custom-saved-toggle');
+                if (otherActions) otherActions.hidden = true;
+                if (otherToggle) {
+                    otherToggle.setAttribute('aria-expanded', 'false');
+                    otherToggle.setAttribute('aria-label', 'その他の操作を表示');
+                }
+            });
+            row.classList.toggle('is-open', opening);
+            actions.hidden = !opening;
+            btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
+            btn.setAttribute('aria-label', opening ? 'その他の操作を閉じる' : 'その他の操作を表示');
+        };
+    });
+
+    document.querySelectorAll('[data-pro-custom-action]').forEach(btn => {
+        btn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (btn.disabled) return;
+            const action = btn.getAttribute('data-pro-custom-action');
+            const id = btn.getAttribute('data-pro-custom-target-id');
+            if (!id) return;
+            if (action === 'edit') {
+                openProCustomEditor({ stageId: id });
+                return;
+            }
+            const cur = getSavedProCustomStageById(id);
+            if (!cur) return;
+            if (action === 'rename') {
+                const next = window.prompt('新しいSTAGE名を入力してください', cur.name);
+                if (next === null) return;
+                const trimmed = String(next).trim();
+                if (!trimmed) {
+                    window.alert('名前を入力してください。');
+                    return;
+                }
+                if (proCustomStageNameExists(trimmed, id)) {
+                    window.alert(`「${trimmed}」という名前のSTAGEはすでにあります。別の名前にしてください。`);
+                    return;
+                }
+                renameProCustomStageById(id, trimmed);
+                saveState();
+                renderApp();
+            } else if (action === 'duplicate') {
+                if (getSavedProCustomStages().length >= PRO_CUSTOM_STAGE_MAX_SAVED) {
+                    window.alert(`これ以上追加できません（上限${PRO_CUSTOM_STAGE_MAX_SAVED}件）。`);
+                    return;
+                }
+                const dup = duplicateProCustomStage(id);
+                if (dup) {
+                    saveState();
+                    renderApp();
+                }
+            } else if (action === 'delete') {
+                if (!window.confirm(`「${cur.name}」を削除しますか？`)) return;
+                deleteProCustomStageById(id);
+                saveState();
+                renderApp();
+            }
+        };
+    });
 
     document.querySelectorAll('.stage-route-edit-btn[data-edit-stage]').forEach(btn => {
         btn.onclick = () => {
@@ -7752,11 +7989,15 @@ function renderProCustomRouteEditor(app) {
     );
     const proCustomDisplayMode = state.settings.noteLabelMode;
 
+    const proCustomEditingId = state.proCustomRouteEditor.editingStageId || null;
+    const proCustomHeaderTitle = proCustomEditingId
+        ? `👑 ${escapeHtml(state.proCustomRouteEditor.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}<span class="pro-custom-header-sub"> を編集</span>`
+        : '👑 PROカスタムSTAGE<span class="pro-custom-header-sub"> を新規作成</span>';
     app.innerHTML = `
         <div class="route-editor-screen route-editor-scale-guide-variant-3 pro-custom-route-editor-screen">
             ${buildPageHeader({
                 headerClass: 'page-header--route-editor',
-                titleText: '👑 PROカスタムSTAGE',
+                titleText: proCustomHeaderTitle,
                 leftHtml: `
                     ${navButtonHtml({ id: 'btn-pro-custom-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
                     ${navButtonHtml({ id: 'btn-pro-custom-home', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
@@ -7830,6 +8071,7 @@ function renderProCustomRouteEditor(app) {
                 <div class="pro-custom-stage-name-modal__title" id="pro-custom-stage-name-modal-title">STAGE名を入力</div>
                 <label class="pro-custom-stage-name-modal__label" for="pro-custom-stage-name-input">保存する名前</label>
                 <input class="pro-custom-stage-name-modal__input" id="pro-custom-stage-name-input" type="text" maxlength="24" spellcheck="false" autocomplete="off" inputmode="text" />
+                <div class="pro-custom-stage-name-modal__error" id="pro-custom-stage-name-error" hidden></div>
                 <div class="pro-custom-stage-name-modal__actions">
                     <button type="button" class="btn-secondary pro-custom-stage-name-modal__cancel" data-pro-custom-stage-name-cancel>キャンセル</button>
                     <button type="button" class="btn-primary pro-custom-stage-name-modal__confirm" id="pro-custom-stage-name-confirm">保存</button>
@@ -7845,16 +8087,29 @@ function renderProCustomRouteEditor(app) {
     };
     const nameModal = document.getElementById('pro-custom-stage-name-modal');
     const nameInput = document.getElementById('pro-custom-stage-name-input');
+    const nameError = document.getElementById('pro-custom-stage-name-error');
     /** モーダルを開いた直後に届く「ボタン由来の遅延 click」がバックドロップに当たって
         即座にモーダルを閉じてしまうのを防ぐためのガード。 */
     let modalSuppressBackdropUntil = 0;
+    const setNameModalError = (msg) => {
+        if (!nameError) return;
+        if (msg) {
+            nameError.textContent = msg;
+            nameError.hidden = false;
+        } else {
+            nameError.textContent = '';
+            nameError.hidden = true;
+        }
+    };
     const closeNameModal = () => {
         nameModal.hidden = true;
         nameModal.classList.remove('is-open');
+        setNameModalError('');
     };
     const openNameModal = () => {
         modalSuppressBackdropUntil = Date.now() + 400;
         nameInput.value = String(state.proCustomRouteEditor.name || PRO_CUSTOM_STAGE_DEFAULT_NAME);
+        setNameModalError('');
         nameModal.hidden = false;
         nameModal.classList.add('is-open');
         setTimeout(() => {
@@ -7863,9 +8118,28 @@ function renderProCustomRouteEditor(app) {
         }, 0);
     };
     const confirmNameModal = () => {
-        state.proCustomRouteEditor.name = String(nameInput.value || '').trim() || PRO_CUSTOM_STAGE_DEFAULT_NAME;
+        const inputName = String(nameInput.value || '').trim() || PRO_CUSTOM_STAGE_DEFAULT_NAME;
+        const editingId = state.proCustomRouteEditor.editingStageId || null;
+        if (proCustomStageNameExists(inputName, editingId)) {
+            setNameModalError(`「${inputName}」という名前のSTAGEはすでにあります。別の名前にしてください。`);
+            setTimeout(() => {
+                nameInput.focus();
+                nameInput.select();
+            }, 0);
+            return;
+        }
+        // 新規追加のとき、上限を超えていれば保存不可
+        if (!editingId && getSavedProCustomStages().length >= PRO_CUSTOM_STAGE_MAX_SAVED) {
+            setNameModalError(`PROカスタムSTAGEは最大${PRO_CUSTOM_STAGE_MAX_SAVED}件まで保存できます。`);
+            return;
+        }
+        state.proCustomRouteEditor.name = inputName;
+        const saved = saveProCustomStageFromEditor();
+        if (!saved) {
+            setNameModalError('保存に失敗しました。もう一度お試しください。');
+            return;
+        }
         closeNameModal();
-        saveProCustomStageFromEditor();
         state.course = 'stageSelect';
         saveState();
         renderApp();
@@ -7982,36 +8256,13 @@ function renderProCustomRouteEditor(app) {
             groupScrollLefts: state.proCustomRouteEditor.scrollLefts
         }, 'proCustomRouteEditor');
     };
-    let lastFooterAction = { id: '', at: 0 };
-    const triggerFooterButtonFromPoint = e => {
-        const footerButtons = [
-            { id: 'btn-pro-custom-demo', run: startDemoFromEditor },
-            { id: 'btn-pro-custom-save', run: openNameModal }
-        ];
-        const hit = footerButtons.find(({ id }) => {
-            const btn = document.getElementById(id);
-            if (!btn || btn.disabled) return false;
-            const rect = btn.getBoundingClientRect();
-            return e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom;
-        });
-        if (!hit) return false;
-        const now = Date.now();
-        if (hit.id === lastFooterAction.id && now - lastFooterAction.at < 450) return true;
-        lastFooterAction = { id: hit.id, at: now };
-        e.preventDefault();
-        e.stopPropagation();
-        hit.run();
-        return true;
-    };
-    app.querySelector('.pro-custom-route-editor-screen').addEventListener('click', e => {
-        triggerFooterButtonFromPoint(e);
-    }, true);
-    app.querySelector('.pro-custom-route-editor-screen').addEventListener('pointerup', e => {
-        triggerFooterButtonFromPoint(e);
-    }, true);
+    /** 「デモ」「保存」ボタンは、フレットボードの onFretClick ガード（route-editor-save-row 配下を無視）が
+        document レベルの pointerdown ハイジャックを抑えてくれるので、シンプルに onclick だけで処理する。
+        以前あった座標ベースの capture-phase ヒットテスタは、デモボタンを押しても
+        誤って保存モーダルが開くことがあったため撤去した。 */
     document.getElementById('btn-pro-custom-save').onclick = e => {
-        if (triggerFooterButtonFromPoint(e)) return;
         e.preventDefault();
+        if (e.currentTarget.disabled) return;
         openNameModal();
     };
     document.getElementById('pro-custom-stage-name-confirm').onclick = confirmNameModal;
@@ -8034,8 +8285,11 @@ function renderProCustomRouteEditor(app) {
             closeNameModal();
         }
     });
+    // 入力が変わったらエラー表示は一旦クリア
+    nameInput.addEventListener('input', () => setNameModalError(''));
     document.getElementById('btn-pro-custom-demo').onclick = e => {
-        if (triggerFooterButtonFromPoint(e)) return;
+        e.preventDefault();
+        if (e.currentTarget.disabled) return;
         startDemoFromEditor();
     };
 

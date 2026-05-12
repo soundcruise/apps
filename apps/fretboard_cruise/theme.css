@@ -1892,18 +1892,148 @@ input:checked + .toggle-slider:before {
     padding-right: 0;
 }
 
-/* 隣の ⋮（編集）ボタンも保存STAGE行では同じ控えめなシャンパン調に揃える */
-.pro-custom-saved-edit-btn.stage-route-edit-btn--icon {
-    border-color: rgba(196, 168, 110, 0.32);
+/* 保存済み PRO カスタム STAGE 行のレイアウト（再生 + ▼ + 操作行） */
+.pro-custom-saved-row {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.pro-custom-saved-row__main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.pro-custom-saved-toggle {
+    box-sizing: border-box;
+    width: 32px;
+    min-width: 32px;
+    align-self: center;
+    height: 32px;
+    padding: 0;
+    border: 1px solid rgba(196, 168, 110, 0.32);
+    border-radius: 8px;
     background: rgba(214, 188, 132, 0.05);
-    color: rgba(214, 188, 132, 0.72);
+    color: rgba(214, 188, 132, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.pro-custom-saved-toggle:active {
+    background: rgba(214, 188, 132, 0.1);
 }
 
 @media (hover: hover) {
-    .pro-custom-saved-edit-btn.stage-route-edit-btn--icon:hover {
+    .pro-custom-saved-toggle:hover {
         background: rgba(214, 188, 132, 0.1);
         color: #ecdcb6;
     }
+}
+
+.pro-custom-saved-toggle__chevron {
+    display: inline-block;
+    font-size: 0.6rem;
+    line-height: 1;
+    transition: transform 0.2s ease;
+}
+
+.pro-custom-saved-row.is-open .pro-custom-saved-toggle__chevron {
+    transform: rotate(180deg);
+}
+
+.pro-custom-saved-actions {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 4px 0 2px;
+}
+
+.pro-custom-saved-actions[hidden] {
+    display: none !important;
+}
+
+.pro-custom-saved-action-btn {
+    box-sizing: border-box;
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+    padding: 0;
+    margin: 0;
+    border-radius: 8px;
+    font-size: 1.05rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.92);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.pro-custom-saved-action-btn:active {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+@media (hover: hover) {
+    .pro-custom-saved-action-btn:hover {
+        background: rgba(255, 255, 255, 0.12);
+    }
+}
+
+.pro-custom-saved-action-btn:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+}
+
+.pro-custom-saved-action-btn--delete {
+    border-color: rgba(255, 110, 110, 0.32);
+    background: rgba(255, 110, 110, 0.08);
+}
+
+@media (hover: hover) {
+    .pro-custom-saved-action-btn--delete:hover {
+        background: rgba(255, 110, 110, 0.16);
+    }
+}
+
+/* 編集画面ヘッダーのサブ表示（〜を新規作成 / 〜を編集） */
+.pro-custom-header-sub {
+    font-size: 0.78em;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.55);
+    margin-left: 2px;
+}
+
+/* 名前モーダル：同名チェックなどのエラーメッセージ */
+.pro-custom-stage-name-modal__error {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(255, 110, 110, 0.1);
+    border: 1px solid rgba(255, 110, 110, 0.36);
+    color: #ffd2d2;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    text-align: center;
+}
+
+.pro-custom-stage-name-modal__error[hidden] {
+    display: none;
 }
 
 /* 完走回数バッジ（STAGE ボタン内） */
@@ -2338,7 +2468,9 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 }
 
 .pro-custom-setup-row--triple {
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 0.7fr) minmax(0, 1.8fr);
+    /* キーとカポはコンパクトに、スケールは長いカナ名（リディアン・ドミナントなど）が
+       省略されにくいよう広めに確保する。 */
+    grid-template-columns: minmax(0, 0.55fr) minmax(0, 0.45fr) minmax(0, 2.0fr);
     align-items: end;
 }
 
@@ -2364,16 +2496,19 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     width: 100%;
 }
 
+/* 閉じている select 自体（タップ前の表示）を読みやすく */
 .pro-custom-setup-item select {
-    font-size: 1rem;
-    font-weight: inherit;
-    padding: 8px 12px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    padding: 10px 12px;
 }
 
+/* プルダウンを開いたときの選択肢（OS のピッカー／ブラウザのリスト）。
+   モバイルブラウザでも見やすいよう大きめに。 */
 .pro-custom-setup-item select option {
-    font-size: 1.18rem;
+    font-size: 1.35rem;
     font-weight: 700;
-    line-height: 1.45;
+    line-height: 1.5;
 }
 
 .pro-custom-setup-item--scale select {
