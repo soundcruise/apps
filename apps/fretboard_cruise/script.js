@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.112.17';
+const FRETBOARD_CRUISE_APP_VERSION = '1.112.18';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -7784,7 +7784,7 @@ function renderProCustomRouteEditor(app) {
             <div class="route-editor-expanded-gap ${showAllGroupsExpanded ? 'route-editor-expanded-gap--visible' : ''}" aria-hidden="true"></div>
             <div class="route-editor-save-row">
                 <button type="button" class="btn-secondary route-editor-demo-btn" id="btn-pro-custom-demo" ${draft.length ? '' : 'disabled'}>現在の順番でデモ</button>
-                <button class="btn-primary route-editor-save-btn" id="btn-pro-custom-save" ${draft.length ? '' : 'disabled'}>このSTAGEで保存</button>
+                <button type="button" class="btn-primary route-editor-save-btn" id="btn-pro-custom-save" ${draft.length ? '' : 'disabled'}>このSTAGEで保存</button>
             </div>
             <div class="pro-custom-route-editor-tail-spacer" aria-hidden="true"></div>
             <div class="route-editor-expanded-spacer ${showAllGroupsExpanded ? 'route-editor-expanded-spacer--visible' : ''}" aria-hidden="true"></div>
