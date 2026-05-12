@@ -2798,9 +2798,13 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     margin: 0 auto;
 }
 
-.visualize-setup-row--single {
-    grid-template-columns: minmax(140px, max-content);
+.visualize-setup-row--notation {
+    grid-template-columns: minmax(220px, max-content);
     justify-content: center;
+}
+
+.visualize-setup-row--notation .mode-buttons {
+    width: 100%;
 }
 
 .visualize-setup-row .setup-item {

@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.130.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.130.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。探索・PROカスタム編集・問題画面で共通。 */
@@ -11221,24 +11221,25 @@ function renderVisualize(app) {
                 </div>
             </div>
             <div class="visualize-setup-row visualize-setup-row--double">
-                <div class="setup-item visualize-setup-item visualize-setup-item--label">
-                    <div class="mode-buttons">
-                        <button class="mode-btn ${state.visualize.displayMode==='solfege'?'active':''}" data-mode="solfege">ドレミ</button>
-                        <button class="mode-btn ${state.visualize.displayMode==='note'?'active':''}" data-mode="note">CDE</button>
-                        <button class="mode-btn ${state.visualize.displayMode==='degree'?'active':''}" data-mode="degree">度数</button>
-                    </div>
-                </div>
                 <div class="setup-item visualize-setup-item visualize-setup-item--do">
+                    <label>表示方法</label>
                     <div class="mode-buttons">
                         <button type="button" class="do-mode-btn ${state.visualize.doMode==='movable'?'active':''}" data-do-mode="movable">移動ド</button>
                         <button type="button" class="do-mode-btn ${state.visualize.doMode==='fixed'?'active':''}" data-do-mode="fixed">固定ド</button>
                     </div>
                 </div>
-            </div>
-            <div class="visualize-setup-row visualize-setup-row--single">
                 <div class="setup-item visualize-setup-item visualize-setup-item--max-fret">
                     <label>最大フレット</label>
                     ${buildCustomDropdownHtml({ id: 'vis-max-fret', options: visMaxFretOptions, selectedValue: state.visualize.maxFret, ariaLabel: '最大フレット', wrapClass: 'pro-custom-dd--visualize' })}
+                </div>
+            </div>
+            <div class="visualize-setup-row visualize-setup-row--notation">
+                <div class="setup-item visualize-setup-item visualize-setup-item--notation">
+                    <div class="mode-buttons">
+                        <button class="mode-btn ${state.visualize.displayMode==='solfege'?'active':''}" data-mode="solfege">ドレミ</button>
+                        <button class="mode-btn ${state.visualize.displayMode==='note'?'active':''}" data-mode="note">CDE</button>
+                        <button class="mode-btn ${state.visualize.displayMode==='degree'?'active':''}" data-mode="degree">度数</button>
+                    </div>
                 </div>
             </div>
         </div>
