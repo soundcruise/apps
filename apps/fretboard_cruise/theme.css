@@ -885,6 +885,27 @@
     border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
+/* 終了カード内「このSTAGEを保存」：編集画面・デモと同じ PRO 茶／シャンパン系ボタン */
+.memorize-cleared-card__actions--three .memorize-cleared-card__btn--pro-custom-saved.pro-custom-saved-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 48px;
+    padding: 10px 18px;
+    max-width: none;
+    font-size: inherit;
+    line-height: 1.2;
+    overflow: hidden;
+}
+
+.memorize-cleared-card__actions--three .memorize-cleared-card__btn--pro-custom-saved.pro-custom-saved-btn .pro-custom-saved-btn__title {
+    font-size: 0.98rem;
+    padding-right: 0;
+}
+
+.memorize-screen--landscape .memorize-cleared-card__actions--three .memorize-cleared-card__btn--pro-custom-saved.pro-custom-saved-btn .pro-custom-saved-btn__title {
+    font-size: 0.92rem;
+}
+
 /* ============================================================
    問題進行ドット（指板クイズの「問題」ステータス）
    ============================================================ */
