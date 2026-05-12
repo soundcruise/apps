@@ -847,8 +847,8 @@
 }
 
 .memorize-cleared-card__actions--three .memorize-cleared-card__btn {
-    font-size: 0.78rem;
-    padding: 10px 5px;
+    font-size: 0.92rem;
+    padding: 10px 6px;
     letter-spacing: 0;
 }
 
@@ -1269,8 +1269,8 @@
 }
 
 .memorize-screen--landscape .memorize-cleared-card__actions--three .memorize-cleared-card__btn {
-    padding: 8px 4px;
-    font-size: 0.72rem;
+    padding: 8px 6px;
+    font-size: 0.86rem;
 }
 
 /* 小型機（iPhone SE/12 Pro など 横幅 480px 以下、または横画面 800px 未満）の終了カード:
@@ -1292,8 +1292,8 @@
     .memorize-cleared-card__actions--three .memorize-cleared-card__btn:nth-child(3) {
         flex: 1 1 100%;
         max-width: 100%;
-        font-size: 0.84rem;
-        padding: 10px 12px;
+        font-size: 0.95rem;
+        padding: 11px 12px;
     }
 }
 

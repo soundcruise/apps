@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.127.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.128.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。探索・PROカスタム編集・問題画面で共通。 */
@@ -10328,7 +10328,10 @@ function renderMemorize(app) {
                             <div class="memorize-cleared-card__actions memorize-cleared-card__actions--three">
                                 <button type="button" class="btn-primary memorize-cleared-card__btn memorize-cleared-card__btn--primary" id="btn-memorize-cleared-restart">もう1回</button>
                                 <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-exit">${isEditorDemoPlayback ? '編集画面へ' : '終了'}</button>
-                                <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-next-stage"${isProCustomCruise || isProCustomQuiz || state.memorize.stage >= 6 ? ' disabled' : ''}>次のSTAGEへ</button>
+                                ${(isProCustomDemoPlayback || isProCustomQuizDemoPlayback)
+                                    ? `<button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost memorize-cleared-card__btn--pro-custom-save" id="btn-memorize-cleared-pro-custom-save">このSTAGEを保存</button>`
+                                    : `<button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-next-stage"${isProCustomCruise || isProCustomQuiz || state.memorize.stage >= 6 ? ' disabled' : ''}>次のSTAGEへ</button>`
+                                }
                             </div>
                         </div>
                     </div>
@@ -10515,6 +10518,18 @@ function renderMemorize(app) {
     const btnClearedNextStage = document.getElementById('btn-memorize-cleared-next-stage');
     if (btnClearedNextStage && !btnClearedNextStage.disabled) {
         btnClearedNextStage.onclick = () => navigateMemorizeToNextStageFromCleared();
+    }
+    /** PROカスタムSTAGEのデモから来た終了カード：そのまま編集画面に戻って名前モーダルを開く。 */
+    const btnClearedProCustomSave = document.getElementById('btn-memorize-cleared-pro-custom-save');
+    if (btnClearedProCustomSave) {
+        btnClearedProCustomSave.onclick = () => {
+            if (state.memorize.demoReturnCourse === 'proCustomQuizEditor') {
+                proCustomQuizEditorPendingOpenNameModal = true;
+            } else {
+                proCustomPendingOpenNameModal = true;
+            }
+            returnMemorizeDemoToEditor();
+        };
     }
 
     // Highlight mode selection buttons
