@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.131.9';
+const FRETBOARD_CRUISE_APP_VERSION = '1.131.10';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。探索・PROカスタム編集・問題画面で共通。 */
@@ -14672,9 +14672,8 @@ function tryRenderApp(context) {
     }
 }
 
-// Initial render
-document.addEventListener('DOMContentLoaded', () => {
-    // settings のみ復元（course や memorize 状態は復元しない）
+/** index.html から script.js を動的挿入しているため、読み込みが遅いと DOMContentLoaded が先に終わり初回描画が抜ける。readyState で即時起動する。 */
+function runFretboardBoot() {
     const saved = localStorage.getItem('fretboard_cruise_state');
     if (saved) {
         try {
@@ -14687,4 +14686,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     tryRenderApp('load');
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', runFretboardBoot);
+} else {
+    runFretboardBoot();
+}
