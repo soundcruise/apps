@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.131.10';
+const FRETBOARD_CRUISE_APP_VERSION = '1.131.11';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。探索・PROカスタム編集・問題画面で共通。 */
@@ -11427,9 +11427,9 @@ function renderVisualize(app) {
         <div id="fretboard-container" style="width: 100%;"></div>
 
         <div class="visualize-chords-afterboard" style="margin-bottom: 120px;">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                <h3 style="font-size: 1rem; color: rgba(255,255,255,0.7); margin: 0;">ダイアトニックコード</h3>
-                <label class="toggle-switch" style="margin-left: 10px;">
+            <div class="visualize-diatonic-header-row">
+                <h3 class="visualize-diatonic-title">ダイアトニックコード</h3>
+                <label class="toggle-switch visualize-diatonic-auto-toggle">
                     <input type="checkbox" id="auto-select-root-chord" ${state.visualize.autoSelectRootChord ? 'checked' : ''}>
                     <span class="toggle-slider"></span>
                 </label>

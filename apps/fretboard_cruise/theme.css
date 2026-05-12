@@ -1585,6 +1585,49 @@
     isolation: isolate;
 }
 
+.visualize-diatonic-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    width: 100%;
+}
+
+.visualize-diatonic-title {
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0;
+}
+
+.visualize-diatonic-auto-toggle {
+    margin-left: 10px;
+    flex-shrink: 0;
+}
+
+/* 横画面のみ：ダイアトニック見出し＋トグルを中央のまとまりに、コードボタン行も中央寄せ */
+@media (orientation: landscape) {
+    .visualize-chords-afterboard {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .visualize-diatonic-header-row {
+        justify-content: center;
+        width: auto;
+        max-width: 100%;
+        gap: 10px;
+    }
+
+    .visualize-diatonic-auto-toggle {
+        margin-left: 0;
+    }
+
+    .visualize-chords-afterboard .chord-list {
+        justify-content: center;
+    }
+}
+
 .chord-list {
     display: flex;
     flex-wrap: wrap;
