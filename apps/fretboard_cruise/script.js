@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.131.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.131.4';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。探索・PROカスタム編集・問題画面で共通。 */
@@ -13422,22 +13422,31 @@ function renderFretboardHTML(containerId, options) {
                 const memorizeLandBottomUiClearPx =
                     cruiseLandCfg.active && cruiseLandCfg.bottomClearOverride !== null
                         ? cruiseLandCfg.bottomClearOverride
-                        : routeEditorFretHost && land
-                            ? 72
-                            : memorizeProblemLandscapeWide
-                                ? 70
-                                : (memorizeFretHost || visualizeFretHost) && land
-                                    ? 22
-                                    : land
-                                        ? 36
-                                        : 0;
+                        : (routeEditorFretHost || quizEditorFretHost) &&
+                            land &&
+                            proCustomEditorLandscapeLargeFretboard
+                            ? 0
+                            : routeEditorFretHost && land
+                                ? 72
+                                : memorizeProblemLandscapeWide
+                                    ? 70
+                                    : (memorizeFretHost || visualizeFretHost) && land
+                                        ? 22
+                                        : land
+                                            ? 36
+                                            : 0;
                 const readMemorizeHostMaxH = () => {
                     if (
                         (mode !== 'memorize' && mode !== 'visualize' && mode !== 'rule') ||
                         (containerId !== 'fretboard-container' && containerId !== 'rule-fretboard-container') ||
                         !appEl
                     ) {
-                        if (!routeEditorFretHost) return null;
+                        if (
+                            !routeEditorFretHost &&
+                            !(quizEditorFretHost && proCustomEditorLandscapeLargeFretboard)
+                        ) {
+                            return null;
+                        }
                     }
                     void containerEl.offsetHeight;
                     void appEl.offsetHeight;
