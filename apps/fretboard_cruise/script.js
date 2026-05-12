@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.131.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.131.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。探索・PROカスタム編集・問題画面で共通。 */
@@ -12559,6 +12559,16 @@ function renderFretboardHTML(containerId, options) {
         window.innerWidth > window.innerHeight &&
         mode === 'memorize' &&
         containerId === 'fretboard-container';
+    /** 横画面の PROカスタム編集（指板をたどる／指板クイズ）は、
+        指板表示を問題画面と同じくらい大きく見せるため、scale > 1 を許可しつつ
+        大きめの maxFullViewH（ビューポートの高い割合）を使う。
+        通常の STAGE1〜6 編集や指板探索には影響しない。 */
+    const proCustomEditorLandscapeLargeFretboard =
+        typeof window !== 'undefined' &&
+        window.innerWidth > window.innerHeight &&
+        (mode === 'routeEditor' || mode === 'quizEditor') &&
+        !!proCustomGuide &&
+        containerId === 'fretboard-container';
     const routeEditorVisibleIndexSet = Array.isArray(routeEditorVisibleIndices)
         ? new Set(routeEditorVisibleIndices.map(index => parseInt(index, 10)).filter(Number.isFinite))
         : null;
@@ -13295,7 +13305,7 @@ function renderFretboardHTML(containerId, options) {
                 return Math.min(1, zMax, widthCap / Math.max(1, bW));
             };
             const isZoomView = (mode === 'memorize' || mode === 'visualize' || mode === 'rule' || mode === 'routeEditor' || mode === 'quizEditor') && state.settings.fretboardView === 'zoom';
-            const effectiveZoomView = memorizeLandscapeUnifiedFullLayout ? false : isZoomView;
+            const effectiveZoomView = (memorizeLandscapeUnifiedFullLayout || proCustomEditorLandscapeLargeFretboard) ? false : isZoomView;
             const visualizeExtendedNeedsHorizScroll =
                 mode === 'visualize' &&
                 containerId === 'fretboard-container' &&
@@ -13391,18 +13401,23 @@ function renderFretboardHTML(containerId, options) {
                 const visualizeExtendedFullScrollLayout =
                     visualizeExtendedNeedsHorizScroll && state.settings.fretboardView === 'full';
                 /** 横・覚える・全体: 上段テキストを詰めた分、scale 用の高さ目安を少し上げる */
-                const fallbackFullH = (routeEditorFretHost || quizEditorFretHost) && land
-                    ? Math.max(150, Math.round(window.innerHeight * 0.44))
-                    : memorizeProblemLandscapeWide
-                        ? Math.max(150, Math.round(window.innerHeight * 0.46))
-                        : Math.max(
-                            120,
-                            Math.round(
-                                window.innerHeight *
-                                    ((memorizeFretHost || visualizeFretHost) && land ? 0.605 : land ? 0.41 : 0.3) -
-                                ((memorizeFretHost || visualizeFretHost) && land ? 48 : land ? 108 : 100)
-                            )
-                        );
+                const fallbackFullH = proCustomEditorLandscapeLargeFretboard
+                    /** 横画面の PROカスタム編集は、問題画面と同じくらい指板を大きく見せたいので
+                        ビューポートの 60% 弱を「指板の理想高さ」として使う。
+                        スクロールが必要になっても良いので、大胆に高く取る。 */
+                    ? Math.max(180, Math.round(window.innerHeight * 0.585))
+                    : (routeEditorFretHost || quizEditorFretHost) && land
+                        ? Math.max(150, Math.round(window.innerHeight * 0.44))
+                        : memorizeProblemLandscapeWide
+                            ? Math.max(150, Math.round(window.innerHeight * 0.46))
+                            : Math.max(
+                                120,
+                                Math.round(
+                                    window.innerHeight *
+                                        ((memorizeFretHost || visualizeFretHost) && land ? 0.605 : land ? 0.41 : 0.3) -
+                                    ((memorizeFretHost || visualizeFretHost) && land ? 48 : land ? 108 : 100)
+                                )
+                            );
                 let maxFullViewH = Math.max(180, window.innerHeight * 0.35);
                 const memorizeLandBottomUiClearPx =
                     cruiseLandCfg.active && cruiseLandCfg.bottomClearOverride !== null
@@ -13480,7 +13495,7 @@ function renderFretboardHTML(containerId, options) {
                  * 適用条件は厳密に絞っており、編集画面・自由探索・基本ルール・縦画面・指板クイズ
                  * には一切影響させない。
                  */
-                const allowMemorizeFullScaleAbove1 = memorizeLandscapeUnifiedFullLayout;
+                const allowMemorizeFullScaleAbove1 = memorizeLandscapeUnifiedFullLayout || proCustomEditorLandscapeLargeFretboard;
                 let scale;
                 if (visualizeExtendedFullScrollLayout) {
                     scale = Math.min(

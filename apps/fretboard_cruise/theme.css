@@ -3428,6 +3428,13 @@ body:has(.pro-custom-route-editor-screen) .app-container {
         left: auto;
         right: max(12px, env(safe-area-inset-right));
     }
+
+    /* 横画面の PROカスタム編集では、指板を問題画面と同じくらい大きく見せる。
+       JS 側で大きめの scale を算出しているので、CSS の追加 1.35 倍は無効化して
+       重ね掛けで巨大化するのを防ぐ。STAGE1〜6 編集には影響しない。 */
+    body:has(.pro-custom-route-editor-screen) #fretboard-container {
+        --route-editor-fretboard-scale: 1;
+    }
 }
 
 .rule-step-card {
