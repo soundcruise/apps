@@ -2596,6 +2596,131 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     line-height: 1.45;
 }
 
+/* ───────────────────────────────────────────────
+   PRO カスタム編集画面の「カスタムドロップダウン」（自前実装）
+   - OS標準の <select> ではプルダウン中の文字サイズを変えられないため、
+     キー・カポ・スケール・最大フレットの4つを独自UIで描画する。
+   - 閉じている枠は探索画面の <select> と同じ見た目（黒背景・薄い枠・1rem）。
+   - 開いた一覧の文字サイズも自由に大きくできる（タップしやすさ重視）。
+   ─────────────────────────────────────────────── */
+
+.pro-custom-dd {
+    position: relative;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.pro-custom-dd-trigger {
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    color: #fff;
+    font-size: 1rem;
+    font-family: inherit;
+    line-height: 1.3;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    text-align: left;
+    outline: none;
+    transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.pro-custom-dd.is-open .pro-custom-dd-trigger,
+.pro-custom-dd-trigger:focus-visible {
+    border-color: rgba(255, 255, 255, 0.45);
+}
+
+.pro-custom-dd-trigger__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pro-custom-dd-trigger__chevron {
+    flex: 0 0 auto;
+    font-size: 0.7rem;
+    line-height: 1;
+    color: rgba(255, 255, 255, 0.65);
+    transition: transform 0.18s ease;
+}
+
+.pro-custom-dd.is-open .pro-custom-dd-trigger__chevron {
+    transform: rotate(180deg);
+}
+
+/* 開いた一覧。トリガの直下に絶対配置して、画面端でも切れないよう left/right を 0 で固定。 */
+.pro-custom-dd-list {
+    list-style: none;
+    margin: 0;
+    padding: 6px;
+    position: absolute;
+    z-index: 50;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    min-width: 100%;
+    max-height: min(60vh, 360px);
+    overflow-y: auto;
+    background: rgba(20, 20, 24, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+    -webkit-overflow-scrolling: touch;
+}
+
+.pro-custom-dd-list[hidden] {
+    display: none;
+}
+
+.pro-custom-dd-option {
+    display: flex;
+    align-items: center;
+    padding: 12px 14px;
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 1.15rem;
+    font-weight: 600;
+    line-height: 1.3;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.12s ease, color 0.12s ease;
+}
+
+.pro-custom-dd-option + .pro-custom-dd-option {
+    margin-top: 2px;
+}
+
+.pro-custom-dd-option:active {
+    background: rgba(79, 156, 249, 0.32);
+}
+
+@media (hover: hover) {
+    .pro-custom-dd-option:hover {
+        background: rgba(79, 156, 249, 0.18);
+    }
+}
+
+.pro-custom-dd-option.is-selected {
+    background: rgba(79, 156, 249, 0.28);
+    color: #fff;
+}
+
+.pro-custom-dd-option.is-selected::before {
+    content: '✓';
+    margin-right: 8px;
+    color: #9ec8ff;
+    font-weight: 700;
+}
+
 .pro-custom-setup-item--scale select {
     min-width: 0;
 }

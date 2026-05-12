@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.116.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.117.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -7992,6 +7992,31 @@ function renderProCustomRouteEditor(app) {
     );
     const proCustomDisplayMode = state.settings.noteLabelMode;
 
+    /** カスタムドロップダウンのHTMLを組み立てる小さなヘルパー。
+        OS標準の <select> ではプルダウン中の文字サイズが固定されるため、
+        ここでは <button> + <ul> を使い、CSSで自由に大きく表示できるようにしている。 */
+    const buildProCustomDropdown = ({ id, options, selectedValue, ariaLabel }) => {
+        const selected = options.find(opt => String(opt.value) === String(selectedValue)) || options[0];
+        const items = options.map(opt => {
+            const isSelected = String(opt.value) === String(selected?.value);
+            return `<li role="option" class="pro-custom-dd-option ${isSelected ? 'is-selected' : ''}" data-pro-custom-dd-value="${escapeHtml(String(opt.value))}" aria-selected="${isSelected ? 'true' : 'false'}">${escapeHtml(opt.label)}</li>`;
+        }).join('');
+        return `
+            <div class="pro-custom-dd" id="${id}-wrap" data-pro-custom-dd-id="${id}">
+                <button type="button" class="pro-custom-dd-trigger" id="${id}" aria-haspopup="listbox" aria-expanded="false" aria-label="${escapeHtml(ariaLabel || '')}">
+                    <span class="pro-custom-dd-trigger__label">${escapeHtml(selected ? selected.label : '')}</span>
+                    <span class="pro-custom-dd-trigger__chevron" aria-hidden="true">▾</span>
+                </button>
+                <ul class="pro-custom-dd-list" role="listbox" hidden>${items}</ul>
+            </div>
+        `;
+    };
+
+    const proCustomKeyOptions = NOTES.map((note, idx) => ({ value: idx, label: note }));
+    const proCustomCapoOptions = [0,1,2,3,4,5,6,7].map(c => ({ value: c, label: String(c) }));
+    const proCustomScaleOptions = scaleOptions.map(([value, label]) => ({ value, label }));
+    const proCustomMaxFretOptions = maxFretOptions.map(fret => ({ value: fret, label: `${fret}フレット` }));
+
     const proCustomEditingId = state.proCustomRouteEditor.editingStageId || null;
     const proCustomHeaderTitle = proCustomEditingId
         ? `👑 ${escapeHtml(state.proCustomRouteEditor.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}<span class="pro-custom-header-sub"> を編集</span>`
@@ -8011,15 +8036,15 @@ function renderProCustomRouteEditor(app) {
                 <div class="pro-custom-setup-row pro-custom-setup-row--triple">
                 <div class="setup-item pro-custom-setup-item pro-custom-setup-item--key">
                     <label>キー</label>
-                    <select id="pro-custom-key">${NOTES.map((note, idx) => `<option value="${idx}" ${state.proCustomRouteEditor.key===idx?'selected':''}>${note}</option>`).join('')}</select>
+                    ${buildProCustomDropdown({ id: 'pro-custom-key', options: proCustomKeyOptions, selectedValue: state.proCustomRouteEditor.key, ariaLabel: 'キー' })}
                 </div>
                 <div class="setup-item pro-custom-setup-item pro-custom-setup-item--capo">
                     <label>カポ</label>
-                    <select id="pro-custom-capo">${[0,1,2,3,4,5,6,7].map(c => `<option value="${c}" ${state.proCustomRouteEditor.capo===c?'selected':''}>${c}</option>`).join('')}</select>
+                    ${buildProCustomDropdown({ id: 'pro-custom-capo', options: proCustomCapoOptions, selectedValue: state.proCustomRouteEditor.capo, ariaLabel: 'カポ' })}
                 </div>
                 <div class="setup-item pro-custom-setup-item pro-custom-setup-item--scale">
                     <label>スケール</label>
-                    <select id="pro-custom-scale">${scaleOptions.map(([value, label]) => `<option value="${value}" ${state.proCustomRouteEditor.scale===value?'selected':''}>${label}</option>`).join('')}</select>
+                    ${buildProCustomDropdown({ id: 'pro-custom-scale', options: proCustomScaleOptions, selectedValue: state.proCustomRouteEditor.scale, ariaLabel: 'スケール' })}
                 </div>
                 </div>
                 <div class="pro-custom-setup-row pro-custom-setup-row--double">
@@ -8032,9 +8057,7 @@ function renderProCustomRouteEditor(app) {
                 </div>
                 <div class="setup-item pro-custom-setup-item pro-custom-setup-item--max-fret">
                     <label>最大フレット</label>
-                    <select id="pro-custom-max-fret">
-                        ${maxFretOptions.map(fret => `<option value="${fret}" ${state.proCustomRouteEditor.maxFret===fret?'selected':''}>${fret}フレット</option>`).join('')}
-                    </select>
+                    ${buildProCustomDropdown({ id: 'pro-custom-max-fret', options: proCustomMaxFretOptions, selectedValue: state.proCustomRouteEditor.maxFret, ariaLabel: '最大フレット' })}
                 </div>
                 </div>
                 <p class="settings-note pro-custom-setup-note">表示方法は「設定」の「音名の表記」に従います。ここでは切り替えません。</p>
@@ -8150,18 +8173,95 @@ function renderProCustomRouteEditor(app) {
     document.getElementById('btn-pro-custom-back').onclick = () => { state.course = 'stageSelect'; saveState(); renderApp(); };
     document.getElementById('btn-pro-custom-home').onclick = () => { state.course = null; saveState(); renderApp(); };
     document.getElementById('btn-settings-pro-custom').onclick = () => openSettings('proCustomRouteEditor');
-    document.getElementById('pro-custom-key').onchange = e => { pushProCustomEditorHistory(); state.proCustomRouteEditor.key = parseInt(e.target.value, 10) || 0; rerenderAfterSettingChange(); };
-    document.getElementById('pro-custom-capo').onchange = e => { pushProCustomEditorHistory(); state.proCustomRouteEditor.capo = parseInt(e.target.value, 10) || 0; rerenderAfterSettingChange(); };
-    document.getElementById('pro-custom-scale').onchange = e => { pushProCustomEditorHistory(); state.proCustomRouteEditor.scale = e.target.value; rerenderAfterSettingChange(); };
+    /** カスタムドロップダウン制御：トリガをタップしたらリストを開閉、項目選択で onSelect を呼ぶ。
+        外側をタップしたら閉じる。Escapeでも閉じる。 */
+    const closeAllProCustomDropdowns = () => {
+        document.querySelectorAll('.pro-custom-dd.is-open').forEach(wrap => {
+            wrap.classList.remove('is-open');
+            const trigger = wrap.querySelector('.pro-custom-dd-trigger');
+            const list = wrap.querySelector('.pro-custom-dd-list');
+            if (trigger) trigger.setAttribute('aria-expanded', 'false');
+            if (list) list.hidden = true;
+        });
+    };
+    const wireProCustomDropdown = (id, onSelect) => {
+        const wrap = document.getElementById(`${id}-wrap`);
+        const trigger = document.getElementById(id);
+        if (!wrap || !trigger) return;
+        const list = wrap.querySelector('.pro-custom-dd-list');
+        trigger.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const willOpen = !wrap.classList.contains('is-open');
+            closeAllProCustomDropdowns();
+            if (willOpen) {
+                wrap.classList.add('is-open');
+                trigger.setAttribute('aria-expanded', 'true');
+                if (list) list.hidden = false;
+            }
+        };
+        if (list) {
+            list.querySelectorAll('[data-pro-custom-dd-value]').forEach(item => {
+                item.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const value = item.getAttribute('data-pro-custom-dd-value');
+                    closeAllProCustomDropdowns();
+                    onSelect(value);
+                };
+            });
+        }
+    };
+    // ドキュメント全体のタップで開いているドロップダウンを閉じる（再描画ごとにリスナーが
+    // 重複登録されないよう、初回のみ登録するガードを使う）
+    if (!window.__proCustomDropdownDocHandlersInstalled) {
+        window.__proCustomDropdownDocHandlersInstalled = true;
+        document.addEventListener('pointerdown', (e) => {
+            if (e.target && typeof e.target.closest === 'function' && e.target.closest('.pro-custom-dd')) return;
+            document.querySelectorAll('.pro-custom-dd.is-open').forEach(wrap => {
+                wrap.classList.remove('is-open');
+                const trigger = wrap.querySelector('.pro-custom-dd-trigger');
+                const list = wrap.querySelector('.pro-custom-dd-list');
+                if (trigger) trigger.setAttribute('aria-expanded', 'false');
+                if (list) list.hidden = true;
+            });
+        }, true);
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            document.querySelectorAll('.pro-custom-dd.is-open').forEach(wrap => {
+                wrap.classList.remove('is-open');
+                const trigger = wrap.querySelector('.pro-custom-dd-trigger');
+                const list = wrap.querySelector('.pro-custom-dd-list');
+                if (trigger) trigger.setAttribute('aria-expanded', 'false');
+                if (list) list.hidden = true;
+            });
+        });
+    }
+
+    wireProCustomDropdown('pro-custom-key', (value) => {
+        pushProCustomEditorHistory();
+        state.proCustomRouteEditor.key = parseInt(value, 10) || 0;
+        rerenderAfterSettingChange();
+    });
+    wireProCustomDropdown('pro-custom-capo', (value) => {
+        pushProCustomEditorHistory();
+        state.proCustomRouteEditor.capo = parseInt(value, 10) || 0;
+        rerenderAfterSettingChange();
+    });
+    wireProCustomDropdown('pro-custom-scale', (value) => {
+        pushProCustomEditorHistory();
+        state.proCustomRouteEditor.scale = value;
+        rerenderAfterSettingChange();
+    });
+    wireProCustomDropdown('pro-custom-max-fret', (value) => {
+        pushProCustomEditorHistory();
+        state.proCustomRouteEditor.maxFret = clamp(parseInt(value, 10) || PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, MAX_FRET);
+        currentScrollLeft = 0;
+        rerenderAfterSettingChange();
+    });
     document.querySelectorAll('[data-pro-custom-do-mode]').forEach(btn => {
         btn.onclick = () => { state.proCustomRouteEditor.doMode = btn.getAttribute('data-pro-custom-do-mode'); saveState(); renderApp(); };
     });
-    document.getElementById('pro-custom-max-fret').onchange = e => {
-        pushProCustomEditorHistory();
-        state.proCustomRouteEditor.maxFret = clamp(parseInt(e.target.value, 10) || PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, MAX_FRET);
-        currentScrollLeft = 0;
-        rerenderAfterSettingChange();
-    };
     document.getElementById('btn-pro-custom-undo').onclick = () => {
         const historyItem = Array.isArray(state.proCustomRouteEditor.history) ? state.proCustomRouteEditor.history.pop() : null;
         if (!historyItem) return;
