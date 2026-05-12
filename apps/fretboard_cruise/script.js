@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.113.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.113.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -6687,14 +6687,17 @@ function renderStageSelect(app) {
             </button>
         </div>
     ` : '';
-    /** 保存済みのPROカスタムSTAGEがあれば、編集行の下に「再生」用の行を独立表示する。 */
+    /** 保存済みのPROカスタムSTAGEがあれば、編集行の下に「再生」用の行を独立表示する。
+        ボタン自体にPRO感（金の縁取り＋シャイン＋PROバッジ）を載せる。 */
     const proCustomSavedRowHtml = (isCruiseMode && hasSavedProCustomStage) ? `
         <div class="stage-route-row stage-route-row--pro-custom-saved">
-            <button class="stage-btn" type="button" id="btn-pro-custom-saved-play">
-                ${escapeHtml(savedProCustomStage.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}
-                <span class="stage-desc">${savedProCustomStage.route.length}音 / カポ${savedProCustomStage.capo}</span>
+            <button class="stage-btn pro-custom-saved-btn" type="button" id="btn-pro-custom-saved-play">
+                <span class="pro-custom-saved-btn__shine" aria-hidden="true"></span>
+                <span class="pro-custom-saved-btn__badge" aria-hidden="true">PRO</span>
+                <span class="pro-custom-saved-btn__title">${escapeHtml(savedProCustomStage.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}</span>
+                <span class="stage-desc pro-custom-saved-btn__desc">${savedProCustomStage.route.length}音 / カポ${savedProCustomStage.capo}</span>
             </button>
-            <button class="stage-route-edit-btn stage-route-edit-btn--icon" type="button" id="btn-pro-custom-saved-edit" aria-label="保存したPROカスタムSTAGEを編集" title="編集">⋮</button>
+            <button class="stage-route-edit-btn stage-route-edit-btn--icon pro-custom-saved-edit-btn" type="button" id="btn-pro-custom-saved-edit" aria-label="保存したPROカスタムSTAGEを編集" title="編集">⋮</button>
         </div>
     ` : '';
     const proCustomStageHtml = `${proCustomEditorRowHtml}${proCustomSavedRowHtml}`;
