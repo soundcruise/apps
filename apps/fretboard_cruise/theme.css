@@ -2554,9 +2554,9 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 }
 
 .pro-custom-setup-row--triple {
-    /* キーとカポはコンパクトに、スケールは長いカナ名（リディアン・ドミナントなど）が
-       省略されにくいよう広めに確保する。 */
-    grid-template-columns: minmax(0, 0.55fr) minmax(0, 0.45fr) minmax(0, 2.0fr);
+    /* キーとカポはコンパクトに、スケールは長いカナ名（メジャー / アイオニアン等）が
+       省略されにくいよう、より広く確保する。 */
+    grid-template-columns: minmax(0, 0.42fr) minmax(0, 0.32fr) minmax(0, 2.6fr);
     align-items: end;
 }
 
@@ -2684,10 +2684,10 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 .pro-custom-dd-option {
     display: flex;
     align-items: center;
-    padding: 12px 14px;
+    padding: 9px 12px;
     border-radius: 8px;
     color: rgba(255, 255, 255, 0.92);
-    font-size: 1.15rem;
+    font-size: 0.95rem;
     font-weight: 600;
     line-height: 1.3;
     cursor: pointer;
