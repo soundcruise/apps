@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.130.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.131.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。探索・PROカスタム編集・問題画面で共通。 */
@@ -8689,6 +8689,7 @@ function renderProCustomRouteEditor(app) {
                 <div class="route-editor-group-panel-top">
                     <button class="icon-btn route-editor-tool-btn route-editor-group-expand-btn ${showAllGroupsExpanded ? 'active' : ''}" id="btn-pro-custom-group-expand" ${groups.length ? '' : 'disabled'}>${showAllGroupsExpanded ? '縮小' : '一覧'}</button>
                 </div>
+                <button class="route-editor-group-panel-handle" id="btn-pro-custom-group-panel-handle" type="button" title="ドラッグして移動" aria-label="グループ設定を移動">✥</button>
                 <div class="route-editor-group-list">${groupButtonsHtml}</div>
                 <div class="route-editor-group-actions">
                     <button class="icon-btn route-editor-tool-btn route-editor-group-add-btn" id="btn-pro-custom-group-add">＋</button>
@@ -8896,6 +8897,92 @@ function renderProCustomRouteEditor(app) {
             renderApp();
         };
     });
+
+    const groupPanelEl = app.querySelector('.route-editor-group-panel');
+    const groupPanelHandleEl = document.getElementById('btn-pro-custom-group-panel-handle');
+    if (isLandscape && groupPanelEl && groupPanelHandleEl) {
+        const dragState = {
+            pointerId: null,
+            startX: 0,
+            startY: 0,
+            startOffsetX: groupPanelOffset.x,
+            startOffsetY: groupPanelOffset.y,
+            startRect: null,
+            dragging: false
+        };
+        const applyGroupPanelOffset = (x, y) => {
+            const nextOffset = {
+                x: Math.round(x),
+                y: Math.round(y)
+            };
+            groupPanelEl.style.setProperty('--route-editor-group-panel-shift-x', `${nextOffset.x}px`);
+            groupPanelEl.style.setProperty('--route-editor-group-panel-shift-y', `${nextOffset.y}px`);
+            state.proCustomRouteEditor.groupPanelOffset = nextOffset;
+        };
+        const finishDrag = () => {
+            document.removeEventListener('pointermove', onPointerMove, true);
+            document.removeEventListener('pointerup', onPointerUp, true);
+            document.removeEventListener('pointercancel', onPointerCancel, true);
+            groupPanelEl.classList.remove('route-editor-group-panel--dragging');
+            groupPanelHandleEl.classList.remove('route-editor-group-panel-handle--dragging');
+            if (dragState.dragging) {
+                saveState();
+            }
+            dragState.pointerId = null;
+            dragState.dragging = false;
+        };
+        const onPointerMove = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            const dx = e.clientX - dragState.startX;
+            const dy = e.clientY - dragState.startY;
+            if (!dragState.dragging) {
+                if (Math.abs(dx) + Math.abs(dy) < 4) return;
+                dragState.dragging = true;
+                dragState.startRect = groupPanelEl.getBoundingClientRect();
+                groupPanelEl.classList.add('route-editor-group-panel--dragging');
+                groupPanelHandleEl.classList.add('route-editor-group-panel-handle--dragging');
+            }
+            const rect = dragState.startRect || groupPanelEl.getBoundingClientRect();
+            const margin = 8;
+            const minDx = margin - rect.left;
+            const maxDx = window.innerWidth - margin - rect.right;
+            const minDy = margin - rect.top;
+            const maxDy = window.innerHeight - margin - rect.bottom;
+            const nextX = clamp(dragState.startOffsetX + dx, dragState.startOffsetX + Math.min(minDx, maxDx), dragState.startOffsetX + Math.max(minDx, maxDx));
+            const nextY = clamp(dragState.startOffsetY + dy, dragState.startOffsetY + Math.min(minDy, maxDy), dragState.startOffsetY + Math.max(minDy, maxDy));
+            applyGroupPanelOffset(nextX, nextY);
+        };
+        const onPointerUp = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            finishDrag();
+        };
+        const onPointerCancel = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            finishDrag();
+        };
+        const onPointerDown = e => {
+            if (e.button !== undefined && e.button !== 0) return;
+            if (dragState.pointerId !== null) return;
+            e.preventDefault();
+            e.stopPropagation();
+            dragState.pointerId = typeof e.pointerId === 'number' ? e.pointerId : null;
+            dragState.startX = e.clientX;
+            dragState.startY = e.clientY;
+            dragState.startOffsetX = groupPanelOffset.x;
+            dragState.startOffsetY = groupPanelOffset.y;
+            dragState.startRect = groupPanelEl.getBoundingClientRect();
+            document.addEventListener('pointermove', onPointerMove, true);
+            document.addEventListener('pointerup', onPointerUp, true);
+            document.addEventListener('pointercancel', onPointerCancel, true);
+        };
+        groupPanelHandleEl.addEventListener('pointerdown', onPointerDown, { passive: false });
+        routeEditorGroupPanelDragHandlers.set('proCustomRouteEditor-group-panel', {
+            pointermove: onPointerMove,
+            pointerup: onPointerUp,
+            pointercancel: onPointerCancel
+        });
+    }
+
     document.querySelectorAll('.route-editor-group-btn').forEach(btn => {
         btn.onclick = () => {
             const index = parseInt(btn.getAttribute('data-group-index'), 10);
@@ -9160,6 +9247,7 @@ function renderProCustomQuizEditor(app) {
                 <div class="route-editor-group-panel-top">
                     <button class="icon-btn route-editor-tool-btn route-editor-group-expand-btn ${showAllGroupsExpanded ? 'active' : ''}" id="btn-pro-custom-quiz-group-expand" ${groups.length ? '' : 'disabled'}>${showAllGroupsExpanded ? '縮小' : '一覧'}</button>
                 </div>
+                <button class="route-editor-group-panel-handle" id="btn-pro-custom-quiz-group-panel-handle" type="button" title="ドラッグして移動" aria-label="グループ設定を移動">✥</button>
                 <div class="route-editor-group-list">${groupButtonsHtml}</div>
                 <div class="route-editor-group-actions">
                     <button class="icon-btn route-editor-tool-btn route-editor-group-add-btn" id="btn-pro-custom-quiz-group-add">＋</button>
@@ -9346,6 +9434,92 @@ function renderProCustomQuizEditor(app) {
             renderApp();
         };
     });
+
+    const groupPanelEl = app.querySelector('.route-editor-group-panel');
+    const groupPanelHandleEl = document.getElementById('btn-pro-custom-quiz-group-panel-handle');
+    if (isLandscape && groupPanelEl && groupPanelHandleEl) {
+        const dragState = {
+            pointerId: null,
+            startX: 0,
+            startY: 0,
+            startOffsetX: groupPanelOffset.x,
+            startOffsetY: groupPanelOffset.y,
+            startRect: null,
+            dragging: false
+        };
+        const applyGroupPanelOffset = (x, y) => {
+            const nextOffset = {
+                x: Math.round(x),
+                y: Math.round(y)
+            };
+            groupPanelEl.style.setProperty('--route-editor-group-panel-shift-x', `${nextOffset.x}px`);
+            groupPanelEl.style.setProperty('--route-editor-group-panel-shift-y', `${nextOffset.y}px`);
+            state.proCustomQuizEditor.groupPanelOffset = nextOffset;
+        };
+        const finishDrag = () => {
+            document.removeEventListener('pointermove', onPointerMove, true);
+            document.removeEventListener('pointerup', onPointerUp, true);
+            document.removeEventListener('pointercancel', onPointerCancel, true);
+            groupPanelEl.classList.remove('route-editor-group-panel--dragging');
+            groupPanelHandleEl.classList.remove('route-editor-group-panel-handle--dragging');
+            if (dragState.dragging) {
+                saveState();
+            }
+            dragState.pointerId = null;
+            dragState.dragging = false;
+        };
+        const onPointerMove = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            const dx = e.clientX - dragState.startX;
+            const dy = e.clientY - dragState.startY;
+            if (!dragState.dragging) {
+                if (Math.abs(dx) + Math.abs(dy) < 4) return;
+                dragState.dragging = true;
+                dragState.startRect = groupPanelEl.getBoundingClientRect();
+                groupPanelEl.classList.add('route-editor-group-panel--dragging');
+                groupPanelHandleEl.classList.add('route-editor-group-panel-handle--dragging');
+            }
+            const rect = dragState.startRect || groupPanelEl.getBoundingClientRect();
+            const margin = 8;
+            const minDx = margin - rect.left;
+            const maxDx = window.innerWidth - margin - rect.right;
+            const minDy = margin - rect.top;
+            const maxDy = window.innerHeight - margin - rect.bottom;
+            const nextX = clamp(dragState.startOffsetX + dx, dragState.startOffsetX + Math.min(minDx, maxDx), dragState.startOffsetX + Math.max(minDx, maxDx));
+            const nextY = clamp(dragState.startOffsetY + dy, dragState.startOffsetY + Math.min(minDy, maxDy), dragState.startOffsetY + Math.max(minDy, maxDy));
+            applyGroupPanelOffset(nextX, nextY);
+        };
+        const onPointerUp = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            finishDrag();
+        };
+        const onPointerCancel = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            finishDrag();
+        };
+        const onPointerDown = e => {
+            if (e.button !== undefined && e.button !== 0) return;
+            if (dragState.pointerId !== null) return;
+            e.preventDefault();
+            e.stopPropagation();
+            dragState.pointerId = typeof e.pointerId === 'number' ? e.pointerId : null;
+            dragState.startX = e.clientX;
+            dragState.startY = e.clientY;
+            dragState.startOffsetX = groupPanelOffset.x;
+            dragState.startOffsetY = groupPanelOffset.y;
+            dragState.startRect = groupPanelEl.getBoundingClientRect();
+            document.addEventListener('pointermove', onPointerMove, true);
+            document.addEventListener('pointerup', onPointerUp, true);
+            document.addEventListener('pointercancel', onPointerCancel, true);
+        };
+        groupPanelHandleEl.addEventListener('pointerdown', onPointerDown, { passive: false });
+        routeEditorGroupPanelDragHandlers.set('proCustomQuizEditor-group-panel', {
+            pointermove: onPointerMove,
+            pointerup: onPointerUp,
+            pointercancel: onPointerCancel
+        });
+    }
+
     document.querySelectorAll('.route-editor-group-btn').forEach(btn => {
         btn.onclick = () => {
             const index = parseInt(btn.getAttribute('data-group-index'), 10);
