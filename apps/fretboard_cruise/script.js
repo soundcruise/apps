@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.129.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.129.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。探索・PROカスタム編集・問題画面で共通。 */
@@ -13171,20 +13171,10 @@ function renderFretboardHTML(containerId, options) {
                 } else if (mode === 'memorize' && containerId === 'fretboard-container' && (step3TapRange !== null || step3TapFloatRange !== null)) {
                     zoomScale = ruleTapCapZoomByFretWidth(zoomScale, 18, 160);
                 }
-                if (visualizeExtendedNeedsHorizScroll && containerId === 'fretboard-container') {
-                    const layoutPadZ = land ? 0 : 2;
-                    zoomScale = Math.min(
-                        zoomScale,
-                        getVisualizeExtended12FretWidthFitScale(
-                            layoutW,
-                            layoutPadZ,
-                            projectedBounds,
-                            neckTop,
-                            neckBottom,
-                            renderMaxFret
-                        )
-                    );
-                }
+                // 「指板を探索する」拡大ビューでは、PROカスタム編集と同じく
+                // 指板自体は縦の高さでスケールを決め、最大フレットを超える分は横スクロールで見られるようにする。
+                // 以前は 12フレット幅に収まるよう zoomScale を更に縮めていたため
+                // 縦画面で「全体ビュー」のように小さく見える不具合があったため撤去。
                 scrollWrapper.style.width = `${layoutW}px`;
                 scrollWrapper.style.height = `${Math.ceil(projectedBounds.height * zoomScale)}px`;
                 scrollWrapper.style.overflowX =
