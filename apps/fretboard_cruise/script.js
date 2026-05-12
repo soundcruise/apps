@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.120.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.120.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -8562,7 +8562,7 @@ function renderProCustomRouteEditor(app) {
                     <button class="route-editor-group-btn ${isVisible ? 'is-visible' : 'is-hidden'} ${isActive ? 'is-active' : ''} ${noteCount ? '' : 'is-empty'}" type="button" data-group-index="${index}" aria-label="${groupNames[index]} (${noteCount}音)" aria-pressed="${isActive ? 'true' : 'false'}">
                         ${groupNames[index]}
                     </button>
-                    <button type="button" class="route-editor-group-position-label ${hasScroll ? '' : 'is-empty'}" data-pro-custom-position-group-index="${index}" aria-label="${hasScroll ? `位置 ${savedScrollLeft}（タップで編集）` : '位置未設定（タップで設定）'}"><span class="route-editor-group-position-pin" aria-hidden="true">📍</span><span class="route-editor-group-position-value">${hasScroll ? savedScrollLeft : '—'}</span></button>
+                    ${showAllGroupsExpanded ? `<button type="button" class="route-editor-group-position-label ${hasScroll ? '' : 'is-empty'}" data-pro-custom-position-group-index="${index}" aria-label="${hasScroll ? `位置 ${savedScrollLeft}（タップで編集）` : '位置未設定（タップで設定）'}"><span class="route-editor-group-position-pin" aria-hidden="true">📍</span><span class="route-editor-group-position-value">${hasScroll ? savedScrollLeft : '—'}</span></button>` : ''}
                 </div>
             `;
         }).join('')
