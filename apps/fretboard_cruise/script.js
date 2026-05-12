@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.120.2';
+const FRETBOARD_CRUISE_APP_VERSION = '1.120.3';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 let savePositionFlashTimer = null;
@@ -515,6 +515,8 @@ let routeEditorGroupDragBlocked = false;
 let routeEditorScrollAppliedKey = null;
 /** PROカスタムSTAGE編集: Gr 切替時に保存スクロールを一度だけ currentScrollLeft に流し込むためのキー */
 let proCustomRouteEditorScrollAppliedKey = null;
+/** PROカスタムクイズ編集: 同上（指板は mode=quizEditor のため別キー管理） */
+let proCustomQuizEditorScrollAppliedKey = null;
 const routeEditorPendingGroupScrollLefts = new Map();
 /** ルート編集・拡大ビュー: 同期で読む scrollLeft が 0 にずれることがあるため、scroll で拾った直近値を保持 */
 let routeEditorFretboardScrollSnapshot = 0;
@@ -3189,9 +3191,14 @@ function clearPendingRouteEditorGroupScrollLeft(stage, groupIndex) {
 
 let routeEditorScrollRafId = null;
 
-/** routeEditor 中の横スクロール量を RAF で追跡し、タップ時に wrapper.scrollLeft が 0 を返す場面でも保存できるようにする */
+/** routeEditor / PROカスタム（たどる・クイズ）編集中の横スクロール量を RAF で追跡し、
+    タップ時に wrapper.scrollLeft が 0 を返す場面でも保存できるようにする */
 function tickRouteEditorScrollRaf() {
-    if (state.course !== 'routeEditor' && state.course !== 'proCustomRouteEditor') {
+    if (
+        state.course !== 'routeEditor' &&
+        state.course !== 'proCustomRouteEditor' &&
+        state.course !== 'proCustomQuizEditor'
+    ) {
         routeEditorScrollRafId = null;
         return;
     }
@@ -3312,7 +3319,11 @@ function scheduleNextGroupScrollIfNeeded() {
 function getRouteEditorCurrentScrollLeft() {
     const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
     const live = wrapper ? Math.max(0, Math.round(wrapper.scrollLeft)) : 0;
-    if (state.course === 'routeEditor' || state.course === 'proCustomRouteEditor') {
+    if (
+        state.course === 'routeEditor' ||
+        state.course === 'proCustomRouteEditor' ||
+        state.course === 'proCustomQuizEditor'
+    ) {
         return Math.max(live, routeEditorFretboardScrollSnapshot);
     }
     return live;
@@ -4468,6 +4479,9 @@ function renderApp() {
     ) {
         proCustomRouteEditorScrollAppliedKey = null;
     }
+    if (state.course !== 'proCustomQuizEditor') {
+        proCustomQuizEditorScrollAppliedKey = null;
+    }
 
     const isLandscapeRuleStep =
         state.course === 'basicRuleStep' &&
@@ -4611,13 +4625,22 @@ function renderApp() {
                 newWrapper.scrollLeft = savedCruiseGroupScrollLeft;
             });
             state.memorize.cruisePreviousGroupIndex = state.memorize.cruiseCurrentGroupIndex;
-        } else if (state.course === 'quizEditor' || state.course === 'proCustomQuizEditor') {
+        } else if (state.course === 'quizEditor') {
             const qeScrollTarget = quizEditorPendingScrollLeft !== null ? quizEditorPendingScrollLeft : currentScrollLeft;
             quizEditorPendingScrollLeft = null;
             newWrapper.scrollLeft = qeScrollTarget;
             requestAnimationFrame(() => {
-                if (!newWrapper.isConnected || (state.course !== 'quizEditor' && state.course !== 'proCustomQuizEditor')) return;
+                if (!newWrapper.isConnected || state.course !== 'quizEditor') return;
                 newWrapper.scrollLeft = qeScrollTarget;
+            });
+        } else if (state.course === 'proCustomQuizEditor') {
+            newWrapper.scrollLeft = currentScrollLeft;
+            routeEditorFretboardScrollSnapshot = currentScrollLeft;
+            startRouteEditorScrollRaf();
+            requestAnimationFrame(() => {
+                if (!newWrapper.isConnected || state.course !== 'proCustomQuizEditor') return;
+                newWrapper.scrollLeft = currentScrollLeft;
+                if (currentScrollLeft > 0) routeEditorFretboardScrollSnapshot = currentScrollLeft;
             });
         } else if (state.course === 'routeEditor') {
             newWrapper.scrollLeft = currentScrollLeft;
@@ -8516,6 +8539,8 @@ function filterProCustomDraftToCurrentScale(editor) {
     着地直後に名前モーダルを自動で開くためのワンショットフラグ。
     state には乗せず（normalize で落ちるため）、モジュール変数で持つ。 */
 let proCustomPendingOpenNameModal = false;
+/** クイズ PRO 編集の「試す」から戻った直後に名前モーダルを開くワンショット */
+let proCustomQuizEditorPendingOpenNameModal = false;
 
 function renderProCustomRouteEditor(app) {
     state.proCustomRouteEditor = normalizeProCustomEditorState(state.proCustomRouteEditor);
@@ -9246,7 +9271,7 @@ function renderProCustomQuizEditor(app) {
     };
     document.getElementById('btn-pro-custom-quiz-clear').onclick = () => {
         pushProCustomQuizEditorHistory();
-        Object.assign(state.proCustomQuizEditor, { groups: [{ name: 'Gr.1', notes: [], scrollLeft: null }], visibleGroupIndices: [0], selectedGroupIndex: 0, forceHideAllGroups: false, showAllGroupsExpanded: false });
+        Object.assign(state.proCustomQuizEditor, { groups: [{ name: 'Gr.1', notes: [], scrollLeft: null }], visibleGroupIndices: [0], selectedGroupIndex: 0, forceHideAllGroups: false });
         saveState();
         renderApp();
     };
@@ -9276,9 +9301,9 @@ function renderProCustomQuizEditor(app) {
     document.getElementById('btn-pro-custom-quiz-hide-all').onclick = () => { state.proCustomQuizEditor.forceHideAllGroups = true; state.proCustomQuizEditor.visibleGroupIndices = []; saveState(); renderApp(); };
     document.getElementById('btn-pro-custom-quiz-save-position').onclick = () => {
         if (activeGroupIndex < 0) return;
-        const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
-        state.proCustomQuizEditor.groups[activeGroupIndex].scrollLeft = wrapper ? Math.max(0, Math.round(wrapper.scrollLeft)) : 0;
+        state.proCustomQuizEditor.groups[activeGroupIndex].scrollLeft = getRouteEditorCurrentScrollLeft();
         saveState();
+        renderApp();
         flashRouteEditorSavePositionButton('btn-pro-custom-quiz-save-position');
     };
     document.querySelectorAll('[data-pro-custom-quiz-position-group-index]').forEach(label => {
@@ -9358,6 +9383,20 @@ function renderProCustomQuizEditor(app) {
     });
     nameInput.addEventListener('input', () => setNameModalError(''));
 
+    if (proCustomQuizEditorPendingOpenNameModal) {
+        proCustomQuizEditorPendingOpenNameModal = false;
+        setTimeout(() => openNameModal(), 0);
+    }
+
+    const pqScrollStageKey = state.proCustomQuizEditor.editingStageId ?? 'new';
+    const proCustomQuizEditorScrollKey = `${pqScrollStageKey}:${activeGroupIndex >= 0 ? activeGroupIndex : 'none'}`;
+    if (activeGroupIndex >= 0 && proCustomQuizEditorScrollAppliedKey !== proCustomQuizEditorScrollKey) {
+        const g = state.proCustomQuizEditor.groups?.[activeGroupIndex];
+        const savedSl = g && Number.isFinite(g.scrollLeft) ? g.scrollLeft : null;
+        currentScrollLeft = Number.isFinite(savedSl) ? savedSl : 0;
+        proCustomQuizEditorScrollAppliedKey = proCustomQuizEditorScrollKey;
+    }
+
     renderFretboardHTML('fretboard-container', {
         mode: 'quizEditor',
         question: null,
@@ -9386,6 +9425,7 @@ function renderProCustomQuizEditor(app) {
             }
             if (activeGroupIndex < 0) return;
             if (!isProCustomQuizSelectableFret(state.proCustomQuizEditor, stringName, fret)) return;
+            blurActiveElement();
             pushProCustomQuizEditorHistory();
             const group = state.proCustomQuizEditor.groups[activeGroupIndex];
             if (!group) return;
@@ -9395,8 +9435,7 @@ function renderProCustomQuizEditor(app) {
             } else {
                 if (!Array.isArray(group.notes)) group.notes = [];
                 if (group.notes.length === 0 && !Number.isFinite(group.scrollLeft)) {
-                    const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
-                    group.scrollLeft = wrapper ? Math.max(0, Math.round(wrapper.scrollLeft)) : 0;
+                    group.scrollLeft = getRouteEditorCurrentScrollLeft();
                 }
                 group.notes.push({ stringName, fret });
                 playTone(6 - stringName, fret);
@@ -10252,7 +10291,7 @@ function renderMemorize(app) {
                 ${isEditorDemoPlayback && !isCruiseCleared ? `
                     <div class="memorize-cruise-controls memorize-cruise-controls--pro-custom">
                         <button type="button" class="btn-secondary memorize-cruise-control-btn memorize-cruise-control-btn--pro-custom-return" id="btn-pro-custom-return-editor">編集画面に戻る</button>
-                        ${isProCustomDemoPlayback ? `
+                        ${isProCustomDemoPlayback || isProCustomQuizDemoPlayback ? `
                             <button type="button" class="btn-primary memorize-cruise-control-btn pro-custom-saved-btn pro-custom-saved-btn--save memorize-cruise-control-btn--pro-custom-save" id="btn-pro-custom-save-from-demo">
                                 <span class="pro-custom-saved-btn__badge" aria-hidden="true">PRO</span>
                                 <span class="pro-custom-saved-btn__title">このSTAGEを保存</span>
@@ -10441,8 +10480,11 @@ function renderMemorize(app) {
     const btnProCustomSaveFromDemo = document.getElementById('btn-pro-custom-save-from-demo');
     if (btnProCustomSaveFromDemo) {
         btnProCustomSaveFromDemo.onclick = () => {
-            // 編集画面に戻ったあと、自動で名前モーダルを開いて保存フローに入る
-            proCustomPendingOpenNameModal = true;
+            if (state.memorize.demoReturnCourse === 'proCustomQuizEditor') {
+                proCustomQuizEditorPendingOpenNameModal = true;
+            } else {
+                proCustomPendingOpenNameModal = true;
+            }
             returnMemorizeDemoToEditor();
         };
     }
