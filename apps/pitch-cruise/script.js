@@ -1,5 +1,20 @@
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '2.3.0';
+const PITCH_TRAINER_APP_VERSION = '2.9.4';
+
+// ─── [DEV] デバッグフラグ ────────────────────────────────────────────────────
+// true にするとSTAGE選択画面のクリア回数が常に100と表示される（localStorageは変更しない）
+// ✓100 の表示崩れ確認用。確認が済んだら false のままリリースすること
+const DEBUG_FORCE_TEST_CLEAR_COUNT_100 = false;
+
+// [DEV] PRO版レイアウト確認用の一時フラグ
+// true のとき PRO版のメロディ・コード選択画面にダミーPROステージと「✓100」バッジを表示する
+// localStorageは変更しない。確認が済んだら false のままリリースすること
+const DEBUG_FORCE_PRO_STAGE_BADGE_100 = false;
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── テストモード New バッジ既読管理 ────────────────────────────────────────
+const SETTINGS_NEW_BADGE_KEY = 'pitchCruiseSeenSettingsNewBadge_v290';
+const TEST_MODE_NEW_BADGE_KEY = 'pitchCruiseSeenTestModeNewBadge_v290';
 
 /** 検証ハブ（Staging）の Ver 表記の括弧内。小さな更新は原則ここだけ増やす（版番号の変更は別指示時のみ） */
 const PITCH_TRAINER_APP_BUILD = '43';
@@ -57,6 +72,602 @@ const STAGING_PRO_MELODY_SLOTS_KEY = 'pitchTrainerStagingProMelodySlots';
 const STAGING_PRO_CHORD_SLOT_MIN = 5101;
 const STAGING_PRO_CHORD_SLOT_MAX = 5199;
 const STAGING_PRO_CHORD_SLOTS_KEY = 'pitchTrainerStagingProChordSlots';
+
+// ===================== テストモード定数・状態 =====================
+
+const TEST_MODE_ENABLED_KEY = 'pitchTrainerTestModeEnabled';
+const TEST_MODE_RESULTS_KEY = 'pitchTrainerTestModeResults';
+const TEST_MODE_REQUIRED_CORRECT = 20;
+const TEST_MODE_TIME_LIMIT_MS = 4000;
+
+const testModeState = {
+    enabled: false,
+    active: false,
+    currentCategory: null,
+    currentStageKey: null,
+    currentStageId: null,
+    isRecordableStage: false,
+    correctCount: 0,
+    requiredCorrect: TEST_MODE_REQUIRED_CORRECT,
+    timeLimitMs: TEST_MODE_TIME_LIMIT_MS,
+    timerId: null,
+    countdownRafId: null,
+    questionStartedAt: null,
+    answerDeadlineAt: null,
+    failureReason: null
+};
+
+function isTestModeEnabled() {
+    return testModeState.enabled;
+}
+
+function getTestStageKey(category, stageId) {
+    if (category === 'melody' && stageId >= 1 && stageId <= 6) return 'stage-' + stageId;
+    if (category === 'chord' && stageId >= 101 && stageId <= 106) return 'stage-' + stageId;
+    if (category === 'melody' && stageId >= STAGING_PRO_MELODY_SLOT_MIN && stageId <= STAGING_PRO_MELODY_SLOT_MAX) return 'custom-' + stageId;
+    if (category === 'chord' && stageId >= STAGING_PRO_CHORD_SLOT_MIN && stageId <= STAGING_PRO_CHORD_SLOT_MAX) return 'custom-' + stageId;
+    return null; // 未保存カスタム (99/199) は記録しない
+}
+
+function loadTestModeResults() {
+    try {
+        const raw = localStorage.getItem(TEST_MODE_RESULTS_KEY);
+        if (!raw) return { melody: {}, chord: {} };
+        const parsed = JSON.parse(raw);
+        return { melody: parsed.melody || {}, chord: parsed.chord || {} };
+    } catch (e) {
+        return { melody: {}, chord: {} };
+    }
+}
+
+function saveTestModeResult(category, stageKey) {
+    if (!stageKey) return;
+    try {
+        const results = loadTestModeResults();
+        if (!results[category]) results[category] = {};
+        const prev = results[category][stageKey] || { clearCount: 0 };
+        results[category][stageKey] = {
+            clearCount: prev.clearCount + 1,
+            lastClearedAt: new Date().toISOString()
+        };
+        localStorage.setItem(TEST_MODE_RESULTS_KEY, JSON.stringify(results));
+    } catch (e) {
+        console.warn('PitchTrainer: Failed to save test mode result', e);
+    }
+}
+
+function startTestModeRun(game, stageId) {
+    const cfg = game.stageConfig[stageId];
+    const category = (cfg && cfg.isChord) ? 'chord' : 'melody';
+    const stageKey = getTestStageKey(category, stageId);
+    testModeState.active = true;
+    testModeState.currentCategory = category;
+    testModeState.currentStageKey = stageKey;
+    testModeState.currentStageId = stageId;
+    testModeState.isRecordableStage = stageKey !== null;
+    testModeState.correctCount = 0;
+    testModeState.failureReason = null;
+    clearTestModeAnswerTimer();
+    document.body.classList.add('test-mode-active');
+    updateTestModeInGameUI(game);
+}
+
+function stopTestModeRun(game) {
+    clearTestModeAnswerTimer();
+    testModeState.active = false;
+    testModeState.failureReason = null;
+    testModeState.answerDeadlineAt = null;
+    document.body.classList.remove('test-mode-active');
+    if (game) updateTestModeInGameUI(game);
+}
+
+function getPlaySequenceEndMs(game) {
+    const noteDuration = 0.8 / game.noteSpeed;
+    const gap = 0.2 / game.noteSpeed;
+    const seqLen = game.currentSequence.length;
+    return ((seqLen - 1) * (noteDuration + gap) + noteDuration + game.audio.sustainTime) * 1000;
+}
+
+function startTestModeAnswerTimer(game) {
+    clearTestModeAnswerTimer();
+    const playEndMs = getPlaySequenceEndMs(game);
+
+    testModeState.timerId = setTimeout(() => {
+        testModeState.timerId = null;
+        if (!testModeState.active) return;
+        const deadline = Date.now() + testModeState.timeLimitMs;
+        testModeState.answerDeadlineAt = deadline;
+
+        function tick() {
+            if (!testModeState.active || testModeState.answerDeadlineAt === null) return;
+            const remaining = testModeState.answerDeadlineAt - Date.now();
+            if (remaining <= 0) {
+                testModeState.answerDeadlineAt = null;
+                if (testModeState.active && !game.isRoundOver) {
+                    game.isRoundOver = true;
+                    clearTestModeAnswerTimer();
+                    handleTestModeFailure('timeout', game);
+                }
+                return;
+            }
+            _updateTestModeTimerDisplay(remaining);
+            testModeState.countdownRafId = requestAnimationFrame(tick);
+        }
+        testModeState.countdownRafId = requestAnimationFrame(tick);
+    }, playEndMs);
+}
+
+function clearTestModeAnswerTimer() {
+    if (testModeState.timerId !== null) {
+        clearTimeout(testModeState.timerId);
+        testModeState.timerId = null;
+    }
+    if (testModeState.countdownRafId !== null) {
+        cancelAnimationFrame(testModeState.countdownRafId);
+        testModeState.countdownRafId = null;
+    }
+    testModeState.answerDeadlineAt = null;
+}
+
+function _updateTestModeTimerDisplay(remainingMs) {
+    const timerEl = document.getElementById('test-mode-timer');
+    if (!timerEl) return;
+    timerEl.textContent = '残り ' + (remainingMs / 1000).toFixed(1) + '秒';
+    timerEl.classList.toggle('urgent', remainingMs < 1000);
+}
+
+function updateTestModeInGameUI(game) {
+    const bar = document.getElementById('test-mode-status-bar');
+    if (!bar) return;
+
+    if (!testModeState.active) {
+        bar.classList.add('hidden');
+        _setTestModeButtonRestrictions(false, game);
+        return;
+    }
+
+    bar.classList.remove('hidden');
+
+    const progressEl = document.getElementById('test-mode-progress');
+    const timerEl = document.getElementById('test-mode-timer');
+    if (progressEl) progressEl.textContent = testModeState.correctCount + ' / ' + testModeState.requiredCorrect;
+    if (timerEl && testModeState.answerDeadlineAt === null) {
+        timerEl.textContent = '--';
+        timerEl.classList.remove('urgent');
+    }
+
+    _setTestModeButtonRestrictions(true, game);
+
+    const answerToggle = document.getElementById('answer-mode-toggle');
+    const answerLabel = document.getElementById('answer-mode-status');
+    if (answerToggle) { answerToggle.disabled = true; answerToggle.checked = true; }
+    if (answerLabel) {
+        answerLabel.innerHTML = '回答ON固定<br><small style="font-size:0.7em;color:rgba(255,255,255,0.5)">テスト中は変更できません</small>';
+    }
+}
+
+function _setTestModeButtonRestrictions(restrict, game) {
+    ['replay-btn', 'tonic-btn', 'scale-btn', 'settings-btn'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        btn.disabled = restrict;
+        if (restrict) btn.setAttribute('aria-disabled', 'true');
+        else btn.removeAttribute('aria-disabled');
+    });
+
+    if (!restrict) {
+        const answerToggle = document.getElementById('answer-mode-toggle');
+        const answerLabel = document.getElementById('answer-mode-status');
+        if (answerToggle) {
+            answerToggle.disabled = false;
+            if (game) answerToggle.checked = game.isAnswerMode;
+        }
+        if (answerLabel && game) {
+            if (game.isAnswerMode) {
+                answerLabel.textContent = '回答ON';
+                answerLabel.style.color = '#fff';
+            } else {
+                answerLabel.textContent = '回答OFF (音確認のみ)';
+                answerLabel.style.color = 'rgba(255, 255, 255, 0.6)';
+            }
+        }
+    }
+}
+
+function handleTestModeCorrectAnswer(game) {
+    testModeState.correctCount++;
+    const progressEl = document.getElementById('test-mode-progress');
+    if (progressEl) progressEl.textContent = testModeState.correctCount + ' / ' + testModeState.requiredCorrect;
+
+    game.showFeedback('正解！ (' + testModeState.correctCount + '/' + testModeState.requiredCorrect + ')', 'correct');
+
+    const timerEl = document.getElementById('test-mode-timer');
+    if (timerEl) { timerEl.textContent = '--'; timerEl.classList.remove('urgent'); }
+
+    if (testModeState.correctCount >= testModeState.requiredCorrect) {
+        setTimeout(() => handleTestModeClear(game), 600 / game.noteSpeed);
+    } else {
+        setTimeout(() => void game.nextRound(), 750 / game.noteSpeed);
+    }
+}
+
+function handleTestModeFailure(reason, game) {
+    testModeState.failureReason = reason;
+    const failedAt = testModeState.correctCount;
+
+    const timerEl = document.getElementById('test-mode-timer');
+    if (timerEl) { timerEl.textContent = '--'; timerEl.classList.remove('urgent'); }
+
+    const stageId = testModeState.currentStageId;
+    stopTestModeRun(game);
+    game.isPlaying = false;
+    game.audio.stopAllScheduledSounds();
+    showTestModeFailureScreen(game, stageId, failedAt, reason);
+}
+
+function handleTestModeClear(game) {
+    if (testModeState.isRecordableStage) {
+        saveTestModeResult(testModeState.currentCategory, testModeState.currentStageKey);
+    }
+    const stageId = testModeState.currentStageId;
+    const stageKey = testModeState.currentStageKey;
+    const category = testModeState.currentCategory;
+    const isRecordable = testModeState.isRecordableStage;
+
+    let clearCount = 0;
+    if (isRecordable) {
+        const results = loadTestModeResults();
+        clearCount = (results[category] && results[category][stageKey]) ? results[category][stageKey].clearCount : 0;
+    }
+
+    stopTestModeRun(game);
+    game.isPlaying = false;
+    game.audio.stopAllScheduledSounds();
+    showTestModeClearScreen(game, stageId, clearCount);
+    updateTestModeStageButtons(game);
+}
+
+function showTestModeClearScreen(game, stageId, clearCount) {
+    const overlay = document.getElementById('overlay');
+    if (!overlay) return;
+    document.getElementById('screen-test-mode-clear')?.remove();
+    ['screen-home', 'screen-melody', 'screen-chord'].forEach(id => {
+        document.getElementById(id)?.classList.add('hidden');
+    });
+
+    const nextId = _getNextStageId(game, stageId);
+    const nextBtnHTML = nextId ? '<button class="btn-primary tm-clear-next">次のSTAGEへ</button>' : '';
+    const countText = clearCount > 0 ? '<p class="test-mode-clear-count">クリア回数：' + clearCount + '回目</p>' : '';
+
+    // STAGE名・説明文を stageConfig から取得
+    const cfg = game.stageConfig[stageId] || {};
+    const stageLabel = cfg.label || ('STAGE ' + stageId);
+    const stageDesc  = cfg.description || '';
+    const stageHeaderHTML = '<p class="tm-clear-stage-name">' + stageLabel + '</p>' +
+        (stageDesc ? '<p class="tm-clear-stage-desc">' + stageDesc + '</p>' : '');
+
+    const screen = document.createElement('div');
+    screen.id = 'screen-test-mode-clear';
+    screen.className = 'modal';
+    screen.innerHTML = '<div class="test-mode-result-screen test-mode-clear-screen">' +
+        '<div class="test-mode-result-icon tm-clear-icon-animate">🎉</div>' +
+        stageHeaderHTML +
+        '<h2 class="test-mode-result-title tm-clear-title-animate">CLEAR!</h2>' +
+        '<p class="test-mode-result-msg">' + TEST_MODE_REQUIRED_CORRECT + '問連続正解達成！<br>' +
+        'このSTAGEの音の動きが、<br>かなり耳に入ってきています。</p>' +
+        countText +
+        '<div class="test-mode-result-actions">' +
+        '<button class="btn-primary tm-clear-retry">もう1回挑戦する</button>' +
+        nextBtnHTML +
+        '<button class="btn-secondary tm-clear-back">STAGE選択に戻る</button>' +
+        '</div></div>';
+
+    overlay.classList.remove('hidden');
+    overlay.appendChild(screen);
+
+    // 紙吹雪 & ファンファーレ（一度だけ）
+    _launchConfetti(screen);
+    _playFanfare();
+
+    screen.querySelector('.tm-clear-retry')?.addEventListener('click', () => {
+        screen.remove(); overlay.classList.add('hidden'); game.startGame(stageId);
+    });
+    screen.querySelector('.tm-clear-next')?.addEventListener('click', () => {
+        const nid = _getNextStageId(game, stageId);
+        if (nid) { screen.remove(); overlay.classList.add('hidden'); game.startGame(nid); }
+    });
+    screen.querySelector('.tm-clear-back')?.addEventListener('click', () => {
+        screen.remove(); game.showStageSelector();
+    });
+}
+
+/**
+ * テストモードクリア時のファンファーレ（Web Audio API）
+ * Type D 固定: かわいい軽め（sine, 高オクターブ, ~0.75s）
+ */
+function _playFanfare() {
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const t = ctx.currentTime;
+
+        // ── ノート生成ヘルパー ──────────────────────────────────────────
+        const addNote = (freq, start, dur, gainPeak, oscType, masterGain) => {
+            const osc = ctx.createOscillator();
+            const env = ctx.createGain();
+            osc.type = oscType || 'triangle';
+            osc.frequency.setValueAtTime(freq, t);
+            env.gain.setValueAtTime(0, t + start);
+            env.gain.linearRampToValueAtTime(gainPeak, t + start + 0.02);
+            env.gain.setValueAtTime(gainPeak, t + start + dur - 0.07);
+            env.gain.linearRampToValueAtTime(0, t + start + dur);
+            osc.connect(env); env.connect(masterGain);
+            osc.start(t + start);
+            osc.stop(t + start + dur + 0.02);
+        };
+
+        const master = ctx.createGain();
+        master.gain.setValueAtTime(1, t);
+        master.connect(ctx.destination);
+
+        // Type D: かわいい軽め（高オクターブ, sine, ~0.75s）
+        master.gain.setValueAtTime(0.24, t);
+        addNote(523.25, 0.00, 0.14, 1, 'sine', master); // C5
+        addNote(659.26, 0.12, 0.14, 1, 'sine', master); // E5
+        addNote(783.99, 0.24, 0.14, 1, 'sine', master); // G5
+        addNote(1046.5, 0.38, 0.32, 0.85, 'sine', master); // C6
+
+        setTimeout(() => { try { ctx.close(); } catch (_) {} }, 1000);
+    } catch (_) { /* AudioContext 非対応環境では無視 */ }
+}
+
+/** テストモード説明アコーディオンを初期化する */
+function _initTestModeInfoAccordion() {
+    const btn = document.getElementById('test-mode-info-btn');
+    const accordion = document.getElementById('test-mode-info-accordion');
+    if (!btn || !accordion) return;
+
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation(); // トグルとの誤タップを防ぐ
+        const isOpen = accordion.classList.contains('open');
+        accordion.classList.toggle('open', !isOpen);
+        btn.setAttribute('aria-expanded', String(!isOpen));
+    });
+}
+
+/** テストモード関連の「New」バッジ初期化・既読管理 */
+function _initNewBadges() {
+    // ── 設定ボタン付近の New バッジ ─────────────────────────────────────
+    const homeSettingsNewBadge = document.getElementById('home-settings-new-badge');
+    if (homeSettingsNewBadge) {
+        const seenSettings = localStorage.getItem(SETTINGS_NEW_BADGE_KEY);
+        homeSettingsNewBadge.classList.toggle('hidden', !!seenSettings);
+
+        // 設定ボタンを押したら消す
+        ['home-settings-btn', 'melody-settings-btn', 'chord-settings-btn'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    if (!localStorage.getItem(SETTINGS_NEW_BADGE_KEY)) {
+                        try { localStorage.setItem(SETTINGS_NEW_BADGE_KEY, '1'); } catch (_) {}
+                        homeSettingsNewBadge.classList.add('hidden');
+                    }
+                });
+            }
+        });
+    }
+
+    // ── テストモード項目の New バッジ ───────────────────────────────────
+    const testModeNewBadge = document.getElementById('test-mode-new-badge');
+    if (testModeNewBadge) {
+        const seenTestMode = localStorage.getItem(TEST_MODE_NEW_BADGE_KEY);
+        testModeNewBadge.classList.toggle('hidden', !!seenTestMode);
+
+        // ⓘ ボタンを開いたら消す
+        const tmInfoBtn = document.getElementById('test-mode-info-btn');
+        if (tmInfoBtn) {
+            tmInfoBtn.addEventListener('click', () => {
+                if (!localStorage.getItem(TEST_MODE_NEW_BADGE_KEY)) {
+                    try { localStorage.setItem(TEST_MODE_NEW_BADGE_KEY, '1'); } catch (_) {}
+                    testModeNewBadge.classList.add('hidden');
+                }
+            });
+        }
+    }
+}
+
+/** 軽量 confetti：CSS アニメーションのみで紙吹雪を 2.5 秒再生して自動削除 */
+function _launchConfetti(container) {
+    const COUNT = 38;
+    const COLORS = ['#00ff88', '#00d2ff', '#ff3366', '#ffd700', '#ff69b4', '#a78bfa', '#ffffff'];
+    const wrapper = document.createElement('div');
+    wrapper.className = 'tm-confetti-wrap';
+    wrapper.setAttribute('aria-hidden', 'true');
+
+    for (let i = 0; i < COUNT; i++) {
+        const p = document.createElement('span');
+        p.className = 'tm-confetti-piece';
+        const color = COLORS[i % COLORS.length];
+        const left  = (Math.random() * 100).toFixed(1);
+        const delay = (Math.random() * 0.8).toFixed(2);
+        const dur   = (1.8 + Math.random() * 0.8).toFixed(2);
+        const size  = (6 + Math.random() * 6).toFixed(1);
+        const rot   = Math.floor(Math.random() * 360);
+        p.style.cssText = [
+            'left:' + left + '%',
+            'background:' + color,
+            'animation-delay:' + delay + 's',
+            'animation-duration:' + dur + 's',
+            'width:' + size + 'px',
+            'height:' + (size * (0.4 + Math.random() * 0.4)).toFixed(1) + 'px',
+            'transform:rotate(' + rot + 'deg)'
+        ].join(';');
+        wrapper.appendChild(p);
+    }
+
+    container.insertBefore(wrapper, container.firstChild);
+    // 2.8秒後に DOM から削除（アニメーション完了後）
+    setTimeout(() => { wrapper.remove(); }, 2800);
+}
+
+function showTestModeFailureScreen(game, stageId, failedAt, reason) {
+    const overlay = document.getElementById('overlay');
+    if (!overlay) return;
+    document.getElementById('screen-test-mode-failure')?.remove();
+    ['screen-home', 'screen-melody', 'screen-chord'].forEach(id => {
+        document.getElementById(id)?.classList.add('hidden');
+    });
+
+    const reasonText = reason === 'timeout' ? '時間切れ' : '回答ミス';
+    const problemNum = failedAt + 1;
+
+    // failedAt（連続正解数）でフェーズを分岐
+    let phaseClass, failTitle, failMsg;
+    if (failedAt <= 5) {
+        phaseClass = 'tm-fail-phase-0';
+        failTitle  = 'まずはここから！';
+        failMsg    = '最初の数問で止まるのは、<br>耳がまだこのSTAGEの音に慣れている途中です。<br><br>' +
+                     '練習モードで音の動きを確認してから、<br>もう一度挑戦してみましょう。';
+    } else if (failedAt <= 10) {
+        phaseClass = 'tm-fail-phase-1';
+        failTitle  = 'いい感じです！';
+        failMsg    = '半分近くまで聴き分けられています。<br><br>' +
+                     'あと少し安定すれば、<br>クリアが見えてきます。';
+    } else if (failedAt <= 15) {
+        phaseClass = 'tm-fail-phase-2';
+        failTitle  = 'かなり惜しい！';
+        failMsg    = 'ここまで連続で聴き分けられているので、<br>耳はしっかり育っています。<br><br>' +
+                     '次は後半の集中力を意識してみましょう。';
+    } else {
+        phaseClass = 'tm-fail-phase-3';
+        failTitle  = '本当にあと少し！';
+        failMsg    = 'クリア目前まで来ています。<br><br>' +
+                     'ここまで来られたなら、<br>もう突破できる力はあります。';
+    }
+
+    const screen = document.createElement('div');
+    screen.id = 'screen-test-mode-failure';
+    screen.className = 'modal';
+    screen.innerHTML = '<div class="test-mode-result-screen test-mode-failure-screen ' + phaseClass + '">' +
+        '<p class="test-mode-failure-heading">' + failTitle + '</p>' +
+        '<p class="test-mode-result-msg">今回は <strong>' + problemNum + '問目</strong> でストップしました。<br>' +
+        failMsg + '</p>' +
+        '<div class="test-mode-fail-stats">' +
+        '<span>連続正解：' + failedAt + '問</span>' +
+        '<span>失敗理由：' + reasonText + '</span>' +
+        '</div>' +
+        '<div class="test-mode-result-actions">' +
+        '<button class="btn-primary tm-fail-retry">もう1回挑戦する</button>' +
+        '<button class="btn-secondary tm-fail-practice">練習モードで確認する</button>' +
+        '<button class="btn-secondary tm-fail-back">STAGE選択に戻る</button>' +
+        '</div></div>';
+
+    overlay.classList.remove('hidden');
+    overlay.appendChild(screen);
+
+    screen.querySelector('.tm-fail-retry')?.addEventListener('click', () => {
+        screen.remove(); overlay.classList.add('hidden'); game.startGame(stageId);
+    });
+    screen.querySelector('.tm-fail-practice')?.addEventListener('click', () => {
+        screen.remove(); overlay.classList.add('hidden');
+        game.startGame(stageId, { _forceNormal: true });
+    });
+    screen.querySelector('.tm-fail-back')?.addEventListener('click', () => {
+        screen.remove(); game.showStageSelector();
+    });
+}
+
+function showTestModeAbortConfirm(game, onAbort) {
+    document.getElementById('test-mode-abort-modal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'test-mode-abort-modal';
+    modal.className = 'test-mode-abort-modal';
+    modal.innerHTML = '<div class="test-mode-abort-content">' +
+        '<p class="test-mode-abort-title">テストを中断しますか？</p>' +
+        '<p class="test-mode-abort-desc">現在のチャレンジは終了します。</p>' +
+        '<div class="test-mode-abort-actions">' +
+        '<button class="btn-secondary tm-abort-ok">中断する</button>' +
+        '<button class="btn-primary tm-abort-cancel">続ける</button>' +
+        '</div></div>';
+    document.body.appendChild(modal);
+    modal.querySelector('.tm-abort-ok').addEventListener('click', () => { modal.remove(); onAbort(); });
+    modal.querySelector('.tm-abort-cancel').addEventListener('click', () => { modal.remove(); });
+}
+
+function _getNextStageId(game, currentStageId) {
+    if (currentStageId >= 1 && currentStageId <= 5) return currentStageId + 1;
+    if (currentStageId >= 101 && currentStageId <= 105) return currentStageId + 1;
+    if (currentStageId >= STAGING_PRO_MELODY_SLOT_MIN && currentStageId <= STAGING_PRO_MELODY_SLOT_MAX) {
+        const ordered = game.getStagingMelodySlotIdsOrdered();
+        const idx = ordered.indexOf(currentStageId);
+        return idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null;
+    }
+    if (currentStageId >= STAGING_PRO_CHORD_SLOT_MIN && currentStageId <= STAGING_PRO_CHORD_SLOT_MAX) {
+        const ordered = game.getStagingChordSlotIdsOrdered();
+        const idx = ordered.indexOf(currentStageId);
+        return idx >= 0 && idx < ordered.length - 1 ? ordered[idx + 1] : null;
+    }
+    return null;
+}
+
+function updateTestModeStageButtons(game) {
+    const results = loadTestModeResults();
+    const isEnabled = testModeState.enabled;
+    for (let i = 1; i <= 6; i++) {
+        const btn = document.querySelector('[data-stage="' + i + '"]:not(.custom-stage-btn)');
+        if (btn) _applyTestModeButtonStyle(btn, 'melody', 'stage-' + i, results, isEnabled);
+    }
+    for (let i = 101; i <= 106; i++) {
+        const btn = document.querySelector('[data-stage="' + i + '"]:not(.custom-stage-btn)');
+        if (btn) _applyTestModeButtonStyle(btn, 'chord', 'stage-' + i, results, isEnabled);
+    }
+    // [DEV] デバッグダミーPROステージのスタイルも更新（PRO版のみ存在）
+    if (DEBUG_FORCE_PRO_STAGE_BADGE_100) {
+        document.querySelectorAll('.debug-pro-dummy-melody-btn').forEach(btn => {
+            _applyTestModeButtonStyle(btn, 'melody', 'custom-5001', results, isEnabled);
+        });
+        document.querySelectorAll('.debug-pro-dummy-chord-btn').forEach(btn => {
+            _applyTestModeButtonStyle(btn, 'chord', 'custom-5101', results, isEnabled);
+        });
+    }
+}
+
+function _applyTestModeButtonStyle(btn, category, stageKey, results, isEnabled) {
+    // ボタン内の旧バッジは常に除去（後方互換）
+    btn.querySelectorAll('.test-mode-clear-badge').forEach(el => el.remove());
+    btn.classList.toggle('test-mode-stage', isEnabled);
+
+    const catResults = results[category] || {};
+    const stageResult = catResults[stageKey];
+    const realCount = (stageResult && stageResult.clearCount > 0) ? stageResult.clearCount : 0;
+    // [DEV] DEBUG_FORCE_TEST_CLEAR_COUNT_100 が true のとき表示のみ100に（localStorage は変更しない）
+    const count = DEBUG_FORCE_TEST_CLEAR_COUNT_100 ? 100 : realCount;
+
+    // .stage-row 構造がある場合 → 外側マーク方式
+    const row = btn.closest('.stage-row');
+    if (row) {
+        const mark = row.querySelector('.stage-clear-mark');
+        if (count > 0) {
+            row.classList.add('cleared');
+            if (mark) mark.textContent = '✓' + count;
+        } else {
+            row.classList.remove('cleared');
+            if (mark) mark.textContent = '';
+        }
+        return;
+    }
+
+    // フォールバック：Pro カスタムSTAGEなど .stage-row がない場合
+    if (count > 0) {
+        const badge = document.createElement('span');
+        badge.className = 'test-mode-clear-badge';
+        badge.textContent = '✓' + count;
+        btn.appendChild(badge);
+    }
+}
+
+// ===================== テストモード定数・状態 ここまで =====================
 
 function isPitchTrainerPro() {
     return document.documentElement.dataset.appEdition === 'Pro';
@@ -1152,6 +1763,21 @@ class Game {
             });
         }
 
+        // テストモード ON/OFF トグル
+        const testModeToggle = document.getElementById('test-mode-toggle');
+        if (testModeToggle) {
+            testModeToggle.addEventListener('change', (e) => {
+                testModeState.enabled = e.target.checked;
+                document.body.classList.toggle('test-mode-enabled', testModeState.enabled);
+                try { localStorage.setItem(TEST_MODE_ENABLED_KEY, String(testModeState.enabled)); } catch (_) {}
+                updateTestModeStageButtons(this);
+            });
+        }
+
+        // テストモード説明アコーディオン・New バッジ
+        _initTestModeInfoAccordion();
+        _initNewBadges();
+
         // Octave controls
         if (isPitchTrainerPro()) {
             if (document.getElementById('octave-down')) {
@@ -1976,6 +2602,18 @@ class Game {
         this.clampStandardEditionSoundSettings();
         this.clampStandardEditionKeyOctave();
         this.updateKeyRandomDependentUi();
+
+        // テストモード ON/OFF を別キーから読み込む
+        try {
+            const tmVal = localStorage.getItem(TEST_MODE_ENABLED_KEY);
+            if (tmVal !== null) {
+                testModeState.enabled = tmVal === 'true';
+                const tmToggle = document.getElementById('test-mode-toggle');
+                if (tmToggle) tmToggle.checked = testModeState.enabled;
+            }
+        } catch (_) {}
+        document.body.classList.toggle('test-mode-enabled', testModeState.enabled);
+        updateTestModeStageButtons(this);
     }
 
     saveSettings() {
@@ -2090,6 +2728,7 @@ class Game {
     }
 
     openSettingsModal() {
+        if (testModeState.active) return; // テスト中は設定変更不可
         this.clampStandardEditionSoundSettings();
         this.clampStandardEditionKeyOctave();
         this.captureSettingsModalSnapshot();
@@ -3449,9 +4088,16 @@ class Game {
         orderedIds.forEach((id, orderIndex) => {
             const c = this.stageConfig[id];
             if (!c || !c.pool) return;
+            // 外部ラッパー：.stage-row と同じ full-width 構造で .stage-clear-mark を絶対配置
+            // → _applyTestModeButtonStyle が .stage-row を見つけてバッジをボタン外側左に表示する
+            const outer = document.createElement('div');
+            outer.className = 'stage-row staging-pro-slot-outer';
+            outer.dataset.stagingSlotId = String(id);
+            const clearMark = document.createElement('span');
+            clearMark.className = 'stage-clear-mark';
+            outer.appendChild(clearMark);
             const row = document.createElement('div');
             row.className = 'staging-pro-slot-row';
-            row.dataset.stagingSlotId = String(id);
             const mainRow = document.createElement('div');
             mainRow.className = 'staging-slot-main-row';
             const btn = document.createElement('button');
@@ -3568,9 +4214,18 @@ class Game {
                 row.appendChild(bar);
             }
             row.appendChild(actions);
-            wrap.appendChild(row);
+            outer.appendChild(row);
+            wrap.appendChild(outer);
         });
         anchor.insertAdjacentElement('afterend', wrap);
+        // テストモードのスタイル・バッジをカスタムSTAGEボタンに適用
+        if (isStagingProSlotsFeature()) {
+            const results = loadTestModeResults();
+            wrap.querySelectorAll('.staging-slot-main-btn[data-stage]').forEach(btn => {
+                const id = parseInt(btn.dataset.stage);
+                if (!isNaN(id)) _applyTestModeButtonStyle(btn, 'melody', 'custom-' + id, results, testModeState.enabled);
+            });
+        }
         if (isStagingProSlotsFeature() && orderLen >= 1) {
             const footer = document.createElement('div');
             footer.id = 'staging-melody-reorder-footer';
@@ -3587,6 +4242,27 @@ class Game {
             });
             footer.appendChild(modeBtn);
             wrap.insertAdjacentElement('afterend', footer);
+        }
+        // [DEV] PRO版レイアウト確認用ダミーPROステージを注入（.staging-pro-slot-dynamic クラスで再レンダリング時に自動削除）
+        if (DEBUG_FORCE_PRO_STAGE_BADGE_100) {
+            const dbgWrap = document.createElement('div');
+            dbgWrap.className = 'staging-pro-slot-dynamic debug-pro-dummy-melody-wrap';
+            const dbgRow = document.createElement('div');
+            dbgRow.className = 'stage-row debug-pro-dummy-row debug-pro-dummy-melody-row';
+            const dbgMark = document.createElement('span');
+            dbgMark.className = 'stage-clear-mark';
+            dbgRow.appendChild(dbgMark);
+            const dbgBtn = document.createElement('button');
+            dbgBtn.type = 'button';
+            dbgBtn.className = 'btn-primary custom-stage-btn pro-stage-teaser debug-pro-dummy-melody-btn';
+            dbgBtn.innerHTML = 'PRO STAGE<br><span class="stage-desc">カスタムメロディ確認用 ドレミファソラシド</span>';
+            dbgBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
+            dbgRow.appendChild(dbgBtn);
+            dbgWrap.appendChild(dbgRow);
+            const melodyFooter = document.getElementById('staging-melody-reorder-footer');
+            (melodyFooter || wrap).insertAdjacentElement('afterend', dbgWrap);
+            const dbgResults = loadTestModeResults();
+            _applyTestModeButtonStyle(dbgBtn, 'melody', 'custom-5001', dbgResults, testModeState.enabled);
         }
     }
 
@@ -3829,9 +4505,16 @@ class Game {
         orderedIds.forEach((id, orderIndex) => {
             const c = this.stageConfig[id];
             if (!c || !c.pool) return;
+            // 外部ラッパー：.stage-row と同じ full-width 構造で .stage-clear-mark を絶対配置
+            // → _applyTestModeButtonStyle が .stage-row を見つけてバッジをボタン外側左に表示する
+            const outer = document.createElement('div');
+            outer.className = 'stage-row staging-pro-slot-outer';
+            outer.dataset.stagingSlotId = String(id);
+            const clearMark = document.createElement('span');
+            clearMark.className = 'stage-clear-mark';
+            outer.appendChild(clearMark);
             const row = document.createElement('div');
             row.className = 'staging-pro-slot-row';
-            row.dataset.stagingSlotId = String(id);
             const mainRow = document.createElement('div');
             mainRow.className = 'staging-slot-main-row';
             const btn = document.createElement('button');
@@ -3948,9 +4631,18 @@ class Game {
                 row.appendChild(bar);
             }
             row.appendChild(actions);
-            wrap.appendChild(row);
+            outer.appendChild(row);
+            wrap.appendChild(outer);
         });
         anchor.insertAdjacentElement('afterend', wrap);
+        // テストモードのスタイル・バッジをカスタムSTAGEボタンに適用
+        if (isStagingProSlotsFeature()) {
+            const results = loadTestModeResults();
+            wrap.querySelectorAll('.staging-slot-main-btn[data-stage]').forEach(btn => {
+                const id = parseInt(btn.dataset.stage);
+                if (!isNaN(id)) _applyTestModeButtonStyle(btn, 'chord', 'custom-' + id, results, testModeState.enabled);
+            });
+        }
         if (isStagingProSlotsFeature() && orderLen >= 1) {
             const footer = document.createElement('div');
             footer.id = 'staging-chord-reorder-footer';
@@ -3967,6 +4659,27 @@ class Game {
             });
             footer.appendChild(modeBtn);
             wrap.insertAdjacentElement('afterend', footer);
+        }
+        // [DEV] PRO版レイアウト確認用ダミーPROステージを注入（.staging-pro-chord-slot-dynamic クラスで再レンダリング時に自動削除）
+        if (DEBUG_FORCE_PRO_STAGE_BADGE_100) {
+            const dbgWrap = document.createElement('div');
+            dbgWrap.className = 'staging-pro-chord-slot-dynamic debug-pro-dummy-chord-wrap';
+            const dbgRow = document.createElement('div');
+            dbgRow.className = 'stage-row debug-pro-dummy-row debug-pro-dummy-chord-row';
+            const dbgMark = document.createElement('span');
+            dbgMark.className = 'stage-clear-mark';
+            dbgRow.appendChild(dbgMark);
+            const dbgBtn = document.createElement('button');
+            dbgBtn.type = 'button';
+            dbgBtn.className = 'btn-primary custom-stage-btn pro-stage-teaser debug-pro-dummy-chord-btn';
+            dbgBtn.innerHTML = 'PRO STAGE<br><span class="stage-desc">カスタムコード確認用<br>C, Dm, Em, F, G, Am, Bdim</span>';
+            dbgBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
+            dbgRow.appendChild(dbgBtn);
+            dbgWrap.appendChild(dbgRow);
+            const chordFooter = document.getElementById('staging-chord-reorder-footer');
+            (chordFooter || wrap).insertAdjacentElement('afterend', dbgWrap);
+            const dbgResults = loadTestModeResults();
+            _applyTestModeButtonStyle(dbgBtn, 'chord', 'custom-5101', dbgResults, testModeState.enabled);
         }
     }
 
@@ -4250,6 +4963,13 @@ class Game {
                 isStagingProSlotsFeature() &&
                 (isProMelodyStageId(level) || isProChordStageId(level));
             if (!okMelody && !okChord && !okStaging) return;
+        }
+        // テストモードが有効で、かつ強制通常モードでない場合はテストランを開始
+        if (testModeState.enabled && !options._forceNormal) {
+            startTestModeRun(this, level);
+        } else {
+            // 通常モード（またはテストモード off / 練習モードで確認）
+            if (testModeState.active) stopTestModeRun(this);
         }
         this.audio.stopAllScheduledSounds();
         const preserveProgress = options.preserveProgress === true;
@@ -4667,6 +5387,7 @@ class Game {
                 this.showFeedback('問題を聴いてください...');
                 await this.playSequence();
                 this.isBlockingInput = false;
+                if (testModeState.active) startTestModeAnswerTimer(this);
             });
         } else if (keyRand) {
             this.showFeedback('主音を聴いてください...');
@@ -4674,15 +5395,24 @@ class Game {
                 this.showFeedback('問題を聴いてください...');
                 await this.playSequence();
                 this.isBlockingInput = false;
+                if (testModeState.active) startTestModeAnswerTimer(this);
             });
         } else {
             this.showFeedback('問題を聴いてください...');
             await this.playSequence();
             this.isBlockingInput = false;
+            if (testModeState.active) startTestModeAnswerTimer(this);
         }
     }
 
     showStageSelector() {
+        if (testModeState.active) {
+            showTestModeAbortConfirm(this, () => {
+                stopTestModeRun(this);
+                this.showStageSelector();
+            });
+            return;
+        }
         this.audio.stopAllScheduledSounds();
         this.isPlaying = false;
         this.standardProPreviewMode = false;
@@ -4696,9 +5426,17 @@ class Game {
         });
         if (document.getElementById(this.lastCategory)) document.getElementById(this.lastCategory).classList.remove('hidden');
         if (isStagingProSlotsFeature()) this.renderStagingMelodySlotButtons();
+        updateTestModeStageButtons(this);
     }
 
     showHomeScreen() {
+        if (testModeState.active) {
+            showTestModeAbortConfirm(this, () => {
+                stopTestModeRun(this);
+                this.showHomeScreen();
+            });
+            return;
+        }
         this.audio.stopAllScheduledSounds();
         this.isPlaying = false;
         this.standardProPreviewMode = false;
@@ -4914,6 +5652,7 @@ class Game {
     }
 
     toggleAnswerMode(isChecked) {
+        if (testModeState.active) return; // テスト中は変更不可
         this.isAnswerMode = isChecked;
         const statusLabel = document.getElementById('answer-mode-status');
 
@@ -4934,11 +5673,16 @@ class Game {
 
     handleCorrect(note) {
         this.isRoundOver = true;
-        // Score logic removed from UI, but keep internal streak
         this.streak++;
         this.updateStats();
-        this.showFeedback('正解！ 素晴らしい！', 'correct');
 
+        if (testModeState.active) {
+            clearTestModeAnswerTimer();
+            handleTestModeCorrectAnswer(this);
+            return;
+        }
+
+        this.showFeedback('正解！ 素晴らしい！', 'correct');
         setTimeout(() => {
             void this.nextRound();
         }, 750 / this.noteSpeed);
@@ -4948,6 +5692,12 @@ class Game {
         this.isRoundOver = true;
         this.streak = 0;
         this.updateStats();
+
+        if (testModeState.active) {
+            clearTestModeAnswerTimer();
+            handleTestModeFailure('wrong', this);
+            return;
+        }
 
         let expectedNotes;
         const cfg = this.stageConfig[this.stage] || this.stageConfig[3];
