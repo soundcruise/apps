@@ -558,3 +558,229 @@ body.test-mode-enabled .stage-clear-mark {
     80%  { transform: translateY(55vh) rotate(540deg) scaleX(-1);  opacity: 0.6; }
     100% { transform: translateY(80vh) rotate(720deg) scaleX(1);   opacity: 0; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════
+   設定画面 — テストモードトグル（赤系）
+═══════════════════════════════════════════════════════════ */
+
+/* テストモード専用トグル：ON時にワインレッド */
+.toggle-switch--test-mode input:checked + .toggle-slider {
+    background: linear-gradient(135deg, #b50028 0%, #d90036 60%, #b50028 100%);
+    box-shadow: 0 0 10px rgba(255, 51, 102, 0.42), inset 0 1px 0 rgba(255, 130, 155, 0.2);
+}
+
+/* ホバー時の微光（PCのみ） */
+@media (hover: hover) {
+    .toggle-switch--test-mode:hover input:checked + .toggle-slider {
+        box-shadow: 0 0 16px rgba(255, 51, 102, 0.6), inset 0 1px 0 rgba(255, 130, 155, 0.2);
+    }
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   設定画面 — テストモード説明アコーディオン
+═══════════════════════════════════════════════════════════ */
+
+/* テストモード設定行の「ⓘ」ボタン */
+.tm-info-btn {
+    background: none;
+    border: 1px solid rgba(255, 51, 102, 0.35);
+    color: rgba(255, 160, 185, 0.75);
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 0.68rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    font-family: inherit;
+    vertical-align: middle;
+}
+
+.tm-info-btn:hover,
+.tm-info-btn[aria-expanded="true"] {
+    border-color: rgba(255, 80, 120, 0.7);
+    color: rgba(255, 190, 210, 1);
+    background: rgba(255, 51, 102, 0.08);
+    box-shadow: 0 0 6px rgba(255, 51, 102, 0.2);
+}
+
+/* アコーディオン：テストモード説明文 */
+.tm-info-accordion {
+    overflow: hidden;
+    max-height: 0;
+    margin: 0;
+    padding: 0 4px;
+    opacity: 0;
+    transition: max-height 0.32s ease, opacity 0.25s ease, padding 0.25s ease;
+    text-align: left;
+}
+
+.tm-info-accordion.open {
+    max-height: 240px;
+    padding: 4px 4px 8px;
+    opacity: 1;
+}
+
+.tm-info-accordion-inner {
+    background: rgba(255, 51, 102, 0.06);
+    border: 1px solid rgba(255, 80, 120, 0.2);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.62);
+    line-height: 1.65;
+}
+
+.tm-info-accordion-inner p {
+    margin: 0 0 5px;
+}
+.tm-info-accordion-inner p:last-child {
+    margin: 0;
+}
+.tm-info-accordion-inner strong {
+    color: rgba(255, 190, 210, 0.92);
+    font-weight: 700;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   テストモード結果画面 — ボタン赤系統一
+═══════════════════════════════════════════════════════════ */
+
+/* メイン操作（もう1回挑戦、次のSTAGEへ） */
+.test-mode-result-actions .btn-primary {
+    background: linear-gradient(145deg, #1e0008 0%, #3a0010 40%, #2a000c 70%, #150005 100%);
+    color: #fff;
+    border: 1px solid rgba(255, 80, 120, 0.55);
+    box-shadow:
+        0 0 14px rgba(255, 51, 102, 0.22),
+        0 4px 12px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 110, 140, 0.18);
+}
+
+@media (hover: hover) {
+    .test-mode-result-actions .btn-primary:hover {
+        background: linear-gradient(145deg, #2a000c 0%, #520018 40%, #3a000e 70%, #1e0008 100%);
+        border-color: rgba(255, 80, 120, 0.85);
+        box-shadow:
+            0 0 22px rgba(255, 51, 102, 0.40),
+            0 6px 16px rgba(0, 0, 0, 0.45),
+            inset 0 1px 0 rgba(255, 130, 155, 0.22);
+    }
+}
+
+.test-mode-result-actions .btn-primary:active {
+    transform: translateY(0) scale(0.965);
+    box-shadow: 0 0 10px rgba(255, 51, 102, 0.5), inset 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+/* サブ操作（STAGE選択に戻る、練習モードで確認） */
+.test-mode-result-actions .btn-secondary {
+    background: transparent;
+    color: rgba(255, 160, 185, 0.88);
+    border: 1px solid rgba(255, 80, 120, 0.38);
+    box-shadow: none;
+}
+
+@media (hover: hover) {
+    .test-mode-result-actions .btn-secondary:hover {
+        background: rgba(255, 51, 102, 0.08);
+        border-color: rgba(255, 80, 120, 0.6);
+        color: rgba(255, 200, 215, 0.95);
+    }
+}
+
+.test-mode-result-actions .btn-secondary:active {
+    transform: translateY(0) scale(0.97);
+    background: rgba(255, 51, 102, 0.12);
+}
+
+/* 中断確認ダイアログのボタン */
+.test-mode-abort-actions .btn-secondary {
+    background: linear-gradient(145deg, #1e0008, #3a0010);
+    color: rgba(255, 160, 185, 0.9);
+    border: 1px solid rgba(255, 80, 120, 0.5);
+}
+
+.test-mode-abort-actions .btn-primary {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   [DEV] ファンファーレ確認用UI（確認後に削除してください）
+═══════════════════════════════════════════════════════════ */
+
+.fanfare-dev-panel {
+    margin-top: 18px;
+    padding: 10px 14px 12px;
+    background: rgba(255, 51, 102, 0.06);
+    border: 1px dashed rgba(255, 80, 120, 0.35);
+    border-radius: 10px;
+    text-align: center;
+}
+
+.fanfare-dev-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: rgba(255, 160, 185, 0.7);
+    letter-spacing: 0.08em;
+    margin: 0 0 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.fanfare-dev-tag {
+    font-size: 0.6rem;
+    background: rgba(255, 51, 102, 0.22);
+    border: 1px solid rgba(255, 80, 120, 0.4);
+    color: rgba(255, 160, 185, 0.8);
+    border-radius: 3px;
+    padding: 1px 4px;
+    letter-spacing: 0.06em;
+}
+
+.fanfare-dev-btns {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.fanfare-dev-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.65);
+    border-radius: 8px;
+    padding: 5px 14px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.18s;
+    min-width: 44px;
+}
+
+.fanfare-dev-btn:hover {
+    background: rgba(255, 51, 102, 0.12);
+    border-color: rgba(255, 80, 120, 0.55);
+    color: rgba(255, 200, 215, 0.95);
+}
+
+.fanfare-dev-btn.active {
+    background: linear-gradient(135deg, rgba(255, 51, 102, 0.25), rgba(140, 0, 40, 0.2));
+    border-color: rgba(255, 80, 120, 0.7);
+    color: rgba(255, 200, 215, 1);
+    box-shadow: 0 0 8px rgba(255, 51, 102, 0.25);
+}

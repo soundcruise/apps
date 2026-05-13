@@ -7,7 +7,7 @@
     <title>音感クルーズ</title>
     <link rel="stylesheet" href="../../shared/style.css?v=99">
     <link rel="stylesheet" href="../../shared/pro-theme.css?v=98">
-    <link rel="stylesheet" href="../theme.css?v=6">
+    <link rel="stylesheet" href="../theme.css?v=7">
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
     <link rel="stylesheet" href="../staging/staging-hub-nav.css?v=1">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -197,6 +197,18 @@
                         <span class="category-card-sub">コード進行の聴き取り</span>
                     </button>
                 </div>
+                <!-- ═══ [DEV] クリア音確認UI（採用タイプ決定後に削除してください） ═══ -->
+                <div id="fanfare-dev-panel" class="fanfare-dev-panel">
+                    <p class="fanfare-dev-label">🔊 クリア音確認 <span class="fanfare-dev-tag">DEV</span></p>
+                    <div class="fanfare-dev-btns">
+                        <button type="button" class="fanfare-dev-btn" data-fanfare="A">A</button>
+                        <button type="button" class="fanfare-dev-btn" data-fanfare="B">B</button>
+                        <button type="button" class="fanfare-dev-btn" data-fanfare="C">C</button>
+                        <button type="button" class="fanfare-dev-btn" data-fanfare="D">D</button>
+                        <button type="button" class="fanfare-dev-btn" data-fanfare="E">E</button>
+                    </div>
+                </div>
+                <!-- ═══ [DEV] ここまで ═══ -->
             </div>
 
             <!-- Screen 2: メロディ ステージ選択 -->
@@ -303,10 +315,19 @@
                 </div>
                 <div class="setting-item">
                     <label for="test-mode-toggle">テストモード</label>
-                    <label class="toggle-switch">
+                    <button type="button" class="tm-info-btn" id="test-mode-info-btn" aria-expanded="false" title="テストモードとは？">ⓘ</button>
+                    <label class="toggle-switch toggle-switch--test-mode">
                         <input type="checkbox" id="test-mode-toggle">
                         <span class="toggle-slider"></span>
                     </label>
+                </div>
+                <div class="tm-info-accordion" id="test-mode-info-accordion" aria-hidden="true">
+                    <div class="tm-info-accordion-inner">
+                        <p>各STAGEを<strong>20問連続正解</strong>でクリアするチャレンジモードです。</p>
+                        <p>1問でも間違えると失敗。問題再生後<strong>4秒以内</strong>に答えないと時間切れになります。</p>
+                        <p>クリアするとSTAGE選択画面にチェックマークとクリア回数が表示されます。</p>
+                        <p>本番感覚で、自分の音感を試したいときに使ってください。</p>
+                    </div>
                 </div>
                 <div class="settings-pro-only-block settings-pro-only-block--unlocked" aria-label="Pro版で調整できる設定">
                     <div class="settings-pro-only-banner">
@@ -824,7 +845,7 @@
     <script>window.__SOUNDCRUISE_PRO_GATE__ = { password: '7392' };</script>
     <script src="../../shared/pro-gate.js?v=16"></script>
     <script src="../staging/staging-hub-nav.js?v=3"></script>
-    <script src="../script.js?v=2.7.0"></script>
+    <script src="../script.js?v=2.8.0"></script>
 </body>
 
 </html>

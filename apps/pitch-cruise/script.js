@@ -1,5 +1,14 @@
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '2.7.0';
+const PITCH_TRAINER_APP_VERSION = '2.8.0';
+
+// ─── [DEV] デバッグフラグ ────────────────────────────────────────────────────
+// true にするとSTAGE選択画面のクリア回数が常に100と表示される（localStorageは変更しない）
+// ✓100 の表示崩れ確認用。確認後は false に戻してコミットすること
+const DEBUG_FORCE_TEST_CLEAR_COUNT_100 = false;
+
+// ファンファーレ選択（localStorageに保存）
+const FANFARE_TYPE_KEY = 'pitchCruiseSelectedFanfareType';
+// ─────────────────────────────────────────────────────────────────────────────
 
 /** 検証ハブ（Staging）の Ver 表記の括弧内。小さな更新は原則ここだけ増やす（版番号の変更は別指示時のみ） */
 const PITCH_TRAINER_APP_BUILD = '43';
@@ -366,39 +375,152 @@ function showTestModeClearScreen(game, stageId, clearCount) {
     });
 }
 
-/** テストモードクリア時のファンファーレ音（C→E→G→高C アルペジオ, Web Audio API） */
-function _playFanfare() {
+/**
+ * テストモードクリア時のファンファーレ（Web Audio API）
+ * type: 'A'〜'E' — 省略時は localStorage の選択を使用
+ * 各タイプの音の特徴:
+ *   A: Cメジャー上昇アルペジオ（triangle, ~0.95s）← 現在のデフォルト
+ *   B: 明るい勝利ジングル（sine, 短めのコード+高音, ~1.0s）
+ *   C: 豪華2段階ファンファーレ（sawtooth+sine, ~1.4s）
+ *   D: かわいい軽め（sine, 高オクターブ, ~0.75s）
+ *   E: 落ち着いた上品なクリア音（triangle, ゆっくり, ~1.2s）
+ */
+function _playFanfare(type) {
     try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         if (!AudioCtx) return;
+        // typeが省略されたら localStorage から読む
+        const selectedType = type || _getFanfareType();
         const ctx = new AudioCtx();
-        // アルペジオ：C4→E4→G4→C5（各 0.18s）
-        const notes = [
-            { freq: 261.63, start: 0.00, dur: 0.22 },
-            { freq: 329.63, start: 0.18, dur: 0.22 },
-            { freq: 392.00, start: 0.36, dur: 0.22 },
-            { freq: 523.25, start: 0.54, dur: 0.40 },
-        ];
-        const masterGain = ctx.createGain();
-        masterGain.gain.setValueAtTime(0.28, ctx.currentTime);
-        masterGain.connect(ctx.destination);
-        notes.forEach(({ freq, start, dur }) => {
+        const t = ctx.currentTime;
+
+        // ── ノート生成ヘルパー ──────────────────────────────────────────
+        const addNote = (freq, start, dur, gainPeak, oscType, masterGain) => {
             const osc = ctx.createOscillator();
             const env = ctx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(freq, ctx.currentTime);
-            env.gain.setValueAtTime(0, ctx.currentTime + start);
-            env.gain.linearRampToValueAtTime(1, ctx.currentTime + start + 0.02);
-            env.gain.setValueAtTime(1, ctx.currentTime + start + dur - 0.06);
-            env.gain.linearRampToValueAtTime(0, ctx.currentTime + start + dur);
-            osc.connect(env);
-            env.connect(masterGain);
-            osc.start(ctx.currentTime + start);
-            osc.stop(ctx.currentTime + start + dur + 0.01);
-        });
-        // 再生終了後にコンテキストを閉じてメモリ解放
-        setTimeout(() => { try { ctx.close(); } catch (_) {} }, 1200);
+            osc.type = oscType || 'triangle';
+            osc.frequency.setValueAtTime(freq, t);
+            env.gain.setValueAtTime(0, t + start);
+            env.gain.linearRampToValueAtTime(gainPeak, t + start + 0.02);
+            env.gain.setValueAtTime(gainPeak, t + start + dur - 0.07);
+            env.gain.linearRampToValueAtTime(0, t + start + dur);
+            osc.connect(env); env.connect(masterGain);
+            osc.start(t + start);
+            osc.stop(t + start + dur + 0.02);
+        };
+
+        const master = ctx.createGain();
+        master.gain.setValueAtTime(1, t);
+        master.connect(ctx.destination);
+
+        let closeDuration = 1.2;
+
+        if (selectedType === 'A') {
+            // Type A: C4→E4→G4→C5 アルペジオ（triangle, ~0.95s）
+            master.gain.setValueAtTime(0.28, t);
+            addNote(261.63, 0.00, 0.22, 1, 'triangle', master);
+            addNote(329.63, 0.18, 0.22, 1, 'triangle', master);
+            addNote(392.00, 0.36, 0.22, 1, 'triangle', master);
+            addNote(523.25, 0.54, 0.40, 1, 'triangle', master);
+            closeDuration = 1.1;
+
+        } else if (selectedType === 'B') {
+            // Type B: 明るい勝利ジングル（sine, C4-E4-G4同時 + E5 高音, ~1.0s）
+            master.gain.setValueAtTime(0.18, t);
+            addNote(261.63, 0.00, 0.30, 1, 'sine', master); // C4
+            addNote(329.63, 0.00, 0.30, 1, 'sine', master); // E4
+            addNote(392.00, 0.00, 0.30, 1, 'sine', master); // G4
+            addNote(523.25, 0.22, 0.22, 1, 'sine', master); // C5
+            addNote(659.26, 0.40, 0.55, 1, 'sine', master); // E5（輝き）
+            closeDuration = 1.1;
+
+        } else if (selectedType === 'C') {
+            // Type C: 豪華2段階ファンファーレ（低段+高段, ~1.4s）
+            master.gain.setValueAtTime(0.22, t);
+            // 第1段: C4→E4→G4
+            addNote(261.63, 0.00, 0.18, 1, 'triangle', master);
+            addNote(329.63, 0.15, 0.18, 1, 'triangle', master);
+            addNote(392.00, 0.30, 0.20, 1, 'triangle', master);
+            // 第2段: C5→E5→G5→C6（高めでキラキラ）
+            addNote(523.25, 0.54, 0.16, 0.85, 'sine', master);
+            addNote(659.26, 0.68, 0.16, 0.85, 'sine', master);
+            addNote(783.99, 0.82, 0.18, 0.85, 'sine', master);
+            addNote(1046.5, 0.98, 0.40, 0.70, 'sine', master);
+            closeDuration = 1.6;
+
+        } else if (selectedType === 'D') {
+            // Type D: かわいい軽め（高オクターブ, sine, ~0.75s）
+            master.gain.setValueAtTime(0.24, t);
+            addNote(523.25, 0.00, 0.14, 1, 'sine', master); // C5
+            addNote(659.26, 0.12, 0.14, 1, 'sine', master); // E5
+            addNote(783.99, 0.24, 0.14, 1, 'sine', master); // G5
+            addNote(1046.5, 0.38, 0.32, 0.85, 'sine', master); // C6
+            closeDuration = 0.9;
+
+        } else {
+            // Type E: 落ち着いた上品なクリア音（triangle, ゆっくり, ~1.2s）
+            master.gain.setValueAtTime(0.26, t);
+            addNote(261.63, 0.00, 0.32, 1,    'triangle', master); // C4
+            addNote(329.63, 0.28, 0.32, 0.9,  'triangle', master); // E4
+            addNote(392.00, 0.56, 0.32, 0.85, 'triangle', master); // G4
+            // ハーモニー：E4+G4+C5 和音
+            addNote(329.63, 0.84, 0.42, 0.55, 'sine', master);
+            addNote(392.00, 0.84, 0.42, 0.55, 'sine', master);
+            addNote(523.25, 0.84, 0.42, 0.70, 'sine', master);
+            closeDuration = 1.4;
+        }
+
+        setTimeout(() => { try { ctx.close(); } catch (_) {} }, closeDuration * 1000 + 100);
     } catch (_) { /* AudioContext 非対応環境では無視 */ }
+}
+
+/** 現在選択中のファンファーレタイプを取得（未設定なら 'A'） */
+function _getFanfareType() {
+    try {
+        return localStorage.getItem(FANFARE_TYPE_KEY) || 'A';
+    } catch (_) { return 'A'; }
+}
+
+/** ファンファーレタイプを保存 */
+function _setFanfareType(type) {
+    try { localStorage.setItem(FANFARE_TYPE_KEY, type); } catch (_) {}
+}
+
+/**
+ * [DEV] TOP画面のファンファーレ確認UI を初期化する
+ * このUIは確認後に削除する一時的なものです
+ */
+function _initFanfareDevPanel() {
+    const panel = document.getElementById('fanfare-dev-panel');
+    if (!panel) return;
+
+    const currentType = _getFanfareType();
+
+    // アクティブ状態を反映
+    panel.querySelectorAll('.fanfare-dev-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.fanfare === currentType);
+        btn.addEventListener('click', () => {
+            const type = btn.dataset.fanfare;
+            _setFanfareType(type);
+            panel.querySelectorAll('.fanfare-dev-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            _playFanfare(type); // 試聴
+        });
+    });
+}
+
+/** [DEV] テストモード説明アコーディオンを初期化する */
+function _initTestModeInfoAccordion() {
+    const btn = document.getElementById('test-mode-info-btn');
+    const accordion = document.getElementById('test-mode-info-accordion');
+    if (!btn || !accordion) return;
+
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation(); // トグルとの誤タップを防ぐ
+        const isOpen = accordion.classList.contains('open');
+        accordion.classList.toggle('open', !isOpen);
+        btn.setAttribute('aria-expanded', String(!isOpen));
+    });
 }
 
 /** 軽量 confetti：CSS アニメーションのみで紙吹雪を 2.5 秒再生して自動削除 */
@@ -555,7 +677,9 @@ function _applyTestModeButtonStyle(btn, category, stageKey, results, isEnabled) 
 
     const catResults = results[category] || {};
     const stageResult = catResults[stageKey];
-    const count = (stageResult && stageResult.clearCount > 0) ? stageResult.clearCount : 0;
+    const realCount = (stageResult && stageResult.clearCount > 0) ? stageResult.clearCount : 0;
+    // [DEV] DEBUG_FORCE_TEST_CLEAR_COUNT_100 が true のとき表示のみ100に（localStorage は変更しない）
+    const count = DEBUG_FORCE_TEST_CLEAR_COUNT_100 ? 100 : realCount;
 
     // .stage-row 構造がある場合 → 外側マーク方式
     const row = btn.closest('.stage-row');
@@ -1686,6 +1810,10 @@ class Game {
                 updateTestModeStageButtons(this);
             });
         }
+
+        // [DEV] 一時UI: テストモード説明アコーディオン・ファンファーレ選択パネル
+        _initTestModeInfoAccordion();
+        _initFanfareDevPanel();
 
         // Octave controls
         if (isPitchTrainerPro()) {
