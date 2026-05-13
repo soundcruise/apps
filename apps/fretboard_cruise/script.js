@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.132.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.138.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -20,6 +20,26 @@ function flashRouteEditorSavePositionButton(buttonId) {
         }, 620);
     };
     requestAnimationFrame(() => requestAnimationFrame(run));
+}
+
+/**
+ * 「一覧」表示中の 📍 数字だけを DOM で更新する（位置保存直後に renderApp しない画面用、
+ * または renderApp 後に表示が 1 フレーム遅れる場合の保険）。
+ * @param {string} datasetAttrName 例: data-position-group-index
+ * @param {number} groupIndex
+ * @param {number|null|undefined} scrollLeftForDisplay null/undefined は「—」
+ */
+function syncRouteEditorPositionPinInDOM(datasetAttrName, groupIndex, scrollLeftForDisplay) {
+    const label = document.querySelector(`.route-editor-group-position-label[${datasetAttrName}="${groupIndex}"]`);
+    if (!label || !label.isConnected) return;
+    const valueEl = label.querySelector('.route-editor-group-position-value');
+    if (!valueEl) return;
+    const hasValue = Number.isFinite(scrollLeftForDisplay) && scrollLeftForDisplay >= 0;
+    const valueText = hasValue ? String(scrollLeftForDisplay) : '—';
+    valueEl.textContent = valueText;
+    label.classList.toggle('is-empty', !hasValue);
+    const ariaLabel = hasValue ? `位置 ${scrollLeftForDisplay}（タップで編集）` : '位置未設定（タップで設定）';
+    label.setAttribute('aria-label', ariaLabel);
 }
 
 // Constants
@@ -1052,8 +1072,274 @@ if (applyShippedDefaultCruiseSettingsForcefullyIfNeeded()) {
     try { localStorage.setItem('fretboard_cruise_state', JSON.stringify(state)); } catch (e) {}
 }
 
+function isProEdition() {
+    return document.documentElement?.dataset?.appEdition === 'Pro';
+}
+
+function isStandardEdition() {
+    return !isProEdition();
+}
+
+function getFeatureAccess() {
+    const pro = isProEdition();
+    return {
+        canUseAllCruiseStages: true,
+        canUseAllQuizStages: true,
+        canUseVisualizeAllKeys: pro,
+        canOpenEditors: true,
+        canEditInEditors: true,
+        canPersistPracticeContent: pro,
+        canPlayEditorDemo: pro
+    };
+}
+
+function showProLockNotice(featureName) {
+    const messages = {
+        save: 'この保存はPRO版でお使いいただけます',
+        settings: '設定の変更はPRO版でお使いいただけます',
+        visualizeKey: 'このキーはPRO版でお使いいただけます',
+        demoPlayback: 'PROカスタムのデモ再生はPRO版でお使いいただけます'
+    };
+    window.alert(messages[featureName] || 'この機能はPRO版でお使いいただけます');
+}
+
+function guardProPersistentSave(featureName = 'save') {
+    if (getFeatureAccess().canPersistPracticeContent) return true;
+    showProLockNotice(featureName);
+    return false;
+}
+
+/** 無料版向け：ページ上部の案内（HTML 断片）。 */
+const STANDARD_NOTICE_SETTINGS =
+    '無料版では設定内容を確認できます。変更はPRO版でご利用いただけます';
+const STANDARD_NOTICE_ROUTE_EDITOR =
+    '編集の体験は無料版でもご利用いただけます。保存機能はPRO版でご利用いただけます';
+const STANDARD_NOTICE_QUIZ_EDITOR =
+    'クイズ編集の体験は無料版でもご利用いただけます。保存機能はPRO版でご利用いただけます';
+/** 無料版：PROカスタム（編集画面・デモ中のメモライズ）向け。デモは可能・保存のみPROと伝える */
+const STANDARD_NOTICE_PRO_CUSTOM_STAGE_EDITOR =
+    'PROカスタムSTAGEは、無料版でも編集とデモ体験ができます。保存はPRO版でご利用いただけます。';
+const STANDARD_NOTICE_VISUALIZE =
+    '無料版ではキーCをご利用いただけます。その他のキーはPRO版でご利用いただけます';
+
+function standardEditionNoticeHtml(message) {
+    if (!isStandardEdition() || !message) return '';
+    return `<div class="fretboard-edition-notice" role="note">${escapeHtml(message)}</div>`;
+}
+
+/** 通常版の設定画面：変更を拒否し案内する（true = 操作可） */
+function guardStandardSettingsMutation() {
+    if (!isStandardEdition()) return true;
+    showProLockNotice('settings');
+    return false;
+}
+
+function settingsButtonHtml(id) {
+    return `<button class="icon-btn home-settings-btn" id="${id}" aria-label="設定">⚙️</button>`;
+}
+
+function isEditorDemoPlayback() {
+    const returnCourse = state.memorize?.demoReturnCourse;
+    return (
+        state.memorize?.isDemoPlayback === true &&
+        (returnCourse === 'routeEditor' || returnCourse === 'quizEditor' || returnCourse === 'proCustomRouteEditor' || returnCourse === 'proCustomQuizEditor')
+    );
+}
+
+function canRunEditorDemoPlayback() {
+    // 編集デモの再生・操作は無料版でも可。永続保存は guardProPersistentSave で別途ブロックする。
+    return true;
+}
+
+function guardEditorDemoPlayback() {
+    return true;
+}
+
+/** 通常版：公式 STAGE の編集画面を離れたらメモリ上の下書きを捨てる（localStorage は触らない） */
+function resetStandardRouteEditorScratchInMemory() {
+    if (!isStandardEdition()) return;
+    routeEditorPendingGroupScrollLefts.clear();
+    state.routeEditor = {
+        stage: 1,
+        draft: [],
+        deleteMode: false,
+        history: [],
+        deletePicker: null,
+        groupBreaks: [],
+        groupNames: [],
+        selectedGroupIndex: 0,
+        visibleGroupIndices: [],
+        forceHideAllGroups: false,
+        showAllGroupsExpanded: false,
+        groupPanelOffset: { x: 0, y: 0 }
+    };
+}
+
+function resetStandardQuizEditorScratchInMemory() {
+    if (!isStandardEdition()) return;
+    state.quizEditor = {
+        stage: 1,
+        groups: [{ notes: [], scrollLeft: 0 }],
+        selectedGroupIndex: 0,
+        groupPanelOffset: { x: 0, y: 0 },
+        history: [],
+        showAllGroupsExpanded: false,
+        visibleGroupIndices: [],
+        forceHideAllGroups: false
+    };
+}
+
+function resetStandardProCustomRouteEditorScratchInMemory() {
+    if (!isStandardEdition()) return;
+    const base = getDefaultProCustomStageSettings();
+    state.proCustomRouteEditor = normalizeProCustomEditorState({
+        draft: base.route,
+        history: [],
+        groupBreaks: base.groupBreaks,
+        groupNames: base.groupNames,
+        selectedGroupIndex: 0,
+        visibleGroupIndices: [0],
+        forceHideAllGroups: false,
+        showAllGroupsExpanded: false,
+        groupPanelOffset: { x: 0, y: 0 },
+        name: base.name,
+        key: base.key,
+        capo: base.capo,
+        scale: base.scale,
+        displayMode: base.displayMode,
+        doMode: base.doMode,
+        maxFret: base.maxFret,
+        scrollLefts: base.groupScrollLefts || {},
+        editingStageId: null
+    });
+}
+
+function resetStandardProCustomQuizEditorScratchInMemory() {
+    if (!isStandardEdition()) return;
+    const base = getDefaultProCustomQuizStageSettings();
+    state.proCustomQuizEditor = normalizeProCustomQuizEditorState({
+        groups: normalizeProCustomQuizGroups(base.groups),
+        selectedGroupIndex: 0,
+        groupPanelOffset: { x: 0, y: 0 },
+        history: [],
+        showAllGroupsExpanded: false,
+        visibleGroupIndices: [0],
+        forceHideAllGroups: false,
+        name: base.name,
+        key: base.key,
+        capo: base.capo,
+        scale: base.scale,
+        displayMode: base.displayMode,
+        doMode: base.doMode,
+        maxFret: base.maxFret,
+        editingStageId: null
+    });
+}
+
+/** 固定STAGEの編集デモから「この設定で保存」。無料版は guard で中断し画面はそのまま。 */
+function tryPersistOfficialEditorDemoSaveFromMemorize() {
+    if (!guardProPersistentSave('save')) return;
+    const course = state.memorize.demoReturnCourse;
+    if (course === 'routeEditor') {
+        const stage = clamp(
+            parseInt(state.memorize.demoReturnStage, 10) || parseInt(state.routeEditor?.stage, 10) || 1,
+            1,
+            6
+        );
+        stopRhythm();
+        stopQuizTimer();
+        clearStage1RepeatHintState();
+        pushRouteEditorHistory(stage);
+        if (!state.settings.cruiseStageRoutes) state.settings.cruiseStageRoutes = {};
+        if (!state.settings.cruiseStageRouteGroups) state.settings.cruiseStageRouteGroups = {};
+        state.settings.cruiseStageRoutes[String(stage)] = state.routeEditor.draft
+            .map(normalizeCruiseRouteSlot)
+            .filter(Boolean);
+        state.settings.cruiseStageRouteGroups[String(stage)] = state.routeEditor.groupBreaks.slice();
+        state.memorize.isDemoPlayback = false;
+        state.memorize.demoReturnCourse = null;
+        state.memorize.demoReturnStage = null;
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+        return;
+    }
+    if (course === 'quizEditor') {
+        const stage = clamp(
+            parseInt(state.memorize.demoReturnStage, 10) || parseInt(state.quizEditor?.stage, 10) || 1,
+            1,
+            6
+        );
+        stopRhythm();
+        stopQuizTimer();
+        cancelQuizScrollAnimation();
+        clearStage1RepeatHintState();
+        pushQuizEditorHistory(stage);
+        if (!saveQuizEditorSettings(stage, state.quizEditor.groups)) return;
+        state.quizEditorPreview = null;
+        state.memorize.isDemoPlayback = false;
+        state.memorize.demoReturnCourse = null;
+        state.memorize.demoReturnStage = null;
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    }
+}
+
+function canUseVisualizeKey(keyIndex) {
+    const normalized = clamp(parseInt(keyIndex, 10) || 0, 0, NOTES.length - 1);
+    return isProEdition() || normalized === 0;
+}
+
+function getEffectiveVisualizeKey() {
+    const savedKey = clamp(parseInt(state.visualize?.key, 10) || 0, 0, NOTES.length - 1);
+    return canUseVisualizeKey(savedKey) ? savedKey : 0;
+}
+
+function getStateForPersistence() {
+    if (isProEdition()) return state;
+    const persistent = JSON.parse(JSON.stringify(state));
+    if (persistent.routeEditor) {
+        persistent.routeEditor.draft = [];
+        persistent.routeEditor.history = [];
+        persistent.routeEditor.groupBreaks = [];
+        persistent.routeEditor.groupNames = [];
+    }
+    if (persistent.quizEditor) {
+        persistent.quizEditor.groups = [{ notes: [], scrollLeft: null }];
+        persistent.quizEditor.history = [];
+    }
+    if (persistent.proCustomRouteEditor) {
+        persistent.proCustomRouteEditor.draft = [];
+        persistent.proCustomRouteEditor.history = [];
+        persistent.proCustomRouteEditor.groupBreaks = [0];
+        persistent.proCustomRouteEditor.groupNames = ['Gr.1'];
+        persistent.proCustomRouteEditor.scrollLefts = {};
+    }
+    if (persistent.proCustomQuizEditor) {
+        persistent.proCustomQuizEditor.groups = [{ notes: [], scrollLeft: null }];
+        persistent.proCustomQuizEditor.history = [];
+    }
+    const demoReturnCourse = persistent.memorize?.demoReturnCourse;
+    if (
+        persistent.memorize?.isDemoPlayback === true &&
+        (demoReturnCourse === 'routeEditor' || demoReturnCourse === 'quizEditor' || demoReturnCourse === 'proCustomRouteEditor' || demoReturnCourse === 'proCustomQuizEditor')
+    ) {
+        persistent.memorize.cruiseTargets = [];
+        persistent.memorize.cruiseScope = [];
+        persistent.memorize.cruiseGroupIndices = [];
+        persistent.memorize.currentQuestion = null;
+        persistent.memorize.proCustomCruise = null;
+        persistent.memorize.proCustomQuiz = null;
+        persistent.memorize.isCruisePlaying = false;
+        persistent.memorize.cruiseCountdown = 0;
+    }
+    persistent.quizEditorPreview = null;
+    return persistent;
+}
+
 function saveState() {
-    localStorage.setItem('fretboard_cruise_state', JSON.stringify(state));
+    localStorage.setItem('fretboard_cruise_state', JSON.stringify(getStateForPersistence()));
 }
 
 function blurActiveElement() {
@@ -1440,6 +1726,7 @@ function findFreshProCustomStageName(baseName) {
 /** STAGEを保存（id あり：上書き／id なし：新規追加）。
     上限超過の新規追加は null を返す。保存に成功したら最終的な stage オブジェクトを返す。 */
 function saveProCustomStageInArray(stage) {
+    if (isStandardEdition()) return null;
     const incoming = normalizeProCustomStageSettings(stage);
     if (!incoming) return null;
     const stages = getSavedProCustomStages();
@@ -1462,6 +1749,7 @@ function saveProCustomStageInArray(stage) {
 
 /** STAGEを id 指定で削除。削除できたら true。 */
 function deleteProCustomStageById(id) {
+    if (isStandardEdition()) return false;
     if (!id) return false;
     const stages = getSavedProCustomStages();
     const filtered = stages.filter(s => s.id !== id);
@@ -1563,6 +1851,7 @@ function findFreshProCustomQuizStageName(baseName) {
 }
 
 function saveProCustomQuizStageInArray(stage) {
+    if (isStandardEdition()) return null;
     const incoming = normalizeProCustomQuizStageSettings(stage);
     if (!incoming) return null;
     const stages = getSavedProCustomQuizStages();
@@ -1584,6 +1873,7 @@ function saveProCustomQuizStageInArray(stage) {
 }
 
 function deleteProCustomQuizStageById(id) {
+    if (isStandardEdition()) return false;
     if (!id) return false;
     const stages = getSavedProCustomQuizStages();
     const filtered = stages.filter(stage => stage.id !== id);
@@ -1670,6 +1960,7 @@ function normalizeProCustomEditorState(raw) {
 /** 編集中の STAGE を配列に保存（新規 or 既存上書き）。
     保存できなかった場合（上限到達など）は null を返す。 */
 function saveProCustomStageFromEditor() {
+    if (!guardProPersistentSave('save')) return null;
     const editor = normalizeProCustomEditorState(state.proCustomRouteEditor);
     state.proCustomRouteEditor = editor;
     const saved = saveProCustomStageInArray({
@@ -1754,6 +2045,7 @@ function normalizeProCustomQuizEditorState(raw) {
 }
 
 function saveProCustomQuizStageFromEditor() {
+    if (!guardProPersistentSave('save')) return null;
     const editor = normalizeProCustomQuizEditorState(state.proCustomQuizEditor);
     state.proCustomQuizEditor = editor;
     const saved = saveProCustomQuizStageInArray({
@@ -2502,6 +2794,7 @@ let quizTimeLeft = 3.0;
 let quizTimeLeftPrevious = 3.0;
 
 function startQuizTimer() {
+    if (isEditorDemoPlayback() && !canRunEditorDemoPlayback()) return;
     clearInterval(quizTimerInterval);
     quizTimeLeft = state.settings.quizTimeLimit;
     
@@ -2592,6 +2885,7 @@ function handleQuizTimeout() {
  */
 function advanceQuizToNextQuestion() {
     if (state.course !== 'memorize' || state.memorize.playMode !== 'quiz') return;
+    if (!guardEditorDemoPlayback()) return;
 
     const wrapperBefore = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
     const fromScroll = wrapperBefore ? Math.max(0, Math.round(wrapperBefore.scrollLeft)) : 0;
@@ -2954,6 +3248,7 @@ function playCountdownHat(time) {
 }
 
 function startRhythm() {
+    if (isEditorDemoPlayback() && !canRunEditorDemoPlayback()) return;
     initAudio();
     if (rhythmInterval) return;
     nextNoteTime = audioCtx.currentTime + 0.1;
@@ -2988,6 +3283,13 @@ function clearCruiseCountdown() {
  * autoAdvanceCruise 側で cruiseCountdown > 0 の間は音の進行を抑制する。
  */
 function startCruiseCountdownAndRhythm() {
+    if (isEditorDemoPlayback() && !canRunEditorDemoPlayback()) {
+        clearCruiseCountdown();
+        state.memorize.cruiseCountdown = 0;
+        state.memorize.isCruisePlaying = false;
+        renderApp();
+        return;
+    }
     clearCruiseCountdown();
     initAudio();
     state.memorize.cruiseCountdown = 4;
@@ -3097,6 +3399,7 @@ function getSavedCruiseGroupScrollLeft(stage, groupIndex) {
 }
 
 function setSavedCruiseGroupScrollLeft(stage, groupIndex, scrollLeft) {
+    if (isStandardEdition()) return false;
     if (!state.settings.cruiseStageGroupScrollLefts || typeof state.settings.cruiseStageGroupScrollLefts !== 'object' || Array.isArray(state.settings.cruiseStageGroupScrollLefts)) {
         state.settings.cruiseStageGroupScrollLefts = {};
     }
@@ -3106,25 +3409,30 @@ function setSavedCruiseGroupScrollLeft(stage, groupIndex, scrollLeft) {
     }
     const nextLeft = Math.max(0, Math.round(parseFloat(scrollLeft) || 0));
     state.settings.cruiseStageGroupScrollLefts[routeKey][String(groupIndex)] = nextLeft;
+    return true;
 }
 
 function clearSavedCruiseGroupScrollLeft(stage, groupIndex) {
+    if (isStandardEdition()) return false;
     const all = state.settings.cruiseStageGroupScrollLefts;
-    if (!all || typeof all !== 'object' || Array.isArray(all)) return;
+    if (!all || typeof all !== 'object' || Array.isArray(all)) return false;
     const routeKey = String(stage);
     const stageMap = all[routeKey];
-    if (!stageMap || typeof stageMap !== 'object' || Array.isArray(stageMap)) return;
+    if (!stageMap || typeof stageMap !== 'object' || Array.isArray(stageMap)) return false;
     delete stageMap[String(groupIndex)];
     if (!Object.keys(stageMap).length) {
         delete all[routeKey];
     }
+    return true;
 }
 
 /** ステージ単位で全グループの saved スクロール位置を消す（全消し時に使う） */
 function clearAllSavedCruiseGroupScrollLeftsForStage(stage) {
+    if (isStandardEdition()) return false;
     const all = state.settings.cruiseStageGroupScrollLefts;
-    if (!all || typeof all !== 'object' || Array.isArray(all)) return;
+    if (!all || typeof all !== 'object' || Array.isArray(all)) return false;
     delete all[String(stage)];
+    return true;
 }
 
 /**
@@ -3132,6 +3440,7 @@ function clearAllSavedCruiseGroupScrollLeftsForStage(stage) {
  * 定数が無いステージは何もしない（既存スクロールを維持）。
  */
 function applyShippedDefaultCruiseGroupScrollLeftsForStage(stage) {
+    if (isStandardEdition()) return false;
     const st = clamp(parseInt(stage, 10), 1, 6);
     let shipped = null;
     if (st === 1) {
@@ -3147,7 +3456,7 @@ function applyShippedDefaultCruiseGroupScrollLeftsForStage(stage) {
     } else if (st === 6) {
         shipped = SHIPPED_DEFAULT_STAGE_6_GROUP_SCROLL_LEFTS;
     }
-    if (!shipped || typeof shipped !== 'object' || Array.isArray(shipped)) return;
+    if (!shipped || typeof shipped !== 'object' || Array.isArray(shipped)) return false;
     if (!state.settings.cruiseStageGroupScrollLefts || typeof state.settings.cruiseStageGroupScrollLefts !== 'object' || Array.isArray(state.settings.cruiseStageGroupScrollLefts)) {
         state.settings.cruiseStageGroupScrollLefts = {};
     }
@@ -3156,6 +3465,7 @@ function applyShippedDefaultCruiseGroupScrollLeftsForStage(stage) {
         next[String(k)] = Math.max(0, Math.round(parseFloat(shipped[k]) || 0));
     });
     state.settings.cruiseStageGroupScrollLefts[String(st)] = next;
+    return true;
 }
 
 function getQuizEditorSavedSettings(stage) {
@@ -3167,6 +3477,7 @@ function getQuizEditorSavedSettings(stage) {
 }
 
 function saveQuizEditorSettings(stage, groups) {
+    if (!guardProPersistentSave('save')) return false;
     if (!state.settings.quizStageEditorSettings || typeof state.settings.quizStageEditorSettings !== 'object') {
         state.settings.quizStageEditorSettings = {};
     }
@@ -3179,6 +3490,7 @@ function saveQuizEditorSettings(stage, groups) {
             scrollLeft: Number.isFinite(g.scrollLeft) ? Math.max(0, Math.round(g.scrollLeft)) : null
         }))
     };
+    return true;
 }
 
 function getQuizEditorDefaultGroups(stage) {
@@ -3218,6 +3530,59 @@ function getPendingRouteEditorGroupScrollLeft(stage, groupIndex) {
 function clearPendingRouteEditorGroupScrollLeft(stage, groupIndex) {
     const key = `${clamp(parseInt(stage, 10), 1, 6)}:${clamp(parseInt(groupIndex, 10), 0, ROUTE_EDITOR_MAX_GROUPS - 1)}`;
     routeEditorPendingGroupScrollLefts.delete(key);
+}
+
+/** 順番編集：PRO は pending 優先→saved。通常版は編集用に pending のみ（saved / 配布へはフォールバックしない）。 */
+function getRouteEditorEffectiveGroupScrollLeft(stage, groupIndex) {
+    if (isStandardEdition()) {
+        return getPendingRouteEditorGroupScrollLeft(stage, groupIndex);
+    }
+    const pending = getPendingRouteEditorGroupScrollLeft(stage, groupIndex);
+    if (Number.isFinite(pending)) return pending;
+    return getSavedCruiseGroupScrollLeft(stage, groupIndex);
+}
+
+/** Gr 並べ替え後：pending の Gr インデックスを old→new に追従（無料版の一時位置・PRO の掃除漏れ両方） */
+function remapRouteEditorPendingAfterReorder(stage, oldGroupCount, oldToNew) {
+    const n = oldGroupCount;
+    const newPendingByNewIdx = {};
+    for (let oldIdx = 0; oldIdx < n; oldIdx++) {
+        const p = getPendingRouteEditorGroupScrollLeft(stage, oldIdx);
+        if (!Number.isFinite(p)) continue;
+        const ni = oldToNew[oldIdx];
+        if (Number.isFinite(ni)) newPendingByNewIdx[ni] = p;
+    }
+    for (let gi = 0; gi < ROUTE_EDITOR_MAX_GROUPS; gi++) {
+        clearPendingRouteEditorGroupScrollLeft(stage, gi);
+    }
+    Object.keys(newPendingByNewIdx).forEach(k => {
+        const ni = parseInt(k, 10);
+        if (Number.isFinite(ni) && ni >= 0) {
+            setPendingRouteEditorGroupScrollLeft(stage, ni, newPendingByNewIdx[k]);
+        }
+    });
+}
+
+/** Gr 削除後：pending を詰め直す */
+function remapRouteEditorPendingAfterGroupDelete(stage, deletedIndex, oldGroupCount) {
+    if (oldGroupCount <= 0 || deletedIndex < 0 || deletedIndex >= oldGroupCount) return;
+    const newPendingByNewIdx = {};
+    for (let oldIdx = 0; oldIdx < oldGroupCount; oldIdx++) {
+        const p = getPendingRouteEditorGroupScrollLeft(stage, oldIdx);
+        if (!Number.isFinite(p)) continue;
+        if (oldIdx === deletedIndex) continue;
+        const newIdx = oldIdx < deletedIndex ? oldIdx : oldIdx - 1;
+        newPendingByNewIdx[newIdx] = p;
+    }
+    for (let gi = 0; gi < ROUTE_EDITOR_MAX_GROUPS; gi++) {
+        clearPendingRouteEditorGroupScrollLeft(stage, gi);
+    }
+    Object.keys(newPendingByNewIdx).forEach(k => {
+        const ni = parseInt(k, 10);
+        if (Number.isFinite(ni) && ni >= 0) {
+            setPendingRouteEditorGroupScrollLeft(stage, ni, newPendingByNewIdx[k]);
+        }
+    });
 }
 
 let routeEditorScrollRafId = null;
@@ -3438,8 +3803,12 @@ function reorderRouteEditorGroups(fromIndex, toIndex) {
             newScrolls[String(oldToNew[oldIdx])] = oldScrolls[String(oldIdx)];
         }
     }
-    if (!state.settings.cruiseStageGroupScrollLefts) state.settings.cruiseStageGroupScrollLefts = {};
-    state.settings.cruiseStageGroupScrollLefts[String(stage)] = newScrolls;
+    if (isProEdition()) {
+        if (!state.settings.cruiseStageGroupScrollLefts) state.settings.cruiseStageGroupScrollLefts = {};
+        state.settings.cruiseStageGroupScrollLefts[String(stage)] = newScrolls;
+    }
+
+    remapRouteEditorPendingAfterReorder(stage, n, oldToNew);
 
     // visibleGroupIndices を再マップ
     const oldVisible = Array.isArray(state.routeEditor?.visibleGroupIndices) ? state.routeEditor.visibleGroupIndices : [];
@@ -3496,22 +3865,24 @@ function restoreRouteEditorSnapshot(snapshot) {
         y: clamp(parseInt(snapshot.groupPanelOffset?.y ?? 0, 10), -9999, 9999)
     };
 
-    if (!state.settings.cruiseStageRoutes || typeof state.settings.cruiseStageRoutes !== 'object') {
-        state.settings.cruiseStageRoutes = {};
-    }
-    const routeKey = String(stage);
-    if (Array.isArray(snapshot.savedRoute) && snapshot.savedRoute.length) {
-        state.settings.cruiseStageRoutes[routeKey] = cloneCruiseRouteSlots(snapshot.savedRoute);
-    } else {
-        delete state.settings.cruiseStageRoutes[routeKey];
-    }
-    if (!state.settings.cruiseStageRouteGroups || typeof state.settings.cruiseStageRouteGroups !== 'object') {
-        state.settings.cruiseStageRouteGroups = {};
-    }
-    if (Array.isArray(snapshot.groupBreaks) && snapshot.groupBreaks.length) {
-        state.settings.cruiseStageRouteGroups[routeKey] = snapshot.groupBreaks.slice();
-    } else {
-        delete state.settings.cruiseStageRouteGroups[routeKey];
+    if (isProEdition()) {
+        if (!state.settings.cruiseStageRoutes || typeof state.settings.cruiseStageRoutes !== 'object') {
+            state.settings.cruiseStageRoutes = {};
+        }
+        const routeKey = String(stage);
+        if (Array.isArray(snapshot.savedRoute) && snapshot.savedRoute.length) {
+            state.settings.cruiseStageRoutes[routeKey] = cloneCruiseRouteSlots(snapshot.savedRoute);
+        } else {
+            delete state.settings.cruiseStageRoutes[routeKey];
+        }
+        if (!state.settings.cruiseStageRouteGroups || typeof state.settings.cruiseStageRouteGroups !== 'object') {
+            state.settings.cruiseStageRouteGroups = {};
+        }
+        if (Array.isArray(snapshot.groupBreaks) && snapshot.groupBreaks.length) {
+            state.settings.cruiseStageRouteGroups[routeKey] = snapshot.groupBreaks.slice();
+        } else {
+            delete state.settings.cruiseStageRouteGroups[routeKey];
+        }
     }
     return true;
 }
@@ -3686,10 +4057,12 @@ function getRouteEditorSavedGroupBreaks(stage) {
 }
 
 function setRouteEditorSavedGroupBreaks(stage, breaks) {
+    if (isStandardEdition()) return false;
     if (!state.settings.cruiseStageRouteGroups || typeof state.settings.cruiseStageRouteGroups !== 'object') {
         state.settings.cruiseStageRouteGroups = {};
     }
     state.settings.cruiseStageRouteGroups[String(stage)] = Array.isArray(breaks) ? breaks.slice() : [];
+    return true;
 }
 
 function shiftRouteEditorGroupBreaks(breaks, draftLength, groupIndex, delta) {
@@ -4149,7 +4522,20 @@ function getCurrentCruiseGroupScrollLeft(groupIndex) {
     if (state.memorize?.proCustomCruise) {
         return getProCustomGroupScrollLeft(groupIndex);
     }
-    return getSavedCruiseGroupScrollLeft(state.memorize.stage, groupIndex);
+    const st = state.memorize.stage;
+    if (isStandardEdition()) {
+        const demoFromRouteEditor =
+            state.memorize?.isDemoPlayback === true &&
+            state.memorize?.demoReturnCourse === 'routeEditor';
+        if (demoFromRouteEditor) {
+            return getPendingRouteEditorGroupScrollLeft(st, groupIndex);
+        }
+        // ホームからの通常練習：従来どおり pending があればそれ、なければ saved（配布・永続）
+        const pending = getPendingRouteEditorGroupScrollLeft(st, groupIndex);
+        if (Number.isFinite(pending)) return pending;
+        return getSavedCruiseGroupScrollLeft(st, groupIndex);
+    }
+    return getRouteEditorEffectiveGroupScrollLeft(st, groupIndex);
 }
 
 function startCruisePlaybackFromSequence(sequence, cruiseScope = null, stage = null, groupIndices = null) {
@@ -4188,7 +4574,9 @@ function startCruisePlaybackFromSequence(sequence, cruiseScope = null, stage = n
     autoScrollRequested = true;
     saveState();
     renderApp();
-    startCruiseCountdownAndRhythm();
+    if (guardEditorDemoPlayback()) {
+        startCruiseCountdownAndRhythm();
+    }
     return true;
 }
 
@@ -4240,7 +4628,9 @@ function startProCustomCruisePlayback(stageSettings, returnCourse = 'proCustomRo
     autoScrollRequested = true;
     saveState();
     renderApp();
-    startCruiseCountdownAndRhythm();
+    if (guardEditorDemoPlayback()) {
+        startCruiseCountdownAndRhythm();
+    }
     return true;
 }
 
@@ -4289,6 +4679,7 @@ function startProCustomQuizPlayback(stageSettings, returnCourse = 'stageSelect')
     autoScrollRequested = true;
     saveState();
     renderApp();
+    if (!guardEditorDemoPlayback()) return true;
     if (state.memorize.currentQuestion) {
         quizToneTimeout = setTimeout(() => {
             quizToneTimeout = null;
@@ -4839,7 +5230,7 @@ function renderHome(app) {
             titleTag: 'h1',
             titleClass: 'home-title',
             titleText: '指板クルーズ',
-            rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-home" aria-label="設定">⚙️</button>`
+            rightHtml: settingsButtonHtml('btn-settings-home')
         })}
         <div class="home-basic-rules-slot" style="display: flex; justify-content: center; width: 100%; margin-top: 6px; margin-bottom: 28px;">
             <button type="button" class="btn-secondary" id="btn-home-basic-rules" style="padding: 10px 18px; font-size: 0.92rem; line-height: 1.35;">🔰 指板の基本ルール</button>
@@ -4890,7 +5281,7 @@ function renderModeSelect(app) {
             leftHtml: `
                 ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
             `,
-            rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings" aria-label="設定">⚙️</button>`
+            rightHtml: settingsButtonHtml('btn-settings')
         })}
         <div class="stage-list">
             <button class="stage-btn" data-mode="cruise">
@@ -4932,7 +5323,7 @@ function renderRuleSelect(app) {
             leftHtml: `
                 ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
             `,
-            rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-rules" aria-label="設定">⚙️</button>`
+            rightHtml: settingsButtonHtml('btn-settings-rules')
         })}
         <div class="stage-list">
             <button class="stage-btn" data-rules="basic">
@@ -4998,7 +5389,7 @@ function renderBasicRules(app) {
             leftHtml: `
                 ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
             `,
-            rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-basic-rules" aria-label="設定">⚙️</button>`
+            rightHtml: settingsButtonHtml('btn-settings-basic-rules')
         })}
         <div class="stage-list">
             ${BASIC_RULE_STEP_HEADLINES.map((headline, idx) => {
@@ -5676,7 +6067,7 @@ function getMemorizeQuestionLabel(noteIdx) {
 }
 
 function openRulesInVisualize() {
-    state.visualize.key = 0;
+    if (isProEdition()) state.visualize.key = 0;
     state.visualize.capo = 0;
     state.visualize.scale = 'major';
     const nm = state.settings.noteLabelMode;
@@ -5996,7 +6387,7 @@ function renderRuleClearCelebration(app) {
                 titleText: '指板の基本ルール クリア',
                 titleSubText: 'STEP 5 おわり',
                 leftHtml: `${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}`,
-                rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-rule-clear" aria-label="設定">⚙️</button>`
+                rightHtml: settingsButtonHtml('btn-settings-rule-clear')
             })}
             <div class="rule-clear-celebration rule-master-clear">
                 <div class="rule-master-confetti" aria-hidden="true">${pieces}</div>
@@ -6036,7 +6427,7 @@ function renderRuleClearCelebration(app) {
             titleText: 'STEP クリア',
             titleSubText: `STEP ${done} おわり`,
             leftHtml: `${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}`,
-            rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-rule-clear" aria-label="設定">⚙️</button>`
+            rightHtml: settingsButtonHtml('btn-settings-rule-clear')
         })}
         <div class="rule-clear-celebration">
             <div class="rule-clear-card">
@@ -6319,7 +6710,7 @@ function renderBasicRuleStep(app) {
             leftHtml: `
                 ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
             `,
-            rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-rule-step" aria-label="設定">⚙️</button>`
+            rightHtml: settingsButtonHtml('btn-settings-rule-step')
         })}
         <div class="rule-step-card ${window.innerWidth > window.innerHeight ? 'rule-step-card--landscape' : ''}">
             <div class="rule-step-head">
@@ -7287,7 +7678,7 @@ function renderStageSelect(app) {
                 ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
                 ${navButtonHtml({ id: 'btn-home-stage', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
             `,
-            rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-stage" aria-label="設定">⚙️</button>`
+            rightHtml: settingsButtonHtml('btn-settings-stage')
         })}
         <div class="stage-list">
             ${stageButtonsHtml}
@@ -7419,6 +7810,7 @@ function renderStageSelect(app) {
                 openProCustomEditor({ stageId: id });
                 return;
             }
+            if (!guardProPersistentSave('save')) return;
             const cur = getSavedProCustomStageById(id);
             if (!cur) return;
             if (action === 'rename') {
@@ -7552,6 +7944,7 @@ function renderStageSelect(app) {
                 openProCustomQuizEditor({ stageId: id });
                 return;
             }
+            if (!guardProPersistentSave('save')) return;
             const cur = getSavedProCustomQuizStageById(id);
             if (!cur) return;
             if (action === 'rename') {
@@ -7592,19 +7985,31 @@ function renderStageSelect(app) {
         btn.onclick = () => {
             const stage = parseInt(btn.getAttribute('data-edit-stage'), 10);
             const defaultStage = buildDefaultCruiseStageSequence(stage);
-            let savedSlots = getSavedCruiseRouteSlots(stage);
-            const useDefaultSlots = !savedSlots.length && stage >= 4;
-            if (useDefaultSlots) {
+            let savedSlots;
+            let initialGroupBreaks;
+            if (isStandardEdition()) {
                 savedSlots = cloneCruiseRouteSlots(defaultStage.sequence.map(cruiseRouteSlotFromTarget));
-            } else if (!savedSlots.length && stage === 1) {
-                savedSlots = cloneCruiseRouteSlots(getShippedDefaultStage1RouteSlots());
+                initialGroupBreaks = normalizeRouteEditorGroupBreaks(
+                    Array.isArray(defaultStage.groupBreaks) && defaultStage.groupBreaks.length
+                        ? defaultStage.groupBreaks.slice()
+                        : buildAutoRouteEditorGroupBreaks(savedSlots),
+                    savedSlots.length
+                );
+            } else {
+                savedSlots = getSavedCruiseRouteSlots(stage);
+                const useDefaultSlots = !savedSlots.length && stage >= 4;
+                if (useDefaultSlots) {
+                    savedSlots = cloneCruiseRouteSlots(defaultStage.sequence.map(cruiseRouteSlotFromTarget));
+                } else if (!savedSlots.length && stage === 1) {
+                    savedSlots = cloneCruiseRouteSlots(getShippedDefaultStage1RouteSlots());
+                }
+                const savedGroupBreaks = normalizeRouteEditorGroupBreaks(getRouteEditorSavedGroupBreaks(stage), savedSlots.length);
+                initialGroupBreaks = savedGroupBreaks.length
+                    ? savedGroupBreaks
+                    : (useDefaultSlots && Array.isArray(defaultStage.groupBreaks) && defaultStage.groupBreaks.length
+                        ? defaultStage.groupBreaks.slice()
+                        : buildAutoRouteEditorGroupBreaks(savedSlots));
             }
-            const savedGroupBreaks = normalizeRouteEditorGroupBreaks(getRouteEditorSavedGroupBreaks(stage), savedSlots.length);
-            const initialGroupBreaks = savedGroupBreaks.length
-                ? savedGroupBreaks
-                : (useDefaultSlots && Array.isArray(defaultStage.groupBreaks) && defaultStage.groupBreaks.length
-                    ? defaultStage.groupBreaks.slice()
-                    : buildAutoRouteEditorGroupBreaks(savedSlots));
             const initialGroups = buildRouteEditorGroupsFromBreaks(savedSlots, initialGroupBreaks);
             stopRhythm();
             state.routeEditor = {
@@ -7630,7 +8035,7 @@ function renderStageSelect(app) {
     document.querySelectorAll('[data-quiz-edit-stage]').forEach(btn => {
         btn.onclick = () => {
             const stage = parseInt(btn.getAttribute('data-quiz-edit-stage'), 10);
-            const savedSettings = getQuizEditorSavedSettings(stage);
+            const savedSettings = isStandardEdition() ? null : getQuizEditorSavedSettings(stage);
             const initialGroups = savedSettings && savedSettings.groups && savedSettings.groups.length > 0
                 ? savedSettings.groups.map(g => ({
                     notes: (g.notes || []).map(n => ({ stringName: n.stringName, fret: n.fret })),
@@ -7750,8 +8155,9 @@ function renderRouteEditor(app) {
         let didCleanup = false;
         groups.forEach((g, idx) => {
             const noteCount = Math.max(0, (g?.end ?? -1) - (g?.start ?? 0) + 1);
-            if (noteCount === 0 && getSavedCruiseGroupScrollLeft(stage, idx) !== null) {
+            if (noteCount === 0 && getRouteEditorEffectiveGroupScrollLeft(stage, idx) !== null) {
                 clearSavedCruiseGroupScrollLeft(stage, idx);
+                clearPendingRouteEditorGroupScrollLeft(stage, idx);
                 didCleanup = true;
             }
         });
@@ -7780,15 +8186,9 @@ function renderRouteEditor(app) {
     const showScrollPositions = showAllGroupsExpanded;
     const routeEditorScrollKey = `${stage}:${activeGroupIndex >= 0 ? activeGroupIndex : 'none'}`;
     if (activeGroupIndex >= 0 && routeEditorScrollAppliedKey !== routeEditorScrollKey) {
-        const savedRouteEditorScrollLeft = getSavedCruiseGroupScrollLeft(stage, activeGroupIndex);
-        const pendingRouteEditorScrollLeft = getPendingRouteEditorGroupScrollLeft(stage, activeGroupIndex);
-        const preferPendingScroll = Number.isFinite(pendingRouteEditorScrollLeft);
-        if (preferPendingScroll) {
-            currentScrollLeft = pendingRouteEditorScrollLeft;
-        } else if (Number.isFinite(savedRouteEditorScrollLeft)) {
-            currentScrollLeft = savedRouteEditorScrollLeft;
-        } else if (Number.isFinite(pendingRouteEditorScrollLeft)) {
-            currentScrollLeft = pendingRouteEditorScrollLeft;
+        const effScroll = getRouteEditorEffectiveGroupScrollLeft(stage, activeGroupIndex);
+        if (Number.isFinite(effScroll)) {
+            currentScrollLeft = effScroll;
         }
         routeEditorScrollAppliedKey = routeEditorScrollKey;
     }
@@ -7820,7 +8220,7 @@ function renderRouteEditor(app) {
         const valueText = hasValue ? String(savedScrollLeft) : '—';
         const ariaLabel = hasValue ? `位置 ${savedScrollLeft}（タップで編集）` : '位置未設定（タップで設定）';
         const emptyClass = hasValue ? '' : 'is-empty';
-        return `<button type="button" class="route-editor-group-position-label ${emptyClass}" data-position-group-index="${index}" aria-label="${ariaLabel}"><span class="route-editor-group-position-pin" aria-hidden="true">📍</span><span class="route-editor-group-position-value">${valueText}</span></button>`;
+        return `<button type="button" class="route-editor-group-position-label ${emptyClass}" data-position-group-index="${index}" aria-label="${escapeHtml(ariaLabel)}"><span class="route-editor-group-position-pin" aria-hidden="true">📍</span><span class="route-editor-group-position-value">${valueText}</span></button>`;
     };
 
     const groupButtonsHtml = groups.length
@@ -7829,7 +8229,7 @@ function renderRouteEditor(app) {
             const isActive = isVisible && selectedGroupIndex === index;
             const isEmpty = !!group.isEmpty;
             const displayName = storedGroupNames[index] ?? group.name;
-            const savedScrollLeft = getSavedCruiseGroupScrollLeft(stage, index);
+            const savedScrollLeft = getRouteEditorEffectiveGroupScrollLeft(stage, index);
             const positionLabelHtml = buildPositionLabelHtml(index, savedScrollLeft);
             return `
             <div class="route-editor-group-cell">
@@ -7843,7 +8243,7 @@ function renderRouteEditor(app) {
         : '<p class="route-editor-empty">グループがありません</p>';
 
     app.innerHTML = `
-        <div class="route-editor-screen route-editor-scale-guide-variant-${scaleGuideVariant}">
+        <div class="route-editor-screen route-editor-scale-guide-variant-${scaleGuideVariant}${isStandardEdition() ? ' route-editor-screen--standard' : ''}">
             ${buildPageHeader({
                 headerClass: 'page-header--route-editor',
                 titleText: `STAGE ${stage} 順番編集`,
@@ -7851,8 +8251,9 @@ function renderRouteEditor(app) {
                     ${navButtonHtml({ id: 'btn-route-editor-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
                     ${navButtonHtml({ id: 'btn-route-editor-home', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
                 `,
-                rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-route-editor" aria-label="設定">⚙️</button>`
+                rightHtml: settingsButtonHtml('btn-settings-route-editor')
             })}
+            ${standardEditionNoticeHtml(STANDARD_NOTICE_ROUTE_EDITOR)}
             <div class="route-editor-toolbar">
                 <button class="icon-btn route-editor-tool-btn" id="btn-route-editor-clear" ${draft.length ? '' : 'disabled'}>全消し</button>
                 <button class="icon-btn route-editor-tool-btn" id="btn-route-editor-load-default">初期順</button>
@@ -7876,18 +8277,20 @@ function renderRouteEditor(app) {
             <div class="route-editor-expanded-gap ${showAllGroupsExpanded ? 'route-editor-expanded-gap--visible' : ''}" aria-hidden="true"></div>
             <div class="route-editor-save-row">
                 <button type="button" class="btn-secondary route-editor-demo-btn" id="btn-route-editor-demo" ${draft.length ? '' : 'disabled'}>現在の順番でデモ</button>
-                <button class="btn-primary route-editor-save-btn" id="btn-route-editor-save" ${draft.length ? '' : 'disabled'}>この順番で保存</button>
+                <button type="button" class="btn-primary route-editor-save-btn pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-route-editor-save" ${draft.length ? '' : 'disabled'}><span class="pro-custom-saved-btn__title">この順番で保存</span></button>
             </div>
             <div class="route-editor-expanded-spacer ${showAllGroupsExpanded ? 'route-editor-expanded-spacer--visible' : ''}" aria-hidden="true"></div>
         </div>
     `;
 
     document.getElementById('btn-route-editor-back').onclick = () => {
+        resetStandardRouteEditorScratchInMemory();
         state.course = 'stageSelect';
         saveState();
         renderApp();
     };
     document.getElementById('btn-route-editor-home').onclick = () => {
+        resetStandardRouteEditorScratchInMemory();
         state.course = null;
         saveState();
         renderApp();
@@ -7915,7 +8318,7 @@ function renderRouteEditor(app) {
             e.stopPropagation();
             const idx = parseInt(label.getAttribute('data-position-group-index'), 10);
             if (!Number.isFinite(idx)) return;
-            const current = getSavedCruiseGroupScrollLeft(stage, idx);
+            const current = getRouteEditorEffectiveGroupScrollLeft(stage, idx);
             const defaultText = Number.isFinite(current) ? String(current) : '';
             const input = window.prompt(`Gr.${idx + 1} の保存スクロール位置を入力してください\n（空欄で未設定に戻ります）`, defaultText);
             if (input === null) return;
@@ -7932,8 +8335,12 @@ function renderRouteEditor(app) {
                 window.alert('0 以上の整数を入力してください。');
                 return;
             }
-            setSavedCruiseGroupScrollLeft(stage, idx, next);
-            clearPendingRouteEditorGroupScrollLeft(stage, idx);
+            if (isStandardEdition()) {
+                setPendingRouteEditorGroupScrollLeft(stage, idx, next);
+            } else {
+                setSavedCruiseGroupScrollLeft(stage, idx, next);
+                clearPendingRouteEditorGroupScrollLeft(stage, idx);
+            }
             saveState();
             renderApp();
         };
@@ -7949,6 +8356,11 @@ function renderRouteEditor(app) {
         state.routeEditor.showAllGroupsExpanded = false;
         setRouteEditorSavedGroupBreaks(stage, [0]);
         clearAllSavedCruiseGroupScrollLeftsForStage(stage);
+        if (isStandardEdition()) {
+            for (let gi = 0; gi < ROUTE_EDITOR_MAX_GROUPS; gi++) {
+                clearPendingRouteEditorGroupScrollLeft(stage, gi);
+            }
+        }
         saveState();
         renderApp();
     };
@@ -7969,15 +8381,23 @@ function renderRouteEditor(app) {
         // 「初期順」は問題画面まで含めて公式デフォルトに戻すボタン。
         // 編集ドラフトだけでなく、問題画面が読む cruiseStageRoutes / RouteGroups / GroupScrollLefts も
         // 同じ shipped 値で書き戻す（ユーザーがその後「この順番で保存」を押し忘れても整合する）。
-        if (!state.settings.cruiseStageRoutes) state.settings.cruiseStageRoutes = {};
-        if (!state.settings.cruiseStageRouteGroups) state.settings.cruiseStageRouteGroups = {};
-        state.settings.cruiseStageRoutes[String(stage)] = cloneCruiseRouteSlots(state.routeEditor.draft);
-        state.settings.cruiseStageRouteGroups[String(stage)] = state.routeEditor.groupBreaks.slice();
-        applyShippedDefaultCruiseGroupScrollLeftsForStage(stage);
+        if (isProEdition()) {
+            if (!state.settings.cruiseStageRoutes) state.settings.cruiseStageRoutes = {};
+            if (!state.settings.cruiseStageRouteGroups) state.settings.cruiseStageRouteGroups = {};
+            state.settings.cruiseStageRoutes[String(stage)] = cloneCruiseRouteSlots(state.routeEditor.draft);
+            state.settings.cruiseStageRouteGroups[String(stage)] = state.routeEditor.groupBreaks.slice();
+            applyShippedDefaultCruiseGroupScrollLeftsForStage(stage);
+        }
+        if (isStandardEdition()) {
+            for (let gi = 0; gi < ROUTE_EDITOR_MAX_GROUPS; gi++) {
+                clearPendingRouteEditorGroupScrollLeft(stage, gi);
+            }
+        }
         saveState();
         renderApp();
     };
     document.getElementById('btn-route-editor-save').onclick = () => {
+        if (!guardProPersistentSave('save')) return;
         pushRouteEditorHistory(stage);
         if (!state.settings.cruiseStageRoutes) state.settings.cruiseStageRoutes = {};
         if (!state.settings.cruiseStageRouteGroups) state.settings.cruiseStageRouteGroups = {};
@@ -7997,10 +8417,16 @@ function renderRouteEditor(app) {
         const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
         const live = wrapper ? wrapper.scrollLeft : 0;
         const scrollLeft = Math.max(live, routeEditorFretboardScrollSnapshot);
-        setSavedCruiseGroupScrollLeft(stage, targetGroupIndex, scrollLeft);
-        clearPendingRouteEditorGroupScrollLeft(stage, targetGroupIndex);
+        if (isStandardEdition()) {
+            setPendingRouteEditorGroupScrollLeft(stage, targetGroupIndex, scrollLeft);
+        } else {
+            setSavedCruiseGroupScrollLeft(stage, targetGroupIndex, scrollLeft);
+            clearPendingRouteEditorGroupScrollLeft(stage, targetGroupIndex);
+        }
         if (scrollLeft > 0) routeEditorFretboardScrollSnapshot = scrollLeft;
         saveState();
+        const displayLeft = getRouteEditorEffectiveGroupScrollLeft(stage, targetGroupIndex);
+        syncRouteEditorPositionPinInDOM('data-position-group-index', targetGroupIndex, displayLeft);
         flashRouteEditorSavePositionButton('btn-route-editor-save-position');
     };
 
@@ -8038,8 +8464,11 @@ function renderRouteEditor(app) {
             return Number.isFinite(n) ? Math.max(m, n) : m;
         }, currentNames.length);
         state.routeEditor.groupNames = [...currentNames, `Gr.${maxNum + 1}`];
-        setPendingRouteEditorGroupScrollLeft(stage, nextIndex, currentScroll);
-        routeEditorFretboardScrollSnapshot = Math.max(routeEditorFretboardScrollSnapshot, currentScroll);
+        // 通常版：「＋」だけでは pending に書かない（明示的な位置保存のみ）。PRO は従来どおり。
+        if (isProEdition()) {
+            setPendingRouteEditorGroupScrollLeft(stage, nextIndex, currentScroll);
+            routeEditorFretboardScrollSnapshot = Math.max(routeEditorFretboardScrollSnapshot, currentScroll);
+        }
         if (stage === 4 || stage === 5 || stage === 6) {
             // STAGE4/5/6 は 13F 追加後に古い保存位置へ戻ると表示が左端に寄りやすいので、
             // 新規 Gr の既存保存値は捨てて、今見ている位置を優先する。
@@ -8053,6 +8482,7 @@ function renderRouteEditor(app) {
     document.getElementById('btn-route-editor-group-remove').onclick = () => {
         if (groups.length <= 1) return;
         if (activeGroupIndex < 0) return;
+        const oldGroupCount = groups.length;
         pushRouteEditorHistory(stage);
         const deletedIndex = activeGroupIndex;
         const removed = deleteRouteEditorGroupAtIndex(state.routeEditor.draft, state.routeEditor.groupBreaks, deletedIndex);
@@ -8076,6 +8506,7 @@ function renderRouteEditor(app) {
         if (Array.isArray(state.routeEditor.groupNames) && state.routeEditor.groupNames.length > deletedIndex) {
             state.routeEditor.groupNames = state.routeEditor.groupNames.filter((_, i) => i !== deletedIndex);
         }
+        remapRouteEditorPendingAfterGroupDelete(stage, deletedIndex, oldGroupCount);
         saveState();
         renderApp();
     };
@@ -8362,10 +8793,10 @@ function renderRouteEditor(app) {
             // RAF スナップショットを使う（syncは呼ばない：良い値を上書きしてしまうため）
             const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
             const liveScroll = wrapper ? wrapper.scrollLeft : 0;
-            const pendingScroll = getPendingRouteEditorGroupScrollLeft(stage, insertTargetGroupIndex);
+            const effScroll = getRouteEditorEffectiveGroupScrollLeft(stage, insertTargetGroupIndex);
             let currentScroll = Math.max(liveScroll, routeEditorFretboardScrollSnapshot);
-            if (currentScroll === 0 && Number.isFinite(pendingScroll) && pendingScroll > 0) {
-                currentScroll = pendingScroll;
+            if (currentScroll === 0 && Number.isFinite(effScroll) && effScroll > 0) {
+                currentScroll = effScroll;
             }
             if (currentScroll > 0) routeEditorFretboardScrollSnapshot = currentScroll;
             // 「最初の音」=「グループに音が0個」のときだけ saved を自動書き込み（必ず上書き）
@@ -8374,8 +8805,12 @@ function renderRouteEditor(app) {
             const noteCount = targetGroup ? Math.max(0, targetGroup.end - targetGroup.start + 1) : 0;
             const isGroupEmpty = !targetGroup || targetGroup.isEmpty === true || noteCount === 0;
             if (isGroupEmpty) {
-                setSavedCruiseGroupScrollLeft(stage, insertTargetGroupIndex, currentScroll);
-                clearPendingRouteEditorGroupScrollLeft(stage, insertTargetGroupIndex);
+                if (isProEdition()) {
+                    setSavedCruiseGroupScrollLeft(stage, insertTargetGroupIndex, currentScroll);
+                    clearPendingRouteEditorGroupScrollLeft(stage, insertTargetGroupIndex);
+                } else {
+                    setPendingRouteEditorGroupScrollLeft(stage, insertTargetGroupIndex, currentScroll);
+                }
             }
             pushRouteEditorHistory(stage);
             const inserted = insertRouteEditorSlotIntoGroup(
@@ -8421,14 +8856,20 @@ function escapeHtml(value) {
    ─────────────────────────────────────────────── */
 function buildCustomDropdownHtml({ id, options, selectedValue, ariaLabel, wrapClass = '' }) {
     const selected = options.find(opt => String(opt.value) === String(selectedValue)) || options[0];
+    const optionLabelInnerHtml = (opt) => {
+        const base = escapeHtml(String(opt.label ?? ''));
+        const after = typeof opt.afterLabelHtml === 'string' ? opt.afterLabelHtml : '';
+        return base + after;
+    };
     const items = options.map(opt => {
         const isSelected = String(opt.value) === String(selected?.value);
-        return `<li role="option" class="pro-custom-dd-option ${isSelected ? 'is-selected' : ''}" data-pro-custom-dd-value="${escapeHtml(String(opt.value))}" aria-selected="${isSelected ? 'true' : 'false'}">${escapeHtml(opt.label)}</li>`;
+        return `<li role="option" class="pro-custom-dd-option ${isSelected ? 'is-selected' : ''}" data-pro-custom-dd-value="${escapeHtml(String(opt.value))}" aria-selected="${isSelected ? 'true' : 'false'}">${optionLabelInnerHtml(opt)}</li>`;
     }).join('');
+    const triggerLabelHtml = selected ? optionLabelInnerHtml(selected) : '';
     return `
         <div class="pro-custom-dd ${wrapClass}" id="${id}-wrap" data-pro-custom-dd-id="${id}">
             <button type="button" class="pro-custom-dd-trigger" id="${id}" aria-haspopup="listbox" aria-expanded="false" aria-label="${escapeHtml(ariaLabel || '')}">
-                <span class="pro-custom-dd-trigger__label">${escapeHtml(selected ? selected.label : '')}</span>
+                <span class="pro-custom-dd-trigger__label">${triggerLabelHtml}</span>
                 <span class="pro-custom-dd-trigger__chevron" aria-hidden="true">▾</span>
             </button>
             <ul class="pro-custom-dd-list" role="listbox" hidden>${items}</ul>
@@ -8619,7 +9060,7 @@ function renderProCustomRouteEditor(app) {
                     <button class="route-editor-group-btn ${isVisible ? 'is-visible' : 'is-hidden'} ${isActive ? 'is-active' : ''} ${noteCount ? '' : 'is-empty'}" type="button" data-group-index="${index}" aria-label="${groupNames[index]} (${noteCount}音)" aria-pressed="${isActive ? 'true' : 'false'}">
                         ${groupNames[index]}
                     </button>
-                    ${showAllGroupsExpanded ? `<button type="button" class="route-editor-group-position-label ${hasScroll ? '' : 'is-empty'}" data-pro-custom-position-group-index="${index}" aria-label="${hasScroll ? `位置 ${savedScrollLeft}（タップで編集）` : '位置未設定（タップで設定）'}"><span class="route-editor-group-position-pin" aria-hidden="true">📍</span><span class="route-editor-group-position-value">${hasScroll ? savedScrollLeft : '—'}</span></button>` : ''}
+                    ${showAllGroupsExpanded ? `<button type="button" class="route-editor-group-position-label ${hasScroll ? '' : 'is-empty'}" data-pro-custom-position-group-index="${index}" aria-label="${escapeHtml(hasScroll ? `位置 ${savedScrollLeft}（タップで編集）` : '位置未設定（タップで設定）')}"><span class="route-editor-group-position-pin" aria-hidden="true">📍</span><span class="route-editor-group-position-value">${hasScroll ? savedScrollLeft : '—'}</span></button>` : ''}
                 </div>
             `;
         }).join('')
@@ -8663,8 +9104,9 @@ function renderProCustomRouteEditor(app) {
                     ${navButtonHtml({ id: 'btn-pro-custom-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
                     ${navButtonHtml({ id: 'btn-pro-custom-home', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
                 `,
-                rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-pro-custom" aria-label="設定">⚙️</button>`
+                rightHtml: settingsButtonHtml('btn-settings-pro-custom')
             })}
+            ${standardEditionNoticeHtml(STANDARD_NOTICE_PRO_CUSTOM_STAGE_EDITOR)}
             <div class="setup-panel pro-custom-setup-panel">
                 <div class="pro-custom-setup-row pro-custom-setup-row--triple">
                 <div class="setup-item pro-custom-setup-item pro-custom-setup-item--key">
@@ -8806,8 +9248,18 @@ function renderProCustomRouteEditor(app) {
         saveState();
         renderApp();
     };
-    document.getElementById('btn-pro-custom-back').onclick = () => { state.course = 'stageSelect'; saveState(); renderApp(); };
-    document.getElementById('btn-pro-custom-home').onclick = () => { state.course = null; saveState(); renderApp(); };
+    document.getElementById('btn-pro-custom-back').onclick = () => {
+        resetStandardProCustomRouteEditorScratchInMemory();
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-home').onclick = () => {
+        resetStandardProCustomRouteEditorScratchInMemory();
+        state.course = null;
+        saveState();
+        renderApp();
+    };
     document.getElementById('btn-settings-pro-custom').onclick = () => openSettings('proCustomRouteEditor');
     ensureCustomDropdownDocHandlers();
     wireCustomDropdown('pro-custom-key', (value) => {
@@ -8889,6 +9341,11 @@ function renderProCustomRouteEditor(app) {
         setProCustomEditorGroupScrollLeft(activeGroupIndex, getRouteEditorCurrentScrollLeft());
         saveState();
         renderApp();
+        syncRouteEditorPositionPinInDOM(
+            'data-pro-custom-position-group-index',
+            activeGroupIndex,
+            getProCustomGroupScrollLeft(activeGroupIndex)
+        );
         flashRouteEditorSavePositionButton('btn-pro-custom-save-position');
     };
     document.querySelectorAll('[data-pro-custom-position-group-index]').forEach(label => {
@@ -9035,6 +9492,7 @@ function renderProCustomRouteEditor(app) {
     document.getElementById('btn-pro-custom-save').onclick = e => {
         e.preventDefault();
         if (e.currentTarget.disabled) return;
+        if (!guardProPersistentSave('save')) return;
         openNameModal();
     };
     document.getElementById('pro-custom-stage-name-confirm').onclick = confirmNameModal;
@@ -9207,7 +9665,7 @@ function renderProCustomQuizEditor(app) {
                 <button class="route-editor-group-btn ${isVisible ? 'is-visible' : 'is-hidden'} ${isActive ? 'is-active' : ''} ${noteCount ? '' : 'is-empty'}" type="button" data-group-index="${index}" aria-label="${escapeHtml(group.name || `Gr.${index + 1}`)} (${noteCount}音)" aria-pressed="${isActive ? 'true' : 'false'}">
                     ${escapeHtml(group.name || `Gr.${index + 1}`)}
                 </button>
-                ${showAllGroupsExpanded ? `<button type="button" class="route-editor-group-position-label ${hasScroll ? '' : 'is-empty'}" data-pro-custom-quiz-position-group-index="${index}"><span class="route-editor-group-position-pin" aria-hidden="true">📍</span><span class="route-editor-group-position-value">${hasScroll ? group.scrollLeft : '—'}</span></button>` : ''}
+                ${showAllGroupsExpanded ? `<button type="button" class="route-editor-group-position-label ${hasScroll ? '' : 'is-empty'}" data-pro-custom-quiz-position-group-index="${index}" aria-label="${escapeHtml(hasScroll ? `位置 ${group.scrollLeft}（タップで編集）` : '位置未設定（タップで設定）')}"><span class="route-editor-group-position-pin" aria-hidden="true">📍</span><span class="route-editor-group-position-value">${hasScroll ? group.scrollLeft : '—'}</span></button>` : ''}
             </div>
         `;
     }).join('');
@@ -9221,8 +9679,9 @@ function renderProCustomQuizEditor(app) {
                     ${navButtonHtml({ id: 'btn-pro-custom-quiz-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
                     ${navButtonHtml({ id: 'btn-pro-custom-quiz-home', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
                 `,
-                rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-pro-custom-quiz" aria-label="設定">⚙️</button>`
+                rightHtml: settingsButtonHtml('btn-settings-pro-custom-quiz')
             })}
+            ${standardEditionNoticeHtml(STANDARD_NOTICE_PRO_CUSTOM_STAGE_EDITOR)}
             <div class="setup-panel pro-custom-setup-panel">
                 <div class="pro-custom-setup-row pro-custom-setup-row--triple">
                     <div class="setup-item pro-custom-setup-item pro-custom-setup-item--key">
@@ -9365,8 +9824,18 @@ function renderProCustomQuizEditor(app) {
         renderApp();
     };
 
-    document.getElementById('btn-pro-custom-quiz-back').onclick = () => { state.course = 'stageSelect'; saveState(); renderApp(); };
-    document.getElementById('btn-pro-custom-quiz-home').onclick = () => { state.course = null; saveState(); renderApp(); };
+    document.getElementById('btn-pro-custom-quiz-back').onclick = () => {
+        resetStandardProCustomQuizEditorScratchInMemory();
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-quiz-home').onclick = () => {
+        resetStandardProCustomQuizEditorScratchInMemory();
+        state.course = null;
+        saveState();
+        renderApp();
+    };
     document.getElementById('btn-settings-pro-custom-quiz').onclick = () => openSettings('proCustomQuizEditor');
     ensureCustomDropdownDocHandlers();
     wireCustomDropdown('pro-custom-quiz-key', value => { pushProCustomQuizEditorHistory(); state.proCustomQuizEditor.key = parseInt(value, 10) || 0; rerenderAfterSettingChange(); });
@@ -9426,6 +9895,12 @@ function renderProCustomQuizEditor(app) {
         state.proCustomQuizEditor.groups[activeGroupIndex].scrollLeft = getRouteEditorCurrentScrollLeft();
         saveState();
         renderApp();
+        const pqSl = state.proCustomQuizEditor.groups[activeGroupIndex]?.scrollLeft;
+        syncRouteEditorPositionPinInDOM(
+            'data-pro-custom-quiz-position-group-index',
+            activeGroupIndex,
+            Number.isFinite(pqSl) ? pqSl : null
+        );
         flashRouteEditorSavePositionButton('btn-pro-custom-quiz-save-position');
     };
     document.querySelectorAll('[data-pro-custom-quiz-position-group-index]').forEach(label => {
@@ -9567,6 +10042,7 @@ function renderProCustomQuizEditor(app) {
     document.getElementById('btn-pro-custom-quiz-save').onclick = e => {
         e.preventDefault();
         if (e.currentTarget.disabled) return;
+        if (!guardProPersistentSave('save')) return;
         openNameModal();
     };
     document.getElementById('pro-custom-quiz-stage-name-confirm').onclick = confirmNameModal;
@@ -9707,7 +10183,7 @@ function renderQuizEditor(app) {
         const valueText = hasValue ? String(scrollLeftVal) : '—';
         const ariaLabel = hasValue ? `位置 ${scrollLeftVal}（タップで編集）` : '位置未設定（タップで設定）';
         const emptyClass = hasValue ? '' : 'is-empty';
-        return `<button type="button" class="route-editor-group-position-label ${emptyClass}" data-quiz-position-group-index="${index}" aria-label="${ariaLabel}"><span class="route-editor-group-position-pin" aria-hidden="true">📍</span><span class="route-editor-group-position-value">${valueText}</span></button>`;
+        return `<button type="button" class="route-editor-group-position-label ${emptyClass}" data-quiz-position-group-index="${index}" aria-label="${escapeHtml(ariaLabel)}"><span class="route-editor-group-position-pin" aria-hidden="true">📍</span><span class="route-editor-group-position-value">${valueText}</span></button>`;
     };
 
     const groupButtonsHtml = groups.map((group, index) => {
@@ -9728,7 +10204,7 @@ function renderQuizEditor(app) {
     }).join('');
 
     app.innerHTML = `
-        <div class="route-editor-screen route-editor-scale-guide-variant-${scaleGuideVariant}">
+        <div class="route-editor-screen route-editor-scale-guide-variant-${scaleGuideVariant}${isStandardEdition() ? ' route-editor-screen--standard' : ''}">
             ${buildPageHeader({
                 headerClass: 'page-header--route-editor',
                 titleText: `STAGE ${stage} 問題編集`,
@@ -9736,8 +10212,9 @@ function renderQuizEditor(app) {
                     ${navButtonHtml({ id: 'btn-quiz-editor-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
                     ${navButtonHtml({ id: 'btn-quiz-editor-home', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
                 `,
-                rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-quiz-editor" aria-label="設定">⚙️</button>`
+                rightHtml: settingsButtonHtml('btn-settings-quiz-editor')
             })}
+            ${standardEditionNoticeHtml(STANDARD_NOTICE_QUIZ_EDITOR)}
             <div class="route-editor-toolbar">
                 <button class="icon-btn route-editor-tool-btn" id="btn-quiz-editor-clear" ${quizClearAllEnabled ? '' : 'disabled'}>全消し</button>
                 <button class="icon-btn route-editor-tool-btn" id="btn-quiz-editor-load-default">初期値</button>
@@ -9761,7 +10238,7 @@ function renderQuizEditor(app) {
             <div class="route-editor-expanded-gap ${showAllGroupsExpanded ? 'route-editor-expanded-gap--visible' : ''}" aria-hidden="true"></div>
             <div class="route-editor-save-row">
                 <button type="button" class="btn-secondary route-editor-demo-btn" id="btn-quiz-editor-try">この設定でクイズを試す</button>
-                <button class="btn-primary route-editor-save-btn" id="btn-quiz-editor-save">この設定で保存</button>
+                <button type="button" class="btn-primary route-editor-save-btn pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-quiz-editor-save"><span class="pro-custom-saved-btn__title">この設定で保存</span></button>
             </div>
             <div class="route-editor-expanded-spacer ${showAllGroupsExpanded ? 'route-editor-expanded-spacer--visible' : ''}" aria-hidden="true"></div>
         </div>
@@ -9769,6 +10246,7 @@ function renderQuizEditor(app) {
 
     document.getElementById('btn-quiz-editor-back').onclick = () => {
         state.quizEditorPreview = null;
+        resetStandardQuizEditorScratchInMemory();
         state.course = 'stageSelect';
         saveState();
         renderApp();
@@ -9776,6 +10254,7 @@ function renderQuizEditor(app) {
 
     document.getElementById('btn-quiz-editor-home').onclick = () => {
         state.quizEditorPreview = null;
+        resetStandardQuizEditorScratchInMemory();
         state.course = null;
         saveState();
         renderApp();
@@ -9910,12 +10389,19 @@ function renderQuizEditor(app) {
         state.quizEditor.groups[activeGroupIndex].scrollLeft = scrollLeft;
         saveState();
         renderApp();
+        const qSl = state.quizEditor.groups[activeGroupIndex]?.scrollLeft;
+        syncRouteEditorPositionPinInDOM(
+            'data-quiz-position-group-index',
+            activeGroupIndex,
+            Number.isFinite(qSl) ? qSl : null
+        );
         flashRouteEditorSavePositionButton('btn-quiz-editor-save-position');
     };
 
     document.getElementById('btn-quiz-editor-save').onclick = () => {
+        if (!guardProPersistentSave('save')) return;
         pushQuizEditorHistory(stage);
-        saveQuizEditorSettings(stage, state.quizEditor.groups);
+        if (!saveQuizEditorSettings(stage, state.quizEditor.groups)) return;
         state.quizEditorPreview = null;
         saveState();
         state.course = 'stageSelect';
@@ -9923,7 +10409,7 @@ function renderQuizEditor(app) {
     };
 
     document.getElementById('btn-quiz-editor-try').onclick = () => {
-        initAudio();
+        if (isProEdition()) initAudio();
         state.quizEditorPreview = {
             stage,
             groups: cloneQuizEditorGroups(state.quizEditor.groups)
@@ -9937,6 +10423,9 @@ function renderQuizEditor(app) {
         state.memorize.quizQuestionResults = [];
         state.memorize.isQuizCleared = false;
         state.memorize.quizAttemptCounted = false;
+        state.memorize.isDemoPlayback = true;
+        state.memorize.demoReturnCourse = 'quizEditor';
+        state.memorize.demoReturnStage = stage;
         // 直前のクルーズモードで残っているシーケンス・スコープを必ず捨てる
         // （指板表示範囲や見えないノートに影響するため）
         state.memorize.cruiseTargets = [];
@@ -9948,6 +10437,7 @@ function renderQuizEditor(app) {
         autoScrollRequested = true;
         saveState();
         renderApp();
+        if (!guardEditorDemoPlayback()) return;
         if (state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
             quizToneTimeout = setTimeout(() => {
                 quizToneTimeout = null;
@@ -10122,7 +10612,7 @@ function renderQuizEditor(app) {
                 // 「最初の音」を追加するときは、現在の指板位置を自動で保存する
                 // （指板をたどる編集と同じ仕様）。0 でも保存対象。
                 const isFirstNote = group.notes.length === 0;
-                if (isFirstNote) {
+                if (isFirstNote && isProEdition()) {
                     const wrapperEl = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
                     const liveScroll = wrapperEl ? Math.max(0, Math.round(wrapperEl.scrollLeft)) : 0;
                     group.scrollLeft = liveScroll;
@@ -10216,6 +10706,14 @@ function exitMemorizeClearedToStageOrEditor() {
         state.memorize.isDemoPlayback = false;
         state.memorize.demoReturnCourse = null;
         state.memorize.demoReturnStage = null;
+    } else if (state.memorize.isDemoPlayback && state.memorize.demoReturnCourse === 'quizEditor') {
+        state.course = 'quizEditor';
+        if (Number.isFinite(parseInt(state.memorize.demoReturnStage, 10))) {
+            state.quizEditor.stage = clamp(parseInt(state.memorize.demoReturnStage, 10), 1, 6);
+        }
+        state.memorize.isDemoPlayback = false;
+        state.memorize.demoReturnCourse = null;
+        state.memorize.demoReturnStage = null;
     } else if (state.memorize.isDemoPlayback && state.memorize.demoReturnCourse === 'proCustomRouteEditor') {
         state.course = 'proCustomRouteEditor';
         state.memorize.isDemoPlayback = false;
@@ -10236,7 +10734,8 @@ function exitMemorizeClearedToStageOrEditor() {
 function returnMemorizeDemoToEditor() {
     if (!state.memorize?.isDemoPlayback) return;
     const demoReturnCourse = state.memorize.demoReturnCourse;
-    if (demoReturnCourse !== 'routeEditor' && demoReturnCourse !== 'proCustomRouteEditor' && demoReturnCourse !== 'proCustomQuizEditor') return;
+    if (demoReturnCourse !== 'routeEditor' && demoReturnCourse !== 'quizEditor' && demoReturnCourse !== 'proCustomRouteEditor' && demoReturnCourse !== 'proCustomQuizEditor') return;
+    const demoReturnStageSnapshot = state.memorize.demoReturnStage;
     stopRhythm();
     stopQuizTimer();
     cancelQuizScrollAnimation();
@@ -10248,13 +10747,18 @@ function returnMemorizeDemoToEditor() {
     state.memorize.demoReturnStage = null;
     if (demoReturnCourse === 'routeEditor') {
         state.course = 'routeEditor';
-        if (Number.isFinite(parseInt(state.memorize.demoReturnStage, 10))) {
-            state.routeEditor.stage = clamp(parseInt(state.memorize.demoReturnStage, 10), 1, 6);
+        if (Number.isFinite(parseInt(demoReturnStageSnapshot, 10))) {
+            state.routeEditor.stage = clamp(parseInt(demoReturnStageSnapshot, 10), 1, 6);
         }
     } else if (demoReturnCourse === 'proCustomRouteEditor') {
         state.course = 'proCustomRouteEditor';
-    } else {
+    } else if (demoReturnCourse === 'proCustomQuizEditor') {
         state.course = 'proCustomQuizEditor';
+    } else {
+        state.course = 'quizEditor';
+        if (Number.isFinite(parseInt(demoReturnStageSnapshot, 10))) {
+            state.quizEditor.stage = clamp(parseInt(demoReturnStageSnapshot, 10), 1, 6);
+        }
     }
     saveState();
     renderApp();
@@ -10436,7 +10940,13 @@ function renderMemorize(app) {
         isCruise &&
         state.memorize.isDemoPlayback === true &&
         state.memorize.demoReturnCourse === 'routeEditor';
-    const isEditorDemoPlayback = isProCustomDemoPlayback || isProCustomQuizDemoPlayback || isRouteEditorDemoPlayback;
+    const isQuizEditorDemoPlayback =
+        !isCruise &&
+        state.memorize.isDemoPlayback === true &&
+        state.memorize.demoReturnCourse === 'quizEditor';
+    const isAnyEditorDemoPlayback = isProCustomDemoPlayback || isProCustomQuizDemoPlayback || isRouteEditorDemoPlayback || isQuizEditorDemoPlayback;
+    const isStandardProCustomMemorizeNotice =
+        (isProCustomDemoPlayback || isProCustomQuizDemoPlayback) && isStandardEdition();
     const memorizeStageLabel = isProCustomCruise
         ? escapeHtml(state.memorize.proCustomCruise?.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)
         : isProCustomQuiz
@@ -10474,9 +10984,10 @@ function renderMemorize(app) {
                     ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
                     ${navButtonHtml({ id: 'btn-home-memorize', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
                 `,
-                rightHtml: `<button class="icon-btn home-settings-btn" id="btn-memorize-settings" aria-label="設定">⚙️</button>`
+                rightHtml: settingsButtonHtml('btn-memorize-settings')
             })}
             <div class="memorize-body-stack">
+                ${isStandardProCustomMemorizeNotice ? standardEditionNoticeHtml(STANDARD_NOTICE_PRO_CUSTOM_STAGE_EDITOR) : ''}
                 <div class="memorize-copy-block">
                     <div class="memorize-question-row">
                         ${stageStatsHtml}
@@ -10490,15 +11001,18 @@ function renderMemorize(app) {
                 <div id="fretboard-container" class="memorize-fretboard-host"></div>
                 ${(isCruise && !isCruiseCleared) ? `
                     <div class="memorize-cruise-controls">
-                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-prev">⬅️</button>
-                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-reset">⏮️</button>
-                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-stop">${state.memorize.isCruisePlaying ? '⏸️' : '▶️'}</button>
-                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-next">➡️</button>
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-prev" aria-label="前へ">⬅️</button>
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-reset" aria-label="リセット">⏮️</button>
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-stop" aria-label="${state.memorize.isCruisePlaying ? '一時停止' : '再生'}">${state.memorize.isCruisePlaying ? '⏸️' : '▶️'}</button>
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-next" aria-label="次へ">➡️</button>
                     </div>
                 ` : ''}
-                ${isEditorDemoPlayback && !isCruiseCleared ? `
+                ${isAnyEditorDemoPlayback && !isCruiseCleared && !isQuizCleared ? `
                     <div class="memorize-cruise-controls memorize-cruise-controls--pro-custom">
                         <button type="button" class="btn-secondary memorize-cruise-control-btn memorize-cruise-control-btn--pro-custom-return" id="btn-pro-custom-return-editor">編集画面に戻る</button>
+                        ${isRouteEditorDemoPlayback || isQuizEditorDemoPlayback ? `
+                            <button type="button" class="btn-primary memorize-cruise-control-btn memorize-cruise-control-btn--official-demo-save pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-official-stage-demo-save"><span class="pro-custom-saved-btn__title">この設定で保存</span></button>
+                        ` : ''}
                         ${isProCustomDemoPlayback || isProCustomQuizDemoPlayback ? `
                             <button type="button" class="btn-primary memorize-cruise-control-btn pro-custom-saved-btn pro-custom-saved-btn--save memorize-cruise-control-btn--pro-custom-save" id="btn-pro-custom-save-from-demo">
                                 <span class="pro-custom-saved-btn__title">このSTAGEを保存</span>
@@ -10527,10 +11041,12 @@ function renderMemorize(app) {
                             </div>
                             <div class="memorize-cleared-card__actions memorize-cleared-card__actions--three">
                                 <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-restart">もう1回</button>
-                                <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-exit">${isEditorDemoPlayback ? '編集画面へ' : '終了'}</button>
+                                <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-exit">${isAnyEditorDemoPlayback ? '編集画面へ' : '終了'}</button>
                                 ${(isProCustomDemoPlayback || isProCustomQuizDemoPlayback)
                                     ? `<button type="button" class="memorize-cleared-card__btn memorize-cleared-card__btn--pro-custom-saved pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-memorize-cleared-pro-custom-save"><span class="pro-custom-saved-btn__title">このSTAGEを保存</span></button>`
-                                    : `<button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-next-stage"${isProCustomCruise || isProCustomQuiz || state.memorize.stage >= 6 ? ' disabled' : ''}>次のSTAGEへ</button>`
+                                    : (isRouteEditorDemoPlayback || isQuizEditorDemoPlayback)
+                                        ? `<button type="button" class="memorize-cleared-card__btn memorize-cleared-card__btn--official-demo-save pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-memorize-cleared-official-demo-save"><span class="pro-custom-saved-btn__title">この設定で保存</span></button>`
+                                        : `<button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-next-stage"${isProCustomCruise || isProCustomQuiz || state.memorize.stage >= 6 ? ' disabled' : ''}>次のSTAGEへ</button>`
                                 }
                             </div>
                         </div>
@@ -10548,6 +11064,14 @@ function renderMemorize(app) {
             state.course = 'routeEditor';
             if (Number.isFinite(parseInt(state.memorize.demoReturnStage, 10))) {
                 state.routeEditor.stage = clamp(parseInt(state.memorize.demoReturnStage, 10), 1, 6);
+            }
+            state.memorize.isDemoPlayback = false;
+            state.memorize.demoReturnCourse = null;
+            state.memorize.demoReturnStage = null;
+        } else if (state.memorize.isDemoPlayback && state.memorize.demoReturnCourse === 'quizEditor') {
+            state.course = 'quizEditor';
+            if (Number.isFinite(parseInt(state.memorize.demoReturnStage, 10))) {
+                state.quizEditor.stage = clamp(parseInt(state.memorize.demoReturnStage, 10), 1, 6);
             }
             state.memorize.isDemoPlayback = false;
             state.memorize.demoReturnCourse = null;
@@ -10576,7 +11100,21 @@ function renderMemorize(app) {
         stopRhythm();
         stopQuizTimer();
         clearStage1RepeatHintState();
+        if (isStandardEdition() && state.memorize.isDemoPlayback) {
+            if (state.memorize.demoReturnCourse === 'routeEditor') {
+                resetStandardRouteEditorScratchInMemory();
+            } else if (state.memorize.demoReturnCourse === 'quizEditor') {
+                resetStandardQuizEditorScratchInMemory();
+            } else if (state.memorize.demoReturnCourse === 'proCustomRouteEditor') {
+                resetStandardProCustomRouteEditorScratchInMemory();
+            } else if (state.memorize.demoReturnCourse === 'proCustomQuizEditor') {
+                resetStandardProCustomQuizEditorScratchInMemory();
+            }
+        }
         state.quizEditorPreview = null;
+        state.memorize.isDemoPlayback = false;
+        state.memorize.demoReturnCourse = null;
+        state.memorize.demoReturnStage = null;
         state.course = null;
         saveState();
         renderApp();
@@ -10586,6 +11124,7 @@ function renderMemorize(app) {
         // クリア時は prev / reset ボタンは描画されないので存在チェックを行う
         const _btnCruisePrev = document.getElementById('btn-cruise-prev');
         if (_btnCruisePrev) _btnCruisePrev.onclick = () => {
+            if (!guardEditorDemoPlayback()) return;
             if (state.memorize.cruiseIndex > 0) {
                 clearStage1RepeatHintState();
                 state.memorize.cruiseIndex--;
@@ -10599,6 +11138,7 @@ function renderMemorize(app) {
 
         const _btnCruiseStop = document.getElementById('btn-cruise-stop');
         if (_btnCruiseStop) _btnCruiseStop.onclick = () => {
+            if (!guardEditorDemoPlayback()) return;
             if (state.memorize.isCleared) {
                 // Restart course: reset state and play
                 clearStage1RepeatHintState();
@@ -10636,6 +11176,7 @@ function renderMemorize(app) {
 
         const _btnCruiseNext = document.getElementById('btn-cruise-next');
         if (_btnCruiseNext) _btnCruiseNext.onclick = () => {
+            if (!guardEditorDemoPlayback()) return;
             if (state.memorize.isCleared) {
                 // Go back to stage select
                 stopRhythm();
@@ -10657,6 +11198,7 @@ function renderMemorize(app) {
 
         const _btnCruiseReset = document.getElementById('btn-cruise-reset');
         if (_btnCruiseReset) _btnCruiseReset.onclick = () => {
+            if (!guardEditorDemoPlayback()) return;
             // Reset to the beginning of the course
             clearStage1RepeatHintState();
             state.memorize.isCleared = false;
@@ -10690,12 +11232,20 @@ function renderMemorize(app) {
     const btnProCustomSaveFromDemo = document.getElementById('btn-pro-custom-save-from-demo');
     if (btnProCustomSaveFromDemo) {
         btnProCustomSaveFromDemo.onclick = () => {
+            if (!guardProPersistentSave('save')) return;
             if (state.memorize.demoReturnCourse === 'proCustomQuizEditor') {
                 proCustomQuizEditorPendingOpenNameModal = true;
             } else {
                 proCustomPendingOpenNameModal = true;
             }
             returnMemorizeDemoToEditor();
+        };
+    }
+
+    const btnOfficialStageDemoSave = document.getElementById('btn-official-stage-demo-save');
+    if (btnOfficialStageDemoSave) {
+        btnOfficialStageDemoSave.onclick = () => {
+            tryPersistOfficialEditorDemoSaveFromMemorize();
         };
     }
 
@@ -10723,12 +11273,19 @@ function renderMemorize(app) {
     const btnClearedProCustomSave = document.getElementById('btn-memorize-cleared-pro-custom-save');
     if (btnClearedProCustomSave) {
         btnClearedProCustomSave.onclick = () => {
+            if (!guardProPersistentSave('save')) return;
             if (state.memorize.demoReturnCourse === 'proCustomQuizEditor') {
                 proCustomQuizEditorPendingOpenNameModal = true;
             } else {
                 proCustomPendingOpenNameModal = true;
             }
             returnMemorizeDemoToEditor();
+        };
+    }
+    const btnClearedOfficialDemoSave = document.getElementById('btn-memorize-cleared-official-demo-save');
+    if (btnClearedOfficialDemoSave) {
+        btnClearedOfficialDemoSave.onclick = () => {
+            tryPersistOfficialEditorDemoSaveFromMemorize();
         };
     }
 
@@ -10758,7 +11315,7 @@ function renderMemorize(app) {
     renderFretboardHTML('fretboard-container', fretboardOptions);
 
     // Apply highlight overlay for cruise mode
-    if (isCruise && state.memorize.highlightMode) {
+    if (isCruise && state.memorize.highlightMode && canRunEditorDemoPlayback()) {
         let nextQ = null;
         if (state.memorize.cruiseIndex < state.memorize.cruiseTargets.length - 1) {
             // Normal case: next note is within current loop
@@ -10789,6 +11346,7 @@ function renderMemorize(app) {
 }
 
 function handleFretClick(stringNum, fret, pointerEv) {
+    if (!guardEditorDemoPlayback()) return;
     const q = state.memorize.currentQuestion;
     const fb = document.getElementById('feedback');
     const isCruise = state.memorize.playMode === 'cruise';
@@ -11358,8 +11916,9 @@ function renderVisualize(app) {
         delete state.visualize.showExtendedFrets;
     }
 
+    const effectiveVisualizeKey = getEffectiveVisualizeKey();
     const chords = getDiatonicChordsForKey(
-        state.visualize.key,
+        effectiveVisualizeKey,
         state.visualize.scale,
         state.visualize.chordType === '7',
         state.visualize.chordLabelMode === 'degree' ? 'degree' : 'name'
@@ -11370,7 +11929,13 @@ function renderVisualize(app) {
         return `<button class="chord-btn ${isSelected ? 'active' : ''} ${isDisabled ? 'disabled' : ''}" data-chord-index="${idx}">${chord.label}</button>`;
     }).join('');
 
-    const visKeyOptions = NOTES.map((note, idx) => ({ value: idx, label: note }));
+    const visualizeKeyLockHtml =
+        '<span class="fretboard-key-lock" aria-hidden="true" title="PRO版でお使いいただけます">🔒</span>';
+    const visKeyOptions = NOTES.map((note, idx) => ({
+        value: idx,
+        label: note,
+        afterLabelHtml: !isProEdition() && idx > 0 ? visualizeKeyLockHtml : ''
+    }));
     const visCapoOptions = [0,1,2,3,4,5,6,7].map(c => ({ value: c, label: String(c) }));
     const visMaxFretOptions = Array.from(
         { length: MAX_FRET - DEFAULT_VISIBLE_MAX_FRET + 1 },
@@ -11396,14 +11961,16 @@ function renderVisualize(app) {
             leftHtml: `
                 ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
             `,
-            rightHtml: `<button class="icon-btn home-settings-btn" id="btn-settings-visualize" aria-label="設定">⚙️</button>`
+            rightHtml: settingsButtonHtml('btn-settings-visualize')
         })}
+
+        ${standardEditionNoticeHtml(STANDARD_NOTICE_VISUALIZE)}
 
         <div class="setup-panel visualize-setup-panel">
             <div class="visualize-setup-row visualize-setup-row--triple">
                 <div class="setup-item visualize-setup-item visualize-setup-item--key">
                     <label>キー</label>
-                    ${buildCustomDropdownHtml({ id: 'vis-key', options: visKeyOptions, selectedValue: state.visualize.key, ariaLabel: 'キー', wrapClass: 'pro-custom-dd--visualize' })}
+                    ${buildCustomDropdownHtml({ id: 'vis-key', options: visKeyOptions, selectedValue: effectiveVisualizeKey, ariaLabel: 'キー', wrapClass: 'pro-custom-dd--visualize' })}
                 </div>
                 <div class="setup-item visualize-setup-item visualize-setup-item--capo">
                     <label>カポ</label>
@@ -11474,7 +12041,13 @@ function renderVisualize(app) {
 
     ensureCustomDropdownDocHandlers();
     wireCustomDropdown('vis-key', (value) => {
-        state.visualize.key = parseInt(value, 10) || 0;
+        const nextKey = parseInt(value, 10) || 0;
+        if (!canUseVisualizeKey(nextKey)) {
+            showProLockNotice('visualizeKey');
+            renderApp();
+            return;
+        }
+        state.visualize.key = nextKey;
         saveState();
         renderApp();
     });
@@ -11559,7 +12132,7 @@ function renderVisualize(app) {
 
     renderFretboardHTML('fretboard-container', {
         mode: 'visualize',
-        keyIndex: state.visualize.key,
+        keyIndex: effectiveVisualizeKey,
         capo: state.visualize.capo,
         displayMode: state.visualize.displayMode,
         scale: state.visualize.scale,
@@ -11577,6 +12150,7 @@ function renderVisualize(app) {
 
 function renderSettings(app) {
     const settingsDocumentHandlers = [];
+    const settingsReadOnly = isStandardEdition();
     const settingsSnapshot = cloneSettings(state.settings);
     const activeTab = ['cruise', 'quiz', 'common'].includes(state.settings.lastSettingsTab)
         ? state.settings.lastSettingsTab
@@ -11584,7 +12158,7 @@ function renderSettings(app) {
     const tabHidden = (name) => activeTab === name ? '' : ' is-hidden';
     const tabActive = (name) => activeTab === name ? ' is-active' : '';
     app.innerHTML = `
-        <div class="settings-screen">
+        <div class="settings-screen${settingsReadOnly ? ' settings-screen--standard-readonly' : ''}">
         ${buildPageHeader({
             titleText: '設定',
             titleClass: 'settings-screen-title',
@@ -11593,6 +12167,8 @@ function renderSettings(app) {
                 ${navButtonHtml({ id: 'btn-home-settings', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
             `
         })}
+
+        ${standardEditionNoticeHtml(STANDARD_NOTICE_SETTINGS)}
 
         <div class="settings-tabs" role="tablist">
             <button type="button" class="settings-tab-btn${tabActive('cruise')}" role="tab" data-settings-tab="cruise">指板をたどる</button>
@@ -11837,7 +12413,9 @@ function renderSettings(app) {
             <button class="settings-bottom-btn settings-apply-btn" id="btn-settings-apply">決定</button>
             <div class="settings-secondary-actions">
                 <button class="btn-secondary settings-bottom-btn" id="btn-settings-cancel">キャンセル</button>
-                <button class="btn-secondary settings-bottom-btn settings-danger-btn" id="btn-settings-defaults">全てリセット</button>
+                ${settingsReadOnly
+                    ? ''
+                    : '<button class="btn-secondary settings-bottom-btn settings-danger-btn" id="btn-settings-defaults">全てリセット</button>'}
             </div>
         </div>
         </div>
@@ -11858,6 +12436,7 @@ function renderSettings(app) {
     const cardResetButtons = document.querySelectorAll('.settings-card-reset-btn');
     cardResetButtons.forEach(button => {
         button.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
             const resetCard = button.getAttribute('data-reset-card');
             if (resetCard === 'tempo') {
                 state.settings.tempo = DEFAULT_TEMPO;
@@ -11900,12 +12479,14 @@ function renderSettings(app) {
     });
 
     const closeSettings = (shouldSave, targetCourse = settingsReturnCourse) => {
-        if (!shouldSave) {
-            // 「キャンセル」でも、最後に開いていたタブだけは復元せずユーザーの操作のまま残す
-            const preservedTab = state.settings.lastSettingsTab;
-            state.settings = cloneSettings(settingsSnapshot);
-            if (['cruise', 'quiz', 'common'].includes(preservedTab)) {
-                state.settings.lastSettingsTab = preservedTab;
+        if (!settingsReadOnly) {
+            if (!shouldSave) {
+                // 「キャンセル」でも、最後に開いていたタブだけは復元せずユーザーの操作のまま残す
+                const preservedTab = state.settings.lastSettingsTab;
+                state.settings = cloneSettings(settingsSnapshot);
+                if (['cruise', 'quiz', 'common'].includes(preservedTab)) {
+                    state.settings.lastSettingsTab = preservedTab;
+                }
             }
         }
         state.course = targetCourse;
@@ -11921,6 +12502,21 @@ function renderSettings(app) {
         btn.onclick = () => {
             const target = btn.getAttribute('data-settings-tab');
             if (!['cruise', 'quiz', 'common'].includes(target)) return;
+            if (settingsReadOnly) {
+                settingsTabButtons.forEach(b => {
+                    b.classList.toggle('is-active', b.getAttribute('data-settings-tab') === target);
+                });
+                settingsTabPanels.forEach(p => {
+                    p.classList.toggle('is-hidden', p.getAttribute('data-settings-tab-panel') !== target);
+                });
+                if (target === 'common') {
+                    if (typeof updatePreview === 'function') updatePreview();
+                    setTimeout(() => {
+                        if (typeof updatePreviewTransform === 'function') updatePreviewTransform();
+                    }, 0);
+                }
+                return;
+            }
             state.settings.lastSettingsTab = target;
             settingsTabButtons.forEach(b => {
                 b.classList.toggle('is-active', b.getAttribute('data-settings-tab') === target);
@@ -11947,19 +12543,28 @@ function renderSettings(app) {
     const tempoSlider = document.getElementById('tempo-slider');
     const tempoDisplay = document.getElementById('tempo-display');
     tempoSlider.oninput = (e) => {
-        state.settings.tempo = parseInt(e.target.value);
+        if (!guardStandardSettingsMutation()) {
+            tempoSlider.value = state.settings.tempo;
+            return;
+        }
+        state.settings.tempo = parseInt(e.target.value, 10);
         tempoDisplay.textContent = `BPM ${state.settings.tempo}`;
     };
 
     const timerSlider = document.getElementById('timer-slider');
     const timerDisplay = document.getElementById('timer-display');
     timerSlider.oninput = (e) => {
-        state.settings.quizTimeLimit = parseInt(e.target.value);
+        if (!guardStandardSettingsMutation()) {
+            timerSlider.value = state.settings.quizTimeLimit;
+            return;
+        }
+        state.settings.quizTimeLimit = parseInt(e.target.value, 10);
         timerDisplay.textContent = `${state.settings.quizTimeLimit} 秒`;
     };
 
     document.querySelectorAll('.settings-countdown-sound-buttons .mode-btn').forEach(btn => {
         btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
             state.settings.quizCountdownSound = btn.getAttribute('data-countdown-sound');
             document.querySelectorAll('.settings-countdown-sound-buttons .mode-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
@@ -11969,6 +12574,7 @@ function renderSettings(app) {
 
     document.querySelectorAll('.settings-quiz-question-limit-buttons .mode-btn').forEach(btn => {
         btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
             const v = parseInt(btn.getAttribute('data-quiz-question-limit'), 10);
             state.settings.quizQuestionLimit = QUIZ_QUESTION_LIMIT_OPTIONS.includes(v) ? v : DEFAULT_QUIZ_QUESTION_LIMIT;
             syncQuizQuestionLimitSettingsUI();
@@ -11978,6 +12584,7 @@ function renderSettings(app) {
 
     document.querySelectorAll('.settings-notation-buttons .mode-btn').forEach(btn => {
         btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
             state.settings.noteLabelMode = btn.getAttribute('data-notation-mode');
             syncNotationSettingsUI();
             saveState();
@@ -11987,7 +12594,8 @@ function renderSettings(app) {
 
     document.querySelectorAll('.settings-loop-count-buttons .mode-btn').forEach(btn => {
         btn.onclick = () => {
-            state.settings.cruiseLoopCount = parseInt(btn.getAttribute('data-loop-count'));
+            if (!guardStandardSettingsMutation()) return;
+            state.settings.cruiseLoopCount = parseInt(btn.getAttribute('data-loop-count'), 10);
             syncLoopCountSettingsUI();
             saveState();
         };
@@ -11995,6 +12603,7 @@ function renderSettings(app) {
 
     document.querySelectorAll('.settings-cruise-progression-buttons .mode-btn').forEach(btn => {
         btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
             state.settings.cruiseProgression = btn.getAttribute('data-cruise-progression');
             syncCruiseProgressionSettingsUI();
             saveState();
@@ -12003,6 +12612,7 @@ function renderSettings(app) {
 
     document.querySelectorAll('.settings-cruise-tap-beats-buttons .mode-btn').forEach(btn => {
         btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
             state.settings.cruiseTapBeats = btn.getAttribute('data-cruise-tap-beats');
             syncCruiseProgressionSettingsUI();
             saveState();
@@ -12011,6 +12621,7 @@ function renderSettings(app) {
 
     document.querySelectorAll('.settings-cruise-show-note-names-buttons .mode-btn').forEach(btn => {
         btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
             const v = btn.getAttribute('data-cruise-show-note-names');
             state.settings.cruiseShowNoteNames = v !== 'off';
             syncCruiseNoteNamesSettingsUI();
@@ -12241,20 +12852,70 @@ function renderSettings(app) {
         stringSpacingSlider.value = state.settings.stringSpacing;
     }
 
-    perspSlider.oninput = (e) => { state.settings.viewMode = 'custom'; state.settings.perspective = parseInt(e.target.value); updatePreview(); updatePreviewTransform(); };
-    perspOriginSlider.oninput = (e) => { state.settings.viewMode = 'custom'; state.settings.perspOriginX = parseInt(e.target.value); updatePreview(); updatePreviewTransform(); };
+    perspSlider.oninput = (e) => {
+        if (!guardStandardSettingsMutation()) {
+            refreshSettingsControls();
+            return;
+        }
+        state.settings.viewMode = 'custom';
+        state.settings.perspective = parseInt(e.target.value, 10);
+        updatePreview();
+        updatePreviewTransform();
+    };
+    perspOriginSlider.oninput = (e) => {
+        if (!guardStandardSettingsMutation()) {
+            refreshSettingsControls();
+            return;
+        }
+        state.settings.viewMode = 'custom';
+        state.settings.perspOriginX = parseInt(e.target.value, 10);
+        updatePreview();
+        updatePreviewTransform();
+    };
     stringSpacingSlider.oninput = (e) => {
-        state.settings.stringSpacing = parseInt(e.target.value);
+        if (!guardStandardSettingsMutation()) {
+            refreshSettingsControls();
+            return;
+        }
+        state.settings.stringSpacing = parseInt(e.target.value, 10);
         stringSpacingDisp.textContent = `${state.settings.stringSpacing}%`;
         updatePreview();
         updatePreviewTransform();
     };
-    document.getElementById('rot-x-slider').oninput = (e) => { state.settings.viewMode = 'custom'; state.settings.rotation.x = parseInt(e.target.value); updatePreview(); updatePreviewTransform(); };
-    document.getElementById('rot-y-slider').oninput = (e) => { state.settings.viewMode = 'custom'; state.settings.rotation.y = parseInt(e.target.value); updatePreview(); updatePreviewTransform(); };
-    document.getElementById('rot-z-slider').oninput = (e) => { state.settings.viewMode = 'custom'; state.settings.rotation.z = parseInt(e.target.value); updatePreview(); updatePreviewTransform(); };
+    document.getElementById('rot-x-slider').oninput = (e) => {
+        if (!guardStandardSettingsMutation()) {
+            refreshSettingsControls();
+            return;
+        }
+        state.settings.viewMode = 'custom';
+        state.settings.rotation.x = parseInt(e.target.value, 10);
+        updatePreview();
+        updatePreviewTransform();
+    };
+    document.getElementById('rot-y-slider').oninput = (e) => {
+        if (!guardStandardSettingsMutation()) {
+            refreshSettingsControls();
+            return;
+        }
+        state.settings.viewMode = 'custom';
+        state.settings.rotation.y = parseInt(e.target.value, 10);
+        updatePreview();
+        updatePreviewTransform();
+    };
+    document.getElementById('rot-z-slider').oninput = (e) => {
+        if (!guardStandardSettingsMutation()) {
+            refreshSettingsControls();
+            return;
+        }
+        state.settings.viewMode = 'custom';
+        state.settings.rotation.z = parseInt(e.target.value, 10);
+        updatePreview();
+        updatePreviewTransform();
+    };
 
     document.querySelectorAll('.settings-reset-btn').forEach(btn => {
         btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
             state.settings.viewMode = 'custom';
             const resetTarget = btn.getAttribute('data-reset');
             if (resetTarget === 'rot-x') state.settings.rotation.x = DEFAULT_ROTATION.x;
@@ -12269,6 +12930,7 @@ function renderSettings(app) {
 
     document.querySelectorAll('.settings-preset-btn').forEach(btn => {
         btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
             const preset = btn.getAttribute('data-preset');
             state.settings.viewMode = 'custom';
             if (preset === 'front') {
@@ -12290,6 +12952,7 @@ function renderSettings(app) {
 
     document.querySelectorAll('.settings-view-btn').forEach(btn => {
         btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
             if (state.settings.fretboardViewAutoOrientation) return;
             const next = btn.getAttribute('data-view');
             setFretboardView(next);
@@ -12301,6 +12964,10 @@ function renderSettings(app) {
     const fretboardOrientationAuto = document.getElementById('fretboard-orientation-auto');
     if (fretboardOrientationAuto) {
         fretboardOrientationAuto.onchange = () => {
+            if (!guardStandardSettingsMutation()) {
+                fretboardOrientationAuto.checked = !!state.settings.fretboardViewAutoOrientation;
+                return;
+            }
             state.settings.fretboardViewAutoOrientation = fretboardOrientationAuto.checked;
             if (fretboardOrientationAuto.checked) {
                 applyFretboardViewFromOrientationIfAuto();
@@ -12310,30 +12977,35 @@ function renderSettings(app) {
         };
     }
 
-    document.getElementById('btn-settings-defaults').onclick = () => {
-        const quizSaved = state.settings.quizStageEditorSettings;
-        const quizProCustomStages = state.settings.quizProCustomStages;
-        const quizShippedVer = state.settings.quizShippedDefaultsAppliedVersion;
-        const quizAttempts = state.settings.quizStageAttemptCounts;
-        const cruiseClears = state.settings.cruiseStageClearCounts;
-        state.settings = getDefaultSettings();
-        // 指板クイズの問題編集データは「アプリ設定のデフォルト」と別物なので消さない
-        state.settings.quizStageEditorSettings =
-            quizSaved && typeof quizSaved === 'object' && !Array.isArray(quizSaved) ? quizSaved : {};
-        state.settings.quizProCustomStages =
-            Array.isArray(quizProCustomStages) ? quizProCustomStages : [];
-        if (quizShippedVer !== undefined && quizShippedVer !== null) {
-            state.settings.quizShippedDefaultsAppliedVersion = quizShippedVer;
-        }
-        // 挑戦回数・完走回数は「アプリ設定」とは別物（プレイ実績）なので残す
-        state.settings.quizStageAttemptCounts =
-            quizAttempts && typeof quizAttempts === 'object' && !Array.isArray(quizAttempts) ? quizAttempts : {};
-        state.settings.cruiseStageClearCounts =
-            cruiseClears && typeof cruiseClears === 'object' && !Array.isArray(cruiseClears) ? cruiseClears : {};
-        refreshSettingsControls();
-    };
+    const btnSettingsDefaults = document.getElementById('btn-settings-defaults');
+    if (btnSettingsDefaults) {
+        btnSettingsDefaults.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
+            const quizSaved = state.settings.quizStageEditorSettings;
+            const quizProCustomStages = state.settings.quizProCustomStages;
+            const quizShippedVer = state.settings.quizShippedDefaultsAppliedVersion;
+            const quizAttempts = state.settings.quizStageAttemptCounts;
+            const cruiseClears = state.settings.cruiseStageClearCounts;
+            state.settings = getDefaultSettings();
+            // 指板クイズの問題編集データは「アプリ設定のデフォルト」と別物なので消さない
+            state.settings.quizStageEditorSettings =
+                quizSaved && typeof quizSaved === 'object' && !Array.isArray(quizSaved) ? quizSaved : {};
+            state.settings.quizProCustomStages =
+                Array.isArray(quizProCustomStages) ? quizProCustomStages : [];
+            if (quizShippedVer !== undefined && quizShippedVer !== null) {
+                state.settings.quizShippedDefaultsAppliedVersion = quizShippedVer;
+            }
+            // 挑戦回数・完走回数は「アプリ設定」とは別物（プレイ実績）なので残す
+            state.settings.quizStageAttemptCounts =
+                quizAttempts && typeof quizAttempts === 'object' && !Array.isArray(quizAttempts) ? quizAttempts : {};
+            state.settings.cruiseStageClearCounts =
+                cruiseClears && typeof cruiseClears === 'object' && !Array.isArray(cruiseClears) ? cruiseClears : {};
+            refreshSettingsControls();
+        };
+    }
 
     function handleDragStart(e) {
+        if (!guardStandardSettingsMutation()) return;
         if (state.settings.fretboardView === 'zoom') return; // 拡大ビュー：カメラ操作不可
         isDragging = true;
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
