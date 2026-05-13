@@ -1,5 +1,5 @@
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '2.9.1';
+const PITCH_TRAINER_APP_VERSION = '2.9.2';
 
 // ─── [DEV] デバッグフラグ ────────────────────────────────────────────────────
 // true にするとSTAGE選択画面のクリア回数が常に100と表示される（localStorageは変更しない）
@@ -4088,9 +4088,16 @@ class Game {
         orderedIds.forEach((id, orderIndex) => {
             const c = this.stageConfig[id];
             if (!c || !c.pool) return;
+            // 外部ラッパー：.stage-row と同じ full-width 構造で .stage-clear-mark を絶対配置
+            // → _applyTestModeButtonStyle が .stage-row を見つけてバッジをボタン外側左に表示する
+            const outer = document.createElement('div');
+            outer.className = 'stage-row staging-pro-slot-outer';
+            outer.dataset.stagingSlotId = String(id);
+            const clearMark = document.createElement('span');
+            clearMark.className = 'stage-clear-mark';
+            outer.appendChild(clearMark);
             const row = document.createElement('div');
             row.className = 'staging-pro-slot-row';
-            row.dataset.stagingSlotId = String(id);
             const mainRow = document.createElement('div');
             mainRow.className = 'staging-slot-main-row';
             const btn = document.createElement('button');
@@ -4207,7 +4214,8 @@ class Game {
                 row.appendChild(bar);
             }
             row.appendChild(actions);
-            wrap.appendChild(row);
+            outer.appendChild(row);
+            wrap.appendChild(outer);
         });
         anchor.insertAdjacentElement('afterend', wrap);
         // テストモードのスタイル・バッジをカスタムSTAGEボタンに適用
@@ -4497,9 +4505,16 @@ class Game {
         orderedIds.forEach((id, orderIndex) => {
             const c = this.stageConfig[id];
             if (!c || !c.pool) return;
+            // 外部ラッパー：.stage-row と同じ full-width 構造で .stage-clear-mark を絶対配置
+            // → _applyTestModeButtonStyle が .stage-row を見つけてバッジをボタン外側左に表示する
+            const outer = document.createElement('div');
+            outer.className = 'stage-row staging-pro-slot-outer';
+            outer.dataset.stagingSlotId = String(id);
+            const clearMark = document.createElement('span');
+            clearMark.className = 'stage-clear-mark';
+            outer.appendChild(clearMark);
             const row = document.createElement('div');
             row.className = 'staging-pro-slot-row';
-            row.dataset.stagingSlotId = String(id);
             const mainRow = document.createElement('div');
             mainRow.className = 'staging-slot-main-row';
             const btn = document.createElement('button');
@@ -4616,7 +4631,8 @@ class Game {
                 row.appendChild(bar);
             }
             row.appendChild(actions);
-            wrap.appendChild(row);
+            outer.appendChild(row);
+            wrap.appendChild(outer);
         });
         anchor.insertAdjacentElement('afterend', wrap);
         // テストモードのスタイル・バッジをカスタムSTAGEボタンに適用

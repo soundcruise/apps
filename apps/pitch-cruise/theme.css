@@ -240,7 +240,7 @@ body.test-mode-enabled .btn-primary.test-mode-stage .stage-desc {
 body.test-mode-enabled .custom-stage-btn.test-mode-stage {
     background: linear-gradient(90deg, #ff8c00 0%, #ffc233 48%, #ffd700 100%) !important;
     color: #000 !important;
-    border: none !important;
+    border: 1px solid rgba(255, 51, 102, 0.62) !important;
     box-shadow: 0 4px 18px rgba(255, 140, 0, 0.42), 0 0 22px rgba(255, 200, 80, 0.32) !important;
 }
 
