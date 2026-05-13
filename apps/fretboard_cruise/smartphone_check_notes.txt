@@ -3,8 +3,12 @@
 確認用URL
 - Standard:
   https://soundcruise.github.io/apps/apps/fretboard_cruise/standard/
+- Standard (custom domain):
+  https://soundcruise.jp/apps/fretboard_cruise/standard/
 - Pro:
   https://soundcruise.github.io/apps/apps/fretboard_cruise/pro_a9f4k7q2m8z/
+- Pro (custom domain):
+  https://soundcruise.jp/apps/fretboard_cruise/pro_a9f4k7q2m8z/
 
 新しいPro版ディレクトリ名
 - pro_a9f4k7q2m8z
@@ -13,7 +17,7 @@
 - FRETBOARD_CRUISE_APP_VERSION: 1.138.1 -> 1.138.3
 - script.js 読み込みクエリ: ?v=1.138.1 -> ?v=1.138.3
 - theme.css 読み込みクエリ: ?v=346 -> ?v=347
-- manifest.json 読み込みクエリ: ?v=1.138.3
+- manifest.json 読み込みクエリ: Pro は ?v=proicon-20260514
 
 更新したファイル一覧
 - apps/fretboard_cruise/script.js
@@ -24,6 +28,8 @@
 - apps/fretboard_cruise/pro_a9f4k7q2m8z/manifest.json
 - apps/fretboard_cruise/pro_a9f4k7q2m8z/service-worker.js
 - apps/fretboard_cruise/generated-home-icons/final-selected-icon/fretboard-cruise-final-selection-180.png
+- apps/fretboard_cruise/generated-home-icons/final-selected-icon/fretboard-cruise-final-selection-192.png
+- apps/fretboard_cruise/generated-home-icons/final-selected-icon/fretboard-cruise-final-selection-512.png
 - apps/fretboard_cruise/staging/index.html
 - apps/fretboard_cruise/smartphone_check_notes.txt
 
@@ -33,17 +39,18 @@
 キャッシュ対策内容
 - Standard / Pro の index.html で script.js の読み込みクエリを 1.138.3 に更新。
 - Standard / Pro の index.html で theme.css の読み込みクエリを 347 に更新。
-- Standard / Pro の index.html で manifest.json の読み込みクエリを 1.138.3 に更新。
+- Pro の index.html で manifest.json と apple-touch-icon のクエリを proicon-20260514 に更新。
 - theme.css の中身は変更していない。
 - Standard の service worker キャッシュ名を fretboard-cruise-standard-v1.138.3 に更新。
 - Pro の service worker キャッシュ名を fretboard-cruise-pro-v1.138.3 に更新。
 - service worker は install 時に skipWaiting、activate 時に既存キャッシュ削除と clients.claim を行うため、更新バーまたはページ更新で最新版へ切り替わる想定。
 
 PWAアイコン
-- Standard / Pro とも同じ最終選定アイコンを使用。
-- apple-touch-icon: generated-home-icons/final-selected-icon/fretboard-cruise-final-selection-180.png
-- manifest 192px: generated-home-icons/final-selected-icon/fretboard-cruise-final-selection-192.png
-- manifest 512px: generated-home-icons/final-selected-icon/fretboard-cruise-final-selection-512.png
+- Standard は既存の `icon_pwa_192.png` / `icon_pwa_512.png` を継続。
+- Pro は `generated-home-icons/final-selected-icon` の新画像を使用。
+- apple-touch-icon: `fretboard-cruise-final-selection-180.png`
+- manifest 192px: `fretboard-cruise-final-selection-192.png`
+- manifest 512px: `fretboard-cruise-final-selection-512.png`
 - manifest では any と maskable を分けて登録。
 - 画像は正方形のまま書き出し、縦横比は変更していない。
 
