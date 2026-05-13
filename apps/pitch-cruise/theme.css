@@ -540,9 +540,11 @@ body.test-mode-enabled .stage-clear-mark {
 }
 
 /* クリア画面自体に position: relative が必要（confetti の絶対配置の基準） */
+/* overflow-x:hidden で confetti の横はみ出しをクリップ、overflow-y:auto でボタンまでスクロール可能にする */
 #screen-test-mode-clear.modal {
     position: relative;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
 /* confetti ラッパー（absolute でクリア画面全体に重ねる） */
