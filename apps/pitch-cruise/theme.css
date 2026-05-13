@@ -12,53 +12,118 @@
     --error-color: #ff3366;
     /* 右下「Ver＋ページを更新」とホーム等のモーダルが重ならないよう確保（特に iOS Safari） */
     --in-game-refresh-stack-height: 96px;
+    /* テストモード専用カラー */
+    --tm-red: #ff3366;
+    --tm-red-glow: rgba(255, 51, 102, 0.45);
+    --tm-red-dim: rgba(255, 51, 102, 0.2);
 }
 
-/* ─── Test Mode ────────────────────────────────────────── */
+
+/* ═══════════════════════════════════════════════════════════
+   TEST MODE ステータスバー（問題画面上部）
+═══════════════════════════════════════════════════════════ */
 
 .test-mode-status-bar {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 12px;
-    padding: 6px 16px;
-    background: rgba(255, 51, 102, 0.15);
-    border: 1px solid rgba(255, 51, 102, 0.35);
-    border-radius: 8px;
-    margin: 8px 0;
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, rgba(100, 0, 25, 0.95) 0%, rgba(50, 0, 12, 0.98) 100%);
+    border: 1px solid rgba(255, 51, 102, 0.55);
+    border-radius: 10px;
+    margin: 6px 0 10px;
+    box-shadow:
+        0 0 18px rgba(255, 51, 102, 0.22),
+        inset 0 1px 0 rgba(255, 120, 150, 0.18);
 }
 
 .test-mode-status-bar.hidden {
     display: none;
 }
 
-.test-mode-label {
-    color: #ff3366;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    font-size: 0.75rem;
+/* アクティブ時 — 心拍パルス */
+body.test-mode-active .test-mode-status-bar {
+    animation: tm-heartbeat 2.4s ease-in-out infinite;
 }
 
+@keyframes tm-heartbeat {
+    0%,  100% { box-shadow: 0 0 14px rgba(255, 51, 102, 0.20), inset 0 1px 0 rgba(255, 120, 150, 0.15); }
+    38%       { box-shadow: 0 0 26px rgba(255, 51, 102, 0.48), inset 0 1px 0 rgba(255, 120, 150, 0.25); }
+    55%       { box-shadow: 0 0 16px rgba(255, 51, 102, 0.28), inset 0 1px 0 rgba(255, 120, 150, 0.18); }
+    72%       { box-shadow: 0 0 32px rgba(255, 51, 102, 0.58), inset 0 1px 0 rgba(255, 120, 150, 0.28); }
+}
+
+/* ── ラベル「TEST MODE」 */
+.test-mode-label {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    color: var(--tm-red);
+    text-transform: uppercase;
+    white-space: nowrap;
+    flex-shrink: 0;
+    text-shadow: 0 0 8px rgba(255, 51, 102, 0.7);
+}
+
+/* ── 進捗「0 / 20」 */
+#test-mode-progress {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #fff;
+    flex: 1;
+    text-align: center;
+    letter-spacing: 0.04em;
+}
+
+/* ── タイマー */
 .test-mode-timer {
+    font-size: 0.88rem;
     font-variant-numeric: tabular-nums;
-    min-width: 3.5ch;
+    font-weight: 700;
+    min-width: 4.5ch;
     text-align: right;
+    color: rgba(255, 255, 255, 0.75);
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .test-mode-timer.urgent {
-    color: #ff3366;
-    animation: test-timer-pulse 0.45s ease-in-out infinite alternate;
+    color: var(--tm-red);
+    text-shadow: 0 0 10px rgba(255, 51, 102, 0.8);
+    animation: tm-timer-pulse 0.38s ease-in-out infinite alternate;
 }
 
-@keyframes test-timer-pulse {
-    from { opacity: 1; }
-    to   { opacity: 0.35; }
+@keyframes tm-timer-pulse {
+    from { opacity: 1;   transform: scale(1);    }
+    to   { opacity: 0.3; transform: scale(1.06); }
 }
 
-/* Disable action buttons while test is active */
+
+/* ═══════════════════════════════════════════════════════════
+   BODY.TEST-MODE-ACTIVE — 全体的な検定演出
+═══════════════════════════════════════════════════════════ */
+
+/* 背景グロー演出：底辺と天頂から赤みが漂う */
+body.test-mode-active::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+        radial-gradient(ellipse 80% 45% at 50% 105%, rgba(120, 0, 30, 0.22) 0%, transparent 65%),
+        radial-gradient(ellipse 60% 30% at 50% -5%,  rgba(100, 0, 20, 0.12) 0%, transparent 60%);
+    animation: tm-bg-breathe 3.2s ease-in-out infinite;
+}
+
+@keyframes tm-bg-breathe {
+    0%,  100% { opacity: 0.65; }
+    50%       { opacity: 1;    }
+}
+
+/* ── 無効ボタン（問題・ド・音階・設定）: 封印感 ────────── */
+
 body.test-mode-active #replay-btn,
 body.test-mode-active #tonic-btn,
 body.test-mode-active #scale-btn,
@@ -66,39 +131,145 @@ body.test-mode-active #settings-btn,
 body.test-mode-active #home-settings-btn,
 body.test-mode-active #melody-settings-btn,
 body.test-mode-active #chord-settings-btn {
-    opacity: 0.3;
+    opacity: 0.22;
     pointer-events: none;
+    filter: grayscale(0.7) saturate(0.2);
 }
+
+/* 南京錠アイコンを右上に添える */
+body.test-mode-active #replay-btn,
+body.test-mode-active #tonic-btn,
+body.test-mode-active #scale-btn {
+    position: relative;
+    overflow: visible;
+}
+
+body.test-mode-active #replay-btn::after,
+body.test-mode-active #tonic-btn::after,
+body.test-mode-active #scale-btn::after {
+    content: '🔒';
+    position: absolute;
+    top: -5px;
+    right: -6px;
+    font-size: 0.58rem;
+    line-height: 1;
+    pointer-events: none;
+    opacity: 0.9;
+}
+
+/* ── 回答トグル: LOCK感 ────────────────────────────────── */
 
 body.test-mode-active .answer-toggle-label {
-    opacity: 0.4;
+    opacity: 0.5 !important;
+    pointer-events: none !important;
+    border-color: rgba(255, 51, 102, 0.35) !important;
+    background: rgba(255, 51, 102, 0.06) !important;
+    position: relative;
+}
+
+body.test-mode-active .answer-toggle-label::after {
+    content: '🔒 検定中';
+    position: absolute;
+    top: calc(100% + 6px);   /* 上ではなく下に表示 → 回答ボタンと重ならない */
+    bottom: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: rgba(255, 110, 140, 0.9);
+    white-space: nowrap;
+    background: rgba(30, 0, 8, 0.92);
+    border: 1px solid rgba(255, 51, 102, 0.35);
+    border-radius: 6px;
+    padding: 3px 9px;
     pointer-events: none;
 }
 
-/* Stage button red tint when test mode is enabled */
+
+/* ═══════════════════════════════════════════════════════════
+   STAGE 選択画面 — テストモード ON 時のスタイル
+═══════════════════════════════════════════════════════════ */
+
+/* Stage ボタン本体 */
 body.test-mode-enabled .btn-primary.test-mode-stage {
-    border: 2px solid rgba(255, 51, 102, 0.5);
-    background: linear-gradient(135deg, rgba(255, 51, 102, 0.14), rgba(255, 51, 102, 0.07));
+    background: linear-gradient(
+        145deg,
+        #1e0008  0%,
+        #3a0010  40%,
+        #2a000c  70%,
+        #150005  100%
+    );
+    color: #fff;
+    border: 1px solid rgba(255, 51, 102, 0.62);
+    box-shadow:
+        0 0 14px rgba(255, 51, 102, 0.18),
+        inset 0 1px 0 rgba(255, 110, 140, 0.18);
 }
 
-/* Clear count badge on stage buttons */
+@media (hover: hover) {
+    body.test-mode-enabled .btn-primary.test-mode-stage:hover {
+        background: linear-gradient(
+            145deg,
+            #2a000c  0%,
+            #520018  40%,
+            #3a000e  70%,
+            #1e0008  100%
+        );
+        border-color: rgba(255, 51, 102, 0.9);
+        box-shadow:
+            0 0 24px rgba(255, 51, 102, 0.42),
+            0 6px 20px rgba(0, 0, 0, 0.45),
+            inset 0 1px 0 rgba(255, 130, 155, 0.22);
+        transform: translateY(-2px);
+    }
+}
+
+body.test-mode-enabled .btn-primary.test-mode-stage:active {
+    transform: translateY(0) scale(0.965);
+    box-shadow: 0 0 12px rgba(255, 51, 102, 0.5), inset 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+/* stage-desc（ステージ説明文）を明るく */
+body.test-mode-enabled .btn-primary.test-mode-stage .stage-desc {
+    color: rgba(255, 195, 210, 0.72);
+    opacity: 1;
+}
+
+/* カスタム Pro ボタンは壊さない */
+body.test-mode-enabled .custom-stage-btn.test-mode-stage {
+    background: linear-gradient(90deg, #ff8c00 0%, #ffc233 48%, #ffd700 100%) !important;
+    color: #000 !important;
+    border: none !important;
+    box-shadow: 0 4px 18px rgba(255, 140, 0, 0.42), 0 0 22px rgba(255, 200, 80, 0.32) !important;
+}
+
+/* ── クリア回数バッジ ─────────────────────────────────── */
+
 .test-mode-clear-badge {
     display: inline-flex;
     align-items: center;
-    gap: 2px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: rgba(0, 255, 136, 0.15);
-    border: 1px solid rgba(0, 255, 136, 0.35);
-    color: #00ff88;
-    margin-left: 6px;
+    gap: 3px;
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    padding: 3px 9px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, rgba(255, 51, 102, 0.22), rgba(140, 0, 40, 0.18));
+    border: 1px solid rgba(255, 80, 120, 0.52);
+    color: #ff9ab8;
+    margin-left: 8px;
     vertical-align: middle;
     line-height: 1.4;
+    flex-shrink: 0;
+    box-shadow: 0 0 6px rgba(255, 51, 102, 0.2);
 }
 
-/* Result screens (clear / failure) — appended as .modal inside #overlay */
+
+/* ═══════════════════════════════════════════════════════════
+   クリア画面・失敗画面
+═══════════════════════════════════════════════════════════ */
+
 .test-mode-result-screen {
     text-align: center;
     padding: 8px 0 4px;
@@ -118,12 +289,13 @@ body.test-mode-enabled .btn-primary.test-mode-stage {
 
 .test-mode-clear-screen .test-mode-result-title {
     color: #00ff88;
+    text-shadow: 0 0 16px rgba(0, 255, 136, 0.5);
 }
 
 .test-mode-result-msg {
     font-size: 0.88rem;
     color: rgba(255, 255, 255, 0.7);
-    line-height: 1.6;
+    line-height: 1.65;
     margin: 0 0 16px;
 }
 
@@ -134,20 +306,40 @@ body.test-mode-enabled .btn-primary.test-mode-stage {
     margin: 0 0 20px;
 }
 
+/* 失敗タイトル — failedAt の区分ごとに色分け */
 .test-mode-failure-heading {
-    font-size: 1.5rem;
+    font-size: 1.35rem;
     font-weight: 800;
-    color: #ff3366;
-    margin: 0 0 8px;
+    margin: 0 0 10px;
+}
+
+/* 0〜5問: 橙 */
+.tm-fail-phase-0 .test-mode-failure-heading {
+    color: rgba(255, 165, 95, 0.95);
+}
+/* 6〜10問: 黄 */
+.tm-fail-phase-1 .test-mode-failure-heading {
+    color: #f0c840;
+    text-shadow: 0 0 8px rgba(240, 200, 64, 0.3);
+}
+/* 11〜15問: 赤橙 */
+.tm-fail-phase-2 .test-mode-failure-heading {
+    color: #f07050;
+    text-shadow: 0 0 8px rgba(240, 112, 80, 0.35);
+}
+/* 16〜19問: 赤グロー */
+.tm-fail-phase-3 .test-mode-failure-heading {
+    color: var(--tm-red);
+    text-shadow: 0 0 12px rgba(255, 51, 102, 0.5);
 }
 
 .test-mode-fail-stats {
     display: flex;
     justify-content: center;
-    gap: 16px;
-    font-size: 0.82rem;
-    color: rgba(255, 255, 255, 0.55);
-    margin-bottom: 20px;
+    gap: 18px;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin-bottom: 22px;
 }
 
 .test-mode-result-actions {
@@ -161,7 +353,11 @@ body.test-mode-enabled .btn-primary.test-mode-stage {
     width: 100%;
 }
 
-/* Abort confirm modal — appended to body */
+
+/* ═══════════════════════════════════════════════════════════
+   中断確認モーダル
+═══════════════════════════════════════════════════════════ */
+
 .test-mode-abort-modal {
     position: fixed;
     inset: 0;
@@ -169,31 +365,35 @@ body.test-mode-enabled .btn-primary.test-mode-stage {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.75);
+    background: rgba(0, 0, 0, 0.78);
+    backdrop-filter: blur(2px);
 }
 
 .test-mode-abort-content {
     width: min(88vw, 340px);
-    background: #1e1e1e;
-    border: 1px solid rgba(255, 51, 102, 0.35);
+    background: #1e0008;
+    border: 1px solid rgba(255, 51, 102, 0.45);
     border-radius: 16px;
-    padding: 24px 20px;
+    padding: 26px 22px;
     text-align: center;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+    box-shadow:
+        0 16px 48px rgba(0, 0, 0, 0.6),
+        0 0 30px rgba(255, 51, 102, 0.15);
 }
 
 .test-mode-abort-title {
     font-size: 1.1rem;
     font-weight: 700;
-    color: #ff3366;
+    color: var(--tm-red);
     margin: 0 0 10px;
+    text-shadow: 0 0 8px rgba(255, 51, 102, 0.5);
 }
 
 .test-mode-abort-desc {
     font-size: 0.88rem;
-    color: rgba(255, 255, 255, 0.65);
-    line-height: 1.5;
-    margin: 0 0 20px;
+    color: rgba(255, 255, 255, 0.62);
+    line-height: 1.55;
+    margin: 0 0 22px;
 }
 
 .test-mode-abort-actions {
@@ -203,4 +403,158 @@ body.test-mode-enabled .btn-primary.test-mode-stage {
 
 .test-mode-abort-actions button {
     flex: 1;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   STAGE 選択 — .stage-row レイアウト
+═══════════════════════════════════════════════════════════ */
+
+/* 行コンテナ：幅100%確保 → ボタンを中央揃え / クリアマークは absolute で浮かせる */
+.stage-row {
+    position: relative;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* クリアマーク：.stage-row の左端に absolute 配置（ボタンのレイアウトに影響しない） */
+.stage-clear-mark {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    white-space: nowrap;
+    /* 常にスタイルを持つ・スペースは absolute なので flow に影響なし */
+    /* デフォルト非表示は visibility: hidden で（display: none より確実） */
+    visibility: hidden;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    line-height: 1;
+    padding: 3px 6px;
+    border-radius: 10px;
+    border: 1px solid rgba(0, 255, 136, 0.45);
+    background: rgba(0, 0, 0, 0.5);
+    color: rgba(0, 255, 136, 0.85);
+    box-shadow: 0 0 5px rgba(0, 255, 136, 0.15);
+}
+
+/* クリア済み行 → マーク表示 */
+.stage-row.cleared .stage-clear-mark {
+    visibility: visible;
+}
+
+/* テストモードON 時はピンク系に切り替え */
+body.test-mode-enabled .stage-clear-mark {
+    border-color: rgba(255, 80, 120, 0.5);
+    background: rgba(0, 0, 0, 0.5);
+    color: rgba(255, 160, 185, 0.9);
+    box-shadow: 0 0 5px rgba(255, 51, 102, 0.15);
+}
+
+/* Pro カスタムSTAGEはゴールド系（フォールバック用 .test-mode-clear-badge） */
+.test-mode-clear-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.66rem;
+    font-weight: 800;
+    padding: 3px 7px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 200, 80, 0.5);
+    background: rgba(0, 0, 0, 0.5);
+    color: rgba(255, 210, 100, 0.9);
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+/* メロディのみ：ボタン内テキストを1行固定（コード音感は変えない） */
+#screen-melody .stage-row > .btn-primary {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   クリア画面 — STAGE名 / タイトルアニメ / confetti
+═══════════════════════════════════════════════════════════ */
+
+/* STAGE名ラベル */
+.tm-clear-stage-name {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(0, 255, 136, 0.7);
+    margin: 0 0 2px;
+}
+
+/* STAGE説明文 */
+.tm-clear-stage-desc {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.9);
+    margin: 0 0 10px;
+    letter-spacing: 0.02em;
+}
+
+/* アイコン（🎉）バウンスイン */
+.tm-clear-icon-animate {
+    display: block;
+    animation: tm-clear-icon-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    margin-bottom: 8px;
+}
+
+@keyframes tm-clear-icon-in {
+    from { transform: scale(0.2) rotate(-20deg); opacity: 0; }
+    to   { transform: scale(1)   rotate(0deg);   opacity: 1; }
+}
+
+/* タイトル（CLEAR!）スケール＋グロー */
+.tm-clear-title-animate {
+    animation: tm-clear-title-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
+    color: #00ff88 !important;
+    text-shadow: 0 0 20px rgba(0, 255, 136, 0.6), 0 0 40px rgba(0, 255, 136, 0.3) !important;
+}
+
+@keyframes tm-clear-title-in {
+    from { transform: scale(0.6); opacity: 0; filter: blur(6px); }
+    to   { transform: scale(1);   opacity: 1; filter: blur(0);   }
+}
+
+/* クリア画面自体に position: relative が必要（confetti の絶対配置の基準） */
+#screen-test-mode-clear.modal {
+    position: relative;
+    overflow: hidden;
+}
+
+/* confetti ラッパー（absolute でクリア画面全体に重ねる） */
+.tm-confetti-wrap {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 10;
+}
+
+/* 個々の紙片 */
+.tm-confetti-piece {
+    position: absolute;
+    top: -12px;
+    border-radius: 2px;
+    opacity: 0;
+    animation: tm-confetti-fall linear forwards;
+}
+
+@keyframes tm-confetti-fall {
+    0%   { transform: translateY(0)   rotate(0deg)   scaleX(1);   opacity: 1; }
+    60%  { opacity: 1; }
+    80%  { transform: translateY(55vh) rotate(540deg) scaleX(-1);  opacity: 0.6; }
+    100% { transform: translateY(80vh) rotate(720deg) scaleX(1);   opacity: 0; }
 }

@@ -1,5 +1,5 @@
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '2.4.0';
+const PITCH_TRAINER_APP_VERSION = '2.7.0';
 
 /** 検証ハブ（Staging）の Ver 表記の括弧内。小さな更新は原則ここだけ増やす（版番号の変更は別指示時のみ） */
 const PITCH_TRAINER_APP_BUILD = '43';
@@ -324,14 +324,22 @@ function showTestModeClearScreen(game, stageId, clearCount) {
     const nextBtnHTML = nextId ? '<button class="btn-primary tm-clear-next">次のSTAGEへ</button>' : '';
     const countText = clearCount > 0 ? '<p class="test-mode-clear-count">クリア回数：' + clearCount + '回目</p>' : '';
 
+    // STAGE名・説明文を stageConfig から取得
+    const cfg = game.stageConfig[stageId] || {};
+    const stageLabel = cfg.label || ('STAGE ' + stageId);
+    const stageDesc  = cfg.description || '';
+    const stageHeaderHTML = '<p class="tm-clear-stage-name">' + stageLabel + '</p>' +
+        (stageDesc ? '<p class="tm-clear-stage-desc">' + stageDesc + '</p>' : '');
+
     const screen = document.createElement('div');
     screen.id = 'screen-test-mode-clear';
     screen.className = 'modal';
     screen.innerHTML = '<div class="test-mode-result-screen test-mode-clear-screen">' +
-        '<div class="test-mode-result-icon">🏁</div>' +
-        '<h2 class="test-mode-result-title">STAGE CLEAR!</h2>' +
-        '<p class="test-mode-result-msg">' + TEST_MODE_REQUIRED_CORRECT + '問連続正解！<br>' +
-        'このSTAGEの音の動きが、かなり耳に入ってきています。</p>' +
+        '<div class="test-mode-result-icon tm-clear-icon-animate">🎉</div>' +
+        stageHeaderHTML +
+        '<h2 class="test-mode-result-title tm-clear-title-animate">CLEAR!</h2>' +
+        '<p class="test-mode-result-msg">' + TEST_MODE_REQUIRED_CORRECT + '問連続正解達成！<br>' +
+        'このSTAGEの音の動きが、<br>かなり耳に入ってきています。</p>' +
         countText +
         '<div class="test-mode-result-actions">' +
         '<button class="btn-primary tm-clear-retry">もう1回挑戦する</button>' +
@@ -341,6 +349,10 @@ function showTestModeClearScreen(game, stageId, clearCount) {
 
     overlay.classList.remove('hidden');
     overlay.appendChild(screen);
+
+    // 紙吹雪 & ファンファーレ（一度だけ）
+    _launchConfetti(screen);
+    _playFanfare();
 
     screen.querySelector('.tm-clear-retry')?.addEventListener('click', () => {
         screen.remove(); overlay.classList.add('hidden'); game.startGame(stageId);
@@ -354,6 +366,75 @@ function showTestModeClearScreen(game, stageId, clearCount) {
     });
 }
 
+/** テストモードクリア時のファンファーレ音（C→E→G→高C アルペジオ, Web Audio API） */
+function _playFanfare() {
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        // アルペジオ：C4→E4→G4→C5（各 0.18s）
+        const notes = [
+            { freq: 261.63, start: 0.00, dur: 0.22 },
+            { freq: 329.63, start: 0.18, dur: 0.22 },
+            { freq: 392.00, start: 0.36, dur: 0.22 },
+            { freq: 523.25, start: 0.54, dur: 0.40 },
+        ];
+        const masterGain = ctx.createGain();
+        masterGain.gain.setValueAtTime(0.28, ctx.currentTime);
+        masterGain.connect(ctx.destination);
+        notes.forEach(({ freq, start, dur }) => {
+            const osc = ctx.createOscillator();
+            const env = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime);
+            env.gain.setValueAtTime(0, ctx.currentTime + start);
+            env.gain.linearRampToValueAtTime(1, ctx.currentTime + start + 0.02);
+            env.gain.setValueAtTime(1, ctx.currentTime + start + dur - 0.06);
+            env.gain.linearRampToValueAtTime(0, ctx.currentTime + start + dur);
+            osc.connect(env);
+            env.connect(masterGain);
+            osc.start(ctx.currentTime + start);
+            osc.stop(ctx.currentTime + start + dur + 0.01);
+        });
+        // 再生終了後にコンテキストを閉じてメモリ解放
+        setTimeout(() => { try { ctx.close(); } catch (_) {} }, 1200);
+    } catch (_) { /* AudioContext 非対応環境では無視 */ }
+}
+
+/** 軽量 confetti：CSS アニメーションのみで紙吹雪を 2.5 秒再生して自動削除 */
+function _launchConfetti(container) {
+    const COUNT = 38;
+    const COLORS = ['#00ff88', '#00d2ff', '#ff3366', '#ffd700', '#ff69b4', '#a78bfa', '#ffffff'];
+    const wrapper = document.createElement('div');
+    wrapper.className = 'tm-confetti-wrap';
+    wrapper.setAttribute('aria-hidden', 'true');
+
+    for (let i = 0; i < COUNT; i++) {
+        const p = document.createElement('span');
+        p.className = 'tm-confetti-piece';
+        const color = COLORS[i % COLORS.length];
+        const left  = (Math.random() * 100).toFixed(1);
+        const delay = (Math.random() * 0.8).toFixed(2);
+        const dur   = (1.8 + Math.random() * 0.8).toFixed(2);
+        const size  = (6 + Math.random() * 6).toFixed(1);
+        const rot   = Math.floor(Math.random() * 360);
+        p.style.cssText = [
+            'left:' + left + '%',
+            'background:' + color,
+            'animation-delay:' + delay + 's',
+            'animation-duration:' + dur + 's',
+            'width:' + size + 'px',
+            'height:' + (size * (0.4 + Math.random() * 0.4)).toFixed(1) + 'px',
+            'transform:rotate(' + rot + 'deg)'
+        ].join(';');
+        wrapper.appendChild(p);
+    }
+
+    container.insertBefore(wrapper, container.firstChild);
+    // 2.8秒後に DOM から削除（アニメーション完了後）
+    setTimeout(() => { wrapper.remove(); }, 2800);
+}
+
 function showTestModeFailureScreen(game, stageId, failedAt, reason) {
     const overlay = document.getElementById('overlay');
     if (!overlay) return;
@@ -365,14 +446,37 @@ function showTestModeFailureScreen(game, stageId, failedAt, reason) {
     const reasonText = reason === 'timeout' ? '時間切れ' : '回答ミス';
     const problemNum = failedAt + 1;
 
+    // failedAt（連続正解数）でフェーズを分岐
+    let phaseClass, failTitle, failMsg;
+    if (failedAt <= 5) {
+        phaseClass = 'tm-fail-phase-0';
+        failTitle  = 'まずはここから！';
+        failMsg    = '最初の数問で止まるのは、<br>耳がまだこのSTAGEの音に慣れている途中です。<br><br>' +
+                     '練習モードで音の動きを確認してから、<br>もう一度挑戦してみましょう。';
+    } else if (failedAt <= 10) {
+        phaseClass = 'tm-fail-phase-1';
+        failTitle  = 'いい感じです！';
+        failMsg    = '半分近くまで聴き分けられています。<br><br>' +
+                     'あと少し安定すれば、<br>クリアが見えてきます。';
+    } else if (failedAt <= 15) {
+        phaseClass = 'tm-fail-phase-2';
+        failTitle  = 'かなり惜しい！';
+        failMsg    = 'ここまで連続で聴き分けられているので、<br>耳はしっかり育っています。<br><br>' +
+                     '次は後半の集中力を意識してみましょう。';
+    } else {
+        phaseClass = 'tm-fail-phase-3';
+        failTitle  = '本当にあと少し！';
+        failMsg    = 'クリア目前まで来ています。<br><br>' +
+                     'ここまで来られたなら、<br>もう突破できる力はあります。';
+    }
+
     const screen = document.createElement('div');
     screen.id = 'screen-test-mode-failure';
     screen.className = 'modal';
-    screen.innerHTML = '<div class="test-mode-result-screen test-mode-failure-screen">' +
-        '<p class="test-mode-failure-heading">あと少し！</p>' +
+    screen.innerHTML = '<div class="test-mode-result-screen test-mode-failure-screen ' + phaseClass + '">' +
+        '<p class="test-mode-failure-heading">' + failTitle + '</p>' +
         '<p class="test-mode-result-msg">今回は <strong>' + problemNum + '問目</strong> でストップしました。<br>' +
-        'ここまで連続で聴き分けられているので、耳はちゃんと育っています。<br><br>' +
-        'もう一度、同じSTAGEに挑戦してみましょう。</p>' +
+        failMsg + '</p>' +
         '<div class="test-mode-fail-stats">' +
         '<span>連続正解：' + failedAt + '問</span>' +
         '<span>失敗理由：' + reasonText + '</span>' +
@@ -445,15 +549,33 @@ function updateTestModeStageButtons(game) {
 }
 
 function _applyTestModeButtonStyle(btn, category, stageKey, results, isEnabled) {
+    // ボタン内の旧バッジは常に除去（後方互換）
     btn.querySelectorAll('.test-mode-clear-badge').forEach(el => el.remove());
     btn.classList.toggle('test-mode-stage', isEnabled);
 
     const catResults = results[category] || {};
     const stageResult = catResults[stageKey];
-    if (stageResult && stageResult.clearCount > 0) {
+    const count = (stageResult && stageResult.clearCount > 0) ? stageResult.clearCount : 0;
+
+    // .stage-row 構造がある場合 → 外側マーク方式
+    const row = btn.closest('.stage-row');
+    if (row) {
+        const mark = row.querySelector('.stage-clear-mark');
+        if (count > 0) {
+            row.classList.add('cleared');
+            if (mark) mark.textContent = '✓' + count;
+        } else {
+            row.classList.remove('cleared');
+            if (mark) mark.textContent = '';
+        }
+        return;
+    }
+
+    // フォールバック：Pro カスタムSTAGEなど .stage-row がない場合
+    if (count > 0) {
         const badge = document.createElement('span');
         badge.className = 'test-mode-clear-badge';
-        badge.textContent = '🏁' + stageResult.clearCount;
+        badge.textContent = '✓' + count;
         btn.appendChild(badge);
     }
 }
