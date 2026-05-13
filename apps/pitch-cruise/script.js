@@ -1,10 +1,15 @@
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '2.9.0';
+const PITCH_TRAINER_APP_VERSION = '2.9.1';
 
 // ─── [DEV] デバッグフラグ ────────────────────────────────────────────────────
 // true にするとSTAGE選択画面のクリア回数が常に100と表示される（localStorageは変更しない）
 // ✓100 の表示崩れ確認用。確認後は false に戻してコミットすること
 const DEBUG_FORCE_TEST_CLEAR_COUNT_100 = true;
+
+// [DEV] PRO版レイアウト確認用の一時フラグ
+// true のとき PRO版のメロディ・コード選択画面にダミーPROステージと「✓100」バッジを表示する
+// localStorageは変更しない。確認後は false にするか定数ごと削除すること
+const DEBUG_FORCE_PRO_STAGE_BADGE_100 = true;
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── テストモード New バッジ既読管理 ────────────────────────────────────────
@@ -616,6 +621,15 @@ function updateTestModeStageButtons(game) {
     for (let i = 101; i <= 106; i++) {
         const btn = document.querySelector('[data-stage="' + i + '"]:not(.custom-stage-btn)');
         if (btn) _applyTestModeButtonStyle(btn, 'chord', 'stage-' + i, results, isEnabled);
+    }
+    // [DEV] デバッグダミーPROステージのスタイルも更新（PRO版のみ存在）
+    if (DEBUG_FORCE_PRO_STAGE_BADGE_100) {
+        document.querySelectorAll('.debug-pro-dummy-melody-btn').forEach(btn => {
+            _applyTestModeButtonStyle(btn, 'melody', 'custom-5001', results, isEnabled);
+        });
+        document.querySelectorAll('.debug-pro-dummy-chord-btn').forEach(btn => {
+            _applyTestModeButtonStyle(btn, 'chord', 'custom-5101', results, isEnabled);
+        });
     }
 }
 
@@ -4221,6 +4235,27 @@ class Game {
             footer.appendChild(modeBtn);
             wrap.insertAdjacentElement('afterend', footer);
         }
+        // [DEV] PRO版レイアウト確認用ダミーPROステージを注入（.staging-pro-slot-dynamic クラスで再レンダリング時に自動削除）
+        if (DEBUG_FORCE_PRO_STAGE_BADGE_100) {
+            const dbgWrap = document.createElement('div');
+            dbgWrap.className = 'staging-pro-slot-dynamic debug-pro-dummy-melody-wrap';
+            const dbgRow = document.createElement('div');
+            dbgRow.className = 'stage-row debug-pro-dummy-row debug-pro-dummy-melody-row';
+            const dbgMark = document.createElement('span');
+            dbgMark.className = 'stage-clear-mark';
+            dbgRow.appendChild(dbgMark);
+            const dbgBtn = document.createElement('button');
+            dbgBtn.type = 'button';
+            dbgBtn.className = 'btn-primary custom-stage-btn pro-stage-teaser debug-pro-dummy-melody-btn';
+            dbgBtn.innerHTML = 'PRO STAGE<br><span class="stage-desc">カスタムメロディ確認用 ドレミファソラシド</span>';
+            dbgBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
+            dbgRow.appendChild(dbgBtn);
+            dbgWrap.appendChild(dbgRow);
+            const melodyFooter = document.getElementById('staging-melody-reorder-footer');
+            (melodyFooter || wrap).insertAdjacentElement('afterend', dbgWrap);
+            const dbgResults = loadTestModeResults();
+            _applyTestModeButtonStyle(dbgBtn, 'melody', 'custom-5001', dbgResults, testModeState.enabled);
+        }
     }
 
     /** Staging: 保存済みコードスロットの Pro 設定を開く（STAGE選択から） */
@@ -4608,6 +4643,27 @@ class Game {
             });
             footer.appendChild(modeBtn);
             wrap.insertAdjacentElement('afterend', footer);
+        }
+        // [DEV] PRO版レイアウト確認用ダミーPROステージを注入（.staging-pro-chord-slot-dynamic クラスで再レンダリング時に自動削除）
+        if (DEBUG_FORCE_PRO_STAGE_BADGE_100) {
+            const dbgWrap = document.createElement('div');
+            dbgWrap.className = 'staging-pro-chord-slot-dynamic debug-pro-dummy-chord-wrap';
+            const dbgRow = document.createElement('div');
+            dbgRow.className = 'stage-row debug-pro-dummy-row debug-pro-dummy-chord-row';
+            const dbgMark = document.createElement('span');
+            dbgMark.className = 'stage-clear-mark';
+            dbgRow.appendChild(dbgMark);
+            const dbgBtn = document.createElement('button');
+            dbgBtn.type = 'button';
+            dbgBtn.className = 'btn-primary custom-stage-btn pro-stage-teaser debug-pro-dummy-chord-btn';
+            dbgBtn.innerHTML = 'PRO STAGE<br><span class="stage-desc">カスタムコード確認用<br>C, Dm, Em, F, G, Am, Bdim</span>';
+            dbgBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
+            dbgRow.appendChild(dbgBtn);
+            dbgWrap.appendChild(dbgRow);
+            const chordFooter = document.getElementById('staging-chord-reorder-footer');
+            (chordFooter || wrap).insertAdjacentElement('afterend', dbgWrap);
+            const dbgResults = loadTestModeResults();
+            _applyTestModeButtonStyle(dbgBtn, 'chord', 'custom-5101', dbgResults, testModeState.enabled);
         }
     }
 
