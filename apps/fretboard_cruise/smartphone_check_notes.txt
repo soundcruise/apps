@@ -10,17 +10,20 @@
 - pro_a9f4k7q2m8z
 
 更新したバージョン番号
-- FRETBOARD_CRUISE_APP_VERSION: 1.138.1 -> 1.138.2
-- script.js 読み込みクエリ: ?v=1.138.1 -> ?v=1.138.2
+- FRETBOARD_CRUISE_APP_VERSION: 1.138.1 -> 1.138.3
+- script.js 読み込みクエリ: ?v=1.138.1 -> ?v=1.138.3
 - theme.css 読み込みクエリ: ?v=346 -> ?v=347
+- manifest.json 読み込みクエリ: ?v=1.138.3
 
 更新したファイル一覧
 - apps/fretboard_cruise/script.js
 - apps/fretboard_cruise/standard/index.html
+- apps/fretboard_cruise/standard/manifest.json
 - apps/fretboard_cruise/standard/service-worker.js
 - apps/fretboard_cruise/pro_a9f4k7q2m8z/index.html
 - apps/fretboard_cruise/pro_a9f4k7q2m8z/manifest.json
 - apps/fretboard_cruise/pro_a9f4k7q2m8z/service-worker.js
+- apps/fretboard_cruise/generated-home-icons/final-selected-icon/fretboard-cruise-final-selection-180.png
 - apps/fretboard_cruise/staging/index.html
 - apps/fretboard_cruise/smartphone_check_notes.txt
 
@@ -28,12 +31,21 @@
 - 旧Pro版ディレクトリは互換維持なしで削除。
 
 キャッシュ対策内容
-- Standard / Pro の index.html で script.js の読み込みクエリを 1.138.2 に更新。
+- Standard / Pro の index.html で script.js の読み込みクエリを 1.138.3 に更新。
 - Standard / Pro の index.html で theme.css の読み込みクエリを 347 に更新。
+- Standard / Pro の index.html で manifest.json の読み込みクエリを 1.138.3 に更新。
 - theme.css の中身は変更していない。
-- Standard の service worker キャッシュ名を fretboard-cruise-standard-v1.138.2 に更新。
-- Pro の service worker キャッシュ名を fretboard-cruise-pro-v1.138.2 に更新。
+- Standard の service worker キャッシュ名を fretboard-cruise-standard-v1.138.3 に更新。
+- Pro の service worker キャッシュ名を fretboard-cruise-pro-v1.138.3 に更新。
 - service worker は install 時に skipWaiting、activate 時に既存キャッシュ削除と clients.claim を行うため、更新バーまたはページ更新で最新版へ切り替わる想定。
+
+PWAアイコン
+- Standard / Pro とも同じ最終選定アイコンを使用。
+- apple-touch-icon: generated-home-icons/final-selected-icon/fretboard-cruise-final-selection-180.png
+- manifest 192px: generated-home-icons/final-selected-icon/fretboard-cruise-final-selection-192.png
+- manifest 512px: generated-home-icons/final-selected-icon/fretboard-cruise-final-selection-512.png
+- manifest では any と maskable を分けて登録。
+- 画像は正方形のまま書き出し、縦横比は変更していない。
 
 Pro版の維持事項
 - data-app-edition="Pro" は維持。
@@ -46,7 +58,7 @@ Pro版の維持事項
 スマホ確認時の注意点
 - iPhone / Android とも、まず上記URLをブラウザで直接開く。
 - 既にホーム画面追加済みのPWAがある場合は、起動後に更新バーが出たら「ページを更新」を押す。
-- 更新バーが出ない場合でも、ブラウザで再読み込みして Ver. 1.138.2 表示になっているか確認する。
+- 更新バーが出ない場合でも、ブラウザで再読み込みして Ver. 1.138.3 表示になっているか確認する。
 - 古い表示が残る場合は、該当PWAを一度終了して再起動する。
 - それでも切り替わらない場合は、旧ホーム画面アイコンを削除し、新しいURLから再追加する。
 
