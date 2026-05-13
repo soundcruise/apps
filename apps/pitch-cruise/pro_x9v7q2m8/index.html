@@ -7,7 +7,7 @@
     <title>音感クルーズ</title>
     <link rel="stylesheet" href="../../shared/style.css?v=99">
     <link rel="stylesheet" href="../../shared/pro-theme.css?v=98">
-    <link rel="stylesheet" href="../theme.css?v=7">
+    <link rel="stylesheet" href="../theme.css?v=8">
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
     <link rel="stylesheet" href="../staging/staging-hub-nav.css?v=1">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -166,9 +166,10 @@
         <div id="overlay" class="overlay">
             <!-- Screen 1: ホーム -->
             <div id="screen-home" class="modal" style="position: relative;">
-                <button id="home-settings-btn" class="icon-btn"
-                    style="position: absolute; top: max(20px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); z-index: 100;"
-                    title="設定">⚙️</button>
+                <div class="home-settings-btn-wrap" style="top: max(20px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); z-index: 100;">
+                    <button id="home-settings-btn" class="icon-btn" title="設定">⚙️</button>
+                    <span class="settings-new-badge hidden" id="home-settings-new-badge">New</span>
+                </div>
                 <div class="home-info-options" aria-label="インフォメーション候補位置">
                     <a href="../info.html?from=home&edition=pro" class="home-info-link icon-btn home-info-link--final" aria-label="インフォメーション"
                         title="インフォメーション">i</a>
@@ -197,18 +198,6 @@
                         <span class="category-card-sub">コード進行の聴き取り</span>
                     </button>
                 </div>
-                <!-- ═══ [DEV] クリア音確認UI（採用タイプ決定後に削除してください） ═══ -->
-                <div id="fanfare-dev-panel" class="fanfare-dev-panel">
-                    <p class="fanfare-dev-label">🔊 クリア音確認 <span class="fanfare-dev-tag">DEV</span></p>
-                    <div class="fanfare-dev-btns">
-                        <button type="button" class="fanfare-dev-btn" data-fanfare="A">A</button>
-                        <button type="button" class="fanfare-dev-btn" data-fanfare="B">B</button>
-                        <button type="button" class="fanfare-dev-btn" data-fanfare="C">C</button>
-                        <button type="button" class="fanfare-dev-btn" data-fanfare="D">D</button>
-                        <button type="button" class="fanfare-dev-btn" data-fanfare="E">E</button>
-                    </div>
-                </div>
-                <!-- ═══ [DEV] ここまで ═══ -->
             </div>
 
             <!-- Screen 2: メロディ ステージ選択 -->
@@ -315,6 +304,7 @@
                 </div>
                 <div class="setting-item">
                     <label for="test-mode-toggle">テストモード</label>
+                    <span class="tm-new-badge hidden" id="test-mode-new-badge">New</span>
                     <button type="button" class="tm-info-btn" id="test-mode-info-btn" aria-expanded="false" title="テストモードとは？">ⓘ</button>
                     <label class="toggle-switch toggle-switch--test-mode">
                         <input type="checkbox" id="test-mode-toggle">
@@ -845,7 +835,7 @@
     <script>window.__SOUNDCRUISE_PRO_GATE__ = { password: '7392' };</script>
     <script src="../../shared/pro-gate.js?v=16"></script>
     <script src="../staging/staging-hub-nav.js?v=3"></script>
-    <script src="../script.js?v=2.8.0"></script>
+    <script src="../script.js?v=2.9.0"></script>
 </body>
 
 </html>
