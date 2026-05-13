@@ -236,12 +236,16 @@ body.test-mode-enabled .btn-primary.test-mode-stage .stage-desc {
     opacity: 1;
 }
 
-/* カスタム Pro ボタンは壊さない */
+/* カスタム Pro ボタン：テストモード時は黄金色を維持しつつ赤枠で強調 */
 body.test-mode-enabled .custom-stage-btn.test-mode-stage {
     background: linear-gradient(90deg, #ff8c00 0%, #ffc233 48%, #ffd700 100%) !important;
     color: #000 !important;
-    border: 1px solid rgba(255, 51, 102, 0.62) !important;
-    box-shadow: 0 4px 18px rgba(255, 140, 0, 0.42), 0 0 22px rgba(255, 200, 80, 0.32) !important;
+    border: 2px solid rgba(255, 51, 102, 0.95) !important;
+    box-shadow:
+        0 0 10px rgba(255, 51, 102, 0.45),
+        0 0 24px rgba(255, 51, 102, 0.25),
+        0 4px 18px rgba(255, 140, 0, 0.42),
+        0 0 22px rgba(255, 200, 80, 0.32) !important;
 }
 
 /* ── クリア回数バッジ ─────────────────────────────────── */
@@ -475,6 +479,16 @@ body.test-mode-enabled .stage-clear-mark {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* PRO カスタムSTAGE ラッパー：pro-theme.css の max-width:250px を解除し、
+   固定STAGEの .stage-row と同じ全幅を確保する。
+   これにより .stage-row.staging-pro-slot-outer も width:100% で全幅になり、
+   position:absolute; left:0 の .stage-clear-mark がボタン外側左に正しく配置される。
+   ボタン自体は内側の .staging-slot-main-btn (max-width:250px) で幅を制御。 */
+.staging-pro-slot-dynamic,
+.staging-pro-chord-slot-dynamic {
+    max-width: none;
 }
 
 
