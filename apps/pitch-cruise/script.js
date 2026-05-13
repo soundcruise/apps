@@ -1,5 +1,5 @@
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '2.9.4';
+const PITCH_TRAINER_APP_VERSION = '2.9.5';
 
 // ─── [DEV] デバッグフラグ ────────────────────────────────────────────────────
 // true にするとSTAGE選択画面のクリア回数が常に100と表示される（localStorageは変更しない）
@@ -94,7 +94,9 @@ const testModeState = {
     countdownRafId: null,
     questionStartedAt: null,
     answerDeadlineAt: null,
-    failureReason: null
+    failureReason: null,
+    // テストラン開始前の game.isAnswerMode を退避（終了時に復元するため）
+    _savedAnswerMode: null
 };
 
 function isTestModeEnabled() {
@@ -148,6 +150,10 @@ function startTestModeRun(game, stageId) {
     testModeState.correctCount = 0;
     testModeState.failureReason = null;
     clearTestModeAnswerTimer();
+    // 解答OFF状態でテスト開始しても回答できるよう、内部状態を強制ONに（UIはupdateTestModeInGameUIで制御）
+    // saveSettings()は呼ばない → localStorage のユーザー設定（回答ON/OFF）は維持する
+    testModeState._savedAnswerMode = game.isAnswerMode;
+    game.isAnswerMode = true;
     document.body.classList.add('test-mode-active');
     updateTestModeInGameUI(game);
 }
@@ -157,6 +163,12 @@ function stopTestModeRun(game) {
     testModeState.active = false;
     testModeState.failureReason = null;
     testModeState.answerDeadlineAt = null;
+    // 退避していた isAnswerMode を復元してから UI を更新する
+    // （_setTestModeButtonRestrictions が game.isAnswerMode を読んでトグルを復元するため、先に戻す）
+    if (game && testModeState._savedAnswerMode !== null) {
+        game.isAnswerMode = testModeState._savedAnswerMode;
+        testModeState._savedAnswerMode = null;
+    }
     document.body.classList.remove('test-mode-active');
     if (game) updateTestModeInGameUI(game);
 }
