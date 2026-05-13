@@ -1,15 +1,15 @@
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '2.9.3';
+const PITCH_TRAINER_APP_VERSION = '2.9.4';
 
 // ─── [DEV] デバッグフラグ ────────────────────────────────────────────────────
 // true にするとSTAGE選択画面のクリア回数が常に100と表示される（localStorageは変更しない）
-// ✓100 の表示崩れ確認用。確認後は false に戻してコミットすること
-const DEBUG_FORCE_TEST_CLEAR_COUNT_100 = true;
+// ✓100 の表示崩れ確認用。確認が済んだら false のままリリースすること
+const DEBUG_FORCE_TEST_CLEAR_COUNT_100 = false;
 
 // [DEV] PRO版レイアウト確認用の一時フラグ
 // true のとき PRO版のメロディ・コード選択画面にダミーPROステージと「✓100」バッジを表示する
-// localStorageは変更しない。確認後は false にするか定数ごと削除すること
-const DEBUG_FORCE_PRO_STAGE_BADGE_100 = true;
+// localStorageは変更しない。確認が済んだら false のままリリースすること
+const DEBUG_FORCE_PRO_STAGE_BADGE_100 = false;
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── テストモード New バッジ既読管理 ────────────────────────────────────────
