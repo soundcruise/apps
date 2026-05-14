@@ -5581,6 +5581,68 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     }
 }
 
+/* ── PROカスタムSTAGE編集画面: 固定STAGE編集と同等の余白感・内部調整（portrait 専用） ──
+   固定STAGE編集で整えた UI 改善を .pro-custom-route-editor-screen に独立適用。
+   指板・スクロールバー・スクロール挙動・save-row の z-index/positioning・
+   .pro-custom-route-editor-tail-spacer・既存 scroll clearance には一切触らない。
+   横画面は @media (orientation: portrait) で自動的に無効。 */
+@media (orientation: portrait) {
+
+    /* ① 左右余白: ヘッダー・注意文・セットアップパネル・ツールバー・Grパネル = 40px */
+    .pro-custom-route-editor-screen .page-header--route-editor,
+    .pro-custom-route-editor-screen .fretboard-edition-notice,
+    .pro-custom-route-editor-screen .pro-custom-setup-panel,
+    .pro-custom-route-editor-screen .route-editor-toolbar,
+    .pro-custom-route-editor-screen .route-editor-group-panel {
+        width: calc(100% - 40px);
+        margin-inline: auto;
+    }
+
+    /* ① 左右余白: 保存行 = 56px（既存の margin-top/bottom・z-index・position は維持） */
+    .pro-custom-route-editor-screen .route-editor-save-row {
+        width: calc(100% - 56px);
+        margin-inline: auto;
+    }
+
+    /* ② タイトル位置: 固定STAGE編集と同じ translateY(8px) */
+    .pro-custom-route-editor-screen .page-header--route-editor .page-header-title-wrap {
+        transform: translateY(8px);
+    }
+
+    /* ③ Grリスト: 右端ボタンとスクロールバーの干渉を防ぐ */
+    .pro-custom-route-editor-screen .route-editor-group-list {
+        padding-right: 8px;
+    }
+
+    /* ④ アクション行: gap 4px 固定、flex-grow でボタン自体に横幅を配分 */
+    .pro-custom-route-editor-screen .route-editor-group-actions {
+        gap: 4px;
+    }
+
+    /* +/- は固定サイズ */
+    .pro-custom-route-editor-screen .route-editor-group-add-btn,
+    .pro-custom-route-editor-screen .route-editor-group-remove-btn {
+        min-width: 36px;
+        padding: 0 6px;
+    }
+
+    /* 位置保存: flex-grow で残りスペースを分配 */
+    .pro-custom-route-editor-screen .route-editor-group-save-position-btn {
+        flex-grow: 1;
+        min-width: 52px;
+        padding: 0 6px;
+        font-size: 0.7rem;
+    }
+
+    /* 全て表示/非表示: 同じく flex-grow で拡大 */
+    .pro-custom-route-editor-screen .route-editor-group-toggle-btn {
+        flex-grow: 1;
+        min-width: 52px;
+        padding: 0 5px;
+        font-size: 0.7rem;
+    }
+}
+
 /* フレットボードスクロールコントロール（portrait専用） */
 @media (orientation: portrait) {
     .route-fretboard-scroll-ctl {
