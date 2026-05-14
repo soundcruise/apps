@@ -5474,18 +5474,8 @@ body:has(.pro-custom-route-editor-screen) .app-container {
         min-height: 100dvh;
     }
 
-    /* Fix: position: sticky でビューポート下端から 90px 以上上に常時固定。
-       in-game-refresh-bar (fixed; bottom: 10px; 高さ約56px → 上端66px) との重なりを解消。
-       スクロールコンテナ (.app-container: overflow-y: auto) 内での sticky なので
-       横画面・他画面・Pro版には影響しない。 */
     .route-editor-screen.route-editor-screen--standard .route-editor-save-row {
-        position: sticky;
-        bottom: 90px;
-        z-index: 20;
-        background: var(--bg-color);
-        border-radius: 0 0 12px 12px;
-        padding-bottom: 8px;
-        margin-bottom: 0;
+        margin-bottom: var(--in-game-refresh-stack-height, 96px);
     }
 
     /* Fix: ヘッダー・ツールバー・グループパネル間の余白を増やして圧迫感を軽減。
