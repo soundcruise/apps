@@ -5785,3 +5785,18 @@ body:has(.pro-custom-route-editor-screen) .app-container {
         display: none;
     }
 }
+
+/* 指板を見る: portrait 時はカスタムバーを使うため標準スクロールバーを非表示にする。
+   padding-bottom は標準バー用の余白なので同時に削除し、指板とカスタムバーの距離を詰める。
+   body:has(.page-header--visualize) で visualize ページのみに限定し、
+   route-editor / quizEditor など同じ --visualize クラスを持つ他画面には影響させない。 */
+@media (orientation: portrait) {
+    body:has(.page-header--visualize) #fretboard-container .fretboard-scroll-wrapper {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        padding-bottom: 0;
+    }
+    body:has(.page-header--visualize) #fretboard-container .fretboard-scroll-wrapper::-webkit-scrollbar {
+        display: none;
+    }
+}
