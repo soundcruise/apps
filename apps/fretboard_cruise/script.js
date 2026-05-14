@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.141.13';
+const FRETBOARD_CRUISE_APP_VERSION = '1.141.14';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -1127,8 +1127,9 @@ function standardEditionNoticeHtml(message) {
     const dotIdx = message.indexOf('。');
     let inner;
     if (dotIdx !== -1 && dotIdx < message.length - 1) {
-        const first = escapeHtml(message.slice(0, dotIdx + 1));
-        const rest  = escapeHtml(message.slice(dotIdx + 1).trim());
+        const first   = escapeHtml(message.slice(0, dotIdx + 1));
+        const restRaw = message.slice(dotIdx + 1).trim();
+        const rest    = escapeHtml(restRaw.endsWith('。') ? restRaw : restRaw + '。');
         inner = `<span>${first}</span><br><span>${rest}</span>`;
     } else {
         inner = escapeHtml(message);
