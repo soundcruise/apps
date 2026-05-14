@@ -5489,3 +5489,79 @@ body:has(.pro-custom-route-editor-screen) .app-container {
         gap: 16px;
     }
 }
+
+/* フレットボードスクロールコントロール（portrait専用） */
+@media (orientation: portrait) {
+    .route-fretboard-scroll-ctl {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+        padding: 0 4px;
+        height: 36px;
+        flex-shrink: 0;
+    }
+
+    .route-fretboard-scroll-ctl--hidden {
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    .route-fretboard-scroll-arrow-btn {
+        flex-shrink: 0;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.75);
+        font-size: 14px;
+        line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        padding: 0;
+    }
+
+    .route-fretboard-scroll-arrow-btn:active {
+        background: rgba(255, 255, 255, 0.18);
+    }
+
+    .route-fretboard-scroll-track {
+        flex: 1;
+        height: 8px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.12);
+        position: relative;
+        cursor: pointer;
+        touch-action: none;
+    }
+
+    .route-fretboard-scroll-thumb {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        min-width: 32px;
+        border-radius: 4px;
+        background: var(--primary-color, rgba(255, 200, 0, 0.75));
+        opacity: 0.75;
+        cursor: grab;
+        touch-action: none;
+        transition: opacity 0.15s;
+    }
+
+    .route-fretboard-scroll-thumb--dragging {
+        opacity: 1;
+        cursor: grabbing;
+    }
+}
+
+@media (orientation: landscape) {
+    .route-fretboard-scroll-ctl {
+        display: none;
+    }
+}

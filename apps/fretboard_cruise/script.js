@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.138.4';
+const FRETBOARD_CRUISE_APP_VERSION = '1.138.5';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -8274,6 +8274,13 @@ function renderRouteEditor(app) {
                 </div>
             </div>
             <div id="fretboard-container" class="route-editor-fretboard-host"></div>
+            <div class="route-fretboard-scroll-ctl" id="route-fretboard-scroll-ctl" aria-hidden="true">
+                <button type="button" class="route-fretboard-scroll-arrow-btn" id="route-fretboard-scroll-left">&#x276E;</button>
+                <div class="route-fretboard-scroll-track" id="route-fretboard-scroll-track">
+                    <div class="route-fretboard-scroll-thumb" id="route-fretboard-scroll-thumb"></div>
+                </div>
+                <button type="button" class="route-fretboard-scroll-arrow-btn" id="route-fretboard-scroll-right">&#x276F;</button>
+            </div>
             <div class="route-editor-expanded-gap ${showAllGroupsExpanded ? 'route-editor-expanded-gap--visible' : ''}" aria-hidden="true"></div>
             <div class="route-editor-save-row">
                 <button type="button" class="btn-secondary route-editor-demo-btn" id="btn-route-editor-demo" ${draft.length ? '' : 'disabled'}>現在の順番でデモ</button>
@@ -8828,13 +8835,73 @@ function renderRouteEditor(app) {
         }
     });
 
+    // フレットボードスクロールコントロール初期化
+    (function initFretboardScrollCtl() {
+        const scrollWrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+        const ctl = document.getElementById('route-fretboard-scroll-ctl');
+        const track = document.getElementById('route-fretboard-scroll-track');
+        const thumb = document.getElementById('route-fretboard-scroll-thumb');
+        const btnLeft = document.getElementById('route-fretboard-scroll-left');
+        const btnRight = document.getElementById('route-fretboard-scroll-right');
+        if (!scrollWrapper || !ctl || !track || !thumb || !btnLeft || !btnRight) return;
+
+        function updateThumb() {
+            const sw = scrollWrapper.scrollWidth;
+            const cw = scrollWrapper.clientWidth;
+            if (sw <= cw) { ctl.classList.add('route-fretboard-scroll-ctl--hidden'); return; }
+            ctl.classList.remove('route-fretboard-scroll-ctl--hidden');
+            const ratio = cw / sw;
+            const trackW = track.clientWidth;
+            const thumbW = Math.max(32, trackW * ratio);
+            const scrollFrac = scrollWrapper.scrollLeft / (sw - cw);
+            thumb.style.width = thumbW + 'px';
+            thumb.style.left = (scrollFrac * (trackW - thumbW)) + 'px';
+        }
+
+        scrollWrapper.addEventListener('scroll', updateThumb, { passive: true });
+        updateThumb();
+
+        const ARROW_STEP = 80;
+        btnLeft.addEventListener('click', () => { scrollWrapper.scrollBy({ left: -ARROW_STEP, behavior: 'smooth' }); });
+        btnRight.addEventListener('click', () => { scrollWrapper.scrollBy({ left: ARROW_STEP, behavior: 'smooth' }); });
+
+        track.addEventListener('click', (e) => {
+            if (e.target === thumb) return;
+            const trackRect = track.getBoundingClientRect();
+            const thumbW = thumb.offsetWidth;
+            const frac = Math.max(0, Math.min(1, (e.clientX - trackRect.left - thumbW / 2) / (trackRect.width - thumbW)));
+            scrollWrapper.scrollLeft = frac * (scrollWrapper.scrollWidth - scrollWrapper.clientWidth);
+        });
+
+        let dragStartX = 0;
+        let dragStartScrollLeft = 0;
+        thumb.addEventListener('pointerdown', (e) => {
+            e.stopPropagation();
+            thumb.setPointerCapture(e.pointerId);
+            dragStartX = e.clientX;
+            dragStartScrollLeft = scrollWrapper.scrollLeft;
+            thumb.classList.add('route-fretboard-scroll-thumb--dragging');
+        });
+        thumb.addEventListener('pointermove', (e) => {
+            if (!thumb.hasPointerCapture(e.pointerId)) return;
+            e.stopPropagation();
+            const trackW = track.clientWidth;
+            const thumbW = thumb.offsetWidth;
+            const maxTravel = trackW - thumbW;
+            const maxScroll = scrollWrapper.scrollWidth - scrollWrapper.clientWidth;
+            scrollWrapper.scrollLeft = Math.max(0, Math.min(maxScroll, dragStartScrollLeft + (maxTravel > 0 ? (e.clientX - dragStartX) / maxTravel * maxScroll : 0)));
+        });
+        thumb.addEventListener('pointerup', () => { thumb.classList.remove('route-fretboard-scroll-thumb--dragging'); });
+        thumb.addEventListener('pointercancel', () => { thumb.classList.remove('route-fretboard-scroll-thumb--dragging'); });
+    })();
+
     app.style.height = '100vh';
     app.style.overflowY = 'auto';
     app.style.overflowX = 'hidden';
     app.style.alignItems = 'stretch';
     app.style.gap = '0';
     app.style.paddingTop = 'max(4px, env(safe-area-inset-top))';
-    app.style.paddingBottom = 'calc(var(--in-game-refresh-stack-height, 96px) + max(8px, env(safe-area-inset-bottom)))';
+    app.style.paddingBottom = 'calc(var(--in-game-refresh-stack-height, 96px) + max(80px, env(safe-area-inset-bottom)))';
     app.style.paddingLeft = 'max(10px, env(safe-area-inset-left))';
     app.style.paddingRight = 'max(10px, env(safe-area-inset-right))';
 }
