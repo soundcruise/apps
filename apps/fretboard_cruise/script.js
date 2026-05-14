@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.138.11';
+const FRETBOARD_CRUISE_APP_VERSION = '1.139.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -7685,6 +7685,32 @@ function renderStageSelect(app) {
             ${proCustomStageHtml}
         </div>
     `;
+
+    // === 余白比較UI (一時・削除予定) ===
+    (() => {
+        const PADS = [
+            { label: 'A 28px', cls: '' },
+            { label: 'B 36px', cls: 'stage-pad-b' },
+            { label: 'C 44px', cls: 'stage-pad-c' },
+            { label: 'D 52px', cls: 'stage-pad-d' },
+            { label: 'E 60px', cls: 'stage-pad-e' },
+        ];
+        const bar = document.createElement('div');
+        bar.className = 'stage-pad-compare-bar';
+        bar.innerHTML = PADS.map(({ label, cls }, i) =>
+            `<button class="stage-pad-compare-btn${i === 0 ? ' active' : ''}" data-pad="${cls}">${label}</button>`
+        ).join('');
+        bar.addEventListener('click', e => {
+            const btn = e.target.closest('.stage-pad-compare-btn');
+            if (!btn) return;
+            bar.querySelectorAll('.stage-pad-compare-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            PADS.forEach(({ cls }) => { if (cls) app.classList.remove(cls); });
+            if (btn.dataset.pad) app.classList.add(btn.dataset.pad);
+        });
+        app.appendChild(bar);
+    })();
+    // === ここまで余白比較UI ===
 
     document.getElementById('btn-back').onclick = () => {
         state.course = null;
