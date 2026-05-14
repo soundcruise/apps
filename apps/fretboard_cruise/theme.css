@@ -2648,6 +2648,7 @@ input:checked + .toggle-slider:before {
     min-height: 44px;
     align-self: center;
     font-size: 0.8rem;
+    white-space: nowrap;
     color: rgba(255, 255, 255, 0.5);
     border-color: rgba(255, 255, 255, 0.15);
     margin-top: 4px;
