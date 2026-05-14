@@ -5516,61 +5516,6 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     }
 }
 
-/* ── 高さ比較UI (一時・削除予定) ─────────────────────────────────────── */
-.stage-h-compare-bar { display: none; }
-
-@media (orientation: portrait) {
-    /* B: 少し小さめ */
-    body:has(.page-header--stage-select) #app.stage-h-b .stage-btn { padding: 11px 20px; }
-    body:has(.page-header--stage-select) #app.stage-h-b .stage-list { gap: 12px; }
-    body:has(.page-header--stage-select) #app.stage-h-b .pro-custom-saved-btn { padding: 12px 22px; }
-    /* C: 中くらい */
-    body:has(.page-header--stage-select) #app.stage-h-c .stage-btn { padding: 8px 20px; }
-    body:has(.page-header--stage-select) #app.stage-h-c .stage-list { gap: 10px; }
-    body:has(.page-header--stage-select) #app.stage-h-c .pro-custom-saved-btn { padding: 9px 22px; }
-    /* D: かなりコンパクト */
-    body:has(.page-header--stage-select) #app.stage-h-d .stage-btn { padding: 6px 20px; }
-    body:has(.page-header--stage-select) #app.stage-h-d .stage-list { gap: 8px; }
-    body:has(.page-header--stage-select) #app.stage-h-d .pro-custom-saved-btn { padding: 7px 22px; }
-    /* E: 最小寄り */
-    body:has(.page-header--stage-select) #app.stage-h-e .stage-btn { padding: 4px 20px; }
-    body:has(.page-header--stage-select) #app.stage-h-e .stage-list { gap: 6px; }
-    body:has(.page-header--stage-select) #app.stage-h-e .pro-custom-saved-btn { padding: 5px 22px; }
-
-    .stage-h-compare-bar {
-        display: flex;
-        flex-direction: row;
-        gap: 6px;
-        justify-content: center;
-        margin-top: auto;
-        padding: 10px 0 6px;
-        border-top: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .stage-h-compare-btn {
-        flex: 1;
-        max-width: 60px;
-        padding: 7px 4px;
-        border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        background: rgba(255, 255, 255, 0.06);
-        color: rgba(255, 255, 255, 0.65);
-        font-size: 11px;
-        font-weight: 600;
-        font-family: inherit;
-        cursor: pointer;
-        line-height: 1.2;
-        text-align: center;
-    }
-
-    .stage-h-compare-btn.active {
-        background: rgba(79, 156, 249, 0.25);
-        border-color: #4f9cf9;
-        color: #4f9cf9;
-    }
-}
-/* ── ここまで高さ比較UI ──────────────────────────────────────────────── */
-
 /* フレットボードスクロールコントロール（portrait専用） */
 @media (orientation: portrait) {
     .route-fretboard-scroll-ctl {
