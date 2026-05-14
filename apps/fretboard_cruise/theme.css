@@ -1610,7 +1610,7 @@
 .visualize-chords-afterboard {
     position: relative;
     z-index: 40;
-    margin-top: 20px;
+    margin-top: 10px;
     width: 100%;
     isolation: isolate;
     display: flex;
@@ -2903,8 +2903,8 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 .visualize-setup-panel {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 12px;
+    gap: 12px;
+    padding: 14px;
     border-radius: 14px;
 }
 
@@ -2945,6 +2945,10 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     flex: 1 1 0;
     white-space: nowrap;
     min-width: max-content;
+}
+
+.visualize-setup-panel .setup-item {
+    gap: 7px;
 }
 
 .visualize-setup-row .setup-item {
@@ -3361,6 +3365,11 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 }
 
 @media (orientation: landscape) {
+    /* 横画面では指板を見るタイトルのtranslateYを打ち消す */
+    .page-header--visualize .page-header-title-wrap {
+        transform: none;
+    }
+
     /* 横画面では page-header の余白は完全に詰める（縦画面で入れた追加 padding-top も無効化）。
        詳細度を `.app-container` 付きの (0,2,0) に揃えて、縦画面用の同じ詳細度ルールに勝つ。 */
     .app-container .page-header--route-editor {
@@ -4908,6 +4917,10 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 
 .page-header--mode-select .page-header-top {
     transform: translateY(-28px);
+}
+
+.page-header--visualize .page-header-title-wrap {
+    transform: translateY(6px);
 }
 
 .page-header--memorize {

@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.141.15';
+const FRETBOARD_CRUISE_APP_VERSION = '1.141.16';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -12056,6 +12056,7 @@ function renderVisualize(app) {
     app.innerHTML = `
         ${buildPageHeader({
             titleText: '🧭 指板を見る',
+            headerClass: 'page-header--visualize',
             leftHtml: `
                 ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
             `,
