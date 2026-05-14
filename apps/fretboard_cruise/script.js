@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.141.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.141.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -8289,36 +8289,6 @@ function renderRouteEditor(app) {
             <div class="route-editor-expanded-spacer ${showAllGroupsExpanded ? 'route-editor-expanded-spacer--visible' : ''}" aria-hidden="true"></div>
         </div>
     `;
-
-    // === 余白比較UI (一時・削除予定) ===
-    (() => {
-        const screen = app.querySelector('.route-editor-screen:not(.pro-custom-route-editor-screen)');
-        if (!screen) return;
-        const fretboardHost = screen.querySelector('.route-editor-fretboard-host');
-        if (!fretboardHost) return;
-        const CASES = [
-            { label: 'A', cls: '' },
-            { label: 'B', cls: 'route-editor-pad-b' },
-            { label: 'C', cls: 'route-editor-pad-c' },
-            { label: 'D', cls: 'route-editor-pad-d' },
-            { label: 'E', cls: 'route-editor-pad-e' },
-        ];
-        const bar = document.createElement('div');
-        bar.className = 'route-editor-pad-compare-bar';
-        bar.innerHTML = CASES.map(({ label, cls }, i) =>
-            `<button class="route-editor-pad-compare-btn${i === 0 ? ' active' : ''}" data-cls="${cls}">${label}</button>`
-        ).join('');
-        bar.addEventListener('click', e => {
-            const btn = e.target.closest('.route-editor-pad-compare-btn');
-            if (!btn) return;
-            bar.querySelectorAll('.route-editor-pad-compare-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            CASES.forEach(({ cls }) => { if (cls) app.classList.remove(cls); });
-            if (btn.dataset.cls) app.classList.add(btn.dataset.cls);
-        });
-        screen.insertBefore(bar, fretboardHost);
-    })();
-    // === ここまで余白比較UI ===
 
     document.getElementById('btn-route-editor-back').onclick = () => {
         resetStandardRouteEditorScratchInMemory();

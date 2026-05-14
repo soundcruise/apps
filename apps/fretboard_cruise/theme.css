@@ -5520,77 +5520,23 @@ body:has(.pro-custom-route-editor-screen) .app-container {
    指板（.route-editor-fretboard-host）とスクロールバー（.route-fretboard-scroll-ctl）は
    対象外。.pro-custom-route-editor-screen を除外し固定STAGE編集のみに適用。
    横画面では .route-editor-toolbar / .route-editor-group-panel が position: fixed に
-   なるため @media (orientation: portrait) で自動的に無効になる。 */
+   なるため @media (orientation: portrait) で自動的に無効になる。
+   ヘッダー・注意文・ツールバー・グループパネル: C案 calc(100% - 40px)
+   保存行（デモ/保存ボタン）: E案 calc(100% - 56px) */
 @media (orientation: portrait) {
+    .route-editor-screen:not(.pro-custom-route-editor-screen) .page-header--route-editor,
     .route-editor-screen:not(.pro-custom-route-editor-screen) .fretboard-edition-notice,
     .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-toolbar,
-    .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-group-panel,
+    .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-group-panel {
+        width: calc(100% - 40px);
+        margin-inline: auto;
+    }
+
     .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-save-row {
-        width: calc(100% - 24px);
+        width: calc(100% - 56px);
         margin-inline: auto;
     }
 }
-
-/* ── 余白比較UI (一時・削除予定) ─────────────────────────────────────── */
-.route-editor-pad-compare-bar { display: none; }
-
-@media (orientation: portrait) {
-    /* variant B–E: #app クラスで切り替え */
-    #app.route-editor-pad-b .route-editor-screen:not(.pro-custom-route-editor-screen) .fretboard-edition-notice,
-    #app.route-editor-pad-b .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-toolbar,
-    #app.route-editor-pad-b .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-group-panel,
-    #app.route-editor-pad-b .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-save-row { width: calc(100% - 32px); }
-
-    #app.route-editor-pad-c .route-editor-screen:not(.pro-custom-route-editor-screen) .fretboard-edition-notice,
-    #app.route-editor-pad-c .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-toolbar,
-    #app.route-editor-pad-c .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-group-panel,
-    #app.route-editor-pad-c .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-save-row { width: calc(100% - 40px); }
-
-    #app.route-editor-pad-d .route-editor-screen:not(.pro-custom-route-editor-screen) .fretboard-edition-notice,
-    #app.route-editor-pad-d .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-toolbar,
-    #app.route-editor-pad-d .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-group-panel,
-    #app.route-editor-pad-d .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-save-row { width: calc(100% - 48px); }
-
-    #app.route-editor-pad-e .route-editor-screen:not(.pro-custom-route-editor-screen) .fretboard-edition-notice,
-    #app.route-editor-pad-e .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-toolbar,
-    #app.route-editor-pad-e .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-group-panel,
-    #app.route-editor-pad-e .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-save-row { width: calc(100% - 56px); }
-
-    .route-editor-pad-compare-bar {
-        display: flex;
-        flex-direction: row;
-        gap: 6px;
-        justify-content: center;
-        width: calc(100% - 24px);
-        margin-inline: auto;
-        padding: 6px 0;
-        border-top: 1px solid rgba(255, 255, 255, 0.1);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .route-editor-pad-compare-btn {
-        flex: 1;
-        max-width: 60px;
-        padding: 6px 4px;
-        border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        background: rgba(255, 255, 255, 0.06);
-        color: rgba(255, 255, 255, 0.65);
-        font-size: 11px;
-        font-weight: 600;
-        font-family: inherit;
-        cursor: pointer;
-        line-height: 1.2;
-        text-align: center;
-    }
-
-    .route-editor-pad-compare-btn.active {
-        background: rgba(79, 156, 249, 0.25);
-        border-color: #4f9cf9;
-        color: #4f9cf9;
-    }
-}
-/* ── ここまで余白比較UI ──────────────────────────────────────────────── */
 
 /* フレットボードスクロールコントロール（portrait専用） */
 @media (orientation: portrait) {
