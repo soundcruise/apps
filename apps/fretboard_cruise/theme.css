@@ -5536,6 +5536,11 @@ body:has(.pro-custom-route-editor-screen) .app-container {
         width: calc(100% - 56px);
         margin-inline: auto;
     }
+
+    /* タイトルのみ視覚的に下げる（document flow は変えないため他要素の位置に影響しない） */
+    .route-editor-screen:not(.pro-custom-route-editor-screen) .page-header--route-editor .page-header-title-wrap {
+        transform: translateY(8px);
+    }
 }
 
 /* ── 固定STAGE編集画面: Grパネル内部レイアウト調整（portrait 専用） ──────
