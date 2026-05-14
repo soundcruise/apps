@@ -2643,6 +2643,16 @@ input:checked + .toggle-slider:before {
     pointer-events: auto;
 }
 
+.route-editor-cancel-btn {
+    width: 50%;
+    min-height: 44px;
+    align-self: center;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.5);
+    border-color: rgba(255, 255, 255, 0.15);
+    margin-top: 4px;
+}
+
 .pro-custom-route-editor-screen {
     padding-bottom: 96px;
 }
