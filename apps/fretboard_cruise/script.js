@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.138.3';
+const FRETBOARD_CRUISE_APP_VERSION = '1.138.4';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
