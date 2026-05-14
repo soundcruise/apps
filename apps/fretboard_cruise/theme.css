@@ -5565,6 +5565,14 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     }
 }
 
+/* ── 固定STAGE編集画面: 注意カード padding 縮小（portrait 専用） ──────
+   幅が calc(100%-40px) に縮小されるため内側余白も詰める */
+@media (orientation: portrait) {
+    .route-editor-screen:not(.pro-custom-route-editor-screen) .fretboard-edition-notice {
+        padding: 8px 10px;
+    }
+}
+
 /* ── 固定STAGE編集画面: Grパネル内部レイアウト調整（portrait 専用） ──────
    パネル幅縮小後にスクロールバー干渉と「全て非表示」切れが起きるため
    内部のみを最小調整。外側幅・指板・横画面には影響しない。 */
