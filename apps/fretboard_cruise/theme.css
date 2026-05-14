@@ -5492,6 +5492,13 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     /* scroll clearance spacer: 保存ボタン下のスクロール余白。
        余白不足の場合は 280px〜320px に増やす。 */
     .route-editor-screen.route-editor-screen--standard .route-editor-expanded-spacer {
+        height: 160px;
+        flex: 0 0 160px;
+    }
+
+    /* Pro固定STAGE編集のみ（pro-custom-quiz-editor-screen は除外）。
+       scroll clearance spacer: 保存ボタン下のスクロール余白。 */
+    .pro-custom-route-editor-screen:not(.pro-custom-quiz-editor-screen) .pro-custom-route-editor-tail-spacer {
         height: 220px;
         flex: 0 0 220px;
     }
