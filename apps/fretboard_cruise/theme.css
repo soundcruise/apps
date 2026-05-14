@@ -5509,6 +5509,13 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     }
 }
 
+/* STAGE選択画面の左右パディング（portrait専用） */
+@media (orientation: portrait) {
+    body:has(.page-header--stage-select) .stage-list {
+        padding: 0 8px;
+    }
+}
+
 /* フレットボードスクロールコントロール（portrait専用） */
 @media (orientation: portrait) {
     .route-fretboard-scroll-ctl {
