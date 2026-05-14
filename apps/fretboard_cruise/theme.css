@@ -2903,7 +2903,7 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 .visualize-setup-panel {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
     padding: 14px;
     border-radius: 14px;
 }
@@ -2919,12 +2919,12 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 .visualize-setup-row--triple {
     /* キー80px / カポ60px 固定、スケールは残りを可変で割り当て */
     grid-template-columns: 80px 60px minmax(0, 1fr);
-    align-items: end;
+    align-items: start;
 }
 
 .visualize-setup-row--double {
     grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-    align-items: end;
+    align-items: start;
 }
 
 .visualize-setup-row--notation {
@@ -4920,7 +4920,7 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 }
 
 .page-header--visualize .page-header-title-wrap {
-    transform: translateY(6px);
+    transform: translateY(10px);
 }
 
 .page-header--memorize {
