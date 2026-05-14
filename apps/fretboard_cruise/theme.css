@@ -5538,6 +5538,39 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     }
 }
 
+/* ── 固定STAGE編集画面: Grパネル内部レイアウト調整（portrait 専用） ──────
+   パネル幅縮小後にスクロールバー干渉と「全て非表示」切れが起きるため
+   内部のみを最小調整。外側幅・指板・横画面には影響しない。 */
+@media (orientation: portrait) {
+    /* Grリスト: 右端グループボタンとスクロールバーの干渉を防ぐ */
+    .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-group-list {
+        padding-right: 8px;
+    }
+
+    /* アクション行: 5ボタンがパネル内幅に収まるよう gap・min-width・padding・font-size を微調整 */
+    .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-group-actions {
+        gap: 4px;
+    }
+
+    .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-group-add-btn,
+    .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-group-remove-btn {
+        min-width: 34px;
+        padding: 0 6px;
+    }
+
+    .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-group-save-position-btn {
+        min-width: 58px;
+        padding: 0 6px;
+        font-size: 0.7rem;
+    }
+
+    .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-group-toggle-btn {
+        min-width: 55px;
+        padding: 0 5px;
+        font-size: 0.7rem;
+    }
+}
+
 /* フレットボードスクロールコントロール（portrait専用） */
 @media (orientation: portrait) {
     .route-fretboard-scroll-ctl {
