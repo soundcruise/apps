@@ -5018,7 +5018,7 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 }
 
 .page-nav-btn {
-    padding: 7px 14px;
+    padding: 10px 14px;
     border-radius: 24px;
     font-size: 0.8rem;
     font-weight: 500;
@@ -5049,7 +5049,7 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 
 .settings-nav-btn,
 .home-settings-btn {
-    padding: 8px 12px;
+    padding: 10px 12px;
     line-height: 1;
     justify-content: center;
 }
@@ -5064,7 +5064,7 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     }
 
     .page-nav-btn {
-        padding: 6px 10px;
+        padding: 9px 10px;
         font-size: 0.74rem;
     }
 
