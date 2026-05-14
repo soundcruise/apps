@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.141.6';
+const FRETBOARD_CRUISE_APP_VERSION = '1.141.7';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -9161,7 +9161,7 @@ function renderProCustomRouteEditor(app) {
     const proCustomEditingId = state.proCustomRouteEditor.editingStageId || null;
     const proCustomHeaderTitle = proCustomEditingId
         ? `👑 ${escapeHtml(state.proCustomRouteEditor.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}<span class="pro-custom-header-sub"> を編集</span>`
-        : '👑 PROカスタムSTAGE<span class="pro-custom-header-sub"> を新規作成</span>';
+        : '👑PROカスタムSTAGE';
     app.innerHTML = `
         <div class="route-editor-screen route-editor-scale-guide-variant-3 pro-custom-route-editor-screen">
             ${buildPageHeader({
@@ -9720,7 +9720,7 @@ function renderProCustomQuizEditor(app) {
     const proCustomEditingId = state.proCustomQuizEditor.editingStageId || null;
     const proCustomHeaderTitle = proCustomEditingId
         ? `👑 ${escapeHtml(state.proCustomQuizEditor.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}<span class="pro-custom-header-sub"> を編集</span>`
-        : '👑 PROカスタムSTAGE<span class="pro-custom-header-sub"> を新規作成</span>';
+        : '👑PROカスタムSTAGE';
 
     const groupButtonsHtml = groups.map((group, index) => {
         const isVisible = visibleGroupIndices.includes(index);
