@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.141.7';
+const FRETBOARD_CRUISE_APP_VERSION = '1.141.8';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -8285,12 +8285,19 @@ function renderRouteEditor(app) {
             <div class="route-editor-save-row">
                 <button type="button" class="btn-secondary route-editor-demo-btn" id="btn-route-editor-demo" ${draft.length ? '' : 'disabled'}>現在の順番でデモ</button>
                 <button type="button" class="btn-primary route-editor-save-btn pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-route-editor-save" ${draft.length ? '' : 'disabled'}><span class="pro-custom-saved-btn__title">この順番で保存</span></button>
+                <button type="button" class="btn-secondary route-editor-cancel-btn" id="btn-route-editor-cancel">キャンセルして戻る</button>
             </div>
             <div class="route-editor-expanded-spacer ${showAllGroupsExpanded ? 'route-editor-expanded-spacer--visible' : ''}" aria-hidden="true"></div>
         </div>
     `;
 
     document.getElementById('btn-route-editor-back').onclick = () => {
+        resetStandardRouteEditorScratchInMemory();
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-route-editor-cancel').onclick = () => {
         resetStandardRouteEditorScratchInMemory();
         state.course = 'stageSelect';
         saveState();
@@ -9232,6 +9239,7 @@ function renderProCustomRouteEditor(app) {
                 <button type="button" class="btn-primary route-editor-save-btn pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-pro-custom-save" ${draft.length ? '' : 'disabled'}>
                     <span class="pro-custom-saved-btn__title">このSTAGEを保存</span>
                 </button>
+                <button type="button" class="btn-secondary route-editor-cancel-btn" id="btn-pro-custom-cancel">キャンセルして戻る</button>
             </div>
             <div class="pro-custom-route-editor-tail-spacer" aria-hidden="true"></div>
             <div class="route-editor-expanded-spacer ${showAllGroupsExpanded ? 'route-editor-expanded-spacer--visible' : ''}" aria-hidden="true"></div>
@@ -9316,6 +9324,12 @@ function renderProCustomRouteEditor(app) {
         renderApp();
     };
     document.getElementById('btn-pro-custom-back').onclick = () => {
+        resetStandardProCustomRouteEditorScratchInMemory();
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-cancel').onclick = () => {
         resetStandardProCustomRouteEditorScratchInMemory();
         state.course = 'stageSelect';
         saveState();
@@ -9807,6 +9821,7 @@ function renderProCustomQuizEditor(app) {
                 <button type="button" class="btn-primary route-editor-save-btn pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-pro-custom-quiz-save" ${hasAnyNote ? '' : 'disabled'}>
                     <span class="pro-custom-saved-btn__title">このSTAGEを保存</span>
                 </button>
+                <button type="button" class="btn-secondary route-editor-cancel-btn" id="btn-pro-custom-quiz-cancel">キャンセルして戻る</button>
             </div>
             <div class="pro-custom-route-editor-tail-spacer" aria-hidden="true"></div>
             <div class="route-editor-expanded-spacer ${showAllGroupsExpanded ? 'route-editor-expanded-spacer--visible' : ''}" aria-hidden="true"></div>
@@ -9892,6 +9907,12 @@ function renderProCustomQuizEditor(app) {
     };
 
     document.getElementById('btn-pro-custom-quiz-back').onclick = () => {
+        resetStandardProCustomQuizEditorScratchInMemory();
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-quiz-cancel').onclick = () => {
         resetStandardProCustomQuizEditorScratchInMemory();
         state.course = 'stageSelect';
         saveState();
