@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.141.16';
+const FRETBOARD_CRUISE_APP_VERSION = '1.141.17';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -12106,6 +12106,14 @@ function renderVisualize(app) {
 
         <div id="fretboard-container" style="width: 100%;"></div>
 
+        <div class="vis-fretboard-scroll-ctl vis-fretboard-scroll-ctl--hidden" id="vis-fretboard-scroll-ctl">
+            <button type="button" class="route-fretboard-scroll-arrow-btn" id="vis-fretboard-scroll-left" aria-label="指板を左にスクロール">&#x276E;</button>
+            <div class="route-fretboard-scroll-track" id="vis-fretboard-scroll-track">
+                <div class="route-fretboard-scroll-thumb" id="vis-fretboard-scroll-thumb"></div>
+            </div>
+            <button type="button" class="route-fretboard-scroll-arrow-btn" id="vis-fretboard-scroll-right" aria-label="指板を右にスクロール">&#x276F;</button>
+        </div>
+
         <div class="visualize-chords-afterboard" style="margin-bottom: 120px;">
             <div class="visualize-diatonic-header-row">
                 <h3 class="visualize-diatonic-title">ダイアトニックコード</h3>
@@ -12240,6 +12248,70 @@ function renderVisualize(app) {
         chordType: state.visualize.chordType,
         autoSelectRootChord: state.visualize.autoSelectRootChord
     });
+
+    // 指板を見る: 横スクロールコントロール初期化
+    (function initVisualizeScrollCtl() {
+        const scrollWrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+        const ctl      = document.getElementById('vis-fretboard-scroll-ctl');
+        const track    = document.getElementById('vis-fretboard-scroll-track');
+        const thumb    = document.getElementById('vis-fretboard-scroll-thumb');
+        const btnLeft  = document.getElementById('vis-fretboard-scroll-left');
+        const btnRight = document.getElementById('vis-fretboard-scroll-right');
+        if (!scrollWrapper || !ctl || !track || !thumb || !btnLeft || !btnRight) return;
+
+        function updateThumb() {
+            const sw = scrollWrapper.scrollWidth;
+            const cw = scrollWrapper.clientWidth;
+            if (sw <= cw) { ctl.classList.add('vis-fretboard-scroll-ctl--hidden'); return; }
+            ctl.classList.remove('vis-fretboard-scroll-ctl--hidden');
+            const ratio  = cw / sw;
+            const trackW = track.clientWidth;
+            const thumbW = Math.max(32, trackW * ratio);
+            const scrollFrac = scrollWrapper.scrollLeft / (sw - cw);
+            thumb.style.width = thumbW + 'px';
+            thumb.style.left  = (scrollFrac * (trackW - thumbW)) + 'px';
+        }
+
+        scrollWrapper.addEventListener('scroll', updateThumb, { passive: true });
+        updateThumb();
+        requestAnimationFrame(updateThumb);
+
+        const onResize = () => { requestAnimationFrame(updateThumb); };
+        window.addEventListener('resize', onResize, { passive: true });
+
+        const ARROW_STEP = 80;
+        btnLeft.addEventListener('click',  () => { scrollWrapper.scrollBy({ left: -ARROW_STEP, behavior: 'smooth' }); });
+        btnRight.addEventListener('click', () => { scrollWrapper.scrollBy({ left:  ARROW_STEP, behavior: 'smooth' }); });
+
+        track.addEventListener('click', (e) => {
+            if (e.target === thumb) return;
+            const rect   = track.getBoundingClientRect();
+            const thumbW = thumb.offsetWidth;
+            const frac   = Math.max(0, Math.min(1, (e.clientX - rect.left - thumbW / 2) / (rect.width - thumbW)));
+            scrollWrapper.scrollLeft = frac * (scrollWrapper.scrollWidth - scrollWrapper.clientWidth);
+        });
+
+        let dragStartX = 0, dragStartScrollLeft = 0;
+        thumb.addEventListener('pointerdown', (e) => {
+            e.stopPropagation();
+            thumb.setPointerCapture(e.pointerId);
+            dragStartX = e.clientX;
+            dragStartScrollLeft = scrollWrapper.scrollLeft;
+            thumb.classList.add('route-fretboard-scroll-thumb--dragging');
+        });
+        thumb.addEventListener('pointermove', (e) => {
+            if (!thumb.hasPointerCapture(e.pointerId)) return;
+            e.stopPropagation();
+            const trackW    = track.clientWidth;
+            const thumbW    = thumb.offsetWidth;
+            const maxTravel = trackW - thumbW;
+            const maxScroll = scrollWrapper.scrollWidth - scrollWrapper.clientWidth;
+            scrollWrapper.scrollLeft = Math.max(0, Math.min(maxScroll,
+                dragStartScrollLeft + (maxTravel > 0 ? (e.clientX - dragStartX) / maxTravel * maxScroll : 0)));
+        });
+        thumb.addEventListener('pointerup',     () => { thumb.classList.remove('route-fretboard-scroll-thumb--dragging'); });
+        thumb.addEventListener('pointercancel', () => { thumb.classList.remove('route-fretboard-scroll-thumb--dragging'); });
+    })();
 
     // body は overflow:hidden のため、縦長コンテンツは #app 内でスクロール（設定画面と同じ）
     app.style.height = '100vh';

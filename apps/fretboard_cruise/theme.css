@@ -5761,3 +5761,27 @@ body:has(.pro-custom-route-editor-screen) .app-container {
         display: none;
     }
 }
+
+/* 指板を見る: 横スクロールコントロール（portrait専用） */
+@media (orientation: portrait) {
+    .vis-fretboard-scroll-ctl {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+        padding: 0 4px;
+        height: 36px;
+        width: calc(100% - 40px);
+        margin-inline: auto;
+        flex-shrink: 0;
+    }
+    .vis-fretboard-scroll-ctl--hidden {
+        visibility: hidden;
+        pointer-events: none;
+    }
+}
+@media (orientation: landscape) {
+    .vis-fretboard-scroll-ctl {
+        display: none;
+    }
+}
