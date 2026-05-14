@@ -2908,13 +2908,6 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     border-radius: 14px;
 }
 
-@media (orientation: portrait) {
-    .visualize-setup-panel {
-        width: calc(100% - 40px);
-        margin-inline: auto;
-    }
-}
-
 .visualize-setup-row {
     display: grid;
     gap: 10px;
@@ -2924,16 +2917,14 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 }
 
 .visualize-setup-row--triple {
-    /* キー/カポは内容ぴったり、スケールは可変で広がる */
-    grid-template-columns: max-content max-content 1fr;
-    justify-content: center;
+    /* キー80px / カポ60px 固定、スケールは残りを可変で割り当て */
+    grid-template-columns: 80px 60px minmax(0, 1fr);
     align-items: end;
 }
 
 .visualize-setup-row--double {
-    grid-template-columns: 1fr 1fr;
-    max-width: 460px;
-    margin: 0 auto;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    align-items: end;
 }
 
 .visualize-setup-row--notation {
@@ -2975,6 +2966,11 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     flex: 1 1 0;
 }
 
+.visualize-setup-row .do-mode-btn {
+    white-space: nowrap;
+    padding-inline: 8px;
+}
+
 .pro-custom-dd--visualize {
     width: auto;
 }
@@ -2984,7 +2980,8 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 }
 
 .visualize-setup-item--capo .pro-custom-dd--visualize {
-    width: 70px;
+    width: 100%;
+    min-width: 0;
 }
 
 .visualize-setup-item--scale .pro-custom-dd--visualize {
@@ -2999,8 +2996,15 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 
 @media (max-width: 420px) {
     .visualize-setup-row--triple {
-        grid-template-columns: max-content max-content 1fr;
         gap: 8px;
+    }
+}
+
+/* 縦画面: Gr編集カードと同程度の左右余白を追加（横画面には影響しない） */
+@media (orientation: portrait) {
+    .visualize-setup-panel {
+        width: calc(100% - 40px);
+        margin-inline: auto;
     }
 }
 
