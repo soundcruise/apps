@@ -5488,6 +5488,13 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     .route-editor-screen.route-editor-screen--standard {
         gap: 16px;
     }
+
+    /* scroll clearance spacer: 保存ボタン下のスクロール余白。
+       余白不足の場合は 280px〜320px に増やす。 */
+    .route-editor-screen.route-editor-screen--standard .route-editor-expanded-spacer {
+        height: 220px;
+        flex: 0 0 220px;
+    }
 }
 
 /* フレットボードスクロールコントロール（portrait専用） */
