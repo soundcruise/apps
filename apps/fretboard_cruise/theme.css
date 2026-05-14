@@ -5547,26 +5547,30 @@ body:has(.pro-custom-route-editor-screen) .app-container {
         padding-right: 8px;
     }
 
-    /* アクション行: gap 4px を維持しつつ space-between で右余白を均等ギャップに分配 */
+    /* アクション行: gap 4px 固定、flex-grow でボタン自体に横幅を分配（space-between 廃止） */
     .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-group-actions {
         gap: 4px;
-        justify-content: space-between;
     }
 
+    /* +/- は固定サイズ（flex-grow なし） */
     .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-group-add-btn,
     .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-group-remove-btn {
         min-width: 36px;
         padding: 0 6px;
     }
 
+    /* 位置保存: flex-grow で残りスペースを均等分配、min-width は下限 floor */
     .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-group-save-position-btn {
-        min-width: 64px;
+        flex-grow: 1;
+        min-width: 52px;
         padding: 0 6px;
         font-size: 0.7rem;
     }
 
+    /* 全て表示/非表示: 同じく flex-grow で拡大 */
     .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-group-toggle-btn {
-        min-width: 55px;
+        flex-grow: 1;
+        min-width: 52px;
         padding: 0 5px;
         font-size: 0.7rem;
     }
