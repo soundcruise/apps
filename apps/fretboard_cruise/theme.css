@@ -5516,6 +5516,21 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     }
 }
 
+/* ── 固定STAGE編集画面: 操作パネル類の左右余白（portrait 専用） ──────────
+   指板（.route-editor-fretboard-host）とスクロールバー（.route-fretboard-scroll-ctl）は
+   対象外。.pro-custom-route-editor-screen を除外し固定STAGE編集のみに適用。
+   横画面では .route-editor-toolbar / .route-editor-group-panel が position: fixed に
+   なるため @media (orientation: portrait) で自動的に無効になる。 */
+@media (orientation: portrait) {
+    .route-editor-screen:not(.pro-custom-route-editor-screen) .fretboard-edition-notice,
+    .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-toolbar,
+    .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-group-panel,
+    .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-save-row {
+        width: calc(100% - 24px);
+        margin-inline: auto;
+    }
+}
+
 /* フレットボードスクロールコントロール（portrait専用） */
 @media (orientation: portrait) {
     .route-fretboard-scroll-ctl {
