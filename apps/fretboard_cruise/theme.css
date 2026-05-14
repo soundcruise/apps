@@ -5496,13 +5496,16 @@ body:has(.pro-custom-route-editor-screen) .app-container {
         flex: 0 0 160px;
     }
 
-    /* Pro固定STAGE編集のみ（pro-custom-quiz-editor-screen は除外）。
-       scroll clearance spacer: 保存ボタン下のスクロール余白。
-       グローバル260pxより大きくする必要あり（portrait で上書きするため）。
-       余白不足の場合は400px〜480px に増やす。 */
-    .pro-custom-route-editor-screen:not(.pro-custom-quiz-editor-screen) .pro-custom-route-editor-tail-spacer {
-        height: 320px;
-        flex: 0 0 320px;
+    /* Pro版固定STAGE編集（renderRouteEditor 共通）への scroll clearance spacer。
+       Pro版では isStandardEdition()=false のため route-editor-screen--standard が付かない。
+       pro-custom-route-editor-screen を除外することで Pro カスタム編集には影響しない。
+       余白不足の場合は 280px〜320px に増やす。 */
+    .route-editor-screen:not(.route-editor-screen--standard):not(.pro-custom-route-editor-screen) .route-editor-save-row {
+        margin-bottom: var(--in-game-refresh-stack-height, 96px);
+    }
+    .route-editor-screen:not(.route-editor-screen--standard):not(.pro-custom-route-editor-screen) .route-editor-expanded-spacer {
+        height: 160px;
+        flex: 0 0 160px;
     }
 }
 
