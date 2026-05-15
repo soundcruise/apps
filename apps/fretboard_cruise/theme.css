@@ -5582,6 +5582,7 @@ body:has(.pro-custom-route-editor-screen) .app-container {
         min-height: 0;
         overflow: hidden;
         justify-content: flex-start;
+        gap: 16px;
     }
 
     .app-container.stage-select-scroll-screen .stage-list {
