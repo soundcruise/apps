@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.141.22';
+const FRETBOARD_CRUISE_APP_VERSION = '1.141.23';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -12132,7 +12132,7 @@ function renderVisualize(app) {
             </div>
             <div style="display: flex; gap: 15px; margin-top: 12px; justify-content: center;">
                 <button type="button" class="chord-type-btn ${state.visualize.chordLabelMode==='name'?'active':''}" data-chord-label-mode="name">コード名</button>
-                <button type="button" class="chord-type-btn ${state.visualize.chordLabelMode==='degree'?'active':''}" data-chord-label-mode="degree">度数</button>
+                <button type="button" class="chord-type-btn ${state.visualize.chordLabelMode==='degree'?'active':''}" data-chord-label-mode="degree">コード番号</button>
             </div>
         </div>
     `;
