@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.142.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.142.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -12215,7 +12215,25 @@ function renderVisualize(app) {
     });
     wireCustomDropdown('vis-scale', (value) => {
         state.visualize.scale = value;
-        state.visualize.selectedChordIndex = null;
+        if (state.visualize.autoSelectRootChord) {
+            const nextChords = getDiatonicChordsForKey(
+                getEffectiveVisualizeKey(),
+                state.visualize.scale,
+                state.visualize.chordType === '7',
+                state.visualize.chordLabelMode === 'degree' ? 'degree' : 'name'
+            );
+            const currentIndex = state.visualize.selectedChordIndex;
+            const nextIndex =
+                currentIndex !== null &&
+                currentIndex !== undefined &&
+                Number.isFinite(currentIndex)
+                    ? clamp(Math.floor(currentIndex), 0, Math.max(0, nextChords.length - 1))
+                    : 0;
+            state.visualize.selectedChordIndex = nextIndex;
+            state.visualize.lastDiatonicChordPickIndex = nextIndex;
+        } else {
+            state.visualize.selectedChordIndex = null;
+        }
         saveState();
         renderApp();
     });
