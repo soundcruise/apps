@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.141.23';
+const FRETBOARD_CRUISE_APP_VERSION = '1.141.24';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -11945,8 +11945,30 @@ function getMovableDiatonicSolfegeLabel(degreeFromKey, scaleType) {
     return map.hasOwnProperty(degreeFromKey) ? map[degreeFromKey] : undefined;
 }
 
+/** 選択中コードの root から見た度数ラベル。 */
+function getChordDegreeLabel(degreeFromKey, chordDegrees) {
+    if (!Array.isArray(chordDegrees) || chordDegrees.length === 0) return undefined;
+
+    const intervalFromChordRoot = (degreeFromKey - chordDegrees[0] + 12) % 12;
+    const labels = {
+        0: 'P1',
+        3: 'm3',
+        4: 'M3',
+        6: 'dim5',
+        7: 'P5',
+        8: 'aug5',
+        9: 'dim7',
+        10: 'm7',
+        11: 'M7'
+    };
+    return labels[intervalFromChordRoot];
+}
+
 /** 指板を見るのマーカー文字（CDE / 度数 / ドレミ × 固定ド・移動ド） */
-function getVisualizeMarkerLabel(noteIdx, scaleType, displayMode, doMode, isScale, degreeFromKey, allDegrees) {
+function getVisualizeMarkerLabel(noteIdx, scaleType, displayMode, doMode, isScale, degreeFromKey, allDegrees, chordDegrees = null) {
+    if (displayMode === 'chordDegree') {
+        return getChordDegreeLabel(degreeFromKey, chordDegrees) || allDegrees[degreeFromKey] || NOTES[noteIdx];
+    }
     if (displayMode === 'degree') {
         return allDegrees[degreeFromKey] || NOTES[noteIdx];
     }
@@ -11992,7 +12014,10 @@ function getAllDegreesWithAccidentals(scaleType) {
 function renderVisualize(app) {
     if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
     if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
-    if (['note', 'solfege', 'degree'].includes(state.settings.noteLabelMode)) {
+    if (
+        state.visualize.displayMode !== 'chordDegree' &&
+        ['note', 'solfege', 'degree'].includes(state.settings.noteLabelMode)
+    ) {
         state.visualize.displayMode = state.settings.noteLabelMode;
     }
     if (typeof state.visualize.scale === 'undefined') state.visualize.scale = 'major';
@@ -12099,6 +12124,9 @@ function renderVisualize(app) {
                         <button class="mode-btn ${state.visualize.displayMode==='solfege'?'active':''}" data-mode="solfege">ドレミ</button>
                         <button class="mode-btn ${state.visualize.displayMode==='note'?'active':''}" data-mode="note">CDE</button>
                         <button class="mode-btn ${state.visualize.displayMode==='degree'?'active':''}" data-mode="degree">度数</button>
+                        ${state.visualize.autoSelectRootChord
+                            ? `<button class="mode-btn ${state.visualize.displayMode==='chordDegree'?'active':''}" data-mode="chordDegree">コード度数</button>`
+                            : ''}
                     </div>
                 </div>
             </div>
@@ -12175,7 +12203,9 @@ function renderVisualize(app) {
         btn.onclick = () => {
             const m = btn.getAttribute('data-mode');
             state.visualize.displayMode = m;
-            state.settings.noteLabelMode = m;
+            if (m !== 'chordDegree') {
+                state.settings.noteLabelMode = m;
+            }
             saveState();
             renderApp();
         };
@@ -12232,6 +12262,9 @@ function renderVisualize(app) {
                 state.visualize.lastDiatonicChordPickIndex = state.visualize.selectedChordIndex;
             } else if (!on) {
                 state.visualize.selectedChordIndex = null;
+                if (state.visualize.displayMode === 'chordDegree') {
+                    state.visualize.displayMode = state.settings.noteLabelMode;
+                }
             }
             saveState();
             renderApp();
@@ -13950,25 +13983,29 @@ function renderFretboardHTML(containerId, options) {
                     if (!shouldShow) {
                         markerHtml = `<div class="note-marker hidden-note"></div>`;
                     } else {
+                        const chords = DIATONIC_CHORDS[scale || 'major'] || DIATONIC_CHORDS.major;
+                        const selectedChord = autoSelectRootChord && selectedChordIndex !== null && selectedChordIndex !== undefined
+                            ? chords[selectedChordIndex]
+                            : null;
+                        const chordDegrees = selectedChord
+                            ? (use7Chords ? (selectedChord.degrees7 || selectedChord.degrees) : selectedChord.degrees)
+                            : null;
+                        const effectiveDisplayMode =
+                            displayMode === 'chordDegree' && !selectedChord
+                                ? state.settings.noteLabelMode
+                                : displayMode;
                         const label = getVisualizeMarkerLabel(
                             noteIdx,
                             scale || 'major',
-                            displayMode,
+                            effectiveDisplayMode,
                             doMode,
                             isScale,
                             degreeFromKey,
-                            allDegrees
+                            allDegrees,
+                            chordDegrees
                         );
                         let roleClass = 'role-non-target';
                         if (isScale) {
-                            const chords = DIATONIC_CHORDS[scale || 'major'] || DIATONIC_CHORDS.major;
-                            const selectedChord = autoSelectRootChord && selectedChordIndex !== null && selectedChordIndex !== undefined
-                                ? chords[selectedChordIndex]
-                                : null;
-                            const chordDegrees = selectedChord
-                                ? (use7Chords ? (selectedChord.degrees7 || selectedChord.degrees) : selectedChord.degrees)
-                                : null;
-
                             if (chordDegrees && chordDegrees[0] === degreeFromKey) roleClass = 'role-root';
                             else if (chordDegrees && chordDegrees[1] === degreeFromKey) roleClass = 'role-third';
                             else if (chordDegrees && chordDegrees[2] === degreeFromKey) roleClass = 'role-fifth';
