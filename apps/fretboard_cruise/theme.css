@@ -5762,6 +5762,18 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     }
 }
 
+/* 指板を見る: 指板+スクロールバーの中間コンテナ
+   app-container の gap:40px を指板〜スクロールバー間に適用させないため、
+   route-editor-screen と同じく中間コンテナで距離を管理する。
+   portrait・landscape 共通（landscape では scroll-ctl が display:none のため gap は実質無効）。 */
+.vis-fretboard-area {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+}
+
 /* 指板を見る: 横スクロールコントロール（portrait専用） */
 @media (orientation: portrait) {
     .vis-fretboard-scroll-ctl {
@@ -5771,10 +5783,6 @@ body:has(.pro-custom-route-editor-screen) .app-container {
         gap: 8px;
         padding: 0 4px;
         height: 36px;
-        width: 100%;
-        align-self: stretch;
-        margin-inline: 0;
-        margin-top: -36px;
         flex-shrink: 0;
     }
     .vis-fretboard-scroll-ctl--hidden {
@@ -5789,16 +5797,15 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 }
 
 /* 指板を見る: portrait 時はカスタムバーを使うため標準スクロールバーを非表示にする。
-   padding-bottom は標準バー用の余白なので同時に削除し、指板とカスタムバーの距離を詰める。
-   body:has(.page-header--visualize) で visualize ページのみに限定し、
-   route-editor / quizEditor など同じ --visualize クラスを持つ他画面には影響させない。 */
+   .vis-fretboard-area でスコープを限定（:has() 依存を排除し iOS 旧バージョン互換性を改善）。
+   padding-bottom:35px はフレット番号表示エリアとして維持し、
+   指板〜スクロールバー間の距離は .vis-fretboard-area { gap:0 } で制御する。 */
 @media (orientation: portrait) {
-    body:has(.page-header--visualize) #fretboard-container .fretboard-scroll-wrapper {
+    .vis-fretboard-area #fretboard-container .fretboard-scroll-wrapper {
         scrollbar-width: none;
         -ms-overflow-style: none;
-        padding-bottom: 0;
     }
-    body:has(.page-header--visualize) #fretboard-container .fretboard-scroll-wrapper::-webkit-scrollbar {
+    .vis-fretboard-area #fretboard-container .fretboard-scroll-wrapper::-webkit-scrollbar {
         display: none;
     }
 }

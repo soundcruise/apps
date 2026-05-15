@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.141.19';
+const FRETBOARD_CRUISE_APP_VERSION = '1.141.20';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -12104,14 +12104,15 @@ function renderVisualize(app) {
             </div>
         </div>
 
-        <div id="fretboard-container" style="width: 100%;"></div>
-
-        <div class="vis-fretboard-scroll-ctl vis-fretboard-scroll-ctl--hidden" id="vis-fretboard-scroll-ctl">
-            <button type="button" class="route-fretboard-scroll-arrow-btn" id="vis-fretboard-scroll-left" aria-label="指板を左にスクロール">&#x276E;</button>
-            <div class="route-fretboard-scroll-track" id="vis-fretboard-scroll-track">
-                <div class="route-fretboard-scroll-thumb" id="vis-fretboard-scroll-thumb"></div>
+        <div class="vis-fretboard-area">
+            <div id="fretboard-container" style="width: 100%;"></div>
+            <div class="vis-fretboard-scroll-ctl vis-fretboard-scroll-ctl--hidden" id="vis-fretboard-scroll-ctl">
+                <button type="button" class="route-fretboard-scroll-arrow-btn" id="vis-fretboard-scroll-left" aria-label="指板を左にスクロール">&#x276E;</button>
+                <div class="route-fretboard-scroll-track" id="vis-fretboard-scroll-track">
+                    <div class="route-fretboard-scroll-thumb" id="vis-fretboard-scroll-thumb"></div>
+                </div>
+                <button type="button" class="route-fretboard-scroll-arrow-btn" id="vis-fretboard-scroll-right" aria-label="指板を右にスクロール">&#x276F;</button>
             </div>
-            <button type="button" class="route-fretboard-scroll-arrow-btn" id="vis-fretboard-scroll-right" aria-label="指板を右にスクロール">&#x276F;</button>
         </div>
 
         <div class="visualize-chords-afterboard" style="margin-bottom: 120px;">
