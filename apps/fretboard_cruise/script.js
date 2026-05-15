@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.142.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.142.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -12168,22 +12168,18 @@ function renderVisualize(app) {
             ${state.visualize.autoSelectRootChord ? `
                 <div class="visualize-diatonic-option-list">
                     <div class="visualize-diatonic-option-row">
-                        <span class="visualize-diatonic-option-label">コード番号表示</span>
-                        <span class="visualize-diatonic-option-state">OFF</span>
+                        <span class="visualize-diatonic-option-label">コード番号</span>
                         <label class="toggle-switch">
                             <input type="checkbox" id="show-chord-number" ${state.visualize.chordLabelMode === 'degree' ? 'checked' : ''}>
                             <span class="toggle-slider"></span>
                         </label>
-                        <span class="visualize-diatonic-option-state">ON</span>
                     </div>
                     <div class="visualize-diatonic-option-row">
-                        <span class="visualize-diatonic-option-label">コード度数表示</span>
-                        <span class="visualize-diatonic-option-state">OFF</span>
+                        <span class="visualize-diatonic-option-label">コード視点の度数</span>
                         <label class="toggle-switch">
                             <input type="checkbox" id="show-chord-degree-labels" ${state.visualize.chordDegreeLabelEnabled ? 'checked' : ''}>
                             <span class="toggle-slider"></span>
                         </label>
-                        <span class="visualize-diatonic-option-state">ON</span>
                     </div>
                 </div>
             ` : ''}
