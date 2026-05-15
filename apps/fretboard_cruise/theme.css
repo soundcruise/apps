@@ -1610,7 +1610,7 @@
 .visualize-chords-afterboard {
     position: relative;
     z-index: 40;
-    margin-top: 10px;
+    margin-top: 10px; /* portrait では下記メディアクエリで上書き */
     width: 100%;
     isolation: isolate;
     display: flex;
@@ -5807,5 +5807,16 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     }
     .vis-fretboard-area #fretboard-container .fretboard-scroll-wrapper::-webkit-scrollbar {
         display: none;
+    }
+}
+
+/* 指板を見る: portrait 時、スクロールバー〜ダイアトニックコードエリア間の余白を詰める。
+   app-container の gap:40px + 基本 margin-top:10px = 50px を、
+   負の margin-top で 20px（= 40 - 20）に短縮する。
+   内部レイアウト（タイトル・コードボタン・和音切替）は変更しない。
+   landscape は現状維持（このルールは portrait 限定）。 */
+@media (orientation: portrait) {
+    .visualize-chords-afterboard {
+        margin-top: -20px;
     }
 }
