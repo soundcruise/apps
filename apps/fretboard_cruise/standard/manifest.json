@@ -9,9 +9,9 @@
   "theme_color": "#4f9cf9",
   "description": "ギター指板の音名を覚えるトレーニングアプリ。",
   "icons": [
-    { "src": "../generated-home-icons/standard-selected-icon/fretboard-cruise-standard-selection-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "../generated-home-icons/standard-selected-icon/fretboard-cruise-standard-selection-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "../generated-home-icons/standard-selected-icon/fretboard-cruise-standard-selection-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
-    { "src": "../generated-home-icons/standard-selected-icon/fretboard-cruise-standard-selection-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "../generated-home-icons/standard-selected-icon/fretboard-cruise-standard-selection-192.png?v=standardicon-20260515", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "../generated-home-icons/standard-selected-icon/fretboard-cruise-standard-selection-512.png?v=standardicon-20260515", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "../generated-home-icons/standard-selected-icon/fretboard-cruise-standard-selection-192.png?v=standardicon-20260515", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "../generated-home-icons/standard-selected-icon/fretboard-cruise-standard-selection-512.png?v=standardicon-20260515", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

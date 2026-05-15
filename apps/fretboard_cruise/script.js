@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.141.20';
+const FRETBOARD_CRUISE_APP_VERSION = '1.141.22';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -13961,7 +13961,19 @@ function renderFretboardHTML(containerId, options) {
                         );
                         let roleClass = 'role-non-target';
                         if (isScale) {
-                            if (degreeFromKey === 0) roleClass = 'role-root';
+                            const chords = DIATONIC_CHORDS[scale || 'major'] || DIATONIC_CHORDS.major;
+                            const selectedChord = autoSelectRootChord && selectedChordIndex !== null && selectedChordIndex !== undefined
+                                ? chords[selectedChordIndex]
+                                : null;
+                            const chordDegrees = selectedChord
+                                ? (use7Chords ? (selectedChord.degrees7 || selectedChord.degrees) : selectedChord.degrees)
+                                : null;
+
+                            if (chordDegrees && chordDegrees[0] === degreeFromKey) roleClass = 'role-root';
+                            else if (chordDegrees && chordDegrees[1] === degreeFromKey) roleClass = 'role-third';
+                            else if (chordDegrees && chordDegrees[2] === degreeFromKey) roleClass = 'role-fifth';
+                            else if (use7Chords && chordDegrees && chordDegrees[3] === degreeFromKey) roleClass = 'role-seventh';
+                            else if (degreeFromKey === 0) roleClass = 'role-root';
                             else if (degreeFromKey === 4) roleClass = 'role-third';
                             else if (degreeFromKey === 7) roleClass = 'role-fifth';
                             else if (degreeFromKey === 11) roleClass = 'role-seventh';
