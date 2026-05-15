@@ -5534,6 +5534,9 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 
     body:has(.route-editor-screen--standard) .app-container {
         min-height: 100dvh;
+        max-height: 100dvh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
     .route-editor-screen.route-editor-screen--standard .route-editor-save-row {
@@ -5571,8 +5574,16 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     }
 }
 
-/* STAGE選択画面の左右パディング（portrait専用） */
+/* STAGE選択画面の portrait スクロール安定化 + 左右パディング */
 @media (orientation: portrait) {
+    body:has(.page-header--stage-select) .app-container {
+        height: 100dvh;
+        max-height: 100dvh;
+        min-height: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
     body:has(.page-header--stage-select) .stage-list {
         padding: 0 40px;
     }
