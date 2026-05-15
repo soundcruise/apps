@@ -5532,7 +5532,7 @@ body:has(.pro-custom-route-editor-screen) .app-container {
         -webkit-overflow-scrolling: touch;
     }
 
-    body:has(.route-editor-screen--standard) .app-container {
+    .app-container.route-editor-scroll-screen {
         min-height: 100dvh;
         max-height: 100dvh;
         overflow-y: auto;
@@ -5576,7 +5576,7 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 
 /* STAGE選択画面の portrait スクロール安定化 + 左右パディング */
 @media (orientation: portrait) {
-    body:has(.page-header--stage-select) .app-container {
+    .app-container.stage-select-scroll-screen {
         height: 100dvh;
         max-height: 100dvh;
         min-height: 0;
