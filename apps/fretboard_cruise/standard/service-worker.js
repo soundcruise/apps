@@ -1,5 +1,5 @@
 const GATE_VERSION = 4; // pitch-cruise と共有クッキー（soundcruise_pro_gate_rid）を使うため同じ値にする
-const CACHE_NAME = 'fretboard-cruise-standard-v1.141.18';
+const CACHE_NAME = 'fretboard-cruise-standard-v1.141.19';
 
 self.addEventListener('install', () => { self.skipWaiting(); });
 
