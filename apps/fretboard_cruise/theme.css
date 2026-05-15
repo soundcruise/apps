@@ -1638,6 +1638,33 @@
     flex-shrink: 0;
 }
 
+.visualize-diatonic-option-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 12px;
+    width: min(320px, 100%);
+}
+
+.visualize-diatonic-option-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.visualize-diatonic-option-label {
+    min-width: 120px;
+    text-align: right;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 0.9rem;
+}
+
+.visualize-diatonic-option-state {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.82rem;
+}
+
 .chord-list {
     display: flex;
     flex-wrap: wrap;

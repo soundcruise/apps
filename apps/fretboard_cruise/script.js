@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.141.24';
+const FRETBOARD_CRUISE_APP_VERSION = '1.142.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -414,6 +414,8 @@ let state = {
         chordType: '3',
         /** 'name' = コード名（C, Dm…）, 'degree' = 度数（I, IIm…） */
         chordLabelMode: 'name',
+        /** ダイアトニックコードON時に、指板ラベルを選択コード基準の度数で表示する */
+        chordDegreeLabelEnabled: false,
         /** autoSelectRootChord: Iコード自動選択（オン時）*/
         autoSelectRootChord: false,
         /** 指板を見るの表示フレット上限（PROカスタム編集と同じ「最大フレット」方式）。
@@ -830,6 +832,17 @@ if (savedState) {
         if (typeof state.visualize.key === 'undefined') state.visualize.key = 0;
         if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
         if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
+        if (typeof state.visualize.chordDegreeLabelEnabled === 'undefined') {
+            state.visualize.chordDegreeLabelEnabled = state.visualize.displayMode === 'chordDegree';
+        }
+        if (state.visualize.displayMode === 'chordDegree') {
+            state.visualize.displayMode = ['solfege', 'note', 'degree'].includes(state.settings.noteLabelMode)
+                ? state.settings.noteLabelMode
+                : 'solfege';
+        }
+        if (!['solfege', 'note', 'degree'].includes(state.visualize.displayMode)) {
+            state.visualize.displayMode = 'note';
+        }
         if (typeof state.visualize.doMode === 'undefined') state.visualize.doMode = 'movable';
         if (typeof state.visualize.chordType === 'undefined') state.visualize.chordType = '3';
         if (state.visualize.chordLabelMode !== 'name' && state.visualize.chordLabelMode !== 'degree') {
@@ -12014,10 +12027,7 @@ function getAllDegreesWithAccidentals(scaleType) {
 function renderVisualize(app) {
     if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
     if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
-    if (
-        state.visualize.displayMode !== 'chordDegree' &&
-        ['note', 'solfege', 'degree'].includes(state.settings.noteLabelMode)
-    ) {
+    if (['note', 'solfege', 'degree'].includes(state.settings.noteLabelMode)) {
         state.visualize.displayMode = state.settings.noteLabelMode;
     }
     if (typeof state.visualize.scale === 'undefined') state.visualize.scale = 'major';
@@ -12124,9 +12134,6 @@ function renderVisualize(app) {
                         <button class="mode-btn ${state.visualize.displayMode==='solfege'?'active':''}" data-mode="solfege">ドレミ</button>
                         <button class="mode-btn ${state.visualize.displayMode==='note'?'active':''}" data-mode="note">CDE</button>
                         <button class="mode-btn ${state.visualize.displayMode==='degree'?'active':''}" data-mode="degree">度数</button>
-                        ${state.visualize.autoSelectRootChord
-                            ? `<button class="mode-btn ${state.visualize.displayMode==='chordDegree'?'active':''}" data-mode="chordDegree">コード度数</button>`
-                            : ''}
                     </div>
                 </div>
             </div>
@@ -12158,10 +12165,28 @@ function renderVisualize(app) {
                 <button type="button" class="chord-type-btn ${state.visualize.chordType==='3'?'active':''}" data-chord-type="3">3和音</button>
                 <button type="button" class="chord-type-btn ${state.visualize.chordType==='7'?'active':''}" data-chord-type="7">4和音</button>
             </div>
-            <div style="display: flex; gap: 15px; margin-top: 12px; justify-content: center;">
-                <button type="button" class="chord-type-btn ${state.visualize.chordLabelMode==='name'?'active':''}" data-chord-label-mode="name">コード名</button>
-                <button type="button" class="chord-type-btn ${state.visualize.chordLabelMode==='degree'?'active':''}" data-chord-label-mode="degree">コード番号</button>
-            </div>
+            ${state.visualize.autoSelectRootChord ? `
+                <div class="visualize-diatonic-option-list">
+                    <div class="visualize-diatonic-option-row">
+                        <span class="visualize-diatonic-option-label">コード番号表示</span>
+                        <span class="visualize-diatonic-option-state">OFF</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="show-chord-number" ${state.visualize.chordLabelMode === 'degree' ? 'checked' : ''}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="visualize-diatonic-option-state">ON</span>
+                    </div>
+                    <div class="visualize-diatonic-option-row">
+                        <span class="visualize-diatonic-option-label">コード度数表示</span>
+                        <span class="visualize-diatonic-option-state">OFF</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="show-chord-degree-labels" ${state.visualize.chordDegreeLabelEnabled ? 'checked' : ''}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="visualize-diatonic-option-state">ON</span>
+                    </div>
+                </div>
+            ` : ''}
         </div>
     `;
 
@@ -12203,9 +12228,7 @@ function renderVisualize(app) {
         btn.onclick = () => {
             const m = btn.getAttribute('data-mode');
             state.visualize.displayMode = m;
-            if (m !== 'chordDegree') {
-                state.settings.noteLabelMode = m;
-            }
+            state.settings.noteLabelMode = m;
             saveState();
             renderApp();
         };
@@ -12234,14 +12257,23 @@ function renderVisualize(app) {
         };
     });
 
-    document.querySelectorAll('.chord-type-btn[data-chord-label-mode]').forEach(btn => {
-        btn.onclick = () => {
-            const mode = btn.getAttribute('data-chord-label-mode');
-            state.visualize.chordLabelMode = (mode === 'degree') ? 'degree' : 'name';
+    const chordNumberToggle = document.getElementById('show-chord-number');
+    if (chordNumberToggle) {
+        chordNumberToggle.onchange = () => {
+            state.visualize.chordLabelMode = chordNumberToggle.checked ? 'degree' : 'name';
             saveState();
             renderApp();
         };
-    });
+    }
+
+    const chordDegreeLabelToggle = document.getElementById('show-chord-degree-labels');
+    if (chordDegreeLabelToggle) {
+        chordDegreeLabelToggle.onchange = () => {
+            state.visualize.chordDegreeLabelEnabled = chordDegreeLabelToggle.checked;
+            saveState();
+            renderApp();
+        };
+    }
 
     const autoSelectToggle = document.getElementById('auto-select-root-chord');
     if (autoSelectToggle) {
@@ -12262,9 +12294,6 @@ function renderVisualize(app) {
                 state.visualize.lastDiatonicChordPickIndex = state.visualize.selectedChordIndex;
             } else if (!on) {
                 state.visualize.selectedChordIndex = null;
-                if (state.visualize.displayMode === 'chordDegree') {
-                    state.visualize.displayMode = state.settings.noteLabelMode;
-                }
             }
             saveState();
             renderApp();
@@ -13990,9 +14019,13 @@ function renderFretboardHTML(containerId, options) {
                         const chordDegrees = selectedChord
                             ? (use7Chords ? (selectedChord.degrees7 || selectedChord.degrees) : selectedChord.degrees)
                             : null;
+                        const shouldUseChordDegreeLabels =
+                            autoSelectRootChord &&
+                            !!selectedChord &&
+                            state.visualize.chordDegreeLabelEnabled;
                         const effectiveDisplayMode =
-                            displayMode === 'chordDegree' && !selectedChord
-                                ? state.settings.noteLabelMode
+                            shouldUseChordDegreeLabels
+                                ? 'chordDegree'
                                 : displayMode;
                         const label = getVisualizeMarkerLabel(
                             noteIdx,
