@@ -3424,6 +3424,19 @@ body:has(.pro-custom-route-editor-screen) .app-container {
         gap: 6px;
     }
 
+    /* 通常版の固定STAGE編集は案内カードを残したまま、横画面だけ縦占有を少し詰める。
+       route / quiz 共通の .route-editor-screen--standard に限定し、PRO版には影響させない。 */
+    .route-editor-screen.route-editor-screen--standard {
+        gap: 8px;
+    }
+
+    .route-editor-screen.route-editor-screen--standard .fretboard-edition-notice {
+        margin-top: 4px;
+        margin-bottom: 6px;
+        padding: 8px 12px;
+        line-height: 1.35;
+    }
+
     .route-editor-toolbar {
         position: fixed;
         top: max(14px, env(safe-area-inset-top));
