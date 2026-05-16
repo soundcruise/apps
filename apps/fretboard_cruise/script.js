@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.142.32';
+const FRETBOARD_CRUISE_APP_VERSION = '1.142.33';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = true;
@@ -14935,14 +14935,13 @@ function renderFretboardHTML(containerId, options) {
                         };
                     }
                     if (land) {
-                        return Math.max(
-                            h,
-                            Math.floor(
-                                window.innerHeight * 0.585 -
-                                    memorizeLandBottomUiClearPx -
-                                    2
-                            )
+                        const floorH = Math.floor(
+                            window.innerHeight * 0.585 - memorizeLandBottomUiClearPx - 2
                         );
+                        if (mode === 'visualize' && containerId === 'fretboard-container') {
+                            return Math.max(fallbackFullH, fromClient, floorH);
+                        }
+                        return Math.max(h, floorH);
                     }
                     return h;
                 };
