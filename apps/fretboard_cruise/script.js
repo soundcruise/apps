@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.142.14';
+const FRETBOARD_CRUISE_APP_VERSION = '1.142.15';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const tapLatencyContexts = new WeakMap();
@@ -14709,7 +14709,7 @@ function renderFretboardHTML(containerId, options) {
                     ) {
                         if (
                             !routeEditorFretHost &&
-                            !(quizEditorFretHost && proCustomEditorLandscapeLargeFretboard)
+                            !(quizEditorFretHost && land)
                         ) {
                             return null;
                         }
