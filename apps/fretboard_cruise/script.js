@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.142.34';
+const FRETBOARD_CRUISE_APP_VERSION = '1.142.35';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = true;
@@ -14940,7 +14940,7 @@ function renderFretboardHTML(containerId, options) {
                         );
                         if (mode === 'visualize' && containerId === 'fretboard-container') {
                             const visualizeLandFloorH = Math.floor(
-                                window.innerHeight * 0.62 - memorizeLandBottomUiClearPx - 2
+                                window.innerHeight * 0.72 - memorizeLandBottomUiClearPx - 2
                             );
                             return Math.max(fallbackFullH, fromClient, visualizeLandFloorH);
                         }
