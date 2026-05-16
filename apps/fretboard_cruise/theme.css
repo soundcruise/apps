@@ -130,6 +130,13 @@
         overflow: hidden;
     }
 
+    /* 固定STAGE編集は、問題画面に近い見える幅になるよう portrait の指板ホスト高さを確保する。
+       PROカスタム編集は独自レイアウトを維持するため除外する。 */
+    .route-editor-screen:not(.pro-custom-route-editor-screen) .route-editor-fretboard-host {
+        min-height: clamp(220px, 27dvh, 235px);
+        flex-shrink: 0;
+    }
+
     .route-editor-screen .route-editor-fretboard-host::after {
         content: '';
         position: absolute;
