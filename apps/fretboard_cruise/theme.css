@@ -5779,6 +5779,14 @@ body:has(.pro-custom-route-editor-screen) .app-container {
         padding: 0 5px;
         font-size: 0.7rem;
     }
+
+    /* ⑥ 指板ホスト下部余白: overflow:hidden のクリップ境界を下げてフレット番号を表示する。
+       JS が containerEl.style.height = projectedBounds.height × scale を設定するため、
+       padding-bottom を加えてパディングボックス分だけクリップ境界を広げる。
+       指板本体のサイズ・scale計算には一切影響しない。 */
+    .pro-custom-route-editor-screen .route-editor-fretboard-host {
+        padding-bottom: 24px;
+    }
 }
 
 /* フレットボードスクロールコントロール（portrait専用） */
