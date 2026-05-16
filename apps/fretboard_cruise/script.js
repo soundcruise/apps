@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.142.15';
+const FRETBOARD_CRUISE_APP_VERSION = '1.142.16';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const tapLatencyContexts = new WeakMap();
@@ -14657,6 +14657,8 @@ function renderFretboardHTML(containerId, options) {
                     mode === 'routeEditor' && containerId === 'fretboard-container';
                 const quizEditorFretHost =
                     mode === 'quizEditor' && containerId === 'fretboard-container';
+                const fixedStageEditorFretHost =
+                    !proCustomGuide && (routeEditorFretHost || quizEditorFretHost);
                 const visualizeFretHost =
                     (mode === 'visualize' && containerId === 'fretboard-container') ||
                     (mode === 'rule' && containerId === 'rule-fretboard-container') ||
@@ -14672,7 +14674,7 @@ function renderFretboardHTML(containerId, options) {
                         ビューポートの 60% 弱を「指板の理想高さ」として使う。
                         スクロールが必要になっても良いので、大胆に高く取る。 */
                     ? Math.max(180, Math.round(window.innerHeight * 0.585))
-                    : (routeEditorFretHost || quizEditorFretHost) && land
+                    : fixedStageEditorFretHost && land
                         ? Math.max(150, Math.round(window.innerHeight * 0.44))
                         : memorizeProblemLandscapeWide
                             ? Math.max(150, Math.round(window.innerHeight * 0.46))
@@ -14688,11 +14690,9 @@ function renderFretboardHTML(containerId, options) {
                 const memorizeLandBottomUiClearPx =
                     cruiseLandCfg.active && cruiseLandCfg.bottomClearOverride !== null
                         ? cruiseLandCfg.bottomClearOverride
-                        : (routeEditorFretHost || quizEditorFretHost) &&
-                            land &&
-                            proCustomEditorLandscapeLargeFretboard
+                        : proCustomEditorLandscapeLargeFretboard
                             ? 0
-                            : routeEditorFretHost && land
+                            : fixedStageEditorFretHost && land
                                 ? 72
                                 : memorizeProblemLandscapeWide
                                     ? 70
@@ -14707,10 +14707,7 @@ function renderFretboardHTML(containerId, options) {
                         (containerId !== 'fretboard-container' && containerId !== 'rule-fretboard-container') ||
                         !appEl
                     ) {
-                        if (
-                            !routeEditorFretHost &&
-                            !(quizEditorFretHost && land)
-                        ) {
+                        if (!(fixedStageEditorFretHost && land)) {
                             return null;
                         }
                     }
