@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.142.36';
+const FRETBOARD_CRUISE_APP_VERSION = '1.142.37';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = true;
@@ -14940,7 +14940,7 @@ function renderFretboardHTML(containerId, options) {
                         );
                         if (mode === 'visualize' && containerId === 'fretboard-container') {
                             const visualizeLandFloorH = Math.floor(
-                                window.innerHeight * 0.72 - memorizeLandBottomUiClearPx - 2
+                                window.innerHeight * 0.65 - memorizeLandBottomUiClearPx - 2
                             );
                             return Math.max(fallbackFullH, fromClient, visualizeLandFloorH);
                         }
@@ -14953,10 +14953,7 @@ function renderFretboardHTML(containerId, options) {
                     maxFullViewH = mh0;
                 }
                 const layoutPad = (memorizeFretHost || visualizeFretHost) ? (land ? 0 : 2) : 4;
-                const visSafeLeft = (mode === 'visualize' && containerId === 'fretboard-container' && land)
-                    ? getSafeAreaInsetPx('left')
-                    : 0;
-                const scaleByW = (layoutW - layoutPad - visSafeLeft * 2) / projectedBounds.width;
+                const scaleByW = (layoutW - layoutPad) / projectedBounds.width;
                 const scaleByH = maxFullViewH / projectedBounds.height;
                 /**
                  * 横画面・指板をたどる・全体ビューのときだけ、scale の「1 以下」上限を外す。
