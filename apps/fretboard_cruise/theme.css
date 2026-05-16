@@ -5787,6 +5787,18 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     .pro-custom-route-editor-screen .route-editor-fretboard-host {
         overflow: visible;
     }
+
+    /* ⑦ PROカスタム縦画面:
+       overflow:visible により .fretboard-scroll-wrapper の 35px padding-bottom エリアが
+       露出し、iOS Safari のネイティブスクロールインジケーターが見えてしまう問題を解消。
+       青い .route-fretboard-scroll-ctl は別要素のため影響なし。 */
+    .pro-custom-route-editor-screen #fretboard-container .fretboard-scroll-wrapper {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+    .pro-custom-route-editor-screen #fretboard-container .fretboard-scroll-wrapper::-webkit-scrollbar {
+        display: none;
+    }
 }
 
 /* フレットボードスクロールコントロール（portrait専用） */
