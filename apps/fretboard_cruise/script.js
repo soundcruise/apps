@@ -1,6 +1,6 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.142.13';
+const FRETBOARD_CRUISE_APP_VERSION = '1.142.14';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
-const DEBUG_TAP_LATENCY = true;
+const DEBUG_TAP_LATENCY = false;
 const tapLatencyContexts = new WeakMap();
 const tapLatencyRecentSamples = [];
 const TAP_LATENCY_PANEL_ID = 'tap-latency-debug-panel';
