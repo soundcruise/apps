@@ -1,11 +1,13 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.142.19';
+const FRETBOARD_CRUISE_APP_VERSION = '1.142.20';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = true;
+const DEBUG_PORTRAIT_FRETBOARD_LAYOUT = true;
 const tapLatencyContexts = new WeakMap();
 const tapLatencyRecentSamples = [];
 const TAP_LATENCY_PANEL_ID = 'tap-latency-debug-panel';
 const EDITOR_FRETBOARD_LAYOUT_PANEL_ID = 'editor-fretboard-layout-debug-panel';
+const PORTRAIT_FRETBOARD_LAYOUT_PANEL_ID = 'portrait-fretboard-layout-debug-panel';
 
 function shouldDebugCruiseTapLatency() {
     return DEBUG_TAP_LATENCY &&
@@ -168,6 +170,74 @@ function updateEditorFretboardLayoutPanel(metrics) {
         `style left ${metrics.containerStyleLeft || '—'}`
     ].join('\n');
     console.log('[editor-fretboard-layout]', metrics);
+}
+
+function shouldDebugPortraitFretboardLayout() {
+    return DEBUG_PORTRAIT_FRETBOARD_LAYOUT &&
+        window.innerWidth <= window.innerHeight &&
+        (state.course === 'memorize' || state.course === 'routeEditor' || state.course === 'quizEditor');
+}
+
+function ensurePortraitFretboardLayoutPanel() {
+    if (!shouldDebugPortraitFretboardLayout()) return null;
+    let panel = document.getElementById(PORTRAIT_FRETBOARD_LAYOUT_PANEL_ID);
+    if (panel) return panel;
+    panel = document.createElement('div');
+    panel.id = PORTRAIT_FRETBOARD_LAYOUT_PANEL_ID;
+    panel.style.position = 'fixed';
+    panel.style.top = 'calc(env(safe-area-inset-top, 0px) + 8px)';
+    panel.style.left = 'calc(env(safe-area-inset-left, 0px) + 8px)';
+    panel.style.zIndex = '99999';
+    panel.style.maxWidth = '260px';
+    panel.style.padding = '8px 10px';
+    panel.style.borderRadius = '10px';
+    panel.style.background = 'rgba(0, 0, 0, 0.76)';
+    panel.style.color = '#fff';
+    panel.style.fontSize = '10px';
+    panel.style.lineHeight = '1.35';
+    panel.style.fontWeight = '700';
+    panel.style.whiteSpace = 'pre-line';
+    panel.style.pointerEvents = 'none';
+    panel.style.userSelect = 'none';
+    panel.style.webkitUserSelect = 'none';
+    document.body.appendChild(panel);
+    return panel;
+}
+
+function removePortraitFretboardLayoutPanelIfNeeded() {
+    if (shouldDebugPortraitFretboardLayout()) return;
+    const panel = document.getElementById(PORTRAIT_FRETBOARD_LAYOUT_PANEL_ID);
+    if (panel) panel.remove();
+}
+
+function updatePortraitFretboardLayoutPanel(metrics) {
+    if (!shouldDebugPortraitFretboardLayout() || !metrics) return;
+    const panel = ensurePortraitFretboardLayoutPanel();
+    if (!panel) return;
+    panel.textContent = [
+        `mode ${metrics.mode}`,
+        `container ${metrics.containerId}`,
+        `orientation ${metrics.orientation}`,
+        '',
+        `clientW ${formatEditorLayoutDebugValue(metrics.containerClientWidth)}`,
+        `clientH ${formatEditorLayoutDebugValue(metrics.containerClientHeight)}`,
+        `scroll clientW ${formatEditorLayoutDebugValue(metrics.scrollWrapperClientWidth)}`,
+        `scroll width ${formatEditorLayoutDebugValue(metrics.scrollWrapperScrollWidth)}`,
+        `layoutW ${formatEditorLayoutDebugValue(metrics.layoutW)}`,
+        `maxFret ${formatEditorLayoutDebugValue(metrics.renderMaxFret)}`,
+        '',
+        `projW ${formatEditorLayoutDebugValue(metrics.projectedBoundsWidth)}`,
+        `projH ${formatEditorLayoutDebugValue(metrics.projectedBoundsHeight)}`,
+        `maxZoomH ${formatEditorLayoutDebugValue(metrics.maxZoomViewH)}`,
+        `zoomScale ${formatEditorLayoutDebugValue(metrics.zoomScale)}`,
+        `final scale ${formatEditorLayoutDebugValue(metrics.finalScale)}`,
+        '',
+        `container style w ${metrics.containerStyleWidth || '—'}`,
+        `container style h ${metrics.containerStyleHeight || '—'}`,
+        `scroll style w ${metrics.scrollWrapperStyleWidth || '—'}`,
+        `scroll style h ${metrics.scrollWrapperStyleHeight || '—'}`
+    ].join('\n');
+    console.log('[portrait-fretboard-layout]', metrics);
 }
 
 function getAverageTapLatencySample(samples) {
@@ -5094,6 +5164,7 @@ function renderApp() {
     if (!app) return;
     removeTapLatencyPanelIfNeeded();
     removeEditorFretboardLayoutPanelIfNeeded();
+    removePortraitFretboardLayoutPanelIfNeeded();
     app.classList.toggle('stage-select-scroll-screen', state.course === 'stageSelect');
     app.classList.toggle(
         'route-editor-scroll-screen',
@@ -14728,6 +14799,36 @@ function renderFretboardHTML(containerId, options) {
                 if (perspectiveWrapper) {
                     perspectiveWrapper.style.transformOrigin = 'top left';
                     perspectiveWrapper.style.transform = `translate(${(-projectedBounds.minX).toFixed(2)}px, ${(-projectedBounds.minY).toFixed(2)}px) scale(${zoomScale.toFixed(4)})`;
+                }
+                if (
+                    DEBUG_PORTRAIT_FRETBOARD_LAYOUT &&
+                    !land &&
+                    containerId === 'fretboard-container' &&
+                    (mode === 'memorize' || mode === 'routeEditor' || mode === 'quizEditor')
+                ) {
+                    requestAnimationFrame(() => {
+                        if (!containerEl.isConnected || !scrollWrapper.isConnected) return;
+                        updatePortraitFretboardLayoutPanel({
+                            mode,
+                            containerId,
+                            orientation: 'portrait',
+                            containerClientWidth: containerEl.clientWidth,
+                            containerClientHeight: containerEl.clientHeight,
+                            scrollWrapperClientWidth: scrollWrapper.clientWidth,
+                            scrollWrapperScrollWidth: scrollWrapper.scrollWidth,
+                            layoutW,
+                            renderMaxFret,
+                            projectedBoundsWidth: projectedBounds.width,
+                            projectedBoundsHeight: projectedBounds.height,
+                            maxZoomViewH,
+                            zoomScale,
+                            finalScale: zoomScale,
+                            containerStyleWidth: containerEl.style.width,
+                            containerStyleHeight: containerEl.style.height,
+                            scrollWrapperStyleWidth: scrollWrapper.style.width,
+                            scrollWrapperStyleHeight: scrollWrapper.style.height
+                        });
+                    });
                 }
             } else {
                 const projectedBounds = getProjectedFretboardBounds(neckTop, neckBottom, renderMaxFret);
