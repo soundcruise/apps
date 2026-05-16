@@ -9,6 +9,7 @@
     --key-active-color: #4f9cf9;
     --error-color: #ff4f6e;
     --in-game-refresh-stack-height: 96px;
+    --safe-area-inset-left: env(safe-area-inset-left, 0px);
 
     /* Fretboard specific colors */
     --fretboard-wood: linear-gradient(to right, #2a1508, #3b2010 30%, #4a2914 50%, #3b2010 70%, #2a1508);

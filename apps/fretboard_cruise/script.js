@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.142.9';
+const FRETBOARD_CRUISE_APP_VERSION = '1.142.10';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -1404,6 +1404,14 @@ function getCruiseLandscapeLayoutConfig() {
         useFullViewportWidth: true,
         bottomClearOverride: 28
     };
+}
+
+function getSafeAreaInsetLeftPx() {
+    const raw = getComputedStyle(document.documentElement)
+        .getPropertyValue('--safe-area-inset-left')
+        .trim();
+    const value = parseFloat(raw);
+    return Number.isFinite(value) ? value : 0;
 }
 
 /**
@@ -14365,8 +14373,15 @@ function renderFretboardHTML(containerId, options) {
             // Break out of the app container's max-width by offsetting to the left
             // viewport edge. position:relative keeps the element in the flex flow.
             const containerRect = containerEl.getBoundingClientRect();
+            const isFixedCruiseLandscape =
+                mode === 'memorize' &&
+                containerId === 'fretboard-container' &&
+                state.memorize?.playMode === 'cruise' &&
+                !state.memorize?.proCustomCruise &&
+                window.innerWidth > window.innerHeight;
+            const safeLeftPx = isFixedCruiseLandscape ? getSafeAreaInsetLeftPx() : 0;
             containerEl.style.position = 'relative';
-            containerEl.style.left = isRuleFretHost ? '0px' : `${-Math.round(containerRect.left)}px`;
+            containerEl.style.left = isRuleFretHost ? '0px' : `${-Math.round(containerRect.left) + safeLeftPx}px`;
             containerEl.style.width = `${layoutW}px`;
             containerEl.style.overflow = '';
             containerEl.style.removeProperty('-webkit-overflow-scrolling');
