@@ -3446,13 +3446,14 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 
     .route-editor-screen.route-editor-screen--standard .fretboard-edition-notice {
         width: auto;
-        max-width: min(420px, calc(100% - 48px));
+        max-width: min(390px, calc(100% - 56px));
         box-sizing: border-box;
         margin-top: 2px;
         margin-bottom: 4px;
-        padding: 5px 10px;
-        font-size: 11px;
+        padding: 4px 9px;
+        font-size: 10px;
         line-height: 1.25;
+        font-weight: 500;
         white-space: normal;
         overflow-wrap: break-word;
         word-break: normal;
@@ -3467,6 +3468,9 @@ body:has(.pro-custom-route-editor-screen) .app-container {
 
     .route-editor-screen.route-editor-screen--standard .fretboard-edition-notice span {
         display: inline;
+        font-size: inherit;
+        font-weight: inherit;
+        line-height: inherit;
     }
 
     .route-editor-toolbar {
