@@ -3424,17 +3424,29 @@ body:has(.pro-custom-route-editor-screen) .app-container {
         gap: 6px;
     }
 
-    /* 通常版の固定STAGE編集は案内カードを残したまま、横画面だけ縦占有を少し詰める。
+    /* 通常版の固定STAGE編集は案内カードを残したまま、横画面だけ1行の細い情報バーへ寄せる。
        route / quiz 共通の .route-editor-screen--standard に限定し、PRO版には影響させない。 */
     .route-editor-screen.route-editor-screen--standard {
-        gap: 8px;
+        gap: 6px;
     }
 
     .route-editor-screen.route-editor-screen--standard .fretboard-edition-notice {
-        margin-top: 4px;
-        margin-bottom: 6px;
-        padding: 8px 12px;
-        line-height: 1.35;
+        width: min(680px, calc(100% - 24px));
+        max-width: 680px;
+        margin-top: 2px;
+        margin-bottom: 4px;
+        padding: 5px 12px;
+        font-size: 0.8rem;
+        line-height: 1.15;
+        white-space: nowrap;
+    }
+
+    .route-editor-screen.route-editor-screen--standard .fretboard-edition-notice br {
+        display: none;
+    }
+
+    .route-editor-screen.route-editor-screen--standard .fretboard-edition-notice span {
+        display: inline;
     }
 
     .route-editor-toolbar {
