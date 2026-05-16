@@ -1,5 +1,54 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.142.11';
+const FRETBOARD_CRUISE_APP_VERSION = '1.142.12';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
+const DEBUG_TAP_LATENCY = false;
+const tapLatencyContexts = new WeakMap();
+
+function shouldDebugCruiseTapLatency() {
+    return DEBUG_TAP_LATENCY &&
+        state.course === 'memorize' &&
+        state.memorize?.playMode === 'cruise';
+}
+
+function getOrCreateTapLatencyContext(pointerEv) {
+    if (!shouldDebugCruiseTapLatency() || !pointerEv || typeof pointerEv !== 'object') return null;
+    const existing = tapLatencyContexts.get(pointerEv);
+    if (existing) return existing;
+    const now = performance.now();
+    const context = {
+        pointerdownNow: now,
+        handleFretClickStartNow: null,
+        mode: 'memorize',
+        course: state.course,
+        playMode: state.memorize?.playMode,
+        pointerEventType: pointerEv.type,
+        pointerType: pointerEv.pointerType || null,
+        eventTimeStamp: pointerEv.timeStamp
+    };
+    tapLatencyContexts.set(pointerEv, context);
+    return context;
+}
+
+function logTapLatency(stage, context, extra = {}) {
+    if (!DEBUG_TAP_LATENCY || !context) return;
+    const now = performance.now();
+    const fromPointerdownMs = now - context.pointerdownNow;
+    const fromHandleFretClickStartMs = context.handleFretClickStartNow === null
+        ? null
+        : now - context.handleFretClickStartNow;
+    console.log('[tap-latency]', {
+        stage,
+        mode: context.mode,
+        course: context.course,
+        playMode: context.playMode,
+        pointerEventType: context.pointerEventType,
+        pointerType: context.pointerType,
+        eventTimeStamp: context.eventTimeStamp,
+        performanceNow: now,
+        fromPointerdownMs,
+        fromHandleFretClickStartMs,
+        ...extra
+    });
+}
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
 const PROJECTED_CAPO_OVERALL_OPACITY = 0.7;
@@ -11540,6 +11589,11 @@ function renderMemorize(app) {
 
 function handleFretClick(stringNum, fret, pointerEv) {
     if (!guardEditorDemoPlayback()) return;
+    const tapLatencyContext = getOrCreateTapLatencyContext(pointerEv);
+    if (tapLatencyContext) {
+        tapLatencyContext.handleFretClickStartNow = performance.now();
+        logTapLatency('handleFretClick:start', tapLatencyContext, { stringNum, fret });
+    }
     const q = state.memorize.currentQuestion;
     const fb = document.getElementById('feedback');
     const isCruise = state.memorize.playMode === 'cruise';
@@ -11558,6 +11612,11 @@ function handleFretClick(stringNum, fret, pointerEv) {
             ? (stringNum === q.stringName && fret === q.fret)
             : (stringNum === q.stringName) && (clickedNoteIdx === q.noteIdx);
     }
+    logTapLatency('handleFretClick:correctness-ready', tapLatencyContext, {
+        stringNum,
+        fret,
+        isCorrect
+    });
 
     if (isCruise) {
         if (state.memorize.isCleared) return;
@@ -11618,6 +11677,12 @@ function handleFretClick(stringNum, fret, pointerEv) {
         }
         const isCorrectAgainstTarget =
             (stringNum === targetQuestion.stringName) && (fret === targetQuestion.fret);
+        logTapLatency('handleFretClick:target-correctness-ready', tapLatencyContext, {
+            stringNum,
+            fret,
+            isCorrect,
+            isCorrectAgainstTarget
+        });
 
         const markTapped = () => {
             if (evaluateAgainstUpcoming) {
@@ -11639,9 +11704,22 @@ function handleFretClick(stringNum, fret, pointerEv) {
             markTapped();
             const fbText = timeDiff < 0 ? 'Early!' : 'Late!';
             setCruiseFeedback(fbText, 'miss');
+            logTapLatency('before-showLiveFeedback', tapLatencyContext, {
+                stringNum,
+                fret,
+                isCorrect,
+                isCorrectAgainstTarget,
+                feedback: fbText
+            });
             showLiveFeedback(fbText, 'miss');
         } else {
             if (isCorrectAgainstTarget) {
+                logTapLatency('before-playTone', tapLatencyContext, {
+                    stringNum,
+                    fret,
+                    isCorrect,
+                    isCorrectAgainstTarget
+                });
                 playTone(stringIdx, fret);
                 state.memorize.correct++;
                 state.memorize.combo++;
@@ -11650,15 +11728,39 @@ function handleFretClick(stringNum, fret, pointerEv) {
                 }
                 markTapped();
                 setCruiseFeedback('Perfect!', 'good');
+                logTapLatency('before-showLiveFeedback', tapLatencyContext, {
+                    stringNum,
+                    fret,
+                    isCorrect,
+                    isCorrectAgainstTarget,
+                    feedback: 'Perfect!'
+                });
                 showLiveFeedback('Perfect!', 'good');
             } else {
                 state.memorize.combo = 0;
                 markTapped();
                 setCruiseFeedback('Miss!', 'miss');
+                logTapLatency('before-showLiveFeedback', tapLatencyContext, {
+                    stringNum,
+                    fret,
+                    isCorrect,
+                    isCorrectAgainstTarget,
+                    feedback: 'Miss!'
+                });
                 showLiveFeedback('Miss!', 'miss');
             }
         }
         saveState();
+        if (tapLatencyContext) {
+            requestAnimationFrame(() => {
+                logTapLatency('next-paint', tapLatencyContext, {
+                    stringNum,
+                    fret,
+                    isCorrect,
+                    isCorrectAgainstTarget
+                });
+            });
+        }
         return; // Don't call renderApp here, wait for autoAdvanceCruise
     }
 
@@ -15032,6 +15134,8 @@ function renderFretboardHTML(containerId, options) {
     // Attach on document capture because player-view rotation can project frets outside
     // the container's layout box. Hit-test the projected 2D fret rectangles instead.
     const handleFretboardClick = (e) => {
+        const tapLatencyContext = getOrCreateTapLatencyContext(e);
+        logTapLatency('pointerdown:handler-enter', tapLatencyContext);
         if (e.button !== 0) return;
         if (e.isPrimary === false) return;
         if (routeEditorDragSuppressNextClick) {
@@ -15136,6 +15240,7 @@ function renderFretboardHTML(containerId, options) {
         const s = parseInt(bestCol.getAttribute('data-string'));
         const f = parseInt(bestCol.getAttribute('data-fret'));
         if (onFretClick && bestCol.classList.contains('interactive')) {
+            logTapLatency('before-onFretClick', tapLatencyContext, { stringNum: s, fret: f });
             onFretClick(s, f, e);
         } else if (mode === 'visualize') {
             playTone(6 - s, f);
