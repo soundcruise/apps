@@ -1,7 +1,9 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.142.12';
+const FRETBOARD_CRUISE_APP_VERSION = '1.142.13';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
-const DEBUG_TAP_LATENCY = false;
+const DEBUG_TAP_LATENCY = true;
 const tapLatencyContexts = new WeakMap();
+const tapLatencyRecentSamples = [];
+const TAP_LATENCY_PANEL_ID = 'tap-latency-debug-panel';
 
 function shouldDebugCruiseTapLatency() {
     return DEBUG_TAP_LATENCY &&
@@ -17,6 +19,7 @@ function getOrCreateTapLatencyContext(pointerEv) {
     const context = {
         pointerdownNow: now,
         handleFretClickStartNow: null,
+        stageTimes: {},
         mode: 'memorize',
         course: state.course,
         playMode: state.memorize?.playMode,
@@ -31,6 +34,7 @@ function getOrCreateTapLatencyContext(pointerEv) {
 function logTapLatency(stage, context, extra = {}) {
     if (!DEBUG_TAP_LATENCY || !context) return;
     const now = performance.now();
+    context.stageTimes[stage] = now;
     const fromPointerdownMs = now - context.pointerdownNow;
     const fromHandleFretClickStartMs = context.handleFretClickStartNow === null
         ? null
@@ -48,6 +52,95 @@ function logTapLatency(stage, context, extra = {}) {
         fromHandleFretClickStartMs,
         ...extra
     });
+}
+
+function formatTapLatencyValue(value) {
+    return Number.isFinite(value) ? `${Math.round(value)}ms` : '—';
+}
+
+function ensureTapLatencyPanel() {
+    if (!shouldDebugCruiseTapLatency()) return null;
+    let panel = document.getElementById(TAP_LATENCY_PANEL_ID);
+    if (panel) return panel;
+    panel = document.createElement('div');
+    panel.id = TAP_LATENCY_PANEL_ID;
+    panel.style.position = 'fixed';
+    panel.style.top = 'calc(env(safe-area-inset-top, 0px) + 8px)';
+    panel.style.right = 'calc(env(safe-area-inset-right, 0px) + 8px)';
+    panel.style.zIndex = '99999';
+    panel.style.maxWidth = '180px';
+    panel.style.padding = '8px 10px';
+    panel.style.borderRadius = '10px';
+    panel.style.background = 'rgba(0, 0, 0, 0.72)';
+    panel.style.color = '#fff';
+    panel.style.fontSize = '11px';
+    panel.style.lineHeight = '1.45';
+    panel.style.fontWeight = '700';
+    panel.style.whiteSpace = 'pre-line';
+    panel.style.pointerEvents = 'none';
+    panel.style.userSelect = 'none';
+    panel.style.webkitUserSelect = 'none';
+    document.body.appendChild(panel);
+    return panel;
+}
+
+function removeTapLatencyPanelIfNeeded() {
+    if (shouldDebugCruiseTapLatency()) return;
+    const panel = document.getElementById(TAP_LATENCY_PANEL_ID);
+    if (panel) panel.remove();
+}
+
+function getAverageTapLatencySample(samples) {
+    if (!samples.length) return null;
+    const keys = ['inputMs', 'judgmentMs', 'displayMs', 'audioMs', 'totalMs'];
+    const average = {};
+    keys.forEach(key => {
+        const values = samples.map(sample => sample[key]).filter(Number.isFinite);
+        average[key] = values.length
+            ? values.reduce((sum, value) => sum + value, 0) / values.length
+            : null;
+    });
+    return average;
+}
+
+function updateTapLatencyPanelFromContext(context) {
+    if (!shouldDebugCruiseTapLatency() || !context) return;
+    const times = context.stageTimes;
+    const nextPaintNow = times['next-paint'];
+    if (!Number.isFinite(nextPaintNow) || !Number.isFinite(context.handleFretClickStartNow)) return;
+    const targetCorrectnessNow = times['handleFretClick:target-correctness-ready']
+        ?? times['handleFretClick:correctness-ready'];
+    const sample = {
+        inputMs: context.handleFretClickStartNow - context.pointerdownNow,
+        judgmentMs: Number.isFinite(targetCorrectnessNow)
+            ? targetCorrectnessNow - context.handleFretClickStartNow
+            : null,
+        displayMs: nextPaintNow - context.handleFretClickStartNow,
+        audioMs: Number.isFinite(times['before-playTone'])
+            ? times['before-playTone'] - context.handleFretClickStartNow
+            : null,
+        totalMs: nextPaintNow - context.pointerdownNow
+    };
+    tapLatencyRecentSamples.push(sample);
+    if (tapLatencyRecentSamples.length > 5) tapLatencyRecentSamples.shift();
+    const average = getAverageTapLatencySample(tapLatencyRecentSamples);
+    const panel = ensureTapLatencyPanel();
+    if (!panel) return;
+    panel.textContent = [
+        '最新',
+        `入力 ${formatTapLatencyValue(sample.inputMs)}`,
+        `判定 ${formatTapLatencyValue(sample.judgmentMs)}`,
+        `表示 ${formatTapLatencyValue(sample.displayMs)}`,
+        `音 ${formatTapLatencyValue(sample.audioMs)}`,
+        `合計 ${formatTapLatencyValue(sample.totalMs)}`,
+        '',
+        `平均${tapLatencyRecentSamples.length}回`,
+        `入力 ${formatTapLatencyValue(average?.inputMs)}`,
+        `判定 ${formatTapLatencyValue(average?.judgmentMs)}`,
+        `表示 ${formatTapLatencyValue(average?.displayMs)}`,
+        `音 ${formatTapLatencyValue(average?.audioMs)}`,
+        `合計 ${formatTapLatencyValue(average?.totalMs)}`
+    ].join('\n');
 }
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -4919,6 +5012,7 @@ function findChordButtonFromPointerEvent(e) {
 function renderApp() {
     const app = document.getElementById('app');
     if (!app) return;
+    removeTapLatencyPanelIfNeeded();
     app.classList.toggle('stage-select-scroll-screen', state.course === 'stageSelect');
     app.classList.toggle(
         'route-editor-scroll-screen',
@@ -11759,6 +11853,7 @@ function handleFretClick(stringNum, fret, pointerEv) {
                     isCorrect,
                     isCorrectAgainstTarget
                 });
+                updateTapLatencyPanelFromContext(tapLatencyContext);
             });
         }
         return; // Don't call renderApp here, wait for autoAdvanceCruise
