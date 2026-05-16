@@ -5799,6 +5799,13 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     .pro-custom-route-editor-screen #fretboard-container .fretboard-scroll-wrapper::-webkit-scrollbar {
         display: none;
     }
+
+    /* ⑧ PROカスタム縦画面:
+       フレット番号と青いスクロールコントロールの間に余白を追加。
+       左右矢印・トラック・サムをまとめて下げる。transform は使わない。 */
+    .pro-custom-route-editor-screen .route-fretboard-scroll-ctl {
+        margin-top: 8px;
+    }
 }
 
 /* フレットボードスクロールコントロール（portrait専用） */
