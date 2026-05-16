@@ -5804,7 +5804,7 @@ body:has(.pro-custom-route-editor-screen) .app-container {
        フレット番号と青いスクロールコントロールの間に余白を追加。
        左右矢印・トラック・サムをまとめて下げる。transform は使わない。 */
     .pro-custom-route-editor-screen .route-fretboard-scroll-ctl {
-        margin-top: 8px;
+        margin-top: 16px;
     }
 }
 
