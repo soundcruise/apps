@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.142.37';
+const FRETBOARD_CRUISE_APP_VERSION = '1.142.38';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = true;
@@ -14953,6 +14953,9 @@ function renderFretboardHTML(containerId, options) {
                     maxFullViewH = mh0;
                 }
                 const layoutPad = (memorizeFretHost || visualizeFretHost) ? (land ? 0 : 2) : 4;
+                const visSafeLeft = (mode === 'visualize' && containerId === 'fretboard-container' && land)
+                    ? getSafeAreaInsetPx('left')
+                    : 0;
                 const scaleByW = (layoutW - layoutPad) / projectedBounds.width;
                 const scaleByH = maxFullViewH / projectedBounds.height;
                 /**
@@ -15013,7 +15016,8 @@ function renderFretboardHTML(containerId, options) {
                 let centerTx = 0;
                 if (visualizeExtendedFullScrollLayout) {
                     scrollWrapper.style.marginLeft = '0px';
-                    scrollWrapper.style.width = `${layoutW}px`;
+                    scrollWrapper.style.paddingLeft = `${visSafeLeft}px`;
+                    scrollWrapper.style.width = `${Math.max(1, layoutW - visSafeLeft)}px`;
                     scrollWrapper.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
                     scrollWrapper.style.overflowX = 'auto';
                     scrollWrapper.style.overflowY = 'hidden';
@@ -15193,6 +15197,8 @@ function renderFretboardHTML(containerId, options) {
                                     scrollWrapper.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
                                     containerEl.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
                                     scrollWrapper.style.marginLeft = '0px';
+                                    scrollWrapper.style.paddingLeft = `${visSafeLeft}px`;
+                                    scrollWrapper.style.width = `${Math.max(1, layoutW - visSafeLeft)}px`;
                                     if (perspectiveWrapper) {
                                         perspectiveWrapper.style.transform = `translate(${(-projectedBounds.minX).toFixed(
                                             2
