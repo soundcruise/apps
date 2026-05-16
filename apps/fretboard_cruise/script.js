@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.142.6';
+const FRETBOARD_CRUISE_APP_VERSION = '1.142.7';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 
 /** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
@@ -1567,6 +1567,11 @@ function scheduleApplyFretboardViewFromOrientation() {
             state.course === 'quizEditor' ||
             state.course === 'proCustomRouteEditor' ||
             state.course === 'proCustomQuizEditor'
+        ) {
+            tryRenderApp('orientation');
+        } else if (
+            state.course === 'stageSelect' &&
+            orientationFlipped
         ) {
             tryRenderApp('orientation');
         } else if (fretboardScreen && (autoChanged || orientationFlipped)) {
