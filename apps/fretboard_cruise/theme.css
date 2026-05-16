@@ -3438,15 +3438,21 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     }
 
     .route-editor-screen.route-editor-screen--standard .fretboard-edition-notice {
-        width: min(560px, calc(100% - 32px));
-        max-width: min(560px, calc(100vw - 32px));
+        width: fit-content;
+        max-width: min(520px, calc(100vw - 48px));
+        box-sizing: border-box;
         margin-top: 2px;
         margin-bottom: 4px;
         padding: 5px 10px;
-        font-size: 0.76rem;
-        line-height: 1.2;
+        font-size: 0.74rem;
+        line-height: 1.25;
         white-space: normal;
-        overflow-wrap: anywhere;
+        overflow-wrap: normal;
+        word-break: keep-all;
+    }
+
+    .route-editor-screen.route-editor-screen--standard .fretboard-edition-notice br {
+        display: none;
     }
 
     .route-editor-screen.route-editor-screen--standard .fretboard-edition-notice span {
