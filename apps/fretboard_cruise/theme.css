@@ -110,6 +110,13 @@
         linear-gradient(180deg, #292929 0%, #202020 100%);
 }
 
+
+/* 一時検証用パネルは通常表示では隠す。診断コードは再検証用に残す。 */
+#editor-fretboard-layout-debug-panel,
+#portrait-fretboard-layout-debug-panel {
+    display: none !important;
+}
+
 /* Fretboard Layout */
 .fretboard-scroll-wrapper {
     width: 100%;
@@ -3438,17 +3445,20 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     }
 
     .route-editor-screen.route-editor-screen--standard .fretboard-edition-notice {
-        width: fit-content;
-        max-width: min(520px, calc(100vw - 48px));
+        width: auto;
+        max-width: min(420px, calc(100% - 48px));
         box-sizing: border-box;
         margin-top: 2px;
         margin-bottom: 4px;
         padding: 5px 10px;
-        font-size: 0.74rem;
+        font-size: 0.72rem;
         line-height: 1.25;
         white-space: normal;
-        overflow-wrap: normal;
-        word-break: keep-all;
+        overflow-wrap: break-word;
+        word-break: normal;
+        line-break: strict;
+        align-self: center;
+        min-width: 0;
     }
 
     .route-editor-screen.route-editor-screen--standard .fretboard-edition-notice br {
