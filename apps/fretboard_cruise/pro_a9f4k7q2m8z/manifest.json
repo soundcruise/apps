@@ -4,7 +4,7 @@
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "background_color": "#0d1117",
   "theme_color": "#4f9cf9",
   "description": "ギター指板の音名を覚えるトレーニングアプリ。",
