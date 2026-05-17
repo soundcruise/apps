@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.143.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.143.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = true;
@@ -3144,12 +3144,13 @@ function getRhythmMasterGain() {
         rhythmMasterGain = audioCtx.createGain();
         rhythmMasterGain.gain.value = getEffectiveCruiseRhythmVolume();
         rhythmMasterGain.connect(audioCtx.destination);
-        console.log('[rhythm volume] masterGain created', {
+        console.log('[rhythm volume] masterGain created', JSON.stringify({
             stored: state.settings.cruiseRhythmVolume,
             effective: getEffectiveCruiseRhythmVolume(),
             gain: rhythmMasterGain.gain.value,
-            isPro: isProEdition()
-        });
+            isPro: isProEdition(),
+            DEFAULT: DEFAULT_CRUISE_RHYTHM_VOLUME
+        }));
     }
     return rhythmMasterGain;
 }
@@ -3157,12 +3158,13 @@ function getRhythmMasterGain() {
 function updateRhythmMasterGainVolume() {
     if (!rhythmMasterGain) return;
     rhythmMasterGain.gain.value = getEffectiveCruiseRhythmVolume();
-    console.log('[rhythm volume] masterGain updated', {
+    console.log('[rhythm volume] masterGain updated', JSON.stringify({
         stored: state.settings.cruiseRhythmVolume,
         effective: getEffectiveCruiseRhythmVolume(),
         gain: rhythmMasterGain.gain.value,
-        isPro: isProEdition()
-    });
+        isPro: isProEdition(),
+        DEFAULT: DEFAULT_CRUISE_RHYTHM_VOLUME
+    }));
 }
 
 // --- Rhythm Machine & Timers ---
@@ -16338,11 +16340,11 @@ function runFretboardBoot() {
         state.settings.cruiseRhythmSoundType = DEFAULT_CRUISE_RHYTHM_SOUND_TYPE;
         state.settings.cruiseRhythmVolume = DEFAULT_CRUISE_RHYTHM_VOLUME;
     }
-    console.log('[rhythm volume] boot state', {
+    console.log('[rhythm volume] boot state', JSON.stringify({
         stored: state.settings.cruiseRhythmVolume,
         isPro: isProEdition(),
         DEFAULT: DEFAULT_CRUISE_RHYTHM_VOLUME
-    });
+    }));
     tryRenderApp('load');
 }
 
