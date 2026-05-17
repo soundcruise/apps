@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.145.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.146.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = true;
@@ -831,6 +831,7 @@ let state = {
         quizProCustomStages: [],
         quizStageEditorSettings: {},
         quizStageAttemptCounts: {},
+        quizStagePerfectCounts: {},
         routeNumberingVersion: 2,
         neckModelVersion: FRETBOARD_NECK_MODEL_VERSION,
         /** 設定画面で最後に開いていたタブ（'cruise' | 'quiz' | 'common'） */
@@ -1101,6 +1102,7 @@ if (savedState) {
         if (!Array.isArray(state.memorize.quizQuestionResults)) state.memorize.quizQuestionResults = [];
         if (typeof state.memorize.isQuizCleared !== 'boolean') state.memorize.isQuizCleared = false;
         if (typeof state.memorize.quizAttemptCounted !== 'boolean') state.memorize.quizAttemptCounted = false;
+        if (typeof state.memorize.quizPerfectCounted  !== 'boolean') state.memorize.quizPerfectCounted  = false;
         if (typeof state.memorize.maxCombo !== 'number') state.memorize.maxCombo = 0;
         // Official specification: always use mode 1 (1/2 display)
         state.memorize.stage1RepeatHintMode = 1;
@@ -1312,6 +1314,13 @@ if (savedState) {
             Array.isArray(state.settings.quizStageAttemptCounts)
         ) {
             state.settings.quizStageAttemptCounts = {};
+        }
+        if (
+            !state.settings.quizStagePerfectCounts ||
+            typeof state.settings.quizStagePerfectCounts !== 'object' ||
+            Array.isArray(state.settings.quizStagePerfectCounts)
+        ) {
+            state.settings.quizStagePerfectCounts = {};
         }
         if (
             !state.routeEditor ||
@@ -1948,6 +1957,8 @@ function getDefaultSettings() {
         quizStageEditorSettings: {},
         /** 指板クイズ・STAGE 別の挑戦回数（⚙️デフォルト復元でも消さない） */
         quizStageAttemptCounts: {},
+        /** 指板クイズ・STAGE 別の満点達成回数（⚙️デフォルト復元でも消さない） */
+        quizStagePerfectCounts: {},
         routeNumberingVersion: 2,
         neckModelVersion: FRETBOARD_NECK_MODEL_VERSION
     };
@@ -1971,7 +1982,8 @@ function cloneSettings(settings) {
             : [],
         cruiseStageClearCounts: JSON.parse(JSON.stringify(settings.cruiseStageClearCounts || {})),
         quizStageEditorSettings: JSON.parse(JSON.stringify(settings.quizStageEditorSettings || {})),
-        quizStageAttemptCounts: JSON.parse(JSON.stringify(settings.quizStageAttemptCounts || {}))
+        quizStageAttemptCounts: JSON.parse(JSON.stringify(settings.quizStageAttemptCounts || {})),
+        quizStagePerfectCounts: JSON.parse(JSON.stringify(settings.quizStagePerfectCounts || {}))
     };
 }
 
@@ -2532,6 +2544,47 @@ function getQuizStageAttemptCount(stage) {
     const map = state.settings && state.settings.quizStageAttemptCounts;
     if (!map || typeof map !== 'object' || Array.isArray(map)) return 0;
     return parseInt(map[String(st)], 10) || 0;
+}
+
+/** 指板クイズ：STAGE 別の満点達成回数を 1 増やす */
+function incrementQuizStagePerfectCount(stage) {
+    const st = clamp(parseInt(stage, 10), 1, 6);
+    if (
+        !state.settings.quizStagePerfectCounts ||
+        typeof state.settings.quizStagePerfectCounts !== 'object' ||
+        Array.isArray(state.settings.quizStagePerfectCounts)
+    ) {
+        state.settings.quizStagePerfectCounts = {};
+    }
+    const key = String(st);
+    const cur = parseInt(state.settings.quizStagePerfectCounts[key], 10) || 0;
+    state.settings.quizStagePerfectCounts[key] = cur + 1;
+}
+
+function getQuizStagePerfectCount(stage) {
+    const st = clamp(parseInt(stage, 10), 1, 6);
+    const map = state.settings && state.settings.quizStagePerfectCounts;
+    if (!map || typeof map !== 'object' || Array.isArray(map)) return 0;
+    return parseInt(map[String(st)], 10) || 0;
+}
+
+/**
+ * 指板クイズ：制限あり全問正解時に満点達成回数を +1 する。
+ *  - 無制限モード（limit=0）は対象外
+ *  - PROカスタムSTAGEは対象外
+ *  - 同セッション内で重複カウントしないよう quizPerfectCounted で管理
+ */
+function maybeRecordQuizStagePerfect() {
+    if (state.memorize.playMode !== 'quiz') return;
+    if (state.memorize.proCustomQuiz) return;
+    if (state.memorize.quizPerfectCounted) return;
+    const limit = parseInt(state.settings.quizQuestionLimit ?? DEFAULT_QUIZ_QUESTION_LIMIT, 10) || 0;
+    if (limit === 0) return; // 無制限モードは対象外
+    const correct = parseInt(state.memorize.correct ?? 0, 10) || 0;
+    if (correct < limit) return; // 全問正解でなければカウントしない
+    incrementQuizStagePerfectCount(state.memorize.stage);
+    state.memorize.quizPerfectCounted = true;
+    saveState();
 }
 
 /**
@@ -5069,6 +5122,7 @@ function startProCustomQuizPlayback(stageSettings, returnCourse = 'stageSelect')
     state.memorize.quizQuestionResults = [];
     state.memorize.isQuizCleared = false;
     state.memorize.quizAttemptCounted = false;
+    state.memorize.quizPerfectCounted  = false;
     state.memorize.isCleared = false;
     state.memorize.hasTappedCurrentNote = false;
     state.memorize.tempFeedback = null;
@@ -5118,6 +5172,7 @@ function generateQuestion() {
             state.memorize.hasTappedCurrentNote = true;
             stopQuizTimer();
             maybeRecordQuizStageAttempt();
+            maybeRecordQuizStagePerfect();
             saveState();
             return;
         }
@@ -7986,15 +8041,19 @@ function renderStageSelect(app) {
         { stage: 6, title: 'STAGE 6', desc: isCruiseMode ? '全て' : 'STAGE1〜5全て' }
     ];
     const stageButtonsHtml = stageDefs.map(def => {
-        const clearCount = isCruiseMode
-            ? getCruiseStageClearCount(def.stage)
-            : getQuizStageAttemptCount(def.stage);
         let clearBadge = '';
-        if (clearCount > 0) {
-            const ariaLabel = isCruiseMode
-                ? `${def.title} 完走 ${clearCount}回`
-                : `${def.title} 挑戦 ${clearCount}回`;
-            clearBadge = `<span class="stage-clear-count stage-clear-count--side" aria-label="${ariaLabel}">🏁 ${clearCount}回</span>`;
+        if (isCruiseMode) {
+            const clearCount = getCruiseStageClearCount(def.stage);
+            if (clearCount > 0) {
+                clearBadge = `<span class="stage-clear-count stage-clear-count--side" aria-label="${def.title} 完走 ${clearCount}回">🏁 ${clearCount}回</span>`;
+            }
+        } else {
+            const perfectCount = getQuizStagePerfectCount(def.stage);
+            if (perfectCount >= 10) {
+                clearBadge = `<span class="stage-clear-count stage-clear-count--side" aria-label="${def.title} 満点クリア">🏆 CLEAR</span>`;
+            } else if (perfectCount > 0) {
+                clearBadge = `<span class="stage-clear-count stage-clear-count--side" aria-label="${def.title} 満点 ${perfectCount}/10">🏆 ${perfectCount}/10</span>`;
+            }
         }
         const stageBtnClass = clearBadge ? 'stage-btn stage-btn--has-side-badge' : 'stage-btn';
         const mainButton = `<button class="${stageBtnClass}" data-stage="${def.stage}">${clearBadge}${def.title}<span class="stage-desc">${def.desc}</span></button>`;
@@ -8504,6 +8563,7 @@ function renderStageSelect(app) {
                 state.memorize.quizQuestionResults = [];
                 state.memorize.isQuizCleared = false;
                 state.memorize.quizAttemptCounted = false;
+                state.memorize.quizPerfectCounted  = false;
             } else {
                 // クルーズ：終了カードで正答率を出すため、ここでも 0 リセット
                 state.memorize.correct = 0;
@@ -10991,6 +11051,7 @@ function renderQuizEditor(app) {
         state.memorize.quizQuestionResults = [];
         state.memorize.isQuizCleared = false;
         state.memorize.quizAttemptCounted = false;
+        state.memorize.quizPerfectCounted  = false;
         state.memorize.isDemoPlayback = true;
         state.memorize.demoReturnCourse = 'quizEditor';
         state.memorize.demoReturnStage = stage;
@@ -11247,6 +11308,7 @@ function restartMemorizeFromCleared() {
     state.memorize.quizQuestionResults = [];
     state.memorize.isQuizCleared = false;
     state.memorize.quizAttemptCounted = false;
+    state.memorize.quizPerfectCounted  = false;
     state.memorize.tempFeedback = null;
     state.memorize.hasTappedCurrentNote = false;
     state.memorize.cruisePreTapped = false;
@@ -11368,6 +11430,7 @@ function navigateMemorizeToNextStageFromCleared() {
     state.memorize.quizQuestionResults = [];
     state.memorize.isQuizCleared = false;
     state.memorize.quizAttemptCounted = false;
+    state.memorize.quizPerfectCounted  = false;
     state.memorize.tempFeedback = null;
     state.course = 'memorize';
 
@@ -13842,6 +13905,7 @@ function renderSettings(app) {
             const quizProCustomStages = state.settings.quizProCustomStages;
             const quizShippedVer = state.settings.quizShippedDefaultsAppliedVersion;
             const quizAttempts = state.settings.quizStageAttemptCounts;
+            const quizPerfects = state.settings.quizStagePerfectCounts;
             const cruiseClears = state.settings.cruiseStageClearCounts;
             state.settings = getDefaultSettings();
             // 指板クイズの問題編集データは「アプリ設定のデフォルト」と別物なので消さない
@@ -13852,9 +13916,11 @@ function renderSettings(app) {
             if (quizShippedVer !== undefined && quizShippedVer !== null) {
                 state.settings.quizShippedDefaultsAppliedVersion = quizShippedVer;
             }
-            // 挑戦回数・完走回数は「アプリ設定」とは別物（プレイ実績）なので残す
+            // 挑戦回数・満点達成回数・完走回数は「アプリ設定」とは別物（プレイ実績）なので残す
             state.settings.quizStageAttemptCounts =
                 quizAttempts && typeof quizAttempts === 'object' && !Array.isArray(quizAttempts) ? quizAttempts : {};
+            state.settings.quizStagePerfectCounts =
+                quizPerfects && typeof quizPerfects === 'object' && !Array.isArray(quizPerfects) ? quizPerfects : {};
             state.settings.cruiseStageClearCounts =
                 cruiseClears && typeof cruiseClears === 'object' && !Array.isArray(cruiseClears) ? cruiseClears : {};
             refreshSettingsControls();
