@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.142.39';
+const FRETBOARD_CRUISE_APP_VERSION = '1.142.40';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = true;
@@ -1026,7 +1026,7 @@ if (savedState) {
             state.visualize = {
                 key: 0,
                 capo: 0,
-                displayMode: 'note',
+                displayMode: 'solfege',
                 chordType: 'M',
                 degreeMode: false,
                 maxFret: DEFAULT_VISIBLE_MAX_FRET
@@ -1123,7 +1123,7 @@ if (savedState) {
         }
         if (typeof state.visualize.key === 'undefined') state.visualize.key = 0;
         if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
-        if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
+        if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'solfege';
         if (typeof state.visualize.chordDegreeLabelEnabled === 'undefined') {
             state.visualize.chordDegreeLabelEnabled = state.visualize.displayMode === 'chordDegree';
         }
@@ -12457,10 +12457,7 @@ function getAllDegreesWithAccidentals(scaleType) {
 
 function renderVisualize(app) {
     if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
-    if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'note';
-    if (['note', 'solfege', 'degree'].includes(state.settings.noteLabelMode)) {
-        state.visualize.displayMode = state.settings.noteLabelMode;
-    }
+    if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'solfege';
     if (typeof state.visualize.scale === 'undefined') state.visualize.scale = 'major';
     if (typeof state.visualize.selectedChordIndex === 'undefined') state.visualize.selectedChordIndex = null;
     if (typeof state.visualize.lastDiatonicChordPickIndex === 'undefined') {
@@ -12673,7 +12670,6 @@ function renderVisualize(app) {
         btn.onclick = () => {
             const m = btn.getAttribute('data-mode');
             state.visualize.displayMode = m;
-            state.settings.noteLabelMode = m;
             saveState();
             renderApp();
         };
