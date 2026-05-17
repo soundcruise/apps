@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.144.1';
+const FRETBOARD_CRUISE_APP_VERSION = '1.145.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = true;
@@ -390,7 +390,7 @@ const DEFAULT_CRUISE_PROGRESSION = 'auto'; // 'auto' | 'tap'
 /** 指板をたどるの進み（half=キック同期・2拍に1回、full=四分音符頭ごと・毎拍）。アプリの音「有り」では full で自動ギターも同じタイミング */
 const DEFAULT_CRUISE_TAP_BEATS = 'half'; // 'half' | 'full'
 const DEFAULT_CRUISE_RHYTHM_SOUND_TYPE = 'default'; // 互換性のため保持
-const DEFAULT_CRUISE_RHYTHM_VOLUME = 0.6; // 互換性のため保持（再生には使わない）
+const DEFAULT_CRUISE_RHYTHM_VOLUME = 0.5; // リズム全体のマスター音量デフォルト（0.0〜1.0）
 const VALID_CRUISE_RHYTHM_SOUND_TYPES = ['default', 'kick_only', 'hihat_only', 'soft', 'silent']; // 互換性のため保持
 const DEFAULT_CRUISE_RHYTHM_KICK_VOLUME  = 0.3; // 0.0〜1.0、50%=現在音量
 const DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME = 0.5;
@@ -3144,16 +3144,28 @@ function playMidiTone(midiNote) {
 }
 
 // --- Rhythm Master Gain (リズム専用マスターゲイン。タップ音には一切影響しない) ---
-// gain は常に 1.0 固定。各楽器の音量は playDrumKick/Snare/Hat 内の乗数で制御する。
+// gain は cruiseRhythmVolume（リズム音量マスター）を反映。楽器別音量は各drum関数の乗数で制御。
 let rhythmMasterGain = null;
+
+function getEffectiveCruiseRhythmVolume() {
+    if (!isProEdition()) return DEFAULT_CRUISE_RHYTHM_VOLUME;
+    return Number.isFinite(state.settings.cruiseRhythmVolume)
+        ? state.settings.cruiseRhythmVolume
+        : DEFAULT_CRUISE_RHYTHM_VOLUME;
+}
 
 function getRhythmMasterGain() {
     if (!rhythmMasterGain) {
         rhythmMasterGain = audioCtx.createGain();
-        rhythmMasterGain.gain.value = 1.0;
+        rhythmMasterGain.gain.value = getEffectiveCruiseRhythmVolume();
         rhythmMasterGain.connect(audioCtx.destination);
     }
     return rhythmMasterGain;
+}
+
+function updateRhythmMasterGainVolume() {
+    if (!rhythmMasterGain) return;
+    rhythmMasterGain.gain.value = getEffectiveCruiseRhythmVolume();
 }
 
 // スライダー値(0.0〜1.0)を楽器ごとの乗数に変換する。
@@ -12946,8 +12958,17 @@ function renderSettings(app) {
 
             <div class="settings-card-section">
                 <div class="settings-card-section-header">
-                    <span class="settings-card-section-title">リズム音のバランス</span>
-                    <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-rhythm-balance">リセット</button>
+                    <span class="settings-card-section-title">リズム音</span>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-rhythm-all">リセット</button>
+                </div>
+                <div class="settings-value-row" style="margin-top:8px;">
+                    <span>音量</span>
+                    <span class="settings-value-badge" id="rhythm-volume-display">${Math.round((state.settings.cruiseRhythmVolume ?? DEFAULT_CRUISE_RHYTHM_VOLUME) * 100)}%</span>
+                    <span></span>
+                </div>
+                <input type="range" id="rhythm-volume-slider" min="0" max="100" step="1" value="${Math.round((state.settings.cruiseRhythmVolume ?? DEFAULT_CRUISE_RHYTHM_VOLUME) * 100)}" class="settings-range">
+                <div class="settings-card-section-header" style="margin-top:16px;">
+                    <span class="settings-card-section-title" style="font-size:0.875em;opacity:0.8;">リズム音のバランス</span>
                 </div>
                 <div class="settings-value-row" style="margin-top:8px;">
                     <span>キック</span>
@@ -13252,16 +13273,20 @@ function renderSettings(app) {
                 syncCruiseProgressionSettingsUI();
                 return;
             }
-            if (resetCard === 'cruise-rhythm-balance') {
+            if (resetCard === 'cruise-rhythm-all') {
+                state.settings.cruiseRhythmVolume      = DEFAULT_CRUISE_RHYTHM_VOLUME;
                 state.settings.cruiseRhythmKickVolume  = DEFAULT_CRUISE_RHYTHM_KICK_VOLUME;
                 state.settings.cruiseRhythmSnareVolume = DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME;
                 state.settings.cruiseRhythmHatVolume   = DEFAULT_CRUISE_RHYTHM_HAT_VOLUME;
+                rhythmVolumeSlider.value = Math.round(DEFAULT_CRUISE_RHYTHM_VOLUME * 100);
+                rhythmVolumeDisplay.textContent = `${Math.round(DEFAULT_CRUISE_RHYTHM_VOLUME * 100)}%`;
                 rhythmKickSlider.value  = Math.round(DEFAULT_CRUISE_RHYTHM_KICK_VOLUME  * 100);
                 rhythmSnareSlider.value = Math.round(DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME * 100);
                 rhythmHatSlider.value   = Math.round(DEFAULT_CRUISE_RHYTHM_HAT_VOLUME   * 100);
                 rhythmKickDisplay.textContent  = `${Math.round(DEFAULT_CRUISE_RHYTHM_KICK_VOLUME  * 100)}%`;
                 rhythmSnareDisplay.textContent = `${Math.round(DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME * 100)}%`;
                 rhythmHatDisplay.textContent   = `${Math.round(DEFAULT_CRUISE_RHYTHM_HAT_VOLUME   * 100)}%`;
+                updateRhythmMasterGainVolume();
                 saveState();
                 return;
             }
@@ -13341,12 +13366,25 @@ function renderSettings(app) {
         tempoDisplay.textContent = `BPM ${state.settings.tempo}`;
     };
 
+    const rhythmVolumeSlider  = document.getElementById('rhythm-volume-slider');
+    const rhythmVolumeDisplay = document.getElementById('rhythm-volume-display');
     const rhythmKickSlider  = document.getElementById('rhythm-kick-slider');
     const rhythmKickDisplay  = document.getElementById('rhythm-kick-display');
     const rhythmSnareSlider = document.getElementById('rhythm-snare-slider');
     const rhythmSnareDisplay = document.getElementById('rhythm-snare-display');
     const rhythmHatSlider   = document.getElementById('rhythm-hat-slider');
     const rhythmHatDisplay   = document.getElementById('rhythm-hat-display');
+
+    rhythmVolumeSlider.oninput = (e) => {
+        if (!guardStandardSettingsMutation()) {
+            rhythmVolumeSlider.value = Math.round((state.settings.cruiseRhythmVolume ?? DEFAULT_CRUISE_RHYTHM_VOLUME) * 100);
+            return;
+        }
+        state.settings.cruiseRhythmVolume = parseInt(e.target.value, 10) / 100;
+        rhythmVolumeDisplay.textContent = `${e.target.value}%`;
+        updateRhythmMasterGainVolume();
+        saveState();
+    };
 
     const makeRhythmSliderHandler = (slider, display, stateKey, defaultVal) => (e) => {
         if (!guardStandardSettingsMutation()) {
@@ -13557,6 +13595,8 @@ function renderSettings(app) {
         tempoDisplay.textContent = `BPM ${state.settings.tempo}`;
         timerSlider.value = state.settings.quizTimeLimit;
         timerDisplay.textContent = `${state.settings.quizTimeLimit} 秒`;
+        rhythmVolumeSlider.value = Math.round((state.settings.cruiseRhythmVolume ?? DEFAULT_CRUISE_RHYTHM_VOLUME) * 100);
+        rhythmVolumeDisplay.textContent = `${Math.round((state.settings.cruiseRhythmVolume ?? DEFAULT_CRUISE_RHYTHM_VOLUME) * 100)}%`;
         rhythmKickSlider.value   = Math.round((state.settings.cruiseRhythmKickVolume  ?? DEFAULT_CRUISE_RHYTHM_KICK_VOLUME)  * 100);
         rhythmKickDisplay.textContent  = `${Math.round((state.settings.cruiseRhythmKickVolume  ?? DEFAULT_CRUISE_RHYTHM_KICK_VOLUME)  * 100)}%`;
         rhythmSnareSlider.value  = Math.round((state.settings.cruiseRhythmSnareVolume ?? DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME) * 100);
@@ -16333,6 +16373,7 @@ function runFretboardBoot() {
     }
     if (!isProEdition()) {
         state.settings.noteLabelMode = 'solfege';
+        state.settings.cruiseRhythmVolume      = DEFAULT_CRUISE_RHYTHM_VOLUME;
         state.settings.cruiseRhythmKickVolume  = DEFAULT_CRUISE_RHYTHM_KICK_VOLUME;
         state.settings.cruiseRhythmSnareVolume = DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME;
         state.settings.cruiseRhythmHatVolume   = DEFAULT_CRUISE_RHYTHM_HAT_VOLUME;
