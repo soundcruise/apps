@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.142.40';
+const FRETBOARD_CRUISE_APP_VERSION = '1.142.41';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = true;
@@ -1173,6 +1173,9 @@ if (savedState) {
         if (typeof state.settings.stringSpacing === 'undefined') state.settings.stringSpacing = DEFAULT_STRING_SPACING;
         if (typeof state.settings.noteLabelMode === 'undefined') state.settings.noteLabelMode = state.rules?.labelMode || 'solfege';
         if (!['solfege', 'note', 'degree'].includes(state.settings.noteLabelMode)) {
+            state.settings.noteLabelMode = 'solfege';
+        }
+        if (!isProEdition()) {
             state.settings.noteLabelMode = 'solfege';
         }
         if (typeof state.settings.viewMode === 'undefined') state.settings.viewMode = 'front';
