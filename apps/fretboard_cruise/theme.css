@@ -5932,12 +5932,16 @@ body:has(.pro-custom-route-editor-screen) .app-container {
     }
 }
 
-/* 指板を見る: portrait 時、スクロールバー〜ダイアトニックコードエリア間の余白を詰める。
+/* 指板を見る: 指板〜ダイアトニックコードエリア間の余白を詰める。
    app-container の gap:40px + 基本 margin-top:10px = 50px を、
-   負の margin-top で 20px（= 40 - 20）に短縮する。
-   内部レイアウト（タイトル・コードボタン・和音切替）は変更しない。
-   landscape は現状維持（このルールは portrait 限定）。 */
+   負の margin-top で実質 20px（= 40 - 20）に短縮する。
+   内部レイアウト（タイトル・コードボタン・和音切替）は変更しない。 */
 @media (orientation: portrait) {
+    .visualize-chords-afterboard {
+        margin-top: -20px;
+    }
+}
+@media (orientation: landscape) {
     .visualize-chords-afterboard {
         margin-top: -20px;
     }
