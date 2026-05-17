@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.142.41';
+const FRETBOARD_CRUISE_APP_VERSION = '1.142.42';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = true;
@@ -16191,6 +16191,9 @@ function runFretboardBoot() {
         } catch (e) {
             console.error('Failed to restore state from localStorage:', e);
         }
+    }
+    if (!isProEdition()) {
+        state.settings.noteLabelMode = 'solfege';
     }
     tryRenderApp('load');
 }
