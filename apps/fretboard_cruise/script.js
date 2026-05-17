@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.144.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.144.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = true;
@@ -392,7 +392,7 @@ const DEFAULT_CRUISE_TAP_BEATS = 'half'; // 'half' | 'full'
 const DEFAULT_CRUISE_RHYTHM_SOUND_TYPE = 'default'; // 互換性のため保持
 const DEFAULT_CRUISE_RHYTHM_VOLUME = 0.6; // 互換性のため保持（再生には使わない）
 const VALID_CRUISE_RHYTHM_SOUND_TYPES = ['default', 'kick_only', 'hihat_only', 'soft', 'silent']; // 互換性のため保持
-const DEFAULT_CRUISE_RHYTHM_KICK_VOLUME  = 0.5; // 0.0〜1.0、50%=現在音量
+const DEFAULT_CRUISE_RHYTHM_KICK_VOLUME  = 0.3; // 0.0〜1.0、50%=現在音量
 const DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME = 0.5;
 const DEFAULT_CRUISE_RHYTHM_HAT_VOLUME   = 0.5;
 /** STAGE1 初期ルート（初回・未保存時・「初期順」）。`scripts/compute-stage1-shipped-default.mjs` で同内容を再生成可 */
@@ -12946,39 +12946,25 @@ function renderSettings(app) {
 
             <div class="settings-card-section">
                 <div class="settings-card-section-header">
-                    <span class="settings-card-section-title">キック</span>
-                    <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-rhythm-kick">リセット</button>
+                    <span class="settings-card-section-title">リズム音のバランス</span>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-rhythm-balance">リセット</button>
                 </div>
-                <div class="settings-value-row">
-                    <span>小</span>
+                <div class="settings-value-row" style="margin-top:8px;">
+                    <span>キック</span>
                     <span class="settings-value-badge" id="rhythm-kick-display">${Math.round((state.settings.cruiseRhythmKickVolume ?? DEFAULT_CRUISE_RHYTHM_KICK_VOLUME) * 100)}%</span>
-                    <span>大</span>
+                    <span></span>
                 </div>
                 <input type="range" id="rhythm-kick-slider" min="0" max="100" step="1" value="${Math.round((state.settings.cruiseRhythmKickVolume ?? DEFAULT_CRUISE_RHYTHM_KICK_VOLUME) * 100)}" class="settings-range">
-            </div>
-
-            <div class="settings-card-section">
-                <div class="settings-card-section-header">
-                    <span class="settings-card-section-title">スネア</span>
-                    <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-rhythm-snare">リセット</button>
-                </div>
-                <div class="settings-value-row">
-                    <span>小</span>
+                <div class="settings-value-row" style="margin-top:12px;">
+                    <span>スネア</span>
                     <span class="settings-value-badge" id="rhythm-snare-display">${Math.round((state.settings.cruiseRhythmSnareVolume ?? DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME) * 100)}%</span>
-                    <span>大</span>
+                    <span></span>
                 </div>
                 <input type="range" id="rhythm-snare-slider" min="0" max="100" step="1" value="${Math.round((state.settings.cruiseRhythmSnareVolume ?? DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME) * 100)}" class="settings-range">
-            </div>
-
-            <div class="settings-card-section">
-                <div class="settings-card-section-header">
-                    <span class="settings-card-section-title">ハイハット</span>
-                    <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-rhythm-hat">リセット</button>
-                </div>
-                <div class="settings-value-row">
-                    <span>小</span>
+                <div class="settings-value-row" style="margin-top:12px;">
+                    <span>ハイハット</span>
                     <span class="settings-value-badge" id="rhythm-hat-display">${Math.round((state.settings.cruiseRhythmHatVolume ?? DEFAULT_CRUISE_RHYTHM_HAT_VOLUME) * 100)}%</span>
-                    <span>大</span>
+                    <span></span>
                 </div>
                 <input type="range" id="rhythm-hat-slider" min="0" max="100" step="1" value="${Math.round((state.settings.cruiseRhythmHatVolume ?? DEFAULT_CRUISE_RHYTHM_HAT_VOLUME) * 100)}" class="settings-range">
             </div>
@@ -13266,22 +13252,17 @@ function renderSettings(app) {
                 syncCruiseProgressionSettingsUI();
                 return;
             }
-            if (resetCard === 'cruise-rhythm-kick') {
-                state.settings.cruiseRhythmKickVolume = DEFAULT_CRUISE_RHYTHM_KICK_VOLUME;
-                rhythmKickSlider.value  = Math.round(DEFAULT_CRUISE_RHYTHM_KICK_VOLUME * 100);
-                rhythmKickDisplay.textContent = `${Math.round(DEFAULT_CRUISE_RHYTHM_KICK_VOLUME * 100)}%`;
-                return;
-            }
-            if (resetCard === 'cruise-rhythm-snare') {
+            if (resetCard === 'cruise-rhythm-balance') {
+                state.settings.cruiseRhythmKickVolume  = DEFAULT_CRUISE_RHYTHM_KICK_VOLUME;
                 state.settings.cruiseRhythmSnareVolume = DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME;
-                rhythmSnareSlider.value  = Math.round(DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME * 100);
+                state.settings.cruiseRhythmHatVolume   = DEFAULT_CRUISE_RHYTHM_HAT_VOLUME;
+                rhythmKickSlider.value  = Math.round(DEFAULT_CRUISE_RHYTHM_KICK_VOLUME  * 100);
+                rhythmSnareSlider.value = Math.round(DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME * 100);
+                rhythmHatSlider.value   = Math.round(DEFAULT_CRUISE_RHYTHM_HAT_VOLUME   * 100);
+                rhythmKickDisplay.textContent  = `${Math.round(DEFAULT_CRUISE_RHYTHM_KICK_VOLUME  * 100)}%`;
                 rhythmSnareDisplay.textContent = `${Math.round(DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME * 100)}%`;
-                return;
-            }
-            if (resetCard === 'cruise-rhythm-hat') {
-                state.settings.cruiseRhythmHatVolume = DEFAULT_CRUISE_RHYTHM_HAT_VOLUME;
-                rhythmHatSlider.value  = Math.round(DEFAULT_CRUISE_RHYTHM_HAT_VOLUME * 100);
-                rhythmHatDisplay.textContent = `${Math.round(DEFAULT_CRUISE_RHYTHM_HAT_VOLUME * 100)}%`;
+                rhythmHatDisplay.textContent   = `${Math.round(DEFAULT_CRUISE_RHYTHM_HAT_VOLUME   * 100)}%`;
+                saveState();
                 return;
             }
         };
