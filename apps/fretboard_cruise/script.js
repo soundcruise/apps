@@ -3144,6 +3144,12 @@ function getRhythmMasterGain() {
         rhythmMasterGain = audioCtx.createGain();
         rhythmMasterGain.gain.value = getEffectiveCruiseRhythmVolume();
         rhythmMasterGain.connect(audioCtx.destination);
+        console.log('[rhythm volume] masterGain created', {
+            stored: state.settings.cruiseRhythmVolume,
+            effective: getEffectiveCruiseRhythmVolume(),
+            gain: rhythmMasterGain.gain.value,
+            isPro: isProEdition()
+        });
     }
     return rhythmMasterGain;
 }
@@ -3151,6 +3157,12 @@ function getRhythmMasterGain() {
 function updateRhythmMasterGainVolume() {
     if (!rhythmMasterGain) return;
     rhythmMasterGain.gain.value = getEffectiveCruiseRhythmVolume();
+    console.log('[rhythm volume] masterGain updated', {
+        stored: state.settings.cruiseRhythmVolume,
+        effective: getEffectiveCruiseRhythmVolume(),
+        gain: rhythmMasterGain.gain.value,
+        isPro: isProEdition()
+    });
 }
 
 // --- Rhythm Machine & Timers ---
@@ -16326,6 +16338,11 @@ function runFretboardBoot() {
         state.settings.cruiseRhythmSoundType = DEFAULT_CRUISE_RHYTHM_SOUND_TYPE;
         state.settings.cruiseRhythmVolume = DEFAULT_CRUISE_RHYTHM_VOLUME;
     }
+    console.log('[rhythm volume] boot state', {
+        stored: state.settings.cruiseRhythmVolume,
+        isPro: isProEdition(),
+        DEFAULT: DEFAULT_CRUISE_RHYTHM_VOLUME
+    });
     tryRenderApp('load');
 }
 
