@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.145.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.145.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = true;
@@ -11570,7 +11570,7 @@ function renderMemorize(app) {
                         ${stageStatsHtml}
                         ${(isCruiseCleared || isQuizCleared)
                             ? ''
-                            : `<div class="question-text memorize-question memorize-question-main">${q.stringName}弦 の <span class="memorize-question-note" style="color: var(--primary-color);">${memorizeQuestionLabel}</span> ${isCruise ? 'をタップ！' : 'を探せ！'}</div>`}
+                            : `<div class="question-text memorize-question memorize-question-main">${q.stringName}弦 の <span class="memorize-question-note" style="color: var(--primary-color);">${memorizeQuestionLabel}</span> をタップ！</div>`}
                     </div>
                     <div id="feedback" class="${fbClass} memorize-feedback">${fbText}</div>
                     ${repeatHintTabsHtml}
