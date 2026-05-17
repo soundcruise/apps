@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.143.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.143.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = true;
@@ -390,7 +390,7 @@ const DEFAULT_CRUISE_PROGRESSION = 'auto'; // 'auto' | 'tap'
 /** 指板をたどるの進み（half=キック同期・2拍に1回、full=四分音符頭ごと・毎拍）。アプリの音「有り」では full で自動ギターも同じタイミング */
 const DEFAULT_CRUISE_TAP_BEATS = 'half'; // 'half' | 'full'
 const DEFAULT_CRUISE_RHYTHM_SOUND_TYPE = 'default'; // 'default' | 'kick_only' | 'hihat_only' | 'soft' | 'silent'
-const DEFAULT_CRUISE_RHYTHM_VOLUME = 1.0; // 0.0 〜 1.0
+const DEFAULT_CRUISE_RHYTHM_VOLUME = 0.6; // 0.0 〜 1.0
 const VALID_CRUISE_RHYTHM_SOUND_TYPES = ['default', 'kick_only', 'hihat_only', 'soft', 'silent'];
 /** STAGE1 初期ルート（初回・未保存時・「初期順」）。`scripts/compute-stage1-shipped-default.mjs` で同内容を再生成可 */
 const SHIPPED_DEFAULT_STAGE_1_ROUTE_SLOTS = JSON.parse(
@@ -3132,12 +3132,17 @@ function playMidiTone(midiNote) {
 // --- Rhythm Master Gain (リズム専用マスターゲイン。タップ音には一切影響しない) ---
 let rhythmMasterGain = null;
 
+function getEffectiveCruiseRhythmVolume() {
+    if (!isProEdition()) return DEFAULT_CRUISE_RHYTHM_VOLUME;
+    return Number.isFinite(state.settings.cruiseRhythmVolume)
+        ? state.settings.cruiseRhythmVolume
+        : DEFAULT_CRUISE_RHYTHM_VOLUME;
+}
+
 function getRhythmMasterGain() {
     if (!rhythmMasterGain) {
         rhythmMasterGain = audioCtx.createGain();
-        rhythmMasterGain.gain.value = isProEdition()
-            ? (state.settings.cruiseRhythmVolume ?? DEFAULT_CRUISE_RHYTHM_VOLUME)
-            : DEFAULT_CRUISE_RHYTHM_VOLUME;
+        rhythmMasterGain.gain.value = getEffectiveCruiseRhythmVolume();
         rhythmMasterGain.connect(audioCtx.destination);
     }
     return rhythmMasterGain;
@@ -3145,10 +3150,7 @@ function getRhythmMasterGain() {
 
 function updateRhythmMasterGainVolume() {
     if (!rhythmMasterGain) return;
-    const vol = isProEdition()
-        ? (state.settings.cruiseRhythmVolume ?? DEFAULT_CRUISE_RHYTHM_VOLUME)
-        : DEFAULT_CRUISE_RHYTHM_VOLUME;
-    rhythmMasterGain.gain.value = vol;
+    rhythmMasterGain.gain.value = getEffectiveCruiseRhythmVolume();
 }
 
 // --- Rhythm Machine & Timers ---
@@ -12945,10 +12947,10 @@ function renderSettings(app) {
                 </div>
                 <div class="settings-value-row">
                     <span>小</span>
-                    <span class="settings-value-badge" id="rhythm-volume-display">${Math.round((state.settings.cruiseRhythmVolume ?? 1.0) * 100)}%</span>
+                    <span class="settings-value-badge" id="rhythm-volume-display">${Math.round((state.settings.cruiseRhythmVolume ?? DEFAULT_CRUISE_RHYTHM_VOLUME) * 100)}%</span>
                     <span>大</span>
                 </div>
-                <input type="range" id="rhythm-volume-slider" min="0" max="100" step="1" value="${Math.round((state.settings.cruiseRhythmVolume ?? 1.0) * 100)}" class="settings-range">
+                <input type="range" id="rhythm-volume-slider" min="0" max="100" step="1" value="${Math.round((state.settings.cruiseRhythmVolume ?? DEFAULT_CRUISE_RHYTHM_VOLUME) * 100)}" class="settings-range">
             </div>
 
             <div class="settings-card-section">
