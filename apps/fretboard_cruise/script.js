@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.142.42';
+const FRETBOARD_CRUISE_APP_VERSION = '1.143.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = true;
@@ -389,6 +389,9 @@ const DEFAULT_CRUISE_SHOW_NOTE_NAMES = true;
 const DEFAULT_CRUISE_PROGRESSION = 'auto'; // 'auto' | 'tap'
 /** 指板をたどるの進み（half=キック同期・2拍に1回、full=四分音符頭ごと・毎拍）。アプリの音「有り」では full で自動ギターも同じタイミング */
 const DEFAULT_CRUISE_TAP_BEATS = 'half'; // 'half' | 'full'
+const DEFAULT_CRUISE_RHYTHM_SOUND_TYPE = 'default'; // 'default' | 'kick_only' | 'hihat_only' | 'soft' | 'silent'
+const DEFAULT_CRUISE_RHYTHM_VOLUME = 1.0; // 0.0 〜 1.0
+const VALID_CRUISE_RHYTHM_SOUND_TYPES = ['default', 'kick_only', 'hihat_only', 'soft', 'silent'];
 /** STAGE1 初期ルート（初回・未保存時・「初期順」）。`scripts/compute-stage1-shipped-default.mjs` で同内容を再生成可 */
 const SHIPPED_DEFAULT_STAGE_1_ROUTE_SLOTS = JSON.parse(
     '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":5,"fret":0},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":4,"fret":0},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":3,"fret":0},{"stringName":3,"fret":2},{"stringName":2,"fret":0},{"stringName":2,"fret":1},{"stringName":2,"fret":3},{"stringName":1,"fret":0},{"stringName":1,"fret":1},{"stringName":1,"fret":3},{"stringName":1,"fret":1},{"stringName":1,"fret":0},{"stringName":2,"fret":3},{"stringName":2,"fret":1},{"stringName":2,"fret":0},{"stringName":3,"fret":2},{"stringName":3,"fret":0},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":4,"fret":0},{"stringName":5,"fret":3}]'
@@ -812,6 +815,8 @@ let state = {
         cruiseShowNoteNames: DEFAULT_CRUISE_SHOW_NOTE_NAMES,
         cruiseProgression: DEFAULT_CRUISE_PROGRESSION,
         cruiseTapBeats: DEFAULT_CRUISE_TAP_BEATS,
+        cruiseRhythmSoundType: DEFAULT_CRUISE_RHYTHM_SOUND_TYPE,
+        cruiseRhythmVolume: DEFAULT_CRUISE_RHYTHM_VOLUME,
         cruiseStageRoutes: {},
         cruiseStageRouteGroups: {},
         cruiseStageGroupScrollLefts: {},
@@ -1201,6 +1206,13 @@ if (savedState) {
             state.settings.cruiseTapBeats = DEFAULT_CRUISE_TAP_BEATS;
         } else if (state.settings.cruiseTapBeats !== 'half' && state.settings.cruiseTapBeats !== 'full') {
             state.settings.cruiseTapBeats = DEFAULT_CRUISE_TAP_BEATS;
+        }
+        if (!VALID_CRUISE_RHYTHM_SOUND_TYPES.includes(state.settings.cruiseRhythmSoundType)) {
+            state.settings.cruiseRhythmSoundType = DEFAULT_CRUISE_RHYTHM_SOUND_TYPE;
+        }
+        if (typeof state.settings.cruiseRhythmVolume !== 'number' ||
+            state.settings.cruiseRhythmVolume < 0 || state.settings.cruiseRhythmVolume > 1) {
+            state.settings.cruiseRhythmVolume = DEFAULT_CRUISE_RHYTHM_VOLUME;
         }
         if (!['cruise', 'quiz', 'common'].includes(state.settings.lastSettingsTab)) {
             state.settings.lastSettingsTab = 'cruise';
@@ -1908,6 +1920,8 @@ function getDefaultSettings() {
         cruiseShowNoteNames: DEFAULT_CRUISE_SHOW_NOTE_NAMES,
         cruiseProgression: DEFAULT_CRUISE_PROGRESSION,
         cruiseTapBeats: DEFAULT_CRUISE_TAP_BEATS,
+        cruiseRhythmSoundType: DEFAULT_CRUISE_RHYTHM_SOUND_TYPE,
+        cruiseRhythmVolume: DEFAULT_CRUISE_RHYTHM_VOLUME,
         cruiseStageRoutes: {},
         cruiseStageRouteGroups: {},
         cruiseStageGroupScrollLefts: {},
@@ -3115,6 +3129,28 @@ function playMidiTone(midiNote) {
     }
 }
 
+// --- Rhythm Master Gain (リズム専用マスターゲイン。タップ音には一切影響しない) ---
+let rhythmMasterGain = null;
+
+function getRhythmMasterGain() {
+    if (!rhythmMasterGain) {
+        rhythmMasterGain = audioCtx.createGain();
+        rhythmMasterGain.gain.value = isProEdition()
+            ? (state.settings.cruiseRhythmVolume ?? DEFAULT_CRUISE_RHYTHM_VOLUME)
+            : DEFAULT_CRUISE_RHYTHM_VOLUME;
+        rhythmMasterGain.connect(audioCtx.destination);
+    }
+    return rhythmMasterGain;
+}
+
+function updateRhythmMasterGainVolume() {
+    if (!rhythmMasterGain) return;
+    const vol = isProEdition()
+        ? (state.settings.cruiseRhythmVolume ?? DEFAULT_CRUISE_RHYTHM_VOLUME)
+        : DEFAULT_CRUISE_RHYTHM_VOLUME;
+    rhythmMasterGain.gain.value = vol;
+}
+
 // --- Rhythm Machine & Timers ---
 let rhythmInterval = null;
 let nextNoteTime = 0;
@@ -3466,16 +3502,34 @@ function nextRhythmNote() {
 }
 
 function playRhythmNote(note, time) {
-    if (note === 0 || note === 8) playDrumKick(time);
-    if (note === 4 || note === 12) playDrumSnare(time);
-    if (note % 2 === 0) playDrumHat(time);
+    const sType = isProEdition()
+        ? (state.settings.cruiseRhythmSoundType ?? DEFAULT_CRUISE_RHYTHM_SOUND_TYPE)
+        : DEFAULT_CRUISE_RHYTHM_SOUND_TYPE;
+    if (sType === 'silent') return;
+    switch (sType) {
+        case 'kick_only':
+            if (note % 4 === 0) playDrumKick(time);
+            break;
+        case 'hihat_only':
+            if (note % 2 === 0) playDrumHat(time);
+            break;
+        case 'soft':
+            if (note === 0 || note === 8) playDrumKick(time);
+            if (note % 2 === 0) playDrumHat(time);
+            break;
+        default: // 'default'
+            if (note === 0 || note === 8) playDrumKick(time);
+            if (note === 4 || note === 12) playDrumSnare(time);
+            if (note % 2 === 0) playDrumHat(time);
+            break;
+    }
 }
 
 function playDrumKick(time) {
     let osc = audioCtx.createOscillator();
     let gain = audioCtx.createGain();
     osc.connect(gain);
-    gain.connect(audioCtx.destination);
+    gain.connect(getRhythmMasterGain());
     osc.frequency.setValueAtTime(150, time);
     osc.frequency.exponentialRampToValueAtTime(0.001, time + 0.5);
     gain.gain.setValueAtTime(1, time);
@@ -3489,7 +3543,7 @@ function playDrumSnare(time) {
     let gain = audioCtx.createGain();
     osc.type = 'square';
     osc.connect(gain);
-    gain.connect(audioCtx.destination);
+    gain.connect(getRhythmMasterGain());
     osc.frequency.setValueAtTime(250, time);
     gain.gain.setValueAtTime(0.3, time);
     gain.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
@@ -3502,7 +3556,7 @@ function playDrumHat(time) {
     let gain = audioCtx.createGain();
     osc.type = 'square';
     osc.connect(gain);
-    gain.connect(audioCtx.destination);
+    gain.connect(getRhythmMasterGain());
     osc.frequency.setValueAtTime(8000, time);
     gain.gain.setValueAtTime(0.05, time);
     gain.gain.exponentialRampToValueAtTime(0.01, time + 0.05);
@@ -12872,6 +12926,33 @@ function renderSettings(app) {
 
             <div class="settings-card-section">
                 <div class="settings-card-section-header">
+                    <span class="settings-card-section-title">リズム音</span>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-rhythm-sound">リセット</button>
+                </div>
+                <div class="mode-buttons settings-rhythm-sound-type-buttons">
+                    <button class="mode-btn ${(state.settings.cruiseRhythmSoundType ?? 'default') === 'default' ? 'active' : ''}" data-rhythm-sound-type="default">スタンダード</button>
+                    <button class="mode-btn ${state.settings.cruiseRhythmSoundType === 'kick_only' ? 'active' : ''}" data-rhythm-sound-type="kick_only">キックのみ</button>
+                    <button class="mode-btn ${state.settings.cruiseRhythmSoundType === 'hihat_only' ? 'active' : ''}" data-rhythm-sound-type="hihat_only">ハイハットのみ</button>
+                    <button class="mode-btn ${state.settings.cruiseRhythmSoundType === 'soft' ? 'active' : ''}" data-rhythm-sound-type="soft">ソフト</button>
+                    <button class="mode-btn ${state.settings.cruiseRhythmSoundType === 'silent' ? 'active' : ''}" data-rhythm-sound-type="silent">無音</button>
+                </div>
+            </div>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <span class="settings-card-section-title">リズム音量</span>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-rhythm-volume">リセット</button>
+                </div>
+                <div class="settings-value-row">
+                    <span>小</span>
+                    <span class="settings-value-badge" id="rhythm-volume-display">${Math.round((state.settings.cruiseRhythmVolume ?? 1.0) * 100)}%</span>
+                    <span>大</span>
+                </div>
+                <input type="range" id="rhythm-volume-slider" min="0" max="100" step="1" value="${Math.round((state.settings.cruiseRhythmVolume ?? 1.0) * 100)}" class="settings-range">
+            </div>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
                     <span class="settings-card-section-title">ループ回数</span>
                     <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-loop">リセット</button>
                 </div>
@@ -13153,6 +13234,18 @@ function renderSettings(app) {
                 syncCruiseProgressionSettingsUI();
                 return;
             }
+            if (resetCard === 'cruise-rhythm-sound') {
+                state.settings.cruiseRhythmSoundType = DEFAULT_CRUISE_RHYTHM_SOUND_TYPE;
+                syncRhythmSoundTypeSettingsUI();
+                return;
+            }
+            if (resetCard === 'cruise-rhythm-volume') {
+                state.settings.cruiseRhythmVolume = DEFAULT_CRUISE_RHYTHM_VOLUME;
+                rhythmVolumeSlider.value = Math.round(DEFAULT_CRUISE_RHYTHM_VOLUME * 100);
+                rhythmVolumeDisplay.textContent = `${Math.round(DEFAULT_CRUISE_RHYTHM_VOLUME * 100)}%`;
+                updateRhythmMasterGainVolume();
+                return;
+            }
         };
     });
 
@@ -13228,6 +13321,30 @@ function renderSettings(app) {
         state.settings.tempo = parseInt(e.target.value, 10);
         tempoDisplay.textContent = `BPM ${state.settings.tempo}`;
     };
+
+    const rhythmVolumeSlider = document.getElementById('rhythm-volume-slider');
+    const rhythmVolumeDisplay = document.getElementById('rhythm-volume-display');
+    rhythmVolumeSlider.oninput = (e) => {
+        if (!guardStandardSettingsMutation()) {
+            rhythmVolumeSlider.value = Math.round((state.settings.cruiseRhythmVolume ?? DEFAULT_CRUISE_RHYTHM_VOLUME) * 100);
+            return;
+        }
+        const vol = parseInt(e.target.value, 10) / 100;
+        state.settings.cruiseRhythmVolume = vol;
+        rhythmVolumeDisplay.textContent = `${e.target.value}%`;
+        updateRhythmMasterGainVolume();
+        saveState();
+    };
+
+    document.querySelectorAll('.settings-rhythm-sound-type-buttons .mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
+            const newType = btn.getAttribute('data-rhythm-sound-type');
+            state.settings.cruiseRhythmSoundType = newType;
+            syncRhythmSoundTypeSettingsUI();
+            saveState();
+        };
+    });
 
     const timerSlider = document.getElementById('timer-slider');
     const timerDisplay = document.getElementById('timer-display');
@@ -13406,6 +13523,13 @@ function renderSettings(app) {
         });
     }
 
+    function syncRhythmSoundTypeSettingsUI() {
+        const current = state.settings.cruiseRhythmSoundType ?? DEFAULT_CRUISE_RHYTHM_SOUND_TYPE;
+        document.querySelectorAll('.settings-rhythm-sound-type-buttons .mode-btn').forEach(b => {
+            b.classList.toggle('active', b.getAttribute('data-rhythm-sound-type') === current);
+        });
+    }
+
     function syncCruiseProgressionSettingsUI() {
         const tap = state.settings.cruiseProgression === 'tap';
         document.querySelectorAll('.settings-cruise-progression-buttons .mode-btn').forEach(b => {
@@ -13424,6 +13548,9 @@ function renderSettings(app) {
         tempoDisplay.textContent = `BPM ${state.settings.tempo}`;
         timerSlider.value = state.settings.quizTimeLimit;
         timerDisplay.textContent = `${state.settings.quizTimeLimit} 秒`;
+        rhythmVolumeSlider.value = Math.round((state.settings.cruiseRhythmVolume ?? DEFAULT_CRUISE_RHYTHM_VOLUME) * 100);
+        rhythmVolumeDisplay.textContent = `${Math.round((state.settings.cruiseRhythmVolume ?? DEFAULT_CRUISE_RHYTHM_VOLUME) * 100)}%`;
+        syncRhythmSoundTypeSettingsUI();
         syncNotationSettingsUI();
         syncLoopCountSettingsUI();
         syncQuizQuestionLimitSettingsUI();
@@ -16194,6 +16321,8 @@ function runFretboardBoot() {
     }
     if (!isProEdition()) {
         state.settings.noteLabelMode = 'solfege';
+        state.settings.cruiseRhythmSoundType = DEFAULT_CRUISE_RHYTHM_SOUND_TYPE;
+        state.settings.cruiseRhythmVolume = DEFAULT_CRUISE_RHYTHM_VOLUME;
     }
     tryRenderApp('load');
 }
