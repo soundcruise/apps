@@ -31,12 +31,67 @@
     </script>
     <!-- Pro版のみ追加 -->
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
+
+    <style>
+        .app-loading-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background:
+                radial-gradient(circle at 50% 30%, rgba(54, 211, 191, 0.18), transparent 38%),
+                linear-gradient(160deg, #071522 0%, #0b2430 52%, #031018 100%);
+            color: #fff;
+            transition: opacity 240ms ease, visibility 240ms ease;
+        }
+
+        .app-loading-screen.is-hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .app-loading-screen__inner {
+            text-align: center;
+            padding: 24px;
+        }
+
+        .app-loading-screen__brand {
+            font-size: clamp(1.8rem, 6vw, 2.8rem);
+            font-weight: 800;
+            letter-spacing: 0.08em;
+        }
+
+        .app-loading-screen__sub {
+            margin-top: 8px;
+            font-size: 0.85rem;
+            letter-spacing: 0.18em;
+            color: rgba(245, 215, 140, 0.9);
+        }
+
+        .app-loading-screen__text {
+            margin-top: 22px;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.78);
+        }
+    </style>
 </head>
 <body>
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = { password: '0000' };
     </script>
     <script src="../../shared/pro-gate.js?v=16"></script>
+
+    <!-- App Loading Screen -->
+    <div id="app-loading-screen" class="app-loading-screen">
+        <div class="app-loading-screen__inner">
+            <div class="app-loading-screen__brand">指板クルーズ</div>
+            <div class="app-loading-screen__sub">Fretboard Cruise</div>
+            <div class="app-loading-screen__text">クルージングの準備中…</div>
+        </div>
+    </div>
 
     <!-- App Container -->
     <div id="app" class="app-container">
@@ -59,7 +114,7 @@
             }
         } catch (e) { /* ignore */ }
         var s = document.createElement('script');
-        s.src = root + (root === '../' ? 'script.js?v=1.146.0' : 'script.js');
+        s.src = root + (root === '../' ? 'script.js?v=1.147.0' : 'script.js');
         s.async = false;
         document.body.appendChild(s);
     })();

@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.146.0';
+const FRETBOARD_CRUISE_APP_VERSION = '1.147.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = true;
@@ -5702,6 +5702,7 @@ function renderApp() {
         }
     }
 
+    hideAppLoadingScreen();
 }
 
 function renderHome(app) {
@@ -16422,6 +16423,15 @@ function tryRenderApp(context) {
                 '</div>';
         }
     }
+}
+
+function hideAppLoadingScreen() {
+    const el = document.getElementById('app-loading-screen');
+    if (!el) return;
+    el.classList.add('is-hidden');
+    window.setTimeout(() => {
+        el.remove();
+    }, 300);
 }
 
 /** index.html から script.js を動的挿入しているため、読み込みが遅いと DOMContentLoaded が先に終わり初回描画が抜ける。readyState で即時起動する。 */
