@@ -5946,3 +5946,57 @@ body:has(.pro-custom-route-editor-screen) .app-container {
         margin-top: -20px;
     }
 }
+
+/* ホーム: インフォメーションボタン */
+.fret-info-home-slot {
+    width: 80%;
+    max-width: 250px;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    margin: -6px auto 0;
+    padding-left: 0;
+}
+
+.fret-info-home-btn {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.86);
+    font-size: 1.08rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0;
+    text-decoration: none;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+    -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: hover) {
+    .fret-info-home-btn:hover {
+        border-color: rgba(255, 255, 255, 0.34);
+        background: rgba(255, 255, 255, 0.12);
+    }
+}
+
+@media (max-width: 480px) {
+    .fret-info-home-slot {
+        margin-top: -8px;
+    }
+
+    .fret-info-home-btn {
+        width: 42px;
+        min-width: 42px;
+        height: 42px;
+        min-height: 42px;
+        font-size: 1.02rem;
+    }
+}

@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '1.147.0';
+const FRETBOARD_CRUISE_APP_VERSION = '2.0.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = true;
@@ -1486,6 +1486,11 @@ function guardStandardSettingsMutation() {
 
 function settingsButtonHtml(id) {
     return `<button class="icon-btn home-settings-btn" id="${id}" aria-label="設定">⚙️</button>`;
+}
+
+function homeInfoButtonHtml() {
+    const edition = isProEdition() ? 'pro' : 'standard';
+    return `<a class="icon-btn fret-info-home-btn" href="../info.html?from=home&edition=${edition}" aria-label="インフォメーション" title="インフォメーション">i</a>`;
 }
 
 function isEditorDemoPlayback() {
@@ -5720,6 +5725,9 @@ function renderHome(app) {
             <button type="button" class="btn-primary home-memorize-btn" id="btn-cruise-mode">🛳️ 指板をたどる</button>
             <button type="button" class="btn-primary home-memorize-btn" id="btn-quiz-mode">🎯 指板クイズ</button>
             <button type="button" class="btn-primary home-memorize-btn" id="btn-home-board-view">🧭 指板を見る</button>
+        </div>
+        <div class="fret-info-home-slot">
+            ${homeInfoButtonHtml()}
         </div>
     `;
 

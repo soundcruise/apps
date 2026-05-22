@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>指板クルーズ | インフォメーション</title>
+    <link rel="stylesheet" href="../shared/style.css?v=97">
+    <link rel="stylesheet" href="../shared/pro-theme.css?v=98">
+    <link rel="stylesheet" href="./theme.css?v=404">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        .fret-info-page {
+            min-height: 100vh;
+            overflow: auto;
+        }
+
+        .fret-info-page .app-container {
+            max-width: 720px;
+            min-height: 100vh;
+            justify-content: center;
+            padding-top: max(32px, calc(env(safe-area-inset-top) + 24px));
+            padding-bottom: max(32px, calc(env(safe-area-inset-bottom) + 24px));
+        }
+
+        .fret-info-card {
+            width: 100%;
+            padding: 32px 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.06);
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
+        }
+
+        .fret-info-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .fret-info-nav-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 0;
+            height: 38px;
+            padding: 0 12px;
+            gap: 6px;
+            font-size: 0.86rem;
+            line-height: 1;
+            text-decoration: none;
+        }
+
+        .fret-info-home-link {
+            width: 38px;
+            min-width: 38px;
+            padding: 0;
+            font-size: 1rem;
+        }
+
+        .fret-info-title {
+            margin: 0 0 20px;
+            color: #fff;
+            font-size: 1.8rem;
+            line-height: 1.12;
+            letter-spacing: 0;
+            text-align: center;
+        }
+
+        .fret-info-links {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .fret-info-link-card {
+            display: block;
+            width: 100%;
+            padding: 18px 20px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 18px;
+            color: var(--text-color);
+            background: rgba(255, 255, 255, 0.05);
+            text-decoration: none;
+            transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .fret-info-link-card--primary {
+            position: relative;
+            background: linear-gradient(135deg, rgba(255, 214, 94, 0.12), rgba(54, 211, 191, 0.1));
+            border-color: rgba(255, 214, 94, 0.28);
+            animation: fretInfoPrimaryFloat 2.6s ease-in-out infinite, fretInfoPrimaryPulse 2.8s ease-in-out infinite;
+        }
+
+        .fret-info-link-card--primary::after {
+            content: "▶";
+            position: absolute;
+            right: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: rgba(255, 230, 160, 0.92);
+            font-size: 0.95rem;
+            animation: fretInfoArrowNudge 1.4s ease-in-out infinite;
+        }
+
+        .fret-info-link-title {
+            display: block;
+            padding-right: 24px;
+            font-size: 0.96rem;
+            font-weight: 700;
+            line-height: 1.35;
+        }
+
+        .fret-info-link-note {
+            display: block;
+            margin-top: 6px;
+            color: rgba(255, 255, 255, 0.66);
+            font-size: 0.72rem;
+            line-height: 1.45;
+        }
+
+        .fret-youtube-confirm {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: rgba(0, 0, 0, 0.58);
+        }
+
+        .fret-youtube-confirm[hidden] {
+            display: none;
+        }
+
+        .fret-youtube-confirm__dialog {
+            width: min(360px, 100%);
+            padding: 22px 20px 18px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 18px;
+            background: rgba(22, 27, 34, 0.98);
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+            color: var(--text-color);
+            text-align: center;
+        }
+
+        .fret-youtube-confirm__title {
+            margin: 0 0 10px;
+            font-size: 1.18rem;
+            line-height: 1.25;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .fret-youtube-confirm__body {
+            margin: 0;
+            color: rgba(255, 255, 255, 0.72);
+            font-size: 0.88rem;
+            line-height: 1.65;
+        }
+
+        .fret-youtube-confirm__actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .fret-youtube-confirm__btn {
+            min-height: 44px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            font-family: inherit;
+            font-size: 0.88rem;
+            font-weight: 700;
+            line-height: 1.2;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .fret-youtube-confirm__btn--cancel {
+            background: rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.84);
+        }
+
+        .fret-youtube-confirm__btn--open {
+            border-color: rgba(255, 214, 94, 0.42);
+            background: linear-gradient(135deg, rgba(255, 214, 94, 0.92), rgba(255, 242, 186, 0.92));
+            color: #1b1608;
+        }
+
+        @media (hover: hover) {
+            .fret-info-link-card:hover {
+                transform: translateY(-2px);
+                background: rgba(255, 255, 255, 0.1);
+                border-color: rgba(255, 255, 255, 0.28);
+            }
+
+            .fret-info-link-card--primary:hover {
+                background: linear-gradient(135deg, rgba(255, 214, 94, 0.2), rgba(54, 211, 191, 0.14));
+                border-color: rgba(255, 228, 148, 0.42);
+                box-shadow: 0 12px 28px rgba(255, 214, 94, 0.14);
+            }
+        }
+
+        @keyframes fretInfoPrimaryFloat {
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-3px);
+            }
+        }
+
+        @keyframes fretInfoPrimaryPulse {
+            0%,
+            100% {
+                box-shadow: 0 0 0 rgba(255, 214, 94, 0);
+            }
+
+            50% {
+                box-shadow: 0 0 22px rgba(255, 214, 94, 0.16);
+            }
+        }
+
+        @keyframes fretInfoArrowNudge {
+            0%,
+            100% {
+                transform: translateY(-50%) translateX(0);
+            }
+
+            50% {
+                transform: translateY(-50%) translateX(4px);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .fret-info-link-card--primary,
+            .fret-info-link-card--primary::after {
+                animation: none;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .fret-info-card {
+                padding: 28px 18px;
+                border-radius: 20px;
+            }
+
+            .fret-info-title {
+                font-size: 1.55rem;
+            }
+
+            .fret-info-nav-link {
+                height: 36px;
+                padding: 0 10px;
+                font-size: 0.8rem;
+            }
+
+            .fret-info-home-link {
+                width: 36px;
+                min-width: 36px;
+                padding: 0;
+                font-size: 0.95rem;
+            }
+
+            .fret-info-link-title {
+                font-size: 0.88rem;
+            }
+
+            .fret-info-link-note {
+                font-size: 0.66rem;
+            }
+
+            .fret-youtube-confirm {
+                padding: 18px;
+            }
+
+            .fret-youtube-confirm__actions {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body class="fret-info-page">
+    <div class="app-container">
+        <main class="fret-info-card">
+            <div class="fret-info-nav">
+                <a class="icon-btn fret-info-nav-link" href="./standard/index.html" id="fret-info-back-link">← 戻る</a>
+                <a class="icon-btn fret-info-nav-link fret-info-home-link" href="./standard/index.html" id="fret-info-home-link"
+                    aria-label="ホーム画面" title="ホーム画面">🏠</a>
+            </div>
+
+            <h1 class="fret-info-title">インフォメーション</h1>
+
+            <div class="fret-info-links">
+                <a class="fret-info-link-card fret-info-link-card--primary" href="https://youtu.be/D86UV0ZrUAU" target="_blank" rel="noopener noreferrer" data-youtube-confirm>
+                    <span class="fret-info-link-title">【動画】指板が覚えられない原因</span>
+                    <span class="fret-info-link-note">感想や要望もこちらにコメントしてください♪</span>
+                </a>
+                <a class="fret-info-link-card" href="./apps.html" id="fret-info-apps-link">
+                    <span class="fret-info-link-title">【クルーズアプリ】シリーズ</span>
+                </a>
+                <a class="fret-info-link-card" href="https://www.youtube.com/channel/UC4ncQuk56I8SK6lJGZcGwJQ" target="_blank" rel="noopener noreferrer" data-youtube-confirm>
+                    <span class="fret-info-link-title">YouTubeチャンネル</span>
+                    <span class="fret-info-link-note">アコギ弾き語り専門ラボ / クルーニー</span>
+                </a>
+            </div>
+        </main>
+    </div>
+
+    <div class="fret-youtube-confirm" id="fret-youtube-confirm" hidden>
+        <div class="fret-youtube-confirm__dialog" role="dialog" aria-modal="true" aria-labelledby="fret-youtube-confirm-title">
+            <h2 class="fret-youtube-confirm__title" id="fret-youtube-confirm-title">YouTubeを開きます</h2>
+            <p class="fret-youtube-confirm__body">アプリを離れて、YouTubeページを開きます。<br>よろしいですか？</p>
+            <div class="fret-youtube-confirm__actions">
+                <button type="button" class="fret-youtube-confirm__btn fret-youtube-confirm__btn--cancel" id="fret-youtube-confirm-cancel">キャンセル</button>
+                <button type="button" class="fret-youtube-confirm__btn fret-youtube-confirm__btn--open" id="fret-youtube-confirm-open">YouTubeを開く</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            var backLink = document.getElementById('fret-info-back-link');
+            var homeLink = document.getElementById('fret-info-home-link');
+            var defaultHome = './standard/index.html';
+            var youtubeConfirm = document.getElementById('fret-youtube-confirm');
+            var youtubeCancel = document.getElementById('fret-youtube-confirm-cancel');
+            var youtubeOpen = document.getElementById('fret-youtube-confirm-open');
+            var pendingYoutubeUrl = '';
+            homeLink.href = defaultHome;
+
+            backLink.addEventListener('click', function (event) {
+                if (window.history.length > 1 && document.referrer) {
+                    event.preventDefault();
+                    window.history.back();
+                    return;
+                }
+                backLink.href = defaultHome;
+            });
+
+            function openYoutubeConfirm(url) {
+                pendingYoutubeUrl = url;
+                youtubeConfirm.hidden = false;
+                youtubeOpen.focus();
+            }
+
+            function closeYoutubeConfirm() {
+                pendingYoutubeUrl = '';
+                youtubeConfirm.hidden = true;
+            }
+
+            document.querySelectorAll('[data-youtube-confirm]').forEach(function (a) {
+                a.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    openYoutubeConfirm(this.href);
+                });
+            });
+
+            youtubeCancel.addEventListener('click', closeYoutubeConfirm);
+            youtubeConfirm.addEventListener('click', function (event) {
+                if (event.target === youtubeConfirm) {
+                    closeYoutubeConfirm();
+                }
+            });
+            youtubeOpen.addEventListener('click', function () {
+                if (pendingYoutubeUrl) {
+                    window.location.href = pendingYoutubeUrl;
+                }
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && !youtubeConfirm.hidden) {
+                    closeYoutubeConfirm();
+                }
+            });
+        }());
+    </script>
+</body>
+
+</html>
