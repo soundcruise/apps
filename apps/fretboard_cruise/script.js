@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.3.0';
+const FRETBOARD_CRUISE_APP_VERSION = '2.4.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = false;
@@ -389,6 +389,16 @@ const DEFAULT_CRUISE_SHOW_NOTE_NAMES = true;
 const DEFAULT_CRUISE_PROGRESSION = 'auto'; // 'auto' | 'tap'
 /** 指板をたどるの進み（half=キック同期・2拍に1回、full=四分音符頭ごと・毎拍）。アプリの音「有り」では full で自動ギターも同じタイミング */
 const DEFAULT_CRUISE_TAP_BEATS = 'half'; // 'half' | 'full'
+const DEFAULT_BLUETOOTH_RHYTHM_ASSIST_LEVEL = 'off';
+const BLUETOOTH_RHYTHM_ASSIST_MS = {
+    off: 0,
+    low: 75,
+    medium: 150,
+    high: 225
+};
+const VALID_BLUETOOTH_RHYTHM_ASSIST_LEVELS = Object.keys(BLUETOOTH_RHYTHM_ASSIST_MS);
+const DEFAULT_CRUISE_CONFIRM_SOUND_TIMING = 'tap'; // 'tap' | 'rhythm'
+const VALID_CRUISE_CONFIRM_SOUND_TIMINGS = ['tap', 'rhythm'];
 const DEFAULT_CRUISE_RHYTHM_SOUND_TYPE = 'default'; // 互換性のため保持
 const DEFAULT_CRUISE_RHYTHM_VOLUME = 0.5; // リズム全体のマスター音量デフォルト（0.0〜1.0）
 const VALID_CRUISE_RHYTHM_SOUND_TYPES = ['default', 'kick_only', 'hihat_only', 'soft', 'silent']; // 互換性のため保持
@@ -818,6 +828,8 @@ let state = {
         cruiseShowNoteNames: DEFAULT_CRUISE_SHOW_NOTE_NAMES,
         cruiseProgression: DEFAULT_CRUISE_PROGRESSION,
         cruiseTapBeats: DEFAULT_CRUISE_TAP_BEATS,
+        bluetoothRhythmAssistLevel: DEFAULT_BLUETOOTH_RHYTHM_ASSIST_LEVEL,
+        cruiseConfirmSoundTiming: DEFAULT_CRUISE_CONFIRM_SOUND_TIMING,
         cruiseRhythmSoundType: DEFAULT_CRUISE_RHYTHM_SOUND_TYPE,
         cruiseRhythmVolume: DEFAULT_CRUISE_RHYTHM_VOLUME,
         cruiseRhythmKickVolume:  DEFAULT_CRUISE_RHYTHM_KICK_VOLUME,
@@ -1214,6 +1226,12 @@ if (savedState) {
             state.settings.cruiseTapBeats = DEFAULT_CRUISE_TAP_BEATS;
         } else if (state.settings.cruiseTapBeats !== 'half' && state.settings.cruiseTapBeats !== 'full') {
             state.settings.cruiseTapBeats = DEFAULT_CRUISE_TAP_BEATS;
+        }
+        if (!VALID_BLUETOOTH_RHYTHM_ASSIST_LEVELS.includes(state.settings.bluetoothRhythmAssistLevel)) {
+            state.settings.bluetoothRhythmAssistLevel = DEFAULT_BLUETOOTH_RHYTHM_ASSIST_LEVEL;
+        }
+        if (!VALID_CRUISE_CONFIRM_SOUND_TIMINGS.includes(state.settings.cruiseConfirmSoundTiming)) {
+            state.settings.cruiseConfirmSoundTiming = DEFAULT_CRUISE_CONFIRM_SOUND_TIMING;
         }
         if (!VALID_CRUISE_RHYTHM_SOUND_TYPES.includes(state.settings.cruiseRhythmSoundType)) {
             state.settings.cruiseRhythmSoundType = DEFAULT_CRUISE_RHYTHM_SOUND_TYPE;
@@ -1945,6 +1963,8 @@ function getDefaultSettings() {
         cruiseShowNoteNames: DEFAULT_CRUISE_SHOW_NOTE_NAMES,
         cruiseProgression: DEFAULT_CRUISE_PROGRESSION,
         cruiseTapBeats: DEFAULT_CRUISE_TAP_BEATS,
+        bluetoothRhythmAssistLevel: DEFAULT_BLUETOOTH_RHYTHM_ASSIST_LEVEL,
+        cruiseConfirmSoundTiming: DEFAULT_CRUISE_CONFIRM_SOUND_TIMING,
         cruiseRhythmSoundType: DEFAULT_CRUISE_RHYTHM_SOUND_TYPE,
         cruiseRhythmVolume: DEFAULT_CRUISE_RHYTHM_VOLUME,
         cruiseRhythmKickVolume:  DEFAULT_CRUISE_RHYTHM_KICK_VOLUME,
@@ -3657,6 +3677,57 @@ function isCruiseTapProgression() {
     return state.settings && state.settings.cruiseProgression === 'tap';
 }
 
+function getBluetoothRhythmAssistMs() {
+    if (!isProEdition()) return 0;
+    const level = state.settings?.bluetoothRhythmAssistLevel || DEFAULT_BLUETOOTH_RHYTHM_ASSIST_LEVEL;
+    return BLUETOOTH_RHYTHM_ASSIST_MS[level] || 0;
+}
+
+function shouldUseRhythmConfirmSound() {
+    return isProEdition() &&
+        state.settings?.cruiseConfirmSoundTiming === 'rhythm' &&
+        state.settings?.cruiseTapBeats === 'half' &&
+        !isCruiseTapProgression();
+}
+
+function shouldPlayTapConfirmSound() {
+    return !shouldUseRhythmConfirmSound();
+}
+
+function playScheduledCruiseTone(target, time) {
+    if (!audioCtx || !target || !Number.isFinite(time)) return;
+    const stringIdx = parseInt(target.stringIdx, 10);
+    const fret = parseInt(target.fret, 10);
+    if (!Number.isFinite(stringIdx) || !Number.isFinite(fret) || !STRING_BASE_PITCHES[stringIdx]) return;
+
+    const midiNote = STRING_BASE_PITCHES[stringIdx] + fret;
+    const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
+    const startTime = Math.max(audioCtx.currentTime, time);
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, startTime);
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(0.8, startTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + 2.0);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(startTime);
+    osc.stop(startTime + 2.0);
+}
+
+function maybePlayRhythmConfirmTone(note, time) {
+    if (!shouldUseRhythmConfirmSound()) return;
+    if (state.course !== 'memorize' || state.memorize.playMode !== 'cruise' || state.memorize.isCleared) return;
+    if (Number.isFinite(parseInt(state.memorize.cruiseCountdown, 10)) && state.memorize.cruiseCountdown > 0) return;
+    if (state.memorize.isFirstNote) return;
+    // half mode's existing tap target is the snare-side beat stored in nextTargetTime.
+    if (note !== 4 && note !== 12) return;
+    playScheduledCruiseTone(state.memorize.currentQuestion, time);
+}
+
 /** タップ判定の片側窓（秒）。BPM が速いほど自動で縮める。半拍／毎拍とも同じ厳しさにする。 */
 function getCruiseTimingHalfWindow() {
     const bpm = parseInt(state.settings && state.settings.tempo, 10);
@@ -3683,6 +3754,7 @@ function scheduleRhythm() {
     if (!audioCtx) return;
     while (nextNoteTime < audioCtx.currentTime + 0.1) {
         playRhythmNote(current16thNote, nextNoteTime);
+        maybePlayRhythmConfirmTone(current16thNote, nextNoteTime);
         
         if (state.course === 'memorize' && state.memorize.playMode === 'cruise' && !state.memorize.isCleared) {
             const fullBeats = state.settings.cruiseTapBeats === 'full';
@@ -12286,6 +12358,8 @@ function handleFretClick(stringNum, fret, pointerEv) {
             const est = estimateAudioTimeAtPointerEvent(pointerEv);
             if (est != null) tappedT = est;
         }
+        const assistSeconds = getBluetoothRhythmAssistMs() / 1000;
+        const correctedTappedT = tappedT - assistSeconds;
 
         const fullBeats = state.settings.cruiseTapBeats === 'full';
         const bpm = parseInt(state.settings.tempo, 10);
@@ -12301,24 +12375,24 @@ function handleFretClick(stringNum, fret, pointerEv) {
         if (fullBeats) {
             let pastTime;
             let nextTime;
-            if (nextTargetTime > tappedT) {
+            if (nextTargetTime > correctedTappedT) {
                 nextTime = nextTargetTime;
                 pastTime = nextTargetTime - secondsPerBeat;
             } else {
                 pastTime = nextTargetTime;
                 nextTime = nextTargetTime + secondsPerBeat;
             }
-            const distToPast = tappedT - pastTime;
-            const distToNext = nextTime - tappedT;
+            const distToPast = correctedTappedT - pastTime;
+            const distToNext = nextTime - correctedTappedT;
             const upcomingExists = !!getCruiseUpcomingQuestion();
             if (upcomingExists && distToNext < distToPast) {
                 evaluateAgainstUpcoming = true;
-                timeDiff = tappedT - nextTime;
+                timeDiff = correctedTappedT - nextTime;
             } else {
-                timeDiff = tappedT - pastTime;
+                timeDiff = correctedTappedT - pastTime;
             }
         } else {
-            timeDiff = tappedT - nextTargetTime;
+            timeDiff = correctedTappedT - nextTargetTime;
         }
 
         // 同じ拍に対して二重判定しない（タイプ別にゲート）。
@@ -12379,7 +12453,9 @@ function handleFretClick(stringNum, fret, pointerEv) {
                     isCorrect,
                     isCorrectAgainstTarget
                 });
-                playTone(stringIdx, fret);
+                if (shouldPlayTapConfirmSound()) {
+                    playTone(stringIdx, fret);
+                }
                 state.memorize.correct++;
                 state.memorize.combo++;
                 if ((state.memorize.combo || 0) > (state.memorize.maxCombo || 0)) {
@@ -13315,6 +13391,9 @@ function renderSettings(app) {
         : 'cruise';
     const tabHidden = (name) => activeTab === name ? '' : ' is-hidden';
     const tabActive = (name) => activeTab === name ? ' is-active' : '';
+    const bluetoothDelayEnabled =
+        state.settings.bluetoothRhythmAssistLevel !== 'off' ||
+        state.settings.cruiseConfirmSoundTiming === 'rhythm';
     app.innerHTML = `
         <div class="settings-screen${settingsReadOnly ? ' settings-screen--standard-readonly' : ''}">
         ${buildPageHeader({
@@ -13435,6 +13514,46 @@ function renderSettings(app) {
                     <button type="button" class="mode-btn ${state.settings.cruiseShowNoteNames === false ? 'active' : ''}" data-cruise-show-note-names="off">オフ</button>
                 </div>
                 <p class="settings-note settings-note--animated" id="note-cruise-show-names" style="margin-top:8px;">オフにすると、指板をたどる範囲に薄く表示されている音名ボタンが消えます。</p>
+            </div>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="settings-card-section-title">Bluetoothイヤホンの遅延</span>
+                        <button class="settings-help-btn" type="button" data-target="note-bluetooth-rhythm-assist" aria-label="説明を表示">⊕</button>
+                    </div>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="bluetooth-rhythm-assist">リセット</button>
+                </div>
+                <p class="settings-note settings-note--animated" id="note-bluetooth-rhythm-assist" style="margin-top:8px;">Bluetoothイヤホンで音が遅れて聞こえる時の補助設定です。正確な練習には、本体スピーカーまたは有線イヤホンがおすすめです。</p>
+                <div class="settings-bluetooth-delay-toggle-row" aria-label="Bluetoothイヤホンの遅延補助">
+                    <button type="button" class="settings-bluetooth-delay-switch ${bluetoothDelayEnabled ? 'active' : ''}" data-bluetooth-delay-toggle="${bluetoothDelayEnabled ? 'off' : 'on'}" aria-pressed="${bluetoothDelayEnabled ? 'true' : 'false'}">
+                        <span class="settings-bluetooth-delay-switch__thumb" aria-hidden="true"></span>
+                    </button>
+                </div>
+                <div class="settings-card-section-header" style="margin-top:12px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="settings-card-section-title" style="font-size:0.875em;opacity:0.8;">判定補助</span>
+                        <button class="settings-help-btn" type="button" data-target="note-bluetooth-rhythm-judgement" aria-label="説明を表示">⊕</button>
+                    </div>
+                </div>
+                <p class="settings-note settings-note--animated" id="note-bluetooth-rhythm-judgement" style="margin-top:8px;">聞こえているリズムに合わせてタップした時に、Lateになりにくくします。</p>
+                <div class="mode-buttons settings-bluetooth-rhythm-assist-buttons">
+                    <button type="button" class="mode-btn ${state.settings.bluetoothRhythmAssistLevel === 'off' ? 'active' : ''}" data-bluetooth-rhythm-assist="off">オフ</button>
+                    <button type="button" class="mode-btn ${state.settings.bluetoothRhythmAssistLevel === 'low' ? 'active' : ''}" data-bluetooth-rhythm-assist="low">少なめ</button>
+                    <button type="button" class="mode-btn ${state.settings.bluetoothRhythmAssistLevel === 'medium' ? 'active' : ''}" data-bluetooth-rhythm-assist="medium">多め</button>
+                    <button type="button" class="mode-btn ${state.settings.bluetoothRhythmAssistLevel === 'high' ? 'active' : ''}" data-bluetooth-rhythm-assist="high">かなり多め</button>
+                </div>
+                <div class="settings-card-section-header" style="margin-top:12px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="settings-card-section-title" style="font-size:0.875em;opacity:0.8;">確認音の鳴らし方</span>
+                        <button class="settings-help-btn" type="button" data-target="note-cruise-confirm-sound-timing" aria-label="説明を表示">⊕</button>
+                    </div>
+                </div>
+                <p class="settings-note settings-note--animated" id="note-cruise-confirm-sound-timing" style="margin-top:8px;">タップ音が遅れて聞こえる時は、「リズムに合わせて鳴らす」を選ぶと違和感を減らせます。</p>
+                <div class="mode-buttons settings-cruise-confirm-sound-buttons">
+                    <button type="button" class="mode-btn ${state.settings.cruiseConfirmSoundTiming !== 'rhythm' ? 'active' : ''}" data-cruise-confirm-sound="tap">タップ時に鳴らす</button>
+                    <button type="button" class="mode-btn ${state.settings.cruiseConfirmSoundTiming === 'rhythm' ? 'active' : ''}" data-cruise-confirm-sound="rhythm">リズムに合わせて鳴らす</button>
+                </div>
             </div>
         </div>
         </div>
@@ -13670,6 +13789,12 @@ function renderSettings(app) {
                 syncCruiseProgressionSettingsUI();
                 return;
             }
+            if (resetCard === 'bluetooth-rhythm-assist') {
+                state.settings.bluetoothRhythmAssistLevel = DEFAULT_BLUETOOTH_RHYTHM_ASSIST_LEVEL;
+                state.settings.cruiseConfirmSoundTiming = DEFAULT_CRUISE_CONFIRM_SOUND_TIMING;
+                syncBluetoothRhythmAssistSettingsUI();
+                return;
+            }
             if (resetCard === 'cruise-rhythm-all') {
                 state.settings.cruiseRhythmVolume      = DEFAULT_CRUISE_RHYTHM_VOLUME;
                 state.settings.cruiseRhythmKickVolume  = DEFAULT_CRUISE_RHYTHM_KICK_VOLUME;
@@ -13884,6 +14009,41 @@ function renderSettings(app) {
         };
     });
 
+    document.querySelectorAll('.settings-bluetooth-delay-switch').forEach(btn => {
+        btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
+            const enabled = btn.getAttribute('data-bluetooth-delay-toggle') === 'on';
+            state.settings.bluetoothRhythmAssistLevel = enabled ? 'low' : DEFAULT_BLUETOOTH_RHYTHM_ASSIST_LEVEL;
+            state.settings.cruiseConfirmSoundTiming = enabled ? 'rhythm' : DEFAULT_CRUISE_CONFIRM_SOUND_TIMING;
+            syncBluetoothRhythmAssistSettingsUI();
+            saveState();
+        };
+    });
+
+    document.querySelectorAll('.settings-bluetooth-rhythm-assist-buttons .mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
+            const level = btn.getAttribute('data-bluetooth-rhythm-assist');
+            state.settings.bluetoothRhythmAssistLevel = VALID_BLUETOOTH_RHYTHM_ASSIST_LEVELS.includes(level)
+                ? level
+                : DEFAULT_BLUETOOTH_RHYTHM_ASSIST_LEVEL;
+            syncBluetoothRhythmAssistSettingsUI();
+            saveState();
+        };
+    });
+
+    document.querySelectorAll('.settings-cruise-confirm-sound-buttons .mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
+            const timing = btn.getAttribute('data-cruise-confirm-sound');
+            state.settings.cruiseConfirmSoundTiming = VALID_CRUISE_CONFIRM_SOUND_TIMINGS.includes(timing)
+                ? timing
+                : DEFAULT_CRUISE_CONFIRM_SOUND_TIMING;
+            syncBluetoothRhythmAssistSettingsUI();
+            saveState();
+        };
+    });
+
     const updatePreview = () => {
         renderFretboardHTML('tilt-preview-container', {
             mode: 'visualize',
@@ -13996,6 +14156,27 @@ function renderSettings(app) {
         });
     }
 
+    function syncBluetoothRhythmAssistSettingsUI() {
+        const level = VALID_BLUETOOTH_RHYTHM_ASSIST_LEVELS.includes(state.settings.bluetoothRhythmAssistLevel)
+            ? state.settings.bluetoothRhythmAssistLevel
+            : DEFAULT_BLUETOOTH_RHYTHM_ASSIST_LEVEL;
+        const enabled = level !== 'off' || state.settings.cruiseConfirmSoundTiming === 'rhythm';
+        document.querySelectorAll('.settings-bluetooth-delay-switch').forEach(b => {
+            b.classList.toggle('active', enabled);
+            b.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+            b.setAttribute('data-bluetooth-delay-toggle', enabled ? 'off' : 'on');
+        });
+        document.querySelectorAll('.settings-bluetooth-rhythm-assist-buttons .mode-btn').forEach(b => {
+            b.classList.toggle('active', b.getAttribute('data-bluetooth-rhythm-assist') === level);
+        });
+        const timing = VALID_CRUISE_CONFIRM_SOUND_TIMINGS.includes(state.settings.cruiseConfirmSoundTiming)
+            ? state.settings.cruiseConfirmSoundTiming
+            : DEFAULT_CRUISE_CONFIRM_SOUND_TIMING;
+        document.querySelectorAll('.settings-cruise-confirm-sound-buttons .mode-btn').forEach(b => {
+            b.classList.toggle('active', b.getAttribute('data-cruise-confirm-sound') === timing);
+        });
+    }
+
     function refreshSettingsControls() {
         tempoSlider.value = state.settings.tempo;
         tempoDisplay.textContent = `BPM ${state.settings.tempo}`;
@@ -14014,6 +14195,7 @@ function renderSettings(app) {
         syncQuizQuestionLimitSettingsUI();
         syncCruiseNoteNamesSettingsUI();
         syncCruiseProgressionSettingsUI();
+        syncBluetoothRhythmAssistSettingsUI();
         perspSlider.value = state.settings.perspective;
         perspOriginSlider.value = state.settings.perspOriginX;
         stringSpacingSlider.value = state.settings.stringSpacing;
