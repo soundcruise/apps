@@ -6237,7 +6237,7 @@ function getRuleSlides(step) {
         className: noteIdx === 0 ? 'rule-root' : ([4, 11].includes(noteIdx) ? 'rule-half' : 'rule-scale'),
         ...options
     });
-    /** STEP2-1／STEP2-2：各弦の開放（ミラソレシミ） */
+    /** STEP2-1／STEP2-2：各弦の開放（ミラレソシミ） */
     const step2OpenStringMarkers = [6, 5, 4, 3, 2, 1].map(sn => {
         const stringIdx = 6 - sn;
         const noteIdx = OPEN_STRINGS[stringIdx] % 12;
@@ -6391,8 +6391,8 @@ function getRuleSlides(step) {
         2: [
             {
                 learnTheme: '開放弦の音を覚えよう',
-                summaryLearn: '開放弦はミラソレシミ',
-                summaryLearnSubline: '英名でEAGDBE',
+                summaryLearn: '開放弦はミラレソシミ',
+                summaryLearnSubline: '英名でEADGBE',
                 suppressFloatingCue: true,
                 markers: step2OpenStringMarkers
             },
@@ -6432,6 +6432,8 @@ function getRuleSlides(step) {
                 markers: [
                     marker(6, 5, 9, { className: 'rule-root' }),
                     marker(5, 0, 9, { className: 'rule-root' }),
+                    marker(5, 5, 2, { className: 'rule-root' }),
+                    marker(4, 0, 2, { className: 'rule-root' }),
                     marker(4, 5, 7, { className: 'rule-root' }),
                     marker(3, 0, 7, { className: 'rule-root' }),
                     marker(3, 4, 11, { className: 'rule-half' }),
@@ -6448,6 +6450,8 @@ function getRuleSlides(step) {
                 markers: [
                     marker(6, 5, 9, { className: 'rule-root' }),
                     marker(5, 0, 9, { className: 'rule-root' }),
+                    marker(5, 5, 2, { className: 'rule-root' }),
+                    marker(4, 0, 2, { className: 'rule-root' }),
                     marker(4, 5, 7, { className: 'rule-root' }),
                     marker(3, 0, 7, { className: 'rule-root' }),
                     marker(3, 4, 11, { className: 'rule-half' }),
