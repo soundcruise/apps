@@ -50,6 +50,29 @@
             color: #1a1a1a !important;
         }
 
+        .info-footer-links {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px 14px;
+            margin-top: 22px;
+            padding-top: 18px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 0.72rem;
+            line-height: 1.5;
+        }
+
+        .info-footer-links a {
+            color: rgba(255, 255, 255, 0.58);
+            text-decoration: none;
+            text-underline-offset: 3px;
+        }
+
+        .info-footer-links a:hover {
+            color: rgba(255, 255, 255, 0.82);
+            text-decoration: underline;
+        }
+
         .pitch-youtube-confirm {
             position: fixed;
             inset: 0;
@@ -184,6 +207,11 @@
                     <span id="pro-access-new-badge" class="info-new-badge recommended-link-new-badge hidden" aria-hidden="true" style="top: -10px; right: 14px;">New</span>
                 </a>
             </div>
+            <nav class="info-footer-links" aria-label="法務・お問い合わせ">
+                <a href="./terms.html">利用規約</a>
+                <a href="./privacy.html">プライバシーポリシー</a>
+                <a href="mailto:soundcruise.inc@gmail.com">お問い合わせ</a>
+            </nav>
         </main>
     </div>
     <div class="pitch-youtube-confirm" id="pitch-youtube-confirm" hidden>

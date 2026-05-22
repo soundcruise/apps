@@ -123,6 +123,29 @@
             line-height: 1.45;
         }
 
+        .fret-info-footer-links {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px 14px;
+            margin-top: 22px;
+            padding-top: 18px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 0.72rem;
+            line-height: 1.5;
+        }
+
+        .fret-info-footer-links a {
+            color: rgba(255, 255, 255, 0.58);
+            text-decoration: none;
+            text-underline-offset: 3px;
+        }
+
+        .fret-info-footer-links a:hover {
+            color: rgba(255, 255, 255, 0.82);
+            text-decoration: underline;
+        }
+
         .fret-youtube-confirm {
             position: fixed;
             inset: 0;
@@ -315,6 +338,11 @@
                     <span class="fret-info-link-note">アコギ弾き語り専門ラボ / クルーニー</span>
                 </a>
             </div>
+            <nav class="fret-info-footer-links" aria-label="法務・お問い合わせ">
+                <a href="./terms.html">利用規約</a>
+                <a href="./privacy.html">プライバシーポリシー</a>
+                <a href="mailto:soundcruise.inc@gmail.com">お問い合わせ</a>
+            </nav>
         </main>
     </div>
 
