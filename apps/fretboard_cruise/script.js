@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.1.0';
+const FRETBOARD_CRUISE_APP_VERSION = '2.3.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = false;
@@ -3109,14 +3109,187 @@ function alignRuleStep3Page0Fret3Center(wrapper) {
 // Audio Synthesis
 // ----------------------------------------------------
 let audioCtx = null;
+const AUDIO_DIAGNOSTIC_LOG_LIMIT = 24;
+let audioDiagnosticLog = [];
+let latestAudioDiagnosticText = '';
 
-function initAudio() {
+function getAudioContextStateLabel() {
+    return audioCtx ? audioCtx.state : 'not-created';
+}
+
+function getStandaloneLaunchLabel() {
+    const standaloneNavigator = window.navigator && window.navigator.standalone === true;
+    const standaloneMedia = typeof window.matchMedia === 'function' &&
+        window.matchMedia('(display-mode: standalone)').matches;
+    if (standaloneNavigator || standaloneMedia) return 'standalone/PWA';
+    return 'browser';
+}
+
+function getAudioDiagnosticBaseInfo(extra = {}) {
+    return {
+        time: new Date().toISOString(),
+        appVersion: FRETBOARD_CRUISE_APP_VERSION,
+        audioContextCreated: !!audioCtx,
+        audioContextState: getAudioContextStateLabel(),
+        baseLatency: audioCtx && typeof audioCtx.baseLatency === 'number' ? audioCtx.baseLatency : null,
+        outputLatency: audioCtx && typeof audioCtx.outputLatency === 'number' ? audioCtx.outputLatency : null,
+        visibilityState: document.visibilityState || 'unknown',
+        launchMode: getStandaloneLaunchLabel(),
+        userAgent: navigator.userAgent,
+        ...extra
+    };
+}
+
+function recordAudioDiagnosticEvent(type, detail = {}) {
+    const entry = getAudioDiagnosticBaseInfo({ type, ...detail });
+    audioDiagnosticLog.push(entry);
+    if (audioDiagnosticLog.length > AUDIO_DIAGNOSTIC_LOG_LIMIT) {
+        audioDiagnosticLog = audioDiagnosticLog.slice(-AUDIO_DIAGNOSTIC_LOG_LIMIT);
+    }
+    return entry;
+}
+
+function formatAudioDiagnosticValue(value) {
+    if (value === null || typeof value === 'undefined') return '取得不可';
+    if (typeof value === 'number') return Number.isFinite(value) ? `${Math.round(value * 1000)} ms` : '取得不可';
+    return String(value);
+}
+
+function buildAudioDiagnosticText(summary = {}) {
+    const info = getAudioDiagnosticBaseInfo(summary);
+    const resumeError = info.resumeErrorName || info.resumeErrorMessage
+        ? `${info.resumeErrorName || 'Error'}: ${info.resumeErrorMessage || ''}`.trim()
+        : 'なし';
+    const recentLog = audioDiagnosticLog.slice(-8).map(entry => {
+        const bits = [
+            entry.time,
+            entry.type,
+            `state=${entry.audioContextState}`
+        ];
+        if (entry.resumeResult) bits.push(`resume=${entry.resumeResult}`);
+        if (entry.errorName) bits.push(`error=${entry.errorName}`);
+        return bits.join(' | ');
+    });
+
+    return [
+        `現在時刻: ${info.time}`,
+        `アプリVersion: ${info.appVersion}`,
+        `AudioContext作成: ${info.audioContextCreated ? 'できた' : '未作成/失敗'}`,
+        `AudioContext state: ${info.audioContextState}`,
+        `resume結果: ${info.resumeResult || '未実行'}`,
+        `resume失敗: ${resumeError}`,
+        `baseLatency: ${formatAudioDiagnosticValue(info.baseLatency)}`,
+        `outputLatency: ${formatAudioDiagnosticValue(info.outputLatency)}`,
+        `起動モード: ${info.launchMode}`,
+        `visibilityState: ${info.visibilityState}`,
+        `userAgent: ${info.userAgent}`,
+        '',
+        '最近の音声ログ:',
+        recentLog.length ? recentLog.join('\n') : 'まだログはありません'
+    ].join('\n');
+}
+
+function updateAudioDiagnosticResult(text) {
+    latestAudioDiagnosticText = text;
+    const output = document.getElementById('audio-diagnostic-output');
+    if (output) output.textContent = text;
+}
+
+async function copyAudioDiagnosticText() {
+    const text = latestAudioDiagnosticText || buildAudioDiagnosticText({ resumeResult: 'not-run' });
+    try {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            await navigator.clipboard.writeText(text);
+        } else {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            textarea.remove();
+        }
+        recordAudioDiagnosticEvent('copy-succeeded');
+        return true;
+    } catch (err) {
+        recordAudioDiagnosticEvent('copy-failed', {
+            errorName: err && err.name ? err.name : 'Error',
+            errorMessage: err && err.message ? err.message : String(err || '')
+        });
+        console.warn('[Fretboard Cruise] Audio diagnostic copy failed', err);
+        return false;
+    }
+}
+
+function logAudioResumeFailure(reason, err) {
+    const entry = recordAudioDiagnosticEvent('resume-failed', {
+        reason,
+        resumeResult: 'failed',
+        errorName: err && err.name ? err.name : 'Error',
+        errorMessage: err && err.message ? err.message : String(err || '')
+    });
+    console.warn('[Fretboard Cruise] AudioContext resume failed', entry);
+}
+
+function resumeAudioContext(reason = 'resumeAudioContext') {
+    if (!audioCtx || typeof audioCtx.resume !== 'function') {
+        return Promise.resolve(false);
+    }
+    let resumePromise;
+    try {
+        resumePromise = audioCtx.resume();
+    } catch (err) {
+        logAudioResumeFailure(reason, err);
+        return Promise.reject(err);
+    }
+    if (!resumePromise || typeof resumePromise.then !== 'function') {
+        recordAudioDiagnosticEvent('resume-called', { reason, resumeResult: 'unknown' });
+        return Promise.resolve(true);
+    }
+    return resumePromise.then(() => {
+        recordAudioDiagnosticEvent('resume-succeeded', { reason, resumeResult: 'success' });
+        return true;
+    }).catch(err => {
+        logAudioResumeFailure(reason, err);
+        throw err;
+    });
+}
+
+function initAudio(reason = 'initAudio') {
     if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) {
+            recordAudioDiagnosticEvent('create-failed', {
+                reason,
+                errorName: 'NotSupportedError',
+                errorMessage: 'AudioContext is not available'
+            });
+            return null;
+        }
+        try {
+            audioCtx = new AudioContextClass();
+            if (typeof audioCtx.addEventListener === 'function') {
+                audioCtx.addEventListener('statechange', () => {
+                    recordAudioDiagnosticEvent('statechange');
+                });
+            }
+            recordAudioDiagnosticEvent('created', { reason });
+        } catch (err) {
+            recordAudioDiagnosticEvent('create-failed', {
+                reason,
+                errorName: err && err.name ? err.name : 'Error',
+                errorMessage: err && err.message ? err.message : String(err || '')
+            });
+            console.warn('[Fretboard Cruise] AudioContext creation failed', err);
+            return null;
+        }
     }
     if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
+        resumeAudioContext(reason).catch(() => {});
     }
+    return audioCtx;
 }
 
 /**
@@ -3140,7 +3313,7 @@ function estimateAudioTimeAtPointerEvent(ev) {
 const STRING_BASE_PITCHES = [40, 45, 50, 55, 59, 64]; // E2, A2, D3, G3, B3, E4
 
 function playTone(stringIdx, fret) {
-    initAudio();
+    initAudio('playTone');
     if (!audioCtx) return;
 
     const doPlay = () => {
@@ -3167,14 +3340,14 @@ function playTone(stringIdx, fret) {
 
     // On iOS the context can be suspended or interrupted — resume first
     if (audioCtx.state !== 'running') {
-        audioCtx.resume().then(doPlay).catch(() => {});
+        resumeAudioContext('playTone').then(doPlay).catch(() => {});
     } else {
         doPlay();
     }
 }
 
 function playMidiTone(midiNote) {
-    initAudio();
+    initAudio('playMidiTone');
     if (!audioCtx) return;
 
     const doPlay = () => {
@@ -3195,11 +3368,84 @@ function playMidiTone(midiNote) {
     };
 
     if (audioCtx.state !== 'running') {
-        audioCtx.resume().then(doPlay).catch(() => {});
+        resumeAudioContext('playMidiTone').then(doPlay).catch(() => {});
     } else {
         doPlay();
     }
 }
+
+function playAudioDiagnosticTone() {
+    initAudio('audio-diagnostic-tone');
+    if (!audioCtx) return Promise.resolve(false);
+
+    const doPlay = () => {
+        const t = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, t);
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.18, t + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(t);
+        osc.stop(t + 0.45);
+        recordAudioDiagnosticEvent('test-tone-played', { frequency: 440 });
+        return true;
+    };
+
+    if (audioCtx.state !== 'running') {
+        return resumeAudioContext('audio-diagnostic-tone').then(doPlay).catch(() => false);
+    }
+    return Promise.resolve(doPlay());
+}
+
+async function runAudioDiagnosticTest() {
+    let resumeResult = 'not-needed';
+    let resumeErrorName = '';
+    let resumeErrorMessage = '';
+
+    try {
+        initAudio('audio-diagnostic-test');
+        if (audioCtx && audioCtx.state !== 'running') {
+            await resumeAudioContext('audio-diagnostic-test');
+            resumeResult = 'success';
+        } else if (audioCtx && audioCtx.state === 'running') {
+            resumeResult = 'already-running';
+        } else {
+            resumeResult = 'no-context';
+        }
+    } catch (err) {
+        resumeResult = 'failed';
+        resumeErrorName = err && err.name ? err.name : 'Error';
+        resumeErrorMessage = err && err.message ? err.message : String(err || '');
+    }
+
+    const played = await playAudioDiagnosticTone();
+    const text = buildAudioDiagnosticText({
+        resumeResult,
+        resumeErrorName,
+        resumeErrorMessage,
+        testTonePlayed: played ? 'yes' : 'no'
+    });
+    updateAudioDiagnosticResult(text);
+    return text;
+}
+
+function installAudioDiagnosticLifecycleListeners() {
+    const record = (type, event) => {
+        recordAudioDiagnosticEvent(type, {
+            persisted: !!(event && event.persisted)
+        });
+    };
+    document.addEventListener('visibilitychange', event => record('visibilitychange', event));
+    window.addEventListener('pageshow', event => record('pageshow', event));
+    window.addEventListener('focus', event => record('focus', event));
+}
+
+installAudioDiagnosticLifecycleListeners();
 
 // --- Rhythm Master Gain (リズム専用マスターゲイン。タップ音には一切影響しない) ---
 // gain は cruiseRhythmVolume（リズム音量マスター）を反映。楽器別音量は各drum関数の乗数で制御。
@@ -5479,6 +5725,8 @@ function renderApp() {
         renderVisualize(app);
     } else if (state.course === 'settings') {
         renderSettings(app);
+    } else if (state.course === 'troubleshooting') {
+        renderTroubleshooting(app);
     }
     
     // Restore or auto-adjust scroll position（メインの #fretboard-container のラッパーのみ）
@@ -12988,6 +13236,76 @@ function renderVisualize(app) {
     app.style.overflowX = 'hidden';
 }
 
+function attachAudioDiagnosticControls() {
+    const audioDiagnosticTestBtn = document.getElementById('btn-audio-diagnostic-test');
+    if (audioDiagnosticTestBtn) {
+        audioDiagnosticTestBtn.onclick = async () => {
+            audioDiagnosticTestBtn.disabled = true;
+            const originalText = audioDiagnosticTestBtn.textContent;
+            audioDiagnosticTestBtn.textContent = '確認中...';
+            try {
+                await runAudioDiagnosticTest();
+            } finally {
+                audioDiagnosticTestBtn.disabled = false;
+                audioDiagnosticTestBtn.textContent = originalText;
+            }
+        };
+    }
+
+    const audioDiagnosticCopyBtn = document.getElementById('btn-audio-diagnostic-copy');
+    if (audioDiagnosticCopyBtn) {
+        audioDiagnosticCopyBtn.onclick = async () => {
+            const copied = await copyAudioDiagnosticText();
+            const originalText = '診断結果をコピー';
+            audioDiagnosticCopyBtn.textContent = copied ? 'コピーしました' : 'コピー失敗';
+            setTimeout(() => {
+                if (audioDiagnosticCopyBtn.isConnected) audioDiagnosticCopyBtn.textContent = originalText;
+            }, 1400);
+        };
+    }
+}
+
+function renderTroubleshooting(app) {
+    app.innerHTML = `
+        <div class="settings-screen">
+        ${buildPageHeader({
+            titleText: 'トラブル対応',
+            titleClass: 'settings-screen-title',
+            leftHtml: `${navButtonHtml({ id: 'btn-troubleshooting-back', text: '← 設定へ戻る', extraClass: 'page-nav-btn--back' })}`
+        })}
+
+        <div class="settings-page-stack settings-page-stack--proposed">
+            <div class="settings-card settings-card--audio-diagnostic">
+                <div class="settings-card-section">
+                    <div class="settings-card-section-header">
+                        <span class="settings-card-section-title">音声診断</span>
+                    </div>
+                    <p class="settings-note" style="margin-top:0;">音が聞こえない場合や動作確認が必要な場合に、端末やブラウザの状態を確認できます。</p>
+                    <p class="settings-note" style="margin-top:8px;">音声テストを押して、アプリの音が鳴るか確認してください。音が出ない場合は、診断結果をコピーして送ってください。</p>
+                    <div class="mode-buttons" style="margin-top:10px; flex-wrap:wrap;">
+                        <button type="button" class="mode-btn" id="btn-audio-diagnostic-test">音声テスト</button>
+                        <button type="button" class="mode-btn" id="btn-audio-diagnostic-copy">診断結果をコピー</button>
+                    </div>
+                    <pre id="audio-diagnostic-output" style="box-sizing:border-box; width:100%; max-width:100%; margin:10px 0 0; padding:10px; max-height:180px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; border:1px solid rgba(255,255,255,0.14); border-radius:8px; background:rgba(0,0,0,0.18); color:rgba(255,255,255,0.82); font-size:0.72rem; line-height:1.45;">音声テストを押すと診断結果が表示されます。</pre>
+                    <p class="settings-note" style="margin-top:10px;">音が聞こえない場合は、アプリを開いた状態でiPhone本体の音量ボタンを上げ、イヤフォンの接続先、Safari/PWA起動の違い、マナーモード解除時の挙動も確認してください。</p>
+                </div>
+            </div>
+        </div>
+        </div>
+    `;
+
+    document.getElementById('btn-troubleshooting-back').onclick = () => {
+        state.course = 'settings';
+        saveState();
+        renderApp();
+    };
+    attachAudioDiagnosticControls();
+
+    app.style.height = '100vh';
+    app.style.overflowY = 'auto';
+    app.style.overflowX = 'hidden';
+}
+
 function renderSettings(app) {
     const settingsDocumentHandlers = [];
     const settingsReadOnly = isStandardEdition();
@@ -13283,6 +13601,9 @@ function renderSettings(app) {
         </div>
         </div>
         </div>
+        <div class="settings-support-link-row" style="display:flex; justify-content:center; margin:12px 0 2px;">
+            <button type="button" id="btn-settings-troubleshooting" style="appearance:none; border:0; background:transparent; color:rgba(255,255,255,0.62); font:inherit; font-size:0.78rem; text-decoration:underline; text-underline-offset:3px; padding:6px 10px; cursor:pointer;">トラブル対応</button>
+        </div>
         <div class="settings-actions-footer settings-actions-footer--proposed">
             <button class="settings-bottom-btn settings-apply-btn" id="btn-settings-apply">決定</button>
             <div class="settings-secondary-actions">
@@ -13430,6 +13751,15 @@ function renderSettings(app) {
     document.getElementById('btn-back-settings').onclick = () => closeSettings(true);
     document.getElementById('btn-settings-cancel').onclick = () => closeSettings(false);
     document.getElementById('btn-settings-apply').onclick = () => closeSettings(true);
+
+    const troubleshootingBtn = document.getElementById('btn-settings-troubleshooting');
+    if (troubleshootingBtn) {
+        troubleshootingBtn.onclick = () => {
+            state.course = 'troubleshooting';
+            saveState();
+            renderApp();
+        };
+    }
 
     const tempoSlider = document.getElementById('tempo-slider');
     const tempoDisplay = document.getElementById('tempo-display');
