@@ -1,8 +1,8 @@
 const FRETBOARD_CRUISE_APP_VERSION = '2.0.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
-const DEBUG_EDITOR_FRETBOARD_LAYOUT = true;
-const DEBUG_PORTRAIT_FRETBOARD_LAYOUT = true;
+const DEBUG_EDITOR_FRETBOARD_LAYOUT = false;
+const DEBUG_PORTRAIT_FRETBOARD_LAYOUT = false;
 const tapLatencyContexts = new WeakMap();
 const tapLatencyRecentSamples = [];
 const TAP_LATENCY_PANEL_ID = 'tap-latency-debug-panel';
@@ -6364,8 +6364,8 @@ function getRuleSlides(step) {
     const slides = {
         1: [
             {
-                learnTheme: '「1フレットは半音ずつ」と知ろう！',
-                summaryLearn: 'フレットには#などの音も入っていますね。',
+                learnTheme: '1フレットずつ半音',
+                summaryLearn: '#の音もあります',
                 markers: [
                     marker(6, 0, 4, { className: 'rule-root', cue: 'タップ' }),
                     marker(6, 1, 5, { className: 'rule-half', cue: 'タップ' }),
@@ -6377,42 +6377,42 @@ function getRuleSlides(step) {
                 ]
             },
             {
-                learnTheme: 'では、ドレミファソラシドだけをたどってみましょう',
+                learnTheme: 'ドレミだけをたどろう',
                 summaryLearn: '気づきましたか？',
                 markers: step1TwoStringScaleMarkers
             },
             {
-                learnTheme: 'ミファとシドだけ半音です',
-                learnThemeIntro2: 'もう1度たどってみましょう',
-                summaryLearn: 'ミファとシドだけ半音と覚えておきましょう',
+                learnTheme: 'ミファ・シドだけ半音',
+                learnThemeIntro2: 'もう1度たどろう',
+                summaryLearn: 'ミファ・シドだけ半音',
                 markers: step1TwoStringScaleMarkers
             }
         ],
         2: [
             {
-                learnTheme: '開放弦の音を覚えよう',
+                learnTheme: '開放弦を覚えよう',
                 summaryLearn: '開放弦はミラレソシミ',
-                summaryLearnSubline: '英名でEADGBE',
+                summaryLearnSubline: '英名はEADGBE',
                 suppressFloatingCue: true,
                 markers: step2OpenStringMarkers
             },
             {
-                learnTheme: '12フレット先はオクターブ上の音',
-                summaryLearn: '12フレットも同じ「ミラレソシミ」です',
+                learnTheme: '12フレットは1オクターブ上',
+                summaryLearn: '12フレットもミラレソシミ',
                 suppressFloatingCue: true,
                 /** 実践でも開放の音名を残しつつ、タップは12Fの順だけ（STEP2-4と同パターン） */
                 markers: [...step2OpenStringMarkers, ...step2TwelfthFretMarkers],
                 soundSequence: step2TwelfthFretMarkers.map(m => withRuleNoteIdx(m))
             },
             {
-                learnTheme: '次は6弦の音をたどってみよう',
-                summaryLearn: '6弦は開放弦から12フレットが\nミから1オクターブ上のミですね',
+                learnTheme: '6弦をたどろう',
+                summaryLearn: '6弦はミから高いミへ',
                 suppressFloatingCue: true,
                 markers: step2SixStringCMajorTo12Markers
             },
             {
-                learnTheme: '1弦も6弦と同じ音の並びですので\nたどってみましょう',
-                summaryLearn: '1弦は6弦の2オクターブ上の音となっています',
+                learnTheme: '1弦も同じ並び',
+                summaryLearn: '1弦は6弦の2オクターブ上',
                 suppressFloatingCue: true,
                 /** 6弦の音名も常時表示し、タップの正解順は1弦だけ */
                 markers: [...step2SixStringCMajorTo12Markers, ...step2OneStringCMajorTo12Markers],
@@ -6421,9 +6421,9 @@ function getRuleSlides(step) {
         ],
         3: [
             {
-                learnTheme: '隣の弦と同じ音をたどろう！',
+                learnTheme: '隣の弦の同じ音をたどろう',
                 summaryLearn: '気づきましたか？',
-                summaryLearn2: '3弦→2弦だけ4フレット違い',
+                summaryLearn2: '3弦→2弦だけ4フレット',
                 summaryLearnSubline: '他は5フレット',
                 suppressFloatingCue: true,
                 step3PairTapSequence: true,
@@ -6443,8 +6443,8 @@ function getRuleSlides(step) {
                 ]
             },
             {
-                learnTheme: 'もう1度たどろう！',
-                summaryLearn: 'これが指板の覚えられない原因No.1です',
+                learnTheme: 'もう1度たどろう',
+                summaryLearn: 'ここが覚えにくい原因です',
                 suppressFloatingCue: true,
                 step3PairTapSequence: true,
                 markers: [
@@ -6461,8 +6461,8 @@ function getRuleSlides(step) {
                 ]
             },
             {
-                learnTheme: '他のフレットも当然同じです',
-                summaryLearn: '3→2弦だけ4フレット分と覚えておきましょう',
+                learnTheme: '他のフレットも同じ',
+                summaryLearn: '3→2弦だけ4フレット',
                 suppressFloatingCue: true,
                 step3PairTapSequence: true,
                 /** 実践で全マーカー常時表示（タップ先は rule-next の光のみ） */
@@ -6485,8 +6485,8 @@ function getRuleSlides(step) {
         ],
         4: [
             {
-                learnTheme: '5弦3フレットから始まるドレミ',
-                summaryLearn: 'ここが1番重要なポジションです',
+                learnTheme: '5弦3Fからのドレミ',
+                summaryLearn: 'ここが大事な形',
                 /** STEP4-2 と同一倍率（7〜10F 幅でフィット）。低フレット側はスクロールで見せる */
                 ruleTapLayoutZoomFitFloatRange: [6.5, 10.5],
                 ruleTapLayoutZoomExtra: 1.08,
@@ -6494,15 +6494,15 @@ function getRuleSlides(step) {
                 markers: step4Slide1ShapeNoteOnly
             },
             {
-                learnTheme: '6弦8フレットにも同じ形があります',
-                summaryLearn: 'ここもすぐに弾けるようにしましょう',
+                learnTheme: '6弦8Fにも同じ形',
+                summaryLearn: 'ここも覚えよう',
                 ruleTapLayoutZoomFitFloatRange: [6.5, 10.5],
                 ruleTapLayoutZoomExtra: 1.08,
                 markers: step4Slide2ShapeNoteOnly
             },
             {
-                learnTheme: '4弦10フレットからのドレミは落とし穴があります',
-                summaryLearn: 'やっぱり2弦にいく時は、半音ずれますね',
+                learnTheme: '4弦10Fのドレミに注意',
+                summaryLearn: '2弦へ行く時は半音ずれる',
                 /** STEP4-2 と同一倍率。高フレット側はスクロールで見せる */
                 ruleTapLayoutZoomFitFloatRange: [6.5, 10.5],
                 ruleTapLayoutZoomExtra: 1.08,
@@ -6512,7 +6512,7 @@ function getRuleSlides(step) {
         ],
         5: [
             {
-                learnTheme: '同じ音をたどってみよう',
+                learnTheme: '同じ音をたどろう',
                 /** イントロ／実践の見出し直下に出す補足（STEP5 専用） */
                 themeSubline: '※横画面がおすすめ',
                 suppressFloatingCue: true,
@@ -6524,7 +6524,7 @@ function getRuleSlides(step) {
                 ruleTapLayoutZoomFitFloatRange: [6.5, 10.5],
                 ruleTapLayoutZoomExtra: 1.08,
                 ruleTapLayoutLockScroll: false,
-                text: '同じ音をたどってみよう'
+                text: '同じ音をたどろう'
             }
         ]
     };
