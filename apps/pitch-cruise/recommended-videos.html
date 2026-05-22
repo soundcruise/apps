@@ -11,6 +11,89 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        .pitch-youtube-confirm {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: rgba(0, 0, 0, 0.58);
+        }
+
+        .pitch-youtube-confirm[hidden] {
+            display: none;
+        }
+
+        .pitch-youtube-confirm__dialog {
+            width: min(360px, 100%);
+            padding: 22px 20px 18px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 18px;
+            background: rgba(30, 30, 30, 0.98);
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+            color: var(--text-color);
+            text-align: center;
+        }
+
+        .pitch-youtube-confirm__title {
+            margin: 0 0 10px;
+            font-size: 1.18rem;
+            line-height: 1.25;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .pitch-youtube-confirm__body {
+            margin: 0;
+            color: rgba(255, 255, 255, 0.72);
+            font-size: 0.88rem;
+            line-height: 1.65;
+        }
+
+        .pitch-youtube-confirm__actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .pitch-youtube-confirm__btn {
+            min-height: 44px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            font-family: inherit;
+            font-size: 0.88rem;
+            font-weight: 700;
+            line-height: 1.2;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .pitch-youtube-confirm__btn--cancel {
+            background: rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.84);
+        }
+
+        .pitch-youtube-confirm__btn--open {
+            border-color: rgba(255, 214, 94, 0.42);
+            background: linear-gradient(135deg, rgba(255, 214, 94, 0.92), rgba(255, 242, 186, 0.92));
+            color: #1b1608;
+        }
+
+        @media (max-width: 480px) {
+            .pitch-youtube-confirm {
+                padding: 18px;
+            }
+
+            .pitch-youtube-confirm__actions {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 
 <body class="info-page">
@@ -42,6 +125,19 @@
             </div>
         </main>
     </div>
+    <div class="pitch-youtube-confirm" id="pitch-youtube-confirm" hidden>
+        <div class="pitch-youtube-confirm__dialog" role="dialog" aria-modal="true"
+            aria-labelledby="pitch-youtube-confirm-title">
+            <h2 class="pitch-youtube-confirm__title" id="pitch-youtube-confirm-title">YouTubeを開きます</h2>
+            <p class="pitch-youtube-confirm__body">アプリを離れて、YouTubeページを開きます。<br>よろしいですか？</p>
+            <div class="pitch-youtube-confirm__actions">
+                <button type="button" class="pitch-youtube-confirm__btn pitch-youtube-confirm__btn--cancel"
+                    id="pitch-youtube-confirm-cancel">キャンセル</button>
+                <button type="button" class="pitch-youtube-confirm__btn pitch-youtube-confirm__btn--open"
+                    id="pitch-youtube-confirm-open">YouTubeを開く</button>
+            </div>
+        </div>
+    </div>
     <script>
         (function () {
             var homeLink = document.getElementById('recommended-home-link');
@@ -50,6 +146,10 @@
             var currentUrl = new URL(window.location.href);
             var fromHome = currentUrl.searchParams.get('from') === 'home';
             var editionParam = currentUrl.searchParams.get('edition');
+            var youtubeConfirm = document.getElementById('pitch-youtube-confirm');
+            var youtubeCancel = document.getElementById('pitch-youtube-confirm-cancel');
+            var youtubeOpen = document.getElementById('pitch-youtube-confirm-open');
+            var pendingYoutubeUrl = '';
 
             function resolveHomePath() {
                 if (editionParam === 'pro') return './pro_x9v7q2m8/index.html';
@@ -76,16 +176,55 @@
                 backLink.href = './info.html?from=home&edition=' + encodeURIComponent(editionParam || (homePath.indexOf('/pro_x9v7q2m8/') !== -1 ? 'pro' : 'standard'));
             }
 
-            // Same iOS standalone workaround as info.html: open external links via
-            // window.location.href so iOS uses a separate Safari process.
-            if (window.navigator.standalone) {
-                document.querySelectorAll('a[target="_blank"]').forEach(function (a) {
-                    a.addEventListener('click', function (e) {
-                        e.preventDefault();
-                        window.location.href = this.href;
-                    });
-                });
+            function openYoutubeConfirm(url) {
+                pendingYoutubeUrl = url;
+                youtubeConfirm.hidden = false;
+                youtubeOpen.focus();
             }
+
+            function closeYoutubeConfirm() {
+                pendingYoutubeUrl = '';
+                youtubeConfirm.hidden = true;
+            }
+
+            function isYoutubeLink(url) {
+                return /(^|\.)youtube\.com$/i.test(url.hostname) || /^youtu\.be$/i.test(url.hostname);
+            }
+
+            document.addEventListener('click', function (event) {
+                var link = event.target.closest ? event.target.closest('a[href]') : null;
+                if (!link) return;
+                try {
+                    var url = new URL(link.href);
+                    if (isYoutubeLink(url)) {
+                        event.preventDefault();
+                        openYoutubeConfirm(link.href);
+                    }
+                } catch (error) {
+                    // URL parsing failed; leave the link behavior unchanged.
+                }
+            });
+
+            /*
+             * Same iOS standalone workaround as info.html: after confirmation,
+             * window.location.href keeps YouTube in a separate Safari process.
+             */
+            youtubeOpen.addEventListener('click', function () {
+                if (pendingYoutubeUrl) {
+                    window.location.href = pendingYoutubeUrl;
+                }
+            });
+            youtubeCancel.addEventListener('click', closeYoutubeConfirm);
+            youtubeConfirm.addEventListener('click', function (event) {
+                if (event.target === youtubeConfirm) {
+                    closeYoutubeConfirm();
+                }
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && !youtubeConfirm.hidden) {
+                    closeYoutubeConfirm();
+                }
+            });
         }());
     </script>
 </body>
