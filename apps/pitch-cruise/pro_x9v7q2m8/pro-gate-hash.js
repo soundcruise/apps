@@ -16,6 +16,8 @@
     const COOKIE_NAME = 'soundcruise_pro_gate_rid';
     const SW_GATE_VERSION_KEY = 'soundcruise_pro_sw_gate_v';
     const AUTH_TOKEN = CONFIG ? 'pitch-cruise-pro-gate-v' + CONFIG.gateVersion : '';
+    const SHARED_AUTH_KEY = 'soundCruiseProAuth';
+    const SHARED_GATE_V = 1;
 
     function sharedDomainForCookie() {
         const h = location.hostname;
@@ -70,11 +72,34 @@
         try {
             localStorage.removeItem(LS_AUTH_KEY);
             localStorage.removeItem(STORAGE_KEY_LEGACY);
+            localStorage.removeItem(SHARED_AUTH_KEY);
         } catch (_) { /* ignore */ }
     }
 
     function isUnlocked() {
-        return !!CONFIG && getStoredAuth() === AUTH_TOKEN;
+        if (!CONFIG) return false;
+        if (getStoredAuth() === AUTH_TOKEN) return true;
+        try {
+            const s = localStorage.getItem(SHARED_AUTH_KEY);
+            if (s) {
+                const d = JSON.parse(s);
+                if (d && d.v === SHARED_GATE_V) return true;
+            }
+        } catch (_) { /* ignore */ }
+        return false;
+    }
+
+    function ensureSharedAuth() {
+        try {
+            const s = localStorage.getItem(SHARED_AUTH_KEY);
+            if (s) {
+                const d = JSON.parse(s);
+                if (d && d.v === SHARED_GATE_V) return;
+            }
+        } catch (_) { /* ignore */ }
+        try {
+            localStorage.setItem(SHARED_AUTH_KEY, JSON.stringify({ v: SHARED_GATE_V, at: Date.now(), src: 'pitch-cruise' }));
+        } catch (_) { /* ignore */ }
     }
 
     function dismissOverlay(overlay) {
@@ -148,6 +173,9 @@
         }
 
         if (isUnlocked()) {
+            if (getStoredAuth() === AUTH_TOKEN) {
+                ensureSharedAuth();
+            }
             attachResetButton();
             return;
         }
@@ -202,6 +230,9 @@
                 }
                 clearGateStorage();
                 setStoredAuth(AUTH_TOKEN);
+                try {
+                    localStorage.setItem(SHARED_AUTH_KEY, JSON.stringify({ v: SHARED_GATE_V, at: Date.now(), src: 'pitch-cruise' }));
+                } catch (_) { /* ignore */ }
                 dismissOverlay(overlay);
                 attachResetButton();
             } catch (_) {

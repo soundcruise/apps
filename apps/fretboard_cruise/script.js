@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.4.0';
+const FRETBOARD_CRUISE_APP_VERSION = '2.5.0';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = false;
@@ -6031,11 +6031,14 @@ function renderApp() {
 }
 
 function renderHome(app) {
+    const _proEd = isProEdition();
     app.innerHTML = `
         ${buildPageHeader({
             titleTag: 'h1',
-            titleClass: 'home-title',
-            titleText: '指板クルーズ',
+            titleClass: _proEd ? 'home-title pro-home-title' : 'home-title',
+            titleText: _proEd
+                ? '<span class="pro-home-title-text">指板クルーズ</span><span class="pro-badge">PRO</span>'
+                : '指板クルーズ',
             rightHtml: settingsButtonHtml('btn-settings-home')
         })}
         <div class="home-basic-rules-slot" style="display: flex; justify-content: center; width: 100%; margin-top: 6px; margin-bottom: 28px;">
@@ -13731,6 +13734,7 @@ function renderSettings(app) {
                     ? ''
                     : '<button class="btn-secondary settings-bottom-btn settings-danger-btn" id="btn-settings-defaults">全てリセット</button>'}
             </div>
+        ${isProEdition() ? '<div class="pro-gate-settings-note"><button type="button" id="pro-gate-reset" class="btn-secondary">入室の記録を消す（次回パスワード入力）</button></div>' : ''}
         </div>
         </div>
 	    `;
@@ -13876,6 +13880,16 @@ function renderSettings(app) {
     document.getElementById('btn-back-settings').onclick = () => closeSettings(true);
     document.getElementById('btn-settings-cancel').onclick = () => closeSettings(false);
     document.getElementById('btn-settings-apply').onclick = () => closeSettings(true);
+
+    if (isProEdition()) {
+        const proGateResetBtn = document.getElementById('pro-gate-reset');
+        if (proGateResetBtn) {
+            proGateResetBtn.onclick = () => {
+                if (typeof window.__soundCruiseClearGate === 'function') window.__soundCruiseClearGate();
+                window.location.reload();
+            };
+        }
+    }
 
     const troubleshootingBtn = document.getElementById('btn-settings-troubleshooting');
     if (troubleshootingBtn) {

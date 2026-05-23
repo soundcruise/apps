@@ -1,63 +1,30 @@
 /**
- * 共通 Pro ゲート
- * パスワード設定は各アプリの pro_x9v7q2m8/index.html にインラインで定義:
- *   window.__SOUNDCRUISE_PRO_GATE__ = { password: '0000' };
- * password を変更すると全ユーザーが自動的に再入力を求められます。
+ * 指板クルーズ Pro ゲート
+ * パスワード設定は apps/fretboard_cruise/pro_a9f4k7q2m8z/index.html にインラインで定義:
+ *   window.__SOUNDCRUISE_PRO_GATE__ = { passwordHash: '...', gateVersion: 8 };
+ * soundCruiseProAuth (共通認証キー) が有効な場合は再入力なしで通す。
  */
 (function () {
-    // ---- パスワード設定を index.html のインラインスクリプトから読み込む ----
     var _g = window.__SOUNDCRUISE_PRO_GATE__;
-    var CONFIG = (_g && typeof _g.password === 'string')
-        ? { password: String(_g.password).trim() }
+    var CONFIG = (_g && typeof _g.passwordHash === 'string')
+        ? {
+            passwordHash: String(_g.passwordHash).trim().toLowerCase(),
+            gateVersion: String(_g.gateVersion || '1')
+        }
         : null;
-    // -----------------------------------------------------------------------
 
+    const SHARED_AUTH_KEY = 'soundCruiseProAuth';
+    const EXPECTED_SHARED_V = 1;
     const STORAGE_KEY_LEGACY = 'pitchTrainerProGateOk';
     const LS_AUTH_KEY = 'soundcruise_pro_gate_rotation';
     const COOKIE_NAME = 'soundcruise_pro_gate_rid';
     const SW_GATE_VERSION_KEY = 'soundcruise_pro_sw_gate_v';
-
-    function authToken(password) {
-        try { return btoa(password); } catch (_) { return password; }
-    }
 
     function sharedDomainForCookie() {
         const h = location.hostname;
         if (h === 'localhost' || h.endsWith('.local')) return null;
         if (h.endsWith('soundcruise.jp')) return '.soundcruise.jp';
         return null;
-    }
-
-    function getStoredAuth() {
-        const d = sharedDomainForCookie();
-        if (d) {
-            const re = new RegExp('(?:^|; )' + COOKIE_NAME + '=([^;]*)');
-            const m = document.cookie.match(re);
-            if (m) return decodeURIComponent(m[1]);
-        }
-        try {
-            const s = localStorage.getItem(LS_AUTH_KEY);
-            if (s != null) return s;
-        } catch (_) { /* ignore */ }
-        return null;
-    }
-
-    function setStoredAuth(token) {
-        const d = sharedDomainForCookie();
-        if (d) {
-            const sec = location.protocol === 'https:' ? '; Secure' : '';
-            document.cookie =
-                COOKIE_NAME +
-                '=' +
-                encodeURIComponent(token) +
-                '; Path=/; Domain=' +
-                d +
-                '; Max-Age=31536000; SameSite=Lax' +
-                sec;
-        }
-        try {
-            localStorage.setItem(LS_AUTH_KEY, token);
-        } catch (_) { /* ignore */ }
     }
 
     function clearGateStorage() {
@@ -72,13 +39,28 @@
                 sec;
         }
         try {
+            localStorage.removeItem(SHARED_AUTH_KEY);
             localStorage.removeItem(LS_AUTH_KEY);
             localStorage.removeItem(STORAGE_KEY_LEGACY);
         } catch (_) { /* ignore */ }
     }
 
+    function setSharedAuth() {
+        try {
+            localStorage.setItem(SHARED_AUTH_KEY, JSON.stringify({ v: EXPECTED_SHARED_V, at: Date.now(), src: 'fretboard-cruise' }));
+        } catch (_) { /* ignore */ }
+    }
+
     function isUnlocked() {
-        return getStoredAuth() === authToken(CONFIG.password);
+        if (!CONFIG) return false;
+        try {
+            const s = localStorage.getItem(SHARED_AUTH_KEY);
+            if (s) {
+                const d = JSON.parse(s);
+                if (d && d.v === EXPECTED_SHARED_V) return true;
+            }
+        } catch (_) { /* ignore */ }
+        return false;
     }
 
     function dismissOverlay(overlay) {
@@ -88,7 +70,7 @@
         }
     }
 
-    function showMissingConfigOverlay() {
+    function showMissingConfigOverlay(message) {
         const overlay = document.createElement('div');
         overlay.id = 'pro-gate-overlay';
         overlay.className = 'pro-gate-overlay pro-gate-overlay--missing';
@@ -96,8 +78,7 @@
         overlay.innerHTML =
             '<div class="pro-gate-panel">' +
             '<h2 id="pro-gate-title">設定エラー</h2>' +
-            '<p class="pro-gate-hint"><strong>window.__SOUNDCRUISE_PRO_GATE__</strong> が定義されていません。<br>' +
-            'index.html にインラインスクリプトを追加してください。</p>' +
+            '<p class="pro-gate-hint">' + message + '</p>' +
             '</div>';
         document.body.classList.add('pro-gate-active');
         document.body.insertBefore(overlay, document.body.firstChild);
@@ -110,6 +91,22 @@
             clearGateStorage();
             window.location.reload();
         });
+    }
+
+    function supportsHashing() {
+        return !!(window.crypto && window.crypto.subtle && window.TextEncoder);
+    }
+
+    function toHex(buffer) {
+        return Array.prototype.map.call(new Uint8Array(buffer), function (byte) {
+            return byte.toString(16).padStart(2, '0');
+        }).join('');
+    }
+
+    async function sha256Hex(value) {
+        const bytes = new TextEncoder().encode(value);
+        const digest = await window.crypto.subtle.digest('SHA-256', bytes);
+        return toHex(digest);
     }
 
     function mountGate() {
@@ -127,7 +124,12 @@
         } catch (_) { /* ignore */ }
 
         if (!CONFIG) {
-            showMissingConfigOverlay();
+            showMissingConfigOverlay('Proゲート設定が読み込めません。');
+            return;
+        }
+
+        if (!supportsHashing()) {
+            showMissingConfigOverlay('このブラウザではProゲートを確認できません。SafariまたはChromeの最新版で開いてください。');
             return;
         }
 
@@ -147,7 +149,7 @@
         overlay.innerHTML =
             '<div class="pro-gate-box">' +
             '<div class="pro-gate-panel">' +
-            '<h2 id="pro-gate-title">音感クルーズ <span style="color:#ffe566;">PRO</span></h2>' +
+            '<h2 id="pro-gate-title">指板クルーズ <span style="color:#ffe566;">PRO</span></h2>' +
             '<p class="pro-gate-hint">会員向けのページです。<br>4桁のパスワードを入力(初回のみ)</p>' +
             '<input type="password" id="pro-gate-input" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" aria-describedby="pro-gate-error" />' +
             '<p id="pro-gate-error" aria-live="polite"></p>' +
@@ -157,7 +159,6 @@
             resetMessageHTML +
             '<a class="pro-gate-password-link" href="https://www.youtube.com/post/UgkxGGd0QKGyDd3-mMWvhusmK4ZvqmH8I6Er" target="_blank" rel="noopener noreferrer">パスワードはこちら(メンバーのみ閲覧可能)</a>' +
             '<div class="pro-gate-password-updated">2026.5.1更新</div>' +
-            '<div class="pro-gate-troubleshoot-link"><a href="./troubleshoot.html">メンバーなのに見られない方</a></div>' +
             '</div>' +
             '</div>';
 
@@ -168,7 +169,7 @@
         const err = document.getElementById('pro-gate-error');
         const submit = document.getElementById('pro-gate-submit');
 
-        function trySubmit() {
+        async function trySubmit() {
             const v = (input.value || '').replace(/\D/g, '').slice(0, 4);
             input.value = v;
             err.textContent = '';
@@ -176,17 +177,22 @@
                 err.textContent = '4桁の数字を入力してください。';
                 return;
             }
-            if (v !== CONFIG.password) {
-                err.textContent = 'パスワードが違います。';
-                input.select();
-                return;
-            }
+            submit.disabled = true;
             try {
-                localStorage.removeItem(STORAGE_KEY_LEGACY);
-            } catch (_) { /* ignore */ }
-            setStoredAuth(authToken(CONFIG.password));
-            dismissOverlay(overlay);
-            attachResetButton();
+                const inputHash = await sha256Hex(v);
+                if (inputHash !== CONFIG.passwordHash) {
+                    err.textContent = 'パスワードが違います。';
+                    input.select();
+                    return;
+                }
+                setSharedAuth();
+                dismissOverlay(overlay);
+                attachResetButton();
+            } catch (_) {
+                err.textContent = '確認に失敗しました。もう一度お試しください。';
+            } finally {
+                submit.disabled = false;
+            }
         }
 
         input.addEventListener('input', () => {
@@ -194,7 +200,9 @@
             err.textContent = '';
         });
 
-        submit.addEventListener('click', trySubmit);
+        submit.addEventListener('click', () => {
+            trySubmit();
+        });
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') trySubmit();
         });
@@ -225,6 +233,8 @@
             }
         });
     }
+
+    window.__soundCruiseClearGate = clearGateStorage;
 
     function boot() {
         if (document.readyState === 'loading') {
