@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.5.0';
+const FRETBOARD_CRUISE_APP_VERSION = '2.5.1';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = false;
@@ -3770,7 +3770,7 @@ function scheduleRhythm() {
                 setTimeout(autoAdvanceCruise, delayMs);
                 let secondsPerBeat = 60.0 / state.settings.tempo;
                 if (fullBeats) {
-                    nextTargetTime = nextNoteTime;
+                    nextTargetTime = nextNoteTime + secondsPerBeat;
                 } else {
                     // Target time is the next snare beat (4 16th notes later)
                     nextTargetTime = nextNoteTime + secondsPerBeat;
@@ -13434,6 +13434,62 @@ function renderSettings(app) {
 
             <div class="settings-card-section">
                 <div class="settings-card-section-header">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="settings-card-section-title">タップ順序</span>
+                        <button class="settings-help-btn" type="button" data-target="note-cruise-tap-beats" aria-label="説明を表示">⊕</button>
+                    </div>
+                </div>
+                <div class="mode-buttons settings-cruise-tap-beats-buttons">
+                    <button type="button" class="mode-btn ${state.settings.cruiseTapBeats !== 'full' ? 'active' : ''}" data-cruise-tap-beats="half">アプリ音→タップ</button>
+                    <button type="button" class="mode-btn ${state.settings.cruiseTapBeats === 'full' ? 'active' : ''}" data-cruise-tap-beats="full">アプリ音と同時にタップ</button>
+                </div>
+                <p class="settings-note settings-note--animated" id="note-cruise-tap-beats" style="margin-top:8px;">次の音に進む速さです。2拍に1回はゆっくり、毎拍は1拍ごとに進み、ペースが速くなります。</p>
+            </div>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="settings-card-section-title">指板上の音名マーカー</span>
+                        <button class="settings-help-btn" type="button" data-target="note-cruise-show-names" aria-label="説明を表示">⊕</button>
+                    </div>
+                </div>
+                <div class="mode-buttons settings-cruise-show-note-names-buttons">
+                    <button type="button" class="mode-btn ${state.settings.cruiseShowNoteNames !== false ? 'active' : ''}" data-cruise-show-note-names="on">オン</button>
+                    <button type="button" class="mode-btn ${state.settings.cruiseShowNoteNames === false ? 'active' : ''}" data-cruise-show-note-names="off">オフ</button>
+                </div>
+                <p class="settings-note settings-note--animated" id="note-cruise-show-names" style="margin-top:8px;">オフにすると、指板をたどる範囲に薄く表示されている音名ボタンが消えます。</p>
+            </div>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="settings-card-section-title">アプリの音</span>
+                        <button class="settings-help-btn" type="button" data-target="note-cruise-progression" aria-label="説明を表示">⊕</button>
+                    </div>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-progression">リセット</button>
+                </div>
+                <div class="mode-buttons settings-cruise-progression-buttons">
+                    <button type="button" class="mode-btn ${state.settings.cruiseProgression === 'tap' ? '' : 'active'}" data-cruise-progression="auto">有り</button>
+                    <button type="button" class="mode-btn ${state.settings.cruiseProgression === 'tap' ? 'active' : ''}" data-cruise-progression="tap">無し</button>
+                </div>
+                <p class="settings-note settings-note--animated" id="note-cruise-progression" style="margin-top:8px;">「有り」はアプリがギター音も鳴らします。「無し」ではギターをタップした時だけ鳴ります。</p>
+            </div>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <span class="settings-card-section-title">ループ回数</span>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-loop">リセット</button>
+                </div>
+                <div class="mode-buttons settings-loop-count-buttons">
+                    <button class="mode-btn ${state.settings.cruiseLoopCount === 1 ? 'active' : ''}" data-loop-count="1">1周</button>
+                    <button class="mode-btn ${state.settings.cruiseLoopCount === 2 ? 'active' : ''}" data-loop-count="2">2周</button>
+                    <button class="mode-btn ${state.settings.cruiseLoopCount === 3 ? 'active' : ''}" data-loop-count="3">3周</button>
+                    <button class="mode-btn ${state.settings.cruiseLoopCount === 0 ? 'active' : ''}" data-loop-count="0">無限</button>
+                </div>
+            </div>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
                     <span class="settings-card-section-title">リズム音</span>
                     <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-rhythm-all">リセット</button>
                 </div>
@@ -13464,59 +13520,6 @@ function renderSettings(app) {
                     <span></span>
                 </div>
                 <input type="range" id="rhythm-hat-slider" min="0" max="100" step="1" value="${Math.round((state.settings.cruiseRhythmHatVolume ?? DEFAULT_CRUISE_RHYTHM_HAT_VOLUME) * 100)}" class="settings-range">
-            </div>
-
-            <div class="settings-card-section">
-                <div class="settings-card-section-header">
-                    <span class="settings-card-section-title">ループ回数</span>
-                    <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-loop">リセット</button>
-                </div>
-                <div class="mode-buttons settings-loop-count-buttons">
-                    <button class="mode-btn ${state.settings.cruiseLoopCount === 1 ? 'active' : ''}" data-loop-count="1">1周</button>
-                    <button class="mode-btn ${state.settings.cruiseLoopCount === 2 ? 'active' : ''}" data-loop-count="2">2周</button>
-                    <button class="mode-btn ${state.settings.cruiseLoopCount === 3 ? 'active' : ''}" data-loop-count="3">3周</button>
-                    <button class="mode-btn ${state.settings.cruiseLoopCount === 0 ? 'active' : ''}" data-loop-count="0">無限</button>
-                </div>
-            </div>
-
-            <div class="settings-card-section">
-                <div class="settings-card-section-header">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span class="settings-card-section-title">アプリの音</span>
-                        <button class="settings-help-btn" type="button" data-target="note-cruise-progression" aria-label="説明を表示">⊕</button>
-                    </div>
-                    <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-progression">リセット</button>
-                </div>
-                <div class="mode-buttons settings-cruise-progression-buttons">
-                    <button type="button" class="mode-btn ${state.settings.cruiseProgression === 'tap' ? '' : 'active'}" data-cruise-progression="auto">有り</button>
-                    <button type="button" class="mode-btn ${state.settings.cruiseProgression === 'tap' ? 'active' : ''}" data-cruise-progression="tap">無し</button>
-                </div>
-                <p class="settings-note settings-note--animated" id="note-cruise-progression" style="margin-top:8px;">「有り」はアプリがギター音も鳴らします。「無し」ではギターをタップした時だけ鳴ります。</p>
-                <div class="settings-card-section-header" style="margin-top:12px;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span class="settings-card-section-title">タップする拍</span>
-                        <button class="settings-help-btn" type="button" data-target="note-cruise-tap-beats" aria-label="説明を表示">⊕</button>
-                    </div>
-                </div>
-                <div class="mode-buttons settings-cruise-tap-beats-buttons">
-                    <button type="button" class="mode-btn ${state.settings.cruiseTapBeats !== 'full' ? 'active' : ''}" data-cruise-tap-beats="half">2拍に1回（1・3拍目）</button>
-                    <button type="button" class="mode-btn ${state.settings.cruiseTapBeats === 'full' ? 'active' : ''}" data-cruise-tap-beats="full">毎拍（1〜4）</button>
-                </div>
-                <p class="settings-note settings-note--animated" id="note-cruise-tap-beats" style="margin-top:8px;">次の音に進む速さです。2拍に1回はゆっくり、毎拍は1拍ごとに進み、ペースが速くなります。</p>
-            </div>
-
-            <div class="settings-card-section">
-                <div class="settings-card-section-header">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span class="settings-card-section-title">指板上の音名マーカー</span>
-                        <button class="settings-help-btn" type="button" data-target="note-cruise-show-names" aria-label="説明を表示">⊕</button>
-                    </div>
-                </div>
-                <div class="mode-buttons settings-cruise-show-note-names-buttons">
-                    <button type="button" class="mode-btn ${state.settings.cruiseShowNoteNames !== false ? 'active' : ''}" data-cruise-show-note-names="on">オン</button>
-                    <button type="button" class="mode-btn ${state.settings.cruiseShowNoteNames === false ? 'active' : ''}" data-cruise-show-note-names="off">オフ</button>
-                </div>
-                <p class="settings-note settings-note--animated" id="note-cruise-show-names" style="margin-top:8px;">オフにすると、指板をたどる範囲に薄く表示されている音名ボタンが消えます。</p>
             </div>
 
             <div class="settings-card-section">
