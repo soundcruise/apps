@@ -1,5 +1,5 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.5.2';
-window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
+const FRETBOARD_CRUISE_APP_VERSION = '2.5.3';
+window.FRETBOARD_CRUISE_APP_VERSION = '2.5.3';
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = false;
 const DEBUG_PORTRAIT_FRETBOARD_LAYOUT = false;
@@ -852,6 +852,7 @@ let state = {
 };
 
 let currentScrollLeft = 0;
+let _resetVisualizeSc = false;
 let autoScrollRequested = false;
 let nextTargetTime = 0;
 let pendingCruiseGroupScrollTimeoutId = null;
@@ -5680,10 +5681,12 @@ function renderApp() {
         currentScrollLeft = oldWrapper.scrollLeft;
     } else if (
         oldScrollGroup === 'visualize' &&
-        state.course === 'visualize' &&
-        (parseInt(state.visualize?.maxFret, 10) || DEFAULT_VISIBLE_MAX_FRET) > DEFAULT_VISIBLE_MAX_FRET
+        state.course === 'visualize'
     ) {
-        currentScrollLeft = oldWrapper.scrollLeft;
+        if (!_resetVisualizeSc) {
+            currentScrollLeft = oldWrapper.scrollLeft;
+        }
+        _resetVisualizeSc = false;
     } else if (
         oldScrollGroup === 'rule' &&
         state.course === 'basicRuleStep' &&
@@ -5996,7 +5999,7 @@ function renderApp() {
             }
         } else if (state.course === 'memorize') {
             newWrapper.scrollLeft = currentScrollLeft;
-        } else if (state.course === 'visualize' && (parseInt(state.visualize?.maxFret, 10) || DEFAULT_VISIBLE_MAX_FRET) > DEFAULT_VISIBLE_MAX_FRET) {
+        } else if (state.course === 'visualize') {
             newWrapper.scrollLeft = currentScrollLeft;
         } else if (
             state.course === 'basicRuleStep' &&
@@ -13202,6 +13205,7 @@ function renderVisualize(app) {
     wireCustomDropdown('vis-max-fret', (value) => {
         const v = parseInt(value, 10);
         state.visualize.maxFret = clamp(Number.isFinite(v) ? v : DEFAULT_VISIBLE_MAX_FRET, DEFAULT_VISIBLE_MAX_FRET, MAX_FRET);
+        _resetVisualizeSc = true;
         currentScrollLeft = 0;
         saveState();
         renderApp();
