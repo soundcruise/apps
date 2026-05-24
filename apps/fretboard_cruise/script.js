@@ -8618,7 +8618,11 @@ function renderStageSelect(app) {
             if (opening) {
                 requestAnimationFrame(() => {
                     const rect = actions.getBoundingClientRect();
-                    if (rect.bottom > window.innerHeight) {
+                    const listEl = actions.closest('.stage-list');
+                    const containerBottom = listEl
+                        ? listEl.getBoundingClientRect().bottom
+                        : window.innerHeight;
+                    if (rect.bottom > containerBottom) {
                         actions.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
                     }
                 });
@@ -8760,7 +8764,11 @@ function renderStageSelect(app) {
             if (opening) {
                 requestAnimationFrame(() => {
                     const rect = actions.getBoundingClientRect();
-                    if (rect.bottom > window.innerHeight) {
+                    const listEl = actions.closest('.stage-list');
+                    const containerBottom = listEl
+                        ? listEl.getBoundingClientRect().bottom
+                        : window.innerHeight;
+                    if (rect.bottom > containerBottom) {
                         actions.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
                     }
                 });
