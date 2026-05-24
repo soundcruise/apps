@@ -1,4 +1,4 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.5.1';
+const FRETBOARD_CRUISE_APP_VERSION = '2.5.2';
 window.FRETBOARD_CRUISE_APP_VERSION = FRETBOARD_CRUISE_APP_VERSION;
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = false;
@@ -8615,6 +8615,14 @@ function renderStageSelect(app) {
             actions.hidden = !opening;
             btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
             btn.setAttribute('aria-label', opening ? 'その他の操作を閉じる' : 'その他の操作を表示');
+            if (opening) {
+                requestAnimationFrame(() => {
+                    const rect = actions.getBoundingClientRect();
+                    if (rect.bottom > window.innerHeight) {
+                        actions.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                    }
+                });
+            }
         };
     });
 
@@ -8749,6 +8757,14 @@ function renderStageSelect(app) {
             actions.hidden = !opening;
             btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
             btn.setAttribute('aria-label', opening ? 'その他の操作を閉じる' : 'その他の操作を表示');
+            if (opening) {
+                requestAnimationFrame(() => {
+                    const rect = actions.getBoundingClientRect();
+                    if (rect.bottom > window.innerHeight) {
+                        actions.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                    }
+                });
+            }
         };
     });
 
