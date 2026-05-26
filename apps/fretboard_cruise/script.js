@@ -1,5 +1,5 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.5.3';
-window.FRETBOARD_CRUISE_APP_VERSION = '2.5.3';
+const FRETBOARD_CRUISE_APP_VERSION = '2.5.4';
+window.FRETBOARD_CRUISE_APP_VERSION = '2.5.4';
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = false;
 const DEBUG_PORTRAIT_FRETBOARD_LAYOUT = false;
@@ -978,6 +978,13 @@ const routeEditorDragHandlers = new Map();
 const routeEditorGroupPanelDragHandlers = new Map();
 let routeEditorDragSuppressRouteIndex = null;
 let routeEditorDragSuppressNextClick = false;
+
+function shouldIgnoreFretboardDocumentPointer(e, containerEl) {
+    const target = e?.target;
+    if (!target || typeof target.closest !== 'function') return false;
+    if (containerEl && containerEl.contains(target)) return false;
+    return !!target.closest('.setup-panel, .pro-custom-dd, select, option, input, textarea, [role="listbox"], [role="option"]');
+}
 
 function cleanupFretboardDocumentHandlers(containerId) {
     if (containerId) {
@@ -16284,6 +16291,7 @@ function renderFretboardHTML(containerId, options) {
         logTapLatency('pointerdown:handler-enter', tapLatencyContext);
         if (e.button !== 0) return;
         if (e.isPrimary === false) return;
+        if (shouldIgnoreFretboardDocumentPointer(e, containerEl)) return;
         if (routeEditorDragSuppressNextClick) {
             routeEditorDragSuppressNextClick = false;
             return;
