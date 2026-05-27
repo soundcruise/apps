@@ -83,6 +83,58 @@
         window.__SOUNDCRUISE_PRO_GATE__ = { passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18', gateVersion: 8 };
     </script>
     <script src="../../shared/pro-gate.js?v=18"></script>
+    <script>
+    (function () {
+        function insertTroubleshootLink() {
+            var section = document.querySelector('.pro-gate-password-section');
+            if (!section) return false;
+            if (section.querySelector('.pro-gate-troubleshoot-link')) return true;
+
+            var linkWrap = document.createElement('div');
+            linkWrap.className = 'pro-gate-troubleshoot-link';
+            linkWrap.innerHTML = '<a href="./troubleshoot.html">メンバーなのに見られない方</a>';
+
+            var updated = section.querySelector('.pro-gate-password-updated');
+            if (updated && updated.parentNode === section) {
+                updated.insertAdjacentElement('afterend', linkWrap);
+            } else {
+                section.appendChild(linkWrap);
+            }
+            return true;
+        }
+
+        function watchGate() {
+            if (insertTroubleshootLink()) return;
+            var observer = null;
+            var attempts = 0;
+
+            if (window.MutationObserver) {
+                observer = new MutationObserver(function () {
+                    if (insertTroubleshootLink() && observer) {
+                        observer.disconnect();
+                    }
+                });
+                observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
+            }
+
+            var timer = window.setInterval(function () {
+                attempts += 1;
+                if (insertTroubleshootLink() || attempts >= 20) {
+                    window.clearInterval(timer);
+                    if (observer) observer.disconnect();
+                }
+            }, 100);
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function () {
+                window.requestAnimationFrame(watchGate);
+            });
+        } else {
+            window.requestAnimationFrame(watchGate);
+        }
+    })();
+    </script>
 
     <!-- App Loading Screen -->
     <div id="app-loading-screen" class="app-loading-screen">
@@ -114,7 +166,7 @@
             }
         } catch (e) { /* ignore */ }
         var s = document.createElement('script');
-        s.src = root + (root === '../' ? 'script.js?v=2.5.4' : 'script.js');
+        s.src = root + (root === '../' ? 'script.js?v=2.6.0' : 'script.js');
         s.async = false;
         document.body.appendChild(s);
     })();

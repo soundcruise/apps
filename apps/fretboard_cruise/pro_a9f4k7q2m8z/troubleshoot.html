@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>メンバー限定ページが見られない場合</title>
+    <link rel="stylesheet" href="../../shared/style.css">
+    <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
+    <style>
+        body {
+            background: #0a0a0c;
+            color: #fff;
+            overflow: auto;
+        }
+
+        .troubleshoot-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            box-sizing: border-box;
+            background: rgba(10, 10, 12, 0.97);
+            -webkit-backdrop-filter: blur(6px);
+            backdrop-filter: blur(6px);
+        }
+
+        .troubleshoot-panel {
+            width: 100%;
+            max-width: 420px;
+            padding: 32px 24px;
+            border-radius: 16px;
+            background: linear-gradient(165deg, rgba(40, 40, 44, 0.98), rgba(22, 22, 26, 0.99));
+            border: 1px solid rgba(255, 210, 90, 0.35);
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+            text-align: center;
+        }
+
+        .troubleshoot-panel h1 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #fff !important;
+            background: none !important;
+            -webkit-background-clip: unset !important;
+            background-clip: unset !important;
+            -webkit-text-fill-color: unset !important;
+            animation: none !important;
+            filter: none !important;
+            text-transform: none !important;
+            letter-spacing: normal !important;
+        }
+
+        .troubleshoot-panel p {
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: rgba(255, 255, 255, 0.75);
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .troubleshoot-section {
+            margin-bottom: 24px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: left;
+        }
+
+        .troubleshoot-section:last-of-type {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .troubleshoot-section h2 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: rgba(255, 229, 102, 0.92);
+        }
+
+        .troubleshoot-section ol {
+            margin: 0;
+            padding-left: 20px;
+            font-size: 0.9rem;
+            line-height: 1.7;
+        }
+
+        .troubleshoot-section li {
+            margin-bottom: 8px;
+            color: rgba(255, 255, 255, 0.75);
+        }
+
+        .troubleshoot-button {
+            display: inline-block;
+            width: 100%;
+            max-width: 100%;
+            padding: 14px 20px;
+            margin-top: 4px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-decoration: none;
+            color: #000;
+            background: linear-gradient(90deg, #ffd25a 0%, #ffb900 100%);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        .troubleshoot-button:hover {
+            background: linear-gradient(90deg, #ffe066 0%, #ffc100 100%);
+            box-shadow: 0 4px 16px rgba(255, 210, 90, 0.3);
+        }
+
+        .troubleshoot-back {
+            margin-top: 20px;
+        }
+
+        .troubleshoot-back a {
+            font-size: 0.85rem;
+            color: rgba(255, 229, 102, 0.92);
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+
+        .troubleshoot-back a:hover {
+            color: #ffeb99;
+        }
+
+        @media (max-width: 768px) {
+            .troubleshoot-container {
+                display: block;
+                min-height: auto;
+                align-items: unset;
+                justify-content: unset;
+                padding-top: max(16px, env(safe-area-inset-top));
+                padding-bottom: max(16px, env(safe-area-inset-bottom));
+            }
+
+            .troubleshoot-panel {
+                margin: 20px auto;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="troubleshoot-container">
+    <div class="troubleshoot-panel">
+        <h1 style="color: #fff;">メンバー限定ページが見られない場合</h1>
+
+        <div class="troubleshoot-section">
+            <h2>🔍 よくある原因</h2>
+            <p>別の Google アカウント、または異なる YouTube アカウントでログインしていることがあります。</p>
+        </div>
+
+        <div class="troubleshoot-section">
+            <h2>✓ 解決方法</h2>
+            <ol>
+                <li>下のボタンから YouTube にアクセス</li>
+                <li>右上のプロフィール画像をタップ</li>
+                <li>メンバーとなっている正しいアカウントに切り替え</li>
+                <li>このページに戻って「パスワードはこちら」を再度押す</li>
+            </ol>
+            <button class="troubleshoot-button" onclick="window.open('https://www.youtube.com/signin', '_blank')">
+                YouTube にアクセスする
+            </button>
+        </div>
+
+        <div class="troubleshoot-section">
+            <h2>💡 別の方法</h2>
+            <p>YouTube のホームページから、プロフィール画像や設定をタップして、正しいアカウントに切り替えることもできます。</p>
+        </div>
+
+        <div class="troubleshoot-back">
+            <a href="javascript:history.back()">← 戻る</a>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
