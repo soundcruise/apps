@@ -1,0 +1,17250 @@
+const FRETBOARD_CRUISE_APP_VERSION = '2.6.0';
+window.FRETBOARD_CRUISE_APP_VERSION = '2.6.0';
+const DEBUG_TAP_LATENCY = false;
+const DEBUG_CRUISE_TAP_TIMING = true;
+const DEBUG_EDITOR_FRETBOARD_LAYOUT = false;
+const DEBUG_PORTRAIT_FRETBOARD_LAYOUT = false;
+const tapLatencyContexts = new WeakMap();
+const tapLatencyRecentSamples = [];
+const TAP_LATENCY_PANEL_ID = 'tap-latency-debug-panel';
+const EDITOR_FRETBOARD_LAYOUT_PANEL_ID = 'editor-fretboard-layout-debug-panel';
+const PORTRAIT_FRETBOARD_LAYOUT_PANEL_ID = 'portrait-fretboard-layout-debug-panel';
+
+function shouldDebugCruiseTapLatency() {
+    return DEBUG_TAP_LATENCY &&
+        state.course === 'memorize' &&
+        state.memorize?.playMode === 'cruise';
+}
+
+function shouldDebugCruiseTapTiming() {
+    return DEBUG_CRUISE_TAP_TIMING &&
+        state.course === 'memorize' &&
+        state.memorize?.playMode === 'cruise' &&
+        state.settings?.cruiseTapBeats === 'full';
+}
+
+function getOrCreateTapLatencyContext(pointerEv) {
+    if (!shouldDebugCruiseTapLatency() || !pointerEv || typeof pointerEv !== 'object') return null;
+    const existing = tapLatencyContexts.get(pointerEv);
+    if (existing) return existing;
+    const now = performance.now();
+    const context = {
+        pointerdownNow: now,
+        handleFretClickStartNow: null,
+        stageTimes: {},
+        mode: 'memorize',
+        course: state.course,
+        playMode: state.memorize?.playMode,
+        pointerEventType: pointerEv.type,
+        pointerType: pointerEv.pointerType || null,
+        eventTimeStamp: pointerEv.timeStamp
+    };
+    tapLatencyContexts.set(pointerEv, context);
+    return context;
+}
+
+function logTapLatency(stage, context, extra = {}) {
+    if (!DEBUG_TAP_LATENCY || !context) return;
+    const now = performance.now();
+    context.stageTimes[stage] = now;
+    const fromPointerdownMs = now - context.pointerdownNow;
+    const fromHandleFretClickStartMs = context.handleFretClickStartNow === null
+        ? null
+        : now - context.handleFretClickStartNow;
+    console.log('[tap-latency]', {
+        stage,
+        mode: context.mode,
+        course: context.course,
+        playMode: context.playMode,
+        pointerEventType: context.pointerEventType,
+        pointerType: context.pointerType,
+        eventTimeStamp: context.eventTimeStamp,
+        performanceNow: now,
+        fromPointerdownMs,
+        fromHandleFretClickStartMs,
+        ...extra
+    });
+}
+
+function formatTapLatencyValue(value) {
+    return Number.isFinite(value) ? `${Math.round(value)}ms` : '—';
+}
+
+function ensureTapLatencyPanel() {
+    if (!shouldDebugCruiseTapLatency()) return null;
+    let panel = document.getElementById(TAP_LATENCY_PANEL_ID);
+    if (panel) return panel;
+    panel = document.createElement('div');
+    panel.id = TAP_LATENCY_PANEL_ID;
+    panel.style.position = 'fixed';
+    panel.style.top = 'calc(env(safe-area-inset-top, 0px) + 8px)';
+    panel.style.right = 'calc(env(safe-area-inset-right, 0px) + 8px)';
+    panel.style.zIndex = '99999';
+    panel.style.maxWidth = '180px';
+    panel.style.padding = '8px 10px';
+    panel.style.borderRadius = '10px';
+    panel.style.background = 'rgba(0, 0, 0, 0.72)';
+    panel.style.color = '#fff';
+    panel.style.fontSize = '11px';
+    panel.style.lineHeight = '1.45';
+    panel.style.fontWeight = '700';
+    panel.style.whiteSpace = 'pre-line';
+    panel.style.pointerEvents = 'none';
+    panel.style.userSelect = 'none';
+    panel.style.webkitUserSelect = 'none';
+    document.body.appendChild(panel);
+    return panel;
+}
+
+function removeTapLatencyPanelIfNeeded() {
+    if (shouldDebugCruiseTapLatency()) return;
+    const panel = document.getElementById(TAP_LATENCY_PANEL_ID);
+    if (panel) panel.remove();
+}
+
+function shouldDebugEditorFretboardLayout() {
+    return DEBUG_EDITOR_FRETBOARD_LAYOUT &&
+        window.innerWidth > window.innerHeight &&
+        (state.course === 'routeEditor' ||
+            state.course === 'quizEditor' ||
+            state.course === 'proCustomRouteEditor' ||
+            state.course === 'proCustomQuizEditor');
+}
+
+function ensureEditorFretboardLayoutPanel() {
+    if (!shouldDebugEditorFretboardLayout()) return null;
+    let panel = document.getElementById(EDITOR_FRETBOARD_LAYOUT_PANEL_ID);
+    if (panel) return panel;
+    panel = document.createElement('div');
+    panel.id = EDITOR_FRETBOARD_LAYOUT_PANEL_ID;
+    panel.style.position = 'fixed';
+    panel.style.top = 'calc(env(safe-area-inset-top, 0px) + 8px)';
+    panel.style.left = 'calc(env(safe-area-inset-left, 0px) + 8px)';
+    panel.style.zIndex = '99999';
+    panel.style.maxWidth = '270px';
+    panel.style.padding = '8px 10px';
+    panel.style.borderRadius = '10px';
+    panel.style.background = 'rgba(0, 0, 0, 0.76)';
+    panel.style.color = '#fff';
+    panel.style.fontSize = '10px';
+    panel.style.lineHeight = '1.35';
+    panel.style.fontWeight = '700';
+    panel.style.whiteSpace = 'pre-line';
+    panel.style.pointerEvents = 'none';
+    panel.style.userSelect = 'none';
+    panel.style.webkitUserSelect = 'none';
+    document.body.appendChild(panel);
+    return panel;
+}
+
+function removeEditorFretboardLayoutPanelIfNeeded() {
+    if (shouldDebugEditorFretboardLayout()) return;
+    const panel = document.getElementById(EDITOR_FRETBOARD_LAYOUT_PANEL_ID);
+    if (panel) panel.remove();
+}
+
+function formatEditorLayoutDebugValue(value) {
+    return Number.isFinite(value) ? String(Math.round(value * 1000) / 1000) : '—';
+}
+
+function updateEditorFretboardLayoutPanel(metrics) {
+    if (!shouldDebugEditorFretboardLayout() || !metrics) return;
+    const panel = ensureEditorFretboardLayoutPanel();
+    if (!panel) return;
+    panel.textContent = [
+        `mode ${metrics.mode}`,
+        `container ${metrics.containerId}`,
+        `standard ${metrics.isStandardEdition}`,
+        `route ${metrics.routeEditorFretHost} / quiz ${metrics.quizEditorFretHost}`,
+        `fixed ${metrics.fixedStageEditorFretHost}`,
+        `proCustomLarge ${metrics.proCustomEditorLandscapeLargeFretboard}`,
+        '',
+        `clientH ${formatEditorLayoutDebugValue(metrics.containerClientHeight)}`,
+        `appBottom ${formatEditorLayoutDebugValue(metrics.appRectBottom)}`,
+        `containerTop ${formatEditorLayoutDebugValue(metrics.containerRectTop)}`,
+        `fromClient ${formatEditorLayoutDebugValue(metrics.fromClient)}`,
+        `fromAppRect ${formatEditorLayoutDebugValue(metrics.fromAppRect)}`,
+        `fallbackH ${formatEditorLayoutDebugValue(metrics.fallbackFullH)}`,
+        `maxH ${formatEditorLayoutDebugValue(metrics.maxFullViewH)}`,
+        `bottomClear ${formatEditorLayoutDebugValue(metrics.memorizeLandBottomUiClearPx)}`,
+        '',
+        `projH ${formatEditorLayoutDebugValue(metrics.projectedBoundsHeight)}`,
+        `scaleW ${formatEditorLayoutDebugValue(metrics.scaleByW)}`,
+        `scaleH ${formatEditorLayoutDebugValue(metrics.scaleByH)}`,
+        `scale ${formatEditorLayoutDebugValue(metrics.scale)}`,
+        '',
+        `style h ${metrics.containerStyleHeight || '—'}`,
+        `style w ${metrics.containerStyleWidth || '—'}`,
+        `style left ${metrics.containerStyleLeft || '—'}`
+    ].join('\n');
+    console.log('[editor-fretboard-layout]', metrics);
+}
+
+function shouldDebugPortraitFretboardLayout() {
+    return DEBUG_PORTRAIT_FRETBOARD_LAYOUT &&
+        window.innerWidth <= window.innerHeight &&
+        (state.course === 'memorize' || state.course === 'routeEditor' || state.course === 'quizEditor');
+}
+
+function ensurePortraitFretboardLayoutPanel() {
+    if (!shouldDebugPortraitFretboardLayout()) return null;
+    let panel = document.getElementById(PORTRAIT_FRETBOARD_LAYOUT_PANEL_ID);
+    if (panel) return panel;
+    panel = document.createElement('div');
+    panel.id = PORTRAIT_FRETBOARD_LAYOUT_PANEL_ID;
+    panel.style.position = 'fixed';
+    panel.style.top = 'calc(env(safe-area-inset-top, 0px) + 8px)';
+    panel.style.left = 'calc(env(safe-area-inset-left, 0px) + 8px)';
+    panel.style.zIndex = '99999';
+    panel.style.maxWidth = '260px';
+    panel.style.padding = '8px 10px';
+    panel.style.borderRadius = '10px';
+    panel.style.background = 'rgba(0, 0, 0, 0.76)';
+    panel.style.color = '#fff';
+    panel.style.fontSize = '10px';
+    panel.style.lineHeight = '1.35';
+    panel.style.fontWeight = '700';
+    panel.style.whiteSpace = 'pre-line';
+    panel.style.pointerEvents = 'none';
+    panel.style.userSelect = 'none';
+    panel.style.webkitUserSelect = 'none';
+    document.body.appendChild(panel);
+    return panel;
+}
+
+function removePortraitFretboardLayoutPanelIfNeeded() {
+    if (shouldDebugPortraitFretboardLayout()) return;
+    const panel = document.getElementById(PORTRAIT_FRETBOARD_LAYOUT_PANEL_ID);
+    if (panel) panel.remove();
+}
+
+function updatePortraitFretboardLayoutPanel(metrics) {
+    if (!shouldDebugPortraitFretboardLayout() || !metrics) return;
+    const panel = ensurePortraitFretboardLayoutPanel();
+    if (!panel) return;
+    panel.textContent = [
+        `mode ${metrics.mode}`,
+        `container ${metrics.containerId}`,
+        `orientation ${metrics.orientation}`,
+        '',
+        `clientW ${formatEditorLayoutDebugValue(metrics.containerClientWidth)}`,
+        `clientH ${formatEditorLayoutDebugValue(metrics.containerClientHeight)}`,
+        `scroll clientW ${formatEditorLayoutDebugValue(metrics.scrollWrapperClientWidth)}`,
+        `scroll width ${formatEditorLayoutDebugValue(metrics.scrollWrapperScrollWidth)}`,
+        `layoutW ${formatEditorLayoutDebugValue(metrics.layoutW)}`,
+        `maxFret ${formatEditorLayoutDebugValue(metrics.renderMaxFret)}`,
+        '',
+        `projW ${formatEditorLayoutDebugValue(metrics.projectedBoundsWidth)}`,
+        `projH ${formatEditorLayoutDebugValue(metrics.projectedBoundsHeight)}`,
+        `maxZoomH ${formatEditorLayoutDebugValue(metrics.maxZoomViewH)}`,
+        `zoomScale ${formatEditorLayoutDebugValue(metrics.zoomScale)}`,
+        `final scale ${formatEditorLayoutDebugValue(metrics.finalScale)}`,
+        '',
+        `container style w ${metrics.containerStyleWidth || '—'}`,
+        `container style h ${metrics.containerStyleHeight || '—'}`,
+        `scroll style w ${metrics.scrollWrapperStyleWidth || '—'}`,
+        `scroll style h ${metrics.scrollWrapperStyleHeight || '—'}`
+    ].join('\n');
+    console.log('[portrait-fretboard-layout]', metrics);
+}
+
+function getAverageTapLatencySample(samples) {
+    if (!samples.length) return null;
+    const keys = ['inputMs', 'judgmentMs', 'displayMs', 'audioMs', 'totalMs'];
+    const average = {};
+    keys.forEach(key => {
+        const values = samples.map(sample => sample[key]).filter(Number.isFinite);
+        average[key] = values.length
+            ? values.reduce((sum, value) => sum + value, 0) / values.length
+            : null;
+    });
+    return average;
+}
+
+function updateTapLatencyPanelFromContext(context) {
+    if (!shouldDebugCruiseTapLatency() || !context) return;
+    const times = context.stageTimes;
+    const nextPaintNow = times['next-paint'];
+    if (!Number.isFinite(nextPaintNow) || !Number.isFinite(context.handleFretClickStartNow)) return;
+    const targetCorrectnessNow = times['handleFretClick:target-correctness-ready']
+        ?? times['handleFretClick:correctness-ready'];
+    const sample = {
+        inputMs: context.handleFretClickStartNow - context.pointerdownNow,
+        judgmentMs: Number.isFinite(targetCorrectnessNow)
+            ? targetCorrectnessNow - context.handleFretClickStartNow
+            : null,
+        displayMs: nextPaintNow - context.handleFretClickStartNow,
+        audioMs: Number.isFinite(times['before-playTone'])
+            ? times['before-playTone'] - context.handleFretClickStartNow
+            : null,
+        totalMs: nextPaintNow - context.pointerdownNow
+    };
+    tapLatencyRecentSamples.push(sample);
+    if (tapLatencyRecentSamples.length > 5) tapLatencyRecentSamples.shift();
+    const average = getAverageTapLatencySample(tapLatencyRecentSamples);
+    const panel = ensureTapLatencyPanel();
+    if (!panel) return;
+    panel.textContent = [
+        '最新',
+        `入力 ${formatTapLatencyValue(sample.inputMs)}`,
+        `判定 ${formatTapLatencyValue(sample.judgmentMs)}`,
+        `表示 ${formatTapLatencyValue(sample.displayMs)}`,
+        `音 ${formatTapLatencyValue(sample.audioMs)}`,
+        `合計 ${formatTapLatencyValue(sample.totalMs)}`,
+        '',
+        `平均${tapLatencyRecentSamples.length}回`,
+        `入力 ${formatTapLatencyValue(average?.inputMs)}`,
+        `判定 ${formatTapLatencyValue(average?.judgmentMs)}`,
+        `表示 ${formatTapLatencyValue(average?.displayMs)}`,
+        `音 ${formatTapLatencyValue(average?.audioMs)}`,
+        `合計 ${formatTapLatencyValue(average?.totalMs)}`
+    ].join('\n');
+}
+
+/** 指板上のカポ画像（matte）の全体の透明度。指板を見る・PROカスタム編集・問題画面で共通。 */
+const PROJECTED_CAPO_OVERALL_OPACITY = 0.7;
+
+let savePositionFlashTimer = null;
+/** 「位置保存」押下を視覚的にわかりやすくする（再描画後に呼ぶ場合は再取得できるよう ID で指定） */
+function flashRouteEditorSavePositionButton(buttonId) {
+    const run = () => {
+        const btn = document.getElementById(buttonId);
+        if (!btn || btn.disabled) return;
+        btn.classList.remove('is-save-position-flash');
+        void btn.offsetWidth;
+        btn.classList.add('is-save-position-flash');
+        if (savePositionFlashTimer) clearTimeout(savePositionFlashTimer);
+        savePositionFlashTimer = setTimeout(() => {
+            btn.classList.remove('is-save-position-flash');
+            savePositionFlashTimer = null;
+        }, 620);
+    };
+    requestAnimationFrame(() => requestAnimationFrame(run));
+}
+
+/**
+ * 「一覧」表示中の 📍 数字だけを DOM で更新する（位置保存直後に renderApp しない画面用、
+ * または renderApp 後に表示が 1 フレーム遅れる場合の保険）。
+ * @param {string} datasetAttrName 例: data-position-group-index
+ * @param {number} groupIndex
+ * @param {number|null|undefined} scrollLeftForDisplay null/undefined は「—」
+ */
+function syncRouteEditorPositionPinInDOM(datasetAttrName, groupIndex, scrollLeftForDisplay) {
+    const label = document.querySelector(`.route-editor-group-position-label[${datasetAttrName}="${groupIndex}"]`);
+    if (!label || !label.isConnected) return;
+    const valueEl = label.querySelector('.route-editor-group-position-value');
+    if (!valueEl) return;
+    const hasValue = Number.isFinite(scrollLeftForDisplay) && scrollLeftForDisplay >= 0;
+    const valueText = hasValue ? String(scrollLeftForDisplay) : '—';
+    valueEl.textContent = valueText;
+    label.classList.toggle('is-empty', !hasValue);
+    const ariaLabel = hasValue ? `位置 ${scrollLeftForDisplay}（タップで編集）` : '位置未設定（タップで設定）';
+    label.setAttribute('aria-label', ariaLabel);
+}
+
+// Constants
+const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const OPEN_STRINGS = [4, 9, 2, 7, 11, 4]; // E A D G B E (6弦 -> 1弦)
+const STRINGS_REV = [6, 5, 4, 3, 2, 1];
+/** 描画できる指板の右端。通常表示は12Fまでに絞る */
+const MAX_FRET = 24;
+const DEFAULT_VISIBLE_MAX_FRET = 12;
+const PRACTICE_MAX_FRET = 17;
+const EXTENDED_VISIBLE_MAX_FRET = 24;
+const FRETBOARD_HIT_DEBUG = new URLSearchParams(window.location.search).has('hitDebug');
+const TARGET_HIT_PADDING_X_PX = 0;
+const TARGET_HIT_PADDING_Y_PX = 20;
+const FRET_WIDTHS = Array(MAX_FRET + 1).fill(65);
+const FRETBOARD_WIDTH = FRET_WIDTHS.reduce((sum, width) => sum + width, 0);
+const FRETBOARD_TOP_Y = 15;
+const FRETBOARD_STRING_GAP = 30;
+const FRETBOARD_STRING_AREA_HEIGHT = 180;
+const FRETBOARD_HEIGHT = FRETBOARD_TOP_Y * 2 + FRETBOARD_STRING_AREA_HEIGHT;
+const FRETBOARD_CENTER_Y = FRETBOARD_HEIGHT / 2;
+const FRETBOARD_BODY_BOTTOM_Y = FRETBOARD_HEIGHT - FRETBOARD_TOP_Y;
+const FRET_NUMBER_STRIP_HEIGHT = 34;
+const FRET_NUMBER_STRIP_BOTTOM_Y = FRETBOARD_BODY_BOTTOM_Y + FRET_NUMBER_STRIP_HEIGHT;
+const FRETBOARD_VIEWBOX_HEIGHT = 330;
+const HORIZONTAL_FAR_SCALE = 0.65;
+const HORIZONTAL_NEAR_SCALE = 1.25;
+const VERTICAL_NEAR_EXPONENT = 1.55;
+const VERTICAL_FAR_SCALE = 0.92;
+const VERTICAL_NEAR_SCALE = 1.1;
+const FRETBOARD_SIDE_DEPTH = 24;
+const NECK_GRIP_DEPTH = 74;
+const NECK_GRIP_OUTSET = 34;
+const FRETBOARD_SURFACE_Z = 0;
+const STRING_Z = 1.2;
+const FRET_DOT_Z = 0.6;
+const FRET_NUMBER_Z = -1.5;
+const NOTE_MARKER_Z = 2.2;
+const FRETBOARD_NECK_MODEL_VERSION = 2;
+const DEFAULT_TEMPO = 75;
+const DEFAULT_QUIZ_TIME_LIMIT = 4;
+/** 指板クイズの 1 セッションあたりの問題数（0 = 無制限）。設定の選択肢は 5/10/15/0(無制限) */
+const DEFAULT_QUIZ_QUESTION_LIMIT = 10;
+const QUIZ_QUESTION_LIMIT_OPTIONS = [5, 10, 15, 0];
+const DEFAULT_STRING_SPACING = 100;
+const DEFAULT_VERTICAL_PERSPECTIVE = 0;
+const DEFAULT_HORIZONTAL_PERSPECTIVE = 0;
+const DEFAULT_ROTATION = { x: 0, y: 0, z: 0 };
+const DEFAULT_FRETBOARD_VIEW = 'full';
+const DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION = true;
+const DEFAULT_CRUISE_LOOP_COUNT = 1;
+/** 「指板をたどる」で指板上にグレー／次／現在の音名マーカーを出す（OFF で非表示） */
+const DEFAULT_CRUISE_SHOW_NOTE_NAMES = true;
+/** 「指板をたどる」進行：アプリがギター音も鳴らす／タップ時のみギター音 */
+const DEFAULT_CRUISE_PROGRESSION = 'auto'; // 'auto' | 'tap'
+/** 指板をたどるの進み（half=キック同期・2拍に1回、full=四分音符頭ごと・毎拍）。アプリの音「有り」では full で自動ギターも同じタイミング */
+const DEFAULT_CRUISE_TAP_BEATS = 'half'; // 'half' | 'full'
+const DEFAULT_BLUETOOTH_RHYTHM_ASSIST_LEVEL = 'off';
+const BLUETOOTH_RHYTHM_ASSIST_MS = {
+    off: 0,
+    low: 75,
+    medium: 150,
+    high: 225
+};
+const VALID_BLUETOOTH_RHYTHM_ASSIST_LEVELS = Object.keys(BLUETOOTH_RHYTHM_ASSIST_MS);
+const DEFAULT_CRUISE_CONFIRM_SOUND_TIMING = 'tap'; // 'tap' | 'rhythm'
+const VALID_CRUISE_CONFIRM_SOUND_TIMINGS = ['tap', 'rhythm'];
+const DEFAULT_CRUISE_RHYTHM_SOUND_TYPE = 'default'; // 互換性のため保持
+const DEFAULT_CRUISE_RHYTHM_VOLUME = 0.5; // リズム全体のマスター音量デフォルト（0.0〜1.0）
+const VALID_CRUISE_RHYTHM_SOUND_TYPES = ['default', 'kick_only', 'hihat_only', 'soft', 'silent']; // 互換性のため保持
+const DEFAULT_CRUISE_RHYTHM_KICK_VOLUME  = 0.3; // 0.0〜1.0、50%=現在音量
+const DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME = 0.5;
+const DEFAULT_CRUISE_RHYTHM_HAT_VOLUME   = 0.5;
+/** STAGE1 初期ルート（初回・未保存時・「初期順」）。`scripts/compute-stage1-shipped-default.mjs` で同内容を再生成可 */
+const SHIPPED_DEFAULT_STAGE_1_ROUTE_SLOTS = JSON.parse(
+    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":5,"fret":0},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":4,"fret":0},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":3,"fret":0},{"stringName":3,"fret":2},{"stringName":2,"fret":0},{"stringName":2,"fret":1},{"stringName":2,"fret":3},{"stringName":1,"fret":0},{"stringName":1,"fret":1},{"stringName":1,"fret":3},{"stringName":1,"fret":1},{"stringName":1,"fret":0},{"stringName":2,"fret":3},{"stringName":2,"fret":1},{"stringName":2,"fret":0},{"stringName":3,"fret":2},{"stringName":3,"fret":0},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":4,"fret":0},{"stringName":5,"fret":3}]'
+);
+const SHIPPED_DEFAULT_STAGE_1_ROUTE_GROUP_BREAKS = JSON.parse(
+    '[0,5,10,17,21,25]'
+);
+/** STAGE1「初期順」で復元するグループ別 scrollLeft（上記と同じ保存データ） */
+const SHIPPED_DEFAULT_STAGE_1_GROUP_SCROLL_LEFTS = JSON.parse(
+    '{"0":0,"1":0,"2":0,"3":0,"4":0,"5":0}'
+);
+/** STAGE2 公式デフォルト（「この順番で保存」したルート・Gr構成・指板位置を埋め込み） */
+const SHIPPED_DEFAULT_STAGE_2_ROUTE_SLOTS = JSON.parse(
+    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":5},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":4,"fret":5},{"stringName":3,"fret":2},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":2,"fret":3},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":1,"fret":3},{"stringName":1,"fret":5},{"stringName":1,"fret":3},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":2,"fret":3},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":3,"fret":2},{"stringName":4,"fret":5},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":5,"fret":5},{"stringName":5,"fret":3}]'
+);
+const SHIPPED_DEFAULT_STAGE_2_ROUTE_GROUP_BREAKS = JSON.parse(
+    '[0,5,8,10,17,22,27]'
+);
+/** STAGE2「初期順」で復元するグループ別 scrollLeft（上記と同じ保存データ） */
+const SHIPPED_DEFAULT_STAGE_2_GROUP_SCROLL_LEFTS = JSON.parse(
+    '{"0":0,"1":0,"2":55,"3":55,"4":55,"5":55,"6":55}'
+);
+/** STAGE3 公式デフォルト（「この順番で保存」したルート・Gr構成・指板位置を埋め込み） */
+const SHIPPED_DEFAULT_STAGE_3_ROUTE_SLOTS = JSON.parse(
+    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":6,"fret":7},{"stringName":6,"fret":8},{"stringName":5,"fret":5},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":4,"fret":5},{"stringName":4,"fret":7},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":3,"fret":7},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":2,"fret":8},{"stringName":1,"fret":5},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":1,"fret":5},{"stringName":2,"fret":8},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":3,"fret":7},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":4,"fret":7},{"stringName":4,"fret":5},{"stringName":5,"fret":8},{"stringName":5,"fret":7},{"stringName":5,"fret":5},{"stringName":6,"fret":8}]'
+);
+const SHIPPED_DEFAULT_STAGE_3_ROUTE_GROUP_BREAKS = JSON.parse(
+    '[0,5,8,10,17,24,31]'
+);
+/** STAGE3「初期順」で復元するグループ別 scrollLeft（上記と同じ保存データ） */
+const SHIPPED_DEFAULT_STAGE_3_GROUP_SCROLL_LEFTS = JSON.parse(
+    '{"0":0,"1":0,"2":173,"3":173,"4":173,"5":173,"6":173}'
+);
+/** STAGE4 公式デフォルト（「この順番で保存」したルート・Gr構成・指板位置を埋め込み） */
+const SHIPPED_DEFAULT_STAGE_4_ROUTE_SLOTS = JSON.parse(
+    '[{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":5,"fret":10},{"stringName":4,"fret":7},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":3,"fret":7},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":2,"fret":8},{"stringName":2,"fret":10},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":10},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":2,"fret":10},{"stringName":2,"fret":8},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":3,"fret":7},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":4,"fret":7},{"stringName":5,"fret":10},{"stringName":5,"fret":8},{"stringName":5,"fret":7},{"stringName":6,"fret":10},{"stringName":6,"fret":8}]'
+);
+const SHIPPED_DEFAULT_STAGE_4_ROUTE_GROUP_BREAKS = JSON.parse(
+    '[0,7,14,16,23]'
+);
+/** STAGE4「初期順」で復元するグループ別 scrollLeft（上記と同じ保存データ） */
+const SHIPPED_DEFAULT_STAGE_4_GROUP_SCROLL_LEFTS = JSON.parse(
+    '{"0":306,"1":306,"2":306,"3":306,"4":306}'
+);
+/** STAGE5 初期ルート（現在の「初期順」）。`scripts/compute-stage5-shipped-default.mjs` で同内容を再生成可 */
+const SHIPPED_DEFAULT_STAGE_5_ROUTE_SLOTS = JSON.parse(
+    '[{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":6,"fret":12},{"stringName":6,"fret":13},{"stringName":5,"fret":10},{"stringName":5,"fret":12},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":4,"fret":12},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":3,"fret":12},{"stringName":2,"fret":10},{"stringName":2,"fret":12},{"stringName":2,"fret":13},{"stringName":1,"fret":10},{"stringName":1,"fret":12},{"stringName":1,"fret":13},{"stringName":1,"fret":12},{"stringName":1,"fret":10},{"stringName":2,"fret":13},{"stringName":2,"fret":12},{"stringName":2,"fret":10},{"stringName":3,"fret":12},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":4,"fret":12},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":5,"fret":12},{"stringName":5,"fret":10},{"stringName":6,"fret":13},{"stringName":6,"fret":12},{"stringName":6,"fret":10},{"stringName":6,"fret":8}]'
+);
+const SHIPPED_DEFAULT_STAGE_5_ROUTE_GROUP_BREAKS = JSON.parse(
+    '[0,7,14,17,20,27]'
+);
+/** STAGE5「初期順」で復元するグループ別 scrollLeft（上記と同じ保存データ） */
+const SHIPPED_DEFAULT_STAGE_5_GROUP_SCROLL_LEFTS = JSON.parse(
+    '{"0":407,"1":407,"2":407,"3":407,"4":407,"5":407}'
+);
+/** STAGE6 公式デフォルト（「この順番で保存」したルート・Gr構成・指板位置を埋め込み） */
+const SHIPPED_DEFAULT_STAGE_6_ROUTE_SLOTS = JSON.parse(
+    '[{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":5,"fret":0},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":4,"fret":0},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":3,"fret":0},{"stringName":3,"fret":2},{"stringName":2,"fret":0},{"stringName":2,"fret":1},{"stringName":2,"fret":3},{"stringName":1,"fret":0},{"stringName":1,"fret":1},{"stringName":1,"fret":3},{"stringName":1,"fret":1},{"stringName":1,"fret":0},{"stringName":2,"fret":3},{"stringName":2,"fret":1},{"stringName":2,"fret":0},{"stringName":3,"fret":2},{"stringName":3,"fret":0},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":4,"fret":0},{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":5,"fret":0},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":5},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":4,"fret":5},{"stringName":3,"fret":2},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":2,"fret":3},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":1,"fret":3},{"stringName":1,"fret":5},{"stringName":1,"fret":3},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":2,"fret":3},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":3,"fret":2},{"stringName":4,"fret":5},{"stringName":4,"fret":3},{"stringName":4,"fret":2},{"stringName":5,"fret":5},{"stringName":5,"fret":3},{"stringName":5,"fret":2},{"stringName":6,"fret":5},{"stringName":6,"fret":3},{"stringName":6,"fret":1},{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":6,"fret":7},{"stringName":6,"fret":8},{"stringName":5,"fret":5},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":4,"fret":5},{"stringName":4,"fret":7},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":3,"fret":7},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":2,"fret":8},{"stringName":1,"fret":5},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":1,"fret":5},{"stringName":2,"fret":8},{"stringName":2,"fret":6},{"stringName":2,"fret":5},{"stringName":3,"fret":7},{"stringName":3,"fret":5},{"stringName":3,"fret":4},{"stringName":4,"fret":7},{"stringName":4,"fret":5},{"stringName":5,"fret":8},{"stringName":5,"fret":7},{"stringName":5,"fret":5},{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":5,"fret":10},{"stringName":4,"fret":7},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":3,"fret":7},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":2,"fret":8},{"stringName":2,"fret":10},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":10},{"stringName":1,"fret":8},{"stringName":1,"fret":7},{"stringName":2,"fret":10},{"stringName":2,"fret":8},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":3,"fret":7},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":4,"fret":7},{"stringName":5,"fret":10},{"stringName":5,"fret":8},{"stringName":5,"fret":7},{"stringName":6,"fret":10},{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":6,"fret":12},{"stringName":6,"fret":13},{"stringName":5,"fret":10},{"stringName":5,"fret":12},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":4,"fret":12},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":3,"fret":12},{"stringName":2,"fret":10},{"stringName":2,"fret":12},{"stringName":2,"fret":13},{"stringName":1,"fret":10},{"stringName":1,"fret":12},{"stringName":1,"fret":13},{"stringName":1,"fret":12},{"stringName":1,"fret":10},{"stringName":2,"fret":13},{"stringName":2,"fret":12},{"stringName":2,"fret":10},{"stringName":3,"fret":12},{"stringName":3,"fret":10},{"stringName":3,"fret":9},{"stringName":4,"fret":12},{"stringName":4,"fret":10},{"stringName":4,"fret":9},{"stringName":5,"fret":12},{"stringName":5,"fret":10},{"stringName":6,"fret":13},{"stringName":6,"fret":12},{"stringName":6,"fret":10},{"stringName":6,"fret":8}]'
+);
+const SHIPPED_DEFAULT_STAGE_6_ROUTE_GROUP_BREAKS = JSON.parse(
+    '[0,5,10,17,21,25,32,37,40,42,49,54,59,66,70,71,74,76,83,90,97,104,111,118,120,127,134,136,141,148,151,154,161]'
+);
+/** STAGE6「初期順」で復元するグループ別 scrollLeft（上記と同じ保存データ） */
+const SHIPPED_DEFAULT_STAGE_6_GROUP_SCROLL_LEFTS = JSON.parse(
+    '{"0":0,"1":0,"2":0,"3":0,"4":0,"5":0,"6":0,"7":0,"8":60,"9":60,"10":60,"11":60,"12":60,"13":60,"14":7,"15":7,"16":178,"17":178,"18":178,"19":178,"20":178,"21":308,"22":308,"23":308,"24":308,"25":308,"26":308,"27":408,"28":408,"29":408,"30":408,"31":408,"32":408}'
+);
+
+/**
+ * 指板クイズ STAGE 1〜5 の公式デフォルト（初期値・新規ユーザー・「初期値」ボタン）。
+ * STAGE 6 は下の getShippedDefaultQuizGroups(6) で STAGE1〜5 を Gr.1〜Gr.5 に合成する。
+ * `quizStageEditorSettings[<stage>]` と同じ形式。
+ * 配布前のため、起動時に既存ユーザーの保存値も上書きする（QUIZ_SHIPPED_DEFAULTS_VERSION で管理）。
+ */
+const SHIPPED_DEFAULT_QUIZ_STAGE_1_GROUPS = JSON.parse(
+    '[{"notes":[{"stringName":6,"fret":0},{"stringName":6,"fret":1},{"stringName":6,"fret":3},{"stringName":5,"fret":0},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":4,"fret":0},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":3,"fret":0},{"stringName":3,"fret":2},{"stringName":2,"fret":0},{"stringName":2,"fret":1},{"stringName":2,"fret":3},{"stringName":1,"fret":0},{"stringName":1,"fret":1},{"stringName":1,"fret":3}],"scrollLeft":0}]'
+);
+const SHIPPED_DEFAULT_QUIZ_STAGE_2_GROUPS = JSON.parse(
+    '[{"notes":[{"stringName":6,"fret":3},{"stringName":6,"fret":5},{"stringName":5,"fret":2},{"stringName":5,"fret":3},{"stringName":5,"fret":5},{"stringName":4,"fret":2},{"stringName":4,"fret":3},{"stringName":4,"fret":5},{"stringName":3,"fret":2},{"stringName":3,"fret":4},{"stringName":3,"fret":5},{"stringName":2,"fret":3},{"stringName":2,"fret":5},{"stringName":1,"fret":3},{"stringName":1,"fret":5},{"stringName":2,"fret":6}],"scrollLeft":43}]'
+);
+const SHIPPED_DEFAULT_QUIZ_STAGE_3_GROUPS = JSON.parse(
+    '[{"notes":[{"stringName":6,"fret":5},{"stringName":6,"fret":7},{"stringName":6,"fret":8},{"stringName":5,"fret":5},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":4,"fret":5},{"stringName":4,"fret":7},{"stringName":4,"fret":9},{"stringName":3,"fret":5},{"stringName":3,"fret":7},{"stringName":3,"fret":9},{"stringName":2,"fret":5},{"stringName":2,"fret":6},{"stringName":2,"fret":8},{"stringName":1,"fret":5},{"stringName":1,"fret":7},{"stringName":1,"fret":8}],"scrollLeft":211}]'
+);
+const SHIPPED_DEFAULT_QUIZ_STAGE_4_GROUPS = JSON.parse(
+    '[{"notes":[{"stringName":6,"fret":7},{"stringName":6,"fret":8},{"stringName":6,"fret":10},{"stringName":5,"fret":7},{"stringName":5,"fret":8},{"stringName":5,"fret":10},{"stringName":4,"fret":7},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":3,"fret":7},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":2,"fret":6},{"stringName":2,"fret":8},{"stringName":2,"fret":10},{"stringName":1,"fret":7},{"stringName":1,"fret":8},{"stringName":1,"fret":10}],"scrollLeft":263}]'
+);
+const SHIPPED_DEFAULT_QUIZ_STAGE_5_GROUPS = JSON.parse(
+    '[{"notes":[{"stringName":1,"fret":8},{"stringName":1,"fret":10},{"stringName":1,"fret":12},{"stringName":1,"fret":13},{"stringName":2,"fret":13},{"stringName":2,"fret":12},{"stringName":2,"fret":10},{"stringName":2,"fret":8},{"stringName":3,"fret":9},{"stringName":3,"fret":10},{"stringName":3,"fret":12},{"stringName":4,"fret":9},{"stringName":4,"fret":10},{"stringName":4,"fret":12},{"stringName":5,"fret":10},{"stringName":5,"fret":12},{"stringName":6,"fret":13},{"stringName":6,"fret":12},{"stringName":6,"fret":10},{"stringName":6,"fret":8},{"stringName":5,"fret":8}],"scrollLeft":381}]'
+);
+/** バージョンを上げると、起動時に既存ユーザーの STAGE 1〜6 quiz 保存値が shipped で上書きされる。 */
+const QUIZ_SHIPPED_DEFAULTS_VERSION = 5;
+
+function getShippedDefaultQuizGroups(stage) {
+    const st = clamp(parseInt(stage, 10), 1, 6);
+    // STAGE 6：Gr.1〜5 に STAGE1〜5 の shipped をそのまま対応付け（scrollLeft は案Bで各 STAGE の値を踏襲）
+    if (st === 6) {
+        const merged = [1, 2, 3, 4, 5].map(sn => {
+            const sub = getShippedDefaultQuizGroups(sn);
+            return sub && sub[0] ? sub[0] : null;
+        });
+        if (merged.some(g => !g)) return null;
+        return merged.map(g => ({
+            notes: (g.notes || []).map(n => ({ stringName: n.stringName, fret: n.fret })),
+            scrollLeft: Number.isFinite(g.scrollLeft) ? g.scrollLeft : null
+        }));
+    }
+    let raw = null;
+    if (st === 1) raw = SHIPPED_DEFAULT_QUIZ_STAGE_1_GROUPS;
+    else if (st === 2) raw = SHIPPED_DEFAULT_QUIZ_STAGE_2_GROUPS;
+    else if (st === 3) raw = SHIPPED_DEFAULT_QUIZ_STAGE_3_GROUPS;
+    else if (st === 4) raw = SHIPPED_DEFAULT_QUIZ_STAGE_4_GROUPS;
+    else if (st === 5) raw = SHIPPED_DEFAULT_QUIZ_STAGE_5_GROUPS;
+    if (!Array.isArray(raw)) return null;
+    // 配布定数を直接渡すと state 側で破壊的編集される恐れがあるためディープコピーで返す。
+    return raw.map(g => ({
+        notes: (g.notes || []).map(n => ({ stringName: n.stringName, fret: n.fret })),
+        scrollLeft: Number.isFinite(g.scrollLeft) ? g.scrollLeft : null
+    }));
+}
+
+/**
+ * 起動時に呼ぶ。指板クイズ STAGE 1〜6 の保存値を、配布定数で強制上書きする。
+ * 配布前のため一回だけ実行（QUIZ_SHIPPED_DEFAULTS_VERSION で多重実行を防ぐ）。
+ */
+function applyShippedDefaultQuizSettingsForcefullyIfNeeded() {
+    const appliedVersion = parseInt(state?.settings?.quizShippedDefaultsAppliedVersion, 10);
+    if (Number.isFinite(appliedVersion) && appliedVersion >= QUIZ_SHIPPED_DEFAULTS_VERSION) return false;
+    if (!state.settings.quizStageEditorSettings || typeof state.settings.quizStageEditorSettings !== 'object' || Array.isArray(state.settings.quizStageEditorSettings)) {
+        state.settings.quizStageEditorSettings = {};
+    }
+    [1, 2, 3, 4, 5, 6].forEach(stage => {
+        const shipped = getShippedDefaultQuizGroups(stage);
+        if (!shipped) return;
+        state.settings.quizStageEditorSettings[String(stage)] = { groups: shipped };
+    });
+    state.settings.quizShippedDefaultsAppliedVersion = QUIZ_SHIPPED_DEFAULTS_VERSION;
+    return true;
+}
+
+/**
+ * バージョンを上げると、起動時に「指板をたどる」STAGE 1〜6 の保存値（ルート／Gr／グループ別 scrollLeft）が
+ * SHIPPED_DEFAULT_STAGE_*_* で強制上書きされる。配布前のため一回だけ実行する。
+ * 履歴:
+ *   v1 (v1.104.0): STAGE 1〜5 を強制配布
+ *   v2 (v1.105.0): STAGE 6 も新データで強制配布対象に追加
+ */
+const CRUISE_SHIPPED_DEFAULTS_VERSION = 2;
+const CRUISE_SHIPPED_DEFAULTS_TARGET_STAGES = [1, 2, 3, 4, 5, 6];
+
+function getShippedDefaultCruiseRouteSlotsForStage(stage) {
+    const st = clamp(parseInt(stage, 10), 1, 6);
+    if (st === 1) return SHIPPED_DEFAULT_STAGE_1_ROUTE_SLOTS;
+    if (st === 2) return SHIPPED_DEFAULT_STAGE_2_ROUTE_SLOTS;
+    if (st === 3) return SHIPPED_DEFAULT_STAGE_3_ROUTE_SLOTS;
+    if (st === 4) return SHIPPED_DEFAULT_STAGE_4_ROUTE_SLOTS;
+    if (st === 5) return SHIPPED_DEFAULT_STAGE_5_ROUTE_SLOTS;
+    if (st === 6) return SHIPPED_DEFAULT_STAGE_6_ROUTE_SLOTS;
+    return null;
+}
+
+function getShippedDefaultCruiseGroupBreaksForStage(stage) {
+    const st = clamp(parseInt(stage, 10), 1, 6);
+    if (st === 1) return SHIPPED_DEFAULT_STAGE_1_ROUTE_GROUP_BREAKS;
+    if (st === 2) return SHIPPED_DEFAULT_STAGE_2_ROUTE_GROUP_BREAKS;
+    if (st === 3) return SHIPPED_DEFAULT_STAGE_3_ROUTE_GROUP_BREAKS;
+    if (st === 4) return SHIPPED_DEFAULT_STAGE_4_ROUTE_GROUP_BREAKS;
+    if (st === 5) return SHIPPED_DEFAULT_STAGE_5_ROUTE_GROUP_BREAKS;
+    if (st === 6) return SHIPPED_DEFAULT_STAGE_6_ROUTE_GROUP_BREAKS;
+    return null;
+}
+
+function getShippedDefaultCruiseGroupScrollLeftsForStage(stage) {
+    const st = clamp(parseInt(stage, 10), 1, 6);
+    if (st === 1) return SHIPPED_DEFAULT_STAGE_1_GROUP_SCROLL_LEFTS;
+    if (st === 2) return SHIPPED_DEFAULT_STAGE_2_GROUP_SCROLL_LEFTS;
+    if (st === 3) return SHIPPED_DEFAULT_STAGE_3_GROUP_SCROLL_LEFTS;
+    if (st === 4) return SHIPPED_DEFAULT_STAGE_4_GROUP_SCROLL_LEFTS;
+    if (st === 5) return SHIPPED_DEFAULT_STAGE_5_GROUP_SCROLL_LEFTS;
+    if (st === 6) return SHIPPED_DEFAULT_STAGE_6_GROUP_SCROLL_LEFTS;
+    return null;
+}
+
+function applyShippedDefaultCruiseSettingsForcefullyIfNeeded() {
+    const appliedVersion = parseInt(state?.settings?.cruiseShippedDefaultsAppliedVersion, 10);
+    if (Number.isFinite(appliedVersion) && appliedVersion >= CRUISE_SHIPPED_DEFAULTS_VERSION) return false;
+    if (!state.settings.cruiseStageRoutes || typeof state.settings.cruiseStageRoutes !== 'object' || Array.isArray(state.settings.cruiseStageRoutes)) {
+        state.settings.cruiseStageRoutes = {};
+    }
+    if (!state.settings.cruiseStageRouteGroups || typeof state.settings.cruiseStageRouteGroups !== 'object' || Array.isArray(state.settings.cruiseStageRouteGroups)) {
+        state.settings.cruiseStageRouteGroups = {};
+    }
+    if (!state.settings.cruiseStageGroupScrollLefts || typeof state.settings.cruiseStageGroupScrollLefts !== 'object' || Array.isArray(state.settings.cruiseStageGroupScrollLefts)) {
+        state.settings.cruiseStageGroupScrollLefts = {};
+    }
+    CRUISE_SHIPPED_DEFAULTS_TARGET_STAGES.forEach(stage => {
+        const slots = getShippedDefaultCruiseRouteSlotsForStage(stage);
+        const breaks = getShippedDefaultCruiseGroupBreaksForStage(stage);
+        const scrolls = getShippedDefaultCruiseGroupScrollLeftsForStage(stage);
+        if (!Array.isArray(slots) || !Array.isArray(breaks) || !scrolls || typeof scrolls !== 'object') return;
+        const k = String(stage);
+        // 配布定数を直接代入すると state 経由で破壊的編集される恐れがあるので毎回ディープコピー
+        state.settings.cruiseStageRoutes[k] = JSON.parse(JSON.stringify(slots));
+        state.settings.cruiseStageRouteGroups[k] = breaks.slice();
+        state.settings.cruiseStageGroupScrollLefts[k] = JSON.parse(JSON.stringify(scrolls));
+    });
+    state.settings.cruiseShippedDefaultsAppliedVersion = CRUISE_SHIPPED_DEFAULTS_VERSION;
+    return true;
+}
+
+function getShippedDefaultStage1RouteSlots() {
+    return SHIPPED_DEFAULT_STAGE_1_ROUTE_SLOTS.map(slot => ({
+        stringName: slot.stringName,
+        fret: slot.fret
+    }));
+}
+
+function getShippedDefaultStage2RouteSlots() {
+    return SHIPPED_DEFAULT_STAGE_2_ROUTE_SLOTS.map(slot => ({
+        stringName: slot.stringName,
+        fret: slot.fret
+    }));
+}
+
+function getShippedDefaultStage3RouteSlots() {
+    return SHIPPED_DEFAULT_STAGE_3_ROUTE_SLOTS.map(slot => ({
+        stringName: slot.stringName,
+        fret: slot.fret
+    }));
+}
+
+function getShippedDefaultStage4RouteSlots() {
+    return SHIPPED_DEFAULT_STAGE_4_ROUTE_SLOTS.map(slot => ({
+        stringName: slot.stringName,
+        fret: slot.fret
+    }));
+}
+
+function getShippedDefaultStage5RouteSlots() {
+    return SHIPPED_DEFAULT_STAGE_5_ROUTE_SLOTS.map(slot => ({
+        stringName: slot.stringName,
+        fret: slot.fret
+    }));
+}
+
+function getShippedDefaultStage6RouteSlots() {
+    return SHIPPED_DEFAULT_STAGE_6_ROUTE_SLOTS.map(slot => ({
+        stringName: slot.stringName,
+        fret: slot.fret
+    }));
+}
+
+const ROUTE_EDITOR_MAX_GROUPS = 60;
+const QUIZ_EDITOR_MAX_GROUPS = 20;
+const PRO_CUSTOM_STAGE_MAX_GROUPS = 60;
+const PRO_CUSTOM_STAGE_DEFAULT_NAME = 'PROカスタムSTAGE';
+const PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET = 12;
+const PRO_CUSTOM_SCALE_KEYS = ['major', 'minor', 'harmonicMinor', 'melodicMinor', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'locrian', 'pentaMajor', 'pentaMinor', 'blues'];
+const ROUTE_EDITOR_SCALE_GUIDE_LABELS = {
+    0: 'ド',
+    2: 'レ',
+    4: 'ミ',
+    5: 'ファ',
+    7: 'ソ',
+    9: 'ラ',
+    11: 'シ'
+};
+
+// Default States
+let state = {
+    course: null, // 'modeSelect' | 'ruleSelect' | 'basicRules' | 'basicRuleStep' | 'stageSelect' | 'memorize' | 'routeEditor' | 'proCustomRouteEditor' | 'proCustomQuizEditor' | 'visualize'
+    memorize: {
+        playMode: 'quiz', // 'cruise' | 'quiz'
+        stage: 1,
+        correct: 0,
+        combo: 0,
+        currentQuestion: null,
+        cruiseTargets: [],
+        cruiseScope: [], // Unique targets for rendering grey notes
+        cruiseIndex: 0,
+        cruiseCurrentLoop: 0,
+        isCleared: false,
+        hasTappedCurrentNote: false,
+        isFirstNote: true,
+        tempFeedback: null,
+        isDemoPlayback: false,
+        demoReturnCourse: null,
+        demoReturnStage: null,
+        stage1RepeatHintMode: 1,
+        stage1IsContinuedRepeat: false, // True while 2nd note of a repeated pair is playing
+        cruiseGroupIndices: [],
+        cruiseCurrentGroupIndex: 0,
+        cruisePreviousGroupIndex: null,
+        highlightMode: 2, // 1-5: Visual highlight pattern for current/next note (2=Glow)
+        isCruisePlaying: true, // Is cruise rhythm currently playing (default: playing)
+        cruiseCountdown: 0, // 開始前のBPMカウント（3→2→1→0で再生開始）
+        /** 「次の拍」を先取りでタップ済み（毎拍モード専用、次の autoAdvanceCruise で current の hasTappedCurrentNote に引き継ぐ） */
+        cruisePreTapped: false,
+        /** 直近のタップ／時間切れ判定文（カウントダウン後はこれを常時表示し、Perfect/Miss などを残す） */
+        cruiseLastTapFeedback: null,
+        proCustomCruise: null,
+        proCustomQuiz: null
+    },
+    visualize: {
+        key: 0, // C
+        capo: 0,
+        displayMode: 'note',
+        chordType: 'M',
+        degreeMode: false,
+        scale: 'major',
+        selectedChordIndex: null,
+        /** トグルOFF中も保持。ON時に前回選んでいたコード番号を復元する（未選択なら I=0） */
+        lastDiatonicChordPickIndex: null,
+        /** 'movable' = キー主音を1度（P1）, 'fixed' = Cを1度（P1） */
+        doMode: 'movable',
+        /** '3' = 3和音, '7' = 7thコード */
+        chordType: '3',
+        /** 'name' = コード名（C, Dm…）, 'degree' = 度数（I, IIm…） */
+        chordLabelMode: 'name',
+        /** ダイアトニックコードON時に、指板ラベルを選択コード基準の度数で表示する */
+        chordDegreeLabelEnabled: false,
+        /** autoSelectRootChord: Iコード自動選択（オン時）*/
+        autoSelectRootChord: false,
+        /** 指板を見るの表示フレット上限（PROカスタム編集と同じ「最大フレット」方式）。
+            12〜MAX_FRET の整数。旧フラグ showExtendedFrets はマイグレーションで maxFret に変換する。 */
+        maxFret: DEFAULT_VISIBLE_MAX_FRET
+    },
+    rules: {
+        step: 1,
+        page: 0,
+        tapIndex: 0,
+        phase: 'intro',
+        labelMode: 'solfege',
+        /** 0=1枚目のイントロ文、1=learnThemeIntro2（同じスライド内の2枚目） */
+        ruleIntroStage: 0,
+        celebration: null,
+        /** STEP4-2 実践：画角スライド演出の第2段階へ進んだか */
+        step4Slide2RevealDone: false,
+        /** STEP4-3 実践：STEP4-2の横位置からスライド済みか */
+        step4Slide3ScrollRevealDone: false,
+        /** STEP5-1：チェックで練習から外したマス */
+        step5ExcludedSlots: {},
+        /** STEP5-2：同上（STEP5-1 とは別に保存） */
+        step5ExcludedSlotsPart2: {},
+        completedSteps: {}
+    },
+    routeEditor: {
+        stage: 1,
+        draft: [],
+        deleteMode: false,
+        history: [],
+        deletePicker: null,
+        groupBreaks: [],
+        groupNames: [],
+        selectedGroupIndex: 0,
+        visibleGroupIndices: [],
+        forceHideAllGroups: false,
+        showAllGroupsExpanded: false,
+        groupPanelOffset: { x: 0, y: 0 }
+    },
+    proCustomRouteEditor: {
+        draft: [],
+        history: [],
+        groupBreaks: [0],
+        groupNames: ['Gr.1'],
+        selectedGroupIndex: 0,
+        visibleGroupIndices: [0],
+        forceHideAllGroups: false,
+        showAllGroupsExpanded: false,
+        groupPanelOffset: { x: 0, y: 0 },
+        name: PRO_CUSTOM_STAGE_DEFAULT_NAME,
+        key: 0,
+        capo: 0,
+        scale: 'major',
+        displayMode: 'solfege',
+        doMode: 'movable',
+        maxFret: PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET,
+        scrollLefts: {}
+    },
+    quizEditor: {
+        stage: 1,
+        groups: [{ notes: [], scrollLeft: 0 }],
+        selectedGroupIndex: 0,
+        groupPanelOffset: { x: 0, y: 0 },
+        history: [],
+        showAllGroupsExpanded: false,
+        visibleGroupIndices: [],
+        forceHideAllGroups: false
+    },
+    proCustomQuizEditor: {
+        groups: [{ notes: [], scrollLeft: null }],
+        selectedGroupIndex: 0,
+        groupPanelOffset: { x: 0, y: 0 },
+        history: [],
+        showAllGroupsExpanded: false,
+        visibleGroupIndices: [0],
+        forceHideAllGroups: false,
+        name: PRO_CUSTOM_STAGE_DEFAULT_NAME,
+        key: 0,
+        capo: 0,
+        scale: 'major',
+        displayMode: 'solfege',
+        doMode: 'movable',
+        maxFret: PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET,
+        editingStageId: null
+    },
+    /** 問題編集から「試す」でクイズへ入ったとき、保存前のグループを generateQuestion が読む */
+    quizEditorPreview: null,
+    settings: {
+        tempo: DEFAULT_TEMPO,
+        quizTimeLimit: DEFAULT_QUIZ_TIME_LIMIT,
+        quizQuestionLimit: DEFAULT_QUIZ_QUESTION_LIMIT,
+        quizCountdownSound: 'beep', // 'none' | 'beep' | 'gradual' | 'hat'
+        stringSpacing: DEFAULT_STRING_SPACING, // 100% = default
+        noteLabelMode: 'solfege',
+        viewMode: 'front',
+        rotation: { ...DEFAULT_ROTATION },
+        perspective: DEFAULT_VERTICAL_PERSPECTIVE, // 遠近感 (0-100)
+        perspOriginX: DEFAULT_HORIZONTAL_PERSPECTIVE, // 横の遠近感 (0-100, 100=12F大きく)
+        fretboardView: DEFAULT_FRETBOARD_VIEW,
+        fretboardViewAutoOrientation: DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION,
+        cruiseLoopCount: DEFAULT_CRUISE_LOOP_COUNT,
+        cruiseShowNoteNames: DEFAULT_CRUISE_SHOW_NOTE_NAMES,
+        cruiseProgression: DEFAULT_CRUISE_PROGRESSION,
+        cruiseTapBeats: DEFAULT_CRUISE_TAP_BEATS,
+        bluetoothRhythmAssistLevel: DEFAULT_BLUETOOTH_RHYTHM_ASSIST_LEVEL,
+        cruiseConfirmSoundTiming: DEFAULT_CRUISE_CONFIRM_SOUND_TIMING,
+        cruiseRhythmSoundType: DEFAULT_CRUISE_RHYTHM_SOUND_TYPE,
+        cruiseRhythmVolume: DEFAULT_CRUISE_RHYTHM_VOLUME,
+        cruiseRhythmKickVolume:  DEFAULT_CRUISE_RHYTHM_KICK_VOLUME,
+        cruiseRhythmSnareVolume: DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME,
+        cruiseRhythmHatVolume:   DEFAULT_CRUISE_RHYTHM_HAT_VOLUME,
+        cruiseStageRoutes: {},
+        cruiseStageRouteGroups: {},
+        cruiseStageGroupScrollLefts: {},
+        cruiseProCustomStage: null,
+        cruiseProCustomStages: [],
+        quizProCustomStages: [],
+        quizStageEditorSettings: {},
+        quizStageAttemptCounts: {},
+        quizStagePerfectCounts: {},
+        routeNumberingVersion: 2,
+        neckModelVersion: FRETBOARD_NECK_MODEL_VERSION,
+        /** 設定画面で最後に開いていたタブ（'cruise' | 'quiz' | 'common'） */
+        lastSettingsTab: 'cruise'
+    }
+};
+
+let currentScrollLeft = 0;
+let _resetVisualizeSc = false;
+let autoScrollRequested = false;
+let nextTargetTime = 0;
+let pendingCruiseGroupScrollTimeoutId = null;
+let routeEditorGroupDragBlocked = false;
+let routeEditorScrollAppliedKey = null;
+/** PROカスタムSTAGE編集: Gr 切替時に保存スクロールを一度だけ currentScrollLeft に流し込むためのキー */
+let proCustomRouteEditorScrollAppliedKey = null;
+/** PROカスタムクイズ編集: 同上（指板は mode=quizEditor のため別キー管理） */
+let proCustomQuizEditorScrollAppliedKey = null;
+const routeEditorPendingGroupScrollLefts = new Map();
+/** ルート編集・拡大ビュー: 同期で読む scrollLeft が 0 にずれることがあるため、scroll で拾った直近値を保持 */
+let routeEditorFretboardScrollSnapshot = 0;
+/** クイズエディタ: Gr切り替え等で適用すべきスクロール位置。renderApp() 内で消費後 null にリセット */
+let quizEditorPendingScrollLeft = null;
+/**
+ * クイズ：問題が切り替わって「保存指板位置」が変わるとき、
+ * 旧位置 → 新位置をユーザーの目で追える速度でスクロールするためのアニメ状態。
+ * { from, to, startedAt, duration } の間だけ getter は補間値を返す。
+ * アニメ中は preserveScrollLeft 系の上書きにこの値を流し込む。
+ */
+let quizScrollAnimState = null;
+let quizScrollAnimRafId = null;
+
+function easeInOutQuad(t) {
+    return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+}
+
+function getQuizScrollAnimationCurrentValue() {
+    if (!quizScrollAnimState) return null;
+    const elapsed = performance.now() - quizScrollAnimState.startedAt;
+    const t = Math.min(1, Math.max(0, elapsed / quizScrollAnimState.duration));
+    const eased = easeInOutQuad(t);
+    return quizScrollAnimState.from + (quizScrollAnimState.to - quizScrollAnimState.from) * eased;
+}
+
+function isQuizScrollAnimating() {
+    return quizScrollAnimState !== null;
+}
+
+function cancelQuizScrollAnimation() {
+    if (quizScrollAnimRafId !== null) {
+        cancelAnimationFrame(quizScrollAnimRafId);
+        quizScrollAnimRafId = null;
+    }
+    quizScrollAnimState = null;
+}
+
+function startQuizScrollAnimation(fromX, toX, durationMs) {
+    cancelQuizScrollAnimation();
+    const safeFrom = Math.max(0, Math.round(fromX));
+    const safeTo = Math.max(0, Math.round(toX));
+    if (Math.abs(safeTo - safeFrom) < 2) {
+        const wrapperImmediate = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+        if (wrapperImmediate) wrapperImmediate.scrollLeft = safeTo;
+        return;
+    }
+    quizScrollAnimState = {
+        from: safeFrom,
+        to: safeTo,
+        startedAt: performance.now(),
+        duration: Math.max(60, durationMs)
+    };
+    const tick = () => {
+        if (!quizScrollAnimState) {
+            quizScrollAnimRafId = null;
+            return;
+        }
+        if (state.course !== 'memorize' || state.memorize.playMode !== 'quiz') {
+            cancelQuizScrollAnimation();
+            return;
+        }
+        const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+        if (!wrapper || !wrapper.isConnected) {
+            // 次の paint で wrapper が現れる場合があるので、状態は維持しつつ次フレームで再試行
+            quizScrollAnimRafId = requestAnimationFrame(tick);
+            return;
+        }
+        const value = getQuizScrollAnimationCurrentValue();
+        if (value === null) {
+            quizScrollAnimRafId = null;
+            return;
+        }
+        wrapper.scrollLeft = Math.round(value);
+        const elapsed = performance.now() - quizScrollAnimState.startedAt;
+        if (elapsed >= quizScrollAnimState.duration) {
+            wrapper.scrollLeft = quizScrollAnimState.to;
+            quizScrollAnimState = null;
+            quizScrollAnimRafId = null;
+            return;
+        }
+        quizScrollAnimRafId = requestAnimationFrame(tick);
+    };
+    quizScrollAnimRafId = requestAnimationFrame(tick);
+}
+
+function computeQuizScrollAnimationDuration(distancePx) {
+    const ms = Math.round(distancePx * 1.2);
+    return Math.min(800, Math.max(350, ms));
+}
+let settingsReturnCourse = null;
+let settingsPausedState = null;
+let quizAdvanceTimeout = null;
+let quizToneTimeout = null;
+let ruleAdvanceLocked = false;
+let ruleMissFeedbackTimeout = null;
+let ruleCueScrollCleanup = null;
+/** STEP3-1：太い弦↔開放の黄線レイアウト用スクロール／resize の解除 */
+let ruleStep31LineCleanup = null;
+let ruleStep31LineTimeoutIds = [];
+/** 「半音！」ポップ：同じペア内では位置を付け直さない（チラつき防止） */
+let ruleHalfToneLastPair = null;
+let ruleHalfToneLastScroll = -1;
+/** innerHTML で消えないよう、再描画前に外しておく既存ノード */
+let ruleHalfTonePopDetached = null;
+let ruleStep3GapPopDetached = null;
+/** STEP4-3「1フレットずれる」吹き出し */
+let ruleStep43GapPopDetached = null;
+let ruleStep43GapCleanup = null;
+let ruleStep43GapTimeoutIds = [];
+const fretboardDocumentHandlers = new Map();
+const fretboardDebugScrollHandlers = new Map();
+const routeEditorDragHandlers = new Map();
+const routeEditorGroupPanelDragHandlers = new Map();
+let routeEditorDragSuppressRouteIndex = null;
+let routeEditorDragSuppressNextClick = false;
+
+function shouldIgnoreFretboardDocumentPointer(e, containerEl) {
+    const target = e?.target;
+    if (!target || typeof target.closest !== 'function') return false;
+    if (containerEl && containerEl.contains(target)) return false;
+    return !!target.closest('.setup-panel, .pro-custom-dd, select, option, input, textarea, [role="listbox"], [role="option"]');
+}
+
+function cleanupFretboardDocumentHandlers(containerId) {
+    if (containerId) {
+        const handler = fretboardDocumentHandlers.get(containerId);
+        if (handler) {
+            document.removeEventListener('pointerdown', handler, true);
+            fretboardDocumentHandlers.delete(containerId);
+        }
+        const dragHandlers = routeEditorDragHandlers.get(containerId);
+        if (dragHandlers) {
+            document.removeEventListener('pointerdown', dragHandlers.pointerdown, true);
+            document.removeEventListener('pointermove', dragHandlers.pointermove, true);
+            document.removeEventListener('pointerup', dragHandlers.pointerup, true);
+            document.removeEventListener('pointercancel', dragHandlers.pointercancel, true);
+            routeEditorDragHandlers.delete(containerId);
+        }
+        const groupPanelDragHandlers = routeEditorGroupPanelDragHandlers.get(containerId);
+        if (groupPanelDragHandlers) {
+            document.removeEventListener('pointermove', groupPanelDragHandlers.pointermove, true);
+            document.removeEventListener('pointerup', groupPanelDragHandlers.pointerup, true);
+            document.removeEventListener('pointercancel', groupPanelDragHandlers.pointercancel, true);
+            routeEditorGroupPanelDragHandlers.delete(containerId);
+        }
+        const debugScrollHandler = fretboardDebugScrollHandlers.get(containerId);
+        if (debugScrollHandler) {
+            const containerEl = document.getElementById(containerId);
+            const wrapper = containerEl ? containerEl.querySelector('.fretboard-scroll-wrapper') : null;
+            if (wrapper) wrapper.removeEventListener('scroll', debugScrollHandler);
+            fretboardDebugScrollHandlers.delete(containerId);
+        }
+        const debugOverlay = document.getElementById(`hit-debug-${containerId}`);
+        if (debugOverlay) debugOverlay.remove();
+        return;
+    }
+
+    fretboardDocumentHandlers.forEach(handler => {
+        document.removeEventListener('pointerdown', handler, true);
+    });
+    fretboardDocumentHandlers.clear();
+    routeEditorDragHandlers.forEach(handlers => {
+        document.removeEventListener('pointerdown', handlers.pointerdown, true);
+        document.removeEventListener('pointermove', handlers.pointermove, true);
+        document.removeEventListener('pointerup', handlers.pointerup, true);
+        document.removeEventListener('pointercancel', handlers.pointercancel, true);
+    });
+    routeEditorDragHandlers.clear();
+    routeEditorGroupPanelDragHandlers.forEach(handlers => {
+        document.removeEventListener('pointermove', handlers.pointermove, true);
+        document.removeEventListener('pointerup', handlers.pointerup, true);
+        document.removeEventListener('pointercancel', handlers.pointercancel, true);
+    });
+    routeEditorGroupPanelDragHandlers.clear();
+    fretboardDebugScrollHandlers.forEach((handler, id) => {
+        const containerEl = document.getElementById(id);
+        const wrapper = containerEl ? containerEl.querySelector('.fretboard-scroll-wrapper') : null;
+        if (wrapper) wrapper.removeEventListener('scroll', handler);
+    });
+    fretboardDebugScrollHandlers.clear();
+    document.querySelectorAll('.hit-debug-overlay').forEach(el => el.remove());
+}
+
+// Load state
+const savedState = localStorage.getItem('fretboard_cruise_state');
+if (savedState) {
+    try {
+        let loaded = JSON.parse(savedState);
+        // Deep merge for settings
+        state = { ...state, ...loaded };
+        if (!state.settings) state.settings = getDefaultSettings();
+        if (!state.visualize) {
+            state.visualize = {
+                key: 0,
+                capo: 0,
+                displayMode: 'solfege',
+                chordType: 'M',
+                degreeMode: false,
+                maxFret: DEFAULT_VISIBLE_MAX_FRET
+            };
+        }
+        if (!state.rules) {
+            state.rules = {
+                step: 1,
+                page: 0,
+                tapIndex: 0,
+                phase: 'intro',
+                labelMode: 'solfege',
+                ruleIntroStage: 0,
+                celebration: null,
+                step4Slide2RevealDone: false,
+                step4Slide3ScrollRevealDone: false,
+                step5ExcludedSlots: {},
+                step5ExcludedSlotsPart2: {},
+                completedSteps: {}
+            };
+        }
+        if (typeof state.rules.step === 'undefined') state.rules.step = 1;
+        if (typeof state.rules.page === 'undefined') state.rules.page = 0;
+        if (typeof state.rules.tapIndex === 'undefined') state.rules.tapIndex = 0;
+        if (typeof state.rules.phase === 'undefined') state.rules.phase = 'intro';
+        if (typeof state.rules.labelMode === 'undefined') state.rules.labelMode = 'solfege';
+        if (typeof state.rules.ruleIntroStage !== 'number') state.rules.ruleIntroStage = 0;
+        if (typeof state.rules.step4Slide2RevealDone !== 'boolean') state.rules.step4Slide2RevealDone = false;
+        if (typeof state.rules.step4Slide3ScrollRevealDone !== 'boolean') state.rules.step4Slide3ScrollRevealDone = false;
+        if (
+            !state.rules.step5ExcludedSlots ||
+            typeof state.rules.step5ExcludedSlots !== 'object' ||
+            Array.isArray(state.rules.step5ExcludedSlots)
+        ) {
+            state.rules.step5ExcludedSlots = {};
+        }
+        if (
+            !state.rules.step5ExcludedSlotsPart2 ||
+            typeof state.rules.step5ExcludedSlotsPart2 !== 'object' ||
+            Array.isArray(state.rules.step5ExcludedSlotsPart2)
+        ) {
+            state.rules.step5ExcludedSlotsPart2 = {};
+        }
+        if (
+            !state.rules.completedSteps ||
+            typeof state.rules.completedSteps !== 'object' ||
+            Array.isArray(state.rules.completedSteps)
+        ) {
+            state.rules.completedSteps = {};
+        }
+        if (typeof state.rules.step === 'number' && state.rules.step > 5) {
+            state.rules.step = 5;
+            state.rules.page = 0;
+            state.rules.phase = 'intro';
+            state.rules.tapIndex = 0;
+        }
+        if (typeof state.memorize.isDemoPlayback !== 'boolean') state.memorize.isDemoPlayback = false;
+        if (typeof state.memorize.demoReturnCourse === 'undefined') state.memorize.demoReturnCourse = null;
+        if (typeof state.memorize.demoReturnStage === 'undefined') state.memorize.demoReturnStage = null;
+        if (typeof state.memorize.quizQuestionsAsked !== 'number') state.memorize.quizQuestionsAsked = 0;
+        if (!Array.isArray(state.memorize.quizQuestionResults)) state.memorize.quizQuestionResults = [];
+        if (typeof state.memorize.isQuizCleared !== 'boolean') state.memorize.isQuizCleared = false;
+        if (typeof state.memorize.quizAttemptCounted !== 'boolean') state.memorize.quizAttemptCounted = false;
+        if (typeof state.memorize.quizPerfectCounted  !== 'boolean') state.memorize.quizPerfectCounted  = false;
+        if (typeof state.memorize.maxCombo !== 'number') state.memorize.maxCombo = 0;
+        // Official specification: always use mode 1 (1/2 display)
+        state.memorize.stage1RepeatHintMode = 1;
+        state.memorize.stage1IsContinuedRepeat = false;
+        if (!Array.isArray(state.memorize.cruiseGroupIndices)) state.memorize.cruiseGroupIndices = [];
+        if (typeof state.memorize.cruiseCurrentGroupIndex !== 'number') state.memorize.cruiseCurrentGroupIndex = 0;
+        if (typeof state.memorize.cruisePreTapped !== 'boolean') state.memorize.cruisePreTapped = false;
+        if (typeof state.memorize.cruiseLastTapFeedback === 'undefined') state.memorize.cruiseLastTapFeedback = null;
+        if (
+            state.memorize.proCustomCruise &&
+            (typeof state.memorize.proCustomCruise !== 'object' || Array.isArray(state.memorize.proCustomCruise))
+        ) {
+            state.memorize.proCustomCruise = null;
+        }
+        if (typeof state.memorize.proCustomCruise === 'undefined') state.memorize.proCustomCruise = null;
+        if (
+            state.memorize.proCustomQuiz &&
+            (typeof state.memorize.proCustomQuiz !== 'object' || Array.isArray(state.memorize.proCustomQuiz))
+        ) {
+            state.memorize.proCustomQuiz = null;
+        }
+        if (typeof state.memorize.proCustomQuiz === 'undefined') state.memorize.proCustomQuiz = null;
+        if (typeof state.memorize.cruisePreviousGroupIndex !== 'number' && state.memorize.cruisePreviousGroupIndex !== null) {
+            state.memorize.cruisePreviousGroupIndex = null;
+        }
+        // 起動／復元直後はカウントダウンを必ず止める（タイマーは引き継げないため）
+        state.memorize.cruiseCountdown = 0;
+        // 旧バージョンで保存されたトライアル選択値はもう使用しないため削除
+        if ('cruiseLayoutTrial' in state.memorize) {
+            delete state.memorize.cruiseLayoutTrial;
+        }
+        if (typeof state.visualize.key === 'undefined') state.visualize.key = 0;
+        if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
+        if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'solfege';
+        if (typeof state.visualize.chordDegreeLabelEnabled === 'undefined') {
+            state.visualize.chordDegreeLabelEnabled = state.visualize.displayMode === 'chordDegree';
+        }
+        if (state.visualize.displayMode === 'chordDegree') {
+            state.visualize.displayMode = ['solfege', 'note', 'degree'].includes(state.settings.noteLabelMode)
+                ? state.settings.noteLabelMode
+                : 'solfege';
+        }
+        if (!['solfege', 'note', 'degree'].includes(state.visualize.displayMode)) {
+            state.visualize.displayMode = 'note';
+        }
+        if (typeof state.visualize.doMode === 'undefined') state.visualize.doMode = 'movable';
+        if (typeof state.visualize.chordType === 'undefined') state.visualize.chordType = '3';
+        if (state.visualize.chordLabelMode !== 'name' && state.visualize.chordLabelMode !== 'degree') {
+            state.visualize.chordLabelMode = 'name';
+        }
+        if (typeof state.visualize.autoSelectRootChord === 'undefined') state.visualize.autoSelectRootChord = false;
+        if (typeof state.visualize.lastDiatonicChordPickIndex === 'undefined') {
+            const si = state.visualize.selectedChordIndex;
+            if (state.visualize.autoSelectRootChord && si !== null && si !== undefined && Number.isFinite(si)) {
+                state.visualize.lastDiatonicChordPickIndex = Math.floor(si);
+            } else {
+                state.visualize.lastDiatonicChordPickIndex = null;
+            }
+        }
+        /** 旧 showExtendedFrets（13F以降の ON/OFF）が残っていれば maxFret に変換し、フィールドは削除。
+            true → MAX_FRET、false → DEFAULT_VISIBLE_MAX_FRET。 */
+        if (typeof state.visualize.maxFret === 'undefined') {
+            state.visualize.maxFret = state.visualize.showExtendedFrets ? MAX_FRET : DEFAULT_VISIBLE_MAX_FRET;
+        }
+        const _vmf = parseInt(state.visualize.maxFret, 10);
+        state.visualize.maxFret = Number.isFinite(_vmf)
+            ? clamp(_vmf, DEFAULT_VISIBLE_MAX_FRET, MAX_FRET)
+            : DEFAULT_VISIBLE_MAX_FRET;
+        if (typeof state.visualize.showExtendedFrets !== 'undefined') {
+            delete state.visualize.showExtendedFrets;
+        }
+        if (typeof state.settings.tempo === 'undefined') state.settings.tempo = DEFAULT_TEMPO;
+        if (typeof state.settings.quizTimeLimit === 'undefined') state.settings.quizTimeLimit = DEFAULT_QUIZ_TIME_LIMIT;
+        if (typeof state.settings.quizQuestionLimit === 'undefined') {
+            state.settings.quizQuestionLimit = DEFAULT_QUIZ_QUESTION_LIMIT;
+        } else {
+            const _qql = parseInt(state.settings.quizQuestionLimit, 10);
+            state.settings.quizQuestionLimit = QUIZ_QUESTION_LIMIT_OPTIONS.includes(_qql) ? _qql : DEFAULT_QUIZ_QUESTION_LIMIT;
+        }
+        if (typeof state.settings.quizCountdownSound === 'undefined') state.settings.quizCountdownSound = 'beep';
+        if (typeof state.settings.stringSpacing === 'undefined') state.settings.stringSpacing = DEFAULT_STRING_SPACING;
+        if (typeof state.settings.noteLabelMode === 'undefined') state.settings.noteLabelMode = state.rules?.labelMode || 'solfege';
+        if (!['solfege', 'note', 'degree'].includes(state.settings.noteLabelMode)) {
+            state.settings.noteLabelMode = 'solfege';
+        }
+        if (!isProEdition()) {
+            state.settings.noteLabelMode = 'solfege';
+        }
+        if (typeof state.settings.viewMode === 'undefined') state.settings.viewMode = 'front';
+        if (typeof state.settings.rotation === 'undefined') state.settings.rotation = { ...DEFAULT_ROTATION };
+        if (typeof state.settings.perspective === 'undefined') state.settings.perspective = DEFAULT_VERTICAL_PERSPECTIVE;
+        if (typeof state.settings.perspOriginX === 'undefined') state.settings.perspOriginX = DEFAULT_HORIZONTAL_PERSPECTIVE;
+        if (typeof state.settings.fretboardView === 'undefined') state.settings.fretboardView = DEFAULT_FRETBOARD_VIEW;
+        if (typeof state.settings.fretboardViewAutoOrientation === 'undefined') {
+            state.settings.fretboardViewAutoOrientation = DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION;
+        }
+        if (typeof state.settings.cruiseLoopCount === 'undefined') {
+            state.settings.cruiseLoopCount = DEFAULT_CRUISE_LOOP_COUNT;
+        }
+        if (typeof state.settings.cruiseShowNoteNames !== 'boolean') {
+            state.settings.cruiseShowNoteNames = DEFAULT_CRUISE_SHOW_NOTE_NAMES;
+        }
+        if (typeof state.settings.cruiseProgression === 'undefined') {
+            state.settings.cruiseProgression = DEFAULT_CRUISE_PROGRESSION;
+        } else if (state.settings.cruiseProgression !== 'auto' && state.settings.cruiseProgression !== 'tap') {
+            state.settings.cruiseProgression = DEFAULT_CRUISE_PROGRESSION;
+        }
+        if (typeof state.settings.cruiseTapBeats === 'undefined') {
+            state.settings.cruiseTapBeats = DEFAULT_CRUISE_TAP_BEATS;
+        } else if (state.settings.cruiseTapBeats !== 'half' && state.settings.cruiseTapBeats !== 'full') {
+            state.settings.cruiseTapBeats = DEFAULT_CRUISE_TAP_BEATS;
+        }
+        if (!VALID_BLUETOOTH_RHYTHM_ASSIST_LEVELS.includes(state.settings.bluetoothRhythmAssistLevel)) {
+            state.settings.bluetoothRhythmAssistLevel = DEFAULT_BLUETOOTH_RHYTHM_ASSIST_LEVEL;
+        }
+        if (!VALID_CRUISE_CONFIRM_SOUND_TIMINGS.includes(state.settings.cruiseConfirmSoundTiming)) {
+            state.settings.cruiseConfirmSoundTiming = DEFAULT_CRUISE_CONFIRM_SOUND_TIMING;
+        }
+        if (!VALID_CRUISE_RHYTHM_SOUND_TYPES.includes(state.settings.cruiseRhythmSoundType)) {
+            state.settings.cruiseRhythmSoundType = DEFAULT_CRUISE_RHYTHM_SOUND_TYPE;
+        }
+        if (typeof state.settings.cruiseRhythmVolume !== 'number' ||
+            state.settings.cruiseRhythmVolume < 0 || state.settings.cruiseRhythmVolume > 1) {
+            state.settings.cruiseRhythmVolume = DEFAULT_CRUISE_RHYTHM_VOLUME;
+        }
+        const _validateRhythmVol = (v, def) =>
+            (typeof v === 'number' && v >= 0 && v <= 1) ? v : def;
+        state.settings.cruiseRhythmKickVolume  = _validateRhythmVol(state.settings.cruiseRhythmKickVolume,  DEFAULT_CRUISE_RHYTHM_KICK_VOLUME);
+        state.settings.cruiseRhythmSnareVolume = _validateRhythmVol(state.settings.cruiseRhythmSnareVolume, DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME);
+        state.settings.cruiseRhythmHatVolume   = _validateRhythmVol(state.settings.cruiseRhythmHatVolume,   DEFAULT_CRUISE_RHYTHM_HAT_VOLUME);
+        if (!['cruise', 'quiz', 'common'].includes(state.settings.lastSettingsTab)) {
+            state.settings.lastSettingsTab = 'cruise';
+        }
+        state.settings.routeEditorScaleGuideVariant = 3;
+        if (
+            !state.settings.cruiseStageRoutes ||
+            typeof state.settings.cruiseStageRoutes !== 'object' ||
+            Array.isArray(state.settings.cruiseStageRoutes)
+        ) {
+            state.settings.cruiseStageRoutes = {};
+        }
+        if (
+            !state.settings.cruiseStageRouteGroups ||
+            typeof state.settings.cruiseStageRouteGroups !== 'object' ||
+            Array.isArray(state.settings.cruiseStageRouteGroups)
+        ) {
+            state.settings.cruiseStageRouteGroups = {};
+        }
+        if (
+            !state.settings.cruiseStageGroupScrollLefts ||
+            typeof state.settings.cruiseStageGroupScrollLefts !== 'object' ||
+            Array.isArray(state.settings.cruiseStageGroupScrollLefts)
+        ) {
+            state.settings.cruiseStageGroupScrollLefts = {};
+        }
+        if (
+            !state.settings.cruiseStageClearCounts ||
+            typeof state.settings.cruiseStageClearCounts !== 'object' ||
+            Array.isArray(state.settings.cruiseStageClearCounts)
+        ) {
+            state.settings.cruiseStageClearCounts = {};
+        }
+        // PROカスタムSTAGE: 旧シングル保存(cruiseProCustomStage) → 配列(cruiseProCustomStages) へマイグレーション
+        if (!Array.isArray(state.settings.cruiseProCustomStages)) {
+            state.settings.cruiseProCustomStages = [];
+        }
+        const legacySingleStage = state.settings.cruiseProCustomStage
+            ? normalizeProCustomStageSettings(state.settings.cruiseProCustomStage)
+            : null;
+        if (legacySingleStage) {
+            // 既に配列にあるかチェック（id が一致するかで判定。なければ id を付与して追加）
+            const alreadyMigrated = state.settings.cruiseProCustomStages.some(s => s && legacySingleStage.id && s.id === legacySingleStage.id);
+            if (!alreadyMigrated) {
+                if (!legacySingleStage.id) legacySingleStage.id = generateProCustomStageId();
+                state.settings.cruiseProCustomStages.unshift(legacySingleStage);
+            }
+        }
+        state.settings.cruiseProCustomStage = null;
+        // 配列の各要素を normalize し、id 重複や id 欠落を整える
+        const seenIds = new Set();
+        state.settings.cruiseProCustomStages = state.settings.cruiseProCustomStages
+            .map(s => normalizeProCustomStageSettings(s))
+            .filter(Boolean)
+            .map(s => {
+                let id = s.id;
+                if (!id || seenIds.has(id)) id = generateProCustomStageId();
+                seenIds.add(id);
+                return { ...s, id };
+            })
+            .slice(0, PRO_CUSTOM_STAGE_MAX_SAVED);
+        if (!Array.isArray(state.settings.quizProCustomStages)) {
+            state.settings.quizProCustomStages = [];
+        }
+        const seenQuizIds = new Set();
+        state.settings.quizProCustomStages = state.settings.quizProCustomStages
+            .map(stage => normalizeProCustomQuizStageSettings(stage))
+            .filter(Boolean)
+            .map(stage => {
+                let id = stage.id;
+                if (!id || seenQuizIds.has(id)) id = generateProCustomStageId();
+                seenQuizIds.add(id);
+                return { ...stage, id };
+            })
+            .slice(0, PRO_CUSTOM_STAGE_MAX_SAVED);
+        if (
+            !state.settings.quizStageEditorSettings ||
+            typeof state.settings.quizStageEditorSettings !== 'object' ||
+            Array.isArray(state.settings.quizStageEditorSettings)
+        ) {
+            state.settings.quizStageEditorSettings = {};
+        }
+        if (
+            !state.settings.quizStageAttemptCounts ||
+            typeof state.settings.quizStageAttemptCounts !== 'object' ||
+            Array.isArray(state.settings.quizStageAttemptCounts)
+        ) {
+            state.settings.quizStageAttemptCounts = {};
+        }
+        if (
+            !state.settings.quizStagePerfectCounts ||
+            typeof state.settings.quizStagePerfectCounts !== 'object' ||
+            Array.isArray(state.settings.quizStagePerfectCounts)
+        ) {
+            state.settings.quizStagePerfectCounts = {};
+        }
+        if (
+            !state.routeEditor ||
+            typeof state.routeEditor !== 'object' ||
+            Array.isArray(state.routeEditor)
+        ) {
+            state.routeEditor = { stage: 1, draft: [], deleteMode: false, history: [], deletePicker: null, groupBreaks: [], groupNames: [], selectedGroupIndex: 0, showAllGroupsExpanded: false };
+        }
+        if (!Array.isArray(state.routeEditor.draft)) state.routeEditor.draft = [];
+        if (typeof state.routeEditor.stage !== 'number') state.routeEditor.stage = 1;
+        if (typeof state.routeEditor.deleteMode !== 'boolean') state.routeEditor.deleteMode = false;
+        if (!Array.isArray(state.routeEditor.history)) state.routeEditor.history = [];
+        if (state.routeEditor.deletePicker && typeof state.routeEditor.deletePicker !== 'object') {
+            state.routeEditor.deletePicker = null;
+        }
+        if (!Array.isArray(state.routeEditor.groupBreaks)) state.routeEditor.groupBreaks = [];
+        if (!Array.isArray(state.routeEditor.groupNames)) state.routeEditor.groupNames = [];
+        if (typeof state.routeEditor.selectedGroupIndex !== 'number') state.routeEditor.selectedGroupIndex = 0;
+        if (!Array.isArray(state.routeEditor.visibleGroupIndices)) state.routeEditor.visibleGroupIndices = [];
+        if (typeof state.routeEditor.forceHideAllGroups !== 'boolean') state.routeEditor.forceHideAllGroups = false;
+        if (typeof state.routeEditor.showAllGroupsExpanded !== 'boolean') state.routeEditor.showAllGroupsExpanded = false;
+        if (!state.routeEditor.groupPanelOffset || typeof state.routeEditor.groupPanelOffset !== 'object') {
+            state.routeEditor.groupPanelOffset = { x: 0, y: 0 };
+        }
+        state.proCustomRouteEditor = normalizeProCustomEditorState(state.proCustomRouteEditor);
+        state.proCustomQuizEditor = normalizeProCustomQuizEditorState(state.proCustomQuizEditor);
+        if (
+            !state.quizEditor ||
+            typeof state.quizEditor !== 'object' ||
+            Array.isArray(state.quizEditor)
+        ) {
+            state.quizEditor = {
+                stage: 1,
+                groups: [{ notes: [], scrollLeft: 0 }],
+                selectedGroupIndex: 0,
+                groupPanelOffset: { x: 0, y: 0 },
+                history: [],
+                showAllGroupsExpanded: false,
+                visibleGroupIndices: [],
+                forceHideAllGroups: false
+            };
+        }
+        if (!Array.isArray(state.quizEditor.groups)) state.quizEditor.groups = [{ notes: [], scrollLeft: null }];
+        if (typeof state.quizEditor.stage !== 'number') state.quizEditor.stage = 1;
+        if (typeof state.quizEditor.selectedGroupIndex !== 'number') state.quizEditor.selectedGroupIndex = 0;
+        if (!Array.isArray(state.quizEditor.history)) state.quizEditor.history = [];
+        if (!Array.isArray(state.quizEditor.visibleGroupIndices)) state.quizEditor.visibleGroupIndices = [];
+        if (typeof state.quizEditor.forceHideAllGroups !== 'boolean') state.quizEditor.forceHideAllGroups = false;
+        if (typeof state.quizEditor.showAllGroupsExpanded !== 'boolean') state.quizEditor.showAllGroupsExpanded = false;
+        if (!state.quizEditor.groupPanelOffset || typeof state.quizEditor.groupPanelOffset !== 'object') {
+            state.quizEditor.groupPanelOffset = { x: 0, y: 0 };
+        }
+        if (state.quizEditorPreview !== null && (typeof state.quizEditorPreview !== 'object' || Array.isArray(state.quizEditorPreview))) {
+            state.quizEditorPreview = null;
+        }
+        if (
+            state.quizEditorPreview &&
+            (!Number.isFinite(state.quizEditorPreview.stage) || !Array.isArray(state.quizEditorPreview.groups))
+        ) {
+            state.quizEditorPreview = null;
+        }
+        if (migrateCruiseStageNumberingIfNeeded()) {
+            saveState();
+        }
+    } catch (e) {}
+}
+
+if (state.settings.neckModelVersion !== FRETBOARD_NECK_MODEL_VERSION) {
+    if (state.settings.viewMode === 'front' || (state.settings.perspective === 0 && state.settings.perspOriginX === 0)) {
+        state.settings.rotation = { ...DEFAULT_ROTATION };
+        state.settings.perspective = DEFAULT_VERTICAL_PERSPECTIVE;
+        state.settings.perspOriginX = DEFAULT_HORIZONTAL_PERSPECTIVE;
+    }
+    state.settings.neckModelVersion = FRETBOARD_NECK_MODEL_VERSION;
+}
+
+if (state.settings.viewMode === 'front') {
+    state.settings.rotation = { ...DEFAULT_ROTATION };
+}
+state.settings.viewMode = 'custom';
+
+// 配布前の片方向上書き：指板クイズ STAGE 1〜6 を公式デフォルトで強制セット
+if (applyShippedDefaultQuizSettingsForcefullyIfNeeded()) {
+    try { localStorage.setItem('fretboard_cruise_state', JSON.stringify(state)); } catch (e) {}
+}
+
+// 配布前の片方向上書き：指板をたどる STAGE 1〜6 のルート／Gr／グループ位置を公式デフォルトで強制セット
+if (applyShippedDefaultCruiseSettingsForcefullyIfNeeded()) {
+    try { localStorage.setItem('fretboard_cruise_state', JSON.stringify(state)); } catch (e) {}
+}
+
+function isProEdition() {
+    return document.documentElement?.dataset?.appEdition === 'Pro';
+}
+
+function isStandardEdition() {
+    return !isProEdition();
+}
+
+function getFeatureAccess() {
+    const pro = isProEdition();
+    return {
+        canUseAllCruiseStages: true,
+        canUseAllQuizStages: true,
+        canUseVisualizeAllKeys: pro,
+        canOpenEditors: true,
+        canEditInEditors: true,
+        canPersistPracticeContent: pro,
+        canPlayEditorDemo: pro
+    };
+}
+
+function showProLockNotice(featureName) {
+    const messages = {
+        save: 'この保存はPRO版でお使いいただけます',
+        settings: '設定の変更はPRO版でお使いいただけます',
+        visualizeKey: 'このキーはPRO版でお使いいただけます',
+        demoPlayback: 'PROカスタムのデモ再生はPRO版でお使いいただけます'
+    };
+    window.alert(messages[featureName] || 'この機能はPRO版でお使いいただけます');
+}
+
+function guardProPersistentSave(featureName = 'save') {
+    if (getFeatureAccess().canPersistPracticeContent) return true;
+    showProLockNotice(featureName);
+    return false;
+}
+
+/** 無料版向け：ページ上部の案内（HTML 断片）。 */
+const STANDARD_NOTICE_SETTINGS =
+    '無料版では設定内容を確認できます。変更はPRO版でご利用いただけます';
+const STANDARD_NOTICE_ROUTE_EDITOR =
+    '編集の体験は無料版でもご利用いただけます。保存機能はPRO版でご利用いただけます';
+const STANDARD_NOTICE_QUIZ_EDITOR =
+    'クイズ編集の体験は無料版でもご利用いただけます。保存機能はPRO版でご利用いただけます';
+/** 無料版：PROカスタム（編集画面・デモ中のメモライズ）向け。デモは可能・保存のみPROと伝える */
+const STANDARD_NOTICE_PRO_CUSTOM_STAGE_EDITOR =
+    'PROカスタムSTAGEは、無料版でも編集とデモ体験ができます。保存はPRO版でご利用いただけます。';
+const STANDARD_NOTICE_VISUALIZE =
+    '無料版ではキーCをご利用いただけます。その他のキーはPRO版でご利用いただけます';
+
+function standardEditionNoticeHtml(message) {
+    if (!isStandardEdition() || !message) return '';
+    const dotIdx = message.indexOf('。');
+    let inner;
+    if (dotIdx !== -1 && dotIdx < message.length - 1) {
+        const first   = escapeHtml(message.slice(0, dotIdx + 1));
+        const restRaw = message.slice(dotIdx + 1).trim();
+        const rest    = escapeHtml(restRaw.endsWith('。') ? restRaw : restRaw + '。');
+        inner = `<span>${first}</span><br><span>${rest}</span>`;
+    } else {
+        inner = escapeHtml(message);
+    }
+    return `<div class="fretboard-edition-notice" role="note">${inner}</div>`;
+}
+
+/** 通常版の設定画面：変更を拒否し案内する（true = 操作可） */
+function guardStandardSettingsMutation() {
+    if (!isStandardEdition()) return true;
+    showProLockNotice('settings');
+    return false;
+}
+
+function settingsButtonHtml(id) {
+    return `<button class="icon-btn home-settings-btn" id="${id}" aria-label="設定">⚙️</button>`;
+}
+
+function homeInfoButtonHtml() {
+    const edition = isProEdition() ? 'pro' : 'standard';
+    return `<a class="icon-btn fret-info-home-btn" href="../info.html?from=home&edition=${edition}" aria-label="インフォメーション" title="インフォメーション">i</a>`;
+}
+
+function isEditorDemoPlayback() {
+    const returnCourse = state.memorize?.demoReturnCourse;
+    return (
+        state.memorize?.isDemoPlayback === true &&
+        (returnCourse === 'routeEditor' || returnCourse === 'quizEditor' || returnCourse === 'proCustomRouteEditor' || returnCourse === 'proCustomQuizEditor')
+    );
+}
+
+function canRunEditorDemoPlayback() {
+    // 編集デモの再生・操作は無料版でも可。永続保存は guardProPersistentSave で別途ブロックする。
+    return true;
+}
+
+function guardEditorDemoPlayback() {
+    return true;
+}
+
+/** 通常版：公式 STAGE の編集画面を離れたらメモリ上の下書きを捨てる（localStorage は触らない） */
+function resetStandardRouteEditorScratchInMemory() {
+    if (!isStandardEdition()) return;
+    routeEditorPendingGroupScrollLefts.clear();
+    state.routeEditor = {
+        stage: 1,
+        draft: [],
+        deleteMode: false,
+        history: [],
+        deletePicker: null,
+        groupBreaks: [],
+        groupNames: [],
+        selectedGroupIndex: 0,
+        visibleGroupIndices: [],
+        forceHideAllGroups: false,
+        showAllGroupsExpanded: false,
+        groupPanelOffset: { x: 0, y: 0 }
+    };
+}
+
+function resetStandardQuizEditorScratchInMemory() {
+    if (!isStandardEdition()) return;
+    state.quizEditor = {
+        stage: 1,
+        groups: [{ notes: [], scrollLeft: 0 }],
+        selectedGroupIndex: 0,
+        groupPanelOffset: { x: 0, y: 0 },
+        history: [],
+        showAllGroupsExpanded: false,
+        visibleGroupIndices: [],
+        forceHideAllGroups: false
+    };
+}
+
+function resetStandardProCustomRouteEditorScratchInMemory() {
+    if (!isStandardEdition()) return;
+    const base = getDefaultProCustomStageSettings();
+    state.proCustomRouteEditor = normalizeProCustomEditorState({
+        draft: base.route,
+        history: [],
+        groupBreaks: base.groupBreaks,
+        groupNames: base.groupNames,
+        selectedGroupIndex: 0,
+        visibleGroupIndices: [0],
+        forceHideAllGroups: false,
+        showAllGroupsExpanded: false,
+        groupPanelOffset: { x: 0, y: 0 },
+        name: base.name,
+        key: base.key,
+        capo: base.capo,
+        scale: base.scale,
+        displayMode: base.displayMode,
+        doMode: base.doMode,
+        maxFret: base.maxFret,
+        scrollLefts: base.groupScrollLefts || {},
+        editingStageId: null
+    });
+}
+
+function resetStandardProCustomQuizEditorScratchInMemory() {
+    if (!isStandardEdition()) return;
+    const base = getDefaultProCustomQuizStageSettings();
+    state.proCustomQuizEditor = normalizeProCustomQuizEditorState({
+        groups: normalizeProCustomQuizGroups(base.groups),
+        selectedGroupIndex: 0,
+        groupPanelOffset: { x: 0, y: 0 },
+        history: [],
+        showAllGroupsExpanded: false,
+        visibleGroupIndices: [0],
+        forceHideAllGroups: false,
+        name: base.name,
+        key: base.key,
+        capo: base.capo,
+        scale: base.scale,
+        displayMode: base.displayMode,
+        doMode: base.doMode,
+        maxFret: base.maxFret,
+        editingStageId: null
+    });
+}
+
+/** 固定STAGEの編集デモから「この設定で保存」。無料版は guard で中断し画面はそのまま。 */
+function tryPersistOfficialEditorDemoSaveFromMemorize() {
+    if (!guardProPersistentSave('save')) return;
+    const course = state.memorize.demoReturnCourse;
+    if (course === 'routeEditor') {
+        const stage = clamp(
+            parseInt(state.memorize.demoReturnStage, 10) || parseInt(state.routeEditor?.stage, 10) || 1,
+            1,
+            6
+        );
+        stopRhythm();
+        stopQuizTimer();
+        clearStage1RepeatHintState();
+        pushRouteEditorHistory(stage);
+        if (!state.settings.cruiseStageRoutes) state.settings.cruiseStageRoutes = {};
+        if (!state.settings.cruiseStageRouteGroups) state.settings.cruiseStageRouteGroups = {};
+        state.settings.cruiseStageRoutes[String(stage)] = state.routeEditor.draft
+            .map(normalizeCruiseRouteSlot)
+            .filter(Boolean);
+        state.settings.cruiseStageRouteGroups[String(stage)] = state.routeEditor.groupBreaks.slice();
+        state.memorize.isDemoPlayback = false;
+        state.memorize.demoReturnCourse = null;
+        state.memorize.demoReturnStage = null;
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+        return;
+    }
+    if (course === 'quizEditor') {
+        const stage = clamp(
+            parseInt(state.memorize.demoReturnStage, 10) || parseInt(state.quizEditor?.stage, 10) || 1,
+            1,
+            6
+        );
+        stopRhythm();
+        stopQuizTimer();
+        cancelQuizScrollAnimation();
+        clearStage1RepeatHintState();
+        pushQuizEditorHistory(stage);
+        if (!saveQuizEditorSettings(stage, state.quizEditor.groups)) return;
+        state.quizEditorPreview = null;
+        state.memorize.isDemoPlayback = false;
+        state.memorize.demoReturnCourse = null;
+        state.memorize.demoReturnStage = null;
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    }
+}
+
+function canUseVisualizeKey(keyIndex) {
+    const normalized = clamp(parseInt(keyIndex, 10) || 0, 0, NOTES.length - 1);
+    return isProEdition() || normalized === 0;
+}
+
+function getEffectiveVisualizeKey() {
+    const savedKey = clamp(parseInt(state.visualize?.key, 10) || 0, 0, NOTES.length - 1);
+    return canUseVisualizeKey(savedKey) ? savedKey : 0;
+}
+
+function getStateForPersistence() {
+    if (isProEdition()) return state;
+    const persistent = JSON.parse(JSON.stringify(state));
+    if (persistent.routeEditor) {
+        persistent.routeEditor.draft = [];
+        persistent.routeEditor.history = [];
+        persistent.routeEditor.groupBreaks = [];
+        persistent.routeEditor.groupNames = [];
+    }
+    if (persistent.quizEditor) {
+        persistent.quizEditor.groups = [{ notes: [], scrollLeft: null }];
+        persistent.quizEditor.history = [];
+    }
+    if (persistent.proCustomRouteEditor) {
+        persistent.proCustomRouteEditor.draft = [];
+        persistent.proCustomRouteEditor.history = [];
+        persistent.proCustomRouteEditor.groupBreaks = [0];
+        persistent.proCustomRouteEditor.groupNames = ['Gr.1'];
+        persistent.proCustomRouteEditor.scrollLefts = {};
+    }
+    if (persistent.proCustomQuizEditor) {
+        persistent.proCustomQuizEditor.groups = [{ notes: [], scrollLeft: null }];
+        persistent.proCustomQuizEditor.history = [];
+    }
+    const demoReturnCourse = persistent.memorize?.demoReturnCourse;
+    if (
+        persistent.memorize?.isDemoPlayback === true &&
+        (demoReturnCourse === 'routeEditor' || demoReturnCourse === 'quizEditor' || demoReturnCourse === 'proCustomRouteEditor' || demoReturnCourse === 'proCustomQuizEditor')
+    ) {
+        persistent.memorize.cruiseTargets = [];
+        persistent.memorize.cruiseScope = [];
+        persistent.memorize.cruiseGroupIndices = [];
+        persistent.memorize.currentQuestion = null;
+        persistent.memorize.proCustomCruise = null;
+        persistent.memorize.proCustomQuiz = null;
+        persistent.memorize.isCruisePlaying = false;
+        persistent.memorize.cruiseCountdown = 0;
+    }
+    persistent.quizEditorPreview = null;
+    return persistent;
+}
+
+function saveState() {
+    localStorage.setItem('fretboard_cruise_state', JSON.stringify(getStateForPersistence()));
+}
+
+function blurActiveElement() {
+    const active = document.activeElement;
+    if (active && typeof active.blur === 'function') {
+        active.blur();
+    }
+}
+
+function clearStage1RepeatHintState() {
+    state.memorize.stage1IsContinuedRepeat = false;
+}
+
+function markRuleStepCompleted(step) {
+    const doneStep = clamp(parseInt(step, 10), 1, 5);
+    if (!state.rules.completedSteps || typeof state.rules.completedSteps !== 'object' || Array.isArray(state.rules.completedSteps)) {
+        state.rules.completedSteps = {};
+    }
+    state.rules.completedSteps[String(doneStep)] = true;
+}
+
+function getFretboardViewForWindowOrientation() {
+    return window.innerWidth > window.innerHeight ? 'full' : 'zoom';
+}
+
+/**
+ * 横画面の「指板をたどる / 指板クイズ」問題画面: 下余白と全幅指板用。
+ * 拡大ビュー/全体ビューに関わらず、横画面なら同じ（従来の全体ビューに近い）レイアウトに揃える。
+ */
+function getCruiseLandscapeLayoutConfig() {
+    if (typeof window === 'undefined') return { active: false };
+    const land = window.innerWidth > window.innerHeight;
+    const inMemorize = state.course === 'memorize';
+    if (!(land && inMemorize)) return { active: false };
+    return {
+        active: true,
+        // cruiseControls bottom:max(16,safe) + 高さ48 にちょうど収まる
+        paddingBottomCss: 'calc(max(16px, env(safe-area-inset-bottom)) + 48px)',
+        useFullViewportWidth: true,
+        bottomClearOverride: 28
+    };
+}
+
+function getSafeAreaInsetPx(side) {
+    const raw = getComputedStyle(document.documentElement)
+        .getPropertyValue(`--safe-area-inset-${side}`)
+        .trim();
+    const value = parseFloat(raw);
+    return Number.isFinite(value) ? value : 0;
+}
+
+/**
+ * 指板をたどる／指板クイズ・横画面・全体ビュー:
+ * 内部 DOM は常に全フレット幅（FRETBOARD_WIDTH）を持つため、ラッパーに対して
+ * scrollWidth > clientWidth になり横スワイプで scrollLeft がずれる（左にしか見えない状態になる）。
+ * STAGE の表示上限（例 0〜12F）は投影・スケールで画面に収めているので、横スクロールは不要。
+ * 常に scrollLeft=0（開放弦側固定）にし、横方向のパンを無効にする。
+ * クイズも全体ビューでは編集設定どおりの範囲を固定表示し、自動スクロールしない。
+ */
+function shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId) {
+    if (typeof window === 'undefined') return false;
+    if (mode !== 'memorize' || containerId !== 'fretboard-container') return false;
+    if (!state.memorize) return false;
+    if (state.memorize.playMode !== 'cruise' && state.memorize.playMode !== 'quiz') return false;
+    return window.innerWidth > window.innerHeight;
+}
+
+function applyMemorizeCruiseLandscapeFullScrollLock(scrollWrapper, mode, containerId) {
+    if (!scrollWrapper || !scrollWrapper.isConnected) return;
+    if (!shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId)) return;
+    scrollWrapper.scrollLeft = 0;
+    scrollWrapper.style.overflowX = 'hidden';
+    scrollWrapper.style.overflowY = 'hidden';
+    scrollWrapper.style.overscrollBehaviorX = 'none';
+    scrollWrapper.style.touchAction = 'pan-y';
+}
+
+function ensureMemorizeCruiseLandscapeFullScrollLockListener(scrollWrapper, mode, containerId) {
+    if (!scrollWrapper || scrollWrapper.dataset.cruiseFullScrollLockListener === '1') return;
+    scrollWrapper.dataset.cruiseFullScrollLockListener = '1';
+    scrollWrapper.addEventListener(
+        'scroll',
+        () => {
+            if (!shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId)) return;
+            if (scrollWrapper.scrollLeft !== 0) scrollWrapper.scrollLeft = 0;
+        },
+        { passive: true }
+    );
+}
+
+/** 横画面の指板クイズでは保存された scrollLeft を使わない（全体が画面に収まる・ロックと一致） */
+function shouldQuizLandscapeSkipSavedScrollLeft() {
+    if (typeof window === 'undefined') return false;
+    if (!state.memorize || state.memorize.playMode !== 'quiz') return false;
+    return window.innerWidth > window.innerHeight;
+}
+
+/* ============================================================
+ * 指板クイズ・横画面: 解答時の横ズレ対策
+ * ------------------------------------------------------------
+ * 現象: 解答表示時に containerEl.style.left が再計算されて、
+ *       指板コンテナ全体が水平方向に数〜十数px ジャンプして見える。
+ * 原因: 親レイアウトの高さがほんの少し変わると
+ *       getBoundingClientRect().left の読み取り値が変わるため、
+ *       「親位置を打ち消す left 補正値」が問題画面と解答画面で違う値になる。
+ * 対策: 同じ問題の間は最初の left を覚えておき、再描画でもその値を使い回す。
+ *       問題が変わったタイミング（generateQuestion）でキャッシュを破棄する。
+ * ============================================================ */
+let _memorizeQuizLeftFreezeCache = null;
+
+function shouldFreezeMemorizeQuizContainerLeft() {
+    if (typeof window === 'undefined') return false;
+    if (!state.memorize) return false;
+    if (state.memorize.playMode !== 'quiz') return false;
+    return window.innerWidth > window.innerHeight;
+}
+
+function getMemorizeQuizQuestionKey() {
+    const q = state?.memorize?.currentQuestion;
+    if (!q) return null;
+    return `${q.stringIdx}_${q.fret}_${q.noteIdx ?? ''}`;
+}
+
+function clearMemorizeQuizLeftFreezeCache() {
+    _memorizeQuizLeftFreezeCache = null;
+}
+
+/** 全体ビュー時のカメラ設定を一時保存（拡大ビュー切替時に呼ぶ） */
+function snapshotFullViewSettings() {
+    state.settings.fullViewSnapshot = {
+        rotation: { ...(state.settings.rotation || DEFAULT_ROTATION) },
+        perspective: state.settings.perspective,
+        perspOriginX: state.settings.perspOriginX,
+        stringSpacing: state.settings.stringSpacing,
+        viewMode: state.settings.viewMode
+    };
+}
+
+/** 拡大ビュー → 全体ビュー復帰時にスナップショットを戻す */
+function restoreFullViewSettings() {
+    const snap = state.settings.fullViewSnapshot;
+    if (!snap) return;
+    state.settings.rotation = { ...DEFAULT_ROTATION, ...(snap.rotation || {}) };
+    state.settings.perspective = typeof snap.perspective === 'number' ? snap.perspective : DEFAULT_VERTICAL_PERSPECTIVE;
+    state.settings.perspOriginX = typeof snap.perspOriginX === 'number' ? snap.perspOriginX : DEFAULT_HORIZONTAL_PERSPECTIVE;
+    state.settings.stringSpacing = typeof snap.stringSpacing === 'number' ? snap.stringSpacing : DEFAULT_STRING_SPACING;
+    state.settings.viewMode = snap.viewMode || 'custom';
+}
+
+/** 拡大ビュー：常に正面カメラに固定 */
+function applyFrontCameraPresetForZoom() {
+    state.settings.rotation = { ...DEFAULT_ROTATION };
+    state.settings.perspective = DEFAULT_VERTICAL_PERSPECTIVE;
+    state.settings.perspOriginX = DEFAULT_HORIZONTAL_PERSPECTIVE;
+    state.settings.stringSpacing = DEFAULT_STRING_SPACING;
+    state.settings.viewMode = 'front';
+}
+
+/** fretboardView を切替。拡大に入る時は正面に固定、戻る時はスナップショット復元。 */
+function setFretboardView(nextView) {
+    if (nextView !== 'full' && nextView !== 'zoom') return false;
+    const cur = state.settings.fretboardView;
+    if (cur === nextView) return false;
+    if (nextView === 'zoom') {
+        snapshotFullViewSettings();
+        applyFrontCameraPresetForZoom();
+    } else {
+        restoreFullViewSettings();
+    }
+    state.settings.fretboardView = nextView;
+    return true;
+}
+
+/** 向き自動モードのとき、必要なら fretboardView を更新。変更があれば true */
+function applyFretboardViewFromOrientationIfAuto() {
+    if (!state.settings || !state.settings.fretboardViewAutoOrientation) return false;
+    const next = getFretboardViewForWindowOrientation();
+    if (state.settings.fretboardView !== next) {
+        return setFretboardView(next);
+    }
+    return false;
+}
+
+let _fretboardOrientationApplyTimer = null;
+let _lastFretboardOrientationLand =
+    typeof window !== 'undefined' ? window.innerWidth > window.innerHeight : null;
+function scheduleApplyFretboardViewFromOrientation() {
+    if (_fretboardOrientationApplyTimer) clearTimeout(_fretboardOrientationApplyTimer);
+    _fretboardOrientationApplyTimer = setTimeout(() => {
+        _fretboardOrientationApplyTimer = null;
+        const land = window.innerWidth > window.innerHeight;
+        const orientationFlipped =
+            _lastFretboardOrientationLand !== null && _lastFretboardOrientationLand !== land;
+        _lastFretboardOrientationLand = land;
+        const autoChanged = applyFretboardViewFromOrientationIfAuto();
+        if (autoChanged) saveState();
+        // 自動切替がオフでも、向きが切り替わったタイミングでは
+        // 「全体／拡大」の見た目のサイズを各向き用に計算し直す必要がある。
+        // → memorize/routeEditor/PROカスタム（たどる・クイズ）は従来どおり常に再描画。
+        //   その他の指板表示画面は、向きが反転したタイミングで再描画する。
+        const fretboardScreen =
+            state.course === 'settings' ||
+            state.course === 'visualize' ||
+            state.course === 'ruleSelect' ||
+            state.course === 'basicRules' ||
+            state.course === 'basicRuleStep';
+        if (
+            state.course === 'memorize' ||
+            state.course === 'routeEditor' ||
+            state.course === 'quizEditor' ||
+            state.course === 'proCustomRouteEditor' ||
+            state.course === 'proCustomQuizEditor'
+        ) {
+            tryRenderApp('orientation');
+        } else if (
+            state.course === 'stageSelect' &&
+            orientationFlipped
+        ) {
+            tryRenderApp('orientation');
+        } else if (fretboardScreen && (autoChanged || orientationFlipped)) {
+            tryRenderApp('orientation');
+        }
+    }, 120);
+}
+
+function initFretboardViewOrientationListeners() {
+    if (initFretboardViewOrientationListeners._done) return;
+    initFretboardViewOrientationListeners._done = true;
+    window.addEventListener('orientationchange', () => setTimeout(scheduleApplyFretboardViewFromOrientation, 200));
+    window.addEventListener('resize', scheduleApplyFretboardViewFromOrientation);
+}
+initFretboardViewOrientationListeners();
+
+function getDefaultSettings() {
+    return {
+        tempo: DEFAULT_TEMPO,
+        quizTimeLimit: DEFAULT_QUIZ_TIME_LIMIT,
+        quizQuestionLimit: DEFAULT_QUIZ_QUESTION_LIMIT,
+        stringSpacing: DEFAULT_STRING_SPACING,
+        noteLabelMode: 'solfege',
+        viewMode: 'custom',
+        rotation: { ...DEFAULT_ROTATION },
+        perspective: DEFAULT_VERTICAL_PERSPECTIVE,
+        perspOriginX: DEFAULT_HORIZONTAL_PERSPECTIVE,
+        fretboardView: DEFAULT_FRETBOARD_VIEW,
+        fretboardViewAutoOrientation: DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION,
+        cruiseLoopCount: DEFAULT_CRUISE_LOOP_COUNT,
+        cruiseShowNoteNames: DEFAULT_CRUISE_SHOW_NOTE_NAMES,
+        cruiseProgression: DEFAULT_CRUISE_PROGRESSION,
+        cruiseTapBeats: DEFAULT_CRUISE_TAP_BEATS,
+        bluetoothRhythmAssistLevel: DEFAULT_BLUETOOTH_RHYTHM_ASSIST_LEVEL,
+        cruiseConfirmSoundTiming: DEFAULT_CRUISE_CONFIRM_SOUND_TIMING,
+        cruiseRhythmSoundType: DEFAULT_CRUISE_RHYTHM_SOUND_TYPE,
+        cruiseRhythmVolume: DEFAULT_CRUISE_RHYTHM_VOLUME,
+        cruiseRhythmKickVolume:  DEFAULT_CRUISE_RHYTHM_KICK_VOLUME,
+        cruiseRhythmSnareVolume: DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME,
+        cruiseRhythmHatVolume:   DEFAULT_CRUISE_RHYTHM_HAT_VOLUME,
+        cruiseStageRoutes: {},
+        cruiseStageRouteGroups: {},
+        cruiseStageGroupScrollLefts: {},
+        cruiseProCustomStage: null,
+        cruiseProCustomStages: [],
+        quizProCustomStages: [],
+        cruiseStageClearCounts: {},
+        lastSettingsTab: 'cruise',
+        /** 指板クイズ・問題編集の保存（⚙️デフォルト復元でも消さない） */
+        quizStageEditorSettings: {},
+        /** 指板クイズ・STAGE 別の挑戦回数（⚙️デフォルト復元でも消さない） */
+        quizStageAttemptCounts: {},
+        /** 指板クイズ・STAGE 別の満点達成回数（⚙️デフォルト復元でも消さない） */
+        quizStagePerfectCounts: {},
+        routeNumberingVersion: 2,
+        neckModelVersion: FRETBOARD_NECK_MODEL_VERSION
+    };
+}
+
+function cloneSettings(settings) {
+    return {
+        ...settings,
+        rotation: { ...(settings.rotation || DEFAULT_ROTATION) },
+        cruiseStageRoutes: JSON.parse(JSON.stringify(settings.cruiseStageRoutes || {})),
+        cruiseStageRouteGroups: JSON.parse(JSON.stringify(settings.cruiseStageRouteGroups || {})),
+        cruiseStageGroupScrollLefts: JSON.parse(JSON.stringify(settings.cruiseStageGroupScrollLefts || {})),
+        cruiseProCustomStage: settings.cruiseProCustomStage
+            ? JSON.parse(JSON.stringify(settings.cruiseProCustomStage))
+            : null,
+        cruiseProCustomStages: Array.isArray(settings.cruiseProCustomStages)
+            ? JSON.parse(JSON.stringify(settings.cruiseProCustomStages))
+            : [],
+        quizProCustomStages: Array.isArray(settings.quizProCustomStages)
+            ? JSON.parse(JSON.stringify(settings.quizProCustomStages))
+            : [],
+        cruiseStageClearCounts: JSON.parse(JSON.stringify(settings.cruiseStageClearCounts || {})),
+        quizStageEditorSettings: JSON.parse(JSON.stringify(settings.quizStageEditorSettings || {})),
+        quizStageAttemptCounts: JSON.parse(JSON.stringify(settings.quizStageAttemptCounts || {})),
+        quizStagePerfectCounts: JSON.parse(JSON.stringify(settings.quizStagePerfectCounts || {}))
+    };
+}
+
+function getDefaultProCustomStageDraft() {
+    return [];
+}
+
+/** PROカスタムSTAGE は複数件保存可能。上限件数。 */
+const PRO_CUSTOM_STAGE_MAX_SAVED = 12;
+
+function generateProCustomStageId() {
+    const ts = Date.now().toString(36);
+    const rand = Math.floor(Math.random() * 0xffffff).toString(36).padStart(4, '0');
+    return `pcs_${ts}_${rand}`;
+}
+
+function getDefaultProCustomStageSettings() {
+    return {
+        id: null,
+        name: PRO_CUSTOM_STAGE_DEFAULT_NAME,
+        key: 0,
+        capo: 0,
+        scale: 'major',
+        displayMode: 'solfege',
+        doMode: 'movable',
+        maxFret: PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET,
+        route: getDefaultProCustomStageDraft(),
+        groupBreaks: [0],
+        groupNames: ['Gr.1'],
+        groupScrollLefts: {}
+    };
+}
+
+function normalizeProCustomStageSettings(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const defaults = getDefaultProCustomStageSettings();
+    const route = cloneCruiseRouteSlots(raw.route || raw.draft || []);
+    const groupBreaks = normalizeRouteEditorGroupBreaks(raw.groupBreaks, route.length);
+    const scale = PRO_CUSTOM_SCALE_KEYS.includes(raw.scale) ? raw.scale : defaults.scale;
+    const displayMode = ['solfege', 'note', 'degree'].includes(raw.displayMode) ? raw.displayMode : defaults.displayMode;
+    const doMode = raw.doMode === 'fixed' ? 'fixed' : 'movable';
+    const maxFret = Number.isFinite(parseInt(raw.maxFret, 10))
+        ? clamp(parseInt(raw.maxFret, 10), PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, MAX_FRET)
+        : (raw.showExtendedFrets ? MAX_FRET : PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET);
+    const groupCount = Math.max(1, buildRouteEditorGroupsFromBreaks(route, groupBreaks.length ? groupBreaks : [0]).length);
+    const groupNames = Array.isArray(raw.groupNames)
+        ? raw.groupNames.slice(0, groupCount).map((name, index) => {
+            const text = String(name || '').trim();
+            return text || `Gr.${index + 1}`;
+        })
+        : [];
+    while (groupNames.length < groupCount) groupNames.push(`Gr.${groupNames.length + 1}`);
+    const rawScrolls = raw.groupScrollLefts && typeof raw.groupScrollLefts === 'object' && !Array.isArray(raw.groupScrollLefts)
+        ? raw.groupScrollLefts
+        : {};
+    const groupScrollLefts = {};
+    Object.keys(rawScrolls).forEach(key => {
+        const index = parseInt(key, 10);
+        const value = parseInt(rawScrolls[key], 10);
+        if (Number.isFinite(index) && index >= 0 && index < PRO_CUSTOM_STAGE_MAX_GROUPS && Number.isFinite(value) && value >= 0) {
+            groupScrollLefts[String(index)] = Math.round(value);
+        }
+    });
+    return {
+        id: typeof raw.id === 'string' && raw.id ? raw.id : null,
+        name: String(raw.name || defaults.name).trim() || defaults.name,
+        key: clamp(parseInt(raw.key, 10) || 0, 0, NOTES.length - 1),
+        capo: clamp(parseInt(raw.capo, 10) || 0, 0, 7),
+        scale,
+        displayMode,
+        doMode,
+        maxFret,
+        route,
+        groupBreaks: groupBreaks.length ? groupBreaks : [0],
+        groupNames,
+        groupScrollLefts
+    };
+}
+
+/** 保存済みPROカスタムSTAGE一覧を取得（normalize 済み・id 必須）。 */
+function getSavedProCustomStages() {
+    const arr = state.settings && Array.isArray(state.settings.cruiseProCustomStages)
+        ? state.settings.cruiseProCustomStages
+        : [];
+    return arr.map(s => normalizeProCustomStageSettings(s)).filter(Boolean);
+}
+
+function getSavedProCustomStageById(id) {
+    if (!id) return null;
+    return getSavedProCustomStages().find(s => s.id === id) || null;
+}
+
+/** 同名のSTAGEが存在するか判定（自分自身は除外する場合は excludeId を指定）。 */
+function proCustomStageNameExists(name, excludeId = null) {
+    const trimmed = String(name || '').trim();
+    if (!trimmed) return false;
+    return getSavedProCustomStages().some(s => s.id !== excludeId && s.name === trimmed);
+}
+
+/** 重複しないSTAGE名を自動生成（baseName / baseName (2) / baseName (3) ...）。 */
+function findFreshProCustomStageName(baseName) {
+    const baseRaw = String(baseName || PRO_CUSTOM_STAGE_DEFAULT_NAME).trim() || PRO_CUSTOM_STAGE_DEFAULT_NAME;
+    if (!proCustomStageNameExists(baseRaw)) return baseRaw;
+    for (let i = 2; i < 1000; i++) {
+        const candidate = `${baseRaw} (${i})`;
+        if (!proCustomStageNameExists(candidate)) return candidate;
+    }
+    return `${baseRaw} ${Date.now().toString(36)}`;
+}
+
+/** STAGEを保存（id あり：上書き／id なし：新規追加）。
+    上限超過の新規追加は null を返す。保存に成功したら最終的な stage オブジェクトを返す。 */
+function saveProCustomStageInArray(stage) {
+    if (isStandardEdition()) return null;
+    const incoming = normalizeProCustomStageSettings(stage);
+    if (!incoming) return null;
+    const stages = getSavedProCustomStages();
+    if (incoming.id) {
+        const idx = stages.findIndex(s => s.id === incoming.id);
+        if (idx >= 0) {
+            stages[idx] = incoming;
+        } else {
+            if (stages.length >= PRO_CUSTOM_STAGE_MAX_SAVED) return null;
+            stages.push(incoming);
+        }
+    } else {
+        if (stages.length >= PRO_CUSTOM_STAGE_MAX_SAVED) return null;
+        incoming.id = generateProCustomStageId();
+        stages.push(incoming);
+    }
+    state.settings.cruiseProCustomStages = stages;
+    return incoming;
+}
+
+/** STAGEを id 指定で削除。削除できたら true。 */
+function deleteProCustomStageById(id) {
+    if (isStandardEdition()) return false;
+    if (!id) return false;
+    const stages = getSavedProCustomStages();
+    const filtered = stages.filter(s => s.id !== id);
+    if (filtered.length === stages.length) return false;
+    state.settings.cruiseProCustomStages = filtered;
+    return true;
+}
+
+/** STAGEを複製（同名衝突を避けて「のコピー」を付ける）。上限到達なら null。 */
+function duplicateProCustomStage(id) {
+    const original = getSavedProCustomStageById(id);
+    if (!original) return null;
+    if (getSavedProCustomStages().length >= PRO_CUSTOM_STAGE_MAX_SAVED) return null;
+    const copyName = findFreshProCustomStageName(`${original.name} のコピー`);
+    return saveProCustomStageInArray({ ...original, id: null, name: copyName });
+}
+
+/** STAGE名のみを変更（同名衝突を防ぐ）。成功したら true。 */
+function renameProCustomStageById(id, newName) {
+    const trimmed = String(newName || '').trim();
+    if (!trimmed) return false;
+    if (proCustomStageNameExists(trimmed, id)) return false;
+    const cur = getSavedProCustomStageById(id);
+    if (!cur) return false;
+    return !!saveProCustomStageInArray({ ...cur, name: trimmed });
+}
+
+function getDefaultProCustomQuizStageSettings() {
+    return {
+        id: null,
+        name: PRO_CUSTOM_STAGE_DEFAULT_NAME,
+        key: 0,
+        capo: 0,
+        scale: 'major',
+        displayMode: 'solfege',
+        doMode: 'movable',
+        maxFret: PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET,
+        groups: [{ notes: [], scrollLeft: null }]
+    };
+}
+
+function normalizeProCustomQuizGroups(groups) {
+    const normalized = Array.isArray(groups) ? groups.slice(0, PRO_CUSTOM_STAGE_MAX_GROUPS).map((group, index) => ({
+        name: String(group?.name || `Gr.${index + 1}`).trim() || `Gr.${index + 1}`,
+        notes: (group?.notes || []).map(normalizeQuizNoteSlot).filter(Boolean),
+        scrollLeft: Number.isFinite(group?.scrollLeft) ? Math.max(0, Math.round(group.scrollLeft)) : null
+    })) : [];
+    return normalized.length ? normalized : [{ name: 'Gr.1', notes: [], scrollLeft: null }];
+}
+
+function normalizeProCustomQuizStageSettings(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const defaults = getDefaultProCustomQuizStageSettings();
+    const scale = PRO_CUSTOM_SCALE_KEYS.includes(raw.scale) ? raw.scale : defaults.scale;
+    const displayMode = ['solfege', 'note', 'degree'].includes(raw.displayMode) ? raw.displayMode : defaults.displayMode;
+    const doMode = raw.doMode === 'fixed' ? 'fixed' : 'movable';
+    const maxFret = Number.isFinite(parseInt(raw.maxFret, 10))
+        ? clamp(parseInt(raw.maxFret, 10), PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, MAX_FRET)
+        : PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET;
+    return {
+        id: typeof raw.id === 'string' && raw.id ? raw.id : null,
+        name: String(raw.name || defaults.name).trim() || defaults.name,
+        key: clamp(parseInt(raw.key, 10) || 0, 0, NOTES.length - 1),
+        capo: clamp(parseInt(raw.capo, 10) || 0, 0, 7),
+        scale,
+        displayMode,
+        doMode,
+        maxFret,
+        groups: normalizeProCustomQuizGroups(raw.groups)
+    };
+}
+
+function getSavedProCustomQuizStages() {
+    const arr = state.settings && Array.isArray(state.settings.quizProCustomStages)
+        ? state.settings.quizProCustomStages
+        : [];
+    return arr.map(stage => normalizeProCustomQuizStageSettings(stage)).filter(Boolean);
+}
+
+function getSavedProCustomQuizStageById(id) {
+    if (!id) return null;
+    return getSavedProCustomQuizStages().find(stage => stage.id === id) || null;
+}
+
+function proCustomQuizStageNameExists(name, excludeId = null) {
+    const trimmed = String(name || '').trim();
+    if (!trimmed) return false;
+    return getSavedProCustomQuizStages().some(stage => stage.id !== excludeId && stage.name === trimmed);
+}
+
+function findFreshProCustomQuizStageName(baseName) {
+    const baseRaw = String(baseName || PRO_CUSTOM_STAGE_DEFAULT_NAME).trim() || PRO_CUSTOM_STAGE_DEFAULT_NAME;
+    if (!proCustomQuizStageNameExists(baseRaw)) return baseRaw;
+    for (let i = 2; i < 1000; i++) {
+        const candidate = `${baseRaw} (${i})`;
+        if (!proCustomQuizStageNameExists(candidate)) return candidate;
+    }
+    return `${baseRaw} ${Date.now().toString(36)}`;
+}
+
+function saveProCustomQuizStageInArray(stage) {
+    if (isStandardEdition()) return null;
+    const incoming = normalizeProCustomQuizStageSettings(stage);
+    if (!incoming) return null;
+    const stages = getSavedProCustomQuizStages();
+    if (incoming.id) {
+        const idx = stages.findIndex(s => s.id === incoming.id);
+        if (idx >= 0) {
+            stages[idx] = incoming;
+        } else {
+            if (stages.length >= PRO_CUSTOM_STAGE_MAX_SAVED) return null;
+            stages.push(incoming);
+        }
+    } else {
+        if (stages.length >= PRO_CUSTOM_STAGE_MAX_SAVED) return null;
+        incoming.id = generateProCustomStageId();
+        stages.push(incoming);
+    }
+    state.settings.quizProCustomStages = stages;
+    return incoming;
+}
+
+function deleteProCustomQuizStageById(id) {
+    if (isStandardEdition()) return false;
+    if (!id) return false;
+    const stages = getSavedProCustomQuizStages();
+    const filtered = stages.filter(stage => stage.id !== id);
+    if (filtered.length === stages.length) return false;
+    state.settings.quizProCustomStages = filtered;
+    return true;
+}
+
+function duplicateProCustomQuizStage(id) {
+    const original = getSavedProCustomQuizStageById(id);
+    if (!original) return null;
+    if (getSavedProCustomQuizStages().length >= PRO_CUSTOM_STAGE_MAX_SAVED) return null;
+    const copyName = findFreshProCustomQuizStageName(`${original.name} のコピー`);
+    return saveProCustomQuizStageInArray({ ...original, id: null, name: copyName });
+}
+
+function renameProCustomQuizStageById(id, newName) {
+    const trimmed = String(newName || '').trim();
+    if (!trimmed) return false;
+    if (proCustomQuizStageNameExists(trimmed, id)) return false;
+    const cur = getSavedProCustomQuizStageById(id);
+    if (!cur) return false;
+    return !!saveProCustomQuizStageInArray({ ...cur, name: trimmed });
+}
+
+function normalizeProCustomEditorState(raw) {
+    /** 編集中STAGEがあればその保存済みデータを基底にする。新規作成中なら既定値。
+        万一 id が指す STAGE が削除されていた場合は editingStageId を null に戻す（誤って別 id で新規追加されないように）。 */
+    const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    const requestedId = typeof source.editingStageId === 'string' && source.editingStageId ? source.editingStageId : null;
+    const matchedStage = requestedId ? getSavedProCustomStageById(requestedId) : null;
+    const editingId = matchedStage ? requestedId : null;
+    const saved = matchedStage || getDefaultProCustomStageSettings();
+    const draft = cloneCruiseRouteSlots(source.draft || saved.route);
+    const groupBreaks = normalizeRouteEditorGroupBreaks(
+        Array.isArray(source.groupBreaks) ? source.groupBreaks : saved.groupBreaks,
+        draft.length
+    );
+    const groups = buildRouteEditorGroupsFromBreaks(draft, groupBreaks.length ? groupBreaks : [0]);
+    const groupCount = Math.max(1, groups.length);
+    const visibleGroupIndices = Array.isArray(source.visibleGroupIndices)
+        ? source.visibleGroupIndices.map(value => parseInt(value, 10)).filter(value => Number.isFinite(value) && value >= 0 && value < groupCount)
+        : [0];
+    const rawNames = Array.isArray(source.groupNames) ? source.groupNames : saved.groupNames;
+    const groupNames = Array.isArray(rawNames)
+        ? rawNames.slice(0, groupCount).map((name, index) => String(name || '').trim() || `Gr.${index + 1}`)
+        : [];
+    while (groupNames.length < groupCount) groupNames.push(`Gr.${groupNames.length + 1}`);
+    const scrollSource = source.scrollLefts && typeof source.scrollLefts === 'object' && !Array.isArray(source.scrollLefts)
+        ? source.scrollLefts
+        : saved.groupScrollLefts;
+    const scrollLefts = {};
+    Object.keys(scrollSource || {}).forEach(key => {
+        const index = parseInt(key, 10);
+        const value = parseInt(scrollSource[key], 10);
+        if (Number.isFinite(index) && index >= 0 && index < PRO_CUSTOM_STAGE_MAX_GROUPS && Number.isFinite(value) && value >= 0) {
+            scrollLefts[String(index)] = Math.round(value);
+        }
+    });
+    return {
+        draft,
+        history: Array.isArray(source.history) ? source.history : [],
+        groupBreaks: groupBreaks.length ? groupBreaks : [0],
+        groupNames,
+        selectedGroupIndex: clamp(parseInt(source.selectedGroupIndex ?? 0, 10) || 0, -1, groupCount - 1),
+        visibleGroupIndices: source.forceHideAllGroups ? [] : (visibleGroupIndices.length ? Array.from(new Set(visibleGroupIndices)).sort((a, b) => a - b) : [0]),
+        forceHideAllGroups: !!source.forceHideAllGroups,
+        showAllGroupsExpanded: !!source.showAllGroupsExpanded,
+        groupPanelOffset: normalizeRouteEditorGroupPanelOffset(source.groupPanelOffset),
+        name: String(source.name || saved.name || PRO_CUSTOM_STAGE_DEFAULT_NAME).trim() || PRO_CUSTOM_STAGE_DEFAULT_NAME,
+        key: clamp(parseInt(source.key ?? saved.key, 10) || 0, 0, NOTES.length - 1),
+        capo: clamp(parseInt(source.capo ?? saved.capo, 10) || 0, 0, 7),
+        scale: PRO_CUSTOM_SCALE_KEYS.includes(source.scale) ? source.scale : (PRO_CUSTOM_SCALE_KEYS.includes(saved.scale) ? saved.scale : 'major'),
+        displayMode: ['solfege', 'note', 'degree'].includes(source.displayMode) ? source.displayMode : saved.displayMode,
+        doMode: source.doMode === 'fixed' ? 'fixed' : saved.doMode === 'fixed' ? 'fixed' : 'movable',
+        maxFret: Number.isFinite(parseInt(source.maxFret ?? saved.maxFret, 10))
+            ? clamp(parseInt(source.maxFret ?? saved.maxFret, 10), PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, MAX_FRET)
+            : (source.showExtendedFrets || saved.showExtendedFrets ? MAX_FRET : PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET),
+        scrollLefts,
+        editingStageId: editingId
+    };
+}
+
+/** 編集中の STAGE を配列に保存（新規 or 既存上書き）。
+    保存できなかった場合（上限到達など）は null を返す。 */
+function saveProCustomStageFromEditor() {
+    if (!guardProPersistentSave('save')) return null;
+    const editor = normalizeProCustomEditorState(state.proCustomRouteEditor);
+    state.proCustomRouteEditor = editor;
+    const saved = saveProCustomStageInArray({
+        id: editor.editingStageId,
+        name: editor.name,
+        key: editor.key,
+        capo: editor.capo,
+        scale: editor.scale,
+        displayMode: state.settings.noteLabelMode,
+        doMode: editor.doMode,
+        maxFret: editor.maxFret,
+        route: editor.draft,
+        groupBreaks: editor.groupBreaks,
+        groupNames: editor.groupNames,
+        groupScrollLefts: editor.scrollLefts
+    });
+    if (saved) {
+        state.proCustomRouteEditor.editingStageId = saved.id;
+    }
+    return saved;
+}
+
+function makeProCustomEditorSnapshot() {
+    return JSON.parse(JSON.stringify(normalizeProCustomEditorState(state.proCustomRouteEditor)));
+}
+
+function pushProCustomEditorHistory() {
+    const editor = normalizeProCustomEditorState(state.proCustomRouteEditor);
+    const history = Array.isArray(editor.history) ? editor.history.slice() : [];
+    history.push({
+        draft: cloneCruiseRouteSlots(editor.draft),
+        groupBreaks: editor.groupBreaks.slice(),
+        groupNames: editor.groupNames.slice(),
+        selectedGroupIndex: editor.selectedGroupIndex,
+        visibleGroupIndices: editor.visibleGroupIndices.slice(),
+        forceHideAllGroups: editor.forceHideAllGroups,
+        scrollLefts: { ...editor.scrollLefts }
+    });
+    editor.history = history.slice(-50);
+    state.proCustomRouteEditor = editor;
+}
+
+function restoreProCustomEditorSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') return;
+    state.proCustomRouteEditor = normalizeProCustomEditorState({
+        ...state.proCustomRouteEditor,
+        ...snapshot,
+        history: Array.isArray(state.proCustomRouteEditor?.history) ? state.proCustomRouteEditor.history : []
+    });
+}
+
+function normalizeProCustomQuizEditorState(raw) {
+    const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    const requestedId = typeof source.editingStageId === 'string' && source.editingStageId ? source.editingStageId : null;
+    const matchedStage = requestedId ? getSavedProCustomQuizStageById(requestedId) : null;
+    const editingId = matchedStage ? requestedId : null;
+    const saved = matchedStage || getDefaultProCustomQuizStageSettings();
+    const groups = normalizeProCustomQuizGroups(source.groups || saved.groups);
+    const groupCount = Math.max(1, groups.length);
+    const visibleGroupIndices = Array.isArray(source.visibleGroupIndices)
+        ? source.visibleGroupIndices.map(value => parseInt(value, 10)).filter(value => Number.isFinite(value) && value >= 0 && value < groupCount)
+        : [0];
+    return {
+        groups,
+        selectedGroupIndex: clamp(parseInt(source.selectedGroupIndex ?? 0, 10) || 0, -1, groupCount - 1),
+        groupPanelOffset: normalizeRouteEditorGroupPanelOffset(source.groupPanelOffset),
+        history: Array.isArray(source.history) ? source.history : [],
+        showAllGroupsExpanded: !!source.showAllGroupsExpanded,
+        visibleGroupIndices: source.forceHideAllGroups ? [] : (visibleGroupIndices.length ? Array.from(new Set(visibleGroupIndices)).sort((a, b) => a - b) : [0]),
+        forceHideAllGroups: !!source.forceHideAllGroups,
+        name: String(source.name || saved.name || PRO_CUSTOM_STAGE_DEFAULT_NAME).trim() || PRO_CUSTOM_STAGE_DEFAULT_NAME,
+        key: clamp(parseInt(source.key ?? saved.key, 10) || 0, 0, NOTES.length - 1),
+        capo: clamp(parseInt(source.capo ?? saved.capo, 10) || 0, 0, 7),
+        scale: PRO_CUSTOM_SCALE_KEYS.includes(source.scale) ? source.scale : (PRO_CUSTOM_SCALE_KEYS.includes(saved.scale) ? saved.scale : 'major'),
+        displayMode: ['solfege', 'note', 'degree'].includes(source.displayMode) ? source.displayMode : saved.displayMode,
+        doMode: source.doMode === 'fixed' ? 'fixed' : saved.doMode === 'fixed' ? 'fixed' : 'movable',
+        maxFret: Number.isFinite(parseInt(source.maxFret ?? saved.maxFret, 10))
+            ? clamp(parseInt(source.maxFret ?? saved.maxFret, 10), PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, MAX_FRET)
+            : PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET,
+        editingStageId: editingId
+    };
+}
+
+function saveProCustomQuizStageFromEditor() {
+    if (!guardProPersistentSave('save')) return null;
+    const editor = normalizeProCustomQuizEditorState(state.proCustomQuizEditor);
+    state.proCustomQuizEditor = editor;
+    const saved = saveProCustomQuizStageInArray({
+        id: editor.editingStageId,
+        name: editor.name,
+        key: editor.key,
+        capo: editor.capo,
+        scale: editor.scale,
+        displayMode: state.settings.noteLabelMode,
+        doMode: editor.doMode,
+        maxFret: editor.maxFret,
+        groups: editor.groups
+    });
+    if (saved) {
+        state.proCustomQuizEditor.editingStageId = saved.id;
+    }
+    return saved;
+}
+
+function pushProCustomQuizEditorHistory() {
+    const editor = normalizeProCustomQuizEditorState(state.proCustomQuizEditor);
+    const history = Array.isArray(editor.history) ? editor.history.slice() : [];
+    history.push({
+        groups: normalizeProCustomQuizGroups(editor.groups),
+        selectedGroupIndex: editor.selectedGroupIndex,
+        visibleGroupIndices: editor.visibleGroupIndices.slice(),
+        forceHideAllGroups: editor.forceHideAllGroups
+    });
+    editor.history = history.slice(-50);
+    state.proCustomQuizEditor = editor;
+}
+
+function restoreProCustomQuizEditorSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') return;
+    state.proCustomQuizEditor = normalizeProCustomQuizEditorState({
+        ...state.proCustomQuizEditor,
+        ...snapshot,
+        history: Array.isArray(state.proCustomQuizEditor?.history) ? state.proCustomQuizEditor.history : []
+    });
+}
+
+function isProCustomQuizSelectableFret(editor, stringName, fret) {
+    return isProCustomSelectableFret({
+        ...state.proCustomRouteEditor,
+        ...normalizeProCustomQuizEditorState(editor)
+    }, stringName, fret);
+}
+
+function getProCustomGroupScrollLeft(groupIndex) {
+    const custom = state.memorize?.proCustomCruise;
+    const source = state.course === 'memorize' && custom && typeof custom === 'object' && !Array.isArray(custom)
+        ? custom.groupScrollLefts
+        : state.proCustomRouteEditor?.scrollLefts;
+    if (!source || typeof source !== 'object' || Array.isArray(source)) return null;
+    const value = parseInt(source[String(groupIndex)], 10);
+    return Number.isFinite(value) ? Math.max(0, value) : null;
+}
+
+function setProCustomEditorGroupScrollLeft(groupIndex, scrollLeft) {
+    const editor = normalizeProCustomEditorState(state.proCustomRouteEditor);
+    const index = clamp(parseInt(groupIndex, 10) || 0, 0, PRO_CUSTOM_STAGE_MAX_GROUPS - 1);
+    editor.scrollLefts[String(index)] = Math.max(0, Math.round(parseFloat(scrollLeft) || 0));
+    state.proCustomRouteEditor = editor;
+}
+
+function clearProCustomEditorGroupScrollLeft(groupIndex) {
+    const editor = normalizeProCustomEditorState(state.proCustomRouteEditor);
+    delete editor.scrollLefts[String(groupIndex)];
+    state.proCustomRouteEditor = editor;
+}
+
+function buildGroupIndicesFromBreaks(slots, groupBreaks) {
+    const normalizedSlots = cloneCruiseRouteSlots(slots);
+    if (!normalizedSlots.length) return [];
+    const groups = buildRouteEditorGroupsFromBreaks(normalizedSlots, groupBreaks);
+    const groupIndices = Array(normalizedSlots.length).fill(0);
+    groups.forEach((group, groupIndex) => {
+        if (!group || group.end < group.start) return;
+        for (let i = group.start; i <= group.end && i < groupIndices.length; i++) {
+            groupIndices[i] = groupIndex;
+        }
+    });
+    return groupIndices;
+}
+
+/** クリア（最終ループ完了）したステージのクリア回数を1増やす */
+function incrementCruiseStageClearCount(stage) {
+    const st = clamp(parseInt(stage, 10), 1, 6);
+    if (
+        !state.settings.cruiseStageClearCounts ||
+        typeof state.settings.cruiseStageClearCounts !== 'object' ||
+        Array.isArray(state.settings.cruiseStageClearCounts)
+    ) {
+        state.settings.cruiseStageClearCounts = {};
+    }
+    const key = String(st);
+    const cur = parseInt(state.settings.cruiseStageClearCounts[key], 10) || 0;
+    state.settings.cruiseStageClearCounts[key] = cur + 1;
+}
+
+function getCruiseStageClearCount(stage) {
+    const st = clamp(parseInt(stage, 10), 1, 6);
+    const map = state.settings && state.settings.cruiseStageClearCounts;
+    if (!map || typeof map !== 'object' || Array.isArray(map)) return 0;
+    return parseInt(map[String(st)], 10) || 0;
+}
+
+/** 指板クイズ：STAGE 別の挑戦回数を 1 増やす（同セッションでの重複呼び出しは呼び出し側で防ぐ） */
+function incrementQuizStageAttemptCount(stage) {
+    const st = clamp(parseInt(stage, 10), 1, 6);
+    if (
+        !state.settings.quizStageAttemptCounts ||
+        typeof state.settings.quizStageAttemptCounts !== 'object' ||
+        Array.isArray(state.settings.quizStageAttemptCounts)
+    ) {
+        state.settings.quizStageAttemptCounts = {};
+    }
+    const key = String(st);
+    const cur = parseInt(state.settings.quizStageAttemptCounts[key], 10) || 0;
+    state.settings.quizStageAttemptCounts[key] = cur + 1;
+}
+
+function getQuizStageAttemptCount(stage) {
+    const st = clamp(parseInt(stage, 10), 1, 6);
+    const map = state.settings && state.settings.quizStageAttemptCounts;
+    if (!map || typeof map !== 'object' || Array.isArray(map)) return 0;
+    return parseInt(map[String(st)], 10) || 0;
+}
+
+/** 指板クイズ：STAGE 別の満点達成回数を 1 増やす */
+function incrementQuizStagePerfectCount(stage) {
+    const st = clamp(parseInt(stage, 10), 1, 6);
+    if (
+        !state.settings.quizStagePerfectCounts ||
+        typeof state.settings.quizStagePerfectCounts !== 'object' ||
+        Array.isArray(state.settings.quizStagePerfectCounts)
+    ) {
+        state.settings.quizStagePerfectCounts = {};
+    }
+    const key = String(st);
+    const cur = parseInt(state.settings.quizStagePerfectCounts[key], 10) || 0;
+    state.settings.quizStagePerfectCounts[key] = cur + 1;
+}
+
+function getQuizStagePerfectCount(stage) {
+    const st = clamp(parseInt(stage, 10), 1, 6);
+    const map = state.settings && state.settings.quizStagePerfectCounts;
+    if (!map || typeof map !== 'object' || Array.isArray(map)) return 0;
+    return parseInt(map[String(st)], 10) || 0;
+}
+
+/**
+ * 指板クイズ：制限あり全問正解時に満点達成回数を +1 する。
+ *  - 無制限モード（limit=0）は対象外
+ *  - PROカスタムSTAGEは対象外
+ *  - 同セッション内で重複カウントしないよう quizPerfectCounted で管理
+ */
+function maybeRecordQuizStagePerfect() {
+    if (state.memorize.playMode !== 'quiz') return;
+    if (state.memorize.proCustomQuiz) return;
+    if (state.memorize.quizPerfectCounted) return;
+    const limit = parseInt(state.settings.quizQuestionLimit ?? DEFAULT_QUIZ_QUESTION_LIMIT, 10) || 0;
+    if (limit === 0) return; // 無制限モードは対象外
+    const correct = parseInt(state.memorize.correct ?? 0, 10) || 0;
+    if (correct < limit) return; // 全問正解でなければカウントしない
+    incrementQuizStagePerfectCount(state.memorize.stage);
+    state.memorize.quizPerfectCounted = true;
+    saveState();
+}
+
+/**
+ * 指板クイズ：「1 回挑戦した」とみなしてカウントするか判定し、必要なら +1 する。
+ *  - 制限あり（5/10/15問）: 設定問題数すべてに回答してクリアに達した瞬間
+ *  - 無制限（0）          : 5 回以上回答した瞬間
+ * 同じセッションで複数回カウントしないよう state.memorize.quizAttemptCounted で記憶する。
+ */
+function maybeRecordQuizStageAttempt() {
+    if (state.memorize.playMode !== 'quiz') return;
+    if (state.memorize.proCustomQuiz) return;
+    if (state.memorize.quizAttemptCounted) return;
+    const limit = parseInt(state.settings.quizQuestionLimit ?? DEFAULT_QUIZ_QUESTION_LIMIT, 10) || 0;
+    const asked = parseInt(state.memorize.quizQuestionsAsked ?? 0, 10) || 0;
+    const reached =
+        (limit > 0 && state.memorize.isQuizCleared) ||
+        (limit === 0 && asked >= 5);
+    if (!reached) return;
+    incrementQuizStageAttemptCount(state.memorize.stage);
+    state.memorize.quizAttemptCounted = true;
+    saveState();
+}
+
+function shiftCruiseStageNumber(stage) {
+    if (stage === 4) return 5;
+    if (stage === 5) return 6;
+    return stage;
+}
+
+function migrateCruiseStageNumberingIfNeeded() {
+    const currentVersion = parseInt(state.settings?.routeNumberingVersion ?? 0, 10) || 0;
+    if (currentVersion >= 2) return false;
+    const cloneValue = value => JSON.parse(JSON.stringify(value));
+    const moveStageKey = (collection, fromStage, toStage) => {
+        if (!collection || typeof collection !== 'object' || Array.isArray(collection)) return;
+        const fromKey = String(fromStage);
+        const toKey = String(toStage);
+        if (Object.prototype.hasOwnProperty.call(collection, fromKey)) {
+            collection[toKey] = cloneValue(collection[fromKey]);
+            delete collection[fromKey];
+        }
+        // 移動元が無いときは移動先を消さない。
+        // 昔のアプリでは STAGE 番号の振り直しマイグレーションの前に、すでに「6」だけ保存済み、
+        // などの並びだと、旧「5」が無い場合にここで「6」を delete してしまい、
+        // STAGE6 のスクロール保存が丸ごと失われていた。
+    };
+
+    moveStageKey(state.settings.cruiseStageRoutes, 5, 6);
+    moveStageKey(state.settings.cruiseStageRoutes, 4, 5);
+    moveStageKey(state.settings.cruiseStageRouteGroups, 5, 6);
+    moveStageKey(state.settings.cruiseStageRouteGroups, 4, 5);
+    moveStageKey(state.settings.cruiseStageGroupScrollLefts, 5, 6);
+    moveStageKey(state.settings.cruiseStageGroupScrollLefts, 4, 5);
+
+    if (state.memorize && typeof state.memorize.stage === 'number') {
+        state.memorize.stage = shiftCruiseStageNumber(state.memorize.stage);
+    }
+    if (state.routeEditor && typeof state.routeEditor.stage === 'number') {
+        state.routeEditor.stage = shiftCruiseStageNumber(state.routeEditor.stage);
+    }
+    if (Array.isArray(state.routeEditor?.history)) {
+        state.routeEditor.history = state.routeEditor.history.map(snapshot => {
+            if (!snapshot || typeof snapshot !== 'object') return snapshot;
+            const nextSnapshot = { ...snapshot };
+            if (typeof nextSnapshot.stage === 'number') {
+                nextSnapshot.stage = shiftCruiseStageNumber(nextSnapshot.stage);
+            }
+            return nextSnapshot;
+        });
+    }
+
+    state.settings.routeNumberingVersion = 2;
+    return true;
+}
+
+function openSettings(returnCourse = state.course) {
+    settingsReturnCourse = returnCourse;
+    state.course = 'settings';
+    saveState();
+    renderApp();
+}
+
+function navButtonHtml({ id, text, extraClass = '', disabled = false, ariaLabel = text }) {
+    const classes = ['icon-btn', 'page-nav-btn', extraClass].filter(Boolean).join(' ');
+    return `<button class="${classes}" id="${id}" ${ariaLabel ? `aria-label="${ariaLabel}"` : ''} ${disabled ? 'disabled' : ''}>${text}</button>`;
+}
+
+function buildPageHeader({
+    titleTag = 'h2',
+    titleClass = '',
+    titleText = '',
+    titleSubText = '',
+    leftHtml = '',
+    rightHtml = '',
+    headerClass = ''
+}) {
+    const subHtml = titleSubText
+        ? `<p class="page-header-title-sub">${titleSubText}</p>`
+        : '';
+    return `
+        <header class="page-header ${headerClass}">
+            <div class="page-header-top">
+                <div class="page-header-actions page-header-actions--left">${leftHtml}</div>
+                <div class="page-header-actions page-header-actions--right">${rightHtml}</div>
+            </div>
+            <div class="page-header-title-wrap">
+                <${titleTag} class="page-header-title ${titleClass}">${titleText}</${titleTag}>
+                ${subHtml}
+            </div>
+        </header>
+    `;
+}
+
+function clearQuizAdvanceTimers() {
+    if (quizAdvanceTimeout) {
+        clearTimeout(quizAdvanceTimeout);
+        quizAdvanceTimeout = null;
+    }
+    if (quizToneTimeout) {
+        clearTimeout(quizToneTimeout);
+        quizToneTimeout = null;
+    }
+}
+
+function lerp(a, b, t) {
+    return a + (b - a) * t;
+}
+
+// ----------------------------------------------------
+// 3D Math Base (STEP 1: foundation only)
+// ----------------------------------------------------
+function createVec3(x = 0, y = 0, z = 0) {
+    return { x, y, z };
+}
+
+function degToRad(deg) {
+    return (deg * Math.PI) / 180;
+}
+
+function rotateVec3(point, rotationDeg) {
+    const rx = degToRad(rotationDeg.x || 0);
+    const ry = degToRad(rotationDeg.y || 0);
+    const rz = degToRad(rotationDeg.z || 0);
+
+    let x = point.x;
+    let y = point.y;
+    let z = point.z;
+
+    // Rotate around X axis
+    let y1 = y * Math.cos(rx) - z * Math.sin(rx);
+    let z1 = y * Math.sin(rx) + z * Math.cos(rx);
+    y = y1;
+    z = z1;
+
+    // Rotate around Y axis
+    let x2 = x * Math.cos(ry) + z * Math.sin(ry);
+    let z2 = -x * Math.sin(ry) + z * Math.cos(ry);
+    x = x2;
+    z = z2;
+
+    // Rotate around Z axis
+    let x3 = x * Math.cos(rz) - y * Math.sin(rz);
+    let y3 = x * Math.sin(rz) + y * Math.cos(rz);
+
+    return createVec3(x3, y3, z);
+}
+
+function getCameraPoseFromSettings() {
+    const rotation = state.settings.rotation || { x: 0, y: 0, z: 0 };
+    const verticalStrength = getVerticalPerspectiveStrength();
+    const horizontalStrength = getHorizontalPerspectiveStrength();
+    const perspectivePx = lerp(2400, 900, verticalStrength);
+    const cameraOffsetX = lerp(0, 260, horizontalStrength);
+    return {
+        position: createVec3(cameraOffsetX, 0, perspectivePx),
+        rotation: createVec3(rotation.x, rotation.y, rotation.z),
+        perspectivePx
+    };
+}
+
+function projectWorldToScreenBase(worldPoint, cameraPose, viewportCenterY = FRETBOARD_CENTER_Y) {
+    // STEP 1 keeps output behavior unchanged on purpose.
+    // This helper exists so STEP 2 can switch to full camera projection safely.
+    const projected = projectPoint(worldPoint.x, worldPoint.y, worldPoint.z);
+    return {
+        x: projected.x,
+        y: projected.y - FRETBOARD_CENTER_Y + viewportCenterY,
+        scale: projected.scale
+    };
+}
+
+function safeNumber(value, fallback = 0) {
+    return Number.isFinite(value) ? value : fallback;
+}
+
+function getProjectionScaleAtDepth(depthZ, cameraPose) {
+    const camDistance = Math.max(300, safeNumber(cameraPose.perspectivePx, 1200));
+    const z = safeNumber(depthZ, 0);
+    const denom = camDistance + z;
+    if (denom <= 1) return 1;
+    return camDistance / denom;
+}
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function getHorizontalPerspectiveStrength() {
+    const raw = state.settings.perspOriginX || 0;
+    return Math.max(0, Math.min(1, raw / 100));
+}
+
+function getVerticalPerspectiveStrength() {
+    const raw = state.settings.perspective || 0;
+    return Math.max(0, Math.min(1, raw / 100));
+}
+
+function getFretXEdges() {
+    const edges = [0];
+    FRET_WIDTHS.forEach(width => edges.push(edges[edges.length - 1] + width));
+    return edges;
+}
+
+function getHorizontalScaleAtX(x) {
+    const depth = Math.max(0, Math.min(1, x / FRETBOARD_WIDTH));
+    const perspectiveScale = lerp(HORIZONTAL_FAR_SCALE, HORIZONTAL_NEAR_SCALE, depth);
+    return lerp(1, perspectiveScale, getHorizontalPerspectiveStrength());
+}
+
+function getStringSpacingScale() {
+    return clamp((state.settings.stringSpacing || 100) / 100, 0.8, 1.6);
+}
+
+function getNeckYBounds() {
+    const baseTop = FRETBOARD_TOP_Y;
+    const baseBottom = FRETBOARD_BODY_BOTTOM_Y;
+    const center = (baseTop + baseBottom) / 2;
+    const halfHeight = (baseBottom - baseTop) / 2;
+    const scaledHalfHeight = halfHeight * getStringSpacingScale();
+    return {
+        top: center - scaledHalfHeight,
+        bottom: center + scaledHalfHeight
+    };
+}
+
+function getVerticalScaleAtY(y) {
+    const neck = getNeckYBounds();
+    const stripBottom = neck.bottom + FRET_NUMBER_STRIP_HEIGHT;
+    const depth = Math.max(0, Math.min(1, (y - neck.top) / (stripBottom - neck.top)));
+    const perspectiveScale = lerp(VERTICAL_FAR_SCALE, VERTICAL_NEAR_SCALE, depth);
+    return lerp(1, perspectiveScale, getVerticalPerspectiveStrength());
+}
+
+function projectPoint(x, y, z = 0) {
+    const worldPoint = createVec3(x - FRETBOARD_WIDTH / 2, y - FRETBOARD_CENTER_Y, z);
+    const rotated = rotateVec3(worldPoint, state.settings.rotation || { x: 0, y: 0, z: 0 });
+
+    // Base projection: axis rotation only.
+    const baseX = FRETBOARD_WIDTH / 2 + safeNumber(rotated.x, 0);
+    const baseY = FRETBOARD_CENTER_Y + safeNumber(rotated.y, 0);
+
+    // Trapezoid / perspective effect is controlled only by the camera-depth sliders.
+    const hScale = getHorizontalScaleAtX(x);
+    const vScale = getVerticalScaleAtY(y);
+    const scale = hScale * vScale;
+    const projectedX = FRETBOARD_WIDTH / 2 + (baseX - FRETBOARD_WIDTH / 2) * hScale;
+    const projectedY = FRETBOARD_CENTER_Y + (baseY - FRETBOARD_CENTER_Y) * scale;
+
+    return {
+        x: projectedX,
+        y: projectedY,
+        scale
+    };
+}
+
+function projectFretboardY(originalY, x) {
+    return projectPoint(x, originalY, 0).y;
+}
+
+function getStringOriginalY(rowIndex) {
+    const t = rowIndex / 5;
+    const exponent = lerp(1, VERTICAL_NEAR_EXPONENT, getVerticalPerspectiveStrength());
+    const easedT = Math.pow(t, exponent);
+    const neck = getNeckYBounds();
+    const stringTopY = neck.top + FRETBOARD_STRING_GAP / 2;
+    const stringBottomY = neck.bottom - FRETBOARD_STRING_GAP / 2;
+    const baseY = lerp(stringTopY, stringBottomY, easedT);
+    const centerY = (stringTopY + stringBottomY) / 2;
+    return centerY + (baseY - centerY) * 1;
+}
+
+function getStringOriginalBounds(rowIndex) {
+    const neck = getNeckYBounds();
+    const centers = Array.from({ length: 6 }, (_, i) => getStringOriginalY(i));
+    const top = rowIndex === 0 ? neck.top : (centers[rowIndex - 1] + centers[rowIndex]) / 2;
+    const bottom = rowIndex === centers.length - 1 ? neck.bottom : (centers[rowIndex] + centers[rowIndex + 1]) / 2;
+    return { top, bottom };
+}
+
+function getStringThickness(stringNum) {
+    if (stringNum === 6) return 5;
+    if (stringNum === 5) return 4;
+    if (stringNum === 4) return 3;
+    if (stringNum === 3) return 2.5;
+    if (stringNum === 2) return 2;
+    return 1.5;
+}
+
+function buildSvgPath(points) {
+    return points.map((p, index) => `${index === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ');
+}
+
+function buildClosedPolygon(points) {
+    return points.map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+}
+
+function buildProjectedBandPolygon(yTop, yBottom, z = 0, xSamples = getFretXEdges()) {
+    const topPoints = xSamples.map(x => projectPoint(x, yTop, z));
+    const bottomPoints = xSamples.slice().reverse().map(x => projectPoint(x, yBottom, z));
+    return buildClosedPolygon([...topPoints, ...bottomPoints]);
+}
+
+function buildProjectedDepthStrip(y, zFront, zBack, xSamples = getFretXEdges()) {
+    const frontPoints = xSamples.map(x => projectPoint(x, y, zFront));
+    const backPoints = xSamples.slice().reverse().map(x => projectPoint(x, y, zBack));
+    return buildClosedPolygon([...frontPoints, ...backPoints]);
+}
+
+function buildProjectedSideWall(x, yTop, yBottom, zFront, zBack) {
+    const p1 = projectPoint(x, yTop, zFront);
+    const p2 = projectPoint(x, yBottom, zFront);
+    const p3 = projectPoint(x, yBottom, zBack);
+    const p4 = projectPoint(x, yTop, zBack);
+    return buildClosedPolygon([p1, p2, p3, p4]);
+}
+
+function getProjectedFretboardBounds(neckTop, neckBottom, maxFret = MAX_FRET) {
+    const renderMaxFret = clamp(Math.floor(maxFret), 0, MAX_FRET);
+    const visibleEdges = getFretXEdges().slice(0, renderMaxFret + 2);
+    const stringCenters = Array.from({ length: 6 }, (_, i) => getStringOriginalY(i));
+    const samplePoints = [];
+    visibleEdges.forEach(x => {
+        samplePoints.push(projectPoint(x, neckTop, NOTE_MARKER_Z));
+        samplePoints.push(projectPoint(x, neckBottom, NOTE_MARKER_Z));
+        samplePoints.push(projectPoint(x, FRET_NUMBER_STRIP_BOTTOM_Y + 8, FRET_NUMBER_Z));
+        stringCenters.forEach(y => samplePoints.push(projectPoint(x, y, NOTE_MARKER_Z)));
+    });
+    const minX = Math.min(...samplePoints.map(p => p.x));
+    const maxX = Math.max(...samplePoints.map(p => p.x));
+    const minY = Math.min(...samplePoints.map(p => p.y));
+    const maxY = Math.max(...samplePoints.map(p => p.y));
+    const padding = 28;
+    return {
+        minX: minX - padding,
+        maxX: maxX + padding,
+        minY: minY - padding,
+        maxY: maxY + padding,
+        width: Math.max(1, maxX - minX + padding * 2),
+        height: Math.max(1, maxY - minY + padding * 2)
+    };
+}
+
+/** 投影後の指板のうち、fretMin〜fretMaxInclusive の列だけの外接矩形（横幅に使う） */
+function getProjectedFretboardBoundsForFretRange(neckTop, neckBottom, fretMin, fretMaxInclusive) {
+    const xEdges = getFretXEdges();
+    const fm = clamp(fretMin, 0, MAX_FRET);
+    const fM = clamp(fretMaxInclusive, 0, MAX_FRET);
+    const stringCenters = Array.from({ length: 6 }, (_, i) => getStringOriginalY(i));
+    const samplePoints = [];
+    for (let xi = fm; xi <= fM + 1; xi++) {
+        const x = xEdges[xi];
+        samplePoints.push(projectPoint(x, neckTop, NOTE_MARKER_Z));
+        samplePoints.push(projectPoint(x, neckBottom, NOTE_MARKER_Z));
+    }
+    for (let f = fm; f <= fM; f++) {
+        const midX = (xEdges[f] + xEdges[f + 1]) / 2;
+        samplePoints.push(projectPoint(midX, FRET_NUMBER_STRIP_BOTTOM_Y + 8, FRET_NUMBER_Z));
+        stringCenters.forEach(y => samplePoints.push(projectPoint(midX, y, NOTE_MARKER_Z)));
+    }
+    const minX = Math.min(...samplePoints.map(p => p.x));
+    const maxX = Math.max(...samplePoints.map(p => p.x));
+    const minY = Math.min(...samplePoints.map(p => p.y));
+    const maxY = Math.max(...samplePoints.map(p => p.y));
+    const padding = 28;
+    return {
+        minX: minX - padding,
+        maxX: maxX + padding,
+        minY: minY - padding,
+        maxY: maxY + padding,
+        width: Math.max(1, maxX - minX + padding * 2),
+        height: Math.max(1, maxY - minY + padding * 2)
+    };
+}
+
+/**
+ * 指板を見る画面で13F以降表示のとき、「〜12Fぶんが画面幅に収まる」程度まで拡大するためのスケール上限。
+ * 投影だけだと12F帯の横幅がフルボードに近く見積もられることがあるので、フレット間の実長比も混ぜる。
+ */
+function getVisualizeExtended12FretWidthFitScale(
+    layoutW,
+    layoutPad,
+    projectedBounds,
+    neckTop,
+    neckBottom,
+    renderMaxFret
+) {
+    const xEdges = getFretXEdges();
+    const fm = clamp(Math.floor(renderMaxFret), 0, MAX_FRET);
+    const lin12 = Math.max(1e-6, xEdges[DEFAULT_VISIBLE_MAX_FRET + 1] - xEdges[0]);
+    const linFull = Math.max(1e-6, xEdges[fm + 1] - xEdges[0]);
+    const bounds12Proj = getProjectedFretboardBoundsForFretRange(
+        neckTop,
+        neckBottom,
+        0,
+        DEFAULT_VISIBLE_MAX_FRET
+    ).width;
+    const geoW12 = projectedBounds.width * (lin12 / linFull);
+    const effectiveW12 = Math.min(bounds12Proj, geoW12);
+    return (layoutW - layoutPad) / Math.max(1, effectiveW12);
+}
+
+/** 投影後の指板のうち、fretLo〜fretHi（小数可）の帯の外接矩形（開放側・高フレット側を半フレット分見切る画角用） */
+function getProjectedFretboardBoundsForFretFloatRange(neckTop, neckBottom, fretLoIn, fretHiIn) {
+    const xEdges = getFretXEdges();
+    let fretLo = Math.min(fretLoIn, fretHiIn);
+    let fretHi = Math.max(fretLoIn, fretHiIn);
+    fretLo = clamp(fretLo, 0, MAX_FRET + 1 - 1e-6);
+    fretHi = clamp(fretHi, 0, MAX_FRET + 1 - 1e-6);
+    const fretToX = f => {
+        const fCl = clamp(f, 0, MAX_FRET + 1 - 1e-9);
+        const fi = Math.floor(fCl);
+        const fr = fCl - fi;
+        const i0 = clamp(fi, 0, MAX_FRET);
+        const i1 = clamp(fi + 1, 0, MAX_FRET + 1);
+        return xEdges[i0] * (1 - fr) + xEdges[i1] * fr;
+    };
+    const stringCenters = Array.from({ length: 6 }, (_, i) => getStringOriginalY(i));
+    const samplePoints = [];
+    const xAtLo = fretToX(fretLo);
+    const xAtHi = fretToX(fretHi);
+    samplePoints.push(projectPoint(xAtLo, neckTop, NOTE_MARKER_Z));
+    samplePoints.push(projectPoint(xAtLo, neckBottom, NOTE_MARKER_Z));
+    samplePoints.push(projectPoint(xAtHi, neckTop, NOTE_MARKER_Z));
+    samplePoints.push(projectPoint(xAtHi, neckBottom, NOTE_MARKER_Z));
+    const xiStart = Math.max(0, Math.floor(fretLo));
+    const xiEnd = Math.min(MAX_FRET, Math.ceil(fretHi));
+    for (let xi = xiStart; xi <= xiEnd + 1; xi++) {
+        const x = xEdges[clamp(xi, 0, MAX_FRET + 1)];
+        samplePoints.push(projectPoint(x, neckTop, NOTE_MARKER_Z));
+        samplePoints.push(projectPoint(x, neckBottom, NOTE_MARKER_Z));
+    }
+    for (let f = Math.ceil(fretLo - 1e-9); f <= Math.floor(fretHi + 1e-9); f++) {
+        if (f < 0 || f > MAX_FRET) continue;
+        const midX = (xEdges[f] + xEdges[f + 1]) / 2;
+        samplePoints.push(projectPoint(midX, FRET_NUMBER_STRIP_BOTTOM_Y + 8, FRET_NUMBER_Z));
+        stringCenters.forEach(y => samplePoints.push(projectPoint(midX, y, NOTE_MARKER_Z)));
+    }
+    const minX = Math.min(...samplePoints.map(p => p.x));
+    const maxX = Math.max(...samplePoints.map(p => p.x));
+    const minY = Math.min(...samplePoints.map(p => p.y));
+    const maxY = Math.max(...samplePoints.map(p => p.y));
+    const padding = 28;
+    return {
+        minX: minX - padding,
+        maxX: maxX + padding,
+        minY: minY - padding,
+        maxY: maxY + padding,
+        width: Math.max(1, maxX - minX + padding * 2),
+        height: Math.max(1, maxY - minY + padding * 2)
+    };
+}
+
+/** STEP3・ペアタップ用：指定フレット列をラッパー中央付近に寄せる */
+function alignRuleStep3FretColumnCenter(wrapper, fretNum) {
+    const col =
+        wrapper.querySelector(`.fret-column[data-string="4"][data-fret="${fretNum}"]`) ||
+        wrapper.querySelector(`.fret-column[data-fret="${fretNum}"]`);
+    if (!col) {
+        wrapper.scrollLeft = 0;
+        return;
+    }
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const colRect = col.getBoundingClientRect();
+    const colCenter = colRect.left + colRect.width / 2;
+    const wrapperCenter = wrapperRect.left + wrapperRect.width / 2;
+    const delta = colCenter - wrapperCenter;
+    wrapper.scrollLeft += Math.round(delta);
+    const maxScroll = Math.max(0, wrapper.scrollWidth - wrapper.clientWidth);
+    wrapper.scrollLeft = clamp(wrapper.scrollLeft, 0, maxScroll);
+}
+
+function animateRuleWrapperScrollLeft(wrapper, targetLeft, durationMs = 950) {
+    const startLeft = wrapper.scrollLeft;
+    const maxScroll = Math.max(0, wrapper.scrollWidth - wrapper.clientWidth);
+    const endLeft = clamp(Math.round(targetLeft), 0, maxScroll);
+    const delta = endLeft - startLeft;
+    if (Math.abs(delta) < 2) return;
+    const startTime = performance.now();
+    const easeInOut = t => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+    const step = now => {
+        if (!wrapper.isConnected) return;
+        const t = clamp((now - startTime) / durationMs, 0, 1);
+        wrapper.scrollLeft = startLeft + delta * easeInOut(t);
+        if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+}
+
+/**
+ * STEP3-1（開放〜5F が収まる拡大のあと）：4弦3F 付近を基準に 3フレット列がラッパー中央に来るよう scrollLeft を調整する。
+ */
+function alignRuleStep3Page0Fret3Center(wrapper) {
+    alignRuleStep3FretColumnCenter(wrapper, 3);
+}
+
+// ----------------------------------------------------
+// Audio Synthesis
+// ----------------------------------------------------
+let audioCtx = null;
+const AUDIO_DIAGNOSTIC_LOG_LIMIT = 24;
+let audioDiagnosticLog = [];
+let latestAudioDiagnosticText = '';
+
+function getAudioContextStateLabel() {
+    return audioCtx ? audioCtx.state : 'not-created';
+}
+
+function getStandaloneLaunchLabel() {
+    const standaloneNavigator = window.navigator && window.navigator.standalone === true;
+    const standaloneMedia = typeof window.matchMedia === 'function' &&
+        window.matchMedia('(display-mode: standalone)').matches;
+    if (standaloneNavigator || standaloneMedia) return 'standalone/PWA';
+    return 'browser';
+}
+
+function getAudioDiagnosticBaseInfo(extra = {}) {
+    return {
+        time: new Date().toISOString(),
+        appVersion: FRETBOARD_CRUISE_APP_VERSION,
+        audioContextCreated: !!audioCtx,
+        audioContextState: getAudioContextStateLabel(),
+        baseLatency: audioCtx && typeof audioCtx.baseLatency === 'number' ? audioCtx.baseLatency : null,
+        outputLatency: audioCtx && typeof audioCtx.outputLatency === 'number' ? audioCtx.outputLatency : null,
+        visibilityState: document.visibilityState || 'unknown',
+        launchMode: getStandaloneLaunchLabel(),
+        userAgent: navigator.userAgent,
+        ...extra
+    };
+}
+
+function recordAudioDiagnosticEvent(type, detail = {}) {
+    const entry = getAudioDiagnosticBaseInfo({ type, ...detail });
+    audioDiagnosticLog.push(entry);
+    if (audioDiagnosticLog.length > AUDIO_DIAGNOSTIC_LOG_LIMIT) {
+        audioDiagnosticLog = audioDiagnosticLog.slice(-AUDIO_DIAGNOSTIC_LOG_LIMIT);
+    }
+    return entry;
+}
+
+function formatAudioDiagnosticValue(value) {
+    if (value === null || typeof value === 'undefined') return '取得不可';
+    if (typeof value === 'number') return Number.isFinite(value) ? `${Math.round(value * 1000)} ms` : '取得不可';
+    return String(value);
+}
+
+function buildAudioDiagnosticText(summary = {}) {
+    const info = getAudioDiagnosticBaseInfo(summary);
+    const resumeError = info.resumeErrorName || info.resumeErrorMessage
+        ? `${info.resumeErrorName || 'Error'}: ${info.resumeErrorMessage || ''}`.trim()
+        : 'なし';
+    const recentLog = audioDiagnosticLog.slice(-8).map(entry => {
+        const bits = [
+            entry.time,
+            entry.type,
+            `state=${entry.audioContextState}`
+        ];
+        if (entry.resumeResult) bits.push(`resume=${entry.resumeResult}`);
+        if (entry.errorName) bits.push(`error=${entry.errorName}`);
+        return bits.join(' | ');
+    });
+
+    return [
+        `現在時刻: ${info.time}`,
+        `アプリVersion: ${info.appVersion}`,
+        `AudioContext作成: ${info.audioContextCreated ? 'できた' : '未作成/失敗'}`,
+        `AudioContext state: ${info.audioContextState}`,
+        `resume結果: ${info.resumeResult || '未実行'}`,
+        `resume失敗: ${resumeError}`,
+        `baseLatency: ${formatAudioDiagnosticValue(info.baseLatency)}`,
+        `outputLatency: ${formatAudioDiagnosticValue(info.outputLatency)}`,
+        `起動モード: ${info.launchMode}`,
+        `visibilityState: ${info.visibilityState}`,
+        `userAgent: ${info.userAgent}`,
+        '',
+        '最近の音声ログ:',
+        recentLog.length ? recentLog.join('\n') : 'まだログはありません'
+    ].join('\n');
+}
+
+function updateAudioDiagnosticResult(text) {
+    latestAudioDiagnosticText = text;
+    const output = document.getElementById('audio-diagnostic-output');
+    if (output) output.textContent = text;
+}
+
+async function copyAudioDiagnosticText() {
+    const text = latestAudioDiagnosticText || buildAudioDiagnosticText({ resumeResult: 'not-run' });
+    try {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            await navigator.clipboard.writeText(text);
+        } else {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            textarea.remove();
+        }
+        recordAudioDiagnosticEvent('copy-succeeded');
+        return true;
+    } catch (err) {
+        recordAudioDiagnosticEvent('copy-failed', {
+            errorName: err && err.name ? err.name : 'Error',
+            errorMessage: err && err.message ? err.message : String(err || '')
+        });
+        console.warn('[Fretboard Cruise] Audio diagnostic copy failed', err);
+        return false;
+    }
+}
+
+function logAudioResumeFailure(reason, err) {
+    const entry = recordAudioDiagnosticEvent('resume-failed', {
+        reason,
+        resumeResult: 'failed',
+        errorName: err && err.name ? err.name : 'Error',
+        errorMessage: err && err.message ? err.message : String(err || '')
+    });
+    console.warn('[Fretboard Cruise] AudioContext resume failed', entry);
+}
+
+function resumeAudioContext(reason = 'resumeAudioContext') {
+    if (!audioCtx || typeof audioCtx.resume !== 'function') {
+        return Promise.resolve(false);
+    }
+    let resumePromise;
+    try {
+        resumePromise = audioCtx.resume();
+    } catch (err) {
+        logAudioResumeFailure(reason, err);
+        return Promise.reject(err);
+    }
+    if (!resumePromise || typeof resumePromise.then !== 'function') {
+        recordAudioDiagnosticEvent('resume-called', { reason, resumeResult: 'unknown' });
+        return Promise.resolve(true);
+    }
+    return resumePromise.then(() => {
+        recordAudioDiagnosticEvent('resume-succeeded', { reason, resumeResult: 'success' });
+        return true;
+    }).catch(err => {
+        logAudioResumeFailure(reason, err);
+        throw err;
+    });
+}
+
+function initAudio(reason = 'initAudio') {
+    if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) {
+            recordAudioDiagnosticEvent('create-failed', {
+                reason,
+                errorName: 'NotSupportedError',
+                errorMessage: 'AudioContext is not available'
+            });
+            return null;
+        }
+        try {
+            audioCtx = new AudioContextClass();
+            if (typeof audioCtx.addEventListener === 'function') {
+                audioCtx.addEventListener('statechange', () => {
+                    recordAudioDiagnosticEvent('statechange');
+                });
+            }
+            recordAudioDiagnosticEvent('created', { reason });
+        } catch (err) {
+            recordAudioDiagnosticEvent('create-failed', {
+                reason,
+                errorName: err && err.name ? err.name : 'Error',
+                errorMessage: err && err.message ? err.message : String(err || '')
+            });
+            console.warn('[Fretboard Cruise] AudioContext creation failed', err);
+            return null;
+        }
+    }
+    if (audioCtx.state === 'suspended') {
+        resumeAudioContext(reason).catch(() => {});
+    }
+    return audioCtx;
+}
+
+/**
+ * 指が触れた瞬間の Web Audio タイムライン上の時刻（秒）を推定する。
+ * click の遅れは event.timeStamp と performance.now() の差で相殺し、
+ * スピーカーまでの遅れ（outputLatency / baseLatency）が取れる環境では減算して「聞こえた拍」に寄せる。
+ */
+function estimateAudioTimeAtPointerEvent(ev) {
+    const debug = getAudioTimeEstimateDebugAtPointerEvent(ev);
+    return debug ? debug.estimatedTapAudioTimeAdjusted : null;
+}
+
+function getAudioTimeEstimateDebugAtPointerEvent(ev) {
+    initAudio();
+    if (!audioCtx) return null;
+    const perfNow = performance.now();
+    const ts = typeof ev.timeStamp === 'number' && ev.timeStamp > 0 ? ev.timeStamp : perfNow;
+    const deltaSec = (perfNow - ts) / 1000;
+    const audioCurrentTime = audioCtx.currentTime;
+    const estimatedTapAudioTimeRaw = audioCurrentTime - deltaSec;
+    const outLat = typeof audioCtx.outputLatency === 'number' ? audioCtx.outputLatency : 0;
+    const baseLat = typeof audioCtx.baseLatency === 'number' ? audioCtx.baseLatency : 0;
+    const latencySubtracted = outLat + baseLat;
+    const estimatedTapAudioTimeAdjusted = estimatedTapAudioTimeRaw - latencySubtracted;
+    return {
+        eventTimeStamp: ts,
+        performanceNow: perfNow,
+        audioCurrentTime,
+        baseLatency: baseLat,
+        outputLatency: outLat,
+        latencySubtracted,
+        estimatedTapAudioTimeRaw,
+        estimatedTapAudioTimeAdjusted
+    };
+}
+
+const STRING_BASE_PITCHES = [40, 45, 50, 55, 59, 64]; // E2, A2, D3, G3, B3, E4
+
+function playTone(stringIdx, fret) {
+    initAudio('playTone');
+    if (!audioCtx) return;
+
+    const doPlay = () => {
+        let midiNote = STRING_BASE_PITCHES[stringIdx] + fret;
+        let freq = 440 * Math.pow(2, (midiNote - 69) / 12);
+
+        let t = audioCtx.currentTime;
+        let osc = audioCtx.createOscillator();
+        let gain = audioCtx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, t);
+
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.8, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 2.0);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start(t);
+        osc.stop(t + 2.0);
+    };
+
+    // On iOS the context can be suspended or interrupted — resume first
+    if (audioCtx.state !== 'running') {
+        resumeAudioContext('playTone').then(doPlay).catch(() => {});
+    } else {
+        doPlay();
+    }
+}
+
+function playMidiTone(midiNote) {
+    initAudio('playMidiTone');
+    if (!audioCtx) return;
+
+    const doPlay = () => {
+        const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
+        const t = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.72, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 1.35);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(t);
+        osc.stop(t + 1.35);
+    };
+
+    if (audioCtx.state !== 'running') {
+        resumeAudioContext('playMidiTone').then(doPlay).catch(() => {});
+    } else {
+        doPlay();
+    }
+}
+
+function playAudioDiagnosticTone() {
+    initAudio('audio-diagnostic-tone');
+    if (!audioCtx) return Promise.resolve(false);
+
+    const doPlay = () => {
+        const t = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, t);
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.18, t + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(t);
+        osc.stop(t + 0.45);
+        recordAudioDiagnosticEvent('test-tone-played', { frequency: 440 });
+        return true;
+    };
+
+    if (audioCtx.state !== 'running') {
+        return resumeAudioContext('audio-diagnostic-tone').then(doPlay).catch(() => false);
+    }
+    return Promise.resolve(doPlay());
+}
+
+async function runAudioDiagnosticTest() {
+    let resumeResult = 'not-needed';
+    let resumeErrorName = '';
+    let resumeErrorMessage = '';
+
+    try {
+        initAudio('audio-diagnostic-test');
+        if (audioCtx && audioCtx.state !== 'running') {
+            await resumeAudioContext('audio-diagnostic-test');
+            resumeResult = 'success';
+        } else if (audioCtx && audioCtx.state === 'running') {
+            resumeResult = 'already-running';
+        } else {
+            resumeResult = 'no-context';
+        }
+    } catch (err) {
+        resumeResult = 'failed';
+        resumeErrorName = err && err.name ? err.name : 'Error';
+        resumeErrorMessage = err && err.message ? err.message : String(err || '');
+    }
+
+    const played = await playAudioDiagnosticTone();
+    const text = buildAudioDiagnosticText({
+        resumeResult,
+        resumeErrorName,
+        resumeErrorMessage,
+        testTonePlayed: played ? 'yes' : 'no'
+    });
+    updateAudioDiagnosticResult(text);
+    return text;
+}
+
+function installAudioDiagnosticLifecycleListeners() {
+    const record = (type, event) => {
+        recordAudioDiagnosticEvent(type, {
+            persisted: !!(event && event.persisted)
+        });
+    };
+    document.addEventListener('visibilitychange', event => record('visibilitychange', event));
+    window.addEventListener('pageshow', event => record('pageshow', event));
+    window.addEventListener('focus', event => record('focus', event));
+}
+
+installAudioDiagnosticLifecycleListeners();
+
+// --- Rhythm Master Gain (リズム専用マスターゲイン。タップ音には一切影響しない) ---
+// gain は cruiseRhythmVolume（リズム音量マスター）を反映。楽器別音量は各drum関数の乗数で制御。
+let rhythmMasterGain = null;
+
+function getEffectiveCruiseRhythmVolume() {
+    if (!isProEdition()) return DEFAULT_CRUISE_RHYTHM_VOLUME;
+    return Number.isFinite(state.settings.cruiseRhythmVolume)
+        ? state.settings.cruiseRhythmVolume
+        : DEFAULT_CRUISE_RHYTHM_VOLUME;
+}
+
+function getRhythmMasterGain() {
+    if (!rhythmMasterGain) {
+        rhythmMasterGain = audioCtx.createGain();
+        rhythmMasterGain.gain.value = getEffectiveCruiseRhythmVolume();
+        rhythmMasterGain.connect(audioCtx.destination);
+    }
+    return rhythmMasterGain;
+}
+
+function updateRhythmMasterGainVolume() {
+    if (!rhythmMasterGain) return;
+    rhythmMasterGain.gain.value = getEffectiveCruiseRhythmVolume();
+}
+
+// スライダー値(0.0〜1.0)を楽器ごとの乗数に変換する。
+// 0.0→0倍, 0.5→1.0倍（現在音量）, 1.0→1.5倍
+function calcRhythmInstrumentMultiplier(v) {
+    if (v <= 0) return 0;
+    if (v <= 0.5) return v * 2;               // 0〜0.5: 0.0〜1.0 へ線形
+    return 1.0 + (v - 0.5) * 1.0;            // 0.5〜1.0: 1.0〜1.5 へ線形
+}
+
+function getEffectiveKickMult() {
+    const v = isProEdition()
+        ? (state.settings.cruiseRhythmKickVolume  ?? DEFAULT_CRUISE_RHYTHM_KICK_VOLUME)
+        : DEFAULT_CRUISE_RHYTHM_KICK_VOLUME;
+    return calcRhythmInstrumentMultiplier(v);
+}
+function getEffectiveSnareMult() {
+    const v = isProEdition()
+        ? (state.settings.cruiseRhythmSnareVolume ?? DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME)
+        : DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME;
+    return calcRhythmInstrumentMultiplier(v);
+}
+function getEffectiveHatMult() {
+    const v = isProEdition()
+        ? (state.settings.cruiseRhythmHatVolume   ?? DEFAULT_CRUISE_RHYTHM_HAT_VOLUME)
+        : DEFAULT_CRUISE_RHYTHM_HAT_VOLUME;
+    return calcRhythmInstrumentMultiplier(v);
+}
+
+// --- Rhythm Machine & Timers ---
+let rhythmInterval = null;
+let nextNoteTime = 0;
+let current16thNote = 0;
+
+let quizTimerInterval = null;
+let quizTimeLeft = 3.0;
+let quizTimeLeftPrevious = 3.0;
+
+function startQuizTimer() {
+    if (isEditorDemoPlayback() && !canRunEditorDemoPlayback()) return;
+    clearInterval(quizTimerInterval);
+    quizTimeLeft = state.settings.quizTimeLimit;
+    
+    quizTimerInterval = setInterval(() => {
+        const prevIntegerSecond = Math.ceil(quizTimeLeftPrevious);
+        quizTimeLeft -= 0.1;
+        const currIntegerSecond = Math.ceil(quizTimeLeft);
+
+        if (quizTimeLeft <= 0) {
+            quizTimeLeft = 0;
+            clearInterval(quizTimerInterval);
+            handleQuizTimeout();
+        }
+
+        const timerDisplay = document.getElementById('quiz-timer');
+        if (timerDisplay) {
+            timerDisplay.textContent = quizTimeLeft.toFixed(1) + 's';
+            if (quizTimeLeft <= 1.0) {
+                timerDisplay.parentElement.style.color = 'var(--error-color)';
+            }
+        }
+
+        // Play countdown sound when integer second changes
+        if (prevIntegerSecond > currIntegerSecond && currIntegerSecond > 0) {
+            playQuizCountdownSound(currIntegerSecond);
+        }
+
+        quizTimeLeftPrevious = quizTimeLeft;
+    }, 100);
+}
+
+function handleQuizTimeout() {
+    if (state.course !== 'memorize' || state.memorize.playMode !== 'quiz') return;
+    const container = document.getElementById('fretboard-container');
+    if (!container) return;
+
+    state.memorize.combo = 0;
+    if (!Array.isArray(state.memorize.quizQuestionResults)) state.memorize.quizQuestionResults = [];
+    state.memorize.quizQuestionResults.push(false); // 時間切れ＝不正解として記録
+    maybeRecordQuizStageAttempt();
+    state.memorize.tempFeedback = { text: 'Miss... (時間切れ)', className: 'feedback-display feedback-wrong' };
+    
+    // Show answer briefly and move to next
+    let app = document.getElementById('app');
+    const _timeoutScrollLeft = state.memorize.currentQuestion?.quizGrScrollLeft ?? null;
+    renderFretboardHTML('fretboard-container', {
+        mode: 'memorize',
+        memorizeStage: state.memorize.stage,
+        question: state.memorize.currentQuestion,
+        showAnswer: true,
+        clicked: null,
+        onFretClick: null,
+        preserveScrollLeft: _timeoutScrollLeft
+    });
+
+    // refineScaleAfterPaint（二重RAF）完了後にscrollLeftを再適用
+    // 横画面クイズでは保存スクロールを使わないためスキップ（ここで右にジャンプしていた）
+    if (Number.isFinite(_timeoutScrollLeft) && !shouldQuizLandscapeSkipSavedScrollLeft()) {
+        setTimeout(() => {
+            const sw = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+            if (sw) sw.scrollLeft = _timeoutScrollLeft;
+        }, 50);
+    }
+
+    const fb = document.getElementById('feedback');
+    if (fb) {
+        fb.textContent = 'Miss... (時間切れ)';
+        setMemorizeFeedbackTone(fb, 'wrong');
+    }
+
+    clearQuizAdvanceTimers();
+    quizAdvanceTimeout = setTimeout(() => {
+        quizAdvanceTimeout = null;
+        advanceQuizToNextQuestion();
+    }, 1000);
+}
+
+/**
+ * クイズ：答え表示の 1 秒後に呼ばれて次の問題へ進む。
+ * Gr が変わって保存指板位置が変わるときは、現在位置 → 新位置を
+ * ユーザーの目で追える速度でスムーズスクロールする。
+ * 設計：
+ *  - 旧スクロール位置を読む
+ *  - generateQuestion で次の問題を確定（quizGrScrollLeft が決まる）
+ *  - 拡大ビュー＆距離が一定以上なら startQuizScrollAnimation を仕込む
+ *  - renderApp で新問題を描画（描画側はアニメ中なら補間値を採用）
+ *  - 音は描画 ~100ms 後（＝スクロール開始とほぼ同時）に再生
+ */
+function advanceQuizToNextQuestion() {
+    if (state.course !== 'memorize' || state.memorize.playMode !== 'quiz') return;
+    if (!guardEditorDemoPlayback()) return;
+
+    const wrapperBefore = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+    const fromScroll = wrapperBefore ? Math.max(0, Math.round(wrapperBefore.scrollLeft)) : 0;
+
+    generateQuestion();
+
+    // 問題数の上限に達してクリア表示になった場合は、スクロール演出も次音再生もしない
+    if (state.memorize.isQuizCleared) {
+        cancelQuizScrollAnimation();
+        renderApp();
+        return;
+    }
+
+    const nextQ = state.memorize.currentQuestion;
+    const toScrollRaw = nextQ?.quizGrScrollLeft;
+    const toScroll = Number.isFinite(toScrollRaw) ? Math.max(0, Math.round(toScrollRaw)) : 0;
+
+    const distance = Math.abs(toScroll - fromScroll);
+    // 横画面・全体ビューでは編集設定どおりの範囲を固定表示するため、自動スクロールしない。
+    // 縦画面・拡大ビューのときだけスムーススクロールを行う。
+    const shouldAnimate =
+        distance >= 6 &&
+        state.settings.fretboardView === 'zoom' &&
+        !(typeof window !== 'undefined' && window.innerWidth > window.innerHeight);
+
+    if (shouldAnimate) {
+        const duration = computeQuizScrollAnimationDuration(distance);
+        startQuizScrollAnimation(fromScroll, toScroll, duration);
+    } else {
+        cancelQuizScrollAnimation();
+    }
+
+    renderApp();
+
+    quizToneTimeout = setTimeout(() => {
+        quizToneTimeout = null;
+        if (state.course === 'memorize' && state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+            playTone(state.memorize.currentQuestion.stringIdx, state.memorize.currentQuestion.fret);
+        }
+    }, 100);
+}
+
+function stopQuizTimer() {
+    cancelQuizScrollAnimation();
+    clearQuizAdvanceTimers();
+    if (quizTimerInterval) {
+        clearInterval(quizTimerInterval);
+        quizTimerInterval = null;
+    }
+}
+
+/** 「タップで進行」：アプリ側の cruise 自動ギター音を鳴らさない（Perfect タップのみ handleFretClick で鳴らす） */
+function isCruiseTapProgression() {
+    return state.settings && state.settings.cruiseProgression === 'tap';
+}
+
+function getBluetoothRhythmAssistMs() {
+    if (!isProEdition()) return 0;
+    const level = state.settings?.bluetoothRhythmAssistLevel || DEFAULT_BLUETOOTH_RHYTHM_ASSIST_LEVEL;
+    return BLUETOOTH_RHYTHM_ASSIST_MS[level] || 0;
+}
+
+function shouldUseRhythmConfirmSound() {
+    return isProEdition() &&
+        state.settings?.cruiseConfirmSoundTiming === 'rhythm' &&
+        state.settings?.cruiseTapBeats === 'half' &&
+        !isCruiseTapProgression();
+}
+
+function shouldPlayTapConfirmSound() {
+    return !shouldUseRhythmConfirmSound();
+}
+
+function playScheduledCruiseTone(target, time) {
+    if (!audioCtx || !target || !Number.isFinite(time)) return;
+    const stringIdx = parseInt(target.stringIdx, 10);
+    const fret = parseInt(target.fret, 10);
+    if (!Number.isFinite(stringIdx) || !Number.isFinite(fret) || !STRING_BASE_PITCHES[stringIdx]) return;
+
+    const midiNote = STRING_BASE_PITCHES[stringIdx] + fret;
+    const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
+    const startTime = Math.max(audioCtx.currentTime, time);
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, startTime);
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(0.8, startTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + 2.0);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(startTime);
+    osc.stop(startTime + 2.0);
+}
+
+function logCruiseAppToneTiming(note, source) {
+    if (!shouldDebugCruiseTapTiming() || !audioCtx || !note) return;
+    const bpm = parseInt(state.settings && state.settings.tempo, 10);
+    const safeBpm = Number.isFinite(bpm) && bpm > 0 ? bpm : 100;
+    const secondsPerBeat = 60.0 / safeBpm;
+    const appToneTargetTime = Number.isFinite(nextTargetTime)
+        ? nextTargetTime - secondsPerBeat
+        : null;
+    const audioCurrentTime = audioCtx.currentTime;
+    const payload = {
+        mode: state.memorize?.playMode,
+        cruiseTapBeats: state.settings?.cruiseTapBeats,
+        source,
+        bpm: safeBpm,
+        secondsPerBeat,
+        audioCurrentTime,
+        performanceNow: performance.now(),
+        nextTargetTime,
+        appToneTargetTime,
+        deltaFromAppToneTargetMs: Number.isFinite(appToneTargetTime)
+            ? Math.round((audioCurrentTime - appToneTargetTime) * 1000)
+            : null,
+        currentIndex: state.memorize?.cruiseIndex,
+        current16thNote,
+        note: {
+            stringName: note.stringName,
+            stringIdx: note.stringIdx,
+            fret: note.fret,
+            noteIdx: note.noteIdx
+        }
+    };
+    console.log('[CRUISE APP TONE]', payload);
+    console.log('[CRUISE APP TONE JSON]', JSON.stringify(payload));
+}
+
+function maybePlayRhythmConfirmTone(note, time) {
+    if (!shouldUseRhythmConfirmSound()) return;
+    if (state.course !== 'memorize' || state.memorize.playMode !== 'cruise' || state.memorize.isCleared) return;
+    if (Number.isFinite(parseInt(state.memorize.cruiseCountdown, 10)) && state.memorize.cruiseCountdown > 0) return;
+    if (state.memorize.isFirstNote) return;
+    // half mode's existing tap target is the snare-side beat stored in nextTargetTime.
+    if (note !== 4 && note !== 12) return;
+    playScheduledCruiseTone(state.memorize.currentQuestion, time);
+}
+
+/** タップ判定の片側窓（秒）。BPM が速いほど自動で縮める。半拍／毎拍とも同じ厳しさにする。 */
+function getCruiseTimingHalfWindow() {
+    const bpm = parseInt(state.settings && state.settings.tempo, 10);
+    const safeBpm = Number.isFinite(bpm) && bpm > 0 ? bpm : 100;
+    const secondsPerBeat = 60.0 / safeBpm;
+    return Math.min(0.15, secondsPerBeat * 0.30);
+}
+
+/** 「いま」の次に出るお題（毎拍モードで先取りタップを判定するため）。ループ折り返しまで考慮。 */
+function getCruiseUpcomingQuestion() {
+    const targets = state.memorize && state.memorize.cruiseTargets;
+    if (!Array.isArray(targets) || targets.length === 0) return null;
+    const idx = parseInt(state.memorize.cruiseIndex, 10) || 0;
+    if (idx + 1 < targets.length) return targets[idx + 1];
+    const maxLoops = parseInt(state.settings && state.settings.cruiseLoopCount, 10);
+    const currentLoop = parseInt(state.memorize.cruiseCurrentLoop, 10) || 0;
+    if (maxLoops === 0 || currentLoop + 1 < maxLoops) {
+        return targets[0];
+    }
+    return null;
+}
+
+function scheduleRhythm() {
+    if (!audioCtx) return;
+    while (nextNoteTime < audioCtx.currentTime + 0.1) {
+        playRhythmNote(current16thNote, nextNoteTime);
+        maybePlayRhythmConfirmTone(current16thNote, nextNoteTime);
+        
+        if (state.course === 'memorize' && state.memorize.playMode === 'cruise' && !state.memorize.isCleared) {
+            const fullBeats = state.settings.cruiseTapBeats === 'full';
+            const onKickTiming = current16thNote === 0 || current16thNote === 8;
+            const onQuarterHead =
+                current16thNote === 0 ||
+                current16thNote === 4 ||
+                current16thNote === 8 ||
+                current16thNote === 12;
+            const shouldScheduleAdvance = fullBeats ? onQuarterHead : onKickTiming;
+            if (shouldScheduleAdvance) {
+                let delayMs = (nextNoteTime - audioCtx.currentTime) * 1000;
+                setTimeout(autoAdvanceCruise, delayMs);
+                let secondsPerBeat = 60.0 / state.settings.tempo;
+                if (fullBeats) {
+                    nextTargetTime = nextNoteTime + secondsPerBeat;
+                } else {
+                    // Target time is the next snare beat (4 16th notes later)
+                    nextTargetTime = nextNoteTime + secondsPerBeat;
+                }
+            }
+        }
+        
+        nextRhythmNote();
+    }
+    rhythmInterval = setTimeout(scheduleRhythm, 25);
+}
+
+function autoAdvanceCruise() {
+    if (state.course !== 'memorize' || state.memorize.playMode !== 'cruise' || state.memorize.isCleared) return;
+
+    // BPM カウントダウン（4→3→2→1）の間は音の進行を止める。
+    // ドラム（リズム）は鳴らし続け、最初の音は表示・ハイライトされたまま。
+    if (Number.isFinite(parseInt(state.memorize.cruiseCountdown, 10)) && state.memorize.cruiseCountdown > 0) {
+        return;
+    }
+
+    if (state.memorize.isFirstNote) {
+        state.memorize.isFirstNote = false;
+        state.memorize.hasTappedCurrentNote = false;
+        state.memorize.cruisePreTapped = false;
+        let q = state.memorize.currentQuestion;
+        if (!isCruiseTapProgression()) {
+            logCruiseAppToneTiming(q, 'autoAdvance:first-note');
+            playTone(q.stringIdx, q.fret);
+        }
+        renderApp();
+        scheduleNextGroupScrollIfNeeded();
+        return;
+    }
+    
+    // Evaluate previous window (timeout miss)
+    // 「次の拍を先取りタップ」した場合も、現在の拍はノータップ扱いにせず Miss を出さない（ユーザー体験優先）。
+    const isTimeoutMiss = !state.memorize.hasTappedCurrentNote && !state.memorize.cruisePreTapped;
+    if (isTimeoutMiss) {
+        state.memorize.combo = 0;
+        const timeoutFeedback = { text: 'Miss... (時間切れ)', className: 'feedback-display feedback-wrong' };
+        state.memorize.tempFeedback = timeoutFeedback;
+        state.memorize.cruiseLastTapFeedback = timeoutFeedback;
+    } else {
+        state.memorize.tempFeedback = null;
+    }
+
+    const advanceToNext = () => {
+        // Save previous question for repeat hint detection
+        const prevQuestion = state.memorize.currentQuestion;
+        const prevGroupIndex = Number.isFinite(parseInt(state.memorize.cruiseCurrentGroupIndex, 10))
+            ? clamp(parseInt(state.memorize.cruiseCurrentGroupIndex, 10), 0, Number.MAX_SAFE_INTEGER)
+            : 0;
+
+        // Move to next note
+        let nextIdx = state.memorize.cruiseIndex + 1;
+        if (nextIdx >= state.memorize.cruiseTargets.length) {
+            const maxLoops = state.settings.cruiseLoopCount; // 0 = 無制限
+            const currentLoop = state.memorize.cruiseCurrentLoop;
+            if (maxLoops === 0 || currentLoop + 1 < maxLoops) {
+                // ループ続行：周回カウントを進め、先頭に戻る
+                // Check loop boundary for same note
+                const nextLoopFirstNote = state.memorize.cruiseTargets[0];
+                if (prevQuestion && nextLoopFirstNote &&
+                    prevQuestion.stringName === nextLoopFirstNote.stringName &&
+                    prevQuestion.fret === nextLoopFirstNote.fret) {
+                    state.memorize.stage1IsContinuedRepeat = true;
+                } else {
+                    clearStage1RepeatHintState();
+                }
+
+                state.memorize.cruiseCurrentLoop = currentLoop + 1;
+                state.memorize.cruiseIndex = 0;
+                state.memorize.currentQuestion = nextLoopFirstNote;
+                state.memorize.cruisePreviousGroupIndex = prevGroupIndex;
+                state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices[0] ?? prevGroupIndex;
+                // 直前に「次の拍を先取りタップ」していたら、新しい current のタップ済みとして引き継ぐ
+                state.memorize.hasTappedCurrentNote = !!state.memorize.cruisePreTapped;
+                state.memorize.cruisePreTapped = false;
+
+                let q = state.memorize.currentQuestion;
+                if (!isCruiseTapProgression()) {
+                    logCruiseAppToneTiming(q, 'autoAdvance:loop-first-note');
+                    playTone(q.stringIdx, q.fret);
+                }
+
+                autoScrollRequested = true;
+                saveState();
+                renderApp();
+                scheduleNextGroupScrollIfNeeded();
+                return;
+            }
+            // 規定ループ完了：STOP
+            // 「ラスト!」表示後に次の音（先頭）への自動スクロールが入らないよう、
+            // 予約済みのGr切替スクロールと autoScrollRequested を無効化する。
+            clearStage1RepeatHintState();
+            cancelPendingCruiseGroupScroll();
+            autoScrollRequested = false;
+            state.memorize.isCleared = true;
+            state.memorize.isCruisePlaying = false;
+            stopRhythm();
+            // 完走（最後まで通せた）回数をステージごとにカウント
+            if (!state.memorize.proCustomCruise) {
+                incrementCruiseStageClearCount(state.memorize.stage);
+            }
+            saveState();
+            renderApp();
+            return;
+        }
+
+        state.memorize.cruiseIndex = nextIdx;
+        state.memorize.currentQuestion = state.memorize.cruiseTargets[nextIdx];
+        state.memorize.cruisePreviousGroupIndex = prevGroupIndex;
+        state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices[nextIdx] ?? prevGroupIndex;
+
+        // Check if same note is repeated
+        if (prevQuestion &&
+            prevQuestion.stringName === state.memorize.currentQuestion.stringName &&
+            prevQuestion.fret === state.memorize.currentQuestion.fret) {
+            clearStage1RepeatHintState();
+            state.memorize.stage1IsContinuedRepeat = true;  // 2回目の音（表示用）
+        } else {
+            clearStage1RepeatHintState();
+        }
+
+        // 直前に「次の拍を先取りタップ」していたら、新しい current のタップ済みとして引き継ぐ
+        state.memorize.hasTappedCurrentNote = !!state.memorize.cruisePreTapped;
+        state.memorize.cruisePreTapped = false;
+
+        let q = state.memorize.currentQuestion;
+        if (!isCruiseTapProgression()) {
+            logCruiseAppToneTiming(q, 'autoAdvance:next-note');
+            playTone(q.stringIdx, q.fret);
+        }
+
+        autoScrollRequested = true;
+        saveState();
+        renderApp();
+        scheduleNextGroupScrollIfNeeded();
+    };
+
+    advanceToNext();
+}
+
+function nextRhythmNote() {
+    let secondsPerBeat = 60.0 / state.settings.tempo;
+    nextNoteTime += 0.25 * secondsPerBeat;
+    current16thNote++;
+    if (current16thNote === 16) {
+        current16thNote = 0;
+    }
+}
+
+function playRhythmNote(note, time) {
+    if (note === 0 || note === 8) playDrumKick(time);
+    if (note === 4 || note === 12) playDrumSnare(time);
+    if (note % 2 === 0) playDrumHat(time);
+}
+
+function playDrumKick(time) {
+    const mult = getEffectiveKickMult();
+    if (mult <= 0) return;
+    let osc = audioCtx.createOscillator();
+    let gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(getRhythmMasterGain());
+    osc.frequency.setValueAtTime(150, time);
+    osc.frequency.exponentialRampToValueAtTime(0.001, time + 0.5);
+    gain.gain.setValueAtTime(1.0 * mult, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.5);
+    osc.start(time);
+    osc.stop(time + 0.5);
+}
+
+function playDrumSnare(time) {
+    const mult = getEffectiveSnareMult();
+    if (mult <= 0) return;
+    let osc = audioCtx.createOscillator();
+    let gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.connect(gain);
+    gain.connect(getRhythmMasterGain());
+    osc.frequency.setValueAtTime(250, time);
+    gain.gain.setValueAtTime(0.3 * mult, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
+    osc.start(time);
+    osc.stop(time + 0.1);
+}
+
+function playDrumHat(time) {
+    const mult = getEffectiveHatMult();
+    if (mult <= 0) return;
+    let osc = audioCtx.createOscillator();
+    let gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.connect(gain);
+    gain.connect(getRhythmMasterGain());
+    osc.frequency.setValueAtTime(8000, time);
+    gain.gain.setValueAtTime(0.05 * mult, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.05);
+    osc.start(time);
+    osc.stop(time + 0.05);
+}
+
+function playQuizCountdownSound(remainingSecond) {
+    const soundType = state.settings.quizCountdownSound;
+    if (soundType === 'none') return;
+
+    const time = audioCtx.currentTime;
+    switch (soundType) {
+        case 'beep':
+            playCountdownBeep(time);
+            break;
+        case 'gradual':
+            playGradualWarningTone(remainingSecond, time);
+            break;
+        case 'hat':
+            playCountdownHat(time);
+            break;
+    }
+}
+
+function playCountdownBeep(time) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.frequency.setValueAtTime(900, time);
+    gain.gain.setValueAtTime(0.2, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.15);
+    osc.start(time);
+    osc.stop(time + 0.15);
+}
+
+function playGradualWarningTone(remainingSecond, time) {
+    let frequency;
+    if (remainingSecond >= 3) {
+        frequency = 500;
+    } else if (remainingSecond === 2) {
+        frequency = 800;
+    } else if (remainingSecond === 1) {
+        frequency = 1200;
+    } else {
+        frequency = 1600;
+    }
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.frequency.setValueAtTime(frequency, time);
+    gain.gain.setValueAtTime(0.2, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+    osc.start(time);
+    osc.stop(time + 0.2);
+}
+
+function playCountdownHat(time) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.frequency.setValueAtTime(8000, time);
+    gain.gain.setValueAtTime(0.08, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.08);
+    osc.start(time);
+    osc.stop(time + 0.08);
+}
+
+function startRhythm() {
+    if (isEditorDemoPlayback() && !canRunEditorDemoPlayback()) return;
+    initAudio();
+    if (rhythmInterval) return;
+    nextNoteTime = audioCtx.currentTime + 0.1;
+    current16thNote = 0;
+    scheduleRhythm();
+}
+
+function stopRhythm() {
+    if (rhythmInterval) {
+        clearTimeout(rhythmInterval);
+        rhythmInterval = null;
+    }
+    cancelPendingCruiseGroupScroll();
+    clearCruiseCountdown();
+}
+
+let cruiseCountdownTimerId = null;
+
+function clearCruiseCountdown() {
+    if (cruiseCountdownTimerId !== null) {
+        clearTimeout(cruiseCountdownTimerId);
+        cruiseCountdownTimerId = null;
+    }
+    if (state.memorize.cruiseCountdown !== 0) {
+        state.memorize.cruiseCountdown = 0;
+    }
+}
+
+/**
+ * クルーズ問題画面の開始時に、BPMに合わせた 4→3→2→1 のカウントダウンを表示する。
+ * カウント中もリズム（ドラム）は鳴らし、最初の音は表示／ハイライト済み。
+ * autoAdvanceCruise 側で cruiseCountdown > 0 の間は音の進行を抑制する。
+ */
+function startCruiseCountdownAndRhythm() {
+    if (isEditorDemoPlayback() && !canRunEditorDemoPlayback()) {
+        clearCruiseCountdown();
+        state.memorize.cruiseCountdown = 0;
+        state.memorize.isCruisePlaying = false;
+        renderApp();
+        return;
+    }
+    clearCruiseCountdown();
+    initAudio();
+    state.memorize.cruiseCountdown = 4;
+    renderApp();
+    startRhythm();
+
+    const oneBeatMs = 60000 / (state.settings.tempo || DEFAULT_TEMPO);
+
+    const tick = () => {
+        cruiseCountdownTimerId = setTimeout(() => {
+            cruiseCountdownTimerId = null;
+            if (state.course !== 'memorize' || state.memorize.playMode !== 'cruise') {
+                state.memorize.cruiseCountdown = 0;
+                return;
+            }
+            const next = state.memorize.cruiseCountdown - 1;
+            state.memorize.cruiseCountdown = next > 0 ? next : 0;
+            renderApp();
+            if (next > 0) tick();
+        }, oneBeatMs);
+    };
+    tick();
+}
+
+// ----------------------------------------------------
+// Core Logic
+// ----------------------------------------------------
+
+function getRandomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function getStageTargets(stage) {
+    let targets = [];
+    for (let s = 0; s < 6; s++) {
+        for (let f = 0; f <= PRACTICE_MAX_FRET; f++) {
+            let noteIdx = (OPEN_STRINGS[s] + f) % 12;
+            let isNat = [0, 2, 4, 5, 7, 9, 11].includes(noteIdx); // Keep natural notes only for beginners
+            
+            let add = false;
+            switch(stage) {
+                case 1: if (f >= 0 && f <= 3 && isNat) add = true; break;
+                case 2: if (f >= 0 && f <= 5 && isNat) add = true; break;
+                case 3: if (f >= 5 && f <= 9 && isNat) add = true; break;
+                case 4: if (f >= 5 && f <= PRACTICE_MAX_FRET && isNat) add = true; break;
+                case 5: if (f >= 0 && f <= PRACTICE_MAX_FRET && isNat) add = true; break;
+                case 6: if (f >= 0 && f <= PRACTICE_MAX_FRET && isNat) add = true; break;
+            }
+            if (add) {
+                targets.push({ stringIdx: s, stringName: 6 - s, fret: f, noteIdx: noteIdx, noteName: NOTES[noteIdx] });
+            }
+        }
+    }
+    return targets;
+}
+
+function makeCruiseTarget(stringName, fret) {
+    const normalizedStringName = clamp(parseInt(stringName, 10), 1, 6);
+    const normalizedFret = clamp(parseInt(fret, 10), 0, MAX_FRET);
+    const stringIdx = 6 - normalizedStringName;
+    const noteIdx = (OPEN_STRINGS[stringIdx] + normalizedFret) % 12;
+    return {
+        stringIdx,
+        stringName: normalizedStringName,
+        fret: normalizedFret,
+        noteIdx,
+        noteName: NOTES[noteIdx],
+        midiNote: STRING_BASE_PITCHES[stringIdx] + normalizedFret
+    };
+}
+
+function cruiseRouteSlotFromTarget(target) {
+    return {
+        stringName: target.stringName,
+        fret: target.fret
+    };
+}
+
+function normalizeCruiseRouteSlot(slot) {
+    if (!slot || typeof slot !== 'object') return null;
+    const stringName = parseInt(slot.stringName, 10);
+    const fret = parseInt(slot.fret, 10);
+    if (!Number.isFinite(stringName) || !Number.isFinite(fret)) return null;
+    if (stringName < 1 || stringName > 6 || fret < 0 || fret > MAX_FRET) return null;
+    return { stringName, fret };
+}
+
+function cloneCruiseRouteSlots(slots) {
+    if (!Array.isArray(slots)) return [];
+    return slots.map(normalizeCruiseRouteSlot).filter(Boolean).map(slot => ({ ...slot }));
+}
+
+function getSavedCruiseRouteSlots(stage) {
+    const routes = state.settings.cruiseStageRoutes || {};
+    const saved = routes[String(stage)];
+    if (!Array.isArray(saved)) return [];
+    return cloneCruiseRouteSlots(saved);
+}
+
+function getSavedCruiseGroupScrollLeft(stage, groupIndex) {
+    const all = state.settings.cruiseStageGroupScrollLefts || {};
+    const stageMap = all[String(stage)];
+    if (!stageMap || typeof stageMap !== 'object' || Array.isArray(stageMap)) return null;
+    const value = stageMap[String(groupIndex)];
+    const scrollLeft = parseInt(value, 10);
+    return Number.isFinite(scrollLeft) ? Math.max(0, scrollLeft) : null;
+}
+
+function setSavedCruiseGroupScrollLeft(stage, groupIndex, scrollLeft) {
+    if (isStandardEdition()) return false;
+    if (!state.settings.cruiseStageGroupScrollLefts || typeof state.settings.cruiseStageGroupScrollLefts !== 'object' || Array.isArray(state.settings.cruiseStageGroupScrollLefts)) {
+        state.settings.cruiseStageGroupScrollLefts = {};
+    }
+    const routeKey = String(stage);
+    if (!state.settings.cruiseStageGroupScrollLefts[routeKey] || typeof state.settings.cruiseStageGroupScrollLefts[routeKey] !== 'object' || Array.isArray(state.settings.cruiseStageGroupScrollLefts[routeKey])) {
+        state.settings.cruiseStageGroupScrollLefts[routeKey] = {};
+    }
+    const nextLeft = Math.max(0, Math.round(parseFloat(scrollLeft) || 0));
+    state.settings.cruiseStageGroupScrollLefts[routeKey][String(groupIndex)] = nextLeft;
+    return true;
+}
+
+function clearSavedCruiseGroupScrollLeft(stage, groupIndex) {
+    if (isStandardEdition()) return false;
+    const all = state.settings.cruiseStageGroupScrollLefts;
+    if (!all || typeof all !== 'object' || Array.isArray(all)) return false;
+    const routeKey = String(stage);
+    const stageMap = all[routeKey];
+    if (!stageMap || typeof stageMap !== 'object' || Array.isArray(stageMap)) return false;
+    delete stageMap[String(groupIndex)];
+    if (!Object.keys(stageMap).length) {
+        delete all[routeKey];
+    }
+    return true;
+}
+
+/** ステージ単位で全グループの saved スクロール位置を消す（全消し時に使う） */
+function clearAllSavedCruiseGroupScrollLeftsForStage(stage) {
+    if (isStandardEdition()) return false;
+    const all = state.settings.cruiseStageGroupScrollLefts;
+    if (!all || typeof all !== 'object' || Array.isArray(all)) return false;
+    delete all[String(stage)];
+    return true;
+}
+
+/**
+ * 「初期順」で、cruiseStageGroupScrollLefts を埋め込み既定で置き換える。
+ * 定数が無いステージは何もしない（既存スクロールを維持）。
+ */
+function applyShippedDefaultCruiseGroupScrollLeftsForStage(stage) {
+    if (isStandardEdition()) return false;
+    const st = clamp(parseInt(stage, 10), 1, 6);
+    let shipped = null;
+    if (st === 1) {
+        shipped = SHIPPED_DEFAULT_STAGE_1_GROUP_SCROLL_LEFTS;
+    } else if (st === 2) {
+        shipped = SHIPPED_DEFAULT_STAGE_2_GROUP_SCROLL_LEFTS;
+    } else if (st === 3) {
+        shipped = SHIPPED_DEFAULT_STAGE_3_GROUP_SCROLL_LEFTS;
+    } else if (st === 4) {
+        shipped = SHIPPED_DEFAULT_STAGE_4_GROUP_SCROLL_LEFTS;
+    } else if (st === 5) {
+        shipped = SHIPPED_DEFAULT_STAGE_5_GROUP_SCROLL_LEFTS;
+    } else if (st === 6) {
+        shipped = SHIPPED_DEFAULT_STAGE_6_GROUP_SCROLL_LEFTS;
+    }
+    if (!shipped || typeof shipped !== 'object' || Array.isArray(shipped)) return false;
+    if (!state.settings.cruiseStageGroupScrollLefts || typeof state.settings.cruiseStageGroupScrollLefts !== 'object' || Array.isArray(state.settings.cruiseStageGroupScrollLefts)) {
+        state.settings.cruiseStageGroupScrollLefts = {};
+    }
+    const next = {};
+    Object.keys(shipped).forEach(k => {
+        next[String(k)] = Math.max(0, Math.round(parseFloat(shipped[k]) || 0));
+    });
+    state.settings.cruiseStageGroupScrollLefts[String(st)] = next;
+    return true;
+}
+
+function getQuizEditorSavedSettings(stage) {
+    const all = state.settings.quizStageEditorSettings;
+    if (!all || typeof all !== 'object') return null;
+    const s = all[String(stage)];
+    if (!s || !Array.isArray(s.groups) || s.groups.length === 0) return null;
+    return s;
+}
+
+function saveQuizEditorSettings(stage, groups) {
+    if (!guardProPersistentSave('save')) return false;
+    if (!state.settings.quizStageEditorSettings || typeof state.settings.quizStageEditorSettings !== 'object') {
+        state.settings.quizStageEditorSettings = {};
+    }
+    state.settings.quizStageEditorSettings[String(stage)] = {
+        groups: groups.map(g => ({
+            notes: (g.notes || [])
+                .map(normalizeQuizNoteSlot)
+                .filter(Boolean),
+            // null = 未保存、数値 = 保存済み（0 を含む）
+            scrollLeft: Number.isFinite(g.scrollLeft) ? Math.max(0, Math.round(g.scrollLeft)) : null
+        }))
+    };
+    return true;
+}
+
+function getQuizEditorDefaultGroups(stage) {
+    // STAGE 1〜6 は配布定数（STAGE6 は STAGE1〜5 を Gr.1〜5 に合成）。
+    const shipped = getShippedDefaultQuizGroups(stage);
+    if (shipped) return shipped;
+    const stNum = clamp(parseInt(stage, 10), 1, 6);
+    let targets = getStageTargets(stNum);
+    // ステージ別の編集時上限フレット（指板表示と初期データを揃える）
+    if (stNum === 4) {
+        targets = targets.filter(t => t.fret <= DEFAULT_VISIBLE_MAX_FRET);
+    } else if (stNum === 5 || stNum === 6) {
+        targets = targets.filter(t => t.fret <= 13);
+    }
+    return [{ notes: targets.map(t => ({ stringName: t.stringName, fret: t.fret })), scrollLeft: 0 }];
+}
+
+function saveRouteEditorGroupScrollLeftIfMissing(stage, groupIndex, scrollLeft) {
+    if (getSavedCruiseGroupScrollLeft(stage, groupIndex) !== null) return false;
+    setSavedCruiseGroupScrollLeft(stage, groupIndex, scrollLeft);
+    return true;
+}
+
+function setPendingRouteEditorGroupScrollLeft(stage, groupIndex, scrollLeft) {
+    const key = `${clamp(parseInt(stage, 10), 1, 6)}:${clamp(parseInt(groupIndex, 10), 0, ROUTE_EDITOR_MAX_GROUPS - 1)}`;
+    const nextLeft = Math.max(0, Math.round(parseFloat(scrollLeft) || 0));
+    routeEditorPendingGroupScrollLefts.set(key, nextLeft);
+}
+
+function getPendingRouteEditorGroupScrollLeft(stage, groupIndex) {
+    const key = `${clamp(parseInt(stage, 10), 1, 6)}:${clamp(parseInt(groupIndex, 10), 0, ROUTE_EDITOR_MAX_GROUPS - 1)}`;
+    const value = routeEditorPendingGroupScrollLefts.get(key);
+    const scrollLeft = parseInt(value, 10);
+    return Number.isFinite(scrollLeft) ? Math.max(0, scrollLeft) : null;
+}
+
+function clearPendingRouteEditorGroupScrollLeft(stage, groupIndex) {
+    const key = `${clamp(parseInt(stage, 10), 1, 6)}:${clamp(parseInt(groupIndex, 10), 0, ROUTE_EDITOR_MAX_GROUPS - 1)}`;
+    routeEditorPendingGroupScrollLefts.delete(key);
+}
+
+/** 順番編集：PRO は pending 優先→saved。通常版は編集用に pending のみ（saved / 配布へはフォールバックしない）。 */
+function getRouteEditorEffectiveGroupScrollLeft(stage, groupIndex) {
+    if (isStandardEdition()) {
+        return getPendingRouteEditorGroupScrollLeft(stage, groupIndex);
+    }
+    const pending = getPendingRouteEditorGroupScrollLeft(stage, groupIndex);
+    if (Number.isFinite(pending)) return pending;
+    return getSavedCruiseGroupScrollLeft(stage, groupIndex);
+}
+
+/** Gr 並べ替え後：pending の Gr インデックスを old→new に追従（無料版の一時位置・PRO の掃除漏れ両方） */
+function remapRouteEditorPendingAfterReorder(stage, oldGroupCount, oldToNew) {
+    const n = oldGroupCount;
+    const newPendingByNewIdx = {};
+    for (let oldIdx = 0; oldIdx < n; oldIdx++) {
+        const p = getPendingRouteEditorGroupScrollLeft(stage, oldIdx);
+        if (!Number.isFinite(p)) continue;
+        const ni = oldToNew[oldIdx];
+        if (Number.isFinite(ni)) newPendingByNewIdx[ni] = p;
+    }
+    for (let gi = 0; gi < ROUTE_EDITOR_MAX_GROUPS; gi++) {
+        clearPendingRouteEditorGroupScrollLeft(stage, gi);
+    }
+    Object.keys(newPendingByNewIdx).forEach(k => {
+        const ni = parseInt(k, 10);
+        if (Number.isFinite(ni) && ni >= 0) {
+            setPendingRouteEditorGroupScrollLeft(stage, ni, newPendingByNewIdx[k]);
+        }
+    });
+}
+
+/** Gr 削除後：pending を詰め直す */
+function remapRouteEditorPendingAfterGroupDelete(stage, deletedIndex, oldGroupCount) {
+    if (oldGroupCount <= 0 || deletedIndex < 0 || deletedIndex >= oldGroupCount) return;
+    const newPendingByNewIdx = {};
+    for (let oldIdx = 0; oldIdx < oldGroupCount; oldIdx++) {
+        const p = getPendingRouteEditorGroupScrollLeft(stage, oldIdx);
+        if (!Number.isFinite(p)) continue;
+        if (oldIdx === deletedIndex) continue;
+        const newIdx = oldIdx < deletedIndex ? oldIdx : oldIdx - 1;
+        newPendingByNewIdx[newIdx] = p;
+    }
+    for (let gi = 0; gi < ROUTE_EDITOR_MAX_GROUPS; gi++) {
+        clearPendingRouteEditorGroupScrollLeft(stage, gi);
+    }
+    Object.keys(newPendingByNewIdx).forEach(k => {
+        const ni = parseInt(k, 10);
+        if (Number.isFinite(ni) && ni >= 0) {
+            setPendingRouteEditorGroupScrollLeft(stage, ni, newPendingByNewIdx[k]);
+        }
+    });
+}
+
+let routeEditorScrollRafId = null;
+
+/** routeEditor / PROカスタム（たどる・クイズ）編集中の横スクロール量を RAF で追跡し、
+    タップ時に wrapper.scrollLeft が 0 を返す場面でも保存できるようにする */
+function tickRouteEditorScrollRaf() {
+    if (
+        state.course !== 'routeEditor' &&
+        state.course !== 'proCustomRouteEditor' &&
+        state.course !== 'proCustomQuizEditor'
+    ) {
+        routeEditorScrollRafId = null;
+        return;
+    }
+    const w = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+    if (w) {
+        const s = Math.max(0, Math.round(w.scrollLeft));
+        if (s > 0) {
+            routeEditorFretboardScrollSnapshot = s;
+        }
+    }
+    routeEditorScrollRafId = requestAnimationFrame(tickRouteEditorScrollRaf);
+}
+
+function startRouteEditorScrollRaf() {
+    if (routeEditorScrollRafId !== null) return;
+    routeEditorScrollRafId = requestAnimationFrame(tickRouteEditorScrollRaf);
+}
+
+/** クルーズ中の指板オーバーレイ（1/2・スタート! 等）を除去。自動スクロール直前に呼ぶ。 */
+function clearCruiseFretboardHighlightOverlay() {
+    const container = document.getElementById('fretboard-container');
+    if (!container) return;
+    const existingOverlay = container.querySelector('.highlight-overlay');
+    if (existingOverlay) existingOverlay.remove();
+    container.querySelectorAll('.fret-glow-effect').forEach(el => el.remove());
+}
+
+/** 指板スクロールに追従してオーバーレイをtransformで動かす（一度だけ登録）。 */
+function ensureFretboardOverlayScrollListener(wrapperEl) {
+    if (!wrapperEl || wrapperEl.dataset.overlayScrollListenerAttached === '1') return;
+    wrapperEl.dataset.overlayScrollListenerAttached = '1';
+    const updateOverlayTransform = () => {
+        const overlay = document.querySelector('#fretboard-container .highlight-overlay');
+        if (!overlay) return;
+        const initial = parseFloat(overlay.dataset.initialScrollLeft || '0');
+        const delta = initial - wrapperEl.scrollLeft;
+        overlay.style.transform = `translateX(${delta}px)`;
+    };
+    wrapperEl.addEventListener('scroll', updateOverlayTransform, { passive: true });
+}
+
+function applyCruiseGroupScrollLeftDeferred(wrapper, targetScrollLeft, shouldSmooth = false) {
+    if (!wrapper) return;
+    const target = Math.max(0, Math.round(parseFloat(targetScrollLeft) || 0));
+    // 吹き出しをスクロール開始より先に消す（4拍目＝1拍遅延のタイミングと同時に見えるよう同フレームで先に除去）
+    clearCruiseFretboardHighlightOverlay();
+    requestAnimationFrame(() => {
+        if (!wrapper.isConnected) return;
+        requestAnimationFrame(() => {
+            if (!wrapper.isConnected) return;
+            const maxScroll = Math.max(0, wrapper.scrollWidth - wrapper.clientWidth);
+            const left = clamp(target, 0, maxScroll);
+            if (shouldSmooth) {
+                wrapper.scrollTo({ left, behavior: 'smooth' });
+            } else {
+                wrapper.scrollLeft = left;
+            }
+        });
+    });
+}
+
+function cancelPendingCruiseGroupScroll() {
+    if (pendingCruiseGroupScrollTimeoutId !== null) {
+        clearTimeout(pendingCruiseGroupScrollTimeoutId);
+        pendingCruiseGroupScrollTimeoutId = null;
+    }
+}
+
+function scheduleCruiseGroupScroll(targetScrollLeft) {
+    cancelPendingCruiseGroupScroll();
+    const oneBeatMs = 60000 / (state.settings.tempo || 120);
+    pendingCruiseGroupScrollTimeoutId = setTimeout(() => {
+        pendingCruiseGroupScrollTimeoutId = null;
+        if (state.course !== 'memorize' || state.memorize.playMode !== 'cruise') return;
+        const wrapper = document.querySelector('.fretboard-scroll-wrapper');
+        applyCruiseGroupScrollLeftDeferred(wrapper, targetScrollLeft, true);
+    }, oneBeatMs);
+}
+
+function scheduleNextGroupScrollIfNeeded() {
+    if (state.course !== 'memorize' || state.memorize.playMode !== 'cruise') return;
+    // 全体ビューでは指板全体が見えているため、Gr切替時の保存位置スクロールは不要
+    if (state.settings.fretboardView === 'full') {
+        cancelPendingCruiseGroupScroll();
+        return;
+    }
+    const currentGr = state.memorize.cruiseCurrentGroupIndex;
+    const targets = state.memorize.cruiseTargets;
+    const groupIndices = state.memorize.cruiseGroupIndices;
+    const nextIdx = state.memorize.cruiseIndex + 1;
+
+    let nextGr;
+    if (nextIdx < targets.length) {
+        nextGr = groupIndices[nextIdx] ?? currentGr;
+    } else {
+        // ループ境界。次の周回がある場合のみ「次のループの先頭グループ」を見て
+        // 1拍前スクロールを予約する。最終ループでは先頭への戻りスクロールを行わない。
+        const maxLoops = state.settings.cruiseLoopCount; // 0 = 無制限
+        const currentLoop = state.memorize.cruiseCurrentLoop;
+        const willLoopAgain = (maxLoops === 0 || currentLoop + 1 < maxLoops);
+        if (!willLoopAgain) {
+            cancelPendingCruiseGroupScroll();
+            return;
+        }
+        nextGr = groupIndices[0] ?? currentGr;
+    }
+
+    if (nextGr !== currentGr) {
+        const nextScrollLeft = getCurrentCruiseGroupScrollLeft(nextGr);
+        if (Number.isFinite(nextScrollLeft)) {
+            scheduleCruiseGroupScroll(nextScrollLeft);
+            return;
+        }
+    }
+    cancelPendingCruiseGroupScroll();
+}
+
+function getRouteEditorCurrentScrollLeft() {
+    const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+    const live = wrapper ? Math.max(0, Math.round(wrapper.scrollLeft)) : 0;
+    if (
+        state.course === 'routeEditor' ||
+        state.course === 'proCustomRouteEditor' ||
+        state.course === 'proCustomQuizEditor'
+    ) {
+        return Math.max(live, routeEditorFretboardScrollSnapshot);
+    }
+    return live;
+}
+
+function findLastCruiseRouteSlotIndex(route, stringName, fret) {
+    if (!Array.isArray(route)) return -1;
+    for (let i = route.length - 1; i >= 0; i--) {
+        const slot = normalizeCruiseRouteSlot(route[i]);
+        if (!slot) continue;
+        if (slot.stringName === stringName && slot.fret === fret) return i;
+    }
+    return -1;
+}
+
+function getRouteEditorSnapshot(stage = null) {
+    const currentStage = clamp(parseInt(stage ?? state.routeEditor?.stage ?? 1, 10), 1, 6);
+    const routeKey = String(currentStage);
+    return {
+        stage: currentStage,
+        draft: cloneCruiseRouteSlots(state.routeEditor?.draft),
+        deleteMode: !!state.routeEditor?.deleteMode,
+        savedRoute: cloneCruiseRouteSlots(state.settings?.cruiseStageRoutes?.[routeKey]),
+        deletePicker: null,
+        groupBreaks: Array.isArray(state.routeEditor?.groupBreaks) ? state.routeEditor.groupBreaks.slice() : [],
+        groupNames: Array.isArray(state.routeEditor?.groupNames) ? state.routeEditor.groupNames.slice() : [],
+        selectedGroupIndex: typeof state.routeEditor?.selectedGroupIndex === 'number' ? state.routeEditor.selectedGroupIndex : 0,
+        visibleGroupIndices: Array.isArray(state.routeEditor?.visibleGroupIndices) ? state.routeEditor.visibleGroupIndices.slice() : [],
+        forceHideAllGroups: !!state.routeEditor?.forceHideAllGroups,
+        showAllGroupsExpanded: !!state.routeEditor?.showAllGroupsExpanded,
+        groupPanelOffset: {
+            x: clamp(parseInt(state.routeEditor?.groupPanelOffset?.x ?? 0, 10), -9999, 9999),
+            y: clamp(parseInt(state.routeEditor?.groupPanelOffset?.y ?? 0, 10), -9999, 9999)
+        }
+    };
+}
+
+function reorderRouteEditorGroups(fromIndex, toIndex) {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+    const stage = parseInt(state.routeEditor?.stage || state.memorize.stage || 1, 10);
+    const draft = (Array.isArray(state.routeEditor?.draft) ? state.routeEditor.draft : [])
+        .map(normalizeCruiseRouteSlot).filter(Boolean);
+    const rawBreaks = Array.isArray(state.routeEditor?.groupBreaks) ? state.routeEditor.groupBreaks.slice() : [];
+    const computedBreaks = normalizeRouteEditorGroupBreaks(
+        rawBreaks.length ? rawBreaks : getRouteEditorSavedGroupBreaks(stage),
+        draft.length
+    );
+    const groupBreaks = computedBreaks.length ? computedBreaks : [0];
+    const groups = getRouteEditorGroups(draft, groupBreaks);
+    const n = groups.length;
+    if (fromIndex >= n || toIndex >= n) return;
+
+    // ノートスライスを抽出
+    const slices = groups.map(g => draft.slice(g.start, g.end + 1));
+
+    // old→new インデックスマッピング
+    const newOrder = Array.from({ length: n }, (_, i) => i);
+    const [moved] = newOrder.splice(fromIndex, 1);
+    newOrder.splice(toIndex, 0, moved);
+    // newOrder[newIdx] = oldIdx
+    const oldToNew = {};
+    newOrder.forEach((oldIdx, newIdx) => { oldToNew[oldIdx] = newIdx; });
+
+    // スライスを並び替えて新draftを構築
+    const newDraft = newOrder.map(oldIdx => slices[oldIdx]).flat();
+
+    // groupBreaks を再計算（空グループは重複境界で保持）
+    const newGroupBreaks = [0];
+    let cumSum = 0;
+    for (let i = 0; i < newOrder.length - 1; i++) {
+        cumSum += slices[newOrder[i]].length;
+        newGroupBreaks.push(cumSum);
+    }
+
+    // スクロール保存位置をGr.ごと移動
+    const allScrollLefts = state.settings.cruiseStageGroupScrollLefts || {};
+    const oldScrolls = allScrollLefts[String(stage)] || {};
+    const newScrolls = {};
+    for (let oldIdx = 0; oldIdx < n; oldIdx++) {
+        if (oldScrolls[String(oldIdx)] !== undefined) {
+            newScrolls[String(oldToNew[oldIdx])] = oldScrolls[String(oldIdx)];
+        }
+    }
+    if (isProEdition()) {
+        if (!state.settings.cruiseStageGroupScrollLefts) state.settings.cruiseStageGroupScrollLefts = {};
+        state.settings.cruiseStageGroupScrollLefts[String(stage)] = newScrolls;
+    }
+
+    remapRouteEditorPendingAfterReorder(stage, n, oldToNew);
+
+    // visibleGroupIndices を再マップ
+    const oldVisible = Array.isArray(state.routeEditor?.visibleGroupIndices) ? state.routeEditor.visibleGroupIndices : [];
+    const newVisible = oldVisible
+        .map(oldIdx => (oldToNew[oldIdx] !== undefined ? oldToNew[oldIdx] : -1))
+        .filter(i => i >= 0)
+        .sort((a, b) => a - b);
+
+    // selectedGroupIndex を再マップ
+    const oldSelected = parseInt(state.routeEditor?.selectedGroupIndex ?? -1, 10);
+    const newSelected = (Number.isFinite(oldSelected) && oldSelected >= 0 && oldToNew[oldSelected] !== undefined)
+        ? oldToNew[oldSelected]
+        : oldSelected;
+
+    // groupNames を並び替え（元の番号をキープ）
+    const oldNames = (Array.isArray(state.routeEditor?.groupNames) && state.routeEditor.groupNames.length === n)
+        ? state.routeEditor.groupNames.slice()
+        : groups.map((_, i) => `Gr.${i + 1}`);
+    const newNames = newOrder.map(oldIdx => oldNames[oldIdx]);
+
+    pushRouteEditorHistory(stage);
+    state.routeEditor.draft = newDraft;
+    state.routeEditor.groupBreaks = newGroupBreaks;
+    state.routeEditor.groupNames = newNames;
+    state.routeEditor.visibleGroupIndices = newVisible;
+    state.routeEditor.selectedGroupIndex = newSelected;
+    saveState();
+    renderApp();
+}
+
+function pushRouteEditorHistory(stage = null) {
+    if (!state.routeEditor || typeof state.routeEditor !== 'object') return;
+    const snapshot = getRouteEditorSnapshot(stage);
+    if (!Array.isArray(state.routeEditor.history)) state.routeEditor.history = [];
+    state.routeEditor.history.push(snapshot);
+    if (state.routeEditor.history.length > 40) state.routeEditor.history.shift();
+}
+
+function restoreRouteEditorSnapshot(snapshot) {
+    if (!snapshot) return false;
+    const stage = clamp(parseInt(snapshot.stage ?? state.routeEditor?.stage ?? 1, 10), 1, 6);
+    state.routeEditor.stage = stage;
+    state.routeEditor.draft = cloneCruiseRouteSlots(snapshot.draft);
+    state.routeEditor.deleteMode = !!snapshot.deleteMode;
+    state.routeEditor.deletePicker = null;
+    state.routeEditor.groupBreaks = Array.isArray(snapshot.groupBreaks) ? snapshot.groupBreaks.slice() : [];
+    state.routeEditor.groupNames = Array.isArray(snapshot.groupNames) ? snapshot.groupNames.slice() : [];
+    state.routeEditor.selectedGroupIndex = typeof snapshot.selectedGroupIndex === 'number' ? snapshot.selectedGroupIndex : 0;
+    state.routeEditor.visibleGroupIndices = Array.isArray(snapshot.visibleGroupIndices) ? snapshot.visibleGroupIndices.slice() : [];
+    state.routeEditor.forceHideAllGroups = !!snapshot.forceHideAllGroups;
+    state.routeEditor.showAllGroupsExpanded = !!snapshot.showAllGroupsExpanded;
+    state.routeEditor.groupPanelOffset = {
+        x: clamp(parseInt(snapshot.groupPanelOffset?.x ?? 0, 10), -9999, 9999),
+        y: clamp(parseInt(snapshot.groupPanelOffset?.y ?? 0, 10), -9999, 9999)
+    };
+
+    if (isProEdition()) {
+        if (!state.settings.cruiseStageRoutes || typeof state.settings.cruiseStageRoutes !== 'object') {
+            state.settings.cruiseStageRoutes = {};
+        }
+        const routeKey = String(stage);
+        if (Array.isArray(snapshot.savedRoute) && snapshot.savedRoute.length) {
+            state.settings.cruiseStageRoutes[routeKey] = cloneCruiseRouteSlots(snapshot.savedRoute);
+        } else {
+            delete state.settings.cruiseStageRoutes[routeKey];
+        }
+        if (!state.settings.cruiseStageRouteGroups || typeof state.settings.cruiseStageRouteGroups !== 'object') {
+            state.settings.cruiseStageRouteGroups = {};
+        }
+        if (Array.isArray(snapshot.groupBreaks) && snapshot.groupBreaks.length) {
+            state.settings.cruiseStageRouteGroups[routeKey] = snapshot.groupBreaks.slice();
+        } else {
+            delete state.settings.cruiseStageRouteGroups[routeKey];
+        }
+    }
+    return true;
+}
+
+function cloneQuizEditorGroups(groups) {
+    if (!Array.isArray(groups)) return [{ notes: [], scrollLeft: null }];
+    return groups.map(g => ({
+        notes: (g.notes || [])
+            .map(normalizeQuizNoteSlot)
+            .filter(Boolean),
+        // null = 未保存、0 以上の数値 = 保存済み（0 もユーザーが意図的に保存した位置として扱う）
+        scrollLeft: Number.isFinite(g.scrollLeft) ? Math.max(0, Math.round(g.scrollLeft)) : null
+    }));
+}
+
+/** 保存データや JSON 由来で stringName/fret が文字列のときもクイズに使えるよう正規化する */
+function normalizeQuizNoteSlot(n) {
+    if (!n || typeof n !== 'object') return null;
+    const stringName = typeof n.stringName === 'number' && Number.isFinite(n.stringName)
+        ? n.stringName
+        : parseInt(n.stringName, 10);
+    const fret = typeof n.fret === 'number' && Number.isFinite(n.fret)
+        ? n.fret
+        : parseInt(n.fret, 10);
+    if (!Number.isFinite(stringName) || !Number.isFinite(fret)) return null;
+    if (stringName < 1 || stringName > 6 || fret < 0 || fret > MAX_FRET) return null;
+    return { stringName, fret };
+}
+
+function getQuizEditorSnapshot(stage = null) {
+    const st = stage !== null ? stage : state.quizEditor?.stage ?? 1;
+    return {
+        stage: clamp(parseInt(st, 10), 1, 6),
+        groups: cloneQuizEditorGroups(state.quizEditor?.groups),
+        selectedGroupIndex: typeof state.quizEditor?.selectedGroupIndex === 'number' ? state.quizEditor.selectedGroupIndex : 0,
+        visibleGroupIndices: Array.isArray(state.quizEditor?.visibleGroupIndices) ? state.quizEditor.visibleGroupIndices.slice() : [],
+        forceHideAllGroups: !!state.quizEditor?.forceHideAllGroups,
+        showAllGroupsExpanded: !!state.quizEditor?.showAllGroupsExpanded,
+        groupPanelOffset: normalizeRouteEditorGroupPanelOffset(state.quizEditor?.groupPanelOffset)
+    };
+}
+
+function pushQuizEditorHistory(stage = null) {
+    if (!state.quizEditor || typeof state.quizEditor !== 'object') return;
+    const snapshot = getQuizEditorSnapshot(stage);
+    if (!Array.isArray(state.quizEditor.history)) state.quizEditor.history = [];
+    state.quizEditor.history.push(snapshot);
+    if (state.quizEditor.history.length > 40) state.quizEditor.history.shift();
+}
+
+function restoreQuizEditorSnapshot(snapshot) {
+    if (!snapshot) return false;
+    const stage = clamp(parseInt(snapshot.stage ?? state.quizEditor?.stage ?? 1, 10), 1, 6);
+    state.quizEditor.stage = stage;
+    state.quizEditor.groups = cloneQuizEditorGroups(snapshot.groups);
+    if (!state.quizEditor.groups.length) state.quizEditor.groups = [{ notes: [], scrollLeft: null }];
+    if (state.quizEditor.groups.length > QUIZ_EDITOR_MAX_GROUPS) {
+        state.quizEditor.groups = state.quizEditor.groups.slice(0, QUIZ_EDITOR_MAX_GROUPS);
+    }
+    const maxIdx = Math.max(0, state.quizEditor.groups.length - 1);
+    state.quizEditor.selectedGroupIndex = clamp(
+        typeof snapshot.selectedGroupIndex === 'number' ? snapshot.selectedGroupIndex : 0,
+        -1,
+        maxIdx
+    );
+    state.quizEditor.visibleGroupIndices = Array.isArray(snapshot.visibleGroupIndices) ? snapshot.visibleGroupIndices.slice() : [];
+    state.quizEditor.forceHideAllGroups = !!snapshot.forceHideAllGroups;
+    state.quizEditor.showAllGroupsExpanded = !!snapshot.showAllGroupsExpanded;
+    state.quizEditor.groupPanelOffset = normalizeRouteEditorGroupPanelOffset(snapshot.groupPanelOffset);
+    return true;
+}
+
+function getRouteEditorDeleteOptions(route, stringName, fret) {
+    if (!Array.isArray(route)) return [];
+    const options = [];
+    route.forEach((slot, index) => {
+        const normalized = normalizeCruiseRouteSlot(slot);
+        if (!normalized) return;
+        if (normalized.stringName === stringName && normalized.fret === fret) {
+            options.push({
+                index,
+                label: `${options.length + 1}番目`,
+                slot: normalized
+            });
+        }
+    });
+    return options;
+}
+
+function getRouteEditorSlotInfo(slot) {
+    const normalized = normalizeCruiseRouteSlot(slot);
+    if (!normalized) return null;
+    const target = makeCruiseTarget(normalized.stringName, normalized.fret);
+    return {
+        ...normalized,
+        noteIdx: target.noteIdx,
+        noteName: target.noteName
+    };
+}
+
+function buildAutoRouteEditorGroupBreaks(draft) {
+    if (!Array.isArray(draft) || !draft.length) return [];
+    const breaks = [0];
+    let prevInfo = getRouteEditorSlotInfo(draft[0]);
+    for (let i = 1; i < draft.length; i++) {
+        const currInfo = getRouteEditorSlotInfo(draft[i]);
+        if (!currInfo || !prevInfo) {
+            prevInfo = currInfo;
+            continue;
+        }
+        const splitByBoundary =
+            prevInfo.noteIdx === 11 ||
+            currInfo.noteIdx <= prevInfo.noteIdx ||
+            (currInfo.fret < prevInfo.fret && Math.abs(currInfo.stringName - prevInfo.stringName) <= 1);
+        if (splitByBoundary && breaks[breaks.length - 1] !== i) {
+            breaks.push(i);
+        }
+        prevInfo = currInfo;
+    }
+    return breaks;
+}
+
+function normalizeRouteEditorGroupBreaks(breaks, draftLength) {
+    // 重複境界（空グループを表す）はそのまま保持する
+    const normalized = (Array.isArray(breaks) ? breaks : [])
+        .map(value => parseInt(value, 10))
+        .filter(Number.isFinite)
+        .map(value => clamp(value, 0, Math.max(0, draftLength + ROUTE_EDITOR_MAX_GROUPS - 1)))
+        .sort((a, b) => a - b);
+    const result = normalized.slice();
+    if (!result.length || result[0] !== 0) result.unshift(0);
+    if (result.length > ROUTE_EDITOR_MAX_GROUPS) result.length = ROUTE_EDITOR_MAX_GROUPS;
+    return result;
+}
+
+function buildRouteEditorGroupsFromBreaks(draft, breaks) {
+    const normalizedDraft = Array.isArray(draft) ? draft : [];
+    const normalizedBreaks = normalizeRouteEditorGroupBreaks(
+        breaks,
+        Math.max(1, normalizedDraft.length)
+    );
+    if (!normalizedBreaks.length) {
+        return [{
+            name: 'Gr.1',
+            start: 0,
+            end: -1,
+            isEmpty: true
+        }];
+    }
+    return normalizedBreaks.map((start, index) => {
+        const end = index + 1 < normalizedBreaks.length ? normalizedBreaks[index + 1] - 1 : normalizedDraft.length - 1;
+        return {
+            name: `Gr.${index + 1}`,
+            start,
+            end: start >= normalizedDraft.length ? start - 1 : end,
+            isEmpty: end < start || start >= normalizedDraft.length
+        };
+    });
+}
+
+function normalizeRouteEditorGroupPanelOffset(offset) {
+    return {
+        x: clamp(parseInt(offset?.x ?? 0, 10), -9999, 9999),
+        y: clamp(parseInt(offset?.y ?? 0, 10), -9999, 9999)
+    };
+}
+
+function getRouteEditorSavedGroupBreaks(stage) {
+    const groups = state.settings.cruiseStageRouteGroups || {};
+    const saved = groups[String(stage)];
+    return Array.isArray(saved) ? saved : [];
+}
+
+function setRouteEditorSavedGroupBreaks(stage, breaks) {
+    if (isStandardEdition()) return false;
+    if (!state.settings.cruiseStageRouteGroups || typeof state.settings.cruiseStageRouteGroups !== 'object') {
+        state.settings.cruiseStageRouteGroups = {};
+    }
+    state.settings.cruiseStageRouteGroups[String(stage)] = Array.isArray(breaks) ? breaks.slice() : [];
+    return true;
+}
+
+function shiftRouteEditorGroupBreaks(breaks, draftLength, groupIndex, delta) {
+    const normalized = normalizeRouteEditorGroupBreaks(breaks, draftLength);
+    const next = normalized.slice();
+    if (!next.length) return next;
+    const boundaryIndex = groupIndex + 1;
+    if (boundaryIndex <= 0 || boundaryIndex >= next.length) return next;
+    const leftStart = next[boundaryIndex - 1];
+    const rightStart = next[boundaryIndex];
+    const maxIndex = Math.max(0, draftLength - 1);
+    const newValue = clamp(rightStart + delta, leftStart + 1, boundaryIndex + 1 < next.length ? next[boundaryIndex + 1] - 1 : maxIndex);
+    next[boundaryIndex] = newValue;
+    return normalizeRouteEditorGroupBreaks(next, draftLength);
+}
+
+function insertRouteEditorGroupBreak(breaks, draftLength, groupIndex) {
+    const normalized = normalizeRouteEditorGroupBreaks(breaks, draftLength);
+    const groups = buildRouteEditorGroupsFromBreaks(Array(draftLength).fill(null), normalized);
+    const targetGroup = groups[groupIndex];
+    if (!targetGroup) return normalized;
+    const span = targetGroup.end - targetGroup.start + 1;
+    if (span < 2) return normalized;
+    const split = targetGroup.start + Math.floor(span / 2);
+    if (split <= targetGroup.start) return normalized;
+    const next = normalized.slice();
+    next.splice(groupIndex + 1, 0, split);
+    return normalizeRouteEditorGroupBreaks(next, draftLength);
+}
+
+function adjustRouteEditorGroupBreaksForInsert(breaks, insertedIndex, draftLength) {
+    const next = (Array.isArray(breaks) ? breaks : []).map(start => {
+        const n = parseInt(start, 10);
+        if (!Number.isFinite(n)) return null;
+        return n > insertedIndex ? n + 1 : n;
+    }).filter(value => value !== null);
+    return normalizeRouteEditorGroupBreaks(next, draftLength);
+}
+
+function adjustRouteEditorGroupBreaksForDelete(breaks, deletedIndex, draftLength) {
+    const next = (Array.isArray(breaks) ? breaks : []).map(start => {
+        const n = parseInt(start, 10);
+        if (!Number.isFinite(n)) return null;
+        return n > deletedIndex ? n - 1 : n;
+    }).filter(value => value !== null);
+    return normalizeRouteEditorGroupBreaks(next, draftLength);
+}
+
+function getRouteEditorGroups(draft, breaks) {
+    return buildRouteEditorGroupsFromBreaks(draft, breaks);
+}
+
+function getRouteEditorVisibleGroupIndices(groupCount) {
+    if (!groupCount) return [];
+    const raw = Array.isArray(state.routeEditor?.visibleGroupIndices)
+        ? state.routeEditor.visibleGroupIndices
+        : [];
+    const indices = raw
+        .map(value => parseInt(value, 10))
+        .filter(Number.isFinite)
+        .filter(value => value >= 0 && value < groupCount);
+    const unique = [];
+    indices.sort((a, b) => a - b).forEach(index => {
+        if (!unique.includes(index)) unique.push(index);
+    });
+    return unique.length ? unique : [0];
+}
+
+function getQuizEditorVisibleGroupIndices(groupCount) {
+    if (!groupCount) return [];
+    if (state.quizEditor?.forceHideAllGroups) return [];
+    const raw = Array.isArray(state.quizEditor?.visibleGroupIndices)
+        ? state.quizEditor.visibleGroupIndices
+        : [];
+    const indices = raw
+        .map(value => parseInt(value, 10))
+        .filter(Number.isFinite)
+        .filter(value => value >= 0 && value < groupCount);
+    const unique = [];
+    indices.sort((a, b) => a - b).forEach(index => {
+        if (!unique.includes(index)) unique.push(index);
+    });
+    return unique.length ? unique : [0];
+}
+
+function getRouteEditorVisibleGroups(groups) {
+    const visibleIndices = getRouteEditorVisibleGroupIndices(groups.length);
+    return visibleIndices
+        .map(index => ({
+            ...groups[index],
+            index
+        }))
+        .filter(group => !!group);
+}
+
+function getRouteEditorActiveGroupIndex(visibleGroups, selectedGroupIndex) {
+    const parsedSelectedRaw = parseInt(selectedGroupIndex ?? 0, 10);
+    const parsedSelected = Number.isFinite(parsedSelectedRaw) && parsedSelectedRaw >= 0
+        ? parsedSelectedRaw
+        : null;
+    const visibleIndices = Array.isArray(visibleGroups)
+        ? visibleGroups.map(group => parseInt(group?.index, 10)).filter(Number.isFinite)
+        : [];
+    if (parsedSelected === null) return -1;
+    return visibleIndices.includes(parsedSelected) ? parsedSelected : -1;
+}
+
+function getRouteEditorNextVisibleGroupIndex(visibleIndices, currentIndex) {
+    const sortedVisible = Array.isArray(visibleIndices)
+        ? visibleIndices.map(value => parseInt(value, 10)).filter(Number.isFinite).sort((a, b) => a - b)
+        : [];
+    if (!sortedVisible.length) return -1;
+    if (sortedVisible.length === 1) return sortedVisible[0];
+    const parsedCurrent = parseInt(currentIndex, 10);
+    const currentPos = Number.isFinite(parsedCurrent) ? sortedVisible.indexOf(parsedCurrent) : -1;
+    if (currentPos < 0) return sortedVisible[sortedVisible.length - 1];
+    return sortedVisible[(currentPos + 1) % sortedVisible.length];
+}
+
+function getRouteEditorPreviousVisibleGroupIndex(visibleIndices, currentIndex) {
+    const sortedVisible = Array.isArray(visibleIndices)
+        ? visibleIndices.map(value => parseInt(value, 10)).filter(Number.isFinite).sort((a, b) => a - b)
+        : [];
+    if (!sortedVisible.length) return -1;
+    if (sortedVisible.length === 1) return sortedVisible[0];
+    const parsedCurrent = parseInt(currentIndex, 10);
+    const currentPos = Number.isFinite(parsedCurrent) ? sortedVisible.indexOf(parsedCurrent) : -1;
+    if (currentPos < 0) return sortedVisible[0];
+    return sortedVisible[(currentPos - 1 + sortedVisible.length) % sortedVisible.length];
+}
+
+function getRouteEditorGroupIndexForRouteIndex(draft, breaks, routeIndex) {
+    const normalizedDraft = Array.isArray(draft) ? draft : [];
+    const normalizedBreaks = normalizeRouteEditorGroupBreaks(breaks, normalizedDraft.length);
+    if (!Number.isFinite(routeIndex) || routeIndex < 0 || routeIndex >= normalizedDraft.length) return 0;
+    let groupIndex = 0;
+    for (let i = 0; i < normalizedBreaks.length; i++) {
+        if (normalizedBreaks[i] <= routeIndex) groupIndex = i;
+        else break;
+    }
+    return groupIndex;
+}
+
+function findRouteEditorRouteIndexInGroup(draft, breaks, groupIndex, stringName, fret) {
+    const normalizedDraft = Array.isArray(draft) ? draft : [];
+    const groups = getRouteEditorGroups(normalizedDraft, breaks);
+    const group = groups[groupIndex];
+    if (!group || group.end < group.start) return -1;
+    for (let i = group.end; i >= group.start; i--) {
+        const slot = normalizeCruiseRouteSlot(normalizedDraft[i]);
+        if (!slot) continue;
+        if (slot.stringName === stringName && slot.fret === fret) return i;
+    }
+    return -1;
+}
+
+function insertRouteEditorSlotIntoGroup(draft, breaks, groupIndex, slot) {
+    const normalizedDraft = Array.isArray(draft) ? draft.slice() : [];
+    const oldLength = normalizedDraft.length;
+    const normalizedBreaks = normalizeRouteEditorGroupBreaks(breaks, oldLength);
+    const groups = getRouteEditorGroups(normalizedDraft, normalizedBreaks);
+    const targetGroupIndex = clamp(parseInt(groupIndex ?? 0, 10), 0, Math.max(0, groups.length - 1));
+    const targetGroup = groups[targetGroupIndex];
+    const insertIndex = targetGroup
+        ? clamp(
+            targetGroup.end >= targetGroup.start ? targetGroup.end + 1 : targetGroup.start,
+            0,
+            oldLength
+        )
+        : oldLength;
+    const nextBreaks = normalizedBreaks.slice();
+    if (!nextBreaks.length) nextBreaks.push(0);
+    while (nextBreaks.length <= targetGroupIndex && nextBreaks.length < ROUTE_EDITOR_MAX_GROUPS) {
+        nextBreaks.push(Math.max(oldLength, nextBreaks[nextBreaks.length - 1] + 1));
+    }
+    if (targetGroupIndex > 0 && targetGroup?.isEmpty) {
+        nextBreaks[targetGroupIndex] = insertIndex;
+    }
+    for (let i = targetGroupIndex + 1; i < nextBreaks.length; i++) {
+        if (nextBreaks[i] >= insertIndex && nextBreaks[i] <= oldLength) {
+            nextBreaks[i] += 1;
+        }
+    }
+    normalizedDraft.splice(insertIndex, 0, slot);
+    return {
+        draft: normalizedDraft,
+        groupBreaks: normalizeRouteEditorGroupBreaks(nextBreaks, normalizedDraft.length)
+    };
+}
+
+function deleteRouteEditorGroupAtIndex(draft, breaks, groupIndex) {
+    const normalizedDraft = Array.isArray(draft) ? draft.slice() : [];
+    const normalizedBreaks = normalizeRouteEditorGroupBreaks(breaks, normalizedDraft.length);
+    const groups = buildRouteEditorGroupsFromBreaks(normalizedDraft, normalizedBreaks);
+    if (groups.length <= 1) {
+        return {
+            draft: normalizedDraft,
+            groupBreaks: normalizedBreaks
+        };
+    }
+    const targetGroupIndex = clamp(parseInt(groupIndex ?? 0, 10), 0, groups.length - 1);
+    const targetGroup = groups[targetGroupIndex];
+    if (!targetGroup) {
+        return {
+            draft: normalizedDraft,
+            groupBreaks: normalizedBreaks
+        };
+    }
+    const remainingGroups = groups.filter((_, index) => index !== targetGroupIndex);
+    const nextDraft = [];
+    const nextBreaks = [0];
+    remainingGroups.forEach((group, index) => {
+        if (group.end >= group.start) {
+            nextDraft.push(...normalizedDraft.slice(group.start, group.end + 1));
+        }
+        if (index < remainingGroups.length - 1) {
+            nextBreaks.push(nextDraft.length);
+        }
+    });
+    return {
+        draft: nextDraft,
+        groupBreaks: normalizeRouteEditorGroupBreaks(nextBreaks, nextDraft.length)
+    };
+}
+
+function getRouteEditorGroupColorStyle(groupIndex) {
+    const palette = [
+        { bg: '#4f9cf9', fg: '#06111f', ring: 'rgba(79, 156, 249, 0.28)' },
+        { bg: '#7ee081', fg: '#08130b', ring: 'rgba(126, 224, 129, 0.26)' },
+        { bg: '#f7b955', fg: '#1c1204', ring: 'rgba(247, 185, 85, 0.28)' },
+        { bg: '#e38df0', fg: '#16091a', ring: 'rgba(227, 141, 240, 0.26)' },
+        { bg: '#7cd6ff', fg: '#07131a', ring: 'rgba(124, 214, 255, 0.26)' },
+        { bg: '#ff8d8d', fg: '#1e0909', ring: 'rgba(255, 141, 141, 0.26)' },
+        { bg: '#c8e06d', fg: '#101507', ring: 'rgba(200, 224, 109, 0.26)' },
+        { bg: '#89a8ff', fg: '#09111d', ring: 'rgba(137, 168, 255, 0.26)' },
+        { bg: '#6fe0c0', fg: '#071513', ring: 'rgba(111, 224, 192, 0.26)' },
+        { bg: '#ffb36b', fg: '#1d1205', ring: 'rgba(255, 179, 107, 0.28)' },
+        { bg: '#ff6fa8', fg: '#1d0914', ring: 'rgba(255, 111, 168, 0.26)' },
+        { bg: '#b89cff', fg: '#0f0a1d', ring: 'rgba(184, 156, 255, 0.26)' },
+        { bg: '#61d4ff', fg: '#07131a', ring: 'rgba(97, 212, 255, 0.26)' },
+        { bg: '#ffd66a', fg: '#1b1305', ring: 'rgba(255, 214, 106, 0.28)' },
+        { bg: '#97ed7d', fg: '#09150a', ring: 'rgba(151, 237, 125, 0.26)' },
+        { bg: '#ff9aa0', fg: '#1e090b', ring: 'rgba(255, 154, 160, 0.26)' },
+        { bg: '#8be3d6', fg: '#071615', ring: 'rgba(139, 227, 214, 0.26)' },
+        { bg: '#d79cff', fg: '#14091d', ring: 'rgba(215, 156, 255, 0.26)' },
+        { bg: '#ffc57c', fg: '#1d1105', ring: 'rgba(255, 197, 124, 0.28)' },
+        { bg: '#8fb0ff', fg: '#08111d', ring: 'rgba(143, 176, 255, 0.26)' }
+    ];
+    const index = ((parseInt(groupIndex, 10) % palette.length) + palette.length) % palette.length;
+    const color = palette[index];
+    return `--route-edit-note-bg: ${color.bg}; --route-edit-note-fg: ${color.fg}; --route-edit-note-ring: ${color.ring};`;
+}
+
+function getRouteEditorSelectedGroupIndex(groupCount) {
+    if (!groupCount) return 0;
+    return clamp(parseInt(state.routeEditor?.selectedGroupIndex ?? 0, 10), 0, groupCount - 1);
+}
+
+function getRouteEditorSelectedGroupRange(draft, breaks, groupIndex) {
+    const groups = getRouteEditorGroups(draft, breaks);
+    return groups[groupIndex] || null;
+}
+
+function getRouteEditorGroupSlots(draft, groupRange) {
+    if (!groupRange || !Array.isArray(draft)) return [];
+    if (groupRange.end < groupRange.start) return [];
+    return draft.slice(groupRange.start, groupRange.end + 1);
+}
+
+function shiftRouteEditorGroupRange(groups, groupIndex, delta, draftLength) {
+    const ranges = Array.isArray(groups) ? groups.map(group => ({ ...group })) : [];
+    if (!ranges.length) return ranges;
+    const current = ranges[groupIndex];
+    if (!current) return ranges;
+    if (delta === 0) return ranges;
+    if (delta < 0) {
+        if (groupIndex === 0) return ranges;
+        const prev = ranges[groupIndex - 1];
+        if (!prev || prev.end <= prev.start) return ranges;
+        prev.end -= 1;
+        current.start -= 1;
+    } else {
+        if (groupIndex >= ranges.length - 1) return ranges;
+        const next = ranges[groupIndex + 1];
+        if (!next || next.end <= next.start) return ranges;
+        current.end += 1;
+        next.start += 1;
+    }
+    return ranges.filter((group, index) => index === 0 || group.start <= group.end).map(group => ({
+        ...group,
+        start: clamp(group.start, 0, Math.max(0, draftLength - 1)),
+        end: clamp(group.end, 0, Math.max(0, draftLength - 1))
+    }));
+}
+
+function makeCruiseScopeFromSequence(sequence) {
+    const seen = new Set();
+    const scope = [];
+    sequence.forEach(target => {
+        const key = `${target.stringName}-${target.fret}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        scope.push(target);
+    });
+    return scope;
+}
+
+function getCruiseUniqueTargetsForStage(stage) {
+    const targets = getStageTargets(stage).map(t => ({
+        ...t,
+        midiNote: STRING_BASE_PITCHES[t.stringIdx] + t.fret
+    }));
+    if (stage === 6) {
+        return targets.sort((a, b) => a.midiNote - b.midiNote);
+    }
+    const grouped = {};
+    targets.forEach(t => {
+        if (!grouped[t.midiNote] || t.stringIdx < grouped[t.midiNote].stringIdx) {
+            grouped[t.midiNote] = t;
+        }
+    });
+    return Object.values(grouped).sort((a, b) => a.midiNote - b.midiNote);
+}
+
+function buildCruiseWalkSequence(uniqueTargets) {
+    let startIdx = uniqueTargets.findIndex(t => t.stringName === 5 && t.fret === 3);
+    if (startIdx === -1) startIdx = uniqueTargets.findIndex(t => t.stringName === 6 && t.fret === 8);
+    if (startIdx === -1) startIdx = uniqueTargets.findIndex(t => t.noteIdx === 0);
+    if (startIdx === -1) startIdx = 0;
+
+    const sequence = [];
+    for (let i = startIdx; i >= 0; i--) sequence.push(uniqueTargets[i]);
+    for (let i = 1; i < uniqueTargets.length; i++) sequence.push(uniqueTargets[i]);
+    for (let i = uniqueTargets.length - 2; i >= startIdx; i--) sequence.push(uniqueTargets[i]);
+    return sequence;
+}
+
+function buildDefaultCruiseStageSequence(stage) {
+    if (stage === 1) {
+        const slots = getShippedDefaultStage1RouteSlots();
+        const sequence = slots.map(slot => makeCruiseTarget(slot.stringName, slot.fret));
+        const cruiseScope = makeCruiseScopeFromSequence(sequence);
+        return {
+            sequence,
+            cruiseScope,
+            groupBreaks: SHIPPED_DEFAULT_STAGE_1_ROUTE_GROUP_BREAKS.slice()
+        };
+    }
+    if (stage === 2) {
+        const slots = getShippedDefaultStage2RouteSlots();
+        const sequence = slots.map(slot => makeCruiseTarget(slot.stringName, slot.fret));
+        const cruiseScope = makeCruiseScopeFromSequence(sequence);
+        return {
+            sequence,
+            cruiseScope,
+            groupBreaks: SHIPPED_DEFAULT_STAGE_2_ROUTE_GROUP_BREAKS.slice()
+        };
+    }
+    if (stage === 3) {
+        const slots = getShippedDefaultStage3RouteSlots();
+        const sequence = slots.map(slot => makeCruiseTarget(slot.stringName, slot.fret));
+        const cruiseScope = makeCruiseScopeFromSequence(sequence);
+        return {
+            sequence,
+            cruiseScope,
+            groupBreaks: SHIPPED_DEFAULT_STAGE_3_ROUTE_GROUP_BREAKS.slice()
+        };
+    }
+    if (stage === 4) {
+        const slots = getShippedDefaultStage4RouteSlots();
+        const sequence = slots.map(slot => makeCruiseTarget(slot.stringName, slot.fret));
+        const cruiseScope = makeCruiseScopeFromSequence(sequence);
+        return {
+            sequence,
+            cruiseScope,
+            groupBreaks: SHIPPED_DEFAULT_STAGE_4_ROUTE_GROUP_BREAKS.slice()
+        };
+    }
+    if (stage === 5) {
+        const slots = getShippedDefaultStage5RouteSlots();
+        const sequence = slots.map(slot => makeCruiseTarget(slot.stringName, slot.fret));
+        const cruiseScope = makeCruiseScopeFromSequence(sequence);
+        return {
+            sequence,
+            cruiseScope,
+            groupBreaks: SHIPPED_DEFAULT_STAGE_5_ROUTE_GROUP_BREAKS.slice()
+        };
+    }
+    if (stage === 6) {
+        const slots = getShippedDefaultStage6RouteSlots();
+        const sequence = slots.map(slot => makeCruiseTarget(slot.stringName, slot.fret));
+        const cruiseScope = makeCruiseScopeFromSequence(sequence);
+        return {
+            sequence,
+            cruiseScope,
+            groupBreaks: SHIPPED_DEFAULT_STAGE_6_ROUTE_GROUP_BREAKS.slice()
+        };
+    }
+
+    const sequence = [];
+    const cruiseScope = [];
+    const uniqueTargets = getCruiseUniqueTargetsForStage(stage);
+    cruiseScope.push(...uniqueTargets);
+    sequence.push(...buildCruiseWalkSequence(uniqueTargets));
+
+    return { sequence, cruiseScope };
+}
+
+function buildCruiseStageSequence(stage) {
+    const savedSlots = getSavedCruiseRouteSlots(stage);
+    if (savedSlots.length > 0) {
+        return buildCruiseSequenceFromSlots(savedSlots, true, stage);
+    }
+    const defaultStage = buildDefaultCruiseStageSequence(stage);
+    const defaultSlots = defaultStage.sequence.map(cruiseRouteSlotFromTarget);
+    return {
+        ...defaultStage,
+        isCustom: false,
+        groupIndices: buildCruiseGroupIndicesFromSlots(stage, defaultSlots, defaultStage.groupBreaks)
+    };
+}
+
+function buildCruiseGroupIndicesFromSlots(stage, slots, fallbackGroupBreaks = null) {
+    const normalizedSlots = cloneCruiseRouteSlots(slots).map(normalizeCruiseRouteSlot).filter(Boolean);
+    if (!normalizedSlots.length) return [];
+    const savedGroupBreaks = normalizeRouteEditorGroupBreaks(getRouteEditorSavedGroupBreaks(stage), normalizedSlots.length);
+    const defaultGroupBreaks = normalizeRouteEditorGroupBreaks(fallbackGroupBreaks, normalizedSlots.length);
+    const groupBreaks = savedGroupBreaks.length
+        ? savedGroupBreaks
+        : defaultGroupBreaks.length
+            ? defaultGroupBreaks
+            : buildAutoRouteEditorGroupBreaks(normalizedSlots);
+    const groups = buildRouteEditorGroupsFromBreaks(normalizedSlots, groupBreaks);
+    const groupIndices = Array(normalizedSlots.length).fill(0);
+    groups.forEach((group, groupIndex) => {
+        if (!group || group.end < group.start) return;
+        for (let i = group.start; i <= group.end && i < groupIndices.length; i++) {
+            groupIndices[i] = groupIndex;
+        }
+    });
+    return groupIndices;
+}
+
+function buildCruiseSequenceFromSlots(slots, isCustom = false, stage = null) {
+    const sequence = cloneCruiseRouteSlots(slots).map(slot => makeCruiseTarget(slot.stringName, slot.fret));
+    return {
+        sequence,
+        cruiseScope: makeCruiseScopeFromSequence(sequence),
+        isCustom,
+        groupIndices: Number.isFinite(parseInt(stage, 10))
+            ? buildCruiseGroupIndicesFromSlots(parseInt(stage, 10), slots)
+            : sequence.map(() => 0)
+    };
+}
+
+function getCurrentCruiseGroupScrollLeft(groupIndex) {
+    if (state.memorize?.proCustomCruise) {
+        return getProCustomGroupScrollLeft(groupIndex);
+    }
+    const st = state.memorize.stage;
+    if (isStandardEdition()) {
+        const demoFromRouteEditor =
+            state.memorize?.isDemoPlayback === true &&
+            state.memorize?.demoReturnCourse === 'routeEditor';
+        if (demoFromRouteEditor) {
+            return getPendingRouteEditorGroupScrollLeft(st, groupIndex);
+        }
+        // ホームからの通常練習：従来どおり pending があればそれ、なければ saved（配布・永続）
+        const pending = getPendingRouteEditorGroupScrollLeft(st, groupIndex);
+        if (Number.isFinite(pending)) return pending;
+        return getSavedCruiseGroupScrollLeft(st, groupIndex);
+    }
+    return getRouteEditorEffectiveGroupScrollLeft(st, groupIndex);
+}
+
+function startCruisePlaybackFromSequence(sequence, cruiseScope = null, stage = null, groupIndices = null) {
+    if (!Array.isArray(sequence) || !sequence.length) return false;
+    stopRhythm();
+    stopQuizTimer();
+    clearStage1RepeatHintState();
+    if (Number.isFinite(parseInt(stage, 10))) {
+        state.memorize.stage = clamp(parseInt(stage, 10), 1, 6);
+    }
+    state.memorize.playMode = 'cruise';
+    state.memorize.cruiseTargets = sequence.map(target => ({ ...target }));
+    state.memorize.cruiseScope = Array.isArray(cruiseScope) && cruiseScope.length
+        ? cruiseScope.map(target => ({ ...target }))
+        : makeCruiseScopeFromSequence(state.memorize.cruiseTargets);
+    state.memorize.cruiseGroupIndices = Array.isArray(groupIndices) && groupIndices.length
+        ? groupIndices.map(index => clamp(parseInt(index, 10), 0, Number.MAX_SAFE_INTEGER))
+        : sequence.map(() => 0);
+    state.memorize.cruiseIndex = 0;
+    state.memorize.cruiseCurrentLoop = 0;
+    state.memorize.currentQuestion = state.memorize.cruiseTargets[0];
+    state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices[0] ?? 0;
+    state.memorize.cruisePreviousGroupIndex = null;
+    state.memorize.isCleared = false;
+    state.memorize.hasTappedCurrentNote = false;
+    state.memorize.cruisePreTapped = false;
+    state.memorize.cruiseLastTapFeedback = null;
+    state.memorize.isFirstNote = true;
+    state.memorize.tempFeedback = null;
+    state.memorize.proCustomCruise = null;
+    state.memorize.isDemoPlayback = true;
+    state.memorize.demoReturnCourse = 'routeEditor';
+    state.memorize.demoReturnStage = Number.isFinite(parseInt(stage, 10)) ? clamp(parseInt(stage, 10), 1, 6) : state.routeEditor?.stage || 1;
+    state.memorize.isCruisePlaying = true;
+    state.course = 'memorize';
+    autoScrollRequested = true;
+    saveState();
+    renderApp();
+    if (guardEditorDemoPlayback()) {
+        startCruiseCountdownAndRhythm();
+    }
+    return true;
+}
+
+function startProCustomCruisePlayback(stageSettings, returnCourse = 'proCustomRouteEditor') {
+    const custom = normalizeProCustomStageSettings(stageSettings);
+    if (!custom || !custom.route.length) return false;
+    const sequence = cloneCruiseRouteSlots(custom.route)
+        .map(slot => makeCruiseTarget(slot.stringName, slot.fret))
+        .filter(Boolean);
+    if (!sequence.length) return false;
+    const groupIndices = buildGroupIndicesFromBreaks(custom.route, custom.groupBreaks);
+    stopRhythm();
+    stopQuizTimer();
+    clearStage1RepeatHintState();
+    state.memorize.stage = 6;
+    state.memorize.playMode = 'cruise';
+    state.memorize.cruiseTargets = sequence.map(target => ({ ...target }));
+    state.memorize.cruiseScope = makeCruiseScopeFromSequence(state.memorize.cruiseTargets);
+    state.memorize.cruiseGroupIndices = Array.isArray(groupIndices) && groupIndices.length ? groupIndices.slice() : sequence.map(() => 0);
+    state.memorize.cruiseIndex = 0;
+    state.memorize.cruiseCurrentLoop = 0;
+    state.memorize.currentQuestion = state.memorize.cruiseTargets[0];
+    state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices[0] ?? 0;
+    state.memorize.cruisePreviousGroupIndex = null;
+    state.memorize.isCleared = false;
+    state.memorize.hasTappedCurrentNote = false;
+    state.memorize.cruisePreTapped = false;
+    state.memorize.cruiseLastTapFeedback = null;
+    state.memorize.isFirstNote = true;
+    state.memorize.tempFeedback = null;
+    state.memorize.correct = 0;
+    state.memorize.combo = 0;
+    state.memorize.maxCombo = 0;
+    state.memorize.isDemoPlayback = returnCourse === 'proCustomRouteEditor';
+    state.memorize.demoReturnCourse = returnCourse;
+    state.memorize.demoReturnStage = null;
+    state.memorize.proCustomCruise = {
+        name: custom.name,
+        key: custom.key,
+        capo: custom.capo,
+        scale: custom.scale,
+        displayMode: custom.displayMode,
+        doMode: custom.doMode,
+        maxFret: custom.maxFret,
+        groupScrollLefts: { ...(custom.groupScrollLefts || {}) }
+    };
+    state.memorize.isCruisePlaying = true;
+    state.course = 'memorize';
+    autoScrollRequested = true;
+    saveState();
+    renderApp();
+    if (guardEditorDemoPlayback()) {
+        startCruiseCountdownAndRhythm();
+    }
+    return true;
+}
+
+function startProCustomQuizPlayback(stageSettings, returnCourse = 'stageSelect') {
+    const custom = normalizeProCustomQuizStageSettings(stageSettings);
+    if (!custom) return false;
+    const hasNotes = custom.groups.some(group => Array.isArray(group.notes) && group.notes.length > 0);
+    if (!hasNotes) return false;
+    stopRhythm();
+    stopQuizTimer();
+    cancelQuizScrollAnimation();
+    clearStage1RepeatHintState();
+    state.memorize.stage = 6;
+    state.memorize.playMode = 'quiz';
+    state.memorize.combo = 0;
+    state.memorize.maxCombo = 0;
+    state.memorize.correct = 0;
+    state.memorize.quizQuestionsAsked = 0;
+    state.memorize.quizQuestionResults = [];
+    state.memorize.isQuizCleared = false;
+    state.memorize.quizAttemptCounted = false;
+    state.memorize.quizPerfectCounted  = false;
+    state.memorize.isCleared = false;
+    state.memorize.hasTappedCurrentNote = false;
+    state.memorize.tempFeedback = null;
+    state.memorize.cruiseTargets = [];
+    state.memorize.cruiseScope = [];
+    state.memorize.cruiseIndex = 0;
+    state.memorize.proCustomCruise = null;
+    state.memorize.proCustomQuiz = {
+        id: custom.id,
+        name: custom.name,
+        key: custom.key,
+        capo: custom.capo,
+        scale: custom.scale,
+        displayMode: custom.displayMode,
+        doMode: custom.doMode,
+        maxFret: custom.maxFret,
+        groups: normalizeProCustomQuizGroups(custom.groups)
+    };
+    state.memorize.isDemoPlayback = returnCourse === 'proCustomQuizEditor';
+    state.memorize.demoReturnCourse = returnCourse;
+    state.memorize.demoReturnStage = null;
+    state.quizEditorPreview = null;
+    state.course = 'memorize';
+    generateQuestion();
+    autoScrollRequested = true;
+    saveState();
+    renderApp();
+    if (!guardEditorDemoPlayback()) return true;
+    if (state.memorize.currentQuestion) {
+        quizToneTimeout = setTimeout(() => {
+            quizToneTimeout = null;
+            if (state.course === 'memorize' && state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+                playTone(state.memorize.currentQuestion.stringIdx, state.memorize.currentQuestion.fret);
+            }
+        }, 100);
+    }
+    return true;
+}
+
+function generateQuestion() {
+    // 指板クイズ：問題数の上限を超えた場合はクリアを立てて即終了
+    if (state.memorize.playMode === 'quiz') {
+        const limit = parseInt(state.settings.quizQuestionLimit ?? DEFAULT_QUIZ_QUESTION_LIMIT, 10) || 0;
+        const asked = parseInt(state.memorize.quizQuestionsAsked ?? 0, 10) || 0;
+        if (limit > 0 && asked >= limit) {
+            state.memorize.isQuizCleared = true;
+            state.memorize.hasTappedCurrentNote = true;
+            stopQuizTimer();
+            maybeRecordQuizStageAttempt();
+            maybeRecordQuizStagePerfect();
+            saveState();
+            return;
+        }
+    }
+    let savedSettings = getQuizEditorSavedSettings(state.memorize.stage);
+    if (state.memorize.playMode === 'quiz' && state.memorize.proCustomQuiz) {
+        savedSettings = { groups: normalizeProCustomQuizGroups(state.memorize.proCustomQuiz.groups) };
+    } else if (state.quizEditorPreview && state.quizEditorPreview.stage === state.memorize.stage) {
+        savedSettings = { groups: cloneQuizEditorGroups(state.quizEditorPreview.groups) };
+    } else if (savedSettings && Array.isArray(savedSettings.groups) && savedSettings.groups.length > 0) {
+        // localStorage 由来の弦／フレットの型ゆらぎを除去してからプールを構築する
+        savedSettings = { groups: cloneQuizEditorGroups(savedSettings.groups) };
+    }
+    let targets;
+    let noteGroupMap = null;
+    let savedGroups = null;
+
+    if (savedSettings && savedSettings.groups && savedSettings.groups.length > 0) {
+        // カスタム設定が存在する場合: 全グループのノートからユニークなプールを作成
+        savedGroups = savedSettings.groups;
+        const poolMap = new Map();
+        savedGroups.forEach((group, groupIndex) => {
+            (group.notes || []).forEach(note => {
+                const key = `${note.stringName}-${note.fret}`;
+                if (!poolMap.has(key)) {
+                    const stringName = note.stringName;
+                    const fret = note.fret;
+                    const stringIdx = 6 - stringName;
+                    const noteIdx = (OPEN_STRINGS[stringIdx] + fret) % 12;
+                    poolMap.set(key, { stringIdx, stringName, fret, noteIdx, noteName: NOTES[noteIdx] });
+                }
+            });
+        });
+        targets = Array.from(poolMap.values());
+        if (targets.length === 0) {
+            // Gr内にnoteがない場合はデフォルトtargetsにフォールバック（scrollLeftのみ使う）
+            targets = getStageTargets(state.memorize.stage);
+            noteGroupMap = null;
+        } else {
+            // ノートごとにどのGrに属するか記録
+            noteGroupMap = new Map();
+            savedGroups.forEach((group, groupIndex) => {
+                (group.notes || []).forEach(note => {
+                    const key = `${note.stringName}-${note.fret}`;
+                    const arr = noteGroupMap.get(key) || [];
+                    if (!arr.includes(groupIndex)) arr.push(groupIndex);
+                    noteGroupMap.set(key, arr);
+                });
+            });
+        }
+    } else {
+        targets = getStageTargets(state.memorize.stage);
+    }
+
+    if (targets.length === 0) return;
+
+    let target = targets[getRandomInt(0, targets.length - 1)];
+
+    // Prevent the exact same question string+note from appearing twice in a row if possible
+    if (state.memorize.currentQuestion && targets.length > 1) {
+        let tries = 0;
+        while (
+            target.stringIdx === state.memorize.currentQuestion.stringIdx &&
+            target.noteIdx === state.memorize.currentQuestion.noteIdx &&
+            tries < 20
+        ) {
+            target = targets[getRandomInt(0, targets.length - 1)];
+            tries++;
+        }
+    }
+
+    // カスタム設定がある場合、GrのscrollLeftを問題に付加
+    if (noteGroupMap && savedGroups) {
+        const key = `${target.stringName}-${target.fret}`;
+        const grIndices = noteGroupMap.get(key) || [];
+        if (grIndices.length > 0) {
+            const chosenGrIndex = grIndices[getRandomInt(0, grIndices.length - 1)];
+            const grScrollLeft = savedGroups[chosenGrIndex]?.scrollLeft;
+            if (Number.isFinite(grScrollLeft)) {
+                target = { ...target, quizGrScrollLeft: grScrollLeft };
+            }
+        }
+    } else if (savedGroups && savedGroups.length > 0) {
+        // Gr内にnoteがない場合、最初のGrのscrollLeftを使う
+        const grScrollLeft = savedGroups[0]?.scrollLeft;
+        if (Number.isFinite(grScrollLeft)) {
+            target = { ...target, quizGrScrollLeft: grScrollLeft };
+        }
+    }
+
+    state.memorize.currentQuestion = target;
+    state.memorize.hasTappedCurrentNote = false;
+    state.memorize.cruisePreTapped = false;
+    /* 横ズレ対策: 対象問題が変わったので、コンテナ位置の凍結値を破棄する */
+    clearMemorizeQuizLeftFreezeCache();
+    if (state.memorize.playMode === 'quiz') {
+        const askedNow = parseInt(state.memorize.quizQuestionsAsked ?? 0, 10) || 0;
+        state.memorize.quizQuestionsAsked = askedNow + 1;
+    }
+    saveState();
+
+    if (state.memorize.playMode === 'quiz') {
+        autoScrollRequested = true;
+        startQuizTimer();
+    }
+}
+
+// ----------------------------------------------------
+// UI Rendering
+// ----------------------------------------------------
+
+/** 指板のヒットレイヤーがコードボタンの上に重なる場合、e.target がボタンにならないため座標から解決する */
+function findChordButtonFromPointerEvent(e) {
+    const t = e.target;
+    if (t && typeof t.closest === 'function') {
+        const byClosest = t.closest('.chord-btn');
+        if (byClosest) return byClosest;
+    }
+    if (typeof e.clientX !== 'number' || typeof e.clientY !== 'number' || !document.elementsFromPoint) {
+        return null;
+    }
+    const stack = document.elementsFromPoint(e.clientX, e.clientY);
+    if (!stack || !stack.length) return null;
+    for (let i = 0; i < stack.length; i++) {
+        const el = stack[i];
+        if (el && el.classList && el.classList.contains('chord-btn')) return el;
+    }
+    return null;
+}
+
+function renderApp() {
+    const app = document.getElementById('app');
+    if (!app) return;
+    removeTapLatencyPanelIfNeeded();
+    removeEditorFretboardLayoutPanelIfNeeded();
+    removePortraitFretboardLayoutPanelIfNeeded();
+    app.classList.toggle('stage-select-scroll-screen', state.course === 'stageSelect');
+    app.classList.toggle(
+        'route-editor-scroll-screen',
+        state.course === 'routeEditor' || state.course === 'quizEditor'
+    );
+    if (applyFretboardViewFromOrientationIfAuto()) {
+        saveState();
+    }
+    if (app && typeof app._cleanupSettingsHandlers === 'function') {
+        app._cleanupSettingsHandlers();
+    }
+    cleanupFretboardDocumentHandlers();
+
+    // Reset settings-screen styles
+    app.style.height = '';
+    app.style.overflowY = '';
+    app.style.overflowX = '';
+    app.style.maxWidth = '';
+    app.style.width = '';
+    app.style.display = '';
+    app.style.flexDirection = '';
+    app.style.alignItems = '';
+    app.style.alignSelf = '';
+    app.style.gap = '';
+    app.style.maxHeight = '';
+    app.style.minHeight = '';
+    app.style.paddingTop = '';
+    app.style.paddingBottom = '';
+    app.style.paddingLeft = '';
+    app.style.paddingRight = '';
+
+    // 直前の指板の scrollLeft は「同じ画面種別」のときだけ引き継ぐ（メモライズ→指板を見るでズーム横スクロールが残らないようにする）
+    const oldWrapper = document.querySelector('.fretboard-scroll-wrapper');
+    const oldScrollGroup = oldWrapper && oldWrapper.getAttribute('data-scroll-group');
+    if (oldScrollGroup === 'memorize' && state.course === 'memorize') {
+        currentScrollLeft = oldWrapper.scrollLeft;
+    } else if (oldScrollGroup === 'routeEditor' && state.course === 'routeEditor') {
+        currentScrollLeft = oldWrapper.scrollLeft;
+    } else if (oldScrollGroup === 'routeEditor' && state.course === 'proCustomRouteEditor') {
+        currentScrollLeft = oldWrapper.scrollLeft;
+    } else if (oldScrollGroup === 'proCustomRouteEditor' && state.course === 'proCustomRouteEditor') {
+        currentScrollLeft = oldWrapper.scrollLeft;
+    } else if (oldScrollGroup === 'quizEditor' && state.course === 'quizEditor') {
+        currentScrollLeft = oldWrapper.scrollLeft;
+    } else if (oldScrollGroup === 'quizEditor' && state.course === 'proCustomQuizEditor') {
+        currentScrollLeft = oldWrapper.scrollLeft;
+    } else if (
+        oldScrollGroup === 'visualize' &&
+        state.course === 'visualize'
+    ) {
+        if (!_resetVisualizeSc) {
+            currentScrollLeft = oldWrapper.scrollLeft;
+        }
+        _resetVisualizeSc = false;
+    } else if (
+        oldScrollGroup === 'rule' &&
+        state.course === 'basicRuleStep' &&
+        state.settings.fretboardView === 'zoom' &&
+        state.rules.phase === 'play'
+    ) {
+        currentScrollLeft = oldWrapper.scrollLeft;
+    } else {
+        currentScrollLeft = 0;
+    }
+    if (state.course === 'routeEditor' && oldScrollGroup !== 'routeEditor') {
+        routeEditorScrollAppliedKey = null;
+    }
+    if (
+        state.course === 'proCustomRouteEditor' &&
+        oldScrollGroup !== 'routeEditor' &&
+        oldScrollGroup !== 'proCustomRouteEditor'
+    ) {
+        proCustomRouteEditorScrollAppliedKey = null;
+    }
+    if (state.course !== 'proCustomQuizEditor') {
+        proCustomQuizEditorScrollAppliedKey = null;
+    }
+
+    const isLandscapeRuleStep =
+        state.course === 'basicRuleStep' &&
+        window.innerWidth > window.innerHeight;
+    const isGameLikeCourse =
+        state.course === 'memorize' ||
+        state.course === 'routeEditor' ||
+        state.course === 'proCustomRouteEditor' ||
+        state.course === 'quizEditor' ||
+        state.course === 'proCustomQuizEditor' ||
+        state.course === 'visualize' ||
+        isLandscapeRuleStep;
+
+    // 指板ゲーム画面・順番編集・横画面の基本ルールは max-width を外してビューポート幅いっぱいにする
+    if (isGameLikeCourse) {
+        app.style.maxWidth = 'none';
+        app.style.width = '100vw';
+        app.style.boxSizing = 'border-box';
+    }
+
+    if (!isGameLikeCourse) {
+        app.style.maxHeight = '100dvh';
+        app.style.overflowY = 'auto';
+        app.style.overflowX = 'hidden';
+        app.style.boxSizing = 'border-box';
+        // 横画面のSTAGE/STEP選択画面ではリストを画面下端まで広げたいので
+        // 下余白を控えめにする（リストは中央寄せ max:400px、リフレッシュボタンは
+        // 右下 max:168px なので横方向に被らない）。
+        const isLandStageSelectLikeApp =
+            window.innerWidth > window.innerHeight &&
+            (state.course === 'stageSelect' ||
+             state.course === 'ruleSelect' ||
+             state.course === 'basicRules');
+        app.style.paddingBottom = isLandStageSelectLikeApp
+            ? 'max(16px, env(safe-area-inset-bottom))'
+            : 'calc(var(--in-game-refresh-stack-height, 96px) + max(12px, env(safe-area-inset-bottom)))';
+    }
+    // 覚えるコース: 縦方向に余白を確保し、指板エリアに flex で残り高さを渡す（横画面で下弦が切れないようにする）
+    if (state.course === 'memorize') {
+        app.style.display = 'flex';
+        app.style.flexDirection = 'column';
+        app.style.alignItems = 'stretch';
+        app.style.alignSelf = 'stretch';
+        app.style.gap = '0';
+        app.style.height = '100dvh';
+        app.style.maxHeight = '100dvh';
+        app.style.minHeight = '0';
+        app.style.overflow = 'hidden';
+        const memorizeLandApp = window.innerWidth > window.innerHeight;
+        // 縦画面はSTAGE選択画面（.app-container { padding:20px }）と
+        // ヘッダー位置を揃えるため上余白を 20px 起点にする。
+        // 横画面は指板の縦サイズに影響しない範囲で
+        // 「戻る/TOP/設定」ボタン群が上端に張り付かないよう 10px 起点に拡張する。
+        app.style.paddingTop = memorizeLandApp
+            ? 'max(10px, env(safe-area-inset-top))'
+            : 'max(20px, env(safe-area-inset-top))';
+        const cruiseLand = getCruiseLandscapeLayoutConfig();
+        app.style.paddingBottom = cruiseLand.active
+            ? cruiseLand.paddingBottomCss
+            : 'calc(var(--in-game-refresh-stack-height, 96px) + max(8px, env(safe-area-inset-bottom)))';
+        app.style.paddingLeft = 'max(10px, env(safe-area-inset-left))';
+        app.style.paddingRight = 'max(10px, env(safe-area-inset-right))';
+    }
+
+    if (state.course === null) {
+        renderHome(app);
+    } else if (state.course === 'modeSelect') {
+        renderModeSelect(app);
+    } else if (state.course === 'ruleSelect') {
+        renderRuleSelect(app);
+    } else if (state.course === 'basicRules') {
+        renderBasicRules(app);
+    } else if (state.course === 'basicRuleStep') {
+        renderBasicRuleStep(app);
+    } else if (state.course === 'stageSelect') {
+        renderStageSelect(app);
+    } else if (state.course === 'memorize') {
+        renderMemorize(app);
+    } else if (state.course === 'routeEditor') {
+        renderRouteEditor(app);
+    } else if (state.course === 'proCustomRouteEditor') {
+        renderProCustomRouteEditor(app);
+    } else if (state.course === 'quizEditor') {
+        renderQuizEditor(app);
+    } else if (state.course === 'proCustomQuizEditor') {
+        renderProCustomQuizEditor(app);
+    } else if (state.course === 'visualize') {
+        renderVisualize(app);
+    } else if (state.course === 'settings') {
+        renderSettings(app);
+    } else if (state.course === 'troubleshooting') {
+        renderTroubleshooting(app);
+    }
+    
+    // Restore or auto-adjust scroll position（メインの #fretboard-container のラッパーのみ）
+    const newWrapper = document.querySelector('.fretboard-scroll-wrapper');
+    const newScrollGroup = newWrapper && newWrapper.getAttribute('data-scroll-group');
+    if (newWrapper && newScrollGroup) {
+        // 終了時（ラスト!表示後）は、現在のスクロール位置を保ったまま動かさない。
+        // 「次の音」へ画面が一瞬流れるのを防ぐ。
+        const isFinishedCruise =
+            state.course === 'memorize' &&
+            state.memorize.playMode === 'cruise' &&
+            state.memorize.isCleared === true;
+
+        // 全体ビューでは指板全体が見えているため、Gr ごとの保存位置スクロールは行わない
+        const isFullViewCruise =
+            state.course === 'memorize' &&
+            state.memorize.playMode === 'cruise' &&
+            state.settings.fretboardView === 'full';
+
+        const savedCruiseGroupScrollLeft =
+            !isFinishedCruise && !isFullViewCruise && state.course === 'memorize' && state.memorize.playMode === 'cruise'
+                ? getCurrentCruiseGroupScrollLeft(state.memorize.cruiseCurrentGroupIndex)
+                : null;
+
+        if (isFinishedCruise) {
+            autoScrollRequested = false;
+            cancelPendingCruiseGroupScroll();
+            // 全体ビュー時は指板全体が見えているのでスクロールスナップ不要
+            if (!isFullViewCruise) {
+                // 最後の音のグループの保存スクロール位置にスナップして、終了時に
+                // 指板が 0 位置（先頭）に戻る現象を防ぐ。
+                const lastGroupScroll = getCurrentCruiseGroupScrollLeft(state.memorize.cruiseCurrentGroupIndex);
+                if (Number.isFinite(lastGroupScroll)) {
+                    newWrapper.scrollLeft = lastGroupScroll;
+                    requestAnimationFrame(() => {
+                        if (newWrapper.isConnected) newWrapper.scrollLeft = lastGroupScroll;
+                    });
+                }
+            }
+        } else if (Number.isFinite(savedCruiseGroupScrollLeft)) {
+            autoScrollRequested = false;
+            const isGroupChanged =
+                state.memorize.cruisePreviousGroupIndex !== null &&
+                state.memorize.cruisePreviousGroupIndex !== state.memorize.cruiseCurrentGroupIndex;
+            // Gr.切り替わり時はlook-aheadで1拍前にスクロール予約済み。
+            // renderApp時点では画角を確定させるため即時スナップ。
+            if (isGroupChanged) cancelPendingCruiseGroupScroll();
+            newWrapper.scrollLeft = savedCruiseGroupScrollLeft;
+            requestAnimationFrame(() => {
+                if (!newWrapper.isConnected) return;
+                newWrapper.scrollLeft = savedCruiseGroupScrollLeft;
+            });
+            state.memorize.cruisePreviousGroupIndex = state.memorize.cruiseCurrentGroupIndex;
+        } else if (state.course === 'quizEditor') {
+            const qeScrollTarget = quizEditorPendingScrollLeft !== null ? quizEditorPendingScrollLeft : currentScrollLeft;
+            quizEditorPendingScrollLeft = null;
+            newWrapper.scrollLeft = qeScrollTarget;
+            requestAnimationFrame(() => {
+                if (!newWrapper.isConnected || state.course !== 'quizEditor') return;
+                newWrapper.scrollLeft = qeScrollTarget;
+            });
+        } else if (state.course === 'proCustomQuizEditor') {
+            newWrapper.scrollLeft = currentScrollLeft;
+            routeEditorFretboardScrollSnapshot = currentScrollLeft;
+            startRouteEditorScrollRaf();
+            requestAnimationFrame(() => {
+                if (!newWrapper.isConnected || state.course !== 'proCustomQuizEditor') return;
+                newWrapper.scrollLeft = currentScrollLeft;
+                if (currentScrollLeft > 0) routeEditorFretboardScrollSnapshot = currentScrollLeft;
+            });
+        } else if (state.course === 'routeEditor') {
+            newWrapper.scrollLeft = currentScrollLeft;
+            routeEditorFretboardScrollSnapshot = currentScrollLeft;
+            startRouteEditorScrollRaf();
+            requestAnimationFrame(() => {
+                if (!newWrapper.isConnected || state.course !== 'routeEditor') return;
+                newWrapper.scrollLeft = currentScrollLeft;
+                if (currentScrollLeft > 0) routeEditorFretboardScrollSnapshot = currentScrollLeft;
+            });
+        } else if (state.course === 'proCustomRouteEditor') {
+            newWrapper.scrollLeft = currentScrollLeft;
+            routeEditorFretboardScrollSnapshot = currentScrollLeft;
+            startRouteEditorScrollRaf();
+            requestAnimationFrame(() => {
+                if (!newWrapper.isConnected || state.course !== 'proCustomRouteEditor') return;
+                newWrapper.scrollLeft = currentScrollLeft;
+                if (currentScrollLeft > 0) routeEditorFretboardScrollSnapshot = currentScrollLeft;
+            });
+        } else if (autoScrollRequested) {
+            autoScrollRequested = false;
+
+            if (state.course === 'memorize' && state.memorize.playMode === 'cruise') {
+                const q = state.memorize.currentQuestion;
+                const zoomAnchorFretAttr = newWrapper.getAttribute('data-zoom-scroll-anchor-fret');
+                const zoomAnchorFret = zoomAnchorFretAttr !== null ? parseFloat(zoomAnchorFretAttr) : null;
+
+                if (q && state.settings.fretboardView === 'zoom') {
+                    if (Number.isFinite(zoomAnchorFret)) {
+                        const anchorFloor = Math.floor(zoomAnchorFret);
+                        const anchorCeil = Math.ceil(zoomAnchorFret);
+                        const fretColFloor = newWrapper.querySelector(`.fret-column[data-fret="${anchorFloor}"]`);
+                        const fretColCeil = newWrapper.querySelector(`.fret-column[data-fret="${anchorCeil}"]`);
+
+                        let scrollPos = 0;
+                        if (fretColFloor && fretColCeil) {
+                            const frac = zoomAnchorFret - anchorFloor;
+                            const floorLeft = fretColFloor.offsetLeft;
+                            const ceilLeft = fretColCeil.offsetLeft;
+                            const interpolatedLeft = floorLeft + (ceilLeft - floorLeft) * frac;
+                            const wrapperCenter = newWrapper.clientWidth / 2;
+                            scrollPos = Math.max(0, interpolatedLeft - wrapperCenter);
+                        } else if (fretColFloor) {
+                            const wrapperCenter = newWrapper.clientWidth / 2;
+                            scrollPos = Math.max(0, fretColFloor.offsetLeft - wrapperCenter);
+                        }
+
+                        setTimeout(() => {
+                            newWrapper.scrollTo({ left: scrollPos, behavior: 'smooth' });
+                        }, 10);
+                    } else {
+                        const fretCol = newWrapper.querySelector(`.fret-column[data-fret="${q.fret}"]`);
+                        if (fretCol) {
+                            const fretLeft = fretCol.offsetLeft;
+                            const fretRight = fretLeft + fretCol.clientWidth;
+                            const visibleLeft = currentScrollLeft;
+                            const visibleRight = currentScrollLeft + newWrapper.clientWidth;
+
+                            if (fretLeft < visibleLeft + 20 || fretRight > visibleRight - 20) {
+                                const wrapperCenter = newWrapper.clientWidth / 2;
+                                const fretCenter = fretLeft + (fretCol.clientWidth / 2);
+                                setTimeout(() => {
+                                    newWrapper.scrollTo({ left: fretCenter - wrapperCenter, behavior: 'smooth' });
+                                }, 10);
+                            } else {
+                                newWrapper.scrollLeft = currentScrollLeft;
+                            }
+                        }
+                    }
+                } else {
+                    newWrapper.scrollLeft = 0;
+                }
+            } else if (state.course === 'memorize' && state.memorize.playMode === 'quiz') {
+                // クイズGrスクロール: 縦画面・拡大ビューのときだけ保存位置を適用する。
+                // 横画面では全体が画面に収まるため scrollLeft=0 固定（編集保存値は無視）。
+                if (shouldQuizLandscapeSkipSavedScrollLeft()) {
+                    newWrapper.scrollLeft = 0;
+                } else {
+                    const animVal = getQuizScrollAnimationCurrentValue();
+                    if (animVal !== null && state.settings.fretboardView === 'zoom') {
+                        newWrapper.scrollLeft = Math.round(animVal);
+                    } else {
+                        const qGrScroll = state.memorize.currentQuestion?.quizGrScrollLeft;
+                        if (Number.isFinite(qGrScroll)) {
+                            if (state.settings.fretboardView === 'zoom') {
+                                newWrapper.scrollLeft = qGrScroll;
+                                requestAnimationFrame(() => {
+                                    if (newWrapper.isConnected) newWrapper.scrollLeft = qGrScroll;
+                                });
+                                // refineScaleAfterPaint（二重RAF）がtransformを変更してscrollLeftをリセットするため、
+                                // その後に再設定する
+                                setTimeout(() => {
+                                    if (newWrapper.isConnected && !isQuizScrollAnimating()) newWrapper.scrollLeft = qGrScroll;
+                                }, 50);
+                            } else {
+                                newWrapper.scrollLeft = 0;
+                            }
+                        } else {
+                            newWrapper.scrollLeft = 0;
+                        }
+                    }
+                }
+            } else {
+                newWrapper.scrollLeft = 0;
+            }
+        } else if (state.course === 'memorize' && state.memorize.playMode === 'quiz') {
+            // 回答後・正解発表フェーズでも、縦・拡大ビューでは quizGrScrollLeft を維持。
+            // 横画面では保存スクロールを使わない。
+            if (shouldQuizLandscapeSkipSavedScrollLeft()) {
+                newWrapper.scrollLeft = 0;
+            } else {
+                const animVal = getQuizScrollAnimationCurrentValue();
+                if (animVal !== null && state.settings.fretboardView === 'zoom') {
+                    newWrapper.scrollLeft = Math.round(animVal);
+                } else {
+                    const qGrScroll = state.memorize.currentQuestion?.quizGrScrollLeft;
+                    if (Number.isFinite(qGrScroll) && state.settings.fretboardView === 'zoom') {
+                        newWrapper.scrollLeft = qGrScroll;
+                        setTimeout(() => {
+                            if (newWrapper.isConnected && !isQuizScrollAnimating()) newWrapper.scrollLeft = qGrScroll;
+                        }, 50);
+                    } else {
+                        newWrapper.scrollLeft = 0;
+                    }
+                }
+            }
+        } else if (state.course === 'memorize') {
+            newWrapper.scrollLeft = currentScrollLeft;
+        } else if (state.course === 'visualize') {
+            newWrapper.scrollLeft = currentScrollLeft;
+        } else if (
+            state.course === 'basicRuleStep' &&
+            newScrollGroup === 'rule' &&
+            state.settings.fretboardView === 'zoom' &&
+            state.rules.phase === 'play'
+        ) {
+            newWrapper.scrollLeft = currentScrollLeft;
+        } else {
+            newWrapper.scrollLeft = 0;
+        }
+    } else if (newWrapper) {
+        newWrapper.scrollLeft = 0;
+    }
+
+    // Refresh state bar
+    const vDisplay = document.getElementById('app-version-display');
+    if (vDisplay) vDisplay.textContent = `Ver. ${FRETBOARD_CRUISE_APP_VERSION}`;
+    const rb = document.getElementById('in-game-refresh-bar');
+    if (rb) {
+        rb.classList.remove('hidden');
+        const reloadBtn = rb.querySelector('.js-reload-app');
+        if (reloadBtn) {
+            reloadBtn.onclick = () => {
+                stopRhythm();
+                window.location.reload();
+            };
+        }
+    }
+
+    hideAppLoadingScreen();
+}
+
+function renderHome(app) {
+    const _proEd = isProEdition();
+    app.innerHTML = `
+        ${buildPageHeader({
+            titleTag: 'h1',
+            titleClass: _proEd ? 'home-title pro-home-title' : 'home-title',
+            titleText: _proEd
+                ? '<span class="pro-home-title-text">指板クルーズ</span><span class="pro-badge">PRO</span>'
+                : '指板クルーズ',
+            rightHtml: settingsButtonHtml('btn-settings-home')
+        })}
+        <div class="home-basic-rules-slot" style="display: flex; justify-content: center; width: 100%; margin-top: 6px; margin-bottom: 28px;">
+            <button type="button" class="btn-secondary" id="btn-home-basic-rules" style="padding: 10px 18px; font-size: 0.92rem; line-height: 1.35;">🔰 指板の基本ルール</button>
+        </div>
+        <div class="action-btns" style="flex-direction: column; gap: 20px; align-items: center; width: 100%;">
+            <button type="button" class="btn-primary home-memorize-btn" id="btn-cruise-mode">🛳️ 指板をたどる</button>
+            <button type="button" class="btn-primary home-memorize-btn" id="btn-quiz-mode">🎯 指板クイズ</button>
+            <button type="button" class="btn-primary home-memorize-btn" id="btn-home-board-view">🧭 指板を見る</button>
+        </div>
+        <div class="fret-info-home-slot">
+            ${homeInfoButtonHtml()}
+        </div>
+    `;
+
+    document.getElementById('btn-cruise-mode').onclick = () => {
+        state.memorize.playMode = 'cruise';
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-quiz-mode').onclick = () => {
+        state.memorize.playMode = 'quiz';
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-home-basic-rules').onclick = () => {
+        state.course = 'basicRules';
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-home-board-view').onclick = () => {
+        state.course = 'visualize';
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-settings-home').onclick = () => {
+        openSettings(null);
+    };
+}
+
+function renderModeSelect(app) {
+    app.innerHTML = `
+        ${buildPageHeader({
+            headerClass: 'page-header--mode-select',
+            titleText: 'モード選択',
+            leftHtml: `
+                ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+            `,
+            rightHtml: settingsButtonHtml('btn-settings')
+        })}
+        <div class="stage-list">
+            <button class="stage-btn" data-mode="cruise">
+                🛳️ 指板をたどる
+                <span class="stage-desc">光る場所をなぞって指板を覚えよう！</span>
+            </button>
+            <button class="stage-btn" data-mode="quiz">
+                🎯 指板クイズ
+                <span class="stage-desc">自力で音を探すテスト形式！</span>
+            </button>
+        </div>
+    `;
+
+    document.getElementById('btn-back').onclick = () => {
+        state.course = null;
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-settings').onclick = () => {
+        openSettings('modeSelect');
+    };
+
+    document.querySelectorAll('.stage-btn[data-stage]').forEach(btn => {
+        btn.onclick = () => {
+            state.memorize.playMode = btn.getAttribute('data-mode');
+            state.course = 'stageSelect';
+            saveState();
+            renderApp();
+        };
+    });
+}
+
+function renderRuleSelect(app) {
+    app.innerHTML = `
+        ${buildPageHeader({
+            headerClass: 'page-header--stage-select',
+            titleText: 'ルールを知る',
+            leftHtml: `
+                ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+            `,
+            rightHtml: settingsButtonHtml('btn-settings-rules')
+        })}
+        <div class="stage-list">
+            <button class="stage-btn" data-rules="basic">
+                🟨 指板の基本ルール
+                <span class="stage-desc">このアプリの遊び方を先に確認する</span>
+            </button>
+            <button class="stage-btn" data-rules="visualize">
+                指板を見る
+                <span class="stage-desc">キー・スケール・コードを見ながら指板を確認する</span>
+            </button>
+        </div>
+    `;
+
+    document.getElementById('btn-back').onclick = () => {
+        state.course = null;
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-settings-rules').onclick = () => {
+        openSettings('ruleSelect');
+    };
+
+    document.querySelectorAll('.stage-btn[data-rules="visualize"]').forEach(btn => {
+        btn.onclick = () => {
+            state.course = 'visualize';
+            saveState();
+            renderApp();
+        };
+    });
+
+    document.querySelectorAll('.stage-btn[data-rules="basic"]').forEach(btn => {
+        btn.onclick = () => {
+            state.course = 'basicRules';
+            saveState();
+            renderApp();
+        };
+    });
+}
+
+/** 基本ルール STEP の表題（一覧・各STEP画面ヘッダーで共通） */
+const BASIC_RULE_STEP_HEADLINES = [
+    '半音の位置を知る',
+    'オクターブ違い',
+    '隣の弦との間隔',
+    'ドレミの形',
+    '形を広げる'
+];
+
+function getBasicRuleStepHeadline(step) {
+    const i = clamp(step, 1, 5) - 1;
+    return BASIC_RULE_STEP_HEADLINES[i] || '';
+}
+
+function renderBasicRules(app) {
+    const completedSteps = state.rules?.completedSteps && typeof state.rules.completedSteps === 'object'
+        ? state.rules.completedSteps
+        : {};
+    app.innerHTML = `
+        ${buildPageHeader({
+            headerClass: 'page-header--stage-select',
+            titleText: '🔰 指板の基本ルール',
+            leftHtml: `
+                ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+            `,
+            rightHtml: settingsButtonHtml('btn-settings-basic-rules')
+        })}
+        <div class="stage-list">
+            ${BASIC_RULE_STEP_HEADLINES.map((headline, idx) => {
+                const num = idx + 1;
+                const isDone = !!completedSteps[String(num)];
+                return `
+                <button class="stage-btn basic-rule-step-btn ${isDone ? 'is-complete' : ''}" data-rule-step="${num}" aria-label="STEP ${num} ${headline}${isDone ? ' クリア済み' : ''}">
+                    <span class="basic-rule-step-main">STEP ${num} ${headline}</span>
+                    ${isDone ? '<span class="basic-rule-step-badge" aria-hidden="true">✓ クリア</span>' : ''}
+                </button>`;
+            }).join('')}
+        </div>
+    `;
+
+    document.getElementById('btn-back').onclick = () => {
+        state.course = null;
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-settings-basic-rules').onclick = () => {
+        openSettings('basicRules');
+    };
+
+    document.querySelectorAll('.stage-btn[data-rule-step]').forEach(btn => {
+        btn.onclick = () => {
+            state.rules.step = parseInt(btn.getAttribute('data-rule-step'), 10);
+            state.rules.page = 0;
+            state.rules.tapIndex = 0;
+            state.rules.phase = 'intro';
+            state.rules.ruleIntroStage = 0;
+            state.rules.celebration = null;
+            state.course = 'basicRuleStep';
+            saveState();
+            renderApp();
+        };
+    });
+}
+
+function getNotationLabel(noteIdx) {
+    const pc = ((typeof noteIdx === 'number' ? noteIdx : 0) % 12 + 12) % 12;
+    const mode = state.settings.noteLabelMode;
+    if (mode === 'note') return NOTES[pc];
+    if (mode === 'degree') {
+        const allDegrees = getAllDegreesWithAccidentals('major');
+        return allDegrees[pc] || NOTES[pc];
+    }
+    return FIXED_SOLFEGE[pc].replace('♯', '#');
+}
+
+function getRuleLabel(noteIdx) {
+    return getNotationLabel(noteIdx);
+}
+
+/** STEP2〜4：C長調の音名＝設定の度数色（.degree-1〜7）と揃える */
+function getRuleStep2CMajorDegreeClass(noteIdx) {
+    if (typeof noteIdx !== 'number') return 'role-other';
+    const degByPc = { 0: 1, 2: 2, 4: 3, 5: 4, 7: 5, 9: 6, 11: 7 };
+    const d = degByPc[((noteIdx % 12) + 12) % 12];
+    return d ? `degree-${d}` : 'role-other';
+}
+
+function getCMajorNoteLabel(noteIdx) {
+    const solfege = { 0: 'ド', 2: 'レ', 4: 'ミ', 5: 'ファ', 7: 'ソ', 9: 'ラ', 11: 'シ' };
+    const pc = ((typeof noteIdx === 'number' ? noteIdx : 0) % 12 + 12) % 12;
+    if (state.settings.noteLabelMode === 'note') return NOTES[pc];
+    if (state.settings.noteLabelMode === 'degree') {
+        const allDegrees = getAllDegreesWithAccidentals('major');
+        return allDegrees[pc] || NOTES[pc];
+    }
+    return solfege[pc];
+}
+
+function getCMajorMarkersForString(stringNum, options = {}) {
+    const showIndex = options.showIndex !== false;
+    const stringIdx = 6 - stringNum;
+    const frets = [];
+    for (let f = 0; f <= MAX_FRET; f++) {
+        const noteIdx = (OPEN_STRINGS[stringIdx] + f) % 12;
+        if ([0, 2, 4, 5, 7, 9, 11].includes(noteIdx)) {
+            frets.push({ fret: f, noteIdx });
+        }
+    }
+    const firstC = frets.findIndex(item => item.noteIdx === 0);
+    const ordered = firstC >= 0
+        ? [...frets.slice(firstC), ...frets.slice(0, firstC)]
+        : frets;
+    return ordered.map((item, index) => ({
+        stringNum,
+        fret: item.fret,
+        noteIdx: item.noteIdx,
+        label: showIndex ? `${index + 1}${getCMajorNoteLabel(item.noteIdx)}` : getCMajorNoteLabel(item.noteIdx),
+        className: item.noteIdx === 0 ? 'rule-root' : ([4, 11].includes(item.noteIdx) ? 'rule-half' : 'rule-scale')
+    }));
+}
+
+function withRuleNoteIdx(marker) {
+    const noteIdx = typeof marker.noteIdx === 'number'
+        ? marker.noteIdx
+        : (OPEN_STRINGS[6 - marker.stringNum] + marker.fret) % 12;
+    return { ...marker, noteIdx };
+}
+
+/** STEP5 ドレミファソラシドの音級（ピッチクラス） */
+const STEP5_FREE_SHAPE_PITCH_SEQUENCE = [0, 2, 4, 5, 7, 9, 11, 0];
+
+/**
+ * STEP5：開放〜maxFret にあるその音のマスを列挙するが、同一弦で「ちょうど12フレット離れた同じ音名」は片方だけ残す（オクターブ重ねない）。
+ * ペアがあるときは低いフレットを残す（例：6弦ミは開放のみ／12フレットは付けない。4弦レは開放のみ）。
+ */
+function rulePositionsForPitchUpToMaxFret(noteIdx, maxFret) {
+    const pc = ((noteIdx % 12) + 12) % 12;
+    const hi = clamp(Math.floor(maxFret), 0, MAX_FRET);
+    const out = [];
+    for (let sn = 6; sn >= 1; sn--) {
+        const si = 6 - sn;
+        const hits = [];
+        for (let f = 0; f <= hi; f++) {
+            if ((OPEN_STRINGS[si] + f) % 12 === pc) hits.push(f);
+        }
+        const pending = new Set(hits);
+        while (pending.size > 0) {
+            const f = Math.min(...pending);
+            pending.delete(f);
+            if (pending.has(f + 12)) {
+                pending.delete(f + 12);
+                out.push({ stringNum: sn, fret: f });
+            } else {
+                out.push({ stringNum: sn, fret: f });
+            }
+        }
+    }
+    return out;
+}
+
+/** STEP5：ステップごとに候補を足す／削る（ベースは rulePositionsForPitchUpToMaxFret）。最終ドではスタートマスだけ除外 */
+function ruleStep5AdjustPositionsForStep(stepIndex, pitchClass, positions, anchorStringNum, anchorFret) {
+    const pc = ((pitchClass % 12) + 12) % 12;
+    const hasSlot = (list, sn, fr) => list.some(p => p.stringNum === sn && p.fret === fr);
+    const list = positions.map(p => ({ stringNum: p.stringNum, fret: p.fret }));
+    if (stepIndex === 2 && pc === 4 && !hasSlot(list, 6, 12)) {
+        list.push({ stringNum: 6, fret: 12 });
+    }
+    if (stepIndex === 5 && pc === 9 && !hasSlot(list, 5, 12)) {
+        list.push({ stringNum: 5, fret: 12 });
+    }
+    if (stepIndex === 7 && pc === 0) {
+        return list.filter(p => !(p.stringNum === anchorStringNum && p.fret === anchorFret));
+    }
+    return list;
+}
+
+/** STEP5：スタート地点ごとのドレミ〜ド（開放〜12F・adjust 適用） */
+function makeStep5FreeShapeStepPairs(startStringNum, startFret) {
+    const STEP5_CANDIDATE_MAX_FRET = 12;
+    return STEP5_FREE_SHAPE_PITCH_SEQUENCE.map((pc, i) => {
+        if (i === 0) return [{ stringNum: startStringNum, fret: startFret }];
+        const raw = rulePositionsForPitchUpToMaxFret(pc, STEP5_CANDIDATE_MAX_FRET);
+        return ruleStep5AdjustPositionsForStep(i, pc, raw, startStringNum, startFret);
+    });
+}
+
+/** STEP5-2 用：各ターンで「その音」が鳴る 1〜6弦の12フレットを必ず候補に（オクターブ違いを選べる） */
+function ruleStep5Augment12FretAllStrings(stepPairs) {
+    return stepPairs.map((spots, i) => {
+        if (i === 0) return spots;
+        const pc = ((STEP5_FREE_SHAPE_PITCH_SEQUENCE[i] % 12) + 12) % 12;
+        const list = spots.map(p => ({ stringNum: p.stringNum, fret: p.fret }));
+        const hasSlot = (sn, fr) => list.some(p => p.stringNum === sn && p.fret === fr);
+        for (let sn = 1; sn <= 6; sn++) {
+            const si = 6 - sn;
+            const npc = ((OPEN_STRINGS[si] + 12) % 12 + 12) % 12;
+            if (npc === pc && !hasSlot(sn, 12)) {
+                list.push({ stringNum: sn, fret: 12 });
+            }
+        }
+        return list;
+    });
+}
+
+/** STEP5：ステップごとのタップ候補（弦・フレットのリスト） */
+function buildRuleFreeShapeMarkersFromStepPairs(stepPairs) {
+    const map = new Map();
+    for (let i = 0; i < stepPairs.length; i++) {
+        const spots = stepPairs[i];
+        for (let j = 0; j < spots.length; j++) {
+            const pos = spots[j];
+            const si = 6 - pos.stringNum;
+            const npc = ((OPEN_STRINGS[si] + pos.fret) % 12 + 12) % 12;
+            const key = `${pos.stringNum}-${pos.fret}`;
+            map.set(key, {
+                stringNum: pos.stringNum,
+                fret: pos.fret,
+                noteIdx: npc,
+                label: getCMajorNoteLabel(npc),
+                className:
+                    npc === 0 ? 'rule-root' : [4, 11].includes(npc) ? 'rule-half' : 'rule-scale'
+            });
+        }
+    }
+    return [...map.values()];
+}
+
+function buildRuleFreeShapeTargetSequence(slide) {
+    const pairs = slide.ruleFreeShapeStepPairs;
+    return pairs.map(spots => {
+        const p0 = spots[0];
+        const si = 6 - p0.stringNum;
+        const pc = ((OPEN_STRINGS[si] + p0.fret) % 12 + 12) % 12;
+        if (spots.length === 1) {
+            return withRuleNoteIdx({
+                stringNum: p0.stringNum,
+                fret: p0.fret,
+                noteIdx: pc,
+                label: getCMajorNoteLabel(pc),
+                cueLabel: getCMajorNoteLabel(pc),
+                cue: `${p0.stringNum}弦${p0.fret}フレット`
+            });
+        }
+        return {
+            noteIdx: pc,
+            ruleFlexibleMulti: true,
+            acceptedPositions: spots,
+            label: getCMajorNoteLabel(pc),
+            cueLabel: getCMajorNoteLabel(pc)
+        };
+    });
+}
+
+function ruleStep5SlotKey(stringNum, fret) {
+    return `${stringNum}-${fret}`;
+}
+
+/** STEP5：除外マップ（スライド別）。Part2 は STEP5-2 専用で STEP5-1 と独立 */
+function ruleStep5ExcludedRawForPartition(part) {
+    if (part === 2) {
+        if (
+            !state.rules.step5ExcludedSlotsPart2 ||
+            typeof state.rules.step5ExcludedSlotsPart2 !== 'object' ||
+            Array.isArray(state.rules.step5ExcludedSlotsPart2)
+        ) {
+            state.rules.step5ExcludedSlotsPart2 = {};
+        }
+        return state.rules.step5ExcludedSlotsPart2;
+    }
+    if (
+        !state.rules.step5ExcludedSlots ||
+        typeof state.rules.step5ExcludedSlots !== 'object' ||
+        Array.isArray(state.rules.step5ExcludedSlots)
+    ) {
+        state.rules.step5ExcludedSlots = {};
+    }
+    return state.rules.step5ExcludedSlots;
+}
+
+function ruleStep5ExcludedPartitionFromSlide(slide) {
+    return slide.ruleFreeShapeExcludedSlotPartition === 2 ? 2 : 1;
+}
+
+/** STEP5：チェックで練習から外す（現在の STEP5 スライドに応じたマップへ保存） */
+function ruleStep5SetSlotExcluded(stringNum, fret, excluded) {
+    const step = state.rules.step || 1;
+    const page = state.rules.page || 0;
+    const slides = step === 5 ? getRuleSlides(5) : [];
+    const slide = slides[clamp(page, 0, Math.max(0, slides.length - 1))];
+    const part =
+        slide && slide.ruleFreeShapeStepPairs && slide.ruleFreeShapeStepPairs.length
+            ? ruleStep5ExcludedPartitionFromSlide(slide)
+            : 1;
+    const map = ruleStep5ExcludedRawForPartition(part);
+    const key = ruleStep5SlotKey(stringNum, fret);
+    if (excluded) map[key] = true;
+    else delete map[key];
+    saveState();
+    renderApp();
+}
+
+/** STEP5：チェックで除外したマスをタップ候補から外す（全部オフになるときは元に戻す） */
+function ruleStep5ApplyExcludedSlots(targets, excludedRaw) {
+    const excluded =
+        excludedRaw && typeof excludedRaw === 'object' && !Array.isArray(excludedRaw) ? excludedRaw : {};
+    return targets.map(t => {
+        if (!t.ruleFlexibleMulti || !t.acceptedPositions || !t.acceptedPositions.length) {
+            return t;
+        }
+        const filtered = t.acceptedPositions.filter(
+            p => !excluded[ruleStep5SlotKey(p.stringNum, p.fret)]
+        );
+        if (filtered.length === 0) {
+            return { ...t, acceptedPositions: [...t.acceptedPositions] };
+        }
+        if (filtered.length === t.acceptedPositions.length) return t;
+        return { ...t, acceptedPositions: filtered };
+    });
+}
+
+function getRuleTargetSequence(slide) {
+    if (slide.soundSequence) return slide.soundSequence;
+    if (slide.ruleFreeShapeStepPairs && slide.ruleFreeShapeStepPairs.length) {
+        const seq = buildRuleFreeShapeTargetSequence(slide);
+        const part = ruleStep5ExcludedPartitionFromSlide(slide);
+        return ruleStep5ApplyExcludedSlots(seq, ruleStep5ExcludedRawForPartition(part));
+    }
+    return (slide.markers || []).map(withRuleNoteIdx);
+}
+
+function getRuleTargetLabel(target) {
+    if (!target) return '';
+    if (target.cueLabel) return target.cueLabel;
+    if (target.label) return String(target.label).replace(/^\d+/, '');
+    if (typeof target.noteIdx === 'number') return getRuleLabel(target.noteIdx);
+    return '';
+}
+
+function showRuleMissFeedback(message = '光る丸をタップしてね') {
+    const feedback = document.getElementById('rule-miss-feedback');
+    const area = document.getElementById('rule-touch-area');
+    if (!feedback) return;
+    feedback.textContent = message;
+    feedback.classList.add('is-visible');
+    if (area) area.classList.add('is-miss');
+    if (navigator.vibrate) navigator.vibrate(25);
+    if (ruleMissFeedbackTimeout) clearTimeout(ruleMissFeedbackTimeout);
+    ruleMissFeedbackTimeout = setTimeout(() => {
+        feedback.classList.remove('is-visible');
+        if (area) area.classList.remove('is-miss');
+    }, 1100);
+}
+
+function getRuleSlides(step) {
+    const dedupeMarkersByStringFret = list => {
+        const map = new Map();
+        for (let i = 0; i < list.length; i++) {
+            const m = list[i];
+            if (!m || typeof m.stringNum !== 'number') continue;
+            map.set(`${m.stringNum}-${m.fret}`, m);
+        }
+        return [...map.values()];
+    };
+    const label = n => getRuleLabel(n);
+    const cLabel = n => getCMajorNoteLabel(n);
+    /** options の追加フィールド（例：STEP5-1 の ruleSamePitchGroup）を残す */
+    const marker = (stringNum, fret, noteIdx, options = {}) => ({
+        ...options,
+        stringNum,
+        fret,
+        noteIdx,
+        label: options.label || label(noteIdx),
+        cueLabel: options.cueLabel,
+        cue: options.cue,
+        className: options.className || 'rule-scale'
+    });
+    const cMajorMarker = (stringNum, fret, noteIdx, index, options = {}) => marker(stringNum, fret, noteIdx, {
+        label: options.showIndex === false ? cLabel(noteIdx) : `${index}${cLabel(noteIdx)}`,
+        cueLabel: cLabel(noteIdx),
+        className: noteIdx === 0 ? 'rule-root' : ([4, 11].includes(noteIdx) ? 'rule-half' : 'rule-scale'),
+        ...options
+    });
+    /** STEP2-1／STEP2-2：各弦の開放（ミラレソシミ） */
+    const step2OpenStringMarkers = [6, 5, 4, 3, 2, 1].map(sn => {
+        const stringIdx = 6 - sn;
+        const noteIdx = OPEN_STRINGS[stringIdx] % 12;
+        return marker(sn, 0, noteIdx, {
+            className: sn === 6 ? 'rule-root' : 'rule-scale',
+            cue: 'タップ'
+        });
+    });
+    /** STEP2-2：12フレット（開放と同じ音名・1オクターブ上）— 実践のタップ順はこれのみ */
+    const step2TwelfthFretMarkers = [6, 5, 4, 3, 2, 1].map(sn => {
+        const stringIdx = 6 - sn;
+        const noteIdx = (OPEN_STRINGS[stringIdx] + 12) % 12;
+        return marker(sn, 12, noteIdx, {
+            className: sn === 6 ? 'rule-root' : 'rule-scale',
+            cue: 'タップ'
+        });
+    });
+    /** STEP2-3：6弦のみ、開放〜12FのC長調の音をネック上の順に */
+    const step2SixStringCMajorTo12Markers = [0, 1, 3, 5, 7, 8, 10, 12].map(fret => {
+        const stringNum = 6;
+        const stringIdx = 6 - stringNum;
+        const noteIdx = (OPEN_STRINGS[stringIdx] + fret) % 12;
+        const className = noteIdx === 0 ? 'rule-root' : ([4, 11].includes(noteIdx) ? 'rule-half' : 'rule-scale');
+        return marker(stringNum, fret, noteIdx, { className, cue: 'タップ' });
+    });
+    /** STEP2-4：1弦も6弦と同じ音程間隔（ミ〜ミの並び） */
+    const step2OneStringCMajorTo12Markers = [0, 1, 3, 5, 7, 8, 10, 12].map(fret => {
+        const stringNum = 1;
+        const stringIdx = 6 - stringNum;
+        const noteIdx = (OPEN_STRINGS[stringIdx] + fret) % 12;
+        const className = noteIdx === 0 ? 'rule-root' : ([4, 11].includes(noteIdx) ? 'rule-half' : 'rule-scale');
+        return marker(stringNum, fret, noteIdx, { className, cue: 'タップ' });
+    });
+    /** STEP4-1：ミ＝4弦2F、ラ＝3弦2F まわりのC長調形 */
+    const step4Slide1Shape = [
+        marker(5, 3, 0, { className: 'rule-root' }),
+        marker(5, 5, 2, { className: 'rule-scale' }),
+        marker(4, 2, 4, { className: 'rule-half' }),
+        marker(4, 3, 5, { className: 'rule-scale' }),
+        marker(4, 5, 7, { className: 'rule-scale' }),
+        marker(3, 2, 9, { className: 'rule-scale' }),
+        marker(3, 4, 11, { className: 'rule-half' }),
+        marker(3, 5, 0, { className: 'rule-root' })
+    ];
+    const step4Slide1ShapeNoteOnly = step4Slide1Shape.map(m => ({
+        ...m,
+        label: getCMajorNoteLabel(m.noteIdx)
+    }));
+    /** STEP4-2：6弦8Fのドを起点に、STEP4-1と同じ形のドレミファソラシド（5,3→6,8 に平行移動） */
+    const step4Slide2Shape = [
+        marker(6, 8, 0, { className: 'rule-root' }),
+        marker(6, 10, 2, { className: 'rule-scale' }),
+        marker(5, 7, 4, { className: 'rule-half' }),
+        marker(5, 8, 5, { className: 'rule-scale' }),
+        marker(5, 10, 7, { className: 'rule-scale' }),
+        marker(4, 7, 9, { className: 'rule-scale' }),
+        marker(4, 9, 11, { className: 'rule-half' }),
+        marker(4, 10, 0, { className: 'rule-root' })
+    ];
+    const step4Slide2ShapeNoteOnly = step4Slide2Shape.map(m => ({
+        ...m,
+        label: getCMajorNoteLabel(m.noteIdx)
+    }));
+    /** STEP4-3：4弦10Fのドからドレミファソラシド（タップ順どおりにたどる） */
+    const step4Slide3Shape = [
+        marker(4, 10, 0, { className: 'rule-root' }),
+        marker(4, 12, 2, { className: 'rule-scale' }),
+        marker(3, 9, 4, { className: 'rule-half' }),
+        marker(3, 10, 5, { className: 'rule-scale' }),
+        marker(3, 12, 7, { className: 'rule-scale' }),
+        marker(2, 10, 9, { className: 'rule-scale' }),
+        marker(2, 12, 11, { className: 'rule-half' }),
+        marker(2, 13, 0, { className: 'rule-root' })
+    ];
+    const step4Slide3ShapeNoteOnly = step4Slide3Shape.map(m => ({
+        ...m,
+        label: getCMajorNoteLabel(m.noteIdx)
+    }));
+
+    /** STEP5-1：同じオクターブの同じ音を、ドレミ順に2オクターブ分たどる */
+    const step5SamePitchBridgeGroups = [
+        [[6, 8, 0], [5, 3, 0]],
+        [[6, 10, 2], [5, 5, 2], [4, 0, 2]],
+        [[6, 12, 4], [5, 7, 4], [4, 2, 4]],
+        [[5, 8, 5], [4, 3, 5]],
+        [[5, 10, 7], [4, 5, 7], [3, 0, 7]],
+        [[5, 12, 9], [4, 7, 9], [3, 2, 9]],
+        [[4, 9, 11], [3, 4, 11], [2, 0, 11]],
+        [[4, 10, 0], [3, 5, 0], [2, 1, 0]],
+        [[4, 12, 2], [3, 7, 2], [2, 3, 2]],
+        [[3, 9, 4], [2, 5, 4], [1, 0, 4]],
+        [[3, 10, 5], [2, 6, 5], [1, 1, 5]],
+        [[3, 12, 7], [2, 8, 7], [1, 3, 7]],
+        [[2, 10, 9], [1, 5, 9]],
+        [[2, 12, 11], [1, 7, 11]],
+        [[1, 8, 0]]
+    ];
+    const step5SamePitchBridgeMarkers = step5SamePitchBridgeGroups.flatMap((group, groupIndex) =>
+        group.map(([stringNum, fret, noteIdx]) =>
+            marker(stringNum, fret, noteIdx, {
+                label: getCMajorNoteLabel(noteIdx),
+                cue: 'タップ',
+                className: noteIdx === 0 ? 'rule-root' : [4, 11].includes(noteIdx) ? 'rule-half' : 'rule-scale',
+                ruleSamePitchGroup: groupIndex
+            })
+        )
+    );
+
+    /** STEP5-2：開放〜12F ＋ステップ調整。同一弦の開放／12重複は基本は低い方のみ */
+    const step5FreeShapeStepPairs21 = ruleStep5Augment12FretAllStrings(
+        makeStep5FreeShapeStepPairs(2, 1)
+    );
+    const step5FreeShapeMarkers21 = buildRuleFreeShapeMarkersFromStepPairs(step5FreeShapeStepPairs21);
+
+    /** STEP1の2弦スケール共通：1〜13F のドレミファソラシド（♯を飛ばす） */
+    const step1TwoStringScaleMarkers = [1, 3, 5, 6, 8, 10, 12, 13].map(fret => {
+        const stringNum = 2;
+        const stringIdx = 6 - stringNum;
+        const noteIdx = (OPEN_STRINGS[stringIdx] + fret) % 12;
+        const className = fret === 1 || fret === 13 ? 'rule-root' : 'rule-scale';
+        return marker(stringNum, fret, noteIdx, { className, cue: 'タップ' });
+    });
+
+    const slides = {
+        1: [
+            {
+                learnTheme: '1フレットずつ半音',
+                summaryLearn: '#の音もあります',
+                markers: [
+                    marker(6, 0, 4, { className: 'rule-root', cue: 'タップ' }),
+                    marker(6, 1, 5, { className: 'rule-half', cue: 'タップ' }),
+                    marker(6, 2, 6, { cue: 'タップ' }),
+                    marker(6, 3, 7, { cue: 'タップ' }),
+                    marker(6, 4, 8, { cue: 'タップ' }),
+                    marker(6, 5, 9, { cue: 'タップ' }),
+                    marker(6, 6, 10, { cue: 'タップ' })
+                ]
+            },
+            {
+                learnTheme: 'ドレミだけをたどろう',
+                summaryLearn: '気づきましたか？',
+                markers: step1TwoStringScaleMarkers
+            },
+            {
+                learnTheme: 'ミファ・シドだけ半音',
+                learnThemeIntro2: 'もう1度たどろう',
+                summaryLearn: 'ミファ・シドだけ半音',
+                markers: step1TwoStringScaleMarkers
+            }
+        ],
+        2: [
+            {
+                learnTheme: '開放弦を覚えよう',
+                summaryLearn: '開放弦はミラレソシミ',
+                summaryLearnSubline: '英名はEADGBE',
+                suppressFloatingCue: true,
+                markers: step2OpenStringMarkers
+            },
+            {
+                learnTheme: '12フレットは1オクターブ上',
+                summaryLearn: '12フレットもミラレソシミ',
+                suppressFloatingCue: true,
+                /** 実践でも開放の音名を残しつつ、タップは12Fの順だけ（STEP2-4と同パターン） */
+                markers: [...step2OpenStringMarkers, ...step2TwelfthFretMarkers],
+                soundSequence: step2TwelfthFretMarkers.map(m => withRuleNoteIdx(m))
+            },
+            {
+                learnTheme: '6弦をたどろう',
+                summaryLearn: '6弦はミから高いミへ',
+                suppressFloatingCue: true,
+                markers: step2SixStringCMajorTo12Markers
+            },
+            {
+                learnTheme: '1弦も同じ並び',
+                summaryLearn: '1弦は6弦の2オクターブ上',
+                suppressFloatingCue: true,
+                /** 6弦の音名も常時表示し、タップの正解順は1弦だけ */
+                markers: [...step2SixStringCMajorTo12Markers, ...step2OneStringCMajorTo12Markers],
+                soundSequence: step2OneStringCMajorTo12Markers.map(m => withRuleNoteIdx(m))
+            }
+        ],
+        3: [
+            {
+                learnTheme: '隣の弦の同じ音をたどろう',
+                summaryLearn: '気づきましたか？',
+                summaryLearn2: '3弦→2弦だけ4フレット',
+                summaryLearnSubline: '他は5フレット',
+                suppressFloatingCue: true,
+                step3PairTapSequence: true,
+                /** STEP3-1：ガイド線・「◯フレット」吹き出しなし（STEP3-2/3 は従来どおり） */
+                step3PairTapHideLineAndGapHint: true,
+                markers: [
+                    marker(6, 5, 9, { className: 'rule-root' }),
+                    marker(5, 0, 9, { className: 'rule-root' }),
+                    marker(5, 5, 2, { className: 'rule-root' }),
+                    marker(4, 0, 2, { className: 'rule-root' }),
+                    marker(4, 5, 7, { className: 'rule-root' }),
+                    marker(3, 0, 7, { className: 'rule-root' }),
+                    marker(3, 4, 11, { className: 'rule-half' }),
+                    marker(2, 0, 11, { className: 'rule-half' }),
+                    marker(2, 5, 4, { className: 'rule-root' }),
+                    marker(1, 0, 4, { className: 'rule-root' })
+                ]
+            },
+            {
+                learnTheme: 'もう1度たどろう',
+                summaryLearn: 'ここが覚えにくい原因です',
+                suppressFloatingCue: true,
+                step3PairTapSequence: true,
+                markers: [
+                    marker(6, 5, 9, { className: 'rule-root' }),
+                    marker(5, 0, 9, { className: 'rule-root' }),
+                    marker(5, 5, 2, { className: 'rule-root' }),
+                    marker(4, 0, 2, { className: 'rule-root' }),
+                    marker(4, 5, 7, { className: 'rule-root' }),
+                    marker(3, 0, 7, { className: 'rule-root' }),
+                    marker(3, 4, 11, { className: 'rule-half' }),
+                    marker(2, 0, 11, { className: 'rule-half' }),
+                    marker(2, 5, 4, { className: 'rule-root' }),
+                    marker(1, 0, 4, { className: 'rule-root' })
+                ]
+            },
+            {
+                learnTheme: '他のフレットも同じ',
+                summaryLearn: '3→2弦だけ4フレット',
+                suppressFloatingCue: true,
+                step3PairTapSequence: true,
+                /** 実践で全マーカー常時表示（タップ先は rule-next の光のみ） */
+                step3PairTapShowAllMarkersInPlay: true,
+                /** 画角：この範囲が収まるようスケール・横位置を固定 */
+                ruleTapLayoutFretRange: [7, 12],
+                markers: [
+                    marker(6, 12, 4, { className: 'rule-root' }),
+                    marker(5, 7, 4, { className: 'rule-root' }),
+                    marker(5, 12, 9, { className: 'rule-root' }),
+                    marker(4, 7, 9, { className: 'rule-root' }),
+                    marker(4, 12, 2, { className: 'rule-root' }),
+                    marker(3, 7, 2, { className: 'rule-root' }),
+                    marker(3, 12, 7, { className: 'rule-root' }),
+                    marker(2, 8, 7, { className: 'rule-root' }),
+                    marker(2, 12, 11, { className: 'rule-half' }),
+                    marker(1, 7, 11, { className: 'rule-half' })
+                ]
+            }
+        ],
+        4: [
+            {
+                learnTheme: '5弦3Fからのドレミ',
+                summaryLearn: 'ここが大事な形',
+                /** STEP4-2 と同一倍率（7〜10F 幅でフィット）。低フレット側はスクロールで見せる */
+                ruleTapLayoutZoomFitFloatRange: [6.5, 10.5],
+                ruleTapLayoutZoomExtra: 1.08,
+                ruleTapLayoutLockScroll: true,
+                markers: step4Slide1ShapeNoteOnly
+            },
+            {
+                learnTheme: '6弦8Fにも同じ形',
+                summaryLearn: 'ここも覚えよう',
+                ruleTapLayoutZoomFitFloatRange: [6.5, 10.5],
+                ruleTapLayoutZoomExtra: 1.08,
+                markers: step4Slide2ShapeNoteOnly
+            },
+            {
+                learnTheme: '4弦10Fのドレミに注意',
+                summaryLearn: '2弦へ行く時は半音ずれる',
+                /** STEP4-2 と同一倍率。高フレット側はスクロールで見せる */
+                ruleTapLayoutZoomFitFloatRange: [6.5, 10.5],
+                ruleTapLayoutZoomExtra: 1.08,
+                ruleTapLayoutLockScroll: true,
+                markers: step4Slide3ShapeNoteOnly
+            }
+        ],
+        5: [
+            {
+                learnTheme: '同じ音をたどろう',
+                /** イントロ／実践の見出し直下に出す補足（STEP5 専用） */
+                themeSubline: '※横画面がおすすめ',
+                suppressFloatingCue: true,
+                skipSummaryPhase: true,
+                markers: step5SamePitchBridgeMarkers,
+                ruleSamePitchBridgeSequence: true,
+                ruleSlowAutoScrollToNext: true,
+                /** STEP4-1 と同程度の拡大。横スクロールで開放〜12Fを自分で見られる */
+                ruleTapLayoutZoomFitFloatRange: [6.5, 10.5],
+                ruleTapLayoutZoomExtra: 1.08,
+                ruleTapLayoutLockScroll: false,
+                text: '同じ音をたどろう'
+            }
+        ]
+    };
+    return slides[step] || slides[1];
+}
+
+function renderRuleDiagram(type, activeIndex = 0) {
+    if (type !== 'intervals') return '';
+    const mode = state.settings.noteLabelMode;
+    let notes;
+    if (mode === 'note') {
+        notes = ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'C'];
+    } else if (mode === 'degree') {
+        const ad = getAllDegreesWithAccidentals('major');
+        const majorSteps = [0, 2, 4, 5, 7, 9, 11, 0];
+        notes = majorSteps.map(idx => ad[idx]);
+    } else {
+        notes = ['ド', 'レ', 'ミ', 'ファ', 'ソ', 'ラ', 'シ', 'ド'];
+    }
+    const gaps = ['全音', '全音', '半音', '全音', '全音', '全音', '半音'];
+    return `
+        <div class="rule-interval-diagram">
+            ${notes.map((note, idx) => `
+                <button type="button" class="rule-interval-note ${idx === activeIndex ? 'is-next' : ''}" data-rule-diagram-note="${idx}">${note}</button>
+                ${idx < gaps.length ? `<div class="rule-interval-gap ${gaps[idx] === '半音' ? 'is-half' : ''}">${gaps[idx]}</div>` : ''}
+            `).join('')}
+        </div>
+    `;
+}
+
+function getMemorizeQuestionLabel(noteIdx) {
+    return getNotationLabel(noteIdx);
+}
+
+function openRulesInVisualize() {
+    if (isProEdition()) state.visualize.key = 0;
+    state.visualize.capo = 0;
+    state.visualize.scale = 'major';
+    const nm = state.settings.noteLabelMode;
+    state.visualize.displayMode = (nm === 'note' || nm === 'degree') ? nm : 'solfege';
+    state.visualize.doMode = 'movable';
+    state.visualize.selectedChordIndex = null;
+    state.visualize.autoSelectRootChord = false;
+    state.visualize.lastDiatonicChordPickIndex = null;
+    state.course = 'visualize';
+    saveState();
+    renderApp();
+}
+
+function goToRuleOffset(delta) {
+    const step = state.rules.step || 1;
+    const slides = getRuleSlides(step);
+    const page = state.rules.page || 0;
+    const nextPage = page + delta;
+    if (nextPage >= 0 && nextPage < slides.length) {
+        state.rules.page = nextPage;
+        state.rules.tapIndex = 0;
+        state.rules.phase = 'intro';
+    } else if (delta > 0 && step < 5) {
+        state.rules.step = step + 1;
+        state.rules.page = 0;
+        state.rules.tapIndex = 0;
+        state.rules.phase = 'intro';
+    } else if (delta > 0) {
+        state.course = 'basicRules';
+        state.rules.ruleIntroStage = 0;
+        saveState();
+        renderApp();
+        return;
+    } else if (delta < 0 && step > 1) {
+        state.rules.step = step - 1;
+        state.rules.page = getRuleSlides(state.rules.step).length - 1;
+        state.rules.tapIndex = 0;
+        state.rules.phase = 'intro';
+    } else {
+        state.course = 'basicRules';
+    }
+    state.rules.ruleIntroStage = 0;
+    saveState();
+    renderApp();
+}
+
+/** まとめ画面から：最終スライドならCLEAR祝い、それ以外は次スライドへ */
+function ruleTryAdvanceFromSummary() {
+    const step = state.rules.step || 1;
+    const slides = getRuleSlides(step);
+    const page = clamp(state.rules.page || 0, 0, slides.length - 1);
+    const slide = slides[page];
+    const summary2 = slide && (slide.summaryLearn2 || '').trim();
+    if (summary2 && (state.rules.ruleIntroStage || 0) === 0) {
+        state.rules.ruleIntroStage = 1;
+        saveState();
+        renderApp();
+        return;
+    }
+    if (page >= slides.length - 1) {
+        markRuleStepCompleted(step);
+        state.rules.celebration = { completedStep: step };
+        saveState();
+        renderApp();
+        return;
+    }
+    goToRuleOffset(1);
+}
+
+function dismissRuleCelebrationAndAdvance() {
+    state.rules.celebration = null;
+    goToRuleOffset(1);
+}
+
+/** 「1つ戻る」：直前の1アクションだけ戻す（スライド跨ぎ・STEP跨ぎあり） */
+function ruleUndoOneAction() {
+    if (state.rules.celebration) {
+        state.rules.celebration = null;
+        saveState();
+        renderApp();
+        return;
+    }
+    const step = state.rules.step || 1;
+    const slides = getRuleSlides(step);
+    const page = clamp(state.rules.page || 0, 0, slides.length - 1);
+    const slide = slides[page];
+    const targets = getRuleTargetSequence(slide);
+    const n = targets.length;
+    const introFollowUp = (slide.learnThemeIntro2 || '').trim();
+
+    if (state.rules.phase === 'intro' && introFollowUp && (state.rules.ruleIntroStage || 0) === 1) {
+        state.rules.ruleIntroStage = 0;
+        saveState();
+        renderApp();
+        return;
+    }
+    if (state.rules.phase === 'summary') {
+        const summary2 = (slide.summaryLearn2 || '').trim();
+        if (summary2 && (state.rules.ruleIntroStage || 0) === 1) {
+            state.rules.ruleIntroStage = 0;
+            saveState();
+            renderApp();
+            return;
+        }
+        if (n > 0) {
+            state.rules.phase = 'play';
+            state.rules.tapIndex = n - 1;
+            state.rules.ruleIntroStage = 0;
+        } else {
+            state.rules.phase = 'intro';
+            state.rules.tapIndex = 0;
+            state.rules.ruleIntroStage = 0;
+        }
+        saveState();
+        renderApp();
+        return;
+    }
+    if (state.rules.phase === 'play') {
+        if ((state.rules.tapIndex || 0) > 0) {
+            state.rules.tapIndex = (state.rules.tapIndex || 0) - 1;
+        } else {
+            state.rules.phase = 'intro';
+            state.rules.ruleIntroStage = introFollowUp ? 1 : 0;
+        }
+        saveState();
+        renderApp();
+        return;
+    }
+    if (page > 0) {
+        const prevIdx = page - 1;
+        state.rules.page = prevIdx;
+        const prevSlide = slides[prevIdx];
+        const prevTargets = getRuleTargetSequence(prevSlide);
+        if (prevSlide.skipSummaryPhase && prevTargets.length > 0) {
+            state.rules.phase = 'play';
+            state.rules.tapIndex = prevTargets.length - 1;
+        } else {
+            state.rules.phase = 'summary';
+            state.rules.tapIndex = 0;
+        }
+        state.rules.ruleIntroStage = 0;
+        saveState();
+        renderApp();
+        return;
+    }
+    if (step > 1) {
+        const prevStep = step - 1;
+        const prevSlides = getRuleSlides(prevStep);
+        state.rules.step = prevStep;
+        state.rules.page = prevSlides.length - 1;
+        state.rules.phase = 'summary';
+        state.rules.tapIndex = 0;
+        state.rules.ruleIntroStage = 0;
+        saveState();
+        renderApp();
+        return;
+    }
+    state.course = 'basicRules';
+    saveState();
+    renderApp();
+}
+
+/** 「1つ進む」：次の1アクションだけ進める（音は鳴らさない・スライド跨ぎ・STEP跨ぎあり） */
+function ruleAdvanceOneAction() {
+    const step = state.rules.step || 1;
+    const slides = getRuleSlides(step);
+    const page = clamp(state.rules.page || 0, 0, slides.length - 1);
+    const slide = slides[page];
+    const targets = getRuleTargetSequence(slide);
+    const n = targets.length;
+
+    if (state.rules.phase === 'intro') {
+        const introFollowUp = (slide.learnThemeIntro2 || '').trim();
+        if (introFollowUp && (state.rules.ruleIntroStage || 0) === 0) {
+            state.rules.ruleIntroStage = 1;
+            saveState();
+            renderApp();
+            return;
+        }
+        state.rules.phase = 'play';
+        state.rules.tapIndex = 0;
+        state.rules.ruleIntroStage = 0;
+        saveState();
+        renderApp();
+        return;
+    }
+    if (state.rules.phase === 'play') {
+        const idx = state.rules.tapIndex || 0;
+        if (n === 0) {
+            ruleFinishPlaySlide(slide);
+        } else if (idx < n - 1) {
+            state.rules.tapIndex = idx + 1;
+            state.rules.phase = 'play';
+        } else {
+            ruleFinishPlaySlide(slide);
+        }
+        saveState();
+        renderApp();
+        return;
+    }
+    if (state.rules.phase === 'summary') {
+        ruleTryAdvanceFromSummary();
+    }
+}
+
+/** 進捗バー：同じSTEP内の指定スライドへ（イントロからやり直し） */
+function ruleJumpToSlideWithinStep(targetPage) {
+    const step = state.rules.step || 1;
+    const slides = getRuleSlides(step);
+    const max = Math.max(0, slides.length - 1);
+    state.rules.page = clamp(targetPage, 0, max);
+    state.rules.phase = 'intro';
+    state.rules.tapIndex = 0;
+    state.rules.ruleIntroStage = 0;
+    state.rules.celebration = null;
+    saveState();
+    renderApp();
+}
+
+function playRuleTarget(target) {
+    if (!target) return;
+    if (typeof target.midiNote === 'number') {
+        playMidiTone(target.midiNote);
+        return;
+    }
+    if (typeof target.stringNum === 'number' && typeof target.fret === 'number') {
+        playTone(6 - target.stringNum, target.fret);
+    }
+}
+
+/** 実践フェーズ終了時：まとめへ／または skip のときは次スライドのイントロ or STEP クリア */
+function ruleFinishPlaySlide(slide) {
+    state.rules.tapIndex = 0;
+    state.rules.ruleIntroStage = 0;
+    const step = state.rules.step || 1;
+    const slides = getRuleSlides(step);
+    const page = clamp(state.rules.page || 0, 0, slides.length - 1);
+    if (slide.skipSummaryPhase) {
+        if (page < slides.length - 1) {
+            state.rules.page = page + 1;
+            state.rules.phase = 'intro';
+        } else {
+            markRuleStepCompleted(step);
+            state.rules.celebration = { completedStep: step };
+        }
+    } else {
+        state.rules.phase = 'summary';
+    }
+}
+
+function advanceRuleAfterSound(slide) {
+    const targets = getRuleTargetSequence(slide);
+    const nextIndex = (state.rules.tapIndex || 0) + 1;
+    if (nextIndex < targets.length) {
+        state.rules.tapIndex = nextIndex;
+        state.rules.phase = 'play';
+        saveState();
+        renderApp();
+    } else {
+        ruleFinishPlaySlide(slide);
+        saveState();
+        renderApp();
+    }
+}
+
+function playCurrentRuleTarget(slide) {
+    if (ruleAdvanceLocked) return;
+    ruleAdvanceLocked = true;
+    setTimeout(() => {
+        ruleAdvanceLocked = false;
+    }, 180);
+    if (state.rules.phase === 'intro') {
+        const slides0 = getRuleSlides(state.rules.step || 1);
+        const page0 = clamp(state.rules.page || 0, 0, slides0.length - 1);
+        const slide0 = slides0[page0];
+        const introFollowUp = ((slide0 && slide0.learnThemeIntro2) || '').trim();
+        if (introFollowUp && (state.rules.ruleIntroStage || 0) === 0) {
+            state.rules.ruleIntroStage = 1;
+            saveState();
+            renderApp();
+            return;
+        }
+        state.rules.phase = 'play';
+        state.rules.tapIndex = 0;
+        state.rules.ruleIntroStage = 0;
+        saveState();
+        renderApp();
+        return;
+    }
+    if (state.rules.phase === 'summary') {
+        ruleTryAdvanceFromSummary();
+        return;
+    }
+    const targets = getRuleTargetSequence(slide);
+    const target = targets[state.rules.tapIndex || 0];
+    if (!target) {
+        ruleFinishPlaySlide(slide);
+        saveState();
+        renderApp();
+        return;
+    }
+    if (target.ruleFlexibleMulti) return;
+    playRuleTarget(target);
+    advanceRuleAfterSound(slide);
+}
+
+/** STEP完了時：案4（CLEAR＋進捗ドット＋STEP表記） */
+function renderRuleClearCelebration(app) {
+    const done = clamp(state.rules.celebration.completedStep || 1, 1, 5);
+    if (done >= 5) {
+        const pieces = Array.from({ length: 30 }, (_, i) => `
+            <span class="rule-master-confetti-piece" style="--x:${(i * 37) % 100}; --d:${(i % 7) * 0.18}s; --r:${(i * 29) % 360}deg;"></span>
+        `).join('');
+        app.innerHTML = `
+            ${buildPageHeader({
+                headerClass: 'page-header--stage-select',
+                titleText: '指板の基本ルール クリア',
+                titleSubText: 'STEP 5 おわり',
+                leftHtml: `${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}`,
+                rightHtml: settingsButtonHtml('btn-settings-rule-clear')
+            })}
+            <div class="rule-clear-celebration rule-master-clear">
+                <div class="rule-master-confetti" aria-hidden="true">${pieces}</div>
+                <div class="rule-clear-card rule-master-clear-card">
+                    <p class="rule-master-clear-head" aria-live="polite">ルール制覇！！</p>
+                    <p class="rule-master-clear-lead"><span class="rule-master-clear-nobr">「指板をたどる」と</span><span class="rule-master-clear-nobr">「指板クイズ」を使って、</span><br><span class="rule-master-clear-nobr">指板を覚えましょう！</span></p>
+                    <button type="button" class="btn-primary rule-clear-next-btn" id="btn-rule-clear-memorize">トップページへ</button>
+                </div>
+                <div style="height:120px"></div>
+            </div>
+        `;
+        document.getElementById('btn-back').onclick = () => {
+            state.rules.celebration = null;
+            state.course = 'basicRules';
+            saveState();
+            renderApp();
+        };
+        document.getElementById('btn-settings-rule-clear').onclick = () => openSettings('basicRuleStep');
+        document.getElementById('btn-rule-clear-memorize').onclick = () => {
+            state.rules.celebration = null;
+            state.course = null;
+            saveState();
+            renderApp();
+        };
+        app.style.height = '100vh';
+        app.style.overflowY = 'auto';
+        app.style.overflowX = 'hidden';
+        return;
+    }
+    const nextLabel = done >= 5 ? '指板の基本ルール一覧へ' : '次のSTEPへ';
+    const dots = [1, 2, 3, 4, 5].map(n => `
+        <span class="rule-clear-dot ${n <= done ? 'is-done' : ''}" aria-hidden="true"></span>
+    `).join('');
+    app.innerHTML = `
+        ${buildPageHeader({
+            headerClass: 'page-header--stage-select',
+            titleText: 'STEP クリア',
+            titleSubText: `STEP ${done} おわり`,
+            leftHtml: `${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}`,
+            rightHtml: settingsButtonHtml('btn-settings-rule-clear')
+        })}
+        <div class="rule-clear-celebration">
+            <div class="rule-clear-card">
+                <p class="rule-clear-head" aria-live="polite">CLEAR！</p>
+                <p class="rule-clear-steptext">STEP ${done} / 5 完了</p>
+                <div class="rule-clear-dots" role="img" aria-label="STEP 1から5までの進み">${dots}</div>
+                <button type="button" class="btn-primary rule-clear-next-btn" id="btn-rule-clear-next">${nextLabel}</button>
+            </div>
+            <div style="height:120px"></div>
+        </div>
+    `;
+    document.getElementById('btn-back').onclick = () => {
+        state.rules.celebration = null;
+        state.course = 'basicRules';
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-settings-rule-clear').onclick = () => openSettings('basicRuleStep');
+    document.getElementById('btn-rule-clear-next').onclick = () => {
+        dismissRuleCelebrationAndAdvance();
+    };
+    app.style.height = '100vh';
+    app.style.overflowY = 'auto';
+    app.style.overflowX = 'hidden';
+}
+
+function renderBasicRuleStep(app) {
+    if (state.rules.celebration) {
+        const cs = state.rules.celebration.completedStep;
+        if (typeof cs !== 'number' || cs < 1 || cs > 5) {
+            state.rules.celebration = null;
+        } else {
+            renderRuleClearCelebration(app);
+            return;
+        }
+    }
+    cleanupRuleStep31PairLine();
+    cleanupRuleStep43GapHintSchedule();
+    if (state.rules._step42RevealTimer) {
+        clearTimeout(state.rules._step42RevealTimer);
+        state.rules._step42RevealTimer = null;
+    }
+    if (state.rules._step42RevealTimer2) {
+        clearTimeout(state.rules._step42RevealTimer2);
+        state.rules._step42RevealTimer2 = null;
+    }
+    if (state.rules._step43RevealTimer) {
+        clearTimeout(state.rules._step43RevealTimer);
+        state.rules._step43RevealTimer = null;
+    }
+    if (state.rules._step43RevealTimer2) {
+        clearTimeout(state.rules._step43RevealTimer2);
+        state.rules._step43RevealTimer2 = null;
+    }
+    const step = clamp(state.rules.step || 1, 1, 5);
+    const slides = getRuleSlides(step);
+    const page = clamp(state.rules.page || 0, 0, slides.length - 1);
+    state.rules.step = step;
+    state.rules.page = page;
+    if (!['intro', 'play', 'summary'].includes(state.rules.phase)) state.rules.phase = 'intro';
+    if (step === 4 && page === 1 && state.rules.phase === 'intro') {
+        state.rules.step4Slide2RevealDone = false;
+    }
+    if (step === 4 && page === 2 && state.rules.phase === 'intro') {
+        state.rules.step4Slide3ScrollRevealDone = false;
+    }
+    const slide = slides[page];
+    if (
+        !state.rules.step5ExcludedSlots ||
+        typeof state.rules.step5ExcludedSlots !== 'object' ||
+        Array.isArray(state.rules.step5ExcludedSlots)
+    ) {
+        state.rules.step5ExcludedSlots = {};
+    }
+    if (
+        !state.rules.step5ExcludedSlotsPart2 ||
+        typeof state.rules.step5ExcludedSlotsPart2 !== 'object' ||
+        Array.isArray(state.rules.step5ExcludedSlotsPart2)
+    ) {
+        state.rules.step5ExcludedSlotsPart2 = {};
+    }
+    const markersForRuleBoard =
+        step === 5 && slide.ruleFreeShapeStepPairs && slide.ruleFreeShapeStepPairs.length
+            ? (() => {
+                  const part = ruleStep5ExcludedPartitionFromSlide(slide);
+                  const excl = ruleStep5ExcludedRawForPartition(part);
+                  return (slide.markers || []).filter(
+                      m => !excl[ruleStep5SlotKey(m.stringNum, m.fret)]
+                  );
+              })()
+            : slide.markers || [];
+    const targets = getRuleTargetSequence(slide);
+    state.rules.tapIndex = clamp(state.rules.tapIndex || 0, 0, Math.max(0, targets.length - 1));
+    const isPlayPhase = state.rules.phase === 'play';
+    const isSummaryPhase = state.rules.phase === 'summary';
+    const currentTarget = targets[state.rules.tapIndex] || null;
+    const hasFretboard = !!(slide.markers && slide.markers.length);
+    /**
+     * STEP3・ペアタップ：偶数 tapIndex＝太い側のみ表示（※全表示スライドは別）→奇数＝ペア＋黄線→細い側タップで次へ
+     */
+    const step3PairTapUI = step === 3 && !!slide.step3PairTapSequence && hasFretboard;
+    const ruleFreeShapeUI = !!(slide.ruleFreeShapeStepPairs && slide.ruleFreeShapeStepPairs.length)
+        && hasFretboard;
+    let markersSource = markersForRuleBoard;
+    if (ruleFreeShapeUI) {
+        const src = markersForRuleBoard;
+        if (!isPlayPhase || isSummaryPhase || slide.ruleFreeShapeShowAllMarkersInPlay) {
+            markersSource = src;
+        } else {
+            const t = targets[state.rules.tapIndex || 0];
+            if (!t) {
+                markersSource = [];
+            } else if (t.ruleFlexibleMulti && t.acceptedPositions && t.acceptedPositions.length) {
+                markersSource = src.filter(m =>
+                    t.acceptedPositions.some(p => p.stringNum === m.stringNum && p.fret === m.fret)
+                );
+            } else if (t.ruleFlexibleMulti) {
+                const pc = ((t.noteIdx % 12) + 12) % 12;
+                markersSource = src.filter(m => {
+                    const raw =
+                        typeof m.noteIdx === 'number'
+                            ? m.noteIdx
+                            : (OPEN_STRINGS[6 - m.stringNum] + m.fret) % 12;
+                    return ((raw % 12) + 12) % 12 === pc;
+                });
+            } else {
+                markersSource = src.filter(m => m.stringNum === t.stringNum && m.fret === t.fret);
+            }
+        }
+    } else if (slide.ruleSamePitchBridgeSequence && isPlayPhase && currentTarget) {
+        const currentGroup =
+            typeof currentTarget.ruleSamePitchGroup === 'number'
+                ? currentTarget.ruleSamePitchGroup
+                : null;
+        markersSource =
+            currentGroup === null
+                ? markersForRuleBoard.filter(
+                      m => m.stringNum === currentTarget.stringNum && m.fret === currentTarget.fret
+                  )
+                : markersForRuleBoard.filter(m => m.ruleSamePitchGroup === currentGroup);
+    } else if (step === 4 && page === 1 && isPlayPhase && !state.rules.step4Slide2RevealDone) {
+        const s4 = getRuleSlides(4);
+        const dedupeMR = list => {
+            const map = new Map();
+            for (let i = 0; i < list.length; i++) {
+                const m = list[i];
+                if (!m || typeof m.stringNum !== 'number') continue;
+                map.set(`${m.stringNum}-${m.fret}`, m);
+            }
+            return [...map.values()];
+        };
+        markersSource = dedupeMR([...(s4[0]?.markers || []), ...(s4[1]?.markers || [])]);
+    }
+    if (step3PairTapUI) {
+        const src = slide.markers || [];
+        if (isSummaryPhase) {
+            markersSource = [];
+        } else if (!isPlayPhase) {
+            const t0 = targets[0];
+            markersSource = t0
+                ? src.filter(m => m.stringNum === t0.stringNum && m.fret === t0.fret)
+                : [];
+        } else if (slide.step3PairTapShowAllMarkersInPlay) {
+            markersSource = src;
+        } else {
+            const idx = state.rules.tapIndex || 0;
+            if (idx % 2 === 0) {
+                const t = targets[idx];
+                markersSource = t
+                    ? src.filter(m => m.stringNum === t.stringNum && m.fret === t.fret)
+                    : [];
+            } else {
+                const t0 = targets[idx - 1];
+                const t1 = targets[idx];
+                const pick = t =>
+                    src.find(m => m.stringNum === t.stringNum && m.fret === t.fret);
+                markersSource = [pick(t0), pick(t1)].filter(Boolean);
+            }
+        }
+    }
+    const markersForRender = markersSource.map(marker => {
+        let matchCurrent = false;
+        if (currentTarget) {
+            if (currentTarget.ruleFlexibleMulti) {
+                if (currentTarget.acceptedPositions && currentTarget.acceptedPositions.length) {
+                    matchCurrent = currentTarget.acceptedPositions.some(
+                        p => p.stringNum === marker.stringNum && p.fret === marker.fret
+                    );
+                } else {
+                    const raw =
+                        typeof marker.noteIdx === 'number'
+                            ? marker.noteIdx
+                            : (OPEN_STRINGS[6 - marker.stringNum] + marker.fret) % 12;
+                    const mPc = ((raw % 12) + 12) % 12;
+                    const tPc = ((currentTarget.noteIdx % 12) + 12) % 12;
+                    matchCurrent = mPc === tPc;
+                }
+            } else if (
+                marker.stringNum === currentTarget.stringNum &&
+                marker.fret === currentTarget.fret
+            ) {
+                matchCurrent = true;
+            }
+        }
+        const targetMatch =
+            (isPlayPhase && matchCurrent) ||
+            (step3PairTapUI &&
+                !isSummaryPhase &&
+                !isPlayPhase &&
+                targets[0] &&
+                marker.stringNum === targets[0].stringNum &&
+                marker.fret === targets[0].fret);
+        return {
+            ...marker,
+            className: `${marker.className || 'rule-scale'}${targetMatch ? ' rule-next' : ''}`
+        };
+    });
+    const themeMain = (slide.learnTheme || slide.introText || slide.text || '').trim();
+    const introFollowUp = (slide.learnThemeIntro2 || '').trim();
+    const summaryFollowUp = (slide.summaryLearn2 || '').trim();
+    const hasDoubleIntro = introFollowUp.length > 0 && state.rules.phase === 'intro';
+    const hasDoubleSummary = summaryFollowUp.length > 0 && isSummaryPhase;
+    if (state.rules.phase === 'intro' && hasDoubleIntro) {
+        state.rules.ruleIntroStage = clamp(state.rules.ruleIntroStage || 0, 0, 1);
+    } else if (isSummaryPhase && hasDoubleSummary) {
+        state.rules.ruleIntroStage = clamp(state.rules.ruleIntroStage || 0, 0, 1);
+    } else {
+        state.rules.ruleIntroStage = 0;
+    }
+    const introOverlayMain = hasDoubleIntro && (state.rules.ruleIntroStage || 0) === 1
+        ? introFollowUp
+        : themeMain;
+    let summaryMain = (slide.summaryLearn || slide.summaryText || '').trim();
+    if (isSummaryPhase && hasDoubleSummary && (state.rules.ruleIntroStage || 0) === 1) {
+        summaryMain = summaryFollowUp;
+    }
+    let summarySubline = (slide.summaryLearnSubline ? String(slide.summaryLearnSubline) : '').trim();
+    if (isSummaryPhase && hasDoubleSummary && (state.rules.ruleIntroStage || 0) === 0) {
+        summarySubline = '';
+    }
+    const summarySublineHtml = isSummaryPhase && summarySubline
+        ? `<span class="rule-phase-overlay-note">${summarySubline}</span>`
+        : '';
+    const playLine = (slide.text || '').trim();
+    const themeSubline = (slide.themeSubline || '').trim();
+    const themeSublineOverlayHtml = themeSubline ? `<span class="rule-theme-subline">${themeSubline}</span>` : '';
+    const themeSublineUnderHeadingHtml =
+        themeSubline ? `<p class="rule-theme-subline rule-theme-subline--below-heading">${themeSubline}</p>` : '';
+    const isFinalRuleSummary = isSummaryPhase && step === 5 && page === slides.length - 1;
+    const overlayIntroHtml = `
+                        <span class="rule-phase-overlay-main">${introOverlayMain}</span>
+                        ${themeSublineOverlayHtml}
+                        <button type="button" class="rule-start-btn" id="rule-start-btn">タップで開始</button>`;
+    const overlaySummaryHtml = `
+                        <span class="rule-phase-overlay-main">${summaryMain}</span>
+                        ${summarySublineHtml}
+                        <button type="button" class="rule-start-btn" id="rule-start-btn">タップで次へ</button>`;
+    const phaseClass = 'rule-phase-banner--intro';
+    const touchPhaseClass = isPlayPhase ? 'rule-touch-area--play' : 'rule-touch-area--intro';
+    const halfTonePopEl = document.getElementById('rule-half-tone-pop');
+    if (halfTonePopEl) {
+        halfTonePopEl.remove();
+        ruleHalfTonePopDetached = halfTonePopEl;
+    }
+    const step3GapPopEl = document.getElementById('rule-step3-gap-pop');
+    if (step3GapPopEl) {
+        step3GapPopEl.remove();
+        ruleStep3GapPopDetached = step3GapPopEl;
+    }
+    const step43GapPopEl = document.getElementById('rule-step43-gap-pop');
+    if (step43GapPopEl) {
+        step43GapPopEl.remove();
+        ruleStep43GapPopDetached = step43GapPopEl;
+    }
+    app.innerHTML = `
+        ${buildPageHeader({
+            headerClass: 'page-header--stage-select',
+            titleText: `STEP ${step}`,
+            titleSubText: getBasicRuleStepHeadline(step),
+            leftHtml: `
+                ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+            `,
+            rightHtml: settingsButtonHtml('btn-settings-rule-step')
+        })}
+        <div class="rule-step-card ${window.innerWidth > window.innerHeight ? 'rule-step-card--landscape' : ''}">
+            <div class="rule-step-head">
+                <span class="settings-card-subtitle rule-step-page-count">${page + 1} / ${slides.length}</span>
+            </div>
+            <div class="rule-step-progress" role="group" aria-label="このSTEPのスライドへ移動">
+                ${slides.map((_, idx) => `
+                    <button type="button" class="rule-step-progress-segment ${idx < page ? 'is-done' : ''} ${idx === page ? 'is-current' : ''}"
+                        data-rule-progress-index="${idx}"
+                        aria-label="STEP ${step}-${idx + 1}"
+                        ${idx === page ? 'aria-current="true"' : ''}>
+                        <span class="rule-step-progress-bar" aria-hidden="true"></span>
+                    </button>
+                `).join('')}
+            </div>
+            ${isPlayPhase && playLine ? `<p class="rule-step-text">${playLine}</p>${themeSublineUnderHeadingHtml}` : ''}
+            <div id="rule-touch-area" class="rule-touch-area ${touchPhaseClass}">
+                ${hasFretboard ? `
+                <div class="rule-fretboard-stack" id="rule-fretboard-stack">
+                    <div id="rule-fretboard-container" class="rule-fretboard-host"></div>
+                    ${step === 3 && slide.step3PairTapSequence && !slide.step3PairTapHideLineAndGapHint ? '<svg id="rule-step31-pair-line" class="rule-step31-pair-line" aria-hidden="true"></svg>' : ''}
+                </div>` : renderRuleDiagram(slide.diagram, currentTarget ? currentTarget.diagramIndex : 0)}
+                ${isPlayPhase ? '' : `
+                    <div class="rule-phase-overlay ${phaseClass}" id="rule-phase-overlay" role="presentation">
+                        ${isSummaryPhase ? overlaySummaryHtml : overlayIntroHtml}
+                    </div>
+                `}
+                ${slide.specialGap ? `<div class="rule-special-gap-note">3弦〜2弦だけ狭い</div>` : ''}
+            </div>
+            <p id="rule-miss-feedback" class="rule-miss-feedback" role="status" aria-live="polite"></p>
+            <div class="rule-step-actions">
+                <button type="button" class="btn-secondary" id="btn-rule-prev">1つ戻る</button>
+                <button type="button" class="btn-secondary" id="btn-rule-advance">1つ進む</button>
+            </div>
+            ${isFinalRuleSummary ? '<p class="rule-complete-note">おつかれ！いつでもSTEPから復習できるよ</p>' : ''}
+        </div>
+    `;
+
+    document.getElementById('btn-back').onclick = () => {
+        state.course = 'basicRules';
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-settings-rule-step').onclick = () => openSettings('basicRuleStep');
+    document.getElementById('btn-rule-prev').onclick = () => ruleUndoOneAction();
+    document.getElementById('btn-rule-advance').onclick = () => ruleAdvanceOneAction();
+    document.querySelectorAll('.rule-step-progress-segment[data-rule-progress-index]').forEach(btn => {
+        btn.onclick = () => {
+            const idx = parseInt(btn.getAttribute('data-rule-progress-index'), 10);
+            if (!Number.isNaN(idx)) ruleJumpToSlideWithinStep(idx);
+        };
+    });
+    const ruleTouchArea = document.getElementById('rule-touch-area');
+    if (ruleTouchArea && !isPlayPhase) {
+        ruleTouchArea.onclick = () => playCurrentRuleTarget(slide);
+    }
+    if (!hasFretboard) {
+        ruleTouchArea.onclick = (e) => {
+            if (!isPlayPhase) {
+                playCurrentRuleTarget(slide);
+                return;
+            }
+            if (!isPlayPhase) return;
+            const noteButton = e.target.closest('[data-rule-diagram-note]');
+            if (!noteButton) {
+                showRuleMissFeedback('光る場所をタップしてね');
+                return;
+            }
+            const tappedIndex = parseInt(noteButton.getAttribute('data-rule-diagram-note'), 10);
+            if (currentTarget && tappedIndex === currentTarget.diagramIndex) {
+                playCurrentRuleTarget(slide);
+            } else {
+                showRuleMissFeedback('光る場所をタップしてね');
+            }
+        };
+    }
+    const ruleStep3TapFitFretRange = (() => {
+        if (step === 4 && page === 2 && isPlayPhase) {
+            if (state.rules.step4Slide3ScrollRevealDone) {
+                return [9, 13];
+            }
+            return false;
+        }
+        if (step === 4 && page === 1 && isPlayPhase) {
+            if (state.rules.step4Slide2RevealDone) {
+                return [7, 10];
+            }
+            return false;
+        }
+        if (Array.isArray(slide.ruleTapLayoutFretRange) && slide.ruleTapLayoutFretRange.length === 2) {
+            return slide.ruleTapLayoutFretRange;
+        }
+        if (slide.step3PairTapSequence) {
+            return [0, typeof slide.step3PairTapViewFretMax === 'number' ? slide.step3PairTapViewFretMax : 5];
+        }
+        return false;
+    })();
+    const ruleTapLayoutZoomFitFloatRange =
+        Array.isArray(slide.ruleTapLayoutZoomFitFloatRange) && slide.ruleTapLayoutZoomFitFloatRange.length === 2
+            ? slide.ruleTapLayoutZoomFitFloatRange
+            : null;
+    const ruleTapLayoutZoomExtra =
+        typeof slide.ruleTapLayoutZoomExtra === 'number' && slide.ruleTapLayoutZoomExtra > 0
+            ? slide.ruleTapLayoutZoomExtra
+            : 1;
+    /** STEP4：共通ズームでも見せたい位置へ寄せる（float の中央代替） */
+    let ruleTapZoomScrollAnchorFret = null;
+    if (step === 5 && hasFretboard && state.settings.fretboardView === 'zoom') {
+        ruleTapZoomScrollAnchorFret = page === 0 ? (isPlayPhase ? null : 8) : 1;
+    } else if (step === 4 && hasFretboard && state.settings.fretboardView === 'zoom') {
+        if (page === 0) {
+            ruleTapZoomScrollAnchorFret = 3;
+        } else if (page === 1) {
+            if (!isPlayPhase) ruleTapZoomScrollAnchorFret = 3;
+            else if (!state.rules.step4Slide2RevealDone) ruleTapZoomScrollAnchorFret = 3;
+            else ruleTapZoomScrollAnchorFret = 8;
+        } else if (page === 2) {
+            if (!isPlayPhase) {
+                ruleTapZoomScrollAnchorFret = 8;
+            } else if (!state.rules.step4Slide3ScrollRevealDone) {
+                ruleTapZoomScrollAnchorFret = 8;
+            } else {
+                ruleTapZoomScrollAnchorFret = 11;
+            }
+        }
+    }
+    const effectiveRuleTapLockScroll =
+        step === 4 && page === 1 && isPlayPhase
+            ? !!state.rules.step4Slide2RevealDone
+            : step === 4 && page === 2 && isPlayPhase
+              ? !!state.rules.step4Slide3ScrollRevealDone
+              : slide.ruleTapLayoutLockScroll === true;
+    const step5AnchorDisableSlot =
+        step === 5 &&
+        slide.ruleFreeShapeStepPairs &&
+        slide.ruleFreeShapeStepPairs[0] &&
+        slide.ruleFreeShapeStepPairs[0][0]
+            ? slide.ruleFreeShapeStepPairs[0][0]
+            : null;
+    if (hasFretboard) {
+        renderFretboardHTML('rule-fretboard-container', {
+            mode: 'rule',
+            ruleMarkers: markersForRender,
+            displayMode: state.settings.noteLabelMode,
+            rulePitchToneByAccidental: step === 1 && (page === 0 || page === 1 || page === 2),
+            ruleTapCueBesideNote: step === 2 && (page === 0 || page === 1 || page === 2 || page === 3),
+            ruleTapCueBubbleAboveNote: step === 2 && page === 2,
+            ruleStep2DegreeColors: step === 2 || step === 3 || step === 4 || step === 5,
+            ruleStep3TapFitFretRange,
+            ruleTapLayoutZoomFitFloatRange,
+            ruleTapLayoutZoomExtra,
+            ruleTapZoomScrollAnchorFret,
+            ruleSlowAutoScrollToNext: slide.ruleSlowAutoScrollToNext === true,
+            ruleTapLayoutLockScroll: effectiveRuleTapLockScroll,
+            ruleStep3PairTapLine:
+                !!slide.step3PairTapSequence && !slide.step3PairTapHideLineAndGapHint,
+            ruleStep5ExcludeInlineCheckboxes: step === 5 && isPlayPhase && ruleFreeShapeUI,
+            ruleStep5ExcludedSlotsLookup:
+                step === 5 && slide.ruleFreeShapeStepPairs && slide.ruleFreeShapeStepPairs.length
+                    ? ruleStep5ExcludedRawForPartition(ruleStep5ExcludedPartitionFromSlide(slide))
+                    : null,
+            ruleStep5AnchorDisableSlot: step5AnchorDisableSlot,
+            onFretClick: (stringNum, fret) => {
+                if (!isPlayPhase || !currentTarget) return;
+                const fShape = !!(slide.ruleFreeShapeStepPairs && slide.ruleFreeShapeStepPairs.length);
+                if (fShape) {
+                    const tappedPc = ((OPEN_STRINGS[6 - stringNum] + fret) % 12 + 12) % 12;
+                    const wantPc = ((currentTarget.noteIdx % 12) + 12) % 12;
+                    if (currentTarget.ruleFlexibleMulti) {
+                        const spots = currentTarget.acceptedPositions;
+                        const posOk =
+                            spots && spots.length
+                                ? spots.some(p => p.stringNum === stringNum && p.fret === fret)
+                                : tappedPc === wantPc;
+                        if (posOk) {
+                            playTone(6 - stringNum, fret);
+                            advanceRuleAfterSound(slide);
+                        } else {
+                            showRuleMissFeedback('光る丸をタップしてね');
+                        }
+                    } else if (
+                        stringNum === currentTarget.stringNum &&
+                        fret === currentTarget.fret
+                    ) {
+                        playCurrentRuleTarget(slide);
+                    } else {
+                        showRuleMissFeedback('光る丸をタップしてね');
+                    }
+                    return;
+                }
+                if (
+                    stringNum === currentTarget.stringNum &&
+                    fret === currentTarget.fret
+                ) {
+                    playCurrentRuleTarget(slide);
+                } else {
+                    showRuleMissFeedback('光る丸をタップしてね');
+                }
+            }
+        });
+        if (step === 4 && page === 1 && isPlayPhase && !state.rules.step4Slide2RevealDone) {
+            if (state.settings.fretboardView === 'zoom') {
+                state.rules._step42RevealTimer = setTimeout(() => {
+                    state.rules._step42RevealTimer = null;
+                    const wrap = document.querySelector('#rule-fretboard-container .fretboard-scroll-wrapper');
+                    if (!wrap) return;
+                    alignRuleStep3Page0Fret3Center(wrap);
+                    const scrollBefore = wrap.scrollLeft;
+                    alignRuleStep3FretColumnCenter(wrap, 8);
+                    const scrollTarget = wrap.scrollLeft;
+                    wrap.scrollLeft = scrollBefore;
+                    wrap.scrollTo({ left: scrollTarget, behavior: 'smooth' });
+                    state.rules._step42RevealTimer2 = setTimeout(() => {
+                        state.rules._step42RevealTimer2 = null;
+                        state.rules.step4Slide2RevealDone = true;
+                        saveState();
+                        renderApp();
+                    }, 780);
+                }, 140);
+            } else {
+                state.rules._step42RevealTimer = setTimeout(() => {
+                    state.rules._step42RevealTimer = null;
+                    state.rules.step4Slide2RevealDone = true;
+                    saveState();
+                    renderApp();
+                }, 650);
+            }
+        }
+        if (step === 4 && page === 2 && isPlayPhase && !state.rules.step4Slide3ScrollRevealDone) {
+            if (state.settings.fretboardView === 'zoom') {
+                state.rules._step43RevealTimer = setTimeout(() => {
+                    state.rules._step43RevealTimer = null;
+                    const wrap = document.querySelector('#rule-fretboard-container .fretboard-scroll-wrapper');
+                    if (!wrap) return;
+                    alignRuleStep3FretColumnCenter(wrap, 8);
+                    const scrollBefore = wrap.scrollLeft;
+                    alignRuleStep3FretColumnCenter(wrap, 11);
+                    const scrollTarget = wrap.scrollLeft;
+                    wrap.scrollLeft = scrollBefore;
+                    wrap.scrollTo({ left: scrollTarget, behavior: 'smooth' });
+                    state.rules._step43RevealTimer2 = setTimeout(() => {
+                        state.rules._step43RevealTimer2 = null;
+                        state.rules.step4Slide3ScrollRevealDone = true;
+                        saveState();
+                        renderApp();
+                    }, 780);
+                }, 140);
+            } else {
+                state.rules._step43RevealTimer = setTimeout(() => {
+                    state.rules._step43RevealTimer = null;
+                    state.rules.step4Slide3ScrollRevealDone = true;
+                    saveState();
+                    renderApp();
+                }, 650);
+            }
+        }
+    }
+
+    syncRuleStepHalfTonePop();
+    syncRuleStep3GapHintPop();
+    syncRuleStep43GapHintPop();
+    if (
+        hasFretboard &&
+        step === 3 &&
+        slide.step3PairTapSequence &&
+        !slide.step3PairTapHideLineAndGapHint
+    ) {
+        scheduleRuleStep31PairLineUpdates();
+    }
+    if (hasFretboard && step === 4 && page === 2) {
+        scheduleRuleStep43GapHintUpdates();
+    }
+
+    app.style.height = '100vh';
+    app.style.overflowY = 'auto';
+    app.style.overflowX = 'hidden';
+}
+
+function getRuleHalfTonePopPairFromTarget(t) {
+    if (!t || t.stringNum !== 2) return null;
+    if (t.fret === 5 || t.fret === 6) return 'miFa';
+    if (t.fret === 12 || t.fret === 13) return 'siDo';
+    return null;
+}
+
+function getRuleHalfTonePairFromState() {
+    const step = state.rules.step || 1;
+    const page = state.rules.page || 0;
+    if (step !== 1 || page !== 2 || state.rules.phase !== 'play') return null;
+    const slides = getRuleSlides(step);
+    const slide = slides[page];
+    if (!slide) return null;
+    const targets = getRuleTargetSequence(slide);
+    const t = targets[state.rules.tapIndex || 0] || null;
+    return getRuleHalfTonePopPairFromTarget(t);
+}
+
+function removeRuleHalfTonePopElement() {
+    const pop = document.getElementById('rule-half-tone-pop') || ruleHalfTonePopDetached;
+    if (pop) pop.remove();
+    ruleHalfTonePopDetached = null;
+    ruleHalfToneLastPair = null;
+    ruleHalfToneLastScroll = -1;
+}
+
+function pickRuleFretColumnNoteMarker(col) {
+    if (!col) return col;
+    const nodes = col.querySelectorAll('.note-marker');
+    for (let i = 0; i < nodes.length; i++) {
+        const n = nodes[i];
+        if (!n.classList.contains('hidden-note')) return n;
+    }
+    return col.querySelector('.note-marker') || col;
+}
+
+/** 音名丸の外周同士を結ぶ線分の端点（ビューポート座標） */
+function ruleStep3PairNoteEdgesViewport(elA, elB) {
+    const ma = pickRuleFretColumnNoteMarker(elA);
+    const mb = pickRuleFretColumnNoteMarker(elB);
+    const rma = ma.getBoundingClientRect();
+    const rmb = mb.getBoundingClientRect();
+    const cx1 = rma.left + rma.width / 2;
+    const cy1 = rma.top + rma.height / 2;
+    const cx2 = rmb.left + rmb.width / 2;
+    const cy2 = rmb.top + rmb.height / 2;
+    const rad1 = Math.max(4, Math.min(rma.width, rma.height) / 2);
+    const rad2 = Math.max(4, Math.min(rmb.width, rmb.height) / 2);
+    let dx = cx2 - cx1;
+    let dy = cy2 - cy1;
+    const dist = Math.hypot(dx, dy) || 1;
+    dx /= dist;
+    dy /= dist;
+    return {
+        x1: cx1 + dx * rad1,
+        y1: cy1 + dy * rad1,
+        x2: cx2 - dx * rad2,
+        y2: cy2 - dy * rad2
+    };
+}
+
+/** 3弦→2弦で同じ音のときだけ、間隔は5フレットではなく4フレット */
+function ruleStep3PairGapIsFourFret(tA, tB) {
+    if (!tA || !tB || tA.stringNum !== 3 || tB.stringNum !== 2) return false;
+    const nA =
+        typeof tA.noteIdx === 'number'
+            ? tA.noteIdx % 12
+            : (OPEN_STRINGS[6 - tA.stringNum] + tA.fret) % 12;
+    const nB =
+        typeof tB.noteIdx === 'number'
+            ? tB.noteIdx % 12
+            : (OPEN_STRINGS[6 - tB.stringNum] + tB.fret) % 12;
+    if (nA !== nB) return false;
+    return tA.fret - tB.fret === 4;
+}
+
+/** STEP3・太い弦→細い弦の黄線フェーズ：例外は「4フレット」オレンジ、その他は「5フレット」白背景 */
+function getRuleStep3GapHintState() {
+    if (state.rules.step !== 3 || state.rules.phase !== 'play') return null;
+    const slides = getRuleSlides(3);
+    const page = clamp(state.rules.page || 0, 0, slides.length - 1);
+    const slide = slides[page];
+    if (!slide || !slide.step3PairTapSequence) return null;
+    if (slide.step3PairTapHideLineAndGapHint) return null;
+    const idx = state.rules.tapIndex || 0;
+    if (idx % 2 === 0) return null;
+    const targets = getRuleTargetSequence(slide);
+    const tA = targets[idx - 1];
+    const tB = targets[idx];
+    if (!tA || !tB) return null;
+    return { variant: ruleStep3PairGapIsFourFret(tA, tB) ? 'four' : 'five', tA, tB };
+}
+
+function removeRuleStep3GapPopElement() {
+    const pop = document.getElementById('rule-step3-gap-pop') || ruleStep3GapPopDetached;
+    if (pop) pop.remove();
+    ruleStep3GapPopDetached = null;
+}
+
+function syncRuleStep3GapHintPop() {
+    const area = document.getElementById('rule-touch-area');
+    const st = getRuleStep3GapHintState();
+    if (!st || !area) {
+        removeRuleStep3GapPopElement();
+        return;
+    }
+    const text = st.variant === 'four' ? '4フレット' : '5フレット';
+    const cls =
+        st.variant === 'four'
+            ? 'rule-half-tone-pop rule-half-tone-pop--compact'
+            : 'rule-step3-five-fret-pop';
+    let pop = document.getElementById('rule-step3-gap-pop') || ruleStep3GapPopDetached;
+    if (!pop) {
+        pop = document.createElement('div');
+        pop.id = 'rule-step3-gap-pop';
+        pop.setAttribute('role', 'status');
+        ruleStep3GapPopDetached = pop;
+    } else {
+        ruleStep3GapPopDetached = pop;
+    }
+    pop.className = cls;
+    pop.textContent = text;
+    const reattached = !pop.parentNode || pop.parentNode !== area;
+    if (reattached) {
+        area.appendChild(pop);
+    }
+    positionRuleStep3GapHintPop(0);
+}
+
+function positionRuleStep3GapHintPop(delayMs = 0) {
+    const run = () => {
+        const st = getRuleStep3GapHintState();
+        if (!st) {
+            removeRuleStep3GapPopElement();
+            return;
+        }
+        const pop = document.getElementById('rule-step3-gap-pop') || ruleStep3GapPopDetached;
+        const area = document.getElementById('rule-touch-area');
+        const host = document.getElementById('rule-fretboard-container');
+        if (!area || !pop || !host) return;
+        const elA = host.querySelector(
+            `.fret-column[data-string="${st.tA.stringNum}"][data-fret="${st.tA.fret}"]`
+        );
+        const elB = host.querySelector(
+            `.fret-column[data-string="${st.tB.stringNum}"][data-fret="${st.tB.fret}"]`
+        );
+        if (!elA || !elB) return;
+        const edge = ruleStep3PairNoteEdgesViewport(elA, elB);
+        const midVx = (edge.x1 + edge.x2) / 2;
+        const midVy = (edge.y1 + edge.y2) / 2;
+        const areaRect = area.getBoundingClientRect();
+        const midX = midVx - areaRect.left;
+        const midY = midVy - areaRect.top;
+        const w = pop.offsetWidth || (st.variant === 'four' ? 56 : 58);
+        const h = pop.offsetHeight || 22;
+        const leftPx = clamp(
+            Math.round(midX - w / 2),
+            6,
+            Math.max(6, areaRect.width - w - 6)
+        );
+        const topPx = clamp(
+            Math.round(midY - h / 2),
+            4,
+            Math.max(4, areaRect.height - h - 4)
+        );
+        pop.style.position = 'absolute';
+        pop.style.left = `${leftPx}px`;
+        pop.style.top = `${topPx}px`;
+        pop.classList.add('is-positioned');
+    };
+    if (delayMs > 0) {
+        setTimeout(run, delayMs);
+    } else {
+        run();
+    }
+}
+
+/** STEP4-3：ソ→ラで「1フレットずれる」吹き出し（タップインデックス5〜、まとめでは消す） */
+const STEP43_LA_GAP_HINT_FROM_TAP_INDEX = 5;
+
+function ruleStep43GapHintShouldShow() {
+    if (state.rules.step !== 4) return false;
+    const page = clamp(state.rules.page || 0, 0, 99);
+    if (page !== 2) return false;
+    const ph = state.rules.phase;
+    if (ph === 'summary') return false;
+    if (ph !== 'play') return false;
+    return (state.rules.tapIndex || 0) >= STEP43_LA_GAP_HINT_FROM_TAP_INDEX;
+}
+
+function cleanupRuleStep43GapHintSchedule() {
+    ruleStep43GapTimeoutIds.forEach(id => clearTimeout(id));
+    ruleStep43GapTimeoutIds = [];
+    if (ruleStep43GapCleanup) {
+        ruleStep43GapCleanup();
+        ruleStep43GapCleanup = null;
+    }
+}
+
+function removeRuleStep43GapPopElement() {
+    const pop = document.getElementById('rule-step43-gap-pop') || ruleStep43GapPopDetached;
+    if (pop) pop.remove();
+    ruleStep43GapPopDetached = null;
+}
+
+function syncRuleStep43GapHintPop() {
+    const area = document.getElementById('rule-touch-area');
+    if (!ruleStep43GapHintShouldShow() || !area) {
+        removeRuleStep43GapPopElement();
+        return;
+    }
+    let pop = document.getElementById('rule-step43-gap-pop') || ruleStep43GapPopDetached;
+    if (!pop) {
+        pop = document.createElement('div');
+        pop.id = 'rule-step43-gap-pop';
+        pop.setAttribute('role', 'note');
+        ruleStep43GapPopDetached = pop;
+    } else {
+        ruleStep43GapPopDetached = pop;
+    }
+    pop.className = 'rule-step43-gap-pop';
+    pop.textContent = '1フレットずれる';
+    const reattached = !pop.parentNode || pop.parentNode !== area;
+    if (reattached) {
+        area.appendChild(pop);
+    }
+    positionRuleStep43GapHintPop(0);
+}
+
+function positionRuleStep43GapHintPop(delayMs = 0) {
+    const run = () => {
+        if (!ruleStep43GapHintShouldShow()) {
+            removeRuleStep43GapPopElement();
+            return;
+        }
+        const pop = document.getElementById('rule-step43-gap-pop') || ruleStep43GapPopDetached;
+        const area = document.getElementById('rule-touch-area');
+        const host = document.getElementById('rule-fretboard-container');
+        if (!area || !pop || !host) return;
+        /** ラ（2弦10）の音名丸の左隣・被り回避 */
+        const tRa = { stringNum: 2, fret: 10 };
+        const colRa = host.querySelector(
+            `.fret-column[data-string="${tRa.stringNum}"][data-fret="${tRa.fret}"]`
+        );
+        if (!colRa) return;
+        const noteEl = pickRuleFretColumnNoteMarker(colRa);
+        if (!noteEl) return;
+        const r = noteEl.getBoundingClientRect();
+        const areaRect = area.getBoundingClientRect();
+        const gap = 6;
+        pop.style.visibility = 'hidden';
+        pop.style.left = '0';
+        pop.style.top = '0';
+        void pop.offsetWidth;
+        const w = pop.offsetWidth;
+        const h = pop.offsetHeight;
+        let leftPx = Math.round(r.left - areaRect.left - gap - w);
+        let topPx = Math.round(r.top - areaRect.top + (r.height - h) / 2);
+        /** 左に十分な隙間がないときだけ、ノートの上にずらす */
+        if (leftPx < 8) {
+            leftPx = Math.round(r.left - areaRect.left + (r.width - w) / 2);
+            topPx = Math.round(r.top - areaRect.top - h - gap);
+        }
+        leftPx = clamp(leftPx, 6, Math.max(6, areaRect.width - w - 6));
+        topPx = clamp(topPx, 4, Math.max(4, areaRect.height - h - 4));
+        pop.style.visibility = '';
+        pop.style.position = 'absolute';
+        pop.style.left = `${leftPx}px`;
+        pop.style.top = `${topPx}px`;
+        pop.classList.add('is-positioned');
+    };
+    if (delayMs > 0) {
+        setTimeout(run, delayMs);
+    } else {
+        run();
+    }
+}
+
+function scheduleRuleStep43GapHintUpdates() {
+    cleanupRuleStep43GapHintSchedule();
+    if (!ruleStep43GapHintShouldShow()) return;
+    const host = document.getElementById('rule-fretboard-container');
+    const wrapper = host?.querySelector('.fretboard-scroll-wrapper');
+    const update = () => positionRuleStep43GapHintPop(0);
+    [0, 45, 120, 280, 520].forEach(d => {
+        ruleStep43GapTimeoutIds.push(setTimeout(update, d));
+    });
+    if (!wrapper) return;
+    let rafId = null;
+    const onScrollOrResize = () => {
+        if (rafId) return;
+        rafId = requestAnimationFrame(() => {
+            rafId = null;
+            update();
+        });
+    };
+    wrapper.addEventListener('scroll', onScrollOrResize, { passive: true });
+    window.addEventListener('resize', onScrollOrResize);
+    ruleStep43GapCleanup = () => {
+        wrapper.removeEventListener('scroll', onScrollOrResize);
+        window.removeEventListener('resize', onScrollOrResize);
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = null;
+    };
+}
+
+/** STEP1・スライド3（page 2）：半音ペアの下に「半音！」ポップ（DOMは付け替えで維持） */
+function syncRuleStepHalfTonePop() {
+    const pair = getRuleHalfTonePairFromState();
+    const area = document.getElementById('rule-touch-area');
+    if (!pair || !area) {
+        removeRuleHalfTonePopElement();
+        return;
+    }
+    const host = document.getElementById('rule-fretboard-container');
+    if (!host) {
+        removeRuleHalfTonePopElement();
+        return;
+    }
+    let pop = document.getElementById('rule-half-tone-pop') || ruleHalfTonePopDetached;
+    if (!pop) {
+        pop = document.createElement('div');
+        pop.id = 'rule-half-tone-pop';
+        pop.setAttribute('role', 'status');
+        pop.textContent = '半音！';
+        ruleHalfTonePopDetached = pop;
+    } else {
+        ruleHalfTonePopDetached = pop;
+    }
+    pop.className = 'rule-half-tone-pop rule-half-tone-pop--step1-practice';
+    pop.textContent = '半音！';
+    const reattached = !pop.parentNode || pop.parentNode !== area;
+    if (reattached) {
+        area.appendChild(pop);
+        ruleHalfToneLastPair = null;
+        ruleHalfToneLastScroll = -1;
+    }
+    positionRuleHalfTonePop(0);
+}
+
+/** STEP1・page 2：半音ポップを2弦の該当フレット列の直下に置く（同一ペア内はスクロール以外レイアウトしない） */
+function positionRuleHalfTonePop(delayMs = 0) {
+    const run = () => {
+        const pair = getRuleHalfTonePairFromState();
+        const pop = document.getElementById('rule-half-tone-pop') || ruleHalfTonePopDetached;
+        const area = document.getElementById('rule-touch-area');
+        const host = document.getElementById('rule-fretboard-container');
+        if (!pair) {
+            removeRuleHalfTonePopElement();
+            return;
+        }
+        if (!area || !pop || !host) return;
+        const wrapper = host.querySelector('.fretboard-scroll-wrapper');
+        const sc = wrapper ? wrapper.scrollLeft : 0;
+        if (
+            ruleHalfToneLastPair === pair &&
+            Math.abs(ruleHalfToneLastScroll - sc) < 0.5 &&
+            pop.classList.contains('is-positioned')
+        ) {
+            return;
+        }
+        const frets = pair === 'miFa' ? [5, 6] : [12, 13];
+        const c1 = host.querySelector(`.fret-column[data-string="2"][data-fret="${frets[0]}"]`);
+        const c2 = host.querySelector(`.fret-column[data-string="2"][data-fret="${frets[1]}"]`);
+        if (!c1 || !c2) return;
+        const areaRect = area.getBoundingClientRect();
+        const r1 = c1.getBoundingClientRect();
+        const r2 = c2.getBoundingClientRect();
+        const left = Math.min(r1.left, r2.left);
+        const right = Math.max(r1.right, r2.right);
+        const bottom = Math.max(r1.bottom, r2.bottom);
+        const centerX = (left + right) / 2 - areaRect.left;
+        const topY = bottom - areaRect.top + 6;
+        const w = pop.offsetWidth || 72;
+        const h = pop.offsetHeight || 36;
+        const leftPx = clamp(
+            Math.round(centerX - w / 2),
+            6,
+            Math.max(6, areaRect.width - w - 6)
+        );
+        const topPx = clamp(
+            Math.round(topY),
+            4,
+            Math.max(4, areaRect.height - h - 4)
+        );
+        pop.style.position = 'absolute';
+        pop.style.left = `${leftPx}px`;
+        pop.style.top = `${topPx}px`;
+        pop.classList.add('is-positioned');
+        ruleHalfToneLastPair = pair;
+        ruleHalfToneLastScroll = sc;
+    };
+    if (delayMs > 0) {
+        setTimeout(run, delayMs);
+    } else {
+        run();
+    }
+}
+
+function positionRuleFloatingCue(delayMs = 0) {
+    const update = () => {
+        const area = document.getElementById('rule-touch-area');
+        const cue = document.getElementById('rule-floating-cue');
+        const target = document.querySelector('#rule-fretboard-container .rule-next');
+        if (!area || !cue || !target) return;
+        const areaRect = area.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        const cueRect = cue.getBoundingClientRect();
+        const left = clamp(
+            targetRect.left + targetRect.width / 2 - areaRect.left - cueRect.width / 2,
+            8,
+            Math.max(8, areaRect.width - cueRect.width - 8)
+        );
+        const top = clamp(
+            targetRect.top - areaRect.top - cueRect.height - 10,
+            4,
+            Math.max(4, areaRect.height - cueRect.height - 4)
+        );
+        cue.style.left = `${Math.round(left)}px`;
+        cue.style.top = `${Math.round(top)}px`;
+        const arrowLeft = clamp(
+            targetRect.left + targetRect.width / 2 - areaRect.left - left - 6,
+            12,
+            Math.max(12, cueRect.width - 18)
+        );
+        cue.style.setProperty('--rule-cue-arrow-left', `${Math.round(arrowLeft)}px`);
+        cue.classList.add('is-positioned');
+    };
+    if (delayMs > 0) {
+        setTimeout(update, delayMs);
+    } else {
+        update();
+    }
+}
+
+function scheduleRuleFloatingCuePosition() {
+    [0, 80, 180, 320, 520].forEach(delay => {
+        positionRuleFloatingCue(delay);
+        positionRuleHalfTonePop(delay);
+    });
+    const wrapper = document.querySelector('#rule-fretboard-container .fretboard-scroll-wrapper');
+    if (!wrapper) return;
+    if (ruleCueScrollCleanup) ruleCueScrollCleanup();
+    let rafId = null;
+    let cleanupTimer = null;
+    const onScroll = () => {
+        if (rafId) return;
+        rafId = requestAnimationFrame(() => {
+            rafId = null;
+            positionRuleFloatingCue();
+            positionRuleHalfTonePop();
+        });
+    };
+    wrapper.addEventListener('scroll', onScroll, { passive: true });
+    ruleCueScrollCleanup = () => {
+        wrapper.removeEventListener('scroll', onScroll);
+        if (rafId) cancelAnimationFrame(rafId);
+        if (cleanupTimer) clearTimeout(cleanupTimer);
+        ruleCueScrollCleanup = null;
+        positionRuleFloatingCue();
+        positionRuleHalfTonePop();
+    };
+    cleanupTimer = setTimeout(ruleCueScrollCleanup, 1800);
+}
+
+function cleanupRuleStep31PairLine() {
+    ruleStep31LineTimeoutIds.forEach(id => clearTimeout(id));
+    ruleStep31LineTimeoutIds = [];
+    if (ruleStep31LineCleanup) {
+        ruleStep31LineCleanup();
+        ruleStep31LineCleanup = null;
+    }
+    const svg = document.getElementById('rule-step31-pair-line');
+    if (svg) svg.innerHTML = '';
+}
+
+/** STEP3・ペアタップ各スライド：開放へ進んだあと、太い弦と開放を黄線で結ぶ（座標は #rule-fretboard-stack 基準） */
+function updateRuleStep31PairLine() {
+    const svg = document.getElementById('rule-step31-pair-line');
+    const stack = document.getElementById('rule-fretboard-stack');
+    if (!svg || !stack) return;
+    if (state.rules.step !== 3 || state.rules.phase !== 'play') {
+        svg.innerHTML = '';
+        return;
+    }
+    const slides = getRuleSlides(3);
+    const page = clamp(state.rules.page || 0, 0, slides.length - 1);
+    const slide = slides[page];
+    if (!slide || !slide.step3PairTapSequence || slide.step3PairTapHideLineAndGapHint) {
+        svg.innerHTML = '';
+        return;
+    }
+    const targets = getRuleTargetSequence(slide);
+    const idx = state.rules.tapIndex || 0;
+    if (idx % 2 === 0) {
+        svg.innerHTML = '';
+        return;
+    }
+    const tA = targets[idx - 1];
+    const tB = targets[idx];
+    if (!tA || !tB) return;
+    const elA = document.querySelector(
+        `#rule-fretboard-container .fret-column[data-string="${tA.stringNum}"][data-fret="${tA.fret}"]`
+    );
+    const elB = document.querySelector(
+        `#rule-fretboard-container .fret-column[data-string="${tB.stringNum}"][data-fret="${tB.fret}"]`
+    );
+    if (!elA || !elB) return;
+    const edgeV = ruleStep3PairNoteEdgesViewport(elA, elB);
+    const sb = stack.getBoundingClientRect();
+    const x1 = edgeV.x1 - sb.left;
+    const y1 = edgeV.y1 - sb.top;
+    const x2 = edgeV.x2 - sb.left;
+    const y2 = edgeV.y2 - sb.top;
+    const w = Math.max(1, Math.round(stack.clientWidth));
+    const h = Math.max(1, Math.round(stack.clientHeight));
+    svg.setAttribute('width', String(w));
+    svg.setAttribute('height', String(h));
+    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    svg.innerHTML = `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" />`;
+}
+
+function scheduleRuleStep31PairLineUpdates() {
+    cleanupRuleStep31PairLine();
+    if (state.rules.step !== 3) return;
+    const slides = getRuleSlides(3);
+    const page = clamp(state.rules.page || 0, 0, slides.length - 1);
+    const slide = slides[page];
+    if (!slide || !slide.step3PairTapSequence || slide.step3PairTapHideLineAndGapHint) return;
+    const update = () => {
+        updateRuleStep31PairLine();
+        positionRuleStep3GapHintPop(0);
+    };
+    [0, 45, 120, 280, 520].forEach(d => {
+        ruleStep31LineTimeoutIds.push(setTimeout(update, d));
+    });
+    const wrapper = document.querySelector('#rule-fretboard-container .fretboard-scroll-wrapper');
+    if (!wrapper) return;
+    let rafId = null;
+    const onScrollOrResize = () => {
+        if (rafId) return;
+        rafId = requestAnimationFrame(() => {
+            rafId = null;
+            update();
+        });
+    };
+    wrapper.addEventListener('scroll', onScrollOrResize, { passive: true });
+    window.addEventListener('resize', onScrollOrResize);
+    ruleStep31LineCleanup = () => {
+        wrapper.removeEventListener('scroll', onScrollOrResize);
+        window.removeEventListener('resize', onScrollOrResize);
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = null;
+        ruleStep31LineCleanup = null;
+        const svg = document.getElementById('rule-step31-pair-line');
+        if (svg) svg.innerHTML = '';
+    };
+}
+
+function renderStageSelect(app) {
+    const isCruiseMode = state.memorize.playMode === 'cruise';
+    const stageSelectTitle = isCruiseMode ? '🛳️ 指板をたどる' : '🎯 指板クイズ';
+    const stageDefs = [
+        { stage: 1, title: 'STAGE 1', desc: '開放弦〜3フレット' },
+        { stage: 2, title: 'STAGE 2', desc: '2〜5フレット' },
+        { stage: 3, title: 'STAGE 3', desc: isCruiseMode ? '5〜8フレット' : '5〜9フレット' },
+        { stage: 4, title: 'STAGE 4', desc: isCruiseMode ? '7〜10フレット' : '6〜10フレット' },
+        { stage: 5, title: 'STAGE 5', desc: isCruiseMode ? '9〜13フレット' : '8〜13フレット' },
+        { stage: 6, title: 'STAGE 6', desc: isCruiseMode ? '全て' : 'STAGE1〜5全て' }
+    ];
+    const stageButtonsHtml = stageDefs.map(def => {
+        let clearBadge = '';
+        if (isCruiseMode) {
+            const clearCount = getCruiseStageClearCount(def.stage);
+            if (clearCount > 0) {
+                clearBadge = `<span class="stage-clear-count stage-clear-count--side" aria-label="${def.title} 完走 ${clearCount}回">🏁 ${clearCount}回</span>`;
+            }
+        } else {
+            const perfectCount = getQuizStagePerfectCount(def.stage);
+            if (perfectCount >= 10) {
+                clearBadge = `<span class="stage-clear-count stage-clear-count--side" aria-label="${def.title} 満点クリア">🏆 CLEAR</span>`;
+            } else if (perfectCount > 0) {
+                clearBadge = `<span class="stage-clear-count stage-clear-count--side" aria-label="${def.title} 満点 ${perfectCount}/10">🏆 ${perfectCount}/10</span>`;
+            }
+        }
+        const stageBtnClass = clearBadge ? 'stage-btn stage-btn--has-side-badge' : 'stage-btn';
+        const mainButton = `<button class="${stageBtnClass}" data-stage="${def.stage}">${clearBadge}${def.title}<span class="stage-desc">${def.desc}</span></button>`;
+        if (isCruiseMode) {
+            return `
+                <div class="stage-route-row">
+                    ${mainButton}
+                    <button class="stage-route-edit-btn stage-route-edit-btn--icon" type="button" data-edit-stage="${def.stage}" aria-label="${def.title}の順番を編集" title="編集">⋮</button>
+                </div>
+            `;
+        }
+        // クイズモード: 問題編集ボタンを表示
+        return `
+            <div class="stage-route-row">
+                ${mainButton}
+                <button class="stage-route-edit-btn stage-route-edit-btn--icon" type="button" data-quiz-edit-stage="${def.stage}" aria-label="${def.title}の問題を編集" title="編集">⋮</button>
+            </div>
+        `;
+    }).join('');
+    const savedProCustomStages = isCruiseMode ? getSavedProCustomStages() : [];
+    const proCustomReachedLimit = savedProCustomStages.length >= PRO_CUSTOM_STAGE_MAX_SAVED;
+    const savedProCustomQuizStages = !isCruiseMode ? getSavedProCustomQuizStages() : [];
+    const proCustomQuizReachedLimit = savedProCustomQuizStages.length >= PRO_CUSTOM_STAGE_MAX_SAVED;
+    /** 「PROカスタムSTAGE」行は常に "新規追加" の入口。タップすると空の編集画面が開く。
+        既存STAGEの編集は下に並ぶ各保存STAGE行の ▼ → ⚙️ から行う。 */
+    const proCustomEditorRowHtml = isCruiseMode ? `
+        <div class="stage-route-row stage-route-row--pro-custom">
+            <button class="stage-btn pro-custom-saved-btn pro-custom-saved-btn--editor" type="button" id="btn-pro-custom-stage" ${proCustomReachedLimit ? 'disabled' : ''}>
+                <span class="pro-custom-saved-btn__title pro-custom-saved-btn__title--editor">
+                    <span class="pro-custom-saved-btn__title-emoji" aria-hidden="true">👑</span>${proCustomReachedLimit ? `PROカスタムSTAGE（上限${PRO_CUSTOM_STAGE_MAX_SAVED}件）` : 'PROカスタムSTAGE'}
+                </span>
+                <span class="stage-desc pro-custom-saved-btn__desc">${proCustomReachedLimit ? '不要なSTAGEを削除してください' : '新しいSTAGEを追加する'}</span>
+            </button>
+        </div>
+    ` : '';
+    /** 各保存済みSTAGEは「再生ボタン＋⋮編集ボタン＋▼トグル」を1行に並べ、
+        ▼トグルで開く操作群（✏️名前変更・⚙️編集・📋複製・🗑️削除）を別行に表示する。
+        ⋮ は素早く編集画面に飛ぶショートカット（▼→⚙️ と同じ動き）。 */
+    const proCustomSavedRowsHtml = savedProCustomStages.map((stage) => {
+        const safeId = escapeHtml(stage.id);
+        return `
+        <div class="stage-route-row stage-route-row--pro-custom-saved pro-custom-saved-row" data-pro-custom-row-id="${safeId}">
+            <div class="pro-custom-saved-row__main">
+                <button class="stage-btn pro-custom-saved-btn pro-custom-saved-btn--play" type="button" data-pro-custom-play-id="${safeId}">
+                    <span class="pro-custom-saved-btn__badge" aria-hidden="true">PRO</span>
+                    <span class="pro-custom-saved-btn__title">${escapeHtml(stage.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}</span>
+                    <span class="stage-desc pro-custom-saved-btn__desc">${stage.route.length}音 / カポ${stage.capo}</span>
+                </button>
+                <button type="button" class="pro-custom-saved-quick-edit" data-pro-custom-action="edit" data-pro-custom-target-id="${safeId}" aria-label="このSTAGEを編集" title="編集">⋮</button>
+                <button type="button" class="pro-custom-saved-toggle" data-pro-custom-toggle-id="${safeId}" aria-expanded="false" aria-haspopup="true" aria-label="その他の操作を表示" title="その他の操作">
+                    <span class="pro-custom-saved-toggle__chevron" aria-hidden="true">▼</span>
+                </button>
+            </div>
+            <div class="pro-custom-saved-actions" hidden role="group" aria-label="PROカスタムSTAGEの操作" data-pro-custom-actions-id="${safeId}">
+                <button type="button" class="icon-btn pro-custom-saved-action-btn" data-pro-custom-action="rename" data-pro-custom-target-id="${safeId}" title="名前を変更" aria-label="名前を変更">✏️</button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn" data-pro-custom-action="edit" data-pro-custom-target-id="${safeId}" title="このSTAGEを編集" aria-label="このSTAGEを編集">⚙️</button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn pro-custom-saved-action-btn--duplicate" data-pro-custom-action="duplicate" data-pro-custom-target-id="${safeId}" title="複製" aria-label="複製" ${proCustomReachedLimit ? 'disabled' : ''}><img src="../assets/icon-duplicate.png?v=1" class="pro-custom-saved-action-icon" alt="" decoding="async" width="20" height="20"></button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn pro-custom-saved-action-btn--delete" data-pro-custom-action="delete" data-pro-custom-target-id="${safeId}" title="このSTAGEを削除" aria-label="このSTAGEを削除">🗑️</button>
+            </div>
+        </div>
+        `;
+    }).join('');
+    const proCustomQuizEditorRowHtml = !isCruiseMode ? `
+        <div class="stage-route-row stage-route-row--pro-custom">
+            <button class="stage-btn pro-custom-saved-btn pro-custom-saved-btn--editor" type="button" id="btn-pro-custom-quiz-stage" ${proCustomQuizReachedLimit ? 'disabled' : ''}>
+                <span class="pro-custom-saved-btn__title pro-custom-saved-btn__title--editor">
+                    <span class="pro-custom-saved-btn__title-emoji" aria-hidden="true">👑</span>${proCustomQuizReachedLimit ? `PROカスタムSTAGE（上限${PRO_CUSTOM_STAGE_MAX_SAVED}件）` : 'PROカスタムSTAGE'}
+                </span>
+                <span class="stage-desc pro-custom-saved-btn__desc">${proCustomQuizReachedLimit ? '不要なSTAGEを削除してください' : '新しいSTAGEを追加する'}</span>
+            </button>
+        </div>
+    ` : '';
+    const proCustomQuizSavedRowsHtml = savedProCustomQuizStages.map((stage) => {
+        const safeId = escapeHtml(stage.id);
+        const noteCount = stage.groups.reduce((sum, group) => sum + (Array.isArray(group.notes) ? group.notes.length : 0), 0);
+        return `
+        <div class="stage-route-row stage-route-row--pro-custom-saved pro-custom-saved-row" data-pro-custom-quiz-row-id="${safeId}">
+            <div class="pro-custom-saved-row__main">
+                <button class="stage-btn pro-custom-saved-btn pro-custom-saved-btn--play" type="button" data-pro-custom-quiz-play-id="${safeId}">
+                    <span class="pro-custom-saved-btn__badge" aria-hidden="true">PRO</span>
+                    <span class="pro-custom-saved-btn__title">${escapeHtml(stage.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}</span>
+                    <span class="stage-desc pro-custom-saved-btn__desc">${noteCount}音 / カポ${stage.capo}</span>
+                </button>
+                <button type="button" class="pro-custom-saved-quick-edit" data-pro-custom-quiz-action="edit" data-pro-custom-quiz-target-id="${safeId}" aria-label="このSTAGEを編集" title="編集">⋮</button>
+                <button type="button" class="pro-custom-saved-toggle" data-pro-custom-quiz-toggle-id="${safeId}" aria-expanded="false" aria-haspopup="true" aria-label="その他の操作を表示" title="その他の操作">
+                    <span class="pro-custom-saved-toggle__chevron" aria-hidden="true">▼</span>
+                </button>
+            </div>
+            <div class="pro-custom-saved-actions" hidden role="group" aria-label="PROカスタムSTAGEの操作" data-pro-custom-quiz-actions-id="${safeId}">
+                <button type="button" class="icon-btn pro-custom-saved-action-btn" data-pro-custom-quiz-action="rename" data-pro-custom-quiz-target-id="${safeId}" title="名前を変更" aria-label="名前を変更">✏️</button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn" data-pro-custom-quiz-action="edit" data-pro-custom-quiz-target-id="${safeId}" title="このSTAGEを編集" aria-label="このSTAGEを編集">⚙️</button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn pro-custom-saved-action-btn--duplicate" data-pro-custom-quiz-action="duplicate" data-pro-custom-quiz-target-id="${safeId}" title="複製" aria-label="複製" ${proCustomQuizReachedLimit ? 'disabled' : ''}><img src="../assets/icon-duplicate.png?v=1" class="pro-custom-saved-action-icon" alt="" decoding="async" width="20" height="20"></button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn pro-custom-saved-action-btn--delete" data-pro-custom-quiz-action="delete" data-pro-custom-quiz-target-id="${safeId}" title="このSTAGEを削除" aria-label="このSTAGEを削除">🗑️</button>
+            </div>
+        </div>
+        `;
+    }).join('');
+    const proCustomStageHtml = isCruiseMode
+        ? `${proCustomEditorRowHtml}${proCustomSavedRowsHtml}`
+        : `${proCustomQuizEditorRowHtml}${proCustomQuizSavedRowsHtml}`;
+    app.innerHTML = `
+        ${buildPageHeader({
+            headerClass: 'page-header--stage-select',
+            titleText: stageSelectTitle,
+            leftHtml: `
+                ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+                ${navButtonHtml({ id: 'btn-home-stage', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
+            `,
+            rightHtml: settingsButtonHtml('btn-settings-stage')
+        })}
+        <div class="stage-list">
+            ${stageButtonsHtml}
+            ${proCustomStageHtml}
+        </div>
+    `;
+
+    document.getElementById('btn-back').onclick = () => {
+        state.course = null;
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-home-stage').onclick = () => {
+        state.course = null;
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-settings-stage').onclick = () => {
+        openSettings('stageSelect');
+    };
+
+    /** 新規 or 既存 STAGE の編集画面を開く。
+        - { newStage: true }   → 空のドラフトでスタート（id 未割当）
+        - { stageId: 'pcs_…' } → その保存済みSTAGEを編集 */
+    const openProCustomEditor = (options = {}) => {
+        const { newStage = false, stageId = null } = options;
+        let base;
+        let editingStageId = null;
+        if (stageId) {
+            const target = getSavedProCustomStageById(stageId);
+            if (target) {
+                base = target;
+                editingStageId = target.id;
+            } else {
+                base = getDefaultProCustomStageSettings();
+            }
+        } else if (newStage) {
+            base = getDefaultProCustomStageSettings();
+            base.name = findFreshProCustomStageName(PRO_CUSTOM_STAGE_DEFAULT_NAME);
+        } else {
+            // 後方互換: 引数なしで呼ばれた場合は新規作成として扱う
+            base = getDefaultProCustomStageSettings();
+            base.name = findFreshProCustomStageName(PRO_CUSTOM_STAGE_DEFAULT_NAME);
+        }
+        state.proCustomRouteEditor = normalizeProCustomEditorState({
+            draft: base.route,
+            history: [],
+            groupBreaks: base.groupBreaks,
+            groupNames: base.groupNames,
+            selectedGroupIndex: 0,
+            visibleGroupIndices: [0],
+            forceHideAllGroups: false,
+            showAllGroupsExpanded: false,
+            groupPanelOffset: { x: 0, y: 0 },
+            name: base.name,
+            key: base.key,
+            capo: base.capo,
+            scale: base.scale,
+            displayMode: base.displayMode,
+            doMode: base.doMode,
+            maxFret: base.maxFret,
+            scrollLefts: base.groupScrollLefts,
+            editingStageId
+        });
+        state.course = 'proCustomRouteEditor';
+        saveState();
+        renderApp();
+    };
+
+    const proCustomBtn = document.getElementById('btn-pro-custom-stage');
+    if (proCustomBtn) {
+        // 「PROカスタムSTAGE」は常に "新規追加" の入口
+        proCustomBtn.onclick = () => {
+            if (proCustomBtn.disabled) return;
+            openProCustomEditor({ newStage: true });
+        };
+    }
+
+    document.querySelectorAll('[data-pro-custom-play-id]').forEach(btn => {
+        btn.onclick = () => {
+            initAudio();
+            const id = btn.getAttribute('data-pro-custom-play-id');
+            const stage = getSavedProCustomStageById(id);
+            if (stage && stage.route && stage.route.length) {
+                startProCustomCruisePlayback(stage, 'stageSelect');
+            }
+        };
+    });
+
+    document.querySelectorAll('[data-pro-custom-toggle-id]').forEach(btn => {
+        btn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const id = btn.getAttribute('data-pro-custom-toggle-id');
+            const row = btn.closest('.pro-custom-saved-row');
+            const actions = row ? row.querySelector(`[data-pro-custom-actions-id="${id}"]`) : null;
+            if (!row || !actions) return;
+            const opening = !row.classList.contains('is-open');
+            // 同時に開く行は1つにする（他の開いている行は閉じる）
+            document.querySelectorAll('.pro-custom-saved-row.is-open').forEach(other => {
+                if (other === row) return;
+                other.classList.remove('is-open');
+                const otherActions = other.querySelector('.pro-custom-saved-actions');
+                const otherToggle = other.querySelector('.pro-custom-saved-toggle');
+                if (otherActions) otherActions.hidden = true;
+                if (otherToggle) {
+                    otherToggle.setAttribute('aria-expanded', 'false');
+                    otherToggle.setAttribute('aria-label', 'その他の操作を表示');
+                }
+            });
+            row.classList.toggle('is-open', opening);
+            actions.hidden = !opening;
+            btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
+            btn.setAttribute('aria-label', opening ? 'その他の操作を閉じる' : 'その他の操作を表示');
+            if (opening) {
+                requestAnimationFrame(() => {
+                    const rect = actions.getBoundingClientRect();
+                    const listEl = actions.closest('.stage-list');
+                    const containerBottom = listEl
+                        ? listEl.getBoundingClientRect().bottom
+                        : window.innerHeight;
+                    if (rect.bottom > containerBottom) {
+                        actions.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                    }
+                });
+            }
+        };
+    });
+
+    document.querySelectorAll('[data-pro-custom-action]').forEach(btn => {
+        btn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (btn.disabled) return;
+            const action = btn.getAttribute('data-pro-custom-action');
+            const id = btn.getAttribute('data-pro-custom-target-id');
+            if (!id) return;
+            if (action === 'edit') {
+                openProCustomEditor({ stageId: id });
+                return;
+            }
+            if (!guardProPersistentSave('save')) return;
+            const cur = getSavedProCustomStageById(id);
+            if (!cur) return;
+            if (action === 'rename') {
+                const next = window.prompt('新しいSTAGE名を入力してください', cur.name);
+                if (next === null) return;
+                const trimmed = String(next).trim();
+                if (!trimmed) {
+                    window.alert('名前を入力してください。');
+                    return;
+                }
+                if (proCustomStageNameExists(trimmed, id)) {
+                    window.alert(`「${trimmed}」という名前のSTAGEはすでにあります。別の名前にしてください。`);
+                    return;
+                }
+                renameProCustomStageById(id, trimmed);
+                saveState();
+                renderApp();
+            } else if (action === 'duplicate') {
+                if (getSavedProCustomStages().length >= PRO_CUSTOM_STAGE_MAX_SAVED) {
+                    window.alert(`これ以上追加できません（上限${PRO_CUSTOM_STAGE_MAX_SAVED}件）。`);
+                    return;
+                }
+                const dup = duplicateProCustomStage(id);
+                if (dup) {
+                    saveState();
+                    renderApp();
+                }
+            } else if (action === 'delete') {
+                if (!window.confirm(`「${cur.name}」を削除しますか？`)) return;
+                deleteProCustomStageById(id);
+                saveState();
+                renderApp();
+            }
+        };
+    });
+
+    const openProCustomQuizEditor = (options = {}) => {
+        const { newStage = false, stageId = null } = options;
+        let base;
+        let editingStageId = null;
+        if (stageId) {
+            const target = getSavedProCustomQuizStageById(stageId);
+            if (target) {
+                base = target;
+                editingStageId = target.id;
+            } else {
+                base = getDefaultProCustomQuizStageSettings();
+            }
+        } else if (newStage) {
+            base = getDefaultProCustomQuizStageSettings();
+            base.name = findFreshProCustomQuizStageName(PRO_CUSTOM_STAGE_DEFAULT_NAME);
+        } else {
+            base = getDefaultProCustomQuizStageSettings();
+            base.name = findFreshProCustomQuizStageName(PRO_CUSTOM_STAGE_DEFAULT_NAME);
+        }
+        state.proCustomQuizEditor = normalizeProCustomQuizEditorState({
+            groups: base.groups,
+            selectedGroupIndex: 0,
+            groupPanelOffset: { x: 0, y: 0 },
+            history: [],
+            showAllGroupsExpanded: false,
+            visibleGroupIndices: [0],
+            forceHideAllGroups: false,
+            name: base.name,
+            key: base.key,
+            capo: base.capo,
+            scale: base.scale,
+            displayMode: base.displayMode,
+            doMode: base.doMode,
+            maxFret: base.maxFret,
+            editingStageId
+        });
+        state.course = 'proCustomQuizEditor';
+        saveState();
+        renderApp();
+    };
+
+    const proCustomQuizBtn = document.getElementById('btn-pro-custom-quiz-stage');
+    if (proCustomQuizBtn) {
+        proCustomQuizBtn.onclick = () => {
+            if (proCustomQuizBtn.disabled) return;
+            openProCustomQuizEditor({ newStage: true });
+        };
+    }
+
+    document.querySelectorAll('[data-pro-custom-quiz-play-id]').forEach(btn => {
+        btn.onclick = () => {
+            initAudio();
+            const id = btn.getAttribute('data-pro-custom-quiz-play-id');
+            const stage = getSavedProCustomQuizStageById(id);
+            if (stage) startProCustomQuizPlayback(stage, 'stageSelect');
+        };
+    });
+
+    document.querySelectorAll('[data-pro-custom-quiz-toggle-id]').forEach(btn => {
+        btn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const id = btn.getAttribute('data-pro-custom-quiz-toggle-id');
+            const row = btn.closest('.pro-custom-saved-row');
+            const actions = row ? row.querySelector(`[data-pro-custom-quiz-actions-id="${id}"]`) : null;
+            if (!row || !actions) return;
+            const opening = !row.classList.contains('is-open');
+            document.querySelectorAll('.pro-custom-saved-row.is-open').forEach(other => {
+                if (other === row) return;
+                other.classList.remove('is-open');
+                const otherActions = other.querySelector('.pro-custom-saved-actions');
+                const otherToggle = other.querySelector('.pro-custom-saved-toggle');
+                if (otherActions) otherActions.hidden = true;
+                if (otherToggle) {
+                    otherToggle.setAttribute('aria-expanded', 'false');
+                    otherToggle.setAttribute('aria-label', 'その他の操作を表示');
+                }
+            });
+            row.classList.toggle('is-open', opening);
+            actions.hidden = !opening;
+            btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
+            btn.setAttribute('aria-label', opening ? 'その他の操作を閉じる' : 'その他の操作を表示');
+            if (opening) {
+                requestAnimationFrame(() => {
+                    const rect = actions.getBoundingClientRect();
+                    const listEl = actions.closest('.stage-list');
+                    const containerBottom = listEl
+                        ? listEl.getBoundingClientRect().bottom
+                        : window.innerHeight;
+                    if (rect.bottom > containerBottom) {
+                        actions.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                    }
+                });
+            }
+        };
+    });
+
+    document.querySelectorAll('[data-pro-custom-quiz-action]').forEach(btn => {
+        btn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (btn.disabled) return;
+            const action = btn.getAttribute('data-pro-custom-quiz-action');
+            const id = btn.getAttribute('data-pro-custom-quiz-target-id');
+            if (!id) return;
+            if (action === 'edit') {
+                openProCustomQuizEditor({ stageId: id });
+                return;
+            }
+            if (!guardProPersistentSave('save')) return;
+            const cur = getSavedProCustomQuizStageById(id);
+            if (!cur) return;
+            if (action === 'rename') {
+                const next = window.prompt('新しいSTAGE名を入力してください', cur.name);
+                if (next === null) return;
+                const trimmed = String(next).trim();
+                if (!trimmed) {
+                    window.alert('名前を入力してください。');
+                    return;
+                }
+                if (proCustomQuizStageNameExists(trimmed, id)) {
+                    window.alert(`「${trimmed}」という名前のSTAGEはすでにあります。別の名前にしてください。`);
+                    return;
+                }
+                renameProCustomQuizStageById(id, trimmed);
+                saveState();
+                renderApp();
+            } else if (action === 'duplicate') {
+                if (getSavedProCustomQuizStages().length >= PRO_CUSTOM_STAGE_MAX_SAVED) {
+                    window.alert(`これ以上追加できません（上限${PRO_CUSTOM_STAGE_MAX_SAVED}件）。`);
+                    return;
+                }
+                const dup = duplicateProCustomQuizStage(id);
+                if (dup) {
+                    saveState();
+                    renderApp();
+                }
+            } else if (action === 'delete') {
+                if (!window.confirm(`「${cur.name}」を削除しますか？`)) return;
+                deleteProCustomQuizStageById(id);
+                saveState();
+                renderApp();
+            }
+        };
+    });
+
+    document.querySelectorAll('.stage-route-edit-btn[data-edit-stage]').forEach(btn => {
+        btn.onclick = () => {
+            const stage = parseInt(btn.getAttribute('data-edit-stage'), 10);
+            const defaultStage = buildDefaultCruiseStageSequence(stage);
+            let savedSlots;
+            let initialGroupBreaks;
+            if (isStandardEdition()) {
+                savedSlots = cloneCruiseRouteSlots(defaultStage.sequence.map(cruiseRouteSlotFromTarget));
+                initialGroupBreaks = normalizeRouteEditorGroupBreaks(
+                    Array.isArray(defaultStage.groupBreaks) && defaultStage.groupBreaks.length
+                        ? defaultStage.groupBreaks.slice()
+                        : buildAutoRouteEditorGroupBreaks(savedSlots),
+                    savedSlots.length
+                );
+            } else {
+                savedSlots = getSavedCruiseRouteSlots(stage);
+                const useDefaultSlots = !savedSlots.length && stage >= 4;
+                if (useDefaultSlots) {
+                    savedSlots = cloneCruiseRouteSlots(defaultStage.sequence.map(cruiseRouteSlotFromTarget));
+                } else if (!savedSlots.length && stage === 1) {
+                    savedSlots = cloneCruiseRouteSlots(getShippedDefaultStage1RouteSlots());
+                }
+                const savedGroupBreaks = normalizeRouteEditorGroupBreaks(getRouteEditorSavedGroupBreaks(stage), savedSlots.length);
+                initialGroupBreaks = savedGroupBreaks.length
+                    ? savedGroupBreaks
+                    : (useDefaultSlots && Array.isArray(defaultStage.groupBreaks) && defaultStage.groupBreaks.length
+                        ? defaultStage.groupBreaks.slice()
+                        : buildAutoRouteEditorGroupBreaks(savedSlots));
+            }
+            const initialGroups = buildRouteEditorGroupsFromBreaks(savedSlots, initialGroupBreaks);
+            stopRhythm();
+            state.routeEditor = {
+                stage,
+                draft: savedSlots,
+                deleteMode: false,
+                history: [],
+                deletePicker: null,
+                groupNames: buildRouteEditorGroupsFromBreaks(savedSlots, initialGroupBreaks).map((_, i) => `Gr.${i + 1}`),
+                groupBreaks: savedSlots.length ? initialGroupBreaks : [0],
+                selectedGroupIndex: 0,
+                visibleGroupIndices: initialGroups.length ? initialGroups.map((_, index) => index) : [0],
+                forceHideAllGroups: false,
+                showAllGroupsExpanded: false,
+                groupPanelOffset: { x: 0, y: 0 }
+            };
+            state.course = 'routeEditor';
+            saveState();
+            renderApp();
+        };
+    });
+
+    document.querySelectorAll('[data-quiz-edit-stage]').forEach(btn => {
+        btn.onclick = () => {
+            const stage = parseInt(btn.getAttribute('data-quiz-edit-stage'), 10);
+            const savedSettings = isStandardEdition() ? null : getQuizEditorSavedSettings(stage);
+            const initialGroups = savedSettings && savedSettings.groups && savedSettings.groups.length > 0
+                ? savedSettings.groups.map(g => ({
+                    notes: (g.notes || []).map(n => ({ stringName: n.stringName, fret: n.fret })),
+                    // null（未保存）と 0（保存済み 0）を区別する
+                    scrollLeft: Number.isFinite(g.scrollLeft) ? g.scrollLeft : null
+                }))
+                : getQuizEditorDefaultGroups(stage);
+            const groupsForEditor = initialGroups.length > QUIZ_EDITOR_MAX_GROUPS ? initialGroups.slice(0, QUIZ_EDITOR_MAX_GROUPS) : initialGroups;
+            state.quizEditor = {
+                stage,
+                groups: groupsForEditor,
+                selectedGroupIndex: 0,
+                groupPanelOffset: { x: 0, y: 0 },
+                history: [],
+                showAllGroupsExpanded: false,
+                visibleGroupIndices: [],
+                forceHideAllGroups: false
+            };
+            state.quizEditorPreview = null;
+            const initialScroll = groupsForEditor[0]?.scrollLeft;
+            quizEditorPendingScrollLeft = Number.isFinite(initialScroll) ? initialScroll : null;
+            state.course = 'quizEditor';
+            saveState();
+            renderApp();
+        };
+    });
+
+    document.querySelectorAll('.stage-btn[data-stage]').forEach(btn => {
+        btn.onclick = () => {
+            initAudio(); // Initialize audio on first user gesture
+            state.memorize.stage = parseInt(btn.getAttribute('data-stage'));
+            state.memorize.combo = 0;
+            state.memorize.maxCombo = 0;
+            state.memorize.isCleared = false;
+            state.memorize.proCustomCruise = null;
+            state.memorize.proCustomQuiz = null;
+            // クイズ開始時はカウント・正解・クリア状態をリセット
+            if (state.memorize.playMode === 'quiz') {
+                state.memorize.correct = 0;
+                state.memorize.quizQuestionsAsked = 0;
+                state.memorize.quizQuestionResults = [];
+                state.memorize.isQuizCleared = false;
+                state.memorize.quizAttemptCounted = false;
+                state.memorize.quizPerfectCounted  = false;
+            } else {
+                // クルーズ：終了カードで正答率を出すため、ここでも 0 リセット
+                state.memorize.correct = 0;
+            }
+            state.course = 'memorize';
+            
+            if (state.memorize.playMode === 'cruise') {
+                const { sequence, cruiseScope, groupIndices } = buildCruiseStageSequence(state.memorize.stage);
+                
+                clearStage1RepeatHintState();
+                state.memorize.cruiseScope = cruiseScope;
+                state.memorize.cruiseTargets = sequence;
+                state.memorize.cruiseGroupIndices = Array.isArray(groupIndices) && groupIndices.length ? groupIndices.slice() : sequence.map(() => 0);
+                state.memorize.cruiseIndex = 0;
+                state.memorize.cruiseCurrentLoop = 0;
+                state.memorize.currentQuestion = sequence[0];
+                state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices[0] ?? 0;
+                state.memorize.cruisePreviousGroupIndex = null;
+                state.memorize.isFirstNote = true;
+                state.memorize.hasTappedCurrentNote = false;
+                state.memorize.cruisePreTapped = false;
+                state.memorize.cruiseLastTapFeedback = null;
+                state.memorize.tempFeedback = null;
+                state.memorize.isCruisePlaying = true;
+                
+                autoScrollRequested = true;
+                // 開始時に BPM カウント（3,2,1）を入れてから自動再生開始。
+                // saveState/renderApp はカウント関数内で呼ぶ。
+                saveState();
+                renderApp();
+                startCruiseCountdownAndRhythm();
+                // ここで return せず下の try 処理に流すと renderApp が二重になるため早期 return
+                return;
+            } else {
+                state.quizEditorPreview = null;
+                state.memorize.tempFeedback = null;
+                generateQuestion();
+                autoScrollRequested = true;
+            }
+
+            saveState();
+            renderApp();
+            // Play the initial quiz question note
+            if (state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+                quizToneTimeout = setTimeout(() => {
+                    quizToneTimeout = null;
+                    if (state.course === 'memorize' && state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+                        playTone(state.memorize.currentQuestion.stringIdx, state.memorize.currentQuestion.fret);
+                    }
+                }, 100);
+            }
+        };
+    });
+}
+
+function initFretboardScrollCtl({
+    containerSelector,
+    ctlId,
+    trackId,
+    thumbId,
+    leftId,
+    rightId,
+    hiddenClass = 'route-fretboard-scroll-ctl--hidden'
+}) {
+    const scrollWrapper = document.querySelector(`${containerSelector} .fretboard-scroll-wrapper`);
+    const ctl = document.getElementById(ctlId);
+    const track = document.getElementById(trackId);
+    const thumb = document.getElementById(thumbId);
+    const btnLeft = document.getElementById(leftId);
+    const btnRight = document.getElementById(rightId);
+    if (!scrollWrapper || !ctl || !track || !thumb || !btnLeft || !btnRight) return;
+
+    function updateThumb() {
+        const sw = scrollWrapper.scrollWidth;
+        const cw = scrollWrapper.clientWidth;
+        if (sw <= cw) { ctl.classList.add(hiddenClass); return; }
+        ctl.classList.remove(hiddenClass);
+        const ratio = cw / sw;
+        const trackW = track.clientWidth;
+        const thumbW = Math.max(32, trackW * ratio);
+        const scrollFrac = scrollWrapper.scrollLeft / (sw - cw);
+        thumb.style.width = thumbW + 'px';
+        thumb.style.left = (scrollFrac * (trackW - thumbW)) + 'px';
+    }
+
+    scrollWrapper.addEventListener('scroll', updateThumb, { passive: true });
+    updateThumb();
+
+    const ARROW_STEP = 80;
+    btnLeft.addEventListener('click', () => { scrollWrapper.scrollBy({ left: -ARROW_STEP, behavior: 'smooth' }); });
+    btnRight.addEventListener('click', () => { scrollWrapper.scrollBy({ left: ARROW_STEP, behavior: 'smooth' }); });
+
+    track.addEventListener('click', (e) => {
+        if (e.target === thumb) return;
+        const trackRect = track.getBoundingClientRect();
+        const thumbW = thumb.offsetWidth;
+        const frac = Math.max(0, Math.min(1, (e.clientX - trackRect.left - thumbW / 2) / (trackRect.width - thumbW)));
+        scrollWrapper.scrollLeft = frac * (scrollWrapper.scrollWidth - scrollWrapper.clientWidth);
+    });
+
+    let dragStartX = 0;
+    let dragStartScrollLeft = 0;
+    thumb.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        thumb.setPointerCapture(e.pointerId);
+        dragStartX = e.clientX;
+        dragStartScrollLeft = scrollWrapper.scrollLeft;
+        thumb.classList.add('route-fretboard-scroll-thumb--dragging');
+    });
+    thumb.addEventListener('pointermove', (e) => {
+        if (!thumb.hasPointerCapture(e.pointerId)) return;
+        e.stopPropagation();
+        const trackW = track.clientWidth;
+        const thumbW = thumb.offsetWidth;
+        const maxTravel = trackW - thumbW;
+        const maxScroll = scrollWrapper.scrollWidth - scrollWrapper.clientWidth;
+        scrollWrapper.scrollLeft = Math.max(0, Math.min(maxScroll, dragStartScrollLeft + (maxTravel > 0 ? (e.clientX - dragStartX) / maxTravel * maxScroll : 0)));
+    });
+    thumb.addEventListener('pointerup', () => { thumb.classList.remove('route-fretboard-scroll-thumb--dragging'); });
+    thumb.addEventListener('pointercancel', () => { thumb.classList.remove('route-fretboard-scroll-thumb--dragging'); });
+}
+
+function renderRouteEditor(app) {
+    const stage = clamp(parseInt(state.routeEditor?.stage || 1, 10), 1, 6);
+    const scaleGuideVariant = 3;
+    const isLandscape = window.innerWidth > window.innerHeight;
+    const draft = Array.isArray(state.routeEditor?.draft)
+        ? state.routeEditor.draft.map(normalizeCruiseRouteSlot).filter(Boolean)
+        : [];
+    const deleteMode = !!state.routeEditor?.deleteMode;
+    const history = Array.isArray(state.routeEditor?.history) ? state.routeEditor.history : [];
+    let groupBreaks = Array.isArray(state.routeEditor?.groupBreaks) ? state.routeEditor.groupBreaks.slice() : [];
+    const savedGroupBreaks = normalizeRouteEditorGroupBreaks(groupBreaks.length ? groupBreaks : getRouteEditorSavedGroupBreaks(stage), draft.length);
+    const autoGroupBreaks = buildAutoRouteEditorGroupBreaks(draft);
+    groupBreaks = savedGroupBreaks.length ? savedGroupBreaks : autoGroupBreaks;
+    if (!groupBreaks.length) groupBreaks = [0];
+    const groups = getRouteEditorGroups(draft, groupBreaks);
+    // 「ノートが0個のグループ」の saved は意味を持たないので、画面に入った瞬間に自動掃除する。
+    // これにより過去バージョンで残ったゴミ saved（=0 など）を残さない。
+    {
+        let didCleanup = false;
+        groups.forEach((g, idx) => {
+            const noteCount = Math.max(0, (g?.end ?? -1) - (g?.start ?? 0) + 1);
+            if (noteCount === 0 && getRouteEditorEffectiveGroupScrollLeft(stage, idx) !== null) {
+                clearSavedCruiseGroupScrollLeft(stage, idx);
+                clearPendingRouteEditorGroupScrollLeft(stage, idx);
+                didCleanup = true;
+            }
+        });
+        if (didCleanup) saveState();
+    }
+    const visibleGroupIndices = state.routeEditor?.forceHideAllGroups ? [] : getRouteEditorVisibleGroupIndices(groups.length);
+    const visibleGroups = visibleGroupIndices
+        .map(index => ({ ...(groups[index] || {}), index }))
+        .filter(group => Number.isFinite(group.start) && Number.isFinite(group.end));
+    let activeGroupIndex = getRouteEditorActiveGroupIndex(visibleGroups, state.routeEditor?.selectedGroupIndex ?? 0);
+    const selectedGroupIndexRaw = parseInt(state.routeEditor?.selectedGroupIndex ?? visibleGroupIndices[visibleGroupIndices.length - 1] ?? 0, 10);
+    let selectedGroupIndex = groups.length
+        ? (Number.isFinite(selectedGroupIndexRaw) && selectedGroupIndexRaw >= 0
+            ? clamp(selectedGroupIndexRaw, 0, groups.length - 1)
+            : -1)
+        : -1;
+    if (activeGroupIndex < 0 && visibleGroupIndices.length > 0) {
+        activeGroupIndex = visibleGroupIndices[visibleGroupIndices.length - 1];
+        selectedGroupIndex = activeGroupIndex;
+    }
+    const selectedGroup = groups[selectedGroupIndex] || null;
+    const groupPanelOffset = normalizeRouteEditorGroupPanelOffset(state.routeEditor?.groupPanelOffset);
+    const showAllGroupsExpanded = !!state.routeEditor?.showAllGroupsExpanded;
+    // 「一覧」を開いている時は、各 Gr 直下に保存スクロール位置（📍N）を必ず表示する。
+    // ラベルはタップで編集できる（編集 UI は下部のクリックハンドラ参照）。
+    const showScrollPositions = showAllGroupsExpanded;
+    const routeEditorScrollKey = `${stage}:${activeGroupIndex >= 0 ? activeGroupIndex : 'none'}`;
+    if (activeGroupIndex >= 0 && routeEditorScrollAppliedKey !== routeEditorScrollKey) {
+        const effScroll = getRouteEditorEffectiveGroupScrollLeft(stage, activeGroupIndex);
+        if (Number.isFinite(effScroll)) {
+            currentScrollLeft = effScroll;
+        }
+        routeEditorScrollAppliedKey = routeEditorScrollKey;
+    }
+    // groupNames: 既存の名前配列がグループ数と一致すれば使用、なければ Gr.1, Gr.2... で初期化
+    const storedGroupNames = Array.isArray(state.routeEditor?.groupNames) && state.routeEditor.groupNames.length === groups.length
+        ? state.routeEditor.groupNames.slice()
+        : groups.map((_, i) => `Gr.${i + 1}`);
+
+    state.routeEditor = {
+        stage,
+        draft,
+        deleteMode,
+        history,
+        deletePicker: null,
+        groupBreaks,
+        groupNames: storedGroupNames,
+        selectedGroupIndex,
+        visibleGroupIndices,
+        forceHideAllGroups: !!state.routeEditor?.forceHideAllGroups,
+        showAllGroupsExpanded,
+        groupPanelOffset
+    };
+
+    const groupPanelStyle = `--route-editor-group-panel-shift-x: ${groupPanelOffset.x}px; --route-editor-group-panel-shift-y: ${groupPanelOffset.y}px;`;
+
+    const buildPositionLabelHtml = (index, savedScrollLeft) => {
+        if (!showScrollPositions) return '';
+        const hasValue = Number.isFinite(savedScrollLeft);
+        const valueText = hasValue ? String(savedScrollLeft) : '—';
+        const ariaLabel = hasValue ? `位置 ${savedScrollLeft}（タップで編集）` : '位置未設定（タップで設定）';
+        const emptyClass = hasValue ? '' : 'is-empty';
+        return `<button type="button" class="route-editor-group-position-label ${emptyClass}" data-position-group-index="${index}" aria-label="${escapeHtml(ariaLabel)}"><span class="route-editor-group-position-pin" aria-hidden="true">📍</span><span class="route-editor-group-position-value">${valueText}</span></button>`;
+    };
+
+    const groupButtonsHtml = groups.length
+        ? groups.map((group, index) => {
+            const isVisible = visibleGroupIndices.includes(index);
+            const isActive = isVisible && selectedGroupIndex === index;
+            const isEmpty = !!group.isEmpty;
+            const displayName = storedGroupNames[index] ?? group.name;
+            const savedScrollLeft = getRouteEditorEffectiveGroupScrollLeft(stage, index);
+            const positionLabelHtml = buildPositionLabelHtml(index, savedScrollLeft);
+            return `
+            <div class="route-editor-group-cell">
+                <button class="route-editor-group-btn ${isVisible ? 'is-visible' : 'is-hidden'} ${isActive ? 'is-active' : ''} ${isEmpty ? 'is-empty' : ''}" type="button" data-group-index="${index}" aria-label="${displayName}" aria-pressed="${isActive ? 'true' : 'false'}">
+                    ${displayName}
+                </button>
+                ${positionLabelHtml}
+            </div>
+        `;
+        }).join('')
+        : '<p class="route-editor-empty">グループがありません</p>';
+
+    app.innerHTML = `
+        <div class="route-editor-screen route-editor-scale-guide-variant-${scaleGuideVariant}${isStandardEdition() ? ' route-editor-screen--standard' : ''}">
+            ${buildPageHeader({
+                headerClass: 'page-header--route-editor',
+                titleText: `STAGE ${stage} 順番編集`,
+                leftHtml: `
+                    ${navButtonHtml({ id: 'btn-route-editor-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+                    ${navButtonHtml({ id: 'btn-route-editor-home', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
+                `,
+                rightHtml: settingsButtonHtml('btn-settings-route-editor')
+            })}
+            ${standardEditionNoticeHtml(STANDARD_NOTICE_ROUTE_EDITOR)}
+            <div class="route-editor-toolbar">
+                <button class="icon-btn route-editor-tool-btn" id="btn-route-editor-clear" ${draft.length ? '' : 'disabled'}>全消し</button>
+                <button class="icon-btn route-editor-tool-btn" id="btn-route-editor-load-default">初期順</button>
+                <button class="icon-btn route-editor-tool-btn" id="btn-route-editor-undo" ${history.length ? '' : 'disabled'}>↶ 戻す</button>
+            </div>
+            <div class="route-editor-group-panel ${isLandscape ? 'route-editor-group-panel--floating' : ''} ${showAllGroupsExpanded ? 'route-editor-group-panel--expanded' : ''}" style="${groupPanelStyle}">
+                <div class="route-editor-group-panel-top">
+                <button class="icon-btn route-editor-tool-btn route-editor-group-expand-btn ${showAllGroupsExpanded ? 'active' : ''}" id="btn-route-editor-group-expand" ${groups.length ? '' : 'disabled'}>${showAllGroupsExpanded ? '縮小' : '一覧'}</button>
+                </div>
+                <button class="route-editor-group-panel-handle" id="btn-route-editor-group-panel-handle" type="button" title="ドラッグして移動" aria-label="グループ設定を移動">✥</button>
+                <div class="route-editor-group-list">${groupButtonsHtml}</div>
+                <div class="route-editor-group-actions">
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-add-btn" id="btn-route-editor-group-split">＋</button>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-remove-btn" id="btn-route-editor-group-remove" ${groups.length > 1 ? '' : 'disabled'}>－</button>
+                    <button type="button" class="btn-secondary route-editor-group-save-position-btn" id="btn-route-editor-save-position" ${activeGroupIndex >= 0 ? '' : 'disabled'}>位置保存</button>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-toggle-btn ${visibleGroupIndices.length === groups.length && !state.routeEditor?.forceHideAllGroups ? 'active' : ''}" id="btn-route-editor-show-all" ${groups.length ? '' : 'disabled'}>全て表示</button>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-toggle-btn ${state.routeEditor?.forceHideAllGroups ? 'active' : ''}" id="btn-route-editor-hide-all" ${groups.length ? '' : 'disabled'}>全て非表示</button>
+                </div>
+            </div>
+            <div id="fretboard-container" class="route-editor-fretboard-host"></div>
+            <div class="route-fretboard-scroll-ctl route-fretboard-scroll-ctl--hidden" id="route-fretboard-scroll-ctl" aria-hidden="true">
+                <button type="button" class="route-fretboard-scroll-arrow-btn" id="route-fretboard-scroll-left">&#x276E;</button>
+                <div class="route-fretboard-scroll-track" id="route-fretboard-scroll-track">
+                    <div class="route-fretboard-scroll-thumb" id="route-fretboard-scroll-thumb"></div>
+                </div>
+                <button type="button" class="route-fretboard-scroll-arrow-btn" id="route-fretboard-scroll-right">&#x276F;</button>
+            </div>
+            <div class="route-editor-expanded-gap ${showAllGroupsExpanded ? 'route-editor-expanded-gap--visible' : ''}" aria-hidden="true"></div>
+            <div class="route-editor-save-row">
+                <button type="button" class="btn-secondary route-editor-demo-btn" id="btn-route-editor-demo" ${draft.length ? '' : 'disabled'}>現在の順番でデモ</button>
+                <button type="button" class="btn-primary route-editor-save-btn pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-route-editor-save" ${draft.length ? '' : 'disabled'}><span class="pro-custom-saved-btn__title">この順番で保存</span></button>
+                <button type="button" class="btn-secondary route-editor-cancel-btn" id="btn-route-editor-cancel">キャンセルして戻る</button>
+            </div>
+            <div class="route-editor-expanded-spacer ${showAllGroupsExpanded ? 'route-editor-expanded-spacer--visible' : ''}" aria-hidden="true"></div>
+        </div>
+    `;
+
+    document.getElementById('btn-route-editor-back').onclick = () => {
+        resetStandardRouteEditorScratchInMemory();
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-route-editor-cancel').onclick = () => {
+        resetStandardRouteEditorScratchInMemory();
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-route-editor-home').onclick = () => {
+        resetStandardRouteEditorScratchInMemory();
+        state.course = null;
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-settings-route-editor').onclick = () => {
+        openSettings('routeEditor');
+    };
+    document.getElementById('btn-route-editor-undo').onclick = () => {
+        const historyItem = Array.isArray(state.routeEditor.history) ? state.routeEditor.history.pop() : null;
+        if (!historyItem) return;
+        restoreRouteEditorSnapshot(historyItem);
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-route-editor-group-expand').onclick = () => {
+        state.routeEditor.showAllGroupsExpanded = !state.routeEditor.showAllGroupsExpanded;
+        saveState();
+        renderApp();
+    };
+
+    // 位置ラベル（📍N）をタップで直接編集できるようにする。
+    // 空文字またはキャンセルなら保存値をクリア（📍— 表示）。
+    document.querySelectorAll('.route-editor-group-position-label').forEach(label => {
+        label.onclick = (e) => {
+            e.stopPropagation();
+            const idx = parseInt(label.getAttribute('data-position-group-index'), 10);
+            if (!Number.isFinite(idx)) return;
+            const current = getRouteEditorEffectiveGroupScrollLeft(stage, idx);
+            const defaultText = Number.isFinite(current) ? String(current) : '';
+            const input = window.prompt(`Gr.${idx + 1} の保存スクロール位置を入力してください\n（空欄で未設定に戻ります）`, defaultText);
+            if (input === null) return;
+            const trimmed = String(input).trim();
+            if (trimmed === '') {
+                clearSavedCruiseGroupScrollLeft(stage, idx);
+                clearPendingRouteEditorGroupScrollLeft(stage, idx);
+                saveState();
+                renderApp();
+                return;
+            }
+            const next = parseInt(trimmed, 10);
+            if (!Number.isFinite(next) || next < 0) {
+                window.alert('0 以上の整数を入力してください。');
+                return;
+            }
+            if (isStandardEdition()) {
+                setPendingRouteEditorGroupScrollLeft(stage, idx, next);
+            } else {
+                setSavedCruiseGroupScrollLeft(stage, idx, next);
+                clearPendingRouteEditorGroupScrollLeft(stage, idx);
+            }
+            saveState();
+            renderApp();
+        };
+    });
+    document.getElementById('btn-route-editor-clear').onclick = () => {
+        pushRouteEditorHistory(stage);
+        state.routeEditor.draft = [];
+        state.routeEditor.deleteMode = false;
+        state.routeEditor.groupBreaks = [0];
+        state.routeEditor.selectedGroupIndex = 0;
+        state.routeEditor.visibleGroupIndices = [0];
+        state.routeEditor.forceHideAllGroups = false;
+        state.routeEditor.showAllGroupsExpanded = false;
+        setRouteEditorSavedGroupBreaks(stage, [0]);
+        clearAllSavedCruiseGroupScrollLeftsForStage(stage);
+        if (isStandardEdition()) {
+            for (let gi = 0; gi < ROUTE_EDITOR_MAX_GROUPS; gi++) {
+                clearPendingRouteEditorGroupScrollLeft(stage, gi);
+            }
+        }
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-route-editor-load-default').onclick = () => {
+        pushRouteEditorHistory(stage);
+        const defaultStage = buildDefaultCruiseStageSequence(stage);
+        const sequence = defaultStage.sequence.map(cruiseRouteSlotFromTarget);
+        const defaultGroupBreaks = Array.isArray(defaultStage.groupBreaks) && defaultStage.groupBreaks.length
+            ? normalizeRouteEditorGroupBreaks(defaultStage.groupBreaks, sequence.length)
+            : [];
+        state.routeEditor.draft = cloneCruiseRouteSlots(sequence);
+        state.routeEditor.deleteMode = false;
+        state.routeEditor.groupBreaks = defaultGroupBreaks.length ? defaultGroupBreaks : buildAutoRouteEditorGroupBreaks(state.routeEditor.draft);
+        state.routeEditor.selectedGroupIndex = 0;
+        state.routeEditor.visibleGroupIndices = buildRouteEditorGroupsFromBreaks(state.routeEditor.draft, state.routeEditor.groupBreaks).map((_, index) => index);
+        state.routeEditor.forceHideAllGroups = false;
+        state.routeEditor.showAllGroupsExpanded = false;
+        // 「初期順」は問題画面まで含めて公式デフォルトに戻すボタン。
+        // 編集ドラフトだけでなく、問題画面が読む cruiseStageRoutes / RouteGroups / GroupScrollLefts も
+        // 同じ shipped 値で書き戻す（ユーザーがその後「この順番で保存」を押し忘れても整合する）。
+        if (isProEdition()) {
+            if (!state.settings.cruiseStageRoutes) state.settings.cruiseStageRoutes = {};
+            if (!state.settings.cruiseStageRouteGroups) state.settings.cruiseStageRouteGroups = {};
+            state.settings.cruiseStageRoutes[String(stage)] = cloneCruiseRouteSlots(state.routeEditor.draft);
+            state.settings.cruiseStageRouteGroups[String(stage)] = state.routeEditor.groupBreaks.slice();
+            applyShippedDefaultCruiseGroupScrollLeftsForStage(stage);
+        }
+        if (isStandardEdition()) {
+            for (let gi = 0; gi < ROUTE_EDITOR_MAX_GROUPS; gi++) {
+                clearPendingRouteEditorGroupScrollLeft(stage, gi);
+            }
+        }
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-route-editor-save').onclick = () => {
+        if (!guardProPersistentSave('save')) return;
+        pushRouteEditorHistory(stage);
+        if (!state.settings.cruiseStageRoutes) state.settings.cruiseStageRoutes = {};
+        if (!state.settings.cruiseStageRouteGroups) state.settings.cruiseStageRouteGroups = {};
+        state.settings.cruiseStageRoutes[String(stage)] = state.routeEditor.draft
+            .map(normalizeCruiseRouteSlot)
+            .filter(Boolean);
+        state.settings.cruiseStageRouteGroups[String(stage)] = state.routeEditor.groupBreaks.slice();
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-route-editor-save-position').onclick = () => {
+        if (!draft.length || !groups.length) return;
+        const targetGroupIndex = activeGroupIndex;
+        if (targetGroupIndex < 0) return;
+        const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+        const live = wrapper ? wrapper.scrollLeft : 0;
+        const scrollLeft = Math.max(live, routeEditorFretboardScrollSnapshot);
+        if (isStandardEdition()) {
+            setPendingRouteEditorGroupScrollLeft(stage, targetGroupIndex, scrollLeft);
+        } else {
+            setSavedCruiseGroupScrollLeft(stage, targetGroupIndex, scrollLeft);
+            clearPendingRouteEditorGroupScrollLeft(stage, targetGroupIndex);
+        }
+        if (scrollLeft > 0) routeEditorFretboardScrollSnapshot = scrollLeft;
+        saveState();
+        const displayLeft = getRouteEditorEffectiveGroupScrollLeft(stage, targetGroupIndex);
+        syncRouteEditorPositionPinInDOM('data-position-group-index', targetGroupIndex, displayLeft);
+        flashRouteEditorSavePositionButton('btn-route-editor-save-position');
+    };
+
+    document.getElementById('btn-route-editor-demo').onclick = () => {
+        const { sequence, cruiseScope, groupIndices } = buildCruiseSequenceFromSlots(state.routeEditor.draft, true, stage);
+        if (!sequence.length) return;
+        startCruisePlaybackFromSequence(sequence, cruiseScope, stage, groupIndices);
+    };
+
+    document.getElementById('btn-route-editor-group-split').onclick = () => {
+        if (groups.length >= ROUTE_EDITOR_MAX_GROUPS) return;
+        pushRouteEditorHistory(stage);
+
+        // RAF が毎フレーム更新するスナップショットを使う（scrollLeft の同期読み取りが 0 を返す場面への対策）
+        const wrapperEl = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+        const rawLeft = wrapperEl ? wrapperEl.scrollLeft : 0;
+        const currentScroll = Math.max(rawLeft, routeEditorFretboardScrollSnapshot);
+
+        // saved を書き換えるのは「最初の音」と「位置保存」の 2 タイミングのみ。
+        // 「+」では直前 Gr の saved には触らず、新 Gr の pending に現在位置を入れて画面復元に使う。
+
+        const nextBreaks = state.routeEditor.groupBreaks.slice();
+        const nextIndex = groups.length;
+        const nextStart = Math.max(draft.length, groups.length);
+        nextBreaks.push(nextStart);
+        state.routeEditor.groupBreaks = normalizeRouteEditorGroupBreaks(nextBreaks, draft.length);
+        state.routeEditor.forceHideAllGroups = false;
+        // 「＋」は新規Grだけを表示・アクティブ化する共通ルールに戻す
+        state.routeEditor.visibleGroupIndices = [nextIndex];
+        state.routeEditor.selectedGroupIndex = nextIndex;
+        // 新グループの名前: 既存の最大番号 + 1
+        const currentNames = Array.isArray(state.routeEditor.groupNames) ? state.routeEditor.groupNames : [];
+        const maxNum = currentNames.reduce((m, name) => {
+            const n = parseInt((name || '').replace('Gr.', ''), 10);
+            return Number.isFinite(n) ? Math.max(m, n) : m;
+        }, currentNames.length);
+        state.routeEditor.groupNames = [...currentNames, `Gr.${maxNum + 1}`];
+        // 通常版：「＋」だけでは pending に書かない（明示的な位置保存のみ）。PRO は従来どおり。
+        if (isProEdition()) {
+            setPendingRouteEditorGroupScrollLeft(stage, nextIndex, currentScroll);
+            routeEditorFretboardScrollSnapshot = Math.max(routeEditorFretboardScrollSnapshot, currentScroll);
+        }
+        if (stage === 4 || stage === 5 || stage === 6) {
+            // STAGE4/5/6 は 13F 追加後に古い保存位置へ戻ると表示が左端に寄りやすいので、
+            // 新規 Gr の既存保存値は捨てて、今見ている位置を優先する。
+            clearSavedCruiseGroupScrollLeft(stage, nextIndex);
+        }
+        setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-route-editor-group-remove').onclick = () => {
+        if (groups.length <= 1) return;
+        if (activeGroupIndex < 0) return;
+        const oldGroupCount = groups.length;
+        pushRouteEditorHistory(stage);
+        const deletedIndex = activeGroupIndex;
+        const removed = deleteRouteEditorGroupAtIndex(state.routeEditor.draft, state.routeEditor.groupBreaks, deletedIndex);
+        state.routeEditor.draft = removed.draft;
+        state.routeEditor.groupBreaks = removed.groupBreaks;
+        setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
+        const nextGroupCount = buildRouteEditorGroupsFromBreaks(state.routeEditor.draft, state.routeEditor.groupBreaks).length;
+        const nextVisible = Array.isArray(state.routeEditor.visibleGroupIndices)
+            ? state.routeEditor.visibleGroupIndices.map(index => {
+                const parsed = parseInt(index, 10);
+                if (!Number.isFinite(parsed)) return null;
+                if (parsed < deletedIndex) return parsed;
+                if (parsed === deletedIndex) return Math.min(deletedIndex, Math.max(0, nextGroupCount - 1));
+                return parsed - 1;
+            }).filter(index => index !== null && index >= 0 && index < nextGroupCount)
+            : [];
+        state.routeEditor.visibleGroupIndices = nextVisible.length ? Array.from(new Set(nextVisible)).sort((a, b) => a - b) : [Math.min(deletedIndex, Math.max(0, nextGroupCount - 1))];
+        state.routeEditor.selectedGroupIndex = Math.min(deletedIndex, Math.max(0, nextGroupCount - 1));
+        state.routeEditor.forceHideAllGroups = false;
+        // 削除したグループの名前を groupNames から除去
+        if (Array.isArray(state.routeEditor.groupNames) && state.routeEditor.groupNames.length > deletedIndex) {
+            state.routeEditor.groupNames = state.routeEditor.groupNames.filter((_, i) => i !== deletedIndex);
+        }
+        remapRouteEditorPendingAfterGroupDelete(stage, deletedIndex, oldGroupCount);
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-route-editor-show-all').onclick = () => {
+        if (!groups.length) return;
+        state.routeEditor.forceHideAllGroups = false;
+        state.routeEditor.visibleGroupIndices = groups.map((_, index) => index);
+        state.routeEditor.selectedGroupIndex = activeGroupIndex >= 0 ? activeGroupIndex : Math.min(selectedGroupIndex, groups.length - 1);
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-route-editor-hide-all').onclick = () => {
+        if (!groups.length) return;
+        state.routeEditor.forceHideAllGroups = true;
+        state.routeEditor.visibleGroupIndices = [];
+        state.routeEditor.selectedGroupIndex = activeGroupIndex >= 0 ? activeGroupIndex : Math.min(selectedGroupIndex, groups.length - 1);
+        saveState();
+        renderApp();
+    };
+
+    const groupPanelEl = app.querySelector('.route-editor-group-panel');
+    const groupPanelHandleEl = document.getElementById('btn-route-editor-group-panel-handle');
+    if (isLandscape && groupPanelEl && groupPanelHandleEl) {
+        const dragState = {
+            pointerId: null,
+            startX: 0,
+            startY: 0,
+            startOffsetX: groupPanelOffset.x,
+            startOffsetY: groupPanelOffset.y,
+            startRect: null,
+            dragging: false
+        };
+        const applyGroupPanelOffset = (x, y) => {
+            const nextOffset = {
+                x: Math.round(x),
+                y: Math.round(y)
+            };
+            groupPanelEl.style.setProperty('--route-editor-group-panel-shift-x', `${nextOffset.x}px`);
+            groupPanelEl.style.setProperty('--route-editor-group-panel-shift-y', `${nextOffset.y}px`);
+            state.routeEditor.groupPanelOffset = nextOffset;
+        };
+        const finishDrag = () => {
+            document.removeEventListener('pointermove', onPointerMove, true);
+            document.removeEventListener('pointerup', onPointerUp, true);
+            document.removeEventListener('pointercancel', onPointerCancel, true);
+            groupPanelEl.classList.remove('route-editor-group-panel--dragging');
+            groupPanelHandleEl.classList.remove('route-editor-group-panel-handle--dragging');
+            if (dragState.dragging) {
+                saveState();
+            }
+            dragState.pointerId = null;
+            dragState.dragging = false;
+        };
+        const onPointerMove = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            const dx = e.clientX - dragState.startX;
+            const dy = e.clientY - dragState.startY;
+            if (!dragState.dragging) {
+                if (Math.abs(dx) + Math.abs(dy) < 4) return;
+                dragState.dragging = true;
+                dragState.startRect = groupPanelEl.getBoundingClientRect();
+                groupPanelEl.classList.add('route-editor-group-panel--dragging');
+                groupPanelHandleEl.classList.add('route-editor-group-panel-handle--dragging');
+            }
+            const rect = dragState.startRect || groupPanelEl.getBoundingClientRect();
+            const margin = 8;
+            const minDx = margin - rect.left;
+            const maxDx = window.innerWidth - margin - rect.right;
+            const minDy = margin - rect.top;
+            const maxDy = window.innerHeight - margin - rect.bottom;
+            const nextX = clamp(dragState.startOffsetX + dx, dragState.startOffsetX + Math.min(minDx, maxDx), dragState.startOffsetX + Math.max(minDx, maxDx));
+            const nextY = clamp(dragState.startOffsetY + dy, dragState.startOffsetY + Math.min(minDy, maxDy), dragState.startOffsetY + Math.max(minDy, maxDy));
+            applyGroupPanelOffset(nextX, nextY);
+        };
+        const onPointerUp = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            finishDrag();
+        };
+        const onPointerCancel = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            finishDrag();
+        };
+        const onPointerDown = e => {
+            if (e.button !== undefined && e.button !== 0) return;
+            if (dragState.pointerId !== null) return;
+            e.preventDefault();
+            e.stopPropagation();
+            dragState.pointerId = typeof e.pointerId === 'number' ? e.pointerId : null;
+            dragState.startX = e.clientX;
+            dragState.startY = e.clientY;
+            dragState.startOffsetX = groupPanelOffset.x;
+            dragState.startOffsetY = groupPanelOffset.y;
+            dragState.startRect = groupPanelEl.getBoundingClientRect();
+            document.addEventListener('pointermove', onPointerMove, true);
+            document.addEventListener('pointerup', onPointerUp, true);
+            document.addEventListener('pointercancel', onPointerCancel, true);
+        };
+        groupPanelHandleEl.addEventListener('pointerdown', onPointerDown, { passive: false });
+        routeEditorGroupPanelDragHandlers.set('routeEditor-group-panel', {
+            pointermove: onPointerMove,
+            pointerup: onPointerUp,
+            pointercancel: onPointerCancel
+        });
+    }
+
+    document.querySelectorAll('.route-editor-group-btn').forEach(btn => {
+        btn.onclick = () => {
+            if (routeEditorGroupDragBlocked) return;
+            const index = parseInt(btn.getAttribute('data-group-index'), 10);
+            if (!Number.isFinite(index)) return;
+            const isVisible = visibleGroupIndices.includes(index);
+            const rawSelected = parseInt(state.routeEditor?.selectedGroupIndex ?? 0, 10);
+            const isActive = isVisible && Number.isFinite(rawSelected) && rawSelected >= 0 && rawSelected === index;
+            const nextVisible = new Set(visibleGroupIndices);
+            if (!isVisible) {
+                nextVisible.add(index);
+                state.routeEditor.forceHideAllGroups = false;
+                state.routeEditor.visibleGroupIndices = Array.from(nextVisible).sort((a, b) => a - b);
+                saveState();
+                renderApp();
+                return;
+            }
+            if (!isActive) {
+                state.routeEditor.forceHideAllGroups = false;
+                state.routeEditor.visibleGroupIndices = Array.from(nextVisible).sort((a, b) => a - b);
+                state.routeEditor.selectedGroupIndex = index;
+                saveState();
+                renderApp();
+                return;
+            }
+            state.routeEditor.forceHideAllGroups = false;
+            nextVisible.delete(index);
+            state.routeEditor.visibleGroupIndices = Array.from(nextVisible).sort((a, b) => a - b);
+            state.routeEditor.selectedGroupIndex = -1;
+            saveState();
+            renderApp();
+        };
+    });
+
+    // グループカードの長押しドラッグ並び替え
+    {
+        let dragFromIdx = -1, dragOverIdx = -1, didDrag = false;
+        let dragStartX = 0, dragStartY = 0, dragGhost = null;
+        let longPressTimer = null, longPressActive = false, capturedPointerId = -1;
+
+        const cleanupDrag = () => {
+            document.querySelectorAll('.route-editor-group-btn.is-dragging, .route-editor-group-btn.is-drag-over, .route-editor-group-btn.is-long-press-pending')
+                .forEach(b => { b.classList.remove('is-dragging'); b.classList.remove('is-drag-over'); b.classList.remove('is-long-press-pending'); });
+            if (dragGhost) { dragGhost.remove(); dragGhost = null; }
+            if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+            longPressActive = false;
+        };
+
+        document.querySelectorAll('.route-editor-group-btn').forEach(btn => {
+            btn.addEventListener('pointerdown', (e) => {
+                if (e.button !== 0 && e.button !== undefined && e.pointerType === 'mouse') return;
+                dragFromIdx = parseInt(btn.getAttribute('data-group-index'), 10);
+                if (!Number.isFinite(dragFromIdx)) { dragFromIdx = -1; return; }
+                dragStartX = e.clientX; dragStartY = e.clientY;
+                capturedPointerId = e.pointerId;
+                didDrag = false; dragOverIdx = -1; longPressActive = false;
+
+                btn.classList.add('is-long-press-pending');
+
+                longPressTimer = setTimeout(() => {
+                    longPressTimer = null;
+                    longPressActive = true;
+                    btn.classList.remove('is-long-press-pending');
+                    try { btn.setPointerCapture(capturedPointerId); } catch (_) {}
+                    btn.classList.add('is-dragging');
+                    dragGhost = btn.cloneNode(true);
+                    Object.assign(dragGhost.style, {
+                        position: 'fixed', pointerEvents: 'none', zIndex: '9999',
+                        opacity: '0.88', transform: 'scale(1.08)',
+                        width: btn.offsetWidth + 'px', margin: '0',
+                        top: (dragStartY - btn.offsetHeight / 2) + 'px',
+                        left: (dragStartX - btn.offsetWidth / 2) + 'px'
+                    });
+                    document.body.appendChild(dragGhost);
+                }, 500);
+            }, { passive: false });
+
+            btn.addEventListener('pointermove', (e) => {
+                if (dragFromIdx < 0) return;
+                if (!longPressActive) {
+                    // 長押し待機中に少し動いたらキャンセル（スクロールなどを妨げない）
+                    if (Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY) > 8) {
+                        cleanupDrag();
+                        dragFromIdx = -1;
+                    }
+                    return;
+                }
+                e.preventDefault();
+                if (!dragGhost) return;
+                didDrag = true;
+                dragGhost.style.top = (e.clientY - dragGhost.offsetHeight / 2) + 'px';
+                dragGhost.style.left = (e.clientX - dragGhost.offsetWidth / 2) + 'px';
+                dragGhost.style.visibility = 'hidden';
+                const el = document.elementFromPoint(e.clientX, e.clientY);
+                dragGhost.style.visibility = '';
+                const overBtn = el && el.closest('.route-editor-group-btn');
+                const overIdx = overBtn ? parseInt(overBtn.getAttribute('data-group-index'), 10) : -1;
+                document.querySelectorAll('.route-editor-group-btn.is-drag-over').forEach(b => b.classList.remove('is-drag-over'));
+                if (Number.isFinite(overIdx) && overIdx >= 0 && overIdx !== dragFromIdx) {
+                    dragOverIdx = overIdx;
+                    overBtn.classList.add('is-drag-over');
+                } else {
+                    dragOverIdx = -1;
+                }
+            }, { passive: false });
+
+            const onEnd = (e) => {
+                if (dragFromIdx < 0) return;
+                const from = dragFromIdx, to = dragOverIdx;
+                const wasDrag = didDrag;
+                const wasLongPress = longPressActive;
+                didDrag = false;
+                if ((wasDrag || wasLongPress) && e) e.preventDefault();
+                cleanupDrag();
+                dragFromIdx = -1; dragOverIdx = -1;
+                if (wasLongPress || wasDrag) {
+                    routeEditorGroupDragBlocked = true;
+                    setTimeout(() => { routeEditorGroupDragBlocked = false; }, 400);
+                }
+                if (wasDrag && to >= 0 && to !== from) reorderRouteEditorGroups(from, to);
+            };
+            btn.addEventListener('pointerup', onEnd, { passive: false });
+            btn.addEventListener('pointercancel', () => {
+                cleanupDrag(); dragFromIdx = -1; dragOverIdx = -1; didDrag = false;
+            });
+        });
+    }
+
+    renderFretboardHTML('fretboard-container', {
+        mode: 'routeEditor',
+        question: null,
+        showAnswer: true,
+        routeEditorDraft: draft,
+        routeEditorStage: stage,
+        routeEditorVisibleGroups: visibleGroups,
+        onRouteEditorMarkerClick: (routeIndex) => {
+            if (!Number.isFinite(routeIndex)) return;
+            if (routeIndex < 0 || routeIndex >= state.routeEditor.draft.length) return;
+            if (activeGroupIndex < 0) return;
+            const clickedSlot = normalizeCruiseRouteSlot(state.routeEditor.draft[routeIndex]);
+            if (!clickedSlot) return;
+
+            // クリックされたノートが属するGrを特定
+            const allGroups = getRouteEditorGroups(state.routeEditor.draft, state.routeEditor.groupBreaks);
+            const clickedGroupIndex = allGroups.findIndex(g =>
+                Number.isFinite(g.start) && Number.isFinite(g.end) &&
+                g.end >= g.start && g.start <= routeIndex && routeIndex <= g.end
+            );
+
+            // 他Grのノートをタップ → そのGrをアクティブ化（削除しない）
+            if (clickedGroupIndex >= 0 && clickedGroupIndex !== activeGroupIndex) {
+                blurActiveElement();
+                const nextVisible = new Set(visibleGroupIndices);
+                nextVisible.add(clickedGroupIndex);
+                state.routeEditor.visibleGroupIndices = Array.from(nextVisible).sort((a, b) => a - b);
+                state.routeEditor.selectedGroupIndex = clickedGroupIndex;
+                state.routeEditor.forceHideAllGroups = false;
+                saveState();
+                renderApp();
+                return;
+            }
+
+            // アクティブGrのノートをタップ → 削除
+            blurActiveElement();
+            pushRouteEditorHistory(stage);
+            state.routeEditor.draft.splice(routeIndex, 1);
+            state.routeEditor.groupBreaks = adjustRouteEditorGroupBreaksForDelete(state.routeEditor.groupBreaks, routeIndex, state.routeEditor.draft.length);
+            setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
+            saveState();
+            renderApp();
+        },
+        onFretClick: (stringName, fret) => {
+            if (activeGroupIndex < 0) return;
+            blurActiveElement();
+            const insertTargetGroupIndex = activeGroupIndex;
+            const targetGroup = groups[insertTargetGroupIndex] || null;
+            // RAF スナップショットを使う（syncは呼ばない：良い値を上書きしてしまうため）
+            const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+            const liveScroll = wrapper ? wrapper.scrollLeft : 0;
+            const effScroll = getRouteEditorEffectiveGroupScrollLeft(stage, insertTargetGroupIndex);
+            let currentScroll = Math.max(liveScroll, routeEditorFretboardScrollSnapshot);
+            if (currentScroll === 0 && Number.isFinite(effScroll) && effScroll > 0) {
+                currentScroll = effScroll;
+            }
+            if (currentScroll > 0) routeEditorFretboardScrollSnapshot = currentScroll;
+            // 「最初の音」=「グループに音が0個」のときだけ saved を自動書き込み（必ず上書き）
+            // 注意: buildRouteEditorGroupsFromBreaks は空グループに end = start - 1 を返すので
+            //       isEmpty フラグまたは end < start で判定する（end - start === 0 では誤判定）
+            const noteCount = targetGroup ? Math.max(0, targetGroup.end - targetGroup.start + 1) : 0;
+            const isGroupEmpty = !targetGroup || targetGroup.isEmpty === true || noteCount === 0;
+            if (isGroupEmpty) {
+                if (isProEdition()) {
+                    setSavedCruiseGroupScrollLeft(stage, insertTargetGroupIndex, currentScroll);
+                    clearPendingRouteEditorGroupScrollLeft(stage, insertTargetGroupIndex);
+                } else {
+                    setPendingRouteEditorGroupScrollLeft(stage, insertTargetGroupIndex, currentScroll);
+                }
+            }
+            pushRouteEditorHistory(stage);
+            const inserted = insertRouteEditorSlotIntoGroup(
+                state.routeEditor.draft,
+                state.routeEditor.groupBreaks,
+                insertTargetGroupIndex,
+                { stringName, fret }
+            );
+            state.routeEditor.draft = inserted.draft;
+            state.routeEditor.groupBreaks = inserted.groupBreaks;
+            setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
+            saveState();
+            playTone(6 - stringName, fret);
+            renderApp();
+        }
+    });
+
+    initFretboardScrollCtl({
+        containerSelector: '#fretboard-container',
+        ctlId: 'route-fretboard-scroll-ctl',
+        trackId: 'route-fretboard-scroll-track',
+        thumbId: 'route-fretboard-scroll-thumb',
+        leftId: 'route-fretboard-scroll-left',
+        rightId: 'route-fretboard-scroll-right'
+    });
+
+    app.style.height = '100vh';
+    app.style.overflowY = 'auto';
+    app.style.overflowX = 'hidden';
+    app.style.alignItems = 'stretch';
+    app.style.gap = '0';
+    app.style.paddingTop = 'max(4px, env(safe-area-inset-top))';
+    app.style.paddingBottom = 'calc(var(--in-game-refresh-stack-height, 96px) + max(80px, env(safe-area-inset-bottom)))';
+    app.style.paddingLeft = 'max(10px, env(safe-area-inset-left))';
+    app.style.paddingRight = 'max(10px, env(safe-area-inset-right))';
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+/* ───────────────────────────────────────────────
+   カスタムドロップダウン共通ヘルパー
+   - <select> ではプルダウン中の文字サイズを変えられないため、
+     <button>+<ul> による独自UIを描画する。
+   - 「指板を見る」と「PROカスタムSTAGE 編集画面」で共通利用する。
+   ─────────────────────────────────────────────── */
+function buildCustomDropdownHtml({ id, options, selectedValue, ariaLabel, wrapClass = '' }) {
+    const selected = options.find(opt => String(opt.value) === String(selectedValue)) || options[0];
+    const optionLabelInnerHtml = (opt) => {
+        const base = escapeHtml(String(opt.label ?? ''));
+        const after = typeof opt.afterLabelHtml === 'string' ? opt.afterLabelHtml : '';
+        return base + after;
+    };
+    const items = options.map(opt => {
+        const isSelected = String(opt.value) === String(selected?.value);
+        return `<li role="option" class="pro-custom-dd-option ${isSelected ? 'is-selected' : ''}" data-pro-custom-dd-value="${escapeHtml(String(opt.value))}" aria-selected="${isSelected ? 'true' : 'false'}">${optionLabelInnerHtml(opt)}</li>`;
+    }).join('');
+    const triggerLabelHtml = selected ? optionLabelInnerHtml(selected) : '';
+    return `
+        <div class="pro-custom-dd ${wrapClass}" id="${id}-wrap" data-pro-custom-dd-id="${id}">
+            <button type="button" class="pro-custom-dd-trigger" id="${id}" aria-haspopup="listbox" aria-expanded="false" aria-label="${escapeHtml(ariaLabel || '')}">
+                <span class="pro-custom-dd-trigger__label">${triggerLabelHtml}</span>
+                <span class="pro-custom-dd-trigger__chevron" aria-hidden="true">▾</span>
+            </button>
+            <ul class="pro-custom-dd-list" role="listbox" hidden>${items}</ul>
+        </div>
+    `;
+}
+
+function closeAllCustomDropdowns() {
+    document.querySelectorAll('.pro-custom-dd.is-open').forEach(wrap => {
+        wrap.classList.remove('is-open');
+        const trigger = wrap.querySelector('.pro-custom-dd-trigger');
+        const list = wrap.querySelector('.pro-custom-dd-list');
+        if (trigger) trigger.setAttribute('aria-expanded', 'false');
+        if (list) list.hidden = true;
+    });
+}
+
+function wireCustomDropdown(id, onSelect) {
+    const wrap = document.getElementById(`${id}-wrap`);
+    const trigger = document.getElementById(id);
+    if (!wrap || !trigger) return;
+    const list = wrap.querySelector('.pro-custom-dd-list');
+    trigger.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const willOpen = !wrap.classList.contains('is-open');
+        closeAllCustomDropdowns();
+        if (willOpen) {
+            wrap.classList.add('is-open');
+            trigger.setAttribute('aria-expanded', 'true');
+            if (list) list.hidden = false;
+        }
+    };
+    if (list) {
+        list.querySelectorAll('[data-pro-custom-dd-value]').forEach(item => {
+            item.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const value = item.getAttribute('data-pro-custom-dd-value');
+                closeAllCustomDropdowns();
+                onSelect(value);
+            };
+        });
+    }
+}
+
+function ensureCustomDropdownDocHandlers() {
+    if (window.__customDropdownDocHandlersInstalled) return;
+    window.__customDropdownDocHandlersInstalled = true;
+    document.addEventListener('pointerdown', (e) => {
+        if (e.target && typeof e.target.closest === 'function' && e.target.closest('.pro-custom-dd')) return;
+        closeAllCustomDropdowns();
+    }, true);
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeAllCustomDropdowns();
+    });
+}
+
+function getProCustomEditorVisibleGroupIndices(groupCount) {
+    if (!groupCount) return [];
+    if (state.proCustomRouteEditor?.forceHideAllGroups) return [];
+    const raw = Array.isArray(state.proCustomRouteEditor?.visibleGroupIndices)
+        ? state.proCustomRouteEditor.visibleGroupIndices
+        : [];
+    const indices = raw
+        .map(value => parseInt(value, 10))
+        .filter(Number.isFinite)
+        .filter(value => value >= 0 && value < groupCount);
+    const unique = [];
+    indices.sort((a, b) => a - b).forEach(index => {
+        if (!unique.includes(index)) unique.push(index);
+    });
+    return unique.length ? unique : [0];
+}
+
+function getProCustomQuizEditorVisibleGroupIndices(groupCount) {
+    if (!groupCount) return [];
+    if (state.proCustomQuizEditor?.forceHideAllGroups) return [];
+    const raw = Array.isArray(state.proCustomQuizEditor?.visibleGroupIndices)
+        ? state.proCustomQuizEditor.visibleGroupIndices
+        : [];
+    const indices = raw
+        .map(value => parseInt(value, 10))
+        .filter(Number.isFinite)
+        .filter(value => value >= 0 && value < groupCount);
+    const unique = [];
+    indices.sort((a, b) => a - b).forEach(index => {
+        if (!unique.includes(index)) unique.push(index);
+    });
+    return unique.length ? unique : [0];
+}
+
+function isProCustomSelectableFret(editor, stringName, fret) {
+    const normalizedEditor = normalizeProCustomEditorState(editor);
+    const normalizedFret = parseInt(fret, 10);
+    const normalizedString = parseInt(stringName, 10);
+    if (!Number.isFinite(normalizedFret) || !Number.isFinite(normalizedString)) return false;
+    if (normalizedFret > normalizedEditor.maxFret) return false;
+    if (normalizedFret < normalizedEditor.capo) return false;
+    const stringIdx = 6 - normalizedString;
+    if (stringIdx < 0 || stringIdx >= OPEN_STRINGS.length) return false;
+    const noteIdx = (OPEN_STRINGS[stringIdx] + normalizedFret) % 12;
+    const keyPcForHarmony = (normalizedEditor.key + normalizedEditor.capo) % 12;
+    const degreeFromKey = (noteIdx - keyPcForHarmony + 12) % 12;
+    return getScaleDegrees(normalizedEditor.scale || 'major').hasOwnProperty(degreeFromKey);
+}
+
+function getProCustomDisplayLabel(noteIdx, fret, custom) {
+    const capo = clamp(parseInt(custom?.capo, 10) || 0, 0, 7);
+    const key = clamp(parseInt(custom?.key, 10) || 0, 0, NOTES.length - 1);
+    const scaleType = PRO_CUSTOM_SCALE_KEYS.includes(custom?.scale) ? custom.scale : 'major';
+    const keyPcForHarmony = (key + capo) % 12;
+    const degreeFromKey = (noteIdx - keyPcForHarmony + 12) % 12;
+    const isScale = getScaleDegrees(scaleType).hasOwnProperty(degreeFromKey);
+    return getVisualizeMarkerLabel(
+        noteIdx,
+        scaleType,
+        custom?.displayMode || 'solfege',
+        custom?.doMode || 'movable',
+        isScale,
+        degreeFromKey,
+        getAllDegreesWithAccidentals(scaleType)
+    );
+}
+
+function filterProCustomDraftToCurrentScale(editor) {
+    const normalizedEditor = normalizeProCustomEditorState(editor);
+    const nextDraft = normalizedEditor.draft.filter(slot => isProCustomSelectableFret(normalizedEditor, slot.stringName, slot.fret));
+    if (nextDraft.length === normalizedEditor.draft.length) return normalizedEditor;
+    return normalizeProCustomEditorState({
+        ...normalizedEditor,
+        draft: nextDraft,
+        groupBreaks: normalizeRouteEditorGroupBreaks(normalizedEditor.groupBreaks, nextDraft.length),
+        visibleGroupIndices: [0],
+        selectedGroupIndex: 0
+    });
+}
+
+/** デモ再生画面の「このSTAGEを保存」ボタンから編集画面に戻ったとき、
+    着地直後に名前モーダルを自動で開くためのワンショットフラグ。
+    state には乗せず（normalize で落ちるため）、モジュール変数で持つ。 */
+let proCustomPendingOpenNameModal = false;
+/** クイズ PRO 編集の「試す」から戻った直後に名前モーダルを開くワンショット */
+let proCustomQuizEditorPendingOpenNameModal = false;
+
+function renderProCustomRouteEditor(app) {
+    state.proCustomRouteEditor = normalizeProCustomEditorState(state.proCustomRouteEditor);
+    const editor = state.proCustomRouteEditor;
+    const isLandscape = typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
+    const draft = cloneCruiseRouteSlots(editor.draft);
+    const groupBreaks = normalizeRouteEditorGroupBreaks(editor.groupBreaks, draft.length);
+    const groups = buildRouteEditorGroupsFromBreaks(draft, groupBreaks);
+    const visibleGroupIndices = getProCustomEditorVisibleGroupIndices(groups.length);
+    const visibleGroups = visibleGroupIndices
+        .map(index => ({ ...(groups[index] || {}), index }))
+        .filter(group => Number.isFinite(group.start) && Number.isFinite(group.end));
+    let selectedGroupIndex = clamp(parseInt(editor.selectedGroupIndex ?? 0, 10) || 0, -1, Math.max(0, groups.length - 1));
+    let activeGroupIndex = getRouteEditorActiveGroupIndex(visibleGroups, selectedGroupIndex);
+    if (activeGroupIndex < 0 && visibleGroupIndices.length > 0) {
+        activeGroupIndex = visibleGroupIndices[visibleGroupIndices.length - 1];
+        selectedGroupIndex = activeGroupIndex;
+    }
+    const groupPanelOffset = normalizeRouteEditorGroupPanelOffset(editor.groupPanelOffset);
+    const showAllGroupsExpanded = !!editor.showAllGroupsExpanded;
+    const groupNames = Array.isArray(editor.groupNames) && editor.groupNames.length === groups.length
+        ? editor.groupNames.slice()
+        : groups.map((_, index) => `Gr.${index + 1}`);
+    state.proCustomRouteEditor = {
+        ...editor,
+        draft,
+        groupBreaks,
+        groupNames,
+        selectedGroupIndex,
+        visibleGroupIndices,
+        groupPanelOffset,
+        showAllGroupsExpanded
+    };
+
+    const groupButtonsHtml = groups.length
+        ? groups.map((group, index) => {
+            const isVisible = visibleGroupIndices.includes(index);
+            const isActive = isVisible && selectedGroupIndex === index;
+            const noteCount = Math.max(0, (group?.end ?? -1) - (group?.start ?? 0) + 1);
+            const savedScrollLeft = getProCustomGroupScrollLeft(index);
+            const hasScroll = Number.isFinite(savedScrollLeft);
+            return `
+                <div class="route-editor-group-cell">
+                    <button class="route-editor-group-btn ${isVisible ? 'is-visible' : 'is-hidden'} ${isActive ? 'is-active' : ''} ${noteCount ? '' : 'is-empty'}" type="button" data-group-index="${index}" aria-label="${groupNames[index]} (${noteCount}音)" aria-pressed="${isActive ? 'true' : 'false'}">
+                        ${groupNames[index]}
+                    </button>
+                    ${showAllGroupsExpanded ? `<button type="button" class="route-editor-group-position-label ${hasScroll ? '' : 'is-empty'}" data-pro-custom-position-group-index="${index}" aria-label="${escapeHtml(hasScroll ? `位置 ${savedScrollLeft}（タップで編集）` : '位置未設定（タップで設定）')}"><span class="route-editor-group-position-pin" aria-hidden="true">📍</span><span class="route-editor-group-position-value">${hasScroll ? savedScrollLeft : '—'}</span></button>` : ''}
+                </div>
+            `;
+        }).join('')
+        : '<p class="route-editor-empty">グループがありません</p>';
+
+    const scaleOptions = [
+        ['major', 'メジャー / アイオニアン'],
+        ['minor', 'ナチュラルマイナー / エオリアン'],
+        ['harmonicMinor', 'ハーモニックマイナー'],
+        ['melodicMinor', 'メロディックマイナー'],
+        ['dorian', 'ドリアン'],
+        ['phrygian', 'フリジアン'],
+        ['lydian', 'リディアン'],
+        ['mixolydian', 'ミクソリディアン'],
+        ['locrian', 'ロクリアン'],
+        ['pentaMajor', 'メジャーペンタトニック'],
+        ['pentaMinor', 'マイナーペンタトニック'],
+        ['blues', 'ブルース']
+    ];
+    const maxFretOptions = Array.from(
+        { length: MAX_FRET - PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET + 1 },
+        (_, index) => PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET + index
+    );
+    const proCustomDisplayMode = state.settings.noteLabelMode;
+
+    const proCustomKeyOptions = NOTES.map((note, idx) => ({ value: idx, label: note }));
+    const proCustomCapoOptions = [0,1,2,3,4,5,6,7].map(c => ({ value: c, label: String(c) }));
+    const proCustomScaleOptions = scaleOptions.map(([value, label]) => ({ value, label }));
+    const proCustomMaxFretOptions = maxFretOptions.map(fret => ({ value: fret, label: `${fret}フレット` }));
+
+    const proCustomEditingId = state.proCustomRouteEditor.editingStageId || null;
+    const proCustomHeaderTitle = proCustomEditingId
+        ? `👑 ${escapeHtml(state.proCustomRouteEditor.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}<span class="pro-custom-header-sub"> を編集</span>`
+        : '👑PROカスタムSTAGE';
+    app.innerHTML = `
+        <div class="route-editor-screen route-editor-scale-guide-variant-3 pro-custom-route-editor-screen">
+            ${buildPageHeader({
+                headerClass: 'page-header--route-editor',
+                titleText: proCustomHeaderTitle,
+                leftHtml: `
+                    ${navButtonHtml({ id: 'btn-pro-custom-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+                    ${navButtonHtml({ id: 'btn-pro-custom-home', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
+                `,
+                rightHtml: settingsButtonHtml('btn-settings-pro-custom')
+            })}
+            ${standardEditionNoticeHtml(STANDARD_NOTICE_PRO_CUSTOM_STAGE_EDITOR)}
+            <div class="setup-panel pro-custom-setup-panel">
+                <div class="pro-custom-setup-row pro-custom-setup-row--triple">
+                <div class="setup-item pro-custom-setup-item pro-custom-setup-item--key">
+                    <label>キー</label>
+                    ${buildCustomDropdownHtml({ id: 'pro-custom-key', options: proCustomKeyOptions, selectedValue: state.proCustomRouteEditor.key, ariaLabel: 'キー' })}
+                </div>
+                <div class="setup-item pro-custom-setup-item pro-custom-setup-item--capo">
+                    <label>カポ</label>
+                    ${buildCustomDropdownHtml({ id: 'pro-custom-capo', options: proCustomCapoOptions, selectedValue: state.proCustomRouteEditor.capo, ariaLabel: 'カポ' })}
+                </div>
+                <div class="setup-item pro-custom-setup-item pro-custom-setup-item--scale">
+                    <label>スケール</label>
+                    ${buildCustomDropdownHtml({ id: 'pro-custom-scale', options: proCustomScaleOptions, selectedValue: state.proCustomRouteEditor.scale, ariaLabel: 'スケール' })}
+                </div>
+                </div>
+                <div class="pro-custom-setup-row pro-custom-setup-row--double">
+                <div class="setup-item pro-custom-setup-item pro-custom-setup-item--display">
+                    <label>表示方法</label>
+                    <div class="mode-buttons">
+                        <button type="button" class="do-mode-btn ${state.proCustomRouteEditor.doMode==='movable'?'active':''}" data-pro-custom-do-mode="movable">移動ド</button>
+                        <button type="button" class="do-mode-btn ${state.proCustomRouteEditor.doMode==='fixed'?'active':''}" data-pro-custom-do-mode="fixed">固定ド</button>
+                    </div>
+                </div>
+                <div class="setup-item pro-custom-setup-item pro-custom-setup-item--max-fret">
+                    <label>最大フレット</label>
+                    ${buildCustomDropdownHtml({ id: 'pro-custom-max-fret', options: proCustomMaxFretOptions, selectedValue: state.proCustomRouteEditor.maxFret, ariaLabel: '最大フレット' })}
+                </div>
+                </div>
+                <div class="pro-custom-setup-help-row">
+                    <button type="button" class="settings-help-btn pro-custom-setup-help-btn" data-target="pro-custom-display-help-note" aria-label="表示方法の説明を表示">⊕</button>
+                    <p class="settings-note settings-note--animated pro-custom-setup-note" id="pro-custom-display-help-note">ドレミ / CDE / 度数の表記は設定の「共通」から変えることができます。</p>
+                </div>
+            </div>
+            <div class="route-editor-toolbar">
+                <button class="icon-btn route-editor-tool-btn" id="btn-pro-custom-clear" ${draft.length ? '' : 'disabled'}>全消し</button>
+                <button class="icon-btn route-editor-tool-btn" id="btn-pro-custom-undo" ${editor.history.length ? '' : 'disabled'}>↶ 戻す</button>
+            </div>
+            <div class="route-editor-group-panel ${isLandscape ? 'route-editor-group-panel--floating' : ''} ${showAllGroupsExpanded ? 'route-editor-group-panel--expanded' : ''}" style="--route-editor-group-panel-shift-x: ${groupPanelOffset.x}px; --route-editor-group-panel-shift-y: ${groupPanelOffset.y}px;">
+                <div class="route-editor-group-panel-top">
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-expand-btn ${showAllGroupsExpanded ? 'active' : ''}" id="btn-pro-custom-group-expand" ${groups.length ? '' : 'disabled'}>${showAllGroupsExpanded ? '縮小' : '一覧'}</button>
+                </div>
+                <button class="route-editor-group-panel-handle" id="btn-pro-custom-group-panel-handle" type="button" title="ドラッグして移動" aria-label="グループ設定を移動">✥</button>
+                <div class="route-editor-group-list">${groupButtonsHtml}</div>
+                <div class="route-editor-group-actions">
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-add-btn" id="btn-pro-custom-group-add">＋</button>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-remove-btn" id="btn-pro-custom-group-remove" ${groups.length > 1 ? '' : 'disabled'}>－</button>
+                    <button type="button" class="btn-secondary route-editor-group-save-position-btn" id="btn-pro-custom-save-position" ${activeGroupIndex >= 0 ? '' : 'disabled'}>位置保存</button>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-toggle-btn ${visibleGroupIndices.length === groups.length && !state.proCustomRouteEditor.forceHideAllGroups ? 'active' : ''}" id="btn-pro-custom-show-all" ${groups.length ? '' : 'disabled'}>全て表示</button>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-toggle-btn ${state.proCustomRouteEditor.forceHideAllGroups ? 'active' : ''}" id="btn-pro-custom-hide-all" ${groups.length ? '' : 'disabled'}>全て非表示</button>
+                </div>
+            </div>
+            <div id="fretboard-container" class="route-editor-fretboard-host"></div>
+            <div class="route-fretboard-scroll-ctl route-fretboard-scroll-ctl--hidden" id="pro-custom-route-fretboard-scroll-ctl" aria-hidden="true">
+                <button type="button" class="route-fretboard-scroll-arrow-btn" id="pro-custom-route-fretboard-scroll-left">&#x276E;</button>
+                <div class="route-fretboard-scroll-track" id="pro-custom-route-fretboard-scroll-track">
+                    <div class="route-fretboard-scroll-thumb" id="pro-custom-route-fretboard-scroll-thumb"></div>
+                </div>
+                <button type="button" class="route-fretboard-scroll-arrow-btn" id="pro-custom-route-fretboard-scroll-right">&#x276F;</button>
+            </div>
+            <div class="route-editor-expanded-gap ${showAllGroupsExpanded ? 'route-editor-expanded-gap--visible' : ''}" aria-hidden="true"></div>
+            <div class="route-editor-save-row">
+                <button type="button" class="btn-secondary route-editor-demo-btn" id="btn-pro-custom-demo" ${draft.length ? '' : 'disabled'}>現在の順番でデモ</button>
+                <button type="button" class="btn-primary route-editor-save-btn pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-pro-custom-save" ${draft.length ? '' : 'disabled'}>
+                    <span class="pro-custom-saved-btn__title">このSTAGEを保存</span>
+                </button>
+                <button type="button" class="btn-secondary route-editor-cancel-btn" id="btn-pro-custom-cancel">キャンセルして戻る</button>
+            </div>
+            <div class="pro-custom-route-editor-tail-spacer" aria-hidden="true"></div>
+            <div class="route-editor-expanded-spacer ${showAllGroupsExpanded ? 'route-editor-expanded-spacer--visible' : ''}" aria-hidden="true"></div>
+        </div>
+        <div class="pro-custom-stage-name-modal" id="pro-custom-stage-name-modal" hidden>
+            <div class="pro-custom-stage-name-modal__backdrop" data-pro-custom-stage-name-cancel></div>
+            <div class="pro-custom-stage-name-modal__panel" role="dialog" aria-modal="true" aria-labelledby="pro-custom-stage-name-modal-title">
+                <div class="pro-custom-stage-name-modal__title" id="pro-custom-stage-name-modal-title">STAGE名を入力</div>
+                <label class="pro-custom-stage-name-modal__label" for="pro-custom-stage-name-input">保存する名前</label>
+                <input class="pro-custom-stage-name-modal__input" id="pro-custom-stage-name-input" type="text" maxlength="24" spellcheck="false" autocomplete="off" inputmode="text" />
+                <div class="pro-custom-stage-name-modal__error" id="pro-custom-stage-name-error" hidden></div>
+                <div class="pro-custom-stage-name-modal__actions">
+                    <button type="button" class="btn-secondary pro-custom-stage-name-modal__cancel" data-pro-custom-stage-name-cancel>キャンセル</button>
+                    <button type="button" class="pro-custom-stage-name-modal__confirm pro-custom-saved-btn pro-custom-saved-btn--save" id="pro-custom-stage-name-confirm"><span class="pro-custom-saved-btn__title">保存</span></button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const rerenderAfterSettingChange = () => {
+        state.proCustomRouteEditor = filterProCustomDraftToCurrentScale(state.proCustomRouteEditor);
+        saveState();
+        renderApp();
+    };
+    const nameModal = document.getElementById('pro-custom-stage-name-modal');
+    const nameInput = document.getElementById('pro-custom-stage-name-input');
+    const nameError = document.getElementById('pro-custom-stage-name-error');
+    /** モーダルを開いた直後に届く「ボタン由来の遅延 click」がバックドロップに当たって
+        即座にモーダルを閉じてしまうのを防ぐためのガード。 */
+    let modalSuppressBackdropUntil = 0;
+    const setNameModalError = (msg) => {
+        if (!nameError) return;
+        if (msg) {
+            nameError.textContent = msg;
+            nameError.hidden = false;
+        } else {
+            nameError.textContent = '';
+            nameError.hidden = true;
+        }
+    };
+    const closeNameModal = () => {
+        nameModal.hidden = true;
+        nameModal.classList.remove('is-open');
+        setNameModalError('');
+    };
+    const openNameModal = () => {
+        modalSuppressBackdropUntil = Date.now() + 400;
+        nameInput.value = String(state.proCustomRouteEditor.name || PRO_CUSTOM_STAGE_DEFAULT_NAME);
+        setNameModalError('');
+        nameModal.hidden = false;
+        nameModal.classList.add('is-open');
+        setTimeout(() => {
+            nameInput.focus();
+            nameInput.select();
+        }, 0);
+    };
+    const confirmNameModal = () => {
+        const inputName = String(nameInput.value || '').trim() || PRO_CUSTOM_STAGE_DEFAULT_NAME;
+        const editingId = state.proCustomRouteEditor.editingStageId || null;
+        if (proCustomStageNameExists(inputName, editingId)) {
+            setNameModalError(`「${inputName}」という名前のSTAGEはすでにあります。別の名前にしてください。`);
+            setTimeout(() => {
+                nameInput.focus();
+                nameInput.select();
+            }, 0);
+            return;
+        }
+        // 新規追加のとき、上限を超えていれば保存不可
+        if (!editingId && getSavedProCustomStages().length >= PRO_CUSTOM_STAGE_MAX_SAVED) {
+            setNameModalError(`PROカスタムSTAGEは最大${PRO_CUSTOM_STAGE_MAX_SAVED}件まで保存できます。`);
+            return;
+        }
+        state.proCustomRouteEditor.name = inputName;
+        const saved = saveProCustomStageFromEditor();
+        if (!saved) {
+            setNameModalError('保存に失敗しました。もう一度お試しください。');
+            return;
+        }
+        closeNameModal();
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-back').onclick = () => {
+        resetStandardProCustomRouteEditorScratchInMemory();
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-cancel').onclick = () => {
+        resetStandardProCustomRouteEditorScratchInMemory();
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-home').onclick = () => {
+        resetStandardProCustomRouteEditorScratchInMemory();
+        state.course = null;
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-settings-pro-custom').onclick = () => openSettings('proCustomRouteEditor');
+    ensureCustomDropdownDocHandlers();
+    wireCustomDropdown('pro-custom-key', (value) => {
+        pushProCustomEditorHistory();
+        state.proCustomRouteEditor.key = parseInt(value, 10) || 0;
+        rerenderAfterSettingChange();
+    });
+    wireCustomDropdown('pro-custom-capo', (value) => {
+        pushProCustomEditorHistory();
+        state.proCustomRouteEditor.capo = parseInt(value, 10) || 0;
+        rerenderAfterSettingChange();
+    });
+    wireCustomDropdown('pro-custom-scale', (value) => {
+        pushProCustomEditorHistory();
+        state.proCustomRouteEditor.scale = value;
+        rerenderAfterSettingChange();
+    });
+    wireCustomDropdown('pro-custom-max-fret', (value) => {
+        pushProCustomEditorHistory();
+        state.proCustomRouteEditor.maxFret = clamp(parseInt(value, 10) || PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, MAX_FRET);
+        currentScrollLeft = 0;
+        rerenderAfterSettingChange();
+    });
+    document.querySelectorAll('[data-pro-custom-do-mode]').forEach(btn => {
+        btn.onclick = () => { state.proCustomRouteEditor.doMode = btn.getAttribute('data-pro-custom-do-mode'); saveState(); renderApp(); };
+    });
+    /** PRO編集カード下部の ⊕ ヘルプボタン：タップで補足説明をトグル表示。 */
+    document.querySelectorAll('.pro-custom-setup-help-btn').forEach(btn => {
+        btn.onclick = () => {
+            const targetId = btn.getAttribute('data-target');
+            const target = targetId ? document.getElementById(targetId) : null;
+            if (target) target.classList.toggle('visible');
+        };
+    });
+    document.getElementById('btn-pro-custom-undo').onclick = () => {
+        const historyItem = Array.isArray(state.proCustomRouteEditor.history) ? state.proCustomRouteEditor.history.pop() : null;
+        if (!historyItem) return;
+        restoreProCustomEditorSnapshot(historyItem);
+        // 戻したあとに「保存スクロール位置」も指板に反映できるよう、適用済みキーをリセットする
+        proCustomRouteEditorScrollAppliedKey = null;
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-clear').onclick = () => {
+        pushProCustomEditorHistory();
+        Object.assign(state.proCustomRouteEditor, { draft: [], groupBreaks: [0], groupNames: ['Gr.1'], visibleGroupIndices: [0], selectedGroupIndex: 0, scrollLefts: {} });
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-group-expand').onclick = () => { state.proCustomRouteEditor.showAllGroupsExpanded = !state.proCustomRouteEditor.showAllGroupsExpanded; saveState(); renderApp(); };
+    document.getElementById('btn-pro-custom-group-add').onclick = () => {
+        if (groups.length >= PRO_CUSTOM_STAGE_MAX_GROUPS) return;
+        pushProCustomEditorHistory();
+        const nextIndex = groups.length;
+        state.proCustomRouteEditor.groupBreaks = normalizeRouteEditorGroupBreaks([...state.proCustomRouteEditor.groupBreaks, draft.length], draft.length);
+        state.proCustomRouteEditor.groupNames = [...groupNames, `Gr.${groupNames.length + 1}`];
+        state.proCustomRouteEditor.visibleGroupIndices = [nextIndex];
+        state.proCustomRouteEditor.selectedGroupIndex = nextIndex;
+        state.proCustomRouteEditor.forceHideAllGroups = false;
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-group-remove').onclick = () => {
+        if (groups.length <= 1 || activeGroupIndex < 0) return;
+        pushProCustomEditorHistory();
+        const removed = deleteRouteEditorGroupAtIndex(state.proCustomRouteEditor.draft, state.proCustomRouteEditor.groupBreaks, activeGroupIndex);
+        state.proCustomRouteEditor.draft = removed.draft;
+        state.proCustomRouteEditor.groupBreaks = removed.groupBreaks;
+        state.proCustomRouteEditor.groupNames = groupNames.filter((_, index) => index !== activeGroupIndex);
+        state.proCustomRouteEditor.visibleGroupIndices = [Math.min(activeGroupIndex, Math.max(0, groups.length - 2))];
+        state.proCustomRouteEditor.selectedGroupIndex = state.proCustomRouteEditor.visibleGroupIndices[0] ?? 0;
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-show-all').onclick = () => { state.proCustomRouteEditor.forceHideAllGroups = false; state.proCustomRouteEditor.visibleGroupIndices = groups.map((_, index) => index); saveState(); renderApp(); };
+    document.getElementById('btn-pro-custom-hide-all').onclick = () => { state.proCustomRouteEditor.forceHideAllGroups = true; state.proCustomRouteEditor.visibleGroupIndices = []; saveState(); renderApp(); };
+    document.getElementById('btn-pro-custom-save-position').onclick = () => {
+        if (activeGroupIndex < 0) return;
+        setProCustomEditorGroupScrollLeft(activeGroupIndex, getRouteEditorCurrentScrollLeft());
+        saveState();
+        renderApp();
+        syncRouteEditorPositionPinInDOM(
+            'data-pro-custom-position-group-index',
+            activeGroupIndex,
+            getProCustomGroupScrollLeft(activeGroupIndex)
+        );
+        flashRouteEditorSavePositionButton('btn-pro-custom-save-position');
+    };
+    document.querySelectorAll('[data-pro-custom-position-group-index]').forEach(label => {
+        label.onclick = (e) => {
+            e.stopPropagation();
+            const idx = parseInt(label.getAttribute('data-pro-custom-position-group-index'), 10);
+            if (!Number.isFinite(idx)) return;
+            const current = getProCustomGroupScrollLeft(idx);
+            const input = window.prompt(`Gr.${idx + 1} の保存スクロール位置を入力してください\n（空欄で未設定に戻ります）`, Number.isFinite(current) ? String(current) : '');
+            if (input === null) return;
+            const trimmed = String(input).trim();
+            if (trimmed === '') {
+                clearProCustomEditorGroupScrollLeft(idx);
+            } else {
+                const next = parseInt(trimmed, 10);
+                if (!Number.isFinite(next) || next < 0) {
+                    window.alert('0 以上の整数を入力してください。');
+                    return;
+                }
+                setProCustomEditorGroupScrollLeft(idx, next);
+            }
+            saveState();
+            renderApp();
+        };
+    });
+
+    const groupPanelEl = app.querySelector('.route-editor-group-panel');
+    const groupPanelHandleEl = document.getElementById('btn-pro-custom-group-panel-handle');
+    if (isLandscape && groupPanelEl && groupPanelHandleEl) {
+        const dragState = {
+            pointerId: null,
+            startX: 0,
+            startY: 0,
+            startOffsetX: groupPanelOffset.x,
+            startOffsetY: groupPanelOffset.y,
+            startRect: null,
+            dragging: false
+        };
+        const applyGroupPanelOffset = (x, y) => {
+            const nextOffset = {
+                x: Math.round(x),
+                y: Math.round(y)
+            };
+            groupPanelEl.style.setProperty('--route-editor-group-panel-shift-x', `${nextOffset.x}px`);
+            groupPanelEl.style.setProperty('--route-editor-group-panel-shift-y', `${nextOffset.y}px`);
+            state.proCustomRouteEditor.groupPanelOffset = nextOffset;
+        };
+        const finishDrag = () => {
+            document.removeEventListener('pointermove', onPointerMove, true);
+            document.removeEventListener('pointerup', onPointerUp, true);
+            document.removeEventListener('pointercancel', onPointerCancel, true);
+            groupPanelEl.classList.remove('route-editor-group-panel--dragging');
+            groupPanelHandleEl.classList.remove('route-editor-group-panel-handle--dragging');
+            if (dragState.dragging) {
+                saveState();
+            }
+            dragState.pointerId = null;
+            dragState.dragging = false;
+        };
+        const onPointerMove = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            const dx = e.clientX - dragState.startX;
+            const dy = e.clientY - dragState.startY;
+            if (!dragState.dragging) {
+                if (Math.abs(dx) + Math.abs(dy) < 4) return;
+                dragState.dragging = true;
+                dragState.startRect = groupPanelEl.getBoundingClientRect();
+                groupPanelEl.classList.add('route-editor-group-panel--dragging');
+                groupPanelHandleEl.classList.add('route-editor-group-panel-handle--dragging');
+            }
+            const rect = dragState.startRect || groupPanelEl.getBoundingClientRect();
+            const margin = 8;
+            const minDx = margin - rect.left;
+            const maxDx = window.innerWidth - margin - rect.right;
+            const minDy = margin - rect.top;
+            const maxDy = window.innerHeight - margin - rect.bottom;
+            const nextX = clamp(dragState.startOffsetX + dx, dragState.startOffsetX + Math.min(minDx, maxDx), dragState.startOffsetX + Math.max(minDx, maxDx));
+            const nextY = clamp(dragState.startOffsetY + dy, dragState.startOffsetY + Math.min(minDy, maxDy), dragState.startOffsetY + Math.max(minDy, maxDy));
+            applyGroupPanelOffset(nextX, nextY);
+        };
+        const onPointerUp = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            finishDrag();
+        };
+        const onPointerCancel = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            finishDrag();
+        };
+        const onPointerDown = e => {
+            if (e.button !== undefined && e.button !== 0) return;
+            if (dragState.pointerId !== null) return;
+            e.preventDefault();
+            e.stopPropagation();
+            dragState.pointerId = typeof e.pointerId === 'number' ? e.pointerId : null;
+            dragState.startX = e.clientX;
+            dragState.startY = e.clientY;
+            dragState.startOffsetX = groupPanelOffset.x;
+            dragState.startOffsetY = groupPanelOffset.y;
+            dragState.startRect = groupPanelEl.getBoundingClientRect();
+            document.addEventListener('pointermove', onPointerMove, true);
+            document.addEventListener('pointerup', onPointerUp, true);
+            document.addEventListener('pointercancel', onPointerCancel, true);
+        };
+        groupPanelHandleEl.addEventListener('pointerdown', onPointerDown, { passive: false });
+        routeEditorGroupPanelDragHandlers.set('proCustomRouteEditor-group-panel', {
+            pointermove: onPointerMove,
+            pointerup: onPointerUp,
+            pointercancel: onPointerCancel
+        });
+    }
+
+    document.querySelectorAll('.route-editor-group-btn').forEach(btn => {
+        btn.onclick = () => {
+            const index = parseInt(btn.getAttribute('data-group-index'), 10);
+            if (!Number.isFinite(index)) return;
+            const nextVisible = new Set(visibleGroupIndices);
+            if (!nextVisible.has(index)) nextVisible.add(index);
+            state.proCustomRouteEditor.forceHideAllGroups = false;
+            state.proCustomRouteEditor.visibleGroupIndices = Array.from(nextVisible).sort((a, b) => a - b);
+            state.proCustomRouteEditor.selectedGroupIndex = index;
+            saveState();
+            renderApp();
+        };
+    });
+    const startDemoFromEditor = () => {
+        startProCustomCruisePlayback({
+            name: state.proCustomRouteEditor.name,
+            key: state.proCustomRouteEditor.key,
+            capo: state.proCustomRouteEditor.capo,
+            scale: state.proCustomRouteEditor.scale,
+            displayMode: state.settings.noteLabelMode,
+            doMode: state.proCustomRouteEditor.doMode,
+            maxFret: state.proCustomRouteEditor.maxFret,
+            route: state.proCustomRouteEditor.draft,
+            groupBreaks: state.proCustomRouteEditor.groupBreaks,
+            groupNames: state.proCustomRouteEditor.groupNames,
+            groupScrollLefts: state.proCustomRouteEditor.scrollLefts
+        }, 'proCustomRouteEditor');
+    };
+    /** 「デモ」「保存」ボタンは、フレットボードの onFretClick ガード（route-editor-save-row 配下を無視）が
+        document レベルの pointerdown ハイジャックを抑えてくれるので、シンプルに onclick だけで処理する。
+        以前あった座標ベースの capture-phase ヒットテスタは、デモボタンを押しても
+        誤って保存モーダルが開くことがあったため撤去した。 */
+    document.getElementById('btn-pro-custom-save').onclick = e => {
+        e.preventDefault();
+        if (e.currentTarget.disabled) return;
+        if (!guardProPersistentSave('save')) return;
+        openNameModal();
+    };
+    document.getElementById('pro-custom-stage-name-confirm').onclick = confirmNameModal;
+    nameModal.querySelectorAll('[data-pro-custom-stage-name-cancel]').forEach(btn => {
+        btn.onclick = (e) => {
+            if (Date.now() < modalSuppressBackdropUntil) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            closeNameModal();
+        };
+    });
+    nameInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            confirmNameModal();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            closeNameModal();
+        }
+    });
+    // 入力が変わったらエラー表示は一旦クリア
+    nameInput.addEventListener('input', () => setNameModalError(''));
+    document.getElementById('btn-pro-custom-demo').onclick = e => {
+        e.preventDefault();
+        if (e.currentTarget.disabled) return;
+        startDemoFromEditor();
+    };
+
+    // デモ画面の「このSTAGEを保存」から戻ってきた直後は、自動で名前モーダルを開く
+    if (proCustomPendingOpenNameModal) {
+        proCustomPendingOpenNameModal = false;
+        // 直後の click 余韻でバックドロップが閉じてしまわないよう、ガードは openNameModal 側でセットされる
+        setTimeout(() => openNameModal(), 0);
+    }
+
+    const proCustomScrollStageKey = state.proCustomRouteEditor.editingStageId ?? 'new';
+    const proCustomRouteEditorScrollKey = `${proCustomScrollStageKey}:${activeGroupIndex >= 0 ? activeGroupIndex : 'none'}`;
+    if (activeGroupIndex >= 0 && proCustomRouteEditorScrollAppliedKey !== proCustomRouteEditorScrollKey) {
+        const savedLeft = getProCustomGroupScrollLeft(activeGroupIndex);
+        currentScrollLeft = Number.isFinite(savedLeft) ? savedLeft : 0;
+        proCustomRouteEditorScrollAppliedKey = proCustomRouteEditorScrollKey;
+    }
+
+    renderFretboardHTML('fretboard-container', {
+        mode: 'routeEditor',
+        question: null,
+        showAnswer: true,
+        routeEditorDraft: draft,
+        routeEditorStage: 6,
+        routeEditorVisibleGroups: visibleGroups,
+        proCustomGuide: {
+            key: state.proCustomRouteEditor.key,
+            capo: state.proCustomRouteEditor.capo,
+            scale: state.proCustomRouteEditor.scale,
+            displayMode: proCustomDisplayMode,
+            doMode: state.proCustomRouteEditor.doMode,
+            maxFret: state.proCustomRouteEditor.maxFret
+        },
+        onRouteEditorMarkerClick: (routeIndex) => {
+            if (!Number.isFinite(routeIndex) || routeIndex < 0 || routeIndex >= state.proCustomRouteEditor.draft.length || activeGroupIndex < 0) return;
+            pushProCustomEditorHistory();
+            state.proCustomRouteEditor.draft.splice(routeIndex, 1);
+            state.proCustomRouteEditor.groupBreaks = adjustRouteEditorGroupBreaksForDelete(state.proCustomRouteEditor.groupBreaks, routeIndex, state.proCustomRouteEditor.draft.length);
+            saveState();
+            renderApp();
+        },
+        onFretClick: (stringName, fret, e) => {
+            // PROカスタム編集画面のフッターボタン（デモ／保存）や設定パネル・ツールバー上で
+            // タップが発生したときは、document レベルの pointerdown キャプチャ（renderFretboardHTML 内の
+            // handleFretboardClick）が getBoundingClientRect 矩形だけでフレットコラムを誤検出して
+            // ここに到達することがある。getBoundingClientRect は祖先の overflow:hidden で
+            // クリップされた領域も含むため、視覚的には指板の外でもヒットしてしまう。
+            // これによりフッターボタンを押したのにドラフトに音が追加されて即再描画され、
+            // 「ボタンが反応しない」ように見える現象が起きる。e.target が UI クローム配下なら
+            // 何もせず抜ける。
+            if (
+                e &&
+                e.target &&
+                typeof e.target.closest === 'function' &&
+                e.target.closest(
+                    '.route-editor-save-row, .route-editor-toolbar, .route-editor-group-panel, .setup-panel, .pro-custom-setup-panel, .page-header, .pro-custom-stage-name-modal'
+                )
+            ) {
+                return;
+            }
+            if (activeGroupIndex < 0) return;
+            if (!isProCustomSelectableFret(state.proCustomRouteEditor, stringName, fret)) return;
+            blurActiveElement();
+            pushProCustomEditorHistory();
+            const inserted = insertRouteEditorSlotIntoGroup(state.proCustomRouteEditor.draft, state.proCustomRouteEditor.groupBreaks, activeGroupIndex, { stringName, fret });
+            state.proCustomRouteEditor.draft = inserted.draft;
+            state.proCustomRouteEditor.groupBreaks = inserted.groupBreaks;
+            if (!Number.isFinite(getProCustomGroupScrollLeft(activeGroupIndex))) {
+                setProCustomEditorGroupScrollLeft(activeGroupIndex, getRouteEditorCurrentScrollLeft());
+            }
+            saveState();
+            playTone(6 - stringName, fret);
+            renderApp();
+        }
+    });
+
+    initFretboardScrollCtl({
+        containerSelector: '#fretboard-container',
+        ctlId: 'pro-custom-route-fretboard-scroll-ctl',
+        trackId: 'pro-custom-route-fretboard-scroll-track',
+        thumbId: 'pro-custom-route-fretboard-scroll-thumb',
+        leftId: 'pro-custom-route-fretboard-scroll-left',
+        rightId: 'pro-custom-route-fretboard-scroll-right'
+    });
+
+    app.style.height = '100vh';
+    app.style.overflowY = 'auto';
+    app.style.overflowX = 'hidden';
+    app.style.alignItems = 'stretch';
+    app.style.gap = '0';
+    app.style.paddingTop = 'max(4px, env(safe-area-inset-top))';
+    app.style.paddingBottom = 'calc(var(--in-game-refresh-stack-height, 96px) + max(96px, env(safe-area-inset-bottom)))';
+    app.style.paddingLeft = 'max(10px, env(safe-area-inset-left))';
+    app.style.paddingRight = 'max(10px, env(safe-area-inset-right))';
+}
+
+function renderProCustomQuizEditor(app) {
+    state.proCustomQuizEditor = normalizeProCustomQuizEditorState(state.proCustomQuizEditor);
+    const editor = state.proCustomQuizEditor;
+    const isLandscape = typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
+    const groups = normalizeProCustomQuizGroups(editor.groups);
+    const visibleGroupIndices = getProCustomQuizEditorVisibleGroupIndices(groups.length);
+    let selectedGroupIndex = clamp(parseInt(editor.selectedGroupIndex ?? 0, 10) || 0, -1, Math.max(0, groups.length - 1));
+    let activeGroupIndex = getRouteEditorActiveGroupIndex(visibleGroupIndices.map(index => ({ index })), selectedGroupIndex);
+    if (activeGroupIndex < 0 && visibleGroupIndices.length > 0) {
+        activeGroupIndex = visibleGroupIndices[visibleGroupIndices.length - 1];
+        selectedGroupIndex = activeGroupIndex;
+    }
+    const groupPanelOffset = normalizeRouteEditorGroupPanelOffset(editor.groupPanelOffset);
+    const showAllGroupsExpanded = !!editor.showAllGroupsExpanded;
+    state.proCustomQuizEditor = {
+        ...editor,
+        groups,
+        selectedGroupIndex,
+        visibleGroupIndices,
+        groupPanelOffset,
+        showAllGroupsExpanded
+    };
+
+    const scaleOptions = [
+        ['major', 'メジャー / アイオニアン'],
+        ['minor', 'ナチュラルマイナー / エオリアン'],
+        ['harmonicMinor', 'ハーモニックマイナー'],
+        ['melodicMinor', 'メロディックマイナー'],
+        ['dorian', 'ドリアン'],
+        ['phrygian', 'フリジアン'],
+        ['lydian', 'リディアン'],
+        ['mixolydian', 'ミクソリディアン'],
+        ['locrian', 'ロクリアン'],
+        ['pentaMajor', 'メジャーペンタトニック'],
+        ['pentaMinor', 'マイナーペンタトニック'],
+        ['blues', 'ブルース']
+    ];
+    const maxFretOptions = Array.from(
+        { length: MAX_FRET - PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET + 1 },
+        (_, index) => PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET + index
+    );
+    const proCustomDisplayMode = state.settings.noteLabelMode;
+    const hasAnyNote = groups.some(group => Array.isArray(group.notes) && group.notes.length > 0);
+    const proCustomEditingId = state.proCustomQuizEditor.editingStageId || null;
+    const proCustomHeaderTitle = proCustomEditingId
+        ? `👑 ${escapeHtml(state.proCustomQuizEditor.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}<span class="pro-custom-header-sub"> を編集</span>`
+        : '👑PROカスタムSTAGE';
+
+    const groupButtonsHtml = groups.map((group, index) => {
+        const isVisible = visibleGroupIndices.includes(index);
+        const isActive = isVisible && selectedGroupIndex === index;
+        const noteCount = Array.isArray(group.notes) ? group.notes.length : 0;
+        const hasScroll = Number.isFinite(group.scrollLeft);
+        return `
+            <div class="route-editor-group-cell">
+                <button class="route-editor-group-btn ${isVisible ? 'is-visible' : 'is-hidden'} ${isActive ? 'is-active' : ''} ${noteCount ? '' : 'is-empty'}" type="button" data-group-index="${index}" aria-label="${escapeHtml(group.name || `Gr.${index + 1}`)} (${noteCount}音)" aria-pressed="${isActive ? 'true' : 'false'}">
+                    ${escapeHtml(group.name || `Gr.${index + 1}`)}
+                </button>
+                ${showAllGroupsExpanded ? `<button type="button" class="route-editor-group-position-label ${hasScroll ? '' : 'is-empty'}" data-pro-custom-quiz-position-group-index="${index}" aria-label="${escapeHtml(hasScroll ? `位置 ${group.scrollLeft}（タップで編集）` : '位置未設定（タップで設定）')}"><span class="route-editor-group-position-pin" aria-hidden="true">📍</span><span class="route-editor-group-position-value">${hasScroll ? group.scrollLeft : '—'}</span></button>` : ''}
+            </div>
+        `;
+    }).join('');
+
+    app.innerHTML = `
+        <div class="route-editor-screen route-editor-scale-guide-variant-3 pro-custom-route-editor-screen pro-custom-quiz-editor-screen">
+            ${buildPageHeader({
+                headerClass: 'page-header--route-editor',
+                titleText: proCustomHeaderTitle,
+                leftHtml: `
+                    ${navButtonHtml({ id: 'btn-pro-custom-quiz-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+                    ${navButtonHtml({ id: 'btn-pro-custom-quiz-home', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
+                `,
+                rightHtml: settingsButtonHtml('btn-settings-pro-custom-quiz')
+            })}
+            ${standardEditionNoticeHtml(STANDARD_NOTICE_PRO_CUSTOM_STAGE_EDITOR)}
+            <div class="setup-panel pro-custom-setup-panel">
+                <div class="pro-custom-setup-row pro-custom-setup-row--triple">
+                    <div class="setup-item pro-custom-setup-item pro-custom-setup-item--key">
+                        <label>キー</label>
+                        ${buildCustomDropdownHtml({ id: 'pro-custom-quiz-key', options: NOTES.map((note, idx) => ({ value: idx, label: note })), selectedValue: editor.key, ariaLabel: 'キー' })}
+                    </div>
+                    <div class="setup-item pro-custom-setup-item pro-custom-setup-item--capo">
+                        <label>カポ</label>
+                        ${buildCustomDropdownHtml({ id: 'pro-custom-quiz-capo', options: [0,1,2,3,4,5,6,7].map(c => ({ value: c, label: String(c) })), selectedValue: editor.capo, ariaLabel: 'カポ' })}
+                    </div>
+                    <div class="setup-item pro-custom-setup-item pro-custom-setup-item--scale">
+                        <label>スケール</label>
+                        ${buildCustomDropdownHtml({ id: 'pro-custom-quiz-scale', options: scaleOptions.map(([value, label]) => ({ value, label })), selectedValue: editor.scale, ariaLabel: 'スケール' })}
+                    </div>
+                </div>
+                <div class="pro-custom-setup-row pro-custom-setup-row--double">
+                    <div class="setup-item pro-custom-setup-item pro-custom-setup-item--display">
+                        <label>表示方法</label>
+                        <div class="mode-buttons">
+                            <button type="button" class="do-mode-btn ${editor.doMode==='movable'?'active':''}" data-pro-custom-quiz-do-mode="movable">移動ド</button>
+                            <button type="button" class="do-mode-btn ${editor.doMode==='fixed'?'active':''}" data-pro-custom-quiz-do-mode="fixed">固定ド</button>
+                        </div>
+                    </div>
+                    <div class="setup-item pro-custom-setup-item pro-custom-setup-item--max-fret">
+                        <label>最大フレット</label>
+                        ${buildCustomDropdownHtml({ id: 'pro-custom-quiz-max-fret', options: maxFretOptions.map(fret => ({ value: fret, label: `${fret}フレット` })), selectedValue: editor.maxFret, ariaLabel: '最大フレット' })}
+                    </div>
+                </div>
+                <div class="pro-custom-setup-help-row">
+                    <button type="button" class="settings-help-btn pro-custom-setup-help-btn" data-target="pro-custom-quiz-display-help-note" aria-label="表示方法の説明を表示">⊕</button>
+                    <p class="settings-note settings-note--animated pro-custom-setup-note" id="pro-custom-quiz-display-help-note">ドレミ / CDE / 度数の表記は設定の「共通」から変えることができます。</p>
+                </div>
+            </div>
+            <div class="route-editor-toolbar">
+                <button class="icon-btn route-editor-tool-btn" id="btn-pro-custom-quiz-clear" ${hasAnyNote || groups.length > 1 ? '' : 'disabled'}>全消し</button>
+                <button class="icon-btn route-editor-tool-btn" id="btn-pro-custom-quiz-undo" ${editor.history.length ? '' : 'disabled'}>↶ 戻す</button>
+            </div>
+            <div class="route-editor-group-panel ${isLandscape ? 'route-editor-group-panel--floating' : ''} ${showAllGroupsExpanded ? 'route-editor-group-panel--expanded' : ''}" style="--route-editor-group-panel-shift-x: ${groupPanelOffset.x}px; --route-editor-group-panel-shift-y: ${groupPanelOffset.y}px;">
+                <div class="route-editor-group-panel-top">
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-expand-btn ${showAllGroupsExpanded ? 'active' : ''}" id="btn-pro-custom-quiz-group-expand" ${groups.length ? '' : 'disabled'}>${showAllGroupsExpanded ? '縮小' : '一覧'}</button>
+                </div>
+                <button class="route-editor-group-panel-handle" id="btn-pro-custom-quiz-group-panel-handle" type="button" title="ドラッグして移動" aria-label="グループ設定を移動">✥</button>
+                <div class="route-editor-group-list">${groupButtonsHtml}</div>
+                <div class="route-editor-group-actions">
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-add-btn" id="btn-pro-custom-quiz-group-add">＋</button>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-remove-btn" id="btn-pro-custom-quiz-group-remove" ${groups.length > 1 ? '' : 'disabled'}>－</button>
+                    <button type="button" class="btn-secondary route-editor-group-save-position-btn" id="btn-pro-custom-quiz-save-position" ${activeGroupIndex >= 0 ? '' : 'disabled'}>位置保存</button>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-toggle-btn ${visibleGroupIndices.length === groups.length && !editor.forceHideAllGroups ? 'active' : ''}" id="btn-pro-custom-quiz-show-all" ${groups.length ? '' : 'disabled'}>全て表示</button>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-toggle-btn ${editor.forceHideAllGroups ? 'active' : ''}" id="btn-pro-custom-quiz-hide-all" ${groups.length ? '' : 'disabled'}>全て非表示</button>
+                </div>
+            </div>
+            <div id="fretboard-container" class="route-editor-fretboard-host"></div>
+            <div class="route-fretboard-scroll-ctl route-fretboard-scroll-ctl--hidden" id="pro-custom-quiz-fretboard-scroll-ctl" aria-hidden="true">
+                <button type="button" class="route-fretboard-scroll-arrow-btn" id="pro-custom-quiz-fretboard-scroll-left">&#x276E;</button>
+                <div class="route-fretboard-scroll-track" id="pro-custom-quiz-fretboard-scroll-track">
+                    <div class="route-fretboard-scroll-thumb" id="pro-custom-quiz-fretboard-scroll-thumb"></div>
+                </div>
+                <button type="button" class="route-fretboard-scroll-arrow-btn" id="pro-custom-quiz-fretboard-scroll-right">&#x276F;</button>
+            </div>
+            <div class="route-editor-expanded-gap ${showAllGroupsExpanded ? 'route-editor-expanded-gap--visible' : ''}" aria-hidden="true"></div>
+            <div class="route-editor-save-row">
+                <button type="button" class="btn-secondary route-editor-demo-btn" id="btn-pro-custom-quiz-try" ${hasAnyNote ? '' : 'disabled'}>この設定でクイズを試す</button>
+                <button type="button" class="btn-primary route-editor-save-btn pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-pro-custom-quiz-save" ${hasAnyNote ? '' : 'disabled'}>
+                    <span class="pro-custom-saved-btn__title">このSTAGEを保存</span>
+                </button>
+                <button type="button" class="btn-secondary route-editor-cancel-btn" id="btn-pro-custom-quiz-cancel">キャンセルして戻る</button>
+            </div>
+            <div class="pro-custom-route-editor-tail-spacer" aria-hidden="true"></div>
+            <div class="route-editor-expanded-spacer ${showAllGroupsExpanded ? 'route-editor-expanded-spacer--visible' : ''}" aria-hidden="true"></div>
+        </div>
+        <div class="pro-custom-stage-name-modal" id="pro-custom-quiz-stage-name-modal" hidden>
+            <div class="pro-custom-stage-name-modal__backdrop" data-pro-custom-quiz-stage-name-cancel></div>
+            <div class="pro-custom-stage-name-modal__panel" role="dialog" aria-modal="true" aria-labelledby="pro-custom-quiz-stage-name-modal-title">
+                <div class="pro-custom-stage-name-modal__title" id="pro-custom-quiz-stage-name-modal-title">STAGE名を入力</div>
+                <label class="pro-custom-stage-name-modal__label" for="pro-custom-quiz-stage-name-input">保存する名前</label>
+                <input class="pro-custom-stage-name-modal__input" id="pro-custom-quiz-stage-name-input" type="text" maxlength="24" spellcheck="false" autocomplete="off" inputmode="text" />
+                <div class="pro-custom-stage-name-modal__error" id="pro-custom-quiz-stage-name-error" hidden></div>
+                <div class="pro-custom-stage-name-modal__actions">
+                    <button type="button" class="btn-secondary pro-custom-stage-name-modal__cancel" data-pro-custom-quiz-stage-name-cancel>キャンセル</button>
+                    <button type="button" class="pro-custom-stage-name-modal__confirm pro-custom-saved-btn pro-custom-saved-btn--save" id="pro-custom-quiz-stage-name-confirm"><span class="pro-custom-saved-btn__title">保存</span></button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const filterToCurrentScale = () => {
+        const normalized = normalizeProCustomQuizEditorState(state.proCustomQuizEditor);
+        normalized.groups = normalized.groups.map(group => ({
+            ...group,
+            notes: group.notes.filter(note => isProCustomQuizSelectableFret(normalized, note.stringName, note.fret))
+        }));
+        state.proCustomQuizEditor = normalizeProCustomQuizEditorState(normalized);
+    };
+    const rerenderAfterSettingChange = () => {
+        filterToCurrentScale();
+        saveState();
+        renderApp();
+    };
+    const nameModal = document.getElementById('pro-custom-quiz-stage-name-modal');
+    const nameInput = document.getElementById('pro-custom-quiz-stage-name-input');
+    const nameError = document.getElementById('pro-custom-quiz-stage-name-error');
+    let modalSuppressBackdropUntil = 0;
+    const setNameModalError = msg => {
+        if (!nameError) return;
+        nameError.textContent = msg || '';
+        nameError.hidden = !msg;
+    };
+    const closeNameModal = () => {
+        nameModal.hidden = true;
+        nameModal.classList.remove('is-open');
+        setNameModalError('');
+    };
+    const openNameModal = () => {
+        modalSuppressBackdropUntil = Date.now() + 400;
+        nameInput.value = String(state.proCustomQuizEditor.name || PRO_CUSTOM_STAGE_DEFAULT_NAME);
+        setNameModalError('');
+        nameModal.hidden = false;
+        nameModal.classList.add('is-open');
+        setTimeout(() => {
+            nameInput.focus();
+            nameInput.select();
+        }, 0);
+    };
+    const confirmNameModal = () => {
+        const inputName = String(nameInput.value || '').trim() || PRO_CUSTOM_STAGE_DEFAULT_NAME;
+        const editingId = state.proCustomQuizEditor.editingStageId || null;
+        if (proCustomQuizStageNameExists(inputName, editingId)) {
+            setNameModalError(`「${inputName}」という名前のSTAGEはすでにあります。別の名前にしてください。`);
+            setTimeout(() => {
+                nameInput.focus();
+                nameInput.select();
+            }, 0);
+            return;
+        }
+        if (!editingId && getSavedProCustomQuizStages().length >= PRO_CUSTOM_STAGE_MAX_SAVED) {
+            setNameModalError(`PROカスタムSTAGEは最大${PRO_CUSTOM_STAGE_MAX_SAVED}件まで保存できます。`);
+            return;
+        }
+        state.proCustomQuizEditor.name = inputName;
+        const saved = saveProCustomQuizStageFromEditor();
+        if (!saved) {
+            setNameModalError('保存に失敗しました。もう一度お試しください。');
+            return;
+        }
+        closeNameModal();
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-pro-custom-quiz-back').onclick = () => {
+        resetStandardProCustomQuizEditorScratchInMemory();
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-quiz-cancel').onclick = () => {
+        resetStandardProCustomQuizEditorScratchInMemory();
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-quiz-home').onclick = () => {
+        resetStandardProCustomQuizEditorScratchInMemory();
+        state.course = null;
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-settings-pro-custom-quiz').onclick = () => openSettings('proCustomQuizEditor');
+    ensureCustomDropdownDocHandlers();
+    wireCustomDropdown('pro-custom-quiz-key', value => { pushProCustomQuizEditorHistory(); state.proCustomQuizEditor.key = parseInt(value, 10) || 0; rerenderAfterSettingChange(); });
+    wireCustomDropdown('pro-custom-quiz-capo', value => { pushProCustomQuizEditorHistory(); state.proCustomQuizEditor.capo = parseInt(value, 10) || 0; rerenderAfterSettingChange(); });
+    wireCustomDropdown('pro-custom-quiz-scale', value => { pushProCustomQuizEditorHistory(); state.proCustomQuizEditor.scale = value; rerenderAfterSettingChange(); });
+    wireCustomDropdown('pro-custom-quiz-max-fret', value => { pushProCustomQuizEditorHistory(); state.proCustomQuizEditor.maxFret = clamp(parseInt(value, 10) || PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, PRO_CUSTOM_STAGE_DEFAULT_MAX_FRET, MAX_FRET); currentScrollLeft = 0; rerenderAfterSettingChange(); });
+    document.querySelectorAll('[data-pro-custom-quiz-do-mode]').forEach(btn => {
+        btn.onclick = () => { state.proCustomQuizEditor.doMode = btn.getAttribute('data-pro-custom-quiz-do-mode'); saveState(); renderApp(); };
+    });
+    document.querySelectorAll('.pro-custom-setup-help-btn').forEach(btn => {
+        btn.onclick = () => {
+            const target = document.getElementById(btn.getAttribute('data-target'));
+            if (target) target.classList.toggle('visible');
+        };
+    });
+    document.getElementById('btn-pro-custom-quiz-undo').onclick = () => {
+        const historyItem = Array.isArray(state.proCustomQuizEditor.history) ? state.proCustomQuizEditor.history.pop() : null;
+        if (!historyItem) return;
+        restoreProCustomQuizEditorSnapshot(historyItem);
+        // 戻したあとに「保存スクロール位置」も指板に反映できるよう、適用済みキーをリセットする
+        proCustomQuizEditorScrollAppliedKey = null;
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-quiz-clear').onclick = () => {
+        pushProCustomQuizEditorHistory();
+        Object.assign(state.proCustomQuizEditor, { groups: [{ name: 'Gr.1', notes: [], scrollLeft: null }], visibleGroupIndices: [0], selectedGroupIndex: 0, forceHideAllGroups: false });
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-quiz-group-expand').onclick = () => { state.proCustomQuizEditor.showAllGroupsExpanded = !state.proCustomQuizEditor.showAllGroupsExpanded; saveState(); renderApp(); };
+    document.getElementById('btn-pro-custom-quiz-group-add').onclick = () => {
+        if (groups.length >= PRO_CUSTOM_STAGE_MAX_GROUPS) return;
+        pushProCustomQuizEditorHistory();
+        const nextIndex = groups.length;
+        state.proCustomQuizEditor.groups = [...groups, { name: `Gr.${nextIndex + 1}`, notes: [], scrollLeft: null }];
+        state.proCustomQuizEditor.forceHideAllGroups = false;
+        state.proCustomQuizEditor.visibleGroupIndices = [nextIndex];
+        state.proCustomQuizEditor.selectedGroupIndex = nextIndex;
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-quiz-group-remove').onclick = () => {
+        if (groups.length <= 1 || activeGroupIndex < 0) return;
+        pushProCustomQuizEditorHistory();
+        state.proCustomQuizEditor.groups = groups.filter((_, index) => index !== activeGroupIndex);
+        state.proCustomQuizEditor.visibleGroupIndices = [Math.min(activeGroupIndex, Math.max(0, groups.length - 2))];
+        state.proCustomQuizEditor.selectedGroupIndex = state.proCustomQuizEditor.visibleGroupIndices[0] ?? 0;
+        state.proCustomQuizEditor.forceHideAllGroups = false;
+        saveState();
+        renderApp();
+    };
+    document.getElementById('btn-pro-custom-quiz-show-all').onclick = () => { state.proCustomQuizEditor.forceHideAllGroups = false; state.proCustomQuizEditor.visibleGroupIndices = groups.map((_, index) => index); saveState(); renderApp(); };
+    document.getElementById('btn-pro-custom-quiz-hide-all').onclick = () => { state.proCustomQuizEditor.forceHideAllGroups = true; state.proCustomQuizEditor.visibleGroupIndices = []; saveState(); renderApp(); };
+    document.getElementById('btn-pro-custom-quiz-save-position').onclick = () => {
+        if (activeGroupIndex < 0) return;
+        state.proCustomQuizEditor.groups[activeGroupIndex].scrollLeft = getRouteEditorCurrentScrollLeft();
+        saveState();
+        renderApp();
+        const pqSl = state.proCustomQuizEditor.groups[activeGroupIndex]?.scrollLeft;
+        syncRouteEditorPositionPinInDOM(
+            'data-pro-custom-quiz-position-group-index',
+            activeGroupIndex,
+            Number.isFinite(pqSl) ? pqSl : null
+        );
+        flashRouteEditorSavePositionButton('btn-pro-custom-quiz-save-position');
+    };
+    document.querySelectorAll('[data-pro-custom-quiz-position-group-index]').forEach(label => {
+        label.onclick = e => {
+            e.stopPropagation();
+            const idx = parseInt(label.getAttribute('data-pro-custom-quiz-position-group-index'), 10);
+            if (!Number.isFinite(idx) || idx < 0 || idx >= state.proCustomQuizEditor.groups.length) return;
+            const current = state.proCustomQuizEditor.groups[idx]?.scrollLeft;
+            const input = window.prompt(`Gr.${idx + 1} の保存スクロール位置を入力してください\n（空欄で未設定に戻ります）`, Number.isFinite(current) ? String(current) : '');
+            if (input === null) return;
+            const trimmed = String(input).trim();
+            if (trimmed === '') {
+                state.proCustomQuizEditor.groups[idx].scrollLeft = null;
+            } else {
+                const next = parseInt(trimmed, 10);
+                if (!Number.isFinite(next) || next < 0) {
+                    window.alert('0 以上の整数を入力してください。');
+                    return;
+                }
+                state.proCustomQuizEditor.groups[idx].scrollLeft = next;
+            }
+            saveState();
+            renderApp();
+        };
+    });
+
+    const groupPanelEl = app.querySelector('.route-editor-group-panel');
+    const groupPanelHandleEl = document.getElementById('btn-pro-custom-quiz-group-panel-handle');
+    if (isLandscape && groupPanelEl && groupPanelHandleEl) {
+        const dragState = {
+            pointerId: null,
+            startX: 0,
+            startY: 0,
+            startOffsetX: groupPanelOffset.x,
+            startOffsetY: groupPanelOffset.y,
+            startRect: null,
+            dragging: false
+        };
+        const applyGroupPanelOffset = (x, y) => {
+            const nextOffset = {
+                x: Math.round(x),
+                y: Math.round(y)
+            };
+            groupPanelEl.style.setProperty('--route-editor-group-panel-shift-x', `${nextOffset.x}px`);
+            groupPanelEl.style.setProperty('--route-editor-group-panel-shift-y', `${nextOffset.y}px`);
+            state.proCustomQuizEditor.groupPanelOffset = nextOffset;
+        };
+        const finishDrag = () => {
+            document.removeEventListener('pointermove', onPointerMove, true);
+            document.removeEventListener('pointerup', onPointerUp, true);
+            document.removeEventListener('pointercancel', onPointerCancel, true);
+            groupPanelEl.classList.remove('route-editor-group-panel--dragging');
+            groupPanelHandleEl.classList.remove('route-editor-group-panel-handle--dragging');
+            if (dragState.dragging) {
+                saveState();
+            }
+            dragState.pointerId = null;
+            dragState.dragging = false;
+        };
+        const onPointerMove = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            const dx = e.clientX - dragState.startX;
+            const dy = e.clientY - dragState.startY;
+            if (!dragState.dragging) {
+                if (Math.abs(dx) + Math.abs(dy) < 4) return;
+                dragState.dragging = true;
+                dragState.startRect = groupPanelEl.getBoundingClientRect();
+                groupPanelEl.classList.add('route-editor-group-panel--dragging');
+                groupPanelHandleEl.classList.add('route-editor-group-panel-handle--dragging');
+            }
+            const rect = dragState.startRect || groupPanelEl.getBoundingClientRect();
+            const margin = 8;
+            const minDx = margin - rect.left;
+            const maxDx = window.innerWidth - margin - rect.right;
+            const minDy = margin - rect.top;
+            const maxDy = window.innerHeight - margin - rect.bottom;
+            const nextX = clamp(dragState.startOffsetX + dx, dragState.startOffsetX + Math.min(minDx, maxDx), dragState.startOffsetX + Math.max(minDx, maxDx));
+            const nextY = clamp(dragState.startOffsetY + dy, dragState.startOffsetY + Math.min(minDy, maxDy), dragState.startOffsetY + Math.max(minDy, maxDy));
+            applyGroupPanelOffset(nextX, nextY);
+        };
+        const onPointerUp = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            finishDrag();
+        };
+        const onPointerCancel = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            finishDrag();
+        };
+        const onPointerDown = e => {
+            if (e.button !== undefined && e.button !== 0) return;
+            if (dragState.pointerId !== null) return;
+            e.preventDefault();
+            e.stopPropagation();
+            dragState.pointerId = typeof e.pointerId === 'number' ? e.pointerId : null;
+            dragState.startX = e.clientX;
+            dragState.startY = e.clientY;
+            dragState.startOffsetX = groupPanelOffset.x;
+            dragState.startOffsetY = groupPanelOffset.y;
+            dragState.startRect = groupPanelEl.getBoundingClientRect();
+            document.addEventListener('pointermove', onPointerMove, true);
+            document.addEventListener('pointerup', onPointerUp, true);
+            document.addEventListener('pointercancel', onPointerCancel, true);
+        };
+        groupPanelHandleEl.addEventListener('pointerdown', onPointerDown, { passive: false });
+        routeEditorGroupPanelDragHandlers.set('proCustomQuizEditor-group-panel', {
+            pointermove: onPointerMove,
+            pointerup: onPointerUp,
+            pointercancel: onPointerCancel
+        });
+    }
+
+    document.querySelectorAll('.route-editor-group-btn').forEach(btn => {
+        btn.onclick = () => {
+            const index = parseInt(btn.getAttribute('data-group-index'), 10);
+            if (!Number.isFinite(index)) return;
+            const nextVisible = new Set(visibleGroupIndices);
+            if (!nextVisible.has(index)) nextVisible.add(index);
+            state.proCustomQuizEditor.forceHideAllGroups = false;
+            state.proCustomQuizEditor.visibleGroupIndices = Array.from(nextVisible).sort((a, b) => a - b);
+            state.proCustomQuizEditor.selectedGroupIndex = index;
+            saveState();
+            renderApp();
+        };
+    });
+    document.getElementById('btn-pro-custom-quiz-try').onclick = e => {
+        e.preventDefault();
+        if (e.currentTarget.disabled) return;
+        startProCustomQuizPlayback({
+            name: state.proCustomQuizEditor.name,
+            key: state.proCustomQuizEditor.key,
+            capo: state.proCustomQuizEditor.capo,
+            scale: state.proCustomQuizEditor.scale,
+            displayMode: state.settings.noteLabelMode,
+            doMode: state.proCustomQuizEditor.doMode,
+            maxFret: state.proCustomQuizEditor.maxFret,
+            groups: state.proCustomQuizEditor.groups
+        }, 'proCustomQuizEditor');
+    };
+    document.getElementById('btn-pro-custom-quiz-save').onclick = e => {
+        e.preventDefault();
+        if (e.currentTarget.disabled) return;
+        if (!guardProPersistentSave('save')) return;
+        openNameModal();
+    };
+    document.getElementById('pro-custom-quiz-stage-name-confirm').onclick = confirmNameModal;
+    nameModal.querySelectorAll('[data-pro-custom-quiz-stage-name-cancel]').forEach(btn => {
+        btn.onclick = e => {
+            if (Date.now() < modalSuppressBackdropUntil) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            closeNameModal();
+        };
+    });
+    nameInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            confirmNameModal();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            closeNameModal();
+        }
+    });
+    nameInput.addEventListener('input', () => setNameModalError(''));
+
+    if (proCustomQuizEditorPendingOpenNameModal) {
+        proCustomQuizEditorPendingOpenNameModal = false;
+        setTimeout(() => openNameModal(), 0);
+    }
+
+    const pqScrollStageKey = state.proCustomQuizEditor.editingStageId ?? 'new';
+    const proCustomQuizEditorScrollKey = `${pqScrollStageKey}:${activeGroupIndex >= 0 ? activeGroupIndex : 'none'}`;
+    if (activeGroupIndex >= 0 && proCustomQuizEditorScrollAppliedKey !== proCustomQuizEditorScrollKey) {
+        const g = state.proCustomQuizEditor.groups?.[activeGroupIndex];
+        const savedSl = g && Number.isFinite(g.scrollLeft) ? g.scrollLeft : null;
+        currentScrollLeft = Number.isFinite(savedSl) ? savedSl : 0;
+        proCustomQuizEditorScrollAppliedKey = proCustomQuizEditorScrollKey;
+    }
+
+    renderFretboardHTML('fretboard-container', {
+        mode: 'quizEditor',
+        question: null,
+        showAnswer: false,
+        clicked: null,
+        quizEditorGroups: groups,
+        quizEditorSelectedGroupIndex: activeGroupIndex >= 0 ? activeGroupIndex : -1,
+        quizEditorVisibleIndices: visibleGroupIndices,
+        quizEditorStage: 6,
+        proCustomGuide: {
+            key: state.proCustomQuizEditor.key,
+            capo: state.proCustomQuizEditor.capo,
+            scale: state.proCustomQuizEditor.scale,
+            displayMode: proCustomDisplayMode,
+            doMode: state.proCustomQuizEditor.doMode,
+            maxFret: state.proCustomQuizEditor.maxFret
+        },
+        onFretClick: (stringName, fret, e) => {
+            if (
+                e &&
+                e.target &&
+                typeof e.target.closest === 'function' &&
+                e.target.closest('.route-editor-save-row, .route-editor-toolbar, .route-editor-group-panel, .setup-panel, .pro-custom-setup-panel, .page-header, .pro-custom-stage-name-modal')
+            ) {
+                return;
+            }
+            if (activeGroupIndex < 0) return;
+            if (!isProCustomQuizSelectableFret(state.proCustomQuizEditor, stringName, fret)) return;
+            blurActiveElement();
+            pushProCustomQuizEditorHistory();
+            const group = state.proCustomQuizEditor.groups[activeGroupIndex];
+            if (!group) return;
+            const noteIndex = (group.notes || []).findIndex(note => note.stringName === stringName && note.fret === fret);
+            if (noteIndex >= 0) {
+                group.notes.splice(noteIndex, 1);
+            } else {
+                if (!Array.isArray(group.notes)) group.notes = [];
+                if (group.notes.length === 0 && !Number.isFinite(group.scrollLeft)) {
+                    group.scrollLeft = getRouteEditorCurrentScrollLeft();
+                }
+                group.notes.push({ stringName, fret });
+                playTone(6 - stringName, fret);
+            }
+            saveState();
+            renderApp();
+        }
+    });
+
+    initFretboardScrollCtl({
+        containerSelector: '#fretboard-container',
+        ctlId: 'pro-custom-quiz-fretboard-scroll-ctl',
+        trackId: 'pro-custom-quiz-fretboard-scroll-track',
+        thumbId: 'pro-custom-quiz-fretboard-scroll-thumb',
+        leftId: 'pro-custom-quiz-fretboard-scroll-left',
+        rightId: 'pro-custom-quiz-fretboard-scroll-right'
+    });
+
+    app.style.height = '100vh';
+    app.style.overflowY = 'auto';
+    app.style.overflowX = 'hidden';
+    app.style.alignItems = 'stretch';
+    app.style.gap = '0';
+    app.style.paddingTop = 'max(4px, env(safe-area-inset-top))';
+    app.style.paddingBottom = 'calc(var(--in-game-refresh-stack-height, 96px) + max(96px, env(safe-area-inset-bottom)))';
+    app.style.paddingLeft = 'max(10px, env(safe-area-inset-left))';
+    app.style.paddingRight = 'max(10px, env(safe-area-inset-right))';
+}
+
+function renderQuizEditor(app) {
+    const stage = clamp(parseInt(state.quizEditor?.stage || 1, 10), 1, 6);
+    const scaleGuideVariant = 3;
+    const isLandscape = typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
+    let groups = Array.isArray(state.quizEditor?.groups) ? cloneQuizEditorGroups(state.quizEditor.groups) : [{ notes: [], scrollLeft: null }];
+    if (groups.length > QUIZ_EDITOR_MAX_GROUPS) {
+        groups = groups.slice(0, QUIZ_EDITOR_MAX_GROUPS);
+    }
+    const history = Array.isArray(state.quizEditor?.history) ? state.quizEditor.history : [];
+    const showAllGroupsExpanded = !!state.quizEditor?.showAllGroupsExpanded;
+    const showScrollPositions = showAllGroupsExpanded;
+    const groupPanelOffset = normalizeRouteEditorGroupPanelOffset(state.quizEditor?.groupPanelOffset);
+    const groupPanelStyle = `--route-editor-group-panel-shift-x: ${groupPanelOffset.x}px; --route-editor-group-panel-shift-y: ${groupPanelOffset.y}px;`;
+
+    const visibleGroupIndices = getQuizEditorVisibleGroupIndices(groups.length);
+    const visibleGroupsForActive = visibleGroupIndices.map(idx => ({ index: idx }));
+    let selectedGroupIndex = typeof state.quizEditor?.selectedGroupIndex === 'number'
+        ? state.quizEditor.selectedGroupIndex
+        : parseInt(state.quizEditor?.selectedGroupIndex ?? '0', 10);
+    if (!Number.isFinite(selectedGroupIndex)) selectedGroupIndex = 0;
+    selectedGroupIndex = clamp(selectedGroupIndex, -1, Math.max(0, groups.length - 1));
+    const activeGroupIndex = getRouteEditorActiveGroupIndex(visibleGroupsForActive, selectedGroupIndex);
+
+    state.quizEditor = {
+        stage,
+        groups,
+        selectedGroupIndex,
+        groupPanelOffset,
+        history,
+        showAllGroupsExpanded,
+        visibleGroupIndices: Array.isArray(state.quizEditor?.visibleGroupIndices) ? state.quizEditor.visibleGroupIndices.slice() : [],
+        forceHideAllGroups: !!state.quizEditor?.forceHideAllGroups
+    };
+
+    const hasAnyNote = groups.some(g => g.notes && g.notes.length > 0);
+    const quizClearAllEnabled = hasAnyNote || groups.length > 1;
+
+    const buildPositionLabelHtml = (index, scrollLeftVal) => {
+        if (!showScrollPositions) return '';
+        const hasValue = Number.isFinite(scrollLeftVal);
+        const valueText = hasValue ? String(scrollLeftVal) : '—';
+        const ariaLabel = hasValue ? `位置 ${scrollLeftVal}（タップで編集）` : '位置未設定（タップで設定）';
+        const emptyClass = hasValue ? '' : 'is-empty';
+        return `<button type="button" class="route-editor-group-position-label ${emptyClass}" data-quiz-position-group-index="${index}" aria-label="${escapeHtml(ariaLabel)}"><span class="route-editor-group-position-pin" aria-hidden="true">📍</span><span class="route-editor-group-position-value">${valueText}</span></button>`;
+    };
+
+    const groupButtonsHtml = groups.map((group, index) => {
+        const isVisible = visibleGroupIndices.includes(index);
+        const rawSelected = parseInt(state.quizEditor?.selectedGroupIndex ?? 0, 10);
+        const isActive = isVisible && Number.isFinite(rawSelected) && rawSelected >= 0 && rawSelected === index;
+        const noteCount = Array.isArray(group.notes) ? group.notes.length : 0;
+        const grName = `Gr.${index + 1}`;
+        const positionLabelHtml = buildPositionLabelHtml(index, group.scrollLeft);
+        return `
+            <div class="route-editor-group-cell">
+                <button class="route-editor-group-btn ${isVisible ? 'is-visible' : 'is-hidden'} ${isActive ? 'is-active' : ''}" type="button" data-group-index="${index}" aria-label="${grName} (${noteCount}音)" aria-pressed="${isActive ? 'true' : 'false'}">
+                    ${grName}
+                </button>
+                ${positionLabelHtml}
+            </div>
+        `;
+    }).join('');
+
+    app.innerHTML = `
+        <div class="route-editor-screen route-editor-scale-guide-variant-${scaleGuideVariant}${isStandardEdition() ? ' route-editor-screen--standard' : ''}">
+            ${buildPageHeader({
+                headerClass: 'page-header--route-editor',
+                titleText: `STAGE ${stage} 問題編集`,
+                leftHtml: `
+                    ${navButtonHtml({ id: 'btn-quiz-editor-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+                    ${navButtonHtml({ id: 'btn-quiz-editor-home', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
+                `,
+                rightHtml: settingsButtonHtml('btn-settings-quiz-editor')
+            })}
+            ${standardEditionNoticeHtml(STANDARD_NOTICE_QUIZ_EDITOR)}
+            <div class="route-editor-toolbar">
+                <button class="icon-btn route-editor-tool-btn" id="btn-quiz-editor-clear" ${quizClearAllEnabled ? '' : 'disabled'}>全消し</button>
+                <button class="icon-btn route-editor-tool-btn" id="btn-quiz-editor-load-default">初期値</button>
+                <button class="icon-btn route-editor-tool-btn" id="btn-quiz-editor-undo" ${history.length ? '' : 'disabled'}>↶ 戻す</button>
+            </div>
+            <div class="route-editor-group-panel ${isLandscape ? 'route-editor-group-panel--floating' : ''} ${showAllGroupsExpanded ? 'route-editor-group-panel--expanded' : ''}" style="${groupPanelStyle}">
+                <div class="route-editor-group-panel-top">
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-expand-btn ${showAllGroupsExpanded ? 'active' : ''}" id="btn-quiz-editor-group-expand" ${groups.length ? '' : 'disabled'}>${showAllGroupsExpanded ? '縮小' : '一覧'}</button>
+                </div>
+                <button class="route-editor-group-panel-handle" id="btn-quiz-editor-group-panel-handle" type="button" title="ドラッグして移動" aria-label="グループ設定を移動">✥</button>
+                <div class="route-editor-group-list">${groupButtonsHtml}</div>
+                <div class="route-editor-group-actions">
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-add-btn" id="btn-quiz-editor-group-add">＋</button>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-remove-btn" id="btn-quiz-editor-group-remove" ${groups.length > 1 ? '' : 'disabled'}>－</button>
+                    <button type="button" class="btn-secondary route-editor-group-save-position-btn" id="btn-quiz-editor-save-position" ${activeGroupIndex >= 0 ? '' : 'disabled'}>位置保存</button>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-toggle-btn ${visibleGroupIndices.length === groups.length && !state.quizEditor?.forceHideAllGroups ? 'active' : ''}" id="btn-quiz-editor-show-all" ${groups.length ? '' : 'disabled'}>全て表示</button>
+                    <button class="icon-btn route-editor-tool-btn route-editor-group-toggle-btn ${state.quizEditor?.forceHideAllGroups ? 'active' : ''}" id="btn-quiz-editor-hide-all" ${groups.length ? '' : 'disabled'}>全て非表示</button>
+                </div>
+            </div>
+            <div id="fretboard-container" class="route-editor-fretboard-host"></div>
+            <div class="route-fretboard-scroll-ctl route-fretboard-scroll-ctl--hidden" id="quiz-fretboard-scroll-ctl" aria-hidden="true">
+                <button type="button" class="route-fretboard-scroll-arrow-btn" id="quiz-fretboard-scroll-left">&#x276E;</button>
+                <div class="route-fretboard-scroll-track" id="quiz-fretboard-scroll-track">
+                    <div class="route-fretboard-scroll-thumb" id="quiz-fretboard-scroll-thumb"></div>
+                </div>
+                <button type="button" class="route-fretboard-scroll-arrow-btn" id="quiz-fretboard-scroll-right">&#x276F;</button>
+            </div>
+            <div class="route-editor-expanded-gap ${showAllGroupsExpanded ? 'route-editor-expanded-gap--visible' : ''}" aria-hidden="true"></div>
+            <div class="route-editor-save-row">
+                <button type="button" class="btn-secondary route-editor-demo-btn" id="btn-quiz-editor-try">この設定でクイズを試す</button>
+                <button type="button" class="btn-primary route-editor-save-btn pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-quiz-editor-save"><span class="pro-custom-saved-btn__title">この設定で保存</span></button>
+            </div>
+            <div class="route-editor-expanded-spacer ${showAllGroupsExpanded ? 'route-editor-expanded-spacer--visible' : ''}" aria-hidden="true"></div>
+        </div>
+    `;
+
+    document.getElementById('btn-quiz-editor-back').onclick = () => {
+        state.quizEditorPreview = null;
+        resetStandardQuizEditorScratchInMemory();
+        state.course = 'stageSelect';
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-quiz-editor-home').onclick = () => {
+        state.quizEditorPreview = null;
+        resetStandardQuizEditorScratchInMemory();
+        state.course = null;
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-settings-quiz-editor').onclick = () => {
+        openSettings('quizEditor');
+    };
+
+    document.getElementById('btn-quiz-editor-undo').onclick = () => {
+        const historyItem = Array.isArray(state.quizEditor.history) ? state.quizEditor.history.pop() : null;
+        if (!historyItem) return;
+        restoreQuizEditorSnapshot(historyItem);
+        const sel = state.quizEditor.selectedGroupIndex;
+        const gi = sel >= 0 ? sel : 0;
+        const undoScroll = state.quizEditor.groups[gi]?.scrollLeft;
+        quizEditorPendingScrollLeft = Number.isFinite(undoScroll) ? undoScroll : null;
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-quiz-editor-group-expand').onclick = () => {
+        state.quizEditor.showAllGroupsExpanded = !state.quizEditor.showAllGroupsExpanded;
+        saveState();
+        renderApp();
+    };
+
+    document.querySelectorAll('[data-quiz-position-group-index]').forEach(label => {
+        label.onclick = e => {
+            e.stopPropagation();
+            const idx = parseInt(label.getAttribute('data-quiz-position-group-index'), 10);
+            if (!Number.isFinite(idx) || idx < 0 || idx >= state.quizEditor.groups.length) return;
+            const cur = state.quizEditor.groups[idx]?.scrollLeft;
+            const defaultText = Number.isFinite(cur) ? String(cur) : '';
+            const input = window.prompt(`Gr.${idx + 1} の保存スクロール位置を入力してください\n（空欄で未設定に戻ります）`, defaultText);
+            if (input === null) return;
+            const trimmed = String(input).trim();
+            if (trimmed === '') {
+                state.quizEditor.groups[idx].scrollLeft = null;
+                saveState();
+                renderApp();
+                return;
+            }
+            const next = parseInt(trimmed, 10);
+            if (!Number.isFinite(next) || next < 0) {
+                window.alert('0 以上の整数を入力してください。');
+                return;
+            }
+            state.quizEditor.groups[idx].scrollLeft = next;
+            if (state.quizEditor.selectedGroupIndex === idx) {
+                quizEditorPendingScrollLeft = next;
+            }
+            saveState();
+            renderApp();
+        };
+    });
+
+    document.getElementById('btn-quiz-editor-clear').onclick = () => {
+        pushQuizEditorHistory(stage);
+        // 音符を消すだけでなく、空の Gr もまとめて削除して初期状態（Gr.1 ひとつ・空）に戻す。
+        state.quizEditor.groups = [{ notes: [], scrollLeft: null }];
+        state.quizEditor.selectedGroupIndex = 0;
+        state.quizEditor.visibleGroupIndices = [0];
+        state.quizEditor.forceHideAllGroups = false;
+        state.quizEditor.showAllGroupsExpanded = false;
+        quizEditorPendingScrollLeft = null;
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-quiz-editor-load-default').onclick = () => {
+        pushQuizEditorHistory(stage);
+        const defaultGroups = getQuizEditorDefaultGroups(stage);
+        state.quizEditor.groups = defaultGroups;
+        state.quizEditor.selectedGroupIndex = 0;
+        state.quizEditor.visibleGroupIndices = [];
+        state.quizEditor.forceHideAllGroups = false;
+        state.quizEditor.showAllGroupsExpanded = false;
+        const defScroll = defaultGroups[0]?.scrollLeft;
+        quizEditorPendingScrollLeft = Number.isFinite(defScroll) ? defScroll : null;
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-quiz-editor-group-add').onclick = () => {
+        if (state.quizEditor.groups.length >= QUIZ_EDITOR_MAX_GROUPS) return;
+        pushQuizEditorHistory(stage);
+        const nextIndex = state.quizEditor.groups.length;
+        // 新 Gr は scrollLeft = null（未保存）。最初の音タップ時に現在位置を自動保存する。
+        state.quizEditor.groups = [...state.quizEditor.groups, { notes: [], scrollLeft: null }];
+        state.quizEditor.forceHideAllGroups = false;
+        state.quizEditor.visibleGroupIndices = [nextIndex];
+        state.quizEditor.selectedGroupIndex = nextIndex;
+        // 新 Gr 選択時はスクロールを動かさない（現在位置を維持して、そこで音をタップするだけで保存される）
+        quizEditorPendingScrollLeft = null;
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-quiz-editor-group-remove').onclick = () => {
+        if (state.quizEditor.groups.length <= 1) return;
+        if (activeGroupIndex < 0) return;
+        pushQuizEditorHistory(stage);
+        const deletedIndex = activeGroupIndex;
+        const removeIndex = deletedIndex;
+        state.quizEditor.groups = state.quizEditor.groups.filter((_, i) => i !== removeIndex);
+        const nextGroupCount = state.quizEditor.groups.length;
+        const nextVisible = Array.isArray(state.quizEditor.visibleGroupIndices)
+            ? state.quizEditor.visibleGroupIndices.map(index => {
+                const parsed = parseInt(index, 10);
+                if (!Number.isFinite(parsed)) return null;
+                if (parsed < deletedIndex) return parsed;
+                if (parsed === deletedIndex) return Math.min(deletedIndex, Math.max(0, nextGroupCount - 1));
+                return parsed - 1;
+            }).filter(index => index !== null && index >= 0 && index < nextGroupCount)
+            : [];
+        state.quizEditor.visibleGroupIndices = nextVisible.length
+            ? Array.from(new Set(nextVisible)).sort((a, b) => a - b)
+            : [Math.min(deletedIndex, Math.max(0, nextGroupCount - 1))];
+        state.quizEditor.selectedGroupIndex = Math.min(deletedIndex, Math.max(0, nextGroupCount - 1));
+        state.quizEditor.forceHideAllGroups = false;
+        const nextSel = state.quizEditor.groups[state.quizEditor.selectedGroupIndex]?.scrollLeft;
+        quizEditorPendingScrollLeft = Number.isFinite(nextSel) ? nextSel : null;
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-quiz-editor-save-position').onclick = () => {
+        if (activeGroupIndex < 0) return;
+        const wrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+        const scrollLeft = wrapper ? Math.max(0, Math.round(wrapper.scrollLeft)) : 0;
+        state.quizEditor.groups[activeGroupIndex].scrollLeft = scrollLeft;
+        saveState();
+        renderApp();
+        const qSl = state.quizEditor.groups[activeGroupIndex]?.scrollLeft;
+        syncRouteEditorPositionPinInDOM(
+            'data-quiz-position-group-index',
+            activeGroupIndex,
+            Number.isFinite(qSl) ? qSl : null
+        );
+        flashRouteEditorSavePositionButton('btn-quiz-editor-save-position');
+    };
+
+    document.getElementById('btn-quiz-editor-save').onclick = () => {
+        if (!guardProPersistentSave('save')) return;
+        pushQuizEditorHistory(stage);
+        if (!saveQuizEditorSettings(stage, state.quizEditor.groups)) return;
+        state.quizEditorPreview = null;
+        saveState();
+        state.course = 'stageSelect';
+        renderApp();
+    };
+
+    document.getElementById('btn-quiz-editor-try').onclick = () => {
+        if (isProEdition()) initAudio();
+        state.quizEditorPreview = {
+            stage,
+            groups: cloneQuizEditorGroups(state.quizEditor.groups)
+        };
+        state.memorize.stage = stage;
+        state.memorize.playMode = 'quiz';
+        state.memorize.combo = 0;
+        state.memorize.maxCombo = 0;
+        state.memorize.correct = 0;
+        state.memorize.quizQuestionsAsked = 0;
+        state.memorize.quizQuestionResults = [];
+        state.memorize.isQuizCleared = false;
+        state.memorize.quizAttemptCounted = false;
+        state.memorize.quizPerfectCounted  = false;
+        state.memorize.isDemoPlayback = true;
+        state.memorize.demoReturnCourse = 'quizEditor';
+        state.memorize.demoReturnStage = stage;
+        // 直前のクルーズモードで残っているシーケンス・スコープを必ず捨てる
+        // （指板表示範囲や見えないノートに影響するため）
+        state.memorize.cruiseTargets = [];
+        state.memorize.cruiseScope = [];
+        state.memorize.cruiseIndex = 0;
+        state.memorize.proCustomQuiz = null;
+        state.course = 'memorize';
+        generateQuestion();
+        autoScrollRequested = true;
+        saveState();
+        renderApp();
+        if (!guardEditorDemoPlayback()) return;
+        if (state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+            quizToneTimeout = setTimeout(() => {
+                quizToneTimeout = null;
+                if (state.course === 'memorize' && state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+                    playTone(state.memorize.currentQuestion.stringIdx, state.memorize.currentQuestion.fret);
+                }
+            }, 100);
+        }
+    };
+
+    document.getElementById('btn-quiz-editor-show-all').onclick = () => {
+        if (!groups.length) return;
+        state.quizEditor.forceHideAllGroups = false;
+        state.quizEditor.visibleGroupIndices = groups.map((_, index) => index);
+        state.quizEditor.selectedGroupIndex = activeGroupIndex >= 0 ? activeGroupIndex : Math.min(selectedGroupIndex, groups.length - 1);
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-quiz-editor-hide-all').onclick = () => {
+        if (!groups.length) return;
+        state.quizEditor.forceHideAllGroups = true;
+        state.quizEditor.visibleGroupIndices = [];
+        state.quizEditor.selectedGroupIndex = activeGroupIndex >= 0 ? activeGroupIndex : Math.min(selectedGroupIndex, groups.length - 1);
+        saveState();
+        renderApp();
+    };
+
+    document.querySelectorAll('.route-editor-group-btn').forEach(btn => {
+        btn.onclick = () => {
+            const index = parseInt(btn.getAttribute('data-group-index'), 10);
+            if (!Number.isFinite(index)) return;
+            const isVisible = visibleGroupIndices.includes(index);
+            const rawSelected = parseInt(state.quizEditor?.selectedGroupIndex ?? 0, 10);
+            const isActive = isVisible && Number.isFinite(rawSelected) && rawSelected >= 0 && rawSelected === index;
+            const nextVisible = new Set(visibleGroupIndices);
+            if (!isVisible) {
+                nextVisible.add(index);
+                state.quizEditor.forceHideAllGroups = false;
+                state.quizEditor.visibleGroupIndices = Array.from(nextVisible).sort((a, b) => a - b);
+                saveState();
+                renderApp();
+                return;
+            }
+            if (!isActive) {
+                state.quizEditor.forceHideAllGroups = false;
+                state.quizEditor.visibleGroupIndices = Array.from(nextVisible).sort((a, b) => a - b);
+                state.quizEditor.selectedGroupIndex = index;
+                const targetScroll = state.quizEditor.groups[index]?.scrollLeft;
+                // 未保存 Gr に切り替えるときはスクロールを動かさない（null を渡す）
+                quizEditorPendingScrollLeft = Number.isFinite(targetScroll) ? targetScroll : null;
+                saveState();
+                renderApp();
+                return;
+            }
+            state.quizEditor.forceHideAllGroups = false;
+            nextVisible.delete(index);
+            state.quizEditor.visibleGroupIndices = Array.from(nextVisible).sort((a, b) => a - b);
+            state.quizEditor.selectedGroupIndex = -1;
+            saveState();
+            renderApp();
+        };
+    });
+
+    const groupPanelEl = app.querySelector('.route-editor-group-panel');
+    const groupPanelHandleEl = document.getElementById('btn-quiz-editor-group-panel-handle');
+    if (isLandscape && groupPanelEl && groupPanelHandleEl) {
+        const dragState = {
+            pointerId: null,
+            startX: 0,
+            startY: 0,
+            startOffsetX: groupPanelOffset.x,
+            startOffsetY: groupPanelOffset.y,
+            startRect: null,
+            dragging: false
+        };
+        const applyGroupPanelOffset = (x, y) => {
+            const nextOffset = {
+                x: Math.round(x),
+                y: Math.round(y)
+            };
+            groupPanelEl.style.setProperty('--route-editor-group-panel-shift-x', `${nextOffset.x}px`);
+            groupPanelEl.style.setProperty('--route-editor-group-panel-shift-y', `${nextOffset.y}px`);
+            state.quizEditor.groupPanelOffset = nextOffset;
+        };
+        const finishDrag = () => {
+            document.removeEventListener('pointermove', onPointerMove, true);
+            document.removeEventListener('pointerup', onPointerUp, true);
+            document.removeEventListener('pointercancel', onPointerCancel, true);
+            groupPanelEl.classList.remove('route-editor-group-panel--dragging');
+            groupPanelHandleEl.classList.remove('route-editor-group-panel-handle--dragging');
+            if (dragState.dragging) {
+                saveState();
+            }
+            dragState.pointerId = null;
+            dragState.dragging = false;
+        };
+        const onPointerMove = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            const dx = e.clientX - dragState.startX;
+            const dy = e.clientY - dragState.startY;
+            if (!dragState.dragging) {
+                if (Math.abs(dx) + Math.abs(dy) < 4) return;
+                dragState.dragging = true;
+                dragState.startRect = groupPanelEl.getBoundingClientRect();
+                groupPanelEl.classList.add('route-editor-group-panel--dragging');
+                groupPanelHandleEl.classList.add('route-editor-group-panel-handle--dragging');
+            }
+            const rect = dragState.startRect || groupPanelEl.getBoundingClientRect();
+            const margin = 8;
+            const minDx = margin - rect.left;
+            const maxDx = window.innerWidth - margin - rect.right;
+            const minDy = margin - rect.top;
+            const maxDy = window.innerHeight - margin - rect.bottom;
+            const nextX = clamp(dragState.startOffsetX + dx, dragState.startOffsetX + Math.min(minDx, maxDx), dragState.startOffsetX + Math.max(minDx, maxDx));
+            const nextY = clamp(dragState.startOffsetY + dy, dragState.startOffsetY + Math.min(minDy, maxDy), dragState.startOffsetY + Math.max(minDy, maxDy));
+            applyGroupPanelOffset(nextX, nextY);
+        };
+        const onPointerUp = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            finishDrag();
+        };
+        const onPointerCancel = e => {
+            if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+            finishDrag();
+        };
+        const onPointerDown = e => {
+            if (e.button !== undefined && e.button !== 0) return;
+            if (dragState.pointerId !== null) return;
+            e.preventDefault();
+            e.stopPropagation();
+            dragState.pointerId = typeof e.pointerId === 'number' ? e.pointerId : null;
+            dragState.startX = e.clientX;
+            dragState.startY = e.clientY;
+            dragState.startOffsetX = groupPanelOffset.x;
+            dragState.startOffsetY = groupPanelOffset.y;
+            dragState.startRect = groupPanelEl.getBoundingClientRect();
+            document.addEventListener('pointermove', onPointerMove, true);
+            document.addEventListener('pointerup', onPointerUp, true);
+            document.addEventListener('pointercancel', onPointerCancel, true);
+        };
+        groupPanelHandleEl.addEventListener('pointerdown', onPointerDown, { passive: false });
+        routeEditorGroupPanelDragHandlers.set('quizEditor-group-panel', {
+            pointermove: onPointerMove,
+            pointerup: onPointerUp,
+            pointercancel: onPointerCancel
+        });
+    }
+
+    const fretEditorSelectedIndex = activeGroupIndex >= 0 ? activeGroupIndex : -1;
+
+    renderFretboardHTML('fretboard-container', {
+        mode: 'quizEditor',
+        question: null,
+        showAnswer: false,
+        clicked: null,
+        quizEditorGroups: groups,
+        quizEditorSelectedGroupIndex: fretEditorSelectedIndex,
+        quizEditorVisibleIndices: visibleGroupIndices,
+        quizEditorStage: stage,
+        onFretClick: (stringName, fret) => {
+            if (activeGroupIndex < 0) return;
+            pushQuizEditorHistory(stage);
+            const grIndex = activeGroupIndex;
+            const group = state.quizEditor.groups[grIndex];
+            if (!group) return;
+            const noteIndex = (group.notes || []).findIndex(n => n.stringName === stringName && n.fret === fret);
+            if (noteIndex >= 0) {
+                group.notes.splice(noteIndex, 1);
+            } else {
+                if (!Array.isArray(group.notes)) group.notes = [];
+                // 「最初の音」を追加するときは、現在の指板位置を自動で保存する
+                // （指板をたどる編集と同じ仕様）。0 でも保存対象。
+                const isFirstNote = group.notes.length === 0;
+                if (isFirstNote && isProEdition()) {
+                    const wrapperEl = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+                    const liveScroll = wrapperEl ? Math.max(0, Math.round(wrapperEl.scrollLeft)) : 0;
+                    group.scrollLeft = liveScroll;
+                }
+                group.notes.push({ stringName, fret });
+                playTone(6 - stringName, fret);
+            }
+            saveState();
+            renderApp();
+        }
+    });
+
+    initFretboardScrollCtl({
+        containerSelector: '#fretboard-container',
+        ctlId: 'quiz-fretboard-scroll-ctl',
+        trackId: 'quiz-fretboard-scroll-track',
+        thumbId: 'quiz-fretboard-scroll-thumb',
+        leftId: 'quiz-fretboard-scroll-left',
+        rightId: 'quiz-fretboard-scroll-right'
+    });
+
+    app.style.height = '100vh';
+    app.style.overflowY = 'auto';
+    app.style.overflowX = 'hidden';
+    app.style.alignItems = 'stretch';
+    app.style.gap = '0';
+    app.style.paddingTop = 'max(4px, env(safe-area-inset-top))';
+    app.style.paddingBottom = 'calc(var(--in-game-refresh-stack-height, 96px) + max(8px, env(safe-area-inset-bottom)))';
+    app.style.paddingLeft = 'max(10px, env(safe-area-inset-left))';
+    app.style.paddingRight = 'max(10px, env(safe-area-inset-right))';
+}
+
+/** 終了カード「もう1回」：クルーズは最初から、クイズは新セッションで再開 */
+function restartMemorizeFromCleared() {
+    initAudio();
+    stopQuizTimer();
+    cancelQuizScrollAnimation();
+    clearStage1RepeatHintState();
+    if (state.memorize.playMode === 'cruise') {
+        state.memorize.isCleared = false;
+        state.memorize.cruiseIndex = 0;
+        state.memorize.cruiseCurrentLoop = 0;
+        state.memorize.correct = 0;
+        state.memorize.combo = 0;
+        state.memorize.maxCombo = 0;
+        state.memorize.currentQuestion = state.memorize.cruiseTargets[0];
+        state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices?.[0] ?? 0;
+        state.memorize.cruisePreviousGroupIndex = null;
+        state.memorize.hasTappedCurrentNote = false;
+        state.memorize.cruisePreTapped = false;
+        state.memorize.cruiseLastTapFeedback = null;
+        state.memorize.isFirstNote = true;
+        state.memorize.isCruisePlaying = true;
+        autoScrollRequested = true;
+        saveState();
+        renderApp();
+        startCruiseCountdownAndRhythm();
+        return;
+    }
+    state.memorize.correct = 0;
+    state.memorize.combo = 0;
+    state.memorize.maxCombo = 0;
+    state.memorize.quizQuestionsAsked = 0;
+    state.memorize.quizQuestionResults = [];
+    state.memorize.isQuizCleared = false;
+    state.memorize.quizAttemptCounted = false;
+    state.memorize.quizPerfectCounted  = false;
+    state.memorize.tempFeedback = null;
+    state.memorize.hasTappedCurrentNote = false;
+    state.memorize.cruisePreTapped = false;
+    generateQuestion();
+    autoScrollRequested = true;
+    saveState();
+    renderApp();
+    if (state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+        quizToneTimeout = setTimeout(() => {
+            quizToneTimeout = null;
+            if (state.course === 'memorize' && state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+                playTone(state.memorize.currentQuestion.stringIdx, state.memorize.currentQuestion.fret);
+            }
+        }, 100);
+    }
+}
+
+/** 終了カード「終了」：STAGE 選択へ（「試す」中は問題編集へ） */
+function exitMemorizeClearedToStageOrEditor() {
+    stopRhythm();
+    stopQuizTimer();
+    cancelQuizScrollAnimation();
+    clearStage1RepeatHintState();
+    state.memorize.isCleared = false;
+    state.memorize.isQuizCleared = false;
+    if (state.quizEditorPreview && state.memorize.playMode === 'quiz') {
+        state.course = 'quizEditor';
+        state.quizEditorPreview = null;
+    } else if (state.memorize.isDemoPlayback && state.memorize.demoReturnCourse === 'routeEditor') {
+        state.course = 'routeEditor';
+        if (Number.isFinite(parseInt(state.memorize.demoReturnStage, 10))) {
+            state.routeEditor.stage = clamp(parseInt(state.memorize.demoReturnStage, 10), 1, 6);
+        }
+        state.memorize.isDemoPlayback = false;
+        state.memorize.demoReturnCourse = null;
+        state.memorize.demoReturnStage = null;
+    } else if (state.memorize.isDemoPlayback && state.memorize.demoReturnCourse === 'quizEditor') {
+        state.course = 'quizEditor';
+        if (Number.isFinite(parseInt(state.memorize.demoReturnStage, 10))) {
+            state.quizEditor.stage = clamp(parseInt(state.memorize.demoReturnStage, 10), 1, 6);
+        }
+        state.memorize.isDemoPlayback = false;
+        state.memorize.demoReturnCourse = null;
+        state.memorize.demoReturnStage = null;
+    } else if (state.memorize.isDemoPlayback && state.memorize.demoReturnCourse === 'proCustomRouteEditor') {
+        state.course = 'proCustomRouteEditor';
+        state.memorize.isDemoPlayback = false;
+        state.memorize.demoReturnCourse = null;
+        state.memorize.demoReturnStage = null;
+    } else if (state.memorize.isDemoPlayback && state.memorize.demoReturnCourse === 'proCustomQuizEditor') {
+        state.course = 'proCustomQuizEditor';
+        state.memorize.isDemoPlayback = false;
+        state.memorize.demoReturnCourse = null;
+        state.memorize.demoReturnStage = null;
+    } else {
+        state.course = 'stageSelect';
+    }
+    saveState();
+    renderApp();
+}
+
+function returnMemorizeDemoToEditor() {
+    if (!state.memorize?.isDemoPlayback) return;
+    const demoReturnCourse = state.memorize.demoReturnCourse;
+    if (demoReturnCourse !== 'routeEditor' && demoReturnCourse !== 'quizEditor' && demoReturnCourse !== 'proCustomRouteEditor' && demoReturnCourse !== 'proCustomQuizEditor') return;
+    const demoReturnStageSnapshot = state.memorize.demoReturnStage;
+    stopRhythm();
+    stopQuizTimer();
+    cancelQuizScrollAnimation();
+    clearStage1RepeatHintState();
+    state.memorize.isCleared = false;
+    state.memorize.isQuizCleared = false;
+    state.memorize.isDemoPlayback = false;
+    state.memorize.demoReturnCourse = null;
+    state.memorize.demoReturnStage = null;
+    if (demoReturnCourse === 'routeEditor') {
+        state.course = 'routeEditor';
+        if (Number.isFinite(parseInt(demoReturnStageSnapshot, 10))) {
+            state.routeEditor.stage = clamp(parseInt(demoReturnStageSnapshot, 10), 1, 6);
+        }
+    } else if (demoReturnCourse === 'proCustomRouteEditor') {
+        state.course = 'proCustomRouteEditor';
+    } else if (demoReturnCourse === 'proCustomQuizEditor') {
+        state.course = 'proCustomQuizEditor';
+    } else {
+        state.course = 'quizEditor';
+        if (Number.isFinite(parseInt(demoReturnStageSnapshot, 10))) {
+            state.quizEditor.stage = clamp(parseInt(demoReturnStageSnapshot, 10), 1, 6);
+        }
+    }
+    saveState();
+    renderApp();
+}
+
+/** 終了カード「次のSTAGEへ」：次の STAGE で練習を開始（STAGE6 のときは選択画面へ） */
+function navigateMemorizeToNextStageFromCleared() {
+    initAudio();
+    stopRhythm();
+    stopQuizTimer();
+    cancelQuizScrollAnimation();
+    clearStage1RepeatHintState();
+    const cur = clamp(parseInt(state.memorize.stage, 10) || 1, 1, 6);
+    if (cur >= 6) {
+        state.memorize.isCleared = false;
+        state.memorize.isQuizCleared = false;
+        state.course = 'stageSelect';
+        state.quizEditorPreview = null;
+        saveState();
+        renderApp();
+        return;
+    }
+    const next = cur + 1;
+    state.memorize.stage = next;
+    state.memorize.combo = 0;
+    state.memorize.maxCombo = 0;
+    state.memorize.isCleared = false;
+    state.memorize.correct = 0;
+    state.memorize.quizQuestionsAsked = 0;
+    state.memorize.quizQuestionResults = [];
+    state.memorize.isQuizCleared = false;
+    state.memorize.quizAttemptCounted = false;
+    state.memorize.quizPerfectCounted  = false;
+    state.memorize.tempFeedback = null;
+    state.course = 'memorize';
+
+    if (state.memorize.playMode === 'cruise') {
+        const { sequence, cruiseScope, groupIndices } = buildCruiseStageSequence(next);
+        state.memorize.cruiseScope = cruiseScope;
+        state.memorize.cruiseTargets = sequence;
+        state.memorize.cruiseGroupIndices = Array.isArray(groupIndices) && groupIndices.length ? groupIndices.slice() : sequence.map(() => 0);
+        state.memorize.cruiseIndex = 0;
+        state.memorize.cruiseCurrentLoop = 0;
+        state.memorize.currentQuestion = sequence[0];
+        state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices[0] ?? 0;
+        state.memorize.cruisePreviousGroupIndex = null;
+        state.memorize.isFirstNote = true;
+        state.memorize.hasTappedCurrentNote = false;
+        state.memorize.cruisePreTapped = false;
+        state.memorize.cruiseLastTapFeedback = null;
+        state.memorize.isCruisePlaying = true;
+        autoScrollRequested = true;
+        state.quizEditorPreview = null;
+        saveState();
+        renderApp();
+        startCruiseCountdownAndRhythm();
+        return;
+    }
+    state.quizEditorPreview = null;
+    generateQuestion();
+    autoScrollRequested = true;
+    saveState();
+    renderApp();
+    if (state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+        quizToneTimeout = setTimeout(() => {
+            quizToneTimeout = null;
+            if (state.course === 'memorize' && state.memorize.playMode === 'quiz' && state.memorize.currentQuestion) {
+                playTone(state.memorize.currentQuestion.stringIdx, state.memorize.currentQuestion.fret);
+            }
+        }, 100);
+    }
+}
+
+function renderMemorize(app) {
+    const q = state.memorize.currentQuestion;
+    if (!q) {
+        // 万一クリア状態だけが残っていたらリセットして問題生成（無限ループ防止）
+        if (state.memorize.isQuizCleared) {
+            state.memorize.isQuizCleared = false;
+            state.memorize.quizQuestionsAsked = 0;
+        }
+        generateQuestion();
+        renderApp();
+        return;
+    }
+
+    const isCruise = state.memorize.playMode === 'cruise';
+    const isCruiseCleared = isCruise && state.memorize.isCleared === true;
+    const isQuizCleared = !isCruise && state.memorize.isQuizCleared === true;
+    const quizQuestionLimit = !isCruise
+        ? (parseInt(state.settings.quizQuestionLimit ?? DEFAULT_QUIZ_QUESTION_LIMIT, 10) || 0)
+        : 0;
+    const quizQuestionsAsked = !isCruise
+        ? (parseInt(state.memorize.quizQuestionsAsked ?? 0, 10) || 0)
+        : 0;
+    const cruiseCountdownValue = isCruise && Number.isFinite(parseInt(state.memorize.cruiseCountdown, 10))
+        ? parseInt(state.memorize.cruiseCountdown, 10)
+        : 0;
+    const isCruiseCounting = isCruise && cruiseCountdownValue > 0;
+
+    let fbText = isCruise
+        ? 'リズムに合わせてタップ！'
+        : '指板をタップして回答してください';
+    let fbClass = 'feedback-display';
+    if (isCruiseCleared || isQuizCleared) {
+        // クリア時は質問テキスト・フィードバックは出さず、指板上にカードを重ねる
+        fbText = '';
+        fbClass = 'feedback-display memorize-feedback--cleared';
+    } else if (state.memorize.tempFeedback) {
+        fbText = state.memorize.tempFeedback.text;
+        fbClass = state.memorize.tempFeedback.className;
+        state.memorize.tempFeedback = null; // consume
+    } else if (isCruise && !isCruiseCounting && state.memorize.cruiseLastTapFeedback) {
+        // カウントダウン後は直近の判定結果（Perfect / Miss / Early / Late / 時間切れ）を常時表示
+        fbText = state.memorize.cruiseLastTapFeedback.text;
+        fbClass = state.memorize.cruiseLastTapFeedback.className;
+    }
+
+    const clearedTotalNotes = Array.isArray(state.memorize.cruiseTargets) ? state.memorize.cruiseTargets.length : 0;
+    const clearedCorrectCount = state.memorize.correct || 0;
+    const maxComboCount = parseInt(state.memorize.maxCombo ?? 0, 10) || 0;
+
+    // 終了カード共通：分母（クルーズは全音数 / クイズは設定問題数）を決める
+    const clearedTotal = isCruise
+        ? clearedTotalNotes
+        : (quizQuestionLimit > 0 ? quizQuestionLimit : quizQuestionsAsked);
+    const clearedRate = clearedTotal > 0
+        ? Math.round((clearedCorrectCount / clearedTotal) * 100)
+        : 0;
+
+    const timerItemHtml = !isCruise
+        ? `<div class="stat-item"><span class="label">残り時間</span><span class="value" id="quiz-timer" style="color: ${quizTimeLeft <= 1.0 ? 'var(--error-color)' : 'inherit'};">${quizTimeLeft.toFixed(1)}s</span></div>`
+        : '';
+
+    // クイズの「問題進行」はドット表示（5〜15個）。
+    // 各問題の結果を quizQuestionResults から読み、正解＝青／不正解＝赤／未回答＝灰 に色分けする。
+    let quizProgressItemHtml = '';
+    if (!isCruise && quizQuestionLimit > 0) {
+        const askedClamped = Math.min(quizQuestionsAsked, quizQuestionLimit);
+        const results = Array.isArray(state.memorize.quizQuestionResults) ? state.memorize.quizQuestionResults : [];
+        const dotsHtml = Array.from({ length: quizQuestionLimit }).map((_, i) => {
+            let cls = '';
+            if (i < results.length) {
+                cls = results[i] ? 'is-correct' : 'is-wrong';
+            }
+            return `<span class="memorize-progress-dot ${cls}"></span>`;
+        }).join('');
+        quizProgressItemHtml = `
+            <div class="stat-item memorize-progress-stat">
+                <span class="label">問題</span>
+                <div class="memorize-progress-row">
+                    <div class="memorize-progress-dots">${dotsHtml}</div>
+                    <span class="memorize-progress-count">${askedClamped}/${quizQuestionLimit}</span>
+                </div>
+            </div>`;
+    }
+
+    // 「連続」はクルーズ・クイズとも非表示（ユーザー要望でクルーズ側からも削除）。
+    // 連続値の集計（state.memorize.combo / maxCombo）は終了カードの「最大連続」に使うので残す。
+    const comboItemHtml = '';
+
+    const stageStatsHtml = `
+                    <div class="stats memorize-stats memorize-stats--near-question">
+                        ${comboItemHtml}
+                        ${quizProgressItemHtml}
+                        ${timerItemHtml}
+                    </div>`;
+
+    const isProCustomCruise = isCruise && !!state.memorize.proCustomCruise;
+    const isProCustomQuiz = !isCruise && !!state.memorize.proCustomQuiz;
+    const isProCustomDemoPlayback =
+        isProCustomCruise &&
+        state.memorize.isDemoPlayback === true &&
+        state.memorize.demoReturnCourse === 'proCustomRouteEditor';
+    const isProCustomQuizDemoPlayback =
+        isProCustomQuiz &&
+        state.memorize.isDemoPlayback === true &&
+        state.memorize.demoReturnCourse === 'proCustomQuizEditor';
+    const isRouteEditorDemoPlayback =
+        isCruise &&
+        state.memorize.isDemoPlayback === true &&
+        state.memorize.demoReturnCourse === 'routeEditor';
+    const isQuizEditorDemoPlayback =
+        !isCruise &&
+        state.memorize.isDemoPlayback === true &&
+        state.memorize.demoReturnCourse === 'quizEditor';
+    const isAnyEditorDemoPlayback = isProCustomDemoPlayback || isProCustomQuizDemoPlayback || isRouteEditorDemoPlayback || isQuizEditorDemoPlayback;
+    const isStandardProCustomMemorizeNotice =
+        (isProCustomDemoPlayback || isProCustomQuizDemoPlayback) && isStandardEdition();
+    const memorizeStageLabel = isProCustomCruise
+        ? escapeHtml(state.memorize.proCustomCruise?.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)
+        : isProCustomQuiz
+            ? escapeHtml(state.memorize.proCustomQuiz?.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)
+        : `STAGE ${state.memorize.stage}`;
+
+    // ヘッダーに小さく「STAGE 1 ・ 指板クイズ」を表示（PROカスタム再生時だけ保存名を表示）
+    const memorizeHeaderTitleHtml = `
+        <span class="memorize-header-meta">
+            <span class="memorize-header-stage">${memorizeStageLabel}</span>
+            <span class="memorize-header-divider" aria-hidden="true">・</span>
+            <span class="memorize-header-mode">${isCruise ? '指板をたどる' : '指板クイズ'}</span>
+        </span>`;
+    const repeatHintMode = 1;  // Official specification: fixed to mode 1 (1/2 display)
+    const repeatHintTabsHtml = '';  // Tab UI removed - using official 1/2 display only
+
+    const memorizeLand =
+        typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
+    const memorizeRootClass = memorizeLand
+        ? 'memorize-screen memorize-screen--landscape'
+        : 'memorize-screen';
+    const memorizeQuestionLabel = q
+        ? (isProCustomQuiz
+            ? getProCustomDisplayLabel(q.noteIdx, q.fret, state.memorize.proCustomQuiz)
+            : getMemorizeQuestionLabel(q.noteIdx))
+        : '';
+
+    app.innerHTML = `
+        <div class="${memorizeRootClass}" data-fretboard-view="${state.settings.fretboardView}">
+            ${buildPageHeader({
+                titleText: memorizeHeaderTitleHtml,
+                titleClass: 'memorize-header-title',
+                headerClass: 'page-header--memorize',
+                leftHtml: `
+                    ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+                    ${navButtonHtml({ id: 'btn-home-memorize', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
+                `,
+                rightHtml: settingsButtonHtml('btn-memorize-settings')
+            })}
+            <div class="memorize-body-stack">
+                ${isStandardProCustomMemorizeNotice ? standardEditionNoticeHtml(STANDARD_NOTICE_PRO_CUSTOM_STAGE_EDITOR) : ''}
+                <div class="memorize-copy-block">
+                    <div class="memorize-question-row">
+                        ${stageStatsHtml}
+                        ${(isCruiseCleared || isQuizCleared)
+                            ? ''
+                            : `<div class="question-text memorize-question memorize-question-main">${q.stringName}弦 の <span class="memorize-question-note" style="color: var(--primary-color);">${memorizeQuestionLabel}</span> をタップ！</div>`}
+                    </div>
+                    <div id="feedback" class="${fbClass} memorize-feedback">${fbText}</div>
+                    ${repeatHintTabsHtml}
+                </div>
+                <div id="fretboard-container" class="memorize-fretboard-host"></div>
+                ${(isCruise && !isCruiseCleared) ? `
+                    <div class="memorize-cruise-controls">
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-prev" aria-label="前へ">⬅️</button>
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-reset" aria-label="リセット">⏮️</button>
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-stop" aria-label="${state.memorize.isCruisePlaying ? '一時停止' : '再生'}">${state.memorize.isCruisePlaying ? '⏸️' : '▶️'}</button>
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn" id="btn-cruise-next" aria-label="次へ">➡️</button>
+                    </div>
+                ` : ''}
+                ${isAnyEditorDemoPlayback && !isCruiseCleared && !isQuizCleared ? `
+                    <div class="memorize-cruise-controls memorize-cruise-controls--pro-custom">
+                        <button type="button" class="btn-secondary memorize-cruise-control-btn memorize-cruise-control-btn--pro-custom-return" id="btn-pro-custom-return-editor">編集画面に戻る</button>
+                        ${isRouteEditorDemoPlayback || isQuizEditorDemoPlayback ? `
+                            <button type="button" class="btn-primary memorize-cruise-control-btn memorize-cruise-control-btn--official-demo-save pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-official-stage-demo-save"><span class="pro-custom-saved-btn__title">この設定で保存</span></button>
+                        ` : ''}
+                        ${isProCustomDemoPlayback || isProCustomQuizDemoPlayback ? `
+                            <button type="button" class="btn-primary memorize-cruise-control-btn pro-custom-saved-btn pro-custom-saved-btn--save memorize-cruise-control-btn--pro-custom-save" id="btn-pro-custom-save-from-demo">
+                                <span class="pro-custom-saved-btn__title">このSTAGEを保存</span>
+                            </button>
+                        ` : ''}
+                    </div>
+                ` : ''}
+                ${isCruiseCounting ? `<div class="memorize-countdown-overlay" aria-hidden="true">${cruiseCountdownValue}</div>` : ''}
+                ${(isCruiseCleared || isQuizCleared) ? `
+                    <div class="memorize-cleared-overlay memorize-cleared-overlay--v2" aria-live="polite">
+                        <div class="memorize-cleared-card memorize-cleared-card--v2">
+                            <div class="memorize-cleared-card__title">${isCruiseCleared ? '🎉 お疲れ様でした！' : '🎉 クイズ終了！'}</div>
+                            <div class="memorize-cleared-card__hero">
+                                <div class="memorize-cleared-card__rate">${clearedRate}<span class="memorize-cleared-card__rate-unit">%</span></div>
+                                <div class="memorize-cleared-card__rate-label">正答率</div>
+                            </div>
+                            <div class="memorize-cleared-card__metrics">
+                                <div class="memorize-cleared-card__metric">
+                                    <span class="memorize-cleared-card__metric-label">正解</span>
+                                    <span class="memorize-cleared-card__metric-value">${clearedCorrectCount}<span class="memorize-cleared-card__metric-sep">/</span>${clearedTotal || '?'}${isCruise ? '音' : '問'}</span>
+                                </div>
+                                <div class="memorize-cleared-card__metric">
+                                    <span class="memorize-cleared-card__metric-label">最大連続</span>
+                                    <span class="memorize-cleared-card__metric-value">${maxComboCount}</span>
+                                </div>
+                            </div>
+                            <div class="memorize-cleared-card__actions memorize-cleared-card__actions--three">
+                                <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-restart">もう1回</button>
+                                <button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-exit">${isAnyEditorDemoPlayback ? '編集画面へ' : '終了'}</button>
+                                ${(isProCustomDemoPlayback || isProCustomQuizDemoPlayback)
+                                    ? `<button type="button" class="memorize-cleared-card__btn memorize-cleared-card__btn--pro-custom-saved pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-memorize-cleared-pro-custom-save"><span class="pro-custom-saved-btn__title">このSTAGEを保存</span></button>`
+                                    : (isRouteEditorDemoPlayback || isQuizEditorDemoPlayback)
+                                        ? `<button type="button" class="memorize-cleared-card__btn memorize-cleared-card__btn--official-demo-save pro-custom-saved-btn pro-custom-saved-btn--save" id="btn-memorize-cleared-official-demo-save"><span class="pro-custom-saved-btn__title">この設定で保存</span></button>`
+                                        : `<button type="button" class="btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost" id="btn-memorize-cleared-next-stage"${isProCustomCruise || isProCustomQuiz || state.memorize.stage >= 6 ? ' disabled' : ''}>次のSTAGEへ</button>`
+                                }
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+
+    document.getElementById('btn-back').onclick = () => {
+        stopRhythm();
+        stopQuizTimer();
+        clearStage1RepeatHintState();
+        if (state.memorize.isDemoPlayback && state.memorize.demoReturnCourse === 'routeEditor') {
+            state.course = 'routeEditor';
+            if (Number.isFinite(parseInt(state.memorize.demoReturnStage, 10))) {
+                state.routeEditor.stage = clamp(parseInt(state.memorize.demoReturnStage, 10), 1, 6);
+            }
+            state.memorize.isDemoPlayback = false;
+            state.memorize.demoReturnCourse = null;
+            state.memorize.demoReturnStage = null;
+        } else if (state.memorize.isDemoPlayback && state.memorize.demoReturnCourse === 'quizEditor') {
+            state.course = 'quizEditor';
+            if (Number.isFinite(parseInt(state.memorize.demoReturnStage, 10))) {
+                state.quizEditor.stage = clamp(parseInt(state.memorize.demoReturnStage, 10), 1, 6);
+            }
+            state.memorize.isDemoPlayback = false;
+            state.memorize.demoReturnCourse = null;
+            state.memorize.demoReturnStage = null;
+        } else if (state.memorize.isDemoPlayback && state.memorize.demoReturnCourse === 'proCustomRouteEditor') {
+            state.course = 'proCustomRouteEditor';
+            state.memorize.isDemoPlayback = false;
+            state.memorize.demoReturnCourse = null;
+            state.memorize.demoReturnStage = null;
+        } else if (state.memorize.isDemoPlayback && state.memorize.demoReturnCourse === 'proCustomQuizEditor') {
+            state.course = 'proCustomQuizEditor';
+            state.memorize.isDemoPlayback = false;
+            state.memorize.demoReturnCourse = null;
+            state.memorize.demoReturnStage = null;
+        } else if (state.quizEditorPreview && state.memorize.playMode === 'quiz') {
+            state.course = 'quizEditor';
+            state.quizEditorPreview = null;
+        } else {
+            state.course = 'stageSelect';
+        }
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-home-memorize').onclick = () => {
+        stopRhythm();
+        stopQuizTimer();
+        clearStage1RepeatHintState();
+        if (isStandardEdition() && state.memorize.isDemoPlayback) {
+            if (state.memorize.demoReturnCourse === 'routeEditor') {
+                resetStandardRouteEditorScratchInMemory();
+            } else if (state.memorize.demoReturnCourse === 'quizEditor') {
+                resetStandardQuizEditorScratchInMemory();
+            } else if (state.memorize.demoReturnCourse === 'proCustomRouteEditor') {
+                resetStandardProCustomRouteEditorScratchInMemory();
+            } else if (state.memorize.demoReturnCourse === 'proCustomQuizEditor') {
+                resetStandardProCustomQuizEditorScratchInMemory();
+            }
+        }
+        state.quizEditorPreview = null;
+        state.memorize.isDemoPlayback = false;
+        state.memorize.demoReturnCourse = null;
+        state.memorize.demoReturnStage = null;
+        state.course = null;
+        saveState();
+        renderApp();
+    };
+
+    if (isCruise) {
+        // クリア時は prev / reset ボタンは描画されないので存在チェックを行う
+        const _btnCruisePrev = document.getElementById('btn-cruise-prev');
+        if (_btnCruisePrev) _btnCruisePrev.onclick = () => {
+            if (!guardEditorDemoPlayback()) return;
+            if (state.memorize.cruiseIndex > 0) {
+                clearStage1RepeatHintState();
+                state.memorize.cruiseIndex--;
+                state.memorize.currentQuestion = state.memorize.cruiseTargets[state.memorize.cruiseIndex];
+                state.memorize.hasTappedCurrentNote = false;
+                state.memorize.cruisePreTapped = false;
+                saveState();
+                renderApp();
+            }
+        };
+
+        const _btnCruiseStop = document.getElementById('btn-cruise-stop');
+        if (_btnCruiseStop) _btnCruiseStop.onclick = () => {
+            if (!guardEditorDemoPlayback()) return;
+            if (state.memorize.isCleared) {
+                // Restart course: reset state and play
+                clearStage1RepeatHintState();
+                state.memorize.isCleared = false;
+                state.memorize.cruiseIndex = 0;
+                state.memorize.cruiseCurrentLoop = 0;
+                state.memorize.correct = 0;
+                state.memorize.combo = 0;
+                state.memorize.maxCombo = 0;
+                state.memorize.currentQuestion = state.memorize.cruiseTargets[0];
+                state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices?.[0] ?? 0;
+                state.memorize.cruisePreviousGroupIndex = null;
+                state.memorize.hasTappedCurrentNote = false;
+                state.memorize.cruisePreTapped = false;
+                state.memorize.cruiseLastTapFeedback = null;
+                state.memorize.isFirstNote = true;
+                state.memorize.isCruisePlaying = true;
+                autoScrollRequested = true;
+                saveState();
+                renderApp();
+                startCruiseCountdownAndRhythm();
+                return;
+            } else {
+                // Toggle play/stop（一時停止からの再開はカウントなしで即再開）
+                state.memorize.isCruisePlaying = !state.memorize.isCruisePlaying;
+                if (!state.memorize.isCruisePlaying) {
+                    stopRhythm();
+                } else {
+                    startRhythm();
+                }
+            }
+            saveState();
+            renderApp();
+        };
+
+        const _btnCruiseNext = document.getElementById('btn-cruise-next');
+        if (_btnCruiseNext) _btnCruiseNext.onclick = () => {
+            if (!guardEditorDemoPlayback()) return;
+            if (state.memorize.isCleared) {
+                // Go back to stage select
+                stopRhythm();
+                stopQuizTimer();
+                state.course = 'stageSelect';
+            } else {
+                // Advance to next note
+                if (state.memorize.cruiseIndex < state.memorize.cruiseTargets.length - 1) {
+                    clearStage1RepeatHintState();
+                    state.memorize.cruiseIndex++;
+                    state.memorize.currentQuestion = state.memorize.cruiseTargets[state.memorize.cruiseIndex];
+                    state.memorize.hasTappedCurrentNote = false;
+                    state.memorize.cruisePreTapped = false;
+                }
+            }
+            saveState();
+            renderApp();
+        };
+
+        const _btnCruiseReset = document.getElementById('btn-cruise-reset');
+        if (_btnCruiseReset) _btnCruiseReset.onclick = () => {
+            if (!guardEditorDemoPlayback()) return;
+            // Reset to the beginning of the course
+            clearStage1RepeatHintState();
+            state.memorize.isCleared = false;
+            state.memorize.cruiseIndex = 0;
+            state.memorize.cruiseCurrentLoop = 0;
+            state.memorize.correct = 0;
+            state.memorize.combo = 0;
+            state.memorize.maxCombo = 0;
+            state.memorize.currentQuestion = state.memorize.cruiseTargets[0];
+            state.memorize.cruiseCurrentGroupIndex = state.memorize.cruiseGroupIndices?.[0] ?? 0;
+            state.memorize.cruisePreviousGroupIndex = null;
+            state.memorize.hasTappedCurrentNote = false;
+            state.memorize.cruisePreTapped = false;
+            state.memorize.cruiseLastTapFeedback = null;
+            state.memorize.isFirstNote = true;
+            state.memorize.isCruisePlaying = true;
+            autoScrollRequested = true;
+            saveState();
+            renderApp();
+            startCruiseCountdownAndRhythm();
+        };
+    }
+
+    const btnProCustomReturnEditor = document.getElementById('btn-pro-custom-return-editor');
+    if (btnProCustomReturnEditor) {
+        btnProCustomReturnEditor.onclick = () => {
+            returnMemorizeDemoToEditor();
+        };
+    }
+
+    const btnProCustomSaveFromDemo = document.getElementById('btn-pro-custom-save-from-demo');
+    if (btnProCustomSaveFromDemo) {
+        btnProCustomSaveFromDemo.onclick = () => {
+            if (!guardProPersistentSave('save')) return;
+            if (state.memorize.demoReturnCourse === 'proCustomQuizEditor') {
+                proCustomQuizEditorPendingOpenNameModal = true;
+            } else {
+                proCustomPendingOpenNameModal = true;
+            }
+            returnMemorizeDemoToEditor();
+        };
+    }
+
+    const btnOfficialStageDemoSave = document.getElementById('btn-official-stage-demo-save');
+    if (btnOfficialStageDemoSave) {
+        btnOfficialStageDemoSave.onclick = () => {
+            tryPersistOfficialEditorDemoSaveFromMemorize();
+        };
+    }
+
+    document.getElementById('btn-memorize-settings').onclick = () => {
+        stopRhythm();
+        stopQuizTimer();
+        clearStage1RepeatHintState();
+        state.memorize.isCruisePlaying = false;
+        openSettings();
+    };
+
+    const btnClearedRestart = document.getElementById('btn-memorize-cleared-restart');
+    if (btnClearedRestart) {
+        btnClearedRestart.onclick = () => restartMemorizeFromCleared();
+    }
+    const btnClearedExit = document.getElementById('btn-memorize-cleared-exit');
+    if (btnClearedExit) {
+        btnClearedExit.onclick = () => exitMemorizeClearedToStageOrEditor();
+    }
+    const btnClearedNextStage = document.getElementById('btn-memorize-cleared-next-stage');
+    if (btnClearedNextStage && !btnClearedNextStage.disabled) {
+        btnClearedNextStage.onclick = () => navigateMemorizeToNextStageFromCleared();
+    }
+    /** PROカスタムSTAGEのデモから来た終了カード：そのまま編集画面に戻って名前モーダルを開く。 */
+    const btnClearedProCustomSave = document.getElementById('btn-memorize-cleared-pro-custom-save');
+    if (btnClearedProCustomSave) {
+        btnClearedProCustomSave.onclick = () => {
+            if (!guardProPersistentSave('save')) return;
+            if (state.memorize.demoReturnCourse === 'proCustomQuizEditor') {
+                proCustomQuizEditorPendingOpenNameModal = true;
+            } else {
+                proCustomPendingOpenNameModal = true;
+            }
+            returnMemorizeDemoToEditor();
+        };
+    }
+    const btnClearedOfficialDemoSave = document.getElementById('btn-memorize-cleared-official-demo-save');
+    if (btnClearedOfficialDemoSave) {
+        btnClearedOfficialDemoSave.onclick = () => {
+            tryPersistOfficialEditorDemoSaveFromMemorize();
+        };
+    }
+
+    // Highlight mode selection buttons
+    document.querySelectorAll('.highlight-mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            const mode = parseInt(btn.getAttribute('data-mode'));
+            state.memorize.highlightMode = mode;
+            saveState();
+            renderApp();
+        };
+    });
+
+    const fretboardOptions = {
+        mode: 'memorize',
+        memorizeStage: state.memorize.stage,
+        question: q,
+        showAnswer: isCruise || isQuizCleared,
+        clicked: null,
+        onFretClick: isQuizCleared ? null : handleFretClick,
+        highlightMode: isCruise ? state.memorize.highlightMode : null,
+        nextQuestion: isCruise && state.memorize.cruiseIndex < state.memorize.cruiseTargets.length - 1
+            ? state.memorize.cruiseTargets[state.memorize.cruiseIndex + 1]
+            : null
+    };
+
+    renderFretboardHTML('fretboard-container', fretboardOptions);
+
+    // Apply highlight overlay for cruise mode
+    if (isCruise && state.memorize.highlightMode && canRunEditorDemoPlayback()) {
+        let nextQ = null;
+        if (state.memorize.cruiseIndex < state.memorize.cruiseTargets.length - 1) {
+            // Normal case: next note is within current loop
+            nextQ = state.memorize.cruiseTargets[state.memorize.cruiseIndex + 1];
+        } else {
+            // Loop boundary: at the last note, check if next loop exists
+            const maxLoops = state.settings.cruiseLoopCount; // 0 = 無制限
+            const currentLoop = state.memorize.cruiseCurrentLoop;
+            if (maxLoops === 0 || currentLoop + 1 < maxLoops) {
+                // Next loop exists, so nextQ is the first note of next loop
+                nextQ = state.memorize.cruiseTargets[0];
+            }
+        }
+
+        // Determine loop position marker
+        let loopPositionMarker = null;
+        if (state.memorize.cruiseIndex === 0) {
+            loopPositionMarker = 'start';  // スタート!
+        } else if (state.memorize.cruiseIndex === state.memorize.cruiseTargets.length - 1) {
+            loopPositionMarker = 'last';   // ラスト!
+        }
+
+        requestAnimationFrame(() => {
+            renderHighlightOverlay(q, nextQ, state.memorize.highlightMode, repeatHintMode, state.memorize.stage1IsContinuedRepeat, loopPositionMarker);
+        });
+    }
+
+}
+
+function handleFretClick(stringNum, fret, pointerEv) {
+    if (!guardEditorDemoPlayback()) return;
+    const tapLatencyContext = getOrCreateTapLatencyContext(pointerEv);
+    if (tapLatencyContext) {
+        tapLatencyContext.handleFretClickStartNow = performance.now();
+        logTapLatency('handleFretClick:start', tapLatencyContext, { stringNum, fret });
+    }
+    const q = state.memorize.currentQuestion;
+    const fb = document.getElementById('feedback');
+    const isCruise = state.memorize.playMode === 'cruise';
+    
+    let stringIdx = 6 - stringNum;
+    let clickedNoteIdx = (OPEN_STRINGS[stringIdx] + fret) % 12;
+
+    // Check if correct
+    let isCorrect = false;
+    if (isCruise) {
+        // Cruise mode: exact fret match required because same note can be at fret 0 and 12
+        isCorrect = (stringNum === q.stringName) && (fret === q.fret);
+    } else {
+        // Quiz mode: any fret with the correct note name on that string is fine
+        isCorrect = state.memorize.proCustomQuiz
+            ? (stringNum === q.stringName && fret === q.fret)
+            : (stringNum === q.stringName) && (clickedNoteIdx === q.noteIdx);
+    }
+    logTapLatency('handleFretClick:correctness-ready', tapLatencyContext, {
+        stringNum,
+        fret,
+        isCorrect
+    });
+
+    if (isCruise) {
+        if (state.memorize.isCleared) return;
+
+        initAudio();
+        const fullBeats = state.settings.cruiseTapBeats === 'full';
+        let tappedT = audioCtx ? audioCtx.currentTime : 0;
+        let tapTimingEstimateDebug = null;
+        let appliedLatencySubtracted = null;
+        if (audioCtx && pointerEv) {
+            tapTimingEstimateDebug = getAudioTimeEstimateDebugAtPointerEvent(pointerEv);
+            if (tapTimingEstimateDebug != null) {
+                if (
+                    fullBeats &&
+                    Number.isFinite(tapTimingEstimateDebug.estimatedTapAudioTimeRaw) &&
+                    Number.isFinite(tapTimingEstimateDebug.latencySubtracted)
+                ) {
+                    appliedLatencySubtracted = Math.min(tapTimingEstimateDebug.latencySubtracted, 0.03);
+                    tappedT = tapTimingEstimateDebug.estimatedTapAudioTimeRaw - appliedLatencySubtracted;
+                } else {
+                    appliedLatencySubtracted = tapTimingEstimateDebug.latencySubtracted;
+                    tappedT = tapTimingEstimateDebug.estimatedTapAudioTimeAdjusted;
+                }
+            }
+        }
+        const assistSeconds = getBluetoothRhythmAssistMs() / 1000;
+        const correctedTappedT = tappedT - assistSeconds;
+
+        const bpm = parseInt(state.settings.tempo, 10);
+        const safeBpm = Number.isFinite(bpm) && bpm > 0 ? bpm : 100;
+        const secondsPerBeat = 60.0 / safeBpm;
+        const halfWindow = getCruiseTimingHalfWindow();
+
+        // どの拍頭を狙ったタップか判定する。
+        // 毎拍モードでは「直近の過去の拍頭」と「直近の未来の拍頭」を比べ、近いほうのお題で評価する。
+        // 半拍モードはこれまで通り nextTargetTime（次のスネア）を中心に評価する。
+        let evaluateAgainstUpcoming = false;
+        let timeDiff;
+        let pastTime = null;
+        let nextTime = null;
+        let targetTime = null;
+        let distToPast = null;
+        let distToNext = null;
+        if (fullBeats) {
+            if (nextTargetTime > correctedTappedT) {
+                nextTime = nextTargetTime;
+                pastTime = nextTargetTime - secondsPerBeat;
+            } else {
+                pastTime = nextTargetTime;
+                nextTime = nextTargetTime + secondsPerBeat;
+            }
+            distToPast = correctedTappedT - pastTime;
+            distToNext = nextTime - correctedTappedT;
+            const upcomingExists = !!getCruiseUpcomingQuestion();
+            if (upcomingExists && distToNext < distToPast) {
+                evaluateAgainstUpcoming = true;
+                targetTime = nextTime;
+                timeDiff = correctedTappedT - nextTime;
+            } else {
+                targetTime = pastTime;
+                timeDiff = correctedTappedT - pastTime;
+            }
+        } else {
+            targetTime = nextTargetTime;
+            timeDiff = correctedTappedT - nextTargetTime;
+        }
+
+        // 同じ拍に対して二重判定しない（タイプ別にゲート）。
+        if (evaluateAgainstUpcoming) {
+            if (state.memorize.cruisePreTapped) return;
+        } else {
+            if (state.memorize.hasTappedCurrentNote) return;
+        }
+
+        // 評価対象のお題（先取りなら次のお題、そうでなければ現在のお題）。
+        let targetQuestion = q;
+        if (evaluateAgainstUpcoming) {
+            const upcoming = getCruiseUpcomingQuestion();
+            if (upcoming) targetQuestion = upcoming;
+        }
+        const isCorrectAgainstTarget =
+            (stringNum === targetQuestion.stringName) && (fret === targetQuestion.fret);
+        logTapLatency('handleFretClick:target-correctness-ready', tapLatencyContext, {
+            stringNum,
+            fret,
+            isCorrect,
+            isCorrectAgainstTarget
+        });
+
+        const markTapped = () => {
+            if (evaluateAgainstUpcoming) {
+                state.memorize.cruisePreTapped = true;
+            } else {
+                state.memorize.hasTappedCurrentNote = true;
+            }
+        };
+
+        const setCruiseFeedback = (text, type) => {
+            const className = type === 'good'
+                ? 'feedback-display feedback-correct'
+                : 'feedback-display feedback-wrong';
+            state.memorize.cruiseLastTapFeedback = { text, className };
+        };
+
+        const compareCruiseTimingForLog = (candidateTappedT) => {
+            if (!Number.isFinite(candidateTappedT)) {
+                return { timeDiff: null, result: null };
+            }
+            let candidateEvaluateAgainstUpcoming = false;
+            let candidateTargetTime = nextTargetTime;
+            if (fullBeats) {
+                let candidatePastTime;
+                let candidateNextTime;
+                if (nextTargetTime > candidateTappedT) {
+                    candidateNextTime = nextTargetTime;
+                    candidatePastTime = nextTargetTime - secondsPerBeat;
+                } else {
+                    candidatePastTime = nextTargetTime;
+                    candidateNextTime = nextTargetTime + secondsPerBeat;
+                }
+                const candidateDistToPast = candidateTappedT - candidatePastTime;
+                const candidateDistToNext = candidateNextTime - candidateTappedT;
+                const upcomingExists = !!getCruiseUpcomingQuestion();
+                if (upcomingExists && candidateDistToNext < candidateDistToPast) {
+                    candidateEvaluateAgainstUpcoming = true;
+                    candidateTargetTime = candidateNextTime;
+                } else {
+                    candidateTargetTime = candidatePastTime;
+                }
+            }
+
+            let candidateTargetQuestion = q;
+            if (candidateEvaluateAgainstUpcoming) {
+                const upcoming = getCruiseUpcomingQuestion();
+                if (upcoming) candidateTargetQuestion = upcoming;
+            }
+            const candidateNoteMatched =
+                (stringNum === candidateTargetQuestion.stringName) &&
+                (fret === candidateTargetQuestion.fret);
+            const candidateTimeDiff = candidateTappedT - candidateTargetTime;
+            const candidateResult = Math.abs(candidateTimeDiff) > halfWindow
+                ? (candidateTimeDiff < 0 ? 'Early!' : 'Late!')
+                : (candidateNoteMatched ? 'Perfect!' : 'Miss!');
+
+            return {
+                timeDiff: candidateTimeDiff,
+                result: candidateResult
+            };
+        };
+
+        const logCruiseTapTiming = (result) => {
+            if (!shouldDebugCruiseTapTiming()) return;
+            const estimate = tapTimingEstimateDebug || {};
+            const rawCorrectedTappedT = Number.isFinite(estimate.estimatedTapAudioTimeRaw)
+                ? estimate.estimatedTapAudioTimeRaw - assistSeconds
+                : null;
+            const rawComparison = compareCruiseTimingForLog(rawCorrectedTappedT);
+            const cappedLatencySubtracted = Number.isFinite(estimate.latencySubtracted)
+                ? Math.min(estimate.latencySubtracted, 0.03)
+                : null;
+            const estimatedTapAudioTimeCapped =
+                Number.isFinite(estimate.estimatedTapAudioTimeRaw) &&
+                Number.isFinite(cappedLatencySubtracted)
+                    ? estimate.estimatedTapAudioTimeRaw - cappedLatencySubtracted
+                    : null;
+            const cappedCorrectedTappedT = Number.isFinite(estimatedTapAudioTimeCapped)
+                ? estimatedTapAudioTimeCapped - assistSeconds
+                : null;
+            const cappedComparison = compareCruiseTimingForLog(cappedCorrectedTappedT);
+            const payload = {
+                mode: state.memorize?.playMode,
+                cruiseTapBeats: state.settings?.cruiseTapBeats,
+                bpm: safeBpm,
+                secondsPerBeat,
+                halfWindow,
+                halfWindowMs: Math.round(halfWindow * 1000),
+                nextTargetTime,
+                targetTime,
+                pastTime,
+                nextTime,
+                distToPast,
+                distToNext,
+                evaluateAgainstUpcoming,
+                eventTimeStamp: pointerEv && typeof pointerEv.timeStamp === 'number' ? pointerEv.timeStamp : null,
+                performanceNow: estimate.performanceNow ?? performance.now(),
+                audioCurrentTime: estimate.audioCurrentTime ?? (audioCtx ? audioCtx.currentTime : null),
+                baseLatency: estimate.baseLatency ?? (audioCtx && typeof audioCtx.baseLatency === 'number' ? audioCtx.baseLatency : null),
+                outputLatency: estimate.outputLatency ?? (audioCtx && typeof audioCtx.outputLatency === 'number' ? audioCtx.outputLatency : null),
+                latencySubtracted: estimate.latencySubtracted ?? null,
+                appliedLatencySubtracted,
+                estimatedTapAudioTimeRaw: estimate.estimatedTapAudioTimeRaw ?? null,
+                estimatedTapAudioTimeAdjusted: estimate.estimatedTapAudioTimeAdjusted ?? tappedT,
+                estimatedTapAudioTimeForJudgement: tappedT,
+                bluetoothAssistSeconds: assistSeconds,
+                correctedTappedT,
+                timeDiff,
+                timeDiffMs: Math.round(timeDiff * 1000),
+                timeDiffRaw: rawComparison.timeDiff,
+                timeDiffRawMs: Number.isFinite(rawComparison.timeDiff)
+                    ? Math.round(rawComparison.timeDiff * 1000)
+                    : null,
+                rawResult: rawComparison.result,
+                cappedLatencySubtracted,
+                estimatedTapAudioTimeCapped,
+                timeDiffCapped: cappedComparison.timeDiff,
+                timeDiffCappedMs: Number.isFinite(cappedComparison.timeDiff)
+                    ? Math.round(cappedComparison.timeDiff * 1000)
+                    : null,
+                cappedResult: cappedComparison.result,
+                tappedNote: {
+                    stringNum,
+                    stringIdx,
+                    fret,
+                    noteIdx: clickedNoteIdx
+                },
+                expectedNote: {
+                    stringName: targetQuestion.stringName,
+                    stringIdx: targetQuestion.stringIdx,
+                    fret: targetQuestion.fret,
+                    noteIdx: targetQuestion.noteIdx
+                },
+                noteMatched: isCorrectAgainstTarget,
+                result
+            };
+            console.log('[CRUISE TAP TIMING]', payload);
+            console.log('[CRUISE TAP TIMING JSON]', JSON.stringify(payload));
+        };
+
+        if (Math.abs(timeDiff) > halfWindow) {
+            state.memorize.combo = 0;
+            markTapped();
+            const fbText = timeDiff < 0 ? 'Early!' : 'Late!';
+            logCruiseTapTiming(fbText);
+            setCruiseFeedback(fbText, 'miss');
+            logTapLatency('before-showLiveFeedback', tapLatencyContext, {
+                stringNum,
+                fret,
+                isCorrect,
+                isCorrectAgainstTarget,
+                feedback: fbText
+            });
+            showLiveFeedback(fbText, 'miss');
+        } else {
+            if (isCorrectAgainstTarget) {
+                logTapLatency('before-playTone', tapLatencyContext, {
+                    stringNum,
+                    fret,
+                    isCorrect,
+                    isCorrectAgainstTarget
+                });
+                if (shouldPlayTapConfirmSound()) {
+                    playTone(stringIdx, fret);
+                }
+                state.memorize.correct++;
+                state.memorize.combo++;
+                if ((state.memorize.combo || 0) > (state.memorize.maxCombo || 0)) {
+                    state.memorize.maxCombo = state.memorize.combo;
+                }
+                markTapped();
+                logCruiseTapTiming('Perfect!');
+                setCruiseFeedback('Perfect!', 'good');
+                logTapLatency('before-showLiveFeedback', tapLatencyContext, {
+                    stringNum,
+                    fret,
+                    isCorrect,
+                    isCorrectAgainstTarget,
+                    feedback: 'Perfect!'
+                });
+                showLiveFeedback('Perfect!', 'good');
+            } else {
+                state.memorize.combo = 0;
+                markTapped();
+                logCruiseTapTiming('Miss!');
+                setCruiseFeedback('Miss!', 'miss');
+                logTapLatency('before-showLiveFeedback', tapLatencyContext, {
+                    stringNum,
+                    fret,
+                    isCorrect,
+                    isCorrectAgainstTarget,
+                    feedback: 'Miss!'
+                });
+                showLiveFeedback('Miss!', 'miss');
+            }
+        }
+        saveState();
+        if (tapLatencyContext) {
+            requestAnimationFrame(() => {
+                logTapLatency('next-paint', tapLatencyContext, {
+                    stringNum,
+                    fret,
+                    isCorrect,
+                    isCorrectAgainstTarget
+                });
+                updateTapLatencyPanelFromContext(tapLatencyContext);
+            });
+        }
+        return; // Don't call renderApp here, wait for autoAdvanceCruise
+    }
+
+    // --- Quiz Mode Logic Below ---
+    if (state.memorize.hasTappedCurrentNote) return;
+    stopQuizTimer();
+    state.memorize.hasTappedCurrentNote = true;
+
+    playTone(stringIdx, fret); // Play sound on any click
+
+    if (!Array.isArray(state.memorize.quizQuestionResults)) state.memorize.quizQuestionResults = [];
+    state.memorize.quizQuestionResults.push(!!isCorrect);
+    // 無制限モードの「5回以上回答で 1 挑戦」をここで判定（制限ありはクリア時に判定）
+    maybeRecordQuizStageAttempt();
+
+    if (isCorrect) {
+        state.memorize.correct++;
+        state.memorize.combo++;
+        if ((state.memorize.combo || 0) > (state.memorize.maxCombo || 0)) {
+            state.memorize.maxCombo = state.memorize.combo;
+        }
+        updateMemorizeScoreDisplay();
+        fb.textContent = '正解！';
+        setMemorizeFeedbackTone(fb, 'correct');
+        
+        renderFretboardHTML('fretboard-container', {
+            mode: 'memorize',
+            memorizeStage: state.memorize.stage,
+            question: q,
+            showAnswer: true,
+            clicked: { stringNum, fret, isCorrect: true },
+            onFretClick: null, // disable clicking
+            preserveScrollLeft: q?.quizGrScrollLeft ?? null
+        });
+
+    } else {
+        state.memorize.combo = 0;
+        updateMemorizeScoreDisplay();
+        fb.textContent = `不正解... 正解はここ！`;
+        setMemorizeFeedbackTone(fb, 'wrong');
+
+        renderFretboardHTML('fretboard-container', {
+            mode: 'memorize',
+            memorizeStage: state.memorize.stage,
+            question: q,
+            showAnswer: true,
+            clicked: { stringNum, fret, isCorrect: false },
+            onFretClick: null, // disable clicking
+            preserveScrollLeft: q?.quizGrScrollLeft ?? null
+        });
+    }
+
+    // refineScaleAfterPaint（二重RAF）がtransformを変更してscrollLeftをリセットするため、
+    // RAF完了後（約33ms）にsetTimeoutでscrollLeftを再適用する
+    const _quizAnswerScrollLeft = q?.quizGrScrollLeft ?? null;
+    if (Number.isFinite(_quizAnswerScrollLeft) && !shouldQuizLandscapeSkipSavedScrollLeft()) {
+        setTimeout(() => {
+            const sw = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+            if (sw) sw.scrollLeft = _quizAnswerScrollLeft;
+        }, 50);
+    }
+
+    // 横画面クイズ：タップ後にブラウザが「タップした要素を表示しよう」として
+    // scrollLeft を動かすことがある。複数フレームに渡って 0 を強制し、ロックを再適用する。
+    if (shouldQuizLandscapeSkipSavedScrollLeft()) {
+        const reapplyLock = () => {
+            const sw = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+            if (!sw) return;
+            applyMemorizeCruiseLandscapeFullScrollLock(sw, 'memorize', 'fretboard-container');
+            ensureMemorizeCruiseLandscapeFullScrollLockListener(sw, 'memorize', 'fretboard-container');
+        };
+        reapplyLock();
+        requestAnimationFrame(reapplyLock);
+        setTimeout(reapplyLock, 30);
+        setTimeout(reapplyLock, 80);
+    }
+
+    saveState();
+
+    clearQuizAdvanceTimers();
+    quizAdvanceTimeout = setTimeout(() => {
+        quizAdvanceTimeout = null;
+        advanceQuizToNextQuestion();
+    }, 1000); // 1 second delay to see the result
+}
+
+/**
+ * #feedback の色味（feedback-correct / feedback-wrong）だけを切り替える。
+ * className を直接上書きすると memorize-feedback などの基底クラスが落ちて
+ * 共通スタイルの height:40px に戻り、指板が縦にズレる。それを防ぐためのヘルパー。
+ */
+function setMemorizeFeedbackTone(fb, tone) {
+    if (!fb) return;
+    fb.classList.add('feedback-display');
+    fb.classList.add('memorize-feedback');
+    fb.classList.remove('feedback-correct', 'feedback-wrong');
+    if (tone === 'correct') fb.classList.add('feedback-correct');
+    else if (tone === 'wrong') fb.classList.add('feedback-wrong');
+}
+
+function showLiveFeedback(text, type) {
+    const fb = document.getElementById('feedback');
+    if (fb) {
+        fb.textContent = text;
+        if (type === 'good') setMemorizeFeedbackTone(fb, 'correct');
+        else if (type === 'miss') setMemorizeFeedbackTone(fb, 'wrong');
+        else setMemorizeFeedbackTone(fb, null);
+
+        const sc = document.getElementById('score-correct');
+        const scombo = document.getElementById('score-combo');
+        if (sc) sc.textContent = state.memorize.correct;
+        if (scombo) scombo.textContent = state.memorize.combo;
+    }
+
+    // Flash the target note cell based on timing result
+    flashCell(type);
+}
+
+function flashCell(type) {
+    const q = state.memorize.currentQuestion;
+    if (!q) return;
+    const container = document.getElementById('fretboard-container');
+    if (!container) return;
+
+    const cell = container.querySelector(`[data-string="${q.stringName}"][data-fret="${q.fret}"]`);
+    if (!cell) return;
+
+    const flash = document.createElement('div');
+    flash.style.position = 'absolute';
+    flash.style.inset = '0';
+    flash.style.borderRadius = '8px';
+    flash.style.pointerEvents = 'none';
+    flash.style.zIndex = '10';
+
+    if (type === 'good') {
+        flash.style.backgroundColor = 'rgba(0, 150, 255, 0.5)';
+        flash.style.boxShadow = '0 0 20px rgba(0, 150, 255, 0.8)';
+    } else if (type === 'miss') {
+        flash.style.backgroundColor = 'rgba(255, 80, 80, 0.5)';
+        flash.style.boxShadow = '0 0 20px rgba(255, 80, 80, 0.8)';
+    }
+
+    cell.appendChild(flash);
+    setTimeout(() => flash.remove(), 300);
+}
+
+function updateMemorizeScoreDisplay() {
+    const sc = document.getElementById('score-correct');
+    const scombo = document.getElementById('score-combo');
+    if (sc) sc.textContent = state.memorize.correct;
+    if (scombo) scombo.textContent = state.memorize.combo;
+}
+
+const SCALE_INTERVALS = {
+    major: [0, 2, 4, 5, 7, 9, 11],            // メジャー / アイオニアン
+    minor: [0, 2, 3, 5, 7, 8, 10],            // ナチュラルマイナー / エオリアン
+    harmonicMinor: [0, 2, 3, 5, 7, 8, 11],    // ハーモニックマイナー
+    melodicMinor: [0, 2, 3, 5, 7, 9, 11],     // メロディックマイナー（上行）
+    dorian: [0, 2, 3, 5, 7, 9, 10],           // ドリアン
+    phrygian: [0, 1, 3, 5, 7, 8, 10],         // フリジアン
+    lydian: [0, 2, 4, 6, 7, 9, 11],           // リディアン
+    mixolydian: [0, 2, 4, 5, 7, 9, 10],       // ミクソリディアン
+    locrian: [0, 1, 3, 5, 6, 8, 10],          // ロクリアン
+    pentaMajor: [0, 2, 4, 7, 9],              // メジャーペンタトニック
+    pentaMinor: [0, 3, 5, 7, 10],             // マイナーペンタトニック
+    blues: [0, 3, 5, 6, 7, 10]                // ブルース（マイナーペンタ + ♭5）
+};
+
+const DIATONIC_CHORDS = {
+    major: [
+        { label: 'I',       suffix3: '', suffix7: 'M7', degrees: [0, 4, 7],    degrees7: [0, 4, 7, 11] },
+        { label: 'IIm',     suffix3: 'm', suffix7: 'm7',   degrees: [2, 5, 9],    degrees7: [2, 5, 9, 0]  },
+        { label: 'IIIm',    suffix3: 'm', suffix7: 'm7',   degrees: [4, 7, 11],   degrees7: [4, 7, 11, 2] },
+        { label: 'IV',      suffix3: '', suffix7: 'M7', degrees: [5, 9, 0],    degrees7: [5, 9, 0, 4]  },
+        { label: 'V',       suffix3: '', suffix7: '7',    degrees: [7, 11, 2],   degrees7: [7, 11, 2, 5] },
+        { label: 'VIm',     suffix3: 'm', suffix7: 'm7',   degrees: [9, 0, 4],    degrees7: [9, 0, 4, 7]  },
+        { label: 'VIIm7b5', suffix3: 'mb5', suffix7: 'm7b5', degrees: [11, 2, 5],   degrees7: [11, 2, 5, 9] }
+    ],
+    minor: [
+        { label: 'Im',      suffix3: 'm', suffix7: 'm7',   degrees: [0, 3, 7],    degrees7: [0, 3, 7, 10]  },
+        { label: 'IIm7b5',  suffix3: 'mb5', suffix7: 'm7b5', degrees: [2, 5, 8],    degrees7: [2, 5, 8, 0]   },
+        { label: 'III',     suffix3: '', suffix7: 'M7', degrees: [3, 7, 10],   degrees7: [3, 7, 10, 2]  },
+        { label: 'IVm',     suffix3: 'm', suffix7: 'm7',   degrees: [5, 8, 0],    degrees7: [5, 8, 0, 3]   },
+        { label: 'Vm',      suffix3: 'm', suffix7: 'm7',   degrees: [7, 10, 2],   degrees7: [7, 10, 2, 5]  },
+        { label: 'VI',      suffix3: '', suffix7: 'M7', degrees: [8, 0, 3],    degrees7: [8, 0, 3, 7]   },
+        { label: 'VII',     suffix3: '', suffix7: '7',    degrees: [10, 2, 5],   degrees7: [10, 2, 5, 8]  }
+    ],
+    pentaMajor: [
+        { label: 'I',   suffix3: '', suffix7: 'M7', degrees: [0, 4, 7],  degrees7: [0, 4, 7, 11] },
+        { label: 'II',  suffix3: '', suffix7: 'M7', degrees: [2, 6, 9],  degrees7: [2, 6, 9, 0]  },
+        { label: 'III', suffix3: 'm', suffix7: 'm7',   degrees: [4, 7, 11], degrees7: [4, 7, 11, 2] },
+        { label: 'V',   suffix3: '', suffix7: '7',    degrees: [7, 11, 2], degrees7: [7, 11, 2, 5] },
+        { label: 'VI',  suffix3: 'm', suffix7: 'm7',   degrees: [9, 0, 4],  degrees7: [9, 0, 4, 7]  }
+    ],
+    pentaMinor: [
+        { label: 'Im',  suffix3: 'm', suffix7: 'm7',   degrees: [0, 3, 7],  degrees7: [0, 3, 7, 10] },
+        { label: 'III', suffix3: '', suffix7: 'M7', degrees: [3, 7, 10], degrees7: [3, 7, 10, 2] },
+        { label: 'IVm', suffix3: 'm', suffix7: 'm7',   degrees: [5, 8, 0],  degrees7: [5, 8, 0, 3]  },
+        { label: 'Vm',  suffix3: 'm', suffix7: 'm7',   degrees: [7, 10, 2], degrees7: [7, 10, 2, 5] },
+        { label: 'VII', suffix3: '', suffix7: '7',    degrees: [10, 2, 5], degrees7: [10, 2, 5, 8] }
+    ],
+    // 教会モード（ダイアトニックは各旋法の度数で構築）
+    dorian: [
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [0, 3, 7],    degrees7: [0, 3, 7, 10] },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [2, 5, 9],    degrees7: [2, 5, 9, 0]  },
+        { suffix3: '',    suffix7: 'M7',   degrees: [3, 7, 10],   degrees7: [3, 7, 10, 2] },
+        { suffix3: '',    suffix7: '7',    degrees: [5, 9, 0],    degrees7: [5, 9, 0, 3]  },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [7, 10, 2],   degrees7: [7, 10, 2, 5] },
+        { suffix3: 'mb5', suffix7: 'm7b5', degrees: [9, 0, 3],    degrees7: [9, 0, 3, 7]  },
+        { suffix3: '',    suffix7: 'M7',   degrees: [10, 2, 5],   degrees7: [10, 2, 5, 9] }
+    ],
+    phrygian: [
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [0, 3, 7],    degrees7: [0, 3, 7, 10] },
+        { suffix3: '',    suffix7: 'M7',   degrees: [1, 5, 8],    degrees7: [1, 5, 8, 0]  },
+        { suffix3: '',    suffix7: '7',    degrees: [3, 7, 10],   degrees7: [3, 7, 10, 1] },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [5, 8, 0],    degrees7: [5, 8, 0, 3]  },
+        { suffix3: 'mb5', suffix7: 'm7b5', degrees: [7, 10, 1],   degrees7: [7, 10, 1, 5] },
+        { suffix3: '',    suffix7: 'M7',   degrees: [8, 0, 3],    degrees7: [8, 0, 3, 7]  },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [10, 1, 5],   degrees7: [10, 1, 5, 8] }
+    ],
+    lydian: [
+        { suffix3: '',    suffix7: 'M7',   degrees: [0, 4, 7],    degrees7: [0, 4, 7, 11] },
+        { suffix3: '',    suffix7: '7',    degrees: [2, 6, 9],    degrees7: [2, 6, 9, 0]  },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [4, 7, 11],   degrees7: [4, 7, 11, 2] },
+        { suffix3: 'mb5', suffix7: 'm7b5', degrees: [6, 9, 0],    degrees7: [6, 9, 0, 4]  },
+        { suffix3: '',    suffix7: 'M7',   degrees: [7, 11, 2],   degrees7: [7, 11, 2, 6] },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [9, 0, 4],    degrees7: [9, 0, 4, 7]  },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [11, 2, 6],   degrees7: [11, 2, 6, 9] }
+    ],
+    mixolydian: [
+        { suffix3: '',    suffix7: '7',    degrees: [0, 4, 7],    degrees7: [0, 4, 7, 10] },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [2, 5, 9],    degrees7: [2, 5, 9, 0]  },
+        { suffix3: 'mb5', suffix7: 'm7b5', degrees: [4, 7, 10],   degrees7: [4, 7, 10, 2] },
+        { suffix3: '',    suffix7: 'M7',   degrees: [5, 9, 0],    degrees7: [5, 9, 0, 4]  },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [7, 10, 2],   degrees7: [7, 10, 2, 5] },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [9, 0, 4],    degrees7: [9, 0, 4, 7]  },
+        { suffix3: '',    suffix7: 'M7',   degrees: [10, 2, 5],   degrees7: [10, 2, 5, 9] }
+    ],
+    locrian: [
+        { suffix3: 'mb5', suffix7: 'm7b5', degrees: [0, 3, 6],    degrees7: [0, 3, 6, 10] },
+        { suffix3: '',    suffix7: 'M7',   degrees: [1, 5, 8],    degrees7: [1, 5, 8, 0]  },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [3, 6, 10],   degrees7: [3, 6, 10, 1] },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [5, 8, 0],    degrees7: [5, 8, 0, 3]  },
+        { suffix3: '',    suffix7: 'M7',   degrees: [6, 10, 1],   degrees7: [6, 10, 1, 5] },
+        { suffix3: '',    suffix7: '7',    degrees: [8, 0, 3],    degrees7: [8, 0, 3, 6]  },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [10, 1, 5],   degrees7: [10, 1, 5, 8] }
+    ],
+    // ハーモニックマイナー：V が dominant 7 になるのが特徴
+    harmonicMinor: [
+        { suffix3: 'm',   suffix7: 'mM7',  degrees: [0, 3, 7],    degrees7: [0, 3, 7, 11] },
+        { suffix3: 'mb5', suffix7: 'm7b5', degrees: [2, 5, 8],    degrees7: [2, 5, 8, 0]  },
+        { suffix3: 'aug', suffix7: 'augM7',degrees: [3, 7, 11],   degrees7: [3, 7, 11, 2] },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [5, 8, 0],    degrees7: [5, 8, 0, 3]  },
+        { suffix3: '',    suffix7: '7',    degrees: [7, 11, 2],   degrees7: [7, 11, 2, 5] },
+        { suffix3: '',    suffix7: 'M7',   degrees: [8, 0, 3],    degrees7: [8, 0, 3, 7]  },
+        { suffix3: 'mb5', suffix7: 'dim7', degrees: [11, 2, 5],   degrees7: [11, 2, 5, 8] }
+    ],
+    // メロディックマイナー（上行形）
+    melodicMinor: [
+        { suffix3: 'm',   suffix7: 'mM7',  degrees: [0, 3, 7],    degrees7: [0, 3, 7, 11] },
+        { suffix3: 'm',   suffix7: 'm7',   degrees: [2, 5, 9],    degrees7: [2, 5, 9, 0]  },
+        { suffix3: 'aug', suffix7: 'augM7',degrees: [3, 7, 11],   degrees7: [3, 7, 11, 2] },
+        { suffix3: '',    suffix7: '7',    degrees: [5, 9, 0],    degrees7: [5, 9, 0, 3]  },
+        { suffix3: '',    suffix7: '7',    degrees: [7, 11, 2],   degrees7: [7, 11, 2, 5] },
+        { suffix3: 'mb5', suffix7: 'm7b5', degrees: [9, 0, 3],    degrees7: [9, 0, 3, 7]  },
+        { suffix3: 'mb5', suffix7: 'm7b5', degrees: [11, 2, 5],   degrees7: [11, 2, 5, 9] }
+    ],
+    // ブルース（伝統的に I7 / IV7 / V7 のみ表示）
+    blues: [
+        { suffix3: '',    suffix7: '7',    degrees: [0, 4, 7],    degrees7: [0, 4, 7, 10] },
+        { suffix3: '',    suffix7: '7',    degrees: [5, 9, 0],    degrees7: [5, 9, 0, 3]  },
+        { suffix3: '',    suffix7: '7',    degrees: [7, 11, 2],   degrees7: [7, 11, 2, 5] }
+    ]
+};
+
+/** ダイアトニックの「度数（ローマ数字）」ラベル。DIATONIC_CHORDS と同じ並び順。 */
+const DIATONIC_ROMAN_ROOTS = {
+    major:         ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'],
+    minor:         ['I', 'II', '♭III', 'IV', 'V', '♭VI', '♭VII'],
+    harmonicMinor: ['I', 'II', '♭III', 'IV', 'V', '♭VI', 'VII'],
+    melodicMinor:  ['I', 'II', '♭III', 'IV', 'V', 'VI', 'VII'],
+    dorian:        ['I', 'II', '♭III', 'IV', 'V', 'VI', '♭VII'],
+    phrygian:      ['I', '♭II', '♭III', 'IV', 'V', '♭VI', '♭VII'],
+    lydian:        ['I', 'II', 'III', '#IV', 'V', 'VI', 'VII'],
+    mixolydian:    ['I', 'II', 'III', 'IV', 'V', 'VI', '♭VII'],
+    locrian:       ['I', '♭II', '♭III', 'IV', '♭V', '♭VI', '♭VII'],
+    pentaMajor:    ['I', 'II', 'III', 'V', 'VI'],
+    pentaMinor:    ['I', '♭III', 'IV', 'V', '♭VII'],
+    blues:         ['I', 'IV', 'V']
+};
+
+function getDiatonicChordsForKey(keyIndex, scaleType, use7Chords, labelMode = 'name') {
+    const baseChords = DIATONIC_CHORDS[scaleType] || DIATONIC_CHORDS.major;
+    const scaleIntervals = SCALE_INTERVALS[scaleType] || SCALE_INTERVALS.major;
+    const romanRoots = DIATONIC_ROMAN_ROOTS[scaleType] || DIATONIC_ROMAN_ROOTS.major;
+
+    return baseChords.map((chord, idx) => {
+        const rootInterval = scaleIntervals[idx];
+        const rootNoteIndex = (keyIndex + rootInterval) % 12;
+        const rootNoteName = NOTES[rootNoteIndex];
+        const suffix = use7Chords ? chord.suffix7 : chord.suffix3;
+
+        let newLabel;
+        if (labelMode === 'degree') {
+            const roman = romanRoots[idx] || '';
+            newLabel = roman + suffix;
+        } else {
+            newLabel = rootNoteName + suffix;
+        }
+        const degreesArray = use7Chords ? (chord.degrees7 || chord.degrees) : chord.degrees;
+
+        return {
+            label: newLabel,
+            degrees: degreesArray
+        };
+    });
+}
+
+function getScaleDegrees(scaleType) {
+    switch(scaleType) {
+        case 'major':
+            return { 0: '1', 2: '2', 4: '3', 5: '4', 7: '5', 9: '6', 11: '7' };
+        case 'minor':
+            return { 0: '1', 2: '2', 3: '3b', 5: '4', 7: '5', 8: '6b', 10: '7b' };
+        case 'harmonicMinor':
+            return { 0: '1', 2: '2', 3: '3b', 5: '4', 7: '5', 8: '6b', 11: '7' };
+        case 'melodicMinor':
+            return { 0: '1', 2: '2', 3: '3b', 5: '4', 7: '5', 9: '6', 11: '7' };
+        case 'dorian':
+            return { 0: '1', 2: '2', 3: '3b', 5: '4', 7: '5', 9: '6', 10: '7b' };
+        case 'phrygian':
+            return { 0: '1', 1: '2b', 3: '3b', 5: '4', 7: '5', 8: '6b', 10: '7b' };
+        case 'lydian':
+            return { 0: '1', 2: '2', 4: '3', 6: '4#', 7: '5', 9: '6', 11: '7' };
+        case 'mixolydian':
+            return { 0: '1', 2: '2', 4: '3', 5: '4', 7: '5', 9: '6', 10: '7b' };
+        case 'locrian':
+            return { 0: '1', 1: '2b', 3: '3b', 5: '4', 6: '5b', 8: '6b', 10: '7b' };
+        case 'pentaMajor':
+            return { 0: '1', 2: '2', 4: '3', 7: '5', 9: '6' };
+        case 'pentaMinor':
+            return { 0: '1', 3: '3b', 5: '4', 7: '5', 10: '7b' };
+        case 'blues':
+            return { 0: '1', 3: '3b', 5: '4', 6: '5b', 7: '5', 10: '7b' };
+        default:
+            return { 0: '1', 2: '2', 4: '3', 5: '4', 7: '5', 9: '6', 11: '7' };
+    }
+}
+
+/**
+ * 移動ド＋CDE: キー主音を「表記上のC」とみなし、スケール内を C 大調の音名で出す（Major は C,D,E,F,G,A,B）。
+ * 移動ド＋ドレミ: 同じくスケール内を ドレミファソラシ。固定ドは絶対音高で C=ド（半音は ♯ 表記）。
+ * 度数は常にキー（＋カポ）基準の P1 / M2 など。CDE・ドレミのみ固定ド・移動ドで分岐。
+ */
+const MOVABLE_DIATONIC_LETTERS = {
+    major: { 0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B' },
+    minor: { 0: 'C', 2: 'D', 3: 'Eb', 5: 'F', 7: 'G', 8: 'Ab', 10: 'Bb' },
+    pentaMajor: { 0: 'C', 2: 'D', 4: 'E', 7: 'G', 9: 'A' },
+    pentaMinor: { 0: 'C', 3: 'Eb', 5: 'F', 7: 'G', 10: 'Bb' }
+};
+
+function getMovableDiatonicLetterLabel(degreeFromKey, scaleType) {
+    const map = MOVABLE_DIATONIC_LETTERS[scaleType || 'major'] || MOVABLE_DIATONIC_LETTERS.major;
+    return map.hasOwnProperty(degreeFromKey) ? map[degreeFromKey] : undefined;
+}
+
+const MOVABLE_DIATONIC_SOLFEGE = {
+    major: { 0: 'ド', 2: 'レ', 4: 'ミ', 5: 'ファ', 7: 'ソ', 9: 'ラ', 11: 'シ' },
+    minor: { 0: 'ド', 2: 'レ', 3: '♭ミ', 5: 'ファ', 7: 'ソ', 8: '♭ラ', 10: '♭シ' },
+    pentaMajor: { 0: 'ド', 2: 'レ', 4: 'ミ', 7: 'ソ', 9: 'ラ' },
+    pentaMinor: { 0: 'ド', 3: '♭ミ', 5: 'ファ', 7: 'ソ', 10: '♭シ' }
+};
+
+/** 固定ド＝C をドとした絶対表記（NOTES の半音と対応） */
+const FIXED_SOLFEGE = ['ド', 'ド♯', 'レ', 'レ♯', 'ミ', 'ファ', 'ファ♯', 'ソ', 'ソ♯', 'ラ', 'ラ♯', 'シ'];
+
+function getMovableDiatonicSolfegeLabel(degreeFromKey, scaleType) {
+    const map = MOVABLE_DIATONIC_SOLFEGE[scaleType || 'major'] || MOVABLE_DIATONIC_SOLFEGE.major;
+    return map.hasOwnProperty(degreeFromKey) ? map[degreeFromKey] : undefined;
+}
+
+/** 選択中コードの root から見た度数ラベル。 */
+function getChordDegreeLabel(degreeFromKey, chordDegrees) {
+    if (!Array.isArray(chordDegrees) || chordDegrees.length === 0) return undefined;
+
+    const intervalFromChordRoot = (degreeFromKey - chordDegrees[0] + 12) % 12;
+    const labels = {
+        0: 'P1',
+        3: 'm3',
+        4: 'M3',
+        6: 'dim5',
+        7: 'P5',
+        8: 'aug5',
+        9: 'dim7',
+        10: 'm7',
+        11: 'M7'
+    };
+    return labels[intervalFromChordRoot];
+}
+
+/** 指板を見るのマーカー文字（CDE / 度数 / ドレミ × 固定ド・移動ド） */
+function getVisualizeMarkerLabel(noteIdx, scaleType, displayMode, doMode, isScale, degreeFromKey, allDegrees, chordDegrees = null) {
+    if (displayMode === 'chordDegree') {
+        return getChordDegreeLabel(degreeFromKey, chordDegrees) || allDegrees[degreeFromKey] || NOTES[noteIdx];
+    }
+    if (displayMode === 'degree') {
+        return allDegrees[degreeFromKey] || NOTES[noteIdx];
+    }
+    if (displayMode === 'solfege') {
+        if (doMode === 'fixed') {
+            return FIXED_SOLFEGE[noteIdx] || NOTES[noteIdx];
+        }
+        if (isScale) {
+            const s = getMovableDiatonicSolfegeLabel(degreeFromKey, scaleType);
+            if (s) return s;
+        }
+        return FIXED_SOLFEGE[noteIdx] || NOTES[noteIdx];
+    }
+    if (doMode === 'fixed') {
+        return NOTES[noteIdx];
+    }
+    if (isScale) {
+        const letter = getMovableDiatonicLetterLabel(degreeFromKey, scaleType);
+        if (letter) return letter;
+    }
+    return NOTES[noteIdx];
+}
+
+function getAllDegreesWithAccidentals(scaleType) {
+    // 標準的な音楽理論の度数表記: P1, m2, M2, m3, M3, P4, dim5, P5, m6, M6, m7, M7
+    const intervalsFromRoot = {
+        0: 'P1',   // 完全1度
+        1: 'm2',   // 短2度
+        2: 'M2',   // 長2度
+        3: 'm3',   // 短3度
+        4: 'M3',   // 長3度
+        5: 'P4',   // 完全4度
+        6: 'dim5', // 減5度
+        7: 'P5',   // 完全5度
+        8: 'm6',   // 短6度
+        9: 'M6',   // 長6度
+        10: 'm7',  // 短7度
+        11: 'M7'   // 長7度
+    };
+    return intervalsFromRoot;
+}
+
+function renderVisualize(app) {
+    if (typeof state.visualize.capo === 'undefined') state.visualize.capo = 0;
+    if (typeof state.visualize.displayMode === 'undefined') state.visualize.displayMode = 'solfege';
+    if (typeof state.visualize.scale === 'undefined') state.visualize.scale = 'major';
+    if (typeof state.visualize.selectedChordIndex === 'undefined') state.visualize.selectedChordIndex = null;
+    if (typeof state.visualize.lastDiatonicChordPickIndex === 'undefined') {
+        state.visualize.lastDiatonicChordPickIndex = null;
+    }
+    if (typeof state.visualize.doMode === 'undefined') state.visualize.doMode = 'movable';
+    // 旧 showExtendedFrets を maxFret にマイグレーション（既に上の loadState 側で処理しているが、初回未読み込みの保険）
+    if (typeof state.visualize.maxFret === 'undefined') {
+        state.visualize.maxFret = state.visualize.showExtendedFrets ? MAX_FRET : DEFAULT_VISIBLE_MAX_FRET;
+    }
+    state.visualize.maxFret = clamp(
+        parseInt(state.visualize.maxFret, 10) || DEFAULT_VISIBLE_MAX_FRET,
+        DEFAULT_VISIBLE_MAX_FRET,
+        MAX_FRET
+    );
+    if (typeof state.visualize.showExtendedFrets !== 'undefined') {
+        delete state.visualize.showExtendedFrets;
+    }
+
+    const effectiveVisualizeKey = getEffectiveVisualizeKey();
+    const chords = getDiatonicChordsForKey(
+        effectiveVisualizeKey,
+        state.visualize.scale,
+        state.visualize.chordType === '7',
+        state.visualize.chordLabelMode === 'degree' ? 'degree' : 'name'
+    );
+    const chordButtonsHtml = chords.map((chord, idx) => {
+        const isSelected = state.visualize.selectedChordIndex === idx;
+        const isDisabled = !state.visualize.autoSelectRootChord;
+        return `<button class="chord-btn ${isSelected ? 'active' : ''} ${isDisabled ? 'disabled' : ''}" data-chord-index="${idx}">${chord.label}</button>`;
+    }).join('');
+
+    const visualizeKeyLockHtml =
+        '<span class="fretboard-key-lock" aria-hidden="true" title="PRO版でお使いいただけます">🔒</span>';
+    const visKeyOptions = NOTES.map((note, idx) => ({
+        value: idx,
+        label: note,
+        afterLabelHtml: !isProEdition() && idx > 0 ? visualizeKeyLockHtml : ''
+    }));
+    const visCapoOptions = [0,1,2,3,4,5,6,7].map(c => ({ value: c, label: String(c) }));
+    const visMaxFretOptions = Array.from(
+        { length: MAX_FRET - DEFAULT_VISIBLE_MAX_FRET + 1 },
+        (_, idx) => DEFAULT_VISIBLE_MAX_FRET + idx
+    ).map(fret => ({ value: fret, label: `${fret}フレット` }));
+    const visScaleOptions = [
+        ['major', 'メジャー / アイオニアン'],
+        ['minor', 'ナチュラルマイナー / エオリアン'],
+        ['harmonicMinor', 'ハーモニックマイナー'],
+        ['melodicMinor', 'メロディックマイナー'],
+        ['dorian', 'ドリアン'],
+        ['phrygian', 'フリジアン'],
+        ['lydian', 'リディアン'],
+        ['mixolydian', 'ミクソリディアン'],
+        ['locrian', 'ロクリアン'],
+        ['pentaMajor', 'メジャーペンタトニック'],
+        ['pentaMinor', 'マイナーペンタトニック'],
+        ['blues', 'ブルース']
+    ].map(([value, label]) => ({ value, label }));
+    app.innerHTML = `
+        ${buildPageHeader({
+            titleText: '🧭 指板を見る',
+            headerClass: 'page-header--visualize',
+            leftHtml: `
+                ${navButtonHtml({ id: 'btn-back', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+            `,
+            rightHtml: settingsButtonHtml('btn-settings-visualize')
+        })}
+
+        ${standardEditionNoticeHtml(STANDARD_NOTICE_VISUALIZE)}
+
+        <div class="setup-panel visualize-setup-panel">
+            <div class="visualize-setup-row visualize-setup-row--triple">
+                <div class="setup-item visualize-setup-item visualize-setup-item--key">
+                    <label>キー</label>
+                    ${buildCustomDropdownHtml({ id: 'vis-key', options: visKeyOptions, selectedValue: effectiveVisualizeKey, ariaLabel: 'キー', wrapClass: 'pro-custom-dd--visualize' })}
+                </div>
+                <div class="setup-item visualize-setup-item visualize-setup-item--capo">
+                    <label>カポ</label>
+                    ${buildCustomDropdownHtml({ id: 'vis-capo', options: visCapoOptions, selectedValue: state.visualize.capo, ariaLabel: 'カポ', wrapClass: 'pro-custom-dd--visualize' })}
+                </div>
+                <div class="setup-item visualize-setup-item visualize-setup-item--scale">
+                    <label>スケール</label>
+                    ${buildCustomDropdownHtml({ id: 'vis-scale', options: visScaleOptions, selectedValue: state.visualize.scale, ariaLabel: 'スケール', wrapClass: 'pro-custom-dd--visualize pro-custom-dd--visualize-scale' })}
+                </div>
+            </div>
+            <div class="visualize-setup-row visualize-setup-row--double">
+                <div class="setup-item visualize-setup-item visualize-setup-item--do">
+                    <label>表示方法</label>
+                    <div class="mode-buttons">
+                        <button type="button" class="do-mode-btn ${state.visualize.doMode==='movable'?'active':''}" data-do-mode="movable">移動ド</button>
+                        <button type="button" class="do-mode-btn ${state.visualize.doMode==='fixed'?'active':''}" data-do-mode="fixed">固定ド</button>
+                    </div>
+                </div>
+                <div class="setup-item visualize-setup-item visualize-setup-item--max-fret">
+                    <label>最大フレット</label>
+                    ${buildCustomDropdownHtml({ id: 'vis-max-fret', options: visMaxFretOptions, selectedValue: state.visualize.maxFret, ariaLabel: '最大フレット', wrapClass: 'pro-custom-dd--visualize' })}
+                </div>
+            </div>
+            <div class="visualize-setup-row visualize-setup-row--notation">
+                <div class="setup-item visualize-setup-item visualize-setup-item--notation">
+                    <div class="mode-buttons">
+                        <button class="mode-btn ${state.visualize.displayMode==='solfege'?'active':''}" data-mode="solfege">ドレミ</button>
+                        <button class="mode-btn ${state.visualize.displayMode==='note'?'active':''}" data-mode="note">CDE</button>
+                        <button class="mode-btn ${state.visualize.displayMode==='degree'?'active':''}" data-mode="degree">度数</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="vis-fretboard-area">
+            <div id="fretboard-container" style="width: 100%;"></div>
+            <div class="vis-fretboard-scroll-ctl vis-fretboard-scroll-ctl--hidden" id="vis-fretboard-scroll-ctl">
+                <button type="button" class="route-fretboard-scroll-arrow-btn" id="vis-fretboard-scroll-left" aria-label="指板を左にスクロール">&#x276E;</button>
+                <div class="route-fretboard-scroll-track" id="vis-fretboard-scroll-track">
+                    <div class="route-fretboard-scroll-thumb" id="vis-fretboard-scroll-thumb"></div>
+                </div>
+                <button type="button" class="route-fretboard-scroll-arrow-btn" id="vis-fretboard-scroll-right" aria-label="指板を右にスクロール">&#x276F;</button>
+            </div>
+        </div>
+
+        <div class="visualize-chords-afterboard" style="margin-bottom: 120px;">
+            <div class="visualize-diatonic-header-row">
+                <h3 class="visualize-diatonic-title">ダイアトニックコード</h3>
+                <label class="toggle-switch visualize-diatonic-auto-toggle">
+                    <input type="checkbox" id="auto-select-root-chord" ${state.visualize.autoSelectRootChord ? 'checked' : ''}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="chord-list">
+                ${chordButtonsHtml}
+            </div>
+            <div style="display: flex; gap: 15px; margin-top: 20px; justify-content: center;">
+                <button type="button" class="chord-type-btn ${state.visualize.chordType==='3'?'active':''}" data-chord-type="3">3和音</button>
+                <button type="button" class="chord-type-btn ${state.visualize.chordType==='7'?'active':''}" data-chord-type="7">4和音</button>
+            </div>
+            ${state.visualize.autoSelectRootChord ? `
+                <div class="visualize-diatonic-option-list">
+                    <div class="visualize-diatonic-option-row">
+                        <span class="visualize-diatonic-option-label">コード番号</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="show-chord-number" ${state.visualize.chordLabelMode === 'degree' ? 'checked' : ''}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="visualize-diatonic-option-row">
+                        <span class="visualize-diatonic-option-label">コード視点の度数</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="show-chord-degree-labels" ${state.visualize.chordDegreeLabelEnabled ? 'checked' : ''}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `;
+
+    document.getElementById('btn-back').onclick = () => {
+        state.course = null;
+        saveState();
+        renderApp();
+    };
+
+    document.getElementById('btn-settings-visualize').onclick = () => {
+        openSettings('visualize');
+    };
+
+    ensureCustomDropdownDocHandlers();
+    wireCustomDropdown('vis-key', (value) => {
+        const nextKey = parseInt(value, 10) || 0;
+        if (!canUseVisualizeKey(nextKey)) {
+            showProLockNotice('visualizeKey');
+            renderApp();
+            return;
+        }
+        state.visualize.key = nextKey;
+        saveState();
+        renderApp();
+    });
+    wireCustomDropdown('vis-capo', (value) => {
+        state.visualize.capo = parseInt(value, 10) || 0;
+        saveState();
+        renderApp();
+    });
+    wireCustomDropdown('vis-scale', (value) => {
+        state.visualize.scale = value;
+        if (state.visualize.autoSelectRootChord) {
+            const nextChords = getDiatonicChordsForKey(
+                getEffectiveVisualizeKey(),
+                state.visualize.scale,
+                state.visualize.chordType === '7',
+                state.visualize.chordLabelMode === 'degree' ? 'degree' : 'name'
+            );
+            const currentIndex = state.visualize.selectedChordIndex;
+            const nextIndex =
+                currentIndex !== null &&
+                currentIndex !== undefined &&
+                Number.isFinite(currentIndex)
+                    ? clamp(Math.floor(currentIndex), 0, Math.max(0, nextChords.length - 1))
+                    : 0;
+            state.visualize.selectedChordIndex = nextIndex;
+            state.visualize.lastDiatonicChordPickIndex = nextIndex;
+        } else {
+            state.visualize.selectedChordIndex = null;
+        }
+        saveState();
+        renderApp();
+    });
+
+    document.querySelectorAll('.mode-btn[data-mode]').forEach(btn => {
+        btn.onclick = () => {
+            const m = btn.getAttribute('data-mode');
+            state.visualize.displayMode = m;
+            saveState();
+            renderApp();
+        };
+    });
+
+    document.querySelectorAll('.do-mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            state.visualize.doMode = btn.getAttribute('data-do-mode');
+            saveState();
+            renderApp();
+        };
+    });
+
+    wireCustomDropdown('vis-max-fret', (value) => {
+        const v = parseInt(value, 10);
+        state.visualize.maxFret = clamp(Number.isFinite(v) ? v : DEFAULT_VISIBLE_MAX_FRET, DEFAULT_VISIBLE_MAX_FRET, MAX_FRET);
+        _resetVisualizeSc = true;
+        currentScrollLeft = 0;
+        saveState();
+        renderApp();
+    });
+    document.querySelectorAll('.chord-type-btn[data-chord-type]').forEach(btn => {
+        btn.onclick = () => {
+            state.visualize.chordType = btn.getAttribute('data-chord-type');
+            saveState();
+            renderApp();
+        };
+    });
+
+    const chordNumberToggle = document.getElementById('show-chord-number');
+    if (chordNumberToggle) {
+        chordNumberToggle.onchange = () => {
+            state.visualize.chordLabelMode = chordNumberToggle.checked ? 'degree' : 'name';
+            saveState();
+            renderApp();
+        };
+    }
+
+    const chordDegreeLabelToggle = document.getElementById('show-chord-degree-labels');
+    if (chordDegreeLabelToggle) {
+        chordDegreeLabelToggle.onchange = () => {
+            state.visualize.chordDegreeLabelEnabled = chordDegreeLabelToggle.checked;
+            saveState();
+            renderApp();
+        };
+    }
+
+    const autoSelectToggle = document.getElementById('auto-select-root-chord');
+    if (autoSelectToggle) {
+        autoSelectToggle.onchange = () => {
+            const on = autoSelectToggle.checked;
+            state.visualize.autoSelectRootChord = on;
+            if (on && chords.length > 0) {
+                const mem = state.visualize.lastDiatonicChordPickIndex;
+                if (mem !== null && mem !== undefined && Number.isFinite(mem)) {
+                    state.visualize.selectedChordIndex = clamp(
+                        Math.floor(mem),
+                        0,
+                        chords.length - 1
+                    );
+                } else {
+                    state.visualize.selectedChordIndex = 0;
+                }
+                state.visualize.lastDiatonicChordPickIndex = state.visualize.selectedChordIndex;
+            } else if (!on) {
+                state.visualize.selectedChordIndex = null;
+            }
+            saveState();
+            renderApp();
+        };
+    }
+
+    renderFretboardHTML('fretboard-container', {
+        mode: 'visualize',
+        keyIndex: effectiveVisualizeKey,
+        capo: state.visualize.capo,
+        displayMode: state.visualize.displayMode,
+        scale: state.visualize.scale,
+        selectedChordIndex: state.visualize.selectedChordIndex,
+        doMode: state.visualize.doMode,
+        chordType: state.visualize.chordType,
+        autoSelectRootChord: state.visualize.autoSelectRootChord
+    });
+
+    // 指板を見る: 横スクロールコントロール初期化
+    (function initVisualizeScrollCtl() {
+        const scrollWrapper = document.querySelector('#fretboard-container .fretboard-scroll-wrapper');
+        const ctl      = document.getElementById('vis-fretboard-scroll-ctl');
+        const track    = document.getElementById('vis-fretboard-scroll-track');
+        const thumb    = document.getElementById('vis-fretboard-scroll-thumb');
+        const btnLeft  = document.getElementById('vis-fretboard-scroll-left');
+        const btnRight = document.getElementById('vis-fretboard-scroll-right');
+        if (!scrollWrapper || !ctl || !track || !thumb || !btnLeft || !btnRight) return;
+
+        function updateThumb() {
+            const sw = scrollWrapper.scrollWidth;
+            const cw = scrollWrapper.clientWidth;
+            if (sw <= cw) { ctl.classList.add('vis-fretboard-scroll-ctl--hidden'); return; }
+            ctl.classList.remove('vis-fretboard-scroll-ctl--hidden');
+            const ratio  = cw / sw;
+            const trackW = track.clientWidth;
+            const thumbW = Math.max(32, trackW * ratio);
+            const scrollFrac = scrollWrapper.scrollLeft / (sw - cw);
+            thumb.style.width = thumbW + 'px';
+            thumb.style.left  = (scrollFrac * (trackW - thumbW)) + 'px';
+        }
+
+        scrollWrapper.addEventListener('scroll', updateThumb, { passive: true });
+        updateThumb();
+        requestAnimationFrame(updateThumb);
+
+        const onResize = () => { requestAnimationFrame(updateThumb); };
+        window.addEventListener('resize', onResize, { passive: true });
+
+        const ARROW_STEP = 80;
+        btnLeft.addEventListener('click',  () => { scrollWrapper.scrollBy({ left: -ARROW_STEP, behavior: 'smooth' }); });
+        btnRight.addEventListener('click', () => { scrollWrapper.scrollBy({ left:  ARROW_STEP, behavior: 'smooth' }); });
+
+        track.addEventListener('click', (e) => {
+            if (e.target === thumb) return;
+            const rect   = track.getBoundingClientRect();
+            const thumbW = thumb.offsetWidth;
+            const frac   = Math.max(0, Math.min(1, (e.clientX - rect.left - thumbW / 2) / (rect.width - thumbW)));
+            scrollWrapper.scrollLeft = frac * (scrollWrapper.scrollWidth - scrollWrapper.clientWidth);
+        });
+
+        let dragStartX = 0, dragStartScrollLeft = 0;
+        thumb.addEventListener('pointerdown', (e) => {
+            e.stopPropagation();
+            thumb.setPointerCapture(e.pointerId);
+            dragStartX = e.clientX;
+            dragStartScrollLeft = scrollWrapper.scrollLeft;
+            thumb.classList.add('route-fretboard-scroll-thumb--dragging');
+        });
+        thumb.addEventListener('pointermove', (e) => {
+            if (!thumb.hasPointerCapture(e.pointerId)) return;
+            e.stopPropagation();
+            const trackW    = track.clientWidth;
+            const thumbW    = thumb.offsetWidth;
+            const maxTravel = trackW - thumbW;
+            const maxScroll = scrollWrapper.scrollWidth - scrollWrapper.clientWidth;
+            scrollWrapper.scrollLeft = Math.max(0, Math.min(maxScroll,
+                dragStartScrollLeft + (maxTravel > 0 ? (e.clientX - dragStartX) / maxTravel * maxScroll : 0)));
+        });
+        thumb.addEventListener('pointerup',     () => { thumb.classList.remove('route-fretboard-scroll-thumb--dragging'); });
+        thumb.addEventListener('pointercancel', () => { thumb.classList.remove('route-fretboard-scroll-thumb--dragging'); });
+    })();
+
+    // body は overflow:hidden のため、縦長コンテンツは #app 内でスクロール（設定画面と同じ）
+    app.style.height = '100vh';
+    app.style.overflowY = 'auto';
+    app.style.overflowX = 'hidden';
+}
+
+function attachAudioDiagnosticControls() {
+    const audioDiagnosticTestBtn = document.getElementById('btn-audio-diagnostic-test');
+    if (audioDiagnosticTestBtn) {
+        audioDiagnosticTestBtn.onclick = async () => {
+            audioDiagnosticTestBtn.disabled = true;
+            const originalText = audioDiagnosticTestBtn.textContent;
+            audioDiagnosticTestBtn.textContent = '確認中...';
+            try {
+                await runAudioDiagnosticTest();
+            } finally {
+                audioDiagnosticTestBtn.disabled = false;
+                audioDiagnosticTestBtn.textContent = originalText;
+            }
+        };
+    }
+
+    const audioDiagnosticCopyBtn = document.getElementById('btn-audio-diagnostic-copy');
+    if (audioDiagnosticCopyBtn) {
+        audioDiagnosticCopyBtn.onclick = async () => {
+            const copied = await copyAudioDiagnosticText();
+            const originalText = '診断結果をコピー';
+            audioDiagnosticCopyBtn.textContent = copied ? 'コピーしました' : 'コピー失敗';
+            setTimeout(() => {
+                if (audioDiagnosticCopyBtn.isConnected) audioDiagnosticCopyBtn.textContent = originalText;
+            }, 1400);
+        };
+    }
+}
+
+function renderTroubleshooting(app) {
+    app.innerHTML = `
+        <div class="settings-screen">
+        ${buildPageHeader({
+            titleText: 'トラブル対応',
+            titleClass: 'settings-screen-title',
+            leftHtml: `${navButtonHtml({ id: 'btn-troubleshooting-back', text: '← 設定へ戻る', extraClass: 'page-nav-btn--back' })}`
+        })}
+
+        <div class="settings-page-stack settings-page-stack--proposed">
+            <div class="settings-card settings-card--audio-diagnostic">
+                <div class="settings-card-section">
+                    <div class="settings-card-section-header">
+                        <span class="settings-card-section-title">音声診断</span>
+                    </div>
+                    <p class="settings-note" style="margin-top:0;">音が聞こえない場合や動作確認が必要な場合に、端末やブラウザの状態を確認できます。</p>
+                    <p class="settings-note" style="margin-top:8px;">音声テストを押して、アプリの音が鳴るか確認してください。音が出ない場合は、診断結果をコピーして送ってください。</p>
+                    <div class="mode-buttons" style="margin-top:10px; flex-wrap:wrap;">
+                        <button type="button" class="mode-btn" id="btn-audio-diagnostic-test">音声テスト</button>
+                        <button type="button" class="mode-btn" id="btn-audio-diagnostic-copy">診断結果をコピー</button>
+                    </div>
+                    <pre id="audio-diagnostic-output" style="box-sizing:border-box; width:100%; max-width:100%; margin:10px 0 0; padding:10px; max-height:180px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; border:1px solid rgba(255,255,255,0.14); border-radius:8px; background:rgba(0,0,0,0.18); color:rgba(255,255,255,0.82); font-size:0.72rem; line-height:1.45;">音声テストを押すと診断結果が表示されます。</pre>
+                    <p class="settings-note" style="margin-top:10px;">音が聞こえない場合は、アプリを開いた状態でiPhone本体の音量ボタンを上げ、イヤフォンの接続先、Safari/PWA起動の違い、マナーモード解除時の挙動も確認してください。</p>
+                </div>
+            </div>
+        </div>
+        </div>
+    `;
+
+    document.getElementById('btn-troubleshooting-back').onclick = () => {
+        state.course = 'settings';
+        saveState();
+        renderApp();
+    };
+    attachAudioDiagnosticControls();
+
+    app.style.height = '100vh';
+    app.style.overflowY = 'auto';
+    app.style.overflowX = 'hidden';
+}
+
+function renderSettings(app) {
+    const settingsDocumentHandlers = [];
+    const settingsReadOnly = isStandardEdition();
+    const settingsSnapshot = cloneSettings(state.settings);
+    const activeTab = ['cruise', 'quiz', 'common'].includes(state.settings.lastSettingsTab)
+        ? state.settings.lastSettingsTab
+        : 'cruise';
+    const tabHidden = (name) => activeTab === name ? '' : ' is-hidden';
+    const tabActive = (name) => activeTab === name ? ' is-active' : '';
+    const bluetoothDelayEnabled =
+        state.settings.bluetoothRhythmAssistLevel !== 'off' ||
+        state.settings.cruiseConfirmSoundTiming === 'rhythm';
+    app.innerHTML = `
+        <div class="settings-screen${settingsReadOnly ? ' settings-screen--standard-readonly' : ''}">
+        ${buildPageHeader({
+            titleText: '設定',
+            titleClass: 'settings-screen-title',
+            leftHtml: `
+                ${navButtonHtml({ id: 'btn-back-settings', text: '← 戻る', extraClass: 'page-nav-btn--back' })}
+                ${navButtonHtml({ id: 'btn-home-settings', text: '🏠 TOP', extraClass: 'page-nav-btn--home' })}
+            `
+        })}
+
+        ${standardEditionNoticeHtml(STANDARD_NOTICE_SETTINGS)}
+
+        <div class="settings-tabs" role="tablist">
+            <button type="button" class="settings-tab-btn${tabActive('cruise')}" role="tab" data-settings-tab="cruise">指板をたどる</button>
+            <button type="button" class="settings-tab-btn${tabActive('quiz')}" role="tab" data-settings-tab="quiz">指板クイズ</button>
+            <button type="button" class="settings-tab-btn${tabActive('common')}" role="tab" data-settings-tab="common">共通</button>
+        </div>
+
+        <div class="settings-page-stack settings-page-stack--proposed">
+        <div class="settings-tab-panel${tabHidden('cruise')}" data-settings-tab-panel="cruise">
+        <div class="settings-card settings-card--cruise-mode">
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <span class="settings-card-section-title">テンポ</span>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="tempo">リセット</button>
+                </div>
+                <div class="settings-value-row">
+                    <span>遅い</span>
+                    <span class="settings-value-badge" id="tempo-display">BPM ${state.settings.tempo}</span>
+                    <span>速い</span>
+                </div>
+                <input type="range" id="tempo-slider" min="40" max="200" value="${state.settings.tempo}" class="settings-range">
+            </div>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="settings-card-section-title">タップ順序</span>
+                        <button class="settings-help-btn" type="button" data-target="note-cruise-tap-beats" aria-label="説明を表示">⊕</button>
+                    </div>
+                </div>
+                <div class="mode-buttons settings-cruise-tap-beats-buttons">
+                    <button type="button" class="mode-btn ${state.settings.cruiseTapBeats !== 'full' ? 'active' : ''}" data-cruise-tap-beats="half">アプリ音→タップ</button>
+                    <button type="button" class="mode-btn ${state.settings.cruiseTapBeats === 'full' ? 'active' : ''}" data-cruise-tap-beats="full">アプリ音と同時にタップ</button>
+                </div>
+                <p class="settings-note settings-note--animated" id="note-cruise-tap-beats" style="margin-top:8px;">次の音に進む速さです。2拍に1回はゆっくり、毎拍は1拍ごとに進み、ペースが速くなります。</p>
+            </div>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="settings-card-section-title">指板上の音名マーカー</span>
+                        <button class="settings-help-btn" type="button" data-target="note-cruise-show-names" aria-label="説明を表示">⊕</button>
+                    </div>
+                </div>
+                <div class="mode-buttons settings-cruise-show-note-names-buttons">
+                    <button type="button" class="mode-btn ${state.settings.cruiseShowNoteNames !== false ? 'active' : ''}" data-cruise-show-note-names="on">オン</button>
+                    <button type="button" class="mode-btn ${state.settings.cruiseShowNoteNames === false ? 'active' : ''}" data-cruise-show-note-names="off">オフ</button>
+                </div>
+                <p class="settings-note settings-note--animated" id="note-cruise-show-names" style="margin-top:8px;">オフにすると、指板をたどる範囲に薄く表示されている音名ボタンが消えます。</p>
+            </div>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="settings-card-section-title">アプリの音</span>
+                        <button class="settings-help-btn" type="button" data-target="note-cruise-progression" aria-label="説明を表示">⊕</button>
+                    </div>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-progression">リセット</button>
+                </div>
+                <div class="mode-buttons settings-cruise-progression-buttons">
+                    <button type="button" class="mode-btn ${state.settings.cruiseProgression === 'tap' ? '' : 'active'}" data-cruise-progression="auto">有り</button>
+                    <button type="button" class="mode-btn ${state.settings.cruiseProgression === 'tap' ? 'active' : ''}" data-cruise-progression="tap">無し</button>
+                </div>
+                <p class="settings-note settings-note--animated" id="note-cruise-progression" style="margin-top:8px;">「有り」はアプリがギター音も鳴らします。「無し」ではギターをタップした時だけ鳴ります。</p>
+            </div>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <span class="settings-card-section-title">ループ回数</span>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-loop">リセット</button>
+                </div>
+                <div class="mode-buttons settings-loop-count-buttons">
+                    <button class="mode-btn ${state.settings.cruiseLoopCount === 1 ? 'active' : ''}" data-loop-count="1">1周</button>
+                    <button class="mode-btn ${state.settings.cruiseLoopCount === 2 ? 'active' : ''}" data-loop-count="2">2周</button>
+                    <button class="mode-btn ${state.settings.cruiseLoopCount === 3 ? 'active' : ''}" data-loop-count="3">3周</button>
+                    <button class="mode-btn ${state.settings.cruiseLoopCount === 0 ? 'active' : ''}" data-loop-count="0">無限</button>
+                </div>
+            </div>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <span class="settings-card-section-title">リズム音</span>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="cruise-rhythm-all">リセット</button>
+                </div>
+                <div class="settings-value-row" style="margin-top:8px;">
+                    <span>音量</span>
+                    <span class="settings-value-badge" id="rhythm-volume-display">${Math.round((state.settings.cruiseRhythmVolume ?? DEFAULT_CRUISE_RHYTHM_VOLUME) * 100)}%</span>
+                    <span></span>
+                </div>
+                <input type="range" id="rhythm-volume-slider" min="0" max="100" step="1" value="${Math.round((state.settings.cruiseRhythmVolume ?? DEFAULT_CRUISE_RHYTHM_VOLUME) * 100)}" class="settings-range">
+                <div class="settings-card-section-header" style="margin-top:16px;">
+                    <span class="settings-card-section-title" style="font-size:0.875em;opacity:0.8;">リズム音のバランス</span>
+                </div>
+                <div class="settings-value-row" style="margin-top:8px;">
+                    <span>キック</span>
+                    <span class="settings-value-badge" id="rhythm-kick-display">${Math.round((state.settings.cruiseRhythmKickVolume ?? DEFAULT_CRUISE_RHYTHM_KICK_VOLUME) * 100)}%</span>
+                    <span></span>
+                </div>
+                <input type="range" id="rhythm-kick-slider" min="0" max="100" step="1" value="${Math.round((state.settings.cruiseRhythmKickVolume ?? DEFAULT_CRUISE_RHYTHM_KICK_VOLUME) * 100)}" class="settings-range">
+                <div class="settings-value-row" style="margin-top:12px;">
+                    <span>スネア</span>
+                    <span class="settings-value-badge" id="rhythm-snare-display">${Math.round((state.settings.cruiseRhythmSnareVolume ?? DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME) * 100)}%</span>
+                    <span></span>
+                </div>
+                <input type="range" id="rhythm-snare-slider" min="0" max="100" step="1" value="${Math.round((state.settings.cruiseRhythmSnareVolume ?? DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME) * 100)}" class="settings-range">
+                <div class="settings-value-row" style="margin-top:12px;">
+                    <span>ハイハット</span>
+                    <span class="settings-value-badge" id="rhythm-hat-display">${Math.round((state.settings.cruiseRhythmHatVolume ?? DEFAULT_CRUISE_RHYTHM_HAT_VOLUME) * 100)}%</span>
+                    <span></span>
+                </div>
+                <input type="range" id="rhythm-hat-slider" min="0" max="100" step="1" value="${Math.round((state.settings.cruiseRhythmHatVolume ?? DEFAULT_CRUISE_RHYTHM_HAT_VOLUME) * 100)}" class="settings-range">
+            </div>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="settings-card-section-title">Bluetoothイヤホンの遅延</span>
+                        <button class="settings-help-btn" type="button" data-target="note-bluetooth-rhythm-assist" aria-label="説明を表示">⊕</button>
+                    </div>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="bluetooth-rhythm-assist">リセット</button>
+                </div>
+                <p class="settings-note settings-note--animated" id="note-bluetooth-rhythm-assist" style="margin-top:8px;">Bluetoothイヤホンで音が遅れて聞こえる時の補助設定です。正確な練習には、本体スピーカーまたは有線イヤホンがおすすめです。</p>
+                <div class="settings-bluetooth-delay-toggle-row" aria-label="Bluetoothイヤホンの遅延補助">
+                    <button type="button" class="settings-bluetooth-delay-switch ${bluetoothDelayEnabled ? 'active' : ''}" data-bluetooth-delay-toggle="${bluetoothDelayEnabled ? 'off' : 'on'}" aria-pressed="${bluetoothDelayEnabled ? 'true' : 'false'}">
+                        <span class="settings-bluetooth-delay-switch__thumb" aria-hidden="true"></span>
+                    </button>
+                </div>
+                <div class="settings-card-section-header" style="margin-top:12px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="settings-card-section-title" style="font-size:0.875em;opacity:0.8;">判定補助</span>
+                        <button class="settings-help-btn" type="button" data-target="note-bluetooth-rhythm-judgement" aria-label="説明を表示">⊕</button>
+                    </div>
+                </div>
+                <p class="settings-note settings-note--animated" id="note-bluetooth-rhythm-judgement" style="margin-top:8px;">聞こえているリズムに合わせてタップした時に、Lateになりにくくします。</p>
+                <div class="mode-buttons settings-bluetooth-rhythm-assist-buttons">
+                    <button type="button" class="mode-btn ${state.settings.bluetoothRhythmAssistLevel === 'off' ? 'active' : ''}" data-bluetooth-rhythm-assist="off">オフ</button>
+                    <button type="button" class="mode-btn ${state.settings.bluetoothRhythmAssistLevel === 'low' ? 'active' : ''}" data-bluetooth-rhythm-assist="low">少なめ</button>
+                    <button type="button" class="mode-btn ${state.settings.bluetoothRhythmAssistLevel === 'medium' ? 'active' : ''}" data-bluetooth-rhythm-assist="medium">多め</button>
+                    <button type="button" class="mode-btn ${state.settings.bluetoothRhythmAssistLevel === 'high' ? 'active' : ''}" data-bluetooth-rhythm-assist="high">かなり多め</button>
+                </div>
+                <div class="settings-card-section-header" style="margin-top:12px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="settings-card-section-title" style="font-size:0.875em;opacity:0.8;">確認音の鳴らし方</span>
+                        <button class="settings-help-btn" type="button" data-target="note-cruise-confirm-sound-timing" aria-label="説明を表示">⊕</button>
+                    </div>
+                </div>
+                <p class="settings-note settings-note--animated" id="note-cruise-confirm-sound-timing" style="margin-top:8px;">タップ音が遅れて聞こえる時は、「リズムに合わせて鳴らす」を選ぶと違和感を減らせます。</p>
+                <div class="mode-buttons settings-cruise-confirm-sound-buttons">
+                    <button type="button" class="mode-btn ${state.settings.cruiseConfirmSoundTiming !== 'rhythm' ? 'active' : ''}" data-cruise-confirm-sound="tap">タップ時に鳴らす</button>
+                    <button type="button" class="mode-btn ${state.settings.cruiseConfirmSoundTiming === 'rhythm' ? 'active' : ''}" data-cruise-confirm-sound="rhythm">リズムに合わせて鳴らす</button>
+                </div>
+            </div>
+        </div>
+        </div>
+
+        <div class="settings-tab-panel${tabHidden('quiz')}" data-settings-tab-panel="quiz">
+        <div class="settings-card settings-card--quiz-mode">
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <span class="settings-card-section-title">制限時間</span>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="timer">リセット</button>
+                </div>
+                <div class="settings-value-row">
+                    <span>短い</span>
+                    <span class="settings-value-badge" id="timer-display">${state.settings.quizTimeLimit} 秒</span>
+                    <span>長い</span>
+                </div>
+                <input type="range" id="timer-slider" min="1" max="10" step="1" value="${state.settings.quizTimeLimit}" class="settings-range">
+            </div>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <span class="settings-card-section-title">問題数</span>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="quiz-question-limit">リセット</button>
+                </div>
+                <div class="mode-buttons settings-quiz-question-limit-buttons">
+                    <button class="mode-btn ${state.settings.quizQuestionLimit === 5 ? 'active' : ''}" data-quiz-question-limit="5">5問</button>
+                    <button class="mode-btn ${state.settings.quizQuestionLimit === 10 ? 'active' : ''}" data-quiz-question-limit="10">10問</button>
+                    <button class="mode-btn ${state.settings.quizQuestionLimit === 15 ? 'active' : ''}" data-quiz-question-limit="15">15問</button>
+                    <button class="mode-btn ${(!state.settings.quizQuestionLimit || state.settings.quizQuestionLimit === 0) ? 'active' : ''}" data-quiz-question-limit="0">無制限</button>
+                </div>
+            </div>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <span class="settings-card-section-title">カウントダウン音</span>
+                </div>
+                <div class="mode-buttons settings-countdown-sound-buttons">
+                    <button class="mode-btn ${state.settings.quizCountdownSound === 'none' ? 'active' : ''}" data-countdown-sound="none">なし</button>
+                    <button class="mode-btn ${state.settings.quizCountdownSound === 'beep' ? 'active' : ''}" data-countdown-sound="beep">ビープ</button>
+                    <button class="mode-btn ${state.settings.quizCountdownSound === 'gradual' ? 'active' : ''}" data-countdown-sound="gradual">段階的</button>
+                    <button class="mode-btn ${state.settings.quizCountdownSound === 'hat' ? 'active' : ''}" data-countdown-sound="hat">ハット</button>
+                </div>
+            </div>
+        </div>
+        </div>
+
+        <div class="settings-tab-panel${tabHidden('common')}" data-settings-tab-panel="common">
+        <div class="settings-card settings-card--common">
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="settings-card-section-title">音名の表記</span>
+                        <button class="settings-help-btn" type="button" data-target="note-notation-mode" aria-label="説明を表示">⊕</button>
+                    </div>
+                </div>
+                <div class="mode-buttons settings-notation-buttons">
+                    <button class="mode-btn ${state.settings.noteLabelMode === 'solfege' ? 'active' : ''}" data-notation-mode="solfege">ドレミ</button>
+                    <button class="mode-btn ${state.settings.noteLabelMode === 'note' ? 'active' : ''}" data-notation-mode="note">CDE</button>
+                    <button class="mode-btn ${state.settings.noteLabelMode === 'degree' ? 'active' : ''}" data-notation-mode="degree">度数</button>
+                </div>
+                <p class="settings-note settings-note--animated" id="note-notation-mode" style="margin-top:10px;">指板をたどる・指板クイズ・指板の基本ルールなど、指板上の表記に反映されます。度数はCを基準に P1・m2 など（「指板を見る」の度数表記と同じ）です。</p>
+            </div>
+
+            <div class="settings-card-section">
+                <div class="settings-card-section-header">
+                    <span class="settings-card-section-title">指板の視点</span>
+                    <button class="settings-card-reset-btn" type="button" data-reset-card="view">リセット</button>
+                </div>
+
+            <div class="settings-preview-area">
+                <div class="settings-preview-clip">
+                    <div id="tilt-preview-container" style="pointer-events:none;"></div>
+                </div>
+                <div id="trackball-area" class="settings-trackball">
+                    <div id="trackball-pointer" class="settings-trackball-dot"></div>
+                </div>
+            </div>
+
+            <div id="tilt-setting-group" style="border-top:1px solid rgba(255,255,255,0.1); padding-top:16px; margin-top:8px;">
+                <div class="settings-row-between" style="margin-bottom:10px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <label for="fretboard-orientation-auto" class="settings-label" style="cursor:pointer;">画面の向きで自動切替</label>
+                        <button class="settings-help-btn" type="button" data-target="note-orientation" aria-label="説明を表示">⊕</button>
+                    </div>
+                    <input type="checkbox" id="fretboard-orientation-auto" class="settings-checkbox-native" ${state.settings.fretboardViewAutoOrientation ? 'checked' : ''}>
+                </div>
+                <p class="settings-note settings-note--animated" id="note-orientation">オンにすると、横持ちでは全体ビュー、縦持ちでは拡大ビューになります。オフのときは下のボタンで選べます。</p>
+                <div class="settings-view-buttons">
+                    <button class="settings-view-btn ${state.settings.fretboardView === 'full' ? 'active' : ''}" data-view="full" ${state.settings.fretboardViewAutoOrientation ? 'disabled' : ''}>全体ビュー</button>
+                    <button class="settings-view-btn ${state.settings.fretboardView === 'zoom' ? 'active' : ''}" data-view="zoom" ${state.settings.fretboardViewAutoOrientation ? 'disabled' : ''}>拡大ビュー</button>
+                </div>
+
+                <p class="settings-beta-note">※ ここから下は <strong>ベータ版</strong> の項目です。組み合わせによっては表示が崩れたり、実際の画面と一致しないことがあります。</p>
+                <div class="settings-row-between" style="margin-bottom:8px;">
+                    <span class="settings-label">カメラの向き（ドラッグで操作）</span>
+                </div>
+
+                <div class="settings-presets">
+                    <button class="settings-preset-btn" data-preset="front">正面カメラ</button>
+                    <button class="settings-preset-btn" data-preset="diagonal">斜めカメラ</button>
+                </div>
+
+                <div class="settings-axes">
+                    <div class="settings-axis-item">
+                        <div class="settings-row-between" style="margin-bottom:4px;">
+                            <span class="settings-axis-label">X軸（前後）</span>
+	                            <div style="display:flex; align-items:center; gap:6px;">
+	                                <span class="settings-axis-val" id="rot-x-disp">${Math.round(state.settings.rotation.x)}°</span>
+	                                <button class="settings-reset-btn" data-reset="rot-x">初期値</button>
+	                            </div>
+	                        </div>
+                        <input type="range" id="rot-x-slider" min="-90" max="90" step="1" value="${state.settings.rotation.x}" class="settings-range">
+                    </div>
+                    <div class="settings-axis-item">
+                        <div class="settings-row-between" style="margin-bottom:4px;">
+                            <span class="settings-axis-label">Y軸（左右）</span>
+	                            <div style="display:flex; align-items:center; gap:6px;">
+	                                <span class="settings-axis-val" id="rot-y-disp">${Math.round(state.settings.rotation.y)}°</span>
+	                                <button class="settings-reset-btn" data-reset="rot-y">初期値</button>
+	                            </div>
+	                        </div>
+                        <input type="range" id="rot-y-slider" min="-90" max="90" step="1" value="${state.settings.rotation.y}" class="settings-range">
+                    </div>
+                    <div class="settings-axis-item">
+                        <div class="settings-row-between" style="margin-bottom:4px;">
+                            <span class="settings-axis-label">Z軸（回転）</span>
+	                            <div style="display:flex; align-items:center; gap:6px;">
+	                                <span class="settings-axis-val" id="rot-z-disp">${Math.round(state.settings.rotation.z)}°</span>
+	                                <button class="settings-reset-btn" data-reset="rot-z">初期値</button>
+	                            </div>
+	                        </div>
+                        <input type="range" id="rot-z-slider" min="-180" max="180" step="1" value="${state.settings.rotation.z}" class="settings-range">
+                    </div>
+                </div>
+
+		                <div class="settings-row-between" style="margin-bottom:6px;">
+		                    <span class="settings-label">カメラ奥行（横 ヘッド小 ← → 12F大）</span>
+		                    <div class="settings-value-control">
+	                        <span class="settings-value-badge-sm" id="persp-origin-display">${state.settings.perspOriginX}</span>
+	                        <button class="settings-reset-btn" data-reset="persp-origin">初期値</button>
+	                    </div>
+		                </div>
+	                <input type="range" id="persp-origin-slider" min="0" max="100" step="1" value="${state.settings.perspOriginX}" class="settings-range">
+
+		                <div class="settings-row-between" style="margin-top:16px; margin-bottom:6px;">
+		                    <span class="settings-label">弦間の広さ（1弦小、6弦大）</span>
+		                    <div class="settings-value-control">
+		                        <span class="settings-value-badge-sm" id="persp-display">${state.settings.perspective}</span>
+		                        <button class="settings-reset-btn" data-reset="perspective">初期値</button>
+		                    </div>
+		                </div>
+	                <input type="range" id="persp-slider" min="0" max="100" step="1" value="${state.settings.perspective}" class="settings-range" style="margin-bottom:16px;">
+
+		                <div class="settings-row-between" style="margin-top:16px; margin-bottom:6px;">
+		                    <span class="settings-label">弦間の広さ（一律）</span>
+	                    <div class="settings-value-control">
+	                        <span class="settings-value-badge-sm" id="string-spacing-display">${state.settings.stringSpacing}%</span>
+	                        <button class="settings-reset-btn" data-reset="string-spacing">初期値</button>
+	                    </div>
+                </div>
+                <input type="range" id="string-spacing-slider" min="80" max="150" step="1" value="${state.settings.stringSpacing}" class="settings-range">
+            </div>
+            </div>
+        </div>
+        </div>
+        </div>
+        <div class="settings-support-link-row" style="display:flex; justify-content:center; margin:12px 0 2px;">
+            <button type="button" id="btn-settings-troubleshooting" style="appearance:none; border:0; background:transparent; color:rgba(255,255,255,0.62); font:inherit; font-size:0.78rem; text-decoration:underline; text-underline-offset:3px; padding:6px 10px; cursor:pointer;">トラブル対応</button>
+        </div>
+        <div class="settings-actions-footer settings-actions-footer--proposed">
+            <button class="settings-bottom-btn settings-apply-btn" id="btn-settings-apply">決定</button>
+            <div class="settings-secondary-actions">
+                <button class="btn-secondary settings-bottom-btn" id="btn-settings-cancel">キャンセル</button>
+                ${settingsReadOnly
+                    ? ''
+                    : '<button class="btn-secondary settings-bottom-btn settings-danger-btn" id="btn-settings-defaults">全てリセット</button>'}
+            </div>
+        ${isProEdition() ? '<div class="pro-gate-settings-note"><button type="button" id="pro-gate-reset" class="btn-secondary">入室の記録を消す（次回パスワード入力）</button></div>' : ''}
+        </div>
+        </div>
+	    `;
+
+    // Attach help button listeners
+    const helpButtons = document.querySelectorAll('.settings-help-btn');
+    helpButtons.forEach(button => {
+        button.onclick = () => {
+            const targetId = button.getAttribute('data-target');
+            const targetElement = document.getElementById(targetId);
+            if (targetElement) {
+                targetElement.classList.toggle('visible');
+            }
+        };
+    });
+
+    const cardResetButtons = document.querySelectorAll('.settings-card-reset-btn');
+    cardResetButtons.forEach(button => {
+        button.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
+            const resetCard = button.getAttribute('data-reset-card');
+            if (resetCard === 'tempo') {
+                state.settings.tempo = DEFAULT_TEMPO;
+                refreshSettingsControls();
+                return;
+            }
+            if (resetCard === 'timer') {
+                state.settings.quizTimeLimit = DEFAULT_QUIZ_TIME_LIMIT;
+                refreshSettingsControls();
+                return;
+            }
+            if (resetCard === 'quiz-question-limit') {
+                state.settings.quizQuestionLimit = DEFAULT_QUIZ_QUESTION_LIMIT;
+                syncQuizQuestionLimitSettingsUI();
+                return;
+            }
+            if (resetCard === 'view') {
+                state.settings.fretboardViewAutoOrientation = DEFAULT_FRETBOARD_VIEW_AUTO_ORIENTATION;
+                state.settings.fretboardView = DEFAULT_FRETBOARD_VIEW;
+                state.settings.viewMode = 'front';
+                state.settings.rotation = { ...DEFAULT_ROTATION };
+                state.settings.perspective = DEFAULT_VERTICAL_PERSPECTIVE;
+                state.settings.perspOriginX = DEFAULT_HORIZONTAL_PERSPECTIVE;
+                state.settings.stringSpacing = DEFAULT_STRING_SPACING;
+                applyFretboardViewFromOrientationIfAuto();
+                refreshSettingsControls();
+            }
+            if (resetCard === 'cruise-loop') {
+                state.settings.cruiseLoopCount = DEFAULT_CRUISE_LOOP_COUNT;
+                syncLoopCountSettingsUI();
+                return;
+            }
+            if (resetCard === 'cruise-progression') {
+                state.settings.cruiseProgression = DEFAULT_CRUISE_PROGRESSION;
+                state.settings.cruiseTapBeats = DEFAULT_CRUISE_TAP_BEATS;
+                syncCruiseProgressionSettingsUI();
+                return;
+            }
+            if (resetCard === 'bluetooth-rhythm-assist') {
+                state.settings.bluetoothRhythmAssistLevel = DEFAULT_BLUETOOTH_RHYTHM_ASSIST_LEVEL;
+                state.settings.cruiseConfirmSoundTiming = DEFAULT_CRUISE_CONFIRM_SOUND_TIMING;
+                syncBluetoothRhythmAssistSettingsUI();
+                return;
+            }
+            if (resetCard === 'cruise-rhythm-all') {
+                state.settings.cruiseRhythmVolume      = DEFAULT_CRUISE_RHYTHM_VOLUME;
+                state.settings.cruiseRhythmKickVolume  = DEFAULT_CRUISE_RHYTHM_KICK_VOLUME;
+                state.settings.cruiseRhythmSnareVolume = DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME;
+                state.settings.cruiseRhythmHatVolume   = DEFAULT_CRUISE_RHYTHM_HAT_VOLUME;
+                rhythmVolumeSlider.value = Math.round(DEFAULT_CRUISE_RHYTHM_VOLUME * 100);
+                rhythmVolumeDisplay.textContent = `${Math.round(DEFAULT_CRUISE_RHYTHM_VOLUME * 100)}%`;
+                rhythmKickSlider.value  = Math.round(DEFAULT_CRUISE_RHYTHM_KICK_VOLUME  * 100);
+                rhythmSnareSlider.value = Math.round(DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME * 100);
+                rhythmHatSlider.value   = Math.round(DEFAULT_CRUISE_RHYTHM_HAT_VOLUME   * 100);
+                rhythmKickDisplay.textContent  = `${Math.round(DEFAULT_CRUISE_RHYTHM_KICK_VOLUME  * 100)}%`;
+                rhythmSnareDisplay.textContent = `${Math.round(DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME * 100)}%`;
+                rhythmHatDisplay.textContent   = `${Math.round(DEFAULT_CRUISE_RHYTHM_HAT_VOLUME   * 100)}%`;
+                updateRhythmMasterGainVolume();
+                saveState();
+                return;
+            }
+        };
+    });
+
+    const closeSettings = (shouldSave, targetCourse = settingsReturnCourse) => {
+        if (!settingsReadOnly) {
+            if (!shouldSave) {
+                // 「キャンセル」でも、最後に開いていたタブだけは復元せずユーザーの操作のまま残す
+                const preservedTab = state.settings.lastSettingsTab;
+                state.settings = cloneSettings(settingsSnapshot);
+                if (['cruise', 'quiz', 'common'].includes(preservedTab)) {
+                    state.settings.lastSettingsTab = preservedTab;
+                }
+            }
+        }
+        state.course = targetCourse;
+        // 設定画面から戻ってきた場合、一時停止状態（isCruisePlaying = false）を保持
+        settingsReturnCourse = null;
+        saveState();
+        renderApp();
+    };
+
+    const settingsTabButtons = document.querySelectorAll('.settings-tab-btn');
+    const settingsTabPanels = document.querySelectorAll('.settings-tab-panel');
+    settingsTabButtons.forEach(btn => {
+        btn.onclick = () => {
+            const target = btn.getAttribute('data-settings-tab');
+            if (!['cruise', 'quiz', 'common'].includes(target)) return;
+            if (settingsReadOnly) {
+                settingsTabButtons.forEach(b => {
+                    b.classList.toggle('is-active', b.getAttribute('data-settings-tab') === target);
+                });
+                settingsTabPanels.forEach(p => {
+                    p.classList.toggle('is-hidden', p.getAttribute('data-settings-tab-panel') !== target);
+                });
+                if (target === 'common') {
+                    if (typeof updatePreview === 'function') updatePreview();
+                    setTimeout(() => {
+                        if (typeof updatePreviewTransform === 'function') updatePreviewTransform();
+                    }, 0);
+                }
+                return;
+            }
+            state.settings.lastSettingsTab = target;
+            settingsTabButtons.forEach(b => {
+                b.classList.toggle('is-active', b.getAttribute('data-settings-tab') === target);
+            });
+            settingsTabPanels.forEach(p => {
+                p.classList.toggle('is-hidden', p.getAttribute('data-settings-tab-panel') !== target);
+            });
+            // 「共通」タブを開いたら 3D プレビューを再描画（display:none 中はサイズ 0 で描けないため）
+            if (target === 'common') {
+                if (typeof updatePreview === 'function') updatePreview();
+                setTimeout(() => {
+                    if (typeof updatePreviewTransform === 'function') updatePreviewTransform();
+                }, 0);
+            }
+            saveState();
+        };
+    });
+
+    document.getElementById('btn-home-settings').onclick = () => closeSettings(true, null);
+    document.getElementById('btn-back-settings').onclick = () => closeSettings(true);
+    document.getElementById('btn-settings-cancel').onclick = () => closeSettings(false);
+    document.getElementById('btn-settings-apply').onclick = () => closeSettings(true);
+
+    if (isProEdition()) {
+        const proGateResetBtn = document.getElementById('pro-gate-reset');
+        if (proGateResetBtn) {
+            proGateResetBtn.onclick = () => {
+                if (typeof window.__soundCruiseClearGate === 'function') window.__soundCruiseClearGate();
+                window.location.reload();
+            };
+        }
+    }
+
+    const troubleshootingBtn = document.getElementById('btn-settings-troubleshooting');
+    if (troubleshootingBtn) {
+        troubleshootingBtn.onclick = () => {
+            state.course = 'troubleshooting';
+            saveState();
+            renderApp();
+        };
+    }
+
+    const tempoSlider = document.getElementById('tempo-slider');
+    const tempoDisplay = document.getElementById('tempo-display');
+    tempoSlider.oninput = (e) => {
+        if (!guardStandardSettingsMutation()) {
+            tempoSlider.value = state.settings.tempo;
+            return;
+        }
+        state.settings.tempo = parseInt(e.target.value, 10);
+        tempoDisplay.textContent = `BPM ${state.settings.tempo}`;
+    };
+
+    const rhythmVolumeSlider  = document.getElementById('rhythm-volume-slider');
+    const rhythmVolumeDisplay = document.getElementById('rhythm-volume-display');
+    const rhythmKickSlider  = document.getElementById('rhythm-kick-slider');
+    const rhythmKickDisplay  = document.getElementById('rhythm-kick-display');
+    const rhythmSnareSlider = document.getElementById('rhythm-snare-slider');
+    const rhythmSnareDisplay = document.getElementById('rhythm-snare-display');
+    const rhythmHatSlider   = document.getElementById('rhythm-hat-slider');
+    const rhythmHatDisplay   = document.getElementById('rhythm-hat-display');
+
+    rhythmVolumeSlider.oninput = (e) => {
+        if (!guardStandardSettingsMutation()) {
+            rhythmVolumeSlider.value = Math.round((state.settings.cruiseRhythmVolume ?? DEFAULT_CRUISE_RHYTHM_VOLUME) * 100);
+            return;
+        }
+        state.settings.cruiseRhythmVolume = parseInt(e.target.value, 10) / 100;
+        rhythmVolumeDisplay.textContent = `${e.target.value}%`;
+        updateRhythmMasterGainVolume();
+        saveState();
+    };
+
+    const makeRhythmSliderHandler = (slider, display, stateKey, defaultVal) => (e) => {
+        if (!guardStandardSettingsMutation()) {
+            slider.value = Math.round((state.settings[stateKey] ?? defaultVal) * 100);
+            return;
+        }
+        state.settings[stateKey] = parseInt(e.target.value, 10) / 100;
+        display.textContent = `${e.target.value}%`;
+        saveState();
+    };
+
+    rhythmKickSlider.oninput  = makeRhythmSliderHandler(rhythmKickSlider,  rhythmKickDisplay,  'cruiseRhythmKickVolume',  DEFAULT_CRUISE_RHYTHM_KICK_VOLUME);
+    rhythmSnareSlider.oninput = makeRhythmSliderHandler(rhythmSnareSlider, rhythmSnareDisplay, 'cruiseRhythmSnareVolume', DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME);
+    rhythmHatSlider.oninput   = makeRhythmSliderHandler(rhythmHatSlider,   rhythmHatDisplay,   'cruiseRhythmHatVolume',   DEFAULT_CRUISE_RHYTHM_HAT_VOLUME);
+
+    const timerSlider = document.getElementById('timer-slider');
+    const timerDisplay = document.getElementById('timer-display');
+    timerSlider.oninput = (e) => {
+        if (!guardStandardSettingsMutation()) {
+            timerSlider.value = state.settings.quizTimeLimit;
+            return;
+        }
+        state.settings.quizTimeLimit = parseInt(e.target.value, 10);
+        timerDisplay.textContent = `${state.settings.quizTimeLimit} 秒`;
+    };
+
+    document.querySelectorAll('.settings-countdown-sound-buttons .mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
+            state.settings.quizCountdownSound = btn.getAttribute('data-countdown-sound');
+            document.querySelectorAll('.settings-countdown-sound-buttons .mode-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            saveState();
+        };
+    });
+
+    document.querySelectorAll('.settings-quiz-question-limit-buttons .mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
+            const v = parseInt(btn.getAttribute('data-quiz-question-limit'), 10);
+            state.settings.quizQuestionLimit = QUIZ_QUESTION_LIMIT_OPTIONS.includes(v) ? v : DEFAULT_QUIZ_QUESTION_LIMIT;
+            syncQuizQuestionLimitSettingsUI();
+            saveState();
+        };
+    });
+
+    document.querySelectorAll('.settings-notation-buttons .mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
+            state.settings.noteLabelMode = btn.getAttribute('data-notation-mode');
+            syncNotationSettingsUI();
+            saveState();
+            renderApp();
+        };
+    });
+
+    document.querySelectorAll('.settings-loop-count-buttons .mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
+            state.settings.cruiseLoopCount = parseInt(btn.getAttribute('data-loop-count'), 10);
+            syncLoopCountSettingsUI();
+            saveState();
+        };
+    });
+
+    document.querySelectorAll('.settings-cruise-progression-buttons .mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
+            state.settings.cruiseProgression = btn.getAttribute('data-cruise-progression');
+            syncCruiseProgressionSettingsUI();
+            saveState();
+        };
+    });
+
+    document.querySelectorAll('.settings-cruise-tap-beats-buttons .mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
+            state.settings.cruiseTapBeats = btn.getAttribute('data-cruise-tap-beats');
+            syncCruiseProgressionSettingsUI();
+            saveState();
+        };
+    });
+
+    document.querySelectorAll('.settings-cruise-show-note-names-buttons .mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
+            const v = btn.getAttribute('data-cruise-show-note-names');
+            state.settings.cruiseShowNoteNames = v !== 'off';
+            syncCruiseNoteNamesSettingsUI();
+            saveState();
+        };
+    });
+
+    document.querySelectorAll('.settings-bluetooth-delay-switch').forEach(btn => {
+        btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
+            const enabled = btn.getAttribute('data-bluetooth-delay-toggle') === 'on';
+            state.settings.bluetoothRhythmAssistLevel = enabled ? 'low' : DEFAULT_BLUETOOTH_RHYTHM_ASSIST_LEVEL;
+            state.settings.cruiseConfirmSoundTiming = enabled ? 'rhythm' : DEFAULT_CRUISE_CONFIRM_SOUND_TIMING;
+            syncBluetoothRhythmAssistSettingsUI();
+            saveState();
+        };
+    });
+
+    document.querySelectorAll('.settings-bluetooth-rhythm-assist-buttons .mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
+            const level = btn.getAttribute('data-bluetooth-rhythm-assist');
+            state.settings.bluetoothRhythmAssistLevel = VALID_BLUETOOTH_RHYTHM_ASSIST_LEVELS.includes(level)
+                ? level
+                : DEFAULT_BLUETOOTH_RHYTHM_ASSIST_LEVEL;
+            syncBluetoothRhythmAssistSettingsUI();
+            saveState();
+        };
+    });
+
+    document.querySelectorAll('.settings-cruise-confirm-sound-buttons .mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
+            const timing = btn.getAttribute('data-cruise-confirm-sound');
+            state.settings.cruiseConfirmSoundTiming = VALID_CRUISE_CONFIRM_SOUND_TIMINGS.includes(timing)
+                ? timing
+                : DEFAULT_CRUISE_CONFIRM_SOUND_TIMING;
+            syncBluetoothRhythmAssistSettingsUI();
+            saveState();
+        };
+    });
+
+    const updatePreview = () => {
+        renderFretboardHTML('tilt-preview-container', {
+            mode: 'visualize',
+            question: null,
+            showAnswer: true,
+            displayMode: state.settings.noteLabelMode,
+            keyIndex: 0,
+            capo: 0,
+            onFretClick: null
+        });
+    };
+
+    renderFretboardHTML('tilt-preview-container', {
+        mode: 'visualize',
+        question: null,
+        showAnswer: true,
+        displayMode: state.settings.noteLabelMode,
+        keyIndex: 0,
+        capo: 0,
+        onFretClick: null
+    });
+    // Call transform immediately after HTML is injected
+    setTimeout(() => { if(typeof updatePreviewTransform === 'function') updatePreviewTransform(); }, 0);
+
+
+    const dragArea = document.getElementById('trackball-area');
+    const dispX = document.getElementById('rot-x-disp');
+    const dispY = document.getElementById('rot-y-disp');
+    const dispZ = document.getElementById('rot-z-disp');
+    const perspSlider = document.getElementById('persp-slider');
+    const perspDisp = document.getElementById('persp-display');
+    const perspOriginSlider = document.getElementById('persp-origin-slider');
+    const perspOriginDisp = document.getElementById('persp-origin-display');
+    const stringSpacingSlider = document.getElementById('string-spacing-slider');
+    const stringSpacingDisp = document.getElementById('string-spacing-display');
+
+    function syncFretboardViewSettingsUI() {
+        const chk = document.getElementById('fretboard-orientation-auto');
+        if (chk) chk.checked = !!state.settings.fretboardViewAutoOrientation;
+        document.querySelectorAll('.settings-view-btn').forEach(b => {
+            const v = b.getAttribute('data-view');
+            b.disabled = !!state.settings.fretboardViewAutoOrientation;
+            b.classList.toggle('active', v === state.settings.fretboardView);
+        });
+        syncTiltControlsLockedState();
+    }
+
+    function syncTiltControlsLockedState() {
+        const isZoom = state.settings.fretboardView === 'zoom';
+        const ids = [
+            'rot-x-slider', 'rot-y-slider', 'rot-z-slider',
+            'persp-slider', 'persp-origin-slider', 'string-spacing-slider'
+        ];
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = isZoom;
+        });
+        document.querySelectorAll('.settings-preset-btn').forEach(b => {
+            b.disabled = isZoom;
+        });
+        document.querySelectorAll('#tilt-setting-group .settings-reset-btn').forEach(b => {
+            b.disabled = isZoom;
+        });
+        const tiltGroup = document.getElementById('tilt-setting-group');
+        if (tiltGroup) tiltGroup.classList.toggle('is-zoom-locked', isZoom);
+        const drag = document.getElementById('trackball-area');
+        if (drag) drag.classList.toggle('is-zoom-locked', isZoom);
+    }
+
+    function syncNotationSettingsUI() {
+        document.querySelectorAll('.settings-notation-buttons .mode-btn').forEach(b => {
+            const mode = b.getAttribute('data-notation-mode');
+            b.classList.toggle('active', mode === state.settings.noteLabelMode);
+        });
+    }
+
+    function syncLoopCountSettingsUI() {
+        document.querySelectorAll('.settings-loop-count-buttons .mode-btn').forEach(b => {
+            const count = parseInt(b.getAttribute('data-loop-count'));
+            b.classList.toggle('active', count === state.settings.cruiseLoopCount);
+        });
+    }
+
+    function syncQuizQuestionLimitSettingsUI() {
+        const current = parseInt(state.settings.quizQuestionLimit ?? DEFAULT_QUIZ_QUESTION_LIMIT, 10);
+        document.querySelectorAll('.settings-quiz-question-limit-buttons .mode-btn').forEach(b => {
+            const v = parseInt(b.getAttribute('data-quiz-question-limit'), 10);
+            b.classList.toggle('active', v === current);
+        });
+    }
+
+    function syncCruiseNoteNamesSettingsUI() {
+        const on = state.settings.cruiseShowNoteNames !== false;
+        document.querySelectorAll('.settings-cruise-show-note-names-buttons .mode-btn').forEach(b => {
+            const v = b.getAttribute('data-cruise-show-note-names');
+            b.classList.toggle('active', on ? v === 'on' : v === 'off');
+        });
+    }
+
+    function syncCruiseProgressionSettingsUI() {
+        const tap = state.settings.cruiseProgression === 'tap';
+        document.querySelectorAll('.settings-cruise-progression-buttons .mode-btn').forEach(b => {
+            const v = b.getAttribute('data-cruise-progression');
+            b.classList.toggle('active', tap ? v === 'tap' : v === 'auto');
+        });
+        const full = state.settings.cruiseTapBeats === 'full';
+        document.querySelectorAll('.settings-cruise-tap-beats-buttons .mode-btn').forEach(b => {
+            const v = b.getAttribute('data-cruise-tap-beats');
+            b.classList.toggle('active', full ? v === 'full' : v === 'half');
+        });
+    }
+
+    function syncBluetoothRhythmAssistSettingsUI() {
+        const level = VALID_BLUETOOTH_RHYTHM_ASSIST_LEVELS.includes(state.settings.bluetoothRhythmAssistLevel)
+            ? state.settings.bluetoothRhythmAssistLevel
+            : DEFAULT_BLUETOOTH_RHYTHM_ASSIST_LEVEL;
+        const enabled = level !== 'off' || state.settings.cruiseConfirmSoundTiming === 'rhythm';
+        document.querySelectorAll('.settings-bluetooth-delay-switch').forEach(b => {
+            b.classList.toggle('active', enabled);
+            b.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+            b.setAttribute('data-bluetooth-delay-toggle', enabled ? 'off' : 'on');
+        });
+        document.querySelectorAll('.settings-bluetooth-rhythm-assist-buttons .mode-btn').forEach(b => {
+            b.classList.toggle('active', b.getAttribute('data-bluetooth-rhythm-assist') === level);
+        });
+        const timing = VALID_CRUISE_CONFIRM_SOUND_TIMINGS.includes(state.settings.cruiseConfirmSoundTiming)
+            ? state.settings.cruiseConfirmSoundTiming
+            : DEFAULT_CRUISE_CONFIRM_SOUND_TIMING;
+        document.querySelectorAll('.settings-cruise-confirm-sound-buttons .mode-btn').forEach(b => {
+            b.classList.toggle('active', b.getAttribute('data-cruise-confirm-sound') === timing);
+        });
+    }
+
+    function refreshSettingsControls() {
+        tempoSlider.value = state.settings.tempo;
+        tempoDisplay.textContent = `BPM ${state.settings.tempo}`;
+        timerSlider.value = state.settings.quizTimeLimit;
+        timerDisplay.textContent = `${state.settings.quizTimeLimit} 秒`;
+        rhythmVolumeSlider.value = Math.round((state.settings.cruiseRhythmVolume ?? DEFAULT_CRUISE_RHYTHM_VOLUME) * 100);
+        rhythmVolumeDisplay.textContent = `${Math.round((state.settings.cruiseRhythmVolume ?? DEFAULT_CRUISE_RHYTHM_VOLUME) * 100)}%`;
+        rhythmKickSlider.value   = Math.round((state.settings.cruiseRhythmKickVolume  ?? DEFAULT_CRUISE_RHYTHM_KICK_VOLUME)  * 100);
+        rhythmKickDisplay.textContent  = `${Math.round((state.settings.cruiseRhythmKickVolume  ?? DEFAULT_CRUISE_RHYTHM_KICK_VOLUME)  * 100)}%`;
+        rhythmSnareSlider.value  = Math.round((state.settings.cruiseRhythmSnareVolume ?? DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME) * 100);
+        rhythmSnareDisplay.textContent = `${Math.round((state.settings.cruiseRhythmSnareVolume ?? DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME) * 100)}%`;
+        rhythmHatSlider.value    = Math.round((state.settings.cruiseRhythmHatVolume   ?? DEFAULT_CRUISE_RHYTHM_HAT_VOLUME)   * 100);
+        rhythmHatDisplay.textContent   = `${Math.round((state.settings.cruiseRhythmHatVolume   ?? DEFAULT_CRUISE_RHYTHM_HAT_VOLUME)   * 100)}%`;
+        syncNotationSettingsUI();
+        syncLoopCountSettingsUI();
+        syncQuizQuestionLimitSettingsUI();
+        syncCruiseNoteNamesSettingsUI();
+        syncCruiseProgressionSettingsUI();
+        syncBluetoothRhythmAssistSettingsUI();
+        perspSlider.value = state.settings.perspective;
+        perspOriginSlider.value = state.settings.perspOriginX;
+        stringSpacingSlider.value = state.settings.stringSpacing;
+        stringSpacingDisp.textContent = `${state.settings.stringSpacing}%`;
+        syncFretboardViewSettingsUI();
+        updatePreview();
+        updatePreviewTransform();
+    }
+
+    let isDragging = false;
+    let startX = 0, startY = 0;
+    let initRotX = 0, initRotY = 0, initRotZ = 0;
+    let dragMode = 'xy';
+
+    function updatePreviewTransform() {
+        if (!document.getElementById('tilt-preview-container')) return;
+        const rotXSlider = document.getElementById('rot-x-slider');
+        const rotYSlider = document.getElementById('rot-y-slider');
+        const rotZSlider = document.getElementById('rot-z-slider');
+        if (!dispX || !dispY || !dispZ || !perspDisp || !perspOriginDisp || !perspOriginSlider || !stringSpacingDisp || !stringSpacingSlider || !rotXSlider || !rotYSlider || !rotZSlider) return;
+
+        const r = state.settings.rotation;
+        const p_intensity = state.settings.perspective || 0;
+        const p_px = 2000;
+        const originX = state.settings.perspOriginX || 0;
+
+        const previewContainer = document.querySelector('#tilt-preview-container .fretboard-container');
+        const perspectiveWrapper = document.querySelector('#tilt-preview-container .fretboard-perspective-wrapper');
+        if (perspectiveWrapper && previewContainer) {
+            perspectiveWrapper.style.perspectiveOrigin = `50% 50%`;
+            perspectiveWrapper.style.perspective = `${p_px}px`;
+
+            // Center around 3rd string, 5th fret in projected space.
+            const xEdges = getFretXEdges();
+            const fret6CenterX = (xEdges[6] + xEdges[7]) / 2;
+            const anchorY = getStringOriginalBounds(2).bottom; // exact boundary between 3rd and 4th strings
+            const projectedAnchor = projectPoint(fret6CenterX, anchorY, FRETBOARD_SURFACE_Z);
+
+            const clipEl = document.querySelector('.settings-preview-clip');
+            const clipW = clipEl ? clipEl.offsetWidth : 360;
+            const clipH = clipEl ? clipEl.offsetHeight : 180;
+            const projectedBounds = getProjectedFretboardBounds(
+                getNeckYBounds().top,
+                getNeckYBounds().bottom,
+                DEFAULT_VISIBLE_MAX_FRET
+            );
+            const isZoomPreview = state.settings.fretboardView === 'zoom';
+            const zoomFretWidth = FRET_WIDTHS[0] * 5.2;
+            let scale = isZoomPreview
+                ? Math.min(1.15, Math.max(0.7, clipW / zoomFretWidth))
+                : Math.min(0.56, (clipW - 16) / projectedBounds.width, (clipH - 16) / projectedBounds.height);
+            const targetX = clipW / 2;
+            const targetY = clipH / 2 - 8; // lift fretboard slightly so center sits between 3rd/4th strings visually
+            // Keep the anchor point fixed at preview center.
+            // This makes Z rotation orbit around that center (0F/12F trace arcs).
+            const tx = targetX - projectedAnchor.x * scale;
+            let ty = targetY - projectedAnchor.y * scale;
+            let adjustedTx = tx;
+
+            if (!isZoomPreview) {
+                const leftMargin = 8;
+                const rightMargin = 8;
+                adjustedTx = targetX - projectedAnchor.x * scale;
+                ty = targetY - projectedAnchor.y * scale;
+                const currentLeft = projectedBounds.minX * scale + adjustedTx;
+                const currentRight = projectedBounds.maxX * scale + adjustedTx;
+                const currentTop = projectedBounds.minY * scale + ty;
+                const currentBottom = projectedBounds.maxY * scale + ty;
+                if (currentLeft < leftMargin) adjustedTx += (leftMargin - currentLeft);
+                if (currentRight > clipW - rightMargin) adjustedTx -= (currentRight - (clipW - rightMargin));
+                if (currentTop < 8) ty += (8 - currentTop);
+                if (currentBottom > clipH - 8) ty -= (currentBottom - (clipH - 8));
+            }
+
+            // Rotation is already reflected in projected geometry (projectPoint).
+            // Keep preview container transform to layout-only (center/fit) to avoid double rotation.
+            previewContainer.style.transformOrigin = `0 0`;
+            previewContainer.style.transform = `translateX(${adjustedTx.toFixed(1)}px) translateY(${ty.toFixed(1)}px) scale(${scale.toFixed(3)})`;
+        }
+
+        const pointer = document.getElementById('trackball-pointer');
+        if (pointer) {
+            const ptX = (r.y / 80) * 60;
+            const ptY = (-r.x / 80) * 60;
+            pointer.style.transform = `translate(${ptX}px, ${ptY}px) rotate(${r.z}deg)`;
+            pointer.style.background = dragMode === 'z' ? '#c77dff' : '#4f9cf9';
+            pointer.style.boxShadow = `0 0 10px ${dragMode === 'z' ? '#c77dff' : '#4f9cf9'}`;
+        }
+        dispX.textContent = `${Math.round(r.x)}°`;
+        dispY.textContent = `${Math.round(r.y)}°`;
+        dispZ.textContent = `${Math.round(r.z)}°`;
+        rotXSlider.value = r.x;
+        rotYSlider.value = r.y;
+        rotZSlider.value = r.z;
+        perspDisp.textContent = `${p_intensity}`;
+        perspOriginDisp.textContent = `${originX}`;
+        perspOriginSlider.value = originX;
+        stringSpacingDisp.textContent = `${state.settings.stringSpacing}%`;
+        stringSpacingSlider.value = state.settings.stringSpacing;
+    }
+
+    perspSlider.oninput = (e) => {
+        if (!guardStandardSettingsMutation()) {
+            refreshSettingsControls();
+            return;
+        }
+        state.settings.viewMode = 'custom';
+        state.settings.perspective = parseInt(e.target.value, 10);
+        updatePreview();
+        updatePreviewTransform();
+    };
+    perspOriginSlider.oninput = (e) => {
+        if (!guardStandardSettingsMutation()) {
+            refreshSettingsControls();
+            return;
+        }
+        state.settings.viewMode = 'custom';
+        state.settings.perspOriginX = parseInt(e.target.value, 10);
+        updatePreview();
+        updatePreviewTransform();
+    };
+    stringSpacingSlider.oninput = (e) => {
+        if (!guardStandardSettingsMutation()) {
+            refreshSettingsControls();
+            return;
+        }
+        state.settings.stringSpacing = parseInt(e.target.value, 10);
+        stringSpacingDisp.textContent = `${state.settings.stringSpacing}%`;
+        updatePreview();
+        updatePreviewTransform();
+    };
+    document.getElementById('rot-x-slider').oninput = (e) => {
+        if (!guardStandardSettingsMutation()) {
+            refreshSettingsControls();
+            return;
+        }
+        state.settings.viewMode = 'custom';
+        state.settings.rotation.x = parseInt(e.target.value, 10);
+        updatePreview();
+        updatePreviewTransform();
+    };
+    document.getElementById('rot-y-slider').oninput = (e) => {
+        if (!guardStandardSettingsMutation()) {
+            refreshSettingsControls();
+            return;
+        }
+        state.settings.viewMode = 'custom';
+        state.settings.rotation.y = parseInt(e.target.value, 10);
+        updatePreview();
+        updatePreviewTransform();
+    };
+    document.getElementById('rot-z-slider').oninput = (e) => {
+        if (!guardStandardSettingsMutation()) {
+            refreshSettingsControls();
+            return;
+        }
+        state.settings.viewMode = 'custom';
+        state.settings.rotation.z = parseInt(e.target.value, 10);
+        updatePreview();
+        updatePreviewTransform();
+    };
+
+    document.querySelectorAll('.settings-reset-btn').forEach(btn => {
+        btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
+            state.settings.viewMode = 'custom';
+            const resetTarget = btn.getAttribute('data-reset');
+            if (resetTarget === 'rot-x') state.settings.rotation.x = DEFAULT_ROTATION.x;
+            if (resetTarget === 'rot-y') state.settings.rotation.y = DEFAULT_ROTATION.y;
+            if (resetTarget === 'rot-z') state.settings.rotation.z = DEFAULT_ROTATION.z;
+            if (resetTarget === 'perspective') state.settings.perspective = DEFAULT_VERTICAL_PERSPECTIVE;
+            if (resetTarget === 'persp-origin') state.settings.perspOriginX = DEFAULT_HORIZONTAL_PERSPECTIVE;
+            if (resetTarget === 'string-spacing') state.settings.stringSpacing = DEFAULT_STRING_SPACING;
+            refreshSettingsControls();
+        };
+    });
+
+    document.querySelectorAll('.settings-preset-btn').forEach(btn => {
+        btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
+            const preset = btn.getAttribute('data-preset');
+            state.settings.viewMode = 'custom';
+            if (preset === 'front') {
+                state.settings.rotation = { ...DEFAULT_ROTATION };
+                state.settings.perspective = 0;
+                state.settings.perspOriginX = 0;
+            } else if (preset === 'diagonal') {
+                state.settings.rotation = {x: 30, y: -12, z: 1};
+                state.settings.perspective = 30;
+                state.settings.perspOriginX = 90;
+                state.settings.stringSpacing = DEFAULT_STRING_SPACING;
+            }
+            if (preset === 'front') {
+                state.settings.stringSpacing = DEFAULT_STRING_SPACING;
+            }
+            refreshSettingsControls();
+        };
+    });
+
+    document.querySelectorAll('.settings-view-btn').forEach(btn => {
+        btn.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
+            if (state.settings.fretboardViewAutoOrientation) return;
+            const next = btn.getAttribute('data-view');
+            setFretboardView(next);
+            refreshSettingsControls();
+            saveState();
+        };
+    });
+
+    const fretboardOrientationAuto = document.getElementById('fretboard-orientation-auto');
+    if (fretboardOrientationAuto) {
+        fretboardOrientationAuto.onchange = () => {
+            if (!guardStandardSettingsMutation()) {
+                fretboardOrientationAuto.checked = !!state.settings.fretboardViewAutoOrientation;
+                return;
+            }
+            state.settings.fretboardViewAutoOrientation = fretboardOrientationAuto.checked;
+            if (fretboardOrientationAuto.checked) {
+                applyFretboardViewFromOrientationIfAuto();
+            }
+            refreshSettingsControls();
+            saveState();
+        };
+    }
+
+    const btnSettingsDefaults = document.getElementById('btn-settings-defaults');
+    if (btnSettingsDefaults) {
+        btnSettingsDefaults.onclick = () => {
+            if (!guardStandardSettingsMutation()) return;
+            const quizSaved = state.settings.quizStageEditorSettings;
+            const quizProCustomStages = state.settings.quizProCustomStages;
+            const quizShippedVer = state.settings.quizShippedDefaultsAppliedVersion;
+            const quizAttempts = state.settings.quizStageAttemptCounts;
+            const quizPerfects = state.settings.quizStagePerfectCounts;
+            const cruiseClears = state.settings.cruiseStageClearCounts;
+            state.settings = getDefaultSettings();
+            // 指板クイズの問題編集データは「アプリ設定のデフォルト」と別物なので消さない
+            state.settings.quizStageEditorSettings =
+                quizSaved && typeof quizSaved === 'object' && !Array.isArray(quizSaved) ? quizSaved : {};
+            state.settings.quizProCustomStages =
+                Array.isArray(quizProCustomStages) ? quizProCustomStages : [];
+            if (quizShippedVer !== undefined && quizShippedVer !== null) {
+                state.settings.quizShippedDefaultsAppliedVersion = quizShippedVer;
+            }
+            // 挑戦回数・満点達成回数・完走回数は「アプリ設定」とは別物（プレイ実績）なので残す
+            state.settings.quizStageAttemptCounts =
+                quizAttempts && typeof quizAttempts === 'object' && !Array.isArray(quizAttempts) ? quizAttempts : {};
+            state.settings.quizStagePerfectCounts =
+                quizPerfects && typeof quizPerfects === 'object' && !Array.isArray(quizPerfects) ? quizPerfects : {};
+            state.settings.cruiseStageClearCounts =
+                cruiseClears && typeof cruiseClears === 'object' && !Array.isArray(cruiseClears) ? cruiseClears : {};
+            refreshSettingsControls();
+        };
+    }
+
+    function handleDragStart(e) {
+        if (!guardStandardSettingsMutation()) return;
+        if (state.settings.fretboardView === 'zoom') return; // 拡大ビュー：カメラ操作不可
+        isDragging = true;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        startX = clientX; startY = clientY;
+        initRotX = state.settings.rotation.x;
+        initRotY = state.settings.rotation.y;
+        initRotZ = state.settings.rotation.z;
+        if (dragArea) {
+            const rect = dragArea.getBoundingClientRect();
+            const dist = Math.sqrt(Math.pow(clientX - rect.left - rect.width/2, 2) + Math.pow(clientY - rect.top - rect.height/2, 2));
+            dragMode = dist > (rect.width / 2) * 0.7 ? 'z' : 'xy';
+        }
+        updatePreviewTransform();
+        dragArea.style.cursor = 'grabbing';
+    }
+
+    function handleDragMove(e) {
+        if (!isDragging) return;
+        state.settings.viewMode = 'custom';
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const dx = clientX - startX;
+        const dy = clientY - startY;
+        if (dragMode === 'xy') {
+            state.settings.rotation.y = initRotY + dx * 0.5;
+            state.settings.rotation.x = initRotX - dy * 0.5;
+        } else {
+            state.settings.rotation.z = initRotZ + (dx + dy) * 0.5;
+        }
+        state.settings.rotation.x = Math.max(-80, Math.min(80, state.settings.rotation.x));
+        state.settings.rotation.y = Math.max(-80, Math.min(80, state.settings.rotation.y));
+        state.settings.rotation.z = Math.max(-180, Math.min(180, state.settings.rotation.z));
+        updatePreview();
+        updatePreviewTransform();
+    }
+
+    function handleDragEnd() {
+        if (isDragging) { isDragging = false; dragArea.style.cursor = 'grab'; }
+    }
+
+    dragArea.addEventListener('mousedown', handleDragStart);
+    document.addEventListener('mousemove', handleDragMove);
+    settingsDocumentHandlers.push(['mousemove', handleDragMove]);
+    document.addEventListener('mouseup', handleDragEnd);
+    settingsDocumentHandlers.push(['mouseup', handleDragEnd]);
+    dragArea.addEventListener('touchstart', handleDragStart, {passive: false});
+    document.addEventListener('touchmove', handleDragMove, {passive: false});
+    settingsDocumentHandlers.push(['touchmove', handleDragMove]);
+    document.addEventListener('touchend', handleDragEnd);
+    settingsDocumentHandlers.push(['touchend', handleDragEnd]);
+    app._cleanupSettingsHandlers = () => {
+        settingsDocumentHandlers.forEach(([eventName, handler]) => {
+            document.removeEventListener(eventName, handler);
+        });
+        app._cleanupSettingsHandlers = null;
+    };
+
+    app.style.height = '100vh';
+    app.style.overflowY = 'auto';
+    app.style.overflowX = 'hidden';
+    app.style.gap = '0';
+    app.style.alignItems = 'stretch';
+    app.style.paddingBottom = 'calc(var(--in-game-refresh-stack-height, 96px) + max(8px, env(safe-area-inset-bottom)))';
+}
+
+function getHighestFretFromPositions(positions) {
+    if (!Array.isArray(positions)) return 0;
+    return positions.reduce((max, item) => {
+        if (!item) return max;
+        let fret = typeof item.fret === 'number' ? item.fret : 0;
+        if (Array.isArray(item.acceptedPositions)) {
+            fret = Math.max(fret, getHighestFretFromPositions(item.acceptedPositions));
+        }
+        return Math.max(max, fret);
+    }, 0);
+}
+
+function getRenderMaxFret(mode, options) {
+    if (mode === 'visualize') {
+        const vmf = parseInt(state.visualize?.maxFret, 10);
+        return clamp(Number.isFinite(vmf) ? vmf : DEFAULT_VISIBLE_MAX_FRET, DEFAULT_VISIBLE_MAX_FRET, MAX_FRET);
+    }
+
+    let maxFret = DEFAULT_VISIBLE_MAX_FRET;
+
+    if (mode === 'rule') {
+        maxFret = Math.max(maxFret, getHighestFretFromPositions(options.ruleMarkers));
+        if (Array.isArray(options.ruleStep3TapFitFretRange)) {
+            maxFret = Math.max(maxFret, options.ruleStep3TapFitFretRange[1] || 0);
+        }
+        if (Array.isArray(options.ruleTapLayoutZoomFitFloatRange)) {
+            maxFret = Math.max(maxFret, Math.ceil(options.ruleTapLayoutZoomFitFloatRange[1] || 0));
+        }
+    } else if (mode === 'memorize') {
+        // quiz モードでは cruise 用のシーケンス・スコープは指板範囲に影響させない
+        // （前のクルーズセッションで残った高フレットが quiz 画面に漏れるバグを防止）
+        const isQuizPlayMode = state.memorize.playMode === 'quiz';
+        maxFret = Math.max(
+            maxFret,
+            options.question && typeof options.question.fret === 'number' ? options.question.fret : 0
+        );
+        if (!isQuizPlayMode) {
+            maxFret = Math.max(
+                maxFret,
+                getHighestFretFromPositions(state.memorize.cruiseTargets),
+                getHighestFretFromPositions(state.memorize.cruiseScope)
+            );
+            if (state.memorize.proCustomCruise && Number.isFinite(parseInt(state.memorize.proCustomCruise.maxFret, 10))) {
+                maxFret = Math.max(maxFret, clamp(parseInt(state.memorize.proCustomCruise.maxFret, 10), DEFAULT_VISIBLE_MAX_FRET, MAX_FRET));
+            }
+        } else if (state.memorize.proCustomQuiz && Number.isFinite(parseInt(state.memorize.proCustomQuiz.maxFret, 10))) {
+            maxFret = Math.max(maxFret, clamp(parseInt(state.memorize.proCustomQuiz.maxFret, 10), DEFAULT_VISIBLE_MAX_FRET, MAX_FRET));
+        }
+        // STAGE 5・6 は問題画面でも 13 フレットまで表示する（出題が低フレットでも縮まないよう固定）
+        if (!state.memorize.proCustomCruise && (options.memorizeStage === 5 || options.memorizeStage === 6)) {
+            maxFret = Math.max(maxFret, 13);
+        }
+        // STAGE 5・6 の quiz は 13 フレットを上限に固定（編集画面と一致）
+        if (isQuizPlayMode && !state.memorize.proCustomQuiz && (options.memorizeStage === 5 || options.memorizeStage === 6)) {
+            return clamp(Math.min(maxFret, 13), DEFAULT_VISIBLE_MAX_FRET, MAX_FRET);
+        }
+    } else if (mode === 'routeEditor') {
+        maxFret = Math.max(
+            maxFret,
+            getHighestFretFromPositions(options.routeEditorDraft)
+        );
+        if (Number.isFinite(parseInt(options.proCustomGuide?.maxFret, 10))) {
+            maxFret = Math.max(maxFret, clamp(parseInt(options.proCustomGuide.maxFret, 10), DEFAULT_VISIBLE_MAX_FRET, MAX_FRET));
+        }
+        if (!options.proCustomGuide && (options.routeEditorStage === 5 || options.routeEditorStage === 6)) {
+            maxFret = Math.max(maxFret, 13);
+        }
+    } else if (mode === 'quizEditor') {
+        if (Number.isFinite(parseInt(options.proCustomGuide?.maxFret, 10))) {
+            return clamp(parseInt(options.proCustomGuide.maxFret, 10), DEFAULT_VISIBLE_MAX_FRET, MAX_FRET);
+        }
+        // ステージ別の指板表示上限（高フレットに音が残っていても拡張しない）
+        if (options.quizEditorStage === 4) {
+            return DEFAULT_VISIBLE_MAX_FRET;
+        }
+        if (options.quizEditorStage === 5 || options.quizEditorStage === 6) {
+            return 13;
+        }
+        const allNotes = (options.quizEditorGroups || []).flatMap(g => g.notes || []);
+        maxFret = Math.max(maxFret, getHighestFretFromPositions(allNotes));
+    }
+
+    return clamp(Math.floor(maxFret), DEFAULT_VISIBLE_MAX_FRET, MAX_FRET);
+}
+
+/**
+ * カポ画像（matteデザイン1本）を投影してSVG文字列を返す。
+ * 「指板を見る」「指板をたどる/指板クイズ」のPROカスタムSTAGE編集と問題画面で共通利用する。
+ * overallOpacity を 1 未満にすると、4 層まとめて半透明化される。
+ */
+function getProjectedCapoSegments(projectPoint, capoX, neckTop, neckBottom, noteMarkerZ, overallOpacity = 1) {
+    const capoGray = '#8e8881';
+    const projectLine = (x, y1, y2, z, className, stroke, strokeWidth, opacity) => {
+        const p1 = projectPoint(x, y1, z);
+        const p2 = projectPoint(x, y2, z);
+        return `<line class="${className}" x1="${p1.x.toFixed(2)}" y1="${p1.y.toFixed(2)}" x2="${p2.x.toFixed(2)}" y2="${p2.y.toFixed(2)}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round" opacity="${opacity}"></line>`;
+    };
+    const body = 41, core = 27, pad = 20, shine = 3.2;
+    const offset = 2.6, shineOffset = 5.2;
+    const lines = [
+        projectLine(capoX, neckTop + 14, neckBottom - 14, noteMarkerZ, 'projected-capo-body', capoGray, body, 0.92),
+        projectLine(capoX + offset, neckTop + 9, neckBottom - 9, noteMarkerZ, 'projected-capo-clamp-core', capoGray, core, 0.74),
+        projectLine(capoX, neckTop + 6, neckBottom - 6, noteMarkerZ, 'projected-capo-pad', capoGray, pad, 0.84),
+        projectLine(capoX - shineOffset, neckTop + 4, neckBottom - 4, noteMarkerZ, 'projected-capo-shine', capoGray, shine, 0.22)
+    ].join('');
+    if (overallOpacity < 1) {
+        return `<g class="projected-capo-group" opacity="${overallOpacity}">${lines}</g>`;
+    }
+    return lines;
+}
+
+function renderFretboardHTML(containerId, options) {
+    const {
+        mode, question, showAnswer, clicked, onFretClick,
+        highlightMode = null, nextQuestion = null,
+        keyIndex, capo, displayMode, scale, selectedChordIndex,
+        doMode: doModeOpt, chordType, autoSelectRootChord,         ruleMarkers,
+        rulePitchToneByAccidental = false,
+        ruleTapCueBesideNote = false,
+        /** true のとき音名マーカーはそのまま、吹き出しだけ上に絶対配置 */
+        ruleTapCueBubbleAboveNote = false,
+        ruleStep2DegreeColors = false,
+        /**
+         * STEP3 などルール指板：false でオフ。[最小F, 最大F] の範囲幅に合わせてスケールする（両端含む）。
+         * ペアタップでは render 側で [0, 5] などを渡す。
+         */
+        ruleStep3TapFitFretRange = false,
+        /** true のときだけ黄線 SVG の追従を開始（ペアタップ専用） */
+        ruleStep3PairTapLine = false,
+        /** ルール指板：true のとき拡大ビューで横スクロールを出さず画角を固定 */
+        ruleTapLayoutLockScroll = false,
+        /** [fretLo, fretHi] 小数可。横幅フィットに使う（開放側・高F側を半分見切る等） */
+        ruleTapLayoutZoomFitFloatRange = null,
+        /** 1 より大きいと横幅の許容量を広げ、同じ画角でもさらに拡大 */
+        ruleTapLayoutZoomExtra = 1,
+        /** 指定時はルール指板ズームの初期横スクロールをこのフレット列基準にする（STEP4 共通ズーム用） */
+        ruleTapZoomScrollAnchorFret = null,
+        /** true のとき拡大ビューの次ターゲットへの横スクロールをゆっくり動かす */
+        ruleSlowAutoScrollToNext = false,
+        /** STEP5 実践：「いま光っているマス」の音名横にチェック（チェックで光らせない） */
+        ruleStep5ExcludeInlineCheckboxes = false,
+        /** STEP5：スタート地点はチェックで除外しない（その弦フレット） */
+        ruleStep5AnchorDisableSlot = null,
+        /** STEP5：このスライド用の除外マップ（null 時は step5ExcludedSlots のみ参照） */
+        ruleStep5ExcludedSlotsLookup = null,
+        routeEditorDraft = [],
+        routeEditorVisibleIndices = null,
+        routeEditorVisibleGroups = null,
+        proCustomGuide = null,
+        onRouteEditorMarkerClick = null,
+        quizEditorGroups = null,
+        quizEditorSelectedGroupIndex = 0,
+        quizEditorVisibleIndices = null,
+        /** クイズ正解発表フェーズで指板位置を維持するための scrollLeft（null で無効） */
+        preserveScrollLeft = null
+    } = options;
+    let step3TapRange = null;
+    if (
+        ruleStep3TapFitFretRange !== false &&
+        Array.isArray(ruleStep3TapFitFretRange) &&
+        ruleStep3TapFitFretRange.length === 2
+    ) {
+        let lo = clamp(Math.floor(ruleStep3TapFitFretRange[0]), 0, MAX_FRET);
+        let hi = clamp(Math.floor(ruleStep3TapFitFretRange[1]), 0, MAX_FRET);
+        if (lo > hi) {
+            const t = lo;
+            lo = hi;
+            hi = t;
+        }
+        step3TapRange = [lo, hi];
+    }
+    let step3TapFloatRange = null;
+    if (Array.isArray(ruleTapLayoutZoomFitFloatRange) && ruleTapLayoutZoomFitFloatRange.length === 2) {
+        let lo = Number(ruleTapLayoutZoomFitFloatRange[0]);
+        let hi = Number(ruleTapLayoutZoomFitFloatRange[1]);
+        if (Number.isFinite(lo) && Number.isFinite(hi)) {
+            if (lo > hi) {
+                const t = lo;
+                lo = hi;
+                hi = t;
+            }
+            step3TapFloatRange = [lo, hi];
+        }
+    }
+    const ruleTapZoomMul =
+        typeof ruleTapLayoutZoomExtra === 'number' && ruleTapLayoutZoomExtra > 0
+            ? ruleTapLayoutZoomExtra
+            : 1;
+    const renderMaxFret = getRenderMaxFret(mode, options);
+    /** 横画面の問題画面では、設定が「拡大」でも「全体」と同じスケール分岐（マージン・scale）を使う */
+    const memorizeLandscapeUnifiedFullLayout =
+        typeof window !== 'undefined' &&
+        window.innerWidth > window.innerHeight &&
+        mode === 'memorize' &&
+        containerId === 'fretboard-container';
+    /** 横画面の PROカスタム編集（指板をたどる／指板クイズ）は、
+        指板表示を問題画面と同じくらい大きく見せるため、scale > 1 を許可しつつ
+        大きめの maxFullViewH（ビューポートの高い割合）を使う。
+        通常の STAGE1〜6 編集や「指板を見る」には影響しない。 */
+    const proCustomEditorLandscapeLargeFretboard =
+        typeof window !== 'undefined' &&
+        window.innerWidth > window.innerHeight &&
+        (mode === 'routeEditor' || mode === 'quizEditor') &&
+        !!proCustomGuide &&
+        containerId === 'fretboard-container';
+    const routeEditorVisibleIndexSet = Array.isArray(routeEditorVisibleIndices)
+        ? new Set(routeEditorVisibleIndices.map(index => parseInt(index, 10)).filter(Number.isFinite))
+        : null;
+    const quizEditorVisibleIndexSet = Array.isArray(quizEditorVisibleIndices)
+        ? new Set(quizEditorVisibleIndices.map(index => parseInt(index, 10)).filter(Number.isFinite))
+        : null;
+    const routeEditorVisibleGroupList = Array.isArray(routeEditorVisibleGroups)
+        ? routeEditorVisibleGroups.map(group => ({
+            ...group,
+            index: parseInt(group?.index, 10)
+        })).filter(group => Number.isFinite(group.index))
+        : null;
+    const routeEditorGroupIndexBySlot = new Map();
+    if (mode === 'routeEditor' && Array.isArray(routeEditorVisibleGroupList)) {
+        routeEditorVisibleGroupList.forEach(group => {
+            const start = parseInt(group.start, 10);
+            const end = parseInt(group.end, 10);
+            if (!Number.isFinite(start) || !Number.isFinite(end)) return;
+            if (end < start) return;
+            const normalizedStart = Math.max(0, start);
+            const normalizedEnd = Math.max(normalizedStart, end);
+            for (let i = normalizedStart; i <= normalizedEnd; i++) {
+                routeEditorGroupIndexBySlot.set(i, group.index);
+            }
+        });
+    }
+    const routeEditorOrderMap = new Map();
+    if (mode === 'routeEditor' && Array.isArray(routeEditorDraft)) {
+        const groupOrderMap = new Map();
+        routeEditorDraft.map(normalizeCruiseRouteSlot).filter(Boolean).forEach((slot, index) => {
+            if (routeEditorVisibleGroupList && !routeEditorGroupIndexBySlot.has(index)) return;
+            if (routeEditorVisibleIndexSet && !routeEditorVisibleIndexSet.has(index)) return;
+            const key = `${slot.stringName}-${slot.fret}`;
+            const groupIndex = routeEditorVisibleGroupList && routeEditorGroupIndexBySlot.has(index)
+                ? routeEditorGroupIndexBySlot.get(index)
+                : 0;
+            const groupOrder = (groupOrderMap.get(groupIndex) || 0) + 1;
+            groupOrderMap.set(groupIndex, groupOrder);
+            const orders = routeEditorOrderMap.get(key) || [];
+            orders.push({
+                index,
+                order: groupOrder,
+                groupIndex
+            });
+            routeEditorOrderMap.set(key, orders);
+        });
+    }
+    const isRuleMode = mode === 'rule';
+    const ruleViewSnapshot = isRuleMode ? {
+        rotation: { ...(state.settings.rotation || DEFAULT_ROTATION) },
+        perspective: state.settings.perspective,
+        perspOriginX: state.settings.perspOriginX,
+        stringSpacing: state.settings.stringSpacing
+    } : null;
+    if (isRuleMode) {
+        state.settings.rotation = { ...DEFAULT_ROTATION };
+        state.settings.perspective = DEFAULT_VERTICAL_PERSPECTIVE;
+        state.settings.perspOriginX = DEFAULT_HORIZONTAL_PERSPECTIVE;
+        state.settings.stringSpacing = DEFAULT_STRING_SPACING;
+    }
+    const doMode = doModeOpt || 'movable';
+    const use7Chords = chordType === '7';
+
+    // If old perspective value (>100), migrate it to the 0-100 range.
+    if (state.settings.perspective > 100) {
+        state.settings.perspective = Math.round((2000 - state.settings.perspective) / 17);
+        if (state.settings.perspective < 0) state.settings.perspective = 0;
+        if (state.settings.perspective > 100) state.settings.perspective = 100;
+        saveState();
+    }
+    const p_intensity = state.settings.perspective !== undefined ? state.settings.perspective : 0;
+    const isTiltPreview = containerId === 'tilt-preview-container';
+    // Keep preview perspective stable to prevent one-frame zoom flicker while sliders drag.
+    const p_px = isTiltPreview ? 2000 : (1000 + (100 - p_intensity) * 10);
+    
+    let hasHighlight = mode === 'memorize' && !showAnswer;
+    const nextCruiseTarget = (mode === 'memorize' && state.memorize.playMode === 'cruise')
+        ? state.memorize.cruiseTargets[state.memorize.cruiseIndex + 1]
+        : null;
+    const hideCruiseNoteMarkers =
+        mode === 'memorize' &&
+        state.memorize.playMode === 'cruise' &&
+        state.settings.cruiseShowNoteNames === false;
+    let containerClass = 'fretboard-container view-custom';
+    const xEdges = getFretXEdges();
+    const stringOrder = [1, 2, 3, 4, 5, 6];
+    const ruleMarkerMap = new Map((ruleMarkers || []).map(marker => [`${marker.stringNum}-${marker.fret}`, marker]));
+    
+    const neckBounds = getNeckYBounds();
+    const neckTop = neckBounds.top;
+    const neckBottom = neckBounds.bottom;
+
+    const scrollWrapperClass =
+        mode === 'visualize' || mode === 'rule' || mode === 'routeEditor' || mode === 'quizEditor'
+            ? 'fretboard-scroll-wrapper fretboard-scroll-wrapper--visualize'
+            : 'fretboard-scroll-wrapper';
+    const scrollGroupAttr =
+        (containerId === 'fretboard-container' || (mode === 'rule' && containerId === 'rule-fretboard-container'))
+            ? ` data-scroll-group="${mode}"`
+            : '';
+    const zoomAnchorAttr =
+        (mode === 'memorize' && containerId === 'fretboard-container' && ruleTapZoomScrollAnchorFret !== null)
+            ? ` data-zoom-scroll-anchor-fret="${ruleTapZoomScrollAnchorFret}"`
+            : '';
+    let html = `<div class="${scrollWrapperClass}"${scrollGroupAttr}${zoomAnchorAttr}>`;
+    html += `<div class="fretboard-perspective-wrapper" style="perspective: ${p_px}px; perspective-origin: 50% 50%; transform-style: preserve-3d;">`;
+    html += `<div class="${containerClass}" style="transform: none;">`;
+
+    // Front face — exactly the fingerboard height (SVG overflows for fret numbers)
+    html += `<div class="neck-face neck-front projected-neck" style="width:${FRETBOARD_WIDTH}px; height:${neckBottom}px; transform: translateZ(0); background: transparent; border: none; box-shadow: none;">`;
+
+    const gradientId = `neck-wood-grad-${containerId}`;
+    const fretGradientId = `fret-wire-grad-${containerId}`;
+    const nutGradientId = `nut-grad-${containerId}`;
+    const sideGradientId = `neck-side-grad-${containerId}`;
+    const numberStripGradientId = `fret-number-strip-grad-${containerId}`;
+    const neckDropShadowId = `neck-drop-shadow-${containerId}`;
+    const topEdgeGlowId = `top-edge-glow-${containerId}`;
+    const edgeH = 3; // px — black edge line thickness
+
+    // SVG with explicit pixel size so it overflows beyond the front face for fret numbers
+    html += `<svg class="projected-fretboard-svg" width="${FRETBOARD_WIDTH}" height="${FRETBOARD_VIEWBOX_HEIGHT}" style="width:${FRETBOARD_WIDTH}px; height:${FRETBOARD_VIEWBOX_HEIGHT}px;" viewBox="0 0 ${FRETBOARD_WIDTH} ${FRETBOARD_VIEWBOX_HEIGHT}" preserveAspectRatio="none" aria-hidden="true">`;
+    html += `<defs>
+        <linearGradient id="${gradientId}" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#17100b"/>
+            <stop offset="14%" stop-color="#2d1e14"/>
+            <stop offset="33%" stop-color="#3f2a1a"/>
+            <stop offset="52%" stop-color="#5a3a23"/>
+            <stop offset="68%" stop-color="#442b1b"/>
+            <stop offset="84%" stop-color="#2c1c12"/>
+            <stop offset="100%" stop-color="#18110c"/>
+        </linearGradient>
+        <linearGradient id="${fretGradientId}" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#777"/>
+            <stop offset="18%" stop-color="#b8b8b8"/>
+            <stop offset="38%" stop-color="#f2f2f2"/>
+            <stop offset="50%" stop-color="#ffffff"/>
+            <stop offset="64%" stop-color="#dfdfdf"/>
+            <stop offset="82%" stop-color="#9a9a9a"/>
+            <stop offset="100%" stop-color="#5e5e5e"/>
+        </linearGradient>
+        <linearGradient id="${nutGradientId}" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#c7c1b0"/>
+            <stop offset="35%" stop-color="#ece6d6"/>
+            <stop offset="55%" stop-color="#faf4e6"/>
+            <stop offset="78%" stop-color="#dcd5c5"/>
+            <stop offset="100%" stop-color="#b9b3a4"/>
+        </linearGradient>
+        <linearGradient id="${sideGradientId}" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#4a2d1b"/>
+            <stop offset="45%" stop-color="#2c1a11"/>
+            <stop offset="100%" stop-color="#120b07"/>
+        </linearGradient>
+        <linearGradient id="${numberStripGradientId}" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#050505"/>
+            <stop offset="45%" stop-color="#0b0b0b"/>
+            <stop offset="70%" stop-color="#080808"/>
+            <stop offset="100%" stop-color="#040404"/>
+        </linearGradient>
+        <linearGradient id="${topEdgeGlowId}" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="rgba(255,244,220,0.24)"/>
+            <stop offset="50%" stop-color="rgba(255,244,220,0.34)"/>
+            <stop offset="100%" stop-color="rgba(255,244,220,0.18)"/>
+        </linearGradient>
+        <filter id="${neckDropShadowId}" x="-20%" y="-20%" width="140%" height="180%">
+            <feDropShadow dx="-3" dy="8" stdDeviation="5" flood-color="rgba(0,0,0,0.55)"/>
+            <feDropShadow dx="2" dy="10" stdDeviation="6" flood-color="rgba(0,0,0,0.35)"/>
+        </filter>
+    </defs>`;
+
+    // Fingerboard wood and edge lines are projected with the same rule as strings/frets.
+    if (isTiltPreview) {
+        // Preview thickness uses screen-space extrusion so Y rotation won't create front popping/stretch.
+        const r = state.settings.rotation || { x: 0, y: 0, z: 0 };
+        const dx = clamp((-r.y * 0.45) + (r.z * 0.08), -34, 34);
+        const dyMagnitude = clamp(16 + (Math.abs(r.x) * 0.24), 12, 38);
+        const dy = (r.x >= 0 ? 1 : -1) * dyMagnitude;
+        const depthEdges = xEdges.slice(1, renderMaxFret + 2);
+        const frontTop = depthEdges.map(x => projectPoint(x, neckTop + edgeH, FRETBOARD_SURFACE_Z));
+        const frontBottom = depthEdges.map(x => projectPoint(x, neckBottom - edgeH, FRETBOARD_SURFACE_Z));
+        const backTop = frontTop.map(p => ({ x: p.x + dx, y: p.y + dy }));
+        const backBottom = frontBottom.map(p => ({ x: p.x + dx, y: p.y + dy }));
+        const backWoodPoly = buildClosedPolygon([...backTop, ...backBottom.slice().reverse()]);
+        const topDepthPoly = buildClosedPolygon([...frontTop, ...backTop.slice().reverse()]);
+        const bottomDepthPoly = buildClosedPolygon([...frontBottom, ...backBottom.slice().reverse()]);
+        const bassSidePoly = buildClosedPolygon([frontTop[0], frontBottom[0], backBottom[0], backTop[0]]);
+        const trebleSidePoly = buildClosedPolygon([
+            frontTop[frontTop.length - 1],
+            frontBottom[frontBottom.length - 1],
+            backBottom[backBottom.length - 1],
+            backTop[backTop.length - 1]
+        ]);
+        html += `<polygon points="${backWoodPoly}" fill="url(#${sideGradientId})"></polygon>`;
+        if (dy >= 0) {
+            html += `<polygon points="${topDepthPoly}" fill="rgba(240,215,185,0.20)"></polygon>`;
+            html += `<polygon points="${bottomDepthPoly}" fill="url(#${sideGradientId})"></polygon>`;
+        } else {
+            html += `<polygon points="${topDepthPoly}" fill="url(#${sideGradientId})"></polygon>`;
+            html += `<polygon points="${bottomDepthPoly}" fill="rgba(240,215,185,0.18)"></polygon>`;
+        }
+        html += `<polygon points="${bassSidePoly}" fill="url(#${sideGradientId})"></polygon>`;
+        html += `<polygon points="${trebleSidePoly}" fill="url(#${sideGradientId})"></polygon>`;
+    }
+
+    const boardEdges = xEdges.slice(1, renderMaxFret + 2);
+    const projectedWood = buildProjectedBandPolygon(neckTop + edgeH, neckBottom - edgeH, FRETBOARD_SURFACE_Z, boardEdges);
+    const projectedTopEdge = buildProjectedBandPolygon(neckTop, neckTop + edgeH, FRETBOARD_SURFACE_Z, boardEdges);
+    const projectedBottomEdge = buildProjectedBandPolygon(neckBottom - edgeH, neckBottom, FRETBOARD_SURFACE_Z, boardEdges);
+    html += `<polygon points="${projectedWood}" fill="url(#${gradientId})" filter="url(#${neckDropShadowId})"></polygon>`;
+    html += `<polygon points="${projectedTopEdge}" fill="url(#${topEdgeGlowId})"></polygon>`;
+    html += `<polygon points="${projectedBottomEdge}" fill="rgba(8,6,4,0.92)"></polygon>`;
+
+
+
+    const dotPoints = [
+        ...[3, 5, 7, 9].map(f => ({ fret: f, y: FRETBOARD_CENTER_Y })),
+        { fret: 12, y: FRETBOARD_CENTER_Y },
+        { fret: 12, y: (getStringOriginalY(1) + getStringOriginalY(4)) / 2 }
+    ].filter(dot => dot.fret <= renderMaxFret);
+    dotPoints.forEach(dot => {
+        const x = (xEdges[dot.fret] + xEdges[dot.fret + 1]) / 2;
+        const p = projectPoint(x, dot.y, FRET_DOT_Z);
+        html += `<circle class="projected-fret-dot" cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="${(8 * p.scale).toFixed(2)}"></circle>`;
+    });
+
+    stringOrder.forEach((stringNum, rowIndex) => {
+        const originalY = getStringOriginalY(rowIndex);
+        const stringClass = hasHighlight && stringNum !== question.stringName ? 'projected-string dimmed' : (hasHighlight ? 'projected-string highlighted' : 'projected-string');
+        for (let i = 0; i <= renderMaxFret; i++) {
+            const p1 = projectPoint(xEdges[i], originalY, STRING_Z);
+            const p2 = projectPoint(xEdges[i + 1], originalY, STRING_Z);
+            const strokeWidth = getStringThickness(stringNum) * ((p1.scale + p2.scale) / 2);
+            html += `<path class="${stringClass}" data-string="${stringNum}" d="${buildSvgPath([p1, p2])}" stroke-width="${strokeWidth.toFixed(2)}"></path>`;
+        }
+    });
+
+    xEdges.slice(0, renderMaxFret + 2).forEach((x, index) => {
+        if (index === 0) return; // remove fret wire left of open strings
+        const topPoint = projectPoint(x, neckTop, FRETBOARD_SURFACE_Z);
+        const bottomPoint = projectPoint(x, neckBottom, FRETBOARD_SURFACE_Z);
+        const wireWidth = index === 1 ? 8 : 4;
+        const gradId = index === 1 ? nutGradientId : fretGradientId;
+        const wireClass = index === 1 ? 'projected-fret-wire nut' : 'projected-fret-wire';
+        html += `<line class="${wireClass}" x1="${topPoint.x.toFixed(2)}" y1="${topPoint.y.toFixed(2)}" x2="${bottomPoint.x.toFixed(2)}" y2="${bottomPoint.y.toFixed(2)}" stroke="url(#${gradId})" stroke-width="${wireWidth}"></line>`;
+    });
+
+    // カポ画像：以下のモード/状況で、capo>=1 のときだけ描画する。デザインは全モード共通（matte）。
+    //  - 「指板を見る」(visualize)
+    //  - 「指板をたどる/指板クイズ」のPROカスタムSTAGE編集 (routeEditor/quizEditor + proCustomGuide)
+    //  - 上記2モードのPROカスタムSTAGE問題画面 (memorize + proCustomCruise/proCustomQuiz)
+    // 位置はフレットセルの中央（50%）に固定し、見た目を統一する。
+    // 半透明は PROJECTED_CAPO_OVERALL_OPACITY（0.7）で統一。カポの下の音名マーカーが透けて見えるようにする。
+    let capoVal = parseInt(proCustomGuide ? proCustomGuide.capo : capo, 10) || 0;
+    let showCapoForMode = (mode === 'visualize' || ((mode === 'routeEditor' || mode === 'quizEditor') && proCustomGuide));
+    if (mode === 'memorize') {
+        const memoPro = state.memorize.proCustomCruise || state.memorize.proCustomQuiz;
+        if (memoPro && Number.isFinite(parseInt(memoPro.capo, 10))) {
+            capoVal = parseInt(memoPro.capo, 10) || 0;
+            if (capoVal > 0) showCapoForMode = true;
+        }
+    }
+    if (showCapoForMode && capoVal > 0 && capoVal <= renderMaxFret) {
+        const cellLo = xEdges[capoVal];
+        const cellHi = xEdges[capoVal + 1];
+        const capoX = cellLo + (cellHi - cellLo) * 0.5;
+        html += getProjectedCapoSegments(projectPoint, capoX, neckTop, neckBottom, NOTE_MARKER_Z, PROJECTED_CAPO_OVERALL_OPACITY);
+    }
+
+    html += `</svg>`;
+
+    html += `<div class="projected-hit-layer" style="height:${neckBottom}px;">`;
+
+    for (let rowIndex = 0; rowIndex < stringOrder.length; rowIndex++) {
+        let stringNum = stringOrder[rowIndex];
+        let stringIdx = 6 - stringNum;
+
+        for (let f = 0; f <= renderMaxFret; f++) {
+            let noteIdx = (OPEN_STRINGS[stringIdx] + f) % 12;
+            let markerHtml = '';
+            
+            // Interaction logic: route editor and memorize mode need direct fret taps.
+            let isInteractive = (mode === 'memorize' || mode === 'routeEditor' || mode === 'quizEditor');
+            if (mode === 'memorize' && showAnswer && state.memorize.playMode === 'quiz') {
+                isInteractive = false; // Disable clicking after answering in quiz mode
+            }
+            if (mode === 'routeEditor' && proCustomGuide) {
+                const customCapo = parseInt(proCustomGuide.capo, 10) || 0;
+                const keyPcForHarmony = ((parseInt(proCustomGuide.key, 10) || 0) + customCapo) % 12;
+                const degreeFromKey = (noteIdx - keyPcForHarmony + 12) % 12;
+                isInteractive = f >= customCapo && getScaleDegrees(proCustomGuide.scale || 'major').hasOwnProperty(degreeFromKey);
+            }
+            if (mode === 'quizEditor' && proCustomGuide) {
+                const customCapo = parseInt(proCustomGuide.capo, 10) || 0;
+                const keyPcForHarmony = ((parseInt(proCustomGuide.key, 10) || 0) + customCapo) % 12;
+                const degreeFromKey = (noteIdx - keyPcForHarmony + 12) % 12;
+                isInteractive = f >= customCapo && f <= (parseInt(proCustomGuide.maxFret, 10) || MAX_FRET) && getScaleDegrees(proCustomGuide.scale || 'major').hasOwnProperty(degreeFromKey);
+            }
+
+            let fretClass = isInteractive ? 'fret-column interactive' : 'fret-column';
+
+            if (mode === 'quizEditor') {
+                let guideLabel = '';
+                if (proCustomGuide) {
+                    const customCapo = parseInt(proCustomGuide.capo, 10) || 0;
+                    if (f >= customCapo) {
+                        const keyPcForHarmony = ((parseInt(proCustomGuide.key, 10) || 0) + customCapo) % 12;
+                        const degreeFromKey = (noteIdx - keyPcForHarmony + 12) % 12;
+                        const isScale = getScaleDegrees(proCustomGuide.scale || 'major').hasOwnProperty(degreeFromKey);
+                        if (isScale) {
+                            guideLabel = getVisualizeMarkerLabel(
+                                noteIdx,
+                                proCustomGuide.scale || 'major',
+                                proCustomGuide.displayMode || 'solfege',
+                                proCustomGuide.doMode || 'movable',
+                                true,
+                                degreeFromKey,
+                                getAllDegreesWithAccidentals(proCustomGuide.scale || 'major')
+                            );
+                        }
+                    }
+                } else {
+                    guideLabel = ROUTE_EDITOR_SCALE_GUIDE_LABELS[noteIdx] ? getNotationLabel(noteIdx) : '';
+                }
+                const guideHtml = guideLabel
+                    ? `<button type="button" class="note-marker route-editor-scale-guide" aria-hidden="true" tabindex="-1" disabled>${guideLabel}</button>`
+                    : '';
+                // このフレットがどのGrに属するかを調べる
+                const noteGroups = [];
+                if (Array.isArray(quizEditorGroups)) {
+                    quizEditorGroups.forEach((group, gIdx) => {
+                        if (quizEditorVisibleIndexSet && !quizEditorVisibleIndexSet.has(gIdx)) return;
+                        if (Array.isArray(group.notes) && group.notes.some(n => n.stringName === stringNum && n.fret === f)) {
+                            noteGroups.push(gIdx);
+                        }
+                    });
+                }
+                if (noteGroups.length > 0) {
+                    const quizEditorMarkerLabel = proCustomGuide && guideLabel ? guideLabel : getNotationLabel(noteIdx);
+                    const noteButtons = noteGroups.map(gIdx => {
+                        const isActive = gIdx === quizEditorSelectedGroupIndex;
+                        const groupStyle = getRouteEditorGroupColorStyle(gIdx);
+                        const stackedClass = noteGroups.length > 1 ? ' route-edit-note--stacked' : '';
+                        const activeClass = isActive ? ' quiz-edit-note--active' : ' quiz-edit-note--other';
+                        return `<button type="button" class="note-marker route-edit-note route-edit-note-button${stackedClass}${activeClass}" aria-label="Gr.${gIdx + 1} ${stringNum}弦 ${f}フレット" style="${groupStyle}; ${isActive ? '' : 'opacity:0.45;'}">${quizEditorMarkerLabel}</button>`;
+                    }).join('');
+                    const stackModeClass = noteGroups.length >= 3 ? ' route-edit-note-stack--dense' : '';
+                    markerHtml = `${guideHtml}<div class="route-edit-note-stack${stackModeClass}" data-string="${stringNum}" data-fret="${f}">${noteButtons}</div>`;
+                } else {
+                    markerHtml = guideHtml || `<div class="note-marker hidden-note"></div>`;
+                }
+            } else if (mode === 'routeEditor') {
+                const orders = (routeEditorOrderMap.get(`${stringNum}-${f}`) || []).slice().sort((a, b) => {
+                    if (a.groupIndex !== b.groupIndex) return b.groupIndex - a.groupIndex;
+                    return b.index - a.index;
+                });
+                let guideLabel = '';
+                if (proCustomGuide) {
+                    const customCapo = parseInt(proCustomGuide.capo, 10) || 0;
+                    if (f >= customCapo) {
+                        const keyPcForHarmony = ((parseInt(proCustomGuide.key, 10) || 0) + customCapo) % 12;
+                        const degreeFromKey = (noteIdx - keyPcForHarmony + 12) % 12;
+                        const scaleDegrees = getScaleDegrees(proCustomGuide.scale || 'major');
+                        const isScale = scaleDegrees.hasOwnProperty(degreeFromKey);
+                        if (isScale) {
+                            guideLabel = getVisualizeMarkerLabel(
+                                noteIdx,
+                                proCustomGuide.scale || 'major',
+                                proCustomGuide.displayMode || 'solfege',
+                                proCustomGuide.doMode || 'movable',
+                                true,
+                                degreeFromKey,
+                                getAllDegreesWithAccidentals(proCustomGuide.scale || 'major')
+                            );
+                        }
+                    }
+                } else {
+                    guideLabel = ROUTE_EDITOR_SCALE_GUIDE_LABELS[noteIdx]
+                        ? getNotationLabel(noteIdx)
+                        : '';
+                }
+                const guideHtml = guideLabel
+                    ? `<button type="button" class="note-marker route-editor-scale-guide" aria-hidden="true" tabindex="-1" disabled>${guideLabel}</button>`
+                    : '';
+                if (orders.length) {
+                    let orderHtml = '';
+                    if (orders.length >= 3) {
+                        const visibleOrders = orders.slice(0, 3);
+                        const denseOffsets = [
+                            { x: -5, y: 0 },
+                            { x: 0, y: 0 },
+                            { x: 5, y: 0 }
+                        ];
+                        orderHtml = visibleOrders
+                            .map(({ index: routeIndex, groupIndex }, stackIndex) => {
+                                const groupStyle = getRouteEditorGroupColorStyle(groupIndex);
+                                const offset = denseOffsets[stackIndex] || denseOffsets[denseOffsets.length - 1];
+                                const denseZIndex = visibleOrders.length - stackIndex;
+                                return `
+                                <button type="button" class="note-marker route-edit-note route-edit-note-button route-edit-note--stacked route-edit-note--dense" data-route-index="${routeIndex}" aria-label="Gr.${groupIndex + 1} ${stringNum}弦 ${f}フレット" style="${groupStyle}; --route-edit-stack-x: ${offset.x}px; --route-edit-stack-y: ${offset.y}px; z-index:${denseZIndex};"></button>
+                            `;
+                            })
+                            .join('');
+                    } else {
+                        const stackedClass = orders.length > 1 ? ' route-edit-note--stacked' : '';
+                        orderHtml = orders
+                            .map(({ index: routeIndex, order, groupIndex }) => {
+                                const groupStyle = getRouteEditorGroupColorStyle(groupIndex);
+                                return `
+                                <button type="button" class="note-marker route-edit-note route-edit-note-button${stackedClass}" data-route-index="${routeIndex}" aria-label="Gr.${groupIndex + 1} ${order}番目 ${stringNum}弦 ${f}フレット" style="${groupStyle}">
+                                    <span class="route-edit-note-order">${order}</span>
+                                </button>
+                            `; })
+                            .join('');
+                    }
+                    const stackModeClass = orders.length >= 3 ? ' route-edit-note-stack--dense' : '';
+                    markerHtml = `${guideHtml}<div class="route-edit-note-stack${stackModeClass}" data-string="${stringNum}" data-fret="${f}">${orderHtml}</div>`;
+                } else {
+                    markerHtml = `${guideHtml}<div class="note-marker hidden-note"></div>`;
+                }
+            } else if (mode === 'memorize') {
+                let isTargetQuiz = state.memorize.proCustomQuiz
+                    ? (question && stringNum === question.stringName && f === question.fret)
+                    : (question && stringNum === question.stringName && noteIdx === question.noteIdx);
+                let isTargetCruise = (question && stringNum === question.stringName && f === question.fret);
+                let isClicked = clicked && (clicked.stringNum === stringNum && clicked.fret === f);
+
+                // 正解のフレットには特別なクラスを付与して視覚化できるようにする
+                if (isTargetCruise || (state.memorize.playMode === 'quiz' && isTargetQuiz)) {
+                    fretClass += ' is-target-fret';
+                }
+
+                if (state.memorize.playMode === 'cruise') {
+                    // Cruise mode: always show answer, user must click it
+                    let isScope = state.memorize.cruiseScope.some(t => t.stringName === stringNum && t.fret === f);
+                    let isNextCruise = nextCruiseTarget && stringNum === nextCruiseTarget.stringName && f === nextCruiseTarget.fret && !isTargetCruise;
+                    const cruiseMarkerLabel = state.memorize.proCustomCruise
+                        ? getProCustomDisplayLabel(noteIdx, f, state.memorize.proCustomCruise)
+                        : getNotationLabel(noteIdx);
+                    if (hideCruiseNoteMarkers) {
+                        // 音名OFF時：現在押す音だけは丸（ラベルなし）で表示し、次/範囲は完全非表示
+                        if (isTargetCruise) {
+                            markerHtml = `<div class="note-marker target-note correct-note note-marker--no-label" aria-label="${question ? `${question.stringName}弦 ${question.fret}フレット` : ''}"></div>`;
+                        } else {
+                            markerHtml = `<div class="note-marker hidden-note"></div>`;
+                        }
+                    } else if (isTargetCruise) {
+                        markerHtml = `<div class="note-marker target-note correct-note">${cruiseMarkerLabel}</div>`;
+                    } else if (isNextCruise) {
+                        markerHtml = `<div class="note-marker target-note next-note">${cruiseMarkerLabel}</div>`;
+                    } else if (isScope) {
+                        markerHtml = `<div class="note-marker target-note grey-note">${cruiseMarkerLabel}</div>`;
+                    } else {
+                        markerHtml = `<div class="note-marker hidden-note"></div>`;
+                    }
+                } else {
+                    // Quiz mode
+                    const quizMarkerLabel = state.memorize.proCustomQuiz
+                        ? getProCustomDisplayLabel(noteIdx, f, state.memorize.proCustomQuiz)
+                        : getNotationLabel(noteIdx);
+                    if (showAnswer) {
+                        if (isTargetQuiz && isClicked) {
+                            markerHtml = `<div class="note-marker target-note correct-note">${quizMarkerLabel}</div>`;
+                        } else if (isTargetQuiz) {
+                            markerHtml = `<div class="note-marker target-note correct-note">${quizMarkerLabel}</div>`;
+                        } else if (isClicked && !clicked.isCorrect) {
+                            markerHtml = `<div class="note-marker target-note wrong-note">${quizMarkerLabel}</div>`;
+                        } else {
+                            markerHtml = `<div class="note-marker hidden-note"></div>`;
+                        }
+                    } else {
+                        markerHtml = `<div class="note-marker hidden-note"></div>`;
+                    }
+                }
+            } else if (mode === 'visualize') {
+                let isBelowCapo = f < capo;
+                if (isBelowCapo) {
+                    markerHtml = `<div class="note-marker hidden-note"></div>`;
+                } else {
+                    const capoVal = capo | 0;
+                    // カポで実際に鳴るキーが上がる分、度数・移動ド表記の基準もずらす
+                    const keyPcForHarmony = (keyIndex + capoVal) % 12;
+                    const degreeFromKey = (noteIdx - keyPcForHarmony + 12) % 12;
+                    const scaleDegrees = getScaleDegrees(scale || 'major');
+                    const allDegrees = getAllDegreesWithAccidentals(scale || 'major');
+                    let isScale = scaleDegrees.hasOwnProperty(degreeFromKey);
+
+                    let shouldShow = true;
+                    if (autoSelectRootChord && selectedChordIndex !== null && selectedChordIndex !== undefined) {
+                        const chords = DIATONIC_CHORDS[scale || 'major'] || DIATONIC_CHORDS.major;
+                        const selectedChord = chords[selectedChordIndex];
+                        const degreesToCheck = use7Chords
+                            ? (selectedChord.degrees7 || selectedChord.degrees)
+                            : selectedChord.degrees;
+                        shouldShow = selectedChord && degreesToCheck.includes(degreeFromKey);
+                    } else if (!autoSelectRootChord) {
+                        shouldShow = isScale;
+                    }
+
+                    if (!shouldShow) {
+                        markerHtml = `<div class="note-marker hidden-note"></div>`;
+                    } else {
+                        const chords = DIATONIC_CHORDS[scale || 'major'] || DIATONIC_CHORDS.major;
+                        const selectedChord = autoSelectRootChord && selectedChordIndex !== null && selectedChordIndex !== undefined
+                            ? chords[selectedChordIndex]
+                            : null;
+                        const chordDegrees = selectedChord
+                            ? (use7Chords ? (selectedChord.degrees7 || selectedChord.degrees) : selectedChord.degrees)
+                            : null;
+                        const shouldUseChordDegreeLabels =
+                            autoSelectRootChord &&
+                            !!selectedChord &&
+                            state.visualize.chordDegreeLabelEnabled;
+                        const effectiveDisplayMode =
+                            shouldUseChordDegreeLabels
+                                ? 'chordDegree'
+                                : displayMode;
+                        const label = getVisualizeMarkerLabel(
+                            noteIdx,
+                            scale || 'major',
+                            effectiveDisplayMode,
+                            doMode,
+                            isScale,
+                            degreeFromKey,
+                            allDegrees,
+                            chordDegrees
+                        );
+                        let roleClass = 'role-non-target';
+                        if (isScale) {
+                            if (chordDegrees && chordDegrees[0] === degreeFromKey) roleClass = 'role-root';
+                            else if (chordDegrees && chordDegrees[1] === degreeFromKey) roleClass = 'role-third';
+                            else if (chordDegrees && chordDegrees[2] === degreeFromKey) roleClass = 'role-fifth';
+                            else if (use7Chords && chordDegrees && chordDegrees[3] === degreeFromKey) roleClass = 'role-seventh';
+                            else if (degreeFromKey === 0) roleClass = 'role-root';
+                            else if (degreeFromKey === 4) roleClass = 'role-third';
+                            else if (degreeFromKey === 7) roleClass = 'role-fifth';
+                            else if (degreeFromKey === 11) roleClass = 'role-seventh';
+                            else roleClass = 'role-other';
+                        } else {
+                            roleClass = 'role-non-target grayed-note';
+                        }
+
+                        markerHtml = `<div class="note-marker ${roleClass}">${label}</div>`;
+                    }
+                }
+            } else if (mode === 'rule') {
+                const ruleMarker = ruleMarkerMap.get(`${stringNum}-${f}`);
+                if (ruleMarker) {
+                    const markerAriaLabel = `${stringNum}弦 ${f}フレット ${ruleMarker.label}`;
+                    const rc = ruleMarker.className || 'rule-scale';
+                    const ruleNIdx = typeof ruleMarker.noteIdx === 'number'
+                        ? ruleMarker.noteIdx
+                        : (OPEN_STRINGS[6 - ruleMarker.stringNum] + f) % 12;
+                    const hasRuleNext = rc.includes('rule-next');
+                    let innerMarkerClass;
+                    if (ruleStep2DegreeColors) {
+                        const degCls = getRuleStep2CMajorDegreeClass(ruleNIdx);
+                        innerMarkerClass = `${degCls}${hasRuleNext ? ' rule-next' : ''}`;
+                    } else {
+                        const isRulePalette = rc.includes('rule-root') || rc.includes('rule-half') || rc.includes('rule-scale');
+                        const pitchToneClass = rulePitchToneByAccidental && isRulePalette
+                            ? ([1, 3, 6, 8, 10].includes(ruleNIdx) ? 'rule-pitch-sharp' : 'rule-pitch-natural')
+                            : '';
+                        const pitchPart = pitchToneClass ? ` ${pitchToneClass}` : '';
+                        innerMarkerClass = `${rc}${pitchPart}`;
+                    }
+                    const innerMarker = `<div class="note-marker ${innerMarkerClass}" aria-label="${markerAriaLabel}" title="${markerAriaLabel}">${ruleMarker.label}</div>`;
+                    markerHtml = innerMarker;
+                } else {
+                    markerHtml = `<div class="note-marker hidden-note"></div>`;
+                }
+            }
+
+            const leftX = xEdges[f];
+            const rightX = xEdges[f + 1];
+            const centerX = (leftX + rightX) / 2;
+            const { top: rowTopY, bottom: rowBottomY } = getStringOriginalBounds(rowIndex);
+            const pTL = projectPoint(leftX, rowTopY, NOTE_MARKER_Z);
+            const pTR = projectPoint(rightX, rowTopY, NOTE_MARKER_Z);
+            const pBL = projectPoint(leftX, rowBottomY, NOTE_MARKER_Z);
+            const pBR = projectPoint(rightX, rowBottomY, NOTE_MARKER_Z);
+            const projectedLeft = Math.min(pTL.x, pTR.x, pBL.x, pBR.x);
+            const projectedRight = Math.max(pTL.x, pTR.x, pBL.x, pBR.x);
+            const projectedTopY = Math.min(pTL.y, pTR.y, pBL.y, pBR.y);
+            const projectedBottomY = Math.max(pTL.y, pTR.y, pBL.y, pBR.y);
+            const projectedHeight = projectedBottomY - projectedTopY;
+            const projectedWidth = projectedRight - projectedLeft;
+            const markerScale = projectPoint(centerX, getStringOriginalY(rowIndex), NOTE_MARKER_Z).scale;
+            const markerSize = Math.max(20, 30 * markerScale);
+            const markerFontSize = (mode === 'rule' ? 0.66 : 0.85) * markerScale;
+            const markerStyle = `width:${markerSize.toFixed(2)}px; height:${markerSize.toFixed(2)}px; font-size:${markerFontSize.toFixed(2)}rem;`;
+            markerHtml = markerHtml.replace('<div class="note-marker', `<div style="${markerStyle}" class="note-marker`);
+            if (
+                mode === 'rule' &&
+                ruleStep5ExcludeInlineCheckboxes &&
+                markerHtml.includes('rule-next')
+            ) {
+                const anchorDisable =
+                    ruleStep5AnchorDisableSlot &&
+                    stringNum === ruleStep5AnchorDisableSlot.stringNum &&
+                    f === ruleStep5AnchorDisableSlot.fret;
+                const ex =
+                    ruleStep5ExcludedSlotsLookup && typeof ruleStep5ExcludedSlotsLookup === 'object'
+                        ? ruleStep5ExcludedSlotsLookup
+                        : state.rules.step5ExcludedSlots || {};
+                const checked = anchorDisable ? false : !!ex[ruleStep5SlotKey(stringNum, f)];
+                markerHtml = `<div class="rule-step5-marker-row">${markerHtml}<label class="rule-step5-inline-exclude"${
+                    anchorDisable ? ' data-rule-step5-exclude-anchor="1"' : ''
+                }><input type="checkbox" class="rule-step5-inline-exclude-cb" data-sn="${stringNum}" data-fr="${f}"${
+                    anchorDisable ? ' disabled' : ''
+                }${checked ? ' checked' : ''} aria-label="チェックでこのマスを練習から外す" title="チェックで練習から外す" /></label></div>`;
+            }
+            const rotX = (state.settings.rotation && typeof state.settings.rotation.x === 'number') ? state.settings.rotation.x : 0;
+            const layerOrder = rotX < 0 ? (7 - stringNum) : stringNum;
+            const cellStyle = `left:${projectedLeft.toFixed(2)}px; top:${projectedTopY.toFixed(2)}px; width:${projectedWidth.toFixed(2)}px; height:${projectedHeight.toFixed(2)}px; z-index:${layerOrder};`;
+
+            html += `<div class="${fretClass}" data-string="${stringNum}" data-fret="${f}" style="${cellStyle}">${markerHtml}</div>`;
+        }
+    }
+    html += `</div>`;
+
+    html += `</div>`; // neck-front
+
+    /* フレット番号は SVG の <text> ではなく HTML の <div> として描画する。
+       SVG だと端末ごとに初回ペイントの位置がずれる挙動があり、また神経-front の中に置くと
+       小さい端末で scrollWrapper の overflow:hidden に押されて消える。
+       そこで neck-front の外（fretboard-container 直下）に置き、座標は同じ projectPoint で計算する。 */
+    html += `<div class="projected-fret-number-layer" style="width:${FRETBOARD_WIDTH}px;">`;
+    for (let f = 0; f <= renderMaxFret; f++) {
+        if (f === 0) continue;
+        const x = (xEdges[f] + xEdges[f + 1]) / 2;
+        const labelY = f === 0
+            ? (neckBottom - edgeH - 8)
+            : (neckBottom + FRET_NUMBER_STRIP_HEIGHT * 0.58);
+        const labelPoint = projectPoint(x, labelY, FRET_NUMBER_Z);
+        const scale = labelPoint.scale;
+        html += `<div class="projected-fret-number" data-fret="${f}" style="left:${labelPoint.x.toFixed(2)}px; top:${labelPoint.y.toFixed(2)}px; font-size:${(19 * scale).toFixed(2)}px;">${f}</div>`;
+    }
+    html += `</div>`;
+
+    html += `</div></div></div>`; // container & perspective-wrapper & scroll-wrapper
+
+    let effectivePreserveScrollLeft = preserveScrollLeft;
+    if (
+        mode === 'memorize' &&
+        state.memorize.playMode === 'quiz' &&
+        state.settings.fretboardView === 'zoom' &&
+        !memorizeLandscapeUnifiedFullLayout
+    ) {
+        // 縦画面・拡大ビューのクイズだけ保存スクロール位置を反映する。
+        // 横画面・全体ビューでは編集で設定したフレット範囲を固定表示するため、
+        // スクロール位置は使わない（cruise と同じ振る舞い）。
+        // 1) アニメ中はその瞬間の補間値を優先
+        const animVal = getQuizScrollAnimationCurrentValue();
+        if (animVal !== null) {
+            effectivePreserveScrollLeft = animVal;
+        } else if (!Number.isFinite(effectivePreserveScrollLeft)) {
+            // 2) 通常時は新問題の保存位置を補完
+            const qsl = question?.quizGrScrollLeft ?? state.memorize.currentQuestion?.quizGrScrollLeft;
+            if (Number.isFinite(qsl)) {
+                effectivePreserveScrollLeft = qsl;
+            }
+        }
+    }
+
+    const containerEl = document.getElementById(containerId);
+    const shouldPreserveScrollLeft =
+        Number.isFinite(effectivePreserveScrollLeft) &&
+        state.settings.fretboardView === 'zoom' &&
+        !memorizeLandscapeUnifiedFullLayout;
+    containerEl.innerHTML = html;
+
+    // クイズ：編集で保存した横位置を、innerHTML 差し替え直後から維持（解答表示で一瞬 scrollLeft=0 に見えるのを防ぐ）
+    if (shouldPreserveScrollLeft) {
+        const pw = containerEl.querySelector('.fretboard-scroll-wrapper');
+        if (pw) {
+            void pw.offsetHeight;
+            pw.scrollLeft = effectivePreserveScrollLeft;
+            requestAnimationFrame(() => {
+                if (!pw.isConnected) return;
+                pw.scrollLeft = effectivePreserveScrollLeft;
+                requestAnimationFrame(() => {
+                    if (pw.isConnected) pw.scrollLeft = effectivePreserveScrollLeft;
+                });
+            });
+        }
+    }
+
+    if (mode === 'rule' && ruleStep5ExcludeInlineCheckboxes && containerId === 'rule-fretboard-container') {
+        containerEl.querySelectorAll('.rule-step5-inline-exclude').forEach(el => {
+            el.addEventListener('click', e => e.stopPropagation());
+            el.addEventListener('mousedown', e => e.stopPropagation());
+        });
+        containerEl.querySelectorAll('.rule-step5-inline-exclude-cb').forEach(cb => {
+            cb.addEventListener('click', e => e.stopPropagation());
+            cb.addEventListener('change', () => {
+                if (cb.disabled) return;
+                const sn = parseInt(cb.getAttribute('data-sn'), 10);
+                const fr = parseInt(cb.getAttribute('data-fr'), 10);
+                if (Number.isNaN(sn) || Number.isNaN(fr)) return;
+                ruleStep5SetSlotExcluded(sn, fr, cb.checked);
+            });
+        });
+    }
+
+    // Scale the fretboard to fill the full viewport width in game mode.
+    // Key constraints:
+    //  1. Use window.innerWidth (not containerEl width) to break out of the
+    //     app container's max-width: 600px constraint.
+    //  2. Set scroll-wrapper width = FRETBOARD_WIDTH before applying scale so
+    //     all frets (not just the clipped portion) are visible after scaling.
+    //  3. Avoid overflow:hidden on the container — it can block iOS touch events
+    //     for children whose layout position exceeds the container height.
+    if (!isTiltPreview) {
+        const scrollWrapper = containerEl.querySelector('.fretboard-scroll-wrapper');
+        if (scrollWrapper) {
+            const screenW = window.innerWidth;
+            const appEl = document.getElementById('app');
+            if (appEl && containerId === 'fretboard-container') {
+                void appEl.offsetHeight;
+            }
+            const isRuleFretHost = mode === 'rule' && containerId === 'rule-fretboard-container';
+            const ruleHostW = isRuleFretHost && containerEl.parentElement
+                ? Math.floor(containerEl.parentElement.clientWidth)
+                : 0;
+            const cruiseLandCfg =
+                mode === 'memorize' && containerId === 'fretboard-container'
+                    ? getCruiseLandscapeLayoutConfig()
+                    : { active: false };
+            const isFixedCruiseLandscape =
+                mode === 'memorize' &&
+                containerId === 'fretboard-container' &&
+                state.memorize?.playMode === 'cruise' &&
+                !state.memorize?.proCustomCruise &&
+                window.innerWidth > window.innerHeight;
+            const safeLeftPx = isFixedCruiseLandscape ? getSafeAreaInsetPx('left') : 0;
+            const safeRightPx = isFixedCruiseLandscape ? getSafeAreaInsetPx('right') : 0;
+            const baseLayoutW = isRuleFretHost && ruleHostW > 0
+                ? ruleHostW
+                : cruiseLandCfg.active && cruiseLandCfg.useFullViewportWidth
+                    ? screenW
+                    : (appEl && appEl.clientWidth > 0 ? appEl.clientWidth : screenW);
+            const layoutW = isFixedCruiseLandscape
+                ? Math.max(1, baseLayoutW - safeLeftPx - safeRightPx)
+                : baseLayoutW;
+            const ruleTapCapZoomByFretWidth = (zMax, layoutPad, innerMin) => {
+                let bW = 0;
+                if (step3TapFloatRange !== null) {
+                    bW = getProjectedFretboardBoundsForFretFloatRange(
+                        neckTop,
+                        neckBottom,
+                        step3TapFloatRange[0],
+                        step3TapFloatRange[1]
+                    ).width;
+                } else if (step3TapRange !== null) {
+                    bW = getProjectedFretboardBoundsForFretRange(
+                        neckTop,
+                        neckBottom,
+                        step3TapRange[0],
+                        step3TapRange[1]
+                    ).width;
+                } else {
+                    return Math.min(1, zMax);
+                }
+                const widthCap = Math.max(innerMin, layoutW - layoutPad) * ruleTapZoomMul;
+                return Math.min(1, zMax, widthCap / Math.max(1, bW));
+            };
+            const isZoomView = (mode === 'memorize' || mode === 'visualize' || mode === 'rule' || mode === 'routeEditor' || mode === 'quizEditor') && state.settings.fretboardView === 'zoom';
+            const effectiveZoomView = (memorizeLandscapeUnifiedFullLayout || proCustomEditorLandscapeLargeFretboard) ? false : isZoomView;
+            const visualizeExtendedNeedsHorizScroll =
+                mode === 'visualize' &&
+                containerId === 'fretboard-container' &&
+                renderMaxFret > DEFAULT_VISIBLE_MAX_FRET;
+            const perspectiveWrapper = containerEl.querySelector('.fretboard-perspective-wrapper');
+
+            // Break out of the app container's max-width by offsetting to the left
+            // viewport edge. position:relative keeps the element in the flex flow.
+            const containerRect = containerEl.getBoundingClientRect();
+            containerEl.style.position = 'relative';
+            containerEl.style.left = isRuleFretHost ? '0px' : `${-Math.round(containerRect.left) + safeLeftPx}px`;
+            containerEl.style.width = `${layoutW}px`;
+            containerEl.style.overflow = '';
+            containerEl.style.removeProperty('-webkit-overflow-scrolling');
+
+            if (effectiveZoomView) {
+                scrollWrapper.style.marginLeft = '';
+                const projectedBounds = getProjectedFretboardBounds(neckTop, neckBottom, renderMaxFret);
+                const land = window.innerWidth > window.innerHeight;
+                let maxZoomViewH =
+                    mode === 'memorize' && containerId === 'fretboard-container'
+                        ? Math.max(160, window.innerHeight * (land ? 0.56 : 0.36))
+                        : Math.max(190, window.innerHeight * 0.36);
+                if ((mode === 'memorize' || mode === 'routeEditor' || mode === 'quizEditor') && containerId === 'fretboard-container') {
+                    void containerEl.offsetHeight;
+                    const ch = containerEl.clientHeight;
+                    if (ch > 72) {
+                        const zSlack = land ? 0 : 4;
+                        /** 横・拡大: 下端UIとの隙間をやや詰め、指板の縦スケール上限を上げる */
+                        const zBottomClearBase = land ? 34 : 0;
+                        const zBottomClear =
+                            cruiseLandCfg.active && cruiseLandCfg.bottomClearOverride !== null
+                                ? cruiseLandCfg.bottomClearOverride
+                                : zBottomClearBase;
+                        maxZoomViewH = Math.max(130, ch - zSlack - zBottomClear);
+                    }
+                }
+                if (
+                    (step3TapRange !== null || step3TapFloatRange !== null) &&
+                    (isRuleFretHost && containerId === 'rule-fretboard-container' ||
+                     mode === 'memorize' && containerId === 'fretboard-container')
+                ) {
+                    void containerEl.offsetHeight;
+                    const ch = containerEl.clientHeight;
+                    if (ch > 72) {
+                        const zSlack = land ? 0 : 4;
+                        const zBottomClear = land ? 34 : 0;
+                        maxZoomViewH = Math.max(130, ch - zSlack - zBottomClear);
+                    }
+                }
+                let zoomScale = Math.min(1, maxZoomViewH / projectedBounds.height);
+                if (isRuleFretHost) {
+                    zoomScale = ruleTapCapZoomByFretWidth(zoomScale, 18, 160);
+                } else if (mode === 'memorize' && containerId === 'fretboard-container' && (step3TapRange !== null || step3TapFloatRange !== null)) {
+                    zoomScale = ruleTapCapZoomByFretWidth(zoomScale, 18, 160);
+                }
+                // 「指板を見る」拡大ビューでは、PROカスタム編集と同じく
+                // 指板自体は縦の高さでスケールを決め、最大フレットを超える分は横スクロールで見られるようにする。
+                // 以前は 12フレット幅に収まるよう zoomScale を更に縮めていたため
+                // 縦画面で「全体ビュー」のように小さく見える不具合があったため撤去。
+                scrollWrapper.style.width = `${layoutW}px`;
+                scrollWrapper.style.height = `${Math.ceil(projectedBounds.height * zoomScale)}px`;
+                scrollWrapper.style.overflowX =
+                    ruleTapLayoutLockScroll &&
+                    (step3TapRange !== null || step3TapFloatRange !== null)
+                        ? 'hidden'
+                        : 'auto';
+                scrollWrapper.style.overflowY = 'hidden';
+                scrollWrapper.style.transform = '';
+                scrollWrapper.style.transformOrigin = '';
+                containerEl.style.height = '';
+                containerEl.style.marginBottom = '';
+                if (perspectiveWrapper) {
+                    perspectiveWrapper.style.transformOrigin = 'top left';
+                    perspectiveWrapper.style.transform = `translate(${(-projectedBounds.minX).toFixed(2)}px, ${(-projectedBounds.minY).toFixed(2)}px) scale(${zoomScale.toFixed(4)})`;
+                }
+                if (
+                    DEBUG_PORTRAIT_FRETBOARD_LAYOUT &&
+                    !land &&
+                    containerId === 'fretboard-container' &&
+                    (mode === 'memorize' || mode === 'routeEditor' || mode === 'quizEditor')
+                ) {
+                    requestAnimationFrame(() => {
+                        if (!containerEl.isConnected || !scrollWrapper.isConnected) return;
+                        updatePortraitFretboardLayoutPanel({
+                            mode,
+                            containerId,
+                            orientation: 'portrait',
+                            containerClientWidth: containerEl.clientWidth,
+                            containerClientHeight: containerEl.clientHeight,
+                            scrollWrapperClientWidth: scrollWrapper.clientWidth,
+                            scrollWrapperScrollWidth: scrollWrapper.scrollWidth,
+                            layoutW,
+                            renderMaxFret,
+                            projectedBoundsWidth: projectedBounds.width,
+                            projectedBoundsHeight: projectedBounds.height,
+                            maxZoomViewH,
+                            zoomScale,
+                            finalScale: zoomScale,
+                            containerStyleWidth: containerEl.style.width,
+                            containerStyleHeight: containerEl.style.height,
+                            scrollWrapperStyleWidth: scrollWrapper.style.width,
+                            scrollWrapperStyleHeight: scrollWrapper.style.height
+                        });
+                    });
+                }
+            } else {
+                const projectedBounds = getProjectedFretboardBounds(neckTop, neckBottom, renderMaxFret);
+                const land = window.innerWidth > window.innerHeight;
+                const memorizeFretHost =
+                    mode === 'memorize' && containerId === 'fretboard-container';
+                const routeEditorFretHost =
+                    mode === 'routeEditor' && containerId === 'fretboard-container';
+                const quizEditorFretHost =
+                    mode === 'quizEditor' && containerId === 'fretboard-container';
+                const fixedStageEditorFretHost =
+                    !proCustomGuide && (routeEditorFretHost || quizEditorFretHost);
+                const visualizeFretHost =
+                    (mode === 'visualize' && containerId === 'fretboard-container') ||
+                    (mode === 'rule' && containerId === 'rule-fretboard-container') ||
+                    routeEditorFretHost || quizEditorFretHost;
+                const memorizeProblemLandscapeWide =
+                    memorizeFretHost && land && cruiseLandCfg.active;
+                /** 指板を見る・全体ビュー・13F以降ON: ズーム時と同様にラッパーで横スクロール（縮めて全体を収めない） */
+                const visualizeExtendedFullScrollLayout =
+                    visualizeExtendedNeedsHorizScroll && state.settings.fretboardView === 'full';
+                /** 横・覚える・全体: 上段テキストを詰めた分、scale 用の高さ目安を少し上げる */
+                const fallbackFullH = proCustomEditorLandscapeLargeFretboard
+                    /** 横画面の PROカスタム編集は、問題画面と同じくらい指板を大きく見せたいので
+                        ビューポートの 60% 弱を「指板の理想高さ」として使う。
+                        スクロールが必要になっても良いので、大胆に高く取る。 */
+                    ? Math.max(180, Math.round(window.innerHeight * 0.585))
+                    : fixedStageEditorFretHost && land
+                        ? Math.max(150, Math.round(window.innerHeight * 0.44))
+                        : memorizeProblemLandscapeWide
+                            ? Math.max(150, Math.round(window.innerHeight * 0.46))
+                            : Math.max(
+                                120,
+                                Math.round(
+                                    window.innerHeight *
+                                        ((memorizeFretHost || visualizeFretHost) && land ? 0.605 : land ? 0.41 : 0.3) -
+                                    ((memorizeFretHost || visualizeFretHost) && land ? 48 : land ? 108 : 100)
+                                )
+                            );
+                let maxFullViewH = Math.max(180, window.innerHeight * 0.35);
+                const memorizeLandBottomUiClearPx =
+                    cruiseLandCfg.active && cruiseLandCfg.bottomClearOverride !== null
+                        ? cruiseLandCfg.bottomClearOverride
+                        : proCustomEditorLandscapeLargeFretboard
+                            ? 0
+                            : fixedStageEditorFretHost && land
+                                ? 72
+                                : memorizeProblemLandscapeWide
+                                    ? 70
+                                    : (memorizeFretHost || visualizeFretHost) && land
+                                        ? 22
+                                        : land
+                                            ? 36
+                                            : 0;
+                let editorLayoutDebugReadMetrics = null;
+                const readMemorizeHostMaxH = () => {
+                    if (
+                        (mode !== 'memorize' && mode !== 'visualize' && mode !== 'rule') ||
+                        (containerId !== 'fretboard-container' && containerId !== 'rule-fretboard-container') ||
+                        !appEl
+                    ) {
+                        if (!(fixedStageEditorFretHost && land)) {
+                            return null;
+                        }
+                    }
+                    void containerEl.offsetHeight;
+                    void appEl.offsetHeight;
+                    const cr = containerEl.getBoundingClientRect();
+                    const appR = appEl.getBoundingClientRect();
+                    const slack = land ? 0 : 5;
+                    const ch = containerEl.clientHeight;
+                    const fromClient =
+                        ch > 72 ? ch - slack - memorizeLandBottomUiClearPx : 0;
+                    const fromAppRect =
+                        appR.height > 20
+                            ? Math.max(
+                                  0,
+                                  Math.floor(
+                                      appR.bottom -
+                                          cr.top -
+                                          slack -
+                                          1 -
+                                          memorizeLandBottomUiClearPx
+                                  )
+                              )
+                            : 0;
+                    const h = Math.max(
+                        routeEditorFretHost && land ? 150 : memorizeLandscapeUnifiedFullLayout ? 150 : 110,
+                        fallbackFullH,
+                        fromClient,
+                        fromAppRect > 72 ? fromAppRect : 0
+                    );
+                    if (
+                        DEBUG_EDITOR_FRETBOARD_LAYOUT &&
+                        land &&
+                        (routeEditorFretHost || quizEditorFretHost)
+                    ) {
+                        editorLayoutDebugReadMetrics = {
+                            containerClientHeight: ch,
+                            appRectBottom: appR.bottom,
+                            containerRectTop: cr.top,
+                            fromClient,
+                            fromAppRect
+                        };
+                    }
+                    if (land) {
+                        const floorH = Math.floor(
+                            window.innerHeight * 0.585 - memorizeLandBottomUiClearPx - 2
+                        );
+                        if (mode === 'visualize' && containerId === 'fretboard-container') {
+                            const visualizeLandFloorH = Math.floor(
+                                window.innerHeight * 0.65 - memorizeLandBottomUiClearPx - 2
+                            );
+                            return Math.max(fallbackFullH, fromClient, visualizeLandFloorH);
+                        }
+                        return Math.max(h, floorH);
+                    }
+                    return h;
+                };
+                const mh0 = readMemorizeHostMaxH();
+                if (mh0 !== null) {
+                    maxFullViewH = mh0;
+                }
+                const layoutPad = (memorizeFretHost || visualizeFretHost) ? (land ? 0 : 2) : 4;
+                const visSafeLeft = (mode === 'visualize' && containerId === 'fretboard-container' && land)
+                    ? getSafeAreaInsetPx('left')
+                    : 0;
+                const scaleByW = (layoutW - layoutPad) / projectedBounds.width;
+                const scaleByH = maxFullViewH / projectedBounds.height;
+                /**
+                 * 横画面・指板をたどる・全体ビューのときだけ、scale の「1 以下」上限を外す。
+                 * これにより、画面の縦に余裕がある分まで scaleByH が許す範囲で指板を拡大し、
+                 * 12F／13F が画面の左右いっぱいまで広がるようにする。
+                 * `getCruiseLandscapeLayoutConfig()` がすでに `useFullViewportWidth: true` で
+                 * `layoutW = screenW` に広げているので、ここで scale 上限を外すのが最後の一押し。
+                 *
+                 * 適用条件は厳密に絞っており、編集画面・指板を見る・基本ルール・縦画面・指板クイズ
+                 * には一切影響させない。
+                 */
+                const allowMemorizeFullScaleAbove1 = memorizeLandscapeUnifiedFullLayout || proCustomEditorLandscapeLargeFretboard;
+                let scale;
+                if (visualizeExtendedFullScrollLayout) {
+                    scale = Math.min(
+                        1,
+                        scaleByH,
+                        getVisualizeExtended12FretWidthFitScale(
+                            layoutW,
+                            layoutPad,
+                            projectedBounds,
+                            neckTop,
+                            neckBottom,
+                            renderMaxFret
+                        )
+                    );
+                } else if (allowMemorizeFullScaleAbove1) {
+                    scale = Math.min(scaleByW, scaleByH);
+                } else {
+                    scale = Math.min(1, scaleByW, scaleByH);
+                }
+                if (mode === 'rule' && step3TapRange === null && step3TapFloatRange === null) {
+                    scale = Math.min(scale, Math.max(0.72, (layoutW - layoutPad) / projectedBounds.width));
+                }
+                if (
+                    (step3TapRange !== null || step3TapFloatRange !== null) &&
+                    mode === 'rule' &&
+                    containerId === 'rule-fretboard-container'
+                ) {
+                    const bFitW =
+                        step3TapFloatRange !== null
+                            ? getProjectedFretboardBoundsForFretFloatRange(
+                                  neckTop,
+                                  neckBottom,
+                                  step3TapFloatRange[0],
+                                  step3TapFloatRange[1]
+                              ).width
+                            : getProjectedFretboardBoundsForFretRange(
+                                  neckTop,
+                                  neckBottom,
+                                  step3TapRange[0],
+                                  step3TapRange[1]
+                              ).width;
+                    const wCap = Math.max(140, layoutW - layoutPad) * ruleTapZoomMul;
+                    scale = Math.min(scale, wCap / Math.max(1, bFitW));
+                }
+                let centerTx = 0;
+                if (visualizeExtendedFullScrollLayout) {
+                    scrollWrapper.style.marginLeft = '0px';
+                    scrollWrapper.style.paddingLeft = `${visSafeLeft}px`;
+                    scrollWrapper.style.width = `${Math.max(1, layoutW - visSafeLeft)}px`;
+                    scrollWrapper.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
+                    scrollWrapper.style.overflowX = 'auto';
+                    scrollWrapper.style.overflowY = 'hidden';
+                    scrollWrapper.style.transform = '';
+                    scrollWrapper.style.transformOrigin = '';
+                    containerEl.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
+                    if (perspectiveWrapper) {
+                        perspectiveWrapper.style.transformOrigin = 'top left';
+                        perspectiveWrapper.style.transform = `translate(${(-projectedBounds.minX).toFixed(
+                            2
+                        )}px, ${(-projectedBounds.minY).toFixed(2)}px) scale(${scale.toFixed(4)})`;
+                    }
+                } else {
+                    const scaledW = projectedBounds.width * scale;
+                    centerTx = Math.max(0, Math.round((layoutW - scaledW) / 2));
+                    if (visualizeFretHost && mode !== 'rule' && !proCustomEditorLandscapeLargeFretboard) {
+                        let rightOffset;
+                        if (land) {
+                            rightOffset = layoutW < 500 ? 0 : layoutW < 700 ? 10 : 20;
+                        } else {
+                            rightOffset = 20;
+                        }
+                        centerTx += rightOffset;
+                    }
+                    scrollWrapper.style.width = `${projectedBounds.width}px`;
+                    /* layout box の高さは常に projectedBounds.height（=指板＋フレット番号
+                       ストリップを含む元の高さ）にする。これにより内部の指板・フレット番号
+                       はすべて box 内に収まり、overflow:hidden で切られない。
+                       scale 後の見た目高さとの差分は、syncFretboardLayoutCollapse 関数の
+                       margin-bottom 調整で吸収するので、cruise controls 等とは衝突しない。 */
+                    scrollWrapper.style.height = `${projectedBounds.height}px`;
+                    scrollWrapper.style.overflowX = 'hidden';
+                    scrollWrapper.style.overflowY = 'hidden';
+                    scrollWrapper.style.transformOrigin = 'top left';
+                    scrollWrapper.style.marginLeft = `${centerTx}px`;
+                    scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
+                    /* 横画面・全体ビューのクイズも cruise と同じく横スクロールを禁止する。
+                       スクロールロックは下の shouldLockMemorizeCruiseLandscapeFullScroll 経由で適用される。 */
+                    if (visualizeFretHost) {
+                        containerEl.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
+                    }
+                    if (perspectiveWrapper) {
+                        perspectiveWrapper.style.transformOrigin = 'top left';
+                        perspectiveWrapper.style.transform = `translate(${(-projectedBounds.minX).toFixed(
+                            2
+                        )}px, ${(-projectedBounds.minY).toFixed(2)}px)`;
+                    }
+                }
+                const syncFretboardLayoutCollapse = () => {
+                    if (!scrollWrapper.isConnected) return;
+                    void scrollWrapper.offsetHeight;
+                    const layoutH = scrollWrapper.offsetHeight;
+                    const visualH = scrollWrapper.getBoundingClientRect().height;
+                    if (layoutH > 1 && visualH > 1) {
+                        if (visualizeFretHost) {
+                            // height設定済みのためmarginBottomは不要
+                            containerEl.style.marginBottom = '';
+                        } else {
+                            // layoutH と visualH の差分を margin-bottom で吸収する。
+                            // scale<1 のときは負の値（layout を詰める）、scale>1 のときは正の値（layout を広げる）。
+                            containerEl.style.marginBottom = `${-Math.round(layoutH - visualH)}px`;
+                        }
+                    }
+                };
+                syncFretboardLayoutCollapse();
+                // 横画面のたどる/クイズはペイント前に同期で 1 回だけ再計測して、
+                // フレット番号と指板のズレ（仮値→正値の rAF 上書きで起きていたチラつき）を防ぐ
+                if (memorizeLandscapeUnifiedFullLayout || proCustomEditorLandscapeLargeFretboard) {
+                    const mhSync = readMemorizeHostMaxH();
+                    if (mhSync !== null && projectedBounds.height > 0) {
+                        const sSync = allowMemorizeFullScaleAbove1
+                            ? Math.min(scaleByW, mhSync / projectedBounds.height)
+                            : Math.min(1, scaleByW, mhSync / projectedBounds.height);
+                        if (Math.abs(sSync - scale) > 0.002) {
+                            scale = sSync;
+                            const swSync = projectedBounds.width * scale;
+                            centerTx = Math.max(0, Math.round((layoutW - swSync) / 2));
+                            // box 高さは projectedBounds.height のまま固定（margin-bottom で吸収）
+                            scrollWrapper.style.marginLeft = `${centerTx}px`;
+                            scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
+                            syncFretboardLayoutCollapse();
+                        }
+                    }
+                }
+                /* === 指板クイズ・横画面: 解答時の横ズレ対策 ===
+                 * 同じ問題の間は containerEl.style.left を凍結する。
+                 * generateQuestion で問題が変わったときにキャッシュは破棄される。
+                 * → renderFretboardHTML 関数末尾に同条件のフォールバックも入れている。 */
+                if (mode === 'memorize' && containerId === 'fretboard-container' && shouldFreezeMemorizeQuizContainerLeft()) {
+                    const qKey = getMemorizeQuizQuestionKey();
+                    if (qKey) {
+                        if (
+                            _memorizeQuizLeftFreezeCache &&
+                            _memorizeQuizLeftFreezeCache.questionKey === qKey &&
+                            typeof _memorizeQuizLeftFreezeCache.containerLeftStyle === 'string'
+                        ) {
+                            containerEl.style.left = _memorizeQuizLeftFreezeCache.containerLeftStyle;
+                        } else {
+                            _memorizeQuizLeftFreezeCache = {
+                                questionKey: qKey,
+                                containerLeftStyle: containerEl.style.left
+                            };
+                        }
+                    }
+                }
+                if (shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId)) {
+                    applyMemorizeCruiseLandscapeFullScrollLock(scrollWrapper, mode, containerId);
+                    ensureMemorizeCruiseLandscapeFullScrollLockListener(scrollWrapper, mode, containerId);
+                }
+                /** 基本ルールの指板は全体ビューで rAF 後にスケールを差し替えると、再描画のたびに一瞬ズームしたように見える */
+                const refineScaleAfterPaint =
+                    containerId === 'fretboard-container' &&
+                    (mode === 'memorize' || mode === 'visualize' || mode === 'routeEditor' || mode === 'quizEditor') &&
+                    !(mode === 'memorize' && memorizeLandscapeUnifiedFullLayout) &&
+                    !proCustomEditorLandscapeLargeFretboard;
+                if (refineScaleAfterPaint) {
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            if (!scrollWrapper.isConnected || !containerEl.isConnected) return;
+                            const mh1 = readMemorizeHostMaxH();
+                            if (mh1 === null) {
+                                syncFretboardLayoutCollapse();
+                                if (shouldPreserveScrollLeft && scrollWrapper.isConnected) {
+                                    scrollWrapper.scrollLeft = effectivePreserveScrollLeft;
+                                } else if (shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId)) {
+                                    applyMemorizeCruiseLandscapeFullScrollLock(scrollWrapper, mode, containerId);
+                                    ensureMemorizeCruiseLandscapeFullScrollLockListener(scrollWrapper, mode, containerId);
+                                }
+                                return;
+                            }
+                            let s1 =
+                                visualizeExtendedFullScrollLayout && mode === 'visualize'
+                                    ? Math.min(
+                                          1,
+                                          mh1 / projectedBounds.height,
+                                          getVisualizeExtended12FretWidthFitScale(
+                                              layoutW,
+                                              layoutPad,
+                                              projectedBounds,
+                                              neckTop,
+                                              neckBottom,
+                                              renderMaxFret
+                                          )
+                                      )
+                                    : allowMemorizeFullScaleAbove1
+                                        // クルーズ横画面・全体ビューだけ scale > 1 を許容して画面幅いっぱいに拡大
+                                        ? Math.min(scaleByW, mh1 / projectedBounds.height)
+                                        : Math.min(1, scaleByW, mh1 / projectedBounds.height);
+                            if (
+                                (step3TapRange !== null || step3TapFloatRange !== null) &&
+                                mode === 'rule' &&
+                                containerId === 'rule-fretboard-container'
+                            ) {
+                                const bFitRW =
+                                    step3TapFloatRange !== null
+                                        ? getProjectedFretboardBoundsForFretFloatRange(
+                                              neckTop,
+                                              neckBottom,
+                                              step3TapFloatRange[0],
+                                              step3TapFloatRange[1]
+                                          ).width
+                                        : getProjectedFretboardBoundsForFretRange(
+                                              neckTop,
+                                              neckBottom,
+                                              step3TapRange[0],
+                                              step3TapRange[1]
+                                          ).width;
+                                const wCapR = Math.max(140, layoutW - layoutPad) * ruleTapZoomMul;
+                                s1 = Math.min(s1, wCapR / Math.max(1, bFitRW));
+                            }
+                            if (mode === 'rule' && step3TapRange === null && step3TapFloatRange === null) {
+                                s1 = Math.min(s1, Math.max(0.72, (layoutW - layoutPad) / projectedBounds.width));
+                            }
+                            if (Math.abs(s1 - scale) > 0.002) {
+                                scale = s1;
+                                if (visualizeExtendedFullScrollLayout) {
+                                    scrollWrapper.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
+                                    containerEl.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
+                                    scrollWrapper.style.marginLeft = '0px';
+                                    scrollWrapper.style.paddingLeft = `${visSafeLeft}px`;
+                                    scrollWrapper.style.width = `${Math.max(1, layoutW - visSafeLeft)}px`;
+                                    if (perspectiveWrapper) {
+                                        perspectiveWrapper.style.transform = `translate(${(-projectedBounds.minX).toFixed(
+                                            2
+                                        )}px, ${(-projectedBounds.minY).toFixed(2)}px) scale(${scale.toFixed(4)})`;
+                                    }
+                                } else {
+                                    const sw = projectedBounds.width * scale;
+                                    centerTx = Math.max(0, Math.round((layoutW - sw) / 2));
+                                    if (visualizeFretHost && mode !== 'rule') {
+                                        let rightOffset;
+                                        if (land) {
+                                            rightOffset = layoutW < 500 ? 0 : layoutW < 700 ? 10 : 20;
+                                        } else {
+                                            rightOffset = 20;
+                                        }
+                                        centerTx += rightOffset;
+                                        containerEl.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
+                                    }
+                                    if (allowMemorizeFullScaleAbove1) {
+                                        // scale > 1 のとき、レイアウト高さも scale 後に追従させる
+                                        scrollWrapper.style.height = `${Math.ceil(projectedBounds.height * scale)}px`;
+                                    }
+                                    scrollWrapper.style.marginLeft = `${centerTx}px`;
+                                    scrollWrapper.style.transform = `scale(${scale.toFixed(4)})`;
+                                }
+                            }
+                            syncFretboardLayoutCollapse();
+                            // transform変更後も preserve の位置を維持（クイズ解答フェーズ用）
+                            if (shouldPreserveScrollLeft && scrollWrapper.isConnected) {
+                                scrollWrapper.scrollLeft = effectivePreserveScrollLeft;
+                            }
+                            if (shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId)) {
+                                applyMemorizeCruiseLandscapeFullScrollLock(scrollWrapper, mode, containerId);
+                                ensureMemorizeCruiseLandscapeFullScrollLockListener(scrollWrapper, mode, containerId);
+                            }
+                        });
+                    });
+                }
+                if (
+                    DEBUG_EDITOR_FRETBOARD_LAYOUT &&
+                    land &&
+                    (routeEditorFretHost || quizEditorFretHost)
+                ) {
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            if (!containerEl.isConnected) return;
+                            const latestRect = containerEl.getBoundingClientRect();
+                            updateEditorFretboardLayoutPanel({
+                                mode,
+                                containerId,
+                                routeEditorFretHost,
+                                quizEditorFretHost,
+                                fixedStageEditorFretHost,
+                                proCustomEditorLandscapeLargeFretboard,
+                                isStandardEdition: isStandardEdition(),
+                                containerClientHeight: editorLayoutDebugReadMetrics?.containerClientHeight ?? containerEl.clientHeight,
+                                appRectBottom: editorLayoutDebugReadMetrics?.appRectBottom ?? appEl?.getBoundingClientRect().bottom,
+                                containerRectTop: editorLayoutDebugReadMetrics?.containerRectTop ?? latestRect.top,
+                                fromClient: editorLayoutDebugReadMetrics?.fromClient,
+                                fromAppRect: editorLayoutDebugReadMetrics?.fromAppRect,
+                                fallbackFullH,
+                                maxFullViewH,
+                                memorizeLandBottomUiClearPx,
+                                projectedBoundsHeight: projectedBounds.height,
+                                scaleByH,
+                                scaleByW,
+                                scale,
+                                containerStyleHeight: containerEl.style.height,
+                                containerStyleWidth: containerEl.style.width,
+                                containerStyleLeft: containerEl.style.left
+                            });
+                        });
+                    });
+                }
+            }
+
+            // 全体ビューは marginLeft でビューポート中央に寄せているので、left 補正はズレの原因になる（スキップ）
+            if (effectiveZoomView && !isRuleFretHost) {
+                const wrapperRect = scrollWrapper.getBoundingClientRect();
+                if (Math.abs(wrapperRect.left) > 1) {
+                    const currentLeft = parseFloat(containerEl.style.left) || 0;
+                    containerEl.style.left = `${Math.round(currentLeft - wrapperRect.left)}px`;
+                }
+            }
+            // ズームビュー：getBoundingClientRect()で強制レイアウト後に確定代入（一瞬0表示を防ぐ）
+            if (shouldPreserveScrollLeft) {
+                scrollWrapper.scrollLeft = effectivePreserveScrollLeft;
+            }
+            if (shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId)) {
+                applyMemorizeCruiseLandscapeFullScrollLock(scrollWrapper, mode, containerId);
+                ensureMemorizeCruiseLandscapeFullScrollLockListener(scrollWrapper, mode, containerId);
+            }
+        }
+    }
+
+    addFretboardDots(containerId);
+    if (isRuleMode && ruleViewSnapshot) {
+        state.settings.rotation = ruleViewSnapshot.rotation;
+        state.settings.perspective = ruleViewSnapshot.perspective;
+        state.settings.perspOriginX = ruleViewSnapshot.perspOriginX;
+        state.settings.stringSpacing = ruleViewSnapshot.stringSpacing;
+    }
+
+    cleanupFretboardDocumentHandlers(containerId);
+    if (isTiltPreview) return;
+
+    let routeEditorDragState = null;
+
+    const findFretColumnAtClientPoint = (clientX, clientY, paddingX = 0, paddingY = 0) => {
+        const cols = containerEl.querySelectorAll('.fret-column');
+        let bestCol = null;
+        let bestDistance = Infinity;
+        cols.forEach(col => {
+            const r = col.getBoundingClientRect();
+            if (
+                clientX < r.left - paddingX ||
+                clientX > r.right + paddingX ||
+                clientY < r.top - paddingY ||
+                clientY > r.bottom + paddingY
+            ) {
+                return;
+            }
+            const dx = clientX - (r.left + r.width / 2);
+            const dy = clientY - (r.top + r.height / 2);
+            const distance = dx * dx + dy * dy;
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestCol = col;
+            }
+        });
+        return bestCol;
+    };
+
+    const getRouteEditorDropTarget = (clientX, clientY) => {
+        return findFretColumnAtClientPoint(clientX, clientY, 18, 18);
+    };
+
+    const clearRouteEditorDragState = () => {
+        if (routeEditorDragState?.previewEl) {
+            routeEditorDragState.previewEl.remove();
+        }
+        if (routeEditorDragState?.buttonEl) {
+            routeEditorDragState.buttonEl.classList.remove('route-edit-note-button--dragging');
+        }
+        routeEditorDragState = null;
+        document.body.style.userSelect = '';
+    };
+
+    const beginRouteEditorDragPreview = (state, clientX, clientY) => {
+        const rect = state.buttonEl.getBoundingClientRect();
+        const preview = state.buttonEl.cloneNode(true);
+        preview.classList.add('route-edit-note-drag-preview');
+        preview.style.position = 'fixed';
+        preview.style.left = `${rect.left + rect.width / 2}px`;
+        preview.style.top = `${rect.top + rect.height / 2}px`;
+        preview.style.margin = '0';
+        preview.style.pointerEvents = 'none';
+        preview.style.zIndex = '99999';
+        preview.style.opacity = '0.95';
+        preview.style.transform = 'translate(-50%, -50%) scale(1.06)';
+        preview.style.transition = 'none';
+        document.body.appendChild(preview);
+        state.previewEl = preview;
+        state.previewOffsetX = clientX - (rect.left + rect.width / 2);
+        state.previewOffsetY = clientY - (rect.top + rect.height / 2);
+    };
+
+    const updateRouteEditorDragPreview = (state, clientX, clientY) => {
+        if (!state.previewEl) return;
+        state.previewEl.style.left = `${clientX - state.previewOffsetX}px`;
+        state.previewEl.style.top = `${clientY - state.previewOffsetY}px`;
+    };
+
+    const handleRouteEditorPointerDown = (e) => {
+        if (mode !== 'routeEditor') return;
+        if (typeof e.button === 'number' && e.button !== 0) return;
+        const button = e.target && typeof e.target.closest === 'function'
+            ? e.target.closest('.route-edit-note-button')
+            : null;
+        if (!button || !containerEl.contains(button)) return;
+        const routeIndex = parseInt(button.getAttribute('data-route-index'), 10);
+        if (!Number.isFinite(routeIndex)) return;
+        routeEditorDragState = {
+            routeIndex,
+            pointerId: typeof e.pointerId === 'number' ? e.pointerId : null,
+            startX: e.clientX,
+            startY: e.clientY,
+            dragging: false,
+            buttonEl: button,
+            previewEl: null,
+            previewOffsetX: 0,
+            previewOffsetY: 0
+        };
+    };
+
+    const handleRouteEditorPointerMove = (e) => {
+        if (!routeEditorDragState) return;
+        if (routeEditorDragState.pointerId !== null && typeof e.pointerId === 'number' && e.pointerId !== routeEditorDragState.pointerId) return;
+        const dx = e.clientX - routeEditorDragState.startX;
+        const dy = e.clientY - routeEditorDragState.startY;
+        const movedEnough = Math.hypot(dx, dy) >= 6;
+        if (!routeEditorDragState.dragging && !movedEnough) return;
+        if (!routeEditorDragState.dragging) {
+            routeEditorDragState.dragging = true;
+            routeEditorDragState.buttonEl.classList.add('route-edit-note-button--dragging');
+            document.body.style.userSelect = 'none';
+            beginRouteEditorDragPreview(routeEditorDragState, e.clientX, e.clientY);
+        }
+        updateRouteEditorDragPreview(routeEditorDragState, e.clientX, e.clientY);
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const handleRouteEditorPointerEnd = (e) => {
+        if (!routeEditorDragState) return;
+        if (routeEditorDragState.pointerId !== null && typeof e.pointerId === 'number' && e.pointerId !== routeEditorDragState.pointerId) return;
+        const endedState = routeEditorDragState;
+        const wasDragging = endedState.dragging;
+        const routeIndex = endedState.routeIndex;
+        const targetCol = wasDragging ? getRouteEditorDropTarget(e.clientX, e.clientY) : null;
+        clearRouteEditorDragState();
+        if (!wasDragging) return;
+        e.preventDefault();
+        e.stopPropagation();
+        routeEditorDragSuppressNextClick = true;
+        routeEditorDragSuppressRouteIndex = routeIndex;
+        setTimeout(() => {
+            if (routeEditorDragSuppressRouteIndex === routeIndex) {
+                routeEditorDragSuppressRouteIndex = null;
+            }
+            routeEditorDragSuppressNextClick = false;
+        }, 350);
+        if (!targetCol) return;
+        const stringName = parseInt(targetCol.getAttribute('data-string'), 10);
+        const fret = parseInt(targetCol.getAttribute('data-fret'), 10);
+        if (!Number.isFinite(stringName) || !Number.isFinite(fret)) return;
+        if (routeIndex < 0 || routeIndex >= state.routeEditor.draft.length) return;
+        const currentSlot = normalizeCruiseRouteSlot(state.routeEditor.draft[routeIndex]);
+        if (currentSlot && currentSlot.stringName === stringName && currentSlot.fret === fret) return;
+        pushRouteEditorHistory(state.routeEditor?.stage);
+        state.routeEditor.draft[routeIndex] = { stringName, fret };
+        saveState();
+        renderApp();
+    };
+
+    const handleRouteEditorPointerCancel = (e) => {
+        if (!routeEditorDragState) return;
+        if (routeEditorDragState.pointerId !== null && typeof e.pointerId === 'number' && e.pointerId !== routeEditorDragState.pointerId) return;
+        clearRouteEditorDragState();
+    };
+
+    if (mode === 'routeEditor' && !proCustomGuide) {
+        document.addEventListener('pointerdown', handleRouteEditorPointerDown, true);
+        document.addEventListener('pointermove', handleRouteEditorPointerMove, true);
+        document.addEventListener('pointerup', handleRouteEditorPointerEnd, true);
+        document.addEventListener('pointercancel', handleRouteEditorPointerCancel, true);
+        routeEditorDragHandlers.set(containerId, {
+            pointerdown: handleRouteEditorPointerDown,
+            pointermove: handleRouteEditorPointerMove,
+            pointerup: handleRouteEditorPointerEnd,
+            pointercancel: handleRouteEditorPointerCancel
+        });
+    }
+
+    // Attach on document capture because player-view rotation can project frets outside
+    // the container's layout box. Hit-test the projected 2D fret rectangles instead.
+    const handleFretboardClick = (e) => {
+        const tapLatencyContext = getOrCreateTapLatencyContext(e);
+        logTapLatency('pointerdown:handler-enter', tapLatencyContext);
+        if (e.button !== 0) return;
+        if (e.isPrimary === false) return;
+        if (shouldIgnoreFretboardDocumentPointer(e, containerEl)) return;
+        if (routeEditorDragSuppressNextClick) {
+            routeEditorDragSuppressNextClick = false;
+            return;
+        }
+        const routeEditorMarkerButton = mode === 'routeEditor' && e.target && typeof e.target.closest === 'function'
+            ? e.target.closest('.route-edit-note-button')
+            : null;
+        if (routeEditorMarkerButton && typeof onRouteEditorMarkerClick === 'function') {
+            const routeIndex = parseInt(routeEditorMarkerButton.getAttribute('data-route-index'), 10);
+            if (routeEditorDragSuppressRouteIndex !== null && routeEditorDragSuppressRouteIndex === routeIndex) {
+                routeEditorDragSuppressRouteIndex = null;
+                return;
+            }
+            routeEditorDragSuppressRouteIndex = null;
+            if (Number.isFinite(routeIndex)) {
+                onRouteEditorMarkerClick(routeIndex);
+            }
+            return;
+        }
+
+        const chordBtn = findChordButtonFromPointerEvent(e);
+        if (chordBtn) {
+            const chordIndex = parseInt(chordBtn.getAttribute('data-chord-index'));
+            state.visualize.selectedChordIndex =
+                state.visualize.selectedChordIndex === chordIndex ? null : chordIndex;
+            if (mode === 'visualize') {
+                const next = state.visualize.selectedChordIndex;
+                if (next !== null && next !== undefined && Number.isFinite(next)) {
+                    state.visualize.lastDiatonicChordPickIndex = next;
+                } else {
+                    state.visualize.lastDiatonicChordPickIndex = null;
+                }
+            }
+            saveState();
+            setTimeout(() => renderApp(), 0);
+            return;
+        }
+
+        if (!document.body.contains(containerEl)) {
+            cleanupFretboardDocumentHandlers(containerId);
+            return;
+        }
+        // STEP5：音名横のチェックUIはフレット矩形ヒットと別扱い（タップ判定と二重にならないよう除外）
+        if (
+            mode === 'rule' &&
+            e.target &&
+            typeof e.target.closest === 'function' &&
+            e.target.closest('.rule-step5-inline-exclude')
+        ) {
+            return;
+        }
+        const cx = e.clientX, cy = e.clientY;
+        const cols = containerEl.querySelectorAll('.fret-column');
+        let bestCol = null, bestDistance = Infinity;
+
+        // 正解判定のための情報を取得（判定を甘くするため）
+        const q = (mode === 'memorize') ? question : null;
+
+        for (const col of cols) {
+            const r = col.getBoundingClientRect();
+            const s = parseInt(col.getAttribute('data-string'));
+            const f = parseInt(col.getAttribute('data-fret'));
+
+            // このカラムが現在の正解かどうかを判定
+            let isTarget = false;
+            if (q) {
+                if (state.memorize.playMode === 'cruise') {
+                    // クルーズモードは特定のフレットが正解
+                    isTarget = (s === q.stringName && f === q.fret);
+                } else {
+                    // クイズモードは同じ弦の同じ音名なら正解
+                    const sIdx = 6 - s;
+                    const nIdx = (OPEN_STRINGS[sIdx] + f) % 12;
+                    isTarget = (s === q.stringName && nIdx === q.noteIdx);
+                }
+            }
+
+            // 正解のフレットには判定エリアに余裕（パディング）を持たせる
+            // また、距離計算でも優遇することで、隣接フレットより優先されやすくする
+            const paddingX = isTarget ? TARGET_HIT_PADDING_X_PX : 0;
+            const paddingY = isTarget ? TARGET_HIT_PADDING_Y_PX : 0;
+            
+            if (cx >= r.left - paddingX && cx <= r.right + paddingX && 
+                cy >= r.top - paddingY && cy <= r.bottom + paddingY) {
+                
+                const dx = cx - (r.left + r.width / 2);
+                const dy = cy - (r.top + r.height / 2);
+                let distance = dx * dx + dy * dy;
+
+                // 正解の場合は距離を大幅に小さく見積もり、吸い付きやすくする
+                if (isTarget) distance *= 0.1;
+
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    bestCol = col;
+                }
+            }
+        }
+        if (!bestCol) return;
+        const s = parseInt(bestCol.getAttribute('data-string'));
+        const f = parseInt(bestCol.getAttribute('data-fret'));
+        if (onFretClick && bestCol.classList.contains('interactive')) {
+            logTapLatency('before-onFretClick', tapLatencyContext, { stringNum: s, fret: f });
+            onFretClick(s, f, e);
+        } else if (mode === 'visualize') {
+            playTone(6 - s, f);
+        } else if (mode === 'rule' && onFretClick) {
+            onFretClick(s, f, e);
+        }
+    };
+    document.addEventListener('pointerdown', handleFretboardClick, true);
+    fretboardDocumentHandlers.set(containerId, handleFretboardClick);
+    renderFretboardHitDebug(containerId, mode, question);
+
+    if (mode === 'rule' && containerId === 'rule-fretboard-container' && state.settings.fretboardView === 'zoom') {
+        setTimeout(() => {
+            const wrapper = containerEl.querySelector('.fretboard-scroll-wrapper');
+            if (!wrapper) return;
+            if (ruleSlowAutoScrollToNext) {
+                const targetCol = wrapper.querySelector('.rule-next')?.closest('.fret-column');
+                if (!targetCol) return;
+                const wrapperRect = wrapper.getBoundingClientRect();
+                const targetRect = targetCol.getBoundingClientRect();
+                const targetCenter = targetRect.left + targetRect.width / 2;
+                const wrapperCenter = wrapperRect.left + wrapperRect.width / 2;
+                const delta = targetCenter - wrapperCenter;
+                if (Math.abs(delta) > 12) {
+                    animateRuleWrapperScrollLeft(wrapper, wrapper.scrollLeft + delta, 1100);
+                    scheduleRuleFloatingCuePosition();
+                } else {
+                    positionRuleFloatingCue();
+                }
+                return;
+            }
+            // STEP3 など：指定フレット幅に合わせたあと、見せたい範囲の中央付近へ横スクロール
+            if (typeof ruleTapZoomScrollAnchorFret === 'number') {
+                alignRuleStep3FretColumnCenter(wrapper, ruleTapZoomScrollAnchorFret);
+                if (ruleStep3PairTapLine) {
+                    scheduleRuleStep31PairLineUpdates();
+                }
+                return;
+            }
+            if (step3TapFloatRange !== null) {
+                const [fl, fh] = step3TapFloatRange;
+                if (fl < 1 && fh <= 6.5) {
+                    alignRuleStep3Page0Fret3Center(wrapper);
+                } else {
+                    alignRuleStep3FretColumnCenter(wrapper, Math.round((fl + fh) / 2));
+                }
+                if (ruleStep3PairTapLine) {
+                    scheduleRuleStep31PairLineUpdates();
+                }
+                return;
+            }
+            if (step3TapRange !== null) {
+                const [fMin, fMax] = step3TapRange;
+                if (fMin === 0 && fMax <= 5) {
+                    alignRuleStep3Page0Fret3Center(wrapper);
+                } else {
+                    alignRuleStep3FretColumnCenter(
+                        wrapper,
+                        Math.round((fMin + fMax) / 2)
+                    );
+                }
+                if (ruleStep3PairTapLine) {
+                    scheduleRuleStep31PairLineUpdates();
+                }
+                return;
+            }
+            const targetCol = wrapper.querySelector('.rule-next')?.closest('.fret-column');
+            if (!targetCol) return;
+            const wrapperRect = wrapper.getBoundingClientRect();
+            const targetRect = targetCol.getBoundingClientRect();
+            const targetCenter = targetRect.left + targetRect.width / 2;
+            const wrapperCenter = wrapperRect.left + wrapperRect.width / 2;
+            const delta = targetCenter - wrapperCenter;
+            if (Math.abs(delta) > 12) {
+                if (ruleSlowAutoScrollToNext) {
+                    animateRuleWrapperScrollLeft(wrapper, wrapper.scrollLeft + delta, 1100);
+                } else {
+                    wrapper.scrollBy({ left: delta, behavior: 'smooth' });
+                }
+                scheduleRuleFloatingCuePosition();
+            } else {
+                positionRuleFloatingCue();
+            }
+        }, 30);
+    }
+
+    // メモライズのズーム指板だけ、描画直後にスクロール位置を整える（指板を見るの全体ビューでは中央寄せ margin を壊さない）
+    // ただし、クイズで quizGrScrollLeft（編集画面で保存した位置）を維持したい場合はスキップ。
+    // ここを通すと 10ms 後に強制的に scrollLeft=0 へ戻され、解答表示の一瞬で指板が左端に飛んで見える。
+    if (
+        mode === 'memorize' &&
+        containerId === 'fretboard-container' &&
+        shouldLockMemorizeCruiseLandscapeFullScroll(mode, containerId)
+    ) {
+        // 横画面・全体ビュー（cruise と quiz）はスクロールロック関数で統一する。
+        // ロック関数は scroll イベントを監視して 0 以外になった瞬間に 0 へ戻すので、
+        // 正解発表時にブラウザが「タップした要素を見せよう」として scrollLeft を動かしても
+        // すぐに戻り、指板が右にずれることがない。
+        const wrapper = containerEl.querySelector('.fretboard-scroll-wrapper');
+        applyMemorizeCruiseLandscapeFullScrollLock(wrapper, mode, containerId);
+        ensureMemorizeCruiseLandscapeFullScrollLockListener(wrapper, mode, containerId);
+        requestAnimationFrame(() => {
+            const w2 = containerEl.querySelector('.fretboard-scroll-wrapper');
+            applyMemorizeCruiseLandscapeFullScrollLock(w2, mode, containerId);
+            requestAnimationFrame(() => {
+                const w3 = containerEl.querySelector('.fretboard-scroll-wrapper');
+                applyMemorizeCruiseLandscapeFullScrollLock(w3, mode, containerId);
+            });
+        });
+    } else if (mode === 'memorize' && containerId === 'fretboard-container' && state.memorize.playMode !== 'cruise') {
+        const skipResetForQuizPreserve = shouldPreserveScrollLeft && effectivePreserveScrollLeft > 0;
+        if (!skipResetForQuizPreserve) {
+            setTimeout(() => {
+                if (isQuizScrollAnimating()) return;
+                const wrapper = containerEl.querySelector('.fretboard-scroll-wrapper');
+                if (wrapper && wrapper.firstChild) {
+                    wrapper.scrollLeft = 0;
+                    wrapper.firstChild.style.marginLeft = '0';
+                }
+            }, 10);
+        } else {
+            const wrapper = containerEl.querySelector('.fretboard-scroll-wrapper');
+            if (wrapper && wrapper.firstChild) {
+                wrapper.firstChild.style.marginLeft = '0';
+            }
+            setTimeout(() => {
+                if (isQuizScrollAnimating()) return;
+                const wrapper2 = containerEl.querySelector('.fretboard-scroll-wrapper');
+                if (wrapper2) wrapper2.scrollLeft = effectivePreserveScrollLeft;
+            }, 10);
+        }
+    }
+}
+
+function renderFretboardHitDebug(containerId, mode, question) {
+    if (!FRETBOARD_HIT_DEBUG) return;
+
+    const containerEl = document.getElementById(containerId);
+    if (!containerEl) return;
+
+    let overlay = document.getElementById(`hit-debug-${containerId}`);
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = `hit-debug-${containerId}`;
+        overlay.className = 'hit-debug-overlay';
+        document.body.appendChild(overlay);
+    }
+
+    const draw = () => {
+        if (!document.body.contains(containerEl)) {
+            cleanupFretboardDocumentHandlers(containerId);
+            return;
+        }
+
+        const q = mode === 'memorize' ? question : null;
+        const cols = containerEl.querySelectorAll('.fret-column');
+        let html = '';
+        let targetSummary = [];
+
+        cols.forEach(col => {
+            const r = col.getBoundingClientRect();
+            const s = parseInt(col.getAttribute('data-string'));
+            const f = parseInt(col.getAttribute('data-fret'));
+            let isTarget = false;
+
+            if (q) {
+                if (state.memorize.playMode === 'cruise') {
+                    isTarget = (s === q.stringName && f === q.fret);
+                } else {
+                    const sIdx = 6 - s;
+                    const nIdx = (OPEN_STRINGS[sIdx] + f) % 12;
+                    isTarget = (s === q.stringName && nIdx === q.noteIdx);
+                }
+            }
+
+            const padX = isTarget ? TARGET_HIT_PADDING_X_PX : 0;
+            const padY = isTarget ? TARGET_HIT_PADDING_Y_PX : 0;
+            const left = Math.round(r.left - padX);
+            const top = Math.round(r.top - padY);
+            const width = Math.round(r.width + padX * 2);
+            const height = Math.round(r.height + padY * 2);
+            const centerX = Math.round(r.left + r.width / 2);
+            const centerY = Math.round(r.top + r.height / 2);
+            const boxClass = isTarget ? 'hit-debug-box target' : 'hit-debug-box';
+            const label = isTarget
+                ? `${s}弦${f}F 正解 ${width}x${height}px`
+                : `${s}-${f}`;
+
+            if (isTarget) {
+                targetSummary.push(`${s}弦${f}F: ${width} x ${height} CSS px`);
+            }
+
+            html += `
+                <div class="${boxClass}" style="left:${left}px; top:${top}px; width:${width}px; height:${height}px;">
+                    <span>${label}</span>
+                </div>
+                <div class="hit-debug-center ${isTarget ? 'target' : ''}" style="left:${centerX}px; top:${centerY}px;"></div>
+            `;
+        });
+
+        html += `
+            <div class="hit-debug-panel">
+                <strong>Hit Debug</strong>
+                <div>単位: CSS px（getBoundingClientRect）</div>
+                <div>通常: 投影後フレット矩形そのまま</div>
+                <div>正解: 横 +${TARGET_HIT_PADDING_X_PX}px / 縦 +${TARGET_HIT_PADDING_Y_PX}px</div>
+                <div>幅はフレット間隔そのまま、高さは +${TARGET_HIT_PADDING_Y_PX * 2}px</div>
+                <div>${targetSummary.length ? targetSummary.join('<br>') : '正解対象なし'}</div>
+            </div>
+        `;
+        overlay.innerHTML = html;
+    };
+
+    requestAnimationFrame(draw);
+
+    const wrapper = containerEl.querySelector('.fretboard-scroll-wrapper');
+    if (wrapper && !fretboardDebugScrollHandlers.has(containerId)) {
+        const scrollHandler = () => requestAnimationFrame(draw);
+        wrapper.addEventListener('scroll', scrollHandler, { passive: true });
+        fretboardDebugScrollHandlers.set(containerId, scrollHandler);
+    }
+    window.addEventListener('resize', draw, { once: true });
+}
+
+function addFretboardDots(containerId) {
+    const container = document.getElementById(containerId).querySelector('.fretboard-container');
+    if (!container) return;
+
+    const singleDotFrets = [3, 5, 7, 9];
+    singleDotFrets.forEach(f => {
+        const col = container.querySelector(`.string-row[data-string="3"] .fret-column[data-fret="${f}"]`);
+        if (col) {
+            let dot = document.createElement('div');
+            dot.className = 'fret-dot';
+            dot.style.top = '100%';
+            dot.style.left = '50%';
+            dot.style.transform = 'translate(-50%, -50%)';
+            col.appendChild(dot);
+        }
+    });
+
+    const fret12RowA = container.querySelector(`.string-row[data-string="5"] .fret-column[data-fret="12"]`);
+    if (fret12RowA) {
+        let dot = document.createElement('div');
+        dot.className = 'fret-dot';
+        dot.style.top = '100%';
+        dot.style.left = '50%';
+        dot.style.transform = 'translate(-50%, -50%)';
+        fret12RowA.appendChild(dot);
+    }
+    
+    const fret12RowB = container.querySelector(`.string-row[data-string="3"] .fret-column[data-fret="12"]`);
+    if (fret12RowB) {
+        let dot = document.createElement('div');
+        dot.className = 'fret-dot';
+        dot.style.top = '100%';
+        dot.style.left = '50%';
+        dot.style.transform = 'translate(-50%, -50%)';
+        fret12RowB.appendChild(dot);
+    }
+}
+
+function renderHighlightOverlay(currentQuestion, nextQuestion, highlightMode, repeatHintMode = 1, isContinuedRepeat = false, loopPositionMarker = null) {
+    if (!currentQuestion) return;
+
+    const container = document.getElementById('fretboard-container');
+    if (!container) return;
+
+    // Remove existing overlay
+    const existingOverlay = container.querySelector('.highlight-overlay');
+    if (existingOverlay) existingOverlay.remove();
+
+    // Remove any glow effects inserted directly into cells
+    container.querySelectorAll('.fret-glow-effect').forEach(el => el.remove());
+
+    // Create overlay container（外側 #fretboard-container に追加。clip-pathの影響を避けるため）
+    const overlay = document.createElement('div');
+    overlay.className = 'highlight-overlay';
+    overlay.style.position = 'absolute';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.pointerEvents = 'none';
+    overlay.style.zIndex = '12';
+
+    // Find current and next note positions
+    const currentFret = currentQuestion.fret;
+    const currentString = currentQuestion.stringName;
+    const nextFret = nextQuestion ? nextQuestion.fret : null;
+    const nextString = nextQuestion ? nextQuestion.stringName : null;
+
+    // Try multiple selectors for compatibility
+    let currentCell = container.querySelector(`[data-string="${currentString}"][data-fret="${currentFret}"]`);
+    if (!currentCell) {
+        currentCell = container.querySelector(`.string-row[data-string="${currentString}"] .fret-column[data-fret="${currentFret}"]`);
+    }
+    if (!currentCell) {
+        return;
+    }
+
+    let nextCell = null;
+    if (nextQuestion) {
+        nextCell = container.querySelector(`[data-string="${nextString}"][data-fret="${nextFret}"]`);
+        if (!nextCell) {
+            nextCell = container.querySelector(`.string-row[data-string="${nextString}"] .fret-column[data-fret="${nextFret}"]`);
+        }
+    }
+
+    container.style.position = 'relative';
+    container.appendChild(overlay);
+
+    // 自動スクロールに合わせて吹き出しを追従させる：作成時の scrollLeft を記録し、
+    // wrapper の scroll イベントで差分だけ overlay を transform でずらす。
+    const wrapperEl = container.querySelector('.fretboard-scroll-wrapper');
+    if (wrapperEl) {
+        const initialScrollLeft = wrapperEl.scrollLeft;
+        overlay.dataset.initialScrollLeft = String(initialScrollLeft);
+        overlay.style.willChange = 'transform';
+        ensureFretboardOverlayScrollListener(wrapperEl);
+    }
+
+    // ループ位置マーカー（スタート! / ラスト!）を優先的に表示
+    if (loopPositionMarker) {
+        renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, null, loopPositionMarker);
+        return;
+    }
+
+    // 同じ音が続く場合は、1回目/2回目の両方を安定表示する
+    const isRepeatedSameCell = !!(nextQuestion
+        && currentQuestion.stringName === nextQuestion.stringName
+        && currentQuestion.fret === nextQuestion.fret);
+
+    if (isRepeatedSameCell || isContinuedRepeat) {
+        renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, isContinuedRepeat);
+        return;
+    }
+
+    // Apply highlight based on mode (after overlay is added to container)
+    switch(highlightMode) {
+        case 1: // Simple rings
+            addRingHighlight(overlay, currentCell, nextCell, 'gold', 'lightblue');
+            break;
+        case 2: // Glow effect
+            addGlowHighlight(overlay, currentCell, nextCell);
+            break;
+        case 3: // Background colors
+            addBackgroundHighlight(overlay, currentCell, nextCell);
+            break;
+        case 4: // Scale + Glow
+            addScaleGlowHighlight(overlay, currentCell, nextCell);
+            break;
+        case 5: // Path line + Highlight
+            addPathLineHighlight(overlay, currentCell, nextCell);
+            break;
+    }
+}
+
+function renderSameNoteRepeatHintOverlay(overlay, currentCell, repeatHintMode, isSecondNote = false, loopPositionMarker = null) {
+    const containerRect = overlay.parentElement.getBoundingClientRect();
+    const currentRect = currentCell.getBoundingClientRect();
+    const currentX = currentRect.left - containerRect.left + currentRect.width / 2;
+    const currentY = currentRect.top - containerRect.top + currentRect.height / 2;
+    const ringSize = Math.max(currentRect.width, currentRect.height) + 8;
+
+    const ringLeft = currentX - ringSize / 2;
+    const ringTop = currentY - ringSize / 2;
+
+    const addElement = (className, styles = {}, text = '') => {
+        const el = document.createElement('div');
+        el.className = className;
+        el.style.position = 'absolute';
+        el.style.pointerEvents = 'none';
+        Object.entries(styles).forEach(([key, value]) => {
+            el.style[key] = value;
+        });
+        if (text) el.textContent = text;
+        overlay.appendChild(el);
+        return el;
+    };
+
+    const baseRing = {
+        left: `${ringLeft}px`,
+        top: `${ringTop}px`,
+        width: `${ringSize}px`,
+        height: `${ringSize}px`,
+        borderRadius: '50%'
+    };
+
+    // ループ位置マーカー表示（スタート! / ラスト!）
+    if (loopPositionMarker === 'start' || loopPositionMarker === 'last') {
+        const markerText = loopPositionMarker === 'start' ? 'スタート!' : 'ラスト!';
+        addElement('loop-position-badge', {
+            left: `${currentX + 8}px`,
+            top: `${currentY - 19}px`,
+            minWidth: '32px',
+            height: '18px',
+            padding: '0 4px',
+            borderRadius: '999px',
+            background: 'rgba(8, 18, 10, 0.9)',
+            border: '1px solid rgba(49, 196, 107, 0.95)',
+            color: '#dfffea',
+            fontSize: '0.68rem',
+            fontWeight: '900',
+            lineHeight: '18px',
+            textAlign: 'center',
+            boxShadow: '0 0 10px rgba(49, 196, 107, 0.22)',
+            whiteSpace: 'nowrap'
+        }, markerText);
+        return;
+    }
+
+    // Display "1/2" or "2/2" badge (official specification)
+    addElement('repeat-note-badge repeat-note-badge--fraction', {
+        left: `${currentX + 11}px`,
+        top: `${currentY - 19}px`,
+        minWidth: '30px',
+        height: '18px',
+        padding: '0 6px',
+        borderRadius: '999px',
+        background: 'rgba(8, 18, 10, 0.9)',
+        border: '1px solid rgba(49, 196, 107, 0.95)',
+        color: '#dfffea',
+        fontSize: '0.68rem',
+        fontWeight: '900',
+        lineHeight: '18px',
+        textAlign: 'center',
+        boxShadow: '0 0 10px rgba(49, 196, 107, 0.22)'
+    }, isSecondNote ? '2/2' : '1/2');
+}
+
+function addRingHighlight(overlay, currentCell, nextCell, currentColor, nextColor) {
+    const ringSize = 60;
+    const containerRect = overlay.parentElement.getBoundingClientRect();
+
+    // Current ring
+    const currentRect = currentCell.getBoundingClientRect();
+    const currentX = currentRect.left - containerRect.left + currentRect.width / 2;
+    const currentY = currentRect.top - containerRect.top + currentRect.height / 2;
+
+    const ring1 = document.createElement('div');
+    ring1.style.position = 'absolute';
+    ring1.style.width = ringSize + 'px';
+    ring1.style.height = ringSize + 'px';
+    ring1.style.border = '4px solid ' + currentColor;
+    ring1.style.borderRadius = '50%';
+    ring1.style.top = (currentY - ringSize / 2) + 'px';
+    ring1.style.left = (currentX - ringSize / 2) + 'px';
+    ring1.style.animation = 'pulse 1s infinite';
+    overlay.appendChild(ring1);
+
+    // Next ring
+    if (nextCell) {
+        const nextRect = nextCell.getBoundingClientRect();
+        const nextX = nextRect.left - containerRect.left + nextRect.width / 2;
+        const nextY = nextRect.top - containerRect.top + nextRect.height / 2;
+
+        const ring2 = document.createElement('div');
+        ring2.style.position = 'absolute';
+        ring2.style.width = (ringSize - 20) + 'px';
+        ring2.style.height = (ringSize - 20) + 'px';
+        ring2.style.border = '3px solid ' + nextColor;
+        ring2.style.borderRadius = '50%';
+        ring2.style.top = (nextY - (ringSize - 20) / 2) + 'px';
+        ring2.style.left = (nextX - (ringSize - 20) / 2) + 'px';
+        overlay.appendChild(ring2);
+    }
+}
+
+function addGlowHighlight(overlay, currentCell, nextCell) {
+    // Insert glow directly inside the target cell (before note-marker) so it renders behind the note text
+    const glow = document.createElement('div');
+    glow.className = 'fret-glow-effect';
+    glow.style.position = 'absolute';
+    glow.style.width = '30px';
+    glow.style.height = '30px';
+    glow.style.left = '50%';
+    glow.style.top = '50%';
+    glow.style.transform = 'translate(-50%, -50%)';
+    glow.style.backgroundColor = 'rgba(255, 215, 0, 0.3)';
+    glow.style.borderRadius = '50%';
+    glow.style.boxShadow = '0 0 15px rgba(255, 215, 0, 0.8)';
+    glow.style.animation = 'glow 1s ease-in-out infinite';
+    glow.style.pointerEvents = 'none';
+    // Insert before note-marker so note-marker (later in DOM) renders on top
+    currentCell.insertBefore(glow, currentCell.firstChild);
+}
+
+function addBackgroundHighlight(overlay, currentCell, nextCell) {
+    const containerRect = overlay.parentElement.getBoundingClientRect();
+
+    // Current background
+    const currentRect = currentCell.getBoundingClientRect();
+    const currentWidth = currentRect.width * 1.3;
+    const currentHeight = currentRect.height * 1.3;
+
+    const bg1 = document.createElement('div');
+    bg1.style.position = 'absolute';
+    bg1.style.width = currentWidth + 'px';
+    bg1.style.height = currentHeight + 'px';
+    bg1.style.backgroundColor = 'rgba(255, 100, 100, 0.25)';
+    bg1.style.top = (currentRect.top - containerRect.top + currentRect.height / 2 - currentHeight / 2) + 'px';
+    bg1.style.left = (currentRect.left - containerRect.left + currentRect.width / 2 - currentWidth / 2) + 'px';
+    bg1.style.borderRadius = '8px';
+    overlay.appendChild(bg1);
+
+    // Next background
+    if (nextCell) {
+        const nextRect = nextCell.getBoundingClientRect();
+        const nextWidth = nextRect.width * 1.2;
+        const nextHeight = nextRect.height * 1.2;
+
+        const bg2 = document.createElement('div');
+        bg2.style.position = 'absolute';
+        bg2.style.width = nextWidth + 'px';
+        bg2.style.height = nextHeight + 'px';
+        bg2.style.backgroundColor = 'rgba(100, 150, 255, 0.15)';
+        bg2.style.top = (nextRect.top - containerRect.top + nextRect.height / 2 - nextHeight / 2) + 'px';
+        bg2.style.left = (nextRect.left - containerRect.left + nextRect.width / 2 - nextWidth / 2) + 'px';
+        bg2.style.borderRadius = '6px';
+        overlay.appendChild(bg2);
+    }
+}
+
+function addScaleGlowHighlight(overlay, currentCell, nextCell) {
+    const containerRect = overlay.parentElement.getBoundingClientRect();
+
+    // Current highlight
+    addRingHighlight(overlay, currentCell, nextCell, 'gold', 'lightblue');
+
+    // Next scaled up
+    if (nextCell) {
+        const nextRect = nextCell.getBoundingClientRect();
+        const scaleWidth = nextRect.width * 1.4;
+        const scaleHeight = nextRect.height * 1.4;
+
+        const scale = document.createElement('div');
+        scale.style.position = 'absolute';
+        scale.style.width = scaleWidth + 'px';
+        scale.style.height = scaleHeight + 'px';
+        scale.style.backgroundColor = 'rgba(100, 200, 255, 0.2)';
+        scale.style.borderRadius = '10px';
+        scale.style.top = (nextRect.top - containerRect.top + nextRect.height / 2 - scaleHeight / 2) + 'px';
+        scale.style.left = (nextRect.left - containerRect.left + nextRect.width / 2 - scaleWidth / 2) + 'px';
+        scale.style.boxShadow = 'inset 0 0 10px rgba(100, 200, 255, 0.4)';
+        scale.style.animation = 'pulse 1.5s ease-in-out infinite';
+        overlay.appendChild(scale);
+    }
+}
+
+function addPathLineHighlight(overlay, currentCell, nextCell) {
+    const containerRect = overlay.parentElement.getBoundingClientRect();
+
+    // Current ring
+    addRingHighlight(overlay, currentCell, nextCell, 'gold', 'lightblue');
+
+    // Path line
+    if (nextCell) {
+        const currentRect = currentCell.getBoundingClientRect();
+        const nextRect = nextCell.getBoundingClientRect();
+
+        const currentCenter = {
+            x: currentRect.left - containerRect.left + currentRect.width / 2,
+            y: currentRect.top - containerRect.top + currentRect.height / 2
+        };
+        const nextCenter = {
+            x: nextRect.left - containerRect.left + nextRect.width / 2,
+            y: nextRect.top - containerRect.top + nextRect.height / 2
+        };
+
+        const line = document.createElement('div');
+        line.style.position = 'absolute';
+        line.style.height = '3px';
+        line.style.backgroundColor = 'rgba(255, 200, 0, 0.5)';
+
+        const distance = Math.sqrt(
+            Math.pow(nextCenter.x - currentCenter.x, 2) +
+            Math.pow(nextCenter.y - currentCenter.y, 2)
+        );
+        const angle = Math.atan2(nextCenter.y - currentCenter.y, nextCenter.x - currentCenter.x) * 180 / Math.PI;
+
+        line.style.width = distance + 'px';
+        line.style.top = currentCenter.y + 'px';
+        line.style.left = currentCenter.x + 'px';
+        line.style.transformOrigin = '0 50%';
+        line.style.transform = 'rotate(' + angle + 'deg)';
+        overlay.appendChild(line);
+    }
+}
+
+/** renderApp 内で例外が出ると #app が空のままになり真っ暗に見える。向き変更・初回描画はここから呼ぶ。 */
+function tryRenderApp(context) {
+    try {
+        renderApp();
+    } catch (e) {
+        console.error('renderApp failed' + (context ? ' (' + context + ')' : '') + ':', e);
+        const appEl = document.getElementById('app');
+        if (appEl) {
+            appEl.innerHTML =
+                '<div style="box-sizing:border-box;min-height:100dvh;padding:28px 20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#0f1419;color:#e8eef5;font-size:1rem;line-height:1.5;text-align:center;font-family:system-ui,sans-serif;">' +
+                '<p style="margin:0;max-width:22rem;">画面の描画で問題が起きました。もう一度ページを開き直してください。</p>' +
+                '<button type="button" class="btn-secondary" style="padding:12px 20px;border-radius:12px;cursor:pointer;" onclick="location.reload()">ページを再読み込み</button>' +
+                '</div>';
+        }
+    }
+}
+
+function hideAppLoadingScreen() {
+    const el = document.getElementById('app-loading-screen');
+    if (!el) return;
+    el.classList.add('is-hidden');
+    window.setTimeout(() => {
+        el.remove();
+    }, 300);
+}
+
+/** index.html から script.js を動的挿入しているため、読み込みが遅いと DOMContentLoaded が先に終わり初回描画が抜ける。readyState で即時起動する。 */
+function runFretboardBoot() {
+    const saved = localStorage.getItem('fretboard_cruise_state');
+    if (saved) {
+        try {
+            const loaded = JSON.parse(saved);
+            if (loaded.settings && typeof loaded.settings === 'object') {
+                state.settings = { ...state.settings, ...loaded.settings };
+            }
+        } catch (e) {
+            console.error('Failed to restore state from localStorage:', e);
+        }
+    }
+    if (!isProEdition()) {
+        state.settings.noteLabelMode = 'solfege';
+        state.settings.cruiseRhythmVolume      = DEFAULT_CRUISE_RHYTHM_VOLUME;
+        state.settings.cruiseRhythmKickVolume  = DEFAULT_CRUISE_RHYTHM_KICK_VOLUME;
+        state.settings.cruiseRhythmSnareVolume = DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME;
+        state.settings.cruiseRhythmHatVolume   = DEFAULT_CRUISE_RHYTHM_HAT_VOLUME;
+    }
+    tryRenderApp('load');
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', runFretboardBoot);
+} else {
+    runFretboardBoot();
+}

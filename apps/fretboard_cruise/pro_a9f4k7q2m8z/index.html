@@ -160,13 +160,20 @@
     <script>
     (function () {
         var root = '../';
+        var isStagingPreview = false;
         try {
-            if (new URLSearchParams(location.search).get('legacy') === '1.130.2') {
+            var params = new URLSearchParams(location.search);
+            isStagingPreview = params.get('stagingPreview') === '1';
+            if (params.get('legacy') === '1.130.2') {
                 root = '../legacy/v1.130.2/';
             }
         } catch (e) { /* ignore */ }
         var s = document.createElement('script');
-        s.src = root + (root === '../' ? 'script.js?v=2.6.0' : 'script.js');
+        if (isStagingPreview && root === '../') {
+            s.src = '../script-staging.js?v=staging-tap-timing-20260528';
+        } else {
+            s.src = root + (root === '../' ? 'script.js?v=2.6.0' : 'script.js');
+        }
         s.async = false;
         document.body.appendChild(s);
     })();
