@@ -13830,7 +13830,10 @@ function handleFretClick(stringNum, fret, pointerEv) {
                     result: 'Perfect!',
                     decisionReason: upcomingRescueDecisionReason,
                     tappedNote: getCruiseDebugNoteFromFret(stringNum, fret),
-                    expectedNote: getCruiseDebugQuestionSnapshot(targetQuestion)
+                    expectedNote: getCruiseDebugQuestionSnapshot(targetQuestion),
+                    highlightOverrideQuestion: upcomingRescueApplied
+                        ? getCruiseDebugQuestionSnapshot(targetQuestion)
+                        : null
                 };
                 logCruiseTapTiming(
                     'Perfect!',
@@ -14013,7 +14016,14 @@ function showLiveFeedback(text, type) {
 }
 
 function flashCell(type) {
-    const q = state.memorize.currentQuestion;
+    const context = cruiseFeedbackDebugContext || {};
+    const shouldUseRescueHighlightTarget =
+        type === 'good' &&
+        context.highlightOverrideQuestion &&
+        (context.decisionReason || '').includes('upcoming-note-match');
+    const q = shouldUseRescueHighlightTarget
+        ? context.highlightOverrideQuestion
+        : state.memorize.currentQuestion;
     if (!q) {
         logCruiseFeedback({
             result: cruiseFeedbackDebugContext?.result || null,
@@ -14042,7 +14052,6 @@ function flashCell(type) {
         return;
     }
 
-    const context = cruiseFeedbackDebugContext || {};
     const cell = container.querySelector(`[data-string="${q.stringName}"][data-fret="${q.fret}"]`);
     if (!cell) {
         logCruiseFeedback({
