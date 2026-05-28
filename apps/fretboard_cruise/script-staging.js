@@ -9,6 +9,9 @@ const tapLatencyRecentSamples = [];
 const TAP_LATENCY_PANEL_ID = 'tap-latency-debug-panel';
 const EDITOR_FRETBOARD_LAYOUT_PANEL_ID = 'editor-fretboard-layout-debug-panel';
 const PORTRAIT_FRETBOARD_LAYOUT_PANEL_ID = 'portrait-fretboard-layout-debug-panel';
+const CRUISE_STAGING_DEBUG_PANEL_ID = 'cruise-staging-debug-panel';
+let cruiseScreenDebugState = null;
+let cruiseScreenDebugCounter = 0;
 
 function shouldDebugCruiseTapLatency() {
     return DEBUG_TAP_LATENCY &&
@@ -91,6 +94,145 @@ function getCruiseDebugRect(el) {
     };
 }
 
+function getCruiseScreenDebugPanel() {
+    if (!shouldDebugCruiseTapTiming() || !document.body) return null;
+    let panel = document.getElementById(CRUISE_STAGING_DEBUG_PANEL_ID);
+    if (panel) return panel;
+    panel = document.createElement('div');
+    panel.id = CRUISE_STAGING_DEBUG_PANEL_ID;
+    panel.setAttribute('aria-hidden', 'true');
+    Object.assign(panel.style, {
+        position: 'fixed',
+        right: '8px',
+        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
+        zIndex: '99998',
+        maxWidth: 'calc(100vw - 16px)',
+        padding: '7px 9px',
+        borderRadius: '8px',
+        border: '1px solid rgba(255, 255, 255, 0.28)',
+        background: 'rgba(20, 24, 32, 0.88)',
+        color: '#fff',
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+        fontSize: '11px',
+        lineHeight: '1.35',
+        whiteSpace: 'pre-wrap',
+        pointerEvents: 'none',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.24)'
+    });
+    document.body.appendChild(panel);
+    return panel;
+}
+
+function getCruiseScreenDebugTimeLabel() {
+    const d = new Date();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    const ms = String(d.getMilliseconds()).padStart(3, '0');
+    return `${hh}:${mm}:${ss}.${ms}`;
+}
+
+function getCruiseScreenDebugNoteLabel(note) {
+    if (!note) return '-';
+    const stringNum = note.stringNum ?? note.stringName;
+    const fret = note.fret;
+    if (stringNum !== undefined && stringNum !== null && fret !== undefined && fret !== null) {
+        return `${stringNum}弦${fret}F`;
+    }
+    if (note.noteIdx !== undefined && note.noteIdx !== null) {
+        return `note${note.noteIdx}`;
+    }
+    return '-';
+}
+
+function getCruiseScreenDebugTargetLabel(payload) {
+    const parts = [
+        payload?.targetTag || payload?.elementFromPoint?.tag,
+        payload?.targetClass || payload?.elementFromPoint?.className,
+        payload?.targetText || payload?.elementFromPoint?.text
+    ].filter(Boolean);
+    return parts.join(' ').slice(0, 72) || '-';
+}
+
+function renderCruiseScreenDebugPanel() {
+    const panel = getCruiseScreenDebugPanel();
+    if (!panel || !cruiseScreenDebugState) return;
+    const s = cruiseScreenDebugState;
+    panel.textContent = [
+        `tap#${s.tapNo} ${s.time}`,
+        `RAW ${s.raw} | HIT ${s.hit} | ENTRY ${s.entry} | TAP ${s.tap}`,
+        `RETURN ${s.returnReason} | FB ${s.feedback}`,
+        `reason: ${s.reason}`,
+        `note: ${s.note}`,
+        `idx: ${s.idx}`,
+        `time: ${s.timeDiff}`,
+        `target: ${s.target}`
+    ].join('\n');
+}
+
+function updateCruiseScreenDebugPanel(phase, payload = {}) {
+    if (!shouldDebugCruiseTapTiming()) return;
+    if (!cruiseScreenDebugState || phase === 'raw') {
+        cruiseScreenDebugState = {
+            tapNo: ++cruiseScreenDebugCounter,
+            time: getCruiseScreenDebugTimeLabel(),
+            raw: '-',
+            hit: '-',
+            entry: '-',
+            tap: '-',
+            feedback: '-',
+            returnReason: '-',
+            reason: '-',
+            note: '-',
+            idx: `${payload.currentIndex ?? '-'} / ${payload.expectedStepIndex ?? '-'}`,
+            timeDiff: '-',
+            target: '-'
+        };
+    }
+    const s = cruiseScreenDebugState;
+    if (phase === 'raw') {
+        s.raw = 'OK';
+        s.reason = '-';
+        s.target = getCruiseScreenDebugTargetLabel(payload);
+        s.idx = `${payload.currentIndex ?? '-'} / ${payload.expectedStepIndex ?? '-'}`;
+    } else if (phase === 'hit') {
+        s.hit = payload.foundFretColumn ? 'OK' : 'NG';
+        s.reason = payload.ignoredReason || (payload.foundFretColumn ? '-' : 'foundFretColumn false');
+        s.note = `${getCruiseScreenDebugNoteLabel(payload.tappedNote)} → ${getCruiseScreenDebugNoteLabel(payload.expectedNote)}`;
+        s.target = getCruiseScreenDebugTargetLabel(payload);
+        s.idx = `${payload.currentIndex ?? '-'} / ${payload.expectedStepIndex ?? '-'}`;
+    } else if (phase === 'entry') {
+        s.entry = 'OK';
+        s.note = `${getCruiseScreenDebugNoteLabel(payload.tappedNote)} → ${getCruiseScreenDebugNoteLabel(payload.expectedNote)}`;
+        s.idx = `${payload.currentIndex ?? '-'} / ${payload.expectedStepIndex ?? '-'}`;
+    } else if (phase === 'return') {
+        s.returnReason = payload.returnReason || payload.ignoredReason || 'return';
+        s.reason = s.returnReason;
+        s.note = `${getCruiseScreenDebugNoteLabel(payload.tappedNote)} → ${getCruiseScreenDebugNoteLabel(payload.expectedNote)}`;
+        s.idx = `${payload.currentIndex ?? '-'} / ${payload.expectedStepIndex ?? '-'}`;
+    } else if (phase === 'tap') {
+        s.tap = payload.result || 'OK';
+        s.reason = payload.decisionReason || s.reason;
+        s.note = `${getCruiseScreenDebugNoteLabel(payload.tappedNote)} → ${getCruiseScreenDebugNoteLabel(payload.expectedNote)}`;
+        s.idx = `${payload.currentIndex ?? '-'} / ${payload.expectedStepIndex ?? '-'}`;
+        s.timeDiff = Number.isFinite(payload.timeDiffMs)
+            ? `${payload.timeDiffMs > 0 ? '+' : ''}${payload.timeDiffMs}ms`
+            : '-';
+    } else if (phase === 'feedback') {
+        s.feedback = payload.feedbackUpdated ? 'OK' : 'NG';
+        if (payload.correctFretHighlightUpdated) {
+            s.feedback += '/HL';
+        }
+        s.reason = payload.returnReason || payload.decisionReason || s.reason;
+        s.note = `${getCruiseScreenDebugNoteLabel(payload.tappedNote)} → ${getCruiseScreenDebugNoteLabel(payload.expectedNote)}`;
+        s.idx = `${payload.currentIndex ?? '-'} / ${payload.expectedStepIndex ?? '-'}`;
+    } else if (phase === 'ignored') {
+        s.returnReason = payload.ignoredReason || 'ignored';
+        s.reason = s.returnReason;
+    }
+    renderCruiseScreenDebugPanel();
+}
+
 function logCruisePointerTiming(payload) {
     if (!shouldDebugCruiseTapTiming()) return;
     const output = {
@@ -107,6 +249,9 @@ function logCruisePointerTiming(payload) {
     };
     console.log('[CRUISE POINTER]', output);
     console.log('[CRUISE POINTER JSON]', JSON.stringify(output));
+    if (output.ignored && output.phase !== 'hit-test') {
+        updateCruiseScreenDebugPanel('ignored', output);
+    }
 }
 
 function logCruisePointerRaw(payload) {
@@ -125,6 +270,7 @@ function logCruisePointerRaw(payload) {
     };
     console.log('[CRUISE POINTER RAW]', output);
     console.log('[CRUISE POINTER RAW JSON]', JSON.stringify(output));
+    updateCruiseScreenDebugPanel('raw', output);
 }
 
 function logCruiseHitTest(payload) {
@@ -140,6 +286,7 @@ function logCruiseHitTest(payload) {
     };
     console.log('[CRUISE HIT TEST]', output);
     console.log('[CRUISE HIT TEST JSON]', JSON.stringify(output));
+    updateCruiseScreenDebugPanel('hit', output);
 }
 
 function logCruiseHandleEntry(payload) {
@@ -154,6 +301,7 @@ function logCruiseHandleEntry(payload) {
     };
     console.log('[CRUISE HANDLE ENTRY]', output);
     console.log('[CRUISE HANDLE ENTRY JSON]', JSON.stringify(output));
+    updateCruiseScreenDebugPanel('entry', output);
 }
 
 function logCruiseHandleReturn(payload) {
@@ -166,6 +314,7 @@ function logCruiseHandleReturn(payload) {
     };
     console.log('[CRUISE HANDLE RETURN]', output);
     console.log('[CRUISE HANDLE RETURN JSON]', JSON.stringify(output));
+    updateCruiseScreenDebugPanel('return', output);
 }
 
 let cruiseFeedbackDebugContext = null;
@@ -179,6 +328,7 @@ function logCruiseFeedback(payload) {
     };
     console.log('[CRUISE FEEDBACK]', output);
     console.log('[CRUISE FEEDBACK JSON]', JSON.stringify(output));
+    updateCruiseScreenDebugPanel('feedback', output);
 }
 
 function getOrCreateTapLatencyContext(pointerEv) {
@@ -12930,6 +13080,7 @@ function handleFretClick(stringNum, fret, pointerEv) {
             };
             console.log('[CRUISE TAP TIMING]', payload);
             console.log('[CRUISE TAP TIMING JSON]', JSON.stringify(payload));
+            updateCruiseScreenDebugPanel('tap', payload);
         };
 
         if (Math.abs(timeDiff) > halfWindow) {
