@@ -316,6 +316,46 @@ function updateCruiseScreenDebugPanel(phase, payload = {}) {
     renderCruiseScreenDebugPanel();
 }
 
+function getCruiseHighlightTargetSource(context = {}, flashQuestion = null) {
+    const decisionReason = context.decisionReason || '';
+    const expected = context.expectedNote || null;
+    const tapped = context.tappedNote || null;
+    if (decisionReason.includes('upcoming-note-match')) return 'rescued';
+    if (
+        expected &&
+        flashQuestion &&
+        expected.stringName === flashQuestion.stringName &&
+        expected.fret === flashQuestion.fret
+    ) {
+        return 'current';
+    }
+    if (
+        tapped &&
+        flashQuestion &&
+        tapped.stringNum === flashQuestion.stringName &&
+        tapped.fret === flashQuestion.fret
+    ) {
+        return 'tapped';
+    }
+    return 'current';
+}
+
+function getCruiseHighlightDetail(context = {}, flashQuestion = null, cell = null, beforeClass = null, afterClass = null, classAdded = false) {
+    return {
+        highlightTargetNote: getCruiseDebugQuestionSnapshot(flashQuestion),
+        highlightTargetString: flashQuestion?.stringName ?? null,
+        highlightTargetFret: flashQuestion?.fret ?? null,
+        highlightTargetStepIndex: state.memorize?.cruiseIndex ?? null,
+        highlightTargetSource: getCruiseHighlightTargetSource(context, flashQuestion),
+        highlightClassAdded: classAdded,
+        highlightElementFound: !!cell,
+        highlightElementClassBefore: beforeClass,
+        highlightElementClassAfter: afterClass,
+        isRescuedPerfect: (context.decisionReason || '').includes('upcoming-note-match'),
+        decisionReason: context.decisionReason || null
+    };
+}
+
 function getCruiseStagingLogEnvironment() {
     return {
         startedAt: new Date().toISOString(),
@@ -511,6 +551,7 @@ function ensureCruiseStagingLogTap(payload = {}) {
         correctFretHighlightUpdated: null,
         feedbackTextBefore: null,
         feedbackTextAfter: null,
+        highlightDetail: null,
         upcomingRescueApplied: false,
         upcomingRescueReason: null,
         upcomingRescueBasis: null,
@@ -644,6 +685,7 @@ function updateCruiseStagingLogSession(phase, payload = {}) {
         tap.currentIndex = payload.currentIndex ?? tap.currentIndex;
         tap.feedbackTextBefore = payload.beforeText ?? tap.feedbackTextBefore;
         tap.feedbackTextAfter = payload.afterText ?? tap.feedbackTextAfter;
+        tap.highlightDetail = payload.highlightDetail || tap.highlightDetail;
     } else if (phase === 'ignored') {
         tap.returnReason = payload.ignoredReason || 'ignored';
         tap.reason = tap.returnReason;
@@ -739,6 +781,10 @@ function buildCruiseStagingLogText() {
         }
         if (tap.upcomingRescueApplied) {
             lines.push(`rescue: basis=${tap.upcomingRescueBasis || '-'} reason=${tap.upcomingRescueReason || '-'} upcoming=${getCruiseScreenDebugNoteLabel(tap.upcomingExpectedNote)} originalExpected=${getCruiseScreenDebugNoteLabel(tap.originalExpectedNote)} pastDiff=${Number.isFinite(tap.upcomingPastTimeDiffMs) ? `${tap.upcomingPastTimeDiffMs > 0 ? '+' : ''}${tap.upcomingPastTimeDiffMs}ms` : '-'} nextDiff=${Number.isFinite(tap.upcomingNextTimeDiffMs) ? `${tap.upcomingNextTimeDiffMs > 0 ? '+' : ''}${tap.upcomingNextTimeDiffMs}ms` : '-'} upcomingTime=${Number.isFinite(tap.upcomingTimeDiffMs) ? `${tap.upcomingTimeDiffMs > 0 ? '+' : ''}${tap.upcomingTimeDiffMs}ms` : '-'} originalIndex=${tap.originalCurrentIndex ?? '-'} rescuedStep=${tap.rescuedExpectedStepIndex ?? '-'}`);
+        }
+        if (tap.highlightDetail) {
+            const detail = tap.highlightDetail;
+            lines.push(`highlightDetail: source=${detail.highlightTargetSource || '-'} target=${getCruiseScreenDebugNoteLabel(detail.highlightTargetNote)} elementFound=${detail.highlightElementFound ?? '-'} classAdded=${detail.highlightClassAdded ?? '-'} before=${detail.highlightElementClassBefore || '-'} after=${detail.highlightElementClassAfter || '-'}`);
         }
         lines.push(`FB: ${tap.feedback} highlight=${tap.correctFretHighlightUpdated ?? '-'} before=${tap.feedbackTextBefore ?? '-'} after=${tap.feedbackTextAfter ?? '-'}`);
     });
@@ -13959,6 +14005,7 @@ function showLiveFeedback(text, type) {
         feedbackUpdated: !!fb,
         correctFretHighlightUpdated: !!document.querySelector('#fretboard-container .cruise-debug-last-flash'),
         highlightedCorrectNote: getCruiseDebugQuestionSnapshot(state.memorize?.currentQuestion),
+        highlightDetail: context.highlightDetail || null,
         tappedNote: context.tappedNote || null,
         expectedNote: context.expectedNote || getCruiseDebugQuestionSnapshot(state.memorize?.currentQuestion)
     });
@@ -13995,6 +14042,7 @@ function flashCell(type) {
         return;
     }
 
+    const context = cruiseFeedbackDebugContext || {};
     const cell = container.querySelector(`[data-string="${q.stringName}"][data-fret="${q.fret}"]`);
     if (!cell) {
         logCruiseFeedback({
@@ -14010,6 +14058,7 @@ function flashCell(type) {
         return;
     }
 
+    const classBefore = cell.className || null;
     const flash = document.createElement('div');
     flash.style.position = 'absolute';
     flash.style.inset = '0';
@@ -14027,6 +14076,17 @@ function flashCell(type) {
 
     flash.className = 'cruise-debug-last-flash';
     cell.appendChild(flash);
+    const classAfter = cell.className || null;
+    if (cruiseFeedbackDebugContext) {
+        cruiseFeedbackDebugContext.highlightDetail = getCruiseHighlightDetail(
+            context,
+            q,
+            cell,
+            classBefore,
+            classAfter,
+            true
+        );
+    }
     setTimeout(() => flash.remove(), 300);
 }
 
