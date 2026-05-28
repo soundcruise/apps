@@ -510,7 +510,14 @@ function ensureCruiseStagingLogTap(payload = {}) {
         feedbackUpdated: null,
         correctFretHighlightUpdated: null,
         feedbackTextBefore: null,
-        feedbackTextAfter: null
+        feedbackTextAfter: null,
+        upcomingRescueApplied: false,
+        upcomingRescueReason: null,
+        upcomingExpectedNote: null,
+        upcomingTimeDiffMs: null,
+        originalExpectedNote: null,
+        originalCurrentIndex: null,
+        rescuedExpectedStepIndex: null
     };
     cruiseStagingLogSession.currentTap = tap;
     cruiseStagingLogSession.taps.push(tap);
@@ -568,6 +575,13 @@ function updateCruiseStagingLogSession(phase, payload = {}) {
         tap.noteMatched = payload.noteMatched ?? tap.noteMatched;
         tap.feedbackTextBefore = payload.feedbackTextBefore ?? tap.feedbackTextBefore;
         tap.feedbackTextAfter = payload.feedbackTextAfter ?? tap.feedbackTextAfter;
+        tap.upcomingRescueApplied = payload.upcomingRescueApplied ?? tap.upcomingRescueApplied;
+        tap.upcomingRescueReason = payload.upcomingRescueReason ?? tap.upcomingRescueReason;
+        tap.upcomingExpectedNote = payload.upcomingExpectedNote || tap.upcomingExpectedNote;
+        tap.upcomingTimeDiffMs = payload.upcomingTimeDiffMs ?? tap.upcomingTimeDiffMs;
+        tap.originalExpectedNote = payload.originalExpectedNote || tap.originalExpectedNote;
+        tap.originalCurrentIndex = payload.originalCurrentIndex ?? tap.originalCurrentIndex;
+        tap.rescuedExpectedStepIndex = payload.rescuedExpectedStepIndex ?? tap.rescuedExpectedStepIndex;
     } else if (phase === 'feedback') {
         tap.feedback = payload.feedbackUpdated ? 'OK' : 'NG';
         tap.feedbackUpdated = payload.feedbackUpdated;
@@ -666,6 +680,9 @@ function buildCruiseStagingLogText() {
         lines.push(`ENTRY: ${tap.entry} idx=${tap.currentIndex ?? '-'} expectedStep=${tap.expectedStepIndex ?? '-'}`);
         lines.push(`RETURN: ${tap.returnReason || '-'}`);
         lines.push(`TAP: ${tap.tap} time=${Number.isFinite(tap.timeDiffMs) ? `${tap.timeDiffMs > 0 ? '+' : ''}${tap.timeDiffMs}ms` : '-'} reason=${tap.reason || '-'} noteMatched=${tap.noteMatched ?? '-'}`);
+        if (tap.upcomingRescueApplied) {
+            lines.push(`rescue: ${tap.upcomingRescueReason || '-'} upcoming=${getCruiseScreenDebugNoteLabel(tap.upcomingExpectedNote)} originalExpected=${getCruiseScreenDebugNoteLabel(tap.originalExpectedNote)} upcomingTime=${Number.isFinite(tap.upcomingTimeDiffMs) ? `${tap.upcomingTimeDiffMs > 0 ? '+' : ''}${tap.upcomingTimeDiffMs}ms` : '-'} originalIndex=${tap.originalCurrentIndex ?? '-'} rescuedStep=${tap.rescuedExpectedStepIndex ?? '-'}`);
+        }
         lines.push(`FB: ${tap.feedback} highlight=${tap.correctFretHighlightUpdated ?? '-'} before=${tap.feedbackTextBefore ?? '-'} after=${tap.feedbackTextAfter ?? '-'}`);
     });
     return lines.join('\n');
@@ -13309,6 +13326,45 @@ function handleFretClick(stringNum, fret, pointerEv) {
             targetTime = nextTargetTime;
             timeDiff = correctedTappedT - nextTargetTime;
         }
+        const originalEvaluateAgainstUpcoming = evaluateAgainstUpcoming;
+        const originalTargetTime = targetTime;
+        const originalTimeDiff = timeDiff;
+        const originalExpectedQuestion = q;
+        const originalCurrentIndex = state.memorize?.cruiseIndex;
+        let upcomingRescueApplied = false;
+        let upcomingRescueReason = null;
+        let upcomingRescueTimeDiff = null;
+        let upcomingRescueTargetTime = null;
+        const upcomingForRescue = fullBeats ? getCruiseUpcomingQuestion() : null;
+        const tappedMatchesUpcoming =
+            !!upcomingForRescue &&
+            stringNum === upcomingForRescue.stringName &&
+            fret === upcomingForRescue.fret;
+        if (fullBeats && tappedMatchesUpcoming && Number.isFinite(nextTime)) {
+            const upcomingCandidateTimes = [nextTime];
+            let bestUpcomingCandidate = null;
+            for (const candidateTime of upcomingCandidateTimes) {
+                const diff = correctedTappedT - candidateTime;
+                if (
+                    !bestUpcomingCandidate ||
+                    Math.abs(diff) < Math.abs(bestUpcomingCandidate.diff)
+                ) {
+                    bestUpcomingCandidate = { time: candidateTime, diff };
+                }
+            }
+            if (
+                bestUpcomingCandidate &&
+                Math.abs(bestUpcomingCandidate.diff) <= halfWindow
+            ) {
+                evaluateAgainstUpcoming = true;
+                targetTime = bestUpcomingCandidate.time;
+                timeDiff = bestUpcomingCandidate.diff;
+                upcomingRescueApplied = true;
+                upcomingRescueReason = 'upcoming-note-match-within-window';
+                upcomingRescueTimeDiff = bestUpcomingCandidate.diff;
+                upcomingRescueTargetTime = bestUpcomingCandidate.time;
+            }
+        }
 
         // 同じ拍に対して二重判定しない（タイプ別にゲート）。
         if (evaluateAgainstUpcoming) {
@@ -13469,6 +13525,22 @@ function handleFretClick(stringNum, fret, pointerEv) {
                 distToPast,
                 distToNext,
                 evaluateAgainstUpcoming,
+                originalEvaluateAgainstUpcoming,
+                originalTargetTime,
+                originalTimeDiff,
+                upcomingRescueApplied,
+                upcomingRescueReason,
+                upcomingExpectedNote: getCruiseDebugQuestionSnapshot(upcomingForRescue),
+                upcomingTimeDiff: upcomingRescueTimeDiff,
+                upcomingTimeDiffMs: Number.isFinite(upcomingRescueTimeDiff)
+                    ? Math.round(upcomingRescueTimeDiff * 1000)
+                    : null,
+                upcomingRescueTargetTime,
+                originalExpectedNote: getCruiseDebugQuestionSnapshot(originalExpectedQuestion),
+                originalCurrentIndex,
+                rescuedExpectedStepIndex: upcomingRescueApplied
+                    ? (state.memorize?.cruiseIndex ?? 0) + 1
+                    : null,
                 tapProcessed: true,
                 ignored: false,
                 ignoredReason: null,
@@ -13571,11 +13643,19 @@ function handleFretClick(stringNum, fret, pointerEv) {
                 markTapped();
                 cruiseFeedbackDebugContext = {
                     result: 'Perfect!',
-                    decisionReason: 'within-window-note-match',
+                    decisionReason: upcomingRescueApplied
+                        ? 'within-window-upcoming-note-match'
+                        : 'within-window-note-match',
                     tappedNote: getCruiseDebugNoteFromFret(stringNum, fret),
                     expectedNote: getCruiseDebugQuestionSnapshot(targetQuestion)
                 };
-                logCruiseTapTiming('Perfect!', 'within-window-note-match', 'Perfect!');
+                logCruiseTapTiming(
+                    'Perfect!',
+                    upcomingRescueApplied
+                        ? 'within-window-upcoming-note-match'
+                        : 'within-window-note-match',
+                    'Perfect!'
+                );
                 setCruiseFeedback('Perfect!', 'good');
                 logTapLatency('before-showLiveFeedback', tapLatencyContext, {
                     stringNum,
