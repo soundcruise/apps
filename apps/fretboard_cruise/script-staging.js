@@ -23,6 +23,65 @@ function shouldDebugCruiseTapTiming() {
         state.settings?.cruiseTapBeats === 'full';
 }
 
+function getCruiseDebugNoteFromFret(stringNum, fret) {
+    const sIdx = 6 - parseInt(stringNum, 10);
+    const fretNum = parseInt(fret, 10);
+    if (!Number.isFinite(sIdx) || !Number.isFinite(fretNum) || !OPEN_STRINGS[sIdx] && OPEN_STRINGS[sIdx] !== 0) {
+        return { stringNum, stringIdx: sIdx, fret: fretNum, noteIdx: null };
+    }
+    return {
+        stringNum: parseInt(stringNum, 10),
+        stringIdx: sIdx,
+        fret: fretNum,
+        noteIdx: (OPEN_STRINGS[sIdx] + fretNum) % 12
+    };
+}
+
+function getCruiseDebugQuestionSnapshot(question) {
+    if (!question) return null;
+    return {
+        stringName: question.stringName,
+        stringIdx: question.stringIdx,
+        fret: question.fret,
+        noteIdx: question.noteIdx
+    };
+}
+
+function getCruiseDebugPointerTarget(e) {
+    const target = e?.target;
+    if (!target) {
+        return {
+            eventTargetTag: null,
+            eventTargetClass: null
+        };
+    }
+    const className = typeof target.className === 'string'
+        ? target.className
+        : (target.className && typeof target.className.baseVal === 'string' ? target.className.baseVal : null);
+    return {
+        eventTargetTag: target.tagName || null,
+        eventTargetClass: className
+    };
+}
+
+function logCruisePointerTiming(payload) {
+    if (!shouldDebugCruiseTapTiming()) return;
+    const output = {
+        eventType: payload.eventType || 'pointerdown',
+        pointerType: payload.pointerType || null,
+        clientX: payload.clientX ?? null,
+        clientY: payload.clientY ?? null,
+        stateCourse: state.course,
+        playMode: state.memorize?.playMode,
+        cruiseTapBeats: state.settings?.cruiseTapBeats,
+        currentIndex: state.memorize?.cruiseIndex ?? null,
+        currentQuestion: getCruiseDebugQuestionSnapshot(state.memorize?.currentQuestion),
+        ...payload
+    };
+    console.log('[CRUISE POINTER]', output);
+    console.log('[CRUISE POINTER JSON]', JSON.stringify(output));
+}
+
 function getOrCreateTapLatencyContext(pointerEv) {
     if (!shouldDebugCruiseTapLatency() || !pointerEv || typeof pointerEv !== 'object') return null;
     const existing = tapLatencyContexts.get(pointerEv);
@@ -3773,7 +3832,10 @@ function logCruiseAppToneTiming(note, source) {
             ? Math.round((audioCurrentTime - appToneTargetTime) * 1000)
             : null,
         currentIndex: state.memorize?.cruiseIndex,
+        currentStep: state.memorize?.cruiseIndex,
         current16thNote,
+        expectedNoteForTap: getCruiseDebugQuestionSnapshot(state.memorize?.currentQuestion),
+        highlightedStepIndex: state.memorize?.cruiseIndex,
         note: {
             stringName: note.stringName,
             stringIdx: note.stringIdx,
@@ -12449,7 +12511,19 @@ function handleFretClick(stringNum, fret, pointerEv) {
     });
 
     if (isCruise) {
-        if (state.memorize.isCleared) return;
+        if (state.memorize.isCleared) {
+            logCruisePointerTiming({
+                eventType: pointerEv?.type || 'pointerdown',
+                ...getCruiseDebugPointerTarget(pointerEv),
+                pointerType: pointerEv?.pointerType || null,
+                clientX: pointerEv?.clientX ?? null,
+                clientY: pointerEv?.clientY ?? null,
+                tapProcessed: false,
+                ignored: true,
+                ignoredReason: 'cruise-cleared-before-judgement'
+            });
+            return;
+        }
 
         initAudio();
         const fullBeats = state.settings.cruiseTapBeats === 'full';
@@ -12516,9 +12590,39 @@ function handleFretClick(stringNum, fret, pointerEv) {
 
         // 同じ拍に対して二重判定しない（タイプ別にゲート）。
         if (evaluateAgainstUpcoming) {
-            if (state.memorize.cruisePreTapped) return;
+            if (state.memorize.cruisePreTapped) {
+                logCruisePointerTiming({
+                    eventType: pointerEv?.type || 'pointerdown',
+                    ...getCruiseDebugPointerTarget(pointerEv),
+                    pointerType: pointerEv?.pointerType || null,
+                    clientX: pointerEv?.clientX ?? null,
+                    clientY: pointerEv?.clientY ?? null,
+                    tapProcessed: false,
+                    ignored: true,
+                    ignoredReason: 'duplicate-upcoming-note',
+                    currentIndex: state.memorize?.cruiseIndex,
+                    expectedStepIndex: (state.memorize?.cruiseIndex ?? 0) + 1,
+                    timeDiffMs: Math.round(timeDiff * 1000)
+                });
+                return;
+            }
         } else {
-            if (state.memorize.hasTappedCurrentNote) return;
+            if (state.memorize.hasTappedCurrentNote) {
+                logCruisePointerTiming({
+                    eventType: pointerEv?.type || 'pointerdown',
+                    ...getCruiseDebugPointerTarget(pointerEv),
+                    pointerType: pointerEv?.pointerType || null,
+                    clientX: pointerEv?.clientX ?? null,
+                    clientY: pointerEv?.clientY ?? null,
+                    tapProcessed: false,
+                    ignored: true,
+                    ignoredReason: 'duplicate-current-note',
+                    currentIndex: state.memorize?.cruiseIndex,
+                    expectedStepIndex: state.memorize?.cruiseIndex,
+                    timeDiffMs: Math.round(timeDiff * 1000)
+                });
+                return;
+            }
         }
 
         // 評価対象のお題（先取りなら次のお題、そうでなければ現在のお題）。
@@ -12550,6 +12654,7 @@ function handleFretClick(stringNum, fret, pointerEv) {
                 : 'feedback-display feedback-wrong';
             state.memorize.cruiseLastTapFeedback = { text, className };
         };
+        const feedbackTextBefore = state.memorize.cruiseLastTapFeedback?.text || null;
 
         const compareCruiseTimingForLog = (candidateTappedT) => {
             if (!Number.isFinite(candidateTappedT)) {
@@ -12597,7 +12702,7 @@ function handleFretClick(stringNum, fret, pointerEv) {
             };
         };
 
-        const logCruiseTapTiming = (result) => {
+        const logCruiseTapTiming = (result, decisionReason, feedbackTextAfter) => {
             if (!shouldDebugCruiseTapTiming()) return;
             const estimate = tapTimingEstimateDebug || {};
             const rawCorrectedTappedT = Number.isFinite(estimate.estimatedTapAudioTimeRaw)
@@ -12630,6 +12735,18 @@ function handleFretClick(stringNum, fret, pointerEv) {
                 distToPast,
                 distToNext,
                 evaluateAgainstUpcoming,
+                tapProcessed: true,
+                ignored: false,
+                ignoredReason: null,
+                decisionReason,
+                isWithinEarlyLateWindow: Math.abs(timeDiff) <= halfWindow,
+                isWithinPerfectWindow: Math.abs(timeDiff) <= halfWindow && isCorrectAgainstTarget,
+                currentIndex: state.memorize?.cruiseIndex,
+                currentStep: state.memorize?.cruiseIndex,
+                expectedStepIndex: evaluateAgainstUpcoming
+                    ? (state.memorize?.cruiseIndex ?? 0) + 1
+                    : state.memorize?.cruiseIndex,
+                highlightedStepIndex: state.memorize?.cruiseIndex,
                 eventTimeStamp: pointerEv && typeof pointerEv.timeStamp === 'number' ? pointerEv.timeStamp : null,
                 performanceNow: estimate.performanceNow ?? performance.now(),
                 audioCurrentTime: estimate.audioCurrentTime ?? (audioCtx ? audioCtx.currentTime : null),
@@ -12669,6 +12786,11 @@ function handleFretClick(stringNum, fret, pointerEv) {
                     noteIdx: targetQuestion.noteIdx
                 },
                 noteMatched: isCorrectAgainstTarget,
+                lastJudgement: feedbackTextBefore,
+                newJudgement: result,
+                feedbackUpdated: true,
+                feedbackTextBefore,
+                feedbackTextAfter,
                 result
             };
             console.log('[CRUISE TAP TIMING]', payload);
@@ -12679,7 +12801,7 @@ function handleFretClick(stringNum, fret, pointerEv) {
             state.memorize.combo = 0;
             markTapped();
             const fbText = timeDiff < 0 ? 'Early!' : 'Late!';
-            logCruiseTapTiming(fbText);
+            logCruiseTapTiming(fbText, timeDiff < 0 ? 'time-window-early' : 'time-window-late', fbText);
             setCruiseFeedback(fbText, 'miss');
             logTapLatency('before-showLiveFeedback', tapLatencyContext, {
                 stringNum,
@@ -12706,7 +12828,7 @@ function handleFretClick(stringNum, fret, pointerEv) {
                     state.memorize.maxCombo = state.memorize.combo;
                 }
                 markTapped();
-                logCruiseTapTiming('Perfect!');
+                logCruiseTapTiming('Perfect!', 'within-window-note-match', 'Perfect!');
                 setCruiseFeedback('Perfect!', 'good');
                 logTapLatency('before-showLiveFeedback', tapLatencyContext, {
                     stringNum,
@@ -12719,7 +12841,7 @@ function handleFretClick(stringNum, fret, pointerEv) {
             } else {
                 state.memorize.combo = 0;
                 markTapped();
-                logCruiseTapTiming('Miss!');
+                logCruiseTapTiming('Miss!', 'within-window-note-mismatch', 'Miss!');
                 setCruiseFeedback('Miss!', 'miss');
                 logTapLatency('before-showLiveFeedback', tapLatencyContext, {
                     stringNum,
@@ -16498,11 +16620,58 @@ function renderFretboardHTML(containerId, options) {
     const handleFretboardClick = (e) => {
         const tapLatencyContext = getOrCreateTapLatencyContext(e);
         logTapLatency('pointerdown:handler-enter', tapLatencyContext);
-        if (e.button !== 0) return;
-        if (e.isPrimary === false) return;
-        if (shouldIgnoreFretboardDocumentPointer(e, containerEl)) return;
+        const pointerDebugBase = {
+            eventType: e.type,
+            ...getCruiseDebugPointerTarget(e),
+            pointerType: e.pointerType || null,
+            clientX: e.clientX,
+            clientY: e.clientY,
+            mode,
+            ignoredByGate: false,
+            foundFretColumn: false
+        };
+        logCruisePointerTiming({
+            ...pointerDebugBase,
+            phase: 'handler-enter',
+            ignored: false,
+            ignoredReason: null
+        });
+        if (e.button !== 0) {
+            logCruisePointerTiming({
+                ...pointerDebugBase,
+                phase: 'ignored',
+                ignored: true,
+                ignoredReason: 'non-primary-button'
+            });
+            return;
+        }
+        if (e.isPrimary === false) {
+            logCruisePointerTiming({
+                ...pointerDebugBase,
+                phase: 'ignored',
+                ignored: true,
+                ignoredReason: 'non-primary-pointer'
+            });
+            return;
+        }
+        if (shouldIgnoreFretboardDocumentPointer(e, containerEl)) {
+            logCruisePointerTiming({
+                ...pointerDebugBase,
+                phase: 'ignored',
+                ignored: true,
+                ignoredByGate: true,
+                ignoredReason: 'ui-control-outside-fretboard'
+            });
+            return;
+        }
         if (routeEditorDragSuppressNextClick) {
             routeEditorDragSuppressNextClick = false;
+            logCruisePointerTiming({
+                ...pointerDebugBase,
+                phase: 'ignored',
+                ignored: true,
+                ignoredReason: 'route-editor-drag-suppressed'
+            });
             return;
         }
         const routeEditorMarkerButton = mode === 'routeEditor' && e.target && typeof e.target.closest === 'function'
@@ -16540,6 +16709,12 @@ function renderFretboardHTML(containerId, options) {
         }
 
         if (!document.body.contains(containerEl)) {
+            logCruisePointerTiming({
+                ...pointerDebugBase,
+                phase: 'ignored',
+                ignored: true,
+                ignoredReason: 'container-detached'
+            });
             cleanupFretboardDocumentHandlers(containerId);
             return;
         }
@@ -16550,6 +16725,12 @@ function renderFretboardHTML(containerId, options) {
             typeof e.target.closest === 'function' &&
             e.target.closest('.rule-step5-inline-exclude')
         ) {
+            logCruisePointerTiming({
+                ...pointerDebugBase,
+                phase: 'ignored',
+                ignored: true,
+                ignoredReason: 'rule-inline-exclude'
+            });
             return;
         }
         const cx = e.clientX, cy = e.clientY;
@@ -16599,9 +16780,32 @@ function renderFretboardHTML(containerId, options) {
                 }
             }
         }
-        if (!bestCol) return;
+        if (!bestCol) {
+            logCruisePointerTiming({
+                ...pointerDebugBase,
+                phase: 'hit-test',
+                ignored: true,
+                ignoredReason: 'no-fret-column-hit',
+                foundFretColumn: false
+            });
+            return;
+        }
         const s = parseInt(bestCol.getAttribute('data-string'));
         const f = parseInt(bestCol.getAttribute('data-fret'));
+        const tappedNote = getCruiseDebugNoteFromFret(s, f);
+        const bestColInteractive = bestCol.classList.contains('interactive');
+        logCruisePointerTiming({
+            ...pointerDebugBase,
+            phase: 'hit-test',
+            ignored: !bestColInteractive,
+            ignoredReason: bestColInteractive ? null : 'fret-column-not-interactive',
+            foundFretColumn: true,
+            stringIndex: s,
+            fretIndex: f,
+            tappedNote,
+            expectedNote: getCruiseDebugQuestionSnapshot(q),
+            bestDistance
+        });
         if (onFretClick && bestCol.classList.contains('interactive')) {
             logTapLatency('before-onFretClick', tapLatencyContext, { stringNum: s, fret: f });
             onFretClick(s, f, e);
