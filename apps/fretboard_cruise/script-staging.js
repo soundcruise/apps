@@ -64,6 +64,33 @@ function getCruiseDebugPointerTarget(e) {
     };
 }
 
+function getCruiseDebugElementSnapshot(el) {
+    if (!el) return null;
+    const className = typeof el.className === 'string'
+        ? el.className
+        : (el.className && typeof el.className.baseVal === 'string' ? el.className.baseVal : null);
+    const text = typeof el.textContent === 'string'
+        ? el.textContent.trim().slice(0, 40)
+        : null;
+    return {
+        tag: el.tagName || null,
+        className,
+        id: el.id || null,
+        text
+    };
+}
+
+function getCruiseDebugRect(el) {
+    if (!el || typeof el.getBoundingClientRect !== 'function') return null;
+    const r = el.getBoundingClientRect();
+    return {
+        left: Math.round(r.left),
+        top: Math.round(r.top),
+        width: Math.round(r.width),
+        height: Math.round(r.height)
+    };
+}
+
 function logCruisePointerTiming(payload) {
     if (!shouldDebugCruiseTapTiming()) return;
     const output = {
@@ -80,6 +107,78 @@ function logCruisePointerTiming(payload) {
     };
     console.log('[CRUISE POINTER]', output);
     console.log('[CRUISE POINTER JSON]', JSON.stringify(output));
+}
+
+function logCruisePointerRaw(payload) {
+    if (!shouldDebugCruiseTapTiming()) return;
+    const output = {
+        timestamp: performance.now(),
+        stateCourse: state.course,
+        playMode: state.memorize?.playMode,
+        cruiseTapBeats: state.settings?.cruiseTapBeats,
+        isStagingPreview: true,
+        currentIndex: state.memorize?.cruiseIndex ?? null,
+        currentStep: state.memorize?.cruiseIndex ?? null,
+        expectedNote: getCruiseDebugQuestionSnapshot(state.memorize?.currentQuestion),
+        documentPointerHandlerReached: true,
+        ...payload
+    };
+    console.log('[CRUISE POINTER RAW]', output);
+    console.log('[CRUISE POINTER RAW JSON]', JSON.stringify(output));
+}
+
+function logCruiseHitTest(payload) {
+    if (!shouldDebugCruiseTapTiming()) return;
+    const output = {
+        stateCourse: state.course,
+        playMode: state.memorize?.playMode,
+        cruiseTapBeats: state.settings?.cruiseTapBeats,
+        currentIndex: state.memorize?.cruiseIndex ?? null,
+        currentStep: state.memorize?.cruiseIndex ?? null,
+        expectedNote: getCruiseDebugQuestionSnapshot(state.memorize?.currentQuestion),
+        ...payload
+    };
+    console.log('[CRUISE HIT TEST]', output);
+    console.log('[CRUISE HIT TEST JSON]', JSON.stringify(output));
+}
+
+function logCruiseHandleEntry(payload) {
+    if (!shouldDebugCruiseTapTiming()) return;
+    const output = {
+        reached: true,
+        currentIndex: state.memorize?.cruiseIndex ?? null,
+        currentStep: state.memorize?.cruiseIndex ?? null,
+        playMode: state.memorize?.playMode,
+        cruiseTapBeats: state.settings?.cruiseTapBeats,
+        ...payload
+    };
+    console.log('[CRUISE HANDLE ENTRY]', output);
+    console.log('[CRUISE HANDLE ENTRY JSON]', JSON.stringify(output));
+}
+
+function logCruiseHandleReturn(payload) {
+    if (!shouldDebugCruiseTapTiming()) return;
+    const output = {
+        currentIndex: state.memorize?.cruiseIndex ?? null,
+        currentStep: state.memorize?.cruiseIndex ?? null,
+        expectedNote: getCruiseDebugQuestionSnapshot(state.memorize?.currentQuestion),
+        ...payload
+    };
+    console.log('[CRUISE HANDLE RETURN]', output);
+    console.log('[CRUISE HANDLE RETURN JSON]', JSON.stringify(output));
+}
+
+let cruiseFeedbackDebugContext = null;
+
+function logCruiseFeedback(payload) {
+    if (!shouldDebugCruiseTapTiming()) return;
+    const output = {
+        currentIndex: state.memorize?.cruiseIndex ?? null,
+        expectedNote: getCruiseDebugQuestionSnapshot(state.memorize?.currentQuestion),
+        ...payload
+    };
+    console.log('[CRUISE FEEDBACK]', output);
+    console.log('[CRUISE FEEDBACK JSON]', JSON.stringify(output));
 }
 
 function getOrCreateTapLatencyContext(pointerEv) {
@@ -12480,7 +12579,13 @@ function renderMemorize(app) {
 }
 
 function handleFretClick(stringNum, fret, pointerEv) {
-    if (!guardEditorDemoPlayback()) return;
+    if (!guardEditorDemoPlayback()) {
+        logCruiseHandleReturn({
+            returnReason: 'guard-editor-demo-playback',
+            tappedNote: getCruiseDebugNoteFromFret(stringNum, fret)
+        });
+        return;
+    }
     const tapLatencyContext = getOrCreateTapLatencyContext(pointerEv);
     if (tapLatencyContext) {
         tapLatencyContext.handleFretClickStartNow = performance.now();
@@ -12492,6 +12597,19 @@ function handleFretClick(stringNum, fret, pointerEv) {
     
     let stringIdx = 6 - stringNum;
     let clickedNoteIdx = (OPEN_STRINGS[stringIdx] + fret) % 12;
+    logCruiseHandleEntry({
+        tappedNote: getCruiseDebugNoteFromFret(stringNum, fret),
+        expectedNote: getCruiseDebugQuestionSnapshot(q),
+        interactive: true,
+        clickable: !!pointerEv,
+        disabled: false,
+        guardFlags: {
+            isCleared: state.memorize?.isCleared === true,
+            hasTappedCurrentNote: state.memorize?.hasTappedCurrentNote === true,
+            cruisePreTapped: state.memorize?.cruisePreTapped === true,
+            isCruisePlaying: state.memorize?.isCruisePlaying === true
+        }
+    });
 
     // Check if correct
     let isCorrect = false;
@@ -12512,6 +12630,11 @@ function handleFretClick(stringNum, fret, pointerEv) {
 
     if (isCruise) {
         if (state.memorize.isCleared) {
+            logCruiseHandleReturn({
+                returnReason: 'cruise-cleared-before-judgement',
+                tappedNote: getCruiseDebugNoteFromFret(stringNum, fret),
+                expectedNote: getCruiseDebugQuestionSnapshot(q)
+            });
             logCruisePointerTiming({
                 eventType: pointerEv?.type || 'pointerdown',
                 ...getCruiseDebugPointerTarget(pointerEv),
@@ -12591,6 +12714,12 @@ function handleFretClick(stringNum, fret, pointerEv) {
         // 同じ拍に対して二重判定しない（タイプ別にゲート）。
         if (evaluateAgainstUpcoming) {
             if (state.memorize.cruisePreTapped) {
+                logCruiseHandleReturn({
+                    returnReason: 'duplicate-upcoming-note',
+                    tappedNote: getCruiseDebugNoteFromFret(stringNum, fret),
+                    expectedNote: getCruiseDebugQuestionSnapshot(getCruiseUpcomingQuestion() || q),
+                    timeDiffMs: Math.round(timeDiff * 1000)
+                });
                 logCruisePointerTiming({
                     eventType: pointerEv?.type || 'pointerdown',
                     ...getCruiseDebugPointerTarget(pointerEv),
@@ -12608,6 +12737,12 @@ function handleFretClick(stringNum, fret, pointerEv) {
             }
         } else {
             if (state.memorize.hasTappedCurrentNote) {
+                logCruiseHandleReturn({
+                    returnReason: 'duplicate-current-note',
+                    tappedNote: getCruiseDebugNoteFromFret(stringNum, fret),
+                    expectedNote: getCruiseDebugQuestionSnapshot(q),
+                    timeDiffMs: Math.round(timeDiff * 1000)
+                });
                 logCruisePointerTiming({
                     eventType: pointerEv?.type || 'pointerdown',
                     ...getCruiseDebugPointerTarget(pointerEv),
@@ -12801,6 +12936,12 @@ function handleFretClick(stringNum, fret, pointerEv) {
             state.memorize.combo = 0;
             markTapped();
             const fbText = timeDiff < 0 ? 'Early!' : 'Late!';
+            cruiseFeedbackDebugContext = {
+                result: fbText,
+                decisionReason: timeDiff < 0 ? 'time-window-early' : 'time-window-late',
+                tappedNote: getCruiseDebugNoteFromFret(stringNum, fret),
+                expectedNote: getCruiseDebugQuestionSnapshot(targetQuestion)
+            };
             logCruiseTapTiming(fbText, timeDiff < 0 ? 'time-window-early' : 'time-window-late', fbText);
             setCruiseFeedback(fbText, 'miss');
             logTapLatency('before-showLiveFeedback', tapLatencyContext, {
@@ -12828,6 +12969,12 @@ function handleFretClick(stringNum, fret, pointerEv) {
                     state.memorize.maxCombo = state.memorize.combo;
                 }
                 markTapped();
+                cruiseFeedbackDebugContext = {
+                    result: 'Perfect!',
+                    decisionReason: 'within-window-note-match',
+                    tappedNote: getCruiseDebugNoteFromFret(stringNum, fret),
+                    expectedNote: getCruiseDebugQuestionSnapshot(targetQuestion)
+                };
                 logCruiseTapTiming('Perfect!', 'within-window-note-match', 'Perfect!');
                 setCruiseFeedback('Perfect!', 'good');
                 logTapLatency('before-showLiveFeedback', tapLatencyContext, {
@@ -12841,6 +12988,12 @@ function handleFretClick(stringNum, fret, pointerEv) {
             } else {
                 state.memorize.combo = 0;
                 markTapped();
+                cruiseFeedbackDebugContext = {
+                    result: 'Miss!',
+                    decisionReason: 'within-window-note-mismatch',
+                    tappedNote: getCruiseDebugNoteFromFret(stringNum, fret),
+                    expectedNote: getCruiseDebugQuestionSnapshot(targetQuestion)
+                };
                 logCruiseTapTiming('Miss!', 'within-window-note-mismatch', 'Miss!');
                 setCruiseFeedback('Miss!', 'miss');
                 logTapLatency('before-showLiveFeedback', tapLatencyContext, {
@@ -12967,6 +13120,7 @@ function setMemorizeFeedbackTone(fb, tone) {
 
 function showLiveFeedback(text, type) {
     const fb = document.getElementById('feedback');
+    const beforeText = fb ? fb.textContent : null;
     if (fb) {
         fb.textContent = text;
         if (type === 'good') setMemorizeFeedbackTone(fb, 'correct');
@@ -12981,16 +13135,65 @@ function showLiveFeedback(text, type) {
 
     // Flash the target note cell based on timing result
     flashCell(type);
+    const context = cruiseFeedbackDebugContext || {};
+    logCruiseFeedback({
+        beforeText,
+        afterText: fb ? fb.textContent : null,
+        result: context.result || text,
+        decisionReason: context.decisionReason || null,
+        feedbackUpdated: !!fb,
+        correctFretHighlightUpdated: !!document.querySelector('#fretboard-container .cruise-debug-last-flash'),
+        highlightedCorrectNote: getCruiseDebugQuestionSnapshot(state.memorize?.currentQuestion),
+        tappedNote: context.tappedNote || null,
+        expectedNote: context.expectedNote || getCruiseDebugQuestionSnapshot(state.memorize?.currentQuestion)
+    });
+    cruiseFeedbackDebugContext = null;
 }
 
 function flashCell(type) {
     const q = state.memorize.currentQuestion;
-    if (!q) return;
+    if (!q) {
+        logCruiseFeedback({
+            result: cruiseFeedbackDebugContext?.result || null,
+            decisionReason: cruiseFeedbackDebugContext?.decisionReason || null,
+            feedbackUpdated: false,
+            correctFretHighlightUpdated: false,
+            highlightedCorrectNote: null,
+            tappedNote: cruiseFeedbackDebugContext?.tappedNote || null,
+            expectedNote: cruiseFeedbackDebugContext?.expectedNote || null,
+            returnReason: 'flash-missing-current-question'
+        });
+        return;
+    }
     const container = document.getElementById('fretboard-container');
-    if (!container) return;
+    if (!container) {
+        logCruiseFeedback({
+            result: cruiseFeedbackDebugContext?.result || null,
+            decisionReason: cruiseFeedbackDebugContext?.decisionReason || null,
+            feedbackUpdated: false,
+            correctFretHighlightUpdated: false,
+            highlightedCorrectNote: getCruiseDebugQuestionSnapshot(q),
+            tappedNote: cruiseFeedbackDebugContext?.tappedNote || null,
+            expectedNote: cruiseFeedbackDebugContext?.expectedNote || null,
+            returnReason: 'flash-missing-container'
+        });
+        return;
+    }
 
     const cell = container.querySelector(`[data-string="${q.stringName}"][data-fret="${q.fret}"]`);
-    if (!cell) return;
+    if (!cell) {
+        logCruiseFeedback({
+            result: cruiseFeedbackDebugContext?.result || null,
+            decisionReason: cruiseFeedbackDebugContext?.decisionReason || null,
+            feedbackUpdated: false,
+            correctFretHighlightUpdated: false,
+            highlightedCorrectNote: getCruiseDebugQuestionSnapshot(q),
+            tappedNote: cruiseFeedbackDebugContext?.tappedNote || null,
+            expectedNote: cruiseFeedbackDebugContext?.expectedNote || null,
+            returnReason: 'flash-missing-cell'
+        });
+        return;
+    }
 
     const flash = document.createElement('div');
     flash.style.position = 'absolute';
@@ -13007,6 +13210,7 @@ function flashCell(type) {
         flash.style.boxShadow = '0 0 20px rgba(255, 80, 80, 0.8)';
     }
 
+    flash.className = 'cruise-debug-last-flash';
     cell.appendChild(flash);
     setTimeout(() => flash.remove(), 300);
 }
@@ -16620,6 +16824,16 @@ function renderFretboardHTML(containerId, options) {
     const handleFretboardClick = (e) => {
         const tapLatencyContext = getOrCreateTapLatencyContext(e);
         logTapLatency('pointerdown:handler-enter', tapLatencyContext);
+        const rawTarget = getCruiseDebugElementSnapshot(e.target);
+        logCruisePointerRaw({
+            pointerType: e.pointerType || null,
+            clientX: e.clientX,
+            clientY: e.clientY,
+            targetTag: rawTarget?.tag || null,
+            targetClass: rawTarget?.className || null,
+            targetText: rawTarget?.text || null,
+            targetId: rawTarget?.id || null
+        });
         const pointerDebugBase = {
             eventType: e.type,
             ...getCruiseDebugPointerTarget(e),
@@ -16734,6 +16948,10 @@ function renderFretboardHTML(containerId, options) {
             return;
         }
         const cx = e.clientX, cy = e.clientY;
+        const elementFromPoint = getCruiseDebugElementSnapshot(document.elementFromPoint(cx, cy));
+        const elementsFromPoint = typeof document.elementsFromPoint === 'function'
+            ? document.elementsFromPoint(cx, cy).slice(0, 5).map(getCruiseDebugElementSnapshot)
+            : [];
         const cols = containerEl.querySelectorAll('.fret-column');
         let bestCol = null, bestDistance = Infinity;
 
@@ -16781,6 +16999,15 @@ function renderFretboardHTML(containerId, options) {
             }
         }
         if (!bestCol) {
+            logCruiseHitTest({
+                clientX: cx,
+                clientY: cy,
+                elementFromPoint,
+                elementsFromPoint,
+                foundFretColumn: false,
+                ignored: true,
+                ignoredReason: 'no-fret-column-hit'
+            });
             logCruisePointerTiming({
                 ...pointerDebugBase,
                 phase: 'hit-test',
@@ -16794,6 +17021,27 @@ function renderFretboardHTML(containerId, options) {
         const f = parseInt(bestCol.getAttribute('data-fret'));
         const tappedNote = getCruiseDebugNoteFromFret(s, f);
         const bestColInteractive = bestCol.classList.contains('interactive');
+        const bestRect = bestCol.getBoundingClientRect();
+        const noteLabelElement = bestCol.querySelector('.note-marker');
+        logCruiseHitTest({
+            clientX: cx,
+            clientY: cy,
+            elementFromPoint,
+            elementsFromPoint,
+            foundFretColumn: true,
+            fretColumnClass: bestCol.className,
+            fretColumnText: bestCol.textContent ? bestCol.textContent.trim().slice(0, 40) : '',
+            stringIndex: s,
+            fretIndex: f,
+            tappedNote,
+            expectedNote: getCruiseDebugQuestionSnapshot(q),
+            noteLabelElementRect: getCruiseDebugRect(noteLabelElement),
+            fretColumnRect: getCruiseDebugRect(bestCol),
+            relativeXInFretColumn: Math.round(cx - bestRect.left),
+            relativeYInFretColumn: Math.round(cy - bestRect.top),
+            ignored: !bestColInteractive,
+            ignoredReason: bestColInteractive ? null : 'fret-column-not-interactive'
+        });
         logCruisePointerTiming({
             ...pointerDebugBase,
             phase: 'hit-test',
