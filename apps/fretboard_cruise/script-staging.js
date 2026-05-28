@@ -517,7 +517,21 @@ function ensureCruiseStagingLogTap(payload = {}) {
         upcomingTimeDiffMs: null,
         originalExpectedNote: null,
         originalCurrentIndex: null,
-        rescuedExpectedStepIndex: null
+        rescuedExpectedStepIndex: null,
+        upcomingRescueChecked: false,
+        upcomingRescueRejectReason: null,
+        upcomingExists: false,
+        tappedMatchesUpcoming: false,
+        upcomingNextTime: null,
+        upcomingNextTimeDiffMs: null,
+        upcomingPastTime: null,
+        upcomingPastTimeDiffMs: null,
+        wouldRescueWithPastTime: false,
+        wouldRescueWithNextTime: false,
+        halfWindowMs: null,
+        hasTappedCurrentNote: null,
+        evaluateAgainstUpcomingBeforeRescue: null,
+        evaluateAgainstUpcomingAfterRescue: null
     };
     cruiseStagingLogSession.currentTap = tap;
     cruiseStagingLogSession.taps.push(tap);
@@ -564,6 +578,27 @@ function updateCruiseStagingLogSession(phase, payload = {}) {
         tap.tappedNote = payload.tappedNote || tap.tappedNote;
         tap.expectedNote = payload.expectedNote || tap.expectedNote;
         tap.currentIndex = payload.currentIndex ?? tap.currentIndex;
+        tap.upcomingRescueChecked = payload.upcomingRescueChecked ?? tap.upcomingRescueChecked;
+        tap.upcomingRescueApplied = payload.upcomingRescueApplied ?? tap.upcomingRescueApplied;
+        tap.upcomingRescueRejectReason = payload.upcomingRescueRejectReason ?? tap.upcomingRescueRejectReason;
+        tap.upcomingRescueReason = payload.upcomingRescueReason ?? tap.upcomingRescueReason;
+        tap.upcomingExpectedNote = payload.upcomingExpectedNote || tap.upcomingExpectedNote;
+        tap.upcomingTimeDiffMs = payload.upcomingTimeDiffMs ?? tap.upcomingTimeDiffMs;
+        tap.originalExpectedNote = payload.originalExpectedNote || tap.originalExpectedNote;
+        tap.originalCurrentIndex = payload.originalCurrentIndex ?? tap.originalCurrentIndex;
+        tap.rescuedExpectedStepIndex = payload.rescuedExpectedStepIndex ?? tap.rescuedExpectedStepIndex;
+        tap.upcomingExists = payload.upcomingExists ?? tap.upcomingExists;
+        tap.tappedMatchesUpcoming = payload.tappedMatchesUpcoming ?? tap.tappedMatchesUpcoming;
+        tap.upcomingNextTime = payload.upcomingNextTime ?? tap.upcomingNextTime;
+        tap.upcomingNextTimeDiffMs = payload.upcomingNextTimeDiffMs ?? tap.upcomingNextTimeDiffMs;
+        tap.upcomingPastTime = payload.upcomingPastTime ?? tap.upcomingPastTime;
+        tap.upcomingPastTimeDiffMs = payload.upcomingPastTimeDiffMs ?? tap.upcomingPastTimeDiffMs;
+        tap.wouldRescueWithPastTime = payload.wouldRescueWithPastTime ?? tap.wouldRescueWithPastTime;
+        tap.wouldRescueWithNextTime = payload.wouldRescueWithNextTime ?? tap.wouldRescueWithNextTime;
+        tap.halfWindowMs = payload.halfWindowMs ?? tap.halfWindowMs;
+        tap.hasTappedCurrentNote = payload.hasTappedCurrentNote ?? tap.hasTappedCurrentNote;
+        tap.evaluateAgainstUpcomingBeforeRescue = payload.evaluateAgainstUpcomingBeforeRescue ?? tap.evaluateAgainstUpcomingBeforeRescue;
+        tap.evaluateAgainstUpcomingAfterRescue = payload.evaluateAgainstUpcomingAfterRescue ?? tap.evaluateAgainstUpcomingAfterRescue;
     } else if (phase === 'tap') {
         tap.tap = payload.result || 'OK';
         tap.reason = payload.decisionReason || tap.reason;
@@ -582,6 +617,20 @@ function updateCruiseStagingLogSession(phase, payload = {}) {
         tap.originalExpectedNote = payload.originalExpectedNote || tap.originalExpectedNote;
         tap.originalCurrentIndex = payload.originalCurrentIndex ?? tap.originalCurrentIndex;
         tap.rescuedExpectedStepIndex = payload.rescuedExpectedStepIndex ?? tap.rescuedExpectedStepIndex;
+        tap.upcomingRescueChecked = payload.upcomingRescueChecked ?? tap.upcomingRescueChecked;
+        tap.upcomingRescueRejectReason = payload.upcomingRescueRejectReason ?? tap.upcomingRescueRejectReason;
+        tap.upcomingExists = payload.upcomingExists ?? tap.upcomingExists;
+        tap.tappedMatchesUpcoming = payload.tappedMatchesUpcoming ?? tap.tappedMatchesUpcoming;
+        tap.upcomingNextTime = payload.upcomingNextTime ?? tap.upcomingNextTime;
+        tap.upcomingNextTimeDiffMs = payload.upcomingNextTimeDiffMs ?? tap.upcomingNextTimeDiffMs;
+        tap.upcomingPastTime = payload.upcomingPastTime ?? tap.upcomingPastTime;
+        tap.upcomingPastTimeDiffMs = payload.upcomingPastTimeDiffMs ?? tap.upcomingPastTimeDiffMs;
+        tap.wouldRescueWithPastTime = payload.wouldRescueWithPastTime ?? tap.wouldRescueWithPastTime;
+        tap.wouldRescueWithNextTime = payload.wouldRescueWithNextTime ?? tap.wouldRescueWithNextTime;
+        tap.halfWindowMs = payload.halfWindowMs ?? tap.halfWindowMs;
+        tap.hasTappedCurrentNote = payload.hasTappedCurrentNote ?? tap.hasTappedCurrentNote;
+        tap.evaluateAgainstUpcomingBeforeRescue = payload.evaluateAgainstUpcomingBeforeRescue ?? tap.evaluateAgainstUpcomingBeforeRescue;
+        tap.evaluateAgainstUpcomingAfterRescue = payload.evaluateAgainstUpcomingAfterRescue ?? tap.evaluateAgainstUpcomingAfterRescue;
     } else if (phase === 'feedback') {
         tap.feedback = payload.feedbackUpdated ? 'OK' : 'NG';
         tap.feedbackUpdated = payload.feedbackUpdated;
@@ -680,6 +729,11 @@ function buildCruiseStagingLogText() {
         lines.push(`ENTRY: ${tap.entry} idx=${tap.currentIndex ?? '-'} expectedStep=${tap.expectedStepIndex ?? '-'}`);
         lines.push(`RETURN: ${tap.returnReason || '-'}`);
         lines.push(`TAP: ${tap.tap} time=${Number.isFinite(tap.timeDiffMs) ? `${tap.timeDiffMs > 0 ? '+' : ''}${tap.timeDiffMs}ms` : '-'} reason=${tap.reason || '-'} noteMatched=${tap.noteMatched ?? '-'}`);
+        if (tap.upcomingRescueChecked) {
+            lines.push(`rescueCheck: applied=${tap.upcomingRescueApplied} reason=${tap.upcomingRescueApplied ? (tap.upcomingRescueReason || '-') : (tap.upcomingRescueRejectReason || '-')}`);
+            lines.push(`upcoming: ${getCruiseScreenDebugNoteLabel(tap.upcomingExpectedNote)} match=${tap.tappedMatchesUpcoming} exists=${tap.upcomingExists}`);
+            lines.push(`nextDiff=${Number.isFinite(tap.upcomingNextTimeDiffMs) ? `${tap.upcomingNextTimeDiffMs > 0 ? '+' : ''}${tap.upcomingNextTimeDiffMs}ms` : '-'} pastDiff=${Number.isFinite(tap.upcomingPastTimeDiffMs) ? `${tap.upcomingPastTimeDiffMs > 0 ? '+' : ''}${tap.upcomingPastTimeDiffMs}ms` : '-'} half=${tap.halfWindowMs ?? '-'}ms wouldPast=${tap.wouldRescueWithPastTime} wouldNext=${tap.wouldRescueWithNextTime}`);
+        }
         if (tap.upcomingRescueApplied) {
             lines.push(`rescue: ${tap.upcomingRescueReason || '-'} upcoming=${getCruiseScreenDebugNoteLabel(tap.upcomingExpectedNote)} originalExpected=${getCruiseScreenDebugNoteLabel(tap.originalExpectedNote)} upcomingTime=${Number.isFinite(tap.upcomingTimeDiffMs) ? `${tap.upcomingTimeDiffMs > 0 ? '+' : ''}${tap.upcomingTimeDiffMs}ms` : '-'} originalIndex=${tap.originalCurrentIndex ?? '-'} rescuedStep=${tap.rescuedExpectedStepIndex ?? '-'}`);
         }
@@ -13340,6 +13394,22 @@ function handleFretClick(stringNum, fret, pointerEv) {
             !!upcomingForRescue &&
             stringNum === upcomingForRescue.stringName &&
             fret === upcomingForRescue.fret;
+        const upcomingNextTimeDiff = Number.isFinite(nextTime)
+            ? correctedTappedT - nextTime
+            : null;
+        const upcomingPastTimeDiff = Number.isFinite(pastTime)
+            ? correctedTappedT - pastTime
+            : null;
+        const wouldRescueWithNextTime =
+            fullBeats &&
+            tappedMatchesUpcoming &&
+            Number.isFinite(upcomingNextTimeDiff) &&
+            Math.abs(upcomingNextTimeDiff) <= halfWindow;
+        const wouldRescueWithPastTime =
+            fullBeats &&
+            tappedMatchesUpcoming &&
+            Number.isFinite(upcomingPastTimeDiff) &&
+            Math.abs(upcomingPastTimeDiff) <= halfWindow;
         if (fullBeats && tappedMatchesUpcoming && Number.isFinite(nextTime)) {
             const upcomingCandidateTimes = [nextTime];
             let bestUpcomingCandidate = null;
@@ -13365,17 +13435,67 @@ function handleFretClick(stringNum, fret, pointerEv) {
                 upcomingRescueTargetTime = bestUpcomingCandidate.time;
             }
         }
+        const getUpcomingRescueRejectReason = () => {
+            if (!isCruise) return 'not-cruise';
+            if (!fullBeats) return 'not-full-mode';
+            if (upcomingRescueApplied) return null;
+            if (originalEvaluateAgainstUpcoming) return 'already-evaluating-upcoming';
+            if (!upcomingForRescue) return 'no-upcoming';
+            if (!tappedMatchesUpcoming) return 'tap-does-not-match-upcoming';
+            if (!Number.isFinite(nextTime)) return 'nextTime-invalid';
+            if (!wouldRescueWithNextTime) return 'nextTime-outside-window';
+            return 'unknown';
+        };
+        const upcomingRescueRejectReason = getUpcomingRescueRejectReason();
+        const upcomingRescueDebugPayload = {
+            upcomingRescueChecked: isCruise && fullBeats,
+            upcomingRescueApplied,
+            upcomingRescueReason,
+            upcomingRescueRejectReason,
+            upcomingExists: !!upcomingForRescue,
+            tappedMatchesUpcoming,
+            upcomingExpectedNote: getCruiseDebugQuestionSnapshot(upcomingForRescue),
+            upcomingTimeDiff: upcomingRescueTimeDiff,
+            upcomingTimeDiffMs: Number.isFinite(upcomingRescueTimeDiff)
+                ? Math.round(upcomingRescueTimeDiff * 1000)
+                : null,
+            upcomingRescueTargetTime,
+            upcomingNextTime: nextTime,
+            upcomingNextTimeDiff: upcomingNextTimeDiff,
+            upcomingNextTimeDiffMs: Number.isFinite(upcomingNextTimeDiff)
+                ? Math.round(upcomingNextTimeDiff * 1000)
+                : null,
+            upcomingPastTime: pastTime,
+            upcomingPastTimeDiff: upcomingPastTimeDiff,
+            upcomingPastTimeDiffMs: Number.isFinite(upcomingPastTimeDiff)
+                ? Math.round(upcomingPastTimeDiff * 1000)
+                : null,
+            wouldRescueWithPastTime,
+            wouldRescueWithNextTime,
+            halfWindowMs: Math.round(halfWindow * 1000),
+            originalExpectedNote: getCruiseDebugQuestionSnapshot(originalExpectedQuestion),
+            originalCurrentIndex,
+            currentIndex: state.memorize?.cruiseIndex,
+            hasTappedCurrentNote: state.memorize?.hasTappedCurrentNote === true,
+            evaluateAgainstUpcomingBeforeRescue: originalEvaluateAgainstUpcoming,
+            evaluateAgainstUpcomingAfterRescue: evaluateAgainstUpcoming,
+            rescuedExpectedStepIndex: upcomingRescueApplied
+                ? (state.memorize?.cruiseIndex ?? 0) + 1
+                : null
+        };
 
         // 同じ拍に対して二重判定しない（タイプ別にゲート）。
         if (evaluateAgainstUpcoming) {
             if (state.memorize.cruisePreTapped) {
                 logCruiseHandleReturn({
+                    ...upcomingRescueDebugPayload,
                     returnReason: 'duplicate-upcoming-note',
                     tappedNote: getCruiseDebugNoteFromFret(stringNum, fret),
                     expectedNote: getCruiseDebugQuestionSnapshot(getCruiseUpcomingQuestion() || q),
                     timeDiffMs: Math.round(timeDiff * 1000)
                 });
                 logCruisePointerTiming({
+                    ...upcomingRescueDebugPayload,
                     eventType: pointerEv?.type || 'pointerdown',
                     ...getCruiseDebugPointerTarget(pointerEv),
                     pointerType: pointerEv?.pointerType || null,
@@ -13393,12 +13513,14 @@ function handleFretClick(stringNum, fret, pointerEv) {
         } else {
             if (state.memorize.hasTappedCurrentNote) {
                 logCruiseHandleReturn({
+                    ...upcomingRescueDebugPayload,
                     returnReason: 'duplicate-current-note',
                     tappedNote: getCruiseDebugNoteFromFret(stringNum, fret),
                     expectedNote: getCruiseDebugQuestionSnapshot(q),
                     timeDiffMs: Math.round(timeDiff * 1000)
                 });
                 logCruisePointerTiming({
+                    ...upcomingRescueDebugPayload,
                     eventType: pointerEv?.type || 'pointerdown',
                     ...getCruiseDebugPointerTarget(pointerEv),
                     pointerType: pointerEv?.pointerType || null,
@@ -13528,19 +13650,7 @@ function handleFretClick(stringNum, fret, pointerEv) {
                 originalEvaluateAgainstUpcoming,
                 originalTargetTime,
                 originalTimeDiff,
-                upcomingRescueApplied,
-                upcomingRescueReason,
-                upcomingExpectedNote: getCruiseDebugQuestionSnapshot(upcomingForRescue),
-                upcomingTimeDiff: upcomingRescueTimeDiff,
-                upcomingTimeDiffMs: Number.isFinite(upcomingRescueTimeDiff)
-                    ? Math.round(upcomingRescueTimeDiff * 1000)
-                    : null,
-                upcomingRescueTargetTime,
-                originalExpectedNote: getCruiseDebugQuestionSnapshot(originalExpectedQuestion),
-                originalCurrentIndex,
-                rescuedExpectedStepIndex: upcomingRescueApplied
-                    ? (state.memorize?.cruiseIndex ?? 0) + 1
-                    : null,
+                ...upcomingRescueDebugPayload,
                 tapProcessed: true,
                 ignored: false,
                 ignoredReason: null,
