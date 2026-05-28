@@ -340,7 +340,9 @@ function getCruiseHighlightTargetSource(context = {}, flashQuestion = null) {
     return 'current';
 }
 
-function getCruiseHighlightDetail(context = {}, flashQuestion = null, cell = null, beforeClass = null, afterClass = null, classAdded = false) {
+function getCruiseHighlightDetail(context = {}, flashQuestion = null, cell = null, beforeClass = null, afterClass = null, classAdded = false, flash = null) {
+    const marker = cell?.querySelector?.('.note-marker') || null;
+    const markerClass = marker?.className || '';
     return {
         highlightTargetNote: getCruiseDebugQuestionSnapshot(flashQuestion),
         highlightTargetString: flashQuestion?.stringName ?? null,
@@ -351,9 +353,88 @@ function getCruiseHighlightDetail(context = {}, flashQuestion = null, cell = nul
         highlightElementFound: !!cell,
         highlightElementClassBefore: beforeClass,
         highlightElementClassAfter: afterClass,
+        flashClassName: flash?.className || null,
+        classNameBeforeAdd: beforeClass,
+        classNameImmediatelyAfterAdd: afterClass,
+        classNameAfterNextFrame: null,
+        classNameAfter50ms: null,
+        classNameAfter100ms: null,
+        flashRemoveDelayMs: 300,
+        flashStillPresentAfterNextFrame: null,
+        flashStillPresentAfter50ms: null,
+        flashStillPresentAfter100ms: null,
+        highlightWasTargetFret: !!cell?.classList?.contains('is-target-fret'),
+        highlightWasNextNote: markerClass.includes('next-note'),
+        highlightWasCorrectNote: markerClass.includes('correct-note'),
+        highlightTargetHadMarker: !!marker,
+        overlayFlashApplied: false,
+        overlayFlashTarget: null,
+        overlayFlashElementFound: false,
+        overlayFlashRect: null,
+        overlayFlashDurationMs: null,
+        overlayFlashReason: null,
+        overlayFlashContainer: null,
         isRescuedPerfect: (context.decisionReason || '').includes('upcoming-note-match'),
         decisionReason: context.decisionReason || null
     };
+}
+
+function getCruiseOverlayFlashRect(rect) {
+    if (!rect) return null;
+    return {
+        x: Math.round(rect.left),
+        y: Math.round(rect.top),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height)
+    };
+}
+
+function showCruiseRescueOverlayFlash(cell, flashQuestion, context = {}, detail = null) {
+    const durationMs = 300;
+    const decisionReason = context.decisionReason || '';
+    const shouldOverlay =
+        cell &&
+        flashQuestion &&
+        decisionReason.includes('upcoming-note-match');
+    if (detail) {
+        detail.overlayFlashTarget = getCruiseDebugQuestionSnapshot(flashQuestion);
+        detail.overlayFlashElementFound = !!cell;
+        detail.overlayFlashDurationMs = durationMs;
+        detail.overlayFlashReason = shouldOverlay ? decisionReason : 'not-rescue-perfect';
+        detail.overlayFlashContainer = 'document.body';
+    }
+    if (!shouldOverlay || !document.body) return;
+
+    const rect = cell.getBoundingClientRect();
+    if (detail) {
+        detail.overlayFlashRect = getCruiseOverlayFlashRect(rect);
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'cruise-rescue-perfect-overlay-flash';
+    overlay.style.position = 'fixed';
+    overlay.style.left = `${rect.left}px`;
+    overlay.style.top = `${rect.top}px`;
+    overlay.style.width = `${rect.width}px`;
+    overlay.style.height = `${rect.height}px`;
+    overlay.style.borderRadius = '8px';
+    overlay.style.pointerEvents = 'none';
+    overlay.style.zIndex = '2147483000';
+    overlay.style.backgroundColor = 'rgba(0, 150, 255, 0.5)';
+    overlay.style.boxShadow = '0 0 20px rgba(0, 150, 255, 0.85)';
+    overlay.style.opacity = '1';
+    overlay.style.transition = 'opacity 120ms ease-out';
+    document.body.appendChild(overlay);
+    if (detail) {
+        detail.overlayFlashApplied = true;
+    }
+
+    setTimeout(() => {
+        overlay.style.opacity = '0';
+    }, Math.max(0, durationMs - 120));
+    setTimeout(() => {
+        overlay.remove();
+    }, durationMs);
 }
 
 function getCruiseStagingLogEnvironment() {
@@ -785,6 +866,9 @@ function buildCruiseStagingLogText() {
         if (tap.highlightDetail) {
             const detail = tap.highlightDetail;
             lines.push(`highlightDetail: source=${detail.highlightTargetSource || '-'} target=${getCruiseScreenDebugNoteLabel(detail.highlightTargetNote)} elementFound=${detail.highlightElementFound ?? '-'} classAdded=${detail.highlightClassAdded ?? '-'} before=${detail.highlightElementClassBefore || '-'} after=${detail.highlightElementClassAfter || '-'}`);
+            lines.push(`highlightTiming: class=${detail.flashClassName || '-'} immediate=${detail.highlightClassAdded ?? '-'} nextFrame=${detail.flashStillPresentAfterNextFrame ?? '-'} 50ms=${detail.flashStillPresentAfter50ms ?? '-'} 100ms=${detail.flashStillPresentAfter100ms ?? '-'} delay=${detail.flashRemoveDelayMs ?? '-'}ms`);
+            lines.push(`highlightState: isTargetFret=${detail.highlightWasTargetFret ?? '-'} wasNextNote=${detail.highlightWasNextNote ?? '-'} wasCorrectNote=${detail.highlightWasCorrectNote ?? '-'} hadMarker=${detail.highlightTargetHadMarker ?? '-'}`);
+            lines.push(`overlayFlash: applied=${detail.overlayFlashApplied ?? '-'} target=${getCruiseScreenDebugNoteLabel(detail.overlayFlashTarget)} elementFound=${detail.overlayFlashElementFound ?? '-'} rect=${detail.overlayFlashRect ? `${detail.overlayFlashRect.x},${detail.overlayFlashRect.y},${detail.overlayFlashRect.width}x${detail.overlayFlashRect.height}` : '-'} duration=${detail.overlayFlashDurationMs ?? '-'}ms reason=${detail.overlayFlashReason || '-'} container=${detail.overlayFlashContainer || '-'}`);
         }
         lines.push(`FB: ${tap.feedback} highlight=${tap.correctFretHighlightUpdated ?? '-'} before=${tap.feedbackTextBefore ?? '-'} after=${tap.feedbackTextAfter ?? '-'}`);
     });
@@ -14086,15 +14170,35 @@ function flashCell(type) {
     flash.className = 'cruise-debug-last-flash';
     cell.appendChild(flash);
     const classAfter = cell.className || null;
+    let highlightDetail = null;
     if (cruiseFeedbackDebugContext) {
-        cruiseFeedbackDebugContext.highlightDetail = getCruiseHighlightDetail(
+        highlightDetail = getCruiseHighlightDetail(
             context,
             q,
             cell,
             classBefore,
             classAfter,
-            true
+            true,
+            flash
         );
+        cruiseFeedbackDebugContext.highlightDetail = highlightDetail;
+        if (shouldUseRescueHighlightTarget) {
+            showCruiseRescueOverlayFlash(cell, q, context, highlightDetail);
+        }
+    }
+    if (highlightDetail) {
+        requestAnimationFrame(() => {
+            highlightDetail.classNameAfterNextFrame = cell.className || null;
+            highlightDetail.flashStillPresentAfterNextFrame = flash.isConnected;
+        });
+        setTimeout(() => {
+            highlightDetail.classNameAfter50ms = cell.className || null;
+            highlightDetail.flashStillPresentAfter50ms = flash.isConnected;
+        }, 50);
+        setTimeout(() => {
+            highlightDetail.classNameAfter100ms = cell.className || null;
+            highlightDetail.flashStillPresentAfter100ms = flash.isConnected;
+        }, 100);
     }
     setTimeout(() => flash.remove(), 300);
 }
