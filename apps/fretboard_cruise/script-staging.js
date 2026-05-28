@@ -10,8 +10,11 @@ const TAP_LATENCY_PANEL_ID = 'tap-latency-debug-panel';
 const EDITOR_FRETBOARD_LAYOUT_PANEL_ID = 'editor-fretboard-layout-debug-panel';
 const PORTRAIT_FRETBOARD_LAYOUT_PANEL_ID = 'portrait-fretboard-layout-debug-panel';
 const CRUISE_STAGING_DEBUG_PANEL_ID = 'cruise-staging-debug-panel';
+const CRUISE_STAGING_DEBUG_BUTTON_ID = 'cruise-staging-debug-button';
 let cruiseScreenDebugState = null;
 let cruiseScreenDebugCounter = 0;
+let cruiseStagingLogSession = null;
+let cruiseStagingLogSessionCounter = 0;
 
 function shouldDebugCruiseTapLatency() {
     return DEBUG_TAP_LATENCY &&
@@ -95,29 +98,115 @@ function getCruiseDebugRect(el) {
 }
 
 function getCruiseScreenDebugPanel() {
-    if (!shouldDebugCruiseTapTiming() || !document.body) return null;
+    if (!document.body) return null;
     let panel = document.getElementById(CRUISE_STAGING_DEBUG_PANEL_ID);
     if (panel) return panel;
     panel = document.createElement('div');
     panel.id = CRUISE_STAGING_DEBUG_PANEL_ID;
-    panel.setAttribute('aria-hidden', 'true');
     Object.assign(panel.style, {
         position: 'fixed',
-        right: '8px',
-        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
-        zIndex: '99998',
-        maxWidth: 'calc(100vw - 16px)',
-        padding: '7px 9px',
+        inset: '0',
+        zIndex: '99999',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '12px',
+        background: 'rgba(0, 0, 0, 0.48)',
+        boxSizing: 'border-box'
+    });
+    const card = document.createElement('div');
+    Object.assign(card.style, {
+        width: 'min(720px, 100%)',
+        maxHeight: 'calc(100vh - 24px)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+        padding: '10px',
+        borderRadius: '10px',
+        border: '1px solid rgba(255, 255, 255, 0.24)',
+        background: 'rgba(18, 22, 30, 0.96)',
+        color: '#fff',
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.24)'
+    });
+    const title = document.createElement('div');
+    title.textContent = 'STAGING TAP DEBUG LOG';
+    Object.assign(title.style, {
+        fontSize: '12px',
+        fontWeight: '700',
+        letterSpacing: '0.04em'
+    });
+    const status = document.createElement('div');
+    status.setAttribute('data-cruise-staging-log-status', '1');
+    Object.assign(status.style, {
+        minHeight: '16px',
+        color: '#b8d8ff',
+        fontSize: '11px'
+    });
+    const textarea = document.createElement('textarea');
+    textarea.setAttribute('readonly', 'readonly');
+    textarea.setAttribute('data-cruise-staging-log-text', '1');
+    Object.assign(textarea.style, {
+        width: '100%',
+        height: 'min(58vh, 420px)',
+        minHeight: '260px',
+        boxSizing: 'border-box',
+        padding: '8px',
         borderRadius: '8px',
-        border: '1px solid rgba(255, 255, 255, 0.28)',
-        background: 'rgba(20, 24, 32, 0.88)',
+        border: '1px solid rgba(255, 255, 255, 0.18)',
+        background: '#05070b',
         color: '#fff',
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
         fontSize: '11px',
-        lineHeight: '1.35',
-        whiteSpace: 'pre-wrap',
-        pointerEvents: 'none',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.24)'
+        lineHeight: '1.45',
+        resize: 'vertical'
+    });
+    const actions = document.createElement('div');
+    Object.assign(actions.style, {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+        gap: '7px'
+    });
+    const makeButton = (label, action) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = label;
+        btn.setAttribute('data-cruise-staging-log-action', action);
+        Object.assign(btn.style, {
+            minHeight: '38px',
+            borderRadius: '8px',
+            border: '1px solid rgba(255, 255, 255, 0.28)',
+            background: action === 'copy' ? '#3b82f6' : 'rgba(255, 255, 255, 0.1)',
+            color: '#fff',
+            fontWeight: '700',
+            fontSize: '12px'
+        });
+        return btn;
+    };
+    actions.appendChild(makeButton('COPY', 'copy'));
+    actions.appendChild(makeButton('SELECT', 'select'));
+    actions.appendChild(makeButton('CLEAR', 'clear'));
+    actions.appendChild(makeButton('CLOSE', 'close'));
+    card.appendChild(title);
+    card.appendChild(status);
+    card.appendChild(textarea);
+    card.appendChild(actions);
+    panel.appendChild(card);
+    panel.addEventListener('click', (ev) => {
+        const action = ev.target?.getAttribute?.('data-cruise-staging-log-action');
+        if (!action) return;
+        if (action === 'copy') {
+            copyCruiseStagingLogFromPanel();
+        } else if (action === 'select') {
+            selectCruiseStagingLogText();
+        } else if (action === 'clear') {
+            clearCruiseStagingLogSession();
+            renderCruiseScreenDebugPanel();
+            setCruiseStagingLogStatus('CLEARED');
+        } else if (action === 'close') {
+            hideCruiseStagingLogPanel();
+            showCruiseStagingLogButton();
+        }
     });
     document.body.appendChild(panel);
     return panel;
@@ -155,26 +244,20 @@ function getCruiseScreenDebugTargetLabel(payload) {
 }
 
 function renderCruiseScreenDebugPanel() {
-    const panel = getCruiseScreenDebugPanel();
-    if (!panel || !cruiseScreenDebugState) return;
-    const s = cruiseScreenDebugState;
-    panel.textContent = [
-        `tap#${s.tapNo} ${s.time}`,
-        `RAW ${s.raw} | HIT ${s.hit} | ENTRY ${s.entry} | TAP ${s.tap}`,
-        `RETURN ${s.returnReason} | FB ${s.feedback}`,
-        `reason: ${s.reason}`,
-        `note: ${s.note}`,
-        `idx: ${s.idx}`,
-        `time: ${s.timeDiff}`,
-        `target: ${s.target}`
-    ].join('\n');
+    const panel = document.getElementById(CRUISE_STAGING_DEBUG_PANEL_ID);
+    if (!panel) return;
+    const textarea = panel.querySelector('[data-cruise-staging-log-text]');
+    if (textarea) {
+        textarea.value = buildCruiseStagingLogText();
+    }
 }
 
 function updateCruiseScreenDebugPanel(phase, payload = {}) {
     if (!shouldDebugCruiseTapTiming()) return;
+    updateCruiseStagingLogSession(phase, payload);
     if (!cruiseScreenDebugState || phase === 'raw') {
         cruiseScreenDebugState = {
-            tapNo: ++cruiseScreenDebugCounter,
+            tapNo: cruiseStagingLogSession?.currentTap?.no ?? cruiseScreenDebugCounter,
             time: getCruiseScreenDebugTimeLabel(),
             raw: '-',
             hit: '-',
@@ -231,6 +314,328 @@ function updateCruiseScreenDebugPanel(phase, payload = {}) {
         s.reason = s.returnReason;
     }
     renderCruiseScreenDebugPanel();
+}
+
+function getCruiseStagingLogEnvironment() {
+    return {
+        startedAt: new Date().toISOString(),
+        startedAtLocal: getCruiseScreenDebugTimeLabel(),
+        url: location.href,
+        userAgent: navigator.userAgent,
+        viewport: `${window.innerWidth}x${window.innerHeight}`,
+        devicePixelRatio: window.devicePixelRatio || 1,
+        course: state.course,
+        playMode: state.memorize?.playMode,
+        cruiseTapBeats: state.settings?.cruiseTapBeats,
+        latencyCap: '30ms',
+        stage: state.memorize?.proCustomCruise?.name || state.memorize?.stage || '-',
+        bpm: state.settings?.tempo,
+        maxFret: state.settings?.maxFret,
+        displayMode: state.settings?.displayMode,
+        progression: state.settings?.cruiseProgression,
+        bluetoothAssist: state.settings?.bluetoothRhythmAssistLevel
+    };
+}
+
+function startCruiseStagingLogSession(reason = 'stage-start') {
+    if (!DEBUG_CRUISE_TAP_TIMING || state.settings?.cruiseTapBeats !== 'full') return;
+    removeCruiseStagingLogPanel();
+    cruiseScreenDebugState = null;
+    cruiseScreenDebugCounter = 0;
+    cruiseStagingLogSession = {
+        id: ++cruiseStagingLogSessionCounter,
+        startedAtMs: performance.now(),
+        endedAt: null,
+        endReason: null,
+        reason,
+        meta: getCruiseStagingLogEnvironment(),
+        taps: [],
+        appTones: [],
+        currentTap: null
+    };
+}
+
+function finishCruiseStagingLogSession(reason = 'stage-ended') {
+    if (!cruiseStagingLogSession) return;
+    if (!cruiseStagingLogSession.endedAt) {
+        cruiseStagingLogSession.endedAt = new Date().toISOString();
+        cruiseStagingLogSession.endedAtLocal = getCruiseScreenDebugTimeLabel();
+        cruiseStagingLogSession.endReason = reason;
+        cruiseStagingLogSession.durationMs = Math.round(performance.now() - cruiseStagingLogSession.startedAtMs);
+    }
+}
+
+function clearCruiseStagingLogSession() {
+    if (!cruiseStagingLogSession) return;
+    cruiseStagingLogSession.taps = [];
+    cruiseStagingLogSession.appTones = [];
+    cruiseStagingLogSession.currentTap = null;
+    cruiseScreenDebugState = null;
+    cruiseScreenDebugCounter = 0;
+}
+
+function removeCruiseStagingLogPanel() {
+    document.getElementById(CRUISE_STAGING_DEBUG_PANEL_ID)?.remove();
+    document.getElementById(CRUISE_STAGING_DEBUG_BUTTON_ID)?.remove();
+}
+
+function showCruiseStagingLogPanel() {
+    if (!cruiseStagingLogSession) return;
+    const panel = getCruiseScreenDebugPanel();
+    if (!panel) return;
+    panel.style.display = 'flex';
+    document.getElementById(CRUISE_STAGING_DEBUG_BUTTON_ID)?.remove();
+    renderCruiseScreenDebugPanel();
+    setCruiseStagingLogStatus('ログをコピーできます');
+}
+
+function hideCruiseStagingLogPanel() {
+    const panel = document.getElementById(CRUISE_STAGING_DEBUG_PANEL_ID);
+    if (panel) panel.style.display = 'none';
+}
+
+function showCruiseStagingLogButton() {
+    if (!cruiseStagingLogSession?.endedAt || !document.body) return;
+    let btn = document.getElementById(CRUISE_STAGING_DEBUG_BUTTON_ID);
+    if (btn) return;
+    btn = document.createElement('button');
+    btn.id = CRUISE_STAGING_DEBUG_BUTTON_ID;
+    btn.type = 'button';
+    btn.textContent = 'LOG';
+    Object.assign(btn.style, {
+        position: 'fixed',
+        right: '10px',
+        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)',
+        zIndex: '99998',
+        minWidth: '58px',
+        minHeight: '42px',
+        borderRadius: '999px',
+        border: '1px solid rgba(255, 255, 255, 0.32)',
+        background: 'rgba(18, 22, 30, 0.92)',
+        color: '#fff',
+        fontWeight: '700',
+        fontSize: '12px',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.24)'
+    });
+    btn.onclick = showCruiseStagingLogPanel;
+    document.body.appendChild(btn);
+}
+
+function setCruiseStagingLogStatus(text) {
+    const status = document.querySelector(`#${CRUISE_STAGING_DEBUG_PANEL_ID} [data-cruise-staging-log-status]`);
+    if (status) status.textContent = text || '';
+}
+
+function selectCruiseStagingLogText() {
+    const textarea = document.querySelector(`#${CRUISE_STAGING_DEBUG_PANEL_ID} [data-cruise-staging-log-text]`);
+    if (!textarea) return;
+    textarea.focus();
+    textarea.select();
+    if (typeof textarea.setSelectionRange === 'function') {
+        textarea.setSelectionRange(0, textarea.value.length);
+    }
+}
+
+async function copyCruiseStagingLogFromPanel() {
+    const text = buildCruiseStagingLogText();
+    const textarea = document.querySelector(`#${CRUISE_STAGING_DEBUG_PANEL_ID} [data-cruise-staging-log-text]`);
+    if (textarea) textarea.value = text;
+    try {
+        if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
+            throw new Error('clipboard-api-unavailable');
+        }
+        await navigator.clipboard.writeText(text);
+        setCruiseStagingLogStatus('COPIED');
+    } catch (err) {
+        selectCruiseStagingLogText();
+        setCruiseStagingLogStatus('コピーできませんでした。ログ欄を長押ししてコピーしてください');
+    }
+}
+
+function ensureCruiseStagingLogTap(payload = {}) {
+    if (!cruiseStagingLogSession) {
+        startCruiseStagingLogSession('lazy-start');
+    }
+    if (!cruiseStagingLogSession) return null;
+    const tap = {
+        no: ++cruiseScreenDebugCounter,
+        time: getCruiseScreenDebugTimeLabel(),
+        raw: '-',
+        hit: '-',
+        entry: '-',
+        returnReason: '-',
+        tap: '-',
+        feedback: '-',
+        reason: '-',
+        target: getCruiseScreenDebugTargetLabel(payload),
+        tappedNote: null,
+        expectedNote: payload.expectedNote || null,
+        currentIndex: payload.currentIndex ?? null,
+        expectedStepIndex: payload.expectedStepIndex ?? null,
+        timeDiffMs: null,
+        noteMatched: null,
+        feedbackUpdated: null,
+        correctFretHighlightUpdated: null,
+        feedbackTextBefore: null,
+        feedbackTextAfter: null
+    };
+    cruiseStagingLogSession.currentTap = tap;
+    cruiseStagingLogSession.taps.push(tap);
+    while (cruiseStagingLogSession.taps.length > 60) {
+        cruiseStagingLogSession.taps.shift();
+    }
+    return tap;
+}
+
+function getCruiseStagingLogCurrentTap(payload = {}) {
+    if (!cruiseStagingLogSession) {
+        startCruiseStagingLogSession('lazy-start');
+    }
+    if (!cruiseStagingLogSession) return null;
+    return cruiseStagingLogSession.currentTap || ensureCruiseStagingLogTap(payload);
+}
+
+function updateCruiseStagingLogSession(phase, payload = {}) {
+    if (!shouldDebugCruiseTapTiming()) return;
+    if (cruiseStagingLogSession?.endedAt) return;
+    let tap = phase === 'raw'
+        ? ensureCruiseStagingLogTap(payload)
+        : getCruiseStagingLogCurrentTap(payload);
+    if (!tap) return;
+    if (phase === 'raw') {
+        tap.raw = 'OK';
+        tap.target = getCruiseScreenDebugTargetLabel(payload);
+        tap.currentIndex = payload.currentIndex ?? tap.currentIndex;
+    } else if (phase === 'hit') {
+        tap.hit = payload.foundFretColumn ? 'OK' : 'NG';
+        tap.reason = payload.ignoredReason || (payload.foundFretColumn ? tap.reason : 'foundFretColumn false');
+        tap.target = getCruiseScreenDebugTargetLabel(payload);
+        tap.tappedNote = payload.tappedNote || tap.tappedNote;
+        tap.expectedNote = payload.expectedNote || tap.expectedNote;
+        tap.currentIndex = payload.currentIndex ?? tap.currentIndex;
+    } else if (phase === 'entry') {
+        tap.entry = 'OK';
+        tap.tappedNote = payload.tappedNote || tap.tappedNote;
+        tap.expectedNote = payload.expectedNote || tap.expectedNote;
+        tap.currentIndex = payload.currentIndex ?? tap.currentIndex;
+    } else if (phase === 'return') {
+        tap.returnReason = payload.returnReason || payload.ignoredReason || 'return';
+        tap.reason = tap.returnReason;
+        tap.tappedNote = payload.tappedNote || tap.tappedNote;
+        tap.expectedNote = payload.expectedNote || tap.expectedNote;
+        tap.currentIndex = payload.currentIndex ?? tap.currentIndex;
+    } else if (phase === 'tap') {
+        tap.tap = payload.result || 'OK';
+        tap.reason = payload.decisionReason || tap.reason;
+        tap.tappedNote = payload.tappedNote || tap.tappedNote;
+        tap.expectedNote = payload.expectedNote || tap.expectedNote;
+        tap.currentIndex = payload.currentIndex ?? tap.currentIndex;
+        tap.expectedStepIndex = payload.expectedStepIndex ?? tap.expectedStepIndex;
+        tap.timeDiffMs = Number.isFinite(payload.timeDiffMs) ? payload.timeDiffMs : tap.timeDiffMs;
+        tap.noteMatched = payload.noteMatched ?? tap.noteMatched;
+        tap.feedbackTextBefore = payload.feedbackTextBefore ?? tap.feedbackTextBefore;
+        tap.feedbackTextAfter = payload.feedbackTextAfter ?? tap.feedbackTextAfter;
+    } else if (phase === 'feedback') {
+        tap.feedback = payload.feedbackUpdated ? 'OK' : 'NG';
+        tap.feedbackUpdated = payload.feedbackUpdated;
+        tap.correctFretHighlightUpdated = payload.correctFretHighlightUpdated;
+        tap.reason = payload.returnReason || payload.decisionReason || tap.reason;
+        tap.tappedNote = payload.tappedNote || tap.tappedNote;
+        tap.expectedNote = payload.expectedNote || tap.expectedNote;
+        tap.currentIndex = payload.currentIndex ?? tap.currentIndex;
+        tap.feedbackTextBefore = payload.beforeText ?? tap.feedbackTextBefore;
+        tap.feedbackTextAfter = payload.afterText ?? tap.feedbackTextAfter;
+    } else if (phase === 'ignored') {
+        tap.returnReason = payload.ignoredReason || 'ignored';
+        tap.reason = tap.returnReason;
+    }
+}
+
+function appendCruiseStagingAppToneLog(payload) {
+    if (!shouldDebugCruiseTapTiming()) return;
+    if (cruiseStagingLogSession?.endedAt) return;
+    if (!cruiseStagingLogSession) {
+        startCruiseStagingLogSession('lazy-app-tone');
+    }
+    if (!cruiseStagingLogSession) return;
+    cruiseStagingLogSession.appTones.push({
+        time: getCruiseScreenDebugTimeLabel(),
+        currentIndex: payload.currentIndex ?? null,
+        note: payload.note || null,
+        expectedNoteForTap: payload.expectedNoteForTap || null,
+        deltaFromAppToneTargetMs: payload.deltaFromAppToneTargetMs ?? null,
+        nextTargetTime: payload.nextTargetTime ?? null
+    });
+    while (cruiseStagingLogSession.appTones.length > 120) {
+        cruiseStagingLogSession.appTones.shift();
+    }
+}
+
+function getCruiseStagingLogStats() {
+    const taps = cruiseStagingLogSession?.taps || [];
+    return {
+        totalTaps: taps.length,
+        perfect: taps.filter(t => /^Perfect/.test(t.tap)).length,
+        miss: taps.filter(t => /^Miss/.test(t.tap)).length,
+        early: taps.filter(t => /^Early/.test(t.tap)).length,
+        late: taps.filter(t => /^Late/.test(t.tap)).length,
+        rawOnly: taps.filter(t => t.raw === 'OK' && t.hit === '-' && t.entry === '-' && t.tap === '-' && t.feedback === '-').length,
+        hitNg: taps.filter(t => t.hit === 'NG').length,
+        returns: taps.filter(t => t.returnReason && t.returnReason !== '-').length,
+        feedbackMissing: taps.filter(t => t.tap !== '-' && t.feedback === '-').length
+    };
+}
+
+function buildCruiseStagingLogText() {
+    if (!cruiseStagingLogSession) {
+        return '=== Fretboard Cruise Staging Tap Debug ===\nno session';
+    }
+    const s = cruiseStagingLogSession;
+    const meta = s.meta || {};
+    const stats = getCruiseStagingLogStats();
+    const lines = [
+        '=== Fretboard Cruise Staging Tap Debug ===',
+        `session: ${s.id}`,
+        `startedAt: ${meta.startedAt || '-'}`,
+        `endedAt: ${s.endedAt || '-'}`,
+        `endReason: ${s.endReason || '-'}`,
+        `durationMs: ${s.durationMs ?? '-'}`,
+        `url: ${meta.url || '-'}`,
+        `userAgent: ${meta.userAgent || '-'}`,
+        `viewport: ${meta.viewport || '-'}`,
+        `devicePixelRatio: ${meta.devicePixelRatio ?? '-'}`,
+        `course: ${meta.course || '-'}`,
+        `playMode: ${meta.playMode || '-'}`,
+        `cruiseTapBeats: ${meta.cruiseTapBeats || '-'}`,
+        `latencyCap: ${meta.latencyCap || '-'}`,
+        `stage: ${meta.stage || '-'}`,
+        `bpm: ${meta.bpm || '-'}`,
+        `maxFret: ${meta.maxFret || '-'}`,
+        `displayMode: ${meta.displayMode || '-'}`,
+        `progression: ${meta.progression || '-'}`,
+        `bluetoothAssist: ${meta.bluetoothAssist || '-'}`,
+        '',
+        `summary: total=${stats.totalTaps} perfect=${stats.perfect} miss=${stats.miss} early=${stats.early} late=${stats.late} rawOnly=${stats.rawOnly} hitNg=${stats.hitNg} returns=${stats.returns} feedbackMissing=${stats.feedbackMissing}`,
+        ''
+    ];
+    if (s.appTones.length) {
+        lines.push('--- app tones ---');
+        s.appTones.forEach((tone, index) => {
+            lines.push(`${index + 1}. ${tone.time} idx=${tone.currentIndex ?? '-'} note=${getCruiseScreenDebugNoteLabel(tone.note)} expected=${getCruiseScreenDebugNoteLabel(tone.expectedNoteForTap)} delta=${tone.deltaFromAppToneTargetMs ?? '-'}ms nextTarget=${tone.nextTargetTime ?? '-'}`);
+        });
+        lines.push('');
+    }
+    lines.push('--- taps ---');
+    s.taps.forEach(tap => {
+        lines.push(`--- tap#${tap.no} ${tap.time} ---`);
+        lines.push(`RAW: ${tap.raw} target=${tap.target || '-'}`);
+        lines.push(`HIT: ${tap.hit} tapped=${getCruiseScreenDebugNoteLabel(tap.tappedNote)} expected=${getCruiseScreenDebugNoteLabel(tap.expectedNote)}`);
+        lines.push(`ENTRY: ${tap.entry} idx=${tap.currentIndex ?? '-'} expectedStep=${tap.expectedStepIndex ?? '-'}`);
+        lines.push(`RETURN: ${tap.returnReason || '-'}`);
+        lines.push(`TAP: ${tap.tap} time=${Number.isFinite(tap.timeDiffMs) ? `${tap.timeDiffMs > 0 ? '+' : ''}${tap.timeDiffMs}ms` : '-'} reason=${tap.reason || '-'} noteMatched=${tap.noteMatched ?? '-'}`);
+        lines.push(`FB: ${tap.feedback} highlight=${tap.correctFretHighlightUpdated ?? '-'} before=${tap.feedbackTextBefore ?? '-'} after=${tap.feedbackTextAfter ?? '-'}`);
+    });
+    return lines.join('\n');
 }
 
 function logCruisePointerTiming(payload) {
@@ -4094,6 +4499,7 @@ function logCruiseAppToneTiming(note, source) {
     };
     console.log('[CRUISE APP TONE]', payload);
     console.log('[CRUISE APP TONE JSON]', JSON.stringify(payload));
+    appendCruiseStagingAppToneLog(payload);
 }
 
 function maybePlayRhythmConfirmTone(note, time) {
@@ -4256,6 +4662,8 @@ function autoAdvanceCruise() {
             }
             saveState();
             renderApp();
+            finishCruiseStagingLogSession('stage-cleared');
+            setTimeout(showCruiseStagingLogPanel, 0);
             return;
         }
 
@@ -5746,6 +6154,7 @@ function startCruisePlaybackFromSequence(sequence, cruiseScope = null, stage = n
     state.memorize.isCruisePlaying = true;
     state.course = 'memorize';
     autoScrollRequested = true;
+    startCruiseStagingLogSession('start-cruise-playback-from-sequence');
     saveState();
     renderApp();
     if (guardEditorDemoPlayback()) {
@@ -5800,6 +6209,7 @@ function startProCustomCruisePlayback(stageSettings, returnCourse = 'proCustomRo
     state.memorize.isCruisePlaying = true;
     state.course = 'memorize';
     autoScrollRequested = true;
+    startCruiseStagingLogSession('start-pro-custom-cruise-playback');
     saveState();
     renderApp();
     if (guardEditorDemoPlayback()) {
@@ -9333,6 +9743,7 @@ function renderStageSelect(app) {
                 state.memorize.isCruisePlaying = true;
                 
                 autoScrollRequested = true;
+                startCruiseStagingLogSession('stage-button-cruise');
                 // 開始時に BPM カウント（3,2,1）を入れてから自動再生開始。
                 // saveState/renderApp はカウント関数内で呼ぶ。
                 saveState();
@@ -12039,6 +12450,7 @@ function restartMemorizeFromCleared() {
         state.memorize.isFirstNote = true;
         state.memorize.isCruisePlaying = true;
         autoScrollRequested = true;
+        startCruiseStagingLogSession('cleared-restart');
         saveState();
         renderApp();
         startCruiseCountdownAndRhythm();
@@ -12194,6 +12606,7 @@ function navigateMemorizeToNextStageFromCleared() {
         state.memorize.isCruisePlaying = true;
         autoScrollRequested = true;
         state.quizEditorPreview = null;
+        startCruiseStagingLogSession('cleared-next-stage');
         saveState();
         renderApp();
         startCruiseCountdownAndRhythm();
@@ -12540,6 +12953,7 @@ function renderMemorize(app) {
                 state.memorize.isFirstNote = true;
                 state.memorize.isCruisePlaying = true;
                 autoScrollRequested = true;
+                startCruiseStagingLogSession('cruise-stop-restart');
                 saveState();
                 renderApp();
                 startCruiseCountdownAndRhythm();
@@ -12599,6 +13013,7 @@ function renderMemorize(app) {
             state.memorize.isFirstNote = true;
             state.memorize.isCruisePlaying = true;
             autoScrollRequested = true;
+            startCruiseStagingLogSession('cruise-reset');
             saveState();
             renderApp();
             startCruiseCountdownAndRhythm();
