@@ -421,6 +421,39 @@ function showCruiseStagingLogButton() {
     document.body.appendChild(btn);
 }
 
+function ensureCruiseStagingClearedLogAccess() {
+    if (!DEBUG_CRUISE_TAP_TIMING || !document.body) return;
+    if (
+        state.course !== 'memorize' ||
+        state.memorize?.playMode !== 'cruise' ||
+        state.memorize?.isCleared !== true ||
+        state.settings?.cruiseTapBeats !== 'full'
+    ) {
+        return;
+    }
+    if (!cruiseStagingLogSession) {
+        startCruiseStagingLogSession('cleared-render-missing-session');
+    }
+    if (!cruiseStagingLogSession) return;
+    finishCruiseStagingLogSession('cleared-render');
+    showCruiseStagingLogButton();
+
+    const actions = document.querySelector('.memorize-cleared-card__actions');
+    if (!actions || document.getElementById('btn-cruise-staging-debug-log')) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'btn-cruise-staging-debug-log';
+    btn.textContent = 'DEBUG LOG';
+    btn.className = 'btn-secondary memorize-cleared-card__btn memorize-cleared-card__btn--ghost';
+    Object.assign(btn.style, {
+        gridColumn: '1 / -1',
+        borderColor: 'rgba(96, 165, 250, 0.72)',
+        color: '#bfdbfe'
+    });
+    btn.onclick = showCruiseStagingLogPanel;
+    actions.appendChild(btn);
+}
+
 function setCruiseStagingLogStatus(text) {
     const status = document.querySelector(`#${CRUISE_STAGING_DEBUG_PANEL_ID} [data-cruise-staging-log-status]`);
     if (status) status.textContent = text || '';
@@ -4663,7 +4696,7 @@ function autoAdvanceCruise() {
             saveState();
             renderApp();
             finishCruiseStagingLogSession('stage-cleared');
-            setTimeout(showCruiseStagingLogPanel, 0);
+            setTimeout(ensureCruiseStagingClearedLogAccess, 0);
             return;
         }
 
@@ -13086,6 +13119,7 @@ function renderMemorize(app) {
             tryPersistOfficialEditorDemoSaveFromMemorize();
         };
     }
+    ensureCruiseStagingClearedLogAccess();
 
     // Highlight mode selection buttons
     document.querySelectorAll('.highlight-mode-btn').forEach(btn => {
