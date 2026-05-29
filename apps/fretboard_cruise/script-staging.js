@@ -11,10 +11,77 @@ const EDITOR_FRETBOARD_LAYOUT_PANEL_ID = 'editor-fretboard-layout-debug-panel';
 const PORTRAIT_FRETBOARD_LAYOUT_PANEL_ID = 'portrait-fretboard-layout-debug-panel';
 const CRUISE_STAGING_DEBUG_PANEL_ID = 'cruise-staging-debug-panel';
 const CRUISE_STAGING_DEBUG_BUTTON_ID = 'cruise-staging-debug-button';
+const STAGING_RUNTIME_BADGE_ID = 'fretboard-staging-runtime-badge';
 let cruiseScreenDebugState = null;
 let cruiseScreenDebugCounter = 0;
 let cruiseStagingLogSession = null;
 let cruiseStagingLogSessionCounter = 0;
+
+function isStagingPreviewRuntime() {
+    try {
+        return new URLSearchParams(window.location.search).get('stagingPreview') === '1';
+    } catch (e) {
+        return false;
+    }
+}
+
+function getStagingDisplayMode() {
+    const isStandalone = window.matchMedia?.('(display-mode: standalone)')?.matches ||
+        window.navigator?.standalone === true;
+    return isStandalone ? 'standalone' : 'browser';
+}
+
+function renderStagingRuntimeBadge() {
+    if (!isStagingPreviewRuntime() || typeof document === 'undefined') return;
+    const swState = navigator.serviceWorker?.controller ? 'controlled' : 'uncontrolled';
+    let badge = document.getElementById(STAGING_RUNTIME_BADGE_ID);
+    if (!badge) {
+        badge = document.createElement('div');
+        badge.id = STAGING_RUNTIME_BADGE_ID;
+        badge.style.cssText = [
+            'position:fixed',
+            'left:10px',
+            'bottom:calc(10px + env(safe-area-inset-bottom, 0px))',
+            'z-index:2147483647',
+            'padding:6px 8px',
+            'border-radius:8px',
+            'background:rgba(7,12,20,0.82)',
+            'border:1px solid rgba(96,165,250,0.55)',
+            'box-shadow:0 8px 24px rgba(0,0,0,0.25)',
+            'color:#dbeafe',
+            'font:10px/1.35 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+            'pointer-events:none',
+            'white-space:pre',
+            'text-align:left'
+        ].join(';');
+        document.body.appendChild(badge);
+    }
+    badge.textContent = [
+        'build: staging',
+        'script: script-staging.js',
+        `version: ${FRETBOARD_CRUISE_APP_VERSION}`,
+        `display: ${getStagingDisplayMode()}`,
+        `sw: ${swState}`
+    ].join('\n');
+}
+
+function initStagingRuntimeBadge() {
+    if (!isStagingPreviewRuntime()) return;
+    const render = () => renderStagingRuntimeBadge();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', render, { once: true });
+    } else {
+        render();
+    }
+    window.addEventListener('pageshow', render);
+    window.matchMedia?.('(display-mode: standalone)')?.addEventListener?.('change', render);
+    if (navigator.serviceWorker) {
+        navigator.serviceWorker.addEventListener('controllerchange', render);
+        navigator.serviceWorker.ready.then(render).catch(() => {});
+    }
+}
+
+initStagingRuntimeBadge();
 
 function shouldDebugCruiseTapLatency() {
     return DEBUG_TAP_LATENCY &&
