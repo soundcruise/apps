@@ -1,5 +1,5 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.6.0';
-window.FRETBOARD_CRUISE_APP_VERSION = '2.6.0';
+const FRETBOARD_CRUISE_APP_VERSION = '2.6.2-staging';
+window.FRETBOARD_CRUISE_APP_VERSION = '2.6.2-staging';
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_CRUISE_TAP_TIMING = true;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = false;
@@ -2494,9 +2494,7 @@ function guardEditorDemoPlayback() {
     return true;
 }
 
-/** 通常版：公式 STAGE の編集画面を離れたらメモリ上の下書きを捨てる（localStorage は触らない） */
-function resetStandardRouteEditorScratchInMemory() {
-    if (!isStandardEdition()) return;
+function resetRouteEditorScratchInMemory() {
     routeEditorPendingGroupScrollLefts.clear();
     state.routeEditor = {
         stage: 1,
@@ -2514,8 +2512,13 @@ function resetStandardRouteEditorScratchInMemory() {
     };
 }
 
-function resetStandardQuizEditorScratchInMemory() {
+/** 通常版：公式 STAGE の編集画面を離れたらメモリ上の下書きを捨てる（localStorage は触らない） */
+function resetStandardRouteEditorScratchInMemory() {
     if (!isStandardEdition()) return;
+    resetRouteEditorScratchInMemory();
+}
+
+function resetQuizEditorScratchInMemory() {
     state.quizEditor = {
         stage: 1,
         groups: [{ notes: [], scrollLeft: 0 }],
@@ -2526,6 +2529,11 @@ function resetStandardQuizEditorScratchInMemory() {
         visibleGroupIndices: [],
         forceHideAllGroups: false
     };
+}
+
+function resetStandardQuizEditorScratchInMemory() {
+    if (!isStandardEdition()) return;
+    resetQuizEditorScratchInMemory();
 }
 
 function resetStandardProCustomRouteEditorScratchInMemory() {
@@ -2595,6 +2603,7 @@ function tryPersistOfficialEditorDemoSaveFromMemorize() {
             .map(normalizeCruiseRouteSlot)
             .filter(Boolean);
         state.settings.cruiseStageRouteGroups[String(stage)] = state.routeEditor.groupBreaks.slice();
+        applyDefaultCruiseGroupScrollsIfSavedRouteIsShipped(stage, state.routeEditor.draft, state.routeEditor.groupBreaks);
         state.memorize.isDemoPlayback = false;
         state.memorize.demoReturnCourse = null;
         state.memorize.demoReturnStage = null;
@@ -5199,6 +5208,29 @@ function normalizeCruiseRouteSlot(slot) {
 function cloneCruiseRouteSlots(slots) {
     if (!Array.isArray(slots)) return [];
     return slots.map(normalizeCruiseRouteSlot).filter(Boolean).map(slot => ({ ...slot }));
+}
+
+function areCruiseRouteSlotsEqual(a, b) {
+    const aa = cloneCruiseRouteSlots(a);
+    const bb = cloneCruiseRouteSlots(b);
+    if (aa.length !== bb.length) return false;
+    return aa.every((slot, index) => slot.stringName === bb[index].stringName && slot.fret === bb[index].fret);
+}
+
+function areRouteEditorGroupBreaksEqual(a, b, draftLength) {
+    const aa = normalizeRouteEditorGroupBreaks(a, draftLength);
+    const bb = normalizeRouteEditorGroupBreaks(b, draftLength);
+    if (aa.length !== bb.length) return false;
+    return aa.every((value, index) => value === bb[index]);
+}
+
+function applyDefaultCruiseGroupScrollsIfSavedRouteIsShipped(stage, route, groupBreaks) {
+    const shippedSlots = getShippedDefaultCruiseRouteSlotsForStage(stage);
+    const shippedBreaks = getShippedDefaultCruiseGroupBreaksForStage(stage);
+    const normalizedRoute = cloneCruiseRouteSlots(route);
+    if (!areCruiseRouteSlotsEqual(normalizedRoute, shippedSlots)) return false;
+    if (!areRouteEditorGroupBreaksEqual(groupBreaks, shippedBreaks, normalizedRoute.length)) return false;
+    return applyShippedDefaultCruiseGroupScrollLeftsForStage(stage);
 }
 
 function getSavedCruiseRouteSlots(stage) {
@@ -10235,19 +10267,19 @@ function renderRouteEditor(app) {
     `;
 
     document.getElementById('btn-route-editor-back').onclick = () => {
-        resetStandardRouteEditorScratchInMemory();
+        resetRouteEditorScratchInMemory();
         state.course = 'stageSelect';
         saveState();
         renderApp();
     };
     document.getElementById('btn-route-editor-cancel').onclick = () => {
-        resetStandardRouteEditorScratchInMemory();
+        resetRouteEditorScratchInMemory();
         state.course = 'stageSelect';
         saveState();
         renderApp();
     };
     document.getElementById('btn-route-editor-home').onclick = () => {
-        resetStandardRouteEditorScratchInMemory();
+        resetRouteEditorScratchInMemory();
         state.course = null;
         saveState();
         renderApp();
@@ -10311,8 +10343,6 @@ function renderRouteEditor(app) {
         state.routeEditor.visibleGroupIndices = [0];
         state.routeEditor.forceHideAllGroups = false;
         state.routeEditor.showAllGroupsExpanded = false;
-        setRouteEditorSavedGroupBreaks(stage, [0]);
-        clearAllSavedCruiseGroupScrollLeftsForStage(stage);
         if (isStandardEdition()) {
             for (let gi = 0; gi < ROUTE_EDITOR_MAX_GROUPS; gi++) {
                 clearPendingRouteEditorGroupScrollLeft(stage, gi);
@@ -10335,16 +10365,8 @@ function renderRouteEditor(app) {
         state.routeEditor.visibleGroupIndices = buildRouteEditorGroupsFromBreaks(state.routeEditor.draft, state.routeEditor.groupBreaks).map((_, index) => index);
         state.routeEditor.forceHideAllGroups = false;
         state.routeEditor.showAllGroupsExpanded = false;
-        // 「初期順」は問題画面まで含めて公式デフォルトに戻すボタン。
-        // 編集ドラフトだけでなく、問題画面が読む cruiseStageRoutes / RouteGroups / GroupScrollLefts も
-        // 同じ shipped 値で書き戻す（ユーザーがその後「この順番で保存」を押し忘れても整合する）。
-        if (isProEdition()) {
-            if (!state.settings.cruiseStageRoutes) state.settings.cruiseStageRoutes = {};
-            if (!state.settings.cruiseStageRouteGroups) state.settings.cruiseStageRouteGroups = {};
-            state.settings.cruiseStageRoutes[String(stage)] = cloneCruiseRouteSlots(state.routeEditor.draft);
-            state.settings.cruiseStageRouteGroups[String(stage)] = state.routeEditor.groupBreaks.slice();
-            applyShippedDefaultCruiseGroupScrollLeftsForStage(stage);
-        }
+        // 「初期順」は編集ドラフトだけを公式デフォルトへ戻す。
+        // 本体STAGEへ反映するのは「この順番で保存」を押した時だけにする。
         if (isStandardEdition()) {
             for (let gi = 0; gi < ROUTE_EDITOR_MAX_GROUPS; gi++) {
                 clearPendingRouteEditorGroupScrollLeft(stage, gi);
@@ -10362,6 +10384,7 @@ function renderRouteEditor(app) {
             .map(normalizeCruiseRouteSlot)
             .filter(Boolean);
         state.settings.cruiseStageRouteGroups[String(stage)] = state.routeEditor.groupBreaks.slice();
+        applyDefaultCruiseGroupScrollsIfSavedRouteIsShipped(stage, state.routeEditor.draft, state.routeEditor.groupBreaks);
         state.course = 'stageSelect';
         saveState();
         renderApp();
@@ -10426,12 +10449,6 @@ function renderRouteEditor(app) {
             setPendingRouteEditorGroupScrollLeft(stage, nextIndex, currentScroll);
             routeEditorFretboardScrollSnapshot = Math.max(routeEditorFretboardScrollSnapshot, currentScroll);
         }
-        if (stage === 4 || stage === 5 || stage === 6) {
-            // STAGE4/5/6 は 13F 追加後に古い保存位置へ戻ると表示が左端に寄りやすいので、
-            // 新規 Gr の既存保存値は捨てて、今見ている位置を優先する。
-            clearSavedCruiseGroupScrollLeft(stage, nextIndex);
-        }
-        setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
         saveState();
         renderApp();
     };
@@ -10445,7 +10462,6 @@ function renderRouteEditor(app) {
         const removed = deleteRouteEditorGroupAtIndex(state.routeEditor.draft, state.routeEditor.groupBreaks, deletedIndex);
         state.routeEditor.draft = removed.draft;
         state.routeEditor.groupBreaks = removed.groupBreaks;
-        setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
         const nextGroupCount = buildRouteEditorGroupsFromBreaks(state.routeEditor.draft, state.routeEditor.groupBreaks).length;
         const nextVisible = Array.isArray(state.routeEditor.visibleGroupIndices)
             ? state.routeEditor.visibleGroupIndices.map(index => {
@@ -10738,7 +10754,6 @@ function renderRouteEditor(app) {
             pushRouteEditorHistory(stage);
             state.routeEditor.draft.splice(routeIndex, 1);
             state.routeEditor.groupBreaks = adjustRouteEditorGroupBreaksForDelete(state.routeEditor.groupBreaks, routeIndex, state.routeEditor.draft.length);
-            setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
             saveState();
             renderApp();
         },
@@ -10778,7 +10793,6 @@ function renderRouteEditor(app) {
             );
             state.routeEditor.draft = inserted.draft;
             state.routeEditor.groupBreaks = inserted.groupBreaks;
-            setRouteEditorSavedGroupBreaks(stage, state.routeEditor.groupBreaks);
             saveState();
             playTone(6 - stringName, fret);
             renderApp();
@@ -12265,7 +12279,7 @@ function renderQuizEditor(app) {
 
     document.getElementById('btn-quiz-editor-back').onclick = () => {
         state.quizEditorPreview = null;
-        resetStandardQuizEditorScratchInMemory();
+        resetQuizEditorScratchInMemory();
         state.course = 'stageSelect';
         saveState();
         renderApp();
@@ -12273,7 +12287,7 @@ function renderQuizEditor(app) {
 
     document.getElementById('btn-quiz-editor-home').onclick = () => {
         state.quizEditorPreview = null;
-        resetStandardQuizEditorScratchInMemory();
+        resetQuizEditorScratchInMemory();
         state.course = null;
         saveState();
         renderApp();
