@@ -1,5 +1,5 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.6.0';
-window.FRETBOARD_CRUISE_APP_VERSION = '2.6.0';
+const FRETBOARD_CRUISE_APP_VERSION = '2.6.1';
+window.FRETBOARD_CRUISE_APP_VERSION = '2.6.1';
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = false;
 const DEBUG_PORTRAIT_FRETBOARD_LAYOUT = false;
@@ -3336,6 +3336,19 @@ function estimateAudioTimeAtPointerEvent(ev) {
     const baseLat = typeof audioCtx.baseLatency === 'number' ? audioCtx.baseLatency : 0;
     tTap -= outLat + baseLat;
     return tTap;
+}
+
+function estimateAudioTimeAtPointerEventWithLatencyCap(ev, maxLatencySeconds) {
+    initAudio();
+    if (!audioCtx) return null;
+    const perfNow = performance.now();
+    const ts = typeof ev.timeStamp === 'number' && ev.timeStamp > 0 ? ev.timeStamp : perfNow;
+    const deltaSec = (perfNow - ts) / 1000;
+    const rawTapTime = audioCtx.currentTime - deltaSec;
+    const outLat = typeof audioCtx.outputLatency === 'number' ? audioCtx.outputLatency : 0;
+    const baseLat = typeof audioCtx.baseLatency === 'number' ? audioCtx.baseLatency : 0;
+    const latencyToSubtract = Math.min(outLat + baseLat, maxLatencySeconds);
+    return rawTapTime - latencyToSubtract;
 }
 
 const STRING_BASE_PITCHES = [40, 45, 50, 55, 59, 64]; // E2, A2, D3, G3, B3, E4
@@ -12390,15 +12403,17 @@ function handleFretClick(stringNum, fret, pointerEv) {
         if (state.memorize.isCleared) return;
 
         initAudio();
+        const fullBeats = state.settings.cruiseTapBeats === 'full';
         let tappedT = audioCtx ? audioCtx.currentTime : 0;
         if (audioCtx && pointerEv) {
-            const est = estimateAudioTimeAtPointerEvent(pointerEv);
+            const est = fullBeats
+                ? estimateAudioTimeAtPointerEventWithLatencyCap(pointerEv, 0.03)
+                : estimateAudioTimeAtPointerEvent(pointerEv);
             if (est != null) tappedT = est;
         }
         const assistSeconds = getBluetoothRhythmAssistMs() / 1000;
         const correctedTappedT = tappedT - assistSeconds;
 
-        const fullBeats = state.settings.cruiseTapBeats === 'full';
         const bpm = parseInt(state.settings.tempo, 10);
         const safeBpm = Number.isFinite(bpm) && bpm > 0 ? bpm : 100;
         const secondsPerBeat = 60.0 / safeBpm;
@@ -12409,9 +12424,9 @@ function handleFretClick(stringNum, fret, pointerEv) {
         // 半拍モードはこれまで通り nextTargetTime（次のスネア）を中心に評価する。
         let evaluateAgainstUpcoming = false;
         let timeDiff;
+        let pastTime = null;
+        let nextTime = null;
         if (fullBeats) {
-            let pastTime;
-            let nextTime;
             if (nextTargetTime > correctedTappedT) {
                 nextTime = nextTargetTime;
                 pastTime = nextTargetTime - secondsPerBeat;
@@ -12430,6 +12445,47 @@ function handleFretClick(stringNum, fret, pointerEv) {
             }
         } else {
             timeDiff = correctedTappedT - nextTargetTime;
+        }
+        const originalEvaluateAgainstUpcoming = evaluateAgainstUpcoming;
+        const upcomingForRescue = fullBeats ? getCruiseUpcomingQuestion() : null;
+        const tappedMatchesUpcoming =
+            !!upcomingForRescue &&
+            stringNum === upcomingForRescue.stringName &&
+            fret === upcomingForRescue.fret;
+        const upcomingNextTimeDiff = Number.isFinite(nextTime)
+            ? correctedTappedT - nextTime
+            : null;
+        const upcomingPastTimeDiff = Number.isFinite(pastTime)
+            ? correctedTappedT - pastTime
+            : null;
+        let upcomingRescueApplied = false;
+        let upcomingRescueReason = null;
+
+        if (
+            fullBeats &&
+            tappedMatchesUpcoming &&
+            Number.isFinite(upcomingNextTimeDiff) &&
+            Math.abs(upcomingNextTimeDiff) <= halfWindow
+        ) {
+            evaluateAgainstUpcoming = true;
+            timeDiff = upcomingNextTimeDiff;
+            upcomingRescueApplied = true;
+            upcomingRescueReason = 'within-window-upcoming-note-match';
+        }
+
+        if (
+            !upcomingRescueApplied &&
+            fullBeats &&
+            !originalEvaluateAgainstUpcoming &&
+            tappedMatchesUpcoming &&
+            Number.isFinite(upcomingPastTimeDiff) &&
+            Math.abs(upcomingPastTimeDiff) <= halfWindow &&
+            (state.memorize.hasTappedCurrentNote === true || !isCorrect)
+        ) {
+            evaluateAgainstUpcoming = true;
+            timeDiff = upcomingPastTimeDiff;
+            upcomingRescueApplied = true;
+            upcomingRescueReason = 'within-window-upcoming-note-match-pastTime';
         }
 
         // 同じ拍に対して二重判定しない（タイプ別にゲート）。
@@ -12507,7 +12563,11 @@ function handleFretClick(stringNum, fret, pointerEv) {
                     isCorrectAgainstTarget,
                     feedback: 'Perfect!'
                 });
-                showLiveFeedback('Perfect!', 'good');
+                showLiveFeedback('Perfect!', 'good', {
+                    highlightQuestion: upcomingRescueApplied ? targetQuestion : null,
+                    rescuePerfect: upcomingRescueApplied,
+                    decisionReason: upcomingRescueReason
+                });
             } else {
                 state.memorize.combo = 0;
                 markTapped();
@@ -12634,7 +12694,7 @@ function setMemorizeFeedbackTone(fb, tone) {
     else if (tone === 'wrong') fb.classList.add('feedback-wrong');
 }
 
-function showLiveFeedback(text, type) {
+function showLiveFeedback(text, type, options = {}) {
     const fb = document.getElementById('feedback');
     if (fb) {
         fb.textContent = text;
@@ -12649,11 +12709,44 @@ function showLiveFeedback(text, type) {
     }
 
     // Flash the target note cell based on timing result
-    flashCell(type);
+    flashCell(type, options);
 }
 
-function flashCell(type) {
-    const q = state.memorize.currentQuestion;
+function showRescuePerfectOverlayFlash(cell) {
+    if (!cell || !document.body) return;
+    const durationMs = 300;
+    const rect = cell.getBoundingClientRect();
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.left = `${rect.left}px`;
+    overlay.style.top = `${rect.top}px`;
+    overlay.style.width = `${rect.width}px`;
+    overlay.style.height = `${rect.height}px`;
+    overlay.style.borderRadius = '8px';
+    overlay.style.pointerEvents = 'none';
+    overlay.style.zIndex = '2147483000';
+    overlay.style.backgroundColor = 'rgba(0, 150, 255, 0.5)';
+    overlay.style.boxShadow = '0 0 20px rgba(0, 150, 255, 0.85)';
+    overlay.style.opacity = '1';
+    overlay.style.transition = 'opacity 120ms ease-out';
+    document.body.appendChild(overlay);
+    setTimeout(() => {
+        overlay.style.opacity = '0';
+    }, Math.max(0, durationMs - 120));
+    setTimeout(() => {
+        overlay.remove();
+    }, durationMs);
+}
+
+function flashCell(type, options = {}) {
+    const shouldUseRescueHighlightTarget =
+        type === 'good' &&
+        options.rescuePerfect === true &&
+        options.highlightQuestion &&
+        (options.decisionReason || '').includes('upcoming-note-match');
+    const q = shouldUseRescueHighlightTarget
+        ? options.highlightQuestion
+        : state.memorize.currentQuestion;
     if (!q) return;
     const container = document.getElementById('fretboard-container');
     if (!container) return;
@@ -12677,6 +12770,9 @@ function flashCell(type) {
     }
 
     cell.appendChild(flash);
+    if (shouldUseRescueHighlightTarget) {
+        showRescuePerfectOverlayFlash(cell);
+    }
     setTimeout(() => flash.remove(), 300);
 }
 
