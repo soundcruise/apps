@@ -1,5 +1,5 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.6.2';
-window.FRETBOARD_CRUISE_APP_VERSION = '2.6.2';
+const FRETBOARD_CRUISE_APP_VERSION = '2.6.3';
+window.FRETBOARD_CRUISE_APP_VERSION = '2.6.3';
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = false;
 const DEBUG_PORTRAIT_FRETBOARD_LAYOUT = false;
@@ -9402,7 +9402,8 @@ function renderRouteEditor(app) {
     };
 
     document.getElementById('btn-route-editor-demo').onclick = () => {
-        const { sequence, cruiseScope, groupIndices } = buildCruiseSequenceFromSlots(state.routeEditor.draft, true, stage);
+        const { sequence, cruiseScope } = buildCruiseSequenceFromSlots(state.routeEditor.draft, true, stage);
+        const groupIndices = buildGroupIndicesFromBreaks(state.routeEditor.draft, state.routeEditor.groupBreaks);
         if (!sequence.length) return;
         startCruisePlaybackFromSequence(sequence, cruiseScope, stage, groupIndices);
     };
