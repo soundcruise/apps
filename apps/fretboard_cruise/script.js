@@ -1,5 +1,5 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.6.3';
-window.FRETBOARD_CRUISE_APP_VERSION = '2.6.3';
+const FRETBOARD_CRUISE_APP_VERSION = '2.6.4';
+window.FRETBOARD_CRUISE_APP_VERSION = '2.6.4';
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = false;
 const DEBUG_PORTRAIT_FRETBOARD_LAYOUT = false;
@@ -5410,6 +5410,9 @@ function startCruisePlaybackFromSequence(sequence, cruiseScope = null, stage = n
     state.memorize.cruiseLastTapFeedback = null;
     state.memorize.isFirstNote = true;
     state.memorize.tempFeedback = null;
+    state.memorize.correct = 0;
+    state.memorize.combo = 0;
+    state.memorize.maxCombo = 0;
     state.memorize.proCustomCruise = null;
     state.memorize.isDemoPlayback = true;
     state.memorize.demoReturnCourse = 'routeEditor';
