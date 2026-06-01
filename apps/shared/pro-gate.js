@@ -1,7 +1,6 @@
 /**
  * 指板クルーズ Pro ゲート
- * パスワード設定は apps/fretboard_cruise/pro_a9f4k7q2m8z/index.html にインラインで定義:
- *   window.__SOUNDCRUISE_PRO_GATE__ = { passwordHash: '...', gateVersion: 8 };
+ * パスワード設定は Pro 版 HTML にインラインで定義する。
  * soundCruiseProAuth (共通認証キー) が有効な場合は再入力なしで通す。
  */
 (function () {
