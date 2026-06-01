@@ -77,6 +77,13 @@
             gap: 14px;
         }
 
+        .fret-info-links-bottom {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 12px;
+        }
+
         .fret-info-link-card {
             display: block;
             width: 100%;
@@ -87,6 +94,42 @@
             background: rgba(255, 255, 255, 0.05);
             text-decoration: none;
             transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .fret-info-link-card--compact {
+            width: fit-content;
+            max-width: 170px;
+            padding: 12px 12px 12px 14px;
+            border-radius: 14px;
+        }
+
+        .fret-info-link-card--compact .fret-info-link-title {
+            padding-right: 0;
+            font-size: 0.88rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .fret-info-pro-access-button {
+            background: linear-gradient(135deg,
+                    #fff2ac 0%,
+                    #bf953f 25%,
+                    #fcf6ba 50%,
+                    #b38728 75%,
+                    #fbf5b7 100%);
+            background-size: 200% auto;
+            border-color: #d4af37 !important;
+            color: #1a1a1a !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.6) !important;
+            animation: fretInfoGoldSweep 4s ease-in-out infinite;
+        }
+
+        .fret-info-pro-access-button:hover {
+            border-color: #e8c547 !important;
+        }
+
+        .fret-info-pro-access-button .fret-info-link-title {
+            color: #1a1a1a !important;
         }
 
         .fret-info-link-card--primary {
@@ -265,9 +308,24 @@
             }
         }
 
+        @keyframes fretInfoGoldSweep {
+            0% {
+                background-position: 0% center;
+            }
+
+            50% {
+                background-position: 100% center;
+            }
+
+            100% {
+                background-position: 0% center;
+            }
+        }
+
         @media (prefers-reduced-motion: reduce) {
             .fret-info-link-card--primary,
-            .fret-info-link-card--primary::after {
+            .fret-info-link-card--primary::after,
+            .fret-info-pro-access-button {
                 animation: none;
             }
         }
@@ -297,6 +355,15 @@
 
             .fret-info-link-title {
                 font-size: 0.88rem;
+            }
+
+            .fret-info-link-card--compact {
+                max-width: 154px;
+                padding: 10px 10px 10px 12px;
+            }
+
+            .fret-info-link-card--compact .fret-info-link-title {
+                font-size: 0.82rem;
             }
 
             .fret-info-link-note {
@@ -333,9 +400,14 @@
                 <a class="fret-info-link-card" href="./apps.html" id="fret-info-apps-link">
                     <span class="fret-info-link-title">【クルーズアプリ】シリーズ</span>
                 </a>
-                <a class="fret-info-link-card" href="https://www.youtube.com/channel/UC4ncQuk56I8SK6lJGZcGwJQ" target="_blank" rel="noopener noreferrer" data-youtube-confirm>
-                    <span class="fret-info-link-title">YouTubeチャンネル</span>
-                    <span class="fret-info-link-note">アコギ弾き語り専門ラボ / クルーニー</span>
+            </div>
+            <div class="fret-info-links-bottom">
+                <a class="fret-info-link-card fret-info-link-card--compact" href="https://www.youtube.com/channel/UC4ncQuk56I8SK6lJGZcGwJQ" target="_blank" rel="noopener noreferrer" data-youtube-confirm>
+                    <span class="fret-info-link-title">YouTube Chトップ</span>
+                </a>
+                <a class="fret-info-link-card fret-info-link-card--compact fret-info-pro-access-button" id="standard-pro-access-link" href="./pro-access.html" style="display: none; position: relative;">
+                    <span class="fret-info-link-title">PRO版の入手方法</span>
+                    <span id="pro-access-new-badge" class="info-new-badge recommended-link-new-badge hidden" aria-hidden="true" style="top: -10px; right: 14px;">New</span>
                 </a>
             </div>
             <nav class="fret-info-footer-links" aria-label="法務・お問い合わせ">
@@ -366,7 +438,26 @@
             var youtubeCancel = document.getElementById('fret-youtube-confirm-cancel');
             var youtubeOpen = document.getElementById('fret-youtube-confirm-open');
             var pendingYoutubeUrl = '';
+            var currentUrl = new URL(window.location.href);
+            var editionParam = currentUrl.searchParams.get('edition');
+            var standardProAccessLink = document.getElementById('standard-pro-access-link');
+            var proAccessNewBadge = document.getElementById('pro-access-new-badge');
             homeLink.href = defaultHome;
+
+            if (standardProAccessLink && editionParam === 'standard') {
+                standardProAccessLink.style.display = '';
+                if (proAccessNewBadge) {
+                    try {
+                        var proAccessNewKey = 'fretboardCruiseProAccessNewSeen';
+                        if (localStorage.getItem(proAccessNewKey) !== '1') {
+                            proAccessNewBadge.classList.remove('hidden');
+                            localStorage.setItem(proAccessNewKey, '1');
+                        }
+                    } catch (error) {
+                        proAccessNewBadge.classList.remove('hidden');
+                    }
+                }
+            }
 
             backLink.addEventListener('click', function (event) {
                 if (window.history.length > 1 && document.referrer) {
