@@ -143,6 +143,7 @@
             var homeLink = document.getElementById('recommended-home-link');
             var backLink = document.getElementById('recommended-back-link');
             var defaultHome = './standard/index.html';
+            var editionHomeStorageKey = 'pitchCruiseEditionHome';
             var currentUrl = new URL(window.location.href);
             var fromHome = currentUrl.searchParams.get('from') === 'home';
             var editionParam = currentUrl.searchParams.get('edition');
@@ -151,29 +152,59 @@
             var youtubeOpen = document.getElementById('pitch-youtube-confirm-open');
             var pendingYoutubeUrl = '';
 
-            function resolveHomePath() {
-                if (editionParam === 'pro') return './pro_x9v7q2m8/index.html';
-                if (editionParam === 'standard') return './standard/index.html';
+            function normalizeEditionHome(urlLike) {
+                if (!urlLike) return '';
                 try {
-                    var referrerUrl = document.referrer ? new URL(document.referrer) : null;
-                    if (referrerUrl && referrerUrl.origin === window.location.origin) {
-                        if (referrerUrl.pathname.indexOf('/pro_x9v7q2m8/') !== -1) {
-                            return './pro_x9v7q2m8/index.html';
-                        }
-                        if (referrerUrl.pathname.indexOf('/standard/') !== -1) {
-                            return './standard/index.html';
-                        }
+                    var url = new URL(urlLike, window.location.href);
+                    var basePath = new URL('./', window.location.href).pathname;
+                    if (url.origin !== window.location.origin || url.pathname.indexOf(basePath) !== 0) {
+                        return '';
                     }
+                    var relativePath = url.pathname.slice(basePath.length);
+                    var match = relativePath.match(/^(standard|pro_[a-z0-9]{8})\/(?:index\.html)?$/i);
+                    return match ? new URL('./' + match[1] + '/index.html', window.location.href).href : '';
                 } catch (error) {
-                    console.warn('Failed to resolve referrer for recommended videos navigation.', error);
+                    return '';
                 }
-                return defaultHome;
+            }
+
+            function rememberEditionHome(homePath) {
+                var normalizedHome = normalizeEditionHome(homePath);
+                if (!normalizedHome) return '';
+                try {
+                    sessionStorage.setItem(editionHomeStorageKey, normalizedHome);
+                } catch (error) {
+                    // sessionStorage が使えない場合も、現在の遷移には影響させない
+                }
+                return normalizedHome;
+            }
+
+            function getStoredEditionHome() {
+                try {
+                    return normalizeEditionHome(sessionStorage.getItem(editionHomeStorageKey));
+                } catch (error) {
+                    return '';
+                }
+            }
+
+            function isProHomePath(homePath) {
+                var normalizedHome = normalizeEditionHome(homePath);
+                return normalizedHome ? /\/pro_[a-z0-9]{8}\/index\.html$/i.test(new URL(normalizedHome).pathname) : false;
+            }
+
+            function resolveHomePath() {
+                if (editionParam === 'standard') return rememberEditionHome(defaultHome) || defaultHome;
+                var referrerHome = normalizeEditionHome(document.referrer);
+                if (referrerHome) return rememberEditionHome(referrerHome);
+                var storedHome = getStoredEditionHome();
+                if (editionParam === 'pro') return isProHomePath(storedHome) ? storedHome : defaultHome;
+                return storedHome || defaultHome;
             }
 
             var homePath = resolveHomePath();
             homeLink.href = homePath;
             if (backLink && fromHome) {
-                backLink.href = './info.html?from=home&edition=' + encodeURIComponent(editionParam || (homePath.indexOf('/pro_x9v7q2m8/') !== -1 ? 'pro' : 'standard'));
+                backLink.href = './info.html?from=home&edition=' + encodeURIComponent(editionParam || (isProHomePath(homePath) ? 'pro' : 'standard'));
             }
 
             function openYoutubeConfirm(url) {

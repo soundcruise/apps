@@ -1,5 +1,5 @@
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '2.10.0';
+const PITCH_TRAINER_APP_VERSION = '2.10.1';
 
 // ─── [DEV] デバッグフラグ ────────────────────────────────────────────────────
 // true にするとSTAGE選択画面のクリア回数が常に100と表示される（localStorageは変更しない）
@@ -856,11 +856,15 @@ function unregisterLegacyRootServiceWorker() {
                 const u = new URL(sw.scriptURL);
                 const p = u.pathname;
                 const pl = p.toLowerCase();
+                const isCurrentProServiceWorker =
+                    /\/pitch-trainer\/pitch-trainer\/pro_[a-z0-9]{8}\/service-worker\.js$/.test(pl) ||
+                    /\/pitch-trainer\/pro_[a-z0-9]{8}\/service-worker\.js$/.test(pl) ||
+                    /\/apps\/pitch-cruise\/pro_[a-z0-9]{8}\/service-worker\.js$/.test(pl);
                 /* github.io プロジェクトサイト: /Pitch-trainer/pitch-trainer/… = pitch-trainer 配下へ移行後 */
                 if (
                     pl.includes('/pitch-trainer/pitch-trainer/') &&
                     (pl.endsWith('/standard/service-worker.js') ||
-                        pl.endsWith('/pro_x9v7q2m8/service-worker.js') ||
+                        isCurrentProServiceWorker ||
                         pl.endsWith('/staging/service-worker.js'))
                 ) {
                     return;
@@ -868,7 +872,7 @@ function unregisterLegacyRootServiceWorker() {
                 /* カスタムドメイン等: /pitch-trainer/standard/…（リポジトリ名がパスに出ない場合） */
                 if (
                     (pl.endsWith('/pitch-trainer/standard/service-worker.js') ||
-                        pl.endsWith('/pitch-trainer/pro_x9v7q2m8/service-worker.js') ||
+                        isCurrentProServiceWorker ||
                         pl.endsWith('/pitch-trainer/staging/service-worker.js') ||
                         pl.endsWith('/pitch-trainer/beta/service-worker.js')) &&
                     !pl.includes('/pitch-trainer/pitch-trainer/')
@@ -878,7 +882,7 @@ function unregisterLegacyRootServiceWorker() {
                 /* soundcruise.jp 旧構成: /apps/pitch-cruise/… */
                 if (
                     pl.endsWith('/apps/pitch-cruise/standard/service-worker.js') ||
-                    pl.endsWith('/apps/pitch-cruise/pro_x9v7q2m8/service-worker.js') ||
+                    isCurrentProServiceWorker ||
                     pl.endsWith('/apps/pitch-cruise/staging/service-worker.js') ||
                     pl.endsWith('/apps/pitch-cruise/beta/service-worker.js')
                 ) {
