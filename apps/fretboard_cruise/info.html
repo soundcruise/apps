@@ -411,8 +411,8 @@
                 </a>
             </div>
             <nav class="fret-info-footer-links" aria-label="法務・お問い合わせ">
-                <a href="./terms.html">利用規約</a>
-                <a href="./privacy.html">プライバシーポリシー</a>
+                <a href="./terms.html" id="terms-link">利用規約</a>
+                <a href="./privacy.html" id="privacy-link">プライバシーポリシー</a>
                 <a href="mailto:soundcruise.inc@gmail.com">お問い合わせ</a>
             </nav>
         </main>
@@ -434,6 +434,7 @@
             var backLink = document.getElementById('fret-info-back-link');
             var homeLink = document.getElementById('fret-info-home-link');
             var defaultHome = './standard/index.html';
+            var editionHomeStorageKey = 'fretboardCruiseEditionHome';
             var youtubeConfirm = document.getElementById('fret-youtube-confirm');
             var youtubeCancel = document.getElementById('fret-youtube-confirm-cancel');
             var youtubeOpen = document.getElementById('fret-youtube-confirm-open');
@@ -442,9 +443,53 @@
             var editionParam = currentUrl.searchParams.get('edition');
             var standardProAccessLink = document.getElementById('standard-pro-access-link');
             var proAccessNewBadge = document.getElementById('pro-access-new-badge');
-            homeLink.href = defaultHome;
 
-            if (standardProAccessLink && editionParam === 'standard') {
+            function normalizeEditionHome(urlLike) {
+                if (!urlLike) return '';
+                try {
+                    var url = new URL(urlLike, window.location.href);
+                    var basePath = new URL('./', window.location.href).pathname;
+                    if (url.origin !== window.location.origin || url.pathname.indexOf(basePath) !== 0) return '';
+                    var relativePath = url.pathname.slice(basePath.length);
+                    var match = relativePath.match(/^(standard|pro_[a-z0-9]{11})\/(?:index\.html)?$/i);
+                    return match ? new URL('./' + match[1] + '/index.html', window.location.href).href : '';
+                } catch (error) {
+                    return '';
+                }
+            }
+
+            function rememberEditionHome(homePath) {
+                var normalizedHome = normalizeEditionHome(homePath);
+                if (!normalizedHome) return '';
+                try { sessionStorage.setItem(editionHomeStorageKey, normalizedHome); } catch (error) {}
+                return normalizedHome;
+            }
+
+            function getStoredEditionHome() {
+                try { return normalizeEditionHome(sessionStorage.getItem(editionHomeStorageKey)); } catch (error) { return ''; }
+            }
+
+            function isProHomePath(homePath) {
+                var normalizedHome = normalizeEditionHome(homePath);
+                return normalizedHome ? /\/pro_[a-z0-9]{11}\/index\.html$/i.test(new URL(normalizedHome).pathname) : false;
+            }
+
+            function resolveHomePath() {
+                if (editionParam === 'standard') return rememberEditionHome(defaultHome) || defaultHome;
+                var referrerHome = normalizeEditionHome(document.referrer);
+                if (referrerHome) return rememberEditionHome(referrerHome);
+                var storedHome = getStoredEditionHome();
+                if (editionParam === 'pro') return isProHomePath(storedHome) ? storedHome : defaultHome;
+                return storedHome || defaultHome;
+            }
+
+            var homePath = resolveHomePath();
+            var resolvedEdition = isProHomePath(homePath) ? 'pro' : 'standard';
+            homeLink.href = homePath;
+            document.getElementById('terms-link').href = './terms.html?edition=' + encodeURIComponent(resolvedEdition);
+            document.getElementById('privacy-link').href = './privacy.html?edition=' + encodeURIComponent(resolvedEdition);
+
+            if (standardProAccessLink && resolvedEdition === 'standard') {
                 standardProAccessLink.style.display = '';
                 if (proAccessNewBadge) {
                     try {
@@ -460,12 +505,17 @@
             }
 
             backLink.addEventListener('click', function (event) {
+                if (currentUrl.searchParams.get('from') === 'home') {
+                    event.preventDefault();
+                    window.location.href = homePath;
+                    return;
+                }
                 if (window.history.length > 1 && document.referrer) {
                     event.preventDefault();
                     window.history.back();
                     return;
                 }
-                backLink.href = defaultHome;
+                backLink.href = homePath;
             });
 
             function openYoutubeConfirm(url) {
