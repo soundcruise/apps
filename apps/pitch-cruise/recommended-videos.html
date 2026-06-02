@@ -161,7 +161,7 @@
                         return '';
                     }
                     var relativePath = url.pathname.slice(basePath.length);
-                    var match = relativePath.match(/^(standard|pro_[a-z0-9]{8})\/(?:index\.html)?$/i);
+                    var match = relativePath.match(/^(standard|beta|pro_[a-z0-9]{8})\/(?:index\.html)?$/i);
                     return match ? new URL('./' + match[1] + '/index.html', window.location.href).href : '';
                 } catch (error) {
                     return '';
@@ -192,8 +192,14 @@
                 return normalizedHome ? /\/pro_[a-z0-9]{8}\/index\.html$/i.test(new URL(normalizedHome).pathname) : false;
             }
 
+            function isBetaHomePath(homePath) {
+                var normalizedHome = normalizeEditionHome(homePath);
+                return normalizedHome ? /\/beta\/index\.html$/i.test(new URL(normalizedHome).pathname) : false;
+            }
+
             function resolveHomePath() {
                 if (editionParam === 'standard') return rememberEditionHome(defaultHome) || defaultHome;
+                if (editionParam === 'beta') return rememberEditionHome('./beta/index.html') || defaultHome;
                 var referrerHome = normalizeEditionHome(document.referrer);
                 if (referrerHome) return rememberEditionHome(referrerHome);
                 var storedHome = getStoredEditionHome();
@@ -204,7 +210,8 @@
             var homePath = resolveHomePath();
             homeLink.href = homePath;
             if (backLink && fromHome) {
-                backLink.href = './info.html?from=home&edition=' + encodeURIComponent(editionParam || (isProHomePath(homePath) ? 'pro' : 'standard'));
+                var resolvedEdition = isProHomePath(homePath) ? 'pro' : (isBetaHomePath(homePath) ? 'beta' : 'standard');
+                backLink.href = './info.html?from=home&edition=' + encodeURIComponent(resolvedEdition);
             }
 
             function openYoutubeConfirm(url) {
