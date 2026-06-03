@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.23';
+const RHYTHM_CRUISE_VERSION = '0.9.24';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -30,6 +30,10 @@ const STRONG_STROKE_FACTOR = 1.5;
 /* 立ち上がり検出：threshold交差に加え、フレーム間でこの量以上の急増もストロークとみなす
    （クリック音の余韻で prevPeak が高いままでも、ストロークの急増を拾えるように） */
 const RISE_DELTA = 0.12;
+
+/* 本番STAGEのマイク判定で、穏やかな立ち上がり（窓内で threshold 超え）も拾うヒステリシス検出を有効にする。
+   true: threshold*0.5 を下回って再アーム後、threshold 超えで1回検出。後で調整・無効化しやすいようフラグ化。 */
+const MIC_SUSTAINED_ONSET = true;
 
 /* マイク波形（背景表示）用の保持時間。古いサンプルはこれを超えたら破棄 */
 const MIC_WAVE_WINDOW_MS = 4000;
@@ -115,6 +119,7 @@ const mic = {
     clickGuardMs: 60,  // クリック音直後は検出を無視（クリック音ON時のみ・出力レイテンシ分を加算）
     timingOffsetMs: 0, // マイク判定補正（ms）。マイク由来の検出時刻に加算（負＝早める）
     prevPeak: 0,
+    armed: true,       // ヒステリシス検出のアーム状態（threshold*0.5 を下回ると再アーム）
     env: 0,
     lastDetect: 0,
     // 診断カウンタ
@@ -1171,6 +1176,7 @@ function resetGame() {
     resetData();
     if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden');
     if (els.refreshBar) els.refreshBar.classList.remove('hidden'); // モーダルを閉じたら更新バーを戻す
+    document.body.classList.remove('results-open');               // 戻る/TOP/設定を元に戻す（修正8）
     els.barCounter.textContent = '– / 8 小節';
     els.latestVerdict.dataset.state = 'idle';
     els.latestVerdict.textContent = 'スタンバイ';
@@ -1256,6 +1262,7 @@ function finish() {
     // 結果をモーダルで表示（ズレ確認レーンがメイン）
     if (els.resultsOverlay) els.resultsOverlay.classList.remove('hidden');
     if (els.refreshBar) els.refreshBar.classList.add('hidden'); // モーダル背後に透けないよう一時的に隠す
+    document.body.classList.add('results-open');               // モーダル中は戻る/TOP/設定を隠す（修正8）
     drawResults();
 }
 
@@ -1868,9 +1875,9 @@ function beginStrokePhase() {
     test.mode = 'stroke';
     test.strokePeaks = []; test.strokeDownPeaks = []; test.strokeUpPeaks = [];
     test.strokeDetected = 0; test.strokeDoubleCount = 0;
-    // 16音符（ダウン8・アップ8）。t は flowStart からの相対ms
+    // 8音符＝1小節（ダウン4・アップ4）。t は flowStart からの相対ms
     test.notes = [];
-    const COUNT = 16;
+    const COUNT = 8;
     for (let i = 0; i < COUNT; i++) {
         test.notes.push({ t: TEST_LEAD_MS + i * TEST_NOTE_MS, dir: (i % 2 === 0) ? 'down' : 'up', opened: false, closed: false, peak: 0, onsets: 0 });
     }
@@ -1947,19 +1954,22 @@ function drawTestLane(t) {
         const x = judgeX + (n.t - t) * ppm;
         if (x < -24 || x > w + 24) continue;
         const inWin = (!n.closed) && Math.abs(t - n.t) <= TEST_NOTE_WIN;
+        // STAGEと同じ4分音符の見た目。検出＝緑／未検出＝薄い／判定窓中＝光る黄色
         const col = n.closed
-            ? (n.detected ? '#2ecc71' : 'rgba(253,246,238,0.3)')  // 検出＝緑 / 未検出＝薄い
-            : (inWin ? 'rgba(255,209,102,0.98)' : 'rgba(255,209,102,0.6)');
+            ? (n.detected ? COLORS.just : 'rgba(253,246,238,0.3)')
+            : (inWin ? 'rgba(255,209,102,0.98)' : NOTE_COLOR);
         ctx.save();
-        if (inWin) { ctx.shadowColor = 'rgba(255,159,28,0.8)'; ctx.shadowBlur = 10; }
-        ctx.beginPath(); ctx.arc(x, yc, 7, 0, Math.PI * 2);
-        ctx.fillStyle = col; ctx.fill();
+        if (inWin || (n.closed && n.detected)) {
+            ctx.shadowColor = (n.closed && n.detected) ? 'rgba(46,204,113,0.9)' : 'rgba(255,159,28,0.8)';
+            ctx.shadowBlur = 11;
+        }
+        drawQuarterNote(ctx, x, yc, col);
         ctx.restore();
-        // ↓ / ↑
+        // ストローク方向 ↓ / ↑
         ctx.fillStyle = n.closed ? 'rgba(255,180,90,0.55)' : 'rgba(255,180,90,0.95)';
         ctx.font = '700 15px Outfit, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(n.dir === 'down' ? '↓' : '↑', x, yc + 28);
+        ctx.fillText(n.dir === 'down' ? '↓' : '↑', x, yc + 30);
     }
     // 判定ライン
     ctx.save();
@@ -1986,16 +1996,15 @@ function drawTestLaneSummary() {
     for (let i = 0; i < n; i++) {
         const note = test.notes[i];
         const x = padX + i * step;
-        const col = note.detected ? '#2ecc71' : 'rgba(253,246,238,0.28)';
+        const col = note.detected ? COLORS.just : 'rgba(253,246,238,0.28)';
         ctx.save();
-        if (note.detected) { ctx.shadowColor = 'rgba(46,204,113,0.8)'; ctx.shadowBlur = 8; }
-        ctx.beginPath(); ctx.arc(x, yc, 6, 0, Math.PI * 2);
-        ctx.fillStyle = col; ctx.fill();
+        if (note.detected) { ctx.shadowColor = 'rgba(46,204,113,0.85)'; ctx.shadowBlur = 9; }
+        drawQuarterNote(ctx, x, yc, col);
         ctx.restore();
         ctx.fillStyle = note.detected ? 'rgba(255,180,90,0.9)' : 'rgba(255,180,90,0.4)';
         ctx.font = '700 13px Outfit, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(note.dir === 'down' ? '↓' : '↑', x, yc + 24);
+        ctx.fillText(note.dir === 'down' ? '↓' : '↑', x, yc + 26);
     }
     // 凡例
     ctx.font = '600 10px Outfit, sans-serif';
@@ -2046,18 +2055,20 @@ function updateReco() {
     const provisional = (minStroke == null);              // 検出0回＝仮のおすすめ
     els.testReco.classList.remove('hidden');
 
-    // ① 反応ライン（マイク感度）：クリック最大より上・全ストローク最小より下
+    const maxStroke = test.maxStrokePeak; // 全ストローク最大（検出分）
+
+    // ① 反応ライン（マイク感度）：まず「ストロークを確実に拾う」ことを優先。
+    //    全ストローク最小より少し下（×0.85）に置く。クリック音はラインを上げて避けるのではなく音量で下げる。
     let canApply = false;
-    if (minStroke != null && maxClick < minStroke) {
-        let rec = (maxClick + minStroke) / 2;
+    if (minStroke != null) {
+        let rec = minStroke * 0.85;
         rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
         test.recommended = rec;
         els.recoThr.textContent = sensFromThreshold(rec) + '％';
         canApply = true;
-    } else if (maxStrokeRaw != null && maxStrokeRaw > maxClick + 0.004) {
-        // 検出0回でも、受付中最大がクリック音より十分大きい → その少し下を仮提案
-        let rec = Math.max(maxClick + 0.003, maxStrokeRaw * 0.7);
-        rec = Math.max(THR_MIN, Math.min(maxStrokeRaw - 0.002, rec));
+    } else if (maxStrokeRaw != null && maxStrokeRaw > THR_MIN * 2) {
+        // 検出0回でも、受付中最大の少し下を仮提案（拾える方向に低めへ）
+        let rec = Math.max(THR_MIN, maxStrokeRaw * 0.6);
         rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
         test.recommended = rec;
         els.recoThr.textContent = (provisional ? '仮 ' : '') + sensFromThreshold(rec) + '％';
@@ -2067,15 +2078,14 @@ function updateReco() {
         els.recoThr.textContent = '—';
     }
 
-    // ② クリック音量：全ストローク最小（または仮基準）× 安全率0.5 を目標クリック音最大とし、
-    //    現在のクリック音最大がそれより大きければ音量を下げる比率を計算して提案する（イヤホン無しでも成立を優先）。
+    // ② クリック音量：低めの反応ラインより、クリック音が下に収まるよう音量を下げる。
+    //    目標クリック音最大 = 反応ライン × 0.8（ラインより確実に下へ）。
     let recoVol = state.clickVolume;
-    let clickClose = false;
-    let clickLouder = false; // クリック音の方がストローク基準より大きい
-    const SAFETY = 0.4;      // 0.5→0.4 にさらに強化（イヤホン無しでも成立しやすいよう、クリック音をしっかり下げる）
-    if (strokeBasis != null && maxClick > 0) {
-        clickLouder = (maxClick >= strokeBasis);
-        const targetClickMax = strokeBasis * SAFETY;
+    let clickClose = false;                                  // クリック音が反応ライン付近まで入っている
+    const clickLouder = (maxStroke != null && maxClick >= maxStroke); // クリックが最大ストロークより大きい
+    const lineForClick = (test.recommended != null) ? test.recommended : strokeBasis;
+    if (lineForClick != null && maxClick > 0) {
+        const targetClickMax = lineForClick * 0.8;
         if (maxClick > targetClickMax) {
             clickClose = true;
             recoVol = Math.round(state.clickVolume * targetClickMax / maxClick);
@@ -2095,37 +2105,37 @@ function updateReco() {
     test.recoCooldown = recoCool;
     els.recoCooldown.textContent = recoCool + 'ms';
 
-    // メッセージ＋適用ボタン。クリック音量だけでも下げれば改善するため、適用できる場合は出す。
+    // メッセージ＋適用ボタン
     const volChanged = recoVol !== state.clickVolume;
-    if (clickLouder) {
-        // クリック音の方が大きい：かなり下げる提案＋イヤホン案内
-        els.recoMsg.className = 'test-reco-msg warn';
-        els.recoMsg.classList.remove('hidden');
-        els.recoMsg.textContent = 'クリック音の方がストローク音より大きく入っています。スピーカー使用時は、クリック音量を ' + recoVol + '% くらいまで下げるか、イヤホン使用がおすすめです。';
-    } else if (clickClose) {
-        els.recoMsg.className = 'test-reco-msg warn';
-        els.recoMsg.classList.remove('hidden');
-        els.recoMsg.textContent = 'スピーカー使用時はクリック音がマイクに入りやすいため、クリック音量を ' + recoVol + '% くらいまで下げると安定しやすくなります。';
-    } else if (canApply) {
-        els.recoMsg.classList.add('hidden');
-    } else {
+    if (!canApply) {
         els.recoMsg.className = 'test-reco-msg ng';
         els.recoMsg.classList.remove('hidden');
-        if (test.strokeDetected === 0 && (maxStrokeRaw == null || maxStrokeRaw <= maxClick + 0.004)) {
-            els.recoMsg.textContent = 'クリック音とストローク音の大きさが近いため、自動設定が難しい状態です。クリック音量をかなり下げるか、イヤホンを使ってください。';
-        } else {
-            els.recoMsg.textContent = 'ストローク音が反応ラインに届いていません。マイク感度を上げるか、もう少し大きめに弾いてください。';
-        }
+        els.recoMsg.textContent = 'ストローク音がほとんど入っていません。もう少し大きめに弾くか、マイクに近づけてください。';
+    } else if (clickLouder) {
+        // クリック音がストローク最大より大きい
+        els.recoMsg.className = 'test-reco-msg warn';
+        els.recoMsg.classList.remove('hidden');
+        els.recoMsg.textContent = 'クリック音がストローク音より大きく入っています。クリック音量を下げるか、イヤホン使用がおすすめです。';
+    } else if (clickClose) {
+        // クリック音は小さいが反応ライン付近 → 音量を下げ、ラインは低めのまま
+        els.recoMsg.className = 'test-reco-msg warn';
+        els.recoMsg.classList.remove('hidden');
+        els.recoMsg.textContent = 'クリック音が少し入っています。ストロークを優先して拾うため、クリック音量を ' + recoVol + '% まで下げて反応ラインは低めにします。';
+    } else {
+        // ストロークが小さめ → 低め設定の案内
+        els.recoMsg.className = 'test-reco-msg';
+        els.recoMsg.classList.remove('hidden');
+        els.recoMsg.textContent = '小さいストロークも拾えるように、反応ラインを低めに設定します。周囲の音に反応する場合は、少し上げてください。';
     }
     // 反応ラインが提案できる or クリック音量を下げられる → 適用ボタンを出す
     if (canApply || volChanged) els.recoApplyBtn.classList.remove('hidden');
     else els.recoApplyBtn.classList.add('hidden');
 
-    updateTestDetail(maxClick, minStroke, clickReacted, canApply, maxStrokeRaw, provisional);
+    updateTestDetail(maxClick, minStroke, maxStroke, clickReacted, canApply, maxStrokeRaw, provisional);
 }
 
 /* 詳細なテスト結果（折りたたみ）：数値＋レベルバー視覚化 */
-function updateTestDetail(maxClick, minStroke, clickReacted, canApply, maxStrokeRaw, provisional) {
+function updateTestDetail(maxClick, minStroke, maxStroke, clickReacted, canApply, maxStrokeRaw, provisional) {
     const fx = (v) => (v != null ? v.toFixed(3) : '–');
     // レベルバー：0〜0.7 を 0〜100% にマップ
     const SCALE = 0.7;
@@ -2145,20 +2155,17 @@ function updateTestDetail(maxClick, minStroke, clickReacted, canApply, maxStroke
             els.barZone.style.display = 'none';
         }
     }
-    // 数値（小さく）＋ 手動設定にどうつながるかの説明
+    // 数値（小さく）。受付中最大はユーザー向けには出さない（内部デバッグのみ）。min/max は「最小 / 最大」順で統一。
     const clickLabel = clickReacted === 0 ? '反応なし' : (clickReacted + ' / ' + CLICK_TEST_COUNT + ' 回反応');
-    const maxStroke = test.maxStrokePeak;
     const recoSensLabel = (test.recommended != null) ? (sensFromThreshold(test.recommended) + '%') : '—';
-    const rawMax = (maxStrokeRaw != null) ? maxStrokeRaw : test.maxStrokeRaw;
+    const rawMax = (maxStrokeRaw != null) ? maxStrokeRaw : test.maxStrokeRaw; // 内部用
     const rows = [
         ['クリック音', clickLabel],
         ['ストローク', test.strokeDetected + ' / ' + (test.notes.length || STROKE_TEST_COUNT) + ' 回検出'],
         ['クリック音 最大', fx(maxClick)],
-        ['ダウン 最大 / 最小', fx(test.downMax) + ' / ' + fx(test.downMin)],
-        ['アップ 最大 / 最小', fx(test.upMax) + ' / ' + fx(test.upMin)],
-        ['全ストローク 最小（検出分）', fx(minStroke)],
-        ['全ストローク 最大（検出分）', fx(maxStroke)],
-        ['ストローク 受付中最大', fx(rawMax)],
+        ['ダウン 最小 / 最大', fx(test.downMin) + ' / ' + fx(test.downMax)],
+        ['アップ 最小 / 最大', fx(test.upMin) + ' / ' + fx(test.upMax)],
+        ['全ストローク 最小 / 最大', fx(minStroke) + ' / ' + fx(maxStroke)],
         ['現在の反応ライン', fx(mic.threshold)],
         ['おすすめ反応ライン', recoSensLabel + (test.recommended != null ? '（' + test.recommended.toFixed(3) + (provisional ? '・仮' : '') + '）' : '')],
         ['おすすめクリック音量', (test.recoClickVolume != null ? test.recoClickVolume + '%' : '–')],
@@ -2167,51 +2174,14 @@ function updateTestDetail(maxClick, minStroke, clickReacted, canApply, maxStroke
     ];
     const numbers = rows.map((r) => '<div class="tds-row"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>').join('');
 
-    // 説明文（パターン別）
+    // 説明文（簡潔に。重複は避け、主要な理由を1〜2行で）
     const exps = [];
-    exps.push('<p class="tds-note">クリック音の最大値より上、ストローク音の最小値より下に反応ラインを置くと、クリック音には反応せず、ストローク音には反応しやすくなります。</p>');
-    // 受付中最大が緩めしきい値を超えてストローク入力として扱えた場合の補足
-    if (rawMax != null && rawMax >= TEST_STROKE_THRESHOLD && test.strokeDetected > 0) {
-        exps.push('<p class="tds-note">受付中最大が反応ラインを超えたため、ストローク入力として扱いました（テストは入力レベル測定のため判定を緩めにしています）。</p>');
-    }
-    if (canApply && minStroke != null) {
-        // パターンA：検出できたストロークがある
-        const sens = sensFromThreshold(test.recommended);
-        exps.push('<p class="tds-note">クリック音（最大 ' + maxClick.toFixed(3) + '）より大きく、ストローク音（最小 ' + minStroke.toFixed(3) + '）より小さい位置に置けます。そのため <b>反応ライン（マイク感度）は ' + sens + '% がおすすめ</b>です。</p>');
-        if (sens >= 70) {
-            exps.push('<p class="tds-note">ストローク音が小さめ（最小 ' + minStroke.toFixed(3) + '）だったため、<b>反応ラインを高感度側（' + sens + '%）</b>にしています。小さい音でも拾えますが、周囲の音にも反応しやすくなります。</p>');
-        }
-        if (clickReacted === 0) {
-            exps.push('<p class="tds-note">クリック音が反応ラインより下に収まっているため、<b>クリック音量は現在の ' + state.clickVolume + '% のままでOK</b>です。</p>');
-        } else {
-            exps.push('<p class="tds-note">クリック音が少し入っているため、<b>クリック音量を ' + test.recoClickVolume + '% に下げる</b>と安定します。</p>');
-        }
-        if (test.strokeDoubleCount === 0) {
-            exps.push('<p class="tds-note">二重反応が出ていないため、<b>二重反応防止は現在の ' + mic.cooldownMs + 'ms のままでOK</b>です。</p>');
-        } else {
-            exps.push('<p class="tds-note tds-warn">1回のストロークで複数回反応しています。<b>二重反応防止を ' + test.recoCooldown + 'ms くらいに上げる</b>と安定しやすくなります。</p>');
-        }
-    } else if (canApply && minStroke == null) {
-        // パターンA'：検出は0回だが、受付中の最大入力から仮に提案できた
-        const sens = sensFromThreshold(test.recommended);
-        exps.push('<p class="tds-note tds-warn">今回はストロークとして検出できていませんが、受付中の最大入力（<b>' + fx(rawMax) + '</b>）から仮におすすめを出しています。</p>');
-        exps.push('<p class="tds-note">反応ラインを <b>' + test.recommended.toFixed(3) + '（マイク感度 ' + sens + '%）</b> 付近に下げると検出できる可能性があります。適用後にもう一度テストして確認してください。</p>');
-    } else {
-        // パターンB：クリックがストローク音に近い／小さすぎ
-        exps.push('<p class="tds-note tds-warn">クリック音とストローク音の大きさが近いため、自動設定が難しい状態です。<b>クリック音量を下げるか、イヤホンを使う</b>か、もう少し大きめに弾いてください。</p>');
-    }
-    // クリック音量の根拠（全ストローク最小 × 0.4 を目標クリック音最大として算出）
+    exps.push('<p class="tds-note">反応ラインは、ストロークを確実に拾えるよう <b>ストローク最小より少し低め</b>に設定します。クリック音は反応ラインを上げて避けるのではなく、<b>音量で下げます</b>。</p>');
     if (test.recoClickVolume != null && test.recoClickVolume < state.clickVolume) {
-        const basis = (minStroke != null) ? minStroke : rawMax;
-        if (basis != null) {
-            exps.push('<p class="tds-note">クリック音（最大 ' + fx(maxClick) + '）がストローク（基準 ' + fx(basis) + '）に近いため、<b>クリック音量を ' + test.recoClickVolume + '% まで下げる</b>とクリック音とストローク音を分けやすくなります（目標：クリック音最大をストローク基準の0.4倍以下に）。</p>');
-            exps.push('<p class="tds-note">クリック音は補助です。流れる譜面を見ながら弾く前提なので、小さくなっても問題ありません。</p>');
-        }
+        exps.push('<p class="tds-note"><b>クリック音量を ' + test.recoClickVolume + '% に下げる</b>と、ストローク判定の邪魔になりにくくなります。クリック音は補助なので、小さくなっても流れる譜面で弾けます。</p>');
     }
-    // パターンC：検出が少ない（検出が1回以上あったが満たない場合のみ。0回は上で案内済み）
-    const noteCount = test.notes.length || STROKE_TEST_COUNT;
-    if (test.strokeDetected > 0 && test.strokeDetected < noteCount) {
-        exps.push('<p class="tds-note tds-warn">ストローク音が反応ラインに近いため、弱く弾くと反応しないことがあります。<b>反応ライン（マイク感度）を上げる</b>か、少し大きめに弾いてください。</p>');
+    if (test.strokeDoubleCount > 0) {
+        exps.push('<p class="tds-note tds-warn">1回のストロークで複数回反応しています。<b>二重反応防止を ' + test.recoCooldown + 'ms</b> に上げると安定しやすくなります。</p>');
     }
 
     if (els.testDetailStats) {
@@ -2282,8 +2252,13 @@ function micLoop() {
     const rise = peak - mic.prevPeak;
     const crossed = peak >= mic.threshold && mic.prevPeak < mic.threshold;
     const bigRise = peak >= mic.threshold && rise >= RISE_DELTA;
-    const onset = crossed || bigRise;
-    const trigger = crossed ? 'threshold交差' : 'large-rise';
+    // 追加（修正7）：穏やかな立ち上がりも拾うヒステリシス。threshold*0.5 を下回ったら再アーム、
+    // アーム中に threshold を超えたら1回だけ候補にする（窓内最大が threshold 超え＝候補、の考え方）。
+    if (peak < mic.threshold * 0.5) mic.armed = true;
+    const sustainedOnset = MIC_SUSTAINED_ONSET && mic.armed && peak >= mic.threshold;
+    const onset = crossed || bigRise || sustainedOnset;
+    if (onset) mic.armed = false;
+    const trigger = crossed ? 'threshold交差' : (bigRise ? 'large-rise' : 'sustained');
 
     // ── キャリブレーション中：クリック音→検出の遅延だけを測る（通常判定には流さない）──
     if (mic.calibrating) {

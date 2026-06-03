@@ -2010,6 +2010,12 @@ h1 {
     height: 110px;
 }
 
+/* 結果モーダル表示中は、戻る/TOP/設定を隠す（モーダル内の閉じる/もう一度だけ操作・修正8） */
+body.results-open #app-nav,
+body.results-open #settings-btn {
+    display: none !important;
+}
+
 /* 結果モーダル：クリック音拾いの可能性の注意（控えめ） */
 .results-warn {
     width: 100%;
