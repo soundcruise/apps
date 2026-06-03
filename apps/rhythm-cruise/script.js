@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.18';
+const RHYTHM_CRUISE_VERSION = '0.9.19';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -19,10 +19,10 @@ const STROKE_TEST_COUNT = 4;
 
 /* キャリブレーション中だけ使う測定専用値（通常設定とは独立。終了後に復元する） */
 const CAL_CLICK_VOLUME = 100;  // 測定用クリック音量（最大・iPhoneでも拾いやすく）
-const CAL_THRESHOLD = 0.03;    // 測定用しきい値（小さい入力でも拾えるよう更に低く：0.06→0.03）
+const CAL_THRESHOLD = 0.008;   // 測定用しきい値（iPhone実機の小さい入力でも拾えるよう大幅に低く：0.03→0.008）
 const CAL_COOLDOWN_MS = 150;   // 測定用クールダウン
-/* マイク入力がこの値未満なら「入力がほとんど無い」とみなす（失敗理由の判定用） */
-const CAL_SILENCE_PEAK = 0.02;
+/* マイク入力がこの値未満なら「入力がほとんど無い」とみなす（失敗理由の判定用。測定しきい値より下に） */
+const CAL_SILENCE_PEAK = 0.004;
 
 /* クリック音ガード中でも、これ以上の大きさなら本物のストロークとみなして通す（しきい値の倍率） */
 const STRONG_STROKE_FACTOR = 1.5;
@@ -302,6 +302,7 @@ const els = {
     recoMsg: $('reco-msg'),
     recoApplyBtn: $('reco-apply-btn'),
     manualDetail: $('manual-detail'),
+    testResultDetail: $('test-result-detail'),
     testDetail: $('test-detail'),
     testDetailStats: $('test-detail-stats'),
     barZone: $('bar-zone'),
@@ -1562,7 +1563,10 @@ function exitTestMode() {
     test.active = false;
     test.mode = null;
     test.flow = false;
-    if (els.micTestBtn) els.micTestBtn.textContent = micTestBtnIdleLabel();
+    if (els.micTestBtn) {
+        els.micTestBtn.textContent = micTestBtnIdleLabel();
+        els.micTestBtn.classList.toggle('is-todo', !state.micTestDone);
+    }
     setTestPhase('');
     if (els.testLevel) { els.testLevel.style.width = '0%'; els.testLevel.classList.remove('over'); }
 }
@@ -1577,7 +1581,7 @@ function setTestPhase(t) { if (els.testPhase) els.testPhase.textContent = t; }
 
 /* マイク反応テスト：未実施/実施済みのボタン文言 */
 function micTestBtnIdleLabel() {
-    return state.micTestDone ? 'もう一度テストする' : 'マイク反応テストを開始';
+    return state.micTestDone ? 'もう一度テストする' : 'テストを開始';
 }
 
 /* マイク反応テスト「未/実施済み」表示（見出し・緑の縁取り・ボタン文言）。
@@ -1591,7 +1595,12 @@ function updateMicTestDoneUI() {
         els.testDoneBadge.classList.toggle('hidden', done); // 済みのときは出さない（見出しの✅と二重になるため）
     }
     // テスト進行中でなければアイドル文言（実施済みなら「もう一度テストする」）に揃える
-    if (els.micTestBtn && !test.flow) els.micTestBtn.textContent = micTestBtnIdleLabel();
+    if (els.micTestBtn && !test.flow) {
+        els.micTestBtn.textContent = micTestBtnIdleLabel();
+        els.micTestBtn.classList.toggle('is-todo', !done); // 未実施は赤系で目立たせる
+    }
+    // 「結果を見る」は実施済みのときだけ表示
+    if (els.testResultDetail) els.testResultDetail.classList.toggle('hidden', !done);
 }
 
 /* マイク反応テストの完了を記録（チェック表示・保存） */
@@ -1618,7 +1627,10 @@ function updateMicDelayDoneUI() {
         els.calDoneBadge.classList.toggle('hidden', done);
     }
     // 測定中でなければアイドル文言に揃える
-    if (els.calBtn && !cal.active && !mic.calibrating) els.calBtn.textContent = calBtnIdleLabel();
+    if (els.calBtn && !cal.active && !mic.calibrating) {
+        els.calBtn.textContent = calBtnIdleLabel();
+        els.calBtn.classList.toggle('is-todo', !done); // 未実施は赤系で目立たせる
+    }
 }
 
 /* マイクの遅れ補正の適用を記録（チェック表示・保存） */
@@ -1666,6 +1678,7 @@ async function startMicTestFlow() {
     test.recommended = null; test.recoCooldown = null;
     if (els.testReco) els.testReco.classList.add('hidden');
     els.micTestBtn.textContent = 'テストを中止';
+    els.micTestBtn.classList.remove('is-todo'); // 進行中は赤系を外す
     setTestResult('', '');
     beginClickPhase();
 }
@@ -1674,6 +1687,7 @@ function abortMicTest() {
     clearTestTimers();
     test.flow = false; test.mode = null;
     els.micTestBtn.textContent = micTestBtnIdleLabel();
+    els.micTestBtn.classList.toggle('is-todo', !state.micTestDone);
     setTestPhase('');
     setTestResult('マイク反応テストを中止しました', '');
 }
@@ -1823,11 +1837,17 @@ function updateTestDetail(maxClick, minStroke, clickReacted, canApply) {
     }
     // 数値（小さく）＋ 手動設定にどうつながるかの説明
     const clickLabel = clickReacted === 0 ? '反応なし' : (clickReacted + ' / ' + CLICK_TEST_COUNT + ' 回反応');
+    const maxStroke = test.maxStrokePeak;
+    const recoSensLabel = (test.recommended != null) ? (sensFromThreshold(test.recommended) + '%') : '—';
     const rows = [
         ['クリック音', clickLabel],
         ['ストローク', test.strokeDetected + ' / ' + STROKE_TEST_COUNT + ' 回検出'],
         ['クリック音 最大', maxClick.toFixed(2)],
         ['ストローク 最小', minStroke != null ? minStroke.toFixed(2) : '–'],
+        ['ストローク 最大', maxStroke != null ? maxStroke.toFixed(2) : '–'],
+        ['おすすめ反応ライン', recoSensLabel],
+        ['おすすめクリック音量', (test.recoClickVolume != null ? test.recoClickVolume + '%' : '–')],
+        ['おすすめ二重反応防止', (test.recoCooldown != null ? test.recoCooldown + 'ms' : '–')],
         ['二重反応', test.strokeDoubleCount + ' 回'],
     ];
     const numbers = rows.map((r) => '<div class="tds-row"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>').join('');
@@ -1839,6 +1859,9 @@ function updateTestDetail(maxClick, minStroke, clickReacted, canApply) {
         // パターンA
         const sens = sensFromThreshold(test.recommended);
         exps.push('<p class="tds-note">クリック音（最大 ' + maxClick.toFixed(2) + '）より大きく、ストローク音（最小 ' + minStroke.toFixed(2) + '）より小さい位置に置けます。そのため <b>反応ライン（マイク感度）は ' + sens + '% がおすすめ</b>です。</p>');
+        if (sens >= 70) {
+            exps.push('<p class="tds-note">ストローク音が小さめ（最小 ' + minStroke.toFixed(2) + '）だったため、<b>反応ラインを高感度側（' + sens + '%）</b>にしています。小さい音でも拾えますが、周囲の音にも反応しやすくなります。</p>');
+        }
         if (clickReacted === 0) {
             exps.push('<p class="tds-note">クリック音が反応ラインより下に収まっているため、<b>クリック音量は現在の ' + state.clickVolume + '% のままでOK</b>です。</p>');
         } else {
@@ -2036,6 +2059,7 @@ function setCalUI(mode, arg) {
             + '　検出 ' + cal.samples.length + '回（測定用の音量・感度で実行中・通常設定には影響しません）';
         els.calResult.classList.add('hidden');
         els.calBtn.disabled = true;
+        els.calBtn.classList.remove('is-todo'); // 測定中は赤系を外す
         showMonitor(true);
         updateCalMonitor();
     } else if (mode === 'result') {
@@ -2047,6 +2071,7 @@ function setCalUI(mode, arg) {
         if (els.calSpread) els.calSpread.textContent = '±' + cal.spread + 'ms';
         els.calBtn.disabled = false;
         els.calBtn.textContent = calBtnIdleLabel();
+        els.calBtn.classList.toggle('is-todo', !state.micDelayDone);
         showMonitor(false);
     } else if (mode === 'failed') {
         els.calStatus.classList.remove('hidden');
@@ -2054,12 +2079,14 @@ function setCalUI(mode, arg) {
         els.calResult.classList.add('hidden');
         els.calBtn.disabled = false;
         els.calBtn.textContent = calBtnIdleLabel();
+        els.calBtn.classList.toggle('is-todo', !state.micDelayDone);
         showMonitor(false);
     } else if (mode === 'idle') {
         els.calStatus.classList.add('hidden');
         els.calResult.classList.add('hidden');
         els.calBtn.disabled = false;
         els.calBtn.textContent = calBtnIdleLabel();
+        els.calBtn.classList.toggle('is-todo', !state.micDelayDone);
         showMonitor(false);
     }
 }

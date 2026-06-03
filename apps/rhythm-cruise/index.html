@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=26">
+    <link rel="stylesheet" href="theme.css?v=27">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -169,23 +169,25 @@
                     </div>
                     <button class="btn-primary hidden" id="reco-apply-btn">おすすめ設定を適用</button>
                     <p class="test-reco-msg hidden" id="reco-msg"></p>
-                    <details class="settings-detail test-detail" id="test-detail">
-                        <summary>詳細なテスト結果</summary>
-                        <div class="level-bar">
-                            <div class="level-track"></div>
-                            <div class="level-zone" id="bar-zone"></div>
-                            <div class="level-marker mk-click" id="bar-click"></div>
-                            <div class="level-marker mk-line" id="bar-line"></div>
-                            <div class="level-marker mk-stroke" id="bar-stroke"></div>
-                        </div>
-                        <div class="level-legend">
-                            <span class="lg-click">● クリック音最大</span>
-                            <span class="lg-line">● おすすめライン</span>
-                            <span class="lg-stroke">● ストローク最小</span>
-                        </div>
-                        <div class="test-detail-stats" id="test-detail-stats"></div>
-                    </details>
                 </div>
+
+                <!-- テスト結果の確認（実施済み後に表示・後から見返せる） -->
+                <details class="settings-detail test-result-detail hidden" id="test-result-detail">
+                    <summary>結果を見る</summary>
+                    <div class="level-bar">
+                        <div class="level-track"></div>
+                        <div class="level-zone" id="bar-zone"></div>
+                        <div class="level-marker mk-click" id="bar-click"></div>
+                        <div class="level-marker mk-line" id="bar-line"></div>
+                        <div class="level-marker mk-stroke" id="bar-stroke"></div>
+                    </div>
+                    <div class="level-legend">
+                        <span class="lg-click">● クリック音最大</span>
+                        <span class="lg-line">● おすすめライン</span>
+                        <span class="lg-stroke">● ストローク最小</span>
+                    </div>
+                    <div class="test-detail-stats" id="test-detail-stats"></div>
+                </details>
             </div>
 
             <!-- 2. マイクの遅れ補正 -->
@@ -306,7 +308,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=29"></script>
+    <script src="script.js?v=30"></script>
 </body>
 
 </html>

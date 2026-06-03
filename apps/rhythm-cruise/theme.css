@@ -1114,6 +1114,13 @@ h1 {
     color: var(--error-color);
 }
 
+/* 未実施のテスト開始ボタン：赤系で「まだやる必要がある」と分かるように（強すぎない注意色） */
+.btn-mic.is-todo {
+    background: rgba(255, 107, 107, 0.12);
+    border-color: rgba(255, 107, 107, 0.6);
+    color: #ff6b6b;
+}
+
 .btn-mic:active {
     transform: scale(0.96);
 }
@@ -1555,7 +1562,8 @@ h1 {
 .tap-area.layout-ud .tap-half {
     flex-direction: row;
     gap: 10px;
-    padding: 13px 10px;
+    padding: 22px 10px;        /* 上下配置でも左右配置と同程度に押しやすい高さ */
+    min-height: 64px;
 }
 
 .tap-area.layout-ud .tap-up { order: 1; }
@@ -1569,7 +1577,8 @@ h1 {
     align-items: center;
     justify-content: center;
     gap: 4px;
-    padding: 16px 10px;
+    padding: 26px 10px;        /* 上下幅を拡大して押しやすく（約1.4倍） */
+    min-height: 88px;
     border-radius: 16px;
     font-family: inherit;
     cursor: pointer;
@@ -1726,22 +1735,31 @@ h1 {
 }
 
 /* 詳細なテスト結果（折りたたみ）＋レベルバー */
-.test-detail {
+.test-detail,
+.test-result-detail {
     border-top: 1px solid rgba(255, 159, 28, 0.25);
     padding-top: 6px;
     margin-top: 2px;
 }
 
-.test-detail > summary {
-    color: var(--secondary-color);
-    font-size: 0.8rem;
+.test-result-detail.hidden {
+    display: none;
 }
 
-.test-detail > summary::before {
+.test-detail > summary,
+.test-result-detail > summary {
+    color: var(--secondary-color);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.test-detail > summary::before,
+.test-result-detail > summary::before {
     content: '▸ ';
 }
 
-.test-detail[open] > summary::before {
+.test-detail[open] > summary::before,
+.test-result-detail[open] > summary::before {
     content: '▾ ';
 }
 
