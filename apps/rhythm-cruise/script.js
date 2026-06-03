@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.26';
+const RHYTHM_CRUISE_VERSION = '0.9.27';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -34,9 +34,10 @@ const RISE_DELTA = 0.12;
 /* 本番STAGEのマイク判定で、穏やかな立ち上がり（窓内で threshold 超え）も拾うヒステリシス検出を有効にする。
    true: 再アーム後、しきい値超えで1回検出。後で調整・無効化しやすいようフラグ化。 */
 const MIC_SUSTAINED_ONSET = true;
-/* 本番STAGEのマイク判定だけ、表示の反応ラインより少し低い値で検出する（拾いやすさ優先）。
-   表示上の反応ライン(mic.threshold)は変えず、検出だけ ×0.85。 */
-const MIC_STAGE_DETECT_FACTOR = 0.85;
+/* 本番STAGEのマイク判定だけ、表示の反応ラインより低い値で検出する（拾いやすさ優先）。
+   表示上の反応ライン(mic.threshold)は変えず、検出だけ ×0.8。おすすめ反応ラインを実用範囲(70〜85%)に
+   抑えても、この係数でストローク（小さめ入力）を拾えるようにする。 */
+const MIC_STAGE_DETECT_FACTOR = 0.8;
 /* 再アーム条件：検出しきい値×この値を下回ったら次の入力を拾える状態に戻す（0.5→0.65で少し緩め） */
 const MIC_REARM_FACTOR = 0.65;
 
@@ -56,7 +57,7 @@ const MIC_WAVE_WINDOW_MS = 4000;
 
 /* 設定の保存キーと初期値 */
 const SETTINGS_KEY = 'rhythmCruiseSettings';
-const SETTINGS_DEFAULTS = { threshold: 0.16, cooldownMs: 200, clickGuardMs: 60, timingOffsetMs: 0, clickVolume: 70 };
+const SETTINGS_DEFAULTS = { threshold: 0.05, cooldownMs: 200, clickGuardMs: 60, timingOffsetMs: 0, clickVolume: 70 };
 
 /* マイク補正キャリブレーション設定 */
 const CAL_CLICKS = 8;       // 測定で鳴らすクリック数
@@ -106,6 +107,7 @@ const state = {
     clickTimes: [],
     nextClick: 0,
     results: new Array(TOTAL_BEATS).fill(null),
+    beatMicPeak: new Array(TOTAL_BEATS).fill(0), // 各拍の判定窓内で観測した最大マイク入力（MISS原因の切り分け用）
     markers: [],
     micWaveHistory: [],   // {perf, level} マイク音量の時系列（背景波形用）
     combo: 0,             // 連続GOOD数
@@ -251,6 +253,7 @@ const els = {
     resultsCard: $('results-card'),
     resultsDetail: $('results-detail'),
     resultsWarn: $('results-warn'),
+    resultsMissInfo: $('results-miss-info'),
     reviewWrap: $('review-wrap'),
     reviewCanvas: $('review-canvas'),
     rScore: $('r-score'),
@@ -806,19 +809,32 @@ function drawLane(t) {
         }
     }
 
-    // 判定ライン（光る縦線）。再生中は拍頭付近で軽く光る＝視覚クリック（クリック音を下げた代替）
+    // 判定ライン（光る縦線）。再生中は拍頭付近で光る＝視覚クリック（クリック音を下げた代替）
     const glow = state.running ? beatGlow(t - T0, bi) : 0;
     ctx.save();
     ctx.shadowColor = 'rgba(255,159,28,0.95)';
-    ctx.shadowBlur = 14 + glow * 18;
+    ctx.shadowBlur = 14 + glow * 24;
     ctx.strokeStyle = 'rgba(255,159,28,' + (0.85 + glow * 0.15).toFixed(2) + ')';
-    ctx.lineWidth = 3 + glow * 1.5;
+    ctx.lineWidth = 3 + glow * 2;
     ctx.beginPath(); ctx.moveTo(jx, h * 0.1); ctx.lineTo(jx, h * 0.94); ctx.stroke();
     ctx.restore();
+    drawBeatDot(ctx, jx, h * 0.9, glow);  // 拍インジケーター（判定ライン下で拍にパルス）
     ctx.fillStyle = 'rgba(255,159,28,0.95)';
     ctx.font = '700 10px Outfit, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('JUST', jx, h * 0.99);
+}
+
+/* 拍インジケーター：判定ライン下に置く小さな丸。拍頭(glow=1)で大きく明るくパルス。音符の邪魔をしない。 */
+function drawBeatDot(ctx, x, y, glow) {
+    ctx.save();
+    const r = 2.5 + glow * 4.5;
+    if (glow > 0.05) { ctx.shadowColor = 'rgba(255,159,28,0.95)'; ctx.shadowBlur = 6 + glow * 14; }
+    ctx.globalAlpha = 0.35 + glow * 0.65;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffb347';
+    ctx.fill();
+    ctx.restore();
 }
 
 /* ── ズレ履歴グラフ描画（結果画面） ─────────────────────── */
@@ -1174,6 +1190,7 @@ function stop() {
 
 function resetData() {
     state.results = new Array(TOTAL_BEATS).fill(null);
+    state.beatMicPeak = new Array(TOTAL_BEATS).fill(0);
     state.markers = [];
     state.micWaveHistory = [];
     state.currentTime = 0;
@@ -1226,6 +1243,28 @@ function maybeShowClickPickupWarning() {
     els.resultsWarn.classList.toggle('hidden', !show);
 }
 
+/* MISSの原因を切り分けて軽く表示（ストローク＝マイク入力時のみ）。
+   判定窓内の最大マイク入力が反応ライン未満＝入力レベル不足／反応ライン超え＝判定候補にならず。 */
+function updateMissInfo() {
+    if (!els.resultsMissInfo) return;
+    if (state.inputMode !== 'stroke') { els.resultsMissInfo.classList.add('hidden'); return; }
+    let missTotal = 0, lowLevel = 0, hadInput = 0;
+    for (let i = 0; i < TOTAL_BEATS; i++) {
+        const r = state.results[i];
+        const isMiss = !r || r.cls === 'miss';
+        if (!isMiss) continue;
+        missTotal++;
+        const pk = state.beatMicPeak[i] || 0;
+        if (pk >= mic.threshold) hadInput++;     // 反応ラインは超えていたのに未登録
+        else lowLevel++;                          // 入力レベル不足
+    }
+    if (missTotal === 0) { els.resultsMissInfo.classList.add('hidden'); return; }
+    const cause = (hadInput > lowLevel) ? '判定条件が厳しい可能性' : '入力レベル不足';
+    els.resultsMissInfo.textContent = 'MISS ' + missTotal + ' 拍：入力ライン未満 ' + lowLevel
+        + ' ／ 入力あり ' + hadInput + '（主な原因：' + cause + '）';
+    els.resultsMissInfo.classList.remove('hidden');
+}
+
 /* ── 集計・結果 ─────────────────────────────────────────── */
 function finish() {
     state.running = false;
@@ -1275,6 +1314,8 @@ function finish() {
 
     // クリック音拾いの可能性を判定（ストローク＝マイク入力で、GOODのズレがほぼ一点に集中している）
     maybeShowClickPickupWarning();
+    // MISSの原因切り分け（入力レベル不足 / 入力はあるが判定候補にならず）を集計
+    updateMissInfo();
 
     // 結果をモーダルで表示（ズレ確認レーンがメイン）
     if (els.resultsOverlay) els.resultsOverlay.classList.remove('hidden');
@@ -1415,9 +1456,10 @@ function clampNum(v, lo, hi, fallback) {
 }
 
 /* マイク感度の表示は「低い←→高い」。内部 threshold は高感度ほど小さい（逆変換）。
-   感度0% = threshold 0.40（大きい音だけ）、感度100% = threshold 0.005（極小の音にも）。
-   iPhoneのストローク入力がかなり小さいため、下限をさらに下げた（0.02→0.005）。 */
-const THR_MIN = 0.005, THR_MAX = 0.40;
+   感度0% = threshold 0.12（大きい音だけ）、感度100% = threshold 0.005（極小の音にも）。
+   実機のストローク入力は小さいため、実用域(threshold 0.02〜0.05)が 70〜85% 付近に来るよう
+   上限を 0.40→0.12 に見直した（おすすめが極端な高感度%にならないように）。 */
+const THR_MIN = 0.005, THR_MAX = 0.12;
 function sensFromThreshold(thr) {
     return Math.round((THR_MAX - thr) / (THR_MAX - THR_MIN) * 100);
 }
@@ -1874,10 +1916,10 @@ function endClickPhase() {
    STAGEに近い見た目で、右から左へ流れる8分音符（↓↑）が判定ラインに来たら弾く。
    タイミング精度は評価せず、各音符の判定窓内の最大入力を down/up 別に記録するだけ。 */
 /* マイク反応テスト専用テンポ。STAGE本体のBPMには影響しない。
-   ストローク（ダウン/アップの各音符）が1分間に TEST_BPM 回流れてくる＝ゆっくりめ。 */
-const TEST_BPM = 90;                              // ストローク/分（90＝約0.67秒に1ストローク）
-const TEST_NOTE_MS = Math.round(60000 / TEST_BPM); // 音符（ストローク）間隔 ≒ 667ms
-const TEST_NOTE_WIN = 180;    // 判定窓 ±ms（最大入力を記録する範囲・少し広め）
+   8分ストロークの間隔は、直前のクリック音テスト(間隔600ms＝四分100BPM相当)と同じテンポ感に揃える。 */
+const TEST_CLICK_INTERVAL_MS = 600;               // クリック音テストの間隔（四分・100BPM相当）
+const TEST_NOTE_MS = TEST_CLICK_INTERVAL_MS / 2;  // ストローク8分間隔＝300ms（クリックテストと同テンポ）
+const TEST_NOTE_WIN = 150;    // 判定窓 ±ms（最大入力を記録する範囲）
 /* カウントイン：8分で8回（1 & 2 & 3 & 4 &）。最初のビープまでの小休止＋ビープ列の後、
    8分1つ分の間隔をあけて最初の音符が判定ラインに来る。 */
 const TEST_COUNTIN_BEEPS = 8;
@@ -2029,11 +2071,12 @@ function drawTestLane(t) {
     const gridFrom = (test.beatGridFrom != null) ? test.beatGridFrom : TEST_COUNTIN_START;
     const glow = beatGlow(t - gridFrom, TEST_NOTE_MS);
     ctx.save();
-    ctx.shadowColor = 'rgba(255,159,28,0.95)'; ctx.shadowBlur = 10 + glow * 18;
+    ctx.shadowColor = 'rgba(255,159,28,0.95)'; ctx.shadowBlur = 10 + glow * 24;
     ctx.strokeStyle = 'rgba(255,159,28,' + (0.85 + glow * 0.15).toFixed(2) + ')';
-    ctx.lineWidth = 3 + glow * 1.5;
+    ctx.lineWidth = 3 + glow * 2;
     ctx.beginPath(); ctx.moveTo(judgeX, h * 0.12); ctx.lineTo(judgeX, h * 0.86); ctx.stroke();
     ctx.restore();
+    drawBeatDot(ctx, judgeX, h * 0.92, glow);
 }
 
 /* 拍頭付近の発光量(0..1)を返す。rel: 拍グリッド起点からの経過ms / interval: 拍間隔ms */
@@ -2125,23 +2168,21 @@ function updateReco() {
 
     const maxStroke = test.maxStrokePeak; // 全ストローク最大（検出分）
 
-    // ① 反応ライン（マイク感度）：ストロークを拾うことを優先しつつ、1回だけ弱いストロークに過剰適合しない。
-    //    基準＝下位25%（ロバスト）×0.9。クリック音が十分小さい時は、クリック最大より少し上に余裕を持たせ、
-    //    極端に低い（高感度すぎる）ラインへ寄りすぎないようにする。
+    // ① 反応ライン（マイク感度）：実用的な初期おすすめ（70〜85%目標）。
+    //    本番STAGEは検出を ×MIC_STAGE_DETECT_FACTOR で補助するため、表示の反応ラインは少し高め（低感度寄り）でも
+    //    実際の検出は p25 付近を拾える。基準＝下位25%（ロバスト）÷係数 で、表示thresholdを引き上げる。
     let canApply = false;
     let highSens = false;
     if (minStroke != null) {
         const basisP25 = (test.strokeP25 != null) ? test.strokeP25 : minStroke;
-        let rec = basisP25 * 0.9;
-        // クリック音が小さい場合は、クリック最大より少し上に下限を設けて高感度に寄りすぎない（最小は確実に拾える範囲）
-        const clickFloor = maxClick + 0.005;
-        if (clickFloor < minStroke) rec = Math.max(rec, clickFloor);
-        // ただしストローク最小は拾えるよう、最小を超えないようにする
-        rec = Math.min(rec, minStroke * 0.95);
+        // 本番の実効検出 = rec×係数。これが p25×0.9 になるように rec を決める（表示は少し高め）。
+        let rec = (basisP25 * 0.9) / MIC_STAGE_DETECT_FACTOR;
+        // クリック音より実効検出が下回らないよう、クリック最大/係数 を下限に
+        rec = Math.max(rec, (maxClick + 0.004) / MIC_STAGE_DETECT_FACTOR);
         rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
         test.recommended = rec;
         const sens = sensFromThreshold(rec);
-        highSens = sens >= 85;
+        highSens = sens >= 90; // 90%以上は「かなり高感度」として案内
         els.recoThr.textContent = sens + '％';
         canApply = true;
     } else if (maxStrokeRaw != null && maxStrokeRaw > THR_MIN * 2) {
@@ -2403,6 +2444,19 @@ function micLoop() {
     const strongEnough = peak >= mic.threshold * STRONG_STROKE_FACTOR;
     // カウントイン中（本編開始 T0 前）はマイク検出を無視する
     const inCountIn = state.running && state.currentTime < state.T0;
+
+    // 各拍の判定窓内で観測した最大マイク入力を記録（MISS原因の切り分け用。判定には不使用）
+    if (state.running && !inCountIn) {
+        const gt = now - state.startTime;
+        const bi2 = state.beatInterval;
+        const bIdx = Math.round((gt - state.T0) / bi2);
+        if (bIdx >= 0 && bIdx < TOTAL_BEATS) {
+            const beatT = state.T0 + bIdx * bi2;
+            if (Math.abs(gt - beatT) <= NEAR_MS && peak > state.beatMicPeak[bIdx]) {
+                state.beatMicPeak[bIdx] = peak;
+            }
+        }
+    }
 
     if (onset) {
         mic.inputCount++;                 // ① 入力検出（反応ライン超え／急増）
