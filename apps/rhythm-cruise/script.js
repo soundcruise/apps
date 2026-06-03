@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.27';
+const RHYTHM_CRUISE_VERSION = '0.9.28';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -35,9 +35,9 @@ const RISE_DELTA = 0.12;
    true: 再アーム後、しきい値超えで1回検出。後で調整・無効化しやすいようフラグ化。 */
 const MIC_SUSTAINED_ONSET = true;
 /* 本番STAGEのマイク判定だけ、表示の反応ラインより低い値で検出する（拾いやすさ優先）。
-   表示上の反応ライン(mic.threshold)は変えず、検出だけ ×0.8。おすすめ反応ラインを実用範囲(70〜85%)に
-   抑えても、この係数でストローク（小さめ入力）を拾えるようにする。 */
-const MIC_STAGE_DETECT_FACTOR = 0.8;
+   表示上の反応ライン(mic.threshold)は変えず、検出だけ ×0.5。おすすめ反応ラインを実用範囲(70%前後)に
+   抑えても、この係数で小さめのストローク入力を確実に拾えるようにする。 */
+const MIC_STAGE_DETECT_FACTOR = 0.5;
 /* 再アーム条件：検出しきい値×この値を下回ったら次の入力を拾える状態に戻す（0.5→0.65で少し緩め） */
 const MIC_REARM_FACTOR = 0.65;
 
@@ -763,12 +763,23 @@ function drawLane(t) {
         }
         if (i >= 0) {
             const r = state.results[i];
+            // 入力ありMISS：判定窓を過ぎてMISS確定だが、マイク入力は反応ラインを超えていた拍
+            const past = bt < t - NEAR_MS;
+            const isMiss = !r || r.cls === 'miss';
+            const inputMiss = past && isMiss && (state.beatMicPeak[i] || 0) >= mic.threshold;
             if (r && r.cls === 'just') {
                 // GOOD：その音符が緑に光る
                 ctx.save();
                 ctx.shadowColor = 'rgba(46,204,113,0.9)';
                 ctx.shadowBlur = 13;
                 drawQuarterNote(ctx, x, yc, COLORS.just);
+                ctx.restore();
+            } else if (inputMiss) {
+                // 入力ありMISS：薄いオレンジの音符（通常MISS=グレー×とは区別）
+                ctx.save();
+                ctx.globalAlpha = 0.7;
+                ctx.shadowColor = 'rgba(255,140,60,0.7)'; ctx.shadowBlur = 8;
+                drawQuarterNote(ctx, x, yc, '#ff8c3c');
                 ctx.restore();
             } else {
                 drawQuarterNote(ctx, x, yc, NOTE_COLOR); // 採点対象 = 4分音符
@@ -825,12 +836,23 @@ function drawLane(t) {
     ctx.fillText('JUST', jx, h * 0.99);
 }
 
-/* 拍インジケーター：判定ライン下に置く小さな丸。拍頭(glow=1)で大きく明るくパルス。音符の邪魔をしない。 */
+/* 拍インジケーター：判定ライン下の丸。拍頭(glow=1)で大きく光り、外側にリングが一瞬広がる。
+   音符の邪魔をしないよう、拍間は小さく控えめ。 */
 function drawBeatDot(ctx, x, y, glow) {
     ctx.save();
-    const r = 2.5 + glow * 4.5;
-    if (glow > 0.05) { ctx.shadowColor = 'rgba(255,159,28,0.95)'; ctx.shadowBlur = 6 + glow * 14; }
-    ctx.globalAlpha = 0.35 + glow * 0.65;
+    // 拍頭で外側に広がるリング
+    if (glow > 0.15) {
+        ctx.globalAlpha = (glow - 0.15) * 0.5;
+        ctx.strokeStyle = '#ffb347';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, 6 + (1 - glow) * 14, 0, Math.PI * 2); // glow=1で小→消える頃に大きく
+        ctx.stroke();
+    }
+    // 本体の丸
+    const r = 3 + glow * 6;
+    if (glow > 0.05) { ctx.shadowColor = 'rgba(255,159,28,0.95)'; ctx.shadowBlur = 8 + glow * 18; }
+    ctx.globalAlpha = 0.4 + glow * 0.6;
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fillStyle = '#ffb347';
     ctx.fill();
@@ -965,16 +987,27 @@ function drawReview() {
         ctx.font = '700 11px Outfit, sans-serif';
         const msY = yc + 52;
         if (!r || !r.tapped) {
-            // MISS：薄いグレーの×（未入力）
-            ctx.save(); ctx.globalAlpha = 0.55;
-            ctx.strokeStyle = COLORS.miss; ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(x - 5, yc - 5); ctx.lineTo(x + 5, yc + 5);
-            ctx.moveTo(x + 5, yc - 5); ctx.lineTo(x - 5, yc + 5);
-            ctx.stroke();
-            ctx.restore();
-            ctx.fillStyle = COLORS.miss;
-            ctx.fillText('MISS', x, msY);
+            const hadInput = (state.beatMicPeak[i] || 0) >= mic.threshold;
+            if (hadInput) {
+                // 入力ありMISS：薄いオレンジの音符＋「入力MISS」（通常MISS=グレー×と区別）
+                ctx.save(); ctx.globalAlpha = 0.75;
+                ctx.shadowColor = 'rgba(255,140,60,0.7)'; ctx.shadowBlur = 7;
+                drawQuarterNote(ctx, x, yc, '#ff8c3c');
+                ctx.restore();
+                ctx.fillStyle = '#ff8c3c';
+                ctx.fillText('入力MISS', x, msY);
+            } else {
+                // MISS：薄いグレーの×（未入力）
+                ctx.save(); ctx.globalAlpha = 0.55;
+                ctx.strokeStyle = COLORS.miss; ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(x - 5, yc - 5); ctx.lineTo(x + 5, yc + 5);
+                ctx.moveTo(x + 5, yc - 5); ctx.lineTo(x - 5, yc + 5);
+                ctx.stroke();
+                ctx.restore();
+                ctx.fillStyle = COLORS.miss;
+                ctx.fillText('MISS', x, msY);
+            }
         } else if (cls === 'miss') {
             // タップはしたが MISS（方向ちがい等）：グレーの×＋ラベル
             ctx.save(); ctx.globalAlpha = 0.7;
@@ -1457,8 +1490,8 @@ function clampNum(v, lo, hi, fallback) {
 
 /* マイク感度の表示は「低い←→高い」。内部 threshold は高感度ほど小さい（逆変換）。
    感度0% = threshold 0.12（大きい音だけ）、感度100% = threshold 0.005（極小の音にも）。
-   実機のストローク入力は小さいため、実用域(threshold 0.02〜0.05)が 70〜85% 付近に来るよう
-   上限を 0.40→0.12 に見直した（おすすめが極端な高感度%にならないように）。 */
+   実機のストローク入力は小さいため、実用域(threshold 0.03〜0.05)が 70% 前後に来るよう
+   上限を 0.12 に。おすすめは低感度寄り(70%前後)でも、本番STAGEの検出係数で小入力を拾う。 */
 const THR_MIN = 0.005, THR_MAX = 0.12;
 function sensFromThreshold(thr) {
     return Math.round((THR_MAX - thr) / (THR_MAX - THR_MIN) * 100);
@@ -1723,6 +1756,7 @@ function tSet(fn, ms) { const id = setTimeout(fn, ms); test.timers.push(id); ret
 function exitTestMode() {
     clearTestTimers();
     cancelAnimationFrame(test.flowRaf); test.flowRaf = 0;
+    cancelAnimationFrame(test.clickRaf); test.clickRaf = 0;
     test.active = false;
     test.mode = null;
     test.flow = false;
@@ -1874,6 +1908,7 @@ async function startMicTestFlow() {
 function abortMicTest() {
     clearTestTimers();
     cancelAnimationFrame(test.flowRaf); test.flowRaf = 0;
+    cancelAnimationFrame(test.clickRaf); test.clickRaf = 0;
     test.flow = false; test.mode = null;
     if (els.testLaneWrap) els.testLaneWrap.classList.add('hidden');
     els.micTestBtn.textContent = micTestBtnIdleLabel();
@@ -1882,10 +1917,46 @@ function abortMicTest() {
     setTestResult('マイク反応テストを中止しました', '');
 }
 
+/* クリック音テスト中の視覚クリック：レーンを出し、クリックのたびに判定ライン/拍ドットを光らせる */
+function clickLaneLoop() {
+    if (test.mode !== 'click') return;
+    const since = performance.now() - (test.clickPlayedAt || -9999);
+    const glow = (since >= 0 && since < 220) ? (1 - since / 220) : 0;
+    drawTestEmptyLane(glow);
+    test.clickRaf = requestAnimationFrame(clickLaneLoop);
+}
+
+/* 音符なしのテストレーン（クリックテスト用）：中央線＋判定ライン＋拍ドット（glowで点滅） */
+function drawTestEmptyLane(glow) {
+    const { ctx, w, h } = testLane;
+    if (!ctx) return;
+    ctx.clearRect(0, 0, w, h);
+    const yc = h * 0.44;
+    const judgeX = w * 0.28;
+    ctx.strokeStyle = 'rgba(253,246,238,0.08)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke();
+    ctx.save();
+    ctx.shadowColor = 'rgba(255,159,28,0.95)'; ctx.shadowBlur = 10 + glow * 24;
+    ctx.strokeStyle = 'rgba(255,159,28,' + (0.85 + glow * 0.15).toFixed(2) + ')';
+    ctx.lineWidth = 3 + glow * 2;
+    ctx.beginPath(); ctx.moveTo(judgeX, h * 0.12); ctx.lineTo(judgeX, h * 0.86); ctx.stroke();
+    ctx.restore();
+    drawBeatDot(ctx, judgeX, h * 0.92, glow);
+    ctx.fillStyle = 'rgba(253,246,238,0.5)';
+    ctx.font = '600 12px Outfit, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('クリック音を確認中…', w / 2, h * 0.96);
+}
+
 /* クリック音テスト（本番と同じクリック：1拍目アクセント/2-4拍目通常／4拍×2周＝8回） */
 function beginClickPhase() {
     test.mode = 'click';
     test.clickI = 0; test.clickPeaks = []; test.clickResults = []; test.curPeak = 0;
+    // 視覚クリック：レーンを表示してクリックに合わせて点滅
+    if (els.testLaneWrap) els.testLaneWrap.classList.remove('hidden');
+    fitTestLane();
+    cancelAnimationFrame(test.clickRaf);
+    test.clickRaf = requestAnimationFrame(clickLaneLoop);
     clearInterval(test.seqTimer);
     test.seqTimer = setInterval(() => {
         if (test.clickI > 0) {
@@ -1907,6 +1978,7 @@ function beginClickPhase() {
 
 function endClickPhase() {
     test.clickDone = true;
+    cancelAnimationFrame(test.clickRaf); test.clickRaf = 0; // クリック用の視覚ループを停止（ストローク側が引き継ぐ）
     test.maxClickPeak = test.clickPeaks.length ? Math.max(...test.clickPeaks) : 0;
     setTestPhase('ストロークテストへ…');
     test.timers.push(setTimeout(beginStrokePhase, 800));
@@ -1916,14 +1988,13 @@ function endClickPhase() {
    STAGEに近い見た目で、右から左へ流れる8分音符（↓↑）が判定ラインに来たら弾く。
    タイミング精度は評価せず、各音符の判定窓内の最大入力を down/up 別に記録するだけ。 */
 /* マイク反応テスト専用テンポ。STAGE本体のBPMには影響しない。
-   8分ストロークの間隔は、直前のクリック音テスト(間隔600ms＝四分100BPM相当)と同じテンポ感に揃える。 */
+   ストロークは1拍ごと（4分テンポ）。クリック音テスト(間隔600ms＝四分100BPM相当)と同じBPM感。 */
 const TEST_CLICK_INTERVAL_MS = 600;               // クリック音テストの間隔（四分・100BPM相当）
-const TEST_NOTE_MS = TEST_CLICK_INTERVAL_MS / 2;  // ストローク8分間隔＝300ms（クリックテストと同テンポ）
-const TEST_NOTE_WIN = 150;    // 判定窓 ±ms（最大入力を記録する範囲）
-/* カウントイン：8分で8回（1 & 2 & 3 & 4 &）。最初のビープまでの小休止＋ビープ列の後、
-   8分1つ分の間隔をあけて最初の音符が判定ラインに来る。 */
-const TEST_COUNTIN_BEEPS = 8;
-const TEST_COUNTIN_START = 400; // 最初のビープまでの小休止(ms)
+const TEST_NOTE_MS = TEST_CLICK_INTERVAL_MS;      // ストローク間隔＝600ms（1拍ごと＝4分）
+const TEST_NOTE_WIN = 200;    // 判定窓 ±ms（最大入力を記録する範囲・4分なので広め）
+/* カウントイン：4分で4回（1 2 3 4）。最後の4の1拍後に最初の音符が判定ラインに来る。 */
+const TEST_COUNTIN_BEEPS = 4;
+const TEST_COUNTIN_START = 500; // 最初のビープまでの小休止(ms)
 const TEST_LEAD_MS = TEST_COUNTIN_START + TEST_COUNTIN_BEEPS * TEST_NOTE_MS; // 最初の音符が来る時刻
 /* マイク反応テスト専用の検出しきい値（本番より緩め）。
    目的は演奏判定ではなく入力レベルの測定なので、受付窓内の最大値がこの値を超えたら「検出あり」とする。 */
@@ -1969,21 +2040,20 @@ function beginStrokePhase() {
     if (els.testLaneWrap) els.testLaneWrap.classList.remove('hidden');
     fitTestLane();
     test.flowStart = performance.now();
-    // 視覚クリック用の拍グリッド（カウントイン＋本編の8分）。300...の代わりにTEST_COUNTIN_STARTから等間隔。
+    // 視覚クリック用の拍グリッド（カウントイン＋本編の4分）。TEST_COUNTIN_STARTから等間隔。
     test.beatGridFrom = TEST_COUNTIN_START;
-    // カウントイン（クリック音あり・8分8回「1 & 2 & 3 & 4 &」）。本編（譜面が流れる間）は鳴らさない。
-    const labels = ['1', '&', '2', '&', '3', '&', '4', '&'];
+    // カウントイン（クリック音あり・4分4回「1 2 3 4」）。本編（譜面が流れる間）は鳴らさない。
+    const labels = ['1', '2', '3', '4'];
     for (let i = 0; i < TEST_COUNTIN_BEEPS; i++) {
         const ms = TEST_COUNTIN_START + i * TEST_NOTE_MS;
-        const accent = (i % 2 === 0); // 数字（表）＝アクセント、&（裏）＝弱め
         tSet(() => {
             if (test.mode !== 'stroke') return;
             setTestPhase('カウントイン　' + labels.slice(0, i + 1).join(' '));
-            testCountBeep(accent);
+            testCountBeep(i === 0); // 1拍目だけアクセント
         }, ms);
     }
-    // 最後の & の 8分1つ後に最初の音符（TEST_LEAD_MS）。本編表示へ切替。
-    tSet(() => { if (test.mode === 'stroke') setTestPhase('流れる音符に合わせて ↓ダウン ↑アップ'); }, TEST_LEAD_MS - 200);
+    // 最後の 4 の1拍後に最初の音符（TEST_LEAD_MS）。本編表示へ切替。
+    tSet(() => { if (test.mode === 'stroke') setTestPhase('1拍ごとに ↓ダウン ↑アップ で弾いてください'); }, TEST_LEAD_MS - 250);
     cancelAnimationFrame(test.flowRaf);
     test.flowRaf = requestAnimationFrame(testFlowLoop);
 }
@@ -2175,14 +2245,14 @@ function updateReco() {
     let highSens = false;
     if (minStroke != null) {
         const basisP25 = (test.strokeP25 != null) ? test.strokeP25 : minStroke;
-        // 本番の実効検出 = rec×係数。これが p25×0.9 になるように rec を決める（表示は少し高め）。
+        // 本番の実効検出 = rec×係数(0.5)。実効が p25×0.9 になるよう rec を決める＝表示は低感度寄り(70%前後)。
         let rec = (basisP25 * 0.9) / MIC_STAGE_DETECT_FACTOR;
         // クリック音より実効検出が下回らないよう、クリック最大/係数 を下限に
         rec = Math.max(rec, (maxClick + 0.004) / MIC_STAGE_DETECT_FACTOR);
         rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
         test.recommended = rec;
         const sens = sensFromThreshold(rec);
-        highSens = sens >= 90; // 90%以上は「かなり高感度」として案内
+        highSens = sens >= 88; // 88%以上は「かなり高感度」として案内
         els.recoThr.textContent = sens + '％';
         canApply = true;
     } else if (maxStrokeRaw != null && maxStrokeRaw > THR_MIN * 2) {
