@@ -1,0 +1,20 @@
+{
+  "id": "./",
+  "name": "リズムクルーズ",
+  "short_name": "リズムクルーズ",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#120f0c",
+  "theme_color": "#ff9f1c",
+  "description": "アコギ弾き語り向けのリズム練習アプリ。ストロークのズレを見える化し、原因に合わせて段階的に練習できます。",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

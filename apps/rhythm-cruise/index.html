@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+    <title>リズムクルーズ</title>
+
+    <!-- shared/ には依存せず theme.css 1枚で構成 -->
+    <link rel="stylesheet" href="theme.css?v=23">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
+
+    <link rel="manifest" href="manifest.json?v=1">
+    <meta name="theme-color" content="#120f0c">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icon.svg">
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./service-worker.js', { scope: './' })
+                .then(() => console.log('Rhythm Cruise SW registered'))
+                .catch(() => { });
+        }
+    </script>
+</head>
+
+<body>
+    <!-- 全画面共通ナビ（戻る / TOP）。ホーム以外で表示 -->
+    <div id="app-nav" class="app-nav hidden" aria-label="ナビゲーション">
+        <button type="button" id="nav-back-btn" class="nav-btn">← 戻る</button>
+        <button type="button" id="nav-top-btn" class="nav-btn">🏠 TOP</button>
+    </div>
+
+    <!-- 右上の設定ボタン。設定画面以外で表示 -->
+    <button type="button" id="settings-btn" class="settings-corner-btn"><span class="gear">⚙️</span> 設定</button>
+
+    <div class="app-container">
+
+        <!-- ══════════ ホーム画面 ══════════ -->
+        <section id="screen-home" class="screen">
+            <header>
+                <h1>リズムクルーズ</h1>
+                <p class="subcopy">ストロークのズレを見える化する<br>リズム練習アプリ</p>
+            </header>
+
+            <button id="start-btn" class="btn-primary">▶ 練習をはじめる</button>
+
+            <div class="section-label">Stage Select</div>
+
+            <div class="stage-list" id="stage-list">
+                <!-- script.js が描画 -->
+            </div>
+
+            <p class="app-footer">Sound Cruise Series</p>
+        </section>
+
+        <!-- ══════════ 練習画面（スクロール譜面型・整理版） ══════════ -->
+        <section id="screen-practice" class="screen hidden">
+            <!-- 1. STAGEヘッダー（小さめ） -->
+            <div class="practice-head">
+                <div class="stage-num" id="practice-num"><small>STAGE</small><b>1</b></div>
+                <div class="stage-body">
+                    <h2 id="practice-title">4分ジャスト</h2>
+                    <div class="stage-desc" id="practice-desc">流れる4分音符に合わせてタップ</div>
+                </div>
+            </div>
+
+            <!-- 2. BPM操作 -->
+            <div class="tempo-row">
+                <button class="tempo-btn" id="tempo-down" aria-label="テンポを下げる">−</button>
+                <span><b id="tempo-val">80</b> BPM</span>
+                <button class="tempo-btn" id="tempo-up" aria-label="テンポを上げる">+</button>
+            </div>
+
+            <!-- 3. 状態・進行表示 -->
+            <div class="play-status">
+                <span class="bar-counter" id="bar-counter">– / 8 小節</span>
+                <span class="latest-verdict" id="latest-verdict" data-state="idle">スタンバイ</span>
+            </div>
+            <div class="progress-wrap">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+
+            <!-- 4. 入力方法（タップ / ストローク） -->
+            <div class="input-mode" id="input-mode">
+                <button type="button" class="input-seg is-active" id="mode-tap-btn" data-mode="tap">タップ</button>
+                <button type="button" class="input-seg" id="mode-stroke-btn" data-mode="stroke">ストローク</button>
+            </div>
+
+            <!-- 5. スクロール譜面レーン（主役） + タップ入力エリア -->
+            <div class="lane-wrap" id="tap-pad">
+                <canvas id="lane-canvas"></canvas>
+                <div class="judge-fx-layer" id="judge-fx-layer"></div>
+                <div class="combo-badge hidden" id="combo-badge"></div>
+            </div>
+            <p class="tap-hint" id="tap-hint">画面をタップして練習</p>
+
+            <!-- 6. 開始/停止（兼用）-->
+            <div class="transport">
+                <button class="btn-primary transport-main" id="play-btn">▶ 開始</button>
+            </div>
+        </section>
+
+        <!-- ══════════ 設定画面（マイク感度など） ══════════ -->
+        <section id="screen-settings" class="screen hidden">
+            <header class="settings-head">
+                <h2>マイク設定</h2>
+                <p class="settings-sub">クリック音とストローク音を確認して、反応しやすさを調整します</p>
+            </header>
+
+            <!-- 1. マイク反応テスト（自動フロー・一番上） -->
+            <div class="settings-card test-card">
+                <div class="cal-head">マイク反応テスト</div>
+                <p class="setting-note">クリック音が反応せず、ストローク音だけ反応するかを自動でチェックします。</p>
+                <div class="test-row">
+                    <button class="btn-mic test-run-btn" id="mic-test-btn">マイク反応テストを開始</button>
+                    <span class="test-mic-state hidden" id="test-mic-state">マイク ON</span>
+                </div>
+                <div class="test-live hidden" id="test-live">
+                    <div class="mic-meter test-meter">
+                        <div class="mic-meter-fill" id="test-level"></div>
+                        <div class="mic-threshold" id="test-threshold"></div>
+                    </div>
+                </div>
+                <p class="test-phase" id="test-phase"></p>
+                <p class="test-result" id="test-result"></p>
+                <div class="test-reco hidden" id="test-reco">
+                    <div class="reco-title">おすすめ設定</div>
+                    <div class="reco-items">
+                        <div class="reco-item"><span>反応ライン（マイク感度）</span><b id="reco-thr">–</b></div>
+                        <div class="reco-item"><span>クリック音量</span><b id="reco-clickvol">–</b></div>
+                        <div class="reco-item"><span>二重反応防止</span><b id="reco-cooldown">–</b></div>
+                    </div>
+                    <button class="btn-primary hidden" id="reco-apply-btn">おすすめ設定を適用</button>
+                    <p class="test-reco-msg hidden" id="reco-msg"></p>
+                    <details class="settings-detail test-detail" id="test-detail">
+                        <summary>詳細なテスト結果</summary>
+                        <div class="level-bar">
+                            <div class="level-track"></div>
+                            <div class="level-zone" id="bar-zone"></div>
+                            <div class="level-marker mk-click" id="bar-click"></div>
+                            <div class="level-marker mk-line" id="bar-line"></div>
+                            <div class="level-marker mk-stroke" id="bar-stroke"></div>
+                        </div>
+                        <div class="level-legend">
+                            <span class="lg-click">● クリック音最大</span>
+                            <span class="lg-line">● おすすめライン</span>
+                            <span class="lg-stroke">● ストローク最小</span>
+                        </div>
+                        <div class="test-detail-stats" id="test-detail-stats"></div>
+                    </details>
+                </div>
+            </div>
+
+            <!-- 2. マイクの遅れ補正 -->
+            <div class="settings-card cal-card">
+                <div class="cal-head">マイクの遅れ補正</div>
+                <p class="setting-note">マイク入力の遅れを測って補正します。</p>
+                <button class="btn-mic cal-run-btn" id="cal-btn">マイクの遅れテストを開始</button>
+                <p class="cal-status hidden" id="cal-status"></p>
+                <div class="cal-monitor hidden" id="cal-monitor">
+                    <div class="mic-meter">
+                        <div class="mic-meter-fill" id="cal-level"></div>
+                        <div class="mic-threshold" id="cal-threshold"></div>
+                    </div>
+                </div>
+                <div class="cal-result hidden" id="cal-result">
+                    <div class="cal-result-row"><span>測定遅延</span><b id="cal-delay">–</b></div>
+                    <div class="cal-result-row"><span>補正値</span><b id="cal-offset">–</b></div>
+                    <div class="cal-result-row"><span>検出成功</span><b id="cal-success">–</b></div>
+                    <div class="cal-result-row"><span>ばらつき</span><b id="cal-spread">–</b></div>
+                    <button class="btn-primary cal-apply-btn" id="cal-apply-btn">この補正を適用</button>
+                </div>
+            </div>
+
+            <!-- 3. 手動設定はこちら（折りたたみ） -->
+            <div class="settings-card">
+                <details class="settings-detail" id="manual-detail">
+                    <summary>手動設定はこちら</summary>
+                    <p class="setting-note">うまく反応しない場合だけ調整してください。</p>
+
+                    <div class="preview-block">
+                        <div class="preview-head">マイク判定の見え方</div>
+                        <canvas id="mic-preview-canvas"></canvas>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="setting-label">反応ライン（マイク感度） <b id="set-threshold-val">69％</b></div>
+                        <input type="range" id="set-threshold" min="0" max="100" step="1" value="69">
+                        <p class="setting-note">右にすると小さい音にも反応します。誤反応が多いときは左へ。</p>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-label">クリック音量 <b id="set-clickvol-val">70％</b></div>
+                        <input type="range" id="set-clickvol" min="0" max="100" step="5" value="70">
+                        <p class="setting-note">クリック音がマイクに入る場合は下げます。聞き取りにくい場合は上げます。</p>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-label">二重反応防止 <b id="set-cooldown-val">200ms</b></div>
+                        <input type="range" id="set-cooldown" min="100" max="400" step="10" value="200">
+                        <p class="setting-note">1回のストロークで何度も反応する場合は長めにします。</p>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-label">マイクの遅れ補正 <b id="set-offset-val">0ms</b></div>
+                        <input type="range" id="set-offset" min="-150" max="150" step="5" value="0">
+                        <p class="setting-note">判定が遅れ気味に出る場合はマイナス方向へ。上のカードで自動測定もできます。</p>
+                    </div>
+                </details>
+            </div>
+
+            <div class="settings-actions">
+                <button class="btn-mini" id="settings-reset-btn">初期値に戻す</button>
+                <button class="btn-primary settings-back" id="settings-back-btn">完了</button>
+            </div>
+        </section>
+
+        <!-- バージョン表示＋ページ更新（クルーズアプリシリーズ共通UI） -->
+        <div id="in-game-refresh-bar" class="in-game-refresh-bar" aria-label="バージョンとページの再読み込み">
+            <span id="app-version-display" class="app-version-display"></span>
+            <button type="button" class="btn-refresh js-reload-app">ページを更新</button>
+        </div>
+
+    </div>
+
+    <!-- 結果モーダル（body直下：画面のtransformに影響されずビューポート基準で全面表示）
+         構成：スコア → ズレ確認レーン(メイン) → 一言コメント → 詳細(内訳・ズレ履歴) → 閉じる/もう一度 -->
+    <div class="results-overlay hidden" id="results-overlay">
+        <div class="results-card" id="results-card">
+            <div class="results-title">RESULT</div>
+
+            <!-- 1. スコア -->
+            <div class="score-big"><b id="r-score">0</b><span>点</span></div>
+
+            <!-- 2. ズレ確認レーン（メイン・全32拍を流れる譜面で振り返り） -->
+            <p class="review-hint">本来の音符＝薄い黄色／自分の入力＝<b class="rv-just">緑</b>・<b class="rv-early">青</b>・<b class="rv-late">赤</b>・<b class="rv-miss">×</b>。横にスクロールして全32拍を確認できます。</p>
+            <div class="review-wrap" id="review-wrap">
+                <canvas id="review-canvas"></canvas>
+            </div>
+
+            <!-- 3. 一言コメント -->
+            <p class="tendency" id="r-comment"></p>
+
+            <!-- 4. 詳細（内訳・ズレ履歴グラフ）：折りたたみ -->
+            <details class="results-detail" id="results-detail">
+                <summary class="results-detail-summary">詳細（内訳・ズレ履歴グラフ）</summary>
+                <div class="results-detail-body">
+                    <p class="result-breakdown">内訳：<b class="bd-just">GOOD</b> <b id="r-just">0</b>／<b class="bd-early">EARLY</b> <b id="r-early">0</b>／<b class="bd-late">LATE</b> <b id="r-late">0</b>／<b class="bd-miss">MISS</b> <b id="r-miss">0</b>　｜　平均ズレ <b id="r-avg">±0</b>ms</p>
+                    <div class="graph-wrap">
+                        <div class="graph-head">
+                            <span>ズレ履歴（全32拍）</span>
+                            <span class="graph-axis">縦軸＝ズレ</span>
+                        </div>
+                        <canvas id="graph-canvas"></canvas>
+                    </div>
+                </div>
+            </details>
+
+            <!-- 5. 閉じる / もう一度 -->
+            <div class="results-actions">
+                <button class="btn-ghost" id="r-close-btn">閉じる</button>
+                <button class="btn-primary" id="retry-btn">▶ もう一度</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js?v=26"></script>
+</body>
+
+</html>
