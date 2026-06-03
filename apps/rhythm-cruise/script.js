@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.28';
+const RHYTHM_CRUISE_VERSION = '0.9.29';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -34,12 +34,13 @@ const RISE_DELTA = 0.12;
 /* 本番STAGEのマイク判定で、穏やかな立ち上がり（窓内で threshold 超え）も拾うヒステリシス検出を有効にする。
    true: 再アーム後、しきい値超えで1回検出。後で調整・無効化しやすいようフラグ化。 */
 const MIC_SUSTAINED_ONSET = true;
-/* 本番STAGEのマイク判定だけ、表示の反応ラインより低い値で検出する（拾いやすさ優先）。
-   表示上の反応ライン(mic.threshold)は変えず、検出だけ ×0.5。おすすめ反応ラインを実用範囲(70%前後)に
-   抑えても、この係数で小さめのストローク入力を確実に拾えるようにする。 */
-const MIC_STAGE_DETECT_FACTOR = 0.5;
-/* 再アーム条件：検出しきい値×この値を下回ったら次の入力を拾える状態に戻す（0.5→0.65で少し緩め） */
-const MIC_REARM_FACTOR = 0.65;
+/* 本番STAGEのマイク判定の検出しきい値係数。
+   おすすめ反応ライン自体を「実際に拾える実ライン」に置くようにしたので、本番でも表示の反応ラインと
+   同じ値で検出する（=1.0）。穏やかな立ち上がりは下のヒステリシスで拾う。
+   ※以前は表示%調整のために 0.5 にしていたが、反応ライン超え＝検出 の整合を最優先するため 1.0 に戻す。 */
+const MIC_STAGE_DETECT_FACTOR = 1.0;
+/* 再アーム条件：検出しきい値×この値を下回ったら次の入力を拾える状態に戻す */
+const MIC_REARM_FACTOR = 0.6;
 
 /* 波形・レベル表示のスケール。反応ライン(threshold)を表示上 1/SCALE の高さに見せる＝
    threshold は常に約 40% の位置。thresholdが低いほど同じ入力でも波形が大きく見える（表示のみ・判定は不変）。 */
@@ -57,7 +58,7 @@ const MIC_WAVE_WINDOW_MS = 4000;
 
 /* 設定の保存キーと初期値 */
 const SETTINGS_KEY = 'rhythmCruiseSettings';
-const SETTINGS_DEFAULTS = { threshold: 0.05, cooldownMs: 200, clickGuardMs: 60, timingOffsetMs: 0, clickVolume: 70 };
+const SETTINGS_DEFAULTS = { threshold: 0.025, cooldownMs: 200, clickGuardMs: 60, timingOffsetMs: 0, clickVolume: 70 };
 
 /* マイク補正キャリブレーション設定 */
 const CAL_CLICKS = 8;       // 測定で鳴らすクリック数
@@ -690,11 +691,30 @@ function drawStrokeArrow(ctx, x, y, dir, color, alpha) {
 
 /* ── マイク入力波形（譜面レーン背景・グレー） ──────────── */
 function drawMicWaveform(ctx, w, h, yc) {
+    const ppm = state.pxPerMs, jx = state.judgeX;
+    const maxAmp = h * 0.34;
+
+    // 反応ライン（ストロークモード時）：波形の上下に薄い横線＋小ラベル。
+    // 表示は相対スケールなので、反応ラインは常に振幅 micDisplayFrac(threshold)（≒0.4）の高さに来る。
+    if (state.inputMode === 'stroke' || mic.on) {
+        const lineAmp = micDisplayFrac(mic.threshold) * maxAmp;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255,159,28,0.30)';
+        ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, yc - lineAmp); ctx.lineTo(w, yc - lineAmp); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, yc + lineAmp); ctx.lineTo(w, yc + lineAmp); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(255,159,28,0.5)';
+        ctx.font = '600 9px Outfit, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('反応ライン', 4, yc - lineAmp - 3);
+        ctx.restore();
+    }
+
     const hist = state.micWaveHistory;
     if (hist.length < 2) return;
     const now = performance.now();
-    const ppm = state.pxPerMs, jx = state.judgeX;
-    const maxAmp = h * 0.34;
     // マイク判定補正を波形にも反映し、判定マーカーと時間軸を揃える
     // （判定は perf+offset で評価するため、波形も同じ offset で前後させる）
     const off = mic.timingOffsetMs;
@@ -781,6 +801,14 @@ function drawLane(t) {
                 ctx.shadowColor = 'rgba(255,140,60,0.7)'; ctx.shadowBlur = 8;
                 drawQuarterNote(ctx, x, yc, '#ff8c3c');
                 ctx.restore();
+                // 短い理由ラベル（タイミング外/方向ちがい）
+                const mr = missReason(i);
+                if (mr && mr.code !== 'low') {
+                    ctx.save(); ctx.fillStyle = 'rgba(255,140,60,0.95)';
+                    ctx.font = '700 9px Outfit, sans-serif'; ctx.textAlign = 'center';
+                    ctx.fillText(mr.short, x, yc + 46);
+                    ctx.restore();
+                }
             } else {
                 drawQuarterNote(ctx, x, yc, NOTE_COLOR); // 採点対象 = 4分音符
             }
@@ -995,7 +1023,7 @@ function drawReview() {
                 drawQuarterNote(ctx, x, yc, '#ff8c3c');
                 ctx.restore();
                 ctx.fillStyle = '#ff8c3c';
-                ctx.fillText('入力MISS', x, msY);
+                ctx.fillText((missReason(i) || {}).short || '入力MISS', x, msY); // 多くは「タイミング外」
             } else {
                 // MISS：薄いグレーの×（未入力）
                 ctx.save(); ctx.globalAlpha = 0.55;
@@ -1009,16 +1037,14 @@ function drawReview() {
                 ctx.fillText('MISS', x, msY);
             }
         } else if (cls === 'miss') {
-            // タップはしたが MISS（方向ちがい等）：グレーの×＋ラベル
+            // 入力はあったがMISS（方向違い／タイミング外）：薄いオレンジ＋理由ラベル
+            const mr = missReason(i) || { short: 'MISS' };
             ctx.save(); ctx.globalAlpha = 0.7;
-            ctx.strokeStyle = COLORS.miss; ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(x - 5, yc - 5); ctx.lineTo(x + 5, yc + 5);
-            ctx.moveTo(x + 5, yc - 5); ctx.lineTo(x - 5, yc + 5);
-            ctx.stroke();
+            ctx.shadowColor = 'rgba(255,140,60,0.6)'; ctx.shadowBlur = 6;
+            drawQuarterNote(ctx, x, yc, '#ff8c3c');
             ctx.restore();
-            ctx.fillStyle = COLORS.miss;
-            ctx.fillText(r.dirMiss ? '方向MISS' : 'MISS', x, msY);
+            ctx.fillStyle = '#ff8c3c';
+            ctx.fillText(mr.short, x, msY);
         } else if (cls === 'just') {
             // GOOD：音符自体が緑。ズレms（緑）
             const d = Math.round(r.diff);
@@ -1278,23 +1304,46 @@ function maybeShowClickPickupWarning() {
 
 /* MISSの原因を切り分けて軽く表示（ストローク＝マイク入力時のみ）。
    判定窓内の最大マイク入力が反応ライン未満＝入力レベル不足／反応ライン超え＝判定候補にならず。 */
+/* 拍 i がMISSの場合、その原因を返す。
+   code: 'low'（入力ライン未満）/ 'timing'（タイミング外）/ 'dir'（方向違い）/ 'other'（その他）/ null（MISSでない）
+   short: 本番中の短い表示、long: 結果詳細での表示 */
+function missReason(i) {
+    const r = state.results[i];
+    const isMiss = !r || r.cls === 'miss';
+    if (!isMiss) return null;
+    const hadInput = (state.beatMicPeak[i] || 0) >= mic.threshold;
+    if (r && r.dirMiss) return { code: 'dir', short: '方向ちがい', long: '方向違い' };
+    if (r && r.cls === 'miss') return { code: 'timing', short: 'タイミング外', long: 'タイミング外' };
+    // 未登録（results なし）
+    if (hadInput) return { code: 'timing', short: 'タイミング外', long: 'タイミング外' };
+    return { code: 'low', short: 'MISS', long: '入力ライン未満' };
+}
+
 function updateMissInfo() {
     if (!els.resultsMissInfo) return;
     if (state.inputMode !== 'stroke') { els.resultsMissInfo.classList.add('hidden'); return; }
-    let missTotal = 0, lowLevel = 0, hadInput = 0;
+    let missTotal = 0, low = 0, timing = 0, dir = 0, other = 0;
     for (let i = 0; i < TOTAL_BEATS; i++) {
-        const r = state.results[i];
-        const isMiss = !r || r.cls === 'miss';
-        if (!isMiss) continue;
+        const m = missReason(i);
+        if (!m) continue;
         missTotal++;
-        const pk = state.beatMicPeak[i] || 0;
-        if (pk >= mic.threshold) hadInput++;     // 反応ラインは超えていたのに未登録
-        else lowLevel++;                          // 入力レベル不足
+        if (m.code === 'low') low++;
+        else if (m.code === 'timing') timing++;
+        else if (m.code === 'dir') dir++;
+        else other++;
     }
     if (missTotal === 0) { els.resultsMissInfo.classList.add('hidden'); return; }
-    const cause = (hadInput > lowLevel) ? '判定条件が厳しい可能性' : '入力レベル不足';
-    els.resultsMissInfo.textContent = 'MISS ' + missTotal + ' 拍：入力ライン未満 ' + lowLevel
-        + ' ／ 入力あり ' + hadInput + '（主な原因：' + cause + '）';
+    const hadInput = timing + dir + other;
+    // 入力ライン未満（音量不足）と、入力ありMISS（反応ライン超えたが判定外）を別原因として表示
+    let txt = 'MISS ' + missTotal + ' 拍：入力ライン未満 ' + low + ' ／ 入力ありMISS ' + hadInput;
+    if (hadInput > 0) {
+        const parts = [];
+        if (timing > 0) parts.push('タイミング外 ' + timing);
+        if (dir > 0) parts.push('方向違い ' + dir);
+        if (other > 0) parts.push('その他 ' + other);
+        txt += '（' + parts.join(' / ') + '）';
+    }
+    els.resultsMissInfo.textContent = txt;
     els.resultsMissInfo.classList.remove('hidden');
 }
 
@@ -1489,10 +1538,10 @@ function clampNum(v, lo, hi, fallback) {
 }
 
 /* マイク感度の表示は「低い←→高い」。内部 threshold は高感度ほど小さい（逆変換）。
-   感度0% = threshold 0.12（大きい音だけ）、感度100% = threshold 0.005（極小の音にも）。
-   実機のストローク入力は小さいため、実用域(threshold 0.03〜0.05)が 70% 前後に来るよう
-   上限を 0.12 に。おすすめは低感度寄り(70%前後)でも、本番STAGEの検出係数で小入力を拾う。 */
-const THR_MIN = 0.005, THR_MAX = 0.12;
+   感度0% = threshold 0.05（大きい音だけ）、感度100% = threshold 0.005（極小の音にも）。
+   実機のストローク（最小 0.02 前後）を拾う実ラインが UI上 60〜70% に来るよう上限を 0.05 に設定。
+   例：threshold 0.020 → 約67%、0.023 → 約60%、0.012 → 約84%。 */
+const THR_MIN = 0.005, THR_MAX = 0.05;
 function sensFromThreshold(thr) {
     return Math.round((THR_MAX - thr) / (THR_MAX - THR_MIN) * 100);
 }
@@ -2049,7 +2098,7 @@ function beginStrokePhase() {
         tSet(() => {
             if (test.mode !== 'stroke') return;
             setTestPhase('カウントイン　' + labels.slice(0, i + 1).join(' '));
-            testCountBeep(i === 0); // 1拍目だけアクセント
+            click(i === 0, true); // STAGE/クリック音テストと同じ click() を使用（音を統一）。1拍目だけアクセント
         }, ms);
     }
     // 最後の 4 の1拍後に最初の音符（TEST_LEAD_MS）。本編表示へ切替。
@@ -2238,26 +2287,25 @@ function updateReco() {
 
     const maxStroke = test.maxStrokePeak; // 全ストローク最大（検出分）
 
-    // ① 反応ライン（マイク感度）：実用的な初期おすすめ（70〜85%目標）。
-    //    本番STAGEは検出を ×MIC_STAGE_DETECT_FACTOR で補助するため、表示の反応ラインは少し高め（低感度寄り）でも
-    //    実際の検出は p25 付近を拾える。基準＝下位25%（ロバスト）÷係数 で、表示thresholdを引き上げる。
+    // ① 反応ライン（マイク感度）：そのまま適用される「実ライン」を、確実にストロークを拾える位置に置く。
+    //    クリック音最大より上・ストローク最小より下。基準はストローク最小×0.85（＝最小も拾える）。
+    //    本番STAGEも同じ実ラインで検出する（係数=1.0）。例：ストローク最小0.023 → 約0.0196 ≈ 67%。
     let canApply = false;
     let highSens = false;
     if (minStroke != null) {
-        const basisP25 = (test.strokeP25 != null) ? test.strokeP25 : minStroke;
-        // 本番の実効検出 = rec×係数(0.5)。実効が p25×0.9 になるよう rec を決める＝表示は低感度寄り(70%前後)。
-        let rec = (basisP25 * 0.9) / MIC_STAGE_DETECT_FACTOR;
-        // クリック音より実効検出が下回らないよう、クリック最大/係数 を下限に
-        rec = Math.max(rec, (maxClick + 0.004) / MIC_STAGE_DETECT_FACTOR);
-        rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
+        let rec = minStroke * 0.85;                       // ストローク最小も拾える位置
+        rec = Math.max(rec, maxClick + 0.003);            // クリック音最大よりは上に
+        rec = Math.min(rec, minStroke * 0.95);            // ストローク最小は必ず超えない
+        rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));  // 安全クランプ（ストローク最大を超えることはない）
         test.recommended = rec;
         const sens = sensFromThreshold(rec);
-        highSens = sens >= 88; // 88%以上は「かなり高感度」として案内
+        highSens = sens >= 80; // 80%以上は「かなり高感度」として案内
         els.recoThr.textContent = sens + '％';
         canApply = true;
     } else if (maxStrokeRaw != null && maxStrokeRaw > THR_MIN * 2) {
         // 検出0回でも、受付中最大の少し下を仮提案（拾える方向に低めへ）
-        let rec = Math.max(THR_MIN, maxStrokeRaw * 0.6);
+        let rec = Math.max(THR_MIN, maxStrokeRaw * 0.7);
+        rec = Math.max(rec, maxClick + 0.003);
         rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
         test.recommended = rec;
         els.recoThr.textContent = (provisional ? '仮 ' : '') + sensFromThreshold(rec) + '％';
@@ -2665,7 +2713,7 @@ async function startCalibration() {
         if (cal.i >= CAL_CLICKS) { clearInterval(cal.timer); cal.timer = 0; finishCalibration(); return; }
         cal.i++;
         cal.lastClickPerf = performance.now();
-        calClick(); // 測定専用クリック（広帯域・最大音量・iPhoneでも拾いやすい）
+        click(true, true); // STAGE等と同じ click() を使用（音を統一）。測定中は state.clickVolume=CAL_CLICK_VOLUME で大きめ
         setCalUI('measuring');
     }, CAL_INTERVAL_MS);
 }
