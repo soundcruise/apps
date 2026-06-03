@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=23">
+    <link rel="stylesheet" href="theme.css?v=24">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -90,6 +90,15 @@
                 <button type="button" class="input-seg" id="mode-stroke-btn" data-mode="stroke">ストローク</button>
             </div>
 
+            <!-- マイク許可成功後の設定誘導（初回のみ表示） -->
+            <div class="mic-setup-prompt hidden" id="mic-setup-prompt" role="status">
+                <p class="msp-text">🎤 マイクの準備ができました。最初にマイク設定をしておくと、ストローク判定が安定します。</p>
+                <div class="msp-actions">
+                    <button type="button" class="btn-primary msp-yes" id="mic-setup-yes">マイク設定する</button>
+                    <button type="button" class="btn-ghost msp-later" id="mic-setup-later">あとで</button>
+                </div>
+            </div>
+
             <!-- 5. スクロール譜面レーン（主役） + タップ入力エリア -->
             <div class="lane-wrap" id="tap-pad">
                 <canvas id="lane-canvas"></canvas>
@@ -97,6 +106,18 @@
                 <div class="combo-badge hidden" id="combo-badge"></div>
             </div>
             <p class="tap-hint" id="tap-hint">画面をタップして練習</p>
+
+            <!-- タップエリア（タップモード時のみ・左：ダウン / 右：アップ） -->
+            <div class="tap-area" id="tap-area">
+                <button type="button" class="tap-half tap-down" data-dir="down" aria-label="ダウンストローク">
+                    <span class="tap-arrow">↓</span>
+                    <span class="tap-label">ダウン</span>
+                </button>
+                <button type="button" class="tap-half tap-up" data-dir="up" aria-label="アップストローク">
+                    <span class="tap-arrow">↑</span>
+                    <span class="tap-label">アップ</span>
+                </button>
+            </div>
 
             <!-- 6. 開始/停止（兼用）-->
             <div class="transport">
@@ -112,8 +133,11 @@
             </header>
 
             <!-- 1. マイク反応テスト（自動フロー・一番上） -->
-            <div class="settings-card test-card">
-                <div class="cal-head">マイク反応テスト</div>
+            <div class="settings-card test-card" id="test-card">
+                <div class="cal-head-row">
+                    <div class="cal-head" id="test-card-head">マイク反応テスト</div>
+                    <span class="test-done-badge hidden" id="test-done-badge">✅ テスト済み</span>
+                </div>
                 <p class="setting-note">クリック音が反応せず、ストローク音だけ反応するかを自動でチェックします。</p>
                 <div class="test-row">
                     <button class="btn-mic test-run-btn" id="mic-test-btn">マイク反応テストを開始</button>
@@ -165,6 +189,11 @@
                     <div class="mic-meter">
                         <div class="mic-meter-fill" id="cal-level"></div>
                         <div class="mic-threshold" id="cal-threshold"></div>
+                    </div>
+                    <div class="cal-monitor-stats">
+                        <span>検出 <b id="cal-count">0回</b></span>
+                        <span>直近レベル <b id="cal-last">0.00</b></span>
+                        <span>最大レベル <b id="cal-max">0.00</b></span>
                     </div>
                 </div>
                 <div class="cal-result hidden" id="cal-result">
@@ -265,7 +294,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=26"></script>
+    <script src="script.js?v=27"></script>
 </body>
 
 </html>

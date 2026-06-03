@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.15';
+const RHYTHM_CRUISE_VERSION = '0.9.16';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -18,9 +18,11 @@ const CLICK_TEST_COUNT = 8;
 const STROKE_TEST_COUNT = 4;
 
 /* キャリブレーション中だけ使う測定専用値（通常設定とは独立。終了後に復元する） */
-const CAL_CLICK_VOLUME = 85;   // 測定用クリック音量（やや大きめ）
-const CAL_THRESHOLD = 0.13;    // 測定用しきい値（検出しやすく・ノイズで反応しすぎない）
+const CAL_CLICK_VOLUME = 100;  // 測定用クリック音量（最大・iPhoneでも拾いやすく）
+const CAL_THRESHOLD = 0.08;    // 測定用しきい値（iPhoneの小さめ入力でも拾えるよう低め）
 const CAL_COOLDOWN_MS = 150;   // 測定用クールダウン
+/* マイク入力がこの値未満なら「入力がほとんど無い」とみなす（失敗理由の判定用） */
+const CAL_SILENCE_PEAK = 0.02;
 
 /* クリック音ガード中でも、これ以上の大きさなら本物のストロークとみなして通す（しきい値の倍率） */
 const STRONG_STROKE_FACTOR = 1.5;
@@ -92,6 +94,9 @@ const state = {
     clickEnabled: true,
     clickVolume: 70,   // クリック音量 0..100%
     lastClickPerf: -9999,
+    // マイク設定の進捗フラグ（localStorageに保存）
+    micTestDone: false,       // マイク反応テストを完了したか
+    micSetupPrompted: false,  // マイク許可後の設定誘導を表示済みか
 };
 
 /* ── マイク判定PoC 状態 ─────────────────────────────────── */
@@ -131,6 +136,11 @@ const cal = {
     lastAt: null,
     saved: null,     // 開始時に退避したユーザー設定
     successCount: 0, // 検出できたクリック数
+    // 測定モニター・失敗理由判定用
+    maxPeak: 0,      // 測定中に観測した最大入力レベル
+    rawOnsets: 0,    // 範囲内外を問わず検出した立ち上がり数
+    outOfRange: 0,   // 検出はしたが妥当範囲(5..400ms)外だった数
+    lastLevel: 0,    // 直近の入力レベル（表示用）
 };
 
 /* 実音テスト（設定画面）の状態。registerHit/スコアには一切流さない */
@@ -196,6 +206,10 @@ const els = {
     playBtn: $('play-btn'),
     modeTapBtn: $('mode-tap-btn'),
     modeStrokeBtn: $('mode-stroke-btn'),
+    tapArea: $('tap-area'),
+    micSetupPrompt: $('mic-setup-prompt'),
+    micSetupYesBtn: $('mic-setup-yes'),
+    micSetupLaterBtn: $('mic-setup-later'),
     resultsOverlay: $('results-overlay'),
     rCloseBtn: $('r-close-btn'),
     resultsCard: $('results-card'),
@@ -254,9 +268,15 @@ const els = {
     calMonitor: $('cal-monitor'),
     calLevel: $('cal-level'),
     calThreshold: $('cal-threshold'),
+    calCount: $('cal-count'),
+    calLast: $('cal-last'),
+    calMax: $('cal-max'),
     calSuccess: $('cal-success'),
     calSpread: $('cal-spread'),
     // 実音テスト
+    testCard: $('test-card'),
+    testCardHead: $('test-card-head'),
+    testDoneBadge: $('test-done-badge'),
     testMicState: $('test-mic-state'),
     testLevel: $('test-level'),
     testThreshold: $('test-threshold'),
@@ -389,6 +409,48 @@ function click(accent, force) {
     osc.connect(gain).connect(ctx.destination);
     osc.start(t0);
     osc.stop(t0 + 0.09);
+}
+
+/* マイクの遅れ補正テスト専用クリック。
+   通常クリック（短い矩形波）よりマイクで拾いやすいよう、
+   ・音量を最大（peak高め）
+   ・短いホワイトノイズのバースト（広帯域＝iPhoneマイクが拾いやすい）
+   ・矩形波トーンも重ねてアタックをはっきりさせる
+   通常STAGEのクリック音(click)は一切変更しない。 */
+function calClick() {
+    const ctx = state.audioCtx;
+    if (!ctx) { console.warn('[cal] AudioContext 未生成'); return; }
+    if (ctx.state === 'suspended') ctx.resume();
+    state.lastClickPerf = performance.now();
+    const t0 = ctx.currentTime;
+
+    // ① 広帯域ノイズのバースト（マイクで拾いやすい・約45ms）
+    const dur = 0.05;
+    const buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * dur), ctx.sampleRate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < ch.length; i++) {
+        const env = 1 - (i / ch.length);   // 直線的に減衰
+        ch[i] = (Math.random() * 2 - 1) * env;
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+    const nGain = ctx.createGain();
+    nGain.gain.setValueAtTime(0.9, t0);
+    noise.connect(nGain).connect(ctx.destination);
+    noise.start(t0);
+    noise.stop(t0 + dur);
+
+    // ② 矩形波トーン（アタックを明確に・約90ms）
+    const osc = ctx.createOscillator();
+    const oGain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.value = 1000;
+    oGain.gain.setValueAtTime(0.0001, t0);
+    oGain.gain.exponentialRampToValueAtTime(0.8, t0 + 0.003);
+    oGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.1);
+    osc.connect(oGain).connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + 0.11);
 }
 
 /* クリック音がスピーカーから実際に出るまでの推定遅延(ms)。
@@ -897,10 +959,12 @@ function classify(diff) {
 }
 
 /* タップ／マイク 共通の判定入口。source: 'tap' | 'mic'
+   direction: 'down' | 'up'（タップエリアの左右。将来「表＝ダウン／裏＝アップ」判定に拡張可能）。
    マイク由来のみ timingOffsetMs を適用（タップには適用しない）。
    登録できたら true、範囲外/停止中で登録しなかったら false を返す。 */
-function registerHit(perfNow, source) {
+function registerHit(perfNow, source, direction) {
     if (!state.running) return false;
+    const dir = direction || (source === 'mic' ? 'stroke' : 'down');
     // マイク補正：検出時刻に補正値を加算（負＝早める）
     const effPerf = (source === 'mic') ? perfNow + mic.timingOffsetMs : perfNow;
     const hitTime = effPerf - state.startTime;
@@ -920,10 +984,10 @@ function registerHit(perfNow, source) {
     // 同じ拍に複数検出 → 最もジャストに近いものを採用
     const prev = state.results[i];
     if (!prev || Math.abs(diff) < Math.abs(prev.diff)) {
-        state.results[i] = { tapped: true, diff, cls, source };
+        state.results[i] = { tapped: true, diff, cls, source, direction: dir };
     }
 
-    state.markers.push({ t: hitTime, cls, source });
+    state.markers.push({ t: hitTime, cls, source, direction: dir });
     const sign = diff > 0 ? '+' : (diff < 0 ? '−' : '±');
     const icon = source === 'mic' ? '🎤 ' : '';
     els.latestVerdict.dataset.state = cls;
@@ -960,8 +1024,9 @@ function updateCombo() {
     }
 }
 
-function onTap() {
-    registerHit(performance.now(), 'tap');
+/* direction: 'down' | 'up'（タップエリアの左右。レーン直タップは既定でダウン） */
+function onTap(direction) {
+    registerHit(performance.now(), 'tap', direction || 'down');
 }
 
 /* ── 再生制御 ───────────────────────────────────────────── */
@@ -1133,17 +1198,36 @@ function setInputMode(mode) {
     if (els.modeStrokeBtn) els.modeStrokeBtn.classList.toggle('is-active', mode === 'stroke');
     if (mode === 'tap') {
         if (mic.on) stopMic();          // タップ練習はマイクOFF
-        if (els.tapHint) els.tapHint.textContent = '画面をタップして練習';
+        if (els.tapArea) els.tapArea.classList.remove('hidden');  // タップエリア表示（左ダウン/右アップ）
+        hideMicSetupPrompt();
+        if (els.tapHint) els.tapHint.textContent = '左：ダウン ／ 右：アップ（画面タップでも練習できます）';
     } else {
-        if (els.tapHint) els.tapHint.textContent = '実際にストローク（タップも可）';
+        if (els.tapArea) els.tapArea.classList.add('hidden');     // ストローク時はタップエリアを畳む
+        if (els.tapHint) els.tapHint.textContent = '実際にストロークしてください';
         if (!mic.on) {
             startMic().then(() => {
-                if (!mic.on && els.tapHint) {
+                if (mic.on) {
+                    maybeShowMicSetupPrompt();   // 許可成功 → 初回のみマイク設定へ誘導
+                } else if (els.tapHint) {
                     els.tapHint.textContent = 'マイクを許可してください。右上の設定から確認できます。';
                 }
             });
         }
     }
+}
+
+/* マイク許可成功直後の設定誘導（初回のみ。テスト済み or 表示済みなら出さない） */
+function maybeShowMicSetupPrompt() {
+    if (state.micTestDone || state.micSetupPrompted) return;
+    if (!els.micSetupPrompt) return;
+    if (els.practice.classList.contains('hidden')) return; // STAGE画面表示中のみ
+    els.micSetupPrompt.classList.remove('hidden');
+    state.micSetupPrompted = true; // 一度出したら毎回は出さない
+    saveSettings();
+}
+
+function hideMicSetupPrompt() {
+    if (els.micSetupPrompt) els.micSetupPrompt.classList.add('hidden');
 }
 
 /* ── テンポ操作 ─────────────────────────────────────────── */
@@ -1194,6 +1278,8 @@ function loadSettings() {
     state.clickVolume = clampNum(s.clickVolume, 0, 100, SETTINGS_DEFAULTS.clickVolume);
     if (typeof s.lastCalibrationDelayMs === 'number') cal.measuredDelay = s.lastCalibrationDelayMs;
     if (typeof s.lastCalibrationAt === 'number') cal.lastAt = s.lastCalibrationAt;
+    state.micTestDone = !!s.micTestDone;
+    state.micSetupPrompted = !!s.micSetupPrompted;
 }
 
 function saveSettings() {
@@ -1206,6 +1292,8 @@ function saveSettings() {
             clickVolume: state.clickVolume,
             lastCalibrationDelayMs: cal.measuredDelay,
             lastCalibrationAt: cal.lastAt,
+            micTestDone: state.micTestDone,
+            micSetupPrompted: state.micSetupPrompted,
         }));
     } catch (_) { /* プライベートモード等では無視 */ }
 }
@@ -1234,6 +1322,7 @@ function openSettings(from) {
     settingsReturn = from || 'home';
     if (state.running) stop();
     applySettingsToUI();
+    updateMicTestDoneUI();
     updateTestMicState();
     setTestResult('', '');         // 開始前は説明文を出さない
     setTestPhase('');
@@ -1257,7 +1346,11 @@ function resetSettings() {
     mic.clickGuardMs = SETTINGS_DEFAULTS.clickGuardMs;
     mic.timingOffsetMs = SETTINGS_DEFAULTS.timingOffsetMs;
     state.clickVolume = SETTINGS_DEFAULTS.clickVolume;
+    // マイク設定の進捗フラグもリセット（開発中の動作確認をしやすくするため）
+    state.micTestDone = false;
+    state.micSetupPrompted = false;
     applySettingsToUI();
+    updateMicTestDoneUI();
     drawMicPreview();
     updateMicDiag();
     saveSettings();
@@ -1406,7 +1499,7 @@ function exitTestMode() {
     test.active = false;
     test.mode = null;
     test.flow = false;
-    if (els.micTestBtn) els.micTestBtn.textContent = 'マイク反応テストを開始';
+    if (els.micTestBtn) els.micTestBtn.textContent = micTestBtnIdleLabel();
     setTestPhase('');
     if (els.testLevel) { els.testLevel.style.width = '0%'; els.testLevel.classList.remove('over'); }
 }
@@ -1418,6 +1511,30 @@ function setTestResult(text, kind) {
 }
 
 function setTestPhase(t) { if (els.testPhase) els.testPhase.textContent = t; }
+
+/* マイク反応テスト：未実施/実施済みのボタン文言 */
+function micTestBtnIdleLabel() {
+    return state.micTestDone ? 'もう一度テストする' : 'マイク反応テストを開始';
+}
+
+/* マイク反応テスト「実施済み」表示（チェックマーク・緑の縁取り・ボタン文言） */
+function updateMicTestDoneUI() {
+    const done = state.micTestDone;
+    if (els.testCard) els.testCard.classList.toggle('is-done', done);
+    if (els.testCardHead) els.testCardHead.textContent = done ? '✅ マイク反応テスト済み' : 'マイク反応テスト';
+    if (els.testDoneBadge) els.testDoneBadge.classList.toggle('hidden', !done);
+    // テスト進行中でなければアイドル文言（実施済みなら「もう一度テストする」）に揃える
+    if (els.micTestBtn && !test.flow) els.micTestBtn.textContent = micTestBtnIdleLabel();
+}
+
+/* マイク反応テストの完了を記録（チェック表示・保存） */
+function markMicTestDone() {
+    if (!state.micTestDone) {
+        state.micTestDone = true;
+        saveSettings();
+    }
+    updateMicTestDoneUI();
+}
 
 /* ═══════════════════════════════════════════════════════════
    マイク反応テスト：1ボタンで クリック音テスト → ストロークテスト → 推奨 を自動進行
@@ -1441,7 +1558,7 @@ async function startMicTestFlow() {
 function abortMicTest() {
     clearTestTimers();
     test.flow = false; test.mode = null;
-    els.micTestBtn.textContent = 'マイク反応テストを開始';
+    els.micTestBtn.textContent = micTestBtnIdleLabel();
     setTestPhase('');
     setTestResult('マイク反応テストを中止しました', '');
 }
@@ -1510,7 +1627,7 @@ function runStrokeRound() {
 
 function endStrokePhase() {
     test.mode = null; test.flow = false;
-    els.micTestBtn.textContent = 'マイク反応テストを開始';
+    els.micTestBtn.textContent = micTestBtnIdleLabel();
     setTestPhase('');
     const valid = test.strokePeaks.filter((p) => p >= mic.threshold);
     test.minStrokePeak = valid.length ? Math.min(...valid) : null;
@@ -1525,6 +1642,7 @@ function endStrokePhase() {
 function updateReco() {
     if (!els.testReco) return;
     if (!(test.clickDone && test.strokeDone)) { els.testReco.classList.add('hidden'); return; }
+    markMicTestDone(); // クリック＋ストロークの両テストが完了 → 実施済みにする
     const maxClick = test.clickPeaks.length ? Math.max(...test.clickPeaks) : 0;
     const minStroke = test.minStrokePeak;
     const clickReacted = test.clickResults.filter((r) => r.reacted).length;
@@ -1701,20 +1819,24 @@ function micLoop() {
 
     // ── キャリブレーション中：クリック音→検出の遅延だけを測る（通常判定には流さない）──
     if (mic.calibrating) {
-        // モニター（レベル＋反応ライン）
-        if (els.calLevel) els.calLevel.style.width = (Math.min(1, peak) * 100).toFixed(1) + '%';
+        // モニター（レベル＋反応ライン＋統計）
+        cal.lastLevel = peak;
+        if (peak > cal.maxPeak) cal.maxPeak = peak;
+        if (els.calLevel) {
+            els.calLevel.style.width = (Math.min(1, peak) * 100).toFixed(1) + '%';
+            els.calLevel.classList.toggle('over', peak >= mic.threshold);
+        }
         if (onset && (now - cal.lastDetect) > 150) {
             cal.lastDetect = now;
+            cal.rawOnsets++;
             const d = now - cal.lastClickPerf;
             if (d >= 5 && d <= 400) {
                 cal.samples.push(d);
-                const sorted = cal.samples.slice().sort((a, b) => a - b);
-                const med = Math.round(sorted[Math.floor(sorted.length / 2)]);
-                if (els.calStatus) els.calStatus.textContent =
-                    '測定中 ' + cal.i + ' / ' + CAL_CLICKS + '　検出：' + cal.samples.length + '回　直近：'
-                    + Math.round(d) + 'ms　中央値：' + med + 'ms';
+            } else {
+                cal.outOfRange++;
             }
         }
+        updateCalMonitor();
         mic.prevPeak = peak;
         mic.raf = requestAnimationFrame(micLoop);
         return;
@@ -1789,15 +1911,25 @@ function micLoop() {
    既知タイミングでクリックを鳴らし、マイク検出までの遅延を実測。
    中央値を遅延量とし、補正値 = -遅延 を提案する。
 ═══════════════════════════════════════════════════════════ */
-function setCalUI(mode) {
+/* 測定モニター（入力レベル・反応ライン・検出回数・直近/最大レベル）を更新 */
+function updateCalMonitor() {
+    if (els.calThreshold) els.calThreshold.style.left = (mic.threshold * 100) + '%';
+    if (els.calCount) els.calCount.textContent = cal.samples.length + '回';
+    if (els.calLast) els.calLast.textContent = cal.lastLevel.toFixed(2);
+    if (els.calMax) els.calMax.textContent = cal.maxPeak.toFixed(2);
+}
+
+function setCalUI(mode, arg) {
     if (!els.calStatus) return;
     const showMonitor = (on) => { if (els.calMonitor) els.calMonitor.classList.toggle('hidden', !on); };
     if (mode === 'measuring') {
         els.calStatus.classList.remove('hidden');
-        els.calStatus.textContent = '測定中 ' + cal.i + ' / ' + CAL_CLICKS + '（測定用の音量・感度で実行中・通常設定には影響しません）';
+        els.calStatus.textContent = '測定中 ' + cal.i + ' / ' + CAL_CLICKS
+            + '　検出 ' + cal.samples.length + '回（測定用の音量・感度で実行中・通常設定には影響しません）';
         els.calResult.classList.add('hidden');
         els.calBtn.disabled = true;
         showMonitor(true);
+        updateCalMonitor();
     } else if (mode === 'result') {
         els.calStatus.classList.add('hidden');
         els.calResult.classList.remove('hidden');
@@ -1809,7 +1941,7 @@ function setCalUI(mode) {
         showMonitor(false);
     } else if (mode === 'failed') {
         els.calStatus.classList.remove('hidden');
-        els.calStatus.textContent = '測定できませんでした。スピーカー音量、マイク許可、周囲の音を確認してください。';
+        els.calStatus.textContent = arg || '測定できませんでした。スピーカー音量、マイク許可、周囲の音を確認してください。';
         els.calResult.classList.add('hidden');
         els.calBtn.disabled = false;
         showMonitor(false);
@@ -1854,6 +1986,8 @@ async function startCalibration() {
         if (!mic.on) { setCalUI('failed'); return; }
     }
     ensureAudio();
+    // iOS Safari / PWA 対策：AudioContext が suspended のままだとクリックが鳴らないため明示的に復帰
+    try { if (state.audioCtx.state === 'suspended') await state.audioCtx.resume(); } catch (_) { /* ignore */ }
     applyCalSettings();        // 測定専用値に切替（退避済み）
     cal.active = true;
     cal.samples = [];
@@ -1861,6 +1995,10 @@ async function startCalibration() {
     cal.successCount = 0;
     cal.lastClickPerf = -9999;
     cal.lastDetect = 0;
+    cal.maxPeak = 0;
+    cal.rawOnsets = 0;
+    cal.outOfRange = 0;
+    cal.lastLevel = 0;
     mic.calibrating = true;
     mic.prevPeak = 0;
     setCalUI('measuring');
@@ -1868,9 +2006,23 @@ async function startCalibration() {
         if (cal.i >= CAL_CLICKS) { clearInterval(cal.timer); cal.timer = 0; finishCalibration(); return; }
         cal.i++;
         cal.lastClickPerf = performance.now();
-        click(true, true); // アクセント音・強制発音
+        calClick(); // 測定専用クリック（広帯域・最大音量・iPhoneでも拾いやすい）
         setCalUI('measuring');
     }, CAL_INTERVAL_MS);
+}
+
+/* 測定失敗時に、原因を推定して具体的な案内文を返す（C案：失敗理由の表示） */
+function buildCalFailReason() {
+    if (cal.maxPeak < CAL_SILENCE_PEAK) {
+        return '測定できませんでした：マイク入力がほとんどありません。マイクの許可と、端末の音量を確認してください。';
+    }
+    if (cal.maxPeak < mic.threshold) {
+        return '測定できませんでした：マイク入力が小さすぎます。端末の音量を上げるか、スピーカーに近づけてください。';
+    }
+    if (cal.rawOnsets > 0) {
+        return '測定できませんでした：音は検出していますが、タイミングが安定しません。静かな場所で、もう一度お試しください。';
+    }
+    return '測定できませんでした：クリック音をマイクで検出できませんでした。音量を上げるか、スピーカーに近づけてください。';
 }
 
 function finishCalibration() {
@@ -1879,7 +2031,7 @@ function finishCalibration() {
     restoreCalSettings();     // ユーザー設定へ復元
     const s = cal.samples.slice().sort((a, b) => a - b);
     cal.successCount = s.length;
-    if (s.length < 3) { setCalUI('failed'); return; }
+    if (s.length < 3) { setCalUI('failed', buildCalFailReason()); return; }
     // 外れ値に強い中央値＋ばらつき（中央絶対偏差ベース）
     const median = s[Math.floor(s.length / 2)];
     const devs = s.map((x) => Math.abs(x - median)).sort((a, b) => a - b);
@@ -1974,8 +2126,23 @@ function bind() {
     if (els.resultsDetail) els.resultsDetail.addEventListener('toggle', () => { if (els.resultsDetail.open) fitGraph(); });
 
     // タップ入力：レーン全体（tap-pad＝lane-wrap）。canvasのタップもバブリングで1回だけ拾う
-    const tap = (e) => { e.preventDefault(); onTap(); };
+    const tap = (e) => { e.preventDefault(); onTap('down'); };
     if (els.tapPad) els.tapPad.addEventListener('pointerdown', tap);
+
+    // タップエリア（左：ダウン / 右：アップ）。direction を記録して判定
+    if (els.tapArea) {
+        els.tapArea.querySelectorAll('[data-dir]').forEach((half) => {
+            half.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                onTap(half.getAttribute('data-dir'));
+                half.classList.remove('flash'); void half.offsetWidth; half.classList.add('flash');
+            });
+        });
+    }
+
+    // マイク許可後の設定誘導バナー
+    if (els.micSetupYesBtn) els.micSetupYesBtn.addEventListener('click', () => { hideMicSetupPrompt(); openSettings('practice'); });
+    if (els.micSetupLaterBtn) els.micSetupLaterBtn.addEventListener('click', hideMicSetupPrompt);
 
     // 「ページを更新」ボタン（クルーズアプリシリーズ共通）
     document.querySelectorAll('.js-reload-app').forEach((btn) =>

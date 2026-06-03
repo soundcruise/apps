@@ -1281,6 +1281,39 @@ h1 {
     gap: 10px !important;
 }
 
+/* マイク反応テスト：実施済みの見た目（薄い緑の縁取り） */
+.test-card.is-done {
+    border-color: rgba(46, 204, 113, 0.55);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 0 1px rgba(46, 204, 113, 0.25);
+}
+
+.cal-head-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.test-card.is-done .cal-head {
+    color: #2ecc71;
+}
+
+.test-done-badge {
+    flex: 0 0 auto;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #2ecc71;
+    background: rgba(46, 204, 113, 0.12);
+    border: 1px solid rgba(46, 204, 113, 0.4);
+    border-radius: 50px;
+    padding: 3px 10px;
+    white-space: nowrap;
+}
+
+.test-done-badge.hidden {
+    display: none;
+}
+
 .test-row {
     display: flex;
     flex-wrap: wrap;
@@ -1452,6 +1485,119 @@ h1 {
 
 .tap-hint.dim {
     opacity: 0.35;
+}
+
+/* STAGE：タップエリア（タップモード時のみ・左ダウン / 右アップ） */
+.tap-area {
+    width: 100%;
+    display: flex;
+    gap: 10px;
+    margin-top: 2px;
+}
+
+.tap-area.hidden {
+    display: none;
+}
+
+.tap-half {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 16px 10px;
+    border-radius: 16px;
+    font-family: inherit;
+    cursor: pointer;
+    border: 1px solid rgba(255, 159, 28, 0.3);
+    background: linear-gradient(180deg, var(--surface-raised) 0%, var(--surface-color) 100%);
+    color: var(--text-color);
+    transition: transform 0.1s, background 0.15s, border-color 0.15s;
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.tap-half:active {
+    transform: scale(0.97);
+}
+
+.tap-half.flash {
+    animation: tapFlash 0.25s ease;
+}
+
+@keyframes tapFlash {
+    0% { background: rgba(255, 159, 28, 0.35); border-color: rgba(255, 159, 28, 0.9); }
+    100% { background: var(--surface-color); }
+}
+
+.tap-arrow {
+    font-size: 1.7rem;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--secondary-color);
+}
+
+.tap-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--muted-color);
+}
+
+/* STAGE：マイク許可後の設定誘導バナー */
+.mic-setup-prompt {
+    width: 100%;
+    border: 1px solid rgba(255, 159, 28, 0.4);
+    border-radius: 16px;
+    background:
+        radial-gradient(120% 100% at 50% 0%, rgba(255, 159, 28, 0.14), transparent 70%),
+        linear-gradient(180deg, var(--surface-raised) 0%, var(--surface-color) 100%);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    animation: fadeIn 0.25s ease both;
+}
+
+.mic-setup-prompt.hidden {
+    display: none;
+}
+
+.msp-text {
+    margin: 0;
+    font-size: 0.86rem;
+    line-height: 1.5;
+    color: var(--text-color);
+    text-align: center;
+}
+
+.msp-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    align-items: stretch;
+}
+
+.msp-actions .btn-primary {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+    max-width: none;
+    padding: 11px 12px;
+    font-size: 0.9rem;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.msp-actions .btn-ghost {
+    flex: 0 0 auto;
+    padding: 11px 18px;
+    font-size: 0.9rem;
+    white-space: nowrap;
 }
 
 /* STAGE：マイク状態の小バー（設定は右上から） */
@@ -1633,6 +1779,28 @@ h1 {
 
 .cal-monitor {
     margin-top: 2px;
+}
+
+/* 測定モニターの統計（検出回数・直近/最大レベル） */
+.cal-monitor-stats {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 6px;
+    font-size: 0.76rem;
+    color: var(--muted-color);
+}
+
+.cal-monitor-stats b {
+    color: var(--text-color);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+/* レベルメーターが反応ライン超えで色付き（測定モニター用） */
+#cal-level.over {
+    background: linear-gradient(90deg, #2ecc71, #ffd166);
 }
 
 /* テスト進行中の大きな表示（カウントダウン等） */
