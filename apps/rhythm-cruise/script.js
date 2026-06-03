@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.24';
+const RHYTHM_CRUISE_VERSION = '0.9.25';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -32,8 +32,24 @@ const STRONG_STROKE_FACTOR = 1.5;
 const RISE_DELTA = 0.12;
 
 /* 本番STAGEのマイク判定で、穏やかな立ち上がり（窓内で threshold 超え）も拾うヒステリシス検出を有効にする。
-   true: threshold*0.5 を下回って再アーム後、threshold 超えで1回検出。後で調整・無効化しやすいようフラグ化。 */
+   true: 再アーム後、しきい値超えで1回検出。後で調整・無効化しやすいようフラグ化。 */
 const MIC_SUSTAINED_ONSET = true;
+/* 本番STAGEのマイク判定だけ、表示の反応ラインより少し低い値で検出する（拾いやすさ優先）。
+   表示上の反応ライン(mic.threshold)は変えず、検出だけ ×0.85。 */
+const MIC_STAGE_DETECT_FACTOR = 0.85;
+/* 再アーム条件：検出しきい値×この値を下回ったら次の入力を拾える状態に戻す（0.5→0.65で少し緩め） */
+const MIC_REARM_FACTOR = 0.65;
+
+/* 波形・レベル表示のスケール。反応ライン(threshold)を表示上 1/SCALE の高さに見せる＝
+   threshold は常に約 40% の位置。thresholdが低いほど同じ入力でも波形が大きく見える（表示のみ・判定は不変）。 */
+const MIC_DISPLAY_SCALE = 2.5;
+function micDisplayFrac(peak) {
+    const thr = mic.threshold > 0 ? mic.threshold : 0.16;
+    return Math.max(0, Math.min(1, peak / (thr * MIC_DISPLAY_SCALE)));
+}
+function micThresholdMarkerPct() {
+    return (1 / MIC_DISPLAY_SCALE) * 100; // 反応ラインの表示位置（約40%固定）
+}
 
 /* マイク波形（背景表示）用の保持時間。古いサンプルはこれを超えたら破棄 */
 const MIC_WAVE_WINDOW_MS = 4000;
@@ -686,7 +702,7 @@ function drawMicWaveform(ctx, w, h, yc) {
         const s = hist[k];
         const x = jx + (s.perf + off - now) * ppm; // 今＝判定ライン、過去＝左へ流れる（補正込み）
         if (x < -24 || x > w + 24) continue;
-        const lv = Math.min(1, s.level * 1.4);
+        const lv = micDisplayFrac(s.level); // 反応ライン基準の相対表示（thresholdが低いほど大きく見える）
         pts.push([x, lv]);
     }
     if (pts.length < 2) return;
@@ -1457,8 +1473,8 @@ function applySettingsToUI() {
     els.setThresholdVal.textContent = sens + '％';
     els.setCooldown.value = mic.cooldownMs;
     els.setCooldownVal.textContent = mic.cooldownMs + 'ms';
-    if (els.micThreshold) els.micThreshold.style.left = (mic.threshold * 100) + '%';
-    if (els.testThreshold) els.testThreshold.style.left = (mic.threshold * 100) + '%';
+    if (els.micThreshold) els.micThreshold.style.left = micThresholdMarkerPct() + '%';
+    if (els.testThreshold) els.testThreshold.style.left = micThresholdMarkerPct() + '%';
     if (els.setOffset) {
         els.setOffset.value = mic.timingOffsetMs;
         els.setOffsetVal.textContent = (mic.timingOffsetMs > 0 ? '+' : '') + mic.timingOffsetMs + 'ms';
@@ -1639,7 +1655,7 @@ function updateTestMicState() {
         els.testMicState.classList.toggle('hidden', !mic.on);
     }
     if (els.testLive) els.testLive.classList.toggle('hidden', !mic.on);
-    if (els.testThreshold) els.testThreshold.style.left = (mic.threshold * 100) + '%';
+    if (els.testThreshold) els.testThreshold.style.left = micThresholdMarkerPct() + '%';
 }
 
 async function ensureTestMic() {
@@ -1870,6 +1886,25 @@ function isTestStrokeDetected(peak) {
     return peak >= TEST_STROKE_THRESHOLD;
 }
 
+/* カウントイン用ビープ（clickVolumeに依存しない固定音量。タイミングを掴むための合図）。
+   本編クリック(click)とは別物。譜面が流れ始めたら鳴らさない。 */
+function testCountBeep(accent) {
+    const ctx = state.audioCtx;
+    if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume();
+    const t0 = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.value = accent ? 1500 : 1100;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.5, t0 + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + 0.09);
+}
+
 function beginStrokePhase() {
     if (test.mode === null && !test.flow) return;
     test.mode = 'stroke';
@@ -1886,8 +1921,16 @@ function beginStrokePhase() {
     test.strokeFrom = 0; test.strokeUntil = 0;
     if (els.testLaneWrap) els.testLaneWrap.classList.remove('hidden');
     fitTestLane();
-    setTestPhase('流れる音符に合わせて ↓ダウン ↑アップ で弾いてください');
     test.flowStart = performance.now();
+    // カウントイン（クリック音あり・4カウント）。最初の音符が判定ラインに来る前に終わる。
+    // 本編（譜面が流れている間）はクリックを鳴らさない＝マイクがクリック音を拾わない。
+    const counts = [['4', 250], ['3', 800], ['2', 1350], ['1', 1900]];
+    counts.forEach(([txt, ms]) => tSet(() => {
+        if (test.mode !== 'stroke') return;
+        setTestPhase('カウントイン… ' + txt);
+        testCountBeep(txt === '4');
+    }, ms));
+    tSet(() => { if (test.mode === 'stroke') setTestPhase('流れる音符に合わせて ↓ダウン ↑アップ'); }, 2080);
     cancelAnimationFrame(test.flowRaf);
     test.flowRaf = requestAnimationFrame(testFlowLoop);
 }
@@ -2137,8 +2180,8 @@ function updateReco() {
 /* 詳細なテスト結果（折りたたみ）：数値＋レベルバー視覚化 */
 function updateTestDetail(maxClick, minStroke, maxStroke, clickReacted, canApply, maxStrokeRaw, provisional) {
     const fx = (v) => (v != null ? v.toFixed(3) : '–');
-    // レベルバー：0〜0.7 を 0〜100% にマップ
-    const SCALE = 0.7;
+    // レベルバー：小さい入力（iPhone等）でも見えるよう 0〜0.1 を 0〜100% にマップ
+    const SCALE = 0.1;
     const pos = (v) => Math.max(0, Math.min(100, (v / SCALE) * 100));
     if (els.barClick) els.barClick.style.left = pos(maxClick) + '%';
     if (els.barStroke) els.barStroke.style.left = (minStroke != null ? pos(minStroke) : 0) + '%';
@@ -2174,14 +2217,14 @@ function updateTestDetail(maxClick, minStroke, maxStroke, clickReacted, canApply
     ];
     const numbers = rows.map((r) => '<div class="tds-row"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>').join('');
 
-    // 説明文（簡潔に。重複は避け、主要な理由を1〜2行で）
+    // 説明文（要点を短く・3点まで）
     const exps = [];
-    exps.push('<p class="tds-note">反応ラインは、ストロークを確実に拾えるよう <b>ストローク最小より少し低め</b>に設定します。クリック音は反応ラインを上げて避けるのではなく、<b>音量で下げます</b>。</p>');
+    exps.push('<p class="tds-note">反応ラインは<b>ストロークを拾うため低め</b>。クリック音はラインを上げず<b>音量で下げます</b>（補助なので小さくてOK）。</p>');
     if (test.recoClickVolume != null && test.recoClickVolume < state.clickVolume) {
-        exps.push('<p class="tds-note"><b>クリック音量を ' + test.recoClickVolume + '% に下げる</b>と、ストローク判定の邪魔になりにくくなります。クリック音は補助なので、小さくなっても流れる譜面で弾けます。</p>');
+        exps.push('<p class="tds-note"><b>クリック音量を ' + test.recoClickVolume + '%</b> に下げると安定します。</p>');
     }
     if (test.strokeDoubleCount > 0) {
-        exps.push('<p class="tds-note tds-warn">1回のストロークで複数回反応しています。<b>二重反応防止を ' + test.recoCooldown + 'ms</b> に上げると安定しやすくなります。</p>');
+        exps.push('<p class="tds-note tds-warn">二重反応あり。<b>二重反応防止を ' + test.recoCooldown + 'ms</b> に。</p>');
     }
 
     if (els.testDetailStats) {
@@ -2236,7 +2279,7 @@ function micLoop() {
     // 表示用エンベロープ（速いアタック／遅いリリース）
     mic.env = Math.max(peak, mic.env * 0.86);
     if (els.micLevel) {
-        els.micLevel.style.width = (Math.min(1, mic.env) * 100).toFixed(1) + '%';
+        els.micLevel.style.width = (micDisplayFrac(mic.env) * 100).toFixed(1) + '%';
         els.micLevel.classList.toggle('over', peak >= mic.threshold);
     }
 
@@ -2250,12 +2293,14 @@ function micLoop() {
     // 立ち上がり検出：threshold交差 または 音量の急増（rise）。
     // クリック音ON/OFFで基本ロジックは共通。余韻中でも急増を拾えるようにする。
     const rise = peak - mic.prevPeak;
-    const crossed = peak >= mic.threshold && mic.prevPeak < mic.threshold;
-    const bigRise = peak >= mic.threshold && rise >= RISE_DELTA;
-    // 追加（修正7）：穏やかな立ち上がりも拾うヒステリシス。threshold*0.5 を下回ったら再アーム、
-    // アーム中に threshold を超えたら1回だけ候補にする（窓内最大が threshold 超え＝候補、の考え方）。
-    if (peak < mic.threshold * 0.5) mic.armed = true;
-    const sustainedOnset = MIC_SUSTAINED_ONSET && mic.armed && peak >= mic.threshold;
+    // 本番STAGE（再生中）だけ、表示の反応ラインより少し低い検出しきい値で拾いやすくする（表示は不変）。
+    const detThr = state.running ? (mic.threshold * MIC_STAGE_DETECT_FACTOR) : mic.threshold;
+    const crossed = peak >= detThr && mic.prevPeak < detThr;
+    const bigRise = peak >= detThr && rise >= RISE_DELTA;
+    // 穏やかな立ち上がりも拾うヒステリシス。detThr×再アーム係数 を下回ったら再アーム、
+    // アーム中に detThr を超えたら1回だけ候補にする。
+    if (peak < detThr * MIC_REARM_FACTOR) mic.armed = true;
+    const sustainedOnset = MIC_SUSTAINED_ONSET && mic.armed && peak >= detThr;
     const onset = crossed || bigRise || sustainedOnset;
     if (onset) mic.armed = false;
     const trigger = crossed ? 'threshold交差' : (bigRise ? 'large-rise' : 'sustained');
@@ -2266,7 +2311,7 @@ function micLoop() {
         cal.lastLevel = peak;
         if (peak > cal.maxPeak) cal.maxPeak = peak;
         if (els.calLevel) {
-            els.calLevel.style.width = (Math.min(1, peak) * 100).toFixed(1) + '%';
+            els.calLevel.style.width = (micDisplayFrac(peak) * 100).toFixed(1) + '%';
             els.calLevel.classList.toggle('over', peak >= mic.threshold);
         }
         if (onset && (now - cal.lastDetect) > 150) {
@@ -2288,7 +2333,7 @@ function micLoop() {
     // ── 実音テスト（設定画面）：registerHit/スコアには一切流さない ──
     if (test.active) {
         if (els.testLevel) {
-            els.testLevel.style.width = (Math.min(1, peak) * 100).toFixed(1) + '%';
+            els.testLevel.style.width = (micDisplayFrac(peak) * 100).toFixed(1) + '%';
             els.testLevel.classList.toggle('over', peak >= mic.threshold);
         }
         // 計測窓内のピークを追跡（しきい値に関係なく生ピークを記録）
@@ -2356,7 +2401,7 @@ function micLoop() {
 ═══════════════════════════════════════════════════════════ */
 /* 測定モニター（入力レベル・反応ライン・検出回数・直近/最大レベル）を更新 */
 function updateCalMonitor() {
-    if (els.calThreshold) els.calThreshold.style.left = (mic.threshold * 100) + '%';
+    if (els.calThreshold) els.calThreshold.style.left = micThresholdMarkerPct() + '%';
     if (els.calCount) els.calCount.textContent = cal.samples.length + '回';
     if (els.calLast) els.calLast.textContent = cal.lastLevel.toFixed(2);
     if (els.calMax) els.calMax.textContent = cal.maxPeak.toFixed(2);
@@ -2416,7 +2461,7 @@ function applyCalSettings() {
     state.clickVolume = CAL_CLICK_VOLUME;
     // クリック音ガードはキャリブレーション中は使わない（クリック音そのものを拾うため）
     mic.clickGuardMs = 0;
-    if (els.calThreshold) els.calThreshold.style.left = (mic.threshold * 100) + '%';
+    if (els.calThreshold) els.calThreshold.style.left = micThresholdMarkerPct() + '%';
 }
 
 function restoreCalSettings() {
@@ -2543,8 +2588,8 @@ function bind() {
         const sens = parseInt(els.setThreshold.value, 10);
         mic.threshold = thresholdFromSens(sens);
         els.setThresholdVal.textContent = sens + '％';
-        if (els.micThreshold) els.micThreshold.style.left = (mic.threshold * 100) + '%';
-        if (els.testThreshold) els.testThreshold.style.left = (mic.threshold * 100) + '%';
+        if (els.micThreshold) els.micThreshold.style.left = micThresholdMarkerPct() + '%';
+        if (els.testThreshold) els.testThreshold.style.left = micThresholdMarkerPct() + '%';
         drawMicPreview();
     });
     els.setCooldown.addEventListener('input', () => {
