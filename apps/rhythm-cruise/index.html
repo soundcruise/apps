@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=27">
+    <link rel="stylesheet" href="theme.css?v=28">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -92,7 +92,7 @@
 
             <!-- マイク許可成功後の設定誘導（初回のみ表示） -->
             <div class="mic-setup-prompt hidden" id="mic-setup-prompt" role="status">
-                <p class="msp-text">🎤 マイクの準備ができました。最初にマイク設定をしておくと、ストローク判定が安定します。</p>
+                <p class="msp-text" id="mic-setup-text">🎤 マイクの準備ができました。最初にマイク設定をしておくと、ストローク判定が安定します。</p>
                 <div class="msp-actions">
                     <button type="button" class="btn-primary msp-yes" id="mic-setup-yes">マイク設定する</button>
                     <button type="button" class="btn-ghost msp-later" id="mic-setup-later">あとで</button>
@@ -107,11 +107,17 @@
             </div>
             <p class="tap-hint" id="tap-hint">画面をタップして練習</p>
 
-            <!-- タップエリアの配置切替（左右 / 上下）。タップモード時のみ表示 -->
+            <!-- タップエリアの配置切替（左右 / 上下）＋ ボタン高さ。タップモード時のみ表示 -->
             <div class="tap-layout-toggle hidden" id="tap-layout-toggle">
-                <span class="tlt-label">配置</span>
-                <button type="button" class="tlt-seg is-active" id="layout-lr-btn">左右</button>
-                <button type="button" class="tlt-seg" id="layout-ud-btn">上下</button>
+                <div class="tlt-row">
+                    <span class="tlt-label">配置</span>
+                    <button type="button" class="tlt-seg is-active" id="layout-lr-btn">左右</button>
+                    <button type="button" class="tlt-seg" id="layout-ud-btn">上下</button>
+                </div>
+                <div class="tlt-row">
+                    <span class="tlt-label">ボタン高さ</span>
+                    <input type="range" id="tap-height" min="80" max="160" step="8" value="106" aria-label="タップボタンの高さ">
+                </div>
             </div>
 
             <!-- タップエリア（タップモード時のみ）。配置は layout-lr / layout-ud で切替 -->
@@ -217,6 +223,19 @@
                     <div class="cal-result-row"><span>ばらつき</span><b id="cal-spread">–</b></div>
                     <button class="btn-primary cal-apply-btn" id="cal-apply-btn">この補正を適用</button>
                 </div>
+
+                <!-- 遅れ補正の結果確認（実施済み後に表示・後から見返せる） -->
+                <details class="settings-detail test-result-detail hidden" id="cal-result-detail">
+                    <summary>結果を見る</summary>
+                    <p class="setting-note">クリック音をマイクで拾った遅れを測定し、その分だけ判定位置を前に補正しています。</p>
+                    <div class="cal-result-row"><span>測定遅延</span><b id="cal-rd-delay">–</b></div>
+                    <div class="cal-result-row"><span>適用した補正値</span><b id="cal-rd-offset">–</b></div>
+                    <div class="cal-result-row"><span>検出成功</span><b id="cal-rd-success">–</b></div>
+                    <div class="cal-result-row"><span>ばらつき</span><b id="cal-rd-spread">–</b></div>
+                    <div class="cal-result-row"><span>最大入力</span><b id="cal-rd-max">–</b></div>
+                    <div class="cal-result-row"><span>測定時の反応ライン</span><b id="cal-rd-line">–</b></div>
+                    <div class="cal-result-row"><span>測定日時</span><b id="cal-rd-at">–</b></div>
+                </details>
             </div>
 
             <!-- 3. 手動設定はこちら（折りたたみ） -->
@@ -308,7 +327,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=30"></script>
+    <script src="script.js?v=31"></script>
 </body>
 
 </html>

@@ -1500,12 +1500,12 @@ h1 {
     opacity: 0.35;
 }
 
-/* STAGE：タップエリアの配置切替（左右 / 上下） */
+/* STAGE：タップエリアの配置切替（左右 / 上下）＋ ボタン高さ */
 .tap-layout-toggle {
     width: 100%;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
     gap: 6px;
     margin-top: 2px;
 }
@@ -1514,10 +1514,25 @@ h1 {
     display: none;
 }
 
+.tlt-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    max-width: 320px;
+}
+
+.tlt-row #tap-height {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 .tlt-label {
     font-size: 0.76rem;
     color: var(--muted-color);
     margin-right: 2px;
+    white-space: nowrap;
 }
 
 .tlt-seg {
@@ -1562,8 +1577,9 @@ h1 {
 .tap-area.layout-ud .tap-half {
     flex-direction: row;
     gap: 10px;
-    padding: 22px 10px;        /* 上下配置でも左右配置と同程度に押しやすい高さ */
-    min-height: 64px;
+    padding: 12px 10px;
+    /* 上下配置は2段になるため、1ボタンあたりは指定高さの約0.62倍に抑える */
+    min-height: calc(var(--tap-h, 106px) * 0.62);
 }
 
 .tap-area.layout-ud .tap-up { order: 1; }
@@ -1577,8 +1593,8 @@ h1 {
     align-items: center;
     justify-content: center;
     gap: 4px;
-    padding: 26px 10px;        /* 上下幅を拡大して押しやすく（約1.4倍） */
-    min-height: 88px;
+    padding: 12px 10px;
+    min-height: var(--tap-h, 106px);   /* 高さはスライダーで調整（CSS変数） */
     border-radius: 16px;
     font-family: inherit;
     cursor: pointer;

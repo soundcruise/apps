@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.19';
+const RHYTHM_CRUISE_VERSION = '0.9.20';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -74,6 +74,7 @@ const state = {
     currentStage: 1,
     inputMode: 'tap',   // 'tap' | 'stroke'
     tapLayout: 'lr',    // タップエリア配置：'lr'（左右：左ダウン/右アップ）| 'ud'（上下：上アップ/下ダウン）
+    tapHeight: 106,     // タップボタンの高さ(px)。ユーザーがスライダーで調整（80〜160）
     running: false,
     raf: 0,
     audioCtx: null,
@@ -212,7 +213,9 @@ const els = {
     tapLayoutToggle: $('tap-layout-toggle'),
     layoutLrBtn: $('layout-lr-btn'),
     layoutUdBtn: $('layout-ud-btn'),
+    tapHeightSlider: $('tap-height'),
     micSetupPrompt: $('mic-setup-prompt'),
+    micSetupPromptText: $('mic-setup-text'),
     micSetupYesBtn: $('mic-setup-yes'),
     micSetupLaterBtn: $('mic-setup-later'),
     resultsOverlay: $('results-overlay'),
@@ -283,6 +286,15 @@ const els = {
     calMax: $('cal-max'),
     calSuccess: $('cal-success'),
     calSpread: $('cal-spread'),
+    // 遅れ補正「結果を見る」
+    calResultDetail: $('cal-result-detail'),
+    calRdDelay: $('cal-rd-delay'),
+    calRdOffset: $('cal-rd-offset'),
+    calRdSuccess: $('cal-rd-success'),
+    calRdSpread: $('cal-rd-spread'),
+    calRdMax: $('cal-rd-max'),
+    calRdLine: $('cal-rd-line'),
+    calRdAt: $('cal-rd-at'),
     // 実音テスト
     testCard: $('test-card'),
     testCardHead: $('test-card-head'),
@@ -313,6 +325,8 @@ const els = {
 };
 
 let settingsReturn = 'home';
+/* セッション内フラグ（リロードで消える＝1セッションに付き1回の制御に使う） */
+let micSetupPromptShownThisSession = false; // 設定誘導を今セッションで出したか
 
 let lane = { ctx: null, w: 0, h: 0 };
 let preview = { ctx: null, w: 0, h: 0 };
@@ -1248,13 +1262,26 @@ function setInputMode(mode) {
     }
 }
 
-/* マイク許可成功直後の設定誘導（初回のみ。テスト済み or 表示済みなら出さない） */
+/* マイク許可成功直後の設定誘導。
+   ・許可ダイアログが実際に出た後（mic.dialogShown）は、済み状態でも出す。
+   ・ダイアログが出ていない（既にgranted）場合は、未設定のときだけ出す。
+   ・同一セッションでは1回だけ（micSetupPromptShownThisSession）。 */
 function maybeShowMicSetupPrompt() {
-    if (state.micTestDone || state.micSetupPrompted) return;
     if (!els.micSetupPrompt) return;
     if (els.practice.classList.contains('hidden')) return; // STAGE画面表示中のみ
+    if (micSetupPromptShownThisSession) return;             // セッション内は1回だけ
+    const afterDialog = !!mic.dialogShown;
+    if (!afterDialog && (state.micTestDone || state.micSetupPrompted)) return; // ダイアログ無し＆済みなら出さない
+    // 文言：済みなら「確認できます」、未設定なら「しておくと安定します」
+    const done = state.micTestDone || state.micDelayDone;
+    if (els.micSetupPromptText) {
+        els.micSetupPromptText.textContent = done
+            ? '🎤 マイクの準備ができました。必要に応じて、マイク設定を確認できます。'
+            : '🎤 マイクの準備ができました。最初にマイク設定をしておくと、ストローク判定が安定します。';
+    }
     els.micSetupPrompt.classList.remove('hidden');
-    state.micSetupPrompted = true; // 一度出したら毎回は出さない
+    micSetupPromptShownThisSession = true;
+    state.micSetupPrompted = true;
     saveSettings();
 }
 
@@ -1274,6 +1301,7 @@ function applyTapLayout() {
     if (els.tapHint) {
         els.tapHint.textContent = ud ? '上：アップ ／ 下：ダウン で練習' : '左：ダウン ／ 右：アップ で練習';
     }
+    applyTapHeight();
 }
 
 /* 配置を切り替えて保存（左右 / 上下）。判定の方向ロジックは配置に依らず同じ。 */
@@ -1281,6 +1309,21 @@ function setTapLayout(layout) {
     state.tapLayout = (layout === 'ud') ? 'ud' : 'lr';
     saveSettings();
     applyTapLayout();
+}
+
+/* タップボタンの高さ(px)をCSS変数に反映（判定には影響しない・見た目のみ） */
+function applyTapHeight() {
+    if (els.tapArea) els.tapArea.style.setProperty('--tap-h', state.tapHeight + 'px');
+    if (els.tapHeightSlider && parseInt(els.tapHeightSlider.value, 10) !== state.tapHeight) {
+        els.tapHeightSlider.value = state.tapHeight;
+    }
+}
+
+/* 高さを変更して保存 */
+function setTapHeight(px) {
+    state.tapHeight = clampNum(px, 80, 160, 106);
+    applyTapHeight();
+    saveSettings();
 }
 
 /* ── テンポ操作 ─────────────────────────────────────────── */
@@ -1312,9 +1355,9 @@ function clampNum(v, lo, hi, fallback) {
 }
 
 /* マイク感度の表示は「低い←→高い」。内部 threshold は高感度ほど小さい（逆変換）。
-   感度0% = threshold 0.40（大きい音だけ）、感度100% = threshold 0.02（かなり小さい音にも）。
-   iPhoneでストローク音が小さくても拾えるよう、下限を大幅に下げた（0.05→0.02）。 */
-const THR_MIN = 0.02, THR_MAX = 0.40;
+   感度0% = threshold 0.40（大きい音だけ）、感度100% = threshold 0.005（極小の音にも）。
+   iPhoneのストローク入力がかなり小さいため、下限をさらに下げた（0.02→0.005）。 */
+const THR_MIN = 0.005, THR_MAX = 0.40;
 function sensFromThreshold(thr) {
     return Math.round((THR_MAX - thr) / (THR_MAX - THR_MIN) * 100);
 }
@@ -1332,10 +1375,14 @@ function loadSettings() {
     state.clickVolume = clampNum(s.clickVolume, 0, 100, SETTINGS_DEFAULTS.clickVolume);
     if (typeof s.lastCalibrationDelayMs === 'number') cal.measuredDelay = s.lastCalibrationDelayMs;
     if (typeof s.lastCalibrationAt === 'number') cal.lastAt = s.lastCalibrationAt;
+    if (typeof s.lastCalSpread === 'number') cal.spread = s.lastCalSpread;
+    if (typeof s.lastCalSuccess === 'number') cal.successCount = s.lastCalSuccess;
+    if (typeof s.lastCalMaxPeak === 'number') cal.maxPeak = s.lastCalMaxPeak;
     state.micTestDone = !!s.micTestDone;
     state.micDelayDone = !!s.micDelayDone;
     state.micSetupPrompted = !!s.micSetupPrompted;
     state.tapLayout = (s.tapLayout === 'ud') ? 'ud' : 'lr';
+    state.tapHeight = clampNum(s.tapHeight, 80, 160, 106);
 }
 
 function saveSettings() {
@@ -1348,10 +1395,14 @@ function saveSettings() {
             clickVolume: state.clickVolume,
             lastCalibrationDelayMs: cal.measuredDelay,
             lastCalibrationAt: cal.lastAt,
+            lastCalSpread: cal.spread,
+            lastCalSuccess: cal.successCount,
+            lastCalMaxPeak: cal.maxPeak,
             micTestDone: state.micTestDone,
             micDelayDone: state.micDelayDone,
             micSetupPrompted: state.micSetupPrompted,
             tapLayout: state.tapLayout,
+            tapHeight: state.tapHeight,
         }));
     } catch (_) { /* プライベートモード等では無視 */ }
 }
@@ -1484,6 +1535,15 @@ async function startMic() {
         resetMicSetupState(); // マイクが使えない → 設定状態を未実施へ戻す
         return;
     }
+    // 許可ダイアログが実際に出るか事前に推定（granted以外なら出る見込み）。
+    // 出た後の許可成功時は、済み状態でも設定誘導を出すために使う。
+    mic.dialogShown = true;
+    try {
+        if (navigator.permissions && navigator.permissions.query) {
+            const st = await navigator.permissions.query({ name: 'microphone' });
+            mic.dialogShown = (st.state !== 'granted'); // 既にgrantedならダイアログは出ない
+        }
+    } catch (_) { /* 未対応ブラウザは「出る」とみなす */ }
     try {
         ensureAudio();
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -1631,6 +1691,30 @@ function updateMicDelayDoneUI() {
         els.calBtn.textContent = calBtnIdleLabel();
         els.calBtn.classList.toggle('is-todo', !done); // 未実施は赤系で目立たせる
     }
+    // 「結果を見る」は実施済みのときだけ表示
+    if (els.calResultDetail) {
+        els.calResultDetail.classList.toggle('hidden', !done);
+        if (done) renderCalResultDetail();
+    }
+}
+
+/* 遅れ補正「結果を見る」の内容を反映（測定遅延・補正値・成功数・ばらつき・最大入力・反応ライン・日時） */
+function renderCalResultDetail() {
+    if (els.calRdDelay) els.calRdDelay.textContent = (cal.measuredDelay != null ? cal.measuredDelay + 'ms' : '–');
+    if (els.calRdOffset) els.calRdOffset.textContent = (mic.timingOffsetMs > 0 ? '+' : '') + mic.timingOffsetMs + 'ms';
+    if (els.calRdSuccess) els.calRdSuccess.textContent = (cal.successCount || 0) + ' / ' + CAL_CLICKS;
+    if (els.calRdSpread) els.calRdSpread.textContent = (cal.spread != null ? '±' + cal.spread + 'ms' : '–');
+    if (els.calRdMax) els.calRdMax.textContent = (cal.maxPeak != null ? cal.maxPeak.toFixed(3) : '–');
+    if (els.calRdLine) els.calRdLine.textContent = CAL_THRESHOLD.toFixed(3);
+    if (els.calRdAt) {
+        if (cal.lastAt) {
+            const d = new Date(cal.lastAt);
+            const pad = (n) => (n < 10 ? '0' + n : '' + n);
+            els.calRdAt.textContent = (d.getMonth() + 1) + '/' + d.getDate() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+        } else {
+            els.calRdAt.textContent = '–';
+        }
+    }
 }
 
 /* マイクの遅れ補正の適用を記録（チェック表示・保存） */
@@ -1761,6 +1845,8 @@ function endStrokePhase() {
     const valid = test.strokePeaks.filter((p) => p >= mic.threshold);
     test.minStrokePeak = valid.length ? Math.min(...valid) : null;
     test.maxStrokePeak = valid.length ? Math.max(...valid) : null;
+    // 検出有無に関わらず、受付ウィンドウ内の生の最大入力を記録（検出0回でも推奨に使う）
+    test.maxStrokeRaw = test.strokePeaks.length ? Math.max(...test.strokePeaks) : null;
     test.strokeDone = true;
     // メイン表示には概要を出さない（おすすめ設定中心）。詳細は折りたたみへ。
     setTestResult('', '');
@@ -1774,13 +1860,23 @@ function updateReco() {
     markMicTestDone(); // クリック＋ストロークの両テストが完了 → 実施済みにする
     const maxClick = test.clickPeaks.length ? Math.max(...test.clickPeaks) : 0;
     const minStroke = test.minStrokePeak;
+    const maxStrokeRaw = (test.maxStrokeRaw != null) ? test.maxStrokeRaw : null;
     const clickReacted = test.clickResults.filter((r) => r.reacted).length;
     els.testReco.classList.remove('hidden');
 
-    // ① 反応ライン（マイク感度）：クリック最大とストローク最小の間 → 表示は手動設定と同じ%
+    // ① 反応ライン（マイク感度）
     let canApply = false;
     if (minStroke != null && maxClick < minStroke) {
+        // 検出できたストロークがある：クリック最大とストローク最小の中間
         let rec = (maxClick + minStroke) / 2;
+        rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
+        test.recommended = rec;
+        els.recoThr.textContent = sensFromThreshold(rec) + '％';
+        canApply = true;
+    } else if (maxStrokeRaw != null && maxStrokeRaw > maxClick + 0.004) {
+        // 検出は0回でも、受付中の最大入力がクリック音より十分大きい → その少し下を提案
+        let rec = Math.max(maxClick + 0.003, maxStrokeRaw * 0.7);
+        rec = Math.max(THR_MIN, Math.min(maxStrokeRaw - 0.002, rec));
         rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
         test.recommended = rec;
         els.recoThr.textContent = sensFromThreshold(rec) + '％';
@@ -1802,21 +1898,31 @@ function updateReco() {
     test.recoCooldown = recoCool;
     els.recoCooldown.textContent = recoCool + 'ms';
 
-    // メッセージ＋適用ボタン（重なり時のみメイン表示。分離OK時は適用ボタンのみ）
+    // メッセージ＋適用ボタン
     if (canApply) {
         els.recoMsg.classList.add('hidden');
         els.recoApplyBtn.classList.remove('hidden');
     } else {
-        els.recoMsg.textContent = '自動設定が難しい状態です。クリック音量を下げるか、イヤホンを使ってからもう一度テストしてください。';
-        els.recoMsg.className = 'test-reco-msg ng';
         els.recoApplyBtn.classList.add('hidden');
+        els.recoMsg.className = 'test-reco-msg ng';
+        if (test.strokeDetected === 0 && maxStrokeRaw != null && maxStrokeRaw <= maxClick + 0.004) {
+            // ストローク音がクリック音と近い／小さすぎ
+            els.recoMsg.textContent = 'クリック音とストローク音の大きさが近いため、自動設定が難しい状態です。クリック音量を下げるか、イヤホンを使ってください。';
+        } else if (test.strokeDetected === 0) {
+            // 反応ラインに届いていない（受付中の最大入力があれば具体値で案内）
+            els.recoMsg.textContent = (maxStrokeRaw != null && maxStrokeRaw > 0)
+                ? ('ストローク音が反応ラインに届いていません。受付中の最大入力は ' + maxStrokeRaw.toFixed(3) + ' でした。マイク感度を上げるか、もう少し大きめに弾いてください。')
+                : 'ストローク音が反応ラインに届いていません。マイク感度を上げるか、もう少し大きめに弾いてください。';
+        } else {
+            els.recoMsg.textContent = '自動設定が難しい状態です。クリック音量を下げるか、イヤホンを使ってからもう一度テストしてください。';
+        }
     }
 
-    updateTestDetail(maxClick, minStroke, clickReacted, canApply);
+    updateTestDetail(maxClick, minStroke, clickReacted, canApply, maxStrokeRaw);
 }
 
 /* 詳細なテスト結果（折りたたみ）：数値＋レベルバー視覚化 */
-function updateTestDetail(maxClick, minStroke, clickReacted, canApply) {
+function updateTestDetail(maxClick, minStroke, clickReacted, canApply, maxStrokeRaw) {
     // レベルバー：0〜0.7 を 0〜100% にマップ
     const SCALE = 0.7;
     const pos = (v) => Math.max(0, Math.min(100, (v / SCALE) * 100));
@@ -1839,13 +1945,16 @@ function updateTestDetail(maxClick, minStroke, clickReacted, canApply) {
     const clickLabel = clickReacted === 0 ? '反応なし' : (clickReacted + ' / ' + CLICK_TEST_COUNT + ' 回反応');
     const maxStroke = test.maxStrokePeak;
     const recoSensLabel = (test.recommended != null) ? (sensFromThreshold(test.recommended) + '%') : '—';
+    const rawMax = (maxStrokeRaw != null) ? maxStrokeRaw : test.maxStrokeRaw;
     const rows = [
         ['クリック音', clickLabel],
         ['ストローク', test.strokeDetected + ' / ' + STROKE_TEST_COUNT + ' 回検出'],
-        ['クリック音 最大', maxClick.toFixed(2)],
-        ['ストローク 最小', minStroke != null ? minStroke.toFixed(2) : '–'],
-        ['ストローク 最大', maxStroke != null ? maxStroke.toFixed(2) : '–'],
-        ['おすすめ反応ライン', recoSensLabel],
+        ['クリック音 最大', maxClick.toFixed(3)],
+        ['ストローク 受付中最大', (rawMax != null ? rawMax.toFixed(3) : '–')],
+        ['ストローク 最小（検出分）', minStroke != null ? minStroke.toFixed(3) : '–'],
+        ['ストローク 最大（検出分）', maxStroke != null ? maxStroke.toFixed(3) : '–'],
+        ['現在の反応ライン', mic.threshold.toFixed(3)],
+        ['おすすめ反応ライン', recoSensLabel + (test.recommended != null ? '（' + test.recommended.toFixed(3) + '）' : '')],
         ['おすすめクリック音量', (test.recoClickVolume != null ? test.recoClickVolume + '%' : '–')],
         ['おすすめ二重反応防止', (test.recoCooldown != null ? test.recoCooldown + 'ms' : '–')],
         ['二重反応', test.strokeDoubleCount + ' 回'],
@@ -1855,12 +1964,12 @@ function updateTestDetail(maxClick, minStroke, clickReacted, canApply) {
     // 説明文（パターン別）
     const exps = [];
     exps.push('<p class="tds-note">クリック音の最大値より上、ストローク音の最小値より下に反応ラインを置くと、クリック音には反応せず、ストローク音には反応しやすくなります。</p>');
-    if (canApply) {
-        // パターンA
+    if (canApply && minStroke != null) {
+        // パターンA：検出できたストロークがある
         const sens = sensFromThreshold(test.recommended);
-        exps.push('<p class="tds-note">クリック音（最大 ' + maxClick.toFixed(2) + '）より大きく、ストローク音（最小 ' + minStroke.toFixed(2) + '）より小さい位置に置けます。そのため <b>反応ライン（マイク感度）は ' + sens + '% がおすすめ</b>です。</p>');
+        exps.push('<p class="tds-note">クリック音（最大 ' + maxClick.toFixed(3) + '）より大きく、ストローク音（最小 ' + minStroke.toFixed(3) + '）より小さい位置に置けます。そのため <b>反応ライン（マイク感度）は ' + sens + '% がおすすめ</b>です。</p>');
         if (sens >= 70) {
-            exps.push('<p class="tds-note">ストローク音が小さめ（最小 ' + minStroke.toFixed(2) + '）だったため、<b>反応ラインを高感度側（' + sens + '%）</b>にしています。小さい音でも拾えますが、周囲の音にも反応しやすくなります。</p>');
+            exps.push('<p class="tds-note">ストローク音が小さめ（最小 ' + minStroke.toFixed(3) + '）だったため、<b>反応ラインを高感度側（' + sens + '%）</b>にしています。小さい音でも拾えますが、周囲の音にも反応しやすくなります。</p>');
         }
         if (clickReacted === 0) {
             exps.push('<p class="tds-note">クリック音が反応ラインより下に収まっているため、<b>クリック音量は現在の ' + state.clickVolume + '% のままでOK</b>です。</p>');
@@ -1872,12 +1981,17 @@ function updateTestDetail(maxClick, minStroke, clickReacted, canApply) {
         } else {
             exps.push('<p class="tds-note tds-warn">1回のストロークで複数回反応しています。<b>二重反応防止を ' + test.recoCooldown + 'ms くらいに上げる</b>と安定しやすくなります。</p>');
         }
+    } else if (canApply && minStroke == null) {
+        // パターンA'：検出は0回だが、受付中の最大入力から提案できた
+        const sens = sensFromThreshold(test.recommended);
+        exps.push('<p class="tds-note">ストロークは検出されませんでしたが、受付中の最大入力は <b>' + (rawMax != null ? rawMax.toFixed(3) : '–') + '</b> でした。反応ラインを <b>' + test.recommended.toFixed(3) + '（マイク感度 ' + sens + '%）</b> 付近に下げると検出できる可能性があります。</p>');
+        exps.push('<p class="tds-note">適用後にもう一度テストして、ストロークが検出されるか確認してください。</p>');
     } else {
-        // パターンB：クリックがストローク音に近い
-        exps.push('<p class="tds-note tds-warn">クリック音がストローク音に近い大きさで入っています。<b>クリック音量を下げるか、イヤホンを使う</b>と安定しやすくなります。</p>');
+        // パターンB：クリックがストローク音に近い／小さすぎ
+        exps.push('<p class="tds-note tds-warn">クリック音とストローク音の大きさが近いため、自動設定が難しい状態です。<b>クリック音量を下げるか、イヤホンを使う</b>か、もう少し大きめに弾いてください。</p>');
     }
-    // パターンC：ストロークが弱い／検出が少ない
-    if (test.strokeDetected < STROKE_TEST_COUNT) {
+    // パターンC：検出が少ない（検出が1回以上あったが満たない場合のみ。0回は上で案内済み）
+    if (test.strokeDetected > 0 && test.strokeDetected < STROKE_TEST_COUNT) {
         exps.push('<p class="tds-note tds-warn">ストローク音が反応ラインに近いため、弱く弾くと反応しないことがあります。<b>反応ライン（マイク感度）を上げる</b>か、少し大きめに弾いてください。</p>');
     }
 
@@ -2217,6 +2331,8 @@ function bind() {
     // タップエリア配置（左右 / 上下）
     if (els.layoutLrBtn) els.layoutLrBtn.addEventListener('click', () => setTapLayout('lr'));
     if (els.layoutUdBtn) els.layoutUdBtn.addEventListener('click', () => setTapLayout('ud'));
+    // タップボタンの高さ調整スライダー
+    if (els.tapHeightSlider) els.tapHeightSlider.addEventListener('input', () => setTapHeight(parseInt(els.tapHeightSlider.value, 10)));
 
     // 設定画面（旧導線は撤去済み。あれば結線）
     if (els.homeSettingsBtn) els.homeSettingsBtn.addEventListener('click', () => openSettings('home'));
