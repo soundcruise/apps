@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.17';
+const RHYTHM_CRUISE_VERSION = '0.9.18';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -19,7 +19,7 @@ const STROKE_TEST_COUNT = 4;
 
 /* キャリブレーション中だけ使う測定専用値（通常設定とは独立。終了後に復元する） */
 const CAL_CLICK_VOLUME = 100;  // 測定用クリック音量（最大・iPhoneでも拾いやすく）
-const CAL_THRESHOLD = 0.06;    // 測定用しきい値（自然なクリック音でも拾えるよう低め）
+const CAL_THRESHOLD = 0.03;    // 測定用しきい値（小さい入力でも拾えるよう更に低く：0.06→0.03）
 const CAL_COOLDOWN_MS = 150;   // 測定用クールダウン
 /* マイク入力がこの値未満なら「入力がほとんど無い」とみなす（失敗理由の判定用） */
 const CAL_SILENCE_PEAK = 0.02;
@@ -73,6 +73,7 @@ const state = {
     bpm: 80,
     currentStage: 1,
     inputMode: 'tap',   // 'tap' | 'stroke'
+    tapLayout: 'lr',    // タップエリア配置：'lr'（左右：左ダウン/右アップ）| 'ud'（上下：上アップ/下ダウン）
     running: false,
     raf: 0,
     audioCtx: null,
@@ -208,6 +209,9 @@ const els = {
     modeTapBtn: $('mode-tap-btn'),
     modeStrokeBtn: $('mode-stroke-btn'),
     tapArea: $('tap-area'),
+    tapLayoutToggle: $('tap-layout-toggle'),
+    layoutLrBtn: $('layout-lr-btn'),
+    layoutUdBtn: $('layout-ud-btn'),
     micSetupPrompt: $('mic-setup-prompt'),
     micSetupYesBtn: $('mic-setup-yes'),
     micSetupLaterBtn: $('mic-setup-later'),
@@ -259,6 +263,8 @@ const els = {
     micPreviewCanvas: $('mic-preview-canvas'),
     settingsResetBtn: $('settings-reset-btn'),
     settingsBackBtn: $('settings-back-btn'),
+    micResetBtn: $('mic-reset-btn'),
+    micResetMsg: $('mic-reset-msg'),
     // キャリブレーション
     calCard: $('cal-card'),
     calHead: $('cal-head'),
@@ -416,28 +422,37 @@ function click(accent, force) {
 }
 
 /* マイクの遅れ補正テスト専用クリック。
-   耳に自然なクリック音（三角波・歪み無し）でありつつ、
-   音量を大きめ＋やや長めにして、低めの測定用しきい値でマイク検出できるようにする。
-   ノイズバーストや矩形波の歪みは使わない。通常STAGEのクリック音(click)は一切変更しない。 */
+   自然なクリック音（三角波・歪み無し）を保ちつつ、iPhoneマイクで拾いやすいよう
+   ・やや長め（約180ms）
+   ・iPhoneマイクが拾いやすい中域（約700Hz＋1050Hz の2トーンを薄く重ねる）
+   ・大きめだが clipping しない音量
+   通常STAGEのクリック音(click)は一切変更しない。ノイズ成分は使わない。 */
 function calClick() {
     const ctx = state.audioCtx;
     if (!ctx) { console.warn('[cal] AudioContext 未生成'); return; }
     if (ctx.state === 'suspended') ctx.resume();
     state.lastClickPerf = performance.now();
     const t0 = ctx.currentTime;
+    const dur = 0.18;
 
-    // 三角波（角が丸く自然な音）＋ なめらかなエンベロープ。約120ms・大きめだが歪まない音量。
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.value = 1100;
-    const peak = 0.75;
-    gain.gain.setValueAtTime(0.0001, t0);
-    gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.006); // やわらかいアタック
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.14); // 自然な減衰
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(t0);
-    osc.stop(t0 + 0.16);
+    // 出力をまとめるマスターゲイン（合計でも歪まないよう調整）
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0.0001, t0);
+    master.gain.exponentialRampToValueAtTime(0.85, t0 + 0.008); // やわらかいアタック
+    master.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); // 自然な減衰
+    master.connect(ctx.destination);
+
+    // 2トーンを薄く重ねる（中域中心。三角波で角が丸く自然な音）
+    [[700, 0.6], [1050, 0.5]].forEach(([freq, lvl]) => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        g.gain.value = lvl;
+        osc.connect(g).connect(master);
+        osc.start(t0);
+        osc.stop(t0 + dur + 0.02);
+    });
 }
 
 /* クリック音がスピーカーから実際に出るまでの推定遅延(ms)。
@@ -1212,10 +1227,12 @@ function setInputMode(mode) {
     if (els.modeStrokeBtn) els.modeStrokeBtn.classList.toggle('is-active', mode === 'stroke');
     if (mode === 'tap') {
         if (mic.on) stopMic();          // タップ練習はマイクOFF
-        if (els.tapArea) els.tapArea.classList.remove('hidden');  // タップエリア表示（左ダウン/右アップ）
+        if (els.tapArea) els.tapArea.classList.remove('hidden');  // タップエリア表示
+        if (els.tapLayoutToggle) els.tapLayoutToggle.classList.remove('hidden');
+        applyTapLayout();
         hideMicSetupPrompt();
-        if (els.tapHint) els.tapHint.textContent = '左：ダウン ／ 右：アップ で練習';
     } else {
+        if (els.tapLayoutToggle) els.tapLayoutToggle.classList.add('hidden');
         if (els.tapArea) els.tapArea.classList.add('hidden');     // ストローク時はタップエリアを畳む
         if (els.tapHint) els.tapHint.textContent = '実際にストロークしてください';
         if (!mic.on) {
@@ -1242,6 +1259,27 @@ function maybeShowMicSetupPrompt() {
 
 function hideMicSetupPrompt() {
     if (els.micSetupPrompt) els.micSetupPrompt.classList.add('hidden');
+}
+
+/* タップエリアの配置（左右 / 上下）をDOM・案内・トグルへ反映 */
+function applyTapLayout() {
+    const ud = state.tapLayout === 'ud';
+    if (els.tapArea) {
+        els.tapArea.classList.toggle('layout-ud', ud);
+        els.tapArea.classList.toggle('layout-lr', !ud);
+    }
+    if (els.layoutLrBtn) els.layoutLrBtn.classList.toggle('is-active', !ud);
+    if (els.layoutUdBtn) els.layoutUdBtn.classList.toggle('is-active', ud);
+    if (els.tapHint) {
+        els.tapHint.textContent = ud ? '上：アップ ／ 下：ダウン で練習' : '左：ダウン ／ 右：アップ で練習';
+    }
+}
+
+/* 配置を切り替えて保存（左右 / 上下）。判定の方向ロジックは配置に依らず同じ。 */
+function setTapLayout(layout) {
+    state.tapLayout = (layout === 'ud') ? 'ud' : 'lr';
+    saveSettings();
+    applyTapLayout();
 }
 
 /* ── テンポ操作 ─────────────────────────────────────────── */
@@ -1273,8 +1311,9 @@ function clampNum(v, lo, hi, fallback) {
 }
 
 /* マイク感度の表示は「低い←→高い」。内部 threshold は高感度ほど小さい（逆変換）。
-   感度0% = threshold 0.40（大きい音だけ）、感度100% = threshold 0.05（小さい音にも）。 */
-const THR_MIN = 0.05, THR_MAX = 0.40;
+   感度0% = threshold 0.40（大きい音だけ）、感度100% = threshold 0.02（かなり小さい音にも）。
+   iPhoneでストローク音が小さくても拾えるよう、下限を大幅に下げた（0.05→0.02）。 */
+const THR_MIN = 0.02, THR_MAX = 0.40;
 function sensFromThreshold(thr) {
     return Math.round((THR_MAX - thr) / (THR_MAX - THR_MIN) * 100);
 }
@@ -1285,7 +1324,7 @@ function thresholdFromSens(sens) {
 function loadSettings() {
     let s = {};
     try { s = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch (_) { s = {}; }
-    mic.threshold = clampNum(s.threshold, 0.05, 0.40, SETTINGS_DEFAULTS.threshold);
+    mic.threshold = clampNum(s.threshold, THR_MIN, THR_MAX, SETTINGS_DEFAULTS.threshold);
     mic.cooldownMs = clampNum(s.cooldownMs, 100, 400, SETTINGS_DEFAULTS.cooldownMs);
     mic.clickGuardMs = clampNum(s.clickGuardMs, 0, 250, SETTINGS_DEFAULTS.clickGuardMs);
     mic.timingOffsetMs = clampNum(s.timingOffsetMs, -150, 150, SETTINGS_DEFAULTS.timingOffsetMs);
@@ -1295,6 +1334,7 @@ function loadSettings() {
     state.micTestDone = !!s.micTestDone;
     state.micDelayDone = !!s.micDelayDone;
     state.micSetupPrompted = !!s.micSetupPrompted;
+    state.tapLayout = (s.tapLayout === 'ud') ? 'ud' : 'lr';
 }
 
 function saveSettings() {
@@ -1310,6 +1350,7 @@ function saveSettings() {
             micTestDone: state.micTestDone,
             micDelayDone: state.micDelayDone,
             micSetupPrompted: state.micSetupPrompted,
+            tapLayout: state.tapLayout,
         }));
     } catch (_) { /* プライベートモード等では無視 */ }
 }
@@ -1340,6 +1381,7 @@ function openSettings(from) {
     applySettingsToUI();
     updateMicTestDoneUI();
     updateMicDelayDoneUI();
+    if (els.micResetMsg) els.micResetMsg.classList.add('hidden');
     updateTestMicState();
     setTestResult('', '');         // 開始前は説明文を出さない
     setTestPhase('');
@@ -1438,6 +1480,7 @@ async function startMic() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         if (els.micState) els.micState.textContent = '非対応';
         if (els.micCard) els.micCard.classList.add('mic-error');
+        resetMicSetupState(); // マイクが使えない → 設定状態を未実施へ戻す
         return;
     }
     try {
@@ -1467,6 +1510,7 @@ async function startMic() {
         updateMicUI();
         if (els.micState) els.micState.textContent = '許可なし'; // updateMicUI後に上書き（OFFに戻されないように）
         if (els.micCard) els.micCard.classList.add('mic-error');
+        resetMicSetupState(); // 許可が拒否/喪失 → 設定状態を未実施へ戻す（次回成功時に再度誘導）
         console.warn('[mic] getUserMedia failed:', e && e.name);
     }
 }
@@ -1586,6 +1630,27 @@ function markMicDelayDone() {
     updateMicDelayDoneUI();
 }
 
+/* マイク設定の「済み/誘導」状態だけを未実施へ戻す（実設定値は変えない）。
+   ・マイク許可が拒否/喪失したとき（自動）
+   ・設定画面上部のリセットボタン（手動） から呼ぶ。 */
+function resetMicSetupState() {
+    state.micTestDone = false;
+    state.micDelayDone = false;
+    state.micSetupPrompted = false;
+    saveSettings();
+    updateMicTestDoneUI();
+    updateMicDelayDoneUI();
+}
+
+/* 設定画面上部の「設定状態をリセット」ボタン。実設定値は変えず、済み/誘導状態だけを未実施へ戻す。 */
+function onMicResetClick() {
+    resetMicSetupState();
+    if (els.micResetMsg) {
+        els.micResetMsg.textContent = 'マイク設定の状態を未実施に戻しました。';
+        els.micResetMsg.classList.remove('hidden');
+    }
+}
+
 /* ═══════════════════════════════════════════════════════════
    マイク反応テスト：1ボタンで クリック音テスト → ストロークテスト → 推奨 を自動進行
 ═══════════════════════════════════════════════════════════ */
@@ -1702,7 +1767,7 @@ function updateReco() {
     let canApply = false;
     if (minStroke != null && maxClick < minStroke) {
         let rec = (maxClick + minStroke) / 2;
-        rec = Math.max(0.05, Math.min(0.40, rec));
+        rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
         test.recommended = rec;
         els.recoThr.textContent = sensFromThreshold(rec) + '％';
         canApply = true;
@@ -1800,7 +1865,7 @@ function updateTestDetail(maxClick, minStroke, clickReacted, canApply) {
 
 function applyReco() {
     if (test.recommended == null) return; // 反応ラインが出せない場合は適用しない
-    mic.threshold = Math.max(0.05, Math.min(0.40, test.recommended));
+    mic.threshold = Math.max(THR_MIN, Math.min(THR_MAX, test.recommended));
     if (test.recoClickVolume != null) state.clickVolume = test.recoClickVolume;
     if (test.recoCooldown != null) mic.cooldownMs = test.recoCooldown;
     // 内部値→スライダー・数値・マーカー・プレビューを同期
@@ -2057,18 +2122,22 @@ async function startCalibration() {
     }, CAL_INTERVAL_MS);
 }
 
-/* 測定失敗時に、原因を推定して具体的な案内文を返す（C案：失敗理由の表示） */
+/* 測定失敗時に、原因を推定して具体的な案内文を返す（C案：失敗理由の表示）。
+   どれくらい足りないか分かるよう、最大入力レベルと反応ラインも併記する。 */
 function buildCalFailReason() {
+    // 測定中に使っていた反応ライン（CAL_THRESHOLD）で併記する（この時点でユーザー設定は復元済みのため）
+    const levels = '（最大入力 ' + cal.maxPeak.toFixed(3) + ' / 反応ライン ' + CAL_THRESHOLD.toFixed(3) + '）';
+    let head;
     if (cal.maxPeak < CAL_SILENCE_PEAK) {
-        return '測定できませんでした：マイク入力がほとんどありません。マイクの許可と、端末の音量を確認してください。';
+        head = '測定できませんでした：マイク入力がほとんどありません。マイクの許可と、端末の音量を確認してください。';
+    } else if (cal.maxPeak < CAL_THRESHOLD) {
+        head = '測定できませんでした：マイク入力が小さすぎます。端末の音量を上げるか、スピーカーに近づけてください。';
+    } else if (cal.rawOnsets > 0) {
+        head = '測定できませんでした：音は検出していますが、タイミングが安定しません。静かな場所で、もう一度お試しください。';
+    } else {
+        head = '測定できませんでした：クリック音をマイクで検出できませんでした。音量を上げるか、スピーカーに近づけてください。';
     }
-    if (cal.maxPeak < mic.threshold) {
-        return '測定できませんでした：マイク入力が小さすぎます。端末の音量を上げるか、スピーカーに近づけてください。';
-    }
-    if (cal.rawOnsets > 0) {
-        return '測定できませんでした：音は検出していますが、タイミングが安定しません。静かな場所で、もう一度お試しください。';
-    }
-    return '測定できませんでした：クリック音をマイクで検出できませんでした。音量を上げるか、スピーカーに近づけてください。';
+    return head + levels;
 }
 
 function finishCalibration() {
@@ -2118,12 +2187,16 @@ function bind() {
     // 入力方法（タップ / ストローク）
     if (els.modeTapBtn) els.modeTapBtn.addEventListener('click', () => setInputMode('tap'));
     if (els.modeStrokeBtn) els.modeStrokeBtn.addEventListener('click', () => setInputMode('stroke'));
+    // タップエリア配置（左右 / 上下）
+    if (els.layoutLrBtn) els.layoutLrBtn.addEventListener('click', () => setTapLayout('lr'));
+    if (els.layoutUdBtn) els.layoutUdBtn.addEventListener('click', () => setTapLayout('ud'));
 
     // 設定画面（旧導線は撤去済み。あれば結線）
     if (els.homeSettingsBtn) els.homeSettingsBtn.addEventListener('click', () => openSettings('home'));
     if (els.micSettingsBtn) els.micSettingsBtn.addEventListener('click', () => openSettings('practice'));
     els.settingsBackBtn.addEventListener('click', closeSettings);
     els.settingsResetBtn.addEventListener('click', resetSettings);
+    if (els.micResetBtn) els.micResetBtn.addEventListener('click', onMicResetClick);
 
     els.setThreshold.addEventListener('input', () => {
         const sens = parseInt(els.setThreshold.value, 10);

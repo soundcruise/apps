@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=25">
+    <link rel="stylesheet" href="theme.css?v=26">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -107,8 +107,15 @@
             </div>
             <p class="tap-hint" id="tap-hint">画面をタップして練習</p>
 
-            <!-- タップエリア（タップモード時のみ・左：ダウン / 右：アップ） -->
-            <div class="tap-area" id="tap-area">
+            <!-- タップエリアの配置切替（左右 / 上下）。タップモード時のみ表示 -->
+            <div class="tap-layout-toggle hidden" id="tap-layout-toggle">
+                <span class="tlt-label">配置</span>
+                <button type="button" class="tlt-seg is-active" id="layout-lr-btn">左右</button>
+                <button type="button" class="tlt-seg" id="layout-ud-btn">上下</button>
+            </div>
+
+            <!-- タップエリア（タップモード時のみ）。配置は layout-lr / layout-ud で切替 -->
+            <div class="tap-area layout-lr" id="tap-area">
                 <button type="button" class="tap-half tap-down" data-dir="down" aria-label="ダウンストローク">
                     <span class="tap-arrow">↓</span>
                     <span class="tap-label">ダウン</span>
@@ -130,6 +137,8 @@
             <header class="settings-head">
                 <h2>マイク設定</h2>
                 <p class="settings-sub">クリック音とストローク音を確認して、反応しやすさを調整します</p>
+                <button type="button" class="btn-mini mic-reset-btn" id="mic-reset-btn">設定状態をリセット</button>
+                <p class="mic-reset-msg hidden" id="mic-reset-msg"></p>
             </header>
 
             <!-- 1. マイク反応テスト（自動フロー・一番上） -->
@@ -297,7 +306,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=28"></script>
+    <script src="script.js?v=29"></script>
 </body>
 
 </html>

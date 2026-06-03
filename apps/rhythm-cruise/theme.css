@@ -805,8 +805,12 @@ h1 {
     inset: 0;
     z-index: 60;
     display: flex;
-    align-items: center;
     justify-content: center;
+    /* オーバーレイ自身をスクローラにする。中身が縦に長くてもグラフ下部や
+       閉じる/もう一度ボタンまで確実にスクロールできる（iOS Safariの中央寄せ切れ対策）。 */
+    align-items: flex-start;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     padding: 24px 16px;
     background: rgba(6, 4, 3, 0.86);
     backdrop-filter: blur(5px);
@@ -817,9 +821,8 @@ h1 {
 .results-card {
     width: 100%;
     max-width: 420px;
-    max-height: 88vh;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    /* margin:auto で、短いときは中央寄せ・長いときは上端から見えてオーバーレイがスクロール */
+    margin: auto;
     border: 1px solid rgba(255, 159, 28, 0.3);
     border-radius: 22px;
     background:
@@ -1490,7 +1493,49 @@ h1 {
     opacity: 0.35;
 }
 
-/* STAGE：タップエリア（タップモード時のみ・左ダウン / 右アップ） */
+/* STAGE：タップエリアの配置切替（左右 / 上下） */
+.tap-layout-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 2px;
+}
+
+.tap-layout-toggle.hidden {
+    display: none;
+}
+
+.tlt-label {
+    font-size: 0.76rem;
+    color: var(--muted-color);
+    margin-right: 2px;
+}
+
+.tlt-seg {
+    padding: 5px 14px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    border-radius: 50px;
+    cursor: pointer;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    background: transparent;
+    color: var(--muted-color);
+    transition: background 0.15s, color 0.15s, transform 0.12s;
+    touch-action: manipulation;
+}
+
+.tlt-seg:active { transform: scale(0.96); }
+
+.tlt-seg.is-active {
+    background: linear-gradient(180deg, #ff9f1c, #ff8c00);
+    color: #1a130a;
+    border-color: transparent;
+}
+
+/* STAGE：タップエリア（タップモード時のみ）。左右配置と上下配置を切替 */
 .tap-area {
     width: 100%;
     display: flex;
@@ -1501,6 +1546,20 @@ h1 {
 .tap-area.hidden {
     display: none;
 }
+
+/* 上下配置：縦並び。上＝アップ / 下＝ダウン（DOM順は down,up なので order で入替） */
+.tap-area.layout-ud {
+    flex-direction: column;
+}
+
+.tap-area.layout-ud .tap-half {
+    flex-direction: row;
+    gap: 10px;
+    padding: 13px 10px;
+}
+
+.tap-area.layout-ud .tap-up { order: 1; }
+.tap-area.layout-ud .tap-down { order: 2; }
 
 .tap-half {
     flex: 1 1 0;
@@ -2067,6 +2126,24 @@ h1 {
     font-size: 0.85rem;
     color: var(--muted-color);
     line-height: 1.5;
+}
+
+/* 設定状態リセット（済み/誘導状態だけを未実施へ戻す。実設定値は変えない） */
+.mic-reset-btn {
+    margin-top: 10px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    border-radius: 50px;
+    padding: 6px 14px;
+}
+
+.mic-reset-msg {
+    margin-top: 8px;
+    font-size: 0.8rem;
+    color: #2ecc71;
+}
+
+.mic-reset-msg.hidden {
+    display: none;
 }
 
 .settings-card {
