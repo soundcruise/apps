@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.25';
+const RHYTHM_CRUISE_VERSION = '0.9.26';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -806,12 +806,13 @@ function drawLane(t) {
         }
     }
 
-    // 判定ライン（光る縦線）
+    // 判定ライン（光る縦線）。再生中は拍頭付近で軽く光る＝視覚クリック（クリック音を下げた代替）
+    const glow = state.running ? beatGlow(t - T0, bi) : 0;
     ctx.save();
-    ctx.shadowColor = 'rgba(255,159,28,0.9)';
-    ctx.shadowBlur = 14;
-    ctx.strokeStyle = 'rgba(255,159,28,0.95)';
-    ctx.lineWidth = 3;
+    ctx.shadowColor = 'rgba(255,159,28,0.95)';
+    ctx.shadowBlur = 14 + glow * 18;
+    ctx.strokeStyle = 'rgba(255,159,28,' + (0.85 + glow * 0.15).toFixed(2) + ')';
+    ctx.lineWidth = 3 + glow * 1.5;
     ctx.beginPath(); ctx.moveTo(jx, h * 0.1); ctx.lineTo(jx, h * 0.94); ctx.stroke();
     ctx.restore();
     ctx.fillStyle = 'rgba(255,159,28,0.95)';
@@ -1877,7 +1878,11 @@ function endClickPhase() {
 const TEST_BPM = 90;                              // ストローク/分（90＝約0.67秒に1ストローク）
 const TEST_NOTE_MS = Math.round(60000 / TEST_BPM); // 音符（ストローク）間隔 ≒ 667ms
 const TEST_NOTE_WIN = 180;    // 判定窓 ±ms（最大入力を記録する範囲・少し広め）
-const TEST_LEAD_MS = 2200;    // 最初の音符が流れてくるまでの助走（落ち着いて構える）
+/* カウントイン：8分で8回（1 & 2 & 3 & 4 &）。最初のビープまでの小休止＋ビープ列の後、
+   8分1つ分の間隔をあけて最初の音符が判定ラインに来る。 */
+const TEST_COUNTIN_BEEPS = 8;
+const TEST_COUNTIN_START = 400; // 最初のビープまでの小休止(ms)
+const TEST_LEAD_MS = TEST_COUNTIN_START + TEST_COUNTIN_BEEPS * TEST_NOTE_MS; // 最初の音符が来る時刻
 /* マイク反応テスト専用の検出しきい値（本番より緩め）。
    目的は演奏判定ではなく入力レベルの測定なので、受付窓内の最大値がこの値を超えたら「検出あり」とする。 */
 const TEST_STROKE_THRESHOLD = 0.02;
@@ -1922,15 +1927,21 @@ function beginStrokePhase() {
     if (els.testLaneWrap) els.testLaneWrap.classList.remove('hidden');
     fitTestLane();
     test.flowStart = performance.now();
-    // カウントイン（クリック音あり・4カウント）。最初の音符が判定ラインに来る前に終わる。
-    // 本編（譜面が流れている間）はクリックを鳴らさない＝マイクがクリック音を拾わない。
-    const counts = [['4', 250], ['3', 800], ['2', 1350], ['1', 1900]];
-    counts.forEach(([txt, ms]) => tSet(() => {
-        if (test.mode !== 'stroke') return;
-        setTestPhase('カウントイン… ' + txt);
-        testCountBeep(txt === '4');
-    }, ms));
-    tSet(() => { if (test.mode === 'stroke') setTestPhase('流れる音符に合わせて ↓ダウン ↑アップ'); }, 2080);
+    // 視覚クリック用の拍グリッド（カウントイン＋本編の8分）。300...の代わりにTEST_COUNTIN_STARTから等間隔。
+    test.beatGridFrom = TEST_COUNTIN_START;
+    // カウントイン（クリック音あり・8分8回「1 & 2 & 3 & 4 &」）。本編（譜面が流れる間）は鳴らさない。
+    const labels = ['1', '&', '2', '&', '3', '&', '4', '&'];
+    for (let i = 0; i < TEST_COUNTIN_BEEPS; i++) {
+        const ms = TEST_COUNTIN_START + i * TEST_NOTE_MS;
+        const accent = (i % 2 === 0); // 数字（表）＝アクセント、&（裏）＝弱め
+        tSet(() => {
+            if (test.mode !== 'stroke') return;
+            setTestPhase('カウントイン　' + labels.slice(0, i + 1).join(' '));
+            testCountBeep(accent);
+        }, ms);
+    }
+    // 最後の & の 8分1つ後に最初の音符（TEST_LEAD_MS）。本編表示へ切替。
+    tSet(() => { if (test.mode === 'stroke') setTestPhase('流れる音符に合わせて ↓ダウン ↑アップ'); }, TEST_LEAD_MS - 200);
     cancelAnimationFrame(test.flowRaf);
     test.flowRaf = requestAnimationFrame(testFlowLoop);
 }
@@ -2014,12 +2025,24 @@ function drawTestLane(t) {
         ctx.textAlign = 'center';
         ctx.fillText(n.dir === 'down' ? '↓' : '↑', x, yc + 30);
     }
-    // 判定ライン
+    // 判定ライン（拍の視覚クリック：拍頭付近で軽く光る）
+    const gridFrom = (test.beatGridFrom != null) ? test.beatGridFrom : TEST_COUNTIN_START;
+    const glow = beatGlow(t - gridFrom, TEST_NOTE_MS);
     ctx.save();
-    ctx.shadowColor = 'rgba(255,159,28,0.9)'; ctx.shadowBlur = 12;
-    ctx.strokeStyle = 'rgba(255,159,28,0.95)'; ctx.lineWidth = 3;
+    ctx.shadowColor = 'rgba(255,159,28,0.95)'; ctx.shadowBlur = 10 + glow * 18;
+    ctx.strokeStyle = 'rgba(255,159,28,' + (0.85 + glow * 0.15).toFixed(2) + ')';
+    ctx.lineWidth = 3 + glow * 1.5;
     ctx.beginPath(); ctx.moveTo(judgeX, h * 0.12); ctx.lineTo(judgeX, h * 0.86); ctx.stroke();
     ctx.restore();
+}
+
+/* 拍頭付近の発光量(0..1)を返す。rel: 拍グリッド起点からの経過ms / interval: 拍間隔ms */
+function beatGlow(rel, interval) {
+    if (interval <= 0 || rel < -10) return 0;
+    const phase = ((rel % interval) + interval) % interval;
+    const near = Math.min(phase, interval - phase);
+    const WIN = 130;
+    return near < WIN ? (1 - near / WIN) : 0;
 }
 
 /* テスト終了後：全ノートを横一列に並べ、検出結果（緑＝検出/薄い＝未検出）を残して表示 */
@@ -2074,9 +2097,11 @@ function endStrokePhase() {
     test.downMin = validMin(test.strokeDownPeaks); test.downMax = validMax(test.strokeDownPeaks);
     test.upMin = validMin(test.strokeUpPeaks); test.upMax = validMax(test.strokeUpPeaks);
     // 全ストローク（検出分）
-    const valid = test.strokePeaks.filter((p) => p >= thr);
-    test.minStrokePeak = valid.length ? Math.min(...valid) : null;   // 全ストローク最小（検出分）
-    test.maxStrokePeak = valid.length ? Math.max(...valid) : null;   // 全ストローク最大（検出分）
+    const valid = test.strokePeaks.filter((p) => p >= thr).sort((a, b) => a - b);
+    test.minStrokePeak = valid.length ? valid[0] : null;             // 全ストローク最小（検出分）
+    test.maxStrokePeak = valid.length ? valid[valid.length - 1] : null; // 全ストローク最大（検出分）
+    // ロバストな「小さめストローク」基準＝下位25パーセンタイル（1回だけ弱いストロークに引っ張られない）
+    test.strokeP25 = valid.length ? valid[Math.floor((valid.length - 1) * 0.25)] : null;
     // 検出有無に関わらず、受付ウィンドウ内の生の最大入力を記録（検出0回でも推奨に使う）
     test.maxStrokeRaw = test.strokePeaks.length ? Math.max(...test.strokePeaks) : null;
     test.strokeDone = true;
@@ -2100,14 +2125,24 @@ function updateReco() {
 
     const maxStroke = test.maxStrokePeak; // 全ストローク最大（検出分）
 
-    // ① 反応ライン（マイク感度）：まず「ストロークを確実に拾う」ことを優先。
-    //    全ストローク最小より少し下（×0.85）に置く。クリック音はラインを上げて避けるのではなく音量で下げる。
+    // ① 反応ライン（マイク感度）：ストロークを拾うことを優先しつつ、1回だけ弱いストロークに過剰適合しない。
+    //    基準＝下位25%（ロバスト）×0.9。クリック音が十分小さい時は、クリック最大より少し上に余裕を持たせ、
+    //    極端に低い（高感度すぎる）ラインへ寄りすぎないようにする。
     let canApply = false;
+    let highSens = false;
     if (minStroke != null) {
-        let rec = minStroke * 0.85;
+        const basisP25 = (test.strokeP25 != null) ? test.strokeP25 : minStroke;
+        let rec = basisP25 * 0.9;
+        // クリック音が小さい場合は、クリック最大より少し上に下限を設けて高感度に寄りすぎない（最小は確実に拾える範囲）
+        const clickFloor = maxClick + 0.005;
+        if (clickFloor < minStroke) rec = Math.max(rec, clickFloor);
+        // ただしストローク最小は拾えるよう、最小を超えないようにする
+        rec = Math.min(rec, minStroke * 0.95);
         rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
         test.recommended = rec;
-        els.recoThr.textContent = sensFromThreshold(rec) + '％';
+        const sens = sensFromThreshold(rec);
+        highSens = sens >= 85;
+        els.recoThr.textContent = sens + '％';
         canApply = true;
     } else if (maxStrokeRaw != null && maxStrokeRaw > THR_MIN * 2) {
         // 検出0回でも、受付中最大の少し下を仮提案（拾える方向に低めへ）
@@ -2164,11 +2199,16 @@ function updateReco() {
         els.recoMsg.className = 'test-reco-msg warn';
         els.recoMsg.classList.remove('hidden');
         els.recoMsg.textContent = 'クリック音が少し入っています。ストロークを優先して拾うため、クリック音量を ' + recoVol + '% まで下げて反応ラインは低めにします。';
-    } else {
-        // ストロークが小さめ → 低め設定の案内
+    } else if (highSens) {
+        // 高感度寄りのとき：手動で下げられることを案内（UIの「左＝反応しにくい」と整合）
         els.recoMsg.className = 'test-reco-msg';
         els.recoMsg.classList.remove('hidden');
-        els.recoMsg.textContent = '小さいストロークも拾えるように、反応ラインを低めに設定します。周囲の音に反応する場合は、少し上げてください。';
+        els.recoMsg.textContent = '小さいストロークも拾えるように高感度寄りにしています。周囲の音に反応する場合は、手動設定で少し下げてください。';
+    } else {
+        // 中庸な設定にできたとき
+        els.recoMsg.className = 'test-reco-msg';
+        els.recoMsg.classList.remove('hidden');
+        els.recoMsg.textContent = 'まずは安定しやすい設定にしています。小さいストロークが拾われない場合は、手動で反応ラインを上げてください。';
     }
     // 反応ラインが提案できる or クリック音量を下げられる → 適用ボタンを出す
     if (canApply || volChanged) els.recoApplyBtn.classList.remove('hidden');
