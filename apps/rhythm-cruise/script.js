@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.21';
+const RHYTHM_CRUISE_VERSION = '0.9.22';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -163,16 +163,21 @@ const test = {
     clickWinFrom: 0, clickWinTo: 0,
     maxClickPeak: 0,
     clickDone: false,
-    // ストロークテスト（ダウン/アップを分けて測定）
+    // ストロークテスト（流れる譜面型・8分ダウンアップ）
     strokeRound: 0,
     strokeFrom: 0, strokeUntil: 0,
-    strokePeaks: [],          // 全ラウンドの受付窓ピーク（検出有無に無関係）
-    strokeDownPeaks: [],      // ダウン回の受付窓ピーク
-    strokeUpPeaks: [],        // アップ回の受付窓ピーク
+    strokePeaks: [],          // 全ノートの受付窓ピーク（検出有無に無関係）
+    strokeDownPeaks: [],      // ダウン音符の受付窓ピーク
+    strokeUpPeaks: [],        // アップ音符の受付窓ピーク
     strokeDetected: 0,
     strokeDoubleCount: 0,
     minStrokePeak: null, maxStrokePeak: null,
     strokeDone: false,
+    // 流れる譜面
+    notes: [],                // {t, dir, opened, closed, peak}
+    noteIdx: 0,
+    flowStart: 0,
+    flowRaf: 0,
     // 推奨
     recommended: null,
     recoCooldown: null,
@@ -224,6 +229,7 @@ const els = {
     rCloseBtn: $('r-close-btn'),
     resultsCard: $('results-card'),
     resultsDetail: $('results-detail'),
+    resultsWarn: $('results-warn'),
     reviewWrap: $('review-wrap'),
     reviewCanvas: $('review-canvas'),
     rScore: $('r-score'),
@@ -307,6 +313,8 @@ const els = {
     testLevelVal: $('test-level-val'),
     micTestBtn: $('mic-test-btn'),
     testLive: $('test-live'),
+    testLaneWrap: $('test-lane-wrap'),
+    testLaneCanvas: $('test-lane-canvas'),
     testPhase: $('test-phase'),
     testResult: $('test-result'),
     testReco: $('test-reco'),
@@ -334,6 +342,7 @@ let lane = { ctx: null, w: 0, h: 0 };
 let preview = { ctx: null, w: 0, h: 0 };
 let graph = { ctx: null, w: 0, h: 0 };
 let review = { ctx: null, w: 0, h: 0, beatPx: 70, leftPad: 38 };
+let testLane = { ctx: null, w: 0, h: 0 }; // マイク反応テストの流れる譜面
 
 /* ── STAGE一覧を描画 ────────────────────────────────────── */
 function renderStages() {
@@ -1172,6 +1181,28 @@ function resetGame() {
     drawLane(0);
 }
 
+/* マイク入力のGOODが「ほぼ同じズレ」に集中している場合、クリック音を拾っている可能性を軽く警告。
+   断定はしない（誤検出しても害がない程度の注意表示）。 */
+function maybeShowClickPickupWarning() {
+    if (!els.resultsWarn) return;
+    let show = false;
+    if (state.inputMode === 'stroke') {
+        const micDiffs = [];
+        for (let i = 0; i < TOTAL_BEATS; i++) {
+            const r = state.results[i];
+            if (r && r.tapped && r.source === 'mic') micDiffs.push(r.diff);
+        }
+        if (micDiffs.length >= 6) {
+            const mean = micDiffs.reduce((a, b) => a + b, 0) / micDiffs.length;
+            const variance = micDiffs.reduce((a, b) => a + (b - mean) * (b - mean), 0) / micDiffs.length;
+            const std = Math.sqrt(variance);
+            // ズレがほぼ一点に集中（標準偏差<5ms）し、平均が +5〜+35ms 付近 → クリック拾いの疑い
+            if (std < 5 && mean >= 5 && mean <= 35) show = true;
+        }
+    }
+    els.resultsWarn.classList.toggle('hidden', !show);
+}
+
 /* ── 集計・結果 ─────────────────────────────────────────── */
 function finish() {
     state.running = false;
@@ -1219,6 +1250,9 @@ function finish() {
     }
     els.rComment.textContent = buildComment({ just, miss, tapped: diffs.length, avg, fAvg, sAvg });
 
+    // クリック音拾いの可能性を判定（ストローク＝マイク入力で、GOODのズレがほぼ一点に集中している）
+    maybeShowClickPickupWarning();
+
     // 結果をモーダルで表示（ズレ確認レーンがメイン）
     if (els.resultsOverlay) els.resultsOverlay.classList.remove('hidden');
     if (els.refreshBar) els.refreshBar.classList.add('hidden'); // モーダル背後に透けないよう一時的に隠す
@@ -1251,7 +1285,7 @@ function setInputMode(mode) {
     } else {
         if (els.tapLayoutToggle) els.tapLayoutToggle.classList.add('hidden');
         if (els.tapArea) els.tapArea.classList.add('hidden');     // ストローク時はタップエリアを畳む
-        if (els.tapHint) els.tapHint.textContent = '実際にストロークしてください';
+        if (els.tapHint) els.tapHint.textContent = '流れる譜面に合わせてストローク。クリック音は小さめ推奨です。';
         if (!mic.on) {
             startMic().then(() => {
                 if (mic.on) {
@@ -1622,9 +1656,11 @@ function tSet(fn, ms) { const id = setTimeout(fn, ms); test.timers.push(id); ret
 
 function exitTestMode() {
     clearTestTimers();
+    cancelAnimationFrame(test.flowRaf); test.flowRaf = 0;
     test.active = false;
     test.mode = null;
     test.flow = false;
+    if (els.testLaneWrap) els.testLaneWrap.classList.add('hidden');
     if (els.micTestBtn) {
         els.micTestBtn.textContent = micTestBtnIdleLabel();
         els.micTestBtn.classList.toggle('is-todo', !state.micTestDone);
@@ -1771,7 +1807,9 @@ async function startMicTestFlow() {
 
 function abortMicTest() {
     clearTestTimers();
+    cancelAnimationFrame(test.flowRaf); test.flowRaf = 0;
     test.flow = false; test.mode = null;
+    if (els.testLaneWrap) els.testLaneWrap.classList.add('hidden');
     els.micTestBtn.textContent = micTestBtnIdleLabel();
     els.micTestBtn.classList.toggle('is-todo', !state.micTestDone);
     setTestPhase('');
@@ -1808,52 +1846,124 @@ function endClickPhase() {
     test.timers.push(setTimeout(beginStrokePhase, 800));
 }
 
-/* ストロークテスト（4回・カウントダウン誘導） */
-/* ストロークテストのラウンド方向（前半＝ダウン / 後半＝アップ）。8分練習に備えて分けて測定 */
-function strokeRoundDirection(roundIndex1) {
-    return (roundIndex1 <= Math.ceil(STROKE_TEST_COUNT / 2)) ? 'down' : 'up';
-}
+/* ── ストロークテスト（流れる譜面型・8分ダウンアップ）──────────
+   STAGEに近い見た目で、右から左へ流れる8分音符（↓↑）が判定ラインに来たら弾く。
+   タイミング精度は評価せず、各音符の判定窓内の最大入力を down/up 別に記録するだけ。 */
+const TEST_NOTE_MS = 360;     // 音符間隔（8分相当・ゆっくりめ）
+const TEST_NOTE_WIN = 150;    // 判定窓 ±ms（最大入力を記録する範囲）
+const TEST_LEAD_MS = 1700;    // 最初の音符が流れてくるまでの助走
 
 function beginStrokePhase() {
     if (test.mode === null && !test.flow) return;
     test.mode = 'stroke';
-    test.strokeRound = 0;
     test.strokePeaks = []; test.strokeDownPeaks = []; test.strokeUpPeaks = [];
     test.strokeDetected = 0; test.strokeDoubleCount = 0;
-    runStrokeRound();
+    // 16音符（ダウン8・アップ8）。t は flowStart からの相対ms
+    test.notes = [];
+    const COUNT = 16;
+    for (let i = 0; i < COUNT; i++) {
+        test.notes.push({ t: TEST_LEAD_MS + i * TEST_NOTE_MS, dir: (i % 2 === 0) ? 'down' : 'up', opened: false, closed: false, peak: 0, onsets: 0 });
+    }
+    test.noteIdx = 0;
+    test.curPeak = 0; test.curOnsets = 0;
+    test.strokeFrom = 0; test.strokeUntil = 0;
+    if (els.testLaneWrap) els.testLaneWrap.classList.remove('hidden');
+    fitTestLane();
+    setTestPhase('流れる音符に合わせて ↓ダウン ↑アップ で弾いてください');
+    test.flowStart = performance.now();
+    cancelAnimationFrame(test.flowRaf);
+    test.flowRaf = requestAnimationFrame(testFlowLoop);
 }
 
-function runStrokeRound() {
+function testFlowLoop() {
     if (test.mode !== 'stroke') return;
-    if (test.strokeRound >= STROKE_TEST_COUNT) { endStrokePhase(); return; }
-    test.strokeRound++;
-    const r = test.strokeRound;
-    const dir = strokeRoundDirection(r);
-    const arrow = dir === 'down' ? '↓ ダウン' : '↑ アップ';
-    const cd = [['準備…', 0], ['3', 400], ['2', 800], ['1', 1200]];
-    cd.forEach(([txt, ms]) => tSet(() => { if (test.mode === 'stroke') setTestPhase(arrow + 'でストローク（' + r + ' / ' + STROKE_TEST_COUNT + '）　' + txt); }, ms));
-    tSet(() => {
-        if (test.mode !== 'stroke') return;
-        test.curPeak = 0; test.curOnsets = 0;
-        test.strokeFrom = performance.now();
-        test.strokeUntil = test.strokeFrom + 1400;
-        setTestPhase('今、1回 ' + arrow + ' でストローク！');
-    }, 1700);
-    tSet(() => {
-        if (test.mode !== 'stroke') return;
-        test.strokeUntil = 0;
-        test.strokePeaks.push(test.curPeak);
-        if (dir === 'down') test.strokeDownPeaks.push(test.curPeak);
-        else test.strokeUpPeaks.push(test.curPeak);
-        if (test.curPeak >= mic.threshold) test.strokeDetected++;
-        if (test.curOnsets >= 2) test.strokeDoubleCount++;
-        runStrokeRound();
-    }, 3300);
+    const now = performance.now();
+    const t = now - test.flowStart;
+
+    // 現在の音符の判定窓を開閉。開いている間は micLoop が test.curPeak を更新する
+    const note = test.notes[test.noteIdx];
+    if (note) {
+        if (!note.opened && t >= note.t - TEST_NOTE_WIN) {
+            note.opened = true;
+            test.curPeak = 0; test.curOnsets = 0;
+            test.strokeFrom = now;
+            test.strokeUntil = now + TEST_NOTE_WIN * 2;
+        }
+        if (note.opened && !note.closed && t >= note.t + TEST_NOTE_WIN) {
+            note.closed = true;
+            note.peak = test.curPeak;
+            note.onsets = test.curOnsets;
+            test.strokeUntil = 0;
+            test.strokePeaks.push(note.peak);
+            (note.dir === 'down' ? test.strokeDownPeaks : test.strokeUpPeaks).push(note.peak);
+            if (note.peak >= mic.threshold) test.strokeDetected++;
+            if (note.onsets >= 2) test.strokeDoubleCount++;
+            test.noteIdx++;
+        }
+    }
+
+    drawTestLane(t);
+
+    const lastT = test.notes.length ? test.notes[test.notes.length - 1].t : 0;
+    if (test.noteIdx >= test.notes.length && t > lastT + TEST_NOTE_WIN + 250) {
+        endStrokePhase();
+        return;
+    }
+    test.flowRaf = requestAnimationFrame(testFlowLoop);
+}
+
+/* テスト譜面レーンのサイズ確定 */
+function fitTestLane() {
+    if (!els.testLaneCanvas) return;
+    testLane = fitOne(els.testLaneCanvas);
+}
+
+/* テスト譜面レーン描画（右→左に流れる8分音符＋↓↑） */
+function drawTestLane(t) {
+    const { ctx, w, h } = testLane;
+    if (!ctx) return;
+    ctx.clearRect(0, 0, w, h);
+    const yc = h * 0.44;
+    const judgeX = w * 0.28;
+    const ppm = (w * 0.18) / TEST_NOTE_MS;  // 1音符ぶんを画面幅の約18%に
+    // 中央ガイド
+    ctx.strokeStyle = 'rgba(253,246,238,0.08)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke();
+    // 音符
+    for (let i = 0; i < test.notes.length; i++) {
+        const n = test.notes[i];
+        const x = judgeX + (n.t - t) * ppm;
+        if (x < -24 || x > w + 24) continue;
+        const inWin = (!n.closed) && Math.abs(t - n.t) <= TEST_NOTE_WIN;
+        const col = n.closed
+            ? (n.peak >= mic.threshold ? '#2ecc71' : 'rgba(253,246,238,0.3)')
+            : (inWin ? 'rgba(255,209,102,0.98)' : 'rgba(255,209,102,0.6)');
+        ctx.save();
+        if (inWin) { ctx.shadowColor = 'rgba(255,159,28,0.8)'; ctx.shadowBlur = 10; }
+        ctx.beginPath(); ctx.arc(x, yc, 7, 0, Math.PI * 2);
+        ctx.fillStyle = col; ctx.fill();
+        ctx.restore();
+        // ↓ / ↑
+        ctx.fillStyle = n.closed ? 'rgba(255,180,90,0.55)' : 'rgba(255,180,90,0.95)';
+        ctx.font = '700 15px Outfit, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(n.dir === 'down' ? '↓' : '↑', x, yc + 28);
+    }
+    // 判定ライン
+    ctx.save();
+    ctx.shadowColor = 'rgba(255,159,28,0.9)'; ctx.shadowBlur = 12;
+    ctx.strokeStyle = 'rgba(255,159,28,0.95)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(judgeX, h * 0.12); ctx.lineTo(judgeX, h * 0.86); ctx.stroke();
+    ctx.restore();
 }
 
 function endStrokePhase() {
     test.mode = null; test.flow = false;
+    cancelAnimationFrame(test.flowRaf); test.flowRaf = 0;
+    if (els.testLaneWrap) els.testLaneWrap.classList.add('hidden');
     els.micTestBtn.textContent = micTestBtnIdleLabel();
+    els.micTestBtn.classList.toggle('is-todo', !state.micTestDone);
     setTestPhase('');
     const thr = mic.threshold;
     const validMin = (arr) => { const v = arr.filter((p) => p >= thr); return v.length ? Math.min(...v) : null; };
@@ -1907,17 +2017,19 @@ function updateReco() {
         els.recoThr.textContent = '—';
     }
 
-    // ② クリック音量：全ストローク最小（または仮基準）× 安全率0.75 を目標クリック音最大とし、
-    //    現在のクリック音最大がそれより大きければ音量を下げる比率を計算して提案する。
+    // ② クリック音量：全ストローク最小（または仮基準）× 安全率0.5 を目標クリック音最大とし、
+    //    現在のクリック音最大がそれより大きければ音量を下げる比率を計算して提案する（イヤホン無しでも成立を優先）。
     let recoVol = state.clickVolume;
     let clickClose = false;
-    const SAFETY = 0.75;
+    let clickLouder = false; // クリック音の方がストローク基準より大きい
+    const SAFETY = 0.5;      // 0.75→0.5 に強化（クリック音をしっかり下げる）
     if (strokeBasis != null && maxClick > 0) {
+        clickLouder = (maxClick >= strokeBasis);
         const targetClickMax = strokeBasis * SAFETY;
         if (maxClick > targetClickMax) {
             clickClose = true;
             recoVol = Math.round(state.clickVolume * targetClickMax / maxClick);
-            recoVol = Math.max(10, Math.min(100, recoVol));
+            recoVol = Math.max(10, Math.min(100, recoVol)); // 0にはしない（小音量クリックとして残す）
         } else if (clickReacted > 0) {
             recoVol = Math.max(10, state.clickVolume - 20);
         }
@@ -1935,17 +2047,22 @@ function updateReco() {
 
     // メッセージ＋適用ボタン。クリック音量だけでも下げれば改善するため、適用できる場合は出す。
     const volChanged = recoVol !== state.clickVolume;
-    if (clickClose) {
+    if (clickLouder) {
+        // クリック音の方が大きい：かなり下げる提案＋イヤホン案内
         els.recoMsg.className = 'test-reco-msg warn';
         els.recoMsg.classList.remove('hidden');
-        els.recoMsg.textContent = 'クリック音とストローク音が近いため、クリック音量を ' + recoVol + '% くらいまで下げると安定しやすくなります。';
+        els.recoMsg.textContent = 'クリック音の方がストローク音より大きく入っています。スピーカー使用時は、クリック音量を ' + recoVol + '% くらいまで下げるか、イヤホン使用がおすすめです。';
+    } else if (clickClose) {
+        els.recoMsg.className = 'test-reco-msg warn';
+        els.recoMsg.classList.remove('hidden');
+        els.recoMsg.textContent = 'スピーカー使用時はクリック音がマイクに入りやすいため、クリック音量を ' + recoVol + '% くらいまで下げると安定しやすくなります。';
     } else if (canApply) {
         els.recoMsg.classList.add('hidden');
     } else {
         els.recoMsg.className = 'test-reco-msg ng';
         els.recoMsg.classList.remove('hidden');
         if (test.strokeDetected === 0 && (maxStrokeRaw == null || maxStrokeRaw <= maxClick + 0.004)) {
-            els.recoMsg.textContent = 'クリック音とストローク音の大きさが近いため、自動設定が難しい状態です。クリック音量を下げるか、イヤホンを使ってください。';
+            els.recoMsg.textContent = 'クリック音とストローク音の大きさが近いため、自動設定が難しい状態です。クリック音量をかなり下げるか、イヤホンを使ってください。';
         } else {
             els.recoMsg.textContent = 'ストローク音が反応ラインに届いていません。マイク感度を上げるか、もう少し大きめに弾いてください。';
         }

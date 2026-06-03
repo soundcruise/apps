@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=28">
+    <link rel="stylesheet" href="theme.css?v=30">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -164,6 +164,10 @@
                         <div class="mic-threshold" id="test-threshold"></div>
                     </div>
                 </div>
+                <!-- ストロークテストの流れる譜面（↓↑が右から左へ流れる） -->
+                <div class="test-lane-wrap hidden" id="test-lane-wrap">
+                    <canvas id="test-lane-canvas"></canvas>
+                </div>
                 <p class="test-phase" id="test-phase"></p>
                 <p class="test-result" id="test-result"></p>
                 <div class="test-reco hidden" id="test-reco">
@@ -304,6 +308,9 @@
             <!-- 3. 一言コメント -->
             <p class="tendency" id="r-comment"></p>
 
+            <!-- クリック音拾いの可能性（ストロークでズレが一点集中したとき）-->
+            <p class="results-warn hidden" id="results-warn">⚠️ クリック音をマイクが拾っている可能性があります。スピーカー使用時はクリック音量をさらに下げるか、イヤホン使用がおすすめです。</p>
+
             <!-- 4. 詳細（内訳・ズレ履歴グラフ）：折りたたみ -->
             <details class="results-detail" id="results-detail">
                 <summary class="results-detail-summary">詳細（内訳・ズレ履歴グラフ）</summary>
@@ -327,7 +334,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=32"></script>
+    <script src="script.js?v=33"></script>
 </body>
 
 </html>
