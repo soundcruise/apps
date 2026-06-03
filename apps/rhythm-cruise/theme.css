@@ -1281,8 +1281,9 @@ h1 {
     gap: 10px !important;
 }
 
-/* マイク反応テスト：実施済みの見た目（薄い緑の縁取り） */
-.test-card.is-done {
+/* マイク反応テスト／遅れ補正：実施済みの見た目（薄い緑の縁取り） */
+.test-card.is-done,
+.cal-card.is-done {
     border-color: rgba(46, 204, 113, 0.55);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 0 1px rgba(46, 204, 113, 0.25);
 }
@@ -1294,23 +1295,25 @@ h1 {
     gap: 8px;
 }
 
-.test-card.is-done .cal-head {
+.test-card.is-done .cal-head,
+.cal-card.is-done .cal-head {
     color: #2ecc71;
 }
 
-.test-done-badge {
+/* 未/実施済みの状態ピル（未実施のときだけ控えめに表示。済みは見出しの✅で示す） */
+.status-pill {
     flex: 0 0 auto;
     font-size: 0.72rem;
     font-weight: 700;
-    color: #2ecc71;
-    background: rgba(46, 204, 113, 0.12);
-    border: 1px solid rgba(46, 204, 113, 0.4);
+    color: var(--muted-color);
+    background: rgba(253, 246, 238, 0.06);
+    border: 1px solid rgba(253, 246, 238, 0.18);
     border-radius: 50px;
     padding: 3px 10px;
     white-space: nowrap;
 }
 
-.test-done-badge.hidden {
+.status-pill.hidden {
     display: none;
 }
 

@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=24">
+    <link rel="stylesheet" href="theme.css?v=25">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -136,7 +136,7 @@
             <div class="settings-card test-card" id="test-card">
                 <div class="cal-head-row">
                     <div class="cal-head" id="test-card-head">マイク反応テスト</div>
-                    <span class="test-done-badge hidden" id="test-done-badge">✅ テスト済み</span>
+                    <span class="status-pill" id="test-done-badge">未実施</span>
                 </div>
                 <p class="setting-note">クリック音が反応せず、ストローク音だけ反応するかを自動でチェックします。</p>
                 <div class="test-row">
@@ -180,10 +180,13 @@
             </div>
 
             <!-- 2. マイクの遅れ補正 -->
-            <div class="settings-card cal-card">
-                <div class="cal-head">マイクの遅れ補正</div>
+            <div class="settings-card cal-card" id="cal-card">
+                <div class="cal-head-row">
+                    <div class="cal-head" id="cal-head">マイクの遅れ補正</div>
+                    <span class="status-pill" id="cal-done-badge">未実施</span>
+                </div>
                 <p class="setting-note">マイク入力の遅れを測って補正します。</p>
-                <button class="btn-mic cal-run-btn" id="cal-btn">マイクの遅れテストを開始</button>
+                <button class="btn-mic cal-run-btn" id="cal-btn">テストを開始</button>
                 <p class="cal-status hidden" id="cal-status"></p>
                 <div class="cal-monitor hidden" id="cal-monitor">
                     <div class="mic-meter">
@@ -294,7 +297,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=27"></script>
+    <script src="script.js?v=28"></script>
 </body>
 
 </html>
