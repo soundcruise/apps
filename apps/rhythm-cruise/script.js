@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.31';
+const RHYTHM_CRUISE_VERSION = '0.9.32';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -22,10 +22,15 @@ const STROKE_TEST_COUNT = 4;
    そのため補正用は「クリック音を確実に拾うが、ノイズ・余韻は拾いすぎない」ラインを別に算出する。 */
 // 補正テストの安定化方針：
 //  ・補正テスト中だけクリック音量を十分上げ（CAL_MIN_VOLUME）、クリックを安定して拾う（STAGE本番は変えない）。
-//  ・検出は「固定の低い反応ライン」で行う（1発目の実測に依存すると揺れて取りこぼすため）。
+//  ・補正用反応ラインは「マイク反応テストのクリック音量・環境ノイズ」から決める：
+//      環境ノイズより十分上 ＜ 補正用反応ライン ＜ クリック最大見込みより十分下（かつ低すぎない）。
+//  ・最初の1クリックの実測ピークが取れたら、必要に応じて一度だけ微調整する。
 //  ・採用は 7/8 以上＋ばらつき小＋補正値が上限非到達 のときだけ（不安定なら補正値を出さない）。
-const CAL_DETECT_THR = 0.02;   // 補正テストの固定検出反応ライン（ノイズより上・十分大きいクリックより十分下）
-const CAL_THR_DEFAULT = 0.02;  // 表示用の既定（＝固定検出ライン）
+const CAL_THR_DEFAULT = 0.02;       // マイク反応テスト未実施などで推定できない場合の既定
+const CAL_THR_CLICK_FACTOR = 0.45;  // 補正用反応ライン = クリック最大見込み × この係数（立ち上がり本体を拾う）
+const CAL_THR_CAP_FACTOR = 0.75;    // 補正用反応ラインは「クリック最大見込み × この係数」を超えない
+const CAL_THR_FLOOR = 0.012;        // 補正用反応ラインの絶対下限
+const CAL_THR_CEIL = 0.08;          // 補正用反応ラインの絶対上限
 const CAL_MIN_VOLUME = 30;     // 補正テスト中の最低クリック音量(%)。10%等で不安定なため引き上げる（STAGEは据え置き）
 const CAL_MIN_DETECT_PEAK = 0.05; // 想定クリックピークがこれ未満なら、さらに音量を上げて安定検出を狙う
 const CAL_MIN_SUCCESS = 7;     // 補正値を採用する最低検出数（8拍中）。これ未満は不安定扱い
@@ -42,9 +47,11 @@ const CAL_MAX_SPREAD_MS = 45;
 const CAL_OFFSET_LIMIT_MS = 150;
 
 /* クリック音ガード中でも、これ以上の大きさなら本物のストロークとみなして通す（しきい値の倍率）。
-   反応ラインはおすすめ適用後クリック音より上にあるため、ライン超え＝ストローク。低めにして
-   4分ジャスト（クリックと同時の弾き）を弾かれにくくする（1.5→1.1）。 */
-const STRONG_STROKE_FACTOR = 1.1;
+   反応ラインはおすすめ適用後クリック音より上にあるため、ライン超え＝ストローク。
+   ★1.0：ライン（=反応ライン）を超えた入力は全てストロークとして通す。クリックはラインより下なので
+   オンセットしない＝ガードで弾く必要がない。これより上にすると、クリックと同時(4分ジャスト)に弾いた
+   「ライン超えだが少し小さめ」のストロークがガードで除外されてMISSになる（今回の原因）。 */
+const STRONG_STROKE_FACTOR = 1.0;
 
 /* 二重反応の判定（クールダウン中の入力）。1回のストロークの余韻・複数ピークを二重反応と数えないため、
    「明確に別の強い立ち上がり」のときだけ・1クールダウンにつき1回だけ数える。 */
@@ -144,6 +151,7 @@ const state = {
     beatMicPeak: new Array(TOTAL_BEATS).fill(0), // 各拍の判定窓内で観測した最大マイク入力（MISS原因の切り分け用）
     beatDoubled: new Array(TOTAL_BEATS).fill(false), // 各拍で二重反応（重複入力）が起きたか
     beatExcluded: new Array(TOTAL_BEATS).fill(false), // 各拍で入力がクールダウン/ガード等で除外されたか
+    micEventLog: [],  // 各オンセットの記録（MISS原因デバッグ用）{t,peak,nearBeat,outcome,assignedBeat,cls}
     doubleReactionCount: 0, // 二重反応の総数
     markers: [],
     micWaveHistory: [],   // {perf, level} マイク音量の時系列（STAGE中の背景波形用・直近のみ）
@@ -203,6 +211,10 @@ const cal = {
     saved: null,     // 開始時に退避したユーザー設定
     successCount: 0, // 検出できたクリック数
     clickArmed: false, // 現在のクリックがまだ未検出か（1クリック1検出のため）
+    rebaselined: false, // 1クリック目の実測で補正用反応ラインを微調整済みか（一度だけ）
+    noiseBump: 1,    // 直前がばらつき大（ノイズ拾い）だった場合、次回の補正用反応ラインを上げる係数
+    lastResultThreshold: null, // 直前に「採用可」となった測定の補正用反応ライン（前回比較用）
+    lastResultOffset: null,    // 直前に「採用可」となった測定の補正値（前回比較用）
     spread: null,    // 直近測定のばらつき（中央絶対偏差ms）
     unstable: false, // ばらつき過大で測定不安定と判定したか
     threshold: CAL_THR_DEFAULT, // 補正テストで実際に使った反応ライン（STAGE用とは別物・表示用）
@@ -223,6 +235,15 @@ const test = {
     timers: [],         // ストロークテスト等の予約タイマー
     curPeak: 0,         // 現在の計測窓のピーク
     curOnsets: 0,       // 現在の計測窓のオンセット数（二重反応判定）
+    // 環境ノイズ測定（補正用反応ラインの下限に使う）
+    noiseSamples: [],   // 無音区間のマイク入力レベル
+    noiseAvg: 0, noiseMax: 0, noiseP95: 0,
+    // 反応ライン超過時間の計測（二重反応防止の推奨に使う）
+    curAbove: false,    // 現在、反応ラインを超えているか
+    curAboveStart: 0,   // 現在の連続超過の開始時刻
+    curAboveMax: 0,     // 現在の音符窓での最長連続超過時間(ms)
+    strokeAboveMs: [],  // 各ストロークの反応ライン超過時間(ms)
+    strokeAboveMedian: null, // 反応ライン超過時間の代表値(中央値, ms)
     // クリックテスト
     clickI: 0,
     clickPlayedAt: -9999,
@@ -301,6 +322,7 @@ const els = {
     resultsDetail: $('results-detail'),
     resultsWarn: $('results-warn'),
     resultsMissInfo: $('results-miss-info'),
+    resultsMissDebug: $('results-miss-debug'),
     resultsDoubleNotice: $('results-double-notice'),
     resultsDoubleMsg: $('results-double-msg'),
     resultsDoubleDetail: $('results-double-detail'),
@@ -1228,19 +1250,8 @@ function drawReview() {
                 ctx.restore();
                 ctx.fillStyle = '#ff8c3c';
                 ctx.fillText(mr.short, x, msY);
-            } else if (mr.code === 'absorbed') {
-                // 余韻：GOOD/EARLY/LATEと同列に見えないよう、ごく控えめに（とても薄い小点＋小さな薄い「余韻」）
-                ctx.save(); ctx.globalAlpha = 0.28;
-                ctx.fillStyle = COLORS.miss;
-                ctx.beginPath(); ctx.arc(x, yc, 3, 0, Math.PI * 2); ctx.fill();
-                ctx.restore();
-                ctx.save(); ctx.globalAlpha = 0.45;
-                ctx.fillStyle = COLORS.miss;
-                ctx.font = '600 9px Outfit, sans-serif';
-                ctx.fillText('余韻', x, msY);
-                ctx.restore();
             } else {
-                // MISS：薄いグレーの×（未入力）
+                // MISS：薄いグレーの×（未入力）。余韻・判定済み・重複は出さず、ここに集約。
                 ctx.save(); ctx.globalAlpha = 0.55;
                 ctx.strokeStyle = COLORS.miss; ctx.lineWidth = 2;
                 ctx.beginPath();
@@ -1326,7 +1337,8 @@ function registerHit(perfNow, source, direction) {
     const bi = state.beatInterval;
     const diffTo = (b) => hitTime - (state.T0 + b * bi); // 符号付きズレ（負＝早い）
     let i = Math.round((hitTime - state.T0) / bi);
-    if (i < 0 || i > TOTAL_BEATS - 1) return false; // カウントイン中・範囲外
+    if (i < 0 || i > TOTAL_BEATS - 1) { mic.lastAssign = { beat: i, outcome: '範囲外' }; return false; } // カウントイン中・範囲外
+    const origBeat = i;
     // 最寄り拍が「より近い入力」で既に埋まっている場合、入力が属する隣の空き拍へ寄せて穴(=MISS)を減らす。
     // これにより、近い拍に二重で重ねるのではなく、隣の拍を EARLY/LATE で埋められる。
     const occupiedCloser = state.results[i] && Math.abs(state.results[i].diff) <= Math.abs(diffTo(i));
@@ -1359,6 +1371,14 @@ function registerHit(perfNow, source, direction) {
 
     // 同じ拍に複数検出 → 最もジャストに近いものを採用。2回目以降は二重反応として記録。
     const prev = state.results[i];
+    // デバッグ：この入力がどの拍に・どう割り当てられたか
+    mic.lastAssign = {
+        beat: i, origBeat, diff: Math.round(diff), cls,
+        reassigned: (i !== origBeat),
+        doubled: !!(prev && source === 'mic'),
+        kept: !(!prev || Math.abs(diff) < Math.abs(prev.diff)),
+        outcome: 'register',
+    };
     if (prev && source === 'mic') {
         state.beatDoubled[i] = true;
         state.doubleReactionCount++;
@@ -1522,6 +1542,7 @@ function resetData() {
     state.beatMicPeak = new Array(TOTAL_BEATS).fill(0);
     state.beatDoubled = new Array(TOTAL_BEATS).fill(false);
     state.beatExcluded = new Array(TOTAL_BEATS).fill(false);
+    state.micEventLog = [];
     state.doubleReactionCount = 0;
     state.markers = [];
     state.micWaveHistory = [];
@@ -1595,37 +1616,80 @@ function missReason(i) {
     //   よって未登録＝「明確な二重反応として除外」「近い拍で判定済み/余韻」「入力ライン未満」のいずれか。
     //   ★クールダウン除外(beatExcluded)は“同一ストロークの余韻/揺れ”が大半なので「二重反応」にはせず、
     //     「明確に別の強い立ち上がり」と判定できたとき(beatDoubled)だけ二重反応にする。残りは判定済み/余韻。
-    if (state.beatDoubled[i]) return { code: 'double', short: '二重反応', long: '二重反応として除外' };
-    // beatMicPeak は実打(オンセット)直後だけ記録するので、未登録なのに音量ありの拍は
-    // 「直前/直後ストロークの余韻・同一ストローク内の重複」とみなせる（弾いていない拍には音量が残らない）。
-    const hadVol = (state.beatMicPeak[i] || 0) >= mic.threshold;
-    if (hadVol || state.beatExcluded[i]) return { code: 'absorbed', short: '余韻', long: '直前/直後ストロークの余韻・重複' };
-    return { code: 'low', short: 'MISS', long: '入力ライン未満' };
+    if (state.beatDoubled[i]) return { code: 'double', short: '二重反応', long: '二重反応' };
+    // ★余韻・二重反応防止中に無視した入力・判定済み成分は、ユーザーには出さない（内部的に無視）。
+    //   未登録の拍は一律 MISS として扱う（GOOD/EARLY/LATE/MISS/二重反応 だけを表示する方針）。
+    return { code: 'low', short: 'MISS', long: '未入力' };
 }
 
 function updateMissInfo() {
     if (!els.resultsMissInfo) return;
     if (state.inputMode !== 'stroke') { els.resultsMissInfo.classList.add('hidden'); return; }
-    let missTotal = 0, low = 0, dbl = 0, absorbed = 0, dir = 0, timing = 0;
+    let missTotal = 0, low = 0, dbl = 0, dir = 0, timing = 0;
     for (let i = 0; i < TOTAL_BEATS; i++) {
         const m = missReason(i);
         if (!m) continue;
         missTotal++;
-        if (m.code === 'low') low++;
-        else if (m.code === 'double') dbl++;
-        else if (m.code === 'absorbed') absorbed++;
+        if (m.code === 'double') dbl++;
         else if (m.code === 'dir') dir++;
         else if (m.code === 'timing') timing++;
+        else low++; // 'low'（未入力）。余韻・判定済み・入力重複は出さない
     }
     if (missTotal === 0) { els.resultsMissInfo.classList.add('hidden'); return; }
     const parts = [];
-    if (low > 0) parts.push('入力ライン未満 ' + low);
+    if (low > 0) parts.push('未入力 ' + low);
     if (dbl > 0) parts.push('二重反応 ' + dbl);
-    if (absorbed > 0) parts.push('余韻 ' + absorbed);
     if (dir > 0) parts.push('方向違い ' + dir);
     if (timing > 0) parts.push('タイミング外 ' + timing);
     els.resultsMissInfo.textContent = 'MISS ' + missTotal + ' 拍：' + parts.join(' ／ ');
     els.resultsMissInfo.classList.remove('hidden');
+}
+
+/* MISS原因デバッグ：各MISS拍について「オンセットがあったか／結末（クリックガード・クールダウン・未検出 等）」を
+   コンソールと結果詳細に出す。なぜライン超えに見える入力がMISSになったのかを説明できるようにする。 */
+function logBeatDebug() {
+    if (state.inputMode !== 'stroke') return;
+    const rows = [];
+    for (let i = 0; i < TOTAL_BEATS; i++) {
+        const r = state.results[i];
+        const ev = (state.micEventLog || []).filter((e) => e.nearBeat === i || e.assignedBeat === i);
+        const mr = missReason(i);
+        rows.push({
+            拍: i, 音符ms: Math.round(state.T0 + i * state.beatInterval),
+            beatMicPeak: +(state.beatMicPeak[i] || 0).toFixed(3),
+            反応ライン: +mic.threshold.toFixed(3),
+            オンセット: ev.length ? ev.map((e) => e.outcome + '@' + e.t + '(p' + e.peak + ',near' + e.nearBeat + (e.assignedBeat != null ? '→' + e.assignedBeat : '') + ')').join(' | ') : 'なし',
+            結果: r ? r.cls : (mr ? mr.short : 'MISS'),
+            ズレms: r ? Math.round(r.diff) : '',
+        });
+    }
+    try { console.table(rows); } catch (_) { console.log('[beatDebug]', JSON.stringify(rows)); }
+    console.log('[beatDebug] eventLog=' + JSON.stringify(state.micEventLog) + ' offset=' + mic.timingOffsetMs + 'ms thr=' + mic.threshold.toFixed(3));
+}
+
+/* 結果詳細にMISS拍の理由を1行で（iPhoneでもconsoleなしで原因を確認できるように） */
+function updateMissDebug() {
+    if (!els.resultsMissDebug) return;
+    if (state.inputMode !== 'stroke') { els.resultsMissDebug.classList.add('hidden'); return; }
+    const lines = [];
+    for (let i = 0; i < TOTAL_BEATS; i++) {
+        const r = state.results[i];
+        const isMiss = !r || r.cls === 'miss';
+        if (!isMiss) continue;
+        const ev = (state.micEventLog || []).filter((e) => e.nearBeat === i);
+        let reason;
+        if (!ev.length) reason = 'オンセット無し（立ち上がり未検出）';
+        else {
+            const e = ev[ev.length - 1];
+            reason = 'p' + e.peak + '→' + (e.outcome || '?') + (e.assignedBeat != null && e.assignedBeat !== i ? '（拍' + (e.assignedBeat + 1) + 'へ）' : '');
+        }
+        lines.push('拍' + (i + 1) + '：' + reason);
+    }
+    if (!lines.length) { els.resultsMissDebug.classList.add('hidden'); return; }
+    const shown = lines.slice(0, 10);
+    const extra = lines.length - shown.length;
+    els.resultsMissDebug.textContent = '🔍 MISS拍デバッグ｜' + shown.join(' / ') + (extra > 0 ? ' ／ ほか' + extra + '拍' : '');
+    els.resultsMissDebug.classList.remove('hidden');
 }
 
 /* 二重反応（1拍に複数入力）の表示。
@@ -1695,6 +1759,9 @@ function finish() {
     maybeShowClickPickupWarning();
     // MISSの原因切り分け（入力レベル不足 / 入力はあるが判定候補にならず）を集計
     updateMissInfo();
+    // MISS原因の拍ごとデバッグ（console.table＋結果詳細に1行）
+    logBeatDebug();
+    updateMissDebug();
     // 二重反応の集計＋案内
     updateDoubleInfo();
     // ストローク音量バー＋反応ライン（ストローク＝マイク時のみ表示）
@@ -2254,7 +2321,30 @@ async function startMicTestFlow() {
     els.micTestBtn.textContent = 'テストを中止';
     els.micTestBtn.classList.remove('is-todo'); // 進行中は赤系を外す
     setTestResult('', '');
-    beginClickPhase();
+    beginNoisePhase();
+}
+
+/* 環境音（バックグラウンドノイズ）測定。クリックテストの前に短く無音区間を取り、
+   環境ノイズの平均/最大/p95 を測る（補正用反応ラインの下限に使う）。 */
+const TEST_NOISE_MS = 800;
+function beginNoisePhase() {
+    test.mode = 'noise';
+    test.noiseSamples = [];
+    if (els.testLaneWrap) els.testLaneWrap.classList.add('hidden');
+    setTestPhase('周囲の音を確認中…（少し静かにお待ちください）');
+    test.timers.push(setTimeout(() => {
+        if (test.mode !== 'noise') return;
+        computeNoiseStats();
+        beginClickPhase();
+    }, TEST_NOISE_MS));
+}
+
+function computeNoiseStats() {
+    const s = (test.noiseSamples || []).slice().sort((a, b) => a - b);
+    if (!s.length) { test.noiseAvg = 0; test.noiseMax = 0; test.noiseP95 = 0; return; }
+    test.noiseAvg = s.reduce((a, b) => a + b, 0) / s.length;
+    test.noiseMax = s[s.length - 1];
+    test.noiseP95 = s[Math.min(s.length - 1, Math.floor(s.length * 0.95))];
 }
 
 function abortMicTest() {
@@ -2380,6 +2470,7 @@ function beginStrokePhase() {
     if (test.mode === null && !test.flow) return;
     test.mode = 'stroke';
     test.strokePeaks = []; test.strokeDownPeaks = []; test.strokeUpPeaks = [];
+    test.strokeAboveMs = [];
     test.strokeDetected = 0; test.strokeDoubleCount = 0;
     // 8音符＝1小節（ダウン4・アップ4）。t は flowStart からの相対ms
     test.notes = [];
@@ -2422,6 +2513,7 @@ function testFlowLoop() {
         if (!note.opened && t >= note.t - TEST_NOTE_WIN) {
             note.opened = true;
             test.curPeak = 0; test.curOnsets = 0;
+            test.curAbove = false; test.curAboveMax = 0; test.curAboveStart = 0;
             test.strokeFrom = now;
             test.strokeUntil = now + TEST_NOTE_WIN * 2;
         }
@@ -2429,11 +2521,12 @@ function testFlowLoop() {
             note.closed = true;
             note.peak = test.curPeak;
             note.onsets = test.curOnsets;
+            note.aboveMs = test.curAboveMax; // この音符の反応ライン超過時間
             test.strokeUntil = 0;
             test.strokePeaks.push(note.peak);
             (note.dir === 'down' ? test.strokeDownPeaks : test.strokeUpPeaks).push(note.peak);
             note.detected = isTestStrokeDetected(note.peak); // 受付窓内最大が緩めしきい値超え＝検出あり
-            if (note.detected) test.strokeDetected++;
+            if (note.detected) { test.strokeDetected++; if (test.curAboveMax > 0) test.strokeAboveMs.push(test.curAboveMax); }
             if (note.onsets >= 2) test.strokeDoubleCount++;
             test.noteIdx++;
         }
@@ -2575,6 +2668,16 @@ function endStrokePhase() {
     updateReco();
 }
 
+/* 二重反応防止の上限 = 最短音符間隔 × 0.45。
+   STAGE1は4分（最短音符＝1拍）。将来 8分/16分 を追加するときは notesPerBeat を増やせば、
+   速い譜面で二重反応防止が長すぎて次の音符を潰すのを自動で防げる。 */
+function recoCooldownCapMs() {
+    const beat = 60000 / (state.bpm || 80);
+    const notesPerBeat = 1; // STAGE1=4分。将来: 8分→2、16分→4
+    const minNoteInterval = beat / notesPerBeat;
+    return minNoteInterval * 0.45;
+}
+
 /* ── おすすめ設定（反応ライン＝%／クリック音量／二重反応防止）＋詳細結果 ── */
 function updateReco() {
     if (!els.testReco) return;
@@ -2650,9 +2753,21 @@ function updateReco() {
         els.recoThr.textContent = '—';
     }
 
-    // ③ 二重反応防止：二重反応があれば長めに、なければ現在値
-    let recoCool = mic.cooldownMs;
-    if (test.strokeDoubleCount > 0 && mic.cooldownMs < 250) recoCool = Math.min(400, mic.cooldownMs + 80);
+    // ③ 二重反応防止：ストローク波形が反応ラインを超えている時間幅をベースに算出する。
+    //    おすすめ = min( 超過時間 × 1.2, 最短音符間隔 × 0.45 )。
+    //    最短音符間隔の上限で、将来のBPUP・16分でも次の音符を潰さないようにする。
+    const aboveArr = (test.strokeAboveMs || []).filter((v) => v > 0).sort((a, b) => a - b);
+    test.strokeAboveMedian = aboveArr.length ? aboveArr[Math.floor(aboveArr.length / 2)] : null;
+    let recoCool;
+    if (test.strokeAboveMedian != null) {
+        const cap = recoCooldownCapMs();                         // 最短音符間隔 × 0.45
+        recoCool = Math.round(Math.min(test.strokeAboveMedian * 1.2, cap));
+        recoCool = Math.max(100, Math.min(400, recoCool));       // 安全範囲
+    } else {
+        // 計測できない場合は従来どおり（二重反応があれば少し長め）
+        recoCool = mic.cooldownMs;
+        if (test.strokeDoubleCount > 0 && mic.cooldownMs < 250) recoCool = Math.min(400, mic.cooldownMs + 80);
+    }
     test.recoCooldown = recoCool;
     els.recoCooldown.textContent = recoCool + 'ms';
 
@@ -2722,6 +2837,8 @@ function updateTestDetail(maxClick, minStroke, maxStroke, clickReacted, canApply
         ['ダウン 最小 / 最大', fx(test.downMin) + ' / ' + fx(test.downMax)],
         ['アップ 最小 / 最大', fx(test.upMin) + ' / ' + fx(test.upMax)],
         ['全ストローク 最小 / 最大', fx(minStroke) + ' / ' + fx(maxStroke)],
+        ['環境ノイズ 最大 / p95', fx(test.noiseMax) + ' / ' + fx(test.noiseP95)],
+        ['ストローク反応ライン超過時間', (test.strokeAboveMedian != null ? Math.round(test.strokeAboveMedian) + 'ms' : '–')],
         ['現在の反応ライン', fx(mic.threshold)],
         ['おすすめ反応ライン', recoSensLabel + (test.recommended != null ? '（' + test.recommended.toFixed(3) + (provisional ? '・仮' : '') + '）' : '')],
         ['おすすめクリック音量', (test.recoClickVolume != null ? test.recoClickVolume + '%' : '–')],
@@ -2861,10 +2978,27 @@ function micLoop() {
             els.testLevel.style.width = (micDisplayFrac(peak) * 100).toFixed(1) + '%';
             els.testLevel.classList.toggle('over', peak >= mic.threshold);
         }
+        // 環境音測定中：レベルを蓄積（補正用反応ラインの下限に使う）
+        if (test.mode === 'noise') {
+            test.noiseSamples.push(peak);
+            mic.prevPeak = peak;
+            mic.raf = requestAnimationFrame(micLoop);
+            return;
+        }
         // 計測窓内のピークを追跡（しきい値に関係なく生ピークを記録）
         const inClickWin = test.mode === 'click' && now >= test.clickWinFrom && now <= test.clickWinTo;
         const inStrokeWin = test.mode === 'stroke' && now >= test.strokeFrom && now <= test.strokeUntil;
         if (inClickWin || inStrokeWin) test.curPeak = Math.max(test.curPeak, peak);
+        // ストローク窓内：反応ラインを超えている連続時間(最長)を計測（二重反応防止の推奨に使う）
+        if (inStrokeWin) {
+            if (peak >= mic.threshold) {
+                if (!test.curAbove) { test.curAbove = true; test.curAboveStart = now; }
+                const dur = now - test.curAboveStart;
+                if (dur > test.curAboveMax) test.curAboveMax = dur;
+            } else {
+                test.curAbove = false;
+            }
+        }
         // オンセット：表示更新＋ストローク窓内の二重反応カウント
         if (onset && (now - test.lastInputAt) > 90) {
             test.lastInputAt = now;
@@ -2925,13 +3059,14 @@ function micLoop() {
             + ' (×' + (peak / mic.threshold).toFixed(1) + ') prev=' + mic.prevPeak.toFixed(2)
             + ' rise=' + rise.toFixed(2) + ' trigger=' + trigger
             + ' click=' + (state.clickEnabled ? 'ON' : 'OFF') + ' vol=' + state.clickVolume);
+        let dbgOutcome = null, dbgAssign = null, dbgCls = null;
         if (!state.running) {
-            micExclude('停止中');
+            micExclude('停止中'); dbgOutcome = '停止中';
         } else if (inCountIn) {
-            micExclude('カウントイン中');
+            micExclude('カウントイン中'); dbgOutcome = 'カウントイン中';
         } else if (!cooled) {
             // クールダウン中＝直前ストロークの余韻/複数ピークの可能性が高い。まず除外（再登録しない）。
-            micExclude('二重反応防止');
+            micExclude('二重反応防止'); dbgOutcome = '二重反応防止(クールダウン)';
             if (nearestBeat >= 0) state.beatExcluded[nearestBeat] = true;
             // 二重反応として数えるのは「明確に別の強い立ち上がり」だけ・1クールダウンにつき1回（余韻の多重カウント防止）。
             const freshAttack = (crossed || bigRise);
@@ -2944,14 +3079,32 @@ function micLoop() {
                 els.latestVerdict.dataset.state = 'miss';
                 els.latestVerdict.textContent = '⚠ 二重反応';
                 spawnDoubleFx(); // PLAY中に二重反応を即座に視認できるように
+                dbgOutcome = '二重反応';
             }
         } else if (inGuard && !strongEnough) {
             micExclude('クリック直後の無視');  // 詳細ガード
             if (nearestBeat >= 0) state.beatExcluded[nearestBeat] = true;
+            dbgOutcome = 'クリックガード除外';
         } else {
             const ok = registerHit(now, 'mic'); // ② 判定登録（micオフセット適用）
+            const la = mic.lastAssign || {};
+            dbgOutcome = ok ? 'register' : (la.outcome || '範囲外');
+            dbgAssign = (la.beat != null) ? la.beat : null;
+            dbgCls = la.cls || null;
             if (ok) { mic.lastDetect = now; mic.doubleCounted = false; mic.registerCount++; updateMicDiag(); }
             else { micExclude('範囲外'); }
+        }
+        // MISS原因デバッグ：オンセットごとに「補正後時刻・ピーク・最寄り拍・結末・割り当て拍・分類」を記録
+        if (state.running && state.micEventLog && state.micEventLog.length < 200) {
+            state.micEventLog.push({
+                t: Math.round(gameAudioMs() + mic.timingOffsetMs),
+                peak: +peak.toFixed(3),
+                nearBeat: nearestBeat,
+                trigger,
+                outcome: dbgOutcome,
+                assignedBeat: dbgAssign,
+                cls: dbgCls,
+            });
         }
         updateMicDiag();
     }
@@ -3026,6 +3179,34 @@ function expectedCalClickPeak(atVolume) {
     return test.maxClickPeak * (atVolume / measureVol);
 }
 
+/* 環境ノイズの下限。マイク反応テストの環境音測定（noiseP95/noiseMax）より十分上に置く。 */
+function calNoiseFloor() {
+    return Math.max((test.noiseP95 || 0) * 1.5, (test.noiseMax || 0) * 1.1, CAL_THR_FLOOR);
+}
+
+/* クリックピーク見込み(peak)と環境ノイズから補正用反応ラインを決める。
+   環境ノイズより十分上・クリック最大より十分下・クリックに対して低すぎない位置。 */
+function calThresholdFromPeak(peak, noiseFloor) {
+    if (!(peak > 0)) return Math.max(CAL_THR_FLOOR, Math.min(CAL_THR_CEIL, noiseFloor));
+    const bump = cal.noiseBump || 1;                                 // 直前がノイズ拾いなら上げる
+    const clickBased = peak * CAL_THR_CLICK_FACTOR * bump;          // 立ち上がり本体を拾う
+    const upper = Math.min(peak * CAL_THR_CAP_FACTOR, CAL_THR_CEIL); // クリック最大より十分下
+    let thr = Math.max(noiseFloor, Math.min(upper, clickBased));
+    return Math.max(CAL_THR_FLOOR, Math.min(CAL_THR_CEIL, thr));
+}
+
+/* 補正開始時の補正用反応ライン（マイク反応テストのクリック音量・環境ノイズから算出）。
+   テスト未実施などで推定できないときは既定値。 */
+function calibrationInitialThreshold(calVol) {
+    const noiseFloor = calNoiseFloor();
+    const est = expectedCalClickPeak(calVol);            // 補正テスト音量でのクリック最大見込み
+    if (est == null || est <= noiseFloor) {
+        // 推定不可 or クリックがノイズに埋もれる → ノイズフロア寄りの既定
+        return Math.max(CAL_THR_FLOOR, Math.min(CAL_THR_CEIL, Math.max(noiseFloor, CAL_THR_DEFAULT)));
+    }
+    return calThresholdFromPeak(est, noiseFloor);
+}
+
 /* 補正テスト用クリック音量（STAGE用とは別）。STAGE本番では小さくても、補正テスト中だけは
    クリックを安定して拾うため十分上げる：最低 CAL_MIN_VOLUME、想定ピークが小さければさらに上げる。 */
 function calibrationClickVolume() {
@@ -3049,14 +3230,16 @@ function applyCalSettings() {
         clickGuardMs: mic.clickGuardMs,
         clickVolume: state.clickVolume,
     };
-    // ★補正テスト専用：クリックを拾う目的。STAGE用反応ライン(mic.threshold)とは別の固定ラインを使う。
-    //   反応ラインは固定（1発目の実測に依存して揺れるのを避ける）。音量を上げてクリックを十分大きくし、
-    //   固定ラインで安定して拾う。
+    // ★補正テスト専用：クリックを拾う目的。STAGE用反応ライン(mic.threshold)とは別。
+    //   反応ラインは「マイク反応テストのクリック音量・環境ノイズ」から算出する（環境音/余韻を拾わない位置）。
+    //   1クリック目の実測ピークが取れたら、startCalibrationのタイマー内で一度だけ微調整する。
     const calVol = calibrationClickVolume();
+    const calThr = calibrationInitialThreshold(calVol);
     cal.clickVol = calVol;
-    cal.threshold = CAL_DETECT_THR;
+    cal.threshold = calThr;
+    cal.rebaselined = false;      // 1クリック後の微調整は一度だけ
     state.clickVolume = calVol;   // 補正テスト中だけの音量（restoreで復元）
-    mic.threshold = CAL_DETECT_THR;        // 補正テスト中だけの固定反応ライン（restoreで復元）
+    mic.threshold = calThr;       // 補正テスト中だけの補正用反応ライン（restoreで復元）
     mic.cooldownMs = CAL_COOLDOWN_MS;
     // クリック音ガードはキャリブレーション中は使わない（クリック音そのものを拾うため）
     mic.clickGuardMs = 0;
@@ -3100,6 +3283,14 @@ async function startCalibration() {
     setCalUI('measuring');
     cal.timer = setInterval(() => {
         if (cal.i >= CAL_CLICKS) { clearInterval(cal.timer); cal.timer = 0; finishCalibration(); return; }
+        // 1クリック目を観測したら、実測ピークから補正用反応ラインを一度だけ微調整（頻繁な上下は避ける）。
+        if (cal.i === 1 && !cal.rebaselined && cal.maxPeak > 0) {
+            cal.rebaselined = true;
+            const thr = calThresholdFromPeak(cal.maxPeak, calNoiseFloor());
+            mic.threshold = thr;
+            cal.threshold = thr;
+            if (els.calThreshold) els.calThreshold.style.left = micThresholdMarkerPct() + '%';
+        }
         cal.i++;
         cal.lastClickPerf = performance.now();
         cal.clickArmed = true; // このクリックの検出枠を1つ開く（1クリック1検出）
@@ -3152,15 +3343,36 @@ function finishCalibration() {
     if (cal.unstable) {
         cal.proposedOffset = null;   // 採用しない
         let msg;
-        if (fewDetect) msg = '検出が少ないため補正できませんでした（' + s.length + '/' + CAL_CLICKS + '）。補正テストのクリック音量を上げるか、もう一度お試しください。';
-        else if (clamped) msg = '測定遅延が大きすぎて不安定です（' + cal.measuredDelay + 'ms）。イヤホンを使う・静かな場所で、もう一度お試しください。';
-        else msg = '測定が不安定です（ばらつき ±' + spread + 'ms）。静かな場所で、もう一度お試しください。';
+        if (fewDetect) {
+            // 検出が少ない＝クリックが小さい/反応ラインが高すぎる可能性
+            msg = '検出が少ないため補正できませんでした（' + s.length + '/' + CAL_CLICKS + '）。スピーカーに近づけるか、補正テスト時のクリック音量を少し上げてください。';
+        } else if (clamped) {
+            msg = '測定遅延が大きすぎて不安定です（' + cal.measuredDelay + 'ms）。イヤホンを使う・静かな場所で、もう一度お試しください。';
+        } else {
+            // ばらつき大＝補正用反応ラインが低めで環境音や余韻を拾っている可能性 → 次回は自動で上げる
+            cal.noiseBump = Math.min((cal.noiseBump || 1) * 1.4, 2.5);
+            msg = '測定が不安定です（ばらつき ±' + spread + 'ms）。環境音や余韻を拾っている可能性があります。静かな場所で試すか、もう一度お試しください（補正用反応ラインは自動で少し上げて再測定されます）。';
+        }
         setCalUI('failed', msg);
         console.info('[cal] unstable success=' + s.length + '/' + CAL_CLICKS + ' spread=±' + spread + ' delay=' + cal.measuredDelay + 'ms → 採用しません');
         return;
     }
+    cal.noiseBump = 1; // 安定して採用できたのでリセット
+    // 前回の採用可測定と比べ、補正値や補正用反応ラインが大きく変わる場合は「もう一度テスト」を促す（案A）。
+    let bigChange = false;
+    if (cal.lastResultOffset != null && cal.lastResultThreshold != null) {
+        const offChange = Math.abs(cal.proposedOffset - cal.lastResultOffset);
+        const thrChange = Math.abs(cal.threshold - cal.lastResultThreshold);
+        bigChange = (offChange > 25) || (thrChange > cal.lastResultThreshold * 0.4 + 0.004);
+    }
+    cal.lastResultOffset = cal.proposedOffset;
+    cal.lastResultThreshold = cal.threshold;
     setCalUI('result');
-    console.info('[cal] samples=' + JSON.stringify(s) + ' success=' + s.length + '/' + CAL_CLICKS + ' median=' + cal.measuredDelay + 'ms ±' + spread + ' → offset=' + cal.proposedOffset + 'ms');
+    if (bigChange && els.calStatus) {
+        els.calStatus.classList.remove('hidden');
+        els.calStatus.textContent = '補正値・補正用反応ラインが前回と変わりました。もう一度テストして安定性を確認してください。';
+    }
+    console.info('[cal] samples=' + JSON.stringify(s) + ' success=' + s.length + '/' + CAL_CLICKS + ' median=' + cal.measuredDelay + 'ms ±' + spread + ' → offset=' + cal.proposedOffset + 'ms bigChange=' + bigChange);
 }
 
 function applyCalibration() {
