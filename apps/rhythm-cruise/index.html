@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=31">
+    <link rel="stylesheet" href="theme.css?v=0.9.30">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -237,8 +237,10 @@
                     <div class="cal-result-row"><span>検出成功</span><b id="cal-rd-success">–</b></div>
                     <div class="cal-result-row"><span>ばらつき</span><b id="cal-rd-spread">–</b></div>
                     <div class="cal-result-row"><span>最大入力</span><b id="cal-rd-max">–</b></div>
-                    <div class="cal-result-row"><span>測定時の反応ライン</span><b id="cal-rd-line">–</b></div>
+                    <div class="cal-result-row"><span>補正用反応ライン</span><b id="cal-rd-line">–</b></div>
+                    <div class="cal-result-row"><span>補正テスト時クリック音量</span><b id="cal-rd-vol">–</b></div>
                     <div class="cal-result-row"><span>測定日時</span><b id="cal-rd-at">–</b></div>
+                    <p class="setting-note">補正テストはクリック音を「拾う」ため、STAGE本番（クリックを避けてストロークを拾う）とは別の反応ラインを使います。</p>
                 </details>
             </div>
 
@@ -311,12 +313,46 @@
             <!-- クリック音拾いの可能性（ストロークでズレが一点集中したとき）-->
             <p class="results-warn hidden" id="results-warn">⚠️ クリック音をマイクが拾っている可能性があります。スピーカー使用時はクリック音量をさらに下げるか、イヤホン使用がおすすめです。</p>
 
+            <!-- 二重反応の通常表示（シンプル）：マイク反応テストやり直しへ誘導。詳細は下の詳細タブ。 -->
+            <div class="results-double-notice hidden" id="results-double-notice">
+                <p id="results-double-msg">⚠ 二重反応が出ています。マイク反応テストをやり直すと改善する場合があります。</p>
+                <button type="button" class="btn-mic results-retest-btn" id="results-retest-btn">マイク反応テストをやり直す</button>
+            </div>
+
             <!-- 4. 詳細（内訳・ズレ履歴グラフ）：折りたたみ -->
             <details class="results-detail" id="results-detail">
                 <summary class="results-detail-summary">詳細（内訳・ズレ履歴グラフ）</summary>
                 <div class="results-detail-body">
                     <p class="result-breakdown">内訳：<b class="bd-just">GOOD</b> <b id="r-just">0</b>／<b class="bd-early">EARLY</b> <b id="r-early">0</b>／<b class="bd-late">LATE</b> <b id="r-late">0</b>／<b class="bd-miss">MISS</b> <b id="r-miss">0</b>　｜　平均ズレ <b id="r-avg">±0</b>ms</p>
                     <p class="result-breakdown hidden" id="results-miss-info"></p>
+                    <!-- 二重反応の詳しい説明＋改善方法（詳細タブ内・二重反応時のみ表示） -->
+                    <div class="result-double-detail hidden" id="results-double-detail">
+                        <p class="rdd-head">二重反応とは？</p>
+                        <p class="rdd-body">1回のストロークが、マイク上では2回以上の入力として検出されている状態です。</p>
+                        <p class="rdd-sub">主な原因</p>
+                        <ul class="rdd-list">
+                            <li>感度が高すぎる</li>
+                            <li>二重反応防止時間が短い</li>
+                            <li>クリック音や弦ノイズを拾っている</li>
+                            <li>ストロークの余韻を別入力として拾っている</li>
+                        </ul>
+                        <p class="rdd-sub">改善方法</p>
+                        <ul class="rdd-list">
+                            <li>マイク反応テストをやり直す</li>
+                            <li>二重反応防止を長めにする</li>
+                            <li>感度を少し左へ下げる</li>
+                            <li>クリック音量を下げる</li>
+                            <li>可能ならイヤホンを使う</li>
+                        </ul>
+                    </div>
+                    <!-- ストローク音量（各拍ピーク）＋反応ライン -->
+                    <div class="graph-wrap results-mic-wrap hidden" id="results-mic-wrap">
+                        <div class="graph-head">
+                            <span>ストローク音量（全32拍）</span>
+                            <span class="graph-axis">横線＝反応ライン</span>
+                        </div>
+                        <canvas id="results-mic-canvas"></canvas>
+                    </div>
                     <div class="graph-wrap">
                         <div class="graph-head">
                             <span>ズレ履歴（全32拍）</span>
@@ -335,7 +371,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.29"></script>
+    <script src="script.js?v=0.9.30"></script>
 </body>
 
 </html>

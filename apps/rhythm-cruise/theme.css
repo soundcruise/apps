@@ -769,6 +769,58 @@ h1 {
     height: 132px;
 }
 
+/* 結果画面：各拍のストローク音量バー＋反応ライン */
+#results-mic-canvas {
+    display: block;
+    width: 100%;
+    height: 110px;
+}
+
+.results-mic-wrap.hidden {
+    display: none;
+}
+
+/* 二重反応時：マイク反応テストへ誘導するボタン */
+.results-retest-btn {
+    width: 100%;
+    margin: 8px 0 4px;
+}
+.results-retest-btn.hidden {
+    display: none;
+}
+
+/* 二重反応の通常表示（シンプル・常時見える） */
+.results-double-notice {
+    margin: 10px 0 2px;
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 159, 28, 0.4);
+    border-radius: 12px;
+    background: rgba(255, 159, 28, 0.08);
+}
+.results-double-notice.hidden { display: none; }
+.results-double-notice p {
+    margin: 0 0 8px;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: #ffd9a0;
+}
+
+/* 二重反応の詳しい説明（詳細タブ内） */
+.result-double-detail {
+    margin: 8px 0 4px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+.result-double-detail.hidden { display: none; }
+.result-double-detail .rdd-head { margin: 0 0 4px; font-weight: 700; color: #ffb454; }
+.result-double-detail .rdd-body { margin: 0 0 8px; color: #d8d2cb; }
+.result-double-detail .rdd-sub { margin: 6px 0 2px; font-weight: 700; color: #cfc9c2; }
+.result-double-detail .rdd-list { margin: 0 0 4px; padding-left: 1.1em; color: #c8c2bb; }
+.result-double-detail .rdd-list li { margin: 1px 0; }
+
 /* トランスポート：開始を主役、停止を補助に */
 .transport-main {
     flex: 1 1 auto;
@@ -2129,6 +2181,21 @@ body.results-open #settings-btn {
     color: #9a9a9a;
     font-size: 1.15rem;
     animation: fxMiss 0.7s ease-out forwards;
+}
+
+/* 二重反応：GOOD/EARLY/LATEと被らないよう少し下に、オレンジ警告色で一瞬表示 */
+.fx-double {
+    top: 56%;
+    color: #ff9f1c;
+    font-size: 1.05rem;
+    text-shadow: 0 0 12px rgba(255, 159, 28, 0.7);
+    animation: fxDouble 0.6s ease-out forwards;
+}
+
+@keyframes fxDouble {
+    0% { opacity: 0; transform: translate(-50%, -40%) scale(0.8); }
+    25% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+    100% { opacity: 0; transform: translate(-50%, -90%) scale(1); }
 }
 
 @keyframes fxGood {
