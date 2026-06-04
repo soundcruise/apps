@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.33';
+const RHYTHM_CRUISE_VERSION = '0.9.34';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -133,7 +133,14 @@ const state = {
     bpm: 80,
     currentStage: 1,
     inputMode: 'tap',   // 'tap' | 'stroke'
-    strokeDetectMode: 'brush', // ストローク検出モード：'brush'（ブラッシング・既存ロジック）| 'chord'（コードストローク・観察/今後専用ロジック）
+    strokeDetectMode: 'brush', // ストローク検出モード：'brush'（ブラッシング・既存ロジック）| 'chord'（コードストローク専用ロジック）
+    // コードストローク専用ロジックのゲート（マイク反応テストから自動算出・既定値あり）
+    chordMinCooldown: 180,     // 直前入力後この時間は新規入力を無視(ms)
+    chordRiseGate: 0.012,      // 直前入力後の谷からの上昇量がこれ以上で新規入力
+    chordInstantRiseGate: 0.008, // 直前フレームからの増加量がこれ以上で新規入力
+    // コードPLAY中の観察カウンタ
+    chordPicked: 0,            // コードロジックで拾った入力数
+    chordIgnoredRePeaks: 0,    // 余韻中などで無視した再ピーク数
     tapLayout: 'lr',    // タップエリア配置：'lr'（左右：左ダウン/右アップ）| 'ud'（上下：上アップ/下ダウン）
     tapHeight: 106,     // タップボタンの高さ(px)。ユーザーがスライダーで調整（80〜160）
     running: false,
@@ -189,6 +196,7 @@ const mic = {
     lastDetect: 0,
     lastOnsetAt: -100000, // 直近の立ち上がり(オンセット)時刻。beatMicPeakを実打直後だけ記録するために使う
     doubleCounted: false, // 現在のクールダウン窓で二重反応を既に1回数えたか（余韻の多重カウント防止）
+    valley: 1,            // 直前入力後の最小音量（コードストローク：谷からの上昇量の基準）
     // 診断カウンタ
     inputCount: 0,     // 入力検出（しきい値超え）
     registerCount: 0,  // 判定登録（registerHitでマーカー）
@@ -247,8 +255,8 @@ const test = {
     strokeAboveMedian: null, // 反応ライン超過時間の代表値(中央値, ms)
     // コードストローク観察用（chordモードのマイク反応テストで記録）
     curRiseMax: 0,      // 現在の音符窓での最大立ち上がり速度（フレーム間のpeak増分）
-    curFirstUpT: 0,     // 反応ラインを最初に下→上に超えた時刻
-    curLastDownT: 0,    // 反応ラインを最後に上→下に下回った時刻
+    curFirstAboveT: 0,  // 反応ラインを最初に超えていたフレームの時刻
+    curLastAboveT: 0,   // 反応ラインを最後に超えていたフレームの時刻（余韻の終わり）
     curPeakT: 0,        // ピーク到達時刻
     strokeChordDiag: [], // 各ストロークの観察値 {peak,aboveMs,fullSpanMs,riseMax,timeToPeakMs,onsets,rePeaks}
     chordWave: [],       // ストロークテスト全体の波形 {t,env,peak}（chord時のみ・間引き・consoleダンプ用）
@@ -334,6 +342,7 @@ const els = {
     resultsWarn: $('results-warn'),
     resultsMissInfo: $('results-miss-info'),
     resultsMissDebug: $('results-miss-debug'),
+    resultsChordDev: $('results-chord-dev'),
     resultsDoubleNotice: $('results-double-notice'),
     resultsDoubleMsg: $('results-double-msg'),
     resultsDoubleDetail: $('results-double-detail'),
@@ -1568,6 +1577,9 @@ function resetData() {
     mic.lastDetect = -100000;   // 1拍目をクールダウンで誤除外しないよう十分過去に
     mic.lastOnsetAt = -100000;
     mic.doubleCounted = false;
+    mic.valley = 1;             // 谷（コードストローク用）をリセット
+    state.chordPicked = 0;
+    state.chordIgnoredRePeaks = 0;
     updateMicDiag();
     updateCombo();
     if (els.judgeFxLayer) els.judgeFxLayer.innerHTML = '';
@@ -1703,6 +1715,17 @@ function updateMissDebug() {
     els.resultsMissDebug.classList.remove('hidden');
 }
 
+/* コードストロークモードのPLAY観察（開発用）：拾った入力数・無視した再ピーク・二重反応・ゲート値 */
+function updateChordDev() {
+    if (!els.resultsChordDev) return;
+    if (state.strokeDetectMode !== 'chord' || state.inputMode !== 'stroke') { els.resultsChordDev.classList.add('hidden'); return; }
+    els.resultsChordDev.textContent = '🎸 コード観察（試験中）｜拾った入力 ' + (state.chordPicked || 0)
+        + ' ／ 無視した再ピーク ' + (state.chordIgnoredRePeaks || 0)
+        + ' ／ 二重反応 ' + (state.doubleReactionCount || 0)
+        + '｜クールダウン ' + state.chordMinCooldown + 'ms / 谷上昇ゲート ' + state.chordRiseGate.toFixed(3) + ' / 瞬間上昇ゲート ' + state.chordInstantRiseGate.toFixed(3);
+    els.resultsChordDev.classList.remove('hidden');
+}
+
 /* 二重反応（1拍に複数入力）の表示。
    通常表示はシンプルにマイク反応テストやり直しへ誘導し、詳しい説明・改善方法は詳細タブ内に出す。 */
 function updateDoubleInfo() {
@@ -1773,6 +1796,7 @@ function finish() {
     // MISS原因の拍ごとデバッグ（console.table＋結果詳細に1行）
     logBeatDebug();
     updateMissDebug();
+    updateChordDev();
     // 二重反応の集計＋案内
     updateDoubleInfo();
     // ストローク音量バー＋反応ライン（ストローク＝マイク時のみ表示）
@@ -1964,6 +1988,9 @@ function loadSettings() {
     state.tapLayout = (s.tapLayout === 'ud') ? 'ud' : 'lr';
     state.tapHeight = clampNum(s.tapHeight, 80, 160, 106);
     state.strokeDetectMode = (s.strokeDetectMode === 'chord') ? 'chord' : 'brush';
+    if (typeof s.chordMinCooldown === 'number') state.chordMinCooldown = clampNum(s.chordMinCooldown, 100, 400, 180);
+    if (typeof s.chordRiseGate === 'number') state.chordRiseGate = s.chordRiseGate;
+    if (typeof s.chordInstantRiseGate === 'number') state.chordInstantRiseGate = s.chordInstantRiseGate;
 }
 
 function saveSettings() {
@@ -1985,6 +2012,9 @@ function saveSettings() {
             tapLayout: state.tapLayout,
             tapHeight: state.tapHeight,
             strokeDetectMode: state.strokeDetectMode,
+            chordMinCooldown: state.chordMinCooldown,
+            chordRiseGate: state.chordRiseGate,
+            chordInstantRiseGate: state.chordInstantRiseGate,
         }));
     } catch (_) { /* プライベートモード等では無視 */ }
 }
@@ -2545,7 +2575,7 @@ function testFlowLoop() {
             note.opened = true;
             test.curPeak = 0; test.curOnsets = 0;
             test.curAbove = false; test.curAboveMax = 0; test.curAboveStart = 0;
-            test.curRiseMax = 0; test.curFirstUpT = 0; test.curLastDownT = 0; test.curPeakT = 0;
+            test.curRiseMax = 0; test.curFirstAboveT = 0; test.curLastAboveT = 0; test.curPeakT = 0;
             test.strokeFrom = now;
             test.strokeUntil = now + TEST_NOTE_WIN * 2;
         }
@@ -2562,8 +2592,11 @@ function testFlowLoop() {
             if (note.onsets >= 2) test.strokeDoubleCount++;
             // コードストローク観察値（検出できたストロークのみ）
             if (note.detected) {
-                const fullSpan = (test.curFirstUpT > 0 && test.curLastDownT > test.curFirstUpT) ? (test.curLastDownT - test.curFirstUpT) : test.curAboveMax;
-                const t2p = (test.curFirstUpT > 0 && test.curPeakT >= test.curFirstUpT) ? (test.curPeakT - test.curFirstUpT) : 0;
+                // 余韻含む全幅＝最初に反応ラインを超えてから最後に超えていたフレームまで（必ず 超過時間 以上になる）
+                const fullSpan = (test.curFirstAboveT > 0 && test.curLastAboveT >= test.curFirstAboveT)
+                    ? Math.max(test.curLastAboveT - test.curFirstAboveT, test.curAboveMax)
+                    : test.curAboveMax;
+                const t2p = (test.curFirstAboveT > 0 && test.curPeakT >= test.curFirstAboveT) ? (test.curPeakT - test.curFirstAboveT) : 0;
                 test.strokeChordDiag.push({
                     peak: +test.curPeak.toFixed(3),
                     aboveMs: Math.round(test.curAboveMax),
@@ -2839,6 +2872,22 @@ function updateReco() {
     test.recoCooldown = recoCool;
     els.recoCooldown.textContent = recoCool + 'ms';
 
+    // コードストローク専用ゲートをマイク反応テストの観察値から自動算出（chordモード時のみ更新・保存）。
+    if (state.strokeDetectMode === 'chord') {
+        const d = test.strokeChordDiag || [];
+        const med = (arr) => { const v = arr.filter((x) => x != null).sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : null; };
+        const aboveMed = test.strokeAboveMedian;
+        const riseMed = med(d.map((x) => x.riseMax));
+        const cap = recoCooldownCapMs();
+        if (aboveMed != null) state.chordMinCooldown = Math.round(Math.max(100, Math.min(aboveMed * 1.2, cap)));
+        if (riseMed != null) {
+            // 谷からの上昇ゲート：立ち上がり速度中央値とストローク最小から（余韻の小さな揺れを無視）
+            state.chordRiseGate = Math.max(riseMed * 0.6, (minStroke || 0) * 0.4, 0.008);
+            state.chordInstantRiseGate = Math.max(riseMed * 0.4, 0.006);
+        }
+        saveSettings();
+    }
+
     // メッセージ＋適用ボタン
     const volChanged = recoVol !== state.clickVolume;
     const projTxt = (test.projClickMax != null) ? '（クリック音量' + recoVol + '%適用後の目安：約' + test.projClickMax.toFixed(3) + '）' : '';
@@ -2925,6 +2974,9 @@ function updateTestDetail(maxClick, minStroke, maxStroke, clickReacted, canApply
         rows.push(['　ピーク到達 中央値', fxm(med(d.map((x) => x.timeToPeakMs)))]);
         rows.push(['　余韻中の再ピーク 合計', d.reduce((a, x) => a + (x.rePeaks || 0), 0) + ' 回']);
         rows.push(['　現状ロジックで二重反応', d.filter((x) => x.onsets >= 2).length + ' / ' + d.length + ' ストローク']);
+        rows.push(['　コード用最小クールダウン', state.chordMinCooldown + 'ms']);
+        rows.push(['　谷からの上昇ゲート', state.chordRiseGate.toFixed(3)]);
+        rows.push(['　瞬間上昇ゲート', state.chordInstantRiseGate.toFixed(3)]);
     }
     const numbers = rows.map((r) => '<div class="tds-row"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>').join('');
 
@@ -3079,16 +3131,13 @@ function micLoop() {
                 if (!test.curAbove) { test.curAbove = true; test.curAboveStart = now; }
                 const dur = now - test.curAboveStart;
                 if (dur > test.curAboveMax) test.curAboveMax = dur;
+                // 余韻含む全幅用：最初に超えたフレーム・最後に超えていたフレーム（フレームベースで必ず整合）
+                if (test.curFirstAboveT === 0) test.curFirstAboveT = now;
+                test.curLastAboveT = now;
             } else {
                 test.curAbove = false;
             }
-            // コードストローク観察：上抜け/下抜け時刻・立ち上がり速度・ピーク到達時刻
-            if (peak >= mic.threshold && mic.prevPeak < mic.threshold) {
-                if (test.curFirstUpT === 0) test.curFirstUpT = now;  // 最初の上抜け
-            }
-            if (peak < mic.threshold && mic.prevPeak >= mic.threshold) {
-                test.curLastDownT = now;                              // 直近の下抜け（余韻の終わり）
-            }
+            // コードストローク観察：立ち上がり速度・ピーク到達時刻
             const r = peak - mic.prevPeak;
             if (r > test.curRiseMax) test.curRiseMax = r;             // 立ち上がり速度
             if (peak >= test.curPeak && peak >= mic.threshold) test.curPeakT = now; // ピーク到達時刻
@@ -3151,6 +3200,51 @@ function micLoop() {
                 state.beatMicPeak[bIdx] = peak;
             }
         }
+    }
+
+    // 直前入力後の谷（最小音量）を追跡（コードストローク：谷からの上昇量の基準）
+    if (state.running && !inCountIn && peak < mic.valley) mic.valley = peak;
+
+    // ── コードストローク専用検出（chordモード・STAGE再生中のみ）──────────────────
+    //   反応ライン超過だけでなく「新しいアタックか」を見る：直前入力からの時間・谷からの上昇量・瞬間上昇量。
+    //   余韻中の小さな再ピーク（ゲート未満／クールダウン中）は無視する。ブラッシングロジックは使わない。
+    if (state.strokeDetectMode === 'chord' && state.running) {
+        const sinceHit = now - mic.lastDetect;
+        const riseFromValley = peak - mic.valley;
+        const instantRise = peak - mic.prevPeak;
+        const chordOnset = (peak >= mic.threshold)
+            && (sinceHit >= state.chordMinCooldown)
+            && (riseFromValley >= state.chordRiseGate)
+            && (instantRise >= state.chordInstantRiseGate);
+        // 余韻中などで「立ち上がりらしいが条件未達」を無視としてカウント（観察用）
+        if (!chordOnset && !inCountIn && peak >= mic.threshold && instantRise >= state.chordInstantRiseGate * 0.5
+            && (sinceHit < state.chordMinCooldown || riseFromValley < state.chordRiseGate || instantRise < state.chordInstantRiseGate)) {
+            state.chordIgnoredRePeaks++;
+        }
+        if (chordOnset) {
+            mic.inputCount++; flashDetect(peak); mic.lastOnsetAt = now;
+            let outcome = 'chord-register', aBeat = null, aCls = null;
+            if (inCountIn) {
+                micExclude('カウントイン中'); outcome = 'カウントイン中';
+            } else {
+                const ok = registerHit(now, 'mic');
+                const la = mic.lastAssign || {};
+                outcome = ok ? 'chord-register' : (la.outcome || '範囲外');
+                aBeat = (la.beat != null) ? la.beat : null; aCls = la.cls || null;
+                if (ok) {
+                    mic.lastDetect = now; mic.valley = peak; mic.doubleCounted = false;
+                    mic.registerCount++; state.chordPicked++; updateMicDiag();
+                } else micExclude('範囲外');
+            }
+            if (state.micEventLog && state.micEventLog.length < 200) {
+                state.micEventLog.push({ t: Math.round(gameAudioMs() + mic.timingOffsetMs), peak: +peak.toFixed(3), nearBeat: nearestBeat, trigger: 'chord', outcome, assignedBeat: aBeat, cls: aCls });
+            }
+            updateMicDiag();
+        }
+        mic.prevPeak = peak;
+        if (!state.running) drawLane(state.currentTime);
+        mic.raf = requestAnimationFrame(micLoop);
+        return; // コードストロークはここで完了（ブラッシングの分岐へは進まない）
     }
 
     if (onset) {
