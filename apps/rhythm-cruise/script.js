@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.30';
+const RHYTHM_CRUISE_VERSION = '0.9.31';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -50,6 +50,9 @@ const STRONG_STROKE_FACTOR = 1.1;
    「明確に別の強い立ち上がり」のときだけ・1クールダウンにつき1回だけ数える。 */
 const DOUBLE_MIN_GAP_MS = 100;        // 直前の登録からこのms以内は同一ストロークの余韻とみなし数えない
 const DOUBLE_MIN_PEAK_FACTOR = 1.4;   // 反応ライン×この倍率以上の強い入力だけ二重反応候補（減衰中の余韻を除外）
+/* 各拍の音量(beatMicPeak)は「立ち上がり(オンセット)直後のこの時間だけ」記録する。
+   減衰中の余韻が次拍の窓に染み出して、弾いていない拍が音量ありに見える（→「判定済み/余韻」に化ける）のを防ぐ。 */
+const STRIKE_ACTIVE_MS = 140;
 
 /* 立ち上がり検出：threshold交差に加え、フレーム間でこの量以上の急増もストロークとみなす
    （クリック音の余韻で prevPeak が高いままでも、ストロークの急増を拾えるように） */
@@ -175,6 +178,7 @@ const mic = {
     armed: true,       // ヒステリシス検出のアーム状態（threshold*0.5 を下回ると再アーム）
     env: 0,
     lastDetect: 0,
+    lastOnsetAt: -100000, // 直近の立ち上がり(オンセット)時刻。beatMicPeakを実打直後だけ記録するために使う
     doubleCounted: false, // 現在のクールダウン窓で二重反応を既に1回数えたか（余韻の多重カウント防止）
     // 診断カウンタ
     inputCount: 0,     // 入力検出（しきい値超え）
@@ -1225,15 +1229,15 @@ function drawReview() {
                 ctx.fillStyle = '#ff8c3c';
                 ctx.fillText(mr.short, x, msY);
             } else if (mr.code === 'absorbed') {
-                // 判定済み/余韻：目立たせない（薄いグレーの小さな点＋小ラベル）
-                ctx.save(); ctx.globalAlpha = 0.4;
+                // 余韻：GOOD/EARLY/LATEと同列に見えないよう、ごく控えめに（とても薄い小点＋小さな薄い「余韻」）
+                ctx.save(); ctx.globalAlpha = 0.28;
                 ctx.fillStyle = COLORS.miss;
-                ctx.beginPath(); ctx.arc(x, yc, 3.5, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(x, yc, 3, 0, Math.PI * 2); ctx.fill();
                 ctx.restore();
-                ctx.save(); ctx.globalAlpha = 0.6;
+                ctx.save(); ctx.globalAlpha = 0.45;
                 ctx.fillStyle = COLORS.miss;
-                ctx.font = '600 10px Outfit, sans-serif';
-                ctx.fillText('判定済み', x, msY);
+                ctx.font = '600 9px Outfit, sans-serif';
+                ctx.fillText('余韻', x, msY);
                 ctx.restore();
             } else {
                 // MISS：薄いグレーの×（未入力）
@@ -1530,6 +1534,7 @@ function resetData() {
     mic.excludeCount = 0;
     mic.lastExcludeReason = '';
     mic.lastDetect = -100000;   // 1拍目をクールダウンで誤除外しないよう十分過去に
+    mic.lastOnsetAt = -100000;
     mic.doubleCounted = false;
     updateMicDiag();
     updateCombo();
@@ -1591,8 +1596,10 @@ function missReason(i) {
     //   ★クールダウン除外(beatExcluded)は“同一ストロークの余韻/揺れ”が大半なので「二重反応」にはせず、
     //     「明確に別の強い立ち上がり」と判定できたとき(beatDoubled)だけ二重反応にする。残りは判定済み/余韻。
     if (state.beatDoubled[i]) return { code: 'double', short: '二重反応', long: '二重反応として除外' };
+    // beatMicPeak は実打(オンセット)直後だけ記録するので、未登録なのに音量ありの拍は
+    // 「直前/直後ストロークの余韻・同一ストローク内の重複」とみなせる（弾いていない拍には音量が残らない）。
     const hadVol = (state.beatMicPeak[i] || 0) >= mic.threshold;
-    if (hadVol || state.beatExcluded[i]) return { code: 'absorbed', short: '判定済み', long: '近い拍で判定／同一ストロークの余韻' };
+    if (hadVol || state.beatExcluded[i]) return { code: 'absorbed', short: '余韻', long: '直前/直後ストロークの余韻・重複' };
     return { code: 'low', short: 'MISS', long: '入力ライン未満' };
 }
 
@@ -1614,7 +1621,7 @@ function updateMissInfo() {
     const parts = [];
     if (low > 0) parts.push('入力ライン未満 ' + low);
     if (dbl > 0) parts.push('二重反応 ' + dbl);
-    if (absorbed > 0) parts.push('判定済み/余韻 ' + absorbed);
+    if (absorbed > 0) parts.push('余韻 ' + absorbed);
     if (dir > 0) parts.push('方向違い ' + dir);
     if (timing > 0) parts.push('タイミング外 ' + timing);
     els.resultsMissInfo.textContent = 'MISS ' + missTotal + ' 拍：' + parts.join(' ／ ');
@@ -2817,6 +2824,7 @@ function micLoop() {
     const sustainedOnset = MIC_SUSTAINED_ONSET && mic.armed && peak >= detThr;
     const onset = crossed || bigRise || sustainedOnset;
     if (onset) mic.armed = false;
+    if (onset) mic.lastOnsetAt = now; // 実打直後だけ beatMicPeak を記録するための基点
     const trigger = crossed ? 'threshold交差' : (bigRise ? 'large-rise' : 'sustained');
 
     // ── キャリブレーション中：クリック音→検出の遅延だけを測る（通常判定には流さない）──
@@ -2898,10 +2906,13 @@ function micLoop() {
         const bIdx = Math.round((gt - state.T0) / bi2);
         if (bIdx >= 0 && bIdx < TOTAL_BEATS) {
             nearestBeat = bIdx;
-            // 拍の半分まで（隣拍と重ならない範囲）を記録窓にし、境界付近も取りこぼさない
-            const half = bi2 * 0.5;
+            // ★「実打(オンセット)直後 STRIKE_ACTIVE_MS の間」かつ「拍中心の近く(±0.32拍)」のときだけ記録する。
+            //   こうすると、減衰中の余韻が次拍の窓に染み出して、弾いていない拍が音量ありに見えるのを防げる
+            //   （= 弾いていない拍が「判定済み/余韻」に化けるのを抑制）。
+            const win = bi2 * 0.32;
             const beatT = state.T0 + bIdx * bi2;
-            if (Math.abs(gt - beatT) <= half && peak > state.beatMicPeak[bIdx]) {
+            const activeStrike = (now - mic.lastOnsetAt) <= STRIKE_ACTIVE_MS;
+            if (activeStrike && Math.abs(gt - beatT) <= win && peak > state.beatMicPeak[bIdx]) {
                 state.beatMicPeak[bIdx] = peak;
             }
         }
