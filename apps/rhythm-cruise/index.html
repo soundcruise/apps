@@ -147,6 +147,17 @@
                 <p class="mic-reset-msg hidden" id="mic-reset-msg"></p>
             </header>
 
+            <!-- 0. ストローク検出モード（ブラッシング / コードストローク） -->
+            <div class="settings-card stroke-mode-card" id="stroke-mode-card">
+                <div class="cal-head">ストローク検出モード</div>
+                <p class="setting-note">ブラッシング＝弦をミュートして弾く（既定）。コードストローク＝コードを鳴らして弾く（余韻が長い・開発中）。</p>
+                <div class="input-mode" id="stroke-detect-mode">
+                    <button type="button" class="input-seg is-active" id="stroke-mode-brush" data-stroke-mode="brush">ブラッシング</button>
+                    <button type="button" class="input-seg" id="stroke-mode-chord" data-stroke-mode="chord">コードストローク</button>
+                </div>
+                <p class="setting-note stroke-mode-note hidden" id="stroke-mode-note">コードストロークモードは観察用です。マイク反応テストでコードの余韻・オンセットを記録します（判定ロジックは今後調整）。</p>
+            </div>
+
             <!-- 1. マイク反応テスト（自動フロー・一番上） -->
             <div class="settings-card test-card" id="test-card">
                 <div class="cal-head-row">
@@ -372,7 +383,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.32"></script>
+    <script src="script.js?v=0.9.33"></script>
 </body>
 
 </html>

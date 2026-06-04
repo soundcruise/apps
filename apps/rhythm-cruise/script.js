@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.32';
+const RHYTHM_CRUISE_VERSION = '0.9.33';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -133,6 +133,7 @@ const state = {
     bpm: 80,
     currentStage: 1,
     inputMode: 'tap',   // 'tap' | 'stroke'
+    strokeDetectMode: 'brush', // ストローク検出モード：'brush'（ブラッシング・既存ロジック）| 'chord'（コードストローク・観察/今後専用ロジック）
     tapLayout: 'lr',    // タップエリア配置：'lr'（左右：左ダウン/右アップ）| 'ud'（上下：上アップ/下ダウン）
     tapHeight: 106,     // タップボタンの高さ(px)。ユーザーがスライダーで調整（80〜160）
     running: false,
@@ -244,6 +245,13 @@ const test = {
     curAboveMax: 0,     // 現在の音符窓での最長連続超過時間(ms)
     strokeAboveMs: [],  // 各ストロークの反応ライン超過時間(ms)
     strokeAboveMedian: null, // 反応ライン超過時間の代表値(中央値, ms)
+    // コードストローク観察用（chordモードのマイク反応テストで記録）
+    curRiseMax: 0,      // 現在の音符窓での最大立ち上がり速度（フレーム間のpeak増分）
+    curFirstUpT: 0,     // 反応ラインを最初に下→上に超えた時刻
+    curLastDownT: 0,    // 反応ラインを最後に上→下に下回った時刻
+    curPeakT: 0,        // ピーク到達時刻
+    strokeChordDiag: [], // 各ストロークの観察値 {peak,aboveMs,fullSpanMs,riseMax,timeToPeakMs,onsets,rePeaks}
+    chordWave: [],       // ストロークテスト全体の波形 {t,env,peak}（chord時のみ・間引き・consoleダンプ用）
     // クリックテスト
     clickI: 0,
     clickPlayedAt: -9999,
@@ -307,6 +315,9 @@ const els = {
     playBtn: $('play-btn'),
     modeTapBtn: $('mode-tap-btn'),
     modeStrokeBtn: $('mode-stroke-btn'),
+    strokeModeBrush: $('stroke-mode-brush'),
+    strokeModeChord: $('stroke-mode-chord'),
+    strokeModeNote: $('stroke-mode-note'),
     tapArea: $('tap-area'),
     tapLayoutToggle: $('tap-layout-toggle'),
     layoutLrBtn: $('layout-lr-btn'),
@@ -1786,6 +1797,22 @@ function buildComment({ just, miss, tapped, avg, fAvg, sAvg }) {
     return 'おおむね安定しています。少しずつJUSTを増やしていきましょう。';
 }
 
+/* ── ストローク検出モード（ブラッシング / コードストローク）──────
+   brush＝既存ロジック（弦ミュート・ブラッシング前提・変更しない）。
+   chord＝コードストローク（余韻が長い）。現状は観察用（マイク反応テストで波形/オンセットを記録）。
+   判定の本筋は今後 chord 専用ロジックを足す予定で、ここでは分岐点とログだけを用意する。 */
+function setStrokeDetectMode(mode) {
+    state.strokeDetectMode = (mode === 'chord') ? 'chord' : 'brush';
+    updateStrokeDetectModeUI();
+    saveSettings();
+}
+function updateStrokeDetectModeUI() {
+    const chord = (state.strokeDetectMode === 'chord');
+    if (els.strokeModeBrush) els.strokeModeBrush.classList.toggle('is-active', !chord);
+    if (els.strokeModeChord) els.strokeModeChord.classList.toggle('is-active', chord);
+    if (els.strokeModeNote) els.strokeModeNote.classList.toggle('hidden', !chord);
+}
+
 /* ── 入力方法（タップ / ストローク）──────────────────────── */
 function setInputMode(mode) {
     state.inputMode = mode;
@@ -1936,6 +1963,7 @@ function loadSettings() {
     state.micSetupPrompted = !!s.micSetupPrompted;
     state.tapLayout = (s.tapLayout === 'ud') ? 'ud' : 'lr';
     state.tapHeight = clampNum(s.tapHeight, 80, 160, 106);
+    state.strokeDetectMode = (s.strokeDetectMode === 'chord') ? 'chord' : 'brush';
 }
 
 function saveSettings() {
@@ -1956,6 +1984,7 @@ function saveSettings() {
             micSetupPrompted: state.micSetupPrompted,
             tapLayout: state.tapLayout,
             tapHeight: state.tapHeight,
+            strokeDetectMode: state.strokeDetectMode,
         }));
     } catch (_) { /* プライベートモード等では無視 */ }
 }
@@ -1978,6 +2007,7 @@ function applySettingsToUI() {
         els.setClickVol.value = state.clickVolume;
         els.setClickVolVal.textContent = state.clickVolume + '％';
     }
+    updateStrokeDetectModeUI();
 }
 
 function openSettings(from) {
@@ -2471,6 +2501,7 @@ function beginStrokePhase() {
     test.mode = 'stroke';
     test.strokePeaks = []; test.strokeDownPeaks = []; test.strokeUpPeaks = [];
     test.strokeAboveMs = [];
+    test.strokeChordDiag = []; test.chordWave = [];
     test.strokeDetected = 0; test.strokeDoubleCount = 0;
     // 8音符＝1小節（ダウン4・アップ4）。t は flowStart からの相対ms
     test.notes = [];
@@ -2514,6 +2545,7 @@ function testFlowLoop() {
             note.opened = true;
             test.curPeak = 0; test.curOnsets = 0;
             test.curAbove = false; test.curAboveMax = 0; test.curAboveStart = 0;
+            test.curRiseMax = 0; test.curFirstUpT = 0; test.curLastDownT = 0; test.curPeakT = 0;
             test.strokeFrom = now;
             test.strokeUntil = now + TEST_NOTE_WIN * 2;
         }
@@ -2521,13 +2553,27 @@ function testFlowLoop() {
             note.closed = true;
             note.peak = test.curPeak;
             note.onsets = test.curOnsets;
-            note.aboveMs = test.curAboveMax; // この音符の反応ライン超過時間
+            note.aboveMs = test.curAboveMax; // この音符の反応ライン超過時間（最長連続）
             test.strokeUntil = 0;
             test.strokePeaks.push(note.peak);
             (note.dir === 'down' ? test.strokeDownPeaks : test.strokeUpPeaks).push(note.peak);
             note.detected = isTestStrokeDetected(note.peak); // 受付窓内最大が緩めしきい値超え＝検出あり
             if (note.detected) { test.strokeDetected++; if (test.curAboveMax > 0) test.strokeAboveMs.push(test.curAboveMax); }
             if (note.onsets >= 2) test.strokeDoubleCount++;
+            // コードストローク観察値（検出できたストロークのみ）
+            if (note.detected) {
+                const fullSpan = (test.curFirstUpT > 0 && test.curLastDownT > test.curFirstUpT) ? (test.curLastDownT - test.curFirstUpT) : test.curAboveMax;
+                const t2p = (test.curFirstUpT > 0 && test.curPeakT >= test.curFirstUpT) ? (test.curPeakT - test.curFirstUpT) : 0;
+                test.strokeChordDiag.push({
+                    peak: +test.curPeak.toFixed(3),
+                    aboveMs: Math.round(test.curAboveMax),
+                    fullSpanMs: Math.round(fullSpan),
+                    riseMax: +test.curRiseMax.toFixed(3),
+                    timeToPeakMs: Math.round(t2p),
+                    onsets: test.curOnsets,
+                    rePeaks: Math.max(0, test.curOnsets - 1), // 1回のストローク中の追加オンセット＝現状ロジックで二重反応になりうる回数
+                });
+            }
             test.noteIdx++;
         }
     }
@@ -2666,6 +2712,28 @@ function endStrokePhase() {
     test.strokeDone = true;
     setTestResult('', '');
     updateReco();
+    // コードストローク観察：波形・各ストローク観察値をコンソールへダンプ（開発用）
+    if (state.strokeDetectMode === 'chord') logChordStrokeDiag();
+}
+
+/* コードストローク観察ログ（開発用）。各ストロークの余韻・立ち上がり・再ピーク（=現状ロジックで
+   二重反応になりうる回数）と、テスト全体のenv/peak波形をコンソールに出す。 */
+function logChordStrokeDiag() {
+    const d = test.strokeChordDiag || [];
+    const med = (arr) => { const v = arr.filter((x) => x != null).sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : null; };
+    const summary = {
+        反応ライン: +mic.threshold.toFixed(3),
+        ストローク数: d.length,
+        超過時間中央値ms: med(d.map((x) => x.aboveMs)),
+        余韻含む全幅中央値ms: med(d.map((x) => x.fullSpanMs)),
+        立ち上がり速度中央値: med(d.map((x) => x.riseMax)),
+        ピーク到達中央値ms: med(d.map((x) => x.timeToPeakMs)),
+        再ピーク合計: d.reduce((a, x) => a + (x.rePeaks || 0), 0),
+        二重反応になりうるストローク数: d.filter((x) => x.onsets >= 2).length,
+    };
+    console.log('[chord] コードストローク観察サマリ', summary);
+    try { console.table(d); } catch (_) { console.log('[chord] diag', JSON.stringify(d)); }
+    console.log('[chord] 波形(env/peak)', JSON.stringify(test.chordWave));
 }
 
 /* 二重反応防止の上限 = 最短音符間隔 × 0.45。
@@ -2845,6 +2913,19 @@ function updateTestDetail(maxClick, minStroke, maxStroke, clickReacted, canApply
         ['おすすめ二重反応防止', (test.recoCooldown != null ? test.recoCooldown + 'ms' : '–')],
         ['二重反応', test.strokeDoubleCount + ' 回'],
     ];
+    // コードストロークモード：観察値（開発用）を追加表示
+    if (state.strokeDetectMode === 'chord') {
+        const d = test.strokeChordDiag || [];
+        const med = (arr) => { const v = arr.filter((x) => x != null).sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : null; };
+        const fxm = (v) => (v != null ? Math.round(v) + 'ms' : '–');
+        rows.push(['― コードストローク観察 ―', '']);
+        rows.push(['　超過時間 中央値', fxm(med(d.map((x) => x.aboveMs)))]);
+        rows.push(['　余韻含む全幅 中央値', fxm(med(d.map((x) => x.fullSpanMs)))]);
+        rows.push(['　立ち上がり速度 中央値', (med(d.map((x) => x.riseMax)) != null ? med(d.map((x) => x.riseMax)).toFixed(3) : '–')]);
+        rows.push(['　ピーク到達 中央値', fxm(med(d.map((x) => x.timeToPeakMs)))]);
+        rows.push(['　余韻中の再ピーク 合計', d.reduce((a, x) => a + (x.rePeaks || 0), 0) + ' 回']);
+        rows.push(['　現状ロジックで二重反応', d.filter((x) => x.onsets >= 2).length + ' / ' + d.length + ' ストローク']);
+    }
     const numbers = rows.map((r) => '<div class="tds-row"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>').join('');
 
     // 説明文（要点を短く・3点まで）
@@ -2939,6 +3020,9 @@ function micLoop() {
     // アーム中に detThr を超えたら1回だけ候補にする。
     if (peak < detThr * MIC_REARM_FACTOR) mic.armed = true;
     const sustainedOnset = MIC_SUSTAINED_ONSET && mic.armed && peak >= detThr;
+    // ★ストローク検出モードの分岐点。現状は brush / chord ともに同じ立ち上がり検出（chordはまだ仮ロジック）。
+    //   今後 chord 専用に「急増(rise)条件を必須化／再アーム条件を余韻向けに調整」などをここで足す予定。
+    //   ＝ chord モードでもPLAY挙動は現状ブラッシングと同じ（観察はマイク反応テストのログで行う）。
     const onset = crossed || bigRise || sustainedOnset;
     if (onset) mic.armed = false;
     if (onset) mic.lastOnsetAt = now; // 実打直後だけ beatMicPeak を記録するための基点
@@ -2997,6 +3081,23 @@ function micLoop() {
                 if (dur > test.curAboveMax) test.curAboveMax = dur;
             } else {
                 test.curAbove = false;
+            }
+            // コードストローク観察：上抜け/下抜け時刻・立ち上がり速度・ピーク到達時刻
+            if (peak >= mic.threshold && mic.prevPeak < mic.threshold) {
+                if (test.curFirstUpT === 0) test.curFirstUpT = now;  // 最初の上抜け
+            }
+            if (peak < mic.threshold && mic.prevPeak >= mic.threshold) {
+                test.curLastDownT = now;                              // 直近の下抜け（余韻の終わり）
+            }
+            const r = peak - mic.prevPeak;
+            if (r > test.curRiseMax) test.curRiseMax = r;             // 立ち上がり速度
+            if (peak >= test.curPeak && peak >= mic.threshold) test.curPeakT = now; // ピーク到達時刻
+        }
+        // コードストローク時：テスト全体の波形を間引き記録（consoleダンプ用・最大~1200点）
+        if (state.strokeDetectMode === 'chord' && test.mode === 'stroke' && test.chordWave.length < 1200) {
+            const cw = test.chordWave;
+            if (!cw.length || now - cw[cw.length - 1].pt >= 12) {
+                cw.push({ pt: now, t: Math.round(now - test.flowStart), env: +mic.env.toFixed(3), peak: +peak.toFixed(3) });
             }
         }
         // オンセット：表示更新＋ストローク窓内の二重反応カウント
@@ -3404,6 +3505,8 @@ function bind() {
     // 入力方法（タップ / ストローク）
     if (els.modeTapBtn) els.modeTapBtn.addEventListener('click', () => setInputMode('tap'));
     if (els.modeStrokeBtn) els.modeStrokeBtn.addEventListener('click', () => setInputMode('stroke'));
+    if (els.strokeModeBrush) els.strokeModeBrush.addEventListener('click', () => setStrokeDetectMode('brush'));
+    if (els.strokeModeChord) els.strokeModeChord.addEventListener('click', () => setStrokeDetectMode('chord'));
     // タップエリア配置（左右 / 上下）
     if (els.layoutLrBtn) els.layoutLrBtn.addEventListener('click', () => setTapLayout('lr'));
     if (els.layoutUdBtn) els.layoutUdBtn.addEventListener('click', () => setTapLayout('ud'));
