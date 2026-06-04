@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.40';
+const RHYTHM_CRUISE_VERSION = '0.9.41';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -446,6 +446,7 @@ const els = {
     recoClickVol: $('reco-clickvol'),
     recoCooldown: $('reco-cooldown'),
     recoMsg: $('reco-msg'),
+    recoRetest: $('reco-retest'),
     recoApplyBtn: $('reco-apply-btn'),
     manualDetail: $('manual-detail'),
     testResultDetail: $('test-result-detail'),
@@ -2044,14 +2045,20 @@ function clampNum(v, lo, hi, fallback) {
 
 /* マイク感度の表示は「低い←→高い」。内部 threshold は高感度ほど小さい（逆変換）。
    右＝敏感（低threshold・小さい音も拾う）／左＝鈍感（高threshold・大きい音だけ拾う）。
-   上限は 0.20 のまま、下限だけ 0.003 まで広げる。通常環境の初期値は変えず、
-   有線イヤホンなどクリック音が回り込みにくい低入力環境でだけ高感度側を使えるようにする。 */
-const THR_MIN = 0.003, THR_MAX = 0.20;
+   ★表示スケールを「対数（log）」にする。従来の線形だと低threshold側（高感度）が上端に
+     一気に詰まり、有線イヤホンの 0.011 でも 96〜97% に張り付いて「ほぼ最大」に見えていた。
+     log にすると高感度側に表示の余裕ができ、0.011≒74%・0.008≒82%・0.006≒90%・0.004=100% になる。
+   ※threshold の実値（=判定に使う値）は変えていない。スライダーの「見え方」と刻み方だけが変わる。
+   下限を 0.004（100%側で 0.004 まで高感度に振れる）、上限は 0.20（Mac等の大入力でクリックを避ける）。 */
+const THR_MIN = 0.004, THR_MAX = 0.20;
+const THR_LN_MIN = Math.log(THR_MIN), THR_LN_MAX = Math.log(THR_MAX);
 function sensFromThreshold(thr) {
-    return Math.round((THR_MAX - thr) / (THR_MAX - THR_MIN) * 100);
+    const t = Math.max(THR_MIN, Math.min(THR_MAX, thr));
+    return Math.round((THR_LN_MAX - Math.log(t)) / (THR_LN_MAX - THR_LN_MIN) * 100);
 }
 function thresholdFromSens(sens) {
-    return THR_MAX - (sens / 100) * (THR_MAX - THR_MIN);
+    const s = Math.max(0, Math.min(100, sens)) / 100;
+    return Math.exp(THR_LN_MAX - s * (THR_LN_MAX - THR_LN_MIN));
 }
 
 function loadSettings() {
@@ -3067,6 +3074,21 @@ function updateReco() {
     // 反応ラインが提案できる or クリック音量を下げられる → 適用ボタンを出す
     if (canApply || volChanged) els.recoApplyBtn.classList.remove('hidden');
     else els.recoApplyBtn.classList.add('hidden');
+
+    // 低入力/イヤホン環境で、まだ全ストロークを拾えていないとき：前向きな再テスト案内。
+    // 「本体マイクも試して」ではなく、イヤホン前提でもう一度測ればより正確に調整できる、という方向。
+    if (els.recoRetest) {
+        const totalNotes = test.notes.length || 8;
+        const retestSuggest = isLowInputTestEnv()
+            && (test.maxStrokeRaw || 0) > 0
+            && (test.strokeDetected || 0) < totalNotes;
+        if (retestSuggest) {
+            els.recoRetest.textContent = 'イヤホンの小さめ入力を確認しました。もう一度テストすると、より安定した高感度設定を作れます。';
+            els.recoRetest.classList.remove('hidden');
+        } else {
+            els.recoRetest.classList.add('hidden');
+        }
+    }
 
     updateTestDetail(maxClick, minStroke, maxStroke, clickReacted, canApply, maxStrokeRaw, provisional);
 }
