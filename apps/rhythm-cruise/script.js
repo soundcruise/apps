@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.38';
+const RHYTHM_CRUISE_VERSION = '0.9.39';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -446,6 +446,7 @@ const els = {
     recoClickVol: $('reco-clickvol'),
     recoCooldown: $('reco-cooldown'),
     recoMsg: $('reco-msg'),
+    recoLowInput: $('reco-lowinput'),
     recoApplyBtn: $('reco-apply-btn'),
     manualDetail: $('manual-detail'),
     testResultDetail: $('test-result-detail'),
@@ -3030,6 +3031,25 @@ function updateReco() {
     // 反応ラインが提案できる or クリック音量を下げられる → 適用ボタンを出す
     if (canApply || volChanged) els.recoApplyBtn.classList.remove('hidden');
     else els.recoApplyBtn.classList.add('hidden');
+
+    // 低入力環境の案内（有線イヤホンのイヤホンマイク等でギター音が小さく入る場合）。
+    // ★表示のみ。判定ロジック・反応ライン・各ゲートには一切影響しない。
+    //   判定基準＝「全ストローク最大 < 0.035」または「全ストローク最小 < 0.025」。
+    //   最大は検出分(maxStroke)を優先し、検出0回でも受付窓内の生最大(maxStrokeRaw)で評価する。
+    const lowInputMax = (maxStroke != null) ? maxStroke : maxStrokeRaw;
+    const hasAnyInput = (maxStrokeRaw != null && maxStrokeRaw > 0);
+    const lowInput = hasAnyInput && (
+        (lowInputMax != null && lowInputMax < 0.035) ||
+        (minStroke != null && minStroke < 0.025)
+    );
+    if (els.recoLowInput) {
+        if (lowInput) {
+            els.recoLowInput.textContent = '入力が小さめです。イヤホンマイク使用時は、マイクをギターに近づけると安定します。反応しにくい場合は、iPhone本体マイクでの使用もお試しください。';
+            els.recoLowInput.classList.remove('hidden');
+        } else {
+            els.recoLowInput.classList.add('hidden');
+        }
+    }
 
     updateTestDetail(maxClick, minStroke, maxStroke, clickReacted, canApply, maxStrokeRaw, provisional);
 }
