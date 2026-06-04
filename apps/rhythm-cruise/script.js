@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.36';
+const RHYTHM_CRUISE_VERSION = '0.9.37';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -160,6 +160,7 @@ const state = {
     beatDoubled: new Array(TOTAL_BEATS).fill(false), // 各拍で二重反応（重複入力）が起きたか
     beatExcluded: new Array(TOTAL_BEATS).fill(false), // 各拍で入力がクールダウン/ガード等で除外されたか
     micEventLog: [],  // 各オンセットの記録（MISS原因デバッグ用）{t,peak,nearBeat,outcome,assignedBeat,cls}
+    chordBeatProbe: [], // コードストローク：拍ごとの候補フレーム情報（立ち上がり未検出MISSの原因分析用）
     doubleReactionCount: 0, // 二重反応の総数
     markers: [],
     micWaveHistory: [],   // {perf, level} マイク音量の時系列（STAGE中の背景波形用・直近のみ）
@@ -343,6 +344,7 @@ const els = {
     resultsMissInfo: $('results-miss-info'),
     resultsMissDebug: $('results-miss-debug'),
     resultsChordDev: $('results-chord-dev'),
+    resultsChordMiss: $('results-chord-miss'),
     resultsDoubleNotice: $('results-double-notice'),
     resultsDoubleMsg: $('results-double-msg'),
     resultsDoubleDetail: $('results-double-detail'),
@@ -1563,6 +1565,7 @@ function resetData() {
     state.beatDoubled = new Array(TOTAL_BEATS).fill(false);
     state.beatExcluded = new Array(TOTAL_BEATS).fill(false);
     state.micEventLog = [];
+    state.chordBeatProbe = new Array(TOTAL_BEATS).fill(null);
     state.doubleReactionCount = 0;
     state.markers = [];
     state.micWaveHistory = [];
@@ -1715,15 +1718,69 @@ function updateMissDebug() {
     els.resultsMissDebug.classList.remove('hidden');
 }
 
-/* コードストロークモードのPLAY観察（開発用）：拾った入力数・無視した再ピーク・二重反応・ゲート値 */
+/* コードストローク：立ち上がり未検出MISSの原因を拍ごとに短く分類する。
+   救済はしない（観察用）。次にどのゲートを調整すべきかが分かるラベルを返す。 */
+function chordMissReason(i) {
+    const pb = state.chordBeatProbe ? state.chordBeatProbe[i] : null;
+    const thr = mic.threshold;
+    if (!pb || pb.maxPeak < thr * 0.5) return '拍近くにピークなし';
+    if (pb.maxPeak < thr) return '反応ライン未満';
+    if (pb.cooldownBlocked) return 'クールダウン中';
+    if (pb.bestInstantRise < state.chordInstantRiseGate) return '瞬間上昇不足';
+    if (pb.bestRiseFromValley < state.chordRiseGate) return '谷上昇不足';
+    return '条件は満たすが未登録（近い拍へ吸収など）';
+}
+
+/* コードストローク：立ち上がり未検出MISSの集計（{count, reasons, lines}）＋console詳細ダンプ。 */
+function chordMissAnalyze() {
+    const reasons = {}; const lines = []; const rows = [];
+    for (let i = 0; i < TOTAL_BEATS; i++) {
+        const r = state.results[i];
+        if (r && r.cls !== 'miss') continue; // 登録済みGOOD/EARLY/LATEは対象外
+        const reason = chordMissReason(i);
+        reasons[reason] = (reasons[reason] || 0) + 1;
+        lines.push('拍' + (i + 1) + '：立ち上がり未検出（' + reason + '）');
+        const pb = state.chordBeatProbe[i] || {};
+        rows.push({
+            拍: i + 1, beatMicPeak: +(state.beatMicPeak[i] || 0).toFixed(3), 反応ライン: +mic.threshold.toFixed(3),
+            最大peak: +(pb.maxPeak || 0).toFixed(3), 最大env: +(pb.maxEnv || 0).toFixed(3),
+            谷上昇: +(pb.bestRiseFromValley || 0).toFixed(3), 瞬間上昇: +(pb.bestInstantRise || 0).toFixed(3),
+            ピークズレms: (pb.offsetMs != null ? pb.offsetMs : ''), クールダウン中: !!pb.cooldownBlocked, 理由: reason,
+        });
+    }
+    if (rows.length) {
+        console.log('[chord] 立ち上がり未検出MISS', { count: rows.length, reasons, gates: { cooldown: state.chordMinCooldown, riseGate: +state.chordRiseGate.toFixed(3), instGate: +state.chordInstantRiseGate.toFixed(3), threshold: +mic.threshold.toFixed(3) } });
+        try { console.table(rows); } catch (_) { console.log('[chord] missTable', JSON.stringify(rows)); }
+    }
+    return { count: rows.length, reasons, lines };
+}
+
+/* コードストロークモードのPLAY観察（開発用）：拾った入力数・無視した再ピーク・二重反応・ゲート値＋立ち上がり未検出MISS要約 */
 function updateChordDev() {
     if (!els.resultsChordDev) return;
-    if (state.strokeDetectMode !== 'chord' || state.inputMode !== 'stroke') { els.resultsChordDev.classList.add('hidden'); return; }
+    if (state.strokeDetectMode !== 'chord' || state.inputMode !== 'stroke') {
+        els.resultsChordDev.classList.add('hidden');
+        if (els.resultsChordMiss) els.resultsChordMiss.classList.add('hidden');
+        return;
+    }
+    const miss = chordMissAnalyze();
+    const mainReason = Object.keys(miss.reasons).sort((a, b) => miss.reasons[b] - miss.reasons[a])[0];
     els.resultsChordDev.textContent = '🎸 コード観察（試験中）｜拾った入力 ' + (state.chordPicked || 0)
         + ' ／ 無視した再ピーク ' + (state.chordIgnoredRePeaks || 0)
         + ' ／ 二重反応 ' + (state.doubleReactionCount || 0)
+        + ' ／ 立ち上がり未検出MISS ' + miss.count + (miss.count > 0 ? '（主因：' + mainReason + '）' : '')
         + '｜クールダウン ' + state.chordMinCooldown + 'ms / 谷上昇ゲート ' + state.chordRiseGate.toFixed(3) + ' / 瞬間上昇ゲート ' + state.chordInstantRiseGate.toFixed(3);
     els.resultsChordDev.classList.remove('hidden');
+    // 拍ごとの理由（最大10拍まで）
+    if (els.resultsChordMiss) {
+        if (!miss.lines.length) { els.resultsChordMiss.classList.add('hidden'); }
+        else {
+            const shown = miss.lines.slice(0, 10);
+            const extra = miss.lines.length - shown.length;
+            els.resultsChordMiss.textContent = '🔎 ' + shown.join(' / ') + (extra > 0 ? ' ／ ほか' + extra + '拍' : '');
+            els.resultsChordMiss.classList.remove('hidden');
+        }
+    }
 }
 
 /* 二重反応（1拍に複数入力）の表示。
@@ -3239,6 +3296,22 @@ function micLoop() {
         const sinceHit = now - mic.lastDetect;
         const riseFromValley = peak - mic.valley;
         const instantRise = peak - mic.prevPeak;
+        // 立ち上がり未検出MISSの原因分析用：拍ごとに候補フレームの情報を記録（判定には不使用）。
+        if (!inCountIn && nearestBeat >= 0) {
+            let pb = state.chordBeatProbe[nearestBeat];
+            if (!pb) pb = state.chordBeatProbe[nearestBeat] = { maxPeak: 0, maxEnv: 0, bestInstantRise: 0, bestRiseFromValley: 0, cooldownBlocked: false, offsetMs: 0 };
+            if (peak > pb.maxPeak) {
+                pb.maxPeak = peak;
+                pb.offsetMs = Math.round((gameAudioMs() + mic.timingOffsetMs) - (state.T0 + nearestBeat * state.beatInterval));
+            }
+            if (mic.env > pb.maxEnv) pb.maxEnv = mic.env;
+            if (peak >= mic.threshold) {
+                if (instantRise > pb.bestInstantRise) pb.bestInstantRise = instantRise;
+                if (riseFromValley > pb.bestRiseFromValley) pb.bestRiseFromValley = riseFromValley;
+                // 谷上昇・瞬間上昇は満たすがクールダウン中で弾かれた（＝本当は新アタックだった可能性）
+                if (riseFromValley >= state.chordRiseGate && instantRise >= state.chordInstantRiseGate && sinceHit < state.chordMinCooldown) pb.cooldownBlocked = true;
+            }
+        }
         const chordOnset = (peak >= mic.threshold)
             && (sinceHit >= state.chordMinCooldown)
             && (riseFromValley >= state.chordRiseGate)
