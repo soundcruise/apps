@@ -150,12 +150,12 @@
             <!-- 0. ストローク検出モード（ブラッシング / コードストローク） -->
             <div class="settings-card stroke-mode-card" id="stroke-mode-card">
                 <div class="cal-head">ストローク検出モード</div>
-                <p class="setting-note">ブラッシング＝弦をミュートして弾く（既定）。コードストローク＝コードを鳴らして弾く（余韻が長い・開発中）。</p>
+                <p class="setting-note"><b>ブラッシング</b>：弦をミュートして「チャッ」と鳴らす練習向け。<br><b>コードストローク</b>：実際にコードを鳴らす練習向け（コードの余韻を無視して、弾き始めを拾います）。</p>
                 <div class="input-mode" id="stroke-detect-mode">
                     <button type="button" class="input-seg is-active" id="stroke-mode-brush" data-stroke-mode="brush">ブラッシング</button>
                     <button type="button" class="input-seg" id="stroke-mode-chord" data-stroke-mode="chord">コードストローク</button>
                 </div>
-                <p class="setting-note stroke-mode-note hidden" id="stroke-mode-note">コードストロークモードは観察用です。マイク反応テストでコードの余韻・オンセットを記録します（判定ロジックは今後調整）。</p>
+                <p class="setting-note stroke-mode-note hidden" id="stroke-mode-note">コードを鳴らしてストロークする練習用です。マイク反応テストで、コードの余韻を無視して弾き始めを拾う設定を作ります。</p>
             </div>
 
             <!-- 1. マイク反応テスト（自動フロー・一番上） -->
@@ -164,7 +164,7 @@
                     <div class="cal-head" id="test-card-head">マイク反応テスト</div>
                     <span class="status-pill" id="test-done-badge">未実施</span>
                 </div>
-                <p class="setting-note">クリック音が反応せず、ストローク音だけ反応するかを自動でチェックします。</p>
+                <p class="setting-note" id="test-card-note">クリック音が反応せず、ストローク音だけ反応するかを自動でチェックします。</p>
                 <div class="test-row">
                     <button class="btn-mic test-run-btn" id="mic-test-btn">マイク反応テストを開始</button>
                     <span class="test-mic-state hidden" id="test-mic-state">マイク ON</span>
@@ -337,7 +337,8 @@
                     <p class="result-breakdown">内訳：<b class="bd-just">GOOD</b> <b id="r-just">0</b>／<b class="bd-early">EARLY</b> <b id="r-early">0</b>／<b class="bd-late">LATE</b> <b id="r-late">0</b>／<b class="bd-miss">MISS</b> <b id="r-miss">0</b>　｜　平均ズレ <b id="r-avg">±0</b>ms</p>
                     <p class="result-breakdown hidden" id="results-miss-info"></p>
                     <p class="result-breakdown result-miss-debug hidden" id="results-miss-debug"></p>
-                    <p class="result-breakdown result-miss-debug hidden" id="results-chord-dev"></p>
+                    <p class="result-breakdown hidden" id="results-chord-dev"></p>
+                    <p class="result-breakdown result-miss-debug hidden" id="results-chord-detail"></p>
                     <p class="result-breakdown result-miss-debug hidden" id="results-chord-miss"></p>
                     <!-- 二重反応の詳しい説明＋改善方法（詳細タブ内・二重反応時のみ表示） -->
                     <div class="result-double-detail hidden" id="results-double-detail">
@@ -385,7 +386,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.37"></script>
+    <script src="script.js?v=0.9.38"></script>
 </body>
 
 </html>

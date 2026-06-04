@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.37';
+const RHYTHM_CRUISE_VERSION = '0.9.38';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -327,6 +327,7 @@ const els = {
     strokeModeBrush: $('stroke-mode-brush'),
     strokeModeChord: $('stroke-mode-chord'),
     strokeModeNote: $('stroke-mode-note'),
+    testCardNote: $('test-card-note'),
     tapArea: $('tap-area'),
     tapLayoutToggle: $('tap-layout-toggle'),
     layoutLrBtn: $('layout-lr-btn'),
@@ -344,6 +345,7 @@ const els = {
     resultsMissInfo: $('results-miss-info'),
     resultsMissDebug: $('results-miss-debug'),
     resultsChordDev: $('results-chord-dev'),
+    resultsChordDetail: $('results-chord-detail'),
     resultsChordMiss: $('results-chord-miss'),
     resultsDoubleNotice: $('results-double-notice'),
     resultsDoubleMsg: $('results-double-msg'),
@@ -1758,26 +1760,35 @@ function chordMissAnalyze() {
 /* コードストロークモードのPLAY観察（開発用）：拾った入力数・無視した再ピーク・二重反応・ゲート値＋立ち上がり未検出MISS要約 */
 function updateChordDev() {
     if (!els.resultsChordDev) return;
-    if (state.strokeDetectMode !== 'chord' || state.inputMode !== 'stroke') {
-        els.resultsChordDev.classList.add('hidden');
-        if (els.resultsChordMiss) els.resultsChordMiss.classList.add('hidden');
-        return;
-    }
+    const hideAll = () => {
+        [els.resultsChordDev, els.resultsChordDetail, els.resultsChordMiss].forEach((e) => { if (e) e.classList.add('hidden'); });
+    };
+    if (state.strokeDetectMode !== 'chord' || state.inputMode !== 'stroke') { hideAll(); return; }
     const miss = chordMissAnalyze();
-    const mainReason = Object.keys(miss.reasons).sort((a, b) => miss.reasons[b] - miss.reasons[a])[0];
-    els.resultsChordDev.textContent = '🎸 コード観察（試験中）｜拾った入力 ' + (state.chordPicked || 0)
-        + ' ／ 無視した再ピーク ' + (state.chordIgnoredRePeaks || 0)
-        + ' ／ 二重反応 ' + (state.doubleReactionCount || 0)
-        + ' ／ 立ち上がり未検出MISS ' + miss.count + (miss.count > 0 ? '（主因：' + mainReason + '）' : '')
-        + '｜クールダウン ' + state.chordMinCooldown + 'ms / 谷上昇ゲート ' + state.chordRiseGate.toFixed(3) + ' / 瞬間上昇ゲート ' + state.chordInstantRiseGate.toFixed(3);
+    const picked = state.chordPicked || 0;
+    const doubles = state.doubleReactionCount || 0;
+    // ユーザー向けの良否：拾った入力が32前後・二重反応が少ない・未検出MISSが少ない → 良好
+    const good = (doubles <= 1) && (picked >= 28 && picked <= 36) && (miss.count <= 2);
+    // ① ユーザー向け（シンプル）
+    els.resultsChordDev.textContent = '🎸 コードストローク判定：' + (good ? '良好' : '注意')
+        + '｜拾った入力 ' + picked + ' ／ 二重反応 ' + doubles;
     els.resultsChordDev.classList.remove('hidden');
-    // 拍ごとの理由（最大10拍まで）
+    // ② 詳細診断（開発用寄り）：再ピーク・クールダウン・ゲート
+    if (els.resultsChordDetail) {
+        els.resultsChordDetail.textContent = '（詳細診断）無視した再ピーク ' + (state.chordIgnoredRePeaks || 0)
+            + ' ／ クールダウン ' + state.chordMinCooldown + 'ms ／ 谷上昇ゲート ' + state.chordRiseGate.toFixed(3)
+            + ' ／ 瞬間上昇ゲート ' + state.chordInstantRiseGate.toFixed(3);
+        els.resultsChordDetail.classList.remove('hidden');
+    }
+    // ③ 立ち上がり未検出MISSの診断（MISSが出たときだけ・開発用）
     if (els.resultsChordMiss) {
         if (!miss.lines.length) { els.resultsChordMiss.classList.add('hidden'); }
         else {
-            const shown = miss.lines.slice(0, 10);
+            const mainReason = Object.keys(miss.reasons).sort((a, b) => miss.reasons[b] - miss.reasons[a])[0];
+            const shown = miss.lines.slice(0, 8);
             const extra = miss.lines.length - shown.length;
-            els.resultsChordMiss.textContent = '🔎 ' + shown.join(' / ') + (extra > 0 ? ' ／ ほか' + extra + '拍' : '');
+            els.resultsChordMiss.textContent = '🔎（開発用）立ち上がり未検出MISS ' + miss.count + '（主因：' + mainReason + '）｜'
+                + shown.join(' / ') + (extra > 0 ? ' ／ ほか' + extra + '拍' : '');
             els.resultsChordMiss.classList.remove('hidden');
         }
     }
@@ -1844,7 +1855,8 @@ function finish() {
     } else {
         els.rAvg.textContent = '—';
     }
-    els.rComment.textContent = buildComment({ just, miss, tapped: diffs.length, avg, fAvg, sAvg });
+    els.rComment.textContent = buildComment({ just, miss, tapped: diffs.length, avg, fAvg, sAvg })
+        + chordCommentSuffix();
 
     // クリック音拾いの可能性を判定（ストローク＝マイク入力で、GOODのズレがほぼ一点に集中している）
     maybeShowClickPickupWarning();
@@ -1878,6 +1890,17 @@ function buildComment({ just, miss, tapped, avg, fAvg, sAvg }) {
     return 'おおむね安定しています。少しずつJUSTを増やしていきましょう。';
 }
 
+/* コードストロークモード時だけ、結果コメントに1文だけ補足する（既存コメントは壊さない）。 */
+function chordCommentSuffix() {
+    if (state.strokeDetectMode !== 'chord' || state.inputMode !== 'stroke') return '';
+    const picked = state.chordPicked || 0;
+    const doubles = state.doubleReactionCount || 0;
+    if (doubles >= 3) return '\nコードの余韻を拾っている可能性があります。マイク反応テストをやり直すと改善する場合があります。';
+    if (picked < 24) return '\n弾き始めが小さい可能性があります。少しはっきりストロークしてみましょう。';
+    if (doubles <= 1 && picked >= 28 && picked <= 36) return '\nコードストロークも安定しています！';
+    return '';
+}
+
 /* ── ストローク検出モード（ブラッシング / コードストローク）──────
    brush＝既存ロジック（弦ミュート・ブラッシング前提・変更しない）。
    chord＝コードストローク（余韻が長い）。現状は観察用（マイク反応テストで波形/オンセットを記録）。
@@ -1892,6 +1915,12 @@ function updateStrokeDetectModeUI() {
     if (els.strokeModeBrush) els.strokeModeBrush.classList.toggle('is-active', !chord);
     if (els.strokeModeChord) els.strokeModeChord.classList.toggle('is-active', chord);
     if (els.strokeModeNote) els.strokeModeNote.classList.toggle('hidden', !chord);
+    // マイク反応テストの案内文をモードに合わせる（ブラッシングは従来文を維持）
+    if (els.testCardNote) {
+        els.testCardNote.textContent = chord
+            ? '実際にコードを鳴らして、表示に合わせてストロークしてください。コードの余韻は無視し、弾き始めを拾う設定を作ります。'
+            : 'クリック音が反応せず、ストローク音だけ反応するかを自動でチェックします。';
+    }
 }
 
 /* ── 入力方法（タップ / ストローク）──────────────────────── */
