@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.35';
+const RHYTHM_CRUISE_VERSION = '0.9.36';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -2779,6 +2779,27 @@ function recoCooldownCapMs() {
     return minNoteInterval * 0.45;
 }
 
+/* 昇順配列のパーセンタイル値（p=0..1）。空なら null。 */
+function percentile(sortedAsc, p) {
+    if (!sortedAsc || !sortedAsc.length) return null;
+    const idx = Math.min(sortedAsc.length - 1, Math.max(0, Math.floor((sortedAsc.length - 1) * p)));
+    return sortedAsc[idx];
+}
+/* コード用クールダウンの基準に使う「ストローク反応ライン超過時間」のパーセンタイル。
+   現状は中央値(0.5)。将来コード進行テスト（C→G→Am→Em）を入れたら 0.75 など安全側に差し替え可能。 */
+const CHORD_ABOVE_PERCENTILE = 0.5;
+/* コード用最小クールダウンを算出（コード進行対応を見据えた共通関数）。
+   基準＝超過時間のパーセンタイル×1.2。余韻/再ピークが出るコード(G/Em等)でも安定するよう安全側の下限を入れる。
+   ブラッシングモードには一切影響しない（呼ぶのはchordモードの算出時のみ）。 */
+function computeChordCooldown(aboveMsArr, hasRing) {
+    const sorted = (aboveMsArr || []).filter((v) => v > 0).sort((a, b) => a - b);
+    const base = percentile(sorted, CHORD_ABOVE_PERCENTILE);
+    const cap = recoCooldownCapMs();                 // 最短音符間隔×0.45（速い譜面で潰さない上限）
+    let cd = (base != null) ? base * 1.2 : 0;
+    cd = Math.max(cd, hasRing ? 200 : 170);          // 余韻多→200ms / 通常でも170ms（コード進行でも安定）
+    return Math.round(Math.max(140, Math.min(cd, cap)));
+}
+
 /* ── おすすめ設定（反応ライン＝%／クリック音量／二重反応防止）＋詳細結果 ── */
 function updateReco() {
     if (!els.testReco) return;
@@ -2878,16 +2899,13 @@ function updateReco() {
         const med = (arr) => { const v = arr.filter((x) => x != null).sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : null; };
         const aboveMed = test.strokeAboveMedian;
         const riseMed = med(d.map((x) => x.riseMax));
-        const cap = recoCooldownCapMs();
         if (aboveMed != null) {
-            // 余韻が多いコード（テストで再ピークや二重反応が出ている）は、最小クールダウンを少し安全側に。
-            //   = max(超過時間中央値×1.2, 160ms)。Gのような余韻の多いコードで拾いすぎ（二重反応）を抑える。
-            //   余韻が少ないコードは従来どおり超過時間×1.2（下限120ms）なので、C/Am/Emの拾い漏れは増やさない。
+            // コード進行対応を見据えた共通算出。余韻/再ピークが出るコード(G/Em等)は安全側の下限(200ms)、
+            //   通常でも170ms、上限は最短音符間隔×0.45。1コード(C)でテストしてもG/Am/Emで安定しやすくする。
+            //   実ストローク間隔(750ms)を潰す長さではないので、C/Amの拾い漏れ(MISS)は増やさない。
             const rePeakTotal = d.reduce((a, x) => a + (x.rePeaks || 0), 0);
             const hasRing = (rePeakTotal > 0 || (test.strokeDoubleCount || 0) > 0);
-            let cd = aboveMed * 1.2;
-            if (hasRing) cd = Math.max(cd, 160);
-            state.chordMinCooldown = Math.round(Math.max(120, Math.min(cd, cap)));
+            state.chordMinCooldown = computeChordCooldown(test.strokeAboveMs, hasRing);
         }
         if (riseMed != null) {
             // 谷からの上昇ゲート：立ち上がり速度中央値とストローク最小から（余韻の小さな揺れを無視）
