@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.34';
+const RHYTHM_CRUISE_VERSION = '0.9.35';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -2879,7 +2879,16 @@ function updateReco() {
         const aboveMed = test.strokeAboveMedian;
         const riseMed = med(d.map((x) => x.riseMax));
         const cap = recoCooldownCapMs();
-        if (aboveMed != null) state.chordMinCooldown = Math.round(Math.max(100, Math.min(aboveMed * 1.2, cap)));
+        if (aboveMed != null) {
+            // 余韻が多いコード（テストで再ピークや二重反応が出ている）は、最小クールダウンを少し安全側に。
+            //   = max(超過時間中央値×1.2, 160ms)。Gのような余韻の多いコードで拾いすぎ（二重反応）を抑える。
+            //   余韻が少ないコードは従来どおり超過時間×1.2（下限120ms）なので、C/Am/Emの拾い漏れは増やさない。
+            const rePeakTotal = d.reduce((a, x) => a + (x.rePeaks || 0), 0);
+            const hasRing = (rePeakTotal > 0 || (test.strokeDoubleCount || 0) > 0);
+            let cd = aboveMed * 1.2;
+            if (hasRing) cd = Math.max(cd, 160);
+            state.chordMinCooldown = Math.round(Math.max(120, Math.min(cd, cap)));
+        }
         if (riseMed != null) {
             // 谷からの上昇ゲート：立ち上がり速度中央値とストローク最小から（余韻の小さな揺れを無視）
             state.chordRiseGate = Math.max(riseMed * 0.6, (minStroke || 0) * 0.4, 0.008);
