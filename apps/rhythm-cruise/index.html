@@ -147,6 +147,17 @@
                 <p class="mic-reset-msg hidden" id="mic-reset-msg"></p>
             </header>
 
+            <!-- 入力タイプ（自動おすすめ / 通常マイク / イヤホン接続）。テストや補正方式の切替土台 -->
+            <div class="settings-card input-type-card" id="input-type-card">
+                <div class="cal-head">入力タイプ</div>
+                <div class="input-mode" id="input-type-mode">
+                    <button type="button" class="input-seg is-active" id="input-type-auto" data-input-type="auto">自動おすすめ</button>
+                    <button type="button" class="input-seg" id="input-type-normal" data-input-type="normal">通常マイク</button>
+                    <button type="button" class="input-seg" id="input-type-headphone" data-input-type="headphone">イヤホン接続</button>
+                </div>
+                <p class="setting-note" id="input-type-note">通常はこちら。入力の大きさに合わせて自動調整します。</p>
+            </div>
+
             <!-- 0. ストローク検出モード（ブラッシング / コードストローク） -->
             <div class="settings-card stroke-mode-card" id="stroke-mode-card">
                 <div class="cal-head">ストローク検出モード</div>
@@ -388,7 +399,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.47"></script>
+    <script src="script.js?v=0.9.48"></script>
 </body>
 
 </html>

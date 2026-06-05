@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.47';
+const RHYTHM_CRUISE_VERSION = '0.9.48';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -188,6 +188,7 @@ const mic = {
     buf: null,
     raf: 0,
     threshold: 0.16,   // 立ち上がりしきい値（0..1）
+    inputType: 'auto', // 入力タイプ：'auto'（自動おすすめ）| 'normal'（通常マイク）| 'headphone'（イヤホン接続）
     lowInputProfile: false, // 低入力(イヤホン)テスト由来の設定か。手動設定の表示%スケール切替に使う（実値は不変）
     cooldownMs: 200,   // 検出後のクールダウン
     clickGuardMs: 60,  // クリック音直後は検出を無視（クリック音ON時のみ・出力レイテンシ分を加算）
@@ -330,6 +331,10 @@ const els = {
     strokeModeBrush: $('stroke-mode-brush'),
     strokeModeChord: $('stroke-mode-chord'),
     strokeModeNote: $('stroke-mode-note'),
+    inputTypeAuto: $('input-type-auto'),
+    inputTypeNormal: $('input-type-normal'),
+    inputTypeHeadphone: $('input-type-headphone'),
+    inputTypeNote: $('input-type-note'),
     testCardNote: $('test-card-note'),
     tapArea: $('tap-area'),
     tapLayoutToggle: $('tap-layout-toggle'),
@@ -1928,6 +1933,33 @@ function updateStrokeDetectModeUI() {
     }
 }
 
+/* ── 入力タイプ（自動おすすめ / 通常マイク / イヤホン接続）──────────
+   今回(v0.9.48)はUIと状態保存だけ。テスト・補正の実ロジックは今後ここを見て切り替える土台。 */
+const MIC_INPUT_TYPES = ['auto', 'normal', 'headphone'];
+function getMicInputType() {
+    return MIC_INPUT_TYPES.includes(mic.inputType) ? mic.inputType : 'auto';
+}
+function isAutoMicInput() { return getMicInputType() === 'auto'; }
+function isNormalMicInput() { return getMicInputType() === 'normal'; }
+function isHeadphoneInput() { return getMicInputType() === 'headphone'; }
+const MIC_INPUT_TYPE_NOTE = {
+    auto: '入力の状態を見て自動で調整します。',
+    normal: '本体マイクや外部マイクを使う場合におすすめです。',
+    headphone: '有線/Bluetoothイヤホン向け。ギター音が小さく入る場合があります。',
+};
+function setMicInputType(type) {
+    mic.inputType = MIC_INPUT_TYPES.includes(type) ? type : 'auto';
+    updateMicInputTypeUI();
+    saveSettings();
+}
+function updateMicInputTypeUI() {
+    const t = getMicInputType();
+    if (els.inputTypeAuto) els.inputTypeAuto.classList.toggle('is-active', t === 'auto');
+    if (els.inputTypeNormal) els.inputTypeNormal.classList.toggle('is-active', t === 'normal');
+    if (els.inputTypeHeadphone) els.inputTypeHeadphone.classList.toggle('is-active', t === 'headphone');
+    if (els.inputTypeNote) els.inputTypeNote.textContent = MIC_INPUT_TYPE_NOTE[t] || MIC_INPUT_TYPE_NOTE.auto;
+}
+
 /* ── 入力方法（タップ / ストローク）──────────────────────── */
 function setInputMode(mode) {
     state.inputMode = mode;
@@ -2098,6 +2130,7 @@ function loadSettings() {
     let s = {};
     try { s = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch (_) { s = {}; }
     mic.threshold = clampNum(s.threshold, THR_MIN, THR_MAX, SETTINGS_DEFAULTS.threshold);
+    mic.inputType = MIC_INPUT_TYPES.includes(s.inputType) ? s.inputType : 'auto';
     mic.lowInputProfile = !!s.lowInputProfile;
     mic.cooldownMs = clampNum(s.cooldownMs, 100, 400, SETTINGS_DEFAULTS.cooldownMs);
     mic.clickGuardMs = clampNum(s.clickGuardMs, 0, 250, SETTINGS_DEFAULTS.clickGuardMs);
@@ -2123,6 +2156,7 @@ function saveSettings() {
     try {
         localStorage.setItem(SETTINGS_KEY, JSON.stringify({
             threshold: mic.threshold,
+            inputType: mic.inputType,
             lowInputProfile: mic.lowInputProfile,
             cooldownMs: mic.cooldownMs,
             clickGuardMs: mic.clickGuardMs,
@@ -2165,6 +2199,7 @@ function applySettingsToUI() {
         els.setClickVolVal.textContent = state.clickVolume + '％';
     }
     updateStrokeDetectModeUI();
+    updateMicInputTypeUI();
 }
 
 function openSettings(from) {
@@ -3894,6 +3929,10 @@ function bind() {
     if (els.modeStrokeBtn) els.modeStrokeBtn.addEventListener('click', () => setInputMode('stroke'));
     if (els.strokeModeBrush) els.strokeModeBrush.addEventListener('click', () => setStrokeDetectMode('brush'));
     if (els.strokeModeChord) els.strokeModeChord.addEventListener('click', () => setStrokeDetectMode('chord'));
+    // 入力タイプ（自動おすすめ / 通常マイク / イヤホン接続）
+    if (els.inputTypeAuto) els.inputTypeAuto.addEventListener('click', () => setMicInputType('auto'));
+    if (els.inputTypeNormal) els.inputTypeNormal.addEventListener('click', () => setMicInputType('normal'));
+    if (els.inputTypeHeadphone) els.inputTypeHeadphone.addEventListener('click', () => setMicInputType('headphone'));
     // タップエリア配置（左右 / 上下）
     if (els.layoutLrBtn) els.layoutLrBtn.addEventListener('click', () => setTapLayout('lr'));
     if (els.layoutUdBtn) els.layoutUdBtn.addEventListener('click', () => setTapLayout('ud'));
