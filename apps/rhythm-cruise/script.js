@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.42';
+const RHYTHM_CRUISE_VERSION = '0.9.43';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -447,6 +447,7 @@ const els = {
     recoCooldown: $('reco-cooldown'),
     recoMsg: $('reco-msg'),
     recoRetest: $('reco-retest'),
+    recoRetestBtn: $('reco-retest-btn'),
     recoApplyBtn: $('reco-apply-btn'),
     manualDetail: $('manual-detail'),
     testResultDetail: $('test-result-detail'),
@@ -2060,6 +2061,17 @@ function thresholdFromSens(sens) {
     const s = Math.max(0, Math.min(100, sens)) / 100;
     return Math.exp(THR_LN_MAX - s * (THR_LN_MAX - THR_LN_MIN));
 }
+/* おすすめ反応ラインの「表示専用」スケール。
+   検出に使う実値(threshold)は変えない。低入力(イヤホン)時は、おすすめが 0.0035〜0.005 付近まで
+   下がるため通常スケールだと 96% 付近に張り付いて見える。表示だけ下限を広げ、70〜80%台に見せる。
+   例：0.0035≒76%・0.004≒74%・0.008≒61%。通常スライダー(sensFromThreshold)には影響しない。 */
+const THR_DISPLAY_MIN_LOW = 0.001;
+const THR_LN_DISPLAY_MIN_LOW = Math.log(THR_DISPLAY_MIN_LOW);
+function recoSensDisplay(thr, lowInput) {
+    if (!lowInput || thr == null) return sensFromThreshold(thr);
+    const t = Math.max(THR_DISPLAY_MIN_LOW, Math.min(THR_MAX, thr));
+    return Math.round((THR_LN_MAX - Math.log(t)) / (THR_LN_MAX - THR_LN_DISPLAY_MIN_LOW) * 100);
+}
 
 function loadSettings() {
     let s = {};
@@ -2942,6 +2954,7 @@ function updateReco() {
         (minStroke != null && minStroke < 0.025)
     );
     const lowInputTuned = isLowInputTestEnv() && lowInput;
+    test.lowInputTuned = lowInputTuned; // 詳細表示(updateTestDetail)で表示スケールを合わせるため保持
     const lowInputNoiseLine = Math.max(THR_MIN, TEST_LOW_STROKE_FLOOR, (test.noiseP95 || 0) * 4, (test.noiseMax || 0) * 1.5);
 
     // ② クリック音量を先に決める：クリックをストローク最小より十分下げ、間に反応ラインを置ける状態にする。
@@ -2996,15 +3009,15 @@ function updateReco() {
             canApply = true;
         }
         const sens = sensFromThreshold(test.recommended);
-        highSens = sens >= 85; // 85%以上はかなり高感度寄り
-        els.recoThr.textContent = sens + '％';
+        highSens = sens >= 85; // 85%以上はかなり高感度寄り（メッセージ分岐用・実スケール基準）
+        els.recoThr.textContent = recoSensDisplay(test.recommended, lowInputTuned) + '％';
     } else if (maxStrokeRaw != null && maxStrokeRaw > THR_MIN * 2) {
         // 検出0回でも、受付中最大の少し下を仮提案（拾う方向に低めへ）。クリックよりは上に。
         let rec = lowInputTuned ? Math.max(lowInputNoiseLine, maxStrokeRaw * 0.4) : Math.max(THR_MIN, maxStrokeRaw * 0.7);
         if (!lowInputTuned) rec = Math.max(rec, postClick * 1.2);
         rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
         test.recommended = rec;
-        els.recoThr.textContent = (provisional ? '仮 ' : '') + sensFromThreshold(rec) + '％';
+        els.recoThr.textContent = (provisional ? '仮 ' : '') + recoSensDisplay(rec, lowInputTuned) + '％';
         canApply = true;
     } else {
         test.recommended = null;
@@ -3085,20 +3098,21 @@ function updateReco() {
     if (canApply || volChanged) els.recoApplyBtn.classList.remove('hidden');
     else els.recoApplyBtn.classList.add('hidden');
 
-    // 低入力/イヤホン環境で、まだ全ストロークを拾えていないとき：前向きな再テスト案内。
-    // 「本体マイクも試して」ではなく、イヤホン前提でもう一度測ればより正確に調整できる、という方向。
+    // 低入力/イヤホン環境で、まだ全ストロークを拾えていないとき：はっきり再テストを促す（文言＋ボタン）。
+    // 再テストは noise→click→stroke の順で、ストローク時点から低入力用しきい値が最初から効く。
+    const totalNotes = test.notes.length || 8;
+    const retestSuggest = isLowInputTestEnv()
+        && (test.maxStrokeRaw || 0) > 0
+        && (test.strokeDetected || 0) < totalNotes;
     if (els.recoRetest) {
-        const totalNotes = test.notes.length || 8;
-        const retestSuggest = isLowInputTestEnv()
-            && (test.maxStrokeRaw || 0) > 0
-            && (test.strokeDetected || 0) < totalNotes;
         if (retestSuggest) {
-            els.recoRetest.textContent = 'イヤホンの小さめ入力を確認しました。もう一度テストすると、より安定した高感度設定を作れます。';
+            els.recoRetest.textContent = '入力が小さめです。より正確に設定するため、もう1度テストしてください。';
             els.recoRetest.classList.remove('hidden');
         } else {
             els.recoRetest.classList.add('hidden');
         }
     }
+    if (els.recoRetestBtn) els.recoRetestBtn.classList.toggle('hidden', !retestSuggest);
 
     updateTestDetail(maxClick, minStroke, maxStroke, clickReacted, canApply, maxStrokeRaw, provisional);
 }
@@ -3126,7 +3140,7 @@ function updateTestDetail(maxClick, minStroke, maxStroke, clickReacted, canApply
     }
     // 数値（小さく）。受付中最大はユーザー向けには出さない（内部デバッグのみ）。min/max は「最小 / 最大」順で統一。
     const clickLabel = clickReacted === 0 ? '反応なし' : (clickReacted + ' / ' + CLICK_TEST_COUNT + ' 回反応');
-    const recoSensLabel = (test.recommended != null) ? (sensFromThreshold(test.recommended) + '%') : '—';
+    const recoSensLabel = (test.recommended != null) ? (recoSensDisplay(test.recommended, test.lowInputTuned) + '%') : '—';
     const rawMax = (maxStrokeRaw != null) ? maxStrokeRaw : test.maxStrokeRaw; // 内部用
     const rows = [
         ['クリック音', clickLabel],
@@ -3851,6 +3865,7 @@ function bind() {
 
     // 実音テスト（1ボタン自動フロー）
     els.micTestBtn.addEventListener('click', toggleMicTest);
+    if (els.recoRetestBtn) els.recoRetestBtn.addEventListener('click', () => { if (!test.flow) startMicTestFlow(); });
     els.recoApplyBtn.addEventListener('click', applyReco);
     els.tempoUp.addEventListener('click', () => setBpm(state.bpm + 5));
     els.tempoDown.addEventListener('click', () => setBpm(state.bpm - 5));
