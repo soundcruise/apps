@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.45';
+const RHYTHM_CRUISE_VERSION = '0.9.46';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -292,6 +292,7 @@ const test = {
     recoClickVolume: null,
     projClickMax: null, // おすすめ音量適用後のクリック音最大の目安（線形近似）
     flow: false,   // 自動フロー実行中
+    rescueHighSens: false, // 「もう1度テスト」での再テスト時に、最初から高感度寄りで拾い直す救済モード
 };
 
 /* ── 要素参照 ───────────────────────────────────────────── */
@@ -2495,6 +2496,7 @@ function onMicResetClick() {
 ═══════════════════════════════════════════════════════════ */
 function toggleMicTest() {
     if (test.flow) { abortMicTest(); return; }
+    test.rescueHighSens = false; // 通常テスト開始時は救済モードを解除（従来どおりの検出しきい値）
     startMicTestFlow();
 }
 
@@ -2632,12 +2634,21 @@ const TEST_LOW_CLICK_MAX = 0.003;
 const TEST_LOW_NOISE_P95 = 0.003;
 const TEST_LOW_NOISE_MAX = 0.006;
 const TEST_LOW_STROKE_FLOOR = 0.0035;
+/* 救済再テストの検出しきい値の上限。直前テストで検出が少なかったとき、通常0.02ではなくここまで
+   下げて拾い直す。ノイズが低ければ TEST_LOW_STROKE_FLOOR(0.0035) 付近まで下がる。 */
+const TEST_RESCUE_STROKE_CEIL = 0.010;
 function isLowInputTestEnv() {
     return (test.maxClickPeak || 0) < TEST_LOW_CLICK_MAX
         && (test.noiseP95 || 0) < TEST_LOW_NOISE_P95
         && (test.noiseMax || 0) < TEST_LOW_NOISE_MAX;
 }
 function testStrokeThreshold() {
+    // 救済再テスト：低入力判定に依存せず、ノイズだけ尊重して高感度寄りで拾い直す（上限0.010）。
+    if (test.rescueHighSens) {
+        const noiseLine = Math.max((test.noiseP95 || 0) * 2, (test.noiseMax || 0) * 1.2);
+        const thr = Math.max(THR_MIN, TEST_LOW_STROKE_FLOOR, noiseLine);
+        return Math.min(TEST_RESCUE_STROKE_CEIL, thr);
+    }
     if (!isLowInputTestEnv()) return TEST_STROKE_THRESHOLD;
     // 有線イヤホン等はクリック音がほぼ競合しないため、現在の反応ライン(mic.threshold)には引っ張られない。
     // ノイズより十分上だけを守り、普通より少し弱いストロークも拾えるラインまで下げる。
@@ -3120,15 +3131,21 @@ function updateReco() {
     if (canApply || volChanged) els.recoApplyBtn.classList.remove('hidden');
     else els.recoApplyBtn.classList.add('hidden');
 
-    // 低入力/イヤホン環境で、まだ全ストロークを拾えていないとき：はっきり再テストを促す（文言＋ボタン）。
-    // 0/8 のときこそ再テストが必要なので、「入力あり」条件は入れない。
-    // 再テストは noise→click→stroke の順で、ストローク時点から低入力用しきい値が最初から効く。
+    // 「もう1度テスト」導線。検出が少ないほど救済が必要なので、入力の大小・低入力判定に依存させない。
+    //  - 0〜4/8：入力にかかわらず必ず表示（強めの文言）
+    //  - 5〜7/8：低入力環境 or 仮おすすめがあるときに表示（通常文言）
+    //  - 8/8  ：非表示（設定成功）
+    // 再テストボタンは救済モード(rescueHighSens)で開始し、最初から高感度寄りしきい値で拾い直す。
     const totalNotes = test.notes.length || 8;
-    const retestSuggest = isLowInputTestEnv()
-        && (test.strokeDetected || 0) < totalNotes;
+    const detected = test.strokeDetected || 0;
+    const strongRetest = detected <= 4 && detected < totalNotes;
+    const softRetest = detected > 4 && detected < totalNotes && (isLowInputTestEnv() || provisional);
+    const retestSuggest = strongRetest || softRetest;
     if (els.recoRetest) {
         if (retestSuggest) {
-            els.recoRetest.textContent = '入力が小さめです。より正確に設定するため、もう1度テストしてください。';
+            els.recoRetest.textContent = strongRetest
+                ? 'ストロークがまだ十分に拾えていません。もう1度テストすると、高感度寄りで検出し直します。'
+                : '入力が小さめです。より正確に設定するため、もう1度テストしてください。';
             els.recoRetest.classList.remove('hidden');
         } else {
             els.recoRetest.classList.add('hidden');
@@ -3891,7 +3908,7 @@ function bind() {
 
     // 実音テスト（1ボタン自動フロー）
     els.micTestBtn.addEventListener('click', toggleMicTest);
-    if (els.recoRetestBtn) els.recoRetestBtn.addEventListener('click', () => { if (!test.flow) startMicTestFlow(); });
+    if (els.recoRetestBtn) els.recoRetestBtn.addEventListener('click', () => { if (!test.flow) { test.rescueHighSens = true; startMicTestFlow(); } });
     els.recoApplyBtn.addEventListener('click', applyReco);
     els.tempoUp.addEventListener('click', () => setBpm(state.bpm + 5));
     els.tempoDown.addEventListener('click', () => setBpm(state.bpm - 5));
