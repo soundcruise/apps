@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.41';
+const RHYTHM_CRUISE_VERSION = '0.9.42';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -2047,10 +2047,10 @@ function clampNum(v, lo, hi, fallback) {
    右＝敏感（低threshold・小さい音も拾う）／左＝鈍感（高threshold・大きい音だけ拾う）。
    ★表示スケールを「対数（log）」にする。従来の線形だと低threshold側（高感度）が上端に
      一気に詰まり、有線イヤホンの 0.011 でも 96〜97% に張り付いて「ほぼ最大」に見えていた。
-     log にすると高感度側に表示の余裕ができ、0.011≒74%・0.008≒82%・0.006≒90%・0.004=100% になる。
+     log にすると高感度側に表示の余裕ができ、0.011≒69%・0.009≒74%・0.006≒84%・0.003=100% になる。
    ※threshold の実値（=判定に使う値）は変えていない。スライダーの「見え方」と刻み方だけが変わる。
-   下限を 0.004（100%側で 0.004 まで高感度に振れる）、上限は 0.20（Mac等の大入力でクリックを避ける）。 */
-const THR_MIN = 0.004, THR_MAX = 0.20;
+   下限を 0.003（100%側で 0.003 まで高感度に振れる）、上限は 0.20（Mac等の大入力でクリックを避ける）。 */
+const THR_MIN = 0.003, THR_MAX = 0.20;
 const THR_LN_MIN = Math.log(THR_MIN), THR_LN_MAX = Math.log(THR_MAX);
 function sensFromThreshold(thr) {
     const t = Math.max(THR_MIN, Math.min(THR_MAX, thr));
@@ -2597,8 +2597,7 @@ const TEST_STROKE_THRESHOLD = 0.02;
 const TEST_LOW_CLICK_MAX = 0.003;
 const TEST_LOW_NOISE_P95 = 0.003;
 const TEST_LOW_NOISE_MAX = 0.006;
-const TEST_LOW_STROKE_FLOOR = 0.004;
-const TEST_LOW_STROKE_CEIL = 0.006;
+const TEST_LOW_STROKE_FLOOR = 0.0035;
 function isLowInputTestEnv() {
     return (test.maxClickPeak || 0) < TEST_LOW_CLICK_MAX
         && (test.noiseP95 || 0) < TEST_LOW_NOISE_P95
@@ -2606,10 +2605,20 @@ function isLowInputTestEnv() {
 }
 function testStrokeThreshold() {
     if (!isLowInputTestEnv()) return TEST_STROKE_THRESHOLD;
-    const noiseLine = Math.max((test.noiseP95 || 0) * 5, (test.noiseMax || 0) * 1.5);
-    const sensitivityLine = Math.min(mic.threshold || TEST_LOW_STROKE_CEIL, TEST_LOW_STROKE_CEIL);
-    const thr = Math.max(THR_MIN, TEST_LOW_STROKE_FLOOR, noiseLine, sensitivityLine);
+    // 有線イヤホン等はクリック音がほぼ競合しないため、現在の反応ライン(mic.threshold)には引っ張られない。
+    // ノイズより十分上だけを守り、普通より少し弱いストロークも拾えるラインまで下げる。
+    const noiseLine = Math.max((test.noiseP95 || 0) * 4, (test.noiseMax || 0) * 1.5);
+    const thr = Math.max(THR_MIN, TEST_LOW_STROKE_FLOOR, noiseLine);
     return Math.min(TEST_STROKE_THRESHOLD, thr);
+}
+function adaptLowInputTestThreshold(doneNotes) {
+    if (!isLowInputTestEnv() || !test.strokeDetectThreshold) return;
+    // 低入力で前半の検出が少ないときだけ、ノイズ基準を少し緩めてもう一段高感度へ。
+    const expectedMin = Math.max(1, Math.ceil(doneNotes * 0.5));
+    if ((test.strokeDetected || 0) >= expectedMin) return;
+    const relaxedNoiseLine = Math.max((test.noiseP95 || 0) * 3.5, (test.noiseMax || 0) * 1.25);
+    const relaxed = Math.max(THR_MIN, TEST_LOW_STROKE_FLOOR, relaxedNoiseLine);
+    if (relaxed < test.strokeDetectThreshold) test.strokeDetectThreshold = relaxed;
 }
 /* 受付窓内の最大値が、この値以上なら検出ありとみなす共通判定（後で本番STAGEへ移植しやすいよう関数化） */
 function isTestStrokeDetected(peak) {
@@ -2700,6 +2709,7 @@ function testFlowLoop() {
             note.detected = isTestStrokeDetected(note.peak); // 受付窓内最大が緩めしきい値超え＝検出あり
             if (note.detected) { test.strokeDetected++; if (test.curAboveMax > 0) test.strokeAboveMs.push(test.curAboveMax); }
             if (note.onsets >= 2) test.strokeDoubleCount++;
+            adaptLowInputTestThreshold(test.noteIdx + 1);
             // コードストローク観察値（検出できたストロークのみ）
             if (note.detected) {
                 // 余韻含む全幅＝最初に反応ラインを超えてから最後に超えていたフレームまで（必ず 超過時間 以上になる）
@@ -2932,7 +2942,7 @@ function updateReco() {
         (minStroke != null && minStroke < 0.025)
     );
     const lowInputTuned = isLowInputTestEnv() && lowInput;
-    const lowInputNoiseLine = Math.max(THR_MIN, (test.noiseP95 || 0) * 5, (test.noiseMax || 0) * 1.5);
+    const lowInputNoiseLine = Math.max(THR_MIN, TEST_LOW_STROKE_FLOOR, (test.noiseP95 || 0) * 4, (test.noiseMax || 0) * 1.5);
 
     // ② クリック音量を先に決める：クリックをストローク最小より十分下げ、間に反応ラインを置ける状態にする。
     //    目標＝クリック音最大がストローク最小の半分以下。
@@ -2964,10 +2974,10 @@ function updateReco() {
     if (minStroke != null) {
         const separable = postClick < minStroke * 0.8;     // 間に十分な隙間があるか
         if (lowInputTuned) {
-            // 有線イヤホン等：クリック音がほぼ競合しないため、ストローク最小の半分弱まで高感度に寄せる。
+            // 有線イヤホン等：クリック音がほぼ競合しないため、ストローク最小の4割弱まで高感度に寄せる。
             // ノイズより十分上には置くが、クリック回避のために不必要に上げない。
-            let rec = Math.max(lowInputNoiseLine, TEST_LOW_STROKE_FLOOR, minStroke * 0.45);
-            rec = Math.min(rec, minStroke * 0.65);
+            let rec = Math.max(lowInputNoiseLine, minStroke * 0.38);
+            rec = Math.min(rec, minStroke * 0.55);
             rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
             test.recommended = rec;
             canApply = true;
@@ -2990,7 +3000,7 @@ function updateReco() {
         els.recoThr.textContent = sens + '％';
     } else if (maxStrokeRaw != null && maxStrokeRaw > THR_MIN * 2) {
         // 検出0回でも、受付中最大の少し下を仮提案（拾う方向に低めへ）。クリックよりは上に。
-        let rec = lowInputTuned ? Math.max(lowInputNoiseLine, TEST_LOW_STROKE_FLOOR, maxStrokeRaw * 0.5) : Math.max(THR_MIN, maxStrokeRaw * 0.7);
+        let rec = lowInputTuned ? Math.max(lowInputNoiseLine, maxStrokeRaw * 0.4) : Math.max(THR_MIN, maxStrokeRaw * 0.7);
         if (!lowInputTuned) rec = Math.max(rec, postClick * 1.2);
         rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
         test.recommended = rec;
