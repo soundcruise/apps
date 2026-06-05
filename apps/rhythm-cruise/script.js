@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.44';
+const RHYTHM_CRUISE_VERSION = '0.9.45';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -3121,10 +3121,10 @@ function updateReco() {
     else els.recoApplyBtn.classList.add('hidden');
 
     // 低入力/イヤホン環境で、まだ全ストロークを拾えていないとき：はっきり再テストを促す（文言＋ボタン）。
+    // 0/8 のときこそ再テストが必要なので、「入力あり」条件は入れない。
     // 再テストは noise→click→stroke の順で、ストローク時点から低入力用しきい値が最初から効く。
     const totalNotes = test.notes.length || 8;
     const retestSuggest = isLowInputTestEnv()
-        && (test.maxStrokeRaw || 0) > 0
         && (test.strokeDetected || 0) < totalNotes;
     if (els.recoRetest) {
         if (retestSuggest) {
