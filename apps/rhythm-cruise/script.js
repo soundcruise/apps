@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.43';
+const RHYTHM_CRUISE_VERSION = '0.9.44';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -188,6 +188,7 @@ const mic = {
     buf: null,
     raf: 0,
     threshold: 0.16,   // 立ち上がりしきい値（0..1）
+    lowInputProfile: false, // 低入力(イヤホン)テスト由来の設定か。手動設定の表示%スケール切替に使う（実値は不変）
     cooldownMs: 200,   // 検出後のクールダウン
     clickGuardMs: 60,  // クリック音直後は検出を無視（クリック音ON時のみ・出力レイテンシ分を加算）
     timingOffsetMs: 0, // マイク判定補正（ms）。マイク由来の検出時刻に加算（負＝早める）
@@ -2061,22 +2062,41 @@ function thresholdFromSens(sens) {
     const s = Math.max(0, Math.min(100, sens)) / 100;
     return Math.exp(THR_LN_MAX - s * (THR_LN_MAX - THR_LN_MIN));
 }
-/* おすすめ反応ラインの「表示専用」スケール。
-   検出に使う実値(threshold)は変えない。低入力(イヤホン)時は、おすすめが 0.0035〜0.005 付近まで
-   下がるため通常スケールだと 96% 付近に張り付いて見える。表示だけ下限を広げ、70〜80%台に見せる。
-   例：0.0035≒76%・0.004≒74%・0.008≒61%。通常スライダー(sensFromThreshold)には影響しない。 */
+/* 低入力(イヤホン)用の「表示専用」スケール（双方向ペア）。
+   検出に使う実値(threshold)は変えない。低入力時はおすすめが 0.0035〜0.005 付近まで下がるため、
+   通常スケールだと 96% 付近に張り付いて見える。表示だけ下限を 0.001 まで広げ、70〜80%台に見せる。
+   例：0.0035≒76%・0.004≒74%・0.008≒61%。逆変換は threshold を [THR_MIN, THR_MAX] にクランプするので、
+   スライダーを高感度側へ振り切っても実値は THR_MIN(0.003) より下がらない（＝検出ロジックは不変）。 */
 const THR_DISPLAY_MIN_LOW = 0.001;
 const THR_LN_DISPLAY_MIN_LOW = Math.log(THR_DISPLAY_MIN_LOW);
-function recoSensDisplay(thr, lowInput) {
-    if (!lowInput || thr == null) return sensFromThreshold(thr);
+function sensFromThresholdLow(thr) {
     const t = Math.max(THR_DISPLAY_MIN_LOW, Math.min(THR_MAX, thr));
     return Math.round((THR_LN_MAX - Math.log(t)) / (THR_LN_MAX - THR_LN_DISPLAY_MIN_LOW) * 100);
+}
+function thresholdFromSensLow(sens) {
+    const s = Math.max(0, Math.min(100, sens)) / 100;
+    const t = Math.exp(THR_LN_MAX - s * (THR_LN_MAX - THR_LN_DISPLAY_MIN_LOW));
+    return Math.max(THR_MIN, Math.min(THR_MAX, t));
+}
+function recoSensDisplay(thr, lowInput) {
+    if (!lowInput || thr == null) return sensFromThreshold(thr);
+    return sensFromThresholdLow(thr);
+}
+/* 手動設定の表示・スライダーで使う変換。低入力テスト由来の設定(mic.lowInputProfile)のときだけ
+   低入力スケールを使い、マイク反応テストのおすすめ表示%と手動設定の表示%を一致させる。
+   通常環境ではこれまでどおり sensFromThreshold / thresholdFromSens を使う（見え方は不変）。 */
+function sensFromThresholdUI(thr) {
+    return mic.lowInputProfile ? sensFromThresholdLow(thr) : sensFromThreshold(thr);
+}
+function thresholdFromSensUI(sens) {
+    return mic.lowInputProfile ? thresholdFromSensLow(sens) : thresholdFromSens(sens);
 }
 
 function loadSettings() {
     let s = {};
     try { s = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch (_) { s = {}; }
     mic.threshold = clampNum(s.threshold, THR_MIN, THR_MAX, SETTINGS_DEFAULTS.threshold);
+    mic.lowInputProfile = !!s.lowInputProfile;
     mic.cooldownMs = clampNum(s.cooldownMs, 100, 400, SETTINGS_DEFAULTS.cooldownMs);
     mic.clickGuardMs = clampNum(s.clickGuardMs, 0, 250, SETTINGS_DEFAULTS.clickGuardMs);
     mic.timingOffsetMs = clampNum(s.timingOffsetMs, -150, 150, SETTINGS_DEFAULTS.timingOffsetMs);
@@ -2101,6 +2121,7 @@ function saveSettings() {
     try {
         localStorage.setItem(SETTINGS_KEY, JSON.stringify({
             threshold: mic.threshold,
+            lowInputProfile: mic.lowInputProfile,
             cooldownMs: mic.cooldownMs,
             clickGuardMs: mic.clickGuardMs,
             timingOffsetMs: mic.timingOffsetMs,
@@ -2125,7 +2146,7 @@ function saveSettings() {
 
 /* 現在値をスライダー・数値表示・しきい値ラインへ反映 */
 function applySettingsToUI() {
-    const sens = sensFromThreshold(mic.threshold);
+    const sens = sensFromThresholdUI(mic.threshold);
     els.setThreshold.value = sens;
     els.setThresholdVal.textContent = sens + '％';
     els.setCooldown.value = mic.cooldownMs;
@@ -2170,6 +2191,7 @@ function closeSettings() {
 
 function resetSettings() {
     mic.threshold = SETTINGS_DEFAULTS.threshold;
+    mic.lowInputProfile = false; // 既定に戻すときは通常スケール表示へ
     mic.cooldownMs = SETTINGS_DEFAULTS.cooldownMs;
     mic.clickGuardMs = SETTINGS_DEFAULTS.clickGuardMs;
     mic.timingOffsetMs = SETTINGS_DEFAULTS.timingOffsetMs;
@@ -3197,7 +3219,11 @@ function applyReco() {
     const lineChanged = (test.recommended != null);
     const volChanged = (test.recoClickVolume != null && test.recoClickVolume !== state.clickVolume);
     if (!lineChanged && !volChanged && test.recoCooldown === mic.cooldownMs) return; // 変更なし
-    if (lineChanged) mic.threshold = Math.max(THR_MIN, Math.min(THR_MAX, test.recommended));
+    if (lineChanged) {
+        mic.threshold = Math.max(THR_MIN, Math.min(THR_MAX, test.recommended));
+        // 低入力テスト由来かを記録。手動設定の表示%もテスト結果と同じ低入力スケールにそろえる。
+        mic.lowInputProfile = !!test.lowInputTuned;
+    }
     if (test.recoClickVolume != null) state.clickVolume = test.recoClickVolume;
     if (test.recoCooldown != null) mic.cooldownMs = test.recoCooldown;
     // 内部値→スライダー・数値・マーカー・プレビューを同期
@@ -3829,7 +3855,7 @@ function bind() {
 
     els.setThreshold.addEventListener('input', () => {
         const sens = parseInt(els.setThreshold.value, 10);
-        mic.threshold = thresholdFromSens(sens);
+        mic.threshold = thresholdFromSensUI(sens);
         els.setThresholdVal.textContent = sens + '％';
         if (els.micThreshold) els.micThreshold.style.left = micThresholdMarkerPct() + '%';
         if (els.testThreshold) els.testThreshold.style.left = micThresholdMarkerPct() + '%';
