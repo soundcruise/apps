@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.52';
+const RHYTHM_CRUISE_VERSION = '0.9.53';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -2016,8 +2016,8 @@ const hpCal = { active: false, timer: 0, beat: 0, lightTimers: [] };
 const HP_TYPES = ['wired', 'bluetooth'];
 const HP_TYPE_DEFAULT_OFFSET = { wired: 30, bluetooth: 180 };
 const HP_TYPE_NOTE = {
-    wired: '有線イヤホンはズレが小さめなので、まずは30msの目安を使います。違和感がある場合だけ手動設定で調整してください。',
-    bluetooth: 'Bluetoothは機種によってズレが大きいため、クリック音と丸の光り方が同時に感じられるように調整してください。',
+    wired: '有線イヤホンは30msの目安を使います。違和感がある場合だけ手動設定で調整してください。',
+    bluetooth: 'Bluetoothは機種によってズレが大きいため、補正テストで音と光を合わせてください。',
 };
 /* 手動設定（イヤホン音ズレ補正行）に出す種類別の説明文 */
 const HP_MANUAL_NOTE = {
