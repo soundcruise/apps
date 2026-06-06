@@ -269,19 +269,22 @@
                 </details>
             </div>
 
-            <!-- 2b. イヤホンの音ズレ補正（入力タイプ=イヤホン接続 のときだけ表示。v0.9.51ではUI/保存のみ・STAGE判定には未反映） -->
+            <!-- 2b-1. イヤホンの種類（入力タイプ=イヤホン接続 のとき表示）。有線/Bluetoothの選択土台 -->
+            <div class="settings-card input-type-card hidden" id="hp-type-card">
+                <div class="cal-head">イヤホンの種類</div>
+                <div class="input-mode" id="hp-type-mode">
+                    <button type="button" class="input-seg is-active" id="hp-type-wired" data-headphone-type="wired">有線イヤホン</button>
+                    <button type="button" class="input-seg" id="hp-type-bluetooth" data-headphone-type="bluetooth">Bluetoothイヤホン</button>
+                </div>
+                <p class="setting-note" id="hp-type-note">有線イヤホンはズレが小さめなので、まずは30msの目安を使います。違和感がある場合だけ手動設定で調整してください。</p>
+            </div>
+
+            <!-- 2b-2. イヤホンの音ズレ補正（イヤホン種類=Bluetooth のときだけ表示。UI/保存のみ・STAGE判定には未反映） -->
             <div class="settings-card cal-card hidden" id="hp-cal-card">
                 <div class="cal-head-row">
                     <div class="cal-head">イヤホンの音ズレ補正</div>
                 </div>
                 <p class="setting-note">クリック音と丸の光り方が同時に感じられるように調整します。</p>
-                <!-- イヤホンの種類（有線 / Bluetooth）：選択で目安値の主導線を切り替える -->
-                <div class="cal-head" id="hp-type-head" style="font-size:0.95rem;margin-top:6px;">イヤホンの種類</div>
-                <div class="input-mode" id="hp-type-mode">
-                    <button type="button" class="input-seg is-active" id="hp-type-wired" data-headphone-type="wired">有線イヤホン</button>
-                    <button type="button" class="input-seg" id="hp-type-bluetooth" data-headphone-type="bluetooth">Bluetoothイヤホン</button>
-                </div>
-                <p class="setting-note" id="hp-type-note">有線イヤホンはズレが小さめなので、まずは30msの目安を使います。判定に違和感がある場合だけ調整してください。</p>
                 <div class="hp-dots" id="hp-dots" style="display:flex;justify-content:center;align-items:center;gap:14px;margin:16px 0;">
                     <span class="hp-dot" id="hp-dot-0" style="display:inline-block;width:22px;height:22px;border-radius:50%;background:rgba(46,204,113,0.25);transition:background .04s,box-shadow .04s;"></span>
                     <span class="hp-dot" id="hp-dot-1" style="display:inline-block;width:20px;height:20px;border-radius:50%;background:rgba(253,246,238,0.16);transition:background .04s,box-shadow .04s;"></span>
@@ -290,8 +293,8 @@
                 </div>
                 <button class="btn-mic cal-run-btn" id="hp-cal-btn">補正テスト開始</button>
                 <div class="setting-row" style="margin-top:16px;">
-                    <div class="setting-label">現在の補正 <b id="hp-offset-val">30ms</b></div>
-                    <input type="range" id="hp-offset" min="-50" max="300" step="5" value="30">
+                    <div class="setting-label">現在の補正 <b id="hp-offset-val">180ms</b></div>
+                    <input type="range" id="hp-offset" min="-50" max="300" step="5" value="180">
                     <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
                         <span>音が早い</span><span>補正なし</span><span>音が遅い</span>
                     </div>
@@ -332,6 +335,13 @@
                         <div class="setting-label">マイクの遅れ補正 <b id="set-offset-val">0ms</b></div>
                         <input type="range" id="set-offset" min="-150" max="150" step="5" value="0">
                         <p class="setting-note">判定が遅れ気味に出る場合はマイナス方向へ。上のカードで自動測定もできます。</p>
+                    </div>
+                    <!-- イヤホン音ズレ補正（入力タイプ=イヤホン接続 のとき表示）。v0.9.52ではUI/保存のみ・STAGE判定には未反映 -->
+                    <div class="setting-row hidden" id="set-hp-offset-row">
+                        <div class="setting-label">イヤホン音ズレ補正 <b id="set-hp-offset-val">30ms</b></div>
+                        <input type="range" id="set-hp-offset" min="-50" max="300" step="5" value="30">
+                        <p class="setting-note" id="set-hp-offset-note">有線イヤホンは通常30msの目安を使います。違和感がある場合だけ調整してください。</p>
+                        <button type="button" class="btn-mini" id="set-hp-reset" style="margin-top:6px;">30msに戻す</button>
                     </div>
                 </details>
             </div>
@@ -433,7 +443,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.51"></script>
+    <script src="script.js?v=0.9.52"></script>
 </body>
 
 </html>

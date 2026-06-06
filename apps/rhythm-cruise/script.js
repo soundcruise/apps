@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.51';
+const RHYTHM_CRUISE_VERSION = '0.9.52';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -348,10 +348,17 @@ const els = {
     hpDot1: $('hp-dot-1'),
     hpDot2: $('hp-dot-2'),
     hpDot3: $('hp-dot-3'),
+    hpTypeCard: $('hp-type-card'),
     hpTypeWired: $('hp-type-wired'),
     hpTypeBluetooth: $('hp-type-bluetooth'),
     hpTypeNote: $('hp-type-note'),
     hpResetBtn: $('hp-reset'),
+    // 手動設定内のイヤホン音ズレ補正（v0.9.52）
+    setHpOffsetRow: $('set-hp-offset-row'),
+    setHpOffset: $('set-hp-offset'),
+    setHpOffsetVal: $('set-hp-offset-val'),
+    setHpOffsetNote: $('set-hp-offset-note'),
+    setHpResetBtn: $('set-hp-reset'),
     testInputNote: $('test-input-note'),
     testCardNote: $('test-card-note'),
     tapArea: $('tap-area'),
@@ -1983,11 +1990,13 @@ function updateMicInputTypeUI() {
     if (els.inputTypeHeadphone) els.inputTypeHeadphone.classList.toggle('is-active', t === 'headphone');
     if (els.inputTypeNote) els.inputTypeNote.textContent = MIC_INPUT_TYPE_NOTE[t] || MIC_INPUT_TYPE_NOTE.auto;
     if (els.testInputNote) els.testInputNote.textContent = MIC_TEST_NOTE_BY_TYPE[t] || MIC_TEST_NOTE_BY_TYPE.auto;
-    // 入力タイプに応じて「イヤホンの音ズレ補正」カードと「マイクの遅れ補正」カードを出し分ける
+    // 入力タイプに応じてカードを出し分ける。
+    // headphone：イヤホン種類カードを表示／マイク遅れ補正カードは隠す。
+    // 「イヤホンの音ズレ補正」カードの表示可否は種類（Bluetoothのみ）次第なので updateHeadphoneTypeUI() に委ねる。
     const headphone = (t === 'headphone');
-    if (els.hpCalCard) els.hpCalCard.classList.toggle('hidden', !headphone);
+    if (els.hpTypeCard) els.hpTypeCard.classList.toggle('hidden', !headphone);
     if (els.calCard) els.calCard.classList.toggle('hidden', headphone);
-    if (!headphone && hpCal.active) stopHeadphoneCal(); // 補正テスト再生中に他タイプへ切替えたら停止
+    if (els.setHpOffsetRow) els.setHpOffsetRow.classList.toggle('hidden', !headphone); // 手動設定の補正行は headphone のときだけ
     updateHeadphoneTypeUI();
 }
 
@@ -2007,8 +2016,13 @@ const hpCal = { active: false, timer: 0, beat: 0, lightTimers: [] };
 const HP_TYPES = ['wired', 'bluetooth'];
 const HP_TYPE_DEFAULT_OFFSET = { wired: 30, bluetooth: 180 };
 const HP_TYPE_NOTE = {
-    wired: '有線イヤホンはズレが小さめなので、まずは30msの目安を使います。判定に違和感がある場合だけ調整してください。',
+    wired: '有線イヤホンはズレが小さめなので、まずは30msの目安を使います。違和感がある場合だけ手動設定で調整してください。',
     bluetooth: 'Bluetoothは機種によってズレが大きいため、クリック音と丸の光り方が同時に感じられるように調整してください。',
+};
+/* 手動設定（イヤホン音ズレ補正行）に出す種類別の説明文 */
+const HP_MANUAL_NOTE = {
+    wired: '有線イヤホンは通常30msの目安を使います。違和感がある場合だけ調整してください。',
+    bluetooth: 'Bluetoothは機種によってズレが大きいため、必要に応じて微調整してください。',
 };
 function getHeadphoneType() { return mic.headphoneType === 'bluetooth' ? 'bluetooth' : 'wired'; }
 /* offset候補が有効範囲内ならその数値、無効なら fallback を返す */
@@ -2095,7 +2109,6 @@ function stopHeadphoneCal() {
     hpCal.lightTimers = [];
     clearHpDots();
     if (els.hpCalBtn) els.hpCalBtn.textContent = '補正テスト開始';
-    updateHeadphoneTypeUI(); // 停止後はテストボタンの強調を種類に応じて戻す
 }
 
 function toggleHeadphoneCal() {
@@ -2110,8 +2123,11 @@ function setHeadphoneOffset(ms, opts) {
     if (getHeadphoneType() === 'bluetooth') mic.headphoneOffsetBluetoothMs = v;
     else mic.headphoneOffsetWiredMs = v;
     mic.headphoneOutputOffsetMs = v;
+    // 補正カード側スライダーと手動設定側スライダーの両方を同期
     if (els.hpOffset) els.hpOffset.value = v;
     if (els.hpOffsetVal) els.hpOffsetVal.textContent = v + 'ms';
+    if (els.setHpOffset) els.setHpOffset.value = v;
+    if (els.setHpOffsetVal) els.setHpOffsetVal.textContent = v + 'ms';
     if (!opts || !opts.skipSave) saveSettings();
 }
 
@@ -2128,20 +2144,26 @@ function resetHeadphoneOffsetToGuide() {
     setHeadphoneOffset(HP_TYPE_DEFAULT_OFFSET[getHeadphoneType()]);
 }
 
-/* 種類選択UI・説明文・テスト導線の強調・スライダー表示を、選択中の種類に合わせて更新 */
+/* 種類選択UI・説明文・カード表示・スライダー表示を、選択中の種類に合わせて更新。
+   v0.9.52：有線は「イヤホンの音ズレ補正」カードを隠し（手動設定で調整）、Bluetoothのみカード表示。 */
 function updateHeadphoneTypeUI() {
     const t = getHeadphoneType();
     if (els.hpTypeWired) els.hpTypeWired.classList.toggle('is-active', t === 'wired');
     if (els.hpTypeBluetooth) els.hpTypeBluetooth.classList.toggle('is-active', t === 'bluetooth');
     if (els.hpTypeNote) els.hpTypeNote.textContent = HP_TYPE_NOTE[t] || HP_TYPE_NOTE.wired;
-    // Bluetoothは補正テストを主導線（目立つボタン）、有線は補助的（控えめボタン）にする
-    if (els.hpCalBtn && !hpCal.active) {
-        els.hpCalBtn.className = (t === 'bluetooth') ? 'btn-mic cal-run-btn' : 'btn-mini';
-    }
-    // スライダー/表示を選択中の種類の値へ同期
+    // 「イヤホンの音ズレ補正」カードは headphone かつ Bluetooth のときだけ表示
+    const showCal = isHeadphoneInput() && t === 'bluetooth';
+    if (els.hpCalCard) els.hpCalCard.classList.toggle('hidden', !showCal);
+    if (!showCal && hpCal.active) stopHeadphoneCal(); // カードが隠れたら補正テストを停止
+    // スライダー/表示（補正カード側・手動設定側）を選択中の種類の値へ同期
     const v = mic.headphoneOutputOffsetMs;
     if (els.hpOffset) els.hpOffset.value = v;
     if (els.hpOffsetVal) els.hpOffsetVal.textContent = v + 'ms';
+    if (els.setHpOffset) els.setHpOffset.value = v;
+    if (els.setHpOffsetVal) els.setHpOffsetVal.textContent = v + 'ms';
+    // 手動設定の説明文・「目安に戻す」ボタン文言を種類別に
+    if (els.setHpOffsetNote) els.setHpOffsetNote.textContent = HP_MANUAL_NOTE[t] || HP_MANUAL_NOTE.wired;
+    if (els.setHpResetBtn) els.setHpResetBtn.textContent = (t === 'bluetooth') ? '180msに戻す' : '30msに戻す';
 }
 
 /* ── 入力タイプ別の感度・表示プロファイル判定（v0.9.49）──────────
@@ -4153,6 +4175,9 @@ function bind() {
     if (els.hpTypeWired) els.hpTypeWired.addEventListener('click', () => setHeadphoneType('wired'));
     if (els.hpTypeBluetooth) els.hpTypeBluetooth.addEventListener('click', () => setHeadphoneType('bluetooth'));
     if (els.hpResetBtn) els.hpResetBtn.addEventListener('click', resetHeadphoneOffsetToGuide);
+    // 手動設定のイヤホン音ズレ補正（v0.9.52）：選択中の種類の値を調整。補正カード側スライダーとも同期
+    if (els.setHpOffset) els.setHpOffset.addEventListener('input', () => setHeadphoneOffset(parseInt(els.setHpOffset.value, 10)));
+    if (els.setHpResetBtn) els.setHpResetBtn.addEventListener('click', resetHeadphoneOffsetToGuide);
     // タップエリア配置（左右 / 上下）
     if (els.layoutLrBtn) els.layoutLrBtn.addEventListener('click', () => setTapLayout('lr'));
     if (els.layoutUdBtn) els.layoutUdBtn.addEventListener('click', () => setTapLayout('ud'));
