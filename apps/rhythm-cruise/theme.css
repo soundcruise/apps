@@ -2296,6 +2296,44 @@ h1 {
     height: 110px;
 }
 
+/* 実践テスト終了後の見返し用レーン（横スクロール）・v0.9.74 */
+.pt-review {
+    margin-top: 4px;
+}
+
+.pt-review.hidden {
+    display: none;
+}
+
+.pt-review-hint {
+    margin: 0 0 6px;
+    font-size: 0.8rem;
+    opacity: 0.8;
+    text-align: center;
+}
+
+.pt-review-scroll {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid rgba(253, 246, 238, 0.10);
+    border-radius: 14px;
+    background: linear-gradient(180deg, var(--surface-raised) 0%, var(--surface-color) 100%);
+}
+
+#pt-review-canvas {
+    display: block;
+    height: 168px;
+}
+
+.pt-review-nav {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 8px;
+}
+
 /* 結果モーダル表示中は、戻る/TOP/設定を隠す（モーダル内の閉じる/もう一度だけ操作・修正8） */
 body.results-open #app-nav,
 body.results-open #settings-btn {

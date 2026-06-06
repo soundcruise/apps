@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.72';
+const RHYTHM_CRUISE_VERSION = '0.9.78';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -53,10 +53,12 @@ const CAL_OFFSET_LIMIT_MS = 150;
    「ライン超えだが少し小さめ」のストロークがガードで除外されてMISSになる（今回の原因）。 */
 const STRONG_STROKE_FACTOR = 1.0;
 
-/* 実践テスト専用のクリックガード強さ（v0.9.68）。STAGE本体の STRONG_STROKE_FACTOR は変えない。
-   通常マイクは、クリック音が反応ライン付近まで来てもストローク（余裕あり）だけ通すため、
-   クリック直後は「ライン×この倍率」未満を除外する。イヤホン/低入力はストロークも小さいので 1.0 のまま。 */
-const PT_CLICK_STRONG_FACTOR = 1.3;
+/* 実践テストのクリックガードで使う「ストロークとして通す」倍率（v0.9.68、v0.9.78で isClickGuardedOnset に統一済み・参照用に残す）。 */
+const PT_CLICK_STRONG_FACTOR = 1.1;
+
+/* 実践テストの開発確認用ログ（v0.9.77）。本番は false（出力なし）。
+   原因追跡したいときだけ true にすると、検出/割り当て/除外理由の集計を console.debug に出す。 */
+const PT_DEBUG = false;
 
 /* 二重反応の判定（クールダウン中の入力）。1回のストロークの余韻・複数ピークを二重反応と数えないため、
    「明確に別の強い立ち上がり」のときだけ・1クールダウンにつき1回だけ数える。 */
@@ -404,6 +406,11 @@ const els = {
     ptNote: $('pt-note'),
     ptLaneWrap: $('pt-lane-wrap'),
     ptLaneCanvas: $('pt-lane-canvas'),
+    ptReview: $('pt-review'),
+    ptReviewScroll: $('pt-review-scroll'),
+    ptReviewCanvas: $('pt-review-canvas'),
+    ptReviewFirst: $('pt-review-first'),
+    ptReviewLast: $('pt-review-last'),
     ptBtn: $('pt-btn'),
     ptStatus: $('pt-status'),
     ptResult: $('pt-result'),
@@ -595,6 +602,7 @@ let graph = { ctx: null, w: 0, h: 0 };
 let review = { ctx: null, w: 0, h: 0, beatPx: 70, leftPad: 38 };
 let testLane = { ctx: null, w: 0, h: 0 }; // マイク反応テストの流れる譜面
 let ptLane = { ctx: null, w: 0, h: 0 };   // 実践テストの流れる譜面（STAGE1風）
+let ptReviewLane = { ctx: null, w: 0, h: 0 }; // 実践テスト終了後の見返し用（横長・静的）レーン（v0.9.74）
 
 /* ── STAGE一覧を描画 ────────────────────────────────────── */
 function renderStages() {
@@ -1354,7 +1362,12 @@ function drawReview() {
     const { ctx, w, h, beatPx, leftPad } = review;
     ctx.clearRect(0, 0, w, h);
     const yc = h * 0.46;
-    const offScale = beatPx / 250;        // 250ms ＝ 1拍ぶんの見かけズレ（視認性のため拡大）
+    // 色付き音符のズレ→px は、波形と同じ「実時間スケール」で描く（v0.9.76）。
+    //  波形の x は tToX(t)=leftPad+((t-T0)/beatInterval)*beatPx ＝ px/ms が beatPx/beatInterval。
+    //  以前は offScale=beatPx/250 と拡大していたため、音符だけ波形より外側にプロットされ、
+    //  「波形が反応ラインを越えた位置」と「音符位置」がズレて見えていた。
+    //  判定の diff（＝補正後オンセット時刻 − 理想拍）を同じスケールで使い、波形と一致させる。
+    const offScale = beatPx / state.beatInterval;
     const maxOff = beatPx * 0.46;         // 隣の拍に被らないよう制限
     const beatX = (i) => leftPad + i * beatPx;
 
@@ -1365,6 +1378,18 @@ function drawReview() {
 
     // ストローク音量波形＋反応ライン（STAGE本番と同じ時間軸で薄く重ねる。なぜタイミング外かを見やすく）
     drawReviewMicOverlay(ctx, w, h, yc, beatX, beatPx);
+
+    // 各音符の中心にオレンジの垂直ライン（実践テスト見返しレーンと同じ見た目・v0.9.75）。
+    // 波形の上・音符/判定ラベルの下に薄く重ね、理想の拍位置と波形/実打位置のズレを見やすくする。
+    // 表示だけの追加で、判定・スコア・集計には一切影響しない。
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,159,28,0.5)';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < TOTAL_BEATS; i++) {
+        const lx = beatX(i);
+        ctx.beginPath(); ctx.moveTo(lx, h * 0.13); ctx.lineTo(lx, h * 0.7); ctx.stroke();
+    }
+    ctx.restore();
 
     // 小節線＋小節番号
     for (let i = 0; i < TOTAL_BEATS; i++) {
@@ -2300,6 +2325,9 @@ const pt = {
     audioStart: 0, flowStartPerf: 0, playT0Ms: 0,
     notes: [], onsets: [], wave: [], clickPerfTimes: [], lastOnsetAt: 0, lastDetectAt: -100000, maxPeak: 0, doubleCount: 0,
     armed: true,
+    valley: 1, // コードストローク用の谷（直前検出後の最小音量）。実践テスト専用（STAGEの mic.valley とは別）。
+    fullWave: [], // 見返し用（v0.9.74）：全区間の音量波形（flowStart基準ms）。間引きせず保持。
+    debug: null, // 開発確認用（v0.9.77）：検出/割り当て/除外理由の集計。ユーザー表示には使わない。
 };
 
 /* 入力タイプ別の補足文（表示は常に出す。文言だけ少し変える） */
@@ -2328,22 +2356,9 @@ function ptDetectionThreshold() {
     return mic.threshold * MIC_STAGE_DETECT_FACTOR;
 }
 
-/* 実践テストのクリックガードで使う「ストロークとして通す」倍率（v0.9.68）。
-   通常マイク：PT_CLICK_STRONG_FACTOR（クリック直後はライン×1.3未満を除外）。
-   イヤホン/低入力：ストロークも小さいので STRONG_STROKE_FACTOR（1.0）のまま＝本物を捨てない。 */
-function ptClickStrongFactor() {
-    return (isHeadphoneInput() || mic.lowInputProfile) ? STRONG_STROKE_FACTOR : PT_CLICK_STRONG_FACTOR;
-}
-
-/* 実践テスト専用のクリックガード（v0.9.68）。STAGE本体の isClickGuardedOnset は変更しない。
-   クリック直後の窓内で、ライン×ptClickStrongFactor() 未満の入力（＝クリック音の回り込み）を除外する。
-   ストローク音は判定ラインを大きく超える前提なので、普通のストロークは除外されない。 */
+/* 実践テストのクリックガード（v0.9.78）：STAGE本体 isClickGuardedOnset をそのまま流用。 */
 function isPtClickGuardedOnset(now, peak, lastClickPerf) {
-    const guardMs = mic.clickGuardMs + clickLatencyMs();
-    const sinceClick = now - lastClickPerf;
-    const inGuard = sinceClick >= -10 && sinceClick <= guardMs;
-    const strongEnough = peak >= ptDetectionThreshold() * ptClickStrongFactor();
-    return inGuard && !strongEnough;
+    return isClickGuardedOnset(now, peak, lastClickPerf, true);
 }
 
 /* 実践テスト専用クリック。STAGE本番と同じ clickVolume / 音量カーブで鳴らす。 */
@@ -2384,6 +2399,168 @@ function ptClassify(diff) {
     if (a <= JUST_MS) return 'just';
     if (a <= PT_NEAR_WIN) return diff < 0 ? 'early' : 'late';
     return 'miss';
+}
+
+function freshPtDebug() {
+    return {
+        totalPeaksOverThreshold: 0,
+        detected: 0,
+        assigned: 0,
+        acceptedOnsets: 0,
+        unassignedOnsets: 0,
+        shifted: 0,
+        replaced: 0,
+        keptExisting: 0,
+        outOfRange: 0,
+        outOfWindow: 0,
+        clickGuardRejected: 0,
+        cooldownRejected: 0,
+        codeGateRejected: 0,
+        missNotes: 0,
+        rejects: [], // { timeMs, peak, nearestBeat, diffMs, reason }
+    };
+}
+
+function ptDebugCount(key) {
+    if (!PT_DEBUG) return;
+    if (!pt.debug) pt.debug = freshPtDebug();
+    pt.debug[key] = (pt.debug[key] || 0) + 1;
+}
+
+/* PT_DEBUG=true のときだけ、除外入力を記録（最大20件）。 */
+function ptLogReject(tMs, peak, reason, extra) {
+    if (!PT_DEBUG) return;
+    if (!pt.debug) pt.debug = freshPtDebug();
+    const bi = PT_BEAT_MS;
+    const nb = Math.round((tMs - pt.playT0Ms) / bi);
+    const diffMs = Math.round(tMs - (pt.playT0Ms + nb * bi));
+    const row = Object.assign({
+        timeMs: Math.round(tMs),
+        peak: +peak.toFixed(3),
+        nearestBeat: nb,
+        diffMs,
+        reason,
+    }, extra || {});
+    if (pt.debug.rejects.length < 20) pt.debug.rejects.push(row);
+    if (reason === 'clickGuard') ptDebugCount('clickGuardRejected');
+    else if (reason === 'cooldown') ptDebugCount('cooldownRejected');
+    else if (reason === 'codeGate') ptDebugCount('codeGateRejected');
+    else if (reason === 'outOfWindow') ptDebugCount('outOfWindow');
+    else if (reason === 'outOfRange') ptDebugCount('outOfRange');
+    else if (reason === 'keptExisting') ptDebugCount('keptExisting');
+}
+
+/* 実践テスト終了時の詳細ログ（PT_DEBUG=true のみ）。 */
+function ptFinalizeDebug() {
+    if (!PT_DEBUG || !pt.debug) return;
+    const d = pt.debug;
+    d.acceptedOnsets = pt.onsets.filter((o) => o.assigned).length;
+    d.unassignedOnsets = pt.onsets.filter((o) => !o.assigned).length;
+    d.missNotes = 0;
+    const beatRows = [];
+    for (let i = 0; i < PT_PLAY_BEATS; i++) {
+        const n = pt.notes[i];
+        const assigned = !!(n && n.cls && n.cls !== 'miss');
+        if (!assigned) d.missNotes++;
+        let nearest = null;
+        for (let k = 0; k < pt.onsets.length; k++) {
+            const o = pt.onsets[k];
+            const nb = Math.round((o.t - pt.playT0Ms) / PT_BEAT_MS);
+            const od = Math.abs(o.t - (pt.playT0Ms + i * PT_BEAT_MS));
+            if (!nearest || od < nearest.od) nearest = { o, nb, od };
+        }
+        let rejectReason = '';
+        if (!assigned && nearest) {
+            const hit = pt.debug.rejects.find((r) => Math.abs(r.timeMs - nearest.o.t) < 20);
+            if (hit) rejectReason = hit.reason;
+            else if (!nearest.o.assigned) rejectReason = 'unassigned-onset';
+        } else if (!assigned && (n.peak || 0) >= ptDetectionThreshold()) {
+            rejectReason = 'waveform-without-onset';
+        } else if (!assigned && (n.peak || 0) > 0) {
+            rejectReason = 'weak-waveform';
+        } else if (!assigned) {
+            rejectReason = 'no-input';
+        }
+        beatRows.push({
+            beatIndex: i + 1,
+            noteResult: assigned ? (n.cls === 'just' ? 'GOOD' : n.cls.toUpperCase()) : 'MISS',
+            assigned,
+            diffMs: assigned ? Math.round(n.diff) : null,
+            nearestInputTime: nearest ? Math.round(nearest.o.t) : null,
+            nearestInputPeak: nearest ? nearest.o.peak : null,
+            nearestInputLevel: n.peak ? +n.peak.toFixed(3) : 0,
+            rejectReason: rejectReason || null,
+        });
+    }
+    console.debug('[practice-test] summary', {
+        totalPeaksOverThreshold: d.totalPeaksOverThreshold,
+        acceptedOnsets: d.acceptedOnsets,
+        assignedOnsets: d.assigned,
+        unassignedOnsets: d.unassignedOnsets,
+        clickGuardRejected: d.clickGuardRejected,
+        cooldownRejected: d.cooldownRejected,
+        codeGateRejected: d.codeGateRejected,
+        outOfWindowRejected: d.outOfWindow,
+        replacedCount: d.replaced,
+        shiftedToNeighborCount: d.shifted,
+        missNotes: d.missNotes,
+    });
+    console.debug('[practice-test] beats', beatRows);
+    if (d.rejects.length) console.debug('[practice-test] rejects', d.rejects);
+}
+
+/* 実践テスト専用の拍割り当て（v0.9.77）。
+   STAGE本体の registerHit は変更せず、実践テスト側だけを同じ考え方に寄せる。
+   - 補正後入力時刻 tMs を、最寄り拍へ割り当てる
+   - 既にその拍が埋まっていて既存入力の方が近い場合、隣の空き拍に逃がす
+   - 同じ拍へより近い入力が来た場合は置き換える
+   これにより「入力は見えているのにMISSが穴として残る」ケースを減らす。 */
+function ptAssignOnset(tMs, peak) {
+    const bi = PT_BEAT_MS;
+    const diffTo = (b) => tMs - (pt.playT0Ms + b * bi);
+    let i = Math.round((tMs - pt.playT0Ms) / bi);
+    if (i < 0 || i > PT_PLAY_BEATS - 1) {
+        ptLogReject(tMs, peak, 'outOfRange', { nearestBeat: i });
+        return false;
+    }
+    const origBeat = i;
+    let diff = diffTo(i);
+    const current = pt.notes[i];
+
+    // STAGE本体 registerHit と同じ考え方：近い入力で既に埋まっている拍へ重ねず、隣の空き拍へ寄せて穴を減らす。
+    const occupiedCloser = current && current.cls != null && Math.abs(current.diff) <= Math.abs(diff);
+    if (occupiedCloser) {
+        const cand = i + (diff >= 0 ? 1 : -1);
+        if (cand >= 0 && cand <= PT_PLAY_BEATS - 1 && pt.notes[cand].cls == null && Math.abs(diffTo(cand)) <= PT_NEAR_WIN) {
+            i = cand;
+            diff = diffTo(i);
+            ptDebugCount('shifted');
+        }
+    }
+
+    if (Math.abs(diff) > PT_NEAR_WIN) {
+        ptLogReject(tMs, peak, 'outOfWindow', { nearestBeat: i, diffMs: Math.round(diff) });
+        return false;
+    }
+
+    const note = pt.notes[i];
+    const cls = ptClassify(diff);
+    const prev = note.cls != null;
+    if (!prev || Math.abs(diff) < Math.abs(note.diff)) {
+        if (prev) ptDebugCount('replaced');
+        note.diff = diff;
+        note.cls = cls;
+        note.peak = Math.max(note.peak || 0, peak);
+        note.detected = true;
+        if (origBeat !== i) note.reassigned = true;
+        setPtStatus(LABELS[note.cls] || '');
+        ptDebugCount('assigned');
+        return true;
+    }
+
+    ptDebugCount('keptExisting');
+    ptLogReject(tMs, peak, 'keptExisting', { nearestBeat: i, diffMs: Math.round(diff) });
+    return false;
 }
 
 /* STAGE1風の流れる音符＋判定ライン＋音量波形を描く（テストレーン描画の流儀を流用）。
@@ -2486,6 +2663,187 @@ function ptLoop() {
     pt.raf = requestAnimationFrame(ptLoop);
 }
 
+/* ── 実践テスト終了後の「見返し用レーン」（v0.9.74）─────────────────────
+   横長の静的キャンバスに 1〜8拍を左から右へ並べ、横スクロールで見返せるようにする。
+   STAGE本体の描画（drawLane）やリアルタイムの drawPracticeLane には一切触れない。
+   表示だけの機能で、判定ロジック・補正・ゲートには影響しない。 */
+const PT_REVIEW_PXPB = 132;   // 見返しレーンの1拍あたりの横幅(px)
+const PT_REVIEW_LEAD = 1;     // 1拍目の前に見せる拍数
+const PT_REVIEW_TAIL = 1;     // 8拍目の後に見せる拍数
+
+function ptReviewTimeRange() {
+    const from = pt.playT0Ms - PT_REVIEW_LEAD * PT_BEAT_MS;
+    const to = pt.playT0Ms + (PT_PLAY_BEATS - 1) * PT_BEAT_MS + PT_REVIEW_TAIL * PT_BEAT_MS;
+    return { from, to };
+}
+
+function fitPtReview(contentW, contentH) {
+    const cv = els.ptReviewCanvas;
+    if (!cv) { ptReviewLane = { ctx: null, w: 0, h: 0 }; return; }
+    const dpr = window.devicePixelRatio || 1;
+    cv.style.width = contentW + 'px';
+    cv.style.height = contentH + 'px';
+    cv.width = Math.round(contentW * dpr);
+    cv.height = Math.round(contentH * dpr);
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ptReviewLane = { ctx, w: contentW, h: contentH };
+}
+
+function drawPracticeReview() {
+    const H = PT_LANE_HEIGHT;
+    const padL = 30, padR = 30;
+    const { from, to } = ptReviewTimeRange();
+    const ppm = PT_REVIEW_PXPB / PT_BEAT_MS;
+    const contentW = Math.round(padL + padR + (to - from) * ppm);
+    fitPtReview(contentW, H);
+    const lane = ptReviewLane;
+    if (!lane.ctx) return;
+    const { ctx, w, h } = lane;
+    const yc = h * 0.5;
+    const xOf = (tt) => padL + (tt - from) * ppm;
+    ctx.clearRect(0, 0, w, h);
+
+    // 中央ガイド
+    ctx.strokeStyle = 'rgba(253,246,238,0.08)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke();
+
+    // 反応ライン（実判定ライン）：上下の破線
+    const ampPx = h * 0.34;
+    const lineAmp = micDisplayFrac(ptDetectionThreshold()) * ampPx;
+    ctx.strokeStyle = 'rgba(255,159,28,0.30)';
+    ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, yc - lineAmp); ctx.lineTo(w, yc - lineAmp); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, yc + lineAmp); ctx.lineTo(w, yc + lineAmp); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,159,28,0.55)';
+    ctx.font = '600 9px Outfit, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('実判定ライン', 4, yc - lineAmp - 3);
+
+    // 波形（全区間）：マイク遅れ補正分(timingOffsetMs)を足して、判定された位置と重なるように描く（表示のみ）
+    if (pt.fullWave.length >= 2) {
+        const off = mic.timingOffsetMs;
+        const pts = [];
+        for (let i = 0; i < pt.fullWave.length; i++) {
+            const p = pt.fullWave[i];
+            pts.push([xOf(p.t + off), micDisplayFrac(p.level) * ampPx]);
+        }
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0], yc - pts[0][1]);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], yc - pts[i][1]);
+        for (let i = pts.length - 1; i >= 0; i--) ctx.lineTo(pts[i][0], yc + pts[i][1]);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(255,255,255,0.14)';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0], yc - pts[0][1]);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], yc - pts[i][1]);
+        ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    // 各拍：縦の拍ライン（理想位置）＋音符＋ストローク方向＋拍番号＋判定マーカー
+    for (let i = 0; i < pt.notes.length; i++) {
+        const n = pt.notes[i];
+        const bx = xOf(n.t);
+        // 拍ライン（理想タイミング）
+        ctx.strokeStyle = 'rgba(255,159,28,0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(bx, h * 0.12); ctx.lineTo(bx, h * 0.78); ctx.stroke();
+        // 音符（拍の理想位置に置く）
+        const isMiss = (!n.cls || n.cls === 'miss');
+        let col;
+        if (n.cls === 'just') col = COLORS.just;
+        else if (n.cls === 'early') col = COLORS.early;
+        else if (n.cls === 'late') col = COLORS.late;
+        else col = 'rgba(253,246,238,0.35)';
+        ctx.save();
+        if (!isMiss) { ctx.shadowColor = n.cls === 'just' ? 'rgba(46,204,113,0.9)' : 'rgba(77,150,255,0.8)'; ctx.shadowBlur = 10; }
+        drawQuarterNote(ctx, bx, yc, col);
+        ctx.restore();
+        // ストローク方向 ↓↑↓↑…
+        drawStrokeArrow(ctx, bx, yc + 28, n.dir, 'rgba(255,180,90,0.9)', isMiss ? 0.5 : 0.95);
+        // 拍番号
+        ctx.fillStyle = 'rgba(253,246,238,0.55)';
+        ctx.font = '700 11px Outfit, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(String(i + 1), bx, h - 6);
+        // 判定マーカー：実際に判定された位置（拍 + ズレms）に印を打ち、拍とのズレを見せる
+        if (!isMiss && n.diff != null) {
+            const mx = xOf(n.t + n.diff);
+            ctx.strokeStyle = col;
+            ctx.lineWidth = 1;
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath(); ctx.moveTo(bx, yc); ctx.lineTo(mx, yc); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = col;
+            ctx.beginPath(); ctx.arc(mx, yc, 4, 0, Math.PI * 2); ctx.fill();
+            const sign = n.diff > 0 ? '+' : (n.diff < 0 ? '−' : '±');
+            ctx.font = '700 10px Outfit, sans-serif';
+            ctx.fillText(sign + Math.abs(Math.round(n.diff)) + 'ms', mx, h * 0.1);
+        }
+        // 判定ラベル（GOOD/EARLY/LATE/MISS）
+        const lab = isMiss ? 'MISS' : (n.cls === 'just' ? 'GOOD' : (n.cls === 'early' ? 'EARLY' : 'LATE'));
+        ctx.fillStyle = isMiss ? 'rgba(180,180,180,0.85)' : col;
+        ctx.font = '800 10px Outfit, sans-serif';
+        ctx.fillText(lab, bx, h * 0.92);
+        // MISS拍のヒント（v0.9.78）：波形はあるのに判定されなかったかを見分けやすくする
+        if (isMiss) {
+            const detThr = ptDetectionThreshold();
+            let hint = '';
+            if ((n.peak || 0) >= detThr) hint = '波形あり';
+            else if ((n.peak || 0) > 0) hint = '反応弱';
+            if (hint) {
+                ctx.fillStyle = 'rgba(255,160,80,0.8)';
+                ctx.font = '600 9px Outfit, sans-serif';
+                ctx.fillText(hint, bx, yc + 46);
+            }
+        }
+    }
+}
+
+/* 見返しレーンを表示する（終了直後に呼ぶ） */
+function showPracticeReview() {
+    if (!els.ptReview || !els.ptReviewCanvas) return;
+    if (els.ptLaneWrap) els.ptLaneWrap.classList.add('hidden'); // 終了後はリアルタイムレーンを隠す
+    els.ptReview.classList.remove('hidden');
+    drawPracticeReview();
+    if (els.ptReviewScroll) els.ptReviewScroll.scrollLeft = 0; // まず1拍目から見えるように先頭へ
+}
+
+/* 見返しレーンを隠して消す */
+function hidePracticeReview() {
+    if (els.ptReview) els.ptReview.classList.add('hidden');
+    if (ptReviewLane && ptReviewLane.ctx) ptReviewLane.ctx.clearRect(0, 0, ptReviewLane.w, ptReviewLane.h);
+}
+
+/* 実践テスト画面を初期状態へ戻す（v0.9.73）。
+   STAGE本体の描画・判定には触れず、実践テスト専用の状態・描画・結果だけをリセットする。
+   ・開始前は常に初期画面／前回の音符・波形・結果を引きずらない、を保証するために使う。 */
+function resetPracticeView() {
+    pt.notes = [];
+    pt.onsets = [];
+    pt.wave = [];
+    pt.fullWave = [];
+    pt.clickPerfTimes = [];
+    pt.lastOnsetAt = 0;
+    pt.lastDetectAt = -100000;
+    pt.maxPeak = 0;
+    pt.doubleCount = 0;
+    pt.armed = true;
+    pt.valley = 1;
+    pt.debug = null;
+    if (ptLane && ptLane.ctx) ptLane.ctx.clearRect(0, 0, ptLane.w, ptLane.h);
+    if (els.ptLaneWrap) els.ptLaneWrap.classList.add('hidden');
+    hidePracticeReview();
+    if (els.ptResult) { els.ptResult.classList.add('hidden'); els.ptResult.innerHTML = ''; }
+    if (els.ptBtn) els.ptBtn.textContent = '実践テストを開始';
+    setPtStatus('');
+}
+
 async function startPracticeTest() {
     // 排他：他テスト（イヤホン音ズレ補正／マイク反応テスト）が動いていたら止める
     if (hpCal.active) stopHeadphoneCal();
@@ -2495,16 +2853,21 @@ async function startPracticeTest() {
     try { if (state.audioCtx && state.audioCtx.state === 'suspended') await state.audioCtx.resume(); } catch (_) { /* ignore */ }
     const ctx = state.audioCtx;
     if (!ctx) { setPtStatus('音声を初期化できませんでした。'); return; }
+    // 前回の音符・波形・結果・内部状態を必ず初期化してから開始する（v0.9.73）
+    resetPracticeView();
     pt.active = true;
     pt.capturing = false;
     pt.onsets = [];
     pt.wave = [];
+    pt.fullWave = [];
     pt.clickPerfTimes = [];
     pt.lastOnsetAt = 0;
     pt.lastDetectAt = -100000;
     pt.maxPeak = 0;
     pt.doubleCount = 0;
     pt.armed = true;
+    pt.valley = 1; // コードストローク用の谷をリセット
+    pt.debug = freshPtDebug();
     // 立ち上がり検出の基準を毎回そろえる（前回テストの prevPeak 残りで1回目だけ挙動が変わるのを防ぐ・v0.9.68）
     mic.prevPeak = 0;
     mic.env = 0;
@@ -2514,6 +2877,8 @@ async function startPracticeTest() {
     if (els.ptBtn) els.ptBtn.textContent = '実践テストを停止';
     if (els.ptLaneWrap) els.ptLaneWrap.classList.remove('hidden');
     fitPtLane();
+    // 実践テスト開始時に、音符レーンが自然に見える位置へスクロール（v0.9.73）
+    scrollToSettingsEl(els.ptLaneWrap || els.ptCard);
 
     pt.audioStart = ctx.currentTime;
     pt.flowStartPerf = performance.now();
@@ -2557,9 +2922,11 @@ function finishPracticeTest() {
     const valid = good + early + late;
     const avg = validN ? Math.round(sum / validN) : 0;
     const r = { good, early, late, miss, valid, avg, maxPeak: pt.maxPeak, doubleCount: pt.doubleCount, threshold: mic.threshold, detectThreshold: ptDetectionThreshold(), cooldownMs: mic.cooldownMs };
+    ptFinalizeDebug();
     renderPracticeResult(r);
     setPtStatus('完了');
     endPracticeTest(true);
+    showPracticeReview(); // 終了後は横スクロールで見返せる静的レーンを表示（v0.9.74）
     // v0.9.63：実践テスト後は結果画面を主役にする。
     // ・practiceDone=true で手動設定/プリセット保存も到達可能にする
     // ・wizardEditing='practice' で結果カードを表示したまま留める（次の行動は結果画面のボタンで選ぶ）
@@ -2656,9 +3023,20 @@ function renderPracticeResult(r) {
         + 'background:transparent;color:inherit;font-size:0.85rem;opacity:0.85;cursor:pointer;';
     let actions = '';
     if (c.kind === 'ok') {
+        // 「この設定を保存」を押すと、その場に名前入力欄＋保存ボタンを表示する（v0.9.73）。
+        // 保存ロジック・上書き確認・組み込み名拒否などは既存の savePresetWithName をそのまま流用。
+        const nameInput = 'width:100%;box-sizing:border-box;padding:11px 12px;border-radius:10px;'
+            + 'border:1px solid rgba(255,255,255,0.28);background:rgba(0,0,0,0.18);color:inherit;font-size:1rem;';
+        const saveBlock =
+            '<div id="pt-result-save-block" class="hidden" style="margin-top:10px;">'
+            + '<input type="text" id="pt-result-name-input" placeholder="プリセット名" maxlength="40" style="' + nameInput + '">'
+            + '<button type="button" id="pt-result-save-confirm" style="' + sub + '">名前をつけて保存</button>'
+            + '<p id="pt-result-save-msg" style="margin-top:8px;font-size:0.85rem;min-height:1.2em;opacity:0.9;"></p>'
+            + '</div>';
         actions =
             '<button type="button" id="pt-result-done" style="' + primary + '">完了する</button>' +
-            '<button type="button" id="pt-result-save" style="' + subQuiet + '">この設定を保存</button>';
+            '<button type="button" id="pt-result-save" style="' + subQuiet + '">この設定を保存</button>' +
+            saveBlock;
     } else {
         let fixLabel = '実践テストをやり直す', fixId = 'pt-result-fix-rerun';
         if (c.issue === 'input') { fixLabel = 'マイク反応テストをやり直す'; fixId = 'pt-result-fix-test'; }
@@ -2685,8 +3063,18 @@ function bindPracticeResultActions() {
         if (isDoneLocked()) { showDoneHint(); return; }
         closeSettings();
     });
+    // 「この設定を保存」：その場に名前入力欄＋保存ボタンを表示（v0.9.73）。手動設定へは飛ばさない。
     const save = document.getElementById('pt-result-save');
-    if (save) save.addEventListener('click', openManualPresetSave);
+    if (save) save.addEventListener('click', () => {
+        const blk = document.getElementById('pt-result-save-block');
+        if (blk) blk.classList.remove('hidden');
+        const inp = document.getElementById('pt-result-name-input');
+        if (inp) { try { inp.focus(); } catch (_) { /* ignore */ } }
+    });
+    const saveConfirm = document.getElementById('pt-result-save-confirm');
+    if (saveConfirm) saveConfirm.addEventListener('click', savePracticeResultPreset);
+    const saveInput = document.getElementById('pt-result-name-input');
+    if (saveInput) saveInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); savePracticeResultPreset(); } });
     const rerun = document.getElementById('pt-result-rerun');
     if (rerun) rerun.addEventListener('click', () => startPracticeTest());
     const fixRerun = document.getElementById('pt-result-fix-rerun');
@@ -2698,6 +3086,16 @@ function bindPracticeResultActions() {
     if (fixCorrection) fixCorrection.addEventListener('click', () => practiceFixGoTo('correction'));
     const fixManual = document.getElementById('pt-result-fix-manual');
     if (fixManual) fixManual.addEventListener('click', () => practiceFixGoTo('double'));
+}
+
+/* 実践テスト結果カード内の「名前をつけて保存」（v0.9.73）。
+   既存の savePresetWithName をそのまま流用し、メッセージだけ結果カード内に出す。
+   保存項目・上書き確認・組み込み名拒否などの仕様は変更しない。 */
+function savePracticeResultPreset() {
+    const input = document.getElementById('pt-result-name-input');
+    const msg = document.getElementById('pt-result-save-msg');
+    const setMsg = (t) => { if (msg) msg.textContent = t || ''; };
+    savePresetWithName(input ? input.value : '', setMsg, () => { if (input) input.value = ''; });
 }
 
 /* 実践テスト「調整が必要」からの原因別の戻り先（v0.9.67）。
@@ -2750,6 +3148,7 @@ function endPracticeTest(showResult) {
 function stopPracticeTest() {
     if (!pt.active && !pt.timers.length) return;
     endPracticeTest(false);
+    hidePracticeReview();
     if (els.ptResult) els.ptResult.classList.add('hidden');
 }
 
@@ -3205,6 +3604,14 @@ function renderWizardSteps() {
     renderStepProgress(active);
     renderStepSummaries(active);
     if (els.ptOpenManual) els.ptOpenManual.style.display = (active === 'practice') ? '' : 'none';
+    // 実践テストステップを「これから実施」状態で開いたときは、前回の音符レーンを残さない（v0.9.73）。
+    // 実施直後（結果表示中）は触らない。結果が隠れている＝初期画面なので、レーンの残骸を消す。
+    if (active === 'practice' && !pt.active && els.ptResult && els.ptResult.classList.contains('hidden')) {
+        if (ptLane && ptLane.ctx) ptLane.ctx.clearRect(0, 0, ptLane.w, ptLane.h);
+        if (els.ptLaneWrap) els.ptLaneWrap.classList.add('hidden');
+        hidePracticeReview();
+        setPtStatus('');
+    }
 }
 
 /* ステップ現在地：「ステップ X / N」＋ドット。WIZARD_STEPS の並びから算出。 */
@@ -5034,49 +5441,89 @@ function micLoop() {
     // ── 実践テスト（v0.9.58）：音量波形・オンセット・拍ごとの判定を記録（registerHit/スコアには流さない）──
     if (pt.active) {
         // 音量波形バッファ（flowStart基準の時刻でenv履歴を保存）
-        pt.wave.push({ t: now - pt.flowStartPerf, level: mic.env });
-        while (pt.wave.length && ((now - pt.flowStartPerf) - pt.wave[0].t) > PT_WAVE_WINDOW_MS) pt.wave.shift();
+        const waveT = now - pt.flowStartPerf;
+        pt.wave.push({ t: waveT, level: mic.env });
+        while (pt.wave.length && (waveT - pt.wave[0].t) > PT_WAVE_WINDOW_MS) pt.wave.shift();
+        // 見返し用：全区間を間引きせず保持（~12ms間引き・上限ありで暴走防止）。v0.9.74
+        if (pt.fullWave.length < 4000) {
+            const fw = pt.fullWave;
+            if (!fw.length || waveT - fw[fw.length - 1].t >= 12) fw.push({ t: waveT, level: mic.env });
+        }
         if (pt.capturing) {
             // STAGEと同じ「オーディオ時計＋mic.timingOffsetMs」で時刻化（timingOffsetMsは読むだけ・変更しない）
             const tMs = (state.audioCtx.currentTime - pt.audioStart) * 1000 + mic.timingOffsetMs;
             const ni = Math.round((tMs - pt.playT0Ms) / PT_BEAT_MS);
-            if (ni >= 0 && ni < PT_PLAY_BEATS) {
-                const note = pt.notes[ni];
-                if (peak > note.peak) note.peak = peak;
-                if (peak > pt.maxPeak) pt.maxPeak = peak;
-                const ptDetThr = ptDetectionThreshold();
+            // 各拍のpeakは許容窓内なら更新（v0.9.78）。最寄り拍だけだとMISS拍の波形ヒントが欠ける。
+            for (let bi = 0; bi < PT_PLAY_BEATS; bi++) {
+                const bd = tMs - (pt.playT0Ms + bi * PT_BEAT_MS);
+                if (Math.abs(bd) <= PT_NEAR_WIN && peak > pt.notes[bi].peak) pt.notes[bi].peak = peak;
+            }
+            if (peak > pt.maxPeak) pt.maxPeak = peak;
+            const ptDetThr = ptDetectionThreshold();
+            if (peak >= ptDetThr) ptDebugCount('totalPeaksOverThreshold');
+            // 直前検出後の谷（コードストローク：谷からの上昇量の基準）。STAGEの mic.valley とは別に追跡。
+            if (peak < pt.valley) pt.valley = peak;
+            const chordMode = (state.strokeDetectMode === 'chord');
+            // ── オンセット判定（v0.9.73/0.9.77）────────────────────────────
+            //  コードストローク：コード用ゲートで弾き始めだけを拾う。
+            //  ブラッシング    ：従来どおりの立ち上がり検出。ただし割り当ては ptAssignOnset に任せる。
+            let ptOnset;
+            if (chordMode) {
+                const sinceHit = now - pt.lastDetectAt;
+                const riseFromValley = peak - pt.valley;
+                const instantRise = peak - mic.prevPeak;
+                ptOnset = (peak >= mic.threshold)
+                    && (sinceHit >= state.chordMinCooldown)
+                    && (riseFromValley >= state.chordRiseGate)
+                    && (instantRise >= state.chordInstantRiseGate);
+                if (!ptOnset && peak >= mic.threshold && instantRise >= state.chordInstantRiseGate * 0.5) {
+                    ptLogReject(tMs, peak, 'codeGate', {
+                        sinceHit: Math.round(sinceHit),
+                        riseFromValley: +riseFromValley.toFixed(3),
+                        instantRise: +instantRise.toFixed(3),
+                    });
+                }
+            } else {
                 const ptCrossed = peak >= ptDetThr && mic.prevPeak < ptDetThr;
                 const ptBigRise = peak >= ptDetThr && rise >= RISE_DELTA;
                 if (peak < ptDetThr * MIC_REARM_FACTOR) pt.armed = true;
                 const ptSustainedOnset = MIC_SUSTAINED_ONSET && pt.armed && peak >= ptDetThr;
-                const ptOnset = ptCrossed || ptBigRise || ptSustainedOnset;
+                ptOnset = ptCrossed || ptBigRise || ptSustainedOnset;
                 if (ptOnset) pt.armed = false;
-                if (ptOnset) {
-                    pt.lastOnsetAt = now;
-                    // ── STAGE本体と同じ切り分け（クリックガードだけ実践テスト用に安全側）──
-                    //  ・STAGE中と同じ実判定ライン(ptDetThr)超え＝onset候補。
-                    //  ・クリック直後は実践テスト専用ガードで「クリック音らしい弱い入力」を除外
-                    //    （通常マイクはライン×1.3未満を除外／ストロークは余裕があるので通る・v0.9.68）。
-                    //  ・直前の採用からクールダウン(mic.cooldownMs)以内は二重反応として登録しない。
-                    const guarded = isPtClickGuardedOnset(now, peak, ptLatestClickPerf(now));
+            }
+            if (ptOnset) {
+                pt.lastOnsetAt = now;
+                ptDebugCount('detected');
+                const guarded = isPtClickGuardedOnset(now, peak, ptLatestClickPerf(now));
+                if (guarded) {
+                    ptLogReject(tMs, peak, 'clickGuard', {
+                        sinceClick: Math.round(now - ptLatestClickPerf(now)),
+                    });
+                } else if (chordMode) {
+                    // コード：ゲート通過＝新規アタック。割り当てはSTAGE本体に近い ptAssignOnset で行う。
+                    const assigned = ptAssignOnset(tMs, peak);
+                    if (assigned) {
+                        pt.lastDetectAt = now;
+                        pt.valley = peak; // 谷リセット（STAGE chord と同じ）
+                    }
+                    pt.onsets.push({ t: tMs, peak, assigned });
+                } else {
+                    // ブラッシング：直前採用からクールダウン以内は登録せず、強い別アタックだけ二重反応として数える。
                     const cooled = (now - pt.lastDetectAt) > mic.cooldownMs;
-                    if (!guarded) {
-                        if (cooled) {
-                            const diff = tMs - (pt.playT0Ms + ni * PT_BEAT_MS);
-                            if (Math.abs(diff) <= PT_NEAR_WIN && note.cls == null) {
-                                note.diff = diff;
-                                note.cls = ptClassify(diff);
-                                note.detected = (peak >= ptDetThr);
-                                setPtStatus(LABELS[note.cls] || '');
-                            }
-                            pt.lastDetectAt = now; // 採用基点（STAGEの mic.lastDetect 相当）
-                        } else {
-                            // クールダウン中の強い別アタックだけ二重反応として数える（STAGE本体と同じ考え方）
-                            const strongInput = peak >= mic.threshold * DOUBLE_MIN_PEAK_FACTOR;
-                            const enoughGap = (now - pt.lastDetectAt) >= DOUBLE_MIN_GAP_MS;
-                            if (strongInput && enoughGap) { note.doubled = true; pt.doubleCount++; }
+                    if (cooled) {
+                        const assigned = ptAssignOnset(tMs, peak);
+                        if (assigned) pt.lastDetectAt = now;
+                        pt.onsets.push({ t: tMs, peak, assigned });
+                    } else {
+                        ptLogReject(tMs, peak, 'cooldown', {
+                            sinceDetect: Math.round(now - pt.lastDetectAt),
+                        });
+                        const strongInput = peak >= mic.threshold * DOUBLE_MIN_PEAK_FACTOR;
+                        const enoughGap = (now - pt.lastDetectAt) >= DOUBLE_MIN_GAP_MS;
+                        if (strongInput && enoughGap && ni >= 0 && ni < PT_PLAY_BEATS) {
+                            pt.notes[ni].doubled = true;
+                            pt.doubleCount++;
                         }
-                        pt.onsets.push({ t: tMs, peak });
                     }
                 }
             }
@@ -5653,6 +6100,9 @@ function bind() {
     if (els.setHpResetBtn) els.setHpResetBtn.addEventListener('click', resetHeadphoneOffsetToGuide);
     // 実践テスト（v0.9.56）
     if (els.ptBtn) els.ptBtn.addEventListener('click', togglePracticeTest);
+    // 見返しレーンの「最初へ / 最後へ」（v0.9.74）
+    if (els.ptReviewFirst) els.ptReviewFirst.addEventListener('click', () => { if (els.ptReviewScroll) els.ptReviewScroll.scrollTo({ left: 0, behavior: 'smooth' }); });
+    if (els.ptReviewLast) els.ptReviewLast.addEventListener('click', () => { if (els.ptReviewScroll) els.ptReviewScroll.scrollTo({ left: els.ptReviewScroll.scrollWidth, behavior: 'smooth' }); });
     // タップエリア配置（左右 / 上下）
     if (els.layoutLrBtn) els.layoutLrBtn.addEventListener('click', () => setTapLayout('lr'));
     if (els.layoutUdBtn) els.layoutUdBtn.addEventListener('click', () => setTapLayout('ud'));

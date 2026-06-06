@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.72">
+    <link rel="stylesheet" href="theme.css?v=0.9.74">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -388,6 +388,17 @@
                 <div class="test-lane-wrap hidden" id="pt-lane-wrap">
                     <canvas id="pt-lane-canvas"></canvas>
                 </div>
+                <!-- 終了後の見返し用レーン（横スクロールで1〜8拍を見返せる・v0.9.74） -->
+                <div class="pt-review hidden" id="pt-review">
+                    <p class="pt-review-hint">左右にスクロールして、音符と波形のズレを見返せます。</p>
+                    <div class="pt-review-scroll" id="pt-review-scroll">
+                        <canvas id="pt-review-canvas"></canvas>
+                    </div>
+                    <div class="pt-review-nav">
+                        <button type="button" class="btn-mini" id="pt-review-first">最初へ</button>
+                        <button type="button" class="btn-mini" id="pt-review-last">最後へ</button>
+                    </div>
+                </div>
                 <button class="btn-mic cal-run-btn test-start-btn" id="pt-btn">実践テストを開始</button>
                 <p class="cal-status" id="pt-status"></p>
                 <div class="cal-result hidden" id="pt-result"></div>
@@ -554,7 +565,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.72"></script>
+    <script src="script.js?v=0.9.78"></script>
 </body>
 
 </html>
