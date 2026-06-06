@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.67';
+const RHYTHM_CRUISE_VERSION = '0.9.71';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -52,6 +52,11 @@ const CAL_OFFSET_LIMIT_MS = 150;
    オンセットしない＝ガードで弾く必要がない。これより上にすると、クリックと同時(4分ジャスト)に弾いた
    「ライン超えだが少し小さめ」のストロークがガードで除外されてMISSになる（今回の原因）。 */
 const STRONG_STROKE_FACTOR = 1.0;
+
+/* 実践テスト専用のクリックガード強さ（v0.9.68）。STAGE本体の STRONG_STROKE_FACTOR は変えない。
+   通常マイクは、クリック音が反応ライン付近まで来てもストローク（余裕あり）だけ通すため、
+   クリック直後は「ライン×この倍率」未満を除外する。イヤホン/低入力はストロークも小さいので 1.0 のまま。 */
+const PT_CLICK_STRONG_FACTOR = 1.3;
 
 /* 二重反応の判定（クールダウン中の入力）。1回のストロークの余韻・複数ピークを二重反応と数えないため、
    「明確に別の強い立ち上がり」のときだけ・1クールダウンにつき1回だけ数える。 */
@@ -466,10 +471,18 @@ const els = {
     // ステップ式UI（v0.9.59）：初期2択・設定一覧・ステップ制御
     settingsChooser: $('settings-chooser'),
     settingsViewCurrent: $('settings-view-current'),
-    settingsViewRetest: $('settings-view-retest'),
+    // 簡易設定／詳細テスト（v0.9.71）
+    settingsSimpleBtn: $('settings-simple-btn'),
+    settingsDetailBtn: $('settings-detail-btn'),
+    settingsSimpleCard: $('settings-simple-card'),
+    simpleChoices: $('simple-choices'),
+    simpleResult: $('simple-result'),
+    simpleResultMsg: $('simple-result-msg'),
+    simplePracticeBtn: $('simple-practice-btn'),
+    simpleDoneBtn: $('simple-done-btn'),
+    simpleBackBtn: $('simple-back-btn'),
     settingsSummaryCard: $('settings-summary-card'),
     settingsSummaryList: $('settings-summary-list'),
-    settingsSummaryRedo: $('settings-summary-redo'),
     settingsSummarySave: $('settings-summary-save'),
     settingsSummaryManual: $('settings-summary-manual'),
     settingsSummaryBack: $('settings-summary-back'),
@@ -488,10 +501,12 @@ const els = {
     // プリセット保存／呼び出し（v0.9.61）
     presetListWrap: $('preset-list-wrap'),
     presetList: $('preset-list'),
-    presetSaveCard: $('preset-save-card'),
     presetNameInput: $('preset-name-input'),
     presetSaveBtn: $('preset-save-btn'),
     presetSaveMsg: $('preset-save-msg'),
+    // 手動設定カード内のプリセット保存（v0.9.69）
+    manualPresetTrigger: $('manual-preset-trigger'),
+    manualPresetBlock: $('manual-preset-block'),
     ptOpenManual: $('pt-open-manual'),
     setThreshold: $('set-threshold'),
     setThresholdVal: $('set-threshold-val'),
@@ -505,6 +520,8 @@ const els = {
     micPreviewCanvas: $('mic-preview-canvas'),
     settingsResetBtn: $('settings-reset-btn'),
     settingsBackBtn: $('settings-back-btn'),
+    settingsTopBtn: $('settings-top-btn'),
+    manualTopBtn: $('manual-top-btn'),
     micResetBtn: $('mic-reset-btn'),
     micResetMsg: $('mic-reset-msg'),
     // キャリブレーション
@@ -2311,6 +2328,24 @@ function ptDetectionThreshold() {
     return mic.threshold * MIC_STAGE_DETECT_FACTOR;
 }
 
+/* 実践テストのクリックガードで使う「ストロークとして通す」倍率（v0.9.68）。
+   通常マイク：PT_CLICK_STRONG_FACTOR（クリック直後はライン×1.3未満を除外）。
+   イヤホン/低入力：ストロークも小さいので STRONG_STROKE_FACTOR（1.0）のまま＝本物を捨てない。 */
+function ptClickStrongFactor() {
+    return (isHeadphoneInput() || mic.lowInputProfile) ? STRONG_STROKE_FACTOR : PT_CLICK_STRONG_FACTOR;
+}
+
+/* 実践テスト専用のクリックガード（v0.9.68）。STAGE本体の isClickGuardedOnset は変更しない。
+   クリック直後の窓内で、ライン×ptClickStrongFactor() 未満の入力（＝クリック音の回り込み）を除外する。
+   ストローク音は判定ラインを大きく超える前提なので、普通のストロークは除外されない。 */
+function isPtClickGuardedOnset(now, peak, lastClickPerf) {
+    const guardMs = mic.clickGuardMs + clickLatencyMs();
+    const sinceClick = now - lastClickPerf;
+    const inGuard = sinceClick >= -10 && sinceClick <= guardMs;
+    const strongEnough = peak >= ptDetectionThreshold() * ptClickStrongFactor();
+    return inGuard && !strongEnough;
+}
+
 /* 実践テスト専用クリック。STAGE本番と同じ clickVolume / 音量カーブで鳴らす。 */
 function ptScheduleClick(atSec, accent) {
     const ctx = state.audioCtx;
@@ -2470,6 +2505,9 @@ async function startPracticeTest() {
     pt.maxPeak = 0;
     pt.doubleCount = 0;
     pt.armed = true;
+    // 立ち上がり検出の基準を毎回そろえる（前回テストの prevPeak 残りで1回目だけ挙動が変わるのを防ぐ・v0.9.68）
+    mic.prevPeak = 0;
+    mic.env = 0;
     pt.timers.forEach(clearTimeout); pt.timers = [];
     pt.scheduled = [];
     if (els.ptResult) els.ptResult.classList.add('hidden');
@@ -2648,11 +2686,7 @@ function bindPracticeResultActions() {
         closeSettings();
     });
     const save = document.getElementById('pt-result-save');
-    if (save) save.addEventListener('click', () => {
-        wizardEditing = null; // 実践テスト完了済みなので最終ステップ（手動＋保存）へ
-        renderSettingsView();
-        scrollToSettingsEl(els.presetSaveCard);
-    });
+    if (save) save.addEventListener('click', openManualPresetSave);
     const rerun = document.getElementById('pt-result-rerun');
     if (rerun) rerun.addEventListener('click', () => startPracticeTest());
     const fixRerun = document.getElementById('pt-result-fix-rerun');
@@ -3047,13 +3081,13 @@ function wizardStepCards(id) {
             if (!isHeadphoneInput()) return [els.calCard];
             return getHeadphoneType() === 'bluetooth' ? [els.hpCalCard] : [els.correctionWiredNote];
         case 'practice': return [els.ptCard];
-        case 'final': return [els.manualCard, els.presetSaveCard];
+        case 'final': return [els.manualCard];
         default: return [];
     }
 }
 function allStepCards() {
     return [els.inputTypeCard, els.strokeModeCard, els.testCard, els.calCard, els.hpCalCard,
-    els.correctionWiredNote, els.ptCard, els.manualCard, els.presetSaveCard];
+    els.correctionWiredNote, els.ptCard, els.manualCard];
 }
 
 /* 完了済みステップの要約テキスト */
@@ -3140,14 +3174,14 @@ function showDoneHint() {
 function renderSettingsView() {
     const steps = (settingsView === 'steps');
     if (els.settingsChooser) els.settingsChooser.classList.toggle('hidden', settingsView !== 'chooser');
+    if (els.settingsSimpleCard) els.settingsSimpleCard.classList.toggle('hidden', settingsView !== 'simple');
     if (els.settingsSummaryCard) els.settingsSummaryCard.classList.toggle('hidden', settingsView !== 'summary');
     if (steps) {
         renderWizardSteps();
     } else if (settingsView === 'manual') {
-        // 「手動設定だけ開く」軽量ビュー：手動設定カード＋プリセット保存カードのみ表示
+        // 「手動設定だけ開く」軽量ビュー：手動設定カードのみ表示（プリセット保存はカード内）
         allStepCards().forEach((el) => { if (el) el.style.display = 'none'; });
         if (els.manualCard) els.manualCard.style.display = '';
-        if (els.presetSaveCard) els.presetSaveCard.style.display = '';
         if (els.settingsStepsSummary) els.settingsStepsSummary.style.display = 'none';
         if (els.settingsStepsProgress) els.settingsStepsProgress.style.display = 'none';
         if (els.ptOpenManual) els.ptOpenManual.style.display = 'none';
@@ -3269,6 +3303,7 @@ function setSettingsView(v) {
     settingsView = v;
     if (v === 'summary') renderSettingsSummary();
     if (v === 'chooser') renderPresetList();
+    if (v === 'simple') resetSimpleView();
     renderSettingsView();
 }
 
@@ -3525,14 +3560,34 @@ function savePresetFromCurrent() {
 function openManualView(scrollTarget) {
     settingsView = 'manual';
     setPresetSaveMsg('');
+    // 保存欄は既定で閉じておく（「この設定を保存」を押したら出す）。
+    if (els.manualPresetBlock) els.manualPresetBlock.classList.add('hidden');
+    // 「手動設定を開く」ので、折りたたみは開いた状態で全項目を見せる（v0.9.69）。
+    if (els.manualDetail && !els.manualDetail.open) { els.manualDetail.open = true; fitPreview(); }
     renderSettingsView();
     scrollToSettingsEl(scrollTarget || els.manualCard);
 }
 
+/* 手動設定カード内のプリセット保存欄を出す（「この設定を保存」導線）。v0.9.69 */
+function revealManualPresetSave() {
+    if (els.manualPresetBlock) els.manualPresetBlock.classList.remove('hidden');
+    setPresetSaveMsg('');
+    if (els.presetNameInput) { try { els.presetNameInput.focus(); } catch (_) { /* focus不可は無視 */ } }
+}
+
+/* 「この設定を保存」起点：手動設定を開いて、保存欄まで出す。 */
+function openManualPresetSave() {
+    openManualView(els.manualCard);
+    revealManualPresetSave();
+    scrollToSettingsEl(els.manualPresetTrigger || els.manualCard);
+}
+
 /* プリセット適用：保存値を現在の設定へ反映。テスト済み扱いにはしない（実践テストで確認を促す）。 */
-function applyPreset(id) {
+/* プリセットの「値の反映＋進捗フラグ」だけを行う共通処理（画面遷移はしない）。
+   適用できたら preset を返し、できなければ null。簡易設定／プリセット呼び出しの両方から使う。 */
+function applyPresetCore(id) {
     const p = allPresets().find((x) => x && x.id === id);
-    if (!p || !p.settings) return;
+    if (!p || !p.settings) return null;
     const s = p.settings;
     // 進行中のテスト類は止める（値だけ反映する）
     if (test.flow) abortMicTest();
@@ -3565,10 +3620,43 @@ function applyPreset(id) {
     setupProgress.correctionDone = true; // 補正値も呼び出し済み → 実践テストへ進む
     practiceResultOk = false;            // 呼び出し直後は未確認（実践テストで確認）
     wizardEditing = null;
+    return p;
+}
+
+function applyPreset(id) {
+    if (!applyPresetCore(id)) return;
     settingsView = 'steps';
     renderSettingsView();
     setPtStatus('プリセットを適用しました。実践テストで確認してください。');
     scrollToSettingsEl(els.ptCard);
+}
+
+/* ── 簡易設定（v0.9.71）：環境を選ぶだけで標準プリセットを適用 ───────────── */
+/* 簡易設定ビューを「環境選択」状態に戻す（結果は隠す）。 */
+function resetSimpleView() {
+    if (els.simpleChoices) els.simpleChoices.classList.remove('hidden');
+    if (els.simpleResult) els.simpleResult.classList.add('hidden');
+    if (els.simpleResultMsg) els.simpleResultMsg.textContent = '';
+}
+
+/* 環境を選択 → 対応する標準プリセットを適用し、結果（実践テスト/完了の導線）を出す。 */
+function applySimpleSetup(presetId, label) {
+    if (!applyPresetCore(presetId)) return;
+    // 適用しただけでは settingsView は 'simple' のまま（結果カードを同じ画面に出す）
+    if (els.simpleChoices) els.simpleChoices.classList.add('hidden');
+    if (els.simpleResult) els.simpleResult.classList.remove('hidden');
+    if (els.simpleResultMsg) els.simpleResultMsg.textContent = (label || '選んだ環境') + '用の設定を適用しました。';
+    updateDoneButtonState(); // 'simple' は完了ロックなし → 「完了」も使える
+    scrollToSettingsEl(els.simpleResult || els.settingsSimpleCard);
+}
+
+/* 簡易設定の「実践テストで確認する」：実践テストステップを開いてテスト開始。 */
+function simpleGoPractice() {
+    wizardEditing = null;
+    settingsView = 'steps';
+    renderSettingsView();
+    scrollToSettingsEl(els.ptCard);
+    startPracticeTest();
 }
 
 /* プリセット削除（個別）。組み込みは消せない。リセット系でも消さない。 */
@@ -3896,8 +3984,11 @@ function updateMicTestDoneUI() {
         els.micTestBtn.textContent = micTestBtnIdleLabel();
         els.micTestBtn.classList.toggle('is-todo', !done); // 未実施は赤系で目立たせる
     }
-    // 「結果を見る」は実施済みのときだけ表示
+    // 「詳細を見る」は実施済みのときだけ表示
     if (els.testResultDetail) els.testResultDetail.classList.toggle('hidden', !done);
+    // 実施済みは、まず「おすすめ設定・適用」を見てほしいので、説明文は表に出さず詳細(詳細を見る)へ寄せる（v0.9.68）
+    if (els.testCardNote) els.testCardNote.classList.toggle('hidden', done);
+    if (els.testInputNote) els.testInputNote.classList.toggle('hidden', done);
 }
 
 /* マイク反応テストの完了を記録（チェック表示・保存） */
@@ -3998,7 +4089,7 @@ function onMicResetClick() {
     // プリセット一覧は閉じた状態へ
     if (els.presetListWrap) els.presetListWrap.style.display = 'none';
     if (els.presetToggleBtn) els.presetToggleBtn.textContent = '保存済みプリセット ▾';
-    // マイク設定トップ（もう一度テストする／保存済みプリセット／現在の設定を見る）へ戻す
+    // マイク設定トップ（簡易設定／詳細テスト／保存済みプリセット／現在の設定を見る）へ戻す
     setSettingsView('chooser');
     if (els.micResetMsg) {
         els.micResetMsg.textContent = 'テスト手順をリセットしました。最初からやり直せます。';
@@ -4027,7 +4118,10 @@ async function startMicTestFlow() {
     test.recommended = null; test.recoCooldown = null;
     if (els.testReco) els.testReco.classList.add('hidden');
     els.micTestBtn.textContent = 'テストを中止';
-    els.micTestBtn.classList.remove('is-todo'); // 進行中は赤系を外す
+    els.micTestBtn.classList.remove('is-todo');
+    els.micTestBtn.classList.add('is-on'); // 進行中は「停止」系（赤）で分かるように
+    // 初回テストの安定性向上：直前テストやマイク開始直後の残り値をクリアしてから測定する（v0.9.69）。
+    mic.prevPeak = 0; mic.env = 0; mic.armed = true;
     setTestResult('', '');
     beginNoisePhase();
 }
@@ -4061,6 +4155,7 @@ function abortMicTest() {
     cancelAnimationFrame(test.clickRaf); test.clickRaf = 0;
     test.flow = false; test.mode = null;
     if (els.testLaneWrap) els.testLaneWrap.classList.add('hidden');
+    els.micTestBtn.classList.remove('is-on');
     els.micTestBtn.textContent = micTestBtnIdleLabel();
     els.micTestBtn.classList.toggle('is-todo', !state.micTestDone);
     setTestPhase('');
@@ -4182,7 +4277,12 @@ function testStrokeThreshold() {
         const thr = Math.max(THR_MIN, TEST_LOW_STROKE_FLOOR, noiseLine);
         return Math.min(TEST_RESCUE_STROKE_CEIL, thr);
     }
-    if (!isLowInputTestEnv()) return TEST_STROKE_THRESHOLD;
+    if (!isLowInputTestEnv()) {
+        // 通常環境でも、環境ノイズより十分上を必ず確保する（ノイズだけでストローク検出される事故を防ぐ・v0.9.69）。
+        // 普通のストローク(0.05以上が多い)は通すが、ノイズ(noiseMax/p95)はストローク扱いしない。
+        const noiseLine = Math.max((test.noiseP95 || 0) * 4, (test.noiseMax || 0) * 1.5);
+        return Math.max(TEST_STROKE_THRESHOLD, noiseLine);
+    }
     // 有線イヤホン等はクリック音がほぼ競合しないため、現在の反応ライン(mic.threshold)には引っ張られない。
     // ノイズより十分上だけを守り、普通より少し弱いストロークも拾えるラインまで下げる。
     const noiseLine = Math.max((test.noiseP95 || 0) * 4, (test.noiseMax || 0) * 1.5);
@@ -4422,6 +4522,7 @@ function endStrokePhase() {
     cancelAnimationFrame(test.flowRaf); test.flowRaf = 0;
     // レーンは隠さず、検出結果のプロット（緑＝検出 / 薄い＝未検出）をそのまま残す
     drawTestLaneSummary();
+    els.micTestBtn.classList.remove('is-on');
     els.micTestBtn.textContent = micTestBtnIdleLabel();
     els.micTestBtn.classList.toggle('is-todo', !state.micTestDone);
     setTestPhase('');
@@ -4952,11 +5053,12 @@ function micLoop() {
                 if (ptOnset) pt.armed = false;
                 if (ptOnset) {
                     pt.lastOnsetAt = now;
-                    // ── STAGE本体と同じ切り分け ──
+                    // ── STAGE本体と同じ切り分け（クリックガードだけ実践テスト用に安全側）──
                     //  ・STAGE中と同じ実判定ライン(ptDetThr)超え＝onset候補。
-                    //  ・クリック直後でも「弱い入力」だけ除外（isClickGuardedOnset／STRONG_STROKE_FACTOR=1.0）。
+                    //  ・クリック直後は実践テスト専用ガードで「クリック音らしい弱い入力」を除外
+                    //    （通常マイクはライン×1.3未満を除外／ストロークは余裕があるので通る・v0.9.68）。
                     //  ・直前の採用からクールダウン(mic.cooldownMs)以内は二重反応として登録しない。
-                    const guarded = isClickGuardedOnset(now, peak, ptLatestClickPerf(now), true);
+                    const guarded = isPtClickGuardedOnset(now, peak, ptLatestClickPerf(now));
                     const cooled = (now - pt.lastDetectAt) > mic.cooldownMs;
                     if (!guarded) {
                         if (cooled) {
@@ -5569,18 +5671,30 @@ function bind() {
         }
         closeSettings();
     });
-    els.settingsResetBtn.addEventListener('click', resetSettings);
+    if (els.settingsResetBtn) els.settingsResetBtn.addEventListener('click', resetSettings);
     if (els.micResetBtn) els.micResetBtn.addEventListener('click', onMicResetClick);
-    // ステップ式UI（v0.9.60）：メイン＝もう一度テストする／サブ＝現在の設定を見る
+    // マイク設定TOP（下部・手動設定内）：いつでもマイク設定トップ画面へ戻る（v0.9.70）
+    if (els.settingsTopBtn) els.settingsTopBtn.addEventListener('click', () => setSettingsView('chooser'));
+    if (els.manualTopBtn) els.manualTopBtn.addEventListener('click', () => setSettingsView('chooser'));
+    // トップ導線（v0.9.71）：簡易設定／詳細テスト／現在の設定を見る
+    if (els.settingsSimpleBtn) els.settingsSimpleBtn.addEventListener('click', () => setSettingsView('simple'));
+    if (els.settingsDetailBtn) els.settingsDetailBtn.addEventListener('click', () => startRetestFlow(false));
     if (els.settingsViewCurrent) els.settingsViewCurrent.addEventListener('click', () => setSettingsView('summary'));
-    if (els.settingsViewRetest) els.settingsViewRetest.addEventListener('click', () => startRetestFlow(false));
-    if (els.settingsSummaryRedo) els.settingsSummaryRedo.addEventListener('click', () => startRetestFlow(false));
     if (els.settingsSummaryBack) els.settingsSummaryBack.addEventListener('click', () => setSettingsView('chooser'));
+    // 簡易設定：環境選択／適用後の導線（v0.9.71）
+    if (els.simpleChoices) els.simpleChoices.querySelectorAll('.simple-choice').forEach((b) => {
+        b.addEventListener('click', () => applySimpleSetup(b.getAttribute('data-preset'), b.getAttribute('data-label')));
+    });
+    if (els.simplePracticeBtn) els.simplePracticeBtn.addEventListener('click', simpleGoPractice);
+    if (els.simpleDoneBtn) els.simpleDoneBtn.addEventListener('click', closeSettings);
+    if (els.simpleBackBtn) els.simpleBackBtn.addEventListener('click', resetSimpleView);
     // 「保存済みプリセット」ボタンで一覧を開閉（v0.9.63）
     if (els.presetToggleBtn) els.presetToggleBtn.addEventListener('click', togglePresetList);
     // 「現在の設定を見る」から：この設定を保存／手動設定を開く（どちらも手動ビューへ）
-    if (els.settingsSummarySave) els.settingsSummarySave.addEventListener('click', () => openManualView(els.presetSaveCard));
+    if (els.settingsSummarySave) els.settingsSummarySave.addEventListener('click', openManualPresetSave);
     if (els.settingsSummaryManual) els.settingsSummaryManual.addEventListener('click', () => openManualView(els.manualCard));
+    // 手動設定カード内「この設定を保存」：押すと名前入力欄＋保存ボタンを出す（v0.9.69）
+    if (els.manualPresetTrigger) els.manualPresetTrigger.addEventListener('click', revealManualPresetSave);
     // 補正系の「進む/スキップ」（v0.9.62）：押したら補正系完了として実践テストへ
     if (els.calSkipBtn) els.calSkipBtn.addEventListener('click', completeCorrectionStep);
     if (els.hpProceedBtn) els.hpProceedBtn.addEventListener('click', completeCorrectionStep);

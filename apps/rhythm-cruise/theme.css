@@ -1191,6 +1191,151 @@ h1 {
     transform: scale(0.96);
 }
 
+/* v0.9.70：テスト開始系ボタンを「枠線型」に統一する。
+   暗め（カードに馴染む）背景＋オレンジ枠線＋白文字・大きめ・横幅いっぱい・角丸・中央寄せ。
+   未実施／実施済みで見た目を変えず、文言だけが変わる（is-todo でも同じ枠線型）。
+   .btn-mic と併用し、形・色・余白を上書きする（JSが触る is-todo / is-on / disabled /
+   textContent はそのまま使える）。＝ .btn-mic.test-start-btn（クラス2つ）で base .btn-mic より勝たせる。 */
+.btn-mic.test-start-btn {
+    display: block;
+    width: 100%;
+    flex: none;
+    align-self: stretch;
+    margin-top: 6px;
+    padding: 16px;
+    border-radius: 14px;
+    border: 2px solid #ff9f1c;
+    background: rgba(253, 246, 238, 0.06);
+    color: var(--text-color);
+    font-size: 1.05rem;
+    font-weight: 800;
+    text-align: center;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+}
+
+@media (hover: hover) {
+    .btn-mic.test-start-btn:hover {
+        background: rgba(255, 159, 28, 0.12);
+        border-color: #ffb347;
+    }
+}
+
+.btn-mic.test-start-btn:active {
+    transform: scale(0.98);
+}
+
+.btn-mic.test-start-btn:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+/* 未実施でも実施済みでも同じ枠線型（文言だけが変わる）。 */
+.btn-mic.test-start-btn.is-todo {
+    border: 2px solid #ff9f1c;
+    background: rgba(253, 246, 238, 0.06);
+    color: var(--text-color);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+}
+
+/* テスト実行中（停止／中止ボタン）は赤系で「押すと止まる」と分かるように。 */
+.btn-mic.test-start-btn.is-on {
+    border: 2px solid rgba(255, 79, 110, 0.6);
+    background: rgba(255, 79, 110, 0.12);
+    color: var(--error-color);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+}
+
+/* v0.9.70：マイク設定トップの入口ボタン横並び（左＝もう一度テスト／右＝現在の設定を見る）。 */
+.chooser-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.chooser-btn {
+    flex: 1 1 140px;
+    min-width: 140px;
+    padding: 15px 12px;
+    border-radius: 12px;
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 1rem;
+    color: var(--text-color);
+    cursor: pointer;
+    text-align: center;
+    touch-action: manipulation;
+    transition: transform 0.1s, background 0.15s, border-color 0.15s;
+}
+
+/* 左：主導線（やや強め＝オレンジ枠＋淡いオレンジ地） */
+.chooser-btn.chooser-main {
+    border: 2px solid #ff9f1c;
+    background: rgba(255, 159, 28, 0.12);
+}
+
+/* 右：サブ導線（控えめ＝白枠） */
+.chooser-btn.chooser-sub {
+    border: 2px solid rgba(255, 255, 255, 0.28);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+@media (hover: hover) {
+    .chooser-btn.chooser-main:hover {
+        background: rgba(255, 159, 28, 0.18);
+    }
+
+    .chooser-btn.chooser-sub:hover {
+        border-color: rgba(255, 255, 255, 0.45);
+        background: rgba(255, 255, 255, 0.08);
+    }
+}
+
+.chooser-btn:active {
+    transform: scale(0.98);
+}
+
+/* v0.9.71：簡易設定の環境選択ボタン（タイトル＋説明の2行・枠線型・横幅いっぱい）。 */
+.simple-choice {
+    display: block;
+    width: 100%;
+    text-align: left;
+    margin-top: 10px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 2px solid rgba(255, 159, 28, 0.55);
+    background: rgba(253, 246, 238, 0.06);
+    color: var(--text-color);
+    font-family: inherit;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: transform 0.1s, background 0.15s, border-color 0.15s;
+}
+
+.simple-choice .simple-choice-title {
+    display: block;
+    font-size: 1.02rem;
+    font-weight: 800;
+}
+
+.simple-choice .simple-choice-desc {
+    display: block;
+    margin-top: 3px;
+    font-size: 0.8rem;
+    opacity: 0.78;
+    font-weight: 600;
+}
+
+@media (hover: hover) {
+    .simple-choice:hover {
+        border-color: #ff9f1c;
+        background: rgba(255, 159, 28, 0.12);
+    }
+}
+
+.simple-choice:active {
+    transform: scale(0.99);
+}
+
 .btn-mini.is-off {
     color: rgba(255, 79, 110, 0.7);
 }

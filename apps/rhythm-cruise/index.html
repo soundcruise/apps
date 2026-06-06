@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.67">
+    <link rel="stylesheet" href="theme.css?v=0.9.71">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -148,18 +148,48 @@
                 <p class="mic-reset-msg hidden" id="mic-reset-msg"></p>
             </header>
 
-            <!-- マイク設定の入口：メイン＝もう一度テストする／サブ＝保存プリセット／現在の設定を見る -->
+            <!-- マイク設定の入口：[簡易設定][詳細テスト]を横並び／下に保存プリセット・現在の設定を見る -->
             <div class="settings-card" id="settings-chooser">
-                <p class="setting-note" style="margin-top:0;">まずはテストして、今の環境に合う設定を作ります。</p>
-                <!-- メイン導線：もう一度テストする（一番目立つ） -->
-                <button type="button" class="btn-primary" id="settings-view-retest" style="width:100%;font-size:1.1rem;padding:16px;">もう一度テストする</button>
-                <!-- サブ導線1：保存済みプリセット（押すと一覧を展開） -->
+                <p class="setting-note" style="margin-top:0;">使う環境に合わせてマイクの反応を設定します。</p>
+                <!-- 上段：横並び（左＝主導線 簡易設定／右＝サブ 詳細テスト） -->
+                <div class="chooser-row">
+                    <button type="button" class="chooser-btn chooser-main" id="settings-simple-btn">簡易設定</button>
+                    <button type="button" class="chooser-btn chooser-sub" id="settings-detail-btn">詳細テスト</button>
+                </div>
+                <p class="setting-note" style="margin-top:8px;font-size:0.8rem;opacity:0.8;">簡易設定：環境を選ぶだけで標準設定を適用します。<br>詳細テスト：反応ラインや補正を実際に測って細かく調整します。</p>
+                <!-- 下段：保存済みプリセット（押すと一覧を展開） -->
                 <button type="button" class="btn-mini" id="preset-toggle-btn" style="width:100%;margin-top:12px;padding:13px;border:1px solid rgba(255,159,28,0.45);border-radius:10px;background:rgba(255,159,28,0.08);font-weight:700;">保存済みプリセット ▾</button>
                 <div id="preset-list-wrap" style="display:none;margin-top:8px;">
                     <div id="preset-list"></div>
                 </div>
-                <!-- サブ導線2：現在の設定を見る -->
+                <!-- 現在の設定を見る（サブ導線） -->
                 <button type="button" class="btn-mini" id="settings-view-current" style="width:100%;margin-top:10px;padding:13px;border:1px solid rgba(255,255,255,0.28);border-radius:10px;background:rgba(255,255,255,0.04);font-weight:700;">現在の設定を見る</button>
+            </div>
+
+            <!-- 簡易設定：使う環境を選ぶだけで標準プリセットを適用する -->
+            <div class="settings-card hidden" id="settings-simple-card">
+                <div class="cal-head">簡易設定</div>
+                <div id="simple-choices">
+                    <p class="setting-note" style="margin-top:0;">使う環境を選んでください。</p>
+                    <button type="button" class="simple-choice" data-preset="builtin_mic" data-label="通常マイク">
+                        <span class="simple-choice-title">通常マイク</span>
+                        <span class="simple-choice-desc">本体マイクや外部マイクで使う場合</span>
+                    </button>
+                    <button type="button" class="simple-choice" data-preset="builtin_wired" data-label="有線イヤホン">
+                        <span class="simple-choice-title">有線イヤホン</span>
+                        <span class="simple-choice-desc">有線イヤホンを接続して使う場合</span>
+                    </button>
+                    <button type="button" class="simple-choice" data-preset="builtin_bt" data-label="Bluetoothイヤホン">
+                        <span class="simple-choice-title">Bluetoothイヤホン</span>
+                        <span class="simple-choice-desc">Bluetoothイヤホンを使う場合</span>
+                    </button>
+                </div>
+                <div id="simple-result" class="hidden">
+                    <p class="cal-status" id="simple-result-msg" style="margin-top:0;color:#6ed28c;font-weight:700;"></p>
+                    <button type="button" class="btn-primary" id="simple-practice-btn" style="width:100%;margin-top:8px;">実践テストで確認する</button>
+                    <button type="button" class="btn-mini" id="simple-done-btn" style="width:100%;margin-top:10px;padding:11px;border:1px solid rgba(255,255,255,0.28);border-radius:10px;background:rgba(255,255,255,0.04);font-weight:700;">このまま完了</button>
+                    <button type="button" class="btn-mini" id="simple-back-btn" style="width:100%;margin-top:8px;padding:10px;">環境を選び直す</button>
+                </div>
             </div>
 
             <!-- 現在の設定を見る：一覧（確認用）。保存・手動設定への導線つき -->
@@ -167,10 +197,12 @@
                 <div class="cal-head">現在の設定</div>
                 <p class="setting-note">いまの設定内容です。変更したいときは下のボタンから。</p>
                 <div class="cal-result" id="settings-summary-list" style="display:block;"></div>
-                <button type="button" class="btn-primary" id="settings-summary-redo" style="width:100%;margin-top:14px;">設定をやり直す</button>
-                <button type="button" class="btn-mini" id="settings-summary-save" style="width:100%;margin-top:8px;padding:12px;border:1px solid rgba(255,159,28,0.45);border-radius:10px;background:rgba(255,159,28,0.08);font-weight:700;">この設定を保存</button>
-                <button type="button" class="btn-mini" id="settings-summary-manual" style="width:100%;margin-top:8px;padding:12px;border:1px solid rgba(255,255,255,0.28);border-radius:10px;background:rgba(255,255,255,0.04);font-weight:700;">手動設定を開く</button>
-                <button type="button" class="btn-mini" id="settings-summary-back" style="margin-top:8px;">選択へ戻る</button>
+                <!-- 主導線：手動設定を開く（一番目立たせる） -->
+                <button type="button" class="btn-primary" id="settings-summary-manual" style="width:100%;margin-top:14px;">手動設定を開く</button>
+                <!-- サブ導線：この設定を保存（控えめ） -->
+                <button type="button" class="btn-mini" id="settings-summary-save" style="width:100%;margin-top:10px;padding:11px;border:1px solid rgba(255,255,255,0.22);border-radius:10px;background:rgba(255,255,255,0.04);font-weight:700;">この設定を保存</button>
+                <!-- 戻る導線：マイク設定TOP -->
+                <button type="button" class="btn-mini" id="settings-summary-back" style="width:100%;margin-top:8px;padding:11px;">マイク設定TOP</button>
             </div>
 
             <!-- ステップ式：現在地（ステップ X / N ＋ドット）。JSで描画 -->
@@ -218,7 +250,7 @@
                 <p class="setting-note" id="test-card-note">クリック音が反応せず、ストローク音だけ反応するかを自動でチェックします。</p>
                 <p class="setting-note" id="test-input-note">入力の大きさに合わせて自動調整します。</p>
                 <div class="test-row">
-                    <button class="btn-mic test-run-btn" id="mic-test-btn">マイク反応テストを開始</button>
+                    <button class="btn-mic test-run-btn test-start-btn" id="mic-test-btn">マイク反応テストを開始</button>
                     <span class="test-mic-state hidden" id="test-mic-state">マイク ON</span>
                 </div>
                 <div class="test-live hidden" id="test-live">
@@ -243,13 +275,14 @@
                     <button class="btn-primary hidden" id="reco-apply-btn">おすすめ設定を適用</button>
                     <p class="test-reco-msg hidden" id="reco-msg"></p>
                     <p class="test-reco-msg warn hidden" id="reco-retest"></p>
-                    <button type="button" class="btn-mic results-retest-btn hidden" id="reco-retest-btn">🎤 もう1度テスト</button>
+                    <button type="button" class="btn-mic results-retest-btn test-start-btn hidden" id="reco-retest-btn">🎤 もう1度テスト</button>
                     <p class="test-reco-msg warn hidden" id="auto-earphone-hint"></p>
                 </div>
 
                 <!-- テスト結果の確認（実施済み後に表示・後から見返せる） -->
                 <details class="settings-detail test-result-detail hidden" id="test-result-detail">
-                    <summary>結果を見る</summary>
+                    <summary>詳細を見る</summary>
+                    <p class="setting-note" style="margin-top:8px;">このテストは、クリック音には反応せず、ストローク音だけに反応するかを自動で確認し、その結果からおすすめの反応ライン・クリック音量・二重反応防止を計算しています。</p>
                     <div class="level-bar">
                         <div class="level-track"></div>
                         <div class="level-zone" id="bar-zone"></div>
@@ -273,7 +306,7 @@
                     <span class="status-pill" id="cal-done-badge">未実施</span>
                 </div>
                 <p class="setting-note">マイク入力の遅れを測って補正します。</p>
-                <button class="btn-mic cal-run-btn" id="cal-btn">テストを開始</button>
+                <button class="btn-mic cal-run-btn test-start-btn" id="cal-btn">テストを開始</button>
                 <p class="cal-status hidden" id="cal-status"></p>
                 <div class="cal-monitor hidden" id="cal-monitor">
                     <div class="mic-meter">
@@ -298,7 +331,7 @@
 
                 <!-- 遅れ補正の結果確認（実施済み後に表示・後から見返せる） -->
                 <details class="settings-detail test-result-detail hidden" id="cal-result-detail">
-                    <summary>結果を見る</summary>
+                    <summary>詳細を見る</summary>
                     <p class="setting-note">クリック音をマイクで拾った遅れを測定し、その分だけ判定位置を前に補正しています。</p>
                     <div class="cal-result-row"><span>測定遅延</span><b id="cal-rd-delay">–</b></div>
                     <div class="cal-result-row"><span>適用した補正値</span><b id="cal-rd-offset">–</b></div>
@@ -324,7 +357,7 @@
                     <span class="hp-dot" id="hp-dot-2" style="display:inline-block;width:20px;height:20px;border-radius:50%;background:rgba(253,246,238,0.16);transition:background .04s,box-shadow .04s;"></span>
                     <span class="hp-dot" id="hp-dot-3" style="display:inline-block;width:20px;height:20px;border-radius:50%;background:rgba(253,246,238,0.16);transition:background .04s,box-shadow .04s;"></span>
                 </div>
-                <button class="btn-mic cal-run-btn" id="hp-cal-btn">補正テスト開始</button>
+                <button class="btn-mic cal-run-btn test-start-btn" id="hp-cal-btn">補正テスト開始</button>
                 <div class="setting-row" style="margin-top:16px;">
                     <div class="setting-label">現在の補正 <b id="hp-offset-val">180ms</b></div>
                     <input type="range" id="hp-offset" min="-50" max="300" step="5" value="180">
@@ -359,7 +392,7 @@
                 <div class="test-lane-wrap hidden" id="pt-lane-wrap">
                     <canvas id="pt-lane-canvas"></canvas>
                 </div>
-                <button class="btn-mic cal-run-btn" id="pt-btn">実践テストを開始</button>
+                <button class="btn-mic cal-run-btn test-start-btn" id="pt-btn">実践テストを開始</button>
                 <p class="cal-status" id="pt-status"></p>
                 <div class="cal-result hidden" id="pt-result"></div>
                 <!-- 実践テストをしなくても手動調整したい人向けの控えめな導線 -->
@@ -404,22 +437,32 @@
                         <p class="setting-note" id="set-hp-offset-note">有線イヤホンは通常30msの目安を使います。違和感がある場合だけ調整してください。</p>
                         <button type="button" class="btn-mini btn-reset" id="set-hp-reset" style="margin-top:6px;">30msに戻す</button>
                     </div>
+
+                    <!-- 詳細操作（控えめ）：設定値を初期状態に戻す。保存済みプリセットは残る。 -->
+                    <div style="margin-top:18px;text-align:center;">
+                        <button type="button" class="btn-mini" id="settings-reset-btn" style="font-size:0.8rem;opacity:0.7;">設定値を初期値に戻す</button>
+                        <p class="setting-note" style="opacity:0.6;margin-top:4px;">マイク感度などの設定値を初期状態に戻します（保存済みプリセットは残ります）。</p>
+                    </div>
                 </details>
+
+                <!-- 7. この設定を保存（同じカード内・下部。押すと名前入力欄＋保存ボタンが出る） v0.9.69 -->
+                <div class="manual-preset-save" style="margin-top:16px;border-top:1px solid rgba(255,255,255,0.12);padding-top:14px;">
+                    <button type="button" class="btn-mini" id="manual-preset-trigger" style="width:100%;padding:13px;border:1px solid rgba(255,159,28,0.45);border-radius:10px;background:rgba(255,159,28,0.08);font-weight:700;">この設定を保存</button>
+                    <div id="manual-preset-block" class="hidden" style="margin-top:10px;">
+                        <p class="setting-note" style="margin-top:0;">よく使う環境として名前をつけて保存できます。</p>
+                        <input type="text" id="preset-name-input" placeholder="プリセット名" maxlength="40" style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.2);color:inherit;font-size:1rem;">
+                        <button type="button" class="btn-mic" id="preset-save-btn" style="width:100%;margin-top:10px;">名前をつけて保存</button>
+                        <p class="cal-status" id="preset-save-msg"></p>
+                    </div>
+                </div>
+
+                <!-- 手動設定からマイク設定トップへ戻る -->
+                <button type="button" class="btn-mini" id="manual-top-btn" style="width:100%;margin-top:14px;padding:12px;border:1px solid rgba(255,255,255,0.28);border-radius:10px;background:rgba(255,255,255,0.04);font-weight:700;">マイク設定TOP</button>
             </div>
 
-            <!-- 7. この設定を保存（名前をつけてプリセット保存） -->
-            <div class="settings-card" id="preset-save-card">
-                <div class="cal-head">この設定を保存</div>
-                <p class="setting-note">よく使う環境として名前をつけて保存できます。</p>
-                <input type="text" id="preset-name-input" placeholder="プリセット名" maxlength="40" style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.2);color:inherit;font-size:1rem;">
-                <button type="button" class="btn-mic" id="preset-save-btn" style="width:100%;margin-top:10px;">名前をつけて保存</button>
-                <p class="cal-status" id="preset-save-msg"></p>
-            </div>
-
-            <p class="setting-note" style="text-align:center;opacity:0.75;margin-bottom:4px;">「設定値を初期値に戻す」は、マイク感度などの設定値を初期状態に戻します。保存済みプリセットは残ります。</p>
             <p class="setting-note warn hidden" id="settings-done-hint" style="text-align:center;">実践テストまで完了してください。</p>
             <div class="settings-actions">
-                <button class="btn-mini" id="settings-reset-btn">設定値を初期値に戻す</button>
+                <button class="btn-mini" id="settings-top-btn">マイク設定TOP</button>
                 <button class="btn-primary settings-back" id="settings-back-btn">完了</button>
             </div>
         </section>
@@ -515,7 +558,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.67"></script>
+    <script src="script.js?v=0.9.71"></script>
 </body>
 
 </html>
