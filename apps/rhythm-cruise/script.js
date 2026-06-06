@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.58';
+const RHYTHM_CRUISE_VERSION = '0.9.59';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -428,6 +428,22 @@ const els = {
     comboBadge: $('combo-badge'),
     // 設定画面
     homeSettingsBtn: $('home-settings-btn'),
+    // ステップ式UI（v0.9.59）：初期2択・設定一覧・ステップ制御
+    settingsChooser: $('settings-chooser'),
+    settingsViewCurrent: $('settings-view-current'),
+    settingsViewRetest: $('settings-view-retest'),
+    settingsSummaryCard: $('settings-summary-card'),
+    settingsSummaryList: $('settings-summary-list'),
+    settingsSummaryRedo: $('settings-summary-redo'),
+    settingsSummaryBack: $('settings-summary-back'),
+    settingsStepsNav: $('settings-steps-nav'),
+    settingsStepHint: $('settings-step-hint'),
+    settingsStepNext: $('settings-step-next'),
+    settingsStaleNote: $('settings-stale-note'),
+    inputTypeCard: $('input-type-card'),
+    strokeModeCard: $('stroke-mode-card'),
+    manualCard: $('manual-card'),
+    correctionWiredNote: $('correction-wired-note'),
     setThreshold: $('set-threshold'),
     setThresholdVal: $('set-threshold-val'),
     setCooldown: $('set-cooldown'),
@@ -1970,6 +1986,7 @@ function setStrokeDetectMode(mode) {
     state.strokeDetectMode = (mode === 'chord') ? 'chord' : 'brush';
     updateStrokeDetectModeUI();
     saveSettings();
+    if (typeof markSettingsUpstreamChanged === 'function') markSettingsUpstreamChanged();
 }
 function updateStrokeDetectModeUI() {
     const chord = (state.strokeDetectMode === 'chord');
@@ -2008,6 +2025,7 @@ function setMicInputType(type) {
     mic.inputType = MIC_INPUT_TYPES.includes(type) ? type : 'auto';
     updateMicInputTypeUI();
     saveSettings();
+    if (typeof markSettingsUpstreamChanged === 'function') markSettingsUpstreamChanged();
 }
 function updateMicInputTypeUI() {
     const t = getMicInputType();
@@ -2167,6 +2185,7 @@ function setHeadphoneType(type) {
     mic.headphoneOutputOffsetMs = currentHpTypeOffset();
     updateHeadphoneTypeUI();
     saveSettings();
+    if (typeof markSettingsUpstreamChanged === 'function') markSettingsUpstreamChanged();
 }
 
 /* 「目安に戻す」：選択中の種類の目安値（有線30ms / Bluetooth180ms）へ戻す */
@@ -2336,7 +2355,7 @@ function drawPracticeLane(t) {
             ctx.stroke();
         }
     }
-    // 音符（右→左へ流れる4分音符＋↓）
+    // 音符（右→左へ流れる4分音符＋ストローク方向の矢印 ↑/↓）
     for (let i = 0; i < pt.notes.length; i++) {
         const n = pt.notes[i];
         const x = judgeX + (n.t - t) * ppm;
@@ -2355,8 +2374,11 @@ function drawPracticeLane(t) {
         }
         drawQuarterNote(ctx, x, yc, col);
         ctx.restore();
-        ctx.fillStyle = n.closed ? 'rgba(255,180,90,0.55)' : 'rgba(255,180,90,0.95)';
-        drawStrokeArrow(ctx, x, yc + 28, 'down', 'rgba(255,180,90,0.8)', 0.8);
+        // ストローク方向：アップは音符の上、ダウンは音符の下に矢印を出す（↑↓↑↓…）。
+        const arrowAlpha = n.closed ? 0.5 : 0.9;
+        const arrowCol = n.dir === 'up' ? 'rgba(120,200,255,0.9)' : 'rgba(255,180,90,0.9)';
+        const arrowY = n.dir === 'up' ? (yc - 52) : (yc + 28);
+        drawStrokeArrow(ctx, x, arrowY, n.dir, arrowCol, arrowAlpha);
     }
     // 判定ライン（縦・拍頭で軽く光る）
     const glow = beatGlow(t - (PT_LEAD_MS), PT_BEAT_MS);
@@ -2414,10 +2436,10 @@ async function startPracticeTest() {
     pt.audioStart = ctx.currentTime;
     pt.flowStartPerf = performance.now();
     pt.playT0Ms = PT_LEAD_MS + PT_COUNTIN * PT_BEAT_MS; // audioStart/flowStart からの相対ms
-    // 本番8音符（4分・すべてダウン）。t＝flowStart からの相対ms。
+    // 本番8音符（4分）。ストローク方向は ↑↓↑↓↑↓↑↓（1回目=アップ）。t＝flowStart からの相対ms。
     pt.notes = [];
     for (let j = 0; j < PT_PLAY_BEATS; j++) {
-        pt.notes.push({ t: pt.playT0Ms + j * PT_BEAT_MS, dir: 'down', closed: false, cls: null, diff: null, peak: 0, detected: false, doubled: false });
+        pt.notes.push({ t: pt.playT0Ms + j * PT_BEAT_MS, dir: (j % 2 === 0) ? 'up' : 'down', closed: false, cls: null, diff: null, peak: 0, detected: false, doubled: false });
     }
 
     const beatSec = PT_BEAT_MS / 1000;
@@ -2815,6 +2837,133 @@ function applySettingsToUI() {
     updateMicInputTypeUI(); // 内部で updateHeadphoneTypeUI() を呼び、スライダー/表示/導線も同期
 }
 
+/* ── ステップ式マイク設定UI（v0.9.59）────────────────────────────
+   表示制御だけで実装：既存カードはそのまま流用し、表示順・表示条件を切り替える。
+   settingsView：'chooser'（初期2択）/ 'summary'（現在の設定一覧）/ 'steps'（順番に出す）。
+   settingsStep：steps時に「どこまで表示したか」（1..6）。
+   重要：判定ロジック・補正値・STAGE側には一切手を入れない（見せ方の制御のみ）。 */
+const SETTINGS_STEP_MAX = 6;
+let settingsView = 'chooser';
+let settingsStep = 1;
+let settingsStale = false; // 上流（入力タイプ/検出モード）を変えた → 再テスト案内
+
+/* ステップ番号と対応カード（補正系は cal/hp-cal の両方が step4） */
+function settingsStepCards() {
+    return [
+        { step: 1, el: els.inputTypeCard },
+        { step: 2, el: els.strokeModeCard },
+        { step: 3, el: els.testCard },
+        { step: 4, el: els.calCard },
+        { step: 4, el: els.hpCalCard },
+        { step: 5, el: els.ptCard },
+        { step: 6, el: els.manualCard },
+    ];
+}
+
+function renderSettingsView() {
+    const steps = (settingsView === 'steps');
+    if (els.settingsChooser) els.settingsChooser.classList.toggle('hidden', settingsView !== 'chooser');
+    if (els.settingsSummaryCard) els.settingsSummaryCard.classList.toggle('hidden', settingsView !== 'summary');
+    // 各ステップカードの表示（inline display で制御。表示時は '' に戻し、種類別の .hidden ロジックを尊重）
+    settingsStepCards().forEach(({ step, el }) => {
+        if (!el) return;
+        el.style.display = (steps && step <= settingsStep) ? '' : 'none';
+    });
+    // 補正ステップの「有線イヤホン案内」：補正カードが出ない有線時だけ表示
+    if (els.correctionWiredNote) {
+        const showWired = steps && settingsStep >= 4 && isHeadphoneInput() && getHeadphoneType() === 'wired';
+        els.correctionWiredNote.style.display = showWired ? '' : 'none';
+    }
+    // 「次へ」ナビ
+    if (els.settingsStepsNav) els.settingsStepsNav.style.display = steps ? '' : 'none';
+    if (els.settingsStepNext) els.settingsStepNext.style.display = (steps && settingsStep < SETTINGS_STEP_MAX) ? '' : 'none';
+    // 再テスト案内（マイク反応テスト以降を表示中で、上流を変えたとき）
+    if (els.settingsStaleNote) els.settingsStaleNote.classList.toggle('hidden', !(steps && settingsStale && settingsStep >= 3));
+    updateSettingsStepHint();
+}
+
+function updateSettingsStepHint() {
+    if (!els.settingsStepHint) return;
+    let txt = '';
+    if (settingsView === 'steps') {
+        if (settingsStep === 3 && !state.micTestDone) txt = 'マイク反応テストを行うと、次へ進めます。';
+        else if (settingsStep < SETTINGS_STEP_MAX) txt = '設定できたら「次へ」を押してください。';
+        else txt = 'これですべての設定が表示されています。';
+    }
+    els.settingsStepHint.textContent = txt;
+}
+
+function setSettingsView(v) {
+    settingsView = v;
+    if (v !== 'steps') settingsStale = false;
+    if (v === 'summary') renderSettingsSummary();
+    renderSettingsView();
+}
+
+function enterSettingsSteps(minStep) {
+    settingsView = 'steps';
+    settingsStep = Math.min(SETTINGS_STEP_MAX, Math.max(settingsStep, minStep || 1, 1));
+    renderSettingsView();
+}
+
+function scrollToCurrentStep() {
+    const map = {
+        1: els.inputTypeCard, 2: els.strokeModeCard, 3: els.testCard,
+        4: (isHeadphoneInput() ? els.hpCalCard : els.calCard), 5: els.ptCard, 6: els.manualCard,
+    };
+    const el = map[settingsStep];
+    requestAnimationFrame(() => { if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+}
+
+function advanceSettingsStep() {
+    // Step3（マイク反応テスト）は完了しないと次へ進めない
+    if (settingsStep === 3 && !state.micTestDone) {
+        if (els.settingsStepHint) els.settingsStepHint.textContent = '先にマイク反応テストを行ってください。';
+        return;
+    }
+    if (settingsStep < SETTINGS_STEP_MAX) {
+        settingsStep++;
+        settingsStale = false;
+        renderSettingsView();
+        scrollToCurrentStep();
+    }
+}
+
+/* 上流（入力タイプ／ストローク検出モード）を変えたときに呼ぶ。
+   既にマイク反応テスト以降を表示中なら「再テストしてね」案内を出す。 */
+function markSettingsUpstreamChanged() {
+    if (settingsView === 'steps') {
+        if (settingsStep >= 3) settingsStale = true;
+        renderSettingsView();
+    }
+}
+
+function renderSettingsSummary() {
+    if (!els.settingsSummaryList) return;
+    const t = getMicInputType();
+    const row = (k, v) => '<div class="cal-result-row"><span>' + k + '</span><b>' + v + '</b></div>';
+    const typeLabel = { auto: '自動おすすめ', normal: '通常マイク', headphone: 'イヤホン接続' }[t] || '自動おすすめ';
+    const rows = [];
+    rows.push(row('入力タイプ', typeLabel));
+    if (t === 'headphone') {
+        rows.push(row('イヤホン種類', getHeadphoneType() === 'bluetooth' ? 'Bluetoothイヤホン' : '有線イヤホン'));
+    }
+    rows.push(row('ストローク検出モード', state.strokeDetectMode === 'chord' ? 'コードストローク' : 'ブラッシング'));
+    rows.push(row('反応ライン（感度）', sensFromThresholdUI(mic.threshold) + '％'));
+    rows.push(row('二重反応防止', mic.cooldownMs + 'ms'));
+    rows.push(row('クリック音量', state.clickVolume + '％'));
+    if (t === 'headphone') {
+        rows.push(row('イヤホン音ズレ補正', mic.headphoneOutputOffsetMs + 'ms'));
+    } else {
+        const off = mic.timingOffsetMs;
+        rows.push(row('マイクの遅れ補正', (off > 0 ? '+' : '') + off + 'ms'));
+    }
+    rows.push(row('低入力プロファイル', mic.lowInputProfile ? 'あり' : 'なし'));
+    rows.push(row('マイク反応テスト', state.micTestDone ? '実施済み' : '未実施'));
+    if (t !== 'headphone') rows.push(row('マイクの遅れ補正テスト', state.micDelayDone ? '実施済み' : '未実施'));
+    els.settingsSummaryList.innerHTML = rows.join('');
+}
+
 function openSettings(from) {
     settingsReturn = from || 'home';
     if (state.running) stop();
@@ -2828,6 +2977,8 @@ function openSettings(from) {
     if (els.testReco) els.testReco.classList.add('hidden');
     updateTestMicState();          // マイクOFFならメーター等を隠す
     if (mic.on) enterTestMode();   // マイクON中なら実音モニターを有効化
+    settingsStep = 1;              // 開くたびに初期化
+    setSettingsView('chooser');    // 最初は2択だけ見せる
     show('settings');
     requestAnimationFrame(fitPreview); // 表示後にサイズ確定→プレビュー描画
 }
@@ -3064,6 +3215,8 @@ function markMicTestDone() {
         saveSettings();
     }
     updateMicTestDoneUI();
+    // ステップ式UI表示中なら、「次へ」の案内（テスト完了で進める）を更新
+    if (typeof renderSettingsView === 'function' && settingsView === 'steps') renderSettingsView();
 }
 
 /* マイクの遅れ補正：未/実施済みのボタン文言 */
@@ -4640,6 +4793,12 @@ function bind() {
     els.settingsBackBtn.addEventListener('click', closeSettings);
     els.settingsResetBtn.addEventListener('click', resetSettings);
     if (els.micResetBtn) els.micResetBtn.addEventListener('click', onMicResetClick);
+    // ステップ式UI（v0.9.59）
+    if (els.settingsViewCurrent) els.settingsViewCurrent.addEventListener('click', () => setSettingsView('summary'));
+    if (els.settingsViewRetest) els.settingsViewRetest.addEventListener('click', () => enterSettingsSteps(1));
+    if (els.settingsSummaryRedo) els.settingsSummaryRedo.addEventListener('click', () => enterSettingsSteps(1));
+    if (els.settingsSummaryBack) els.settingsSummaryBack.addEventListener('click', () => setSettingsView('chooser'));
+    if (els.settingsStepNext) els.settingsStepNext.addEventListener('click', advanceSettingsStep);
 
     els.setThreshold.addEventListener('input', () => {
         const sens = parseInt(els.setThreshold.value, 10);
@@ -4692,7 +4851,8 @@ function bind() {
         if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden');
         resetGame();
         openSettings('practice');
-        // マイク反応テストのカードまでスクロール
+        // ステップ式UIでマイク反応テストまで開いてからスクロール
+        enterSettingsSteps(3);
         requestAnimationFrame(() => { if (els.testCard && els.testCard.scrollIntoView) els.testCard.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
     });
     // 結果モーダルの詳細（折りたたみ）を開いたら、中のズレ履歴グラフをサイズ確定して描画
