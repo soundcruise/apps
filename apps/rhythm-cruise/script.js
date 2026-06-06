@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.48';
+const RHYTHM_CRUISE_VERSION = '0.9.49';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -335,6 +335,7 @@ const els = {
     inputTypeNormal: $('input-type-normal'),
     inputTypeHeadphone: $('input-type-headphone'),
     inputTypeNote: $('input-type-note'),
+    testInputNote: $('test-input-note'),
     testCardNote: $('test-card-note'),
     tapArea: $('tap-area'),
     tapLayoutToggle: $('tap-layout-toggle'),
@@ -1947,6 +1948,12 @@ const MIC_INPUT_TYPE_NOTE = {
     normal: '本体マイクや外部マイクを使う場合におすすめです。',
     headphone: '有線/Bluetoothイヤホン向け。ギター音が小さく入る場合があります。',
 };
+/* マイク反応テストカードに出す、入力タイプ別の「テスト時の感度」説明。 */
+const MIC_TEST_NOTE_BY_TYPE = {
+    auto: '入力の大きさに合わせて自動調整します。',
+    normal: '本体マイクや外部マイク向けに、通常感度で確認します。',
+    headphone: 'イヤホン接続時の小さめ入力を拾いやすい設定で確認します。',
+};
 function setMicInputType(type) {
     mic.inputType = MIC_INPUT_TYPES.includes(type) ? type : 'auto';
     updateMicInputTypeUI();
@@ -1958,6 +1965,21 @@ function updateMicInputTypeUI() {
     if (els.inputTypeNormal) els.inputTypeNormal.classList.toggle('is-active', t === 'normal');
     if (els.inputTypeHeadphone) els.inputTypeHeadphone.classList.toggle('is-active', t === 'headphone');
     if (els.inputTypeNote) els.inputTypeNote.textContent = MIC_INPUT_TYPE_NOTE[t] || MIC_INPUT_TYPE_NOTE.auto;
+    if (els.testInputNote) els.testInputNote.textContent = MIC_TEST_NOTE_BY_TYPE[t] || MIC_TEST_NOTE_BY_TYPE.auto;
+}
+
+/* ── 入力タイプ別の感度・表示プロファイル判定（v0.9.49）──────────
+   headphone：初回から高感度寄りで拾いにいく＆低入力スケール表示。
+   auto/normal：従来どおり「明確に低入力っぽいときだけ」高感度救済を使う。 */
+function shouldStartMicTestInHighSensitivity() {
+    return isHeadphoneInput(); // イヤホン接続は初回テストから高感度寄り
+}
+function shouldUseLowInputDisplayProfile() {
+    return isHeadphoneInput() || !!test.rescueHighSens; // 低入力スケール表示を使うか
+}
+function shouldAllowRescueHighSens() {
+    if (isHeadphoneInput()) return true;       // イヤホンは常に救済（高感度）を許可
+    return shouldUseRescueHighSens();          // auto/normal は低入力っぽいときだけ
 }
 
 /* ── 入力方法（タップ / ストローク）──────────────────────── */
@@ -2540,6 +2562,8 @@ function toggleMicTest() {
 async function startMicTestFlow() {
     if (!(await ensureTestMic())) { setTestResult('マイクを許可してください。', 'ng'); return; }
     test.flow = true;
+    // イヤホン接続は初回テストから高感度寄り（救済しきい値）で拾いにいく。auto/normalは従来どおり。
+    if (shouldStartMicTestInHighSensitivity()) test.rescueHighSens = true;
     test.clickDone = false; test.strokeDone = false;
     test.recommended = null; test.recoCooldown = null;
     if (els.testReco) els.testReco.classList.add('hidden');
@@ -2693,8 +2717,8 @@ function shouldUseRescueHighSens() {
     return isLowInputTestEnv() || (inputButQuiet && lowClick);
 }
 function testStrokeThreshold() {
-    // 救済再テスト：低入力判定に依存せず、ノイズだけ尊重して高感度寄りで拾い直す（上限0.010）。
-    if (test.rescueHighSens) {
+    // 救済（イヤホン接続 or 救済再テスト）：低入力判定に依存せず、ノイズだけ尊重して高感度寄りで拾う（上限0.010）。
+    if (test.rescueHighSens || isHeadphoneInput()) {
         const noiseLine = Math.max((test.noiseP95 || 0) * 2, (test.noiseMax || 0) * 1.2);
         const thr = Math.max(THR_MIN, TEST_LOW_STROKE_FLOOR, noiseLine);
         return Math.min(TEST_RESCUE_STROKE_CEIL, thr);
@@ -3031,8 +3055,8 @@ function updateReco() {
         const soft = det > 4 && det < totalN && (isLowInputTestEnv() || prov);
         if ((strong || soft) && (test.autoRetestCount || 0) < MAX_AUTO_RETEST && !test.flow) {
             test.autoRetestCount = (test.autoRetestCount || 0) + 1;
-            // 低入力が原因っぽいときだけ救済（高感度）。入力は十分だが検出数だけ少ない場合は同じ設定で再テスト。
-            test.rescueHighSens = shouldUseRescueHighSens();
+            // イヤホンは常に救済。auto/normalは低入力っぽいときだけ救済。それ以外は同じ設定で再テスト。
+            test.rescueHighSens = shouldAllowRescueHighSens();
             if (els.testReco) els.testReco.classList.add('hidden');
             if (els.recoRetest) els.recoRetest.classList.add('hidden');
             if (els.recoRetestBtn) els.recoRetestBtn.classList.add('hidden');
@@ -3061,8 +3085,8 @@ function updateReco() {
         (lowInputMax != null && lowInputMax < 0.035) ||
         (minStroke != null && minStroke < 0.025)
     );
-    // 救済(rescueHighSens)で拾い直した結果も低入力として扱い、おすすめ表示・手動プロファイルをそろえる。
-    const lowInputTuned = (isLowInputTestEnv() || test.rescueHighSens) && lowInput;
+    // 救済(rescueHighSens)やイヤホン接続で拾った結果も低入力として扱い、おすすめ表示・手動プロファイルをそろえる。
+    const lowInputTuned = (isLowInputTestEnv() || shouldUseLowInputDisplayProfile()) && lowInput;
     test.lowInputTuned = lowInputTuned; // 詳細表示(updateTestDetail)で表示スケールを合わせるため保持
     const lowInputNoiseLine = Math.max(THR_MIN, TEST_LOW_STROKE_FLOOR, (test.noiseP95 || 0) * 4, (test.noiseMax || 0) * 1.5);
 
