@@ -1305,6 +1305,31 @@ h1 {
     padding: 8px 10px;
 }
 
+/* マイク遅れ補正の warm-up（準備中）表示（v0.9.67）。
+   本番測定と見た目を分けるためのアンバーのバッジ＋案内。 */
+.cal-warmup-badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #2a1c05;
+    background: linear-gradient(180deg, #ffd166, #ffb52e);
+    border-radius: 6px;
+    padding: 2px 8px;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.cal-warmup-text {
+    font-weight: 700;
+}
+
+.cal-status-tail {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.72rem;
+    opacity: 0.7;
+}
+
 .cal-result {
     display: flex;
     flex-direction: column;
@@ -1565,9 +1590,19 @@ h1 {
 .seg-cards .input-seg {
     padding: 15px 12px;
     border-radius: 12px;
-    border: 2px solid rgba(253, 246, 238, 0.3);
-    background: rgba(253, 246, 238, 0.06);
-    color: rgba(253, 246, 238, 0.92);
+    /* v0.9.66：未選択でも「押せる選択肢」と分かるよう、枠線をはっきり・文字を明るく・背景を持ち上げる */
+    border: 2px solid rgba(255, 159, 28, 0.45);
+    background: rgba(253, 246, 238, 0.10);
+    color: var(--text-color);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+}
+
+@media (hover: hover) {
+    .seg-cards .input-seg:hover {
+        border-color: #ff9f1c;
+        background: rgba(255, 159, 28, 0.12);
+    }
 }
 
 /* v0.9.65：イヤホン種類のサブカードを入力タイプと同じ縦リズムに揃える

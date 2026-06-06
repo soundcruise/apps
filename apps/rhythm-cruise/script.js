@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.65';
+const RHYTHM_CRUISE_VERSION = '0.9.67';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -496,6 +496,7 @@ const els = {
     setThreshold: $('set-threshold'),
     setThresholdVal: $('set-threshold-val'),
     setCooldown: $('set-cooldown'),
+    setCooldownRow: $('set-cooldown-row'),
     setCooldownVal: $('set-cooldown-val'),
     setOffset: $('set-offset'),
     setOffsetVal: $('set-offset-val'),
@@ -2540,25 +2541,25 @@ function practiceComment(r) {
     const lowVol = volRatio < 0.9;        // 波形はあっても判定ラインに届いていない
     // 判定A：入力が拾えていない（有効入力が少ない/MISS多い かつ 音量が反応ラインに届いていない）
     if ((r.valid < 5 || r.miss >= 4) && lowVol) {
-        return { kind: 'warn', issue: 'input', text: '入力が十分に拾えていません。マイク反応テストで反応ラインを調整してから、もう一度実践テストを行ってください。' };
+        return { kind: 'warn', issue: 'input', text: '入力が十分に拾えていません。入力タイプ・ストローク検出モード・マイク反応テストの設定が合っているか確認してから、もう一度実践テストを行ってください。' };
     }
     // 判定B：音量は拾えているがMISSが多い（反応ライン付近まで来ているのに判定に入りきっていない）
     if (r.valid < 6 || r.miss >= 3) {
-        return { kind: 'warn', issue: 'input', text: '入力はありますが、判定に入りきっていません。反応ラインやストローク位置を確認して、もう一度実践テストを行ってください。' };
+        return { kind: 'warn', issue: 'miss', text: 'MISSが多めです。反応ラインが少し高いか、ストローク検出モードが合っていないかもしれません。マイク反応テストで反応ラインを見直してから、もう一度実践テストを行ってください。' };
     }
     // 判定C：タイミングが大きく偏っている（有効入力6以上・平均±40ms以上 or 片寄り70%以上）
     const lateRatio = r.valid ? r.late / r.valid : 0;
     const earlyRatio = r.valid ? r.early / r.valid : 0;
     const biased = Math.abs(r.avg) >= 40 || lateRatio >= 0.7 || earlyRatio >= 0.7;
     if (biased && (r.avg >= 40 || (lateRatio >= 0.7 && lateRatio >= earlyRatio))) {
-        return { kind: 'warn', issue: 'timing', text: '判定がLATE（遅め）に片寄っています。補正を確認してから、もう一度実践テストを行ってください。' };
+        return { kind: 'warn', issue: 'timing', text: '判定がLATE（遅め）に片寄っています。マイクの遅れ補正やイヤホン音ズレ補正が合っているか確認してから、もう一度実践テストを行ってください。' };
     }
     if (biased && (r.avg <= -40 || (earlyRatio >= 0.7 && earlyRatio > lateRatio))) {
-        return { kind: 'warn', issue: 'timing', text: '判定がEARLY（早め）に片寄っています。補正を確認してから、もう一度実践テストを行ってください。' };
+        return { kind: 'warn', issue: 'timing', text: '判定がEARLY（早め）に片寄っています。マイクの遅れ補正やイヤホン音ズレ補正が合っているか確認してから、もう一度実践テストを行ってください。' };
     }
     // 二重反応が出ているときは「問題なし」にせず、軽く注意
     if (r.doubleCount > 0) {
-        return { kind: 'warn', issue: 'double', text: '二重反応が出ています。二重反応防止を調整してから、もう一度実践テストを行ってください。' };
+        return { kind: 'warn', issue: 'double', text: '二重反応が出ています。手動設定の二重反応防止やストローク検出モードを確認してから、もう一度実践テストを行ってください。' };
     }
     // 判定D：問題なさそう
     return { kind: 'ok', issue: null, text: 'この設定で練習を始められます。必要に応じて、あとから手動設定で微調整できます。' };
@@ -2623,8 +2624,9 @@ function renderPracticeResult(r) {
     } else {
         let fixLabel = '実践テストをやり直す', fixId = 'pt-result-fix-rerun';
         if (c.issue === 'input') { fixLabel = 'マイク反応テストをやり直す'; fixId = 'pt-result-fix-test'; }
+        else if (c.issue === 'miss') { fixLabel = '反応ラインを確認する'; fixId = 'pt-result-fix-test'; }
         else if (c.issue === 'timing') { fixLabel = '補正を確認する'; fixId = 'pt-result-fix-correction'; }
-        else if (c.issue === 'double') { fixLabel = '手動設定で二重反応防止を調整する'; fixId = 'pt-result-fix-manual'; }
+        else if (c.issue === 'double') { fixLabel = '二重反応防止を調整する'; fixId = 'pt-result-fix-manual'; }
         actions =
             '<button type="button" id="' + fixId + '" style="' + primary + '">' + fixLabel + '</button>' +
             '<button type="button" id="pt-result-rerun" style="' + sub + '">もう一度実践テストする</button>';
@@ -2655,12 +2657,41 @@ function bindPracticeResultActions() {
     if (rerun) rerun.addEventListener('click', () => startPracticeTest());
     const fixRerun = document.getElementById('pt-result-fix-rerun');
     if (fixRerun) fixRerun.addEventListener('click', () => startPracticeTest());
+    // 原因別の戻り先（v0.9.67）：移動前に必ず古い実践テスト結果を消す
     const fixTest = document.getElementById('pt-result-fix-test');
-    if (fixTest) fixTest.addEventListener('click', () => { wizardEditing = 'test'; renderSettingsView(); scrollToSettingsEl(els.testCard); });
+    if (fixTest) fixTest.addEventListener('click', () => practiceFixGoTo('test'));
     const fixCorrection = document.getElementById('pt-result-fix-correction');
-    if (fixCorrection) fixCorrection.addEventListener('click', () => { wizardEditing = 'correction'; renderSettingsView(); scrollToSettingsEl(wizardStepCards('correction')[0]); });
+    if (fixCorrection) fixCorrection.addEventListener('click', () => practiceFixGoTo('correction'));
     const fixManual = document.getElementById('pt-result-fix-manual');
-    if (fixManual) fixManual.addEventListener('click', () => { wizardEditing = null; renderSettingsView(); scrollToSettingsEl(els.manualCard); });
+    if (fixManual) fixManual.addEventListener('click', () => practiceFixGoTo('double'));
+}
+
+/* 実践テスト「調整が必要」からの原因別の戻り先（v0.9.67）。
+   どのルートでも古い実践テスト結果は消し、戻り先のステップを開く。 */
+function practiceFixGoTo(route) {
+    invalidatePracticeResult(); // 古い結果を消し、完了ボタンも無効へ
+    if (route === 'test') {
+        // 反応ラインからやり直す：補正系以降は未完了に戻す
+        setupProgress.recoApplied = false;
+        setupProgress.correctionDone = false;
+        wizardEditing = 'test';
+        if (settingsView !== 'steps') settingsView = 'steps';
+        renderSettingsView();
+        scrollToSettingsEl(els.testCard);
+    } else if (route === 'correction') {
+        // 補正を見直す：補正系を未完了に戻して開く
+        setupProgress.correctionDone = false;
+        wizardEditing = 'correction';
+        if (settingsView !== 'steps') settingsView = 'steps';
+        renderSettingsView();
+        scrollToSettingsEl(wizardStepCards('correction')[0]);
+    } else {
+        // 二重反応防止：手動設定を開き、二重反応防止付近へスクロール
+        setupProgress.manualForced = true;
+        wizardEditing = null;
+        if (els.manualDetail && !els.manualDetail.open) els.manualDetail.open = true;
+        openManualView(els.setCooldownRow || els.manualCard);
+    }
 }
 
 /* 後始末。showResult=true のときは結果表示と「完了」状態を残す（finishから呼ぶ） */
@@ -3206,13 +3237,27 @@ function editWizardStep(id) {
     scrollToSettingsEl(card);
 }
 
-/* 補正系を完了として実践テストへ（適用 / スキップ / 進む 共通） */
-function completeCorrectionStep() {
-    setupProgress.correctionDone = true;
-    // 補正を選び直した場合に備え、下流（実践テスト）の完了表示はいったん未完了へ
+/* 実践テスト結果を初期状態へ戻す（v0.9.67）。
+   補正の適用・実践テストに影響する設定変更のたびに呼び、古い結果を残さない。
+   ・進行中の実践テストを停止
+   ・前回の結果カードを消す
+   ・「実践テストを開始」できる状態・完了ボタン無効へ戻す
+   note を渡すと、前回結果があったときだけ案内文を表示する。 */
+function invalidatePracticeResult(note) {
+    if (pt.active || pt.timers.length) stopPracticeTest();
+    if (els.ptResult) { els.ptResult.classList.add('hidden'); els.ptResult.innerHTML = ''; }
     setupProgress.practiceDone = false;
     setupProgress.manualForced = false;
     practiceResultOk = false;
+    if (els.ptStatus) els.ptStatus.textContent = note || '';
+    updateDoneButtonState();
+}
+
+/* 補正系を完了として実践テストへ（適用 / スキップ / 進む 共通） */
+function completeCorrectionStep() {
+    setupProgress.correctionDone = true;
+    // 補正を変更した時点で前回の実践テスト結果は古くなる → 初期化して再確認を促す
+    invalidatePracticeResult('補正を反映しました。もう一度実践テストで確認してください。');
     wizardEditing = null;
     if (settingsView === 'steps') {
         renderSettingsView();
@@ -3390,12 +3435,36 @@ function allPresets() {
     return BUILTIN_MIC_PRESETS.concat(loadPresets());
 }
 
-/* 共通の保存処理。name と完了メッセージの出し先を受け取り、ユーザープリセットとして追加。 */
+/* 組み込みプリセットと同じ名前か（組み込みは上書き・リネーム不可）。 */
+function isBuiltinPresetName(name) {
+    const n = (name || '').trim();
+    return BUILTIN_MIC_PRESETS.some((p) => p.name === n);
+}
+
+/* 共通の保存処理。name と完了メッセージの出し先を受け取り、ユーザープリセットとして保存。
+   ・組み込みと同名は不可
+   ・同名のユーザープリセットがある場合は confirm で上書き確認（OKで更新／キャンセルで保存しない） */
 function savePresetWithName(name, setMsg, clearInput) {
     name = (name || '').trim();
     if (!name) { if (setMsg) setMsg('プリセット名を入力してください。'); return false; }
+    if (isBuiltinPresetName(name)) {
+        if (setMsg) setMsg('標準プリセットと同じ名前は使えません。別の名前を入力してください。');
+        return false;
+    }
     const now = Date.now();
     const arr = loadPresets();
+    const existing = arr.find((p) => p && p.name === name);
+    if (existing) {
+        const ok = window.confirm('「' + name + '」は既にあります。上書き保存しますか？\n（キャンセルすると保存しません。残したい場合は別の名前にしてください）');
+        if (!ok) { if (setMsg) setMsg('上書きをキャンセルしました。別の名前でも保存できます。'); return false; }
+        existing.settings = currentMicPresetSettings();
+        existing.updatedAt = now;
+        savePresets(arr);
+        if (clearInput) clearInput();
+        if (setMsg) setMsg('上書き保存しました');
+        renderPresetList();
+        return true;
+    }
     arr.push({
         id: 'preset_' + now + '_' + Math.random().toString(36).slice(2, 7),
         name: name,
@@ -3408,6 +3477,39 @@ function savePresetWithName(name, setMsg, clearInput) {
     if (setMsg) setMsg('保存しました');
     renderPresetList();
     return true;
+}
+
+/* ユーザープリセットの名前変更（v0.9.67）。prompt 実装。組み込みは対象外。 */
+function renamePreset(id) {
+    const arr = loadPresets();
+    const p = arr.find((x) => x && x.id === id);
+    if (!p) return;
+    const input = window.prompt('新しいプリセット名を入力してください。', p.name);
+    if (input === null) return; // キャンセル
+    const name = input.trim();
+    if (!name) { setPresetSaveMsg('プリセット名を入力してください。'); return; }
+    if (isBuiltinPresetName(name)) { setPresetSaveMsg('標準プリセットと同じ名前は使えません。別の名前にしてください。'); return; }
+    if (arr.some((x) => x && x.id !== id && x.name === name)) {
+        setPresetSaveMsg('同じ名前のプリセットがあります。別の名前にしてください。');
+        return;
+    }
+    p.name = name;
+    p.updatedAt = Date.now();
+    savePresets(arr);
+    setPresetSaveMsg('名前を変更しました');
+    renderPresetList();
+}
+
+/* ユーザープリセットの並び替え（v0.9.67）。dir<0で上へ、dir>0で下へ。組み込みは常に上部固定。 */
+function movePreset(id, dir) {
+    const arr = loadPresets();
+    const i = arr.findIndex((x) => x && x.id === id);
+    if (i < 0) return;
+    const j = i + (dir < 0 ? -1 : 1);
+    if (j < 0 || j >= arr.length) return;
+    const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    savePresets(arr);
+    renderPresetList();
 }
 
 /* 「名前をつけて保存」：空欄は不可。同名でも別プリセットとして保存（シンプル運用）。 */
@@ -3476,30 +3578,60 @@ function deletePreset(id) {
     renderPresetList();
 }
 
-/* 保存済みプリセット一覧を描画。組み込み（削除不可）＋ユーザー保存（削除可）。 */
+/* 保存済みプリセット一覧を描画（v0.9.67）。
+   ・組み込み3種：常に上部固定。呼び出しのみ（削除・リネーム・並び替え不可）
+   ・ユーザー保存：呼び出し／名前変更／↑↓並び替え／削除。先頭は↑無効・末尾は↓無効 */
 function renderPresetList() {
     if (!els.presetList) return;
-    const arr = allPresets();
-    const rowStyle = 'display:flex;align-items:center;gap:8px;padding:9px 10px;margin-bottom:8px;'
+    const users = loadPresets();
+    const rowStyle = 'display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:9px 10px;margin-bottom:8px;'
         + 'border:1px solid rgba(255,255,255,0.14);border-radius:10px;background:rgba(255,255,255,0.05);';
+    const nameStyle = 'flex:1 1 100%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;';
     const applyStyle = 'flex:none;padding:8px 14px;border-radius:8px;border:1px solid rgba(255,160,60,0.85);'
         + 'background:rgba(255,160,60,0.2);color:inherit;font-size:0.85rem;font-weight:700;cursor:pointer;';
-    const delStyle = 'flex:none;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.3);'
-        + 'background:rgba(255,255,255,0.04);color:inherit;font-size:0.85rem;cursor:pointer;';
+    const miniStyle = 'flex:none;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.3);'
+        + 'background:rgba(255,255,255,0.04);color:inherit;font-size:0.8rem;cursor:pointer;';
+    const miniDisabled = miniStyle + 'opacity:0.3;cursor:default;';
+    const delStyle = 'flex:none;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,120,120,0.45);'
+        + 'background:rgba(255,120,120,0.08);color:inherit;font-size:0.8rem;cursor:pointer;';
     const badge = 'flex:none;font-size:0.68rem;opacity:0.6;border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:2px 6px;';
-    els.presetList.innerHTML = arr.map((p) =>
+
+    let html = BUILTIN_MIC_PRESETS.map((p) =>
         '<div style="' + rowStyle + '">' +
-        '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(p.name) + '</span>' +
-        (p.builtin ? '<span style="' + badge + '">標準</span>' : '') +
+        '<span style="' + nameStyle + '">' + escapeHtml(p.name) + '</span>' +
+        '<span style="' + badge + '">標準</span>' +
         '<button type="button" class="preset-apply-btn" data-id="' + p.id + '" style="' + applyStyle + '">呼び出す</button>' +
-        (p.builtin ? '' : '<button type="button" class="preset-del-btn" data-id="' + p.id + '" aria-label="削除" style="' + delStyle + '">削除</button>') +
         '</div>'
     ).join('');
+
+    html += users.map((p, k) => {
+        const upDis = (k === 0);
+        const downDis = (k === users.length - 1);
+        return '<div style="' + rowStyle + '">' +
+            '<span style="' + nameStyle + '">' + escapeHtml(p.name) + '</span>' +
+            '<button type="button" class="preset-up-btn" data-id="' + p.id + '" aria-label="上へ"' + (upDis ? ' disabled' : '') + ' style="' + (upDis ? miniDisabled : miniStyle) + '">↑</button>' +
+            '<button type="button" class="preset-down-btn" data-id="' + p.id + '" aria-label="下へ"' + (downDis ? ' disabled' : '') + ' style="' + (downDis ? miniDisabled : miniStyle) + '">↓</button>' +
+            '<button type="button" class="preset-apply-btn" data-id="' + p.id + '" style="' + applyStyle + '">呼び出す</button>' +
+            '<button type="button" class="preset-rename-btn" data-id="' + p.id + '" style="' + miniStyle + '">名前変更</button>' +
+            '<button type="button" class="preset-del-btn" data-id="' + p.id + '" aria-label="削除" style="' + delStyle + '">削除</button>' +
+            '</div>';
+    }).join('');
+
+    els.presetList.innerHTML = html;
     els.presetList.querySelectorAll('.preset-apply-btn').forEach((b) => {
         b.addEventListener('click', () => applyPreset(b.getAttribute('data-id')));
     });
     els.presetList.querySelectorAll('.preset-del-btn').forEach((b) => {
         b.addEventListener('click', () => deletePreset(b.getAttribute('data-id')));
+    });
+    els.presetList.querySelectorAll('.preset-rename-btn').forEach((b) => {
+        b.addEventListener('click', () => renamePreset(b.getAttribute('data-id')));
+    });
+    els.presetList.querySelectorAll('.preset-up-btn').forEach((b) => {
+        b.addEventListener('click', () => { if (!b.disabled) movePreset(b.getAttribute('data-id'), -1); });
+    });
+    els.presetList.querySelectorAll('.preset-down-btn').forEach((b) => {
+        b.addEventListener('click', () => { if (!b.disabled) movePreset(b.getAttribute('data-id'), 1); });
     });
 }
 
@@ -3547,11 +3679,17 @@ function closeSettings() {
 }
 
 function resetSettings() {
+    mic.inputType = 'normal';
+    mic.headphoneType = 'wired';
     mic.threshold = SETTINGS_DEFAULTS.threshold;
     mic.lowInputProfile = false; // 既定に戻すときは通常スケール表示へ
     mic.cooldownMs = SETTINGS_DEFAULTS.cooldownMs;
     mic.clickGuardMs = SETTINGS_DEFAULTS.clickGuardMs;
     mic.timingOffsetMs = SETTINGS_DEFAULTS.timingOffsetMs;
+    mic.headphoneOffsetWiredMs = HP_TYPE_DEFAULT_OFFSET.wired;
+    mic.headphoneOffsetBluetoothMs = HP_TYPE_DEFAULT_OFFSET.bluetooth;
+    mic.headphoneOutputOffsetMs = HP_TYPE_DEFAULT_OFFSET.wired;
+    state.strokeDetectMode = 'brush';
     state.clickVolume = SETTINGS_DEFAULTS.clickVolume;
     // マイク設定の進捗フラグもリセット（開発中の動作確認をしやすくするため）
     state.micTestDone = false;
@@ -3843,13 +3981,30 @@ function resetMicSetupState() {
     updateMicDelayDoneUI();
 }
 
-/* 設定画面上部の「設定状態をリセット」ボタン。実設定値は変えず、済み/誘導状態だけを未実施へ戻す。 */
+/* 設定画面上部の「設定状態をリセット」ボタン。
+   設定値を初期化し、ウィザード進行・各テスト結果も消して、マイク設定トップ（chooser）へ戻す。
+   保存済みプリセットは別管理なので削除しない。 */
+/* 「設定手順をリセット」（上部ボタン・v0.9.67）。
+   今回のテスト進行・表示状態だけをリセットしてトップ画面へ戻す。
+   保存済み設定値（threshold等）は維持し、保存済みプリセットも消さない。 */
 function onMicResetClick() {
-    resetMicSetupState();
+    // 進行中のテスト等を止めて、おすすめ/実践/補正の結果表示をクリア（保存値は変えない）
+    resetSetupFlowDisplay();
+    // ウィザード進行状態を初期化
+    setupProgress = freshSetupProgress();
+    wizardEditing = null;
+    practiceResultOk = false;
+    setPresetSaveMsg('');
+    // プリセット一覧は閉じた状態へ
+    if (els.presetListWrap) els.presetListWrap.style.display = 'none';
+    if (els.presetToggleBtn) els.presetToggleBtn.textContent = '保存済みプリセット ▾';
+    // マイク設定トップ（もう一度テストする／保存済みプリセット／現在の設定を見る）へ戻す
+    setSettingsView('chooser');
     if (els.micResetMsg) {
-        els.micResetMsg.textContent = 'マイク設定の状態を未実施に戻しました。';
+        els.micResetMsg.textContent = 'テスト手順をリセットしました。最初からやり直せます。';
         els.micResetMsg.classList.remove('hidden');
     }
+    scrollToSettingsEl(els.settingsChooser);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -4667,9 +4822,8 @@ function applyReco() {
         setupProgress.recoApplied = true;
         // テストをやり直して適用したら、補正系以降は未完了へ戻す
         setupProgress.correctionDone = false;
-        setupProgress.practiceDone = false;
-        setupProgress.manualForced = false;
-        practiceResultOk = false;
+        // 反応ラインが変わったので前回の実践テスト結果は無効化する
+        invalidatePracticeResult();
         wizardEditing = null;
         if (settingsView === 'steps') {
             renderSettingsView();
@@ -5060,6 +5214,28 @@ function updateCalMonitor() {
     if (els.calCount) els.calCount.textContent = cal.samples.length + '回';
     if (els.calLast) els.calLast.textContent = cal.lastLevel.toFixed(2);
     if (els.calMax) els.calMax.textContent = cal.maxPeak.toFixed(2);
+    // 測定中は検出が来るたびに状況テキストも更新（クリック発音→検出の遅れで「検出」数が1つ遅れて
+    // 見える問題への対策。micLoop から毎フレーム呼ばれるので検出反映が即座に表示へ届く）。
+    if (mic.calibrating) renderCalMeasuringStatus();
+}
+
+/* 補正テスト中の状況テキスト。warm-up（準備）中と本番測定中で出し分け、
+   本番は「測定中 X / 8　検出 Y / 8」で鳴らした数と検出数を一致表示する。 */
+function renderCalMeasuringStatus() {
+    if (!els.calStatus) return;
+    const tail = '（補正用の音量' + cal.clickVol + '%・補正用反応ライン'
+        + (cal.threshold != null ? cal.threshold.toFixed(3) : '–') + 'で実行中・STAGE設定には影響しません）';
+    if (!cal.warmupDone) {
+        // warm-up：実測ピークから補正用反応ラインを決めている最中（本番8回には数えない）。
+        // 「本番測定ではない」ことが伝わるよう、アンバーのバッジで強調する（v0.9.67）。
+        els.calStatus.innerHTML =
+            '<span class="cal-warmup-badge">準備中</span>'
+            + '<span class="cal-warmup-text">クリック音の大きさを確認しています。このあと 1 / ' + CAL_CLICKS + ' から本番測定を始めます。</span>'
+            + '<span class="cal-status-tail">' + escapeHtml(tail) + '</span>';
+        return;
+    }
+    els.calStatus.textContent = '測定中 ' + cal.i + ' / ' + CAL_CLICKS
+        + '　検出 ' + cal.samples.length + ' / ' + CAL_CLICKS + tail;
 }
 
 function setCalUI(mode, arg) {
@@ -5067,8 +5243,7 @@ function setCalUI(mode, arg) {
     const showMonitor = (on) => { if (els.calMonitor) els.calMonitor.classList.toggle('hidden', !on); };
     if (mode === 'measuring') {
         els.calStatus.classList.remove('hidden');
-        els.calStatus.textContent = '測定中 ' + cal.i + ' / ' + CAL_CLICKS
-            + '　検出 ' + cal.samples.length + '回（補正用の音量' + cal.clickVol + '%・補正用反応ライン' + (cal.threshold != null ? cal.threshold.toFixed(3) : '–') + 'で実行中・STAGE設定には影響しません）';
+        renderCalMeasuringStatus();
         els.calResult.classList.add('hidden');
         els.calBtn.disabled = true;
         els.calBtn.classList.remove('is-todo'); // 測定中は赤系を外す
@@ -5449,6 +5624,12 @@ function bind() {
     // 値が確定したら保存
     [els.setThreshold, els.setCooldown, els.setOffset, els.setClickVol].forEach((sl) =>
         sl.addEventListener('change', saveSettings));
+    // 反応ライン・二重反応防止・マイク遅れ補正は実践テストの判定に効くので、
+    // 変更したら前回の実践テスト結果を無効化して再確認を促す（v0.9.67）
+    [els.setThreshold, els.setCooldown, els.setOffset].forEach((sl) => {
+        if (sl) sl.addEventListener('change', () =>
+            invalidatePracticeResult('設定を変更しました。もう一度実践テストで確認してください。'));
+    });
 
     // 手動設定（折りたたみ）を開いたら、中のプレビューをサイズ確定して描画
     if (els.manualDetail) els.manualDetail.addEventListener('toggle', () => { if (els.manualDetail.open) fitPreview(); });

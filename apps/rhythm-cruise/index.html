@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.30">
+    <link rel="stylesheet" href="theme.css?v=0.9.67">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -143,7 +143,8 @@
             <header class="settings-head">
                 <h2>マイク設定</h2>
                 <p class="settings-sub">クリック音とストローク音を確認して、反応しやすさを調整します</p>
-                <button type="button" class="btn-mini mic-reset-btn" id="mic-reset-btn">設定状態をリセット</button>
+                <button type="button" class="btn-mini mic-reset-btn" id="mic-reset-btn">設定手順をリセット</button>
+                <p class="setting-note" style="margin:6px 0 0;opacity:0.75;">表示中のテスト結果を消して、最初の画面に戻ります。設定値とプリセットは残ります。</p>
                 <p class="mic-reset-msg hidden" id="mic-reset-msg"></p>
             </header>
 
@@ -386,7 +387,7 @@
                         <input type="range" id="set-clickvol" min="0" max="100" step="5" value="70">
                         <p class="setting-note">クリック音がマイクに入る場合は下げます。聞き取りにくい場合は上げます。</p>
                     </div>
-                    <div class="setting-row">
+                    <div class="setting-row" id="set-cooldown-row">
                         <div class="setting-label">二重反応防止 <b id="set-cooldown-val">200ms</b></div>
                         <input type="range" id="set-cooldown" min="100" max="400" step="10" value="200">
                         <p class="setting-note">1回のストロークで何度も反応する場合は長めにします。</p>
@@ -415,9 +416,10 @@
                 <p class="cal-status" id="preset-save-msg"></p>
             </div>
 
+            <p class="setting-note" style="text-align:center;opacity:0.75;margin-bottom:4px;">「設定値を初期値に戻す」は、マイク感度などの設定値を初期状態に戻します。保存済みプリセットは残ります。</p>
             <p class="setting-note warn hidden" id="settings-done-hint" style="text-align:center;">実践テストまで完了してください。</p>
             <div class="settings-actions">
-                <button class="btn-mini" id="settings-reset-btn">初期値に戻す</button>
+                <button class="btn-mini" id="settings-reset-btn">設定値を初期値に戻す</button>
                 <button class="btn-primary settings-back" id="settings-back-btn">完了</button>
             </div>
         </section>
@@ -513,7 +515,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.65"></script>
+    <script src="script.js?v=0.9.67"></script>
 </body>
 
 </html>
