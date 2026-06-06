@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.54';
+const RHYTHM_CRUISE_VERSION = '0.9.55';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -359,15 +359,15 @@ const els = {
     setHpOffsetVal: $('set-hp-offset-val'),
     setHpOffsetNote: $('set-hp-offset-note'),
     setHpResetBtn: $('set-hp-reset'),
-    // 判定ズレ確認（v0.9.54）
-    jcCard: $('jc-card'),
-    jcBtn: $('jc-btn'),
-    jcStatus: $('jc-status'),
-    jcResult: $('jc-result'),
-    jcDot0: $('jc-dot-0'),
-    jcDot1: $('jc-dot-1'),
-    jcDot2: $('jc-dot-2'),
-    jcDot3: $('jc-dot-3'),
+    // 実践テスト（v0.9.55。旧「判定ズレ確認」を置き換え）
+    ptCard: $('pt-card'),
+    ptNote: $('pt-note'),
+    ptLaneWrap: $('pt-lane-wrap'),
+    ptLaneCanvas: $('pt-lane-canvas'),
+    ptBtn: $('pt-btn'),
+    ptStatus: $('pt-status'),
+    ptResult: $('pt-result'),
+    autoEarphoneHint: $('auto-earphone-hint'),
     testInputNote: $('test-input-note'),
     testCardNote: $('test-card-note'),
     tapArea: $('tap-area'),
@@ -511,6 +511,7 @@ let preview = { ctx: null, w: 0, h: 0 };
 let graph = { ctx: null, w: 0, h: 0 };
 let review = { ctx: null, w: 0, h: 0, beatPx: 70, leftPad: 38 };
 let testLane = { ctx: null, w: 0, h: 0 }; // マイク反応テストの流れる譜面
+let ptLane = { ctx: null, w: 0, h: 0 };   // 実践テストの流れる譜面（STAGE1風）
 
 /* ── STAGE一覧を描画 ────────────────────────────────────── */
 function renderStages() {
@@ -1571,7 +1572,7 @@ function onPlayBtn() {
 }
 
 function play() {
-    stopJudgeCheck(); // STAGE開始時は判定ズレ確認を停止（安全処理）
+    stopPracticeTest(); // STAGE開始時は実践テストを停止（安全処理）
     ensureAudio();
     resetData();
     buildSchedule();
@@ -2006,9 +2007,9 @@ function updateMicInputTypeUI() {
     const headphone = (t === 'headphone');
     if (els.hpTypeCard) els.hpTypeCard.classList.toggle('hidden', !headphone);
     if (els.calCard) els.calCard.classList.toggle('hidden', headphone);
-    // 判定ズレ確認カードは headphone のときだけ表示。マイク遅れ補正カードの代わりに出す。
-    if (els.jcCard) els.jcCard.classList.toggle('hidden', !headphone);
-    if (!headphone) stopJudgeCheck(); // headphone以外へ切替えたら判定ズレ確認を停止
+    // 実践テストカードは入力タイプに関係なく常に表示（補足文だけ入力タイプで変える）。
+    updatePracticeTestNote();
+    stopPracticeTest(); // 入力タイプを変更したら実践テストは停止
     if (els.setHpOffsetRow) els.setHpOffsetRow.classList.toggle('hidden', !headphone); // 手動設定の補正行は headphone のときだけ
     updateHeadphoneTypeUI();
 }
@@ -2106,7 +2107,7 @@ function hpBeatTick() {
 }
 
 function startHeadphoneCal() {
-    if (jc.active) stopJudgeCheck(); // 判定ズレ確認と排他
+    if (pt.active) stopPracticeTest(); // 実践テストと排他
     ensureAudio();
     try { if (state.audioCtx && state.audioCtx.state === 'suspended') state.audioCtx.resume(); } catch (_) { /* ignore */ }
     hpCal.active = true;
@@ -2180,45 +2181,45 @@ function updateHeadphoneTypeUI() {
     if (els.setHpResetBtn) els.setHpResetBtn.textContent = (t === 'bluetooth') ? '180msに戻す' : '30msに戻す';
 }
 
-/* ── 判定ズレ確認（v0.9.54）─────────────────────────────────────
-   イヤホン接続時の「マイク遅れ補正」代替の第一歩。STAGE1に近い簡易テストで、
-   クリックに合わせた8回のストロークの GOOD/EARLY/LATE/MISS と平均ズレを確認するだけ。
+/* ── 実践テスト（v0.9.55。旧「判定ズレ確認」を再設計）─────────────────
+   通常マイク・イヤホン共通の「実践テスト」。STAGE1「4分ジャスト」に近い内容で、
+   STAGE1風の流れる音符＋判定ライン＋音量波形を表示し、8回ストロークの
+   GOOD/EARLY/LATE/MISS・平均ズレ・検出音量・二重反応を「総合的に」確認するだけ。
    重要：補正値の自動適用・timingOffsetMs変更・STAGE判定への反映は一切しない（確認と表示のみ）。
-   判定の基準時刻・拍割り当て・分類は STAGE と同じ「オーディオ時計＋mic.timingOffsetMs」で行う（読むだけ）。 */
-const JC_BPM = 80;                      // STAGE1と同じテンポ
-const JC_BEAT_MS = 60000 / JC_BPM;      // 750ms（4分）
-const JC_COUNTIN = 4;                   // カウントイン4拍
-const JC_PLAY_BEATS = 8;                // 本番8回ストローク
-const JC_LEAD_MS = 400;                 // 開始から最初のカウントインまでの小休止
-const JC_MIN_GAP_MS = 130;              // オンセットの最小間隔（二重カウント防止）
-const JC_CAP_WIN_MS = JC_BEAT_MS * 0.5; // 取り込み窓（前後半拍）。これを超える入力はその拍に割り当てない＝MISS
-const jc = { active: false, capturing: false, timers: [], scheduled: [], audioStart: 0, playT0Ms: 0, onsets: [], lastOnsetAt: 0 };
+   判定の基準時刻・拍割り当て・分類は STAGE と同じ「オーディオ時計＋mic.timingOffsetMs」で行う（読むだけ）。
+   描画は STAGE本体ではなく、マイク反応テストと同じテストレーン描画の流儀を流用した専用キャンバスで行い、
+   STAGE本体の state.results / スコア / 進行には一切触れない（専用モード practiceTest）。 */
+const PT_BPM = 80;                      // STAGE1と同じテンポ
+const PT_BEAT_MS = 60000 / PT_BPM;      // 750ms（4分）
+const PT_COUNTIN = 4;                   // カウントイン4拍
+const PT_PLAY_BEATS = 8;                // 本番8回ストローク
+const PT_LEAD_MS = 400;                 // 開始から最初のカウントインまでの小休止
+const PT_MIN_GAP_MS = 130;              // オンセットの最小間隔（二重カウント防止）
+const PT_NEAR_WIN = Math.max(NEAR_MS, PT_BEAT_MS * NEAR_FRAC); // 拍への割り当て窓（これを超えたらMISS）
+const PT_CAP_WIN_MS = PT_BEAT_MS * 0.5; // 取り込み開始/終了のゆとり
+const PT_WAVE_WINDOW_MS = 4000;         // 波形バッファの保持時間
+const pt = {
+    active: false, capturing: false, timers: [], scheduled: [], raf: 0,
+    audioStart: 0, flowStartPerf: 0, playT0Ms: 0,
+    notes: [], onsets: [], wave: [], lastOnsetAt: 0, maxPeak: 0, doubleCount: 0,
+};
 
-function setJcStatus(t) { if (els.jcStatus) els.jcStatus.textContent = t || ''; }
-function jcTimer(fn, ms) { const id = setTimeout(fn, ms); jc.timers.push(id); return id; }
-function jcDotEls() { return [els.jcDot0, els.jcDot1, els.jcDot2, els.jcDot3]; }
-function lightJcDot(i) {
-    jcDotEls().forEach((d, idx) => {
-        if (!d) return;
-        if (idx === i) {
-            d.style.background = (i === 0) ? '#2ecc71' : '#ff9f1c';
-            d.style.boxShadow = '0 0 12px ' + ((i === 0) ? 'rgba(46,204,113,0.85)' : 'rgba(255,159,28,0.85)');
-        } else {
-            d.style.background = (idx === 0) ? 'rgba(46,204,113,0.25)' : 'rgba(253,246,238,0.16)';
-            d.style.boxShadow = 'none';
-        }
-    });
-}
-function clearJcDots() {
-    jcDotEls().forEach((d, idx) => {
-        if (!d) return;
-        d.style.background = (idx === 0) ? 'rgba(46,204,113,0.25)' : 'rgba(253,246,238,0.16)';
-        d.style.boxShadow = 'none';
-    });
+/* 入力タイプ別の補足文（表示は常に出す。文言だけ少し変える） */
+const PT_NOTE_BY_TYPE = {
+    auto: '入力状態に合わせた設定で、実際に問題なく判定されるか確認します。',
+    normal: '本体マイクや外部マイクで、音量と判定の安定性を確認します。',
+    headphone: 'イヤホン接続時は、音量だけでなく判定の偏りも確認します。',
+};
+function updatePracticeTestNote() {
+    if (els.ptNote) els.ptNote.textContent = PT_NOTE_BY_TYPE[getMicInputType()] || PT_NOTE_BY_TYPE.auto;
 }
 
-/* 判定ズレ確認専用クリック。clickVolumeに合わせつつ聞き取りやすさのため下限あり（STAGE/click()には影響なし） */
-function jcScheduleClick(atSec, accent) {
+function setPtStatus(t) { if (els.ptStatus) els.ptStatus.textContent = t || ''; }
+function ptTimer(fn, ms) { const id = setTimeout(fn, ms); pt.timers.push(id); return id; }
+function fitPtLane() { if (els.ptLaneCanvas) ptLane = fitOne(els.ptLaneCanvas); }
+
+/* 実践テスト専用クリック。clickVolumeに合わせつつ聞き取りやすさのため下限あり（STAGE/click()には影響なし） */
+function ptScheduleClick(atSec, accent) {
     const ctx = state.audioCtx;
     if (!ctx) return;
     const vol = Math.max(0.4, Math.min(1, (state.clickVolume || 0) / 100));
@@ -2234,144 +2235,252 @@ function jcScheduleClick(atSec, accent) {
     osc.connect(g).connect(ctx.destination);
     osc.start(t0);
     osc.stop(t0 + 0.09);
-    jc.scheduled.push(osc);
+    pt.scheduled.push(osc);
 }
 
-function jcClassify(diff) {
+function ptClassify(diff) {
     const a = Math.abs(diff);
     if (a <= JUST_MS) return 'just';
-    const nearWin = Math.max(NEAR_MS, JC_BEAT_MS * NEAR_FRAC);
-    if (a <= nearWin) return diff < 0 ? 'early' : 'late';
+    if (a <= PT_NEAR_WIN) return diff < 0 ? 'early' : 'late';
     return 'miss';
 }
 
-async function startJudgeCheck() {
+/* STAGE1風の流れる音符＋判定ライン＋音量波形を描く（テストレーン描画の流儀を流用）。
+   t＝flowStartPerf からの経過ms。STAGE本体の drawLane には一切触れない。 */
+function drawPracticeLane(t) {
+    if (!ptLane || !ptLane.ctx) return;
+    const { ctx, w, h } = ptLane;
+    ctx.clearRect(0, 0, w, h);
+    const yc = h * 0.44;
+    const judgeX = w * 0.28;
+    const ppm = (w * 0.62) / (PT_BEAT_MS * 2); // 2拍ぶんを画面幅の約62%に
+    // 中央ガイド
+    ctx.strokeStyle = 'rgba(253,246,238,0.08)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke();
+    // 音量波形（反応ライン基準でスケール）：判定ラインを超えているかが見えるように描く
+    const line = mic.threshold || 0.0001;
+    const ampPx = h * 0.30;
+    const lineY = yc - Math.min(ampPx, (line / (line * 2)) * ampPx); // 反応ライン高さ＝中間
+    ctx.strokeStyle = 'rgba(255,107,107,0.45)';
+    ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, lineY); ctx.lineTo(w, lineY); ctx.stroke();
+    ctx.setLineDash([]);
+    if (pt.wave.length) {
+        ctx.beginPath();
+        let started = false;
+        for (let i = 0; i < pt.wave.length; i++) {
+            const p = pt.wave[i];
+            const x = judgeX + (p.t - t) * ppm;
+            if (x < -8 || x > w + 8) continue;
+            const lv = Math.min(1, p.level / (line * 2)); // 反応ラインの2倍で頭打ち
+            const y = yc - lv * ampPx;
+            if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+        }
+        ctx.strokeStyle = 'rgba(77,150,255,0.85)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+    // 音符（右→左へ流れる4分音符＋↓）
+    for (let i = 0; i < pt.notes.length; i++) {
+        const n = pt.notes[i];
+        const x = judgeX + (n.t - t) * ppm;
+        if (x < -24 || x > w + 24) continue;
+        const inWin = (n.cls == null) && Math.abs(t - n.t) <= PT_NEAR_WIN;
+        let col;
+        if (n.cls === 'just') col = COLORS.just;
+        else if (n.cls === 'early') col = COLORS.early;
+        else if (n.cls === 'late') col = COLORS.late;
+        else if (n.closed) col = 'rgba(253,246,238,0.3)';
+        else col = inWin ? 'rgba(255,209,102,0.98)' : NOTE_COLOR;
+        ctx.save();
+        if (inWin || (n.cls && n.cls !== 'miss')) {
+            ctx.shadowColor = n.cls === 'just' ? 'rgba(46,204,113,0.9)' : (n.cls ? 'rgba(77,150,255,0.8)' : 'rgba(255,159,28,0.8)');
+            ctx.shadowBlur = 11;
+        }
+        drawQuarterNote(ctx, x, yc, col);
+        ctx.restore();
+        ctx.fillStyle = n.closed ? 'rgba(255,180,90,0.55)' : 'rgba(255,180,90,0.95)';
+        ctx.font = '700 15px Outfit, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('↓', x, yc + 30);
+    }
+    // 判定ライン（縦・拍頭で軽く光る）
+    const glow = beatGlow(t - (PT_LEAD_MS), PT_BEAT_MS);
+    ctx.save();
+    ctx.shadowColor = 'rgba(255,159,28,0.95)'; ctx.shadowBlur = 10 + glow * 24;
+    ctx.strokeStyle = 'rgba(255,159,28,' + (0.85 + glow * 0.15).toFixed(2) + ')';
+    ctx.lineWidth = 3 + glow * 2;
+    ctx.beginPath(); ctx.moveTo(judgeX, h * 0.12); ctx.lineTo(judgeX, h * 0.86); ctx.stroke();
+    ctx.restore();
+    drawBeatDot(ctx, judgeX, h * 0.92, glow);
+}
+
+function ptLoop() {
+    if (!pt.active) return;
+    const t = performance.now() - pt.flowStartPerf;
+    // 通過した音符を閉じる（判定窓を過ぎたら closed）
+    for (let i = 0; i < pt.notes.length; i++) {
+        const n = pt.notes[i];
+        if (!n.closed && t > n.t + PT_NEAR_WIN) n.closed = true;
+    }
+    drawPracticeLane(t);
+    pt.raf = requestAnimationFrame(ptLoop);
+}
+
+async function startPracticeTest() {
     // 排他：他テスト（イヤホン音ズレ補正／マイク反応テスト）が動いていたら止める
     if (hpCal.active) stopHeadphoneCal();
     if (test.flow) abortMicTest();
-    if (!(await ensureTestMic())) { setJcStatus('マイクを許可してください。'); return; }
+    if (!(await ensureTestMic())) { setPtStatus('マイクを許可してください。'); return; }
     ensureAudio();
     try { if (state.audioCtx && state.audioCtx.state === 'suspended') await state.audioCtx.resume(); } catch (_) { /* ignore */ }
     const ctx = state.audioCtx;
-    if (!ctx) { setJcStatus('音声を初期化できませんでした。'); return; }
-    jc.active = true;
-    jc.capturing = false;
-    jc.onsets = [];
-    jc.lastOnsetAt = 0;
-    jc.timers.forEach(clearTimeout); jc.timers = [];
-    jc.scheduled = [];
-    if (els.jcResult) els.jcResult.classList.add('hidden');
-    if (els.jcBtn) els.jcBtn.textContent = '判定ズレ確認を停止';
+    if (!ctx) { setPtStatus('音声を初期化できませんでした。'); return; }
+    pt.active = true;
+    pt.capturing = false;
+    pt.onsets = [];
+    pt.wave = [];
+    pt.lastOnsetAt = 0;
+    pt.maxPeak = 0;
+    pt.doubleCount = 0;
+    pt.timers.forEach(clearTimeout); pt.timers = [];
+    pt.scheduled = [];
+    if (els.ptResult) els.ptResult.classList.add('hidden');
+    if (els.ptBtn) els.ptBtn.textContent = '実践テストを停止';
+    if (els.ptLaneWrap) els.ptLaneWrap.classList.remove('hidden');
+    fitPtLane();
 
-    jc.audioStart = ctx.currentTime;
-    const beatSec = JC_BEAT_MS / 1000;
-    const startSec = jc.audioStart + JC_LEAD_MS / 1000;
-    // クリック：カウントイン4拍＋本番8拍（各拍。1拍目＝小節頭をアクセント）
-    for (let i = 0; i < JC_COUNTIN; i++) jcScheduleClick(startSec + i * beatSec, i === 0);
-    const playStartSec = startSec + JC_COUNTIN * beatSec;
-    for (let j = 0; j < JC_PLAY_BEATS; j++) jcScheduleClick(playStartSec + j * beatSec, j % 4 === 0);
-    jc.playT0Ms = JC_LEAD_MS + JC_COUNTIN * JC_BEAT_MS; // jc.audioStart からの相対ms
+    pt.audioStart = ctx.currentTime;
+    pt.flowStartPerf = performance.now();
+    pt.playT0Ms = PT_LEAD_MS + PT_COUNTIN * PT_BEAT_MS; // audioStart/flowStart からの相対ms
+    // 本番8音符（4分・すべてダウン）。t＝flowStart からの相対ms。
+    pt.notes = [];
+    for (let j = 0; j < PT_PLAY_BEATS; j++) {
+        pt.notes.push({ t: pt.playT0Ms + j * PT_BEAT_MS, dir: 'down', closed: false, cls: null, diff: null, peak: 0, detected: false, doubled: false });
+    }
 
-    // 視覚クリック（4つの丸）＋状態表示。検出はオーディオ時計で行うため、表示はsetTimeout近似でOK。
-    setJcStatus('カウントイン…');
-    for (let i = 0; i < JC_COUNTIN; i++) jcTimer(() => lightJcDot(i % 4), JC_LEAD_MS + i * JC_BEAT_MS);
-    for (let j = 0; j < JC_PLAY_BEATS; j++) {
-        jcTimer(() => {
-            lightJcDot(j % 4);
-            setJcStatus('ストローク中　' + (j + 1) + ' / ' + JC_PLAY_BEATS);
-        }, JC_LEAD_MS + (JC_COUNTIN + j) * JC_BEAT_MS);
+    const beatSec = PT_BEAT_MS / 1000;
+    const startSec = pt.audioStart + PT_LEAD_MS / 1000;
+    // クリック：カウントイン4拍＋本番8拍（1拍目＝小節頭をアクセント）
+    for (let i = 0; i < PT_COUNTIN; i++) ptScheduleClick(startSec + i * beatSec, i === 0);
+    const playStartSec = startSec + PT_COUNTIN * beatSec;
+    for (let j = 0; j < PT_PLAY_BEATS; j++) ptScheduleClick(playStartSec + j * beatSec, j % 4 === 0);
+
+    setPtStatus('カウントイン…');
+    for (let j = 0; j < PT_PLAY_BEATS; j++) {
+        ptTimer(() => setPtStatus('ストローク中　' + (j + 1) + ' / ' + PT_PLAY_BEATS), pt.playT0Ms + j * PT_BEAT_MS);
     }
     // 取り込み窓：最初の本番拍の半拍前〜最終拍の半拍後
-    const capStartMs = jc.playT0Ms - JC_CAP_WIN_MS;
-    const capEndMs = jc.playT0Ms + (JC_PLAY_BEATS - 1) * JC_BEAT_MS + JC_CAP_WIN_MS;
-    jcTimer(() => { jc.capturing = true; }, capStartMs);
-    jcTimer(() => { jc.capturing = false; finishJudgeCheck(); }, capEndMs + 200);
+    const capStartMs = pt.playT0Ms - PT_CAP_WIN_MS;
+    const capEndMs = pt.playT0Ms + (PT_PLAY_BEATS - 1) * PT_BEAT_MS + PT_CAP_WIN_MS;
+    ptTimer(() => { pt.capturing = true; }, capStartMs);
+    ptTimer(() => { pt.capturing = false; finishPracticeTest(); }, capEndMs + 250);
+
+    pt.raf = requestAnimationFrame(ptLoop);
 }
 
-function finishJudgeCheck() {
-    const beatMs = JC_BEAT_MS;
-    const nearWin = Math.max(NEAR_MS, beatMs * NEAR_FRAC);
-    const results = new Array(JC_PLAY_BEATS).fill(null);
-    // 各オンセットを最寄りの本番拍へ割り当て（より近い入力を優先）。窓を超える入力はその拍に入れない＝MISS。
-    jc.onsets.forEach((o) => {
-        const rel = o.t - jc.playT0Ms;
-        const i = Math.round(rel / beatMs);
-        if (i < 0 || i > JC_PLAY_BEATS - 1) return;
-        const diff = o.t - (jc.playT0Ms + i * beatMs);
-        if (Math.abs(diff) > nearWin) return;
-        if (!results[i] || Math.abs(diff) < Math.abs(results[i].diff)) results[i] = { diff, cls: jcClassify(diff) };
-    });
+function finishPracticeTest() {
     let good = 0, early = 0, late = 0, miss = 0, sum = 0, validN = 0;
-    for (let i = 0; i < JC_PLAY_BEATS; i++) {
-        const r = results[i];
-        if (!r) { miss++; continue; }
-        if (r.cls === 'just') good++;
-        else if (r.cls === 'early') early++;
-        else if (r.cls === 'late') late++;
-        else { miss++; continue; }
-        sum += r.diff; validN++;
+    for (let i = 0; i < PT_PLAY_BEATS; i++) {
+        const n = pt.notes[i];
+        if (!n.cls || n.cls === 'miss') { miss++; continue; }
+        if (n.cls === 'just') good++;
+        else if (n.cls === 'early') early++;
+        else if (n.cls === 'late') late++;
+        sum += n.diff; validN++;
     }
     const valid = good + early + late;
     const avg = validN ? Math.round(sum / validN) : 0;
-    renderJudgeCheckResult({ good, early, late, miss, valid, avg });
-    setJcStatus('完了');
-    endJudgeCheck(true);
+    renderPracticeResult({ good, early, late, miss, valid, avg, maxPeak: pt.maxPeak, doubleCount: pt.doubleCount });
+    setPtStatus('完了');
+    endPracticeTest(true);
 }
 
-/* 結果コメントの判定（補正提案はせず、案内のみ） */
-function judgeCheckComment(r) {
-    if (r.valid < 5 || r.miss >= 4) {
-        return { kind: 'warn', text: '入力が十分に拾えていません。先にマイク反応テストで反応ラインを調整してください。' };
+/* 音量も含めた総合判定（v0.9.55）。補正提案はせず、案内のみ。
+   line＝現在の反応ライン。volRatio＝検出最大音量 ÷ 反応ライン。 */
+function practiceComment(r) {
+    const line = mic.threshold || 0.0001;
+    const volRatio = r.maxPeak / line;
+    const lowVol = volRatio < 0.9;        // 波形はあっても判定ラインに届いていない
+    // 判定A：入力が拾えていない（有効入力が少ない/MISS多い かつ 音量が反応ラインに届いていない）
+    if ((r.valid < 5 || r.miss >= 4) && lowVol) {
+        return { kind: 'warn', text: '入力が十分に拾えていません。マイク反応テストで反応ラインを調整してください。' };
     }
+    // 判定B：音量は拾えているがMISSが多い（反応ライン付近まで来ているのに判定に入りきっていない）
+    if (r.valid < 6 || r.miss >= 3) {
+        return { kind: 'warn', text: '入力はありますが、判定に入りきっていません。反応ラインや演奏位置を確認してください。' };
+    }
+    // 判定C：タイミングが大きく偏っている（有効入力6以上・平均±40ms以上 or 片寄り70%以上）
     const lateRatio = r.valid ? r.late / r.valid : 0;
     const earlyRatio = r.valid ? r.early / r.valid : 0;
-    const biased = r.valid >= 6 && (Math.abs(r.avg) >= 40 || lateRatio >= 0.7 || earlyRatio >= 0.7);
+    const biased = Math.abs(r.avg) >= 40 || lateRatio >= 0.7 || earlyRatio >= 0.7;
     if (biased && (r.avg >= 40 || (lateRatio >= 0.7 && lateRatio >= earlyRatio))) {
-        return { kind: 'warn', text: '判定がLATEに寄っています。イヤホンやマイク環境の影響で、判定が遅めに出ている可能性があります。' };
+        return { kind: 'warn', text: '判定がLATEに寄っています。イヤホンやマイク環境の影響で、遅めに出ている可能性があります。' };
     }
     if (biased && (r.avg <= -40 || (earlyRatio >= 0.7 && earlyRatio > lateRatio))) {
-        return { kind: 'warn', text: '判定がEARLYに寄っています。環境や演奏のクセによって、判定が早めに出ている可能性があります。' };
+        return { kind: 'warn', text: '判定がEARLYに寄っています。演奏のクセや環境によって、早めに出ている可能性があります。' };
     }
-    return { kind: 'ok', text: '大きなズレはなさそうです。このまま練習を始められます。' };
+    // 二重反応が出ているときは「問題なし」にせず、軽く注意
+    if (r.doubleCount > 0) {
+        return { kind: 'warn', text: '判定は概ね安定していますが、二重反応が見られます。二重反応防止の設定を確認してください。' };
+    }
+    // 判定D：問題なさそう
+    return { kind: 'ok', text: '大きな問題はなさそうです。このまま練習を始められます。' };
 }
 
-function renderJudgeCheckResult(r) {
-    if (!els.jcResult) return;
-    const c = judgeCheckComment(r);
+function renderPracticeResult(r) {
+    if (!els.ptResult) return;
+    const c = practiceComment(r);
     const sign = r.avg > 0 ? '+' : (r.avg < 0 ? '−' : '±');
     const avgTxt = sign + Math.abs(r.avg) + 'ms';
-    els.jcResult.innerHTML =
+    const line = mic.threshold || 0.0001;
+    const volRatio = r.maxPeak / line;
+    let volTxt;
+    if (r.maxPeak <= 0) volTxt = '入力なし';
+    else if (volRatio >= 1.4) volTxt = '十分（×' + volRatio.toFixed(1) + '）';
+    else if (volRatio >= 1.0) volTxt = 'やや余裕（×' + volRatio.toFixed(1) + '）';
+    else volTxt = 'ライン未満（×' + volRatio.toFixed(1) + '）';
+    els.ptResult.innerHTML =
         '<div class="cal-result-row"><span>GOOD</span><b>' + r.good + '</b></div>' +
         '<div class="cal-result-row"><span>EARLY</span><b>' + r.early + '</b></div>' +
         '<div class="cal-result-row"><span>LATE</span><b>' + r.late + '</b></div>' +
         '<div class="cal-result-row"><span>MISS</span><b>' + r.miss + '</b></div>' +
-        '<div class="cal-result-row"><span>有効入力</span><b>' + r.valid + ' / ' + JC_PLAY_BEATS + '</b></div>' +
+        '<div class="cal-result-row"><span>有効入力</span><b>' + r.valid + ' / ' + PT_PLAY_BEATS + '</b></div>' +
         '<div class="cal-result-row"><span>平均ズレ</span><b>' + avgTxt + '</b></div>' +
+        '<div class="cal-result-row"><span>検出音量の目安</span><b>' + volTxt + '</b></div>' +
+        '<div class="cal-result-row"><span>二重反応</span><b>' + (r.doubleCount > 0 ? 'あり（' + r.doubleCount + '）' : 'なし') + '</b></div>' +
         '<p class="test-reco-msg ' + (c.kind === 'ok' ? '' : 'warn') + '">' + c.text + '</p>';
-    els.jcResult.classList.remove('hidden');
+    els.ptResult.classList.remove('hidden');
 }
 
 /* 後始末。showResult=true のときは結果表示と「完了」状態を残す（finishから呼ぶ） */
-function endJudgeCheck(showResult) {
-    jc.active = false;
-    jc.capturing = false;
-    jc.timers.forEach(clearTimeout); jc.timers = [];
-    jc.scheduled.forEach((o) => { try { o.stop(); } catch (_) { /* already stopped */ } });
-    jc.scheduled = [];
-    clearJcDots();
-    if (els.jcBtn) els.jcBtn.textContent = '判定ズレ確認を開始';
-    if (!showResult) setJcStatus('');
+function endPracticeTest(showResult) {
+    pt.active = false;
+    pt.capturing = false;
+    cancelAnimationFrame(pt.raf); pt.raf = 0;
+    pt.timers.forEach(clearTimeout); pt.timers = [];
+    pt.scheduled.forEach((o) => { try { o.stop(); } catch (_) { /* already stopped */ } });
+    pt.scheduled = [];
+    if (els.ptBtn) els.ptBtn.textContent = '実践テストを開始';
+    if (showResult) {
+        // 結果表示時は、最終拍を判定ライン上に止めた状態で、判定色のついた音符を残す
+        drawPracticeLane(pt.notes.length ? pt.notes[pt.notes.length - 1].t : 0);
+    } else {
+        if (els.ptLaneWrap) els.ptLaneWrap.classList.add('hidden');
+        setPtStatus('');
+    }
 }
 
 /* 外部からの停止（設定を閉じる／入力タイプ切替／STAGE開始／他テスト開始時など） */
-function stopJudgeCheck() {
-    if (!jc.active && !jc.timers.length) return;
-    endJudgeCheck(false);
-    if (els.jcResult) els.jcResult.classList.add('hidden');
+function stopPracticeTest() {
+    if (!pt.active && !pt.timers.length) return;
+    endPracticeTest(false);
+    if (els.ptResult) els.ptResult.classList.add('hidden');
 }
 
-function toggleJudgeCheck() {
-    if (jc.active) stopJudgeCheck(); else startJudgeCheck();
+function togglePracticeTest() {
+    if (pt.active) stopPracticeTest(); else startPracticeTest();
 }
 
 /* ── 入力タイプ別の感度・表示プロファイル判定（v0.9.49）──────────
@@ -2662,7 +2771,7 @@ function openSettings(from) {
 function closeSettings() {
     if (cal.active) cancelCalibration();
     if (hpCal.active) stopHeadphoneCal();
-    stopJudgeCheck();
+    stopPracticeTest();
     exitTestMode();
     show(settingsReturn);
     if (settingsReturn === 'practice') { fitLane(); }
@@ -2980,7 +3089,7 @@ function toggleMicTest() {
 }
 
 async function startMicTestFlow() {
-    if (jc.active) stopJudgeCheck(); // 判定ズレ確認と排他
+    if (pt.active) stopPracticeTest(); // 実践テストと排他
     if (!(await ensureTestMic())) { setTestResult('マイクを許可してください。', 'ng'); return; }
     test.flow = true;
     // イヤホン接続は初回テストから高感度寄り（救済しきい値）で拾いにいく。auto/normalは従来どおり。
@@ -3670,6 +3779,17 @@ function updateReco() {
     }
     if (els.recoRetestBtn) els.recoRetestBtn.classList.toggle('hidden', !retestExhausted);
 
+    // ── 自動おすすめ時のイヤホン案内（v0.9.55）──
+    // auto のまま低入力/イヤホンっぽい入力が拾われたら、入力タイプ変更を「案内」する（自動切替はしない）。
+    if (els.autoEarphoneHint) {
+        const earphoneLike = lowInputTuned || isLowInputTestEnv() || lowInput || !!test.rescueHighSens;
+        const showHint = isAutoMicInput() && hasAnyInput && earphoneLike;
+        if (showHint) {
+            els.autoEarphoneHint.textContent = 'イヤホン接続の可能性があります。うまく判定されない場合は、入力タイプを「イヤホン接続」に変更してください。';
+        }
+        els.autoEarphoneHint.classList.toggle('hidden', !showHint);
+    }
+
     updateTestDetail(maxClick, minStroke, maxStroke, clickReacted, canApply, maxStrokeRaw, provisional);
 }
 
@@ -3865,17 +3985,37 @@ function micLoop() {
         return;
     }
 
-    // ── 判定ズレ確認（v0.9.54）：オンセット時刻だけを記録（registerHit/スコアには流さない）──
-    if (jc.active) {
-        if (els.testLevel) {
-            els.testLevel.style.width = (micDisplayFrac(peak) * 100).toFixed(1) + '%';
-            els.testLevel.classList.toggle('over', peak >= mic.threshold);
-        }
-        if (jc.capturing && onset && (now - jc.lastOnsetAt) > JC_MIN_GAP_MS) {
-            jc.lastOnsetAt = now;
+    // ── 実践テスト（v0.9.55）：音量波形・オンセット・拍ごとの判定を記録（registerHit/スコアには流さない）──
+    if (pt.active) {
+        // 音量波形バッファ（flowStart基準の時刻でenv履歴を保存）
+        pt.wave.push({ t: now - pt.flowStartPerf, level: mic.env });
+        while (pt.wave.length && ((now - pt.flowStartPerf) - pt.wave[0].t) > PT_WAVE_WINDOW_MS) pt.wave.shift();
+        if (pt.capturing) {
             // STAGEと同じ「オーディオ時計＋mic.timingOffsetMs」で時刻化（timingOffsetMsは読むだけ・変更しない）
-            const tMs = (state.audioCtx.currentTime - jc.audioStart) * 1000 + mic.timingOffsetMs;
-            jc.onsets.push({ t: tMs, peak });
+            const tMs = (state.audioCtx.currentTime - pt.audioStart) * 1000 + mic.timingOffsetMs;
+            const ni = Math.round((tMs - pt.playT0Ms) / PT_BEAT_MS);
+            if (ni >= 0 && ni < PT_PLAY_BEATS) {
+                const note = pt.notes[ni];
+                if (peak > note.peak) note.peak = peak;
+                if (peak > pt.maxPeak) pt.maxPeak = peak;
+                if (onset && (now - pt.lastOnsetAt) > PT_MIN_GAP_MS) {
+                    pt.lastOnsetAt = now;
+                    const diff = tMs - (pt.playT0Ms + ni * PT_BEAT_MS);
+                    if (Math.abs(diff) <= PT_NEAR_WIN) {
+                        if (note.cls == null) {
+                            note.diff = diff;
+                            note.cls = ptClassify(diff);
+                            note.detected = (peak >= mic.threshold);
+                            setPtStatus(LABELS[note.cls] || '');
+                        } else {
+                            // 同じ拍に2回目以上の立ち上がり＝二重反応
+                            note.doubled = true;
+                            pt.doubleCount++;
+                        }
+                    }
+                    pt.onsets.push({ t: tMs, peak });
+                }
+            }
         }
         mic.prevPeak = peak;
         mic.raf = requestAnimationFrame(micLoop);
@@ -4406,7 +4546,7 @@ function bind() {
     if (els.setHpOffset) els.setHpOffset.addEventListener('input', () => setHeadphoneOffset(parseInt(els.setHpOffset.value, 10)));
     if (els.setHpResetBtn) els.setHpResetBtn.addEventListener('click', resetHeadphoneOffsetToGuide);
     // 判定ズレ確認（v0.9.54）
-    if (els.jcBtn) els.jcBtn.addEventListener('click', toggleJudgeCheck);
+    if (els.ptBtn) els.ptBtn.addEventListener('click', togglePracticeTest);
     // タップエリア配置（左右 / 上下）
     if (els.layoutLrBtn) els.layoutLrBtn.addEventListener('click', () => setTapLayout('lr'));
     if (els.layoutUdBtn) els.layoutUdBtn.addEventListener('click', () => setTapLayout('ud'));
@@ -4500,7 +4640,7 @@ function bind() {
         btn.addEventListener('click', reloadAppWithCacheBust));
 
     window.addEventListener('resize', () => {
-        if (!els.settings.classList.contains('hidden')) { fitPreview(); return; }
+        if (!els.settings.classList.contains('hidden')) { fitPreview(); if (pt.active) { fitPtLane(); } return; }
         if (els.practice.classList.contains('hidden')) return;
         fitLane();
         if (els.resultsOverlay && !els.resultsOverlay.classList.contains('hidden')) {

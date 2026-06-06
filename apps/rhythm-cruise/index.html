@@ -213,6 +213,7 @@
                     <p class="test-reco-msg hidden" id="reco-msg"></p>
                     <p class="test-reco-msg warn hidden" id="reco-retest"></p>
                     <button type="button" class="btn-mic results-retest-btn hidden" id="reco-retest-btn">🎤 もう1度テスト</button>
+                    <p class="test-reco-msg warn hidden" id="auto-earphone-hint"></p>
                 </div>
 
                 <!-- テスト結果の確認（実施済み後に表示・後から見返せる） -->
@@ -278,22 +279,21 @@
                 </details>
             </div>
 
-            <!-- 2a. 判定ズレ確認（入力タイプ=イヤホン接続 のときだけ表示。v0.9.54では確認・表示のみ／補正は未適用） -->
-            <div class="settings-card cal-card hidden" id="jc-card">
+            <!-- 2a. 実践テスト（入力タイプに関係なく表示。v0.9.55では確認・表示のみ／補正は未適用） -->
+            <div class="settings-card cal-card" id="pt-card">
                 <div class="cal-head-row">
-                    <div class="cal-head">判定ズレ確認</div>
+                    <div class="cal-head">実践テスト</div>
                 </div>
-                <p class="setting-note">クリックに合わせて8回ストロークし、判定が大きくズレていないか確認します。</p>
-                <p class="setting-note">イヤホン接続時は、クリック音をマイクで拾う補正が使いにくいため、実際のストロークで判定の偏りを確認します。</p>
-                <div class="hp-dots" id="jc-dots" style="display:flex;justify-content:center;align-items:center;gap:14px;margin:16px 0;">
-                    <span class="hp-dot" id="jc-dot-0" style="display:inline-block;width:22px;height:22px;border-radius:50%;background:rgba(46,204,113,0.25);transition:background .04s,box-shadow .04s;"></span>
-                    <span class="hp-dot" id="jc-dot-1" style="display:inline-block;width:20px;height:20px;border-radius:50%;background:rgba(253,246,238,0.16);transition:background .04s,box-shadow .04s;"></span>
-                    <span class="hp-dot" id="jc-dot-2" style="display:inline-block;width:20px;height:20px;border-radius:50%;background:rgba(253,246,238,0.16);transition:background .04s,box-shadow .04s;"></span>
-                    <span class="hp-dot" id="jc-dot-3" style="display:inline-block;width:20px;height:20px;border-radius:50%;background:rgba(253,246,238,0.16);transition:background .04s,box-shadow .04s;"></span>
+                <p class="setting-note">実際のSTAGEに近い画面で、音量と判定タイミングを確認します。</p>
+                <p class="setting-note">マイク反応テスト後に、実際の練習で問題なく判定されるか確認できます。</p>
+                <p class="setting-note" id="pt-note">入力状態に合わせた設定で、実際に問題なく判定されるか確認します。</p>
+                <!-- STAGE1風の流れる音符＋判定ライン＋音量波形 -->
+                <div class="test-lane-wrap hidden" id="pt-lane-wrap">
+                    <canvas id="pt-lane-canvas"></canvas>
                 </div>
-                <button class="btn-mic cal-run-btn" id="jc-btn">判定ズレ確認を開始</button>
-                <p class="cal-status" id="jc-status"></p>
-                <div class="cal-result hidden" id="jc-result"></div>
+                <button class="btn-mic cal-run-btn" id="pt-btn">実践テストを開始</button>
+                <p class="cal-status" id="pt-status"></p>
+                <div class="cal-result hidden" id="pt-result"></div>
             </div>
 
             <!-- 2b. イヤホンの音ズレ補正（イヤホン種類=Bluetooth のときだけ表示。UI/保存のみ・STAGE判定には未反映） -->
@@ -460,7 +460,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.54"></script>
+    <script src="script.js?v=0.9.55"></script>
 </body>
 
 </html>
