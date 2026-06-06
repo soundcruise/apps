@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.55';
+const RHYTHM_CRUISE_VERSION = '0.9.56';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -359,7 +359,7 @@ const els = {
     setHpOffsetVal: $('set-hp-offset-val'),
     setHpOffsetNote: $('set-hp-offset-note'),
     setHpResetBtn: $('set-hp-reset'),
-    // 実践テスト（v0.9.55。旧「判定ズレ確認」を置き換え）
+    // 実践テスト（v0.9.56。旧「判定ズレ確認」を置き換え）
     ptCard: $('pt-card'),
     ptNote: $('pt-note'),
     ptLaneWrap: $('pt-lane-wrap'),
@@ -2181,7 +2181,7 @@ function updateHeadphoneTypeUI() {
     if (els.setHpResetBtn) els.setHpResetBtn.textContent = (t === 'bluetooth') ? '180msに戻す' : '30msに戻す';
 }
 
-/* ── 実践テスト（v0.9.55。旧「判定ズレ確認」を再設計）─────────────────
+/* ── 実践テスト（v0.9.56。旧「判定ズレ確認」を再設計）─────────────────
    通常マイク・イヤホン共通の「実践テスト」。STAGE1「4分ジャスト」に近い内容で、
    STAGE1風の流れる音符＋判定ライン＋音量波形を表示し、8回ストロークの
    GOOD/EARLY/LATE/MISS・平均ズレ・検出音量・二重反応を「総合的に」確認するだけ。
@@ -2194,14 +2194,16 @@ const PT_BEAT_MS = 60000 / PT_BPM;      // 750ms（4分）
 const PT_COUNTIN = 4;                   // カウントイン4拍
 const PT_PLAY_BEATS = 8;                // 本番8回ストローク
 const PT_LEAD_MS = 400;                 // 開始から最初のカウントインまでの小休止
-const PT_MIN_GAP_MS = 130;              // オンセットの最小間隔（二重カウント防止）
+const PT_MIN_GAP_MS = 130;              // オンセットの最小間隔（二重カウント防止の下限）
 const PT_NEAR_WIN = Math.max(NEAR_MS, PT_BEAT_MS * NEAR_FRAC); // 拍への割り当て窓（これを超えたらMISS）
 const PT_CAP_WIN_MS = PT_BEAT_MS * 0.5; // 取り込み開始/終了のゆとり
 const PT_WAVE_WINDOW_MS = 4000;         // 波形バッファの保持時間
+const PT_LANE_HEIGHT = 168;             // STAGE1本体の #lane-canvas と同じCSS高さ
+const PT_CLICK_IGNORE_MS = 90;           // クリック直後の誤検出除外（短め。波形表示には残す）
 const pt = {
     active: false, capturing: false, timers: [], scheduled: [], raf: 0,
     audioStart: 0, flowStartPerf: 0, playT0Ms: 0,
-    notes: [], onsets: [], wave: [], lastOnsetAt: 0, maxPeak: 0, doubleCount: 0,
+    notes: [], onsets: [], wave: [], clickPerfTimes: [], lastOnsetAt: 0, lastDetectAt: -100000, maxPeak: 0, doubleCount: 0,
 };
 
 /* 入力タイプ別の補足文（表示は常に出す。文言だけ少し変える） */
@@ -2216,7 +2218,14 @@ function updatePracticeTestNote() {
 
 function setPtStatus(t) { if (els.ptStatus) els.ptStatus.textContent = t || ''; }
 function ptTimer(fn, ms) { const id = setTimeout(fn, ms); pt.timers.push(id); return id; }
-function fitPtLane() { if (els.ptLaneCanvas) ptLane = fitOne(els.ptLaneCanvas); }
+function fitPtLane() {
+    if (!els.ptLaneCanvas) return;
+    // CSS高さを固定し、fitOne() はその値をDPR変換するだけにする。
+    // clientHeightを親要素から再帰的に拾わないので、スクロールしても高さが増え続けない。
+    els.ptLaneCanvas.style.width = '100%';
+    els.ptLaneCanvas.style.height = PT_LANE_HEIGHT + 'px';
+    ptLane = fitOne(els.ptLaneCanvas);
+}
 
 /* 実践テスト専用クリック。clickVolumeに合わせつつ聞き取りやすさのため下限あり（STAGE/click()には影響なし） */
 function ptScheduleClick(atSec, accent) {
@@ -2236,6 +2245,20 @@ function ptScheduleClick(atSec, accent) {
     osc.start(t0);
     osc.stop(t0 + 0.09);
     pt.scheduled.push(osc);
+    pt.clickPerfTimes.push(pt.flowStartPerf + (t0 - pt.audioStart) * 1000);
+}
+
+function ptInClickIgnoreWindow(now) {
+    if (!pt.clickPerfTimes.length) return false;
+    // STAGE本体のクリックガードと同じく、出力レイテンシ分を考慮。
+    // 実質「クリック発音後90ms前後」を狙い、極端な環境でも長くなりすぎないよう上限を置く。
+    const guardMs = Math.min(220, Math.max(PT_CLICK_IGNORE_MS, mic.clickGuardMs) + clickLatencyMs());
+    for (let i = pt.clickPerfTimes.length - 1; i >= 0; i--) {
+        const since = now - pt.clickPerfTimes[i];
+        if (since > guardMs) break;
+        if (since >= -10 && since <= guardMs) return true;
+    }
+    return false;
 }
 
 function ptClassify(diff) {
@@ -2251,35 +2274,49 @@ function drawPracticeLane(t) {
     if (!ptLane || !ptLane.ctx) return;
     const { ctx, w, h } = ptLane;
     ctx.clearRect(0, 0, w, h);
-    const yc = h * 0.44;
-    const judgeX = w * 0.28;
-    const ppm = (w * 0.62) / (PT_BEAT_MS * 2); // 2拍ぶんを画面幅の約62%に
+    const yc = h * 0.56;
+    const beatPx = Math.max(64, Math.min(120, w * 0.24)); // STAGE1 fitLane() と同じ基準
+    const judgeX = w * 0.3;                               // STAGE1と同じ判定ライン位置
+    const ppm = beatPx / PT_BEAT_MS;
     // 中央ガイド
     ctx.strokeStyle = 'rgba(253,246,238,0.08)';
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke();
     // 音量波形（反応ライン基準でスケール）：判定ラインを超えているかが見えるように描く
-    const line = mic.threshold || 0.0001;
-    const ampPx = h * 0.30;
-    const lineY = yc - Math.min(ampPx, (line / (line * 2)) * ampPx); // 反応ライン高さ＝中間
-    ctx.strokeStyle = 'rgba(255,107,107,0.45)';
-    ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(0, lineY); ctx.lineTo(w, lineY); ctx.stroke();
+    const ampPx = h * 0.34; // STAGE1の drawMicWaveform() と同じ比率
+    const lineAmp = micDisplayFrac(mic.threshold) * ampPx;
+    ctx.strokeStyle = 'rgba(255,159,28,0.30)';
+    ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, yc - lineAmp); ctx.lineTo(w, yc - lineAmp); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, yc + lineAmp); ctx.lineTo(w, yc + lineAmp); ctx.stroke();
     ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,159,28,0.5)';
+    ctx.font = '600 9px Outfit, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('反応ライン', 4, yc - lineAmp - 3);
     if (pt.wave.length) {
-        ctx.beginPath();
-        let started = false;
+        const pts = [];
         for (let i = 0; i < pt.wave.length; i++) {
             const p = pt.wave[i];
             const x = judgeX + (p.t - t) * ppm;
-            if (x < -8 || x > w + 8) continue;
-            const lv = Math.min(1, p.level / (line * 2)); // 反応ラインの2倍で頭打ち
-            const y = yc - lv * ampPx;
-            if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+            if (x < -24 || x > w + 24) continue;
+            pts.push([x, micDisplayFrac(p.level) * ampPx]);
         }
-        ctx.strokeStyle = 'rgba(77,150,255,0.85)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
+        if (pts.length >= 2) {
+            ctx.beginPath();
+            ctx.moveTo(pts[0][0], yc - pts[0][1]);
+            for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], yc - pts[i][1]);
+            for (let i = pts.length - 1; i >= 0; i--) ctx.lineTo(pts[i][0], yc + pts[i][1]);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(255,255,255,0.16)';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(pts[0][0], yc - pts[0][1]);
+            for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], yc - pts[i][1]);
+            ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
     }
     // 音符（右→左へ流れる4分音符＋↓）
     for (let i = 0; i < pt.notes.length; i++) {
@@ -2301,9 +2338,7 @@ function drawPracticeLane(t) {
         drawQuarterNote(ctx, x, yc, col);
         ctx.restore();
         ctx.fillStyle = n.closed ? 'rgba(255,180,90,0.55)' : 'rgba(255,180,90,0.95)';
-        ctx.font = '700 15px Outfit, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('↓', x, yc + 30);
+        drawStrokeArrow(ctx, x, yc + 28, 'down', 'rgba(255,180,90,0.8)', 0.8);
     }
     // 判定ライン（縦・拍頭で軽く光る）
     const glow = beatGlow(t - (PT_LEAD_MS), PT_BEAT_MS);
@@ -2311,9 +2346,13 @@ function drawPracticeLane(t) {
     ctx.shadowColor = 'rgba(255,159,28,0.95)'; ctx.shadowBlur = 10 + glow * 24;
     ctx.strokeStyle = 'rgba(255,159,28,' + (0.85 + glow * 0.15).toFixed(2) + ')';
     ctx.lineWidth = 3 + glow * 2;
-    ctx.beginPath(); ctx.moveTo(judgeX, h * 0.12); ctx.lineTo(judgeX, h * 0.86); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(judgeX, h * 0.1); ctx.lineTo(judgeX, h * 0.94); ctx.stroke();
     ctx.restore();
-    drawBeatDot(ctx, judgeX, h * 0.92, glow);
+    drawBeatDot(ctx, judgeX, h * 0.9, glow);
+    ctx.fillStyle = 'rgba(255,159,28,0.95)';
+    ctx.font = '700 10px Outfit, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('JUST', judgeX, h * 0.99);
 }
 
 function ptLoop() {
@@ -2341,7 +2380,9 @@ async function startPracticeTest() {
     pt.capturing = false;
     pt.onsets = [];
     pt.wave = [];
+    pt.clickPerfTimes = [];
     pt.lastOnsetAt = 0;
+    pt.lastDetectAt = -100000;
     pt.maxPeak = 0;
     pt.doubleCount = 0;
     pt.timers.forEach(clearTimeout); pt.timers = [];
@@ -2392,15 +2433,15 @@ function finishPracticeTest() {
     }
     const valid = good + early + late;
     const avg = validN ? Math.round(sum / validN) : 0;
-    renderPracticeResult({ good, early, late, miss, valid, avg, maxPeak: pt.maxPeak, doubleCount: pt.doubleCount });
+    renderPracticeResult({ good, early, late, miss, valid, avg, maxPeak: pt.maxPeak, doubleCount: pt.doubleCount, threshold: mic.threshold, cooldownMs: mic.cooldownMs });
     setPtStatus('完了');
     endPracticeTest(true);
 }
 
-/* 音量も含めた総合判定（v0.9.55）。補正提案はせず、案内のみ。
+/* 音量も含めた総合判定（v0.9.56）。補正提案はせず、案内のみ。
    line＝現在の反応ライン。volRatio＝検出最大音量 ÷ 反応ライン。 */
 function practiceComment(r) {
-    const line = mic.threshold || 0.0001;
+    const line = r.threshold || mic.threshold || 0.0001;
     const volRatio = r.maxPeak / line;
     const lowVol = volRatio < 0.9;        // 波形はあっても判定ラインに届いていない
     // 判定A：入力が拾えていない（有効入力が少ない/MISS多い かつ 音量が反応ラインに届いていない）
@@ -2434,7 +2475,7 @@ function renderPracticeResult(r) {
     const c = practiceComment(r);
     const sign = r.avg > 0 ? '+' : (r.avg < 0 ? '−' : '±');
     const avgTxt = sign + Math.abs(r.avg) + 'ms';
-    const line = mic.threshold || 0.0001;
+    const line = r.threshold || mic.threshold || 0.0001;
     const volRatio = r.maxPeak / line;
     let volTxt;
     if (r.maxPeak <= 0) volTxt = '入力なし';
@@ -2449,6 +2490,8 @@ function renderPracticeResult(r) {
         '<div class="cal-result-row"><span>有効入力</span><b>' + r.valid + ' / ' + PT_PLAY_BEATS + '</b></div>' +
         '<div class="cal-result-row"><span>平均ズレ</span><b>' + avgTxt + '</b></div>' +
         '<div class="cal-result-row"><span>検出音量の目安</span><b>' + volTxt + '</b></div>' +
+        '<div class="cal-result-row"><span>使用した反応ライン</span><b>' + line.toFixed(3) + '</b></div>' +
+        '<div class="cal-result-row"><span>二重反応防止</span><b>' + r.cooldownMs + 'ms</b></div>' +
         '<div class="cal-result-row"><span>二重反応</span><b>' + (r.doubleCount > 0 ? 'あり（' + r.doubleCount + '）' : 'なし') + '</b></div>' +
         '<p class="test-reco-msg ' + (c.kind === 'ok' ? '' : 'warn') + '">' + c.text + '</p>';
     els.ptResult.classList.remove('hidden');
@@ -3779,7 +3822,7 @@ function updateReco() {
     }
     if (els.recoRetestBtn) els.recoRetestBtn.classList.toggle('hidden', !retestExhausted);
 
-    // ── 自動おすすめ時のイヤホン案内（v0.9.55）──
+    // ── 自動おすすめ時のイヤホン案内（v0.9.56）──
     // auto のまま低入力/イヤホンっぽい入力が拾われたら、入力タイプ変更を「案内」する（自動切替はしない）。
     if (els.autoEarphoneHint) {
         const earphoneLike = lowInputTuned || isLowInputTestEnv() || lowInput || !!test.rescueHighSens;
@@ -3985,7 +4028,7 @@ function micLoop() {
         return;
     }
 
-    // ── 実践テスト（v0.9.55）：音量波形・オンセット・拍ごとの判定を記録（registerHit/スコアには流さない）──
+    // ── 実践テスト（v0.9.56）：音量波形・オンセット・拍ごとの判定を記録（registerHit/スコアには流さない）──
     if (pt.active) {
         // 音量波形バッファ（flowStart基準の時刻でenv履歴を保存）
         pt.wave.push({ t: now - pt.flowStartPerf, level: mic.env });
@@ -3998,14 +4041,22 @@ function micLoop() {
                 const note = pt.notes[ni];
                 if (peak > note.peak) note.peak = peak;
                 if (peak > pt.maxPeak) pt.maxPeak = peak;
-                if (onset && (now - pt.lastOnsetAt) > PT_MIN_GAP_MS) {
+                if (onset) {
                     pt.lastOnsetAt = now;
+                    const inClickIgnore = ptInClickIgnoreWindow(now);
+                    const cooled = (now - pt.lastDetectAt) > Math.max(PT_MIN_GAP_MS, mic.cooldownMs);
                     const diff = tMs - (pt.playT0Ms + ni * PT_BEAT_MS);
-                    if (Math.abs(diff) <= PT_NEAR_WIN) {
+                    if (inClickIgnore) {
+                        // クリック直後の回り込み音は波形だけ残し、ストローク判定には採用しない
+                    } else if (!cooled) {
+                        note.doubled = true;
+                        pt.doubleCount++;
+                    } else if (Math.abs(diff) <= PT_NEAR_WIN) {
                         if (note.cls == null) {
                             note.diff = diff;
                             note.cls = ptClassify(diff);
                             note.detected = (peak >= mic.threshold);
+                            pt.lastDetectAt = now;
                             setPtStatus(LABELS[note.cls] || '');
                         } else {
                             // 同じ拍に2回目以上の立ち上がり＝二重反応
@@ -4545,7 +4596,7 @@ function bind() {
     // 手動設定のイヤホン音ズレ補正（v0.9.52）：選択中の種類の値を調整。補正カード側スライダーとも同期
     if (els.setHpOffset) els.setHpOffset.addEventListener('input', () => setHeadphoneOffset(parseInt(els.setHpOffset.value, 10)));
     if (els.setHpResetBtn) els.setHpResetBtn.addEventListener('click', resetHeadphoneOffsetToGuide);
-    // 判定ズレ確認（v0.9.54）
+    // 実践テスト（v0.9.56）
     if (els.ptBtn) els.ptBtn.addEventListener('click', togglePracticeTest);
     // タップエリア配置（左右 / 上下）
     if (els.layoutLrBtn) els.layoutLrBtn.addEventListener('click', () => setTapLayout('lr'));
