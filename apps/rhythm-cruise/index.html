@@ -149,8 +149,7 @@
 
             <!-- マイク設定の入口：メイン＝もう一度テストする／サブ＝保存プリセット／現在の設定を見る -->
             <div class="settings-card" id="settings-chooser">
-                <div class="cal-head">マイク設定</div>
-                <p class="setting-note">まずはテストして、今の環境に合う設定を作ります。</p>
+                <p class="setting-note" style="margin-top:0;">まずはテストして、今の環境に合う設定を作ります。</p>
                 <!-- メイン導線：もう一度テストする（一番目立つ） -->
                 <button type="button" class="btn-primary" id="settings-view-retest" style="width:100%;font-size:1.1rem;padding:16px;">もう一度テストする</button>
                 <!-- サブ導線1：保存済みプリセット（押すと一覧を展開） -->
@@ -173,6 +172,9 @@
                 <button type="button" class="btn-mini" id="settings-summary-back" style="margin-top:8px;">選択へ戻る</button>
             </div>
 
+            <!-- ステップ式：現在地（ステップ X / N ＋ドット）。JSで描画 -->
+            <div id="settings-steps-progress" style="display:none;"></div>
+
             <!-- ステップ式：完了した項目の要約（タップで選び直し）。JSで描画 -->
             <div id="settings-steps-summary" style="display:none;"></div>
 
@@ -186,7 +188,7 @@
                 <p class="setting-note" id="input-type-note">本体マイクや外部マイクを使う場合におすすめです。</p>
                 <!-- イヤホンの種類（入力タイプ=イヤホン接続 のときだけ表示）。入力タイプの直下に連続表示 -->
                 <div class="hidden" id="hp-type-card">
-                    <div class="cal-head" style="font-size:0.95rem;margin-top:10px;">イヤホンの種類</div>
+                    <div class="cal-head" style="font-size:0.95rem;">イヤホンの種類</div>
                     <div class="input-mode seg-cards" id="hp-type-mode">
                         <button type="button" class="input-seg is-active" id="hp-type-wired" data-headphone-type="wired">有線イヤホン</button>
                         <button type="button" class="input-seg" id="hp-type-bluetooth" data-headphone-type="bluetooth">Bluetoothイヤホン</button>
@@ -331,7 +333,7 @@
                     <p class="setting-note">音が光より遅れて聞こえるなら右へ、早く聞こえるなら左へ動かして、音と光が同時に感じられる位置に合わせます。</p>
                 </div>
                 <div class="hp-preset-row" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
-                    <button type="button" class="btn-mini" id="hp-reset">目安に戻す</button>
+                    <button type="button" class="btn-mini btn-reset" id="hp-reset">目安に戻す</button>
                 </div>
                 <!-- 「ここは終わった」と分かる導線。押したら補正系完了扱いで実践テストへ -->
                 <button type="button" class="btn-primary" id="hp-proceed-btn" style="width:100%;margin-top:12px;">この音ズレ設定で進む</button>
@@ -399,7 +401,7 @@
                         <div class="setting-label">イヤホン音ズレ補正 <b id="set-hp-offset-val">30ms</b></div>
                         <input type="range" id="set-hp-offset" min="-50" max="300" step="5" value="30">
                         <p class="setting-note" id="set-hp-offset-note">有線イヤホンは通常30msの目安を使います。違和感がある場合だけ調整してください。</p>
-                        <button type="button" class="btn-mini" id="set-hp-reset" style="margin-top:6px;">30msに戻す</button>
+                        <button type="button" class="btn-mini btn-reset" id="set-hp-reset" style="margin-top:6px;">30msに戻す</button>
                     </div>
                 </details>
             </div>
@@ -511,7 +513,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.63"></script>
+    <script src="script.js?v=0.9.65"></script>
 </body>
 
 </html>

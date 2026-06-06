@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.63';
+const RHYTHM_CRUISE_VERSION = '0.9.65';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -480,6 +480,7 @@ const els = {
     correctionWiredNote: $('correction-wired-note'),
     // ウィザード化（v0.9.62）：要約・補正系の進む/スキップ
     settingsStepsSummary: $('settings-steps-summary'),
+    settingsStepsProgress: $('settings-steps-progress'),
     settingsDoneHint: $('settings-done-hint'),
     calSkipBtn: $('cal-skip-btn'),
     hpProceedBtn: $('hp-proceed-btn'),
@@ -2539,28 +2540,28 @@ function practiceComment(r) {
     const lowVol = volRatio < 0.9;        // 波形はあっても判定ラインに届いていない
     // 判定A：入力が拾えていない（有効入力が少ない/MISS多い かつ 音量が反応ラインに届いていない）
     if ((r.valid < 5 || r.miss >= 4) && lowVol) {
-        return { kind: 'warn', issue: 'input', text: '入力が十分に拾えていません。マイク反応テストで反応ラインを調整してください。' };
+        return { kind: 'warn', issue: 'input', text: '入力が十分に拾えていません。マイク反応テストで反応ラインを調整してから、もう一度実践テストを行ってください。' };
     }
     // 判定B：音量は拾えているがMISSが多い（反応ライン付近まで来ているのに判定に入りきっていない）
     if (r.valid < 6 || r.miss >= 3) {
-        return { kind: 'warn', issue: 'input', text: '入力はありますが、判定に入りきっていません。反応ラインや演奏位置を確認してください。' };
+        return { kind: 'warn', issue: 'input', text: '入力はありますが、判定に入りきっていません。反応ラインやストローク位置を確認して、もう一度実践テストを行ってください。' };
     }
     // 判定C：タイミングが大きく偏っている（有効入力6以上・平均±40ms以上 or 片寄り70%以上）
     const lateRatio = r.valid ? r.late / r.valid : 0;
     const earlyRatio = r.valid ? r.early / r.valid : 0;
     const biased = Math.abs(r.avg) >= 40 || lateRatio >= 0.7 || earlyRatio >= 0.7;
     if (biased && (r.avg >= 40 || (lateRatio >= 0.7 && lateRatio >= earlyRatio))) {
-        return { kind: 'warn', issue: 'timing', text: '判定がLATEに寄っています。イヤホンやマイク環境の影響で、遅めに出ている可能性があります。' };
+        return { kind: 'warn', issue: 'timing', text: '判定がLATE（遅め）に片寄っています。補正を確認してから、もう一度実践テストを行ってください。' };
     }
     if (biased && (r.avg <= -40 || (earlyRatio >= 0.7 && earlyRatio > lateRatio))) {
-        return { kind: 'warn', issue: 'timing', text: '判定がEARLYに寄っています。演奏のクセや環境によって、早めに出ている可能性があります。' };
+        return { kind: 'warn', issue: 'timing', text: '判定がEARLY（早め）に片寄っています。補正を確認してから、もう一度実践テストを行ってください。' };
     }
     // 二重反応が出ているときは「問題なし」にせず、軽く注意
     if (r.doubleCount > 0) {
-        return { kind: 'warn', issue: 'double', text: '判定は概ね安定していますが、二重反応が見られます。二重反応防止の設定を確認してください。' };
+        return { kind: 'warn', issue: 'double', text: '二重反応が出ています。二重反応防止を調整してから、もう一度実践テストを行ってください。' };
     }
     // 判定D：問題なさそう
-    return { kind: 'ok', issue: null, text: '大きな問題はなさそうです。このまま練習を始められます。' };
+    return { kind: 'ok', issue: null, text: 'この設定で練習を始められます。必要に応じて、あとから手動設定で微調整できます。' };
 }
 
 function renderPracticeResult(r) {
@@ -2579,27 +2580,33 @@ function renderPracticeResult(r) {
     else volTxt = 'ライン未満（×' + volRatio.toFixed(1) + '）';
 
     // 目立つ結果バナー（問題あり/なし）
-    const okBanner = '<div style="text-align:center;padding:14px 12px;margin-bottom:12px;border-radius:12px;'
+    const okBanner = '<div style="text-align:center;padding:16px 14px;margin-bottom:14px;border-radius:12px;'
         + 'border:1px solid rgba(120,220,150,0.5);background:rgba(120,220,150,0.12);">'
-        + '<div style="font-size:1.25rem;font-weight:800;">✅ 問題なさそうです</div>'
-        + '<div style="font-size:0.9rem;opacity:0.85;margin-top:4px;">この設定で練習を始められます。</div></div>';
+        + '<div style="font-size:1.25rem;font-weight:800;">✅ 良い状態で判定できています</div>'
+        + '<div style="font-size:0.9rem;opacity:0.85;margin-top:6px;line-height:1.6;">' + escapeHtml(c.text) + '</div></div>';
     const warnBanner = '<div style="text-align:center;padding:14px 12px;margin-bottom:12px;border-radius:12px;'
         + 'border:1px solid rgba(255,170,70,0.55);background:rgba(255,170,70,0.12);">'
         + '<div style="font-size:1.25rem;font-weight:800;">⚠️ 調整が必要です</div>'
         + '<div style="font-size:0.9rem;opacity:0.9;margin-top:4px;">' + escapeHtml(c.text) + '</div></div>';
 
-    const rows =
+    // 表に出す主要情報（GOOD/EARLY/LATE/MISS と平均ズレ）
+    const mainRows =
         '<div class="cal-result-row"><span>GOOD</span><b>' + r.good + '</b></div>' +
         '<div class="cal-result-row"><span>EARLY</span><b>' + r.early + '</b></div>' +
         '<div class="cal-result-row"><span>LATE</span><b>' + r.late + '</b></div>' +
         '<div class="cal-result-row"><span>MISS</span><b>' + r.miss + '</b></div>' +
+        '<div class="cal-result-row"><span>平均ズレ</span><b>' + avgTxt + '</b></div>';
+    // 内部寄りの数値は折りたたみに格納
+    const detailRows =
         '<div class="cal-result-row"><span>有効入力</span><b>' + r.valid + ' / ' + PT_PLAY_BEATS + '</b></div>' +
-        '<div class="cal-result-row"><span>平均ズレ</span><b>' + avgTxt + '</b></div>' +
         '<div class="cal-result-row"><span>検出音量の目安</span><b>' + volTxt + '</b></div>' +
         '<div class="cal-result-row"><span>設定反応ライン</span><b>' + settingLine.toFixed(3) + '</b></div>' +
         '<div class="cal-result-row"><span>実践テスト判定ライン</span><b>' + line.toFixed(3) + '</b></div>' +
         '<div class="cal-result-row"><span>二重反応防止</span><b>' + r.cooldownMs + 'ms</b></div>' +
         '<div class="cal-result-row"><span>二重反応</span><b>' + (r.doubleCount > 0 ? 'あり（' + r.doubleCount + '）' : 'なし') + '</b></div>';
+    const details = '<details class="pt-result-detail" style="margin-top:10px;">'
+        + '<summary style="cursor:pointer;opacity:0.85;font-size:0.85rem;">詳しい数値を見る</summary>'
+        + '<div style="margin-top:8px;">' + detailRows + '</div></details>';
 
     // 次の行動ボタン
     const primary = 'width:100%;padding:14px;margin-top:12px;border-radius:10px;border:none;'
@@ -2620,12 +2627,13 @@ function renderPracticeResult(r) {
         else if (c.issue === 'double') { fixLabel = '手動設定で二重反応防止を調整する'; fixId = 'pt-result-fix-manual'; }
         actions =
             '<button type="button" id="' + fixId + '" style="' + primary + '">' + fixLabel + '</button>' +
-            '<button type="button" id="pt-result-rerun" style="' + sub + '">もう一度テストする</button>';
+            '<button type="button" id="pt-result-rerun" style="' + sub + '">もう一度実践テストする</button>';
     }
 
     els.ptResult.innerHTML =
-        (c.kind === 'ok' ? okBanner : warnBanner) + rows +
-        '<div style="margin-top:6px;">' + actions + '</div>';
+        (c.kind === 'ok' ? okBanner : warnBanner) + mainRows +
+        '<div style="margin-top:6px;">' + actions + '</div>' +
+        details;
     els.ptResult.classList.remove('hidden');
     bindPracticeResultActions();
 }
@@ -3065,10 +3073,27 @@ function isDoneLocked() {
 function updateDoneButtonState() {
     const btn = els.settingsBackBtn;
     if (!btn) return;
+    const steps = (settingsView === 'steps');
     const lock = isDoneLocked();
-    // ネイティブ無効にはせず、グレー表示＋タップ時に案内（行き止まりにしない）
-    btn.style.opacity = lock ? '0.4' : '';
-    btn.style.filter = lock ? 'grayscale(1)' : '';
+    // いったん見た目をリセット（btn-primary のオレンジに戻す）
+    btn.style.opacity = '';
+    btn.style.filter = '';
+    btn.style.background = '';
+    btn.style.color = '';
+    btn.style.border = '';
+    btn.style.boxShadow = '';
+    if (steps && lock) {
+        // ウィザード進行中・実践テスト未完了/問題あり：グレーアウト（主役に見せない）
+        btn.style.opacity = '0.4';
+        btn.style.filter = 'grayscale(1)';
+    } else if (!steps) {
+        // 確認モード/手動ビュー/初期画面：使えるが控えめ（主役ボタンと競合させない）
+        btn.style.background = 'rgba(255,255,255,0.06)';
+        btn.style.color = 'inherit';
+        btn.style.border = '1px solid rgba(255,255,255,0.3)';
+        btn.style.boxShadow = 'none';
+    }
+    // steps かつ 問題なし → そのまま btn-primary のオレンジで点灯（主役）
     if (!lock && els.settingsDoneHint) els.settingsDoneHint.classList.add('hidden');
 }
 
@@ -3093,10 +3118,12 @@ function renderSettingsView() {
         if (els.manualCard) els.manualCard.style.display = '';
         if (els.presetSaveCard) els.presetSaveCard.style.display = '';
         if (els.settingsStepsSummary) els.settingsStepsSummary.style.display = 'none';
+        if (els.settingsStepsProgress) els.settingsStepsProgress.style.display = 'none';
         if (els.ptOpenManual) els.ptOpenManual.style.display = 'none';
     } else {
         allStepCards().forEach((el) => { if (el) el.style.display = 'none'; });
         if (els.settingsStepsSummary) els.settingsStepsSummary.style.display = 'none';
+        if (els.settingsStepsProgress) els.settingsStepsProgress.style.display = 'none';
         if (els.ptOpenManual) els.ptOpenManual.style.display = 'none';
     }
     refreshSegmentSelections();
@@ -3110,8 +3137,35 @@ function renderWizardSteps() {
     wizardStepCards(active).forEach((el) => { if (el) el.style.display = ''; });
     // 入力タイプ未選択のうちは、イヤホン種類のサブカードは出さない（選んだ瞬間だけ出す）
     if (els.hpTypeCard) els.hpTypeCard.classList.toggle('hidden', !(setupProgress.inputChosen && isHeadphoneInput()));
+    renderStepProgress(active);
     renderStepSummaries(active);
     if (els.ptOpenManual) els.ptOpenManual.style.display = (active === 'practice') ? '' : 'none';
+}
+
+/* ステップ現在地：「ステップ X / N」＋ドット。WIZARD_STEPS の並びから算出。 */
+const WIZARD_STEP_LABELS = {
+    input: '入力タイプ', stroke: 'ストローク', test: 'マイク反応テスト',
+    correction: '補正', practice: '実践テスト', final: '手動設定・保存',
+};
+function renderStepProgress(active) {
+    const wrap = els.settingsStepsProgress;
+    if (!wrap) return;
+    const total = WIZARD_STEPS.length;
+    const idx = Math.max(0, WIZARD_STEPS.indexOf(active));
+    const label = WIZARD_STEP_LABELS[active] || '';
+    let dots = '';
+    for (let i = 0; i < total; i++) {
+        const color = i < idx ? '#ff9f1c' : (i === idx ? '#ff9f1c' : 'rgba(255,255,255,0.25)');
+        const ring = i === idx ? 'box-shadow:0 0 0 2px rgba(255,159,28,0.35);' : '';
+        const fill = i <= idx ? color : 'transparent';
+        dots += '<span style="width:9px;height:9px;border-radius:50%;border:1px solid ' + color + ';background:' + fill + ';' + ring + '"></span>';
+    }
+    wrap.style.display = '';
+    wrap.innerHTML =
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;">'
+        + '<span style="font-size:0.82rem;opacity:0.8;">ステップ ' + (idx + 1) + ' / ' + total + (label ? '：' + escapeHtml(label) : '') + '</span>'
+        + '<span style="display:flex;gap:6px;align-items:center;">' + dots + '</span>'
+        + '</div>';
 }
 
 /* 完了ステップの要約チップ（タップで選び直し）。アクティブより前の完了分だけ並べる。 */
@@ -3126,13 +3180,17 @@ function renderStepSummaries(active) {
     }
     if (!rows.length) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
     wrap.style.display = '';
-    const rowStyle = 'display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;'
-        + 'padding:10px 12px;margin-bottom:8px;border:1px solid rgba(255,255,255,0.14);border-radius:10px;'
-        + 'background:rgba(255,255,255,0.04);color:inherit;font-size:0.9rem;cursor:pointer;';
+    const rowStyle = 'display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;'
+        + 'padding:12px 14px;margin-bottom:10px;border:1px solid rgba(110,210,140,0.28);border-radius:12px;'
+        + 'background:rgba(110,210,140,0.07);color:inherit;font-size:0.9rem;cursor:pointer;';
+    const checkChip = 'flex:none;color:#6ed28c;font-weight:700;font-size:0.95rem;line-height:1;';
+    const editChip = 'flex:none;white-space:nowrap;font-size:0.78rem;padding:6px 14px;border-radius:8px;'
+        + 'border:1px solid rgba(255,255,255,0.35);background:rgba(255,255,255,0.06);';
     wrap.innerHTML = rows.map((r) =>
         '<button type="button" class="step-summary-row" data-step="' + r.id + '" style="' + rowStyle + '">'
+        + '<span style="' + checkChip + '" aria-hidden="true">✓</span>'
         + '<span style="flex:1;min-width:0;">' + escapeHtml(r.text) + '</span>'
-        + '<span style="opacity:0.7;font-size:0.8rem;white-space:nowrap;">変更</span>'
+        + '<span style="' + editChip + '">変更</span>'
         + '</button>'
     ).join('');
     wrap.querySelectorAll('.step-summary-row').forEach((b) => {
@@ -5153,22 +5211,41 @@ async function startCalibration() {
     cal.lastLevel = 0;
     cal.clickArmed = false;
     cal.unstable = false;
+    cal.warmupFired = false;   // 1回目較正用クリック（カウントしない）を鳴らしたか
+    cal.warmupDone = false;    // 較正用クリックの実測ピークで反応ラインを確定したか
     mic.calibrating = true;
     mic.prevPeak = 0;
+    mic.armed = true;          // 開始直後から立ち上がりを拾えるようにアーム
     setCalUI('measuring');
     cal.timer = setInterval(() => {
-        if (cal.i >= CAL_CLICKS) { clearInterval(cal.timer); cal.timer = 0; finishCalibration(); return; }
-        // 1クリック目を観測したら、実測ピークから補正用反応ラインを一度だけ微調整（頻繁な上下は避ける）。
-        if (cal.i === 1 && !cal.rebaselined && cal.maxPeak > 0) {
-            cal.rebaselined = true;
-            const thr = calThresholdFromPeak(cal.maxPeak, calNoiseFloor());
-            mic.threshold = thr;
-            cal.threshold = thr;
-            if (els.calThreshold) els.calThreshold.style.left = micThresholdMarkerPct() + '%';
+        // ── ステップ0：較正用クリック（warm-up）──
+        //   1回目だけ反応ラインが過大見積りで外れる問題への対策。最初の1回は「実測ピークで
+        //   反応ラインを確定するためだけ」に鳴らし、検出枠を開かない（= 8回の計測には含めない）。
+        if (!cal.warmupFired) {
+            cal.warmupFired = true;
+            cal.lastClickPerf = performance.now();
+            cal.clickArmed = false; // 計測対象にしない
+            mic.prevPeak = 0;
+            click(true, true);
+            return;
         }
+        // ── ステップ0.5：較正用クリックの実測ピークから補正用反応ラインを確定 ──
+        if (!cal.warmupDone) {
+            cal.warmupDone = true;
+            if (cal.maxPeak > 0) {
+                const thr = calThresholdFromPeak(cal.maxPeak, calNoiseFloor());
+                mic.threshold = thr;
+                cal.threshold = thr;
+                if (els.calThreshold) els.calThreshold.style.left = micThresholdMarkerPct() + '%';
+            }
+            // この tick から本計測（1拍目）を開始する
+        }
+        if (cal.i >= CAL_CLICKS) { clearInterval(cal.timer); cal.timer = 0; finishCalibration(); return; }
         cal.i++;
         cal.lastClickPerf = performance.now();
         cal.clickArmed = true; // このクリックの検出枠を1つ開く（1クリック1検出）
+        mic.prevPeak = 0;      // 各クリック直前にリセットし、立ち上がり交差を確実に拾う
+        mic.armed = true;
         click(true, true); // STAGE等と同じ click() を使用（音・クリック音量をSTAGE/適用後設定と統一）
         setCalUI('measuring');
     }, CAL_INTERVAL_MS);

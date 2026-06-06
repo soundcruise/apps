@@ -560,6 +560,20 @@ h1 {
     color: var(--text-color);
 }
 
+/* 「目安に戻す / 30msに戻す」など補正カードのリセット系：押せるボタンと分かる枠線デザイン */
+.btn-mini.btn-reset {
+    border: 1px solid rgba(253, 246, 238, 0.32);
+    border-radius: 8px;
+    padding: 6px 14px;
+    color: rgba(253, 246, 238, 0.72);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.btn-mini.btn-reset:active {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--text-color);
+}
+
 .tempo-row {
     display: flex;
     align-items: center;
@@ -1541,7 +1555,7 @@ h1 {
 /* マイク設定ウィザードの2択（v0.9.63）：未選択でも「選べる」と分かる独立ボタン風 */
 .input-mode.seg-cards {
     max-width: none;
-    gap: 10px;
+    gap: 12px;
     padding: 0;
     border-radius: 0;
     background: transparent;
@@ -1549,11 +1563,26 @@ h1 {
 }
 
 .seg-cards .input-seg {
-    padding: 14px 12px;
+    padding: 15px 12px;
     border-radius: 12px;
     border: 2px solid rgba(253, 246, 238, 0.3);
     background: rgba(253, 246, 238, 0.06);
     color: rgba(253, 246, 238, 0.92);
+}
+
+/* v0.9.65：イヤホン種類のサブカードを入力タイプと同じ縦リズムに揃える
+   （ここだけ間隔がバラついて「リズムがズレて見える」問題への対応） */
+#hp-type-card {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 2px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(253, 246, 238, 0.10);
+}
+
+#hp-type-card .cal-head {
+    margin-top: 0;
 }
 
 .seg-cards .input-seg.is-active {
@@ -2324,8 +2353,9 @@ body.results-open #settings-btn {
     width: 100%;
     display: flex;
     flex-direction: column;
-    gap: 22px;
-    padding: 20px 18px;
+    /* v0.9.65：カード内の縦リズムを統一（見出し→選択ボタン→説明文を同じ間隔に） */
+    gap: 18px;
+    padding: 24px 20px;
     border-radius: 18px;
     border: 1px solid rgba(253, 246, 238, 0.10);
     background: linear-gradient(180deg, var(--surface-raised) 0%, var(--surface-color) 100%);
@@ -2363,9 +2393,10 @@ body.results-open #settings-btn {
 }
 
 .setting-note {
-    font-size: 0.74rem;
-    line-height: 1.4;
+    font-size: 0.78rem;
+    line-height: 1.6;
     color: var(--muted-color);
+    margin: 0;
 }
 
 .settings-actions {
