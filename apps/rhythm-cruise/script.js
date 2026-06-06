@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.50';
+const RHYTHM_CRUISE_VERSION = '0.9.51';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -189,7 +189,10 @@ const mic = {
     raf: 0,
     threshold: 0.16,   // 立ち上がりしきい値（0..1）
     inputType: 'auto', // 入力タイプ：'auto'（自動おすすめ）| 'normal'（通常マイク）| 'headphone'（イヤホン接続）
-    headphoneOutputOffsetMs: 30, // イヤホンの音ズレ補正(ms)。v0.9.50ではUI/保存のみ。STAGE判定・マイク判定には未反映
+    headphoneType: 'wired', // イヤホンの種類：'wired'（有線）| 'bluetooth'（Bluetooth）。headphone選択時の目安/導線切替に使う
+    headphoneOffsetWiredMs: 30,       // 有線イヤホンの音ズレ補正(ms)。種類別に値を保持
+    headphoneOffsetBluetoothMs: 180,  // Bluetoothイヤホンの音ズレ補正(ms)。種類別に値を保持
+    headphoneOutputOffsetMs: 30, // 選択中の種類の音ズレ補正(ms)。互換用。v0.9.51でもUI/保存のみ・STAGE判定/マイク判定には未反映
     lowInputProfile: false, // 低入力(イヤホン)テスト由来の設定か。手動設定の表示%スケール切替に使う（実値は不変）
     cooldownMs: 200,   // 検出後のクールダウン
     clickGuardMs: 60,  // クリック音直後は検出を無視（クリック音ON時のみ・出力レイテンシ分を加算）
@@ -345,9 +348,10 @@ const els = {
     hpDot1: $('hp-dot-1'),
     hpDot2: $('hp-dot-2'),
     hpDot3: $('hp-dot-3'),
-    hpPresetWired: $('hp-preset-wired'),
-    hpPresetBt: $('hp-preset-bt'),
-    hpBtNote: $('hp-bt-note'),
+    hpTypeWired: $('hp-type-wired'),
+    hpTypeBluetooth: $('hp-type-bluetooth'),
+    hpTypeNote: $('hp-type-note'),
+    hpResetBtn: $('hp-reset'),
     testInputNote: $('test-input-note'),
     testCardNote: $('test-card-note'),
     tapArea: $('tap-area'),
@@ -1984,18 +1988,38 @@ function updateMicInputTypeUI() {
     if (els.hpCalCard) els.hpCalCard.classList.toggle('hidden', !headphone);
     if (els.calCard) els.calCard.classList.toggle('hidden', headphone);
     if (!headphone && hpCal.active) stopHeadphoneCal(); // 補正テスト再生中に他タイプへ切替えたら停止
+    updateHeadphoneTypeUI();
 }
 
-/* ── イヤホンの音ズレ補正（v0.9.50）─────────────────────────────
+/* ── イヤホンの音ズレ補正（v0.9.50〜）─────────────────────────────
    クリック音と4つの丸の点灯を、スライダー(offset)分だけ前後させて
    「音と光が同時に感じられる」位置をユーザーが探すための補助。
-   重要：今回はUI・再生・保存のみ。STAGE判定/マイク判定/timingOffsetMs には一切反映しない。 */
+   v0.9.51：イヤホンの種類（有線/Bluetooth）を持ち、種類別に補正値を保存。
+   重要：今回もUI・再生・保存のみ。STAGE判定/マイク判定/timingOffsetMs には一切反映しない。 */
 const HP_OFFSET_MIN = -50;        // スライダー下限(ms)：音が光より早い側
 const HP_OFFSET_MAX = 300;        // スライダー上限(ms)：音が光より遅い側
-const HP_OFFSET_DEFAULT = 30;     // 初期値（有線の目安）
+const HP_OFFSET_DEFAULT = 30;     // 互換用の既定（有線の目安）
 const HP_CAL_BEAT_MS = 600;       // 補正テストのテンポ（100BPM相当）
 const HP_CAL_LEAD_MS = 80;        // クリックを少し先に鳴らし、負offsetでも丸を先に光らせられるようにする土台
 const hpCal = { active: false, timer: 0, beat: 0, lightTimers: [] };
+
+/* イヤホン種類の定義・種類別の目安値・説明文 */
+const HP_TYPES = ['wired', 'bluetooth'];
+const HP_TYPE_DEFAULT_OFFSET = { wired: 30, bluetooth: 180 };
+const HP_TYPE_NOTE = {
+    wired: '有線イヤホンはズレが小さめなので、まずは30msの目安を使います。判定に違和感がある場合だけ調整してください。',
+    bluetooth: 'Bluetoothは機種によってズレが大きいため、クリック音と丸の光り方が同時に感じられるように調整してください。',
+};
+function getHeadphoneType() { return mic.headphoneType === 'bluetooth' ? 'bluetooth' : 'wired'; }
+/* offset候補が有効範囲内ならその数値、無効なら fallback を返す */
+function validHpOffset(x, fallback) {
+    const n = Number(x);
+    return (isFinite(n) && n >= HP_OFFSET_MIN && n <= HP_OFFSET_MAX) ? n : fallback;
+}
+/* 選択中の種類が保持している補正値 */
+function currentHpTypeOffset() {
+    return getHeadphoneType() === 'bluetooth' ? mic.headphoneOffsetBluetoothMs : mic.headphoneOffsetWiredMs;
+}
 
 /* 補正テスト専用クリック。クリック音量が0でも聞き取れるよう下限を設ける（既存click()/STAGEには影響なし） */
 function hpClick(accent) {
@@ -2071,20 +2095,53 @@ function stopHeadphoneCal() {
     hpCal.lightTimers = [];
     clearHpDots();
     if (els.hpCalBtn) els.hpCalBtn.textContent = '補正テスト開始';
+    updateHeadphoneTypeUI(); // 停止後はテストボタンの強調を種類に応じて戻す
 }
 
 function toggleHeadphoneCal() {
     if (hpCal.active) stopHeadphoneCal(); else startHeadphoneCal();
 }
 
-/* スライダー/目安ボタンからの補正値更新。範囲外・不正値は初期値に丸めて保存 */
+/* スライダー/「目安に戻す」からの補正値更新。範囲外・不正値は選択中の種類の目安に丸める。
+   値は「選択中の種類」の保存先と、互換用 headphoneOutputOffsetMs の両方へ反映する。 */
 function setHeadphoneOffset(ms, opts) {
     let v = Number(ms);
-    if (!isFinite(v) || v < HP_OFFSET_MIN || v > HP_OFFSET_MAX) v = HP_OFFSET_DEFAULT;
+    if (!isFinite(v) || v < HP_OFFSET_MIN || v > HP_OFFSET_MAX) v = HP_TYPE_DEFAULT_OFFSET[getHeadphoneType()];
+    if (getHeadphoneType() === 'bluetooth') mic.headphoneOffsetBluetoothMs = v;
+    else mic.headphoneOffsetWiredMs = v;
     mic.headphoneOutputOffsetMs = v;
     if (els.hpOffset) els.hpOffset.value = v;
     if (els.hpOffsetVal) els.hpOffsetVal.textContent = v + 'ms';
     if (!opts || !opts.skipSave) saveSettings();
+}
+
+/* イヤホン種類の切替。選択中の種類が保持している補正値へ同期する（過去に調整済みならその値を維持）。 */
+function setHeadphoneType(type) {
+    mic.headphoneType = (type === 'bluetooth') ? 'bluetooth' : 'wired';
+    mic.headphoneOutputOffsetMs = currentHpTypeOffset();
+    updateHeadphoneTypeUI();
+    saveSettings();
+}
+
+/* 「目安に戻す」：選択中の種類の目安値（有線30ms / Bluetooth180ms）へ戻す */
+function resetHeadphoneOffsetToGuide() {
+    setHeadphoneOffset(HP_TYPE_DEFAULT_OFFSET[getHeadphoneType()]);
+}
+
+/* 種類選択UI・説明文・テスト導線の強調・スライダー表示を、選択中の種類に合わせて更新 */
+function updateHeadphoneTypeUI() {
+    const t = getHeadphoneType();
+    if (els.hpTypeWired) els.hpTypeWired.classList.toggle('is-active', t === 'wired');
+    if (els.hpTypeBluetooth) els.hpTypeBluetooth.classList.toggle('is-active', t === 'bluetooth');
+    if (els.hpTypeNote) els.hpTypeNote.textContent = HP_TYPE_NOTE[t] || HP_TYPE_NOTE.wired;
+    // Bluetoothは補正テストを主導線（目立つボタン）、有線は補助的（控えめボタン）にする
+    if (els.hpCalBtn && !hpCal.active) {
+        els.hpCalBtn.className = (t === 'bluetooth') ? 'btn-mic cal-run-btn' : 'btn-mini';
+    }
+    // スライダー/表示を選択中の種類の値へ同期
+    const v = mic.headphoneOutputOffsetMs;
+    if (els.hpOffset) els.hpOffset.value = v;
+    if (els.hpOffsetVal) els.hpOffsetVal.textContent = v + 'ms';
 }
 
 /* ── 入力タイプ別の感度・表示プロファイル判定（v0.9.49）──────────
@@ -2273,9 +2330,12 @@ function loadSettings() {
     mic.threshold = clampNum(s.threshold, THR_MIN, THR_MAX, SETTINGS_DEFAULTS.threshold);
     mic.inputType = MIC_INPUT_TYPES.includes(s.inputType) ? s.inputType : 'auto';
     {
-        // イヤホンの音ズレ補正：保存なし/範囲外/不正値は 30ms に戻す
-        const hpOff = Number(s.headphoneOutputOffsetMs);
-        mic.headphoneOutputOffsetMs = (isFinite(hpOff) && hpOff >= HP_OFFSET_MIN && hpOff <= HP_OFFSET_MAX) ? hpOff : HP_OFFSET_DEFAULT;
+        // イヤホンの音ズレ補正（v0.9.51）：種類別に保存。無い/範囲外/不正値は各種類の目安に戻す。
+        mic.headphoneType = (s.headphoneType === 'bluetooth') ? 'bluetooth' : 'wired';
+        const legacyOff = validHpOffset(s.headphoneOutputOffsetMs, null); // v0.9.50までの単一値（有線へ引き継ぐ）
+        mic.headphoneOffsetWiredMs = validHpOffset(s.headphoneOffsetWiredMs, (legacyOff != null ? legacyOff : HP_TYPE_DEFAULT_OFFSET.wired));
+        mic.headphoneOffsetBluetoothMs = validHpOffset(s.headphoneOffsetBluetoothMs, HP_TYPE_DEFAULT_OFFSET.bluetooth);
+        mic.headphoneOutputOffsetMs = currentHpTypeOffset();
     }
     mic.lowInputProfile = !!s.lowInputProfile;
     mic.cooldownMs = clampNum(s.cooldownMs, 100, 400, SETTINGS_DEFAULTS.cooldownMs);
@@ -2303,6 +2363,9 @@ function saveSettings() {
         localStorage.setItem(SETTINGS_KEY, JSON.stringify({
             threshold: mic.threshold,
             inputType: mic.inputType,
+            headphoneType: mic.headphoneType,
+            headphoneOffsetWiredMs: mic.headphoneOffsetWiredMs,
+            headphoneOffsetBluetoothMs: mic.headphoneOffsetBluetoothMs,
             headphoneOutputOffsetMs: mic.headphoneOutputOffsetMs,
             lowInputProfile: mic.lowInputProfile,
             cooldownMs: mic.cooldownMs,
@@ -2345,10 +2408,8 @@ function applySettingsToUI() {
         els.setClickVol.value = state.clickVolume;
         els.setClickVolVal.textContent = state.clickVolume + '％';
     }
-    if (els.hpOffset) els.hpOffset.value = mic.headphoneOutputOffsetMs;
-    if (els.hpOffsetVal) els.hpOffsetVal.textContent = mic.headphoneOutputOffsetMs + 'ms';
     updateStrokeDetectModeUI();
-    updateMicInputTypeUI();
+    updateMicInputTypeUI(); // 内部で updateHeadphoneTypeUI() を呼び、スライダー/表示/導線も同期
 }
 
 function openSettings(from) {
@@ -4085,17 +4146,13 @@ function bind() {
     if (els.inputTypeAuto) els.inputTypeAuto.addEventListener('click', () => setMicInputType('auto'));
     if (els.inputTypeNormal) els.inputTypeNormal.addEventListener('click', () => setMicInputType('normal'));
     if (els.inputTypeHeadphone) els.inputTypeHeadphone.addEventListener('click', () => setMicInputType('headphone'));
-    // イヤホンの音ズレ補正（v0.9.50）
+    // イヤホンの音ズレ補正（v0.9.50〜）
     if (els.hpCalBtn) els.hpCalBtn.addEventListener('click', toggleHeadphoneCal);
     if (els.hpOffset) els.hpOffset.addEventListener('input', () => setHeadphoneOffset(parseInt(els.hpOffset.value, 10)));
-    if (els.hpPresetWired) els.hpPresetWired.addEventListener('click', () => {
-        setHeadphoneOffset(30);
-        if (els.hpBtNote) els.hpBtNote.classList.add('hidden');
-    });
-    if (els.hpPresetBt) els.hpPresetBt.addEventListener('click', () => {
-        setHeadphoneOffset(180);
-        if (els.hpBtNote) els.hpBtNote.classList.remove('hidden');
-    });
+    // イヤホンの種類（v0.9.51）：選択で目安の主導線を切替え、保存済みの種類別値へ同期
+    if (els.hpTypeWired) els.hpTypeWired.addEventListener('click', () => setHeadphoneType('wired'));
+    if (els.hpTypeBluetooth) els.hpTypeBluetooth.addEventListener('click', () => setHeadphoneType('bluetooth'));
+    if (els.hpResetBtn) els.hpResetBtn.addEventListener('click', resetHeadphoneOffsetToGuide);
     // タップエリア配置（左右 / 上下）
     if (els.layoutLrBtn) els.layoutLrBtn.addEventListener('click', () => setTapLayout('lr'));
     if (els.layoutUdBtn) els.layoutUdBtn.addEventListener('click', () => setTapLayout('ud'));
