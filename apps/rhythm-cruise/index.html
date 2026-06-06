@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.71">
+    <link rel="stylesheet" href="theme.css?v=0.9.72">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -142,10 +142,6 @@
         <section id="screen-settings" class="screen hidden">
             <header class="settings-head">
                 <h2>マイク設定</h2>
-                <p class="settings-sub">クリック音とストローク音を確認して、反応しやすさを調整します</p>
-                <button type="button" class="btn-mini mic-reset-btn" id="mic-reset-btn">設定手順をリセット</button>
-                <p class="setting-note" style="margin:6px 0 0;opacity:0.75;">表示中のテスト結果を消して、最初の画面に戻ります。設定値とプリセットは残ります。</p>
-                <p class="mic-reset-msg hidden" id="mic-reset-msg"></p>
             </header>
 
             <!-- マイク設定の入口：[簡易設定][詳細テスト]を横並び／下に保存プリセット・現在の設定を見る -->
@@ -173,22 +169,22 @@
                     <p class="setting-note" style="margin-top:0;">使う環境を選んでください。</p>
                     <button type="button" class="simple-choice" data-preset="builtin_mic" data-label="通常マイク">
                         <span class="simple-choice-title">通常マイク</span>
-                        <span class="simple-choice-desc">本体マイクや外部マイクで使う場合</span>
                     </button>
                     <button type="button" class="simple-choice" data-preset="builtin_wired" data-label="有線イヤホン">
                         <span class="simple-choice-title">有線イヤホン</span>
-                        <span class="simple-choice-desc">有線イヤホンを接続して使う場合</span>
                     </button>
                     <button type="button" class="simple-choice" data-preset="builtin_bt" data-label="Bluetoothイヤホン">
                         <span class="simple-choice-title">Bluetoothイヤホン</span>
-                        <span class="simple-choice-desc">Bluetoothイヤホンを使う場合</span>
                     </button>
                 </div>
                 <div id="simple-result" class="hidden">
                     <p class="cal-status" id="simple-result-msg" style="margin-top:0;color:#6ed28c;font-weight:700;"></p>
-                    <button type="button" class="btn-primary" id="simple-practice-btn" style="width:100%;margin-top:8px;">実践テストで確認する</button>
-                    <button type="button" class="btn-mini" id="simple-done-btn" style="width:100%;margin-top:10px;padding:11px;border:1px solid rgba(255,255,255,0.28);border-radius:10px;background:rgba(255,255,255,0.04);font-weight:700;">このまま完了</button>
-                    <button type="button" class="btn-mini" id="simple-back-btn" style="width:100%;margin-top:8px;padding:10px;">環境を選び直す</button>
+                    <!-- 主導線＝確認テストを行う／サブ＝このまま完了（横並び・狭ければ縦積み） -->
+                    <div class="chooser-row" style="margin-top:8px;">
+                        <button type="button" class="chooser-btn chooser-main" id="simple-practice-btn">確認テストを行う</button>
+                        <button type="button" class="chooser-btn chooser-sub" id="simple-done-btn">このまま完了</button>
+                    </div>
+                    <button type="button" class="btn-mini" id="simple-back-btn" style="width:100%;margin-top:10px;padding:10px;">環境を選び直す</button>
                 </div>
             </div>
 
@@ -558,7 +554,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.71"></script>
+    <script src="script.js?v=0.9.72"></script>
 </body>
 
 </html>
