@@ -269,6 +269,35 @@
                 </details>
             </div>
 
+            <!-- 2b. イヤホンの音ズレ補正（入力タイプ=イヤホン接続 のときだけ表示。v0.9.50ではUI/保存のみ・STAGE判定には未反映） -->
+            <div class="settings-card cal-card hidden" id="hp-cal-card">
+                <div class="cal-head-row">
+                    <div class="cal-head">イヤホンの音ズレ補正</div>
+                </div>
+                <p class="setting-note">クリック音と丸の光り方が同時に感じられるように調整します。</p>
+                <p class="setting-note">有線イヤホンやBluetoothイヤホンでは、音が画面より遅れて聞こえることがあります。</p>
+                <div class="hp-dots" id="hp-dots" style="display:flex;justify-content:center;align-items:center;gap:14px;margin:16px 0;">
+                    <span class="hp-dot" id="hp-dot-0" style="display:inline-block;width:22px;height:22px;border-radius:50%;background:rgba(46,204,113,0.25);transition:background .04s,box-shadow .04s;"></span>
+                    <span class="hp-dot" id="hp-dot-1" style="display:inline-block;width:20px;height:20px;border-radius:50%;background:rgba(253,246,238,0.16);transition:background .04s,box-shadow .04s;"></span>
+                    <span class="hp-dot" id="hp-dot-2" style="display:inline-block;width:20px;height:20px;border-radius:50%;background:rgba(253,246,238,0.16);transition:background .04s,box-shadow .04s;"></span>
+                    <span class="hp-dot" id="hp-dot-3" style="display:inline-block;width:20px;height:20px;border-radius:50%;background:rgba(253,246,238,0.16);transition:background .04s,box-shadow .04s;"></span>
+                </div>
+                <button class="btn-mic cal-run-btn" id="hp-cal-btn">補正テスト開始</button>
+                <div class="setting-row" style="margin-top:16px;">
+                    <div class="setting-label">現在の補正 <b id="hp-offset-val">30ms</b></div>
+                    <input type="range" id="hp-offset" min="-50" max="300" step="5" value="30">
+                    <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
+                        <span>音が早い</span><span>補正なし</span><span>音が遅い</span>
+                    </div>
+                    <p class="setting-note">音が光より遅れて聞こえるなら右へ、早く聞こえるなら左へ動かして、音と光が同時に感じられる位置に合わせます。</p>
+                </div>
+                <div class="hp-preset-row" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+                    <button type="button" class="btn-mini" id="hp-preset-wired">有線の目安を適用</button>
+                    <button type="button" class="btn-mini" id="hp-preset-bt">Bluetoothの目安を適用</button>
+                </div>
+                <p class="setting-note hidden" id="hp-bt-note">Bluetoothは機種によってズレが大きいため、音と光が合うように微調整してください。</p>
+            </div>
+
             <!-- 3. 手動設定はこちら（折りたたみ） -->
             <div class="settings-card">
                 <details class="settings-detail" id="manual-detail">
@@ -400,7 +429,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.49"></script>
+    <script src="script.js?v=0.9.50"></script>
 </body>
 
 </html>

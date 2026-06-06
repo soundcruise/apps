@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.49';
+const RHYTHM_CRUISE_VERSION = '0.9.50';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -189,6 +189,7 @@ const mic = {
     raf: 0,
     threshold: 0.16,   // 立ち上がりしきい値（0..1）
     inputType: 'auto', // 入力タイプ：'auto'（自動おすすめ）| 'normal'（通常マイク）| 'headphone'（イヤホン接続）
+    headphoneOutputOffsetMs: 30, // イヤホンの音ズレ補正(ms)。v0.9.50ではUI/保存のみ。STAGE判定・マイク判定には未反映
     lowInputProfile: false, // 低入力(イヤホン)テスト由来の設定か。手動設定の表示%スケール切替に使う（実値は不変）
     cooldownMs: 200,   // 検出後のクールダウン
     clickGuardMs: 60,  // クリック音直後は検出を無視（クリック音ON時のみ・出力レイテンシ分を加算）
@@ -335,6 +336,18 @@ const els = {
     inputTypeNormal: $('input-type-normal'),
     inputTypeHeadphone: $('input-type-headphone'),
     inputTypeNote: $('input-type-note'),
+    // イヤホンの音ズレ補正（v0.9.50）
+    hpCalCard: $('hp-cal-card'),
+    hpCalBtn: $('hp-cal-btn'),
+    hpOffset: $('hp-offset'),
+    hpOffsetVal: $('hp-offset-val'),
+    hpDot0: $('hp-dot-0'),
+    hpDot1: $('hp-dot-1'),
+    hpDot2: $('hp-dot-2'),
+    hpDot3: $('hp-dot-3'),
+    hpPresetWired: $('hp-preset-wired'),
+    hpPresetBt: $('hp-preset-bt'),
+    hpBtNote: $('hp-bt-note'),
     testInputNote: $('test-input-note'),
     testCardNote: $('test-card-note'),
     tapArea: $('tap-area'),
@@ -1966,6 +1979,112 @@ function updateMicInputTypeUI() {
     if (els.inputTypeHeadphone) els.inputTypeHeadphone.classList.toggle('is-active', t === 'headphone');
     if (els.inputTypeNote) els.inputTypeNote.textContent = MIC_INPUT_TYPE_NOTE[t] || MIC_INPUT_TYPE_NOTE.auto;
     if (els.testInputNote) els.testInputNote.textContent = MIC_TEST_NOTE_BY_TYPE[t] || MIC_TEST_NOTE_BY_TYPE.auto;
+    // 入力タイプに応じて「イヤホンの音ズレ補正」カードと「マイクの遅れ補正」カードを出し分ける
+    const headphone = (t === 'headphone');
+    if (els.hpCalCard) els.hpCalCard.classList.toggle('hidden', !headphone);
+    if (els.calCard) els.calCard.classList.toggle('hidden', headphone);
+    if (!headphone && hpCal.active) stopHeadphoneCal(); // 補正テスト再生中に他タイプへ切替えたら停止
+}
+
+/* ── イヤホンの音ズレ補正（v0.9.50）─────────────────────────────
+   クリック音と4つの丸の点灯を、スライダー(offset)分だけ前後させて
+   「音と光が同時に感じられる」位置をユーザーが探すための補助。
+   重要：今回はUI・再生・保存のみ。STAGE判定/マイク判定/timingOffsetMs には一切反映しない。 */
+const HP_OFFSET_MIN = -50;        // スライダー下限(ms)：音が光より早い側
+const HP_OFFSET_MAX = 300;        // スライダー上限(ms)：音が光より遅い側
+const HP_OFFSET_DEFAULT = 30;     // 初期値（有線の目安）
+const HP_CAL_BEAT_MS = 600;       // 補正テストのテンポ（100BPM相当）
+const HP_CAL_LEAD_MS = 80;        // クリックを少し先に鳴らし、負offsetでも丸を先に光らせられるようにする土台
+const hpCal = { active: false, timer: 0, beat: 0, lightTimers: [] };
+
+/* 補正テスト専用クリック。クリック音量が0でも聞き取れるよう下限を設ける（既存click()/STAGEには影響なし） */
+function hpClick(accent) {
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume();
+    const vol = Math.max(0.4, Math.min(1, (state.clickVolume || 0) / 100));
+    const t0 = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.value = accent ? 1500 : 1200;
+    const peak = (accent ? 0.55 : 0.45) * vol;
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.002);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + 0.09);
+}
+
+function hpDotEls() { return [els.hpDot0, els.hpDot1, els.hpDot2, els.hpDot3]; }
+
+function hpDotResting(idx) { return idx === 0 ? 'rgba(46,204,113,0.25)' : 'rgba(253,246,238,0.16)'; }
+
+function lightHpDot(i) {
+    hpDotEls().forEach((d, idx) => {
+        if (!d) return;
+        if (idx === i) {
+            d.style.background = (i === 0) ? '#2ecc71' : '#ff9f1c';
+            d.style.boxShadow = '0 0 12px ' + ((i === 0) ? 'rgba(46,204,113,0.85)' : 'rgba(255,159,28,0.85)');
+        } else {
+            d.style.background = hpDotResting(idx);
+            d.style.boxShadow = 'none';
+        }
+    });
+}
+
+function clearHpDots() {
+    hpDotEls().forEach((d, idx) => {
+        if (!d) return;
+        d.style.background = hpDotResting(idx);
+        d.style.boxShadow = 'none';
+    });
+}
+
+function hpBeatTick() {
+    const i = hpCal.beat % 4;
+    const accent = (i === 0);
+    // クリックは常にLEAD後。丸は LEAD+offset 後（offsetが負でもLEADぶん余裕があり0未満にならない）
+    const lightDelay = Math.max(0, HP_CAL_LEAD_MS + (mic.headphoneOutputOffsetMs || 0));
+    const t1 = setTimeout(() => hpClick(accent), HP_CAL_LEAD_MS);
+    const t2 = setTimeout(() => lightHpDot(i), lightDelay);
+    hpCal.lightTimers.push(t1, t2);
+    if (hpCal.lightTimers.length > 16) hpCal.lightTimers.splice(0, hpCal.lightTimers.length - 16);
+    hpCal.beat++;
+}
+
+function startHeadphoneCal() {
+    ensureAudio();
+    try { if (state.audioCtx && state.audioCtx.state === 'suspended') state.audioCtx.resume(); } catch (_) { /* ignore */ }
+    hpCal.active = true;
+    hpCal.beat = 0;
+    if (els.hpCalBtn) els.hpCalBtn.textContent = '停止';
+    hpBeatTick(); // 押した直後に1拍目
+    hpCal.timer = setInterval(hpBeatTick, HP_CAL_BEAT_MS);
+}
+
+function stopHeadphoneCal() {
+    hpCal.active = false;
+    if (hpCal.timer) { clearInterval(hpCal.timer); hpCal.timer = 0; }
+    hpCal.lightTimers.forEach((t) => clearTimeout(t));
+    hpCal.lightTimers = [];
+    clearHpDots();
+    if (els.hpCalBtn) els.hpCalBtn.textContent = '補正テスト開始';
+}
+
+function toggleHeadphoneCal() {
+    if (hpCal.active) stopHeadphoneCal(); else startHeadphoneCal();
+}
+
+/* スライダー/目安ボタンからの補正値更新。範囲外・不正値は初期値に丸めて保存 */
+function setHeadphoneOffset(ms, opts) {
+    let v = Number(ms);
+    if (!isFinite(v) || v < HP_OFFSET_MIN || v > HP_OFFSET_MAX) v = HP_OFFSET_DEFAULT;
+    mic.headphoneOutputOffsetMs = v;
+    if (els.hpOffset) els.hpOffset.value = v;
+    if (els.hpOffsetVal) els.hpOffsetVal.textContent = v + 'ms';
+    if (!opts || !opts.skipSave) saveSettings();
 }
 
 /* ── 入力タイプ別の感度・表示プロファイル判定（v0.9.49）──────────
@@ -2153,6 +2272,11 @@ function loadSettings() {
     try { s = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch (_) { s = {}; }
     mic.threshold = clampNum(s.threshold, THR_MIN, THR_MAX, SETTINGS_DEFAULTS.threshold);
     mic.inputType = MIC_INPUT_TYPES.includes(s.inputType) ? s.inputType : 'auto';
+    {
+        // イヤホンの音ズレ補正：保存なし/範囲外/不正値は 30ms に戻す
+        const hpOff = Number(s.headphoneOutputOffsetMs);
+        mic.headphoneOutputOffsetMs = (isFinite(hpOff) && hpOff >= HP_OFFSET_MIN && hpOff <= HP_OFFSET_MAX) ? hpOff : HP_OFFSET_DEFAULT;
+    }
     mic.lowInputProfile = !!s.lowInputProfile;
     mic.cooldownMs = clampNum(s.cooldownMs, 100, 400, SETTINGS_DEFAULTS.cooldownMs);
     mic.clickGuardMs = clampNum(s.clickGuardMs, 0, 250, SETTINGS_DEFAULTS.clickGuardMs);
@@ -2179,6 +2303,7 @@ function saveSettings() {
         localStorage.setItem(SETTINGS_KEY, JSON.stringify({
             threshold: mic.threshold,
             inputType: mic.inputType,
+            headphoneOutputOffsetMs: mic.headphoneOutputOffsetMs,
             lowInputProfile: mic.lowInputProfile,
             cooldownMs: mic.cooldownMs,
             clickGuardMs: mic.clickGuardMs,
@@ -2220,6 +2345,8 @@ function applySettingsToUI() {
         els.setClickVol.value = state.clickVolume;
         els.setClickVolVal.textContent = state.clickVolume + '％';
     }
+    if (els.hpOffset) els.hpOffset.value = mic.headphoneOutputOffsetMs;
+    if (els.hpOffsetVal) els.hpOffsetVal.textContent = mic.headphoneOutputOffsetMs + 'ms';
     updateStrokeDetectModeUI();
     updateMicInputTypeUI();
 }
@@ -2243,6 +2370,7 @@ function openSettings(from) {
 
 function closeSettings() {
     if (cal.active) cancelCalibration();
+    if (hpCal.active) stopHeadphoneCal();
     exitTestMode();
     show(settingsReturn);
     if (settingsReturn === 'practice') { fitLane(); }
@@ -3957,6 +4085,17 @@ function bind() {
     if (els.inputTypeAuto) els.inputTypeAuto.addEventListener('click', () => setMicInputType('auto'));
     if (els.inputTypeNormal) els.inputTypeNormal.addEventListener('click', () => setMicInputType('normal'));
     if (els.inputTypeHeadphone) els.inputTypeHeadphone.addEventListener('click', () => setMicInputType('headphone'));
+    // イヤホンの音ズレ補正（v0.9.50）
+    if (els.hpCalBtn) els.hpCalBtn.addEventListener('click', toggleHeadphoneCal);
+    if (els.hpOffset) els.hpOffset.addEventListener('input', () => setHeadphoneOffset(parseInt(els.hpOffset.value, 10)));
+    if (els.hpPresetWired) els.hpPresetWired.addEventListener('click', () => {
+        setHeadphoneOffset(30);
+        if (els.hpBtNote) els.hpBtNote.classList.add('hidden');
+    });
+    if (els.hpPresetBt) els.hpPresetBt.addEventListener('click', () => {
+        setHeadphoneOffset(180);
+        if (els.hpBtNote) els.hpBtNote.classList.remove('hidden');
+    });
     // タップエリア配置（左右 / 上下）
     if (els.layoutLrBtn) els.layoutLrBtn.addEventListener('click', () => setTapLayout('lr'));
     if (els.layoutUdBtn) els.layoutUdBtn.addEventListener('click', () => setTapLayout('ud'));
