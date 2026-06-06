@@ -1538,6 +1538,31 @@ h1 {
     box-shadow: 0 4px 12px rgba(255, 159, 28, 0.3);
 }
 
+/* マイク設定ウィザードの2択（v0.9.63）：未選択でも「選べる」と分かる独立ボタン風 */
+.input-mode.seg-cards {
+    max-width: none;
+    gap: 10px;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    border: none;
+}
+
+.seg-cards .input-seg {
+    padding: 14px 12px;
+    border-radius: 12px;
+    border: 2px solid rgba(253, 246, 238, 0.3);
+    background: rgba(253, 246, 238, 0.06);
+    color: rgba(253, 246, 238, 0.92);
+}
+
+.seg-cards .input-seg.is-active {
+    border-color: #ff9f1c;
+    background: linear-gradient(180deg, #ff9f1c, #ff8c00);
+    color: #1a130a;
+    box-shadow: 0 4px 12px rgba(255, 159, 28, 0.3);
+}
+
 /* STAGE：タップ案内（控えめ） */
 .tap-hint {
     width: 100%;
