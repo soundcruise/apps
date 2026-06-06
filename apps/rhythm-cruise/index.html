@@ -167,7 +167,18 @@
                 </div>
             </div>
 
-            <!-- 1. マイク反応テスト（自動フロー・一番上） -->
+            <!-- 1. ストローク検出モード（ブラッシング / コードストローク） -->
+            <div class="settings-card stroke-mode-card" id="stroke-mode-card">
+                <div class="cal-head">ストローク検出モード</div>
+                <p class="setting-note"><b>ブラッシング</b>：弦をミュートして「チャッ」と鳴らす練習向け。<br><b>コードストローク</b>：実際にコードを鳴らす練習向け（コードの余韻を無視して、弾き始めを拾います）。</p>
+                <div class="input-mode" id="stroke-detect-mode">
+                    <button type="button" class="input-seg is-active" id="stroke-mode-brush" data-stroke-mode="brush">ブラッシング</button>
+                    <button type="button" class="input-seg" id="stroke-mode-chord" data-stroke-mode="chord">コードストローク</button>
+                </div>
+                <p class="setting-note stroke-mode-note hidden" id="stroke-mode-note">コードを鳴らしてストロークする練習用です。マイク反応テストで、コードの余韻を無視して弾き始めを拾う設定を作ります。</p>
+            </div>
+
+            <!-- 2. マイク反応テスト（自動フロー） -->
             <div class="settings-card test-card" id="test-card">
                 <div class="cal-head-row">
                     <div class="cal-head" id="test-card-head">マイク反応テスト</div>
@@ -224,7 +235,7 @@
                 </details>
             </div>
 
-            <!-- 2. マイクの遅れ補正 -->
+            <!-- 3. マイクの遅れ補正 -->
             <div class="settings-card cal-card" id="cal-card">
                 <div class="cal-head-row">
                     <div class="cal-head" id="cal-head">マイクの遅れ補正</div>
@@ -268,7 +279,7 @@
                 </details>
             </div>
 
-            <!-- 3. イヤホンの音ズレ補正（イヤホン種類=Bluetooth のときだけ表示。UI/保存のみ・STAGE判定には未反映） -->
+            <!-- 4. イヤホンの音ズレ補正（イヤホン種類=Bluetooth のときだけ表示。UI/保存のみ・STAGE判定には未反映） -->
             <div class="settings-card cal-card hidden" id="hp-cal-card">
                 <div class="cal-head-row">
                     <div class="cal-head">イヤホンの音ズレ補正</div>
@@ -294,18 +305,24 @@
                 </div>
             </div>
 
-            <!-- 4. ストローク検出モード（ブラッシング / コードストローク） -->
-            <div class="settings-card stroke-mode-card" id="stroke-mode-card">
-                <div class="cal-head">ストローク検出モード</div>
-                <p class="setting-note"><b>ブラッシング</b>：弦をミュートして「チャッ」と鳴らす練習向け。<br><b>コードストローク</b>：実際にコードを鳴らす練習向け（コードの余韻を無視して、弾き始めを拾います）。</p>
-                <div class="input-mode" id="stroke-detect-mode">
-                    <button type="button" class="input-seg is-active" id="stroke-mode-brush" data-stroke-mode="brush">ブラッシング</button>
-                    <button type="button" class="input-seg" id="stroke-mode-chord" data-stroke-mode="chord">コードストローク</button>
+            <!-- 5. 実践テスト（基本設定後の確認。入力タイプに関係なく表示。確認・表示のみ／補正は未適用） -->
+            <div class="settings-card cal-card" id="pt-card">
+                <div class="cal-head-row">
+                    <div class="cal-head">実践テスト</div>
                 </div>
-                <p class="setting-note stroke-mode-note hidden" id="stroke-mode-note">コードを鳴らしてストロークする練習用です。マイク反応テストで、コードの余韻を無視して弾き始めを拾う設定を作ります。</p>
+                <p class="setting-note">実際のSTAGEに近い画面で、音量と判定タイミングを確認します。</p>
+                <p class="setting-note">ここまでの設定で、実際に使えるか確認します。</p>
+                <p class="setting-note" id="pt-note">入力状態に合わせた設定で、実際に問題なく判定されるか確認します。</p>
+                <!-- STAGE1風の流れる音符＋判定ライン＋音量波形 -->
+                <div class="test-lane-wrap hidden" id="pt-lane-wrap">
+                    <canvas id="pt-lane-canvas"></canvas>
+                </div>
+                <button class="btn-mic cal-run-btn" id="pt-btn">実践テストを開始</button>
+                <p class="cal-status" id="pt-status"></p>
+                <div class="cal-result hidden" id="pt-result"></div>
             </div>
 
-            <!-- 5. 手動設定はこちら（折りたたみ） -->
+            <!-- 6. 手動設定はこちら（折りたたみ） -->
             <div class="settings-card">
                 <details class="settings-detail" id="manual-detail">
                     <summary>手動設定はこちら</summary>
@@ -344,23 +361,6 @@
                         <button type="button" class="btn-mini" id="set-hp-reset" style="margin-top:6px;">30msに戻す</button>
                     </div>
                 </details>
-            </div>
-
-            <!-- 6. 実践テスト（全ての設定後の最終確認。入力タイプに関係なく表示。確認・表示のみ／補正は未適用） -->
-            <div class="settings-card cal-card" id="pt-card">
-                <div class="cal-head-row">
-                    <div class="cal-head">実践テスト</div>
-                </div>
-                <p class="setting-note">実際のSTAGEに近い画面で、音量と判定タイミングを確認します。</p>
-                <p class="setting-note">すべての設定が終わったあと、この設定で実際に使えるかを最終確認します。</p>
-                <p class="setting-note" id="pt-note">入力状態に合わせた設定で、実際に問題なく判定されるか確認します。</p>
-                <!-- STAGE1風の流れる音符＋判定ライン＋音量波形 -->
-                <div class="test-lane-wrap hidden" id="pt-lane-wrap">
-                    <canvas id="pt-lane-canvas"></canvas>
-                </div>
-                <button class="btn-mic cal-run-btn" id="pt-btn">実践テストを開始</button>
-                <p class="cal-status" id="pt-status"></p>
-                <div class="cal-result hidden" id="pt-result"></div>
             </div>
 
             <div class="settings-actions">
@@ -460,7 +460,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.57"></script>
+    <script src="script.js?v=0.9.58"></script>
 </body>
 
 </html>

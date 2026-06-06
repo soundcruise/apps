@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.57';
+const RHYTHM_CRUISE_VERSION = '0.9.58';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -2217,6 +2217,7 @@ const pt = {
     active: false, capturing: false, timers: [], scheduled: [], raf: 0,
     audioStart: 0, flowStartPerf: 0, playT0Ms: 0,
     notes: [], onsets: [], wave: [], clickPerfTimes: [], lastOnsetAt: 0, lastDetectAt: -100000, maxPeak: 0, doubleCount: 0,
+    armed: true,
 };
 
 /* 入力タイプ別の補足文（表示は常に出す。文言だけ少し変える） */
@@ -2240,17 +2241,23 @@ function fitPtLane() {
     ptLane = fitOne(els.ptLaneCanvas);
 }
 
-/* 実践テスト専用クリック。clickVolumeに合わせつつ聞き取りやすさのため下限あり（STAGE/click()には影響なし） */
+function ptDetectionThreshold() {
+    // 実践テストはSTAGE1の実判定確認なので、STAGE再生中と同じ検出しきい値を使う。
+    return mic.threshold * MIC_STAGE_DETECT_FACTOR;
+}
+
+/* 実践テスト専用クリック。STAGE本番と同じ clickVolume / 音量カーブで鳴らす。 */
 function ptScheduleClick(atSec, accent) {
     const ctx = state.audioCtx;
     if (!ctx) return;
-    const vol = Math.max(0.4, Math.min(1, (state.clickVolume || 0) / 100));
+    const vol = Math.max(0, Math.min(1, state.clickVolume / 100));
     const t0 = Math.max(atSec, ctx.currentTime);
+    const peak = (accent ? 0.55 : 0.45) * vol;
+    if (peak < 0.001) return;
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
     osc.type = 'square';
     osc.frequency.value = accent ? 1500 : 1200;
-    const peak = (accent ? 0.55 : 0.45) * vol;
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(peak, t0 + 0.002);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
@@ -2295,7 +2302,7 @@ function drawPracticeLane(t) {
     ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke();
     // 音量波形（反応ライン基準でスケール）：判定ラインを超えているかが見えるように描く
     const ampPx = h * 0.34; // STAGE1の drawMicWaveform() と同じ比率
-    const lineAmp = micDisplayFrac(mic.threshold) * ampPx;
+    const lineAmp = micDisplayFrac(ptDetectionThreshold()) * ampPx;
     ctx.strokeStyle = 'rgba(255,159,28,0.30)';
     ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, yc - lineAmp); ctx.lineTo(w, yc - lineAmp); ctx.stroke();
@@ -2304,7 +2311,7 @@ function drawPracticeLane(t) {
     ctx.fillStyle = 'rgba(255,159,28,0.5)';
     ctx.font = '600 9px Outfit, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText('反応ライン', 4, yc - lineAmp - 3);
+    ctx.fillText('実判定ライン', 4, yc - lineAmp - 3);
     if (pt.wave.length) {
         const pts = [];
         for (let i = 0; i < pt.wave.length; i++) {
@@ -2396,6 +2403,7 @@ async function startPracticeTest() {
     pt.lastDetectAt = -100000;
     pt.maxPeak = 0;
     pt.doubleCount = 0;
+    pt.armed = true;
     pt.timers.forEach(clearTimeout); pt.timers = [];
     pt.scheduled = [];
     if (els.ptResult) els.ptResult.classList.add('hidden');
@@ -2444,15 +2452,15 @@ function finishPracticeTest() {
     }
     const valid = good + early + late;
     const avg = validN ? Math.round(sum / validN) : 0;
-    renderPracticeResult({ good, early, late, miss, valid, avg, maxPeak: pt.maxPeak, doubleCount: pt.doubleCount, threshold: mic.threshold, cooldownMs: mic.cooldownMs });
+    renderPracticeResult({ good, early, late, miss, valid, avg, maxPeak: pt.maxPeak, doubleCount: pt.doubleCount, threshold: mic.threshold, detectThreshold: ptDetectionThreshold(), cooldownMs: mic.cooldownMs });
     setPtStatus('完了');
     endPracticeTest(true);
 }
 
 /* 音量も含めた総合判定（v0.9.56）。補正提案はせず、案内のみ。
-   line＝現在の反応ライン。volRatio＝検出最大音量 ÷ 反応ライン。 */
+   line＝実践テストの実判定ライン。volRatio＝検出最大音量 ÷ 実判定ライン。 */
 function practiceComment(r) {
-    const line = r.threshold || mic.threshold || 0.0001;
+    const line = r.detectThreshold || r.threshold || mic.threshold || 0.0001;
     const volRatio = r.maxPeak / line;
     const lowVol = volRatio < 0.9;        // 波形はあっても判定ラインに届いていない
     // 判定A：入力が拾えていない（有効入力が少ない/MISS多い かつ 音量が反応ラインに届いていない）
@@ -2486,7 +2494,8 @@ function renderPracticeResult(r) {
     const c = practiceComment(r);
     const sign = r.avg > 0 ? '+' : (r.avg < 0 ? '−' : '±');
     const avgTxt = sign + Math.abs(r.avg) + 'ms';
-    const line = r.threshold || mic.threshold || 0.0001;
+    const settingLine = r.threshold || mic.threshold || 0.0001;
+    const line = r.detectThreshold || settingLine;
     const volRatio = r.maxPeak / line;
     let volTxt;
     if (r.maxPeak <= 0) volTxt = '入力なし';
@@ -2501,7 +2510,8 @@ function renderPracticeResult(r) {
         '<div class="cal-result-row"><span>有効入力</span><b>' + r.valid + ' / ' + PT_PLAY_BEATS + '</b></div>' +
         '<div class="cal-result-row"><span>平均ズレ</span><b>' + avgTxt + '</b></div>' +
         '<div class="cal-result-row"><span>検出音量の目安</span><b>' + volTxt + '</b></div>' +
-        '<div class="cal-result-row"><span>使用した反応ライン</span><b>' + line.toFixed(3) + '</b></div>' +
+        '<div class="cal-result-row"><span>設定反応ライン</span><b>' + settingLine.toFixed(3) + '</b></div>' +
+        '<div class="cal-result-row"><span>実践テスト判定ライン</span><b>' + line.toFixed(3) + '</b></div>' +
         '<div class="cal-result-row"><span>二重反応防止</span><b>' + r.cooldownMs + 'ms</b></div>' +
         '<div class="cal-result-row"><span>二重反応</span><b>' + (r.doubleCount > 0 ? 'あり（' + r.doubleCount + '）' : 'なし') + '</b></div>' +
         '<p class="test-reco-msg ' + (c.kind === 'ok' ? '' : 'warn') + '">' + c.text + '</p>';
@@ -4039,7 +4049,7 @@ function micLoop() {
         return;
     }
 
-    // ── 実践テスト（v0.9.57）：音量波形・オンセット・拍ごとの判定を記録（registerHit/スコアには流さない）──
+    // ── 実践テスト（v0.9.58）：音量波形・オンセット・拍ごとの判定を記録（registerHit/スコアには流さない）──
     if (pt.active) {
         // 音量波形バッファ（flowStart基準の時刻でenv履歴を保存）
         pt.wave.push({ t: now - pt.flowStartPerf, level: mic.env });
@@ -4052,10 +4062,17 @@ function micLoop() {
                 const note = pt.notes[ni];
                 if (peak > note.peak) note.peak = peak;
                 if (peak > pt.maxPeak) pt.maxPeak = peak;
-                if (onset) {
+                const ptDetThr = ptDetectionThreshold();
+                const ptCrossed = peak >= ptDetThr && mic.prevPeak < ptDetThr;
+                const ptBigRise = peak >= ptDetThr && rise >= RISE_DELTA;
+                if (peak < ptDetThr * MIC_REARM_FACTOR) pt.armed = true;
+                const ptSustainedOnset = MIC_SUSTAINED_ONSET && pt.armed && peak >= ptDetThr;
+                const ptOnset = ptCrossed || ptBigRise || ptSustainedOnset;
+                if (ptOnset) pt.armed = false;
+                if (ptOnset) {
                     pt.lastOnsetAt = now;
                     // ── STAGE本体と同じ切り分け ──
-                    //  ・反応ライン(mic.threshold)超え＝ストローク（onset時点で peak>=threshold）。
+                    //  ・STAGE中と同じ実判定ライン(ptDetThr)超え＝onset候補。
                     //  ・クリック直後でも「弱い入力」だけ除外（isClickGuardedOnset／STRONG_STROKE_FACTOR=1.0）。
                     //  ・直前の採用からクールダウン(mic.cooldownMs)以内は二重反応として登録しない。
                     const guarded = isClickGuardedOnset(now, peak, ptLatestClickPerf(now), true);
@@ -4066,7 +4083,7 @@ function micLoop() {
                             if (Math.abs(diff) <= PT_NEAR_WIN && note.cls == null) {
                                 note.diff = diff;
                                 note.cls = ptClassify(diff);
-                                note.detected = (peak >= mic.threshold);
+                                note.detected = (peak >= ptDetThr);
                                 setPtStatus(LABELS[note.cls] || '');
                             }
                             pt.lastDetectAt = now; // 採用基点（STAGEの mic.lastDetect 相当）
