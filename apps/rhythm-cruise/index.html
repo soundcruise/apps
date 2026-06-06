@@ -147,12 +147,12 @@
                 <p class="mic-reset-msg hidden" id="mic-reset-msg"></p>
             </header>
 
-            <!-- マイク設定の入口：まずは2択だけ見せる（迷わせない） -->
+            <!-- マイク設定の入口：メイン＝もう一度テストする／サブ＝現在の設定を見る -->
             <div class="settings-card" id="settings-chooser">
                 <div class="cal-head">マイク設定</div>
-                <p class="setting-note">どちらにしますか？</p>
-                <button type="button" class="btn-primary" id="settings-view-current" style="width:100%;margin-bottom:10px;">現在の設定を見る</button>
-                <button type="button" class="btn-mic" id="settings-view-retest" style="width:100%;">もう一度テストする</button>
+                <p class="setting-note">まずはテストして、今の環境に合う設定を作ります。</p>
+                <button type="button" class="btn-primary" id="settings-view-retest" style="width:100%;font-size:1.05rem;padding:14px;">もう一度テストする</button>
+                <button type="button" class="btn-mini" id="settings-view-current" style="width:100%;margin-top:12px;">現在の設定を見る</button>
             </div>
 
             <!-- 現在の設定を見る：一覧（確認用）。下に「設定をやり直す」 -->
@@ -164,15 +164,14 @@
                 <button type="button" class="btn-mini" id="settings-summary-back" style="margin-top:8px;">選択へ戻る</button>
             </div>
 
-            <!-- 入力タイプ（自動おすすめ / 通常マイク / イヤホン接続）。テストや補正方式の切替土台 -->
+            <!-- 入力タイプ（通常マイク / イヤホン接続）。テストや補正方式の切替土台 -->
             <div class="settings-card input-type-card" id="input-type-card">
                 <div class="cal-head">入力タイプ</div>
                 <div class="input-mode" id="input-type-mode">
-                    <button type="button" class="input-seg is-active" id="input-type-auto" data-input-type="auto">自動おすすめ</button>
-                    <button type="button" class="input-seg" id="input-type-normal" data-input-type="normal">通常マイク</button>
+                    <button type="button" class="input-seg is-active" id="input-type-normal" data-input-type="normal">通常マイク</button>
                     <button type="button" class="input-seg" id="input-type-headphone" data-input-type="headphone">イヤホン接続</button>
                 </div>
-                <p class="setting-note" id="input-type-note">通常はこちら。入力の大きさに合わせて自動調整します。</p>
+                <p class="setting-note" id="input-type-note">本体マイクや外部マイクを使う場合におすすめです。</p>
                 <!-- イヤホンの種類（入力タイプ=イヤホン接続 のときだけ表示）。入力タイプの直下に連続表示 -->
                 <div class="hidden" id="hp-type-card">
                     <div class="cal-head" style="font-size:0.95rem;margin-top:10px;">イヤホンの種類</div>
@@ -194,9 +193,6 @@
                 </div>
                 <p class="setting-note stroke-mode-note hidden" id="stroke-mode-note">コードを鳴らしてストロークする練習用です。マイク反応テストで、コードの余韻を無視して弾き始めを拾う設定を作ります。</p>
             </div>
-
-            <!-- 上流（入力タイプ/ストローク検出モード）を変えたときの再テスト案内 -->
-            <p class="setting-note warn hidden" id="settings-stale-note">上の設定を変えました。もう一度マイク反応テストを行ってください。</p>
 
             <!-- 2. マイク反応テスト（自動フロー） -->
             <div class="settings-card test-card" id="test-card">
@@ -389,12 +385,6 @@
                 </details>
             </div>
 
-            <!-- ステップ式UIの「次へ」（もう一度テストする を選んだときだけ表示） -->
-            <div id="settings-steps-nav" style="display:none;margin:6px 0 2px;">
-                <p class="setting-note" id="settings-step-hint"></p>
-                <button type="button" class="btn-primary" id="settings-step-next" style="width:100%;">次へ</button>
-            </div>
-
             <div class="settings-actions">
                 <button class="btn-mini" id="settings-reset-btn">初期値に戻す</button>
                 <button class="btn-primary settings-back" id="settings-back-btn">完了</button>
@@ -492,7 +482,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.59"></script>
+    <script src="script.js?v=0.9.60"></script>
 </body>
 
 </html>
