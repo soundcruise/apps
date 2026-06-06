@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.56';
+const RHYTHM_CRUISE_VERSION = '0.9.57';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -688,6 +688,21 @@ function clickLatencyMs() {
     if (!c) return 0;
     const l = (c.outputLatency != null ? c.outputLatency : (c.baseLatency || 0)) || 0;
     return Math.min(150, l * 1000); // 過剰に伸ばして本物のストロークを捨てないよう上限150ms
+}
+
+/* クリック音直後の「弱い」立ち上がりだけを除外するか（STAGE本体と同条件）。
+   STAGE本番(micLoop)で使っている inGuard && !strongEnough をそのまま関数化したもの。
+   ・guardMs ＝ mic.clickGuardMs ＋ 出力レイテンシ（clickLatencyMs）
+   ・反応ライン(threshold)の STRONG_STROKE_FACTOR 倍以上の入力は「ストロークとして通す」
+   ＝ 反応ライン超えの普通のストロークは（クリック直後でも）除外しない。
+   clickActive：クリックが鳴っている前提か（STAGE＝state.clickEnabled／実践テスト＝常にtrue）。 */
+function isClickGuardedOnset(now, peak, lastClickPerf, clickActive) {
+    if (!clickActive) return false;
+    const guardMs = mic.clickGuardMs + clickLatencyMs();
+    const sinceClick = now - lastClickPerf;
+    const inGuard = sinceClick >= -10 && sinceClick <= guardMs;
+    const strongEnough = peak >= mic.threshold * STRONG_STROKE_FACTOR;
+    return inGuard && !strongEnough;
 }
 
 /* ── キャンバス初期化（DPR対応） ───────────────────────── */
@@ -2194,12 +2209,10 @@ const PT_BEAT_MS = 60000 / PT_BPM;      // 750ms（4分）
 const PT_COUNTIN = 4;                   // カウントイン4拍
 const PT_PLAY_BEATS = 8;                // 本番8回ストローク
 const PT_LEAD_MS = 400;                 // 開始から最初のカウントインまでの小休止
-const PT_MIN_GAP_MS = 130;              // オンセットの最小間隔（二重カウント防止の下限）
 const PT_NEAR_WIN = Math.max(NEAR_MS, PT_BEAT_MS * NEAR_FRAC); // 拍への割り当て窓（これを超えたらMISS）
 const PT_CAP_WIN_MS = PT_BEAT_MS * 0.5; // 取り込み開始/終了のゆとり
 const PT_WAVE_WINDOW_MS = 4000;         // 波形バッファの保持時間
 const PT_LANE_HEIGHT = 168;             // STAGE1本体の #lane-canvas と同じCSS高さ
-const PT_CLICK_IGNORE_MS = 90;           // クリック直後の誤検出除外（短め。波形表示には残す）
 const pt = {
     active: false, capturing: false, timers: [], scheduled: [], raf: 0,
     audioStart: 0, flowStartPerf: 0, playT0Ms: 0,
@@ -2245,20 +2258,18 @@ function ptScheduleClick(atSec, accent) {
     osc.start(t0);
     osc.stop(t0 + 0.09);
     pt.scheduled.push(osc);
+    // クリックの「鳴った時刻」をperf換算で記録（STAGE本体の state.lastClickPerf と同じ役割）。
     pt.clickPerfTimes.push(pt.flowStartPerf + (t0 - pt.audioStart) * 1000);
 }
 
-function ptInClickIgnoreWindow(now) {
-    if (!pt.clickPerfTimes.length) return false;
-    // STAGE本体のクリックガードと同じく、出力レイテンシ分を考慮。
-    // 実質「クリック発音後90ms前後」を狙い、極端な環境でも長くなりすぎないよう上限を置く。
-    const guardMs = Math.min(220, Math.max(PT_CLICK_IGNORE_MS, mic.clickGuardMs) + clickLatencyMs());
-    for (let i = pt.clickPerfTimes.length - 1; i >= 0; i--) {
-        const since = now - pt.clickPerfTimes[i];
-        if (since > guardMs) break;
-        if (since >= -10 && since <= guardMs) return true;
+/* 直近に鳴った（または鳴る予定の）クリックのperf時刻を返す（STAGEの state.lastClickPerf 相当）。 */
+function ptLatestClickPerf(now) {
+    let last = -100000;
+    for (let i = 0; i < pt.clickPerfTimes.length; i++) {
+        const c = pt.clickPerfTimes[i];
+        if (c <= now + 10 && c > last) last = c;
     }
-    return false;
+    return last;
 }
 
 function ptClassify(diff) {
@@ -4028,7 +4039,7 @@ function micLoop() {
         return;
     }
 
-    // ── 実践テスト（v0.9.56）：音量波形・オンセット・拍ごとの判定を記録（registerHit/スコアには流さない）──
+    // ── 実践テスト（v0.9.57）：音量波形・オンセット・拍ごとの判定を記録（registerHit/スコアには流さない）──
     if (pt.active) {
         // 音量波形バッファ（flowStart基準の時刻でenv履歴を保存）
         pt.wave.push({ t: now - pt.flowStartPerf, level: mic.env });
@@ -4043,28 +4054,30 @@ function micLoop() {
                 if (peak > pt.maxPeak) pt.maxPeak = peak;
                 if (onset) {
                     pt.lastOnsetAt = now;
-                    const inClickIgnore = ptInClickIgnoreWindow(now);
-                    const cooled = (now - pt.lastDetectAt) > Math.max(PT_MIN_GAP_MS, mic.cooldownMs);
-                    const diff = tMs - (pt.playT0Ms + ni * PT_BEAT_MS);
-                    if (inClickIgnore) {
-                        // クリック直後の回り込み音は波形だけ残し、ストローク判定には採用しない
-                    } else if (!cooled) {
-                        note.doubled = true;
-                        pt.doubleCount++;
-                    } else if (Math.abs(diff) <= PT_NEAR_WIN) {
-                        if (note.cls == null) {
-                            note.diff = diff;
-                            note.cls = ptClassify(diff);
-                            note.detected = (peak >= mic.threshold);
-                            pt.lastDetectAt = now;
-                            setPtStatus(LABELS[note.cls] || '');
+                    // ── STAGE本体と同じ切り分け ──
+                    //  ・反応ライン(mic.threshold)超え＝ストローク（onset時点で peak>=threshold）。
+                    //  ・クリック直後でも「弱い入力」だけ除外（isClickGuardedOnset／STRONG_STROKE_FACTOR=1.0）。
+                    //  ・直前の採用からクールダウン(mic.cooldownMs)以内は二重反応として登録しない。
+                    const guarded = isClickGuardedOnset(now, peak, ptLatestClickPerf(now), true);
+                    const cooled = (now - pt.lastDetectAt) > mic.cooldownMs;
+                    if (!guarded) {
+                        if (cooled) {
+                            const diff = tMs - (pt.playT0Ms + ni * PT_BEAT_MS);
+                            if (Math.abs(diff) <= PT_NEAR_WIN && note.cls == null) {
+                                note.diff = diff;
+                                note.cls = ptClassify(diff);
+                                note.detected = (peak >= mic.threshold);
+                                setPtStatus(LABELS[note.cls] || '');
+                            }
+                            pt.lastDetectAt = now; // 採用基点（STAGEの mic.lastDetect 相当）
                         } else {
-                            // 同じ拍に2回目以上の立ち上がり＝二重反応
-                            note.doubled = true;
-                            pt.doubleCount++;
+                            // クールダウン中の強い別アタックだけ二重反応として数える（STAGE本体と同じ考え方）
+                            const strongInput = peak >= mic.threshold * DOUBLE_MIN_PEAK_FACTOR;
+                            const enoughGap = (now - pt.lastDetectAt) >= DOUBLE_MIN_GAP_MS;
+                            if (strongInput && enoughGap) { note.doubled = true; pt.doubleCount++; }
                         }
+                        pt.onsets.push({ t: tMs, peak });
                     }
-                    pt.onsets.push({ t: tMs, peak });
                 }
             }
         }
