@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.93';
+const RHYTHM_CRUISE_VERSION = '0.9.94';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -2220,8 +2220,8 @@ const HP_CAL_BPM_MIN = 20, HP_CAL_BPM_MAX = 160, HP_CAL_BPM_STEP = 20;
 let hpCalBpm = 100;
 function hpCalBeatMs() { return 60000 / hpCalBpm; }
 /* Bluetoothイヤホンの「標準」スタートライン(ms)。判定ズレ補正ではなく、イヤホン音と画面表示を
-   合わせるための表示補正の基準値（v0.9.93）。判定（STAGE/最終確認テスト）には反映しない。 */
-const HP_BLUETOOTH_STANDARD_OFFSET = 180;
+   合わせるための表示補正の基準値（v0.9.93→v0.9.94で100msへ）。判定（STAGE/最終確認テスト）には反映しない。 */
+const HP_BLUETOOTH_STANDARD_OFFSET = 100;
 const HP_CAL_LEAD_MS = 80;        // クリックを少し先に鳴らし、負offsetでも丸を先に光らせられるようにする土台
 const hpCal = { active: false, timer: 0, beat: 0, lightTimers: [], raf: 0, flowStartPerf: 0 };
 let hpLane = { ctx: null, w: 0, h: 0 }; // イヤホン音ズレ補正の流れるレーン（v0.9.91）
@@ -2380,26 +2380,39 @@ function startHeadphoneCal() {
     scrollToSettingsEl(els.hpCalCard); // カード上部（説明）が隠れないように（v0.9.92）
 }
 
-/* イヤホン音ズレ補正テスト専用BPMの変更（v0.9.93）。
-   テスト中に変更したら、何度も自動リスタートせず一旦停止する。新しいBPMでの確認は
-   ユーザーが「補正テスト開始」を押してから。STAGE/最終確認テストのテンポには影響しない。 */
+/* イヤホン音ズレ補正テスト専用BPMの変更（v0.9.93→v0.9.94）。
+   テスト中に変更したら自動リスタートせず一旦停止する。ただしレーンは閉じず、丸を初期位置へ戻して静止。
+   新しいBPMでの確認はユーザーが「補正テスト開始」を押してから。STAGE/最終確認テストのテンポには影響しない。 */
 function setHpCalBpm(bpm) {
     let v = Math.round(Number(bpm) / HP_CAL_BPM_STEP) * HP_CAL_BPM_STEP;
     if (!isFinite(v)) v = 100;
     v = Math.max(HP_CAL_BPM_MIN, Math.min(HP_CAL_BPM_MAX, v));
     hpCalBpm = v;
     if (els.hpBpmVal) els.hpBpmVal.textContent = String(v);
-    if (hpCal.active) stopHeadphoneCal(); // 変更時は一旦停止（クリック音/レーンも停止・ボタンは「補正テスト開始」へ）
+    // 変更時はクリック音/アニメを停止し、レーンは表示したまま初期位置へ戻す（v0.9.94）
+    if (hpCal.active) stopHeadphoneCal({ keepLane: true });
 }
 
-function stopHeadphoneCal() {
+/* 補正テストの停止。既定はレーンも閉じる（完了/別ステップ移動/設定を閉じる/明示的な中止など）。
+   opts.keepLane=true のときだけ、レーンは表示したまま丸を初期位置へ戻して静止させる（v0.9.94：BPM変更時用）。 */
+function stopHeadphoneCal(opts) {
+    const keepLane = !!(opts && opts.keepLane);
     hpCal.active = false;
     if (hpCal.timer) { clearInterval(hpCal.timer); hpCal.timer = 0; }
     hpCal.lightTimers.forEach((t) => clearTimeout(t));
     hpCal.lightTimers = [];
     cancelAnimationFrame(hpCal.raf); hpCal.raf = 0;
-    if (els.hpCalLaneWrap) els.hpCalLaneWrap.classList.add('hidden');
     if (els.hpCalBtn) els.hpCalBtn.textContent = '補正テスト開始';
+    if (keepLane) {
+        // クリック音・アニメは停止しつつ、レーンは閉じず丸を初期位置へ戻して1フレームだけ描く
+        if (els.hpCalLaneWrap) els.hpCalLaneWrap.classList.remove('hidden');
+        hpCal.beat = 0;
+        hpCal.flowStartPerf = performance.now();
+        fitHpLane();
+        drawHpLane(hpCal.flowStartPerf); // rel=0＝初期位置（現在のBPMの間隔で静止描画）
+    } else {
+        if (els.hpCalLaneWrap) els.hpCalLaneWrap.classList.add('hidden');
+    }
 }
 
 function toggleHeadphoneCal() {
@@ -2426,8 +2439,8 @@ function setHeadphoneOffset(ms, opts) {
 function setHeadphoneType(type, opts) {
     mic.headphoneType = (type === 'bluetooth') ? 'bluetooth' : 'wired';
     if (opts && opts.resetDefault) {
-        // v0.9.93：詳細テストでBluetoothを選び直したときは「Bluetoothイヤホン標準(180ms)」を
-        // スタートラインにする（表示補正の基準）。有線は従来どおり0ms（補正なし）。
+        // 詳細テストでBluetoothを選び直したときは「Bluetoothイヤホン標準(100ms)」を
+        // スタートラインにする（表示補正の基準・v0.9.94）。有線は従来どおり0ms（補正なし）。
         if (mic.headphoneType === 'bluetooth') mic.headphoneOffsetBluetoothMs = HP_BLUETOOTH_STANDARD_OFFSET;
         else mic.headphoneOffsetWiredMs = HP_TYPE_DEFAULT_OFFSET.wired;
     }
@@ -2449,7 +2462,7 @@ function resetHeadphoneOffsetToZero() {
     setHeadphoneOffset(0);
 }
 
-/* 「Bluetoothイヤホン標準」：Bluetoothの表示補正をスタートライン(180ms)へ戻す（v0.9.93）。
+/* 「Bluetoothイヤホン標準」：Bluetoothの表示補正をスタートライン(100ms)へ戻す（v0.9.94）。
    判定ズレ補正(bluetoothMicOffsetMs)ではなく、イヤホン音と画面表示を合わせるための表示補正。 */
 function resetHeadphoneOffsetToBluetoothStandard() {
     if (hpCal.active) stopHeadphoneCal();
@@ -2517,10 +2530,8 @@ const pt = {
 const BT_MIC_OFFSET_MIN = -200;     // 補正値の下限(ms)
 const BT_MIC_OFFSET_MAX = 200;      // 補正値の上限(ms)
 const BT_MIC_STEP_CLAMP = 80;       // 1回の補正で動かす量の上限(ms)
-/* 微調整（v0.9.92）：OK判定でも残りズレが小さめにある場合に、最新結果で少しだけ寄せる。
+/* 微調整（v0.9.92→v0.9.94）：大きな補正提案が出ないケースで、最新の平均ズレを使って必ず少し寄せる。
    既存の「大きな補正」とは別枠。符号ルールは大きな補正と同じ（new = cur - avg）。 */
-const BT_FINE_MIN_MS = 10;          // この未満は誤差として微調整しない
-const BT_FINE_MAX_MS = 35;          // これを超える場合は「大きな補正」側の提案に任せる
 const BT_FINE_STEP_CLAMP = 30;      // 1回の微調整で動かす量の上限(ms)
 const BT_PLAY_BEATS = PT_PLAY_BEATS; // 8回入力（最終確認テストと同じ）
 const bt = {
@@ -3657,17 +3668,17 @@ function finishBtCal() {
     const step = Math.max(-BT_MIC_STEP_CLAMP, Math.min(BT_MIC_STEP_CLAMP, -avg));
     const proposed = Math.max(BT_MIC_OFFSET_MIN, Math.min(BT_MIC_OFFSET_MAX, cur + step));
     const propose = enoughInput && enoughBias && biased && (proposed !== cur);
-    // 微調整（v0.9.92）：OK判定（=大きな補正は不要）でも、有効入力が十分で平均ズレが
-    // 10〜35msかつ方向の偏りがある程度あるなら、最新結果で少しだけ寄せられるようにする。
+    // 微調整（v0.9.94）：大きな補正提案が出ないケースでは、複雑な条件分岐をやめ、
+    // 有効入力が十分で平均ズレが算出できれば（|avg|>=1ms）、最新結果で必ず微調整する。
+    // 平均ズレが0msになることはほぼ無いので、小さなズレでも最新値へ自然に詰める。
     // 符号ルールは大きな補正と同じ（new = cur - avg）。1回の補正量は ±BT_FINE_STEP_CLAMP に制限。
-    const biasedSoft = (earlyRatio >= 0.5) || (lateRatio >= 0.5);
     const fineStep = Math.max(-BT_FINE_STEP_CLAMP, Math.min(BT_FINE_STEP_CLAMP, -avg));
     const fineProposed = Math.max(BT_MIC_OFFSET_MIN, Math.min(BT_MIC_OFFSET_MAX, cur + fineStep));
-    const fine = !propose && enoughInput && biasedSoft
-        && Math.abs(avg) >= BT_FINE_MIN_MS && Math.abs(avg) <= BT_FINE_MAX_MS
+    const fine = !propose && enoughInput
+        && Math.abs(avg) >= 1
         && (fineProposed !== cur);
-    // v0.9.93：ズレが小さい場合は、ボタンを押させず最新結果で自動微調整する（符号ルールは大きな補正と同じ）。
-    // OK判定は維持し、再テストは強制しない。判定時刻へ即反映されるので保存して結果も古くする。
+    // ボタンを押させず最新結果で自動微調整する。OK判定は維持し、再テストは強制しない。
+    // 判定時刻へ即反映されるので保存して結果も古くする。
     let autoFineApplied = false;
     let appliedOffset = cur;
     if (fine) {
@@ -3679,7 +3690,7 @@ function finishBtCal() {
     }
     bt.result = { just, early, late, miss, valid, avg, cur, proposed, propose, fine, fineProposed, autoFineApplied, appliedOffset, enoughInput };
     renderBtCalResult(bt.result);
-    setBtCalStatus(autoFineApplied ? '小さなズレを自動で微調整しました。' : '完了');
+    setBtCalStatus(autoFineApplied ? '最新の平均ズレに合わせて微調整しました。' : '完了');
     // 測っただけでは btDelayDone にしない（適用 or スキップで完了にする）。
     if (settingsView === 'steps') scrollToSettingsEl(els.btCalResult || els.btCalCard);
 }
@@ -3713,9 +3724,9 @@ function renderBtCalResult(r) {
         return;
     } else {
         head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">判定タイミングのズレは小さめです。このまま最終確認テストへ進めます。</p>';
-        // v0.9.93：OK判定でも残りズレが小さめなら自動で微調整済み。控えめに案内する（ボタンは出さない）。
+        // v0.9.94：OK判定でも、有効な平均ズレがあれば最新結果で自動微調整済み。控えめに案内する（ボタンは出さない）。
         const autoNote = r.autoFineApplied
-            ? '<p class="cal-status" style="color:#6ed28c;font-weight:600;margin-top:6px;">小さなズレを自動で微調整しました（マイク遅れ補正 ' + sign(r.appliedOffset) + '）。</p>'
+            ? '<p class="cal-status" style="color:#6ed28c;font-weight:600;margin-top:6px;">最新の平均ズレ（' + avgTxt + '）に合わせて、マイク遅れ補正を ' + sign(r.appliedOffset) + ' に微調整しました。</p>'
             : '';
         actions =
             '<button type="button" id="bt-cal-proceed" style="' + primary + '">最終確認テストへ進む</button>' +
