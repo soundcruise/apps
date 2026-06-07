@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.74">
+    <link rel="stylesheet" href="theme.css?v=0.9.83">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -146,6 +146,7 @@
 
             <!-- マイク設定の入口：[簡易設定][詳細テスト]を横並び／下に保存プリセット・現在の設定を見る -->
             <div class="settings-card" id="settings-chooser">
+                <p class="cal-status hidden" id="chooser-applied-msg" style="margin-top:0;color:#6ed28c;font-weight:700;"></p>
                 <p class="setting-note" style="margin-top:0;">使う環境に合わせてマイクの反応を設定します。</p>
                 <!-- 上段：横並び（左＝主導線 簡易設定／右＝サブ 詳細テスト） -->
                 <div class="chooser-row">
@@ -222,7 +223,7 @@
                         <button type="button" class="input-seg is-active" id="hp-type-wired" data-headphone-type="wired">有線イヤホン</button>
                         <button type="button" class="input-seg" id="hp-type-bluetooth" data-headphone-type="bluetooth">Bluetoothイヤホン</button>
                     </div>
-                    <p class="setting-note" id="hp-type-note">有線イヤホンは30msの目安を使います。違和感がある場合だけ手動設定で調整してください。</p>
+                    <p class="setting-note" id="hp-type-note">有線イヤホンは補正なし（0ms）が基本です。違和感がある場合だけ手動設定で調整してください。</p>
                 </div>
             </div>
 
@@ -355,31 +356,57 @@
                 </div>
                 <button class="btn-mic cal-run-btn test-start-btn" id="hp-cal-btn">補正テスト開始</button>
                 <div class="setting-row" style="margin-top:16px;">
-                    <div class="setting-label">現在の補正 <b id="hp-offset-val">180ms</b></div>
-                    <input type="range" id="hp-offset" min="-50" max="300" step="5" value="180">
+                    <div class="setting-label">現在の補正 <b id="hp-offset-val">0ms</b></div>
+                    <input type="range" id="hp-offset" min="-200" max="200" step="5" value="0">
                     <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
-                        <span>音が早い</span><span>補正なし</span><span>音が遅い</span>
+                        <span>← 丸を早める</span><span>丸を遅らせる →</span>
                     </div>
-                    <p class="setting-note">音が光より遅れて聞こえるなら右へ、早く聞こえるなら左へ動かして、音と光が同時に感じられる位置に合わせます。</p>
+                    <p class="setting-note">音が丸より遅れて聞こえるなら「丸を遅らせる（右）」へ、早く聞こえるなら「丸を早める（左）」へ動かして、音と丸が同時に感じられる位置に合わせます。0ms＝補正なしです。</p>
                 </div>
                 <div class="hp-preset-row" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
-                    <button type="button" class="btn-mini btn-reset" id="hp-reset">目安に戻す</button>
+                    <button type="button" class="btn-mini btn-reset" id="hp-zero">補正なしに戻す</button>
                 </div>
                 <!-- 「ここは終わった」と分かる導線。押したら補正系完了扱いで実践テストへ -->
                 <button type="button" class="btn-primary" id="hp-proceed-btn" style="width:100%;margin-top:12px;">この音ズレ設定で進む</button>
             </div>
 
-            <!-- 補正系（有線イヤホン時の案内）。有線は補正カードを出さず、基本値30msを使う旨だけ伝える -->
+            <!-- 補正系（有線イヤホン時の案内）。有線は補正カードを出さず、補正なし（0ms）が基本の旨だけ伝える -->
             <div class="settings-card" id="correction-wired-note">
                 <div class="cal-head">補正</div>
-                <p class="setting-note">有線イヤホンは、音ズレ補正の基本値（30ms）を使います。違和感がある場合だけ、最後の「手動設定」で調整できます。</p>
+                <p class="setting-note">有線イヤホンは、音ズレ補正なし（0ms）が基本です。違和感がある場合だけ、最後の「手動設定」で調整できます。</p>
                 <button type="button" class="btn-primary" id="wired-proceed-btn" style="width:100%;margin-top:8px;">この設定で進む</button>
             </div>
 
-            <!-- 5. 実践テスト（基本設定後の確認。入力タイプに関係なく表示。確認・表示のみ／補正は未適用） -->
+            <!-- 6. マイク遅れ補正（Bluetoothイヤホン時のみ。クリックに合わせて手拍子/ストロークし判定遅れを測る） v0.9.80 -->
+            <div class="settings-card cal-card" id="bt-cal-card">
+                <div class="cal-head-row">
+                    <div class="cal-head">マイク遅れ補正</div>
+                    <span class="status-pill" id="bt-cal-badge">未実施</span>
+                </div>
+                <p class="bt-cal-lead">クリックに合わせて手拍子</p>
+                <p class="setting-note" id="bt-cal-guide">イヤホンから聞こえるクリック音に合わせて、手拍子してください。画面の👏は回数の目安です。タイミングは音で合わせてください。</p>
+                <p class="setting-note">Bluetoothイヤホンでは、弾いた音をマイクが拾って判定するまでに遅れが出ます。この遅れを測って、判定タイミングを合わせます。</p>
+                <!-- 流れる👏＋判定ライン＋反応ライン＋入力波形（最終確認テストと同じ考え方・v0.9.81） -->
+                <div class="test-lane-wrap hidden" id="bt-cal-lane-wrap">
+                    <canvas id="bt-cal-lane-canvas"></canvas>
+                </div>
+                <div class="test-live hidden" id="bt-cal-live">
+                    <div class="mic-meter test-meter">
+                        <div class="mic-meter-fill" id="bt-cal-level"></div>
+                    </div>
+                </div>
+                <p class="test-phase" id="bt-cal-phase"></p>
+                <button class="btn-mic cal-run-btn test-start-btn" id="bt-cal-btn">マイク遅れ補正テストを開始</button>
+                <p class="cal-status" id="bt-cal-status"></p>
+                <div class="cal-result hidden" id="bt-cal-result"></div>
+                <!-- 測らずに進みたい人向け：このまま最終確認テストへ -->
+                <button type="button" class="btn-mini" id="bt-cal-skip" style="width:100%;margin-top:8px;">このまま最終確認テストへ</button>
+            </div>
+
+            <!-- 7. 最終確認テスト（基本設定後の確認。入力タイプに関係なく表示。確認・表示のみ／補正は未適用） -->
             <div class="settings-card cal-card" id="pt-card">
                 <div class="cal-head-row">
-                    <div class="cal-head">実践テスト</div>
+                    <div class="cal-head">最終確認テスト</div>
                 </div>
                 <p class="setting-note">実際のSTAGEに近い画面で、音量と判定タイミングを確認します。</p>
                 <p class="setting-note">ここまでの設定で、実際に使えるか確認します。</p>
@@ -399,7 +426,7 @@
                         <button type="button" class="btn-mini" id="pt-review-last">最後へ</button>
                     </div>
                 </div>
-                <button class="btn-mic cal-run-btn test-start-btn" id="pt-btn">実践テストを開始</button>
+                <button class="btn-mic cal-run-btn test-start-btn" id="pt-btn">最終確認テストを開始</button>
                 <p class="cal-status" id="pt-status"></p>
                 <div class="cal-result hidden" id="pt-result"></div>
                 <!-- 実践テストをしなくても手動調整したい人向けの控えめな導線 -->
@@ -439,10 +466,16 @@
                     </div>
                     <!-- イヤホン音ズレ補正（入力タイプ=イヤホン接続 のとき表示）。v0.9.52ではUI/保存のみ・STAGE判定には未反映 -->
                     <div class="setting-row hidden" id="set-hp-offset-row">
-                        <div class="setting-label">イヤホン音ズレ補正 <b id="set-hp-offset-val">30ms</b></div>
-                        <input type="range" id="set-hp-offset" min="-50" max="300" step="5" value="30">
-                        <p class="setting-note" id="set-hp-offset-note">有線イヤホンは通常30msの目安を使います。違和感がある場合だけ調整してください。</p>
-                        <button type="button" class="btn-mini btn-reset" id="set-hp-reset" style="margin-top:6px;">30msに戻す</button>
+                        <div class="setting-label">イヤホン音ズレ補正 <b id="set-hp-offset-val">0ms</b></div>
+                        <input type="range" id="set-hp-offset" min="-200" max="200" step="5" value="0">
+                        <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
+                            <span>← 丸を早める</span><span>丸を遅らせる →</span>
+                        </div>
+                        <p class="setting-note" id="set-hp-offset-note">有線イヤホンは通常、補正なし（0ms）で問題ありません。違和感がある場合だけ調整してください。</p>
+                        <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
+                            <button type="button" class="btn-mini btn-reset" id="set-hp-reset">補正なしに戻す</button>
+                            <button type="button" class="btn-mini btn-reset" id="set-hp-zero" style="display:none;">補正なしに戻す</button>
+                        </div>
                     </div>
 
                     <!-- 詳細操作（控えめ）：設定値を初期状態に戻す。保存済みプリセットは残る。 -->
@@ -452,22 +485,22 @@
                     </div>
                 </details>
 
-                <!-- 7. この設定を保存（同じカード内・下部。押すと名前入力欄＋保存ボタンが出る） v0.9.69 -->
+                <!-- 7. この設定を保存（押すと共通の保存モーダルが開く） v0.9.80 -->
                 <div class="manual-preset-save" style="margin-top:16px;border-top:1px solid rgba(255,255,255,0.12);padding-top:14px;">
                     <button type="button" class="btn-mini" id="manual-preset-trigger" style="width:100%;padding:13px;border:1px solid rgba(255,159,28,0.45);border-radius:10px;background:rgba(255,159,28,0.08);font-weight:700;">この設定を保存</button>
-                    <div id="manual-preset-block" class="hidden" style="margin-top:10px;">
-                        <p class="setting-note" style="margin-top:0;">よく使う環境として名前をつけて保存できます。</p>
-                        <input type="text" id="preset-name-input" placeholder="プリセット名" maxlength="40" style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.2);color:inherit;font-size:1rem;">
-                        <button type="button" class="btn-mic" id="preset-save-btn" style="width:100%;margin-top:10px;">名前をつけて保存</button>
-                        <p class="cal-status" id="preset-save-msg"></p>
-                    </div>
                 </div>
+
+                <!-- 手動設定で数値を変えたあと、そのまま最終確認テストで確認できる導線（v0.9.79） -->
+                <button type="button" class="btn-mic" id="manual-practice-btn" style="width:100%;margin-top:16px;">最終確認テストで確認する</button>
+
+                <!-- この設定を「現在の設定」として使い、マイク設定TOPへ戻る（プリセット保存とは別・v0.9.80） -->
+                <button type="button" class="btn-primary" id="manual-use-btn" style="width:100%;margin-top:10px;">この設定を使う</button>
 
                 <!-- 手動設定からマイク設定トップへ戻る -->
                 <button type="button" class="btn-mini" id="manual-top-btn" style="width:100%;margin-top:14px;padding:12px;border:1px solid rgba(255,255,255,0.28);border-radius:10px;background:rgba(255,255,255,0.04);font-weight:700;">マイク設定TOP</button>
             </div>
 
-            <p class="setting-note warn hidden" id="settings-done-hint" style="text-align:center;">実践テストまで完了してください。</p>
+            <p class="setting-note warn hidden" id="settings-done-hint" style="text-align:center;">最終確認テストまで完了してください。</p>
             <div class="settings-actions">
                 <button class="btn-mini" id="settings-top-btn">マイク設定TOP</button>
                 <button class="btn-primary settings-back" id="settings-back-btn">完了</button>
@@ -565,7 +598,22 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.78"></script>
+    <!-- プリセット保存モーダル（body直下・全ての「この設定を保存」から共通で開く） v0.9.80 -->
+    <div class="preset-modal-overlay hidden" id="preset-modal">
+        <div class="preset-modal-card">
+            <div class="preset-modal-title">この設定を保存</div>
+            <p class="setting-note" style="margin-top:6px;">よく使う環境として名前をつけて保存できます。</p>
+            <label class="preset-modal-label" for="preset-modal-input">プリセット名</label>
+            <input type="text" id="preset-modal-input" placeholder="例：自宅・有線イヤホン" maxlength="40" autocomplete="off">
+            <p class="cal-status preset-modal-msg" id="preset-modal-msg"></p>
+            <div class="preset-modal-actions">
+                <button type="button" class="btn-mic" id="preset-modal-save">名前をつけて保存</button>
+                <button type="button" class="btn-mini" id="preset-modal-cancel">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js?v=0.9.84"></script>
 </body>
 
 </html>

@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.78';
+const RHYTHM_CRUISE_VERSION = '0.9.84';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -111,7 +111,7 @@ const BUILTIN_MIC_PRESETS = [
             inputType: 'normal', headphoneType: 'wired', strokeDetectMode: 'brush',
             threshold: 0.025, cooldownMs: 200, clickVolume: 15, timingOffsetMs: 0,
             lowInputProfile: false,
-            headphoneOffsetWiredMs: 30, headphoneOffsetBluetoothMs: 180, headphoneOutputOffsetMs: 30,
+            headphoneOffsetWiredMs: 0, headphoneOffsetBluetoothMs: 0, headphoneOutputOffsetMs: 0,
             clickGuardMs: 60,
         },
     },
@@ -121,7 +121,7 @@ const BUILTIN_MIC_PRESETS = [
             inputType: 'headphone', headphoneType: 'wired', strokeDetectMode: 'brush',
             threshold: 0.008, cooldownMs: 100, clickVolume: 10, timingOffsetMs: 0,
             lowInputProfile: true,
-            headphoneOffsetWiredMs: 30, headphoneOffsetBluetoothMs: 180, headphoneOutputOffsetMs: 30,
+            headphoneOffsetWiredMs: 0, headphoneOffsetBluetoothMs: 0, headphoneOutputOffsetMs: 0,
             clickGuardMs: 60,
         },
     },
@@ -131,7 +131,7 @@ const BUILTIN_MIC_PRESETS = [
             inputType: 'headphone', headphoneType: 'bluetooth', strokeDetectMode: 'brush',
             threshold: 0.008, cooldownMs: 100, clickVolume: 10, timingOffsetMs: 0,
             lowInputProfile: true,
-            headphoneOffsetWiredMs: 30, headphoneOffsetBluetoothMs: 180, headphoneOutputOffsetMs: 180,
+            headphoneOffsetWiredMs: 0, headphoneOffsetBluetoothMs: 0, headphoneOutputOffsetMs: 0,
             clickGuardMs: 60,
         },
     },
@@ -233,9 +233,10 @@ const mic = {
     threshold: 0.16,   // 立ち上がりしきい値（0..1）
     inputType: 'normal', // 入力タイプ：'normal'（通常マイク）| 'headphone'（イヤホン接続）。'auto'は廃止（UI非表示・互換でnormal扱い）
     headphoneType: 'wired', // イヤホンの種類：'wired'（有線）| 'bluetooth'（Bluetooth）。headphone選択時の目安/導線切替に使う
-    headphoneOffsetWiredMs: 30,       // 有線イヤホンの音ズレ補正(ms)。種類別に値を保持
-    headphoneOffsetBluetoothMs: 180,  // Bluetoothイヤホンの音ズレ補正(ms)。種類別に値を保持
-    headphoneOutputOffsetMs: 30, // 選択中の種類の音ズレ補正(ms)。互換用。v0.9.51でもUI/保存のみ・STAGE判定/マイク判定には未反映
+    headphoneOffsetWiredMs: 0,        // 有線イヤホンの音ズレ補正(ms)。v0.9.79で目安を0ms（補正なし）に変更
+    headphoneOffsetBluetoothMs: 0,    // Bluetoothイヤホンの音ズレ補正(ms)。v0.9.84で目安を0ms（補正なし）に変更（判定ズレはbluetoothMicOffsetMsで扱う）
+    headphoneOutputOffsetMs: 0, // 選択中の種類の音ズレ補正(ms)。互換用。v0.9.51でもUI/保存のみ・STAGE判定/マイク判定には未反映
+    bluetoothMicOffsetMs: 0, // Bluetoothイヤホン時のマイク遅れ補正(ms)。v0.9.80で新設。Bluetooth時のみ判定時刻に加算（負＝早める）。未保存は0=補正なし
     lowInputProfile: false, // 低入力(イヤホン)テスト由来の設定か。手動設定の表示%スケール切替に使う（実値は不変）
     cooldownMs: 200,   // 検出後のクールダウン
     clickGuardMs: 60,  // クリック音直後は検出を無視（クリック音ON時のみ・出力レイテンシ分を加算）
@@ -395,12 +396,14 @@ const els = {
     hpTypeBluetooth: $('hp-type-bluetooth'),
     hpTypeNote: $('hp-type-note'),
     hpResetBtn: $('hp-reset'),
+    hpZeroBtn: $('hp-zero'),
     // 手動設定内のイヤホン音ズレ補正（v0.9.52）
     setHpOffsetRow: $('set-hp-offset-row'),
     setHpOffset: $('set-hp-offset'),
     setHpOffsetVal: $('set-hp-offset-val'),
     setHpOffsetNote: $('set-hp-offset-note'),
     setHpResetBtn: $('set-hp-reset'),
+    setHpZeroBtn: $('set-hp-zero'),
     // 実践テスト（v0.9.56。旧「判定ズレ確認」を置き換え）
     ptCard: $('pt-card'),
     ptNote: $('pt-note'),
@@ -414,6 +417,19 @@ const els = {
     ptBtn: $('pt-btn'),
     ptStatus: $('pt-status'),
     ptResult: $('pt-result'),
+    // マイク遅れ補正（Bluetoothイヤホン用・v0.9.80）
+    btCalCard: $('bt-cal-card'),
+    btCalBadge: $('bt-cal-badge'),
+    btCalGuide: $('bt-cal-guide'),
+    btCalLaneWrap: $('bt-cal-lane-wrap'),
+    btCalLaneCanvas: $('bt-cal-lane-canvas'),
+    btCalLive: $('bt-cal-live'),
+    btCalLevel: $('bt-cal-level'),
+    btCalPhase: $('bt-cal-phase'),
+    btCalBtn: $('bt-cal-btn'),
+    btCalStatus: $('bt-cal-status'),
+    btCalResult: $('bt-cal-result'),
+    btCalSkip: $('bt-cal-skip'),
     autoEarphoneHint: $('auto-earphone-hint'),
     testInputNote: $('test-input-note'),
     testCardNote: $('test-card-note'),
@@ -508,12 +524,14 @@ const els = {
     // プリセット保存／呼び出し（v0.9.61）
     presetListWrap: $('preset-list-wrap'),
     presetList: $('preset-list'),
-    presetNameInput: $('preset-name-input'),
-    presetSaveBtn: $('preset-save-btn'),
-    presetSaveMsg: $('preset-save-msg'),
-    // 手動設定カード内のプリセット保存（v0.9.69）
+    // 手動設定カード内のプリセット保存トリガー（v0.9.80：モーダルを開く）
     manualPresetTrigger: $('manual-preset-trigger'),
-    manualPresetBlock: $('manual-preset-block'),
+    // プリセット保存モーダル（v0.9.80）
+    presetModal: $('preset-modal'),
+    presetModalInput: $('preset-modal-input'),
+    presetModalMsg: $('preset-modal-msg'),
+    presetModalSave: $('preset-modal-save'),
+    presetModalCancel: $('preset-modal-cancel'),
     ptOpenManual: $('pt-open-manual'),
     setThreshold: $('set-threshold'),
     setThresholdVal: $('set-threshold-val'),
@@ -529,8 +547,11 @@ const els = {
     settingsBackBtn: $('settings-back-btn'),
     settingsTopBtn: $('settings-top-btn'),
     manualTopBtn: $('manual-top-btn'),
+    manualPracticeBtn: $('manual-practice-btn'),
+    manualUseBtn: $('manual-use-btn'),
     micResetBtn: $('mic-reset-btn'),
     micResetMsg: $('mic-reset-msg'),
+    chooserAppliedMsg: $('chooser-applied-msg'),
     // キャリブレーション
     calCard: $('cal-card'),
     calHead: $('cal-head'),
@@ -946,7 +967,7 @@ function drawMicPreview() {
     // 判定点（補正前＝グレー / 補正後＝緑）＋矢印。時間軸より少し上の「判定列」に描く
     const dotY = baseY - 16;
     const rawX = tX(strokeT);
-    const corrX = tX(strokeT + mic.timingOffsetMs);
+    const corrX = tX(strokeT + micJudgeOffsetMs());
     if (Math.abs(corrX - rawX) > 1) {
         ctx.strokeStyle = 'rgba(253,246,238,0.5)'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(rawX, dotY); ctx.lineTo(corrX, dotY); ctx.stroke();
@@ -1050,7 +1071,7 @@ function drawMicWaveform(ctx, w, h, yc) {
     const now = performance.now();
     // マイク判定補正を波形にも反映し、判定マーカーと時間軸を揃える
     // （判定は perf+offset で評価するため、波形も同じ offset で前後させる）
-    const off = mic.timingOffsetMs;
+    const off = micJudgeOffsetMs();
 
     // 画面内に入るサンプルだけを時系列順（古い→新しい＝左→右）に集める
     const pts = [];
@@ -1525,7 +1546,7 @@ function registerHit(perfNow, source, direction) {
     // 譜面・クリックと同じオーディオ時計で判定（perf時計との累積ドリフトを避ける）。
     // マイク補正(timingOffsetMs)は検出時刻に加算（負＝早める）。
     const audioMs = gameAudioMs();
-    const hitTime = audioMs + ((source === 'mic') ? mic.timingOffsetMs : 0);
+    const hitTime = audioMs + ((source === 'mic') ? micJudgeOffsetMs() : 0);
     const bi = state.beatInterval;
     const diffTo = (b) => hitTime - (state.T0 + b * bi); // 符号付きズレ（負＝早い）
     let i = Math.round((hitTime - state.T0) / bi);
@@ -1558,7 +1579,7 @@ function registerHit(perfNow, source, direction) {
         const rawDiff = audioMs - (state.T0 + i * state.beatInterval);
         console.debug('[mic] 判定登録 raw=' + (rawDiff >= 0 ? '+' : '') + Math.round(rawDiff)
             + 'ms corrected=' + (diff >= 0 ? '+' : '') + Math.round(diff)
-            + 'ms offset=' + mic.timingOffsetMs + 'ms → ' + cls);
+            + 'ms offset=' + micJudgeOffsetMs() + 'ms → ' + cls);
     }
 
     // 同じ拍に複数検出 → 最もジャストに近いものを採用。2回目以降は二重反応として記録。
@@ -1695,7 +1716,8 @@ function onPlayBtn() {
 }
 
 function play() {
-    stopPracticeTest(); // STAGE開始時は実践テストを停止（安全処理）
+    stopPracticeTest(); // STAGE開始時は最終確認テストを停止（安全処理）
+    stopBtCal();
     ensureAudio();
     resetData();
     buildSchedule();
@@ -1861,7 +1883,7 @@ function logBeatDebug() {
         });
     }
     try { console.table(rows); } catch (_) { console.log('[beatDebug]', JSON.stringify(rows)); }
-    console.log('[beatDebug] eventLog=' + JSON.stringify(state.micEventLog) + ' offset=' + mic.timingOffsetMs + 'ms thr=' + mic.threshold.toFixed(3));
+    console.log('[beatDebug] eventLog=' + JSON.stringify(state.micEventLog) + ' offset=' + micJudgeOffsetMs() + 'ms thr=' + mic.threshold.toFixed(3));
 }
 
 /* 結果詳細にMISS拍の理由を1行で（iPhoneでもconsoleなしで原因を確認できるように） */
@@ -1972,7 +1994,11 @@ function updateDoubleInfo() {
     if (els.resultsDoubleDetail) els.resultsDoubleDetail.classList.toggle('hidden', !show);
     if (!show) return;
     if (els.resultsDoubleMsg) {
-        els.resultsDoubleMsg.textContent = '⚠ 二重反応が ' + n + ' 回出ています。マイク反応テストをやり直すと改善する場合があります。';
+        // 具体的な対処を案内（v0.9.79）。文言のみでSTAGE判定ロジックは変更しない。
+        const cur = mic.cooldownMs || 0;
+        const next = Math.min(400, cur + 50);
+        els.resultsDoubleMsg.textContent = '⚠ 二重反応が ' + n + ' 回出ています。まずはマイク設定の「詳細テスト」でマイク反応テストをやり直してください。'
+            + '改善しない場合は、手動設定で「二重反応防止」を少し長めにしてください（例：' + cur + 'ms → ' + next + 'ms）。';
     }
 }
 
@@ -2141,26 +2167,34 @@ function updateMicInputTypeUI() {
    「音と光が同時に感じられる」位置をユーザーが探すための補助。
    v0.9.51：イヤホンの種類（有線/Bluetooth）を持ち、種類別に補正値を保存。
    重要：今回もUI・再生・保存のみ。STAGE判定/マイク判定/timingOffsetMs には一切反映しない。 */
-const HP_OFFSET_MIN = -50;        // スライダー下限(ms)：音が光より早い側
-const HP_OFFSET_MAX = 300;        // スライダー上限(ms)：音が光より遅い側
-const HP_OFFSET_DEFAULT = 30;     // 互換用の既定（有線の目安）
+const HP_OFFSET_MIN = -200;       // スライダー下限(ms)：音が光より早い側（v0.9.84で±200msへ）
+const HP_OFFSET_MAX = 200;        // スライダー上限(ms)：音が光より遅い側（v0.9.84で±200msへ）
+const HP_OFFSET_DEFAULT = 0;      // 互換用の既定（補正なし）
 const HP_CAL_BEAT_MS = 600;       // 補正テストのテンポ（100BPM相当）
 const HP_CAL_LEAD_MS = 80;        // クリックを少し先に鳴らし、負offsetでも丸を先に光らせられるようにする土台
 const hpCal = { active: false, timer: 0, beat: 0, lightTimers: [] };
 
 /* イヤホン種類の定義・種類別の目安値・説明文 */
 const HP_TYPES = ['wired', 'bluetooth'];
-const HP_TYPE_DEFAULT_OFFSET = { wired: 30, bluetooth: 180 };
+const HP_TYPE_DEFAULT_OFFSET = { wired: 0, bluetooth: 0 }; // v0.9.84：有線/Bluetoothとも目安0ms（補正なし）
 const HP_TYPE_NOTE = {
-    wired: '有線イヤホンは30msの目安を使います。違和感がある場合だけ手動設定で調整してください。',
-    bluetooth: 'Bluetoothは機種によってズレが大きいため、補正テストで音と光を合わせてください。',
+    wired: '有線イヤホンは音ズレ補正なし（0ms）が基本です。違和感がある場合だけ手動設定で調整してください。',
+    bluetooth: 'Bluetoothイヤホンも音ズレ補正は0ms（補正なし）が基本です。画面と音がズレて感じるときだけ、補正テストで音と丸を合わせてください。（マイク判定のズレは「マイク遅れ補正」で合わせます）',
 };
 /* 手動設定（イヤホン音ズレ補正行）に出す種類別の説明文 */
 const HP_MANUAL_NOTE = {
-    wired: '有線イヤホンは通常30msの目安を使います。違和感がある場合だけ調整してください。',
-    bluetooth: 'Bluetoothは機種によってズレが大きいため、必要に応じて微調整してください。',
+    wired: '有線イヤホンは通常、補正なし（0ms）で問題ありません。違和感がある場合だけ調整してください。',
+    bluetooth: 'Bluetoothは機種によってズレが大きいため、必要に応じて微調整してください。音が丸より遅れて聞こえるなら「丸を遅らせる（右）」、早く聞こえるなら「丸を早める（左）」へ。',
 };
 function getHeadphoneType() { return mic.headphoneType === 'bluetooth' ? 'bluetooth' : 'wired'; }
+/* Bluetoothイヤホン接続中か（マイク遅れ補正の表示/判定反映の条件・v0.9.80） */
+function isBluetoothHeadphone() { return isHeadphoneInput() && getHeadphoneType() === 'bluetooth'; }
+/* 判定時刻に使うマイク補正（ms）。通常/有線は timingOffsetMs のみ。
+   Bluetoothイヤホン時だけ bluetoothMicOffsetMs を加算する（v0.9.80）。
+   イヤホン音ズレ補正 headphoneOutputOffsetMs はここに含めない（判定には反映しない）。 */
+function micJudgeOffsetMs() {
+    return mic.timingOffsetMs + (isBluetoothHeadphone() ? (mic.bluetoothMicOffsetMs || 0) : 0);
+}
 /* offset候補が有効範囲内ならその数値、無効なら fallback を返す */
 function validHpOffset(x, fallback) {
     const n = Number(x);
@@ -2229,7 +2263,8 @@ function hpBeatTick() {
 }
 
 function startHeadphoneCal() {
-    if (pt.active) stopPracticeTest(); // 実践テストと排他
+    if (pt.active) stopPracticeTest(); // 最終確認テストと排他
+    stopBtCal(); // マイク遅れ補正と排他
     ensureAudio();
     try { if (state.audioCtx && state.audioCtx.state === 'suspended') state.audioCtx.resume(); } catch (_) { /* ignore */ }
     hpCal.active = true;
@@ -2276,9 +2311,14 @@ function setHeadphoneType(type) {
     saveSettings();
 }
 
-/* 「目安に戻す」：選択中の種類の目安値（有線30ms / Bluetooth180ms）へ戻す */
+/* 「補正なしに戻す」（旧・目安に戻す）：選択中の種類の目安値（v0.9.84：有線/Bluetoothとも0ms）へ戻す */
 function resetHeadphoneOffsetToGuide() {
     setHeadphoneOffset(HP_TYPE_DEFAULT_OFFSET[getHeadphoneType()]);
+}
+
+/* 「補正なしに戻す」：選択中の種類の補正値を0ms（補正なし）へ戻す（v0.9.79） */
+function resetHeadphoneOffsetToZero() {
+    setHeadphoneOffset(0);
 }
 
 /* 種類選択UI・説明文・カード表示・スライダー表示を、選択中の種類に合わせて更新。
@@ -2298,9 +2338,11 @@ function updateHeadphoneTypeUI() {
     if (els.hpOffsetVal) els.hpOffsetVal.textContent = v + 'ms';
     if (els.setHpOffset) els.setHpOffset.value = v;
     if (els.setHpOffsetVal) els.setHpOffsetVal.textContent = v + 'ms';
-    // 手動設定の説明文・「目安に戻す」ボタン文言を種類別に
+    // 手動設定の説明文・リセットボタン文言
     if (els.setHpOffsetNote) els.setHpOffsetNote.textContent = HP_MANUAL_NOTE[t] || HP_MANUAL_NOTE.wired;
-    if (els.setHpResetBtn) els.setHpResetBtn.textContent = (t === 'bluetooth') ? '180msに戻す' : '30msに戻す';
+    // v0.9.84：有線/Bluetoothとも目安＝補正なし（0ms）なので「補正なしに戻す」1本に集約。
+    if (els.setHpResetBtn) { els.setHpResetBtn.textContent = '補正なしに戻す'; els.setHpResetBtn.style.display = ''; }
+    if (els.setHpZeroBtn) els.setHpZeroBtn.style.display = 'none';
 }
 
 /* ── 実践テスト（v0.9.56。旧「判定ズレ確認」を再設計）─────────────────
@@ -2330,6 +2372,26 @@ const pt = {
     debug: null, // 開発確認用（v0.9.77）：検出/割り当て/除外理由の集計。ユーザー表示には使わない。
 };
 
+/* ── Bluetooth用マイク遅れ補正（v0.9.80）─────────────────────────────
+   クリックに合わせた手拍子/ストロークの「判定タイミングの偏り」を測り、
+   Bluetoothイヤホン時だけ判定時刻へ加算する補正値 bluetoothMicOffsetMs を提案する。
+   検出は最終確認テストと同じテンポ・同じクリックガードを使うが、拍割り当て等の
+   複雑なロジックは持たず「各拍に最も近いオンセット時刻」を集めて平均ズレを出すだけ。 */
+const BT_MIC_OFFSET_MIN = -200;     // 補正値の下限(ms)
+const BT_MIC_OFFSET_MAX = 200;      // 補正値の上限(ms)
+const BT_MIC_STEP_CLAMP = 80;       // 1回の補正で動かす量の上限(ms)
+const BT_PLAY_BEATS = PT_PLAY_BEATS; // 8回入力（最終確認テストと同じ）
+const bt = {
+    active: false, capturing: false, timers: [], scheduled: [], raf: 0,
+    audioStart: 0, flowStartPerf: 0, playT0Ms: 0,
+    onsets: [], clickPerfTimes: [], armed: true, lastOnsetAt: 0, lastDetectAt: -100000,
+    maxPeak: 0, valley: 1, hasRun: false,
+    notes: [], // 流れる👏（v0.9.81・表示専用）：{ t, num, cls, closed, peak }
+    wave: [],  // 流れる波形バッファ（v0.9.81・表示専用）：{ t, level }
+    result: null, // { valid, avg, early, late, just, miss, propose, proposed, cur }
+};
+let btLane = { ctx: null, w: 0, h: 0 }; // マイク遅れ補正の流れるレーン（v0.9.81）
+
 /* 入力タイプ別の補足文（表示は常に出す。文言だけ少し変える） */
 const PT_NOTE_BY_TYPE = {
     auto: '入力状態に合わせた設定で、実際に問題なく判定されるか確認します。',
@@ -2339,6 +2401,11 @@ const PT_NOTE_BY_TYPE = {
 function updatePracticeTestNote() {
     if (els.ptNote) els.ptNote.textContent = PT_NOTE_BY_TYPE[getMicInputType()] || PT_NOTE_BY_TYPE.auto;
 }
+
+/* このマイク設定セッションで実践テストを一度でも実施したか（v0.9.79）。
+   一度実施したら、待機中ボタンは「もう1度テストする」にする。詳細テストのやり直しでリセット。 */
+let ptHasRun = false;
+function ptIdleBtnLabel() { return ptHasRun ? 'もう1度テストする' : '最終確認テストを開始'; }
 
 function setPtStatus(t) { if (els.ptStatus) els.ptStatus.textContent = t || ''; }
 function ptTimer(fn, ms) { const id = setTimeout(fn, ms); pt.timers.push(id); return id; }
@@ -2590,10 +2657,12 @@ function drawPracticeLane(t) {
     ctx.textAlign = 'left';
     ctx.fillText('実判定ライン', 4, yc - lineAmp - 3);
     if (pt.wave.length) {
+        // 判定と同じ時間軸で見せる：波形にもマイク判定補正(off)を足し、STAGE本体・結果見返しと揃える（表示のみ・v0.9.82）
+        const off = micJudgeOffsetMs();
         const pts = [];
         for (let i = 0; i < pt.wave.length; i++) {
             const p = pt.wave[i];
-            const x = judgeX + (p.t - t) * ppm;
+            const x = judgeX + (p.t + off - t) * ppm;
             if (x < -24 || x > w + 24) continue;
             pts.push([x, micDisplayFrac(p.level) * ampPx]);
         }
@@ -2722,9 +2791,9 @@ function drawPracticeReview() {
     ctx.textAlign = 'left';
     ctx.fillText('実判定ライン', 4, yc - lineAmp - 3);
 
-    // 波形（全区間）：マイク遅れ補正分(timingOffsetMs)を足して、判定された位置と重なるように描く（表示のみ）
+    // 波形（全区間）：マイク遅れ補正分を足して、判定された位置と重なるように描く（表示のみ）
     if (pt.fullWave.length >= 2) {
-        const off = mic.timingOffsetMs;
+        const off = micJudgeOffsetMs();
         const pts = [];
         for (let i = 0; i < pt.fullWave.length; i++) {
             const p = pt.fullWave[i];
@@ -2840,14 +2909,15 @@ function resetPracticeView() {
     if (els.ptLaneWrap) els.ptLaneWrap.classList.add('hidden');
     hidePracticeReview();
     if (els.ptResult) { els.ptResult.classList.add('hidden'); els.ptResult.innerHTML = ''; }
-    if (els.ptBtn) els.ptBtn.textContent = '実践テストを開始';
+    if (els.ptBtn) els.ptBtn.textContent = ptIdleBtnLabel();
     setPtStatus('');
 }
 
 async function startPracticeTest() {
-    // 排他：他テスト（イヤホン音ズレ補正／マイク反応テスト）が動いていたら止める
+    // 排他：他テスト（イヤホン音ズレ補正／マイク反応テスト／マイク遅れ補正）が動いていたら止める
     if (hpCal.active) stopHeadphoneCal();
     if (test.flow) abortMicTest();
+    stopBtCal();
     if (!(await ensureTestMic())) { setPtStatus('マイクを許可してください。'); return; }
     ensureAudio();
     try { if (state.audioCtx && state.audioCtx.state === 'suspended') await state.audioCtx.resume(); } catch (_) { /* ignore */ }
@@ -2874,7 +2944,8 @@ async function startPracticeTest() {
     pt.timers.forEach(clearTimeout); pt.timers = [];
     pt.scheduled = [];
     if (els.ptResult) els.ptResult.classList.add('hidden');
-    if (els.ptBtn) els.ptBtn.textContent = '実践テストを停止';
+    ptHasRun = true; // 以降の待機中ボタンは「もう1度テストする」に
+    if (els.ptBtn) els.ptBtn.textContent = '最終確認テストを停止';
     if (els.ptLaneWrap) els.ptLaneWrap.classList.remove('hidden');
     fitPtLane();
     // 実践テスト開始時に、音符レーンが自然に見える位置へスクロール（v0.9.73）
@@ -2946,25 +3017,29 @@ function practiceComment(r) {
     const lowVol = volRatio < 0.9;        // 波形はあっても判定ラインに届いていない
     // 判定A：入力が拾えていない（有効入力が少ない/MISS多い かつ 音量が反応ラインに届いていない）
     if ((r.valid < 5 || r.miss >= 4) && lowVol) {
-        return { kind: 'warn', issue: 'input', text: '入力が十分に拾えていません。入力タイプ・ストローク検出モード・マイク反応テストの設定が合っているか確認してから、もう一度実践テストを行ってください。' };
+        return { kind: 'warn', issue: 'input', text: '入力が十分に拾えていません。入力タイプ・ストローク検出モード・マイク反応テストの設定が合っているか確認してから、もう一度最終確認テストを行ってください。' };
     }
     // 判定B：音量は拾えているがMISSが多い（反応ライン付近まで来ているのに判定に入りきっていない）
     if (r.valid < 6 || r.miss >= 3) {
-        return { kind: 'warn', issue: 'miss', text: 'MISSが多めです。反応ラインが少し高いか、ストローク検出モードが合っていないかもしれません。マイク反応テストで反応ラインを見直してから、もう一度実践テストを行ってください。' };
+        return { kind: 'warn', issue: 'miss', text: 'MISSが多めです。反応ラインが少し高いか、ストローク検出モードが合っていないかもしれません。マイク反応テストで反応ラインを見直してから、もう一度最終確認テストを行ってください。' };
     }
     // 判定C：タイミングが大きく偏っている（有効入力6以上・平均±40ms以上 or 片寄り70%以上）
     const lateRatio = r.valid ? r.late / r.valid : 0;
     const earlyRatio = r.valid ? r.early / r.valid : 0;
     const biased = Math.abs(r.avg) >= 40 || lateRatio >= 0.7 || earlyRatio >= 0.7;
+    const isBT = isBluetoothHeadphone();
     if (biased && (r.avg >= 40 || (lateRatio >= 0.7 && lateRatio >= earlyRatio))) {
-        return { kind: 'warn', issue: 'timing', text: '判定がLATE（遅め）に片寄っています。マイクの遅れ補正やイヤホン音ズレ補正が合っているか確認してから、もう一度実践テストを行ってください。' };
+        // Bluetoothイヤホン時はマイク遅れ補正へ誘導（v0.9.80）
+        if (isBT) return { kind: 'warn', issue: 'btdelay', text: 'Bluetoothイヤホンではマイク判定がずれている可能性があります（LATE＝遅め）。「マイク遅れ補正」で補正してから、もう一度最終確認テストを行ってください。' };
+        return { kind: 'warn', issue: 'timing', text: '判定がLATE（遅め）に片寄っています。マイクの遅れ補正やイヤホン音ズレ補正が合っているか確認してから、もう一度最終確認テストを行ってください。' };
     }
     if (biased && (r.avg <= -40 || (earlyRatio >= 0.7 && earlyRatio > lateRatio))) {
-        return { kind: 'warn', issue: 'timing', text: '判定がEARLY（早め）に片寄っています。マイクの遅れ補正やイヤホン音ズレ補正が合っているか確認してから、もう一度実践テストを行ってください。' };
+        if (isBT) return { kind: 'warn', issue: 'btdelay', text: 'Bluetoothイヤホンではマイク判定がずれている可能性があります（EARLY＝早め）。「マイク遅れ補正」で補正してから、もう一度最終確認テストを行ってください。' };
+        return { kind: 'warn', issue: 'timing', text: '判定がEARLY（早め）に片寄っています。マイクの遅れ補正やイヤホン音ズレ補正が合っているか確認してから、もう一度最終確認テストを行ってください。' };
     }
     // 二重反応が出ているときは「問題なし」にせず、軽く注意
     if (r.doubleCount > 0) {
-        return { kind: 'warn', issue: 'double', text: '二重反応が出ています。手動設定の二重反応防止やストローク検出モードを確認してから、もう一度実践テストを行ってください。' };
+        return { kind: 'warn', issue: 'double', text: '二重反応が出ています。手動設定の二重反応防止やストローク検出モードを確認してから、もう一度最終確認テストを行ってください。' };
     }
     // 判定D：問題なさそう
     return { kind: 'ok', issue: null, text: 'この設定で練習を始められます。必要に応じて、あとから手動設定で微調整できます。' };
@@ -3007,7 +3082,7 @@ function renderPracticeResult(r) {
         '<div class="cal-result-row"><span>有効入力</span><b>' + r.valid + ' / ' + PT_PLAY_BEATS + '</b></div>' +
         '<div class="cal-result-row"><span>検出音量の目安</span><b>' + volTxt + '</b></div>' +
         '<div class="cal-result-row"><span>設定反応ライン</span><b>' + settingLine.toFixed(3) + '</b></div>' +
-        '<div class="cal-result-row"><span>実践テスト判定ライン</span><b>' + line.toFixed(3) + '</b></div>' +
+        '<div class="cal-result-row"><span>最終確認テスト判定ライン</span><b>' + line.toFixed(3) + '</b></div>' +
         '<div class="cal-result-row"><span>二重反応防止</span><b>' + r.cooldownMs + 'ms</b></div>' +
         '<div class="cal-result-row"><span>二重反応</span><b>' + (r.doubleCount > 0 ? 'あり（' + r.doubleCount + '）' : 'なし') + '</b></div>';
     const details = '<details class="pt-result-detail" style="margin-top:10px;">'
@@ -3023,29 +3098,20 @@ function renderPracticeResult(r) {
         + 'background:transparent;color:inherit;font-size:0.85rem;opacity:0.85;cursor:pointer;';
     let actions = '';
     if (c.kind === 'ok') {
-        // 「この設定を保存」を押すと、その場に名前入力欄＋保存ボタンを表示する（v0.9.73）。
-        // 保存ロジック・上書き確認・組み込み名拒否などは既存の savePresetWithName をそのまま流用。
-        const nameInput = 'width:100%;box-sizing:border-box;padding:11px 12px;border-radius:10px;'
-            + 'border:1px solid rgba(255,255,255,0.28);background:rgba(0,0,0,0.18);color:inherit;font-size:1rem;';
-        const saveBlock =
-            '<div id="pt-result-save-block" class="hidden" style="margin-top:10px;">'
-            + '<input type="text" id="pt-result-name-input" placeholder="プリセット名" maxlength="40" style="' + nameInput + '">'
-            + '<button type="button" id="pt-result-save-confirm" style="' + sub + '">名前をつけて保存</button>'
-            + '<p id="pt-result-save-msg" style="margin-top:8px;font-size:0.85rem;min-height:1.2em;opacity:0.9;"></p>'
-            + '</div>';
+        // 「この設定を保存」は共通の保存モーダルを開く（v0.9.80）。
         actions =
             '<button type="button" id="pt-result-done" style="' + primary + '">完了する</button>' +
-            '<button type="button" id="pt-result-save" style="' + subQuiet + '">この設定を保存</button>' +
-            saveBlock;
+            '<button type="button" id="pt-result-save" style="' + subQuiet + '">この設定を保存</button>';
     } else {
-        let fixLabel = '実践テストをやり直す', fixId = 'pt-result-fix-rerun';
+        let fixLabel = '最終確認テストをやり直す', fixId = 'pt-result-fix-rerun';
         if (c.issue === 'input') { fixLabel = 'マイク反応テストをやり直す'; fixId = 'pt-result-fix-test'; }
         else if (c.issue === 'miss') { fixLabel = '反応ラインを確認する'; fixId = 'pt-result-fix-test'; }
         else if (c.issue === 'timing') { fixLabel = '補正を確認する'; fixId = 'pt-result-fix-correction'; }
+        else if (c.issue === 'btdelay') { fixLabel = 'マイク遅れ補正を行う'; fixId = 'pt-result-fix-btdelay'; }
         else if (c.issue === 'double') { fixLabel = '二重反応防止を調整する'; fixId = 'pt-result-fix-manual'; }
         actions =
             '<button type="button" id="' + fixId + '" style="' + primary + '">' + fixLabel + '</button>' +
-            '<button type="button" id="pt-result-rerun" style="' + sub + '">もう一度実践テストする</button>';
+            '<button type="button" id="pt-result-rerun" style="' + sub + '">もう1度テストする</button>';
     }
 
     els.ptResult.innerHTML =
@@ -3063,43 +3129,26 @@ function bindPracticeResultActions() {
         if (isDoneLocked()) { showDoneHint(); return; }
         closeSettings();
     });
-    // 「この設定を保存」：その場に名前入力欄＋保存ボタンを表示（v0.9.73）。手動設定へは飛ばさない。
+    // 「この設定を保存」：共通の保存モーダルを開く（v0.9.80）。
     const save = document.getElementById('pt-result-save');
-    if (save) save.addEventListener('click', () => {
-        const blk = document.getElementById('pt-result-save-block');
-        if (blk) blk.classList.remove('hidden');
-        const inp = document.getElementById('pt-result-name-input');
-        if (inp) { try { inp.focus(); } catch (_) { /* ignore */ } }
-    });
-    const saveConfirm = document.getElementById('pt-result-save-confirm');
-    if (saveConfirm) saveConfirm.addEventListener('click', savePracticeResultPreset);
-    const saveInput = document.getElementById('pt-result-name-input');
-    if (saveInput) saveInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); savePracticeResultPreset(); } });
+    if (save) save.addEventListener('click', () => openPresetModal());
     const rerun = document.getElementById('pt-result-rerun');
     if (rerun) rerun.addEventListener('click', () => startPracticeTest());
     const fixRerun = document.getElementById('pt-result-fix-rerun');
     if (fixRerun) fixRerun.addEventListener('click', () => startPracticeTest());
-    // 原因別の戻り先（v0.9.67）：移動前に必ず古い実践テスト結果を消す
+    // 原因別の戻り先（v0.9.67）：移動前に必ず古い最終確認テスト結果を消す
     const fixTest = document.getElementById('pt-result-fix-test');
     if (fixTest) fixTest.addEventListener('click', () => practiceFixGoTo('test'));
     const fixCorrection = document.getElementById('pt-result-fix-correction');
     if (fixCorrection) fixCorrection.addEventListener('click', () => practiceFixGoTo('correction'));
+    const fixBtDelay = document.getElementById('pt-result-fix-btdelay');
+    if (fixBtDelay) fixBtDelay.addEventListener('click', () => practiceFixGoTo('btdelay'));
     const fixManual = document.getElementById('pt-result-fix-manual');
     if (fixManual) fixManual.addEventListener('click', () => practiceFixGoTo('double'));
 }
 
-/* 実践テスト結果カード内の「名前をつけて保存」（v0.9.73）。
-   既存の savePresetWithName をそのまま流用し、メッセージだけ結果カード内に出す。
-   保存項目・上書き確認・組み込み名拒否などの仕様は変更しない。 */
-function savePracticeResultPreset() {
-    const input = document.getElementById('pt-result-name-input');
-    const msg = document.getElementById('pt-result-save-msg');
-    const setMsg = (t) => { if (msg) msg.textContent = t || ''; };
-    savePresetWithName(input ? input.value : '', setMsg, () => { if (input) input.value = ''; });
-}
-
-/* 実践テスト「調整が必要」からの原因別の戻り先（v0.9.67）。
-   どのルートでも古い実践テスト結果は消し、戻り先のステップを開く。 */
+/* 最終確認テスト「調整が必要」からの原因別の戻り先（v0.9.67）。
+   どのルートでも古い結果は消し、戻り先のステップを開く。 */
 function practiceFixGoTo(route) {
     invalidatePracticeResult(); // 古い結果を消し、完了ボタンも無効へ
     if (route === 'test') {
@@ -3117,6 +3166,13 @@ function practiceFixGoTo(route) {
         if (settingsView !== 'steps') settingsView = 'steps';
         renderSettingsView();
         scrollToSettingsEl(wizardStepCards('correction')[0]);
+    } else if (route === 'btdelay') {
+        // Bluetooth用マイク遅れ補正へ：そのステップを開く（v0.9.80）
+        setupProgress.btDelayDone = false;
+        wizardEditing = 'btdelay';
+        if (settingsView !== 'steps') settingsView = 'steps';
+        renderSettingsView();
+        scrollToSettingsEl(els.btCalCard);
     } else {
         // 二重反応防止：手動設定を開き、二重反応防止付近へスクロール
         setupProgress.manualForced = true;
@@ -3134,7 +3190,7 @@ function endPracticeTest(showResult) {
     pt.timers.forEach(clearTimeout); pt.timers = [];
     pt.scheduled.forEach((o) => { try { o.stop(); } catch (_) { /* already stopped */ } });
     pt.scheduled = [];
-    if (els.ptBtn) els.ptBtn.textContent = '実践テストを開始';
+    if (els.ptBtn) els.ptBtn.textContent = ptIdleBtnLabel();
     if (showResult) {
         // 結果表示時は、最終拍を判定ライン上に止めた状態で、判定色のついた音符を残す
         drawPracticeLane(pt.notes.length ? pt.notes[pt.notes.length - 1].t : 0);
@@ -3154,6 +3210,381 @@ function stopPracticeTest() {
 
 function togglePracticeTest() {
     if (pt.active) stopPracticeTest(); else startPracticeTest();
+}
+
+/* ══════════════════════════════════════════════════════════
+   マイク遅れ補正（Bluetoothイヤホン用・v0.9.80）
+   クリックに合わせた手拍子/ストロークの「判定タイミングの偏り」を測り、
+   bluetoothMicOffsetMs を提案する。検出は最終確認テストと同じテンポ・同じクリックガードを使い、
+   各拍に最も近いオンセット時刻を集めて平均ズレを出すだけ（拍割り当て等の複雑なロジックは持たない）。
+   STAGE本体・最終確認テストの判定ロジックには手を加えない。
+══════════════════════════════════════════════════════════ */
+function btTimer(fn, ms) { const id = setTimeout(fn, ms); bt.timers.push(id); return id; }
+function setBtCalStatus(t) { if (els.btCalStatus) els.btCalStatus.textContent = t || ''; }
+
+/* ── マイク遅れ補正の流れるレーン（v0.9.81・表示専用）──────────────
+   最終確認テスト（drawPracticeLane）と同じ考え方で、👏を右→左へ流し、波形・反応ライン・
+   判定ラインを描く。判定ロジック・測定ロジックには一切影響しない（見た目だけ）。 */
+function fitBtLane() {
+    if (!els.btCalLaneCanvas) return;
+    els.btCalLaneCanvas.style.width = '100%';
+    els.btCalLaneCanvas.style.height = PT_LANE_HEIGHT + 'px';
+    btLane = fitOne(els.btCalLaneCanvas);
+}
+
+/* 手拍子アイコン（👏）を控えめに描く（v0.9.82）。
+   このテストは「画面ではなくクリック音に合わせて手拍子する」ため、
+   👏は回数の目安に留め、光らせたり判定色で点灯させたりしない（タイミングを視覚誘導しない）。 */
+function drawClapIcon(ctx, x, yc, num) {
+    ctx.save();
+    // 通常表示にする（グレーアウトさせない・v0.9.84）：
+    //  ・globalAlphaは1（薄くしない）
+    //  ・モノクロ絵文字でフォールバックされた端末でも暗くならないよう、塗り色を明るいテキスト色に
+    //  ・影/合成は使わない（派手な点灯・グローは出さない）
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = '#fdf6ee';
+    ctx.font = '20px "Outfit", "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('👏', x, yc);
+    ctx.restore();
+    // 拍番号（👏の下・見える程度）
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(253,246,238,0.85)';
+    ctx.font = '600 11px Outfit, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(String(num), x, yc + 30);
+    ctx.restore();
+}
+
+function drawBtLane(t) {
+    if (!btLane || !btLane.ctx) return;
+    const { ctx, w, h } = btLane;
+    ctx.clearRect(0, 0, w, h);
+    const yc = h * 0.56;
+    const beatPx = Math.max(64, Math.min(120, w * 0.24));
+    const judgeX = w * 0.3;
+    const ppm = beatPx / PT_BEAT_MS;
+    // 中央ガイド
+    ctx.strokeStyle = 'rgba(253,246,238,0.08)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke();
+    // 反応ライン（最終確認テストと同じ検出しきい値）
+    const ampPx = h * 0.34;
+    const lineAmp = micDisplayFrac(ptDetectionThreshold()) * ampPx;
+    ctx.strokeStyle = 'rgba(255,159,28,0.30)';
+    ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, yc - lineAmp); ctx.lineTo(w, yc - lineAmp); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, yc + lineAmp); ctx.lineTo(w, yc + lineAmp); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,159,28,0.5)';
+    ctx.font = '600 9px Outfit, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('反応ライン', 4, yc - lineAmp - 3);
+    // 入力波形（右→左へ流れる）。判定と同じ時間軸で見せるため、波形にもマイク判定補正(off)を足す。
+    // off は micJudgeOffsetMs()＝Bluetooth時は timingOffsetMs＋bluetoothMicOffsetMs。補正適用後の再テストでは
+    // 波形位置も補正後の位置へ寄る（表示のみ・測定/判定ロジックは変更しない・v0.9.83）。
+    if (bt.wave.length) {
+        const off = micJudgeOffsetMs();
+        const pts = [];
+        for (let i = 0; i < bt.wave.length; i++) {
+            const p = bt.wave[i];
+            const x = judgeX + (p.t + off - t) * ppm;
+            if (x < -24 || x > w + 24) continue;
+            pts.push([x, micDisplayFrac(p.level) * ampPx]);
+        }
+        if (pts.length >= 2) {
+            ctx.beginPath();
+            ctx.moveTo(pts[0][0], yc - pts[0][1]);
+            for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], yc - pts[i][1]);
+            for (let i = pts.length - 1; i >= 0; i--) ctx.lineTo(pts[i][0], yc + pts[i][1]);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(255,255,255,0.16)';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(pts[0][0], yc - pts[0][1]);
+            for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], yc - pts[i][1]);
+            ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+    }
+    // 👏（右→左へ流れる）＋拍番号。控えめ表示で、タイミングは音で合わせてもらう。
+    for (let i = 0; i < bt.notes.length; i++) {
+        const n = bt.notes[i];
+        const x = judgeX + (n.t - t) * ppm;
+        if (x < -28 || x > w + 28) continue;
+        drawClapIcon(ctx, x, yc, n.num);
+    }
+    // 判定ライン（縦・静的。拍頭で強く光る演出はしない＝視覚でタイミング誘導しない・v0.9.82）
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,159,28,0.42)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(judgeX, h * 0.1); ctx.lineTo(judgeX, h * 0.94); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = 'rgba(255,159,28,0.6)';
+    ctx.font = '700 10px Outfit, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('JUST', judgeX, h * 0.99);
+}
+
+function btLoop() {
+    if (!bt.active) return;
+    const t = performance.now() - bt.flowStartPerf;
+    for (let i = 0; i < bt.notes.length; i++) {
+        const n = bt.notes[i];
+        if (!n.closed && t > n.t + PT_NEAR_WIN) n.closed = true;
+    }
+    drawBtLane(t);
+    bt.raf = requestAnimationFrame(btLoop);
+}
+
+function btScheduleClick(atSec, accent) {
+    const ctx = state.audioCtx;
+    if (!ctx) return;
+    const vol = Math.max(0, Math.min(1, state.clickVolume / 100));
+    const t0 = Math.max(atSec, ctx.currentTime);
+    const peak = (accent ? 0.55 : 0.45) * vol;
+    // クリックの「鳴る時刻」は音量に関係なくガード基準として記録する。
+    bt.clickPerfTimes.push(bt.flowStartPerf + (t0 - bt.audioStart) * 1000);
+    if (peak < 0.001) return;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.value = accent ? 1500 : 1200;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(peak, t0 + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + 0.09);
+    bt.scheduled.push(osc);
+}
+function btLatestClickPerf(now) {
+    let last = -100000;
+    for (let i = 0; i < bt.clickPerfTimes.length; i++) {
+        const c = bt.clickPerfTimes[i];
+        if (c <= now + 10 && c > last) last = c;
+    }
+    return last;
+}
+
+/* 待機中のカード表示（ボタン文言・ステータス）。 */
+function renderBtCalIdle() {
+    if (els.btCalBtn) els.btCalBtn.textContent = bt.hasRun ? 'もう1度テストする' : 'マイク遅れ補正テストを開始';
+    if (els.btCalLive) els.btCalLive.classList.add('hidden');
+    if (els.btCalLaneWrap) els.btCalLaneWrap.classList.add('hidden');
+    if (els.btCalPhase) els.btCalPhase.textContent = '';
+    if (els.btCalBadge) {
+        const done = !!setupProgress.btDelayDone;
+        els.btCalBadge.textContent = done ? '実施済み' : '未実施';
+        els.btCalBadge.classList.toggle('done', done);
+    }
+}
+
+async function startBtCal() {
+    // 排他：他テストを止める
+    if (hpCal.active) stopHeadphoneCal();
+    if (cal.active) cancelCalibration();
+    if (test.flow) abortMicTest();
+    stopPracticeTest();
+    if (!(await ensureTestMic())) { setBtCalStatus('マイクを許可してください。'); return; }
+    ensureAudio();
+    try { if (state.audioCtx && state.audioCtx.state === 'suspended') await state.audioCtx.resume(); } catch (_) { /* ignore */ }
+    const ctx = state.audioCtx;
+    if (!ctx) { setBtCalStatus('音声を初期化できませんでした。'); return; }
+
+    bt.active = true;
+    bt.capturing = false;
+    bt.onsets = [];
+    bt.clickPerfTimes = [];
+    bt.armed = true;
+    bt.lastOnsetAt = 0;
+    bt.lastDetectAt = -100000;
+    bt.maxPeak = 0;
+    bt.result = null;
+    mic.prevPeak = 0;
+    mic.env = 0;
+    bt.timers.forEach(clearTimeout); bt.timers = [];
+    bt.scheduled = [];
+    bt.hasRun = true;
+    bt.wave = [];
+    if (els.btCalResult) { els.btCalResult.classList.add('hidden'); els.btCalResult.innerHTML = ''; }
+    if (els.btCalLive) els.btCalLive.classList.remove('hidden');
+    if (els.btCalBtn) els.btCalBtn.textContent = 'マイク遅れ補正テストを停止';
+
+    bt.audioStart = ctx.currentTime;
+    bt.flowStartPerf = performance.now();
+    bt.playT0Ms = PT_LEAD_MS + PT_COUNTIN * PT_BEAT_MS;
+
+    // 流れる👏（表示専用・8拍）。判定/測定は別系統（bt.onsets）で行う。
+    bt.notes = [];
+    for (let j = 0; j < BT_PLAY_BEATS; j++) {
+        bt.notes.push({ t: bt.playT0Ms + j * PT_BEAT_MS, num: j + 1, cls: null, closed: false, peak: 0 });
+    }
+    if (els.btCalLaneWrap) els.btCalLaneWrap.classList.remove('hidden');
+    fitBtLane();
+    cancelAnimationFrame(bt.raf);
+    bt.raf = requestAnimationFrame(btLoop);
+    scrollToSettingsEl(els.btCalLaneWrap || els.btCalCard);
+
+    const beatSec = PT_BEAT_MS / 1000;
+    const startSec = bt.audioStart + PT_LEAD_MS / 1000;
+    for (let i = 0; i < PT_COUNTIN; i++) btScheduleClick(startSec + i * beatSec, i === 0);
+    const playStartSec = startSec + PT_COUNTIN * beatSec;
+    for (let j = 0; j < BT_PLAY_BEATS; j++) btScheduleClick(playStartSec + j * beatSec, j % 4 === 0);
+
+    setBtCalStatus('カウントイン…');
+    for (let j = 0; j < BT_PLAY_BEATS; j++) {
+        btTimer(() => setBtCalStatus('クリックに合わせて入力　' + (j + 1) + ' / ' + BT_PLAY_BEATS), bt.playT0Ms + j * PT_BEAT_MS);
+    }
+    const capStartMs = bt.playT0Ms - PT_CAP_WIN_MS;
+    const capEndMs = bt.playT0Ms + (BT_PLAY_BEATS - 1) * PT_BEAT_MS + PT_CAP_WIN_MS;
+    btTimer(() => { bt.capturing = true; }, capStartMs);
+    btTimer(() => { bt.capturing = false; finishBtCal(); }, capEndMs + 250);
+}
+
+/* 進行中のテストを止める（カードを離れる/排他時）。結果カードは触らない。 */
+function stopBtCal() {
+    if (!bt.active && !bt.timers.length) return;
+    bt.active = false;
+    bt.capturing = false;
+    cancelAnimationFrame(bt.raf); bt.raf = 0;
+    bt.timers.forEach(clearTimeout); bt.timers = [];
+    bt.scheduled.forEach((o) => { try { o.stop(); } catch (_) { /* already stopped */ } });
+    bt.scheduled = [];
+    if (els.btCalLive) els.btCalLive.classList.add('hidden');
+    if (els.btCalLaneWrap) els.btCalLaneWrap.classList.add('hidden');
+    if (els.btCalBtn) els.btCalBtn.textContent = bt.hasRun ? 'もう1度テストする' : 'マイク遅れ補正テストを開始';
+    setBtCalStatus('');
+}
+
+function toggleBtCal() {
+    if (bt.active) { stopBtCal(); } else { startBtCal(); }
+}
+
+/* 8拍それぞれに最も近いオンセットを割り当て、平均ズレ・分類を集計する。 */
+function finishBtCal() {
+    bt.active = false;
+    bt.capturing = false;
+    cancelAnimationFrame(bt.raf); bt.raf = 0;
+    if (els.btCalLive) els.btCalLive.classList.add('hidden');
+    if (els.btCalLaneWrap) els.btCalLaneWrap.classList.add('hidden');
+    if (els.btCalBtn) els.btCalBtn.textContent = bt.hasRun ? 'もう1度テストする' : 'マイク遅れ補正テストを開始';
+
+    let just = 0, early = 0, late = 0, miss = 0, sum = 0, validN = 0;
+    const used = new Array(bt.onsets.length).fill(false);
+    for (let i = 0; i < BT_PLAY_BEATS; i++) {
+        const beatT = bt.playT0Ms + i * PT_BEAT_MS;
+        let bestIdx = -1, bestAbs = Infinity, bestDiff = 0;
+        for (let k = 0; k < bt.onsets.length; k++) {
+            if (used[k]) continue;
+            const d = bt.onsets[k].t - beatT; // 正＝遅い(LATE) / 負＝早い(EARLY)
+            const a = Math.abs(d);
+            if (a < bestAbs) { bestAbs = a; bestIdx = k; bestDiff = d; }
+        }
+        if (bestIdx >= 0 && bestAbs <= PT_NEAR_WIN) {
+            used[bestIdx] = true;
+            sum += bestDiff; validN++;
+            if (Math.abs(bestDiff) <= JUST_MS) just++;
+            else if (bestDiff < 0) early++;
+            else late++;
+        } else {
+            miss++;
+        }
+    }
+    const valid = just + early + late;
+    const avg = validN ? Math.round(sum / validN) : 0;
+    const earlyRatio = valid ? early / valid : 0;
+    const lateRatio = valid ? late / valid : 0;
+    // 補正提案条件（v0.9.80）：有効入力6以上・|平均ズレ|>=35ms・方向が60%以上偏っている。
+    const enoughInput = valid >= 6;
+    const enoughBias = Math.abs(avg) >= 35;
+    const biased = (earlyRatio >= 0.6) || (lateRatio >= 0.6);
+    const cur = mic.bluetoothMicOffsetMs || 0;
+    // 符号：判定時刻 = audio + offset。LATE(avg>0)なら offset を小さく（負方向）して早める。
+    // → new = cur - avg。1回の補正量は ±BT_MIC_STEP_CLAMP に制限し、全体は [MIN,MAX] にクランプ。
+    const step = Math.max(-BT_MIC_STEP_CLAMP, Math.min(BT_MIC_STEP_CLAMP, -avg));
+    const proposed = Math.max(BT_MIC_OFFSET_MIN, Math.min(BT_MIC_OFFSET_MAX, cur + step));
+    const propose = enoughInput && enoughBias && biased && (proposed !== cur);
+    bt.result = { just, early, late, miss, valid, avg, cur, proposed, propose, enoughInput };
+    renderBtCalResult(bt.result);
+    setBtCalStatus('完了');
+    // 測っただけでは btDelayDone にしない（適用 or スキップで完了にする）。
+    if (settingsView === 'steps') scrollToSettingsEl(els.btCalResult || els.btCalCard);
+}
+
+function renderBtCalResult(r) {
+    if (!els.btCalResult) return;
+    const sign = (v) => (v > 0 ? '+' : '') + v + 'ms';
+    const dirTxt = r.avg > 0 ? '（遅め/LATE）' : (r.avg < 0 ? '（早め/EARLY）' : '');
+    const avgTxt = sign(r.avg) + dirTxt;
+    const primary = 'width:100%;padding:14px;margin-top:12px;border-radius:10px;border:none;'
+        + 'background:linear-gradient(180deg,#ff9f1c,#ff8c00);color:#1a130a;font-weight:800;font-size:1rem;cursor:pointer;';
+    const sub = 'width:100%;padding:12px;margin-top:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.28);'
+        + 'background:rgba(255,255,255,0.05);color:inherit;font-weight:700;cursor:pointer;';
+    const rows =
+        '<div class="cal-result-row"><span>有効入力</span><b>' + r.valid + ' / ' + BT_PLAY_BEATS + '</b></div>' +
+        '<div class="cal-result-row"><span>平均ズレ</span><b>' + avgTxt + '</b></div>' +
+        '<div class="cal-result-row"><span>現在のマイク遅れ補正</span><b>' + sign(r.cur) + '</b></div>';
+    let head, actions;
+    if (!r.enoughInput) {
+        head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">入力が少なくて測れませんでした。クリックに合わせて、もう一度はっきり手拍子してください。</p>';
+        actions = '<button type="button" id="bt-cal-rerun" style="' + primary + '">もう1度テストする</button>';
+    } else if (r.propose) {
+        head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">判定が' + (r.avg > 0 ? '遅め（LATE）' : '早め（EARLY）') + 'に片寄っています。マイク遅れ補正で合わせましょう。</p>';
+        const proposeRow = '<div class="cal-result-row"><span>補正後の目安</span><b>' + sign(r.proposed) + '</b></div>';
+        actions =
+            '<button type="button" id="bt-cal-apply" style="' + primary + '">この補正を適用してもう1度テストする</button>' +
+            '<button type="button" id="bt-cal-rerun" style="' + sub + '">補正せずにもう1度テストする</button>';
+        els.btCalResult.innerHTML = head + rows + proposeRow + '<div style="margin-top:6px;">' + actions + '</div>';
+        els.btCalResult.classList.remove('hidden');
+        bindBtCalResultActions();
+        return;
+    } else {
+        head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">判定タイミングのズレは小さめです。このまま最終確認テストへ進めます。</p>';
+        actions =
+            '<button type="button" id="bt-cal-proceed" style="' + primary + '">最終確認テストへ進む</button>' +
+            '<button type="button" id="bt-cal-rerun" style="' + sub + '">もう1度テストする</button>';
+    }
+    els.btCalResult.innerHTML = head + rows + '<div style="margin-top:6px;">' + actions + '</div>';
+    els.btCalResult.classList.remove('hidden');
+    bindBtCalResultActions();
+}
+
+function bindBtCalResultActions() {
+    const rerun = document.getElementById('bt-cal-rerun');
+    if (rerun) rerun.addEventListener('click', () => startBtCal());
+    const apply = document.getElementById('bt-cal-apply');
+    if (apply) apply.addEventListener('click', () => { applyBtCal(); startBtCal(); });
+    const proceed = document.getElementById('bt-cal-proceed');
+    if (proceed) proceed.addEventListener('click', completeBtCalStep);
+}
+
+/* 提案値を bluetoothMicOffsetMs に反映して保存（判定時刻へ即反映される）。 */
+function applyBtCal() {
+    if (!bt.result) return;
+    mic.bluetoothMicOffsetMs = bt.result.proposed;
+    saveSettings();
+    // 補正したので、前回の最終確認テスト結果は古くなる
+    invalidatePracticeResult();
+    setBtCalStatus('マイク遅れ補正を ' + (mic.bluetoothMicOffsetMs > 0 ? '+' : '') + mic.bluetoothMicOffsetMs + 'ms に設定しました。');
+}
+
+/* マイク遅れ補正ステップ完了 → 最終確認テストへ。 */
+function completeBtCalStep() {
+    stopBtCal();
+    setupProgress.btDelayDone = true;
+    wizardEditing = null;
+    if (settingsView === 'steps') {
+        renderSettingsView();
+        scrollToSettingsEl(els.ptCard);
+    }
 }
 
 /* ── 入力タイプ別の感度・表示プロファイル判定（v0.9.49）──────────
@@ -3354,6 +3785,7 @@ function loadSettings() {
     mic.cooldownMs = clampNum(s.cooldownMs, 100, 400, SETTINGS_DEFAULTS.cooldownMs);
     mic.clickGuardMs = clampNum(s.clickGuardMs, 0, 250, SETTINGS_DEFAULTS.clickGuardMs);
     mic.timingOffsetMs = clampNum(s.timingOffsetMs, -150, 150, SETTINGS_DEFAULTS.timingOffsetMs);
+    mic.bluetoothMicOffsetMs = clampNum(s.bluetoothMicOffsetMs, BT_MIC_OFFSET_MIN, BT_MIC_OFFSET_MAX, 0);
     state.clickVolume = clampNum(s.clickVolume, 0, 100, SETTINGS_DEFAULTS.clickVolume);
     if (typeof s.lastCalibrationDelayMs === 'number') cal.measuredDelay = s.lastCalibrationDelayMs;
     if (typeof s.lastCalibrationAt === 'number') cal.lastAt = s.lastCalibrationAt;
@@ -3384,6 +3816,7 @@ function saveSettings() {
             cooldownMs: mic.cooldownMs,
             clickGuardMs: mic.clickGuardMs,
             timingOffsetMs: mic.timingOffsetMs,
+            bluetoothMicOffsetMs: mic.bluetoothMicOffsetMs,
             clickVolume: state.clickVolume,
             lastCalibrationDelayMs: cal.measuredDelay,
             lastCalibrationAt: cal.lastAt,
@@ -3437,7 +3870,7 @@ let settingsView = 'chooser';
 function freshSetupProgress() {
     return {
         inputChosen: false, hpChosen: false, strokeChosen: false,
-        recoApplied: false, correctionDone: false, practiceDone: false, manualForced: false,
+        recoApplied: false, correctionDone: false, btDelayDone: false, practiceDone: false, manualForced: false,
     };
 }
 let setupProgress = freshSetupProgress();
@@ -3450,20 +3883,27 @@ function escapeHtml(t) {
 }
 
 /* ── ウィザードのステップ定義 ───────────────────────────────
-   input(=入力タイプ＋イヤホン種類) → stroke → test → correction → practice → final(手動＋プリセット) */
-const WIZARD_STEPS = ['input', 'stroke', 'test', 'correction', 'practice', 'final'];
+   input(=入力タイプ＋イヤホン種類) → stroke → test → correction → [btdelay] → practice → final(手動＋プリセット)
+   btdelay（マイク遅れ補正）は Bluetoothイヤホン時だけ補正(correction)の後に差し込む（v0.9.80）。 */
+function wizardSteps() {
+    const steps = ['input', 'stroke', 'test', 'correction'];
+    if (isBluetoothHeadphone()) steps.push('btdelay');
+    steps.push('practice', 'final');
+    return steps;
+}
 function wizardStepComplete(id) {
     switch (id) {
         case 'input': return setupProgress.inputChosen && (!isHeadphoneInput() || setupProgress.hpChosen);
         case 'stroke': return setupProgress.strokeChosen;
         case 'test': return setupProgress.recoApplied;
         case 'correction': return setupProgress.correctionDone;
+        case 'btdelay': return !isBluetoothHeadphone() || setupProgress.btDelayDone;
         case 'practice': return setupProgress.practiceDone;
         default: return false; // 'final' は終端
     }
 }
 function firstIncompleteWizardStep() {
-    for (const id of WIZARD_STEPS) { if (!wizardStepComplete(id)) return id; }
+    for (const id of wizardSteps()) { if (!wizardStepComplete(id)) return id; }
     return 'final';
 }
 function activeWizardStep() {
@@ -3479,6 +3919,7 @@ function wizardStepCards(id) {
         case 'correction':
             if (!isHeadphoneInput()) return [els.calCard];
             return getHeadphoneType() === 'bluetooth' ? [els.hpCalCard] : [els.correctionWiredNote];
+        case 'btdelay': return [els.btCalCard];
         case 'practice': return [els.ptCard];
         case 'final': return [els.manualCard];
         default: return [];
@@ -3486,7 +3927,7 @@ function wizardStepCards(id) {
 }
 function allStepCards() {
     return [els.inputTypeCard, els.strokeModeCard, els.testCard, els.calCard, els.hpCalCard,
-    els.correctionWiredNote, els.ptCard, els.manualCard];
+    els.correctionWiredNote, els.btCalCard, els.ptCard, els.manualCard];
 }
 
 /* 完了済みステップの要約テキスト */
@@ -3504,10 +3945,12 @@ function wizardStepSummary(id) {
         case 'correction': {
             if (!isHeadphoneInput()) return 'マイクの遅れ補正：' + (mic.timingOffsetMs > 0 ? '+' : '') + mic.timingOffsetMs + 'ms';
             if (getHeadphoneType() === 'bluetooth') return 'イヤホン音ズレ補正：' + mic.headphoneOutputOffsetMs + 'ms';
-            return '補正：有線イヤホン 30ms 目安';
+            return '補正：有線イヤホン 補正なし（0ms）';
         }
+        case 'btdelay':
+            return 'マイク遅れ補正：' + (mic.bluetoothMicOffsetMs > 0 ? '+' : '') + mic.bluetoothMicOffsetMs + 'ms';
         case 'practice':
-            return '実践テスト：完了';
+            return '最終確認テスト：完了';
         default: return '';
     }
 }
@@ -3565,8 +4008,8 @@ function updateDoneButtonState() {
 function showDoneHint() {
     if (!els.settingsDoneHint) return;
     els.settingsDoneHint.textContent = setupProgress.practiceDone
-        ? '実践テストで調整してから完了してください。'
-        : '実践テストまで完了してください。';
+        ? '最終確認テストで調整してから完了してください。'
+        : '最終確認テストまで完了してください。';
     els.settingsDoneHint.classList.remove('hidden');
 }
 
@@ -3604,6 +4047,11 @@ function renderWizardSteps() {
     renderStepProgress(active);
     renderStepSummaries(active);
     if (els.ptOpenManual) els.ptOpenManual.style.display = (active === 'practice') ? '' : 'none';
+    // マイク遅れ補正（btdelay）：他ステップへ移ったら停止。表示時はアイドルUIへ（v0.9.80）
+    if (active !== 'btdelay' && (bt.active || bt.timers.length)) stopBtCal();
+    if (active === 'btdelay' && !bt.active && els.btCalResult && els.btCalResult.classList.contains('hidden')) {
+        renderBtCalIdle();
+    }
     // 実践テストステップを「これから実施」状態で開いたときは、前回の音符レーンを残さない（v0.9.73）。
     // 実施直後（結果表示中）は触らない。結果が隠れている＝初期画面なので、レーンの残骸を消す。
     if (active === 'practice' && !pt.active && els.ptResult && els.ptResult.classList.contains('hidden')) {
@@ -3617,13 +4065,14 @@ function renderWizardSteps() {
 /* ステップ現在地：「ステップ X / N」＋ドット。WIZARD_STEPS の並びから算出。 */
 const WIZARD_STEP_LABELS = {
     input: '入力タイプ', stroke: 'ストローク', test: 'マイク反応テスト',
-    correction: '補正', practice: '実践テスト', final: '手動設定・保存',
+    correction: '補正', btdelay: 'マイク遅れ補正', practice: '最終確認テスト', final: '手動設定・保存',
 };
 function renderStepProgress(active) {
     const wrap = els.settingsStepsProgress;
     if (!wrap) return;
-    const total = WIZARD_STEPS.length;
-    const idx = Math.max(0, WIZARD_STEPS.indexOf(active));
+    const steps = wizardSteps();
+    const total = steps.length;
+    const idx = Math.max(0, steps.indexOf(active));
     const label = WIZARD_STEP_LABELS[active] || '';
     let dots = '';
     for (let i = 0; i < total; i++) {
@@ -3645,7 +4094,7 @@ function renderStepSummaries(active) {
     const wrap = els.settingsStepsSummary;
     if (!wrap) return;
     const rows = [];
-    for (const id of WIZARD_STEPS) {
+    for (const id of wizardSteps()) {
         if (id === active) break;
         if (!wizardStepComplete(id)) continue;
         rows.push({ id, text: wizardStepSummary(id) });
@@ -3694,15 +4143,16 @@ function invalidatePracticeResult(note) {
     updateDoneButtonState();
 }
 
-/* 補正系を完了として実践テストへ（適用 / スキップ / 進む 共通） */
+/* 補正系を完了として次のステップへ（適用 / スキップ / 進む 共通）。
+   Bluetoothイヤホン時は「マイク遅れ補正」ステップへ、それ以外は最終確認テストへ。 */
 function completeCorrectionStep() {
     setupProgress.correctionDone = true;
-    // 補正を変更した時点で前回の実践テスト結果は古くなる → 初期化して再確認を促す
-    invalidatePracticeResult('補正を反映しました。もう一度実践テストで確認してください。');
+    // 補正を変更した時点で前回の最終確認テスト結果は古くなる → 初期化して再確認を促す
+    invalidatePracticeResult('補正を反映しました。もう一度最終確認テストで確認してください。');
     wizardEditing = null;
     if (settingsView === 'steps') {
         renderSettingsView();
-        scrollToSettingsEl(els.ptCard);
+        scrollToSettingsEl(isBluetoothHeadphone() ? els.btCalCard : els.ptCard);
     }
 }
 
@@ -3711,6 +4161,8 @@ function setSettingsView(v) {
     if (v === 'summary') renderSettingsSummary();
     if (v === 'chooser') renderPresetList();
     if (v === 'simple') resetSimpleView();
+    // 「現在の設定を適用しました」メッセージは、別ビューへ移ったら消す（v0.9.80）
+    if (v !== 'chooser' && els.chooserAppliedMsg) els.chooserAppliedMsg.classList.add('hidden');
     renderSettingsView();
 }
 
@@ -3718,6 +4170,24 @@ function setSettingsView(v) {
    ・済み表示（マイク反応テスト/遅れ補正）
    ・前回のおすすめ/結果カード・実践テスト結果
    ・進行中のテスト（反応テスト/補正/イヤホン補正/実践テスト）を停止 */
+/* テスト実施履歴（UIの「もう1度／もう一度テストする」表示）だけをリセットして、
+   各テストボタンを未実施文言に戻す（v0.9.82）。設定値そのものは変更しない。
+   新しい設定フローを始めるタイミング（詳細テスト開始/簡易設定の選び直し/プリセット呼び出し/設定を開き直し 等）で使う。
+   ・最終確認テスト：最終確認テストを開始
+   ・Bluetooth用マイク遅れ補正：マイク遅れ補正テストを開始
+   ・マイク反応テスト：テストを開始
+   ・マイクの遅れ補正：テストを開始
+   ※イヤホン音ズレ補正の待機文言は常に「補正テスト開始」で履歴を持たない。 */
+function resetTestRunHistory() {
+    ptHasRun = false;
+    bt.hasRun = false;
+    state.micTestDone = false;
+    state.micDelayDone = false;
+    updateMicTestDoneUI();
+    updateMicDelayDoneUI();
+    renderBtCalIdle();
+}
+
 function resetSetupFlowDisplay() {
     if (test.flow) abortMicTest();
     if (cal.active) cancelCalibration();
@@ -3734,8 +4204,12 @@ function resetSetupFlowDisplay() {
     setupProgress.recoApplied = false;
     setupProgress.correctionDone = false;
     setupProgress.practiceDone = false;
+    setupProgress.btDelayDone = false;
     setupProgress.manualForced = false;
     practiceResultOk = false;
+    ptHasRun = false; // 今回フローのやり直し：最終確認テストの実施履歴もリセット（v0.9.80）
+    bt.hasRun = false; // マイク遅れ補正の実施履歴もリセット
+    stopBtCal();
     saveSettings();
     // 表示クリア
     if (els.testReco) els.testReco.classList.add('hidden');
@@ -3830,6 +4304,10 @@ function renderSettingsSummary() {
     rows.push(row('クリック音量', state.clickVolume + '％'));
     if (t === 'headphone') {
         rows.push(row('イヤホン音ズレ補正', mic.headphoneOutputOffsetMs + 'ms'));
+        if (getHeadphoneType() === 'bluetooth') {
+            const bo = mic.bluetoothMicOffsetMs || 0;
+            rows.push(row('マイク遅れ補正', (bo > 0 ? '+' : '') + bo + 'ms'));
+        }
     } else {
         const off = mic.timingOffsetMs;
         rows.push(row('マイクの遅れ補正', (off > 0 ? '+' : '') + off + 'ms'));
@@ -3862,6 +4340,7 @@ function currentMicPresetSettings() {
         cooldownMs: mic.cooldownMs,
         clickVolume: state.clickVolume,
         timingOffsetMs: mic.timingOffsetMs,
+        bluetoothMicOffsetMs: mic.bluetoothMicOffsetMs,
         lowInputProfile: !!mic.lowInputProfile,
         headphoneOffsetWiredMs: mic.headphoneOffsetWiredMs,
         headphoneOffsetBluetoothMs: mic.headphoneOffsetBluetoothMs,
@@ -3870,7 +4349,7 @@ function currentMicPresetSettings() {
     };
 }
 
-function setPresetSaveMsg(t) { if (els.presetSaveMsg) els.presetSaveMsg.textContent = t || ''; }
+function setPresetSaveMsg(t) { if (els.presetModalMsg) els.presetModalMsg.textContent = t || ''; }
 
 /* 組み込み＋ユーザー保存を結合した一覧（組み込みが先頭）。 */
 function allPresets() {
@@ -3954,39 +4433,50 @@ function movePreset(id, dir) {
     renderPresetList();
 }
 
-/* 「名前をつけて保存」：空欄は不可。同名でも別プリセットとして保存（シンプル運用）。 */
-function savePresetFromCurrent() {
-    savePresetWithName(
-        els.presetNameInput ? els.presetNameInput.value : '',
-        setPresetSaveMsg,
-        () => { if (els.presetNameInput) els.presetNameInput.value = ''; }
-    );
-}
-
 /* 「現在の設定を見る」/「手動設定」から手動設定＋保存カードへ移動する補助ビュー */
 function openManualView(scrollTarget) {
     settingsView = 'manual';
-    setPresetSaveMsg('');
-    // 保存欄は既定で閉じておく（「この設定を保存」を押したら出す）。
-    if (els.manualPresetBlock) els.manualPresetBlock.classList.add('hidden');
     // 「手動設定を開く」ので、折りたたみは開いた状態で全項目を見せる（v0.9.69）。
     if (els.manualDetail && !els.manualDetail.open) { els.manualDetail.open = true; fitPreview(); }
     renderSettingsView();
     scrollToSettingsEl(scrollTarget || els.manualCard);
 }
 
-/* 手動設定カード内のプリセット保存欄を出す（「この設定を保存」導線）。v0.9.69 */
-function revealManualPresetSave() {
-    if (els.manualPresetBlock) els.manualPresetBlock.classList.remove('hidden');
-    setPresetSaveMsg('');
-    if (els.presetNameInput) { try { els.presetNameInput.focus(); } catch (_) { /* focus不可は無視 */ } }
+/* 手動設定の「この設定を使う」（v0.9.80）：いまの設定値をそのまま現在の設定として保存し、
+   マイク設定TOP（chooser）へ戻る。プリセットには保存しない。 */
+function useManualSettings() {
+    saveSettings(); // いまの mic.* / state.* を現在設定として保存（プリセット化はしない）
+    setSettingsView('chooser');
+    if (els.chooserAppliedMsg) {
+        els.chooserAppliedMsg.textContent = '現在の設定を適用しました。';
+        els.chooserAppliedMsg.classList.remove('hidden');
+    }
+    scrollToSettingsEl(els.settingsChooser || els.manualCard);
 }
 
-/* 「この設定を保存」起点：手動設定を開いて、保存欄まで出す。 */
-function openManualPresetSave() {
-    openManualView(els.manualCard);
-    revealManualPresetSave();
-    scrollToSettingsEl(els.manualPresetTrigger || els.manualCard);
+/* ── プリセット保存モーダル（v0.9.80）──────────────────────────────
+   手動設定／最終確認テスト結果／現在の設定を見る、すべての「この設定を保存」を
+   この共通モーダルから行う。保存処理は既存の savePresetWithName を流用。 */
+function openPresetModal() {
+    if (!els.presetModal) return;
+    setPresetSaveMsg('');
+    if (els.presetModalInput) els.presetModalInput.value = '';
+    els.presetModal.classList.remove('hidden');
+    requestAnimationFrame(() => { if (els.presetModalInput) { try { els.presetModalInput.focus(); } catch (_) { /* focus不可は無視 */ } } });
+}
+function closePresetModal() {
+    if (els.presetModal) els.presetModal.classList.add('hidden');
+}
+function savePresetFromModal() {
+    const ok = savePresetWithName(
+        els.presetModalInput ? els.presetModalInput.value : '',
+        setPresetSaveMsg,
+        () => { if (els.presetModalInput) els.presetModalInput.value = ''; }
+    );
+    if (ok) {
+        // 成功：少し成功メッセージを見せてから閉じる
+        setTimeout(closePresetModal, 700);
+    }
 }
 
 /* プリセット適用：保存値を現在の設定へ反映。テスト済み扱いにはしない（実践テストで確認を促す）。 */
@@ -4001,6 +4491,7 @@ function applyPresetCore(id) {
     if (cal.active) cancelCalibration();
     if (hpCal.active) stopHeadphoneCal();
     stopPracticeTest();
+    stopBtCal();
     // 値の反映（不正値は現在値/目安にフォールバック）
     mic.inputType = (s.inputType === 'headphone') ? 'headphone' : 'normal';
     mic.headphoneType = (s.headphoneType === 'bluetooth') ? 'bluetooth' : 'wired';
@@ -4009,6 +4500,8 @@ function applyPresetCore(id) {
     mic.cooldownMs = clampNum(s.cooldownMs, 100, 400, mic.cooldownMs);
     state.clickVolume = clampNum(s.clickVolume, 0, 100, state.clickVolume);
     mic.timingOffsetMs = clampNum(s.timingOffsetMs, -150, 150, mic.timingOffsetMs);
+    // Bluetooth用マイク遅れ補正：未保存（古いプリセット）は0=補正なし（v0.9.80）
+    mic.bluetoothMicOffsetMs = clampNum(s.bluetoothMicOffsetMs, BT_MIC_OFFSET_MIN, BT_MIC_OFFSET_MAX, 0);
     mic.lowInputProfile = !!s.lowInputProfile;
     mic.headphoneOffsetWiredMs = validHpOffset(s.headphoneOffsetWiredMs, mic.headphoneOffsetWiredMs);
     mic.headphoneOffsetBluetoothMs = validHpOffset(s.headphoneOffsetBluetoothMs, mic.headphoneOffsetBluetoothMs);
@@ -4024,8 +4517,10 @@ function applyPresetCore(id) {
     setupProgress.hpChosen = true;
     setupProgress.strokeChosen = true;
     setupProgress.recoApplied = true;   // 反応ライン等は呼び出し済み扱い
-    setupProgress.correctionDone = true; // 補正値も呼び出し済み → 実践テストへ進む
-    practiceResultOk = false;            // 呼び出し直後は未確認（実践テストで確認）
+    setupProgress.correctionDone = true; // 補正値も呼び出し済み → 次へ進む
+    setupProgress.btDelayDone = true;    // マイク遅れ補正値も呼び出し済み扱い（v0.9.80）
+    practiceResultOk = false;            // 呼び出し直後は未確認（最終確認テストで確認）
+    resetTestRunHistory();               // 新しい設定の呼び出し＝各テストは未実施文言に戻す（v0.9.82）
     wizardEditing = null;
     return p;
 }
@@ -4034,7 +4529,7 @@ function applyPreset(id) {
     if (!applyPresetCore(id)) return;
     settingsView = 'steps';
     renderSettingsView();
-    setPtStatus('プリセットを適用しました。実践テストで確認してください。');
+    setPtStatus('プリセットを適用しました。最終確認テストで確認してください。');
     scrollToSettingsEl(els.ptCard);
 }
 
@@ -4044,11 +4539,14 @@ function resetSimpleView() {
     if (els.simpleChoices) els.simpleChoices.classList.remove('hidden');
     if (els.simpleResult) els.simpleResult.classList.add('hidden');
     if (els.simpleResultMsg) els.simpleResultMsg.textContent = '';
+    // 簡易設定をやり直す＝新しい設定フロー → 各テストの実施履歴をリセット（v0.9.82）
+    resetTestRunHistory();
 }
 
 /* 環境を選択 → 対応する標準プリセットを適用し、結果（実践テスト/完了の導線）を出す。 */
 function applySimpleSetup(presetId, label) {
     if (!applyPresetCore(presetId)) return;
+    // applyPresetCore 内で各テストの実施履歴はリセット済み（v0.9.82）
     // 適用しただけでは settingsView は 'simple' のまま（結果カードを同じ画面に出す）
     if (els.simpleChoices) els.simpleChoices.classList.add('hidden');
     if (els.simpleResult) els.simpleResult.classList.remove('hidden');
@@ -4146,6 +4644,8 @@ function openSettings(from) {
     updateMicTestDoneUI();
     updateMicDelayDoneUI();
     if (els.micResetMsg) els.micResetMsg.classList.add('hidden');
+    if (els.chooserAppliedMsg) els.chooserAppliedMsg.classList.add('hidden');
+    resetTestRunHistory();         // 設定を開き直したら各テストの実施履歴を未実施文言へ戻す（v0.9.82）
     updateTestMicState();
     setTestResult('', '');         // 開始前は説明文を出さない
     setTestPhase('');
@@ -4168,6 +4668,7 @@ function closeSettings() {
     if (cal.active) cancelCalibration();
     if (hpCal.active) stopHeadphoneCal();
     stopPracticeTest();
+    stopBtCal();
     exitTestMode();
     show(settingsReturn);
     if (settingsReturn === 'practice') { fitLane(); }
@@ -4181,6 +4682,7 @@ function resetSettings() {
     mic.cooldownMs = SETTINGS_DEFAULTS.cooldownMs;
     mic.clickGuardMs = SETTINGS_DEFAULTS.clickGuardMs;
     mic.timingOffsetMs = SETTINGS_DEFAULTS.timingOffsetMs;
+    mic.bluetoothMicOffsetMs = 0;
     mic.headphoneOffsetWiredMs = HP_TYPE_DEFAULT_OFFSET.wired;
     mic.headphoneOffsetBluetoothMs = HP_TYPE_DEFAULT_OFFSET.bluetooth;
     mic.headphoneOutputOffsetMs = HP_TYPE_DEFAULT_OFFSET.wired;
@@ -4516,7 +5018,8 @@ function toggleMicTest() {
 }
 
 async function startMicTestFlow() {
-    if (pt.active) stopPracticeTest(); // 実践テストと排他
+    if (pt.active) stopPracticeTest(); // 最終確認テストと排他
+    stopBtCal(); // マイク遅れ補正と排他
     if (!(await ensureTestMic())) { setTestResult('マイクを許可してください。', 'ng'); return; }
     test.flow = true;
     // イヤホン接続は初回テストから高感度寄り（救済しきい値）で拾いにいく。auto/normalは従来どおり。
@@ -5387,7 +5890,7 @@ function micLoop() {
     // STAGE中と同じ mic.env を使うので、結果レーンでもストロークごとにピークが立つ同等の波形になる。
     if (state.running) {
         const rw = state.micRunWave;
-        const gtw = gameAudioMs() + mic.timingOffsetMs;
+        const gtw = gameAudioMs() + micJudgeOffsetMs();
         if (!rw.length || gtw - rw[rw.length - 1].t >= 12) rw.push({ t: gtw, level: mic.env }); // ~12ms間引き
     }
 
@@ -5438,7 +5941,44 @@ function micLoop() {
         return;
     }
 
-    // ── 実践テスト（v0.9.58）：音量波形・オンセット・拍ごとの判定を記録（registerHit/スコアには流さない）──
+    // ── マイク遅れ補正（v0.9.80・Bluetooth用）：クリックに対する入力時刻だけを集める（registerHit/スコアには流さない）──
+    if (bt.active) {
+        if (els.btCalLevel) {
+            els.btCalLevel.style.width = (micDisplayFrac(peak) * 100).toFixed(1) + '%';
+            els.btCalLevel.classList.toggle('over', peak >= mic.threshold);
+        }
+        // 流れるレーン用の波形バッファ（flowStart基準・表示専用。v0.9.81）
+        const waveT = now - bt.flowStartPerf;
+        bt.wave.push({ t: waveT, level: mic.env });
+        while (bt.wave.length && (waveT - bt.wave[0].t) > PT_WAVE_WINDOW_MS) bt.wave.shift();
+        if (bt.capturing) {
+            // 判定と同じ「オーディオ時計＋判定オフセット（現在のBT補正込み）」で時刻化する。
+            const tMs = (state.audioCtx.currentTime - bt.audioStart) * 1000 + micJudgeOffsetMs();
+            if (peak > bt.maxPeak) bt.maxPeak = peak;
+            // 立ち上がり検出（STAGEと同じ検出しきい値・ブラッシング型）。手拍子/軽いストロークの鋭いアタックを拾う。
+            const btDetThr = ptDetectionThreshold();
+            const btCrossed = peak >= btDetThr && mic.prevPeak < btDetThr;
+            const btBigRise = peak >= btDetThr && rise >= RISE_DELTA;
+            if (peak < btDetThr * MIC_REARM_FACTOR) bt.armed = true;
+            const btSustained = MIC_SUSTAINED_ONSET && bt.armed && peak >= btDetThr;
+            const btOnset = btCrossed || btBigRise || btSustained;
+            if (btOnset) {
+                bt.armed = false;
+                bt.lastOnsetAt = now;
+                const guarded = isClickGuardedOnset(now, peak, btLatestClickPerf(now), true);
+                const cooled = (now - bt.lastDetectAt) > mic.cooldownMs;
+                if (!guarded && cooled) {
+                    bt.lastDetectAt = now;
+                    bt.onsets.push({ t: tMs, peak });
+                }
+            }
+        }
+        mic.prevPeak = peak;
+        mic.raf = requestAnimationFrame(micLoop);
+        return;
+    }
+
+    // ── 最終確認テスト（v0.9.58）：音量波形・オンセット・拍ごとの判定を記録（registerHit/スコアには流さない）──
     if (pt.active) {
         // 音量波形バッファ（flowStart基準の時刻でenv履歴を保存）
         const waveT = now - pt.flowStartPerf;
@@ -5450,8 +5990,8 @@ function micLoop() {
             if (!fw.length || waveT - fw[fw.length - 1].t >= 12) fw.push({ t: waveT, level: mic.env });
         }
         if (pt.capturing) {
-            // STAGEと同じ「オーディオ時計＋mic.timingOffsetMs」で時刻化（timingOffsetMsは読むだけ・変更しない）
-            const tMs = (state.audioCtx.currentTime - pt.audioStart) * 1000 + mic.timingOffsetMs;
+            // STAGEと同じ「オーディオ時計＋判定オフセット」で時刻化（補正値は読むだけ・変更しない）
+            const tMs = (state.audioCtx.currentTime - pt.audioStart) * 1000 + micJudgeOffsetMs();
             const ni = Math.round((tMs - pt.playT0Ms) / PT_BEAT_MS);
             // 各拍のpeakは許容窓内なら更新（v0.9.78）。最寄り拍だけだとMISS拍の波形ヒントが欠ける。
             for (let bi = 0; bi < PT_PLAY_BEATS; bi++) {
@@ -5610,7 +6150,7 @@ function micLoop() {
     //   「入力ありMISS/タイミング外」に見える原因になる（今回の不具合）。
     let nearestBeat = -1;
     if (state.running && !inCountIn) {
-        const gt = gameAudioMs() + mic.timingOffsetMs; // 判定と同一基準（マイク補正込み）
+        const gt = gameAudioMs() + micJudgeOffsetMs(); // 判定と同一基準（マイク補正込み）
         const bi2 = state.beatInterval;
         const bIdx = Math.round((gt - state.T0) / bi2);
         if (bIdx >= 0 && bIdx < TOTAL_BEATS) {
@@ -5643,7 +6183,7 @@ function micLoop() {
             if (!pb) pb = state.chordBeatProbe[nearestBeat] = { maxPeak: 0, maxEnv: 0, bestInstantRise: 0, bestRiseFromValley: 0, cooldownBlocked: false, offsetMs: 0 };
             if (peak > pb.maxPeak) {
                 pb.maxPeak = peak;
-                pb.offsetMs = Math.round((gameAudioMs() + mic.timingOffsetMs) - (state.T0 + nearestBeat * state.beatInterval));
+                pb.offsetMs = Math.round((gameAudioMs() + micJudgeOffsetMs()) - (state.T0 + nearestBeat * state.beatInterval));
             }
             if (mic.env > pb.maxEnv) pb.maxEnv = mic.env;
             if (peak >= mic.threshold) {
@@ -5678,7 +6218,7 @@ function micLoop() {
                 } else micExclude('範囲外');
             }
             if (state.micEventLog && state.micEventLog.length < 200) {
-                state.micEventLog.push({ t: Math.round(gameAudioMs() + mic.timingOffsetMs), peak: +peak.toFixed(3), nearBeat: nearestBeat, trigger: 'chord', outcome, assignedBeat: aBeat, cls: aCls });
+                state.micEventLog.push({ t: Math.round(gameAudioMs() + micJudgeOffsetMs()), peak: +peak.toFixed(3), nearBeat: nearestBeat, trigger: 'chord', outcome, assignedBeat: aBeat, cls: aCls });
             }
             updateMicDiag();
         }
@@ -5733,7 +6273,7 @@ function micLoop() {
         // MISS原因デバッグ：オンセットごとに「補正後時刻・ピーク・最寄り拍・結末・割り当て拍・分類」を記録
         if (state.running && state.micEventLog && state.micEventLog.length < 200) {
             state.micEventLog.push({
-                t: Math.round(gameAudioMs() + mic.timingOffsetMs),
+                t: Math.round(gameAudioMs() + micJudgeOffsetMs()),
                 peak: +peak.toFixed(3),
                 nearBeat: nearestBeat,
                 trigger,
@@ -5915,6 +6455,7 @@ function restoreCalSettings() {
 async function startCalibration() {
     if (state.running) stop();
     if (test.active) exitTestMode();
+    stopBtCal();
     if (!mic.on) {
         await startMic();
         if (!mic.on) { setCalUI('failed'); return; }
@@ -6095,11 +6636,16 @@ function bind() {
     if (els.hpTypeWired) els.hpTypeWired.addEventListener('click', () => onPickHeadphoneType('wired'));
     if (els.hpTypeBluetooth) els.hpTypeBluetooth.addEventListener('click', () => onPickHeadphoneType('bluetooth'));
     if (els.hpResetBtn) els.hpResetBtn.addEventListener('click', resetHeadphoneOffsetToGuide);
+    if (els.hpZeroBtn) els.hpZeroBtn.addEventListener('click', resetHeadphoneOffsetToZero);
     // 手動設定のイヤホン音ズレ補正（v0.9.52）：選択中の種類の値を調整。補正カード側スライダーとも同期
     if (els.setHpOffset) els.setHpOffset.addEventListener('input', () => setHeadphoneOffset(parseInt(els.setHpOffset.value, 10)));
     if (els.setHpResetBtn) els.setHpResetBtn.addEventListener('click', resetHeadphoneOffsetToGuide);
+    if (els.setHpZeroBtn) els.setHpZeroBtn.addEventListener('click', resetHeadphoneOffsetToZero);
     // 実践テスト（v0.9.56）
     if (els.ptBtn) els.ptBtn.addEventListener('click', togglePracticeTest);
+    // マイク遅れ補正（Bluetooth用・v0.9.80）
+    if (els.btCalBtn) els.btCalBtn.addEventListener('click', toggleBtCal);
+    if (els.btCalSkip) els.btCalSkip.addEventListener('click', completeBtCalStep);
     // 見返しレーンの「最初へ / 最後へ」（v0.9.74）
     if (els.ptReviewFirst) els.ptReviewFirst.addEventListener('click', () => { if (els.ptReviewScroll) els.ptReviewScroll.scrollTo({ left: 0, behavior: 'smooth' }); });
     if (els.ptReviewLast) els.ptReviewLast.addEventListener('click', () => { if (els.ptReviewScroll) els.ptReviewScroll.scrollTo({ left: els.ptReviewScroll.scrollWidth, behavior: 'smooth' }); });
@@ -6126,6 +6672,7 @@ function bind() {
     // マイク設定TOP（下部・手動設定内）：いつでもマイク設定トップ画面へ戻る（v0.9.70）
     if (els.settingsTopBtn) els.settingsTopBtn.addEventListener('click', () => setSettingsView('chooser'));
     if (els.manualTopBtn) els.manualTopBtn.addEventListener('click', () => setSettingsView('chooser'));
+    if (els.manualUseBtn) els.manualUseBtn.addEventListener('click', useManualSettings);
     // トップ導線（v0.9.71）：簡易設定／詳細テスト／現在の設定を見る
     if (els.settingsSimpleBtn) els.settingsSimpleBtn.addEventListener('click', () => setSettingsView('simple'));
     if (els.settingsDetailBtn) els.settingsDetailBtn.addEventListener('click', () => startRetestFlow(false));
@@ -6140,24 +6687,39 @@ function bind() {
     if (els.simpleBackBtn) els.simpleBackBtn.addEventListener('click', resetSimpleView);
     // 「保存済みプリセット」ボタンで一覧を開閉（v0.9.63）
     if (els.presetToggleBtn) els.presetToggleBtn.addEventListener('click', togglePresetList);
-    // 「現在の設定を見る」から：この設定を保存／手動設定を開く（どちらも手動ビューへ）
-    if (els.settingsSummarySave) els.settingsSummarySave.addEventListener('click', openManualPresetSave);
+    // 「現在の設定を見る」から：この設定を保存（モーダル）／手動設定を開く
+    if (els.settingsSummarySave) els.settingsSummarySave.addEventListener('click', () => openPresetModal());
     if (els.settingsSummaryManual) els.settingsSummaryManual.addEventListener('click', () => openManualView(els.manualCard));
-    // 手動設定カード内「この設定を保存」：押すと名前入力欄＋保存ボタンを出す（v0.9.69）
-    if (els.manualPresetTrigger) els.manualPresetTrigger.addEventListener('click', revealManualPresetSave);
-    // 補正系の「進む/スキップ」（v0.9.62）：押したら補正系完了として実践テストへ
+    // 手動設定カード内「この設定を保存」：共通の保存モーダルを開く（v0.9.80）
+    if (els.manualPresetTrigger) els.manualPresetTrigger.addEventListener('click', () => openPresetModal());
+    // 補正系の「進む/スキップ」（v0.9.62）：押したら補正系完了として最終確認テストへ
     if (els.calSkipBtn) els.calSkipBtn.addEventListener('click', completeCorrectionStep);
     if (els.hpProceedBtn) els.hpProceedBtn.addEventListener('click', completeCorrectionStep);
     if (els.wiredProceedBtn) els.wiredProceedBtn.addEventListener('click', completeCorrectionStep);
-    // プリセット保存（v0.9.61）
-    if (els.presetSaveBtn) els.presetSaveBtn.addEventListener('click', savePresetFromCurrent);
-    if (els.presetNameInput) els.presetNameInput.addEventListener('input', () => setPresetSaveMsg(''));
-    // 実践テストカードの「手動設定を開く」導線
+    // プリセット保存モーダル（v0.9.80）
+    if (els.presetModalSave) els.presetModalSave.addEventListener('click', savePresetFromModal);
+    if (els.presetModalCancel) els.presetModalCancel.addEventListener('click', closePresetModal);
+    if (els.presetModalInput) {
+        els.presetModalInput.addEventListener('input', () => setPresetSaveMsg(''));
+        els.presetModalInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); savePresetFromModal(); } });
+    }
+    // モーダルの背景をクリックしたら閉じる
+    if (els.presetModal) els.presetModal.addEventListener('click', (e) => { if (e.target === els.presetModal) closePresetModal(); });
+    // 実践テストカードの「手動設定を開く」導線（v0.9.79：折りたたみを開いて数値を見せる）
     if (els.ptOpenManual) els.ptOpenManual.addEventListener('click', () => {
         setupProgress.manualForced = true;
         wizardEditing = null; // 実践テスト完了済みなら最終ステップ（手動＋保存）を表示
+        if (els.manualDetail && !els.manualDetail.open) els.manualDetail.open = true;
         renderSettingsView();
+        fitPreview();
         scrollToSettingsEl(els.manualCard);
+    });
+    // 手動設定カードの「実践テストで確認する」：数値変更後にそのまま実践テストへ戻る（v0.9.79）
+    if (els.manualPracticeBtn) els.manualPracticeBtn.addEventListener('click', () => {
+        if (settingsView !== 'steps') settingsView = 'steps';
+        wizardEditing = 'practice';
+        renderSettingsView();
+        startPracticeTest();
     });
 
     els.setThreshold.addEventListener('input', () => {
@@ -6192,7 +6754,7 @@ function bind() {
     // 変更したら前回の実践テスト結果を無効化して再確認を促す（v0.9.67）
     [els.setThreshold, els.setCooldown, els.setOffset].forEach((sl) => {
         if (sl) sl.addEventListener('change', () =>
-            invalidatePracticeResult('設定を変更しました。もう一度実践テストで確認してください。'));
+            invalidatePracticeResult('設定を変更しました。もう一度最終確認テストで確認してください。'));
     });
 
     // 手動設定（折りたたみ）を開いたら、中のプレビューをサイズ確定して描画
@@ -6246,7 +6808,7 @@ function bind() {
         btn.addEventListener('click', reloadAppWithCacheBust));
 
     window.addEventListener('resize', () => {
-        if (!els.settings.classList.contains('hidden')) { fitPreview(); if (pt.active) { fitPtLane(); } return; }
+        if (!els.settings.classList.contains('hidden')) { fitPreview(); if (pt.active) { fitPtLane(); } if (bt.active) { fitBtLane(); } return; }
         if (els.practice.classList.contains('hidden')) return;
         fitLane();
         if (els.resultsOverlay && !els.resultsOverlay.classList.contains('hidden')) {
