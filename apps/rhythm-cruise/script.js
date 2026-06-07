@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.92';
+const RHYTHM_CRUISE_VERSION = '0.9.93';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -403,6 +403,7 @@ const els = {
     hpTypeNote: $('hp-type-note'),
     hpResetBtn: $('hp-reset'),
     hpZeroBtn: $('hp-zero'),
+    hpStdBtn: $('hp-std'),
     // 手動設定内のイヤホン音ズレ補正（v0.9.52）
     setHpOffsetRow: $('set-hp-offset-row'),
     setHpOffset: $('set-hp-offset'),
@@ -2214,10 +2215,13 @@ const HP_OFFSET_MIN = -200;       // スライダー下限(ms)：音が丸より
 const HP_OFFSET_MAX = 300;        // スライダー上限(ms)：音が丸より遅い側（v0.9.92で「丸を遅らせる」側を+300msへ拡張）
 const HP_OFFSET_DEFAULT = 0;      // 互換用の既定（補正なし）
 const HP_CAL_BEAT_MS = 600;       // 補正テストの既定テンポ（100BPM相当）。実テンポは hpCalBeatMs() を使う（v0.9.92）
-/* イヤホン音ズレ補正テスト専用BPM（v0.9.92）。STAGE/最終確認テストのテンポには影響しない一時設定。 */
-const HP_CAL_BPM_MIN = 60, HP_CAL_BPM_MAX = 160, HP_CAL_BPM_STEP = 5;
+/* イヤホン音ズレ補正テスト専用BPM（v0.9.92→v0.9.93で範囲変更）。STAGE/最終確認テストのテンポには影響しない一時設定。 */
+const HP_CAL_BPM_MIN = 20, HP_CAL_BPM_MAX = 160, HP_CAL_BPM_STEP = 20;
 let hpCalBpm = 100;
 function hpCalBeatMs() { return 60000 / hpCalBpm; }
+/* Bluetoothイヤホンの「標準」スタートライン(ms)。判定ズレ補正ではなく、イヤホン音と画面表示を
+   合わせるための表示補正の基準値（v0.9.93）。判定（STAGE/最終確認テスト）には反映しない。 */
+const HP_BLUETOOTH_STANDARD_OFFSET = 180;
 const HP_CAL_LEAD_MS = 80;        // クリックを少し先に鳴らし、負offsetでも丸を先に光らせられるようにする土台
 const hpCal = { active: false, timer: 0, beat: 0, lightTimers: [], raf: 0, flowStartPerf: 0 };
 let hpLane = { ctx: null, w: 0, h: 0 }; // イヤホン音ズレ補正の流れるレーン（v0.9.91）
@@ -2376,22 +2380,16 @@ function startHeadphoneCal() {
     scrollToSettingsEl(els.hpCalCard); // カード上部（説明）が隠れないように（v0.9.92）
 }
 
-/* イヤホン音ズレ補正テスト専用BPMの変更（v0.9.92）。
-   テスト中なら、クリック間隔と表示軸を合わせ直すために拍を入れ直す（テンポ即反映）。
-   STAGE/最終確認テストのテンポには影響しない。 */
+/* イヤホン音ズレ補正テスト専用BPMの変更（v0.9.93）。
+   テスト中に変更したら、何度も自動リスタートせず一旦停止する。新しいBPMでの確認は
+   ユーザーが「補正テスト開始」を押してから。STAGE/最終確認テストのテンポには影響しない。 */
 function setHpCalBpm(bpm) {
     let v = Math.round(Number(bpm) / HP_CAL_BPM_STEP) * HP_CAL_BPM_STEP;
     if (!isFinite(v)) v = 100;
     v = Math.max(HP_CAL_BPM_MIN, Math.min(HP_CAL_BPM_MAX, v));
     hpCalBpm = v;
     if (els.hpBpmVal) els.hpBpmVal.textContent = String(v);
-    if (hpCal.active) {
-        if (hpCal.timer) { clearInterval(hpCal.timer); hpCal.timer = 0; }
-        hpCal.beat = 0;
-        hpCal.flowStartPerf = performance.now();
-        hpBeatTick();
-        hpCal.timer = setInterval(hpBeatTick, hpCalBeatMs());
-    }
+    if (hpCal.active) stopHeadphoneCal(); // 変更時は一旦停止（クリック音/レーンも停止・ボタンは「補正テスト開始」へ）
 }
 
 function stopHeadphoneCal() {
@@ -2428,7 +2426,9 @@ function setHeadphoneOffset(ms, opts) {
 function setHeadphoneType(type, opts) {
     mic.headphoneType = (type === 'bluetooth') ? 'bluetooth' : 'wired';
     if (opts && opts.resetDefault) {
-        if (mic.headphoneType === 'bluetooth') mic.headphoneOffsetBluetoothMs = HP_TYPE_DEFAULT_OFFSET.bluetooth;
+        // v0.9.93：詳細テストでBluetoothを選び直したときは「Bluetoothイヤホン標準(180ms)」を
+        // スタートラインにする（表示補正の基準）。有線は従来どおり0ms（補正なし）。
+        if (mic.headphoneType === 'bluetooth') mic.headphoneOffsetBluetoothMs = HP_BLUETOOTH_STANDARD_OFFSET;
         else mic.headphoneOffsetWiredMs = HP_TYPE_DEFAULT_OFFSET.wired;
     }
     mic.headphoneOutputOffsetMs = currentHpTypeOffset();
@@ -2441,9 +2441,19 @@ function resetHeadphoneOffsetToGuide() {
     setHeadphoneOffset(HP_TYPE_DEFAULT_OFFSET[getHeadphoneType()]);
 }
 
-/* 「補正なしに戻す」：選択中の種類の補正値を0ms（補正なし）へ戻す（v0.9.79） */
+/* 「補正なしに戻す」：選択中の種類の補正値を0ms（補正なし）へ戻す（v0.9.79）。
+   v0.9.93：テスト中に押した場合は一旦停止（BPM変更と同様）。値はレーン/クリックへ即反映され、
+   ユーザーが「補正テスト開始」で確認し直せる。 */
 function resetHeadphoneOffsetToZero() {
+    if (hpCal.active) stopHeadphoneCal();
     setHeadphoneOffset(0);
+}
+
+/* 「Bluetoothイヤホン標準」：Bluetoothの表示補正をスタートライン(180ms)へ戻す（v0.9.93）。
+   判定ズレ補正(bluetoothMicOffsetMs)ではなく、イヤホン音と画面表示を合わせるための表示補正。 */
+function resetHeadphoneOffsetToBluetoothStandard() {
+    if (hpCal.active) stopHeadphoneCal();
+    setHeadphoneOffset(HP_BLUETOOTH_STANDARD_OFFSET);
 }
 
 /* 種類選択UI・説明文・カード表示・スライダー表示を、選択中の種類に合わせて更新。
@@ -2456,6 +2466,8 @@ function updateHeadphoneTypeUI() {
     // 「イヤホンの音ズレ補正」カードは headphone かつ Bluetooth のときだけ表示
     const showCal = isHeadphoneInput() && t === 'bluetooth';
     if (els.hpCalCard) els.hpCalCard.classList.toggle('hidden', !showCal);
+    // 「Bluetoothイヤホン標準」ボタンは Bluetooth のときだけ表示（v0.9.93）
+    if (els.hpStdBtn) els.hpStdBtn.style.display = (t === 'bluetooth') ? '' : 'none';
     if (!showCal && hpCal.active) stopHeadphoneCal(); // カードが隠れたら補正テストを停止
     // スライダー/表示（補正カード側・手動設定側）を選択中の種類の値へ同期
     const v = mic.headphoneOutputOffsetMs;
@@ -3654,9 +3666,20 @@ function finishBtCal() {
     const fine = !propose && enoughInput && biasedSoft
         && Math.abs(avg) >= BT_FINE_MIN_MS && Math.abs(avg) <= BT_FINE_MAX_MS
         && (fineProposed !== cur);
-    bt.result = { just, early, late, miss, valid, avg, cur, proposed, propose, fine, fineProposed, enoughInput };
+    // v0.9.93：ズレが小さい場合は、ボタンを押させず最新結果で自動微調整する（符号ルールは大きな補正と同じ）。
+    // OK判定は維持し、再テストは強制しない。判定時刻へ即反映されるので保存して結果も古くする。
+    let autoFineApplied = false;
+    let appliedOffset = cur;
+    if (fine) {
+        mic.bluetoothMicOffsetMs = fineProposed;
+        appliedOffset = fineProposed;
+        saveSettings();
+        invalidatePracticeResult();
+        autoFineApplied = true;
+    }
+    bt.result = { just, early, late, miss, valid, avg, cur, proposed, propose, fine, fineProposed, autoFineApplied, appliedOffset, enoughInput };
     renderBtCalResult(bt.result);
-    setBtCalStatus('完了');
+    setBtCalStatus(autoFineApplied ? '小さなズレを自動で微調整しました。' : '完了');
     // 測っただけでは btDelayDone にしない（適用 or スキップで完了にする）。
     if (settingsView === 'steps') scrollToSettingsEl(els.btCalResult || els.btCalCard);
 }
@@ -3690,14 +3713,17 @@ function renderBtCalResult(r) {
         return;
     } else {
         head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">判定タイミングのズレは小さめです。このまま最終確認テストへ進めます。</p>';
-        // OK判定でも、まだ平均ズレが少し残っている場合は「さらに微調整」を控えめに出す（v0.9.92）
-        const fineBtn = r.fine
-            ? '<button type="button" id="bt-cal-fine" style="' + sub + '">さらに微調整する（' + sign(r.fineProposed) + '）</button>'
+        // v0.9.93：OK判定でも残りズレが小さめなら自動で微調整済み。控えめに案内する（ボタンは出さない）。
+        const autoNote = r.autoFineApplied
+            ? '<p class="cal-status" style="color:#6ed28c;font-weight:600;margin-top:6px;">小さなズレを自動で微調整しました（マイク遅れ補正 ' + sign(r.appliedOffset) + '）。</p>'
             : '';
         actions =
             '<button type="button" id="bt-cal-proceed" style="' + primary + '">最終確認テストへ進む</button>' +
-            fineBtn +
             '<button type="button" id="bt-cal-rerun" style="' + sub + '">もう1度テストする</button>';
+        els.btCalResult.innerHTML = head + autoNote + rows + '<div style="margin-top:6px;">' + actions + '</div>';
+        els.btCalResult.classList.remove('hidden');
+        bindBtCalResultActions();
+        return;
     }
     els.btCalResult.innerHTML = head + rows + '<div style="margin-top:6px;">' + actions + '</div>';
     els.btCalResult.classList.remove('hidden');
@@ -3709,8 +3735,6 @@ function bindBtCalResultActions() {
     if (rerun) rerun.addEventListener('click', () => startBtCal());
     const apply = document.getElementById('bt-cal-apply');
     if (apply) apply.addEventListener('click', () => { applyBtCal(); startBtCal(); });
-    const fine = document.getElementById('bt-cal-fine');
-    if (fine) fine.addEventListener('click', () => { applyBtCalFine(); startBtCal(); });
     const proceed = document.getElementById('bt-cal-proceed');
     if (proceed) proceed.addEventListener('click', completeBtCalStep);
 }
@@ -3723,16 +3747,6 @@ function applyBtCal() {
     // 補正したので、前回の最終確認テスト結果は古くなる
     invalidatePracticeResult();
     setBtCalStatus('マイク遅れ補正を ' + (mic.bluetoothMicOffsetMs > 0 ? '+' : '') + mic.bluetoothMicOffsetMs + 'ms に設定しました。');
-}
-
-/* 微調整（v0.9.92）：OK判定後でも残りズレを最新結果で少しだけ寄せる。
-   符号ルールは applyBtCal と同じ（fineProposed = cur - avg をクランプ済み）。 */
-function applyBtCalFine() {
-    if (!bt.result || bt.result.fineProposed == null) return;
-    mic.bluetoothMicOffsetMs = bt.result.fineProposed;
-    saveSettings();
-    invalidatePracticeResult();
-    setBtCalStatus('マイク遅れ補正を ' + (mic.bluetoothMicOffsetMs > 0 ? '+' : '') + mic.bluetoothMicOffsetMs + 'ms に微調整しました。');
 }
 
 /* マイク遅れ補正ステップ完了 → 最終確認テストへ。 */
@@ -7040,6 +7054,7 @@ function bind() {
     if (els.hpTypeBluetooth) els.hpTypeBluetooth.addEventListener('click', () => onPickHeadphoneType('bluetooth'));
     if (els.hpResetBtn) els.hpResetBtn.addEventListener('click', resetHeadphoneOffsetToGuide);
     if (els.hpZeroBtn) els.hpZeroBtn.addEventListener('click', resetHeadphoneOffsetToZero);
+    if (els.hpStdBtn) els.hpStdBtn.addEventListener('click', resetHeadphoneOffsetToBluetoothStandard);
     // 手動設定のイヤホン音ズレ補正（v0.9.52）：選択中の種類の値を調整。補正カード側スライダーとも同期
     if (els.setHpOffset) els.setHpOffset.addEventListener('input', () => setHeadphoneOffset(parseInt(els.setHpOffset.value, 10)));
     if (els.setHpResetBtn) els.setHpResetBtn.addEventListener('click', resetHeadphoneOffsetToGuide);
