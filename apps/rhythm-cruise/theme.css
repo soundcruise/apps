@@ -2558,35 +2558,53 @@ body.results-open #settings-btn {
     color: var(--secondary-color);
 }
 
-/* 設定タブ：マイク設定 / 画面タップ設定（v0.9.95） */
+/* 設定タブ：マイク設定 / 画面タップ設定（v0.9.95→v0.9.96で指板クルーズ風のセグメントタブへ）。
+   角丸コンテナの中に並べ、選択中タブだけアクセント色で塗る切替UI（簡易設定/詳細テストの導線ボタンとは別デザイン）。 */
 .settings-tabs {
     display: flex;
-    gap: 8px;
+    align-items: stretch;
+    gap: 6px;
     width: 100%;
-    margin: 2px 0 12px;
+    margin: 0 0 14px;
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 12px;
 }
 
 .settings-tab {
     flex: 1 1 0;
-    padding: 12px 10px;
-    border-radius: 12px;
+    min-width: 0;
+    padding: 10px 6px;
     font-family: inherit;
-    font-weight: 800;
     font-size: 0.95rem;
-    color: inherit;
-    border: 2px solid rgba(255, 255, 255, 0.22);
-    background: rgba(255, 255, 255, 0.04);
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.78);
+    background: transparent;
+    border: none;
+    border-radius: 9px;
     cursor: pointer;
+    text-align: center;
+    line-height: 1.2;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s, transform 0.05s;
 }
 
-.settings-tab.is-active {
-    border-color: #ff9f1c;
-    background: rgba(255, 159, 28, 0.14);
-    color: var(--secondary-color);
+@media (hover: hover) {
+    .settings-tab:hover {
+        background: rgba(255, 255, 255, 0.06);
+        color: #fff;
+    }
 }
 
 .settings-tab:active {
     transform: scale(0.98);
+}
+
+.settings-tab.is-active {
+    background: linear-gradient(180deg, #ff9f1c, #ff8c00);
+    color: #1a130a;
+    box-shadow: 0 2px 10px rgba(255, 159, 28, 0.35);
 }
 
 .settings-sub {

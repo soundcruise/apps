@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.95';
+const RHYTHM_CRUISE_VERSION = '0.9.96';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -4245,8 +4245,8 @@ function renderSettingsView() {
     if (els.settingsTabMic) els.settingsTabMic.classList.toggle('is-active', settingsTab === 'mic');
     if (els.settingsTabTap) els.settingsTabTap.classList.toggle('is-active', settingsTab === 'tap');
     if (settingsTab === 'tap') { renderTapSettingsView(); return; }
-    // マイク設定タブ：画面タップ設定カードは隠し、フッター（マイク設定TOP/完了）を表示
-    if (els.tapSettingsCard) els.tapSettingsCard.style.display = 'none';
+    // マイク設定タブ：画面タップ設定カードは隠し（.hidden で確実に）、フッター（マイク設定TOP/完了）を表示
+    if (els.tapSettingsCard) els.tapSettingsCard.classList.add('hidden');
     if (els.settingsActions) els.settingsActions.style.display = '';
     // hp-cal-card のタップ用ボタン表示を通常（マイクフロー）へ戻す
     if (els.hpProceedBtn) els.hpProceedBtn.style.display = '';
@@ -4288,7 +4288,8 @@ function renderTapSettingsView() {
     if (els.settingsActions) els.settingsActions.style.display = 'none'; // 既存フッター（マイク設定TOP/完了）は使わない
     if (tapView === 'cal') {
         // 既存イヤホン音ズレ補正カードを再利用（レーン/JUST/BPM/スライダー/補正なし/標準/補正テスト開始）
-        if (els.tapSettingsCard) els.tapSettingsCard.style.display = 'none';
+        // 注：.hidden は display:none !important なので、表示切替は classList で行う（v0.9.96）
+        if (els.tapSettingsCard) els.tapSettingsCard.classList.add('hidden');
         if (els.hpCalCard) { els.hpCalCard.classList.remove('hidden'); els.hpCalCard.style.display = ''; }
         // タップ用は「この音ズレ設定で使う」を出し、マイクフロー用「この音ズレ設定で進む」は隠す
         if (els.hpProceedBtn) els.hpProceedBtn.style.display = 'none';
@@ -4298,7 +4299,8 @@ function renderTapSettingsView() {
         if (els.hpOffset) els.hpOffset.value = v;
         if (els.hpOffsetVal) els.hpOffsetVal.textContent = v + 'ms';
     } else {
-        if (els.tapSettingsCard) els.tapSettingsCard.style.display = '';
+        // HOME：3ボタンのタップ設定カードを表示（.hidden を外す。style.display では !important に勝てない）
+        if (els.tapSettingsCard) { els.tapSettingsCard.classList.remove('hidden'); els.tapSettingsCard.style.display = ''; }
         if (els.hpCalCard) els.hpCalCard.style.display = 'none';
         if (els.hpProceedBtn) els.hpProceedBtn.style.display = '';
         if (els.hpTapUseBtn) els.hpTapUseBtn.style.display = 'none';
@@ -4311,13 +4313,17 @@ function updateTapCurrentOffsetDisplay() {
     if (els.tapCurrentOffset) els.tapCurrentOffset.textContent = '現在のタップ補正：' + (mic.headphoneOutputOffsetMs || 0) + 'ms';
 }
 
-/* タブ切替（v0.9.95）。中断確認は呼び出し側（guardMicSetupInterruption）で行う。 */
+/* タブ切替（v0.9.95→v0.9.96）。中断確認は呼び出し側（guardMicSetupInterruption）で行う。
+   マイク設定タブを押したら、詳細テスト途中のカードに残さず、必ずマイク設定TOP（chooser）へ戻す。 */
 function setSettingsTab(tab) {
     const next = (tab === 'tap') ? 'tap' : 'mic';
-    if (next === settingsTab && !(next === 'tap' && tapView === 'cal')) { renderSettingsView(); return; }
     settingsTab = next;
     tapView = 'home'; // タブを切り替えたら必ずホームから
-    renderSettingsView();
+    if (next === 'mic') {
+        setSettingsView('chooser'); // マイク設定TOPへ戻す（renderSettingsView を内包）
+    } else {
+        renderSettingsView();
+    }
 }
 
 /* 画面タップ設定：補正値を適用して保存し、アプリ全体TOPへ戻る（v0.9.95）。
