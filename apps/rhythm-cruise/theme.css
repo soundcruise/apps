@@ -2589,6 +2589,40 @@ body.results-open #settings-btn {
     scroll-margin-top: 92px;
 }
 
+/* ── 手動設定カード下部の操作エリア（v0.9.88）─────────────────────
+   主導線「この設定を使う」を目立たせ、残り3つは同じ控えめデザインに統一する。 */
+.manual-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.manual-action-primary {
+    width: 100%;
+}
+
+.manual-action-sub {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-color, #fdf6ee);
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.92rem;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.manual-action-sub:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
 .setting-row {
     display: flex;
     flex-direction: column;

@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.87">
+    <link rel="stylesheet" href="theme.css?v=0.9.88">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -485,19 +485,17 @@
                     </div>
                 </details>
 
-                <!-- 7. この設定を保存（押すと共通の保存モーダルが開く） v0.9.80 -->
-                <div class="manual-preset-save" style="margin-top:16px;border-top:1px solid rgba(255,255,255,0.12);padding-top:14px;">
-                    <button type="button" class="btn-mini" id="manual-preset-trigger" style="width:100%;padding:13px;border:1px solid rgba(255,159,28,0.45);border-radius:10px;background:rgba(255,159,28,0.08);font-weight:700;">この設定を保存</button>
+                <!-- 手動設定カード下部の操作エリア（v0.9.88：主導線「この設定を使う」＋控えめなサブ導線3つ） -->
+                <div class="manual-actions">
+                    <!-- 主導線：この設定を現在設定として使い、マイク設定TOPへ戻る -->
+                    <button type="button" class="btn-primary manual-action-primary" id="manual-use-btn">この設定を使う</button>
+                    <!-- サブ導線：最終確認テストを実施する -->
+                    <button type="button" class="manual-action-sub" id="manual-practice-btn">最終確認テストを実施する</button>
+                    <!-- サブ導線：この設定を保存（共通の保存モーダルを開く） -->
+                    <button type="button" class="manual-action-sub" id="manual-preset-trigger">この設定を保存</button>
+                    <!-- サブ導線：マイク設定TOPへ戻る -->
+                    <button type="button" class="manual-action-sub" id="manual-top-btn">マイク設定TOP</button>
                 </div>
-
-                <!-- 手動設定で数値を変えたあと、そのまま最終確認テストで確認できる導線（v0.9.79） -->
-                <button type="button" class="btn-mic" id="manual-practice-btn" style="width:100%;margin-top:16px;">最終確認テストで確認する</button>
-
-                <!-- この設定を「現在の設定」として使い、マイク設定TOPへ戻る（プリセット保存とは別・v0.9.80） -->
-                <button type="button" class="btn-primary" id="manual-use-btn" style="width:100%;margin-top:10px;">この設定を使う</button>
-
-                <!-- 手動設定からマイク設定トップへ戻る -->
-                <button type="button" class="btn-mini" id="manual-top-btn" style="width:100%;margin-top:14px;padding:12px;border:1px solid rgba(255,255,255,0.28);border-radius:10px;background:rgba(255,255,255,0.04);font-weight:700;">マイク設定TOP</button>
             </div>
 
             <p class="setting-note warn hidden" id="settings-done-hint" style="text-align:center;">最終確認テストまで完了してください。</p>
@@ -613,7 +611,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.87"></script>
+    <script src="script.js?v=0.9.88"></script>
 </body>
 
 </html>

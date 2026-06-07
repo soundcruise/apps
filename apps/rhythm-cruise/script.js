@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.87';
+const RHYTHM_CRUISE_VERSION = '0.9.88';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -103,6 +103,11 @@ const SETTINGS_KEY = 'rhythmCruiseSettings';
 const MIC_PRESETS_KEY = 'soundcruise_rhythm_mic_presets';
 const SETTINGS_DEFAULTS = { threshold: 0.025, cooldownMs: 200, clickGuardMs: 60, timingOffsetMs: 0, clickVolume: 70 };
 
+/* イヤホン（有線/Bluetooth）選択時のクリック音量初期値（v0.9.88）。
+   イヤホンではクリック音がマイクに回り込みにくいので、聞き取りやすい50%を既定にする。
+   通常マイクはこの値を使わず、既存のクリック音量設定を維持する。 */
+const EARPHONE_CLICK_VOLUME = 50;
+
 /* 組み込みプリセット（v0.9.63）：削除不可。ユーザーが消しても常に一覧の先頭に出る「開始点」。 */
 const BUILTIN_MIC_PRESETS = [
     {
@@ -119,7 +124,7 @@ const BUILTIN_MIC_PRESETS = [
         id: 'builtin_wired', name: '有線イヤホン一般', builtin: true,
         settings: {
             inputType: 'headphone', headphoneType: 'wired', strokeDetectMode: 'brush',
-            threshold: 0.008, cooldownMs: 100, clickVolume: 10, timingOffsetMs: 0,
+            threshold: 0.008, cooldownMs: 100, clickVolume: 50, timingOffsetMs: 0,
             lowInputProfile: true,
             headphoneOffsetWiredMs: 0, headphoneOffsetBluetoothMs: 0, headphoneOutputOffsetMs: 0,
             clickGuardMs: 60,
@@ -129,7 +134,7 @@ const BUILTIN_MIC_PRESETS = [
         id: 'builtin_bt', name: '無線イヤホン一般', builtin: true,
         settings: {
             inputType: 'headphone', headphoneType: 'bluetooth', strokeDetectMode: 'brush',
-            threshold: 0.008, cooldownMs: 100, clickVolume: 10, timingOffsetMs: 0,
+            threshold: 0.008, cooldownMs: 100, clickVolume: 50, timingOffsetMs: 0,
             lowInputProfile: true,
             headphoneOffsetWiredMs: 0, headphoneOffsetBluetoothMs: 0, headphoneOutputOffsetMs: 0,
             clickGuardMs: 60,
@@ -4257,11 +4262,22 @@ function scrollToSettingsEl(el) {
 }
 
 /* ── 選択ハンドラ（選んだら自動で次の項目を出す。上流変更時は下流結果をリセット）── */
+/* イヤホン（有線/Bluetooth）を選んだら、以降のテストのクリック音量を50%に初期化する（v0.9.88）。
+   通常マイクは対象外（既存のクリック音量設定を維持）。 */
+function applyEarphoneClickVolumeDefault() {
+    state.clickVolume = EARPHONE_CLICK_VOLUME;
+    if (els.setClickVol) els.setClickVol.value = state.clickVolume;
+    if (els.setClickVolVal) els.setClickVolVal.textContent = state.clickVolume + '％';
+    saveSettings();
+}
+
 function onPickInputType(type) {
     const next = (type === 'headphone') ? 'headphone' : 'normal';
     const changed = (getMicInputType() !== next);
     setMicInputType(next);
     setupProgress.inputChosen = true;
+    // イヤホン接続を選んだら、以降のテストのクリック音量を50%にする（v0.9.88）。
+    if (next === 'headphone') applyEarphoneClickVolumeDefault();
     wizardEditing = null;
     if (changed) {
         // 入力タイプを選び直したら、イヤホン種類・ストローク以降を未完了へ（下流結果も消す）
@@ -4282,6 +4298,8 @@ function onPickHeadphoneType(type) {
     // 過去のBluetooth 180msや互換用 headphoneOutputOffsetMs が有線側へ混ざるのを防ぐ。
     setHeadphoneType(next, { resetDefault: true });
     setupProgress.hpChosen = true;
+    // イヤホン種類（有線/Bluetooth）を選んだら、クリック音量を50%に初期化する（v0.9.88）。
+    applyEarphoneClickVolumeDefault();
     wizardEditing = null;
     if (settingsView === 'steps') {
         if (changed) resetSetupFlowDisplay();
@@ -4544,10 +4562,15 @@ function applyPresetCore(id) {
 
 function applyPreset(id) {
     if (!applyPresetCore(id)) return;
-    settingsView = 'steps';
-    renderSettingsView();
-    setPtStatus('プリセットを適用しました。最終確認テストで確認してください。');
-    scrollToSettingsEl(els.ptCard);
+    // プリセットは「保存済み設定の呼び出し」。呼び出したらマイク設定TOPへ戻す（v0.9.88）。
+    // 詳細テストや最終確認テストへは飛ばさない。
+    saveSettings();
+    setSettingsView('chooser');
+    if (els.chooserAppliedMsg) {
+        els.chooserAppliedMsg.textContent = 'プリセットを呼び出しました。';
+        els.chooserAppliedMsg.classList.remove('hidden');
+    }
+    scrollToSettingsEl(els.settingsChooser);
 }
 
 /* ── 簡易設定（v0.9.71）：環境を選ぶだけで標準プリセットを適用 ───────────── */
