@@ -602,6 +602,30 @@ h1 {
     background: rgba(255, 255, 255, 0.14);
 }
 
+/* 画面タップ設定の音ズレ補正テスト：大きなタップエリア（v0.9.98） */
+.tap-cal-pad {
+    display: block;
+    width: 100%;
+    min-height: 104px;
+    margin-top: 6px;
+    border-radius: 14px;
+    border: 2px dashed rgba(255, 159, 28, 0.55);
+    background: rgba(255, 159, 28, 0.10);
+    color: #ffd479;
+    font-weight: 800;
+    font-size: 1.05rem;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.tap-cal-pad:active {
+    background: rgba(255, 159, 28, 0.22);
+    border-color: rgba(255, 159, 28, 0.85);
+}
+
 .tempo-row b {
     color: var(--text-color);
     font-size: 1.4rem;

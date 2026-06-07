@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.97';
+const RHYTHM_CRUISE_VERSION = '0.9.98';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -526,6 +526,19 @@ const els = {
     tapManualBack: $('tap-manual-back'),
     hpTapUseBtn: $('hp-tap-use-btn'),
     hpTapSaveBtn: $('hp-tap-save-btn'),
+    // 画面タップ設定：音ズレ補正テスト（タップ実測型・v0.9.98）
+    tapCalCard: $('tap-cal-card'),
+    tapCalLaneWrap: $('tap-cal-lane-wrap'),
+    tapCalLaneCanvas: $('tap-cal-lane-canvas'),
+    tapCalPad: $('tap-cal-pad'),
+    tapCalPhase: $('tap-cal-phase'),
+    tapCalBtn: $('tap-cal-btn'),
+    tapCalStatus: $('tap-cal-status'),
+    tapCalResult: $('tap-cal-result'),
+    tapCalBack: $('tap-cal-back'),
+    tapCalBpmMinus: $('tap-cal-bpm-minus'),
+    tapCalBpmVal: $('tap-cal-bpm-val'),
+    tapCalBpmPlus: $('tap-cal-bpm-plus'),
     settingsActions: $('settings-actions'),
     // ステップ式UI（v0.9.59）：初期2択・設定一覧・ステップ制御
     settingsChooser: $('settings-chooser'),
@@ -718,7 +731,7 @@ function navBack() {
    Bluetoothマイク遅れ補正 / 最終確認テスト）が実行中、または詳細テスト（ウィザード）が
    途中で未完了のまま、画面遷移や設定を閉じる操作が行われた場合に、中断するか確認する。 */
 function anyTestRunning() {
-    return !!(test.flow || cal.active || hpCal.active || bt.active || pt.active);
+    return !!(test.flow || cal.active || hpCal.active || bt.active || pt.active || tapCal.active);
 }
 /* 詳細テスト（ステップ式ウィザード）が途中で未完了か（v0.9.92）。
    ・設定画面を開いていて、ステップ表示中で、入力タイプを選び済み、かつ最終確認テスト未完了。
@@ -734,6 +747,7 @@ function stopAllRunningTests() {
     if (hpCal.active) stopHeadphoneCal();
     if (bt.active) stopBtCal();
     if (pt.active) stopPracticeTest();
+    if (tapCal.active) stopTapCal();
 }
 /* テスト実行中 or 詳細テスト未完了なら確認。OKなら停止して true、キャンセルなら false。 */
 function confirmMicInterruptIfNeeded() {
@@ -1796,6 +1810,7 @@ function onPlayBtn() {
 function play() {
     stopPracticeTest(); // STAGE開始時は最終確認テストを停止（安全処理）
     stopBtCal();
+    stopTapCal();
     ensureAudio();
     resetData();
     buildSchedule();
@@ -3836,6 +3851,339 @@ function completeBtCalStep() {
     }
 }
 
+/* ── 画面タップ設定：音ズレ補正テスト（タップ実測型・v0.9.98）─────────────────────
+   STAGE1風の流れる音符に合わせ、イヤホンのクリック音と同じタイミングで画面をタップしてもらい、
+   タップ時刻と理想拍（＝現在のタップ補正を加味した表示拍）との平均ズレを測る。
+   そのズレで tapOutputOffsetMs()（= mic.headphoneOutputOffsetMs）を提案・微調整する。
+   マイク不要。STAGE本体・最終確認テスト・マイク判定系には一切触れない専用モジュール。
+   符号：STAGEタップ判定は hitTime = audioMs - tapOutputOffsetMs()。表示拍 displayBeat = beat + offset。
+   diff = tap - displayBeat（正=LATE）。LATEなら offset を増やすほどJUSTへ寄るので new = offset + diff。 */
+const TAP_CAL_PLAY_BEATS = 8;       // 8回タップで測定
+const TAP_CAL_BIG_DIFF = 35;        // |平均ズレ| がこれ以上なら「大きくズレ」＝補正して再テストを促す
+let tapCalBpm = 100;                // テスト専用BPM（20〜160／20刻み・初期100）
+function tapCalBeatMs() { return 60000 / tapCalBpm; }
+const tapCal = {
+    active: false, capturing: false, timers: [], scheduled: [], raf: 0,
+    audioStart: 0, flowStartPerf: 0, playT0Ms: 0, beatMs: 600, dispOff: 0,
+    taps: [], hasRun: false, result: null,
+};
+let tapCalLane = { ctx: null, w: 0, h: 0 };
+
+function setTapCalStatus(t) { if (els.tapCalStatus) els.tapCalStatus.textContent = t || ''; }
+function tapCalTimer(fn, ms) { const id = setTimeout(fn, ms); tapCal.timers.push(id); return id; }
+function fitTapCalLane() {
+    if (!els.tapCalLaneCanvas) return;
+    els.tapCalLaneCanvas.style.width = '100%';
+    els.tapCalLaneCanvas.style.height = PT_LANE_HEIGHT + 'px';
+    tapCalLane = fitOne(els.tapCalLaneCanvas);
+}
+
+/* テスト専用クリック（STAGEと同じ音量カーブ）。perf換算の記録は不要（測定は表示拍基準で行う）。 */
+function tapCalScheduleClick(atSec, accent) {
+    const ctx = state.audioCtx;
+    if (!ctx) return;
+    const vol = Math.max(0, Math.min(1, state.clickVolume / 100));
+    const t0 = Math.max(atSec, ctx.currentTime);
+    const peak = (accent ? 0.55 : 0.45) * vol;
+    if (peak < 0.001) return;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.value = accent ? 1500 : 1200;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(peak, t0 + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + 0.09);
+    tapCal.scheduled.push(osc);
+}
+
+/* STAGE1風レーン描画（専用）。音符は表示拍 displayBeat（= 拍 + 現在のタップ補正）でJUSTへ重なる。
+   ユーザーが叩いたタップはマーカーで表示する。 */
+function drawTapCalLane(t) {
+    if (!tapCalLane || !tapCalLane.ctx) return;
+    const { ctx, w, h } = tapCalLane;
+    ctx.clearRect(0, 0, w, h);
+    const yc = h * 0.56;
+    const beatMs = tapCal.beatMs;
+    const beatPx = Math.max(64, Math.min(120, w * 0.24));
+    const judgeX = w * 0.3;
+    const ppm = beatPx / beatMs;
+    const dispOff = tapCal.dispOff;
+    // 中央ガイド
+    ctx.strokeStyle = 'rgba(253,246,238,0.08)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke();
+    // カウントインの点（控えめ）
+    for (let i = -PT_COUNTIN; i < 0; i++) {
+        const bt = tapCal.playT0Ms + i * beatMs + dispOff;
+        const x = judgeX + (bt - t) * ppm;
+        if (x < -30 || x > w + 30) continue;
+        ctx.beginPath(); ctx.arc(x, yc, 3, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(253,246,238,0.3)'; ctx.fill();
+    }
+    // 本番8拍の音符（右→左へ流れる）
+    for (let i = 0; i < TAP_CAL_PLAY_BEATS; i++) {
+        const bt = tapCal.playT0Ms + i * beatMs + dispOff;
+        const x = judgeX + (bt - t) * ppm;
+        if (x < -30 || x > w + 30) continue;
+        drawQuarterNote(ctx, x, yc, NOTE_COLOR);
+    }
+    // タップマーカー（叩いた位置）。GOOD=緑/EARLY=青/LATE=赤/それ以外=×
+    for (let k = 0; k < tapCal.taps.length; k++) {
+        const tp = tapCal.taps[k];
+        const x = judgeX + (tp.t - t) * ppm;
+        if (x < -24 || x > w + 24) continue;
+        if (tp.cls === 'miss' || !tp.cls) {
+            ctx.save();
+            ctx.globalAlpha = 0.7;
+            ctx.strokeStyle = 'rgba(180,180,180,0.85)'; ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x - 5, yc - 5); ctx.lineTo(x + 5, yc + 5);
+            ctx.moveTo(x + 5, yc - 5); ctx.lineTo(x - 5, yc + 5);
+            ctx.stroke();
+            ctx.restore();
+        } else {
+            ctx.save();
+            ctx.globalAlpha = 0.95;
+            ctx.beginPath(); ctx.arc(x, yc, 6, 0, Math.PI * 2);
+            ctx.fillStyle = COLORS[tp.cls] || '#6ed28c'; ctx.fill();
+            ctx.restore();
+        }
+    }
+    // JUSTライン
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,159,28,0.55)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(judgeX, h * 0.1); ctx.lineTo(judgeX, h * 0.94); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = 'rgba(255,159,28,0.75)';
+    ctx.font = '700 11px Outfit, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('JUST', judgeX, h * 0.99);
+}
+
+function tapCalLoop() {
+    if (!tapCal.active) return;
+    drawTapCalLane(performance.now() - tapCal.flowStartPerf);
+    tapCal.raf = requestAnimationFrame(tapCalLoop);
+}
+
+/* タップを記録（取り込み窓の間だけ）。表示拍に対するズレで簡易分類してマーカー色に使う。 */
+function registerTapCalTap() {
+    if (!tapCal.active || !tapCal.capturing) return;
+    const tp = performance.now() - tapCal.flowStartPerf;
+    const beatMs = tapCal.beatMs;
+    const win = Math.max(NEAR_MS, beatMs * NEAR_FRAC);
+    let bestAbs = Infinity, bestDiff = 0;
+    for (let i = 0; i < TAP_CAL_PLAY_BEATS; i++) {
+        const db = tapCal.playT0Ms + i * beatMs + tapCal.dispOff;
+        const d = tp - db; const a = Math.abs(d);
+        if (a < bestAbs) { bestAbs = a; bestDiff = d; }
+    }
+    let cls = 'miss';
+    if (bestAbs <= JUST_MS) cls = 'just';
+    else if (bestAbs <= win) cls = (bestDiff < 0 ? 'early' : 'late');
+    tapCal.taps.push({ t: tp, cls });
+}
+
+function renderTapCalIdle() {
+    if (els.tapCalBtn) els.tapCalBtn.textContent = tapCal.hasRun ? 'もう1度テストする' : '音ズレ補正テストを開始';
+    if (els.tapCalLaneWrap) els.tapCalLaneWrap.classList.add('hidden');
+    if (els.tapCalPad) els.tapCalPad.classList.add('hidden');
+    if (els.tapCalPhase) els.tapCalPhase.textContent = '';
+    if (els.tapCalResult) { els.tapCalResult.classList.add('hidden'); els.tapCalResult.innerHTML = ''; }
+    if (els.tapCalBpmVal) els.tapCalBpmVal.textContent = String(tapCalBpm);
+    setTapCalStatus('');
+}
+
+function startTapCal() {
+    // 排他：タップ設定内・マイク設定内の他テストを止める
+    if (hpCal.active) stopHeadphoneCal();
+    stopBtCal();
+    stopPracticeTest();
+    ensureAudio();
+    try { if (state.audioCtx && state.audioCtx.state === 'suspended') state.audioCtx.resume(); } catch (_) { /* ignore */ }
+    const ctx = state.audioCtx;
+    if (!ctx) { setTapCalStatus('音声を初期化できませんでした。'); return; }
+
+    tapCal.active = true;
+    tapCal.capturing = false;
+    tapCal.taps = [];
+    tapCal.result = null;
+    tapCal.timers.forEach(clearTimeout); tapCal.timers = [];
+    tapCal.scheduled = [];
+    tapCal.hasRun = true;
+    tapCal.beatMs = tapCalBeatMs();
+    tapCal.dispOff = tapOutputOffsetMs(); // このテストで使う「現在のタップ補正」を固定
+    if (els.tapCalResult) { els.tapCalResult.classList.add('hidden'); els.tapCalResult.innerHTML = ''; }
+    if (els.tapCalBtn) els.tapCalBtn.textContent = '音ズレ補正テストを停止';
+    if (els.tapCalPad) els.tapCalPad.classList.remove('hidden');
+
+    tapCal.audioStart = ctx.currentTime;
+    tapCal.flowStartPerf = performance.now();
+    tapCal.playT0Ms = PT_LEAD_MS + PT_COUNTIN * tapCal.beatMs;
+
+    if (els.tapCalLaneWrap) els.tapCalLaneWrap.classList.remove('hidden');
+    fitTapCalLane();
+    cancelAnimationFrame(tapCal.raf);
+    tapCal.raf = requestAnimationFrame(tapCalLoop);
+    scrollToSettingsEl(els.tapCalCard);
+
+    const beatSec = tapCal.beatMs / 1000;
+    const startSec = tapCal.audioStart + PT_LEAD_MS / 1000;
+    for (let i = 0; i < PT_COUNTIN; i++) tapCalScheduleClick(startSec + i * beatSec, i === 0);
+    const playStartSec = startSec + PT_COUNTIN * beatSec;
+    for (let j = 0; j < TAP_CAL_PLAY_BEATS; j++) tapCalScheduleClick(playStartSec + j * beatSec, j % 4 === 0);
+
+    setTapCalStatus('カウントイン…');
+    for (let j = 0; j < TAP_CAL_PLAY_BEATS; j++) {
+        tapCalTimer(() => setTapCalStatus('クリック音に合わせてタップ　' + (j + 1) + ' / ' + TAP_CAL_PLAY_BEATS), tapCal.playT0Ms + j * tapCal.beatMs);
+    }
+    const capStartMs = tapCal.playT0Ms - tapCal.beatMs * 0.5;
+    const capEndMs = tapCal.playT0Ms + (TAP_CAL_PLAY_BEATS - 1) * tapCal.beatMs + tapCal.beatMs + 300;
+    tapCalTimer(() => { tapCal.capturing = true; }, capStartMs);
+    tapCalTimer(() => { tapCal.capturing = false; finishTapCal(); }, capEndMs);
+}
+
+/* 進行中のテストを止める（カードを離れる/排他時）。結果カードは触らない。 */
+function stopTapCal() {
+    if (!tapCal.active && !tapCal.timers.length) return;
+    tapCal.active = false;
+    tapCal.capturing = false;
+    cancelAnimationFrame(tapCal.raf); tapCal.raf = 0;
+    tapCal.timers.forEach(clearTimeout); tapCal.timers = [];
+    tapCal.scheduled.forEach((o) => { try { o.stop(); } catch (_) { /* already stopped */ } });
+    tapCal.scheduled = [];
+    if (els.tapCalLaneWrap) els.tapCalLaneWrap.classList.add('hidden');
+    if (els.tapCalPad) els.tapCalPad.classList.add('hidden');
+    if (els.tapCalBtn) els.tapCalBtn.textContent = tapCal.hasRun ? 'もう1度テストする' : '音ズレ補正テストを開始';
+    setTapCalStatus('');
+}
+
+function toggleTapCal() {
+    if (tapCal.active) { stopTapCal(); } else { startTapCal(); }
+}
+
+/* BPM変更：テスト中なら停止して待機へ戻す（イヤホン音ズレ補正と同様にBPMはテスト外で決める）。 */
+function setTapCalBpm(bpm) {
+    const v = Math.max(HP_CAL_BPM_MIN, Math.min(HP_CAL_BPM_MAX, bpm));
+    tapCalBpm = v;
+    if (els.tapCalBpmVal) els.tapCalBpmVal.textContent = String(v);
+    if (tapCal.active) { stopTapCal(); renderTapCalIdle(); }
+}
+
+/* 各拍に最も近いタップを割り当て、平均ズレ・有効数・傾向を集計し、補正値を提案/微調整する。 */
+function finishTapCal() {
+    tapCal.active = false;
+    tapCal.capturing = false;
+    cancelAnimationFrame(tapCal.raf); tapCal.raf = 0;
+    if (els.tapCalLaneWrap) els.tapCalLaneWrap.classList.add('hidden');
+    if (els.tapCalPad) els.tapCalPad.classList.add('hidden');
+    if (els.tapCalBtn) els.tapCalBtn.textContent = 'もう1度テストする';
+
+    const beatMs = tapCal.beatMs;
+    const win = Math.max(NEAR_MS, beatMs * NEAR_FRAC);
+    let sum = 0, valid = 0, early = 0, late = 0, just = 0;
+    const used = new Array(tapCal.taps.length).fill(false);
+    for (let i = 0; i < TAP_CAL_PLAY_BEATS; i++) {
+        const db = tapCal.playT0Ms + i * beatMs + tapCal.dispOff;
+        let bestIdx = -1, bestAbs = Infinity, bestDiff = 0;
+        for (let k = 0; k < tapCal.taps.length; k++) {
+            if (used[k]) continue;
+            const d = tapCal.taps[k].t - db; const a = Math.abs(d);
+            if (a < bestAbs) { bestAbs = a; bestIdx = k; bestDiff = d; }
+        }
+        if (bestIdx >= 0 && bestAbs <= win) {
+            used[bestIdx] = true;
+            sum += bestDiff; valid++;
+            if (Math.abs(bestDiff) <= JUST_MS) just++;
+            else if (bestDiff < 0) early++;
+            else late++;
+        }
+    }
+    const avg = valid ? Math.round(sum / valid) : 0;
+    const offsetUsed = tapCal.dispOff;
+    // 符号：new = offset + avg（LATEなら増やしてJUSTへ寄せる）。範囲は -200〜+400ms にクランプ。
+    const newOffset = clampNum(offsetUsed + avg, HP_OFFSET_MIN, HP_OFFSET_MAX, offsetUsed);
+    const enoughInput = valid >= 6;
+    const big = enoughInput && Math.abs(avg) >= TAP_CAL_BIG_DIFF && newOffset !== offsetUsed;
+    // ズレが小さければ（OK）、最新の平均ズレで自動微調整して完了にする。
+    let autoApplied = false, appliedOffset = offsetUsed;
+    if (enoughInput && !big && Math.abs(avg) >= 1 && newOffset !== offsetUsed) {
+        setHeadphoneOffset(newOffset); // 値反映＋各スライダー同期＋saveSettings
+        appliedOffset = newOffset;
+        autoApplied = true;
+    }
+    tapCal.result = { valid, avg, early, late, just, offsetUsed, newOffset, enoughInput, big, autoApplied, appliedOffset };
+    renderTapCalResult(tapCal.result);
+    setTapCalStatus(autoApplied ? '最新の平均ズレに合わせて微調整しました。' : '完了');
+    scrollToSettingsEl(els.tapCalResult || els.tapCalCard);
+}
+
+function renderTapCalResult(r) {
+    if (!els.tapCalResult) return;
+    const sign = (v) => (v > 0 ? '+' : '') + v + 'ms';
+    const dirTxt = r.avg > 0 ? '（遅め/LATE）' : (r.avg < 0 ? '（早め/EARLY）' : '');
+    const avgTxt = sign(r.avg) + dirTxt;
+    const primary = 'width:100%;padding:14px;margin-top:12px;border-radius:10px;border:none;'
+        + 'background:linear-gradient(180deg,#ff9f1c,#ff8c00);color:#1a130a;font-weight:800;font-size:1rem;cursor:pointer;';
+    const sub = 'width:100%;padding:12px;margin-top:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.28);'
+        + 'background:rgba(255,255,255,0.05);color:inherit;font-weight:700;cursor:pointer;';
+    const curShown = r.autoApplied ? r.appliedOffset : r.offsetUsed;
+    let rows =
+        '<div class="cal-result-row"><span>有効タップ</span><b>' + r.valid + ' / ' + TAP_CAL_PLAY_BEATS + '</b></div>' +
+        '<div class="cal-result-row"><span>平均ズレ</span><b>' + avgTxt + '</b></div>' +
+        '<div class="cal-result-row"><span>現在のタップ補正</span><b>' + sign(curShown) + '</b></div>';
+    let head, actions;
+    if (!r.enoughInput) {
+        head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">タップが少ないため測れませんでした。クリック音に合わせて、もう一度8回タップしてください。</p>';
+        actions = '<button type="button" id="tap-cal-rerun" style="' + primary + '">もう1度テストする</button>';
+        els.tapCalResult.innerHTML = head + '<div class="cal-result-row"><span>有効タップ</span><b>' + r.valid + ' / ' + TAP_CAL_PLAY_BEATS + '</b></div>'
+            + '<div style="margin-top:6px;">' + actions + '</div>';
+        els.tapCalResult.classList.remove('hidden');
+        bindTapCalResultActions();
+        return;
+    }
+    if (r.big) {
+        head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">タップが' + (r.avg > 0 ? '遅め（LATE）' : '早め（EARLY）') + 'に片寄っています。補正して合わせましょう。</p>';
+        rows += '<div class="cal-result-row"><span>補正後の目安</span><b>' + sign(r.newOffset) + '</b></div>';
+        actions =
+            '<button type="button" id="tap-cal-apply" style="' + primary + '">この補正を適用してもう1度テストする</button>' +
+            '<button type="button" id="tap-cal-use" style="' + sub + '">この設定で使う</button>' +
+            '<button type="button" id="tap-cal-rerun" style="' + sub + '">もう1度テストする</button>' +
+            '<button type="button" id="tap-cal-save" style="' + sub + '">この設定を保存</button>';
+    } else {
+        head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">ズレは小さいため、この設定で使えます。</p>';
+        const autoNote = r.autoApplied
+            ? '<p class="cal-status" style="color:#6ed28c;font-weight:600;margin-top:6px;">最新の平均ズレ（' + avgTxt + '）に合わせて、タップ補正を ' + sign(r.appliedOffset) + ' に微調整しました。</p>'
+            : '';
+        head += autoNote;
+        actions =
+            '<button type="button" id="tap-cal-use" style="' + primary + '">この設定で使う</button>' +
+            '<button type="button" id="tap-cal-rerun" style="' + sub + '">もう1度テストする</button>' +
+            '<button type="button" id="tap-cal-save" style="' + sub + '">この設定を保存</button>';
+    }
+    els.tapCalResult.innerHTML = head + rows + '<div style="margin-top:6px;">' + actions + '</div>';
+    els.tapCalResult.classList.remove('hidden');
+    bindTapCalResultActions();
+}
+
+function bindTapCalResultActions() {
+    const use = document.getElementById('tap-cal-use');
+    if (use) use.addEventListener('click', () => applyTapOutputOffsetAndClose(mic.headphoneOutputOffsetMs || 0));
+    const apply = document.getElementById('tap-cal-apply');
+    if (apply) apply.addEventListener('click', () => {
+        if (tapCal.result) setHeadphoneOffset(tapCal.result.newOffset); // 値反映＋同期＋保存
+        startTapCal(); // 適用してもう1度テスト
+    });
+    const rerun = document.getElementById('tap-cal-rerun');
+    if (rerun) rerun.addEventListener('click', () => startTapCal());
+    const save = document.getElementById('tap-cal-save');
+    if (save) save.addEventListener('click', () => openTapPresetModal());
+}
+
 /* ── 入力タイプ別の感度・表示プロファイル判定（v0.9.49）──────────
    headphone：初回から高感度寄りで拾いにいく＆低入力スケール表示。
    auto/normal：従来どおり「明確に低入力っぽいときだけ」高感度救済を使う。 */
@@ -4295,6 +4643,7 @@ function renderSettingsView() {
     // 画面タップ設定専用カードは隠す（.hidden で確実に）
     if (els.tapPresetCard) els.tapPresetCard.classList.add('hidden');
     if (els.tapManualCard) els.tapManualCard.classList.add('hidden');
+    if (els.tapCalCard) els.tapCalCard.classList.add('hidden');
     // hp-cal-card のタップ用ボタン表示を通常（マイクフロー）へ戻す
     if (els.hpProceedBtn) els.hpProceedBtn.style.display = '';
     if (els.hpTapUseBtn) els.hpTapUseBtn.classList.add('hidden');
@@ -4334,26 +4683,21 @@ function renderTapSettingsView() {
     if (els.ptOpenManual) els.ptOpenManual.style.display = 'none';
     if (els.settingsDoneHint) els.settingsDoneHint.classList.add('hidden');
     if (els.settingsActions) els.settingsActions.style.display = 'none'; // 既存フッター（マイク設定TOP/完了）は使わない
-    // まず4ビュー分のカードをすべて隠す（.hidden は display:none !important なので classList で）
+    // まず各ビューのカードをすべて隠す（.hidden は display:none !important なので classList で）
     if (els.tapSettingsCard) els.tapSettingsCard.classList.add('hidden');
     if (els.tapPresetCard) els.tapPresetCard.classList.add('hidden');
     if (els.tapManualCard) els.tapManualCard.classList.add('hidden');
+    if (els.tapCalCard) els.tapCalCard.classList.add('hidden');
+    // 旧・丸レーンの hp-cal-card はタップ設定では使わない（マイク設定タブ専用）
     if (els.hpCalCard) els.hpCalCard.style.display = 'none';
     if (els.hpProceedBtn) els.hpProceedBtn.style.display = '';
     if (els.hpTapUseBtn) els.hpTapUseBtn.classList.add('hidden');
     if (els.hpTapSaveBtn) els.hpTapSaveBtn.classList.add('hidden');
 
     if (tapView === 'cal') {
-        // 既存イヤホン音ズレ補正カードを再利用（レーン/JUST/BPM/スライダー/補正なし/補正テスト開始）
-        if (els.hpCalCard) { els.hpCalCard.classList.remove('hidden'); els.hpCalCard.style.display = ''; }
-        // タップ用は「この音ズレ設定で使う」「この設定を保存」を出し、マイクフロー用「進む」は隠す
-        if (els.hpProceedBtn) els.hpProceedBtn.style.display = 'none';
-        if (els.hpTapUseBtn) els.hpTapUseBtn.classList.remove('hidden');
-        if (els.hpTapSaveBtn) els.hpTapSaveBtn.classList.remove('hidden');
-        // スライダー表示を現在値へ同期
-        const v = mic.headphoneOutputOffsetMs || 0;
-        if (els.hpOffset) els.hpOffset.value = v;
-        if (els.hpOffsetVal) els.hpOffsetVal.textContent = v + 'ms';
+        // タップ実測型テスト（v0.9.98）：STAGE1風レーンに合わせてタップし平均ズレを測る専用カード
+        if (els.tapCalCard) els.tapCalCard.classList.remove('hidden');
+        if (!tapCal.active && !tapCal.result) renderTapCalIdle();
     } else if (tapView === 'preset') {
         if (els.tapPresetCard) els.tapPresetCard.classList.remove('hidden');
         renderTapPresetList();
@@ -4392,20 +4736,26 @@ function setSettingsTab(tab) {
    互換用 headphoneOutputOffsetMs の両方へ書き、再読込でも保持されるようにする。 */
 function applyTapOutputOffsetAndClose(v) {
     if (hpCal.active) stopHeadphoneCal(); // 念のためテスト中なら停止
+    stopTapCal();          // タップ実測型テスト中なら停止（v0.9.98）
     setHeadphoneOffset(v); // 値反映＋スライダー同期＋saveSettings
     closeSettings();       // アプリ全体のTOPページへ戻る（プリセット/手動設定と同じ導線）
 }
 
-/* 画面タップ設定「音ズレ補正テスト」：イヤホン音ズレ補正カードだけを表示する（v0.9.95）。 */
+/* 画面タップ設定「音ズレ補正テスト」：タップ実測型テストのカードを表示する（v0.9.95→v0.9.98）。 */
 function openTapCorrection() {
+    if (hpCal.active) stopHeadphoneCal();
+    stopTapCal();
+    tapCal.result = null; // 入り直したら新しいテストの待機状態に
     tapView = 'cal';
     renderSettingsView();
-    scrollToSettingsEl(els.hpCalCard);
+    renderTapCalIdle();
+    scrollToSettingsEl(els.tapCalCard);
 }
 
 /* 画面タップ設定「プリセット」：タップ専用プリセット一覧を表示する（v0.9.97）。 */
 function openTapPreset() {
     if (hpCal.active) stopHeadphoneCal();
+    stopTapCal();
     tapView = 'preset';
     renderSettingsView();
     scrollToSettingsEl(els.tapPresetCard);
@@ -4414,6 +4764,7 @@ function openTapPreset() {
 /* 画面タップ設定「手動設定」：スライダーでタップ補正値を直接調整する画面（v0.9.97）。 */
 function openTapManual() {
     if (hpCal.active) stopHeadphoneCal();
+    stopTapCal();
     tapView = 'manual';
     renderSettingsView();
     scrollToSettingsEl(els.tapManualCard);
@@ -4422,6 +4773,7 @@ function openTapManual() {
 /* 画面タップ設定の各サブ画面から、画面タップ設定ホームへ戻る（v0.9.97）。 */
 function backToTapHome() {
     if (hpCal.active) stopHeadphoneCal();
+    stopTapCal();
     tapView = 'home';
     renderSettingsView();
     scrollToSettingsEl(els.tapSettingsCard);
@@ -4450,6 +4802,7 @@ function applyTapPreset(id) {
     const p = allTapPresets().find((x) => x && x.id === id);
     if (!p) return;
     if (hpCal.active) stopHeadphoneCal();
+    stopTapCal();
     setHeadphoneOffset(clampNum(p.tapOffsetMs, HP_OFFSET_MIN, HP_OFFSET_MAX, 0)); // 値反映＋同期＋保存
     closeSettings(); // アプリ全体のTOPページへ戻る
 }
@@ -5286,6 +5639,7 @@ function closeSettings() {
     if (hpCal.active) stopHeadphoneCal();
     stopPracticeTest();
     stopBtCal();
+    stopTapCal();
     exitTestMode();
     show(settingsReturn);
     if (settingsReturn === 'practice') { fitLane(); }
@@ -7448,6 +7802,12 @@ function bind() {
     if (els.tapManualUse) els.tapManualUse.addEventListener('click', () => applyTapOutputOffsetAndClose(mic.headphoneOutputOffsetMs || 0));
     if (els.hpTapUseBtn) els.hpTapUseBtn.addEventListener('click', useTapCorrection);
     if (els.hpTapSaveBtn) els.hpTapSaveBtn.addEventListener('click', openTapPresetModal);
+    // 画面タップ設定：音ズレ補正テスト（タップ実測型・v0.9.98）
+    if (els.tapCalBtn) els.tapCalBtn.addEventListener('click', toggleTapCal);
+    if (els.tapCalBack) els.tapCalBack.addEventListener('click', backToTapHome);
+    if (els.tapCalBpmMinus) els.tapCalBpmMinus.addEventListener('click', () => setTapCalBpm(tapCalBpm - HP_CAL_BPM_STEP));
+    if (els.tapCalBpmPlus) els.tapCalBpmPlus.addEventListener('click', () => setTapCalBpm(tapCalBpm + HP_CAL_BPM_STEP));
+    if (els.tapCalPad) els.tapCalPad.addEventListener('pointerdown', (e) => { e.preventDefault(); registerTapCalTap(); });
     // プリセット保存モーダル（v0.9.80）
     if (els.presetModalSave) els.presetModalSave.addEventListener('click', savePresetFromModal);
     if (els.presetModalCancel) els.presetModalCancel.addEventListener('click', closePresetModal);
@@ -7552,7 +7912,7 @@ function bind() {
         btn.addEventListener('click', reloadAppWithCacheBust));
 
     window.addEventListener('resize', () => {
-        if (!els.settings.classList.contains('hidden')) { fitPreview(); if (pt.active) { fitPtLane(); } if (bt.active) { fitBtLane(); } if (hpCal.active) { fitHpLane(); } return; }
+        if (!els.settings.classList.contains('hidden')) { fitPreview(); if (pt.active) { fitPtLane(); } if (bt.active) { fitBtLane(); } if (hpCal.active) { fitHpLane(); } if (tapCal.active) { fitTapCalLane(); } return; }
         if (els.practice.classList.contains('hidden')) return;
         fitLane();
         if (els.resultsOverlay && !els.resultsOverlay.classList.contains('hidden')) {
