@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.90">
+    <link rel="stylesheet" href="theme.css?v=0.9.92">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -380,10 +380,17 @@
                 <div class="test-lane-wrap hidden" id="hp-cal-lane-wrap" style="margin:14px 0;">
                     <canvas id="hp-cal-lane-canvas"></canvas>
                 </div>
+                <!-- テスト専用BPM（v0.9.92）。STAGE/最終確認テストのテンポには影響しない -->
+                <div class="hp-bpm-row" style="display:flex;align-items:center;justify-content:center;gap:14px;margin:6px 0 4px;">
+                    <span class="setting-label" style="margin:0;">BPM</span>
+                    <button type="button" class="btn-mini hp-bpm-btn" id="hp-bpm-minus" aria-label="BPMを下げる">−</button>
+                    <b id="hp-bpm-val" style="min-width:3ch;text-align:center;font-size:1.15rem;">100</b>
+                    <button type="button" class="btn-mini hp-bpm-btn" id="hp-bpm-plus" aria-label="BPMを上げる">＋</button>
+                </div>
                 <button class="btn-mic cal-run-btn test-start-btn" id="hp-cal-btn">補正テスト開始</button>
                 <div class="setting-row" style="margin-top:16px;">
                     <div class="setting-label">現在の補正 <b id="hp-offset-val">0ms</b></div>
-                    <input type="range" id="hp-offset" min="-200" max="200" step="5" value="0">
+                    <input type="range" id="hp-offset" min="-200" max="300" step="5" value="0">
                     <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
                         <span>← 丸を早める</span><span>丸を遅らせる →</span>
                     </div>
@@ -498,7 +505,7 @@
                     <!-- イヤホン音ズレ補正（入力タイプ=イヤホン接続 のとき表示）。v0.9.52ではUI/保存のみ・STAGE判定には未反映 -->
                     <div class="setting-row hidden" id="set-hp-offset-row">
                         <div class="setting-label">イヤホン音ズレ補正 <b id="set-hp-offset-val">0ms</b></div>
-                        <input type="range" id="set-hp-offset" min="-200" max="200" step="5" value="0">
+                        <input type="range" id="set-hp-offset" min="-200" max="300" step="5" value="0">
                         <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
                             <span>← 丸を早める</span><span>丸を遅らせる →</span>
                         </div>
@@ -642,7 +649,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.91"></script>
+    <script src="script.js?v=0.9.92"></script>
 </body>
 
 </html>

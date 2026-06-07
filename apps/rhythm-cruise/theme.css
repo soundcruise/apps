@@ -582,6 +582,26 @@ h1 {
     font-size: 0.9rem;
 }
 
+/* イヤホン音ズレ補正テストのBPM −/＋ ボタン（v0.9.92）：はっきり押せる丸ボタン */
+.btn-mini.hp-bpm-btn {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid rgba(253, 246, 238, 0.32);
+    border-radius: 50%;
+    color: var(--text-color);
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 1.3rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-mini.hp-bpm-btn:active {
+    background: rgba(255, 255, 255, 0.14);
+}
+
 .tempo-row b {
     color: var(--text-color);
     font-size: 1.4rem;
