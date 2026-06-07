@@ -150,33 +150,64 @@
                 <button type="button" class="settings-tab" id="settings-tab-tap">画面タップ設定</button>
             </div>
 
-            <!-- 画面タップ設定タブ（v0.9.95）：画面タップでプレイする人向け。マイク調整は不要。 -->
+            <!-- 画面タップ設定タブ（v0.9.95→v0.9.97）：画面タップでプレイする人向け。
+                 ホーム＝現在のタップ補正＋[音ズレ補正テスト][プリセット][手動設定]。 -->
             <div class="settings-card hidden" id="tap-settings-card">
                 <div class="cal-head">画面タップ設定</div>
-                <p class="setting-note" style="margin-top:0;">画面をタップして判定する場合は、マイク調整は不要です。イヤホンを使う場合だけ、音と画面のズレを合わせます。</p>
-                <p class="cal-status" id="tap-current-offset" style="color:#6ed28c;font-weight:700;">現在のタップ補正：0ms</p>
-                <button type="button" class="btn-primary" id="tap-no-correction" style="width:100%;margin-top:10px;">補正なしで使う</button>
-                <button type="button" class="btn-primary" id="tap-bt-standard" style="width:100%;margin-top:10px;">Bluetoothイヤホン標準で使う</button>
-                <button type="button" class="btn-mini" id="tap-do-correction" style="width:100%;margin-top:10px;padding:13px;border:1px solid rgba(255,159,28,0.45);border-radius:10px;background:rgba(255,159,28,0.08);font-weight:700;">音ズレ補正をする</button>
+                <p class="cal-status" id="tap-current-offset" style="margin-top:0;color:#6ed28c;font-weight:700;">現在のタップ補正：0ms</p>
+                <button type="button" class="btn-primary" id="tap-open-cal" style="width:100%;margin-top:12px;">音ズレ補正テスト</button>
+                <button type="button" class="btn-mini" id="tap-open-preset" style="width:100%;margin-top:10px;padding:13px;border:1px solid rgba(255,159,28,0.45);border-radius:10px;background:rgba(255,159,28,0.08);font-weight:700;">プリセット</button>
+                <button type="button" class="btn-mini" id="tap-open-manual" style="width:100%;margin-top:10px;padding:13px;border:1px solid rgba(255,255,255,0.28);border-radius:10px;background:rgba(255,255,255,0.04);font-weight:700;">手動設定</button>
+                <details class="card-help" style="margin-top:12px;">
+                    <summary>詳しい説明</summary>
+                    <p class="setting-note" style="margin-top:8px;">画面をタップして判定する場合は、調整なしでも遊べます。イヤホンを使うときだけ、聞こえる音と画面のズレを合わせると気持ちよくタップできます。</p>
+                </details>
+            </div>
+
+            <!-- 画面タップ設定：プリセット一覧（v0.9.97）。タップ専用。マイク設定プリセットとは別管理。 -->
+            <div class="settings-card hidden" id="tap-preset-card">
+                <div class="cal-head">タップ補正プリセット</div>
+                <p class="setting-note" style="margin-top:0;">選ぶとタップ補正を切り替えて保存し、TOPへ戻ります。</p>
+                <div id="tap-preset-list" style="margin-top:10px;"></div>
+                <button type="button" class="btn-mini" id="tap-preset-back" style="width:100%;margin-top:12px;padding:11px;">画面タップ設定へ戻る</button>
+            </div>
+
+            <!-- 画面タップ設定：手動設定（v0.9.97）。スライダーでタップ補正値を直接変更。 -->
+            <div class="settings-card hidden" id="tap-manual-card">
+                <div class="cal-head">タップ補正の手動設定</div>
+                <p class="setting-note" style="margin-top:0;">聞こえる音と画面の音符がズレるときに調整します。0ms＝補正なしです。</p>
+                <div class="setting-row" style="margin-top:14px;">
+                    <div class="setting-label">タップ補正 <b id="tap-manual-val">0ms</b></div>
+                    <input type="range" id="tap-manual-offset" min="-200" max="400" step="5" value="0">
+                    <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
+                        <span>← 早める</span><span>遅らせる →</span>
+                    </div>
+                </div>
+                <button type="button" class="btn-primary" id="tap-manual-use" style="width:100%;margin-top:14px;">この設定を使う</button>
+                <button type="button" class="btn-mini" id="tap-manual-back" style="width:100%;margin-top:10px;padding:11px;">画面タップ設定へ戻る</button>
             </div>
 
             <!-- マイク設定の入口：[簡易設定][詳細テスト]を横並び／下に保存プリセット・現在の設定を見る -->
             <div class="settings-card" id="settings-chooser">
                 <p class="cal-status hidden" id="chooser-applied-msg" style="margin-top:0;color:#6ed28c;font-weight:700;"></p>
-                <p class="setting-note" style="margin-top:0;">使う環境に合わせてマイクの反応を設定します。</p>
                 <!-- 上段：横並び（左＝主導線 簡易設定／右＝サブ 詳細テスト） -->
                 <div class="chooser-row">
                     <button type="button" class="chooser-btn chooser-main" id="settings-simple-btn">簡易設定</button>
                     <button type="button" class="chooser-btn chooser-main" id="settings-detail-btn">詳細テスト</button>
                 </div>
-                <p class="setting-note" style="margin-top:8px;font-size:0.8rem;opacity:0.8;">簡易設定：環境を選ぶだけで標準設定を適用します。<br>詳細テスト：反応ラインや補正を実際に測って細かく調整します。</p>
-                <!-- 下段：保存済みプリセット（押すと一覧を展開） -->
+                <!-- 保存済みプリセット（押すと一覧を展開） -->
                 <button type="button" class="btn-mini" id="preset-toggle-btn" style="width:100%;margin-top:12px;padding:13px;border:1px solid rgba(255,159,28,0.45);border-radius:10px;background:rgba(255,159,28,0.08);font-weight:700;">保存済みプリセット ▾</button>
                 <div id="preset-list-wrap" style="display:none;margin-top:8px;">
                     <div id="preset-list"></div>
                 </div>
                 <!-- 現在の設定を見る（サブ導線） -->
                 <button type="button" class="btn-mini" id="settings-view-current" style="width:100%;margin-top:10px;padding:13px;border:1px solid rgba(255,255,255,0.28);border-radius:10px;background:rgba(255,255,255,0.04);font-weight:700;">現在の設定を見る</button>
+                <!-- 説明は折りたたみ（必要な人だけ開く・v0.9.97） -->
+                <details class="card-help" style="margin-top:12px;">
+                    <summary>詳しい説明</summary>
+                    <p class="setting-note" style="margin-top:8px;">使う環境に合わせてマイクの反応を設定します。</p>
+                    <p class="setting-note" style="margin-top:8px;font-size:0.8rem;opacity:0.8;">簡易設定：環境を選ぶだけで標準設定を適用します。<br>詳細テスト：反応ラインや補正を実際に測って細かく調整します。</p>
+                </details>
             </div>
 
             <!-- 簡易設定：使う環境を選ぶだけで標準プリセットを適用する -->
@@ -406,7 +437,7 @@
                 <button class="btn-mic cal-run-btn test-start-btn" id="hp-cal-btn">補正テスト開始</button>
                 <div class="setting-row" style="margin-top:16px;">
                     <div class="setting-label">現在の補正 <b id="hp-offset-val">0ms</b></div>
-                    <input type="range" id="hp-offset" min="-200" max="300" step="5" value="0">
+                    <input type="range" id="hp-offset" min="-200" max="400" step="5" value="0">
                     <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
                         <span>← 丸を早める</span><span>丸を遅らせる →</span>
                     </div>
@@ -420,6 +451,8 @@
                 <button type="button" class="btn-primary" id="hp-proceed-btn" style="width:100%;margin-top:12px;">この音ズレ設定で進む</button>
                 <!-- 画面タップ設定タブから使う場合の導線（v0.9.95）：保存してアプリTOPへ戻る（テストへは進まない） -->
                 <button type="button" class="btn-primary hidden" id="hp-tap-use-btn" style="width:100%;margin-top:12px;">この音ズレ設定で使う</button>
+                <!-- 画面タップ設定タブから：現在のタップ補正値をプリセットとして保存（v0.9.97） -->
+                <button type="button" class="btn-mini hidden" id="hp-tap-save-btn" style="width:100%;margin-top:10px;padding:11px;border:1px solid rgba(255,255,255,0.22);border-radius:10px;background:rgba(255,255,255,0.04);font-weight:700;">この設定を保存</button>
             </div>
 
             <!-- 補正系（有線イヤホン時の案内）。有線は補正カードを出さず、補正なし（0ms）が基本の旨だけ伝える -->
@@ -524,7 +557,7 @@
                     <!-- イヤホン音ズレ補正（入力タイプ=イヤホン接続 のとき表示）。v0.9.52ではUI/保存のみ・STAGE判定には未反映 -->
                     <div class="setting-row hidden" id="set-hp-offset-row">
                         <div class="setting-label">イヤホン音ズレ補正 <b id="set-hp-offset-val">0ms</b></div>
-                        <input type="range" id="set-hp-offset" min="-200" max="300" step="5" value="0">
+                        <input type="range" id="set-hp-offset" min="-200" max="400" step="5" value="0">
                         <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
                             <span>← 丸を早める</span><span>丸を遅らせる →</span>
                         </div>
@@ -668,7 +701,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.96"></script>
+    <script src="script.js?v=0.9.97"></script>
 </body>
 
 </html>
