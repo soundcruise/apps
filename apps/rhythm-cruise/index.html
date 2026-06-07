@@ -175,12 +175,12 @@
             <!-- 画面タップ設定：手動設定（v0.9.97）。スライダーでタップ補正値を直接変更。 -->
             <div class="settings-card hidden" id="tap-manual-card">
                 <div class="cal-head">タップ補正の手動設定</div>
-                <p class="setting-note" style="margin-top:0;">聞こえる音と画面の音符がズレるときに調整します。0ms＝補正なしです。</p>
+                <p class="setting-note" style="margin-top:0;">聞こえる音と画面の音符がズレるときに調整します。音が画面より遅れて聞こえるなら右（音が遅い）へ、早く聞こえるなら左（音が早い）へ動かします。0ms＝補正なしです。</p>
                 <div class="setting-row" style="margin-top:14px;">
                     <div class="setting-label">タップ補正 <b id="tap-manual-val">0ms</b></div>
                     <input type="range" id="tap-manual-offset" min="-200" max="400" step="5" value="0">
                     <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
-                        <span>← 早める</span><span>遅らせる →</span>
+                        <span>← 音が早く聞こえる</span><span>音が遅く聞こえる →</span>
                     </div>
                 </div>
                 <button type="button" class="btn-primary" id="tap-manual-use" style="width:100%;margin-top:14px;">この設定を使う</button>
@@ -202,7 +202,7 @@
                 <div class="hp-bpm-row" style="display:flex;align-items:center;justify-content:center;gap:14px;margin:6px 0 4px;">
                     <span class="setting-label" style="margin:0;">BPM</span>
                     <button type="button" class="btn-mini hp-bpm-btn" id="tap-cal-bpm-minus" aria-label="BPMを下げる">−</button>
-                    <b id="tap-cal-bpm-val" style="min-width:3ch;text-align:center;font-size:1.15rem;">100</b>
+                    <b id="tap-cal-bpm-val" style="min-width:3ch;text-align:center;font-size:1.15rem;">80</b>
                     <button type="button" class="btn-mini hp-bpm-btn" id="tap-cal-bpm-plus" aria-label="BPMを上げる">＋</button>
                 </div>
                 <!-- STAGE1風の流れる音符＋JUSTライン＋タップマーカー（専用キャンバス） -->
@@ -470,9 +470,9 @@
                     <div class="setting-label">現在の補正 <b id="hp-offset-val">0ms</b></div>
                     <input type="range" id="hp-offset" min="-200" max="400" step="5" value="0">
                     <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
-                        <span>← 丸を早める</span><span>丸を遅らせる →</span>
+                        <span>← 音が早く聞こえる</span><span>音が遅く聞こえる →</span>
                     </div>
-                    <p class="setting-note">音が丸より遅れて聞こえるなら「丸を遅らせる（右）」へ、早く聞こえるなら「丸を早める（左）」へ動かして、音と丸が同時に感じられる位置に合わせます。0ms＝補正なしです。</p>
+                    <p class="setting-note">音が画面（丸）より遅れて聞こえるなら右（音が遅い）へ、早く聞こえるなら左（音が早い）へ動かして、音と丸が同時に感じられる位置に合わせます。0ms＝補正なしです。</p>
                 </div>
                 <div class="hp-preset-row" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
                     <button type="button" class="btn-mini btn-reset" id="hp-zero">補正なしに戻す</button>
@@ -590,7 +590,7 @@
                         <div class="setting-label">イヤホン音ズレ補正 <b id="set-hp-offset-val">0ms</b></div>
                         <input type="range" id="set-hp-offset" min="-200" max="400" step="5" value="0">
                         <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
-                            <span>← 丸を早める</span><span>丸を遅らせる →</span>
+                            <span>← 音が早く聞こえる</span><span>音が遅く聞こえる →</span>
                         </div>
                         <p class="setting-note" id="set-hp-offset-note">有線イヤホンは通常、補正なし（0ms）で問題ありません。違和感がある場合だけ調整してください。</p>
                         <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
@@ -732,7 +732,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.98"></script>
+    <script src="script.js?v=0.9.99"></script>
 </body>
 
 </html>

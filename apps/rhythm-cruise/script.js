@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.98';
+const RHYTHM_CRUISE_VERSION = '0.9.99';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -136,7 +136,8 @@ const BUILTIN_MIC_PRESETS = [
             inputType: 'headphone', headphoneType: 'bluetooth', strokeDetectMode: 'brush',
             threshold: 0.008, cooldownMs: 100, clickVolume: 50, timingOffsetMs: 0,
             lowInputProfile: true,
-            headphoneOffsetWiredMs: 0, headphoneOffsetBluetoothMs: 0, headphoneOutputOffsetMs: 0,
+            // Bluetoothイヤホン標準の表示補正200msをスタートラインにする（v0.9.99）。判定には反映しない。
+            headphoneOffsetWiredMs: 0, headphoneOffsetBluetoothMs: 200, headphoneOutputOffsetMs: 200,
             clickGuardMs: 60,
         },
     },
@@ -147,7 +148,7 @@ const BUILTIN_MIC_PRESETS = [
 const TAP_PRESETS_KEY = 'soundcruise_rhythm_tap_presets';
 const BUILTIN_TAP_PRESETS = [
     { id: 'builtin_tap_none', name: '補正なし', builtin: true, tapOffsetMs: 0 },
-    { id: 'builtin_tap_bt', name: 'Bluetoothイヤホン標準', builtin: true, tapOffsetMs: 100 },
+    { id: 'builtin_tap_bt', name: 'Bluetoothイヤホン標準', builtin: true, tapOffsetMs: 200 },
 ];
 
 /* マイク補正キャリブレーション設定 */
@@ -2269,8 +2270,8 @@ const HP_CAL_BPM_MIN = 20, HP_CAL_BPM_MAX = 160, HP_CAL_BPM_STEP = 20;
 let hpCalBpm = 100;
 function hpCalBeatMs() { return 60000 / hpCalBpm; }
 /* Bluetoothイヤホンの「標準」スタートライン(ms)。判定ズレ補正ではなく、イヤホン音と画面表示を
-   合わせるための表示補正の基準値（v0.9.93→v0.9.94で100msへ）。判定（STAGE/最終確認テスト）には反映しない。 */
-const HP_BLUETOOTH_STANDARD_OFFSET = 100;
+   合わせるための表示補正の基準値（v0.9.93→v0.9.94で100ms→v0.9.99で200msへ）。判定（STAGE/最終確認テスト）には反映しない。 */
+const HP_BLUETOOTH_STANDARD_OFFSET = 200;
 const HP_CAL_LEAD_MS = 80;        // クリックを少し先に鳴らし、負offsetでも丸を先に光らせられるようにする土台
 const hpCal = { active: false, timer: 0, beat: 0, lightTimers: [], raf: 0, flowStartPerf: 0 };
 let hpLane = { ctx: null, w: 0, h: 0 }; // イヤホン音ズレ補正の流れるレーン（v0.9.91）
@@ -2502,8 +2503,8 @@ function setHeadphoneOffset(ms, opts) {
 function setHeadphoneType(type, opts) {
     mic.headphoneType = (type === 'bluetooth') ? 'bluetooth' : 'wired';
     if (opts && opts.resetDefault) {
-        // 詳細テストでBluetoothを選び直したときは「Bluetoothイヤホン標準(100ms)」を
-        // スタートラインにする（表示補正の基準・v0.9.94）。有線は従来どおり0ms（補正なし）。
+        // 詳細テストでBluetoothを選び直したときは「Bluetoothイヤホン標準(200ms)」を
+        // スタートラインにする（表示補正の基準・v0.9.94→v0.9.99）。有線は従来どおり0ms（補正なし）。
         if (mic.headphoneType === 'bluetooth') mic.headphoneOffsetBluetoothMs = HP_BLUETOOTH_STANDARD_OFFSET;
         else mic.headphoneOffsetWiredMs = HP_TYPE_DEFAULT_OFFSET.wired;
     }
@@ -2527,7 +2528,7 @@ function resetHeadphoneOffsetToZero() {
     redrawHpLaneIfOpen();
 }
 
-/* 「Bluetoothイヤホン標準」：Bluetoothの表示補正をスタートライン(100ms)へ戻す（v0.9.94）。
+/* 「Bluetoothイヤホン標準」：Bluetoothの表示補正をスタートライン(200ms)へ戻す（v0.9.94→v0.9.99）。
    判定ズレ補正(bluetoothMicOffsetMs)ではなく、イヤホン音と画面表示を合わせるための表示補正。 */
 function resetHeadphoneOffsetToBluetoothStandard() {
     // v0.9.97：テスト中でもレーンは閉じず、丸を初期位置へ戻して表示したまま一時停止する
@@ -3860,7 +3861,7 @@ function completeBtCalStep() {
    diff = tap - displayBeat（正=LATE）。LATEなら offset を増やすほどJUSTへ寄るので new = offset + diff。 */
 const TAP_CAL_PLAY_BEATS = 8;       // 8回タップで測定
 const TAP_CAL_BIG_DIFF = 35;        // |平均ズレ| がこれ以上なら「大きくズレ」＝補正して再テストを促す
-let tapCalBpm = 100;                // テスト専用BPM（20〜160／20刻み・初期100）
+let tapCalBpm = 80;                 // テスト専用BPM（20〜160／20刻み・初期80・v0.9.99）
 function tapCalBeatMs() { return 60000 / tapCalBpm; }
 const tapCal = {
     active: false, capturing: false, timers: [], scheduled: [], raf: 0,
@@ -4153,6 +4154,7 @@ function renderTapCalResult(r) {
             '<button type="button" id="tap-cal-apply" style="' + primary + '">この補正を適用してもう1度テストする</button>' +
             '<button type="button" id="tap-cal-use" style="' + sub + '">この設定で使う</button>' +
             '<button type="button" id="tap-cal-rerun" style="' + sub + '">もう1度テストする</button>' +
+            '<button type="button" id="tap-cal-manual" style="' + sub + '">手動で微調整する</button>' +
             '<button type="button" id="tap-cal-save" style="' + sub + '">この設定を保存</button>';
     } else {
         head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">ズレは小さいため、この設定で使えます。</p>';
@@ -4163,6 +4165,7 @@ function renderTapCalResult(r) {
         actions =
             '<button type="button" id="tap-cal-use" style="' + primary + '">この設定で使う</button>' +
             '<button type="button" id="tap-cal-rerun" style="' + sub + '">もう1度テストする</button>' +
+            '<button type="button" id="tap-cal-manual" style="' + sub + '">手動で微調整する</button>' +
             '<button type="button" id="tap-cal-save" style="' + sub + '">この設定を保存</button>';
     }
     els.tapCalResult.innerHTML = head + rows + '<div style="margin-top:6px;">' + actions + '</div>';
@@ -4180,6 +4183,8 @@ function bindTapCalResultActions() {
     });
     const rerun = document.getElementById('tap-cal-rerun');
     if (rerun) rerun.addEventListener('click', () => startTapCal());
+    const manual = document.getElementById('tap-cal-manual');
+    if (manual) manual.addEventListener('click', () => openTapManual()); // 現在の補正値を引き継いで手動設定へ
     const save = document.getElementById('tap-cal-save');
     if (save) save.addEventListener('click', () => openTapPresetModal());
 }
