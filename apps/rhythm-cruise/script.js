@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.84';
+const RHYTHM_CRUISE_VERSION = '0.9.85';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -4059,6 +4059,8 @@ function renderWizardSteps() {
         if (els.ptLaneWrap) els.ptLaneWrap.classList.add('hidden');
         hidePracticeReview();
         setPtStatus('');
+        // 待機表示のときはボタン文言を実施履歴(ptHasRun)に合わせて毎回そろえる（v0.9.85）
+        if (els.ptBtn) els.ptBtn.textContent = ptIdleBtnLabel();
     }
 }
 
@@ -4186,6 +4188,9 @@ function resetTestRunHistory() {
     updateMicTestDoneUI();
     updateMicDelayDoneUI();
     renderBtCalIdle();
+    // 最終確認テストのボタン文言も未実施へ戻す（v0.9.85）。
+    // ptHasRun を false にしても、ボタン文言は stop/end 時にしか更新されないため、ここで明示的に揃える。
+    if (els.ptBtn && !pt.active) els.ptBtn.textContent = ptIdleBtnLabel();
 }
 
 function resetSetupFlowDisplay() {
@@ -5162,6 +5167,14 @@ const TEST_LOW_STROKE_FLOOR = 0.0035;
 /* 救済再テストの検出しきい値の上限。直前テストで検出が少なかったとき、通常0.02ではなくここまで
    下げて拾い直す。ノイズが低ければ TEST_LOW_STROKE_FLOOR(0.0035) 付近まで下がる。 */
 const TEST_RESCUE_STROKE_CEIL = 0.010;
+/* Bluetoothイヤホン用：おすすめ反応ラインの下限割合（v0.9.85）。
+   一部端末（特に iPhone + Bluetooth）はマイクのAGCが強く、ストローク間の余韻まで持ち上げる。
+   反応ラインが低すぎると結果波形がMAX張り付き＋二重反応になりやすいので、実測ストローク量に対して
+   「最低でもこの割合の高さ」にラインを引き上げる。検出は実測ピークの半分なので、普通のストロークは拾える。
+   有線/通常マイク/MacのBluetoothには影響が小さい（元々ライン位置が妥当なら据え置き）。 */
+const BT_RECO_MIN_FRAC = 0.5;
+/* マイク反応テストの開発用デバッグログ（本番は false）。true のときだけ finalize 時に診断を出す。 */
+const MIC_DEBUG = false;
 /* 自動再テストは最大1回。短い案内のあと自動でテストを再開する。 */
 const MAX_AUTO_RETEST = 1;
 const AUTO_RETEST_DELAY_MS = 1300;
@@ -5627,6 +5640,22 @@ function updateReco() {
         els.recoThr.textContent = '—';
     }
 
+    // ②-B Bluetoothイヤホン専用：反応ラインが実測ストロークに対して低すぎる場合だけ引き上げる（v0.9.85）。
+    //     iPhone+Bluetooth等はAGCでストローク間の余韻が持ち上がり、ラインが低いと
+    //     ・結果波形がMAX張り付き ・二重反応 が起きやすい。実測ピークの一定割合を下限にして自然な高さへ。
+    //     UA分岐はせず、入力タイプ（Bluetoothイヤホン）と実測値だけで判断する。判定スケール/表示は変えない。
+    if (isBluetoothHeadphone() && test.recommended != null) {
+        const peakBasis = (minStroke != null) ? minStroke
+            : (maxStrokeRaw != null ? maxStrokeRaw : null);
+        if (peakBasis != null && peakBasis > THR_MIN) {
+            const btFloor = Math.max(THR_MIN, Math.min(THR_MAX, peakBasis * BT_RECO_MIN_FRAC));
+            if (btFloor > test.recommended) {
+                test.recommended = btFloor;
+                els.recoThr.textContent = (provisional ? '仮 ' : '') + recoSensDisplay(test.recommended, lowInputTuned) + '％';
+            }
+        }
+    }
+
     // ③ 二重反応防止：ストローク波形が反応ラインを超えている時間幅をベースに算出する。
     //    おすすめ = min( 超過時間 × 1.2, 最短音符間隔 × 0.45 )。
     //    最短音符間隔の上限で、将来のBPUP・16分でも次の音符を潰さないようにする。
@@ -5641,6 +5670,10 @@ function updateReco() {
         // 計測できない場合は従来どおり（二重反応があれば少し長め）
         recoCool = mic.cooldownMs;
         if (test.strokeDoubleCount > 0 && mic.cooldownMs < 250) recoCool = Math.min(400, mic.cooldownMs + 80);
+    }
+    // Bluetoothイヤホンで二重反応が出ていたら、二重反応防止をやや長めの下限へ（v0.9.85）。安全範囲(≤400)内。
+    if (isBluetoothHeadphone() && (test.strokeDoubleCount || 0) > 0) {
+        recoCool = Math.max(recoCool, Math.min(400, 220));
     }
     test.recoCooldown = recoCool;
     els.recoCooldown.textContent = recoCool + 'ms';
@@ -5728,6 +5761,28 @@ function updateReco() {
             els.autoEarphoneHint.textContent = 'イヤホン接続の可能性があります。うまく判定されない場合は、入力タイプを「イヤホン接続」に変更してください。';
         }
         els.autoEarphoneHint.classList.toggle('hidden', !showHint);
+    }
+
+    if (MIC_DEBUG) {
+        const sp = test.strokePeaks || [];
+        const avg = sp.length ? sp.reduce((a, b) => a + b, 0) / sp.length : null;
+        console.debug('[mic-test] finalize', {
+            inputType: getMicInputType(),
+            headphoneType: getHeadphoneType(),
+            isBluetooth: isBluetoothHeadphone(),
+            currentThreshold: +mic.threshold.toFixed(4),
+            lowInput, lowInputTuned,
+            strokeMin: minStroke != null ? +minStroke.toFixed(4) : null,
+            strokeMax: maxStroke != null ? +maxStroke.toFixed(4) : null,
+            strokeMaxRaw: maxStrokeRaw != null ? +maxStrokeRaw.toFixed(4) : null,
+            strokeAvg: avg != null ? +avg.toFixed(4) : null,
+            noiseP95: +(test.noiseP95 || 0).toFixed(4),
+            noiseMax: +(test.noiseMax || 0).toFixed(4),
+            maxClick: +maxClick.toFixed(4),
+            recommendedThreshold: test.recommended != null ? +test.recommended.toFixed(4) : null,
+            recoCooldownMs: test.recoCooldown,
+            doubleCount: test.strokeDoubleCount || 0,
+        });
     }
 
     updateTestDetail(maxClick, minStroke, maxStroke, clickReacted, canApply, maxStrokeRaw, provisional);
