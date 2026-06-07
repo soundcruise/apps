@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.85';
+const RHYTHM_CRUISE_VERSION = '0.9.86';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -5173,6 +5173,10 @@ const TEST_RESCUE_STROKE_CEIL = 0.010;
    「最低でもこの割合の高さ」にラインを引き上げる。検出は実測ピークの半分なので、普通のストロークは拾える。
    有線/通常マイク/MacのBluetoothには影響が小さい（元々ライン位置が妥当なら据え置き）。 */
 const BT_RECO_MIN_FRAC = 0.5;
+const BT_STRONG_RAW_MAX = 0.03;      // この程度以上なら「入力は十分ある」とみなし低入力扱いを避ける
+const BT_STRONG_RAW_P95 = 0.025;
+const BT_STRONG_RAW_AVG = 0.02;
+const BT_STRONG_DISPLAY_FRAC = 0.85; // 既存反応ライン基準のメーターが大きく振れている状態
 /* マイク反応テストの開発用デバッグログ（本番は false）。true のときだけ finalize 時に診断を出す。 */
 const MIC_DEBUG = false;
 /* 自動再テストは最大1回。短い案内のあと自動でテストを再開する。 */
@@ -5562,12 +5566,30 @@ function updateReco() {
     els.testReco.classList.remove('hidden');
 
     const maxStroke = test.maxStrokePeak; // 全ストローク最大（検出分）
+    const strokeSamples = (test.strokePeaks || []).filter((v) => typeof v === 'number' && isFinite(v)).sort((a, b) => a - b);
+    const strokeAvg = strokeSamples.length ? strokeSamples.reduce((a, b) => a + b, 0) / strokeSamples.length : null;
+    const strokeP95 = strokeSamples.length ? strokeSamples[Math.min(strokeSamples.length - 1, Math.floor(strokeSamples.length * 0.95))] : null;
+    const displaySamples = strokeSamples.map((v) => micDisplayFrac(v));
+    const strokeDisplayMax = displaySamples.length ? displaySamples[displaySamples.length - 1] : null;
+    const strokeDisplayAvg = displaySamples.length ? displaySamples.reduce((a, b) => a + b, 0) / displaySamples.length : null;
     const lowInputMax = (maxStroke != null) ? maxStroke : maxStrokeRaw;
     const hasAnyInput = (maxStrokeRaw != null && maxStrokeRaw > 0);
-    const lowInput = hasAnyInput && (
+    let lowInput = hasAnyInput && (
         (lowInputMax != null && lowInputMax < 0.035) ||
         (minStroke != null && minStroke < 0.025)
     );
+    const lowInputBeforeBtOverride = lowInput;
+    // iPhone + Bluetoothでは、現在の反応ライン基準のメーターが大きく振れていても、
+    // 「イヤホン接続」だけで低入力プロファイルへ寄ることがあった（v0.9.86）。
+    // 実測ピーク/平均、または表示メーター上の反応量が十分なら「小さい入力」ではなく
+    // 「AGCで持ち上がった入力」とみなし、低入力向けの高感度計算を使わない。
+    const btInputLooksStrong = isBluetoothHeadphone() && hasAnyInput && (
+        (maxStrokeRaw != null && maxStrokeRaw >= BT_STRONG_RAW_MAX) ||
+        (strokeP95 != null && strokeP95 >= BT_STRONG_RAW_P95) ||
+        (strokeAvg != null && strokeAvg >= BT_STRONG_RAW_AVG) ||
+        (strokeDisplayMax != null && strokeDisplayMax >= BT_STRONG_DISPLAY_FRAC)
+    );
+    if (btInputLooksStrong) lowInput = false;
     // 救済(rescueHighSens)やイヤホン接続で拾った結果も低入力として扱い、おすすめ表示・手動プロファイルをそろえる。
     const lowInputTuned = (isLowInputTestEnv() || shouldUseLowInputDisplayProfile()) && lowInput;
     test.lowInputTuned = lowInputTuned; // 詳細表示(updateTestDetail)で表示スケールを合わせるため保持
@@ -5645,10 +5667,17 @@ function updateReco() {
     //     ・結果波形がMAX張り付き ・二重反応 が起きやすい。実測ピークの一定割合を下限にして自然な高さへ。
     //     UA分岐はせず、入力タイプ（Bluetoothイヤホン）と実測値だけで判断する。判定スケール/表示は変えない。
     if (isBluetoothHeadphone() && test.recommended != null) {
-        const peakBasis = (minStroke != null) ? minStroke
-            : (maxStrokeRaw != null ? maxStrokeRaw : null);
-        if (peakBasis != null && peakBasis > THR_MIN) {
-            const btFloor = Math.max(THR_MIN, Math.min(THR_MAX, peakBasis * BT_RECO_MIN_FRAC));
+        // v0.9.85では minStroke 基準だったため、1拍だけ小さい入力があると下限が低くなりやすかった。
+        // v0.9.86では p95/平均/最大も見て、実際に大きく反応している環境ではラインを自然な高さへ寄せる。
+        const btFloorCandidates = [
+            minStroke != null ? minStroke * 0.5 : null,
+            strokeP95 != null ? strokeP95 * BT_RECO_MIN_FRAC : null,
+            strokeAvg != null ? strokeAvg * 0.55 : null,
+            maxStrokeRaw != null ? maxStrokeRaw * 0.4 : null,
+            lowInputNoiseLine,
+        ].filter((v) => typeof v === 'number' && isFinite(v) && v > 0);
+        if (btFloorCandidates.length) {
+            const btFloor = Math.max(THR_MIN, Math.min(THR_MAX, Math.max(...btFloorCandidates)));
             if (btFloor > test.recommended) {
                 test.recommended = btFloor;
                 els.recoThr.textContent = (provisional ? '仮 ' : '') + recoSensDisplay(test.recommended, lowInputTuned) + '％';
@@ -5708,6 +5737,10 @@ function updateReco() {
         els.recoMsg.className = 'test-reco-msg ng';
         els.recoMsg.classList.remove('hidden');
         els.recoMsg.textContent = 'ストローク音がほとんど入っていません。もう少し大きめに弾くか、マイクに近づけてください。';
+    } else if (btInputLooksStrong) {
+        els.recoMsg.className = 'test-reco-msg';
+        els.recoMsg.classList.remove('hidden');
+        els.recoMsg.textContent = '入力は十分あります。Bluetoothイヤホン向けに、反応ラインを少し高めに設定します（' + lineTxt + '）。';
     } else if (lowInputTuned) {
         els.recoMsg.className = 'test-reco-msg';
         els.recoMsg.classList.remove('hidden');
@@ -5771,11 +5804,16 @@ function updateReco() {
             headphoneType: getHeadphoneType(),
             isBluetooth: isBluetoothHeadphone(),
             currentThreshold: +mic.threshold.toFixed(4),
-            lowInput, lowInputTuned,
+            lowInputBeforeBtOverride, lowInput, lowInputTuned,
+            btInputLooksStrong,
             strokeMin: minStroke != null ? +minStroke.toFixed(4) : null,
             strokeMax: maxStroke != null ? +maxStroke.toFixed(4) : null,
             strokeMaxRaw: maxStrokeRaw != null ? +maxStrokeRaw.toFixed(4) : null,
             strokeAvg: avg != null ? +avg.toFixed(4) : null,
+            strokeP95: strokeP95 != null ? +strokeP95.toFixed(4) : null,
+            displayedMeterMax: strokeDisplayMax != null ? +strokeDisplayMax.toFixed(3) : null,
+            displayedMeterAvg: strokeDisplayAvg != null ? +strokeDisplayAvg.toFixed(3) : null,
+            strokeRawPeaks: sp.map((v) => +v.toFixed(4)),
             noiseP95: +(test.noiseP95 || 0).toFixed(4),
             noiseMax: +(test.noiseMax || 0).toFixed(4),
             maxClick: +maxClick.toFixed(4),
@@ -5872,6 +5910,15 @@ function applyReco() {
         mic.threshold = Math.max(THR_MIN, Math.min(THR_MAX, test.recommended));
         // 低入力テスト由来かを記録。手動設定の表示%もテスト結果と同じ低入力スケールにそろえる。
         mic.lowInputProfile = !!test.lowInputTuned;
+        if (MIC_DEBUG) {
+            console.debug('[mic-test] applyReco', {
+                savedThreshold: +mic.threshold.toFixed(4),
+                lowInputProfile: mic.lowInputProfile,
+                inputType: getMicInputType(),
+                headphoneType: getHeadphoneType(),
+                isBluetooth: isBluetoothHeadphone(),
+            });
+        }
     }
     if (test.recoClickVolume != null) state.clickVolume = test.recoClickVolume;
     if (test.recoCooldown != null) mic.cooldownMs = test.recoCooldown;
