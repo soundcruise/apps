@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.92">
+    <link rel="stylesheet" href="theme.css?v=0.9.95">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -141,8 +141,24 @@
         <!-- ══════════ 設定画面（マイク感度など） ══════════ -->
         <section id="screen-settings" class="screen hidden">
             <header class="settings-head">
-                <h2>マイク設定</h2>
+                <h2>設定</h2>
             </header>
+
+            <!-- 設定タブ：マイク設定 / 画面タップ設定（v0.9.95） -->
+            <div class="settings-tabs" id="settings-tabs">
+                <button type="button" class="settings-tab is-active" id="settings-tab-mic">マイク設定</button>
+                <button type="button" class="settings-tab" id="settings-tab-tap">画面タップ設定</button>
+            </div>
+
+            <!-- 画面タップ設定タブ（v0.9.95）：画面タップでプレイする人向け。マイク調整は不要。 -->
+            <div class="settings-card hidden" id="tap-settings-card">
+                <div class="cal-head">画面タップ設定</div>
+                <p class="setting-note" style="margin-top:0;">画面をタップして判定する場合は、マイク調整は不要です。イヤホンを使う場合だけ、音と画面のズレを合わせます。</p>
+                <p class="cal-status" id="tap-current-offset" style="color:#6ed28c;font-weight:700;">現在のタップ補正：0ms</p>
+                <button type="button" class="btn-primary" id="tap-no-correction" style="width:100%;margin-top:10px;">補正なしで使う</button>
+                <button type="button" class="btn-primary" id="tap-bt-standard" style="width:100%;margin-top:10px;">Bluetoothイヤホン標準で使う</button>
+                <button type="button" class="btn-mini" id="tap-do-correction" style="width:100%;margin-top:10px;padding:13px;border:1px solid rgba(255,159,28,0.45);border-radius:10px;background:rgba(255,159,28,0.08);font-weight:700;">音ズレ補正をする</button>
+            </div>
 
             <!-- マイク設定の入口：[簡易設定][詳細テスト]を横並び／下に保存プリセット・現在の設定を見る -->
             <div class="settings-card" id="settings-chooser">
@@ -402,6 +418,8 @@
                 </div>
                 <!-- 「ここは終わった」と分かる導線。押したら補正系完了扱いで実践テストへ -->
                 <button type="button" class="btn-primary" id="hp-proceed-btn" style="width:100%;margin-top:12px;">この音ズレ設定で進む</button>
+                <!-- 画面タップ設定タブから使う場合の導線（v0.9.95）：保存してアプリTOPへ戻る（テストへは進まない） -->
+                <button type="button" class="btn-primary hidden" id="hp-tap-use-btn" style="width:100%;margin-top:12px;">この音ズレ設定で使う</button>
             </div>
 
             <!-- 補正系（有線イヤホン時の案内）。有線は補正カードを出さず、補正なし（0ms）が基本の旨だけ伝える -->
@@ -538,7 +556,7 @@
             </div>
 
             <p class="setting-note warn hidden" id="settings-done-hint" style="text-align:center;">最終確認テストまで完了してください。</p>
-            <div class="settings-actions">
+            <div class="settings-actions" id="settings-actions">
                 <button class="btn-mini" id="settings-top-btn">マイク設定TOP</button>
                 <button class="btn-primary settings-back" id="settings-back-btn">完了</button>
             </div>
@@ -650,7 +668,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.94"></script>
+    <script src="script.js?v=0.9.95"></script>
 </body>
 
 </html>

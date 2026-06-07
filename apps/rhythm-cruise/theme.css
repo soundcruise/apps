@@ -2558,6 +2558,37 @@ body.results-open #settings-btn {
     color: var(--secondary-color);
 }
 
+/* 設定タブ：マイク設定 / 画面タップ設定（v0.9.95） */
+.settings-tabs {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    margin: 2px 0 12px;
+}
+
+.settings-tab {
+    flex: 1 1 0;
+    padding: 12px 10px;
+    border-radius: 12px;
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 0.95rem;
+    color: inherit;
+    border: 2px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.04);
+    cursor: pointer;
+}
+
+.settings-tab.is-active {
+    border-color: #ff9f1c;
+    background: rgba(255, 159, 28, 0.14);
+    color: var(--secondary-color);
+}
+
+.settings-tab:active {
+    transform: scale(0.98);
+}
+
 .settings-sub {
     margin-top: 8px;
     font-size: 0.85rem;

@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.94';
+const RHYTHM_CRUISE_VERSION = '0.9.95';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -499,6 +499,17 @@ const els = {
     comboBadge: $('combo-badge'),
     // 設定画面
     homeSettingsBtn: $('home-settings-btn'),
+    // 設定タブ（v0.9.95）：マイク設定 / 画面タップ設定
+    settingsTabs: $('settings-tabs'),
+    settingsTabMic: $('settings-tab-mic'),
+    settingsTabTap: $('settings-tab-tap'),
+    tapSettingsCard: $('tap-settings-card'),
+    tapCurrentOffset: $('tap-current-offset'),
+    tapNoCorrection: $('tap-no-correction'),
+    tapBtStandard: $('tap-bt-standard'),
+    tapDoCorrection: $('tap-do-correction'),
+    hpTapUseBtn: $('hp-tap-use-btn'),
+    settingsActions: $('settings-actions'),
     // ステップ式UI（v0.9.59）：初期2択・設定一覧・ステップ制御
     settingsChooser: $('settings-chooser'),
     settingsViewCurrent: $('settings-view-current'),
@@ -1589,8 +1600,9 @@ function registerHit(perfNow, source, direction) {
     const dir = direction || (source === 'mic' ? 'stroke' : 'down');
     // 譜面・クリックと同じオーディオ時計で判定（perf時計との累積ドリフトを避ける）。
     // マイク補正(timingOffsetMs)は検出時刻に加算（負＝早める）。
+    // タップは「聞こえたクリック音」基準なので、イヤホン出力遅延ぶん(tapOutputOffsetMs)を差し引く（v0.9.95）。
     const audioMs = gameAudioMs();
-    const hitTime = audioMs + ((source === 'mic') ? micJudgeOffsetMs() : 0);
+    const hitTime = audioMs + ((source === 'mic') ? micJudgeOffsetMs() : -tapOutputOffsetMs());
     const bi = state.beatInterval;
     const diffTo = (b) => hitTime - (state.T0 + b * bi); // 符号付きズレ（負＝早い）
     let i = Math.round((hitTime - state.T0) / bi);
@@ -2246,6 +2258,16 @@ function isBluetoothHeadphone() { return isHeadphoneInput() && getHeadphoneType(
    イヤホン音ズレ補正 headphoneOutputOffsetMs はここに含めない（判定には反映しない）。 */
 function micJudgeOffsetMs() {
     return mic.timingOffsetMs + (isBluetoothHeadphone() ? (mic.bluetoothMicOffsetMs || 0) : 0);
+}
+/* タップモード専用の出力ズレ補正（ms・v0.9.95）。
+   タップは「イヤホンから聞こえるクリック音」に合わせて押すモード。Bluetooth等でイヤホン音が遅れて
+   出る分（イヤホン音ズレ補正 headphoneOutputOffsetMs ≒ 出力遅延）を、タップ判定時刻から差し引くことで、
+   「音に合わせたタップ」がJUSTになるようにする。
+   ・「画面タップ設定」タブで設定した値（headphoneOutputOffsetMs）をそのまま使う。タップ専用なので
+     マイク入力タイプ（通常/イヤホン）に依存させない。未設定なら0msで実質無効。
+   ・マイク判定(micJudgeOffsetMs / bluetoothMicOffsetMs)やストロークモード(source==='mic')には一切影響しない。 */
+function tapOutputOffsetMs() {
+    return mic.headphoneOutputOffsetMs || 0;
 }
 /* offset候補が有効範囲内ならその数値、無効なら fallback を返す */
 function validHpOffset(x, fallback) {
@@ -3704,10 +3726,12 @@ function renderBtCalResult(r) {
         + 'background:linear-gradient(180deg,#ff9f1c,#ff8c00);color:#1a130a;font-weight:800;font-size:1rem;cursor:pointer;';
     const sub = 'width:100%;padding:12px;margin-top:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.28);'
         + 'background:rgba(255,255,255,0.05);color:inherit;font-weight:700;cursor:pointer;';
+    // 自動微調整を適用した場合は、最新値（appliedOffset）を「現在のマイク遅れ補正」に表示する（v0.9.95）
+    const curShown = r.autoFineApplied ? r.appliedOffset : r.cur;
     const rows =
         '<div class="cal-result-row"><span>有効入力</span><b>' + r.valid + ' / ' + BT_PLAY_BEATS + '</b></div>' +
         '<div class="cal-result-row"><span>平均ズレ</span><b>' + avgTxt + '</b></div>' +
-        '<div class="cal-result-row"><span>現在のマイク遅れ補正</span><b>' + sign(r.cur) + '</b></div>';
+        '<div class="cal-result-row"><span>現在のマイク遅れ補正</span><b>' + sign(curShown) + '</b></div>';
     let head, actions;
     if (!r.enoughInput) {
         head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">入力が少なくて測れませんでした。クリックに合わせて、もう一度はっきり手拍子してください。</p>';
@@ -4049,6 +4073,10 @@ function applySettingsToUI() {
    「次へ」は廃止：選択・適用・完了するたびに次の項目を自動で出す（setupProgress で制御）。
    重要：判定ロジック・補正値・STAGE側には一切手を入れない（見せ方の制御のみ）。 */
 let settingsView = 'chooser';
+/* 設定タブ（v0.9.95）：'mic'（既存マイク設定フロー）/ 'tap'（画面タップ設定）。
+   tapView は画面タップ設定タブ内のサブ表示：'home'（3ボタン）/ 'cal'（イヤホン音ズレ補正カードを再利用）。 */
+let settingsTab = 'mic';
+let tapView = 'home';
 /* 今回の「もう一度テストする」フローでユーザーが選択済み/完了したかの進捗（保存値とは別物）
    v0.9.62：1ステップずつ進むウィザード。各ステップの完了フラグで「いま出すカード」を1つだけ決める。
    correctionDone（補正系完了：適用 or スキップ or 進む）を追加。 */
@@ -4213,6 +4241,16 @@ function showDoneHint() {
 }
 
 function renderSettingsView() {
+    // タブの点灯（v0.9.95）
+    if (els.settingsTabMic) els.settingsTabMic.classList.toggle('is-active', settingsTab === 'mic');
+    if (els.settingsTabTap) els.settingsTabTap.classList.toggle('is-active', settingsTab === 'tap');
+    if (settingsTab === 'tap') { renderTapSettingsView(); return; }
+    // マイク設定タブ：画面タップ設定カードは隠し、フッター（マイク設定TOP/完了）を表示
+    if (els.tapSettingsCard) els.tapSettingsCard.style.display = 'none';
+    if (els.settingsActions) els.settingsActions.style.display = '';
+    // hp-cal-card のタップ用ボタン表示を通常（マイクフロー）へ戻す
+    if (els.hpProceedBtn) els.hpProceedBtn.style.display = '';
+    if (els.hpTapUseBtn) els.hpTapUseBtn.style.display = 'none';
     const steps = (settingsView === 'steps');
     if (els.settingsChooser) els.settingsChooser.classList.toggle('hidden', settingsView !== 'chooser');
     if (els.settingsSimpleCard) els.settingsSimpleCard.classList.toggle('hidden', settingsView !== 'simple');
@@ -4234,6 +4272,76 @@ function renderSettingsView() {
     }
     refreshSegmentSelections();
     updateDoneButtonState();
+}
+
+/* 画面タップ設定タブの表示（v0.9.95）。マイク設定系のカード/フッターは全部隠す。
+   tapView==='home'：3ボタンのシンプルUI。tapView==='cal'：既存イヤホン音ズレ補正カードを再利用。 */
+function renderTapSettingsView() {
+    if (els.settingsChooser) els.settingsChooser.classList.add('hidden');
+    if (els.settingsSimpleCard) els.settingsSimpleCard.classList.add('hidden');
+    if (els.settingsSummaryCard) els.settingsSummaryCard.classList.add('hidden');
+    allStepCards().forEach((el) => { if (el) el.style.display = 'none'; });
+    if (els.settingsStepsSummary) els.settingsStepsSummary.style.display = 'none';
+    if (els.settingsStepsProgress) els.settingsStepsProgress.style.display = 'none';
+    if (els.ptOpenManual) els.ptOpenManual.style.display = 'none';
+    if (els.settingsDoneHint) els.settingsDoneHint.classList.add('hidden');
+    if (els.settingsActions) els.settingsActions.style.display = 'none'; // 既存フッター（マイク設定TOP/完了）は使わない
+    if (tapView === 'cal') {
+        // 既存イヤホン音ズレ補正カードを再利用（レーン/JUST/BPM/スライダー/補正なし/標準/補正テスト開始）
+        if (els.tapSettingsCard) els.tapSettingsCard.style.display = 'none';
+        if (els.hpCalCard) { els.hpCalCard.classList.remove('hidden'); els.hpCalCard.style.display = ''; }
+        // タップ用は「この音ズレ設定で使う」を出し、マイクフロー用「この音ズレ設定で進む」は隠す
+        if (els.hpProceedBtn) els.hpProceedBtn.style.display = 'none';
+        if (els.hpTapUseBtn) els.hpTapUseBtn.style.display = '';
+        // スライダー表示を現在値へ同期
+        const v = mic.headphoneOutputOffsetMs || 0;
+        if (els.hpOffset) els.hpOffset.value = v;
+        if (els.hpOffsetVal) els.hpOffsetVal.textContent = v + 'ms';
+    } else {
+        if (els.tapSettingsCard) els.tapSettingsCard.style.display = '';
+        if (els.hpCalCard) els.hpCalCard.style.display = 'none';
+        if (els.hpProceedBtn) els.hpProceedBtn.style.display = '';
+        if (els.hpTapUseBtn) els.hpTapUseBtn.style.display = 'none';
+        updateTapCurrentOffsetDisplay();
+    }
+}
+
+/* 画面タップ設定ホームの「現在のタップ補正」表示を更新（v0.9.95）。 */
+function updateTapCurrentOffsetDisplay() {
+    if (els.tapCurrentOffset) els.tapCurrentOffset.textContent = '現在のタップ補正：' + (mic.headphoneOutputOffsetMs || 0) + 'ms';
+}
+
+/* タブ切替（v0.9.95）。中断確認は呼び出し側（guardMicSetupInterruption）で行う。 */
+function setSettingsTab(tab) {
+    const next = (tab === 'tap') ? 'tap' : 'mic';
+    if (next === settingsTab && !(next === 'tap' && tapView === 'cal')) { renderSettingsView(); return; }
+    settingsTab = next;
+    tapView = 'home'; // タブを切り替えたら必ずホームから
+    renderSettingsView();
+}
+
+/* 画面タップ設定：補正値を適用して保存し、アプリ全体TOPへ戻る（v0.9.95）。
+   タップ判定で使うのは headphoneOutputOffsetMs。setHeadphoneOffset で選択中の種類の保存先と
+   互換用 headphoneOutputOffsetMs の両方へ書き、再読込でも保持されるようにする。 */
+function applyTapOutputOffsetAndClose(v) {
+    if (hpCal.active) stopHeadphoneCal(); // 念のためテスト中なら停止
+    setHeadphoneOffset(v); // 値反映＋スライダー同期＋saveSettings
+    closeSettings();       // アプリ全体のTOPページへ戻る（プリセット/手動設定と同じ導線）
+}
+
+/* 画面タップ設定「音ズレ補正をする」：イヤホン音ズレ補正カードだけを表示する（v0.9.95）。 */
+function openTapCorrection() {
+    tapView = 'cal';
+    renderSettingsView();
+    scrollToSettingsEl(els.hpCalCard);
+}
+
+/* 画面タップ設定の音ズレ補正カードで「この音ズレ設定で使う」：保存してアプリ全体TOPへ（v0.9.95）。
+   マイクフローの completeCorrectionStep（BT補正/最終確認テストへ進む）には入らない。 */
+function useTapCorrection() {
+    if (hpCal.active || hpCal.timer || hpCal.lightTimers.length) stopHeadphoneCal();
+    saveSettings();
+    closeSettings();
 }
 
 /* ステップ表示：いまのアクティブステップのカードだけ出し、前の完了ステップは要約に畳む */
@@ -4961,6 +5069,8 @@ function openSettings(from) {
     if (mic.on) enterTestMode();   // マイクON中なら実音モニターを有効化
     setPresetSaveMsg('');          // 前回の「保存しました」を残さない
     setupProgress = freshSetupProgress(); // 開くたびに初期化
+    settingsTab = 'mic';                   // 開くたびにマイク設定タブから（v0.9.95）
+    tapView = 'home';
     wizardEditing = null;
     practiceResultOk = false;
     clearManualSnapshot(); // 設定を開き直したらキャンセル用スナップショットも初期化（v0.9.89）
@@ -7126,6 +7236,14 @@ function bind() {
     if (els.calSkipBtn) els.calSkipBtn.addEventListener('click', completeCorrectionStep);
     if (els.hpProceedBtn) els.hpProceedBtn.addEventListener('click', completeCorrectionStep);
     if (els.wiredProceedBtn) els.wiredProceedBtn.addEventListener('click', completeCorrectionStep);
+    // 設定タブ（v0.9.95）：切替時はマイク設定の未完了/テスト中なら確認ポップ
+    if (els.settingsTabMic) els.settingsTabMic.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsTab('mic')));
+    if (els.settingsTabTap) els.settingsTabTap.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsTab('tap')));
+    // 画面タップ設定タブの各ボタン（v0.9.95）
+    if (els.tapNoCorrection) els.tapNoCorrection.addEventListener('click', () => applyTapOutputOffsetAndClose(0));
+    if (els.tapBtStandard) els.tapBtStandard.addEventListener('click', () => applyTapOutputOffsetAndClose(HP_BLUETOOTH_STANDARD_OFFSET));
+    if (els.tapDoCorrection) els.tapDoCorrection.addEventListener('click', openTapCorrection);
+    if (els.hpTapUseBtn) els.hpTapUseBtn.addEventListener('click', useTapCorrection);
     // プリセット保存モーダル（v0.9.80）
     if (els.presetModalSave) els.presetModalSave.addEventListener('click', savePresetFromModal);
     if (els.presetModalCancel) els.presetModalCancel.addEventListener('click', closePresetModal);
