@@ -2726,6 +2726,56 @@ body.results-open #settings-btn {
     letter-spacing: 0.02em;
 }
 
+/* ── 各カードの「今やること」行動指示（v0.9.90）──────────────────
+   説明文ではなく、いま何をすればよいかを一目で伝える短い指示。 */
+.do-now {
+    margin: 2px 0 8px;
+    font-size: 1.06rem;
+    font-weight: 800;
+    color: #ffd479;
+    letter-spacing: 0.02em;
+    line-height: 1.45;
+}
+
+.do-now-sub {
+    margin: -4px 0 8px;
+    font-size: 0.84rem;
+    font-weight: 600;
+    opacity: 0.85;
+}
+
+/* 詳細説明の折りたたみ（＋詳しい説明）。普段は閉じておく。 */
+.card-help {
+    margin: 6px 0 4px;
+}
+
+.card-help>summary {
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.85rem;
+    font-weight: 700;
+    opacity: 0.85;
+    padding: 2px 0;
+}
+
+.card-help>summary::-webkit-details-marker {
+    display: none;
+}
+
+.card-help>summary::before {
+    content: "＋ ";
+    color: #ff9f1c;
+    font-weight: 800;
+}
+
+.card-help[open]>summary::before {
+    content: "－ ";
+}
+
+.card-help .setting-note {
+    margin-top: 8px;
+}
+
 /* ── 実施済みバッジの強調（v0.9.80）─────────────────────────── */
 .status-pill.done {
     color: #6ed28c;
