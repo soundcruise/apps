@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.90';
+const RHYTHM_CRUISE_VERSION = '0.9.91';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -390,12 +390,10 @@ const els = {
     // イヤホンの音ズレ補正（v0.9.50）
     hpCalCard: $('hp-cal-card'),
     hpCalBtn: $('hp-cal-btn'),
+    hpCalLaneWrap: $('hp-cal-lane-wrap'),
+    hpCalLaneCanvas: $('hp-cal-lane-canvas'),
     hpOffset: $('hp-offset'),
     hpOffsetVal: $('hp-offset-val'),
-    hpDot0: $('hp-dot-0'),
-    hpDot1: $('hp-dot-1'),
-    hpDot2: $('hp-dot-2'),
-    hpDot3: $('hp-dot-3'),
     hpTypeCard: $('hp-type-card'),
     hpTypeWired: $('hp-type-wired'),
     hpTypeBluetooth: $('hp-type-bluetooth'),
@@ -438,6 +436,7 @@ const els = {
     autoEarphoneHint: $('auto-earphone-hint'),
     testInputNote: $('test-input-note'),
     testCardNote: $('test-card-note'),
+    testDoNow: $('test-do-now'),
     tapArea: $('tap-area'),
     tapLayoutToggle: $('tap-layout-toggle'),
     layoutLrBtn: $('layout-lr-btn'),
@@ -680,6 +679,30 @@ function navBack() {
     if (!els.settings.classList.contains('hidden')) { closeSettings(); return; }
     // 練習画面（結果画面含む）→ ホーム
     goTop();
+}
+
+/* ── テスト中断ガード（v0.9.91）─────────────────────────────
+   いずれかのテスト（マイク反応 / 通常マイク遅れ補正 / イヤホン音ズレ補正 /
+   Bluetoothマイク遅れ補正 / 最終確認テスト）が実行中のまま、画面遷移や設定を閉じる操作が
+   行われた場合に、中断するか確認する。完了している場合は確認しない。 */
+function anyTestRunning() {
+    return !!(test.flow || cal.active || hpCal.active || bt.active || pt.active);
+}
+/* 実行中のテストをすべて停止（それぞれの既存停止処理を使う・新規停止ロジックは作らない） */
+function stopAllRunningTests() {
+    if (test.flow) abortMicTest();
+    if (cal.active) cancelCalibration();
+    if (hpCal.active) stopHeadphoneCal();
+    if (bt.active) stopBtCal();
+    if (pt.active) stopPracticeTest();
+}
+/* テスト実行中なら確認 → OKで停止してから action を実行。未実行ならそのまま action。 */
+function guardTestInterruption(action) {
+    if (anyTestRunning()) {
+        if (!window.confirm('テストがまだ完了していません。\n中断して移動しますか？')) return;
+        stopAllRunningTests();
+    }
+    action();
 }
 
 function openStage(n) {
@@ -2178,7 +2201,8 @@ const HP_OFFSET_MAX = 200;        // スライダー上限(ms)：音が光より
 const HP_OFFSET_DEFAULT = 0;      // 互換用の既定（補正なし）
 const HP_CAL_BEAT_MS = 600;       // 補正テストのテンポ（100BPM相当）
 const HP_CAL_LEAD_MS = 80;        // クリックを少し先に鳴らし、負offsetでも丸を先に光らせられるようにする土台
-const hpCal = { active: false, timer: 0, beat: 0, lightTimers: [] };
+const hpCal = { active: false, timer: 0, beat: 0, lightTimers: [], raf: 0, flowStartPerf: 0 };
+let hpLane = { ctx: null, w: 0, h: 0 }; // イヤホン音ズレ補正の流れるレーン（v0.9.91）
 
 /* イヤホン種類の定義・種類別の目安値・説明文 */
 const HP_TYPES = ['wired', 'bluetooth'];
@@ -2231,40 +2255,87 @@ function hpClick(accent) {
     osc.stop(t0 + 0.09);
 }
 
-function hpDotEls() { return [els.hpDot0, els.hpDot1, els.hpDot2, els.hpDot3]; }
-
-function hpDotResting(idx) { return idx === 0 ? 'rgba(46,204,113,0.25)' : 'rgba(253,246,238,0.16)'; }
-
-function lightHpDot(i) {
-    hpDotEls().forEach((d, idx) => {
-        if (!d) return;
-        if (idx === i) {
-            d.style.background = (i === 0) ? '#2ecc71' : '#ff9f1c';
-            d.style.boxShadow = '0 0 12px ' + ((i === 0) ? 'rgba(46,204,113,0.85)' : 'rgba(255,159,28,0.85)');
-        } else {
-            d.style.background = hpDotResting(idx);
-            d.style.boxShadow = 'none';
-        }
-    });
+/* イヤホン音ズレ補正レーン（v0.9.91）：STAGE/最終確認テスト風に、右→左へ4拍の丸が流れる。
+   丸の中心線がJUSTラインに重なる瞬間にクリック音が鳴る設計。ユーザーは「丸がJUSTに重なる瞬間」と
+   「イヤホンから聞こえるクリック音」が合っているかを見て、スライダーで丸の表示タイミングを調整する。
+   STAGE本体の描画・判定には一切触れない専用関数。 */
+function fitHpLane() {
+    if (!els.hpCalLaneCanvas) return;
+    els.hpCalLaneCanvas.style.width = '100%';
+    els.hpCalLaneCanvas.style.height = PT_LANE_HEIGHT + 'px';
+    hpLane = fitOne(els.hpCalLaneCanvas);
 }
 
-function clearHpDots() {
-    hpDotEls().forEach((d, idx) => {
-        if (!d) return;
-        d.style.background = hpDotResting(idx);
-        d.style.boxShadow = 'none';
-    });
+/* 丸＋中心の縦線を描く（1拍目だけ色違い） */
+function drawHpDotLane(ctx, x, yc, accent) {
+    const r = accent ? 15 : 13;
+    const fill = accent ? 'rgba(46,204,113,0.92)' : 'rgba(255,159,28,0.92)';
+    const stroke = accent ? 'rgba(46,204,113,0.55)' : 'rgba(255,159,28,0.5)';
+    // 丸の中心を通る縦線（この線がJUSTラインに重なる瞬間に合わせる）
+    ctx.save();
+    ctx.strokeStyle = accent ? 'rgba(46,204,113,0.6)' : 'rgba(253,246,238,0.45)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x, yc - r - 22);
+    ctx.lineTo(x, yc + r + 22);
+    ctx.stroke();
+    ctx.restore();
+    // 丸本体
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, yc, r, 0, Math.PI * 2);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = stroke;
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawHpLane(tNow) {
+    if (!hpLane || !hpLane.ctx) return;
+    const { ctx, w, h } = hpLane;
+    ctx.clearRect(0, 0, w, h);
+    const yc = h * 0.5;
+    const beatPx = Math.max(64, Math.min(120, w * 0.22));
+    const justX = w * 0.3;
+    const ppm = beatPx / HP_CAL_BEAT_MS;
+    const offset = mic.headphoneOutputOffsetMs || 0; // 丸の表示タイミング補正（音と合わせる用）
+    // 中央ガイド（横線）
+    ctx.strokeStyle = 'rgba(253,246,238,0.08)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke();
+    // 流れる丸：丸 k は flowStartPerf + k*beat + offset に中心線がJUSTへ重なる
+    const rel = tNow - hpCal.flowStartPerf;
+    const kCenter = Math.round((rel - offset) / HP_CAL_BEAT_MS);
+    for (let k = kCenter - 2; k <= kCenter + 6; k++) {
+        if (k < 0) continue;
+        const crossPerf = k * HP_CAL_BEAT_MS + offset; // flowStartPerf基準（rel と同じ軸）
+        const x = justX + (crossPerf - rel) * ppm;
+        if (x < -40 || x > w + 40) continue;
+        drawHpDotLane(ctx, x, yc, (k % 4 === 0));
+    }
+    // JUSTライン（縦・静的）
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,159,28,0.55)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(justX, h * 0.08); ctx.lineTo(justX, h * 0.92); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = 'rgba(255,159,28,0.75)';
+    ctx.font = '700 11px Outfit, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('JUST', justX, h * 0.99);
+}
+
+function hpLoop() {
+    if (!hpCal.active) return;
+    drawHpLane(performance.now());
+    hpCal.raf = requestAnimationFrame(hpLoop);
 }
 
 function hpBeatTick() {
     const i = hpCal.beat % 4;
-    const accent = (i === 0);
-    // クリックは常にLEAD後。丸は LEAD+offset 後（offsetが負でもLEADぶん余裕があり0未満にならない）
-    const lightDelay = Math.max(0, HP_CAL_LEAD_MS + (mic.headphoneOutputOffsetMs || 0));
-    const t1 = setTimeout(() => hpClick(accent), HP_CAL_LEAD_MS);
-    const t2 = setTimeout(() => lightHpDot(i), lightDelay);
-    hpCal.lightTimers.push(t1, t2);
-    if (hpCal.lightTimers.length > 16) hpCal.lightTimers.splice(0, hpCal.lightTimers.length - 16);
+    hpClick(i === 0); // クリックは即時。丸の表示タイミング(offset)はレーン側で反映する
     hpCal.beat++;
 }
 
@@ -2275,9 +2346,14 @@ function startHeadphoneCal() {
     try { if (state.audioCtx && state.audioCtx.state === 'suspended') state.audioCtx.resume(); } catch (_) { /* ignore */ }
     hpCal.active = true;
     hpCal.beat = 0;
+    if (els.hpCalLaneWrap) els.hpCalLaneWrap.classList.remove('hidden');
+    fitHpLane();
     if (els.hpCalBtn) els.hpCalBtn.textContent = '停止';
+    hpCal.flowStartPerf = performance.now(); // 1拍目(k=0)のクリックと表示軸の原点を合わせる
     hpBeatTick(); // 押した直後に1拍目
     hpCal.timer = setInterval(hpBeatTick, HP_CAL_BEAT_MS);
+    cancelAnimationFrame(hpCal.raf);
+    hpCal.raf = requestAnimationFrame(hpLoop);
 }
 
 function stopHeadphoneCal() {
@@ -2285,7 +2361,8 @@ function stopHeadphoneCal() {
     if (hpCal.timer) { clearInterval(hpCal.timer); hpCal.timer = 0; }
     hpCal.lightTimers.forEach((t) => clearTimeout(t));
     hpCal.lightTimers = [];
-    clearHpDots();
+    cancelAnimationFrame(hpCal.raf); hpCal.raf = 0;
+    if (els.hpCalLaneWrap) els.hpCalLaneWrap.classList.add('hidden');
     if (els.hpCalBtn) els.hpCalBtn.textContent = '補正テスト開始';
 }
 
@@ -3323,9 +3400,13 @@ function drawBtLane(t) {
         }
     }
     // 👏（右→左へ流れる）＋拍番号。控えめ表示で、タイミングは音で合わせてもらう。
+    // v0.9.91：イヤホン音ズレ補正（headphoneOutputOffsetMs＝Bluetooth時はheadphoneOffsetBluetoothMs）を
+    // 「表示タイミング」にだけ反映する。クリック音(scheduled)は動かさず、👏をイヤホンで聞こえる音に寄せて、
+    // ユーザーが音に合わせて手拍子しやすくする。判定(micJudgeOffsetMs)とは別物なので混ぜない。
+    const hpDispOff = mic.headphoneOutputOffsetMs || 0;
     for (let i = 0; i < bt.notes.length; i++) {
         const n = bt.notes[i];
-        const x = judgeX + (n.t - t) * ppm;
+        const x = judgeX + (n.t + hpDispOff - t) * ppm;
         if (x < -28 || x > w + 28) continue;
         drawClapIcon(ctx, x, yc, n.num);
     }
@@ -4630,6 +4711,11 @@ function applyPresetCore(id) {
 }
 
 function applyPreset(id) {
+    // テスト実行中にプリセット呼び出しで離脱する場合は中断確認（v0.9.91）
+    if (anyTestRunning()) {
+        if (!window.confirm('テストがまだ完了していません。\n中断して移動しますか？')) return;
+        stopAllRunningTests();
+    }
     if (!applyPresetCore(id)) return;
     // プリセットは「保存済み設定の呼び出し」。呼び出したら現在設定として保存し、
     // マイク設定画面を閉じてアプリ全体のTOPページへ戻す（v0.9.89）。
@@ -4672,6 +4758,11 @@ function renderSimplePresetChoices() {
 
 /* 環境を選択 → 対応する標準プリセットを適用し、結果（実践テスト/完了の導線）を出す。 */
 function applySimpleSetup(presetId, label) {
+    // テスト実行中に簡易設定の環境選択で切り替える場合は中断確認（v0.9.91）
+    if (anyTestRunning()) {
+        if (!window.confirm('テストがまだ完了していません。\n中断して移動しますか？')) return;
+        stopAllRunningTests();
+    }
     if (!applyPresetCore(presetId)) return;
     // applyPresetCore 内で各テストの実施履歴はリセット済み（v0.9.82）
     // 適用しただけでは settingsView は 'simple' のまま（結果カードを同じ画面に出す）
@@ -5001,6 +5092,21 @@ function setTestResult(text, kind) {
 
 function setTestPhase(t) { if (els.testPhase) els.testPhase.textContent = t; }
 
+/* マイク反応テストの「今やること」をフェーズで出し分ける（v0.9.91。検出ロジックは変更しない・表示のみ）。
+   ・環境音/クリック音テスト中：弾かずに待つ
+   ・ストロークテスト中：いつもの強さで8回ストローク
+   ・待機中：これから何をするかの予告（ストローク） */
+const MIC_TEST_DONOW_WAIT = 'クリック音を測っています。弾かずに待ってください';
+const MIC_TEST_DONOW_STROKE = 'クリックに続けて、いつもの強さで8回ストローク';
+function updateMicTestDoNow() {
+    if (!els.testDoNow) return;
+    let txt;
+    if (test.mode === 'noise' || test.mode === 'click') txt = MIC_TEST_DONOW_WAIT;
+    else if (test.mode === 'stroke') txt = MIC_TEST_DONOW_STROKE;
+    else txt = MIC_TEST_DONOW_STROKE; // 待機中はこれからの動作（ストローク）を予告
+    els.testDoNow.textContent = txt;
+}
+
 /* マイク反応テスト：未実施/実施済みのボタン文言 */
 function micTestBtnIdleLabel() {
     return state.micTestDone ? 'もう一度テストする' : 'テストを開始';
@@ -5172,6 +5278,7 @@ function beginNoisePhase() {
     test.noiseSamples = [];
     if (els.testLaneWrap) els.testLaneWrap.classList.add('hidden');
     setTestPhase('周囲の音を確認中…（少し静かにお待ちください）');
+    updateMicTestDoNow();
     test.timers.push(setTimeout(() => {
         if (test.mode !== 'noise') return;
         computeNoiseStats();
@@ -5197,6 +5304,7 @@ function abortMicTest() {
     els.micTestBtn.textContent = micTestBtnIdleLabel();
     els.micTestBtn.classList.toggle('is-todo', !state.micTestDone);
     setTestPhase('');
+    updateMicTestDoNow();
     setTestResult('マイク反応テストを中止しました', '');
 }
 
@@ -5234,6 +5342,7 @@ function drawTestEmptyLane(glow) {
 /* クリック音テスト（本番と同じクリック：1拍目アクセント/2-4拍目通常／4拍×2周＝8回） */
 function beginClickPhase() {
     test.mode = 'click';
+    updateMicTestDoNow();
     test.clickI = 0; test.clickPeaks = []; test.clickResults = []; test.curPeak = 0;
     test.clickMeasureVol = state.clickVolume; // この音量で鳴らした前提で「○%適用後の目安」を後で計算
     // 視覚クリック：レーンを表示してクリックに合わせて点滅
@@ -5375,6 +5484,7 @@ function testCountBeep(accent) {
 function beginStrokePhase() {
     if (test.mode === null && !test.flow) return;
     test.mode = 'stroke';
+    updateMicTestDoNow();
     test.strokePeaks = []; test.strokeDownPeaks = []; test.strokeUpPeaks = [];
     test.strokeAboveMs = [];
     test.strokeChordDiag = []; test.chordWave = [];
@@ -5576,6 +5686,7 @@ function endStrokePhase() {
     els.micTestBtn.textContent = micTestBtnIdleLabel();
     els.micTestBtn.classList.toggle('is-todo', !state.micTestDone);
     setTestPhase('');
+    updateMicTestDoNow();
     // 検出判定は通常0.02、クリック音がほぼ入らない低入力環境では一時的に下げる
     const thr = test.strokeDetectThreshold || testStrokeThreshold();
     const validMin = (arr) => { const v = arr.filter((p) => p >= thr); return v.length ? Math.min(...v) : null; };
@@ -6841,8 +6952,8 @@ function applyCalibration() {
 function bind() {
     els.startBtn.addEventListener('click', () => openStage(1));
     // 全画面共通ナビ（戻る / TOP / 設定）
-    if (els.navBackBtn) els.navBackBtn.addEventListener('click', navBack);
-    if (els.navTopBtn) els.navTopBtn.addEventListener('click', goTop);
+    if (els.navBackBtn) els.navBackBtn.addEventListener('click', () => guardTestInterruption(navBack));
+    if (els.navTopBtn) els.navTopBtn.addEventListener('click', () => guardTestInterruption(goTop));
     if (els.settingsBtn) els.settingsBtn.addEventListener('click', openSettingsFromCurrent);
     // 入力方法（タップ / ストローク）
     if (els.modeTapBtn) els.modeTapBtn.addEventListener('click', () => setInputMode('tap'));
@@ -6882,7 +6993,7 @@ function bind() {
     // 設定画面（旧導線は撤去済み。あれば結線）
     if (els.homeSettingsBtn) els.homeSettingsBtn.addEventListener('click', () => openSettings('home'));
     if (els.micSettingsBtn) els.micSettingsBtn.addEventListener('click', () => openSettings('practice'));
-    els.settingsBackBtn.addEventListener('click', () => {
+    els.settingsBackBtn.addEventListener('click', () => guardTestInterruption(() => {
         // もう一度テスト中は、実践テスト完了まで「完了」を効かせない（案内のみ）
         if (isDoneLocked()) {
             showDoneHint();
@@ -6890,26 +7001,26 @@ function bind() {
             return;
         }
         closeSettings();
-    });
+    }));
     if (els.settingsResetBtn) els.settingsResetBtn.addEventListener('click', resetSettings);
     if (els.micResetBtn) els.micResetBtn.addEventListener('click', onMicResetClick);
     // マイク設定TOP（下部・手動設定内）：いつでもマイク設定トップ画面へ戻る（v0.9.70）
-    if (els.settingsTopBtn) els.settingsTopBtn.addEventListener('click', () => setSettingsView('chooser'));
+    if (els.settingsTopBtn) els.settingsTopBtn.addEventListener('click', () => guardTestInterruption(() => setSettingsView('chooser')));
     // 手動設定内の「キャンセル」：変更を破棄してマイク設定TOPへ戻る（v0.9.89）
-    if (els.manualTopBtn) els.manualTopBtn.addEventListener('click', cancelManualSettings);
-    if (els.manualUseBtn) els.manualUseBtn.addEventListener('click', useManualSettings);
+    if (els.manualTopBtn) els.manualTopBtn.addEventListener('click', () => guardTestInterruption(cancelManualSettings));
+    if (els.manualUseBtn) els.manualUseBtn.addEventListener('click', () => guardTestInterruption(useManualSettings));
     // トップ導線（v0.9.71）：簡易設定／詳細テスト／現在の設定を見る
-    if (els.settingsSimpleBtn) els.settingsSimpleBtn.addEventListener('click', () => setSettingsView('simple'));
-    if (els.settingsDetailBtn) els.settingsDetailBtn.addEventListener('click', () => startRetestFlow(false));
-    if (els.settingsViewCurrent) els.settingsViewCurrent.addEventListener('click', () => setSettingsView('summary'));
-    if (els.settingsSummaryBack) els.settingsSummaryBack.addEventListener('click', () => setSettingsView('chooser'));
+    if (els.settingsSimpleBtn) els.settingsSimpleBtn.addEventListener('click', () => guardTestInterruption(() => setSettingsView('simple')));
+    if (els.settingsDetailBtn) els.settingsDetailBtn.addEventListener('click', () => guardTestInterruption(() => startRetestFlow(false)));
+    if (els.settingsViewCurrent) els.settingsViewCurrent.addEventListener('click', () => guardTestInterruption(() => setSettingsView('summary')));
+    if (els.settingsSummaryBack) els.settingsSummaryBack.addEventListener('click', () => guardTestInterruption(() => setSettingsView('chooser')));
     // 簡易設定：環境選択／適用後の導線（v0.9.71）
     if (els.simpleChoices) els.simpleChoices.querySelectorAll('.simple-choice').forEach((b) => {
         b.addEventListener('click', () => applySimpleSetup(b.getAttribute('data-preset'), b.getAttribute('data-label')));
     });
     if (els.simplePracticeBtn) els.simplePracticeBtn.addEventListener('click', simpleGoPractice);
-    if (els.simpleDoneBtn) els.simpleDoneBtn.addEventListener('click', closeSettings);
-    if (els.simpleBackBtn) els.simpleBackBtn.addEventListener('click', resetSimpleView);
+    if (els.simpleDoneBtn) els.simpleDoneBtn.addEventListener('click', () => guardTestInterruption(closeSettings));
+    if (els.simpleBackBtn) els.simpleBackBtn.addEventListener('click', () => guardTestInterruption(resetSimpleView));
     // 「保存済みプリセット」ボタンで一覧を開閉（v0.9.63）
     if (els.presetToggleBtn) els.presetToggleBtn.addEventListener('click', togglePresetList);
     // 「現在の設定を見る」から：この設定を保存（モーダル）／手動設定を開く
@@ -6932,12 +7043,12 @@ function bind() {
     if (els.presetModal) els.presetModal.addEventListener('click', (e) => { if (e.target === els.presetModal) closePresetModal(); });
     // 手動設定カードの「最終確認テストを実施する」：最終確認テスト画面へ移動するだけ（v0.9.90）。
     // 自動ではテストを始めない。ユーザーが開始ボタンを押してからテストを始める。
-    if (els.manualPracticeBtn) els.manualPracticeBtn.addEventListener('click', () => {
+    if (els.manualPracticeBtn) els.manualPracticeBtn.addEventListener('click', () => guardTestInterruption(() => {
         if (settingsView !== 'steps') settingsView = 'steps';
         wizardEditing = 'practice';
         renderSettingsView();
         scrollToSettingsEl(els.ptCard);
-    });
+    }));
 
     els.setThreshold.addEventListener('input', () => {
         const sens = parseInt(els.setThreshold.value, 10);
@@ -7025,7 +7136,7 @@ function bind() {
         btn.addEventListener('click', reloadAppWithCacheBust));
 
     window.addEventListener('resize', () => {
-        if (!els.settings.classList.contains('hidden')) { fitPreview(); if (pt.active) { fitPtLane(); } if (bt.active) { fitBtLane(); } return; }
+        if (!els.settings.classList.contains('hidden')) { fitPreview(); if (pt.active) { fitPtLane(); } if (bt.active) { fitBtLane(); } if (hpCal.active) { fitHpLane(); } return; }
         if (els.practice.classList.contains('hidden')) return;
         fitLane();
         if (els.resultsOverlay && !els.resultsOverlay.classList.contains('hidden')) {

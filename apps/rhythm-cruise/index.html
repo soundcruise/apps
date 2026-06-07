@@ -259,7 +259,7 @@
                     <div class="cal-head" id="test-card-head">マイク反応テスト</div>
                     <span class="status-pill" id="test-done-badge">未実施</span>
                 </div>
-                <p class="do-now">クリックに続けて、いつもの強さで8回ストローク</p>
+                <p class="do-now" id="test-do-now">クリックに続けて、いつもの強さで8回ストローク</p>
                 <details class="card-help">
                     <summary>詳しい説明</summary>
                     <p class="setting-note" id="test-card-note">クリック音が反応せず、ストローク音だけ反応するかを自動でチェックします。</p>
@@ -370,16 +370,15 @@
                 <div class="cal-head-row">
                     <div class="cal-head">イヤホンの音ズレ補正</div>
                 </div>
-                <p class="do-now">クリック音と丸のタイミングを合わせる</p>
+                <p class="do-now">丸がJUSTラインに重なる瞬間とクリック音を合わせる</p>
                 <details class="card-help">
                     <summary>詳しい説明</summary>
-                    <p class="setting-note">クリック音と丸の光り方が同時に感じられるように、下のスライダーで調整します。0ms＝補正なしです。</p>
+                    <p class="setting-note">右から流れてくる丸の中心線がJUSTラインに重なる瞬間に、クリック音が鳴ります。丸が重なる瞬間とイヤホンから聞こえるクリック音が同時に感じられるように、下のスライダーで調整します。0ms＝補正なしです。</p>
                 </details>
-                <div class="hp-dots" id="hp-dots" style="display:flex;justify-content:center;align-items:center;gap:14px;margin:16px 0;">
-                    <span class="hp-dot" id="hp-dot-0" style="display:inline-block;width:22px;height:22px;border-radius:50%;background:rgba(46,204,113,0.25);transition:background .04s,box-shadow .04s;"></span>
-                    <span class="hp-dot" id="hp-dot-1" style="display:inline-block;width:20px;height:20px;border-radius:50%;background:rgba(253,246,238,0.16);transition:background .04s,box-shadow .04s;"></span>
-                    <span class="hp-dot" id="hp-dot-2" style="display:inline-block;width:20px;height:20px;border-radius:50%;background:rgba(253,246,238,0.16);transition:background .04s,box-shadow .04s;"></span>
-                    <span class="hp-dot" id="hp-dot-3" style="display:inline-block;width:20px;height:20px;border-radius:50%;background:rgba(253,246,238,0.16);transition:background .04s,box-shadow .04s;"></span>
+                <!-- STAGE風の流れるレーン（v0.9.91）：右→左へ4拍の丸が流れ、丸の中心線がJUSTラインに
+                     重なる瞬間にクリック音が鳴る。音と丸が同時に感じられるようにスライダーで調整する。 -->
+                <div class="test-lane-wrap hidden" id="hp-cal-lane-wrap" style="margin:14px 0;">
+                    <canvas id="hp-cal-lane-canvas"></canvas>
                 </div>
                 <button class="btn-mic cal-run-btn test-start-btn" id="hp-cal-btn">補正テスト開始</button>
                 <div class="setting-row" style="margin-top:16px;">
@@ -643,7 +642,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.90"></script>
+    <script src="script.js?v=0.9.91"></script>
 </body>
 
 </html>
