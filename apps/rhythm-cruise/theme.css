@@ -2571,6 +2571,7 @@ body.results-open #settings-btn {
     width: 100%;
     display: flex;
     flex-direction: column;
+    scroll-margin-top: 92px; /* v0.9.87：固定の「戻る/TOP」ボタンにカード見出しが隠れないようにする */
     /* v0.9.65：カード内の縦リズムを統一（見出し→選択ボタン→説明文を同じ間隔に） */
     gap: 18px;
     padding: 24px 20px;
@@ -2578,6 +2579,14 @@ body.results-open #settings-btn {
     border: 1px solid rgba(253, 246, 238, 0.10);
     background: linear-gradient(180deg, var(--surface-raised) 0%, var(--surface-color) 100%);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 12px 26px rgba(0, 0, 0, 0.28);
+}
+
+.test-lane-wrap,
+.cal-result,
+.test-reco,
+.pt-review,
+.preset-list-wrap {
+    scroll-margin-top: 92px;
 }
 
 .setting-row {

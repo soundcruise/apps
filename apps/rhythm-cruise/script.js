@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.86';
+const RHYTHM_CRUISE_VERSION = '0.9.87';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -2304,8 +2304,12 @@ function setHeadphoneOffset(ms, opts) {
 }
 
 /* イヤホン種類の切替。選択中の種類が保持している補正値へ同期する（過去に調整済みならその値を維持）。 */
-function setHeadphoneType(type) {
+function setHeadphoneType(type, opts) {
     mic.headphoneType = (type === 'bluetooth') ? 'bluetooth' : 'wired';
+    if (opts && opts.resetDefault) {
+        if (mic.headphoneType === 'bluetooth') mic.headphoneOffsetBluetoothMs = HP_TYPE_DEFAULT_OFFSET.bluetooth;
+        else mic.headphoneOffsetWiredMs = HP_TYPE_DEFAULT_OFFSET.wired;
+    }
     mic.headphoneOutputOffsetMs = currentHpTypeOffset();
     updateHeadphoneTypeUI();
     saveSettings();
@@ -3775,9 +3779,10 @@ function loadSettings() {
     mic.inputType = (s.inputType === 'headphone') ? 'headphone' : 'normal';
     {
         // イヤホンの音ズレ補正（v0.9.51）：種類別に保存。無い/範囲外/不正値は各種類の目安に戻す。
+        // v0.9.87：旧単一値 headphoneOutputOffsetMs を有線へ自動引き継ぎしない。
+        // 旧Bluetooth目安180msが有線側へ混ざる原因になるため、明示的な wired 値が無い場合は0msへ戻す。
         mic.headphoneType = (s.headphoneType === 'bluetooth') ? 'bluetooth' : 'wired';
-        const legacyOff = validHpOffset(s.headphoneOutputOffsetMs, null); // v0.9.50までの単一値（有線へ引き継ぐ）
-        mic.headphoneOffsetWiredMs = validHpOffset(s.headphoneOffsetWiredMs, (legacyOff != null ? legacyOff : HP_TYPE_DEFAULT_OFFSET.wired));
+        mic.headphoneOffsetWiredMs = validHpOffset(s.headphoneOffsetWiredMs, HP_TYPE_DEFAULT_OFFSET.wired);
         mic.headphoneOffsetBluetoothMs = validHpOffset(s.headphoneOffsetBluetoothMs, HP_TYPE_DEFAULT_OFFSET.bluetooth);
         mic.headphoneOutputOffsetMs = currentHpTypeOffset();
     }
@@ -4148,6 +4153,9 @@ function invalidatePracticeResult(note) {
 /* 補正系を完了として次のステップへ（適用 / スキップ / 進む 共通）。
    Bluetoothイヤホン時は「マイク遅れ補正」ステップへ、それ以外は最終確認テストへ。 */
 function completeCorrectionStep() {
+    // イヤホン音ズレ補正テスト中に「この音ズレ設定で進む」を押したら、
+    // クリック音・丸点灯ループ・残りタイマーを必ず止める（v0.9.87）。
+    if (hpCal.active || hpCal.timer || hpCal.lightTimers.length) stopHeadphoneCal();
     setupProgress.correctionDone = true;
     // 補正を変更した時点で前回の最終確認テスト結果は古くなる → 初期化して再確認を促す
     invalidatePracticeResult('補正を反映しました。もう一度最終確認テストで確認してください。');
@@ -4270,7 +4278,9 @@ function onPickInputType(type) {
 function onPickHeadphoneType(type) {
     const next = (type === 'bluetooth') ? 'bluetooth' : 'wired';
     const changed = (getHeadphoneType() !== next);
-    setHeadphoneType(next);
+    // v0.9.87：詳細テストで種類を新しく選び直すときは、その種類の基本値(0ms)から始める。
+    // 過去のBluetooth 180msや互換用 headphoneOutputOffsetMs が有線側へ混ざるのを防ぐ。
+    setHeadphoneType(next, { resetDefault: true });
     setupProgress.hpChosen = true;
     wizardEditing = null;
     if (settingsView === 'steps') {
@@ -4508,9 +4518,11 @@ function applyPresetCore(id) {
     // Bluetooth用マイク遅れ補正：未保存（古いプリセット）は0=補正なし（v0.9.80）
     mic.bluetoothMicOffsetMs = clampNum(s.bluetoothMicOffsetMs, BT_MIC_OFFSET_MIN, BT_MIC_OFFSET_MAX, 0);
     mic.lowInputProfile = !!s.lowInputProfile;
-    mic.headphoneOffsetWiredMs = validHpOffset(s.headphoneOffsetWiredMs, mic.headphoneOffsetWiredMs);
-    mic.headphoneOffsetBluetoothMs = validHpOffset(s.headphoneOffsetBluetoothMs, mic.headphoneOffsetBluetoothMs);
-    mic.headphoneOutputOffsetMs = validHpOffset(s.headphoneOutputOffsetMs, currentHpTypeOffset());
+    mic.headphoneOffsetWiredMs = validHpOffset(s.headphoneOffsetWiredMs, HP_TYPE_DEFAULT_OFFSET.wired);
+    mic.headphoneOffsetBluetoothMs = validHpOffset(s.headphoneOffsetBluetoothMs, HP_TYPE_DEFAULT_OFFSET.bluetooth);
+    // v0.9.87：互換用の単一値 headphoneOutputOffsetMs は種類別の現在値へ同期するだけ。
+    // 古いBluetooth由来の180msなどが有線プリセットへ混ざらないよう、保存された単一値は使わない。
+    mic.headphoneOutputOffsetMs = currentHpTypeOffset();
     if (typeof s.clickGuardMs === 'number') mic.clickGuardMs = s.clickGuardMs;
     // UI・保存へ反映（※マイク反応テスト済みフラグは立てない）
     applySettingsToUI();
