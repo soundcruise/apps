@@ -1750,15 +1750,11 @@ h1 {
     }
 }
 
-/* v0.9.65：イヤホン種類のサブカードを入力タイプと同じ縦リズムに揃える
-   （ここだけ間隔がバラついて「リズムがズレて見える」問題への対応） */
+/* v0.9.89：イヤホン種類は独立ステップのカードになったので、カード内の縦リズムだけ整える。 */
 #hp-type-card {
     display: flex;
     flex-direction: column;
     gap: 14px;
-    margin-top: 2px;
-    padding-top: 16px;
-    border-top: 1px solid rgba(253, 246, 238, 0.10);
 }
 
 #hp-type-card .cal-head {

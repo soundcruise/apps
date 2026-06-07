@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.88';
+const RHYTHM_CRUISE_VERSION = '0.9.89';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -504,6 +504,7 @@ const els = {
     settingsDetailBtn: $('settings-detail-btn'),
     settingsSimpleCard: $('settings-simple-card'),
     simpleChoices: $('simple-choices'),
+    simplePresetChoices: $('simple-preset-choices'),
     simpleResult: $('simple-result'),
     simpleResultMsg: $('simple-result-msg'),
     simplePracticeBtn: $('simple-practice-btn'),
@@ -3060,14 +3061,6 @@ function renderPracticeResult(r) {
     practiceResultOk = (c.kind === 'ok'); // 完了ボタンの有効判定に使う
     const sign = r.avg > 0 ? '+' : (r.avg < 0 ? '−' : '±');
     const avgTxt = sign + Math.abs(r.avg) + 'ms';
-    const settingLine = r.threshold || mic.threshold || 0.0001;
-    const line = r.detectThreshold || settingLine;
-    const volRatio = r.maxPeak / line;
-    let volTxt;
-    if (r.maxPeak <= 0) volTxt = '入力なし';
-    else if (volRatio >= 1.4) volTxt = '十分（×' + volRatio.toFixed(1) + '）';
-    else if (volRatio >= 1.0) volTxt = 'やや余裕（×' + volRatio.toFixed(1) + '）';
-    else volTxt = 'ライン未満（×' + volRatio.toFixed(1) + '）';
 
     // 目立つ結果バナー（問題あり/なし）
     const okBanner = '<div style="text-align:center;padding:16px 14px;margin-bottom:14px;border-radius:12px;'
@@ -3086,18 +3079,6 @@ function renderPracticeResult(r) {
         '<div class="cal-result-row"><span>LATE</span><b>' + r.late + '</b></div>' +
         '<div class="cal-result-row"><span>MISS</span><b>' + r.miss + '</b></div>' +
         '<div class="cal-result-row"><span>平均ズレ</span><b>' + avgTxt + '</b></div>';
-    // 内部寄りの数値は折りたたみに格納
-    const detailRows =
-        '<div class="cal-result-row"><span>有効入力</span><b>' + r.valid + ' / ' + PT_PLAY_BEATS + '</b></div>' +
-        '<div class="cal-result-row"><span>検出音量の目安</span><b>' + volTxt + '</b></div>' +
-        '<div class="cal-result-row"><span>設定反応ライン</span><b>' + settingLine.toFixed(3) + '</b></div>' +
-        '<div class="cal-result-row"><span>最終確認テスト判定ライン</span><b>' + line.toFixed(3) + '</b></div>' +
-        '<div class="cal-result-row"><span>二重反応防止</span><b>' + r.cooldownMs + 'ms</b></div>' +
-        '<div class="cal-result-row"><span>二重反応</span><b>' + (r.doubleCount > 0 ? 'あり（' + r.doubleCount + '）' : 'なし') + '</b></div>';
-    const details = '<details class="pt-result-detail" style="margin-top:10px;">'
-        + '<summary style="cursor:pointer;opacity:0.85;font-size:0.85rem;">詳しい数値を見る</summary>'
-        + '<div style="margin-top:8px;">' + detailRows + '</div></details>';
-
     // 次の行動ボタン
     const primary = 'width:100%;padding:14px;margin-top:12px;border-radius:10px;border:none;'
         + 'background:linear-gradient(180deg,#ff9f1c,#ff8c00);color:#1a130a;font-weight:800;font-size:1rem;cursor:pointer;';
@@ -3123,10 +3104,14 @@ function renderPracticeResult(r) {
             '<button type="button" id="pt-result-rerun" style="' + sub + '">もう1度テストする</button>';
     }
 
+    // 「詳しい数値・手動設定を見る」：押すと手動設定ページへ移動する（v0.9.89）。
+    // 主導線（この設定を使う／完了）ほどは目立たせない、少し目立つサブ導線。
+    const manualBtn = '<button type="button" id="pt-result-manual" style="' + sub + '">詳しい数値・手動設定を見る</button>';
+
     els.ptResult.innerHTML =
         (c.kind === 'ok' ? okBanner : warnBanner) + mainRows +
         '<div style="margin-top:6px;">' + actions + '</div>' +
-        details;
+        '<div style="margin-top:6px;">' + manualBtn + '</div>';
     els.ptResult.classList.remove('hidden');
     bindPracticeResultActions();
 }
@@ -3141,6 +3126,12 @@ function bindPracticeResultActions() {
     // 「この設定を保存」：共通の保存モーダルを開く（v0.9.80）。
     const save = document.getElementById('pt-result-save');
     if (save) save.addEventListener('click', () => openPresetModal());
+    // 「詳しい数値・手動設定を見る」：手動設定ページへ移動（v0.9.89）。
+    const manual = document.getElementById('pt-result-manual');
+    if (manual) manual.addEventListener('click', () => {
+        if (els.manualDetail && !els.manualDetail.open) els.manualDetail.open = true;
+        openManualView(els.manualCard);
+    });
     const rerun = document.getElementById('pt-result-rerun');
     if (rerun) rerun.addEventListener('click', () => startPracticeTest());
     const fixRerun = document.getElementById('pt-result-fix-rerun');
@@ -3169,6 +3160,14 @@ function practiceFixGoTo(route) {
         renderSettingsView();
         scrollToSettingsEl(els.testCard);
     } else if (route === 'correction') {
+        // 有線イヤホンは補正ステップが無い（v0.9.89）→ 手動設定で調整してもらう
+        if (isHeadphoneInput() && !isBluetoothHeadphone()) {
+            setupProgress.manualForced = true;
+            wizardEditing = null;
+            if (els.manualDetail && !els.manualDetail.open) els.manualDetail.open = true;
+            openManualView(els.manualCard);
+            return;
+        }
         // 補正を見直す：補正系を未完了に戻して開く
         setupProgress.correctionDone = false;
         wizardEditing = 'correction';
@@ -3896,14 +3895,26 @@ function escapeHtml(t) {
    input(=入力タイプ＋イヤホン種類) → stroke → test → correction → [btdelay] → practice → final(手動＋プリセット)
    btdelay（マイク遅れ補正）は Bluetoothイヤホン時だけ補正(correction)の後に差し込む（v0.9.80）。 */
 function wizardSteps() {
-    const steps = ['input', 'stroke', 'test', 'correction'];
-    if (isBluetoothHeadphone()) steps.push('btdelay');
+    // 入力タイプ別にステップを動的に組み立てる（v0.9.89）。
+    // 通常マイク：input → stroke → test → correction(マイクの遅れ補正) → practice → final
+    // 有線イヤホン：input → hptype → stroke → test → practice → final（音ズレ補正は出さない）
+    // Bluetooth：input → hptype → stroke → test → correction(イヤホン音ズレ補正) → btdelay → practice → final
+    const steps = ['input'];
+    if (isHeadphoneInput()) steps.push('hptype');
+    steps.push('stroke', 'test');
+    if (!isHeadphoneInput()) {
+        steps.push('correction');            // 通常マイク：マイクの遅れ補正
+    } else if (isBluetoothHeadphone()) {
+        steps.push('correction', 'btdelay'); // Bluetooth：イヤホン音ズレ補正＋マイク遅れ補正
+    }
+    // 有線イヤホンは補正カードを出さない（0ms＝補正なしが基本）
     steps.push('practice', 'final');
     return steps;
 }
 function wizardStepComplete(id) {
     switch (id) {
-        case 'input': return setupProgress.inputChosen && (!isHeadphoneInput() || setupProgress.hpChosen);
+        case 'input': return setupProgress.inputChosen;
+        case 'hptype': return setupProgress.hpChosen;
         case 'stroke': return setupProgress.strokeChosen;
         case 'test': return setupProgress.recoApplied;
         case 'correction': return setupProgress.correctionDone;
@@ -3924,11 +3935,12 @@ function activeWizardStep() {
 function wizardStepCards(id) {
     switch (id) {
         case 'input': return [els.inputTypeCard];
+        case 'hptype': return [els.hpTypeCard];
         case 'stroke': return [els.strokeModeCard];
         case 'test': return [els.testCard];
         case 'correction':
-            if (!isHeadphoneInput()) return [els.calCard];
-            return getHeadphoneType() === 'bluetooth' ? [els.hpCalCard] : [els.correctionWiredNote];
+            // 通常マイク＝マイクの遅れ補正／Bluetooth＝イヤホン音ズレ補正（有線はこのステップ自体が無い）
+            return isHeadphoneInput() ? [els.hpCalCard] : [els.calCard];
         case 'btdelay': return [els.btCalCard];
         case 'practice': return [els.ptCard];
         case 'final': return [els.manualCard];
@@ -3936,7 +3948,7 @@ function wizardStepCards(id) {
     }
 }
 function allStepCards() {
-    return [els.inputTypeCard, els.strokeModeCard, els.testCard, els.calCard, els.hpCalCard,
+    return [els.inputTypeCard, els.hpTypeCard, els.strokeModeCard, els.testCard, els.calCard, els.hpCalCard,
     els.correctionWiredNote, els.btCalCard, els.ptCard, els.manualCard];
 }
 
@@ -3945,17 +3957,18 @@ function wizardStepSummary(id) {
     switch (id) {
         case 'input': {
             if (!isHeadphoneInput()) return '入力タイプ：通常マイク';
-            const k = getHeadphoneType() === 'bluetooth' ? 'Bluetooth' : '有線';
-            return '入力タイプ：イヤホン接続（' + k + '）';
+            return '入力タイプ：イヤホン接続';
         }
+        case 'hptype':
+            return 'イヤホン種類：' + (getHeadphoneType() === 'bluetooth' ? 'Bluetooth' : '有線');
         case 'stroke':
             return 'ストローク検出モード：' + (state.strokeDetectMode === 'chord' ? 'コードストローク' : 'ブラッシング');
         case 'test':
             return 'マイク反応テスト：適用済み（反応ライン ' + sensFromThresholdUI(mic.threshold) + '%、二重反応防止 ' + mic.cooldownMs + 'ms）';
         case 'correction': {
+            // 通常マイク＝マイクの遅れ補正／Bluetooth＝イヤホン音ズレ補正（有線はこのステップが無い）
             if (!isHeadphoneInput()) return 'マイクの遅れ補正：' + (mic.timingOffsetMs > 0 ? '+' : '') + mic.timingOffsetMs + 'ms';
-            if (getHeadphoneType() === 'bluetooth') return 'イヤホン音ズレ補正：' + mic.headphoneOutputOffsetMs + 'ms';
-            return '補正：有線イヤホン 補正なし（0ms）';
+            return 'イヤホン音ズレ補正：' + mic.headphoneOutputOffsetMs + 'ms';
         }
         case 'btdelay':
             return 'マイク遅れ補正：' + (mic.bluetoothMicOffsetMs > 0 ? '+' : '') + mic.bluetoothMicOffsetMs + 'ms';
@@ -4052,8 +4065,11 @@ function renderWizardSteps() {
     const active = activeWizardStep();
     allStepCards().forEach((el) => { if (el) el.style.display = 'none'; });
     wizardStepCards(active).forEach((el) => { if (el) el.style.display = ''; });
-    // 入力タイプ未選択のうちは、イヤホン種類のサブカードは出さない（選んだ瞬間だけ出す）
-    if (els.hpTypeCard) els.hpTypeCard.classList.toggle('hidden', !(setupProgress.inputChosen && isHeadphoneInput()));
+    // イヤホン種類カードは独立ステップ（hptype）として表示する。入力タイプが
+    // イヤホン接続のときだけ hidden を外す（display はステップ表示側で制御・v0.9.89）。
+    if (els.hpTypeCard) els.hpTypeCard.classList.toggle('hidden', !isHeadphoneInput());
+    // 最終ステップ（手動設定・保存）に入ったら、キャンセル用スナップショットを控える（v0.9.89）。
+    if (active === 'final') captureManualSnapshot();
     renderStepProgress(active);
     renderStepSummaries(active);
     if (els.ptOpenManual) els.ptOpenManual.style.display = (active === 'practice') ? '' : 'none';
@@ -4076,16 +4092,21 @@ function renderWizardSteps() {
 
 /* ステップ現在地：「ステップ X / N」＋ドット。WIZARD_STEPS の並びから算出。 */
 const WIZARD_STEP_LABELS = {
-    input: '入力タイプ', stroke: 'ストローク', test: 'マイク反応テスト',
+    input: '入力タイプ', hptype: 'イヤホン種類', stroke: 'ストローク', test: 'マイク反応テスト',
     correction: '補正', btdelay: 'マイク遅れ補正', practice: '最終確認テスト', final: '手動設定・保存',
 };
+/* ステップ見出し（correction は入力タイプで意味が変わるので動的に出す・v0.9.89） */
+function wizardStepLabel(id) {
+    if (id === 'correction') return isHeadphoneInput() ? 'イヤホン音ズレ補正' : 'マイクの遅れ補正';
+    return WIZARD_STEP_LABELS[id] || '';
+}
 function renderStepProgress(active) {
     const wrap = els.settingsStepsProgress;
     if (!wrap) return;
     const steps = wizardSteps();
     const total = steps.length;
     const idx = Math.max(0, steps.indexOf(active));
-    const label = WIZARD_STEP_LABELS[active] || '';
+    const label = wizardStepLabel(active);
     let dots = '';
     for (let i = 0; i < total; i++) {
         const color = i < idx ? '#ff9f1c' : (i === idx ? '#ff9f1c' : 'rgba(255,255,255,0.25)');
@@ -4469,22 +4490,60 @@ function movePreset(id, dir) {
 /* 「現在の設定を見る」/「手動設定」から手動設定＋保存カードへ移動する補助ビュー */
 function openManualView(scrollTarget) {
     settingsView = 'manual';
+    // 「キャンセル」で戻せるよう、開いた時点の設定値を控える（v0.9.89）。
+    captureManualSnapshot();
     // 「手動設定を開く」ので、折りたたみは開いた状態で全項目を見せる（v0.9.69）。
     if (els.manualDetail && !els.manualDetail.open) { els.manualDetail.open = true; fitPreview(); }
     renderSettingsView();
     scrollToSettingsEl(scrollTarget || els.manualCard);
 }
 
-/* 手動設定の「この設定を使う」（v0.9.80）：いまの設定値をそのまま現在の設定として保存し、
-   マイク設定TOP（chooser）へ戻る。プリセットには保存しない。 */
+/* 手動設定の「この設定を使う」（v0.9.89更新）：いまの設定値を現在の設定として確定保存し、
+   マイク設定画面を閉じてアプリ全体のTOPページへ戻る。プリセットには保存しない。 */
 function useManualSettings() {
     saveSettings(); // いまの mic.* / state.* を現在設定として保存（プリセット化はしない）
-    setSettingsView('chooser');
-    if (els.chooserAppliedMsg) {
-        els.chooserAppliedMsg.textContent = '現在の設定を適用しました。';
-        els.chooserAppliedMsg.classList.remove('hidden');
+    clearManualSnapshot(); // 変更を確定したのでスナップショットは破棄
+    closeSettings();        // アプリ全体のTOPページへ戻る
+}
+
+/* ── 手動設定のキャンセル用スナップショット（v0.9.89）──────────────────
+   手動設定ページを開いた時点の設定値を控えておき、「キャンセル」で元に戻す。 */
+let manualSettingsSnapshot = null;
+function captureManualSnapshot() {
+    // 手動編集を始める前の状態を保持（すでに保持済みなら上書きしない）。
+    if (!manualSettingsSnapshot) manualSettingsSnapshot = currentMicPresetSettings();
+}
+function clearManualSnapshot() { manualSettingsSnapshot = null; }
+
+/* スナップショットの設定値を現在の mic.* / state.* へ書き戻す。 */
+function restoreMicSettingsFrom(s) {
+    if (!s) return;
+    mic.inputType = (s.inputType === 'headphone') ? 'headphone' : 'normal';
+    mic.headphoneType = (s.headphoneType === 'bluetooth') ? 'bluetooth' : 'wired';
+    state.strokeDetectMode = (s.strokeDetectMode === 'chord') ? 'chord' : 'brush';
+    mic.threshold = s.threshold;
+    mic.cooldownMs = s.cooldownMs;
+    state.clickVolume = s.clickVolume;
+    mic.timingOffsetMs = s.timingOffsetMs;
+    mic.bluetoothMicOffsetMs = s.bluetoothMicOffsetMs;
+    mic.lowInputProfile = !!s.lowInputProfile;
+    mic.headphoneOffsetWiredMs = s.headphoneOffsetWiredMs;
+    mic.headphoneOffsetBluetoothMs = s.headphoneOffsetBluetoothMs;
+    mic.headphoneOutputOffsetMs = s.headphoneOutputOffsetMs;
+    if (typeof s.clickGuardMs === 'number') mic.clickGuardMs = s.clickGuardMs;
+}
+
+/* 手動設定の「キャンセル」（v0.9.89）：手動設定ページで変更した内容を破棄して、
+   マイク設定TOP（chooser）へ戻る。 */
+function cancelManualSettings() {
+    if (manualSettingsSnapshot) {
+        restoreMicSettingsFrom(manualSettingsSnapshot);
+        applySettingsToUI();
+        drawMicPreview();
+        saveSettings();
     }
-    scrollToSettingsEl(els.settingsChooser || els.manualCard);
+    clearManualSnapshot();
+    setSettingsView('chooser');
 }
 
 /* ── プリセット保存モーダル（v0.9.80）──────────────────────────────
@@ -4562,15 +4621,12 @@ function applyPresetCore(id) {
 
 function applyPreset(id) {
     if (!applyPresetCore(id)) return;
-    // プリセットは「保存済み設定の呼び出し」。呼び出したらマイク設定TOPへ戻す（v0.9.88）。
+    // プリセットは「保存済み設定の呼び出し」。呼び出したら現在設定として保存し、
+    // マイク設定画面を閉じてアプリ全体のTOPページへ戻す（v0.9.89）。
     // 詳細テストや最終確認テストへは飛ばさない。
     saveSettings();
-    setSettingsView('chooser');
-    if (els.chooserAppliedMsg) {
-        els.chooserAppliedMsg.textContent = 'プリセットを呼び出しました。';
-        els.chooserAppliedMsg.classList.remove('hidden');
-    }
-    scrollToSettingsEl(els.settingsChooser);
+    clearManualSnapshot();
+    closeSettings();
 }
 
 /* ── 簡易設定（v0.9.71）：環境を選ぶだけで標準プリセットを適用 ───────────── */
@@ -4579,8 +4635,29 @@ function resetSimpleView() {
     if (els.simpleChoices) els.simpleChoices.classList.remove('hidden');
     if (els.simpleResult) els.simpleResult.classList.add('hidden');
     if (els.simpleResultMsg) els.simpleResultMsg.textContent = '';
+    renderSimplePresetChoices(); // 保存済みプリセットを選択肢として描画（v0.9.89）
     // 簡易設定をやり直す＝新しい設定フロー → 各テストの実施履歴をリセット（v0.9.82）
     resetTestRunHistory();
+}
+
+/* 簡易設定の選択肢として、ユーザー保存プリセットを表示する（v0.9.89）。
+   組み込み3種（通常マイク/有線/Bluetooth）は静的に表示済みなので、ここではユーザー保存分だけ。
+   選ぶと、そのプリセットを適用してアプリ全体のTOPページへ戻る（applyPreset と同じ動き）。 */
+function renderSimplePresetChoices() {
+    const wrap = els.simplePresetChoices;
+    if (!wrap) return;
+    const users = loadPresets();
+    if (!users.length) { wrap.innerHTML = ''; wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+    let html = '<p class="setting-note simple-preset-head" style="margin:14px 0 0;font-weight:700;opacity:0.85;">保存済みプリセット</p>';
+    html += users.map((p) =>
+        '<button type="button" class="simple-choice simple-preset-choice" data-id="' + p.id + '">'
+        + '<span class="simple-choice-title">' + escapeHtml(p.name) + '</span></button>'
+    ).join('');
+    wrap.innerHTML = html;
+    wrap.querySelectorAll('.simple-preset-choice').forEach((b) => {
+        b.addEventListener('click', () => applyPreset(b.getAttribute('data-id')));
+    });
 }
 
 /* 環境を選択 → 対応する標準プリセットを適用し、結果（実践テスト/完了の導線）を出す。 */
@@ -4696,6 +4773,7 @@ function openSettings(from) {
     setupProgress = freshSetupProgress(); // 開くたびに初期化
     wizardEditing = null;
     practiceResultOk = false;
+    clearManualSnapshot(); // 設定を開き直したらキャンセル用スナップショットも初期化（v0.9.89）
     // プリセット一覧は初期は閉じておく（「保存済みプリセット」ボタンで展開）
     if (els.presetListWrap) els.presetListWrap.style.display = 'none';
     if (els.presetToggleBtn) els.presetToggleBtn.textContent = '保存済みプリセット ▾';
@@ -5975,10 +6053,9 @@ function applyReco() {
         wizardEditing = null;
         if (settingsView === 'steps') {
             renderSettingsView();
-            const corr = isHeadphoneInput()
-                ? (getHeadphoneType() === 'bluetooth' ? els.hpCalCard : els.correctionWiredNote)
-                : els.calCard;
-            scrollToSettingsEl(corr || els.ptCard);
+            // 次に進むステップのカードへスクロール（有線イヤホンは補正を飛ばして最終確認テストへ・v0.9.89）
+            const nextCard = wizardStepCards(activeWizardStep())[0];
+            scrollToSettingsEl(nextCard || els.ptCard);
         }
     }
 }
@@ -6808,7 +6885,8 @@ function bind() {
     if (els.micResetBtn) els.micResetBtn.addEventListener('click', onMicResetClick);
     // マイク設定TOP（下部・手動設定内）：いつでもマイク設定トップ画面へ戻る（v0.9.70）
     if (els.settingsTopBtn) els.settingsTopBtn.addEventListener('click', () => setSettingsView('chooser'));
-    if (els.manualTopBtn) els.manualTopBtn.addEventListener('click', () => setSettingsView('chooser'));
+    // 手動設定内の「キャンセル」：変更を破棄してマイク設定TOPへ戻る（v0.9.89）
+    if (els.manualTopBtn) els.manualTopBtn.addEventListener('click', cancelManualSettings);
     if (els.manualUseBtn) els.manualUseBtn.addEventListener('click', useManualSettings);
     // トップ導線（v0.9.71）：簡易設定／詳細テスト／現在の設定を見る
     if (els.settingsSimpleBtn) els.settingsSimpleBtn.addEventListener('click', () => setSettingsView('simple'));
@@ -6842,15 +6920,6 @@ function bind() {
     }
     // モーダルの背景をクリックしたら閉じる
     if (els.presetModal) els.presetModal.addEventListener('click', (e) => { if (e.target === els.presetModal) closePresetModal(); });
-    // 実践テストカードの「手動設定を開く」導線（v0.9.79：折りたたみを開いて数値を見せる）
-    if (els.ptOpenManual) els.ptOpenManual.addEventListener('click', () => {
-        setupProgress.manualForced = true;
-        wizardEditing = null; // 実践テスト完了済みなら最終ステップ（手動＋保存）を表示
-        if (els.manualDetail && !els.manualDetail.open) els.manualDetail.open = true;
-        renderSettingsView();
-        fitPreview();
-        scrollToSettingsEl(els.manualCard);
-    });
     // 手動設定カードの「実践テストで確認する」：数値変更後にそのまま実践テストへ戻る（v0.9.79）
     if (els.manualPracticeBtn) els.manualPracticeBtn.addEventListener('click', () => {
         if (settingsView !== 'steps') settingsView = 'steps';

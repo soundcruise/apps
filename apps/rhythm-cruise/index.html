@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.88">
+    <link rel="stylesheet" href="theme.css?v=0.9.89">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -151,7 +151,7 @@
                 <!-- 上段：横並び（左＝主導線 簡易設定／右＝サブ 詳細テスト） -->
                 <div class="chooser-row">
                     <button type="button" class="chooser-btn chooser-main" id="settings-simple-btn">簡易設定</button>
-                    <button type="button" class="chooser-btn chooser-sub" id="settings-detail-btn">詳細テスト</button>
+                    <button type="button" class="chooser-btn chooser-main" id="settings-detail-btn">詳細テスト</button>
                 </div>
                 <p class="setting-note" style="margin-top:8px;font-size:0.8rem;opacity:0.8;">簡易設定：環境を選ぶだけで標準設定を適用します。<br>詳細テスト：反応ラインや補正を実際に測って細かく調整します。</p>
                 <!-- 下段：保存済みプリセット（押すと一覧を展開） -->
@@ -177,6 +177,8 @@
                     <button type="button" class="simple-choice" data-preset="builtin_bt" data-label="Bluetoothイヤホン">
                         <span class="simple-choice-title">Bluetoothイヤホン</span>
                     </button>
+                    <!-- 保存済みプリセット（ユーザー保存分）を選択肢として表示。JSで描画（v0.9.89） -->
+                    <div id="simple-preset-choices" style="display:none;"></div>
                 </div>
                 <div id="simple-result" class="hidden">
                     <p class="cal-status" id="simple-result-msg" style="margin-top:0;color:#6ed28c;font-weight:700;"></p>
@@ -216,15 +218,16 @@
                     <button type="button" class="input-seg" id="input-type-headphone" data-input-type="headphone">イヤホン接続</button>
                 </div>
                 <p class="setting-note" id="input-type-note">本体マイクや外部マイクを使う場合におすすめです。</p>
-                <!-- イヤホンの種類（入力タイプ=イヤホン接続 のときだけ表示）。入力タイプの直下に連続表示 -->
-                <div class="hidden" id="hp-type-card">
-                    <div class="cal-head" style="font-size:0.95rem;">イヤホンの種類</div>
-                    <div class="input-mode seg-cards" id="hp-type-mode">
-                        <button type="button" class="input-seg is-active" id="hp-type-wired" data-headphone-type="wired">有線イヤホン</button>
-                        <button type="button" class="input-seg" id="hp-type-bluetooth" data-headphone-type="bluetooth">Bluetoothイヤホン</button>
-                    </div>
-                    <p class="setting-note" id="hp-type-note">有線イヤホンは補正なし（0ms）が基本です。違和感がある場合だけ手動設定で調整してください。</p>
+            </div>
+
+            <!-- イヤホンの種類（入力タイプ=イヤホン接続 のときだけ独立ステップとして表示。v0.9.89） -->
+            <div class="settings-card hidden" id="hp-type-card">
+                <div class="cal-head">イヤホンの種類</div>
+                <div class="input-mode seg-cards" id="hp-type-mode">
+                    <button type="button" class="input-seg is-active" id="hp-type-wired" data-headphone-type="wired">有線イヤホン</button>
+                    <button type="button" class="input-seg" id="hp-type-bluetooth" data-headphone-type="bluetooth">Bluetoothイヤホン</button>
                 </div>
+                <p class="setting-note" id="hp-type-note">有線イヤホンは補正なし（0ms）が基本です。違和感がある場合だけ手動設定で調整してください。</p>
             </div>
 
             <!-- 1. ストローク検出モード（ブラッシング / コードストローク） -->
@@ -429,8 +432,6 @@
                 <button class="btn-mic cal-run-btn test-start-btn" id="pt-btn">最終確認テストを開始</button>
                 <p class="cal-status" id="pt-status"></p>
                 <div class="cal-result hidden" id="pt-result"></div>
-                <!-- 実践テストをしなくても手動調整したい人向けの控えめな導線 -->
-                <button type="button" class="btn-mini" id="pt-open-manual" style="margin-top:8px;">手動設定を開く</button>
             </div>
 
             <!-- 6. 手動設定はこちら（折りたたみ） -->
@@ -493,8 +494,8 @@
                     <button type="button" class="manual-action-sub" id="manual-practice-btn">最終確認テストを実施する</button>
                     <!-- サブ導線：この設定を保存（共通の保存モーダルを開く） -->
                     <button type="button" class="manual-action-sub" id="manual-preset-trigger">この設定を保存</button>
-                    <!-- サブ導線：マイク設定TOPへ戻る -->
-                    <button type="button" class="manual-action-sub" id="manual-top-btn">マイク設定TOP</button>
+                    <!-- サブ導線：変更を破棄してマイク設定TOPへ戻る（キャンセル・v0.9.89） -->
+                    <button type="button" class="manual-action-sub" id="manual-top-btn">キャンセル</button>
                 </div>
             </div>
 
@@ -611,7 +612,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.88"></script>
+    <script src="script.js?v=0.9.89"></script>
 </body>
 
 </html>
