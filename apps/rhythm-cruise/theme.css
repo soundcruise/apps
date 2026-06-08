@@ -574,8 +574,49 @@ h1 {
     color: var(--text-color);
 }
 
-/* 設定TOPのサブ導線ボタン（v0.9.102）：マイク設定／画面タップ設定で共通。
-   「保存済みプリセット」「現在の設定を見る」「この設定を保存」を同じ見た目に統一する。 */
+/* 設定TOPの導線ボタン（v0.9.103）：マイク設定／画面タップ設定で共通。v0.9.101の見た目に統一。
+   主導線＝補正テスト（オレンジ枠＋淡いオレンジ地）／保存済みプリセット（淡いオレンジ）／現在の設定を見る（白枠）。 */
+.settings-top-main {
+    width: 100%;
+    padding: 15px 12px;
+    border-radius: 12px;
+    border: 2px solid #ff9f1c;
+    background: rgba(255, 159, 28, 0.12);
+    color: var(--text-color);
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 1rem;
+    cursor: pointer;
+    text-align: center;
+    touch-action: manipulation;
+    transition: transform 0.1s, background 0.15s, border-color 0.15s;
+}
+
+.settings-top-main:active {
+    transform: scale(0.98);
+}
+
+@media (hover: hover) {
+    .settings-top-main:hover {
+        background: rgba(255, 159, 28, 0.18);
+    }
+}
+
+.btn-mini.settings-top-preset {
+    padding: 13px;
+    border: 1px solid rgba(255, 159, 28, 0.45);
+    border-radius: 10px;
+    background: rgba(255, 159, 28, 0.08);
+    color: rgba(253, 246, 238, 0.9);
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.btn-mini.settings-top-preset:active {
+    background: rgba(255, 159, 28, 0.16);
+    color: var(--text-color);
+}
+
 .btn-mini.settings-top-sub {
     padding: 13px;
     border: 1px solid rgba(255, 255, 255, 0.28);
@@ -589,6 +630,41 @@ h1 {
 .btn-mini.settings-top-sub:active {
     background: rgba(255, 255, 255, 0.1);
     color: var(--text-color);
+}
+
+/* 組み込みプリセットの横並びボタン（v0.9.103）：マイク設定／画面タップ設定で共通。
+   画面幅が狭いときは自然に折り返す。 */
+.preset-builtin-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.preset-builtin-btn {
+    flex: 1 1 30%;
+    min-width: 96px;
+    padding: 12px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 159, 28, 0.5);
+    background: rgba(255, 159, 28, 0.1);
+    color: var(--text-color);
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.88rem;
+    cursor: pointer;
+    text-align: center;
+    touch-action: manipulation;
+    transition: transform 0.1s, background 0.15s, border-color 0.15s;
+}
+
+.preset-builtin-btn:active {
+    transform: scale(0.98);
+    background: rgba(255, 159, 28, 0.18);
+}
+
+.preset-help {
+    margin-bottom: 10px;
 }
 
 .tempo-row {

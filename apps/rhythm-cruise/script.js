@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.102';
+const RHYTHM_CRUISE_VERSION = '0.9.103';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -4688,6 +4688,8 @@ let settingsView = 'chooser';
    'home'（補正値＋3ボタン）/ 'cal'（イヤホン音ズレ補正カードを再利用）/ 'preset'（タップ用プリセット）/ 'manual'（手動設定）。 */
 let settingsTab = 'mic';
 let tapView = 'home';
+/* 「現在の設定を見る」を開いた時点のタップ補正値（v0.9.103）。キャンセルでこの値へ戻す。 */
+let tapManualSnapshot = 0;
 /* 保存モーダルの保存先（v0.9.97）：'mic'＝マイク設定プリセット／'tap'＝画面タップ設定プリセット。 */
 let presetModalMode = 'mic';
 /* 今回の「もう一度テストする」フローでユーザーが選択済み/完了したかの進捗（保存値とは別物）
@@ -4927,7 +4929,7 @@ function renderTapSettingsView() {
         const v = mic.headphoneOutputOffsetMs || 0;
         if (els.tapManualOffset) els.tapManualOffset.value = v;
         if (els.tapManualVal) els.tapManualVal.textContent = v + 'ms';
-        if (els.tapManualCurrent) els.tapManualCurrent.textContent = '現在のタップ補正：' + v + 'ms';
+        if (els.tapManualCurrent) els.tapManualCurrent.textContent = 'タップ補正：' + v + 'ms';
     } else {
         // HOME：補正値＋3ボタン
         if (els.tapSettingsCard) els.tapSettingsCard.classList.remove('hidden');
@@ -4947,6 +4949,9 @@ function setSettingsTab(tab) {
     settingsTab = next;
     tapView = 'home'; // タブを切り替えたら必ずホームから
     if (next === 'mic') {
+        // マイク設定タブを押したら、保存済みプリセット・現在の設定を見るは閉じた状態のTOPに戻す（v0.9.103）
+        if (els.presetListWrap) els.presetListWrap.style.display = 'none';
+        if (els.presetToggleBtn) els.presetToggleBtn.textContent = '保存済みプリセット ▾';
         setSettingsView('chooser'); // マイク設定TOPへ戻す（renderSettingsView を内包）
     } else {
         renderSettingsView();
@@ -4983,13 +4988,24 @@ function openTapPreset() {
     scrollToSettingsEl(els.tapPresetCard);
 }
 
-/* 画面タップ設定「手動設定」：スライダーでタップ補正値を直接調整する画面（v0.9.97）。 */
+/* 画面タップ設定「現在の設定を見る」：現在のタップ補正値を確認・調整する画面（v0.9.97→v0.9.103）。
+   開いた時点の値を snapshot に控え、キャンセルで元へ戻せるようにする。 */
 function openTapManual() {
     if (hpCal.active) stopHeadphoneCal();
     stopTapCal();
+    tapManualSnapshot = mic.headphoneOutputOffsetMs || 0; // キャンセル用に開いた時点の値を控える（v0.9.103）
     tapView = 'manual';
     renderSettingsView();
     scrollToSettingsEl(els.tapManualCard);
+}
+
+/* 「現在の設定を見る」のキャンセル（v0.9.103）：スライダー変更を保存せず、開いた時点の値へ戻して
+   画面タップ設定TOPへ戻る。 */
+function cancelTapManual() {
+    if (hpCal.active) stopHeadphoneCal();
+    stopTapCal();
+    setHeadphoneOffset(tapManualSnapshot); // 開いた時点の値へ戻す（保存も元値で上書き＝変更破棄）
+    backToTapHome();
 }
 
 /* 画面タップ設定の各サブ画面から、画面タップ設定ホームへ戻る（v0.9.97）。 */
@@ -5013,6 +5029,13 @@ function saveTapPresets(arr) {
 }
 function allTapPresets() {
     return BUILTIN_TAP_PRESETS.concat(loadTapPresets());
+}
+/* 組み込みタップ用プリセットの横並びボタン用・短い表示ラベル（v0.9.103）。内部の name は変えない。 */
+function tapPresetShortLabel(p) {
+    if (!p) return '';
+    if (p.id === 'builtin_tap_none') return '補正なし';
+    if (p.id === 'builtin_tap_bt') return 'Bluetooth標準';
+    return p.name;
 }
 function isBuiltinTapPresetName(name) {
     const n = (name || '').trim();
@@ -5075,15 +5098,14 @@ function renderTapPresetList() {
         + 'background:rgba(255,160,60,0.2);color:inherit;font-size:0.85rem;font-weight:700;cursor:pointer;';
     const delStyle = 'flex:none;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,120,120,0.45);'
         + 'background:rgba(255,120,120,0.08);color:inherit;font-size:0.8rem;cursor:pointer;';
-    const badge = 'flex:none;font-size:0.68rem;opacity:0.6;border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:2px 6px;';
 
-    let html = BUILTIN_TAP_PRESETS.map((p) =>
-        '<div style="' + rowStyle + '">' +
-        '<span style="' + nameStyle + '">' + escapeHtml(p.name) + '（' + p.tapOffsetMs + 'ms）</span>' +
-        '<span style="' + badge + '">標準</span>' +
-        '<button type="button" class="tap-preset-apply" data-id="' + p.id + '" style="' + applyStyle + '">呼び出す</button>' +
-        '</div>'
-    ).join('');
+    // 組み込み2種（補正なし/Bluetooth標準）は横並びボタン（v0.9.103）。横並びで見やすいよう短い表記にする。
+    let html = '<div class="preset-builtin-row">' + BUILTIN_TAP_PRESETS.map((p) =>
+        '<button type="button" class="preset-builtin-btn tap-preset-apply" data-id="' + p.id + '">' + escapeHtml(tapPresetShortLabel(p)) + '</button>'
+    ).join('') + '</div>';
+    // タップ用プリセットの説明（折りたたみ・v0.9.103）
+    html += '<details class="card-help preset-help"><summary>詳しい説明</summary>'
+        + '<p class="setting-note" style="margin-top:8px;">これは一般的な数値を元にした簡易的なプリセットです。合わない場合は、補正テストで実際にタップして調整してください。</p></details>';
 
     html += users.map((p) =>
         '<div style="' + rowStyle + '">' +
@@ -5776,15 +5798,14 @@ function renderPresetList() {
     const miniDisabled = miniStyle + 'opacity:0.3;cursor:default;';
     const delStyle = 'flex:none;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,120,120,0.45);'
         + 'background:rgba(255,120,120,0.08);color:inherit;font-size:0.8rem;cursor:pointer;';
-    const badge = 'flex:none;font-size:0.68rem;opacity:0.6;border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:2px 6px;';
 
-    let html = BUILTIN_MIC_PRESETS.map((p) =>
-        '<div style="' + rowStyle + '">' +
-        '<span style="' + nameStyle + '">' + escapeHtml(p.name) + '</span>' +
-        '<span style="' + badge + '">標準</span>' +
-        '<button type="button" class="preset-apply-btn" data-id="' + p.id + '" style="' + applyStyle + '">呼び出す</button>' +
-        '</div>'
-    ).join('');
+    // 組み込み3種（通常マイク/有線イヤホン/Bluetoothイヤホン）は横並びボタン（v0.9.103）。押すだけで呼び出し。
+    let html = '<div class="preset-builtin-row">' + BUILTIN_MIC_PRESETS.map((p) =>
+        '<button type="button" class="preset-builtin-btn preset-apply-btn" data-id="' + p.id + '">' + escapeHtml(p.name) + '</button>'
+    ).join('') + '</div>';
+    // 組み込みプリセットの説明（折りたたみ・v0.9.103）
+    html += '<details class="card-help preset-help"><summary>詳しい説明</summary>'
+        + '<p class="setting-note" style="margin-top:8px;">これは一般的な数値を元にした簡易的なプリセットです。環境によって合わない場合は、補正テストで調整してください。</p></details>';
 
     html += users.map((p, k) => {
         const upDis = (k === 0);
@@ -8019,10 +8040,10 @@ function bind() {
     if (els.tapOpenPreset) els.tapOpenPreset.addEventListener('click', openTapPreset);
     if (els.tapOpenManual) els.tapOpenManual.addEventListener('click', openTapManual);
     if (els.tapPresetBack) els.tapPresetBack.addEventListener('click', backToTapHome);
-    if (els.tapManualBack) els.tapManualBack.addEventListener('click', backToTapHome);
+    if (els.tapManualBack) els.tapManualBack.addEventListener('click', cancelTapManual);
     if (els.tapManualOffset) els.tapManualOffset.addEventListener('input', () => {
         setHeadphoneOffset(parseInt(els.tapManualOffset.value, 10));
-        if (els.tapManualCurrent) els.tapManualCurrent.textContent = '現在のタップ補正：' + (mic.headphoneOutputOffsetMs || 0) + 'ms';
+        if (els.tapManualCurrent) els.tapManualCurrent.textContent = 'タップ補正：' + (mic.headphoneOutputOffsetMs || 0) + 'ms';
     });
     if (els.tapManualUse) els.tapManualUse.addEventListener('click', () => applyTapOutputOffsetAndClose(mic.headphoneOutputOffsetMs || 0));
     if (els.tapManualSave) els.tapManualSave.addEventListener('click', openTapPresetModal);
