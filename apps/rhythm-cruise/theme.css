@@ -1774,6 +1774,13 @@ h1 {
     display: none;
 }
 
+/* v0.9.114：初回マイク反応テストカードだけ、結果メッセージ欄の高さを先に確保する。
+   停止後は「中止しました」メッセージで同じ欄が表示されるため、初回/2回目でカード高さが変わっていた。 */
+#test-card > .test-result:empty {
+    display: block;
+    visibility: hidden;
+}
+
 /* 全画面共通ナビ（戻る / TOP）：左上に固定（シリーズ共通） */
 .app-nav {
     position: fixed;

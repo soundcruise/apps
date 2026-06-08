@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.113-debug';
+const RHYTHM_CRUISE_VERSION = '0.9.114';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -26,7 +26,7 @@ const RHYTHM_CRUISE_VERSION = '0.9.113-debug';
      5. 原因特定後、必ず MIC_SCROLL_DEBUG を false に戻す。
    ※今回はスクロール処理自体は変更しない（1回直接スクロールのまま）。値を取るための整備のみ。 */
 const STAGE_WAVE_DEBUG = false;
-const MIC_SCROLL_DEBUG = true; // ★v0.9.113-debug：初回スクロール問題の実機調査のため一時的に true（次版で false に戻す）
+const MIC_SCROLL_DEBUG = false;
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
