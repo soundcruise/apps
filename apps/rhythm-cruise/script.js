@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.104';
+const RHYTHM_CRUISE_VERSION = '0.9.105';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -2625,9 +2625,12 @@ const pt = {
    Bluetoothイヤホン時だけ判定時刻へ加算する補正値 bluetoothMicOffsetMs を提案する。
    検出は最終確認テストと同じテンポ・同じクリックガードを使うが、拍割り当て等の
    複雑なロジックは持たず「各拍に最も近いオンセット時刻」を集めて平均ズレを出すだけ。 */
-const BT_MIC_OFFSET_MIN = -200;     // 補正値の下限(ms)
+const BT_MIC_OFFSET_MIN = -400;     // 補正値の下限(ms)。v0.9.105：BTの大きな出力+入力遅延（実測で約-280msが必要なケース）に届かず
+                                    //   下限-200で頭打ち→平均ズレが残ったまま「小さめ」誤判定になっていたため -400 まで拡張。
 const BT_MIC_OFFSET_MAX = 200;      // 補正値の上限(ms)
 const BT_MIC_STEP_CLAMP = 80;       // 1回の補正で動かす量の上限(ms)
+/* デバッグ用（v0.9.105）：マイク遅れ補正の判定値を確認したいときだけ true。本番は false。 */
+const BT_DEBUG = false;
 /* 微調整（v0.9.92→v0.9.94）：大きな補正提案が出ないケースで、最新の平均ズレを使って必ず少し寄せる。
    既存の「大きな補正」とは別枠。符号ルールは大きな補正と同じ（new = cur - avg）。 */
 const BT_FINE_STEP_CLAMP = 30;      // 1回の微調整で動かす量の上限(ms)
@@ -3756,10 +3759,12 @@ function finishBtCal() {
     }
     const valid = just + early + late;
     const avg = validN ? Math.round(sum / validN) : 0;
-    // 補正提案条件（v0.9.104）：有効入力6以上・|平均ズレ|>=35ms。
-    // 旧仕様にあった「方向が60%以上偏っている(biased)」条件は撤廃した。
-    // 平均ズレが大きい（例:+72ms）のに JUST 拍が混ざって片寄り比率が60%未満になると、
-    // 「ズレは小さめ」へ誤分類され、±30msの微調整しか効かなかった不具合を直す。
+    // 補正提案条件（v0.9.104→v0.9.105）：有効入力6以上・|平均ズレ|>=35ms。
+    // ・v0.9.104：「方向が60%以上偏っている(biased)」条件を撤廃。
+    // ・v0.9.105：「proposed !== cur」条件も撤廃。現在補正が下限(-200ms)に張り付いている状態だと
+    //   proposed が下限でクランプされて cur と同じ値になり、|avg|=83ms でも「小さめ」へ誤分類されていた。
+    //   大ズレ判定は純粋に enoughInput と |avg|>=35ms だけで決める（spec準拠）。
+    //   併せて下限を -400ms へ拡張したので、提案値が実際に動いて補正が前へ進む。
     const enoughInput = valid >= 6;
     const bigZure = Math.abs(avg) >= 35;
     const cur = mic.bluetoothMicOffsetMs || 0;
@@ -3767,7 +3772,7 @@ function finishBtCal() {
     // → new = cur - avg。1回の補正量は ±BT_MIC_STEP_CLAMP に制限し、全体は [MIN,MAX] にクランプ。
     const step = Math.max(-BT_MIC_STEP_CLAMP, Math.min(BT_MIC_STEP_CLAMP, -avg));
     const proposed = Math.max(BT_MIC_OFFSET_MIN, Math.min(BT_MIC_OFFSET_MAX, cur + step));
-    const propose = enoughInput && bigZure && (proposed !== cur);
+    const propose = enoughInput && bigZure;
     // 微調整（v0.9.94）：大きな補正提案が出ないケースでは、複雑な条件分岐をやめ、
     // 有効入力が十分で平均ズレが算出できれば（|avg|>=1ms）、最新結果で必ず微調整する。
     // 平均ズレが0msになることはほぼ無いので、小さなズレでも最新値へ自然に詰める。
@@ -3789,6 +3794,13 @@ function finishBtCal() {
         autoFineApplied = true;
     }
     bt.result = { just, early, late, miss, valid, avg, cur, proposed, propose, fine, fineProposed, autoFineApplied, appliedOffset, enoughInput, perBeat };
+    if (BT_DEBUG) {
+        console.debug('[bt-cal-result]', {
+            avg, valid, enoughInput, cur, proposed,
+            proposedEqualsCur: proposed === cur,
+            bigZure, propose, autoFineApplied,
+        });
+    }
     renderBtCalResult(bt.result);
     // v0.9.100：レーン（👏）は開いたまま、各拍のズレ付きで凍結表示する。
     if (els.btCalLaneWrap) els.btCalLaneWrap.classList.remove('hidden');
@@ -4915,6 +4927,9 @@ function renderTapSettingsView() {
     if (els.settingsChooser) els.settingsChooser.classList.add('hidden');
     if (els.settingsSimpleCard) els.settingsSimpleCard.classList.add('hidden');
     if (els.settingsSummaryCard) els.settingsSummaryCard.classList.add('hidden');
+    // v0.9.105：マイク設定の保存済みプリセットページ（mic-preset-card）も必ず隠す。
+    // 開いたまま画面タップ設定タブへ移ると、下部にマイク側プリセットが残って見えていた不具合を防ぐ。
+    if (els.micPresetCard) els.micPresetCard.classList.add('hidden');
     allStepCards().forEach((el) => { if (el) el.style.display = 'none'; });
     if (els.settingsStepsSummary) els.settingsStepsSummary.style.display = 'none';
     if (els.settingsStepsProgress) els.settingsStepsProgress.style.display = 'none';
@@ -5862,8 +5877,9 @@ function renderPresetList() {
         + 'background:rgba(255,120,120,0.08);color:inherit;font-size:0.8rem;cursor:pointer;';
 
     // 組み込み3種（通常マイク/有線イヤホン/Bluetoothイヤホン）は横並びボタン（v0.9.103）。押すだけで呼び出し。
+    // v0.9.105：「Bluetoothイヤホン」は横幅に収まりにくいので Bluetooth / イヤホン の2行表示にする（表示のみ）。
     let html = '<div class="preset-builtin-row">' + BUILTIN_MIC_PRESETS.map((p) =>
-        '<button type="button" class="preset-builtin-btn preset-apply-btn" data-id="' + p.id + '">' + escapeHtml(p.name) + '</button>'
+        '<button type="button" class="preset-builtin-btn preset-apply-btn" data-id="' + p.id + '">' + micPresetBtnLabel(p) + '</button>'
     ).join('') + '</div>';
     // 組み込みプリセットの説明（折りたたみ・v0.9.103）
     html += '<details class="card-help preset-help"><summary>詳しい説明</summary>'
@@ -5901,6 +5917,14 @@ function renderPresetList() {
 }
 
 /* 「保存済みプリセット」ボタンで一覧を開閉 */
+/* 組み込みマイクプリセットの横並びボタン表示ラベル（v0.9.105）。内部名は変えず表示のみ。
+   「Bluetoothイヤホン」は Bluetooth / イヤホン の2行で表示する。 */
+function micPresetBtnLabel(p) {
+    if (!p) return '';
+    if (p.id === 'builtin_bt') return 'Bluetooth<br>イヤホン';
+    return escapeHtml(p.name);
+}
+
 /* マイク設定「保存済みプリセット」：専用ページへ移動して一覧を表示する（v0.9.104。画面タップ設定と同じ構造）。 */
 function openMicPreset() {
     settingsView = 'preset';
