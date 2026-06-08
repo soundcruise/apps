@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.115';
+const RHYTHM_CRUISE_VERSION = '0.9.116';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -5078,6 +5078,10 @@ function renderSettingsView() {
     // タブの点灯（v0.9.95）
     if (els.settingsTabMic) els.settingsTabMic.classList.toggle('is-active', settingsTab === 'mic');
     if (els.settingsTabTap) els.settingsTabTap.classList.toggle('is-active', settingsTab === 'tap');
+    // v0.9.116：マイク設定の手順（steps）表示中だけ、最後のカードも見やすい位置まで持ち上げられるよう
+    //   下にスクロール余地（下余白）を確保する。マイク設定TOP/プリセット/画面タップ設定には付けない。
+    //   スクロール命令は変更せず、スクロール可能なページ高さだけを足す方針（B案）。
+    if (els.settings) els.settings.classList.toggle('is-steps-scrollable', settingsTab === 'mic' && settingsView === 'steps');
     if (settingsTab === 'tap') { renderTapSettingsView(); return; }
     // マイク設定タブ：画面タップ設定カードは隠し（.hidden で確実に）。
     // フッター（マイク設定TOPへ戻る）は、TOP（chooser）と保存済みプリセットページでは出さない（v0.9.104）。

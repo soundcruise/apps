@@ -2180,6 +2180,13 @@ h1 {
     padding-top: 34px;
 }
 
+/* v0.9.116：マイク設定の手順（steps）表示中だけ、末尾のカード（マイク反応テスト等）を
+   見やすい位置まで持ち上げられるよう、下にスクロール余地を作る。
+   マイク設定TOP・保存済みプリセット・画面タップ設定には付けない（is-steps-scrollableが付くのはstepsのみ）。 */
+#screen-settings.is-steps-scrollable {
+    padding-bottom: calc(100dvh - 200px);
+}
+
 /* テスト中の手動設定説明 */
 .tds-note {
     font-size: 0.78rem;
