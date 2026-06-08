@@ -10,7 +10,14 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.109';
+const RHYTHM_CRUISE_VERSION = '0.9.110';
+
+/* ── DEBUG フラグ（本番は必ず false）──────────────────────────
+   STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時刻/補正値を画面右下に小さく出す。
+   MIC_SCROLL_DEBUG：マイク反応テストへの初回スクロールの座標/前後Yを画面左上に小さく出す。
+   いずれも実機（iPhone）で事実確認するための一時表示。リリース時は false のまま。 */
+const STAGE_WAVE_DEBUG = false;
+const MIC_SCROLL_DEBUG = false;
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -830,6 +837,58 @@ function gameAudioMs() {
     return (state.audioCtx.currentTime - state.audioStartTime) * 1000;
 }
 
+/* ── DEBUG オーバーレイ（本番OFF・v0.9.110）──────────────────────
+   実機（iPhone）で値を見るための極小固定オーバーレイ。DEBUGフラグが false の間は
+   この関数自体が呼ばれず要素も作らないので、通常ユーザーには一切表示されない。 */
+function ensureDebugBox(id, corner) {
+    let box = document.getElementById(id);
+    if (box) return box;
+    box = document.createElement('div');
+    box.id = id;
+    const pos = (corner === 'top')
+        ? 'top:calc(var(--safe-top, 0px) + 4px);left:4px;'
+        : 'bottom:calc(var(--safe-bottom, 0px) + 4px);right:4px;';
+    box.style.cssText = 'position:fixed;' + pos + 'z-index:99999;max-width:62vw;'
+        + 'padding:6px 8px;border-radius:8px;background:rgba(0,0,0,0.74);color:#7CFC00;'
+        + 'font:600 10px/1.35 ui-monospace, Menlo, monospace;white-space:pre;pointer-events:none;';
+    if (document.body) document.body.appendChild(box);
+    return box;
+}
+
+const _dbgRound = (v) => (typeof v === 'number' && isFinite(v)) ? Math.round(v) : '-';
+
+/* STAGE再生中の波形の「描画ソース・時刻基準・補正値」を画面右下に出す（STAGE_WAVE_DEBUG時のみ）。 */
+function updateStageWaveDebug(source, rawT, latestWaveT, count) {
+    const box = ensureDebugBox('stage-wave-debug', 'bottom');
+    if (!box) return;
+    const age = (typeof rawT === 'number' && isFinite(latestWaveT)) ? (rawT - latestWaveT) : NaN;
+    box.textContent =
+        'wave source: ' + source + '\n'
+        + 'rawT: ' + _dbgRound(rawT) + '\n'
+        + 'drawT: ' + _dbgRound(rawT) + '\n'
+        + 'micJudgeOffsetMs: ' + _dbgRound(micJudgeOffsetMs()) + '\n'
+        + 'headphoneOutputOffsetMs: ' + _dbgRound(mic.headphoneOutputOffsetMs || 0) + '\n'
+        + 'latestWaveT: ' + _dbgRound(latestWaveT) + '\n'
+        + 'latestWaveAge: ' + _dbgRound(age) + '\n'
+        + 'waveCount: ' + count;
+}
+
+/* マイク反応テストへのスクロールの座標・前後Yを画面左上に出す（MIC_SCROLL_DEBUG時のみ）。 */
+function updateMicScrollDebug(info) {
+    const box = ensureDebugBox('mic-scroll-debug', 'top');
+    if (!box) return;
+    box.textContent =
+        'scroll target: ' + (info.target || '-') + '\n'
+        + 'phase: ' + (info.phase || '-') + '\n'
+        + 'beforeY: ' + _dbgRound(info.beforeY) + '\n'
+        + 'afterY: ' + _dbgRound(info.afterY) + '\n'
+        + 'targetTop: ' + _dbgRound(info.targetTop) + '\n'
+        + 'targetAbsY: ' + _dbgRound(info.targetAbsY) + '\n'
+        + 'viewportH: ' + _dbgRound(info.viewportH) + '\n'
+        + 'docH: ' + _dbgRound(info.docH) + '\n'
+        + 'method: ' + (info.method || '-');
+}
+
 /* STAGE本番のクリックを「絶対オーディオ時刻」に正確にスケジュールする（rAFのジッタ／累積ズレを排除）。
    音色は click() と同一。停止時に止められるよう state.scheduledClicks に積む。 */
 function scheduleStageClick(audioTime, accent, force) {
@@ -1167,6 +1226,8 @@ function drawMicWaveform(ctx, w, h, yc, rawT) {
 
     // 画面内に入るサンプルだけを時系列順（古い→新しい＝左→右）に集める。
     const pts = [];
+    let waveSource = 'none';   // 'micRunWave' / 'liveFallback' / 'none'（DEBUG用：今どのデータで描いているか）
+    let latestWaveT = NaN;     // 最新サンプルの時刻[ms]（micRunWave=補正後ゲーム時刻 / live=perf+off）。DEBUG用
     const rw = state.micRunWave;
     if (state.running && rw && rw.length >= 2 && typeof rawT === 'number') {
         // v0.9.109：STAGE再生中は結果レーン(drawReviewMicOverlay)と完全に同じ基準で描く。
@@ -1174,6 +1235,8 @@ function drawMicWaveform(ctx, w, h, yc, rawT) {
         //   x = jx + (t - rawT) * ppm とすると、音符（rawT基準）と同じオーディオ時計上に波形が乗る。
         //   以前の performance.now() 基準（壁時計）だと、Bluetoothのイヤホン出力遅延ぶん波形が
         //   音符グリッドからズレて見えていた。結果カードはオーディオ時計なので、ここで揃える。
+        waveSource = 'micRunWave';
+        latestWaveT = rw[rw.length - 1].t;
         for (let k = 0; k < rw.length; k++) {
             const x = jx + (rw[k].t - rawT) * ppm;
             if (x < -24 || x > w + 24) continue;
@@ -1182,16 +1245,21 @@ function drawMicWaveform(ctx, w, h, yc, rawT) {
     } else {
         // STAGE停止中など micRunWave が無い場面は、従来どおりライブ履歴(perf基準＋判定補正)で描く。
         const hist = state.micWaveHistory;
-        if (hist.length < 2) return;
-        const now = performance.now();
-        const off = micJudgeOffsetMs();
-        for (let k = 0; k < hist.length; k++) {
-            const s = hist[k];
-            const x = jx + (s.perf + off - now) * ppm; // 今＝判定ライン、過去＝左へ流れる（補正込み）
-            if (x < -24 || x > w + 24) continue;
-            pts.push([x, micDisplayFrac(s.level)]);
+        if (hist.length >= 2) {
+            waveSource = 'liveFallback';
+            const now = performance.now();
+            const off = micJudgeOffsetMs();
+            latestWaveT = hist[hist.length - 1].perf + off;
+            for (let k = 0; k < hist.length; k++) {
+                const s = hist[k];
+                const x = jx + (s.perf + off - now) * ppm; // 今＝判定ライン、過去＝左へ流れる（補正込み）
+                if (x < -24 || x > w + 24) continue;
+                pts.push([x, micDisplayFrac(s.level)]);
+            }
         }
     }
+    // DEBUG：実機で「どのデータ・どの時刻基準で描いているか」を可視化する（本番OFF・v0.9.110）
+    if (STAGE_WAVE_DEBUG) updateStageWaveDebug(waveSource, rawT, latestWaveT, pts.length);
     if (pts.length < 2) return;
 
     // 上下対称の塗りエンベロープ（薄いグレー）
@@ -2323,7 +2391,7 @@ function hpCalBeatMs() { return 60000 / hpCalBpm; }
 const HP_BLUETOOTH_STANDARD_OFFSET_MIC = 100;
 const HP_BLUETOOTH_STANDARD_OFFSET_TAP = 200;
 const HP_CAL_LEAD_MS = 80;        // クリックを少し先に鳴らし、負offsetでも丸を先に光らせられるようにする土台
-const HP_CAL_AUTO_BEATS = 32;     // 8小節（4拍×8）で自動停止する（v0.9.109）。BPM可変でも拍数で数える
+const HP_CAL_AUTO_BEATS = 16;     // 4小節（4拍×4）で自動停止する（v0.9.110。v0.9.109の8小節から短縮）。BPM可変でも拍数で数える
 const hpCal = { active: false, timer: 0, beat: 0, lightTimers: [], raf: 0, flowStartPerf: 0 };
 let hpLane = { ctx: null, w: 0, h: 0 }; // イヤホン音ズレ補正の流れるレーン（v0.9.91）
 
@@ -2468,8 +2536,8 @@ function hpLoop() {
 }
 
 function hpBeatTick() {
-    // v0.9.109：8小節（HP_CAL_AUTO_BEATS拍）流したら自動停止する。
-    // 33拍目のクリックを鳴らさず、ここで止める（＝1〜8小節ぶんのクリックが鳴る）。
+    // v0.9.110：4小節（HP_CAL_AUTO_BEATS=16拍）流したら自動停止する。
+    // 17拍目のクリックを鳴らさず、ここで止める（＝1〜4小節ぶんのクリックが鳴る）。
     if (hpCal.beat >= HP_CAL_AUTO_BEATS) {
         finishHeadphoneCalAuto();
         return;
@@ -2479,7 +2547,7 @@ function hpBeatTick() {
     hpCal.beat++;
 }
 
-/* 8小節ぶん流れたあとの自動停止（v0.9.109）。
+/* 4小節ぶん流れたあとの自動停止（v0.9.109→v0.9.110で4小節に短縮）。
    手動停止と同じく「レーンは閉じず、丸を初期位置へ戻して静止」させ、
    「この音ズレ設定で進む」ボタンが見える位置までスクロールし、案内文を表示する。 */
 function finishHeadphoneCalAuto() {
@@ -5534,26 +5602,44 @@ function scrollToSettingsEl(el, block, delayMs) {
    v0.9.109：scrollIntoView({behavior:'smooth'}) は、初回ロード直後（レイアウト未確定・Webフォント
    読込中・iPhoneのアドレスバー収納でビューポート高が変わる）と相性が悪く、初回だけ無視されることがある。
    そこで対象の絶対Y座標をその都度計算し、window.scrollTo で直接動かす（方針B）。 */
-function hardScrollWindowToEl(el, marginTop) {
+function hardScrollWindowToEl(el, marginTop, phase) {
     if (!el || !el.getBoundingClientRect) return;
-    const cur = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
-    const top = Math.max(0, el.getBoundingClientRect().top + cur - (marginTop || 96));
+    const beforeY = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    const targetTop = el.getBoundingClientRect().top;        // 現在のビューポート上端からの相対位置
+    const targetAbsY = targetTop + beforeY;                  // ドキュメント上端からの絶対位置
+    const top = Math.max(0, targetAbsY - (marginTop || 96));
     try { window.scrollTo({ top, behavior: 'smooth' }); }
     catch (_) { window.scrollTo(0, top); }
+    if (MIC_SCROLL_DEBUG) {
+        const afterY = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+        updateMicScrollDebug({
+            target: el.id || '(el)', phase: phase || 'scroll',
+            beforeY, afterY, targetTop, targetAbsY,
+            viewportH: window.innerHeight, docH: document.documentElement.scrollHeight,
+            method: 'window.scrollTo',
+        });
+        // 300ms後（スムーススクロール後・viewport変化後）の実値も確認する
+        setTimeout(() => {
+            const y2 = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+            updateMicScrollDebug({
+                target: el.id || '(el)', phase: (phase || 'scroll') + '+300ms',
+                beforeY, afterY: y2, targetTop: el.getBoundingClientRect().top, targetAbsY,
+                viewportH: window.innerHeight, docH: document.documentElement.scrollHeight,
+                method: 'window.scrollTo',
+            });
+        }, 300);
+    }
 }
 
-/* マイク反応テストカードへの「初回スクロール」専用（v0.9.108→v0.9.109）。
-   発想を変えて、scrollIntoView ではなく window.scrollTo で絶対Y座標へ直接スクロールする。
-   座標は毎回その時点のレイアウトから再計算するので、初回ロードでレイアウトが後から確定しても
-   後追いで正しい位置へ補正できる。既に正しい位置なら実質 no-op。他カードの挙動には影響しない。 */
+/* マイク反応テストカードへの「初回スクロール」専用（v0.9.108→v0.9.110）。
+   v0.9.109の複数回スクロール（160ms/480ms/fonts.ready）は、実機でガタつく原因になっていた可能性が
+   高いので撤回。発想を「1回だけ直接スクロール」に戻す（案1）。レイアウト確定のため2フレーム待ってから、
+   window.scrollTo で絶対Y座標へ1回だけスクロールする。原因の事実確認は MIC_SCROLL_DEBUG で行う。 */
 function scrollToMicTestCard() {
     if (!els.testCard) return;
-    const run = () => hardScrollWindowToEl(els.testCard, 96);
-    requestAnimationFrame(() => requestAnimationFrame(run)); // レイアウト確定後（2フレーム）
-    setTimeout(run, 220);                                    // ビューポート/フォント変化の後追い（1回）
-    if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
-        document.fonts.ready.then(run);                      // Webフォント確定後に最終補正
-    }
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        hardScrollWindowToEl(els.testCard, 96, 'mic-test-initial');
+    }));
 }
 
 /* ── 選択ハンドラ（選んだら自動で次の項目を出す。上流変更時は下流結果をリセット）── */
