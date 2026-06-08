@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.118">
+    <link rel="stylesheet" href="theme.css?v=0.9.119">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -62,7 +62,20 @@
                     <button class="settings-top-main cat-btn" id="cat-kiso">基礎練</button>
                     <button class="settings-top-main cat-btn cat-soon" id="cat-stroke">ストロークパターン<span class="badge-soon">準備中</span></button>
                     <button class="settings-top-main cat-btn cat-soon" id="cat-chord">コード進行<span class="badge-soon">準備中</span></button>
+                    <!-- PROカスタムSTAGE入口（v0.9.119）。表示・操作は isRhythmProCustomStageAvailable() を経由する。 -->
+                    <button class="settings-top-main cat-btn cat-pro" id="cat-pro-custom"><span class="cat-pro-crown">👑</span> PROカスタムSTAGE</button>
                 </div>
+            </div>
+
+            <!-- PROカスタムSTAGE一覧（v0.9.119）。作成・一覧・削除・JSONコピーの土台。戻るは共通ナビ #app-nav。 -->
+            <div class="home-view hidden" id="home-pro-custom">
+                <div class="section-label">PROカスタムSTAGE</div>
+                <p class="pro-custom-lead">リズムSTAGEを作成して、JSONとして出力できます</p>
+                <button class="settings-top-main pro-custom-new" id="pro-custom-new">＋ 新規作成</button>
+                <div class="pro-custom-list" id="pro-custom-list">
+                    <!-- script.js が描画 -->
+                </div>
+                <p class="pro-custom-empty hidden" id="pro-custom-empty">まだカスタムSTAGEはありません。「新規作成」で追加できます。</p>
             </div>
 
             <!-- 基礎練：STAGE1〜6（v0.9.117） -->
@@ -791,7 +804,10 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.118"></script>
+    <!-- 軽いフィードバック用トースト（JSONコピー等・v0.9.119） -->
+    <div class="rc-toast hidden" id="rc-toast" role="status" aria-live="polite"></div>
+
+    <script src="script.js?v=0.9.119"></script>
 </body>
 
 </html>

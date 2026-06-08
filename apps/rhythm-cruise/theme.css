@@ -554,6 +554,158 @@ h1 {
     border-radius: 12px;
 }
 
+/* ── PROカスタムSTAGE（v0.9.119）──────────────────────────── */
+/* カテゴリ一覧の入口ボタン。PRO機能と分かるよう金色のアクセントを足す。 */
+.cat-btn.cat-pro {
+    gap: 10px;
+    border-color: rgba(255, 200, 87, 0.55);
+    background:
+        radial-gradient(120% 120% at 0% 0%, rgba(255, 200, 87, 0.16), transparent 55%),
+        rgba(255, 200, 87, 0.08);
+    color: #ffe7a8;
+}
+
+@media (hover: hover) {
+    .cat-btn.cat-pro:hover {
+        background:
+            radial-gradient(120% 120% at 0% 0%, rgba(255, 200, 87, 0.24), transparent 55%),
+            rgba(255, 200, 87, 0.14);
+    }
+}
+
+.cat-pro-crown {
+    font-size: 1.05rem;
+    line-height: 1;
+}
+
+/* 一覧画面 */
+.pro-custom-lead {
+    width: 100%;
+    margin: 0;
+    color: var(--muted-color);
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.settings-top-main.pro-custom-new {
+    border-color: rgba(255, 200, 87, 0.55);
+    background: rgba(255, 200, 87, 0.1);
+    color: #ffe7a8;
+}
+
+.pro-custom-list {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.pro-custom-card {
+    width: 100%;
+    text-align: left;
+    padding: 14px 16px;
+    border: 1px solid rgba(255, 200, 87, 0.22);
+    border-radius: 16px;
+    background:
+        radial-gradient(120% 120% at 0% 0%, rgba(255, 200, 87, 0.06), transparent 55%),
+        rgba(255, 255, 255, 0.03);
+}
+
+.pro-custom-card-title {
+    font-weight: 800;
+    font-size: 1.02rem;
+    color: var(--text-color);
+}
+
+.pro-custom-card-desc {
+    margin-top: 3px;
+    color: var(--muted-color);
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.pro-custom-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.pro-custom-chip {
+    font-size: 0.72rem;
+    letter-spacing: 0.5px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: rgba(253, 246, 238, 0.08);
+    color: rgba(253, 246, 238, 0.82);
+}
+
+.pro-custom-card-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.pro-custom-act {
+    flex: 1;
+    padding: 9px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(253, 246, 238, 0.22);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-color);
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.pro-custom-act:active {
+    transform: scale(0.98);
+}
+
+.pro-custom-act.is-copy {
+    border-color: rgba(255, 200, 87, 0.45);
+    color: #ffe7a8;
+}
+
+.pro-custom-act.is-delete {
+    border-color: rgba(255, 99, 99, 0.4);
+    color: #ff9d9d;
+}
+
+.pro-custom-empty {
+    width: 100%;
+    text-align: center;
+    color: var(--muted-color);
+    padding: 28px 12px;
+    border: 1px dashed rgba(253, 246, 238, 0.18);
+    border-radius: 12px;
+}
+
+/* コピー等の軽いフィードバック用トースト */
+.rc-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 84px;
+    transform: translateX(-50%) translateY(8px);
+    z-index: 1200;
+    padding: 10px 18px;
+    border-radius: 999px;
+    background: rgba(20, 17, 13, 0.94);
+    border: 1px solid rgba(255, 200, 87, 0.4);
+    color: #ffe7a8;
+    font-weight: 700;
+    font-size: 0.9rem;
+    opacity: 0;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    pointer-events: none;
+}
+
+.rc-toast.is-show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }

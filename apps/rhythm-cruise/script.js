@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.118';
+const RHYTHM_CRUISE_VERSION = '0.9.119';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -212,6 +212,8 @@ const state = {
     bpm: 80,
     bars: DEFAULT_BARS, // テストする小節数（1/2/4/8）。全STAGE共通（v0.9.118）
     currentStage: 1,
+    rhythmProCustomStages: [], // PROカスタムSTAGE（v0.9.119）。SETTINGS_KEY内に統合保存する。
+
     inputMode: 'tap',   // 'tap' | 'stroke'
     strokeDetectMode: 'brush', // ストローク検出モード：'brush'（ブラッシング・既存ロジック）| 'chord'（コードストローク専用ロジック）
     // コードストローク専用ロジックのゲート（マイク反応テストから自動算出・既定値あり）
@@ -404,6 +406,13 @@ const els = {
     catKiso: $('cat-kiso'),
     catStroke: $('cat-stroke'),
     catChord: $('cat-chord'),
+    // PROカスタムSTAGE（v0.9.119）
+    catProCustom: $('cat-pro-custom'),
+    homeProCustom: $('home-pro-custom'),
+    proCustomNew: $('pro-custom-new'),
+    proCustomList: $('pro-custom-list'),
+    proCustomEmpty: $('pro-custom-empty'),
+    rcToast: $('rc-toast'),
     appVersionDisplay: $('app-version-display'),
     refreshBar: $('in-game-refresh-bar'),
     practiceNum: $('practice-num'),
@@ -741,11 +750,254 @@ function renderStages() {
     });
 }
 
+/* ═══════════════════════════════════════════════════════════
+   PROカスタムSTAGE（v0.9.119：土台）
+   ・入口・一覧・保存・JSONコピーのみ。練習エンジン接続は次工程。
+   ・保存は新規キーを作らず、既存 SETTINGS_KEY のJSON内に
+     rhythmProCustomStages: [] として統合する。
+   ・表示/操作は必ず isRhythmProCustomStageAvailable() を経由し、
+     将来 PRO版/通常版で制御を差し替えられる構造にしておく。
+═══════════════════════════════════════════════════════════ */
+const RHYTHM_CUSTOM_STAGE_MAX_SAVED = 24;
+const RHYTHM_CUSTOM_GRID_OPTIONS = ['quarter', 'eighth'];
+const RHYTHM_CUSTOM_BAR_OPTIONS = [1, 2, 4, 8];
+const RHYTHM_CUSTOM_CLICK_MODES = ['all', 'downbeat', 'none'];
+const RHYTHM_CUSTOM_DIRS = ['down', 'up']; // null も許容（補正で別扱い）
+const RHYTHM_CUSTOM_BPM_MIN = 30;
+const RHYTHM_CUSTOM_BPM_MAX = 240;
+const RHYTHM_CUSTOM_BEATS_PER_BAR = 4; // 現状は4/4のみ
+
+/* 将来のPRO判定用フック（v0.9.119）。
+   いまは true 固定。将来は data-app-edition や認証状態に差し替える。
+   例： return document.documentElement.dataset.appEdition === 'Pro'; */
+function isRhythmProEdition() {
+    return document.documentElement && document.documentElement.dataset
+        ? document.documentElement.dataset.appEdition === 'Pro'
+        : false;
+}
+function isRhythmProCustomStageAvailable() {
+    return true;
+}
+
+/* ユニークID：rcs_<base36時刻>_<乱数> */
+function generateRhythmCustomStageId() {
+    const ts = Date.now().toString(36);
+    const rand = Math.floor(Math.random() * 0xffffff).toString(36).padStart(4, '0');
+    return `rcs_${ts}_${rand}`;
+}
+
+/* 1小節あたりのステップ数（grid別） */
+function rhythmCustomStepsPerBar(grid) {
+    return grid === 'eighth' ? RHYTHM_CUSTOM_BEATS_PER_BAR * 2 : RHYTHM_CUSTOM_BEATS_PER_BAR;
+}
+
+/* デフォルトのカスタムSTAGE（新規作成時に1件保存する雛形） */
+function getDefaultRhythmCustomStage() {
+    return {
+        version: 1,
+        id: generateRhythmCustomStageId(),
+        title: 'カスタムSTAGE',
+        description: '新しいリズム練習',
+        grid: 'quarter',
+        bars: 4,
+        bpm: 80,
+        clickMode: 'all',
+        pattern: [
+            { hit: true, dir: 'down' },
+            { hit: true, dir: 'down' },
+            { hit: true, dir: 'down' },
+            { hit: true, dir: 'down' },
+        ],
+        motion: 'all-down',
+        judgeTargets: [0, 1, 2, 3],
+        displayLabels: ['1', '2', '3', '4'],
+    };
+}
+
+/* 正規化：不正値を安全なデフォルトへ戻す（指板クルーズの考え方を参考に） */
+function normalizeRhythmCustomStageSettings(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const def = getDefaultRhythmCustomStage();
+
+    const grid = RHYTHM_CUSTOM_GRID_OPTIONS.includes(raw.grid) ? raw.grid : 'quarter';
+    const bars = RHYTHM_CUSTOM_BAR_OPTIONS.includes(raw.bars) ? raw.bars : 4;
+    const bpm = clampNum(Math.round(Number(raw.bpm)), RHYTHM_CUSTOM_BPM_MIN, RHYTHM_CUSTOM_BPM_MAX, def.bpm);
+    const clickMode = RHYTHM_CUSTOM_CLICK_MODES.includes(raw.clickMode) ? raw.clickMode : 'all';
+
+    const title = String(raw.title == null ? '' : raw.title).trim() || def.title;
+    const description = String(raw.description == null ? '' : raw.description).trim() || def.description;
+
+    // pattern は grid×bars の長さへ補正。各要素の hit/dir を安全化。
+    const steps = rhythmCustomStepsPerBar(grid) * bars;
+    const srcPattern = Array.isArray(raw.pattern) ? raw.pattern : [];
+    const pattern = [];
+    for (let i = 0; i < steps; i++) {
+        const cell = srcPattern[i] && typeof srcPattern[i] === 'object' ? srcPattern[i] : {};
+        const hit = cell.hit === undefined ? true : !!cell.hit;
+        let dir = RHYTHM_CUSTOM_DIRS.includes(cell.dir) ? cell.dir : (cell.dir === null ? null : 'down');
+        if (!hit) dir = null; // 打点が無いステップは方向も持たない
+        pattern.push({ hit, dir });
+    }
+
+    // judgeTargets は有効indexのみ・重複排除・昇順
+    const judgeTargets = Array.isArray(raw.judgeTargets)
+        ? Array.from(new Set(
+            raw.judgeTargets
+                .map(n => parseInt(n, 10))
+                .filter(n => Number.isInteger(n) && n >= 0 && n < steps)
+        )).sort((a, b) => a - b)
+        : pattern.map((c, i) => (c.hit ? i : -1)).filter(i => i >= 0);
+
+    // displayLabels は steps 長へ補正（不足は拍番号で補完）
+    const srcLabels = Array.isArray(raw.displayLabels) ? raw.displayLabels : [];
+    const displayLabels = [];
+    for (let i = 0; i < steps; i++) {
+        const lbl = srcLabels[i];
+        displayLabels.push(lbl == null ? String((i % RHYTHM_CUSTOM_BEATS_PER_BAR) + 1) : String(lbl));
+    }
+
+    const motion = typeof raw.motion === 'string' && raw.motion ? raw.motion : def.motion;
+    const version = Number.isInteger(raw.version) ? raw.version : 1;
+    const id = typeof raw.id === 'string' && raw.id ? raw.id : generateRhythmCustomStageId();
+
+    return { version, id, title, description, grid, bars, bpm, clickMode, pattern, motion, judgeTargets, displayLabels };
+}
+
+/* 保存済み一覧を取得（normalize済み・id必須・重複id補正） */
+function getSavedRhythmCustomStages() {
+    const arr = Array.isArray(state.rhythmProCustomStages) ? state.rhythmProCustomStages : [];
+    const seen = new Set();
+    return arr
+        .map(s => normalizeRhythmCustomStageSettings(s))
+        .filter(Boolean)
+        .map(s => {
+            let id = s.id;
+            if (!id || seen.has(id)) id = generateRhythmCustomStageId();
+            seen.add(id);
+            return { ...s, id };
+        });
+}
+
+/* 1件追加（新規）。上限超過なら null。 */
+function addRhythmCustomStage(stage) {
+    const incoming = normalizeRhythmCustomStageSettings(stage);
+    if (!incoming) return null;
+    const stages = getSavedRhythmCustomStages();
+    if (stages.length >= RHYTHM_CUSTOM_STAGE_MAX_SAVED) return null;
+    if (!incoming.id) incoming.id = generateRhythmCustomStageId();
+    stages.push(incoming);
+    state.rhythmProCustomStages = stages;
+    saveSettings();
+    return incoming;
+}
+
+/* id指定で削除。削除できたら true。 */
+function deleteRhythmCustomStageById(id) {
+    if (!id) return false;
+    const stages = getSavedRhythmCustomStages();
+    const filtered = stages.filter(s => s.id !== id);
+    if (filtered.length === stages.length) return false;
+    state.rhythmProCustomStages = filtered;
+    saveSettings();
+    return true;
+}
+
+/* クリップボードへコピー（navigator.clipboard 不可時は textarea フォールバック） */
+async function copyTextToClipboard(text) {
+    try {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            await navigator.clipboard.writeText(text);
+            return true;
+        }
+    } catch (_) { /* フォールバックへ */ }
+    try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        return ok;
+    } catch (_) {
+        return false;
+    }
+}
+
+/* 軽いトースト表示（コピー結果など） */
+let rcToastTimer = 0;
+function showRcToast(msg) {
+    const el = els.rcToast;
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    requestAnimationFrame(() => el.classList.add('is-show'));
+    if (rcToastTimer) clearTimeout(rcToastTimer);
+    rcToastTimer = setTimeout(() => {
+        el.classList.remove('is-show');
+        setTimeout(() => el.classList.add('hidden'), 220);
+    }, 1400);
+}
+
+/* JSONコピー：指定STAGEを整形済みJSONでコピーし、短いフィードバックを出す */
+async function copyRhythmCustomStageJson(id) {
+    const stage = getSavedRhythmCustomStages().find(s => s.id === id);
+    if (!stage) return;
+    const ok = await copyTextToClipboard(JSON.stringify(stage, null, 2));
+    showRcToast(ok ? 'コピーしました' : 'コピーできませんでした');
+}
+
+/* 新規作成：デフォルトSTAGEを1件保存して一覧を更新 */
+function createNewRhythmCustomStage() {
+    if (!isRhythmProCustomStageAvailable()) return;
+    const added = addRhythmCustomStage(getDefaultRhythmCustomStage());
+    if (!added) {
+        showRcToast(`保存できる上限（${RHYTHM_CUSTOM_STAGE_MAX_SAVED}件）に達しています`);
+        return;
+    }
+    renderRhythmCustomStages();
+    showRcToast('カスタムSTAGEを追加しました');
+}
+
+/* 一覧描画 */
+function renderRhythmCustomStages() {
+    if (!els.proCustomList) return;
+    const stages = getSavedRhythmCustomStages();
+    els.proCustomList.innerHTML = '';
+    if (els.proCustomEmpty) els.proCustomEmpty.classList.toggle('hidden', stages.length > 0);
+
+    const clickModeLabel = { all: 'クリック：全部', downbeat: 'クリック：1拍目', none: 'クリック：なし' };
+    const gridLabel = { quarter: '4分', eighth: '8分' };
+
+    stages.forEach((s) => {
+        const card = document.createElement('div');
+        card.className = 'pro-custom-card';
+        card.dataset.id = s.id;
+        const meta = [
+            `<span class="pro-custom-chip">${gridLabel[s.grid] || s.grid}</span>`,
+            `<span class="pro-custom-chip">${s.bars}小節</span>`,
+            `<span class="pro-custom-chip">${s.bpm} BPM</span>`,
+            `<span class="pro-custom-chip">${clickModeLabel[s.clickMode] || s.clickMode}</span>`,
+        ].join('');
+        card.innerHTML = `
+            <div class="pro-custom-card-title">${escapeHtml(s.title)}</div>
+            <div class="pro-custom-card-desc">${escapeHtml(s.description)}</div>
+            <div class="pro-custom-card-meta">${meta}</div>
+            <div class="pro-custom-card-actions">
+                <button type="button" class="pro-custom-act is-copy" data-act="copy">JSONコピー</button>
+                <button type="button" class="pro-custom-act is-delete" data-act="delete">削除</button>
+            </div>`;
+        els.proCustomList.appendChild(card);
+    });
+}
+
 /* ── ホーム内の階層表示（v0.9.117）────────────────────────────
    ホームは「TOP → リズム練をする → 基礎練(STAGE一覧)/ストロークパターン/コード進行」の
    サブビューを #screen-home の中で切り替える。画面そのもの（home/practice/settings）の
    遷移ロジックは変更しない。 */
-let homeView = 'top'; // 'top' | 'rhythm' | 'kiso' | 'soon'
+let homeView = 'top'; // 'top' | 'rhythm' | 'kiso' | 'soon' | 'proCustom'
 let currentScreen = 'home'; // 'home' | 'practice' | 'settings'（v0.9.118：共通ナビ表示判定に使う）
 
 /* 共通ナビ（左上 戻る/TOP・右上 設定）の表示制御（v0.9.118）。
@@ -761,6 +1013,7 @@ function renderHome() {
     if (els.homeRhythm) els.homeRhythm.classList.toggle('hidden', homeView !== 'rhythm');
     if (els.homeKiso) els.homeKiso.classList.toggle('hidden', homeView !== 'kiso');
     if (els.homeSoon) els.homeSoon.classList.toggle('hidden', homeView !== 'soon');
+    if (els.homeProCustom) els.homeProCustom.classList.toggle('hidden', homeView !== 'proCustom');
     updateChrome();
 }
 function setHomeView(v) {
@@ -771,6 +1024,12 @@ function setHomeView(v) {
 function openSoonCategory(title) {
     if (els.soonTitle) els.soonTitle.textContent = title;
     setHomeView('soon');
+}
+/* PROカスタムSTAGE一覧を開く（判定フック経由・v0.9.119）。 */
+function openRhythmProCustom() {
+    if (!isRhythmProCustomStageAvailable()) return;
+    renderRhythmCustomStages();
+    setHomeView('proCustom');
 }
 /* ホームの特定サブビューへ移動（STAGE→基礎練など）。再生・マイクは止めてから移る。 */
 function goHomeView(v) {
@@ -816,6 +1075,7 @@ function navBack() {
         if (homeView === 'rhythm') { setHomeView('top'); return; }
         if (homeView === 'kiso') { setHomeView('rhythm'); return; }
         if (homeView === 'soon') { setHomeView('rhythm'); return; }
+        if (homeView === 'proCustom') { setHomeView('rhythm'); return; }
         return; // TOPでは戻る不要（共通ナビ自体を隠している）
     }
     goTop();
@@ -4994,6 +5254,10 @@ function loadSettings() {
     state.bars = (BAR_OPTIONS.indexOf(s.bars) !== -1) ? s.bars : DEFAULT_BARS; // v0.9.118：小節数の保存値を優先（不正値は既定8）
     applyStageBars();
     state.strokeDetectMode = (s.strokeDetectMode === 'chord') ? 'chord' : 'brush';
+    // PROカスタムSTAGE（v0.9.119）：既存設定JSON内の配列を読み出して正規化する。
+    state.rhythmProCustomStages = Array.isArray(s.rhythmProCustomStages)
+        ? s.rhythmProCustomStages.map(x => normalizeRhythmCustomStageSettings(x)).filter(Boolean)
+        : [];
     if (typeof s.chordMinCooldown === 'number') state.chordMinCooldown = clampNum(s.chordMinCooldown, 100, 400, 180);
     if (typeof s.chordRiseGate === 'number') state.chordRiseGate = s.chordRiseGate;
     if (typeof s.chordInstantRiseGate === 'number') state.chordInstantRiseGate = s.chordInstantRiseGate;
@@ -5027,6 +5291,7 @@ function saveSettings() {
             inputMode: state.inputMode,
             bars: state.bars,
             strokeDetectMode: state.strokeDetectMode,
+            rhythmProCustomStages: Array.isArray(state.rhythmProCustomStages) ? state.rhythmProCustomStages : [],
             chordMinCooldown: state.chordMinCooldown,
             chordRiseGate: state.chordRiseGate,
             chordInstantRiseGate: state.chordInstantRiseGate,
@@ -8479,6 +8744,26 @@ function bind() {
     if (els.catKiso) els.catKiso.addEventListener('click', () => setHomeView('kiso'));
     if (els.catStroke) els.catStroke.addEventListener('click', () => openSoonCategory('ストロークパターン'));
     if (els.catChord) els.catChord.addEventListener('click', () => openSoonCategory('コード進行'));
+    // PROカスタムSTAGE（v0.9.119）：入口→一覧、新規作成、一覧内のコピー/削除（委譲）
+    if (els.catProCustom) els.catProCustom.addEventListener('click', openRhythmProCustom);
+    if (els.proCustomNew) els.proCustomNew.addEventListener('click', createNewRhythmCustomStage);
+    if (els.proCustomList) els.proCustomList.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-act]');
+        if (!btn) return;
+        const card = btn.closest('.pro-custom-card');
+        const id = card && card.dataset ? card.dataset.id : '';
+        if (!id) return;
+        const act = btn.dataset.act;
+        if (act === 'copy') {
+            copyRhythmCustomStageJson(id);
+        } else if (act === 'delete') {
+            if (window.confirm('このカスタムSTAGEを削除しますか？')) {
+                deleteRhythmCustomStageById(id);
+                renderRhythmCustomStages();
+                showRcToast('削除しました');
+            }
+        }
+    });
     // 全画面共通ナビ（戻る / TOP / 設定）
     if (els.navBackBtn) els.navBackBtn.addEventListener('click', () => guardMicSetupInterruption(navBack));
     if (els.navTopBtn) els.navTopBtn.addEventListener('click', () => guardMicSetupInterruption(goTop));
