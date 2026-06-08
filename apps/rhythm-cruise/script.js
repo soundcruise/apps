@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.107';
+const RHYTHM_CRUISE_VERSION = '0.9.108';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -1138,10 +1138,10 @@ function drawStrokeArrow(ctx, x, y, dir, color, alpha) {
 }
 
 /* ── マイク入力波形（譜面レーン背景・グレー） ──────────── */
-/* dispOff（v0.9.107）：イヤホン音ズレ補正(headphoneOutputOffsetMs)の「表示だけ」のずらし量。
-   音符/拍/判定マーカーを heard-time（イヤホンで聞こえる時刻）へ寄せたとき、波形も同じだけ寄せて、
-   正しいタイミングのストロークの波形が音符の真下に来るようにする（判定値は不変）。 */
-function drawMicWaveform(ctx, w, h, yc, dispOff) {
+/* 波形は「判定の時間軸」(micJudgeOffsetMs)で表示する（v0.9.108）。
+   音符/拍/小節線/視覚クリックはイヤホン音ズレ補正(headphoneOutputOffsetMs)で heard-time へ寄せるが、
+   波形・判定マーカー・EARLY/LATE位置は判定時間軸のまま動かさない（最終確認テスト drawPracticeLane と同じ役割分離）。 */
+function drawMicWaveform(ctx, w, h, yc) {
     const ppm = state.pxPerMs, jx = state.judgeX;
     const maxAmp = h * 0.34;
 
@@ -1168,8 +1168,7 @@ function drawMicWaveform(ctx, w, h, yc, dispOff) {
     const now = performance.now();
     // マイク判定補正を波形にも反映し、判定マーカーと時間軸を揃える
     // （判定は perf+offset で評価するため、波形も同じ offset で前後させる）
-    // さらに dispOff（イヤホン音ズレ補正の表示分）を足して、音符/拍/マーカーの表示時刻と揃える（v0.9.107・表示のみ）。
-    const off = micJudgeOffsetMs() + (dispOff || 0);
+    const off = micJudgeOffsetMs();
 
     // 画面内に入るサンプルだけを時系列順（古い→新しい＝左→右）に集める
     const pts = [];
@@ -1208,17 +1207,20 @@ function drawLane(rawT) {
     const yc = h * 0.56;
     const bi = state.beatInterval, T0 = state.T0, ppm = state.pxPerMs, jx = state.judgeX;
 
-    // 「聞こえるクリック音」に合わせて画面表示を出力遅延ぶん遅らせる（表示のみ・判定は別途オーディオ時計で補正済み）。
-    // v0.9.97：タップモードで導入。v0.9.107：ストローク(mic)モードにも適用。
-    // タップもストロークも合わせる相手は「イヤホンから聞こえるクリック音」なので、同じ出力遅延補正
-    // （タップ=tapOutputOffsetMs()／ストローク=headphoneOutputOffsetMs。どちらも同値）で表示時刻だけずらす。
-    // これで Bluetoothイヤホン時に「音符がJUSTを通る瞬間＝クリックが聞こえる瞬間」になり、v0.9.106の最終確認テストと揃う。
+    // タップモードは「聞こえるクリック音」に合わせ、表示時刻 t 自体を出力遅延ぶん戻す（v0.9.97）。
+    //   タップは判定 hitTime からも tapOutputOffsetMs を引いているので、t も同じだけ戻すと
+    //   音符（heard-time）＝目標、判定マーカー（生タップ時刻）＝入力 が正しく揃う。
+    // ストローク(mic)モードは t を動かさない（= rawT ＝ オーディオ/判定時間軸）。v0.9.108で v0.9.107 の全体ずらしを撤回。
+    const t = (state.inputMode === 'tap') ? (rawT - tapOutputOffsetMs()) : rawT;
+    // 表示の役割分離（最終確認テスト drawPracticeLane と同じ思想・v0.9.108）：
+    //   音符 / 拍グリッド / 小節線 / 視覚クリック / 音符中心線 → イヤホン音ズレ補正(headphoneOutputOffsetMs)で heard-time へ寄せる。
+    //   マイク波形 / 判定マーカー / EARLY・LATE位置 → 判定時間軸(micJudgeOffsetMs)のまま（ずらさない）。
+    // gridDispOff は「音符/拍系だけ」に足す表示補正。タップモードは t で既に寄せているので二重ずらし防止に0。
     // 判定(registerHit)・スコアには一切入れない。通常マイク/有線は値が0msなのでズレない。
-    const dispOff = (state.inputMode === 'tap') ? tapOutputOffsetMs() : (mic.headphoneOutputOffsetMs || 0);
-    const t = rawT - dispOff;
+    const gridDispOff = (state.inputMode === 'tap') ? 0 : (mic.headphoneOutputOffsetMs || 0);
 
-    // ① マイク入力波形（最背面・グレーの補助表示）。波形も dispOff ぶん寄せて音符と時間軸を揃える。
-    drawMicWaveform(ctx, w, h, yc, dispOff);
+    // ① マイク入力波形（最背面・グレーの補助表示）。波形は判定時間軸のまま（gridDispOffは入れない）。
+    drawMicWaveform(ctx, w, h, yc);
 
     // ② 中央の水平ガイド（五線の地）
     ctx.strokeStyle = 'rgba(253,246,238,0.08)';
@@ -1228,7 +1230,8 @@ function drawLane(rawT) {
     // 拍・小節・音符
     for (let i = -COUNT_IN_BEATS; i <= TOTAL_BEATS - 1; i++) {
         const bt = T0 + i * bi;
-        const x = jx + (bt - t) * ppm;
+        // 音符/拍/小節線/中心線は gridDispOff（イヤホン音ズレ補正）ぶん heard-time へ寄せて描く（表示のみ）。
+        const x = jx + (bt + gridDispOff - t) * ppm;
         if (x < -30 || x > w + 30) continue;
         const barStart = (((i % BEATS_PER_BAR) + BEATS_PER_BAR) % BEATS_PER_BAR) === 0;
         if (barStart) {
@@ -1256,7 +1259,8 @@ function drawLane(rawT) {
             }
             const r = state.results[i];
             // 入力ありMISS：判定窓を過ぎてMISS確定だが、マイク入力は反応ラインを超えていた拍
-            const past = bt < t - NEAR_MS;
+            // 表示上の音符位置に合わせて gridDispOff ぶん寄せた時刻で「通過済み」を判定する（表示のみ）。
+            const past = (bt + gridDispOff) < t - NEAR_MS;
             const isMiss = !r || r.cls === 'miss';
             const inputMiss = past && isMiss && (state.beatMicPeak[i] || 0) >= mic.threshold;
             if (r && r.cls === 'just') {
@@ -1320,8 +1324,9 @@ function drawLane(rawT) {
         }
     }
 
-    // 判定ライン（光る縦線）。再生中は拍頭付近で光る＝視覚クリック（クリック音を下げた代替）
-    const glow = state.running ? beatGlow(t - T0, bi) : 0;
+    // 判定ライン（光る縦線）。再生中は拍頭付近で光る＝視覚クリック（クリック音を下げた代替）。
+    // 視覚クリックは音符と同じ heard-time に合わせるため gridDispOff ぶん位相をずらす（表示のみ・v0.9.108）。
+    const glow = state.running ? beatGlow(t - T0 - gridDispOff, bi) : 0;
     ctx.save();
     ctx.shadowColor = 'rgba(255,159,28,0.95)';
     ctx.shadowBlur = 14 + glow * 24;
@@ -5488,6 +5493,20 @@ function scrollToSettingsEl(el, block, delayMs) {
     if (delayMs && delayMs > 0) setTimeout(go, delayMs); else go();
 }
 
+/* マイク反応テストカードへの「初回スクロール」専用（v0.9.108）。
+   ページ更新直後の初回フロー（特にBluetoothは手順が増えてレイアウトが大きく変わる／Webフォント読込で
+   レイアウトが後からずれる）だと、1回のスクロールでは表示確定前に位置が計算されて届かないことがある。
+   同じカードへ複数回（少し待って／さらに後追い／フォント確定後）スクロールを試みる。
+   既に正しい位置なら no-op なので無害。他カードのスクロール挙動には影響しない。 */
+function scrollToMicTestCard() {
+    if (!els.testCard) return;
+    scrollToSettingsEl(els.testCard, 'start', 160);
+    scrollToSettingsEl(els.testCard, 'start', 480);
+    if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+        document.fonts.ready.then(() => scrollToSettingsEl(els.testCard, 'start'));
+    }
+}
+
 /* ── 選択ハンドラ（選んだら自動で次の項目を出す。上流変更時は下流結果をリセット）── */
 /* イヤホン（有線/Bluetooth）を選んだら、以降のテストのクリック音量を50%に初期化する（v0.9.88）。
    通常マイクは対象外（既存のクリック音量設定を維持）。 */
@@ -5544,9 +5563,9 @@ function onPickStrokeMode(mode) {
     if (settingsView === 'steps') {
         if (changed) resetSetupFlowDisplay();
         renderSettingsView();
-        // v0.9.107：マイク反応テストカードへ入る初回スクロールが、表示直後＆連続スクロールで効かない端末対策。
-        // 少し待ってからスクロールして、表示後の確定レイアウト・前のスクロール終了後に確実に合わせる。
-        scrollToSettingsEl(els.testCard, 'start', 160);
+        // v0.9.107→v0.9.108：マイク反応テストカードへ入る初回スクロール対策。ページ更新直後の初回フローでも
+        // 確実に届くよう、複数回（遅延＋フォント確定後）スクロールを試みる専用関数を使う。
+        scrollToMicTestCard();
     }
 }
 

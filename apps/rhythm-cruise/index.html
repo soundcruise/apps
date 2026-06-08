@@ -285,8 +285,8 @@
                 <button type="button" class="btn-primary" id="settings-summary-manual" style="width:100%;margin-top:14px;">手動設定を開く</button>
                 <!-- サブ導線：この設定を保存（控えめ） -->
                 <button type="button" class="btn-mini" id="settings-summary-save" style="width:100%;margin-top:10px;padding:11px;border:1px solid rgba(255,255,255,0.22);border-radius:10px;background:rgba(255,255,255,0.04);font-weight:700;">この設定を保存</button>
-                <!-- 戻る導線：マイク設定TOP -->
-                <button type="button" class="btn-mini" id="settings-summary-back" style="width:100%;margin-top:8px;padding:11px;">マイク設定TOP</button>
+                <!-- 戻る導線：キャンセル（機能は従来どおりマイク設定TOPへ戻る。デザインは画面タップ設定のキャンセルに合わせる・v0.9.108） -->
+                <button type="button" class="btn-mini" id="settings-summary-back" style="width:100%;margin-top:10px;padding:11px;">キャンセル</button>
             </div>
 
             <!-- ステップ式：現在地（ステップ X / N ＋ドット）。JSで描画 -->
@@ -719,7 +719,7 @@
                     </div>
                     <!-- ズレ傾向を見たあと、マイクの手動設定（現在の設定を見る）へ直接行ける控えめなリンク（v0.9.107） -->
                     <p class="result-mic-tune-row">
-                        <button type="button" class="result-mic-tune-link" id="results-mic-tune">マイク設定を微調整する →</button>
+                        <button type="button" class="result-mic-tune-link" id="results-mic-tune">マイクの手動設定を開く</button>
                     </p>
                 </div>
             </details>
@@ -747,7 +747,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.107"></script>
+    <script src="script.js?v=0.9.108"></script>
 </body>
 
 </html>
