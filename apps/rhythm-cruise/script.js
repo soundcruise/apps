@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.101';
+const RHYTHM_CRUISE_VERSION = '0.9.102';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -111,7 +111,7 @@ const EARPHONE_CLICK_VOLUME = 50;
 /* 組み込みプリセット（v0.9.63）：削除不可。ユーザーが消しても常に一覧の先頭に出る「開始点」。 */
 const BUILTIN_MIC_PRESETS = [
     {
-        id: 'builtin_mic', name: 'マイク一般', builtin: true,
+        id: 'builtin_mic', name: '通常マイク', builtin: true,
         settings: {
             inputType: 'normal', headphoneType: 'wired', strokeDetectMode: 'brush',
             threshold: 0.025, cooldownMs: 200, clickVolume: 15, timingOffsetMs: 0,
@@ -121,7 +121,7 @@ const BUILTIN_MIC_PRESETS = [
         },
     },
     {
-        id: 'builtin_wired', name: '有線イヤホン一般', builtin: true,
+        id: 'builtin_wired', name: '有線イヤホン', builtin: true,
         settings: {
             inputType: 'headphone', headphoneType: 'wired', strokeDetectMode: 'brush',
             threshold: 0.008, cooldownMs: 100, clickVolume: 50, timingOffsetMs: 0,
@@ -131,7 +131,7 @@ const BUILTIN_MIC_PRESETS = [
         },
     },
     {
-        id: 'builtin_bt', name: '無線イヤホン一般', builtin: true,
+        id: 'builtin_bt', name: 'Bluetoothイヤホン', builtin: true,
         settings: {
             inputType: 'headphone', headphoneType: 'bluetooth', strokeDetectMode: 'brush',
             threshold: 0.008, cooldownMs: 100, clickVolume: 50, timingOffsetMs: 0,
@@ -523,9 +523,11 @@ const els = {
     tapPresetList: $('tap-preset-list'),
     tapPresetBack: $('tap-preset-back'),
     tapManualCard: $('tap-manual-card'),
+    tapManualCurrent: $('tap-manual-current'),
     tapManualOffset: $('tap-manual-offset'),
     tapManualVal: $('tap-manual-val'),
     tapManualUse: $('tap-manual-use'),
+    tapManualSave: $('tap-manual-save'),
     tapManualBack: $('tap-manual-back'),
     hpTapUseBtn: $('hp-tap-use-btn'),
     hpTapSaveBtn: $('hp-tap-save-btn'),
@@ -4925,6 +4927,7 @@ function renderTapSettingsView() {
         const v = mic.headphoneOutputOffsetMs || 0;
         if (els.tapManualOffset) els.tapManualOffset.value = v;
         if (els.tapManualVal) els.tapManualVal.textContent = v + 'ms';
+        if (els.tapManualCurrent) els.tapManualCurrent.textContent = '現在のタップ補正：' + v + 'ms';
     } else {
         // HOME：補正値＋3ボタン
         if (els.tapSettingsCard) els.tapSettingsCard.classList.remove('hidden');
@@ -8017,8 +8020,12 @@ function bind() {
     if (els.tapOpenManual) els.tapOpenManual.addEventListener('click', openTapManual);
     if (els.tapPresetBack) els.tapPresetBack.addEventListener('click', backToTapHome);
     if (els.tapManualBack) els.tapManualBack.addEventListener('click', backToTapHome);
-    if (els.tapManualOffset) els.tapManualOffset.addEventListener('input', () => setHeadphoneOffset(parseInt(els.tapManualOffset.value, 10)));
+    if (els.tapManualOffset) els.tapManualOffset.addEventListener('input', () => {
+        setHeadphoneOffset(parseInt(els.tapManualOffset.value, 10));
+        if (els.tapManualCurrent) els.tapManualCurrent.textContent = '現在のタップ補正：' + (mic.headphoneOutputOffsetMs || 0) + 'ms';
+    });
     if (els.tapManualUse) els.tapManualUse.addEventListener('click', () => applyTapOutputOffsetAndClose(mic.headphoneOutputOffsetMs || 0));
+    if (els.tapManualSave) els.tapManualSave.addEventListener('click', openTapPresetModal);
     if (els.hpTapUseBtn) els.hpTapUseBtn.addEventListener('click', useTapCorrection);
     if (els.hpTapSaveBtn) els.hpTapSaveBtn.addEventListener('click', openTapPresetModal);
     // 画面タップ設定：音ズレ補正テスト（タップ実測型・v0.9.98）

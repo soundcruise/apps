@@ -574,6 +574,23 @@ h1 {
     color: var(--text-color);
 }
 
+/* 設定TOPのサブ導線ボタン（v0.9.102）：マイク設定／画面タップ設定で共通。
+   「保存済みプリセット」「現在の設定を見る」「この設定を保存」を同じ見た目に統一する。 */
+.btn-mini.settings-top-sub {
+    padding: 13px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(253, 246, 238, 0.82);
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.btn-mini.settings-top-sub:active {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-color);
+}
+
 .tempo-row {
     display: flex;
     align-items: center;

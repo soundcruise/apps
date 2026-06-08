@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.100">
+    <link rel="stylesheet" href="theme.css?v=0.9.102">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -155,27 +155,31 @@
             <div class="settings-card hidden" id="tap-settings-card">
                 <div class="cal-head">画面タップ設定</div>
                 <p class="cal-status" id="tap-current-offset" style="margin-top:0;color:#6ed28c;font-weight:700;">現在のタップ補正：0ms</p>
-                <button type="button" class="btn-primary" id="tap-open-cal" style="width:100%;margin-top:12px;">音ズレ補正テスト</button>
-                <button type="button" class="btn-mini" id="tap-open-preset" style="width:100%;margin-top:10px;padding:13px;border:1px solid rgba(255,159,28,0.45);border-radius:10px;background:rgba(255,159,28,0.08);font-weight:700;">プリセット</button>
-                <button type="button" class="btn-mini" id="tap-open-manual" style="width:100%;margin-top:10px;padding:13px;border:1px solid rgba(255,255,255,0.28);border-radius:10px;background:rgba(255,255,255,0.04);font-weight:700;">手動設定</button>
+                <!-- 主導線：音ズレ補正テスト（マイク設定の「詳細テスト」と同じ立ち位置） -->
+                <button type="button" class="btn-primary settings-top-main" id="tap-open-cal" style="width:100%;margin-top:12px;">音ズレ補正テスト</button>
+                <!-- サブ導線：保存済みプリセット／現在の設定を見る（マイク設定側と統一） -->
+                <button type="button" class="btn-mini settings-top-sub" id="tap-open-preset" style="width:100%;margin-top:10px;">保存済みプリセット</button>
+                <button type="button" class="btn-mini settings-top-sub" id="tap-open-manual" style="width:100%;margin-top:10px;">現在の設定を見る</button>
                 <details class="card-help" style="margin-top:12px;">
                     <summary>詳しい説明</summary>
-                    <p class="setting-note" style="margin-top:8px;">画面をタップして判定する場合は、調整なしでも遊べます。イヤホンを使うときだけ、聞こえる音と画面のズレを合わせると気持ちよくタップできます。</p>
+                    <p class="setting-note" style="margin-top:8px;">画面をタップして判定するための設定です。イヤホンを使う場合は、音ズレ補正テストで聞こえるクリック音と画面のズレを合わせてください。</p>
                 </details>
             </div>
 
             <!-- 画面タップ設定：プリセット一覧（v0.9.97）。タップ専用。マイク設定プリセットとは別管理。 -->
             <div class="settings-card hidden" id="tap-preset-card">
-                <div class="cal-head">タップ補正プリセット</div>
+                <div class="cal-head">保存済みプリセット</div>
                 <p class="setting-note" style="margin-top:0;">選ぶとタップ補正を切り替えて保存し、TOPへ戻ります。</p>
                 <div id="tap-preset-list" style="margin-top:10px;"></div>
-                <button type="button" class="btn-mini" id="tap-preset-back" style="width:100%;margin-top:12px;padding:11px;">画面タップ設定へ戻る</button>
+                <button type="button" class="btn-mini" id="tap-preset-back" style="width:100%;margin-top:12px;padding:11px;">画面タップ設定TOP</button>
             </div>
 
-            <!-- 画面タップ設定：手動設定（v0.9.97）。スライダーでタップ補正値を直接変更。 -->
+            <!-- 画面タップ設定：現在の設定を見る（v0.9.102。旧「手動設定」）。
+                 現在のタップ補正を確認し、スライダーで直接調整できる。機能は従来どおり。 -->
             <div class="settings-card hidden" id="tap-manual-card">
-                <div class="cal-head">タップ補正の手動設定</div>
-                <p class="setting-note" style="margin-top:0;">聞こえる音と画面の音符がズレるときに調整します。音が画面より遅れて聞こえるなら右（音が遅い）へ、早く聞こえるなら左（音が早い）へ動かします。0ms＝補正なしです。</p>
+                <div class="cal-head">現在のタップ設定</div>
+                <p class="cal-status" id="tap-manual-current" style="margin-top:0;color:#6ed28c;font-weight:700;">現在のタップ補正：0ms</p>
+                <p class="setting-note" style="margin-top:8px;">必要なら下のスライダーで調整できます。音が画面より遅れて聞こえるなら右へ、早く聞こえるなら左へ動かします。0ms＝補正なしです。</p>
                 <div class="setting-row" style="margin-top:14px;">
                     <div class="setting-label">タップ補正 <b id="tap-manual-val">0ms</b></div>
                     <input type="range" id="tap-manual-offset" min="-200" max="400" step="5" value="0">
@@ -184,7 +188,8 @@
                     </div>
                 </div>
                 <button type="button" class="btn-primary" id="tap-manual-use" style="width:100%;margin-top:14px;">この設定を使う</button>
-                <button type="button" class="btn-mini" id="tap-manual-back" style="width:100%;margin-top:10px;padding:11px;">画面タップ設定へ戻る</button>
+                <button type="button" class="btn-mini settings-top-sub" id="tap-manual-save" style="width:100%;margin-top:10px;">この設定を保存</button>
+                <button type="button" class="btn-mini" id="tap-manual-back" style="width:100%;margin-top:10px;padding:11px;">画面タップ設定TOP</button>
             </div>
 
             <!-- 画面タップ設定：音ズレ補正テスト（タップ実測型・v0.9.98）。
@@ -218,26 +223,24 @@
                 <button type="button" class="btn-mini" id="tap-cal-back" style="width:100%;margin-top:10px;padding:11px;">画面タップ設定へ戻る</button>
             </div>
 
-            <!-- マイク設定の入口：[簡易設定][詳細テスト]を横並び／下に保存プリセット・現在の設定を見る -->
+            <!-- マイク設定の入口（v0.9.102）：[詳細テスト]＝主導線／[保存済みプリセット][現在の設定を見る]＝サブ導線。
+                 「簡易設定」は廃止し、標準設定は「保存済みプリセット」に集約した。 -->
             <div class="settings-card" id="settings-chooser">
+                <div class="cal-head">マイク設定</div>
                 <p class="cal-status hidden" id="chooser-applied-msg" style="margin-top:0;color:#6ed28c;font-weight:700;"></p>
-                <!-- 上段：横並び（左＝主導線 簡易設定／右＝サブ 詳細テスト） -->
-                <div class="chooser-row">
-                    <button type="button" class="chooser-btn chooser-main" id="settings-simple-btn">簡易設定</button>
-                    <button type="button" class="chooser-btn chooser-main" id="settings-detail-btn">詳細テスト</button>
-                </div>
-                <!-- 保存済みプリセット（押すと一覧を展開） -->
-                <button type="button" class="btn-mini" id="preset-toggle-btn" style="width:100%;margin-top:12px;padding:13px;border:1px solid rgba(255,159,28,0.45);border-radius:10px;background:rgba(255,159,28,0.08);font-weight:700;">保存済みプリセット ▾</button>
+                <!-- 主導線：詳細テスト -->
+                <button type="button" class="btn-primary settings-top-main" id="settings-detail-btn" style="width:100%;margin-top:4px;">詳細テスト</button>
+                <!-- サブ導線：保存済みプリセット（押すと一覧を展開） -->
+                <button type="button" class="btn-mini settings-top-sub" id="preset-toggle-btn" style="width:100%;margin-top:10px;">保存済みプリセット ▾</button>
                 <div id="preset-list-wrap" style="display:none;margin-top:8px;">
                     <div id="preset-list"></div>
                 </div>
-                <!-- 現在の設定を見る（サブ導線） -->
-                <button type="button" class="btn-mini" id="settings-view-current" style="width:100%;margin-top:10px;padding:13px;border:1px solid rgba(255,255,255,0.28);border-radius:10px;background:rgba(255,255,255,0.04);font-weight:700;">現在の設定を見る</button>
-                <!-- 説明は折りたたみ（必要な人だけ開く・v0.9.97） -->
+                <!-- サブ導線：現在の設定を見る -->
+                <button type="button" class="btn-mini settings-top-sub" id="settings-view-current" style="width:100%;margin-top:10px;">現在の設定を見る</button>
+                <!-- 説明は折りたたみ（必要な人だけ開く） -->
                 <details class="card-help" style="margin-top:12px;">
                     <summary>詳しい説明</summary>
-                    <p class="setting-note" style="margin-top:8px;">使う環境に合わせてマイクの反応を設定します。</p>
-                    <p class="setting-note" style="margin-top:8px;font-size:0.8rem;opacity:0.8;">簡易設定：環境を選ぶだけで標準設定を適用します。<br>詳細テスト：反応ラインや補正を実際に測って細かく調整します。</p>
+                    <p class="setting-note" style="margin-top:8px;">ギターの音をマイクで拾って判定するための設定です。まずは保存済みプリセットを選び、うまく判定されない場合は詳細テストで調整してください。</p>
                 </details>
             </div>
 
@@ -732,7 +735,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.101"></script>
+    <script src="script.js?v=0.9.102"></script>
 </body>
 
 </html>
