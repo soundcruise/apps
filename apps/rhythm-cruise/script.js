@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.112';
+const RHYTHM_CRUISE_VERSION = '0.9.113-debug';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -26,7 +26,7 @@ const RHYTHM_CRUISE_VERSION = '0.9.112';
      5. 原因特定後、必ず MIC_SCROLL_DEBUG を false に戻す。
    ※今回はスクロール処理自体は変更しない（1回直接スクロールのまま）。値を取るための整備のみ。 */
 const STAGE_WAVE_DEBUG = false;
-const MIC_SCROLL_DEBUG = false;
+const MIC_SCROLL_DEBUG = true; // ★v0.9.113-debug：初回スクロール問題の実機調査のため一時的に true（次版で false に戻す）
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -886,28 +886,33 @@ function updateStageWaveDebug(source, waveMode, rawT, drawT, dispOff, latestWave
         + 'waveCount: ' + count;
 }
 
-/* マイク反応テストへのスクロールの座標・前後Y・viewport状態を画面左上に出す（MIC_SCROLL_DEBUG時のみ）。 */
+/* マイク反応テストへのスクロールの座標・前後Y・viewport状態を画面左上に出す（MIC_SCROLL_DEBUG時のみ）。
+   v0.9.113-debug：before / after / after300 の3フェーズを1画面に蓄積表示する（実機スクショ用）。
+   フェーズ別の1行（前後Y・実top・期待top・delta・可視）＋共通情報（target状態/viewport/doc）をまとめて出す。 */
+const _micScrollDbgStore = { phases: {}, common: {} };
 function updateMicScrollDebug(info) {
     const box = ensureDebugBox('mic-scroll-debug', 'top');
     if (!box) return;
-    box.textContent =
-        'target: ' + (info.target || '-') + ' / ' + (info.phase || '-') + '\n'
-        + 'scrollY before: ' + _dbgRound(info.beforeY) + '\n'
-        + 'scrollY after: ' + _dbgRound(info.afterY) + '\n'
-        + 'rect top: ' + _dbgRound(info.rectTop) + '\n'
-        + 'rect bottom: ' + _dbgRound(info.rectBottom) + '\n'
-        + 'target absY: ' + _dbgRound(info.targetAbsY) + '\n'
-        + 'docH: ' + _dbgRound(info.docH) + '\n'
-        + 'vv height: ' + _dbgRound(info.vvHeight) + '\n'
-        + 'vv offsetTop: ' + _dbgRound(info.vvOffsetTop) + '\n'
-        + 'isTargetVisible: ' + (info.isTargetVisible ? 'yes' : 'no') + '\n'
-        + 'activeEl: ' + (info.activeEl || '-') + '\n'
-        + 'view/step: ' + (info.view || '-') + ' / ' + (info.step || '-') + '\n'
-        + 'innerH: ' + _dbgRound(info.innerH) + '\n'
-        + 'bodyH: ' + _dbgRound(info.bodyH) + '\n'
-        + 'vv scale: ' + (typeof info.vvScale === 'number' ? info.vvScale.toFixed(2) : '-') + '\n'
-        + 'since load: ' + _dbgRound(info.sinceLoad) + 'ms\n'
-        + 'method: ' + (info.method || '-');
+    const sub = info.phaseSub || 'scroll';
+    _micScrollDbgStore.phases[sub] =
+        '[' + sub + '] bY=' + _dbgRound(info.beforeY) + ' aY=' + _dbgRound(info.afterY)
+        + ' top=' + _dbgRound(info.actualTopAfter) + ' exp=' + _dbgRound(info.expectedTop)
+        + ' d=' + _dbgRound(info.delta) + ' btm=' + _dbgRound(info.rectBottom)
+        + ' vis=' + (info.isTargetVisible ? 'y' : 'n');
+    _micScrollDbgStore.common = info;
+    const c = _micScrollDbgStore.common;
+    const order = ['before', 'after', 'after300'];
+    const extra = Object.keys(_micScrollDbgStore.phases).filter((k) => order.indexOf(k) < 0);
+    const keys = order.filter((k) => _micScrollDbgStore.phases[k]).concat(extra);
+    let txt = 'MIC_SCROLL_DEBUG ' + (c.context || '') + '\n';
+    for (const k of keys) txt += _micScrollDbgStore.phases[k] + '\n';
+    txt += 'view:' + (c.view || '-') + ' step:' + (c.step || '-') + '\n'
+        + 'target:' + (c.targetId || '-') + ' hidden:' + c.targetHidden + ' disp:' + (c.targetDisplay || '-') + '\n'
+        + 'tH:' + _dbgRound(c.targetHeight) + ' smTop:' + (c.scrollMarginTop || '-') + ' absY:' + _dbgRound(c.targetAbsY) + '\n'
+        + 'vvH:' + _dbgRound(c.vvHeight) + ' vvTop:' + _dbgRound(c.vvOffsetTop) + ' scale:' + (typeof c.vvScale === 'number' ? c.vvScale.toFixed(2) : '-') + ' innerH:' + _dbgRound(c.innerH) + '\n'
+        + 'docH:' + _dbgRound(c.docH) + ' bodyH:' + _dbgRound(c.bodyH) + '\n'
+        + 'active:' + (c.activeEl || '-') + ' load:' + _dbgRound(c.sinceLoad) + 'ms method:' + (c.method || '-');
+    box.textContent = txt;
 }
 
 /* STAGE本番のクリックを「絶対オーディオ時刻」に正確にスケジュールする（rAFのジッタ／累積ズレを排除）。
@@ -5657,39 +5662,48 @@ function scrollToSettingsEl(el, block, delayMs) {
    そこで対象の絶対Y座標をその都度計算し、window.scrollTo で直接動かす（方針B）。 */
 function hardScrollWindowToEl(el, marginTop, phase) {
     if (!el || !el.getBoundingClientRect) return;
+    const mTop = (marginTop == null ? 96 : marginTop);       // 固定ナビ分の上余白＝スクロール後に期待する rect.top
     const beforeY = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
     const targetTop = el.getBoundingClientRect().top;        // 現在のビューポート上端からの相対位置
     const targetAbsY = targetTop + beforeY;                  // ドキュメント上端からの絶対位置
-    const top = Math.max(0, targetAbsY - (marginTop || 96));
+    const top = Math.max(0, targetAbsY - mTop);
+    // DEBUG：スクロール処理自体は v0.9.112 と同じ（1回直接スクロール）。値の取得だけ before/after/after300 で行う。
+    const snapshot = (sub) => {
+        if (!MIC_SCROLL_DEBUG) return;
+        const y = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+        const r = el.getBoundingClientRect();
+        const vv = window.visualViewport;
+        const ae = document.activeElement;
+        let cs = null; try { cs = window.getComputedStyle(el); } catch (_) { /* ignore */ }
+        updateMicScrollDebug({
+            phaseSub: sub, context: phase || 'scroll',
+            beforeY, afterY: y,
+            rectTop: r.top, rectBottom: r.bottom, targetAbsY,
+            expectedTop: mTop, actualTopAfter: r.top, delta: r.top - mTop,
+            docH: document.documentElement.scrollHeight,
+            bodyH: document.body ? document.body.scrollHeight : NaN,
+            innerH: window.innerHeight,
+            vvHeight: vv ? vv.height : window.innerHeight,
+            vvOffsetTop: vv ? vv.offsetTop : 0,
+            vvScale: vv ? vv.scale : 1,
+            isTargetVisible: (r.top < (vv ? vv.height : window.innerHeight)) && (r.bottom > 0),
+            targetId: el.id ? '#' + el.id : '(el)',
+            targetHidden: (el.classList ? el.classList.contains('hidden') : '-'),
+            targetDisplay: cs ? cs.display : '-',
+            targetHeight: el.offsetHeight,
+            scrollMarginTop: cs ? cs.scrollMarginTop : '-',
+            activeEl: ae ? (ae.tagName + (ae.id ? '#' + ae.id : '')) : '-',
+            view: (typeof settingsView !== 'undefined') ? settingsView : '-',
+            step: (typeof activeWizardStep === 'function') ? activeWizardStep() : '-',
+            sinceLoad: performance.now(),
+            method: 'window.scrollTo',
+        });
+    };
+    snapshot('before');                                      // スクロール命令の直前
     try { window.scrollTo({ top, behavior: 'smooth' }); }
     catch (_) { window.scrollTo(0, top); }
-    if (MIC_SCROLL_DEBUG) {
-        const snapshot = (phaseLabel) => {
-            const y = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
-            const r = el.getBoundingClientRect();
-            const vv = window.visualViewport;
-            const ae = document.activeElement;
-            updateMicScrollDebug({
-                target: el.id || '(el)', phase: phaseLabel,
-                beforeY, afterY: y,
-                rectTop: r.top, rectBottom: r.bottom, targetAbsY,
-                docH: document.documentElement.scrollHeight,
-                vvHeight: vv ? vv.height : window.innerHeight,
-                vvOffsetTop: vv ? vv.offsetTop : 0,
-                isTargetVisible: (r.top < (vv ? vv.height : window.innerHeight)) && (r.bottom > 0),
-                activeEl: ae ? (ae.tagName + (ae.id ? '#' + ae.id : '')) : '-',
-                view: (typeof settingsView !== 'undefined') ? settingsView : '-',
-                step: (typeof activeWizardStep === 'function') ? activeWizardStep() : '-',
-                innerH: window.innerHeight,
-                bodyH: document.body ? document.body.scrollHeight : NaN,
-                vvScale: vv ? vv.scale : 1,
-                sinceLoad: performance.now(),
-                method: 'window.scrollTo',
-            });
-        };
-        snapshot(phase || 'scroll');
-        setTimeout(() => snapshot((phase || 'scroll') + '+300ms'), 300); // スムーススクロール/viewport変化後の実値
-    }
+    snapshot('after');                                       // 命令の直後（smoothは動き始め）
+    if (MIC_SCROLL_DEBUG) setTimeout(() => snapshot('after300'), 300); // 300ms後の実値（smooth/viewport確定後）
 }
 
 /* マイク反応テストカードへの「初回スクロール」専用（v0.9.108→v0.9.110）。
