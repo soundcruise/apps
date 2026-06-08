@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.108';
+const RHYTHM_CRUISE_VERSION = '0.9.109';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -402,6 +402,7 @@ const els = {
     hpCalCard: $('hp-cal-card'),
     hpCalBtn: $('hp-cal-btn'),
     hpCalLaneWrap: $('hp-cal-lane-wrap'),
+    hpCalAutoMsg: $('hp-cal-auto-msg'),
     hpCalLaneCanvas: $('hp-cal-lane-canvas'),
     hpBpmVal: $('hp-bpm-val'),
     hpBpmMinus: $('hp-bpm-minus'),
@@ -1140,8 +1141,9 @@ function drawStrokeArrow(ctx, x, y, dir, color, alpha) {
 /* ── マイク入力波形（譜面レーン背景・グレー） ──────────── */
 /* 波形は「判定の時間軸」(micJudgeOffsetMs)で表示する（v0.9.108）。
    音符/拍/小節線/視覚クリックはイヤホン音ズレ補正(headphoneOutputOffsetMs)で heard-time へ寄せるが、
-   波形・判定マーカー・EARLY/LATE位置は判定時間軸のまま動かさない（最終確認テスト drawPracticeLane と同じ役割分離）。 */
-function drawMicWaveform(ctx, w, h, yc) {
+   波形・判定マーカー・EARLY/LATE位置は判定時間軸のまま動かさない（最終確認テスト drawPracticeLane と同じ役割分離）。
+   rawT（オーディオ時計＝gameAudioMs）を受け取り、STAGE再生中は結果カードと同一データ（state.micRunWave）で描く。 */
+function drawMicWaveform(ctx, w, h, yc, rawT) {
     const ppm = state.pxPerMs, jx = state.judgeX;
     const maxAmp = h * 0.34;
 
@@ -1163,21 +1165,32 @@ function drawMicWaveform(ctx, w, h, yc) {
         ctx.restore();
     }
 
-    const hist = state.micWaveHistory;
-    if (hist.length < 2) return;
-    const now = performance.now();
-    // マイク判定補正を波形にも反映し、判定マーカーと時間軸を揃える
-    // （判定は perf+offset で評価するため、波形も同じ offset で前後させる）
-    const off = micJudgeOffsetMs();
-
-    // 画面内に入るサンプルだけを時系列順（古い→新しい＝左→右）に集める
+    // 画面内に入るサンプルだけを時系列順（古い→新しい＝左→右）に集める。
     const pts = [];
-    for (let k = 0; k < hist.length; k++) {
-        const s = hist[k];
-        const x = jx + (s.perf + off - now) * ppm; // 今＝判定ライン、過去＝左へ流れる（補正込み）
-        if (x < -24 || x > w + 24) continue;
-        const lv = micDisplayFrac(s.level); // 反応ライン基準の相対表示（thresholdが低いほど大きく見える）
-        pts.push([x, lv]);
+    const rw = state.micRunWave;
+    if (state.running && rw && rw.length >= 2 && typeof rawT === 'number') {
+        // v0.9.109：STAGE再生中は結果レーン(drawReviewMicOverlay)と完全に同じ基準で描く。
+        //   micRunWave の t は「補正後ゲーム時刻 = gameAudioMs() + micJudgeOffsetMs()」（判定時間軸・オーディオ時計）。
+        //   x = jx + (t - rawT) * ppm とすると、音符（rawT基準）と同じオーディオ時計上に波形が乗る。
+        //   以前の performance.now() 基準（壁時計）だと、Bluetoothのイヤホン出力遅延ぶん波形が
+        //   音符グリッドからズレて見えていた。結果カードはオーディオ時計なので、ここで揃える。
+        for (let k = 0; k < rw.length; k++) {
+            const x = jx + (rw[k].t - rawT) * ppm;
+            if (x < -24 || x > w + 24) continue;
+            pts.push([x, micDisplayFrac(rw[k].level)]);
+        }
+    } else {
+        // STAGE停止中など micRunWave が無い場面は、従来どおりライブ履歴(perf基準＋判定補正)で描く。
+        const hist = state.micWaveHistory;
+        if (hist.length < 2) return;
+        const now = performance.now();
+        const off = micJudgeOffsetMs();
+        for (let k = 0; k < hist.length; k++) {
+            const s = hist[k];
+            const x = jx + (s.perf + off - now) * ppm; // 今＝判定ライン、過去＝左へ流れる（補正込み）
+            if (x < -24 || x > w + 24) continue;
+            pts.push([x, micDisplayFrac(s.level)]);
+        }
     }
     if (pts.length < 2) return;
 
@@ -1220,7 +1233,8 @@ function drawLane(rawT) {
     const gridDispOff = (state.inputMode === 'tap') ? 0 : (mic.headphoneOutputOffsetMs || 0);
 
     // ① マイク入力波形（最背面・グレーの補助表示）。波形は判定時間軸のまま（gridDispOffは入れない）。
-    drawMicWaveform(ctx, w, h, yc);
+    //   rawT（オーディオ時計）を渡し、STAGE再生中は結果カードと同じ micRunWave で描く（v0.9.109）。
+    drawMicWaveform(ctx, w, h, yc, rawT);
 
     // ② 中央の水平ガイド（五線の地）
     ctx.strokeStyle = 'rgba(253,246,238,0.08)';
@@ -2309,6 +2323,7 @@ function hpCalBeatMs() { return 60000 / hpCalBpm; }
 const HP_BLUETOOTH_STANDARD_OFFSET_MIC = 100;
 const HP_BLUETOOTH_STANDARD_OFFSET_TAP = 200;
 const HP_CAL_LEAD_MS = 80;        // クリックを少し先に鳴らし、負offsetでも丸を先に光らせられるようにする土台
+const HP_CAL_AUTO_BEATS = 32;     // 8小節（4拍×8）で自動停止する（v0.9.109）。BPM可変でも拍数で数える
 const hpCal = { active: false, timer: 0, beat: 0, lightTimers: [], raf: 0, flowStartPerf: 0 };
 let hpLane = { ctx: null, w: 0, h: 0 }; // イヤホン音ズレ補正の流れるレーン（v0.9.91）
 
@@ -2453,9 +2468,27 @@ function hpLoop() {
 }
 
 function hpBeatTick() {
+    // v0.9.109：8小節（HP_CAL_AUTO_BEATS拍）流したら自動停止する。
+    // 33拍目のクリックを鳴らさず、ここで止める（＝1〜8小節ぶんのクリックが鳴る）。
+    if (hpCal.beat >= HP_CAL_AUTO_BEATS) {
+        finishHeadphoneCalAuto();
+        return;
+    }
     const i = hpCal.beat % 4;
     hpClick(i === 0); // クリックは即時。丸の表示タイミング(offset)はレーン側で反映する
     hpCal.beat++;
+}
+
+/* 8小節ぶん流れたあとの自動停止（v0.9.109）。
+   手動停止と同じく「レーンは閉じず、丸を初期位置へ戻して静止」させ、
+   「この音ズレ設定で進む」ボタンが見える位置までスクロールし、案内文を表示する。 */
+function finishHeadphoneCalAuto() {
+    stopHeadphoneCal({ keepLane: true });
+    if (els.hpCalAutoMsg) els.hpCalAutoMsg.classList.remove('hidden');
+    const target = els.hpProceedBtn && !els.hpProceedBtn.classList.contains('hidden')
+        ? els.hpProceedBtn
+        : (els.hpTapUseBtn && !els.hpTapUseBtn.classList.contains('hidden') ? els.hpTapUseBtn : els.hpProceedBtn);
+    if (target) scrollToSettingsEl(target, 'end');
 }
 
 function startHeadphoneCal() {
@@ -2465,6 +2498,7 @@ function startHeadphoneCal() {
     try { if (state.audioCtx && state.audioCtx.state === 'suspended') state.audioCtx.resume(); } catch (_) { /* ignore */ }
     hpCal.active = true;
     hpCal.beat = 0;
+    if (els.hpCalAutoMsg) els.hpCalAutoMsg.classList.add('hidden'); // 前回の自動停止案内を消す（v0.9.109）
     if (els.hpCalLaneWrap) els.hpCalLaneWrap.classList.remove('hidden');
     fitHpLane();
     if (els.hpCalBtn) els.hpCalBtn.textContent = '停止';
@@ -2494,6 +2528,8 @@ function setHpCalBpm(bpm) {
 function stopHeadphoneCal(opts) {
     const keepLane = !!(opts && opts.keepLane);
     hpCal.active = false;
+    // 自動停止の案内は既定で消す（自動停止時は finishHeadphoneCalAuto が停止後に再表示する・v0.9.109）
+    if (els.hpCalAutoMsg) els.hpCalAutoMsg.classList.add('hidden');
     if (hpCal.timer) { clearInterval(hpCal.timer); hpCal.timer = 0; }
     hpCal.lightTimers.forEach((t) => clearTimeout(t));
     hpCal.lightTimers = [];
@@ -5493,17 +5529,30 @@ function scrollToSettingsEl(el, block, delayMs) {
     if (delayMs && delayMs > 0) setTimeout(go, delayMs); else go();
 }
 
-/* マイク反応テストカードへの「初回スクロール」専用（v0.9.108）。
-   ページ更新直後の初回フロー（特にBluetoothは手順が増えてレイアウトが大きく変わる／Webフォント読込で
-   レイアウトが後からずれる）だと、1回のスクロールでは表示確定前に位置が計算されて届かないことがある。
-   同じカードへ複数回（少し待って／さらに後追い／フォント確定後）スクロールを試みる。
-   既に正しい位置なら no-op なので無害。他カードのスクロール挙動には影響しない。 */
+/* 設定画面の実スクロール親はウィンドウ（document）。.app-container 等に overflow は無く、
+   body が 100dvh で document 全体がスクロールする。固定ナビ(app-nav)があるぶん上に余白を空ける。
+   v0.9.109：scrollIntoView({behavior:'smooth'}) は、初回ロード直後（レイアウト未確定・Webフォント
+   読込中・iPhoneのアドレスバー収納でビューポート高が変わる）と相性が悪く、初回だけ無視されることがある。
+   そこで対象の絶対Y座標をその都度計算し、window.scrollTo で直接動かす（方針B）。 */
+function hardScrollWindowToEl(el, marginTop) {
+    if (!el || !el.getBoundingClientRect) return;
+    const cur = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    const top = Math.max(0, el.getBoundingClientRect().top + cur - (marginTop || 96));
+    try { window.scrollTo({ top, behavior: 'smooth' }); }
+    catch (_) { window.scrollTo(0, top); }
+}
+
+/* マイク反応テストカードへの「初回スクロール」専用（v0.9.108→v0.9.109）。
+   発想を変えて、scrollIntoView ではなく window.scrollTo で絶対Y座標へ直接スクロールする。
+   座標は毎回その時点のレイアウトから再計算するので、初回ロードでレイアウトが後から確定しても
+   後追いで正しい位置へ補正できる。既に正しい位置なら実質 no-op。他カードの挙動には影響しない。 */
 function scrollToMicTestCard() {
     if (!els.testCard) return;
-    scrollToSettingsEl(els.testCard, 'start', 160);
-    scrollToSettingsEl(els.testCard, 'start', 480);
+    const run = () => hardScrollWindowToEl(els.testCard, 96);
+    requestAnimationFrame(() => requestAnimationFrame(run)); // レイアウト確定後（2フレーム）
+    setTimeout(run, 220);                                    // ビューポート/フォント変化の後追い（1回）
     if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
-        document.fonts.ready.then(() => scrollToSettingsEl(els.testCard, 'start'));
+        document.fonts.ready.then(run);                      // Webフォント確定後に最終補正
     }
 }
 

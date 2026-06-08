@@ -455,10 +455,10 @@
                 <div class="cal-head-row">
                     <div class="cal-head">イヤホンの音ズレ補正</div>
                 </div>
-                <p class="do-now">丸がJUSTラインに重なる瞬間とクリック音を合わせる</p>
+                <p class="do-now">クリック音と丸の動きが同時に感じるように、スライダーで調整してください。</p>
                 <details class="card-help">
                     <summary>詳しい説明</summary>
-                    <p class="setting-note">右から流れてくる丸の中心線がJUSTラインに重なる瞬間に、クリック音が鳴ります。丸が重なる瞬間とイヤホンから聞こえるクリック音が同時に感じられるように、下のスライダーで調整します。0ms＝補正なしです。</p>
+                    <p class="setting-note">テストを開始すると、右から丸が流れてきて、イヤホンからクリック音が鳴ります。音と丸の動きが「同時」に感じられるように、下のスライダーで合わせてください。クリック音が丸より遅れて聞こえる場合は、スライダーを右へ動かします。クリック音が丸より早く聞こえる場合は、左へ動かします。0ms＝補正なしです。</p>
                 </details>
                 <!-- STAGE風の流れるレーン（v0.9.91）：右→左へ4拍の丸が流れ、丸の中心線がJUSTラインに
                      重なる瞬間にクリック音が鳴る。音と丸が同時に感じられるようにスライダーで調整する。 -->
@@ -488,6 +488,8 @@
                     <button type="button" class="btn-mini btn-reset" id="hp-zero">補正なしに戻す</button>
                     <button type="button" class="btn-mini btn-reset" id="hp-std">Bluetoothイヤホン標準</button>
                 </div>
+                <!-- 8小節で自動停止したあとの案内（v0.9.109）。普段は隠し、自動停止時だけ表示する -->
+                <p class="setting-note hidden" id="hp-cal-auto-msg" style="margin-top:14px;padding:10px 12px;border:1px solid rgba(255,159,28,0.35);border-radius:10px;background:rgba(255,159,28,0.08);text-align:center;">テストが終わりました。このタイミングでよければ、下の「この音ズレ設定で進む」を押してください。</p>
                 <!-- 「ここは終わった」と分かる導線。押したら補正系完了扱いで実践テストへ -->
                 <button type="button" class="btn-primary" id="hp-proceed-btn" style="width:100%;margin-top:12px;">この音ズレ設定で進む</button>
                 <!-- 画面タップ設定タブから使う場合の導線（v0.9.95）：保存してアプリTOPへ戻る（テストへは進まない） -->
@@ -747,7 +749,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.108"></script>
+    <script src="script.js?v=0.9.109"></script>
 </body>
 
 </html>
