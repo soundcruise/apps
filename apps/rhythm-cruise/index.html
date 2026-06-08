@@ -460,8 +460,17 @@
                     <summary>詳しい説明</summary>
                     <p class="setting-note">テストを開始すると、右から丸が流れてきて、イヤホンからクリック音が鳴ります。音と丸の動きが「同時」に感じられるように、下のスライダーで合わせてください。クリック音が丸より遅れて聞こえる場合は、スライダーを右へ動かします。クリック音が丸より早く聞こえる場合は、左へ動かします。0ms＝補正なしです。</p>
                 </details>
-                <!-- v0.9.111：説明を読んだ直後に押せるよう「補正テスト開始」を説明文の直下に置く -->
-                <button class="btn-mic cal-run-btn test-start-btn" id="hp-cal-btn">補正テスト開始</button>
+                <!-- v0.9.111：説明を読んだ直後に押せるよう説明文の直下に置く。v0.9.112：BPM調整を横に並べる（狭い画面では折り返す） -->
+                <div class="hp-start-row" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px;">
+                    <button class="btn-mic cal-run-btn test-start-btn" id="hp-cal-btn" style="margin:0;flex:1;min-width:160px;">補正テスト開始</button>
+                    <!-- テスト専用BPM（v0.9.92）。STAGE/最終確認テストのテンポには影響しない -->
+                    <div class="hp-bpm-row" style="display:flex;align-items:center;gap:10px;">
+                        <span class="setting-label" style="margin:0;">BPM</span>
+                        <button type="button" class="btn-mini hp-bpm-btn" id="hp-bpm-minus" aria-label="BPMを下げる">−</button>
+                        <b id="hp-bpm-val" style="min-width:3ch;text-align:center;font-size:1.15rem;">80</b>
+                        <button type="button" class="btn-mini hp-bpm-btn" id="hp-bpm-plus" aria-label="BPMを上げる">＋</button>
+                    </div>
+                </div>
                 <!-- STAGE風の流れるレーン（v0.9.91）：右→左へ4拍の丸が流れ、丸の中心線がJUSTラインに
                      重なる瞬間にクリック音が鳴る。音と丸が同時に感じられるようにスライダーで調整する。 -->
                 <div class="test-lane-wrap hidden" id="hp-cal-lane-wrap" style="margin:14px 0;">
@@ -482,13 +491,6 @@
                 <div class="hp-preset-row" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
                     <button type="button" class="btn-mini btn-reset" id="hp-zero">補正なしに戻す</button>
                     <button type="button" class="btn-mini btn-reset" id="hp-std">Bluetoothイヤホン標準</button>
-                </div>
-                <!-- テスト専用BPM（v0.9.92）。STAGE/最終確認テストのテンポには影響しない -->
-                <div class="hp-bpm-row" style="display:flex;align-items:center;justify-content:center;gap:14px;margin:16px 0 4px;">
-                    <span class="setting-label" style="margin:0;">BPM</span>
-                    <button type="button" class="btn-mini hp-bpm-btn" id="hp-bpm-minus" aria-label="BPMを下げる">−</button>
-                    <b id="hp-bpm-val" style="min-width:3ch;text-align:center;font-size:1.15rem;">80</b>
-                    <button type="button" class="btn-mini hp-bpm-btn" id="hp-bpm-plus" aria-label="BPMを上げる">＋</button>
                 </div>
                 <!-- 4小節で自動停止したあとの案内（v0.9.109→v0.9.110で4小節）。普段は隠し、自動停止時だけ表示する -->
                 <p class="setting-note hidden" id="hp-cal-auto-msg" style="margin-top:14px;padding:10px 12px;border:1px solid rgba(255,159,28,0.35);border-radius:10px;background:rgba(255,159,28,0.08);text-align:center;">テストが終わりました。このタイミングでよければ、下の「この音ズレ設定で進む」を押してください。</p>
@@ -754,7 +756,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.111"></script>
+    <script src="script.js?v=0.9.112"></script>
 </body>
 
 </html>

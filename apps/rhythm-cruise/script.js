@@ -10,12 +10,21 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.111';
+const RHYTHM_CRUISE_VERSION = '0.9.112';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
-   STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時刻/補正値を画面右下に小さく出す。
-   MIC_SCROLL_DEBUG：マイク反応テストへの初回スクロールの座標/前後Yを画面左上に小さく出す。
-   いずれも実機（iPhone）で事実確認するための一時表示。リリース時は false のまま。 */
+   STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
+   MIC_SCROLL_DEBUG：マイク反応テストへの初回スクロールの座標/前後Y/viewport状態を画面左上に小さく出す。
+   いずれも実機（iPhone）で事実確認するための一時表示。リリース時は false のまま。
+
+   ★初回スクロール不具合の実機調査手順（v0.9.112）：
+     1. このすぐ下の MIC_SCROLL_DEBUG を true にして保存・本番反映する。
+     2. 実機で「設定→マイク設定→補正テスト→イヤホン接続→Bluetooth→ストローク選択→マイク反応テスト」と進む。
+     3. 画面左上に出る値（scrollY before/after、rect top/bottom、target absY、isTargetVisible、
+        visualViewport height/offsetTop/scale、activeEl、step、time since load 等）を確認する。
+     4. scroll が実際に動いたか／別処理で戻されていないか／viewport が原因か を切り分ける。
+     5. 原因特定後、必ず MIC_SCROLL_DEBUG を false に戻す。
+   ※今回はスクロール処理自体は変更しない（1回直接スクロールのまま）。値を取るための整備のみ。 */
 const STAGE_WAVE_DEBUG = false;
 const MIC_SCROLL_DEBUG = false;
 
@@ -893,6 +902,11 @@ function updateMicScrollDebug(info) {
         + 'vv offsetTop: ' + _dbgRound(info.vvOffsetTop) + '\n'
         + 'isTargetVisible: ' + (info.isTargetVisible ? 'yes' : 'no') + '\n'
         + 'activeEl: ' + (info.activeEl || '-') + '\n'
+        + 'view/step: ' + (info.view || '-') + ' / ' + (info.step || '-') + '\n'
+        + 'innerH: ' + _dbgRound(info.innerH) + '\n'
+        + 'bodyH: ' + _dbgRound(info.bodyH) + '\n'
+        + 'vv scale: ' + (typeof info.vvScale === 'number' ? info.vvScale.toFixed(2) : '-') + '\n'
+        + 'since load: ' + _dbgRound(info.sinceLoad) + 'ms\n'
         + 'method: ' + (info.method || '-');
 }
 
@@ -2404,7 +2418,7 @@ const HP_BLUETOOTH_STANDARD_OFFSET_MIC = 100;
 const HP_BLUETOOTH_STANDARD_OFFSET_TAP = 200;
 const HP_CAL_LEAD_MS = 80;        // クリックを少し先に鳴らし、負offsetでも丸を先に光らせられるようにする土台
 const HP_CAL_AUTO_BEATS = 16;     // 4小節（4拍×4）で自動停止する（v0.9.110。v0.9.109の8小節から短縮）。BPM可変でも拍数で数える
-const hpCal = { active: false, timer: 0, beat: 0, lightTimers: [], raf: 0, flowStartPerf: 0 };
+const hpCal = { active: false, timer: 0, beat: 0, lightTimers: [], raf: 0, flowStartPerf: 0, autoStopCanceled: false };
 let hpLane = { ctx: null, w: 0, h: 0 }; // イヤホン音ズレ補正の流れるレーン（v0.9.91）
 
 /* イヤホン種類の定義・種類別の目安値・説明文 */
@@ -2550,7 +2564,9 @@ function hpLoop() {
 function hpBeatTick() {
     // v0.9.110：4小節（HP_CAL_AUTO_BEATS=16拍）流したら自動停止する。
     // 17拍目のクリックを鳴らさず、ここで止める（＝1〜4小節ぶんのクリックが鳴る）。
-    if (hpCal.beat >= HP_CAL_AUTO_BEATS) {
+    // v0.9.112：テスト中にスライダーを動かした回は autoStopCanceled=true になり、自動停止しない
+    //   （調整中に止まると操作しづらいため）。その回は手動停止するまで続く。次の開始/再テストで再び有効。
+    if (!hpCal.autoStopCanceled && hpCal.beat >= HP_CAL_AUTO_BEATS) {
         finishHeadphoneCalAuto();
         return;
     }
@@ -2593,6 +2609,7 @@ function startHeadphoneCal() {
     try { if (state.audioCtx && state.audioCtx.state === 'suspended') state.audioCtx.resume(); } catch (_) { /* ignore */ }
     hpCal.active = true;
     hpCal.beat = 0;
+    hpCal.autoStopCanceled = false; // v0.9.112：開始/再テストごとに自動停止を有効へ戻す
     if (els.hpCalAutoMsg) els.hpCalAutoMsg.classList.add('hidden'); // 前回の自動停止案内を消す（v0.9.109）
     if (els.hpCalLaneWrap) els.hpCalLaneWrap.classList.remove('hidden');
     fitHpLane();
@@ -3080,12 +3097,14 @@ function drawPracticeLane(t) {
     ctx.textAlign = 'left';
     ctx.fillText('実判定ライン', 4, yc - lineAmp - 3);
     if (pt.wave.length) {
-        // 判定と同じ時間軸で見せる：波形にもマイク判定補正(off)を足し、STAGE本体・結果見返しと揃える（表示のみ・v0.9.82）
+        // v0.9.112（案B＝STAGE本体PLAY中と同じ思想）：PLAY中のリアルタイム波形は「演奏中の視覚フィードバック」として
+        //   音符と同じ heard-time（off＝micJudgeOffsetMs に加え hpDispOff＝headphoneOutputOffsetMs）へ寄せ、
+        //   音符・波形が画面上で自然に揃うようにする。表示位置だけの調整で、判定・平均ズレ・見返しレーンには影響しない。
         const off = micJudgeOffsetMs();
         const pts = [];
         for (let i = 0; i < pt.wave.length; i++) {
             const p = pt.wave[i];
-            const x = judgeX + (p.t + off - t) * ppm;
+            const x = judgeX + (p.t + off + hpDispOff - t) * ppm;
             if (x < -24 || x > w + 24) continue;
             pts.push([x, micDisplayFrac(p.level) * ampPx]);
         }
@@ -3713,15 +3732,17 @@ function drawBtLane(t) {
     ctx.font = '600 9px Outfit, sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText('反応ライン', 4, yc - lineAmp - 3);
-    // 入力波形（右→左へ流れる）。判定と同じ時間軸で見せるため、波形にもマイク判定補正(off)を足す。
-    // off は micJudgeOffsetMs()＝Bluetooth時は timingOffsetMs＋bluetoothMicOffsetMs。補正適用後の再テストでは
-    // 波形位置も補正後の位置へ寄る（表示のみ・測定/判定ロジックは変更しない・v0.9.83）。
+    // イヤホン音ズレ補正（headphoneOutputOffsetMs）。👏と波形を「聞こえる音」に寄せる表示用オフセット。
+    const hpDispOff = mic.headphoneOutputOffsetMs || 0;
+    // 入力波形（右→左へ流れる）。off は micJudgeOffsetMs()＝Bluetooth時は timingOffsetMs＋bluetoothMicOffsetMs。
+    // v0.9.112（案B＝STAGE本体PLAY中と同じ思想）：PLAY中のリアルタイム波形は「演奏中の視覚フィードバック」として
+    //   👏（heard-time）と同じく hpDispOff も足して画面上で自然に揃える（表示位置のみ・測定/判定ロジックは不変）。
     if (bt.wave.length) {
         const off = micJudgeOffsetMs();
         const pts = [];
         for (let i = 0; i < bt.wave.length; i++) {
             const p = bt.wave[i];
-            const x = judgeX + (p.t + off - t) * ppm;
+            const x = judgeX + (p.t + off + hpDispOff - t) * ppm;
             if (x < -24 || x > w + 24) continue;
             pts.push([x, micDisplayFrac(p.level) * ampPx]);
         }
@@ -3742,10 +3763,8 @@ function drawBtLane(t) {
         }
     }
     // 👏（右→左へ流れる）＋拍番号。控えめ表示で、タイミングは音で合わせてもらう。
-    // v0.9.91：イヤホン音ズレ補正（headphoneOutputOffsetMs＝Bluetooth時はheadphoneOffsetBluetoothMs）を
-    // 「表示タイミング」にだけ反映する。クリック音(scheduled)は動かさず、👏をイヤホンで聞こえる音に寄せて、
-    // ユーザーが音に合わせて手拍子しやすくする。判定(micJudgeOffsetMs)とは別物なので混ぜない。
-    const hpDispOff = mic.headphoneOutputOffsetMs || 0;
+    // v0.9.91：イヤホン音ズレ補正（hpDispOff＝上で宣言）を「表示タイミング」にだけ反映する。
+    // クリック音(scheduled)は動かさず、👏をイヤホンで聞こえる音に寄せて手拍子しやすくする。判定(micJudgeOffsetMs)とは混ぜない。
     for (let i = 0; i < bt.notes.length; i++) {
         const n = bt.notes[i];
         const x = judgeX + (n.t + hpDispOff - t) * ppm;
@@ -5659,6 +5678,12 @@ function hardScrollWindowToEl(el, marginTop, phase) {
                 vvOffsetTop: vv ? vv.offsetTop : 0,
                 isTargetVisible: (r.top < (vv ? vv.height : window.innerHeight)) && (r.bottom > 0),
                 activeEl: ae ? (ae.tagName + (ae.id ? '#' + ae.id : '')) : '-',
+                view: (typeof settingsView !== 'undefined') ? settingsView : '-',
+                step: (typeof activeWizardStep === 'function') ? activeWizardStep() : '-',
+                innerH: window.innerHeight,
+                bodyH: document.body ? document.body.scrollHeight : NaN,
+                vvScale: vv ? vv.scale : 1,
+                sinceLoad: performance.now(),
                 method: 'window.scrollTo',
             });
         };
@@ -8286,7 +8311,11 @@ function bind() {
     if (els.hpRetestBtn) els.hpRetestBtn.addEventListener('click', retestHeadphoneCal); // v0.9.111：再テスト
     if (els.hpBpmMinus) els.hpBpmMinus.addEventListener('click', () => setHpCalBpm(hpCalBpm - HP_CAL_BPM_STEP));
     if (els.hpBpmPlus) els.hpBpmPlus.addEventListener('click', () => setHpCalBpm(hpCalBpm + HP_CAL_BPM_STEP));
-    if (els.hpOffset) els.hpOffset.addEventListener('input', () => setHeadphoneOffset(parseInt(els.hpOffset.value, 10)));
+    if (els.hpOffset) els.hpOffset.addEventListener('input', () => {
+        // v0.9.112：テスト中にスライダーを動かしたら、その回の自動停止をキャンセル（手動停止まで続ける）。
+        if (hpCal.active) hpCal.autoStopCanceled = true;
+        setHeadphoneOffset(parseInt(els.hpOffset.value, 10));
+    });
     // イヤホンの種類（v0.9.51）：選択で目安の主導線を切替え、保存済みの種類別値へ同期
     if (els.hpTypeWired) els.hpTypeWired.addEventListener('click', () => onPickHeadphoneType('wired'));
     if (els.hpTypeBluetooth) els.hpTypeBluetooth.addEventListener('click', () => onPickHeadphoneType('bluetooth'));
