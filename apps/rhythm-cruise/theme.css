@@ -512,23 +512,9 @@ h1 {
     display: none;
 }
 
-/* サブ画面の見出し行（もどる + タイトル） */
-.home-subhead {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.home-subhead .section-label {
+/* サブ画面見出し（v0.9.118：戻る/TOPは共通ナビ #app-nav に統一したため、見出しはタイトルのみ） */
+.home-view > .section-label {
     margin-bottom: 0;
-}
-
-.home-back {
-    flex: none;
-    color: rgba(253, 246, 238, 0.75);
-    font-size: 0.9rem;
-    padding: 6px 4px;
 }
 
 /* リズム練のカテゴリボタン一覧 */
@@ -739,9 +725,18 @@ h1 {
 .tempo-row {
     display: flex;
     align-items: center;
-    gap: 14px;
+    justify-content: center;
+    gap: 10px 22px;
+    flex-wrap: wrap;
     color: var(--muted-color);
     font-size: 0.9rem;
+}
+
+/* BPM / 小節数 を1組ずつまとめる（v0.9.118：横並びで見やすく） */
+.ctrl-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
 /* イヤホン音ズレ補正テストのBPM −/＋ ボタン（v0.9.92）：はっきり押せる丸ボタン */
@@ -1923,6 +1918,47 @@ h1 {
     background: rgba(255, 159, 28, 0.2);
 }
 
+/* リズム練をする：入力方式の切替を中央寄せ（v0.9.118） */
+#rhythm-input-mode {
+    align-self: center;
+}
+
+/* STAGE：タイトル横の入力方式トグル（v0.9.118：タップで タップ⇄ストローク を切替） */
+.practice-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.practice-mode-label {
+    flex: none;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    color: #ffd479;
+    padding: 5px 14px;
+    border-radius: 50px;
+    background: rgba(255, 159, 28, 0.1);
+    border: 1px solid rgba(255, 159, 28, 0.45);
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: transform 0.12s, background 0.15s;
+}
+
+.practice-mode-label:active {
+    transform: scale(0.95);
+    background: rgba(255, 159, 28, 0.22);
+}
+
+@media (hover: hover) {
+    .practice-mode-label:hover {
+        background: rgba(255, 159, 28, 0.18);
+    }
+}
+
 /* STAGE：入力モード切替（タップ / ストローク） */
 .input-mode {
     width: 100%;
@@ -2022,17 +2058,72 @@ h1 {
 }
 
 /* STAGE：タップエリアの配置切替（左右 / 上下）＋ ボタン高さ */
-.tap-layout-toggle {
+/* タップボタン調整：折りたたみ（v0.9.118） */
+.tap-tools {
     width: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
-    margin-top: 2px;
+    gap: 8px;
+    margin-top: 8px;
 }
 
-.tap-layout-toggle.hidden {
+.tap-tools.hidden {
     display: none;
+}
+
+/* 開閉ボタン（控えめなヘッダー） */
+.tap-tools-toggle {
+    width: 100%;
+    max-width: 320px;
+    padding: 8px 14px;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--muted-color);
+    background: rgba(253, 246, 238, 0.05);
+    border: 1px solid rgba(253, 246, 238, 0.14);
+    border-radius: 10px;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background 0.15s;
+}
+
+.tap-tools-toggle:active {
+    background: rgba(253, 246, 238, 0.12);
+}
+
+/* 開いたときの中身 */
+.tap-tools-panel {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.tap-tools-panel.hidden {
+    display: none;
+}
+
+/* デフォルトに戻す：控えめ・小さめ（危険操作ではないので強い色は使わない） */
+.tap-tools-reset {
+    margin-top: 2px;
+    padding: 5px 14px;
+    font-family: inherit;
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: rgba(253, 246, 238, 0.55);
+    background: transparent;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    border-radius: 50px;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.tap-tools-reset:active {
+    color: var(--text-color);
+    background: rgba(253, 246, 238, 0.08);
 }
 
 .tlt-row {

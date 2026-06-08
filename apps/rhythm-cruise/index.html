@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.117">
+    <link rel="stylesheet" href="theme.css?v=0.9.118">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -50,11 +50,13 @@
                 <button id="rhythm-train-btn" class="settings-top-main">リズム練をする</button>
             </div>
 
-            <!-- リズム練をする：カテゴリ選択（v0.9.117） -->
+            <!-- リズム練をする：カテゴリ選択（v0.9.117）。戻る/TOPは共通ナビ #app-nav に統一（v0.9.118） -->
             <div class="home-view hidden" id="home-rhythm">
-                <div class="home-subhead">
-                    <button type="button" class="btn-mini home-back" id="rhythm-back">‹ もどる</button>
-                    <div class="section-label">リズム練をする</div>
+                <div class="section-label">リズム練をする</div>
+                <!-- 入力方式の切替（v0.9.118：STAGE内から移動）。ここで選んだ方式でSTAGEを開始する。 -->
+                <div class="input-mode" id="rhythm-input-mode">
+                    <button type="button" class="input-seg is-active" id="rhythm-mode-tap" data-mode="tap">タップ</button>
+                    <button type="button" class="input-seg" id="rhythm-mode-stroke" data-mode="stroke">ストローク</button>
                 </div>
                 <div class="cat-list">
                     <button class="settings-top-main cat-btn" id="cat-kiso">基礎練</button>
@@ -65,10 +67,7 @@
 
             <!-- 基礎練：STAGE1〜6（v0.9.117） -->
             <div class="home-view hidden" id="home-kiso">
-                <div class="home-subhead">
-                    <button type="button" class="btn-mini home-back" id="kiso-back">‹ もどる</button>
-                    <div class="section-label">基礎練</div>
-                </div>
+                <div class="section-label">基礎練</div>
                 <div class="stage-list" id="stage-list">
                     <!-- script.js が描画 -->
                 </div>
@@ -76,10 +75,7 @@
 
             <!-- 準備中（ストロークパターン / コード進行）（v0.9.117） -->
             <div class="home-view hidden" id="home-soon">
-                <div class="home-subhead">
-                    <button type="button" class="btn-mini home-back" id="soon-back">‹ もどる</button>
-                    <div class="section-label" id="soon-title">準備中</div>
-                </div>
+                <div class="section-label" id="soon-title">準備中</div>
                 <p class="soon-msg">準備中です</p>
             </div>
 
@@ -88,20 +84,29 @@
 
         <!-- ══════════ 練習画面（スクロール譜面型・整理版） ══════════ -->
         <section id="screen-practice" class="screen hidden">
-            <!-- 1. STAGEヘッダー（小さめ） -->
+            <!-- 1. STAGEヘッダー（v0.9.118：タイトル横に入力方式トグル。長い説明文は削除しシンプルに） -->
             <div class="practice-head">
                 <div class="stage-num" id="practice-num"><small>STAGE</small><b>1</b></div>
                 <div class="stage-body">
-                    <h2 id="practice-title">4分ジャスト</h2>
-                    <div class="stage-desc" id="practice-desc">流れる4分音符に合わせてタップ</div>
+                    <div class="practice-title-row">
+                        <h2 id="practice-title">4分ジャスト</h2>
+                        <button type="button" class="practice-mode-label" id="practice-mode-label" aria-label="入力方式を切り替える">タップモード</button>
+                    </div>
                 </div>
             </div>
 
-            <!-- 2. BPM操作 -->
+            <!-- 2. BPM・小節数操作（v0.9.118：横並び） -->
             <div class="tempo-row">
-                <button class="tempo-btn" id="tempo-down" aria-label="テンポを下げる">−</button>
-                <span><b id="tempo-val">80</b> BPM</span>
-                <button class="tempo-btn" id="tempo-up" aria-label="テンポを上げる">+</button>
+                <div class="ctrl-group">
+                    <button class="tempo-btn" id="tempo-down" aria-label="テンポを下げる">−</button>
+                    <span><b id="tempo-val">80</b> BPM</span>
+                    <button class="tempo-btn" id="tempo-up" aria-label="テンポを上げる">+</button>
+                </div>
+                <div class="ctrl-group">
+                    <button class="tempo-btn" id="bars-down" aria-label="小節数を減らす">−</button>
+                    <span><b id="bars-val">8</b> 小節</span>
+                    <button class="tempo-btn" id="bars-up" aria-label="小節数を増やす">+</button>
+                </div>
             </div>
 
             <!-- 3. 状態・進行表示 -->
@@ -111,12 +116,6 @@
             </div>
             <div class="progress-wrap">
                 <div class="progress-fill" id="progress-fill"></div>
-            </div>
-
-            <!-- 4. 入力方法（タップ / ストローク） -->
-            <div class="input-mode" id="input-mode">
-                <button type="button" class="input-seg is-active" id="mode-tap-btn" data-mode="tap">タップ</button>
-                <button type="button" class="input-seg" id="mode-stroke-btn" data-mode="stroke">ストローク</button>
             </div>
 
             <!-- マイク許可成功後の設定誘導（初回のみ表示） -->
@@ -136,19 +135,6 @@
             </div>
             <p class="tap-hint" id="tap-hint">画面をタップして練習</p>
 
-            <!-- タップエリアの配置切替（左右 / 上下）＋ ボタン高さ。タップモード時のみ表示 -->
-            <div class="tap-layout-toggle hidden" id="tap-layout-toggle">
-                <div class="tlt-row">
-                    <span class="tlt-label">配置</span>
-                    <button type="button" class="tlt-seg is-active" id="layout-lr-btn">左右</button>
-                    <button type="button" class="tlt-seg" id="layout-ud-btn">上下</button>
-                </div>
-                <div class="tlt-row">
-                    <span class="tlt-label">ボタン高さ</span>
-                    <input type="range" id="tap-height" min="80" max="160" step="8" value="106" aria-label="タップボタンの高さ">
-                </div>
-            </div>
-
             <!-- タップエリア（タップモード時のみ）。配置は layout-lr / layout-ud で切替 -->
             <div class="tap-area layout-lr" id="tap-area">
                 <button type="button" class="tap-half tap-down" data-dir="down" aria-label="ダウンストローク">
@@ -159,6 +145,23 @@
                     <span class="tap-arrow">↑</span>
                     <span class="tap-label">アップ</span>
                 </button>
+            </div>
+
+            <!-- タップボタン調整（v0.9.118：ダウン/アップの下に折りたたみ収納。タップモード時のみ・初期は閉じる） -->
+            <div class="tap-tools hidden" id="tap-tools">
+                <button type="button" class="tap-tools-toggle" id="tap-tools-toggle" aria-expanded="false">タップボタン調整 ▾</button>
+                <div class="tap-tools-panel hidden" id="tap-tools-panel">
+                    <div class="tlt-row">
+                        <span class="tlt-label">配置</span>
+                        <button type="button" class="tlt-seg is-active" id="layout-lr-btn">左右</button>
+                        <button type="button" class="tlt-seg" id="layout-ud-btn">上下</button>
+                    </div>
+                    <div class="tlt-row">
+                        <span class="tlt-label">ボタン高さ</span>
+                        <input type="range" id="tap-height" min="80" max="160" step="8" value="106" aria-label="タップボタンの高さ">
+                    </div>
+                    <button type="button" class="tap-tools-reset" id="tap-tools-reset">デフォルトに戻す</button>
+                </div>
             </div>
 
             <!-- 6. 開始/停止（兼用）-->
@@ -788,7 +791,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.117"></script>
+    <script src="script.js?v=0.9.118"></script>
 </body>
 
 </html>

@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.117';
+const RHYTHM_CRUISE_VERSION = '0.9.118';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -177,8 +177,12 @@ const CAL_INTERVAL_MS = 650; // クリック間隔
 const FX_TEXT = { just: 'GOOD!', early: 'EARLY', late: 'LATE', miss: 'MISS' };
 
 /* ── 判定の仮ルール ─────────────────────────────────────── */
-const TOTAL_BEATS = 32;          // 8小節 × 4拍
 const BEATS_PER_BAR = 4;
+const BAR_OPTIONS = [1, 2, 4, 8];   // STAGEで選べる小節数（v0.9.118）
+const DEFAULT_BARS = 8;             // 既存仕様（8小節×4拍＝32拍）に合わせた初期値
+// TOTAL_BEATS は「小節数 × 4拍」。小節数は state.bars で可変（v0.9.118）。
+// applyStageBars() で state.bars から再計算する。配列やレーンは resetGame/resetData で作り直す。
+let TOTAL_BEATS = DEFAULT_BARS * BEATS_PER_BAR; // = 32（既定）
 const COUNT_IN_BEATS = 4;        // 1小節ぶんのカウントイン
 const JUST_MS = 40;              // ±40ms以内 = JUST（GOOD幅はそのまま）
 const NEAR_MS = 120;            // EARLY/LATE の最低幅（ms）。実際は拍間隔に応じて下の割合まで広げる
@@ -206,6 +210,7 @@ const STAGES = [
 /* ── 状態 ───────────────────────────────────────────────── */
 const state = {
     bpm: 80,
+    bars: DEFAULT_BARS, // テストする小節数（1/2/4/8）。全STAGE共通（v0.9.118）
     currentStage: 1,
     inputMode: 'tap',   // 'tap' | 'stroke'
     strokeDetectMode: 'brush', // ストローク検出モード：'brush'（ブラッシング・既存ロジック）| 'chord'（コードストローク専用ロジック）
@@ -396,21 +401,19 @@ const els = {
     homeSoon: $('home-soon'),
     soonTitle: $('soon-title'),
     rhythmTrainBtn: $('rhythm-train-btn'),
-    rhythmBack: $('rhythm-back'),
     catKiso: $('cat-kiso'),
     catStroke: $('cat-stroke'),
     catChord: $('cat-chord'),
-    kisoBack: $('kiso-back'),
-    soonBack: $('soon-back'),
-    backBtn: $('back-btn'),
     appVersionDisplay: $('app-version-display'),
     refreshBar: $('in-game-refresh-bar'),
     practiceNum: $('practice-num'),
     practiceTitle: $('practice-title'),
-    practiceDesc: $('practice-desc'),
     tempoVal: $('tempo-val'),
     tempoUp: $('tempo-up'),
     tempoDown: $('tempo-down'),
+    barsVal: $('bars-val'),
+    barsUp: $('bars-up'),
+    barsDown: $('bars-down'),
     barCounter: $('bar-counter'),
     latestVerdict: $('latest-verdict'),
     progressFill: $('progress-fill'),
@@ -418,8 +421,10 @@ const els = {
     graphCanvas: $('graph-canvas'),
     tapPad: $('tap-pad'),
     playBtn: $('play-btn'),
-    modeTapBtn: $('mode-tap-btn'),
-    modeStrokeBtn: $('mode-stroke-btn'),
+    // v0.9.118：入力方式の切替は「リズム練をする」画面へ移動。STAGE側は現在方式の表示のみ。
+    rhythmModeTap: $('rhythm-mode-tap'),
+    rhythmModeStroke: $('rhythm-mode-stroke'),
+    practiceModeLabel: $('practice-mode-label'),
     strokeModeBrush: $('stroke-mode-brush'),
     strokeModeChord: $('stroke-mode-chord'),
     strokeModeNote: $('stroke-mode-note'),
@@ -483,7 +488,10 @@ const els = {
     testCardNote: $('test-card-note'),
     testDoNow: $('test-do-now'),
     tapArea: $('tap-area'),
-    tapLayoutToggle: $('tap-layout-toggle'),
+    tapTools: $('tap-tools'),                 // v0.9.118：タップボタン調整の折りたたみ全体（タップモード時のみ表示）
+    tapToolsToggle: $('tap-tools-toggle'),    // 開閉ボタン
+    tapToolsPanel: $('tap-tools-panel'),      // 開いたときに見える中身
+    tapToolsReset: $('tap-tools-reset'),      // デフォルトに戻す
     layoutLrBtn: $('layout-lr-btn'),
     layoutUdBtn: $('layout-ud-btn'),
     tapHeightSlider: $('tap-height'),
@@ -738,11 +746,22 @@ function renderStages() {
    サブビューを #screen-home の中で切り替える。画面そのもの（home/practice/settings）の
    遷移ロジックは変更しない。 */
 let homeView = 'top'; // 'top' | 'rhythm' | 'kiso' | 'soon'
+let currentScreen = 'home'; // 'home' | 'practice' | 'settings'（v0.9.118：共通ナビ表示判定に使う）
+
+/* 共通ナビ（左上 戻る/TOP・右上 設定）の表示制御（v0.9.118）。
+   TOPページ（ホームのリズム練導線）でだけ #app-nav を隠す。それ以外の全ページ・全サブビューで表示する。 */
+function updateChrome() {
+    const onHomeTop = (currentScreen === 'home' && homeView === 'top');
+    if (els.appNav) els.appNav.classList.toggle('hidden', onHomeTop);
+    if (els.settingsBtn) els.settingsBtn.classList.toggle('hidden', currentScreen === 'settings');
+}
+
 function renderHome() {
     if (els.homeTop) els.homeTop.classList.toggle('hidden', homeView !== 'top');
     if (els.homeRhythm) els.homeRhythm.classList.toggle('hidden', homeView !== 'rhythm');
     if (els.homeKiso) els.homeKiso.classList.toggle('hidden', homeView !== 'kiso');
     if (els.homeSoon) els.homeSoon.classList.toggle('hidden', homeView !== 'soon');
+    updateChrome();
 }
 function setHomeView(v) {
     homeView = v;
@@ -753,18 +772,23 @@ function openSoonCategory(title) {
     if (els.soonTitle) els.soonTitle.textContent = title;
     setHomeView('soon');
 }
+/* ホームの特定サブビューへ移動（STAGE→基礎練など）。再生・マイクは止めてから移る。 */
+function goHomeView(v) {
+    stop();
+    stopMic();
+    show('home');     // いったんTOPへ
+    setHomeView(v);    // 目的のサブビューへ
+}
 
 /* ── 画面遷移 ───────────────────────────────────────────── */
 function show(screen) {
+    currentScreen = screen;
     els.home.classList.toggle('hidden', screen !== 'home');
     els.practice.classList.toggle('hidden', screen !== 'practice');
     els.settings.classList.toggle('hidden', screen !== 'settings');
     // ホームに入るときは必ずTOP（リズム練導線）から表示する（v0.9.117）
     if (screen === 'home') { homeView = 'top'; renderHome(); }
-    // 戻る/TOPナビはホーム以外で表示（ホームは最上位なので不要）
-    if (els.appNav) els.appNav.classList.toggle('hidden', screen === 'home');
-    // 右上の設定ボタンは設定画面以外で表示
-    if (els.settingsBtn) els.settingsBtn.classList.toggle('hidden', screen === 'settings');
+    else updateChrome();
     // バージョン＋更新バーは全画面で表示（右下固定・控えめ）
     window.scrollTo(0, 0);
 }
@@ -783,8 +807,17 @@ function goTop() {
 }
 
 function navBack() {
+    // 設定画面（マイク/画面タップ設定など）→ 直前の自然な画面（呼び出し元）へ
     if (!els.settings.classList.contains('hidden')) { closeSettings(); return; }
-    // 練習画面（結果画面含む）→ ホーム
+    // STAGE画面（結果・見返し含む）→ 基礎練画面（v0.9.118）
+    if (currentScreen === 'practice') { goHomeView('kiso'); return; }
+    // ホーム内サブビュー → 1つ上の階層へ（v0.9.118）
+    if (currentScreen === 'home') {
+        if (homeView === 'rhythm') { setHomeView('top'); return; }
+        if (homeView === 'kiso') { setHomeView('rhythm'); return; }
+        if (homeView === 'soon') { setHomeView('rhythm'); return; }
+        return; // TOPでは戻る不要（共通ナビ自体を隠している）
+    }
     goTop();
 }
 
@@ -829,8 +862,7 @@ function openStage(n) {
     state.currentStage = s.n;
     els.practiceNum.innerHTML = `<small>STAGE</small><b>${s.n}</b>`;
     els.practiceTitle.textContent = s.title;
-    els.practiceDesc.textContent = s.desc;
-    setInputMode('tap');   // 入場時はタップ練習（マイクOFF）
+    setInputMode(state.inputMode);   // v0.9.118：リズム練画面で選んだ入力方式（タップ/ストローク）で開始
     show('practice');
     requestAnimationFrame(() => { fitLane(); resetGame(); });
 }
@@ -1790,8 +1822,8 @@ function updateStatus(t) {
         els.barCounter.textContent = 'カウントイン';
     } else {
         const sb = Math.floor((t - state.T0) / state.beatInterval);
-        const bar = Math.max(1, Math.min(8, Math.floor(sb / BEATS_PER_BAR) + 1));
-        els.barCounter.textContent = `${bar} / 8 小節`;
+        const bar = Math.max(1, Math.min(state.bars, Math.floor(sb / BEATS_PER_BAR) + 1));
+        els.barCounter.textContent = `${bar} / ${state.bars} 小節`;
     }
     const p = Math.max(0, Math.min(1, t / state.endTime));
     els.progressFill.style.width = (p * 100) + '%';
@@ -2061,7 +2093,7 @@ function resetGame() {
     if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden');
     if (els.refreshBar) els.refreshBar.classList.remove('hidden'); // モーダルを閉じたら更新バーを戻す
     document.body.classList.remove('results-open');               // 戻る/TOP/設定を元に戻す（修正8）
-    els.barCounter.textContent = '– / 8 小節';
+    els.barCounter.textContent = `– / ${state.bars} 小節`;
     els.latestVerdict.dataset.state = 'idle';
     els.latestVerdict.textContent = 'スタンバイ';
     els.progressFill.style.width = '0%';
@@ -2287,7 +2319,7 @@ function finish() {
     els.playBtn.textContent = '▶ 開始';
     els.playBtn.disabled = false;
     if (els.tapHint) els.tapHint.classList.remove('dim');
-    els.barCounter.textContent = '8 / 8 小節';
+    els.barCounter.textContent = `${state.bars} / ${state.bars} 小節`;
     els.latestVerdict.textContent = '終了';
     els.latestVerdict.dataset.state = 'idle';
     els.progressFill.style.width = '100%';
@@ -4678,18 +4710,35 @@ function shouldAllowRescueHighSens() {
 }
 
 /* ── 入力方法（タップ / ストローク）──────────────────────── */
+/* 入力方式の切替UI（リズム練の［タップ｜ストローク］）とSTAGEの「現在：」表示を同期する（v0.9.118） */
+function updateInputModeUI() {
+    const m = state.inputMode;
+    if (els.rhythmModeTap) els.rhythmModeTap.classList.toggle('is-active', m === 'tap');
+    if (els.rhythmModeStroke) els.rhythmModeStroke.classList.toggle('is-active', m === 'stroke');
+    if (els.practiceModeLabel) els.practiceModeLabel.textContent = (m === 'tap') ? 'タップモード' : 'ストロークモード';
+}
+
+/* 「リズム練をする」画面での入力方式の選択（v0.9.118）。
+   ここではホーム画面にいるため、マイク開始やタップエリア操作は行わず、選択の記録・UI反映・保存だけを行う。
+   実際のSTAGEへの反映（マイク開始/タップエリア表示）は openStage → setInputMode で行う。 */
+function selectInputMode(mode) {
+    state.inputMode = (mode === 'stroke') ? 'stroke' : 'tap';
+    updateInputModeUI();
+    saveSettings();
+}
+
 function setInputMode(mode) {
     state.inputMode = mode;
-    if (els.modeTapBtn) els.modeTapBtn.classList.toggle('is-active', mode === 'tap');
-    if (els.modeStrokeBtn) els.modeStrokeBtn.classList.toggle('is-active', mode === 'stroke');
+    updateInputModeUI();
     if (mode === 'tap') {
         if (mic.on) stopMic();          // タップ練習はマイクOFF
         if (els.tapArea) els.tapArea.classList.remove('hidden');  // タップエリア表示
-        if (els.tapLayoutToggle) els.tapLayoutToggle.classList.remove('hidden');
+        if (els.tapTools) els.tapTools.classList.remove('hidden'); // 調整タブ（折りたたみ）を表示
+        setTapToolsOpen(false);          // 初期は閉じた状態
         applyTapLayout();
         hideMicSetupPrompt();
     } else {
-        if (els.tapLayoutToggle) els.tapLayoutToggle.classList.add('hidden');
+        if (els.tapTools) els.tapTools.classList.add('hidden');   // ストローク時は調整タブを隠す
         if (els.tapArea) els.tapArea.classList.add('hidden');     // ストローク時はタップエリアを畳む
         if (els.tapHint) els.tapHint.textContent = '流れる譜面に合わせてストローク。クリック音は小さめ推奨です。';
         if (!mic.on) {
@@ -4702,6 +4751,13 @@ function setInputMode(mode) {
             });
         }
     }
+    saveSettings(); // v0.9.118：入力方式を保存（STAGEトグル/リズム練スイッチ/再読込で同期）
+}
+
+/* STAGE画面のタイトル横「現在：タップ/ストローク」をタップして入力方式を切り替える（v0.9.118）。
+   既存の setInputMode を使うため、判定・マイク起動・UI同期（リズム練スイッチ／保存）はそのまま反映される。 */
+function toggleStageInputMode() {
+    setInputMode(state.inputMode === 'tap' ? 'stroke' : 'tap');
 }
 
 /* マイク許可成功直後の設定誘導。
@@ -4753,18 +4809,51 @@ function setTapLayout(layout) {
     applyTapLayout();
 }
 
-/* タップボタンの高さ(px)をCSS変数に反映（判定には影響しない・見た目のみ） */
+/* タップボタン高さの範囲（v0.9.118）。上下配置のときだけ最大値を拡張し、押しやすい大きさにできるようにする。
+   保存値は最大(TAP_H_MAX_UD)まで保持し、表示時に現在の配置の上限へクランプする（配置を戻しても値が消えない）。 */
+const TAP_H_MIN = 80;
+const TAP_H_MAX_LR = 160;
+const TAP_H_MAX_UD = 280;
+const TAP_H_DEFAULT = 106;
+function tapHeightMax() { return state.tapLayout === 'ud' ? TAP_H_MAX_UD : TAP_H_MAX_LR; }
+
+/* タップボタンの高さ(px)をCSS変数に反映（判定には影響しない・見た目のみ）。
+   配置に応じてスライダーの最大値も切り替え、適用値は上限でクランプする。 */
 function applyTapHeight() {
-    if (els.tapArea) els.tapArea.style.setProperty('--tap-h', state.tapHeight + 'px');
-    if (els.tapHeightSlider && parseInt(els.tapHeightSlider.value, 10) !== state.tapHeight) {
-        els.tapHeightSlider.value = state.tapHeight;
+    const max = tapHeightMax();
+    const applied = clampNum(state.tapHeight, TAP_H_MIN, max, TAP_H_DEFAULT);
+    if (els.tapArea) els.tapArea.style.setProperty('--tap-h', applied + 'px');
+    if (els.tapHeightSlider) {
+        if (parseInt(els.tapHeightSlider.max, 10) !== max) els.tapHeightSlider.max = String(max);
+        if (parseInt(els.tapHeightSlider.value, 10) !== applied) els.tapHeightSlider.value = String(applied);
     }
 }
 
 /* 高さを変更して保存 */
 function setTapHeight(px) {
-    state.tapHeight = clampNum(px, 80, 160, 106);
+    state.tapHeight = clampNum(px, TAP_H_MIN, tapHeightMax(), TAP_H_DEFAULT);
     applyTapHeight();
+    saveSettings();
+}
+
+/* タップボタン調整タブの開閉（v0.9.118）。初期は閉じる。 */
+function setTapToolsOpen(open) {
+    if (els.tapToolsPanel) els.tapToolsPanel.classList.toggle('hidden', !open);
+    if (els.tapToolsToggle) {
+        els.tapToolsToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        els.tapToolsToggle.textContent = open ? 'タップボタン調整 ▴' : 'タップボタン調整 ▾';
+    }
+}
+function toggleTapTools() {
+    const closed = !els.tapToolsPanel || els.tapToolsPanel.classList.contains('hidden');
+    setTapToolsOpen(closed);
+}
+
+/* タップボタンの配置・高さを既定へ戻す（v0.9.118）。 */
+function resetTapButtons() {
+    state.tapLayout = 'lr';
+    state.tapHeight = TAP_H_DEFAULT;
+    applyTapLayout(); // 配置クラス・ボタン活性・案内・高さ(applyTapHeight)を反映
     saveSettings();
 }
 
@@ -4774,6 +4863,33 @@ function setTempoEnabled(on) {
     els.tempoDown.disabled = !on;
     els.tempoUp.classList.toggle('is-disabled', !on);
     els.tempoDown.classList.toggle('is-disabled', !on);
+    // 小節数の−/＋もBPMと同じく再生中はロック（v0.9.118）
+    if (els.barsUp) { els.barsUp.disabled = !on; els.barsUp.classList.toggle('is-disabled', !on); }
+    if (els.barsDown) { els.barsDown.disabled = !on; els.barsDown.classList.toggle('is-disabled', !on); }
+}
+
+/* 小節数（テスト長さ）の反映と表示（v0.9.118）。
+   TOTAL_BEATS を小節数×4拍へ更新する。配列/レーンは resetGame→resetData で作り直す。 */
+function applyStageBars() {
+    TOTAL_BEATS = state.bars * BEATS_PER_BAR;
+}
+function updateBarsUI() {
+    if (els.barsVal) els.barsVal.textContent = String(state.bars);
+}
+function setStageBars(bars) {
+    if (state.running) return;          // 再生中は変更ロック（BPMと同じ）
+    if (BAR_OPTIONS.indexOf(bars) === -1) return;
+    state.bars = bars;
+    applyStageBars();
+    updateBarsUI();
+    saveSettings();
+    resetGame();                        // 新しい小節数で配列・カウンタ・レーンを作り直す
+}
+function stepStageBars(dir) {
+    const i = BAR_OPTIONS.indexOf(state.bars);
+    const base = (i === -1) ? BAR_OPTIONS.indexOf(DEFAULT_BARS) : i;
+    const ni = Math.max(0, Math.min(BAR_OPTIONS.length - 1, base + dir));
+    setStageBars(BAR_OPTIONS[ni]);
 }
 
 function setBpm(v) {
@@ -4873,7 +4989,10 @@ function loadSettings() {
     state.micDelayDone = !!s.micDelayDone;
     state.micSetupPrompted = !!s.micSetupPrompted;
     state.tapLayout = (s.tapLayout === 'ud') ? 'ud' : 'lr';
-    state.tapHeight = clampNum(s.tapHeight, 80, 160, 106);
+    state.tapHeight = clampNum(s.tapHeight, TAP_H_MIN, TAP_H_MAX_UD, TAP_H_DEFAULT); // v0.9.118：上下配置の拡張値も保持（表示時に配置上限へクランプ）
+    state.inputMode = (s.inputMode === 'stroke') ? 'stroke' : 'tap'; // v0.9.118：入力方式（タップ/ストローク）の保存値を優先
+    state.bars = (BAR_OPTIONS.indexOf(s.bars) !== -1) ? s.bars : DEFAULT_BARS; // v0.9.118：小節数の保存値を優先（不正値は既定8）
+    applyStageBars();
     state.strokeDetectMode = (s.strokeDetectMode === 'chord') ? 'chord' : 'brush';
     if (typeof s.chordMinCooldown === 'number') state.chordMinCooldown = clampNum(s.chordMinCooldown, 100, 400, 180);
     if (typeof s.chordRiseGate === 'number') state.chordRiseGate = s.chordRiseGate;
@@ -4905,6 +5024,8 @@ function saveSettings() {
             micSetupPrompted: state.micSetupPrompted,
             tapLayout: state.tapLayout,
             tapHeight: state.tapHeight,
+            inputMode: state.inputMode,
+            bars: state.bars,
             strokeDetectMode: state.strokeDetectMode,
             chordMinCooldown: state.chordMinCooldown,
             chordRiseGate: state.chordRiseGate,
@@ -8352,21 +8473,20 @@ function applyCalibration() {
 
 /* ── イベント結線 ───────────────────────────────────────── */
 function bind() {
-    // ホーム階層ナビ（v0.9.117）：TOP → リズム練 → 基礎練(STAGE一覧)/準備中
+    // ホーム階層ナビ（v0.9.117）：TOP → リズム練 → 基礎練(STAGE一覧)/準備中。
+    // 各サブビューからの「戻る/TOP」は共通ナビ #app-nav に統一（v0.9.118）。
     if (els.rhythmTrainBtn) els.rhythmTrainBtn.addEventListener('click', () => setHomeView('rhythm'));
-    if (els.rhythmBack) els.rhythmBack.addEventListener('click', () => setHomeView('top'));
     if (els.catKiso) els.catKiso.addEventListener('click', () => setHomeView('kiso'));
     if (els.catStroke) els.catStroke.addEventListener('click', () => openSoonCategory('ストロークパターン'));
     if (els.catChord) els.catChord.addEventListener('click', () => openSoonCategory('コード進行'));
-    if (els.kisoBack) els.kisoBack.addEventListener('click', () => setHomeView('rhythm'));
-    if (els.soonBack) els.soonBack.addEventListener('click', () => setHomeView('rhythm'));
     // 全画面共通ナビ（戻る / TOP / 設定）
     if (els.navBackBtn) els.navBackBtn.addEventListener('click', () => guardMicSetupInterruption(navBack));
     if (els.navTopBtn) els.navTopBtn.addEventListener('click', () => guardMicSetupInterruption(goTop));
     if (els.settingsBtn) els.settingsBtn.addEventListener('click', openSettingsFromCurrent);
     // 入力方法（タップ / ストローク）
-    if (els.modeTapBtn) els.modeTapBtn.addEventListener('click', () => setInputMode('tap'));
-    if (els.modeStrokeBtn) els.modeStrokeBtn.addEventListener('click', () => setInputMode('stroke'));
+    // 入力方式の切替（v0.9.118：リズム練をする画面）。ここでは選択の記録のみ。STAGE開始時に反映。
+    if (els.rhythmModeTap) els.rhythmModeTap.addEventListener('click', () => selectInputMode('tap'));
+    if (els.rhythmModeStroke) els.rhythmModeStroke.addEventListener('click', () => selectInputMode('stroke'));
     // ストローク検出モード：選んだら自動で次（マイク反応テスト）へ
     if (els.strokeModeBrush) els.strokeModeBrush.addEventListener('click', () => onPickStrokeMode('brush'));
     if (els.strokeModeChord) els.strokeModeChord.addEventListener('click', () => onPickStrokeMode('chord'));
@@ -8402,6 +8522,8 @@ function bind() {
     if (els.ptReviewFirst) els.ptReviewFirst.addEventListener('click', () => { if (els.ptReviewScroll) els.ptReviewScroll.scrollTo({ left: 0, behavior: 'smooth' }); });
     if (els.ptReviewLast) els.ptReviewLast.addEventListener('click', () => { if (els.ptReviewScroll) els.ptReviewScroll.scrollTo({ left: els.ptReviewScroll.scrollWidth, behavior: 'smooth' }); });
     // タップエリア配置（左右 / 上下）
+    if (els.tapToolsToggle) els.tapToolsToggle.addEventListener('click', toggleTapTools);
+    if (els.tapToolsReset) els.tapToolsReset.addEventListener('click', resetTapButtons);
     if (els.layoutLrBtn) els.layoutLrBtn.addEventListener('click', () => setTapLayout('lr'));
     if (els.layoutUdBtn) els.layoutUdBtn.addEventListener('click', () => setTapLayout('ud'));
     // タップボタンの高さ調整スライダー
@@ -8540,6 +8662,11 @@ function bind() {
     els.recoApplyBtn.addEventListener('click', applyReco);
     els.tempoUp.addEventListener('click', () => setBpm(state.bpm + 5));
     els.tempoDown.addEventListener('click', () => setBpm(state.bpm - 5));
+    // 小節数の−/＋（v0.9.118）：候補 1/2/4/8 を行き来する
+    if (els.barsUp) els.barsUp.addEventListener('click', () => stepStageBars(+1));
+    if (els.barsDown) els.barsDown.addEventListener('click', () => stepStageBars(-1));
+    // STAGEタイトル横の「現在：タップ/ストローク」タップで入力方式を切替（v0.9.118）
+    if (els.practiceModeLabel) els.practiceModeLabel.addEventListener('click', toggleStageInputMode);
     els.playBtn.addEventListener('click', onPlayBtn);          // 開始/停止 兼用
     // 結果モーダル：閉じる＝結果を閉じて開始前へ／もう一度＝閉じてリトライ
     if (els.rCloseBtn) els.rCloseBtn.addEventListener('click', () => { if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden'); resetGame(); });
@@ -8631,6 +8758,8 @@ function init() {
     renderStages();
     bind();
     applySettingsToUI();         // スライダー・数値・しきい値ラインを現在値に
+    updateInputModeUI();         // v0.9.118：入力方式（タップ/ストローク）の切替UI・表示を保存値に同期
+    updateBarsUI();              // v0.9.118：小節数の表示を保存値に同期
     updateMicDiag();             // マイク診断カウンタ・補正値の初期表示
     setClickEnabled(true);
     show('home');
