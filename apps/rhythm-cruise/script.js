@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.116';
+const RHYTHM_CRUISE_VERSION = '0.9.117';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -389,7 +389,19 @@ const els = {
     settingsBtn: $('settings-btn'),
     tapHint: $('tap-hint'),
     stageList: $('stage-list'),
-    startBtn: $('start-btn'),
+    // v0.9.117：ホームを「リズム練をする → 基礎練/ストロークパターン/コード進行」の階層に再構成
+    homeTop: $('home-top'),
+    homeRhythm: $('home-rhythm'),
+    homeKiso: $('home-kiso'),
+    homeSoon: $('home-soon'),
+    soonTitle: $('soon-title'),
+    rhythmTrainBtn: $('rhythm-train-btn'),
+    rhythmBack: $('rhythm-back'),
+    catKiso: $('cat-kiso'),
+    catStroke: $('cat-stroke'),
+    catChord: $('cat-chord'),
+    kisoBack: $('kiso-back'),
+    soonBack: $('soon-back'),
     backBtn: $('back-btn'),
     appVersionDisplay: $('app-version-display'),
     refreshBar: $('in-game-refresh-bar'),
@@ -416,6 +428,7 @@ const els = {
     inputTypeNote: $('input-type-note'),
     // イヤホンの音ズレ補正（v0.9.50）
     hpCalCard: $('hp-cal-card'),
+    hpCalStaged: $('hp-cal-staged'), // v0.9.117：補正テスト開始まで隠す段階表示のまとまり
     hpCalBtn: $('hp-cal-btn'),
     hpCalLaneWrap: $('hp-cal-lane-wrap'),
     hpCalAutoMsg: $('hp-cal-auto-msg'),
@@ -720,11 +733,34 @@ function renderStages() {
     });
 }
 
+/* ── ホーム内の階層表示（v0.9.117）────────────────────────────
+   ホームは「TOP → リズム練をする → 基礎練(STAGE一覧)/ストロークパターン/コード進行」の
+   サブビューを #screen-home の中で切り替える。画面そのもの（home/practice/settings）の
+   遷移ロジックは変更しない。 */
+let homeView = 'top'; // 'top' | 'rhythm' | 'kiso' | 'soon'
+function renderHome() {
+    if (els.homeTop) els.homeTop.classList.toggle('hidden', homeView !== 'top');
+    if (els.homeRhythm) els.homeRhythm.classList.toggle('hidden', homeView !== 'rhythm');
+    if (els.homeKiso) els.homeKiso.classList.toggle('hidden', homeView !== 'kiso');
+    if (els.homeSoon) els.homeSoon.classList.toggle('hidden', homeView !== 'soon');
+}
+function setHomeView(v) {
+    homeView = v;
+    renderHome();
+    window.scrollTo(0, 0);
+}
+function openSoonCategory(title) {
+    if (els.soonTitle) els.soonTitle.textContent = title;
+    setHomeView('soon');
+}
+
 /* ── 画面遷移 ───────────────────────────────────────────── */
 function show(screen) {
     els.home.classList.toggle('hidden', screen !== 'home');
     els.practice.classList.toggle('hidden', screen !== 'practice');
     els.settings.classList.toggle('hidden', screen !== 'settings');
+    // ホームに入るときは必ずTOP（リズム練導線）から表示する（v0.9.117）
+    if (screen === 'home') { homeView = 'top'; renderHome(); }
     // 戻る/TOPナビはホーム以外で表示（ホームは最上位なので不要）
     if (els.appNav) els.appNav.classList.toggle('hidden', screen === 'home');
     // 右上の設定ボタンは設定画面以外で表示
@@ -2616,6 +2652,7 @@ function startHeadphoneCal() {
     hpCal.beat = 0;
     hpCal.autoStopCanceled = false; // v0.9.112：開始/再テストごとに自動停止を有効へ戻す
     if (els.hpCalAutoMsg) els.hpCalAutoMsg.classList.add('hidden'); // 前回の自動停止案内を消す（v0.9.109）
+    if (els.hpCalStaged) els.hpCalStaged.classList.remove('hidden'); // v0.9.117：開始でレーン/スライダー/進む/再テストを表示
     if (els.hpCalLaneWrap) els.hpCalLaneWrap.classList.remove('hidden');
     fitHpLane();
     if (els.hpCalBtn) els.hpCalBtn.textContent = '停止';
@@ -2661,6 +2698,8 @@ function stopHeadphoneCal(opts) {
         drawHpLane(hpCal.flowStartPerf); // rel=0＝初期位置（現在のBPMの間隔で静止描画）
     } else {
         if (els.hpCalLaneWrap) els.hpCalLaneWrap.classList.add('hidden');
+        // v0.9.117：完了/別ステップ移動/設定を閉じる等の本停止では、段階表示を初期（説明＋開始＋BPMのみ）に戻す
+        if (els.hpCalStaged) els.hpCalStaged.classList.add('hidden');
     }
 }
 
@@ -5549,6 +5588,9 @@ function completeCorrectionStep() {
     // イヤホン音ズレ補正テスト中に「この音ズレ設定で進む」を押したら、
     // クリック音・丸点灯ループ・残りタイマーを必ず止める（v0.9.87）。
     if (hpCal.active || hpCal.timer || hpCal.lightTimers.length) stopHeadphoneCal();
+    // v0.9.117：進んだら段階表示を初期（説明＋開始＋BPMのみ）へ戻す（停止済みで stop を呼ばない場合も確実に畳む）
+    if (els.hpCalStaged) els.hpCalStaged.classList.add('hidden');
+    if (els.hpCalLaneWrap) els.hpCalLaneWrap.classList.add('hidden');
     setupProgress.correctionDone = true;
     // 補正を変更した時点で前回の最終確認テスト結果は古くなる → 初期化して再確認を促す
     invalidatePracticeResult('補正を反映しました。もう一度最終確認テストで確認してください。');
@@ -8310,7 +8352,14 @@ function applyCalibration() {
 
 /* ── イベント結線 ───────────────────────────────────────── */
 function bind() {
-    els.startBtn.addEventListener('click', () => openStage(1));
+    // ホーム階層ナビ（v0.9.117）：TOP → リズム練 → 基礎練(STAGE一覧)/準備中
+    if (els.rhythmTrainBtn) els.rhythmTrainBtn.addEventListener('click', () => setHomeView('rhythm'));
+    if (els.rhythmBack) els.rhythmBack.addEventListener('click', () => setHomeView('top'));
+    if (els.catKiso) els.catKiso.addEventListener('click', () => setHomeView('kiso'));
+    if (els.catStroke) els.catStroke.addEventListener('click', () => openSoonCategory('ストロークパターン'));
+    if (els.catChord) els.catChord.addEventListener('click', () => openSoonCategory('コード進行'));
+    if (els.kisoBack) els.kisoBack.addEventListener('click', () => setHomeView('rhythm'));
+    if (els.soonBack) els.soonBack.addEventListener('click', () => setHomeView('rhythm'));
     // 全画面共通ナビ（戻る / TOP / 設定）
     if (els.navBackBtn) els.navBackBtn.addEventListener('click', () => guardMicSetupInterruption(navBack));
     if (els.navTopBtn) els.navTopBtn.addEventListener('click', () => guardMicSetupInterruption(goTop));

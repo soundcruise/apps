@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.116">
+    <link rel="stylesheet" href="theme.css?v=0.9.117">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -43,15 +43,44 @@
         <section id="screen-home" class="screen">
             <header>
                 <h1>リズムクルーズ</h1>
-                <p class="subcopy">ストロークのズレを見える化する<br>リズム練習アプリ</p>
             </header>
 
-            <button id="start-btn" class="btn-primary">▶ 練習をはじめる</button>
+            <!-- ホームTOP：リズム練への導線だけを置く（v0.9.117） -->
+            <div class="home-view" id="home-top">
+                <button id="rhythm-train-btn" class="settings-top-main">リズム練をする</button>
+            </div>
 
-            <div class="section-label">Stage Select</div>
+            <!-- リズム練をする：カテゴリ選択（v0.9.117） -->
+            <div class="home-view hidden" id="home-rhythm">
+                <div class="home-subhead">
+                    <button type="button" class="btn-mini home-back" id="rhythm-back">‹ もどる</button>
+                    <div class="section-label">リズム練をする</div>
+                </div>
+                <div class="cat-list">
+                    <button class="settings-top-main cat-btn" id="cat-kiso">基礎練</button>
+                    <button class="settings-top-main cat-btn cat-soon" id="cat-stroke">ストロークパターン<span class="badge-soon">準備中</span></button>
+                    <button class="settings-top-main cat-btn cat-soon" id="cat-chord">コード進行<span class="badge-soon">準備中</span></button>
+                </div>
+            </div>
 
-            <div class="stage-list" id="stage-list">
-                <!-- script.js が描画 -->
+            <!-- 基礎練：STAGE1〜6（v0.9.117） -->
+            <div class="home-view hidden" id="home-kiso">
+                <div class="home-subhead">
+                    <button type="button" class="btn-mini home-back" id="kiso-back">‹ もどる</button>
+                    <div class="section-label">基礎練</div>
+                </div>
+                <div class="stage-list" id="stage-list">
+                    <!-- script.js が描画 -->
+                </div>
+            </div>
+
+            <!-- 準備中（ストロークパターン / コード進行）（v0.9.117） -->
+            <div class="home-view hidden" id="home-soon">
+                <div class="home-subhead">
+                    <button type="button" class="btn-mini home-back" id="soon-back">‹ もどる</button>
+                    <div class="section-label" id="soon-title">準備中</div>
+                </div>
+                <p class="soon-msg">準備中です</p>
             </div>
 
             <p class="app-footer">Sound Cruise Series</p>
@@ -471,6 +500,8 @@
                         <button type="button" class="btn-mini hp-bpm-btn" id="hp-bpm-plus" aria-label="BPMを上げる">＋</button>
                     </div>
                 </div>
+                <!-- v0.9.117：補正テスト開始を押すまで隠す段階表示。開始で表示し、レーン/スライダー/進む/再テストをまとめて出す。 -->
+                <div id="hp-cal-staged" class="hidden">
                 <!-- STAGE風の流れるレーン（v0.9.91）：右→左へ4拍の丸が流れ、丸の中心線がJUSTラインに
                      重なる瞬間にクリック音が鳴る。音と丸が同時に感じられるようにスライダーで調整する。 -->
                 <div class="test-lane-wrap hidden" id="hp-cal-lane-wrap" style="margin:14px 0;">
@@ -499,6 +530,7 @@
                     <button type="button" class="btn-primary" id="hp-proceed-btn" style="flex:1;margin:0;">この音ズレ設定で進む</button>
                     <button type="button" class="btn-mini" id="hp-retest-btn" style="flex:none;margin:0;padding:0 16px;white-space:nowrap;">再テスト</button>
                 </div>
+                </div><!-- /#hp-cal-staged -->
                 <!-- 画面タップ設定タブから使う場合の導線（v0.9.95）：保存してアプリTOPへ戻る（テストへは進まない） -->
                 <button type="button" class="btn-primary hidden" id="hp-tap-use-btn" style="width:100%;margin-top:12px;">この音ズレ設定で使う</button>
                 <!-- 画面タップ設定タブから：現在のタップ補正値をプリセットとして保存（v0.9.97） -->
@@ -756,7 +788,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.116"></script>
+    <script src="script.js?v=0.9.117"></script>
 </body>
 
 </html>

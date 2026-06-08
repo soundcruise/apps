@@ -499,6 +499,75 @@ h1 {
     padding-top: 40px;
 }
 
+/* ── ホーム階層（v0.9.117）：TOP → リズム練 → 基礎練/準備中 ───────── */
+.home-view {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    animation: fadeIn 0.25s ease;
+}
+
+.home-view.hidden {
+    display: none;
+}
+
+/* サブ画面の見出し行（もどる + タイトル） */
+.home-subhead {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.home-subhead .section-label {
+    margin-bottom: 0;
+}
+
+.home-back {
+    flex: none;
+    color: rgba(253, 246, 238, 0.75);
+    font-size: 0.9rem;
+    padding: 6px 4px;
+}
+
+/* リズム練のカテゴリボタン一覧 */
+.cat-list {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.cat-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+/* 準備中カテゴリ（押せるが中身なし）は控えめに */
+.cat-btn.cat-soon {
+    border-color: rgba(253, 246, 238, 0.22);
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(253, 246, 238, 0.7);
+}
+
+@media (hover: hover) {
+    .cat-btn.cat-soon:hover {
+        background: rgba(255, 255, 255, 0.07);
+    }
+}
+
+.soon-msg {
+    width: 100%;
+    text-align: center;
+    color: var(--muted-color);
+    padding: 28px 12px;
+    border: 1px dashed rgba(253, 246, 238, 0.18);
+    border-radius: 12px;
+}
+
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
