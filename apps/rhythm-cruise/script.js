@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.106';
+const RHYTHM_CRUISE_VERSION = '0.9.107';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -475,6 +475,7 @@ const els = {
     resultsDoubleMsg: $('results-double-msg'),
     resultsDoubleDetail: $('results-double-detail'),
     resultsRetestBtn: $('results-retest-btn'),
+    resultsMicTune: $('results-mic-tune'),
     resultsMicWrap: $('results-mic-wrap'),
     resultsMicCanvas: $('results-mic-canvas'),
     reviewWrap: $('review-wrap'),
@@ -1137,7 +1138,10 @@ function drawStrokeArrow(ctx, x, y, dir, color, alpha) {
 }
 
 /* ── マイク入力波形（譜面レーン背景・グレー） ──────────── */
-function drawMicWaveform(ctx, w, h, yc) {
+/* dispOff（v0.9.107）：イヤホン音ズレ補正(headphoneOutputOffsetMs)の「表示だけ」のずらし量。
+   音符/拍/判定マーカーを heard-time（イヤホンで聞こえる時刻）へ寄せたとき、波形も同じだけ寄せて、
+   正しいタイミングのストロークの波形が音符の真下に来るようにする（判定値は不変）。 */
+function drawMicWaveform(ctx, w, h, yc, dispOff) {
     const ppm = state.pxPerMs, jx = state.judgeX;
     const maxAmp = h * 0.34;
 
@@ -1164,7 +1168,8 @@ function drawMicWaveform(ctx, w, h, yc) {
     const now = performance.now();
     // マイク判定補正を波形にも反映し、判定マーカーと時間軸を揃える
     // （判定は perf+offset で評価するため、波形も同じ offset で前後させる）
-    const off = micJudgeOffsetMs();
+    // さらに dispOff（イヤホン音ズレ補正の表示分）を足して、音符/拍/マーカーの表示時刻と揃える（v0.9.107・表示のみ）。
+    const off = micJudgeOffsetMs() + (dispOff || 0);
 
     // 画面内に入るサンプルだけを時系列順（古い→新しい＝左→右）に集める
     const pts = [];
@@ -1203,13 +1208,17 @@ function drawLane(rawT) {
     const yc = h * 0.56;
     const bi = state.beatInterval, T0 = state.T0, ppm = state.pxPerMs, jx = state.judgeX;
 
-    // タップモードだけ「聞こえるクリック音」に合わせて画面表示を出力遅延ぶん遅らせる（v0.9.97）。
-    // 判定(registerHit)は別途オーディオ時計で補正済みなので、ここは見た目の時刻だけずらす。
-    // ストローク(mic)モードは一切変更しない（dispT === t）。
-    const t = (state.inputMode === 'tap') ? (rawT - tapOutputOffsetMs()) : rawT;
+    // 「聞こえるクリック音」に合わせて画面表示を出力遅延ぶん遅らせる（表示のみ・判定は別途オーディオ時計で補正済み）。
+    // v0.9.97：タップモードで導入。v0.9.107：ストローク(mic)モードにも適用。
+    // タップもストロークも合わせる相手は「イヤホンから聞こえるクリック音」なので、同じ出力遅延補正
+    // （タップ=tapOutputOffsetMs()／ストローク=headphoneOutputOffsetMs。どちらも同値）で表示時刻だけずらす。
+    // これで Bluetoothイヤホン時に「音符がJUSTを通る瞬間＝クリックが聞こえる瞬間」になり、v0.9.106の最終確認テストと揃う。
+    // 判定(registerHit)・スコアには一切入れない。通常マイク/有線は値が0msなのでズレない。
+    const dispOff = (state.inputMode === 'tap') ? tapOutputOffsetMs() : (mic.headphoneOutputOffsetMs || 0);
+    const t = rawT - dispOff;
 
-    // ① マイク入力波形（最背面・グレーの補助表示）
-    drawMicWaveform(ctx, w, h, yc);
+    // ① マイク入力波形（最背面・グレーの補助表示）。波形も dispOff ぶん寄せて音符と時間軸を揃える。
+    drawMicWaveform(ctx, w, h, yc, dispOff);
 
     // ② 中央の水平ガイド（五線の地）
     ctx.strokeStyle = 'rgba(253,246,238,0.08)';
@@ -1223,8 +1232,9 @@ function drawLane(rawT) {
         if (x < -30 || x > w + 30) continue;
         const barStart = (((i % BEATS_PER_BAR) + BEATS_PER_BAR) % BEATS_PER_BAR) === 0;
         if (barStart) {
-            ctx.strokeStyle = 'rgba(253,246,238,0.12)';
-            ctx.lineWidth = 1;
+            // 小節区切り（v0.9.107：音符中心線より目立たせる＝少し明るく太く）
+            ctx.strokeStyle = 'rgba(253,246,238,0.24)';
+            ctx.lineWidth = 1.5;
             ctx.beginPath(); ctx.moveTo(x, h * 0.18); ctx.lineTo(x, h * 0.9); ctx.stroke();
             if (i >= 0) {
                 ctx.fillStyle = 'rgba(253,246,238,0.5)';
@@ -1234,6 +1244,16 @@ function drawLane(rawT) {
             }
         }
         if (i >= 0) {
+            // v0.9.107：音符の中心に薄い縦線（中心線がJUST棒に重なる瞬間がジャスト）。
+            // 小節区切り（上の0.24/1.5px）より目立たないように、薄く細く・短めにして見分けられるようにする。
+            // 小節頭(barStart)は上の小節区切り線が中心も兼ねるので、二重描画しない。
+            if (!barStart) {
+                ctx.save();
+                ctx.strokeStyle = 'rgba(253,246,238,0.09)';
+                ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(x, h * 0.30); ctx.lineTo(x, h * 0.82); ctx.stroke();
+                ctx.restore();
+            }
             const r = state.results[i];
             // 入力ありMISS：判定窓を過ぎてMISS確定だが、マイク入力は反応ラインを超えていた拍
             const past = bt < t - NEAR_MS;
@@ -5454,16 +5474,18 @@ function startRetestFlow(jumpToTest) {
     scrollToSettingsEl(target);
 }
 
-function scrollToSettingsEl(el, block) {
+function scrollToSettingsEl(el, block, delayMs) {
     if (!el || !el.scrollIntoView) return;
     // v0.9.106：カードを表示に切り替えた直後（特にBluetoothは手順が増えてレイアウトが大きく変わる）は、
     // 1フレームだとレイアウト確定前にスクロール位置が計算され、初回だけ目的のカードまで届かないことがある。
-    // 2フレーム待ってから（＝表示後の確定レイアウトに対して）スクロールする。他カードの挙動は変えない。
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: block || 'start' });
-        });
-    });
+    // 2フレーム待ってから（＝表示後の確定レイアウトに対して）スクロールする。
+    // v0.9.107：delayMs を渡すと、その分待ってから 2フレーム→スクロールする。
+    //   ステップを連続で切り替えた直後（前のスムーススクロールが進行中／表示直後でレイアウト未確定）に、
+    //   iPhone Safari等で初回スクロールが無視される対策。delayMs 未指定なら従来どおり（他カードの挙動は不変）。
+    const go = () => requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: block || 'start' });
+    }));
+    if (delayMs && delayMs > 0) setTimeout(go, delayMs); else go();
 }
 
 /* ── 選択ハンドラ（選んだら自動で次の項目を出す。上流変更時は下流結果をリセット）── */
@@ -5522,7 +5544,9 @@ function onPickStrokeMode(mode) {
     if (settingsView === 'steps') {
         if (changed) resetSetupFlowDisplay();
         renderSettingsView();
-        scrollToSettingsEl(els.testCard);
+        // v0.9.107：マイク反応テストカードへ入る初回スクロールが、表示直後＆連続スクロールで効かない端末対策。
+        // 少し待ってからスクロールして、表示後の確定レイアウト・前のスクロール終了後に確実に合わせる。
+        scrollToSettingsEl(els.testCard, 'start', 160);
     }
 }
 
@@ -8240,6 +8264,13 @@ function bind() {
         openSettings('practice');
         // ステップ式UIでマイク反応テストまで一気に開く（結果はリセット）
         startRetestFlow(true);
+    });
+    // 結果詳細：ズレ傾向を見たあと、マイクの手動設定（現在の設定を見る）へ直接行く（v0.9.107）
+    if (els.resultsMicTune) els.resultsMicTune.addEventListener('click', () => {
+        if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden');
+        resetGame();
+        openSettings('practice');   // マイク設定タブで設定画面を開く
+        openManualView(els.manualCard); // 「現在の設定を見る／手動設定」を開く
     });
     // 結果モーダルの詳細（折りたたみ）を開いたら、中のズレ履歴グラフをサイズ確定して描画
     if (els.resultsDetail) els.resultsDetail.addEventListener('toggle', () => { if (els.resultsDetail.open) { fitGraph(); fitResultsMic(); } });

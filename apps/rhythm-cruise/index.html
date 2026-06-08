@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.103">
+    <link rel="stylesheet" href="theme.css?v=0.9.107">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -717,6 +717,10 @@
                         </div>
                         <canvas id="graph-canvas"></canvas>
                     </div>
+                    <!-- ズレ傾向を見たあと、マイクの手動設定（現在の設定を見る）へ直接行ける控えめなリンク（v0.9.107） -->
+                    <p class="result-mic-tune-row">
+                        <button type="button" class="result-mic-tune-link" id="results-mic-tune">マイク設定を微調整する →</button>
+                    </p>
                 </div>
             </details>
 
@@ -743,7 +747,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.106"></script>
+    <script src="script.js?v=0.9.107"></script>
 </body>
 
 </html>

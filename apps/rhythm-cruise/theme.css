@@ -1117,6 +1117,29 @@ h1 {
 .result-breakdown .bd-late { color: #ff6b6b; }
 .result-breakdown .bd-miss { color: #b0b0b0; }
 
+/* 結果詳細：マイク手動設定への控えめなテキストリンク（v0.9.107） */
+.result-mic-tune-row {
+    width: 100%;
+    margin: 14px 0 2px;
+    text-align: center;
+}
+.result-mic-tune-link {
+    background: none;
+    border: none;
+    padding: 6px 8px;
+    color: var(--muted-color);
+    font-size: 0.82rem;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+    opacity: 0.85;
+}
+.result-mic-tune-link:hover,
+.result-mic-tune-link:active {
+    color: var(--text-color);
+    opacity: 1;
+}
+
 /* ズレ確認：横スクロールで全32拍を振り返る */
 .review-hint {
     width: 100%;
