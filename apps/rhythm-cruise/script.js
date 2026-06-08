@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.103';
+const RHYTHM_CRUISE_VERSION = '0.9.104';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -565,6 +565,8 @@ const els = {
     settingsSummaryManual: $('settings-summary-manual'),
     settingsSummaryBack: $('settings-summary-back'),
     presetToggleBtn: $('preset-toggle-btn'),
+    micPresetCard: $('mic-preset-card'),
+    micPresetBack: $('mic-preset-back'),
     inputTypeCard: $('input-type-card'),
     strokeModeCard: $('stroke-mode-card'),
     manualCard: $('manual-card'),
@@ -2487,7 +2489,13 @@ function stopHeadphoneCal(opts) {
 function toggleHeadphoneCal() {
     // v0.9.100：ユーザーが明示的に「停止」した場合もレーンは閉じず、丸を初期位置へ戻して静止表示する。
     // （「この音ズレ設定で進む」「設定を閉じる」「別ステップ移動」「マイク設定TOP」「タブ切替」では従来どおり閉じる）
-    if (hpCal.active) stopHeadphoneCal({ keepLane: true }); else startHeadphoneCal();
+    if (hpCal.active) {
+        stopHeadphoneCal({ keepLane: true });
+        // v0.9.104：停止したら、下にある「この音ズレ設定で進む」ボタンが見える位置までスクロールする。
+        if (els.hpProceedBtn) scrollToSettingsEl(els.hpProceedBtn, 'end');
+    } else {
+        startHeadphoneCal();
+    }
 }
 
 /* スライダー/「目安に戻す」からの補正値更新。範囲外・不正値は選択中の種類の目安に丸める。
@@ -3748,18 +3756,18 @@ function finishBtCal() {
     }
     const valid = just + early + late;
     const avg = validN ? Math.round(sum / validN) : 0;
-    const earlyRatio = valid ? early / valid : 0;
-    const lateRatio = valid ? late / valid : 0;
-    // 補正提案条件（v0.9.80）：有効入力6以上・|平均ズレ|>=35ms・方向が60%以上偏っている。
+    // 補正提案条件（v0.9.104）：有効入力6以上・|平均ズレ|>=35ms。
+    // 旧仕様にあった「方向が60%以上偏っている(biased)」条件は撤廃した。
+    // 平均ズレが大きい（例:+72ms）のに JUST 拍が混ざって片寄り比率が60%未満になると、
+    // 「ズレは小さめ」へ誤分類され、±30msの微調整しか効かなかった不具合を直す。
     const enoughInput = valid >= 6;
-    const enoughBias = Math.abs(avg) >= 35;
-    const biased = (earlyRatio >= 0.6) || (lateRatio >= 0.6);
+    const bigZure = Math.abs(avg) >= 35;
     const cur = mic.bluetoothMicOffsetMs || 0;
     // 符号：判定時刻 = audio + offset。LATE(avg>0)なら offset を小さく（負方向）して早める。
     // → new = cur - avg。1回の補正量は ±BT_MIC_STEP_CLAMP に制限し、全体は [MIN,MAX] にクランプ。
     const step = Math.max(-BT_MIC_STEP_CLAMP, Math.min(BT_MIC_STEP_CLAMP, -avg));
     const proposed = Math.max(BT_MIC_OFFSET_MIN, Math.min(BT_MIC_OFFSET_MAX, cur + step));
-    const propose = enoughInput && enoughBias && biased && (proposed !== cur);
+    const propose = enoughInput && bigZure && (proposed !== cur);
     // 微調整（v0.9.94）：大きな補正提案が出ないケースでは、複雑な条件分岐をやめ、
     // 有効入力が十分で平均ズレが算出できれば（|avg|>=1ms）、最新結果で必ず微調整する。
     // 平均ズレが0msになることはほぼ無いので、小さなズレでも最新値へ自然に詰める。
@@ -3850,7 +3858,7 @@ function renderBtCalResult(r) {
         head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">入力が少なくて測れませんでした。クリックに合わせて、もう一度はっきり手拍子してください。</p>';
         actions = '<button type="button" id="bt-cal-rerun" style="' + primary + '">もう1度テストする</button>';
     } else if (r.propose) {
-        head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">判定が' + (r.avg > 0 ? '遅め（LATE）' : '早め（EARLY）') + 'に片寄っています。マイク遅れ補正で合わせましょう。</p>';
+        head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">判定が' + (r.avg > 0 ? '遅め（LATE）' : '早め（EARLY）') + 'に大きくズレています。マイク遅れ補正で合わせましょう。</p>';
         const proposeRow = '<div class="cal-result-row"><span>補正後の目安</span><b>' + sign(r.proposed) + '</b></div>';
         actions =
             '<button type="button" id="bt-cal-apply" style="' + primary + '">この補正を適用してもう1度テストする</button>' +
@@ -4860,9 +4868,13 @@ function renderSettingsView() {
     if (els.settingsTabMic) els.settingsTabMic.classList.toggle('is-active', settingsTab === 'mic');
     if (els.settingsTabTap) els.settingsTabTap.classList.toggle('is-active', settingsTab === 'tap');
     if (settingsTab === 'tap') { renderTapSettingsView(); return; }
-    // マイク設定タブ：画面タップ設定カードは隠し（.hidden で確実に）、フッター（マイク設定TOP/完了）を表示
+    // マイク設定タブ：画面タップ設定カードは隠し（.hidden で確実に）。
+    // フッター（マイク設定TOPへ戻る）は、TOP（chooser）と保存済みプリセットページでは出さない（v0.9.104）。
     if (els.tapSettingsCard) els.tapSettingsCard.classList.add('hidden');
-    if (els.settingsActions) els.settingsActions.style.display = '';
+    if (els.settingsActions) {
+        const hideFooter = (settingsView === 'chooser' || settingsView === 'preset');
+        els.settingsActions.style.display = hideFooter ? 'none' : '';
+    }
     // 画面タップ設定専用カードは隠す（.hidden で確実に）
     if (els.tapPresetCard) els.tapPresetCard.classList.add('hidden');
     if (els.tapManualCard) els.tapManualCard.classList.add('hidden');
@@ -4875,6 +4887,9 @@ function renderSettingsView() {
     if (els.settingsChooser) els.settingsChooser.classList.toggle('hidden', settingsView !== 'chooser');
     if (els.settingsSimpleCard) els.settingsSimpleCard.classList.toggle('hidden', settingsView !== 'simple');
     if (els.settingsSummaryCard) els.settingsSummaryCard.classList.toggle('hidden', settingsView !== 'summary');
+    // マイク設定：保存済みプリセットページ（v0.9.104）
+    if (els.micPresetCard) els.micPresetCard.classList.toggle('hidden', settingsView !== 'preset');
+    if (settingsView === 'preset') renderPresetList();
     if (steps) {
         renderWizardSteps();
     } else if (settingsView === 'manual') {
@@ -4951,7 +4966,7 @@ function setSettingsTab(tab) {
     if (next === 'mic') {
         // マイク設定タブを押したら、保存済みプリセット・現在の設定を見るは閉じた状態のTOPに戻す（v0.9.103）
         if (els.presetListWrap) els.presetListWrap.style.display = 'none';
-        if (els.presetToggleBtn) els.presetToggleBtn.textContent = '保存済みプリセット ▾';
+        if (els.presetToggleBtn) els.presetToggleBtn.textContent = '保存済みプリセット';
         setSettingsView('chooser'); // マイク設定TOPへ戻す（renderSettingsView を内包）
     } else {
         renderSettingsView();
@@ -5096,6 +5111,9 @@ function renderTapPresetList() {
     const nameStyle = 'flex:1 1 100%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;';
     const applyStyle = 'flex:none;padding:8px 14px;border-radius:8px;border:1px solid rgba(255,160,60,0.85);'
         + 'background:rgba(255,160,60,0.2);color:inherit;font-size:0.85rem;font-weight:700;cursor:pointer;';
+    const miniStyle = 'flex:none;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.3);'
+        + 'background:rgba(255,255,255,0.04);color:inherit;font-size:0.8rem;cursor:pointer;';
+    const miniDisabled = miniStyle + 'opacity:0.3;cursor:default;';
     const delStyle = 'flex:none;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,120,120,0.45);'
         + 'background:rgba(255,120,120,0.08);color:inherit;font-size:0.8rem;cursor:pointer;';
 
@@ -5107,13 +5125,19 @@ function renderTapPresetList() {
     html += '<details class="card-help preset-help"><summary>詳しい説明</summary>'
         + '<p class="setting-note" style="margin-top:8px;">これは一般的な数値を元にした簡易的なプリセットです。合わない場合は、補正テストで実際にタップして調整してください。</p></details>';
 
-    html += users.map((p) =>
-        '<div style="' + rowStyle + '">' +
-        '<span style="' + nameStyle + '">' + escapeHtml(p.name) + '（' + (p.tapOffsetMs || 0) + 'ms）</span>' +
-        '<button type="button" class="tap-preset-apply" data-id="' + p.id + '" style="' + applyStyle + '">呼び出す</button>' +
-        '<button type="button" class="tap-preset-del" data-id="' + p.id + '" style="' + delStyle + '">削除</button>' +
-        '</div>'
-    ).join('');
+    // ユーザー保存プリセットは、マイク設定側と同じく 適用／名前変更／↑↓並べ替え／削除に対応（v0.9.104）。
+    html += users.map((p, k) => {
+        const upDis = (k === 0);
+        const downDis = (k === users.length - 1);
+        return '<div style="' + rowStyle + '">' +
+            '<span style="' + nameStyle + '">' + escapeHtml(p.name) + '（' + (p.tapOffsetMs || 0) + 'ms）</span>' +
+            '<button type="button" class="tap-preset-up" data-id="' + p.id + '" aria-label="上へ"' + (upDis ? ' disabled' : '') + ' style="' + (upDis ? miniDisabled : miniStyle) + '">↑</button>' +
+            '<button type="button" class="tap-preset-down" data-id="' + p.id + '" aria-label="下へ"' + (downDis ? ' disabled' : '') + ' style="' + (downDis ? miniDisabled : miniStyle) + '">↓</button>' +
+            '<button type="button" class="tap-preset-apply" data-id="' + p.id + '" style="' + applyStyle + '">適用</button>' +
+            '<button type="button" class="tap-preset-rename" data-id="' + p.id + '" style="' + miniStyle + '">名前変更</button>' +
+            '<button type="button" class="tap-preset-del" data-id="' + p.id + '" aria-label="削除" style="' + delStyle + '">削除</button>' +
+            '</div>';
+    }).join('');
 
     els.tapPresetList.innerHTML = html;
     els.tapPresetList.querySelectorAll('.tap-preset-apply').forEach((b) => {
@@ -5122,6 +5146,44 @@ function renderTapPresetList() {
     els.tapPresetList.querySelectorAll('.tap-preset-del').forEach((b) => {
         b.addEventListener('click', () => deleteTapPreset(b.getAttribute('data-id')));
     });
+    els.tapPresetList.querySelectorAll('.tap-preset-rename').forEach((b) => {
+        b.addEventListener('click', () => renameTapPreset(b.getAttribute('data-id')));
+    });
+    els.tapPresetList.querySelectorAll('.tap-preset-up').forEach((b) => {
+        b.addEventListener('click', () => { if (!b.disabled) moveTapPreset(b.getAttribute('data-id'), -1); });
+    });
+    els.tapPresetList.querySelectorAll('.tap-preset-down').forEach((b) => {
+        b.addEventListener('click', () => { if (!b.disabled) moveTapPreset(b.getAttribute('data-id'), 1); });
+    });
+}
+
+/* タップ用プリセットの名前変更（v0.9.104。マイク設定側 renamePreset と同じ考え方。組み込みは対象外）。 */
+function renameTapPreset(id) {
+    const arr = loadTapPresets();
+    const p = arr.find((x) => x && x.id === id);
+    if (!p) return;
+    const input = window.prompt('新しいプリセット名を入力してください。', p.name);
+    if (input === null) return;
+    const name = input.trim();
+    if (!name) return;
+    if (isBuiltinTapPresetName(name)) { window.alert('標準プリセットと同じ名前は使えません。別の名前にしてください。'); return; }
+    if (arr.some((x) => x && x.id !== id && x.name === name)) { window.alert('同じ名前のプリセットがあります。別の名前にしてください。'); return; }
+    p.name = name;
+    p.updatedAt = Date.now();
+    saveTapPresets(arr);
+    renderTapPresetList();
+}
+
+/* タップ用プリセットの並べ替え（v0.9.104）。dir<0で上へ、dir>0で下へ。組み込みは対象外。 */
+function moveTapPreset(id, dir) {
+    const arr = loadTapPresets();
+    const i = arr.findIndex((x) => x && x.id === id);
+    if (i < 0) return;
+    const j = i + (dir < 0 ? -1 : 1);
+    if (j < 0 || j >= arr.length) return;
+    const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    saveTapPresets(arr);
+    renderTapPresetList();
 }
 
 /* 画面タップ設定の音ズレ補正カードから「この設定を保存」：保存モーダルをタップ用で開く（v0.9.97）。 */
@@ -5814,7 +5876,7 @@ function renderPresetList() {
             '<span style="' + nameStyle + '">' + escapeHtml(p.name) + '</span>' +
             '<button type="button" class="preset-up-btn" data-id="' + p.id + '" aria-label="上へ"' + (upDis ? ' disabled' : '') + ' style="' + (upDis ? miniDisabled : miniStyle) + '">↑</button>' +
             '<button type="button" class="preset-down-btn" data-id="' + p.id + '" aria-label="下へ"' + (downDis ? ' disabled' : '') + ' style="' + (downDis ? miniDisabled : miniStyle) + '">↓</button>' +
-            '<button type="button" class="preset-apply-btn" data-id="' + p.id + '" style="' + applyStyle + '">呼び出す</button>' +
+            '<button type="button" class="preset-apply-btn" data-id="' + p.id + '" style="' + applyStyle + '">適用</button>' +
             '<button type="button" class="preset-rename-btn" data-id="' + p.id + '" style="' + miniStyle + '">名前変更</button>' +
             '<button type="button" class="preset-del-btn" data-id="' + p.id + '" aria-label="削除" style="' + delStyle + '">削除</button>' +
             '</div>';
@@ -5839,12 +5901,12 @@ function renderPresetList() {
 }
 
 /* 「保存済みプリセット」ボタンで一覧を開閉 */
-function togglePresetList() {
-    if (!els.presetListWrap) return;
-    const isOpen = els.presetListWrap.style.display === 'block';
-    els.presetListWrap.style.display = isOpen ? 'none' : 'block';
-    if (els.presetToggleBtn) els.presetToggleBtn.textContent = isOpen ? '保存済みプリセット ▾' : '保存済みプリセット ▴';
-    if (!isOpen) renderPresetList();
+/* マイク設定「保存済みプリセット」：専用ページへ移動して一覧を表示する（v0.9.104。画面タップ設定と同じ構造）。 */
+function openMicPreset() {
+    settingsView = 'preset';
+    renderSettingsView();
+    renderPresetList();
+    scrollToSettingsEl(els.micPresetCard);
 }
 
 function openSettings(from) {
@@ -5871,7 +5933,7 @@ function openSettings(from) {
     clearManualSnapshot(); // 設定を開き直したらキャンセル用スナップショットも初期化（v0.9.89）
     // プリセット一覧は初期は閉じておく（「保存済みプリセット」ボタンで展開）
     if (els.presetListWrap) els.presetListWrap.style.display = 'none';
-    if (els.presetToggleBtn) els.presetToggleBtn.textContent = '保存済みプリセット ▾';
+    if (els.presetToggleBtn) els.presetToggleBtn.textContent = '保存済みプリセット';
     setSettingsView('chooser');    // 最初はメイン導線＋プリセットだけ見せる
     show('settings');
     requestAnimationFrame(fitPreview); // 表示後にサイズ確定→プレビュー描画
@@ -6226,7 +6288,7 @@ function onMicResetClick() {
     setPresetSaveMsg('');
     // プリセット一覧は閉じた状態へ
     if (els.presetListWrap) els.presetListWrap.style.display = 'none';
-    if (els.presetToggleBtn) els.presetToggleBtn.textContent = '保存済みプリセット ▾';
+    if (els.presetToggleBtn) els.presetToggleBtn.textContent = '保存済みプリセット';
     // マイク設定トップ（簡易設定／詳細テスト／保存済みプリセット／現在の設定を見る）へ戻す
     setSettingsView('chooser');
     if (els.micResetMsg) {
@@ -7993,7 +8055,8 @@ function bind() {
     // 設定画面（旧導線は撤去済み。あれば結線）
     if (els.homeSettingsBtn) els.homeSettingsBtn.addEventListener('click', () => openSettings('home'));
     if (els.micSettingsBtn) els.micSettingsBtn.addEventListener('click', () => openSettings('practice'));
-    els.settingsBackBtn.addEventListener('click', () => guardMicSetupInterruption(() => {
+    // v0.9.104：下部「完了」ボタンは廃止（ヘッダーの「← 戻る」で設定を閉じられる）。要素があれば従来動作を残す。
+    if (els.settingsBackBtn) els.settingsBackBtn.addEventListener('click', () => guardMicSetupInterruption(() => {
         // もう一度テスト中は、実践テスト完了まで「完了」を効かせない（案内のみ）
         if (isDoneLocked()) {
             showDoneHint();
@@ -8022,7 +8085,8 @@ function bind() {
     if (els.simpleDoneBtn) els.simpleDoneBtn.addEventListener('click', () => guardMicSetupInterruption(closeSettings));
     if (els.simpleBackBtn) els.simpleBackBtn.addEventListener('click', () => guardMicSetupInterruption(resetSimpleView));
     // 「保存済みプリセット」ボタンで一覧を開閉（v0.9.63）
-    if (els.presetToggleBtn) els.presetToggleBtn.addEventListener('click', togglePresetList);
+    if (els.presetToggleBtn) els.presetToggleBtn.addEventListener('click', () => guardMicSetupInterruption(openMicPreset));
+    if (els.micPresetBack) els.micPresetBack.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsView('chooser')));
     // 「現在の設定を見る」から：この設定を保存（モーダル）／手動設定を開く
     if (els.settingsSummarySave) els.settingsSummarySave.addEventListener('click', () => openPresetModal());
     if (els.settingsSummaryManual) els.settingsSummaryManual.addEventListener('click', () => openManualView(els.manualCard));
