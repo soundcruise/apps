@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.100';
+const RHYTHM_CRUISE_VERSION = '0.9.101';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -3958,7 +3958,7 @@ function tapCalBeatMs() { return 60000 / tapCalBpm; }
 const tapCal = {
     active: false, capturing: false, timers: [], scheduled: [], raf: 0,
     audioStart: 0, flowStartPerf: 0, playT0Ms: 0, beatMs: 600, dispOff: 0,
-    taps: [], hasRun: false, result: null,
+    taps: [], hasRun: false, result: null, manualTouched: false,
 };
 let tapCalLane = { ctx: null, w: 0, h: 0 };
 
@@ -4311,12 +4311,14 @@ function renderTapCalResult(r) {
         '<div class="cal-result-row"><span>有効タップ</span><b>' + r.valid + ' / ' + TAP_CAL_PLAY_BEATS + '</b></div>' +
         '<div class="cal-result-row"><span>平均ズレ</span><b>' + avgTxt + '</b></div>' +
         '<div class="cal-result-row"><span>現在のタップ補正</span><b>' + sign(curShown) + '</b></div>';
-    let head, actions;
+    // v0.9.101：手動微調整スライダーの操作状態をリセット（操作したら true）。
+    tapCal.manualTouched = false;
+    let head;
     if (!r.enoughInput) {
         head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">タップが少ないため測れませんでした。クリック音に合わせて、もう一度8回タップしてください。</p>';
-        actions = '<button type="button" id="tap-cal-rerun" style="' + primary + '">もう1度テストする</button>';
+        const action = '<button type="button" id="tap-cal-apply" style="' + primary + '">もう1度テスト</button>';
         els.tapCalResult.innerHTML = head + '<div class="cal-result-row"><span>有効タップ</span><b>' + r.valid + ' / ' + TAP_CAL_PLAY_BEATS + '</b></div>'
-            + '<div style="margin-top:6px;">' + actions + '</div>';
+            + '<div style="margin-top:6px;">' + action + '</div>';
         els.tapCalResult.classList.remove('hidden');
         bindTapCalResultActions();
         return;
@@ -4324,43 +4326,81 @@ function renderTapCalResult(r) {
     if (r.big) {
         head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">タップが' + (r.avg > 0 ? '遅め（LATE）' : '早め（EARLY）') + 'に片寄っています。補正して合わせましょう。</p>';
         rows += '<div class="cal-result-row"><span>補正後の目安</span><b>' + sign(r.newOffset) + '</b></div>';
-        actions =
-            '<button type="button" id="tap-cal-apply" style="' + primary + '">この補正を適用してもう1度テストする</button>' +
-            '<button type="button" id="tap-cal-use" style="' + sub + '">この設定で使う</button>' +
-            '<button type="button" id="tap-cal-rerun" style="' + sub + '">もう1度テストする</button>' +
-            '<button type="button" id="tap-cal-manual" style="' + sub + '">手動で微調整する</button>' +
-            '<button type="button" id="tap-cal-save" style="' + sub + '">この設定を保存</button>';
     } else {
         head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">ズレは小さいため、この設定で使えます。</p>';
         const autoNote = r.autoApplied
             ? '<p class="cal-status" style="color:#6ed28c;font-weight:600;margin-top:6px;">最新の平均ズレ（' + avgTxt + '）に合わせて、タップ補正を ' + sign(r.appliedOffset) + ' に微調整しました。</p>'
             : '';
         head += autoNote;
-        actions =
-            '<button type="button" id="tap-cal-use" style="' + primary + '">この設定で使う</button>' +
-            '<button type="button" id="tap-cal-rerun" style="' + sub + '">もう1度テストする</button>' +
-            '<button type="button" id="tap-cal-manual" style="' + sub + '">手動で微調整する</button>' +
-            '<button type="button" id="tap-cal-save" style="' + sub + '">この設定を保存</button>';
     }
-    els.tapCalResult.innerHTML = head + rows + perBeatListHtml(r.perBeat) + '<div style="margin-top:6px;">' + actions + '</div>';
+    // v0.9.101：主導線は「この補正を適用してもう1度テスト」に一本化。「もう1度テストする」「手動で微調整する」ボタンは廃止。
+    const actions =
+        '<button type="button" id="tap-cal-apply" style="' + primary + '">この補正を適用してもう1度テスト</button>' +
+        '<button type="button" id="tap-cal-use" style="' + sub + '">この設定で使う</button>' +
+        '<button type="button" id="tap-cal-save" style="' + sub + '">この設定を保存</button>';
+    // v0.9.101：折りたたみ（＋タブ）を「拍ごとのズレを見る」→「手動で微調整する」の順で、ボタン群の下に置く。
+    // 手動スライダーの初期値＝補正後の目安（大きくズレた場合は newOffset、小ズレ時は現在値）。
+    const manualInit = r.big ? r.newOffset : curShown;
+    const folds = perBeatListHtml(r.perBeat) + tapCalManualBlockHtml(manualInit, curShown);
+    els.tapCalResult.innerHTML = head + rows + '<div style="margin-top:6px;">' + actions + '</div>' + folds;
     els.tapCalResult.classList.remove('hidden');
     bindTapCalResultActions();
 }
 
+/* v0.9.101：タップ補正の手動微調整スライダー（折りたたみ）。
+   範囲は画面タップ設定と同じ -200〜+400ms（5ms刻み）。値は「この補正を適用してもう1度テスト」/「この設定で使う」で適用する。 */
+function tapCalManualBlockHtml(initialVal, curVal) {
+    const sign = (v) => (v > 0 ? '+' : '') + v + 'ms';
+    const v = clampNum(initialVal, HP_OFFSET_MIN, HP_OFFSET_MAX, curVal || 0);
+    return '<details class="card-help" style="margin-top:8px;"><summary>手動で微調整する</summary>'
+        + '<div class="setting-row" style="margin-top:10px;">'
+        + '<div class="setting-label">現在のタップ補正 <b>' + sign(curVal) + '</b></div>'
+        + '<input type="range" id="tap-cal-manual-slider" min="' + HP_OFFSET_MIN + '" max="' + HP_OFFSET_MAX + '" step="5" value="' + v + '">'
+        + '<div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;"><span>← 音が早く聞こえる</span><span>音が遅く聞こえる →</span></div>'
+        + '<div class="setting-label" style="margin-top:6px;">調整後 <b id="tap-cal-manual-after">' + sign(v) + '</b></div>'
+        + '<p class="setting-note">スライダーを動かすと、「この補正を適用してもう1度テスト」でこの値が使われます。</p>'
+        + '</div></details>';
+}
+
+/* v0.9.101：手動スライダーを操作していればその値、未操作なら結果から計算した補正値を返す。 */
+function tapCalTargetOffset() {
+    const slider = document.getElementById('tap-cal-manual-slider');
+    if (tapCal.manualTouched && slider) {
+        return clampNum(parseInt(slider.value, 10), HP_OFFSET_MIN, HP_OFFSET_MAX, mic.headphoneOutputOffsetMs || 0);
+    }
+    if (tapCal.result && typeof tapCal.result.newOffset === 'number') return tapCal.result.newOffset;
+    return mic.headphoneOutputOffsetMs || 0;
+}
+
 function bindTapCalResultActions() {
-    const use = document.getElementById('tap-cal-use');
-    if (use) use.addEventListener('click', () => applyTapOutputOffsetAndClose(mic.headphoneOutputOffsetMs || 0));
+    // 手動微調整スライダー：操作したら manualTouched を立て、「調整後」表示を更新する。
+    const slider = document.getElementById('tap-cal-manual-slider');
+    const after = document.getElementById('tap-cal-manual-after');
+    if (slider) {
+        slider.addEventListener('input', () => {
+            tapCal.manualTouched = true;
+            const v = parseInt(slider.value, 10) || 0;
+            if (after) after.textContent = (v > 0 ? '+' : '') + v + 'ms';
+        });
+    }
+    // 主導線：補正値（手動優先）を適用してもう1度テスト。
     const apply = document.getElementById('tap-cal-apply');
     if (apply) apply.addEventListener('click', () => {
-        if (tapCal.result) setHeadphoneOffset(tapCal.result.newOffset); // 値反映＋同期＋保存
-        startTapCal(); // 適用してもう1度テスト
+        setHeadphoneOffset(tapCalTargetOffset()); // 値反映＋各スライダー同期＋saveSettings
+        startTapCal();
     });
-    const rerun = document.getElementById('tap-cal-rerun');
-    if (rerun) rerun.addEventListener('click', () => startTapCal());
-    const manual = document.getElementById('tap-cal-manual');
-    if (manual) manual.addEventListener('click', () => openTapManual()); // 現在の補正値を引き継いで手動設定へ
+    // この設定で使う：手動で変更済みならその値を適用してから、現在のタップ補正で保存しTOPへ。
+    const use = document.getElementById('tap-cal-use');
+    if (use) use.addEventListener('click', () => {
+        if (tapCal.manualTouched) setHeadphoneOffset(tapCalTargetOffset());
+        applyTapOutputOffsetAndClose(mic.headphoneOutputOffsetMs || 0);
+    });
+    // この設定を保存：手動で変更済みならその値を反映してから、画面タップ設定用プリセットとして保存。
     const save = document.getElementById('tap-cal-save');
-    if (save) save.addEventListener('click', () => openTapPresetModal());
+    if (save) save.addEventListener('click', () => {
+        if (tapCal.manualTouched) setHeadphoneOffset(tapCalTargetOffset());
+        openTapPresetModal();
+    });
 }
 
 /* ── 入力タイプ別の感度・表示プロファイル判定（v0.9.49）──────────
