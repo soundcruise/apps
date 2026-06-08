@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.105';
+const RHYTHM_CRUISE_VERSION = '0.9.106';
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -2894,6 +2894,12 @@ function drawPracticeLane(t) {
     const beatPx = Math.max(64, Math.min(120, w * 0.24)); // STAGE1 fitLane() と同じ基準
     const judgeX = w * 0.3;                               // STAGE1と同じ判定ライン位置
     const ppm = beatPx / PT_BEAT_MS;
+    // v0.9.106：イヤホン音ズレ補正（headphoneOutputOffsetMs＝Bluetooth時はheadphoneOffsetBluetoothMs）を
+    // 「表示タイミング」だけに反映する（drawBtLane と同じ考え方）。クリック音(scheduled)は動かさず、
+    // 音符/拍/JUST光を、イヤホンで実際に聞こえる音に寄せる。これでBluetoothイヤホン時に音と音符の通過が合う。
+    // 判定(micJudgeOffsetMs)・スコア・GOOD/EARLY/LATE/MISSには一切混ぜない（役割分離を維持）。
+    // 通常マイク/有線は補正値が0msなのでズレない。
+    const hpDispOff = mic.headphoneOutputOffsetMs || 0;
     // 中央ガイド
     ctx.strokeStyle = 'rgba(253,246,238,0.08)';
     ctx.lineWidth = 2;
@@ -2939,8 +2945,14 @@ function drawPracticeLane(t) {
     // 音符（右→左へ流れる4分音符＋ストローク方向の矢印 ↑/↓）
     for (let i = 0; i < pt.notes.length; i++) {
         const n = pt.notes[i];
-        const x = judgeX + (n.t - t) * ppm;
+        const x = judgeX + (n.t + hpDispOff - t) * ppm;
         if (x < -24 || x > w + 24) continue;
+        // v0.9.106：音符の中心に薄い縦線。中心線がJUST棒に重なる瞬間がジャストだと分かるようにする。
+        ctx.save();
+        ctx.strokeStyle = 'rgba(253,246,238,0.14)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x, h * 0.18); ctx.lineTo(x, h * 0.84); ctx.stroke();
+        ctx.restore();
         const inWin = (n.cls == null) && Math.abs(t - n.t) <= PT_NEAR_WIN;
         let col;
         if (n.cls === 'just') col = COLORS.just;
@@ -2959,8 +2971,8 @@ function drawPracticeLane(t) {
         const arrowAlpha = n.closed ? 0.5 : 0.9;
         drawStrokeArrow(ctx, x, yc + 28, n.dir, 'rgba(255,180,90,0.9)', arrowAlpha);
     }
-    // 判定ライン（縦・拍頭で軽く光る）
-    const glow = beatGlow(t - (PT_LEAD_MS), PT_BEAT_MS);
+    // 判定ライン（縦・拍頭で軽く光る）。v0.9.106：表示補正分だけ光るタイミングもずらし、音符の通過と揃える。
+    const glow = beatGlow(t - PT_LEAD_MS - hpDispOff, PT_BEAT_MS);
     ctx.save();
     ctx.shadowColor = 'rgba(255,159,28,0.95)'; ctx.shadowBlur = 10 + glow * 24;
     ctx.strokeStyle = 'rgba(255,159,28,' + (0.85 + glow * 0.15).toFixed(2) + ')';
@@ -5443,7 +5455,15 @@ function startRetestFlow(jumpToTest) {
 }
 
 function scrollToSettingsEl(el, block) {
-    requestAnimationFrame(() => { if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: block || 'start' }); });
+    if (!el || !el.scrollIntoView) return;
+    // v0.9.106：カードを表示に切り替えた直後（特にBluetoothは手順が増えてレイアウトが大きく変わる）は、
+    // 1フレームだとレイアウト確定前にスクロール位置が計算され、初回だけ目的のカードまで届かないことがある。
+    // 2フレーム待ってから（＝表示後の確定レイアウトに対して）スクロールする。他カードの挙動は変えない。
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: block || 'start' });
+        });
+    });
 }
 
 /* ── 選択ハンドラ（選んだら自動で次の項目を出す。上流変更時は下流結果をリセット）── */
