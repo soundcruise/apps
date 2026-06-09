@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.129';
+const RHYTHM_CRUISE_VERSION = '0.9.130';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -1309,7 +1309,7 @@ function ensureRhythmVexFlow(cb) {
     if (rhythmVexState === 'loading') return;
     rhythmVexState = 'loading';
     const s = document.createElement('script');
-    s.src = 'vendor/vexflow.js?v=0.9.129';
+    s.src = 'vendor/vexflow.js?v=0.9.130';
     s.async = true;
     s.onload = () => {
         rhythmVexState = getRhythmVexFlow() ? 'ready' : 'error';
@@ -1789,7 +1789,7 @@ function showCustomFlowScoreLayer() {
     if (els.customFlowScoreLayer) els.customFlowScoreLayer.classList.remove('hidden');
 }
 function hideCustomFlowScoreLayer() {
-    rhythmFlowScoreReady = false; // 譜面が無い＝Canvas音符本体を従来どおり表示（防御・v0.9.129）
+    rhythmFlowScoreReady = false; // 譜面が無い＝Canvas音符本体を従来どおり表示（防御・v0.9.130）
     if (!els.customFlowScoreLayer) return;
     els.customFlowScoreLayer.classList.add('hidden');
     els.customFlowScoreLayer.innerHTML = ''; // 流し込み内容を確実にクリア
@@ -1822,13 +1822,31 @@ function renderRhythmFlowScore() {
     if (!state.running) drawLane(state.currentTime || 0);
 }
 
+/* 流れるVexFlow譜面用の表示データを作る（v0.9.130）。
+   判定エンジン側の eng.pattern は1ループ分のまま触らず、表示用だけ state.bars 小節ぶんへ展開する。
+   patternBars=1/state.bars=4 なら1小節パターンを4回、patternBars=2/state.bars=4 なら2回、という形。 */
+function buildRhythmFlowDisplayStage() {
+    const d = eng.custom;
+    if (!d || !eng.pattern || !eng.pattern.length) return null;
+    const ts = rhythmCustomTimeSig(d.timeSignature);
+    const stepsPerBar = rhythmCustomStepsPerBar(d.grid, ts);
+    const targetBars = Math.max(1, Math.round(state.bars || d.bars || 1));
+    const targetCells = stepsPerBar * targetBars;
+    const pattern = [];
+    for (let i = 0; i < targetCells; i++) {
+        pattern.push(normalizeRhythmCustomCell(eng.pattern[i % eng.pattern.length]));
+    }
+    return Object.assign({}, d, { pattern, patternBars: targetBars });
+}
+
 function drawRhythmFlowScore(VF) {
     const { Renderer, Stave, StaveTie, Beam, Voice, Formatter } = VF;
     const layer = els.customFlowScoreLayer;
-    const d = eng.custom;
+    const d = buildRhythmFlowDisplayStage();
+    if (!d) throw new Error('flow score data is empty');
     const ts = rhythmCustomTimeSig(d.timeSignature);
     const info = rhythmTimeSigInfo(ts);
-    const N = eng.pattern.length;
+    const N = d.pattern.length;
     const H = (lane && lane.h) ? lane.h : 168;
     const yc = H * 0.56;                                            // Canvasの音符中心(drawLane)と同じ
     const judgeX = state.judgeX;
@@ -1902,7 +1920,7 @@ function drawRhythmFlowScore(VF) {
    セル0の符頭中心が JUSTライン(judgeX) を通過する時刻が t=T0（=判定基準）に一致する。
    流し込みレイヤー(custom-flow-score)が無い＝STAGE1/通常STAGEのときは何もしない。 */
 let rhythmFlowVY = 0; // 流れる譜面の縦位置オフセット（符頭をCanvas音符中心へ合わせる量）
-let rhythmFlowScoreReady = false; // VexFlow流し込み譜面が正常描画できているか（true時だけCanvas音符本体を隠す・v0.9.129）
+let rhythmFlowScoreReady = false; // VexFlow流し込み譜面が正常描画できているか（true時だけCanvas音符本体を隠す・v0.9.130）
 function updateCustomFlowScorePosition(rawT) {
     const layer = els.customFlowScoreLayer;
     if (!layer) return;
@@ -2841,7 +2859,7 @@ function drawLane(rawT) {
     const gridDispOff = (state.inputMode === 'tap') ? 0 : (mic.headphoneOutputOffsetMs || 0);
 
     // カスタムSTAGEテスト再生で、VexFlow流し込み譜面が正常描画できているときだけ、
-    // 「本来のヒット音符本体（drawQuarterNote）」を描かず VexFlow譜面を主表示にする（v0.9.129）。
+    // 「本来のヒット音符本体（drawQuarterNote）」を描かず VexFlow譜面を主表示にする（v0.9.130）。
     // VexFlow未ロード/失敗時(rhythmFlowScoreReady=false)や STAGE1 では、従来どおり Canvas音符を描く（防御）。
     // 判定演出（GOODの緑音符・入力ありMISSのオレンジ音符・判定マーカー）や中心線・矢印・波形は維持する。
     const hideCanvasNoteBody = !!(eng.custom && rhythmFlowScoreReady);
