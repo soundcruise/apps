@@ -2729,6 +2729,33 @@ h1 {
     border-color: rgba(255, 159, 28, 0.5);
 }
 
+/* 確認音バランススライダー（クリック ←→ ストローク・v0.9.135） */
+.custom-test-preview-balance {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    max-width: 340px;
+    margin: 0 0 10px;
+}
+
+.custom-test-preview-balance-cap {
+    flex: 0 0 auto;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: rgba(253, 246, 238, 0.7);
+    white-space: nowrap;
+}
+
+.custom-test-preview-balance input[type="range"] {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 28px;
+    cursor: pointer;
+    accent-color: #ff9f1c;
+}
+
 /* 譜面マウント。狭い画面では横スクロール（内側の .pce-vex-scroll が実スクロールを担う）。 */
 .custom-test-preview-score {
     width: 100%;

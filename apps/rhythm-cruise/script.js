@@ -449,6 +449,7 @@ const els = {
     customTestPreviewToggle: $('custom-test-preview-toggle'),
     customTestPreviewBody: $('custom-test-preview-body'),
     customTestPreviewPlay: $('custom-test-preview-play'),
+    customTestPreviewBalance: $('custom-test-preview-balance'),
     customTestPreviewScore: $('custom-test-preview-score'),
     customFlowScoreLayer: $('custom-flow-score-layer'),
     tempoVal: $('tempo-val'),
@@ -1665,10 +1666,13 @@ function drawRhythmVexPreview(VF, d, mount) {
     const ts = rhythmCustomTimeSig(d.timeSignature);
     const info = rhythmTimeSigInfo(ts);
     const N = d.pattern.length;
-    const cellW = RHYTHM_VEX_CELL_W;
+    const cellTicks = rhythmGridCellTicks(d.grid);
+    // Playレーンの流れるVexFlow譜面と同じセル幅に合わせる（cellW = pxPerBeat * cellTicks/24・v0.9.135）。
+    // これで静的プレビューだけが異様に横長になるのを防ぐ。state.pxPerBeat 未確定時は既定90で代替。
+    const pxPerBeat = (state.pxPerBeat > 0) ? state.pxPerBeat : 90;
+    const cellW = Math.max(8, pxPerBeat * (cellTicks / RHYTHM_TPQ));
     const laneW = N * cellW;
     const H = RHYTHM_VEX_LANE_H;
-    const cellTicks = rhythmGridCellTicks(d.grid);
     const stepsPerBar = rhythmCustomStepsPerBar(d.grid, ts);
     const patternBars = rhythmCustomPatternBars(d.patternBars) || Math.max(1, Math.round(N / stepsPerBar));
 
@@ -1769,6 +1773,8 @@ function renderRhythmCustomTestPreview(stage) {
     if (!stage || !stage.pattern || !stage.pattern.length) { hideRhythmCustomTestPreview(); return; }
     rhythmPreviewStage = stage;
     rhythmPreviewRendered = false;
+    rhythmPreviewSoundBalance = 0;                                  // 確認音バランスは毎回中央スタート（v0.9.135）
+    if (els.customTestPreviewBalance) els.customTestPreviewBalance.value = '50';
     els.customTestPreview.classList.remove('hidden');
     setRhythmCustomTestPreviewOpen(false); // 初期状態は閉じる
 }
@@ -1854,6 +1860,22 @@ const PREVIEW_SUSTAIN_SEC = 0.5;            // 余韻（音感クルーズ acous
 const PREVIEW_NOTE_DURATION_SEC = 0.45;     // 1音の発音時間（プレビューは短めで十分）
 const PREVIEW_CHORD_FREQS = [130.81, 164.81, 196.00, 261.63]; // C3 E3 G3 C4（playChord('C',3) と同系統＋高C）
 
+/* 確認音バランス（プレビュー専用・v0.9.135）。-1（クリック大きめ）〜0（中央）〜+1（ストローク大きめ）。
+   STAGE本体の state.clickVolume やクリック音量設定には一切影響しない。テスト画面に入るたび中央(0)スタート。 */
+let rhythmPreviewSoundBalance = 0;
+/* ギター（Cコード）の倍率（v0.9.135 効き方を劇的化）。
+   左端(-1)0.10 → 中央(0)0.62 → 右端(+1)1.35。中央を境に折れ線で補間し、左端でほぼ消える。 */
+function rhythmPreviewGuitarMul() {
+    const b = rhythmPreviewSoundBalance;
+    return b <= 0 ? (0.10 + (b + 1) * 0.52) : (0.62 + b * 0.73);
+}
+/* クリックの倍率（v0.9.135 効き方を劇的化）。
+   左端(-1)2.20 → 中央(0)1.60 → 右端(+1)0.10。右端でほぼ消える。 */
+function rhythmPreviewClickMul() {
+    const b = rhythmPreviewSoundBalance;
+    return b <= 0 ? (2.20 - (b + 1) * 0.60) : (1.60 - b * 1.50);
+}
+
 /* 1ループ分の hit 発音オフセット（秒）・クリック・1ループ長（秒）を、現在の表示状態から計算する。
    1拍=24tick 設計：cellMs = engQuarterMs() * (cellTicks/24)。8分/16分/32分/三連でもこの式でズレない。
    クリックは STAGE 本体と同じ engIsPulse（4/4・3/4・2/4＝4分ごと / 6/8＝付点4分ごと）に合わせる。 */
@@ -1927,7 +1949,8 @@ function schedulePreviewGuitarNote(freq, when, velocity) {
     const presence = ctx.createBiquadFilter(); presence.type = 'peaking'; presence.frequency.value = 2000; presence.Q.value = 1.0; presence.gain.value = 2;
     const highCut = ctx.createBiquadFilter(); highCut.type = 'lowpass'; highCut.frequency.value = 6000; highCut.Q.value = 0.7;
     const outputGain = ctx.createGain();
-    outputGain.gain.value = (0.25 + velocity * 0.35) * 0.34; // コードで複数音重なるため控えめに（v0.9.135 微調整：0.40→0.34＝約85%）
+    // コードで複数音重なるため控えめに（0.40→0.34）。さらに確認音バランス（中央0.85〜）を掛ける（v0.9.135）。
+    outputGain.gain.value = (0.25 + velocity * 0.35) * 0.34 * rhythmPreviewGuitarMul();
     source.connect(bodyRes1); bodyRes1.connect(bodyRes2); bodyRes2.connect(bodyRes3);
     bodyRes3.connect(presence); presence.connect(highCut); highCut.connect(outputGain); outputGain.connect(ctx.destination);
     const startTime = Math.max(when, ctx.currentTime);
@@ -1951,7 +1974,8 @@ function schedulePreviewClick(when, accent) {
     if (!ctx) return;
     if (!state.clickEnabled) return;
     const vol = Math.max(0, Math.min(1, state.clickVolume / 100));
-    const peak = (accent ? 0.72 : 0.58) * vol; // v0.9.135 微調整：0.55/0.45→0.72/0.58＝約130%（割れない範囲）
+    // 確認音バランスを掛け、割れ防止に上限0.98でクランプ（クリック強調が潰れすぎない安全範囲・v0.9.135）。
+    const peak = Math.min(0.98, (accent ? 0.72 : 0.58) * vol * rhythmPreviewClickMul());
     if (peak < 0.001) return;
     const t0 = Math.max(when, ctx.currentTime);
     const osc = ctx.createOscillator();
@@ -10624,6 +10648,11 @@ function bind() {
     if (els.customTestPreviewToggle) els.customTestPreviewToggle.addEventListener('click', toggleRhythmCustomTestPreview);
     // 譜面プレビューのリズム確認音 再生/停止トグル（v0.9.135）
     if (els.customTestPreviewPlay) els.customTestPreviewPlay.addEventListener('click', toggleRhythmPreviewPlay);
+    // 確認音バランススライダー（v0.9.135）。0..100 → -1..+1（左：クリック大きめ／右：ストローク大きめ）。次に鳴る音から反映。
+    if (els.customTestPreviewBalance) els.customTestPreviewBalance.addEventListener('input', (e) => {
+        const v = Number(e.target.value);
+        rhythmPreviewSoundBalance = Math.max(-1, Math.min(1, (isFinite(v) ? v : 50) / 50 - 1));
+    });
 
     // マイク許可後の設定誘導バナー
     if (els.micSetupYesBtn) els.micSetupYesBtn.addEventListener('click', () => { hideMicSetupPrompt(); openSettings('practice'); });

@@ -192,6 +192,11 @@
                 <button type="button" class="custom-test-preview-toggle" id="custom-test-preview-toggle" aria-expanded="false" aria-controls="custom-test-preview-body">譜面プレビューを表示</button>
                 <div class="custom-test-preview-body hidden" id="custom-test-preview-body">
                     <button type="button" class="custom-test-preview-play" id="custom-test-preview-play" aria-pressed="false">▶ リズムを確認</button>
+                    <div class="custom-test-preview-balance">
+                        <span class="custom-test-preview-balance-cap">クリック</span>
+                        <input type="range" id="custom-test-preview-balance" min="0" max="100" value="50" step="1" aria-label="確認音バランス（左：クリック大きめ／右：ストローク大きめ）">
+                        <span class="custom-test-preview-balance-cap">ストローク</span>
+                    </div>
                     <div class="custom-test-preview-score" id="custom-test-preview-score"></div>
                 </div>
             </div>
