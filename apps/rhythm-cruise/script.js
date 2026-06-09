@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.128';
+const RHYTHM_CRUISE_VERSION = '0.9.129';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -1309,7 +1309,7 @@ function ensureRhythmVexFlow(cb) {
     if (rhythmVexState === 'loading') return;
     rhythmVexState = 'loading';
     const s = document.createElement('script');
-    s.src = 'vendor/vexflow.js?v=0.9.128';
+    s.src = 'vendor/vexflow.js?v=0.9.129';
     s.async = true;
     s.onload = () => {
         rhythmVexState = getRhythmVexFlow() ? 'ready' : 'error';
@@ -1789,6 +1789,7 @@ function showCustomFlowScoreLayer() {
     if (els.customFlowScoreLayer) els.customFlowScoreLayer.classList.remove('hidden');
 }
 function hideCustomFlowScoreLayer() {
+    rhythmFlowScoreReady = false; // 譜面が無い＝Canvas音符本体を従来どおり表示（防御・v0.9.129）
     if (!els.customFlowScoreLayer) return;
     els.customFlowScoreLayer.classList.add('hidden');
     els.customFlowScoreLayer.innerHTML = ''; // 流し込み内容を確実にクリア
@@ -1804,16 +1805,21 @@ function hideCustomFlowScoreLayer() {
    VexFlow未ロード/失敗でもテスト再生本体は壊さない（レイヤーは空のまま）。 */
 function renderRhythmFlowScore() {
     const layer = els.customFlowScoreLayer;
-    if (!layer || !eng.custom || !eng.pattern || !eng.pattern.length) return;
+    if (!layer || !eng.custom || !eng.pattern || !eng.pattern.length) { rhythmFlowScoreReady = false; return; }
     const VF = getRhythmVexFlow();
     if (!VF) {
+        // VexFlow未ロード：この時点では譜面を出せないので Canvas音符本体は従来どおり表示（防御）。
+        rhythmFlowScoreReady = false;
+        if (!state.running) drawLane(state.currentTime || 0);
         ensureRhythmVexFlow((ok) => {
-            if (ok && eng.custom) renderRhythmFlowScore(); // ロード完了後に再描画。失敗時は空のまま
+            if (ok && eng.custom) renderRhythmFlowScore(); // ロード完了後に再描画
         });
         return;
     }
-    try { drawRhythmFlowScore(VF); }
-    catch (e) { layer.innerHTML = ''; } // 失敗してもテスト再生は継続（レイヤーは空）
+    try { drawRhythmFlowScore(VF); rhythmFlowScoreReady = true; }
+    catch (e) { layer.innerHTML = ''; rhythmFlowScoreReady = false; } // 失敗時はCanvas音符を残す
+    // 音符本体の表示/非表示（カスタム×描画OKで非表示）を即時反映。再生中は loop の drawLane が反映する。
+    if (!state.running) drawLane(state.currentTime || 0);
 }
 
 function drawRhythmFlowScore(VF) {
@@ -1896,6 +1902,7 @@ function drawRhythmFlowScore(VF) {
    セル0の符頭中心が JUSTライン(judgeX) を通過する時刻が t=T0（=判定基準）に一致する。
    流し込みレイヤー(custom-flow-score)が無い＝STAGE1/通常STAGEのときは何もしない。 */
 let rhythmFlowVY = 0; // 流れる譜面の縦位置オフセット（符頭をCanvas音符中心へ合わせる量）
+let rhythmFlowScoreReady = false; // VexFlow流し込み譜面が正常描画できているか（true時だけCanvas音符本体を隠す・v0.9.129）
 function updateCustomFlowScorePosition(rawT) {
     const layer = els.customFlowScoreLayer;
     if (!layer) return;
@@ -2833,6 +2840,12 @@ function drawLane(rawT) {
     // gridDispOff は表示補正。タップモードは t で既に寄せているので二重ずらし防止に0。
     const gridDispOff = (state.inputMode === 'tap') ? 0 : (mic.headphoneOutputOffsetMs || 0);
 
+    // カスタムSTAGEテスト再生で、VexFlow流し込み譜面が正常描画できているときだけ、
+    // 「本来のヒット音符本体（drawQuarterNote）」を描かず VexFlow譜面を主表示にする（v0.9.129）。
+    // VexFlow未ロード/失敗時(rhythmFlowScoreReady=false)や STAGE1 では、従来どおり Canvas音符を描く（防御）。
+    // 判定演出（GOODの緑音符・入力ありMISSのオレンジ音符・判定マーカー）や中心線・矢印・波形は維持する。
+    const hideCanvasNoteBody = !!(eng.custom && rhythmFlowScoreReady);
+
     // ① マイク入力波形（最背面・グレーの補助表示）。v0.9.111：音符と同じ heard-time(gridDispOff)へ寄せる（案B）。
     //   rawT（オーディオ時計）と表示寄せ gridDispOff を渡す。データ自体は結果カードと同じ micRunWave。
     drawMicWaveform(ctx, w, h, yc, rawT, gridDispOff);
@@ -2902,8 +2915,8 @@ function drawLane(rawT) {
                     ctx.fillText(mr.short, x, yc + 46);
                     ctx.restore();
                 }
-            } else {
-                drawQuarterNote(ctx, x, yc, NOTE_COLOR); // 採点対象 = ヒット音符
+            } else if (!hideCanvasNoteBody) {
+                drawQuarterNote(ctx, x, yc, NOTE_COLOR); // 採点対象 = ヒット音符（カスタム×VexFlow描画OK時はVexFlowを主表示にするため本体は描かない）
             }
             // ストローク方向の矢印（音符の下・控えめなアンバー）
             drawStrokeArrow(ctx, x, yc + 28, engDirAt(i), 'rgba(255,180,90,0.8)', 0.8);
