@@ -854,6 +854,27 @@ h1 {
     border-right: 2px solid rgba(253, 246, 238, 0.34);
 }
 
+/* 小節線オーバーレイ：レーン全体（音符＋矢印＋ラベル）を上端から下端まで貫く層。
+   ここに内側の小節境界線だけを縦に描き、左端・右端は .pce-vex-lane のボーダーが担う。
+   pointer-events:none でタップ判定に干渉しない。 */
+.pce-vex-barlines {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    pointer-events: none;
+}
+
+/* 内側の小節境界線：レーン両端の枠と同じ太さ・色で1本に見せる（分断・二重線にしない）。 */
+.pce-vex-barline {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: rgba(253, 246, 238, 0.34);
+}
+
 /* VexFlow が描く SVG 譜面。音符・連桁・タイは金色。横基準線(line)は別色なので path/rect のみ着色。 */
 .pce-vex-score svg {
     display: block;
@@ -893,6 +914,12 @@ h1 {
     border-left: 1px solid rgba(253, 246, 238, 0.12);
 }
 
+/* 小節の先頭セル：小節線は VexFlow 側(SVG)で1本だけ引くので、
+   タップ格子側は罫線を消して二重線にならないようにする（v0.9.121 修正）。 */
+.pce-tap-cell.bar-start {
+    border-left: none;
+}
+
 .pce-tap-cell:first-child {
     border-left: none;
 }
@@ -905,21 +932,21 @@ h1 {
 .pce-vex-arrowrow {
     display: flex;
     align-items: stretch;
-    margin-top: 4px;
+    margin-top: 6px;
 }
 
 .pce-arrow {
     width: var(--pce-cell);
-    height: 36px;
+    height: 34px;
     margin: 0;
     padding: 0;
     border: none;
     background: transparent;
     color: rgba(255, 180, 90, 0.95);
     font-family: inherit;
-    font-size: 1.15rem;
+    font-size: 1.02rem;
     font-weight: 800;
-    line-height: 36px;
+    line-height: 34px;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
 }
@@ -928,10 +955,14 @@ h1 {
     color: #ffd166;
 }
 
-/* 矢印記号だけ縦に少し伸ばして棒を長く見せる（幅は変えずに視認性を上げる）。 */
+/* 小節区切りは音符側(VexFlowのSVG小節線)を主役にする方針（v0.9.121）。
+   下段ストローク矢印・表/裏ラベルには小節線を出さず、すっきり見せる（補助線は描かない）。 */
+
+/* 矢印記号：棒は見やすく、傘（矢じり）は控えめに。
+   横をやや狭め＋縦を伸ばすことで、棒を長く・傘を小さく見せる（v0.9.121）。 */
 .pce-arrow-mark {
     display: inline-block;
-    transform: scaleY(1.35);
+    transform: scaleX(0.82) scaleY(1.5);
     transform-origin: center;
 }
 
@@ -948,11 +979,13 @@ h1 {
     color: rgba(255, 180, 90, 0.78);
 }
 
-/* 拍ラベル（1表/1裏… or 1/2/3/4）。セル幅で中央に並べて譜面と縦に揃える。 */
+/* 拍ラベル（1表/1裏… or 1/2/3/4）。セル幅で中央に並べて譜面と縦に揃える。
+   下端に張り付かないよう、下側に少し余白を取る（v0.9.121）。 */
 .pce-vex-beatrow {
     display: flex;
     align-items: stretch;
-    margin-top: 2px;
+    margin-top: 3px;
+    padding-bottom: 8px;
 }
 
 .pce-beat-cell {
@@ -962,6 +995,20 @@ h1 {
     font-weight: 700;
     color: rgba(253, 246, 238, 0.5);
     white-space: nowrap;
+}
+
+/* 16分はセルが狭くラベルが多いので、少し小さめにして詰まりを防ぐ（v0.9.121）。 */
+.pce-beat-cell.is-fine {
+    font-size: 0.62rem;
+    letter-spacing: -0.02em;
+}
+
+/* 初期小節数ステッパーの数値表示（input ではなく span のため中央寄せ） */
+.pce-bars-val {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
 }
 
 /* JSON手動コピー用モーダル（自動コピー失敗時のフォールバック・v0.9.120）。 */

@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.120">
+    <link rel="stylesheet" href="theme.css?v=0.9.121">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -88,15 +88,21 @@
                 </div>
 
                 <div class="pce-field">
-                    <label class="pce-label" for="pce-desc">説明</label>
-                    <input type="text" id="pce-desc" class="pce-input" maxlength="80" placeholder="新しいリズム練習" autocomplete="off">
-                </div>
-
-                <div class="pce-field">
-                    <span class="pce-label">グリッド</span>
+                    <span class="pce-label">最小音符</span>
                     <div class="pce-seg" id="pce-grid">
                         <button type="button" class="pce-seg-btn" data-grid="quarter">4分</button>
                         <button type="button" class="pce-seg-btn" data-grid="eighth">8分</button>
+                        <button type="button" class="pce-seg-btn" data-grid="sixteenth">16分</button>
+                    </div>
+                </div>
+
+                <div class="pce-field">
+                    <span class="pce-label">小節単位</span>
+                    <div class="pce-seg" id="pce-pbars">
+                        <button type="button" class="pce-seg-btn" data-pbars="1">1小節</button>
+                        <button type="button" class="pce-seg-btn" data-pbars="2">2小節</button>
+                        <button type="button" class="pce-seg-btn" data-pbars="3">3小節</button>
+                        <button type="button" class="pce-seg-btn" data-pbars="4">4小節</button>
                     </div>
                 </div>
 
@@ -112,25 +118,16 @@
 
                 <div class="pce-field">
                     <span class="pce-label">初期小節数</span>
-                    <div class="pce-seg" id="pce-bars">
-                        <button type="button" class="pce-seg-btn" data-bars="1">1</button>
-                        <button type="button" class="pce-seg-btn" data-bars="2">2</button>
-                        <button type="button" class="pce-seg-btn" data-bars="4">4</button>
-                        <button type="button" class="pce-seg-btn" data-bars="8">8</button>
+                    <div class="pce-stepper">
+                        <button type="button" class="tempo-btn" id="pce-bars-down" aria-label="初期小節数を減らす">−</button>
+                        <span class="pce-num pce-bars-val" id="pce-bars-val">4</span>
+                        <button type="button" class="tempo-btn" id="pce-bars-up" aria-label="初期小節数を増やす">＋</button>
+                        <span class="pce-unit">小節</span>
                     </div>
                 </div>
 
                 <div class="pce-field">
-                    <span class="pce-label">クリック</span>
-                    <div class="pce-seg" id="pce-click">
-                        <button type="button" class="pce-seg-btn" data-click="all">全拍クリック</button>
-                        <button type="button" class="pce-seg-btn" data-click="downbeat">1拍目だけ</button>
-                        <button type="button" class="pce-seg-btn" data-click="none">クリックなし</button>
-                    </div>
-                </div>
-
-                <div class="pce-field">
-                    <span class="pce-label">1小節パターン</span>
+                    <span class="pce-label">パターン</span>
                     <p class="pce-hint">上の音符をタップ：音符 → 休符 → タイ。<br>下の矢印をタップ：音符は ↓ ↔ ↑／休符・タイは (↓) → (↑) → なし。</p>
                     <div class="pce-pattern" id="pce-pattern">
                         <!-- script.js が描画 -->
@@ -887,7 +884,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.120"></script>
+    <script src="script.js?v=0.9.121"></script>
 </body>
 
 </html>
