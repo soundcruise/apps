@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.127';
+const RHYTHM_CRUISE_VERSION = '0.9.128';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -1309,7 +1309,7 @@ function ensureRhythmVexFlow(cb) {
     if (rhythmVexState === 'loading') return;
     rhythmVexState = 'loading';
     const s = document.createElement('script');
-    s.src = 'vendor/vexflow.js?v=0.9.127';
+    s.src = 'vendor/vexflow.js?v=0.9.128';
     s.async = true;
     s.onload = () => {
         rhythmVexState = getRhythmVexFlow() ? 'ready' : 'error';
@@ -1878,13 +1878,34 @@ function drawRhythmFlowScore(VF) {
         }
     }
 
-    // 縦位置合わせ：実際の符頭YをCanvasの音符中心(yc)に合わせて、レイヤー全体を上下移動
+    // 縦位置合わせ：実際の符頭YをCanvasの音符中心(yc)に合わせる量を記憶（横移動と合成してtransformへ）
     let headY = null;
     for (const it of items) {
         if (it.isRest) continue;
         try { const ys = it.note.getYs(); if (ys && ys.length) { headY = ys[0]; break; } } catch (e) { /* noop */ }
     }
-    if (headY != null) scoreEl.style.transform = 'translateY(' + (yc - headY) + 'px)';
+    rhythmFlowVY = (headY != null) ? (yc - headY) : 0;
+    // 初期位置（スタンバイ=t0 / 再生中=現在時刻）に合わせて横移動量を反映
+    updateCustomFlowScorePosition(state.running ? state.currentTime : 0);
+}
+
+/* 流れる譜面の横移動（v0.9.128・Step3）。毎フレーム transform だけ更新する（VexFlowは再描画しない）。
+   既存Canvas判定レーン drawLane(rawT) と同じ t / gridDispOff（表示補正）を使い、ズレないようにする。
+   静止描画でセル i の符頭中心は judgeX + i*cellW に置いてあるので、横移動量は
+     tx = (state.T0 + gridDispOff - t) * state.pxPerMs   ← judgeX はセル位置側に内包済み
+   セル0の符頭中心が JUSTライン(judgeX) を通過する時刻が t=T0（=判定基準）に一致する。
+   流し込みレイヤー(custom-flow-score)が無い＝STAGE1/通常STAGEのときは何もしない。 */
+let rhythmFlowVY = 0; // 流れる譜面の縦位置オフセット（符頭をCanvas音符中心へ合わせる量）
+function updateCustomFlowScorePosition(rawT) {
+    const layer = els.customFlowScoreLayer;
+    if (!layer) return;
+    const scoreEl = layer.firstElementChild;
+    if (!scoreEl || !scoreEl.classList.contains('custom-flow-score')) return;
+    // drawLane と同じ表示時刻 t / 表示補正 gridDispOff（タップ＝出力遅延を戻す・ストローク＝イヤホン音ズレ補正）
+    const t = (state.inputMode === 'tap') ? (rawT - tapOutputOffsetMs()) : rawT;
+    const gridDispOff = (state.inputMode === 'tap') ? 0 : (mic.headphoneOutputOffsetMs || 0);
+    const tx = (state.T0 + gridDispOff - t) * state.pxPerMs;
+    scoreEl.style.transform = 'translate(' + tx + 'px,' + rhythmFlowVY + 'px)';
 }
 
 /* 音符（上段）タップ：音符 → 休符 → タイ → 音符（空振りは廃止）。
@@ -3503,6 +3524,7 @@ function loop() {
 
     updateStatus(t);
     drawLane(t);
+    updateCustomFlowScorePosition(t); // 流れるVexFlow譜面を同じ時間軸で横移動（カスタムのみ・v0.9.128）
 
     if (t >= state.endTime) { finish(); return; }
     state.raf = requestAnimationFrame(loop);
@@ -3595,6 +3617,7 @@ function resetGame() {
     state.T0 = eng.countInCells * state.beatInterval;
     state.pxPerMs = state.pxPerBeat / engQuarterMs();
     drawLane(0);
+    updateCustomFlowScorePosition(0); // スタンバイ位置に合わせて流れる譜面も再配置（カスタムのみ・v0.9.128）
 }
 
 /* マイク入力のGOODが「ほぼ同じズレ」に集中している場合、クリック音を拾っている可能性を軽く警告。
@@ -6400,6 +6423,7 @@ function setBpm(v) {
     state.pxPerMs = state.pxPerBeat / engQuarterMs();
     state.T0 = eng.countInCells * state.beatInterval;
     drawLane(0);
+    updateCustomFlowScorePosition(0); // BPM変更後のスタンバイ位置に流れる譜面も合わせる（カスタムのみ・v0.9.128）
 }
 
 /* ═══════════════════════════════════════════════════════════
