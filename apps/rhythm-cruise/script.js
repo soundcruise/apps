@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.122';
+const RHYTHM_CRUISE_VERSION = '0.9.123';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -822,9 +822,9 @@ function rhythmGridAllowed(grid, ts) {
     return RHYTHM_CUSTOM_GRID_OPTIONS.includes(grid);
 }
 
-/* grid が拍子で使えなければ安全な grid（eighth）へ寄せる。 */
+/* grid が不正/拍子非対応なら安全な grid（eighth）へ寄せる（既定の最小音符は8分）。 */
 function rhythmCoerceGrid(grid, ts) {
-    const g = RHYTHM_CUSTOM_GRID_OPTIONS.includes(grid) ? grid : 'quarter';
+    const g = RHYTHM_CUSTOM_GRID_OPTIONS.includes(grid) ? grid : 'eighth';
     return rhythmGridAllowed(g, ts) ? g : 'eighth';
 }
 
@@ -967,28 +967,31 @@ function defaultRhythmCellForIndex(grid, i) {
     return { hit: true, dir: (i % 2 === 0 ? 'down' : 'up'), type: 'hit' };
 }
 
-/* デフォルトのカスタムSTAGE（新規作成時に1件保存する雛形）。pattern は1小節分（quarter）。 */
+/* デフォルトのカスタムSTAGE（新規作成時に1件保存する雛形・v0.9.123）。
+   既定は 4/4 × 8分 × 1小節（最小音符の既定を8分へ変更）。pattern は1小節分を自動生成。 */
 function getDefaultRhythmCustomStage() {
+    const grid = 'eighth';
+    const timeSignature = '4/4';
+    const patternBars = 1;
+    const steps = rhythmCustomStepsPerBar(grid, timeSignature) * patternBars;
+    const pattern = [];
+    for (let i = 0; i < steps; i++) pattern.push(defaultRhythmCellForIndex(grid, i));
+    const judgeTargets = pattern.map((c, i) => (c.hit ? i : -1)).filter((i) => i >= 0);
     return {
         version: 1,
         id: generateRhythmCustomStageId(),
         title: 'カスタムSTAGE',
         description: '', // v0.9.121：編集UIからは削除（互換のためキーは残す）
-        grid: 'quarter',
-        timeSignature: '4/4', // 拍子（v0.9.122）
-        patternBars: 1,  // 小節単位（パターン1周の小節数）
+        grid: grid,
+        timeSignature: timeSignature, // 拍子（v0.9.122）
+        patternBars: patternBars,  // 小節単位（パターン1周の小節数）
         bars: 4,         // 初期小節数（STAGE開始時の練習小節数）
         bpm: 80,
         clickMode: 'all', // 互換のため残す（編集UIからは削除。クリックはSTAGE側で切替予定）
-        pattern: [
-            { hit: true, dir: 'down', type: 'hit' },
-            { hit: true, dir: 'down', type: 'hit' },
-            { hit: true, dir: 'down', type: 'hit' },
-            { hit: true, dir: 'down', type: 'hit' },
-        ],
+        pattern: pattern,
         motion: 'all-down',
-        judgeTargets: [0, 1, 2, 3],
-        displayLabels: ['1', '2', '3', '4'],
+        judgeTargets: judgeTargets,
+        displayLabels: defaultRhythmDisplayLabels(grid, patternBars, timeSignature),
     };
 }
 
@@ -1252,16 +1255,16 @@ function renderRhythmCustomEditor() {
     if (!d) return;
     if (els.pceTitle) els.pceTitle.value = d.title;
     if (els.pceBpm) els.pceBpm.value = String(d.bpm);
-    // セグメント（拍子 / grid / 小節単位）の選択状態と、初期小節数ステッパー表示を同期。
-    setSegActive(els.pceTimeSig, 'ts', d.timeSignature);
-    setSegActive(els.pceGrid, 'grid', d.grid);
-    // 拍子で使えない grid（6/8の quarter・三連符など）は無効表示にする。
+    // プルダウン（拍子 / 最小音符 / 小節単位）の選択値と、初期小節数ステッパー表示を同期（v0.9.123）。
+    if (els.pceTimeSig) els.pceTimeSig.value = d.timeSignature;
     if (els.pceGrid) {
-        els.pceGrid.querySelectorAll('[data-grid]').forEach((b) => {
-            b.classList.toggle('is-disabled', !rhythmGridAllowed(b.dataset.grid, d.timeSignature));
+        // 拍子で使えない最小音符（6/8の 4分・三連符など）は option を disabled にする。
+        els.pceGrid.querySelectorAll('option').forEach((o) => {
+            o.disabled = !rhythmGridAllowed(o.value, d.timeSignature);
         });
+        els.pceGrid.value = d.grid;
     }
-    setSegActive(els.pcePbars, 'pbars', String(d.patternBars));
+    if (els.pcePbars) els.pcePbars.value = String(d.patternBars);
     if (els.pceBarsVal) els.pceBarsVal.textContent = String(d.bars);
     renderRhythmEditorPattern();
 }
@@ -1296,7 +1299,7 @@ function ensureRhythmVexFlow(cb) {
     if (rhythmVexState === 'loading') return;
     rhythmVexState = 'loading';
     const s = document.createElement('script');
-    s.src = 'vendor/vexflow.js?v=0.9.122';
+    s.src = 'vendor/vexflow.js?v=0.9.123';
     s.async = true;
     s.onload = () => {
         rhythmVexState = getRhythmVexFlow() ? 'ready' : 'error';
@@ -1735,12 +1738,23 @@ function setRhythmEditorBpm(v) {
     if (els.pceBpm) els.pceBpm.value = String(d.bpm);
 }
 
+/* 保存/JSONコピー直前に、画面上の最新入力値をドラフトへ取り込む。
+   BPMは change/blur 前でも反映されるよう、input の現在値をここで必ず読む。 */
+function collectRhythmCustomEditorInputs() {
+    const d = proCustomEditDraft;
+    if (!d) return null;
+    if (els.pceTitle) d.title = els.pceTitle.value;
+    if (els.pceBpm) {
+        d.bpm = clampNum(Math.round(Number(els.pceBpm.value)), RHYTHM_CUSTOM_BPM_MIN, RHYTHM_CUSTOM_BPM_MAX, d.bpm);
+        els.pceBpm.value = String(d.bpm);
+    }
+    return d;
+}
+
 /* 現在ドラフトを正規化して上書き保存。編集画面に留まり「保存しました」を表示。 */
 function saveRhythmCustomEditor() {
-    const d = proCustomEditDraft;
+    const d = collectRhythmCustomEditorInputs();
     if (!d) return;
-    // 入力欄の最新値を取り込む（title は normalize で空文字をデフォルトへ戻す）。
-    if (els.pceTitle) d.title = els.pceTitle.value;
     const saved = updateRhythmCustomStage(d);
     if (!saved) { showRcToast('保存できませんでした'); return; }
     proCustomEditDraft = saved; // 正規化後の値で同期
@@ -1750,9 +1764,8 @@ function saveRhythmCustomEditor() {
 
 /* 編集中の内容を normalize した上でJSONコピー。 */
 async function copyRhythmCustomEditorJson() {
-    const d = proCustomEditDraft;
+    const d = collectRhythmCustomEditorInputs();
     if (!d) return;
-    if (els.pceTitle) d.title = els.pceTitle.value;
     const normalized = normalizeRhythmCustomStageSettings(d);
     presentRhythmJson(JSON.stringify(normalized, null, 2));
 }
@@ -9546,18 +9559,9 @@ function bind() {
     });
     // PROカスタムSTAGE 編集画面（v0.9.121）
     if (els.pceTitle) els.pceTitle.addEventListener('input', () => { if (proCustomEditDraft) proCustomEditDraft.title = els.pceTitle.value; });
-    if (els.pceTimeSig) els.pceTimeSig.addEventListener('click', (e) => {
-        const b = e.target.closest('[data-ts]');
-        if (b) setRhythmEditorTimeSignature(b.dataset.ts);
-    });
-    if (els.pceGrid) els.pceGrid.addEventListener('click', (e) => {
-        const b = e.target.closest('[data-grid]');
-        if (b && !b.classList.contains('is-disabled')) setRhythmEditorGrid(b.dataset.grid);
-    });
-    if (els.pcePbars) els.pcePbars.addEventListener('click', (e) => {
-        const b = e.target.closest('[data-pbars]');
-        if (b) setRhythmEditorPatternBars(parseInt(b.dataset.pbars, 10));
-    });
+    if (els.pceTimeSig) els.pceTimeSig.addEventListener('change', () => setRhythmEditorTimeSignature(els.pceTimeSig.value));
+    if (els.pceGrid) els.pceGrid.addEventListener('change', () => setRhythmEditorGrid(els.pceGrid.value));
+    if (els.pcePbars) els.pcePbars.addEventListener('change', () => setRhythmEditorPatternBars(parseInt(els.pcePbars.value, 10)));
     if (els.pceBarsDown) els.pceBarsDown.addEventListener('click', () => stepRhythmEditorBars(-1));
     if (els.pceBarsUp) els.pceBarsUp.addEventListener('click', () => stepRhythmEditorBars(1));
     if (els.pceBpm) els.pceBpm.addEventListener('change', () => setRhythmEditorBpm(els.pceBpm.value));

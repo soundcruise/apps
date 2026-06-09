@@ -742,6 +742,54 @@ h1 {
     border-color: rgba(255, 200, 87, 0.6);
 }
 
+/* 拍子 / 最小音符 / 小節単位 のプルダウン（v0.9.123：ボタン式から変更） */
+.pce-field-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.pce-field-row .pce-label {
+    flex: 0 0 auto;
+    min-width: 5.5em;
+}
+
+.pce-select {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 260px;
+    padding: 12px 40px 12px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    background-color: rgba(255, 255, 255, 0.04);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.2;
+    -webkit-appearance: none;
+    appearance: none;
+    /* 右側に下向き三角（既存トーンに合わせた控えめな色） */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath fill='%23fdf6ee' fill-opacity='0.7' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 12px 8px;
+}
+
+.pce-select:focus {
+    outline: none;
+    border-color: rgba(255, 200, 87, 0.6);
+}
+
+.pce-select option {
+    color: #1a1a1a;
+}
+
+.pce-select option:disabled {
+    color: #9a9a9a;
+}
+
 /* セグメント（grid / bars / click） */
 .pce-seg {
     display: flex;
