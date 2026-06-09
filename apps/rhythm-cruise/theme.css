@@ -706,6 +706,367 @@ h1 {
     transform: translateX(-50%) translateY(0);
 }
 
+.pro-custom-act.is-edit {
+    border-color: rgba(255, 200, 87, 0.45);
+    color: #ffe7a8;
+}
+
+/* ── PROカスタムSTAGE 編集画面（v0.9.120）──────────────────── */
+.pce-field {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pce-label {
+    color: var(--muted-color);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.pce-input {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 1rem;
+}
+
+.pce-input:focus {
+    outline: none;
+    border-color: rgba(255, 200, 87, 0.6);
+}
+
+/* セグメント（grid / bars / click） */
+.pce-seg {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.pce-seg-btn {
+    flex: 1;
+    min-width: 64px;
+    padding: 11px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(253, 246, 238, 0.78);
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.pce-seg-btn:active {
+    transform: scale(0.98);
+}
+
+.pce-seg-btn.is-active {
+    border-color: #ff9f1c;
+    background: rgba(255, 159, 28, 0.16);
+    color: var(--text-color);
+}
+
+/* BPM ステッパー */
+.pce-stepper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.pce-num {
+    width: 86px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-color);
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 1.1rem;
+    text-align: center;
+}
+
+.pce-num:focus {
+    outline: none;
+    border-color: rgba(255, 200, 87, 0.6);
+}
+
+.pce-unit {
+    color: var(--muted-color);
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.pce-hint {
+    margin: 0;
+    color: var(--muted-color);
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+/* 1小節パターン（v0.9.120：VexFlow譜面＋透明タップ格子＋下段ストローク方向UI）。
+   STAGE本番(#lane-canvas / .lane-wrap)には一切触れず、編集用の専用クラスで構成する。
+   ピン留めON固定で符頭中心＝セル中心。タップ格子・矢印・拍ラベルはセル幅(--pce-cell)で揃える。 */
+.pce-pattern {
+    width: 100%;
+    padding: 8px 0 6px;
+    border: 1px solid rgba(255, 159, 28, 0.32);
+    border-radius: 18px;
+    background:
+        radial-gradient(120% 100% at 30% 0%, rgba(255, 159, 28, 0.10), transparent 60%),
+        linear-gradient(180deg, var(--surface-raised) 0%, var(--surface-color) 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 0 0 1px rgba(255, 159, 28, 0.06),
+        0 12px 28px rgba(0, 0, 0, 0.3);
+}
+
+/* 譜面ライブラリ読み込み中／失敗メッセージ */
+.pce-vex-loading {
+    margin: 0;
+    padding: 28px 16px;
+    text-align: center;
+    color: var(--muted-color);
+    font-size: 0.85rem;
+}
+
+/* 横スクロール領域。譜面・タップ格子・矢印・拍ラベルを同じ幅のレーンに収め、一緒にスクロールさせる。 */
+.pce-vex-scroll {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 2px;
+}
+
+/* レーン本体（幅は JS が小節幅で指定）。小節端を縦線で囲う。 */
+.pce-vex-lane {
+    position: relative;
+    box-sizing: content-box;
+    margin: 0 auto;
+    border-left: 2px solid rgba(253, 246, 238, 0.34);
+    border-right: 2px solid rgba(253, 246, 238, 0.34);
+}
+
+/* VexFlow が描く SVG 譜面。音符・連桁・タイは金色。横基準線(line)は別色なので path/rect のみ着色。 */
+.pce-vex-score svg {
+    display: block;
+}
+
+.pce-vex-score svg path {
+    fill: #ffd166;
+    stroke: #ffd166;
+}
+
+.pce-vex-score svg rect {
+    fill: #ffd166;
+}
+
+/* 透明タップ格子（音符ゾーン）。譜面の上に重ね、セルごとに分割。縦罫線でセル境界を薄く示す。 */
+.pce-vex-tapgrid {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: flex;
+    align-items: stretch;
+}
+
+.pce-tap-cell {
+    width: var(--pce-cell);
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-left: 1px dashed rgba(253, 246, 238, 0.06);
+    background: transparent;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.pce-tap-cell.beat {
+    border-left: 1px solid rgba(253, 246, 238, 0.12);
+}
+
+.pce-tap-cell:first-child {
+    border-left: none;
+}
+
+.pce-tap-cell:active {
+    background: rgba(255, 159, 28, 0.10);
+}
+
+/* 下段：ストローク方向UI（セル幅で譜面と縦に揃う）。 */
+.pce-vex-arrowrow {
+    display: flex;
+    align-items: stretch;
+    margin-top: 4px;
+}
+
+.pce-arrow {
+    width: var(--pce-cell);
+    height: 36px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: rgba(255, 180, 90, 0.95);
+    font-family: inherit;
+    font-size: 1.15rem;
+    font-weight: 800;
+    line-height: 36px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.pce-arrow:active {
+    color: #ffd166;
+}
+
+/* 矢印記号だけ縦に少し伸ばして棒を長く見せる（幅は変えずに視認性を上げる）。 */
+.pce-arrow-mark {
+    display: inline-block;
+    transform: scaleY(1.35);
+    transform-origin: center;
+}
+
+/* 休符/タイの括弧は縦伸ばししない（歪み防止）。 */
+.pce-arrow-paren {
+    display: inline-block;
+    font-weight: 700;
+    opacity: 0.85;
+}
+
+/* 休符/タイの矢印は hit より少し控えめの色で「補助的な手の動き」を表す。 */
+.pce-arrow-rest,
+.pce-arrow-tie {
+    color: rgba(255, 180, 90, 0.78);
+}
+
+/* 拍ラベル（1表/1裏… or 1/2/3/4）。セル幅で中央に並べて譜面と縦に揃える。 */
+.pce-vex-beatrow {
+    display: flex;
+    align-items: stretch;
+    margin-top: 2px;
+}
+
+.pce-beat-cell {
+    width: var(--pce-cell);
+    text-align: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: rgba(253, 246, 238, 0.5);
+    white-space: nowrap;
+}
+
+/* JSON手動コピー用モーダル（自動コピー失敗時のフォールバック・v0.9.120）。 */
+.rc-json-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.6);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+}
+
+.rc-json-card {
+    width: 100%;
+    max-width: 420px;
+    box-sizing: border-box;
+    padding: 18px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 159, 28, 0.32);
+    background: linear-gradient(180deg, var(--surface-raised) 0%, var(--surface-color) 100%);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.rc-json-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text-color);
+}
+
+.rc-json-note {
+    margin: 6px 0 10px;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--muted-color);
+}
+
+.rc-json-text {
+    width: 100%;
+    height: 220px;
+    box-sizing: border-box;
+    resize: vertical;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    background: rgba(0, 0, 0, 0.28);
+    color: var(--text-color);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.74rem;
+    line-height: 1.45;
+    white-space: pre;
+}
+
+.rc-json-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.rc-json-actions .btn-mic,
+.rc-json-actions .btn-mini {
+    flex: 1;
+}
+
+/* 操作エリア */
+.pce-actions {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.pce-actions .pce-copy {
+    flex: none;
+    padding: 12px;
+}
+
+.pce-back-link,
+.pce-delete-link {
+    width: 100%;
+    margin-top: 4px;
+    padding: 11px;
+    border-radius: 10px;
+    background: transparent;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.pce-back-link {
+    border: 1px solid rgba(253, 246, 238, 0.22);
+    color: rgba(253, 246, 238, 0.85);
+}
+
+.pce-delete-link {
+    border: 1px solid rgba(255, 99, 99, 0.32);
+    color: rgba(255, 157, 157, 0.85);
+    font-size: 0.8rem;
+    opacity: 0.85;
+}
+
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }

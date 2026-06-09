@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.119';
+const RHYTHM_CRUISE_VERSION = '0.9.120';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -413,6 +413,26 @@ const els = {
     proCustomList: $('pro-custom-list'),
     proCustomEmpty: $('pro-custom-empty'),
     rcToast: $('rc-toast'),
+    // JSON手動コピー用モーダル（v0.9.120）
+    rcJsonModal: $('rc-json-modal'),
+    rcJsonText: $('rc-json-text'),
+    rcJsonCopy: $('rc-json-copy'),
+    rcJsonClose: $('rc-json-close'),
+    // PROカスタムSTAGE 編集画面（v0.9.120）
+    homeProCustomEdit: $('home-pro-custom-edit'),
+    pceTitle: $('pce-title'),
+    pceDesc: $('pce-desc'),
+    pceGrid: $('pce-grid'),
+    pceBpm: $('pce-bpm'),
+    pceBpmDown: $('pce-bpm-down'),
+    pceBpmUp: $('pce-bpm-up'),
+    pceBars: $('pce-bars'),
+    pceClick: $('pce-click'),
+    pcePattern: $('pce-pattern'),
+    pceSave: $('pce-save'),
+    pceCopy: $('pce-copy'),
+    pceBack: $('pce-back'),
+    pceDelete: $('pce-delete'),
     appVersionDisplay: $('app-version-display'),
     refreshBar: $('in-game-refresh-bar'),
     practiceNum: $('practice-num'),
@@ -767,6 +787,12 @@ const RHYTHM_CUSTOM_BPM_MIN = 30;
 const RHYTHM_CUSTOM_BPM_MAX = 240;
 const RHYTHM_CUSTOM_BEATS_PER_BAR = 4; // 現状は4/4のみ
 
+/* パターン1マスの状態（v0.9.120）。
+   内部表現は { hit, dir, type } の3点。type は v0.9.119（hit/dirのみ）からの拡張で、
+   normalize で type が無い古いデータも安全に補完できるようにする。
+   編集UI（v0.9.120 改善版）は「音符レーン」型：上段=音符（音符/休符/タイ）、下段=矢印（↓/↑/空振り）。 */
+const RHYTHM_CUSTOM_CELL_TYPES = ['rest', 'hit', 'ghost', 'tie'];
+
 /* 将来のPRO判定用フック（v0.9.119）。
    いまは true 固定。将来は data-app-edition や認証状態に差し替える。
    例： return document.documentElement.dataset.appEdition === 'Pro'; */
@@ -786,12 +812,57 @@ function generateRhythmCustomStageId() {
     return `rcs_${ts}_${rand}`;
 }
 
-/* 1小節あたりのステップ数（grid別） */
+/* 1小節あたりのステップ数（grid別）。pattern は「1小節分」を編集・保存する（v0.9.120）。 */
 function rhythmCustomStepsPerBar(grid) {
     return grid === 'eighth' ? RHYTHM_CUSTOM_BEATS_PER_BAR * 2 : RHYTHM_CUSTOM_BEATS_PER_BAR;
 }
 
-/* デフォルトのカスタムSTAGE（新規作成時に1件保存する雛形） */
+/* grid に応じた拍ラベル（自動生成・v0.9.120）。
+   quarter：["1","2","3","4"] ／ eighth：["1表","1裏","2表","2裏","3表","3裏","4表","4裏"] */
+function defaultRhythmDisplayLabels(grid) {
+    if (grid === 'eighth') {
+        const out = [];
+        for (let b = 1; b <= RHYTHM_CUSTOM_BEATS_PER_BAR; b++) { out.push(b + '表'); out.push(b + '裏'); }
+        return out;
+    }
+    const out = [];
+    for (let b = 1; b <= RHYTHM_CUSTOM_BEATS_PER_BAR; b++) out.push(String(b));
+    return out;
+}
+
+/* 1マスを正規化（type が無い v0.9.119 データも安全に補完）。
+   v0.9.120 改訂：空振り（ghost）は廃止し、読み込んだら rest 扱いにする（方向は保持）。
+   休符・タイは「音は出さないが手は動く」を括弧つき矢印で示すため dir(down/up/null) を保持する。 */
+function normalizeRhythmCustomCell(cell) {
+    const c = cell && typeof cell === 'object' && !Array.isArray(cell) ? cell : {};
+    let type = RHYTHM_CUSTOM_CELL_TYPES.includes(c.type) ? c.type : null;
+    if (!type) {
+        // 旧データ（hit/dir のみ）からの推定：hit:true → 打点、それ以外 → 休み。
+        type = c.hit ? 'hit' : 'rest';
+    }
+    // 空振り（ghost）は廃止。既存データは rest として安全に読み込む（方向は保持）。
+    if (type === 'ghost') type = 'rest';
+    const dir = RHYTHM_CUSTOM_DIRS.includes(c.dir) ? c.dir : null;
+    if (type === 'hit') {
+        return { hit: true, dir: dir || 'down', type: 'hit' };
+    }
+    // rest / tie：打点はしないが方向は保持（括弧つき矢印に使う。null も許容）。
+    return { hit: false, dir, type };
+}
+
+/* 空マス（休み） */
+function makeRhythmRestCell() {
+    return { hit: false, dir: null, type: 'rest' };
+}
+
+/* grid・位置に応じた初期マス（v0.9.120 改善版）。
+   quarter：すべて 音符＋↓。eighth：表拍=↓、ウラ（と）=↑ の交互。 */
+function defaultRhythmCellForIndex(grid, i) {
+    if (grid === 'eighth') return { hit: true, dir: (i % 2 === 0 ? 'down' : 'up'), type: 'hit' };
+    return { hit: true, dir: 'down', type: 'hit' };
+}
+
+/* デフォルトのカスタムSTAGE（新規作成時に1件保存する雛形）。pattern は1小節分。 */
 function getDefaultRhythmCustomStage() {
     return {
         version: 1,
@@ -803,10 +874,10 @@ function getDefaultRhythmCustomStage() {
         bpm: 80,
         clickMode: 'all',
         pattern: [
-            { hit: true, dir: 'down' },
-            { hit: true, dir: 'down' },
-            { hit: true, dir: 'down' },
-            { hit: true, dir: 'down' },
+            { hit: true, dir: 'down', type: 'hit' },
+            { hit: true, dir: 'down', type: 'hit' },
+            { hit: true, dir: 'down', type: 'hit' },
+            { hit: true, dir: 'down', type: 'hit' },
         ],
         motion: 'all-down',
         judgeTargets: [0, 1, 2, 3],
@@ -814,7 +885,9 @@ function getDefaultRhythmCustomStage() {
     };
 }
 
-/* 正規化：不正値を安全なデフォルトへ戻す（指板クルーズの考え方を参考に） */
+/* 正規化：不正値を安全なデフォルトへ戻す（指板クルーズの考え方を参考に）。
+   v0.9.120：pattern は「1小節分（grid に応じて4 or 8マス）」へ補正する。
+   judgeTargets は hit:true のマスから自動生成、displayLabels は grid から自動生成。 */
 function normalizeRhythmCustomStageSettings(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
     const def = getDefaultRhythmCustomStage();
@@ -827,40 +900,49 @@ function normalizeRhythmCustomStageSettings(raw) {
     const title = String(raw.title == null ? '' : raw.title).trim() || def.title;
     const description = String(raw.description == null ? '' : raw.description).trim() || def.description;
 
-    // pattern は grid×bars の長さへ補正。各要素の hit/dir を安全化。
-    const steps = rhythmCustomStepsPerBar(grid) * bars;
+    // pattern は 1小節分（grid に応じた長さ）へ補正。各マスを normalize し、足りない分は休みで補う。
+    const steps = rhythmCustomStepsPerBar(grid);
     const srcPattern = Array.isArray(raw.pattern) ? raw.pattern : [];
     const pattern = [];
     for (let i = 0; i < steps; i++) {
-        const cell = srcPattern[i] && typeof srcPattern[i] === 'object' ? srcPattern[i] : {};
-        const hit = cell.hit === undefined ? true : !!cell.hit;
-        let dir = RHYTHM_CUSTOM_DIRS.includes(cell.dir) ? cell.dir : (cell.dir === null ? null : 'down');
-        if (!hit) dir = null; // 打点が無いステップは方向も持たない
-        pattern.push({ hit, dir });
+        pattern.push(i < srcPattern.length ? normalizeRhythmCustomCell(srcPattern[i]) : makeRhythmRestCell());
     }
 
-    // judgeTargets は有効indexのみ・重複排除・昇順
-    const judgeTargets = Array.isArray(raw.judgeTargets)
-        ? Array.from(new Set(
-            raw.judgeTargets
-                .map(n => parseInt(n, 10))
-                .filter(n => Number.isInteger(n) && n >= 0 && n < steps)
-        )).sort((a, b) => a - b)
-        : pattern.map((c, i) => (c.hit ? i : -1)).filter(i => i >= 0);
+    // judgeTargets：hit:true のマスから自動生成（休み/空振り/タイは含めない）。
+    const judgeTargets = pattern.map((c, i) => (c.hit ? i : -1)).filter(i => i >= 0);
 
-    // displayLabels は steps 長へ補正（不足は拍番号で補完）
-    const srcLabels = Array.isArray(raw.displayLabels) ? raw.displayLabels : [];
-    const displayLabels = [];
-    for (let i = 0; i < steps; i++) {
-        const lbl = srcLabels[i];
-        displayLabels.push(lbl == null ? String((i % RHYTHM_CUSTOM_BEATS_PER_BAR) + 1) : String(lbl));
-    }
+    // displayLabels：grid から自動生成。
+    const displayLabels = defaultRhythmDisplayLabels(grid);
 
     const motion = typeof raw.motion === 'string' && raw.motion ? raw.motion : def.motion;
     const version = Number.isInteger(raw.version) ? raw.version : 1;
     const id = typeof raw.id === 'string' && raw.id ? raw.id : generateRhythmCustomStageId();
 
     return { version, id, title, description, grid, bars, bpm, clickMode, pattern, motion, judgeTargets, displayLabels };
+}
+
+/* グリッド切替時に pattern を1小節分の新グリッド長へ安全に組み替える（v0.9.120）。
+   既存マスは表拍に保持し、増えるマス（ウラ「と」など）は新グリッドの初期状態に寄せる。
+   4分→8分：既存マスを表拍（偶数）に、ウラ（奇数＝「と」）は初期（↑音符）で補う。
+   8分→4分：表拍（偶数）のマスだけを残す。 */
+function resizeRhythmPatternForGrid(pattern, fromGrid, toGrid) {
+    const src = Array.isArray(pattern) ? pattern.map(normalizeRhythmCustomCell) : [];
+    if (fromGrid === toGrid) return src;
+    if (fromGrid === 'quarter' && toGrid === 'eighth') {
+        const out = [];
+        for (let i = 0; i < RHYTHM_CUSTOM_BEATS_PER_BAR; i++) {
+            out.push(src[i] || defaultRhythmCellForIndex('eighth', i * 2));
+            out.push(defaultRhythmCellForIndex('eighth', i * 2 + 1));
+        }
+        return out;
+    }
+    if (fromGrid === 'eighth' && toGrid === 'quarter') {
+        const out = [];
+        for (let i = 0; i < src.length; i += 2) out.push(src[i] || defaultRhythmCellForIndex('quarter', out.length));
+        while (out.length < RHYTHM_CUSTOM_BEATS_PER_BAR) out.push(defaultRhythmCellForIndex('quarter', out.length));
+        return out.slice(0, RHYTHM_CUSTOM_BEATS_PER_BAR);
+    }
+    return src;
 }
 
 /* 保存済み一覧を取得（normalize済み・id必須・重複id補正） */
@@ -886,6 +968,19 @@ function addRhythmCustomStage(stage) {
     if (stages.length >= RHYTHM_CUSTOM_STAGE_MAX_SAVED) return null;
     if (!incoming.id) incoming.id = generateRhythmCustomStageId();
     stages.push(incoming);
+    state.rhythmProCustomStages = stages;
+    saveSettings();
+    return incoming;
+}
+
+/* id指定で上書き保存（編集画面の保存用・v0.9.120）。成功したら正規化済みstageを返す。 */
+function updateRhythmCustomStage(stage) {
+    const incoming = normalizeRhythmCustomStageSettings(stage);
+    if (!incoming || !incoming.id) return null;
+    const stages = getSavedRhythmCustomStages();
+    const idx = stages.findIndex(s => s.id === incoming.id);
+    if (idx < 0) return null;
+    stages[idx] = incoming;
     state.rhythmProCustomStages = stages;
     saveSettings();
     return incoming;
@@ -941,12 +1036,32 @@ function showRcToast(msg) {
     }, 1400);
 }
 
-/* JSONコピー：指定STAGEを整形済みJSONでコピーし、短いフィードバックを出す */
+/* 整形済みJSONを自動コピー。成功＝トースト、失敗＝手動コピー用モーダルでJSONを表示。
+   （PROカスタムSTAGEはJSONをAIへ渡すのが目的なので、失敗時も必ず取得できるようにする。） */
+async function presentRhythmJson(text) {
+    const ok = await copyTextToClipboard(text);
+    if (ok) { showRcToast('コピーしました'); return; }
+    showRhythmJsonModal(text);
+}
+
+/* 手動コピー用モーダルを開く（textareaに整形JSONを入れて全選択）。 */
+function showRhythmJsonModal(text) {
+    const ov = els.rcJsonModal, ta = els.rcJsonText;
+    if (!ov || !ta) { showRcToast('コピーできませんでした'); return; }
+    ta.value = text;
+    ov.classList.remove('hidden');
+    requestAnimationFrame(() => { try { ta.focus(); ta.select(); } catch (e) { /* noop */ } });
+}
+
+function hideRhythmJsonModal() {
+    if (els.rcJsonModal) els.rcJsonModal.classList.add('hidden');
+}
+
+/* JSONコピー：指定STAGEを整形済みJSONでコピー（失敗時は手動コピー導線）。 */
 async function copyRhythmCustomStageJson(id) {
     const stage = getSavedRhythmCustomStages().find(s => s.id === id);
     if (!stage) return;
-    const ok = await copyTextToClipboard(JSON.stringify(stage, null, 2));
-    showRcToast(ok ? 'コピーしました' : 'コピーできませんでした');
+    presentRhythmJson(JSON.stringify(stage, null, 2));
 }
 
 /* 新規作成：デフォルトSTAGEを1件保存して一覧を更新 */
@@ -986,6 +1101,7 @@ function renderRhythmCustomStages() {
             <div class="pro-custom-card-desc">${escapeHtml(s.description)}</div>
             <div class="pro-custom-card-meta">${meta}</div>
             <div class="pro-custom-card-actions">
+                <button type="button" class="pro-custom-act is-edit" data-act="edit">編集</button>
                 <button type="button" class="pro-custom-act is-copy" data-act="copy">JSONコピー</button>
                 <button type="button" class="pro-custom-act is-delete" data-act="delete">削除</button>
             </div>`;
@@ -993,11 +1109,380 @@ function renderRhythmCustomStages() {
     });
 }
 
+/* ═══════════════════════════════════════════════════════════
+   PROカスタムSTAGE 編集画面（v0.9.120）
+   ・保存済みSTAGEを編集して上書き保存／JSONコピーする。
+   ・編集中は proCustomEditDraft（正規化済みオブジェクト）を真実とし、
+     入力のたびに更新する。保存で配列へ上書きする。
+   ・練習開始・再生・判定エンジン接続は今回は行わない。
+═══════════════════════════════════════════════════════════ */
+let proCustomEditDraft = null; // 編集中のドラフト（normalize済み）
+
+/* 編集画面を開く：保存済みSTAGEを読み込みドラフト化して表示。 */
+function openRhythmProCustomEditor(id) {
+    if (!isRhythmProCustomStageAvailable()) return;
+    const saved = getSavedRhythmCustomStages().find(s => s.id === id);
+    if (!saved) { showRcToast('STAGEが見つかりません'); return; }
+    proCustomEditDraft = normalizeRhythmCustomStageSettings(saved);
+    ensureRhythmVexFlow(); // 譜面ライブラリを先読み（編集画面を開いた時だけ・CDN不使用）
+    renderRhythmCustomEditor();
+    setHomeView('proCustomEdit');
+}
+
+/* ドラフトの各UIを現在値に同期。 */
+function renderRhythmCustomEditor() {
+    const d = proCustomEditDraft;
+    if (!d) return;
+    if (els.pceTitle) els.pceTitle.value = d.title;
+    if (els.pceDesc) els.pceDesc.value = d.description;
+    if (els.pceBpm) els.pceBpm.value = String(d.bpm);
+    // セグメント（grid / bars / clickMode）の選択状態
+    setSegActive(els.pceGrid, 'grid', d.grid);
+    setSegActive(els.pceBars, 'bars', String(d.bars));
+    setSegActive(els.pceClick, 'click', d.clickMode);
+    renderRhythmEditorPattern();
+}
+
+/* data-属性つきセグメントの is-active を付け替える共通処理。 */
+function setSegActive(container, attr, value) {
+    if (!container) return;
+    container.querySelectorAll('[data-' + attr + ']').forEach((b) => {
+        b.classList.toggle('is-active', b.dataset[attr] === value);
+    });
+}
+
+/* ───── VexFlow 譜面描画（v0.9.120：PROカスタムSTAGE編集UIを VexFlow 方式へ統合） ─────
+   ローカル配置の vendor/vexflow.js を、編集画面を開いた時にだけ遅延読み込みする（CDN不使用）。
+   PoC（_poc/vexflow-lane.html）で検証した「ピン留めON＝符頭中心をセル中心へ」を本仕様とする。 */
+const RHYTHM_VEX_CELL_W = 64;   // 1セルの横幅(px)。タップ格子・ピン留めで共有。
+const RHYTHM_VEX_LANE_H = 108;  // 譜面レーンの高さ(px)
+const RHYTHM_VEX_EPB = 2;       // 4/4：1拍=8分2つ
+const RHYTHM_SVGNS = 'http://www.w3.org/2000/svg';
+let rhythmVexState = 'idle';    // idle | loading | ready | error
+const rhythmVexWaiters = [];
+
+/* 読み込み済みなら VexFlow 名前空間を返す。未ロードなら null。 */
+function getRhythmVexFlow() {
+    const V = window.Vex && (window.Vex.Flow || window.Vex);
+    return (V && V.Stave) ? V : null;
+}
+
+/* VexFlow をローカルから一度だけ遅延読み込み。準備できたら cb(ok) を呼ぶ。 */
+function ensureRhythmVexFlow(cb) {
+    if (getRhythmVexFlow()) { rhythmVexState = 'ready'; if (cb) cb(true); return; }
+    if (cb) rhythmVexWaiters.push(cb);
+    if (rhythmVexState === 'loading') return;
+    rhythmVexState = 'loading';
+    const s = document.createElement('script');
+    s.src = 'vendor/vexflow.js?v=0.9.120';
+    s.async = true;
+    s.onload = () => {
+        rhythmVexState = getRhythmVexFlow() ? 'ready' : 'error';
+        const ok = rhythmVexState === 'ready';
+        rhythmVexWaiters.splice(0).forEach((f) => f(ok));
+    };
+    s.onerror = () => { rhythmVexState = 'error'; rhythmVexWaiters.splice(0).forEach((f) => f(false)); };
+    document.head.appendChild(s);
+}
+
+/* pattern → 楽譜イベント（PoC仕様）。
+   hit=音符開始、tie=直前音符へ結合（hit+tie で4分相当）、rest=休符（連続restは結合）。
+   unit=1セルの長さ(8分単位)：quarter=2, eighth=1。 */
+function rhythmPatternToEvents(pattern, grid) {
+    const unit = (grid === 'quarter') ? 2 : 1;
+    const events = [];
+    pattern.forEach((cell, i) => {
+        if (cell.type === 'hit') {
+            events.push({ kind: 'note', startCell: i, durEighths: unit });
+        } else if (cell.type === 'tie') {
+            const prev = events[events.length - 1];
+            if (prev && prev.kind === 'note') prev.durEighths += unit;
+            else events.push({ kind: 'rest', startCell: i, durEighths: unit }); // 先頭tieは休符扱い
+        } else { // rest（ghost は rest に正規化済み）
+            const prev = events[events.length - 1];
+            if (prev && prev.kind === 'rest') prev.durEighths += unit;
+            else events.push({ kind: 'rest', startCell: i, durEighths: unit });
+        }
+    });
+    let pos = 0;
+    events.forEach((ev) => { ev.startEighths = pos; pos += ev.durEighths; });
+    return { events, unit };
+}
+
+/* 拍境界(4/4)で分割。各 seg は拍内に収まる（len=1→8分, len>=2→4分）。 */
+function rhythmSegmentByBeat(start, len) {
+    const segs = [];
+    let s = start, rem = len;
+    while (rem > 0) {
+        const nextBoundary = Math.floor(s / RHYTHM_VEX_EPB) * RHYTHM_VEX_EPB + RHYTHM_VEX_EPB;
+        const take = Math.min(rem, nextBoundary - s);
+        segs.push({ start: s, len: take });
+        s += take; rem -= take;
+    }
+    return segs;
+}
+
+/* イベント列 → VexFlow StaveNote 列（拍分割・同一音符内のタイ情報つき）。 */
+function rhythmEventsToVexItems(events, VF) {
+    const { StaveNote, Stem } = VF;
+    const items = [];
+    events.forEach((ev) => {
+        const segs = rhythmSegmentByBeat(ev.startEighths, ev.durEighths);
+        segs.forEach((seg, si) => {
+            const isRest = (ev.kind === 'rest');
+            const dur = (seg.len >= 2 ? 'q' : '8') + (isRest ? 'r' : '');
+            const note = new StaveNote({ keys: ['b/4'], duration: dur, stem_direction: Stem.UP });
+            items.push({ note, startEighths: seg.start, isRest, tieToPrev: (!isRest && si > 0) });
+        });
+    });
+    return items;
+}
+
+/* 矢印（下段）の表示。hit は通常の ↓/↑。休符/タイは「音は出さないが手は動く」を括弧つきで示し、
+   方向が無い（null）ときは非表示。矢印記号は縦に伸ばして棒を長く見せる（pce-arrow-mark）。 */
+function rhythmArrowGlyph(cell) {
+    const dir = cell.dir === 'up' ? 'up' : (cell.dir === 'down' ? 'down' : null);
+    if (cell.type === 'hit') {
+        const a = (cell.dir === 'up') ? '↑' : '↓';
+        return '<span class="pce-arrow-mark">' + a + '</span>';
+    }
+    // rest / tie（ghost は rest 扱い）：方向があれば括弧つき、無ければ表示しない。
+    if (!dir) return '';
+    const a = (dir === 'up') ? '↑' : '↓';
+    return '<span class="pce-arrow-paren">(</span><span class="pce-arrow-mark">' + a + '</span><span class="pce-arrow-paren">)</span>';
+}
+
+/* 1小節パターンを VexFlow 譜面＋透明タップ格子＋下段ストローク方向UIで描画（v0.9.120 VexFlow統合）。
+   VexFlow 未ロード時は読み込みを促し、準備後に再描画する。描画のみで保存形式は変更しない。 */
+function renderRhythmEditorPattern() {
+    const d = proCustomEditDraft;
+    if (!d || !els.pcePattern) return;
+    const VF = getRhythmVexFlow();
+    if (!VF) {
+        els.pcePattern.innerHTML = '<p class="pce-vex-loading">譜面を準備中です…</p>';
+        ensureRhythmVexFlow((ok) => {
+            if (proCustomEditDraft !== d) return; // 別STAGEに切替済みなら破棄
+            if (ok) renderRhythmEditorPattern();
+            else els.pcePattern.innerHTML = '<p class="pce-vex-loading">譜面の読み込みに失敗しました。ページを更新してください。</p>';
+        });
+        return;
+    }
+    drawRhythmVexLane(VF, d);
+}
+
+/* VexFlow で1小節を描画し、その上に透明タップ格子・下段ストローク方向UI・拍ラベルを重ねる。
+   ピン留めON固定：各音符の符頭中心を開始セル中心へ合わせ、横基準線は符頭中心Yに1本だけ引く。 */
+function drawRhythmVexLane(VF, d) {
+    const { Renderer, Stave, StaveTie, Beam, Voice, Formatter, Fraction } = VF;
+    const N = d.pattern.length;
+    const cellW = RHYTHM_VEX_CELL_W;
+    const laneW = N * cellW;
+    const H = RHYTHM_VEX_LANE_H;
+    const unit = (d.grid === 'quarter') ? 2 : 1;
+
+    els.pcePattern.innerHTML = '';
+    const scroll = document.createElement('div');
+    scroll.className = 'pce-vex-scroll';
+    const lane = document.createElement('div');
+    lane.className = 'pce-vex-lane';
+    lane.style.width = laneW + 'px';
+    lane.style.setProperty('--pce-cell', cellW + 'px');
+    const scoreEl = document.createElement('div');
+    scoreEl.className = 'pce-vex-score';
+    lane.appendChild(scoreEl);
+    scroll.appendChild(lane);
+    els.pcePattern.appendChild(scroll);
+
+    // --- VexFlow 譜面 ---
+    const { events } = rhythmPatternToEvents(d.pattern, d.grid);
+    const items = rhythmEventsToVexItems(events, VF);
+    const notes = items.map((it) => it.note);
+
+    const renderer = new Renderer(scoreEl, Renderer.Backends.SVG);
+    renderer.resize(laneW, H);
+    const ctx = renderer.getContext();
+    ctx.setFillStyle('#ffd166');
+    ctx.setStrokeStyle('#ffd166');
+
+    const stave = new Stave(0, 24, laneW);
+    stave.setNumLines(1);
+    stave.setContext(ctx); // 標準の単線は符頭中心と一致しないため線は描かない
+
+    const voice = new Voice({ num_beats: 4, beat_value: 4 });
+    voice.setStrict(false);
+    voice.addTickables(notes);
+    const beams = Beam.generateBeams(notes, { groups: [new Fraction(2, 8)], beam_rests: false, maintain_stem_directions: true });
+    new Formatter().joinVoices([voice]).format([voice], laneW - 24);
+    notes.forEach((n) => n.setStave(stave)); // 絶対X計算に stave 左オフセットを含める
+
+    // ピン留めON（本仕様）：符頭中心を開始セル中心へ寄せる（結合4分も開始セル＝表に置く）。
+    items.forEach((it) => {
+        const startCell = it.startEighths / unit;
+        const desiredCenter = (startCell + 0.5) * cellW;
+        const center = it.note.getNoteHeadBeginX() + it.note.getGlyphWidth() / 2;
+        it.note.setXShift(desiredCenter - center);
+    });
+
+    voice.draw(ctx, stave);
+    beams.forEach((b) => b.setContext(ctx).draw());
+    for (let i = 1; i < items.length; i++) {
+        if (items[i].tieToPrev) {
+            new StaveTie({ first_note: items[i - 1].note, last_note: items[i].note, first_indices: [0], last_indices: [0] })
+                .setContext(ctx).draw();
+        }
+    }
+
+    // 横基準線：実際に描かれた符頭中心Yに1本だけ（符頭の背面）。
+    let baselineY = null;
+    for (const it of items) {
+        if (it.isRest) continue;
+        try { const ys = it.note.getYs(); if (ys && ys.length) { baselineY = ys[0]; break; } } catch (e) { /* noop */ }
+    }
+    if (baselineY == null) baselineY = stave.getYForLine(0);
+    const svg = scoreEl.querySelector('svg');
+    if (svg) {
+        const line = document.createElementNS(RHYTHM_SVGNS, 'line');
+        line.setAttribute('x1', '0'); line.setAttribute('y1', String(baselineY));
+        line.setAttribute('x2', String(laneW)); line.setAttribute('y2', String(baselineY));
+        line.setAttribute('stroke', 'rgba(253,246,238,0.22)');
+        line.setAttribute('stroke-width', '1.4');
+        svg.insertBefore(line, svg.firstChild);
+    }
+
+    // --- 透明タップ格子（音符ゾーン） ---
+    const tap = document.createElement('div');
+    tap.className = 'pce-vex-tapgrid';
+    tap.style.height = H + 'px';
+    d.pattern.forEach((cell, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        const isBeat = (d.grid === 'eighth') ? (i % 2 === 0) : true;
+        b.className = 'pce-tap-cell' + (isBeat ? ' beat' : '');
+        b.dataset.index = String(i);
+        b.dataset.zone = 'note';
+        b.setAttribute('aria-label', '音符を切り替え');
+        tap.appendChild(b);
+    });
+    lane.appendChild(tap);
+
+    // --- 下段ストローク方向UI＋拍ラベル ---
+    const arrowrow = document.createElement('div');
+    arrowrow.className = 'pce-vex-arrowrow';
+    const beatrow = document.createElement('div');
+    beatrow.className = 'pce-vex-beatrow';
+    d.pattern.forEach((cell, i) => {
+        const a = document.createElement('button');
+        a.type = 'button';
+        a.className = 'pce-arrow pce-arrow-' + cell.type;
+        a.dataset.index = String(i);
+        a.dataset.zone = 'arrow';
+        a.setAttribute('aria-label', 'ストローク方向を切り替え');
+        a.innerHTML = rhythmArrowGlyph(cell);
+        arrowrow.appendChild(a);
+
+        const bc = document.createElement('div');
+        bc.className = 'pce-beat-cell';
+        bc.textContent = (d.displayLabels && d.displayLabels[i] != null) ? d.displayLabels[i] : '';
+        beatrow.appendChild(bc);
+    });
+    lane.appendChild(arrowrow);
+    lane.appendChild(beatrow);
+}
+
+/* 音符（上段）タップ：音符 → 休符 → タイ → 音符（空振りは廃止）。
+   休符/タイでも括弧つき矢印を出すため dir は引き継ぐ（無ければ down）。 */
+function tapRhythmEditorNote(index) {
+    const d = proCustomEditDraft;
+    if (!d || !d.pattern[index]) return;
+    const cur = d.pattern[index];
+    const dir = RHYTHM_CUSTOM_DIRS.includes(cur.dir) ? cur.dir : 'down';
+    let next;
+    if (cur.type === 'hit') next = { hit: false, dir: dir, type: 'rest' };
+    else if (cur.type === 'rest') next = { hit: false, dir: dir, type: 'tie' };
+    else next = { hit: true, dir: dir, type: 'hit' }; // tie（旧 ghost）→ 音符
+    d.pattern[index] = next;
+    renderRhythmEditorPattern();
+}
+
+/* 矢印（下段）タップ。
+   hit：↓ ↔ ↑ のトグル。
+   rest / tie：(↓) → (↑) → なし(null) → (↓) の巡回（手の動きだけを切り替える）。 */
+function tapRhythmEditorArrow(index) {
+    const d = proCustomEditDraft;
+    if (!d || !d.pattern[index]) return;
+    const cur = d.pattern[index];
+    if (cur.type === 'hit') {
+        const dir = cur.dir === 'up' ? 'down' : 'up';
+        d.pattern[index] = { hit: true, dir: dir, type: 'hit' };
+    } else if (cur.type === 'rest' || cur.type === 'tie') {
+        let dir;
+        if (cur.dir === 'down') dir = 'up';
+        else if (cur.dir === 'up') dir = null;
+        else dir = 'down'; // null → down
+        d.pattern[index] = { hit: false, dir: dir, type: cur.type };
+    }
+    renderRhythmEditorPattern();
+}
+
+/* grid 切替：pattern を組み替え、ラベルを再生成して再描画。 */
+function setRhythmEditorGrid(grid) {
+    const d = proCustomEditDraft;
+    if (!d || !RHYTHM_CUSTOM_GRID_OPTIONS.includes(grid) || grid === d.grid) return;
+    d.pattern = resizeRhythmPatternForGrid(d.pattern, d.grid, grid);
+    d.grid = grid;
+    d.displayLabels = defaultRhythmDisplayLabels(grid);
+    renderRhythmCustomEditor();
+}
+
+/* BPM をクランプして反映。 */
+function setRhythmEditorBpm(v) {
+    const d = proCustomEditDraft;
+    if (!d) return;
+    d.bpm = clampNum(Math.round(Number(v)), RHYTHM_CUSTOM_BPM_MIN, RHYTHM_CUSTOM_BPM_MAX, d.bpm);
+    if (els.pceBpm) els.pceBpm.value = String(d.bpm);
+}
+
+/* 現在ドラフトを正規化して上書き保存。編集画面に留まり「保存しました」を表示。 */
+function saveRhythmCustomEditor() {
+    const d = proCustomEditDraft;
+    if (!d) return;
+    // 入力欄の最新値を取り込む（title/desc は normalize で空文字をデフォルトへ戻す）。
+    if (els.pceTitle) d.title = els.pceTitle.value;
+    if (els.pceDesc) d.description = els.pceDesc.value;
+    const saved = updateRhythmCustomStage(d);
+    if (!saved) { showRcToast('保存できませんでした'); return; }
+    proCustomEditDraft = saved; // 正規化後の値で同期
+    renderRhythmCustomEditor();
+    showRcToast('保存しました');
+}
+
+/* 編集中の内容を normalize した上でJSONコピー。 */
+async function copyRhythmCustomEditorJson() {
+    const d = proCustomEditDraft;
+    if (!d) return;
+    if (els.pceTitle) d.title = els.pceTitle.value;
+    if (els.pceDesc) d.description = els.pceDesc.value;
+    const normalized = normalizeRhythmCustomStageSettings(d);
+    presentRhythmJson(JSON.stringify(normalized, null, 2));
+}
+
+/* 編集画面からの削除（確認ダイアログ必須）。削除後は一覧へ戻る。 */
+function deleteRhythmCustomFromEditor() {
+    const d = proCustomEditDraft;
+    if (!d) return;
+    if (!window.confirm('このカスタムSTAGEを削除しますか？')) return;
+    deleteRhythmCustomStageById(d.id);
+    proCustomEditDraft = null;
+    renderRhythmCustomStages();
+    setHomeView('proCustom');
+    showRcToast('削除しました');
+}
+
 /* ── ホーム内の階層表示（v0.9.117）────────────────────────────
    ホームは「TOP → リズム練をする → 基礎練(STAGE一覧)/ストロークパターン/コード進行」の
    サブビューを #screen-home の中で切り替える。画面そのもの（home/practice/settings）の
    遷移ロジックは変更しない。 */
-let homeView = 'top'; // 'top' | 'rhythm' | 'kiso' | 'soon' | 'proCustom'
+let homeView = 'top'; // 'top' | 'rhythm' | 'kiso' | 'soon' | 'proCustom' | 'proCustomEdit'
 let currentScreen = 'home'; // 'home' | 'practice' | 'settings'（v0.9.118：共通ナビ表示判定に使う）
 
 /* 共通ナビ（左上 戻る/TOP・右上 設定）の表示制御（v0.9.118）。
@@ -1014,6 +1499,7 @@ function renderHome() {
     if (els.homeKiso) els.homeKiso.classList.toggle('hidden', homeView !== 'kiso');
     if (els.homeSoon) els.homeSoon.classList.toggle('hidden', homeView !== 'soon');
     if (els.homeProCustom) els.homeProCustom.classList.toggle('hidden', homeView !== 'proCustom');
+    if (els.homeProCustomEdit) els.homeProCustomEdit.classList.toggle('hidden', homeView !== 'proCustomEdit');
     updateChrome();
 }
 function setHomeView(v) {
@@ -1076,6 +1562,7 @@ function navBack() {
         if (homeView === 'kiso') { setHomeView('rhythm'); return; }
         if (homeView === 'soon') { setHomeView('rhythm'); return; }
         if (homeView === 'proCustom') { setHomeView('rhythm'); return; }
+        if (homeView === 'proCustomEdit') { renderRhythmCustomStages(); setHomeView('proCustom'); return; }
         return; // TOPでは戻る不要（共通ナビ自体を隠している）
     }
     goTop();
@@ -8754,7 +9241,9 @@ function bind() {
         const id = card && card.dataset ? card.dataset.id : '';
         if (!id) return;
         const act = btn.dataset.act;
-        if (act === 'copy') {
+        if (act === 'edit') {
+            openRhythmProCustomEditor(id);
+        } else if (act === 'copy') {
             copyRhythmCustomStageJson(id);
         } else if (act === 'delete') {
             if (window.confirm('このカスタムSTAGEを削除しますか？')) {
@@ -8763,6 +9252,49 @@ function bind() {
                 showRcToast('削除しました');
             }
         }
+    });
+    // PROカスタムSTAGE 編集画面（v0.9.120）
+    if (els.pceTitle) els.pceTitle.addEventListener('input', () => { if (proCustomEditDraft) proCustomEditDraft.title = els.pceTitle.value; });
+    if (els.pceDesc) els.pceDesc.addEventListener('input', () => { if (proCustomEditDraft) proCustomEditDraft.description = els.pceDesc.value; });
+    if (els.pceGrid) els.pceGrid.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-grid]');
+        if (b) setRhythmEditorGrid(b.dataset.grid);
+    });
+    if (els.pceBars) els.pceBars.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-bars]');
+        if (b && proCustomEditDraft) {
+            const v = parseInt(b.dataset.bars, 10);
+            if (RHYTHM_CUSTOM_BAR_OPTIONS.includes(v)) { proCustomEditDraft.bars = v; setSegActive(els.pceBars, 'bars', String(v)); }
+        }
+    });
+    if (els.pceClick) els.pceClick.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-click]');
+        if (b && proCustomEditDraft && RHYTHM_CUSTOM_CLICK_MODES.includes(b.dataset.click)) {
+            proCustomEditDraft.clickMode = b.dataset.click;
+            setSegActive(els.pceClick, 'click', b.dataset.click);
+        }
+    });
+    if (els.pceBpm) els.pceBpm.addEventListener('change', () => setRhythmEditorBpm(els.pceBpm.value));
+    if (els.pceBpmDown) els.pceBpmDown.addEventListener('click', () => { if (proCustomEditDraft) setRhythmEditorBpm(proCustomEditDraft.bpm - 1); });
+    if (els.pceBpmUp) els.pceBpmUp.addEventListener('click', () => { if (proCustomEditDraft) setRhythmEditorBpm(proCustomEditDraft.bpm + 1); });
+    if (els.pcePattern) els.pcePattern.addEventListener('click', (e) => {
+        const zone = e.target.closest('[data-zone]');
+        if (!zone) return;
+        const i = parseInt(zone.dataset.index, 10);
+        if (zone.dataset.zone === 'note') tapRhythmEditorNote(i);
+        else if (zone.dataset.zone === 'arrow') tapRhythmEditorArrow(i);
+    });
+    if (els.pceSave) els.pceSave.addEventListener('click', saveRhythmCustomEditor);
+    if (els.pceCopy) els.pceCopy.addEventListener('click', copyRhythmCustomEditorJson);
+    if (els.pceBack) els.pceBack.addEventListener('click', () => { renderRhythmCustomStages(); setHomeView('proCustom'); });
+    if (els.pceDelete) els.pceDelete.addEventListener('click', deleteRhythmCustomFromEditor);
+    // JSON手動コピーモーダル（v0.9.120）
+    if (els.rcJsonClose) els.rcJsonClose.addEventListener('click', hideRhythmJsonModal);
+    if (els.rcJsonModal) els.rcJsonModal.addEventListener('click', (e) => { if (e.target === els.rcJsonModal) hideRhythmJsonModal(); });
+    if (els.rcJsonCopy) els.rcJsonCopy.addEventListener('click', async () => {
+        const ok = await copyTextToClipboard(els.rcJsonText ? els.rcJsonText.value : '');
+        if (ok) { showRcToast('コピーしました'); hideRhythmJsonModal(); }
+        else if (els.rcJsonText) { try { els.rcJsonText.focus(); els.rcJsonText.select(); } catch (e) { /* noop */ } }
     });
     // 全画面共通ナビ（戻る / TOP / 設定）
     if (els.navBackBtn) els.navBackBtn.addEventListener('click', () => guardMicSetupInterruption(navBack));

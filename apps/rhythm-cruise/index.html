@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.119">
+    <link rel="stylesheet" href="theme.css?v=0.9.120">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -76,6 +76,73 @@
                     <!-- script.js が描画 -->
                 </div>
                 <p class="pro-custom-empty hidden" id="pro-custom-empty">まだカスタムSTAGEはありません。「新規作成」で追加できます。</p>
+            </div>
+
+            <!-- PROカスタムSTAGE 編集画面（v0.9.120）。戻るは共通ナビ #app-nav。 -->
+            <div class="home-view hidden" id="home-pro-custom-edit">
+                <div class="section-label">カスタムSTAGE編集</div>
+
+                <div class="pce-field">
+                    <label class="pce-label" for="pce-title">タイトル</label>
+                    <input type="text" id="pce-title" class="pce-input" maxlength="40" placeholder="カスタムSTAGE" autocomplete="off">
+                </div>
+
+                <div class="pce-field">
+                    <label class="pce-label" for="pce-desc">説明</label>
+                    <input type="text" id="pce-desc" class="pce-input" maxlength="80" placeholder="新しいリズム練習" autocomplete="off">
+                </div>
+
+                <div class="pce-field">
+                    <span class="pce-label">グリッド</span>
+                    <div class="pce-seg" id="pce-grid">
+                        <button type="button" class="pce-seg-btn" data-grid="quarter">4分</button>
+                        <button type="button" class="pce-seg-btn" data-grid="eighth">8分</button>
+                    </div>
+                </div>
+
+                <div class="pce-field">
+                    <span class="pce-label">初期BPM</span>
+                    <div class="pce-stepper">
+                        <button type="button" class="tempo-btn" id="pce-bpm-down" aria-label="BPMを下げる">−</button>
+                        <input type="number" id="pce-bpm" class="pce-num" min="30" max="240" step="1" inputmode="numeric">
+                        <button type="button" class="tempo-btn" id="pce-bpm-up" aria-label="BPMを上げる">＋</button>
+                        <span class="pce-unit">BPM</span>
+                    </div>
+                </div>
+
+                <div class="pce-field">
+                    <span class="pce-label">初期小節数</span>
+                    <div class="pce-seg" id="pce-bars">
+                        <button type="button" class="pce-seg-btn" data-bars="1">1</button>
+                        <button type="button" class="pce-seg-btn" data-bars="2">2</button>
+                        <button type="button" class="pce-seg-btn" data-bars="4">4</button>
+                        <button type="button" class="pce-seg-btn" data-bars="8">8</button>
+                    </div>
+                </div>
+
+                <div class="pce-field">
+                    <span class="pce-label">クリック</span>
+                    <div class="pce-seg" id="pce-click">
+                        <button type="button" class="pce-seg-btn" data-click="all">全拍クリック</button>
+                        <button type="button" class="pce-seg-btn" data-click="downbeat">1拍目だけ</button>
+                        <button type="button" class="pce-seg-btn" data-click="none">クリックなし</button>
+                    </div>
+                </div>
+
+                <div class="pce-field">
+                    <span class="pce-label">1小節パターン</span>
+                    <p class="pce-hint">上の音符をタップ：音符 → 休符 → タイ。<br>下の矢印をタップ：音符は ↓ ↔ ↑／休符・タイは (↓) → (↑) → なし。</p>
+                    <div class="pce-pattern" id="pce-pattern">
+                        <!-- script.js が描画 -->
+                    </div>
+                </div>
+
+                <div class="pce-actions">
+                    <button type="button" class="settings-top-main pce-save" id="pce-save">保存</button>
+                    <button type="button" class="pro-custom-act is-copy pce-copy" id="pce-copy">JSONコピー</button>
+                </div>
+                <button type="button" class="pce-back-link" id="pce-back">一覧へ戻る</button>
+                <button type="button" class="pce-delete-link" id="pce-delete">このカスタムSTAGEを削除</button>
             </div>
 
             <!-- 基礎練：STAGE1〜6（v0.9.117） -->
@@ -807,7 +874,20 @@
     <!-- 軽いフィードバック用トースト（JSONコピー等・v0.9.119） -->
     <div class="rc-toast hidden" id="rc-toast" role="status" aria-live="polite"></div>
 
-    <script src="script.js?v=0.9.119"></script>
+    <!-- JSON手動コピー用モーダル（自動コピー失敗時のフォールバック・v0.9.120） -->
+    <div class="rc-json-overlay hidden" id="rc-json-modal">
+        <div class="rc-json-card">
+            <div class="rc-json-title">カスタムSTAGEのJSON</div>
+            <p class="rc-json-note">自動コピーできない環境です。下の枠を長押し→全選択してコピーしてください。</p>
+            <textarea id="rc-json-text" class="rc-json-text" readonly spellcheck="false" autocomplete="off"></textarea>
+            <div class="rc-json-actions">
+                <button type="button" class="btn-mic" id="rc-json-copy">もう一度コピー</button>
+                <button type="button" class="btn-mini" id="rc-json-close">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js?v=0.9.120"></script>
 </body>
 
 </html>
