@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.131';
+const RHYTHM_CRUISE_VERSION = '0.9.132';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -230,6 +230,7 @@ const state = {
     audioCtx: null,
     startTime: 0,           // perf時計の開始基準（マイクガード等の相対計測用）
     audioStartTime: 0,      // オーディオ時計(ctx.currentTime)の開始基準（譜面・判定・クリックの絶対基準）
+    audioWaitStartTime: 0,  // AudioContext が running になるまで待つ開始時刻（固まり防止・v0.9.132）
     currentTime: 0,
     beatInterval: 750,
     T0: 0,
@@ -1309,7 +1310,7 @@ function ensureRhythmVexFlow(cb) {
     if (rhythmVexState === 'loading') return;
     rhythmVexState = 'loading';
     const s = document.createElement('script');
-    s.src = 'vendor/vexflow.js?v=0.9.131';
+    s.src = 'vendor/vexflow.js?v=0.9.132';
     s.async = true;
     s.onload = () => {
         rhythmVexState = getRhythmVexFlow() ? 'ready' : 'error';
@@ -3543,6 +3544,7 @@ function buildSchedule() {
 }
 
 const CLICK_LOOKAHEAD_MS = 130; // クリックを実際の発音より少し前に正確スケジュール
+const AUDIO_CONTEXT_START_TIMEOUT_MS = 1800; // AudioContext が running にならない時にUIを固めないための上限（v0.9.132）
 
 function loop() {
     if (!state.running) return;
@@ -3550,8 +3552,21 @@ function loop() {
     if (state.audioStartTime < 0) {
         if (state.audioCtx && state.audioCtx.state === 'running') {
             state.audioStartTime = state.audioCtx.currentTime;
+            state.audioWaitStartTime = 0;
         } else {
-            if (state.audioCtx && state.audioCtx.state === 'suspended') state.audioCtx.resume();
+            const now = performance.now();
+            if (!state.audioWaitStartTime) state.audioWaitStartTime = now;
+            if (now - state.audioWaitStartTime >= AUDIO_CONTEXT_START_TIMEOUT_MS) {
+                stop();
+                showRcToast('音声を開始できませんでした。もう一度お試しください');
+                return;
+            }
+            if (state.audioCtx && state.audioCtx.state === 'suspended') {
+                try {
+                    const resumePromise = state.audioCtx.resume();
+                    if (resumePromise && typeof resumePromise.catch === 'function') resumePromise.catch(() => { /* retry until timeout */ });
+                } catch (_) { /* retry until timeout */ }
+            }
             state.raf = requestAnimationFrame(loop);
             return; // 音声が走るまで待つ
         }
@@ -3583,6 +3598,10 @@ function onPlayBtn() {
 }
 
 function play() {
+    if (state.raf) {
+        cancelAnimationFrame(state.raf);
+        state.raf = 0;
+    }
     stopPracticeTest(); // STAGE開始時は最終確認テストを停止（安全処理）
     stopBtCal();
     stopTapCal();
@@ -3601,14 +3620,19 @@ function play() {
     // 基準はctxがrunningになった最初のフレームでloop内で確定する（-1＝未確定）。
     state.startTime = performance.now();
     state.audioStartTime = -1;
+    state.audioWaitStartTime = 0;
     state.scheduledClicks = [];
     state.raf = requestAnimationFrame(loop);
 }
 
 function stop() {
+    if (state.raf) {
+        cancelAnimationFrame(state.raf);
+        state.raf = 0;
+    }
     if (!state.running) return;
     state.running = false;
-    cancelAnimationFrame(state.raf);
+    state.audioWaitStartTime = 0;
     // 先読みでスケジュール済みの未発音クリックを止める（停止後に鳴り続けないように）
     state.scheduledClicks.forEach((osc) => { try { osc.stop(); } catch (_) { } });
     state.scheduledClicks = [];
