@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.125';
+const RHYTHM_CRUISE_VERSION = '0.9.126';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -446,6 +446,7 @@ const els = {
     customTestSave: $('custom-test-save'),
     customTestPreview: $('custom-test-preview'),
     customTestPreviewScore: $('custom-test-preview-score'),
+    customFlowScoreLayer: $('custom-flow-score-layer'),
     tempoVal: $('tempo-val'),
     tempoUp: $('tempo-up'),
     tempoDown: $('tempo-down'),
@@ -1308,7 +1309,7 @@ function ensureRhythmVexFlow(cb) {
     if (rhythmVexState === 'loading') return;
     rhythmVexState = 'loading';
     const s = document.createElement('script');
-    s.src = 'vendor/vexflow.js?v=0.9.125';
+    s.src = 'vendor/vexflow.js?v=0.9.126';
     s.async = true;
     s.onload = () => {
         rhythmVexState = getRhythmVexFlow() ? 'ready' : 'error';
@@ -1781,6 +1782,18 @@ function hideRhythmCustomTestPreview() {
     if (els.customTestPreviewScore) els.customTestPreviewScore.innerHTML = '';
 }
 
+/* ── 流れるVexFlow譜面レイヤー（v0.9.126・Step1）─────────────────────────
+   lane-wrap 内に置いた、カスタムSTAGEテスト再生専用のレイヤー枠の表示/非表示。
+   今回はまだ譜面を流し込まない（枠だけ）。STAGE1/基礎練では必ず隠す。 */
+function showCustomFlowScoreLayer() {
+    if (els.customFlowScoreLayer) els.customFlowScoreLayer.classList.remove('hidden');
+}
+function hideCustomFlowScoreLayer() {
+    if (!els.customFlowScoreLayer) return;
+    els.customFlowScoreLayer.classList.add('hidden');
+    els.customFlowScoreLayer.innerHTML = ''; // 将来の流し込み内容を確実にクリア
+}
+
 /* 音符（上段）タップ：音符 → 休符 → タイ → 音符（空振りは廃止）。
    休符/タイでも括弧つき矢印を出すため dir は引き継ぐ（無ければ down）。 */
 function tapRhythmEditorNote(index) {
@@ -2143,6 +2156,7 @@ function leaveCustomTestState() {
     configureEngineForStage1();
     applyStageBars();
     hideRhythmCustomTestPreview();    // カスタムテストを抜けたら譜面プレビューを必ず消す（v0.9.125）
+    hideCustomFlowScoreLayer();       // 流れるVexFlow譜面レイヤー枠も必ず隠してクリア（v0.9.126）
 }
 
 /* PROカスタムSTAGEのテスト再生（v0.9.124）。
@@ -2159,6 +2173,7 @@ function openRhythmProCustomTest(id) {
     if (els.practiceEditBack) els.practiceEditBack.classList.remove('hidden');
     if (els.customTestActions) els.customTestActions.classList.remove('hidden'); // 開始ボタン下の2ボタンを表示
     renderRhythmCustomTestPreview(eng.custom);    // 読み取り専用のVexFlow譜面プレビューを表示（v0.9.125）
+    showCustomFlowScoreLayer();                   // 流れるVexFlow譜面レイヤー枠を表示（中身は次工程・v0.9.126）
     state.bpm = clampNum(stage.bpm, 40, 200, state.bpm); // 再生エンジンのBPM範囲に合わせてclamp
     state.bars = stage.bars;
     if (els.tempoVal) els.tempoVal.textContent = state.bpm;

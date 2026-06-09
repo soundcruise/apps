@@ -3472,6 +3472,18 @@ body.results-open #settings-btn {
 /* ═══════════════════════════════════════════════════════════
    判定演出（GOOD / EARLY / LATE / MISS）＋ コンボ
 ═══════════════════════════════════════════════════════════ */
+/* カスタムSTAGEテスト再生専用：流れるVexFlow譜面レイヤー枠（v0.9.126・Step1）。
+   Canvas判定レーン(#lane-canvas, z-auto)の上・判定エフェクト(.judge-fx-layer, z:3)の下に重ねる。
+   pointer-events:none でタップ判定を邪魔しない。今回は枠だけで中身・背景は持たせない（見た目を変えない）。
+   .hidden のときは非表示。将来この中で譜面を横移動させられるよう overflow:hidden にしておく。 */
+.custom-flow-score-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 2;
+}
+
 .judge-fx-layer {
     position: absolute;
     inset: 0;

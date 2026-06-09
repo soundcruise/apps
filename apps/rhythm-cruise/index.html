@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.125">
+    <link rel="stylesheet" href="theme.css?v=0.9.126">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -228,6 +228,9 @@
             <!-- 5. スクロール譜面レーン（主役） + タップ入力エリア -->
             <div class="lane-wrap" id="tap-pad">
                 <canvas id="lane-canvas"></canvas>
+                <!-- カスタムSTAGEテスト再生専用：流れるVexFlow譜面レイヤー枠（v0.9.126・Step1）。
+                     今回は枠だけ（中身は空）。STAGE1/基礎練では非表示。pointer-events:none でタップ判定を邪魔しない。 -->
+                <div class="custom-flow-score-layer hidden" id="custom-flow-score-layer" aria-hidden="true"></div>
                 <div class="judge-fx-layer" id="judge-fx-layer"></div>
                 <div class="combo-badge hidden" id="combo-badge"></div>
             </div>
@@ -912,7 +915,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.125"></script>
+    <script src="script.js?v=0.9.126"></script>
 </body>
 
 </html>
