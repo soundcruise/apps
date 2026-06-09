@@ -939,6 +939,50 @@ h1 {
 }
 
 /* VexFlow が描く SVG 譜面。音符・連桁・タイは金色。横基準線(line)は別色なので path/rect のみ着色。 */
+/* 再生位置の縦棒（譜面プレビュー専用・v0.9.136）。リズム確認再生中のみ is-active で表示。
+   lane（position:relative）基準の絶対配置で、translateX で左→右へ移動する。譜面より前面。 */
+.pce-vex-playhead {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 2px;
+    margin-left: -1px;
+    background: #ff9f1c;
+    box-shadow: 0 0 6px rgba(255, 159, 28, 0.7);
+    border-radius: 1px;
+    pointer-events: none;
+    z-index: 4;
+    display: none;
+    will-change: transform;
+}
+
+.pce-vex-playhead.is-active {
+    display: block;
+}
+
+/* ダウン/アップ矢印（譜面プレビュー専用・v0.9.136）。各 hit セルの符頭真下に小さく表示。
+   lane（position:relative）基準で、横スクロール時は譜面と一緒に動く。playhead より背面。 */
+.pce-vex-arrows {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.pce-vex-arrow {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    font-size: 1.18rem;
+    line-height: 1;
+    font-weight: 700;
+    color: rgba(255, 209, 102, 0.92);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
 .pce-vex-score svg {
     display: block;
 }

@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.135';
+const RHYTHM_CRUISE_VERSION = '0.9.136';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -1297,6 +1297,8 @@ function setSegActive(container, attr, value) {
    PoC（_poc/vexflow-lane.html）で検証した「ピン留めON＝符頭中心をセル中心へ」を本仕様とする。 */
 const RHYTHM_VEX_CELL_W = 64;   // 1セルの横幅(px)。タップ格子・ピン留めで共有。
 const RHYTHM_VEX_LANE_H = 104;  // 譜面レーンの高さ(px)
+const RHYTHM_VEX_PREVIEW_ARROW_BAND = 36; // 静的プレビュー専用：矢印の下に確保する余白(px)・v0.9.136
+const RHYTHM_VEX_PREVIEW_ARROW_GAP = 16;  // 静的プレビュー専用：符頭中心から矢印までの距離(px)・v0.9.136
 const RHYTHM_SVGNS = 'http://www.w3.org/2000/svg';
 let rhythmVexState = 'idle';    // idle | loading | ready | error
 const rhythmVexWaiters = [];
@@ -1314,7 +1316,7 @@ function ensureRhythmVexFlow(cb) {
     if (rhythmVexState === 'loading') return;
     rhythmVexState = 'loading';
     const s = document.createElement('script');
-    s.src = 'vendor/vexflow.js?v=0.9.135';
+    s.src = 'vendor/vexflow.js?v=0.9.136';
     s.async = true;
     s.onload = () => {
         rhythmVexState = getRhythmVexFlow() ? 'ready' : 'error';
@@ -1672,9 +1674,11 @@ function drawRhythmVexPreview(VF, d, mount) {
     const pxPerBeat = (state.pxPerBeat > 0) ? state.pxPerBeat : 90;
     const cellW = Math.max(8, pxPerBeat * (cellTicks / RHYTHM_TPQ));
     const laneW = N * cellW;
-    const H = RHYTHM_VEX_LANE_H;
+    const H = RHYTHM_VEX_LANE_H;                       // 譜面（SVG）描画域の高さ。STAGE/編集と共通で変えない。
+    const laneH = H + RHYTHM_VEX_PREVIEW_ARROW_BAND;   // レーン全体は矢印＋下余白ぶん高くする（プレビュー専用・v0.9.136）。
     const stepsPerBar = rhythmCustomStepsPerBar(d.grid, ts);
-    const patternBars = rhythmCustomPatternBars(d.patternBars) || Math.max(1, Math.round(N / stepsPerBar));
+    // 表示は state.bars 展開後の実セル数から小節数を出す（patternBars が4超でも破綻しない・v0.9.136）。
+    const patternBars = Math.max(1, Math.round(N / stepsPerBar));
 
     mount.innerHTML = '';
     const scroll = document.createElement('div');
@@ -1682,7 +1686,7 @@ function drawRhythmVexPreview(VF, d, mount) {
     const lane = document.createElement('div');
     lane.className = 'pce-vex-lane';
     lane.style.width = laneW + 'px';
-    lane.style.height = H + 'px';                 // 読み取り専用：高さは譜面1段ぶんに固定
+    lane.style.height = laneH + 'px';             // 譜面＋矢印＋下余白ぶん（v0.9.136）
     lane.style.setProperty('--pce-cell', cellW + 'px');
     const scoreEl = document.createElement('div');
     scoreEl.className = 'pce-vex-score';
@@ -1759,6 +1763,37 @@ function drawRhythmVexPreview(VF, d, mount) {
         }
         lane.appendChild(overlay);
     }
+
+    // ダウン/アップ矢印（v0.9.136）。hit:true のセルだけ、符頭中心の真下に ↓/↑ を表示する。
+    // 位置は符頭ピン留めと同じ (i+0.5)*cellW。rest/tie/hit:false は表示しない。横スクロールで譜面と一緒に動く。
+    // 縦は符頭ベースライン(baselineY)から一定距離下げて置き、下にも余白(laneH-H)が残るようにする。
+    const arrowTop = Math.round((baselineY != null ? baselineY : H * 0.6) + RHYTHM_VEX_PREVIEW_ARROW_GAP);
+    const arrowLayer = document.createElement('div');
+    arrowLayer.className = 'pce-vex-arrows';
+    for (let i = 0; i < d.pattern.length; i++) {
+        const c = d.pattern[i];
+        if (!c || !c.hit) continue;
+        const arrow = document.createElement('span');
+        arrow.className = 'pce-vex-arrow';
+        arrow.textContent = (c.dir === 'up') ? '↑' : '↓';
+        arrow.style.left = ((i + 0.5) * cellW) + 'px';
+        arrow.style.top = arrowTop + 'px';
+        arrowLayer.appendChild(arrow);
+    }
+    lane.appendChild(arrowLayer);
+
+    // 再生位置の縦棒（v0.9.136）。リズム確認再生中だけ表示し、translateX で左→右へ動かす。
+    // この棒は譜面プレビュー専用の視覚再生で、Playレーン/判定/流れるVexFlow譜面には一切関係しない。
+    const playhead = document.createElement('div');
+    playhead.className = 'pce-vex-playhead';
+    playhead.style.height = laneH + 'px';         // レーン全高ぶん（従来どおり縦棒はレーンを縦断・v0.9.136）
+    lane.appendChild(playhead);
+    rhythmPreviewView.scrollEl = scroll;
+    rhythmPreviewView.laneEl = lane;
+    rhythmPreviewView.barEl = playhead;
+    rhythmPreviewView.laneW = laneW;
+    // 再描画直後は停止状態（再生中に再描画されることは無い設計）。
+    hideRhythmPreviewPlayhead();
 }
 
 /* 上部の静的譜面プレビューを折りたたみ化（v0.9.134）。初期は閉じ、Playレーンと開始ボタンを優先する。
@@ -1787,7 +1822,8 @@ function setRhythmCustomTestPreviewOpen(open) {
         els.customTestPreviewToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
         els.customTestPreviewToggle.textContent = open ? '譜面プレビューを隠す' : '譜面プレビューを表示';
     }
-    if (open && !rhythmPreviewRendered) drawRhythmCustomTestPreviewBody();
+    // 開くたびに現在の state.bars に合わせて描き直す（小節数変更を反映・v0.9.136）。
+    if (open) drawRhythmCustomTestPreviewBody();
 }
 
 /* 折りたたみボタンのトグル。 */
@@ -1812,7 +1848,10 @@ function drawRhythmCustomTestPreviewBody() {
         return;
     }
     try {
-        drawRhythmVexPreview(VF, stage, els.customTestPreviewScore);
+        // 表示は現在のテスト再生ページ指定の小節数（state.bars）に展開して描く（v0.9.136）。
+        // buildRhythmFlowDisplayStage() は eng.pattern を state.bars 分に繰り返した新しいSTAGEを返す（eng.pattern は不変）。
+        const displayStage = buildRhythmFlowDisplayStage() || stage;
+        drawRhythmVexPreview(VF, displayStage, els.customTestPreviewScore);
         rhythmPreviewRendered = true;
     } catch (e) {
         els.customTestPreviewScore.innerHTML = '<p class="pce-vex-loading">譜面プレビューを表示できませんでした。</p>';
@@ -1831,6 +1870,11 @@ function hideRhythmCustomTestPreview() {
         els.customTestPreviewToggle.textContent = '譜面プレビューを表示';
     }
     if (els.customTestPreviewScore) els.customTestPreviewScore.innerHTML = '';
+    // 縦棒/スクロールの参照を破棄（DOMは消えたので次回描画時に張り直す・v0.9.136）。
+    rhythmPreviewView.scrollEl = null;
+    rhythmPreviewView.laneEl = null;
+    rhythmPreviewView.barEl = null;
+    rhythmPreviewView.laneW = 0;
 }
 
 /* ── 譜面プレビューのリズム確認音（v0.9.135）──────────────────────────
@@ -1853,6 +1897,15 @@ const rhythmPreview = {
     hitOffsets: [],  // 1ループ内の hit 発音オフセット（秒）
     clicks: [],      // 1ループ内のクリック {off:秒, accent:bool}
     nodes: [],       // スケジュール済みの音源/ゲイン（停止時に即停止して裏で鳴らさない）
+};
+/* 再生位置の縦棒＋自動スクロール（v0.9.136）。譜面プレビュー専用の視覚再生。
+   barEl/scrollEl/laneEl は drawRhythmVexPreview が描画時に差し込む。raf は縦棒アニメの requestAnimationFrame id。 */
+const rhythmPreviewView = {
+    raf: 0,
+    scrollEl: null,
+    laneEl: null,
+    barEl: null,
+    laneW: 0,
 };
 const PREVIEW_LOOKAHEAD_SEC = 0.2;          // この先までを先読みでスケジュール
 const PREVIEW_TICK_MS = 40;                 // スケジューラの呼び出し間隔
@@ -1880,18 +1933,22 @@ function rhythmPreviewClickMul() {
    1拍=24tick 設計：cellMs = engQuarterMs() * (cellTicks/24)。8分/16分/32分/三連でもこの式でズレない。
    クリックは STAGE 本体と同じ engIsPulse（4/4・3/4・2/4＝4分ごと / 6/8＝付点4分ごと）に合わせる。 */
 function buildRhythmPreviewPlan() {
-    const cells = (eng.custom && eng.pattern && eng.pattern.length) ? eng.pattern : null;
-    if (!cells) return null;
+    const base = (eng.custom && eng.pattern && eng.pattern.length) ? eng.pattern : null;
+    if (!base) return null;
     const cellMs = engQuarterMs() * (eng.cellTicks / RHYTHM_TPQ); // engCellMs相当（BPM・最小音符基準）
     if (!(cellMs > 0)) return null;
+    // 表示（静的プレビュー）と同じく state.bars 分に展開して1ループとする（v0.9.136）。
+    // base は patternBars 分。base[i % base.length] で state.bars 小節ぶんを埋める（eng.pattern は書き換えない）。
+    const targetBars = Math.max(1, Math.round(state.bars || 1));
+    const targetCells = eng.cellsPerBar * targetBars;
     const hitOffsets = [];
     const clicks = [];
-    for (let i = 0; i < cells.length; i++) {
-        const c = cells[i];
+    for (let i = 0; i < targetCells; i++) {
+        const c = base[i % base.length];
         if (c && c.hit) hitOffsets.push((i * cellMs) / 1000); // hit:trueのみ（rest/tieはhit:falseで除外）
         if (engIsPulse(i)) clicks.push({ off: (i * cellMs) / 1000, accent: engBarStart(i) });
     }
-    const loopSec = (cells.length * cellMs) / 1000;
+    const loopSec = (targetCells * cellMs) / 1000;
     if (!(loopSec > 0)) return null;
     return { hitOffsets, clicks, loopSec };
 }
@@ -2023,6 +2080,46 @@ function startPreviewRhythm() {
     rhythmPreview.playing = true;
     setRhythmPreviewPlayUI(true);
     rhythmPreviewSchedulerTick();
+    startRhythmPreviewPlayhead(); // 再生位置の縦棒＋自動スクロール開始（v0.9.136）
+}
+
+/* 再生位置の縦棒を表示し、アニメ（縦棒移動＋自動スクロール）を開始する（v0.9.136）。
+   stopPreviewRhythm() が先に raf を止めるため二重起動しないが、念のため既存rafを畳んでから1本だけ回す。 */
+function startRhythmPreviewPlayhead() {
+    const v = rhythmPreviewView;
+    if (v.barEl) { v.barEl.classList.add('is-active'); v.barEl.style.transform = 'translateX(0px)'; }
+    if (v.scrollEl) v.scrollEl.scrollLeft = 0;
+    if (v.raf) { cancelAnimationFrame(v.raf); v.raf = 0; }
+    v.raf = requestAnimationFrame(rhythmPreviewPlayheadTick);
+}
+
+/* 縦棒を非表示にして先頭へ戻し、自動スクロールも先頭へ戻す（v0.9.136）。 */
+function hideRhythmPreviewPlayhead() {
+    const v = rhythmPreviewView;
+    if (v.barEl) { v.barEl.classList.remove('is-active'); v.barEl.style.transform = 'translateX(0px)'; }
+    if (v.scrollEl) v.scrollEl.scrollLeft = 0;
+}
+
+/* 縦棒移動＋自動スクロール本体（v0.9.136）。音声と同じ絶対時刻基準で、ループ内の経過割合から横位置を出す。
+   progress = (ctx.currentTime - baseTime) % loopSec / loopSec。ループ境界で自然に先頭へ戻る（飛び/置き去り無し）。 */
+function rhythmPreviewPlayheadTick() {
+    const v = rhythmPreviewView;
+    if (!rhythmPreview.playing) { v.raf = 0; return; }
+    const ctx = rhythmPreview.ctx;
+    if (ctx && v.barEl && rhythmPreview.loopSec > 0) {
+        const elapsed = ctx.currentTime - rhythmPreview.baseTime;
+        const progress = elapsed <= 0 ? 0 : (elapsed % rhythmPreview.loopSec) / rhythmPreview.loopSec;
+        const x = progress * v.laneW;
+        v.barEl.style.transform = 'translateX(' + x + 'px)';
+        const scroll = v.scrollEl;
+        if (scroll) {
+            const vw = scroll.clientWidth;
+            const maxScroll = Math.max(0, v.laneW - vw);
+            const target = Math.max(0, Math.min(maxScroll, x - vw / 2)); // 縦棒を中央付近に追従
+            scroll.scrollLeft = target;
+        }
+    }
+    v.raf = requestAnimationFrame(rhythmPreviewPlayheadTick);
 }
 
 /* リズム確認音の停止。スケジューラを止め、予約済みノード（コード音源・クリック）も即停止して裏で鳴り続けないようにする。 */
@@ -2035,6 +2132,9 @@ function stopPreviewRhythm() {
         try { if (n.gain) n.gain.disconnect(); } catch (_) { /* noop */ }
     });
     rhythmPreview.nodes = [];
+    // 縦棒アニメ＋自動スクロールを必ず止めて先頭へ戻す（rafを残さない・v0.9.136）。
+    if (rhythmPreviewView.raf) { cancelAnimationFrame(rhythmPreviewView.raf); rhythmPreviewView.raf = 0; }
+    hideRhythmPreviewPlayhead();
     setRhythmPreviewPlayUI(false);
 }
 
