@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.124';
+const RHYTHM_CRUISE_VERSION = '0.9.125';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -444,6 +444,8 @@ const els = {
     customTestActions: $('custom-test-actions'),
     customTestEditBack: $('custom-test-edit-back'),
     customTestSave: $('custom-test-save'),
+    customTestPreview: $('custom-test-preview'),
+    customTestPreviewScore: $('custom-test-preview-score'),
     tempoVal: $('tempo-val'),
     tempoUp: $('tempo-up'),
     tempoDown: $('tempo-down'),
@@ -1306,7 +1308,7 @@ function ensureRhythmVexFlow(cb) {
     if (rhythmVexState === 'loading') return;
     rhythmVexState = 'loading';
     const s = document.createElement('script');
-    s.src = 'vendor/vexflow.js?v=0.9.124';
+    s.src = 'vendor/vexflow.js?v=0.9.125';
     s.async = true;
     s.onload = () => {
         rhythmVexState = getRhythmVexFlow() ? 'ready' : 'error';
@@ -1646,6 +1648,137 @@ function drawRhythmVexLane(VF, d) {
         }
         lane.appendChild(overlay);
     }
+}
+
+/* ── カスタムSTAGEテスト再生：読み取り専用のVexFlow譜面プレビュー（v0.9.125）──────────
+   編集画面の VexFlow 描画ロジック（rhythmBuildVexItems / rhythmTimeSigInfo /
+   rhythmBeamGroupFraction など）をそのまま再利用し、テスト再生画面に静的な譜面だけを表示する。
+   編集画面と違い、タップ格子・下段矢印・拍ラベルなどの編集UIは描かない（読み取り専用）。
+   既存の流れるCanvas判定レーン（drawLane / drawQuarterNote）には一切触れない。 */
+function drawRhythmVexPreview(VF, d, mount) {
+    const { Renderer, Stave, StaveTie, Beam, Voice, Formatter } = VF;
+    const ts = rhythmCustomTimeSig(d.timeSignature);
+    const info = rhythmTimeSigInfo(ts);
+    const N = d.pattern.length;
+    const cellW = RHYTHM_VEX_CELL_W;
+    const laneW = N * cellW;
+    const H = RHYTHM_VEX_LANE_H;
+    const cellTicks = rhythmGridCellTicks(d.grid);
+    const stepsPerBar = rhythmCustomStepsPerBar(d.grid, ts);
+    const patternBars = rhythmCustomPatternBars(d.patternBars) || Math.max(1, Math.round(N / stepsPerBar));
+
+    mount.innerHTML = '';
+    const scroll = document.createElement('div');
+    scroll.className = 'pce-vex-scroll';
+    const lane = document.createElement('div');
+    lane.className = 'pce-vex-lane';
+    lane.style.width = laneW + 'px';
+    lane.style.height = H + 'px';                 // 読み取り専用：高さは譜面1段ぶんに固定
+    lane.style.setProperty('--pce-cell', cellW + 'px');
+    const scoreEl = document.createElement('div');
+    scoreEl.className = 'pce-vex-score';
+    lane.appendChild(scoreEl);
+    scroll.appendChild(lane);
+    mount.appendChild(scroll);
+
+    const built = rhythmBuildVexItems(d, VF);
+    const items = built.items;
+    const notes = items.map((it) => it.note);
+
+    const renderer = new Renderer(scoreEl, Renderer.Backends.SVG);
+    renderer.resize(laneW, H);
+    const ctx = renderer.getContext();
+    ctx.setFillStyle('#ffd166');
+    ctx.setStrokeStyle('#ffd166');
+
+    const stave = new Stave(0, 24, laneW);
+    stave.setNumLines(1);
+    stave.setContext(ctx);
+
+    const voice = new Voice({ num_beats: info.beats * patternBars, beat_value: info.beatValue });
+    voice.setStrict(false);
+    voice.addTickables(notes);
+    let beams;
+    if (built.beamLists) {
+        beams = built.beamLists.map((list) => new Beam(list));
+    } else {
+        beams = Beam.generateBeams(notes, { groups: [rhythmBeamGroupFraction(VF, info)], beam_rests: false, maintain_stem_directions: true });
+    }
+    new Formatter().joinVoices([voice]).format([voice], Math.max(1, laneW - 24));
+    notes.forEach((n) => n.setStave(stave));
+    items.forEach((it) => {
+        const desiredCenter = (it.cellIndex + 0.5) * cellW;
+        const center = it.note.getNoteHeadBeginX() + it.note.getGlyphWidth() / 2;
+        it.note.setXShift(desiredCenter - center);
+    });
+
+    voice.draw(ctx, stave);
+    beams.forEach((b) => b.setContext(ctx).draw());
+    built.tuplets.forEach((t) => { try { t.setContext(ctx).draw(); } catch (e) { /* noop */ } });
+    for (let i = 1; i < items.length; i++) {
+        if (items[i].tieToPrev) {
+            new StaveTie({ first_note: items[i - 1].note, last_note: items[i].note, first_indices: [0], last_indices: [0] })
+                .setContext(ctx).draw();
+        }
+    }
+
+    let baselineY = null;
+    for (const it of items) {
+        if (it.isRest) continue;
+        try { const ys = it.note.getYs(); if (ys && ys.length) { baselineY = ys[0]; break; } } catch (e) { /* noop */ }
+    }
+    if (baselineY == null) baselineY = stave.getYForLine(0);
+    const svg = scoreEl.querySelector('svg');
+    if (svg) {
+        const line = document.createElementNS(RHYTHM_SVGNS, 'line');
+        line.setAttribute('x1', '0'); line.setAttribute('y1', String(baselineY));
+        line.setAttribute('x2', String(laneW)); line.setAttribute('y2', String(baselineY));
+        line.setAttribute('stroke', 'rgba(253,246,238,0.22)');
+        line.setAttribute('stroke-width', '1.4');
+        svg.insertBefore(line, svg.firstChild);
+    }
+
+    if (patternBars > 1) {
+        const overlay = document.createElement('div');
+        overlay.className = 'pce-vex-barlines';
+        for (let bIdx = 1; bIdx < patternBars; bIdx++) {
+            const x = bIdx * stepsPerBar * cellW;
+            const bar = document.createElement('div');
+            bar.className = 'pce-vex-barline';
+            bar.style.left = (x - 1) + 'px';
+            overlay.appendChild(bar);
+        }
+        lane.appendChild(overlay);
+    }
+}
+
+/* テスト再生画面の譜面プレビューを描画（VexFlow 未ロード時は読み込み→再描画、失敗時はメッセージ）。
+   stage は eng.custom（正規化済みカスタムSTAGE）。VexFlow が無くてもテスト再生本体は壊さない。 */
+function renderRhythmCustomTestPreview(stage) {
+    if (!els.customTestPreview || !els.customTestPreviewScore) return;
+    if (!stage || !stage.pattern || !stage.pattern.length) { hideRhythmCustomTestPreview(); return; }
+    els.customTestPreview.classList.remove('hidden');
+    const VF = getRhythmVexFlow();
+    if (!VF) {
+        els.customTestPreviewScore.innerHTML = '<p class="pce-vex-loading">譜面プレビューを準備中です…</p>';
+        ensureRhythmVexFlow((ok) => {
+            if (eng.custom !== stage) return; // 既に別STAGE/退出済みなら破棄
+            if (ok) renderRhythmCustomTestPreview(stage);
+            else els.customTestPreviewScore.innerHTML = '<p class="pce-vex-loading">譜面プレビューを表示できませんでした。</p>';
+        });
+        return;
+    }
+    try {
+        drawRhythmVexPreview(VF, stage, els.customTestPreviewScore);
+    } catch (e) {
+        els.customTestPreviewScore.innerHTML = '<p class="pce-vex-loading">譜面プレビューを表示できませんでした。</p>';
+    }
+}
+
+/* 譜面プレビューを隠して中身を空にする（STAGE1や編集に戻る・TOP等で確実に消す）。 */
+function hideRhythmCustomTestPreview() {
+    if (els.customTestPreview) els.customTestPreview.classList.add('hidden');
+    if (els.customTestPreviewScore) els.customTestPreviewScore.innerHTML = '';
 }
 
 /* 音符（上段）タップ：音符 → 休符 → タイ → 音符（空振りは廃止）。
@@ -2009,6 +2142,7 @@ function leaveCustomTestState() {
     }
     configureEngineForStage1();
     applyStageBars();
+    hideRhythmCustomTestPreview();    // カスタムテストを抜けたら譜面プレビューを必ず消す（v0.9.125）
 }
 
 /* PROカスタムSTAGEのテスト再生（v0.9.124）。
@@ -2024,6 +2158,7 @@ function openRhythmProCustomTest(id) {
     eng.editId = stage.id;                        // 「編集に戻る」用に元STAGEを記憶
     if (els.practiceEditBack) els.practiceEditBack.classList.remove('hidden');
     if (els.customTestActions) els.customTestActions.classList.remove('hidden'); // 開始ボタン下の2ボタンを表示
+    renderRhythmCustomTestPreview(eng.custom);    // 読み取り専用のVexFlow譜面プレビューを表示（v0.9.125）
     state.bpm = clampNum(stage.bpm, 40, 200, state.bpm); // 再生エンジンのBPM範囲に合わせてclamp
     state.bars = stage.bars;
     if (els.tempoVal) els.tempoVal.textContent = state.bpm;

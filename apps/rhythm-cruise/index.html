@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.124">
+    <link rel="stylesheet" href="theme.css?v=0.9.125">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -184,6 +184,13 @@
                         <button type="button" class="practice-mode-label" id="practice-mode-label" aria-label="入力方式を切り替える">タップモード</button>
                     </div>
                 </div>
+            </div>
+
+            <!-- 1b. カスタムSTAGEテスト再生時だけ表示する読み取り専用のVexFlow譜面プレビュー（v0.9.125）。
+                 既存の流れるCanvas判定レーンは変更せず、編集画面と同じ譜面を静的表示するだけ。STAGE1/基礎練では非表示。 -->
+            <div class="custom-test-preview hidden" id="custom-test-preview">
+                <div class="custom-test-preview-cap">譜面プレビュー</div>
+                <div class="custom-test-preview-score" id="custom-test-preview-score"></div>
             </div>
 
             <!-- 2. BPM・小節数操作（v0.9.118：横並び） -->
@@ -905,7 +912,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.124"></script>
+    <script src="script.js?v=0.9.125"></script>
 </body>
 
 </html>
