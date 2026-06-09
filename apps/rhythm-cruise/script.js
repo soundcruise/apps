@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.132';
+const RHYTHM_CRUISE_VERSION = '0.9.133';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -1310,7 +1310,7 @@ function ensureRhythmVexFlow(cb) {
     if (rhythmVexState === 'loading') return;
     rhythmVexState = 'loading';
     const s = document.createElement('script');
-    s.src = 'vendor/vexflow.js?v=0.9.132';
+    s.src = 'vendor/vexflow.js?v=0.9.133';
     s.async = true;
     s.onload = () => {
         rhythmVexState = getRhythmVexFlow() ? 'ready' : 'error';
@@ -3642,6 +3642,16 @@ function stop() {
     els.latestVerdict.textContent = 'スタンバイ';
     els.latestVerdict.dataset.state = 'idle';
     if (els.tapHint) els.tapHint.classList.remove('dim');
+}
+
+/* 画面が非表示/離脱になったときの安全停止（v0.9.133）。
+   バックグラウンド中も AudioContext の時計だけ進み、復帰時に gameAudioMs() が大きくジャンプして
+   譜面/progressが一気に進むのを防ぐ。自動再開はしない（戻ってきたらユーザーが再度「開始」を押す）。
+   判定・再生エンジンには手を入れず、既存の stop() をそのまま使う。 */
+function stopForPageHidden() {
+    if (!state.running) return;
+    stop();
+    showRcToast('画面が非表示になったため停止しました');
 }
 
 function resetData() {
@@ -10390,6 +10400,13 @@ function bind() {
             if (els.resultsDetail && els.resultsDetail.open) { fitGraph(); fitResultsMic(); }
         }
     });
+
+    // 画面非表示/離脱で安全停止（v0.9.133）。自動再開はしない＝復帰後はユーザーが再度「開始」を押す。
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) stopForPageHidden();
+    });
+    // iOS Safari / ホーム画面アプリでは visibilitychange を取りこぼすことがあるため pagehide でも安全停止。
+    window.addEventListener('pagehide', stopForPageHidden);
 }
 
 /* ── ページ更新（キャッシュバスター付き・シリーズ共通の挙動） ── */
