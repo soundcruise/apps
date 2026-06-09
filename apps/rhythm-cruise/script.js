@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.126';
+const RHYTHM_CRUISE_VERSION = '0.9.127';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -1309,7 +1309,7 @@ function ensureRhythmVexFlow(cb) {
     if (rhythmVexState === 'loading') return;
     rhythmVexState = 'loading';
     const s = document.createElement('script');
-    s.src = 'vendor/vexflow.js?v=0.9.126';
+    s.src = 'vendor/vexflow.js?v=0.9.127';
     s.async = true;
     s.onload = () => {
         rhythmVexState = getRhythmVexFlow() ? 'ready' : 'error';
@@ -1791,7 +1791,100 @@ function showCustomFlowScoreLayer() {
 function hideCustomFlowScoreLayer() {
     if (!els.customFlowScoreLayer) return;
     els.customFlowScoreLayer.classList.add('hidden');
-    els.customFlowScoreLayer.innerHTML = ''; // 将来の流し込み内容を確実にクリア
+    els.customFlowScoreLayer.innerHTML = ''; // 流し込み内容を確実にクリア
+}
+
+/* ── 流れるVexFlow譜面の静止描画（v0.9.127・Step2）─────────────────────────
+   lane-wrap 内の流し込みレイヤーに、カスタムSTAGEの譜面を VexFlow で静止描画する。
+   座標は既存Canvas判定レーンに合わせる：
+     ・セル間隔 cellW = state.pxPerBeat * (eng.cellTicks / 24)  ← Canvasのセル間隔と一致
+     ・セル i の符頭中心を x = state.judgeX + i*cellW に置く（セル0＝JUSTライン＝再生時刻 t=T0 のスナップショット）
+     ・符頭の縦位置を Canvasの音符中心 yc=高さ*0.56 に合わせる
+   今回はまだ横移動しない（静止）。Canvas音符・drawLane・drawQuarterNote には一切触れない。
+   VexFlow未ロード/失敗でもテスト再生本体は壊さない（レイヤーは空のまま）。 */
+function renderRhythmFlowScore() {
+    const layer = els.customFlowScoreLayer;
+    if (!layer || !eng.custom || !eng.pattern || !eng.pattern.length) return;
+    const VF = getRhythmVexFlow();
+    if (!VF) {
+        ensureRhythmVexFlow((ok) => {
+            if (ok && eng.custom) renderRhythmFlowScore(); // ロード完了後に再描画。失敗時は空のまま
+        });
+        return;
+    }
+    try { drawRhythmFlowScore(VF); }
+    catch (e) { layer.innerHTML = ''; } // 失敗してもテスト再生は継続（レイヤーは空）
+}
+
+function drawRhythmFlowScore(VF) {
+    const { Renderer, Stave, StaveTie, Beam, Voice, Formatter } = VF;
+    const layer = els.customFlowScoreLayer;
+    const d = eng.custom;
+    const ts = rhythmCustomTimeSig(d.timeSignature);
+    const info = rhythmTimeSigInfo(ts);
+    const N = eng.pattern.length;
+    const H = (lane && lane.h) ? lane.h : 168;
+    const yc = H * 0.56;                                            // Canvasの音符中心(drawLane)と同じ
+    const judgeX = state.judgeX;
+    const cellW = state.pxPerBeat * (eng.cellTicks / RHYTHM_TPQ);   // Canvasのセル間隔と一致
+    const stepsPerBar = rhythmCustomStepsPerBar(d.grid, ts);
+    const patternBars = rhythmCustomPatternBars(d.patternBars) || Math.max(1, Math.round(N / stepsPerBar));
+    const laneW = Math.ceil(judgeX + N * cellW + cellW);           // 右に1セルぶん余白
+
+    layer.innerHTML = '';
+    const scoreEl = document.createElement('div');
+    scoreEl.className = 'custom-flow-score';
+    layer.appendChild(scoreEl);
+
+    const built = rhythmBuildVexItems(d, VF);
+    const items = built.items;
+    const notes = items.map((it) => it.note);
+
+    const renderer = new Renderer(scoreEl, Renderer.Backends.SVG);
+    renderer.resize(laneW, H);
+    const ctx = renderer.getContext();
+    ctx.setFillStyle('#ffd166');
+    ctx.setStrokeStyle('#ffd166');
+
+    const stave = new Stave(0, 24, laneW);
+    stave.setNumLines(1);
+    stave.setContext(ctx);
+
+    const voice = new Voice({ num_beats: info.beats * patternBars, beat_value: info.beatValue });
+    voice.setStrict(false);
+    voice.addTickables(notes);
+    let beams;
+    if (built.beamLists) {
+        beams = built.beamLists.map((list) => new Beam(list));
+    } else {
+        beams = Beam.generateBeams(notes, { groups: [rhythmBeamGroupFraction(VF, info)], beam_rests: false, maintain_stem_directions: true });
+    }
+    new Formatter().joinVoices([voice]).format([voice], Math.max(1, laneW - 24));
+    notes.forEach((n) => n.setStave(stave));
+    // ピン留め：セル i の符頭中心を judgeX + i*cellW（=Canvasのセル中心。セル0=JUSTライン）へ
+    items.forEach((it) => {
+        const desiredCenter = judgeX + it.cellIndex * cellW;
+        const center = it.note.getNoteHeadBeginX() + it.note.getGlyphWidth() / 2;
+        it.note.setXShift(desiredCenter - center);
+    });
+
+    voice.draw(ctx, stave);
+    beams.forEach((b) => b.setContext(ctx).draw());
+    built.tuplets.forEach((t) => { try { t.setContext(ctx).draw(); } catch (e) { /* noop */ } });
+    for (let i = 1; i < items.length; i++) {
+        if (items[i].tieToPrev) {
+            new StaveTie({ first_note: items[i - 1].note, last_note: items[i].note, first_indices: [0], last_indices: [0] })
+                .setContext(ctx).draw();
+        }
+    }
+
+    // 縦位置合わせ：実際の符頭YをCanvasの音符中心(yc)に合わせて、レイヤー全体を上下移動
+    let headY = null;
+    for (const it of items) {
+        if (it.isRest) continue;
+        try { const ys = it.note.getYs(); if (ys && ys.length) { headY = ys[0]; break; } } catch (e) { /* noop */ }
+    }
+    if (headY != null) scoreEl.style.transform = 'translateY(' + (yc - headY) + 'px)';
 }
 
 /* 音符（上段）タップ：音符 → 休符 → タイ → 音符（空振りは廃止）。
@@ -2184,7 +2277,8 @@ function openRhythmProCustomTest(id) {
     els.practiceTitle.textContent = stage.title;
     setInputMode(state.inputMode);
     show('practice');
-    requestAnimationFrame(() => { fitLane(); resetGame(); });
+    // fitLane で pxPerBeat/judgeX が確定した後に、流れる譜面レイヤーへ静止描画する（v0.9.127・Step2）
+    requestAnimationFrame(() => { fitLane(); resetGame(); renderRhythmFlowScore(); });
 }
 
 /* ── Web Audio クリック ─────────────────────────────────── */

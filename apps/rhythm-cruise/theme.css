@@ -3484,6 +3484,27 @@ body.results-open #settings-btn {
     z-index: 2;
 }
 
+/* 流し込み譜面本体（v0.9.127・Step2）。レイヤー左上を基準に絶対配置し、JS が符頭中心をCanvas座標へ合わせる。
+   譜面幅はレーン幅を超えることがあるが、親レイヤーの overflow:hidden でクリップされる（静止表示）。 */
+.custom-flow-score {
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+
+.custom-flow-score svg {
+    display: block;
+}
+
+.custom-flow-score svg path {
+    fill: #ffd166;
+    stroke: #ffd166;
+}
+
+.custom-flow-score svg rect {
+    fill: #ffd166;
+}
+
 .judge-fx-layer {
     position: absolute;
     inset: 0;
