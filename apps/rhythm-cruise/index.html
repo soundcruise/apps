@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.123">
+    <link rel="stylesheet" href="theme.css?v=0.9.124">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -149,6 +149,7 @@
 
                 <div class="pce-actions">
                     <button type="button" class="settings-top-main pce-save" id="pce-save">保存</button>
+                    <button type="button" class="pro-custom-act is-test pce-test" id="pce-test">テスト再生</button>
                     <button type="button" class="pro-custom-act is-copy pce-copy" id="pce-copy">JSONコピー</button>
                 </div>
                 <button type="button" class="pce-back-link" id="pce-back">一覧へ戻る</button>
@@ -257,6 +258,12 @@
             <!-- 6. 開始/停止（兼用）-->
             <div class="transport">
                 <button class="btn-primary transport-main" id="play-btn">▶ 開始</button>
+            </div>
+
+            <!-- 6b. カスタムSTAGEテスト再生時だけ表示（v0.9.124）。STAGE1/基礎練では非表示。 -->
+            <div class="custom-test-actions hidden" id="custom-test-actions">
+                <button type="button" class="custom-test-act is-edit-back" id="custom-test-edit-back">編集に戻る</button>
+                <button type="button" class="custom-test-act is-save" id="custom-test-save">このSTAGEを保存</button>
             </div>
         </section>
 
@@ -858,9 +865,10 @@
                 </div>
             </details>
 
-            <!-- 5. 閉じる / もう一度 -->
+            <!-- 5. 閉じる / もう一度（カスタムテスト時は「編集に戻る」も表示・v0.9.124） -->
             <div class="results-actions">
                 <button class="btn-ghost" id="r-close-btn">閉じる</button>
+                <button class="btn-ghost hidden" id="r-edit-back-btn">編集に戻る</button>
                 <button class="btn-primary" id="retry-btn">▶ もう一度</button>
             </div>
         </div>
@@ -897,7 +905,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.123"></script>
+    <script src="script.js?v=0.9.124"></script>
 </body>
 
 </html>

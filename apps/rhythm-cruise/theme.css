@@ -642,8 +642,17 @@ h1 {
 
 .pro-custom-card-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
     margin-top: 12px;
+}
+
+/* テスト再生は主アクション：1行を占有して目立たせる（v0.9.124） */
+.pro-custom-act.is-test {
+    flex-basis: 100%;
+    border-color: rgba(46, 204, 113, 0.55);
+    background: rgba(46, 204, 113, 0.16);
+    color: #c8f7d8;
 }
 
 .pro-custom-act {
@@ -1152,6 +1161,11 @@ h1 {
 }
 
 .pce-actions .pce-copy {
+    flex: none;
+    padding: 12px;
+}
+
+.pce-actions .pce-test {
     flex: none;
     padding: 12px;
 }
@@ -2584,6 +2598,65 @@ h1 {
     .practice-mode-label:hover {
         background: rgba(255, 159, 28, 0.18);
     }
+}
+
+/* カスタムSTAGEテスト再生時だけ表示する「編集に戻る」（v0.9.124）。STAGE1では非表示。 */
+.practice-edit-back {
+    flex: none;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+    color: rgba(253, 246, 238, 0.85);
+    padding: 5px 14px;
+    border-radius: 50px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(253, 246, 238, 0.28);
+    cursor: pointer;
+    touch-action: manipulation;
+    margin-top: 6px;
+    transition: transform 0.12s, background 0.15s;
+}
+
+.practice-edit-back:active {
+    transform: scale(0.96);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* カスタムSTAGEテスト再生：開始ボタン下の「編集に戻る」「このSTAGEを保存」（v0.9.124）。
+   STAGE1/基礎練では非表示。スマホ幅で押しやすいよう横並び→狭ければ折り返す。 */
+.custom-test-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+    max-width: 420px;
+    margin: 10px auto 0;
+}
+
+.custom-test-act {
+    flex: 1 1 140px;
+    padding: 12px 10px;
+    border-radius: 12px;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    touch-action: manipulation;
+    border: 1px solid rgba(253, 246, 238, 0.26);
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(253, 246, 238, 0.9);
+    transition: transform 0.12s, background 0.15s;
+}
+
+.custom-test-act.is-save {
+    border-color: rgba(46, 204, 113, 0.55);
+    background: rgba(46, 204, 113, 0.16);
+    color: #c8f7d8;
+}
+
+.custom-test-act:active {
+    transform: scale(0.97);
 }
 
 /* STAGE：入力モード切替（タップ / ストローク） */

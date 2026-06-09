@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.123';
+const RHYTHM_CRUISE_VERSION = '0.9.124';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -432,6 +432,7 @@ const els = {
     pceBarsVal: $('pce-bars-val'),
     pcePattern: $('pce-pattern'),
     pceSave: $('pce-save'),
+    pceTest: $('pce-test'),
     pceCopy: $('pce-copy'),
     pceBack: $('pce-back'),
     pceDelete: $('pce-delete'),
@@ -439,6 +440,10 @@ const els = {
     refreshBar: $('in-game-refresh-bar'),
     practiceNum: $('practice-num'),
     practiceTitle: $('practice-title'),
+    practiceEditBack: $('practice-edit-back'),
+    customTestActions: $('custom-test-actions'),
+    customTestEditBack: $('custom-test-edit-back'),
+    customTestSave: $('custom-test-save'),
     tempoVal: $('tempo-val'),
     tempoUp: $('tempo-up'),
     tempoDown: $('tempo-down'),
@@ -532,6 +537,7 @@ const els = {
     micSetupLaterBtn: $('mic-setup-later'),
     resultsOverlay: $('results-overlay'),
     rCloseBtn: $('r-close-btn'),
+    rEditBackBtn: $('r-edit-back-btn'),
     resultsCard: $('results-card'),
     resultsDetail: $('results-detail'),
     resultsWarn: $('results-warn'),
@@ -1204,7 +1210,7 @@ function renderRhythmCustomStages() {
     if (els.proCustomEmpty) els.proCustomEmpty.classList.toggle('hidden', stages.length > 0);
 
     const clickModeLabel = { all: 'クリック：全部', downbeat: 'クリック：1拍目', none: 'クリック：なし' };
-    const gridLabel = { quarter: '4分', eighth: '8分' };
+    const gridLabel = { quarter: '4分', eighth: '8分', sixteenth: '16分', thirtysecond: '32分', eighthTriplet: '8分三連', sixteenthTriplet: '16分三連' };
 
     stages.forEach((s) => {
         const card = document.createElement('div');
@@ -1221,6 +1227,7 @@ function renderRhythmCustomStages() {
             <div class="pro-custom-card-desc">${escapeHtml(s.description)}</div>
             <div class="pro-custom-card-meta">${meta}</div>
             <div class="pro-custom-card-actions">
+                <button type="button" class="pro-custom-act is-test" data-act="test">テスト再生</button>
                 <button type="button" class="pro-custom-act is-edit" data-act="edit">編集</button>
                 <button type="button" class="pro-custom-act is-copy" data-act="copy">JSONコピー</button>
                 <button type="button" class="pro-custom-act is-delete" data-act="delete">削除</button>
@@ -1299,7 +1306,7 @@ function ensureRhythmVexFlow(cb) {
     if (rhythmVexState === 'loading') return;
     rhythmVexState = 'loading';
     const s = document.createElement('script');
-    s.src = 'vendor/vexflow.js?v=0.9.123';
+    s.src = 'vendor/vexflow.js?v=0.9.124';
     s.async = true;
     s.onload = () => {
         rhythmVexState = getRhythmVexFlow() ? 'ready' : 'error';
@@ -1751,15 +1758,71 @@ function collectRhythmCustomEditorInputs() {
     return d;
 }
 
-/* 現在ドラフトを正規化して上書き保存。編集画面に留まり「保存しました」を表示。 */
-function saveRhythmCustomEditor() {
+/* 現在ドラフトを正規化して上書き保存。成功なら保存済み(normalize後)オブジェクト、失敗なら null を返す。
+   editorStay=true（既定）のときだけ編集画面に留まり「保存しました」を表示する。 */
+function saveRhythmCustomEditor(editorStay) {
     const d = collectRhythmCustomEditorInputs();
-    if (!d) return;
+    if (!d) return null;
     const saved = updateRhythmCustomStage(d);
-    if (!saved) { showRcToast('保存できませんでした'); return; }
+    if (!saved) { showRcToast('保存できませんでした'); return null; }
     proCustomEditDraft = saved; // 正規化後の値で同期
     renderRhythmCustomEditor();
-    showRcToast('保存しました');
+    if (editorStay !== false) showRcToast('保存しました');
+    return saved;
+}
+
+/* 編集画面の「テスト再生」（v0.9.124）。
+   安全優先：まず既存の保存処理で現在の編集内容を保存し、成功した保存済みデータでテスト再生する。
+   保存に失敗したらトーストで知らせて再生しない（保存ロジックは二重実装しない）。 */
+function testPlayFromEditor() {
+    const saved = saveRhythmCustomEditor(true);
+    if (!saved) return; // 失敗時は saveRhythmCustomEditor 側でトースト表示済み
+    openRhythmProCustomTest(saved.id);
+}
+
+/* カスタムSTAGEのテスト再生／結果画面から、元の編集画面へ戻る（v0.9.124）。
+   再生・マイクを止め、一時設定(bpm/小節数)を復元してエンジンを通常STAGEへ戻してから編集画面を開く。
+   このとき、テスト再生画面で変更した BPM/小節数 を編集ドラフトへ反映する（そのまま「保存する」で確定できる状態にする）。
+   pattern/grid/timeSignature/patternBars/title は変更しない。 */
+function backToEditorFromTest() {
+    const id = eng.editId;
+    const tempBpm = state.bpm;    // テスト再生画面での一時BPM（leaveCustomTestStateで元STAGE値へ戻る前に退避）
+    const tempBars = state.bars;  // テスト再生画面での一時小節数
+    stop();
+    stopMic();
+    if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden');
+    document.body.classList.remove('results-open');
+    if (els.refreshBar) els.refreshBar.classList.remove('hidden');
+    leaveCustomTestState();
+    show('home');
+    if (id && getSavedRhythmCustomStages().some((s) => s.id === id)) {
+        openRhythmProCustomEditor(id);
+        // テスト再生画面で変えた BPM/小節数 を編集ドラフトへ反映（pattern等は触らない）
+        if (proCustomEditDraft) {
+            proCustomEditDraft.bpm = clampNum(Math.round(tempBpm), RHYTHM_CUSTOM_BPM_MIN, RHYTHM_CUSTOM_BPM_MAX, proCustomEditDraft.bpm);
+            if (RHYTHM_CUSTOM_BAR_OPTIONS.includes(tempBars)) proCustomEditDraft.bars = tempBars;
+            renderRhythmCustomEditor();
+        }
+    } else {
+        renderRhythmCustomStages();
+        setHomeView('proCustom');
+    }
+}
+
+/* テスト再生画面の「このSTAGEを保存」（v0.9.124）。
+   テスト再生中に一時変更した BPM/小節数 だけを、現在のカスタムSTAGEへ保存する。
+   pattern/grid/timeSignature/patternBars/title などは保存済みデータをそのまま使い、誤って変更しない。
+   localStorage形式は変えず、既存の updateRhythmCustomStage（normalize＋保存）を再利用する。 */
+function saveRhythmCustomTestSettings() {
+    const id = eng.editId || (eng.custom && eng.custom.id);
+    const saved = id ? getSavedRhythmCustomStages().find((s) => s.id === id) : null;
+    if (!saved) { showRcToast('保存できませんでした'); return; }
+    saved.bpm = state.bpm;   // テスト再生中の一時BPMを反映
+    saved.bars = state.bars; // テスト再生中の一時小節数を反映
+    const result = updateRhythmCustomStage(saved);
+    if (!result) { showRcToast('保存できませんでした'); return; }
+    eng.custom = result;     // テスト再生中の参照も最新へ（再生状態は維持）
+    showRcToast('このSTAGEを保存しました');
 }
 
 /* 編集中の内容を normalize した上でJSONコピー。 */
@@ -1850,16 +1913,28 @@ function openSettingsFromCurrent() {
 
 /* 全画面共通ナビ：TOP＝常にホーム、戻る＝自然な前画面 */
 function goTop() {
+    // カスタムテスト再生中は、未保存のBPM/小節数が破棄される可能性があるため確認する（v0.9.124）
+    if (eng.custom) {
+        if (!window.confirm('テスト再生中に変更したBPM/小節数が保存されていない場合は破棄されます。\nTOPへ戻りますか？')) return;
+    }
     stop();
     stopMic();          // マイク・キャリブレーション・実音テストも停止
+    leaveCustomTestState(); // カスタムテスト中ならエンジン/一時設定を元に戻す
     show('home');
 }
 
 function navBack() {
     // 設定画面（マイク/画面タップ設定など）→ 直前の自然な画面（呼び出し元）へ
     if (!els.settings.classList.contains('hidden')) { closeSettings(); return; }
-    // STAGE画面（結果・見返し含む）→ 基礎練画面（v0.9.118）
-    if (currentScreen === 'practice') { goHomeView('kiso'); return; }
+    // STAGE画面（結果・見返し含む）→ カスタムテスト中はPROカスタム一覧へ、通常は基礎練画面へ（v0.9.118/124）
+    if (currentScreen === 'practice') {
+        if (eng.custom) {
+            backToEditorFromTest(); // カスタムテスト中の「戻る」も該当STAGEの編集画面へ
+            return;
+        }
+        goHomeView('kiso');
+        return;
+    }
     // ホーム内サブビュー → 1つ上の階層へ（v0.9.118）
     if (currentScreen === 'home') {
         if (homeView === 'rhythm') { setHomeView('top'); return; }
@@ -1909,11 +1984,55 @@ function guardMicSetupInterruption(action) {
 }
 
 function openStage(n) {
+    leaveCustomTestState();          // カスタムテスト → 通常STAGEへ戻るときはエンジン/一時設定を元に戻す
+    if (els.practiceEditBack) els.practiceEditBack.classList.add('hidden'); // STAGE1では「編集に戻る」を出さない
+    if (els.customTestActions) els.customTestActions.classList.add('hidden'); // STAGE1では開始ボタン下の2ボタンを出さない
     const s = STAGES.find((x) => x.n === n) || STAGES[0];
     state.currentStage = s.n;
     els.practiceNum.innerHTML = `<small>STAGE</small><b>${s.n}</b>`;
     els.practiceTitle.textContent = s.title;
     setInputMode(state.inputMode);   // v0.9.118：リズム練画面で選んだ入力方式（タップ/ストローク）で開始
+    show('practice');
+    requestAnimationFrame(() => { fitLane(); resetGame(); });
+}
+
+/* カスタムテスト再生を抜けるときの後始末（v0.9.124）。
+   テスト前に退避した STAGE の bpm/小節数を復元し、エンジン設定を通常STAGE(STAGE1)へ戻す。
+   STAGE側に居た（restoreなし）場合は configureEngineForStage1 のみで何も壊さない。 */
+function leaveCustomTestState() {
+    if (eng.restore) {
+        state.bpm = eng.restore.bpm;
+        state.bars = eng.restore.bars;
+        eng.restore = null;
+        if (els.tempoVal) els.tempoVal.textContent = state.bpm;
+        updateBarsUI();
+    }
+    configureEngineForStage1();
+    applyStageBars();
+}
+
+/* PROカスタムSTAGEのテスト再生（v0.9.124）。
+   保存済み設定（拍子/最小音符/パターンの長さ/pattern/bpm/小節数）を使って、既存STAGE画面で練習する。
+   カスタムSTAGE自体の保存データは書き換えない（bpm/小節数はテスト中の一時設定）。 */
+function openRhythmProCustomTest(id) {
+    if (!isRhythmProCustomStageAvailable()) return;
+    const stage = getSavedRhythmCustomStages().find((s) => s.id === id);
+    if (!stage) { showRcToast('STAGEが見つかりません'); return; }
+    ensureRhythmVexFlow();                        // 譜面ライブラリ先読み（編集画面と共通・CDN不使用）
+    if (!eng.restore) eng.restore = { bpm: state.bpm, bars: state.bars }; // 退出時に戻すSTAGE設定を退避
+    configureEngineForCustom(stage);
+    eng.editId = stage.id;                        // 「編集に戻る」用に元STAGEを記憶
+    if (els.practiceEditBack) els.practiceEditBack.classList.remove('hidden');
+    if (els.customTestActions) els.customTestActions.classList.remove('hidden'); // 開始ボタン下の2ボタンを表示
+    state.bpm = clampNum(stage.bpm, 40, 200, state.bpm); // 再生エンジンのBPM範囲に合わせてclamp
+    state.bars = stage.bars;
+    if (els.tempoVal) els.tempoVal.textContent = state.bpm;
+    updateBarsUI();
+    applyStageBars();                             // TOTAL_BEATS = 小節数 × 1小節のセル数
+    state.currentStage = 0;                       // 通常STAGE番号ではない（カスタム）
+    els.practiceNum.innerHTML = '<small>カスタム</small><b>★</b>';
+    els.practiceTitle.textContent = stage.title;
+    setInputMode(state.inputMode);
     show('practice');
     requestAnimationFrame(() => { fitLane(); resetGame(); });
 }
@@ -2188,8 +2307,8 @@ function drawResultsMic() {
     }
     // 小節区切り
     ctx.strokeStyle = 'rgba(253,246,238,0.07)'; ctx.lineWidth = 1;
-    for (let b = 0; b <= n / BEATS_PER_BAR; b++) {
-        const x = x0 + (b * BEATS_PER_BAR) * slot;
+    for (let b = 0; b <= n / eng.cellsPerBar; b++) {
+        const x = x0 + (b * eng.cellsPerBar) * slot;
         ctx.beginPath(); ctx.moveTo(x, topY); ctx.lineTo(x, baseY); ctx.stroke();
     }
 }
@@ -2459,12 +2578,14 @@ function drawLane(rawT) {
     ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke();
 
     // 拍・小節・音符
-    for (let i = -COUNT_IN_BEATS; i <= TOTAL_BEATS - 1; i++) {
+    for (let i = -eng.countInCells; i <= TOTAL_BEATS - 1; i++) {
         const bt = T0 + i * bi;
         // 音符/拍/小節線/中心線は gridDispOff（イヤホン音ズレ補正）ぶん heard-time へ寄せて描く（表示のみ）。
         const x = jx + (bt + gridDispOff - t) * ppm;
         if (x < -30 || x > w + 30) continue;
-        const barStart = (((i % BEATS_PER_BAR) + BEATS_PER_BAR) % BEATS_PER_BAR) === 0;
+        const barStart = engBarStart(i);
+        // カスタム：判定対象（hit:true）のセルだけ音符・中心線・矢印を描く。休符/タイ/カウントイン以外は何も描かない。
+        const isHitCell = (i >= 0) && engIsHit(i);
         if (barStart) {
             // 小節区切り（v0.9.107：音符中心線より目立たせる＝少し明るく太く）
             ctx.strokeStyle = 'rgba(253,246,238,0.24)';
@@ -2474,10 +2595,10 @@ function drawLane(rawT) {
                 ctx.fillStyle = 'rgba(253,246,238,0.5)';
                 ctx.font = '600 11px Outfit, sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText((Math.floor(i / BEATS_PER_BAR) + 1) + '小節', x, h * 0.13);
+                ctx.fillText(engBarNumber(i) + '小節', x, h * 0.13);
             }
         }
-        if (i >= 0) {
+        if (isHitCell) {
             // v0.9.107：音符の中心に薄い縦線（中心線がJUST棒に重なる瞬間がジャスト）。
             // 小節区切り（上の0.24/1.5px）より目立たないように、薄く細く・短めにして見分けられるようにする。
             // 小節頭(barStart)は上の小節区切り線が中心も兼ねるので、二重描画しない。
@@ -2517,12 +2638,12 @@ function drawLane(rawT) {
                     ctx.restore();
                 }
             } else {
-                drawQuarterNote(ctx, x, yc, NOTE_COLOR); // 採点対象 = 4分音符
+                drawQuarterNote(ctx, x, yc, NOTE_COLOR); // 採点対象 = ヒット音符
             }
             // ストローク方向の矢印（音符の下・控えめなアンバー）
-            drawStrokeArrow(ctx, x, yc + 28, beatDirection(i), 'rgba(255,180,90,0.8)', 0.8);
-        } else {
-            // カウントインは控えめな点
+            drawStrokeArrow(ctx, x, yc + 28, engDirAt(i), 'rgba(255,180,90,0.8)', 0.8);
+        } else if (i < 0 && engIsPulse(i)) {
+            // カウントインは控えめな点（拍＝パルス位置のみ）
             ctx.beginPath(); ctx.arc(x, yc, 3, 0, Math.PI * 2);
             ctx.fillStyle = 'rgba(253,246,238,0.3)'; ctx.fill();
         }
@@ -2558,7 +2679,7 @@ function drawLane(rawT) {
 
     // 判定ライン（光る縦線）。再生中は拍頭付近で光る＝視覚クリック（クリック音を下げた代替）。
     // 視覚クリックは音符と同じ heard-time に合わせるため gridDispOff ぶん位相をずらす（表示のみ・v0.9.108）。
-    const glow = state.running ? beatGlow(t - T0 - gridDispOff, bi) : 0;
+    const glow = state.running ? beatGlow(t - T0 - gridDispOff, engPulseMs()) : 0;
     ctx.save();
     ctx.shadowColor = 'rgba(255,159,28,0.95)';
     ctx.shadowBlur = 14 + glow * 24;
@@ -2615,8 +2736,8 @@ function drawGraph() {
     // 小節セパレータ
     ctx.strokeStyle = 'rgba(253,246,238,0.07)';
     ctx.lineWidth = 1;
-    for (let b = 0; b <= 8; b++) {
-        const x = x0 + (b * BEATS_PER_BAR / TOTAL_BEATS) * (x1 - x0);
+    for (let b = 0; b <= state.bars; b++) {
+        const x = x0 + (b * eng.cellsPerBar / TOTAL_BEATS) * (x1 - x0);
         ctx.beginPath(); ctx.moveTo(x, padY * 0.4); ctx.lineTo(x, h - padY * 0.4); ctx.stroke();
     }
 
@@ -2762,6 +2883,7 @@ function drawReview() {
     ctx.strokeStyle = 'rgba(255,159,28,0.5)';
     ctx.lineWidth = 1.5;
     for (let i = 0; i < TOTAL_BEATS; i++) {
+        if (!engIsHit(i)) continue;          // カスタム：判定対象セルの中心線だけ
         const lx = beatX(i);
         ctx.beginPath(); ctx.moveTo(lx, h * 0.13); ctx.lineTo(lx, h * 0.7); ctx.stroke();
     }
@@ -2769,7 +2891,7 @@ function drawReview() {
 
     // 小節線＋小節番号
     for (let i = 0; i < TOTAL_BEATS; i++) {
-        if (i % BEATS_PER_BAR === 0) {
+        if (engBarStart(i)) {
             const x = beatX(i) - beatPx * 0.5;
             ctx.strokeStyle = 'rgba(253,246,238,0.12)';
             ctx.lineWidth = 1;
@@ -2777,13 +2899,14 @@ function drawReview() {
             ctx.fillStyle = 'rgba(253,246,238,0.5)';
             ctx.font = '600 11px Outfit, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText((i / BEATS_PER_BAR + 1) + '小節', x + 5, h * 0.1);
+            ctx.fillText(engBarNumber(i) + '小節', x + 5, h * 0.1);
         }
     }
 
     // 各拍：本来の音符＋方向矢印＋自分の入力マーク＋ズレms
     ctx.textBaseline = 'alphabetic';
     for (let i = 0; i < TOTAL_BEATS; i++) {
+        if (!engIsHit(i)) continue;          // カスタム：休符/タイは見返しに出さない（採点対象のみ）
         const x = beatX(i);
         const r = state.results[i];
         const cls = r ? r.cls : 'miss';
@@ -2801,7 +2924,7 @@ function drawReview() {
             ctx.restore();
         }
         // ストローク方向矢印（音符の下）
-        drawStrokeArrow(ctx, x, yc + 28, beatDirection(i), 'rgba(255,180,90,0.7)', 0.7);
+        drawStrokeArrow(ctx, x, yc + 28, engDirAt(i), 'rgba(255,180,90,0.7)', 0.7);
 
         // 自分の入力マーク＋ズレms
         ctx.textAlign = 'center';
@@ -2873,7 +2996,7 @@ function updateStatus(t) {
         els.barCounter.textContent = 'カウントイン';
     } else {
         const sb = Math.floor((t - state.T0) / state.beatInterval);
-        const bar = Math.max(1, Math.min(state.bars, Math.floor(sb / BEATS_PER_BAR) + 1));
+        const bar = Math.max(1, Math.min(state.bars, Math.floor(sb / eng.cellsPerBar) + 1));
         els.barCounter.textContent = `${bar} / ${state.bars} 小節`;
     }
     const p = Math.max(0, Math.min(1, t / state.endTime));
@@ -2907,6 +3030,9 @@ function registerHit(perfNow, source, direction) {
     const diffTo = (b) => hitTime - (state.T0 + b * bi); // 符号付きズレ（負＝早い）
     let i = Math.round((hitTime - state.T0) / bi);
     if (i < 0 || i > TOTAL_BEATS - 1) { mic.lastAssign = { beat: i, outcome: '範囲外' }; return false; } // カウントイン中・範囲外
+    // カスタム：最も近い「判定対象(hit:true)」セルへ寄せる（休符/タイは判定対象外）。STAGE1 は i のまま。
+    i = engNearestHitIndex(i);
+    if (i < 0) { mic.lastAssign = { beat: i, outcome: '判定対象なし' }; return false; }
     const origBeat = i;
     // 最寄り拍が「より近い入力」で既に埋まっている場合、入力が属する隣の空き拍へ寄せて穴(=MISS)を減らす。
     // これにより、近い拍に二重で重ねるのではなく、隣の拍を EARLY/LATE で埋められる。
@@ -2914,7 +3040,7 @@ function registerHit(perfNow, source, direction) {
     if (occupiedCloser) {
         const cand = i + (diffTo(i) >= 0 ? 1 : -1); // 入力が拍より後ろ→次拍、前→前拍
         const nearWin = Math.max(NEAR_MS, bi * NEAR_FRAC);
-        if (cand >= 0 && cand <= TOTAL_BEATS - 1 && !state.results[cand] && Math.abs(diffTo(cand)) <= nearWin) {
+        if (cand >= 0 && cand <= TOTAL_BEATS - 1 && engIsHit(cand) && !state.results[cand] && Math.abs(diffTo(cand)) <= nearWin) {
             i = cand;
         }
     }
@@ -2924,7 +3050,7 @@ function registerHit(perfNow, source, direction) {
     // 方向判定：拍の期待方向（現状STAGE1は全て down）と入力方向を照合。
     // マイク入力(stroke)は方向の概念が無いため常に一致扱い。
     // タップで方向が違う場合は、タイミングが合っていても MISS（方向MISS）にする。
-    const expectedDirection = beatDirection(i);
+    const expectedDirection = engDirAt(i);
     const inputDirection = dir;
     const directionMatched = (source === 'mic') ? true : (inputDirection === expectedDirection);
     const dirMiss = !directionMatched;
@@ -3018,15 +3144,88 @@ function onTap(direction) {
     registerHit(performance.now(), 'tap', direction || 'down');
 }
 
+/* ── テスト再生エンジン設定（v0.9.124）──────────────────────────────
+   STAGE1 と PROカスタムSTAGEテスト再生で共通の「1セル＝エンジンの1拍」設計。
+   ・STAGE1：1セル=4分(24tick)・全セル判定・方向ダウン・拍ごとにクリック。
+   ・カスタム：1セル=最小音符・hit:true のセルだけ判定・dir を方向に使う・拍(パルス)ごとにクリック。
+   パターンは patternBars 分の1ループを、練習小節数(state.bars)ぶん繰り返す（インデックスを長さで折り返す）。 */
+const STAGE1_CELL = { hit: true, dir: 'down', type: 'hit' };
+const eng = {
+    custom: null,                 // テスト再生中の正規化済みカスタムSTAGE（通常STAGEは null）
+    cellTicks: RHYTHM_TPQ,        // 1セルのティック数（STAGE1=24=4分）
+    cellsPerBar: BEATS_PER_BAR,   // 1小節のセル数（STAGE1=4）
+    pulseTicks: RHYTHM_TPQ,       // クリック/視覚拍の間隔（STAGE1=24=4分ごと＝全拍）
+    countInCells: COUNT_IN_BEATS, // カウントインのセル数（=1小節ぶん）
+    pattern: null,                // カスタムの1ループ分パターン（null=STAGE1＝全セルが4分のヒット）
+    restore: null,                // テスト再生前の bpm/bars スナップショット（退出時に復元）
+    editId: null,                 // テスト再生元のカスタムSTAGE id（「編集に戻る」用・v0.9.124）
+};
+
+function configureEngineForStage1() {
+    eng.custom = null;
+    eng.cellTicks = RHYTHM_TPQ;
+    eng.cellsPerBar = BEATS_PER_BAR;
+    eng.pulseTicks = RHYTHM_TPQ;
+    eng.countInCells = BEATS_PER_BAR;
+    eng.pattern = null;
+    eng.editId = null;
+}
+function configureEngineForCustom(stage) {
+    const info = rhythmTimeSigInfo(stage.timeSignature);
+    eng.custom = stage;
+    eng.cellTicks = rhythmGridCellTicks(stage.grid);
+    eng.cellsPerBar = rhythmCustomStepsPerBar(stage.grid, stage.timeSignature);
+    eng.pulseTicks = info.beamGroupTicks;     // 単純拍子=4分、複合6/8=付点4分ごとにクリック
+    eng.countInCells = eng.cellsPerBar;       // カウントインは1小節ぶん
+    eng.pattern = stage.pattern.map(normalizeRhythmCustomCell);
+}
+
+/* セル i（負＝カウントイン）に対応するパターンセル。カスタムはループ折り返し。 */
+function engCellAt(i) {
+    if (!eng.pattern || !eng.pattern.length) return STAGE1_CELL;
+    const L = eng.pattern.length;
+    const idx = ((i % L) + L) % L;
+    return eng.pattern[idx] || STAGE1_CELL;
+}
+function engIsHit(i) { const c = engCellAt(i); return !!(c && c.hit); }
+function engDirAt(i) { const c = engCellAt(i); return (c && c.dir === 'up') ? 'up' : 'down'; }
+function engInBarPos(i) { const n = eng.cellsPerBar; return (((i % n) + n) % n); }
+function engBarStart(i) { return engInBarPos(i) === 0; }
+function engIsPulse(i) { return (engInBarPos(i) * eng.cellTicks) % eng.pulseTicks === 0; }
+function engBarNumber(i) { return Math.floor(i / eng.cellsPerBar) + 1; }
+function engQuarterMs() { return 60000 / state.bpm; }                       // 4分=スクロール速度の基準
+function engCellMs() { return engQuarterMs() * (eng.cellTicks / RHYTHM_TPQ); } // 1セルの実時間(ms)
+function engPulseMs() { return engCellMs() * (eng.pulseTicks / eng.cellTicks); } // クリック/拍の間隔(ms)
+/* セル i に最も近い「判定対象（hit:true）」のセル番号。範囲内に無ければ -1。STAGE1 は i のまま。 */
+function engNearestHitIndex(i) {
+    if (!eng.pattern) return i;
+    const lastI = TOTAL_BEATS - 1;
+    if (i >= 0 && i <= lastI && engIsHit(i)) return i;
+    for (let d = 1; d <= TOTAL_BEATS; d++) {
+        const lo = i - d, hi = i + d;
+        if (lo >= 0 && lo <= lastI && engIsHit(lo)) return lo;
+        if (hi >= 0 && hi <= lastI && engIsHit(hi)) return hi;
+    }
+    return -1;
+}
+/* 判定対象セル数（採点の母数）。STAGE1 は全セル。 */
+function engJudgeCount() {
+    if (!eng.pattern) return TOTAL_BEATS;
+    let n = 0;
+    for (let i = 0; i < TOTAL_BEATS; i++) if (engIsHit(i)) n++;
+    return n;
+}
+
 /* ── 再生制御 ───────────────────────────────────────────── */
 function buildSchedule() {
-    state.beatInterval = 60000 / state.bpm;
-    state.pxPerMs = state.pxPerBeat / state.beatInterval;
-    state.T0 = COUNT_IN_BEATS * state.beatInterval;
+    state.beatInterval = engCellMs();                                  // エンジンの1拍＝1セル
+    state.pxPerMs = state.pxPerBeat / engQuarterMs();                  // スクロール速度は4分基準（grid非依存で一定）
+    state.T0 = eng.countInCells * state.beatInterval;
     state.endTime = state.T0 + (TOTAL_BEATS - 1 + TAIL_BEATS) * state.beatInterval;
     state.clickTimes = [];
-    for (let i = -COUNT_IN_BEATS; i <= TOTAL_BEATS - 1; i++) {
-        const accent = (((i % BEATS_PER_BAR) + BEATS_PER_BAR) % BEATS_PER_BAR) === 0;
+    for (let i = -eng.countInCells; i <= TOTAL_BEATS - 1; i++) {
+        if (!engIsPulse(i)) continue;                                  // クリックは拍(パルス)位置だけ＝全拍クリック
+        const accent = engBarStart(i);
         state.clickTimes.push({ time: state.T0 + i * state.beatInterval, accent, countIn: i < 0 });
     }
     state.nextClick = 0;
@@ -3148,9 +3347,9 @@ function resetGame() {
     els.latestVerdict.dataset.state = 'idle';
     els.latestVerdict.textContent = 'スタンバイ';
     els.progressFill.style.width = '0%';
-    state.beatInterval = 60000 / state.bpm;
-    state.T0 = COUNT_IN_BEATS * state.beatInterval;
-    state.pxPerMs = state.pxPerBeat / state.beatInterval;
+    state.beatInterval = engCellMs();
+    state.T0 = eng.countInCells * state.beatInterval;
+    state.pxPerMs = state.pxPerBeat / engQuarterMs();
     drawLane(0);
 }
 
@@ -3378,7 +3577,10 @@ function finish() {
     let just = 0, early = 0, late = 0, miss = 0, scoreSum = 0;
     const diffs = [];
     const firstHalf = [], secondHalf = [];
+    let judgeCount = 0;
     for (let i = 0; i < TOTAL_BEATS; i++) {
+        if (!engIsHit(i)) continue;        // カスタム：休符/タイは採点対象外（未入力でもMISSにしない）
+        judgeCount++;
         const r = state.results[i];
         const cls = r ? r.cls : 'miss';
         if (cls === 'just') just++;
@@ -3391,7 +3593,8 @@ function finish() {
             (i < TOTAL_BEATS / 2 ? firstHalf : secondHalf).push(r.diff);
         }
     }
-    const score = Math.round(scoreSum / TOTAL_BEATS);
+    const denom = judgeCount || 1;
+    const score = Math.round(scoreSum / denom);
     const mean = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
     const avg = mean(diffs);
     const fAvg = mean(firstHalf), sAvg = mean(secondHalf);
@@ -3407,7 +3610,7 @@ function finish() {
     } else {
         els.rAvg.textContent = '—';
     }
-    els.rComment.textContent = buildComment({ just, miss, tapped: diffs.length, avg, fAvg, sAvg })
+    els.rComment.textContent = buildComment({ just, miss, tapped: diffs.length, avg, fAvg, sAvg, total: denom })
         + chordCommentSuffix();
 
     // クリック音拾いの可能性を判定（ストローク＝マイク入力で、GOODのズレがほぼ一点に集中している）
@@ -3423,6 +3626,8 @@ function finish() {
     // ストローク音量バー＋反応ライン（ストローク＝マイク時のみ表示）
     if (els.resultsMicWrap) els.resultsMicWrap.classList.toggle('hidden', state.inputMode !== 'stroke');
 
+    // カスタムテスト時だけ結果画面に「編集に戻る」を表示（STAGE1では出さない・v0.9.124）
+    if (els.rEditBackBtn) els.rEditBackBtn.classList.toggle('hidden', !eng.custom);
     // 結果をモーダルで表示（ズレ確認レーンがメイン）
     if (els.resultsOverlay) els.resultsOverlay.classList.remove('hidden');
     if (els.refreshBar) els.refreshBar.classList.add('hidden'); // モーダル背後に透けないよう一時的に隠す
@@ -3430,9 +3635,9 @@ function finish() {
     drawResults();
 }
 
-function buildComment({ just, miss, tapped, avg, fAvg, sAvg }) {
+function buildComment({ just, miss, tapped, avg, fAvg, sAvg, total }) {
     if (tapped < 8) return 'タップが少なめでした。もう一度チャレンジしてみましょう。';
-    const justRate = just / TOTAL_BEATS;
+    const justRate = just / (total || TOTAL_BEATS);
     if (justRate >= 0.6) return 'かなり安定しています！この感覚をキープしましょう。';
     if (sAvg - fAvg > 30) return '後半でテンポが遅れ気味です（もたり）。クリックを意識して。';
     if (fAvg - sAvg > 30) return '後半で走り気味です。力まず一定をキープしましょう。';
@@ -5922,7 +6127,7 @@ function setTempoEnabled(on) {
 /* 小節数（テスト長さ）の反映と表示（v0.9.118）。
    TOTAL_BEATS を小節数×4拍へ更新する。配列/レーンは resetGame→resetData で作り直す。 */
 function applyStageBars() {
-    TOTAL_BEATS = state.bars * BEATS_PER_BAR;
+    TOTAL_BEATS = state.bars * eng.cellsPerBar;
 }
 function updateBarsUI() {
     if (els.barsVal) els.barsVal.textContent = String(state.bars);
@@ -5933,7 +6138,7 @@ function setStageBars(bars) {
     state.bars = bars;
     applyStageBars();
     updateBarsUI();
-    saveSettings();
+    if (!eng.custom) saveSettings();    // カスタムテスト中は一時設定（STAGE設定を書き換えない）
     resetGame();                        // 新しい小節数で配列・カウンタ・レーンを作り直す
 }
 function stepStageBars(dir) {
@@ -5947,9 +6152,9 @@ function setBpm(v) {
     if (state.running) return; // 再生中は変更ロック
     state.bpm = Math.max(40, Math.min(200, v));
     els.tempoVal.textContent = state.bpm;
-    state.beatInterval = 60000 / state.bpm;
-    state.pxPerMs = state.pxPerBeat / state.beatInterval;
-    state.T0 = COUNT_IN_BEATS * state.beatInterval;
+    state.beatInterval = engCellMs();
+    state.pxPerMs = state.pxPerBeat / engQuarterMs();
+    state.T0 = eng.countInCells * state.beatInterval;
     drawLane(0);
 }
 
@@ -9545,7 +9750,9 @@ function bind() {
         const id = card && card.dataset ? card.dataset.id : '';
         if (!id) return;
         const act = btn.dataset.act;
-        if (act === 'edit') {
+        if (act === 'test') {
+            openRhythmProCustomTest(id);
+        } else if (act === 'edit') {
             openRhythmProCustomEditor(id);
         } else if (act === 'copy') {
             copyRhythmCustomStageJson(id);
@@ -9574,7 +9781,8 @@ function bind() {
         if (zone.dataset.zone === 'note') tapRhythmEditorNote(i);
         else if (zone.dataset.zone === 'arrow') tapRhythmEditorArrow(i);
     });
-    if (els.pceSave) els.pceSave.addEventListener('click', saveRhythmCustomEditor);
+    if (els.pceSave) els.pceSave.addEventListener('click', () => saveRhythmCustomEditor(true));
+    if (els.pceTest) els.pceTest.addEventListener('click', testPlayFromEditor);
     if (els.pceCopy) els.pceCopy.addEventListener('click', copyRhythmCustomEditorJson);
     if (els.pceBack) els.pceBack.addEventListener('click', () => { renderRhythmCustomStages(); setHomeView('proCustom'); });
     if (els.pceDelete) els.pceDelete.addEventListener('click', deleteRhythmCustomFromEditor);
@@ -9777,6 +9985,12 @@ function bind() {
     els.playBtn.addEventListener('click', onPlayBtn);          // 開始/停止 兼用
     // 結果モーダル：閉じる＝結果を閉じて開始前へ／もう一度＝閉じてリトライ
     if (els.rCloseBtn) els.rCloseBtn.addEventListener('click', () => { if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden'); resetGame(); });
+    // カスタムテスト：再生画面ヘッダー／結果画面から元の編集画面へ戻る（v0.9.124）
+    if (els.practiceEditBack) els.practiceEditBack.addEventListener('click', backToEditorFromTest);
+    if (els.rEditBackBtn) els.rEditBackBtn.addEventListener('click', backToEditorFromTest);
+    // カスタムテスト：開始ボタン下の「編集に戻る」「このSTAGEを保存」（v0.9.124）
+    if (els.customTestEditBack) els.customTestEditBack.addEventListener('click', backToEditorFromTest);
+    if (els.customTestSave) els.customTestSave.addEventListener('click', saveRhythmCustomTestSettings);
     els.retryBtn.addEventListener('click', () => { if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden'); resetGame(); play(); });
     // 二重反応時：結果を閉じてマイク設定（反応テスト）へ誘導
     if (els.resultsRetestBtn) els.resultsRetestBtn.addEventListener('click', () => {
