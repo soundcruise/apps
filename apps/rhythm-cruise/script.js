@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.130';
+const RHYTHM_CRUISE_VERSION = '0.9.131';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -1309,7 +1309,7 @@ function ensureRhythmVexFlow(cb) {
     if (rhythmVexState === 'loading') return;
     rhythmVexState = 'loading';
     const s = document.createElement('script');
-    s.src = 'vendor/vexflow.js?v=0.9.130';
+    s.src = 'vendor/vexflow.js?v=0.9.131';
     s.async = true;
     s.onload = () => {
         rhythmVexState = getRhythmVexFlow() ? 'ready' : 'error';
@@ -1820,6 +1820,16 @@ function renderRhythmFlowScore() {
     catch (e) { layer.innerHTML = ''; rhythmFlowScoreReady = false; } // 失敗時はCanvas音符を残す
     // 音符本体の表示/非表示（カスタム×描画OKで非表示）を即時反映。再生中は loop の drawLane が反映する。
     if (!state.running) drawLane(state.currentTime || 0);
+}
+
+/* 流れるVexFlow譜面を、現在の state.bars / Canvas幅へ合わせて再生成・再配置する（カスタムのみ・v0.9.131）。
+   小節数変更・resize・設定画面から戻った後など、表示用データやレーン幅が変わったときに呼ぶ。
+   判定エンジン（eng.pattern）は触らず、表示用データだけ state.bars 小節ぶんへ再展開する（drawRhythmFlowScore 内で
+   cellW = state.pxPerBeat * (eng.cellTicks/24) と updateCustomFlowScorePosition() を最新状態で再計算する）。
+   STAGE1（eng.custom=false）では何もしない。 */
+function refreshCustomFlowScore() {
+    if (!eng.custom) return;
+    renderRhythmFlowScore();
 }
 
 /* 流れるVexFlow譜面用の表示データを作る（v0.9.130）。
@@ -2542,8 +2552,13 @@ function fitLane() {
     lane = fitOne(els.laneCanvas);
     state.pxPerBeat = Math.max(64, Math.min(120, lane.w * 0.24));
     state.judgeX = lane.w * 0.3;
-    state.pxPerMs = state.pxPerBeat / state.beatInterval;
+    // スクロール速度は4分音符基準（grid非依存）。再生系（resetGame/buildSchedule）と必ず同じ式にする。
+    // ※ state.beatInterval は「1セル分の時間」なので、カスタムの16分/32分等では pxPerMs が過剰になり
+    //   流れるVexFlow譜面の transform がズレる（v0.9.131 修正）。STAGE1 は cellTicks=24 で両式が一致＝無影響。
+    state.pxPerMs = state.pxPerBeat / engQuarterMs();
     drawLane(state.running ? state.currentTime : 0);
+    // resize / 設定→practice復帰など Canvas幅が変わる場面で、流れるVexFlow譜面も新しい幅・位置へ再生成/再配置（カスタムのみ・v0.9.131）
+    refreshCustomFlowScore();
 }
 
 function fitGraph() {
@@ -6438,6 +6453,7 @@ function setStageBars(bars) {
     updateBarsUI();
     if (!eng.custom) saveSettings();    // カスタムテスト中は一時設定（STAGE設定を書き換えない）
     resetGame();                        // 新しい小節数で配列・カウンタ・レーンを作り直す
+    refreshCustomFlowScore();           // 流れるVexFlow譜面も新しい小節数ぶんへ再生成（カスタムのみ・v0.9.131）
 }
 function stepStageBars(dir) {
     const i = BAR_OPTIONS.indexOf(state.bars);
