@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.121">
+    <link rel="stylesheet" href="theme.css?v=0.9.122">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -88,11 +88,24 @@
                 </div>
 
                 <div class="pce-field">
+                    <span class="pce-label">拍子</span>
+                    <div class="pce-seg" id="pce-timesig">
+                        <button type="button" class="pce-seg-btn" data-ts="4/4">4/4</button>
+                        <button type="button" class="pce-seg-btn" data-ts="3/4">3/4</button>
+                        <button type="button" class="pce-seg-btn" data-ts="2/4">2/4</button>
+                        <button type="button" class="pce-seg-btn" data-ts="6/8">6/8</button>
+                    </div>
+                </div>
+
+                <div class="pce-field">
                     <span class="pce-label">最小音符</span>
                     <div class="pce-seg" id="pce-grid">
                         <button type="button" class="pce-seg-btn" data-grid="quarter">4分</button>
                         <button type="button" class="pce-seg-btn" data-grid="eighth">8分</button>
                         <button type="button" class="pce-seg-btn" data-grid="sixteenth">16分</button>
+                        <button type="button" class="pce-seg-btn" data-grid="thirtysecond">32分</button>
+                        <button type="button" class="pce-seg-btn" data-grid="eighthTriplet">8分三連</button>
+                        <button type="button" class="pce-seg-btn" data-grid="sixteenthTriplet">16分三連</button>
                     </div>
                 </div>
 
@@ -884,7 +897,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.121"></script>
+    <script src="script.js?v=0.9.122"></script>
 </body>
 
 </html>

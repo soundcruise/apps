@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.121';
+const RHYTHM_CRUISE_VERSION = '0.9.122';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -421,6 +421,7 @@ const els = {
     // PROカスタムSTAGE 編集画面（v0.9.120）
     homeProCustomEdit: $('home-pro-custom-edit'),
     pceTitle: $('pce-title'),
+    pceTimeSig: $('pce-timesig'),
     pceGrid: $('pce-grid'),
     pcePbars: $('pce-pbars'),
     pceBpm: $('pce-bpm'),
@@ -780,14 +781,57 @@ function renderStages() {
      将来 PRO版/通常版で制御を差し替えられる構造にしておく。
 ═══════════════════════════════════════════════════════════ */
 const RHYTHM_CUSTOM_STAGE_MAX_SAVED = 24;
-const RHYTHM_CUSTOM_GRID_OPTIONS = ['quarter', 'eighth', 'sixteenth']; // v0.9.121：16分を追加
+// 最小音符（grid）。v0.9.122 で 32分・8分三連・16分三連 を追加。
+const RHYTHM_CUSTOM_GRID_OPTIONS = ['quarter', 'eighth', 'sixteenth', 'thirtysecond', 'eighthTriplet', 'sixteenthTriplet'];
 const RHYTHM_CUSTOM_BAR_OPTIONS = [1, 2, 4, 8, 16, 32, 64, 128];       // 初期小節数（STAGE開始時の練習小節数・v0.9.121 で最大128へ）
 const RHYTHM_CUSTOM_PATTERN_BARS_OPTIONS = [1, 2, 3, 4];               // 小節単位（パターン1周の小節数・v0.9.121）
+const RHYTHM_CUSTOM_TIME_SIGNATURES = ['4/4', '3/4', '2/4', '6/8'];    // 拍子（v0.9.122）
+const RHYTHM_CUSTOM_DEFAULT_TIME_SIG = '4/4';
 const RHYTHM_CUSTOM_CLICK_MODES = ['all', 'downbeat', 'none'];         // 互換のため残す（編集UIからは v0.9.121 で削除）
 const RHYTHM_CUSTOM_DIRS = ['down', 'up']; // null も許容（補正で別扱い）
 const RHYTHM_CUSTOM_BPM_MIN = 30;
 const RHYTHM_CUSTOM_BPM_MAX = 240;
-const RHYTHM_CUSTOM_BEATS_PER_BAR = 4; // 現状は4/4のみ
+const RHYTHM_CUSTOM_BEATS_PER_BAR = 4; // 4/4 既定（拍子別は rhythmTimeSigInfo で扱う）
+
+// 音価の共通基準：1拍(4分)=24ティック。32分(=3)・8分三連(=8)・16分三連(=4)も割り切れる最小公倍数。
+const RHYTHM_TPQ = 24;
+// 各 grid の「1セルが占めるティック数」。
+const RHYTHM_GRID_TICKS = {
+    quarter: 24, eighth: 12, sixteenth: 6, thirtysecond: 3,
+    eighthTriplet: 8, sixteenthTriplet: 4,
+};
+// 三連符系の grid（VexFlow Tuplet で連符表示する）。
+const RHYTHM_GRID_IS_TRIPLET = { eighthTriplet: true, sixteenthTriplet: true };
+
+/* 拍子の情報。
+   beats/beatValue：VexFlow Voice 用。barTicks：1小節のティック長。
+   beamGroupTicks：連桁・拍頭判定のまとまり（単純拍子=4分、複合6/8=付点4分）。 */
+function rhythmTimeSigInfo(ts) {
+    switch (ts) {
+        case '3/4': return { ts: '3/4', beats: 3, beatValue: 4, barTicks: 3 * RHYTHM_TPQ, beamGroupTicks: RHYTHM_TPQ, compound: false };
+        case '2/4': return { ts: '2/4', beats: 2, beatValue: 4, barTicks: 2 * RHYTHM_TPQ, beamGroupTicks: RHYTHM_TPQ, compound: false };
+        case '6/8': return { ts: '6/8', beats: 6, beatValue: 8, barTicks: 6 * (RHYTHM_TPQ / 2), beamGroupTicks: RHYTHM_TPQ + RHYTHM_TPQ / 2, compound: true };
+        case '4/4':
+        default: return { ts: '4/4', beats: 4, beatValue: 4, barTicks: 4 * RHYTHM_TPQ, beamGroupTicks: RHYTHM_TPQ, compound: false };
+    }
+}
+
+/* 拍子で使える grid。6/8 は quarter と三連符系を無効化（複合拍子では扱いが複雑なため次工程）。 */
+function rhythmGridAllowed(grid, ts) {
+    if (ts === '6/8') return (grid === 'eighth' || grid === 'sixteenth' || grid === 'thirtysecond');
+    return RHYTHM_CUSTOM_GRID_OPTIONS.includes(grid);
+}
+
+/* grid が拍子で使えなければ安全な grid（eighth）へ寄せる。 */
+function rhythmCoerceGrid(grid, ts) {
+    const g = RHYTHM_CUSTOM_GRID_OPTIONS.includes(grid) ? grid : 'quarter';
+    return rhythmGridAllowed(g, ts) ? g : 'eighth';
+}
+
+/* timeSignature を検証（未指定/不正は 4/4）。 */
+function rhythmCustomTimeSig(ts) {
+    return RHYTHM_CUSTOM_TIME_SIGNATURES.includes(ts) ? ts : RHYTHM_CUSTOM_DEFAULT_TIME_SIG;
+}
 
 /* パターン1マスの状態（v0.9.120）。
    内部表現は { hit, dir, type } の3点。type は v0.9.119（hit/dirのみ）からの拡張で、
@@ -814,11 +858,13 @@ function generateRhythmCustomStageId() {
     return `rcs_${ts}_${rand}`;
 }
 
-/* 1小節あたりのステップ数（grid別・v0.9.121）。quarter:4 / eighth:8 / sixteenth:16。 */
-function rhythmCustomStepsPerBar(grid) {
-    if (grid === 'sixteenth') return RHYTHM_CUSTOM_BEATS_PER_BAR * 4;
-    if (grid === 'eighth') return RHYTHM_CUSTOM_BEATS_PER_BAR * 2;
-    return RHYTHM_CUSTOM_BEATS_PER_BAR;
+/* 1小節あたりのセル数（拍子×grid・v0.9.122）。
+   1小節のティック長 ÷ 1セルのティック長 で算出（4/4・3/4・2/4・6/8 すべて共通式）。
+   例) 4/4: q4 e8 s16 t32 / 8分三連12 / 16分三連24、3/4: q3…、2/4: q2…、6/8: e6 s12 t24。 */
+function rhythmCustomStepsPerBar(grid, timeSignature) {
+    const info = rhythmTimeSigInfo(rhythmCustomTimeSig(timeSignature));
+    const cellTicks = RHYTHM_GRID_TICKS[grid] || RHYTHM_TPQ;
+    return Math.max(1, Math.round(info.barTicks / cellTicks));
 }
 
 /* patternBars を 1..4 に丸める（無効なら 1）。 */
@@ -826,19 +872,64 @@ function rhythmCustomPatternBars(v) {
     return RHYTHM_CUSTOM_PATTERN_BARS_OPTIONS.includes(v) ? v : 1;
 }
 
-/* grid・小節単位に応じた拍ラベル（自動生成・v0.9.121）。
-   1小節分を作って patternBars 回くり返す（小節の区切りは譜面の小節線で示す）。
-   quarter：["1","2","3","4"]
-   eighth ：["1表","1裏",…,"4表","4裏"]
-   sixteenth：["1表","1e","1裏","1a",…]（表/裏は8分位置と一致させ、間を e / a で表す） */
-function defaultRhythmDisplayLabels(grid, patternBars) {
-    const bars = rhythmCustomPatternBars(patternBars);
-    const one = [];
-    for (let b = 1; b <= RHYTHM_CUSTOM_BEATS_PER_BAR; b++) {
-        if (grid === 'sixteenth') { one.push(b + '表'); one.push(b + 'e'); one.push(b + '裏'); one.push(b + 'a'); }
-        else if (grid === 'eighth') { one.push(b + '表'); one.push(b + '裏'); }
-        else { one.push(String(b)); }
+/* 1小節分のラベル（テキスト＋強調レベル）を拍子×grid から生成（v0.9.122）。
+   返り値：[{ t:表示文字, s:'strong'|'mid'|'faint' }, …]（長さ = 1小節のセル数）。
+   s は描画側で文字の濃さ/大きさに使う（拍頭=strong、中間=mid、細かい位置=faint）。 */
+function rhythmBarLabelCells(grid, timeSignature) {
+    const ts = rhythmCustomTimeSig(timeSignature);
+    const info = rhythmTimeSigInfo(ts);
+    const steps = rhythmCustomStepsPerBar(grid, ts);
+    const cellTicks = RHYTHM_GRID_TICKS[grid] || RHYTHM_TPQ;
+    const cells = [];
+
+    // 三連符系：1拍を3(8分三連)/6(16分三連)分割。拍頭のみ強調、中間は丸数字で薄く。
+    if (RHYTHM_GRID_IS_TRIPLET[grid]) {
+        const per = grid === 'eighthTriplet' ? 3 : 6;
+        const circ = ['①', '②', '③', '④', '⑤', '⑥'];
+        for (let i = 0; i < steps; i++) {
+            const beat = Math.floor(i / per) + 1, sub = i % per;
+            cells.push(sub === 0 ? { t: beat + circ[0], s: 'strong' } : { t: circ[sub] || '', s: 'faint' });
+        }
+        return cells;
     }
+    // 32分：拍頭=strong。単純拍子は 8分/16分位置に表/e/裏/a を薄く、その間は空欄。
+    if (grid === 'thirtysecond') {
+        const per = Math.round(info.beamGroupTicks / cellTicks); // 単純拍子8 / 6/8は12
+        const nm = ['表', 'e', '裏', 'a'];
+        for (let i = 0; i < steps; i++) {
+            const head = Math.floor(i / per) + 1, sub = i % per;
+            if (sub === 0) cells.push({ t: head + '表', s: 'strong' });
+            else if (!info.compound && sub % 2 === 0) cells.push({ t: nm[sub / 2] || '', s: sub === 4 ? 'mid' : 'faint' });
+            else cells.push({ t: '', s: 'faint' });
+        }
+        return cells;
+    }
+    // 6/8（eighth / sixteenth）：付点4分のまとまり頭を強調、それ以外は空欄で薄く。
+    if (info.compound) {
+        const per = Math.round(info.beamGroupTicks / cellTicks); // eighth:3 / sixteenth:6
+        for (let i = 0; i < steps; i++) {
+            const head = Math.floor(i / per) + 1, sub = i % per;
+            cells.push(sub === 0 ? { t: String(head), s: 'strong' } : { t: '', s: 'faint' });
+        }
+        return cells;
+    }
+    // 単純拍子（4/4・3/4・2/4）の quarter / eighth / sixteenth。
+    const cpb = Math.round(RHYTHM_TPQ / cellTicks); // 1拍あたりセル数 q1 e2 s4
+    const nm = ['表', 'e', '裏', 'a'];
+    for (let i = 0; i < steps; i++) {
+        const beat = Math.floor(i / cpb) + 1, sub = i % cpb;
+        if (grid === 'quarter') cells.push({ t: String(beat), s: 'strong' });
+        else if (grid === 'eighth') cells.push(sub === 0 ? { t: beat + '表', s: 'strong' } : { t: beat + '裏', s: 'mid' });
+        else cells.push(sub === 0 ? { t: beat + '表', s: 'strong' } : (sub === 2 ? { t: beat + '裏', s: 'mid' } : { t: beat + nm[sub], s: 'faint' }));
+    }
+    return cells;
+}
+
+/* grid・小節単位・拍子に応じた拍ラベル（テキストのみ・JSON/STAGE用・v0.9.122）。
+   1小節分を rhythmBarLabelCells から作り patternBars 回くり返す（区切りは小節線で示す）。 */
+function defaultRhythmDisplayLabels(grid, patternBars, timeSignature) {
+    const bars = rhythmCustomPatternBars(patternBars);
+    const one = rhythmBarLabelCells(grid, timeSignature).map((c) => c.t);
     const out = [];
     for (let k = 0; k < bars; k++) out.push(...one);
     return out;
@@ -872,8 +963,8 @@ function makeRhythmRestCell() {
 /* grid・位置に応じた初期マス（v0.9.121）。
    quarter：すべて 音符＋↓。eighth／sixteenth：down/up の自然な交互（偶数=↓、奇数=↑）。 */
 function defaultRhythmCellForIndex(grid, i) {
-    if (grid === 'eighth' || grid === 'sixteenth') return { hit: true, dir: (i % 2 === 0 ? 'down' : 'up'), type: 'hit' };
-    return { hit: true, dir: 'down', type: 'hit' };
+    if (grid === 'quarter') return { hit: true, dir: 'down', type: 'hit' };
+    return { hit: true, dir: (i % 2 === 0 ? 'down' : 'up'), type: 'hit' };
 }
 
 /* デフォルトのカスタムSTAGE（新規作成時に1件保存する雛形）。pattern は1小節分（quarter）。 */
@@ -884,6 +975,7 @@ function getDefaultRhythmCustomStage() {
         title: 'カスタムSTAGE',
         description: '', // v0.9.121：編集UIからは削除（互換のためキーは残す）
         grid: 'quarter',
+        timeSignature: '4/4', // 拍子（v0.9.122）
         patternBars: 1,  // 小節単位（パターン1周の小節数）
         bars: 4,         // 初期小節数（STAGE開始時の練習小節数）
         bpm: 80,
@@ -907,7 +999,10 @@ function normalizeRhythmCustomStageSettings(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
     const def = getDefaultRhythmCustomStage();
 
-    const grid = RHYTHM_CUSTOM_GRID_OPTIONS.includes(raw.grid) ? raw.grid : 'quarter';
+    // timeSignature（拍子・v0.9.122）：未指定の旧データは 4/4。
+    const timeSignature = rhythmCustomTimeSig(raw.timeSignature);
+    // grid：拍子で使えない組み合わせ（6/8の quarter・三連符など）は安全な grid へ寄せる。
+    const grid = rhythmCoerceGrid(raw.grid, timeSignature);
     // patternBars（小節単位）：未指定の旧データ（v0.9.119/120）は 1 として扱う。
     const patternBars = rhythmCustomPatternBars(raw.patternBars);
     const bars = RHYTHM_CUSTOM_BAR_OPTIONS.includes(raw.bars) ? raw.bars : 4;
@@ -918,8 +1013,8 @@ function normalizeRhythmCustomStageSettings(raw) {
     // description は編集UIから削除（v0.9.121）。互換のため既存値があれば保持、無ければ空文字。
     const description = String(raw.description == null ? '' : raw.description).trim();
 
-    // pattern は grid × patternBars 分へ補正。各マスを normalize し、足りない分は休みで補う。
-    const steps = rhythmCustomStepsPerBar(grid) * patternBars;
+    // pattern は 拍子 × grid × patternBars 分へ補正。各マスを normalize し、足りない分は休みで補う。
+    const steps = rhythmCustomStepsPerBar(grid, timeSignature) * patternBars;
     const srcPattern = Array.isArray(raw.pattern) ? raw.pattern : [];
     const pattern = [];
     for (let i = 0; i < steps; i++) {
@@ -929,39 +1024,40 @@ function normalizeRhythmCustomStageSettings(raw) {
     // judgeTargets：hit:true のマスから自動生成（休み/空振り/タイは含めない）。
     const judgeTargets = pattern.map((c, i) => (c.hit ? i : -1)).filter(i => i >= 0);
 
-    // displayLabels：grid × patternBars から自動生成。
-    const displayLabels = defaultRhythmDisplayLabels(grid, patternBars);
+    // displayLabels：拍子 × grid × patternBars から自動生成。
+    const displayLabels = defaultRhythmDisplayLabels(grid, patternBars, timeSignature);
 
     const motion = typeof raw.motion === 'string' && raw.motion ? raw.motion : def.motion;
     const version = Number.isInteger(raw.version) ? raw.version : 1;
     const id = typeof raw.id === 'string' && raw.id ? raw.id : generateRhythmCustomStageId();
 
-    return { version, id, title, description, grid, patternBars, bars, bpm, clickMode, pattern, motion, judgeTargets, displayLabels };
+    return { version, id, title, description, grid, timeSignature, patternBars, bars, bpm, clickMode, pattern, motion, judgeTargets, displayLabels };
 }
 
-/* 1セルが占める長さ（16分音符=1 を基準にした単位・v0.9.121）。quarter:4 / eighth:2 / sixteenth:1。 */
-function rhythmSixteenthsPerCell(grid) {
-    if (grid === 'quarter') return 4;
-    if (grid === 'sixteenth') return 1;
-    return 2; // eighth
+/* 1セルが占めるティック数（1拍=24・v0.9.122）。quarter:24 / eighth:12 / sixteenth:6 / thirtysecond:3 / 8分三連:8 / 16分三連:4。 */
+function rhythmGridCellTicks(grid) {
+    return RHYTHM_GRID_TICKS[grid] || RHYTHM_TPQ;
 }
 
-/* grid／小節単位の変更時に、pattern を新しい長さへ「時間位置を保ったまま」安全に組み替える（v0.9.121）。
-   既存マスは、同じ時間位置（16分基準）に新セルが来るときだけ引き継ぎ、無ければ初期値で補う。
-   これにより 4分↔8分↔16分、1小節↔複数小節 をすべて同じ規則で安全に変換できる。 */
-function rhythmResizePattern(pattern, fromGrid, fromBars, toGrid, toBars) {
+/* 拍子／grid／小節単位の変更時に、pattern を新しい長さへ「時間位置を保ったまま」安全に組み替える（v0.9.122）。
+   既存マスは、同じ時間位置（ティック基準）に新セルが来るときだけ引き継ぎ、無ければ初期値で補う。
+   from / to は { grid, patternBars, timeSignature } を渡す。
+   2/4↔4分、4分↔8分↔16分↔32分、1小節↔複数小節、拍子変更 をすべて同じ規則で安全に変換できる
+   （三連符↔2分割系は時間位置がほぼ一致しないため、その場合は多くが初期値で補われる）。 */
+function rhythmResizePattern(pattern, from, to) {
     const src = Array.isArray(pattern) ? pattern.map(normalizeRhythmCustomCell) : [];
-    const fromUnit = rhythmSixteenthsPerCell(fromGrid);
-    const toUnit = rhythmSixteenthsPerCell(toGrid);
-    const toSteps = rhythmCustomStepsPerBar(toGrid) * rhythmCustomPatternBars(toBars);
+    const fromCell = rhythmGridCellTicks(from.grid);
+    const toCell = rhythmGridCellTicks(to.grid);
+    const toTs = rhythmCustomTimeSig(to.timeSignature);
+    const toSteps = rhythmCustomStepsPerBar(to.grid, toTs) * rhythmCustomPatternBars(to.patternBars);
     const out = [];
     for (let j = 0; j < toSteps; j++) {
-        const pos = j * toUnit;                 // 新セルの時間位置（16分基準）
-        if (pos % fromUnit === 0) {
-            const oi = pos / fromUnit;          // 同じ位置の旧セル番号
+        const pos = j * toCell;                 // 新セルの時間位置（ティック基準）
+        if (pos % fromCell === 0) {
+            const oi = pos / fromCell;          // 同じ位置の旧セル番号
             if (oi < src.length) { out.push(src[oi]); continue; }
         }
-        out.push(defaultRhythmCellForIndex(toGrid, j));
+        out.push(defaultRhythmCellForIndex(to.grid, j));
     }
     return out;
 }
@@ -1156,8 +1252,15 @@ function renderRhythmCustomEditor() {
     if (!d) return;
     if (els.pceTitle) els.pceTitle.value = d.title;
     if (els.pceBpm) els.pceBpm.value = String(d.bpm);
-    // セグメント（grid / 小節単位）の選択状態と、初期小節数ステッパー表示を同期。
+    // セグメント（拍子 / grid / 小節単位）の選択状態と、初期小節数ステッパー表示を同期。
+    setSegActive(els.pceTimeSig, 'ts', d.timeSignature);
     setSegActive(els.pceGrid, 'grid', d.grid);
+    // 拍子で使えない grid（6/8の quarter・三連符など）は無効表示にする。
+    if (els.pceGrid) {
+        els.pceGrid.querySelectorAll('[data-grid]').forEach((b) => {
+            b.classList.toggle('is-disabled', !rhythmGridAllowed(b.dataset.grid, d.timeSignature));
+        });
+    }
     setSegActive(els.pcePbars, 'pbars', String(d.patternBars));
     if (els.pceBarsVal) els.pceBarsVal.textContent = String(d.bars);
     renderRhythmEditorPattern();
@@ -1176,7 +1279,6 @@ function setSegActive(container, attr, value) {
    PoC（_poc/vexflow-lane.html）で検証した「ピン留めON＝符頭中心をセル中心へ」を本仕様とする。 */
 const RHYTHM_VEX_CELL_W = 64;   // 1セルの横幅(px)。タップ格子・ピン留めで共有。
 const RHYTHM_VEX_LANE_H = 104;  // 譜面レーンの高さ(px)
-const RHYTHM_VEX_S16_PER_BEAT = 4; // 4/4：1拍=16分4つ
 const RHYTHM_SVGNS = 'http://www.w3.org/2000/svg';
 let rhythmVexState = 'idle';    // idle | loading | ready | error
 const rhythmVexWaiters = [];
@@ -1194,7 +1296,7 @@ function ensureRhythmVexFlow(cb) {
     if (rhythmVexState === 'loading') return;
     rhythmVexState = 'loading';
     const s = document.createElement('script');
-    s.src = 'vendor/vexflow.js?v=0.9.121';
+    s.src = 'vendor/vexflow.js?v=0.9.122';
     s.async = true;
     s.onload = () => {
         rhythmVexState = getRhythmVexFlow() ? 'ready' : 'error';
@@ -1205,48 +1307,16 @@ function ensureRhythmVexFlow(cb) {
     document.head.appendChild(s);
 }
 
-/* pattern → 楽譜イベント（v0.9.121：16分基準）。
-   hit=音符開始、tie=直前音符へ結合（hit+tie で長い音符）、rest=休符（連続restは結合）。
-   unit=1セルの長さ(16分単位)：quarter=4, eighth=2, sixteenth=1。 */
-function rhythmPatternToEvents(pattern, grid) {
-    const unit = rhythmSixteenthsPerCell(grid);
-    const events = [];
-    pattern.forEach((cell) => {
-        if (cell.type === 'hit') {
-            events.push({ kind: 'note', durS16: unit });
-        } else if (cell.type === 'tie') {
-            const prev = events[events.length - 1];
-            if (prev && prev.kind === 'note') prev.durS16 += unit;
-            else events.push({ kind: 'rest', durS16: unit }); // 先頭tieは休符扱い
-        } else { // rest（ghost は rest に正規化済み）
-            const prev = events[events.length - 1];
-            if (prev && prev.kind === 'rest') prev.durS16 += unit;
-            else events.push({ kind: 'rest', durS16: unit });
-        }
-    });
-    let pos = 0;
-    events.forEach((ev) => { ev.startS16 = pos; pos += ev.durS16; });
-    return { events, unit };
+/* ティック長 → VexFlow duration（1拍=24ティック・v0.9.122）。24=q / 12=8 / 6=16 / 3=32。rest は 'r'。 */
+function rhythmTicksToDuration(ticks, isRest) {
+    const base = ticks >= 24 ? 'q' : (ticks >= 12 ? '8' : (ticks >= 6 ? '16' : '32'));
+    return base + (isRest ? 'r' : '');
 }
 
-/* 拍境界(4/4)で分割。各 seg は1拍(16分4つ)内に収まる。 */
-function rhythmSegmentByBeat(start, len) {
-    const segs = [];
-    let s = start, rem = len;
-    while (rem > 0) {
-        const nextBoundary = Math.floor(s / RHYTHM_VEX_S16_PER_BEAT) * RHYTHM_VEX_S16_PER_BEAT + RHYTHM_VEX_S16_PER_BEAT;
-        const take = Math.min(rem, nextBoundary - s);
-        segs.push({ start: s, len: take });
-        s += take; rem -= take;
-    }
-    return segs;
-}
-
-/* 拍内のひとかたまり(長さ1..4の16分)を、記譜できる単位 {4=4分, 2=8分, 1=16分} に分解。
-   各単位は「その単位の長さで割り切れる位置」から始める（自然な記譜になる）。
-   例：start0 len3 → [4分?不可→8分2 + 16分1]、start1 len3 → [16分1 + 8分2]。 */
-function rhythmDecomposeWithinBeat(start, len) {
-    const sizes = [4, 2, 1];
+/* まとまり(連桁グループ)内のひとかたまりを、記譜できる単位 {24,12,6,3ティック} に分解。
+   各単位は「その単位の長さで割り切れる位置」から始める（自然な記譜・タイになる）。 */
+function rhythmDecomposeBinary(start, len) {
+    const sizes = [24, 12, 6, 3];
     const out = [];
     let s = start, rem = len;
     while (rem > 0) {
@@ -1254,35 +1324,106 @@ function rhythmDecomposeWithinBeat(start, len) {
         for (const size of sizes) {
             if (size <= rem && s % size === 0) { out.push({ start: s, len: size }); s += size; rem -= size; placed = true; break; }
         }
-        if (!placed) { out.push({ start: s, len: 1 }); s += 1; rem -= 1; }
+        if (!placed) { out.push({ start: s, len: 3 }); s += 3; rem -= 3; }
     }
     return out;
 }
 
-/* 16分長 → VexFlow duration。4=q / 2=8 / 1=16。rest は 'r' を付ける。 */
-function rhythmS16ToDuration(len16, isRest) {
-    const base = len16 >= 4 ? 'q' : (len16 >= 2 ? '8' : '16');
-    return base + (isRest ? 'r' : '');
+/* 連桁の拍まとまり（VexFlow Fraction）。単純拍子=1/4、複合6/8=3/8（付点4分）。 */
+function rhythmBeamGroupFraction(VF, info) {
+    return info.compound ? new VF.Fraction(3, 8) : new VF.Fraction(1, 4);
 }
 
-/* イベント列 → VexFlow StaveNote 列（拍分割＋記譜単位分解・同一音符内のタイ情報つき）。 */
-function rhythmEventsToVexItems(events, VF) {
+/* 2分割系（quarter/eighth/sixteenth/thirtysecond）の VexFlow 変換（v0.9.122）。
+   hit＋連続tie を1つの長い音符にまとめ、連桁まとまり境界で区切り、記譜単位へ分解してタイで繋ぐ。
+   返り値 items：{ note, cellIndex(ピン留め用), isRest, tieToPrev }。tuplets/beamLists は使わない。 */
+function rhythmBuildBinaryItems(d, VF) {
     const { StaveNote, Stem } = VF;
+    const grid = d.grid;
+    const ts = rhythmCustomTimeSig(d.timeSignature);
+    const info = rhythmTimeSigInfo(ts);
+    const cellTicks = rhythmGridCellTicks(grid);
+
+    // セル列 → イベント（音符/休符）列（ティック長）
+    const events = [];
+    d.pattern.forEach((cell) => {
+        if (cell.type === 'hit') events.push({ kind: 'note', durT: cellTicks });
+        else if (cell.type === 'tie') {
+            const prev = events[events.length - 1];
+            if (prev && prev.kind === 'note') prev.durT += cellTicks;
+            else events.push({ kind: 'rest', durT: cellTicks }); // 先頭tieは休符扱い
+        } else {
+            const prev = events[events.length - 1];
+            if (prev && prev.kind === 'rest') prev.durT += cellTicks;
+            else events.push({ kind: 'rest', durT: cellTicks });
+        }
+    });
+    let pos = 0;
+    events.forEach((ev) => { ev.startT = pos; pos += ev.durT; });
+
     const items = [];
+    const group = info.beamGroupTicks;
     events.forEach((ev) => {
         const isRest = (ev.kind === 'rest');
-        const segs = rhythmSegmentByBeat(ev.startS16, ev.durS16);
-        let first = true;
-        segs.forEach((seg) => {
-            rhythmDecomposeWithinBeat(seg.start, seg.len).forEach((pc) => {
-                const dur = rhythmS16ToDuration(pc.len, isRest);
-                const note = new StaveNote({ keys: ['b/4'], duration: dur, stem_direction: Stem.UP });
-                items.push({ note, startS16: pc.start, isRest, tieToPrev: (!isRest && !first) });
+        let s = ev.startT, rem = ev.durT, first = true;
+        while (rem > 0) {
+            const nextBoundary = Math.floor(s / group) * group + group;
+            const take = Math.min(rem, nextBoundary - s);
+            rhythmDecomposeBinary(s, take).forEach((pc) => {
+                const note = new StaveNote({ keys: ['b/4'], duration: rhythmTicksToDuration(pc.len, isRest), stem_direction: Stem.UP });
+                items.push({ note, cellIndex: pc.start / cellTicks, isRest, tieToPrev: (!isRest && !first) });
                 first = false;
             });
-        });
+            s += take; rem -= take;
+        }
     });
-    return items;
+    return { items, tuplets: [], beamLists: null };
+}
+
+/* 三連符系（8分三連/16分三連）の VexFlow 変換（v0.9.122）。
+   1セル=1つの連符音符。8分三連は3つで1拍、16分三連は3つで半拍（1拍に2グループ）。
+   各グループを Tuplet(3:2) で囲み、連続する非休符を連桁する。
+   hit=音符、tie=直前へタイ（同じ長さの音符を弧で繋ぐ）、rest=休符。 */
+function rhythmBuildTripletItems(d, VF) {
+    const { StaveNote, Stem, Tuplet } = VF;
+    const grid = d.grid;
+    const baseDur = grid === 'eighthTriplet' ? '8' : '16';
+    const items = [];
+    const tuplets = [];
+    const beamLists = [];
+    const cells = d.pattern;
+    let lastWasNote = false;
+
+    for (let g = 0; g < cells.length; g += 3) {
+        const groupNotes = [];
+        let run = [];
+        const flushRun = () => { if (run.length >= 2) beamLists.push(run.slice()); run = []; };
+        for (let k = 0; k < 3; k++) {
+            const i = g + k;
+            const cell = cells[i];
+            if (!cell) break;
+            let isRest, tieToPrev = false;
+            if (cell.type === 'hit') { isRest = false; tieToPrev = false; lastWasNote = true; }
+            else if (cell.type === 'tie') {
+                if (lastWasNote) { isRest = false; tieToPrev = true; lastWasNote = true; }
+                else { isRest = true; lastWasNote = false; }
+            } else { isRest = true; lastWasNote = false; }
+            const note = new StaveNote({ keys: ['b/4'], duration: baseDur + (isRest ? 'r' : ''), stem_direction: Stem.UP });
+            items.push({ note, cellIndex: i, isRest, tieToPrev });
+            groupNotes.push(note);
+            if (!isRest) run.push(note); else flushRun();
+        }
+        flushRun();
+        if (groupNotes.length && Tuplet) {
+            tuplets.push(new Tuplet(groupNotes, { num_notes: 3, notes_occupied: 2, bracketed: true, ratioed: false }));
+        }
+    }
+    return { items, tuplets, beamLists };
+}
+
+/* grid に応じて VexFlow 用アイテムを生成（2分割系 or 三連符系）。 */
+function rhythmBuildVexItems(d, VF) {
+    return RHYTHM_GRID_IS_TRIPLET[d.grid] ? rhythmBuildTripletItems(d, VF) : rhythmBuildBinaryItems(d, VF);
 }
 
 /* 矢印（下段）の表示。hit は通常の ↓/↑。休符/タイは「音は出さないが手は動く」を括弧つきで示し、
@@ -1344,15 +1485,18 @@ function renderRhythmEditorPattern(opts) {
    ピン留めON固定：各音符の符頭中心を開始セル中心へ合わせ、横基準線は符頭中心Yに1本だけ引く。
    複数小節時は小節線を引き、タップ格子・矢印もセル数ぶん増やす（横スクロール前提）。 */
 function drawRhythmVexLane(VF, d) {
-    const { Renderer, Stave, StaveTie, Beam, Voice, Formatter, Fraction } = VF;
+    const { Renderer, Stave, StaveTie, Beam, Voice, Formatter } = VF;
+    const ts = rhythmCustomTimeSig(d.timeSignature);
+    const info = rhythmTimeSigInfo(ts);
     const N = d.pattern.length;
     const cellW = RHYTHM_VEX_CELL_W;
     const laneW = N * cellW;
     const H = RHYTHM_VEX_LANE_H;
-    const unit = rhythmSixteenthsPerCell(d.grid);          // 1セル=16分いくつ分か
-    const stepsPerBar = rhythmCustomStepsPerBar(d.grid);   // 1小節のセル数
+    const cellTicks = rhythmGridCellTicks(d.grid);
+    const stepsPerBar = rhythmCustomStepsPerBar(d.grid, ts);   // 1小節のセル数（拍子×grid）
     const patternBars = rhythmCustomPatternBars(d.patternBars) || Math.max(1, Math.round(N / stepsPerBar));
-    const cellsPerBeat = RHYTHM_VEX_S16_PER_BEAT / unit;   // 1拍あたりのセル数（quarter:1 / eighth:2 / sixteenth:4）
+    const beatCells = Math.max(1, Math.round(info.beamGroupTicks / cellTicks)); // 拍頭(まとまり頭)の間隔セル数
+    const barLabels = rhythmBarLabelCells(d.grid, ts);          // 1小節分のラベル＋強調レベル
 
     els.pcePattern.innerHTML = '';
     const scroll = document.createElement('div');
@@ -1368,8 +1512,8 @@ function drawRhythmVexLane(VF, d) {
     els.pcePattern.appendChild(scroll);
 
     // --- VexFlow 譜面 ---
-    const { events } = rhythmPatternToEvents(d.pattern, d.grid);
-    const items = rhythmEventsToVexItems(events, VF);
+    const built = rhythmBuildVexItems(d, VF);
+    const items = built.items;
     const notes = items.map((it) => it.note);
 
     const renderer = new Renderer(scoreEl, Renderer.Backends.SVG);
@@ -1382,24 +1526,29 @@ function drawRhythmVexLane(VF, d) {
     stave.setNumLines(1);
     stave.setContext(ctx); // 標準の単線は符頭中心と一致しないため線は描かない
 
-    const voice = new Voice({ num_beats: 4 * patternBars, beat_value: 4 });
+    const voice = new Voice({ num_beats: info.beats * patternBars, beat_value: info.beatValue });
     voice.setStrict(false);
     voice.addTickables(notes);
-    // 連桁：1拍(1/4)ごとにまとめる。8分2つ・16分4つが拍内で自然に連桁される。
-    const beams = Beam.generateBeams(notes, { groups: [new Fraction(1, 4)], beam_rests: false, maintain_stem_directions: true });
+    // 連桁：三連符系はグループごとに手動、2分割系はまとまり(1/4 or 3/8)ごとに自動生成。
+    let beams;
+    if (built.beamLists) {
+        beams = built.beamLists.map((list) => new Beam(list));
+    } else {
+        beams = Beam.generateBeams(notes, { groups: [rhythmBeamGroupFraction(VF, info)], beam_rests: false, maintain_stem_directions: true });
+    }
     new Formatter().joinVoices([voice]).format([voice], Math.max(1, laneW - 24));
     notes.forEach((n) => n.setStave(stave)); // 絶対X計算に stave 左オフセットを含める
 
     // ピン留めON（本仕様）：符頭中心を開始セル中心へ寄せる（結合した長い音符も開始セル側に置く）。
     items.forEach((it) => {
-        const startCell = it.startS16 / unit;
-        const desiredCenter = (startCell + 0.5) * cellW;
+        const desiredCenter = (it.cellIndex + 0.5) * cellW;
         const center = it.note.getNoteHeadBeginX() + it.note.getGlyphWidth() / 2;
         it.note.setXShift(desiredCenter - center);
     });
 
     voice.draw(ctx, stave);
     beams.forEach((b) => b.setContext(ctx).draw());
+    built.tuplets.forEach((t) => { try { t.setContext(ctx).draw(); } catch (e) { /* noop */ } });
     for (let i = 1; i < items.length; i++) {
         if (items[i].tieToPrev) {
             new StaveTie({ first_note: items[i - 1].note, last_note: items[i].note, first_indices: [0], last_indices: [0] })
@@ -1433,7 +1582,7 @@ function drawRhythmVexLane(VF, d) {
     d.pattern.forEach((cell, i) => {
         const b = document.createElement('button');
         b.type = 'button';
-        const isBeat = (i % cellsPerBeat === 0);
+        const isBeat = ((i % stepsPerBar) % beatCells === 0);
         const isBarStart = (i % stepsPerBar === 0);
         b.className = 'pce-tap-cell' + (isBeat ? ' beat' : '') + (isBarStart ? ' bar-start' : '');
         b.dataset.index = String(i);
@@ -1459,9 +1608,13 @@ function drawRhythmVexLane(VF, d) {
         a.innerHTML = rhythmArrowGlyph(cell);
         arrowrow.appendChild(a);
 
+        const lab = barLabels[i % stepsPerBar] || { t: '', s: 'faint' };
         const bc = document.createElement('div');
-        bc.className = 'pce-beat-cell' + (d.grid === 'sixteenth' ? ' is-fine' : '') + (isBarStart ? ' bar-start' : '');
-        bc.textContent = (d.displayLabels && d.displayLabels[i] != null) ? d.displayLabels[i] : '';
+        bc.className = 'pce-beat-cell'
+            + (lab.s === 'mid' ? ' is-mid' : '')
+            + (lab.s === 'faint' ? ' is-faint' : '')
+            + (isBarStart ? ' bar-start' : '');
+        bc.textContent = lab.t;
         beatrow.appendChild(bc);
     });
     lane.appendChild(arrowrow);
@@ -1522,23 +1675,43 @@ function tapRhythmEditorArrow(index) {
     renderRhythmEditorPattern({ preserveScrollLeft: scrollLeft });
 }
 
-/* grid 切替：pattern を時間位置を保ったまま組み替え、ラベルを再生成して再描画（v0.9.121）。 */
+/* grid（最小音符）切替：pattern を時間位置を保ったまま組み替え、ラベルを再生成して再描画（v0.9.122）。
+   拍子で使えない grid（6/8の quarter・三連符など）は無視する。 */
 function setRhythmEditorGrid(grid) {
     const d = proCustomEditDraft;
     if (!d || !RHYTHM_CUSTOM_GRID_OPTIONS.includes(grid) || grid === d.grid) return;
-    d.pattern = rhythmResizePattern(d.pattern, d.grid, d.patternBars, grid, d.patternBars);
+    if (!rhythmGridAllowed(grid, d.timeSignature)) return;
+    const from = { grid: d.grid, patternBars: d.patternBars, timeSignature: d.timeSignature };
+    const to = { grid: grid, patternBars: d.patternBars, timeSignature: d.timeSignature };
+    d.pattern = rhythmResizePattern(d.pattern, from, to);
     d.grid = grid;
-    d.displayLabels = defaultRhythmDisplayLabels(grid, d.patternBars);
+    d.displayLabels = defaultRhythmDisplayLabels(grid, d.patternBars, d.timeSignature);
     renderRhythmCustomEditor();
 }
 
-/* 小節単位（patternBars）切替：pattern を新しい小節数へ組み替え、ラベルを再生成して再描画（v0.9.121）。 */
+/* 拍子（timeSignature）切替：必要なら grid を寄せ、pattern を組み替え、ラベルを再生成して再描画（v0.9.122）。 */
+function setRhythmEditorTimeSignature(ts) {
+    const d = proCustomEditDraft;
+    if (!d || !RHYTHM_CUSTOM_TIME_SIGNATURES.includes(ts) || ts === d.timeSignature) return;
+    const newGrid = rhythmCoerceGrid(d.grid, ts);
+    const from = { grid: d.grid, patternBars: d.patternBars, timeSignature: d.timeSignature };
+    const to = { grid: newGrid, patternBars: d.patternBars, timeSignature: ts };
+    d.pattern = rhythmResizePattern(d.pattern, from, to);
+    d.timeSignature = ts;
+    d.grid = newGrid;
+    d.displayLabels = defaultRhythmDisplayLabels(newGrid, d.patternBars, ts);
+    renderRhythmCustomEditor();
+}
+
+/* 小節単位（patternBars）切替：pattern を新しい小節数へ組み替え、ラベルを再生成して再描画（v0.9.122）。 */
 function setRhythmEditorPatternBars(n) {
     const d = proCustomEditDraft;
     if (!d || !RHYTHM_CUSTOM_PATTERN_BARS_OPTIONS.includes(n) || n === d.patternBars) return;
-    d.pattern = rhythmResizePattern(d.pattern, d.grid, d.patternBars, d.grid, n);
+    const from = { grid: d.grid, patternBars: d.patternBars, timeSignature: d.timeSignature };
+    const to = { grid: d.grid, patternBars: n, timeSignature: d.timeSignature };
+    d.pattern = rhythmResizePattern(d.pattern, from, to);
     d.patternBars = n;
-    d.displayLabels = defaultRhythmDisplayLabels(d.grid, n);
+    d.displayLabels = defaultRhythmDisplayLabels(d.grid, n, d.timeSignature);
     renderRhythmCustomEditor();
 }
 
@@ -9373,9 +9546,13 @@ function bind() {
     });
     // PROカスタムSTAGE 編集画面（v0.9.121）
     if (els.pceTitle) els.pceTitle.addEventListener('input', () => { if (proCustomEditDraft) proCustomEditDraft.title = els.pceTitle.value; });
+    if (els.pceTimeSig) els.pceTimeSig.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-ts]');
+        if (b) setRhythmEditorTimeSignature(b.dataset.ts);
+    });
     if (els.pceGrid) els.pceGrid.addEventListener('click', (e) => {
         const b = e.target.closest('[data-grid]');
-        if (b) setRhythmEditorGrid(b.dataset.grid);
+        if (b && !b.classList.contains('is-disabled')) setRhythmEditorGrid(b.dataset.grid);
     });
     if (els.pcePbars) els.pcePbars.addEventListener('click', (e) => {
         const b = e.target.closest('[data-pbars]');

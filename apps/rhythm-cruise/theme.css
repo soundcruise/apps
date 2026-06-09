@@ -773,6 +773,12 @@ h1 {
     color: var(--text-color);
 }
 
+/* 拍子で使えない最小音符（6/8の 4分・三連符など）は押せないように薄く無効表示（v0.9.122）。 */
+.pce-seg-btn.is-disabled {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
 /* BPM ステッパー */
 .pce-stepper {
     display: flex;
@@ -1001,6 +1007,19 @@ h1 {
 .pce-beat-cell.is-fine {
     font-size: 0.62rem;
     letter-spacing: -0.02em;
+}
+
+/* ラベル強調（v0.9.122）：拍頭=既定の濃さ／中間=やや薄め／細かい位置=小さく薄く。
+   32分・三連符でラベルが多くなっても、拍頭が読みやすく中間が詰まりすぎないようにする。 */
+.pce-beat-cell.is-mid {
+    font-weight: 600;
+    color: rgba(253, 246, 238, 0.34);
+}
+.pce-beat-cell.is-faint {
+    font-size: 0.58rem;
+    font-weight: 500;
+    color: rgba(253, 246, 238, 0.24);
+    letter-spacing: -0.03em;
 }
 
 /* 初期小節数ステッパーの数値表示（input ではなく span のため中央寄せ） */
