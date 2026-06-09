@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.134';
+const RHYTHM_CRUISE_VERSION = '0.9.135';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -448,6 +448,7 @@ const els = {
     customTestPreview: $('custom-test-preview'),
     customTestPreviewToggle: $('custom-test-preview-toggle'),
     customTestPreviewBody: $('custom-test-preview-body'),
+    customTestPreviewPlay: $('custom-test-preview-play'),
     customTestPreviewScore: $('custom-test-preview-score'),
     customFlowScoreLayer: $('custom-flow-score-layer'),
     tempoVal: $('tempo-val'),
@@ -1312,7 +1313,7 @@ function ensureRhythmVexFlow(cb) {
     if (rhythmVexState === 'loading') return;
     rhythmVexState = 'loading';
     const s = document.createElement('script');
-    s.src = 'vendor/vexflow.js?v=0.9.134';
+    s.src = 'vendor/vexflow.js?v=0.9.135';
     s.async = true;
     s.onload = () => {
         rhythmVexState = getRhythmVexFlow() ? 'ready' : 'error';
@@ -1774,6 +1775,7 @@ function renderRhythmCustomTestPreview(stage) {
 
 /* 開閉の見た目を反映。開いたときにまだ描いていなければ実描画する（lazy）。 */
 function setRhythmCustomTestPreviewOpen(open) {
+    if (!open) stopPreviewRhythm(); // 閉じるときはリズム確認音も必ず止める（v0.9.135）
     if (els.customTestPreviewBody) els.customTestPreviewBody.classList.toggle('hidden', !open);
     if (els.customTestPreviewToggle) {
         els.customTestPreviewToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -1813,6 +1815,7 @@ function drawRhythmCustomTestPreviewBody() {
 
 /* 譜面プレビューを隠して中身を空にする（STAGE1や編集に戻る・TOP等で確実に消す）。 */
 function hideRhythmCustomTestPreview() {
+    stopPreviewRhythm(); // 退出系すべて（leave/編集に戻る/TOP/戻る）でリズム確認音を止める（v0.9.135）
     rhythmPreviewStage = null;
     rhythmPreviewRendered = false;
     if (els.customTestPreview) els.customTestPreview.classList.add('hidden');
@@ -1822,6 +1825,206 @@ function hideRhythmCustomTestPreview() {
         els.customTestPreviewToggle.textContent = '譜面プレビューを表示';
     }
     if (els.customTestPreviewScore) els.customTestPreviewScore.innerHTML = '';
+}
+
+/* ── 譜面プレビューのリズム確認音（v0.9.135）──────────────────────────
+   静的譜面プレビュー専用の簡易リズム確認。STAGE本体の play()/loop()/resetGame()/判定には一切接続しない。
+   現在のカスタムSTAGE（eng.pattern）の hit:true セルだけを、現在のBPM(state.bpm)と最小音符(eng.cellTicks)に
+   合わせてアコギCコードで鳴らし、基本拍（engIsPulse）にはSTAGE同系統のクリックも鳴らす。
+   ループ単位は patternBars 分（=eng.pattern 1周）を繰り返す。
+   AudioContext は既存の ensureAudio() を共用するが、state.running / audioStartTime 等のエンジン状態は触らない。
+
+   音色：音感クルーズ（apps/pitch-cruise/script.js）の AudioEngine.playAcousticGuitar の
+   Karplus-Strong アルゴリズム（ホワイトノイズ励起＋ディレイ/ローパスのフィードバック＋ボディ共鳴ピーキング）を
+   リズムクルーズ内に複製（音感クルーズ側は読むだけ・無変更）。Cコードは playChord('C',3) と同系統の C3/E3/G3＋高C4。 */
+const rhythmPreview = {
+    playing: false,
+    ctx: null,
+    timer: 0,        // 先読みスケジューラの setTimeout id
+    baseTime: 0,     // ループ起点の ctx.currentTime（秒）
+    loopIndex: 0,    // 次にスケジュールするループ番号
+    loopSec: 0,      // 1ループ長（秒）
+    hitOffsets: [],  // 1ループ内の hit 発音オフセット（秒）
+    clicks: [],      // 1ループ内のクリック {off:秒, accent:bool}
+    nodes: [],       // スケジュール済みの音源/ゲイン（停止時に即停止して裏で鳴らさない）
+};
+const PREVIEW_LOOKAHEAD_SEC = 0.2;          // この先までを先読みでスケジュール
+const PREVIEW_TICK_MS = 40;                 // スケジューラの呼び出し間隔
+const PREVIEW_SUSTAIN_SEC = 0.5;            // 余韻（音感クルーズ acoustic_guitar の sustainTime=0.5 と同系統）
+const PREVIEW_NOTE_DURATION_SEC = 0.45;     // 1音の発音時間（プレビューは短めで十分）
+const PREVIEW_CHORD_FREQS = [130.81, 164.81, 196.00, 261.63]; // C3 E3 G3 C4（playChord('C',3) と同系統＋高C）
+
+/* 1ループ分の hit 発音オフセット（秒）・クリック・1ループ長（秒）を、現在の表示状態から計算する。
+   1拍=24tick 設計：cellMs = engQuarterMs() * (cellTicks/24)。8分/16分/32分/三連でもこの式でズレない。
+   クリックは STAGE 本体と同じ engIsPulse（4/4・3/4・2/4＝4分ごと / 6/8＝付点4分ごと）に合わせる。 */
+function buildRhythmPreviewPlan() {
+    const cells = (eng.custom && eng.pattern && eng.pattern.length) ? eng.pattern : null;
+    if (!cells) return null;
+    const cellMs = engQuarterMs() * (eng.cellTicks / RHYTHM_TPQ); // engCellMs相当（BPM・最小音符基準）
+    if (!(cellMs > 0)) return null;
+    const hitOffsets = [];
+    const clicks = [];
+    for (let i = 0; i < cells.length; i++) {
+        const c = cells[i];
+        if (c && c.hit) hitOffsets.push((i * cellMs) / 1000); // hit:trueのみ（rest/tieはhit:falseで除外）
+        if (engIsPulse(i)) clicks.push({ off: (i * cellMs) / 1000, accent: engBarStart(i) });
+    }
+    const loopSec = (cells.length * cellMs) / 1000;
+    if (!(loopSec > 0)) return null;
+    return { hitOffsets, clicks, loopSec };
+}
+
+/* アコギ単音（Karplus-Strong）を freq・when（ctx絶対時刻・秒）に鳴らす。音感クルーズの playAcousticGuitar を複製。
+   コード重ねを想定し、出力は控えめ（velocity由来ゲイン×0.34）。停止時に即停止できるよう source を nodes に積む。 */
+function schedulePreviewGuitarNote(freq, when, velocity) {
+    const ctx = rhythmPreview.ctx;
+    if (!ctx || !(freq > 0)) return;
+    const sampleRate = ctx.sampleRate;
+    const sustain = PREVIEW_SUSTAIN_SEC;
+    const duration = PREVIEW_NOTE_DURATION_SEC;
+    const sustainSamples = Math.ceil(sampleRate * sustain);
+    const totalSamples = Math.ceil(sampleRate * (duration + sustain));
+    const detune = 1 + (Math.random() - 0.5) * 0.003;     // ±0.15%デチューン（機械的正確さを排除）
+    const f = freq * detune;
+    const delayLength = Math.max(2, Math.round(sampleRate / f)); // 1周期ぶんのディレイライン
+    const output = new Float32Array(totalSamples);
+    // 励起：ホワイトノイズバースト
+    const excitationAmplitude = 0.5 + velocity * 0.5;
+    const delayLine = new Float32Array(delayLength);
+    for (let i = 0; i < delayLength; i++) delayLine[i] = (Math.random() * 2 - 1) * excitationAmplitude;
+    const filterCoeff = 0.40 + velocity * 0.20;
+    const freqDecayCorrection = 1.0 - (f / 8000) * 0.05;  // 高音ほど僅かに速く減衰
+    const decayFactor = Math.pow(0.001, 1 / sustainSamples) * freqDecayCorrection;
+    let writePos = 0, prevSample = 0;
+    for (let n = 0; n < totalSamples; n++) {
+        const cur = delayLine[writePos];
+        const filtered = filterCoeff * cur + (1 - filterCoeff) * prevSample; // ローパス
+        prevSample = cur;
+        delayLine[writePos] = filtered * decayFactor;     // フィードバック（弦の減衰）
+        output[n] = cur;
+        writePos = (writePos + 1) % delayLength;
+    }
+    // ピックアタック（ごく短いノイズ）
+    const pickSamples = Math.min(Math.ceil(sampleRate * 0.006), totalSamples);
+    for (let n = 0; n < pickSamples; n++) {
+        const env = Math.exp(-n / Math.max(1, sampleRate * 0.0018));
+        output[n] += (Math.random() * 2 - 1) * (0.055 + velocity * 0.06) * env;
+    }
+    // 末尾フェードアウト（ブツ切れ防止）
+    const fadeStart = Math.floor(totalSamples * 0.80);
+    for (let n = fadeStart; n < totalSamples; n++) {
+        const t = (n - fadeStart) / (totalSamples - fadeStart);
+        output[n] *= 0.5 * (1 + Math.cos(Math.PI * t));
+    }
+    const buffer = ctx.createBuffer(1, totalSamples, sampleRate);
+    buffer.copyToChannel(output, 0);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    // ボディ共鳴（音感クルーズと同じ系統のピーキング＋高域ロールオフ）
+    const bodyRes1 = ctx.createBiquadFilter(); bodyRes1.type = 'peaking'; bodyRes1.frequency.value = 100; bodyRes1.Q.value = 1.5; bodyRes1.gain.value = 4;
+    const bodyRes2 = ctx.createBiquadFilter(); bodyRes2.type = 'peaking'; bodyRes2.frequency.value = 180; bodyRes2.Q.value = 2.0; bodyRes2.gain.value = 3;
+    const bodyRes3 = ctx.createBiquadFilter(); bodyRes3.type = 'peaking'; bodyRes3.frequency.value = 240; bodyRes3.Q.value = 1.2; bodyRes3.gain.value = 1.8;
+    const presence = ctx.createBiquadFilter(); presence.type = 'peaking'; presence.frequency.value = 2000; presence.Q.value = 1.0; presence.gain.value = 2;
+    const highCut = ctx.createBiquadFilter(); highCut.type = 'lowpass'; highCut.frequency.value = 6000; highCut.Q.value = 0.7;
+    const outputGain = ctx.createGain();
+    outputGain.gain.value = (0.25 + velocity * 0.35) * 0.34; // コードで複数音重なるため控えめに（v0.9.135 微調整：0.40→0.34＝約85%）
+    source.connect(bodyRes1); bodyRes1.connect(bodyRes2); bodyRes2.connect(bodyRes3);
+    bodyRes3.connect(presence); presence.connect(highCut); highCut.connect(outputGain); outputGain.connect(ctx.destination);
+    const startTime = Math.max(when, ctx.currentTime);
+    source.start(startTime);
+    source.stop(startTime + duration + sustain);
+    rhythmPreview.nodes.push({ src: source, gain: outputGain, stopAt: startTime + duration + sustain });
+}
+
+/* アコギCコード（C3/E3/G3/C4）を when に鳴らす。 */
+function schedulePreviewChord(when) {
+    for (const f of PREVIEW_CHORD_FREQS) schedulePreviewGuitarNote(f, when, 0.6);
+    // 再生済みノードの掃除（無限蓄積を防ぐ）
+    const ctx = rhythmPreview.ctx;
+    if (ctx) { const nowT = ctx.currentTime; rhythmPreview.nodes = rhythmPreview.nodes.filter((n) => n.stopAt > nowT - 0.2); }
+}
+
+/* クリック音を when に鳴らす。STAGE本体の scheduleStageClick と同系統（square・accentで高め）。
+   clickEnabled / clickVolume の設定はSTAGEと共通で尊重する。STAGE側ロジックには接続しない。 */
+function schedulePreviewClick(when, accent) {
+    const ctx = rhythmPreview.ctx;
+    if (!ctx) return;
+    if (!state.clickEnabled) return;
+    const vol = Math.max(0, Math.min(1, state.clickVolume / 100));
+    const peak = (accent ? 0.72 : 0.58) * vol; // v0.9.135 微調整：0.55/0.45→0.72/0.58＝約130%（割れない範囲）
+    if (peak < 0.001) return;
+    const t0 = Math.max(when, ctx.currentTime);
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.value = accent ? 1500 : 1200;
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.002);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + 0.09);
+    rhythmPreview.nodes.push({ src: osc, gain: gain, stopAt: t0 + 0.09 });
+}
+
+/* 先読みスケジューラ：horizon までのループの hit（コード）とクリックを予約し、setTimeout で再武装する。
+   絶対時刻 baseTime + loopIndex*loopSec を基準にするのでループ間でドリフトしない。 */
+function rhythmPreviewSchedulerTick() {
+    if (!rhythmPreview.playing) return;
+    const ctx = rhythmPreview.ctx;
+    if (!ctx) { stopPreviewRhythm(); return; }
+    const horizon = ctx.currentTime + PREVIEW_LOOKAHEAD_SEC;
+    while (rhythmPreview.baseTime + rhythmPreview.loopIndex * rhythmPreview.loopSec < horizon) {
+        const loopStart = rhythmPreview.baseTime + rhythmPreview.loopIndex * rhythmPreview.loopSec;
+        for (const off of rhythmPreview.hitOffsets) schedulePreviewChord(loopStart + off);
+        for (const c of rhythmPreview.clicks) schedulePreviewClick(loopStart + c.off, c.accent);
+        rhythmPreview.loopIndex++;
+    }
+    rhythmPreview.timer = setTimeout(rhythmPreviewSchedulerTick, PREVIEW_TICK_MS);
+}
+
+/* リズム確認音の開始（現在のBPM・patternBars分ループ）。ユーザー操作直後に呼ばれる前提。 */
+function startPreviewRhythm() {
+    const plan = buildRhythmPreviewPlan();
+    if (!plan) return;
+    const ctx = ensureAudio(); // 既存AudioContextを共用（suspendedなら resume を試みる）
+    if (!ctx) return;
+    stopPreviewRhythm(); // 念のため二重再生を防ぐ
+    rhythmPreview.ctx = ctx;
+    rhythmPreview.hitOffsets = plan.hitOffsets;
+    rhythmPreview.clicks = plan.clicks;
+    rhythmPreview.loopSec = plan.loopSec;
+    rhythmPreview.loopIndex = 0;
+    rhythmPreview.baseTime = ctx.currentTime + 0.12; // 少し先から（スケジューリング余裕）
+    rhythmPreview.playing = true;
+    setRhythmPreviewPlayUI(true);
+    rhythmPreviewSchedulerTick();
+}
+
+/* リズム確認音の停止。スケジューラを止め、予約済みノード（コード音源・クリック）も即停止して裏で鳴り続けないようにする。 */
+function stopPreviewRhythm() {
+    if (rhythmPreview.timer) { clearTimeout(rhythmPreview.timer); rhythmPreview.timer = 0; }
+    rhythmPreview.playing = false;
+    rhythmPreview.loopIndex = 0;
+    rhythmPreview.nodes.forEach((n) => {
+        try { n.src.stop(); } catch (_) { /* 既に停止/未開始は無視 */ }
+        try { if (n.gain) n.gain.disconnect(); } catch (_) { /* noop */ }
+    });
+    rhythmPreview.nodes = [];
+    setRhythmPreviewPlayUI(false);
+}
+
+/* 「リズムを確認 / 停止」ボタンの見た目を再生状態に合わせる。 */
+function setRhythmPreviewPlayUI(playing) {
+    if (!els.customTestPreviewPlay) return;
+    els.customTestPreviewPlay.setAttribute('aria-pressed', playing ? 'true' : 'false');
+    els.customTestPreviewPlay.textContent = playing ? '■ 停止' : '▶ リズムを確認';
+}
+
+/* ボタンのトグル（再生中なら停止、停止中なら再生）。 */
+function toggleRhythmPreviewPlay() {
+    if (rhythmPreview.playing) stopPreviewRhythm();
+    else startPreviewRhythm();
 }
 
 /* ── 流れるVexFlow譜面レイヤー（v0.9.126・Step1）─────────────────────────
@@ -3634,6 +3837,7 @@ function loop() {
 
 /* 開始/停止 兼用ボタン：再生中なら停止＋自動リセット、停止中なら開始 */
 function onPlayBtn() {
+    stopPreviewRhythm(); // STAGE本体の開始/停止操作時は譜面プレビューのリズム確認音を止める（同時再生しない・v0.9.135）
     if (state.running) { stop(); resetGame(); }
     else { play(); }
 }
@@ -3690,6 +3894,7 @@ function stop() {
    譜面/progressが一気に進むのを防ぐ。自動再開はしない（戻ってきたらユーザーが再度「開始」を押す）。
    判定・再生エンジンには手を入れず、既存の stop() をそのまま使う。 */
 function stopForPageHidden() {
+    stopPreviewRhythm(); // 譜面プレビューのリズム確認音は state.running に関係なく止める（v0.9.135）
     if (!state.running) return;
     stop();
     showRcToast('画面が非表示になったため停止しました');
@@ -8026,6 +8231,7 @@ function openMicPreset() {
 
 function openSettings(from) {
     settingsReturn = from || 'home';
+    stopPreviewRhythm(); // 設定画面へ行くときは譜面プレビューのリズム確認音を止める（v0.9.135）
     if (state.running) stop();
     applySettingsToUI();
     updateMicTestDoneUI();
@@ -10381,7 +10587,7 @@ function bind() {
     // カスタムテスト：開始ボタン下の「編集に戻る」「このSTAGEを保存」（v0.9.124）
     if (els.customTestEditBack) els.customTestEditBack.addEventListener('click', backToEditorFromTest);
     if (els.customTestSave) els.customTestSave.addEventListener('click', saveRhythmCustomTestSettings);
-    els.retryBtn.addEventListener('click', () => { if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden'); resetGame(); play(); });
+    els.retryBtn.addEventListener('click', () => { stopPreviewRhythm(); if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden'); resetGame(); play(); });
     // 二重反応時：結果を閉じてマイク設定（反応テスト）へ誘導
     if (els.resultsRetestBtn) els.resultsRetestBtn.addEventListener('click', () => {
         if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden');
@@ -10416,6 +10622,8 @@ function bind() {
 
     // 上部の静的譜面プレビューの折りたたみトグル（v0.9.134）
     if (els.customTestPreviewToggle) els.customTestPreviewToggle.addEventListener('click', toggleRhythmCustomTestPreview);
+    // 譜面プレビューのリズム確認音 再生/停止トグル（v0.9.135）
+    if (els.customTestPreviewPlay) els.customTestPreviewPlay.addEventListener('click', toggleRhythmPreviewPlay);
 
     // マイク許可後の設定誘導バナー
     if (els.micSetupYesBtn) els.micSetupYesBtn.addEventListener('click', () => { hideMicSetupPrompt(); openSettings('practice'); });

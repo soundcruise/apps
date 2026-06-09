@@ -2705,6 +2705,30 @@ h1 {
     margin-top: 6px;
 }
 
+/* リズム確認音 再生/停止ボタン（v0.9.135）。スマホで押しやすいよう幅広・指サイズ。 */
+.custom-test-preview-play {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 8px 16px;
+    margin: 0 0 8px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    border-radius: 999px;
+    background: rgba(255, 159, 28, 0.14);
+    color: var(--text-color, #fdf6ee);
+    font-size: 0.84rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+}
+
+.custom-test-preview-play[aria-pressed="true"] {
+    background: rgba(255, 159, 28, 0.28);
+    border-color: rgba(255, 159, 28, 0.5);
+}
+
 /* 譜面マウント。狭い画面では横スクロール（内側の .pce-vex-scroll が実スクロールを担う）。 */
 .custom-test-preview-score {
     width: 100%;
