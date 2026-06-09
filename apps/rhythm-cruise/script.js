@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.136';
+const RHYTHM_CRUISE_VERSION = '0.9.137';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -1056,6 +1056,17 @@ function rhythmGridCellTicks(grid) {
     return RHYTHM_GRID_TICKS[grid] || RHYTHM_TPQ;
 }
 
+/* 表示密度スケール（v0.9.137）：細かい音価ほどセル幅を広げて音符・矢印の密集を緩める。
+   4分(24)/8分(12)は等倍、16分(6)/8分三連(8)は少し広め、32分(3)/16分三連(4)はかなり広め。
+   これは「表示上のセル幅」だけに掛ける係数で、判定・音声・BPM・eng.pattern には一切影響しない。 */
+function rhythmDisplayDensityScale(cellTicks) {
+    if (cellTicks <= 3) return 1.8;   // 32分
+    if (cellTicks <= 4) return 1.6;   // 16分三連
+    if (cellTicks <= 6) return 1.35;  // 16分
+    if (cellTicks <= 8) return 1.2;   // 8分三連
+    return 1.0;                       // 8分・4分
+}
+
 /* 拍子／grid／小節単位の変更時に、pattern を新しい長さへ「時間位置を保ったまま」安全に組み替える（v0.9.122）。
    既存マスは、同じ時間位置（ティック基準）に新セルが来るときだけ引き継ぎ、無ければ初期値で補う。
    from / to は { grid, patternBars, timeSignature } を渡す。
@@ -1316,7 +1327,7 @@ function ensureRhythmVexFlow(cb) {
     if (rhythmVexState === 'loading') return;
     rhythmVexState = 'loading';
     const s = document.createElement('script');
-    s.src = 'vendor/vexflow.js?v=0.9.136';
+    s.src = 'vendor/vexflow.js?v=0.9.137';
     s.async = true;
     s.onload = () => {
         rhythmVexState = getRhythmVexFlow() ? 'ready' : 'error';
@@ -1671,8 +1682,10 @@ function drawRhythmVexPreview(VF, d, mount) {
     const cellTicks = rhythmGridCellTicks(d.grid);
     // Playレーンの流れるVexFlow譜面と同じセル幅に合わせる（cellW = pxPerBeat * cellTicks/24・v0.9.135）。
     // これで静的プレビューだけが異様に横長になるのを防ぐ。state.pxPerBeat 未確定時は既定90で代替。
+    // さらに細かい音価では密集緩和の表示倍率を掛ける（v0.9.137）。倍率は表示専用で判定/音声には無関係。
     const pxPerBeat = (state.pxPerBeat > 0) ? state.pxPerBeat : 90;
-    const cellW = Math.max(8, pxPerBeat * (cellTicks / RHYTHM_TPQ));
+    const densityScale = rhythmDisplayDensityScale(cellTicks);
+    const cellW = Math.max(8, pxPerBeat * (cellTicks / RHYTHM_TPQ)) * densityScale;
     const laneW = N * cellW;
     const H = RHYTHM_VEX_LANE_H;                       // 譜面（SVG）描画域の高さ。STAGE/編集と共通で変えない。
     const laneH = H + RHYTHM_VEX_PREVIEW_ARROW_BAND;   // レーン全体は矢印＋下余白ぶん高くする（プレビュー専用・v0.9.136）。
