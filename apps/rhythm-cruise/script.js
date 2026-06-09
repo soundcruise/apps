@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.133';
+const RHYTHM_CRUISE_VERSION = '0.9.134';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -446,6 +446,8 @@ const els = {
     customTestEditBack: $('custom-test-edit-back'),
     customTestSave: $('custom-test-save'),
     customTestPreview: $('custom-test-preview'),
+    customTestPreviewToggle: $('custom-test-preview-toggle'),
+    customTestPreviewBody: $('custom-test-preview-body'),
     customTestPreviewScore: $('custom-test-preview-score'),
     customFlowScoreLayer: $('custom-flow-score-layer'),
     tempoVal: $('tempo-val'),
@@ -1310,7 +1312,7 @@ function ensureRhythmVexFlow(cb) {
     if (rhythmVexState === 'loading') return;
     rhythmVexState = 'loading';
     const s = document.createElement('script');
-    s.src = 'vendor/vexflow.js?v=0.9.133';
+    s.src = 'vendor/vexflow.js?v=0.9.134';
     s.async = true;
     s.onload = () => {
         rhythmVexState = getRhythmVexFlow() ? 'ready' : 'error';
@@ -1754,24 +1756,56 @@ function drawRhythmVexPreview(VF, d, mount) {
     }
 }
 
-/* テスト再生画面の譜面プレビューを描画（VexFlow 未ロード時は読み込み→再描画、失敗時はメッセージ）。
-   stage は eng.custom（正規化済みカスタムSTAGE）。VexFlow が無くてもテスト再生本体は壊さない。 */
+/* 上部の静的譜面プレビューを折りたたみ化（v0.9.134）。初期は閉じ、Playレーンと開始ボタンを優先する。
+   実描画は開いたとき（lazy）に行う。Playレーン内の流れるVexFlow譜面とは別物で、そちらには一切触れない。 */
+let rhythmPreviewStage = null;     // 現在プレビュー対象のカスタムSTAGE（lazy描画/退出判定用）
+let rhythmPreviewRendered = false; // 静的プレビューを既に描画済みか（開くたびの二重描画を避ける）
+
+/* テスト再生に入ったときの準備：プレビュー枠を出し、初期は閉じておく（描画はまだしない）。
+   stage は eng.custom（正規化済みカスタムSTAGE）。STAGE1/基礎練では hide される。 */
 function renderRhythmCustomTestPreview(stage) {
-    if (!els.customTestPreview || !els.customTestPreviewScore) return;
+    if (!els.customTestPreview) return;
     if (!stage || !stage.pattern || !stage.pattern.length) { hideRhythmCustomTestPreview(); return; }
+    rhythmPreviewStage = stage;
+    rhythmPreviewRendered = false;
     els.customTestPreview.classList.remove('hidden');
+    setRhythmCustomTestPreviewOpen(false); // 初期状態は閉じる
+}
+
+/* 開閉の見た目を反映。開いたときにまだ描いていなければ実描画する（lazy）。 */
+function setRhythmCustomTestPreviewOpen(open) {
+    if (els.customTestPreviewBody) els.customTestPreviewBody.classList.toggle('hidden', !open);
+    if (els.customTestPreviewToggle) {
+        els.customTestPreviewToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        els.customTestPreviewToggle.textContent = open ? '譜面プレビューを隠す' : '譜面プレビューを表示';
+    }
+    if (open && !rhythmPreviewRendered) drawRhythmCustomTestPreviewBody();
+}
+
+/* 折りたたみボタンのトグル。 */
+function toggleRhythmCustomTestPreview() {
+    const open = els.customTestPreviewToggle && els.customTestPreviewToggle.getAttribute('aria-expanded') === 'true';
+    setRhythmCustomTestPreviewOpen(!open);
+}
+
+/* 静的VexFlow譜面プレビューの実描画（VexFlow 未ロード時は読み込み→再描画、失敗時はメッセージ）。
+   描画ロジック本体（drawRhythmVexPreview）は従来どおり。VexFlow が無くてもテスト再生本体は壊さない。 */
+function drawRhythmCustomTestPreviewBody() {
+    const stage = rhythmPreviewStage;
+    if (!els.customTestPreviewScore || !stage || !stage.pattern || !stage.pattern.length) return;
     const VF = getRhythmVexFlow();
     if (!VF) {
         els.customTestPreviewScore.innerHTML = '<p class="pce-vex-loading">譜面プレビューを準備中です…</p>';
         ensureRhythmVexFlow((ok) => {
-            if (eng.custom !== stage) return; // 既に別STAGE/退出済みなら破棄
-            if (ok) renderRhythmCustomTestPreview(stage);
+            if (rhythmPreviewStage !== stage) return; // 既に別STAGE/退出済みなら破棄
+            if (ok) drawRhythmCustomTestPreviewBody();
             else els.customTestPreviewScore.innerHTML = '<p class="pce-vex-loading">譜面プレビューを表示できませんでした。</p>';
         });
         return;
     }
     try {
         drawRhythmVexPreview(VF, stage, els.customTestPreviewScore);
+        rhythmPreviewRendered = true;
     } catch (e) {
         els.customTestPreviewScore.innerHTML = '<p class="pce-vex-loading">譜面プレビューを表示できませんでした。</p>';
     }
@@ -1779,7 +1813,14 @@ function renderRhythmCustomTestPreview(stage) {
 
 /* 譜面プレビューを隠して中身を空にする（STAGE1や編集に戻る・TOP等で確実に消す）。 */
 function hideRhythmCustomTestPreview() {
+    rhythmPreviewStage = null;
+    rhythmPreviewRendered = false;
     if (els.customTestPreview) els.customTestPreview.classList.add('hidden');
+    if (els.customTestPreviewBody) els.customTestPreviewBody.classList.add('hidden');
+    if (els.customTestPreviewToggle) {
+        els.customTestPreviewToggle.setAttribute('aria-expanded', 'false');
+        els.customTestPreviewToggle.textContent = '譜面プレビューを表示';
+    }
     if (els.customTestPreviewScore) els.customTestPreviewScore.innerHTML = '';
 }
 
@@ -10372,6 +10413,9 @@ function bind() {
             });
         });
     }
+
+    // 上部の静的譜面プレビューの折りたたみトグル（v0.9.134）
+    if (els.customTestPreviewToggle) els.customTestPreviewToggle.addEventListener('click', toggleRhythmCustomTestPreview);
 
     // マイク許可後の設定誘導バナー
     if (els.micSetupYesBtn) els.micSetupYesBtn.addEventListener('click', () => { hideMicSetupPrompt(); openSettings('practice'); });

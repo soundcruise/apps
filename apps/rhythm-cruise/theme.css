@@ -2672,12 +2672,37 @@ h1 {
     border: 1px solid rgba(253, 246, 238, 0.14);
 }
 
-.custom-test-preview-cap {
+/* 折りたたみトグル（v0.9.134）。初期は閉じ、押すと譜面本体を開閉する。 */
+.custom-test-preview-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 4px 2px;
+    border: 0;
+    background: transparent;
+    color: var(--muted-color);
     font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.04em;
-    color: var(--muted-color);
-    margin: 0 2px 6px;
+    text-align: left;
+    cursor: pointer;
+}
+
+/* 開閉インジケータ（▶／▼）。aria-expanded で向きを変える。 */
+.custom-test-preview-toggle::before {
+    content: '▶';
+    font-size: 0.6rem;
+    transition: transform 0.15s ease;
+}
+
+.custom-test-preview-toggle[aria-expanded="true"]::before {
+    transform: rotate(90deg);
+}
+
+/* 折りたたみ本体（v0.9.134）。閉じている間は .hidden で非表示。 */
+.custom-test-preview-body {
+    margin-top: 6px;
 }
 
 /* 譜面マウント。狭い画面では横スクロール（内側の .pce-vex-scroll が実スクロールを担う）。 */
