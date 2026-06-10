@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.150';
+const RHYTHM_CRUISE_VERSION = '0.9.151';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -284,6 +284,7 @@ const state = {
     rcClickOffbeat: false, // 裏拍で鳴らす（選んだ拍の裏へずらす）。既定OFF
     rcLoop: false,         // くり返し練習（ページ再読込でOFF。永続化しない）
     loopActive: false,     // くり返し再生の進行中フラグ
+    lastCompletedLap: null, // くり返し練習で完了済みの最新周回の判定データ（STOP時に結果カードへ出す・v0.9.151）
     judgeCutoff: 0,        // 採点対象セルの上限（くり返しSTOPの部分集計用。通常は TOTAL_BEATS）
     // マイク設定の進捗フラグ（localStorageに保存）
     micTestDone: false,       // マイク反応テストを完了したか
@@ -4773,9 +4774,46 @@ function advanceLoopLap() {
     const passLen = state.endTime;                      // game-time 0（カウントイン頭）〜終端までの1周分(ms)
     state.audioStartTime += passLen / 1000;             // 次ラップを再びカウントインから開始
     state.startTime += passLen;                         // マイクガード用 perf 基準も同量ずらす（lastClickPerf整合）
+    state.lastCompletedLap = snapshotLapResult();       // 完了したこの周回を保持（STOP時に途中ではなく完了済み最新周回を出す・v0.9.151）
     resetData();                                        // 結果/マーカー/波形を新ラップ用にクリア（最新ラップだけ採点）
     state.judgeCutoff = TOTAL_BEATS;
     state.nextClick = 0;                                // カウントインから鳴らす（先頭から再予約）
+}
+
+/* くり返し練習：完了した1周分の判定データを浅いコピーで保持（v0.9.151）。
+   resetData() は配列を新規生成して入れ替えるため、参照を控えても次ラップの入力で上書きされない。
+   判定/スコア計算には非干渉（対象データの保持のみ）。 */
+function snapshotLapResult() {
+    return {
+        results: state.results ? state.results.slice() : [],
+        beatMicPeak: state.beatMicPeak ? state.beatMicPeak.slice() : [],
+        beatDoubled: state.beatDoubled ? state.beatDoubled.slice() : [],
+        beatExcluded: state.beatExcluded ? state.beatExcluded.slice() : [],
+        chordBeatProbe: state.chordBeatProbe ? state.chordBeatProbe.slice() : null,
+        micEventLog: state.micEventLog ? state.micEventLog.slice() : [],
+        markers: state.markers ? state.markers.slice() : [],
+        micRunWave: state.micRunWave ? state.micRunWave.slice() : [],
+        micWaveHistory: state.micWaveHistory ? state.micWaveHistory.slice() : [],
+        doubleReactionCount: state.doubleReactionCount || 0,
+        chordPicked: state.chordPicked || 0,
+        chordIgnoredRePeaks: state.chordIgnoredRePeaks || 0,
+    };
+}
+/* 保持していた完了済み周回の判定データを現在の state へ戻す（結果カード描画用・v0.9.151）。 */
+function restoreLapResult(s) {
+    if (!s) return;
+    state.results = s.results;
+    state.beatMicPeak = s.beatMicPeak;
+    state.beatDoubled = s.beatDoubled;
+    state.beatExcluded = s.beatExcluded;
+    if (s.chordBeatProbe) state.chordBeatProbe = s.chordBeatProbe;
+    state.micEventLog = s.micEventLog;
+    state.markers = s.markers;
+    state.micRunWave = s.micRunWave;
+    state.micWaveHistory = s.micWaveHistory;
+    state.doubleReactionCount = s.doubleReactionCount;
+    state.chordPicked = s.chordPicked;
+    state.chordIgnoredRePeaks = s.chordIgnoredRePeaks;
 }
 
 /* 開始/停止 兼用ボタン：再生中なら停止＋自動リセット、停止中なら開始 */
@@ -4790,12 +4828,20 @@ function onPlayBtn() {
 /* くり返し練習のSTOP（v0.9.147）：そこまで（最新ラップで到達済み）の判定対象だけで結果カードを出す。
    未到達の未来セルは採点対象にしない（MISSにしない）。くり返し練習の結果は履歴に保存しない。 */
 function stopLoopWithResult() {
+    state.loopActive = false;
+    // 完了済みの最新周回がある場合は、その1周分（全セル）を結果カードに出す（v0.9.151）。
+    //   例）4小節設定で1周完了後、2周目の途中でSTOP → 1周目の4小節分を表示。
+    if (state.lastCompletedLap) {
+        restoreLapResult(state.lastCompletedLap);
+        finish({ save: false, cutoff: TOTAL_BEATS }); // 履歴保存せず・完了済み最新周回（全セル）で結果表示
+        return;
+    }
+    // まだ1周も完了していない（1周目の途中でSTOP）→ 従来どおり、到達済みセルまでの部分結果を出す。
     const tStop = gameAudioMs();        // ラップ内ローカル時刻（audioStartTimeはラップ毎にずらしてある）
     let cutoff = 0;
     for (let i = 0; i < TOTAL_BEATS; i++) {
         if (state.T0 + i * state.beatInterval <= tStop) cutoff = i + 1; // 理想時刻が過ぎたセルまでを採点対象に
     }
-    state.loopActive = false;
     finish({ save: false, cutoff: cutoff }); // 履歴保存せず・部分集計で結果表示
 }
 
@@ -4809,6 +4855,7 @@ function play() {
     stopTapCal();
     ensureAudio();
     resetData();
+    state.lastCompletedLap = null;                      // 新しいランの開始時に、前回くり返し練習の完了周回データを破棄（v0.9.151）
     buildSchedule();
     if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden');
     els.latestVerdict.dataset.state = 'idle';
@@ -5253,7 +5300,17 @@ function finish(opts) {
     if (els.refreshBar) els.refreshBar.classList.add('hidden'); // モーダル背後に透けないよう一時的に隠す
     document.body.classList.add('results-open');               // モーダル中は戻る/TOP/設定を隠す（修正8）
     applyResultDetailOpenPref();                               // 詳細は既定で開く（ユーザーが閉じた設定があれば反映・v0.9.150）
+    scrollResultsToTop();                                      // 詳細OPENでも必ず「RESULT」見出しが見える位置から表示（v0.9.151）
     drawResults();
+}
+
+/* 結果カードを表示したら、必ず一番上（RESULT見出し）が見える位置へスクロールする（v0.9.151）。
+   オーバーレイ(#results-overlay)が縦スクロール領域。詳細カードがデフォルトOPENでも中盤から表示されないようにする。
+   描画(rAF)でグラフ等が確定した後にもう一度先頭へ戻す。 */
+function scrollResultsToTop() {
+    if (!els.resultsOverlay) return;
+    els.resultsOverlay.scrollTop = 0;
+    requestAnimationFrame(() => { if (els.resultsOverlay) els.resultsOverlay.scrollTop = 0; });
 }
 
 /* ════════════ 過去の結果カード履歴（v0.9.146）════════════════════════════
@@ -5530,6 +5587,7 @@ function renderHistoryResultCard(rec) {
     if (els.resultsOverlay) els.resultsOverlay.classList.remove('hidden');
     document.body.classList.add('results-open');
     applyResultDetailOpenPref();  // 詳細は既定で開く（ユーザーが閉じた設定があれば反映・履歴も同じ設定・v0.9.150）
+    scrollResultsToTop();         // 履歴詳細でも上端（RESULT/過去結果見出し）から表示する（v0.9.151）
     // ズレ履歴グラフは clientWidth に依存するため、オーバーレイ表示後（サイズ確定後）に履歴データで描く。
     if (els.resultsDetail && els.resultsDetail.open) renderHistoryDetailGraphs(rec);
 }
@@ -5686,20 +5744,26 @@ function buildComment({ score, just, miss, tapped, avg, fAvg, sAvg, total, bars,
     //   完全に褒め切るのは98〜100点のみ。表示文言に「8小節以上」等の直接表現は使わず、「長めの小節数」「この長さ」などの自然な言い回しにする。
     if (bars >= 8) {
         if (score >= 98) {
-            core = tendency
-                ? 'とても良く弾けています。' + tendency + 'が、この長さでも崩れずキープできています。'
-                : 'かなり安定してキープできています。長めの小節数でも崩れないのは、とても良い状態です。';
+            // 完全に褒めてOK（98〜100点のみ）。
+            core = '長めの小節数でも、かなり安定してキープできています。' + tSuffix + 'この長さで崩れないのは、とても良い状態です。';
         } else if (score >= 94) {
-            core = '長めの小節数までしっかりキープできています。' + tSuffix + '細かいズレを整えると、さらに安定感が出ます。';
+            // かなり良い。課題は軽く添える（完全には褒め切らない）。
+            core = '長めの小節数まで、かなり良い精度でキープできています。' + tSuffix + '細かいズレを整えると、さらに安定感が出ます。';
         } else if (score >= 90) {
-            core = '長く続けられているのは良い練習です。' + (tendency
-                ? tendency + '。後半まで安定させていきましょう。'
-                : '走り／もたりの傾向を確認して、後半まで安定させていきましょう。');
+            // 良い流れ。改善提案あり（少し評価寄り）。
+            core = '長めの小節数までしっかり続けられています。' + (tendency
+                ? tendency + '。後半までさらに安定させていきましょう。'
+                : '走り／もたりの傾向を確認して、後半までさらに安定させていきましょう。');
         } else if (score >= 80) {
-            core = '長めに続ける練習ができています。クリックをよく聴いて、GOODの位置を少しずつ増やしていきましょう。';
+            // 長く続けられたことを前向きに評価しつつ改善提案（少し評価寄り）。
+            core = '長めの小節数まで続けられています。' + (tendency
+                ? tendency + '。GOODの位置を少しずつ増やして、後半まで安定させていきましょう。'
+                : 'クリックをよく聴いて、GOODの位置を少しずつ増やし、後半まで安定させていきましょう。');
         } else if (score >= 70) {
-            core = '長く続ける力はついてきています。まずは少しテンポを落とすか、4小節で安定させてから、もう一度長めに挑戦してみましょう。';
+            // 挑戦は認めつつ、基礎へ戻す。
+            core = '長めの小節数に挑戦できています。まずは少しテンポを落とすか、4小節で安定させてから、もう一度長めに挑戦してみましょう。';
         } else {
+            // 無理に褒めすぎない。
             core = '長く続ける練習に挑戦できています。まずはテンポを落として、短めの小節数で安定させてから、少しずつ長くしていきましょう。';
         }
         return core + firstBarNote;
