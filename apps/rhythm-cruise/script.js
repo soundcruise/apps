@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.144';
+const RHYTHM_CRUISE_VERSION = '0.9.145';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -1545,6 +1545,12 @@ function rhythmArrowGlyph(cell) {
     const a = (dir === 'up') ? '↑' : '↓';
     return '<span class="pce-arrow-paren">(</span><span class="pce-arrow-mark">' + a + '</span><span class="pce-arrow-paren">)</span>';
 }
+function rhythmMotionOnlyGlyph(cell) {
+    if (!cell || cell.hit || cell.type === 'hit') return '';
+    const dir = cell.dir === 'up' ? 'up' : (cell.dir === 'down' ? 'down' : null);
+    if (!dir) return '';
+    return dir === 'up' ? '(↑)' : '(↓)';
+}
 
 /* 現在の音符レーン横スクロール位置を取得。タップ後の再描画で同じ位置に戻すために使う。 */
 function getRhythmPatternScrollLeft() {
@@ -1885,18 +1891,23 @@ function drawRhythmVexPreview(VF, d, mount) {
         lane.appendChild(overlay);
     }
 
-    // ダウン/アップ矢印（v0.9.136）。hit:true のセルだけ、符頭中心の真下に ↓/↑ を表示する。
-    // 位置は符頭ピン留めと同じ (i+0.5)*cellW。rest/tie/hit:false は表示しない。横スクロールで譜面と一緒に動く。
+    // ダウン/アップ矢印（v0.9.136）。hit:true は ↓/↑、hit:false+dirあり は手の動きガイドとして (↓)/(↑) を表示（v0.9.145）。
+    // 位置は符頭ピン留めと同じ (i+0.5)*cellW。横スクロールで譜面と一緒に動く。判定対象は hit:true のまま。
     // 縦は符頭ベースライン(baselineY)から一定距離下げて置き、下にも余白(laneH-H)が残るようにする。
     const arrowTop = Math.round((baselineY != null ? baselineY : H * 0.6) + RHYTHM_VEX_PREVIEW_ARROW_GAP);
     const arrowLayer = document.createElement('div');
     arrowLayer.className = 'pce-vex-arrows';
     for (let i = 0; i < d.pattern.length; i++) {
         const c = d.pattern[i];
-        if (!c || !c.hit) continue;
+        const motionGlyph = rhythmMotionOnlyGlyph(c);
+        if (!c || (!c.hit && !motionGlyph)) continue;
         const arrow = document.createElement('span');
         arrow.className = 'pce-vex-arrow';
-        arrow.textContent = (c.dir === 'up') ? '↑' : '↓';
+        arrow.textContent = c.hit ? ((c.dir === 'up') ? '↑' : '↓') : motionGlyph;
+        if (!c.hit) {
+            arrow.style.color = 'rgba(255, 180, 90, 0.78)';
+            arrow.style.fontSize = '1.02rem';
+        }
         arrow.style.left = ((i + 0.5) * cellW) + 'px';
         arrow.style.top = arrowTop + 'px';
         arrowLayer.appendChild(arrow);
@@ -1941,7 +1952,7 @@ function setRhythmCustomTestPreviewOpen(open) {
     if (els.customTestPreviewBody) els.customTestPreviewBody.classList.toggle('hidden', !open);
     if (els.customTestPreviewToggle) {
         els.customTestPreviewToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-        els.customTestPreviewToggle.textContent = open ? '譜面プレビューを隠す' : '譜面プレビューを表示';
+        els.customTestPreviewToggle.textContent = open ? 'リズムプレビューを隠す' : 'リズムプレビューを表示';
     }
     // 開くたびに現在の state.bars に合わせて描き直す（小節数変更を反映・v0.9.136）。
     if (open) drawRhythmCustomTestPreviewBody();
@@ -1988,7 +1999,7 @@ function hideRhythmCustomTestPreview() {
     if (els.customTestPreviewBody) els.customTestPreviewBody.classList.add('hidden');
     if (els.customTestPreviewToggle) {
         els.customTestPreviewToggle.setAttribute('aria-expanded', 'false');
-        els.customTestPreviewToggle.textContent = '譜面プレビューを表示';
+        els.customTestPreviewToggle.textContent = 'リズムプレビューを表示';
     }
     if (els.customTestPreviewScore) els.customTestPreviewScore.innerHTML = '';
     // 縦棒/スクロールの参照を破棄（DOMは消えたので次回描画時に張り直す・v0.9.136）。
@@ -2259,11 +2270,11 @@ function stopPreviewRhythm() {
     setRhythmPreviewPlayUI(false);
 }
 
-/* 「リズムを確認 / 停止」ボタンの見た目を再生状態に合わせる。 */
+/* 「リズムを再生 / 停止」ボタンの見た目を再生状態に合わせる。 */
 function setRhythmPreviewPlayUI(playing) {
     if (!els.customTestPreviewPlay) return;
     els.customTestPreviewPlay.setAttribute('aria-pressed', playing ? 'true' : 'false');
-    els.customTestPreviewPlay.textContent = playing ? '■ 停止' : '▶ リズムを確認';
+    els.customTestPreviewPlay.textContent = playing ? '■ 停止' : '▶ リズムを再生';
 }
 
 /* ボタンのトグル（再生中なら停止、停止中なら再生）。 */
@@ -3410,6 +3421,18 @@ function drawStrokeArrow(ctx, x, y, dir, color, alpha) {
     ctx.fill();
     ctx.restore();
 }
+function drawMotionOnlyArrow(ctx, x, y, cell, color, alpha) {
+    const glyph = rhythmMotionOnlyGlyph(cell);
+    if (!glyph) return;
+    ctx.save();
+    ctx.globalAlpha = (alpha == null) ? 0.72 : alpha;
+    ctx.fillStyle = color || 'rgba(255,180,90,0.72)';
+    ctx.font = '800 13px Outfit, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(glyph, x, y);
+    ctx.restore();
+}
 
 /* ── マイク入力波形（譜面レーン背景・グレー） ──────────── */
 /* データは結果カードと同じ state.micRunWave（t = gameAudioMs() + micJudgeOffsetMs() ＝判定時間軸）。
@@ -3639,6 +3662,9 @@ function drawLane(rawT) {
             }
             // ストローク方向の矢印（音符の下・控えめなアンバー）
             drawStrokeArrow(ctx, x, yc + 28, engDirAt(i), 'rgba(255,180,90,0.8)', 0.8);
+        } else if (i >= 0 && eng.custom) {
+            // hit:false + dirあり は「音は鳴らさないが手は振る」ガイド。(↓)/(↑) として表示だけ行い、判定には入れない（v0.9.145）。
+            drawMotionOnlyArrow(ctx, x, yc + 28, engCellAt(i), 'rgba(255,180,90,0.72)', 0.72);
         } else if (i < 0 && engIsPulse(i) && !eng.custom) {
             // カウントインは控えめな点（拍＝パルス位置のみ）。
             // カスタムは小節線・拍点線を半セル左へ寄せている関係で、点(=拍中心)が拍線とズレて見えるため出さない（v0.9.140）。
@@ -3878,9 +3904,16 @@ function drawReviewFlowScore(VF) {
 function fitReview() {
     if (!els.reviewCanvas) return;
     const cssH = 168;
-    // 表示密度スケール（v0.9.140）：本番Play画面(engDisplayScale)と同じ係数で、32分など細かい音価のとき横を広げる。
-    // 表示だけで、判定/スコア/集計には影響しない（beatPx は描画位置の基準にのみ使う）。
-    const beatPx = Math.round(70 * (eng.custom ? engDisplayScale() : 1));
+    // 結果画面の1セル横幅は STAGE画面(drawRhythmFlowScore)の cellW と同じ式に統一する（v0.9.145）。
+    //   STAGE: cellW = state.pxPerBeat * (eng.cellTicks / RHYTHM_TPQ)（state.pxPerBeat は engDisplayScale 済み）。
+    //   以前は「固定70 × engDisplayScale」を1セル幅に使っていたため、cellTicks<24（16分/16分3連/32分など）で
+    //   結果画面だけ横に間伸びしていた。STAGE画面と同じ式にすることで、同じパターンが同じ横スケールで揃う。
+    //   beatPx は VexFlow固定譜面・判定符頭・波形オーバーレイ・(↓)/(↑) すべての描画基準なので、一括で一致する。
+    //   表示だけの変更で、判定/スコア/集計には影響しない。
+    const stageCellW = state.pxPerBeat * (eng.cellTicks / RHYTHM_TPQ);
+    const beatPx = (eng.custom && Number.isFinite(stageCellW) && stageCellW > 0)
+        ? stageCellW
+        : Math.round(70 * (eng.custom ? engDisplayScale() : 1)); // 非カスタム（防御）は従来どおり
     const leftPad = 40, rightPad = 36;
     const cssW = leftPad + rightPad + (TOTAL_BEATS - 1) * beatPx;
     const dpr = window.devicePixelRatio || 1;
@@ -4032,6 +4065,15 @@ function drawReview() {
     //   その場合、Canvas側では固定音符を描かず、判定符頭(GOOD/EARLY/LATE/MISS)・方向矢印・文字だけを前面に描く。
     //   VexFlow未ロード/失敗時(fallback)のみ、従来のCanvas固定音符(drawReviewStageNote・旗つき/連桁なし)を描く。
     const useVexFixed = (eng.custom && reviewFlowScoreReady); // true＝固定音符はVexFlow層が担当
+
+    // hit:false + dirあり は採点対象外の手の動きガイドとして (↓)/(↑) だけ表示する（v0.9.145）。
+    // engIsHit/集計ループには入れず、判定・スコアには影響させない。
+    if (eng.custom) {
+        for (let i = 0; i < TOTAL_BEATS; i++) {
+            if (engIsHit(i)) continue;
+            drawMotionOnlyArrow(ctx, beatX(i), yc + 28, engCellAt(i), 'rgba(255,180,90,0.68)', 0.68);
+        }
+    }
 
     // 各拍：本来の音符＋方向矢印＋自分の入力マーク＋ズレms
     ctx.textBaseline = 'alphabetic';
