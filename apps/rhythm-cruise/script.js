@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.142';
+const RHYTHM_CRUISE_VERSION = '0.9.143';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -2769,8 +2769,9 @@ function openSettingsFromCurrent() {
 
 /* 全画面共通ナビ：TOP＝常にホーム、戻る＝自然な前画面 */
 function goTop() {
-    // カスタムテスト再生中は、未保存のBPM/小節数が破棄される可能性があるため確認する（v0.9.124）
-    if (eng.custom) {
+    // カスタムテスト再生中は、未保存のBPM/小節数が破棄される可能性があるため確認する（v0.9.124）。
+    // 組み込みSTAGE（STAGE1）は editId が無く、BPM/小節数は通常設定として保存されるので確認は不要（v0.9.143）。
+    if (eng.editId) {
         if (!window.confirm('テスト再生中に変更したBPM/小節数が保存されていない場合は破棄されます。\nTOPへ戻りますか？')) return;
     }
     stop();
@@ -2784,7 +2785,8 @@ function navBack() {
     if (!els.settings.classList.contains('hidden')) { closeSettings(); return; }
     // STAGE画面（結果・見返し含む）→ カスタムテスト中はPROカスタム一覧へ、通常は基礎練画面へ（v0.9.118/124）
     if (currentScreen === 'practice') {
-        if (eng.custom) {
+        // 編集テスト再生中（editId あり）だけ編集画面へ戻す。組み込みSTAGE（STAGE1）は通常どおり基礎練画面へ（v0.9.143）。
+        if (eng.editId) {
             backToEditorFromTest(); // カスタムテスト中の「戻る」も該当STAGEの編集画面へ
             return;
         }
@@ -2845,11 +2847,21 @@ function openStage(n) {
     if (els.customTestActions) els.customTestActions.classList.add('hidden'); // STAGE1では開始ボタン下の2ボタンを出さない
     const s = STAGES.find((x) => x.n === n) || STAGES[0];
     state.currentStage = s.n;
+    // v0.9.143：組み込みSTAGE（STAGE1）を ProカスタムSTAGE と同じ新Play/Result基盤で表示する。
+    //   judging/score/count-in/timing は従来と完全一致（getBuiltinStageData 参照）。editId は付けない＝編集UI（編集に戻る/プレビュー）は出さない。
+    const builtin = getBuiltinStageData(s.n);
+    if (builtin) {
+        ensureRhythmVexFlow();        // 譜面ライブラリ先読み（CDN不使用・編集/カスタムと共通）
+        configureEngineForCustom(builtin);
+        eng.editId = null;            // 編集テスト再生ではない（「編集に戻る」等の編集UIを抑制）
+        applyStageBars();             // TOTAL_BEATS = state.bars × cellsPerBar（cellsPerBar=4で従来と同じ）
+        showCustomFlowScoreLayer();   // 流れるVexFlow固定譜面レイヤーを表示
+    }
     els.practiceNum.innerHTML = `<small>STAGE</small><b>${s.n}</b>`;
     els.practiceTitle.textContent = s.title;
     setInputMode(state.inputMode);   // v0.9.118：リズム練画面で選んだ入力方式（タップ/ストローク）で開始
     show('practice');
-    requestAnimationFrame(() => { fitLane(); resetGame(); });
+    requestAnimationFrame(() => { fitLane(); resetGame(); renderRhythmFlowScore(); });
 }
 
 /* カスタムテスト再生を抜けるときの後始末（v0.9.124）。
@@ -4328,6 +4340,41 @@ function configureEngineForCustom(stage) {
     applyRhythmDefaultDirections({ pattern: eng.pattern, grid: stage.grid, timeSignature: stage.timeSignature });
 }
 
+/* ── 組み込みSTAGEの譜面データ（新Play/Result基盤・v0.9.143）─────────────────
+   既存STAGE1を、ProカスタムSTAGEと同じ表示基盤（VexFlow固定譜面＋判定符頭オーバーレイ＋
+   結果カードのVexFlow譜面＋横スクロール同期）で動かすための「組み込みSTAGE定義」。
+   STAGE1＝4分ジャスト＝4/4・最小音符4分・1小節パターン（全セル ダウン）。
+   この定義を configureEngineForCustom に通すと cellTicks=24 / cellsPerBar=4 / pulseTicks=24 /
+   countInCells=4・全セル hit:true・dir=down となり、従来STAGE1（eng.pattern=null時のSTAGE1_CELL）と
+   判定（engIsHit/engNearestHitIndex/engJudgeCount）・スコア・カウントイン・タイミングが完全一致する。
+   ＝判定ロジックは一切変えず、表示と結果カードだけ新基盤になる。displayDensityScale も 1.0（=従来と同じ横スケール）。
+   ※今回はSTAGE1のみ。STAGE2〜6のデータ追加は別バージョンで行う（n≠1 は null＝従来の eng.custom=null 経路）。 */
+let builtinStageCache = null;
+function getBuiltinStageData(n) {
+    if (n !== 1) return null;
+    if (builtinStageCache) return builtinStageCache;
+    const pattern = [];
+    for (let i = 0; i < BEATS_PER_BAR; i++) {
+        // dirManual:true で applyRhythmDefaultDirections の上書き対象外にし、全セル ダウンを保証（従来STAGE1と同じ）。
+        pattern.push({ hit: true, dir: 'down', type: 'hit', dirManual: true });
+    }
+    builtinStageCache = normalizeRhythmCustomStageSettings({
+        version: 1,
+        id: 'builtin_stage1',
+        title: '4分ジャスト',
+        description: '',
+        grid: 'quarter',
+        timeSignature: '4/4',
+        patternBars: 1,
+        bars: DEFAULT_BARS,
+        bpm: 80,            // STAGE1のBPMは state.bpm が支配（この値は表示基盤では未使用）。
+        clickMode: 'all',
+        pattern: pattern,
+        motion: 'all-down',
+    });
+    return builtinStageCache;
+}
+
 /* セル i（負＝カウントイン）に対応するパターンセル。カスタムはループ折り返し。 */
 function engCellAt(i) {
     if (!eng.pattern || !eng.pattern.length) return STAGE1_CELL;
@@ -4829,7 +4876,7 @@ function finish() {
     if (els.resultsMicWrap) els.resultsMicWrap.classList.toggle('hidden', state.inputMode !== 'stroke');
 
     // カスタムテスト時だけ結果画面に「編集に戻る」を表示（STAGE1では出さない・v0.9.124）
-    if (els.rEditBackBtn) els.rEditBackBtn.classList.toggle('hidden', !eng.custom);
+    if (els.rEditBackBtn) els.rEditBackBtn.classList.toggle('hidden', !eng.editId); // 編集テスト再生時のみ「編集に戻る」を出す（STAGE1は非表示・v0.9.143）
     // 結果をモーダルで表示（ズレ確認レーンがメイン）
     if (els.resultsOverlay) els.resultsOverlay.classList.remove('hidden');
     if (els.refreshBar) els.refreshBar.classList.add('hidden'); // モーダル背後に透けないよう一時的に隠す
@@ -7417,7 +7464,7 @@ function setStageBars(bars) {
     state.bars = bars;
     applyStageBars();
     updateBarsUI();
-    if (!eng.custom) saveSettings();    // カスタムテスト中は一時設定（STAGE設定を書き換えない）
+    if (!eng.editId) saveSettings();    // 編集テスト再生中は一時設定（STAGE設定を書き換えない）。組み込みSTAGE（STAGE1）は通常どおり保存（v0.9.143）
     resetGame();                        // 新しい小節数で配列・カウンタ・レーンを作り直す
     refreshCustomFlowScore();           // 流れるVexFlow譜面も新しい小節数ぶんへ再生成（カスタムのみ・v0.9.131）
 }
