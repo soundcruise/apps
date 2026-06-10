@@ -2949,6 +2949,120 @@ h1 {
     margin-top: 6px;
 }
 
+/* BPM/小節/クリック 設定タブ（v0.9.147）。枠はリズムプレビューと同じ見た目。トグル/本体は .custom-test-preview-* を流用。 */
+.stage-settings {
+    width: 100%;
+    max-width: 560px;
+    margin: 10px auto 0;
+    padding: 8px 8px 10px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(253, 246, 238, 0.14);
+}
+.stage-settings .tempo-row {
+    margin-bottom: 4px;
+}
+.stage-set-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+.stage-set-label {
+    flex: 0 0 auto;
+    color: var(--muted-color);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+.stage-set-seg {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.ss-seg {
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    background: var(--surface-raised);
+    color: var(--muted-color);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.ss-seg.is-active {
+    color: #1b1205;
+    background: var(--secondary-color);
+    border-color: var(--secondary-color);
+    font-weight: 700;
+}
+.ss-toggle {
+    min-width: 56px;
+    padding: 6px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(253, 246, 238, 0.2);
+    background: var(--surface-raised);
+    color: var(--muted-color);
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.ss-toggle.is-on {
+    color: #1b1205;
+    background: var(--secondary-color);
+    border-color: var(--secondary-color);
+}
+.stage-set-note {
+    margin: 8px 2px 0;
+    color: var(--muted-color);
+    font-size: 0.74rem;
+    line-height: 1.5;
+}
+/* 「リズムプレビューを表示」タブと「BPM / 小節数 / クリック」タブが両方出る時（カスタム）だけ、間の余白を約1/3に詰める（v0.9.147）。 */
+.custom-test-preview:not(.hidden) + .stage-settings {
+    margin-top: 4px;
+}
+/* クリックする拍を4つの丸で視認（v0.9.147・視認用）。選択に連動して ● / ○ が切り替わる。 */
+.click-dots-row {
+    margin-top: 6px;
+}
+.click-dots {
+    display: inline-flex;
+    gap: 8px;
+    font-size: 1.05rem;
+    line-height: 1;
+    letter-spacing: 0.02em;
+}
+.click-dot.is-on {
+    color: var(--secondary-color);
+}
+.click-dot.is-off {
+    color: rgba(253, 246, 238, 0.32);
+}
+.click-dots-note {
+    color: var(--muted-color);
+    font-size: 0.74rem;
+}
+/* 結果カード「MISS拍の原因」（v0.9.147）：開いた時だけ表示する折りたたみ。ユーザー向けの原因を1拍1行で。 */
+.miss-cause-lead {
+    margin: 2px 2px 6px;
+    color: var(--muted-color);
+    font-size: 0.78rem;
+    line-height: 1.5;
+}
+.miss-cause-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.miss-cause-item {
+    margin: 0;
+    color: var(--text-color);
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
 /* リズム確認音 再生/停止ボタン（v0.9.135）。スマホで押しやすいよう幅広・指サイズ。 */
 .custom-test-preview-play {
     display: inline-flex;

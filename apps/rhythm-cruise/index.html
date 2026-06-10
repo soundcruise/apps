@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.146">
+    <link rel="stylesheet" href="theme.css?v=0.9.147">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -206,17 +206,57 @@
                 </div>
             </div>
 
-            <!-- 2. BPM・小節数操作（v0.9.118：横並び） -->
-            <div class="tempo-row">
-                <div class="ctrl-group">
-                    <button class="tempo-btn" id="tempo-down" aria-label="テンポを下げる">−</button>
-                    <span><b id="tempo-val">80</b> BPM</span>
-                    <button class="tempo-btn" id="tempo-up" aria-label="テンポを上げる">+</button>
-                </div>
-                <div class="ctrl-group">
-                    <button class="tempo-btn" id="bars-down" aria-label="小節数を減らす">−</button>
-                    <span><b id="bars-val">8</b> 小節</span>
-                    <button class="tempo-btn" id="bars-up" aria-label="小節数を増やす">+</button>
+            <!-- 2. BPM/小節/クリック 設定（折りたたみ・v0.9.147）。既定は閉じる。見た目はリズムプレビューの開閉UIに合わせる。 -->
+            <div class="stage-settings" id="stage-settings">
+                <button type="button" class="custom-test-preview-toggle" id="stage-settings-toggle" aria-expanded="false" aria-controls="stage-settings-body">BPM / 小節数 / クリック</button>
+                <div class="custom-test-preview-body hidden" id="stage-settings-body">
+                    <!-- BPM・小節数操作（v0.9.118：横並び。挙動は従来どおり・BPMは1刻み） -->
+                    <div class="tempo-row">
+                        <div class="ctrl-group">
+                            <button class="tempo-btn" id="tempo-down" aria-label="テンポを下げる">−</button>
+                            <span><b id="tempo-val">80</b> BPM</span>
+                            <button class="tempo-btn" id="tempo-up" aria-label="テンポを上げる">+</button>
+                        </div>
+                        <div class="ctrl-group">
+                            <button class="tempo-btn" id="bars-down" aria-label="小節数を減らす">−</button>
+                            <span><b id="bars-val">8</b> 小節</span>
+                            <button class="tempo-btn" id="bars-up" aria-label="小節数を増やす">+</button>
+                        </div>
+                    </div>
+                    <!-- クリック設定（v0.9.147）：Play中のクリック音だけに影響。判定/譜面/スコア/プレビューには影響しない。
+                         A.鳴らす範囲　B.クリックする拍　C.裏拍で鳴らす の3段構成。 -->
+                    <div class="stage-set-row">
+                        <span class="stage-set-label">クリックを鳴らす範囲</span>
+                        <div class="stage-set-seg" id="click-range-seg" role="group" aria-label="クリックを鳴らす範囲">
+                            <button type="button" class="ss-seg is-active" data-clickrange="always" aria-pressed="true">ずっと鳴らす</button>
+                            <button type="button" class="ss-seg" data-clickrange="firstBar" aria-pressed="false">最初の1小節だけ</button>
+                            <button type="button" class="ss-seg" data-clickrange="countOnly" aria-pressed="false">カウントのみ</button>
+                        </div>
+                    </div>
+                    <div class="stage-set-row">
+                        <span class="stage-set-label">クリックする拍</span>
+                        <div class="stage-set-seg" id="click-beats-seg" role="group" aria-label="クリックする拍">
+                            <button type="button" class="ss-seg is-active" data-clickbeats="all" aria-pressed="true">4拍ぜんぶ</button>
+                            <button type="button" class="ss-seg" data-clickbeats="beat1" aria-pressed="false">1拍目だけ</button>
+                            <button type="button" class="ss-seg" data-clickbeats="beats13" aria-pressed="false">1・3拍目</button>
+                            <button type="button" class="ss-seg" data-clickbeats="beats24" aria-pressed="false">2・4拍目</button>
+                        </div>
+                    </div>
+                    <!-- 選んでいる拍を4つの丸で視認（視認用・タップ編集はしない）。選択に連動して更新。 -->
+                    <div class="stage-set-row click-dots-row">
+                        <div class="click-dots" id="click-dots" aria-hidden="true"></div>
+                        <span class="click-dots-note" id="click-dots-note"></span>
+                    </div>
+                    <div class="stage-set-row">
+                        <span class="stage-set-label">裏拍で鳴らす</span>
+                        <button type="button" class="ss-toggle" id="offbeat-toggle" aria-pressed="false">OFF</button>
+                    </div>
+                    <!-- くり返し練習（v0.9.147）：ONでSTOPするまで同じSTAGEを繰り返す。既定OFF・永続化しない。 -->
+                    <div class="stage-set-row">
+                        <span class="stage-set-label">くり返し練習</span>
+                        <button type="button" class="ss-toggle" id="loop-toggle" aria-pressed="false">OFF</button>
+                    </div>
+                    <p class="stage-set-note">ONにすると、STOPするまで同じSTAGEを繰り返します。</p>
                 </div>
             </div>
 
@@ -883,7 +923,6 @@
                 <div class="results-detail-body">
                     <p class="result-breakdown">内訳：<b class="bd-just">GOOD</b> <b id="r-just">0</b>／<b class="bd-early">EARLY</b> <b id="r-early">0</b>／<b class="bd-late">LATE</b> <b id="r-late">0</b>／<b class="bd-miss">MISS</b> <b id="r-miss">0</b>　｜　平均ズレ <b id="r-avg">±0</b>ms</p>
                     <p class="result-breakdown hidden" id="results-miss-info"></p>
-                    <p class="result-breakdown result-miss-debug hidden" id="results-miss-debug"></p>
                     <p class="result-breakdown hidden" id="results-chord-dev"></p>
                     <p class="result-breakdown result-miss-debug hidden" id="results-chord-detail"></p>
                     <p class="result-breakdown result-miss-debug hidden" id="results-chord-miss"></p>
@@ -926,6 +965,15 @@
                     <p class="result-mic-tune-row">
                         <button type="button" class="result-mic-tune-link" id="results-mic-tune">マイクの手動設定を開く</button>
                     </p>
+                </div>
+            </details>
+
+            <!-- 4b. MISS拍の原因（折りたたみ・v0.9.147）：MISSになった拍のわかりやすい原因を、開いた時だけ表示。 -->
+            <details class="results-detail hidden" id="miss-cause-details">
+                <summary class="results-detail-summary">MISS拍の原因</summary>
+                <div class="results-detail-body">
+                    <p class="miss-cause-lead">MISSになった拍について、考えられる原因の目安です。</p>
+                    <div class="miss-cause-list" id="miss-cause-list"></div>
                 </div>
             </details>
 
@@ -984,7 +1032,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.146"></script>
+    <script src="script.js?v=0.9.147"></script>
 </body>
 
 </html>

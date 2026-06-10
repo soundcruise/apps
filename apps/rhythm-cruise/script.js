@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.146';
+const RHYTHM_CRUISE_VERSION = '0.9.147';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -198,7 +198,7 @@ const FX_TEXT = { just: 'GOOD!', early: 'EARLY', late: 'LATE', miss: 'MISS' };
 
 /* ── 判定の仮ルール ─────────────────────────────────────── */
 const BEATS_PER_BAR = 4;
-const BAR_OPTIONS = [1, 2, 4, 8];   // STAGEで選べる小節数（v0.9.118）
+const BAR_OPTIONS = [1, 2, 4, 8, 16, 32];   // STAGEで選べる小節数（v0.9.147で最大32へ拡張）
 const DEFAULT_BARS = 8;             // 既存仕様（8小節×4拍＝32拍）に合わせた初期値
 // TOTAL_BEATS は「小節数 × 4拍」。小節数は state.bars で可変（v0.9.118）。
 // applyStageBars() で state.bars から再計算する。配列やレーンは resetGame/resetData で作り直す。
@@ -278,6 +278,13 @@ const state = {
     clickEnabled: true,
     clickVolume: 70,   // クリック音量 0..100%
     lastClickPerf: -9999,
+    // STAGE画面のクリック音モード／くり返し練習（v0.9.147）。判定/スコア/譜面には影響させない（クリック音と終了条件だけ）。
+    rcClickMode: 'always', // クリックを鳴らす範囲：'always'（ずっと）| 'firstBar'（最初の1小節だけ）| 'countOnly'（カウントのみ）
+    rcClickBeats: 'all',   // クリックする拍：'all'（4拍ぜんぶ）| 'beat1'（1拍目）| 'beats13'（1・3拍）| 'beats24'（2・4拍）
+    rcClickOffbeat: false, // 裏拍で鳴らす（選んだ拍の裏へずらす）。既定OFF
+    rcLoop: false,         // くり返し練習（ページ再読込でOFF。永続化しない）
+    loopActive: false,     // くり返し再生の進行中フラグ
+    judgeCutoff: 0,        // 採点対象セルの上限（くり返しSTOPの部分集計用。通常は TOTAL_BEATS）
     // マイク設定の進捗フラグ（localStorageに保存）
     micTestDone: false,       // マイク反応テストを完了したか
     micDelayDone: false,      // マイクの遅れ補正を適用したか
@@ -482,6 +489,15 @@ const els = {
     barsVal: $('bars-val'),
     barsUp: $('bars-up'),
     barsDown: $('bars-down'),
+    // BPM/小節/クリック 折りたたみタブ（v0.9.147）
+    stageSettingsToggle: $('stage-settings-toggle'),
+    stageSettingsBody: $('stage-settings-body'),
+    clickRangeSeg: $('click-range-seg'),
+    clickBeatsSeg: $('click-beats-seg'),
+    clickDots: $('click-dots'),
+    clickDotsNote: $('click-dots-note'),
+    offbeatToggle: $('offbeat-toggle'),
+    loopToggle: $('loop-toggle'),
     barCounter: $('bar-counter'),
     latestVerdict: $('latest-verdict'),
     progressFill: $('progress-fill'),
@@ -586,7 +602,8 @@ const els = {
     resultsDetail: $('results-detail'),
     resultsWarn: $('results-warn'),
     resultsMissInfo: $('results-miss-info'),
-    resultsMissDebug: $('results-miss-debug'),
+    missCauseDetails: $('miss-cause-details'),
+    missCauseList: $('miss-cause-list'),
     resultsChordDev: $('results-chord-dev'),
     resultsChordDetail: $('results-chord-detail'),
     resultsChordMiss: $('results-chord-miss'),
@@ -4133,8 +4150,10 @@ function drawReview() {
 
     // 各拍：本来の音符＋方向矢印＋自分の入力マーク＋ズレms
     ctx.textBaseline = 'alphabetic';
+    const reviewCutoff = Number.isFinite(state.judgeCutoff) ? state.judgeCutoff : TOTAL_BEATS;
     for (let i = 0; i < TOTAL_BEATS; i++) {
         if (!engIsHit(i)) continue;          // カスタム：休符/タイは見返しに出さない（採点対象のみ）
+        if (i >= reviewCutoff) continue;     // くり返しSTOP：未到達セルは判定符頭/MISSを描かない（v0.9.147）
         const x = beatX(i);
         const r = state.results[i];
         const cls = r ? r.cls : 'miss';
@@ -4550,16 +4569,49 @@ function engJudgeCount() {
 }
 
 /* ── 再生制御 ───────────────────────────────────────────── */
+/* クリック設定（v0.9.147）：セル i の本編クリックを鳴らすか。クリック音だけに影響し、判定/譜面/スコア/プレビューには無関係。
+   - i<0（カウントイン）はここでは扱わない（buildScheduleで標準フルカウントを常に鳴らす）。
+   - 鳴らす範囲：always＝全小節 / firstBar＝最初の1小節だけ / countOnly＝本編は鳴らさない。
+   - クリックする拍：stageBeatSelected で 4拍ぜんぶ/1拍目/1・3拍/2・4拍 を絞る。 */
+function stageClickAudibleAt(i) {
+    if (i < 0) return true;
+    const mode = state.rcClickMode || 'always';
+    if (mode === 'countOnly') return false;
+    if (mode === 'firstBar' && i >= eng.cellsPerBar) return false;
+    return stageBeatSelected(i);
+}
+
+/* クリックする拍（v0.9.147）：パルス位置 i が、選択中の「クリックする拍」に当たるか。
+   小節内の拍番号(0始まり)で判定。1・3拍目＝偶数index、2・4拍目＝奇数index（4/4以外でも自然に一般化）。 */
+function stageBeatSelected(i) {
+    const sel = state.rcClickBeats || 'all';
+    if (sel === 'all') return true;
+    const beatIndex = Math.round((engInBarPos(i) * eng.cellTicks) / eng.pulseTicks);
+    if (sel === 'beat1') return beatIndex === 0;
+    if (sel === 'beats13') return beatIndex % 2 === 0;
+    if (sel === 'beats24') return beatIndex % 2 === 1;
+    return true;
+}
+
 function buildSchedule() {
     state.beatInterval = engCellMs();                                  // エンジンの1拍＝1セル
     state.pxPerMs = state.pxPerBeat / engQuarterMs();                  // スクロール速度は4分基準（grid非依存で一定）
     state.T0 = eng.countInCells * state.beatInterval;
     state.endTime = state.T0 + (TOTAL_BEATS - 1 + TAIL_BEATS) * state.beatInterval;
     state.clickTimes = [];
+    const halfBeatMs = engPulseMs() / 2;            // 裏拍ON時のずらし量（1拍の半分）
+    const offbeat = !!state.rcClickOffbeat;
     for (let i = -eng.countInCells; i <= TOTAL_BEATS - 1; i++) {
-        if (!engIsPulse(i)) continue;                                  // クリックは拍(パルス)位置だけ＝全拍クリック
-        const accent = engBarStart(i);
-        state.clickTimes.push({ time: state.T0 + i * state.beatInterval, accent, countIn: i < 0 });
+        if (!engIsPulse(i)) continue;                                  // クリックは拍(パルス)位置だけ
+        if (i < 0) {
+            // カウントインはクリック設定に関わらず標準の表拍フルカウント（テンポの導入）
+            state.clickTimes.push({ time: state.T0 + i * state.beatInterval, accent: engBarStart(i), countIn: true });
+            continue;
+        }
+        if (!stageClickAudibleAt(i)) continue;                         // 鳴らす範囲＋クリックする拍で絞る（v0.9.147）
+        const base = state.T0 + i * state.beatInterval;
+        const time = offbeat ? base + halfBeatMs : base;               // 裏拍ON：選んだ拍の裏へずらす
+        state.clickTimes.push({ time, accent: offbeat ? false : engBarStart(i), countIn: false });
     }
     state.nextClick = 0;
 }
@@ -4608,15 +4660,44 @@ function loop() {
     drawLane(t);
     updateCustomFlowScorePosition(t); // 流れるVexFlow譜面を同じ時間軸で横移動（カスタムのみ・v0.9.128）
 
-    if (t >= state.endTime) { finish(); return; }
+    if (t >= state.endTime) {
+        if (state.loopActive) { advanceLoopLap(); state.raf = requestAnimationFrame(loop); return; } // くり返し練習：finishせず次ラップへ（v0.9.147）
+        finish(); return;
+    }
     state.raf = requestAnimationFrame(loop);
+}
+
+/* くり返し練習：1ラップ終端で、オーディオ/perf 時計を1周分（カウントイン込み）だけ前にずらし、毎回カウントインから次ラップへ進める（v0.9.147）。
+   全ての時刻参照は gameAudioMs()（=audioStartTime基準）なので、audioStartTime をずらすと自動的にラップ内ローカル時刻（=0＝カウントイン頭）へ戻る。
+   結果は「最新ラップ」だけで作る方針なので、各ラップ頭で判定データをクリアする（未来セルを採点しないための部分集計とも整合）。 */
+function advanceLoopLap() {
+    const passLen = state.endTime;                      // game-time 0（カウントイン頭）〜終端までの1周分(ms)
+    state.audioStartTime += passLen / 1000;             // 次ラップを再びカウントインから開始
+    state.startTime += passLen;                         // マイクガード用 perf 基準も同量ずらす（lastClickPerf整合）
+    resetData();                                        // 結果/マーカー/波形を新ラップ用にクリア（最新ラップだけ採点）
+    state.judgeCutoff = TOTAL_BEATS;
+    state.nextClick = 0;                                // カウントインから鳴らす（先頭から再予約）
 }
 
 /* 開始/停止 兼用ボタン：再生中なら停止＋自動リセット、停止中なら開始 */
 function onPlayBtn() {
     stopPreviewRhythm(); // STAGE本体の開始/停止操作時は譜面プレビューのリズム確認音を止める（同時再生しない・v0.9.135）
-    if (state.running) { stop(); resetGame(); }
-    else { play(); }
+    if (state.running) {
+        if (state.loopActive) { stopLoopWithResult(); return; } // くり返し練習：STOPでそこまでの結果カードを出す（v0.9.147）
+        stop(); resetGame();
+    } else { play(); }
+}
+
+/* くり返し練習のSTOP（v0.9.147）：そこまで（最新ラップで到達済み）の判定対象だけで結果カードを出す。
+   未到達の未来セルは採点対象にしない（MISSにしない）。くり返し練習の結果は履歴に保存しない。 */
+function stopLoopWithResult() {
+    const tStop = gameAudioMs();        // ラップ内ローカル時刻（audioStartTimeはラップ毎にずらしてある）
+    let cutoff = 0;
+    for (let i = 0; i < TOTAL_BEATS; i++) {
+        if (state.T0 + i * state.beatInterval <= tStop) cutoff = i + 1; // 理想時刻が過ぎたセルまでを採点対象に
+    }
+    state.loopActive = false;
+    finish({ save: false, cutoff: cutoff }); // 履歴保存せず・部分集計で結果表示
 }
 
 function play() {
@@ -4638,6 +4719,8 @@ function play() {
     els.playBtn.disabled = false;
     if (els.tapHint) els.tapHint.classList.add('dim'); // 再生中はタップ案内を薄く
     state.running = true;
+    state.loopActive = !!state.rcLoop;                  // くり返し練習ONなら、このラン中は繰り返す（v0.9.147）
+    if (state.loopActive) els.playBtn.textContent = '■ STOP'; // くり返し中はSTOP表記
     // 譜面・判定・クリックを同一のオーディオ時計で揃える（累積ドリフト対策）。
     // 基準はctxがrunningになった最初のフレームでloop内で確定する（-1＝未確定）。
     state.startTime = performance.now();
@@ -4654,6 +4737,7 @@ function stop() {
     }
     if (!state.running) return;
     state.running = false;
+    state.loopActive = false; // くり返し中の安全停止（画面遷移/戻る/TOP等）でもループ状態を残さない（v0.9.147）
     state.audioWaitStartTime = 0;
     // 先読みでスケジュール済みの未発音クリックを止める（停止後に鳴り続けないように）
     state.scheduledClicks.forEach((osc) => { try { osc.stop(); } catch (_) { } });
@@ -4683,6 +4767,7 @@ function stopForPageHidden() {
 
 function resetData() {
     state.results = new Array(TOTAL_BEATS).fill(null);
+    state.judgeCutoff = TOTAL_BEATS; // 採点対象は通常は全セル（くり返しSTOPの部分集計時のみ finish が縮める・v0.9.147）
     state.beatMicPeak = new Array(TOTAL_BEATS).fill(0);
     state.beatDoubled = new Array(TOTAL_BEATS).fill(false);
     state.beatExcluded = new Array(TOTAL_BEATS).fill(false);
@@ -4755,6 +4840,8 @@ function maybeShowClickPickupWarning() {
    code: 'low'（入力ライン未満）/ 'timing'（タイミング外）/ 'dir'（方向違い）/ 'other'（その他）/ null（MISSでない）
    short: 本番中の短い表示、long: 結果詳細での表示 */
 function missReason(i) {
+    // くり返し練習のSTOP部分集計では、未到達セルはMISS扱いしない（v0.9.147）
+    if (i >= (state.judgeCutoff != null ? state.judgeCutoff : TOTAL_BEATS)) return null;
     const r = state.results[i];
     const isMiss = !r || r.cls === 'miss';
     if (!isMiss) return null;
@@ -4816,29 +4903,52 @@ function logBeatDebug() {
     console.log('[beatDebug] eventLog=' + JSON.stringify(state.micEventLog) + ' offset=' + micJudgeOffsetMs() + 'ms thr=' + mic.threshold.toFixed(3));
 }
 
-/* 結果詳細にMISS拍の理由を1行で（iPhoneでもconsoleなしで原因を確認できるように） */
+/* MISSになった拍の場所を「N小節目 M拍目（の裏）」で表す（ユーザー向け表記）。 */
+function missBeatPosLabel(i) {
+    const bar = engBarNumber(i);
+    const ticks = engInBarPos(i) * eng.cellTicks;
+    const beatNo = Math.floor(ticks / eng.pulseTicks) + 1;
+    const off = (ticks % eng.pulseTicks) !== 0;
+    return bar + '小節目 ' + beatNo + '拍目' + (off ? 'の裏' : '');
+}
+
+/* MISS拍のわかりやすい原因（内部変数・debug表現を出さない・v0.9.147）。
+   判定できる範囲（向き違い／タイミング外／二重反応／音量不足／入力なし／クリック拾いの可能性）に分類して文章で返す。 */
+function missCauseFriendly(i) {
+    const mr = missReason(i);
+    if (!mr) return null;
+    if (mr.code === 'dir') return 'ストロークの向きが違った可能性があります';
+    if (mr.code === 'timing') return 'タイミングが判定範囲から外れた可能性があります';
+    if (mr.code === 'double') return '1回のストロークが二重に反応した可能性があります';
+    // 未登録（mr.code === 'low'）：マイク入力のピークと反応ラインから音量不足/入力なし等を切り分け
+    const peak = state.beatMicPeak ? (state.beatMicPeak[i] || 0) : 0;
+    if (state.inputMode === 'stroke') {
+        const line = micEffectiveThreshold();
+        if (peak <= 0) return '入力が見つかりませんでした（音が拾えていない可能性があります）';
+        if (peak < line) return '音量が反応ラインに届かなかった可能性があります';
+        return '入力はありましたが、クリック音を拾った／余韻が重なったなどで判定対象になりませんでした';
+    }
+    return '入力が見つかりませんでした';
+}
+
+/* 結果カードの「MISS拍の原因」折りたたみを更新（v0.9.147）。
+   MISSが無ければ折りたたみごと非表示。開いた時だけ中身を読む（<details>）。 */
 function updateMissDebug() {
-    if (!els.resultsMissDebug) return;
-    if (state.inputMode !== 'stroke') { els.resultsMissDebug.classList.add('hidden'); return; }
-    const lines = [];
+    if (!els.missCauseDetails || !els.missCauseList) return;
+    const items = [];
     for (let i = 0; i < TOTAL_BEATS; i++) {
         const r = state.results[i];
         const isMiss = !r || r.cls === 'miss';
         if (!isMiss) continue;
-        const ev = (state.micEventLog || []).filter((e) => e.nearBeat === i);
-        let reason;
-        if (!ev.length) reason = 'オンセット無し（立ち上がり未検出）';
-        else {
-            const e = ev[ev.length - 1];
-            reason = 'p' + e.peak + '→' + (e.outcome || '?') + (e.assignedBeat != null && e.assignedBeat !== i ? '（拍' + (e.assignedBeat + 1) + 'へ）' : '');
-        }
-        lines.push('拍' + (i + 1) + '：' + reason);
+        const cause = missCauseFriendly(i);
+        if (!cause) continue;
+        items.push('<p class="miss-cause-item">' + missBeatPosLabel(i) + '：' + cause + '</p>');
     }
-    if (!lines.length) { els.resultsMissDebug.classList.add('hidden'); return; }
-    const shown = lines.slice(0, 10);
-    const extra = lines.length - shown.length;
-    els.resultsMissDebug.textContent = '🔍 MISS拍デバッグ｜' + shown.join(' / ') + (extra > 0 ? ' ／ ほか' + extra + '拍' : '');
-    els.resultsMissDebug.classList.remove('hidden');
+    if (!items.length) { els.missCauseDetails.classList.add('hidden'); els.missCauseList.innerHTML = ''; return; }
+    const shown = items.slice(0, 16);
+    const extra = items.length - shown.length;
+    els.missCauseList.innerHTML = shown.join('') + (extra > 0 ? '<p class="miss-cause-item">ほか ' + extra + ' 拍</p>' : '');
+    els.missCauseDetails.classList.remove('hidden');
 }
 
 /* コードストローク：立ち上がり未検出MISSの原因を拍ごとに短く分類する。
@@ -4933,8 +5043,14 @@ function updateDoubleInfo() {
 }
 
 /* ── 集計・結果 ─────────────────────────────────────────── */
-function finish() {
+function finish(opts) {
+    opts = opts || {};
+    const saveHistory = opts.save !== false;            // 通常プレイ=保存。くり返しSTOP=保存しない（v0.9.147）
+    // 採点対象セルの上限。くり返しSTOPの部分集計でのみ縮める。通常プレイは全セル。
+    const cutoff = Number.isFinite(opts.cutoff) ? Math.max(0, Math.min(TOTAL_BEATS, opts.cutoff)) : TOTAL_BEATS;
+    state.judgeCutoff = cutoff;                          // drawReview が未到達セルのMISS表示を省くために参照
     state.running = false;
+    state.loopActive = false;
     // 停止後に未発音クリックを止める（途中停止と同様）
     state.scheduledClicks.forEach((osc) => { try { osc.stop(); } catch (_) { } });
     state.scheduledClicks = [];
@@ -4954,6 +5070,7 @@ function finish() {
     let judgeCount = 0;
     for (let i = 0; i < TOTAL_BEATS; i++) {
         if (!engIsHit(i)) continue;        // カスタム：休符/タイは採点対象外（未入力でもMISSにしない）
+        if (i >= cutoff) continue;         // くり返しSTOP：未到達の未来セルは採点対象にしない（MISSにしない・v0.9.147）
         judgeCount++;
         const r = state.results[i];
         const cls = r ? r.cls : 'miss';
@@ -5004,12 +5121,15 @@ function finish() {
     if (els.rEditBackBtn) els.rEditBackBtn.classList.toggle('hidden', !eng.editId); // 編集テスト再生時のみ「編集に戻る」を出す（STAGE1は非表示・v0.9.143）
 
     // 今回の結果を端末内の履歴へ保存（v0.9.146）。保存失敗してもSTAGE結果表示は継続する（try/catch）。
-    try {
-        addResultHistoryRecord(buildResultHistoryRecord({
-            score: score, just: just, early: early, late: late, miss: miss,
-            avg: diffs.length ? Math.round(avg) : null,
-        }));
-    } catch (_) { /* 履歴保存に失敗しても本番結果表示は壊さない */ }
+    // くり返し練習のSTOP結果は履歴に保存しない（saveHistory=false・v0.9.147）。
+    if (saveHistory) {
+        try {
+            addResultHistoryRecord(buildResultHistoryRecord({
+                score: score, just: just, early: early, late: late, miss: miss,
+                avg: diffs.length ? Math.round(avg) : null,
+            }));
+        } catch (_) { /* 履歴保存に失敗しても本番結果表示は壊さない */ }
+    }
 
     // 履歴モードで変更していたDOMを本番表示用に戻す（v0.9.146）。判定/スコア/集計には影響しない。
     historyViewRecord = null;
@@ -5172,7 +5292,7 @@ function snapshotEngineState() {
         pxPerBeat: state.pxPerBeat, pxPerBeatRaw: state.pxPerBeatRaw, pxPerMs: state.pxPerMs,
         results: state.results, beatMicPeak: state.beatMicPeak, beatDoubled: state.beatDoubled,
         beatExcluded: state.beatExcluded, micRunWave: state.micRunWave, micWaveHistory: state.micWaveHistory,
-        markers: state.markers,
+        markers: state.markers, judgeCutoff: state.judgeCutoff,
         TOTAL_BEATS: TOTAL_BEATS, review: review, reviewFlowScoreReady: reviewFlowScoreReady,
     };
 }
@@ -5185,7 +5305,7 @@ function restoreEngineState(b) {
     state.pxPerBeat = b.pxPerBeat; state.pxPerBeatRaw = b.pxPerBeatRaw; state.pxPerMs = b.pxPerMs;
     state.results = b.results; state.beatMicPeak = b.beatMicPeak; state.beatDoubled = b.beatDoubled;
     state.beatExcluded = b.beatExcluded; state.micRunWave = b.micRunWave; state.micWaveHistory = b.micWaveHistory;
-    state.markers = b.markers;
+    state.markers = b.markers; state.judgeCutoff = b.judgeCutoff;
     TOTAL_BEATS = b.TOTAL_BEATS; review = b.review; reviewFlowScoreReady = b.reviewFlowScoreReady;
 }
 function applyHistoryRecordToEngine(rec) {
@@ -5198,6 +5318,7 @@ function applyHistoryRecordToEngine(rec) {
     state.bpm = clampNum(Math.round(Number(rec.settings && rec.settings.bpm)), 40, 200, state.bpm);
     state.bars = (rec.settings && BAR_OPTIONS.includes(rec.settings.bars)) ? rec.settings.bars : state.bars;
     applyStageBars();                             // TOTAL_BEATS = bars × cellsPerBar
+    state.judgeCutoff = TOTAL_BEATS;              // 履歴は通常プレイの全セル結果（くり返し部分集計ではない・v0.9.147）
     state.beatInterval = engCellMs();             // drawReview の offScale 用
     state.pxPerBeat = state.pxPerBeatRaw * engDisplayScale(); // fitLane と同じ式（横スケール一致）
     state.inputMode = 'tap';                      // 履歴は波形なし＝波形オーバーレイを出さない
@@ -5221,7 +5342,7 @@ function prepareResultsOverlayForHistory() {
     const show = (el) => { if (el) el.classList.remove('hidden'); };
     hide(els.retryBtn); hide(els.rEditBackBtn);
     hide(els.resultsWarn); hide(els.resultsDoubleNotice); hide(els.resultsDoubleDetail);
-    hide(els.resultsMissInfo); hide(els.resultsMissDebug); hide(els.resultsChordDev);
+    hide(els.resultsMissInfo); hide(els.missCauseDetails); hide(els.resultsChordDev);
     hide(els.resultsChordDetail); hide(els.resultsChordMiss);
     hide(els.resultsMicWrap); // 波形系（ストローク音量）は履歴では保存していない＝出さない
     const micTuneRow = els.resultsMicTune ? els.resultsMicTune.closest('.result-mic-tune-row') : null;
@@ -5280,6 +5401,102 @@ function renderHistoryResultCard(rec) {
 function closeResultHistoryDetail() {
     historyViewRecord = null;
     // 履歴一覧オーバーレイは背後に表示されたままなので results-open は維持し、一覧へ戻る。
+}
+
+/* ════════════ STAGE設定タブ：クリック設定／くり返し練習（v0.9.147）════════════
+   折りたたみタブ「BPM / 小節数 / クリック」内のクリック設定（鳴らす範囲・クリックする拍・裏拍）とくり返し練習トグルの状態管理。
+   クリック設定の3項目は localStorage に保存（既定：ずっと鳴らす＋4拍ぜんぶ＋裏拍OFF）。くり返し練習は永続化しない（既定OFF）。 */
+const CLICK_SETTINGS_KEY = 'rhythmCruiseClickSettings:v1';
+const STAGE_CLICK_RANGES = ['always', 'firstBar', 'countOnly'];
+const STAGE_CLICK_BEATS = ['all', 'beat1', 'beats13', 'beats24'];
+function loadStageClickSettings() {
+    try {
+        const raw = JSON.parse(localStorage.getItem(CLICK_SETTINGS_KEY) || '{}');
+        return {
+            range: STAGE_CLICK_RANGES.includes(raw.range) ? raw.range : 'always',
+            beats: STAGE_CLICK_BEATS.includes(raw.beats) ? raw.beats : 'all',
+            offbeat: !!raw.offbeat,
+        };
+    } catch (_) { return { range: 'always', beats: 'all', offbeat: false }; }
+}
+function saveStageClickSettings() {
+    try {
+        localStorage.setItem(CLICK_SETTINGS_KEY, JSON.stringify({
+            range: state.rcClickMode, beats: state.rcClickBeats, offbeat: state.rcClickOffbeat,
+        }));
+    } catch (_) { /* 保存失敗は無視 */ }
+}
+function setStageClickRange(mode) {
+    state.rcClickMode = STAGE_CLICK_RANGES.includes(mode) ? mode : 'always';
+    saveStageClickSettings();
+    updateStageSettingsUI();
+}
+function setStageClickBeats(beats) {
+    state.rcClickBeats = STAGE_CLICK_BEATS.includes(beats) ? beats : 'all';
+    saveStageClickSettings();
+    updateStageSettingsUI();
+}
+function setStageClickOffbeat(on) {
+    state.rcClickOffbeat = !!on;
+    saveStageClickSettings();
+    updateStageSettingsUI();
+}
+function setStageLoop(on) {
+    state.rcLoop = !!on;
+    updateStageSettingsUI();
+}
+function toggleStageSettings() {
+    const open = els.stageSettingsToggle && els.stageSettingsToggle.getAttribute('aria-expanded') === 'true';
+    setStageSettingsOpen(!open);
+}
+function setStageSettingsOpen(open) {
+    if (els.stageSettingsToggle) els.stageSettingsToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (els.stageSettingsBody) els.stageSettingsBody.classList.toggle('hidden', !open);
+}
+/* 選んでいる「クリックする拍」を4つの丸で視認用に表示（選択に連動）。裏拍ON/OFFは補足テキストで示す。 */
+function renderClickDots() {
+    if (!els.clickDots) return;
+    const sel = state.rcClickBeats || 'all';
+    const on = [false, false, false, false];
+    if (sel === 'all') { on[0] = on[1] = on[2] = on[3] = true; }
+    else if (sel === 'beat1') { on[0] = true; }
+    else if (sel === 'beats13') { on[0] = true; on[2] = true; }
+    else if (sel === 'beats24') { on[1] = true; on[3] = true; }
+    els.clickDots.innerHTML = on
+        .map((f) => '<span class="click-dot ' + (f ? 'is-on' : 'is-off') + '">' + (f ? '●' : '○') + '</span>')
+        .join('');
+    if (els.clickDotsNote) {
+        els.clickDotsNote.textContent = state.rcClickOffbeat
+            ? '裏拍ON：選んだ拍の裏で鳴ります'
+            : '選んだ拍の表で鳴ります';
+    }
+}
+function updateStageSettingsUI() {
+    if (els.clickRangeSeg) {
+        els.clickRangeSeg.querySelectorAll('.ss-seg').forEach((b) => {
+            const active = b.getAttribute('data-clickrange') === state.rcClickMode;
+            b.classList.toggle('is-active', active);
+            b.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+    }
+    if (els.clickBeatsSeg) {
+        els.clickBeatsSeg.querySelectorAll('.ss-seg').forEach((b) => {
+            const active = b.getAttribute('data-clickbeats') === state.rcClickBeats;
+            b.classList.toggle('is-active', active);
+            b.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+    }
+    if (els.offbeatToggle) {
+        els.offbeatToggle.textContent = state.rcClickOffbeat ? 'ON' : 'OFF';
+        els.offbeatToggle.setAttribute('aria-pressed', state.rcClickOffbeat ? 'true' : 'false');
+        els.offbeatToggle.classList.toggle('is-on', state.rcClickOffbeat);
+    }
+    renderClickDots();
+    if (els.loopToggle) {
+        els.loopToggle.textContent = state.rcLoop ? 'ON' : 'OFF';
+        els.loopToggle.setAttribute('aria-pressed', state.rcLoop ? 'true' : 'false');
+        els.loopToggle.classList.toggle('is-on', state.rcLoop);
+    }
 }
 
 function buildComment({ just, miss, tapped, avg, fAvg, sAvg, total }) {
@@ -11880,6 +12097,22 @@ function bind() {
     if (els.historyOpenBtn) els.historyOpenBtn.addEventListener('click', openResultHistory);
     if (els.historyCloseBtn) els.historyCloseBtn.addEventListener('click', closeResultHistory);
     if (els.historyClearBtn) els.historyClearBtn.addEventListener('click', clearResultHistory);
+    // BPM / 小節数 / クリック タブ・クリック設定（鳴らす範囲/拍/裏拍）・くり返し練習（v0.9.147）
+    if (els.stageSettingsToggle) els.stageSettingsToggle.addEventListener('click', toggleStageSettings);
+    if (els.clickRangeSeg) els.clickRangeSeg.querySelectorAll('.ss-seg').forEach((b) => {
+        b.addEventListener('click', () => setStageClickRange(b.getAttribute('data-clickrange')));
+    });
+    if (els.clickBeatsSeg) els.clickBeatsSeg.querySelectorAll('.ss-seg').forEach((b) => {
+        b.addEventListener('click', () => setStageClickBeats(b.getAttribute('data-clickbeats')));
+    });
+    if (els.offbeatToggle) els.offbeatToggle.addEventListener('click', () => setStageClickOffbeat(!state.rcClickOffbeat));
+    if (els.loopToggle) els.loopToggle.addEventListener('click', () => setStageLoop(!state.rcLoop));
+    const savedClick = loadStageClickSettings(); // 保存済みクリック設定を反映（既定：ずっと鳴らす＋4拍ぜんぶ＋裏拍OFF）
+    state.rcClickMode = savedClick.range;
+    state.rcClickBeats = savedClick.beats;
+    state.rcClickOffbeat = savedClick.offbeat;
+    state.rcLoop = false;                     // くり返し練習は毎回OFFから（永続化しない）
+    updateStageSettingsUI();
     // カスタムテスト：再生画面ヘッダー／結果画面から元の編集画面へ戻る（v0.9.124）
     if (els.practiceEditBack) els.practiceEditBack.addEventListener('click', backToEditorFromTest);
     if (els.rEditBackBtn) els.rEditBackBtn.addEventListener('click', backToEditorFromTest);
