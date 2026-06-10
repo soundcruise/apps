@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.148';
+const RHYTHM_CRUISE_VERSION = '0.9.149';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -221,10 +221,10 @@ const NOTE_COLOR = 'rgba(255,209,102,0.95)';
 const STAGES = [
     { n: 1, title: '4分ジャスト', desc: '流れる4分音符に合わせてタップ', ready: true },
     { n: 2, title: '基本の8分', desc: 'ダウンアップ交互を正確に刻む', ready: true },
-    { n: 3, title: '8分ストローク', desc: 'ダウン／アップのタイミングを確認する', ready: false },
-    { n: 4, title: '裏拍集中', desc: '「1と2と…」の「と」の位置を練習する', ready: false },
-    { n: 5, title: '休符と空振り', desc: '音を出さない部分でも手を止めない', ready: false },
-    { n: 6, title: 'シンコペーション', desc: 'タイ／食うリズムでも手の流れを保つ', ready: false },
+    { n: 3, title: '空振りを入れた8分', desc: '空振りを混ぜて手を止めずに刻む', ready: true },
+    { n: 4, title: '王道の8分パターン', desc: '王道の8分ストロークを身につける', ready: true },
+    { n: 5, title: 'シンコペーション', desc: '食うリズムでも手の流れを保つ', ready: true },
+    { n: 6, title: '王道の16分', desc: '王道の16分ストロークを刻む', ready: true },
 ];
 
 /* ── 状態 ───────────────────────────────────────────────── */
@@ -4469,11 +4469,96 @@ function configureEngineForCustom(stage) {
    STAGE2 は同じ基盤で cellTicks=12 / cellsPerBar=8 となり、8分全セルが判定対象。openStage で初期BPM/小節数を反映する。
    ※対応は STAGE1・STAGE2 のみ。STAGE3〜6 は未実装（n が 1・2 以外は null＝従来の eng.custom=null 経路）。 */
 const builtinStageCache = {};
+/* STAGE3〜6（v0.9.149）の固定譜面データ（編集画面の出力JSONと同じ形）。
+   normalizeRhythmCustomStageSettings を通すと、judgeTargets は hit:true のマスから自動生成され、
+   各JSONの judgeTargets と一致する（hit:false のタイ/空振りは判定対象外）。displayLabels も grid から自動生成。 */
+const BUILTIN_STAGE_RAW = {
+    3: {
+        version: 1, id: 'rcs_mq7q07vj_2mjd9', title: 'STAGE3：空振りを入れた8分', description: '',
+        grid: 'eighth', timeSignature: '4/4', patternBars: 1, bars: 4, bpm: 80, clickMode: 'all',
+        pattern: [
+            { hit: true, dir: 'down', type: 'hit' },
+            { hit: false, dir: 'up', type: 'tie' },
+            { hit: true, dir: 'down', type: 'hit' },
+            { hit: true, dir: 'up', type: 'hit' },
+            { hit: true, dir: 'down', type: 'hit' },
+            { hit: false, dir: 'up', type: 'tie' },
+            { hit: true, dir: 'down', type: 'hit' },
+            { hit: true, dir: 'up', type: 'hit' },
+        ],
+        motion: 'alternate',
+    },
+    4: {
+        version: 1, id: 'rcs_mq787wbr_5z2f3', title: 'STAGE4：王道の8分パターン', description: '',
+        grid: 'eighth', timeSignature: '4/4', patternBars: 1, bars: 4, bpm: 80, clickMode: 'all',
+        pattern: [
+            { hit: true, dir: 'down', type: 'hit', dirManual: true },
+            { hit: false, dir: 'up', type: 'tie' },
+            { hit: true, dir: 'down', type: 'hit' },
+            { hit: true, dir: 'up', type: 'hit' },
+            { hit: false, dir: 'down', type: 'tie' },
+            { hit: true, dir: 'up', type: 'hit' },
+            { hit: true, dir: 'down', type: 'hit' },
+            { hit: true, dir: 'up', type: 'hit' },
+        ],
+        motion: 'alternate',
+    },
+    5: {
+        version: 1, id: 'rcs_mq7pw5m7_930av', title: 'STAGE5：シンコペーション', description: '',
+        grid: 'eighth', timeSignature: '4/4', patternBars: 2, bars: 4, bpm: 80, clickMode: 'all',
+        pattern: [
+            { hit: true, dir: 'down', type: 'hit' },
+            { hit: false, dir: null, type: 'tie' },
+            { hit: true, dir: 'down', type: 'hit' },
+            { hit: true, dir: 'up', type: 'hit' },
+            { hit: false, dir: 'down', type: 'tie' },
+            { hit: true, dir: 'up', type: 'hit' },
+            { hit: true, dir: 'down', type: 'hit' },
+            { hit: true, dir: 'up', type: 'hit' },
+            { hit: false, dir: 'down', type: 'tie' },
+            { hit: true, dir: 'up', type: 'hit' },
+            { hit: true, dir: 'down', type: 'hit' },
+            { hit: true, dir: 'up', type: 'hit' },
+            { hit: false, dir: 'down', type: 'tie' },
+            { hit: true, dir: 'up', type: 'hit' },
+            { hit: true, dir: 'down', type: 'hit' },
+            { hit: true, dir: 'up', type: 'hit' },
+        ],
+        motion: 'custom',
+    },
+    6: {
+        version: 1, id: 'rcs_mq7q21qk_g3ao', title: 'STAGE6：王道の16分', description: '',
+        grid: 'sixteenth', timeSignature: '4/4', patternBars: 1, bars: 4, bpm: 80, clickMode: 'all',
+        pattern: [
+            { hit: true, dir: 'down', type: 'hit' },
+            { hit: false, dir: null, type: 'tie' },
+            { hit: false, dir: 'up', type: 'tie' },
+            { hit: false, dir: null, type: 'tie' },
+            { hit: true, dir: 'down', type: 'hit' },
+            { hit: false, dir: 'up', type: 'tie' },
+            { hit: true, dir: 'down', type: 'hit' },
+            { hit: true, dir: 'up', type: 'hit', dirManual: true },
+            { hit: false, dir: 'down', type: 'tie' },
+            { hit: true, dir: 'up', type: 'hit' },
+            { hit: true, dir: 'down', type: 'hit', dirManual: true },
+            { hit: false, dir: 'up', type: 'tie' },
+            { hit: true, dir: 'down', type: 'hit' },
+            { hit: false, dir: 'up', type: 'tie' },
+            { hit: true, dir: 'down', type: 'hit' },
+            { hit: true, dir: 'up', type: 'hit' },
+        ],
+        motion: 'alternate',
+    },
+};
+
 function getBuiltinStageData(n) {
-    if (n !== 1 && n !== 2) return null; // 今回は STAGE1・STAGE2 のみ（STAGE3〜6は未実装）。
+    if (n < 1 || n > 6) return null; // 固定STAGEは STAGE1〜6（v0.9.149で STAGE3〜6 を追加）。
     if (builtinStageCache[n]) return builtinStageCache[n];
     let raw;
-    if (n === 1) {
+    if (n >= 3) {
+        // STAGE3〜6：編集画面と同じJSON形を normalize して使う（judgeTargets/displayLabels は normalize が自動生成）。
+        raw = BUILTIN_STAGE_RAW[n];
+    } else if (n === 1) {
         const pattern = [];
         for (let i = 0; i < BEATS_PER_BAR; i++) {
             // dirManual:true で applyRhythmDefaultDirections の上書き対象外にし、全セル ダウンを保証（従来STAGE1と同じ）。
