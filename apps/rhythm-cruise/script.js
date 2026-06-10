@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.149';
+const RHYTHM_CRUISE_VERSION = '0.9.150';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -5196,7 +5196,7 @@ function finish(opts) {
     const firstBarAbsAvg = mean(firstBarAbs), restBarsAbsAvg = mean(restBarsAbs);
     const firstBarOff = (playedBars >= 2 && firstBarAbs.length >= 1 && restBarsAbs.length >= 2
         && firstBarAbsAvg >= 45 && firstBarAbsAvg > restBarsAbsAvg * 1.6);
-    els.rComment.textContent = buildComment({ score, just, miss, tapped: diffs.length, avg, fAvg, sAvg, total: denom, bars: playedBars, firstBarOff })
+    els.rComment.textContent = buildComment({ score, just, miss, tapped: diffs.length, avg, fAvg, sAvg, total: denom, bars: playedBars, firstBarOff, expectedTargets: judgeCount })
         + chordCommentSuffix();
 
     // クリック音拾いの可能性を判定（ストローク＝マイク入力で、GOODのズレがほぼ一点に集中している）
@@ -5605,8 +5605,14 @@ function commentTendency(avg, fAvg, sAvg) {
    ・前半/後半・走り/もたり・安定の傾向（commentTendency）を自然に添える。
    ・入り（1小節目）のズレが大きい時（firstBarOff）は、一言だけ添える。
    判定/スコア計算には一切影響しない（表示文言のみ）。 */
-function buildComment({ score, just, miss, tapped, avg, fAvg, sAvg, total, bars, firstBarOff }) {
-    if (tapped < 8) return 'タップが少なめでした。もう一度チャレンジしてみましょう。';
+function buildComment({ score, just, miss, tapped, avg, fAvg, sAvg, total, bars, firstBarOff, expectedTargets }) {
+    // 「タップが少なめ」は絶対数ではなく、そのプレイで本来叩くべき判定対象数（expectedTargets）に対する割合で判断する（v0.9.150）。
+    //   1小節設定など判定対象が少ないSTAGEでも、対象をきちんと叩けていれば（高得点で完走など）出さない。
+    //   実際に評価できた入力（tapped）が期待対象の半分未満のときだけ「少なめ」とする。期待数が取れない異常時のみ安全側で出す。
+    const expected = Number.isFinite(expectedTargets) ? expectedTargets : 0;
+    if (expected < 1 || tapped < expected * 0.5) {
+        return 'タップが少なめでした。もう一度チャレンジしてみましょう。';
+    }
     const tendency = commentTendency(avg, fAvg, sAvg);
     const tSuffix = tendency ? tendency + '。' : '';
     // 入り（1小節目）のズレが大きいときに添える一言（表示用のみ）。
