@@ -1839,6 +1839,133 @@ h1 {
     font-weight: 700;
 }
 
+/* ── 過去の結果（履歴）UI（v0.9.146）──────────────────────── */
+/* STAGE画面：開始ボタン下の控えめなサブボタン */
+.history-entry {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin-top: 8px;
+}
+.history-entry-btn {
+    background: transparent;
+    border: 1px solid rgba(253, 246, 238, 0.16);
+    color: var(--muted-color);
+    font-size: 0.82rem;
+    letter-spacing: 0.5px;
+    padding: 7px 16px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+.history-entry-btn:hover {
+    color: var(--text-color);
+    border-color: rgba(255, 159, 28, 0.4);
+}
+
+/* 履歴一覧モーダル（results-overlay と同じ見た目を流用） */
+/* z-index は結果カード(results-overlay=60)より下。履歴詳細(結果カード)を一覧の上に重ねるため。 */
+.history-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 59;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 24px 16px;
+    background: rgba(6, 4, 3, 0.86);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}
+.history-card {
+    width: 100%;
+    max-width: 420px;
+    margin: auto;
+    border: 1px solid rgba(255, 159, 28, 0.3);
+    border-radius: 22px;
+    background:
+        radial-gradient(120% 80% at 50% 0%, rgba(255, 159, 28, 0.12), transparent 60%),
+        linear-gradient(180deg, var(--surface-raised) 0%, var(--surface-color) 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 24px 60px rgba(0, 0, 0, 0.55);
+    padding: 18px 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.history-head-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+.history-clear-btn {
+    flex: 0 0 auto;
+    font-size: 0.78rem;
+    padding: 7px 12px;
+    width: auto;
+    max-width: none;
+}
+.history-empty {
+    text-align: center;
+    color: var(--muted-color);
+    font-size: 0.9rem;
+    line-height: 1.7;
+    padding: 28px 8px;
+}
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 60vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.history-item {
+    width: 100%;
+    text-align: left;
+    border: 1px solid rgba(253, 246, 238, 0.1);
+    border-radius: 12px;
+    background: rgba(253, 246, 238, 0.04);
+    color: var(--text-color);
+    padding: 10px 12px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    transition: border-color 0.15s, background 0.15s;
+}
+.history-item:hover {
+    border-color: rgba(255, 159, 28, 0.4);
+    background: rgba(255, 159, 28, 0.06);
+}
+.history-item .hi-row1,
+.history-item .hi-row2 {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+.history-item .hi-date { font-size: 0.78rem; color: var(--muted-color); }
+.history-item .hi-score { font-size: 0.95rem; font-weight: 700; color: var(--secondary-color); }
+.history-item .hi-title { font-size: 0.9rem; font-weight: 600; }
+.history-item .hi-bpm { font-size: 0.78rem; color: var(--muted-color); }
+.history-item .hi-row3 { font-size: 0.76rem; color: var(--muted-color); }
+
+/* 結果カード：履歴モードの見出し（日時/STAGE名/BPM/小節数/内訳） */
+.results-history-head {
+    width: 100%;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.results-history-head .rhh-date { font-size: 0.78rem; color: var(--muted-color); }
+.results-history-head .rhh-title { font-size: 1rem; font-weight: 700; }
+.results-history-head .rhh-meta { font-size: 0.82rem; color: var(--muted-color); }
+.results-history-head .rhh-breakdown { font-size: 0.8rem; color: var(--muted-color); margin-top: 2px; }
+
 /* 詳細（内訳・ズレ履歴グラフ）：折りたたみ */
 .results-detail {
     width: 100%;

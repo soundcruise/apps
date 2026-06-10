@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.140">
+    <link rel="stylesheet" href="theme.css?v=0.9.146">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -310,6 +310,11 @@
             <!-- 6. 開始/停止（兼用）-->
             <div class="transport">
                 <button class="btn-primary transport-main" id="play-btn">▶ 開始</button>
+            </div>
+
+            <!-- 6a. 過去の結果カードを見る（控えめなサブボタン・v0.9.146）。全STAGE共通で表示。マイク設定モーダル内には出さない。 -->
+            <div class="history-entry">
+                <button type="button" class="history-entry-btn" id="history-open-btn">過去の結果を見る</button>
             </div>
 
             <!-- 6b. カスタムSTAGEテスト再生時だけ表示（v0.9.124）。STAGE1/基礎練では非表示。 -->
@@ -846,6 +851,9 @@
         <div class="results-card" id="results-card">
             <div class="results-title">RESULT</div>
 
+            <!-- 0. 過去結果の見出し（履歴から開いたときだけ表示・v0.9.146）。日時/STAGE名/BPM/小節数/内訳。 -->
+            <div class="results-history-head hidden" id="r-history-head" aria-hidden="true"></div>
+
             <!-- 1. スコア -->
             <div class="score-big"><b id="r-score">0</b><span>点</span></div>
 
@@ -930,6 +938,21 @@
         </div>
     </div>
 
+    <!-- 過去の結果カード一覧（v0.9.146）。「過去の結果を見る」から開く。1件選ぶと結果カードを履歴モードで再表示する。 -->
+    <div class="history-overlay hidden" id="history-overlay">
+        <div class="history-card" id="history-card">
+            <div class="history-head-row">
+                <div class="results-title">過去の結果</div>
+                <button type="button" class="btn-ghost history-clear-btn" id="history-clear-btn">履歴を消去</button>
+            </div>
+            <p class="history-empty hidden" id="history-empty">まだ結果がありません。<br>STAGEをプレイすると、ここに結果が保存されます。</p>
+            <div class="history-list" id="history-list"></div>
+            <div class="results-actions">
+                <button class="btn-ghost" id="history-close-btn">戻る</button>
+            </div>
+        </div>
+    </div>
+
     <!-- プリセット保存モーダル（body直下・全ての「この設定を保存」から共通で開く） v0.9.80 -->
     <div class="preset-modal-overlay hidden" id="preset-modal">
         <div class="preset-modal-card">
@@ -961,7 +984,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.145"></script>
+    <script src="script.js?v=0.9.146"></script>
 </body>
 
 </html>

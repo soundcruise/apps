@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.145';
+const RHYTHM_CRUISE_VERSION = '0.9.146';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -220,7 +220,7 @@ const NOTE_COLOR = 'rgba(255,209,102,0.95)';
 /* ── STAGE 定義 ─────────────────────────────────────────── */
 const STAGES = [
     { n: 1, title: '4分ジャスト', desc: '流れる4分音符に合わせてタップ', ready: true },
-    { n: 2, title: 'テンポキープ', desc: '数小節を通してテンポを保つ／クリックを減らす', ready: false },
+    { n: 2, title: '基本の8分', desc: 'ダウンアップ交互を正確に刻む', ready: true },
     { n: 3, title: '8分ストローク', desc: 'ダウン／アップのタイミングを確認する', ready: false },
     { n: 4, title: '裏拍集中', desc: '「1と2と…」の「と」の位置を練習する', ready: false },
     { n: 5, title: '休符と空振り', desc: '音を出さない部分でも手を止めない', ready: false },
@@ -609,6 +609,14 @@ const els = {
     rComment: $('r-comment'),
     retryBtn: $('retry-btn'),
     rBackBtn: $('r-back-btn'),
+    // 過去の結果（履歴）UI（v0.9.146）
+    rHistoryHead: $('r-history-head'),
+    historyOpenBtn: $('history-open-btn'),
+    historyOverlay: $('history-overlay'),
+    historyList: $('history-list'),
+    historyEmpty: $('history-empty'),
+    historyCloseBtn: $('history-close-btn'),
+    historyClearBtn: $('history-clear-btn'),
     // マイク診断
     micCard: $('mic-card'),
     micState: $('mic-state'),
@@ -1081,6 +1089,27 @@ function getDefaultRhythmCustomStage() {
     };
 }
 
+/* pattern からストローク方向の傾向（motion）を自動判定する（v0.9.145）。
+   motion はJSON上のメタ情報で、判定/再生/表示には使わない（all-down 固定の誤生成を直すための表示用ラベル）。
+   「手の動き」を表すので、hit:true だけでなく hit:false + dirあり（空振り/ゴーストの (↓)/(↑)）も含めて dir を並べる。
+   判定：dirありセルが無い→all-down、すべて down→all-down、down/up が交互→alternate、それ以外→custom。 */
+function inferRhythmMotion(pattern) {
+    if (!Array.isArray(pattern)) return 'all-down';
+    const dirs = [];
+    for (const c of pattern) {
+        if (!c) continue;
+        if (c.dir === 'down' || c.dir === 'up') dirs.push(c.dir);
+    }
+    if (dirs.length === 0) return 'all-down';
+    if (dirs.every((d) => d === 'down')) return 'all-down';
+    let alternating = true;
+    for (let i = 1; i < dirs.length; i++) {
+        if (dirs[i] === dirs[i - 1]) { alternating = false; break; }
+    }
+    if (alternating && dirs.length >= 2) return 'alternate';
+    return 'custom';
+}
+
 /* 正規化：不正値を安全なデフォルトへ戻す（指板クルーズの考え方を参考に）。
    v0.9.120：pattern は「1小節分（grid に応じて4 or 8マス）」へ補正する。
    judgeTargets は hit:true のマスから自動生成、displayLabels は grid から自動生成。 */
@@ -1116,7 +1145,9 @@ function normalizeRhythmCustomStageSettings(raw) {
     // displayLabels：拍子 × grid × patternBars から自動生成。
     const displayLabels = defaultRhythmDisplayLabels(grid, patternBars, timeSignature);
 
-    const motion = typeof raw.motion === 'string' && raw.motion ? raw.motion : def.motion;
+    // motion は raw 値を信用せず、正規化後の pattern から毎回自動判定する（v0.9.145）。
+    // 以前は raw.motion || def.motion('all-down') を採用しており、オルタネイト等でも all-down が誤って出力されていた。
+    const motion = inferRhythmMotion(pattern);
     const version = Number.isInteger(raw.version) ? raw.version : 1;
     const id = typeof raw.id === 'string' && raw.id ? raw.id : generateRhythmCustomStageId();
 
@@ -1769,6 +1800,9 @@ function drawRhythmVexPreview(VF, d, mount) {
     const pxPerBeat = (state.pxPerBeatRaw > 0) ? state.pxPerBeatRaw : 90;
     const densityScale = rhythmDisplayDensityScale(cellTicks);
     const cellW = Math.max(8, pxPerBeat * (cellTicks / RHYTHM_TPQ)) * densityScale;
+    // 音符・小節線・拍線・矢印は編集画面プレビュー(drawRhythmVexLane)と同じ基準にそろえる（v0.9.145で再修正）。
+    //   符頭中心＝(cellIndex+0.5)*cellW（セル区画の中央）／小節線・拍線＝cellW境界。＝音符は線と線の中央に並ぶ。
+    //   STAGE画面(drawLane)も「線は音符の半セル左」で同じ見た目。再生中の縦棒だけ別途、発音時に符頭中央へ重ねる。
     const laneW = N * cellW;
     const H = RHYTHM_VEX_LANE_H;                       // 譜面（SVG）描画域の高さ。STAGE/編集と共通で変えない。
     const laneH = H + RHYTHM_VEX_PREVIEW_ARROW_BAND;   // レーン全体は矢印＋下余白ぶん高くする（プレビュー専用・v0.9.136）。
@@ -1924,6 +1958,7 @@ function drawRhythmVexPreview(VF, d, mount) {
     rhythmPreviewView.laneEl = lane;
     rhythmPreviewView.barEl = playhead;
     rhythmPreviewView.laneW = laneW;
+    rhythmPreviewView.cellW = cellW; // 再生縦棒を符頭中央(セル区画の中央)へ重ねるための半セル(=0.5*cellW)算出に使う（v0.9.145）
     // 再描画直後は停止状態（再生中に再描画されることは無い設計）。
     hideRhythmPreviewPlayhead();
 }
@@ -2007,6 +2042,7 @@ function hideRhythmCustomTestPreview() {
     rhythmPreviewView.laneEl = null;
     rhythmPreviewView.barEl = null;
     rhythmPreviewView.laneW = 0;
+    rhythmPreviewView.cellW = 0;
 }
 
 /* ── 譜面プレビューのリズム確認音（v0.9.135）──────────────────────────
@@ -2038,6 +2074,7 @@ const rhythmPreviewView = {
     laneEl: null,
     barEl: null,
     laneW: 0,
+    cellW: 0,
 };
 const PREVIEW_LOOKAHEAD_SEC = 0.2;          // この先までを先読みでスケジュール
 const PREVIEW_TICK_MS = 40;                 // スケジューラの呼び出し間隔
@@ -2219,7 +2256,8 @@ function startPreviewRhythm() {
    stopPreviewRhythm() が先に raf を止めるため二重起動しないが、念のため既存rafを畳んでから1本だけ回す。 */
 function startRhythmPreviewPlayhead() {
     const v = rhythmPreviewView;
-    if (v.barEl) { v.barEl.classList.add('is-active'); v.barEl.style.transform = 'translateX(0px)'; }
+    const x0 = (Number.isFinite(v.cellW) ? v.cellW : 0) * 0.5; // 先頭セルの符頭中央＝発音時刻t=0の位置
+    if (v.barEl) { v.barEl.classList.add('is-active'); v.barEl.style.transform = 'translateX(' + x0 + 'px)'; }
     if (v.scrollEl) v.scrollEl.scrollLeft = 0;
     if (v.raf) { cancelAnimationFrame(v.raf); v.raf = 0; }
     v.raf = requestAnimationFrame(rhythmPreviewPlayheadTick);
@@ -2228,7 +2266,8 @@ function startRhythmPreviewPlayhead() {
 /* 縦棒を非表示にして先頭へ戻し、自動スクロールも先頭へ戻す（v0.9.136）。 */
 function hideRhythmPreviewPlayhead() {
     const v = rhythmPreviewView;
-    if (v.barEl) { v.barEl.classList.remove('is-active'); v.barEl.style.transform = 'translateX(0px)'; }
+    const x0 = (Number.isFinite(v.cellW) ? v.cellW : 0) * 0.5; // 先頭セルの符頭中央へ戻す
+    if (v.barEl) { v.barEl.classList.remove('is-active'); v.barEl.style.transform = 'translateX(' + x0 + 'px)'; }
     if (v.scrollEl) v.scrollEl.scrollLeft = 0;
 }
 
@@ -2241,7 +2280,10 @@ function rhythmPreviewPlayheadTick() {
     if (ctx && v.barEl && rhythmPreview.loopSec > 0) {
         const elapsed = ctx.currentTime - rhythmPreview.baseTime;
         const progress = elapsed <= 0 ? 0 : (elapsed % rhythmPreview.loopSec) / rhythmPreview.loopSec;
-        const x = progress * v.laneW;
+        // 音符はセル区画の中央(=(i+0.5)*cellW)に描いてある。発音時刻 i*cellMs のとき progress*laneW=i*cellW なので、
+        // 半セル(0.5*cellW)足して符頭中央へ重ねる。STAGE画面で固定判定ラインに符頭中央が発音時刻で重なるのと同じ。
+        const halfCell = (Number.isFinite(v.cellW) ? v.cellW : 0) * 0.5;
+        const x = progress * v.laneW + halfCell;
         v.barEl.style.transform = 'translateX(' + x + 'px)';
         const scroll = v.scrollEl;
         if (scroll) {
@@ -2755,6 +2797,7 @@ function openRhythmProCustom() {
 function goHomeView(v) {
     stop();
     stopMic();
+    stopPreviewRhythm(); // 固定/カスタムSTAGEのリズムプレビュー再生音を止めてからTOPへ戻る（v0.9.145）
     show('home');     // いったんTOPへ
     setHomeView(v);    // 目的のサブビューへ
 }
@@ -2865,8 +2908,21 @@ function openStage(n) {
         ensureRhythmVexFlow();        // 譜面ライブラリ先読み（CDN不使用・編集/カスタムと共通）
         configureEngineForCustom(builtin);
         eng.editId = null;            // 編集テスト再生ではない（「編集に戻る」等の編集UIを抑制）
-        applyStageBars();             // TOTAL_BEATS = state.bars × cellsPerBar（cellsPerBar=4で従来と同じ）
+        // STAGE2以降の組み込みSTAGEは、その譜面が定義する初期BPM/小節数で開始する（v0.9.145）。
+        //   STAGE1は従来どおり共通設定(state.bpm/state.bars)を維持し、ここでは上書きしない。
+        if (s.n !== 1) {
+            state.bpm = clampNum(Math.round(Number(builtin.bpm)), 40, 200, state.bpm); // setBpm と同じ 40〜200 にそろえる
+
+            state.bars = BAR_OPTIONS.includes(builtin.bars) ? builtin.bars : DEFAULT_BARS;
+            if (els.tempoVal) els.tempoVal.textContent = String(state.bpm);
+            updateBarsUI();
+        }
+        applyStageBars();             // TOTAL_BEATS = state.bars × cellsPerBar（STAGE2は8分=8）
         showCustomFlowScoreLayer();   // 流れるVexFlow固定譜面レイヤーを表示
+        // v0.9.145：固定STAGEでも ProカスタムSTAGE と同じリズムプレビュー（表示/隠す＋リズムを再生）を使えるようにする。
+        //   eng.custom（getBuiltinStageDataの正規化済みデータ）から描画/再生するので、編集UI（編集に戻る/保存）は出さない。
+        //   customTestActions / practiceEditBack は上で hidden のまま＝「編集に戻る」は固定STAGEでは表示されない。
+        renderRhythmCustomTestPreview(eng.custom);
     }
     els.practiceNum.innerHTML = `<small>STAGE</small><b>${s.n}</b>`;
     els.practiceTitle.textContent = s.title;
@@ -4390,31 +4446,58 @@ function configureEngineForCustom(stage) {
    countInCells=4・全セル hit:true・dir=down となり、従来STAGE1（eng.pattern=null時のSTAGE1_CELL）と
    判定（engIsHit/engNearestHitIndex/engJudgeCount）・スコア・カウントイン・タイミングが完全一致する。
    ＝判定ロジックは一切変えず、表示と結果カードだけ新基盤になる。displayDensityScale も 1.0（=従来と同じ横スケール）。
-   ※今回はSTAGE1のみ。STAGE2〜6のデータ追加は別バージョンで行う（n≠1 は null＝従来の eng.custom=null 経路）。 */
-let builtinStageCache = null;
+   v0.9.145：STAGE2（基本の8分＝4/4・8分・↓↑交互×8セル／BPM初期値70・4小節）を追加。
+   STAGE2 は同じ基盤で cellTicks=12 / cellsPerBar=8 となり、8分全セルが判定対象。openStage で初期BPM/小節数を反映する。
+   ※対応は STAGE1・STAGE2 のみ。STAGE3〜6 は未実装（n が 1・2 以外は null＝従来の eng.custom=null 経路）。 */
+const builtinStageCache = {};
 function getBuiltinStageData(n) {
-    if (n !== 1) return null;
-    if (builtinStageCache) return builtinStageCache;
-    const pattern = [];
-    for (let i = 0; i < BEATS_PER_BAR; i++) {
-        // dirManual:true で applyRhythmDefaultDirections の上書き対象外にし、全セル ダウンを保証（従来STAGE1と同じ）。
-        pattern.push({ hit: true, dir: 'down', type: 'hit', dirManual: true });
+    if (n !== 1 && n !== 2) return null; // 今回は STAGE1・STAGE2 のみ（STAGE3〜6は未実装）。
+    if (builtinStageCache[n]) return builtinStageCache[n];
+    let raw;
+    if (n === 1) {
+        const pattern = [];
+        for (let i = 0; i < BEATS_PER_BAR; i++) {
+            // dirManual:true で applyRhythmDefaultDirections の上書き対象外にし、全セル ダウンを保証（従来STAGE1と同じ）。
+            pattern.push({ hit: true, dir: 'down', type: 'hit', dirManual: true });
+        }
+        raw = {
+            version: 1,
+            id: 'builtin_stage1',
+            title: '4分ジャスト',
+            description: '',
+            grid: 'quarter',
+            timeSignature: '4/4',
+            patternBars: 1,
+            bars: DEFAULT_BARS,
+            bpm: 80,            // STAGE1のBPMは state.bpm が支配（この値は表示基盤では未使用）。
+            clickMode: 'all',
+            pattern: pattern,
+            motion: 'all-down',
+        };
+    } else {
+        // STAGE2＝基本の8分＝4/4・8分・1小節パターン（ダウンアップ交互 ↓↑↓↑↓↑↓↑）。
+        //   configureEngineForCustom を通すと cellTicks=12 / cellsPerBar=8 / 全セル hit:true・dir 交互となり、
+        //   8分全セルが判定対象（GOOD/EARLY/LATE/MISS）。クリックは既存どおり拍頭（pulseTicks=24）。
+        //   dirManual:true で方向を ↓↑ 交互に固定（applyRhythmDefaultDirections の影響を受けない）。
+        const dirs = ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'];
+        const pattern = dirs.map((dir) => ({ hit: true, dir: dir, type: 'hit', dirManual: true }));
+        raw = {
+            version: 1,
+            id: 'stage2_basic_eighth',
+            title: 'STAGE2：基本の8分',
+            description: 'ダウンアップ交互を正確に刻む',
+            grid: 'eighth',
+            timeSignature: '4/4',
+            patternBars: 1,
+            bars: 4,
+            bpm: 70,            // STAGE2の初期BPM（openStage で state.bpm へ反映）。
+            clickMode: 'all',
+            pattern: pattern,
+            motion: 'alternate', // 実値は inferRhythmMotion で pattern から再判定され 'alternate' になる。
+        };
     }
-    builtinStageCache = normalizeRhythmCustomStageSettings({
-        version: 1,
-        id: 'builtin_stage1',
-        title: '4分ジャスト',
-        description: '',
-        grid: 'quarter',
-        timeSignature: '4/4',
-        patternBars: 1,
-        bars: DEFAULT_BARS,
-        bpm: 80,            // STAGE1のBPMは state.bpm が支配（この値は表示基盤では未使用）。
-        clickMode: 'all',
-        pattern: pattern,
-        motion: 'all-down',
-    });
-    return builtinStageCache;
+    builtinStageCache[n] = normalizeRhythmCustomStageSettings(raw);
+    return builtinStageCache[n];
 }
 
 /* セル i（負＝カウントイン）に対応するパターンセル。カスタムはループ折り返し。 */
@@ -4919,11 +5002,284 @@ function finish() {
 
     // カスタムテスト時だけ結果画面に「編集に戻る」を表示（STAGE1では出さない・v0.9.124）
     if (els.rEditBackBtn) els.rEditBackBtn.classList.toggle('hidden', !eng.editId); // 編集テスト再生時のみ「編集に戻る」を出す（STAGE1は非表示・v0.9.143）
+
+    // 今回の結果を端末内の履歴へ保存（v0.9.146）。保存失敗してもSTAGE結果表示は継続する（try/catch）。
+    try {
+        addResultHistoryRecord(buildResultHistoryRecord({
+            score: score, just: just, early: early, late: late, miss: miss,
+            avg: diffs.length ? Math.round(avg) : null,
+        }));
+    } catch (_) { /* 履歴保存に失敗しても本番結果表示は壊さない */ }
+
+    // 履歴モードで変更していたDOMを本番表示用に戻す（v0.9.146）。判定/スコア/集計には影響しない。
+    historyViewRecord = null;
+    if (els.rHistoryHead) els.rHistoryHead.classList.add('hidden');
+    if (els.retryBtn) els.retryBtn.classList.remove('hidden');
+    if (els.resultsDetail) els.resultsDetail.classList.remove('hidden');
+    const micTuneRowLive = els.resultsMicTune ? els.resultsMicTune.closest('.result-mic-tune-row') : null;
+    if (micTuneRowLive) micTuneRowLive.classList.remove('hidden'); // 履歴モードで隠したマイク導線を本番では戻す
+
     // 結果をモーダルで表示（ズレ確認レーンがメイン）
     if (els.resultsOverlay) els.resultsOverlay.classList.remove('hidden');
     if (els.refreshBar) els.refreshBar.classList.add('hidden'); // モーダル背後に透けないよう一時的に隠す
     document.body.classList.add('results-open');               // モーダル中は戻る/TOP/設定を隠す（修正8）
     drawResults();
+}
+
+/* ════════════ 過去の結果カード履歴（v0.9.146）════════════════════════════
+   STAGE終了時の結果を端末内(localStorage)へ保存し、STAGE画面の「過去の結果を見る」から
+   一覧→1件選択で結果カードを「履歴モード」で再表示する。
+   - 保存件数は 全STAGE合計で最新100件（古い順に自動削除）。
+   - 波形(state.micRunWave等)は保存しない＝localStorage容量を圧迫しない。
+   - 判定/スコア/集計/マイク/プレビュー等の既存ロジックは一切変更しない（保存と表示の追加のみ）。
+   - 履歴詳細は eng/state を一瞬だけ差し替えて同期描画→即復元する方式。描画結果(Canvas画素/SVG)は
+     残るので、現在のSTAGE状態（standby）を壊さずに過去カードを表示できる。 */
+const RESULT_HISTORY_KEY = 'rhythmCruiseResultHistory:v1';
+const RESULT_HISTORY_MAX = 100;
+let historyViewRecord = null; // 履歴モードで表示中の1件（null=本番結果表示）
+
+function loadResultHistory() {
+    try {
+        const raw = localStorage.getItem(RESULT_HISTORY_KEY);
+        if (!raw) return [];
+        const arr = JSON.parse(raw);
+        return Array.isArray(arr) ? arr : [];
+    } catch (_) { return []; }
+}
+function persistResultHistory(list) {
+    try {
+        localStorage.setItem(RESULT_HISTORY_KEY, JSON.stringify(list));
+        return true;
+    } catch (_) {
+        // 容量エラー等：古い履歴を減らして1度だけ再試行（本番結果表示は壊さない）
+        try {
+            const half = list.slice(0, Math.max(10, Math.floor(list.length / 2)));
+            localStorage.setItem(RESULT_HISTORY_KEY, JSON.stringify(half));
+            return true;
+        } catch (__) { return false; }
+    }
+}
+function addResultHistoryRecord(record) {
+    if (!record) return;
+    const list = loadResultHistory();
+    list.unshift(record);                       // 新しい順
+    persistResultHistory(list.slice(0, RESULT_HISTORY_MAX)); // 全STAGE合計で最新100件だけ残す
+}
+
+/* finish() の集計値＋現在の eng/state から、結果カード再現に必要な最小限のデータを組み立てる。
+   波形は保存しない。eng.custom（正規化済みSTAGE）が無い経路では保存しない（防御）。 */
+function buildResultHistoryRecord(summary) {
+    if (!eng.custom) return null;
+    const stage = eng.custom;
+    const judgements = [];
+    for (let i = 0; i < TOTAL_BEATS; i++) {
+        const r = state.results[i];
+        judgements.push(r ? { cls: r.cls || 'miss', diff: Math.round((Number(r.diff) || 0) * 10) / 10, tapped: !!r.tapped } : null);
+    }
+    let stageData = null;
+    try { stageData = JSON.parse(JSON.stringify(stage)); } catch (_) { stageData = null; }
+    const pattern = (stage.pattern && Array.isArray(stage.pattern)) ? stage.pattern.map((c) => Object.assign({}, c)) : [];
+    return {
+        version: 1,
+        id: 'rh_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7),
+        savedAt: new Date().toISOString(),
+        stage: {
+            id: stage.id || ('builtin_stage' + (state.currentStage || 0)),
+            number: state.currentStage || 0,
+            kind: (state.currentStage && !eng.editId) ? 'builtin' : 'custom',
+            title: (els.practiceTitle && els.practiceTitle.textContent) || stage.title || 'STAGE',
+            description: stage.description || '',
+        },
+        settings: {
+            bpm: state.bpm,
+            bars: state.bars,
+            grid: stage.grid,
+            timeSignature: stage.timeSignature,
+            patternBars: stage.patternBars,
+            clickMode: stage.clickMode,
+        },
+        summary: {
+            score: summary.score, good: summary.just, early: summary.early,
+            late: summary.late, miss: summary.miss, avg: summary.avg,
+        },
+        stageData: stageData,   // 再描画用の正規化済みSTAGE（pattern/grid/timeSignature/patternBars/clickMode/motion 等）
+        pattern: pattern,       // 譜面パターン（stageData.pattern と同等・仕様の明示項目）
+        judgements: judgements, // 判定結果一覧（cls/diff/tapped）。波形は保存しない。
+    };
+}
+
+/* ── 履歴一覧（モーダル）─────────────────────────────────── */
+function openResultHistory() {
+    stop();                       // 念のため（standbyのはずだが）再生中なら安全停止
+    renderResultHistoryList();
+    if (els.historyOverlay) els.historyOverlay.classList.remove('hidden');
+    document.body.classList.add('results-open'); // モーダル中は戻る/TOP/設定を隠す
+}
+function closeResultHistory() {
+    if (els.historyOverlay) els.historyOverlay.classList.add('hidden');
+    document.body.classList.remove('results-open');
+}
+function formatHistoryDate(iso) {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const p = (n) => String(n).padStart(2, '0');
+    return d.getFullYear() + '/' + p(d.getMonth() + 1) + '/' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+function renderResultHistoryList() {
+    const list = loadResultHistory();
+    if (els.historyList) els.historyList.innerHTML = '';
+    if (els.historyEmpty) els.historyEmpty.classList.toggle('hidden', list.length > 0);
+    if (els.historyClearBtn) els.historyClearBtn.classList.toggle('hidden', list.length === 0);
+    if (!els.historyList || !list.length) return;
+    list.forEach((rec) => {
+        const s = rec.summary || {}, st = rec.stage || {}, set = rec.settings || {};
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'history-item';
+        btn.innerHTML =
+            '<div class="hi-row1"><span class="hi-date">' + escapeHtml(formatHistoryDate(rec.savedAt)) + '</span>'
+            + '<span class="hi-score">' + (Number.isFinite(s.score) ? s.score : 0) + '点</span></div>'
+            + '<div class="hi-row2"><span class="hi-title">' + escapeHtml(st.title || 'STAGE') + '</span>'
+            + '<span class="hi-bpm">BPM ' + (Number.isFinite(set.bpm) ? set.bpm : '-') + '</span></div>'
+            + '<div class="hi-row3">GOOD ' + (s.good || 0) + ' / EARLY ' + (s.early || 0)
+            + ' / LATE ' + (s.late || 0) + ' / MISS ' + (s.miss || 0) + '</div>';
+        btn.addEventListener('click', () => showResultHistoryDetail(rec));
+        els.historyList.appendChild(btn);
+    });
+}
+function clearResultHistory() {
+    if (!window.confirm('保存した過去の結果をすべて消去します。よろしいですか？')) return;
+    try { localStorage.removeItem(RESULT_HISTORY_KEY); } catch (_) { /* noop */ }
+    renderResultHistoryList();
+}
+
+/* ── 履歴詳細（結果カード再表示・履歴モード）───────────────────
+   eng/state を一瞬だけ履歴データに差し替えて同期描画し、即座に元へ戻す。
+   描画済みのCanvas/SVGは残るため、現在のSTAGE（standby）の eng/state は壊れない。 */
+function showResultHistoryDetail(rec) {
+    if (!rec) return;
+    ensureRhythmVexFlow(() => renderHistoryResultCard(rec)); // VexFlowロード後に同期描画（未ロードならCanvasフォールバック）
+}
+function snapshotEngineState() {
+    return {
+        eng: {
+            custom: eng.custom, cellTicks: eng.cellTicks, cellsPerBar: eng.cellsPerBar,
+            pulseTicks: eng.pulseTicks, countInCells: eng.countInCells, pattern: eng.pattern,
+            editId: eng.editId, restore: eng.restore,
+        },
+        bpm: state.bpm, bars: state.bars, currentStage: state.currentStage, inputMode: state.inputMode,
+        beatInterval: state.beatInterval, T0: state.T0, endTime: state.endTime,
+        pxPerBeat: state.pxPerBeat, pxPerBeatRaw: state.pxPerBeatRaw, pxPerMs: state.pxPerMs,
+        results: state.results, beatMicPeak: state.beatMicPeak, beatDoubled: state.beatDoubled,
+        beatExcluded: state.beatExcluded, micRunWave: state.micRunWave, micWaveHistory: state.micWaveHistory,
+        markers: state.markers,
+        TOTAL_BEATS: TOTAL_BEATS, review: review, reviewFlowScoreReady: reviewFlowScoreReady,
+    };
+}
+function restoreEngineState(b) {
+    eng.custom = b.eng.custom; eng.cellTicks = b.eng.cellTicks; eng.cellsPerBar = b.eng.cellsPerBar;
+    eng.pulseTicks = b.eng.pulseTicks; eng.countInCells = b.eng.countInCells; eng.pattern = b.eng.pattern;
+    eng.editId = b.eng.editId; eng.restore = b.eng.restore;
+    state.bpm = b.bpm; state.bars = b.bars; state.currentStage = b.currentStage; state.inputMode = b.inputMode;
+    state.beatInterval = b.beatInterval; state.T0 = b.T0; state.endTime = b.endTime;
+    state.pxPerBeat = b.pxPerBeat; state.pxPerBeatRaw = b.pxPerBeatRaw; state.pxPerMs = b.pxPerMs;
+    state.results = b.results; state.beatMicPeak = b.beatMicPeak; state.beatDoubled = b.beatDoubled;
+    state.beatExcluded = b.beatExcluded; state.micRunWave = b.micRunWave; state.micWaveHistory = b.micWaveHistory;
+    state.markers = b.markers;
+    TOTAL_BEATS = b.TOTAL_BEATS; review = b.review; reviewFlowScoreReady = b.reviewFlowScoreReady;
+}
+function applyHistoryRecordToEngine(rec) {
+    const stageRaw = rec.stageData || rec.stage || {};
+    let norm;
+    try { norm = normalizeRhythmCustomStageSettings(stageRaw); } catch (_) { norm = stageRaw; }
+    configureEngineForCustom(norm);
+    eng.editId = null;                            // 履歴は編集テストではない＝「編集に戻る」を出さない
+    state.currentStage = (rec.stage && Number.isFinite(rec.stage.number)) ? rec.stage.number : 0;
+    state.bpm = clampNum(Math.round(Number(rec.settings && rec.settings.bpm)), 40, 200, state.bpm);
+    state.bars = (rec.settings && BAR_OPTIONS.includes(rec.settings.bars)) ? rec.settings.bars : state.bars;
+    applyStageBars();                             // TOTAL_BEATS = bars × cellsPerBar
+    state.beatInterval = engCellMs();             // drawReview の offScale 用
+    state.pxPerBeat = state.pxPerBeatRaw * engDisplayScale(); // fitLane と同じ式（横スケール一致）
+    state.inputMode = 'tap';                      // 履歴は波形なし＝波形オーバーレイを出さない
+    state.micRunWave = null;
+    state.micWaveHistory = [];
+    state.markers = [];
+    const N = TOTAL_BEATS;
+    const res = new Array(N).fill(null);
+    const j = rec.judgements || [];
+    for (let i = 0; i < N; i++) {
+        const r = j[i];
+        if (r) res[i] = { cls: r.cls || 'miss', diff: Number(r.diff) || 0, tapped: !!r.tapped };
+    }
+    state.results = res;
+    state.beatMicPeak = new Array(N).fill(0);
+    state.beatDoubled = new Array(N).fill(false);
+    state.beatExcluded = new Array(N).fill(false);
+}
+function prepareResultsOverlayForHistory() {
+    const hide = (el) => { if (el) el.classList.add('hidden'); };
+    const show = (el) => { if (el) el.classList.remove('hidden'); };
+    hide(els.retryBtn); hide(els.rEditBackBtn);
+    hide(els.resultsWarn); hide(els.resultsDoubleNotice); hide(els.resultsDoubleDetail);
+    hide(els.resultsMissInfo); hide(els.resultsMissDebug); hide(els.resultsChordDev);
+    hide(els.resultsChordDetail); hide(els.resultsChordMiss);
+    hide(els.resultsMicWrap); // 波形系（ストローク音量）は履歴では保存していない＝出さない
+    const micTuneRow = els.resultsMicTune ? els.resultsMicTune.closest('.result-mic-tune-row') : null;
+    hide(micTuneRow);          // マイク手動設定への導線は履歴では不要
+    show(els.resultsDetail);   // 「詳細（内訳・ズレ履歴グラフ）」タブは本番同様に表示（開閉式）
+    if (els.rHistoryHead) show(els.rHistoryHead);
+}
+/* 履歴詳細タブのズレ履歴グラフを、保存済み judgements から再描画する（v0.9.146）。
+   eng/state を一瞬だけ履歴データへ差し替えて drawGraph→即復元。波形(fitResultsMic)は呼ばない。 */
+function renderHistoryDetailGraphs(rec) {
+    if (!rec) return;
+    const backup = snapshotEngineState();
+    try {
+        applyHistoryRecordToEngine(rec);
+        fitGraph(); // state.results(=judgements) / state.bars / eng.cellsPerBar / TOTAL_BEATS から再現
+    } finally {
+        restoreEngineState(backup);
+    }
+}
+function fillHistoryHead(rec) {
+    if (!els.rHistoryHead) return;
+    const st = rec.stage || {}, set = rec.settings || {}, s = rec.summary || {};
+    els.rHistoryHead.innerHTML =
+        '<div class="rhh-date">' + escapeHtml(formatHistoryDate(rec.savedAt)) + '</div>'
+        + '<div class="rhh-title">' + escapeHtml(st.title || 'STAGE') + '</div>'
+        + '<div class="rhh-meta">BPM ' + (Number.isFinite(set.bpm) ? set.bpm : '-')
+        + ' ｜ ' + (Number.isFinite(set.bars) ? set.bars : '-') + '小節</div>'
+        + '<div class="rhh-breakdown">GOOD ' + (s.good || 0) + ' / EARLY ' + (s.early || 0)
+        + ' / LATE ' + (s.late || 0) + ' / MISS ' + (s.miss || 0) + '</div>';
+}
+function renderHistoryResultCard(rec) {
+    const backup = snapshotEngineState();
+    historyViewRecord = rec;
+    try {
+        applyHistoryRecordToEngine(rec);
+        const s = rec.summary || {};
+        if (els.rScore) els.rScore.textContent = Number.isFinite(s.score) ? s.score : 0;
+        if (els.rJust) els.rJust.textContent = s.good || 0;
+        if (els.rEarly) els.rEarly.textContent = s.early || 0;
+        if (els.rLate) els.rLate.textContent = s.late || 0;
+        if (els.rMiss) els.rMiss.textContent = s.miss || 0;
+        if (els.rAvg) els.rAvg.textContent = Number.isFinite(s.avg)
+            ? ((s.avg > 0 ? '+' : (s.avg < 0 ? '−' : '±')) + Math.abs(s.avg)) : '—';
+        if (els.rComment) els.rComment.textContent = (rec.stage && rec.stage.description)
+            ? rec.stage.description : '保存された過去の結果カードです。';
+        fillHistoryHead(rec);
+        prepareResultsOverlayForHistory();
+        fitReview();              // 同期描画（reviewCanvas＋VexFlow層）。波形は inputMode='tap' のため出ない。
+        if (els.resultsDetail && els.resultsDetail.open) fitGraph(); // 詳細が開いていればズレ履歴グラフも履歴データで描く
+    } finally {
+        restoreEngineState(backup); // 描画後すぐ現在のSTAGE状態へ復元（描画済みのCanvas/SVGは残る）
+    }
+    if (els.resultsOverlay) els.resultsOverlay.classList.remove('hidden');
+    document.body.classList.add('results-open');
+}
+function closeResultHistoryDetail() {
+    historyViewRecord = null;
+    // 履歴一覧オーバーレイは背後に表示されたままなので results-open は維持し、一覧へ戻る。
 }
 
 function buildComment({ just, miss, tapped, avg, fAvg, sAvg, total }) {
@@ -11515,7 +11871,15 @@ function bind() {
     if (els.practiceModeLabel) els.practiceModeLabel.addEventListener('click', toggleStageInputMode);
     els.playBtn.addEventListener('click', onPlayBtn);          // 開始/停止 兼用
     // 結果モーダル：閉じる＝結果を閉じて開始前へ／もう一度＝閉じてリトライ
-    if (els.rCloseBtn) els.rCloseBtn.addEventListener('click', () => { if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden'); resetGame(); });
+    if (els.rCloseBtn) els.rCloseBtn.addEventListener('click', () => {
+        if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden');
+        if (historyViewRecord) { closeResultHistoryDetail(); return; } // 履歴モード：現在のSTAGEを壊さず一覧へ戻る（v0.9.146）
+        resetGame();
+    });
+    // 過去の結果（履歴）UI（v0.9.146）
+    if (els.historyOpenBtn) els.historyOpenBtn.addEventListener('click', openResultHistory);
+    if (els.historyCloseBtn) els.historyCloseBtn.addEventListener('click', closeResultHistory);
+    if (els.historyClearBtn) els.historyClearBtn.addEventListener('click', clearResultHistory);
     // カスタムテスト：再生画面ヘッダー／結果画面から元の編集画面へ戻る（v0.9.124）
     if (els.practiceEditBack) els.practiceEditBack.addEventListener('click', backToEditorFromTest);
     if (els.rEditBackBtn) els.rEditBackBtn.addEventListener('click', backToEditorFromTest);
@@ -11539,7 +11903,11 @@ function bind() {
         openManualView(els.manualCard); // 「現在の設定を見る／手動設定」を開く
     });
     // 結果モーダルの詳細（折りたたみ）を開いたら、中のズレ履歴グラフをサイズ確定して描画
-    if (els.resultsDetail) els.resultsDetail.addEventListener('toggle', () => { if (els.resultsDetail.open) { fitGraph(); fitResultsMic(); } });
+    if (els.resultsDetail) els.resultsDetail.addEventListener('toggle', () => {
+        if (!els.resultsDetail.open) return;
+        if (historyViewRecord) { renderHistoryDetailGraphs(historyViewRecord); return; } // 履歴モード：判定結果からズレ履歴グラフを再現（v0.9.146）
+        fitGraph(); fitResultsMic();
+    });
 
     // タップ判定は「左右2分割タップエリア」だけが対象。
     // レーン/画面タップでは判定しない（方向を明確にするため・修正7）。
@@ -11590,8 +11958,11 @@ function bind() {
         if (els.practice.classList.contains('hidden')) return;
         fitLane();
         if (els.resultsOverlay && !els.resultsOverlay.classList.contains('hidden')) {
-            fitReview();
-            if (els.resultsDetail && els.resultsDetail.open) { fitGraph(); fitResultsMic(); }
+            if (historyViewRecord) { renderHistoryResultCard(historyViewRecord); } // 履歴モードは履歴データで再描画（v0.9.146）
+            else {
+                fitReview();
+                if (els.resultsDetail && els.resultsDetail.open) { fitGraph(); fitResultsMic(); }
+            }
         }
     });
 
