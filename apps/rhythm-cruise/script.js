@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.141';
+const RHYTHM_CRUISE_VERSION = '0.9.142';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -72,12 +72,13 @@ const STRONG_STROKE_FACTOR = 1.0;
 /* 実践テストのクリックガードで使う「ストロークとして通す」倍率（v0.9.68、v0.9.78で isClickGuardedOnset に統一済み・参照用に残す）。 */
 const PT_CLICK_STRONG_FACTOR = 1.1;
 
-/* クリック音のピークゲイン（square波・clickVolume=100%時／accent=拍頭・normal=通常拍）。v0.9.141：
-   iPhone Safari実機でクリック音がやや小さく、おすすめクリック音量が100%に張り付きやすかったため約18%引き上げ
-   （0.55/0.45 → 0.65/0.53）。square波を destination 直結で鳴らしても 0.65 はクリップ(1.0)に十分余裕があり音割れしない。
+/* クリック音のピークゲイン（square波・clickVolume=100%時／accent=拍頭・normal=通常拍）。
+   v0.9.141で 0.55/0.45→0.65/0.53 に上げたが、iPhone Safari実機では本体音量最大でもまだ聞こえにくかったため
+   v0.9.142でさらに約23%引き上げ（0.65/0.53 → 0.80/0.66）。square波を destination 直結で鳴らしても 0.80 は
+   クリップ(1.0)に余裕(0.20)があり音割れしない。短い(約80ms)ため耳に痛すぎない範囲。
    STAGE本番・最終確認テスト・BT補正・タップ補正・補正テストの「同じクリック音」で共通に使う（音量スケールを揃える）。 */
-const CLICK_PEAK_ACCENT = 0.65;
-const CLICK_PEAK_NORMAL = 0.53;
+const CLICK_PEAK_ACCENT = 0.80;
+const CLICK_PEAK_NORMAL = 0.66;
 
 /* 実践テストの開発確認用ログ（v0.9.77）。本番は false（出力なし）。
    原因追跡したいときだけ true にすると、検出/割り当て/除外理由の集計を console.debug に出す。 */
@@ -9982,13 +9983,13 @@ function updateReco() {
     const peakPerPct = (maxClick > 0) ? maxClick / measureVol : 0; // 1%あたりの想定クリックピーク
     let recoVol = state.clickVolume;
     if (minStroke != null && peakPerPct > 0) {
-        // v0.9.141（再調整）：実機でおすすめクリック音量が低すぎた（47%／実機ベストは約100%）ため、クリックピークを
-        //   「判定ラインの70〜85%程度」まで引き上げる。判定ラインは下の①でストローク最小の0.90付近（上限）に置かれるので、
-        //   その目安(lineEstimate)の約0.8倍を狙いつつ、ストローク最小×0.8 も上限にして“ラインは超えない／ストロークは超える”を保つ。
-        //   小さすぎるクリックは上げ・大きすぎるクリックは下げる（クランプ 10〜100%）。クリックが上がっても上限はラインの下に収まる。
-        //   ライン超え（クリックも拾いやすい状態）になる場合は従来どおり cannotSeparate 経由で警告に乗る。
-        const lineEstimate = minStroke * 0.85;             // ①で置く判定ラインのおおよその位置（上限0.90に合わせた概算）
-        const targetClickMax = Math.min(lineEstimate * 0.8, minStroke * 0.8); // ライン約75〜80%・かつストローク0.8倍以下（クリックは大きめ・ラインは超えない）
+        // v0.9.142（再調整）：実機で本体音量最大でもクリックが聞こえにくく、おすすめクリック音量も低め（42%）だったため、
+        //   クリックピークを「判定ラインの85〜90%程度」まで引き上げる。判定ラインは下の①でストローク最小の0.92付近（上限）に
+        //   置かれるので、その目安(lineEstimate)の約0.88倍を狙いつつ、ストローク最小×0.85 も上限にして
+        //   “ラインは超えない／ストロークは超える”を保つ。小さすぎるクリックは上げ・大きすぎるクリックは下げる（クランプ 10〜100%）。
+        //   クリックが上がっても上限はラインの下に収まる。ライン超え（クリックも拾いやすい状態）は従来どおり cannotSeparate 経由で警告。
+        const lineEstimate = minStroke * 0.92;             // ①で置く判定ラインのおおよその位置（上限0.92に合わせた概算）
+        const targetClickMax = Math.min(lineEstimate * 0.88, minStroke * 0.85); // ライン約88%・かつストローク0.85倍以下（クリックは大きめ・ラインは超えない）
         recoVol = Math.round(targetClickMax / peakPerPct);
         recoVol = Math.max(10, Math.min(100, recoVol));    // 小さすぎるクリックは上げ・大きすぎるクリックは下げる（両方向）
     } else if (clickReacted > 0) {
@@ -10006,15 +10007,16 @@ function updateReco() {
     let highSens = false;
     let cannotSeparate = false; // クリック音量を下げてもクリックとストロークを分離できない
     if (minStroke != null) {
-        // v0.9.140（おすすめ余裕の見直し）：おすすめは「実効判定ライン」をストローク最小の90%程度（上限）に置く。
+        // v0.9.140（おすすめ余裕の見直し）：おすすめは「実効判定ライン」をストローク最小の92%程度（上限）に置く。
         //   検出は 生threshold×感度カーブ倍率 なので、生thresholdをそのまま置くと低感度域では実効ラインが
         //   ストローク最小付近まで上がり、最終確認テストで届かずMISSになっていた。そこで欲しい実効ラインから
         //   生thresholdを逆算(recoRawThresholdForEffectiveLine)して保存する。
-        //   実機微調整：0.65→0.75→0.85 でもまだ拾いやすく、おすすめ感度が高め（実機ベスト約39%に対し50%）だったため
-        //   v0.9.141で上限を 0.90 へ。さらに低感度寄りにして普通〜やや強めのストロークは拾い・弱い入力やクリック音は
-        //   超えにくくする（ストローク最小には10%の余裕＝MISSしない／0.95以上にはしない）。
-        //   分離可否は「実効ラインをクリックの上(×1.3)・ストローク最小×0.90以下に置けるか」で判断する。
-        const separable = postClick * 1.3 < minStroke * 0.90;  // 実効ラインをクリックの上・ストローク最小0.90倍以下に置ける隙間があるか
+        //   実機微調整：0.65→0.75→0.85→0.90 と上げ、v0.9.142でさらに上限を 0.92 へ（実機ベスト約45%に対しおすすめ49%だったため）。
+        //   普通〜やや強めのストロークは拾い・弱い入力は超えにくくする（ストローク最小には約8%の余裕＝MISSしない／0.95以上にはしない）。
+        //   v0.9.142：クリック音目標を「ラインの約88%」に上げたため、ラインはクリック予測ピークの約1.12倍上に置く（クリックは
+        //   ラインの約89%に収まる）。分離可否は「その1.12倍ラインがストローク最小×0.96の下に収まるか」で判断＝クリックが
+        //   ラインに肉薄/超える（拾いやすい）ときだけ cannotSeparate 警告に乗せる（ライン自体の上限は下の min で 0.92 にクランプ）。
+        const separable = postClick * 1.12 < minStroke * 0.96;  // クリック予測ピーク×1.12（ライン）がストローク最小0.96倍以下に収まる隙間があるか
         if (lowInputTuned) {
             // 有線イヤホン等：クリック音がほぼ競合しないため、ストローク最小の4割弱まで高感度に寄せる。
             // ノイズより十分上には置くが、クリック回避のために不必要に上げない。（高感度域なので倍率≒1＝逆算は恒等）
@@ -10024,17 +10026,17 @@ function updateReco() {
             test.recommended = rec;
             canApply = true;
         } else if (separable) {
-            // 実効判定ライン＝クリックより上(×1.3) かつ ストローク最小の0.5〜0.90倍（ストローク側に余裕・実機微調整で 0.65→0.75→0.85→0.90）。
-            const lineEff = Math.min(minStroke * 0.90, Math.max(postClick * 1.3, minStroke * 0.5));
+            // 実効判定ライン＝クリックより上(×1.12) かつ ストローク最小の0.5〜0.92倍（ストローク側に余裕・実機微調整で 0.65→…→0.90→0.92）。
+            const lineEff = Math.min(minStroke * 0.92, Math.max(postClick * 1.12, minStroke * 0.5));
             let rec = recoRawThresholdForEffectiveLine(lineEff);     // 実効ラインが lineEff になる生thresholdへ逆算
             rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
             test.recommended = rec;
             canApply = true;
         } else {
-            // 分離不可：クリックとストロークが近い。ストローク検出を最優先し、実効ラインをストローク最小×0.90に置く
-            // （ストロークは確実に超える・実機微調整で 0.65→0.75→0.85→0.90）。クリックもライン付近に来るので、警告で音量ダウン/イヤホンへ誘導する。
+            // 分離不可：クリックとストロークが近い。ストローク検出を最優先し、実効ラインをストローク最小×0.92に置く
+            // （ストロークは確実に超える・実機微調整で 0.65→…→0.90→0.92）。クリックもライン付近に来るので、警告で音量ダウン/イヤホンへ誘導する。
             cannotSeparate = true;
-            const lineEff = minStroke * 0.90;
+            const lineEff = minStroke * 0.92;
             let rec = recoRawThresholdForEffectiveLine(lineEff);
             rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
             test.recommended = rec;
