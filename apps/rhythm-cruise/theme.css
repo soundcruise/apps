@@ -4322,6 +4322,46 @@ body.results-open #settings-btn {
     border-color: rgba(255, 255, 255, 0.4);
 }
 
+/* ── マイク設定の保存状態表示（v0.9.152）────────────────────────────
+   未保存（プリセット未保存／変更あり）を控えめに目立たせ、保存ボタンを強調する。 */
+.mic-preset-name-row b {
+    color: var(--secondary-color, #ff9f1c);
+}
+.mic-unsaved-row {
+    margin: 8px 0 2px;
+    padding: 8px 10px;
+    border: 1px solid rgba(255, 159, 28, 0.5);
+    border-radius: 10px;
+    background: rgba(255, 159, 28, 0.12);
+    color: var(--secondary-color, #ff9f1c);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+.mic-save-hint {
+    margin: 0 0 4px;
+    padding: 7px 10px;
+    border-radius: 9px;
+    background: rgba(255, 159, 28, 0.12);
+    border: 1px solid rgba(255, 159, 28, 0.4);
+    color: var(--secondary-color, #ff9f1c);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-align: center;
+}
+/* 未保存のときだけ「この設定を保存」ボタンを強調（保存済みでは通常表示） */
+.mic-save-needed {
+    border-color: rgba(255, 159, 28, 0.85) !important;
+    background: rgba(255, 159, 28, 0.18) !important;
+    color: var(--text-color, #fdf6ee) !important;
+    box-shadow: 0 0 0 1px rgba(255, 159, 28, 0.35);
+}
+/* 上書き保存ボタン（ユーザープリセット由来で変更があるときだけ表示） */
+.mic-overwrite-btn {
+    border: 1px solid rgba(120, 200, 255, 0.6) !important;
+    background: rgba(120, 200, 255, 0.12) !important;
+    color: var(--text-color, #fdf6ee);
+}
+
 .setting-row {
     display: flex;
     flex-direction: column;

@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.150">
+    <link rel="stylesheet" href="theme.css?v=0.9.152">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -510,7 +510,9 @@
                 <div class="cal-result" id="settings-summary-list" style="display:block;"></div>
                 <!-- 主導線：手動設定を開く（一番目立たせる） -->
                 <button type="button" class="btn-primary" id="settings-summary-manual" style="width:100%;margin-top:14px;">手動設定を開く</button>
-                <!-- サブ導線：この設定を保存（控えめ） -->
+                <!-- サブ導線：上書き保存（ユーザープリセット由来で変更があるときだけ表示・v0.9.152） -->
+                <button type="button" class="btn-mini mic-overwrite-btn hidden" id="settings-summary-overwrite" style="width:100%;margin-top:10px;padding:11px;border-radius:10px;font-weight:700;">上書き保存</button>
+                <!-- サブ導線：この設定を保存（別名で保存・控えめ／未保存時は強調） -->
                 <button type="button" class="btn-mini" id="settings-summary-save" style="width:100%;margin-top:10px;padding:11px;border:1px solid rgba(255,255,255,0.22);border-radius:10px;background:rgba(255,255,255,0.04);font-weight:700;">この設定を保存</button>
                 <!-- 戻る導線：キャンセル（機能は従来どおりマイク設定TOPへ戻る。デザインは画面タップ設定のキャンセルに合わせる・v0.9.108） -->
                 <button type="button" class="btn-mini" id="settings-summary-back" style="width:100%;margin-top:10px;padding:11px;">キャンセル</button>
@@ -859,11 +861,15 @@
 
                 <!-- 手動設定カード下部の操作エリア（v0.9.88：主導線「この設定を使う」＋控えめなサブ導線3つ） -->
                 <div class="manual-actions">
+                    <!-- 未保存の案内（数字を変更した／テストで新しい設定が適用された等のときに表示・v0.9.152） -->
+                    <p class="mic-save-hint hidden" id="manual-save-hint">変更があります。この設定を保存できます。</p>
                     <!-- 主導線：この設定を現在設定として使い、マイク設定TOPへ戻る -->
                     <button type="button" class="btn-primary manual-action-primary" id="manual-use-btn">この設定を使う</button>
                     <!-- サブ導線：最終確認テストを実施する -->
                     <button type="button" class="manual-action-sub" id="manual-practice-btn">最終確認テストを実施する</button>
-                    <!-- サブ導線：この設定を保存（共通の保存モーダルを開く） -->
+                    <!-- サブ導線：上書き保存（ユーザープリセット由来で変更があるときだけ表示・v0.9.152） -->
+                    <button type="button" class="manual-action-sub mic-overwrite-btn hidden" id="manual-overwrite-trigger">上書き保存</button>
+                    <!-- サブ導線：この設定を保存（別名で保存・共通の保存モーダルを開く／未保存時は強調） -->
                     <button type="button" class="manual-action-sub" id="manual-preset-trigger">この設定を保存</button>
                     <!-- サブ導線：変更を破棄してマイク設定TOPへ戻る（キャンセル・v0.9.89） -->
                     <button type="button" class="manual-action-sub" id="manual-top-btn">キャンセル</button>
@@ -1038,7 +1044,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.151"></script>
+    <script src="script.js?v=0.9.152"></script>
 </body>
 
 </html>

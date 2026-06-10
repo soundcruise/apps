@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.151';
+const RHYTHM_CRUISE_VERSION = '0.9.152';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -290,6 +290,11 @@ const state = {
     micTestDone: false,       // マイク反応テストを完了したか
     micDelayDone: false,      // マイクの遅れ補正を適用したか
     micSetupPrompted: false,  // マイク許可後の設定誘導を表示済みか
+    // 現在のマイク設定がどのプリセット由来か（v0.9.152）。保存状態（未保存=未保存の設定）の判定に使う。
+    micPresetId: null,        // 適用中プリセットのID（'builtin_*' / 'preset_*' / null=未保存）
+    micPresetName: null,      // 適用中プリセット名（表示用。null=未保存の設定）
+    micPresetBuiltin: false,  // 適用中プリセットが組み込みか（上書き保存の可否判定に使う）
+    micPresetBaseline: null,  // プリセット適用/保存時点の設定スナップショット（変更検知＝未保存判定の基準）
 };
 
 /* ── マイク判定PoC 状態 ─────────────────────────────────── */
@@ -709,6 +714,9 @@ const els = {
     settingsSummaryCard: $('settings-summary-card'),
     settingsSummaryList: $('settings-summary-list'),
     settingsSummarySave: $('settings-summary-save'),
+    settingsSummaryOverwrite: $('settings-summary-overwrite'),
+    manualOverwriteTrigger: $('manual-overwrite-trigger'),
+    manualSaveHint: $('manual-save-hint'),
     settingsSummaryManual: $('settings-summary-manual'),
     settingsSummaryBack: $('settings-summary-back'),
     presetToggleBtn: $('preset-toggle-btn'),
@@ -5772,8 +5780,8 @@ function buildComment({ score, just, miss, tapped, avg, fAvg, sAvg, total, bars,
     // 4〜7小節：標準的な練習量。現在の温度感を維持しつつ点数帯ごとに評価する。
     if (score >= 98) {
         core = tendency
-            ? 'とても良く弾けています。' + tendency + 'が、十分にキープできています。'
-            : 'とても良い安定感です。このテンポでは十分にキープできています。';
+            ? 'とても良く弾けています。' + tendency + 'が、十分にリズムをキープできています。'
+            : 'とても良い安定感です。リズムをしっかりキープできています。';
     } else if (score >= 94) {
         core = 'かなり良いです。' + tSuffix + '細かいズレを減らすと、さらに安定感が出ます。';
     } else if (score >= 90) {
@@ -8551,6 +8559,11 @@ function loadSettings() {
     if (typeof s.chordMinCooldown === 'number') state.chordMinCooldown = clampNum(s.chordMinCooldown, 100, 400, 180);
     if (typeof s.chordRiseGate === 'number') state.chordRiseGate = s.chordRiseGate;
     if (typeof s.chordInstantRiseGate === 'number') state.chordInstantRiseGate = s.chordInstantRiseGate;
+    // マイク設定のプリセット由来情報（v0.9.152）。古い保存データには無いので、無ければ未保存扱いにフォールバック。
+    state.micPresetId = (typeof s.micPresetId === 'string') ? s.micPresetId : null;
+    state.micPresetName = (typeof s.micPresetName === 'string') ? s.micPresetName : null;
+    state.micPresetBuiltin = !!s.micPresetBuiltin;
+    state.micPresetBaseline = (s.micPresetBaseline && typeof s.micPresetBaseline === 'object') ? s.micPresetBaseline : null;
 }
 
 function saveSettings() {
@@ -8586,6 +8599,10 @@ function saveSettings() {
             chordMinCooldown: state.chordMinCooldown,
             chordRiseGate: state.chordRiseGate,
             chordInstantRiseGate: state.chordInstantRiseGate,
+            micPresetId: state.micPresetId,
+            micPresetName: state.micPresetName,
+            micPresetBuiltin: state.micPresetBuiltin,
+            micPresetBaseline: state.micPresetBaseline,
         }));
     } catch (_) { /* プライベートモード等では無視 */ }
 }
@@ -8610,6 +8627,10 @@ function applySettingsToUI() {
     }
     updateStrokeDetectModeUI();
     updateMicInputTypeUI(); // 内部で updateHeadphoneTypeUI() を呼び、スライダー/表示/導線も同期
+    // STAGE画面の簡易マイク設定スライダーも常に同じ実体値へ同期（v0.9.152）。
+    applyStrokeMicToolsUI();
+    // 保存状態（未保存/上書き可否）にもとづく保存ボタンの見た目も同期（v0.9.152）。
+    syncMicSaveStateUI();
 }
 
 /* ── ステップ式マイク設定UI（v0.9.61）────────────────────────────
@@ -9533,6 +9554,14 @@ function renderSettingsSummary() {
     const row = (k, v) => '<div class="cal-result-row"><span>' + k + '</span><b>' + v + '</b></div>';
     const typeLabel = { normal: '通常マイク', headphone: 'イヤホン接続' }[t] || '通常マイク';
     const rows = [];
+    // プリセット名／未保存状態を最初に表示（v0.9.152）。
+    const dirty = micSettingsAreDirty();
+    const presetName = state.micPresetName ? escapeHtml(state.micPresetName) : '未保存の設定';
+    const nameSuffix = (state.micPresetName && dirty) ? '（変更あり）' : '';
+    rows.push('<div class="cal-result-row mic-preset-name-row"><span>プリセット名</span><b>' + presetName + nameSuffix + '</b></div>');
+    if (dirty) {
+        rows.push('<div class="mic-unsaved-row">⚠ この設定はまだプリセット保存されていません</div>');
+    }
     rows.push(row('入力タイプ', typeLabel));
     if (t === 'headphone') {
         rows.push(row('イヤホン種類', getHeadphoneType() === 'bluetooth' ? 'Bluetoothイヤホン' : '有線イヤホン'));
@@ -9555,6 +9584,7 @@ function renderSettingsSummary() {
     rows.push(row('マイク反応テスト', state.micTestDone ? '実施済み' : '未実施'));
     if (t !== 'headphone') rows.push(row('マイクの遅れ補正テスト', state.micDelayDone ? '実施済み' : '未実施'));
     els.settingsSummaryList.innerHTML = rows.join('');
+    syncMicSaveStateUI(); // 保存ボタンの強調・上書き/別名の出し分けも同期（v0.9.152）
 }
 
 /* ── マイク設定プリセット（名前をつけて保存／呼び出し）v0.9.61 ────────
@@ -9586,6 +9616,71 @@ function currentMicPresetSettings() {
         headphoneOutputOffsetMs: mic.headphoneOutputOffsetMs,
         clickGuardMs: mic.clickGuardMs,
     };
+}
+
+/* ── マイク設定の保存状態管理（v0.9.152）────────────────────────────────
+   現在のマイク設定が「どのプリセット由来か」「未保存か」を管理し、各UI（簡易/手動/現在の設定）と同期する。
+   判定ロジック・スコア計算・テスト検出には一切触れない（保存状態の管理と表示のみ）。 */
+const MIC_PRESET_COMPARE_KEYS = ['inputType', 'headphoneType', 'strokeDetectMode', 'threshold', 'cooldownMs',
+    'clickVolume', 'timingOffsetMs', 'bluetoothMicOffsetMs', 'lowInputProfile',
+    'headphoneOffsetWiredMs', 'headphoneOffsetBluetoothMs', 'clickGuardMs'];
+function micSettingsEqual(a, b) {
+    if (!a || !b) return false;
+    return MIC_PRESET_COMPARE_KEYS.every((k) => a[k] === b[k]);
+}
+/* 現在の設定が未保存か（プリセット由来でない、または由来プリセットから変更されている）。 */
+function micSettingsAreDirty() {
+    if (!state.micPresetBaseline) return true; // プリセット由来でない＝未保存
+    return !micSettingsEqual(currentMicPresetSettings(), state.micPresetBaseline);
+}
+/* 現在の設定を、指定プリセット由来として結び付ける（基準スナップショットも取り直す＝保存済み状態にする）。 */
+function linkMicPreset(id, name, builtin) {
+    state.micPresetId = id || null;
+    state.micPresetName = name || null;
+    state.micPresetBuiltin = !!builtin;
+    state.micPresetBaseline = currentMicPresetSettings();
+}
+/* 現在のユーザープリセットへ上書き保存（v0.9.152）。組み込み/未保存は対象外（別名保存のみ）。 */
+function overwriteCurrentMicPreset() {
+    if (!state.micPresetId || state.micPresetBuiltin || !/^preset_/.test(state.micPresetId)) {
+        openPresetModal('mic'); // 念のため：上書きできない状態なら別名保存へ
+        return;
+    }
+    const arr = loadPresets();
+    const p = arr.find((x) => x && x.id === state.micPresetId);
+    if (!p) { openPresetModal('mic'); return; } // 由来プリセットが見つからない＝別名保存へフォールバック
+    p.settings = currentMicPresetSettings();
+    p.updatedAt = Date.now();
+    savePresets(arr);
+    linkMicPreset(p.id, p.name, false); // 基準を取り直す＝保存済み（未保存解除）
+    saveSettings();
+    renderPresetList();
+    syncMicSettingsUI();
+}
+/* 保存ボタンの強調・上書き/別名ボタンの出し分け・未保存案内の表示を、現在の保存状態に同期する。 */
+function syncMicSaveStateUI() {
+    const dirty = micSettingsAreDirty();
+    const userPreset = !!state.micPresetId && !state.micPresetBuiltin && /^preset_/.test(state.micPresetId);
+    const showOverwrite = dirty && userPreset; // ユーザープリセット由来で変更あり＝上書き保存できる
+    // 手動設定カード
+    if (els.manualPresetTrigger) {
+        els.manualPresetTrigger.classList.toggle('mic-save-needed', dirty);
+        els.manualPresetTrigger.textContent = showOverwrite ? '別名で保存' : 'この設定を保存';
+    }
+    if (els.manualOverwriteTrigger) els.manualOverwriteTrigger.classList.toggle('hidden', !showOverwrite);
+    if (els.manualSaveHint) els.manualSaveHint.classList.toggle('hidden', !dirty);
+    // 現在の設定を見るカード
+    if (els.settingsSummarySave) {
+        els.settingsSummarySave.classList.toggle('mic-save-needed', dirty);
+        els.settingsSummarySave.textContent = showOverwrite ? '別名で保存' : 'この設定を保存';
+    }
+    if (els.settingsSummaryOverwrite) els.settingsSummaryOverwrite.classList.toggle('hidden', !showOverwrite);
+}
+/* マイク設定の値が変わったときに、関係する全UI（手動スライダー・簡易スライダー・現在の設定・保存状態）を一括同期する。 */
+function syncMicSettingsUI() {
+    applySettingsToUI();                 // 手動スライダー＋モード/種類UI（内部で簡易スライダーも同期）
+    if (settingsView === 'summary') renderSettingsSummary();
+    syncMicSaveStateUI();
 }
 
 function setPresetSaveMsg(t) { if (els.presetModalMsg) els.presetModalMsg.textContent = t || ''; }
@@ -9620,19 +9715,26 @@ function savePresetWithName(name, setMsg, clearInput) {
         existing.settings = currentMicPresetSettings();
         existing.updatedAt = now;
         savePresets(arr);
+        linkMicPreset(existing.id, existing.name, false); // 保存したプリセット由来として結び付ける（未保存解除・v0.9.152）
+        saveSettings();
+        syncMicSettingsUI();
         if (clearInput) clearInput();
         if (setMsg) setMsg('上書き保存しました');
         renderPresetList();
         return true;
     }
-    arr.push({
+    const newPreset = {
         id: 'preset_' + now + '_' + Math.random().toString(36).slice(2, 7),
         name: name,
         createdAt: now,
         updatedAt: now,
         settings: currentMicPresetSettings(),
-    });
+    };
+    arr.push(newPreset);
     savePresets(arr);
+    linkMicPreset(newPreset.id, newPreset.name, false); // 保存したプリセット由来として結び付ける（未保存解除・v0.9.152）
+    saveSettings();
+    syncMicSettingsUI();
     if (clearInput) clearInput();
     if (setMsg) setMsg('保存しました');
     renderPresetList();
@@ -9680,6 +9782,7 @@ function openManualView(scrollTarget) {
     // 「手動設定を開く」ので、折りたたみは開いた状態で全項目を見せる（v0.9.69）。
     if (els.manualDetail && !els.manualDetail.open) { els.manualDetail.open = true; fitPreview(); }
     renderSettingsView();
+    syncMicSaveStateUI(); // 手動設定を開いた時点の保存状態（未保存/上書き可否）を保存ボタンへ反映（v0.9.152）
     scrollToSettingsEl(scrollTarget || els.manualCard);
 }
 
@@ -9789,6 +9892,8 @@ function applyPresetCore(id) {
     // 古いBluetooth由来の180msなどが有線プリセットへ混ざらないよう、保存された単一値は使わない。
     mic.headphoneOutputOffsetMs = currentHpTypeOffset();
     if (typeof s.clickGuardMs === 'number') mic.clickGuardMs = s.clickGuardMs;
+    // このプリセット由来として結び付ける（=保存済み扱い。基準スナップショットも取り直す・v0.9.152）。
+    linkMicPreset(p.id, p.name, !!p.builtin);
     // UI・保存へ反映（※マイク反応テスト済みフラグは立てない）
     applySettingsToUI();
     drawMicPreview();
@@ -12230,6 +12335,7 @@ function bind() {
         if (els.smicClickVolVal) els.smicClickVolVal.textContent = state.clickVolume + '％';
         if (els.setClickVol) els.setClickVol.value = state.clickVolume;           // 手動設定スライダーも同期
         if (els.setClickVolVal) els.setClickVolVal.textContent = state.clickVolume + '％';
+        syncMicSaveStateUI();                                                     // 簡易で変えたら未保存→保存ボタンを強調（v0.9.152）
     });
     // 簡易マイク設定：反応ライン（mic.threshold を直接操作＝手動設定と同じ値）
     if (els.smicThreshold) els.smicThreshold.addEventListener('input', () => {
@@ -12240,6 +12346,7 @@ function bind() {
         if (els.setThresholdVal) els.setThresholdVal.textContent = sens + '％';
         if (els.micThreshold) els.micThreshold.style.left = micThresholdMarkerPct() + '%';
         if (els.testThreshold) els.testThreshold.style.left = micThresholdMarkerPct() + '%';
+        syncMicSaveStateUI();                                                     // 簡易で変えたら未保存→保存ボタンを強調（v0.9.152）
     });
     // 値が確定したら保存（再読込後も保持）
     if (els.smicClickVol) els.smicClickVol.addEventListener('change', saveSettings);
@@ -12289,6 +12396,8 @@ function bind() {
     if (els.micPresetBack) els.micPresetBack.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsView('chooser')));
     // 「現在の設定を見る」から：この設定を保存（モーダル）／手動設定を開く
     if (els.settingsSummarySave) els.settingsSummarySave.addEventListener('click', () => openPresetModal());
+    if (els.settingsSummaryOverwrite) els.settingsSummaryOverwrite.addEventListener('click', overwriteCurrentMicPreset);
+    if (els.manualOverwriteTrigger) els.manualOverwriteTrigger.addEventListener('click', overwriteCurrentMicPreset);
     if (els.settingsSummaryManual) els.settingsSummaryManual.addEventListener('click', () => openManualView(els.manualCard));
     // 手動設定カード内「この設定を保存」：共通の保存モーダルを開く（v0.9.80）
     if (els.manualPresetTrigger) els.manualPresetTrigger.addEventListener('click', () => openPresetModal());
@@ -12344,11 +12453,14 @@ function bind() {
         els.setThresholdVal.textContent = sens + '％';
         if (els.micThreshold) els.micThreshold.style.left = micThresholdMarkerPct() + '%';
         if (els.testThreshold) els.testThreshold.style.left = micThresholdMarkerPct() + '%';
+        applyStrokeMicToolsUI();  // STAGE簡易マイク設定も同期（v0.9.152）
+        syncMicSaveStateUI();     // 手動で変えたら未保存→保存ボタンを強調（v0.9.152）
         drawMicPreview();
     });
     els.setCooldown.addEventListener('input', () => {
         mic.cooldownMs = parseInt(els.setCooldown.value, 10);
         els.setCooldownVal.textContent = mic.cooldownMs + 'ms';
+        syncMicSaveStateUI();     // v0.9.152
         drawMicPreview();
     });
     els.setOffset.addEventListener('input', () => {
@@ -12356,11 +12468,14 @@ function bind() {
         els.setOffsetVal.textContent = (mic.timingOffsetMs > 0 ? '+' : '') + mic.timingOffsetMs + 'ms';
         if (els.calCurrentOffset) els.calCurrentOffset.textContent = (mic.timingOffsetMs > 0 ? '+' : '') + mic.timingOffsetMs + 'ms';
         updateMicDiag();
+        syncMicSaveStateUI();     // v0.9.152
         drawMicPreview();
     });
     els.setClickVol.addEventListener('input', () => {
         state.clickVolume = parseInt(els.setClickVol.value, 10);
         els.setClickVolVal.textContent = state.clickVolume + '％';
+        applyStrokeMicToolsUI();  // STAGE簡易マイク設定も同期（v0.9.152）
+        syncMicSaveStateUI();     // v0.9.152
         drawMicPreview();
     });
     // 値が確定したら保存
