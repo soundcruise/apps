@@ -3061,6 +3061,31 @@ h1 {
     color: var(--muted-color);
     font-size: 0.74rem;
 }
+/* MISS拍の原因（v0.9.149）：必要な人だけが開く補助情報。強い枠/背景/色を使わず、
+   小さなサブリンク風に控えめにする（最初に視線を奪わない）。中身の文言・開閉動作は維持。 */
+.results-detail.is-quiet {
+    border: none;
+    background: transparent;
+    border-radius: 0;
+    margin-top: -2px;
+}
+.results-detail.is-quiet .results-detail-summary {
+    padding: 4px 6px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: rgba(253, 246, 238, 0.42);
+    text-decoration: underline;
+    text-decoration-color: rgba(253, 246, 238, 0.22);
+    text-underline-offset: 2px;
+}
+.results-detail.is-quiet .results-detail-summary::after {
+    font-size: 0.64rem;
+    opacity: 0.6;
+}
+.results-detail.is-quiet .results-detail-body {
+    padding: 2px 8px 8px;
+}
+
 /* 結果カード「MISS拍の原因」（v0.9.147）：開いた時だけ表示する折りたたみ。ユーザー向けの原因を1拍1行で。 */
 .miss-cause-lead {
     margin: 2px 2px 6px;

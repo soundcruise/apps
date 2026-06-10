@@ -198,7 +198,7 @@ const FX_TEXT = { just: 'GOOD!', early: 'EARLY', late: 'LATE', miss: 'MISS' };
 
 /* ── 判定の仮ルール ─────────────────────────────────────── */
 const BEATS_PER_BAR = 4;
-const BAR_OPTIONS = [1, 2, 4, 8, 16, 32];   // STAGEで選べる小節数（v0.9.147で最大32へ拡張）
+const BAR_OPTIONS = [1, 2, 4, 8, 12, 16, 20, 24, 28, 32];   // STAGEで選べる小節数（v0.9.149で 12/20/24/28 を追加。最小1・最大32）
 const DEFAULT_BARS = 8;             // 既存仕様（8小節×4拍＝32拍）に合わせた初期値
 // TOTAL_BEATS は「小節数 × 4拍」。小節数は state.bars で可変（v0.9.118）。
 // applyStageBars() で state.bars から再計算する。配列やレーンは resetGame/resetData で作り直す。
@@ -5152,6 +5152,9 @@ function finish(opts) {
     let just = 0, early = 0, late = 0, miss = 0, scoreSum = 0;
     const diffs = [];
     const firstHalf = [], secondHalf = [];
+    // 入り（1小節目）のズレ傾向コメント用（表示のみ・v0.9.149）：1小節目と、それ以降の |diff| を別々に集める。
+    const firstBarAbs = [], restBarsAbs = [];
+    const cpb = eng.cellsPerBar || BEATS_PER_BAR;
     let judgeCount = 0;
     for (let i = 0; i < TOTAL_BEATS; i++) {
         if (!engIsHit(i)) continue;        // カスタム：休符/タイは採点対象外（未入力でもMISSにしない）
@@ -5167,6 +5170,7 @@ function finish(opts) {
         if (r && r.tapped) {
             diffs.push(r.diff);
             (i < TOTAL_BEATS / 2 ? firstHalf : secondHalf).push(r.diff);
+            (i < cpb ? firstBarAbs : restBarsAbs).push(Math.abs(r.diff));
         }
     }
     const denom = judgeCount || 1;
@@ -5186,7 +5190,13 @@ function finish(opts) {
     } else {
         els.rAvg.textContent = '—';
     }
-    els.rComment.textContent = buildComment({ just, miss, tapped: diffs.length, avg, fAvg, sAvg, total: denom })
+    // 実際にプレイした小節数（通常プレイ=state.bars、くり返しSTOP=到達セルから換算）。コメントのニュアンス分岐に使う（v0.9.149）。
+    const playedBars = Math.max(1, Math.round(cutoff / (eng.cellsPerBar || BEATS_PER_BAR)));
+    // 入り（1小節目）のズレが、それ以降の小節より明確に大きいか（表示コメント用のみ・判定/スコアには非干渉）。
+    const firstBarAbsAvg = mean(firstBarAbs), restBarsAbsAvg = mean(restBarsAbs);
+    const firstBarOff = (playedBars >= 2 && firstBarAbs.length >= 1 && restBarsAbs.length >= 2
+        && firstBarAbsAvg >= 45 && firstBarAbsAvg > restBarsAbsAvg * 1.6);
+    els.rComment.textContent = buildComment({ score, just, miss, tapped: diffs.length, avg, fAvg, sAvg, total: denom, bars: playedBars, firstBarOff })
         + chordCommentSuffix();
 
     // クリック音拾いの可能性を判定（ストローク＝マイク入力で、GOODのズレがほぼ一点に集中している）
@@ -5576,16 +5586,98 @@ function updateStageSettingsUI() {
     }
 }
 
-function buildComment({ just, miss, tapped, avg, fAvg, sAvg, total }) {
+/* ズレの傾向（前半/後半・走り/もたり・安定）を短い言葉で返す（v0.9.149）。
+   既存の評価軸（前半/後半・走る・もたる・安定）をそのまま維持する。安定時は空文字。 */
+function commentTendency(avg, fAvg, sAvg) {
+    if (sAvg - fAvg > 30) return '後半でもたり気味です';
+    if (fAvg - sAvg > 30) return '後半で走り気味です';
+    if (avg <= -25) return '少し走り（前ノリ）気味です';
+    if (avg >= 25) return '少しもたり（後ろノリ）気味です';
+    return ''; // おおむね安定
+}
+
+/* 結果カードのコメント（v0.9.149で全面見直し）。
+   方針：4小節以上のキープを自然に促す。
+   ・プレイ小節数（bars）でニュアンスを変える。
+       1〜3小節：プレイ時間が短く、リズムキープ力の評価としては不十分。点数が高くても褒めすぎない（温度感を一段下げる）。
+       4〜7小節：標準的な練習量として、点数帯ごとに評価。
+       長め（内部的に bars>=8）：長く続けられたこと自体を評価。表示文言に「8小節以上」等の直接表現は使わない。
+   ・前半/後半・走り/もたり・安定の傾向（commentTendency）を自然に添える。
+   ・入り（1小節目）のズレが大きい時（firstBarOff）は、一言だけ添える。
+   判定/スコア計算には一切影響しない（表示文言のみ）。 */
+function buildComment({ score, just, miss, tapped, avg, fAvg, sAvg, total, bars, firstBarOff }) {
     if (tapped < 8) return 'タップが少なめでした。もう一度チャレンジしてみましょう。';
-    const justRate = just / (total || TOTAL_BEATS);
-    if (justRate >= 0.6) return 'かなり安定しています！この感覚をキープしましょう。';
-    if (sAvg - fAvg > 30) return '後半でテンポが遅れ気味です（もたり）。クリックを意識して。';
-    if (fAvg - sAvg > 30) return '後半で走り気味です。力まず一定をキープしましょう。';
-    if (avg <= -25) return '少し前に突っ込み気味です（走り）。ほんの少し待つ意識を。';
-    if (avg >= 25) return '少し後ろにモタつき気味です（もたり）。前ノリを意識して。';
-    if (miss >= 8) return 'タイミングのばらつきが大きめ。まずはBPMを下げて練習を。';
-    return 'おおむね安定しています。少しずつJUSTを増やしていきましょう。';
+    const tendency = commentTendency(avg, fAvg, sAvg);
+    const tSuffix = tendency ? tendency + '。' : '';
+    // 入り（1小節目）のズレが大きいときに添える一言（表示用のみ）。
+    const firstBarNote = firstBarOff
+        ? ' 入りの1小節目でズレが出やすいので、最初のカウントをよく聴いて入りましょう。'
+        : '';
+
+    let core;
+
+    // 1〜3小節：短いので褒めすぎない。点数が高くても完全に褒め切らず、4小節以上を自然に促す。
+    if (bars <= 3) {
+        if (bars <= 2) {
+            if (score >= 98) core = '短い範囲ではかなり良い精度です。リズムの安定を見るには、4小節以上でも試してみましょう。';
+            else if (score >= 94) core = '短い確認としては良いスタートです。もう少し長く続けると、細かいズレの傾向が見えやすくなります。';
+            else if (score >= 90) core = '形は見えてきています。短い確認の次は、4小節くらいでGOODの位置を増やしていきましょう。';
+            else if (score >= 80) core = 'クリックに合わせる感覚を整えている段階です。まずはゆっくり、1拍ずつ合わせていきましょう。';
+            else if (score >= 70) core = 'まだ確認段階です。テンポを落として、クリックに合わせる位置を整えていきましょう。';
+            else core = 'まずはテンポを落として、クリックに合わせるところから整えていきましょう。';
+        } else { // 3小節
+            if (score >= 98) core = '短い範囲ではかなり良い精度です。次は4小節以上でも、この感覚を保てるか試してみましょう。';
+            else if (score >= 94) core = '全体の流れは良いです。もう少し長く続けると、安定感がさらに確認しやすくなります。';
+            else if (score >= 90) core = '流れはつかめています。クリックをよく聴いて、GOODの位置を少しずつ増やしていきましょう。';
+            else if (score >= 80) core = '形は見えてきています。少しテンポを落として、4小節を安定させる練習につなげていきましょう。';
+            else if (score >= 70) core = 'クリックに合わせる基礎を整えている段階です。まずは落ち着いて、同じ位置で鳴らすことを意識しましょう。';
+            else core = 'まだ安定させる途中です。テンポを落として、1拍ずつクリックに合わせる練習から始めましょう。';
+        }
+        return core + firstBarNote;
+    }
+
+    // 長め（内部的には bars>=8）：長くキープできたこと自体を評価。点数帯は他カテゴリと同じ6段に揃える（v0.9.149）。
+    //   完全に褒め切るのは98〜100点のみ。表示文言に「8小節以上」等の直接表現は使わず、「長めの小節数」「この長さ」などの自然な言い回しにする。
+    if (bars >= 8) {
+        if (score >= 98) {
+            core = tendency
+                ? 'とても良く弾けています。' + tendency + 'が、この長さでも崩れずキープできています。'
+                : 'かなり安定してキープできています。長めの小節数でも崩れないのは、とても良い状態です。';
+        } else if (score >= 94) {
+            core = '長めの小節数までしっかりキープできています。' + tSuffix + '細かいズレを整えると、さらに安定感が出ます。';
+        } else if (score >= 90) {
+            core = '長く続けられているのは良い練習です。' + (tendency
+                ? tendency + '。後半まで安定させていきましょう。'
+                : '走り／もたりの傾向を確認して、後半まで安定させていきましょう。');
+        } else if (score >= 80) {
+            core = '長めに続ける練習ができています。クリックをよく聴いて、GOODの位置を少しずつ増やしていきましょう。';
+        } else if (score >= 70) {
+            core = '長く続ける力はついてきています。まずは少しテンポを落とすか、4小節で安定させてから、もう一度長めに挑戦してみましょう。';
+        } else {
+            core = '長く続ける練習に挑戦できています。まずはテンポを落として、短めの小節数で安定させてから、少しずつ長くしていきましょう。';
+        }
+        return core + firstBarNote;
+    }
+
+    // 4〜7小節：標準的な練習量。現在の温度感を維持しつつ点数帯ごとに評価する。
+    if (score >= 98) {
+        core = tendency
+            ? 'とても良く弾けています。' + tendency + 'が、十分にキープできています。'
+            : 'とても良い安定感です。このテンポでは十分にキープできています。';
+    } else if (score >= 94) {
+        core = 'かなり良いです。' + tSuffix + '細かいズレを減らすと、さらに安定感が出ます。';
+    } else if (score >= 90) {
+        core = '流れは良いです。' + tSuffix + 'ズレを整えると、さらに安定します。';
+    } else if (score >= 80) {
+        core = '全体の流れはつかめています。' + (tendency
+            ? tendency + '。同じ位置で鳴らせるようにしましょう。'
+            : '走り／もたりの傾向を見ながら、同じテンポで安定させていきましょう。');
+    } else if (score >= 70) {
+        core = 'まずは形が見えてきています。クリックをよく聴いて、GOODの位置を少しずつ増やしていきましょう。';
+    } else {
+        core = 'まずはゆっくりのテンポで、1拍ずつクリックに合わせるところから整えていきましょう。';
+    }
+    return core + firstBarNote;
 }
 
 /* コードストロークモード時だけ、結果コメントに1文だけ補足する（既存コメントは壊さない）。 */
