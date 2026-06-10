@@ -5,20 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>指板クルーズ</title>
     
-    <script>
-    (function () {
-        var manifestHref = 'manifest.json?v=pro-orientation-any-20260516';
-        try {
-            if (new URLSearchParams(location.search).get('stagingPreview') === '1') {
-                manifestHref = 'manifest-staging.json?v=gr-draft-20260530';
-            }
-        } catch (e) { /* ignore */ }
-        var manifestLink = document.createElement('link');
-        manifestLink.rel = 'manifest';
-        manifestLink.href = manifestHref;
-        document.head.appendChild(manifestLink);
-    })();
-    </script>
+    <link rel="manifest" href="manifest.json?v=pro-orientation-any-20260516">
     <link rel="apple-touch-icon" href="../generated-home-icons/final-selected-icon/fretboard-cruise-final-selection-180.png?v=proicon-20260514">
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -27,21 +14,7 @@
     
     <link rel="stylesheet" href="../../shared/style.css?v=97">
     <link rel="stylesheet" href="../../shared/pro-theme.css?v=98">
-    <!-- 動作確認用: URL に ?legacy=1.130.2 を付けると legacy/v1.130.2 の theme を読み込み -->
-    <script>
-    (function () {
-        var root = '../';
-        try {
-            if (new URLSearchParams(location.search).get('legacy') === '1.130.2') {
-                root = '../legacy/v1.130.2/';
-            }
-        } catch (e) { /* ignore */ }
-        var link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = root + (root === '../' ? 'theme.css?v=405' : 'theme.css');
-        document.head.appendChild(link);
-    })();
-    </script>
+    <link rel="stylesheet" href="../theme.css?v=405">
     <!-- Pro版のみ追加 -->
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
 
@@ -169,28 +142,7 @@
         <button type="button" class="btn-secondary btn-in-game-refresh js-reload-app">ページを更新</button>
     </div>
 
-    <!-- 動作確認用: URL に ?legacy=1.130.2 を付けると legacy/v1.130.2 の script を読み込み -->
-    <script>
-    (function () {
-        var root = '../';
-        var isStagingPreview = false;
-        try {
-            var params = new URLSearchParams(location.search);
-            isStagingPreview = params.get('stagingPreview') === '1';
-            if (params.get('legacy') === '1.130.2') {
-                root = '../legacy/v1.130.2/';
-            }
-        } catch (e) { /* ignore */ }
-        var s = document.createElement('script');
-        if (isStagingPreview && root === '../') {
-            s.src = '../script-staging.js?v=staging-gr-draft-20260530';
-        } else {
-            s.src = root + (root === '../' ? 'script.js?v=2.8.0' : 'script.js');
-        }
-        s.async = false;
-        document.body.appendChild(s);
-    })();
-    </script>
+    <script src="../script.js?v=2.8.0"></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
