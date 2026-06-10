@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.149">
+    <link rel="stylesheet" href="theme.css?v=0.9.150">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -947,20 +947,25 @@
                             <li>可能ならイヤホンを使う</li>
                         </ul>
                     </div>
-                    <!-- ストローク音量（各拍ピーク）＋反応ライン -->
-                    <div class="graph-wrap results-mic-wrap hidden" id="results-mic-wrap">
-                        <div class="graph-head">
-                            <span>ストローク音量（全32拍）</span>
-                            <span class="graph-axis">横線＝判定ライン</span>
-                        </div>
-                        <canvas id="results-mic-canvas"></canvas>
-                    </div>
+                    <!-- ズレ履歴（先・v0.9.150）：まずタイミングのズレ傾向を見る。長い小節数は4小節基準で横スクロール。 -->
                     <div class="graph-wrap">
                         <div class="graph-head">
-                            <span>ズレ履歴（全32拍）</span>
+                            <span>ズレ履歴</span>
                             <span class="graph-axis">縦軸＝ズレ</span>
                         </div>
-                        <canvas id="graph-canvas"></canvas>
+                        <div class="result-graph-scroll">
+                            <canvas id="graph-canvas"></canvas>
+                        </div>
+                    </div>
+                    <!-- ストローク音量（各拍ピーク）＋反応ライン（後・補助情報・v0.9.150） -->
+                    <div class="graph-wrap results-mic-wrap hidden" id="results-mic-wrap">
+                        <div class="graph-head">
+                            <span>ストローク音量</span>
+                            <span class="graph-axis">横線＝判定ライン</span>
+                        </div>
+                        <div class="result-graph-scroll">
+                            <canvas id="results-mic-canvas"></canvas>
+                        </div>
                     </div>
                     <!-- ズレ傾向を見たあと、マイクの手動設定（現在の設定を見る）へ直接行ける控えめなリンク（v0.9.107） -->
                     <p class="result-mic-tune-row">

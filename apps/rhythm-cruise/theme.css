@@ -1701,6 +1701,14 @@ h1 {
     font-size: 0.68rem;
 }
 
+/* 結果カードのグラフ横スクロール領域（v0.9.150）：長い小節数では4小節基準で内部幅を広げ、
+   カード幅に収めず横スクロールで見せる。canvas の style.width は JS（applyResultGraphWidth）で設定する。 */
+.result-graph-scroll {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
 #graph-canvas {
     display: block;
     width: 100%;

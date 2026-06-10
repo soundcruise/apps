@@ -3224,7 +3224,20 @@ function fitLane() {
     refreshCustomFlowScore();
 }
 
+/* 結果カードのグラフ横倍率（v0.9.150）：4小節を基準（=1倍）に、小節数ぶん内部幅を広げる。
+   1〜4小節はカード幅（1倍）。8小節→2倍 / 12→3倍 / 16→4倍 / 32→8倍。判定/スコアには非干渉（表示幅のみ）。 */
+function resultGraphScale() {
+    const bars = (state && Number.isFinite(state.bars)) ? state.bars : 4;
+    return Math.max(1, bars / 4);
+}
+/* canvas の表示幅（CSS幅）を倍率で広げる。fitOne が clientWidth を読む前に呼ぶ＝DPR/解像度の関係は fitOne 側で維持。 */
+function applyResultGraphWidth(canvas) {
+    if (!canvas) return;
+    canvas.style.width = (resultGraphScale() * 100) + '%';
+}
+
 function fitGraph() {
+    applyResultGraphWidth(els.graphCanvas);
     graph = fitOne(els.graphCanvas);
     drawGraph();
 }
@@ -3232,6 +3245,7 @@ function fitGraph() {
 let resultsMic = { ctx: null, w: 0, h: 0 };
 function fitResultsMic() {
     if (!els.resultsMicCanvas) return;
+    applyResultGraphWidth(els.resultsMicCanvas);
     resultsMic = fitOne(els.resultsMicCanvas);
     drawResultsMic();
 }
@@ -5238,6 +5252,7 @@ function finish(opts) {
     if (els.resultsOverlay) els.resultsOverlay.classList.remove('hidden');
     if (els.refreshBar) els.refreshBar.classList.add('hidden'); // モーダル背後に透けないよう一時的に隠す
     document.body.classList.add('results-open');               // モーダル中は戻る/TOP/設定を隠す（修正8）
+    applyResultDetailOpenPref();                               // 詳細は既定で開く（ユーザーが閉じた設定があれば反映・v0.9.150）
     drawResults();
 }
 
@@ -5252,6 +5267,29 @@ function finish(opts) {
 const RESULT_HISTORY_KEY = 'rhythmCruiseResultHistory:v1';
 const RESULT_HISTORY_MAX = 100;
 let historyViewRecord = null; // 履歴モードで表示中の1件（null=本番結果表示）
+
+/* 結果カード詳細（内訳・ズレ履歴グラフ）の開閉状態を端末内に保存（v0.9.150）。
+   既定は「開く」。ユーザーが閉じたらその状態を記憶し、次回以降の結果カードへ反映する。
+   通常結果・くり返し練習STOP・過去履歴詳細のいずれでも同じ設定を使う。 */
+const RESULT_DETAIL_OPEN_KEY = 'rhythmCruiseResultDetailOpen:v1';
+let suppressResultDetailSave = false; // プログラムで open を切り替える間は保存しない（ユーザー操作だけ記憶）
+function loadResultDetailOpen() {
+    try {
+        const v = localStorage.getItem(RESULT_DETAIL_OPEN_KEY);
+        if (v === null) return true; // 未設定＝既定で開く
+        return v === 'true';
+    } catch (_) { return true; }
+}
+function saveResultDetailOpen(open) {
+    try { localStorage.setItem(RESULT_DETAIL_OPEN_KEY, open ? 'true' : 'false'); } catch (_) { /* 保存失敗は無視 */ }
+}
+/* 保存設定にもとづいて詳細の開閉を反映（toggleイベントは発火するが保存はしない） */
+function applyResultDetailOpenPref() {
+    if (!els.resultsDetail) return;
+    suppressResultDetailSave = true;
+    els.resultsDetail.open = loadResultDetailOpen();
+    suppressResultDetailSave = false;
+}
 
 function loadResultHistory() {
     try {
@@ -5486,12 +5524,14 @@ function renderHistoryResultCard(rec) {
         fillHistoryHead(rec);
         prepareResultsOverlayForHistory();
         fitReview();              // 同期描画（reviewCanvas＋VexFlow層）。波形は inputMode='tap' のため出ない。
-        if (els.resultsDetail && els.resultsDetail.open) fitGraph(); // 詳細が開いていればズレ履歴グラフも履歴データで描く
     } finally {
         restoreEngineState(backup); // 描画後すぐ現在のSTAGE状態へ復元（描画済みのCanvas/SVGは残る）
     }
     if (els.resultsOverlay) els.resultsOverlay.classList.remove('hidden');
     document.body.classList.add('results-open');
+    applyResultDetailOpenPref();  // 詳細は既定で開く（ユーザーが閉じた設定があれば反映・履歴も同じ設定・v0.9.150）
+    // ズレ履歴グラフは clientWidth に依存するため、オーバーレイ表示後（サイズ確定後）に履歴データで描く。
+    if (els.resultsDetail && els.resultsDetail.open) renderHistoryDetailGraphs(rec);
 }
 function closeResultHistoryDetail() {
     historyViewRecord = null;
@@ -12337,6 +12377,7 @@ function bind() {
     });
     // 結果モーダルの詳細（折りたたみ）を開いたら、中のズレ履歴グラフをサイズ確定して描画
     if (els.resultsDetail) els.resultsDetail.addEventListener('toggle', () => {
+        if (!suppressResultDetailSave) saveResultDetailOpen(els.resultsDetail.open); // ユーザー操作だけ開閉状態を記憶（v0.9.150）
         if (!els.resultsDetail.open) return;
         if (historyViewRecord) { renderHistoryDetailGraphs(historyViewRecord); return; } // 履歴モード：判定結果からズレ履歴グラフを再現（v0.9.146）
         fitGraph(); fitResultsMic();
