@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.143';
+const RHYTHM_CRUISE_VERSION = '0.9.144';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -11464,8 +11464,8 @@ function bind() {
     els.micTestBtn.addEventListener('click', toggleMicTest);
     if (els.recoRetestBtn) els.recoRetestBtn.addEventListener('click', () => { if (!test.flow) { test.rescueHighSens = true; startMicTestFlow(); } });
     els.recoApplyBtn.addEventListener('click', applyReco);
-    els.tempoUp.addEventListener('click', () => setBpm(state.bpm + 5));
-    els.tempoDown.addEventListener('click', () => setBpm(state.bpm - 5));
+    els.tempoUp.addEventListener('click', () => setBpm(state.bpm + 1));   // v0.9.144：BPMは1刻みで微調整（最小/最大はsetBpm内のまま）
+    els.tempoDown.addEventListener('click', () => setBpm(state.bpm - 1)); // v0.9.144：BPMは1刻みで微調整
     // 小節数の−/＋（v0.9.118）：候補 1/2/4/8 を行き来する
     if (els.barsUp) els.barsUp.addEventListener('click', () => stepStageBars(+1));
     if (els.barsDown) els.barsDown.addEventListener('click', () => stepStageBars(-1));
