@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.137';
+const RHYTHM_CRUISE_VERSION = '0.9.140';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -42,12 +42,12 @@ const STROKE_TEST_COUNT = 4;
 //      環境ノイズより十分上 ＜ 補正用反応ライン ＜ クリック最大見込みより十分下（かつ低すぎない）。
 //  ・最初の1クリックの実測ピークが取れたら、必要に応じて一度だけ微調整する。
 //  ・採用は 7/8 以上＋ばらつき小＋補正値が上限非到達 のときだけ（不安定なら補正値を出さない）。
-const CAL_THR_DEFAULT = 0.02;       // マイク反応テスト未実施などで推定できない場合の既定
+const CAL_THR_DEFAULT = 0.016;      // マイク反応テスト未実施などで推定できない場合の既定（v0.9.140：Mac通常マイクの静かなクリックも拾えるよう 0.02→0.016 に微調整）
 const CAL_THR_CLICK_FACTOR = 0.45;  // 補正用反応ライン = クリック最大見込み × この係数（立ち上がり本体を拾う）
 const CAL_THR_CAP_FACTOR = 0.75;    // 補正用反応ラインは「クリック最大見込み × この係数」を超えない
 const CAL_THR_FLOOR = 0.012;        // 補正用反応ラインの絶対下限
 const CAL_THR_CEIL = 0.08;          // 補正用反応ラインの絶対上限
-const CAL_MIN_VOLUME = 30;     // 補正テスト中の最低クリック音量(%)。10%等で不安定なため引き上げる（STAGEは据え置き）
+const CAL_MIN_VOLUME = 40;     // 補正テスト中の最低クリック音量(%)。10%等で不安定なため引き上げる（STAGEは据え置き）。v0.9.140：Mac通常マイクでクリックを確実に拾うため 30→40 に微増
 const CAL_MIN_DETECT_PEAK = 0.05; // 想定クリックピークがこれ未満なら、さらに音量を上げて安定検出を狙う
 const CAL_MIN_SUCCESS = 7;     // 補正値を採用する最低検出数（8拍中）。これ未満は不安定扱い
 const CAL_COOLDOWN_MS = 150;   // 測定用クールダウン
@@ -102,9 +102,21 @@ const MIC_REARM_FACTOR = 0.6;
 /* 波形・レベル表示のスケール。反応ライン(threshold)を表示上 1/SCALE の高さに見せる＝
    threshold は常に約 40% の位置。thresholdが低いほど同じ入力でも波形が大きく見える（表示のみ・判定は不変）。 */
 const MIC_DISPLAY_SCALE = 2.5;
+/* ストローク波形の振幅（キャンバス高さに対する割合）。Play画面・結果見返しレーンで“同じ縦スケール”に
+   揃えるための共通値（v0.9.140）。frac(0〜1) にこれを掛けて上下振幅px を決める＝両画面で見た目が一致する。 */
+const STAGE_WAVE_AMP_FRAC = 0.34;
 function micDisplayFrac(peak) {
     const thr = mic.threshold > 0 ? mic.threshold : 0.16;
     return Math.max(0, Math.min(1, peak / (thr * MIC_DISPLAY_SCALE)));
+}
+/* ライブの「反応」表示（レベルバー・STAGE/ストロークの波形）専用の表示スケール（v0.9.140）。
+   検出と同じ実効しきい値 micEffectiveThreshold() を基準にするので、マイク感度カーブがそのまま見た目に出る。
+   60〜100%（倍率1.0）では micDisplayFrac と完全一致。0%では実効しきい値が巨大になり、バー/波形がほぼ動かない
+   ＝「ほぼ拾っていない」と一目で分かる。結果カード・プレビューなど“記録/譜面”系は従来どおり micDisplayFrac のまま。 */
+function micDisplayFracEff(peak) {
+    const thr = micEffectiveThreshold();
+    const base = (thr > 0 ? thr : 0.16) * MIC_DISPLAY_SCALE;
+    return Math.max(0, Math.min(1, peak / base));
 }
 function micThresholdMarkerPct() {
     return (1 / MIC_DISPLAY_SCALE) * 100; // 反応ラインの表示位置（約40%固定）
@@ -224,6 +236,7 @@ const state = {
     chordPicked: 0,            // コードロジックで拾った入力数
     chordIgnoredRePeaks: 0,    // 余韻中などで無視した再ピーク数
     tapLayout: 'lr',    // タップエリア配置：'lr'（左右：左ダウン/右アップ）| 'ud'（上下：上アップ/下ダウン）
+    tapUnified: true,   // 統合タップボタン（v0.9.140）：down/upを分けず1つの「タップ」にする。既定ON（保存設定があれば優先）
     tapHeight: 106,     // タップボタンの高さ(px)。ユーザーがスライダーで調整（80〜160）
     running: false,
     raf: 0,
@@ -250,6 +263,7 @@ const state = {
     micRunWave: [],       // {t, level} 演奏全区間の音量履歴（補正後ゲーム時刻基準）。結果レーンでSTAGE同等の波形を再描画
     combo: 0,             // 連続GOOD数
     pxPerBeat: 90,
+    pxPerBeatRaw: 90,     // 表示密度スケール適用前の基準pxPerBeat（譜面プレビューが参照・v0.9.138）
     pxPerMs: 0.12,
     judgeX: 100,
     // クリック音（マイク誤検出対策）
@@ -432,6 +446,8 @@ const els = {
     pceBarsUp: $('pce-bars-up'),
     pceBarsVal: $('pce-bars-val'),
     pcePattern: $('pce-pattern'),
+    pceHowtoToggle: $('pce-howto-toggle'),
+    pceHowtoBody: $('pce-howto-body'),
     pceSave: $('pce-save'),
     pceTest: $('pce-test'),
     pceCopy: $('pce-copy'),
@@ -462,6 +478,7 @@ const els = {
     latestVerdict: $('latest-verdict'),
     progressFill: $('progress-fill'),
     laneCanvas: $('lane-canvas'),
+    laneJudgeOverlay: $('lane-judge-overlay'), // 判定符頭オーバーレイ（v0.9.140）
     graphCanvas: $('graph-canvas'),
     tapPad: $('tap-pad'),
     playBtn: $('play-btn'),
@@ -538,7 +555,18 @@ const els = {
     tapToolsReset: $('tap-tools-reset'),      // デフォルトに戻す
     layoutLrBtn: $('layout-lr-btn'),
     layoutUdBtn: $('layout-ud-btn'),
+    tapUnifyBtn: $('tap-unify-btn'),          // 統合タップボタンの切替（v0.9.140）
     tapHeightSlider: $('tap-height'),
+    tapToStrokeBtn: $('tap-to-stroke'),       // タップ設定内：ストロークモードへ切替（v0.9.140）
+    strokeMicTools: $('stroke-mic-tools'),    // 簡易マイク設定（ストロークモード時のみ表示・v0.9.140）
+    strokeMicToggle: $('stroke-mic-toggle'),  // 簡易マイク設定の開閉ボタン
+    strokeMicPanel: $('stroke-mic-panel'),    // 簡易マイク設定の中身
+    smicClickVol: $('smic-clickvol'),         // 簡易：クリック音量（state.clickVolume と連動）
+    smicClickVolVal: $('smic-clickvol-val'),
+    smicThreshold: $('smic-threshold'),       // 簡易：反応ライン（mic.threshold と連動）
+    smicThresholdVal: $('smic-threshold-val'),
+    smicOpenManual: $('smic-open-manual'),    // 手動設定へのリンク
+    smicToTapBtn: $('smic-to-tap'),           // 簡易マイク設定内：タップモードへ切替
     micSetupPrompt: $('mic-setup-prompt'),
     micSetupPromptText: $('mic-setup-text'),
     micSetupYesBtn: $('mic-setup-yes'),
@@ -563,6 +591,7 @@ const els = {
     resultsMicCanvas: $('results-mic-canvas'),
     reviewWrap: $('review-wrap'),
     reviewCanvas: $('review-canvas'),
+    reviewFlowScoreLayer: $('review-flow-score-layer'), // 結果見返しの固定譜面（VexFlow層・v0.9.140）
     rScore: $('r-score'),
     rJust: $('r-just'),
     rEarly: $('r-early'),
@@ -760,9 +789,11 @@ let settingsReturn = 'home';
 let micSetupPromptShownThisSession = false; // 設定誘導を今セッションで出したか
 
 let lane = { ctx: null, w: 0, h: 0 };
+let laneJudge = { ctx: null, w: 0, h: 0 }; // 判定符頭オーバーレイのCanvasコンテキスト（v0.9.140）
 let preview = { ctx: null, w: 0, h: 0 };
 let graph = { ctx: null, w: 0, h: 0 };
 let review = { ctx: null, w: 0, h: 0, beatPx: 70, leftPad: 38 };
+let reviewFlowScoreReady = false; // 結果見返しの固定譜面(VexFlow)が正常描画できているか（true時だけCanvas固定音符を隠す・v0.9.140）
 let testLane = { ctx: null, w: 0, h: 0 }; // マイク反応テストの流れる譜面
 let ptLane = { ctx: null, w: 0, h: 0 };   // 実践テストの流れる譜面（STAGE1風）
 let ptReviewLane = { ctx: null, w: 0, h: 0 }; // 実践テスト終了後の見返し用（横長・静的）レーン（v0.9.74）
@@ -963,7 +994,11 @@ function normalizeRhythmCustomCell(cell) {
     if (type === 'ghost') type = 'rest';
     const dir = RHYTHM_CUSTOM_DIRS.includes(c.dir) ? c.dir : null;
     if (type === 'hit') {
-        return { hit: true, dir: dir || 'down', type: 'hit' };
+        const cell = { hit: true, dir: dir || 'down', type: 'hit' };
+        // dirManual：ユーザーが矢印タップで方向を直接指定した音符だけ true（v0.9.140）。
+        // 旧データには無いので、未指定＝デフォルト方向で表示する。
+        if (c.dirManual === true) cell.dirManual = true;
+        return cell;
     }
     // rest / tie：打点はしないが方向は保持（括弧つき矢印に使う。null も許容）。
     return { hit: false, dir, type };
@@ -979,6 +1014,35 @@ function makeRhythmRestCell() {
 function defaultRhythmCellForIndex(grid, i) {
     if (grid === 'quarter') return { hit: true, dir: 'down', type: 'hit' };
     return { hit: true, dir: (i % 2 === 0 ? 'down' : 'up'), type: 'hit' };
+}
+
+/* 音価/拍内位置に応じた「デフォルトのストローク方向」を、dirManual でない音符へ反映する（v0.9.140）。
+   ルール：拍頭は必ずダウン。拍の中では、その音符の音価ステップごとに ↓↑↓↑… と交互。
+   例）8分：表=↓ 裏=↑／16分：↓↑↓↑／4分：すべて↓。
+   ユーザーが矢印タップで指定した音符（dirManual:true）は上書きしない。
+   後続tieを含む実音価で判定するので、長い音符化・自動tie化のあとも自然な方向になる。
+   hit以外（休符/tie）は方向を表示しないので対象外。 */
+function applyRhythmDefaultDirections(d) {
+    if (!d || !Array.isArray(d.pattern)) return;
+    const ts = rhythmCustomTimeSig(d.timeSignature);
+    const info = rhythmTimeSigInfo(ts);
+    const cellTicks = rhythmGridCellTicks(d.grid);
+    const stepsPerBar = rhythmCustomStepsPerBar(d.grid, ts);
+    const beatTicks = info.beamGroupTicks;
+    if (!cellTicks || !stepsPerBar || !beatTicks) return;
+    const pat = d.pattern;
+    for (let i = 0; i < pat.length; i++) {
+        const c = pat[i];
+        if (!c || c.type !== 'hit' || c.dirManual === true) continue;
+        // この音符の実音価（後続tieのセル数を加える）
+        let span = 1;
+        for (let k = i + 1; k < pat.length && pat[k] && pat[k].type === 'tie' && !pat[k].hit; k++) span++;
+        const valueTicks = span * cellTicks;
+        const startTick = (i % stepsPerBar) * cellTicks;       // 小節内の開始tick
+        const posInBeat = ((startTick % beatTicks) + beatTicks) % beatTicks; // 拍内の位置
+        const step = Math.round(posInBeat / valueTicks);       // 拍内で何ステップ目か
+        c.dir = (step % 2 === 0) ? 'down' : 'up';
+    }
 }
 
 /* デフォルトのカスタムSTAGE（新規作成時に1件保存する雛形・v0.9.123）。
@@ -1060,7 +1124,7 @@ function rhythmGridCellTicks(grid) {
    4分(24)/8分(12)は等倍、16分(6)/8分三連(8)は少し広め、32分(3)/16分三連(4)はかなり広め。
    これは「表示上のセル幅」だけに掛ける係数で、判定・音声・BPM・eng.pattern には一切影響しない。 */
 function rhythmDisplayDensityScale(cellTicks) {
-    if (cellTicks <= 3) return 1.8;   // 32分
+    if (cellTicks <= 3) return 2.1;   // 32分（v0.9.140：1.8→2.1 で少し読みやすく）
     if (cellTicks <= 4) return 1.6;   // 16分三連
     if (cellTicks <= 6) return 1.35;  // 16分
     if (cellTicks <= 8) return 1.2;   // 8分三連
@@ -1270,6 +1334,9 @@ function openRhythmProCustomEditor(id) {
     const saved = getSavedRhythmCustomStages().find(s => s.id === id);
     if (!saved) { showRcToast('STAGEが見つかりません'); return; }
     proCustomEditDraft = normalizeRhythmCustomStageSettings(saved);
+    // 「＋ 使い方」は編集画面を開くたびに閉じた状態へ戻す（v0.9.140）。
+    if (els.pceHowtoBody) els.pceHowtoBody.classList.add('hidden');
+    if (els.pceHowtoToggle) { els.pceHowtoToggle.setAttribute('aria-expanded', 'false'); els.pceHowtoToggle.textContent = '＋ 使い方'; }
     ensureRhythmVexFlow(); // 譜面ライブラリを先読み（編集画面を開いた時だけ・CDN不使用）
     renderRhythmCustomEditor();
     setHomeView('proCustomEdit');
@@ -1327,7 +1394,7 @@ function ensureRhythmVexFlow(cb) {
     if (rhythmVexState === 'loading') return;
     rhythmVexState = 'loading';
     const s = document.createElement('script');
-    s.src = 'vendor/vexflow.js?v=0.9.137';
+    s.src = 'vendor/vexflow.js?v=0.9.140';
     s.async = true;
     s.onload = () => {
         rhythmVexState = getRhythmVexFlow() ? 'ready' : 'error';
@@ -1497,6 +1564,7 @@ function restoreRhythmPatternScrollLeft(scrollLeft) {
 function renderRhythmEditorPattern(opts) {
     const d = proCustomEditDraft;
     if (!d || !els.pcePattern) return;
+    applyRhythmDefaultDirections(d); // dirManual 以外の音符は、音価/位置に応じたデフォルト方向へ揃える（v0.9.140）
     const preserveScrollLeft = opts && Number.isFinite(opts.preserveScrollLeft) ? opts.preserveScrollLeft : null;
     const VF = getRhythmVexFlow();
     if (!VF) {
@@ -1681,9 +1749,10 @@ function drawRhythmVexPreview(VF, d, mount) {
     const N = d.pattern.length;
     const cellTicks = rhythmGridCellTicks(d.grid);
     // Playレーンの流れるVexFlow譜面と同じセル幅に合わせる（cellW = pxPerBeat * cellTicks/24・v0.9.135）。
-    // これで静的プレビューだけが異様に横長になるのを防ぐ。state.pxPerBeat 未確定時は既定90で代替。
+    // これで静的プレビューだけが異様に横長になるのを防ぐ。基準は密度スケール適用前の pxPerBeatRaw を使う
+    // （v0.9.138 で本番側の state.pxPerBeat は密度スケール済みのため、二重スケールを避ける）。未確定時は既定90。
     // さらに細かい音価では密集緩和の表示倍率を掛ける（v0.9.137）。倍率は表示専用で判定/音声には無関係。
-    const pxPerBeat = (state.pxPerBeat > 0) ? state.pxPerBeat : 90;
+    const pxPerBeat = (state.pxPerBeatRaw > 0) ? state.pxPerBeatRaw : 90;
     const densityScale = rhythmDisplayDensityScale(cellTicks);
     const cellW = Math.max(8, pxPerBeat * (cellTicks / RHYTHM_TPQ)) * densityScale;
     const laneW = N * cellW;
@@ -1762,6 +1831,37 @@ function drawRhythmVexPreview(VF, d, mount) {
         line.setAttribute('stroke', 'rgba(253,246,238,0.22)');
         line.setAttribute('stroke-width', '1.4');
         svg.insertBefore(line, svg.firstChild);
+        // v0.9.140：実際に弾く音符（hit:true）だけ符頭中心の薄い縦線（位置ガイド）を出す（最初の音符を含む）。
+        //   休符/tie/空セルには出さない（弾く音符だけ）。Playレーンと同じ方針。拍位置は別途「拍点線」で示す。
+        //   小節線(明るいオーバーレイ)・再生位置縦棒(オレンジ)とは色/太さで区別できるよう薄く細くする（音符グリフの背面）。
+        const gTop = Math.round(H * 0.30), gBot = Math.round(H * 0.82);
+        for (let gi = 0; gi < d.pattern.length; gi++) {
+            const gc = d.pattern[gi];
+            if (!gc || !gc.hit) continue;
+            const gx = (gi + 0.5) * cellW;
+            const g = document.createElementNS(RHYTHM_SVGNS, 'line');
+            g.setAttribute('x1', String(gx)); g.setAttribute('y1', String(gTop));
+            g.setAttribute('x2', String(gx)); g.setAttribute('y2', String(gBot));
+            g.setAttribute('stroke', 'rgba(253,246,238,0.10)');
+            g.setAttribute('stroke-width', '1');
+            svg.insertBefore(g, svg.firstChild);
+        }
+    }
+
+    // 拍の点線（v0.9.140）。編集画面の拍ガイドと同じ位置（拍頭セル境界）に薄い点線を引く。
+    //   小節境界は下の明るい小節線が担うので除外。点線＆控えめにして小節線・符頭中心ガイドと見分けられるようにする。
+    const beatCells = Math.max(1, Math.round(info.beamGroupTicks / cellTicks));
+    if (beatCells < stepsPerBar) {
+        const beatOverlay = document.createElement('div');
+        beatOverlay.className = 'pce-vex-beatlines';
+        for (let c = beatCells; c < N; c += beatCells) {
+            if (c % stepsPerBar === 0) continue; // 小節境界は小節線が担うので除外
+            const bl = document.createElement('div');
+            bl.className = 'pce-vex-beatline';
+            bl.style.left = (c * cellW) + 'px';
+            beatOverlay.appendChild(bl);
+        }
+        lane.appendChild(beatOverlay);
     }
 
     if (patternBars > 1) {
@@ -2325,7 +2425,67 @@ function updateCustomFlowScorePosition(rawT) {
     scoreEl.style.transform = 'translate(' + tx + 'px,' + rhythmFlowVY + 'px)';
 }
 
-/* 音符（上段）タップ：音符 → 休符 → タイ → 音符（空振りは廃止）。
+/* 編集画面「＋ 使い方」折りたたみのトグル（v0.9.140）。説明の表示/非表示だけで編集ロジックには触れない。 */
+function toggleRhythmEditorHowto() {
+    if (!els.pceHowtoToggle || !els.pceHowtoBody) return;
+    const open = els.pceHowtoToggle.getAttribute('aria-expanded') === 'true';
+    const next = !open;
+    els.pceHowtoBody.classList.toggle('hidden', !next);
+    els.pceHowtoToggle.setAttribute('aria-expanded', next ? 'true' : 'false');
+    els.pceHowtoToggle.textContent = next ? '− 使い方' : '＋ 使い方';
+}
+
+/* ── 拍頭音符タップによる後続tie吸収（音価伸長）（v0.9.140）─────────────────
+   hit セルをタップしたとき、後続の rest/tie セルを tie 化して表示音価を
+   1セル→2セル→4セル… と伸ばす（8分→4分、16分→8分→4分、32分→16分→8分→4分 など）。
+   v0.9.140：同じ「拍（連桁まとまり）」の中だけ自動でtie化する。後続が音符でも、同じ拍内なら
+   自動でtieへ置き換える（食う）。次の拍・次の小節・patternBarsの外までは食わない。
+   ・合計が4分(24tick)を超えない（拍単位までの伸長）。
+   ・三連符 grid は表示音価が崩れやすいので伸長対象外（既存サイクルのまま）。
+   tie セルは hit:false / type:'tie' で発音・判定・矢印の対象外（既存仕様どおり）。 */
+function rhythmEditorNoteSpans(d, index) {
+    if (RHYTHM_GRID_IS_TRIPLET[d.grid]) return [1];
+    const ts = rhythmCustomTimeSig(d.timeSignature);
+    const info = rhythmTimeSigInfo(ts);
+    const cellTicks = rhythmGridCellTicks(d.grid);
+    const stepsPerBar = rhythmCustomStepsPerBar(d.grid, ts);
+    const beatCells = Math.max(1, Math.round(info.beamGroupTicks / cellTicks)); // 1拍(連桁まとまり)のセル数
+    // index が属する拍の中で、index 以降に残るセル数（index自身を含む）。これを超える伸長はしない＝次の拍を食わない。
+    const posInBar = (((index % stepsPerBar) + stepsPerBar) % stepsPerBar);
+    const cellsLeftInBeat = beatCells - (posInBar % beatCells);
+    const spans = [];
+    for (const m of [1, 2, 4, 8]) {
+        if (m > cellsLeftInBeat) break;                 // 同じ拍の外（次の拍/小節）まで食わない
+        if (index + m > d.pattern.length) break;        // patternBars の外へはみ出さない（防御）
+        if (m * cellTicks > RHYTHM_TPQ) break;          // 4分(24tick)を超えない
+        spans.push(m);                                  // 後続が音符でも同じ拍内なら自動tie化（食う）
+    }
+    return spans.length ? spans : [1];
+}
+/* hit セル index の現在の span（=1＋直後に連続する tie セル数）。 */
+function rhythmEditorCurrentSpan(d, index) {
+    let span = 1;
+    for (let k = index + 1; d.pattern[k] && d.pattern[k].type === 'tie' && !d.pattern[k].hit; k++) span++;
+    return span;
+}
+/* hit セル index を span セルぶんの音符にする（index=音符、index+1..index+span-1=tie）。dir は維持。 */
+function setRhythmEditorNoteSpan(d, index, span, dir) {
+    // 手動指定（dirManual）の音符は、伸長してもユーザー方向を維持する（v0.9.140）。
+    const wasManual = !!(d.pattern[index] && d.pattern[index].dirManual === true);
+    const cell = { hit: true, dir: dir, type: 'hit' };
+    if (wasManual) cell.dirManual = true;
+    d.pattern[index] = cell;
+    for (let k = index + 1; k < index + span; k++) d.pattern[k] = { hit: false, dir: null, type: 'tie' };
+}
+/* hit セル index に吸収されている後続の連続 tie を rest へ戻す（伸長解除）。 */
+function releaseRhythmEditorNoteSpan(d, index) {
+    for (let k = index + 1; d.pattern[k] && d.pattern[k].type === 'tie' && !d.pattern[k].hit; k++) {
+        d.pattern[k] = { hit: false, dir: null, type: 'rest' };
+    }
+}
+
+/* 音符（上段）タップ：音符 → （後続tie吸収で音価伸長…）→ 休符 → タイ → 音符（空振りは廃止）。
+   v0.9.140：hit のタップは「1→2→4…セル」と後続tieを吸収して音価を伸ばし、最大まで来たら休符へ戻る。
    休符/タイでも括弧つき矢印を出すため dir は引き継ぐ（無ければ down）。 */
 function tapRhythmEditorNote(index) {
     const d = proCustomEditDraft;
@@ -2333,11 +2493,21 @@ function tapRhythmEditorNote(index) {
     const scrollLeft = getRhythmPatternScrollLeft();
     const cur = d.pattern[index];
     const dir = RHYTHM_CUSTOM_DIRS.includes(cur.dir) ? cur.dir : 'down';
-    let next;
-    if (cur.type === 'hit') next = { hit: false, dir: dir, type: 'rest' };
-    else if (cur.type === 'rest') next = { hit: false, dir: dir, type: 'tie' };
-    else next = { hit: true, dir: dir, type: 'hit' }; // tie（旧 ghost）→ 音符
-    d.pattern[index] = next;
+    if (cur.type === 'hit') {
+        const spans = rhythmEditorNoteSpans(d, index);
+        const curSpan = rhythmEditorCurrentSpan(d, index);
+        const pos = spans.indexOf(curSpan);
+        if (pos >= 0 && pos < spans.length - 1) {
+            setRhythmEditorNoteSpan(d, index, spans[pos + 1], dir);    // 後続セルをtie化して音価を伸ばす
+        } else {
+            releaseRhythmEditorNoteSpan(d, index);                     // 伸長を解除し
+            d.pattern[index] = { hit: false, dir: dir, type: 'rest' }; // 既存サイクル hit→rest
+        }
+    } else if (cur.type === 'rest') {
+        d.pattern[index] = { hit: false, dir: dir, type: 'tie' };
+    } else {
+        d.pattern[index] = { hit: true, dir: dir, type: 'hit' };       // tie（旧 ghost）→ 音符
+    }
     renderRhythmEditorPattern({ preserveScrollLeft: scrollLeft });
 }
 
@@ -2351,7 +2521,8 @@ function tapRhythmEditorArrow(index) {
     const cur = d.pattern[index];
     if (cur.type === 'hit') {
         const dir = cur.dir === 'up' ? 'down' : 'up';
-        d.pattern[index] = { hit: true, dir: dir, type: 'hit' };
+        // 矢印を直接タップした音符は手動指定（dirManual）。以後デフォルト方向で上書きしない（v0.9.140）。
+        d.pattern[index] = { hit: true, dir: dir, type: 'hit', dirManual: true };
     } else if (cur.type === 'rest' || cur.type === 'tie') {
         let dir;
         if (cur.dir === 'down') dir = 'up';
@@ -2913,7 +3084,9 @@ function isClickGuardedOnset(now, peak, lastClickPerf, clickActive) {
     const guardMs = mic.clickGuardMs + clickLatencyMs();
     const sinceClick = now - lastClickPerf;
     const inGuard = sinceClick >= -10 && sinceClick <= guardMs;
-    const strongEnough = peak >= mic.threshold * STRONG_STROKE_FACTOR;
+    // v0.9.140：実効判定ライン(micEffectiveThreshold＝感度カーブ込み)基準。低感度では生しきい値より高くなるため
+    //   「強い入力」と見なす条件が厳しくなり、クリック直後の弱い誤検出を拾いにくくなる（60〜100%は倍率1.0で従来同一）。
+    const strongEnough = peak >= micEffectiveThreshold() * STRONG_STROKE_FACTOR;
     return inGuard && !strongEnough;
 }
 
@@ -2932,7 +3105,11 @@ function fitOne(canvas) {
 
 function fitLane() {
     lane = fitOne(els.laneCanvas);
-    state.pxPerBeat = Math.max(64, Math.min(120, lane.w * 0.24));
+    if (els.laneJudgeOverlay) laneJudge = fitOne(els.laneJudgeOverlay); // 判定符頭オーバーレイも同じ寸法に合わせる（v0.9.140）
+    // 表示密度スケール適用前の基準（プレビューはこの raw を参照して二重スケールを避ける・v0.9.138）。
+    state.pxPerBeatRaw = Math.max(64, Math.min(120, lane.w * 0.24));
+    // 細かい音価では表示上だけ横に広げる（判定時間=beatInterval は不変なので JUSTライン到達時刻は変わらない・v0.9.138）。
+    state.pxPerBeat = state.pxPerBeatRaw * engDisplayScale();
     state.judgeX = lane.w * 0.3;
     // スクロール速度は4分音符基準（grid非依存）。再生系（resetGame/buildSchedule）と必ず同じ式にする。
     // ※ state.beatInterval は「1セル分の時間」なので、カスタムの16分/32分等では pxPerMs が過剰になり
@@ -2964,17 +3141,17 @@ function drawResultsMic() {
     const padX = 10, padTop = 12, padBot = 14;
     const x0 = padX, x1 = w - padX, baseY = h - padBot, topY = padTop;
     const usableH = baseY - topY;
-    // 表示スケール：反応ラインを高さ 1/MIC_DISPLAY_SCALE（≒40%）の位置に。thresholdが低いほどバーが大きく見える。
-    const valToY = (v) => baseY - Math.max(0, Math.min(1, micDisplayFrac(v))) * usableH;
-    // 反応ライン（薄い横線＋ラベル）
-    const lineY = valToY(mic.threshold);
+    // 表示スケール：Play画面と同じ実効しきい値基準（micDisplayFracEff）で揃える（v0.9.140）。マイク感度カーブ反映後。
+    const valToY = (v) => baseY - Math.max(0, Math.min(1, micDisplayFracEff(v))) * usableH;
+    // 判定ライン（薄い横線＋ラベル）
+    const lineY = valToY(micEffectiveThreshold());
     ctx.strokeStyle = 'rgba(255,159,28,0.45)';
     ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(x0, lineY); ctx.lineTo(x1, lineY); ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = 'rgba(255,159,28,0.6)';
     ctx.font = '600 9px Outfit, sans-serif'; ctx.textAlign = 'left';
-    ctx.fillText('反応ライン', x0 + 2, lineY - 3);
+    ctx.fillText('判定ライン', x0 + 2, lineY - 3);
     // 各拍のバー
     const n = TOTAL_BEATS;
     const slot = (x1 - x0) / n;
@@ -2983,7 +3160,7 @@ function drawResultsMic() {
         const v = state.beatMicPeak[i] || 0;
         const cx = x0 + slot * (i + 0.5);
         const y = valToY(v);
-        const over = v >= mic.threshold;
+        const over = v >= micEffectiveThreshold();
         ctx.fillStyle = over ? 'rgba(46,204,113,0.85)' : 'rgba(253,246,238,0.28)';
         ctx.fillRect(cx - bw / 2, y, bw, baseY - y);
         if (state.beatDoubled[i]) { // 二重反応マーク
@@ -3057,7 +3234,7 @@ function drawMicPreview() {
     ctx.beginPath(); ctx.moveTo(x0, thrY); ctx.lineTo(x1, thrY); ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = 'rgba(255,159,28,0.95)'; ctx.font = font; ctx.textAlign = 'left';
-    ctx.fillText('反応ライン', x0 + 2, thrY - 3);
+    ctx.fillText('判定ライン', x0 + 2, thrY - 3); // 手動設定・Play・結果カードすべて「判定ライン」で統一（v0.9.140）
     ctx.textAlign = 'left';
 
     // 波形ラベル：クリック音 / ストローク音
@@ -3117,6 +3294,72 @@ function drawQuarterNote(ctx, x, yc, color) {
     ctx.stroke();
 }
 
+/* 判定表示専用：符頭だけ（竿なし）を描く（v0.9.140）。drawQuarterNote と同じ符頭形状だが
+   竿を描かないので軽く、細かい音符（16分/32分/三連）の上に重ねても大きすぎない。
+   色は判定色（GOOD=緑 / LATE=赤 / EARLY=青）をそのまま渡す。drawQuarterNote 本体は変更しない。 */
+function drawJudgeNoteHeadOnly(ctx, x, yc, color, scale) {
+    const s = scale || 0.66; // 既定は VexFlow 符頭に近いサイズ（drawQuarterNote の符頭より小さめ）
+    ctx.save();
+    ctx.translate(x, yc);
+    ctx.rotate(-0.32);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 11 * s, 8 * s, 0, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.restore();
+}
+
+/* 音価(tick)→旗の本数（v0.9.140）。rhythmTicksToDuration と同じ区切り：4分=0/8分=1/16分=2/32分=3。
+   8分三連(8t)→1本・16分三連(4t)→2本と、三連も音価相当の旗数になる。 */
+function reviewNoteFlags(valueTicks) {
+    if (valueTicks >= 24) return 0;
+    if (valueTicks >= 12) return 1;
+    if (valueTicks >= 6) return 2;
+    return 3;
+}
+
+/* 結果見返しレーン用の固定音符（v0.9.140・フォールバック専用）。
+   通常はカスタムSTAGEの固定音符を VexFlow層（drawReviewFlowScore）で編集/プレビュー/Play画面と同じデザインに描く。
+   この関数は VexFlow が未ロード/失敗のときだけ使う簡易表示（符頭＋符尾＋旗。連桁はVexFlow層が担当するためここでは描かない）。
+   down/up方向は音符下の矢印（drawStrokeArrow）が担う。drawQuarterNote 本体は変更しない。 */
+function drawReviewStageNote(ctx, x, yc, color, valueTicks, scale) {
+    const s = scale || 0.66;
+    const hw = 11 * s, hh = 8 * s;
+    // 符頭（傾けた塗り楕円・判定符頭と同じサイズ感）
+    ctx.save();
+    ctx.translate(x, yc);
+    ctx.rotate(-0.32);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, hw, hh, 0, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.restore();
+    // 符尾（符頭の右端から上へ＝stem-up）と旗
+    const stemX = x + hw * 0.95;
+    const stemBottom = yc - hh * 0.2;
+    const stemTop = yc - 28;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(stemX, stemBottom);
+    ctx.lineTo(stemX, stemTop);
+    ctx.stroke();
+    const flags = reviewNoteFlags(valueTicks);
+    ctx.lineWidth = 2;
+    for (let f = 0; f < flags; f++) {
+        const fy = stemTop + f * 6;
+        ctx.beginPath();
+        ctx.moveTo(stemX, fy);
+        ctx.quadraticCurveTo(stemX + 8, fy + 4, stemX + 6, fy + 10);
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
 /* ストローク方向：表拍＝down / 裏拍＝up。
    将来の8分ストローク等に備え、拍インデックスから方向を返す拡張ポイント。
    現状 STAGE1 は4分音符のみ＝各拍が表拍＝ダウン。
@@ -3156,13 +3399,14 @@ function drawStrokeArrow(ctx, x, y, dir, color, alpha) {
    rawT＝オーディオ時計（gameAudioMs）、dispOff＝表示用の前寄せ（stroke時 headphoneOutputOffsetMs／それ以外0）。 */
 function drawMicWaveform(ctx, w, h, yc, rawT, dispOff) {
     const ppm = state.pxPerMs, jx = state.judgeX;
-    const maxAmp = h * 0.34;
+    const maxAmp = h * STAGE_WAVE_AMP_FRAC; // Play画面と結果見返しレーンで共通の縦スケール（v0.9.140）
     const dOff = dispOff || 0;
 
     // 反応ライン（ストロークモード時）：波形の上下に薄い横線＋小ラベル。
-    // 表示は相対スケールなので、反応ラインは常に振幅 micDisplayFrac(threshold)（≒0.4）の高さに来る。
+    // 実効しきい値基準（v0.9.140）なので、波形も反応ラインもマイク感度カーブを反映する（0%ではほぼ平坦）。
+    // 表示は相対スケールなので、反応ラインは常に振幅 micDisplayFracEff(effective)（≒0.4）の高さに来る。
     if (state.inputMode === 'stroke' || mic.on) {
-        const lineAmp = micDisplayFrac(mic.threshold) * maxAmp;
+        const lineAmp = micDisplayFracEff(micEffectiveThreshold()) * maxAmp;
         ctx.save();
         ctx.strokeStyle = 'rgba(255,159,28,0.30)';
         ctx.setLineDash([4, 4]);
@@ -3173,7 +3417,7 @@ function drawMicWaveform(ctx, w, h, yc, rawT, dispOff) {
         ctx.fillStyle = 'rgba(255,159,28,0.5)';
         ctx.font = '600 9px Outfit, sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText('反応ライン', 4, yc - lineAmp - 3);
+        ctx.fillText('判定ライン', 4, yc - lineAmp - 3);
         ctx.restore();
     }
 
@@ -3191,7 +3435,7 @@ function drawMicWaveform(ctx, w, h, yc, rawT, dispOff) {
         for (let k = 0; k < rw.length; k++) {
             const x = jx + (rw[k].t + dOff - rawT) * ppm;
             if (x < -24 || x > w + 24) continue;
-            pts.push([x, micDisplayFrac(rw[k].level)]);
+            pts.push([x, micDisplayFracEff(rw[k].level)]);
         }
     } else {
         // STAGE停止中など micRunWave が無い場面は、従来どおりライブ履歴(perf基準＋判定補正)で描く。
@@ -3205,7 +3449,7 @@ function drawMicWaveform(ctx, w, h, yc, rawT, dispOff) {
                 const s = hist[k];
                 const x = jx + (s.perf + off + dOff - now) * ppm; // 今＝判定ライン、過去＝左へ流れる（補正＋表示寄せ込み）
                 if (x < -24 || x > w + 24) continue;
-                pts.push([x, micDisplayFrac(s.level)]);
+                pts.push([x, micDisplayFracEff(s.level)]);
             }
         }
     }
@@ -3239,6 +3483,9 @@ function drawLane(rawT) {
     const { ctx, w, h } = lane;
     if (!ctx) return;
     ctx.clearRect(0, 0, w, h);
+    // 判定符頭オーバーレイ（v0.9.140）：カスタムは GOOD/LATE/EARLY の符頭をこの前面Canvasへ描く（流れる譜面より手前）。
+    const jctx = (eng.custom && laneJudge.ctx) ? laneJudge.ctx : ctx;
+    if (laneJudge.ctx) laneJudge.ctx.clearRect(0, 0, laneJudge.w, laneJudge.h);
     const yc = h * 0.56;
     const bi = state.beatInterval, T0 = state.T0, ppm = state.pxPerMs, jx = state.judgeX;
 
@@ -3280,28 +3527,47 @@ function drawLane(rawT) {
         // カスタム：判定対象（hit:true）のセルだけ音符・中心線・矢印を描く。休符/タイ/カウントイン以外は何も描かない。
         const isHitCell = (i >= 0) && engIsHit(i);
         if (barStart) {
-            // 小節区切り（v0.9.107：音符中心線より目立たせる＝少し明るく太く）
+            // 小節区切り（v0.9.107：音符中心線より目立たせる＝少し明るく太く）。
+            // v0.9.139：小節線は「セル境界（=1拍目表の音符の半セル左）」へ寄せ、譜面プレビューと同じ
+            //   「| ♪ ♪ ♪ ♪ |」の配置にする。音符x（=判定/JUST基準）は動かさず、線と小節番号の表示位置だけずらす。
+            //   半セル = 0.5 * 1セル時間(bi) * 表示速度(ppm)。結果見返しレーン(beatX-beatPx*0.5)と同じ考え方。
+            //   STAGE1 は従来どおり（小節線=拍頭の音符位置）に保つため、カスタムSTAGEのときだけ寄せる。
+            const xb = eng.custom ? (x - 0.5 * bi * ppm) : x;
             ctx.strokeStyle = 'rgba(253,246,238,0.24)';
             ctx.lineWidth = 1.5;
-            ctx.beginPath(); ctx.moveTo(x, h * 0.18); ctx.lineTo(x, h * 0.9); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(xb, h * 0.18); ctx.lineTo(xb, h * 0.9); ctx.stroke();
             if (i >= 0) {
                 ctx.fillStyle = 'rgba(253,246,238,0.5)';
                 ctx.font = '600 11px Outfit, sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText(engBarNumber(i) + '小節', x, h * 0.13);
+                ctx.fillText(engBarNumber(i) + '小節', xb, h * 0.13);
             }
+        } else if (eng.custom && engIsPulse(i)) {
+            // 拍の点線（v0.9.140）。カスタムのみ。編集画面の拍ガイドと同じ「拍頭セル境界」に薄い点線を引く。
+            //   小節頭(barStart)は上の小節線が担うので除外。位置は v0.9.139 の小節線と同じ半セル左寄せ。
+            //   小節線(0.24/実線)より弱く、符頭中心ガイド(0.09)より少し見える程度の点線にして3者を見分けられるようにする。
+            const xp = x - 0.5 * bi * ppm;
+            ctx.save();
+            ctx.strokeStyle = 'rgba(253,246,238,0.14)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([2, 4]);
+            ctx.beginPath(); ctx.moveTo(xp, h * 0.2); ctx.lineTo(xp, h * 0.86); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+        }
+        // v0.9.107/v0.9.140：実際に弾く音符（hit:true）の中心に薄い縦線（位置ガイド）。
+        //   中心線がJUST棒に重なる瞬間がジャスト。小節区切り(0.24/1.5px)・拍点線より目立たないよう薄く細く短めに。
+        //   v0.9.140：休符/tie/空セルには出さない（弾く音符だけ）。拍位置は別途「拍点線」で示す。
+        //   barStart：STAGE1 は小節線(=音符位置)が中心も兼ねるので二重描画しない。カスタムは v0.9.139 で小節線を
+        //   半セル左へ寄せたため音符位置に中心線が無い → barStart の音符（最初の音符を含む）にも縦線を描く。
+        if (isHitCell && (!barStart || eng.custom)) {
+            ctx.save();
+            ctx.strokeStyle = 'rgba(253,246,238,0.09)';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(x, h * 0.30); ctx.lineTo(x, h * 0.82); ctx.stroke();
+            ctx.restore();
         }
         if (isHitCell) {
-            // v0.9.107：音符の中心に薄い縦線（中心線がJUST棒に重なる瞬間がジャスト）。
-            // 小節区切り（上の0.24/1.5px）より目立たないように、薄く細く・短めにして見分けられるようにする。
-            // 小節頭(barStart)は上の小節区切り線が中心も兼ねるので、二重描画しない。
-            if (!barStart) {
-                ctx.save();
-                ctx.strokeStyle = 'rgba(253,246,238,0.09)';
-                ctx.lineWidth = 1;
-                ctx.beginPath(); ctx.moveTo(x, h * 0.30); ctx.lineTo(x, h * 0.82); ctx.stroke();
-                ctx.restore();
-            }
             const r = state.results[i];
             // 入力ありMISS：判定窓を過ぎてMISS確定だが、マイク入力は反応ラインを超えていた拍
             // 表示上の音符位置に合わせて gridDispOff ぶん寄せた時刻で「通過済み」を判定する（表示のみ）。
@@ -3309,19 +3575,37 @@ function drawLane(rawT) {
             const isMiss = !r || r.cls === 'miss';
             const inputMiss = past && isMiss && (state.beatMicPeak[i] || 0) >= mic.threshold;
             if (r && r.cls === 'just') {
-                // GOOD：その音符が緑に光る
-                ctx.save();
-                ctx.shadowColor = 'rgba(46,204,113,0.9)';
-                ctx.shadowBlur = 13;
-                drawQuarterNote(ctx, x, yc, COLORS.just);
-                ctx.restore();
+                // GOOD：その音符が緑に光る。カスタムは符頭だけ（竿なし）を元の音符の手前に重ねる（v0.9.140）。
+                if (eng.custom) {
+                    // カスタム：符頭のみを前面オーバーレイへ（流れるVexFlow音符より手前に重ねる・v0.9.140）
+                    jctx.save();
+                    jctx.shadowColor = 'rgba(46,204,113,0.9)';
+                    jctx.shadowBlur = 13;
+                    drawJudgeNoteHeadOnly(jctx, x, yc, COLORS.just);
+                    jctx.restore();
+                } else {
+                    ctx.save();
+                    ctx.shadowColor = 'rgba(46,204,113,0.9)';
+                    ctx.shadowBlur = 13;
+                    drawQuarterNote(ctx, x, yc, COLORS.just);
+                    ctx.restore();
+                }
             } else if (inputMiss) {
-                // 入力ありMISS：薄いオレンジの音符（通常MISS=グレー×とは区別）
-                ctx.save();
-                ctx.globalAlpha = 0.7;
-                ctx.shadowColor = 'rgba(255,140,60,0.7)'; ctx.shadowBlur = 8;
-                drawQuarterNote(ctx, x, yc, '#ff8c3c');
-                ctx.restore();
+                // 入力ありMISS：薄いオレンジの音符（通常MISS=グレー×とは区別）。
+                // カスタムは GOOD/EARLY/LATE と同じく符頭だけ（竿なし）を前面オーバーレイへ重ねる（v0.9.140）。
+                if (eng.custom) {
+                    jctx.save();
+                    jctx.globalAlpha = 0.7;
+                    jctx.shadowColor = 'rgba(255,140,60,0.7)'; jctx.shadowBlur = 8;
+                    drawJudgeNoteHeadOnly(jctx, x, yc, '#ff8c3c');
+                    jctx.restore();
+                } else {
+                    ctx.save();
+                    ctx.globalAlpha = 0.7;
+                    ctx.shadowColor = 'rgba(255,140,60,0.7)'; ctx.shadowBlur = 8;
+                    drawQuarterNote(ctx, x, yc, '#ff8c3c');
+                    ctx.restore();
+                }
                 // 短い理由ラベル（タイミング外/方向ちがい）
                 const mr = missReason(i);
                 if (mr && mr.code !== 'low') {
@@ -3335,8 +3619,10 @@ function drawLane(rawT) {
             }
             // ストローク方向の矢印（音符の下・控えめなアンバー）
             drawStrokeArrow(ctx, x, yc + 28, engDirAt(i), 'rgba(255,180,90,0.8)', 0.8);
-        } else if (i < 0 && engIsPulse(i)) {
-            // カウントインは控えめな点（拍＝パルス位置のみ）
+        } else if (i < 0 && engIsPulse(i) && !eng.custom) {
+            // カウントインは控えめな点（拍＝パルス位置のみ）。
+            // カスタムは小節線・拍点線を半セル左へ寄せている関係で、点(=拍中心)が拍線とズレて見えるため出さない（v0.9.140）。
+            // 拍の合図は JUSTライン下のビートドット＋クリック音で十分。
             ctx.beginPath(); ctx.arc(x, yc, 3, 0, Math.PI * 2);
             ctx.fillStyle = 'rgba(253,246,238,0.3)'; ctx.fill();
         }
@@ -3362,11 +3648,19 @@ function drawLane(rawT) {
             ctx.stroke();
             ctx.restore();
         } else {
-            // 早い/遅いのズレ音符（半透明で「自分の入力」と分かるように）
-            ctx.save();
-            ctx.globalAlpha = 0.92;
-            drawQuarterNote(ctx, x, yc, col);
-            ctx.restore();
+            // 早い/遅いのズレ音符（半透明で「自分の入力」と分かるように）。
+            // カスタムは符頭だけ（竿なし）を前面オーバーレイへ重ねる（流れる音符より手前・v0.9.140）。色は EARLY=青 / LATE=赤 を維持。
+            if (eng.custom) {
+                jctx.save();
+                jctx.globalAlpha = 0.92;
+                drawJudgeNoteHeadOnly(jctx, x, yc, col);
+                jctx.restore();
+            } else {
+                ctx.save();
+                ctx.globalAlpha = 0.92;
+                drawQuarterNote(ctx, x, yc, col);
+                ctx.restore();
+            }
         }
     }
 
@@ -3466,10 +3760,107 @@ function drawGraph() {
 }
 
 /* ── ズレ確認（全32拍を流れる譜面で振り返り・横スクロール） ─────── */
+/* 結果見返しレーンの固定譜面（v0.9.140）：編集/プレビュー/Play画面と同じVexFlow系デザインで、
+   固定音符（音価・旗・連桁・タイ・休符）を描く。判定符頭(GOOD/EARLY/LATE/MISS)はCanvas側オーバーレイのまま。
+   ・カスタムSTAGEのみ（STAGE1=4分のみ＝VexFlow不要）。
+   ・Canvas(#review-canvas)の背後に重ね、セル i の符頭中心を Canvasの音符位置 leftPad + i*beatPx・yc=h*0.46 に合わせる。
+   ・VexFlow未ロード/失敗時は reviewFlowScoreReady=false のままで、従来のCanvas固定音符(drawReviewStageNote)が出る（防御）。 */
+function hideReviewFlowScore() {
+    reviewFlowScoreReady = false;
+    if (!els.reviewFlowScoreLayer) return;
+    els.reviewFlowScoreLayer.classList.add('hidden');
+    els.reviewFlowScoreLayer.innerHTML = '';
+}
+function renderReviewFlowScore() {
+    const layer = els.reviewFlowScoreLayer;
+    if (!layer) return;
+    if (!eng.custom || !eng.pattern || !eng.pattern.length || !review || !review.ctx) { hideReviewFlowScore(); return; }
+    const VF = getRhythmVexFlow();
+    if (!VF) {
+        reviewFlowScoreReady = false;
+        layer.classList.add('hidden');
+        ensureRhythmVexFlow((ok) => { if (ok && eng.custom) { renderReviewFlowScore(); drawReview(); } }); // ロード後に再描画
+        return;
+    }
+    try { drawReviewFlowScore(VF); reviewFlowScoreReady = true; layer.classList.remove('hidden'); }
+    catch (e) { layer.innerHTML = ''; reviewFlowScoreReady = false; layer.classList.add('hidden'); } // 失敗時はCanvas固定音符を残す
+}
+function drawReviewFlowScore(VF) {
+    const { Renderer, Stave, StaveTie, Beam, Voice, Formatter } = VF;
+    const layer = els.reviewFlowScoreLayer;
+    const d = buildRhythmFlowDisplayStage();
+    if (!d) throw new Error('review flow score data is empty');
+    const ts = rhythmCustomTimeSig(d.timeSignature);
+    const info = rhythmTimeSigInfo(ts);
+    const N = d.pattern.length;
+    const H = review.h || 168;
+    const yc = H * 0.46;                                   // drawReview の音符中心と同じ
+    const leftPad = review.leftPad;
+    const beatPx = review.beatPx;
+    const laneW = review.w;                                // Canvasと同じ全幅
+    const stepsPerBar = rhythmCustomStepsPerBar(d.grid, ts);
+    const patternBars = rhythmCustomPatternBars(d.patternBars) || Math.max(1, Math.round(N / stepsPerBar));
+
+    layer.innerHTML = '';
+    const scoreEl = document.createElement('div');
+    scoreEl.className = 'review-flow-score';
+    layer.appendChild(scoreEl);
+
+    const built = rhythmBuildVexItems(d, VF);
+    const items = built.items;
+    const notes = items.map((it) => it.note);
+
+    const renderer = new Renderer(scoreEl, Renderer.Backends.SVG);
+    renderer.resize(laneW, H);
+    const ctx = renderer.getContext();
+    ctx.setFillStyle('#ffd166');
+    ctx.setStrokeStyle('#ffd166');
+
+    const stave = new Stave(0, 24, laneW);
+    stave.setNumLines(1);
+    stave.setContext(ctx);
+
+    const voice = new Voice({ num_beats: info.beats * patternBars, beat_value: info.beatValue });
+    voice.setStrict(false);
+    voice.addTickables(notes);
+    let beams;
+    if (built.beamLists) beams = built.beamLists.map((list) => new Beam(list));
+    else beams = Beam.generateBeams(notes, { groups: [rhythmBeamGroupFraction(VF, info)], beam_rests: false, maintain_stem_directions: true });
+    new Formatter().joinVoices([voice]).format([voice], Math.max(1, laneW - 24));
+    notes.forEach((n) => n.setStave(stave));
+    // ピン留め：セル i の符頭中心を leftPad + i*beatPx（=Canvasの音符位置）へ
+    items.forEach((it) => {
+        const desiredCenter = leftPad + it.cellIndex * beatPx;
+        const center = it.note.getNoteHeadBeginX() + it.note.getGlyphWidth() / 2;
+        it.note.setXShift(desiredCenter - center);
+    });
+
+    voice.draw(ctx, stave);
+    beams.forEach((b) => b.setContext(ctx).draw());
+    built.tuplets.forEach((t) => { try { t.setContext(ctx).draw(); } catch (e) { /* noop */ } });
+    for (let i = 1; i < items.length; i++) {
+        if (items[i].tieToPrev) {
+            new StaveTie({ first_note: items[i - 1].note, last_note: items[i].note, first_indices: [0], last_indices: [0] })
+                .setContext(ctx).draw();
+        }
+    }
+
+    // 縦位置合わせ：実際の符頭YをCanvasの音符中心(yc)に合わせる（横移動は無し＝静的）
+    let headY = null;
+    for (const it of items) {
+        if (it.isRest) continue;
+        try { const ys = it.note.getYs(); if (ys && ys.length) { headY = ys[0]; break; } } catch (e) { /* noop */ }
+    }
+    const vy = (headY != null) ? (yc - headY) : 0;
+    scoreEl.style.transform = 'translateY(' + vy + 'px)';
+}
+
 function fitReview() {
     if (!els.reviewCanvas) return;
     const cssH = 168;
-    const beatPx = 70;
+    // 表示密度スケール（v0.9.140）：本番Play画面(engDisplayScale)と同じ係数で、32分など細かい音価のとき横を広げる。
+    // 表示だけで、判定/スコア/集計には影響しない（beatPx は描画位置の基準にのみ使う）。
+    const beatPx = Math.round(70 * (eng.custom ? engDisplayScale() : 1));
     const leftPad = 40, rightPad = 36;
     const cssW = leftPad + rightPad + (TOTAL_BEATS - 1) * beatPx;
     const dpr = window.devicePixelRatio || 1;
@@ -3480,6 +3871,10 @@ function fitReview() {
     const ctx = els.reviewCanvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     review = { ctx, w: cssW, h: cssH, beatPx, leftPad };
+    // VexFlow固定譜面を先に用意（reviewFlowScoreReady を確定）→ drawReview がCanvas固定音符の要否を判断（v0.9.140）。
+    // レイヤー幅はCanvasと同じ cssW にして、横スクロールでCanvasと一緒に動くようにする。
+    if (els.reviewFlowScoreLayer) els.reviewFlowScoreLayer.style.width = cssW + 'px';
+    if (eng.custom) renderReviewFlowScore(); else hideReviewFlowScore();
     drawReview();
 }
 
@@ -3489,9 +3884,9 @@ function fitReview() {
    対応する音符の位置に立つ。micRunWave が無い場合のみ beatMicPeak のエンベロープにフォールバック。 */
 function drawReviewMicOverlay(ctx, w, h, yc, beatX, beatPx) {
     if (state.inputMode !== 'stroke') return;
-    const maxAmp = h * 0.26;            // 音符(yc)やズレ文字(yc+52)の邪魔をしない控えめな振幅
-    const frac = (v) => Math.max(0, Math.min(1, micDisplayFrac(v)));
-    const lineAmp = frac(mic.threshold) * maxAmp; // 反応ラインの表示高さ（≒0.4×maxAmp）
+    const maxAmp = h * STAGE_WAVE_AMP_FRAC; // Play画面と同じ縦スケール（v0.9.140：0.26→共通値。波形は音符/文字の背後に薄く描くので重なっても可読性は保たれる）
+    const frac = (v) => Math.max(0, Math.min(1, micDisplayFracEff(v))); // Play画面と同じ実効しきい値基準（v0.9.140）
+    const lineAmp = frac(micEffectiveThreshold()) * maxAmp; // 判定ラインの表示高さ（≒0.4×maxAmp）
     const leftPad = beatX(0);
     // t(補正後ゲームms) → x（音符と同じ拍位置）
     const tToX = (t) => leftPad + ((t - state.T0) / state.beatInterval) * beatPx;
@@ -3543,7 +3938,7 @@ function drawReviewMicOverlay(ctx, w, h, yc, beatX, beatPx) {
     ctx.fillStyle = 'rgba(255,159,28,0.45)';
     ctx.font = '600 9px Outfit, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText('反応ライン', 4, yc - lineAmp - 3);
+    ctx.fillText('判定ライン', 4, yc - lineAmp - 3);
     ctx.restore();
 }
 
@@ -3582,12 +3977,29 @@ function drawReview() {
     }
     ctx.restore();
 
+    // 拍の点線（v0.9.140）：カスタムのみ。本番Play画面と同じく、拍頭セル境界（半セル左寄せ）に薄い点線。
+    //   小節頭(barStart)は下の小節線が担うので除外。小節線(0.24/実線)より弱い点線。
+    if (eng.custom) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(253,246,238,0.14)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 4]);
+        for (let i = 0; i < TOTAL_BEATS; i++) {
+            if (engBarStart(i) || !engIsPulse(i)) continue;
+            const x = beatX(i) - beatPx * 0.5;
+            ctx.beginPath(); ctx.moveTo(x, h * 0.18); ctx.lineTo(x, h * 0.86); ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        ctx.restore();
+    }
+
     // 小節線＋小節番号
     for (let i = 0; i < TOTAL_BEATS; i++) {
         if (engBarStart(i)) {
             const x = beatX(i) - beatPx * 0.5;
-            ctx.strokeStyle = 'rgba(253,246,238,0.12)';
-            ctx.lineWidth = 1;
+            // カスタムは本番Play画面に合わせ、拍点線(0.14)より強い小節線(0.24/1.5px)にする。STAGE1は従来どおり（0.12/1px）。
+            ctx.strokeStyle = eng.custom ? 'rgba(253,246,238,0.24)' : 'rgba(253,246,238,0.12)';
+            ctx.lineWidth = eng.custom ? 1.5 : 1;
             ctx.beginPath(); ctx.moveTo(x, h * 0.13); ctx.lineTo(x, h * 0.9); ctx.stroke();
             ctx.fillStyle = 'rgba(253,246,238,0.5)';
             ctx.font = '600 11px Outfit, sans-serif';
@@ -3595,6 +4007,11 @@ function drawReview() {
             ctx.fillText(engBarNumber(i) + '小節', x + 5, h * 0.1);
         }
     }
+
+    // 固定音符の描き方（v0.9.140）：カスタムは編集/プレビュー/Play画面と同じVexFlow譜面を背後に重ねる（reviewFlowScoreReady）。
+    //   その場合、Canvas側では固定音符を描かず、判定符頭(GOOD/EARLY/LATE/MISS)・方向矢印・文字だけを前面に描く。
+    //   VexFlow未ロード/失敗時(fallback)のみ、従来のCanvas固定音符(drawReviewStageNote・旗つき/連桁なし)を描く。
+    const useVexFixed = (eng.custom && reviewFlowScoreReady); // true＝固定音符はVexFlow層が担当
 
     // 各拍：本来の音符＋方向矢印＋自分の入力マーク＋ズレms
     ctx.textBaseline = 'alphabetic';
@@ -3604,16 +4021,24 @@ function drawReview() {
         const r = state.results[i];
         const cls = r ? r.cls : 'miss';
 
-        // 本来の音符（GOODは緑＋発光、それ以外は薄い黄色）
+        // 本来の音符（GOODは緑＋発光、それ以外は薄い黄色）。
+        // カスタムは本番Play画面に合わせ、基準音符はVexFlow層が担当し、判定は「符頭だけ」を手前へ重ねる（v0.9.140）。
         if (cls === 'just') {
-            ctx.save();
-            ctx.shadowColor = 'rgba(46,204,113,0.9)';
-            ctx.shadowBlur = 11;
-            drawQuarterNote(ctx, x, yc, COLORS.just);
-            ctx.restore();
+            if (eng.custom) {
+                if (!useVexFixed) { ctx.save(); ctx.globalAlpha = 0.4; drawReviewStageNote(ctx, x, yc, NOTE_COLOR, engNoteValueTicks(i)); ctx.restore(); } // fallback：Canvas固定音符（旗つき）
+                ctx.save(); ctx.shadowColor = 'rgba(46,204,113,0.9)'; ctx.shadowBlur = 11; drawJudgeNoteHeadOnly(ctx, x, yc, COLORS.just); ctx.restore(); // 判定符頭（緑・符頭だけ・手前）
+            } else {
+                ctx.save();
+                ctx.shadowColor = 'rgba(46,204,113,0.9)';
+                ctx.shadowBlur = 11;
+                drawQuarterNote(ctx, x, yc, COLORS.just);
+                ctx.restore();
+            }
         } else {
             ctx.save(); ctx.globalAlpha = 0.45;
-            drawQuarterNote(ctx, x, yc, NOTE_COLOR);
+            // カスタム：固定音符はVexFlow層。fallback時のみCanvas固定音符（古い大きな四分音符にしない）。
+            if (eng.custom) { if (!useVexFixed) drawReviewStageNote(ctx, x, yc, NOTE_COLOR, engNoteValueTicks(i)); }
+            else drawQuarterNote(ctx, x, yc, NOTE_COLOR);
             ctx.restore();
         }
         // ストローク方向矢印（音符の下）
@@ -3630,7 +4055,8 @@ function drawReview() {
             if (orange) {
                 ctx.save(); ctx.globalAlpha = 0.7;
                 ctx.shadowColor = 'rgba(255,140,60,0.6)'; ctx.shadowBlur = 6;
-                drawQuarterNote(ctx, x, yc, '#ff8c3c');
+                if (eng.custom) drawJudgeNoteHeadOnly(ctx, x, yc, '#ff8c3c');
+                else drawQuarterNote(ctx, x, yc, '#ff8c3c');
                 ctx.restore();
                 ctx.fillStyle = '#ff8c3c';
                 ctx.fillText(mr.short, x, msY);
@@ -3651,7 +4077,8 @@ function drawReview() {
             const mr = missReason(i) || { short: 'MISS' };
             ctx.save(); ctx.globalAlpha = 0.7;
             ctx.shadowColor = 'rgba(255,140,60,0.6)'; ctx.shadowBlur = 6;
-            drawQuarterNote(ctx, x, yc, '#ff8c3c');
+            if (eng.custom) drawJudgeNoteHeadOnly(ctx, x, yc, '#ff8c3c');
+            else drawQuarterNote(ctx, x, yc, '#ff8c3c');
             ctx.restore();
             ctx.fillStyle = '#ff8c3c';
             ctx.fillText(mr.short, x, msY);
@@ -3661,11 +4088,13 @@ function drawReview() {
             ctx.fillStyle = COLORS.just;
             ctx.fillText((d > 0 ? '+' : (d < 0 ? '−' : '±')) + Math.abs(d) + 'ms', x, msY);
         } else {
-            // EARLY/LATE（やや外れたtapも含む）：実際に叩いた位置に色付き音符
+            // EARLY/LATE（やや外れたtapも含む）：実際に叩いた位置に色付き音符。
+            // カスタムは符頭だけ（竿なし）で、本来の音符より手前に重なる（v0.9.140）。
             const col = COLORS[cls];
             const off = Math.max(-maxOff, Math.min(maxOff, r.diff * offScale));
             ctx.save(); ctx.globalAlpha = 0.95;
-            drawQuarterNote(ctx, x + off, yc, col);
+            if (eng.custom) drawJudgeNoteHeadOnly(ctx, x + off, yc, col);
+            else drawQuarterNote(ctx, x + off, yc, col);
             ctx.restore();
             const d = Math.round(r.diff);
             ctx.fillStyle = col;
@@ -3832,9 +4261,24 @@ function updateCombo() {
     }
 }
 
+/* 統合タップ（v0.9.140）：今この瞬間にタップが割り当てられる判定対象セルの「期待方向」を返す（読み取りのみ）。
+   registerHit と同じ要領で最寄りの判定対象セルを求め、その engDirAt を返すので、方向ちがいMISSにならず
+   タップ入力として自然に判定される（判定タイミング・判定ロジックには一切触れない）。 */
+function expectedDirNow() {
+    if (!state.running) return 'down';
+    const hitTime = gameAudioMs() - tapOutputOffsetMs();
+    let i = Math.round((hitTime - state.T0) / state.beatInterval);
+    if (i < 0 || i > TOTAL_BEATS - 1) return 'down';
+    i = engNearestHitIndex(i);
+    if (i < 0) return 'down';
+    return engDirAt(i);
+}
+
 /* direction: 'down' | 'up'（タップエリアの左右。レーン直タップは既定でダウン） */
 function onTap(direction) {
-    registerHit(performance.now(), 'tap', direction || 'down');
+    // 統合タップON時は down/up を押し分けないので、期待方向に合わせて方向ちがいMISSを避ける（v0.9.140）。
+    const dir = state.tapUnified ? expectedDirNow() : (direction === 'up' ? 'up' : 'down');
+    registerHit(performance.now(), 'tap', dir);
 }
 
 /* ── テスト再生エンジン設定（v0.9.124）──────────────────────────────
@@ -3871,6 +4315,9 @@ function configureEngineForCustom(stage) {
     eng.pulseTicks = info.beamGroupTicks;     // 単純拍子=4分、複合6/8=付点4分ごとにクリック
     eng.countInCells = eng.cellsPerBar;       // カウントインは1小節ぶん
     eng.pattern = stage.pattern.map(normalizeRhythmCustomCell);
+    // dirManual 以外の音符は、音価/位置に応じたデフォルト方向で表示・判定する（v0.9.140）。
+    // 表示(矢印)と判定(engDirAt)が同じ dir を参照するので、見た目と判定方向が一致する。
+    applyRhythmDefaultDirections({ pattern: eng.pattern, grid: stage.grid, timeSignature: stage.timeSignature });
 }
 
 /* セル i（負＝カウントイン）に対応するパターンセル。カスタムはループ折り返し。 */
@@ -3881,12 +4328,25 @@ function engCellAt(i) {
     return eng.pattern[idx] || STAGE1_CELL;
 }
 function engIsHit(i) { const c = engCellAt(i); return !!(c && c.hit); }
+/* セル i が tie（前の音符へ繋がる・発音/判定対象外）か。STAGE1 は常に false。表示用（v0.9.140）。 */
+function engIsTie(i) { const c = engCellAt(i); return !!(c && c.type === 'tie'); }
+/* セル i の音符の実音価(tick)。後続の tie を吸収した長さ＝見た目の音価。STAGE1 は4分(RHYTHM_TPQ)。表示用（v0.9.140）。 */
+function engNoteValueTicks(i) {
+    if (!eng.custom || !eng.cellTicks) return RHYTHM_TPQ;
+    let span = 1;
+    for (let k = i + 1; k < TOTAL_BEATS && engIsTie(k); k++) span++;
+    return span * eng.cellTicks;
+}
 function engDirAt(i) { const c = engCellAt(i); return (c && c.dir === 'up') ? 'up' : 'down'; }
 function engInBarPos(i) { const n = eng.cellsPerBar; return (((i % n) + n) % n); }
 function engBarStart(i) { return engInBarPos(i) === 0; }
 function engIsPulse(i) { return (engInBarPos(i) * eng.cellTicks) % eng.pulseTicks === 0; }
 function engBarNumber(i) { return Math.floor(i / eng.cellsPerBar) + 1; }
 function engQuarterMs() { return 60000 / state.bpm; }                       // 4分=スクロール速度の基準
+/* 本番STAGEの表示密度スケール（v0.9.138）：カスタムで細かい音価のとき、表示上の横スケールだけ広げる係数。
+   pxPerBeat（→pxPerMs）に掛けるので Canvas音符・VexFlow譜面・スクロール速度が同じ倍率で広がる。
+   判定は時間ベース（beatInterval）で JUSTライン到達時刻は不変＝判定/スコア/音声に影響しない。STAGE1は1.0。 */
+function engDisplayScale() { return (eng.custom && eng.cellTicks) ? rhythmDisplayDensityScale(eng.cellTicks) : 1; }
 function engCellMs() { return engQuarterMs() * (eng.cellTicks / RHYTHM_TPQ); } // 1セルの実時間(ms)
 function engPulseMs() { return engCellMs() * (eng.pulseTicks / eng.cellTicks); } // クリック/拍の間隔(ms)
 /* セル i に最も近い「判定対象（hit:true）」のセル番号。範囲内に無ければ -1。STAGE1 は i のまま。 */
@@ -4032,6 +4492,10 @@ function stop() {
    判定・再生エンジンには手を入れず、既存の stop() をそのまま使う。 */
 function stopForPageHidden() {
     stopPreviewRhythm(); // 譜面プレビューのリズム確認音は state.running に関係なく止める（v0.9.135）
+    // 補正テスト/BT補正中に画面が非表示/離脱したら、退避してあるユーザー設定(mic.threshold等)を必ず復元する。
+    // cancelCalibration/stopBtCal は内部ガード（cal.saved 等）で多重実行しても壊れない（v0.9.140）。
+    if (cal.active || mic.calibrating) cancelCalibration();
+    stopBtCal();
     if (!state.running) return;
     stop();
     showRcToast('画面が非表示になったため停止しました');
@@ -4915,8 +5379,12 @@ function fitPtLane() {
 }
 
 function ptDetectionThreshold() {
-    // 実践テストはSTAGE1の実判定確認なので、STAGE再生中と同じ検出しきい値を使う。
-    return mic.threshold * MIC_STAGE_DETECT_FACTOR;
+    // 実践テストはSTAGEと同じ検出にするため、マイク感度カーブ補正後の実効しきい値を使う（v0.9.140）。
+    // ただしBT補正（マイク遅れ補正）はクリック音を確実に拾うのが目的なので、感度カーブで「鈍くする」方向(倍率>1)は
+    // 効かせない＝基準しきい値のままで検出する。60〜100%は倍率1.0で従来と同一なので、高感度側の挙動は変わらない。
+    let mult = micSensitivityMultiplier();
+    if (bt.active) mult = Math.min(mult, 1);
+    return mic.threshold * mult * MIC_STAGE_DETECT_FACTOR;
 }
 
 /* 実践テストのクリックガード（v0.9.78）：STAGE本体 isClickGuardedOnset をそのまま流用。 */
@@ -5146,9 +5614,13 @@ function drawPracticeLane(t) {
     ctx.strokeStyle = 'rgba(253,246,238,0.08)';
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke();
-    // 音量波形（反応ライン基準でスケール）：判定ラインを超えているかが見えるように描く
-    const ampPx = h * 0.34; // STAGE1の drawMicWaveform() と同じ比率
-    const lineAmp = micDisplayFrac(ptDetectionThreshold()) * ampPx;
+    // 音量波形（判定ライン基準でスケール）：判定ラインを超えているかが見えるように描く。
+    // v0.9.140：表示も検出と同じ実効しきい値(micDisplayFracEff)で描く。以前は波形を生しきい値基準・
+    //   ラインを実効しきい値基準で描いていたため、感度カーブで実効しきい値が上がると lineAmp が表示上限に
+    //   張り付き「波形がラインの高さでバッサリ切れる」ように見えた。両方を micDisplayFracEff に揃えると、
+    //   ラインは常に約40%高さ＝固定で、ストロークがそれを超えた分だけ上に飛び出して見える。
+    const ampPx = h * STAGE_WAVE_AMP_FRAC; // STAGE1の drawMicWaveform() と同じ共通縦スケール（v0.9.140）
+    const lineAmp = micDisplayFracEff(ptDetectionThreshold()) * ampPx;
     ctx.strokeStyle = 'rgba(255,159,28,0.30)';
     ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, yc - lineAmp); ctx.lineTo(w, yc - lineAmp); ctx.stroke();
@@ -5168,7 +5640,7 @@ function drawPracticeLane(t) {
             const p = pt.wave[i];
             const x = judgeX + (p.t + off + hpDispOff - t) * ppm;
             if (x < -24 || x > w + 24) continue;
-            pts.push([x, micDisplayFrac(p.level) * ampPx]);
+            pts.push([x, micDisplayFracEff(p.level) * ampPx]);
         }
         if (pts.length >= 2) {
             ctx.beginPath();
@@ -5288,9 +5760,11 @@ function drawPracticeReview() {
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke();
 
-    // 反応ライン（実判定ライン）：上下の破線
-    const ampPx = h * 0.34;
-    const lineAmp = micDisplayFrac(ptDetectionThreshold()) * ampPx;
+    // 判定ライン（実判定ライン）：上下の破線。
+    // v0.9.140：波形・ラインともに検出と同じ実効しきい値(micDisplayFracEff)で描く。これで「波形がラインの
+    //   高さで切れて見える（実は表示上限へのクリップ）」を解消し、ストロークがラインを超えた分だけ上に出る。
+    const ampPx = h * STAGE_WAVE_AMP_FRAC; // STAGE/最終確認テスト/結果カードと同じ共通縦スケール（v0.9.140）
+    const lineAmp = micDisplayFracEff(ptDetectionThreshold()) * ampPx;
     ctx.strokeStyle = 'rgba(255,159,28,0.30)';
     ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, yc - lineAmp); ctx.lineTo(w, yc - lineAmp); ctx.stroke();
@@ -5307,7 +5781,7 @@ function drawPracticeReview() {
         const pts = [];
         for (let i = 0; i < pt.fullWave.length; i++) {
             const p = pt.fullWave[i];
-            pts.push([xOf(p.t + off), micDisplayFrac(p.level) * ampPx]);
+            pts.push([xOf(p.t + off), micDisplayFracEff(p.level) * ampPx]);
         }
         ctx.beginPath();
         ctx.moveTo(pts[0][0], yc - pts[0][1]);
@@ -5522,14 +5996,19 @@ function finishPracticeTest() {
 /* 音量も含めた総合判定（v0.9.56）。補正提案はせず、案内のみ。
    line＝実践テストの実判定ライン。volRatio＝検出最大音量 ÷ 実判定ライン。 */
 function practiceComment(r) {
-    const line = r.detectThreshold || r.threshold || mic.threshold || 0.0001;
+    const line = r.detectThreshold || r.threshold || mic.threshold || 0.0001; // 実効判定ライン（マイク感度カーブ込み）
     const volRatio = r.maxPeak / line;
-    const lowVol = volRatio < 0.9;        // 波形はあっても判定ラインに届いていない
-    // 判定A：入力が拾えていない（有効入力が少ない/MISS多い かつ 音量が反応ラインに届いていない）
-    if ((r.valid < 5 || r.miss >= 4) && lowVol) {
-        return { kind: 'warn', issue: 'input', text: '入力が十分に拾えていません。入力タイプ・ストローク検出モード・マイク反応テストの設定が合っているか確認してから、もう一度最終確認テストを行ってください。' };
+    const lowVol = volRatio < 0.9;        // 波形はあっても判定ラインに届いていない＝コードストロークが小さい/感度が低すぎる
+    // 判定A（v0.9.140）：コードストロークが判定ラインに届いていない → マイク感度を上げる案内。
+    //   0%や3%などの近ミュート設定では、感度カーブで実効ラインが跳ね上がり、ここに該当しやすい。
+    if (lowVol || (r.valid < 5 && r.maxPeak < line)) {
+        return { kind: 'warn', issue: 'lowsens', text: 'コードストロークの音が小さく、判定ラインに届いていません。マイク感度を少し上げてください。' };
     }
-    // 判定B：音量は拾えているがMISSが多い（反応ライン付近まで来ているのに判定に入りきっていない）
+    // 判定B（v0.9.140）：クリック音や余韻まで拾っている（二重反応が複数）→ マイク感度を下げる/端末音量を下げる案内。
+    if ((r.doubleCount || 0) >= 2) {
+        return { kind: 'warn', issue: 'clickpickup', text: 'クリック音も拾いやすい状態です。マイク感度を少し下げるか、端末のスピーカー音量を下げてください。' };
+    }
+    // 判定C：音量は拾えているがMISSが多い（反応ライン付近まで来ているのに判定に入りきっていない）
     if (r.valid < 6 || r.miss >= 3) {
         return { kind: 'warn', issue: 'miss', text: 'MISSが多めです。反応ラインが少し高いか、ストローク検出モードが合っていないかもしれません。マイク反応テストで反応ラインを見直してから、もう一度最終確認テストを行ってください。' };
     }
@@ -5547,12 +6026,12 @@ function practiceComment(r) {
         if (isBT) return { kind: 'warn', issue: 'btdelay', text: 'Bluetoothイヤホンではマイク判定がずれている可能性があります（EARLY＝早め）。「マイク遅れ補正」で補正してから、もう一度最終確認テストを行ってください。' };
         return { kind: 'warn', issue: 'timing', text: '判定がEARLY（早め）に片寄っています。マイクの遅れ補正やイヤホン音ズレ補正が合っているか確認してから、もう一度最終確認テストを行ってください。' };
     }
-    // 二重反応が出ているときは「問題なし」にせず、軽く注意
+    // 二重反応が出ているときは「問題なし」にせず、軽く注意（クリック音・余韻拾いの可能性）
     if (r.doubleCount > 0) {
-        return { kind: 'warn', issue: 'double', text: '二重反応が出ています。手動設定の二重反応防止やストローク検出モードを確認してから、もう一度最終確認テストを行ってください。' };
+        return { kind: 'warn', issue: 'double', text: '二重反応が出ています。クリック音や余韻を拾っているかもしれません。気になる場合はマイク感度を少し下げてください。' };
     }
-    // 判定D：問題なさそう
-    return { kind: 'ok', issue: null, text: 'この設定で練習を始められます。必要に応じて、あとから手動設定で微調整できます。' };
+    // 判定D（理想状態）：クリックは拾わず、コードストロークは拾えている
+    return { kind: 'ok', issue: null, text: 'クリック音では反応しにくく、コードストロークでは反応できています。このマイク感度で進めます。' };
 }
 
 function renderPracticeResult(r) {
@@ -5595,7 +6074,7 @@ function renderPracticeResult(r) {
     } else {
         let fixLabel = '最終確認テストをやり直す', fixId = 'pt-result-fix-rerun';
         if (c.issue === 'input') { fixLabel = 'マイク反応テストをやり直す'; fixId = 'pt-result-fix-test'; }
-        else if (c.issue === 'miss') { fixLabel = '反応ラインを確認する'; fixId = 'pt-result-fix-test'; }
+        else if (c.issue === 'miss') { fixLabel = 'マイク感度を確認する'; fixId = 'pt-result-fix-test'; }
         else if (c.issue === 'timing') { fixLabel = '補正を確認する'; fixId = 'pt-result-fix-correction'; }
         else if (c.issue === 'btdelay') { fixLabel = 'マイク遅れ補正を行う'; fixId = 'pt-result-fix-btdelay'; }
         else if (c.issue === 'double') { fixLabel = '二重反応防止を調整する'; fixId = 'pt-result-fix-manual'; }
@@ -5793,7 +6272,7 @@ function drawBtLane(t) {
     ctx.fillStyle = 'rgba(255,159,28,0.5)';
     ctx.font = '600 9px Outfit, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText('反応ライン', 4, yc - lineAmp - 3);
+    ctx.fillText('判定ライン', 4, yc - lineAmp - 3);
     // イヤホン音ズレ補正（headphoneOutputOffsetMs）。👏と波形を「聞こえる音」に寄せる表示用オフセット。
     const hpDispOff = mic.headphoneOutputOffsetMs || 0;
     // 入力波形（右→左へ流れる）。off は micJudgeOffsetMs()＝Bluetooth時は timingOffsetMs＋bluetoothMicOffsetMs。
@@ -6714,25 +7193,37 @@ function selectInputMode(mode) {
 }
 
 function setInputMode(mode) {
+    // 補正テスト/BT補正の途中で入力タイプを切り替えたら、退避してあるユーザー設定を必ず復元してから切り替える（v0.9.140）
+    if (cal.active || mic.calibrating) cancelCalibration();
+    stopBtCal();
     state.inputMode = mode;
     updateInputModeUI();
     if (mode === 'tap') {
+        micStartGeneration++;           // 許可ダイアログ中など起動待ちのマイクを無効化（v0.9.140）
         if (mic.on) stopMic();          // タップ練習はマイクOFF
         if (els.tapArea) els.tapArea.classList.remove('hidden');  // タップエリア表示
-        if (els.tapTools) els.tapTools.classList.remove('hidden'); // 調整タブ（折りたたみ）を表示
+        if (els.tapTools) els.tapTools.classList.remove('hidden'); // タップボタン設定（折りたたみ）を表示
+        if (els.strokeMicTools) els.strokeMicTools.classList.add('hidden'); // タップ時は簡易マイク設定タブを隠す（v0.9.140）
+        if (els.tapHint) { els.tapHint.textContent = ''; els.tapHint.classList.add('hidden'); } // Play画面下の練習ガイド文言は廃止（v0.9.140）
         setTapToolsOpen(false);          // 初期は閉じた状態
         applyTapLayout();
         hideMicSetupPrompt();
     } else {
-        if (els.tapTools) els.tapTools.classList.add('hidden');   // ストローク時は調整タブを隠す
+        if (els.tapTools) els.tapTools.classList.add('hidden');   // ストローク時はタップボタン設定を隠す
         if (els.tapArea) els.tapArea.classList.add('hidden');     // ストローク時はタップエリアを畳む
-        if (els.tapHint) els.tapHint.textContent = '流れる譜面に合わせてストローク。クリック音は小さめ推奨です。';
+        if (els.strokeMicTools) els.strokeMicTools.classList.remove('hidden'); // ストローク時は簡易マイク設定タブを表示（v0.9.140）
+        setStrokeMicToolsOpen(false);    // 初期は閉じた状態
+        applyStrokeMicToolsUI();         // クリック音/反応ラインの現在値をスライダーへ反映
+        // Play画面下の練習ガイド文言は廃止（v0.9.140）。通常時は tap-hint を隠す。
+        if (els.tapHint) { els.tapHint.textContent = ''; els.tapHint.classList.add('hidden'); }
         if (!mic.on) {
             startMic().then(() => {
+                if (state.inputMode !== 'stroke') return; // 起動完了までにタップモードへ戻した場合は何もしない（v0.9.140）
                 if (mic.on) {
                     maybeShowMicSetupPrompt();   // 許可成功 → 初回のみマイク設定へ誘導
                 } else if (els.tapHint) {
                     els.tapHint.textContent = 'マイクを許可してください。右上の設定から確認できます。';
+                    els.tapHint.classList.remove('hidden'); // エラー通知のときだけ表示
                 }
             });
         }
@@ -6775,22 +7266,42 @@ function hideMicSetupPrompt() {
 
 /* タップエリアの配置（左右 / 上下）をDOM・案内・トグルへ反映 */
 function applyTapLayout() {
+    const unified = !!state.tapUnified;
     const ud = state.tapLayout === 'ud';
     if (els.tapArea) {
         els.tapArea.classList.toggle('layout-ud', ud);
         els.tapArea.classList.toggle('layout-lr', !ud);
     }
-    if (els.layoutLrBtn) els.layoutLrBtn.classList.toggle('is-active', !ud);
-    if (els.layoutUdBtn) els.layoutUdBtn.classList.toggle('is-active', ud);
-    if (els.tapHint) {
-        els.tapHint.textContent = ud ? '上：アップ ／ 下：ダウン で練習' : '左：ダウン ／ 右：アップ で練習';
-    }
+    // 配置は「統合 / 左右 / 上下」の排他選択。どれか1つだけ点灯する（v0.9.140）。
+    if (els.layoutLrBtn) els.layoutLrBtn.classList.toggle('is-active', !unified && !ud);
+    if (els.layoutUdBtn) els.layoutUdBtn.classList.toggle('is-active', !unified && ud);
+    // Play画面下の練習ガイド文言は廃止（v0.9.140）。マイク許可エラー等の通知用にだけ tap-hint を使う。
+    if (els.tapHint) { els.tapHint.textContent = ''; els.tapHint.classList.add('hidden'); }
+    applyTapUnified();
     applyTapHeight();
+}
+
+/* 統合タップボタン（v0.9.140）の状態をDOM・案内へ反映。判定の方向は onTap 側で扱う（ここは見た目のみ）。 */
+function applyTapUnified() {
+    const on = !!state.tapUnified;
+    if (els.tapArea) els.tapArea.classList.toggle('is-unified', on);
+    if (els.tapUnifyBtn) {
+        els.tapUnifyBtn.classList.toggle('is-active', on);
+        els.tapUnifyBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+}
+
+/* 統合ON/OFFを切り替えて保存。配置は排他なので3ボタンの点灯をまとめて更新する（v0.9.140）。 */
+function setTapUnified(on) {
+    state.tapUnified = !!on;
+    saveSettings();
+    applyTapLayout();
 }
 
 /* 配置を切り替えて保存（左右 / 上下）。判定の方向ロジックは配置に依らず同じ。 */
 function setTapLayout(layout) {
     state.tapLayout = (layout === 'ud') ? 'ud' : 'lr';
+    state.tapUnified = false; // 左右/上下を選んだら統合は解除（排他・v0.9.140）
     saveSettings();
     applyTapLayout();
 }
@@ -6827,7 +7338,7 @@ function setTapToolsOpen(open) {
     if (els.tapToolsPanel) els.tapToolsPanel.classList.toggle('hidden', !open);
     if (els.tapToolsToggle) {
         els.tapToolsToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-        els.tapToolsToggle.textContent = open ? 'タップボタン調整 ▴' : 'タップボタン調整 ▾';
+        els.tapToolsToggle.textContent = open ? 'タップボタン設定 ▴' : 'タップボタン設定 ▾';
     }
 }
 function toggleTapTools() {
@@ -6839,8 +7350,38 @@ function toggleTapTools() {
 function resetTapButtons() {
     state.tapLayout = 'lr';
     state.tapHeight = TAP_H_DEFAULT;
-    applyTapLayout(); // 配置クラス・ボタン活性・案内・高さ(applyTapHeight)を反映
+    state.tapUnified = true; // 既定は統合ON（v0.9.140）
+    applyTapLayout(); // 配置クラス・ボタン活性・案内・高さ(applyTapHeight)・統合(applyTapUnified)を反映
     saveSettings();
+}
+
+/* ── 簡易マイク設定（ストロークモード時のみ・v0.9.140）──────────
+   既存のクリック音量(state.clickVolume)・反応ライン(mic.threshold)だけを軽く操作できる折りたたみ。
+   新しい設定値は作らず、手動設定と同じ state/mic を直接操作するので、全ストロークモードに自動で追従し、
+   saveSettings() で再読込後も保存される。判定・音声再生ロジックには手を入れない（値の共有だけ）。 */
+function setStrokeMicToolsOpen(open) {
+    if (els.strokeMicPanel) els.strokeMicPanel.classList.toggle('hidden', !open);
+    if (els.strokeMicToggle) {
+        els.strokeMicToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        els.strokeMicToggle.textContent = open ? '簡易マイク設定 ▴' : '簡易マイク設定 ▾';
+    }
+}
+function toggleStrokeMicTools() {
+    const closed = !els.strokeMicPanel || els.strokeMicPanel.classList.contains('hidden');
+    setStrokeMicToolsOpen(closed);
+}
+
+/* 現在の clickVolume / threshold を簡易マイク設定スライダーへ反映（手動設定側と同じ値）。 */
+function applyStrokeMicToolsUI() {
+    if (els.smicClickVol) {
+        els.smicClickVol.value = state.clickVolume;
+        if (els.smicClickVolVal) els.smicClickVolVal.textContent = state.clickVolume + '％';
+    }
+    if (els.smicThreshold) {
+        const sens = userMicSensitivityPercent(); // 表示はユーザー本来の感度%（補正テスト中でも0%に化けない・v0.9.140）
+        els.smicThreshold.value = sens;
+        if (els.smicThresholdVal) els.smicThresholdVal.textContent = sens + '％';
+    }
 }
 
 /* ── テンポ操作 ─────────────────────────────────────────── */
@@ -6947,6 +7488,77 @@ function thresholdFromSensUI(sens) {
     return mic.lowInputProfile ? thresholdFromSensLow(sens) : thresholdFromSens(sens);
 }
 
+/* マイク感度カーブ補正（v0.9.140）：低感度側だけ検出しきい値を大きくして、実際の感度をより下げる。
+   60〜100%は倍率1.0（iPhone実機で詰めた既存挙動を完全維持）。生しきい値(mic.threshold)が既に
+   「左ほど鈍い（高しきい値）」を担うので、その上に 10〜40% へ実用的な低感度グラデーションを足す。
+   v0.9.140（再々々調整）：実機で 10% がまだ弱いストロークを拾い「高感度すぎ」。10% を“今の1/4以下の感度”
+   ＝しきい値4倍以上に上げる。10〜40% を全体的に鈍くし、役割を 10%=かなり強めだけ / 20%=強め〜普通 /
+   30%=普通 / 40%=やや低感度だが使いやすい、に分ける。60%以上は不変・0%は実質ミュートを維持。
+   目安(倍率): 0%≈1e6 / 3%≈198 / 5%=22 / 10%=13 / 20%=6.5 / 30%=4.2 / 40%=2.7 / 60〜100%=1.0。
+   目安(実効しきい値): 10%≈1.71 / 20%≈0.56 / 30%≈0.24 / 40%≈0.10 / 60%≈0.016。 */
+function micLowSensitivityThresholdMultiplier(percent) {
+    const p = Math.max(0, Math.min(100, Number(percent) || 0));
+    if (p <= 0) return 1e6;                                   // 0%は実質ミュート（安全のため有限の大きな値）
+    if (p >= 60) return 1;                                    // 60〜100%は倍率1.0（既存挙動を完全維持）
+    if (p >= 40) { const t = (60 - p) / 20; return 1 + t * 1.7; }    // 40%:2.7 → 60%:1.0
+    if (p >= 30) { const t = (40 - p) / 10; return 2.7 + t * 1.5; }  // 30%:4.2 → 40%:2.7
+    if (p >= 20) { const t = (30 - p) / 10; return 4.2 + t * 2.3; }  // 20%:6.5 → 30%:4.2
+    if (p >= 10) { const t = (20 - p) / 10; return 6.5 + t * 6.5; }  // 10%:13.0 → 20%:6.5（10%を大幅に鈍く）
+    if (p >= 5)  { const t = (10 - p) / 5;  return 13.0 + t * 9.0; } // 5%:22.0 → 10%:13.0
+    // 0〜5%：1e6 → 22.0 へ急峻に立ち上げてミュート感を作る（3%≈198・かなり巨大／5%=22・かなり鈍い）
+    const t = p / 5;                                          // 0%で0 → 5%で1
+    const eased = Math.pow(t, 0.45);
+    const maxLog = 6, minLog = Math.log10(22.0);              // 10^6=1e6 → 22.0
+    return Math.pow(10, maxLog + (minLog - maxLog) * eased);
+}
+/* ユーザー向け「マイク感度」%表示の“単一の真実源”（v0.9.140）。
+   補正テスト中は mic.threshold が補正用しきい値(calThr)へ一時置換されるため、退避してある本来の
+   設定値(cal.saved.threshold)から%を求める。これで「画面に出すマイク感度%」が補正テスト中でも0%に
+   化けず、常にユーザー本来の設定値を示す。表示・感度カーブの両方がこの1関数を基準にする。 */
+function userMicSensitivityPercent() {
+    // v0.9.140：cal.saved.threshold は「補正テスト中だけ」mic.threshold が calThr へ置換される間の退避値。
+    //   補正テストが動いていない時は必ず mic.threshold を使う（補正の退避値が通常表示・感度カーブ・STAGEへ
+    //   漏れて、最終確認テストとSTAGE本番で実効しきい値がズレる事故を防ぐ）。判定/表示は同じ実効感度になる。
+    const calibrating = mic.calibrating || (cal && cal.active) || (typeof bt !== 'undefined' && bt && bt.active);
+    const sourceThreshold = (calibrating && cal && cal.saved && Number.isFinite(cal.saved.threshold))
+        ? cal.saved.threshold
+        : mic.threshold;
+    return sensFromThresholdUI(sourceThreshold);
+}
+/* 感度カーブ倍率の基準%。表示と同じ真実源（userMicSensitivityPercent）を使う＝表示とカーブがズレない。 */
+function currentMicSensitivityPercent() {
+    return userMicSensitivityPercent();
+}
+/* マイク感度カーブの倍率（v0.9.140）。全マイク検出で共通に使う一箇所の関数。 */
+function micSensitivityMultiplier() {
+    return micLowSensitivityThresholdMultiplier(currentMicSensitivityPercent());
+}
+/* 検出に使う実効しきい値（v0.9.140）：base に感度カーブ倍率を掛けたもの（base 省略時は mic.threshold）。
+   STAGE判定・マイク反応テスト・手動設定モニター・補正テスト・BT補正など、検出に使うしきい値はここを通す。
+   倍率はユーザーのマイク感度%基準なので、どこから変えても同じ実効感度になる。保存値・UI表示%は不変。 */
+function micEffectiveThreshold(baseThreshold) {
+    const base = (baseThreshold == null) ? mic.threshold : baseThreshold;
+    return base * micSensitivityMultiplier();
+}
+/* 「欲しい実効判定ライン(targetEff)」になる“生 mic.threshold”を逆算する（v0.9.140）。
+   検出は実効しきい値 = 生threshold × 感度カーブ倍率(sens(生threshold)) で行うため、おすすめが生thresholdを
+   そのまま「クリックとストロークの間」に置いても、感度カーブ倍率(低感度ほど>1)で実効ラインが跳ね上がり、
+   最終確認テストでストロークが届かない（＝判定ラインのすぐ下でMISS）。そこで、欲しい実効ラインから逆算して
+   保存する生thresholdを決める。eff(生)＝生×倍率(sens(生)) は生について単調増加なので二分探索で安全に解ける。
+   通常マイク前提（lowInputProfile=false）。低入力プロファイルは倍率≒1なので逆算してもほぼ恒等。 */
+function recoRawThresholdForEffectiveLine(targetEff) {
+    const effOf = (raw) => raw * micLowSensitivityThresholdMultiplier(sensFromThreshold(raw));
+    let lo = THR_MIN, hi = THR_MAX;
+    if (!(targetEff > 0)) return lo;
+    if (targetEff <= effOf(lo)) return lo;
+    if (targetEff >= effOf(hi)) return hi;
+    for (let i = 0; i < 40; i++) {
+        const mid = (lo + hi) / 2;
+        if (effOf(mid) < targetEff) lo = mid; else hi = mid;
+    }
+    return (lo + hi) / 2;
+}
+
 function loadSettings() {
     let s = {};
     try { s = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch (_) { s = {}; }
@@ -6977,6 +7589,7 @@ function loadSettings() {
     state.micDelayDone = !!s.micDelayDone;
     state.micSetupPrompted = !!s.micSetupPrompted;
     state.tapLayout = (s.tapLayout === 'ud') ? 'ud' : 'lr';
+    state.tapUnified = (s.tapUnified !== false); // 統合タップ（v0.9.140）。既定ON。保存設定がある場合のみ優先（明示OFF＝false のときだけOFF）。
     state.tapHeight = clampNum(s.tapHeight, TAP_H_MIN, TAP_H_MAX_UD, TAP_H_DEFAULT); // v0.9.118：上下配置の拡張値も保持（表示時に配置上限へクランプ）
     state.inputMode = (s.inputMode === 'stroke') ? 'stroke' : 'tap'; // v0.9.118：入力方式（タップ/ストローク）の保存値を優先
     state.bars = (BAR_OPTIONS.indexOf(s.bars) !== -1) ? s.bars : DEFAULT_BARS; // v0.9.118：小節数の保存値を優先（不正値は既定8）
@@ -7015,6 +7628,7 @@ function saveSettings() {
             micDelayDone: state.micDelayDone,
             micSetupPrompted: state.micSetupPrompted,
             tapLayout: state.tapLayout,
+            tapUnified: state.tapUnified,
             tapHeight: state.tapHeight,
             inputMode: state.inputMode,
             bars: state.bars,
@@ -7029,7 +7643,7 @@ function saveSettings() {
 
 /* 現在値をスライダー・数値表示・しきい値ラインへ反映 */
 function applySettingsToUI() {
-    const sens = sensFromThresholdUI(mic.threshold);
+    const sens = userMicSensitivityPercent(); // 表示はユーザー本来の感度%（補正テスト中でも0%に化けない・v0.9.140）
     els.setThreshold.value = sens;
     els.setThresholdVal.textContent = sens + '％';
     els.setCooldown.value = mic.cooldownMs;
@@ -7155,7 +7769,7 @@ function wizardStepSummary(id) {
         case 'stroke':
             return 'ストローク検出モード：' + (state.strokeDetectMode === 'chord' ? 'コードストローク' : 'ブラッシング');
         case 'test':
-            return 'マイク反応テスト：適用済み（反応ライン ' + sensFromThresholdUI(mic.threshold) + '%、二重反応防止 ' + mic.cooldownMs + 'ms）';
+            return 'マイク反応テスト：適用済み（マイク感度 ' + userMicSensitivityPercent() + '%、二重反応防止 ' + mic.cooldownMs + 'ms）';
         case 'correction': {
             // 通常マイク＝マイクの遅れ補正／Bluetooth＝イヤホン音ズレ補正（有線はこのステップが無い）
             if (!isHeadphoneInput()) return 'マイクの遅れ補正：' + (mic.timingOffsetMs > 0 ? '+' : '') + mic.timingOffsetMs + 'ms';
@@ -7950,7 +8564,7 @@ function renderSettingsSummary() {
         rows.push(row('イヤホン種類', getHeadphoneType() === 'bluetooth' ? 'Bluetoothイヤホン' : '有線イヤホン'));
     }
     rows.push(row('ストローク検出モード', state.strokeDetectMode === 'chord' ? 'コードストローク' : 'ブラッシング'));
-    rows.push(row('反応ライン（感度）', sensFromThresholdUI(mic.threshold) + '％'));
+    rows.push(row('マイク感度', userMicSensitivityPercent() + '％'));
     rows.push(row('二重反応防止', mic.cooldownMs + 'ms'));
     rows.push(row('クリック音量', state.clickVolume + '％'));
     if (t === 'headphone') {
@@ -8492,6 +9106,10 @@ function micExclude(reason) {
     updateMicDiag();
 }
 
+/* マイク起動の世代カウンタ（v0.9.140）。getUserMedia は非同期なので、許可ダイアログ表示中に
+   タップモードへ戻す/停止/画面を離れると、完了後に mic.on=true になってしまう恐れがある。
+   起動開始時に世代を進め、完了時に世代が変わっていたら取得した stream を即停止して mic.on にしない。 */
+let micStartGeneration = 0;
 async function startMic() {
     if (mic.on) return;
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -8500,6 +9118,7 @@ async function startMic() {
         resetMicSetupState(); // マイクが使えない → 設定状態を未実施へ戻す
         return;
     }
+    const myGen = ++micStartGeneration; // この起動の世代（停止/モード切替/再起動で進む）
     // 許可ダイアログが実際に出るか事前に推定（granted以外なら出る見込み）。
     // 出た後の許可成功時は、済み状態でも設定誘導を出すために使う。
     mic.dialogShown = true;
@@ -8514,6 +9133,11 @@ async function startMic() {
         const stream = await navigator.mediaDevices.getUserMedia({
             audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
         });
+        // 取得完了までに停止/モード切替/再起動された場合は、この stream を破棄して mic.on にしない（v0.9.140）。
+        if (myGen !== micStartGeneration) {
+            try { stream.getTracks().forEach((t) => t.stop()); } catch (_) { /* noop */ }
+            return;
+        }
         mic.stream = stream;
         mic.src = state.audioCtx.createMediaStreamSource(stream);
         mic.analyser = state.audioCtx.createAnalyser();
@@ -9351,13 +9975,16 @@ function updateReco() {
     const peakPerPct = (maxClick > 0) ? maxClick / measureVol : 0; // 1%あたりの想定クリックピーク
     let recoVol = state.clickVolume;
     if (minStroke != null && peakPerPct > 0) {
-        const targetClickMax = minStroke * 0.5;            // クリックはストローク最小の半分以下を目標
-        if (maxClick > targetClickMax) {
-            recoVol = Math.round(targetClickMax / peakPerPct);
-            recoVol = Math.max(10, Math.min(state.clickVolume, recoVol)); // 下げる方向のみ・0にはしない
-        } else if (clickReacted > 0) {
-            recoVol = Math.max(10, state.clickVolume - 20);
-        }
+        // v0.9.140（再調整）：補正テストのクリックが判定ラインに対して小さすぎた（体感で約1/5）ため、
+        //   クリックピークを「判定ラインの50〜70%程度」まで近づける。判定ラインは下の①でストローク最小の
+        //   0.75〜0.9 付近（separable時）に置かれるので、その目安(lineEstimate)の約0.6倍を狙いつつ、
+        //   ストローク最小の0.7倍も上限にして“ラインは超えない／ストロークは超える”を保つ。
+        //   さらに、以前は「下げる方向のみ」でクリックが小さいままだったので、今回は小さすぎるクリックは
+        //   上げる方向にも調整する（クランプ 10〜100%）。クリックが上がっても上限はラインの下に収まる。
+        const lineEstimate = minStroke * 0.78;             // ①で置く判定ラインのおおよその位置
+        const targetClickMax = Math.min(lineEstimate * 0.6, minStroke * 0.7); // ライン約60%・かつストローク0.7倍以下
+        recoVol = Math.round(targetClickMax / peakPerPct);
+        recoVol = Math.max(10, Math.min(100, recoVol));    // 小さすぎるクリックは上げ・大きすぎるクリックは下げる（両方向）
     } else if (clickReacted > 0) {
         recoVol = Math.max(10, state.clickVolume - 20);
     }
@@ -9373,26 +10000,36 @@ function updateReco() {
     let highSens = false;
     let cannotSeparate = false; // クリック音量を下げてもクリックとストロークを分離できない
     if (minStroke != null) {
-        const separable = postClick < minStroke * 0.8;     // 間に十分な隙間があるか
+        // v0.9.140（おすすめ余裕の見直し）：おすすめは「実効判定ライン」をストローク最小の80〜85%程度（上限）に置く。
+        //   検出は 生threshold×感度カーブ倍率 なので、生thresholdをそのまま置くと低感度域では実効ラインが
+        //   ストローク最小付近まで上がり、最終確認テストで届かずMISSになっていた。そこで欲しい実効ラインから
+        //   生thresholdを逆算(recoRawThresholdForEffectiveLine)して保存する。
+        //   実機微調整（v0.9.140）：0.65→0.75 でもまだ拾いやすかったため上限を 0.85 へ。さらに少し低感度寄りにして、
+        //   普通〜やや強めのストロークは拾い・弱い入力やクリック音は超えにくくする（ストローク最小には15%の余裕＝MISSしない／0.9以上にはしない）。
+        //   分離可否は「実効ラインをクリックの上(×1.3)・ストローク最小×0.85以下に置けるか」で判断する。
+        const separable = postClick * 1.3 < minStroke * 0.85;  // 実効ラインをクリックの上・ストローク最小0.85倍以下に置ける隙間があるか
         if (lowInputTuned) {
             // 有線イヤホン等：クリック音がほぼ競合しないため、ストローク最小の4割弱まで高感度に寄せる。
-            // ノイズより十分上には置くが、クリック回避のために不必要に上げない。
+            // ノイズより十分上には置くが、クリック回避のために不必要に上げない。（高感度域なので倍率≒1＝逆算は恒等）
             let rec = Math.max(lowInputNoiseLine, minStroke * 0.38);
             rec = Math.min(rec, minStroke * 0.55);
             rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
             test.recommended = rec;
             canApply = true;
         } else if (separable) {
-            const mid = (postClick + minStroke) / 2;
-            let rec = Math.max(postClick * 1.3, mid);      // クリックより確実に上＋中間寄り
-            rec = Math.min(rec, minStroke * 0.9);          // ストローク最小の少し下（最小も拾える）
+            // 実効判定ライン＝クリックより上(×1.3) かつ ストローク最小の0.5〜0.85倍（ストローク側に余裕・v0.9.140実機微調整で 0.65→0.75→0.85）。
+            const lineEff = Math.min(minStroke * 0.85, Math.max(postClick * 1.3, minStroke * 0.5));
+            let rec = recoRawThresholdForEffectiveLine(lineEff);     // 実効ラインが lineEff になる生thresholdへ逆算
             rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
             test.recommended = rec;
             canApply = true;
         } else {
-            // 分離不可：とりあえずストローク最小の少し下を提案しつつ、警告で音量ダウン/イヤホンへ誘導
+            // 分離不可：クリックとストロークが近い。ストローク検出を最優先し、実効ラインをストローク最小×0.85に置く
+            // （ストロークは確実に超える・v0.9.140実機微調整で 0.65→0.75→0.85）。クリックもライン付近に来るので、警告で音量ダウン/イヤホンへ誘導する。
             cannotSeparate = true;
-            let rec = Math.max(THR_MIN, Math.min(THR_MAX, minStroke * 0.85));
+            const lineEff = minStroke * 0.85;
+            let rec = recoRawThresholdForEffectiveLine(lineEff);
+            rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
             test.recommended = rec;
             canApply = true;
         }
@@ -9432,6 +10069,21 @@ function updateReco() {
                 test.recommended = btFloor;
                 els.recoThr.textContent = (provisional ? '仮 ' : '') + recoSensDisplay(test.recommended, lowInputTuned) + '％';
             }
+        }
+    }
+
+    // ②-C 近ミュート回避（v0.9.140）：マイク感度0〜5%付近は感度カーブで実効しきい値が跳ね上がり、
+    //     最終確認テストでコードストロークを拾えなくなる。おすすめ感度には実用下限(RECO_MIN_SENS)を設け、
+    //     0〜5%のような値は「良い設定」として提示しない。下限まで上げるとクリックも拾いやすくなる場合は、
+    //     メッセージで端末音量ダウン/イヤホン利用を案内する（ストローク検出を優先）。
+    let recoFloorApplied = false;
+    if (test.recommended != null) {
+        const RECO_MIN_SENS = 10; // おすすめ感度の実用下限(%)。0〜5%の近ミュートは避ける。
+        const floorThr = lowInputTuned ? thresholdFromSensLow(RECO_MIN_SENS) : thresholdFromSens(RECO_MIN_SENS);
+        if (recoSensDisplay(test.recommended, lowInputTuned) < RECO_MIN_SENS && floorThr < test.recommended) {
+            test.recommended = floorThr; // しきい値を下げる＝感度を実用下限まで上げる（ストロークを拾える側へ）
+            recoFloorApplied = true;
+            els.recoThr.textContent = (provisional ? '仮 ' : '') + recoSensDisplay(test.recommended, lowInputTuned) + '％';
         }
     }
 
@@ -9495,6 +10147,12 @@ function updateReco() {
         els.recoMsg.className = 'test-reco-msg';
         els.recoMsg.classList.remove('hidden');
         els.recoMsg.textContent = 'イヤホンなどの小さめ入力に合わせて、高感度寄りの設定を作りました（' + lineTxt + '）。';
+    } else if (recoFloorApplied) {
+        // クリック回避には近ミュート級の低感度が必要だが、それだとストロークも拾えない → ストローク優先の感度にした
+        els.recoMsg.className = 'test-reco-msg warn';
+        els.recoMsg.classList.remove('hidden');
+        els.recoMsg.textContent = 'クリック音を避けるにはかなり低い感度が必要ですが、それだとコードストロークも拾えません。'
+            + 'ストロークを拾える感度にしました（' + lineTxt + '）。クリック音が気になる場合は、端末のスピーカー音量を下げてください。';
     } else if (cannotSeparate) {
         // クリック音量を下げてもクリックがストローク最小に近い/超える＝反応ラインだけでは分離不可
         els.recoMsg.className = 'test-reco-msg warn';
@@ -9511,7 +10169,7 @@ function updateReco() {
         els.recoMsg.className = 'test-reco-msg';
         els.recoMsg.classList.remove('hidden');
         els.recoMsg.textContent = 'クリック音とストローク音の間に反応ラインを置きました（' + lineTxt + '）。'
-            + (volChanged ? 'クリック音量を ' + recoVol + '% に下げると安定します。' : '') + projTxt;
+            + (volChanged ? 'クリック音量を ' + recoVol + '% にすると安定します。' : '') + projTxt;
     }
     // 反応ラインが提案できる or クリック音量を下げられる → 適用ボタンを出す
     if (canApply || volChanged) els.recoApplyBtn.classList.remove('hidden');
@@ -9611,9 +10269,9 @@ function updateTestDetail(maxClick, minStroke, maxStroke, clickReacted, canApply
         ['全ストローク 最小 / 最大', fx(minStroke) + ' / ' + fx(maxStroke)],
         ['環境ノイズ 最大 / p95', fx(test.noiseMax) + ' / ' + fx(test.noiseP95)],
         ['ストローク反応ライン超過時間', (test.strokeAboveMedian != null ? Math.round(test.strokeAboveMedian) + 'ms' : '–')],
-        ['現在の反応ライン', fx(mic.threshold)],
+        ['現在のマイク感度', fx(mic.threshold)],
         ['テスト検出しきい値', fx(test.strokeDetectThreshold || testStrokeThreshold())],
-        ['おすすめ反応ライン', recoSensLabel + (test.recommended != null ? '（' + test.recommended.toFixed(3) + (provisional ? '・仮' : '') + '）' : '')],
+        ['おすすめマイク感度', recoSensLabel + (test.recommended != null ? '（' + test.recommended.toFixed(3) + (provisional ? '・仮' : '') + '）' : '')],
         ['おすすめクリック音量', (test.recoClickVolume != null ? test.recoClickVolume + '%' : '–')],
         ['おすすめ二重反応防止', (test.recoCooldown != null ? test.recoCooldown + 'ms' : '–')],
         ['二重反応', test.strokeDoubleCount + ' 回'],
@@ -9698,6 +10356,7 @@ function applyReco() {
 }
 
 function stopMic() {
+    micStartGeneration++; // 起動中(許可ダイアログ中)の getUserMedia を無効化（v0.9.140）
     mic.on = false;
     cancelAnimationFrame(mic.raf);
     cancelCalibration();
@@ -9726,8 +10385,9 @@ function micLoop() {
     // 表示用エンベロープ（速いアタック／遅いリリース）
     mic.env = Math.max(peak, mic.env * 0.86);
     if (els.micLevel) {
-        els.micLevel.style.width = (micDisplayFrac(mic.env) * 100).toFixed(1) + '%';
-        els.micLevel.classList.toggle('over', peak >= mic.threshold);
+        // 反応表示は実効しきい値基準（v0.9.140）：マイク感度カーブをバーに反映。0%ではほぼ動かない。
+        els.micLevel.style.width = (micDisplayFracEff(mic.env) * 100).toFixed(1) + '%';
+        els.micLevel.classList.toggle('over', peak >= micEffectiveThreshold());
     }
 
     const now = performance.now();
@@ -9748,8 +10408,14 @@ function micLoop() {
     // 立ち上がり検出：threshold交差 または 音量の急増（rise）。
     // クリック音ON/OFFで基本ロジックは共通。余韻中でも急増を拾えるようにする。
     const rise = peak - mic.prevPeak;
-    // 本番STAGE（再生中）だけ、表示の反応ラインより少し低い検出しきい値で拾いやすくする（表示は不変）。
-    const detThr = state.running ? (mic.threshold * MIC_STAGE_DETECT_FACTOR) : mic.threshold;
+    // マイク感度カーブ補正後の実効しきい値で検出する（v0.9.140）。検出オンセット(onset)はこの detThr から
+    // 作られるので、STAGE1/カスタムのストローク判定・通常のマイク反応テスト・手動設定モニターに同じカーブが効く。
+    // 60〜100%は倍率1.0で従来と完全同一。低感度側だけ実際に鈍くなり、0%は実質ミュート。
+    // ただし補正テスト（mic.calibrating/cal.active）はクリック音を確実に拾うのが目的なので、感度カーブで「鈍くする」
+    // 方向(倍率>1)は効かせない＝基準しきい値(補正用 calThr)のままで検出する（クリックを取りこぼさない）。
+    let sensMult = micSensitivityMultiplier();
+    if (mic.calibrating || cal.active) sensMult = Math.min(sensMult, 1);
+    const detThr = mic.threshold * sensMult * MIC_STAGE_DETECT_FACTOR;
     const crossed = peak >= detThr && mic.prevPeak < detThr;
     const bigRise = peak >= detThr && rise >= RISE_DELTA;
     // 穏やかな立ち上がりも拾うヒステリシス。detThr×再アーム係数 を下回ったら再アーム、
@@ -9770,8 +10436,8 @@ function micLoop() {
         cal.lastLevel = peak;
         if (peak > cal.maxPeak) cal.maxPeak = peak;
         if (els.calLevel) {
-            els.calLevel.style.width = (micDisplayFrac(peak) * 100).toFixed(1) + '%';
-            els.calLevel.classList.toggle('over', peak >= mic.threshold);
+            els.calLevel.style.width = (micDisplayFracEff(peak) * 100).toFixed(1) + '%';
+            els.calLevel.classList.toggle('over', peak >= micEffectiveThreshold());
         }
         // 1クリック1検出：各クリックの検出ウィンドウ内で「最初の有効オンセット1つだけ」を採用する。
         // 余韻・反響・二重ピークは同じクリックの追加検出として数えない（Macでクリック音が大きく拾われる環境の過剰検出対策）。
@@ -9795,8 +10461,8 @@ function micLoop() {
     // ── マイク遅れ補正（v0.9.80・Bluetooth用）：クリックに対する入力時刻だけを集める（registerHit/スコアには流さない）──
     if (bt.active) {
         if (els.btCalLevel) {
-            els.btCalLevel.style.width = (micDisplayFrac(peak) * 100).toFixed(1) + '%';
-            els.btCalLevel.classList.toggle('over', peak >= mic.threshold);
+            els.btCalLevel.style.width = (micDisplayFracEff(peak) * 100).toFixed(1) + '%';
+            els.btCalLevel.classList.toggle('over', peak >= micEffectiveThreshold());
         }
         // 流れるレーン用の波形バッファ（flowStart基準・表示専用。v0.9.81）
         const waveT = now - bt.flowStartPerf;
@@ -9863,11 +10529,13 @@ function micLoop() {
                 const sinceHit = now - pt.lastDetectAt;
                 const riseFromValley = peak - pt.valley;
                 const instantRise = peak - mic.prevPeak;
-                ptOnset = (peak >= mic.threshold)
+                // v0.9.140：STAGE本番のコード検出 detThr と完全に揃える。ptDetThr＝ptDetectionThreshold()＝
+                //   mic.threshold×感度カーブ倍率（BT補正中はキャップ）で、STAGEの detThr と同じ実効判定ライン。
+                ptOnset = (peak >= ptDetThr)
                     && (sinceHit >= state.chordMinCooldown)
                     && (riseFromValley >= state.chordRiseGate)
                     && (instantRise >= state.chordInstantRiseGate);
-                if (!ptOnset && peak >= mic.threshold && instantRise >= state.chordInstantRiseGate * 0.5) {
+                if (!ptOnset && peak >= ptDetThr && instantRise >= state.chordInstantRiseGate * 0.5) {
                     ptLogReject(tMs, peak, 'codeGate', {
                         sinceHit: Math.round(sinceHit),
                         riseFromValley: +riseFromValley.toFixed(3),
@@ -9927,8 +10595,8 @@ function micLoop() {
     // ── 実音テスト（設定画面）：registerHit/スコアには一切流さない ──
     if (test.active) {
         if (els.testLevel) {
-            els.testLevel.style.width = (micDisplayFrac(peak) * 100).toFixed(1) + '%';
-            els.testLevel.classList.toggle('over', peak >= mic.threshold);
+            els.testLevel.style.width = (micDisplayFracEff(peak) * 100).toFixed(1) + '%';
+            els.testLevel.classList.toggle('over', peak >= micEffectiveThreshold());
         }
         // 環境音測定中：レベルを蓄積（補正用反応ラインの下限に使う）
         if (test.mode === 'noise') {
@@ -9990,7 +10658,7 @@ function micLoop() {
     const inGuard = guardActive && sinceClick >= -10 && sinceClick <= guardMs;
     // ガード中でも、しきい値の STRONG_STROKE_FACTOR 倍以上に大きい音はストロークとして通す。
     // 反応ラインはおすすめ適用後クリック音より上に置かれるため、ライン超え＝ストロークとみなし、低めの係数で通す。
-    const strongEnough = peak >= mic.threshold * STRONG_STROKE_FACTOR;
+    const strongEnough = peak >= detThr * STRONG_STROKE_FACTOR;
     // カウントイン中はマイク検出を無視。ただし本編開始T0の直前（半拍以内）は1拍目の早め入力として通す
     // （ここを T0 ちょうどにすると、少し早く弾いた1拍目が除外され、余韻だけ残って「タイミング外」に化ける）。
     const inCountIn = state.running && state.currentTime < (state.T0 - state.beatInterval * 0.5);
@@ -10037,19 +10705,19 @@ function micLoop() {
                 pb.offsetMs = Math.round((gameAudioMs() + micJudgeOffsetMs()) - (state.T0 + nearestBeat * state.beatInterval));
             }
             if (mic.env > pb.maxEnv) pb.maxEnv = mic.env;
-            if (peak >= mic.threshold) {
+            if (peak >= detThr) {
                 if (instantRise > pb.bestInstantRise) pb.bestInstantRise = instantRise;
                 if (riseFromValley > pb.bestRiseFromValley) pb.bestRiseFromValley = riseFromValley;
                 // 谷上昇・瞬間上昇は満たすがクールダウン中で弾かれた（＝本当は新アタックだった可能性）
                 if (riseFromValley >= state.chordRiseGate && instantRise >= state.chordInstantRiseGate && sinceHit < state.chordMinCooldown) pb.cooldownBlocked = true;
             }
         }
-        const chordOnset = (peak >= mic.threshold)
+        const chordOnset = (peak >= detThr)
             && (sinceHit >= state.chordMinCooldown)
             && (riseFromValley >= state.chordRiseGate)
             && (instantRise >= state.chordInstantRiseGate);
         // 余韻中などで「立ち上がりらしいが条件未達」を無視としてカウント（観察用）
-        if (!chordOnset && !inCountIn && peak >= mic.threshold && instantRise >= state.chordInstantRiseGate * 0.5
+        if (!chordOnset && !inCountIn && peak >= detThr && instantRise >= state.chordInstantRiseGate * 0.5
             && (sinceHit < state.chordMinCooldown || riseFromValley < state.chordRiseGate || instantRise < state.chordInstantRiseGate)) {
             state.chordIgnoredRePeaks++;
         }
@@ -10097,7 +10765,7 @@ function micLoop() {
             if (nearestBeat >= 0) state.beatExcluded[nearestBeat] = true;
             // 二重反応として数えるのは「明確に別の強い立ち上がり」だけ・1クールダウンにつき1回（余韻の多重カウント防止）。
             const freshAttack = (crossed || bigRise);
-            const strongInput = peak >= mic.threshold * DOUBLE_MIN_PEAK_FACTOR;
+            const strongInput = peak >= detThr * DOUBLE_MIN_PEAK_FACTOR;
             const enoughGap = (now - mic.lastDetect) >= DOUBLE_MIN_GAP_MS;
             if (state.running && !inCountIn && !mic.doubleCounted && freshAttack && strongInput && enoughGap) {
                 mic.doubleCounted = true;          // この窓ではもう数えない
@@ -10514,6 +11182,7 @@ function bind() {
         if (zone.dataset.zone === 'note') tapRhythmEditorNote(i);
         else if (zone.dataset.zone === 'arrow') tapRhythmEditorArrow(i);
     });
+    if (els.pceHowtoToggle) els.pceHowtoToggle.addEventListener('click', toggleRhythmEditorHowto);
     if (els.pceSave) els.pceSave.addEventListener('click', () => saveRhythmCustomEditor(true));
     if (els.pceTest) els.pceTest.addEventListener('click', testPlayFromEditor);
     if (els.pceCopy) els.pceCopy.addEventListener('click', copyRhythmCustomEditorJson);
@@ -10574,6 +11243,37 @@ function bind() {
     if (els.tapToolsReset) els.tapToolsReset.addEventListener('click', resetTapButtons);
     if (els.layoutLrBtn) els.layoutLrBtn.addEventListener('click', () => setTapLayout('lr'));
     if (els.layoutUdBtn) els.layoutUdBtn.addEventListener('click', () => setTapLayout('ud'));
+    if (els.tapUnifyBtn) els.tapUnifyBtn.addEventListener('click', () => setTapUnified(true)); // 統合を選択（排他・v0.9.140）
+    // モード切替導線（v0.9.140）：タップ⇔ストローク。既存の setInputMode を使う（マイク起動/UI同期/保存はそのまま）。
+    if (els.tapToStrokeBtn) els.tapToStrokeBtn.addEventListener('click', () => setInputMode('stroke'));
+    if (els.smicToTapBtn) els.smicToTapBtn.addEventListener('click', () => setInputMode('tap'));
+    // 簡易マイク設定（v0.9.140）：開閉
+    if (els.strokeMicToggle) els.strokeMicToggle.addEventListener('click', toggleStrokeMicTools);
+    // 簡易マイク設定：クリック音（state.clickVolume を直接操作＝手動設定と同じ値・全ストロークモード共通）
+    if (els.smicClickVol) els.smicClickVol.addEventListener('input', () => {
+        state.clickVolume = parseInt(els.smicClickVol.value, 10);
+        if (els.smicClickVolVal) els.smicClickVolVal.textContent = state.clickVolume + '％';
+        if (els.setClickVol) els.setClickVol.value = state.clickVolume;           // 手動設定スライダーも同期
+        if (els.setClickVolVal) els.setClickVolVal.textContent = state.clickVolume + '％';
+    });
+    // 簡易マイク設定：反応ライン（mic.threshold を直接操作＝手動設定と同じ値）
+    if (els.smicThreshold) els.smicThreshold.addEventListener('input', () => {
+        const sens = parseInt(els.smicThreshold.value, 10);
+        mic.threshold = thresholdFromSensUI(sens);
+        if (els.smicThresholdVal) els.smicThresholdVal.textContent = sens + '％';
+        if (els.setThreshold) els.setThreshold.value = sens;                      // 手動設定スライダーも同期
+        if (els.setThresholdVal) els.setThresholdVal.textContent = sens + '％';
+        if (els.micThreshold) els.micThreshold.style.left = micThresholdMarkerPct() + '%';
+        if (els.testThreshold) els.testThreshold.style.left = micThresholdMarkerPct() + '%';
+    });
+    // 値が確定したら保存（再読込後も保持）
+    if (els.smicClickVol) els.smicClickVol.addEventListener('change', saveSettings);
+    if (els.smicThreshold) els.smicThreshold.addEventListener('change', () => {
+        saveSettings();
+        invalidatePracticeResult('設定を変更しました。もう一度最終確認テストで確認してください。');
+    });
+    // 手動設定へのリンク（既存導線を使う：今いる画面へ戻る openSettingsFromCurrent）
+    if (els.smicOpenManual) els.smicOpenManual.addEventListener('click', openSettingsFromCurrent);
     // タップボタンの高さ調整スライダー
     if (els.tapHeightSlider) els.tapHeightSlider.addEventListener('input', () => setTapHeight(parseInt(els.tapHeightSlider.value, 10)));
 
@@ -10750,7 +11450,9 @@ function bind() {
     if (els.tapArea) {
         els.tapArea.querySelectorAll('[data-dir]').forEach((half) => {
             half.addEventListener('pointerdown', (e) => {
-                e.preventDefault();
+                // 演奏中だけ既定動作を抑止（タップで画面が動かないように）。それ以外は preventDefault しないので
+                // 大きなタップボタンの上をドラッグしてもページを縦スクロールできる（iOS Safariのスクロール不能対策・v0.9.140）。
+                if (state.running) e.preventDefault();
                 onTap(half.getAttribute('data-dir'));
                 half.classList.remove('flash'); void half.offsetWidth; half.classList.add('flash');
             });

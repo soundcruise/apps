@@ -874,6 +874,25 @@ h1 {
     line-height: 1.5;
 }
 
+/* 編集画面「＋ 使い方」折りたたみ（v0.9.140）。説明を常時表示せず、必要なときだけ開く。 */
+.pce-howto {
+    margin: 2px 0 8px;
+}
+
+.pce-howto-toggle {
+    border: 0;
+    background: transparent;
+    color: var(--muted-color);
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 4px 2px;
+    cursor: pointer;
+}
+
+.pce-howto-body {
+    margin-top: 4px;
+}
+
 /* 1小節パターン（v0.9.120：VexFlow譜面＋透明タップ格子＋下段ストローク方向UI）。
    STAGE本番(#lane-canvas / .lane-wrap)には一切触れず、編集用の専用クラスで構成する。
    ピン留めON固定で符頭中心＝セル中心。タップ格子・矢印・拍ラベルはセル幅(--pce-cell)で揃える。 */
@@ -936,6 +955,25 @@ h1 {
     bottom: 0;
     width: 2px;
     background: rgba(253, 246, 238, 0.34);
+}
+
+/* 拍の点線（譜面プレビュー専用・v0.9.140）。拍頭セル境界に薄い縦点線。小節線(明るい実線)より弱く、
+   符頭中心ガイド・音符・矢印の邪魔をしない。lane基準で横スクロール時は譜面と一緒に動く。barlinesより背面。 */
+.pce-vex-beatlines {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    pointer-events: none;
+}
+
+.pce-vex-beatline {
+    position: absolute;
+    top: 14%;
+    bottom: 26%;
+    width: 0;
+    border-left: 1px dashed rgba(253, 246, 238, 0.16);
 }
 
 /* VexFlow が描く SVG 譜面。音符・連桁・タイは金色。横基準線(line)は別色なので path/rect のみ着色。 */
@@ -1909,6 +1947,7 @@ h1 {
 .review-hint .rv-miss { color: #b0b0b0; }
 
 .review-wrap {
+    position: relative;
     width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -1919,8 +1958,42 @@ h1 {
 }
 
 #review-canvas {
+    position: relative;
+    z-index: 2;
     display: block;
     height: 168px;
+}
+
+/* 結果見返しの固定譜面（VexFlow層・v0.9.140）。Canvas(#review-canvas)の背後(z-index:1)に重ね、
+   横スクロールでCanvasと一緒に動く（幅はJSがCanvasと同じ cssW に設定）。薄く表示して判定符頭を引き立てる。 */
+.review-flow-score-layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 168px;
+    z-index: 1;
+    pointer-events: none;
+    overflow: hidden;
+    opacity: 0.5;
+}
+
+.review-flow-score {
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+
+.review-flow-score svg {
+    display: block;
+}
+
+.review-flow-score svg path {
+    fill: #ffd166;
+    stroke: #ffd166;
+}
+
+.review-flow-score svg rect {
+    fill: #ffd166;
 }
 
 .score-big {
@@ -2972,6 +3045,39 @@ h1 {
     background: rgba(253, 246, 238, 0.08);
 }
 
+/* モード切替導線（タップ⇔ストローク・v0.9.140）：reset より少し主張する控えめボタン */
+.tap-tools-switch {
+    margin-top: 6px;
+    padding: 7px 16px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-color);
+    background: rgba(253, 246, 238, 0.06);
+    border: 1px solid rgba(253, 246, 238, 0.22);
+    border-radius: 50px;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.tap-tools-switch:active {
+    background: rgba(253, 246, 238, 0.14);
+}
+
+/* 簡易マイク設定（v0.9.140）：スライダーは行内で伸縮、値ラベルは右寄せ固定幅 */
+.tlt-row input[type="range"] {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.tlt-val {
+    font-size: 0.74rem;
+    color: var(--muted-color);
+    min-width: 40px;
+    text-align: right;
+    white-space: nowrap;
+}
+
 .tlt-row {
     display: flex;
     align-items: center;
@@ -3090,6 +3196,23 @@ h1 {
     font-weight: 700;
     letter-spacing: 1px;
     color: var(--muted-color);
+}
+
+/* 統合タップボタン（v0.9.140）：OFF時は非表示。ON時は down/up を隠し、1つの「タップ」を全幅表示する。 */
+.tap-unify { display: none; }
+.tap-area.is-unified { flex-direction: row; }
+.tap-area.is-unified .tap-down,
+.tap-area.is-unified .tap-up { display: none; }
+.tap-area.is-unified .tap-unify {
+    display: flex;
+    flex: 1 1 0;
+    min-height: var(--tap-h, 106px);
+}
+.tap-label-lg {
+    font-size: 1.15rem;
+    font-weight: 800;
+    letter-spacing: 3px;
+    color: var(--text-color);
 }
 
 /* STAGE：マイク許可後の設定誘導バナー */
@@ -3625,12 +3748,23 @@ body.results-open #settings-btn {
     fill: #ffd166;
 }
 
+/* 判定符頭オーバーレイ（v0.9.140）：流れる譜面レイヤー(z:2)より前面に符頭を重ねる。判定エフェクト文字(z:3)より下。 */
+#lane-judge-overlay {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 3;
+}
+
 .judge-fx-layer {
     position: absolute;
     inset: 0;
     pointer-events: none;
     overflow: hidden;
-    z-index: 3;
+    z-index: 4;
 }
 
 .judge-fx {

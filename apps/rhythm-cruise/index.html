@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.137">
+    <link rel="stylesheet" href="theme.css?v=0.9.140">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -141,7 +141,12 @@
 
                 <div class="pce-field">
                     <span class="pce-label">パターン</span>
-                    <p class="pce-hint">上の音符をタップ：音符 → 休符 → タイ。<br>下の矢印をタップ：音符は ↓ ↔ ↑／休符・タイは (↓) → (↑) → なし。</p>
+                    <div class="pce-howto">
+                        <button type="button" class="pce-howto-toggle" id="pce-howto-toggle" aria-expanded="false">＋ 使い方</button>
+                        <div class="pce-howto-body hidden" id="pce-howto-body">
+                            <p class="pce-hint">タップ：短い音符 → 長い音符 → 休符 → タイ → 音符。<br>長い音符にすると、同じ拍の後ろのマスは自動でタイになります。<br>↓ / ↑ でストローク方向を切り替えられます。</p>
+                        </div>
+                    </div>
                     <div class="pce-pattern" id="pce-pattern">
                         <!-- script.js が描画 -->
                     </div>
@@ -229,7 +234,7 @@
                 <p class="msp-text" id="mic-setup-text">🎤 マイクの準備ができました。最初にマイク設定をしておくと、ストローク判定が安定します。</p>
                 <div class="msp-actions">
                     <button type="button" class="btn-primary msp-yes" id="mic-setup-yes">マイク設定する</button>
-                    <button type="button" class="btn-ghost msp-later" id="mic-setup-later">あとで</button>
+                    <button type="button" class="btn-ghost msp-later" id="mic-setup-later">現状のマイク設定を使う</button>
                 </div>
             </div>
 
@@ -239,10 +244,12 @@
                 <!-- カスタムSTAGEテスト再生専用：流れるVexFlow譜面レイヤー枠（v0.9.126・Step1）。
                      今回は枠だけ（中身は空）。STAGE1/基礎練では非表示。pointer-events:none でタップ判定を邪魔しない。 -->
                 <div class="custom-flow-score-layer hidden" id="custom-flow-score-layer" aria-hidden="true"></div>
+                <!-- 判定符頭オーバーレイ（v0.9.140）：GOOD/LATE/EARLY の符頭を、流れるVexFlow譜面より前面に重ねるための専用Canvas。pointer-events:none。 -->
+                <canvas id="lane-judge-overlay" aria-hidden="true"></canvas>
                 <div class="judge-fx-layer" id="judge-fx-layer"></div>
                 <div class="combo-badge hidden" id="combo-badge"></div>
             </div>
-            <p class="tap-hint" id="tap-hint">画面をタップして練習</p>
+            <p class="tap-hint hidden" id="tap-hint"></p>
 
             <!-- タップエリア（タップモード時のみ）。配置は layout-lr / layout-ud で切替 -->
             <div class="tap-area layout-lr" id="tap-area">
@@ -254,15 +261,20 @@
                     <span class="tap-arrow">↑</span>
                     <span class="tap-label">アップ</span>
                 </button>
+                <!-- 統合タップボタン（v0.9.140）：ダウン/アップを分けず1つの「タップ」として使う。統合ON時のみ表示。 -->
+                <button type="button" class="tap-half tap-unify" data-dir="down" aria-label="タップ">
+                    <span class="tap-label tap-label-lg">タップ</span>
+                </button>
             </div>
 
             <!-- タップボタン調整（v0.9.118：ダウン/アップの下に折りたたみ収納。タップモード時のみ・初期は閉じる） -->
             <div class="tap-tools hidden" id="tap-tools">
-                <button type="button" class="tap-tools-toggle" id="tap-tools-toggle" aria-expanded="false">タップボタン調整 ▾</button>
+                <button type="button" class="tap-tools-toggle" id="tap-tools-toggle" aria-expanded="false">タップボタン設定 ▾</button>
                 <div class="tap-tools-panel hidden" id="tap-tools-panel">
                     <div class="tlt-row">
                         <span class="tlt-label">配置</span>
-                        <button type="button" class="tlt-seg is-active" id="layout-lr-btn">左右</button>
+                        <button type="button" class="tlt-seg is-active" id="tap-unify-btn" aria-pressed="true">統合</button>
+                        <button type="button" class="tlt-seg" id="layout-lr-btn">左右</button>
                         <button type="button" class="tlt-seg" id="layout-ud-btn">上下</button>
                     </div>
                     <div class="tlt-row">
@@ -270,6 +282,28 @@
                         <input type="range" id="tap-height" min="80" max="160" step="8" value="106" aria-label="タップボタンの高さ">
                     </div>
                     <button type="button" class="tap-tools-reset" id="tap-tools-reset">デフォルトに戻す</button>
+                    <!-- ストロークモードへの切替導線（v0.9.140） -->
+                    <button type="button" class="tap-tools-switch" id="tap-to-stroke">ストロークモードに切り替える</button>
+                </div>
+            </div>
+
+            <!-- 簡易マイク設定（v0.9.140）：ストロークモード時のみ表示。クリック音と反応ラインだけを軽く調整できる折りたたみ。 -->
+            <div class="tap-tools hidden" id="stroke-mic-tools">
+                <button type="button" class="tap-tools-toggle" id="stroke-mic-toggle" aria-expanded="false">簡易マイク設定 ▾</button>
+                <div class="tap-tools-panel hidden" id="stroke-mic-panel">
+                    <div class="tlt-row">
+                        <span class="tlt-label">クリック音</span>
+                        <input type="range" id="smic-clickvol" min="0" max="100" step="5" value="70" aria-label="クリック音量">
+                        <span class="tlt-val" id="smic-clickvol-val">70％</span>
+                    </div>
+                    <div class="tlt-row">
+                        <span class="tlt-label">マイク感度</span>
+                        <input type="range" id="smic-threshold" min="0" max="100" step="1" value="69" aria-label="マイク感度">
+                        <span class="tlt-val" id="smic-threshold-val">69％</span>
+                    </div>
+                    <button type="button" class="tap-tools-reset" id="smic-open-manual">詳しく調整する（手動設定）</button>
+                    <!-- タップモードへの切替導線（v0.9.140） -->
+                    <button type="button" class="tap-tools-switch" id="smic-to-tap">タップモードに切り替える</button>
                 </div>
             </div>
 
@@ -492,6 +526,7 @@
                     <span class="status-pill" id="test-done-badge">未実施</span>
                 </div>
                 <p class="do-now" id="test-do-now">クリックに続けて、いつもの強さで8回ストローク</p>
+                <p class="do-now-sub">目標：クリック音では反応せず、ストロークでは反応する感度にします。</p>
                 <details class="card-help">
                     <summary>詳しい説明</summary>
                     <p class="setting-note" id="test-card-note">クリック音が反応せず、ストローク音だけ反応するかを自動でチェックします。</p>
@@ -516,7 +551,7 @@
                 <div class="test-reco hidden" id="test-reco">
                     <div class="reco-title">おすすめ設定</div>
                     <div class="reco-items">
-                        <div class="reco-item"><span>反応ライン（マイク感度）</span><b id="reco-thr">–</b></div>
+                        <div class="reco-item"><span>マイク感度</span><b id="reco-thr">–</b></div>
                         <div class="reco-item"><span>クリック音量</span><b id="reco-clickvol">–</b></div>
                         <div class="reco-item"><span>二重反応防止</span><b id="reco-cooldown">–</b></div>
                     </div>
@@ -530,7 +565,7 @@
                 <!-- テスト結果の確認（実施済み後に表示・後から見返せる） -->
                 <details class="settings-detail test-result-detail hidden" id="test-result-detail">
                     <summary>詳細を見る</summary>
-                    <p class="setting-note" style="margin-top:8px;">このテストは、クリック音には反応せず、ストローク音だけに反応するかを自動で確認し、その結果からおすすめの反応ライン・クリック音量・二重反応防止を計算しています。</p>
+                    <p class="setting-note" style="margin-top:8px;">このテストは、クリック音には反応せず、ストローク音だけに反応するかを自動で確認し、その結果からおすすめのマイク感度・クリック音量・二重反応防止を計算しています。</p>
                     <div class="level-bar">
                         <div class="level-track"></div>
                         <div class="level-zone" id="bar-zone"></div>
@@ -698,6 +733,7 @@
                     <div class="cal-head">最終確認テスト</div>
                 </div>
                 <p class="do-now">クリックに合わせてストローク</p>
+                <p class="do-now-sub">クリック音だけでは反応しないこと、コードストロークでは反応することを確認します。</p>
                 <details class="card-help">
                     <summary>詳しい説明</summary>
                     <p class="setting-note">実際のSTAGEに近い画面で、音量と判定タイミングを確認します。ここまでの設定で問題なく弾けるかを確認します。</p>
@@ -726,7 +762,7 @@
             <!-- 6. 手動設定はこちら（折りたたみ） -->
             <div class="settings-card" id="manual-card">
                 <details class="settings-detail" id="manual-detail">
-                    <summary>手動設定はこちら</summary>
+                    <summary>手動設定</summary>
                     <p class="setting-note">うまく反応しない場合だけ調整してください。</p>
 
                     <div class="preview-block">
@@ -735,7 +771,7 @@
                     </div>
 
                     <div class="setting-row">
-                        <div class="setting-label">反応ライン（マイク感度） <b id="set-threshold-val">69％</b></div>
+                        <div class="setting-label">マイク感度 <b id="set-threshold-val">69％</b></div>
                         <input type="range" id="set-threshold" min="0" max="100" step="1" value="69">
                         <p class="setting-note">右＝小さい音にも反応しやすい（小さいストロークが拾われないとき）／左＝周囲の音やクリック音に反応しにくい（誤反応が多いとき）。</p>
                     </div>
@@ -816,6 +852,8 @@
             <!-- 2. ズレ確認レーン（メイン・全32拍を流れる譜面で振り返り） -->
             <p class="review-hint">本来の音符＝薄い黄色／自分の入力＝<b class="rv-just">緑</b>・<b class="rv-early">青</b>・<b class="rv-late">赤</b>・<b class="rv-miss">×</b>。横にスクロールして全32拍を確認できます。</p>
             <div class="review-wrap" id="review-wrap">
+                <!-- 固定音符はVexFlow層（編集/プレビュー/Play画面と同じデザイン）。判定符頭・矢印・文字はCanvas側で前面に描く（v0.9.140） -->
+                <div class="review-flow-score-layer hidden" id="review-flow-score-layer" aria-hidden="true"></div>
                 <canvas id="review-canvas"></canvas>
             </div>
 
@@ -865,7 +903,7 @@
                     <div class="graph-wrap results-mic-wrap hidden" id="results-mic-wrap">
                         <div class="graph-head">
                             <span>ストローク音量（全32拍）</span>
-                            <span class="graph-axis">横線＝反応ライン</span>
+                            <span class="graph-axis">横線＝判定ライン</span>
                         </div>
                         <canvas id="results-mic-canvas"></canvas>
                     </div>
@@ -923,7 +961,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.137"></script>
+    <script src="script.js?v=0.9.140"></script>
 </body>
 
 </html>
