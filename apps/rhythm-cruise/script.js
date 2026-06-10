@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.147';
+const RHYTHM_CRUISE_VERSION = '0.9.148';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -489,9 +489,7 @@ const els = {
     barsVal: $('bars-val'),
     barsUp: $('bars-up'),
     barsDown: $('bars-down'),
-    // BPM/小節/クリック 折りたたみタブ（v0.9.147）
-    stageSettingsToggle: $('stage-settings-toggle'),
-    stageSettingsBody: $('stage-settings-body'),
+    // クリック設定（v0.9.148で右上「設定」→「クリック設定」タブへ移動）／くり返し練習はSTAGE画面に常時表示
     clickRangeSeg: $('click-range-seg'),
     clickBeatsSeg: $('click-beats-seg'),
     clickDots: $('click-dots'),
@@ -660,6 +658,8 @@ const els = {
     settingsTabs: $('settings-tabs'),
     settingsTabMic: $('settings-tab-mic'),
     settingsTabTap: $('settings-tab-tap'),
+    settingsTabClick: $('settings-tab-click'),
+    clickSettingsCard: $('click-settings-card'),
     tapSettingsCard: $('tap-settings-card'),
     tapCurrentOffset: $('tap-current-offset'),
     tapOpenCal: $('tap-open-cal'),
@@ -5403,8 +5403,8 @@ function closeResultHistoryDetail() {
     // 履歴一覧オーバーレイは背後に表示されたままなので results-open は維持し、一覧へ戻る。
 }
 
-/* ════════════ STAGE設定タブ：クリック設定／くり返し練習（v0.9.147）════════════
-   折りたたみタブ「BPM / 小節数 / クリック」内のクリック設定（鳴らす範囲・クリックする拍・裏拍）とくり返し練習トグルの状態管理。
+/* ════════════ クリック設定（右上「設定」→「クリック設定」タブ）／くり返し練習（STAGE画面常時表示）════════════
+   v0.9.148でクリック設定を右上「設定」内へ移動。鳴らす範囲・クリックする拍・裏拍の状態管理（クリック音の仕様自体は不変）。
    クリック設定の3項目は localStorage に保存（既定：ずっと鳴らす＋4拍ぜんぶ＋裏拍OFF）。くり返し練習は永続化しない（既定OFF）。 */
 const CLICK_SETTINGS_KEY = 'rhythmCruiseClickSettings:v1';
 const STAGE_CLICK_RANGES = ['always', 'firstBar', 'countOnly'];
@@ -5444,14 +5444,6 @@ function setStageClickOffbeat(on) {
 function setStageLoop(on) {
     state.rcLoop = !!on;
     updateStageSettingsUI();
-}
-function toggleStageSettings() {
-    const open = els.stageSettingsToggle && els.stageSettingsToggle.getAttribute('aria-expanded') === 'true';
-    setStageSettingsOpen(!open);
-}
-function setStageSettingsOpen(open) {
-    if (els.stageSettingsToggle) els.stageSettingsToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    if (els.stageSettingsBody) els.stageSettingsBody.classList.toggle('hidden', !open);
 }
 /* 選んでいる「クリックする拍」を4つの丸で視認用に表示（選択に連動）。裏拍ON/OFFは補足テキストで示す。 */
 function renderClickDots() {
@@ -8512,13 +8504,16 @@ function showDoneHint() {
 }
 
 function renderSettingsView() {
-    // タブの点灯（v0.9.95）
+    // タブの点灯（v0.9.95、v0.9.148でクリック設定タブを追加）
     if (els.settingsTabMic) els.settingsTabMic.classList.toggle('is-active', settingsTab === 'mic');
     if (els.settingsTabTap) els.settingsTabTap.classList.toggle('is-active', settingsTab === 'tap');
+    if (els.settingsTabClick) els.settingsTabClick.classList.toggle('is-active', settingsTab === 'click');
+    if (els.clickSettingsCard) els.clickSettingsCard.classList.add('hidden'); // クリック設定タブ以外では隠す（v0.9.148）
     // v0.9.116：マイク設定の手順（steps）表示中だけ、最後のカードも見やすい位置まで持ち上げられるよう
     //   下にスクロール余地（下余白）を確保する。マイク設定TOP/プリセット/画面タップ設定には付けない。
     //   スクロール命令は変更せず、スクロール可能なページ高さだけを足す方針（B案）。
     if (els.settings) els.settings.classList.toggle('is-steps-scrollable', settingsTab === 'mic' && settingsView === 'steps');
+    if (settingsTab === 'click') { renderClickSettingsView(); return; }
     if (settingsTab === 'tap') { renderTapSettingsView(); return; }
     // マイク設定タブ：画面タップ設定カードは隠し（.hidden で確実に）。
     // フッター（マイク設定TOPへ戻る）は、TOP（chooser）と保存済みプリセットページでは出さない（v0.9.104）。
@@ -8607,6 +8602,28 @@ function renderTapSettingsView() {
     }
 }
 
+/* クリック設定タブの表示（v0.9.148）。マイク設定系・画面タップ設定系のカード/フッターは全部隠し、クリック設定カードだけ表示する。
+   クリック音の仕様・スケジューリングは変更しない（UI移動のみ）。 */
+function renderClickSettingsView() {
+    if (els.settingsChooser) els.settingsChooser.classList.add('hidden');
+    if (els.settingsSimpleCard) els.settingsSimpleCard.classList.add('hidden');
+    if (els.settingsSummaryCard) els.settingsSummaryCard.classList.add('hidden');
+    if (els.micPresetCard) els.micPresetCard.classList.add('hidden');
+    if (els.tapSettingsCard) els.tapSettingsCard.classList.add('hidden');
+    if (els.tapPresetCard) els.tapPresetCard.classList.add('hidden');
+    if (els.tapManualCard) els.tapManualCard.classList.add('hidden');
+    if (els.tapCalCard) els.tapCalCard.classList.add('hidden');
+    if (els.hpCalCard) els.hpCalCard.style.display = 'none';
+    allStepCards().forEach((el) => { if (el) el.style.display = 'none'; });
+    if (els.settingsStepsSummary) els.settingsStepsSummary.style.display = 'none';
+    if (els.settingsStepsProgress) els.settingsStepsProgress.style.display = 'none';
+    if (els.ptOpenManual) els.ptOpenManual.style.display = 'none';
+    if (els.settingsDoneHint) els.settingsDoneHint.classList.add('hidden');
+    if (els.settingsActions) els.settingsActions.style.display = 'none';
+    if (els.clickSettingsCard) els.clickSettingsCard.classList.remove('hidden');
+    updateStageSettingsUI(); // セグメント点灯・4つの丸・裏拍トグルを現在のクリック設定に合わせる
+}
+
 /* 画面タップ設定ホームの「現在のタップ補正」表示を更新（v0.9.95）。 */
 function updateTapCurrentOffsetDisplay() {
     if (els.tapCurrentOffset) els.tapCurrentOffset.textContent = '現在のタップ補正：' + (mic.headphoneOutputOffsetMs || 0) + 'ms';
@@ -8615,7 +8632,7 @@ function updateTapCurrentOffsetDisplay() {
 /* タブ切替（v0.9.95→v0.9.96）。中断確認は呼び出し側（guardMicSetupInterruption）で行う。
    マイク設定タブを押したら、詳細テスト途中のカードに残さず、必ずマイク設定TOP（chooser）へ戻す。 */
 function setSettingsTab(tab) {
-    const next = (tab === 'tap') ? 'tap' : 'mic';
+    const next = (tab === 'tap') ? 'tap' : (tab === 'click') ? 'click' : 'mic';
     settingsTab = next;
     tapView = 'home'; // タブを切り替えたら必ずホームから
     if (next === 'mic') {
@@ -11995,6 +12012,7 @@ function bind() {
     // 設定タブ（v0.9.95）：切替時はマイク設定の未完了/テスト中なら確認ポップ
     if (els.settingsTabMic) els.settingsTabMic.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsTab('mic')));
     if (els.settingsTabTap) els.settingsTabTap.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsTab('tap')));
+    if (els.settingsTabClick) els.settingsTabClick.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsTab('click')));
     // 画面タップ設定タブの各ボタン（v0.9.95→v0.9.97）
     if (els.tapOpenCal) els.tapOpenCal.addEventListener('click', openTapCorrection);
     if (els.tapOpenPreset) els.tapOpenPreset.addEventListener('click', openTapPreset);
@@ -12097,8 +12115,7 @@ function bind() {
     if (els.historyOpenBtn) els.historyOpenBtn.addEventListener('click', openResultHistory);
     if (els.historyCloseBtn) els.historyCloseBtn.addEventListener('click', closeResultHistory);
     if (els.historyClearBtn) els.historyClearBtn.addEventListener('click', clearResultHistory);
-    // BPM / 小節数 / クリック タブ・クリック設定（鳴らす範囲/拍/裏拍）・くり返し練習（v0.9.147）
-    if (els.stageSettingsToggle) els.stageSettingsToggle.addEventListener('click', toggleStageSettings);
+    // クリック設定（鳴らす範囲/拍/裏拍）はv0.9.148で右上「設定」→「クリック設定」へ移動。くり返し練習はSTAGE画面に常時表示。
     if (els.clickRangeSeg) els.clickRangeSeg.querySelectorAll('.ss-seg').forEach((b) => {
         b.addEventListener('click', () => setStageClickRange(b.getAttribute('data-clickrange')));
     });

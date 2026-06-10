@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.147">
+    <link rel="stylesheet" href="theme.css?v=0.9.148">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -206,57 +206,24 @@
                 </div>
             </div>
 
-            <!-- 2. BPM/小節/クリック 設定（折りたたみ・v0.9.147）。既定は閉じる。見た目はリズムプレビューの開閉UIに合わせる。 -->
-            <div class="stage-settings" id="stage-settings">
-                <button type="button" class="custom-test-preview-toggle" id="stage-settings-toggle" aria-expanded="false" aria-controls="stage-settings-body">BPM / 小節数 / クリック</button>
-                <div class="custom-test-preview-body hidden" id="stage-settings-body">
-                    <!-- BPM・小節数操作（v0.9.118：横並び。挙動は従来どおり・BPMは1刻み） -->
-                    <div class="tempo-row">
-                        <div class="ctrl-group">
-                            <button class="tempo-btn" id="tempo-down" aria-label="テンポを下げる">−</button>
-                            <span><b id="tempo-val">80</b> BPM</span>
-                            <button class="tempo-btn" id="tempo-up" aria-label="テンポを上げる">+</button>
-                        </div>
-                        <div class="ctrl-group">
-                            <button class="tempo-btn" id="bars-down" aria-label="小節数を減らす">−</button>
-                            <span><b id="bars-val">8</b> 小節</span>
-                            <button class="tempo-btn" id="bars-up" aria-label="小節数を増やす">+</button>
-                        </div>
-                    </div>
-                    <!-- クリック設定（v0.9.147）：Play中のクリック音だけに影響。判定/譜面/スコア/プレビューには影響しない。
-                         A.鳴らす範囲　B.クリックする拍　C.裏拍で鳴らす の3段構成。 -->
-                    <div class="stage-set-row">
-                        <span class="stage-set-label">クリックを鳴らす範囲</span>
-                        <div class="stage-set-seg" id="click-range-seg" role="group" aria-label="クリックを鳴らす範囲">
-                            <button type="button" class="ss-seg is-active" data-clickrange="always" aria-pressed="true">ずっと鳴らす</button>
-                            <button type="button" class="ss-seg" data-clickrange="firstBar" aria-pressed="false">最初の1小節だけ</button>
-                            <button type="button" class="ss-seg" data-clickrange="countOnly" aria-pressed="false">カウントのみ</button>
-                        </div>
-                    </div>
-                    <div class="stage-set-row">
-                        <span class="stage-set-label">クリックする拍</span>
-                        <div class="stage-set-seg" id="click-beats-seg" role="group" aria-label="クリックする拍">
-                            <button type="button" class="ss-seg is-active" data-clickbeats="all" aria-pressed="true">4拍ぜんぶ</button>
-                            <button type="button" class="ss-seg" data-clickbeats="beat1" aria-pressed="false">1拍目だけ</button>
-                            <button type="button" class="ss-seg" data-clickbeats="beats13" aria-pressed="false">1・3拍目</button>
-                            <button type="button" class="ss-seg" data-clickbeats="beats24" aria-pressed="false">2・4拍目</button>
-                        </div>
-                    </div>
-                    <!-- 選んでいる拍を4つの丸で視認（視認用・タップ編集はしない）。選択に連動して更新。 -->
-                    <div class="stage-set-row click-dots-row">
-                        <div class="click-dots" id="click-dots" aria-hidden="true"></div>
-                        <span class="click-dots-note" id="click-dots-note"></span>
-                    </div>
-                    <div class="stage-set-row">
-                        <span class="stage-set-label">裏拍で鳴らす</span>
-                        <button type="button" class="ss-toggle" id="offbeat-toggle" aria-pressed="false">OFF</button>
-                    </div>
-                    <!-- くり返し練習（v0.9.147）：ONでSTOPするまで同じSTAGEを繰り返す。既定OFF・永続化しない。 -->
-                    <div class="stage-set-row">
-                        <span class="stage-set-label">くり返し練習</span>
-                        <button type="button" class="ss-toggle" id="loop-toggle" aria-pressed="false">OFF</button>
-                    </div>
-                    <p class="stage-set-note">ONにすると、STOPするまで同じSTAGEを繰り返します。</p>
+            <!-- 2. BPM / 小節数 / くり返し練習（常時表示・コンパクト・v0.9.148）。
+                 クリック設定は右上「設定」→「クリック設定」タブへ移動。挙動は従来どおり（BPM1刻み・小節最大32・くり返しは既定OFF/非永続）。 -->
+            <div class="stage-bar" id="stage-bar">
+                <div class="stage-bar-item">
+                    <span class="stage-bar-cap">BPM</span>
+                    <button class="tempo-btn" id="tempo-down" aria-label="テンポを下げる">−</button>
+                    <b id="tempo-val">80</b>
+                    <button class="tempo-btn" id="tempo-up" aria-label="テンポを上げる">+</button>
+                </div>
+                <div class="stage-bar-item">
+                    <span class="stage-bar-cap">小節</span>
+                    <button class="tempo-btn" id="bars-down" aria-label="小節数を減らす">−</button>
+                    <b id="bars-val">8</b>
+                    <button class="tempo-btn" id="bars-up" aria-label="小節数を増やす">+</button>
+                </div>
+                <div class="stage-bar-item">
+                    <span class="stage-bar-cap">くり返し練習</span>
+                    <button type="button" class="ss-toggle" id="loop-toggle" aria-pressed="false" title="ONにすると、STOPするまで同じSTAGEを繰り返します（結果は履歴に保存しません）。">OFF</button>
                 </div>
             </div>
 
@@ -370,10 +337,44 @@
                 <h2>設定</h2>
             </header>
 
-            <!-- 設定タブ：マイク設定 / 画面タップ設定（v0.9.95） -->
+            <!-- 設定タブ：マイク設定 / 画面タップ設定 / クリック設定（クリック設定はv0.9.148で追加） -->
             <div class="settings-tabs" id="settings-tabs">
                 <button type="button" class="settings-tab is-active" id="settings-tab-mic">マイク設定</button>
                 <button type="button" class="settings-tab" id="settings-tab-tap">画面タップ設定</button>
+                <button type="button" class="settings-tab" id="settings-tab-click">クリック設定</button>
+            </div>
+
+            <!-- クリック設定タブ（v0.9.148）：STAGE画面から移動。クリック音だけに反映され、判定/譜面/スコア/プレビュー/履歴には影響しない。
+                 A.鳴らす範囲　B.クリックする拍　C.裏拍で鳴らす の3段構成＋4つの丸表示。 -->
+            <div class="settings-card hidden" id="click-settings-card">
+                <div class="cal-head">クリック設定</div>
+                <p class="setting-note" style="margin-top:0;">クリック音だけに反映されます。判定・スコア・譜面・リズムプレビューには影響しません。</p>
+                <div class="stage-set-row">
+                    <span class="stage-set-label">クリックを鳴らす範囲</span>
+                    <div class="stage-set-seg" id="click-range-seg" role="group" aria-label="クリックを鳴らす範囲">
+                        <button type="button" class="ss-seg is-active" data-clickrange="always" aria-pressed="true">ずっと鳴らす</button>
+                        <button type="button" class="ss-seg" data-clickrange="firstBar" aria-pressed="false">最初の1小節だけ</button>
+                        <button type="button" class="ss-seg" data-clickrange="countOnly" aria-pressed="false">カウントのみ</button>
+                    </div>
+                </div>
+                <div class="stage-set-row">
+                    <span class="stage-set-label">クリックする拍</span>
+                    <div class="stage-set-seg" id="click-beats-seg" role="group" aria-label="クリックする拍">
+                        <button type="button" class="ss-seg is-active" data-clickbeats="all" aria-pressed="true">4拍ぜんぶ</button>
+                        <button type="button" class="ss-seg" data-clickbeats="beat1" aria-pressed="false">1拍目だけ</button>
+                        <button type="button" class="ss-seg" data-clickbeats="beats13" aria-pressed="false">1・3拍目</button>
+                        <button type="button" class="ss-seg" data-clickbeats="beats24" aria-pressed="false">2・4拍目</button>
+                    </div>
+                </div>
+                <!-- 選んでいる拍を4つの丸で視認（視認用・タップ編集はしない）。選択に連動して更新。 -->
+                <div class="stage-set-row click-dots-row">
+                    <div class="click-dots" id="click-dots" aria-hidden="true"></div>
+                    <span class="click-dots-note" id="click-dots-note"></span>
+                </div>
+                <div class="stage-set-row">
+                    <span class="stage-set-label">裏拍で鳴らす</span>
+                    <button type="button" class="ss-toggle" id="offbeat-toggle" aria-pressed="false">OFF</button>
+                </div>
             </div>
 
             <!-- 画面タップ設定タブ（v0.9.95→v0.9.97）：画面タップでプレイする人向け。
@@ -1032,7 +1033,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.147"></script>
+    <script src="script.js?v=0.9.148"></script>
 </body>
 
 </html>
