@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.140';
+const RHYTHM_CRUISE_VERSION = '0.9.141';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -71,6 +71,13 @@ const STRONG_STROKE_FACTOR = 1.0;
 
 /* 実践テストのクリックガードで使う「ストロークとして通す」倍率（v0.9.68、v0.9.78で isClickGuardedOnset に統一済み・参照用に残す）。 */
 const PT_CLICK_STRONG_FACTOR = 1.1;
+
+/* クリック音のピークゲイン（square波・clickVolume=100%時／accent=拍頭・normal=通常拍）。v0.9.141：
+   iPhone Safari実機でクリック音がやや小さく、おすすめクリック音量が100%に張り付きやすかったため約18%引き上げ
+   （0.55/0.45 → 0.65/0.53）。square波を destination 直結で鳴らしても 0.65 はクリップ(1.0)に十分余裕があり音割れしない。
+   STAGE本番・最終確認テスト・BT補正・タップ補正・補正テストの「同じクリック音」で共通に使う（音量スケールを揃える）。 */
+const CLICK_PEAK_ACCENT = 0.65;
+const CLICK_PEAK_NORMAL = 0.53;
 
 /* 実践テストの開発確認用ログ（v0.9.77）。本番は false（出力なし）。
    原因追跡したいときだけ true にすると、検出/割り当て/除外理由の集計を console.debug に出す。 */
@@ -2921,7 +2928,7 @@ function click(accent, force) {
     osc.frequency.value = accent ? 1500 : 1200;
     // クリック音量設定（0..100%）を反映。0なら無音
     const vol = Math.max(0, Math.min(1, state.clickVolume / 100));
-    const peak = (accent ? 0.55 : 0.45) * vol;
+    const peak = (accent ? CLICK_PEAK_ACCENT : CLICK_PEAK_NORMAL) * vol;
     if (peak < 0.001) return; // 実質無音
     gain.gain.setValueAtTime(0.0001, t0);
     gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.002);
@@ -3013,7 +3020,7 @@ function scheduleStageClick(audioTime, accent, force) {
     const ctx = state.audioCtx;
     if (!ctx) return;
     const vol = Math.max(0, Math.min(1, state.clickVolume / 100));
-    const peak = (accent ? 0.55 : 0.45) * vol;
+    const peak = (accent ? CLICK_PEAK_ACCENT : CLICK_PEAK_NORMAL) * vol;
     if (peak < 0.001) return;
     const t0 = Math.max(audioTime, ctx.currentTime); // 過去時刻なら即時
     const osc = ctx.createOscillator();
@@ -4996,7 +5003,7 @@ function hpClick(accent) {
     const gain = ctx.createGain();
     osc.type = 'square';
     osc.frequency.value = accent ? 1500 : 1200;
-    const peak = (accent ? 0.55 : 0.45) * vol;
+    const peak = (accent ? CLICK_PEAK_ACCENT : CLICK_PEAK_NORMAL) * vol;
     gain.gain.setValueAtTime(0.0001, t0);
     gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.002);
     gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
@@ -5398,7 +5405,7 @@ function ptScheduleClick(atSec, accent) {
     if (!ctx) return;
     const vol = Math.max(0, Math.min(1, state.clickVolume / 100));
     const t0 = Math.max(atSec, ctx.currentTime);
-    const peak = (accent ? 0.55 : 0.45) * vol;
+    const peak = (accent ? CLICK_PEAK_ACCENT : CLICK_PEAK_NORMAL) * vol;
     if (peak < 0.001) return;
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
@@ -6340,7 +6347,7 @@ function btScheduleClick(atSec, accent) {
     if (!ctx) return;
     const vol = Math.max(0, Math.min(1, state.clickVolume / 100));
     const t0 = Math.max(atSec, ctx.currentTime);
-    const peak = (accent ? 0.55 : 0.45) * vol;
+    const peak = (accent ? CLICK_PEAK_ACCENT : CLICK_PEAK_NORMAL) * vol;
     // クリックの「鳴る時刻」は音量に関係なくガード基準として記録する。
     bt.clickPerfTimes.push(bt.flowStartPerf + (t0 - bt.audioStart) * 1000);
     if (peak < 0.001) return;
@@ -6735,7 +6742,7 @@ function tapCalScheduleClick(atSec, accent) {
     if (!ctx) return;
     const vol = Math.max(0, Math.min(1, state.clickVolume / 100));
     const t0 = Math.max(atSec, ctx.currentTime);
-    const peak = (accent ? 0.55 : 0.45) * vol;
+    const peak = (accent ? CLICK_PEAK_ACCENT : CLICK_PEAK_NORMAL) * vol;
     if (peak < 0.001) return;
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
@@ -9975,14 +9982,13 @@ function updateReco() {
     const peakPerPct = (maxClick > 0) ? maxClick / measureVol : 0; // 1%あたりの想定クリックピーク
     let recoVol = state.clickVolume;
     if (minStroke != null && peakPerPct > 0) {
-        // v0.9.140（再調整）：補正テストのクリックが判定ラインに対して小さすぎた（体感で約1/5）ため、
-        //   クリックピークを「判定ラインの50〜70%程度」まで近づける。判定ラインは下の①でストローク最小の
-        //   0.75〜0.9 付近（separable時）に置かれるので、その目安(lineEstimate)の約0.6倍を狙いつつ、
-        //   ストローク最小の0.7倍も上限にして“ラインは超えない／ストロークは超える”を保つ。
-        //   さらに、以前は「下げる方向のみ」でクリックが小さいままだったので、今回は小さすぎるクリックは
-        //   上げる方向にも調整する（クランプ 10〜100%）。クリックが上がっても上限はラインの下に収まる。
-        const lineEstimate = minStroke * 0.78;             // ①で置く判定ラインのおおよその位置
-        const targetClickMax = Math.min(lineEstimate * 0.6, minStroke * 0.7); // ライン約60%・かつストローク0.7倍以下
+        // v0.9.141（再調整）：実機でおすすめクリック音量が低すぎた（47%／実機ベストは約100%）ため、クリックピークを
+        //   「判定ラインの70〜85%程度」まで引き上げる。判定ラインは下の①でストローク最小の0.90付近（上限）に置かれるので、
+        //   その目安(lineEstimate)の約0.8倍を狙いつつ、ストローク最小×0.8 も上限にして“ラインは超えない／ストロークは超える”を保つ。
+        //   小さすぎるクリックは上げ・大きすぎるクリックは下げる（クランプ 10〜100%）。クリックが上がっても上限はラインの下に収まる。
+        //   ライン超え（クリックも拾いやすい状態）になる場合は従来どおり cannotSeparate 経由で警告に乗る。
+        const lineEstimate = minStroke * 0.85;             // ①で置く判定ラインのおおよその位置（上限0.90に合わせた概算）
+        const targetClickMax = Math.min(lineEstimate * 0.8, minStroke * 0.8); // ライン約75〜80%・かつストローク0.8倍以下（クリックは大きめ・ラインは超えない）
         recoVol = Math.round(targetClickMax / peakPerPct);
         recoVol = Math.max(10, Math.min(100, recoVol));    // 小さすぎるクリックは上げ・大きすぎるクリックは下げる（両方向）
     } else if (clickReacted > 0) {
@@ -10000,14 +10006,15 @@ function updateReco() {
     let highSens = false;
     let cannotSeparate = false; // クリック音量を下げてもクリックとストロークを分離できない
     if (minStroke != null) {
-        // v0.9.140（おすすめ余裕の見直し）：おすすめは「実効判定ライン」をストローク最小の80〜85%程度（上限）に置く。
+        // v0.9.140（おすすめ余裕の見直し）：おすすめは「実効判定ライン」をストローク最小の90%程度（上限）に置く。
         //   検出は 生threshold×感度カーブ倍率 なので、生thresholdをそのまま置くと低感度域では実効ラインが
         //   ストローク最小付近まで上がり、最終確認テストで届かずMISSになっていた。そこで欲しい実効ラインから
         //   生thresholdを逆算(recoRawThresholdForEffectiveLine)して保存する。
-        //   実機微調整（v0.9.140）：0.65→0.75 でもまだ拾いやすかったため上限を 0.85 へ。さらに少し低感度寄りにして、
-        //   普通〜やや強めのストロークは拾い・弱い入力やクリック音は超えにくくする（ストローク最小には15%の余裕＝MISSしない／0.9以上にはしない）。
-        //   分離可否は「実効ラインをクリックの上(×1.3)・ストローク最小×0.85以下に置けるか」で判断する。
-        const separable = postClick * 1.3 < minStroke * 0.85;  // 実効ラインをクリックの上・ストローク最小0.85倍以下に置ける隙間があるか
+        //   実機微調整：0.65→0.75→0.85 でもまだ拾いやすく、おすすめ感度が高め（実機ベスト約39%に対し50%）だったため
+        //   v0.9.141で上限を 0.90 へ。さらに低感度寄りにして普通〜やや強めのストロークは拾い・弱い入力やクリック音は
+        //   超えにくくする（ストローク最小には10%の余裕＝MISSしない／0.95以上にはしない）。
+        //   分離可否は「実効ラインをクリックの上(×1.3)・ストローク最小×0.90以下に置けるか」で判断する。
+        const separable = postClick * 1.3 < minStroke * 0.90;  // 実効ラインをクリックの上・ストローク最小0.90倍以下に置ける隙間があるか
         if (lowInputTuned) {
             // 有線イヤホン等：クリック音がほぼ競合しないため、ストローク最小の4割弱まで高感度に寄せる。
             // ノイズより十分上には置くが、クリック回避のために不必要に上げない。（高感度域なので倍率≒1＝逆算は恒等）
@@ -10017,17 +10024,17 @@ function updateReco() {
             test.recommended = rec;
             canApply = true;
         } else if (separable) {
-            // 実効判定ライン＝クリックより上(×1.3) かつ ストローク最小の0.5〜0.85倍（ストローク側に余裕・v0.9.140実機微調整で 0.65→0.75→0.85）。
-            const lineEff = Math.min(minStroke * 0.85, Math.max(postClick * 1.3, minStroke * 0.5));
+            // 実効判定ライン＝クリックより上(×1.3) かつ ストローク最小の0.5〜0.90倍（ストローク側に余裕・実機微調整で 0.65→0.75→0.85→0.90）。
+            const lineEff = Math.min(minStroke * 0.90, Math.max(postClick * 1.3, minStroke * 0.5));
             let rec = recoRawThresholdForEffectiveLine(lineEff);     // 実効ラインが lineEff になる生thresholdへ逆算
             rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
             test.recommended = rec;
             canApply = true;
         } else {
-            // 分離不可：クリックとストロークが近い。ストローク検出を最優先し、実効ラインをストローク最小×0.85に置く
-            // （ストロークは確実に超える・v0.9.140実機微調整で 0.65→0.75→0.85）。クリックもライン付近に来るので、警告で音量ダウン/イヤホンへ誘導する。
+            // 分離不可：クリックとストロークが近い。ストローク検出を最優先し、実効ラインをストローク最小×0.90に置く
+            // （ストロークは確実に超える・実機微調整で 0.65→0.75→0.85→0.90）。クリックもライン付近に来るので、警告で音量ダウン/イヤホンへ誘導する。
             cannotSeparate = true;
-            const lineEff = minStroke * 0.85;
+            const lineEff = minStroke * 0.90;
             let rec = recoRawThresholdForEffectiveLine(lineEff);
             rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
             test.recommended = rec;
