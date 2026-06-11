@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.153';
+const RHYTHM_CRUISE_VERSION = '0.9.154';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -45,7 +45,14 @@ const STROKE_TEST_COUNT = 4;
 const CAL_THR_DEFAULT = 0.016;      // マイク反応テスト未実施などで推定できない場合の既定（v0.9.140：Mac通常マイクの静かなクリックも拾えるよう 0.02→0.016 に微調整）
 const CAL_THR_CLICK_FACTOR = 0.45;  // 補正用反応ライン = クリック最大見込み × この係数（立ち上がり本体を拾う）
 const CAL_THR_CAP_FACTOR = 0.75;    // 補正用反応ラインは「クリック最大見込み × この係数」を超えない
-const CAL_THR_FLOOR = 0.012;        // 補正用反応ラインの絶対下限
+const CAL_THR_FLOOR = 0.012;        // 補正用反応ラインの絶対下限（通常環境）
+/* v0.9.154：静かな環境に限り、補正用反応ラインの下限を CAL_THR_FLOOR より下げてよい範囲。
+   端末本体音量が低くクリック実測ピークが小さくても、実測ノイズより十分上にあるクリックなら検出できるようにするため。
+   ・CAL_THR_FLOOR_MIN：絶対の下限（これ未満には絶対に下げない＝ほぼ無音をクリック扱いしない）。
+   ・CAL_THR_FLOOR_NOISE_MULT：実測ノイズのこの倍は必ず上回らせる（ノイズ誤検出を防ぐ）。
+   ノイズが大きい環境では従来どおり 0.012 のまま（calNoiseFloorのノイズ項が支配的）。ノイズ未測定でも 0.012 に保つ。 */
+const CAL_THR_FLOOR_MIN = 0.006;
+const CAL_THR_FLOOR_NOISE_MULT = 2;
 const CAL_THR_CEIL = 0.08;          // 補正用反応ラインの絶対上限
 const CAL_MIN_VOLUME = 40;     // 補正テスト中の最低クリック音量(%)。10%等で不安定なため引き上げる（STAGEは据え置き）。v0.9.140：Mac通常マイクでクリックを確実に拾うため 30→40 に微増
 const CAL_MIN_DETECT_PEAK = 0.05; // 想定クリックピークがこれ未満なら、さらに音量を上げて安定検出を狙う
@@ -11487,6 +11494,19 @@ function updateReco() {
         els.recoMsg.textContent = 'クリック音とストローク音の間に反応ラインを置きました（' + lineTxt + '）。'
             + (volChanged ? 'クリック音量を ' + recoVol + '% にすると安定します。' : '') + projTxt;
     }
+    // v0.9.154：端末本体の音量が低い可能性の控えめ案内（通常マイクのみ）。
+    //   クリックおすすめがソフト上限(100%)へ張り付き、かつソフト100%でも想定クリックピークが
+    //   補正用ラインの下限付近にも届かない＝端末ハード音量で頭打ち、と推定できるときだけ出す。
+    //   本体音量が十分ならおすすめは100%へ張り付かないので、通常は出ない（過剰警告を避ける）。
+    //   ※クリック音量おすすめ値そのものは変更しない（案内だけ追加）。
+    const projClickAt100 = (peakPerPct > 0) ? peakPerPct * 100 : 0;
+    const deviceVolumeLikelyLow = isNormalMicInput() && canApply && recoVol >= 100
+        && projClickAt100 < calThrFloor() * 1.3;
+    if (deviceVolumeLikelyLow) {
+        if (!els.recoMsg.classList.contains('ng')) els.recoMsg.className = 'test-reco-msg warn';
+        els.recoMsg.classList.remove('hidden');
+        els.recoMsg.textContent += '（スマホ本体の音量が小さい可能性があります。本体の音量を少し上げてから、もう一度テストすると、クリック音を安定して検出しやすくなります。）';
+    }
     // 反応ラインが提案できる or クリック音量を下げられる → 適用ボタンを出す
     if (canApply || volChanged) els.recoApplyBtn.classList.remove('hidden');
     else els.recoApplyBtn.classList.add('hidden');
@@ -12213,20 +12233,34 @@ function expectedCalClickPeak(atVolume) {
     return test.maxClickPeak * (atVolume / measureVol);
 }
 
+/* 補正用反応ラインの下限（v0.9.154）。
+   通常は CAL_THR_FLOOR(0.012)。ただし実測ノイズが十分小さい静かな環境に限り、ノイズの少し上
+   （実測ノイズ × CAL_THR_FLOOR_NOISE_MULT）まで下げてよい。端末本体音量が低くクリックが小さくても、
+   ノイズより十分上にあるクリックなら検出できるようにするのが目的。下限は CAL_THR_FLOOR_MIN で頭打ち。
+   ・ノイズが大きい環境：noiseRef×倍率 ≥ 0.012 になり、min側で 0.012 のまま（従来と同じ＝品質維持）。
+   ・ノイズ未測定（反応テスト前など）：保守的に 0.012 を返す。
+   どの場合でも「実測ノイズより上」を保つため、ノイズ誤検出は増えない。 */
+function calThrFloor() {
+    const noiseRef = Math.max(test.noiseP95 || 0, test.noiseMax || 0);
+    if (!(noiseRef > 0)) return CAL_THR_FLOOR; // ノイズ未測定なら従来どおり保守的に
+    const dyn = Math.max(CAL_THR_FLOOR_MIN, noiseRef * CAL_THR_FLOOR_NOISE_MULT);
+    return Math.min(CAL_THR_FLOOR, dyn);
+}
+
 /* 環境ノイズの下限。マイク反応テストの環境音測定（noiseP95/noiseMax）より十分上に置く。 */
 function calNoiseFloor() {
-    return Math.max((test.noiseP95 || 0) * 1.5, (test.noiseMax || 0) * 1.1, CAL_THR_FLOOR);
+    return Math.max((test.noiseP95 || 0) * 1.5, (test.noiseMax || 0) * 1.1, calThrFloor());
 }
 
 /* クリックピーク見込み(peak)と環境ノイズから補正用反応ラインを決める。
    環境ノイズより十分上・クリック最大より十分下・クリックに対して低すぎない位置。 */
 function calThresholdFromPeak(peak, noiseFloor) {
-    if (!(peak > 0)) return Math.max(CAL_THR_FLOOR, Math.min(CAL_THR_CEIL, noiseFloor));
+    if (!(peak > 0)) return Math.max(calThrFloor(), Math.min(CAL_THR_CEIL, noiseFloor));
     const bump = cal.noiseBump || 1;                                 // 直前がノイズ拾いなら上げる
     const clickBased = peak * CAL_THR_CLICK_FACTOR * bump;          // 立ち上がり本体を拾う
     const upper = Math.min(peak * CAL_THR_CAP_FACTOR, CAL_THR_CEIL); // クリック最大より十分下
     let thr = Math.max(noiseFloor, Math.min(upper, clickBased));
-    return Math.max(CAL_THR_FLOOR, Math.min(CAL_THR_CEIL, thr));
+    return Math.max(calThrFloor(), Math.min(CAL_THR_CEIL, thr));
 }
 
 /* 補正開始時の補正用反応ライン（マイク反応テストのクリック音量・環境ノイズから算出）。
@@ -12236,7 +12270,7 @@ function calibrationInitialThreshold(calVol) {
     const est = expectedCalClickPeak(calVol);            // 補正テスト音量でのクリック最大見込み
     if (est == null || est <= noiseFloor) {
         // 推定不可 or クリックがノイズに埋もれる → ノイズフロア寄りの既定
-        return Math.max(CAL_THR_FLOOR, Math.min(CAL_THR_CEIL, Math.max(noiseFloor, CAL_THR_DEFAULT)));
+        return Math.max(calThrFloor(), Math.min(CAL_THR_CEIL, Math.max(noiseFloor, CAL_THR_DEFAULT)));
     }
     return calThresholdFromPeak(est, noiseFloor);
 }
@@ -12362,9 +12396,10 @@ function buildCalFailReason() {
     const levels = '（最大入力 ' + cal.maxPeak.toFixed(3) + ' / 補正用反応ライン ' + calThr.toFixed(3) + '）';
     let head;
     if (cal.maxPeak < CAL_SILENCE_PEAK) {
-        head = '測定できませんでした：マイク入力がほとんどありません。マイクの許可と、端末の音量を確認してください。';
+        head = '測定できませんでした：マイク入力がほとんどありません。マイクの許可と、端末本体の音量を確認してください。';
     } else if (cal.maxPeak < calThr) {
-        head = '測定できませんでした：クリック音が小さすぎて補正用ラインに届きません。クリック音量を上げるか、スピーカーに近づけてください。';
+        // v0.9.154：クリックが小さい主因は端末本体の音量が低いこと。一般表現（iPhone固定にしない）で案内する。
+        head = '測定できませんでした：クリック音が小さすぎて補正用ラインに届きません。スマホ本体の音量を少し上げてから、もう一度お試しください。スピーカーに近づけるのも有効です。';
     } else if (cal.rawOnsets > 0) {
         head = '測定できませんでした：音は検出していますが、タイミングが安定しません。静かな場所で、もう一度お試しください。';
     } else {
