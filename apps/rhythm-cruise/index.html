@@ -109,6 +109,15 @@
                     </select>
                 </div>
 
+                <!-- リズムタイプ（v0.9.165）：スウィング時は3連ベースの真ん中抜きタイミングで鳴らす。既存セグメントの見た目を流用。 -->
+                <div class="pce-field pce-field-row">
+                    <span class="pce-label">リズムタイプ</span>
+                    <div class="stage-set-seg" id="pce-rhythm-feel" role="group" aria-label="リズムタイプ">
+                        <button type="button" class="ss-seg is-active" data-feel="straight" aria-pressed="true">ストレート</button>
+                        <button type="button" class="ss-seg" data-feel="swing" aria-pressed="false">スウィング</button>
+                    </div>
+                </div>
+
                 <div class="pce-field pce-field-row">
                     <label class="pce-label" for="pce-pbars">パターンの長さ</label>
                     <select class="pce-select" id="pce-pbars">
@@ -1080,7 +1089,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.164"></script>
+    <script src="script.js?v=0.9.165"></script>
 </body>
 
 </html>

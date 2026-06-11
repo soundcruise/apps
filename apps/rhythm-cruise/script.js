@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.164';
+const RHYTHM_CRUISE_VERSION = '0.9.165';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -562,6 +562,7 @@ const els = {
     pceTitle: $('pce-title'),
     pceTimeSig: $('pce-timesig'),
     pceGrid: $('pce-grid'),
+    pceRhythmFeelSeg: $('pce-rhythm-feel'),
     pcePbars: $('pce-pbars'),
     pceBpm: $('pce-bpm'),
     pceBpmDown: $('pce-bpm-down'),
@@ -1223,6 +1224,7 @@ function getDefaultRhythmCustomStage() {
         bars: 4,         // 初期小節数（STAGE開始時の練習小節数）
         bpm: 80,
         clickMode: 'all', // 互換のため残す（編集UIからは削除。クリックはSTAGE側で切替予定）
+        rhythmFeel: 'straight', // リズムの感じ（v0.9.165）：'straight'（従来）/ 'swing'（3連ベースの真ん中抜き）
         pattern: pattern,
         motion: 'all-down',
         judgeTargets: judgeTargets,
@@ -1267,6 +1269,8 @@ function normalizeRhythmCustomStageSettings(raw) {
     const bars = RHYTHM_CUSTOM_BAR_OPTIONS.includes(raw.bars) ? raw.bars : 4;
     const bpm = clampNum(Math.round(Number(raw.bpm)), RHYTHM_CUSTOM_BPM_MIN, RHYTHM_CUSTOM_BPM_MAX, def.bpm);
     const clickMode = RHYTHM_CUSTOM_CLICK_MODES.includes(raw.clickMode) ? raw.clickMode : 'all';
+    // rhythmFeel（v0.9.165）：未指定の旧データは必ず straight 扱い。swing のときだけ swing。
+    const rhythmFeel = (raw.rhythmFeel === 'swing') ? 'swing' : 'straight';
 
     const title = String(raw.title == null ? '' : raw.title).trim() || def.title;
     // description は編集UIから削除（v0.9.121）。互換のため既存値があれば保持、無ければ空文字。
@@ -1292,7 +1296,7 @@ function normalizeRhythmCustomStageSettings(raw) {
     const version = Number.isInteger(raw.version) ? raw.version : 1;
     const id = typeof raw.id === 'string' && raw.id ? raw.id : generateRhythmCustomStageId();
 
-    return { version, id, title, description, grid, timeSignature, patternBars, bars, bpm, clickMode, pattern, motion, judgeTargets, displayLabels };
+    return { version, id, title, description, grid, timeSignature, patternBars, bars, bpm, clickMode, rhythmFeel, pattern, motion, judgeTargets, displayLabels };
 }
 
 /* 1セルが占めるティック数（1拍=24・v0.9.122）。quarter:24 / eighth:12 / sixteenth:6 / thirtysecond:3 / 8分三連:8 / 16分三連:4。 */
@@ -1538,8 +1542,29 @@ function renderRhythmCustomEditor() {
         els.pceGrid.value = d.grid;
     }
     if (els.pcePbars) els.pcePbars.value = String(d.patternBars);
+    syncRhythmFeelSegUI(); // リズムタイプ（ストレート/スウィング）の選択状態（v0.9.165）
     if (els.pceBarsVal) els.pceBarsVal.textContent = String(d.bars);
     renderRhythmEditorPattern();
+}
+
+/* リズムタイプ・セグメントの選択状態をドラフト(rhythmFeel)に合わせる（v0.9.165）。 */
+function syncRhythmFeelSegUI() {
+    const d = proCustomEditDraft;
+    if (!els.pceRhythmFeelSeg || !d) return;
+    const feel = (d.rhythmFeel === 'swing') ? 'swing' : 'straight';
+    els.pceRhythmFeelSeg.querySelectorAll('.ss-seg').forEach((b) => {
+        const active = b.getAttribute('data-feel') === feel;
+        b.classList.toggle('is-active', active);
+        b.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+}
+
+/* リズムタイプを切り替えてドラフトへ反映（v0.9.165）。pattern は変えないので再描画は不要。 */
+function setRhythmEditorFeel(feel) {
+    const d = proCustomEditDraft;
+    if (!d) return;
+    d.rhythmFeel = (feel === 'swing') ? 'swing' : 'straight';
+    syncRhythmFeelSegUI();
 }
 
 /* data-属性つきセグメントの is-active を付け替える共通処理。 */
@@ -2028,6 +2053,7 @@ function drawRhythmVexPreview(VF, d, mount) {
             const gc = d.pattern[gi];
             if (!gc || !gc.hit) continue;
             const gx = (gi + 0.5) * cellW;
+
             const g = document.createElementNS(RHYTHM_SVGNS, 'line');
             g.setAttribute('x1', String(gx)); g.setAttribute('y1', String(gTop));
             g.setAttribute('x2', String(gx)); g.setAttribute('y2', String(gBot));
@@ -2255,8 +2281,9 @@ function buildRhythmPreviewPlan() {
     const clicks = [];
     for (let i = 0; i < targetCells; i++) {
         const c = base[i % base.length];
-        if (c && c.hit) hitOffsets.push((i * cellMs) / 1000); // hit:trueのみ（rest/tieはhit:falseで除外）
-        if (engIsPulse(i)) clicks.push({ off: (i * cellMs) / 1000, accent: engBarStart(i) });
+        // v0.9.165：スウィング時は engCellOffsetMs(i) が3連ベースの真ん中抜き時刻を返す。straightは i*cellMs と同値。
+        if (c && c.hit) hitOffsets.push(engCellOffsetMs(i) / 1000); // hit:trueのみ（rest/tieはhit:falseで除外）
+        if (engIsPulse(i)) clicks.push({ off: (i * cellMs) / 1000, accent: engBarStart(i) }); // クリックは拍頭のまま（揺らさない）
     }
     const loopSec = (targetCells * cellMs) / 1000;
     if (!(loopSec > 0)) return null;
@@ -2421,8 +2448,8 @@ function rhythmPreviewPlayheadTick() {
     if (ctx && v.barEl && rhythmPreview.loopSec > 0) {
         const elapsed = ctx.currentTime - rhythmPreview.baseTime;
         const progress = elapsed <= 0 ? 0 : (elapsed % rhythmPreview.loopSec) / rhythmPreview.loopSec;
-        // 音符はセル区画の中央(=(i+0.5)*cellW)に描いてある。発音時刻 i*cellMs のとき progress*laneW=i*cellW なので、
-        // 半セル(0.5*cellW)足して符頭中央へ重ねる。STAGE画面で固定判定ラインに符頭中央が発音時刻で重なるのと同じ。
+        // 音符はセル区画の中央(=(i+0.5)*cellW)に描いてある。スウィング時も音符表示はストレート配置のまま。
+        // 確認音は別途 swing target time で鳴るため、縦棒は時間の流れを連続的に示す。
         const halfCell = (Number.isFinite(v.cellW) ? v.cellW : 0) * 0.5;
         const x = progress * v.laneW + halfCell;
         v.barEl.style.transform = 'translateX(' + x + 'px)';
@@ -2805,6 +2832,7 @@ function collectRhythmCustomEditorInputs() {
         d.bpm = clampNum(Math.round(Number(els.pceBpm.value)), RHYTHM_CUSTOM_BPM_MIN, RHYTHM_CUSTOM_BPM_MAX, d.bpm);
         els.pceBpm.value = String(d.bpm);
     }
+    d.rhythmFeel = (d.rhythmFeel === 'swing') ? 'swing' : 'straight'; // リズムタイプを回収（v0.9.165）
     return d;
 }
 
@@ -4442,12 +4470,25 @@ function registerHit(perfNow, source, direction) {
     const audioMs = gameAudioMs();
     const hitTime = audioMs + ((source === 'mic') ? micJudgeOffsetMs() : -tapOutputOffsetMs());
     const bi = state.beatInterval;
-    const diffTo = (b) => hitTime - (state.T0 + b * bi); // 符号付きズレ（負＝早い）
-    let i = Math.round((hitTime - state.T0) / bi);
-    if (i < 0 || i > TOTAL_BEATS - 1) { mic.lastAssign = { beat: i, outcome: '範囲外' }; return false; } // カウントイン中・範囲外
-    // カスタム：最も近い「判定対象(hit:true)」セルへ寄せる（休符/タイは判定対象外）。STAGE1 は i のまま。
-    i = engNearestHitIndex(i);
-    if (i < 0) { mic.lastAssign = { beat: i, outcome: '判定対象なし' }; return false; }
+    // v0.9.165：スウィング時はセル間隔が非等間隔になるため、正解時刻 engTargetTimeMs(i) 基準で判定する。
+    //   straight / 通常STAGE では engTargetTimeMs(i) === state.T0 + i*bi で従来とまったく同じ値・同じ経路。
+    const swing = engUsesSwingTiming();
+    const diffTo = swing ? (b) => hitTime - engTargetTimeMs(b)
+                         : (b) => hitTime - (state.T0 + b * bi); // 符号付きズレ（負＝早い）
+    let i;
+    if (swing) {
+        // 入口ガード（範囲外・カウントイン）は従来同様に概算セルで判断し、割り当ては最寄り時刻のhitセルで行う。
+        const approx = Math.round((hitTime - state.T0) / bi);
+        if (approx < 0 || approx > TOTAL_BEATS - 1) { mic.lastAssign = { beat: approx, outcome: '範囲外' }; return false; }
+        i = engNearestHitIndexByTime(hitTime);
+        if (i < 0) { mic.lastAssign = { beat: approx, outcome: '判定対象なし' }; return false; }
+    } else {
+        i = Math.round((hitTime - state.T0) / bi);
+        if (i < 0 || i > TOTAL_BEATS - 1) { mic.lastAssign = { beat: i, outcome: '範囲外' }; return false; } // カウントイン中・範囲外
+        // カスタム：最も近い「判定対象(hit:true)」セルへ寄せる（休符/タイは判定対象外）。STAGE1 は i のまま。
+        i = engNearestHitIndex(i);
+        if (i < 0) { mic.lastAssign = { beat: i, outcome: '判定対象なし' }; return false; }
+    }
     const origBeat = i;
     // 最寄り拍が「より近い入力」で既に埋まっている場合、入力が属する隣の空き拍へ寄せて穴(=MISS)を減らす。
     // これにより、近い拍に二重で重ねるのではなく、隣の拍を EARLY/LATE で埋められる。
@@ -4474,7 +4515,7 @@ function registerHit(perfNow, source, direction) {
 
     // 診断：マイクは raw（補正前）/ corrected（補正後）/ offset をログ
     if (source === 'mic') {
-        const rawDiff = audioMs - (state.T0 + i * state.beatInterval);
+        const rawDiff = audioMs - (swing ? engTargetTimeMs(i) : state.T0 + i * state.beatInterval);
         console.debug('[mic] 判定登録 raw=' + (rawDiff >= 0 ? '+' : '') + Math.round(rawDiff)
             + 'ms corrected=' + (diff >= 0 ? '+' : '') + Math.round(diff)
             + 'ms offset=' + micJudgeOffsetMs() + 'ms → ' + cls);
@@ -4802,6 +4843,56 @@ function engNearestHitIndex(i) {
     }
     return -1;
 }
+
+/* ── スウィング（v0.9.165）──────────────────────────────────────────────
+   PROカスタムSTAGEで rhythmFeel==='swing' のとき、3連符ベースの真ん中抜きとして
+   セルの正解時刻を再配置する。通常STAGE / straight / 複合拍子(6/8) / 三連符グリッド /
+   32分グリッドは対象外で、従来どおり（戻り値0）。 */
+function rhythmFeelOfStage(stage) {
+    return (stage && stage.rhythmFeel === 'swing') ? 'swing' : 'straight';
+}
+function rhythmStageUsesSwingTiming(stage) {
+    if (!stage || rhythmFeelOfStage(stage) !== 'swing') return false;
+    const ts = stage.timeSignature;
+    if (ts !== '4/4' && ts !== '3/4' && ts !== '2/4') return false;
+    return stage.grid === 'eighth' || stage.grid === 'sixteenth';
+}
+function engUsesSwingTiming() {
+    return rhythmStageUsesSwingTiming(eng.custom);
+}
+/* セル i のスウィングずらし量(ms)。対象外は 0（=従来と同値）。
+   eighth:    拍内 0, 1/2        → 0, 2/3
+   sixteenth: 拍内 0, 1/4,1/2,3/4 → 0, 1/3,1/2,5/6
+   16分は「16分2個で1セット」として、e と a を各8分区間の3連後ろ側へ寄せる。 */
+function engSwingShiftMs(i) {
+    if (i < 0) return 0; // カウントイン等
+    if (!engUsesSwingTiming()) return 0;
+    const grid = eng.custom.grid;
+    const tickInBeat = (((engInBarPos(i) * eng.cellTicks) % RHYTHM_TPQ) + RHYTHM_TPQ) % RHYTHM_TPQ;
+    let targetTick = tickInBeat;
+    if (grid === 'eighth') {
+        if (tickInBeat === RHYTHM_TPQ / 2) targetTick = RHYTHM_TPQ * 2 / 3;
+    } else if (grid === 'sixteenth') {
+        if (tickInBeat === RHYTHM_TPQ / 4) targetTick = RHYTHM_TPQ / 3;
+        else if (tickInBeat === RHYTHM_TPQ * 3 / 4) targetTick = RHYTHM_TPQ * 5 / 6;
+    }
+    return engQuarterMs() * ((targetTick - tickInBeat) / RHYTHM_TPQ);
+}
+/* セル 0 起点での、セル i の実時間オフセット(ms)。スウィング込み。straightは i*engCellMs() と同値。 */
+function engCellOffsetMs(i) { return i * engCellMs() + engSwingShiftMs(i); }
+/* セル i の正解時刻(ms)。state.T0 起点。プレビュー音・本番判定・結果集計はこれに揃える。 */
+function engTargetTimeMs(i) { return state.T0 + engCellOffsetMs(i); }
+/* hit:true セルだけを走査し、engTargetTimeMs(i) が hitTime に最も近いセル番号を返す。
+   スウィングで間隔が非等間隔になっても、丸めではなく最寄り時刻で割り当てるため誤割り当てを避けられる。 */
+function engNearestHitIndexByTime(hitTime) {
+    let best = -1, bestAbs = Infinity;
+    for (let i = 0; i < TOTAL_BEATS; i++) {
+        if (!engIsHit(i)) continue;
+        const a = Math.abs(hitTime - engTargetTimeMs(i));
+        if (a < bestAbs) { bestAbs = a; best = i; }
+    }
+    return best;
+}
 /* 判定対象セル数（採点の母数）。STAGE1 は全セル。 */
 function engJudgeCount() {
     if (!eng.pattern) return TOTAL_BEATS;
@@ -4982,7 +5073,7 @@ function stopLoopWithResult() {
     const tStop = gameAudioMs();        // ラップ内ローカル時刻（audioStartTimeはラップ毎にずらしてある）
     let cutoff = 0;
     for (let i = 0; i < TOTAL_BEATS; i++) {
-        if (state.T0 + i * state.beatInterval <= tStop) cutoff = i + 1; // 理想時刻が過ぎたセルまでを採点対象に
+        if (engTargetTimeMs(i) <= tStop) cutoff = i + 1; // 理想時刻が過ぎたセルまでを採点対象に
     }
     finish({ save: false, cutoff: cutoff }); // 履歴保存せず・部分集計で結果表示
 }
@@ -5179,7 +5270,7 @@ function logBeatDebug() {
         const ev = (state.micEventLog || []).filter((e) => e.nearBeat === i || e.assignedBeat === i);
         const mr = missReason(i);
         rows.push({
-            拍: i, 音符ms: Math.round(state.T0 + i * state.beatInterval),
+            拍: i, 音符ms: Math.round(engTargetTimeMs(i)),
             beatMicPeak: +(state.beatMicPeak[i] || 0).toFixed(3),
             反応ライン: +mic.threshold.toFixed(3),
             オンセット: ev.length ? ev.map((e) => e.outcome + '@' + e.t + '(p' + e.peak + ',near' + e.nearBeat + (e.assignedBeat != null ? '→' + e.assignedBeat : '') + ')').join(' | ') : 'なし',
@@ -12277,14 +12368,14 @@ function micLoop() {
     if (state.running && !inCountIn) {
         const gt = gameAudioMs() + micJudgeOffsetMs(); // 判定と同一基準（マイク補正込み）
         const bi2 = state.beatInterval;
-        const bIdx = Math.round((gt - state.T0) / bi2);
+        const bIdx = engUsesSwingTiming() ? engNearestHitIndexByTime(gt) : Math.round((gt - state.T0) / bi2);
         if (bIdx >= 0 && bIdx < TOTAL_BEATS) {
             nearestBeat = bIdx;
             // ★「実打(オンセット)直後 STRIKE_ACTIVE_MS の間」かつ「拍中心の近く(±0.32拍)」のときだけ記録する。
             //   こうすると、減衰中の余韻が次拍の窓に染み出して、弾いていない拍が音量ありに見えるのを防げる
             //   （= 弾いていない拍が「判定済み/余韻」に化けるのを抑制）。
             const win = bi2 * 0.32;
-            const beatT = state.T0 + bIdx * bi2;
+            const beatT = engTargetTimeMs(bIdx); // v0.9.165：スウィング時は正解時刻が3連ベース位置へ動く。straight/通常は state.T0+bIdx*bi2 と同値。
             const activeStrike = (now - mic.lastOnsetAt) <= STRIKE_ACTIVE_MS;
             if (activeStrike && Math.abs(gt - beatT) <= win && peak > state.beatMicPeak[bIdx]) {
                 state.beatMicPeak[bIdx] = peak;
@@ -12308,7 +12399,7 @@ function micLoop() {
             if (!pb) pb = state.chordBeatProbe[nearestBeat] = { maxPeak: 0, maxEnv: 0, bestInstantRise: 0, bestRiseFromValley: 0, cooldownBlocked: false, offsetMs: 0 };
             if (peak > pb.maxPeak) {
                 pb.maxPeak = peak;
-                pb.offsetMs = Math.round((gameAudioMs() + micJudgeOffsetMs()) - (state.T0 + nearestBeat * state.beatInterval));
+                pb.offsetMs = Math.round((gameAudioMs() + micJudgeOffsetMs()) - engTargetTimeMs(nearestBeat));
             }
             if (mic.env > pb.maxEnv) pb.maxEnv = mic.env;
             if (peak >= detThr) {
@@ -12810,6 +12901,9 @@ function bind() {
     if (els.pceTitle) els.pceTitle.addEventListener('input', () => { if (proCustomEditDraft) proCustomEditDraft.title = els.pceTitle.value; });
     if (els.pceTimeSig) els.pceTimeSig.addEventListener('change', () => setRhythmEditorTimeSignature(els.pceTimeSig.value));
     if (els.pceGrid) els.pceGrid.addEventListener('change', () => setRhythmEditorGrid(els.pceGrid.value));
+    if (els.pceRhythmFeelSeg) els.pceRhythmFeelSeg.querySelectorAll('.ss-seg').forEach((b) => {
+        b.addEventListener('click', () => setRhythmEditorFeel(b.getAttribute('data-feel')));
+    });
     if (els.pcePbars) els.pcePbars.addEventListener('change', () => setRhythmEditorPatternBars(parseInt(els.pcePbars.value, 10)));
     if (els.pceBarsDown) els.pceBarsDown.addEventListener('click', () => stepRhythmEditorBars(-1));
     if (els.pceBarsUp) els.pceBarsUp.addEventListener('click', () => stepRhythmEditorBars(1));
