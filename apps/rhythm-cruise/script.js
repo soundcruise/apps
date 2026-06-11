@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.161';
+const RHYTHM_CRUISE_VERSION = '0.9.163';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -7479,17 +7479,22 @@ function btLatestClickPerf(now) {
     return last;
 }
 
+/* マイク遅れ補正バッジ（実施済み/未実施）を現在の進捗フラグに同期する（v0.9.163）。
+   表示だけが古いまま残らないよう、カードを表示するたびに呼べる単独関数にした。 */
+function updateBtCalBadge() {
+    if (!els.btCalBadge) return;
+    const done = !!setupProgress.btDelayDone;
+    els.btCalBadge.textContent = done ? '実施済み' : '未実施';
+    els.btCalBadge.classList.toggle('done', done);
+}
+
 /* 待機中のカード表示（ボタン文言・ステータス）。 */
 function renderBtCalIdle() {
     if (els.btCalBtn) els.btCalBtn.textContent = bt.hasRun ? 'もう1度テストする' : 'マイク遅れ補正テストを開始';
     if (els.btCalLive) els.btCalLive.classList.add('hidden');
     if (els.btCalLaneWrap) els.btCalLaneWrap.classList.add('hidden');
     if (els.btCalPhase) els.btCalPhase.textContent = '';
-    if (els.btCalBadge) {
-        const done = !!setupProgress.btDelayDone;
-        els.btCalBadge.textContent = done ? '実施済み' : '未実施';
-        els.btCalBadge.classList.toggle('done', done);
-    }
+    updateBtCalBadge();
 }
 
 async function startBtCal() {
@@ -7783,6 +7788,9 @@ function bindBtCalResultActions() {
         if (!slider) return;
         const v = headphoneMicOffsetSet(parseInt(slider.value, 10) || 0);
         saveSettings();
+        // v0.9.163：手動でも補正値を確定したら「マイク遅れ補正＝実施済み」にする（適用と同じ扱い）。
+        setupProgress.btDelayDone = true;
+        updateBtCalBadge();
         invalidatePracticeResult();    // 最終確認テストの古い結果を無効化
         if (bt.result) bt.result.cur = v; // 再テスト時の基準にも反映
         const curEl = document.getElementById('bt-cal-cur');
@@ -7796,6 +7804,11 @@ function applyBtCal() {
     if (!bt.result) return;
     const v = headphoneMicOffsetSet(bt.result.proposed);
     saveSettings();
+    // v0.9.163：補正値を適用した時点で「マイク遅れ補正＝実施済み」とする（このカードの説明どおり
+    //   「適用 or スキップで完了」）。これを立てておかないと、最終確認テスト前に戻ったとき
+    //   実施済みなのにバッジが「未実施」のまま残ってしまう。
+    setupProgress.btDelayDone = true;
+    updateBtCalBadge();
     // 補正したので、前回の最終確認テスト結果は古くなる
     invalidatePracticeResult();
     setBtCalStatus('マイク遅れ補正を ' + (v > 0 ? '+' : '') + v + 'ms に設定しました。');
@@ -9366,6 +9379,9 @@ function renderWizardSteps() {
     if (active === 'btdelay' && !bt.active && els.btCalResult && els.btCalResult.classList.contains('hidden')) {
         renderBtCalIdle();
     }
+    // v0.9.163：結果カードを出したまま btdelay を開き直したときも、ヘッダのバッジが
+    //   「未実施」のまま固まらないよう、表示中は毎回フラグへ同期する（開閉だけでは進捗を変えない）。
+    if (active === 'btdelay') updateBtCalBadge();
     // 実践テストステップを「これから実施」状態で開いたときは、前回の音符レーンを残さない（v0.9.73）。
     // 実施直後（結果表示中）は触らない。結果が隠れている＝初期画面なので、レーンの残骸を消す。
     if (active === 'practice' && !pt.active && els.ptResult && els.ptResult.classList.contains('hidden')) {
@@ -9479,8 +9495,14 @@ function toggleWizardStep(id) {
 function editWizardStep(id) {
     wizardEditing = id;
     renderSettingsView();
-    const card = wizardStepCards(id)[0];
-    scrollToSettingsEl(card);
+    // v0.9.163：開いた要約チップ（タイトル行＋▲）はカードの「上」にあるので、カードへスクロールすると
+    //   チップが固定ナビ（戻る/TOP）の裏へ回り込み、タイトル行が隠れて見えにくい。
+    //   開いたチップ自体（scroll-margin-top でナビ分の余白を確保済み）へスクロールして、
+    //   タイトル行→カード本文の順に、ナビへ被らない位置で見えるようにする。
+    const chip = els.settingsStepsSummary
+        ? els.settingsStepsSummary.querySelector('.step-summary-row[data-step="' + id + '"]')
+        : null;
+    scrollToSettingsEl(chip || wizardStepCards(id)[0]);
 }
 
 /* 実践テスト結果を初期状態へ戻す（v0.9.67）。
