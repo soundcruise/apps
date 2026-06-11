@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.156';
+const RHYTHM_CRUISE_VERSION = '0.9.157';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -27,6 +27,11 @@ const RHYTHM_CRUISE_VERSION = '0.9.156';
    ※今回はスクロール処理自体は変更しない（1回直接スクロールのまま）。値を取るための整備のみ。 */
 const STAGE_WAVE_DEBUG = false;
 const MIC_SCROLL_DEBUG = false;
+/* v0.9.157：URL に ?debugMic=1 があるときだけ、通常ユーザーに見えない小さなオーバーレイで
+   通常マイク/クリック/補正テストの実測値を表示する（原因確認用）。本番URLには付かないので常時OFF。 */
+const MIC_DEBUG_ON = (() => {
+    try { return new URLSearchParams(location.search).get('debugMic') === '1'; } catch (_) { return false; }
+})();
 
 /* クリック音テストで鳴らす回数（4拍 × 2周） */
 const CLICK_TEST_COUNT = 8;
@@ -60,6 +65,10 @@ const CAL_MIN_VOLUME = 40;     // 補正テスト中の最低クリック音量(
    ★STAGE用 state.clickVolume は変更しない＝補正テスト中だけ。applyCalSettings の退避/復元で必ず元へ戻す。
    ゲイン底上げ(1.35)で、おすすめが90%付近から少し下がっても拾えるよう、トリガーは90より少し下の85にする。 */
 const CAL_FULL_VOLUME_AT = 85;
+/* v0.9.157：補正テスト開始時の較正用クリック（warm-up）の回数。1発目はiPhoneのマイクAGC前で大きく、
+   2発目以降は圧縮で小さくなりがち。1発だけで反応ラインを決めると、その後のクリックが届かず失敗する。
+   複数回鳴らし、1発目を除いた代表値（低めの中央値）で反応ラインを決め、AGC後のクリックに合わせる。 */
+const CAL_WARMUP_CLICKS = 3;
 const CAL_MIN_DETECT_PEAK = 0.05; // 想定クリックピークがこれ未満なら、さらに音量を上げて安定検出を狙う
 const CAL_MIN_SUCCESS = 7;     // 補正値を採用する最低検出数（8拍中）。これ未満は不安定扱い
 const CAL_COOLDOWN_MS = 150;   // 測定用クールダウン
@@ -102,6 +111,31 @@ const NORMAL_MIC_CLICK_GAIN = 1.35;
 const CLICK_PEAK_CLIP = 0.98;       // クリックのピーク上限（デジタルクリップ回避）
 function clickPeakGain() {
     return isNormalMicInput() ? NORMAL_MIC_CLICK_GAIN : 1;
+}
+
+/* v0.9.157：クリックの波形・エンベロープを全クリック経路（click / scheduleStageClick / ptScheduleClick）で共通化。
+   ★クリックの長さは変えない（従来どおり 80ms 減衰・90ms 停止）。リズムの輪郭を保つため尾は伸ばさない。
+   通常マイク時だけ、同じ長さの中で「立ち上がり直後にピークを ~30ms 保持」して密度(RMS)＝聞こえやすさを上げる。
+   ・ピークは CLICK_PEAK_CLIP(0.98) のまま上げない＝新たなデジタル歪みは増やさない。
+   ・尾は従来どおり 80ms で終わるので、リズムの輪郭・次の拍との分離は変わらない。
+   ・検出は立ち上がり(onset)基準なので、プラトー（平坦保持）はSTAGEで新たな誤検出を生まない（rising edgeにならない）。
+   イヤホン等（非通常マイク）は従来どおりの短いクリック＝挙動を一切変えない。
+   peak はクリップ済みの最終ピーク。osc.stop に渡す終了時刻を返す。 */
+const CLICK_STOP = 0.09; // クリック停止時刻(秒)。通常マイク/イヤホン共通＝従来どおり（長さは変えない）。
+function applyClickEnvelope(ctx, osc, gain, t0, accent, peak) {
+    osc.type = 'square';
+    osc.frequency.value = accent ? 1500 : 1200;
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.002);
+    if (isNormalMicInput()) {
+        // 通常マイク：長さは据え置きのまま、ピークを ~30ms 保持してから 80ms で減衰しきる（密度＝聞こえやすさUP）。
+        gain.gain.setValueAtTime(peak, t0 + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
+    } else {
+        // イヤホン等：従来どおり、立ち上がり後すぐに減衰（変更しない）。
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
+    }
+    return t0 + CLICK_STOP;
 }
 
 /* 実践テストの開発確認用ログ（v0.9.77）。本番は false（出力なし）。
@@ -3071,21 +3105,16 @@ function click(accent, force) {
     const t0 = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    // 立ち上がりがはっきり聞こえるよう矩形波＋やや高めの音量・長さに
-    osc.type = 'square';
-    // 1拍目アクセントは通常拍との差を控えめに（マイクに入りにくく・拍頭は残す）
-    osc.frequency.value = accent ? 1500 : 1200;
     // クリック音量設定（0..100%）を反映。0なら無音
     const vol = Math.max(0, Math.min(1, state.clickVolume / 100));
     // v0.9.155：通常マイク時のみ実出力を底上げ（イヤホンは1.0）。デジタルクリップはCLICK_PEAK_CLIPで防ぐ。
     const peak = Math.min(CLICK_PEAK_CLIP, (accent ? CLICK_PEAK_ACCENT : CLICK_PEAK_NORMAL) * vol * clickPeakGain());
     if (peak < 0.001) return; // 実質無音
-    gain.gain.setValueAtTime(0.0001, t0);
-    gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.002);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
+    // v0.9.157：波形・エンベロープは共通ヘルパーへ。通常マイク時だけサステインを持たせ実効音量を上げる。
+    const stopAt = applyClickEnvelope(ctx, osc, gain, t0, accent, peak);
     osc.connect(gain).connect(ctx.destination);
     osc.start(t0);
-    osc.stop(t0 + 0.09);
+    osc.stop(stopAt);
 }
 
 /* オーディオ時計(ctx.currentTime)を基準にしたゲーム時間(ms)。
@@ -3093,6 +3122,29 @@ function click(accent, force) {
 function gameAudioMs() {
     if (!state.audioCtx || state.audioStartTime < 0) return 0; // クロック未初期化（音声が走る前）
     return (state.audioCtx.currentTime - state.audioStartTime) * 1000;
+}
+
+/* v0.9.157：?debugMic=1 のときだけ、通常マイク/クリック/補正テストの実測値を小さなオーバーレイで出す。
+   ensureDebugBox を流用。本番URLには debugMic が付かないので通常ユーザーには一切出ない。 */
+function updateMicDebugBox() {
+    if (!MIC_DEBUG_ON) return;
+    const box = ensureDebugBox('mic-debug', 'top');
+    if (!box) return;
+    const f3 = (v) => (typeof v === 'number' && isFinite(v)) ? v.toFixed(3) : '-';
+    let calVol = '-';
+    try { calVol = calibrationClickVolume(); } catch (_) { /* noop */ }
+    box.textContent =
+        'debugMic\n'
+        + 'inputType: ' + getMicInputType() + '\n'
+        + 'isNormalMic: ' + isNormalMicInput() + '\n'
+        + 'clickPeakGain: ' + clickPeakGain() + '\n'
+        + 'state.clickVolume: ' + state.clickVolume + '\n'
+        + 'calClickVol: ' + calVol + '\n'
+        + 'test.maxClickPeak: ' + f3(test.maxClickPeak) + '\n'
+        + 'test.clickMeasureVol: ' + (test.clickMeasureVol != null ? test.clickMeasureVol : '-') + '\n'
+        + 'cal.threshold: ' + f3(cal.threshold) + '\n'
+        + 'cal.maxPeak: ' + f3(cal.maxPeak) + '\n'
+        + 'cal.successCount: ' + (cal.successCount || 0) + ' / ' + CAL_CLICKS;
 }
 
 /* ── DEBUG オーバーレイ（本番OFF・v0.9.110）──────────────────────
@@ -3176,14 +3228,11 @@ function scheduleStageClick(audioTime, accent, force) {
     const t0 = Math.max(audioTime, ctx.currentTime); // 過去時刻なら即時
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = 'square';
-    osc.frequency.value = accent ? 1500 : 1200;
-    gain.gain.setValueAtTime(0.0001, t0);
-    gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.002);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
+    // v0.9.157：click() と同一のエンベロープ（通常マイク時はサステイン付き）。
+    const stopAt = applyClickEnvelope(ctx, osc, gain, t0, accent, peak);
     osc.connect(gain).connect(ctx.destination);
     osc.start(t0);
-    osc.stop(t0 + 0.09);
+    osc.stop(stopAt);
     state.scheduledClicks.push(osc);
     if (state.scheduledClicks.length > 8) state.scheduledClicks.shift(); // 直近のみ保持
 }
@@ -6434,18 +6483,16 @@ function ptScheduleClick(atSec, accent) {
     if (!ctx) return;
     const vol = Math.max(0, Math.min(1, state.clickVolume / 100));
     const t0 = Math.max(atSec, ctx.currentTime);
-    const peak = (accent ? CLICK_PEAK_ACCENT : CLICK_PEAK_NORMAL) * vol;
+    // v0.9.157：最終確認テストのクリックも、通常マイク時は他経路（反応/補正テスト・STAGE）と同じ
+    //   倍率(clickPeakGain)＋エンベロープに統一。イヤホン等は clickPeakGain()=1.0・従来の短いクリックのまま。
+    const peak = Math.min(CLICK_PEAK_CLIP, (accent ? CLICK_PEAK_ACCENT : CLICK_PEAK_NORMAL) * vol * clickPeakGain());
     if (peak < 0.001) return;
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
-    osc.type = 'square';
-    osc.frequency.value = accent ? 1500 : 1200;
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(peak, t0 + 0.002);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
+    const stopAt = applyClickEnvelope(ctx, osc, g, t0, accent, peak);
     osc.connect(g).connect(ctx.destination);
     osc.start(t0);
-    osc.stop(t0 + 0.09);
+    osc.stop(stopAt);
     pt.scheduled.push(osc);
     // クリックの「鳴った時刻」をperf換算で記録（STAGE本体の state.lastClickPerf と同じ役割）。
     pt.clickPerfTimes.push(pt.flowStartPerf + (t0 - pt.audioStart) * 1000);
@@ -11744,6 +11791,7 @@ function toggleMic() {
 
 function micLoop() {
     if (!mic.on || !mic.analyser) return;
+    if (MIC_DEBUG_ON) updateMicDebugBox(); // v0.9.157：?debugMic=1 のときだけ実測値オーバーレイを更新
     mic.analyser.getFloatTimeDomainData(mic.buf);
     let peak = 0;
     for (let i = 0; i < mic.buf.length; i++) {
@@ -11803,6 +11851,7 @@ function micLoop() {
         // モニター（レベル＋反応ライン＋統計）
         cal.lastLevel = peak;
         if (peak > cal.maxPeak) cal.maxPeak = peak;
+        if (peak > cal.curWindowPeak) cal.curWindowPeak = peak; // v0.9.157：クリック1発ごとの実測ピーク（warm-up代表値の算出用）
         if (els.calLevel) {
             els.calLevel.style.width = (micDisplayFracEff(peak) * 100).toFixed(1) + '%';
             els.calLevel.classList.toggle('over', peak >= micEffectiveThreshold());
@@ -12383,7 +12432,9 @@ async function startCalibration() {
     cal.lastLevel = 0;
     cal.clickArmed = false;
     cal.unstable = false;
-    cal.warmupFired = false;   // 1回目較正用クリック（カウントしない）を鳴らしたか
+    cal.warmupIdx = 0;         // v0.9.157：鳴らした較正用クリック数（CAL_WARMUP_CLICKS 回まで）
+    cal.warmupPeaks = [];      // v0.9.157：較正用クリック1発ごとの実測ピーク
+    cal.curWindowPeak = 0;     // v0.9.157：現在のクリックの実測ピーク（次クリック発音時に warmupPeaks へ確定）
     cal.warmupDone = false;    // 較正用クリックの実測ピークで反応ラインを確定したか
     mic.calibrating = true;
     mic.prevPeak = 0;
@@ -12391,26 +12442,38 @@ async function startCalibration() {
     scrollToSettingsEl(els.calCard); // カード上部（タイトル/「今やること」/説明）が隠れないように（v0.9.92）
     setCalUI('measuring');
     cal.timer = setInterval(() => {
-        // ── ステップ0：較正用クリック（warm-up）──
-        //   1回目だけ反応ラインが過大見積りで外れる問題への対策。最初の1回は「実測ピークで
-        //   反応ラインを確定するためだけ」に鳴らし、検出枠を開かない（= 8回の計測には含めない）。
-        if (!cal.warmupFired) {
-            cal.warmupFired = true;
+        // ── ステップ0：較正用クリック（warm-up）を複数回鳴らす（v0.9.157）──
+        //   iPhoneのマイクAGCで1発目だけ大きくなる問題への対策。複数回鳴らし、1発目を除いた
+        //   AGC後の代表ピークで反応ラインを決める。warm-upは検出枠を開かない（= 8回の計測に含めない）。
+        if (cal.warmupIdx < CAL_WARMUP_CLICKS) {
+            // 直前のwarm-upクリックの実測ピークを確定（2発目以降の発音タイミングで前回分を記録）
+            if (cal.warmupIdx > 0) cal.warmupPeaks.push(cal.curWindowPeak);
+            cal.curWindowPeak = 0;
+            cal.warmupIdx++;
             cal.lastClickPerf = performance.now();
             cal.clickArmed = false; // 計測対象にしない
             mic.prevPeak = 0;
             click(true, true);
             return;
         }
-        // ── ステップ0.5：較正用クリックの実測ピークから補正用反応ラインを確定 ──
+        // ── ステップ0.5：較正用クリックの代表ピークから補正用反応ラインを確定 ──
         if (!cal.warmupDone) {
             cal.warmupDone = true;
-            if (cal.maxPeak > 0) {
-                const thr = calThresholdFromPeak(cal.maxPeak, calNoiseFloor());
+            cal.warmupPeaks.push(cal.curWindowPeak); // 最後のwarm-up分を確定
+            // 1発目（AGC前で過大になりがち）を除いた代表値。残りの「低めの中央値」を使い、
+            // AGC後の実クリックに合わせる（無条件に下げるのではなく、下のcalThresholdFromPeakで
+            // ノイズフロア・calThrFloor() 下限を必ず満たす）。
+            const later = cal.warmupPeaks.slice(1).filter((v) => v > 0).sort((a, b) => a - b);
+            let repPeak = 0;
+            if (later.length) repPeak = later[Math.floor((later.length - 1) / 2)]; // 低めの中央値
+            else repPeak = cal.maxPeak; // 2発目以降が取れなければ従来どおり最大で代用
+            if (repPeak > 0) {
+                const thr = calThresholdFromPeak(repPeak, calNoiseFloor());
                 mic.threshold = thr;
                 cal.threshold = thr;
                 if (els.calThreshold) els.calThreshold.style.left = micThresholdMarkerPct() + '%';
             }
+            cal.maxPeak = 0; // 本計測(8回)のピークで失敗理由を判定するためリセット（warm-upの大きいピークを持ち越さない）
             // この tick から本計測（1拍目）を開始する
         }
         if (cal.i >= CAL_CLICKS) { clearInterval(cal.timer); cal.timer = 0; finishCalibration(); return; }
