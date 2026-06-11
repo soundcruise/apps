@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.159';
+const RHYTHM_CRUISE_VERSION = '0.9.160';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -631,6 +631,7 @@ const els = {
     ptReviewFirst: $('pt-review-first'),
     ptReviewLast: $('pt-review-last'),
     ptBtn: $('pt-btn'),
+    ptRetestMicBtn: $('pt-retest-mic-btn'),
     ptStatus: $('pt-status'),
     ptResult: $('pt-result'),
     // マイク遅れ補正（Bluetoothイヤホン用・v0.9.80）
@@ -870,6 +871,10 @@ const els = {
     calRdAt: $('cal-rd-at'),
     // 実音テスト
     testCard: $('test-card'),
+    micPermHelp: $('mic-perm-help'),
+    micPermHelpText: $('mic-perm-help-text'),
+    micPermRetry: $('mic-perm-retry'),
+    wizardJumpFinal: $('wizard-jump-final'),
     testCardHead: $('test-card-head'),
     testDoneBadge: $('test-done-badge'),
     testMicState: $('test-mic-state'),
@@ -6445,8 +6450,15 @@ const PT_NOTE_BY_TYPE = {
     normal: '音量と判定が安定しているかを確認します。',
     headphone: 'イヤホンでの音量と、判定の偏りを確認します。',
 };
+/* Bluetoothイヤホン専用の補足（v0.9.160）。Bluetoothはマイクの入力がAGC/圧縮で揺れやすく、
+   単発のストロークが弱いとラインに届きにくい。マイク反応テストと同じ強さで弾くよう促し、
+   届かないときは反応テストのやり直し導線（下の再テストボタン）へ誘導する。判定ロジックには触れない。 */
+const PT_NOTE_BLUETOOTH = 'Bluetoothイヤホンでは、マイク反応テストと同じくらいの強さでストロークしてください。波形が反応ラインに届かないときは、下の「マイク反応テストをやり直す」でもう一度感度を測り直せます。';
 function updatePracticeTestNote() {
-    if (els.ptNote) els.ptNote.textContent = PT_NOTE_BY_TYPE[getMicInputType()] || PT_NOTE_BY_TYPE.auto;
+    if (!els.ptNote) return;
+    els.ptNote.textContent = isBluetoothHeadphone()
+        ? PT_NOTE_BLUETOOTH
+        : (PT_NOTE_BY_TYPE[getMicInputType()] || PT_NOTE_BY_TYPE.auto);
 }
 
 /* このマイク設定セッションで実践テストを一度でも実施したか（v0.9.79）。
@@ -8997,6 +9009,7 @@ function renderSettingsView() {
     // マイク設定：保存済みプリセットページ（v0.9.104）
     if (els.micPresetCard) els.micPresetCard.classList.toggle('hidden', settingsView !== 'preset');
     if (settingsView === 'preset') renderPresetList();
+    if (els.wizardJumpFinal) els.wizardJumpFinal.style.display = 'none'; // v0.9.160：手順ビュー以外では隠す（steps時はrenderWizardStepsで再表示）
     if (steps) {
         renderWizardSteps();
     } else if (settingsView === 'manual') {
@@ -9344,6 +9357,20 @@ function renderWizardSteps() {
     renderStepProgress(active);
     renderStepSummaries(active);
     if (els.ptOpenManual) els.ptOpenManual.style.display = (active === 'practice') ? '' : 'none';
+    // v0.9.160：終了済みカードを1つだけ開いてやり直しているとき、後続を全部やり直さずに最終確認テストへ
+    //   戻れる導線を出す。反応テスト適用済み（最終確認テストが存在する）かつ、編集中のステップが
+    //   practice/final より前のときだけ表示する。状態（setupProgress）は変えず、表示位置を移すだけ。
+    if (els.wizardJumpFinal) {
+        const editingEarlier = !!wizardEditing && wizardEditing !== 'practice' && wizardEditing !== 'final';
+        const finalReachable = !!setupProgress.recoApplied;
+        els.wizardJumpFinal.style.display = (editingEarlier && finalReachable) ? '' : 'none';
+    }
+    // v0.9.160：最終確認テストカードでは、Bluetoothイヤホン時だけ「マイク反応テストをやり直す」を出す
+    //   （波形がラインに届かないときの測り直し導線）。通常マイク/有線では出さない。
+    if (els.ptRetestMicBtn) {
+        els.ptRetestMicBtn.classList.toggle('hidden', !(active === 'practice' && isBluetoothHeadphone()));
+    }
+    if (active === 'practice') updatePracticeTestNote(); // v0.9.160：BluetoothのガイドをカードのDOMへ確実に反映
     // マイク遅れ補正（btdelay）：他ステップへ移ったら停止。表示時はアイドルUIへ（v0.9.80）
     if (active !== 'btdelay' && (bt.active || bt.timers.length)) stopBtCal();
     if (active === 'btdelay' && !bt.active && els.btCalResult && els.btCalResult.classList.contains('hidden')) {
@@ -9439,6 +9466,18 @@ function editWizardStep(id) {
     renderSettingsView();
     const card = wizardStepCards(id)[0];
     scrollToSettingsEl(card);
+}
+
+/* v0.9.160：終了済みカードを1つだけ開いてやり直したあと、後続ステップを全部やり直さずに
+   最終確認テストへ戻る導線。setupProgress（完了フラグ）は変更せず、表示するカードを移すだけ。
+   反応テストを適用し直して反応ラインが変わった場合は applyReco 側で後続が無効化されるが、
+   ここでは何もリセットしない（単なる移動）。 */
+function jumpToFinalTest() {
+    if (!setupProgress.recoApplied) return; // 最終確認テストがまだ存在しない
+    wizardEditing = 'practice';
+    if (settingsView !== 'steps') settingsView = 'steps';
+    renderSettingsView();
+    scrollToSettingsEl(els.ptCard);
 }
 
 /* 実践テスト結果を初期状態へ戻す（v0.9.67）。
@@ -10436,6 +10475,7 @@ async function startMic() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         if (els.micState) els.micState.textContent = '非対応';
         if (els.micCard) els.micCard.classList.add('mic-error');
+        showMicPermHelp('このブラウザではマイクを使えないようです。別のブラウザ（Safari / Chrome など）で開き直してから、もう一度お試しください。'); // v0.9.160
         resetMicSetupState(); // マイクが使えない → 設定状態を未実施へ戻す
         return;
     }
@@ -10469,6 +10509,7 @@ async function startMic() {
         mic.prevPeak = 0;
         mic.env = 0;
         if (els.micCard) els.micCard.classList.remove('mic-error');
+        hideMicPermHelp(); // v0.9.160：開始できたら許可エラー案内を隠す
         if (els.micLastDetect) els.micLastDetect.textContent = '待機中';
         // クリック音の自動OFFはしない（クリック音ON/OFF状態は維持）。
         // 代わりにイヤホン推奨の案内を表示する。
@@ -10481,9 +10522,27 @@ async function startMic() {
         updateMicUI();
         if (els.micState) els.micState.textContent = '許可なし'; // updateMicUI後に上書き（OFFに戻されないように）
         if (els.micCard) els.micCard.classList.add('mic-error');
+        // v0.9.160：無反応のままにせず、分かりやすい案内＋再試行ボタンを出す（原因は断定しない）。
+        showMicPermHelp('マイクを開始できませんでした。ブラウザのマイク許可を確認してから、もう一度お試しください。');
         resetMicSetupState(); // 許可が拒否/喪失 → 設定状態を未実施へ戻す（次回成功時に再度誘導）
         console.warn('[mic] getUserMedia failed:', e && e.name);
     }
+}
+
+/* v0.9.160：マイク開始の案内（許可が出ない/拒否など）。テストカード内のバナーを出す。
+   原因は断定せず、再試行できることを伝える。設定値（感度/クリック音量など）は一切変更しない。 */
+function showMicPermHelp(msg) {
+    if (els.micPermHelpText && msg) els.micPermHelpText.textContent = msg;
+    if (els.micPermHelp) els.micPermHelp.classList.remove('hidden');
+}
+function hideMicPermHelp() {
+    if (els.micPermHelp) els.micPermHelp.classList.add('hidden');
+}
+/* 「もう一度マイクをONにする」：案内を隠してマイク反応テストをやり直す（自動リトライはしない）。 */
+function retryMicStart() {
+    hideMicPermHelp();
+    if (test.flow) return; // 進行中なら何もしない
+    startMicTestFlow();
 }
 
 function cancelCalibration() {
@@ -10715,7 +10774,8 @@ function toggleMicTest() {
 async function startMicTestFlow() {
     if (pt.active) stopPracticeTest(); // 最終確認テストと排他
     stopBtCal(); // マイク遅れ補正と排他
-    if (!(await ensureTestMic())) { setTestResult('マイクを許可してください。', 'ng'); return; }
+    if (!(await ensureTestMic())) { setTestResult('マイクを許可してください。', 'ng'); showMicPermHelp(); return; }
+    hideMicPermHelp(); // v0.9.160：開始できたので許可エラー案内は隠す
     test.flow = true;
     // イヤホン接続は初回テストから高感度寄り（救済しきい値）で拾いにいく。auto/normalは従来どおり。
     if (shouldStartMicTestInHighSensitivity()) test.rescueHighSens = true;
@@ -11463,7 +11523,19 @@ function updateReco() {
             lowInputNoiseLine,
         ].filter((v) => typeof v === 'number' && isFinite(v) && v > 0);
         if (btFloorCandidates.length) {
-            const btFloor = Math.max(THR_MIN, Math.min(THR_MAX, Math.max(...btFloorCandidates)));
+            let btFloor = Math.max(THR_MIN, Math.min(THR_MAX, Math.max(...btFloorCandidates)));
+            // v0.9.160：Bluetoothの反応ライン上限ガード。
+            //   AGCでマイク反応テスト中（連続ストローク）の入力が持ち上がり、上の候補（p95×0.5 等）が
+            //   実測ストロークの弱い側（minStroke）付近まで上がると、最終確認テストやSTAGEで「単発の普通の
+            //   ストロークがラインに届かない（=波形が小さく超えない）」状態になりやすい。
+            //   そこで、通常マイクの分離パスと同じ上限（実効ライン＝minStroke×0.92）を超えないようにキャップする。
+            //   これは「無条件に大きく下げる」ものではなく、①で決めた値より下げず、最弱ストロークの少し下
+            //   （約8%の余裕）までに収める“上振れ防止”のみ。ノイズはminStrokeより十分小さいので誤検出は増やさない。
+            //   STAGEの判定ロジック・GOOD/EARLY/LATE/MISS条件・通常/有線の算出は一切変更しない。
+            if (minStroke != null) {
+                const btCeil = Math.max(THR_MIN, Math.min(THR_MAX, recoRawThresholdForEffectiveLine(minStroke * 0.92)));
+                btFloor = Math.min(btFloor, Math.max(btCeil, test.recommended));
+            }
             if (btFloor > test.recommended) {
                 test.recommended = btFloor;
                 els.recoThr.textContent = (provisional ? '仮 ' : '') + recoSensDisplay(test.recommended, lowInputTuned) + '％';
@@ -12889,6 +12961,11 @@ function bind() {
     // 実音テスト（1ボタン自動フロー）
     els.micTestBtn.addEventListener('click', toggleMicTest);
     if (els.recoRetestBtn) els.recoRetestBtn.addEventListener('click', () => { if (!test.flow) { test.rescueHighSens = true; startMicTestFlow(); } });
+    // v0.9.160：マイクを開始できなかったときの「もう一度マイクをONにする」／最終確認テストへ戻る／
+    //   Bluetooth最終テストからの反応テストやり直し。
+    if (els.micPermRetry) els.micPermRetry.addEventListener('click', retryMicStart);
+    if (els.wizardJumpFinal) els.wizardJumpFinal.addEventListener('click', jumpToFinalTest);
+    if (els.ptRetestMicBtn) els.ptRetestMicBtn.addEventListener('click', () => { if (!test.flow) practiceFixGoTo('test'); });
     if (els.earphoneLeakSwitch) els.earphoneLeakSwitch.addEventListener('click', earphoneLeakSwitchToNormal);
     els.recoApplyBtn.addEventListener('click', applyReco);
     els.tempoUp.addEventListener('click', () => setBpm(state.bpm + 1));   // v0.9.144：BPMは1刻みで微調整（最小/最大はsetBpm内のまま）

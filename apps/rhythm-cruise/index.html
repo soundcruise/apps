@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.157">
+    <link rel="stylesheet" href="theme.css?v=0.9.160">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -523,6 +523,8 @@
 
             <!-- ステップ式：完了した項目の要約（タップで選び直し）。JSで描画 -->
             <div id="settings-steps-summary" style="display:none;"></div>
+            <!-- 終了済みカードを開いて1つだけやり直しているとき、後続を全部やり直さずに最終確認テストへ戻る導線（v0.9.160） -->
+            <button type="button" class="btn-mini" id="wizard-jump-final" style="display:none;width:100%;margin-bottom:12px;padding:11px;border:1px solid rgba(255,159,28,0.45);border-radius:10px;background:rgba(255,159,28,0.08);font-weight:700;">最終確認テストへ戻る</button>
 
             <!-- 入力タイプ（通常マイク / イヤホン接続）。テストや補正方式の切替土台 -->
             <div class="settings-card input-type-card" id="input-type-card">
@@ -583,6 +585,15 @@
                 <div class="test-row">
                     <button class="btn-mic test-run-btn test-start-btn" id="mic-test-btn">マイク反応テストを開始</button>
                     <span class="test-mic-state hidden" id="test-mic-state">マイク ON</span>
+                </div>
+                <!-- マイクを開始できなかったとき（許可ダイアログが出ない/拒否など）の案内と再試行（v0.9.160） -->
+                <div class="mic-perm-help hidden" id="mic-perm-help" role="alert">
+                    <p class="mph-text" id="mic-perm-help-text">マイクを開始できませんでした。ブラウザのマイク許可を確認してから、もう一度お試しください。</p>
+                    <button type="button" class="btn-mic test-start-btn" id="mic-perm-retry">もう一度マイクをONにする</button>
+                    <details class="card-help">
+                        <summary>うまくいかないとき</summary>
+                        <p class="setting-note">スマホ本体やブラウザの設定で、このページのマイク許可が「許可」になっているか確認してください。Safariの場合は、アドレスバー左側の設定、またはスマホ本体の設定アプリ内のSafariから、マイクの許可を確認できます。許可が「確認（その都度きく）」のときは、ページを一度再読み込みしてから、もう一度お試しください。</p>
+                    </details>
                 </div>
                 <div class="test-live hidden" id="test-live">
                     <div class="mic-meter test-meter">
@@ -810,6 +821,8 @@
                     </div>
                 </div>
                 <button class="btn-mic cal-run-btn test-start-btn" id="pt-btn">最終確認テストを開始</button>
+                <!-- Bluetoothイヤホンで波形がラインに届かないとき用：反応テストをやり直して感度を測り直す（v0.9.160） -->
+                <button type="button" class="btn-mic results-retest-btn test-start-btn hidden" id="pt-retest-mic-btn">マイク反応テストをやり直す</button>
                 <p class="cal-status" id="pt-status"></p>
                 <div class="cal-result hidden" id="pt-result"></div>
             </div>
@@ -1051,7 +1064,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.159"></script>
+    <script src="script.js?v=0.9.160"></script>
 </body>
 
 </html>

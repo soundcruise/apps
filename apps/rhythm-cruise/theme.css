@@ -3911,6 +3911,32 @@ h1 {
     color: #ff6b6b;
 }
 
+/* v0.9.160：マイクを開始できなかったとき（許可が出ない/拒否など）の案内カード＋再試行ボタン。 */
+.mic-perm-help {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 99, 99, 0.5);
+    background: rgba(255, 99, 99, 0.1);
+    color: #ffc2c2;
+}
+
+.mic-perm-help .mph-text {
+    margin: 0 0 10px;
+    font-size: 0.86rem;
+    line-height: 1.5;
+    font-weight: 600;
+}
+
+.mic-perm-help #mic-perm-retry {
+    width: 100%;
+    margin: 0;
+}
+
+.mic-perm-help .card-help {
+    margin-top: 10px;
+}
+
 /* マイク反応テストの流れる譜面レーン */
 .test-lane-wrap {
     width: 100%;
