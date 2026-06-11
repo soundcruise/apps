@@ -50,7 +50,7 @@
                 <button id="rhythm-train-btn" class="settings-top-main">リズム練をする</button>
             </div>
 
-            <!-- リズム練をする：カテゴリ選択（v0.9.117）。戻る/TOPは共通ナビ #app-nav に統一（v0.9.118） -->
+            <!-- リズム練をする：STAGE1〜6を直接表示（v0.9.166）。戻る/TOPは共通ナビ #app-nav に統一。 -->
             <div class="home-view hidden" id="home-rhythm">
                 <div class="section-label">リズム練をする</div>
                 <!-- 入力方式の切替（v0.9.118：STAGE内から移動）。ここで選んだ方式でSTAGEを開始する。 -->
@@ -58,10 +58,10 @@
                     <button type="button" class="input-seg is-active" id="rhythm-mode-tap" data-mode="tap">タップ</button>
                     <button type="button" class="input-seg" id="rhythm-mode-stroke" data-mode="stroke">ストローク</button>
                 </div>
+                <div class="stage-list" id="stage-list">
+                    <!-- script.js が描画 -->
+                </div>
                 <div class="cat-list">
-                    <button class="settings-top-main cat-btn" id="cat-kiso">基礎練</button>
-                    <button class="settings-top-main cat-btn cat-soon" id="cat-stroke">ストロークパターン<span class="badge-soon">準備中</span></button>
-                    <button class="settings-top-main cat-btn cat-soon" id="cat-chord">コード進行<span class="badge-soon">準備中</span></button>
                     <!-- PROカスタムSTAGE入口（v0.9.119）。表示・操作は isRhythmProCustomStageAvailable() を経由する。 -->
                     <button class="settings-top-main cat-btn cat-pro" id="cat-pro-custom"><span class="cat-pro-crown">👑</span> PROカスタムSTAGE</button>
                 </div>
@@ -170,12 +170,9 @@
                 <button type="button" class="pce-delete-link" id="pce-delete">このカスタムSTAGEを削除</button>
             </div>
 
-            <!-- 基礎練：STAGE1〜6（v0.9.117） -->
+            <!-- 基礎練カテゴリ（v0.9.166：トップUIからは外し、互換用ビューとして残す） -->
             <div class="home-view hidden" id="home-kiso">
                 <div class="section-label">基礎練</div>
-                <div class="stage-list" id="stage-list">
-                    <!-- script.js が描画 -->
-                </div>
             </div>
 
             <!-- 準備中（ストロークパターン / コード進行）（v0.9.117） -->
@@ -1089,7 +1086,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.165"></script>
+    <script src="script.js?v=0.9.166"></script>
 </body>
 
 </html>

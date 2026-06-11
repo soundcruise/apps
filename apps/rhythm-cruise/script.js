@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.165';
+const RHYTHM_CRUISE_VERSION = '0.9.166';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -3006,14 +3006,14 @@ function goTop() {
 function navBack() {
     // 設定画面（マイク/画面タップ設定など）→ 直前の自然な画面（呼び出し元）へ
     if (!els.settings.classList.contains('hidden')) { closeSettings(); return; }
-    // STAGE画面（結果・見返し含む）→ カスタムテスト中はPROカスタム一覧へ、通常は基礎練画面へ（v0.9.118/124）
+    // STAGE画面（結果・見返し含む）→ カスタムテスト中はPROカスタム一覧へ、通常はリズム練画面へ（v0.9.166）
     if (currentScreen === 'practice') {
-        // 編集テスト再生中（editId あり）だけ編集画面へ戻す。組み込みSTAGE（STAGE1）は通常どおり基礎練画面へ（v0.9.143）。
+        // 編集テスト再生中（editId あり）だけ編集画面へ戻す。組み込みSTAGEは通常どおりリズム練画面へ。
         if (eng.editId) {
             backToEditorFromTest(); // カスタムテスト中の「戻る」も該当STAGEの編集画面へ
             return;
         }
-        goHomeView('kiso');
+        goHomeView('rhythm');
         return;
     }
     // ホーム内サブビュー → 1つ上の階層へ（v0.9.118）
@@ -12867,7 +12867,7 @@ function applyCalibration() {
 
 /* ── イベント結線 ───────────────────────────────────────── */
 function bind() {
-    // ホーム階層ナビ（v0.9.117）：TOP → リズム練 → 基礎練(STAGE一覧)/準備中。
+    // ホーム階層ナビ（v0.9.166）：TOP → リズム練（STAGE一覧を直接表示）。
     // 各サブビューからの「戻る/TOP」は共通ナビ #app-nav に統一（v0.9.118）。
     if (els.rhythmTrainBtn) els.rhythmTrainBtn.addEventListener('click', () => setHomeView('rhythm'));
     if (els.catKiso) els.catKiso.addEventListener('click', () => setHomeView('kiso'));
