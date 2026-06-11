@@ -341,7 +341,7 @@
             <div class="settings-tabs" id="settings-tabs">
                 <button type="button" class="settings-tab is-active" id="settings-tab-mic">マイク設定</button>
                 <button type="button" class="settings-tab" id="settings-tab-tap">画面タップ設定</button>
-                <button type="button" class="settings-tab" id="settings-tab-click">クリック設定</button>
+                <button type="button" class="settings-tab" id="settings-tab-click">PRO設定</button>
             </div>
 
             <!-- クリック設定タブ（v0.9.148）：STAGE画面から移動。クリック音だけに反映され、判定/譜面/スコア/プレビュー/履歴には影響しない。
@@ -375,6 +375,24 @@
                     <span class="stage-set-label">裏拍で鳴らす</span>
                     <button type="button" class="ss-toggle" id="offbeat-toggle" aria-pressed="false">OFF</button>
                 </div>
+            </div>
+
+            <!-- 判定のきびしさ（v0.9.164）：GOOD/EARLY/LATE の判定幅プリセット。クリック設定とは別カード。
+                 通常STAGE / カスタムSTAGE / くり返し練習 / 最終確認テストで共通。スコア配点・譜面・結果グラフには影響しない。 -->
+            <div class="settings-card hidden" id="judge-settings-card">
+                <div class="cal-head">判定のきびしさ</div>
+                <p class="setting-note" style="margin-top:0;">GOOD / EARLY / LATE の判定幅を変更します。迷ったら「標準」がおすすめです。</p>
+                <div class="stage-set-row">
+                    <span class="stage-set-label">きびしさ</span>
+                    <div class="stage-set-seg" id="judge-preset-seg" role="group" aria-label="判定のきびしさ">
+                        <button type="button" class="ss-seg" data-judge="easy" aria-pressed="false">やさしい</button>
+                        <button type="button" class="ss-seg is-active" data-judge="standard" aria-pressed="true">標準</button>
+                        <button type="button" class="ss-seg" data-judge="semiStrict" aria-pressed="false">やや厳しい</button>
+                        <button type="button" class="ss-seg" data-judge="strict" aria-pressed="false">厳しい</button>
+                        <button type="button" class="ss-seg" data-judge="veryStrict" aria-pressed="false">もっと厳しい</button>
+                    </div>
+                </div>
+                <p class="setting-note" id="judge-preset-note" style="margin-top:8px;"></p>
             </div>
 
             <!-- 画面タップ設定タブ（v0.9.95→v0.9.97）：画面タップでプレイする人向け。
@@ -1062,7 +1080,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.163"></script>
+    <script src="script.js?v=0.9.164"></script>
 </body>
 
 </html>
