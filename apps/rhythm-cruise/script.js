@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.166';
+const RHYTHM_CRUISE_VERSION = '0.9.167';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -2264,6 +2264,35 @@ function rhythmPreviewClickMul() {
     const b = rhythmPreviewSoundBalance;
     return b <= 0 ? (2.20 - (b + 1) * 0.60) : (1.60 - b * 1.50);
 }
+function setRhythmPreviewSoundBalanceFromValue(value) {
+    const v = Number(value);
+    rhythmPreviewSoundBalance = Math.max(-1, Math.min(1, (isFinite(v) ? v : 50) / 50 - 1));
+    refreshScheduledRhythmPreviewVolumes();
+}
+function rhythmPreviewNodeGain(kind, baseGain) {
+    if (kind === 'click') return Math.min(0.98, baseGain * rhythmPreviewClickMul());
+    return baseGain * rhythmPreviewGuitarMul();
+}
+/* 再生中に確認音バランスを動かしたとき、すでに先読み予約済みでまだ鳴っていない音にも反映する（v0.9.167）。 */
+function refreshScheduledRhythmPreviewVolumes() {
+    const ctx = rhythmPreview.ctx;
+    if (!ctx || !rhythmPreview.nodes.length) return;
+    const nowT = ctx.currentTime;
+    rhythmPreview.nodes.forEach((n) => {
+        if (!n || !n.gain || !Number.isFinite(n.startAt) || n.startAt <= nowT) return;
+        const nextGain = rhythmPreviewNodeGain(n.kind, n.baseGain);
+        try {
+            n.gain.gain.cancelScheduledValues(nowT);
+            if (n.kind === 'click') {
+                n.gain.gain.setValueAtTime(0.0001, n.startAt);
+                n.gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, nextGain), n.startAt + 0.002);
+                n.gain.gain.exponentialRampToValueAtTime(0.0001, n.startAt + 0.08);
+            } else {
+                n.gain.gain.setValueAtTime(Math.max(0, nextGain), n.startAt);
+            }
+        } catch (_) { /* 予約済みノードの更新に失敗しても再生自体は止めない */ }
+    });
+}
 
 /* 1ループ分の hit 発音オフセット（秒）・クリック・1ループ長（秒）を、現在の表示状態から計算する。
    1拍=24tick 設計：cellMs = engQuarterMs() * (cellTicks/24)。8分/16分/32分/三連でもこの式でズレない。
@@ -2344,13 +2373,14 @@ function schedulePreviewGuitarNote(freq, when, velocity) {
     const highCut = ctx.createBiquadFilter(); highCut.type = 'lowpass'; highCut.frequency.value = 6000; highCut.Q.value = 0.7;
     const outputGain = ctx.createGain();
     // コードで複数音重なるため控えめに（0.40→0.34）。さらに確認音バランス（中央0.85〜）を掛ける（v0.9.135）。
-    outputGain.gain.value = (0.25 + velocity * 0.35) * 0.34 * rhythmPreviewGuitarMul();
+    const baseGain = (0.25 + velocity * 0.35) * 0.34;
+    outputGain.gain.value = rhythmPreviewNodeGain('guitar', baseGain);
     source.connect(bodyRes1); bodyRes1.connect(bodyRes2); bodyRes2.connect(bodyRes3);
     bodyRes3.connect(presence); presence.connect(highCut); highCut.connect(outputGain); outputGain.connect(ctx.destination);
     const startTime = Math.max(when, ctx.currentTime);
     source.start(startTime);
     source.stop(startTime + duration + sustain);
-    rhythmPreview.nodes.push({ src: source, gain: outputGain, stopAt: startTime + duration + sustain });
+    rhythmPreview.nodes.push({ src: source, gain: outputGain, kind: 'guitar', baseGain: baseGain, startAt: startTime, stopAt: startTime + duration + sustain });
 }
 
 /* アコギCコード（C3/E3/G3/C4）を when に鳴らす。 */
@@ -2369,7 +2399,8 @@ function schedulePreviewClick(when, accent) {
     if (!state.clickEnabled) return;
     const vol = Math.max(0, Math.min(1, state.clickVolume / 100));
     // 確認音バランスを掛け、割れ防止に上限0.98でクランプ（クリック強調が潰れすぎない安全範囲・v0.9.135）。
-    const peak = Math.min(0.98, (accent ? 0.72 : 0.58) * vol * rhythmPreviewClickMul());
+    const baseGain = (accent ? 0.72 : 0.58) * vol;
+    const peak = rhythmPreviewNodeGain('click', baseGain);
     if (peak < 0.001) return;
     const t0 = Math.max(when, ctx.currentTime);
     const osc = ctx.createOscillator();
@@ -2382,7 +2413,7 @@ function schedulePreviewClick(when, accent) {
     osc.connect(gain).connect(ctx.destination);
     osc.start(t0);
     osc.stop(t0 + 0.09);
-    rhythmPreview.nodes.push({ src: osc, gain: gain, stopAt: t0 + 0.09 });
+    rhythmPreview.nodes.push({ src: osc, gain: gain, kind: 'click', baseGain: baseGain, startAt: t0, stopAt: t0 + 0.09 });
 }
 
 /* 先読みスケジューラ：horizon までのループの hit（コード）とクリックを予約し、setTimeout で再武装する。
@@ -13249,8 +13280,7 @@ function bind() {
     if (els.customTestPreviewPlay) els.customTestPreviewPlay.addEventListener('click', toggleRhythmPreviewPlay);
     // 確認音バランススライダー（v0.9.135）。0..100 → -1..+1（左：クリック大きめ／右：ストローク大きめ）。次に鳴る音から反映。
     if (els.customTestPreviewBalance) els.customTestPreviewBalance.addEventListener('input', (e) => {
-        const v = Number(e.target.value);
-        rhythmPreviewSoundBalance = Math.max(-1, Math.min(1, (isFinite(v) ? v : 50) / 50 - 1));
+        setRhythmPreviewSoundBalanceFromValue(e.target.value);
     });
 
     // マイク許可後の設定誘導バナー
