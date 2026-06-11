@@ -596,6 +596,11 @@
                 </div>
                 <p class="test-phase" id="test-phase"></p>
                 <p class="test-result" id="test-result"></p>
+                <!-- イヤホン接続時のクリック音漏れ警告＋通常マイク側テストへの導線（v0.9.152） -->
+                <div class="earphone-leak hidden" id="earphone-leak">
+                    <p class="test-reco-msg warn" id="earphone-leak-msg"></p>
+                    <button type="button" class="btn-mic test-start-btn" id="earphone-leak-switch">通常マイクでテストする</button>
+                </div>
                 <div class="test-reco hidden" id="test-reco">
                     <div class="reco-title">おすすめ設定</div>
                     <div class="reco-items">
@@ -745,7 +750,7 @@
                 <button type="button" class="btn-primary" id="wired-proceed-btn" style="width:100%;margin-top:8px;">この設定で進む</button>
             </div>
 
-            <!-- 6. マイク遅れ補正（Bluetoothイヤホン時のみ。クリックに合わせて手拍子/ストロークし判定遅れを測る） v0.9.80 -->
+            <!-- 6. マイク遅れ補正（イヤホン接続時。クリックに合わせて手拍子/ストロークし判定遅れを測る。有線にもv0.9.152で対応） v0.9.80 -->
             <div class="settings-card cal-card" id="bt-cal-card">
                 <div class="cal-head-row">
                     <div class="cal-head">マイク遅れ補正</div>
@@ -756,7 +761,7 @@
                 <details class="card-help">
                     <summary>詳しい説明</summary>
                     <p class="setting-note" id="bt-cal-guide">イヤホンから聞こえるクリック音に合わせて、手拍子してください。画面の👏は回数の目安です。タイミングは音で合わせてください。</p>
-                    <p class="setting-note">Bluetoothイヤホンでは、弾いた音をマイクが拾って判定するまでに遅れが出ます。この遅れを測って、判定タイミングを合わせます。</p>
+                    <p class="setting-note">イヤホンでは、弾いた音をマイクが拾って判定するまでに遅れが出ることがあります。この遅れを測って、判定タイミングを合わせます。有線イヤホンの初期目安は0ms（補正なし）で、このテストで実測して調整できます。</p>
                 </details>
                 <!-- 流れる👏＋判定ライン＋反応ライン＋入力波形（最終確認テストと同じ考え方・v0.9.81） -->
                 <div class="test-lane-wrap hidden" id="bt-cal-lane-wrap">

@@ -143,6 +143,14 @@ const SETTINGS_DEFAULTS = { threshold: 0.025, cooldownMs: 200, clickGuardMs: 60,
    イヤホンではクリック音がマイクに回り込みにくいので、聞き取りやすい50%を既定にする。
    通常マイクはこの値を使わず、既存のクリック音量設定を維持する。 */
 const EARPHONE_CLICK_VOLUME = 50;
+/* イヤホン接続時のマイク反応テストで「クリック音漏れなし＝正常」と確認できたときに固定するクリック音量（v0.9.152）。
+   イヤホン接続ではクリック音はイヤホンから鳴り本体マイクには入らない前提なので、反応ラインに合わせて
+   下げる必要がない。聞き取りやすい80%に固定する。通常マイク時のクリック音量調整には一切使わない。 */
+const EARPHONE_CLICK_VOLUME_FIXED = 80;
+/* イヤホン接続時のクリック音漏れ判定の絶対下限（v0.9.152）。
+   イヤホンのクリック音を本体マイクがこの値以上のピークで複数回拾ったら「音漏れ」とみなす。
+   環境ノイズの数倍を併用し、単発ノイズでの誤検出を避ける。検出ロジック自体は変更しない（この判定は導線分岐のみに使う）。 */
+const EARPHONE_CLICK_LEAK_FLOOR = 0.012;
 
 /* 組み込みプリセット（v0.9.63）：削除不可。ユーザーが消しても常に一覧の先頭に出る「開始点」。 */
 const BUILTIN_MIC_PRESETS = [
@@ -815,6 +823,9 @@ const els = {
     recoRetest: $('reco-retest'),
     recoRetestBtn: $('reco-retest-btn'),
     recoApplyBtn: $('reco-apply-btn'),
+    earphoneLeak: $('earphone-leak'),
+    earphoneLeakMsg: $('earphone-leak-msg'),
+    earphoneLeakSwitch: $('earphone-leak-switch'),
     manualDetail: $('manual-detail'),
     testResultDetail: $('test-result-detail'),
     testDetail: $('test-detail'),
@@ -6309,6 +6320,27 @@ const bt = {
 };
 let btLane = { ctx: null, w: 0, h: 0 }; // マイク遅れ補正の流れるレーン（v0.9.81）
 
+/* ── 手拍子マイク遅れ補正テストの補正先（v0.9.152）──────────────────────
+   有線イヤホンにもBluetoothと同じ「手拍子によるマイク遅れ補正テスト」を使えるよう共通化する。
+   ・Bluetoothイヤホン … bluetoothMicOffsetMs（範囲 BT_MIC_OFFSET_MIN〜MAX）
+   ・有線イヤホン/通常 … timingOffsetMs（範囲 -150〜150。マイク判定の遅れ補正と同じ枠）
+   どちらも micJudgeOffsetMs() を通して判定時刻へ反映される（micJudgeOffsetMs() の式自体は変更しない）。
+   有線イヤホンの初期目安は0ms（補正なし）。このテストで実測して調整できる。 */
+function headphoneMicOffsetMin() { return isBluetoothHeadphone() ? BT_MIC_OFFSET_MIN : -150; }
+function headphoneMicOffsetMax() { return isBluetoothHeadphone() ? BT_MIC_OFFSET_MAX : 150; }
+function headphoneMicOffsetGet() {
+    return isBluetoothHeadphone() ? (mic.bluetoothMicOffsetMs || 0) : (mic.timingOffsetMs || 0);
+}
+function headphoneMicOffsetClampVal(v) {
+    return Math.max(headphoneMicOffsetMin(), Math.min(headphoneMicOffsetMax(), Math.round(v)));
+}
+function headphoneMicOffsetSet(v) {
+    const c = headphoneMicOffsetClampVal(v);
+    if (isBluetoothHeadphone()) mic.bluetoothMicOffsetMs = c;
+    else mic.timingOffsetMs = c;
+    return c;
+}
+
 /* 入力タイプ別の補足文（表示は常に出す。文言だけ少し変える） */
 const PT_NOTE_BY_TYPE = {
     auto: 'いまの設定で、音量と判定タイミングを確認します。',
@@ -6973,14 +7005,14 @@ function practiceComment(r) {
     const lateRatio = r.valid ? r.late / r.valid : 0;
     const earlyRatio = r.valid ? r.early / r.valid : 0;
     const biased = Math.abs(r.avg) >= 40 || lateRatio >= 0.7 || earlyRatio >= 0.7;
-    const isBT = isBluetoothHeadphone();
+    // イヤホン接続（有線/Bluetooth）は手拍子マイク遅れ補正テストへ誘導（v0.9.152で有線も対応）。
+    const isHp = isHeadphoneInput();
     if (biased && (r.avg >= 40 || (lateRatio >= 0.7 && lateRatio >= earlyRatio))) {
-        // Bluetoothイヤホン時はマイク遅れ補正へ誘導（v0.9.80）
-        if (isBT) return { kind: 'warn', issue: 'btdelay', text: 'Bluetoothイヤホンではマイク判定がずれている可能性があります（LATE＝遅め）。「マイク遅れ補正」で補正してから、もう一度最終確認テストを行ってください。' };
+        if (isHp) return { kind: 'warn', issue: 'btdelay', text: 'イヤホンではマイク判定が遅め（LATE）にずれている可能性があります。「マイク遅れ補正」で手拍子に合わせて補正してから、もう一度最終確認テストを行ってください。' };
         return { kind: 'warn', issue: 'timing', text: '判定がLATE（遅め）に片寄っています。マイクの遅れ補正やイヤホン音ズレ補正が合っているか確認してから、もう一度最終確認テストを行ってください。' };
     }
     if (biased && (r.avg <= -40 || (earlyRatio >= 0.7 && earlyRatio > lateRatio))) {
-        if (isBT) return { kind: 'warn', issue: 'btdelay', text: 'Bluetoothイヤホンではマイク判定がずれている可能性があります（EARLY＝早め）。「マイク遅れ補正」で補正してから、もう一度最終確認テストを行ってください。' };
+        if (isHp) return { kind: 'warn', issue: 'btdelay', text: 'イヤホンではマイク判定が早め（EARLY）にずれている可能性があります。「マイク遅れ補正」で手拍子に合わせて補正してから、もう一度最終確認テストを行ってください。' };
         return { kind: 'warn', issue: 'timing', text: '判定がEARLY（早め）に片寄っています。マイクの遅れ補正やイヤホン音ズレ補正が合っているか確認してから、もう一度最終確認テストを行ってください。' };
     }
     // 二重反応が出ているときは「問題なし」にせず、軽く注意（クリック音・余韻拾いの可能性）
@@ -7031,6 +7063,8 @@ function renderPracticeResult(r) {
     } else {
         let fixLabel = '最終確認テストをやり直す', fixId = 'pt-result-fix-rerun';
         if (c.issue === 'input') { fixLabel = 'マイク反応テストをやり直す'; fixId = 'pt-result-fix-test'; }
+        else if (c.issue === 'lowsens') { fixLabel = 'マイク反応テストをやり直す'; fixId = 'pt-result-fix-test'; }
+        else if (c.issue === 'clickpickup') { fixLabel = 'マイク感度を確認する'; fixId = 'pt-result-fix-test'; }
         else if (c.issue === 'miss') { fixLabel = 'マイク感度を確認する'; fixId = 'pt-result-fix-test'; }
         else if (c.issue === 'timing') { fixLabel = '補正を確認する'; fixId = 'pt-result-fix-correction'; }
         else if (c.issue === 'btdelay') { fixLabel = 'マイク遅れ補正を行う'; fixId = 'pt-result-fix-btdelay'; }
@@ -7459,18 +7493,18 @@ function finishBtCal() {
     //   併せて下限を -400ms へ拡張したので、提案値が実際に動いて補正が前へ進む。
     const enoughInput = valid >= 6;
     const bigZure = Math.abs(avg) >= 35;
-    const cur = mic.bluetoothMicOffsetMs || 0;
+    const cur = headphoneMicOffsetGet(); // 有線イヤホンはtimingOffsetMs、BluetoothはbluetoothMicOffsetMs（v0.9.152）
     // 符号：判定時刻 = audio + offset。LATE(avg>0)なら offset を小さく（負方向）して早める。
-    // → new = cur - avg。1回の補正量は ±BT_MIC_STEP_CLAMP に制限し、全体は [MIN,MAX] にクランプ。
+    // → new = cur - avg。1回の補正量は ±BT_MIC_STEP_CLAMP に制限し、全体は補正先の範囲にクランプ。
     const step = Math.max(-BT_MIC_STEP_CLAMP, Math.min(BT_MIC_STEP_CLAMP, -avg));
-    const proposed = Math.max(BT_MIC_OFFSET_MIN, Math.min(BT_MIC_OFFSET_MAX, cur + step));
+    const proposed = headphoneMicOffsetClampVal(cur + step);
     const propose = enoughInput && bigZure;
     // 微調整（v0.9.94）：大きな補正提案が出ないケースでは、複雑な条件分岐をやめ、
     // 有効入力が十分で平均ズレが算出できれば（|avg|>=1ms）、最新結果で必ず微調整する。
     // 平均ズレが0msになることはほぼ無いので、小さなズレでも最新値へ自然に詰める。
     // 符号ルールは大きな補正と同じ（new = cur - avg）。1回の補正量は ±BT_FINE_STEP_CLAMP に制限。
     const fineStep = Math.max(-BT_FINE_STEP_CLAMP, Math.min(BT_FINE_STEP_CLAMP, -avg));
-    const fineProposed = Math.max(BT_MIC_OFFSET_MIN, Math.min(BT_MIC_OFFSET_MAX, cur + fineStep));
+    const fineProposed = headphoneMicOffsetClampVal(cur + fineStep);
     const fine = !propose && enoughInput
         && Math.abs(avg) >= 1
         && (fineProposed !== cur);
@@ -7479,7 +7513,7 @@ function finishBtCal() {
     let autoFineApplied = false;
     let appliedOffset = cur;
     if (fine) {
-        mic.bluetoothMicOffsetMs = fineProposed;
+        headphoneMicOffsetSet(fineProposed);
         appliedOffset = fineProposed;
         saveSettings();
         invalidatePracticeResult();
@@ -7598,7 +7632,7 @@ function btManualBlockHtml(start, sub) {
     return '<details class="card-help" style="margin-top:10px;"><summary>手動で微調整</summary>'
         + '<div class="setting-row" style="margin-top:10px;">'
         + '<div class="setting-label">マイク遅れ補正 <b id="bt-cal-manual-val">' + sign(start) + '</b></div>'
-        + '<input type="range" id="bt-cal-manual-slider" min="' + BT_MIC_OFFSET_MIN + '" max="' + BT_MIC_OFFSET_MAX + '" step="5" value="' + start + '">'
+        + '<input type="range" id="bt-cal-manual-slider" min="' + headphoneMicOffsetMin() + '" max="' + headphoneMicOffsetMax() + '" step="5" value="' + start + '">'
         + '<div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;"><span>← 判定を早める</span><span>判定を遅らせる →</span></div>'
         + '<p class="setting-note">最終確認テストで EARLY（早め）が残るなら右（遅らせる）へ、LATE（遅め）が残るなら左（早める）へ少し動かします。0ms＝補正なし。</p>'
         + '<button type="button" id="bt-cal-manual-use" style="' + sub + '">この補正を使う</button>'
@@ -7624,9 +7658,7 @@ function bindBtCalResultActions() {
     const manualUse = document.getElementById('bt-cal-manual-use');
     if (manualUse) manualUse.addEventListener('click', () => {
         if (!slider) return;
-        let v = parseInt(slider.value, 10) || 0;
-        v = Math.max(BT_MIC_OFFSET_MIN, Math.min(BT_MIC_OFFSET_MAX, v));
-        mic.bluetoothMicOffsetMs = v;
+        const v = headphoneMicOffsetSet(parseInt(slider.value, 10) || 0);
         saveSettings();
         invalidatePracticeResult();    // 最終確認テストの古い結果を無効化
         if (bt.result) bt.result.cur = v; // 再テスト時の基準にも反映
@@ -7639,11 +7671,11 @@ function bindBtCalResultActions() {
 /* 提案値を bluetoothMicOffsetMs に反映して保存（判定時刻へ即反映される）。 */
 function applyBtCal() {
     if (!bt.result) return;
-    mic.bluetoothMicOffsetMs = bt.result.proposed;
+    const v = headphoneMicOffsetSet(bt.result.proposed);
     saveSettings();
     // 補正したので、前回の最終確認テスト結果は古くなる
     invalidatePracticeResult();
-    setBtCalStatus('マイク遅れ補正を ' + (mic.bluetoothMicOffsetMs > 0 ? '+' : '') + mic.bluetoothMicOffsetMs + 'ms に設定しました。');
+    setBtCalStatus('マイク遅れ補正を ' + (v > 0 ? '+' : '') + v + 'ms に設定しました。');
 }
 
 /* マイク遅れ補正ステップ完了 → 最終確認テストへ。 */
@@ -8681,8 +8713,9 @@ function wizardSteps() {
         steps.push('correction');            // 通常マイク：マイクの遅れ補正
     } else if (isBluetoothHeadphone()) {
         steps.push('correction', 'btdelay'); // Bluetooth：イヤホン音ズレ補正＋マイク遅れ補正
+    } else {
+        steps.push('btdelay');               // 有線イヤホン：手拍子によるマイク遅れ補正（v0.9.152で追加）
     }
-    // 有線イヤホンは補正カードを出さない（0ms＝補正なしが基本）
     steps.push('practice', 'final');
     return steps;
 }
@@ -8693,7 +8726,7 @@ function wizardStepComplete(id) {
         case 'stroke': return setupProgress.strokeChosen;
         case 'test': return setupProgress.recoApplied;
         case 'correction': return setupProgress.correctionDone;
-        case 'btdelay': return !isBluetoothHeadphone() || setupProgress.btDelayDone;
+        case 'btdelay': return !isHeadphoneInput() || setupProgress.btDelayDone;
         case 'practice': return setupProgress.practiceDone;
         default: return false; // 'final' は終端
     }
@@ -8745,8 +8778,10 @@ function wizardStepSummary(id) {
             if (!isHeadphoneInput()) return 'マイクの遅れ補正：' + (mic.timingOffsetMs > 0 ? '+' : '') + mic.timingOffsetMs + 'ms';
             return 'イヤホン音ズレ補正：' + mic.headphoneOutputOffsetMs + 'ms';
         }
-        case 'btdelay':
-            return 'マイク遅れ補正：' + (mic.bluetoothMicOffsetMs > 0 ? '+' : '') + mic.bluetoothMicOffsetMs + 'ms';
+        case 'btdelay': {
+            const v = headphoneMicOffsetGet();
+            return 'マイク遅れ補正：' + (v > 0 ? '+' : '') + v + 'ms';
+        }
         case 'practice':
             return '最終確認テスト：完了';
         default: return '';
@@ -10479,7 +10514,9 @@ async function startMicTestFlow() {
     if (shouldStartMicTestInHighSensitivity()) test.rescueHighSens = true;
     test.clickDone = false; test.strokeDone = false;
     test.recommended = null; test.recoCooldown = null;
+    test.earphoneClickLeak = false;
     if (els.testReco) els.testReco.classList.add('hidden');
+    if (els.earphoneLeak) els.earphoneLeak.classList.add('hidden');
     els.micTestBtn.textContent = 'テストを中止';
     els.micTestBtn.classList.remove('is-todo');
     els.micTestBtn.classList.add('is-on'); // 進行中は「停止」系（赤）で分かるように
@@ -10592,8 +10629,70 @@ function endClickPhase() {
     test.clickDone = true;
     cancelAnimationFrame(test.clickRaf); test.clickRaf = 0; // クリック用の視覚ループを停止（ストローク側が引き継ぐ）
     test.maxClickPeak = test.clickPeaks.length ? Math.max(...test.clickPeaks) : 0;
+    // イヤホン接続時：クリック音は本来イヤホンから鳴り、本体マイクには入らない前提（v0.9.152）。
+    // クリック音をマイクが拾っていないか（音漏れがないか）を確認する。
+    if (isHeadphoneInput()) {
+        const noiseRef = Math.max((test.noiseMax || 0), (test.noiseP95 || 0));
+        const leakLine = Math.max(EARPHONE_CLICK_LEAK_FLOOR, noiseRef * 4);
+        const leakCount = (test.clickResults || []).filter((r) => r.peak >= leakLine).length;
+        // 単発ノイズでの誤検出を避けるため、2回以上＆最大ピークが下限以上のときだけ「音漏れ」とみなす。
+        const leak = (test.maxClickPeak || 0) >= leakLine && leakCount >= 2;
+        test.earphoneClickLeak = leak;
+        if (leak) { showEarphoneClickLeak(); return; }
+        // 漏れなし＝正常。イヤホン接続のクリック音量は固定（80%）にする（反応ラインに合わせて下げる必要がない）。
+        applyEarphoneClickVolumeFixed();
+    }
     setTestPhase('ストロークテストへ…');
     test.timers.push(setTimeout(beginStrokePhase, 800));
+}
+
+/* イヤホン接続でクリック音漏れが無いと確認できたとき、クリック音量を80%固定にする（v0.9.152）。
+   通常マイク時のクリック音量調整・クリック設定（鳴らす範囲/拍/裏拍）・STAGE判定には一切影響しない。 */
+function applyEarphoneClickVolumeFixed() {
+    if (state.clickVolume === EARPHONE_CLICK_VOLUME_FIXED) return;
+    state.clickVolume = EARPHONE_CLICK_VOLUME_FIXED;
+    applySettingsToUI(); // 簡易/手動/サマリーの表示も同期（v0.9.152）
+    saveSettings();
+}
+
+/* イヤホンのクリック音を本体マイクが拾っている（音漏れ）ときの案内＋通常マイク側テストへの導線（v0.9.152）。
+   この状態ではイヤホン用の測定が不安定になるため、テストを止めて通常マイク側でのテストを促す。 */
+function showEarphoneClickLeak() {
+    clearTestTimers();
+    cancelAnimationFrame(test.flowRaf); test.flowRaf = 0;
+    cancelAnimationFrame(test.clickRaf); test.clickRaf = 0;
+    test.flow = false; test.mode = null;
+    if (els.testLaneWrap) els.testLaneWrap.classList.add('hidden');
+    if (els.testReco) els.testReco.classList.add('hidden');
+    if (els.micTestBtn) {
+        els.micTestBtn.classList.remove('is-on');
+        els.micTestBtn.textContent = micTestBtnIdleLabel();
+        els.micTestBtn.classList.toggle('is-todo', !state.micTestDone);
+    }
+    setTestPhase('');
+    setTestResult('', '');
+    if (els.earphoneLeakMsg) {
+        els.earphoneLeakMsg.textContent = 'イヤホンのクリック音をマイクが拾っています。'
+            + '音漏れしている可能性があります。'
+            + 'この状態ではイヤホン用の測定が不安定になるため、通常マイク側でテストしてください。';
+    }
+    if (els.earphoneLeak) els.earphoneLeak.classList.remove('hidden');
+}
+
+/* 「通常マイクでテストする」：入力タイプを通常マイクへ切り替え、マイク反応テストへ進む（v0.9.152）。 */
+function earphoneLeakSwitchToNormal() {
+    if (els.earphoneLeak) els.earphoneLeak.classList.add('hidden');
+    setMicInputType('normal');
+    setupProgress.inputChosen = true;
+    setupProgress.strokeChosen = true; // ストローク検出モードの選択は引き継ぐ
+    setupProgress.recoApplied = false;
+    setupProgress.correctionDone = false;
+    setupProgress.btDelayDone = false;
+    setupProgress.practiceDone = false;
+    wizardEditing = 'test';
+    if (settingsView !== 'steps') settingsView = 'steps';
+    renderSettingsView();
+    scrollToSettingsEl(els.testCard);
 }
 
 /* ── ストロークテスト（流れる譜面型・8分ダウンアップ）──────────
@@ -12498,6 +12597,7 @@ function bind() {
     // 実音テスト（1ボタン自動フロー）
     els.micTestBtn.addEventListener('click', toggleMicTest);
     if (els.recoRetestBtn) els.recoRetestBtn.addEventListener('click', () => { if (!test.flow) { test.rescueHighSens = true; startMicTestFlow(); } });
+    if (els.earphoneLeakSwitch) els.earphoneLeakSwitch.addEventListener('click', earphoneLeakSwitchToNormal);
     els.recoApplyBtn.addEventListener('click', applyReco);
     els.tempoUp.addEventListener('click', () => setBpm(state.bpm + 1));   // v0.9.144：BPMは1刻みで微調整（最小/最大はsetBpm内のまま）
     els.tempoDown.addEventListener('click', () => setBpm(state.bpm - 1)); // v0.9.144：BPMは1刻みで微調整
