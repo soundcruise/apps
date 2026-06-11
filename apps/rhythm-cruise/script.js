@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.157';
+const RHYTHM_CRUISE_VERSION = '0.9.158';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -10855,8 +10855,10 @@ function endClickPhase() {
    通常マイク時のクリック音量調整・クリック設定（鳴らす範囲/拍/裏拍）・STAGE判定には一切影響しない。 */
 function applyEarphoneClickVolumeFixed() {
     if (!shouldUseEarphoneMicTestFeatures()) return;
-    if (state.clickVolume === EARPHONE_CLICK_VOLUME_FIXED) return;
     state.clickVolume = EARPHONE_CLICK_VOLUME_FIXED;
+    // v0.9.158：wired/bluetoothプロファイルにも80%を反映し、過去に保存された100%を残さない。
+    //   （state が既に80%でも、プロファイル側が100%のままになるケースを確実に直すため毎回書き戻す。）
+    storeActiveMicProfile(currentMicProfileKey());
     applySettingsToUI(); // 簡易/手動/サマリーの表示も同期（v0.9.152）
     saveSettings();
 }
@@ -11376,6 +11378,11 @@ function updateReco() {
     } else if (clickReacted > 0) {
         recoVol = Math.max(10, state.clickVolume - 20);
     }
+    // v0.9.158：有線/Bluetoothイヤホン時はクリック音量を80%固定にする。イヤホンではクリック音がマイクに
+    //   ほぼ入らない（=正常）ため maxClick が小さく、通常マイク式だと recoVol が100%へ張り付く。
+    //   表示(els.recoClickVol)・test.recoClickVolume・適用後目安(projClickMax) すべて80%基準にそろえる。
+    //   通常マイクのおすすめ算出式は一切変更しない。
+    if (shouldUseEarphoneMicTestFeatures()) recoVol = EARPHONE_CLICK_VOLUME_FIXED;
     test.recoClickVolume = recoVol;
     els.recoClickVol.textContent = recoVol + '％';
     // おすすめ音量を適用したときのクリック音最大の「目安」（線形近似）。
@@ -11745,7 +11752,14 @@ function applyReco() {
             });
         }
     }
-    if (test.recoClickVolume != null) state.clickVolume = test.recoClickVolume;
+    // v0.9.158：イヤホン時はテスト結果に関わらず80%固定で適用・保存（通常マイクは従来どおり）。
+    //   さらに wired/bluetooth プロファイルにも80%を書き戻し、過去に保存された100%を残さない。
+    if (shouldUseEarphoneMicTestFeatures()) {
+        state.clickVolume = EARPHONE_CLICK_VOLUME_FIXED;
+        storeActiveMicProfile(currentMicProfileKey());
+    } else if (test.recoClickVolume != null) {
+        state.clickVolume = test.recoClickVolume;
+    }
     if (test.recoCooldown != null) mic.cooldownMs = test.recoCooldown;
     // 内部値→スライダー・数値・マーカー・プレビューを同期
     applySettingsToUI();
