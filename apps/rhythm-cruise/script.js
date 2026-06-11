@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.158';
+const RHYTHM_CRUISE_VERSION = '0.9.159';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -198,13 +198,15 @@ const MIC_PRESETS_KEY = 'soundcruise_rhythm_mic_presets';
 const SETTINGS_DEFAULTS = { threshold: 0.025, cooldownMs: 200, clickGuardMs: 60, timingOffsetMs: 0, clickVolume: 70 };
 
 /* イヤホン（有線/Bluetooth）選択時のクリック音量初期値（v0.9.88）。
-   イヤホンではクリック音がマイクに回り込みにくいので、聞き取りやすい50%を既定にする。
-   通常マイクはこの値を使わず、既存のクリック音量設定を維持する。 */
-const EARPHONE_CLICK_VOLUME = 50;
+   イヤホンではクリック音がマイクに回り込みにくいので、聞き取りやすい音量を既定にする。
+   通常マイクはこの値を使わず、既存のクリック音量設定を維持する。
+   v0.9.159：固定値(EARPHONE_CLICK_VOLUME_FIXED)と揃えて 50→70 に変更（イヤホン時は一貫して70%）。 */
+const EARPHONE_CLICK_VOLUME = 70;
 /* イヤホン接続時のマイク反応テストで「クリック音漏れなし＝正常」と確認できたときに固定するクリック音量（v0.9.152）。
    イヤホン接続ではクリック音はイヤホンから鳴り本体マイクには入らない前提なので、反応ラインに合わせて
-   下げる必要がない。聞き取りやすい80%に固定する。通常マイク時のクリック音量調整には一切使わない。 */
-const EARPHONE_CLICK_VOLUME_FIXED = 80;
+   下げる必要がない。聞き取りやすい音量に固定する。通常マイク時のクリック音量調整には一切使わない。
+   v0.9.159：80→70 に変更（イヤホン時のクリック音量固定値）。 */
+const EARPHONE_CLICK_VOLUME_FIXED = 70;
 /* イヤホン接続時のクリック音漏れ判定の絶対下限（v0.9.152）。
    イヤホンのクリック音を本体マイクがこの値以上のピークで複数回拾ったら「音漏れ」とみなす。
    環境ノイズの数倍を併用し、単発ノイズでの誤検出を避ける。検出ロジック自体は変更しない（この判定は導線分岐のみに使う）。 */
@@ -9715,7 +9717,7 @@ function restoreMicProfileForCurrent(prevKey) {
 }
 
 /* ── 選択ハンドラ（選んだら自動で次の項目を出す。上流変更時は下流結果をリセット）── */
-/* イヤホン（有線/Bluetooth）を選んだら、以降のテストのクリック音量を50%に初期化する（v0.9.88）。
+/* イヤホン（有線/Bluetooth）を選んだら、以降のテストのクリック音量を初期値(70%)に初期化する（v0.9.88／v0.9.159で70%）。
    通常マイクは対象外（既存のクリック音量設定を維持）。 */
 function applyEarphoneClickVolumeDefault() {
     state.clickVolume = EARPHONE_CLICK_VOLUME;
@@ -10844,20 +10846,20 @@ function endClickPhase() {
         const leak = (test.maxClickPeak || 0) >= leakLine && leakCount >= 2;
         test.earphoneClickLeak = leak;
         if (leak) { showEarphoneClickLeak(); return; }
-        // 漏れなし＝正常。イヤホン接続のクリック音量は固定（80%）にする（反応ラインに合わせて下げる必要がない）。
+        // 漏れなし＝正常。イヤホン接続のクリック音量は固定（70%）にする（反応ラインに合わせて下げる必要がない）。
         applyEarphoneClickVolumeFixed();
     }
     setTestPhase('ストロークテストへ…');
     test.timers.push(setTimeout(beginStrokePhase, 800));
 }
 
-/* イヤホン接続でクリック音漏れが無いと確認できたとき、クリック音量を80%固定にする（v0.9.152）。
+/* イヤホン接続でクリック音漏れが無いと確認できたとき、クリック音量を70%固定にする（v0.9.152／v0.9.159で70%）。
    通常マイク時のクリック音量調整・クリック設定（鳴らす範囲/拍/裏拍）・STAGE判定には一切影響しない。 */
 function applyEarphoneClickVolumeFixed() {
     if (!shouldUseEarphoneMicTestFeatures()) return;
     state.clickVolume = EARPHONE_CLICK_VOLUME_FIXED;
-    // v0.9.158：wired/bluetoothプロファイルにも80%を反映し、過去に保存された100%を残さない。
-    //   （state が既に80%でも、プロファイル側が100%のままになるケースを確実に直すため毎回書き戻す。）
+    // v0.9.158：wired/bluetoothプロファイルにも固定値を反映し、過去に保存された100%を残さない。
+    //   （state が既に固定値でも、プロファイル側が100%のままになるケースを確実に直すため毎回書き戻す。）
     storeActiveMicProfile(currentMicProfileKey());
     applySettingsToUI(); // 簡易/手動/サマリーの表示も同期（v0.9.152）
     saveSettings();
