@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.155';
+const RHYTHM_CRUISE_VERSION = '0.9.156';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -55,6 +55,11 @@ const CAL_THR_FLOOR_MIN = 0.006;
 const CAL_THR_FLOOR_NOISE_MULT = 2;
 const CAL_THR_CEIL = 0.08;          // 補正用反応ラインの絶対上限
 const CAL_MIN_VOLUME = 40;     // 補正テスト中の最低クリック音量(%)。10%等で不安定なため引き上げる（STAGEは据え置き）。v0.9.140：Mac通常マイクでクリックを確実に拾うため 30→40 に微増
+/* v0.9.156：通常マイクで、マイク反応テストのおすすめクリック音量がここ以上＝端末本体音量で頭打ち気味（クリックが小さい端末）と判断し、
+   補正テスト中だけクリックを 100% 相当の一時音量で鳴らす（実機で再テスト時に100%へ上がると補正が通る挙動を、初回から再現する）。
+   ★STAGE用 state.clickVolume は変更しない＝補正テスト中だけ。applyCalSettings の退避/復元で必ず元へ戻す。
+   ゲイン底上げ(1.35)で、おすすめが90%付近から少し下がっても拾えるよう、トリガーは90より少し下の85にする。 */
+const CAL_FULL_VOLUME_AT = 85;
 const CAL_MIN_DETECT_PEAK = 0.05; // 想定クリックピークがこれ未満なら、さらに音量を上げて安定検出を狙う
 const CAL_MIN_SUCCESS = 7;     // 補正値を採用する最低検出数（8拍中）。これ未満は不安定扱い
 const CAL_COOLDOWN_MS = 150;   // 測定用クールダウン
@@ -86,13 +91,14 @@ const PT_CLICK_STRONG_FACTOR = 1.1;
    STAGE本番・最終確認テスト・BT補正・タップ補正・補正テストの「同じクリック音」で共通に使う（音量スケールを揃える）。 */
 const CLICK_PEAK_ACCENT = 0.80;
 const CLICK_PEAK_NORMAL = 0.66;
-/* v0.9.155：通常マイク時だけ、本体スピーカーから鳴るクリックの実出力を底上げする倍率。
+/* v0.9.155/0.9.156：通常マイク時だけ、本体スピーカーから鳴るクリックの実出力を底上げする倍率。
    端末本体音量が50%程度でもクリックが聞こえ・マイクに拾われやすくするため。
    ・通常マイクは本体スピーカーでクリックを鳴らす前提なので、ここを少し強くする。
    ・イヤホン接続時はクリックがイヤホンから鳴り、80%固定/音漏れチェックがあるため 1.0（据え置き）。
    ・出力は最終的に Math.min(CLICK_PEAK_CLIP) でクランプし、デジタル段での破綻音（ハードクリップ）を防ぐ。
-     本体音量を上げた時にスピーカー側で多少歪み始めるのは許容（明らかな破綻音にはしない）。 */
-const NORMAL_MIC_CLICK_GAIN = 1.25;
+     本体音量を上げた時にスピーカー側で多少歪み始めるのは許容（明らかな破綻音にはしない）。
+   ・v0.9.156：本体音量100%/クリック100%でも綺麗に鳴っていたため 1.25→1.35 に微増（安全寄り）。 */
+const NORMAL_MIC_CLICK_GAIN = 1.35;
 const CLICK_PEAK_CLIP = 0.98;       // クリックのピーク上限（デジタルクリップ回避）
 function clickPeakGain() {
     return isNormalMicInput() ? NORMAL_MIC_CLICK_GAIN : 1;
@@ -11516,17 +11522,18 @@ function updateReco() {
     //   ※クリック音量おすすめ値そのものは変更しない（案内のみ）。
     if (els.recoDeviceVolNote) {
         const projClickAt100 = (peakPerPct > 0) ? peakPerPct * 100 : 0;
+        // 検出自体が小さい（ソフト最大でも補正用ライン下限付近にも届かない）＝本体音量で頭打ちの疑いが濃い
         const detectedTooSmall = isNormalMicInput() && canApply && recoVol >= 100
             && projClickAt100 < calThrFloor() * 1.3;
-        const clickVolMaxed = isNormalMicInput() && canApply && recoVol >= 100 && !btInputLooksStrong;
+        // v0.9.156：クリック音量おすすめが90%以上＝本体音量が低めの可能性。補正テストが不安定なら本体音量を促す。
+        const clickVolHigh = isNormalMicInput() && canApply && recoVol >= 90;
         if (detectedTooSmall) {
             els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音が小さめに検出されています。</b><br>'
-                + 'スマホ本体の音量が小さい可能性があります。本体の音量を少し上げてから、'
-                + 'もう一度テストすると安定しやすくなります。';
+                + 'スマホ本体の音量を少し上げると、補正テストが安定しやすくなります。';
             els.recoDeviceVolNote.classList.remove('hidden');
-        } else if (clickVolMaxed) {
-            els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音量が最大になっています。</b><br>'
-                + 'それでもクリックが小さく感じる場合は、スマホ本体の音量を少し上げてください。';
+        } else if (clickVolHigh) {
+            els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音量が高めに設定されています。</b><br>'
+                + '補正テストがうまくいかない場合は、スマホ本体の音量を少し上げてから、もう一度テストしてください。';
             els.recoDeviceVolNote.classList.remove('hidden');
         } else {
             els.recoDeviceVolNote.classList.add('hidden');
@@ -12312,6 +12319,10 @@ function calibrationClickVolume() {
             vol = Math.max(vol, Math.ceil(CAL_MIN_DETECT_PEAK / peakPerPct));
         }
     }
+    // v0.9.156：通常マイクで、おすすめクリック音量が高い（=端末本体音量で頭打ち・クリックが小さい）端末は、
+    //   補正テスト中だけ 100% 相当まで上げる。1回目の補正テストでも十分なクリックピークを確保して通りやすくする。
+    //   ※STAGE用音量(state.clickVolume)は変えない（restoreで戻る一時値）。
+    if (isNormalMicInput() && state.clickVolume >= CAL_FULL_VOLUME_AT) vol = 100;
     return Math.max(5, Math.min(100, Math.round(vol)));
 }
 
