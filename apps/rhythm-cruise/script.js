@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.160';
+const RHYTHM_CRUISE_VERSION = '0.9.161';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -874,7 +874,6 @@ const els = {
     micPermHelp: $('mic-perm-help'),
     micPermHelpText: $('mic-perm-help-text'),
     micPermRetry: $('mic-perm-retry'),
-    wizardJumpFinal: $('wizard-jump-final'),
     testCardHead: $('test-card-head'),
     testDoneBadge: $('test-done-badge'),
     testMicState: $('test-mic-state'),
@@ -9009,7 +9008,6 @@ function renderSettingsView() {
     // マイク設定：保存済みプリセットページ（v0.9.104）
     if (els.micPresetCard) els.micPresetCard.classList.toggle('hidden', settingsView !== 'preset');
     if (settingsView === 'preset') renderPresetList();
-    if (els.wizardJumpFinal) els.wizardJumpFinal.style.display = 'none'; // v0.9.160：手順ビュー以外では隠す（steps時はrenderWizardStepsで再表示）
     if (steps) {
         renderWizardSteps();
     } else if (settingsView === 'manual') {
@@ -9357,14 +9355,6 @@ function renderWizardSteps() {
     renderStepProgress(active);
     renderStepSummaries(active);
     if (els.ptOpenManual) els.ptOpenManual.style.display = (active === 'practice') ? '' : 'none';
-    // v0.9.160：終了済みカードを1つだけ開いてやり直しているとき、後続を全部やり直さずに最終確認テストへ
-    //   戻れる導線を出す。反応テスト適用済み（最終確認テストが存在する）かつ、編集中のステップが
-    //   practice/final より前のときだけ表示する。状態（setupProgress）は変えず、表示位置を移すだけ。
-    if (els.wizardJumpFinal) {
-        const editingEarlier = !!wizardEditing && wizardEditing !== 'practice' && wizardEditing !== 'final';
-        const finalReachable = !!setupProgress.recoApplied;
-        els.wizardJumpFinal.style.display = (editingEarlier && finalReachable) ? '' : 'none';
-    }
     // v0.9.160：最終確認テストカードでは、Bluetoothイヤホン時だけ「マイク反応テストをやり直す」を出す
     //   （波形がラインに届かないときの測り直し導線）。通常マイク/有線では出さない。
     if (els.ptRetestMicBtn) {
@@ -9430,34 +9420,59 @@ function renderStepProgress(active) {
         + '</div>';
 }
 
-/* 完了ステップの要約チップ（タップで選び直し）。アクティブより前の完了分だけ並べる。 */
+/* 完了ステップの要約チップ（アコーディオン・v0.9.161）。
+   ・通常進行：アクティブ（現在地）より前の完了分を「▼」で並べる（押すと開く）。
+   ・編集中（wizardEditing がそのステップ）：そのステップのチップも「▲」で出す（押すと閉じる）。
+   完了フラグ（setupProgress）には一切触れない＝開閉は表示の移動だけ。 */
 function renderStepSummaries(active) {
     const wrap = els.settingsStepsSummary;
     if (!wrap) return;
     const rows = [];
     for (const id of wizardSteps()) {
-        if (id === active) break;
-        if (!wizardStepComplete(id)) continue;
-        rows.push({ id, text: wizardStepSummary(id) });
+        const isActive = (id === active);
+        const editingThis = isActive && !!wizardEditing; // 完了済みステップを開いて編集中
+        if (isActive && !editingThis) break;             // 通常進行の現在地は要約に出さない
+        if (!wizardStepComplete(id)) { if (editingThis) break; else continue; }
+        rows.push({ id, text: wizardStepSummary(id), open: editingThis });
+        if (editingThis) break;                          // 開いているステップまで（後続は出さない）
     }
     if (!rows.length) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
     wrap.style.display = '';
-    const rowStyle = 'display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;'
-        + 'padding:12px 14px;margin-bottom:10px;border:1px solid rgba(110,210,140,0.28);border-radius:12px;'
-        + 'background:rgba(110,210,140,0.07);color:inherit;font-size:0.9rem;cursor:pointer;';
+    const baseRow = 'display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;'
+        + 'padding:12px 14px;margin-bottom:10px;border-radius:12px;color:inherit;font-size:0.9rem;cursor:pointer;';
+    const closedRow = 'border:1px solid rgba(110,210,140,0.28);background:rgba(110,210,140,0.07);';
+    const openRow = 'border:1px solid rgba(255,159,28,0.5);background:rgba(255,159,28,0.1);';
     const checkChip = 'flex:none;color:#6ed28c;font-weight:700;font-size:0.95rem;line-height:1;';
-    const editChip = 'flex:none;white-space:nowrap;font-size:0.78rem;padding:6px 14px;border-radius:8px;'
-        + 'border:1px solid rgba(255,255,255,0.35);background:rgba(255,255,255,0.06);';
+    // 右端の開閉インジケータ（▼＝閉/▲＝開）。「戻る」「TOP」ボタンと区別できるよう小さな丸ピルにする。
+    const caretChip = 'flex:none;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;'
+        + 'border-radius:50%;border:1px solid rgba(255,255,255,0.35);background:rgba(255,255,255,0.06);'
+        + 'font-size:0.8rem;line-height:1;';
     wrap.innerHTML = rows.map((r) =>
-        '<button type="button" class="step-summary-row" data-step="' + r.id + '" style="' + rowStyle + '">'
+        '<button type="button" class="step-summary-row" data-step="' + r.id + '" aria-expanded="' + (r.open ? 'true' : 'false') + '" '
+        + 'style="' + baseRow + (r.open ? openRow : closedRow) + '">'
         + '<span style="' + checkChip + '" aria-hidden="true">✓</span>'
         + '<span style="flex:1;min-width:0;">' + escapeHtml(r.text) + '</span>'
-        + '<span style="' + editChip + '">変更</span>'
+        + '<span style="' + caretChip + '" aria-hidden="true">' + (r.open ? '▲' : '▼') + '</span>'
         + '</button>'
     ).join('');
     wrap.querySelectorAll('.step-summary-row').forEach((b) => {
-        b.addEventListener('click', () => editWizardStep(b.getAttribute('data-step')));
+        b.addEventListener('click', () => toggleWizardStep(b.getAttribute('data-step')));
     });
+}
+
+/* 要約チップの開閉（v0.9.161）。
+   ・閉じている（wizardEditing≠id）→ そのステップを開く（editWizardStep）。
+   ・開いている（wizardEditing===id）→ 閉じて現在の進行位置のカードへ自然に戻す。
+   完了フラグ（setupProgress）はどちらの操作でも変更しない（表示の移動だけ）。 */
+function toggleWizardStep(id) {
+    if (wizardEditing === id) {
+        wizardEditing = null; // 閉じる：activeWizardStep() が現在の進行位置（最終確認テスト等）へ戻る
+        renderSettingsView();
+        const card = wizardStepCards(activeWizardStep())[0];
+        scrollToSettingsEl(card);
+    } else {
+        editWizardStep(id);
+    }
 }
 
 /* 要約タップ：そのステップをもう一度開く（下流は選び直し時にリセットされる） */
@@ -9466,18 +9481,6 @@ function editWizardStep(id) {
     renderSettingsView();
     const card = wizardStepCards(id)[0];
     scrollToSettingsEl(card);
-}
-
-/* v0.9.160：終了済みカードを1つだけ開いてやり直したあと、後続ステップを全部やり直さずに
-   最終確認テストへ戻る導線。setupProgress（完了フラグ）は変更せず、表示するカードを移すだけ。
-   反応テストを適用し直して反応ラインが変わった場合は applyReco 側で後続が無効化されるが、
-   ここでは何もリセットしない（単なる移動）。 */
-function jumpToFinalTest() {
-    if (!setupProgress.recoApplied) return; // 最終確認テストがまだ存在しない
-    wizardEditing = 'practice';
-    if (settingsView !== 'steps') settingsView = 'steps';
-    renderSettingsView();
-    scrollToSettingsEl(els.ptCard);
 }
 
 /* 実践テスト結果を初期状態へ戻す（v0.9.67）。
@@ -12961,10 +12964,9 @@ function bind() {
     // 実音テスト（1ボタン自動フロー）
     els.micTestBtn.addEventListener('click', toggleMicTest);
     if (els.recoRetestBtn) els.recoRetestBtn.addEventListener('click', () => { if (!test.flow) { test.rescueHighSens = true; startMicTestFlow(); } });
-    // v0.9.160：マイクを開始できなかったときの「もう一度マイクをONにする」／最終確認テストへ戻る／
+    // v0.9.160：マイクを開始できなかったときの「もう一度マイクをONにする」／
     //   Bluetooth最終テストからの反応テストやり直し。
     if (els.micPermRetry) els.micPermRetry.addEventListener('click', retryMicStart);
-    if (els.wizardJumpFinal) els.wizardJumpFinal.addEventListener('click', jumpToFinalTest);
     if (els.ptRetestMicBtn) els.ptRetestMicBtn.addEventListener('click', () => { if (!test.flow) practiceFixGoTo('test'); });
     if (els.earphoneLeakSwitch) els.earphoneLeakSwitch.addEventListener('click', earphoneLeakSwitchToNormal);
     els.recoApplyBtn.addEventListener('click', applyReco);
