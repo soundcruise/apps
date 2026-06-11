@@ -3899,6 +3899,18 @@ h1 {
     font-weight: 700;
 }
 
+/* v0.9.157：クリック音量が高め時の案内は赤系の注意カードで少し目立たせる（見落とし防止）。 */
+.reco-device-vol-note.reco-device-vol-note--alert {
+    border-color: rgba(255, 99, 99, 0.55);
+    background: rgba(255, 99, 99, 0.12);
+    color: #ffc2c2;
+    font-weight: 600;
+}
+
+.reco-device-vol-note.reco-device-vol-note--alert b {
+    color: #ff6b6b;
+}
+
 /* マイク反応テストの流れる譜面レーン */
 .test-lane-wrap {
     width: 100%;

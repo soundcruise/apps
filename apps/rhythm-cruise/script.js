@@ -11575,15 +11575,17 @@ function updateReco() {
         // v0.9.156：クリック音量おすすめが90%以上＝本体音量が低めの可能性。補正テストが不安定なら本体音量を促す。
         const clickVolHigh = isNormalMicInput() && canApply && recoVol >= 90;
         if (detectedTooSmall) {
+            // 検出が小さい案内は従来どおりの淡い注意カード（アンバー）。
+            els.recoDeviceVolNote.className = 'reco-device-vol-note';
             els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音が小さめに検出されています。</b><br>'
                 + 'スマホ本体の音量を少し上げると、補正テストが安定しやすくなります。';
-            els.recoDeviceVolNote.classList.remove('hidden');
         } else if (clickVolHigh) {
+            // v0.9.157：クリック音量が高め時は赤系カードで少し目立たせる（見落とし防止）。
+            els.recoDeviceVolNote.className = 'reco-device-vol-note reco-device-vol-note--alert';
             els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音量が高めに設定されています。</b><br>'
-                + '補正テストがうまくいかない場合は、スマホ本体の音量を少し上げてから、もう一度テストしてください。';
-            els.recoDeviceVolNote.classList.remove('hidden');
+                + 'スマホ本体の音量を少し上げると、補正テストが安定しやすくなります。';
         } else {
-            els.recoDeviceVolNote.classList.add('hidden');
+            els.recoDeviceVolNote.className = 'reco-device-vol-note hidden';
         }
     }
     // 反応ラインが提案できる or クリック音量を下げられる → 適用ボタンを出す
