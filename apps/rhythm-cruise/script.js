@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.154';
+const RHYTHM_CRUISE_VERSION = '0.9.155';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -86,6 +86,17 @@ const PT_CLICK_STRONG_FACTOR = 1.1;
    STAGE本番・最終確認テスト・BT補正・タップ補正・補正テストの「同じクリック音」で共通に使う（音量スケールを揃える）。 */
 const CLICK_PEAK_ACCENT = 0.80;
 const CLICK_PEAK_NORMAL = 0.66;
+/* v0.9.155：通常マイク時だけ、本体スピーカーから鳴るクリックの実出力を底上げする倍率。
+   端末本体音量が50%程度でもクリックが聞こえ・マイクに拾われやすくするため。
+   ・通常マイクは本体スピーカーでクリックを鳴らす前提なので、ここを少し強くする。
+   ・イヤホン接続時はクリックがイヤホンから鳴り、80%固定/音漏れチェックがあるため 1.0（据え置き）。
+   ・出力は最終的に Math.min(CLICK_PEAK_CLIP) でクランプし、デジタル段での破綻音（ハードクリップ）を防ぐ。
+     本体音量を上げた時にスピーカー側で多少歪み始めるのは許容（明らかな破綻音にはしない）。 */
+const NORMAL_MIC_CLICK_GAIN = 1.25;
+const CLICK_PEAK_CLIP = 0.98;       // クリックのピーク上限（デジタルクリップ回避）
+function clickPeakGain() {
+    return isNormalMicInput() ? NORMAL_MIC_CLICK_GAIN : 1;
+}
 
 /* 実践テストの開発確認用ログ（v0.9.77）。本番は false（出力なし）。
    原因追跡したいときだけ true にすると、検出/割り当て/除外理由の集計を console.debug に出す。 */
@@ -834,6 +845,7 @@ const els = {
     recoClickVol: $('reco-clickvol'),
     recoCooldown: $('reco-cooldown'),
     recoMsg: $('reco-msg'),
+    recoDeviceVolNote: $('reco-device-vol-note'),
     recoRetest: $('reco-retest'),
     recoRetestBtn: $('reco-retest-btn'),
     recoApplyBtn: $('reco-apply-btn'),
@@ -3059,7 +3071,8 @@ function click(accent, force) {
     osc.frequency.value = accent ? 1500 : 1200;
     // クリック音量設定（0..100%）を反映。0なら無音
     const vol = Math.max(0, Math.min(1, state.clickVolume / 100));
-    const peak = (accent ? CLICK_PEAK_ACCENT : CLICK_PEAK_NORMAL) * vol;
+    // v0.9.155：通常マイク時のみ実出力を底上げ（イヤホンは1.0）。デジタルクリップはCLICK_PEAK_CLIPで防ぐ。
+    const peak = Math.min(CLICK_PEAK_CLIP, (accent ? CLICK_PEAK_ACCENT : CLICK_PEAK_NORMAL) * vol * clickPeakGain());
     if (peak < 0.001) return; // 実質無音
     gain.gain.setValueAtTime(0.0001, t0);
     gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.002);
@@ -3151,7 +3164,8 @@ function scheduleStageClick(audioTime, accent, force) {
     const ctx = state.audioCtx;
     if (!ctx) return;
     const vol = Math.max(0, Math.min(1, state.clickVolume / 100));
-    const peak = (accent ? CLICK_PEAK_ACCENT : CLICK_PEAK_NORMAL) * vol;
+    // v0.9.155：通常マイク時のみ実出力を底上げ（イヤホンは1.0）。デジタルクリップはCLICK_PEAK_CLIPで防ぐ。
+    const peak = Math.min(CLICK_PEAK_CLIP, (accent ? CLICK_PEAK_ACCENT : CLICK_PEAK_NORMAL) * vol * clickPeakGain());
     if (peak < 0.001) return;
     const t0 = Math.max(audioTime, ctx.currentTime); // 過去時刻なら即時
     const osc = ctx.createOscillator();
@@ -11494,18 +11508,29 @@ function updateReco() {
         els.recoMsg.textContent = 'クリック音とストローク音の間に反応ラインを置きました（' + lineTxt + '）。'
             + (volChanged ? 'クリック音量を ' + recoVol + '% にすると安定します。' : '') + projTxt;
     }
-    // v0.9.154：端末本体の音量が低い可能性の控えめ案内（通常マイクのみ）。
-    //   クリックおすすめがソフト上限(100%)へ張り付き、かつソフト100%でも想定クリックピークが
-    //   補正用ラインの下限付近にも届かない＝端末ハード音量で頭打ち、と推定できるときだけ出す。
-    //   本体音量が十分ならおすすめは100%へ張り付かないので、通常は出ない（過剰警告を避ける）。
-    //   ※クリック音量おすすめ値そのものは変更しない（案内だけ追加）。
-    const projClickAt100 = (peakPerPct > 0) ? peakPerPct * 100 : 0;
-    const deviceVolumeLikelyLow = isNormalMicInput() && canApply && recoVol >= 100
-        && projClickAt100 < calThrFloor() * 1.3;
-    if (deviceVolumeLikelyLow) {
-        if (!els.recoMsg.classList.contains('ng')) els.recoMsg.className = 'test-reco-msg warn';
-        els.recoMsg.classList.remove('hidden');
-        els.recoMsg.textContent += '（スマホ本体の音量が小さい可能性があります。本体の音量を少し上げてから、もう一度テストすると、クリック音を安定して検出しやすくなります。）';
+    // v0.9.155：端末本体の音量に関する案内を、専用カードで少し目立たせる（通常マイクのみ）。
+    //   v0.9.154 では recoMsg の末尾に括弧書きを足していたが、実機では見落としやすかったため
+    //   ⚠付きの淡い注意カード（reco-device-vol-note）に分離。文言は端末非依存の一般表現にする。
+    //   ・「検出が小さい」＝ソフト100%張り付き かつ 想定ピークが補正用ライン下限付近にも届かない（=本体音量で頭打ちの疑い）
+    //   ・「最大張り付き」＝クリック音量おすすめが100% だが検出自体は届いている（=さらに必要なら本体音量を）
+    //   ※クリック音量おすすめ値そのものは変更しない（案内のみ）。
+    if (els.recoDeviceVolNote) {
+        const projClickAt100 = (peakPerPct > 0) ? peakPerPct * 100 : 0;
+        const detectedTooSmall = isNormalMicInput() && canApply && recoVol >= 100
+            && projClickAt100 < calThrFloor() * 1.3;
+        const clickVolMaxed = isNormalMicInput() && canApply && recoVol >= 100 && !btInputLooksStrong;
+        if (detectedTooSmall) {
+            els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音が小さめに検出されています。</b><br>'
+                + 'スマホ本体の音量が小さい可能性があります。本体の音量を少し上げてから、'
+                + 'もう一度テストすると安定しやすくなります。';
+            els.recoDeviceVolNote.classList.remove('hidden');
+        } else if (clickVolMaxed) {
+            els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音量が最大になっています。</b><br>'
+                + 'それでもクリックが小さく感じる場合は、スマホ本体の音量を少し上げてください。';
+            els.recoDeviceVolNote.classList.remove('hidden');
+        } else {
+            els.recoDeviceVolNote.classList.add('hidden');
+        }
     }
     // 反応ラインが提案できる or クリック音量を下げられる → 適用ボタンを出す
     if (canApply || volChanged) els.recoApplyBtn.classList.remove('hidden');
