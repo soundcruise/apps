@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.167';
+const RHYTHM_CRUISE_VERSION = '0.9.168';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -535,6 +535,7 @@ const els = {
     settingsBtn: $('settings-btn'),
     tapHint: $('tap-hint'),
     stageList: $('stage-list'),
+    rhythmProCustomSavedList: $('rhythm-pro-custom-saved-list'),
     // v0.9.117：ホームを「リズム練をする → 基礎練/ストロークパターン/コード進行」の階層に再構成
     homeTop: $('home-top'),
     homeRhythm: $('home-rhythm'),
@@ -567,6 +568,7 @@ const els = {
     pceBpm: $('pce-bpm'),
     pceBpmDown: $('pce-bpm-down'),
     pceBpmUp: $('pce-bpm-up'),
+    pceSaveAs: $('pce-save-as'),
     pceBarsDown: $('pce-bars-down'),
     pceBarsUp: $('pce-bars-up'),
     pceBarsVal: $('pce-bars-val'),
@@ -973,6 +975,7 @@ function renderStages() {
         if (s.ready) card.addEventListener('click', () => openStage(s.n));
         els.stageList.appendChild(card);
     });
+    renderRhythmHomeCustomStages();
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1457,16 +1460,36 @@ async function copyRhythmCustomStageJson(id) {
     presentRhythmJson(JSON.stringify(stage, null, 2));
 }
 
-/* 新規作成：デフォルトSTAGEを1件保存して一覧を更新 */
+/* 新規作成：保存配列には追加せず、未保存ドラフトとして編集画面を開く（v0.9.168）。 */
 function createNewRhythmCustomStage() {
     if (!isRhythmProCustomStageAvailable()) return;
-    const added = addRhythmCustomStage(getDefaultRhythmCustomStage());
-    if (!added) {
+    if (getSavedRhythmCustomStages().length >= RHYTHM_CUSTOM_STAGE_MAX_SAVED) {
+        setHomeView('rhythm');
         showRcToast(`保存できる上限（${RHYTHM_CUSTOM_STAGE_MAX_SAVED}件）に達しています`);
         return;
     }
-    renderRhythmCustomStages();
-    showRcToast('カスタムSTAGEを追加しました');
+    openRhythmProCustomEditorDraft(getDefaultRhythmCustomStage());
+}
+
+/* リズム練画面のPROカスタムSTAGEボタン下へ、保存済みSTAGE名だけを並べる。 */
+function renderRhythmHomeCustomStages() {
+    if (!els.rhythmProCustomSavedList) return;
+    const stages = getSavedRhythmCustomStages();
+    els.rhythmProCustomSavedList.innerHTML = '';
+    stages.forEach((s) => {
+        const row = document.createElement('div');
+        row.className = 'stage-card pro-custom-home-stage';
+        row.dataset.id = s.id;
+        row.setAttribute('role', 'button');
+        row.setAttribute('tabindex', '0');
+        row.innerHTML = `
+            <span class="stage-num"><small>PRO</small><b>★</b></span>
+            <span class="stage-body">
+                <span class="stage-title">${escapeHtml(s.title)}</span>
+            </span>
+            <button type="button" class="pro-custom-act is-edit pro-custom-home-edit" data-act="edit">編集</button>`;
+        els.rhythmProCustomSavedList.appendChild(row);
+    });
 }
 
 /* 一覧描画 */
@@ -1494,9 +1517,7 @@ function renderRhythmCustomStages() {
             <div class="pro-custom-card-desc">${escapeHtml(s.description)}</div>
             <div class="pro-custom-card-meta">${meta}</div>
             <div class="pro-custom-card-actions">
-                <button type="button" class="pro-custom-act is-test" data-act="test">テスト再生</button>
                 <button type="button" class="pro-custom-act is-edit" data-act="edit">編集</button>
-                <button type="button" class="pro-custom-act is-copy" data-act="copy">JSONコピー</button>
                 <button type="button" class="pro-custom-act is-delete" data-act="delete">削除</button>
             </div>`;
         els.proCustomList.appendChild(card);
@@ -1505,25 +1526,36 @@ function renderRhythmCustomStages() {
 
 /* ═══════════════════════════════════════════════════════════
    PROカスタムSTAGE 編集画面（v0.9.120）
-   ・保存済みSTAGEを編集して上書き保存／JSONコピーする。
+   ・保存済みSTAGEを編集して上書き保存、または未保存ドラフトを新規保存する。
    ・編集中は proCustomEditDraft（正規化済みオブジェクト）を真実とし、
-     入力のたびに更新する。保存で配列へ上書きする。
+     入力のたびに更新する。保存で配列へ追加/上書きする。
    ・練習開始・再生・判定エンジン接続は今回は行わない。
 ═══════════════════════════════════════════════════════════ */
 let proCustomEditDraft = null; // 編集中のドラフト（normalize済み）
 
-/* 編集画面を開く：保存済みSTAGEを読み込みドラフト化して表示。 */
-function openRhythmProCustomEditor(id) {
+function rhythmCustomStageExists(id) {
+    return !!id && getSavedRhythmCustomStages().some(s => s.id === id);
+}
+
+/* 編集画面を開く：未保存ドラフトを表示する。保存するまで state.rhythmProCustomStages へは追加しない。 */
+function openRhythmProCustomEditorDraft(stage) {
     if (!isRhythmProCustomStageAvailable()) return;
-    const saved = getSavedRhythmCustomStages().find(s => s.id === id);
-    if (!saved) { showRcToast('STAGEが見つかりません'); return; }
-    proCustomEditDraft = normalizeRhythmCustomStageSettings(saved);
+    proCustomEditDraft = normalizeRhythmCustomStageSettings(stage || getDefaultRhythmCustomStage());
+    if (!proCustomEditDraft) return;
     // 「＋ 使い方」は編集画面を開くたびに閉じた状態へ戻す（v0.9.140）。
     if (els.pceHowtoBody) els.pceHowtoBody.classList.add('hidden');
     if (els.pceHowtoToggle) { els.pceHowtoToggle.setAttribute('aria-expanded', 'false'); els.pceHowtoToggle.textContent = '＋ 使い方'; }
     ensureRhythmVexFlow(); // 譜面ライブラリを先読み（編集画面を開いた時だけ・CDN不使用）
     renderRhythmCustomEditor();
     setHomeView('proCustomEdit');
+}
+
+/* 編集画面を開く：保存済みSTAGEを読み込みドラフト化して表示。 */
+function openRhythmProCustomEditor(id) {
+    if (!isRhythmProCustomStageAvailable()) return;
+    const saved = getSavedRhythmCustomStages().find(s => s.id === id);
+    if (!saved) { showRcToast('STAGEが見つかりません'); return; }
+    openRhythmProCustomEditorDraft(saved);
 }
 
 /* ドラフトの各UIを現在値に同期。 */
@@ -1544,6 +1576,8 @@ function renderRhythmCustomEditor() {
     if (els.pcePbars) els.pcePbars.value = String(d.patternBars);
     syncRhythmFeelSegUI(); // リズムタイプ（ストレート/スウィング）の選択状態（v0.9.165）
     if (els.pceBarsVal) els.pceBarsVal.textContent = String(d.bars);
+    if (els.pceDelete) els.pceDelete.classList.toggle('hidden', !rhythmCustomStageExists(d.id));
+    if (els.pceSaveAs) els.pceSaveAs.classList.toggle('hidden', !rhythmCustomStageExists(d.id));
     renderRhythmEditorPattern();
 }
 
@@ -2867,16 +2901,43 @@ function collectRhythmCustomEditorInputs() {
     return d;
 }
 
-/* 現在ドラフトを正規化して上書き保存。成功なら保存済み(normalize後)オブジェクト、失敗なら null を返す。
-   editorStay=true（既定）のときだけ編集画面に留まり「保存しました」を表示する。 */
+/* 現在ドラフトを正規化して保存。既存IDがあれば上書き、未保存ドラフトなら新規追加する。
+   editorStay=true のときは編集画面に留まり、それ以外は一覧へ戻る。 */
 function saveRhythmCustomEditor(editorStay) {
     const d = collectRhythmCustomEditorInputs();
     if (!d) return null;
-    const saved = updateRhythmCustomStage(d);
+    const isExisting = rhythmCustomStageExists(d.id);
+    const saved = isExisting ? updateRhythmCustomStage(d) : addRhythmCustomStage(d);
     if (!saved) { showRcToast('保存できませんでした'); return null; }
     proCustomEditDraft = saved; // 正規化後の値で同期
-    renderRhythmCustomEditor();
-    if (editorStay !== false) showRcToast('保存しました');
+    renderRhythmCustomStages();
+    renderRhythmHomeCustomStages();
+    if (editorStay === true) {
+        renderRhythmCustomEditor();
+        showRcToast('保存しました');
+    } else {
+        setHomeView('rhythm');
+        showRcToast(isExisting ? '保存しました' : 'カスタムSTAGEを保存しました');
+    }
+    return saved;
+}
+
+/* 既存STAGE編集中の「別名で保存」。現在の編集内容を新しいIDで追加する。 */
+function saveRhythmCustomEditorAsCopy() {
+    const d = collectRhythmCustomEditorInputs();
+    if (!d) return null;
+    if (!rhythmCustomStageExists(d.id)) return saveRhythmCustomEditor(false);
+    if (getSavedRhythmCustomStages().length >= RHYTHM_CUSTOM_STAGE_MAX_SAVED) {
+        showRcToast(`保存できる上限（${RHYTHM_CUSTOM_STAGE_MAX_SAVED}件）に達しています`);
+        return null;
+    }
+    const saved = addRhythmCustomStage({ ...d, id: generateRhythmCustomStageId() });
+    if (!saved) { showRcToast('保存できませんでした'); return null; }
+    proCustomEditDraft = saved;
+    renderRhythmCustomStages();
+    renderRhythmHomeCustomStages();
+    setHomeView('rhythm');
+    showRcToast('別名で保存しました');
     return saved;
 }
 
@@ -2913,8 +2974,8 @@ function backToEditorFromTest() {
             renderRhythmCustomEditor();
         }
     } else {
-        renderRhythmCustomStages();
-        setHomeView('proCustom');
+        renderRhythmHomeCustomStages();
+        setHomeView('rhythm');
     }
 }
 
@@ -2946,11 +3007,19 @@ async function copyRhythmCustomEditorJson() {
 function deleteRhythmCustomFromEditor() {
     const d = proCustomEditDraft;
     if (!d) return;
+    if (!rhythmCustomStageExists(d.id)) {
+        proCustomEditDraft = null;
+        renderRhythmCustomStages();
+        renderRhythmHomeCustomStages();
+        setHomeView('rhythm');
+        return;
+    }
     if (!window.confirm('このカスタムSTAGEを削除しますか？')) return;
     deleteRhythmCustomStageById(d.id);
     proCustomEditDraft = null;
     renderRhythmCustomStages();
-    setHomeView('proCustom');
+    renderRhythmHomeCustomStages();
+    setHomeView('rhythm');
     showRcToast('削除しました');
 }
 
@@ -2970,6 +3039,7 @@ function updateChrome() {
 }
 
 function renderHome() {
+    renderRhythmHomeCustomStages();
     if (els.homeTop) els.homeTop.classList.toggle('hidden', homeView !== 'top');
     if (els.homeRhythm) els.homeRhythm.classList.toggle('hidden', homeView !== 'rhythm');
     if (els.homeKiso) els.homeKiso.classList.toggle('hidden', homeView !== 'kiso');
@@ -2990,8 +3060,7 @@ function openSoonCategory(title) {
 /* PROカスタムSTAGE一覧を開く（判定フック経由・v0.9.119）。 */
 function openRhythmProCustom() {
     if (!isRhythmProCustomStageAvailable()) return;
-    renderRhythmCustomStages();
-    setHomeView('proCustom');
+    createNewRhythmCustomStage();
 }
 /* ホームの特定サブビューへ移動（STAGE→基礎練など）。再生・マイクは止めてから移る。 */
 function goHomeView(v) {
@@ -3053,7 +3122,7 @@ function navBack() {
         if (homeView === 'kiso') { setHomeView('rhythm'); return; }
         if (homeView === 'soon') { setHomeView('rhythm'); return; }
         if (homeView === 'proCustom') { setHomeView('rhythm'); return; }
-        if (homeView === 'proCustomEdit') { renderRhythmCustomStages(); setHomeView('proCustom'); return; }
+        if (homeView === 'proCustomEdit') { renderRhythmHomeCustomStages(); setHomeView('rhythm'); return; }
         return; // TOPでは戻る不要（共通ナビ自体を隠している）
     }
     goTop();
@@ -12904,22 +12973,45 @@ function bind() {
     if (els.catKiso) els.catKiso.addEventListener('click', () => setHomeView('kiso'));
     if (els.catStroke) els.catStroke.addEventListener('click', () => openSoonCategory('ストロークパターン'));
     if (els.catChord) els.catChord.addEventListener('click', () => openSoonCategory('コード進行'));
-    // PROカスタムSTAGE（v0.9.119）：入口→一覧、新規作成、一覧内のコピー/削除（委譲）
+    // PROカスタムSTAGE（v0.9.168）：入口→未保存ドラフト編集、一覧カード本体→Play、操作ボタン→編集/削除。
     if (els.catProCustom) els.catProCustom.addEventListener('click', openRhythmProCustom);
+    if (els.rhythmProCustomSavedList) els.rhythmProCustomSavedList.addEventListener('click', (e) => {
+        const row = e.target.closest('.pro-custom-home-stage');
+        const id = row && row.dataset ? row.dataset.id : '';
+        if (!id) return;
+        const btn = e.target.closest('[data-act]');
+        if (btn && btn.dataset.act === 'edit') {
+            e.preventDefault();
+            e.stopPropagation();
+            openRhythmProCustomEditor(id);
+            return;
+        }
+        openRhythmProCustomTest(id);
+    });
+    if (els.rhythmProCustomSavedList) els.rhythmProCustomSavedList.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        if (e.target.closest('[data-act]')) return;
+        const row = e.target.closest('.pro-custom-home-stage');
+        const id = row && row.dataset ? row.dataset.id : '';
+        if (!id) return;
+        e.preventDefault();
+        openRhythmProCustomTest(id);
+    });
     if (els.proCustomNew) els.proCustomNew.addEventListener('click', createNewRhythmCustomStage);
     if (els.proCustomList) els.proCustomList.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-act]');
-        if (!btn) return;
-        const card = btn.closest('.pro-custom-card');
+        const card = e.target.closest('.pro-custom-card');
         const id = card && card.dataset ? card.dataset.id : '';
         if (!id) return;
-        const act = btn.dataset.act;
-        if (act === 'test') {
+        if (!btn) {
             openRhythmProCustomTest(id);
-        } else if (act === 'edit') {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        const act = btn.dataset.act;
+        if (act === 'edit') {
             openRhythmProCustomEditor(id);
-        } else if (act === 'copy') {
-            copyRhythmCustomStageJson(id);
         } else if (act === 'delete') {
             if (window.confirm('このカスタムSTAGEを削除しますか？')) {
                 deleteRhythmCustomStageById(id);
@@ -12949,10 +13041,11 @@ function bind() {
         else if (zone.dataset.zone === 'arrow') tapRhythmEditorArrow(i);
     });
     if (els.pceHowtoToggle) els.pceHowtoToggle.addEventListener('click', toggleRhythmEditorHowto);
-    if (els.pceSave) els.pceSave.addEventListener('click', () => saveRhythmCustomEditor(true));
+    if (els.pceSave) els.pceSave.addEventListener('click', () => saveRhythmCustomEditor(false));
+    if (els.pceSaveAs) els.pceSaveAs.addEventListener('click', saveRhythmCustomEditorAsCopy);
     if (els.pceTest) els.pceTest.addEventListener('click', testPlayFromEditor);
     if (els.pceCopy) els.pceCopy.addEventListener('click', copyRhythmCustomEditorJson);
-    if (els.pceBack) els.pceBack.addEventListener('click', () => { renderRhythmCustomStages(); setHomeView('proCustom'); });
+    if (els.pceBack) els.pceBack.addEventListener('click', () => { renderRhythmHomeCustomStages(); setHomeView('rhythm'); });
     if (els.pceDelete) els.pceDelete.addEventListener('click', deleteRhythmCustomFromEditor);
     // JSON手動コピーモーダル（v0.9.120）
     if (els.rcJsonClose) els.rcJsonClose.addEventListener('click', hideRhythmJsonModal);

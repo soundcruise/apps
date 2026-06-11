@@ -65,12 +65,15 @@
                     <!-- PROカスタムSTAGE入口（v0.9.119）。表示・操作は isRhythmProCustomStageAvailable() を経由する。 -->
                     <button class="settings-top-main cat-btn cat-pro" id="cat-pro-custom"><span class="cat-pro-crown">👑</span> PROカスタムSTAGE</button>
                 </div>
+                <div class="stage-list pro-custom-saved-stage-list" id="rhythm-pro-custom-saved-list">
+                    <!-- 保存済みPROカスタムSTAGEを script.js が描画 -->
+                </div>
             </div>
 
-            <!-- PROカスタムSTAGE一覧（v0.9.119）。作成・一覧・削除・JSONコピーの土台。戻るは共通ナビ #app-nav。 -->
+            <!-- PROカスタムSTAGE一覧（v0.9.168）。保存済みSTAGEのPlay/編集/削除の導線。戻るは共通ナビ #app-nav。 -->
             <div class="home-view hidden" id="home-pro-custom">
                 <div class="section-label">PROカスタムSTAGE</div>
-                <p class="pro-custom-lead">リズムSTAGEを作成して、JSONとして出力できます</p>
+                <p class="pro-custom-lead">保存済みSTAGEをタップすると再生できます</p>
                 <button class="settings-top-main pro-custom-new" id="pro-custom-new">＋ 新規作成</button>
                 <div class="pro-custom-list" id="pro-custom-list">
                     <!-- script.js が描画 -->
@@ -163,10 +166,10 @@
 
                 <div class="pce-actions">
                     <button type="button" class="settings-top-main pce-save" id="pce-save">保存</button>
+                    <button type="button" class="pro-custom-act is-edit pce-save-as hidden" id="pce-save-as">別名で保存</button>
                     <button type="button" class="pro-custom-act is-test pce-test" id="pce-test">テスト再生</button>
-                    <button type="button" class="pro-custom-act is-copy pce-copy" id="pce-copy">JSONコピー</button>
                 </div>
-                <button type="button" class="pce-back-link" id="pce-back">一覧へ戻る</button>
+                <button type="button" class="pce-back-link" id="pce-back">リズム練へ戻る</button>
                 <button type="button" class="pce-delete-link" id="pce-delete">このカスタムSTAGEを削除</button>
             </div>
 
@@ -1086,7 +1089,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.167"></script>
+    <script src="script.js?v=0.9.168"></script>
 </body>
 
 </html>
