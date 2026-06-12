@@ -720,6 +720,259 @@ h1 {
     color: #ffe7a8;
 }
 
+/* ── リズム練画面：保存済みPROカスタムSTAGEカードの操作（v0.9.169）──────────
+   指板クルーズPRO / 音感クルーズPRO の「再生＋▼トグル＋アイコン操作メニュー」を参考に、
+   保存済みカードを「PROカスタムSTAGE」ボタンと同じ金色基調へ寄せる。 */
+.pro-custom-home-item {
+    width: 100%;
+}
+
+/* 保存済みSTAGEカードは PROカスタムSTAGE入口ボタン（.cat-pro）と同じ金色の雰囲気に揃える */
+.pro-custom-home-stage {
+    gap: 12px;
+    border-color: rgba(255, 200, 87, 0.5);
+    background:
+        radial-gradient(120% 120% at 0% 0%, rgba(255, 200, 87, 0.14), transparent 55%),
+        rgba(255, 200, 87, 0.07);
+}
+
+@media (hover: hover) {
+    .pro-custom-home-stage:hover {
+        border-color: rgba(255, 200, 87, 0.7);
+        background:
+            radial-gradient(120% 120% at 0% 0%, rgba(255, 200, 87, 0.2), transparent 55%),
+            rgba(255, 200, 87, 0.12);
+    }
+}
+
+.pro-custom-home-stage .stage-title {
+    margin-bottom: 0;
+    color: #ffe7a8;
+}
+
+.pro-custom-home-stage.is-reordering {
+    cursor: default;
+}
+
+/* カード右の ▼（メニュー） */
+.pro-custom-home-toggle {
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 200, 87, 0.4);
+    background: rgba(255, 255, 255, 0.04);
+    color: #ffe7a8;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.9rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: transform 0.16s, border-color 0.16s, background 0.16s;
+    touch-action: manipulation;
+}
+
+.pro-custom-home-toggle:active {
+    transform: scale(0.94);
+}
+
+@media (hover: hover) {
+    .pro-custom-home-toggle:hover {
+        border-color: rgba(255, 200, 87, 0.7);
+        background: rgba(255, 200, 87, 0.12);
+    }
+}
+
+.pro-custom-home-item.is-open .pro-custom-home-toggle {
+    transform: rotate(180deg);
+    border-color: rgba(255, 200, 87, 0.7);
+    background: rgba(255, 200, 87, 0.12);
+}
+
+/* ▼で開く操作メニュー（カードの下に出す） */
+.pro-custom-home-menu {
+    margin-top: 8px;
+    padding: 8px;
+    border: 1px solid rgba(253, 246, 238, 0.14);
+    border-radius: 12px;
+    background: rgba(20, 17, 13, 0.6);
+}
+
+.pro-custom-home-menu[hidden] {
+    display: none;
+}
+
+/* アイコン操作ボタンの並び（指板クルーズPROのアクション群に近い横並び） */
+.pro-custom-home-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.pro-custom-home-act {
+    flex: 1 1 0;
+    min-width: 48px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 1.15rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: transform 0.16s, border-color 0.16s, background 0.16s;
+    touch-action: manipulation;
+}
+
+.pro-custom-home-act:active {
+    transform: scale(0.96);
+}
+
+@media (hover: hover) {
+    .pro-custom-home-act:hover {
+        border-color: rgba(255, 159, 28, 0.45);
+        background: rgba(255, 159, 28, 0.10);
+    }
+}
+
+.pro-custom-home-act--danger {
+    border-color: rgba(255, 99, 99, 0.34);
+}
+
+.pro-custom-home-act--help {
+    flex: 0 0 auto;
+    min-width: 44px;
+    font-weight: 800;
+    color: #ffe7a8;
+    border-color: rgba(255, 200, 87, 0.45);
+}
+
+.pro-custom-home-act:disabled {
+    opacity: 0.4;
+    cursor: default;
+    transform: none;
+}
+
+/* コピーアイコン（二重紙）のインラインSVG */
+.pcm-dup-svg {
+    width: 20px;
+    height: 20px;
+    display: block;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+}
+
+/* 「？」で開く簡易説明パネル */
+.pro-custom-home-help {
+    margin-top: 8px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px dashed rgba(253, 246, 238, 0.2);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.pro-custom-home-help[hidden] {
+    display: none;
+}
+
+.pro-custom-home-help p {
+    margin: 0 0 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.86rem;
+    line-height: 1.5;
+    color: rgba(253, 246, 238, 0.86);
+}
+
+.pro-custom-home-help p:last-child {
+    margin-bottom: 0;
+}
+
+.pcm-help-ic {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+}
+
+.pcm-help-ic .pcm-dup-svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* 並び替えモード：↑/↓ボタン */
+.pro-custom-home-move {
+    flex-shrink: 0;
+    display: flex;
+    gap: 6px;
+}
+
+.pro-custom-home-move-btn {
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 200, 87, 0.4);
+    background: rgba(255, 255, 255, 0.04);
+    color: #ffe7a8;
+    font-family: inherit;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: transform 0.16s, border-color 0.16s, background 0.16s;
+}
+
+.pro-custom-home-move-btn:active {
+    transform: scale(0.94);
+}
+
+.pro-custom-home-move-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+    transform: none;
+}
+
+/* 一番下の「順番並び替え／並び替えを終わる」トグル */
+.pro-custom-home-reorder-toggle {
+    width: 100%;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px dashed rgba(255, 200, 87, 0.5);
+    background: rgba(255, 200, 87, 0.06);
+    color: #ffe7a8;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.92rem;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: transform 0.16s, border-color 0.16s, background 0.16s;
+}
+
+.pro-custom-home-reorder-toggle:active {
+    transform: scale(0.99);
+}
+
+.pro-custom-home-reorder-toggle.is-active {
+    border-style: solid;
+    background: rgba(255, 200, 87, 0.14);
+}
+
 /* ── PROカスタムSTAGE 編集画面（v0.9.120）──────────────────── */
 .pce-field {
     width: 100%;

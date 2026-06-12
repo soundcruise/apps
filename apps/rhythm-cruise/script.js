@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.168';
+const RHYTHM_CRUISE_VERSION = '0.9.169';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -1382,6 +1382,44 @@ function updateRhythmCustomStage(stage) {
     return incoming;
 }
 
+/* id指定で「タイトルだけ」を更新（名前の編集用・v0.9.169）。
+   pattern / bpm / rhythmFeel / judgeTargets などの中身は一切変えない。成功したら true。 */
+function renameRhythmCustomStageById(id, newTitle) {
+    const trimmed = String(newTitle == null ? '' : newTitle).trim();
+    if (!id || !trimmed) return false;
+    const stages = getSavedRhythmCustomStages();
+    const idx = stages.findIndex(s => s.id === id);
+    if (idx < 0) return false;
+    stages[idx] = { ...stages[idx], title: trimmed }; // title 以外はそのまま保持
+    state.rhythmProCustomStages = stages;
+    saveSettings();
+    return true;
+}
+
+/* 既存タイトルと重複しない「コピー」名を作る（v0.9.169）。
+   例: 「16分スウィング」→「16分スウィング コピー」、既にあれば「… コピー2」「… コピー3」…。 */
+function makeFreshRhythmCopyTitle(baseTitle) {
+    const stages = getSavedRhythmCustomStages();
+    const titles = new Set(stages.map(s => s.title));
+    const base = `${String(baseTitle == null ? '' : baseTitle).trim() || 'カスタムSTAGE'} コピー`;
+    if (!titles.has(base)) return base;
+    for (let n = 2; n < 1000; n++) {
+        const cand = `${base}${n}`;
+        if (!titles.has(cand)) return cand;
+    }
+    return base;
+}
+
+/* 保存済みSTAGEを複製（JSONコピーではなく保存データの複製・v0.9.169）。
+   新しいIDで state.rhythmProCustomStages へ追加する。上限超過なら null（元STAGEは不変）。 */
+function duplicateRhythmCustomStage(id) {
+    const original = getSavedRhythmCustomStages().find(s => s.id === id);
+    if (!original) return null;
+    if (getSavedRhythmCustomStages().length >= RHYTHM_CUSTOM_STAGE_MAX_SAVED) return null;
+    const copy = { ...original, id: generateRhythmCustomStageId(), title: makeFreshRhythmCopyTitle(original.title) };
+    return addRhythmCustomStage(copy); // 正規化・上限チェック・保存は addRhythmCustomStage に委譲
+}
+
 /* id指定で削除。削除できたら true。 */
 function deleteRhythmCustomStageById(id) {
     if (!id) return false;
@@ -1471,25 +1509,165 @@ function createNewRhythmCustomStage() {
     openRhythmProCustomEditorDraft(getDefaultRhythmCustomStage());
 }
 
-/* リズム練画面のPROカスタムSTAGEボタン下へ、保存済みSTAGE名だけを並べる。 */
+/* 「ステージのコピー」アイコン（v0.9.169）。
+   指板クルーズPRO / 音感クルーズPRO は assets/icon-duplicate.png（二重紙アイコン）を使うが、
+   リズムクルーズは shared/ や assets/ に依存しない自己完結構成のため、新規画像を増やさず・他アプリを参照せず、
+   同じ「二枚の紙＝複製」の見た目をインラインSVG（線画・currentColor）で再現する。 */
+const RHYTHM_DUP_ICON_SVG = '<svg class="pcm-dup-svg" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"></path></svg>';
+
+let rhythmReorderMode = false; // 保存済みPROカスタムSTAGEの「順番並び替え」モード（v0.9.169）
+
+/* リズム練画面のPROカスタムSTAGEボタン下へ、保存済みSTAGE名だけを並べる。
+   v0.9.169：カード名部分＝Play、右側は▼（操作メニュー）のみ（⋮は廃止）。
+   ▼メニュー＝アイコン化した 名前の編集／中身の編集／コピー／削除 ＋「？」説明（指板クルーズPRO参考）。
+   一覧の一番下に「順番並び替え」ボタン（音感クルーズPRO参考。2件以上のときだけ表示）。 */
 function renderRhythmHomeCustomStages() {
     if (!els.rhythmProCustomSavedList) return;
     const stages = getSavedRhythmCustomStages();
+    const reachedLimit = stages.length >= RHYTHM_CUSTOM_STAGE_MAX_SAVED;
+    if (stages.length < 2) rhythmReorderMode = false; // 0/1件では並び替えしない
+    const reordering = rhythmReorderMode;
     els.rhythmProCustomSavedList.innerHTML = '';
-    stages.forEach((s) => {
-        const row = document.createElement('div');
-        row.className = 'stage-card pro-custom-home-stage';
-        row.dataset.id = s.id;
-        row.setAttribute('role', 'button');
-        row.setAttribute('tabindex', '0');
-        row.innerHTML = `
-            <span class="stage-num"><small>PRO</small><b>★</b></span>
-            <span class="stage-body">
-                <span class="stage-title">${escapeHtml(s.title)}</span>
-            </span>
-            <button type="button" class="pro-custom-act is-edit pro-custom-home-edit" data-act="edit">編集</button>`;
-        els.rhythmProCustomSavedList.appendChild(row);
+    stages.forEach((s, idx) => {
+        const item = document.createElement('div');
+        item.className = 'pro-custom-home-item' + (reordering ? ' is-reordering' : '');
+        item.dataset.id = s.id;
+        const badge = '<span class="stage-num pro-custom-home-badge"><small>PRO</small><b>★</b></span>';
+        const title = `<span class="stage-body"><span class="stage-title">${escapeHtml(s.title)}</span></span>`;
+        if (reordering) {
+            // 並び替えモード：Playは発火させず、↑/↓で順番だけ動かす。
+            item.innerHTML = `
+                <div class="stage-card pro-custom-home-stage is-reordering">
+                    ${badge}
+                    ${title}
+                    <span class="pro-custom-home-move">
+                        <button type="button" class="pro-custom-home-move-btn" data-act="up" aria-label="上へ移動"${idx === 0 ? ' disabled' : ''}>↑</button>
+                        <button type="button" class="pro-custom-home-move-btn" data-act="down" aria-label="下へ移動"${idx === stages.length - 1 ? ' disabled' : ''}>↓</button>
+                    </span>
+                </div>`;
+        } else {
+            item.innerHTML = `
+                <div class="stage-card pro-custom-home-stage" data-act="play" role="button" tabindex="0">
+                    ${badge}
+                    ${title}
+                    <button type="button" class="pro-custom-home-toggle" data-act="menu" aria-expanded="false" aria-haspopup="true" aria-label="その他の操作を表示" title="その他の操作">▼</button>
+                </div>
+                <div class="pro-custom-home-menu" role="menu" aria-label="STAGEの操作" hidden>
+                    <div class="pro-custom-home-actions">
+                        <button type="button" class="pro-custom-home-act" data-act="rename" role="menuitem" title="名前の編集" aria-label="名前の編集">✏️</button>
+                        <button type="button" class="pro-custom-home-act" data-act="edit" role="menuitem" title="中身の編集" aria-label="中身の編集">⚙️</button>
+                        <button type="button" class="pro-custom-home-act pro-custom-home-act--dup" data-act="duplicate" role="menuitem" title="コピー" aria-label="ステージのコピー"${reachedLimit ? ' disabled' : ''}>${RHYTHM_DUP_ICON_SVG}</button>
+                        <button type="button" class="pro-custom-home-act pro-custom-home-act--danger" data-act="delete" role="menuitem" title="削除" aria-label="ステージの削除">🗑️</button>
+                        <button type="button" class="pro-custom-home-act pro-custom-home-act--help" data-act="help" title="操作の説明" aria-label="操作の説明">？</button>
+                    </div>
+                    <div class="pro-custom-home-help" hidden>
+                        <p><span class="pcm-help-ic">✏️</span>名前の編集：STAGE名だけを変更します。</p>
+                        <p><span class="pcm-help-ic">⚙️</span>中身の編集：リズム内容や設定を編集します。</p>
+                        <p><span class="pcm-help-ic">${RHYTHM_DUP_ICON_SVG}</span>コピー：同じ内容のSTAGEを複製します。</p>
+                        <p><span class="pcm-help-ic">🗑️</span>ステージの削除：このSTAGEを削除します。</p>
+                    </div>
+                </div>`;
+        }
+        els.rhythmProCustomSavedList.appendChild(item);
     });
+    // 一番下：順番並び替えトグル（2件以上のときだけ）。新規作成ボタンや通常STAGEの位置は変えない。
+    if (stages.length >= 2) {
+        const footer = document.createElement('button');
+        footer.type = 'button';
+        footer.className = 'pro-custom-home-reorder-toggle' + (reordering ? ' is-active' : '');
+        footer.dataset.act = 'reorder-toggle';
+        footer.setAttribute('aria-pressed', reordering ? 'true' : 'false');
+        footer.textContent = reordering ? '並び替えを終わる' : '順番並び替え';
+        els.rhythmProCustomSavedList.appendChild(footer);
+    }
+}
+
+/* 開いている▼メニューをすべて閉じる（画面遷移・保存後・別カードを開くとき用・v0.9.169）。 */
+function closeRhythmHomeStageMenus() {
+    if (!els.rhythmProCustomSavedList) return;
+    els.rhythmProCustomSavedList.querySelectorAll('.pro-custom-home-item.is-open').forEach((item) => {
+        item.classList.remove('is-open');
+        const menu = item.querySelector('.pro-custom-home-menu');
+        const toggle = item.querySelector('.pro-custom-home-toggle');
+        if (menu) menu.hidden = true;
+        if (toggle) { toggle.setAttribute('aria-expanded', 'false'); toggle.setAttribute('aria-label', 'その他の操作を表示'); }
+    });
+}
+
+/* ▼メニューの開閉（1つだけ開く・v0.9.169）。 */
+function toggleRhythmHomeStageMenu(item) {
+    if (!item) return;
+    const opening = !item.classList.contains('is-open');
+    closeRhythmHomeStageMenus();
+    if (!opening) return; // すでに開いていた → 閉じるだけ
+    item.classList.add('is-open');
+    const menu = item.querySelector('.pro-custom-home-menu');
+    const toggle = item.querySelector('.pro-custom-home-toggle');
+    if (menu) menu.hidden = false;
+    if (toggle) { toggle.setAttribute('aria-expanded', 'true'); toggle.setAttribute('aria-label', 'その他の操作を閉じる'); }
+}
+
+/* 保存済みSTAGEの順番を1つ動かす（v0.9.169）。配列順＝表示順として保存する。 */
+function moveRhythmCustomStage(id, dir) {
+    const stages = getSavedRhythmCustomStages();
+    const i = stages.findIndex(s => s.id === id);
+    if (i < 0) return;
+    const j = i + dir;
+    if (j < 0 || j >= stages.length) return;
+    const tmp = stages[i]; stages[i] = stages[j]; stages[j] = tmp;
+    state.rhythmProCustomStages = stages; // 並び順を配列順として永続化
+    saveSettings();
+    renderRhythmHomeCustomStages();
+}
+
+/* ▼メニューの各操作を処理する（v0.9.169）。 */
+function handleRhythmHomeStageAction(act, id, item) {
+    if (!id) return;
+    if (act === 'menu') { toggleRhythmHomeStageMenu(item); return; }
+    if (act === 'help') { // 「？」：各操作ボタンの説明パネルを開閉する（簡易説明パネル）
+        const help = item ? item.querySelector('.pro-custom-home-help') : null;
+        if (help) help.hidden = !help.hidden;
+        return;
+    }
+    if (act === 'edit') { // 中身の編集（既存の編集導線をそのまま使う）
+        closeRhythmHomeStageMenus();
+        openRhythmProCustomEditor(id);
+        return;
+    }
+    if (act === 'rename') { // 名前の編集：title だけを更新（中身は変更しない）
+        const cur = getSavedRhythmCustomStages().find(s => s.id === id);
+        if (!cur) return;
+        const next = window.prompt('新しいSTAGE名を入力してください', cur.title);
+        if (next === null) return; // キャンセル
+        const trimmed = String(next).trim();
+        if (!trimmed) { showRcToast('名前を入力してください'); return; }
+        renameRhythmCustomStageById(id, trimmed);
+        closeRhythmHomeStageMenus();
+        renderRhythmHomeCustomStages(); // 表示名を更新（リズム練画面のまま）
+        showRcToast('名前を変更しました');
+        return;
+    }
+    if (act === 'duplicate') { // ステージのコピー：保存データを複製して新IDで追加
+        if (getSavedRhythmCustomStages().length >= RHYTHM_CUSTOM_STAGE_MAX_SAVED) {
+            showRcToast(`保存できる上限（${RHYTHM_CUSTOM_STAGE_MAX_SAVED}件）に達しています`);
+            return;
+        }
+        const dup = duplicateRhythmCustomStage(id);
+        closeRhythmHomeStageMenus();
+        if (dup) { renderRhythmHomeCustomStages(); showRcToast('コピーしました'); }
+        else { showRcToast('コピーできませんでした'); }
+        return;
+    }
+    if (act === 'delete') { // ステージの削除：既存の削除ロジック＋確認ダイアログ
+        const cur = getSavedRhythmCustomStages().find(s => s.id === id);
+        if (!cur) return;
+        if (!window.confirm(`「${cur.title}」を削除しますか？`)) return;
+        deleteRhythmCustomStageById(id);
+        closeRhythmHomeStageMenus();
+        renderRhythmHomeCustomStages();
+        showRcToast('削除しました');
+        return;
+    }
 }
 
 /* 一覧描画 */
@@ -3238,7 +3416,7 @@ function openRhythmProCustomTest(id) {
     updateBarsUI();
     applyStageBars();                             // TOTAL_BEATS = 小節数 × 1小節のセル数
     state.currentStage = 0;                       // 通常STAGE番号ではない（カスタム）
-    els.practiceNum.innerHTML = '<small>カスタム</small><b>★</b>';
+    els.practiceNum.innerHTML = '<small>PRO</small><b>★</b>'; // v0.9.169：PROカスタムSTAGEは「PRO★」バッジに統一
     els.practiceTitle.textContent = stage.title;
     setInputMode(state.inputMode);
     show('practice');
@@ -12976,25 +13154,43 @@ function bind() {
     // PROカスタムSTAGE（v0.9.168）：入口→未保存ドラフト編集、一覧カード本体→Play、操作ボタン→編集/削除。
     if (els.catProCustom) els.catProCustom.addEventListener('click', openRhythmProCustom);
     if (els.rhythmProCustomSavedList) els.rhythmProCustomSavedList.addEventListener('click', (e) => {
-        const row = e.target.closest('.pro-custom-home-stage');
-        const id = row && row.dataset ? row.dataset.id : '';
-        if (!id) return;
-        const btn = e.target.closest('[data-act]');
-        if (btn && btn.dataset.act === 'edit') {
+        // 一番下の「順番並び替え／並び替えを終わる」トグル（カード外のボタン）
+        const reorderToggle = e.target.closest('[data-act="reorder-toggle"]');
+        if (reorderToggle) {
             e.preventDefault();
-            e.stopPropagation();
-            openRhythmProCustomEditor(id);
+            rhythmReorderMode = !rhythmReorderMode;
+            closeRhythmHomeStageMenus();
+            renderRhythmHomeCustomStages();
             return;
         }
-        openRhythmProCustomTest(id);
+        const item = e.target.closest('.pro-custom-home-item');
+        const id = item && item.dataset ? item.dataset.id : '';
+        if (!id) return;
+        const actEl = e.target.closest('[data-act]');
+        const act = actEl ? actEl.dataset.act : '';
+        // 並び替えモード中：↑/↓だけ反応し、Playやメニューは発火させない
+        if (rhythmReorderMode) {
+            if (act === 'up') { e.preventDefault(); e.stopPropagation(); moveRhythmCustomStage(id, -1); }
+            else if (act === 'down') { e.preventDefault(); e.stopPropagation(); moveRhythmCustomStage(id, 1); }
+            return;
+        }
+        // カード名部分（data-act="play"）またはボタン外＝従来どおりPlay/テスト再生
+        if (act === 'play' || !act) { closeRhythmHomeStageMenus(); openRhythmProCustomTest(id); return; }
+        // 右側の操作（▼メニュー・各メニュー項目）：Playを誤発火させない
+        e.preventDefault();
+        e.stopPropagation();
+        handleRhythmHomeStageAction(act, id, item);
     });
     if (els.rhythmProCustomSavedList) els.rhythmProCustomSavedList.addEventListener('keydown', (e) => {
         if (e.key !== 'Enter' && e.key !== ' ') return;
-        if (e.target.closest('[data-act]')) return;
-        const row = e.target.closest('.pro-custom-home-stage');
-        const id = row && row.dataset ? row.dataset.id : '';
+        if (rhythmReorderMode) return; // 並び替え中はカードのEnter/Spaceでも再生しない
+        // 操作ボタンはネイティブのEnter/Space→clickに任せる。カード名部分(data-act="play")だけここでPlay。
+        if (!e.target.dataset || e.target.dataset.act !== 'play') return;
+        const item = e.target.closest('.pro-custom-home-item');
+        const id = item && item.dataset ? item.dataset.id : '';
         if (!id) return;
         e.preventDefault();
+        closeRhythmHomeStageMenus();
         openRhythmProCustomTest(id);
     });
     if (els.proCustomNew) els.proCustomNew.addEventListener('click', createNewRhythmCustomStage);
