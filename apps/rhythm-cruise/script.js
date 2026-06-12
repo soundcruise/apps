@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.169';
+const RHYTHM_CRUISE_VERSION = '0.9.170';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -3125,7 +3125,7 @@ function saveRhythmCustomEditorAsCopy() {
 function testPlayFromEditor() {
     const saved = saveRhythmCustomEditor(true);
     if (!saved) return; // 失敗時は saveRhythmCustomEditor 側でトースト表示済み
-    openRhythmProCustomTest(saved.id);
+    openRhythmProCustomTest(saved.id, 'editor'); // 編集画面から来た＝「戻る」で編集画面へ（v0.9.170）
 }
 
 /* カスタムSTAGEのテスト再生／結果画面から、元の編集画面へ戻る（v0.9.124）。
@@ -3155,6 +3155,21 @@ function backToEditorFromTest() {
         renderRhythmHomeCustomStages();
         setHomeView('rhythm');
     }
+}
+
+/* 保存済みカスタムSTAGEカードから開いたテスト再生／結果画面から、
+   「リズム練をする」STAGE選択画面へ戻る（v0.9.170）。
+   編集画面ではなくSTAGE選択へ戻す以外は、backToEditorFromTest と同じ後始末（再生/マイク停止・一時設定の復元）。 */
+function backToStageSelectFromTest() {
+    stop();
+    stopMic();
+    if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden');
+    document.body.classList.remove('results-open');
+    if (els.refreshBar) els.refreshBar.classList.remove('hidden');
+    leaveCustomTestState();           // 一時bpm/小節数を元へ戻し、エンジンを通常STAGEへ
+    renderRhythmHomeCustomStages();
+    show('home');
+    setHomeView('rhythm');
 }
 
 /* テスト再生画面の「このSTAGEを保存」（v0.9.124）。
@@ -3286,9 +3301,12 @@ function navBack() {
     if (!els.settings.classList.contains('hidden')) { closeSettings(); return; }
     // STAGE画面（結果・見返し含む）→ カスタムテスト中はPROカスタム一覧へ、通常はリズム練画面へ（v0.9.166）
     if (currentScreen === 'practice') {
-        // 編集テスト再生中（editId あり）だけ編集画面へ戻す。組み込みSTAGEは通常どおりリズム練画面へ。
+        // PROカスタムSTAGEのテスト再生中（editId あり）は、開き元で戻り先を分ける（v0.9.170）。
+        //   編集画面のテスト再生から来た → 編集画面へ戻る。
+        //   保存済みカードから来た → 「リズム練をする」STAGE選択画面へ戻る。
         if (eng.editId) {
-            backToEditorFromTest(); // カスタムテスト中の「戻る」も該当STAGEの編集画面へ
+            if (eng.testSource === 'editor') backToEditorFromTest();
+            else backToStageSelectFromTest();
             return;
         }
         goHomeView('rhythm');
@@ -3398,16 +3416,23 @@ function leaveCustomTestState() {
 /* PROカスタムSTAGEのテスト再生（v0.9.124）。
    保存済み設定（拍子/最小音符/パターンの長さ/pattern/bpm/小節数）を使って、既存STAGE画面で練習する。
    カスタムSTAGE自体の保存データは書き換えない（bpm/小節数はテスト中の一時設定）。 */
-function openRhythmProCustomTest(id) {
+function openRhythmProCustomTest(id, source = 'home') {
     if (!isRhythmProCustomStageAvailable()) return;
     const stage = getSavedRhythmCustomStages().find((s) => s.id === id);
     if (!stage) { showRcToast('STAGEが見つかりません'); return; }
     ensureRhythmVexFlow();                        // 譜面ライブラリ先読み（編集画面と共通・CDN不使用）
     if (!eng.restore) eng.restore = { bpm: state.bpm, bars: state.bars }; // 退出時に戻すSTAGE設定を退避
     configureEngineForCustom(stage);
-    eng.editId = stage.id;                        // 「編集に戻る」用に元STAGEを記憶
+    eng.editId = stage.id;                        // 編集導線・一時BPM/小節数の扱い用に元STAGEを記憶
+    eng.testSource = (source === 'editor') ? 'editor' : 'home'; // v0.9.170：戻り先・ボタン文言の判別用
     if (els.practiceEditBack) els.practiceEditBack.classList.remove('hidden');
-    if (els.customTestActions) els.customTestActions.classList.remove('hidden'); // 開始ボタン下の2ボタンを表示
+    if (els.customTestActions) els.customTestActions.classList.remove('hidden'); // 開始ボタン下のボタンを表示
+    // v0.9.170：開き元で操作ボタンを出し分ける。
+    //   編集画面のテスト再生＝「編集に戻る」＋「このSTAGEを保存」を表示。
+    //   保存済みカード＝「編集する」だけ表示（保存済みSTAGEなので保存ボタンは不要）。
+    const fromEditor = eng.testSource === 'editor';
+    if (els.customTestEditBack) els.customTestEditBack.textContent = fromEditor ? '編集に戻る' : '編集する';
+    if (els.customTestSave) els.customTestSave.classList.toggle('hidden', !fromEditor);
     renderRhythmCustomTestPreview(eng.custom);    // 読み取り専用のVexFlow譜面プレビューを表示（v0.9.125）
     showCustomFlowScoreLayer();                   // 流れるVexFlow譜面レイヤー枠を表示（中身は次工程・v0.9.126）
     state.bpm = clampNum(stage.bpm, 40, 200, state.bpm); // 再生エンジンのBPM範囲に合わせてclamp
@@ -4909,6 +4934,7 @@ const eng = {
     pattern: null,                // カスタムの1ループ分パターン（null=STAGE1＝全セルが4分のヒット）
     restore: null,                // テスト再生前の bpm/bars スナップショット（退出時に復元）
     editId: null,                 // テスト再生元のカスタムSTAGE id（「編集に戻る」用・v0.9.124）
+    testSource: null,             // テスト再生画面の開き元（'home'=保存済みカード / 'editor'=編集画面のテスト再生・v0.9.170）
 };
 
 function configureEngineForStage1() {
@@ -4919,6 +4945,7 @@ function configureEngineForStage1() {
     eng.countInCells = BEATS_PER_BAR;
     eng.pattern = null;
     eng.editId = null;
+    eng.testSource = null;
 }
 function configureEngineForCustom(stage) {
     const info = rhythmTimeSigInfo(stage.timeSignature);
@@ -13174,6 +13201,8 @@ function bind() {
             else if (act === 'down') { e.preventDefault(); e.stopPropagation(); moveRhythmCustomStage(id, 1); }
             return;
         }
+        // メニュー内の余白・説明文など data-act が無い領域はPlay扱いしない（v0.9.170）。
+        if (!act && e.target.closest('.pro-custom-home-menu')) return;
         // カード名部分（data-act="play"）またはボタン外＝従来どおりPlay/テスト再生
         if (act === 'play' || !act) { closeRhythmHomeStageMenus(); openRhythmProCustomTest(id); return; }
         // 右側の操作（▼メニュー・各メニュー項目）：Playを誤発火させない
