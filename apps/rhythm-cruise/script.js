@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.180';
+const RHYTHM_CRUISE_VERSION = '0.9.181';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -1534,6 +1534,35 @@ function startRhythmCreatePreview() {
     // 休符/タイの区別はプレビュー共通の既定（distinguishRest=true）で有効。
     // 小節数は「リズムを作る」専用の barsOverride で渡す（1小節パターンをこの小節数ぶん繰り返し再生）。v0.9.180。
     if (stage) startPreviewRhythmForStage(stage, { barsOverride: getRhythmCreateBars() });
+}
+
+function openRhythmCreatePractice() {
+    const def = getRhythmCreateStageDef();
+    const stage = buildRhythmCreatePreviewStage();
+    if (!stage) return;
+    stopPreviewRhythm();
+    ensureRhythmVexFlow();
+    if (!eng.restore) eng.restore = { bpm: state.bpm, bars: state.bars };
+    configureEngineForCustom(stage);
+    eng.editId = null;                  // 保存済みPROカスタムSTAGEではない
+    eng.testSource = 'rhythmCreate';    // 戻り先と履歴保存の分岐に使う
+    if (els.practiceEditBack) els.practiceEditBack.classList.remove('hidden');
+    if (els.customTestActions) els.customTestActions.classList.remove('hidden');
+    if (els.customTestEditBack) els.customTestEditBack.textContent = 'リズム作成に戻る';
+    if (els.customTestSave) els.customTestSave.classList.add('hidden');
+    renderRhythmCustomTestPreview(eng.custom);
+    showCustomFlowScoreLayer();
+    state.bpm = clampRhythmCreateBpm(getRhythmCreateBpm());
+    state.bars = clampRhythmCreateBars(getRhythmCreateBars());
+    if (els.tempoVal) els.tempoVal.textContent = String(state.bpm);
+    updateBarsUI();
+    applyStageBars();
+    state.currentStage = 0;
+    els.practiceNum.innerHTML = `<small>STAGE</small><b>${def.n}</b>`;
+    els.practiceTitle.textContent = def.title;
+    setInputMode(state.inputMode);
+    show('practice');
+    requestAnimationFrame(() => { fitLane(); resetGame(); renderRhythmFlowScore(); });
 }
 
 function toggleRhythmCreatePreviewPlay() {
@@ -3896,6 +3925,27 @@ function backToStageSelectFromTest() {
     setHomeView('rhythm');
 }
 
+/* 「リズムを作る」から開いた一時練習を抜け、元のSTAGE編集画面へ戻る（v0.9.181）。
+   保存済みSTAGEは作らず、作成中の1小節パターン/BPM/小節数はセッション内状態のまま保持する。 */
+function backToRhythmCreateFromTest() {
+    const stageNo = rhythmCreateCurrentStage;
+    stop();
+    stopMic();
+    if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden');
+    document.body.classList.remove('results-open');
+    if (els.refreshBar) els.refreshBar.classList.remove('hidden');
+    leaveCustomTestState();
+    rhythmCreateCurrentStage = stageNo;
+    show('home');
+    setHomeView('rhythmCreateStage1');
+    renderRhythmCreateStage();
+}
+
+function backFromCustomTestAction() {
+    if (eng.testSource === 'rhythmCreate') backToRhythmCreateFromTest();
+    else backToEditorFromTest();
+}
+
 /* テスト再生画面の「このSTAGEを保存」（v0.9.124）。
    テスト再生中に一時変更した BPM/小節数 だけを、現在のカスタムSTAGEへ保存する。
    pattern/grid/timeSignature/patternBars/title などは保存済みデータをそのまま使い、誤って変更しない。
@@ -4032,6 +4082,10 @@ function navBack() {
     if (!els.settings.classList.contains('hidden')) { closeSettings(); return; }
     // STAGE画面（結果・見返し含む）→ カスタムテスト中はPROカスタム一覧へ、通常はリズム練画面へ（v0.9.166）
     if (currentScreen === 'practice') {
+        if (eng.testSource === 'rhythmCreate') {
+            backToRhythmCreateFromTest();
+            return;
+        }
         // PROカスタムSTAGEのテスト再生中（editId あり）は、開き元で戻り先を分ける（v0.9.170）。
         //   編集画面のテスト再生から来た → 編集画面へ戻る。
         //   保存済みカードから来た → 「リズム練をする」STAGE選択画面へ戻る。
@@ -6462,7 +6516,7 @@ function updateDoubleInfo() {
 /* ── 集計・結果 ─────────────────────────────────────────── */
 function finish(opts) {
     opts = opts || {};
-    const saveHistory = opts.save !== false;            // 通常プレイ=保存。くり返しSTOP=保存しない（v0.9.147）
+    const saveHistory = opts.save !== false && eng.testSource !== 'rhythmCreate'; // リズム作成の一時練習はlocalStorage履歴へ保存しない（v0.9.181）
     // 採点対象セルの上限。くり返しSTOPの部分集計でのみ縮める。通常プレイは全セル。
     const cutoff = Number.isFinite(opts.cutoff) ? Math.max(0, Math.min(TOTAL_BEATS, opts.cutoff)) : TOTAL_BEATS;
     state.judgeCutoff = cutoff;                          // drawReview が未到達セルのMISS表示を省くために参照
@@ -6544,8 +6598,14 @@ function finish(opts) {
     // ストローク音量バー＋反応ライン（ストローク＝マイク時のみ表示）
     if (els.resultsMicWrap) els.resultsMicWrap.classList.toggle('hidden', state.inputMode !== 'stroke');
 
-    // カスタムテスト時だけ結果画面に「編集に戻る」を表示（STAGE1では出さない・v0.9.124）
-    if (els.rEditBackBtn) els.rEditBackBtn.classList.toggle('hidden', !eng.editId); // 編集テスト再生時のみ「編集に戻る」を出す（STAGE1は非表示・v0.9.143）
+    // カスタムテスト時だけ結果画面に戻りボタンを表示（STAGE1では出さない・v0.9.124）
+    if (els.rEditBackBtn) {
+        const showBack = !!eng.editId || eng.testSource === 'rhythmCreate';
+        const fromRhythmCreate = eng.testSource === 'rhythmCreate';
+        els.rEditBackBtn.classList.toggle('hidden', !showBack);
+        els.rEditBackBtn.classList.toggle('rhythm-create-result-back', fromRhythmCreate);
+        els.rEditBackBtn.textContent = fromRhythmCreate ? 'リズム作成に戻る' : '編集に戻る';
+    }
 
     // 今回の結果を端末内の履歴へ保存（v0.9.146）。保存失敗してもSTAGE結果表示は継続する（try/catch）。
     // くり返し練習のSTOP結果は履歴に保存しない（saveHistory=false・v0.9.147）。
@@ -9703,7 +9763,7 @@ function setStageBars(bars) {
     state.bars = bars;
     applyStageBars();
     updateBarsUI();
-    if (!eng.editId) saveSettings();    // 編集テスト再生中は一時設定（STAGE設定を書き換えない）。組み込みSTAGE（STAGE1）は通常どおり保存（v0.9.143）
+    if (!eng.editId && eng.testSource !== 'rhythmCreate') saveSettings(); // 編集テスト/リズム作成の一時練習中は通常設定へ保存しない
     resetGame();                        // 新しい小節数で配列・カウンタ・レーンを作り直す
     refreshCustomFlowScore();           // 流れるVexFlow譜面も新しい小節数ぶんへ再生成（カスタムのみ・v0.9.131）
 }
@@ -13932,6 +13992,7 @@ function bind() {
     if (els.rcCreatePreviewBalance) els.rcCreatePreviewBalance.addEventListener('input', (e) => {
         setRhythmPreviewSoundBalanceFromValue(e.target.value);
     });
+    if (els.rcCreatePractice) els.rcCreatePractice.addEventListener('click', openRhythmCreatePractice);
     // BPM・小節数（「リズムを作る」プレビュー専用）。change で確定値をクランプ反映（再生中は安全優先で一度停止）。
     if (els.rcCreateBpm) els.rcCreateBpm.addEventListener('change', (e) => setRhythmCreateBpmFromValue(e.target.value));
     if (els.rcCreateBars) els.rcCreateBars.addEventListener('change', (e) => setRhythmCreateBarsFromValue(e.target.value));
@@ -14316,10 +14377,10 @@ function bind() {
     state.rcLoop = false;                     // くり返し練習は毎回OFFから（永続化しない）
     updateStageSettingsUI();
     // カスタムテスト：再生画面ヘッダー／結果画面から元の編集画面へ戻る（v0.9.124）
-    if (els.practiceEditBack) els.practiceEditBack.addEventListener('click', backToEditorFromTest);
-    if (els.rEditBackBtn) els.rEditBackBtn.addEventListener('click', backToEditorFromTest);
+    if (els.practiceEditBack) els.practiceEditBack.addEventListener('click', backFromCustomTestAction);
+    if (els.rEditBackBtn) els.rEditBackBtn.addEventListener('click', backFromCustomTestAction);
     // カスタムテスト：開始ボタン下の「編集に戻る」「このSTAGEを保存」（v0.9.124）
-    if (els.customTestEditBack) els.customTestEditBack.addEventListener('click', backToEditorFromTest);
+    if (els.customTestEditBack) els.customTestEditBack.addEventListener('click', backFromCustomTestAction);
     if (els.customTestSave) els.customTestSave.addEventListener('click', saveRhythmCustomTestSettings);
     els.retryBtn.addEventListener('click', () => { stopPreviewRhythm(); if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden'); resetGame(); play(); });
     // 二重反応時：結果を閉じてマイク設定（反応テスト）へ誘導
