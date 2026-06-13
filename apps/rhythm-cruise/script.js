@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.174';
+const RHYTHM_CRUISE_VERSION = '0.9.175';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -993,9 +993,9 @@ function renderStages() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   リズムを作る（v0.9.174）
+   リズムを作る（v0.9.175）
    ・教材的に「作る→聴く」ための新メニュー。
-   ・STAGE1/2は同じ編集・プレビュー部品を使い、STAGE3〜6は準備中として表示する。
+   ・STAGE1〜6は同じ編集・プレビュー部品を使う。
    ・保存形式やPROカスタムSTAGEには接続しないセッション内状態。
 ═══════════════════════════════════════════════════════════ */
 const RHYTHM_CREATE_STAGES = [
@@ -1007,17 +1007,19 @@ const RHYTHM_CREATE_STAGES = [
         grid: 'quarter',
         noteDuration: 'q',
         cellCount: 4,
+        patternBars: 1,
+        states: ['hit', 'rest'],
         beatLabels: ['1', '2', '3', '4'],
         dirs: ['down', 'down', 'down', 'down'],
         motion: 'all-down',
         previewId: 'rhythm_create_stage1_preview',
         howto: '4分音符は、1拍ごとに音を置く基本のリズムです。<br>まずは、どの拍で音を鳴らすかを作ってみましょう。',
         presets: [
-            { name: '4分ストローク', pattern: [true, true, true, true] },
-            { name: '1拍目だけ', pattern: [true, false, false, false] },
-            { name: '1・3拍', pattern: [true, false, true, false] },
-            { name: '2・4拍', pattern: [false, true, false, true] },
-            { name: '空白から作る', pattern: [false, false, false, false] },
+            { name: '4分ストローク', pattern: ['hit', 'hit', 'hit', 'hit'] },
+            { name: '1拍目だけ', pattern: ['hit', 'rest', 'rest', 'rest'] },
+            { name: '1・3拍', pattern: ['hit', 'rest', 'hit', 'rest'] },
+            { name: '2・4拍', pattern: ['rest', 'hit', 'rest', 'hit'] },
+            { name: '空白から作る', pattern: ['rest', 'rest', 'rest', 'rest'] },
         ],
     },
     {
@@ -1028,23 +1030,113 @@ const RHYTHM_CREATE_STAGES = [
         grid: 'eighth',
         noteDuration: '8',
         cellCount: 8,
+        patternBars: 1,
+        states: ['hit', 'rest'],
         beatLabels: ['1', '&', '2', '&', '3', '&', '4', '&'],
         dirs: ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'],
         motion: 'alternate',
         previewId: 'rhythm_create_stage2_preview',
         howto: '8分音符では、1拍の中を2つに分けてリズムを作ります。<br>数字の位置が表拍、間の位置が裏拍です。<br>裏拍に音を置くと、リズムに動きが出ます。',
         presets: [
-            { name: '基本の8ビート', pattern: [true, true, true, true, true, true, true, true] },
-            { name: '表だけ', pattern: [true, false, true, false, true, false, true, false] },
-            { name: '裏だけ', pattern: [false, true, false, true, false, true, false, true] },
-            { name: '弾き語り8ビート', pattern: [false, true, true, true, false, true, true, true] },
-            { name: '軽めの8ビート', pattern: [false, true, true, false, false, true, true, false] },
+            { name: '基本の8ビート', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'] },
+            { name: '表だけ', pattern: ['hit', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest'] },
+            { name: '裏だけ', pattern: ['rest', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit'] },
+            { name: '弾き語り8ビート', pattern: ['rest', 'hit', 'hit', 'hit', 'rest', 'hit', 'hit', 'hit'] },
+            { name: '軽めの8ビート', pattern: ['rest', 'hit', 'hit', 'rest', 'rest', 'hit', 'hit', 'rest'] },
         ],
     },
-    { n: 3, title: '休符を使う', desc: '音を抜いてノリを作る', ready: false },
-    { n: 4, title: 'タイを使う', desc: '前の音を伸ばす', ready: false },
-    { n: 5, title: '16分音符で作る', desc: '細かいストロークを作る', ready: false },
-    { n: 6, title: 'シンコペーション', desc: '食うリズムを作る', ready: false },
+    {
+        n: 3,
+        title: '休符を使う',
+        desc: '音を抜いてノリを作る',
+        ready: true,
+        grid: 'eighth',
+        noteDuration: '8',
+        cellCount: 8,
+        patternBars: 1,
+        states: ['hit', 'rest'],
+        beatLabels: ['1', '&', '2', '&', '3', '&', '4', '&'],
+        dirs: ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'],
+        motion: 'alternate',
+        previewId: 'rhythm_create_stage3_preview',
+        howto: '休符は、音を出さない場所です。<br>音を抜くと、リズムに隙間やノリが生まれます。',
+        presets: [
+            { name: '休符で軽くする', pattern: ['rest', 'hit', 'hit', 'rest', 'rest', 'hit', 'hit', 'rest'] },
+            { name: '最後を休む', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'rest', 'rest', 'rest'] },
+            { name: '途中で抜く', pattern: ['hit', 'rest', 'rest', 'hit', 'hit', 'hit', 'hit', 'hit'] },
+            { name: '弾き語りの間', pattern: ['rest', 'hit', 'rest', 'rest', 'hit', 'hit', 'rest', 'hit'] },
+            { name: '跳ねる休符', pattern: ['rest', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest'] },
+        ],
+    },
+    {
+        n: 4,
+        title: 'タイを使う',
+        desc: '前の音を伸ばす',
+        ready: true,
+        grid: 'eighth',
+        noteDuration: '8',
+        cellCount: 8,
+        patternBars: 1,
+        states: ['hit', 'rest', 'tie'],
+        beatLabels: ['1', '&', '2', '&', '3', '&', '4', '&'],
+        dirs: ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'],
+        motion: 'alternate',
+        previewId: 'rhythm_create_stage4_preview',
+        howto: 'タイは、前の音を伸ばして、次の場所では新しく弾かない記号です。<br>「伸ばす場所」を作ると、リズムの流れがなめらかになります。',
+        presets: [
+            { name: '最後を伸ばす', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'tie'] },
+            { name: '拍をまたいで伸ばす', pattern: ['rest', 'hit', 'tie', 'rest', 'hit', 'hit', 'rest', 'hit'] },
+            { name: '伸ばして軽くする', pattern: ['rest', 'hit', 'tie', 'rest', 'rest', 'hit', 'rest', 'hit'] },
+            { name: '弾き語りタイ基本', pattern: ['rest', 'hit', 'tie', 'hit', 'rest', 'hit', 'tie', 'hit'] },
+            { name: 'タイを試す', pattern: ['hit', 'tie', 'rest', 'hit', 'tie', 'hit', 'rest', 'hit'] },
+        ],
+    },
+    {
+        n: 5,
+        title: '16分音符で作る',
+        desc: '細かいストロークを作る',
+        ready: true,
+        grid: 'sixteenth',
+        noteDuration: '16',
+        cellCount: 16,
+        patternBars: 1,
+        states: ['hit', 'rest', 'tie'],
+        beatLabels: ['1', 'e', '&', 'a', '2', 'e', '&', 'a', '3', 'e', '&', 'a', '4', 'e', '&', 'a'],
+        dirs: ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'],
+        motion: 'alternate',
+        previewId: 'rhythm_create_stage5_preview',
+        howto: '16分音符では、1拍を4つに分けて細かいリズムを作ります。<br>細かくしすぎず、音を抜きながら作ると弾き語りらしいリズムになります。',
+        presets: [
+            { name: '基本の16ビート', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'] },
+            { name: '弾き語り16ビート', pattern: ['rest', 'hit', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest'] },
+            { name: '休符入り16ビート', pattern: ['rest', 'hit', 'rest', 'hit', 'hit', 'rest', 'rest', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit', 'rest', 'rest', 'hit'] },
+            { name: 'サビ向け16ビート', pattern: ['rest', 'hit', 'hit', 'hit', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit', 'hit', 'hit', 'hit', 'rest', 'hit', 'hit'] },
+            { name: '静かな16ビート', pattern: ['rest', 'rest', 'hit', 'rest', 'hit', 'rest', 'rest', 'hit', 'rest', 'rest', 'hit', 'rest', 'hit', 'rest', 'rest', 'hit'] },
+        ],
+    },
+    {
+        n: 6,
+        title: 'シンコペーション',
+        desc: '食うリズムを作る',
+        ready: true,
+        grid: 'eighth',
+        noteDuration: '8',
+        cellCount: 16,
+        patternBars: 2,
+        states: ['hit', 'rest', 'tie'],
+        beatLabels: ['1', '&', '2', '&', '3', '&', '4', '&', '1', '&', '2', '&', '3', '&', '4', '&'],
+        dirs: ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'],
+        motion: 'alternate',
+        previewId: 'rhythm_create_stage6_preview',
+        howto: 'シンコペーションは、裏拍から次の拍や次の小節へ音を伸ばすことで、リズムが前に食い込むように感じるパターンです。<br>ここでは2小節にまたがる弾き語りでよく使う食うリズムを作ります。',
+        presets: [
+            { name: '小節またぎの食い', pattern: ['rest', 'hit', 'hit', 'hit', 'rest', 'hit', 'tie', 'rest', 'hit', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit'] },
+            { name: '次のコードへ食う', pattern: ['rest', 'hit', 'hit', 'rest', 'hit', 'hit', 'tie', 'rest', 'rest', 'hit', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit'] },
+            { name: 'サビ前の食い', pattern: ['hit', 'hit', 'tie', 'rest', 'hit', 'hit', 'rest', 'hit', 'rest', 'hit', 'tie', 'rest', 'hit', 'hit', 'rest', 'hit'] },
+            { name: '弾き語り定番シンコペーション', pattern: ['rest', 'hit', 'tie', 'rest', 'rest', 'hit', 'tie', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit'] },
+            { name: 'くり返しの食い', pattern: ['rest', 'hit', 'tie', 'rest', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit', 'tie', 'rest', 'hit', 'rest', 'hit', 'hit'] },
+        ],
+    },
 ];
 let rhythmCreateCurrentStage = 1;
 const rhythmCreateStagePatterns = {};
@@ -1057,13 +1149,42 @@ function getRhythmCreateStageDef(n = rhythmCreateCurrentStage) {
 function getRhythmCreatePattern(def = getRhythmCreateStageDef()) {
     if (!rhythmCreateStagePatterns[def.n]) {
         rhythmCreateSelectedPreset[def.n] = 0;
-        rhythmCreateStagePatterns[def.n] = def.presets[0].pattern.map(Boolean);
+        rhythmCreateStagePatterns[def.n] = normalizeRhythmCreatePattern(def, def.presets[0].pattern);
     }
     return rhythmCreateStagePatterns[def.n];
 }
 
 function setRhythmCreatePatternForStage(def, pattern) {
-    rhythmCreateStagePatterns[def.n] = Array.from({ length: def.cellCount }, (_, i) => !!pattern[i]);
+    rhythmCreateStagePatterns[def.n] = normalizeRhythmCreatePattern(def, pattern);
+}
+
+function normalizeRhythmCreateCellState(value, index, def) {
+    let state;
+    if (value === true) state = 'hit';
+    else if (value === false || value == null) state = 'rest';
+    else state = String(value);
+    if (!def.states.includes(state)) state = 'rest';
+    if (index === 0 && state === 'tie') state = def.states.includes('hit') ? 'hit' : 'rest';
+    return state;
+}
+
+function normalizeRhythmCreatePattern(def, pattern) {
+    return Array.from({ length: def.cellCount }, (_, i) => normalizeRhythmCreateCellState(pattern && pattern[i], i, def));
+}
+
+function rhythmCreateStateToCell(state, index, def) {
+    const normalized = normalizeRhythmCreateCellState(state, index, def);
+    const dir = def.dirs[index] || 'down';
+    if (normalized === 'hit') return { hit: true, dir, type: 'hit', dirManual: true };
+    return { hit: false, dir, type: normalized === 'tie' ? 'tie' : 'rest' };
+}
+
+function rhythmCreatePatternToStagePattern(def) {
+    return getRhythmCreatePattern(def).map((state, i) => rhythmCreateStateToCell(state, i, def));
+}
+
+function isRhythmCreateHit(state) {
+    return state === 'hit' || state === true;
 }
 
 function renderRhythmCreateStages() {
@@ -1146,9 +1267,21 @@ function renderRhythmCreateStageGrid() {
 }
 
 function drawRhythmCreateVexLane(VF, mount, def) {
-    const { Renderer, Stave, Voice, Formatter, StaveNote, Stem } = VF;
+    const { Renderer, Stave, StaveTie, Beam, Voice, Formatter } = VF;
     const cellW = RHYTHM_VEX_CELL_W;
     const pattern = getRhythmCreatePattern(def);
+    const stagePattern = rhythmCreatePatternToStagePattern(def);
+    const d = {
+        grid: def.grid,
+        timeSignature: '4/4',
+        patternBars: def.patternBars || 1,
+        pattern: stagePattern,
+    };
+    const ts = rhythmCustomTimeSig(d.timeSignature);
+    const info = rhythmTimeSigInfo(ts);
+    const cellTicks = rhythmGridCellTicks(d.grid);
+    const stepsPerBar = rhythmCustomStepsPerBar(d.grid, ts);
+    const beatCells = Math.max(1, Math.round(info.beamGroupTicks / cellTicks));
     const laneW = pattern.length * cellW;
     const H = RHYTHM_VEX_LANE_H;
 
@@ -1165,11 +1298,9 @@ function drawRhythmCreateVexLane(VF, mount, def) {
     scroll.appendChild(lane);
     mount.appendChild(scroll);
 
-    const notes = pattern.map((on) => new StaveNote({
-        keys: ['b/4'],
-        duration: on ? def.noteDuration : def.noteDuration + 'r',
-        stem_direction: Stem.UP,
-    }));
+    const built = rhythmBuildVexItems(d, VF);
+    const items = built.items;
+    const notes = items.map((it) => it.note);
 
     const renderer = new Renderer(scoreEl, Renderer.Backends.SVG);
     renderer.resize(laneW, H);
@@ -1180,21 +1311,36 @@ function drawRhythmCreateVexLane(VF, mount, def) {
     const stave = new Stave(0, 24, laneW);
     stave.setNumLines(1);
     stave.setContext(ctx);
-    const voice = new Voice({ num_beats: 4, beat_value: 4 });
+    const voice = new Voice({ num_beats: info.beats * d.patternBars, beat_value: info.beatValue });
     voice.setStrict(false);
     voice.addTickables(notes);
+    let beams;
+    if (built.beamLists) {
+        beams = built.beamLists.map((list) => new Beam(list));
+    } else {
+        beams = Beam.generateBeams(notes, { groups: [rhythmBeamGroupFraction(VF, info)], beam_rests: false, maintain_stem_directions: true });
+    }
     new Formatter().joinVoices([voice]).format([voice], Math.max(1, laneW - 24));
     notes.forEach((n) => n.setStave(stave));
-    notes.forEach((note, i) => {
-        const desiredCenter = (i + 0.5) * cellW;
-        const center = note.getNoteHeadBeginX() + note.getGlyphWidth() / 2;
-        note.setXShift(desiredCenter - center);
+    items.forEach((it) => {
+        const desiredCenter = (it.cellIndex + 0.5) * cellW;
+        const center = it.note.getNoteHeadBeginX() + it.note.getGlyphWidth() / 2;
+        it.note.setXShift(desiredCenter - center);
     });
     voice.draw(ctx, stave);
+    beams.forEach((b) => b.setContext(ctx).draw());
+    built.tuplets.forEach((t) => { try { t.setContext(ctx).draw(); } catch (e) { /* noop */ } });
+    for (let i = 1; i < items.length; i++) {
+        if (items[i].tieToPrev) {
+            new StaveTie({ first_note: items[i - 1].note, last_note: items[i].note, first_indices: [0], last_indices: [0] })
+                .setContext(ctx).draw();
+        }
+    }
 
     let baselineY = null;
-    for (const note of notes) {
-        try { const ys = note.getYs(); if (ys && ys.length) { baselineY = ys[0]; break; } } catch (e) { /* noop */ }
+    for (const it of items) {
+        if (it.isRest) continue;
+        try { const ys = it.note.getYs(); if (ys && ys.length) { baselineY = ys[0]; break; } } catch (e) { /* noop */ }
     }
     if (baselineY == null) baselineY = stave.getYForLine(0);
     const svg = scoreEl.querySelector('svg');
@@ -1210,14 +1356,17 @@ function drawRhythmCreateVexLane(VF, mount, def) {
     const tap = document.createElement('div');
     tap.className = 'pce-vex-tapgrid';
     tap.style.height = H + 'px';
-    pattern.forEach((on, i) => {
+    pattern.forEach((state, i) => {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'pce-tap-cell beat' + (i === 0 ? ' bar-start' : '') + (i % 2 === 0 ? ' is-beat' : ' is-offbeat');
+        const isBeat = ((i % stepsPerBar) % beatCells === 0);
+        const isBarStart = (i % stepsPerBar === 0);
+        btn.className = 'pce-tap-cell' + (isBeat ? ' beat' : '') + (isBarStart ? ' bar-start' : '') + (isBeat ? ' is-beat' : ' is-offbeat');
         btn.dataset.index = String(i);
         btn.dataset.zone = 'note';
-        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-        btn.setAttribute('aria-label', getRhythmCreateCellLabel(def, i) + 'を' + (on ? '休む' : '鳴らす') + 'に切り替え');
+        btn.dataset.state = state;
+        btn.setAttribute('aria-pressed', isRhythmCreateHit(state) ? 'true' : 'false');
+        btn.setAttribute('aria-label', getRhythmCreateCellLabel(def, i) + 'を切り替え（現在：' + rhythmCreateStateLabel(state) + '）');
         tap.appendChild(btn);
     });
     lane.appendChild(tap);
@@ -1226,31 +1375,63 @@ function drawRhythmCreateVexLane(VF, mount, def) {
     arrowrow.className = 'pce-vex-arrowrow';
     const beatrow = document.createElement('div');
     beatrow.className = 'pce-vex-beatrow';
-    pattern.forEach((on, i) => {
-        const dir = def.dirs[i] || 'down';
+    pattern.forEach((state, i) => {
+        const cell = rhythmCreateStateToCell(state, i, def);
+        const isBarStart = (i % stepsPerBar === 0);
         const arrow = document.createElement('button');
         arrow.type = 'button';
-        arrow.className = 'pce-arrow pce-arrow-' + (on ? 'hit' : 'rest') + (i === 0 ? ' bar-start' : '');
+        arrow.className = 'pce-arrow pce-arrow-' + cell.type + (isBarStart ? ' bar-start' : '');
         arrow.tabIndex = -1;
         arrow.setAttribute('aria-hidden', 'true');
-        arrow.innerHTML = rhythmArrowGlyph({ hit: !!on, dir, type: on ? 'hit' : 'rest' });
+        arrow.innerHTML = rhythmArrowGlyph(cell);
         arrowrow.appendChild(arrow);
 
         const beat = document.createElement('div');
-        beat.className = 'pce-beat-cell is-mid' + (i === 0 ? ' bar-start' : '');
+        beat.className = 'pce-beat-cell' + (isBeatLabelStrong(def, i) ? ' is-mid' : ' is-faint') + (isBarStart ? ' bar-start' : '');
         beat.textContent = def.beatLabels[i] || String(i + 1);
         beatrow.appendChild(beat);
     });
     lane.appendChild(arrowrow);
     lane.appendChild(beatrow);
+
+    if (d.patternBars > 1) {
+        const overlay = document.createElement('div');
+        overlay.className = 'pce-vex-barlines';
+        for (let bIdx = 1; bIdx < d.patternBars; bIdx++) {
+            const x = bIdx * stepsPerBar * cellW;
+            const bar = document.createElement('div');
+            bar.className = 'pce-vex-barline';
+            bar.style.left = (x - 1) + 'px';
+            overlay.appendChild(bar);
+        }
+        lane.appendChild(overlay);
+    }
 }
 
 function getRhythmCreateCellLabel(def, index) {
+    if (def.grid === 'sixteenth') {
+        const beat = Math.floor(index / 4) + 1;
+        const sub = index % 4;
+        return beat + '拍目の' + (sub === 0 ? '拍頭' : (sub === 1 ? 'e' : (sub === 2 ? '裏拍' : 'a')));
+    }
     if (def.grid === 'eighth') {
-        const beat = Math.floor(index / 2) + 1;
-        return beat + '拍目の' + (index % 2 === 0 ? '表拍' : '裏拍');
+        const beat = Math.floor((index % 8) / 2) + 1;
+        const bar = def.patternBars > 1 ? (Math.floor(index / 8) + 1) + '小節目 ' : '';
+        return bar + beat + '拍目の' + (index % 2 === 0 ? '表拍' : '裏拍');
     }
     return (index + 1) + '拍目';
+}
+
+function rhythmCreateStateLabel(state) {
+    if (state === 'hit' || state === true) return '音符';
+    if (state === 'tie') return 'タイ';
+    return '休符';
+}
+
+function isBeatLabelStrong(def, index) {
+    if (def.grid === 'sixteenth') return index % 4 === 0 || def.beatLabels[index] === '&';
+    if (def.grid === 'eighth') return index % 2 === 0;
+    return true;
 }
 
 function renderRhythmCreatePresets() {
@@ -1280,18 +1461,16 @@ function toggleRhythmCreateCell(index) {
     const pattern = getRhythmCreatePattern(def);
     if (index < 0 || index >= pattern.length) return;
     stopPreviewRhythm();
-    pattern[index] = !pattern[index];
+    const states = index === 0 ? def.states.filter((state) => state !== 'tie') : def.states;
+    const current = normalizeRhythmCreateCellState(pattern[index], index, def);
+    const currentIndex = Math.max(0, states.indexOf(current));
+    pattern[index] = states[(currentIndex + 1) % states.length];
     renderRhythmCreateStageGrid();
 }
 
 function buildRhythmCreatePreviewStage() {
     const def = getRhythmCreateStageDef();
-    const pattern = getRhythmCreatePattern(def).map((on, i) => {
-        const dir = def.dirs[i] || 'down';
-        return on
-            ? { hit: true, dir, type: 'hit', dirManual: true }
-            : { hit: false, dir, type: 'rest' };
-    });
+    const pattern = rhythmCreatePatternToStagePattern(def);
     return normalizeRhythmCustomStageSettings({
         version: 1,
         id: def.previewId,
@@ -1299,8 +1478,8 @@ function buildRhythmCreatePreviewStage() {
         description: '',
         grid: def.grid,
         timeSignature: '4/4',
-        patternBars: 1,
-        bars: 1,
+        patternBars: def.patternBars || 1,
+        bars: def.patternBars || 1,
         bpm: 80,
         clickMode: 'all',
         rhythmFeel: 'straight',
