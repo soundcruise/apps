@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.193';
+const RHYTHM_CRUISE_VERSION = '0.9.194';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -1208,6 +1208,9 @@ function saveRhythmVexZoomPrefs() {
 function rhythmZoomPercent(scale) {
     return Math.round(clampRhythmVexZoom(scale) * 100) + '%';
 }
+function rhythmPracticeStageZoomScale() {
+    return clampRhythmVexZoom(rhythmVexZoomPrefs.stage || RHYTHM_VEX_ZOOM_MIN);
+}
 function syncRhythmCreateZoomUI() {
     if (els.rcCreateZoomVal) els.rcCreateZoomVal.textContent = rhythmZoomPercent(rhythmVexZoomPrefs.create);
 }
@@ -1243,6 +1246,7 @@ function setRhythmStagePreviewZoom(scale) {
     saveRhythmVexZoomPrefs();
     syncRhythmStagePreviewZoomUI();
     redrawOpenRhythmCustomTestPreview();
+    if (els.practice && !els.practice.classList.contains('hidden')) fitLane();
 }
 function stepRhythmCreateZoom(delta) { setRhythmCreateZoom(rhythmVexZoomPrefs.create + delta); }
 function stepRhythmEditorZoom(delta) { setRhythmEditorZoom(rhythmVexZoomPrefs.editor + delta); }
@@ -5154,7 +5158,7 @@ function fitLane() {
     // 表示密度スケール適用前の基準（プレビューはこの raw を参照して二重スケールを避ける・v0.9.138）。
     state.pxPerBeatRaw = Math.max(64, Math.min(120, lane.w * 0.24));
     // 細かい音価では表示上だけ横に広げる（判定時間=beatInterval は不変なので JUSTライン到達時刻は変わらない・v0.9.138）。
-    state.pxPerBeat = state.pxPerBeatRaw * engDisplayScale();
+    state.pxPerBeat = state.pxPerBeatRaw * engDisplayScale() * rhythmPracticeStageZoomScale();
     state.judgeX = lane.w * 0.3;
     // スクロール速度は4分音符基準（grid非依存）。再生系（resetGame/buildSchedule）と必ず同じ式にする。
     // ※ state.beatInterval は「1セル分の時間」なので、カスタムの16分/32分等では pxPerMs が過剰になり
@@ -5932,13 +5936,14 @@ function drawReviewFlowScore(VF) {
 function fitReview() {
     if (!els.reviewCanvas) return;
     const cssH = 168;
-    // 結果画面の1セル横幅は STAGE画面(drawRhythmFlowScore)の cellW と同じ式に統一する（v0.9.145）。
+    // 結果画面の1セル横幅は STAGE画面(drawRhythmFlowScore)の基準式に統一する（v0.9.145）。
     //   STAGE: cellW = state.pxPerBeat * (eng.cellTicks / RHYTHM_TPQ)（state.pxPerBeat は engDisplayScale 済み）。
     //   以前は「固定70 × engDisplayScale」を1セル幅に使っていたため、cellTicks<24（16分/16分3連/32分など）で
-    //   結果画面だけ横に間伸びしていた。STAGE画面と同じ式にすることで、同じパターンが同じ横スケールで揃う。
+    //   結果画面だけ横に間伸びしていた。Practice拡大率は乗せず、従来の見返しスケールを保つ。
     //   beatPx は VexFlow固定譜面・判定符頭・波形オーバーレイ・(↓)/(↑) すべての描画基準なので、一括で一致する。
     //   表示だけの変更で、判定/スコア/集計には影響しない。
-    const stageCellW = state.pxPerBeat * (eng.cellTicks / RHYTHM_TPQ);
+    const reviewPxPerBeat = state.pxPerBeatRaw * engDisplayScale();
+    const stageCellW = reviewPxPerBeat * (eng.cellTicks / RHYTHM_TPQ);
     const beatPx = (eng.custom && Number.isFinite(stageCellW) && stageCellW > 0)
         ? stageCellW
         : Math.round(70 * (eng.custom ? engDisplayScale() : 1)); // 非カスタム（防御）は従来どおり
@@ -7523,7 +7528,7 @@ function applyHistoryRecordToEngine(rec) {
     applyStageBars();                             // TOTAL_BEATS = bars × cellsPerBar
     state.judgeCutoff = TOTAL_BEATS;              // 履歴は通常プレイの全セル結果（くり返し部分集計ではない・v0.9.147）
     state.beatInterval = engCellMs();             // drawReview の offScale 用
-    state.pxPerBeat = state.pxPerBeatRaw * engDisplayScale(); // fitLane と同じ式（横スケール一致）
+    state.pxPerBeat = state.pxPerBeatRaw * engDisplayScale(); // 履歴結果はPractice拡大率を乗せず、従来スケールで表示する
     state.inputMode = 'tap';                      // 履歴は波形なし＝波形オーバーレイを出さない
     state.micRunWave = null;
     state.micWaveHistory = [];
