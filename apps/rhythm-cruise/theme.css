@@ -551,11 +551,48 @@ h1 {
     width: 100%;
 }
 
+.rhythm-create-settings,
+.rhythm-create-edit-help {
+    width: 100%;
+    border: 1px solid rgba(253, 246, 238, 0.12);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.rhythm-create-settings-summary {
+    padding: 9px 12px;
+    color: rgba(253, 246, 238, 0.82);
+    font-size: 0.82rem;
+    font-weight: 800;
+    cursor: pointer;
+    list-style: none;
+}
+
+.rhythm-create-settings-summary::-webkit-details-marker {
+    display: none;
+}
+
+.rhythm-create-settings-summary::after {
+    content: '▼';
+    float: right;
+    color: rgba(255, 209, 102, 0.88);
+}
+
+.rhythm-create-settings[open] .rhythm-create-settings-summary::after,
+.rhythm-create-edit-help[open] .rhythm-create-settings-summary::after {
+    content: '▲';
+}
+
+.rhythm-create-edit-help .pce-hint {
+    padding: 0 12px 12px;
+}
+
 .rhythm-create-preset-field {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+    width: 100%;
 }
 
 .rhythm-create-presets-label {
@@ -583,18 +620,22 @@ h1 {
 
 .rhythm-create-preview {
     width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 /* 「リズムを作る」プレビューの BPM・小節数（v0.9.181）。既存STAGEのテンポUIに寄せ、スマホでも1行に収める。 */
 .rc-create-params {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: center;
     gap: 8px;
     width: 100%;
     max-width: 100%;
-    margin: 0 0 10px;
+    padding: 0 10px 10px;
+    margin: 0;
 }
 
 .rc-create-param {
@@ -635,6 +676,10 @@ h1 {
     -moz-appearance: textfield;
 }
 
+#rc-create-pbars {
+    width: 38px;
+}
+
 .rc-create-param input[type="number"]::-webkit-outer-spin-button,
 .rc-create-param input[type="number"]::-webkit-inner-spin-button {
     -webkit-appearance: none;
@@ -649,6 +694,15 @@ h1 {
 
 .rhythm-create-practice:disabled {
     opacity: 0.68;
+}
+
+.rhythm-create-play {
+    width: min(100%, 340px);
+    min-height: 46px;
+    margin: 4px auto 10px;
+    border-color: rgba(255, 159, 28, 0.55);
+    background: linear-gradient(180deg, rgba(255, 159, 28, 0.30), rgba(255, 159, 28, 0.16));
+    box-shadow: 0 8px 18px rgba(255, 159, 28, 0.12);
 }
 
 /* 準備中カテゴリ（押せるが中身なし）は控えめに */
@@ -1447,6 +1501,17 @@ h1 {
 
 .pce-tap-cell:active {
     background: rgba(255, 159, 28, 0.10);
+}
+
+.pce-tap-cell.is-locked,
+.pce-arrow.is-locked,
+.pce-beat-cell.is-locked {
+    opacity: 0.42;
+}
+
+.pce-tap-cell.is-locked,
+.pce-arrow.is-locked {
+    cursor: default;
 }
 
 /* 下段：ストローク方向UI（セル幅で譜面と縦に揃う）。 */

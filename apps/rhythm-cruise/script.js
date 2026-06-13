@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.182';
+const RHYTHM_CRUISE_VERSION = '0.9.184';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -557,6 +557,9 @@ const els = {
     rcCreateBpm: $('rc-create-bpm'),
     rcCreateBpmDown: $('rc-create-bpm-down'),
     rcCreateBpmUp: $('rc-create-bpm-up'),
+    rcCreatePbars: $('rc-create-pbars'),
+    rcCreatePbarsDown: $('rc-create-pbars-down'),
+    rcCreatePbarsUp: $('rc-create-pbars-up'),
     rcCreateBars: $('rc-create-bars'),
     rcCreateBarsDown: $('rc-create-bars-down'),
     rcCreateBarsUp: $('rc-create-bars-up'),
@@ -1043,7 +1046,6 @@ const RHYTHM_CREATE_STAGES = [
         howto: '8分音符では、1拍を2つに分けてリズムを作ります。<br>数字の位置が表拍、間の位置が裏拍です。<br>音を出す場所、休む場所、前の音を伸ばす場所を選ぶと、弾き語りらしいリズムになります。',
         presets: [
             { name: '基本の8ビート', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'] },
-            { name: '表だけ', pattern: ['hit', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest'] },
             { name: '裏だけ', pattern: ['rest', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit'] },
             { name: '1・3拍強調', pattern: ['hit', 'tie', 'hit', 'hit', 'hit', 'tie', 'hit', 'hit'] },
             { name: '2・4拍強調', pattern: ['hit', 'hit', 'hit', 'tie', 'hit', 'hit', 'hit', 'tie'] },
@@ -1066,11 +1068,9 @@ const RHYTHM_CREATE_STAGES = [
         previewId: 'rhythm_create_stage3_preview',
         howto: '16分音符では、1拍を4つに分けて細かいリズムを作ります。<br>細かくしすぎず、音を抜きながら作ると弾き語りらしいリズムになります。',
         presets: [
-            { name: '基本の16ビート', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'] },
-            { name: '弾き語り16ビート', pattern: ['rest', 'hit', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest'] },
-            { name: '休符入り16ビート', pattern: ['rest', 'hit', 'rest', 'hit', 'hit', 'rest', 'rest', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit', 'rest', 'rest', 'hit'] },
-            { name: 'サビ向け16ビート', pattern: ['rest', 'hit', 'hit', 'hit', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit', 'hit', 'hit', 'hit', 'rest', 'hit', 'hit'] },
-            { name: '静かな16ビート', pattern: ['rest', 'rest', 'hit', 'rest', 'hit', 'rest', 'rest', 'hit', 'rest', 'rest', 'hit', 'rest', 'hit', 'rest', 'rest', 'hit'] },
+            { name: '16ビート連続', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'] },
+            { name: '16分基本のストローク', pattern: ['hit', 'tie', 'hit', 'tie', 'hit', 'tie', 'hit', 'hit', 'hit', 'tie', 'hit', 'tie', 'hit', 'tie', 'hit', 'hit'] },
+            { name: '16分王道のストローク', pattern: ['hit', 'tie', 'tie', 'tie', 'hit', 'tie', 'hit', 'hit', 'tie', 'hit', 'hit', 'tie', 'hit', 'tie', 'hit', 'hit'] },
         ],
     },
     {
@@ -1125,6 +1125,7 @@ const RHYTHM_CREATE_STAGES = [
 ];
 let rhythmCreateCurrentStage = 1;
 const rhythmCreateStagePatterns = {};
+const rhythmCreateStageDirs = {};
 const rhythmCreateSelectedPreset = {};
 
 /* 「リズムを作る」プレビュー専用のBPM・再生小節数（v0.9.180）。
@@ -1136,10 +1137,14 @@ const RHYTHM_CREATE_BPM_MAX = 240;
 const RHYTHM_CREATE_BARS_DEFAULT = 4;
 const RHYTHM_CREATE_BARS_MIN = 1;
 const RHYTHM_CREATE_BARS_MAX = 8;
+const RHYTHM_CREATE_PATTERN_BARS_DEFAULT = 1;
+const RHYTHM_CREATE_PATTERN_BARS_MAX = 4;
 let rhythmCreateBpm = RHYTHM_CREATE_BPM_DEFAULT;
 let rhythmCreateBars = RHYTHM_CREATE_BARS_DEFAULT;
+let rhythmCreatePatternBars = RHYTHM_CREATE_PATTERN_BARS_DEFAULT;
 function getRhythmCreateBpm() { return rhythmCreateBpm; }
 function getRhythmCreateBars() { return rhythmCreateBars; }
+function getRhythmCreatePatternBars() { return rhythmCreatePatternBars; }
 function clampRhythmCreateBpm(v) {
     const n = Math.round(Number(v));
     return Number.isFinite(n) ? Math.max(RHYTHM_CREATE_BPM_MIN, Math.min(RHYTHM_CREATE_BPM_MAX, n)) : RHYTHM_CREATE_BPM_DEFAULT;
@@ -1147,6 +1152,11 @@ function clampRhythmCreateBpm(v) {
 function clampRhythmCreateBars(v) {
     const n = Math.round(Number(v));
     return Number.isFinite(n) ? Math.max(RHYTHM_CREATE_BARS_MIN, Math.min(RHYTHM_CREATE_BARS_MAX, n)) : RHYTHM_CREATE_BARS_DEFAULT;
+}
+function clampRhythmCreatePatternBars(v) {
+    const n = Math.round(Number(v));
+    const max = Math.max(1, Math.min(getRhythmCreateBars(), RHYTHM_CREATE_PATTERN_BARS_MAX));
+    return Number.isFinite(n) ? Math.max(1, Math.min(max, n)) : RHYTHM_CREATE_PATTERN_BARS_DEFAULT;
 }
 /* BPM変更：安全優先で一度停止してから現在値を更新（再生中の変更でも破綻しない）。表示は変わらないので再描画不要。 */
 function setRhythmCreateBpmFromValue(v) {
@@ -1158,13 +1168,31 @@ function setRhythmCreateBpmFromValue(v) {
 function setRhythmCreateBarsFromValue(v) {
     stopPreviewRhythm();
     rhythmCreateBars = clampRhythmCreateBars(v);
+    rhythmCreatePatternBars = clampRhythmCreatePatternBars(rhythmCreatePatternBars);
     if (els.rcCreateBars) els.rcCreateBars.value = String(rhythmCreateBars);
+    syncRhythmCreatePatternBarsUI();
+    ensureRhythmCreatePatternLength(getRhythmCreateStageDef());
+    renderRhythmCreateStageGrid();
+}
+function setRhythmCreatePatternBarsFromValue(v) {
+    stopPreviewRhythm();
+    rhythmCreatePatternBars = clampRhythmCreatePatternBars(v);
+    syncRhythmCreatePatternBarsUI();
+    ensureRhythmCreatePatternLength(getRhythmCreateStageDef());
     renderRhythmCreateStageGrid();
 }
 /* −/＋ボタン。BPMは「リズム練をする」STAGEと同じ1刻み、小節数は1刻み（クランプはsetterで担保）。 */
 const RHYTHM_CREATE_BPM_STEP = 1;
 function stepRhythmCreateBpm(delta) { setRhythmCreateBpmFromValue(getRhythmCreateBpm() + delta); }
 function stepRhythmCreateBars(delta) { setRhythmCreateBarsFromValue(getRhythmCreateBars() + delta); }
+function stepRhythmCreatePatternBars(delta) { setRhythmCreatePatternBarsFromValue(getRhythmCreatePatternBars() + delta); }
+
+function syncRhythmCreatePatternBarsUI() {
+    if (els.rcCreatePbars) {
+        els.rcCreatePbars.max = String(Math.max(1, Math.min(getRhythmCreateBars(), RHYTHM_CREATE_PATTERN_BARS_MAX)));
+        els.rcCreatePbars.value = String(getRhythmCreatePatternBars());
+    }
+}
 
 function getRhythmCreateStageDef(n = rhythmCreateCurrentStage) {
     return RHYTHM_CREATE_STAGES.find((s) => s.n === n && s.ready) || RHYTHM_CREATE_STAGES[0];
@@ -1173,13 +1201,49 @@ function getRhythmCreateStageDef(n = rhythmCreateCurrentStage) {
 function getRhythmCreatePattern(def = getRhythmCreateStageDef()) {
     if (!rhythmCreateStagePatterns[def.n]) {
         rhythmCreateSelectedPreset[def.n] = 0;
-        rhythmCreateStagePatterns[def.n] = normalizeRhythmCreatePattern(def, def.presets[0].pattern);
+        rhythmCreateStagePatterns[def.n] = normalizeRhythmCreatePattern(def, def.presets[0].pattern, getRhythmCreatePatternCellCount(def));
+        resetRhythmCreateDirsForStage(def);
     }
+    ensureRhythmCreatePatternLength(def);
+    getRhythmCreateDirs(def);
     return rhythmCreateStagePatterns[def.n];
 }
 
 function setRhythmCreatePatternForStage(def, pattern) {
-    rhythmCreateStagePatterns[def.n] = normalizeRhythmCreatePattern(def, pattern);
+    rhythmCreateStagePatterns[def.n] = normalizeRhythmCreatePattern(def, pattern, getRhythmCreatePatternCellCount(def));
+    resetRhythmCreateDirsForStage(def);
+}
+
+function resetRhythmCreateDirsForStage(def) {
+    const pattern = rhythmCreateStagePatterns[def.n] || [];
+    rhythmCreateStageDirs[def.n] = Array.from({ length: getRhythmCreatePatternCellCount(def) }, (_, i) => {
+        const state = normalizeRhythmCreateCellState(pattern[i], i, def);
+        return state === 'hit' ? getRhythmCreateBaseDir(def, i) : null;
+    });
+}
+
+function getRhythmCreateDirs(def = getRhythmCreateStageDef()) {
+    const len = getRhythmCreatePatternCellCount(def);
+    if (!rhythmCreateStageDirs[def.n] || rhythmCreateStageDirs[def.n].length !== len) {
+        resetRhythmCreateDirsForStage(def);
+    }
+    return rhythmCreateStageDirs[def.n];
+}
+
+function getRhythmCreatePatternCellCount(def = getRhythmCreateStageDef()) {
+    return def.cellCount * getRhythmCreatePatternBars();
+}
+
+function getRhythmCreateBaseDir(def, index) {
+    return def.dirs[index % def.cellCount] || 'down';
+}
+
+function getRhythmCreateCellDir(def, index, fallback = 'down') {
+    const dirs = getRhythmCreateDirs(def);
+    const dir = dirs[index];
+    if (dir === null) return null;
+    if (RHYTHM_CUSTOM_DIRS.includes(dir)) return dir;
+    return getRhythmCreateBaseDir(def, index) || fallback;
 }
 
 function normalizeRhythmCreateCellState(value, index, def) {
@@ -1188,18 +1252,38 @@ function normalizeRhythmCreateCellState(value, index, def) {
     else if (value === false || value == null) state = 'rest';
     else state = String(value);
     if (!def.states.includes(state)) state = 'rest';
-    if (index === 0 && state === 'tie') state = def.states.includes('hit') ? 'hit' : 'rest';
     return state;
 }
 
-function normalizeRhythmCreatePattern(def, pattern) {
-    return Array.from({ length: def.cellCount }, (_, i) => normalizeRhythmCreateCellState(pattern && pattern[i], i, def));
+function normalizeRhythmCreatePattern(def, pattern, length = getRhythmCreatePatternCellCount(def)) {
+    return Array.from({ length }, (_, i) => {
+        const source = pattern && pattern.length ? pattern[i % pattern.length] : null;
+        return normalizeRhythmCreateCellState(source, i, def);
+    });
+}
+
+function ensureRhythmCreatePatternLength(def) {
+    const len = getRhythmCreatePatternCellCount(def);
+    const current = rhythmCreateStagePatterns[def.n] || [];
+    if (current.length !== len) {
+        rhythmCreateStagePatterns[def.n] = normalizeRhythmCreatePattern(def, current.length ? current : def.presets[0].pattern, len);
+    }
+    const dirs = rhythmCreateStageDirs[def.n] || [];
+    if (dirs.length !== len) {
+        rhythmCreateStageDirs[def.n] = Array.from({ length: len }, (_, i) => {
+            const existing = dirs.length ? dirs[i % dirs.length] : undefined;
+            if (existing === null || RHYTHM_CUSTOM_DIRS.includes(existing)) return existing;
+            const state = normalizeRhythmCreateCellState(rhythmCreateStagePatterns[def.n][i], i, def);
+            return state === 'hit' ? getRhythmCreateBaseDir(def, i) : null;
+        });
+    }
 }
 
 function rhythmCreateStateToCell(state, index, def) {
     const normalized = normalizeRhythmCreateCellState(state, index, def);
-    const dir = def.dirs[index] || 'down';
-    if (normalized === 'hit') return { hit: true, dir, type: 'hit', dirManual: true };
+    const baseDir = getRhythmCreateBaseDir(def, index);
+    const dir = getRhythmCreateCellDir(def, index, baseDir);
+    if (normalized === 'hit') return { hit: true, dir: RHYTHM_CUSTOM_DIRS.includes(dir) ? dir : baseDir, type: 'hit', dirManual: true };
     return { hit: false, dir, type: normalized === 'tie' ? 'tie' : 'rest' };
 }
 
@@ -1293,13 +1377,15 @@ function renderRhythmCreateStageGrid() {
 function drawRhythmCreateVexLane(VF, mount, def) {
     const { Renderer, Stave, StaveTie, Beam, Voice, Formatter } = VF;
     const cellW = RHYTHM_VEX_CELL_W;
-    const pattern = getRhythmCreatePattern(def);              // 1小節分の編集状態（cellCount セル）
-    const oneBarStage = rhythmCreatePatternToStagePattern(def); // 1小節分のstageセル
-    const cellCount = pattern.length;                          // 1小節のセル数
-    const bars = getRhythmCreateBars();                        // 表示・再生の小節数（1〜8）
-    // 編集対象は常に1小節。表示はその1小節パターンを bars 回くり返す（タップは i%cellCount で1小節へ反映＝全小節連動）。
+    const pattern = getRhythmCreatePattern(def);                // パターンの長さぶんの編集状態
+    const editStagePattern = rhythmCreatePatternToStagePattern(def);
+    const editCellCount = pattern.length;
+    const cellsPerBar = def.cellCount;
+    const bars = getRhythmCreateBars();                         // 表示・再生の小節数（1〜8）
+    const totalCells = cellsPerBar * bars;
+    // 編集対象は patternBars 分。表示はそのパターンを bars 小節ぶんへくり返す。
     const stagePattern = [];
-    for (let b = 0; b < bars; b++) for (let k = 0; k < oneBarStage.length; k++) stagePattern.push(oneBarStage[k]);
+    for (let i = 0; i < totalCells; i++) stagePattern.push(editStagePattern[i % editCellCount]);
     const d = {
         grid: def.grid,
         timeSignature: '4/4',
@@ -1386,18 +1472,20 @@ function drawRhythmCreateVexLane(VF, mount, def) {
     tap.className = 'pce-vex-tapgrid';
     tap.style.height = H + 'px';
     for (let i = 0; i < stagePattern.length; i++) {
-        const bi = i % cellCount;            // 1小節内の位置（タップ反映先）
+        const bi = i % editCellCount;        // パターン内の位置（タップ反映先）
+        const editable = i < editCellCount;
         const state = pattern[bi];
         const btn = document.createElement('button');
         btn.type = 'button';
         const isBeat = ((i % stepsPerBar) % beatCells === 0);
         const isBarStart = (i % stepsPerBar === 0);
-        btn.className = 'pce-tap-cell' + (isBeat ? ' beat' : '') + (isBarStart ? ' bar-start' : '') + (isBeat ? ' is-beat' : ' is-offbeat');
-        btn.dataset.index = String(bi);      // タップは1小節パターンへ反映（全小節の同位置が連動）
+        btn.className = 'pce-tap-cell' + (isBeat ? ' beat' : '') + (isBarStart ? ' bar-start' : '') + (isBeat ? ' is-beat' : ' is-offbeat') + (editable ? '' : ' is-locked');
+        if (editable) btn.dataset.index = String(bi);
         btn.dataset.zone = 'note';
         btn.dataset.state = state;
+        if (!editable) btn.disabled = true;
         btn.setAttribute('aria-pressed', isRhythmCreateHit(state) ? 'true' : 'false');
-        btn.setAttribute('aria-label', getRhythmCreateCellLabel(def, i) + 'を切り替え（現在：' + rhythmCreateStateLabel(state) + '）');
+        btn.setAttribute('aria-label', getRhythmCreateCellLabel(def, i) + (editable ? 'を切り替え' : '（繰り返し表示）') + '（現在：' + rhythmCreateStateLabel(state) + '）');
         tap.appendChild(btn);
     }
     lane.appendChild(tap);
@@ -1407,21 +1495,24 @@ function drawRhythmCreateVexLane(VF, mount, def) {
     const beatrow = document.createElement('div');
     beatrow.className = 'pce-vex-beatrow';
     for (let i = 0; i < stagePattern.length; i++) {
-        const bi = i % cellCount;            // 1小節内の位置（矢印・拍ラベルは元パターン基準）
+        const bi = i % editCellCount;        // パターン内の位置（矢印・拍ラベルは元パターン基準）
+        const editable = i < editCellCount;
         const state = pattern[bi];
         const cell = rhythmCreateStateToCell(state, bi, def);
         const isBarStart = (i % stepsPerBar === 0);
         const arrow = document.createElement('button');
         arrow.type = 'button';
-        arrow.className = 'pce-arrow pce-arrow-' + cell.type + (isBarStart ? ' bar-start' : '');
-        arrow.tabIndex = -1;
-        arrow.setAttribute('aria-hidden', 'true');
+        arrow.className = 'pce-arrow pce-arrow-' + cell.type + (isBarStart ? ' bar-start' : '') + (editable ? '' : ' is-locked');
+        if (editable) arrow.dataset.index = String(bi);
+        arrow.dataset.zone = 'arrow';
+        if (!editable) arrow.disabled = true;
+        arrow.setAttribute('aria-label', getRhythmCreateCellLabel(def, i) + (editable ? 'のストローク方向を切り替え' : '（繰り返し表示）'));
         arrow.innerHTML = rhythmArrowGlyph(cell);
         arrowrow.appendChild(arrow);
 
         const beat = document.createElement('div');
-        beat.className = 'pce-beat-cell' + (isBeatLabelStrong(def, bi) ? ' is-mid' : ' is-faint') + (isBarStart ? ' bar-start' : '');
-        beat.textContent = def.beatLabels[bi] || String(bi + 1);
+        beat.className = 'pce-beat-cell' + (isBeatLabelStrong(def, bi) ? ' is-mid' : ' is-faint') + (isBarStart ? ' bar-start' : '') + (editable ? '' : ' is-locked');
+        beat.textContent = def.beatLabels[bi % cellsPerBar] || String((bi % cellsPerBar) + 1);
         beatrow.appendChild(beat);
     }
     lane.appendChild(arrowrow);
@@ -1443,22 +1534,24 @@ function drawRhythmCreateVexLane(VF, mount, def) {
 }
 
 function getRhythmCreateCellLabel(def, index) {
+    const local = index % def.cellCount;
+    const bar = Math.floor(index / def.cellCount) + 1;
+    const barLabel = bar > 1 ? bar + '小節目 ' : '';
     if (def.grid === 'eighthTriplet') {
-        const beat = Math.floor(index / 3) + 1;
-        const sub = index % 3;
-        return beat + '拍目の' + (sub === 0 ? '拍頭' : (sub === 1 ? '三連2つ目' : '三連3つ目'));
+        const beat = Math.floor(local / 3) + 1;
+        const sub = local % 3;
+        return barLabel + beat + '拍目の' + (sub === 0 ? '拍頭' : (sub === 1 ? '三連2つ目' : '三連3つ目'));
     }
     if (def.grid === 'sixteenth') {
-        const beat = Math.floor(index / 4) + 1;
-        const sub = index % 4;
-        return beat + '拍目の' + (sub === 0 ? '拍頭' : (sub === 1 ? 'e' : (sub === 2 ? '裏拍' : 'a')));
+        const beat = Math.floor(local / 4) + 1;
+        const sub = local % 4;
+        return barLabel + beat + '拍目の' + (sub === 0 ? '拍頭' : (sub === 1 ? 'e' : (sub === 2 ? '裏拍' : 'a')));
     }
     if (def.grid === 'eighth') {
-        const beat = Math.floor((index % 8) / 2) + 1;
-        const bar = def.patternBars > 1 ? (Math.floor(index / 8) + 1) + '小節目 ' : '';
-        return bar + beat + '拍目の' + (index % 2 === 0 ? '表拍' : '裏拍');
+        const beat = Math.floor((local % 8) / 2) + 1;
+        return barLabel + beat + '拍目の' + (local % 2 === 0 ? '表拍' : '裏拍');
     }
-    return (index + 1) + '拍目';
+    return barLabel + (local + 1) + '拍目';
 }
 
 function rhythmCreateStateLabel(state) {
@@ -1468,9 +1561,10 @@ function rhythmCreateStateLabel(state) {
 }
 
 function isBeatLabelStrong(def, index) {
-    if (def.grid === 'eighthTriplet') return index % 3 === 0;
-    if (def.grid === 'sixteenth') return index % 4 === 0 || def.beatLabels[index] === '&';
-    if (def.grid === 'eighth') return index % 2 === 0;
+    const local = index % def.cellCount;
+    if (def.grid === 'eighthTriplet') return local % 3 === 0;
+    if (def.grid === 'sixteenth') return local % 4 === 0 || def.beatLabels[local] === '&';
+    if (def.grid === 'eighth') return local % 2 === 0;
     return true;
 }
 
@@ -1497,20 +1591,105 @@ function setRhythmCreatePattern(pattern, presetIndex) {
 }
 
 function toggleRhythmCreateCell(index) {
+    tapRhythmCreateNote(index);
+}
+
+function rhythmCreateNoteSpans(def, index) {
+    const spans = rhythmEditorNoteSpans({
+        grid: def.grid,
+        timeSignature: '4/4',
+        pattern: rhythmCreatePatternToStagePattern(def),
+    }, index);
+    if (!RHYTHM_GRID_IS_TRIPLET[def.grid]) return spans;
+    if (def.grid === 'eighthTriplet') {
+        const ts = rhythmCustomTimeSig('4/4');
+        const info = rhythmTimeSigInfo(ts);
+        const cellTicks = rhythmGridCellTicks(def.grid);
+        const stepsPerBar = rhythmCustomStepsPerBar(def.grid, ts);
+        const beatCells = Math.max(1, Math.round(info.beamGroupTicks / cellTicks));
+        const posInBar = (((index % stepsPerBar) + stepsPerBar) % stepsPerBar);
+        if (beatCells - (posInBar % beatCells) >= 2 && index + 2 <= getRhythmCreatePatternCellCount(def)) return [1, 2];
+    }
+    return [1];
+}
+
+function rhythmCreateCurrentSpan(def, index) {
+    const pattern = getRhythmCreatePattern(def);
+    let span = 1;
+    for (let k = index + 1; k < pattern.length && pattern[k] === 'tie'; k++) span++;
+    return span;
+}
+
+function setRhythmCreateNoteSpan(def, index, span, dir) {
+    const pattern = getRhythmCreatePattern(def);
+    const dirs = getRhythmCreateDirs(def);
+    pattern[index] = 'hit';
+    dirs[index] = getRhythmCreateBaseDir(def, index);
+    for (let k = index + 1; k < index + span && k < pattern.length; k++) {
+        pattern[k] = 'tie';
+        dirs[k] = null;
+    }
+}
+
+function releaseRhythmCreateNoteSpan(def, index) {
+    const pattern = getRhythmCreatePattern(def);
+    const dirs = getRhythmCreateDirs(def);
+    for (let k = index + 1; k < pattern.length && pattern[k] === 'tie'; k++) {
+        pattern[k] = 'rest';
+        dirs[k] = null;
+    }
+}
+
+function tapRhythmCreateNote(index) {
     const def = getRhythmCreateStageDef();
     const pattern = getRhythmCreatePattern(def);
     if (index < 0 || index >= pattern.length) return;
     stopPreviewRhythm();
-    const states = index === 0 ? def.states.filter((state) => state !== 'tie') : def.states;
     const current = normalizeRhythmCreateCellState(pattern[index], index, def);
-    const currentIndex = Math.max(0, states.indexOf(current));
-    pattern[index] = states[(currentIndex + 1) % states.length];
+    const dir = getRhythmCreateBaseDir(def, index);
+    if (current === 'hit') {
+        const spans = rhythmCreateNoteSpans(def, index);
+        const curSpan = rhythmCreateCurrentSpan(def, index);
+        const pos = spans.indexOf(curSpan);
+        if (pos >= 0 && pos < spans.length - 1) {
+            setRhythmCreateNoteSpan(def, index, spans[pos + 1], dir);
+        } else {
+            releaseRhythmCreateNoteSpan(def, index);
+            pattern[index] = 'rest';
+            getRhythmCreateDirs(def)[index] = null;
+        }
+    } else if (current === 'rest') {
+        pattern[index] = 'tie';
+        getRhythmCreateDirs(def)[index] = null;
+    } else {
+        pattern[index] = 'hit';
+        getRhythmCreateDirs(def)[index] = dir;
+    }
+    renderRhythmCreateStageGrid();
+}
+
+function tapRhythmCreateArrow(index) {
+    const def = getRhythmCreateStageDef();
+    const pattern = getRhythmCreatePattern(def);
+    if (index < 0 || index >= pattern.length) return;
+    stopPreviewRhythm();
+    const dirs = getRhythmCreateDirs(def);
+    const current = normalizeRhythmCreateCellState(pattern[index], index, def);
+    const dir = getRhythmCreateCellDir(def, index, def.dirs[index] || 'down');
+    if (current === 'hit') {
+        dirs[index] = dir === 'up' ? 'down' : 'up';
+    } else {
+        if (dir === 'down') dirs[index] = 'up';
+        else if (dir === 'up') dirs[index] = null;
+        else dirs[index] = 'down';
+    }
     renderRhythmCreateStageGrid();
 }
 
 function buildRhythmCreatePreviewStage() {
     const def = getRhythmCreateStageDef();
     const pattern = rhythmCreatePatternToStagePattern(def);
+    const patternBars = getRhythmCreatePatternBars();
     return normalizeRhythmCustomStageSettings({
         version: 1,
         id: def.previewId,
@@ -1518,9 +1697,8 @@ function buildRhythmCreatePreviewStage() {
         description: '',
         grid: def.grid,
         timeSignature: '4/4',
-        // 編集・保存される pattern は常に1小節。表示・再生の小節数は barsOverride で渡す（v0.9.180）。
-        patternBars: def.patternBars || 1,
-        bars: def.patternBars || 1,
+        patternBars,
+        bars: patternBars,
         bpm: getRhythmCreateBpm(),
         clickMode: 'all',
         rhythmFeel: def.rhythmFeel === 'swing' ? 'swing' : 'straight',
@@ -1574,10 +1752,12 @@ function resetRhythmCreatePreviewControls() {
     stopPreviewRhythm();
     rhythmPreviewSoundBalance = 0;
     if (els.rcCreatePreviewBalance) els.rcCreatePreviewBalance.value = '50';
-    // BPM・小節数は画面を開くたび既定（80 / 4小節）へ。localStorageには保存しない（v0.9.180）。
+    // BPM・パターンの長さ・小節数は画面を開くたび既定（80 / 1小節 / 4小節）へ。localStorageには保存しない。
     rhythmCreateBpm = RHYTHM_CREATE_BPM_DEFAULT;
+    rhythmCreatePatternBars = RHYTHM_CREATE_PATTERN_BARS_DEFAULT;
     rhythmCreateBars = RHYTHM_CREATE_BARS_DEFAULT;
     if (els.rcCreateBpm) els.rcCreateBpm.value = String(rhythmCreateBpm);
+    syncRhythmCreatePatternBarsUI();
     if (els.rcCreateBars) els.rcCreateBars.value = String(rhythmCreateBars);
 }
 
@@ -1780,32 +1960,22 @@ function defaultRhythmCellForIndex(grid, i) {
     return { hit: true, dir: (i % 2 === 0 ? 'down' : 'up'), type: 'hit' };
 }
 
-/* 音価/拍内位置に応じた「デフォルトのストローク方向」を、dirManual でない音符へ反映する（v0.9.140）。
-   ルール：拍頭は必ずダウン。拍の中では、その音符の音価ステップごとに ↓↑↓↑… と交互。
-   例）8分：表=↓ 裏=↑／16分：↓↑↓↑／4分：すべて↓。
+function rhythmDefaultDirForIndex(d, index) {
+    if (!d || d.grid === 'quarter') return 'down';
+    return (index % 2 === 0) ? 'down' : 'up';
+}
+
+/* セル位置に応じた「デフォルトのストローク方向」を、dirManual でない音符へ反映する。
+   ルール：8分/16分は各セル位置の基本オルタネイト（↓↑↓↑…）、4分はすべて↓。
    ユーザーが矢印タップで指定した音符（dirManual:true）は上書きしない。
-   後続tieを含む実音価で判定するので、長い音符化・自動tie化のあとも自然な方向になる。
    hit以外（休符/tie）は方向を表示しないので対象外。 */
 function applyRhythmDefaultDirections(d) {
     if (!d || !Array.isArray(d.pattern)) return;
-    const ts = rhythmCustomTimeSig(d.timeSignature);
-    const info = rhythmTimeSigInfo(ts);
-    const cellTicks = rhythmGridCellTicks(d.grid);
-    const stepsPerBar = rhythmCustomStepsPerBar(d.grid, ts);
-    const beatTicks = info.beamGroupTicks;
-    if (!cellTicks || !stepsPerBar || !beatTicks) return;
     const pat = d.pattern;
     for (let i = 0; i < pat.length; i++) {
         const c = pat[i];
         if (!c || c.type !== 'hit' || c.dirManual === true) continue;
-        // この音符の実音価（後続tieのセル数を加える）
-        let span = 1;
-        for (let k = i + 1; k < pat.length && pat[k] && pat[k].type === 'tie' && !pat[k].hit; k++) span++;
-        const valueTicks = span * cellTicks;
-        const startTick = (i % stepsPerBar) * cellTicks;       // 小節内の開始tick
-        const posInBeat = ((startTick % beatTicks) + beatTicks) % beatTicks; // 拍内の位置
-        const step = Math.round(posInBeat / valueTicks);       // 拍内で何ステップ目か
-        c.dir = (step % 2 === 0) ? 'down' : 'up';
+        c.dir = rhythmDefaultDirForIndex(d, i);
     }
 }
 
@@ -3708,7 +3878,7 @@ function tapRhythmEditorNote(index) {
     stopPreviewRhythm();
     const scrollLeft = getRhythmPatternScrollLeft();
     const cur = d.pattern[index];
-    const dir = RHYTHM_CUSTOM_DIRS.includes(cur.dir) ? cur.dir : 'down';
+    const dir = (cur.dirManual === true && RHYTHM_CUSTOM_DIRS.includes(cur.dir)) ? cur.dir : rhythmDefaultDirForIndex(d, index);
     if (cur.type === 'hit') {
         const spans = rhythmEditorNoteSpans(d, index);
         const curSpan = rhythmEditorCurrentSpan(d, index);
@@ -3717,12 +3887,12 @@ function tapRhythmEditorNote(index) {
             setRhythmEditorNoteSpan(d, index, spans[pos + 1], dir);    // 後続セルをtie化して音価を伸ばす
         } else {
             releaseRhythmEditorNoteSpan(d, index);                     // 伸長を解除し
-            d.pattern[index] = { hit: false, dir: dir, type: 'rest' }; // 既存サイクル hit→rest
+            d.pattern[index] = { hit: false, dir: null, type: 'rest' }; // 既存サイクル hit→rest
         }
     } else if (cur.type === 'rest') {
-        d.pattern[index] = { hit: false, dir: dir, type: 'tie' };
+        d.pattern[index] = { hit: false, dir: null, type: 'tie' };
     } else {
-        d.pattern[index] = { hit: true, dir: dir, type: 'hit' };       // tie（旧 ghost）→ 音符
+        d.pattern[index] = { hit: true, dir: rhythmDefaultDirForIndex(d, index), type: 'hit' };       // tie（旧 ghost）→ 音符
     }
     renderRhythmEditorPattern({ preserveScrollLeft: scrollLeft });
 }
@@ -13981,7 +14151,9 @@ function bind() {
     if (els.rcCreateStage1Grid) els.rcCreateStage1Grid.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-index]');
         if (!btn) return;
-        toggleRhythmCreateCell(parseInt(btn.dataset.index, 10));
+        const index = parseInt(btn.dataset.index, 10);
+        if (btn.dataset.zone === 'arrow') tapRhythmCreateArrow(index);
+        else toggleRhythmCreateCell(index);
     });
     if (els.rcCreateHowtoToggle) els.rcCreateHowtoToggle.addEventListener('click', toggleRhythmCreateHowto);
     if (els.rcCreatePresetSelect) els.rcCreatePresetSelect.addEventListener('change', () => {
@@ -13997,10 +14169,13 @@ function bind() {
     if (els.rcCreatePractice) els.rcCreatePractice.addEventListener('click', openRhythmCreatePractice);
     // BPM・小節数（「リズムを作る」プレビュー専用）。change で確定値をクランプ反映（再生中は安全優先で一度停止）。
     if (els.rcCreateBpm) els.rcCreateBpm.addEventListener('change', (e) => setRhythmCreateBpmFromValue(e.target.value));
+    if (els.rcCreatePbars) els.rcCreatePbars.addEventListener('change', (e) => setRhythmCreatePatternBarsFromValue(e.target.value));
     if (els.rcCreateBars) els.rcCreateBars.addEventListener('change', (e) => setRhythmCreateBarsFromValue(e.target.value));
     // −/＋ボタン（既存STAGEのテンポ調整と同じ操作感）。BPMは±1、小節数は±1。
     if (els.rcCreateBpmDown) els.rcCreateBpmDown.addEventListener('click', () => stepRhythmCreateBpm(-RHYTHM_CREATE_BPM_STEP));
     if (els.rcCreateBpmUp) els.rcCreateBpmUp.addEventListener('click', () => stepRhythmCreateBpm(RHYTHM_CREATE_BPM_STEP));
+    if (els.rcCreatePbarsDown) els.rcCreatePbarsDown.addEventListener('click', () => stepRhythmCreatePatternBars(-1));
+    if (els.rcCreatePbarsUp) els.rcCreatePbarsUp.addEventListener('click', () => stepRhythmCreatePatternBars(1));
     if (els.rcCreateBarsDown) els.rcCreateBarsDown.addEventListener('click', () => stepRhythmCreateBars(-1));
     if (els.rcCreateBarsUp) els.rcCreateBarsUp.addEventListener('click', () => stepRhythmCreateBars(1));
     if (els.catKiso) els.catKiso.addEventListener('click', () => setHomeView('kiso'));
