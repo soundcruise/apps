@@ -3706,6 +3706,9 @@ h1 {
     align-items: center;
     gap: 8px;
 }
+.stage-loop-item {
+    flex-wrap: wrap;
+}
 .stage-bar-cap {
     color: var(--muted-color);
     font-size: 0.82rem;
@@ -3718,6 +3721,34 @@ h1 {
     font-variant-numeric: tabular-nums;
     min-width: 1.8em;
     text-align: center;
+}
+.loop-help-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--muted-color);
+    font-size: 0.9rem;
+    font-weight: 800;
+    line-height: 1;
+    cursor: pointer;
+}
+.loop-help-toggle[aria-expanded="true"] {
+    color: var(--text-color);
+    border-color: rgba(255, 159, 28, 0.42);
+    background: rgba(255, 159, 28, 0.13);
+}
+.loop-help-text {
+    flex: 1 0 100%;
+    max-width: 360px;
+    margin: -2px 0 0;
+    color: rgba(253, 246, 238, 0.72);
+    font-size: 0.76rem;
+    line-height: 1.55;
 }
 .stage-set-row {
     display: flex;

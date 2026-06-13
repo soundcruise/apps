@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.191">
+    <link rel="stylesheet" href="theme.css?v=0.9.192">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -233,14 +233,12 @@
                             <button type="button" class="tempo-btn pce-settings-step" id="pce-bpm-down" aria-label="BPMを下げる">−</button>
                             <input type="number" id="pce-bpm" class="pce-num pce-settings-num" min="30" max="240" step="1" inputmode="numeric">
                             <button type="button" class="tempo-btn pce-settings-step" id="pce-bpm-up" aria-label="BPMを上げる">＋</button>
-                            <span class="pce-unit">BPM</span>
                         </div>
                         <div class="pce-settings-param">
                             <span class="pce-settings-param-cap">小節</span>
                             <button type="button" class="tempo-btn pce-settings-step" id="pce-bars-down" aria-label="小節数を減らす">−</button>
                             <span class="pce-num pce-bars-val pce-settings-num" id="pce-bars-val">4</span>
                             <button type="button" class="tempo-btn pce-settings-step" id="pce-bars-up" aria-label="小節数を増やす">＋</button>
-                            <span class="pce-unit">小節</span>
                         </div>
                         <div class="pce-settings-param">
                             <span class="pce-settings-param-cap">拡大</span>
@@ -353,9 +351,11 @@
                     <b id="bars-val">8</b>
                     <button class="tempo-btn" id="bars-up" aria-label="小節数を増やす">+</button>
                 </div>
-                <div class="stage-bar-item">
+                <div class="stage-bar-item stage-loop-item">
                     <span class="stage-bar-cap">くり返し練習</span>
                     <button type="button" class="ss-toggle" id="loop-toggle" aria-pressed="false" title="ONにすると、STOPするまで同じSTAGEを繰り返します（結果は履歴に保存しません）。">OFF</button>
+                    <button type="button" class="loop-help-toggle" id="loop-help-toggle" aria-expanded="false" aria-controls="loop-help" aria-label="くり返し練習の説明を開く">＋</button>
+                    <p class="loop-help-text hidden" id="loop-help">ONにすると、同じリズムをくり返して練習できます。苦手なリズムを何度も確認したいときに使ってください。</p>
                 </div>
             </div>
 
@@ -1212,7 +1212,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.191"></script>
+    <script src="script.js?v=0.9.192"></script>
 </body>
 
 </html>

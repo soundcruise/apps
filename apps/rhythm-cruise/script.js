@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.191';
+const RHYTHM_CRUISE_VERSION = '0.9.192';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -650,6 +650,8 @@ const els = {
     clickDotsNote: $('click-dots-note'),
     offbeatToggle: $('offbeat-toggle'),
     loopToggle: $('loop-toggle'),
+    loopHelpToggle: $('loop-help-toggle'),
+    loopHelp: $('loop-help'),
     barCounter: $('bar-counter'),
     latestVerdict: $('latest-verdict'),
     progressFill: $('progress-fill'),
@@ -7625,6 +7627,19 @@ function setStageClickOffbeat(on) {
 function setStageLoop(on) {
     state.rcLoop = !!on;
     updateStageSettingsUI();
+}
+function setLoopHelpOpen(open) {
+    const isOpen = !!open;
+    if (els.loopHelp) els.loopHelp.classList.toggle('hidden', !isOpen);
+    if (els.loopHelpToggle) {
+        els.loopHelpToggle.textContent = isOpen ? '−' : '＋';
+        els.loopHelpToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        els.loopHelpToggle.setAttribute('aria-label', isOpen ? 'くり返し練習の説明を閉じる' : 'くり返し練習の説明を開く');
+    }
+}
+function toggleLoopHelp() {
+    const open = els.loopHelpToggle && els.loopHelpToggle.getAttribute('aria-expanded') === 'true';
+    setLoopHelpOpen(!open);
 }
 /* 選んでいる「クリックする拍」を4つの丸で視認用に表示（選択に連動）。裏拍ON/OFFは補足テキストで示す。 */
 function renderClickDots() {
@@ -15046,6 +15061,7 @@ function bind() {
         b.addEventListener('click', () => setJudgePreset(b.getAttribute('data-judge')));
     });
     if (els.loopToggle) els.loopToggle.addEventListener('click', () => setStageLoop(!state.rcLoop));
+    if (els.loopHelpToggle) els.loopHelpToggle.addEventListener('click', toggleLoopHelp);
     const savedClick = loadStageClickSettings(); // 保存済みクリック設定を反映（既定：ずっと鳴らす＋4拍ぜんぶ＋裏拍OFF）
     state.rcClickMode = savedClick.range;
     state.rcClickBeats = savedClick.beats;
