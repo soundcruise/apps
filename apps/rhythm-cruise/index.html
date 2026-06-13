@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.188">
+    <link rel="stylesheet" href="theme.css?v=0.9.190">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -216,44 +216,45 @@
                     </div>
                 </div>
 
-                <div class="pce-field pce-field-row">
-                    <label class="pce-label" for="pce-pbars">パターンの長さ</label>
-                    <select class="pce-select" id="pce-pbars">
-                        <option value="1">1小節</option>
-                        <option value="2">2小節</option>
-                        <option value="3">3小節</option>
-                        <option value="4">4小節</option>
-                    </select>
-                </div>
-
-                <div class="pce-field">
-                    <span class="pce-label">BPM</span>
-                    <div class="pce-stepper">
-                        <button type="button" class="tempo-btn" id="pce-bpm-down" aria-label="BPMを下げる">−</button>
-                        <input type="number" id="pce-bpm" class="pce-num" min="30" max="240" step="1" inputmode="numeric">
-                        <button type="button" class="tempo-btn" id="pce-bpm-up" aria-label="BPMを上げる">＋</button>
-                        <span class="pce-unit">BPM</span>
+                <details class="pce-settings">
+                    <summary class="pce-settings-summary">再生設定</summary>
+                    <div class="pce-settings-params">
+                        <div class="pce-settings-param">
+                            <label class="pce-settings-param-cap" for="pce-pbars">パターンの長さ</label>
+                            <select class="pce-select" id="pce-pbars">
+                                <option value="1">1小節</option>
+                                <option value="2">2小節</option>
+                                <option value="3">3小節</option>
+                                <option value="4">4小節</option>
+                            </select>
+                        </div>
+                        <div class="pce-settings-param">
+                            <span class="pce-settings-param-cap">BPM</span>
+                            <button type="button" class="tempo-btn pce-settings-step" id="pce-bpm-down" aria-label="BPMを下げる">−</button>
+                            <input type="number" id="pce-bpm" class="pce-num pce-settings-num" min="30" max="240" step="1" inputmode="numeric">
+                            <button type="button" class="tempo-btn pce-settings-step" id="pce-bpm-up" aria-label="BPMを上げる">＋</button>
+                            <span class="pce-unit">BPM</span>
+                        </div>
+                        <div class="pce-settings-param">
+                            <span class="pce-settings-param-cap">小節</span>
+                            <button type="button" class="tempo-btn pce-settings-step" id="pce-bars-down" aria-label="小節数を減らす">−</button>
+                            <span class="pce-num pce-bars-val pce-settings-num" id="pce-bars-val">4</span>
+                            <button type="button" class="tempo-btn pce-settings-step" id="pce-bars-up" aria-label="小節数を増やす">＋</button>
+                            <span class="pce-unit">小節</span>
+                        </div>
+                        <div class="pce-settings-param">
+                            <span class="pce-settings-param-cap">拡大</span>
+                            <button type="button" class="tempo-btn pce-settings-step" id="pce-zoom-down" aria-label="音符画面を縮小する">−</button>
+                            <span class="pce-num pce-zoom-val pce-settings-num" id="pce-zoom-val">100%</span>
+                            <button type="button" class="tempo-btn pce-settings-step" id="pce-zoom-up" aria-label="音符画面を拡大する">＋</button>
+                        </div>
                     </div>
-                </div>
-
-                <div class="pce-field">
-                    <span class="pce-label">小節</span>
-                    <div class="pce-stepper">
-                        <button type="button" class="tempo-btn" id="pce-bars-down" aria-label="小節数を減らす">−</button>
-                        <span class="pce-num pce-bars-val" id="pce-bars-val">4</span>
-                        <button type="button" class="tempo-btn" id="pce-bars-up" aria-label="小節数を増やす">＋</button>
-                        <span class="pce-unit">小節</span>
+                    <div class="custom-test-preview-balance pce-settings-balance">
+                        <span class="custom-test-preview-balance-cap">クリック</span>
+                        <input type="range" id="pce-preview-balance" min="0" max="100" value="50" step="1" aria-label="確認音バランス（左：クリック大きめ／右：ストローク大きめ）">
+                        <span class="custom-test-preview-balance-cap">ストローク</span>
                     </div>
-                </div>
-
-                <div class="pce-field">
-                    <span class="pce-label">拡大</span>
-                    <div class="pce-stepper">
-                        <button type="button" class="tempo-btn" id="pce-zoom-down" aria-label="音符画面を縮小する">−</button>
-                        <span class="pce-num pce-zoom-val" id="pce-zoom-val">100%</span>
-                        <button type="button" class="tempo-btn" id="pce-zoom-up" aria-label="音符画面を拡大する">＋</button>
-                    </div>
-                </div>
+                </details>
 
                 <div class="pce-field">
                     <span class="pce-label">パターン</span>
@@ -268,11 +269,6 @@
                     </div>
                     <div class="pce-preview-controls">
                         <button type="button" class="custom-test-preview-play" id="pce-preview-play" aria-pressed="false">▶ リズムを再生</button>
-                        <div class="custom-test-preview-balance">
-                            <span class="custom-test-preview-balance-cap">クリック</span>
-                            <input type="range" id="pce-preview-balance" min="0" max="100" value="50" step="1" aria-label="確認音バランス（左：クリック大きめ／右：ストローク大きめ）">
-                            <span class="custom-test-preview-balance-cap">ストローク</span>
-                        </div>
                     </div>
                 </div>
 
@@ -1201,7 +1197,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.189"></script>
+    <script src="script.js?v=0.9.190"></script>
 </body>
 
 </html>
