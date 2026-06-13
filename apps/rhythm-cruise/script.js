@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.181';
+const RHYTHM_CRUISE_VERSION = '0.9.182';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -1560,7 +1560,7 @@ function openRhythmCreatePractice() {
     state.currentStage = 0;
     els.practiceNum.innerHTML = `<small>STAGE</small><b>${def.n}</b>`;
     els.practiceTitle.textContent = def.title;
-    setInputMode(state.inputMode);
+    setInputMode(state.inputMode, { save: false });
     show('practice');
     requestAnimationFrame(() => { fitLane(); resetGame(); renderRhythmFlowScore(); });
 }
@@ -9546,7 +9546,8 @@ function selectInputMode(mode) {
     saveSettings();
 }
 
-function setInputMode(mode) {
+function setInputMode(mode, opts) {
+    const shouldSave = !(opts && opts.save === false);
     // 補正テスト/BT補正の途中で入力タイプを切り替えたら、退避してあるユーザー設定を必ず復元してから切り替える（v0.9.140）
     if (cal.active || mic.calibrating) cancelCalibration();
     stopBtCal();
@@ -9574,7 +9575,7 @@ function setInputMode(mode) {
             startMic().then(() => {
                 if (state.inputMode !== 'stroke') return; // 起動完了までにタップモードへ戻した場合は何もしない（v0.9.140）
                 if (mic.on) {
-                    maybeShowMicSetupPrompt();   // 許可成功 → 初回のみマイク設定へ誘導
+                    maybeShowMicSetupPrompt({ save: shouldSave }); // 許可成功 → 初回のみマイク設定へ誘導
                 } else if (els.tapHint) {
                     els.tapHint.textContent = 'マイクを許可してください。右上の設定から確認できます。';
                     els.tapHint.classList.remove('hidden'); // エラー通知のときだけ表示
@@ -9582,7 +9583,7 @@ function setInputMode(mode) {
             });
         }
     }
-    saveSettings(); // v0.9.118：入力方式を保存（STAGEトグル/リズム練スイッチ/再読込で同期）
+    if (shouldSave) saveSettings(); // v0.9.118：入力方式を保存（STAGEトグル/リズム練スイッチ/再読込で同期）
 }
 
 /* STAGE画面のタイトル横「現在：タップ/ストローク」をタップして入力方式を切り替える（v0.9.118）。
@@ -9595,7 +9596,8 @@ function toggleStageInputMode() {
    ・許可ダイアログが実際に出た後（mic.dialogShown）は、済み状態でも出す。
    ・ダイアログが出ていない（既にgranted）場合は、未設定のときだけ出す。
    ・同一セッションでは1回だけ（micSetupPromptShownThisSession）。 */
-function maybeShowMicSetupPrompt() {
+function maybeShowMicSetupPrompt(opts) {
+    const shouldSave = !(opts && opts.save === false);
     if (!els.micSetupPrompt) return;
     if (els.practice.classList.contains('hidden')) return; // STAGE画面表示中のみ
     if (micSetupPromptShownThisSession) return;             // セッション内は1回だけ
@@ -9611,7 +9613,7 @@ function maybeShowMicSetupPrompt() {
     els.micSetupPrompt.classList.remove('hidden');
     micSetupPromptShownThisSession = true;
     state.micSetupPrompted = true;
-    saveSettings();
+    if (shouldSave) saveSettings();
 }
 
 function hideMicSetupPrompt() {
