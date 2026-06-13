@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.190">
+    <link rel="stylesheet" href="theme.css?v=0.9.191">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -272,13 +272,28 @@
                     </div>
                 </div>
 
-                <div class="pce-actions">
-                    <button type="button" class="settings-top-main pce-save" id="pce-save">保存</button>
-                    <button type="button" class="pro-custom-act is-edit pce-save-as hidden" id="pce-save-as">別名で保存</button>
-                    <button type="button" class="pro-custom-act is-test pce-test" id="pce-test">STAGEを試す</button>
+                <div class="pce-action-groups">
+                    <div class="pce-action-primary">
+                        <button type="button" class="pro-custom-act is-test pce-test" id="pce-test">STAGEを試す</button>
+                    </div>
+
+                    <div class="pce-action-section">
+                        <div class="pce-action-heading">保存</div>
+                        <div class="pce-action-row">
+                            <button type="button" class="settings-top-main pce-save" id="pce-save">保存</button>
+                            <button type="button" class="pro-custom-act is-edit pce-save-as hidden" id="pce-save-as">別名で保存</button>
+                        </div>
+                    </div>
+
+                    <div class="pce-action-section">
+                        <button type="button" class="pce-back-link" id="pce-back">STAGE一覧へ戻る</button>
+                    </div>
+
+                    <div class="pce-action-section pce-action-danger">
+                        <div class="pce-action-heading">危険操作</div>
+                        <button type="button" class="pce-delete-link" id="pce-delete">このカスタムSTAGEを削除</button>
+                    </div>
                 </div>
-                <button type="button" class="pce-back-link" id="pce-back">リズム練へ戻る</button>
-                <button type="button" class="pce-delete-link" id="pce-delete">このカスタムSTAGEを削除</button>
             </div>
 
             <!-- 基礎練カテゴリ（v0.9.166：トップUIからは外し、互換用ビューとして残す） -->
@@ -1197,7 +1212,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.190"></script>
+    <script src="script.js?v=0.9.191"></script>
 </body>
 
 </html>

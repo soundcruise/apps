@@ -1904,12 +1904,54 @@ h1 {
     flex: 1;
 }
 
-/* 操作エリア */
-.pce-actions {
+/* PROカスタムSTAGE編集の下部導線（v0.9.191）。
+   試す / 保存 / 戻る / 危険操作を意味別に分け、idと既存クリック処理は維持する。 */
+.pce-action-groups {
     width: 100%;
     display: flex;
     flex-direction: column;
+    gap: 14px;
+    margin-top: 4px;
+}
+
+.pce-action-primary,
+.pce-action-section {
+    width: 100%;
+}
+
+.pce-action-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pce-action-heading {
+    color: rgba(253, 246, 238, 0.58);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+}
+
+.pce-action-row {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
     gap: 10px;
+    align-items: stretch;
+}
+
+.pce-action-row .pce-save,
+.pce-action-row .pce-save-as {
+    flex: 1 1 132px;
+    min-width: 0;
+}
+
+.pce-action-row .pce-save {
+    padding: 12px;
+    border-width: 1px;
+    border-color: rgba(255, 200, 87, 0.46);
+    background: rgba(255, 200, 87, 0.10);
+    font-size: 0.9rem;
 }
 
 .pce-actions .pce-copy {
@@ -1917,15 +1959,23 @@ h1 {
     padding: 12px;
 }
 
-.pce-actions .pce-test {
+.pce-action-primary .pce-test {
     flex: none;
-    padding: 12px;
+    width: 100%;
+    padding: 14px 12px;
+    font-size: 0.96rem;
+    border-radius: 12px;
+}
+
+.pce-action-danger {
+    margin-top: 6px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 99, 99, 0.18);
 }
 
 .pce-back-link,
 .pce-delete-link {
     width: 100%;
-    margin-top: 4px;
     padding: 11px;
     border-radius: 10px;
     background: transparent;
@@ -1945,6 +1995,10 @@ h1 {
     color: rgba(255, 157, 157, 0.85);
     font-size: 0.8rem;
     opacity: 0.85;
+}
+
+.pce-delete-link:active {
+    background: rgba(255, 99, 99, 0.08);
 }
 
 @keyframes fadeIn {
