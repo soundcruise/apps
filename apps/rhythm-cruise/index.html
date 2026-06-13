@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.172">
+    <link rel="stylesheet" href="theme.css?v=0.9.173">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -48,6 +48,7 @@
             <!-- ホームTOP：リズム練への導線だけを置く（v0.9.117） -->
             <div class="home-view" id="home-top">
                 <button id="rhythm-train-btn" class="settings-top-main">リズム練をする</button>
+                <button id="rhythm-create-btn" class="settings-top-main">リズムを作る</button>
             </div>
 
             <!-- リズム練をする：STAGE1〜6を直接表示（v0.9.166）。戻る/TOPは共通ナビ #app-nav に統一。 -->
@@ -68,6 +69,45 @@
                 <div class="stage-list pro-custom-saved-stage-list" id="rhythm-pro-custom-saved-list">
                     <!-- 保存済みPROカスタムSTAGEを script.js が描画 -->
                 </div>
+            </div>
+
+            <!-- リズムを作る：教材的に作って聴くためのSTAGE一覧（v0.9.173）。戻る/TOPは共通ナビ #app-nav。 -->
+            <div class="home-view hidden" id="home-rhythm-create">
+                <div class="section-label">リズムを作る</div>
+                <div class="rhythm-create-list" id="rhythm-create-stage-list">
+                    <!-- script.js が描画 -->
+                </div>
+            </div>
+
+            <!-- リズムを作る STAGE1（v0.9.173）。1小節4拍の ● / ○ を作って聴く。 -->
+            <div class="home-view hidden" id="home-rhythm-create-stage1">
+                <div class="section-label">STAGE1 4分音符で作る</div>
+                <div class="rhythm-create-howto">
+                    <button type="button" class="pce-howto-toggle" id="rc-create-howto-toggle" aria-expanded="false">説明を見る▼</button>
+                    <p class="rhythm-create-lead hidden" id="rc-create-howto-body">4分音符は、1拍ごとに音を置く基本のリズムです。<br>まずは、どの拍で音を鳴らすかを作ってみましょう。</p>
+                </div>
+
+                <div class="rhythm-create-preview">
+                    <button type="button" class="custom-test-preview-play" id="rc-create-preview-play" aria-pressed="false">▶ リズムを再生</button>
+                    <div class="custom-test-preview-balance">
+                        <span class="custom-test-preview-balance-cap">クリック</span>
+                        <input type="range" id="rc-create-preview-balance" min="0" max="100" value="50" step="1" aria-label="確認音バランス（左：クリック大きめ／右：ストローク大きめ）">
+                        <span class="custom-test-preview-balance-cap">ストローク</span>
+                    </div>
+                </div>
+
+                <div class="pce-pattern rhythm-create-pattern" id="rc-create-stage1-grid" aria-label="4拍のリズムパターン">
+                    <!-- script.js が描画 -->
+                </div>
+
+                <div class="rhythm-create-preset-field">
+                    <label class="rhythm-create-presets-label" for="rc-create-preset-select">プリセット</label>
+                    <select class="pce-select rhythm-create-preset-select" id="rc-create-preset-select">
+                        <!-- script.js が描画 -->
+                    </select>
+                </div>
+
+                <button type="button" class="rhythm-create-practice" id="rc-create-practice" disabled>このリズムで練習する（準備中）</button>
             </div>
 
             <!-- PROカスタムSTAGE一覧（v0.9.168）。保存済みSTAGEのPlay/編集/削除の導線。戻るは共通ナビ #app-nav。 -->
@@ -1097,7 +1137,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.172"></script>
+    <script src="script.js?v=0.9.173"></script>
 </body>
 
 </html>

@@ -532,6 +532,69 @@ h1 {
     gap: 8px;
 }
 
+/* ── リズムを作る（v0.9.173）──────────────────────────── */
+.rhythm-create-list {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.rhythm-create-lead {
+    margin: 0;
+    color: rgba(253, 246, 238, 0.78);
+    font-size: 0.92rem;
+    line-height: 1.6;
+}
+
+.rhythm-create-howto {
+    width: 100%;
+}
+
+.rhythm-create-preset-field {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.rhythm-create-presets-label {
+    flex: 0 0 auto;
+    color: var(--muted-color);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.rhythm-create-preset-select {
+    max-width: 260px;
+}
+
+.rhythm-create-practice {
+    min-height: 40px;
+    padding: 9px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-color);
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.84rem;
+}
+
+.rhythm-create-preview {
+    width: 100%;
+}
+
+.rhythm-create-practice {
+    border-radius: 12px;
+    color: rgba(253, 246, 238, 0.56);
+    cursor: default;
+}
+
+.rhythm-create-practice:disabled {
+    opacity: 0.68;
+}
+
 /* 準備中カテゴリ（押せるが中身なし）は控えめに */
 .cat-btn.cat-soon {
     border-color: rgba(253, 246, 238, 0.22);
