@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.177';
+const RHYTHM_CRUISE_VERSION = '0.9.178';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -993,9 +993,9 @@ function renderStages() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   リズムを作る（v0.9.177）
+   リズムを作る（v0.9.178）
    ・教材的に「作る→聴く」ための新メニュー。
-   ・STAGE1〜6は同じ編集・プレビュー部品を使う。
+   ・STAGE1〜5は同じ編集・プレビュー部品を使う。
    ・保存形式やPROカスタムSTAGEには接続しないセッション内状態。
 ═══════════════════════════════════════════════════════════ */
 const RHYTHM_CREATE_STAGES = [
@@ -1073,29 +1073,6 @@ const RHYTHM_CREATE_STAGES = [
     },
     {
         n: 4,
-        title: 'シンコペーション',
-        desc: '食うリズムを作る',
-        ready: true,
-        grid: 'eighth',
-        noteDuration: '8',
-        cellCount: 16,
-        patternBars: 2,
-        states: ['hit', 'rest', 'tie'],
-        beatLabels: ['1', '&', '2', '&', '3', '&', '4', '&', '1', '&', '2', '&', '3', '&', '4', '&'],
-        dirs: ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'],
-        motion: 'alternate',
-        previewId: 'rhythm_create_stage4_preview',
-        howto: 'シンコペーションは、裏拍から次の拍や次の小節へ音を伸ばすことで、リズムが前に食い込むように感じるパターンです。<br>ここでは2小節にまたがる弾き語りでよく使う食うリズムを作ります。',
-        presets: [
-            { name: '小節またぎの食い', pattern: ['rest', 'hit', 'hit', 'hit', 'rest', 'hit', 'tie', 'rest', 'hit', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit'] },
-            { name: '次のコードへ食う', pattern: ['rest', 'hit', 'hit', 'rest', 'hit', 'hit', 'tie', 'rest', 'rest', 'hit', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit'] },
-            { name: 'サビ前の食い', pattern: ['hit', 'hit', 'tie', 'rest', 'hit', 'hit', 'rest', 'hit', 'rest', 'hit', 'tie', 'rest', 'hit', 'hit', 'rest', 'hit'] },
-            { name: '弾き語り定番シンコペーション', pattern: ['rest', 'hit', 'tie', 'rest', 'rest', 'hit', 'tie', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit'] },
-            { name: 'くり返しの食い', pattern: ['rest', 'hit', 'tie', 'rest', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit', 'tie', 'rest', 'hit', 'rest', 'hit', 'hit'] },
-        ],
-    },
-    {
-        n: 5,
         title: '三連符で作る',
         desc: '3つに分けるリズムを作る',
         ready: true,
@@ -1107,7 +1084,7 @@ const RHYTHM_CREATE_STAGES = [
         beatLabels: ['1', 'ta', 'ta', '2', 'ta', 'ta', '3', 'ta', 'ta', '4', 'ta', 'ta'],
         dirs: ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'],
         motion: 'alternate',
-        previewId: 'rhythm_create_stage5_preview',
+        previewId: 'rhythm_create_stage4_preview',
         howto: '三連符は、1拍を3つに分けるリズムです。<br>いつもの8分音符とは違う、転がるような感じを作ることができます。<br>まずは音を出す場所、休む場所、伸ばす場所を選んで、3つに分ける感覚を試してみましょう。',
         presets: [
             { name: '基本の三連符', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'] },
@@ -1119,7 +1096,7 @@ const RHYTHM_CREATE_STAGES = [
         ],
     },
     {
-        n: 6,
+        n: 5,
         title: 'シャッフルで作る',
         desc: '跳ねる8ビートを作る',
         ready: true,
@@ -1132,7 +1109,7 @@ const RHYTHM_CREATE_STAGES = [
         beatLabels: ['1', '&', '2', '&', '3', '&', '4', '&'],
         dirs: ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'],
         motion: 'alternate',
-        previewId: 'rhythm_create_stage6_preview',
+        previewId: 'rhythm_create_stage5_preview',
         howto: 'シャッフルは、8分音符を均等にせず、少し跳ねるように弾くリズムです。<br>表拍を長く、裏拍を少し遅らせることで、ブルースや弾き語りでよく使うノリになります。',
         presets: [
             { name: '基本のシャッフル', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'] },
