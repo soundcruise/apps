@@ -786,3 +786,70 @@ body.test-mode-enabled .stage-clear-mark {
 .tm-new-badge.hidden {
     display: none;
 }
+
+/* ── PROカスタムSTAGE ▼メニュー：「？」操作説明（v2.11.1）──────────────
+   ボタン群 .staging-slot-actions（shared/pro-theme.css・flex-wrap）の中に
+   全幅の簡易説明パネルとして表示する。表示のみで保存処理には関与しない。 */
+.staging-slot-action-btn--help {
+    font-weight: 800;
+}
+
+.staging-slot-help {
+    flex-basis: 100%;
+    margin-top: 4px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px dashed rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.04);
+    text-align: left;
+}
+
+.staging-slot-help[hidden] {
+    display: none !important;
+}
+
+.staging-slot-help p {
+    margin: 0 0 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.88);
+}
+
+.staging-slot-help p:last-child {
+    margin-bottom: 0;
+}
+
+.staging-slot-help-ic {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+}
+
+.staging-slot-help-ic .staging-slot-duplicate-icon {
+    width: 18px;
+    height: 18px;
+}
+
+/* ── PROカスタムSTAGE「このSTAGEを保存」ボタン（v2.11.1）──────────────
+   編集画面フッター（flex-column）の「この設定で試す」直下、
+   およびテストページ下部に置く保存ボタン。既存の btn-secondary を流用しつつ全幅に揃える。 */
+.staging-save-current-btn {
+    width: 100%;
+    max-width: 280px;
+}
+
+.staging-save-current-btn.is-saved {
+    border-color: rgba(73, 204, 124, 0.6);
+    color: #8ff0b0;
+}
+
+.staging-test-save-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 12px 0 4px;
+}

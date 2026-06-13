@@ -1,5 +1,5 @@
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '2.11.0';
+const PITCH_TRAINER_APP_VERSION = '2.11.1';
 
 // ─── [DEV] デバッグフラグ ────────────────────────────────────────────────────
 // true にするとSTAGE選択画面のクリア回数が常に100と表示される（localStorageは変更しない）
@@ -2366,6 +2366,9 @@ class Game {
                 }
             });
         }
+        // PROカスタムSTAGE編集画面/テストページの保存導線（v2.11.1）：
+        // 「決定」→「この設定で試す」へ文言変更（挙動は不変）し、「このSTAGEを保存」ボタンを追加する。
+        this.setupProCustomStageSaveControls();
         if (isStagingProSlotsFeature()) {
             this.renderStagingMelodySlotButtons();
             this.renderStagingChordSlotButtons();
@@ -4169,7 +4172,7 @@ class Game {
                     this.renderStagingMelodySlotButtons();
                 });
             }));
-            actions.appendChild(mkAction('⚙️', 'Pro設定を編集', () => {
+            actions.appendChild(mkAction('📝', 'Pro設定を編集', () => {
                 this.openStagingSlotProMelodyEditor(id);
             }));
             const dupBtn = document.createElement('button');
@@ -4194,6 +4197,21 @@ class Game {
             actions.appendChild(mkAction('🗑️', 'このSTAGEを削除', () => {
                 this.deleteStagingMelodySlot(id);
             }));
+            // 「？」：各操作ボタンの簡易説明パネルを開閉する（表示のみ・保存処理なし・v2.11.1）
+            const helpPanel = document.createElement('div');
+            helpPanel.className = 'staging-slot-help';
+            helpPanel.hidden = true;
+            helpPanel.innerHTML =
+                '<p><span class="staging-slot-help-ic">✏️</span>名前を変更：STAGE名だけを変更します。</p>' +
+                '<p><span class="staging-slot-help-ic">📝</span>Pro設定を編集：STAGEの内容や設定を編集します。</p>' +
+                '<p><span class="staging-slot-help-ic"><img src="assets/icon-duplicate.png?v=1" class="staging-slot-duplicate-icon" alt="" decoding="async" width="18" height="18"></span>複製：同じ内容のSTAGEを複製します。</p>' +
+                '<p><span class="staging-slot-help-ic">🗑️</span>このSTAGEを削除：このSTAGEを削除します。</p>';
+            const helpBtn = mkAction('？', '操作の説明', () => {
+                helpPanel.hidden = !helpPanel.hidden;
+            });
+            helpBtn.classList.add('staging-slot-action-btn--help');
+            actions.appendChild(helpBtn);
+            actions.appendChild(helpPanel);
             toggle.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -4586,7 +4604,7 @@ class Game {
                     this.renderStagingChordSlotButtons();
                 });
             }));
-            actions.appendChild(mkAction('⚙️', 'Pro設定を編集', () => {
+            actions.appendChild(mkAction('📝', 'Pro設定を編集', () => {
                 this.openStagingSlotProChordEditor(id);
             }));
             const dupBtn = document.createElement('button');
@@ -4611,6 +4629,21 @@ class Game {
             actions.appendChild(mkAction('🗑️', 'このSTAGEを削除', () => {
                 this.deleteStagingChordSlot(id);
             }));
+            // 「？」：各操作ボタンの簡易説明パネルを開閉する（表示のみ・保存処理なし・v2.11.1）
+            const helpPanel = document.createElement('div');
+            helpPanel.className = 'staging-slot-help';
+            helpPanel.hidden = true;
+            helpPanel.innerHTML =
+                '<p><span class="staging-slot-help-ic">✏️</span>名前を変更：STAGE名だけを変更します。</p>' +
+                '<p><span class="staging-slot-help-ic">📝</span>Pro設定を編集：STAGEの内容や設定を編集します。</p>' +
+                '<p><span class="staging-slot-help-ic"><img src="assets/icon-duplicate.png?v=1" class="staging-slot-duplicate-icon" alt="" decoding="async" width="18" height="18"></span>複製：同じ内容のSTAGEを複製します。</p>' +
+                '<p><span class="staging-slot-help-ic">🗑️</span>このSTAGEを削除：このSTAGEを削除します。</p>';
+            const helpBtn = mkAction('？', '操作の説明', () => {
+                helpPanel.hidden = !helpPanel.hidden;
+            });
+            helpBtn.classList.add('staging-slot-action-btn--help');
+            actions.appendChild(helpBtn);
+            actions.appendChild(helpPanel);
             toggle.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -4765,13 +4798,127 @@ class Game {
 
     updateStagingAddSlotUi() {
         const wrap = document.getElementById('staging-add-slot-wrap');
-        if (!wrap) return;
         const show = isStagingProSlotsFeature() && this.isPlaying &&
             (isProMelodyStageId(this.stage) || isProChordStageId(this.stage));
-        wrap.style.display = show ? 'flex' : 'none';
-        wrap.hidden = !show;
-        const headerWrap = wrap.closest('.header-game-settings-wrap');
-        if (headerWrap) headerWrap.classList.toggle('pro-custom-active', show);
+        if (wrap) {
+            wrap.style.display = show ? 'flex' : 'none';
+            wrap.hidden = !show;
+            const headerWrap = wrap.closest('.header-game-settings-wrap');
+            if (headerWrap) headerWrap.classList.toggle('pro-custom-active', show);
+        }
+        // テストページ下部の「このSTAGEを保存」も同じ条件で表示する（v2.11.1）
+        const testSaveWrap = document.getElementById('staging-test-save-wrap');
+        if (testSaveWrap) {
+            testSaveWrap.style.display = show ? 'flex' : 'none';
+            testSaveWrap.hidden = !show;
+        }
+    }
+
+    /** PROカスタムSTAGE：編集画面の「決定」文言変更＋「このSTAGEを保存」ボタン設置（v2.11.1）。
+        保存処理は既存関数を使い回す（新しい保存形式・localStorageキーは作らない）。 */
+    setupProCustomStageSaveControls() {
+        // 編集画面の「決定」→「この設定で試す」（文言のみ変更・挙動は不変＝従来どおりテストへ進む）
+        const tryMel = document.getElementById('btn-start-pro');
+        if (tryMel) tryMel.textContent = 'この設定で試す';
+        const tryChord = document.getElementById('btn-start-pro-chord');
+        if (tryChord) tryChord.textContent = 'この設定で試す';
+
+        // 「このSTAGEを保存」は保存スロット機能（PRO）が有効なときだけ設置する
+        if (!isStagingProSlotsFeature()) return;
+
+        const mkSaveBtn = (id, handler) => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.id = id;
+            b.className = 'btn-secondary staging-save-current-btn';
+            b.textContent = 'このSTAGEを保存';
+            b.addEventListener('click', (e) => { e.preventDefault(); handler(b); });
+            return b;
+        };
+
+        // 編集画面フッター：「この設定で試す」の直下へ追加（footer は flex-column なので afterend で真下に並ぶ）
+        if (tryMel && tryMel.closest('.pro-settings-modal-footer') && !document.getElementById('btn-staging-save-melody')) {
+            tryMel.insertAdjacentElement('afterend', mkSaveBtn('btn-staging-save-melody', (b) => this.saveProMelodyCustomStageFromEditor(b)));
+        }
+        if (tryChord && tryChord.closest('.pro-settings-modal-footer') && !document.getElementById('btn-staging-save-chord')) {
+            tryChord.insertAdjacentElement('afterend', mkSaveBtn('btn-staging-save-chord', (b) => this.saveProChordCustomStageFromEditor(b)));
+        }
+
+        // テストページ（プレイ画面）下部：再生中のPROカスタムSTAGEのときだけ表示（updateStagingAddSlotUi で制御）
+        const refreshBar = document.getElementById('in-game-refresh-bar');
+        if (refreshBar && refreshBar.parentElement && !document.getElementById('staging-test-save-wrap')) {
+            const wrap = document.createElement('div');
+            wrap.id = 'staging-test-save-wrap';
+            wrap.className = 'staging-test-save-wrap';
+            wrap.style.display = 'none';
+            wrap.hidden = true;
+            wrap.appendChild(mkSaveBtn('btn-staging-test-save', (btn) => {
+                if (isProChordStageId(this.stage)) this.saveProChordCustomStageFromEditor(btn);
+                else this.saveProMelodyCustomStageFromEditor(btn);
+            }));
+            refreshBar.parentElement.insertBefore(wrap, refreshBar);
+        }
+    }
+
+    /** メロディPROカスタム設定を保存（編集画面・テストページ共通・v2.11.1）。
+        既存スロット編集中はそのスロットへ上書き（重複追加しない）、新規作成中は既存の追加フローを使う。 */
+    saveProMelodyCustomStageFromEditor(triggerBtn) {
+        if (!isStagingProSlotsFeature()) return;
+        const editorOpen = this.proSettingsModal && !this.proSettingsModal.classList.contains('hidden');
+        let editId = null;
+        if (this._proMelodyModalTargetStageId != null && isProMelodyStageId(this._proMelodyModalTargetStageId) && this._proMelodyModalTargetStageId !== 99) {
+            editId = this._proMelodyModalTargetStageId;
+        } else if (this.isPlaying && isProMelodyStageId(this.stage) && this.stage !== 99) {
+            editId = this.stage;
+        }
+        if (editId != null) {
+            // 既存スロットへ上書き（confirmProMelodySettings のスロット保存と同じ：apply＋保存＋再描画）
+            if (editorOpen && !this.applyProMelodySettingsFromUI(editId)) return;
+            this.saveStagingMelodySlotsToStorage();
+            this.renderStagingMelodySlotButtons();
+            this._flashStagingSaveButton(triggerBtn);
+        } else {
+            // 新規作成：先にUIをベース(99)へ反映してから、既存の追加フロー（名前入力→新規追加）を使う
+            if (editorOpen && !this.applyProMelodySettingsFromUI(99)) return;
+            this.addStagingMelodySlotFromCurrentConfig();
+        }
+    }
+
+    /** コードPROカスタム設定を保存（編集画面・テストページ共通・v2.11.1）。 */
+    saveProChordCustomStageFromEditor(triggerBtn) {
+        if (!isStagingProSlotsFeature()) return;
+        const editorOpen = this.proChordSettingsModal && !this.proChordSettingsModal.classList.contains('hidden');
+        let editId = null;
+        if (this._proChordModalTargetStageId != null && isProChordStageId(this._proChordModalTargetStageId) && this._proChordModalTargetStageId !== 199) {
+            editId = this._proChordModalTargetStageId;
+        } else if (this.isPlaying && isProChordStageId(this.stage) && this.stage !== 199) {
+            editId = this.stage;
+        }
+        if (editId != null) {
+            // 既存スロットへ上書き（confirmProChordSettings のスロット保存と同じ手順）
+            if (editorOpen && !this.applyProChordSettingsFromUI(editId)) return;
+            this._proChordUiSnapshot = null;
+            this.saveStagingChordSlotsToStorage();
+            this.renderStagingChordSlotButtons();
+            this._flashStagingSaveButton(triggerBtn);
+        } else {
+            if (editorOpen && !this.applyProChordSettingsFromUI(199)) return;
+            this.addStagingChordSlotFromCurrentConfig();
+        }
+    }
+
+    /** 上書き保存時の簡易フィードバック（ボタン文言を一時的に「保存しました ✓」へ）。 */
+    _flashStagingSaveButton(btn) {
+        if (!btn || btn.dataset.flashing === '1') return;
+        if (!btn.dataset.label) btn.dataset.label = btn.textContent;
+        btn.dataset.flashing = '1';
+        btn.classList.add('is-saved');
+        btn.textContent = '保存しました ✓';
+        setTimeout(() => {
+            btn.textContent = btn.dataset.label || 'このSTAGEを保存';
+            btn.classList.remove('is-saved');
+            btn.dataset.flashing = '0';
+        }, 1400);
     }
 
     updateOctave(delta) {
