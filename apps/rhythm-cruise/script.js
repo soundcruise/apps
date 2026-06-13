@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.188';
+const RHYTHM_CRUISE_VERSION = '0.9.189';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -2926,9 +2926,9 @@ function openRhythmProCustomEditorDraft(stage) {
     if (!isRhythmProCustomStageAvailable()) return;
     proCustomEditDraft = normalizeRhythmCustomStageSettings(stage || getDefaultRhythmCustomStage());
     if (!proCustomEditDraft) return;
-    // 「＋ 使い方」は編集画面を開くたびに閉じた状態へ戻す（v0.9.140）。
+    // 「＋ 編集方法」は編集画面を開くたびに閉じた状態へ戻す（v0.9.189）。
     if (els.pceHowtoBody) els.pceHowtoBody.classList.add('hidden');
-    if (els.pceHowtoToggle) { els.pceHowtoToggle.setAttribute('aria-expanded', 'false'); els.pceHowtoToggle.textContent = '＋ 使い方'; }
+    if (els.pceHowtoToggle) { els.pceHowtoToggle.setAttribute('aria-expanded', 'false'); els.pceHowtoToggle.textContent = '＋ 編集方法'; }
     resetRhythmEditorPreviewControls();
     ensureRhythmVexFlow(); // 譜面ライブラリを先読み（編集画面を開いた時だけ・CDN不使用）
     renderRhythmCustomEditor();
@@ -4297,14 +4297,14 @@ function updateCustomFlowScorePosition(rawT) {
     scoreEl.style.transform = 'translate(' + tx + 'px,' + rhythmFlowVY + 'px)';
 }
 
-/* 編集画面「＋ 使い方」折りたたみのトグル（v0.9.140）。説明の表示/非表示だけで編集ロジックには触れない。 */
+/* 編集画面「＋ 編集方法」折りたたみのトグル（v0.9.189）。説明の表示/非表示だけで編集ロジックには触れない。 */
 function toggleRhythmEditorHowto() {
     if (!els.pceHowtoToggle || !els.pceHowtoBody) return;
     const open = els.pceHowtoToggle.getAttribute('aria-expanded') === 'true';
     const next = !open;
     els.pceHowtoBody.classList.toggle('hidden', !next);
     els.pceHowtoToggle.setAttribute('aria-expanded', next ? 'true' : 'false');
-    els.pceHowtoToggle.textContent = next ? '− 使い方' : '＋ 使い方';
+    els.pceHowtoToggle.textContent = next ? '− 編集方法' : '＋ 編集方法';
 }
 
 /* ── 拍頭音符タップによる後続tie吸収（音価伸長）（v0.9.140）─────────────────

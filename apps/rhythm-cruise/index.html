@@ -227,7 +227,7 @@
                 </div>
 
                 <div class="pce-field">
-                    <span class="pce-label">初期BPM</span>
+                    <span class="pce-label">BPM</span>
                     <div class="pce-stepper">
                         <button type="button" class="tempo-btn" id="pce-bpm-down" aria-label="BPMを下げる">−</button>
                         <input type="number" id="pce-bpm" class="pce-num" min="30" max="240" step="1" inputmode="numeric">
@@ -237,11 +237,11 @@
                 </div>
 
                 <div class="pce-field">
-                    <span class="pce-label">初期小節数</span>
+                    <span class="pce-label">小節</span>
                     <div class="pce-stepper">
-                        <button type="button" class="tempo-btn" id="pce-bars-down" aria-label="初期小節数を減らす">−</button>
+                        <button type="button" class="tempo-btn" id="pce-bars-down" aria-label="小節数を減らす">−</button>
                         <span class="pce-num pce-bars-val" id="pce-bars-val">4</span>
-                        <button type="button" class="tempo-btn" id="pce-bars-up" aria-label="初期小節数を増やす">＋</button>
+                        <button type="button" class="tempo-btn" id="pce-bars-up" aria-label="小節数を増やす">＋</button>
                         <span class="pce-unit">小節</span>
                     </div>
                 </div>
@@ -258,7 +258,7 @@
                 <div class="pce-field">
                     <span class="pce-label">パターン</span>
                     <div class="pce-howto">
-                        <button type="button" class="pce-howto-toggle" id="pce-howto-toggle" aria-expanded="false">＋ 使い方</button>
+                        <button type="button" class="pce-howto-toggle" id="pce-howto-toggle" aria-expanded="false">＋ 編集方法</button>
                         <div class="pce-howto-body hidden" id="pce-howto-body">
                             <p class="pce-hint">タップ：短い音符 → 長い音符 → 休符 → タイ → 音符。<br>長い音符にすると、同じ拍の後ろのマスは自動でタイになります。<br>↓ / ↑ でストローク方向を切り替えられます。</p>
                         </div>
@@ -1201,7 +1201,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.188"></script>
+    <script src="script.js?v=0.9.189"></script>
 </body>
 
 </html>
