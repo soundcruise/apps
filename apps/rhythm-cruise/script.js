@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.185';
+const RHYTHM_CRUISE_VERSION = '0.9.186';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -2807,19 +2807,39 @@ function renderRhythmEditorPattern(opts) {
 /* VexFlow で grid × patternBars 分を描画し、その上に透明タップ格子・下段ストローク方向UI・拍ラベルを重ねる（v0.9.121）。
    ピン留めON固定：各音符の符頭中心を開始セル中心へ合わせ、横基準線は符頭中心Yに1本だけ引く。
    複数小節時は小節線を引き、タップ格子・矢印もセル数ぶん増やす（横スクロール前提）。 */
-function drawRhythmVexLane(VF, d) {
+function drawRhythmVexLane(VF, d, opts) {
     const { Renderer, Stave, StaveTie, Beam, Voice, Formatter } = VF;
     const ts = rhythmCustomTimeSig(d.timeSignature);
     const info = rhythmTimeSigInfo(ts);
-    const N = d.pattern.length;
     const cellW = rhythmVexCellW(d.grid);                       // grid別の縮小セル幅（v0.9.185）
-    const laneW = N * cellW;
     const H = RHYTHM_VEX_LANE_H;
     const cellTicks = rhythmGridCellTicks(d.grid);
     const stepsPerBar = rhythmCustomStepsPerBar(d.grid, ts);   // 1小節のセル数（拍子×grid）
-    const patternBars = rhythmCustomPatternBars(d.patternBars) || Math.max(1, Math.round(N / stepsPerBar));
     const beatCells = Math.max(1, Math.round(info.beamGroupTicks / cellTicks)); // 拍頭(まとまり頭)の間隔セル数
     const barLabels = rhythmBarLabelCells(d.grid, ts);          // 1小節分のラベル＋強調レベル
+
+    // displayBars オプション：プレビュー再生時だけパターンを展開して d.bars 小節ぶん表示する（v0.9.186）。
+    // 通常編集時は opts なし → d そのまま。再生停止後は呼び出し元が renderRhythmEditorPattern() で通常描画に戻す。
+    const isPreviewDisplay = !!(opts && opts.displayBars > 1);
+    let dRender = d;
+    let expandedPatternBars = null;
+    if (isPreviewDisplay) {
+        const origPatternBars = rhythmCustomPatternBars(d.patternBars) || Math.max(1, Math.round(d.pattern.length / stepsPerBar));
+        const repeatCount = Math.max(1, Math.ceil(opts.displayBars / origPatternBars));
+        const expandedPattern = [];
+        for (let r = 0; r < repeatCount; r++) {
+            d.pattern.forEach(cell => expandedPattern.push(cell));
+        }
+        expandedPatternBars = origPatternBars * repeatCount;
+        dRender = { ...d, pattern: expandedPattern };
+    }
+
+    const N = dRender.pattern.length;
+    const laneW = N * cellW;
+    // 展開表示時は直接計算した小節数を使う（rhythmCustomPatternBarsはoptions外の値を1に丸めるため回避・v0.9.186）。
+    const patternBars = isPreviewDisplay
+        ? expandedPatternBars
+        : (rhythmCustomPatternBars(dRender.patternBars) || Math.max(1, Math.round(N / stepsPerBar)));
 
     els.pcePattern.innerHTML = '';
     const scroll = document.createElement('div');
@@ -2835,7 +2855,7 @@ function drawRhythmVexLane(VF, d) {
     els.pcePattern.appendChild(scroll);
 
     // --- VexFlow 譜面 ---
-    const built = rhythmBuildVexItems(d, VF);
+    const built = rhythmBuildVexItems(dRender, VF);
     const items = built.items;
     const notes = items.map((it) => it.note);
 
@@ -2902,12 +2922,12 @@ function drawRhythmVexLane(VF, d) {
     const tap = document.createElement('div');
     tap.className = 'pce-vex-tapgrid';
     tap.style.height = H + 'px';
-    d.pattern.forEach((cell, i) => {
+    dRender.pattern.forEach((cell, i) => {
         const b = document.createElement('button');
         b.type = 'button';
         const isBeat = ((i % stepsPerBar) % beatCells === 0);
         const isBarStart = (i % stepsPerBar === 0);
-        b.className = 'pce-tap-cell' + (isBeat ? ' beat' : '') + (isBarStart ? ' bar-start' : '');
+        b.className = 'pce-tap-cell' + (isBeat ? ' beat' : '') + (isBarStart ? ' bar-start' : '') + (isPreviewDisplay ? ' is-locked' : '');
         b.dataset.index = String(i);
         b.dataset.zone = 'note';
         b.setAttribute('aria-label', '音符を切り替え');
@@ -2920,11 +2940,11 @@ function drawRhythmVexLane(VF, d) {
     arrowrow.className = 'pce-vex-arrowrow';
     const beatrow = document.createElement('div');
     beatrow.className = 'pce-vex-beatrow';
-    d.pattern.forEach((cell, i) => {
+    dRender.pattern.forEach((cell, i) => {
         const isBarStart = (i % stepsPerBar === 0);
         const a = document.createElement('button');
         a.type = 'button';
-        a.className = 'pce-arrow pce-arrow-' + cell.type + (isBarStart ? ' bar-start' : '');
+        a.className = 'pce-arrow pce-arrow-' + cell.type + (isBarStart ? ' bar-start' : '') + (isPreviewDisplay ? ' is-locked' : '');
         a.dataset.index = String(i);
         a.dataset.zone = 'arrow';
         a.setAttribute('aria-label', 'ストローク方向を切り替え');
@@ -2959,12 +2979,20 @@ function drawRhythmVexLane(VF, d) {
         }
         lane.appendChild(overlay);
     }
-    const previewBars = Math.max(1, Math.round(d.bars || patternBars || 1));
-    const visibleBars = Math.max(1, Math.min(patternBars, previewBars));
-    attachRhythmPreviewPlayhead(scroll, lane, laneW, cellW, null, {
-        loopRatio: previewBars > patternBars ? patternBars / previewBars : 1,
-        visibleLaneW: previewBars < patternBars ? laneW * (visibleBars / patternBars) : laneW,
-    });
+    if (isPreviewDisplay) {
+        // 展開表示：laneW 全幅を1ループで再生ヘッドが横断する（v0.9.186）。
+        attachRhythmPreviewPlayhead(scroll, lane, laneW, cellW, null, {
+            loopRatio: 1,
+            visibleLaneW: laneW,
+        });
+    } else {
+        const previewBars = Math.max(1, Math.round(d.bars || patternBars || 1));
+        const visibleBars = Math.max(1, Math.min(patternBars, previewBars));
+        attachRhythmPreviewPlayhead(scroll, lane, laneW, cellW, null, {
+            loopRatio: previewBars > patternBars ? patternBars / previewBars : 1,
+            visibleLaneW: previewBars < patternBars ? laneW * (visibleBars / patternBars) : laneW,
+        });
+    }
 }
 
 /* ── カスタムSTAGEテスト再生：読み取り専用のVexFlow譜面プレビュー（v0.9.125）──────────
@@ -3530,7 +3558,12 @@ function startPreviewRhythmForStage(rawStage, opts) {
 /* 編集画面の小さなリズム確認再生。
    保存済みSTAGEではなく、現在の編集ドラフトを一時的に既存プレビュー用エンジンへ通す。 */
 function startRhythmEditorPreview() {
-    startPreviewRhythmForStage(collectRhythmCustomEditorInputs());
+    const d = collectRhythmCustomEditorInputs();
+    if (!d) return;
+    // 再生開始前に d.bars 小節ぶん展開した譜面に差し替え、再生ヘッドが横スクロールで流れるようにする（v0.9.186）。
+    const VF = getRhythmVexFlow();
+    if (VF) drawRhythmVexLane(VF, d, { displayBars: Math.max(1, d.bars || 1) });
+    startPreviewRhythmForStage(d);
 }
 
 function attachRhythmPreviewPlayhead(scroll, lane, laneW, cellW, height, opts) {
@@ -3665,8 +3698,12 @@ function toggleRhythmPreviewPlay() {
 }
 
 function toggleRhythmEditorPreviewPlay() {
-    if (rhythmPreview.playing) stopPreviewRhythm();
-    else startRhythmEditorPreview();
+    if (rhythmPreview.playing) {
+        stopPreviewRhythm();
+        renderRhythmEditorPattern(); // 展開表示から patternBars 分の通常編集表示へ戻す（v0.9.186）
+    } else {
+        startRhythmEditorPreview();
+    }
 }
 
 function resetRhythmEditorPreviewControls() {
