@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.186';
+const RHYTHM_CRUISE_VERSION = '0.9.187';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -565,6 +565,9 @@ const els = {
     rcCreateBars: $('rc-create-bars'),
     rcCreateBarsDown: $('rc-create-bars-down'),
     rcCreateBarsUp: $('rc-create-bars-up'),
+    rcCreateZoomDown: $('rc-create-zoom-down'),
+    rcCreateZoomUp: $('rc-create-zoom-up'),
+    rcCreateZoomVal: $('rc-create-zoom-val'),
     rcCreatePractice: $('rc-create-practice'),
     catKiso: $('cat-kiso'),
     catStroke: $('cat-stroke'),
@@ -595,6 +598,9 @@ const els = {
     pceBarsDown: $('pce-bars-down'),
     pceBarsUp: $('pce-bars-up'),
     pceBarsVal: $('pce-bars-val'),
+    pceZoomDown: $('pce-zoom-down'),
+    pceZoomUp: $('pce-zoom-up'),
+    pceZoomVal: $('pce-zoom-val'),
     pcePattern: $('pce-pattern'),
     pcePreviewPlay: $('pce-preview-play'),
     pcePreviewBalance: $('pce-preview-balance'),
@@ -1144,6 +1150,62 @@ const RHYTHM_CREATE_PATTERN_BARS_MAX = 4;
 let rhythmCreateBpm = RHYTHM_CREATE_BPM_DEFAULT;
 let rhythmCreateBars = RHYTHM_CREATE_BARS_DEFAULT;
 let rhythmCreatePatternBars = RHYTHM_CREATE_PATTERN_BARS_DEFAULT;
+
+const RHYTHM_VEX_ZOOM_KEY = 'rhythmCruiseVexZoom:v1';
+const RHYTHM_VEX_ZOOM_MIN = 1.0;
+const RHYTHM_VEX_ZOOM_MAX = 1.6;
+const RHYTHM_VEX_ZOOM_STEP = 0.1;
+function clampRhythmVexZoom(v) {
+    const n = Math.round(Number(v) * 10) / 10;
+    return Number.isFinite(n) ? Math.max(RHYTHM_VEX_ZOOM_MIN, Math.min(RHYTHM_VEX_ZOOM_MAX, n)) : RHYTHM_VEX_ZOOM_MIN;
+}
+function loadRhythmVexZoomPrefs() {
+    try {
+        const raw = JSON.parse(localStorage.getItem(RHYTHM_VEX_ZOOM_KEY) || '{}');
+        const obj = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+        return {
+            create: clampRhythmVexZoom(obj.create),
+            editor: clampRhythmVexZoom(obj.editor),
+        };
+    } catch (_) {
+        return { create: RHYTHM_VEX_ZOOM_MIN, editor: RHYTHM_VEX_ZOOM_MIN };
+    }
+}
+let rhythmVexZoomPrefs = loadRhythmVexZoomPrefs();
+function saveRhythmVexZoomPrefs() {
+    try {
+        localStorage.setItem(RHYTHM_VEX_ZOOM_KEY, JSON.stringify({
+            create: clampRhythmVexZoom(rhythmVexZoomPrefs.create),
+            editor: clampRhythmVexZoom(rhythmVexZoomPrefs.editor),
+        }));
+    } catch (_) { /* localStorage不可時はセッション内だけ反映 */ }
+}
+function rhythmZoomPercent(scale) {
+    return Math.round(clampRhythmVexZoom(scale) * 100) + '%';
+}
+function syncRhythmCreateZoomUI() {
+    if (els.rcCreateZoomVal) els.rcCreateZoomVal.textContent = rhythmZoomPercent(rhythmVexZoomPrefs.create);
+}
+function syncRhythmEditorZoomUI() {
+    if (els.pceZoomVal) els.pceZoomVal.textContent = rhythmZoomPercent(rhythmVexZoomPrefs.editor);
+}
+function setRhythmCreateZoom(scale) {
+    stopPreviewRhythm();
+    rhythmVexZoomPrefs.create = clampRhythmVexZoom(scale);
+    saveRhythmVexZoomPrefs();
+    syncRhythmCreateZoomUI();
+    renderRhythmCreateStageGrid();
+}
+function setRhythmEditorZoom(scale) {
+    stopPreviewRhythm();
+    rhythmVexZoomPrefs.editor = clampRhythmVexZoom(scale);
+    saveRhythmVexZoomPrefs();
+    syncRhythmEditorZoomUI();
+    renderRhythmEditorPattern();
+}
+function stepRhythmCreateZoom(delta) { setRhythmCreateZoom(rhythmVexZoomPrefs.create + delta); }
+function stepRhythmEditorZoom(delta) { setRhythmEditorZoom(rhythmVexZoomPrefs.editor + delta); }
+
 function getRhythmCreateBpm() { return rhythmCreateBpm; }
 function getRhythmCreateBars() { return rhythmCreateBars; }
 function getRhythmCreatePatternBars() { return rhythmCreatePatternBars; }
@@ -1342,6 +1404,7 @@ function renderRhythmCreateStage() {
     if (els.rcCreateStageTitle) els.rcCreateStageTitle.textContent = `STAGE${def.n} ${def.title}`;
     if (els.rcCreateHowtoBody) els.rcCreateHowtoBody.innerHTML = def.howto || '';
     if (els.rcCreateStage1Grid) els.rcCreateStage1Grid.setAttribute('aria-label', `${def.title}のリズムパターン`);
+    syncRhythmCreateZoomUI();
     renderRhythmCreateStageGrid();
     renderRhythmCreatePresets();
 }
@@ -1388,7 +1451,7 @@ function renderRhythmCreateStageGrid() {
 
 function drawRhythmCreateVexLane(VF, mount, def) {
     const { Renderer, Stave, StaveTie, Beam, Voice, Formatter } = VF;
-    const cellW = rhythmVexCellW(def.grid);                     // grid別の縮小セル幅（v0.9.185）
+    const cellW = rhythmVexCellW(def.grid, rhythmVexZoomPrefs.create); // grid別の縮小セル幅×拡大率（v0.9.187）
     const pattern = getRhythmCreatePattern(def);                // パターンの長さぶんの編集状態
     const editStagePattern = rhythmCreatePatternToStagePattern(def);
     const editCellCount = pattern.length;
@@ -2542,6 +2605,7 @@ function renderRhythmCustomEditor() {
     if (els.pceBarsVal) els.pceBarsVal.textContent = String(d.bars);
     if (els.pceDelete) els.pceDelete.classList.toggle('hidden', !rhythmCustomStageExists(d.id));
     if (els.pceSaveAs) els.pceSaveAs.classList.toggle('hidden', !rhythmCustomStageExists(d.id));
+    syncRhythmEditorZoomUI();
     renderRhythmEditorPattern();
 }
 
@@ -2581,16 +2645,18 @@ const RHYTHM_VEX_CELL_W = 64;   // 1セルの横幅(px・既定/4分系フォー
 /* grid に応じてセル横幅を縮める（v0.9.185）。8分1小節・16分1小節がスマホ幅でも1画面に収まりやすくする。
    複数小節・パターン長2以上などはレーンが広がり横スクロール（.pce-vex-scroll）で対応。
    セル幅を縮めても音符/休符/タイ/矢印が潰れない範囲に留める。「リズムを作る」とPROカスタム編集の両レーン共通。 */
-function rhythmVexCellW(grid) {
+function rhythmVexCellW(grid, zoomScale = 1) {
+    let base;
     switch (grid) {
-        case 'quarter': return 56;          // 4分：4セル → 224px
-        case 'eighth': return 38;           // 8分：8セル → 304px（スマホ1画面）
-        case 'sixteenth': return 20;        // 16分：16セル → 320px（スマホ1画面に収める）
-        case 'thirtysecond': return 16;     // 32分：32セル → 512px（横スクロール前提）
-        case 'eighthTriplet': return 34;    // 8分三連：12セル → 408px
-        case 'sixteenthTriplet': return 22; // 16分三連：24セル → 528px
-        default: return RHYTHM_VEX_CELL_W;
+        case 'quarter': base = 56; break;          // 4分：4セル → 224px
+        case 'eighth': base = 38; break;           // 8分：8セル → 304px（スマホ1画面）
+        case 'sixteenth': base = 20; break;        // 16分：16セル → 320px（スマホ1画面に収める）
+        case 'thirtysecond': base = 16; break;     // 32分：32セル → 512px（横スクロール前提）
+        case 'eighthTriplet': base = 34; break;    // 8分三連：12セル → 408px
+        case 'sixteenthTriplet': base = 22; break; // 16分三連：24セル → 528px
+        default: base = RHYTHM_VEX_CELL_W;
     }
+    return Math.round(base * clampRhythmVexZoom(zoomScale));
 }
 const RHYTHM_VEX_LANE_H = 104;  // 譜面レーンの高さ(px)
 const RHYTHM_VEX_PREVIEW_ARROW_BAND = 36; // 静的プレビュー専用：矢印の下に確保する余白(px)・v0.9.136
@@ -2811,7 +2877,7 @@ function drawRhythmVexLane(VF, d, opts) {
     const { Renderer, Stave, StaveTie, Beam, Voice, Formatter } = VF;
     const ts = rhythmCustomTimeSig(d.timeSignature);
     const info = rhythmTimeSigInfo(ts);
-    const cellW = rhythmVexCellW(d.grid);                       // grid別の縮小セル幅（v0.9.185）
+    const cellW = rhythmVexCellW(d.grid, rhythmVexZoomPrefs.editor); // grid別の縮小セル幅×拡大率（v0.9.187）
     const H = RHYTHM_VEX_LANE_H;
     const cellTicks = rhythmGridCellTicks(d.grid);
     const stepsPerBar = rhythmCustomStepsPerBar(d.grid, ts);   // 1小節のセル数（拍子×grid）
@@ -14242,6 +14308,8 @@ function bind() {
     if (els.rcCreatePbarsUp) els.rcCreatePbarsUp.addEventListener('click', () => stepRhythmCreatePatternBars(1));
     if (els.rcCreateBarsDown) els.rcCreateBarsDown.addEventListener('click', () => stepRhythmCreateBars(-1));
     if (els.rcCreateBarsUp) els.rcCreateBarsUp.addEventListener('click', () => stepRhythmCreateBars(1));
+    if (els.rcCreateZoomDown) els.rcCreateZoomDown.addEventListener('click', () => stepRhythmCreateZoom(-RHYTHM_VEX_ZOOM_STEP));
+    if (els.rcCreateZoomUp) els.rcCreateZoomUp.addEventListener('click', () => stepRhythmCreateZoom(RHYTHM_VEX_ZOOM_STEP));
     if (els.catKiso) els.catKiso.addEventListener('click', () => setHomeView('kiso'));
     if (els.catStroke) els.catStroke.addEventListener('click', () => openSoonCategory('ストロークパターン'));
     if (els.catChord) els.catChord.addEventListener('click', () => openSoonCategory('コード進行'));
@@ -14325,6 +14393,8 @@ function bind() {
     if (els.pceBpm) els.pceBpm.addEventListener('change', () => setRhythmEditorBpm(els.pceBpm.value));
     if (els.pceBpmDown) els.pceBpmDown.addEventListener('click', () => { if (proCustomEditDraft) setRhythmEditorBpm(proCustomEditDraft.bpm - 1); });
     if (els.pceBpmUp) els.pceBpmUp.addEventListener('click', () => { if (proCustomEditDraft) setRhythmEditorBpm(proCustomEditDraft.bpm + 1); });
+    if (els.pceZoomDown) els.pceZoomDown.addEventListener('click', () => stepRhythmEditorZoom(-RHYTHM_VEX_ZOOM_STEP));
+    if (els.pceZoomUp) els.pceZoomUp.addEventListener('click', () => stepRhythmEditorZoom(RHYTHM_VEX_ZOOM_STEP));
     if (els.pcePattern) els.pcePattern.addEventListener('click', (e) => {
         const zone = e.target.closest('[data-zone]');
         if (!zone) return;

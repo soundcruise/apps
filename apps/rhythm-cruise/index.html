@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.185">
+    <link rel="stylesheet" href="theme.css?v=0.9.187">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -107,6 +107,12 @@
                             <button type="button" class="tempo-btn rc-create-step" id="rc-create-bars-down" aria-label="小節数を減らす">−</button>
                             <input type="number" id="rc-create-bars" min="1" max="8" step="1" value="4" inputmode="numeric" aria-label="再生する小節数">
                             <button type="button" class="tempo-btn rc-create-step" id="rc-create-bars-up" aria-label="小節数を増やす">＋</button>
+                        </div>
+                        <div class="rc-create-param">
+                            <span class="rc-create-param-cap">拡大</span>
+                            <button type="button" class="tempo-btn rc-create-step" id="rc-create-zoom-down" aria-label="音符画面を縮小する">−</button>
+                            <span class="rc-create-zoom-val" id="rc-create-zoom-val">100%</span>
+                            <button type="button" class="tempo-btn rc-create-step" id="rc-create-zoom-up" aria-label="音符画面を拡大する">＋</button>
                         </div>
                     </div>
                     <div class="custom-test-preview-balance rc-create-balance">
@@ -219,6 +225,15 @@
                         <span class="pce-num pce-bars-val" id="pce-bars-val">4</span>
                         <button type="button" class="tempo-btn" id="pce-bars-up" aria-label="初期小節数を増やす">＋</button>
                         <span class="pce-unit">小節</span>
+                    </div>
+                </div>
+
+                <div class="pce-field">
+                    <span class="pce-label">拡大</span>
+                    <div class="pce-stepper">
+                        <button type="button" class="tempo-btn" id="pce-zoom-down" aria-label="音符画面を縮小する">−</button>
+                        <span class="pce-num pce-zoom-val" id="pce-zoom-val">100%</span>
+                        <button type="button" class="tempo-btn" id="pce-zoom-up" aria-label="音符画面を拡大する">＋</button>
                     </div>
                 </div>
 
@@ -1168,7 +1183,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.186"></script>
+    <script src="script.js?v=0.9.187"></script>
 </body>
 
 </html>

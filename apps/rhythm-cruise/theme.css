@@ -673,6 +673,23 @@ h1 {
     -moz-appearance: textfield;
 }
 
+.rc-create-zoom-val {
+    flex: 0 0 auto;
+    width: 56px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    border-radius: 10px;
+    border: 1px solid rgba(253, 246, 238, 0.22);
+    background: rgba(255, 255, 255, 0.06);
+    color: #fdf6ee;
+    font-size: 0.92rem;
+    font-weight: 700;
+    text-align: center;
+}
+
 .rc-create-param input[type="number"]::-webkit-outer-spin-button,
 .rc-create-param input[type="number"]::-webkit-inner-spin-button {
     -webkit-appearance: none;
@@ -1296,6 +1313,12 @@ h1 {
     color: var(--muted-color);
     font-size: 0.9rem;
     font-weight: 700;
+}
+
+.pce-zoom-val {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .pce-hint {
