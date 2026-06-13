@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.184">
+    <link rel="stylesheet" href="theme.css?v=0.9.185">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -109,6 +109,11 @@
                             <button type="button" class="tempo-btn rc-create-step" id="rc-create-bars-up" aria-label="小節数を増やす">＋</button>
                         </div>
                     </div>
+                    <div class="custom-test-preview-balance rc-create-balance">
+                        <span class="custom-test-preview-balance-cap">クリック</span>
+                        <input type="range" id="rc-create-preview-balance" min="0" max="100" value="50" step="1" aria-label="確認音バランス（左：クリック大きめ／右：ストローク大きめ）">
+                        <span class="custom-test-preview-balance-cap">ストローク</span>
+                    </div>
                 </details>
 
                 <div class="rhythm-create-preset-field">
@@ -123,18 +128,15 @@
                 </div>
 
                 <div class="rhythm-create-preview">
-                    <button type="button" class="custom-test-preview-play rhythm-create-play" id="rc-create-preview-play" aria-pressed="false">▶ リズムを再生</button>
-                    <div class="custom-test-preview-balance">
-                        <span class="custom-test-preview-balance-cap">クリック</span>
-                        <input type="range" id="rc-create-preview-balance" min="0" max="100" value="50" step="1" aria-label="確認音バランス（左：クリック大きめ／右：ストローク大きめ）">
-                        <span class="custom-test-preview-balance-cap">ストローク</span>
-                    </div>
+                    <button type="button" class="btn-primary rhythm-create-play" id="rc-create-preview-play" aria-pressed="false">▶ リズムを再生</button>
                 </div>
 
-                <details class="rhythm-create-edit-help">
-                    <summary class="rhythm-create-settings-summary">編集方法</summary>
-                    <p class="pce-hint">タップ：短い音符 → 長い音符 → 休符 → タイ → 音符。<br>長い音符にすると、同じ拍の後ろのマスは自動でタイになります。<br>↓ / ↑ でストローク方向を切り替えられます。</p>
-                </details>
+                <div class="pce-howto rhythm-create-edithelp">
+                    <button type="button" class="pce-howto-toggle" id="rc-create-edithelp-toggle" aria-expanded="false">＋ 編集方法</button>
+                    <div class="pce-howto-body hidden" id="rc-create-edithelp-body">
+                        <p class="pce-hint">タップ：短い音符 → 長い音符 → 休符 → タイ → 音符。<br>長い音符にすると、同じ拍の後ろのマスは自動でタイになります。<br>↓ / ↑ でストローク方向を切り替えられます。</p>
+                    </div>
+                </div>
 
                 <button type="button" class="rhythm-create-practice" id="rc-create-practice">このリズムで練習する</button>
             </div>
@@ -1166,7 +1168,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.184"></script>
+    <script src="script.js?v=0.9.185"></script>
 </body>
 
 </html>

@@ -551,8 +551,7 @@ h1 {
     width: 100%;
 }
 
-.rhythm-create-settings,
-.rhythm-create-edit-help {
+.rhythm-create-settings {
     width: 100%;
     border: 1px solid rgba(253, 246, 238, 0.12);
     border-radius: 12px;
@@ -578,13 +577,8 @@ h1 {
     color: rgba(255, 209, 102, 0.88);
 }
 
-.rhythm-create-settings[open] .rhythm-create-settings-summary::after,
-.rhythm-create-edit-help[open] .rhythm-create-settings-summary::after {
+.rhythm-create-settings[open] .rhythm-create-settings-summary::after {
     content: '▲';
-}
-
-.rhythm-create-edit-help .pce-hint {
-    padding: 0 12px 12px;
 }
 
 .rhythm-create-preset-field {
@@ -625,31 +619,33 @@ h1 {
     align-items: center;
 }
 
-/* 「リズムを作る」プレビューの BPM・小節数（v0.9.181）。既存STAGEのテンポUIに寄せ、スマホでも1行に収める。 */
+/* 「リズムを作る」再生設定の BPM・パターンの長さ・小節（v0.9.185）。
+   各行を縦に積み、ラベルを左で伸ばして −/数字/＋ の操作列を右で縦に揃える（ラベル長が違っても操作部がガタつかない）。 */
 .rc-create-params {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: center;
+    flex-direction: column;
+    align-items: stretch;
     gap: 8px;
     width: 100%;
     max-width: 100%;
-    padding: 0 10px 10px;
+    padding: 4px 10px 10px;
     margin: 0;
 }
 
 .rc-create-param {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: 4px;
-    flex: 0 1 auto;
-    min-width: 0;
+    gap: 6px;
+    width: 100%;
     font-size: 0.78rem;
     font-weight: 700;
     color: rgba(253, 246, 238, 0.82);
 }
 
 .rc-create-param-cap {
+    flex: 1 1 auto;          /* ラベルが残り幅を取り、−/数字/＋ を右へ寄せて各行で揃える */
+    min-width: 0;
+    text-align: left;
     white-space: nowrap;
     letter-spacing: 0.02em;
 }
@@ -663,6 +659,7 @@ h1 {
 }
 
 .rc-create-param input[type="number"] {
+    flex: 0 0 auto;          /* 数字の箱は全行同じ幅で固定（列揃え用） */
     width: 46px;
     height: 30px;
     padding: 0 4px;
@@ -676,14 +673,17 @@ h1 {
     -moz-appearance: textfield;
 }
 
-#rc-create-pbars {
-    width: 38px;
-}
-
 .rc-create-param input[type="number"]::-webkit-outer-spin-button,
 .rc-create-param input[type="number"]::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
+}
+
+/* 再生設定タブ内へ移したクリック/ストロークのバランススライダー（v0.9.185）。BPM行と同じ左右インセットで揃える。 */
+.rhythm-create-settings .rc-create-balance {
+    width: auto;
+    max-width: none;
+    margin: 2px 10px 10px;
 }
 
 .rhythm-create-practice {
@@ -696,13 +696,18 @@ h1 {
     opacity: 0.68;
 }
 
+/* 「リズムを再生」ボタン（v0.9.185）：通常リズム練STAGE画面の「再生」(.btn-primary) と同じデザイン。
+   .btn-primary をベースに、音符画面の下に置く幅・余白・文字（日本語＋▶なので uppercase 解除）だけ調整する。 */
 .rhythm-create-play {
+    display: block;
     width: min(100%, 340px);
+    max-width: none;        /* .btn-primary の max-width:280px を解除して音符画面幅に寄せる */
     min-height: 46px;
     margin: 4px auto 10px;
-    border-color: rgba(255, 159, 28, 0.55);
-    background: linear-gradient(180deg, rgba(255, 159, 28, 0.30), rgba(255, 159, 28, 0.16));
-    box-shadow: 0 8px 18px rgba(255, 159, 28, 0.12);
+    padding: 13px 24px;
+    font-size: 1rem;
+    text-transform: none;
+    letter-spacing: 0.5px;
 }
 
 /* 準備中カテゴリ（押せるが中身なし）は控えめに */

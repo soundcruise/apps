@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.184';
+const RHYTHM_CRUISE_VERSION = '0.9.185';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -551,6 +551,8 @@ const els = {
     rcCreateStage1Grid: $('rc-create-stage1-grid'),
     rcCreateHowtoToggle: $('rc-create-howto-toggle'),
     rcCreateHowtoBody: $('rc-create-howto-body'),
+    rcCreateEditHelpToggle: $('rc-create-edithelp-toggle'),
+    rcCreateEditHelpBody: $('rc-create-edithelp-body'),
     rcCreatePresetSelect: $('rc-create-preset-select'),
     rcCreatePreviewPlay: $('rc-create-preview-play'),
     rcCreatePreviewBalance: $('rc-create-preview-balance'),
@@ -1357,6 +1359,16 @@ function toggleRhythmCreateHowto() {
     setRhythmCreateHowtoOpen(!open);
 }
 
+/* 「リズムを作る」の「＋ 編集方法」折りたたみ（v0.9.185）。PROカスタム編集の「＋ 使い方」と同じ操作感。
+   説明の表示/非表示だけで編集ロジックには触れない。 */
+function toggleRhythmCreateEditHelp() {
+    if (!els.rcCreateEditHelpToggle || !els.rcCreateEditHelpBody) return;
+    const next = els.rcCreateEditHelpToggle.getAttribute('aria-expanded') !== 'true';
+    els.rcCreateEditHelpBody.classList.toggle('hidden', !next);
+    els.rcCreateEditHelpToggle.setAttribute('aria-expanded', next ? 'true' : 'false');
+    els.rcCreateEditHelpToggle.textContent = next ? '− 編集方法' : '＋ 編集方法';
+}
+
 function renderRhythmCreateStageGrid() {
     const def = getRhythmCreateStageDef();
     const mount = els.rcCreateStage1Grid;
@@ -1376,7 +1388,7 @@ function renderRhythmCreateStageGrid() {
 
 function drawRhythmCreateVexLane(VF, mount, def) {
     const { Renderer, Stave, StaveTie, Beam, Voice, Formatter } = VF;
-    const cellW = RHYTHM_VEX_CELL_W;
+    const cellW = rhythmVexCellW(def.grid);                     // grid別の縮小セル幅（v0.9.185）
     const pattern = getRhythmCreatePattern(def);                // パターンの長さぶんの編集状態
     const editStagePattern = rhythmCreatePatternToStagePattern(def);
     const editCellCount = pattern.length;
@@ -2565,7 +2577,21 @@ function setSegActive(container, attr, value) {
 /* ───── VexFlow 譜面描画（v0.9.120：PROカスタムSTAGE編集UIを VexFlow 方式へ統合） ─────
    ローカル配置の vendor/vexflow.js を、編集画面を開いた時にだけ遅延読み込みする（CDN不使用）。
    PoC（_poc/vexflow-lane.html）で検証した「ピン留めON＝符頭中心をセル中心へ」を本仕様とする。 */
-const RHYTHM_VEX_CELL_W = 64;   // 1セルの横幅(px)。タップ格子・ピン留めで共有。
+const RHYTHM_VEX_CELL_W = 64;   // 1セルの横幅(px・既定/4分系フォールバック)。タップ格子・ピン留めで共有。
+/* grid に応じてセル横幅を縮める（v0.9.185）。8分1小節・16分1小節がスマホ幅でも1画面に収まりやすくする。
+   複数小節・パターン長2以上などはレーンが広がり横スクロール（.pce-vex-scroll）で対応。
+   セル幅を縮めても音符/休符/タイ/矢印が潰れない範囲に留める。「リズムを作る」とPROカスタム編集の両レーン共通。 */
+function rhythmVexCellW(grid) {
+    switch (grid) {
+        case 'quarter': return 56;          // 4分：4セル → 224px
+        case 'eighth': return 38;           // 8分：8セル → 304px（スマホ1画面）
+        case 'sixteenth': return 20;        // 16分：16セル → 320px（スマホ1画面に収める）
+        case 'thirtysecond': return 16;     // 32分：32セル → 512px（横スクロール前提）
+        case 'eighthTriplet': return 34;    // 8分三連：12セル → 408px
+        case 'sixteenthTriplet': return 22; // 16分三連：24セル → 528px
+        default: return RHYTHM_VEX_CELL_W;
+    }
+}
 const RHYTHM_VEX_LANE_H = 104;  // 譜面レーンの高さ(px)
 const RHYTHM_VEX_PREVIEW_ARROW_BAND = 36; // 静的プレビュー専用：矢印の下に確保する余白(px)・v0.9.136
 const RHYTHM_VEX_PREVIEW_ARROW_GAP = 16;  // 静的プレビュー専用：符頭中心から矢印までの距離(px)・v0.9.136
@@ -2786,7 +2812,7 @@ function drawRhythmVexLane(VF, d) {
     const ts = rhythmCustomTimeSig(d.timeSignature);
     const info = rhythmTimeSigInfo(ts);
     const N = d.pattern.length;
-    const cellW = RHYTHM_VEX_CELL_W;
+    const cellW = rhythmVexCellW(d.grid);                       // grid別の縮小セル幅（v0.9.185）
     const laneW = N * cellW;
     const H = RHYTHM_VEX_LANE_H;
     const cellTicks = rhythmGridCellTicks(d.grid);
@@ -14156,6 +14182,7 @@ function bind() {
         else toggleRhythmCreateCell(index);
     });
     if (els.rcCreateHowtoToggle) els.rcCreateHowtoToggle.addEventListener('click', toggleRhythmCreateHowto);
+    if (els.rcCreateEditHelpToggle) els.rcCreateEditHelpToggle.addEventListener('click', toggleRhythmCreateEditHelp);
     if (els.rcCreatePresetSelect) els.rcCreatePresetSelect.addEventListener('change', () => {
         const def = getRhythmCreateStageDef();
         const presetIndex = parseInt(els.rcCreatePresetSelect.value, 10);
