@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.170';
+const RHYTHM_CRUISE_VERSION = '0.9.171';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -1555,14 +1555,14 @@ function renderRhythmHomeCustomStages() {
                 <div class="pro-custom-home-menu" role="menu" aria-label="STAGEの操作" hidden>
                     <div class="pro-custom-home-actions">
                         <button type="button" class="pro-custom-home-act" data-act="rename" role="menuitem" title="名前の編集" aria-label="名前の編集">✏️</button>
-                        <button type="button" class="pro-custom-home-act" data-act="edit" role="menuitem" title="中身の編集" aria-label="中身の編集">⚙️</button>
+                        <button type="button" class="pro-custom-home-act" data-act="edit" role="menuitem" title="中身の編集" aria-label="中身の編集">📝</button>
                         <button type="button" class="pro-custom-home-act pro-custom-home-act--dup" data-act="duplicate" role="menuitem" title="コピー" aria-label="ステージのコピー"${reachedLimit ? ' disabled' : ''}>${RHYTHM_DUP_ICON_SVG}</button>
                         <button type="button" class="pro-custom-home-act pro-custom-home-act--danger" data-act="delete" role="menuitem" title="削除" aria-label="ステージの削除">🗑️</button>
                         <button type="button" class="pro-custom-home-act pro-custom-home-act--help" data-act="help" title="操作の説明" aria-label="操作の説明">？</button>
                     </div>
                     <div class="pro-custom-home-help" hidden>
                         <p><span class="pcm-help-ic">✏️</span>名前の編集：STAGE名だけを変更します。</p>
-                        <p><span class="pcm-help-ic">⚙️</span>中身の編集：リズム内容や設定を編集します。</p>
+                        <p><span class="pcm-help-ic">📝</span>中身の編集：リズム内容や設定を編集します。</p>
                         <p><span class="pcm-help-ic">${RHYTHM_DUP_ICON_SVG}</span>コピー：同じ内容のSTAGEを複製します。</p>
                         <p><span class="pcm-help-ic">🗑️</span>ステージの削除：このSTAGEを削除します。</p>
                     </div>
