@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.171';
+const RHYTHM_CRUISE_VERSION = '0.9.172';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -573,6 +573,8 @@ const els = {
     pceBarsUp: $('pce-bars-up'),
     pceBarsVal: $('pce-bars-val'),
     pcePattern: $('pce-pattern'),
+    pcePreviewPlay: $('pce-preview-play'),
+    pcePreviewBalance: $('pce-preview-balance'),
     pceHowtoToggle: $('pce-howto-toggle'),
     pceHowtoBody: $('pce-howto-body'),
     pceSave: $('pce-save'),
@@ -1723,6 +1725,7 @@ function openRhythmProCustomEditorDraft(stage) {
     // 「＋ 使い方」は編集画面を開くたびに閉じた状態へ戻す（v0.9.140）。
     if (els.pceHowtoBody) els.pceHowtoBody.classList.add('hidden');
     if (els.pceHowtoToggle) { els.pceHowtoToggle.setAttribute('aria-expanded', 'false'); els.pceHowtoToggle.textContent = '＋ 使い方'; }
+    resetRhythmEditorPreviewControls();
     ensureRhythmVexFlow(); // 譜面ライブラリを先読み（編集画面を開いた時だけ・CDN不使用）
     renderRhythmCustomEditor();
     setHomeView('proCustomEdit');
@@ -1775,6 +1778,7 @@ function syncRhythmFeelSegUI() {
 function setRhythmEditorFeel(feel) {
     const d = proCustomEditDraft;
     if (!d) return;
+    stopPreviewRhythm();
     d.rhythmFeel = (feel === 'swing') ? 'swing' : 'straight';
     syncRhythmFeelSegUI();
 }
@@ -2663,6 +2667,28 @@ function startPreviewRhythm() {
     startRhythmPreviewPlayhead(); // 再生位置の縦棒＋自動スクロール開始（v0.9.136）
 }
 
+/* 編集画面の小さなリズム確認再生。
+   保存済みSTAGEではなく、現在の編集ドラフトを一時的に既存プレビュー用エンジンへ通して再生プランだけ作る。
+   plan 作成後は eng/state を元へ戻すため、STAGE本番・保存済みデータ・判定には影響しない。 */
+function startRhythmEditorPreview() {
+    const d = collectRhythmCustomEditorInputs();
+    const stage = normalizeRhythmCustomStageSettings(d);
+    if (!stage || !stage.pattern || !stage.pattern.length) return;
+    const engBackup = { ...eng };
+    const bpmBackup = state.bpm;
+    const barsBackup = state.bars;
+    try {
+        configureEngineForCustom(stage);
+        state.bpm = clampNum(stage.bpm, RHYTHM_CUSTOM_BPM_MIN, RHYTHM_CUSTOM_BPM_MAX, state.bpm);
+        state.bars = RHYTHM_CUSTOM_BAR_OPTIONS.includes(stage.bars) ? stage.bars : barsBackup;
+        startPreviewRhythm();
+    } finally {
+        Object.assign(eng, engBackup);
+        state.bpm = bpmBackup;
+        state.bars = barsBackup;
+    }
+}
+
 /* 再生位置の縦棒を表示し、アニメ（縦棒移動＋自動スクロール）を開始する（v0.9.136）。
    stopPreviewRhythm() が先に raf を止めるため二重起動しないが、念のため既存rafを畳んでから1本だけ回す。 */
 function startRhythmPreviewPlayhead() {
@@ -2725,15 +2751,28 @@ function stopPreviewRhythm() {
 
 /* 「リズムを再生 / 停止」ボタンの見た目を再生状態に合わせる。 */
 function setRhythmPreviewPlayUI(playing) {
-    if (!els.customTestPreviewPlay) return;
-    els.customTestPreviewPlay.setAttribute('aria-pressed', playing ? 'true' : 'false');
-    els.customTestPreviewPlay.textContent = playing ? '■ 停止' : '▶ リズムを再生';
+    [els.customTestPreviewPlay, els.pcePreviewPlay].forEach((btn) => {
+        if (!btn) return;
+        btn.setAttribute('aria-pressed', playing ? 'true' : 'false');
+        btn.textContent = playing ? '■ 停止' : '▶ リズムを再生';
+    });
 }
 
 /* ボタンのトグル（再生中なら停止、停止中なら再生）。 */
 function toggleRhythmPreviewPlay() {
     if (rhythmPreview.playing) stopPreviewRhythm();
     else startPreviewRhythm();
+}
+
+function toggleRhythmEditorPreviewPlay() {
+    if (rhythmPreview.playing) stopPreviewRhythm();
+    else startRhythmEditorPreview();
+}
+
+function resetRhythmEditorPreviewControls() {
+    stopPreviewRhythm();
+    rhythmPreviewSoundBalance = 0;
+    if (els.pcePreviewBalance) els.pcePreviewBalance.value = '50';
 }
 
 /* ── 流れるVexFlow譜面レイヤー（v0.9.126・Step1）─────────────────────────
@@ -2962,6 +3001,7 @@ function releaseRhythmEditorNoteSpan(d, index) {
 function tapRhythmEditorNote(index) {
     const d = proCustomEditDraft;
     if (!d || !d.pattern[index]) return;
+    stopPreviewRhythm();
     const scrollLeft = getRhythmPatternScrollLeft();
     const cur = d.pattern[index];
     const dir = RHYTHM_CUSTOM_DIRS.includes(cur.dir) ? cur.dir : 'down';
@@ -2989,6 +3029,7 @@ function tapRhythmEditorNote(index) {
 function tapRhythmEditorArrow(index) {
     const d = proCustomEditDraft;
     if (!d || !d.pattern[index]) return;
+    stopPreviewRhythm();
     const scrollLeft = getRhythmPatternScrollLeft();
     const cur = d.pattern[index];
     if (cur.type === 'hit') {
@@ -3011,6 +3052,7 @@ function setRhythmEditorGrid(grid) {
     const d = proCustomEditDraft;
     if (!d || !RHYTHM_CUSTOM_GRID_OPTIONS.includes(grid) || grid === d.grid) return;
     if (!rhythmGridAllowed(grid, d.timeSignature)) return;
+    stopPreviewRhythm();
     const from = { grid: d.grid, patternBars: d.patternBars, timeSignature: d.timeSignature };
     const to = { grid: grid, patternBars: d.patternBars, timeSignature: d.timeSignature };
     d.pattern = rhythmResizePattern(d.pattern, from, to);
@@ -3023,6 +3065,7 @@ function setRhythmEditorGrid(grid) {
 function setRhythmEditorTimeSignature(ts) {
     const d = proCustomEditDraft;
     if (!d || !RHYTHM_CUSTOM_TIME_SIGNATURES.includes(ts) || ts === d.timeSignature) return;
+    stopPreviewRhythm();
     const newGrid = rhythmCoerceGrid(d.grid, ts);
     const from = { grid: d.grid, patternBars: d.patternBars, timeSignature: d.timeSignature };
     const to = { grid: newGrid, patternBars: d.patternBars, timeSignature: ts };
@@ -3037,6 +3080,7 @@ function setRhythmEditorTimeSignature(ts) {
 function setRhythmEditorPatternBars(n) {
     const d = proCustomEditDraft;
     if (!d || !RHYTHM_CUSTOM_PATTERN_BARS_OPTIONS.includes(n) || n === d.patternBars) return;
+    stopPreviewRhythm();
     const from = { grid: d.grid, patternBars: d.patternBars, timeSignature: d.timeSignature };
     const to = { grid: d.grid, patternBars: n, timeSignature: d.timeSignature };
     d.pattern = rhythmResizePattern(d.pattern, from, to);
@@ -3049,6 +3093,7 @@ function setRhythmEditorPatternBars(n) {
 function stepRhythmEditorBars(dir) {
     const d = proCustomEditDraft;
     if (!d) return;
+    stopPreviewRhythm();
     const opts = RHYTHM_CUSTOM_BAR_OPTIONS;
     let idx = opts.indexOf(d.bars);
     if (idx < 0) idx = opts.indexOf(4);
@@ -3061,6 +3106,7 @@ function stepRhythmEditorBars(dir) {
 function setRhythmEditorBpm(v) {
     const d = proCustomEditDraft;
     if (!d) return;
+    stopPreviewRhythm();
     d.bpm = clampNum(Math.round(Number(v)), RHYTHM_CUSTOM_BPM_MIN, RHYTHM_CUSTOM_BPM_MAX, d.bpm);
     if (els.pceBpm) els.pceBpm.value = String(d.bpm);
 }
@@ -3084,6 +3130,7 @@ function collectRhythmCustomEditorInputs() {
 function saveRhythmCustomEditor(editorStay) {
     const d = collectRhythmCustomEditorInputs();
     if (!d) return null;
+    stopPreviewRhythm();
     const isExisting = rhythmCustomStageExists(d.id);
     const saved = isExisting ? updateRhythmCustomStage(d) : addRhythmCustomStage(d);
     if (!saved) { showRcToast('保存できませんでした'); return null; }
@@ -3104,6 +3151,7 @@ function saveRhythmCustomEditor(editorStay) {
 function saveRhythmCustomEditorAsCopy() {
     const d = collectRhythmCustomEditorInputs();
     if (!d) return null;
+    stopPreviewRhythm();
     if (!rhythmCustomStageExists(d.id)) return saveRhythmCustomEditor(false);
     if (getSavedRhythmCustomStages().length >= RHYTHM_CUSTOM_STAGE_MAX_SAVED) {
         showRcToast(`保存できる上限（${RHYTHM_CUSTOM_STAGE_MAX_SAVED}件）に達しています`);
@@ -3123,6 +3171,7 @@ function saveRhythmCustomEditorAsCopy() {
    安全優先：まず既存の保存処理で現在の編集内容を保存し、成功した保存済みデータでテスト再生する。
    保存に失敗したらトーストで知らせて再生しない（保存ロジックは二重実装しない）。 */
 function testPlayFromEditor() {
+    stopPreviewRhythm();
     const saved = saveRhythmCustomEditor(true);
     if (!saved) return; // 失敗時は saveRhythmCustomEditor 側でトースト表示済み
     openRhythmProCustomTest(saved.id, 'editor'); // 編集画面から来た＝「戻る」で編集画面へ（v0.9.170）
@@ -3200,6 +3249,7 @@ async function copyRhythmCustomEditorJson() {
 function deleteRhythmCustomFromEditor() {
     const d = proCustomEditDraft;
     if (!d) return;
+    stopPreviewRhythm();
     if (!rhythmCustomStageExists(d.id)) {
         proCustomEditDraft = null;
         renderRhythmCustomStages();
@@ -3242,6 +3292,7 @@ function renderHome() {
     updateChrome();
 }
 function setHomeView(v) {
+    if (homeView === 'proCustomEdit' && v !== 'proCustomEdit') stopPreviewRhythm();
     homeView = v;
     renderHome();
     window.scrollTo(0, 0);
@@ -3280,6 +3331,7 @@ function show(screen) {
 /* 右上「設定」：現在の画面を記録して設定へ */
 function openSettingsFromCurrent() {
     const from = !els.practice.classList.contains('hidden') ? 'practice' : 'home';
+    if (from === 'home' && homeView === 'proCustomEdit') stopPreviewRhythm();
     openSettings(from);
 }
 
@@ -13266,6 +13318,10 @@ function bind() {
         else if (zone.dataset.zone === 'arrow') tapRhythmEditorArrow(i);
     });
     if (els.pceHowtoToggle) els.pceHowtoToggle.addEventListener('click', toggleRhythmEditorHowto);
+    if (els.pcePreviewPlay) els.pcePreviewPlay.addEventListener('click', toggleRhythmEditorPreviewPlay);
+    if (els.pcePreviewBalance) els.pcePreviewBalance.addEventListener('input', (e) => {
+        setRhythmPreviewSoundBalanceFromValue(e.target.value);
+    });
     if (els.pceSave) els.pceSave.addEventListener('click', () => saveRhythmCustomEditor(false));
     if (els.pceSaveAs) els.pceSaveAs.addEventListener('click', saveRhythmCustomEditorAsCopy);
     if (els.pceTest) els.pceTest.addEventListener('click', testPlayFromEditor);

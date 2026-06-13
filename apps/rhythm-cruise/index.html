@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.169">
+    <link rel="stylesheet" href="theme.css?v=0.9.172">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -162,12 +162,20 @@
                     <div class="pce-pattern" id="pce-pattern">
                         <!-- script.js が描画 -->
                     </div>
+                    <div class="pce-preview-controls">
+                        <button type="button" class="custom-test-preview-play" id="pce-preview-play" aria-pressed="false">▶ リズムを再生</button>
+                        <div class="custom-test-preview-balance">
+                            <span class="custom-test-preview-balance-cap">クリック</span>
+                            <input type="range" id="pce-preview-balance" min="0" max="100" value="50" step="1" aria-label="確認音バランス（左：クリック大きめ／右：ストローク大きめ）">
+                            <span class="custom-test-preview-balance-cap">ストローク</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="pce-actions">
                     <button type="button" class="settings-top-main pce-save" id="pce-save">保存</button>
                     <button type="button" class="pro-custom-act is-edit pce-save-as hidden" id="pce-save-as">別名で保存</button>
-                    <button type="button" class="pro-custom-act is-test pce-test" id="pce-test">テスト再生</button>
+                    <button type="button" class="pro-custom-act is-test pce-test" id="pce-test">STAGEを試す</button>
                 </div>
                 <button type="button" class="pce-back-link" id="pce-back">リズム練へ戻る</button>
                 <button type="button" class="pce-delete-link" id="pce-delete">このカスタムSTAGEを削除</button>
@@ -1089,7 +1097,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.171"></script>
+    <script src="script.js?v=0.9.172"></script>
 </body>
 
 </html>

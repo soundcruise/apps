@@ -1163,6 +1163,10 @@ h1 {
         0 12px 28px rgba(0, 0, 0, 0.3);
 }
 
+.pce-preview-controls {
+    margin-top: 10px;
+}
+
 /* 譜面ライブラリ読み込み中／失敗メッセージ */
 .pce-vex-loading {
     margin: 0;
