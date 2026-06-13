@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.173';
+const RHYTHM_CRUISE_VERSION = '0.9.174';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -547,6 +547,7 @@ const els = {
     homeRhythmCreate: $('home-rhythm-create'),
     rhythmCreateStageList: $('rhythm-create-stage-list'),
     homeRhythmCreateStage1: $('home-rhythm-create-stage1'),
+    rcCreateStageTitle: $('rc-create-stage-title'),
     rcCreateStage1Grid: $('rc-create-stage1-grid'),
     rcCreateHowtoToggle: $('rc-create-howto-toggle'),
     rcCreateHowtoBody: $('rc-create-howto-body'),
@@ -992,27 +993,78 @@ function renderStages() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   リズムを作る（v0.9.173）
+   リズムを作る（v0.9.174）
    ・教材的に「作る→聴く」ための新メニュー。
-   ・今回はSTAGE1のみ実装し、STAGE2〜6は一覧に準備中として表示する。
+   ・STAGE1/2は同じ編集・プレビュー部品を使い、STAGE3〜6は準備中として表示する。
    ・保存形式やPROカスタムSTAGEには接続しないセッション内状態。
 ═══════════════════════════════════════════════════════════ */
 const RHYTHM_CREATE_STAGES = [
-    { n: 1, title: '4分音符で作る', desc: '拍に音を置く', ready: true },
-    { n: 2, title: '8分音符で作る', desc: '表拍と裏拍を使う', ready: false },
+    {
+        n: 1,
+        title: '4分音符で作る',
+        desc: '拍に音を置く',
+        ready: true,
+        grid: 'quarter',
+        noteDuration: 'q',
+        cellCount: 4,
+        beatLabels: ['1', '2', '3', '4'],
+        dirs: ['down', 'down', 'down', 'down'],
+        motion: 'all-down',
+        previewId: 'rhythm_create_stage1_preview',
+        howto: '4分音符は、1拍ごとに音を置く基本のリズムです。<br>まずは、どの拍で音を鳴らすかを作ってみましょう。',
+        presets: [
+            { name: '4分ストローク', pattern: [true, true, true, true] },
+            { name: '1拍目だけ', pattern: [true, false, false, false] },
+            { name: '1・3拍', pattern: [true, false, true, false] },
+            { name: '2・4拍', pattern: [false, true, false, true] },
+            { name: '空白から作る', pattern: [false, false, false, false] },
+        ],
+    },
+    {
+        n: 2,
+        title: '8分音符で作る',
+        desc: '表拍と裏拍を使う',
+        ready: true,
+        grid: 'eighth',
+        noteDuration: '8',
+        cellCount: 8,
+        beatLabels: ['1', '&', '2', '&', '3', '&', '4', '&'],
+        dirs: ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'],
+        motion: 'alternate',
+        previewId: 'rhythm_create_stage2_preview',
+        howto: '8分音符では、1拍の中を2つに分けてリズムを作ります。<br>数字の位置が表拍、間の位置が裏拍です。<br>裏拍に音を置くと、リズムに動きが出ます。',
+        presets: [
+            { name: '基本の8ビート', pattern: [true, true, true, true, true, true, true, true] },
+            { name: '表だけ', pattern: [true, false, true, false, true, false, true, false] },
+            { name: '裏だけ', pattern: [false, true, false, true, false, true, false, true] },
+            { name: '弾き語り8ビート', pattern: [false, true, true, true, false, true, true, true] },
+            { name: '軽めの8ビート', pattern: [false, true, true, false, false, true, true, false] },
+        ],
+    },
     { n: 3, title: '休符を使う', desc: '音を抜いてノリを作る', ready: false },
     { n: 4, title: 'タイを使う', desc: '前の音を伸ばす', ready: false },
     { n: 5, title: '16分音符で作る', desc: '細かいストロークを作る', ready: false },
     { n: 6, title: 'シンコペーション', desc: '食うリズムを作る', ready: false },
 ];
-const RHYTHM_CREATE_STAGE1_PRESETS = [
-    { name: '4分ストローク', pattern: [true, true, true, true] },
-    { name: '1拍目だけ', pattern: [true, false, false, false] },
-    { name: '1・3拍', pattern: [true, false, true, false] },
-    { name: '2・4拍', pattern: [false, true, false, true] },
-    { name: '空白から作る', pattern: [false, false, false, false] },
-];
-let rhythmCreateStage1Pattern = [true, true, true, true];
+let rhythmCreateCurrentStage = 1;
+const rhythmCreateStagePatterns = {};
+const rhythmCreateSelectedPreset = {};
+
+function getRhythmCreateStageDef(n = rhythmCreateCurrentStage) {
+    return RHYTHM_CREATE_STAGES.find((s) => s.n === n && s.ready) || RHYTHM_CREATE_STAGES[0];
+}
+
+function getRhythmCreatePattern(def = getRhythmCreateStageDef()) {
+    if (!rhythmCreateStagePatterns[def.n]) {
+        rhythmCreateSelectedPreset[def.n] = 0;
+        rhythmCreateStagePatterns[def.n] = def.presets[0].pattern.map(Boolean);
+    }
+    return rhythmCreateStagePatterns[def.n];
+}
+
+function setRhythmCreatePatternForStage(def, pattern) {
+    rhythmCreateStagePatterns[def.n] = Array.from({ length: def.cellCount }, (_, i) => !!pattern[i]);
+}
 
 function renderRhythmCreateStages() {
     const mount = els.rhythmCreateStageList;
@@ -1041,18 +1093,26 @@ function openRhythmCreate() {
     setHomeView('rhythmCreate');
 }
 
-function openRhythmCreateStage1() {
+function openRhythmCreateStage(stageNo) {
+    const def = getRhythmCreateStageDef(stageNo);
+    if (!def || !def.ready) return;
     stopPreviewRhythm();
+    rhythmCreateCurrentStage = def.n;
+    getRhythmCreatePattern(def);
     resetRhythmCreatePreviewControls();
     setRhythmCreateHowtoOpen(false);
     ensureRhythmVexFlow();
     setHomeView('rhythmCreateStage1');
-    renderRhythmCreateStage1();
+    renderRhythmCreateStage();
 }
 
-function renderRhythmCreateStage1() {
-    renderRhythmCreateStage1Grid();
-    renderRhythmCreateStage1Presets();
+function renderRhythmCreateStage() {
+    const def = getRhythmCreateStageDef();
+    if (els.rcCreateStageTitle) els.rcCreateStageTitle.textContent = `STAGE${def.n} ${def.title}`;
+    if (els.rcCreateHowtoBody) els.rcCreateHowtoBody.innerHTML = def.howto || '';
+    if (els.rcCreateStage1Grid) els.rcCreateStage1Grid.setAttribute('aria-label', `${def.title}のリズムパターン`);
+    renderRhythmCreateStageGrid();
+    renderRhythmCreatePresets();
 }
 
 function setRhythmCreateHowtoOpen(open) {
@@ -1068,7 +1128,8 @@ function toggleRhythmCreateHowto() {
     setRhythmCreateHowtoOpen(!open);
 }
 
-function renderRhythmCreateStage1Grid() {
+function renderRhythmCreateStageGrid() {
+    const def = getRhythmCreateStageDef();
     const mount = els.rcCreateStage1Grid;
     if (!mount) return;
     const VF = getRhythmVexFlow();
@@ -1076,18 +1137,19 @@ function renderRhythmCreateStage1Grid() {
         mount.innerHTML = '<p class="pce-vex-loading">譜面を準備中です…</p>';
         ensureRhythmVexFlow((ok) => {
             if (homeView !== 'rhythmCreateStage1') return;
-            if (ok) renderRhythmCreateStage1Grid();
+            if (ok) renderRhythmCreateStageGrid();
             else mount.innerHTML = '<p class="pce-vex-loading">譜面の読み込みに失敗しました。ページを更新してください。</p>';
         });
         return;
     }
-    drawRhythmCreateStage1VexLane(VF, mount);
+    drawRhythmCreateVexLane(VF, mount, def);
 }
 
-function drawRhythmCreateStage1VexLane(VF, mount) {
+function drawRhythmCreateVexLane(VF, mount, def) {
     const { Renderer, Stave, Voice, Formatter, StaveNote, Stem } = VF;
     const cellW = RHYTHM_VEX_CELL_W;
-    const laneW = rhythmCreateStage1Pattern.length * cellW;
+    const pattern = getRhythmCreatePattern(def);
+    const laneW = pattern.length * cellW;
     const H = RHYTHM_VEX_LANE_H;
 
     mount.innerHTML = '';
@@ -1103,9 +1165,9 @@ function drawRhythmCreateStage1VexLane(VF, mount) {
     scroll.appendChild(lane);
     mount.appendChild(scroll);
 
-    const notes = rhythmCreateStage1Pattern.map((on) => new StaveNote({
+    const notes = pattern.map((on) => new StaveNote({
         keys: ['b/4'],
-        duration: on ? 'q' : 'qr',
+        duration: on ? def.noteDuration : def.noteDuration + 'r',
         stem_direction: Stem.UP,
     }));
 
@@ -1148,14 +1210,14 @@ function drawRhythmCreateStage1VexLane(VF, mount) {
     const tap = document.createElement('div');
     tap.className = 'pce-vex-tapgrid';
     tap.style.height = H + 'px';
-    rhythmCreateStage1Pattern.forEach((on, i) => {
+    pattern.forEach((on, i) => {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'pce-tap-cell beat' + (i === 0 ? ' bar-start' : '');
+        btn.className = 'pce-tap-cell beat' + (i === 0 ? ' bar-start' : '') + (i % 2 === 0 ? ' is-beat' : ' is-offbeat');
         btn.dataset.index = String(i);
         btn.dataset.zone = 'note';
         btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-        btn.setAttribute('aria-label', (i + 1) + '拍目を' + (on ? '休む' : '鳴らす') + 'に切り替え');
+        btn.setAttribute('aria-label', getRhythmCreateCellLabel(def, i) + 'を' + (on ? '休む' : '鳴らす') + 'に切り替え');
         tap.appendChild(btn);
     });
     lane.appendChild(tap);
@@ -1164,58 +1226,78 @@ function drawRhythmCreateStage1VexLane(VF, mount) {
     arrowrow.className = 'pce-vex-arrowrow';
     const beatrow = document.createElement('div');
     beatrow.className = 'pce-vex-beatrow';
-    rhythmCreateStage1Pattern.forEach((on, i) => {
+    pattern.forEach((on, i) => {
+        const dir = def.dirs[i] || 'down';
         const arrow = document.createElement('button');
         arrow.type = 'button';
         arrow.className = 'pce-arrow pce-arrow-' + (on ? 'hit' : 'rest') + (i === 0 ? ' bar-start' : '');
         arrow.tabIndex = -1;
         arrow.setAttribute('aria-hidden', 'true');
-        arrow.innerHTML = rhythmArrowGlyph({ hit: !!on, dir: 'down', type: on ? 'hit' : 'rest' });
+        arrow.innerHTML = rhythmArrowGlyph({ hit: !!on, dir, type: on ? 'hit' : 'rest' });
         arrowrow.appendChild(arrow);
 
         const beat = document.createElement('div');
         beat.className = 'pce-beat-cell is-mid' + (i === 0 ? ' bar-start' : '');
-        beat.textContent = String(i + 1);
+        beat.textContent = def.beatLabels[i] || String(i + 1);
         beatrow.appendChild(beat);
     });
     lane.appendChild(arrowrow);
     lane.appendChild(beatrow);
 }
 
-function renderRhythmCreateStage1Presets() {
+function getRhythmCreateCellLabel(def, index) {
+    if (def.grid === 'eighth') {
+        const beat = Math.floor(index / 2) + 1;
+        return beat + '拍目の' + (index % 2 === 0 ? '表拍' : '裏拍');
+    }
+    return (index + 1) + '拍目';
+}
+
+function renderRhythmCreatePresets() {
+    const def = getRhythmCreateStageDef();
     const mount = els.rcCreatePresetSelect;
-    if (!mount || mount.options.length) return;
-    RHYTHM_CREATE_STAGE1_PRESETS.forEach((p, i) => {
+    if (!mount) return;
+    mount.innerHTML = '';
+    def.presets.forEach((p, i) => {
         const opt = document.createElement('option');
         opt.value = String(i);
         opt.textContent = p.name;
         mount.appendChild(opt);
     });
+    mount.value = String(rhythmCreateSelectedPreset[def.n] || 0);
 }
 
-function setRhythmCreateStage1Pattern(pattern) {
+function setRhythmCreatePattern(pattern, presetIndex) {
+    const def = getRhythmCreateStageDef();
     stopPreviewRhythm();
-    rhythmCreateStage1Pattern = [0, 1, 2, 3].map((i) => !!pattern[i]);
-    renderRhythmCreateStage1Grid();
+    if (typeof presetIndex === 'number') rhythmCreateSelectedPreset[def.n] = presetIndex;
+    setRhythmCreatePatternForStage(def, pattern);
+    renderRhythmCreateStageGrid();
 }
 
-function toggleRhythmCreateStage1Cell(index) {
-    if (index < 0 || index >= rhythmCreateStage1Pattern.length) return;
+function toggleRhythmCreateCell(index) {
+    const def = getRhythmCreateStageDef();
+    const pattern = getRhythmCreatePattern(def);
+    if (index < 0 || index >= pattern.length) return;
     stopPreviewRhythm();
-    rhythmCreateStage1Pattern[index] = !rhythmCreateStage1Pattern[index];
-    renderRhythmCreateStage1Grid();
+    pattern[index] = !pattern[index];
+    renderRhythmCreateStageGrid();
 }
 
-function buildRhythmCreateStage1PreviewStage() {
-    const pattern = rhythmCreateStage1Pattern.map((on) => on
-        ? { hit: true, dir: 'down', type: 'hit', dirManual: true }
-        : { hit: false, dir: 'down', type: 'rest' });
+function buildRhythmCreatePreviewStage() {
+    const def = getRhythmCreateStageDef();
+    const pattern = getRhythmCreatePattern(def).map((on, i) => {
+        const dir = def.dirs[i] || 'down';
+        return on
+            ? { hit: true, dir, type: 'hit', dirManual: true }
+            : { hit: false, dir, type: 'rest' };
+    });
     return normalizeRhythmCustomStageSettings({
         version: 1,
-        id: 'rhythm_create_stage1_preview',
-        title: '4分音符で作る',
+        id: def.previewId,
+        title: def.title,
         description: '',
-        grid: 'quarter',
+        grid: def.grid,
         timeSignature: '4/4',
         patternBars: 1,
         bars: 1,
@@ -1223,12 +1305,12 @@ function buildRhythmCreateStage1PreviewStage() {
         clickMode: 'all',
         rhythmFeel: 'straight',
         pattern,
-        motion: 'all-down',
+        motion: def.motion,
     });
 }
 
 function startRhythmCreatePreview() {
-    const stage = buildRhythmCreateStage1PreviewStage();
+    const stage = buildRhythmCreatePreviewStage();
     if (stage) startPreviewRhythmForStage(stage);
 }
 
@@ -3614,6 +3696,7 @@ function goTop() {
     }
     stop();
     stopMic();          // マイク・キャリブレーション・実音テストも停止
+    stopPreviewRhythm(); // リズム作成/カスタム編集のプレビュー再生音を残さない。
     leaveCustomTestState(); // カスタムテスト中ならエンジン/一時設定を元に戻す
     show('home');
 }
@@ -13505,17 +13588,19 @@ function bind() {
         if (!btn) return;
         const n = parseInt(btn.dataset.stage, 10);
         const stage = RHYTHM_CREATE_STAGES.find((s) => s.n === n);
-        if (stage && stage.ready && n === 1) openRhythmCreateStage1();
+        if (stage && stage.ready) openRhythmCreateStage(n);
     });
     if (els.rcCreateStage1Grid) els.rcCreateStage1Grid.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-index]');
         if (!btn) return;
-        toggleRhythmCreateStage1Cell(parseInt(btn.dataset.index, 10));
+        toggleRhythmCreateCell(parseInt(btn.dataset.index, 10));
     });
     if (els.rcCreateHowtoToggle) els.rcCreateHowtoToggle.addEventListener('click', toggleRhythmCreateHowto);
     if (els.rcCreatePresetSelect) els.rcCreatePresetSelect.addEventListener('change', () => {
-        const p = RHYTHM_CREATE_STAGE1_PRESETS[parseInt(els.rcCreatePresetSelect.value, 10)];
-        if (p) setRhythmCreateStage1Pattern(p.pattern);
+        const def = getRhythmCreateStageDef();
+        const presetIndex = parseInt(els.rcCreatePresetSelect.value, 10);
+        const p = def.presets[presetIndex];
+        if (p) setRhythmCreatePattern(p.pattern, presetIndex);
     });
     if (els.rcCreatePreviewPlay) els.rcCreatePreviewPlay.addEventListener('click', toggleRhythmCreatePreviewPlay);
     if (els.rcCreatePreviewBalance) els.rcCreatePreviewBalance.addEventListener('input', (e) => {
