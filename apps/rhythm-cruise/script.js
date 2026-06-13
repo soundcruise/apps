@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.192';
+const RHYTHM_CRUISE_VERSION = '0.9.193';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -636,6 +636,9 @@ const els = {
     customTestPreviewPlay: $('custom-test-preview-play'),
     customTestPreviewBalance: $('custom-test-preview-balance'),
     customTestPreviewScore: $('custom-test-preview-score'),
+    stagePreviewZoomDown: $('stage-preview-zoom-down'),
+    stagePreviewZoomUp: $('stage-preview-zoom-up'),
+    stagePreviewZoomVal: $('stage-preview-zoom-val'),
     customFlowScoreLayer: $('custom-flow-score-layer'),
     tempoVal: $('tempo-val'),
     tempoUp: $('tempo-up'),
@@ -1186,9 +1189,10 @@ function loadRhythmVexZoomPrefs() {
         return {
             create: clampRhythmVexZoom(obj.create),
             editor: clampRhythmVexZoom(obj.editor),
+            stage: clampRhythmVexZoom(obj.stage),
         };
     } catch (_) {
-        return { create: RHYTHM_VEX_ZOOM_MIN, editor: RHYTHM_VEX_ZOOM_MIN };
+        return { create: RHYTHM_VEX_ZOOM_MIN, editor: RHYTHM_VEX_ZOOM_MIN, stage: RHYTHM_VEX_ZOOM_MIN };
     }
 }
 let rhythmVexZoomPrefs = loadRhythmVexZoomPrefs();
@@ -1197,6 +1201,7 @@ function saveRhythmVexZoomPrefs() {
         localStorage.setItem(RHYTHM_VEX_ZOOM_KEY, JSON.stringify({
             create: clampRhythmVexZoom(rhythmVexZoomPrefs.create),
             editor: clampRhythmVexZoom(rhythmVexZoomPrefs.editor),
+            stage: clampRhythmVexZoom(rhythmVexZoomPrefs.stage),
         }));
     } catch (_) { /* localStorage不可時はセッション内だけ反映 */ }
 }
@@ -1208,6 +1213,9 @@ function syncRhythmCreateZoomUI() {
 }
 function syncRhythmEditorZoomUI() {
     if (els.pceZoomVal) els.pceZoomVal.textContent = rhythmZoomPercent(rhythmVexZoomPrefs.editor);
+}
+function syncRhythmStagePreviewZoomUI() {
+    if (els.stagePreviewZoomVal) els.stagePreviewZoomVal.textContent = rhythmZoomPercent(rhythmVexZoomPrefs.stage);
 }
 function setRhythmCreateZoom(scale) {
     stopPreviewRhythm();
@@ -1223,8 +1231,22 @@ function setRhythmEditorZoom(scale) {
     syncRhythmEditorZoomUI();
     renderRhythmEditorPattern();
 }
+function isRhythmCustomTestPreviewOpen() {
+    return !!(els.customTestPreviewToggle && els.customTestPreviewToggle.getAttribute('aria-expanded') === 'true');
+}
+function redrawOpenRhythmCustomTestPreview() {
+    if (isRhythmCustomTestPreviewOpen()) drawRhythmCustomTestPreviewBody();
+}
+function setRhythmStagePreviewZoom(scale) {
+    stopPreviewRhythm();
+    rhythmVexZoomPrefs.stage = clampRhythmVexZoom(scale);
+    saveRhythmVexZoomPrefs();
+    syncRhythmStagePreviewZoomUI();
+    redrawOpenRhythmCustomTestPreview();
+}
 function stepRhythmCreateZoom(delta) { setRhythmCreateZoom(rhythmVexZoomPrefs.create + delta); }
 function stepRhythmEditorZoom(delta) { setRhythmEditorZoom(rhythmVexZoomPrefs.editor + delta); }
+function stepRhythmStagePreviewZoom(delta) { setRhythmStagePreviewZoom(rhythmVexZoomPrefs.stage + delta); }
 
 function getRhythmCreateBpm() { return rhythmCreateBpm; }
 function getRhythmCreateBars() { return rhythmCreateBars; }
@@ -3438,7 +3460,7 @@ function drawRhythmVexPreview(VF, d, mount) {
     // さらに細かい音価では密集緩和の表示倍率を掛ける（v0.9.137）。倍率は表示専用で判定/音声には無関係。
     const pxPerBeat = (state.pxPerBeatRaw > 0) ? state.pxPerBeatRaw : 90;
     const densityScale = rhythmDisplayDensityScale(cellTicks);
-    const cellW = Math.max(8, pxPerBeat * (cellTicks / RHYTHM_TPQ)) * densityScale;
+    const cellW = Math.max(8, pxPerBeat * (cellTicks / RHYTHM_TPQ)) * densityScale * clampRhythmVexZoom(rhythmVexZoomPrefs.stage);
     // 音符・小節線・拍線・矢印は編集画面プレビュー(drawRhythmVexLane)と同じ基準にそろえる（v0.9.145で再修正）。
     //   符頭中心＝(cellIndex+0.5)*cellW（セル区画の中央）／小節線・拍線＝cellW境界。＝音符は線と線の中央に並ぶ。
     //   STAGE画面(drawLane)も「線は音符の半セル左」で同じ見た目。再生中の縦棒だけ別途、発音時に符頭中央へ重ねる。
@@ -3605,6 +3627,7 @@ function renderRhythmCustomTestPreview(stage) {
     rhythmPreviewRendered = false;
     rhythmPreviewSoundBalance = 0;                                  // 確認音バランスは毎回中央スタート（v0.9.135）
     if (els.customTestPreviewBalance) els.customTestPreviewBalance.value = '50';
+    syncRhythmStagePreviewZoomUI();
     els.customTestPreview.classList.remove('hidden');
     setRhythmCustomTestPreviewOpen(false); // 初期状態は閉じる
 }
@@ -10440,6 +10463,8 @@ function setStageBars(bars) {
     if (!eng.editId && eng.testSource !== 'rhythmCreate') saveSettings(); // 編集テスト/リズム作成の一時練習中は通常設定へ保存しない
     resetGame();                        // 新しい小節数で配列・カウンタ・レーンを作り直す
     refreshCustomFlowScore();           // 流れるVexFlow譜面も新しい小節数ぶんへ再生成（カスタムのみ・v0.9.131）
+    stopPreviewRhythm();                // プレビュー確認音が鳴っている場合は、古い小節数のまま残さない
+    redrawOpenRhythmCustomTestPreview();
 }
 function stepStageBars(dir) {
     const i = BAR_OPTIONS.indexOf(state.bars);
@@ -15118,6 +15143,8 @@ function bind() {
     if (els.customTestPreviewToggle) els.customTestPreviewToggle.addEventListener('click', toggleRhythmCustomTestPreview);
     // 譜面プレビューのリズム確認音 再生/停止トグル（v0.9.135）
     if (els.customTestPreviewPlay) els.customTestPreviewPlay.addEventListener('click', toggleRhythmPreviewPlay);
+    if (els.stagePreviewZoomDown) els.stagePreviewZoomDown.addEventListener('click', () => stepRhythmStagePreviewZoom(-RHYTHM_VEX_ZOOM_STEP));
+    if (els.stagePreviewZoomUp) els.stagePreviewZoomUp.addEventListener('click', () => stepRhythmStagePreviewZoom(RHYTHM_VEX_ZOOM_STEP));
     // 確認音バランススライダー（v0.9.135）。0..100 → -1..+1（左：クリック大きめ／右：ストローク大きめ）。次に鳴る音から反映。
     if (els.customTestPreviewBalance) els.customTestPreviewBalance.addEventListener('input', (e) => {
         setRhythmPreviewSoundBalanceFromValue(e.target.value);

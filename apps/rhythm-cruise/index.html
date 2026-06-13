@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.192">
+    <link rel="stylesheet" href="theme.css?v=0.9.193">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -321,11 +321,31 @@
                 </div>
             </div>
 
-            <!-- 1b. カスタムSTAGEテスト再生時だけ表示する読み取り専用のVexFlow譜面プレビュー（v0.9.125）。
-                 既存の流れるCanvas判定レーンは変更せず、編集画面と同じ譜面を静的表示するだけ。STAGE1/基礎練では非表示。 -->
+            <!-- 1b. Practice共通の読み取り専用VexFlow譜面プレビュー。
+                 既存の流れるCanvas判定レーンは変更せず、譜面確認と練習条件をまとめて表示する。 -->
             <div class="custom-test-preview hidden" id="custom-test-preview">
                 <button type="button" class="custom-test-preview-toggle" id="custom-test-preview-toggle" aria-expanded="false" aria-controls="custom-test-preview-body">リズムプレビューを表示</button>
                 <div class="custom-test-preview-body hidden" id="custom-test-preview-body">
+                    <div class="custom-test-preview-settings">
+                        <div class="custom-test-preview-param">
+                            <span class="custom-test-preview-param-cap">BPM</span>
+                            <button class="tempo-btn custom-test-preview-step" id="tempo-down" aria-label="テンポを下げる">−</button>
+                            <b class="custom-test-preview-num" id="tempo-val">80</b>
+                            <button class="tempo-btn custom-test-preview-step" id="tempo-up" aria-label="テンポを上げる">+</button>
+                        </div>
+                        <div class="custom-test-preview-param">
+                            <span class="custom-test-preview-param-cap">小節</span>
+                            <button class="tempo-btn custom-test-preview-step" id="bars-down" aria-label="小節数を減らす">−</button>
+                            <b class="custom-test-preview-num" id="bars-val">8</b>
+                            <button class="tempo-btn custom-test-preview-step" id="bars-up" aria-label="小節数を増やす">+</button>
+                        </div>
+                        <div class="custom-test-preview-param">
+                            <span class="custom-test-preview-param-cap">拡大</span>
+                            <button type="button" class="tempo-btn custom-test-preview-step" id="stage-preview-zoom-down" aria-label="譜面プレビューを縮小する">−</button>
+                            <span class="custom-test-preview-num" id="stage-preview-zoom-val">100%</span>
+                            <button type="button" class="tempo-btn custom-test-preview-step" id="stage-preview-zoom-up" aria-label="譜面プレビューを拡大する">＋</button>
+                        </div>
+                    </div>
                     <button type="button" class="custom-test-preview-play" id="custom-test-preview-play" aria-pressed="false">▶ リズムを再生</button>
                     <div class="custom-test-preview-balance">
                         <span class="custom-test-preview-balance-cap">クリック</span>
@@ -336,21 +356,9 @@
                 </div>
             </div>
 
-            <!-- 2. BPM / 小節数 / くり返し練習（常時表示・コンパクト・v0.9.148）。
-                 クリック設定は右上「設定」→「クリック設定」タブへ移動。挙動は従来どおり（BPM1刻み・小節最大32・くり返しは既定OFF/非永続）。 -->
+            <!-- 2. くり返し練習（常時表示・コンパクト・v0.9.193）。
+                 BPM / 小節数は「リズムプレビューを表示」内へ移動。 -->
             <div class="stage-bar" id="stage-bar">
-                <div class="stage-bar-item">
-                    <span class="stage-bar-cap">BPM</span>
-                    <button class="tempo-btn" id="tempo-down" aria-label="テンポを下げる">−</button>
-                    <b id="tempo-val">80</b>
-                    <button class="tempo-btn" id="tempo-up" aria-label="テンポを上げる">+</button>
-                </div>
-                <div class="stage-bar-item">
-                    <span class="stage-bar-cap">小節</span>
-                    <button class="tempo-btn" id="bars-down" aria-label="小節数を減らす">−</button>
-                    <b id="bars-val">8</b>
-                    <button class="tempo-btn" id="bars-up" aria-label="小節数を増やす">+</button>
-                </div>
                 <div class="stage-bar-item stage-loop-item">
                     <span class="stage-bar-cap">くり返し練習</span>
                     <button type="button" class="ss-toggle" id="loop-toggle" aria-pressed="false" title="ONにすると、STOPするまで同じSTAGEを繰り返します（結果は履歴に保存しません）。">OFF</button>
@@ -358,7 +366,6 @@
                     <p class="loop-help-text hidden" id="loop-help">ONにすると、同じリズムをくり返して練習できます。苦手なリズムを何度も確認したいときに使ってください。</p>
                 </div>
             </div>
-
             <!-- 3. 状態・進行表示 -->
             <div class="play-status">
                 <span class="bar-counter" id="bar-counter">– / 8 小節</span>
@@ -1212,7 +1219,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.192"></script>
+    <script src="script.js?v=0.9.193"></script>
 </body>
 
 </html>

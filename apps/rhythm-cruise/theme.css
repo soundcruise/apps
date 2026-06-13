@@ -3688,9 +3688,39 @@ h1 {
 .custom-test-preview-body {
     margin-top: 6px;
 }
+.custom-test-preview-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    margin: 2px 0 12px;
+}
+.custom-test-preview-param {
+    display: grid;
+    grid-template-columns: minmax(3.2em, 0.7fr) auto minmax(3.2em, auto) auto;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+.custom-test-preview-param-cap {
+    color: var(--muted-color);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+.custom-test-preview-step {
+    min-width: 32px;
+    height: 32px;
+}
+.custom-test-preview-num {
+    color: var(--text-color);
+    font-size: 1.05rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    min-width: 3.2em;
+    text-align: center;
+}
 
-/* STAGE画面の常時表示バー（v0.9.148）：BPM / 小節 / くり返し練習をコンパクトに横並び。狭い画面では自然に折り返す。
-   クリック設定は右上「設定」→「クリック設定」タブへ移動。 */
+/* STAGE画面の常時表示バー：くり返し練習をコンパクトに表示。BPM / 小節はプレビュー内へ移動（v0.9.193）。 */
 .stage-bar {
     display: flex;
     align-items: center;
