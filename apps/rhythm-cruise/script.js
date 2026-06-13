@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.175';
+const RHYTHM_CRUISE_VERSION = '0.9.176';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -993,7 +993,7 @@ function renderStages() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   リズムを作る（v0.9.175）
+   リズムを作る（v0.9.176）
    ・教材的に「作る→聴く」ための新メニュー。
    ・STAGE1〜6は同じ編集・プレビュー部品を使う。
    ・保存形式やPROカスタムSTAGEには接続しないセッション内状態。
@@ -1406,6 +1406,7 @@ function drawRhythmCreateVexLane(VF, mount, def) {
         }
         lane.appendChild(overlay);
     }
+    attachRhythmPreviewPlayhead(scroll, lane, laneW, cellW);
 }
 
 function getRhythmCreateCellLabel(def, index) {
@@ -2686,6 +2687,12 @@ function drawRhythmVexLane(VF, d) {
         }
         lane.appendChild(overlay);
     }
+    const previewBars = Math.max(1, Math.round(d.bars || patternBars || 1));
+    const visibleBars = Math.max(1, Math.min(patternBars, previewBars));
+    attachRhythmPreviewPlayhead(scroll, lane, laneW, cellW, null, {
+        loopRatio: previewBars > patternBars ? patternBars / previewBars : 1,
+        visibleLaneW: previewBars < patternBars ? laneW * (visibleBars / patternBars) : laneW,
+    });
 }
 
 /* ── カスタムSTAGEテスト再生：読み取り専用のVexFlow譜面プレビュー（v0.9.125）──────────
@@ -2855,19 +2862,7 @@ function drawRhythmVexPreview(VF, d, mount) {
     }
     lane.appendChild(arrowLayer);
 
-    // 再生位置の縦棒（v0.9.136）。リズム確認再生中だけ表示し、translateX で左→右へ動かす。
-    // この棒は譜面プレビュー専用の視覚再生で、Playレーン/判定/流れるVexFlow譜面には一切関係しない。
-    const playhead = document.createElement('div');
-    playhead.className = 'pce-vex-playhead';
-    playhead.style.height = laneH + 'px';         // レーン全高ぶん（従来どおり縦棒はレーンを縦断・v0.9.136）
-    lane.appendChild(playhead);
-    rhythmPreviewView.scrollEl = scroll;
-    rhythmPreviewView.laneEl = lane;
-    rhythmPreviewView.barEl = playhead;
-    rhythmPreviewView.laneW = laneW;
-    rhythmPreviewView.cellW = cellW; // 再生縦棒を符頭中央(セル区画の中央)へ重ねるための半セル(=0.5*cellW)算出に使う（v0.9.145）
-    // 再描画直後は停止状態（再生中に再描画されることは無い設計）。
-    hideRhythmPreviewPlayhead();
+    attachRhythmPreviewPlayhead(scroll, lane, laneW, cellW, laneH);
 }
 
 /* 上部の静的譜面プレビューを折りたたみ化（v0.9.134）。初期は閉じ、Playレーンと開始ボタンを優先する。
@@ -2950,6 +2945,8 @@ function hideRhythmCustomTestPreview() {
     rhythmPreviewView.barEl = null;
     rhythmPreviewView.laneW = 0;
     rhythmPreviewView.cellW = 0;
+    rhythmPreviewView.visibleLaneW = 0;
+    rhythmPreviewView.loopRatio = 1;
 }
 
 /* ── 譜面プレビューのリズム確認音（v0.9.135）──────────────────────────
@@ -2967,6 +2964,7 @@ const rhythmPreview = {
     ctx: null,
     timer: 0,        // 先読みスケジューラの setTimeout id
     baseTime: 0,     // ループ起点の ctx.currentTime（秒）
+    basePerf: 0,     // ループ起点の performance.now()（ms）。視覚ヘッドのフォールバック時計。
     loopIndex: 0,    // 次にスケジュールするループ番号
     loopSec: 0,      // 1ループ長（秒）
     hitOffsets: [],  // 1ループ内の hit 発音オフセット（秒）
@@ -2982,6 +2980,9 @@ const rhythmPreviewView = {
     barEl: null,
     laneW: 0,
     cellW: 0,
+    visibleLaneW: 0,
+    loopRatio: 1,
+    anim: null,
 };
 const PREVIEW_LOOKAHEAD_SEC = 0.2;          // この先までを先読みでスケジュール
 const PREVIEW_TICK_MS = 40;                 // スケジューラの呼び出し間隔
@@ -3185,6 +3186,7 @@ function startPreviewRhythm() {
     rhythmPreview.loopSec = plan.loopSec;
     rhythmPreview.loopIndex = 0;
     rhythmPreview.baseTime = ctx.currentTime + 0.12; // 少し先から（スケジューリング余裕）
+    rhythmPreview.basePerf = performance.now() + 120;
     rhythmPreview.playing = true;
     setRhythmPreviewPlayUI(true);
     rhythmPreviewSchedulerTick();
@@ -3217,6 +3219,28 @@ function startRhythmEditorPreview() {
     startPreviewRhythmForStage(collectRhythmCustomEditorInputs());
 }
 
+function attachRhythmPreviewPlayhead(scroll, lane, laneW, cellW, height, opts) {
+    if (!scroll || !lane) return;
+    const playhead = document.createElement('div');
+    playhead.className = 'pce-vex-playhead';
+    const laneH = Number.isFinite(height)
+        ? height
+        : Math.max(lane.offsetHeight || 0, lane.scrollHeight || 0, RHYTHM_VEX_LANE_H + RHYTHM_VEX_PREVIEW_ARROW_BAND);
+    if (laneH > 0) playhead.style.height = laneH + 'px';
+    lane.appendChild(playhead);
+
+    const o = opts || {};
+    rhythmPreviewView.scrollEl = scroll;
+    rhythmPreviewView.laneEl = lane;
+    rhythmPreviewView.barEl = playhead;
+    rhythmPreviewView.laneW = laneW;
+    rhythmPreviewView.cellW = cellW;
+    rhythmPreviewView.visibleLaneW = Number.isFinite(o.visibleLaneW) && o.visibleLaneW > 0 ? o.visibleLaneW : laneW;
+    rhythmPreviewView.loopRatio = Number.isFinite(o.loopRatio) && o.loopRatio > 0 ? o.loopRatio : 1;
+    if (rhythmPreview.playing) startRhythmPreviewPlayhead();
+    else hideRhythmPreviewPlayhead();
+}
+
 /* 再生位置の縦棒を表示し、アニメ（縦棒移動＋自動スクロール）を開始する（v0.9.136）。
    stopPreviewRhythm() が先に raf を止めるため二重起動しないが、念のため既存rafを畳んでから1本だけ回す。 */
 function startRhythmPreviewPlayhead() {
@@ -3224,6 +3248,24 @@ function startRhythmPreviewPlayhead() {
     const x0 = (Number.isFinite(v.cellW) ? v.cellW : 0) * 0.5; // 先頭セルの符頭中央＝発音時刻t=0の位置
     if (v.barEl) { v.barEl.classList.add('is-active'); v.barEl.style.transform = 'translateX(' + x0 + 'px)'; }
     if (v.scrollEl) v.scrollEl.scrollLeft = 0;
+    if (v.anim) { try { v.anim.cancel(); } catch (_) { /* noop */ } v.anim = null; }
+    if (v.barEl && typeof v.barEl.animate === 'function' && rhythmPreview.loopSec > 0) {
+        const visualLoopSec = rhythmPreviewVisualLoopSec();
+        const visualLaneW = rhythmPreviewVisibleLaneW();
+        const delayMs = rhythmPreview.ctx
+            ? Math.max(0, (rhythmPreview.baseTime - rhythmPreview.ctx.currentTime) * 1000)
+            : Math.max(0, rhythmPreview.basePerf - performance.now());
+        v.anim = v.barEl.animate([
+            { transform: 'translateX(' + x0 + 'px)' },
+            { transform: 'translateX(' + (visualLaneW + x0) + 'px)' },
+        ], {
+            duration: Math.max(1, visualLoopSec * 1000),
+            delay: delayMs,
+            iterations: Infinity,
+            easing: 'linear',
+            fill: 'both',
+        });
+    }
     if (v.raf) { cancelAnimationFrame(v.raf); v.raf = 0; }
     v.raf = requestAnimationFrame(rhythmPreviewPlayheadTick);
 }
@@ -3232,8 +3274,19 @@ function startRhythmPreviewPlayhead() {
 function hideRhythmPreviewPlayhead() {
     const v = rhythmPreviewView;
     const x0 = (Number.isFinite(v.cellW) ? v.cellW : 0) * 0.5; // 先頭セルの符頭中央へ戻す
+    if (v.anim) { try { v.anim.cancel(); } catch (_) { /* noop */ } v.anim = null; }
     if (v.barEl) { v.barEl.classList.remove('is-active'); v.barEl.style.transform = 'translateX(' + x0 + 'px)'; }
     if (v.scrollEl) v.scrollEl.scrollLeft = 0;
+}
+
+function rhythmPreviewVisualLoopSec() {
+    const v = rhythmPreviewView;
+    return rhythmPreview.loopSec * (Number.isFinite(v.loopRatio) && v.loopRatio > 0 ? v.loopRatio : 1);
+}
+
+function rhythmPreviewVisibleLaneW() {
+    const v = rhythmPreviewView;
+    return Number.isFinite(v.visibleLaneW) && v.visibleLaneW > 0 ? v.visibleLaneW : v.laneW;
 }
 
 /* 縦棒移動＋自動スクロール本体（v0.9.136）。音声と同じ絶対時刻基準で、ループ内の経過割合から横位置を出す。
@@ -3242,13 +3295,17 @@ function rhythmPreviewPlayheadTick() {
     const v = rhythmPreviewView;
     if (!rhythmPreview.playing) { v.raf = 0; return; }
     const ctx = rhythmPreview.ctx;
-    if (ctx && v.barEl && rhythmPreview.loopSec > 0) {
-        const elapsed = ctx.currentTime - rhythmPreview.baseTime;
-        const progress = elapsed <= 0 ? 0 : (elapsed % rhythmPreview.loopSec) / rhythmPreview.loopSec;
+    if (v.barEl && rhythmPreview.loopSec > 0) {
+        const elapsed = ctx
+            ? (ctx.currentTime - rhythmPreview.baseTime)
+            : ((performance.now() - rhythmPreview.basePerf) / 1000);
+        const visualLoopSec = rhythmPreviewVisualLoopSec();
+        const progress = elapsed <= 0 ? 0 : (elapsed % visualLoopSec) / visualLoopSec;
         // 音符はセル区画の中央(=(i+0.5)*cellW)に描いてある。スウィング時も音符表示はストレート配置のまま。
         // 確認音は別途 swing target time で鳴るため、縦棒は時間の流れを連続的に示す。
         const halfCell = (Number.isFinite(v.cellW) ? v.cellW : 0) * 0.5;
-        const x = progress * v.laneW + halfCell;
+        const visualLaneW = rhythmPreviewVisibleLaneW();
+        const x = progress * visualLaneW + halfCell;
         v.barEl.style.transform = 'translateX(' + x + 'px)';
         const scroll = v.scrollEl;
         if (scroll) {
@@ -3266,6 +3323,7 @@ function stopPreviewRhythm() {
     if (rhythmPreview.timer) { clearTimeout(rhythmPreview.timer); rhythmPreview.timer = 0; }
     rhythmPreview.playing = false;
     rhythmPreview.loopIndex = 0;
+    rhythmPreview.basePerf = 0;
     rhythmPreview.nodes.forEach((n) => {
         try { n.src.stop(); } catch (_) { /* 既に停止/未開始は無視 */ }
         try { if (n.gain) n.gain.disconnect(); } catch (_) { /* noop */ }
