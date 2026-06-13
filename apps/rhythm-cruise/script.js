@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.187';
+const RHYTHM_CRUISE_VERSION = '0.9.188';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -554,6 +554,17 @@ const els = {
     rcCreateEditHelpToggle: $('rc-create-edithelp-toggle'),
     rcCreateEditHelpBody: $('rc-create-edithelp-body'),
     rcCreatePresetSelect: $('rc-create-preset-select'),
+    rcCreatePresetSave: $('rc-create-preset-save'),
+    rcCreateUserPresetActions: $('rc-create-user-preset-actions'),
+    rcCreatePresetRename: $('rc-create-preset-rename'),
+    rcCreatePresetDuplicate: $('rc-create-preset-duplicate'),
+    rcCreatePresetDelete: $('rc-create-preset-delete'),
+    rcCreatePresetModal: $('rc-create-preset-modal'),
+    rcCreatePresetModalTitle: $('rc-create-preset-modal-title'),
+    rcCreatePresetModalMsg: $('rc-create-preset-modal-msg'),
+    rcCreatePresetModalInput: $('rc-create-preset-modal-input'),
+    rcCreatePresetModalCancel: $('rc-create-preset-modal-cancel'),
+    rcCreatePresetModalOk: $('rc-create-preset-modal-ok'),
     rcCreatePreviewPlay: $('rc-create-preview-play'),
     rcCreatePreviewBalance: $('rc-create-preview-balance'),
     rcCreateBpm: $('rc-create-bpm'),
@@ -1151,6 +1162,13 @@ let rhythmCreateBpm = RHYTHM_CREATE_BPM_DEFAULT;
 let rhythmCreateBars = RHYTHM_CREATE_BARS_DEFAULT;
 let rhythmCreatePatternBars = RHYTHM_CREATE_PATTERN_BARS_DEFAULT;
 
+const RHYTHM_CREATE_PRESETS_KEY = 'rhythmCruiseCreatePresets:v1';
+const RHYTHM_CREATE_PRESET_LIMIT_PER_STAGE = 20;
+const RHYTHM_CREATE_PRESET_NAME_MAX = 40;
+const RHYTHM_CREATE_PRESET_OFFICIAL_PREFIX = 'official:';
+const RHYTHM_CREATE_PRESET_USER_PREFIX = 'user:';
+let rhythmCreatePresetModalHandler = null;
+
 const RHYTHM_VEX_ZOOM_KEY = 'rhythmCruiseVexZoom:v1';
 const RHYTHM_VEX_ZOOM_MIN = 1.0;
 const RHYTHM_VEX_ZOOM_MAX = 1.6;
@@ -1264,7 +1282,7 @@ function getRhythmCreateStageDef(n = rhythmCreateCurrentStage) {
 
 function getRhythmCreatePattern(def = getRhythmCreateStageDef()) {
     if (!rhythmCreateStagePatterns[def.n]) {
-        rhythmCreateSelectedPreset[def.n] = 0;
+        rhythmCreateSelectedPreset[def.n] = rhythmCreatePresetSelectValue('official', 0);
         rhythmCreateStagePatterns[def.n] = normalizeRhythmCreatePattern(def, def.presets[0].pattern, getRhythmCreatePatternCellCount(def));
         resetRhythmCreateDirsForStage(def);
     }
@@ -1341,6 +1359,152 @@ function ensureRhythmCreatePatternLength(def) {
             return state === 'hit' ? getRhythmCreateBaseDir(def, i) : null;
         });
     }
+}
+
+function clampRhythmCreatePresetPatternBars(value) {
+    const n = Math.round(Number(value));
+    return Number.isFinite(n) ? Math.max(1, Math.min(RHYTHM_CREATE_PATTERN_BARS_MAX, n)) : RHYTHM_CREATE_PATTERN_BARS_DEFAULT;
+}
+
+function sanitizeRhythmCreatePresetName(name) {
+    return String(name == null ? '' : name).trim().slice(0, RHYTHM_CREATE_PRESET_NAME_MAX);
+}
+
+function makeRhythmCreatePresetId() {
+    return 'rcpreset_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+}
+
+function rhythmCreatePresetSelectValue(type, value) {
+    if (type === 'user') return RHYTHM_CREATE_PRESET_USER_PREFIX + value;
+    return RHYTHM_CREATE_PRESET_OFFICIAL_PREFIX + String(value || 0);
+}
+
+function parseRhythmCreatePresetSelectValue(value) {
+    const raw = String(value || '');
+    if (raw.startsWith(RHYTHM_CREATE_PRESET_USER_PREFIX)) {
+        return { type: 'user', id: raw.slice(RHYTHM_CREATE_PRESET_USER_PREFIX.length) };
+    }
+    if (raw.startsWith(RHYTHM_CREATE_PRESET_OFFICIAL_PREFIX)) {
+        const index = parseInt(raw.slice(RHYTHM_CREATE_PRESET_OFFICIAL_PREFIX.length), 10);
+        return { type: 'official', index: Number.isFinite(index) ? index : 0 };
+    }
+    const legacyIndex = parseInt(raw, 10);
+    return { type: 'official', index: Number.isFinite(legacyIndex) ? legacyIndex : 0 };
+}
+
+function getRhythmCreatePresetDef(stageN) {
+    return RHYTHM_CREATE_STAGES.find((s) => s.n === stageN && s.ready) || null;
+}
+
+function normalizeRhythmCreatePresetDirs(def, pattern, dirs) {
+    return Array.from({ length: pattern.length }, (_, i) => {
+        const dir = dirs && dirs[i];
+        if (dir === null || RHYTHM_CUSTOM_DIRS.includes(dir)) return dir;
+        return normalizeRhythmCreateCellState(pattern[i], i, def) === 'hit' ? getRhythmCreateBaseDir(def, i) : null;
+    });
+}
+
+function normalizeRhythmCreateUserPreset(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const stageN = parseInt(raw.stageN, 10);
+    const def = getRhythmCreatePresetDef(stageN);
+    if (!def) return null;
+    const name = sanitizeRhythmCreatePresetName(raw.name);
+    if (!name) return null;
+    const patternBars = clampRhythmCreatePresetPatternBars(raw.patternBars);
+    const length = def.cellCount * patternBars;
+    const pattern = normalizeRhythmCreatePattern(def, Array.isArray(raw.pattern) ? raw.pattern : [], length);
+    const dirs = normalizeRhythmCreatePresetDirs(def, pattern, Array.isArray(raw.dirs) ? raw.dirs : []);
+    const now = Date.now();
+    return {
+        id: String(raw.id || makeRhythmCreatePresetId()),
+        stageN: def.n,
+        name,
+        pattern,
+        dirs,
+        patternBars,
+        createdAt: Number.isFinite(Number(raw.createdAt)) ? Number(raw.createdAt) : now,
+        updatedAt: Number.isFinite(Number(raw.updatedAt)) ? Number(raw.updatedAt) : now,
+    };
+}
+
+function limitRhythmCreateUserPresets(list) {
+    const counts = {};
+    const out = [];
+    (Array.isArray(list) ? list : []).forEach((preset) => {
+        const normalized = normalizeRhythmCreateUserPreset(preset);
+        if (!normalized) return;
+        const count = counts[normalized.stageN] || 0;
+        if (count >= RHYTHM_CREATE_PRESET_LIMIT_PER_STAGE) return;
+        counts[normalized.stageN] = count + 1;
+        out.push(normalized);
+    });
+    return out;
+}
+
+function loadRhythmCreateUserPresets() {
+    try {
+        const raw = JSON.parse(localStorage.getItem(RHYTHM_CREATE_PRESETS_KEY) || '[]');
+        return limitRhythmCreateUserPresets(Array.isArray(raw) ? raw : []);
+    } catch (e) {
+        return [];
+    }
+}
+
+function saveRhythmCreateUserPresets(list) {
+    try {
+        localStorage.setItem(RHYTHM_CREATE_PRESETS_KEY, JSON.stringify(limitRhythmCreateUserPresets(list)));
+    } catch (e) {
+        showRhythmCreatePresetNotice('保存できませんでした', 'ブラウザの保存容量を確認してください。');
+    }
+}
+
+function getRhythmCreateUserPresetsForStage(stageN) {
+    return loadRhythmCreateUserPresets().filter((p) => p.stageN === stageN);
+}
+
+function makeUniqueRhythmCreatePresetName(stageN, baseName, ignoreId = null) {
+    const base = sanitizeRhythmCreatePresetName(baseName) || 'マイプリセット';
+    const existing = new Set(getRhythmCreateUserPresetsForStage(stageN)
+        .filter((p) => p.id !== ignoreId)
+        .map((p) => p.name));
+    if (!existing.has(base)) return base;
+    for (let i = 2; i < 1000; i++) {
+        const candidate = sanitizeRhythmCreatePresetName(base + ' (' + i + ')');
+        if (!existing.has(candidate)) return candidate;
+    }
+    return sanitizeRhythmCreatePresetName(base + ' ' + Date.now());
+}
+
+function makeRhythmCreatePresetCopyName(stageN, name) {
+    const base = sanitizeRhythmCreatePresetName(name + ' コピー') || 'コピー';
+    const existing = new Set(getRhythmCreateUserPresetsForStage(stageN).map((p) => p.name));
+    if (!existing.has(base)) return base;
+    for (let i = 2; i < 1000; i++) {
+        const candidate = sanitizeRhythmCreatePresetName(base + i);
+        if (!existing.has(candidate)) return candidate;
+    }
+    return sanitizeRhythmCreatePresetName(base + Date.now());
+}
+
+function getSelectedRhythmCreateUserPreset() {
+    if (!els.rcCreatePresetSelect) return null;
+    const parsed = parseRhythmCreatePresetSelectValue(els.rcCreatePresetSelect.value);
+    if (parsed.type !== 'user') return null;
+    return getRhythmCreateUserPresetsForStage(getRhythmCreateStageDef().n).find((p) => p.id === parsed.id) || null;
+}
+
+function canAddRhythmCreateUserPreset(stageN) {
+    return getRhythmCreateUserPresetsForStage(stageN).length < RHYTHM_CREATE_PRESET_LIMIT_PER_STAGE;
+}
+
+function alertRhythmCreatePresetLimit() {
+    showRhythmCreatePresetNotice('保存上限です', 'このSTAGEの保存プリセットは20件までです。');
+}
+
+function setRhythmCreatePatternWithDirs(def, pattern, dirs) {
+    rhythmCreateStagePatterns[def.n] = normalizeRhythmCreatePattern(def, pattern, getRhythmCreatePatternCellCount(def));
+    rhythmCreateStageDirs[def.n] = normalizeRhythmCreatePresetDirs(def, rhythmCreateStagePatterns[def.n], dirs);
 }
 
 function rhythmCreateStateToCell(state, index, def) {
@@ -1648,21 +1812,215 @@ function renderRhythmCreatePresets() {
     const mount = els.rcCreatePresetSelect;
     if (!mount) return;
     mount.innerHTML = '';
+    const officialGroup = document.createElement('optgroup');
+    officialGroup.label = '公式プリセット';
     def.presets.forEach((p, i) => {
         const opt = document.createElement('option');
-        opt.value = String(i);
+        opt.value = rhythmCreatePresetSelectValue('official', i);
         opt.textContent = p.name;
-        mount.appendChild(opt);
+        officialGroup.appendChild(opt);
     });
-    mount.value = String(rhythmCreateSelectedPreset[def.n] || 0);
+    mount.appendChild(officialGroup);
+    const userPresets = getRhythmCreateUserPresetsForStage(def.n);
+    if (userPresets.length) {
+        const userGroup = document.createElement('optgroup');
+        userGroup.label = '保存したプリセット';
+        userPresets.forEach((p) => {
+            const opt = document.createElement('option');
+            opt.value = rhythmCreatePresetSelectValue('user', p.id);
+            opt.textContent = p.name;
+            userGroup.appendChild(opt);
+        });
+        mount.appendChild(userGroup);
+    }
+    const selected = rhythmCreateSelectedPreset[def.n] || rhythmCreatePresetSelectValue('official', 0);
+    mount.value = selected;
+    if (mount.value !== selected) {
+        rhythmCreateSelectedPreset[def.n] = rhythmCreatePresetSelectValue('official', 0);
+        mount.value = rhythmCreateSelectedPreset[def.n];
+    }
+    syncRhythmCreateUserPresetActions();
 }
 
 function setRhythmCreatePattern(pattern, presetIndex) {
     const def = getRhythmCreateStageDef();
     stopPreviewRhythm();
-    if (typeof presetIndex === 'number') rhythmCreateSelectedPreset[def.n] = presetIndex;
+    if (typeof presetIndex === 'number') rhythmCreateSelectedPreset[def.n] = rhythmCreatePresetSelectValue('official', presetIndex);
     setRhythmCreatePatternForStage(def, pattern);
     renderRhythmCreateStageGrid();
+    renderRhythmCreatePresets();
+}
+
+function syncRhythmCreateUserPresetActions() {
+    if (!els.rcCreateUserPresetActions || !els.rcCreatePresetSelect) return;
+    const parsed = parseRhythmCreatePresetSelectValue(els.rcCreatePresetSelect.value);
+    const isUser = parsed.type === 'user';
+    els.rcCreateUserPresetActions.classList.toggle('hidden', !isUser);
+    [els.rcCreatePresetRename, els.rcCreatePresetDuplicate, els.rcCreatePresetDelete].forEach((btn) => {
+        if (btn) btn.disabled = !isUser;
+    });
+}
+
+function applyRhythmCreateUserPreset(preset) {
+    const def = getRhythmCreateStageDef();
+    if (!preset || preset.stageN !== def.n) return;
+    stopPreviewRhythm();
+    rhythmCreatePatternBars = clampRhythmCreatePresetPatternBars(preset.patternBars);
+    if (getRhythmCreateBars() < rhythmCreatePatternBars) rhythmCreateBars = rhythmCreatePatternBars;
+    syncRhythmCreatePatternBarsUI();
+    if (els.rcCreateBars) els.rcCreateBars.value = String(getRhythmCreateBars());
+    setRhythmCreatePatternWithDirs(def, preset.pattern, preset.dirs);
+    rhythmCreateSelectedPreset[def.n] = rhythmCreatePresetSelectValue('user', preset.id);
+    renderRhythmCreateStageGrid();
+    renderRhythmCreatePresets();
+}
+
+function handleRhythmCreatePresetChange() {
+    if (!els.rcCreatePresetSelect) return;
+    const def = getRhythmCreateStageDef();
+    const parsed = parseRhythmCreatePresetSelectValue(els.rcCreatePresetSelect.value);
+    if (parsed.type === 'user') {
+        const preset = getRhythmCreateUserPresetsForStage(def.n).find((p) => p.id === parsed.id);
+        if (preset) applyRhythmCreateUserPreset(preset);
+        else renderRhythmCreatePresets();
+        return;
+    }
+    const index = Math.max(0, Math.min(def.presets.length - 1, parsed.index));
+    const p = def.presets[index];
+    if (p) setRhythmCreatePattern(p.pattern, index);
+}
+
+function closeRhythmCreatePresetModal() {
+    if (els.rcCreatePresetModal) els.rcCreatePresetModal.classList.add('hidden');
+    rhythmCreatePresetModalHandler = null;
+}
+
+function openRhythmCreatePresetNameModal(title, message, initialValue, onSubmit) {
+    if (!els.rcCreatePresetModal || !els.rcCreatePresetModalInput || !els.rcCreatePresetModalOk) return;
+    rhythmCreatePresetModalHandler = () => {
+        const name = sanitizeRhythmCreatePresetName(els.rcCreatePresetModalInput.value);
+        if (!name) {
+            closeRhythmCreatePresetModal();
+            return;
+        }
+        closeRhythmCreatePresetModal();
+        onSubmit(name);
+    };
+    if (els.rcCreatePresetModalTitle) els.rcCreatePresetModalTitle.textContent = title;
+    if (els.rcCreatePresetModalMsg) els.rcCreatePresetModalMsg.textContent = message || '';
+    els.rcCreatePresetModalInput.classList.remove('hidden');
+    els.rcCreatePresetModalInput.value = initialValue || '';
+    els.rcCreatePresetModalOk.textContent = '保存';
+    els.rcCreatePresetModal.classList.remove('hidden');
+    setTimeout(() => {
+        try {
+            els.rcCreatePresetModalInput.focus();
+            els.rcCreatePresetModalInput.select();
+        } catch (e) { /* noop */ }
+    }, 0);
+}
+
+function openRhythmCreatePresetConfirmModal(title, message, okText, onConfirm) {
+    if (!els.rcCreatePresetModal || !els.rcCreatePresetModalInput || !els.rcCreatePresetModalOk) return;
+    rhythmCreatePresetModalHandler = () => {
+        closeRhythmCreatePresetModal();
+        onConfirm();
+    };
+    if (els.rcCreatePresetModalTitle) els.rcCreatePresetModalTitle.textContent = title;
+    if (els.rcCreatePresetModalMsg) els.rcCreatePresetModalMsg.textContent = message || '';
+    els.rcCreatePresetModalInput.classList.add('hidden');
+    els.rcCreatePresetModalInput.value = '';
+    els.rcCreatePresetModalOk.textContent = okText || 'OK';
+    els.rcCreatePresetModal.classList.remove('hidden');
+    setTimeout(() => {
+        try { els.rcCreatePresetModalOk.focus(); } catch (e) { /* noop */ }
+    }, 0);
+}
+
+function showRhythmCreatePresetNotice(title, message) {
+    openRhythmCreatePresetConfirmModal(title, message, 'OK', () => {});
+}
+
+function saveCurrentRhythmCreatePreset() {
+    const def = getRhythmCreateStageDef();
+    if (!canAddRhythmCreateUserPreset(def.n)) {
+        alertRhythmCreatePresetLimit();
+        return;
+    }
+    openRhythmCreatePresetNameModal('プリセットに保存', '現在のリズムに名前をつけて保存します。', '', (rawName) => {
+    const now = Date.now();
+    const pattern = getRhythmCreatePattern(def).slice();
+    const dirs = getRhythmCreateDirs(def).slice();
+    const preset = {
+        id: makeRhythmCreatePresetId(),
+        stageN: def.n,
+        name: makeUniqueRhythmCreatePresetName(def.n, rawName),
+        pattern,
+        dirs: normalizeRhythmCreatePresetDirs(def, pattern, dirs),
+        patternBars: getRhythmCreatePatternBars(),
+        createdAt: now,
+        updatedAt: now,
+    };
+    const list = loadRhythmCreateUserPresets();
+    list.push(preset);
+    saveRhythmCreateUserPresets(list);
+    rhythmCreateSelectedPreset[def.n] = rhythmCreatePresetSelectValue('user', preset.id);
+    renderRhythmCreatePresets();
+    });
+}
+
+function renameSelectedRhythmCreatePreset() {
+    const preset = getSelectedRhythmCreateUserPreset();
+    if (!preset) return;
+    openRhythmCreatePresetNameModal('名前変更', '保存したプリセットの名前を変更します。', preset.name, (rawName) => {
+    const list = loadRhythmCreateUserPresets();
+    const nextName = makeUniqueRhythmCreatePresetName(preset.stageN, rawName, preset.id);
+    const next = list.map((p) => p.id === preset.id ? { ...p, name: nextName, updatedAt: Date.now() } : p);
+    saveRhythmCreateUserPresets(next);
+    rhythmCreateSelectedPreset[preset.stageN] = rhythmCreatePresetSelectValue('user', preset.id);
+    renderRhythmCreatePresets();
+    });
+}
+
+function duplicateSelectedRhythmCreatePreset() {
+    const preset = getSelectedRhythmCreateUserPreset();
+    if (!preset) return;
+    if (!canAddRhythmCreateUserPreset(preset.stageN)) {
+        alertRhythmCreatePresetLimit();
+        return;
+    }
+    const now = Date.now();
+    const copy = {
+        ...preset,
+        id: makeRhythmCreatePresetId(),
+        name: makeRhythmCreatePresetCopyName(preset.stageN, preset.name),
+        pattern: preset.pattern.slice(),
+        dirs: preset.dirs.slice(),
+        createdAt: now,
+        updatedAt: now,
+    };
+    const list = loadRhythmCreateUserPresets();
+    list.push(copy);
+    saveRhythmCreateUserPresets(list);
+    rhythmCreateSelectedPreset[preset.stageN] = rhythmCreatePresetSelectValue('user', copy.id);
+    renderRhythmCreatePresets();
+}
+
+function deleteSelectedRhythmCreatePreset() {
+    const preset = getSelectedRhythmCreateUserPreset();
+    if (!preset) return;
+    openRhythmCreatePresetConfirmModal('プリセットを削除', '「' + preset.name + '」を削除しますか？', '削除', () => {
+    const def = getRhythmCreateStageDef();
+    const list = loadRhythmCreateUserPresets().filter((p) => p.id !== preset.id);
+    saveRhythmCreateUserPresets(list);
+    rhythmCreateSelectedPreset[def.n] = rhythmCreatePresetSelectValue('official', 0);
+    const official = def.presets[0];
+    if (official) setRhythmCreatePattern(official.pattern, 0);
+    else {
+        renderRhythmCreateStageGrid();
+        renderRhythmCreatePresets();
+    }
+    });
 }
 
 function toggleRhythmCreateCell(index) {
@@ -14286,11 +14644,18 @@ function bind() {
     });
     if (els.rcCreateHowtoToggle) els.rcCreateHowtoToggle.addEventListener('click', toggleRhythmCreateHowto);
     if (els.rcCreateEditHelpToggle) els.rcCreateEditHelpToggle.addEventListener('click', toggleRhythmCreateEditHelp);
-    if (els.rcCreatePresetSelect) els.rcCreatePresetSelect.addEventListener('change', () => {
-        const def = getRhythmCreateStageDef();
-        const presetIndex = parseInt(els.rcCreatePresetSelect.value, 10);
-        const p = def.presets[presetIndex];
-        if (p) setRhythmCreatePattern(p.pattern, presetIndex);
+    if (els.rcCreatePresetSelect) els.rcCreatePresetSelect.addEventListener('change', handleRhythmCreatePresetChange);
+    if (els.rcCreatePresetSave) els.rcCreatePresetSave.addEventListener('click', saveCurrentRhythmCreatePreset);
+    if (els.rcCreatePresetRename) els.rcCreatePresetRename.addEventListener('click', renameSelectedRhythmCreatePreset);
+    if (els.rcCreatePresetDuplicate) els.rcCreatePresetDuplicate.addEventListener('click', duplicateSelectedRhythmCreatePreset);
+    if (els.rcCreatePresetDelete) els.rcCreatePresetDelete.addEventListener('click', deleteSelectedRhythmCreatePreset);
+    if (els.rcCreatePresetModalCancel) els.rcCreatePresetModalCancel.addEventListener('click', closeRhythmCreatePresetModal);
+    if (els.rcCreatePresetModalOk) els.rcCreatePresetModalOk.addEventListener('click', () => {
+        if (typeof rhythmCreatePresetModalHandler === 'function') rhythmCreatePresetModalHandler();
+    });
+    if (els.rcCreatePresetModalInput) els.rcCreatePresetModalInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && typeof rhythmCreatePresetModalHandler === 'function') rhythmCreatePresetModalHandler();
+        if (e.key === 'Escape') closeRhythmCreatePresetModal();
     });
     if (els.rcCreatePreviewPlay) els.rcCreatePreviewPlay.addEventListener('click', toggleRhythmCreatePreviewPlay);
     if (els.rcCreatePreviewBalance) els.rcCreatePreviewBalance.addEventListener('input', (e) => {

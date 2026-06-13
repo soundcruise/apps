@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.187">
+    <link rel="stylesheet" href="theme.css?v=0.9.188">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -127,6 +127,12 @@
                     <select class="pce-select rhythm-create-preset-select" id="rc-create-preset-select">
                         <!-- script.js が描画 -->
                     </select>
+                    <button type="button" class="btn-mini rhythm-create-preset-save" id="rc-create-preset-save">プリセットに保存</button>
+                </div>
+                <div class="rhythm-create-preset-actions hidden" id="rc-create-user-preset-actions">
+                    <button type="button" class="btn-mini" id="rc-create-preset-rename">名前変更</button>
+                    <button type="button" class="btn-mini" id="rc-create-preset-duplicate">複製</button>
+                    <button type="button" class="btn-mini btn-reset" id="rc-create-preset-delete">削除</button>
                 </div>
 
                 <div class="pce-pattern rhythm-create-pattern" id="rc-create-stage1-grid" aria-label="4拍のリズムパターン">
@@ -145,6 +151,18 @@
                 </div>
 
                 <button type="button" class="rhythm-create-practice" id="rc-create-practice">このリズムで練習する</button>
+            </div>
+
+            <div class="rhythm-create-preset-modal hidden" id="rc-create-preset-modal" role="dialog" aria-modal="true" aria-labelledby="rc-create-preset-modal-title">
+                <div class="rhythm-create-preset-modal-card">
+                    <div class="rhythm-create-preset-modal-title" id="rc-create-preset-modal-title">プリセット名</div>
+                    <p class="rhythm-create-preset-modal-msg" id="rc-create-preset-modal-msg"></p>
+                    <input class="rhythm-create-preset-modal-input" id="rc-create-preset-modal-input" type="text" maxlength="40" autocomplete="off">
+                    <div class="rhythm-create-preset-modal-actions">
+                        <button type="button" class="btn-mini" id="rc-create-preset-modal-cancel">キャンセル</button>
+                        <button type="button" class="btn-primary" id="rc-create-preset-modal-ok">OK</button>
+                    </div>
+                </div>
             </div>
 
             <!-- PROカスタムSTAGE一覧（v0.9.168）。保存済みSTAGEのPlay/編集/削除の導線。戻るは共通ナビ #app-nav。 -->
@@ -1183,7 +1201,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.187"></script>
+    <script src="script.js?v=0.9.188"></script>
 </body>
 
 </html>
