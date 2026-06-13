@@ -1959,7 +1959,7 @@ input:checked + .toggle-slider:before {
     position: relative;
     z-index: 1;
     display: block;
-    padding-right: 56px; /* PRO バッジと被らない逃げ（保存済みの再生ボタン用） */
+    padding-right: 56px; /* ボタン内右端の ▼ と被らない逃げ（保存済みの再生ボタン用・v2.8.1） */
     font-size: 1.08rem;
     line-height: 1.3;
     color: #f4e6bd;
@@ -2074,8 +2074,9 @@ input:checked + .toggle-slider:before {
 
 /* 固定STAGE編集デモ：PRO カスタムと同じ .pro-custom-saved-btn 系（旧 .memorize-cruise-control-btn--official-demo-save 単体指定は撤去） */
 
-/* 保存済み PRO カスタム STAGE 行のレイアウト
-   メイン行：左に再生、右に [▼][⋮] を縦積み   ／   下段：操作群（▼で開閉） */
+/* 保存済み PRO カスタム STAGE 行のレイアウト（v2.8.1）
+   メイン行：再生ボタン（STAGE名のみ）の内側右端に ▼ を重ねて配置   ／   下段：操作群（▼で開閉）
+   旧 ⋮ 編集ショートカットは廃止（操作は▼メニューへ集約）。 */
 .pro-custom-saved-row {
     display: flex;
     flex-direction: column;
@@ -2084,61 +2085,21 @@ input:checked + .toggle-slider:before {
 }
 
 .pro-custom-saved-row__main {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto auto;
-    gap: 6px 8px;
-    align-items: center;
+    position: relative;
 }
 
 .pro-custom-saved-row__main > .pro-custom-saved-btn {
-    grid-column: 1;
-    grid-row: 1 / span 2;
-    align-self: stretch;
-}
-
-.pro-custom-saved-row__main > .pro-custom-saved-toggle {
-    grid-column: 2;
-    grid-row: 1;
-}
-
-.pro-custom-saved-row__main > .pro-custom-saved-quick-edit {
-    grid-column: 2;
-    grid-row: 2;
-}
-
-/* メイン行の ⋮ ボタン（編集ショートカット）。シャンパン調で再生ボタンと馴染ませる。 */
-.pro-custom-saved-quick-edit {
     box-sizing: border-box;
-    width: 32px;
-    min-width: 32px;
-    align-self: center;
-    justify-self: center;
-    height: 32px;
-    border-radius: 8px;
-    background: rgba(214, 188, 132, 0.06);
-    color: rgba(214, 188, 132, 0.82);
-    font-size: 1.4rem;
-    line-height: 1;
-    font-weight: 700;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    transition: background 0.2s, border-color 0.2s, color 0.2s;
+    width: 100%;
 }
 
-.pro-custom-saved-quick-edit:active {
-    background: rgba(214, 188, 132, 0.12);
-}
-
-@media (hover: hover) {
-    .pro-custom-saved-quick-edit:hover {
-        background: rgba(214, 188, 132, 0.12);
-        color: #f3e6bd;
-        border-color: rgba(232, 206, 148, 0.6);
-    }
+/* ▼ は再生ボタンの内側右端に重ねる（ボタン内に収める） */
+.pro-custom-saved-row__main > .pro-custom-saved-toggle {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-50%);
+    z-index: 2;
 }
 
 .pro-custom-saved-toggle {
@@ -2260,6 +2221,135 @@ input:checked + .toggle-slider:before {
     filter: invert(1);
     opacity: 0.92;
     pointer-events: none;
+}
+
+/* 「？」操作説明ボタン：シャンパン調で他の操作と区別する（v2.8.1） */
+.pro-custom-saved-action-btn--help {
+    font-weight: 800;
+    color: #f3e6bd;
+    border-color: rgba(220, 192, 132, 0.5);
+    background: rgba(214, 188, 132, 0.08);
+}
+
+/* ？で開く簡易説明パネル（操作群の下に全幅で出す・v2.8.1） */
+.pro-custom-saved-help {
+    flex-basis: 100%;
+    margin-top: 4px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px dashed rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.pro-custom-saved-help[hidden] {
+    display: none !important;
+}
+
+.pro-custom-saved-help p {
+    margin: 0 0 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.88);
+    text-align: left;
+}
+
+.pro-custom-saved-help p:last-child {
+    margin-bottom: 0;
+}
+
+.pro-custom-saved-help__ic {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+}
+
+.pro-custom-saved-help__ic .pro-custom-saved-action-icon {
+    width: 18px;
+    height: 18px;
+}
+
+/* 並び替えモード：カード（Play無効・名前表示のみ）と ↑/↓ ボタン（v2.8.1） */
+.pro-custom-saved-btn--static {
+    cursor: default;
+}
+
+@media (hover: hover) {
+    .pro-custom-saved-btn--static:hover {
+        transform: none;
+    }
+}
+
+.pro-custom-saved-row--reorder .pro-custom-saved-btn__title {
+    padding-right: 92px; /* ↑/↓ 2ボタン分の逃げ */
+}
+
+.pro-custom-saved-move {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 6px;
+    z-index: 2;
+}
+
+.pro-custom-saved-move-btn {
+    box-sizing: border-box;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid rgba(196, 168, 110, 0.4);
+    border-radius: 8px;
+    background: rgba(214, 188, 132, 0.07);
+    color: #f3e6bd;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.pro-custom-saved-move-btn:active {
+    background: rgba(214, 188, 132, 0.14);
+}
+
+.pro-custom-saved-move-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+/* 一覧の一番下「順番並び替え／並び替えを終わる」トグル（2件以上のときだけ表示・v2.8.1） */
+.pro-custom-saved-reorder-toggle {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px dashed rgba(220, 192, 132, 0.55);
+    background: rgba(214, 188, 132, 0.06);
+    color: #f3e6bd;
+    font-weight: 700;
+    font-size: 0.92rem;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.pro-custom-saved-reorder-toggle:active {
+    background: rgba(214, 188, 132, 0.12);
+}
+
+.pro-custom-saved-reorder-toggle.is-active {
+    border-style: solid;
+    background: rgba(214, 188, 132, 0.14);
 }
 
 /* 編集画面ヘッダーのサブ表示（〜を新規作成 / 〜を編集） */

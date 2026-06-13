@@ -1,5 +1,5 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.8.0';
-window.FRETBOARD_CRUISE_APP_VERSION = '2.8.0';
+const FRETBOARD_CRUISE_APP_VERSION = '2.8.1';
+window.FRETBOARD_CRUISE_APP_VERSION = '2.8.1';
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = false;
 const DEBUG_PORTRAIT_FRETBOARD_LAYOUT = false;
@@ -2189,6 +2189,21 @@ function renameProCustomStageById(id, newName) {
     return !!saveProCustomStageInArray({ ...cur, name: trimmed });
 }
 
+/** 保存済みSTAGEの並び順を1つ移動（dir: -1=上 / +1=下）。配列順＝表示順として保存する。成功したら true。 */
+function moveProCustomStageById(id, dir) {
+    if (isStandardEdition()) return false;
+    const stages = getSavedProCustomStages();
+    const from = stages.findIndex(s => s.id === id);
+    if (from < 0) return false;
+    const to = from + dir;
+    if (to < 0 || to >= stages.length) return false;
+    const tmp = stages[from];
+    stages[from] = stages[to];
+    stages[to] = tmp;
+    state.settings.cruiseProCustomStages = stages;
+    return true;
+}
+
 function getDefaultProCustomQuizStageSettings() {
     return {
         id: null,
@@ -2309,6 +2324,21 @@ function renameProCustomQuizStageById(id, newName) {
     const cur = getSavedProCustomQuizStageById(id);
     if (!cur) return false;
     return !!saveProCustomQuizStageInArray({ ...cur, name: trimmed });
+}
+
+/** クイズ用：保存済みSTAGEの並び順を1つ移動（dir: -1=上 / +1=下）。配列順＝表示順として保存する。成功したら true。 */
+function moveProCustomQuizStageById(id, dir) {
+    if (isStandardEdition()) return false;
+    const stages = getSavedProCustomQuizStages();
+    const from = stages.findIndex(s => s.id === id);
+    if (from < 0) return false;
+    const to = from + dir;
+    if (to < 0 || to >= stages.length) return false;
+    const tmp = stages[from];
+    stages[from] = stages[to];
+    stages[to] = tmp;
+    state.settings.quizProCustomStages = stages;
+    return true;
 }
 
 function normalizeProCustomEditorState(raw) {
@@ -8422,6 +8452,11 @@ function scheduleRuleStep31PairLineUpdates() {
     };
 }
 
+/** 保存済みPROカスタムSTAGEの「順番並び替え」モード（たどる用／クイズ用で別管理・v2.8.1）。
+    renderApp の再描画をまたいで保持し、戻る/TOPで画面を離れるときは必ず解除する。 */
+let proCustomCruiseReorderMode = false;
+let proCustomQuizReorderMode = false;
+
 function renderStageSelect(app) {
     const isCruiseMode = state.memorize.playMode === 'cruise';
     const stageSelectTitle = isCruiseMode ? '🛳️ 指板をたどる' : '🎯 指板クイズ';
@@ -8470,6 +8505,9 @@ function renderStageSelect(app) {
     const proCustomReachedLimit = savedProCustomStages.length >= PRO_CUSTOM_STAGE_MAX_SAVED;
     const savedProCustomQuizStages = !isCruiseMode ? getSavedProCustomQuizStages() : [];
     const proCustomQuizReachedLimit = savedProCustomQuizStages.length >= PRO_CUSTOM_STAGE_MAX_SAVED;
+    // 0件/1件では並び替えできないので、モードを必ず解除しておく（v2.8.1）
+    if (isCruiseMode && savedProCustomStages.length < 2) proCustomCruiseReorderMode = false;
+    if (!isCruiseMode && savedProCustomQuizStages.length < 2) proCustomQuizReorderMode = false;
     /** 「PROカスタムSTAGE」行は常に "新規追加" の入口。タップすると空の編集画面が開く。
         既存STAGEの編集は下に並ぶ各保存STAGE行の ▼ → ⚙️ から行う。 */
     const proCustomEditorRowHtml = isCruiseMode ? `
@@ -8482,33 +8520,58 @@ function renderStageSelect(app) {
             </button>
         </div>
     ` : '';
-    /** 各保存済みSTAGEは「再生ボタン＋⋮編集ボタン＋▼トグル」を1行に並べ、
-        ▼トグルで開く操作群（✏️名前変更・⚙️編集・📋複製・🗑️削除）を別行に表示する。
-        ⋮ は素早く編集画面に飛ぶショートカット（▼→⚙️ と同じ動き）。 */
-    const proCustomSavedRowsHtml = savedProCustomStages.map((stage) => {
+    /** 各保存済みSTAGEは「Playボタン（STAGE名のみ）＋ボタン内右側の▼」で1行に表示し（v2.8.1）、
+        ▼で開く操作群（✏️名前の編集・📝中身の編集・コピー・🗑️ステージの削除・？説明）を別行に表示する。
+        旧 ⋮ 編集ショートカット／PROバッジ／「N音 / カポN」の説明書きは廃止（操作は▼メニューへ集約）。
+        並び替えモード中は Play/▼ を出さず、↑/↓ だけで順番を入れ替える。 */
+    const proCustomSavedRowsHtml = savedProCustomStages.map((stage, index) => {
         const safeId = escapeHtml(stage.id);
+        const titleHtml = `<span class="pro-custom-saved-btn__title">${escapeHtml(stage.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}</span>`;
+        if (proCustomCruiseReorderMode) {
+            return `
+        <div class="stage-route-row stage-route-row--pro-custom-saved pro-custom-saved-row pro-custom-saved-row--reorder" data-pro-custom-row-id="${safeId}">
+            <div class="pro-custom-saved-row__main">
+                <div class="stage-btn pro-custom-saved-btn pro-custom-saved-btn--static">${titleHtml}</div>
+                <span class="pro-custom-saved-move">
+                    <button type="button" class="pro-custom-saved-move-btn" data-pro-custom-move="-1" data-pro-custom-target-id="${safeId}" aria-label="上へ移動"${index === 0 ? ' disabled' : ''}>↑</button>
+                    <button type="button" class="pro-custom-saved-move-btn" data-pro-custom-move="1" data-pro-custom-target-id="${safeId}" aria-label="下へ移動"${index === savedProCustomStages.length - 1 ? ' disabled' : ''}>↓</button>
+                </span>
+            </div>
+        </div>
+        `;
+        }
         return `
         <div class="stage-route-row stage-route-row--pro-custom-saved pro-custom-saved-row" data-pro-custom-row-id="${safeId}">
             <div class="pro-custom-saved-row__main">
                 <button class="stage-btn pro-custom-saved-btn pro-custom-saved-btn--play" type="button" data-pro-custom-play-id="${safeId}">
-                    <span class="pro-custom-saved-btn__badge" aria-hidden="true">PRO</span>
-                    <span class="pro-custom-saved-btn__title">${escapeHtml(stage.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}</span>
-                    <span class="stage-desc pro-custom-saved-btn__desc">${stage.route.length}音 / カポ${stage.capo}</span>
+                    ${titleHtml}
                 </button>
-                <button type="button" class="pro-custom-saved-quick-edit" data-pro-custom-action="edit" data-pro-custom-target-id="${safeId}" aria-label="このSTAGEを編集" title="編集">⋮</button>
                 <button type="button" class="pro-custom-saved-toggle" data-pro-custom-toggle-id="${safeId}" aria-expanded="false" aria-haspopup="true" aria-label="その他の操作を表示" title="その他の操作">
                     <span class="pro-custom-saved-toggle__chevron" aria-hidden="true">▼</span>
                 </button>
             </div>
             <div class="pro-custom-saved-actions" hidden role="group" aria-label="PROカスタムSTAGEの操作" data-pro-custom-actions-id="${safeId}">
-                <button type="button" class="icon-btn pro-custom-saved-action-btn" data-pro-custom-action="rename" data-pro-custom-target-id="${safeId}" title="名前を変更" aria-label="名前を変更">✏️</button>
-                <button type="button" class="icon-btn pro-custom-saved-action-btn" data-pro-custom-action="edit" data-pro-custom-target-id="${safeId}" title="このSTAGEを編集" aria-label="このSTAGEを編集">⚙️</button>
-                <button type="button" class="icon-btn pro-custom-saved-action-btn pro-custom-saved-action-btn--duplicate" data-pro-custom-action="duplicate" data-pro-custom-target-id="${safeId}" title="複製" aria-label="複製" ${proCustomReachedLimit ? 'disabled' : ''}><img src="../assets/icon-duplicate.png?v=1" class="pro-custom-saved-action-icon" alt="" decoding="async" width="20" height="20"></button>
-                <button type="button" class="icon-btn pro-custom-saved-action-btn pro-custom-saved-action-btn--delete" data-pro-custom-action="delete" data-pro-custom-target-id="${safeId}" title="このSTAGEを削除" aria-label="このSTAGEを削除">🗑️</button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn" data-pro-custom-action="rename" data-pro-custom-target-id="${safeId}" title="名前の編集" aria-label="名前の編集">✏️</button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn" data-pro-custom-action="edit" data-pro-custom-target-id="${safeId}" title="中身の編集" aria-label="中身の編集">📝</button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn pro-custom-saved-action-btn--duplicate" data-pro-custom-action="duplicate" data-pro-custom-target-id="${safeId}" title="コピー" aria-label="コピー" ${proCustomReachedLimit ? 'disabled' : ''}><img src="../assets/icon-duplicate.png?v=1" class="pro-custom-saved-action-icon" alt="" decoding="async" width="20" height="20"></button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn pro-custom-saved-action-btn--delete" data-pro-custom-action="delete" data-pro-custom-target-id="${safeId}" title="ステージの削除" aria-label="ステージの削除">🗑️</button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn pro-custom-saved-action-btn--help" data-pro-custom-action="help" data-pro-custom-target-id="${safeId}" title="操作の説明" aria-label="操作の説明">？</button>
+                <div class="pro-custom-saved-help" hidden>
+                    <p><span class="pro-custom-saved-help__ic">✏️</span>名前の編集：STAGE名だけを変更します。</p>
+                    <p><span class="pro-custom-saved-help__ic">📝</span>中身の編集：STAGEの内容や設定を編集します。</p>
+                    <p><span class="pro-custom-saved-help__ic"><img src="../assets/icon-duplicate.png?v=1" class="pro-custom-saved-action-icon" alt="" decoding="async" width="18" height="18"></span>コピー：同じ内容のSTAGEを複製します。</p>
+                    <p><span class="pro-custom-saved-help__ic">🗑️</span>ステージの削除：このSTAGEを削除します。</p>
+                </div>
             </div>
         </div>
         `;
     }).join('');
+    /** 一覧の一番下「順番並び替え」トグル（2件以上のときだけ表示・v2.8.1）。 */
+    const proCustomReorderToggleHtml = (isCruiseMode && savedProCustomStages.length >= 2) ? `
+        <div class="stage-route-row stage-route-row--pro-custom-reorder">
+            <button type="button" class="pro-custom-saved-reorder-toggle${proCustomCruiseReorderMode ? ' is-active' : ''}" id="btn-pro-custom-reorder" aria-pressed="${proCustomCruiseReorderMode ? 'true' : 'false'}">${proCustomCruiseReorderMode ? '並び替えを終わる' : '順番並び替え'}</button>
+        </div>
+    ` : '';
     const proCustomQuizEditorRowHtml = !isCruiseMode ? `
         <div class="stage-route-row stage-route-row--pro-custom">
             <button class="stage-btn pro-custom-saved-btn pro-custom-saved-btn--editor" type="button" id="btn-pro-custom-quiz-stage" ${proCustomQuizReachedLimit ? 'disabled' : ''}>
@@ -8519,34 +8582,56 @@ function renderStageSelect(app) {
             </button>
         </div>
     ` : '';
-    const proCustomQuizSavedRowsHtml = savedProCustomQuizStages.map((stage) => {
+    const proCustomQuizSavedRowsHtml = savedProCustomQuizStages.map((stage, index) => {
         const safeId = escapeHtml(stage.id);
-        const noteCount = stage.groups.reduce((sum, group) => sum + (Array.isArray(group.notes) ? group.notes.length : 0), 0);
+        const titleHtml = `<span class="pro-custom-saved-btn__title">${escapeHtml(stage.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}</span>`;
+        if (proCustomQuizReorderMode) {
+            return `
+        <div class="stage-route-row stage-route-row--pro-custom-saved pro-custom-saved-row pro-custom-saved-row--reorder" data-pro-custom-quiz-row-id="${safeId}">
+            <div class="pro-custom-saved-row__main">
+                <div class="stage-btn pro-custom-saved-btn pro-custom-saved-btn--static">${titleHtml}</div>
+                <span class="pro-custom-saved-move">
+                    <button type="button" class="pro-custom-saved-move-btn" data-pro-custom-quiz-move="-1" data-pro-custom-quiz-target-id="${safeId}" aria-label="上へ移動"${index === 0 ? ' disabled' : ''}>↑</button>
+                    <button type="button" class="pro-custom-saved-move-btn" data-pro-custom-quiz-move="1" data-pro-custom-quiz-target-id="${safeId}" aria-label="下へ移動"${index === savedProCustomQuizStages.length - 1 ? ' disabled' : ''}>↓</button>
+                </span>
+            </div>
+        </div>
+        `;
+        }
         return `
         <div class="stage-route-row stage-route-row--pro-custom-saved pro-custom-saved-row" data-pro-custom-quiz-row-id="${safeId}">
             <div class="pro-custom-saved-row__main">
                 <button class="stage-btn pro-custom-saved-btn pro-custom-saved-btn--play" type="button" data-pro-custom-quiz-play-id="${safeId}">
-                    <span class="pro-custom-saved-btn__badge" aria-hidden="true">PRO</span>
-                    <span class="pro-custom-saved-btn__title">${escapeHtml(stage.name || PRO_CUSTOM_STAGE_DEFAULT_NAME)}</span>
-                    <span class="stage-desc pro-custom-saved-btn__desc">${noteCount}音 / カポ${stage.capo}</span>
+                    ${titleHtml}
                 </button>
-                <button type="button" class="pro-custom-saved-quick-edit" data-pro-custom-quiz-action="edit" data-pro-custom-quiz-target-id="${safeId}" aria-label="このSTAGEを編集" title="編集">⋮</button>
                 <button type="button" class="pro-custom-saved-toggle" data-pro-custom-quiz-toggle-id="${safeId}" aria-expanded="false" aria-haspopup="true" aria-label="その他の操作を表示" title="その他の操作">
                     <span class="pro-custom-saved-toggle__chevron" aria-hidden="true">▼</span>
                 </button>
             </div>
             <div class="pro-custom-saved-actions" hidden role="group" aria-label="PROカスタムSTAGEの操作" data-pro-custom-quiz-actions-id="${safeId}">
-                <button type="button" class="icon-btn pro-custom-saved-action-btn" data-pro-custom-quiz-action="rename" data-pro-custom-quiz-target-id="${safeId}" title="名前を変更" aria-label="名前を変更">✏️</button>
-                <button type="button" class="icon-btn pro-custom-saved-action-btn" data-pro-custom-quiz-action="edit" data-pro-custom-quiz-target-id="${safeId}" title="このSTAGEを編集" aria-label="このSTAGEを編集">⚙️</button>
-                <button type="button" class="icon-btn pro-custom-saved-action-btn pro-custom-saved-action-btn--duplicate" data-pro-custom-quiz-action="duplicate" data-pro-custom-quiz-target-id="${safeId}" title="複製" aria-label="複製" ${proCustomQuizReachedLimit ? 'disabled' : ''}><img src="../assets/icon-duplicate.png?v=1" class="pro-custom-saved-action-icon" alt="" decoding="async" width="20" height="20"></button>
-                <button type="button" class="icon-btn pro-custom-saved-action-btn pro-custom-saved-action-btn--delete" data-pro-custom-quiz-action="delete" data-pro-custom-quiz-target-id="${safeId}" title="このSTAGEを削除" aria-label="このSTAGEを削除">🗑️</button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn" data-pro-custom-quiz-action="rename" data-pro-custom-quiz-target-id="${safeId}" title="名前の編集" aria-label="名前の編集">✏️</button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn" data-pro-custom-quiz-action="edit" data-pro-custom-quiz-target-id="${safeId}" title="中身の編集" aria-label="中身の編集">📝</button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn pro-custom-saved-action-btn--duplicate" data-pro-custom-quiz-action="duplicate" data-pro-custom-quiz-target-id="${safeId}" title="コピー" aria-label="コピー" ${proCustomQuizReachedLimit ? 'disabled' : ''}><img src="../assets/icon-duplicate.png?v=1" class="pro-custom-saved-action-icon" alt="" decoding="async" width="20" height="20"></button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn pro-custom-saved-action-btn--delete" data-pro-custom-quiz-action="delete" data-pro-custom-quiz-target-id="${safeId}" title="ステージの削除" aria-label="ステージの削除">🗑️</button>
+                <button type="button" class="icon-btn pro-custom-saved-action-btn pro-custom-saved-action-btn--help" data-pro-custom-quiz-action="help" data-pro-custom-quiz-target-id="${safeId}" title="操作の説明" aria-label="操作の説明">？</button>
+                <div class="pro-custom-saved-help" hidden>
+                    <p><span class="pro-custom-saved-help__ic">✏️</span>名前の編集：STAGE名だけを変更します。</p>
+                    <p><span class="pro-custom-saved-help__ic">📝</span>中身の編集：STAGEの内容や設定を編集します。</p>
+                    <p><span class="pro-custom-saved-help__ic"><img src="../assets/icon-duplicate.png?v=1" class="pro-custom-saved-action-icon" alt="" decoding="async" width="18" height="18"></span>コピー：同じ内容のSTAGEを複製します。</p>
+                    <p><span class="pro-custom-saved-help__ic">🗑️</span>ステージの削除：このSTAGEを削除します。</p>
+                </div>
             </div>
         </div>
         `;
     }).join('');
+    const proCustomQuizReorderToggleHtml = (!isCruiseMode && savedProCustomQuizStages.length >= 2) ? `
+        <div class="stage-route-row stage-route-row--pro-custom-reorder">
+            <button type="button" class="pro-custom-saved-reorder-toggle${proCustomQuizReorderMode ? ' is-active' : ''}" id="btn-pro-custom-quiz-reorder" aria-pressed="${proCustomQuizReorderMode ? 'true' : 'false'}">${proCustomQuizReorderMode ? '並び替えを終わる' : '順番並び替え'}</button>
+        </div>
+    ` : '';
     const proCustomStageHtml = isCruiseMode
-        ? `${proCustomEditorRowHtml}${proCustomSavedRowsHtml}`
-        : `${proCustomQuizEditorRowHtml}${proCustomQuizSavedRowsHtml}`;
+        ? `${proCustomEditorRowHtml}${proCustomSavedRowsHtml}${proCustomReorderToggleHtml}`
+        : `${proCustomQuizEditorRowHtml}${proCustomQuizSavedRowsHtml}${proCustomQuizReorderToggleHtml}`;
     app.innerHTML = `
         ${buildPageHeader({
             headerClass: 'page-header--stage-select',
@@ -8564,12 +8649,16 @@ function renderStageSelect(app) {
     `;
 
     document.getElementById('btn-back').onclick = () => {
+        proCustomCruiseReorderMode = false;
+        proCustomQuizReorderMode = false;
         state.course = null;
         saveState();
         renderApp();
     };
 
     document.getElementById('btn-home-stage').onclick = () => {
+        proCustomCruiseReorderMode = false;
+        proCustomQuizReorderMode = false;
         state.course = null;
         saveState();
         renderApp();
@@ -8695,6 +8784,13 @@ function renderStageSelect(app) {
             const action = btn.getAttribute('data-pro-custom-action');
             const id = btn.getAttribute('data-pro-custom-target-id');
             if (!id) return;
+            if (action === 'help') {
+                // 「？」：各操作ボタンの簡易説明パネルを開閉する（保存処理なし）
+                const row = btn.closest('.pro-custom-saved-row');
+                const help = row ? row.querySelector('.pro-custom-saved-help') : null;
+                if (help) help.hidden = !help.hidden;
+                return;
+            }
             if (action === 'edit') {
                 openProCustomEditor({ stageId: id });
                 return;
@@ -8730,6 +8826,34 @@ function renderStageSelect(app) {
             } else if (action === 'delete') {
                 if (!window.confirm(`「${cur.name}」を削除しますか？`)) return;
                 deleteProCustomStageById(id);
+                saveState();
+                renderApp();
+            }
+        };
+    });
+
+    // 「順番並び替え／並び替えを終わる」トグル（たどる・v2.8.1）
+    const proCustomReorderBtn = document.getElementById('btn-pro-custom-reorder');
+    if (proCustomReorderBtn) {
+        proCustomReorderBtn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            proCustomCruiseReorderMode = !proCustomCruiseReorderMode;
+            renderApp();
+        };
+    }
+
+    // 並び替えモード中の ↑/↓（たどる・v2.8.1）。配列順を入れ替えて保存する。
+    document.querySelectorAll('[data-pro-custom-move]').forEach(btn => {
+        btn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (btn.disabled) return;
+            if (!guardProPersistentSave('save')) return;
+            const dir = parseInt(btn.getAttribute('data-pro-custom-move'), 10);
+            const id = btn.getAttribute('data-pro-custom-target-id');
+            if (!id || !Number.isFinite(dir)) return;
+            if (moveProCustomStageById(id, dir)) {
                 saveState();
                 renderApp();
             }
@@ -8841,6 +8965,13 @@ function renderStageSelect(app) {
             const action = btn.getAttribute('data-pro-custom-quiz-action');
             const id = btn.getAttribute('data-pro-custom-quiz-target-id');
             if (!id) return;
+            if (action === 'help') {
+                // 「？」：各操作ボタンの簡易説明パネルを開閉する（保存処理なし）
+                const row = btn.closest('.pro-custom-saved-row');
+                const help = row ? row.querySelector('.pro-custom-saved-help') : null;
+                if (help) help.hidden = !help.hidden;
+                return;
+            }
             if (action === 'edit') {
                 openProCustomQuizEditor({ stageId: id });
                 return;
@@ -8876,6 +9007,34 @@ function renderStageSelect(app) {
             } else if (action === 'delete') {
                 if (!window.confirm(`「${cur.name}」を削除しますか？`)) return;
                 deleteProCustomQuizStageById(id);
+                saveState();
+                renderApp();
+            }
+        };
+    });
+
+    // 「順番並び替え／並び替えを終わる」トグル（クイズ・v2.8.1）
+    const proCustomQuizReorderBtn = document.getElementById('btn-pro-custom-quiz-reorder');
+    if (proCustomQuizReorderBtn) {
+        proCustomQuizReorderBtn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            proCustomQuizReorderMode = !proCustomQuizReorderMode;
+            renderApp();
+        };
+    }
+
+    // 並び替えモード中の ↑/↓（クイズ・v2.8.1）。配列順を入れ替えて保存する。
+    document.querySelectorAll('[data-pro-custom-quiz-move]').forEach(btn => {
+        btn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (btn.disabled) return;
+            if (!guardProPersistentSave('save')) return;
+            const dir = parseInt(btn.getAttribute('data-pro-custom-quiz-move'), 10);
+            const id = btn.getAttribute('data-pro-custom-quiz-target-id');
+            if (!id || !Number.isFinite(dir)) return;
+            if (moveProCustomQuizStageById(id, dir)) {
                 saveState();
                 renderApp();
             }
