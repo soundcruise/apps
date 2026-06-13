@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.178';
+const RHYTHM_CRUISE_VERSION = '0.9.180';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -554,6 +554,12 @@ const els = {
     rcCreatePresetSelect: $('rc-create-preset-select'),
     rcCreatePreviewPlay: $('rc-create-preview-play'),
     rcCreatePreviewBalance: $('rc-create-preview-balance'),
+    rcCreateBpm: $('rc-create-bpm'),
+    rcCreateBpmDown: $('rc-create-bpm-down'),
+    rcCreateBpmUp: $('rc-create-bpm-up'),
+    rcCreateBars: $('rc-create-bars'),
+    rcCreateBarsDown: $('rc-create-bars-down'),
+    rcCreateBarsUp: $('rc-create-bars-up'),
     rcCreatePractice: $('rc-create-practice'),
     catKiso: $('cat-kiso'),
     catStroke: $('cat-stroke'),
@@ -1013,14 +1019,11 @@ const RHYTHM_CREATE_STAGES = [
         dirs: ['down', 'down', 'down', 'down'],
         motion: 'all-down',
         previewId: 'rhythm_create_stage1_preview',
-        howto: '4分音符は、1拍ごとにリズムを作る基本の音符です。<br>音を出す場所、休む場所、前の音を伸ばす場所を選んで、リズムの土台を作ってみましょう。',
+        howto: '4分音符は、1拍ごとにリズムを作る基本の音符です。<br>音を出す場所（タン）と、休む場所（ウン）を選んで、4分のリズムの土台を作ってみましょう。',
         presets: [
-            { name: '4分ストローク', pattern: ['hit', 'hit', 'hit', 'hit'] },
+            { name: '4分連続', pattern: ['hit', 'hit', 'hit', 'hit'] },
             { name: '1・3拍', pattern: ['hit', 'rest', 'hit', 'rest'] },
             { name: '2・4拍', pattern: ['rest', 'hit', 'rest', 'hit'] },
-            { name: '最後を休む', pattern: ['hit', 'hit', 'hit', 'rest'] },
-            { name: '最後を伸ばす', pattern: ['hit', 'hit', 'hit', 'tie'] },
-            { name: '空白から作る', pattern: ['rest', 'rest', 'rest', 'rest'] },
         ],
     },
     {
@@ -1042,10 +1045,9 @@ const RHYTHM_CREATE_STAGES = [
             { name: '基本の8ビート', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'] },
             { name: '表だけ', pattern: ['hit', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest'] },
             { name: '裏だけ', pattern: ['rest', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit'] },
-            { name: '弾き語り8ビート', pattern: ['rest', 'hit', 'hit', 'hit', 'rest', 'hit', 'hit', 'hit'] },
-            { name: '休符で軽くする', pattern: ['rest', 'hit', 'hit', 'rest', 'rest', 'hit', 'hit', 'rest'] },
-            { name: '最後を伸ばす', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'tie'] },
-            { name: '弾き語りタイ基本', pattern: ['rest', 'hit', 'tie', 'hit', 'rest', 'hit', 'tie', 'hit'] },
+            { name: '1・3拍強調', pattern: ['hit', 'tie', 'hit', 'hit', 'hit', 'tie', 'hit', 'hit'] },
+            { name: '2・4拍強調', pattern: ['hit', 'hit', 'hit', 'tie', 'hit', 'hit', 'hit', 'tie'] },
+            { name: '王道の8分ストローク', pattern: ['hit', 'tie', 'hit', 'hit', 'tie', 'hit', 'hit', 'hit'] },
         ],
     },
     {
@@ -1124,6 +1126,45 @@ const RHYTHM_CREATE_STAGES = [
 let rhythmCreateCurrentStage = 1;
 const rhythmCreateStagePatterns = {};
 const rhythmCreateSelectedPreset = {};
+
+/* 「リズムを作る」プレビュー専用のBPM・再生小節数（v0.9.180）。
+   PROカスタムSTAGEの設定・保存形式・通常STAGEには一切影響しない。localStorageにも保存しない（画面を開くたび既定へ）。
+   ・編集対象は常に1小節パターン。表示・再生はこの小節数ぶん繰り返す。 */
+const RHYTHM_CREATE_BPM_DEFAULT = 80;
+const RHYTHM_CREATE_BPM_MIN = 30;   // 本体 RHYTHM_CUSTOM_BPM_MIN/MAX と同範囲
+const RHYTHM_CREATE_BPM_MAX = 240;
+const RHYTHM_CREATE_BARS_DEFAULT = 4;
+const RHYTHM_CREATE_BARS_MIN = 1;
+const RHYTHM_CREATE_BARS_MAX = 8;
+let rhythmCreateBpm = RHYTHM_CREATE_BPM_DEFAULT;
+let rhythmCreateBars = RHYTHM_CREATE_BARS_DEFAULT;
+function getRhythmCreateBpm() { return rhythmCreateBpm; }
+function getRhythmCreateBars() { return rhythmCreateBars; }
+function clampRhythmCreateBpm(v) {
+    const n = Math.round(Number(v));
+    return Number.isFinite(n) ? Math.max(RHYTHM_CREATE_BPM_MIN, Math.min(RHYTHM_CREATE_BPM_MAX, n)) : RHYTHM_CREATE_BPM_DEFAULT;
+}
+function clampRhythmCreateBars(v) {
+    const n = Math.round(Number(v));
+    return Number.isFinite(n) ? Math.max(RHYTHM_CREATE_BARS_MIN, Math.min(RHYTHM_CREATE_BARS_MAX, n)) : RHYTHM_CREATE_BARS_DEFAULT;
+}
+/* BPM変更：安全優先で一度停止してから現在値を更新（再生中の変更でも破綻しない）。表示は変わらないので再描画不要。 */
+function setRhythmCreateBpmFromValue(v) {
+    stopPreviewRhythm();
+    rhythmCreateBpm = clampRhythmCreateBpm(v);
+    if (els.rcCreateBpm) els.rcCreateBpm.value = String(rhythmCreateBpm);
+}
+/* 小節数変更：安全優先で一度停止し、音符画面（表示小節数）も更新する。 */
+function setRhythmCreateBarsFromValue(v) {
+    stopPreviewRhythm();
+    rhythmCreateBars = clampRhythmCreateBars(v);
+    if (els.rcCreateBars) els.rcCreateBars.value = String(rhythmCreateBars);
+    renderRhythmCreateStageGrid();
+}
+/* −/＋ボタン。BPMは「リズム練をする」STAGEと同じ1刻み、小節数は1刻み（クランプはsetterで担保）。 */
+const RHYTHM_CREATE_BPM_STEP = 1;
+function stepRhythmCreateBpm(delta) { setRhythmCreateBpmFromValue(getRhythmCreateBpm() + delta); }
+function stepRhythmCreateBars(delta) { setRhythmCreateBarsFromValue(getRhythmCreateBars() + delta); }
 
 function getRhythmCreateStageDef(n = rhythmCreateCurrentStage) {
     return RHYTHM_CREATE_STAGES.find((s) => s.n === n && s.ready) || RHYTHM_CREATE_STAGES[0];
@@ -1252,12 +1293,17 @@ function renderRhythmCreateStageGrid() {
 function drawRhythmCreateVexLane(VF, mount, def) {
     const { Renderer, Stave, StaveTie, Beam, Voice, Formatter } = VF;
     const cellW = RHYTHM_VEX_CELL_W;
-    const pattern = getRhythmCreatePattern(def);
-    const stagePattern = rhythmCreatePatternToStagePattern(def);
+    const pattern = getRhythmCreatePattern(def);              // 1小節分の編集状態（cellCount セル）
+    const oneBarStage = rhythmCreatePatternToStagePattern(def); // 1小節分のstageセル
+    const cellCount = pattern.length;                          // 1小節のセル数
+    const bars = getRhythmCreateBars();                        // 表示・再生の小節数（1〜8）
+    // 編集対象は常に1小節。表示はその1小節パターンを bars 回くり返す（タップは i%cellCount で1小節へ反映＝全小節連動）。
+    const stagePattern = [];
+    for (let b = 0; b < bars; b++) for (let k = 0; k < oneBarStage.length; k++) stagePattern.push(oneBarStage[k]);
     const d = {
         grid: def.grid,
         timeSignature: '4/4',
-        patternBars: def.patternBars || 1,
+        patternBars: bars,
         pattern: stagePattern,
     };
     const ts = rhythmCustomTimeSig(d.timeSignature);
@@ -1265,7 +1311,7 @@ function drawRhythmCreateVexLane(VF, mount, def) {
     const cellTicks = rhythmGridCellTicks(d.grid);
     const stepsPerBar = rhythmCustomStepsPerBar(d.grid, ts);
     const beatCells = Math.max(1, Math.round(info.beamGroupTicks / cellTicks));
-    const laneW = pattern.length * cellW;
+    const laneW = stagePattern.length * cellW;
     const H = RHYTHM_VEX_LANE_H;
 
     mount.innerHTML = '';
@@ -1339,27 +1385,31 @@ function drawRhythmCreateVexLane(VF, mount, def) {
     const tap = document.createElement('div');
     tap.className = 'pce-vex-tapgrid';
     tap.style.height = H + 'px';
-    pattern.forEach((state, i) => {
+    for (let i = 0; i < stagePattern.length; i++) {
+        const bi = i % cellCount;            // 1小節内の位置（タップ反映先）
+        const state = pattern[bi];
         const btn = document.createElement('button');
         btn.type = 'button';
         const isBeat = ((i % stepsPerBar) % beatCells === 0);
         const isBarStart = (i % stepsPerBar === 0);
         btn.className = 'pce-tap-cell' + (isBeat ? ' beat' : '') + (isBarStart ? ' bar-start' : '') + (isBeat ? ' is-beat' : ' is-offbeat');
-        btn.dataset.index = String(i);
+        btn.dataset.index = String(bi);      // タップは1小節パターンへ反映（全小節の同位置が連動）
         btn.dataset.zone = 'note';
         btn.dataset.state = state;
         btn.setAttribute('aria-pressed', isRhythmCreateHit(state) ? 'true' : 'false');
         btn.setAttribute('aria-label', getRhythmCreateCellLabel(def, i) + 'を切り替え（現在：' + rhythmCreateStateLabel(state) + '）');
         tap.appendChild(btn);
-    });
+    }
     lane.appendChild(tap);
 
     const arrowrow = document.createElement('div');
     arrowrow.className = 'pce-vex-arrowrow';
     const beatrow = document.createElement('div');
     beatrow.className = 'pce-vex-beatrow';
-    pattern.forEach((state, i) => {
-        const cell = rhythmCreateStateToCell(state, i, def);
+    for (let i = 0; i < stagePattern.length; i++) {
+        const bi = i % cellCount;            // 1小節内の位置（矢印・拍ラベルは元パターン基準）
+        const state = pattern[bi];
+        const cell = rhythmCreateStateToCell(state, bi, def);
         const isBarStart = (i % stepsPerBar === 0);
         const arrow = document.createElement('button');
         arrow.type = 'button';
@@ -1370,10 +1420,10 @@ function drawRhythmCreateVexLane(VF, mount, def) {
         arrowrow.appendChild(arrow);
 
         const beat = document.createElement('div');
-        beat.className = 'pce-beat-cell' + (isBeatLabelStrong(def, i) ? ' is-mid' : ' is-faint') + (isBarStart ? ' bar-start' : '');
-        beat.textContent = def.beatLabels[i] || String(i + 1);
+        beat.className = 'pce-beat-cell' + (isBeatLabelStrong(def, bi) ? ' is-mid' : ' is-faint') + (isBarStart ? ' bar-start' : '');
+        beat.textContent = def.beatLabels[bi] || String(bi + 1);
         beatrow.appendChild(beat);
-    });
+    }
     lane.appendChild(arrowrow);
     lane.appendChild(beatrow);
 
@@ -1468,9 +1518,10 @@ function buildRhythmCreatePreviewStage() {
         description: '',
         grid: def.grid,
         timeSignature: '4/4',
+        // 編集・保存される pattern は常に1小節。表示・再生の小節数は barsOverride で渡す（v0.9.180）。
         patternBars: def.patternBars || 1,
         bars: def.patternBars || 1,
-        bpm: 80,
+        bpm: getRhythmCreateBpm(),
         clickMode: 'all',
         rhythmFeel: def.rhythmFeel === 'swing' ? 'swing' : 'straight',
         pattern,
@@ -1480,7 +1531,9 @@ function buildRhythmCreatePreviewStage() {
 
 function startRhythmCreatePreview() {
     const stage = buildRhythmCreatePreviewStage();
-    if (stage) startPreviewRhythmForStage(stage);
+    // 休符/タイの区別はプレビュー共通の既定（distinguishRest=true）で有効。
+    // 小節数は「リズムを作る」専用の barsOverride で渡す（1小節パターンをこの小節数ぶん繰り返し再生）。v0.9.180。
+    if (stage) startPreviewRhythmForStage(stage, { barsOverride: getRhythmCreateBars() });
 }
 
 function toggleRhythmCreatePreviewPlay() {
@@ -1492,6 +1545,11 @@ function resetRhythmCreatePreviewControls() {
     stopPreviewRhythm();
     rhythmPreviewSoundBalance = 0;
     if (els.rcCreatePreviewBalance) els.rcCreatePreviewBalance.value = '50';
+    // BPM・小節数は画面を開くたび既定（80 / 4小節）へ。localStorageには保存しない（v0.9.180）。
+    rhythmCreateBpm = RHYTHM_CREATE_BPM_DEFAULT;
+    rhythmCreateBars = RHYTHM_CREATE_BARS_DEFAULT;
+    if (els.rcCreateBpm) els.rcCreateBpm.value = String(rhythmCreateBpm);
+    if (els.rcCreateBars) els.rcCreateBars.value = String(rhythmCreateBars);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -2957,8 +3015,10 @@ const rhythmPreview = {
     loopIndex: 0,    // 次にスケジュールするループ番号
     loopSec: 0,      // 1ループ長（秒）
     hitOffsets: [],  // 1ループ内の hit 発音オフセット（秒）
+    restOffsets: [], // 1ループ内の休符(rest)オフセット（秒）。distinguishRest時のみ前音カットに使う（v0.9.179）
     clicks: [],      // 1ループ内のクリック {off:秒, accent:bool}
     nodes: [],       // スケジュール済みの音源/ゲイン（停止時に即停止して裏で鳴らさない）
+    distinguishRest: true, // プレビュー再生は共通で休符/タイを区別（休符＝前音カット／タイ＝伸ばす）。v0.9.180で全プレビュー既定true。
 };
 /* 再生位置の縦棒＋自動スクロール（v0.9.136）。譜面プレビュー専用の視覚再生。
    barEl/scrollEl/laneEl は drawRhythmVexPreview が描画時に差し込む。raf は縦棒アニメの requestAnimationFrame id。 */
@@ -3037,16 +3097,18 @@ function buildRhythmPreviewPlan() {
     const targetBars = Math.max(1, Math.round(state.bars || 1));
     const targetCells = eng.cellsPerBar * targetBars;
     const hitOffsets = [];
+    const restOffsets = []; // v0.9.179：休符(rest)位置。鳴っている前音をここで止める（tieは含めない＝伸ばす）。
     const clicks = [];
     for (let i = 0; i < targetCells; i++) {
         const c = base[i % base.length];
         // v0.9.165：スウィング時は engCellOffsetMs(i) が3連ベースの真ん中抜き時刻を返す。straightは i*cellMs と同値。
         if (c && c.hit) hitOffsets.push(engCellOffsetMs(i) / 1000); // hit:trueのみ（rest/tieはhit:falseで除外）
+        else if (c && c.type === 'rest') restOffsets.push(engCellOffsetMs(i) / 1000); // 休符＝前音をカット。tieは伸ばすので除外。
         if (engIsPulse(i)) clicks.push({ off: (i * cellMs) / 1000, accent: engBarStart(i) }); // クリックは拍頭のまま（揺らさない）
     }
     const loopSec = (targetCells * cellMs) / 1000;
     if (!(loopSec > 0)) return null;
-    return { hitOffsets, clicks, loopSec };
+    return { hitOffsets, restOffsets, clicks, loopSec };
 }
 
 /* アコギ単音（Karplus-Strong）を freq・when（ctx絶対時刻・秒）に鳴らす。音感クルーズの playAcousticGuitar を複製。
@@ -3121,6 +3183,29 @@ function schedulePreviewChord(when) {
     if (ctx) { const nowT = ctx.currentTime; rhythmPreview.nodes = rhythmPreview.nodes.filter((n) => n.stopAt > nowT - 0.2); }
 }
 
+/* 休符（rest）位置で、まだ鳴っているギター音を素早く（クリックなく）消音する（v0.9.179）。
+   プレビュー再生共通（rhythmPreview.distinguishRest=true のときのみ呼ばれる。v0.9.180で全プレビュー既定true）。
+   ・rest：このタイミングで前音を止める＝休符として「音が切れた」ように聞こえる。
+   ・tie：そもそも呼ばれない＝前音をそのまま伸ばす。
+   ワンショット音源を時刻 when に gain.setTargetAtTime で短くフェードして止めるだけで、
+   音源システム・本番判定・スコア計算・保存形式には一切接続しない（プレビューの聴こえ方のみ）。 */
+const PREVIEW_REST_RELEASE_SEC = 0.045; // 休符消音の時定数（ブツ切れを避ける短いフェード）
+function schedulePreviewRestCut(when) {
+    const ctx = rhythmPreview.ctx;
+    if (!ctx) return;
+    const cutTime = Math.max(when, ctx.currentTime);
+    rhythmPreview.nodes.forEach((n) => {
+        if (!n || n.kind !== 'guitar' || !n.gain) return;
+        // この休符の時刻にまだ鳴っている音だけを対象（後続 hit は startAt>=cutTime で除外し、止めない）。
+        if (!(n.startAt < cutTime) || !(n.stopAt > cutTime)) return;
+        try {
+            const g = n.gain.gain;
+            g.cancelScheduledValues(cutTime);     // 以降の予約（バランス補正など）を畳んでから
+            g.setTargetAtTime(0.0001, cutTime, PREVIEW_REST_RELEASE_SEC); // 現在値から素早く無音へ
+        } catch (_) { /* 予約失敗は無視（再生自体は止めない） */ }
+    });
+}
+
 /* クリック音を when に鳴らす。STAGE本体の scheduleStageClick と同系統（square・accentで高め）。
    clickEnabled / clickVolume の設定はSTAGEと共通で尊重する。STAGE側ロジックには接続しない。 */
 function schedulePreviewClick(when, accent) {
@@ -3156,6 +3241,10 @@ function rhythmPreviewSchedulerTick() {
     while (rhythmPreview.baseTime + rhythmPreview.loopIndex * rhythmPreview.loopSec < horizon) {
         const loopStart = rhythmPreview.baseTime + rhythmPreview.loopIndex * rhythmPreview.loopSec;
         for (const off of rhythmPreview.hitOffsets) schedulePreviewChord(loopStart + off);
+        // 休符は、コードを予約した後（＝鳴っている音が nodes に揃った状態）で前音を止める（v0.9.179・distinguishRest時のみ）。
+        if (rhythmPreview.distinguishRest) {
+            for (const off of rhythmPreview.restOffsets) schedulePreviewRestCut(loopStart + off);
+        }
         for (const c of rhythmPreview.clicks) schedulePreviewClick(loopStart + c.off, c.accent);
         rhythmPreview.loopIndex++;
     }
@@ -3163,7 +3252,7 @@ function rhythmPreviewSchedulerTick() {
 }
 
 /* リズム確認音の開始（現在のBPM・patternBars分ループ）。ユーザー操作直後に呼ばれる前提。 */
-function startPreviewRhythm() {
+function startPreviewRhythm(opts) {
     const plan = buildRhythmPreviewPlan();
     if (!plan) return;
     const ctx = ensureAudio(); // 既存AudioContextを共用（suspendedなら resume を試みる）
@@ -3171,6 +3260,11 @@ function startPreviewRhythm() {
     stopPreviewRhythm(); // 念のため二重再生を防ぐ
     rhythmPreview.ctx = ctx;
     rhythmPreview.hitOffsets = plan.hitOffsets;
+    rhythmPreview.restOffsets = plan.restOffsets;
+    // プレビュー再生は共通で休符/タイを区別する（v0.9.180）。休符＝前音カット、タイ＝伸ばす。
+    // 既定 true（リズムを作る／PROカスタム編集の「リズムを再生」／テスト再生プレビュー すべて有効）。
+    // 万一無効化したい経路がある場合のみ opts.distinguishRest:false を渡す。本番判定・保存形式には一切影響しない。
+    rhythmPreview.distinguishRest = !(opts && opts.distinguishRest === false);
     rhythmPreview.clicks = plan.clicks;
     rhythmPreview.loopSec = plan.loopSec;
     rhythmPreview.loopIndex = 0;
@@ -3184,7 +3278,7 @@ function startPreviewRhythm() {
 
 /* 任意の一時STAGEを、既存のリズム確認再生へ通す入口。
    plan 作成後は eng/state を元へ戻すため、STAGE本番・保存済みデータ・判定には影響しない。 */
-function startPreviewRhythmForStage(rawStage) {
+function startPreviewRhythmForStage(rawStage, opts) {
     const stage = normalizeRhythmCustomStageSettings(rawStage);
     if (!stage || !stage.pattern || !stage.pattern.length) return;
     const engBackup = { ...eng };
@@ -3193,8 +3287,14 @@ function startPreviewRhythmForStage(rawStage) {
     try {
         configureEngineForCustom(stage);
         state.bpm = clampNum(stage.bpm, RHYTHM_CUSTOM_BPM_MIN, RHYTHM_CUSTOM_BPM_MAX, state.bpm);
-        state.bars = RHYTHM_CUSTOM_BAR_OPTIONS.includes(stage.bars) ? stage.bars : barsBackup;
-        startPreviewRhythm();
+        // barsOverride（「リズムを作る」専用・1〜8）が来たら任意小節数で繰り返す。
+        // 通常経路（PROカスタム編集/テスト再生）は従来どおり RHYTHM_CUSTOM_BAR_OPTIONS 内のみ採用。
+        if (opts && Number.isFinite(opts.barsOverride)) {
+            state.bars = Math.max(1, Math.min(8, Math.round(opts.barsOverride)));
+        } else {
+            state.bars = RHYTHM_CUSTOM_BAR_OPTIONS.includes(stage.bars) ? stage.bars : barsBackup;
+        }
+        startPreviewRhythm(opts);
     } finally {
         Object.assign(eng, engBackup);
         state.bpm = bpmBackup;
@@ -13832,6 +13932,14 @@ function bind() {
     if (els.rcCreatePreviewBalance) els.rcCreatePreviewBalance.addEventListener('input', (e) => {
         setRhythmPreviewSoundBalanceFromValue(e.target.value);
     });
+    // BPM・小節数（「リズムを作る」プレビュー専用）。change で確定値をクランプ反映（再生中は安全優先で一度停止）。
+    if (els.rcCreateBpm) els.rcCreateBpm.addEventListener('change', (e) => setRhythmCreateBpmFromValue(e.target.value));
+    if (els.rcCreateBars) els.rcCreateBars.addEventListener('change', (e) => setRhythmCreateBarsFromValue(e.target.value));
+    // −/＋ボタン（既存STAGEのテンポ調整と同じ操作感）。BPMは±1、小節数は±1。
+    if (els.rcCreateBpmDown) els.rcCreateBpmDown.addEventListener('click', () => stepRhythmCreateBpm(-RHYTHM_CREATE_BPM_STEP));
+    if (els.rcCreateBpmUp) els.rcCreateBpmUp.addEventListener('click', () => stepRhythmCreateBpm(RHYTHM_CREATE_BPM_STEP));
+    if (els.rcCreateBarsDown) els.rcCreateBarsDown.addEventListener('click', () => stepRhythmCreateBars(-1));
+    if (els.rcCreateBarsUp) els.rcCreateBarsUp.addEventListener('click', () => stepRhythmCreateBars(1));
     if (els.catKiso) els.catKiso.addEventListener('click', () => setHomeView('kiso'));
     if (els.catStroke) els.catStroke.addEventListener('click', () => openSoonCategory('ストロークパターン'));
     if (els.catChord) els.catChord.addEventListener('click', () => openSoonCategory('コード進行'));

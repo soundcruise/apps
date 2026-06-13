@@ -585,6 +585,60 @@ h1 {
     width: 100%;
 }
 
+/* 「リズムを作る」プレビューの BPM・小節数（v0.9.180）。再生ボタン直下の同じ操作エリアに置く。
+   既存STAGEのテンポUIと同じ tempo-btn（−/＋）＋数値入力。狭い画面では各項目が折り返してはみ出さない。 */
+.rc-create-params {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+    width: 100%;
+    max-width: 360px;
+    margin: 0 0 10px;
+}
+
+.rc-create-param {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: rgba(253, 246, 238, 0.82);
+}
+
+.rc-create-param-cap {
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+}
+
+/* 既存 .tempo-btn（40px丸）をこの操作エリア用に少し小型化（32px）。見た目・操作感は踏襲。 */
+.rc-create-step {
+    width: 32px;
+    height: 32px;
+    font-size: 1.05rem;
+    flex: 0 0 auto;
+}
+
+.rc-create-param input[type="number"] {
+    width: 52px;
+    height: 32px;
+    padding: 0 6px;
+    border-radius: 10px;
+    border: 1px solid rgba(253, 246, 238, 0.22);
+    background: rgba(255, 255, 255, 0.06);
+    color: #fdf6ee;
+    font-size: 0.92rem;
+    font-weight: 700;
+    text-align: center;
+    -moz-appearance: textfield;
+}
+
+.rc-create-param input[type="number"]::-webkit-outer-spin-button,
+.rc-create-param input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
 .rhythm-create-practice {
     border-radius: 12px;
     color: rgba(253, 246, 238, 0.56);
