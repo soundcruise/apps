@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.176';
+const RHYTHM_CRUISE_VERSION = '0.9.177';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -993,7 +993,7 @@ function renderStages() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   リズムを作る（v0.9.176）
+   リズムを作る（v0.9.177）
    ・教材的に「作る→聴く」ための新メニュー。
    ・STAGE1〜6は同じ編集・プレビュー部品を使う。
    ・保存形式やPROカスタムSTAGEには接続しないセッション内状態。
@@ -1008,17 +1008,18 @@ const RHYTHM_CREATE_STAGES = [
         noteDuration: 'q',
         cellCount: 4,
         patternBars: 1,
-        states: ['hit', 'rest'],
+        states: ['hit', 'rest', 'tie'],
         beatLabels: ['1', '2', '3', '4'],
         dirs: ['down', 'down', 'down', 'down'],
         motion: 'all-down',
         previewId: 'rhythm_create_stage1_preview',
-        howto: '4分音符は、1拍ごとに音を置く基本のリズムです。<br>まずは、どの拍で音を鳴らすかを作ってみましょう。',
+        howto: '4分音符は、1拍ごとにリズムを作る基本の音符です。<br>音を出す場所、休む場所、前の音を伸ばす場所を選んで、リズムの土台を作ってみましょう。',
         presets: [
             { name: '4分ストローク', pattern: ['hit', 'hit', 'hit', 'hit'] },
-            { name: '1拍目だけ', pattern: ['hit', 'rest', 'rest', 'rest'] },
             { name: '1・3拍', pattern: ['hit', 'rest', 'hit', 'rest'] },
             { name: '2・4拍', pattern: ['rest', 'hit', 'rest', 'hit'] },
+            { name: '最後を休む', pattern: ['hit', 'hit', 'hit', 'rest'] },
+            { name: '最後を伸ばす', pattern: ['hit', 'hit', 'hit', 'tie'] },
             { name: '空白から作る', pattern: ['rest', 'rest', 'rest', 'rest'] },
         ],
     },
@@ -1031,68 +1032,24 @@ const RHYTHM_CREATE_STAGES = [
         noteDuration: '8',
         cellCount: 8,
         patternBars: 1,
-        states: ['hit', 'rest'],
+        states: ['hit', 'rest', 'tie'],
         beatLabels: ['1', '&', '2', '&', '3', '&', '4', '&'],
         dirs: ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'],
         motion: 'alternate',
         previewId: 'rhythm_create_stage2_preview',
-        howto: '8分音符では、1拍の中を2つに分けてリズムを作ります。<br>数字の位置が表拍、間の位置が裏拍です。<br>裏拍に音を置くと、リズムに動きが出ます。',
+        howto: '8分音符では、1拍を2つに分けてリズムを作ります。<br>数字の位置が表拍、間の位置が裏拍です。<br>音を出す場所、休む場所、前の音を伸ばす場所を選ぶと、弾き語りらしいリズムになります。',
         presets: [
             { name: '基本の8ビート', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'] },
             { name: '表だけ', pattern: ['hit', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest'] },
             { name: '裏だけ', pattern: ['rest', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit'] },
             { name: '弾き語り8ビート', pattern: ['rest', 'hit', 'hit', 'hit', 'rest', 'hit', 'hit', 'hit'] },
-            { name: '軽めの8ビート', pattern: ['rest', 'hit', 'hit', 'rest', 'rest', 'hit', 'hit', 'rest'] },
+            { name: '休符で軽くする', pattern: ['rest', 'hit', 'hit', 'rest', 'rest', 'hit', 'hit', 'rest'] },
+            { name: '最後を伸ばす', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'tie'] },
+            { name: '弾き語りタイ基本', pattern: ['rest', 'hit', 'tie', 'hit', 'rest', 'hit', 'tie', 'hit'] },
         ],
     },
     {
         n: 3,
-        title: '休符を使う',
-        desc: '音を抜いてノリを作る',
-        ready: true,
-        grid: 'eighth',
-        noteDuration: '8',
-        cellCount: 8,
-        patternBars: 1,
-        states: ['hit', 'rest'],
-        beatLabels: ['1', '&', '2', '&', '3', '&', '4', '&'],
-        dirs: ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'],
-        motion: 'alternate',
-        previewId: 'rhythm_create_stage3_preview',
-        howto: '休符は、音を出さない場所です。<br>音を抜くと、リズムに隙間やノリが生まれます。',
-        presets: [
-            { name: '休符で軽くする', pattern: ['rest', 'hit', 'hit', 'rest', 'rest', 'hit', 'hit', 'rest'] },
-            { name: '最後を休む', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'rest', 'rest', 'rest'] },
-            { name: '途中で抜く', pattern: ['hit', 'rest', 'rest', 'hit', 'hit', 'hit', 'hit', 'hit'] },
-            { name: '弾き語りの間', pattern: ['rest', 'hit', 'rest', 'rest', 'hit', 'hit', 'rest', 'hit'] },
-            { name: '跳ねる休符', pattern: ['rest', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest'] },
-        ],
-    },
-    {
-        n: 4,
-        title: 'タイを使う',
-        desc: '前の音を伸ばす',
-        ready: true,
-        grid: 'eighth',
-        noteDuration: '8',
-        cellCount: 8,
-        patternBars: 1,
-        states: ['hit', 'rest', 'tie'],
-        beatLabels: ['1', '&', '2', '&', '3', '&', '4', '&'],
-        dirs: ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'],
-        motion: 'alternate',
-        previewId: 'rhythm_create_stage4_preview',
-        howto: 'タイは、前の音を伸ばして、次の場所では新しく弾かない記号です。<br>「伸ばす場所」を作ると、リズムの流れがなめらかになります。',
-        presets: [
-            { name: '最後を伸ばす', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'tie'] },
-            { name: '拍をまたいで伸ばす', pattern: ['rest', 'hit', 'tie', 'rest', 'hit', 'hit', 'rest', 'hit'] },
-            { name: '伸ばして軽くする', pattern: ['rest', 'hit', 'tie', 'rest', 'rest', 'hit', 'rest', 'hit'] },
-            { name: '弾き語りタイ基本', pattern: ['rest', 'hit', 'tie', 'hit', 'rest', 'hit', 'tie', 'hit'] },
-            { name: 'タイを試す', pattern: ['hit', 'tie', 'rest', 'hit', 'tie', 'hit', 'rest', 'hit'] },
-        ],
-    },
-    {
-        n: 5,
         title: '16分音符で作る',
         desc: '細かいストロークを作る',
         ready: true,
@@ -1104,7 +1061,7 @@ const RHYTHM_CREATE_STAGES = [
         beatLabels: ['1', 'e', '&', 'a', '2', 'e', '&', 'a', '3', 'e', '&', 'a', '4', 'e', '&', 'a'],
         dirs: ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'],
         motion: 'alternate',
-        previewId: 'rhythm_create_stage5_preview',
+        previewId: 'rhythm_create_stage3_preview',
         howto: '16分音符では、1拍を4つに分けて細かいリズムを作ります。<br>細かくしすぎず、音を抜きながら作ると弾き語りらしいリズムになります。',
         presets: [
             { name: '基本の16ビート', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'] },
@@ -1115,7 +1072,7 @@ const RHYTHM_CREATE_STAGES = [
         ],
     },
     {
-        n: 6,
+        n: 4,
         title: 'シンコペーション',
         desc: '食うリズムを作る',
         ready: true,
@@ -1127,7 +1084,7 @@ const RHYTHM_CREATE_STAGES = [
         beatLabels: ['1', '&', '2', '&', '3', '&', '4', '&', '1', '&', '2', '&', '3', '&', '4', '&'],
         dirs: ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'],
         motion: 'alternate',
-        previewId: 'rhythm_create_stage6_preview',
+        previewId: 'rhythm_create_stage4_preview',
         howto: 'シンコペーションは、裏拍から次の拍や次の小節へ音を伸ばすことで、リズムが前に食い込むように感じるパターンです。<br>ここでは2小節にまたがる弾き語りでよく使う食うリズムを作ります。',
         presets: [
             { name: '小節またぎの食い', pattern: ['rest', 'hit', 'hit', 'hit', 'rest', 'hit', 'tie', 'rest', 'hit', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit'] },
@@ -1135,6 +1092,55 @@ const RHYTHM_CREATE_STAGES = [
             { name: 'サビ前の食い', pattern: ['hit', 'hit', 'tie', 'rest', 'hit', 'hit', 'rest', 'hit', 'rest', 'hit', 'tie', 'rest', 'hit', 'hit', 'rest', 'hit'] },
             { name: '弾き語り定番シンコペーション', pattern: ['rest', 'hit', 'tie', 'rest', 'rest', 'hit', 'tie', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit'] },
             { name: 'くり返しの食い', pattern: ['rest', 'hit', 'tie', 'rest', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit', 'tie', 'rest', 'hit', 'rest', 'hit', 'hit'] },
+        ],
+    },
+    {
+        n: 5,
+        title: '三連符で作る',
+        desc: '3つに分けるリズムを作る',
+        ready: true,
+        grid: 'eighthTriplet',
+        noteDuration: '8',
+        cellCount: 12,
+        patternBars: 1,
+        states: ['hit', 'rest', 'tie'],
+        beatLabels: ['1', 'ta', 'ta', '2', 'ta', 'ta', '3', 'ta', 'ta', '4', 'ta', 'ta'],
+        dirs: ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'],
+        motion: 'alternate',
+        previewId: 'rhythm_create_stage5_preview',
+        howto: '三連符は、1拍を3つに分けるリズムです。<br>いつもの8分音符とは違う、転がるような感じを作ることができます。<br>まずは音を出す場所、休む場所、伸ばす場所を選んで、3つに分ける感覚を試してみましょう。',
+        presets: [
+            { name: '基本の三連符', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'] },
+            { name: '拍頭だけ', pattern: ['hit', 'rest', 'rest', 'hit', 'rest', 'rest', 'hit', 'rest', 'rest', 'hit', 'rest', 'rest'] },
+            { name: '1・3拍だけ', pattern: ['hit', 'rest', 'rest', 'rest', 'rest', 'rest', 'hit', 'rest', 'rest', 'rest', 'rest', 'rest'] },
+            { name: '転がる三連', pattern: ['rest', 'hit', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit', 'hit'] },
+            { name: '休符入り三連', pattern: ['rest', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit'] },
+            { name: '最後を伸ばす三連', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'tie'] },
+        ],
+    },
+    {
+        n: 6,
+        title: 'シャッフルで作る',
+        desc: '跳ねる8ビートを作る',
+        ready: true,
+        grid: 'eighth',
+        noteDuration: '8',
+        cellCount: 8,
+        patternBars: 1,
+        rhythmFeel: 'swing',
+        states: ['hit', 'rest', 'tie'],
+        beatLabels: ['1', '&', '2', '&', '3', '&', '4', '&'],
+        dirs: ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'],
+        motion: 'alternate',
+        previewId: 'rhythm_create_stage6_preview',
+        howto: 'シャッフルは、8分音符を均等にせず、少し跳ねるように弾くリズムです。<br>表拍を長く、裏拍を少し遅らせることで、ブルースや弾き語りでよく使うノリになります。',
+        presets: [
+            { name: '基本のシャッフル', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'] },
+            { name: '表だけシャッフル', pattern: ['hit', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest'] },
+            { name: '裏を入れる', pattern: ['rest', 'hit', 'hit', 'hit', 'rest', 'hit', 'hit', 'hit'] },
+            { name: '軽いシャッフル', pattern: ['rest', 'hit', 'hit', 'rest', 'rest', 'hit', 'hit', 'rest'] },
+            { name: '休符で跳ねる', pattern: ['rest', 'rest', 'hit', 'hit', 'rest', 'rest', 'hit', 'hit'] },
+            { name: '最後を伸ばすシャッフル', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'tie'] },
         ],
     },
 ];
@@ -1410,6 +1416,11 @@ function drawRhythmCreateVexLane(VF, mount, def) {
 }
 
 function getRhythmCreateCellLabel(def, index) {
+    if (def.grid === 'eighthTriplet') {
+        const beat = Math.floor(index / 3) + 1;
+        const sub = index % 3;
+        return beat + '拍目の' + (sub === 0 ? '拍頭' : (sub === 1 ? '三連2つ目' : '三連3つ目'));
+    }
     if (def.grid === 'sixteenth') {
         const beat = Math.floor(index / 4) + 1;
         const sub = index % 4;
@@ -1430,6 +1441,7 @@ function rhythmCreateStateLabel(state) {
 }
 
 function isBeatLabelStrong(def, index) {
+    if (def.grid === 'eighthTriplet') return index % 3 === 0;
     if (def.grid === 'sixteenth') return index % 4 === 0 || def.beatLabels[index] === '&';
     if (def.grid === 'eighth') return index % 2 === 0;
     return true;
@@ -1483,7 +1495,7 @@ function buildRhythmCreatePreviewStage() {
         bars: def.patternBars || 1,
         bpm: 80,
         clickMode: 'all',
-        rhythmFeel: 'straight',
+        rhythmFeel: def.rhythmFeel === 'swing' ? 'swing' : 'straight',
         pattern,
         motion: def.motion,
     });
