@@ -3721,10 +3721,12 @@ h1 {
 }
 
 .custom-test-preview-reset {
-    align-self: center;
+    display: block;
+    width: fit-content;
+    margin-left: auto;
     min-height: 32px;
     padding: 6px 12px;
-    margin: -2px 0 8px;
+    margin-bottom: 8px;
     border: 1px solid rgba(253, 246, 238, 0.16);
     border-radius: 999px;
     background: rgba(253, 246, 238, 0.06);
@@ -3947,6 +3949,33 @@ h1 {
 .custom-test-preview-play[aria-pressed="true"] {
     background: rgba(255, 159, 28, 0.28);
     border-color: rgba(255, 159, 28, 0.5);
+}
+
+/* リズムを再生 一番上・目立つプライマリ版（v0.9.199） */
+.custom-test-preview-play--primary {
+    width: 100%;
+    max-width: none;
+    min-height: 48px;
+    padding: 12px 20px;
+    margin: 0 0 12px;
+    background: linear-gradient(135deg, #ffb347, #ff9f1c);
+    border: none;
+    color: #2a1600;
+    font-size: 1rem;
+    font-weight: 800;
+    box-shadow: 0 6px 20px rgba(255, 159, 28, 0.32);
+}
+.custom-test-preview-play--primary[aria-pressed="true"] {
+    background: rgba(255, 159, 28, 0.32);
+    border: 1px solid rgba(255, 159, 28, 0.55);
+    color: var(--text-color, #fdf6ee);
+    box-shadow: none;
+}
+@media (hover: hover) {
+    .custom-test-preview-play--primary:not([aria-pressed="true"]):hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 26px rgba(255, 159, 28, 0.42);
+    }
 }
 
 /* 確認音バランススライダー（クリック ←→ ストローク・v0.9.135） */

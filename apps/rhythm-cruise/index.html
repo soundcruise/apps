@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.196">
+    <link rel="stylesheet" href="theme.css?v=0.9.199">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -326,6 +326,7 @@
             <div class="custom-test-preview hidden" id="custom-test-preview">
                 <button type="button" class="custom-test-preview-toggle" id="custom-test-preview-toggle" aria-expanded="false" aria-controls="custom-test-preview-body">リズムプレビューを表示</button>
                 <div class="custom-test-preview-body hidden" id="custom-test-preview-body">
+                    <button type="button" class="custom-test-preview-play custom-test-preview-play--primary" id="custom-test-preview-play" aria-pressed="false">▶ リズムを再生</button>
                     <div class="custom-test-preview-score" id="custom-test-preview-score"></div>
                     <div class="custom-test-preview-settings">
                         <div class="custom-test-preview-param">
@@ -348,7 +349,6 @@
                         </div>
                     </div>
                     <button type="button" class="custom-test-preview-reset hidden" id="stage-preview-reset-default">デフォルトに戻す</button>
-                    <button type="button" class="custom-test-preview-play" id="custom-test-preview-play" aria-pressed="false">▶ リズムを再生</button>
                     <div class="custom-test-preview-balance">
                         <span class="custom-test-preview-balance-cap">クリック</span>
                         <input type="range" id="custom-test-preview-balance" min="0" max="100" value="50" step="1" aria-label="確認音バランス（左：クリック大きめ／右：ストローク大きめ）">
@@ -1220,7 +1220,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.198"></script>
+    <script src="script.js?v=0.9.199"></script>
 </body>
 
 </html>

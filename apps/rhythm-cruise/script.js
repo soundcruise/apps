@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.198';
+const RHYTHM_CRUISE_VERSION = '0.9.199';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -1198,7 +1198,7 @@ function clampRhythmStagePrefBpm(v, fallback) {
 }
 function clampRhythmStagePrefBars(v, fallback) {
     const n = Math.round(Number(v));
-    return BAR_OPTIONS.includes(n) ? n : fallback;
+    return (Number.isFinite(n) && n >= 1 && n <= 32) ? n : fallback;
 }
 function normalizeRhythmStagePref(stageN, raw) {
     const def = RHYTHM_BUILTIN_STAGE_DEFAULT_PREFS[stageN];
@@ -1393,7 +1393,7 @@ function resetCurrentRhythmCustomPracticePrefs() {
     stopPreviewRhythm();
     if (state.running) stop();
     state.bpm = clampNum(stage.bpm, 40, 200, state.bpm);
-    state.bars = RHYTHM_CUSTOM_BAR_OPTIONS.includes(stage.bars) ? stage.bars : state.bars;
+    state.bars = (Number.isInteger(stage.bars) && stage.bars >= 1 && stage.bars <= 128) ? stage.bars : state.bars;
     rhythmVexZoomPrefs.stage = clampRhythmVexZoom(stage.zoom);
     if (els.tempoVal) els.tempoVal.textContent = String(state.bpm);
     updateBarsUI();
@@ -2684,7 +2684,7 @@ function normalizeRhythmCustomStageSettings(raw) {
     const grid = rhythmCoerceGrid(raw.grid, timeSignature);
     // patternBars（小節単位）：未指定の旧データ（v0.9.119/120）は 1 として扱う。
     const patternBars = rhythmCustomPatternBars(raw.patternBars);
-    const bars = RHYTHM_CUSTOM_BAR_OPTIONS.includes(raw.bars) ? raw.bars : 4;
+    const bars = (Number.isInteger(raw.bars) && raw.bars >= 1 && raw.bars <= 128) ? raw.bars : 4;
     const bpm = clampNum(Math.round(Number(raw.bpm)), RHYTHM_CUSTOM_BPM_MIN, RHYTHM_CUSTOM_BPM_MAX, def.bpm);
     const zoom = clampRhythmVexZoom(raw.zoom == null ? def.zoom : raw.zoom);
     const clickMode = RHYTHM_CUSTOM_CLICK_MODES.includes(raw.clickMode) ? raw.clickMode : 'all';
@@ -4182,7 +4182,7 @@ function startPreviewRhythmForStage(rawStage, opts) {
         if (opts && Number.isFinite(opts.barsOverride)) {
             state.bars = Math.max(1, Math.min(8, Math.round(opts.barsOverride)));
         } else {
-            state.bars = RHYTHM_CUSTOM_BAR_OPTIONS.includes(stage.bars) ? stage.bars : barsBackup;
+            state.bars = (Number.isInteger(stage.bars) && stage.bars >= 1 && stage.bars <= 128) ? stage.bars : barsBackup;
         }
         startPreviewRhythm(opts);
     } finally {
@@ -4668,11 +4668,8 @@ function stepRhythmEditorBars(dir) {
     const d = proCustomEditDraft;
     if (!d) return;
     stopPreviewRhythm();
-    const opts = RHYTHM_CUSTOM_BAR_OPTIONS;
-    let idx = opts.indexOf(d.bars);
-    if (idx < 0) idx = opts.indexOf(4);
-    idx = clampNum(idx + dir, 0, opts.length - 1, idx);
-    d.bars = opts[idx];
+    const current = (Number.isInteger(d.bars) && d.bars >= 1 && d.bars <= 128) ? d.bars : 4;
+    d.bars = Math.max(1, Math.min(128, current + dir));
     if (els.pceBarsVal) els.pceBarsVal.textContent = String(d.bars);
 }
 
@@ -4773,7 +4770,7 @@ function backToEditorFromTest() {
         // テスト再生画面で変えた BPM/小節数 を編集ドラフトへ反映（pattern等は触らない）
         if (proCustomEditDraft) {
             proCustomEditDraft.bpm = clampNum(Math.round(tempBpm), RHYTHM_CUSTOM_BPM_MIN, RHYTHM_CUSTOM_BPM_MAX, proCustomEditDraft.bpm);
-            if (RHYTHM_CUSTOM_BAR_OPTIONS.includes(tempBars)) proCustomEditDraft.bars = tempBars;
+            if (Number.isInteger(tempBars) && tempBars >= 1 && tempBars <= 128) proCustomEditDraft.bars = tempBars;
             proCustomEditDraft.zoom = clampRhythmVexZoom(tempZoom);
             renderRhythmCustomEditor();
         }
@@ -10647,7 +10644,7 @@ function updateBarsUI() {
 }
 function setStageBars(bars) {
     if (state.running) return;          // 再生中は変更ロック（BPMと同じ）
-    if (BAR_OPTIONS.indexOf(bars) === -1) return;
+    if (!Number.isInteger(bars) || bars < 1 || bars > 32) return;
     state.bars = bars;
     applyStageBars();
     updateBarsUI();
@@ -10660,10 +10657,8 @@ function setStageBars(bars) {
     redrawOpenRhythmCustomTestPreview();
 }
 function stepStageBars(dir) {
-    const i = BAR_OPTIONS.indexOf(state.bars);
-    const base = (i === -1) ? BAR_OPTIONS.indexOf(DEFAULT_BARS) : i;
-    const ni = Math.max(0, Math.min(BAR_OPTIONS.length - 1, base + dir));
-    setStageBars(BAR_OPTIONS[ni]);
+    const current = (Number.isInteger(state.bars) && state.bars >= 1 && state.bars <= 32) ? state.bars : DEFAULT_BARS;
+    setStageBars(Math.max(1, Math.min(32, current + dir)));
 }
 
 function setBpm(v) {
@@ -10844,7 +10839,7 @@ function loadSettings() {
     state.tapUnified = (s.tapUnified !== false); // 統合タップ（v0.9.140）。既定ON。保存設定がある場合のみ優先（明示OFF＝false のときだけOFF）。
     state.tapHeight = clampNum(s.tapHeight, TAP_H_MIN, TAP_H_MAX_UD, TAP_H_DEFAULT); // v0.9.118：上下配置の拡張値も保持（表示時に配置上限へクランプ）
     state.inputMode = (s.inputMode === 'stroke') ? 'stroke' : 'tap'; // v0.9.118：入力方式（タップ/ストローク）の保存値を優先
-    state.bars = (BAR_OPTIONS.indexOf(s.bars) !== -1) ? s.bars : DEFAULT_BARS; // v0.9.118：小節数の保存値を優先（不正値は既定8）
+    state.bars = (Number.isInteger(s.bars) && s.bars >= 1 && s.bars <= 32) ? s.bars : DEFAULT_BARS; // v0.9.118：小節数の保存値を優先（不正値は既定8）
     applyStageBars();
     state.judgePreset = normalizeJudgePreset(s.judgePreset); // 判定のきびしさ（v0.9.164）。不正値/未保存は standard。
     state.strokeDetectMode = (s.strokeDetectMode === 'chord') ? 'chord' : 'brush';
