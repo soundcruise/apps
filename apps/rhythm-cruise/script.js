@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.196';
+const RHYTHM_CRUISE_VERSION = '0.9.197';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -1260,6 +1260,10 @@ function rhythmBuiltinPracticeStageN() {
     const n = Number(state.currentStage);
     return (!eng.editId && !eng.testSource && n >= 1 && n <= 6) ? n : 0;
 }
+function rhythmCustomPracticeStage() {
+    if (!eng || !eng.editId || eng.testSource === 'rhythmCreate') return null;
+    return getSavedRhythmCustomStages().find((s) => s.id === eng.editId) || null;
+}
 function rhythmSharedStageZoomPref() {
     try {
         const raw = JSON.parse(localStorage.getItem(RHYTHM_VEX_ZOOM_KEY) || '{}');
@@ -1299,7 +1303,7 @@ function rhythmPracticeStageZoomScale() {
 }
 function syncRhythmStagePreviewResetUI() {
     if (els.stagePreviewResetDefault) {
-        els.stagePreviewResetDefault.classList.toggle('hidden', !rhythmBuiltinPracticeStageN());
+        els.stagePreviewResetDefault.classList.toggle('hidden', !(rhythmBuiltinPracticeStageN() || rhythmCustomPracticeStage()));
     }
 }
 function syncRhythmCreateZoomUI() {
@@ -1322,6 +1326,7 @@ function setRhythmCreateZoom(scale) {
 function setRhythmEditorZoom(scale) {
     stopPreviewRhythm();
     rhythmVexZoomPrefs.editor = clampRhythmVexZoom(scale);
+    if (proCustomEditDraft) proCustomEditDraft.zoom = rhythmVexZoomPrefs.editor;
     saveRhythmVexZoomPrefs();
     syncRhythmEditorZoomUI();
     renderRhythmEditorPattern();
@@ -1337,7 +1342,7 @@ function setRhythmStagePreviewZoom(scale) {
     rhythmVexZoomPrefs.stage = clampRhythmVexZoom(scale);
     const stageN = rhythmBuiltinPracticeStageN();
     if (stageN) saveRhythmBuiltinStagePrefs(stageN, { zoom: rhythmVexZoomPrefs.stage });
-    else saveRhythmVexZoomPrefs();
+    else if (!rhythmCustomPracticeStage()) saveRhythmVexZoomPrefs();
     syncRhythmStagePreviewZoomUI();
     redrawOpenRhythmCustomTestPreview();
     if (els.practice && !els.practice.classList.contains('hidden')) fitLane();
@@ -1359,6 +1364,10 @@ function applyRhythmSharedStagePreviewZoom() {
     rhythmVexZoomPrefs.stage = rhythmSharedStageZoomPref();
     syncRhythmStagePreviewZoomUI();
 }
+function applyRhythmCustomStagePreviewZoom(stage) {
+    rhythmVexZoomPrefs.stage = clampRhythmVexZoom(stage && stage.zoom);
+    syncRhythmStagePreviewZoomUI();
+}
 function resetCurrentRhythmBuiltinStagePrefs() {
     const stageN = rhythmBuiltinPracticeStageN();
     if (!stageN) return;
@@ -1377,6 +1386,27 @@ function resetCurrentRhythmBuiltinStagePrefs() {
     refreshCustomFlowScore();
     redrawOpenRhythmCustomTestPreview();
     if (els.practice && !els.practice.classList.contains('hidden')) fitLane();
+}
+function resetCurrentRhythmCustomPracticePrefs() {
+    const stage = rhythmCustomPracticeStage();
+    if (!stage) return;
+    stopPreviewRhythm();
+    if (state.running) stop();
+    state.bpm = clampNum(stage.bpm, 40, 200, state.bpm);
+    state.bars = RHYTHM_CUSTOM_BAR_OPTIONS.includes(stage.bars) ? stage.bars : state.bars;
+    rhythmVexZoomPrefs.stage = clampRhythmVexZoom(stage.zoom);
+    if (els.tempoVal) els.tempoVal.textContent = String(state.bpm);
+    updateBarsUI();
+    syncRhythmStagePreviewZoomUI();
+    applyStageBars();
+    resetGame();
+    refreshCustomFlowScore();
+    redrawOpenRhythmCustomTestPreview();
+    if (els.practice && !els.practice.classList.contains('hidden')) fitLane();
+}
+function resetCurrentRhythmPracticeDefaults() {
+    if (rhythmBuiltinPracticeStageN()) resetCurrentRhythmBuiltinStagePrefs();
+    else resetCurrentRhythmCustomPracticePrefs();
 }
 
 function getRhythmCreateBpm() { return rhythmCreateBpm; }
@@ -2588,6 +2618,7 @@ function getDefaultRhythmCustomStage() {
         patternBars: patternBars,  // 小節単位（パターン1周の小節数）
         bars: 4,         // 初期小節数（STAGE開始時の練習小節数）
         bpm: 80,
+        zoom: 1,
         clickMode: 'all', // 互換のため残す（編集UIからは削除。クリックはSTAGE側で切替予定）
         rhythmFeel: 'straight', // リズムの感じ（v0.9.165）：'straight'（従来）/ 'swing'（3連ベースの真ん中抜き）
         pattern: pattern,
@@ -2633,6 +2664,7 @@ function normalizeRhythmCustomStageSettings(raw) {
     const patternBars = rhythmCustomPatternBars(raw.patternBars);
     const bars = RHYTHM_CUSTOM_BAR_OPTIONS.includes(raw.bars) ? raw.bars : 4;
     const bpm = clampNum(Math.round(Number(raw.bpm)), RHYTHM_CUSTOM_BPM_MIN, RHYTHM_CUSTOM_BPM_MAX, def.bpm);
+    const zoom = clampRhythmVexZoom(raw.zoom == null ? def.zoom : raw.zoom);
     const clickMode = RHYTHM_CUSTOM_CLICK_MODES.includes(raw.clickMode) ? raw.clickMode : 'all';
     // rhythmFeel（v0.9.165）：未指定の旧データは必ず straight 扱い。swing のときだけ swing。
     const rhythmFeel = (raw.rhythmFeel === 'swing') ? 'swing' : 'straight';
@@ -2661,7 +2693,7 @@ function normalizeRhythmCustomStageSettings(raw) {
     const version = Number.isInteger(raw.version) ? raw.version : 1;
     const id = typeof raw.id === 'string' && raw.id ? raw.id : generateRhythmCustomStageId();
 
-    return { version, id, title, description, grid, timeSignature, patternBars, bars, bpm, clickMode, rhythmFeel, pattern, motion, judgeTargets, displayLabels };
+    return { version, id, title, description, grid, timeSignature, patternBars, bars, bpm, zoom, clickMode, rhythmFeel, pattern, motion, judgeTargets, displayLabels };
 }
 
 /* 1セルが占めるティック数（1拍=24・v0.9.122）。quarter:24 / eighth:12 / sixteenth:6 / thirtysecond:3 / 8分三連:8 / 16分三連:4。 */
@@ -3119,6 +3151,7 @@ function renderRhythmCustomEditor() {
     if (els.pceBarsVal) els.pceBarsVal.textContent = String(d.bars);
     if (els.pceDelete) els.pceDelete.classList.toggle('hidden', !rhythmCustomStageExists(d.id));
     if (els.pceSaveAs) els.pceSaveAs.classList.toggle('hidden', !rhythmCustomStageExists(d.id));
+    rhythmVexZoomPrefs.editor = clampRhythmVexZoom(d.zoom);
     syncRhythmEditorZoomUI();
     renderRhythmEditorPattern();
 }
@@ -4640,6 +4673,7 @@ function collectRhythmCustomEditorInputs() {
         d.bpm = clampNum(Math.round(Number(els.pceBpm.value)), RHYTHM_CUSTOM_BPM_MIN, RHYTHM_CUSTOM_BPM_MAX, d.bpm);
         els.pceBpm.value = String(d.bpm);
     }
+    d.zoom = clampRhythmVexZoom(rhythmVexZoomPrefs.editor);
     d.rhythmFeel = (d.rhythmFeel === 'swing') ? 'swing' : 'straight'; // リズムタイプを回収（v0.9.165）
     return d;
 }
@@ -4704,6 +4738,7 @@ function backToEditorFromTest() {
     const id = eng.editId;
     const tempBpm = state.bpm;    // テスト再生画面での一時BPM（leaveCustomTestStateで元STAGE値へ戻る前に退避）
     const tempBars = state.bars;  // テスト再生画面での一時小節数
+    const tempZoom = rhythmVexZoomPrefs.stage; // テスト再生画面での一時拡大率
     stop();
     stopMic();
     if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden');
@@ -4717,6 +4752,7 @@ function backToEditorFromTest() {
         if (proCustomEditDraft) {
             proCustomEditDraft.bpm = clampNum(Math.round(tempBpm), RHYTHM_CUSTOM_BPM_MIN, RHYTHM_CUSTOM_BPM_MAX, proCustomEditDraft.bpm);
             if (RHYTHM_CUSTOM_BAR_OPTIONS.includes(tempBars)) proCustomEditDraft.bars = tempBars;
+            proCustomEditDraft.zoom = clampRhythmVexZoom(tempZoom);
             renderRhythmCustomEditor();
         }
     } else {
@@ -4771,6 +4807,7 @@ function saveRhythmCustomTestSettings() {
     if (!saved) { showRcToast('保存できませんでした'); return; }
     saved.bpm = state.bpm;   // テスト再生中の一時BPMを反映
     saved.bars = state.bars; // テスト再生中の一時小節数を反映
+    saved.zoom = clampRhythmVexZoom(rhythmVexZoomPrefs.stage); // テスト再生中の一時拡大率を反映
     const result = updateRhythmCustomStage(saved);
     if (!result) { showRcToast('保存できませんでした'); return; }
     eng.custom = result;     // テスト再生中の参照も最新へ（再生状態は維持）
@@ -5028,7 +5065,7 @@ function openRhythmProCustomTest(id, source = 'home') {
     const fromEditor = eng.testSource === 'editor';
     if (els.customTestEditBack) els.customTestEditBack.textContent = fromEditor ? '編集に戻る' : '編集する';
     if (els.customTestSave) els.customTestSave.classList.toggle('hidden', !fromEditor);
-    applyRhythmSharedStagePreviewZoom();           // 通常STAGE別拡大率をPROカスタムPracticeへ持ち込まない
+    applyRhythmCustomStagePreviewZoom(stage);      // 保存済みPROカスタムSTAGEの拡大率をPracticeへ反映
     renderRhythmCustomTestPreview(eng.custom);    // 読み取り専用のVexFlow譜面プレビューを表示（v0.9.125）
     showCustomFlowScoreLayer();                   // 流れるVexFlow譜面レイヤー枠を表示（中身は次工程・v0.9.126）
     state.bpm = clampNum(stage.bpm, 40, 200, state.bpm); // 再生エンジンのBPM範囲に合わせてclamp
@@ -15278,7 +15315,7 @@ function bind() {
     if (els.customTestPreviewPlay) els.customTestPreviewPlay.addEventListener('click', toggleRhythmPreviewPlay);
     if (els.stagePreviewZoomDown) els.stagePreviewZoomDown.addEventListener('click', () => stepRhythmStagePreviewZoom(-RHYTHM_VEX_ZOOM_STEP));
     if (els.stagePreviewZoomUp) els.stagePreviewZoomUp.addEventListener('click', () => stepRhythmStagePreviewZoom(RHYTHM_VEX_ZOOM_STEP));
-    if (els.stagePreviewResetDefault) els.stagePreviewResetDefault.addEventListener('click', resetCurrentRhythmBuiltinStagePrefs);
+    if (els.stagePreviewResetDefault) els.stagePreviewResetDefault.addEventListener('click', resetCurrentRhythmPracticeDefaults);
     // 確認音バランススライダー（v0.9.135）。0..100 → -1..+1（左：クリック大きめ／右：ストローク大きめ）。次に鳴る音から反映。
     if (els.customTestPreviewBalance) els.customTestPreviewBalance.addEventListener('input', (e) => {
         setRhythmPreviewSoundBalanceFromValue(e.target.value);
