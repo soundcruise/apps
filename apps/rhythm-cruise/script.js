@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.201';
+const RHYTHM_CRUISE_VERSION = '0.9.202';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -546,6 +546,10 @@ const els = {
     rhythmCreateBtn: $('rhythm-create-btn'),
     homeRhythmCreate: $('home-rhythm-create'),
     rhythmCreateStageList: $('rhythm-create-stage-list'),
+    rcSavedEntryBtn: $('rc-saved-entry-btn'),
+    homeRhythmCreateSaved: $('home-rhythm-create-saved'),
+    rcSavedList: $('rc-saved-list'),
+    rcSavedEmpty: $('rc-saved-empty'),
     homeRhythmCreateStage1: $('home-rhythm-create-stage1'),
     rcCreateStageTitle: $('rc-create-stage-title'),
     rcCreateStage1Grid: $('rc-create-stage1-grid'),
@@ -1760,6 +1764,48 @@ function openRhythmCreate() {
     stopPreviewRhythm();
     renderRhythmCreateStages();
     setHomeView('rhythmCreate');
+}
+
+/* 保存済みリズム一覧を描画する（v0.9.202）。 */
+function renderRhythmCreateSavedList() {
+    if (!els.rcSavedList) return;
+    const stages = getSavedRhythmCustomStages();
+    els.rcSavedList.innerHTML = '';
+    if (els.rcSavedEmpty) els.rcSavedEmpty.classList.toggle('hidden', stages.length > 0);
+    stages.forEach((s) => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'rc-saved-card';
+        item.dataset.id = s.id;
+        const zoom = typeof s.zoom === 'number' ? Math.round(s.zoom * 100) + '%' : '100%';
+        const bpmText = s.bpm ? `BPM ${s.bpm}` : '';
+        const barsText = s.bars ? `${s.bars}小節` : '';
+        const zoomText = zoom !== '100%' ? `拡大 ${zoom}` : '';
+        const meta = [bpmText, barsText, zoomText].filter(Boolean).join(' / ');
+        const gridLabel = { quarter: '4分', eighth: '8分', sixteenth: '16分', thirtysecond: '32分', eighthTriplet: '8分三連', sixteenthTriplet: '16分三連' }[s.grid] || s.grid || '';
+        const feelBadge = s.rhythmFeel === 'swing' ? '<span class="rc-saved-card-badge">シャッフル</span>' : '';
+        const desc = s.desc ? `<span class="rc-saved-card-desc">${escapeHtml(s.desc)}</span>` : '';
+        item.innerHTML = `
+            <span class="rc-saved-card-title">${escapeHtml(s.title || '作成リズム')}${feelBadge}</span>
+            ${meta ? `<span class="rc-saved-card-meta">${escapeHtml(meta)}</span>` : ''}
+            ${gridLabel ? `<span class="rc-saved-card-grid">最小音符: ${escapeHtml(gridLabel)}</span>` : ''}
+            ${desc}
+            <span class="rc-saved-card-chevron">›</span>`;
+        item.addEventListener('click', () => openRhythmProCustomEditorFromSaved(s.id));
+        els.rcSavedList.appendChild(item);
+    });
+}
+
+/* 保存済みリズム一覧ビューを開く（v0.9.202）。 */
+function openRhythmCreateSaved() {
+    renderRhythmCreateSavedList();
+    setHomeView('rhythmCreateSaved');
+}
+
+/* 保存済みリズム一覧からPROカスタム編集画面を開く（v0.9.202）。戻り先を記録する。 */
+function openRhythmProCustomEditorFromSaved(id) {
+    proCustomEditFrom = 'rhythmCreateSaved';
+    openRhythmProCustomEditor(id);
 }
 
 function openRhythmCreateStage(stageNo) {
@@ -3210,11 +3256,14 @@ function openRhythmProCustomEditorDraft(stage) {
     setHomeView('proCustomEdit');
 }
 
-/* 編集画面を開く：保存済みSTAGEを読み込みドラフト化して表示。 */
+/* 編集画面を開く：保存済みSTAGEを読み込みドラフト化して表示。
+   この関数を直接呼ぶ既存の呼び出し元はすべてリズム練側のため、proCustomEditFrom を 'rhythm' にリセットする。
+   保存済みリズム側から開く場合は openRhythmProCustomEditorFromSaved() 経由で先に 'rhythmCreateSaved' をセットする。 */
 function openRhythmProCustomEditor(id) {
     if (!isRhythmProCustomStageAvailable()) return;
     const saved = getSavedRhythmCustomStages().find(s => s.id === id);
     if (!saved) { showRcToast('STAGEが見つかりません'); return; }
+    if (proCustomEditFrom !== 'rhythmCreateSaved') proCustomEditFrom = 'rhythm';
     openRhythmProCustomEditorDraft(saved);
 }
 
@@ -4931,8 +4980,9 @@ function deleteRhythmCustomFromEditor() {
    ホームは「TOP → リズム練をする → 基礎練(STAGE一覧)/ストロークパターン/コード進行」の
    サブビューを #screen-home の中で切り替える。画面そのもの（home/practice/settings）の
    遷移ロジックは変更しない。 */
-let homeView = 'top'; // 'top' | 'rhythm' | 'rhythmCreate' | 'rhythmCreateStage1' | 'kiso' | 'soon' | 'proCustom' | 'proCustomEdit'
+let homeView = 'top'; // 'top' | 'rhythm' | 'rhythmCreate' | 'rhythmCreateStage1' | 'rhythmCreateSaved' | 'kiso' | 'soon' | 'proCustom' | 'proCustomEdit'
 let currentScreen = 'home'; // 'home' | 'practice' | 'settings'（v0.9.118：共通ナビ表示判定に使う）
+let proCustomEditFrom = 'rhythm'; // 'rhythm' | 'rhythmCreateSaved'：編集画面を開いた入口。戻り先の分岐に使う（v0.9.202）。
 
 /* 共通ナビ（左上 戻る/TOP・右上 設定）の表示制御（v0.9.118）。
    TOPページ（ホームのリズム練導線）でだけ #app-nav を隠す。それ以外の全ページ・全サブビューで表示する。 */
@@ -4952,6 +5002,7 @@ function renderHome() {
     if (els.homeSoon) els.homeSoon.classList.toggle('hidden', homeView !== 'soon');
     if (els.homeProCustom) els.homeProCustom.classList.toggle('hidden', homeView !== 'proCustom');
     if (els.homeProCustomEdit) els.homeProCustomEdit.classList.toggle('hidden', homeView !== 'proCustomEdit');
+    if (els.homeRhythmCreateSaved) els.homeRhythmCreateSaved.classList.toggle('hidden', homeView !== 'rhythmCreateSaved');
     updateChrome();
 }
 function setHomeView(v) {
@@ -5038,10 +5089,16 @@ function navBack() {
         if (homeView === 'rhythm') { setHomeView('top'); return; }
         if (homeView === 'rhythmCreate') { setHomeView('top'); return; }
         if (homeView === 'rhythmCreateStage1') { renderRhythmCreateStages(); setHomeView('rhythmCreate'); return; }
+        if (homeView === 'rhythmCreateSaved') { renderRhythmCreateStages(); setHomeView('rhythmCreate'); return; }
         if (homeView === 'kiso') { setHomeView('rhythm'); return; }
         if (homeView === 'soon') { setHomeView('rhythm'); return; }
         if (homeView === 'proCustom') { setHomeView('rhythm'); return; }
-        if (homeView === 'proCustomEdit') { renderRhythmHomeCustomStages(); setHomeView('rhythm'); return; }
+        if (homeView === 'proCustomEdit') {
+            renderRhythmHomeCustomStages();
+            if (proCustomEditFrom === 'rhythmCreateSaved') { renderRhythmCreateSavedList(); setHomeView('rhythmCreateSaved'); }
+            else { setHomeView('rhythm'); }
+            return;
+        }
         return; // TOPでは戻る不要（共通ナビ自体を隠している）
     }
     goTop();
@@ -14926,6 +14983,7 @@ function bind() {
     // 各サブビューからの「戻る/TOP」は共通ナビ #app-nav に統一（v0.9.118）。
     if (els.rhythmTrainBtn) els.rhythmTrainBtn.addEventListener('click', () => setHomeView('rhythm'));
     if (els.rhythmCreateBtn) els.rhythmCreateBtn.addEventListener('click', openRhythmCreate);
+    if (els.rcSavedEntryBtn) els.rcSavedEntryBtn.addEventListener('click', openRhythmCreateSaved);
     if (els.rhythmCreateStageList) els.rhythmCreateStageList.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-stage]');
         if (!btn) return;
@@ -15074,7 +15132,11 @@ function bind() {
     if (els.pceSaveAs) els.pceSaveAs.addEventListener('click', saveRhythmCustomEditorAsCopy);
     if (els.pceTest) els.pceTest.addEventListener('click', testPlayFromEditor);
     if (els.pceCopy) els.pceCopy.addEventListener('click', copyRhythmCustomEditorJson);
-    if (els.pceBack) els.pceBack.addEventListener('click', () => { renderRhythmHomeCustomStages(); setHomeView('rhythm'); });
+    if (els.pceBack) els.pceBack.addEventListener('click', () => {
+        renderRhythmHomeCustomStages();
+        if (proCustomEditFrom === 'rhythmCreateSaved') { renderRhythmCreateSavedList(); setHomeView('rhythmCreateSaved'); }
+        else { setHomeView('rhythm'); }
+    });
     if (els.pceDelete) els.pceDelete.addEventListener('click', deleteRhythmCustomFromEditor);
     // JSON手動コピーモーダル（v0.9.120）
     if (els.rcJsonClose) els.rcJsonClose.addEventListener('click', hideRhythmJsonModal);
