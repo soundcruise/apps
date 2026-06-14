@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.204">
+    <link rel="stylesheet" href="theme.css?v=0.9.205">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -46,13 +46,7 @@
             </header>
 
             <!-- ホームTOP：リズム練への導線だけを置く（v0.9.117） -->
-            <div class="home-view" id="home-top" data-top-design="A">
-                <!-- デザイン比較タブ（v0.9.204）。実機確認用。localStorage不要。 -->
-                <div class="top-design-tabs" aria-label="デザイン案切り替え">
-                    <button type="button" class="top-design-tab is-active" data-design="A">標準</button>
-                    <button type="button" class="top-design-tab" data-design="B">ゲーム感</button>
-                    <button type="button" class="top-design-tab" data-design="C">クルーズ感</button>
-                </div>
+            <div class="home-view" id="home-top">
                 <button id="rhythm-train-btn" class="rc-category-card">
                     <span class="rc-category-card-icon"><svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" style="height:1em;width:1em;vertical-align:-0.125em;fill:currentColor;"><path fill="currentColor" d="M502.63 39L473 9.37a32 32 0 0 0-45.26 0L381.46 55.7a35.14 35.14 0 0 0-8.53 13.79L360.77 106l-76.26 76.26c-12.16-8.76-25.5-15.74-40.1-19.14-33.45-7.78-67-.88-89.88 22a82.45 82.45 0 0 0-20.24 33.47c-6 18.56-23.21 32.69-42.15 34.46-23.7 2.27-45.73 11.45-62.61 28.44C-16.11 327-7.9 409 47.58 464.45S185 528 230.56 482.52c17-16.88 26.16-38.9 28.45-62.71 1.76-18.85 15.89-36.13 34.43-42.14a82.6 82.6 0 0 0 33.48-20.25c22.87-22.88 29.74-56.36 22-89.75-3.39-14.64-10.37-28-19.16-40.2L406 151.23l36.48-12.16a35.14 35.14 0 0 0 13.79-8.53l46.33-46.32a32 32 0 0 0 .03-45.22zM208 352a48 48 0 1 1 48-48 48 48 0 0 1-48 48z"/></svg></span>
                     <span class="rc-category-card-label">リズム練をする</span>
@@ -76,9 +70,8 @@
                 <div class="stage-list" id="stage-list">
                     <!-- script.js が描画 -->
                 </div>
-                <div class="cat-list">
-                    <!-- PROカスタムSTAGE入口（v0.9.119）。表示・操作は isRhythmProCustomStageAvailable() を経由する。 -->
-                    <button class="settings-top-main cat-btn cat-pro" id="cat-pro-custom"><span class="cat-pro-crown">👑</span> PROカスタムSTAGE</button>
+                <div class="stage-list" id="builtin-extra-stage-list">
+                    <!-- script.js が描画（三連符・8分シャッフル・16分シャッフル） -->
                 </div>
                 <div class="stage-list pro-custom-saved-stage-list" id="rhythm-pro-custom-saved-list">
                     <!-- 保存済みPROカスタムSTAGEを script.js が描画 -->
@@ -90,6 +83,10 @@
                 <div class="section-label">リズムを作る</div>
                 <div class="rhythm-create-list" id="rhythm-create-stage-list">
                     <!-- script.js が描画 -->
+                </div>
+                <!-- PROカスタムSTAGE管理導線（v0.9.205：リズムを作る側へ移設）。 -->
+                <div class="cat-list">
+                    <button class="settings-top-main cat-btn cat-pro" id="cat-pro-custom"><span class="cat-pro-crown">👑</span> PROカスタムSTAGE</button>
                 </div>
                 <!-- 保存済みリズム導線（v0.9.202）。STAGE一覧の下に独立枠として配置。 -->
                 <div class="rc-saved-entry-wrap">
@@ -362,6 +359,11 @@
                 <div class="custom-test-preview-body hidden" id="custom-test-preview-body">
                     <button type="button" class="custom-test-preview-play custom-test-preview-play--primary" id="custom-test-preview-play" aria-pressed="false">▶ リズムを再生</button>
                     <div class="custom-test-preview-score" id="custom-test-preview-score"></div>
+                    <div class="custom-test-preview-balance">
+                        <span class="custom-test-preview-balance-cap">クリック</span>
+                        <input type="range" id="custom-test-preview-balance" min="0" max="100" value="50" step="1" aria-label="確認音バランス（左：クリック大きめ／右：ストローク大きめ）">
+                        <span class="custom-test-preview-balance-cap">ストローク</span>
+                    </div>
                     <div class="custom-test-preview-settings">
                         <div class="custom-test-preview-param">
                             <span class="custom-test-preview-param-cap">BPM</span>
@@ -379,15 +381,10 @@
                             <span class="custom-test-preview-param-cap">拡大</span>
                             <button type="button" class="tempo-btn custom-test-preview-step" id="stage-preview-zoom-down" aria-label="譜面プレビューを縮小する">−</button>
                             <span class="custom-test-preview-num" id="stage-preview-zoom-val">100%</span>
-                            <button type="button" class="tempo-btn custom-test-preview-step" id="stage-preview-zoom-up" aria-label="譜面プレビューを拡大する">＋</button>
+                            <button type="button" class="tempo-btn custom-test-preview-step" id="stage-preview-zoom-up" aria-label="譜面プレビューを拡大する">+</button>
                         </div>
                     </div>
                     <button type="button" class="custom-test-preview-reset hidden" id="stage-preview-reset-default">デフォルトに戻す</button>
-                    <div class="custom-test-preview-balance">
-                        <span class="custom-test-preview-balance-cap">クリック</span>
-                        <input type="range" id="custom-test-preview-balance" min="0" max="100" value="50" step="1" aria-label="確認音バランス（左：クリック大きめ／右：ストローク大きめ）">
-                        <span class="custom-test-preview-balance-cap">ストローク</span>
-                    </div>
                     <!-- くり返し練習（v0.9.204：プレビューカード内の最下部へ移動）。IDは維持。 -->
                     <div class="preview-loop-row">
                         <span class="preview-loop-cap">くり返し練習</span>
@@ -1270,7 +1267,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.204"></script>
+    <script src="script.js?v=0.9.205"></script>
 </body>
 
 </html>

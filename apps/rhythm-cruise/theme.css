@@ -2127,9 +2127,12 @@ h1 {
     gap: 4px;
     width: 100%;
     padding: 20px 24px;
-    border: 1px solid rgba(255, 159, 28, 0.28);
+    border: 1px solid rgba(255, 159, 28, 0.5);
     border-radius: 16px;
-    background: rgba(255, 159, 28, 0.09);
+    background:
+        radial-gradient(140% 140% at 50% 0%, rgba(255, 159, 28, 0.18), transparent 60%),
+        rgba(255, 159, 28, 0.06);
+    box-shadow: 0 0 0 1px rgba(255, 159, 28, 0.12) inset;
     color: var(--text-color, #fdf6ee);
     font-family: inherit;
     cursor: pointer;
@@ -2139,20 +2142,25 @@ h1 {
 
 .rc-category-card:active {
     transform: scale(0.98);
+    background:
+        radial-gradient(140% 140% at 50% 0%, rgba(255, 159, 28, 0.28), transparent 60%),
+        rgba(255, 159, 28, 0.12);
 }
 
 @media (hover: hover) {
     .rc-category-card:hover {
-        background: rgba(255, 159, 28, 0.18);
-        border-color: rgba(255, 159, 28, 0.5);
+        background:
+            radial-gradient(140% 140% at 50% 0%, rgba(255, 159, 28, 0.28), transparent 60%),
+            rgba(255, 159, 28, 0.12);
         transform: translateY(-2px);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(255, 159, 28, 0.2) inset;
     }
 }
 
 .rc-category-card-icon {
-    font-size: 2rem;
+    font-size: 2.4rem;
     line-height: 1;
+    filter: drop-shadow(0 0 8px rgba(255, 159, 28, 0.5));
 }
 
 /* 音符記号（♫）をテキストカラーで描画しカラー絵文字化を防ぐ */
@@ -2162,15 +2170,16 @@ h1 {
 }
 
 .rc-category-card-label {
-    font-size: 1.1rem;
+    font-size: 1.15rem;
     font-weight: 800;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.05em;
     margin-top: 4px;
+    color: #ffcc66;
 }
 
 .rc-category-card-sub {
     font-size: 0.78rem;
-    color: rgba(253, 246, 238, 0.5);
+    color: rgba(255, 200, 120, 0.65);
     font-weight: 400;
 }
 
@@ -3806,6 +3815,8 @@ h1 {
     min-width: 32px;
     flex-shrink: 0;
     aspect-ratio: 1;
+    font-size: 1rem;
+    line-height: 1;
 }
 .custom-test-preview-num {
     color: var(--text-color);
@@ -5862,84 +5873,14 @@ body.results-open #settings-btn {
     }
 }
 
-/* ── 修正1: TOPデザイン切り替えタブ ── */
-.top-design-tabs {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 12px;
-    padding: 4px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 999px;
-    width: fit-content;
-    max-width: 100%;
-}
-.top-design-tab {
-    padding: 4px 14px;
-    border-radius: 999px;
-    border: none;
-    background: transparent;
-    color: var(--muted-color);
-    font-family: inherit;
-    font-size: 0.78rem;
-    font-weight: 700;
-    cursor: pointer;
-    touch-action: manipulation;
-    transition: background 0.15s, color 0.15s;
-}
-.top-design-tab.is-active {
-    background: var(--surface-raised);
-    color: var(--text-color);
+/* ── v0.9.205: TOPのタブ削除後の余白補完（タブ分の高さ相当を padding-top で維持） */
+#home-top {
+    padding-top: 48px;
 }
 
-/* ── 案A: 標準（現行）。デフォルト表示。変更なし ── */
-
-/* ── 案B: ゲーム感 ── */
-#home-top[data-top-design="B"] .rc-category-card {
-    border-color: rgba(255, 159, 28, 0.5);
-    background:
-        radial-gradient(140% 140% at 50% 0%, rgba(255, 159, 28, 0.18), transparent 60%),
-        rgba(255, 159, 28, 0.06);
-    box-shadow: 0 0 0 1px rgba(255, 159, 28, 0.12) inset;
-}
-#home-top[data-top-design="B"] .rc-category-card:active {
-    background:
-        radial-gradient(140% 140% at 50% 0%, rgba(255, 159, 28, 0.28), transparent 60%),
-        rgba(255, 159, 28, 0.12);
-}
-#home-top[data-top-design="B"] .rc-category-card-label {
-    font-size: 1.15rem;
-    letter-spacing: 0.05em;
-    color: #ffcc66;
-}
-#home-top[data-top-design="B"] .rc-category-card-icon {
-    font-size: 2.4rem;
-    filter: drop-shadow(0 0 8px rgba(255, 159, 28, 0.5));
-}
-#home-top[data-top-design="B"] .rc-category-card-sub {
-    color: rgba(255, 200, 120, 0.65);
-}
-
-/* ── 案C: クルーズ感 ── */
-#home-top[data-top-design="C"] .rc-category-card {
-    border-color: rgba(80, 180, 220, 0.4);
-    background:
-        radial-gradient(140% 140% at 0% 100%, rgba(40, 120, 180, 0.2), transparent 60%),
-        rgba(40, 120, 180, 0.07);
-    border-radius: 18px;
-}
-#home-top[data-top-design="C"] .rc-category-card:active {
-    background:
-        radial-gradient(140% 140% at 0% 100%, rgba(40, 120, 180, 0.32), transparent 60%),
-        rgba(40, 120, 180, 0.12);
-}
-#home-top[data-top-design="C"] .rc-category-card-label {
-    color: #90d8f0;
-    letter-spacing: 0.03em;
-}
-#home-top[data-top-design="C"] .rc-category-card-icon {
-    color: #60c8e8;
-    font-size: 2.2rem;
-}
-#home-top[data-top-design="C"] .rc-category-card-sub {
-    color: rgba(144, 216, 240, 0.6);
+/* ── v0.9.205: 組み込み追加STAGE バッジ ── */
+.builtin-extra-badge {
+    background: rgba(180, 255, 200, 0.12);
+    color: #a0e8b8;
+    border: 1px solid rgba(160, 232, 184, 0.3);
 }
