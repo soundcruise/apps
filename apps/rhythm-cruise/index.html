@@ -326,6 +326,7 @@
             <div class="custom-test-preview hidden" id="custom-test-preview">
                 <button type="button" class="custom-test-preview-toggle" id="custom-test-preview-toggle" aria-expanded="false" aria-controls="custom-test-preview-body">リズムプレビューを表示</button>
                 <div class="custom-test-preview-body hidden" id="custom-test-preview-body">
+                    <div class="custom-test-preview-score" id="custom-test-preview-score"></div>
                     <div class="custom-test-preview-settings">
                         <div class="custom-test-preview-param">
                             <span class="custom-test-preview-param-cap">BPM</span>
@@ -352,7 +353,6 @@
                         <input type="range" id="custom-test-preview-balance" min="0" max="100" value="50" step="1" aria-label="確認音バランス（左：クリック大きめ／右：ストローク大きめ）">
                         <span class="custom-test-preview-balance-cap">ストローク</span>
                     </div>
-                    <div class="custom-test-preview-score" id="custom-test-preview-score"></div>
                 </div>
             </div>
 
@@ -363,7 +363,7 @@
                     <span class="stage-bar-cap">くり返し練習</span>
                     <button type="button" class="ss-toggle" id="loop-toggle" aria-pressed="false" title="ONにすると、STOPするまで同じSTAGEを繰り返します（結果は履歴に保存しません）。">OFF</button>
                     <button type="button" class="loop-help-toggle" id="loop-help-toggle" aria-expanded="false" aria-controls="loop-help" aria-label="くり返し練習の説明を開く">＋</button>
-                    <p class="loop-help-text hidden" id="loop-help">ONにすると、同じリズムをくり返して練習できます。苦手なリズムを何度も確認したいときに使ってください。</p>
+                    <p class="loop-help-text hidden" id="loop-help">ONにすると、同じリズムをくり返して練習できます。結果は最後に完了した1周分、途中で止めた場合はそこまでを表示します。</p>
                 </div>
             </div>
             <!-- 3. 状態・進行表示 -->
@@ -1219,7 +1219,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.194"></script>
+    <script src="script.js?v=0.9.195"></script>
 </body>
 
 </html>
