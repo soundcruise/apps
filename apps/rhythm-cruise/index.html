@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.199">
+    <link rel="stylesheet" href="theme.css?v=0.9.200">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -47,8 +47,16 @@
 
             <!-- ホームTOP：リズム練への導線だけを置く（v0.9.117） -->
             <div class="home-view" id="home-top">
-                <button id="rhythm-train-btn" class="settings-top-main">リズム練をする</button>
-                <button id="rhythm-create-btn" class="settings-top-main">リズムを作る</button>
+                <button id="rhythm-train-btn" class="rc-category-card">
+                    <span class="rc-category-card-icon"><svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" style="height:1em;width:1em;vertical-align:-0.125em;fill:currentColor;"><path fill="currentColor" d="M502.63 39L473 9.37a32 32 0 0 0-45.26 0L381.46 55.7a35.14 35.14 0 0 0-8.53 13.79L360.77 106l-76.26 76.26c-12.16-8.76-25.5-15.74-40.1-19.14-33.45-7.78-67-.88-89.88 22a82.45 82.45 0 0 0-20.24 33.47c-6 18.56-23.21 32.69-42.15 34.46-23.7 2.27-45.73 11.45-62.61 28.44C-16.11 327-7.9 409 47.58 464.45S185 528 230.56 482.52c17-16.88 26.16-38.9 28.45-62.71 1.76-18.85 15.89-36.13 34.43-42.14a82.6 82.6 0 0 0 33.48-20.25c22.87-22.88 29.74-56.36 22-89.75-3.39-14.64-10.37-28-19.16-40.2L406 151.23l36.48-12.16a35.14 35.14 0 0 0 13.79-8.53l46.33-46.32a32 32 0 0 0 .03-45.22zM208 352a48 48 0 1 1 48-48 48 48 0 0 1-48 48z"/></svg></span>
+                    <span class="rc-category-card-label">リズム練をする</span>
+                    <span class="rc-category-card-sub">リズムのズレを見ながら練習できます</span>
+                </button>
+                <button id="rhythm-create-btn" class="rc-category-card">
+                    <span class="rc-category-card-icon rc-category-card-icon--note">♫</span>
+                    <span class="rc-category-card-label">リズムを作る</span>
+                    <span class="rc-category-card-sub">リズムパターンを作って再生できます</span>
+                </button>
             </div>
 
             <!-- リズム練をする：STAGE1〜6を直接表示（v0.9.166）。戻る/TOPは共通ナビ #app-nav に統一。 -->
@@ -127,7 +135,7 @@
                     <select class="pce-select rhythm-create-preset-select" id="rc-create-preset-select">
                         <!-- script.js が描画 -->
                     </select>
-                    <button type="button" class="btn-mini rhythm-create-preset-save" id="rc-create-preset-save">プリセットに保存</button>
+                    <button type="button" class="btn-mini rhythm-create-preset-save" id="rc-create-preset-save">このリズムを保存</button>
                 </div>
                 <div class="rhythm-create-preset-actions hidden" id="rc-create-user-preset-actions">
                     <button type="button" class="btn-mini" id="rc-create-preset-rename">名前変更</button>
@@ -1220,7 +1228,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.199"></script>
+    <script src="script.js?v=0.9.200"></script>
 </body>
 
 </html>
