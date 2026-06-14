@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.197';
+const RHYTHM_CRUISE_VERSION = '0.9.198';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -1303,7 +1303,7 @@ function rhythmPracticeStageZoomScale() {
 }
 function syncRhythmStagePreviewResetUI() {
     if (els.stagePreviewResetDefault) {
-        els.stagePreviewResetDefault.classList.toggle('hidden', !(rhythmBuiltinPracticeStageN() || rhythmCustomPracticeStage()));
+        els.stagePreviewResetDefault.classList.toggle('hidden', !(rhythmBuiltinPracticeStageN() || rhythmCustomPracticeStage() || (eng && eng.testSource === 'rhythmCreate')));
     }
 }
 function syncRhythmCreateZoomUI() {
@@ -1342,7 +1342,7 @@ function setRhythmStagePreviewZoom(scale) {
     rhythmVexZoomPrefs.stage = clampRhythmVexZoom(scale);
     const stageN = rhythmBuiltinPracticeStageN();
     if (stageN) saveRhythmBuiltinStagePrefs(stageN, { zoom: rhythmVexZoomPrefs.stage });
-    else if (!rhythmCustomPracticeStage()) saveRhythmVexZoomPrefs();
+    else if (!rhythmCustomPracticeStage() && eng.testSource !== 'rhythmCreate') saveRhythmVexZoomPrefs();
     syncRhythmStagePreviewZoomUI();
     redrawOpenRhythmCustomTestPreview();
     if (els.practice && !els.practice.classList.contains('hidden')) fitLane();
@@ -1404,8 +1404,25 @@ function resetCurrentRhythmCustomPracticePrefs() {
     redrawOpenRhythmCustomTestPreview();
     if (els.practice && !els.practice.classList.contains('hidden')) fitLane();
 }
+function resetCurrentRhythmCreatePracticeDefaults() {
+    if (!eng || eng.testSource !== 'rhythmCreate' || !eng.restore) return;
+    stopPreviewRhythm();
+    if (state.running) stop();
+    state.bpm = eng.restore.bpm;
+    state.bars = eng.restore.bars;
+    if (typeof eng.restore.zoom === 'number') rhythmVexZoomPrefs.stage = eng.restore.zoom;
+    if (els.tempoVal) els.tempoVal.textContent = String(state.bpm);
+    updateBarsUI();
+    syncRhythmStagePreviewZoomUI();
+    applyStageBars();
+    resetGame();
+    refreshCustomFlowScore();
+    redrawOpenRhythmCustomTestPreview();
+    if (els.practice && !els.practice.classList.contains('hidden')) fitLane();
+}
 function resetCurrentRhythmPracticeDefaults() {
     if (rhythmBuiltinPracticeStageN()) resetCurrentRhythmBuiltinStagePrefs();
+    else if (eng && eng.testSource === 'rhythmCreate') resetCurrentRhythmCreatePracticeDefaults();
     else resetCurrentRhythmCustomPracticePrefs();
 }
 
@@ -2338,7 +2355,11 @@ function openRhythmCreatePractice() {
     if (!stage) return;
     stopPreviewRhythm();
     ensureRhythmVexFlow();
-    if (!eng.restore) eng.restore = { bpm: state.bpm, bars: state.bars };
+    eng.restore = {                      // Practice突入時のスナップショット（デフォルトに戻す・終了時の zoom 復元に使う）
+        bpm: clampRhythmCreateBpm(getRhythmCreateBpm()),
+        bars: clampRhythmCreateBars(getRhythmCreateBars()),
+        zoom: rhythmVexZoomPrefs.create, // create拡大率をPractice初期値として渡す（v0.9.198）
+    };
     configureEngineForCustom(stage);
     eng.editId = null;                  // 保存済みPROカスタムSTAGEではない
     eng.testSource = 'rhythmCreate';    // 戻り先と履歴保存の分岐に使う
@@ -2346,7 +2367,8 @@ function openRhythmCreatePractice() {
     if (els.customTestActions) els.customTestActions.classList.remove('hidden');
     if (els.customTestEditBack) els.customTestEditBack.textContent = 'リズム作成に戻る';
     if (els.customTestSave) els.customTestSave.classList.add('hidden');
-    applyRhythmSharedStagePreviewZoom();           // 通常STAGE別拡大率をリズム作成Practiceへ持ち込まない
+    rhythmVexZoomPrefs.stage = rhythmVexZoomPrefs.create; // create拡大率をPractice表示に使う（v0.9.198）
+    syncRhythmStagePreviewZoomUI();
     renderRhythmCustomTestPreview(eng.custom);
     showCustomFlowScoreLayer();
     state.bpm = clampRhythmCreateBpm(getRhythmCreateBpm());
@@ -5035,6 +5057,10 @@ function leaveCustomTestState() {
     if (eng.restore) {
         state.bpm = eng.restore.bpm;
         state.bars = eng.restore.bars;
+        if (typeof eng.restore.zoom === 'number' && eng.testSource === 'rhythmCreate') {
+            rhythmVexZoomPrefs.stage = eng.restore.zoom;
+            syncRhythmStagePreviewZoomUI();
+        }
         eng.restore = null;
         if (els.tempoVal) els.tempoVal.textContent = state.bpm;
         updateBarsUI();
