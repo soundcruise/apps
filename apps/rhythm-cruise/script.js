@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.205';
+const RHYTHM_CRUISE_VERSION = '0.9.206';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -535,7 +535,7 @@ const els = {
     settingsBtn: $('settings-btn'),
     tapHint: $('tap-hint'),
     stageList: $('stage-list'),
-    builtinExtraStageList: $('builtin-extra-stage-list'),
+
     rhythmProCustomSavedList: $('rhythm-pro-custom-saved-list'),
     // v0.9.117：ホームを「リズム練をする → 基礎練/ストロークパターン/コード進行」の階層に再構成
     homeTop: $('home-top'),
@@ -1035,7 +1035,6 @@ function renderStages() {
         if (s.ready) card.addEventListener('click', () => openStage(s.n));
         els.stageList.appendChild(card);
     });
-    renderBuiltinExtraStages();
     renderRhythmHomeCustomStages();
 }
 
@@ -1783,43 +1782,13 @@ function renderRhythmCreateSavedList() {
     els.rcSavedList.innerHTML = '';
     if (els.rcSavedEmpty) els.rcSavedEmpty.classList.toggle('hidden', stages.length > 0);
     stages.forEach((s) => {
-        const item = document.createElement('div');
-        item.className = 'pro-custom-home-item';
-        item.dataset.id = s.id;
-        const badge = '<span class="stage-num pro-custom-home-badge"><small>PRO</small><b>★</b></span>';
-        const title = `<span class="stage-body"><span class="stage-title">${escapeHtml(s.title || '作成リズム')}</span></span>`;
-        item.innerHTML = `
-            <div class="stage-card pro-custom-home-stage" data-act="play" role="button" tabindex="0">
-                ${badge}
-                ${title}
-                <button type="button" class="pro-custom-home-toggle" data-act="menu" aria-expanded="false" aria-haspopup="true" aria-label="その他の操作を表示" title="その他の操作">▼</button>
-            </div>
-            <div class="pro-custom-home-menu" role="menu" aria-label="STAGEの操作" hidden>
-                <div class="pro-custom-home-actions">
-                    <button type="button" class="pro-custom-home-act" data-act="edit" role="menuitem" title="編集する" aria-label="編集する">📝</button>
-                    <button type="button" class="pro-custom-home-act pro-custom-home-act--danger" data-act="delete" role="menuitem" title="削除" aria-label="ステージの削除">🗑️</button>
-                </div>
-            </div>`;
-        item.querySelector('[data-act="play"]').addEventListener('click', (e) => {
-            if (e.target.closest('[data-act="menu"]')) return;
-            openRhythmProCustomEditorFromSaved(s.id);
-        });
-        item.querySelector('[data-act="menu"]').addEventListener('click', (e) => {
-            e.stopPropagation();
-            const menu = item.querySelector('.pro-custom-home-menu');
-            const open = !menu.hidden;
-            menu.hidden = open;
-            e.currentTarget.setAttribute('aria-expanded', open ? 'false' : 'true');
-        });
-        const editBtn = item.querySelector('[data-act="edit"]');
-        if (editBtn) editBtn.addEventListener('click', () => openRhythmProCustomEditorFromSaved(s.id));
-        const delBtn = item.querySelector('[data-act="delete"]');
-        if (delBtn) delBtn.addEventListener('click', () => {
-            if (!window.confirm(`「${s.title || '作成リズム'}」を削除しますか？`)) return;
-            deleteRhythmCustomStageById(s.id);
-            renderRhythmCreateSavedList();
-        });
-        els.rcSavedList.appendChild(item);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'stage-card pro-custom-home-stage';
+        btn.dataset.id = s.id;
+        btn.innerHTML = `<span class="stage-num pro-custom-home-badge"><small>PRO</small><b>★</b></span><span class="stage-body"><span class="stage-title">${escapeHtml(s.title || '作成リズム')}</span></span><span class="stage-chevron">›</span>`;
+        btn.addEventListener('click', () => openRhythmProCustomEditorFromSaved(s.id));
+        els.rcSavedList.appendChild(btn);
     });
 }
 
@@ -6927,84 +6896,45 @@ function getBuiltinStageData(n) {
     return builtinStageCache[n];
 }
 
-/* ── 組み込み追加STAGE（v0.9.205）────────────────────────────
-   三連符 / 8分のシャッフル / 16分のシャッフル の3つを
-   localStorage非依存・固定データで提供する。
-   configureEngineForCustom に通すだけで動作する。 */
-const BUILTIN_EXTRA_STAGES = (() => {
+/* ── PROカスタムSTAGEサンプルシード（v0.9.206）────────────────
+   三連符 / 8分のシャッフル / 16分のシャッフル を初回のみ
+   rhythmProCustomStages の先頭に追加する。
+   削除後は復活しない（フラグ管理）。 */
+const RHYTHM_SAMPLE_STAGES_SEEDED_KEY = 'rhythmProCustomStageSamplesSeeded';
+
+function seedRhythmCustomStageSamples() {
+    if (localStorage.getItem(RHYTHM_SAMPLE_STAGES_SEEDED_KEY)) return;
     const makeAlt = (count) => Array.from({ length: count }, (_, i) => ({
         hit: true, dir: i % 2 === 0 ? 'down' : 'up', type: 'hit',
     }));
-    return [
+    const samples = [
         {
-            id: '__builtin_triplet',
-            title: '三連符',
+            id: 'rc_sample_triplet', version: 1, title: '三連符', description: '',
             grid: 'eighthTriplet', timeSignature: '4/4', patternBars: 1, bars: 4, bpm: 70,
-            rhythmFeel: 'straight',
-            pattern: makeAlt(12), // 4拍 × 3連 = 12セル
-            motion: 'alternate',
+            rhythmFeel: 'straight', pattern: makeAlt(12),
         },
         {
-            id: '__builtin_shuffle8',
-            title: '8分のシャッフル',
+            id: 'rc_sample_shuffle8', version: 1, title: '8分のシャッフル', description: '',
             grid: 'eighth', timeSignature: '4/4', patternBars: 1, bars: 4, bpm: 80,
-            rhythmFeel: 'swing',
-            pattern: makeAlt(8), // 4拍 × 2 = 8セル
-            motion: 'alternate',
+            rhythmFeel: 'swing', pattern: makeAlt(8),
         },
         {
-            id: '__builtin_shuffle16',
-            title: '16分のシャッフル',
+            id: 'rc_sample_shuffle16', version: 1, title: '16分のシャッフル', description: '',
             grid: 'sixteenth', timeSignature: '4/4', patternBars: 1, bars: 4, bpm: 70,
-            rhythmFeel: 'swing',
-            pattern: makeAlt(16), // 4拍 × 4 = 16セル
-            motion: 'alternate',
+            rhythmFeel: 'swing', pattern: makeAlt(16),
         },
     ];
-})();
-
-function openBuiltinExtraStage(id) {
-    const stage = BUILTIN_EXTRA_STAGES.find((s) => s.id === id);
-    if (!stage) return;
-    leaveCustomTestState();
-    if (els.practiceEditBack) els.practiceEditBack.classList.add('hidden');
-    if (els.customTestActions) els.customTestActions.classList.add('hidden');
-    if (els.practiceBackWrap) els.practiceBackWrap.classList.add('hidden');
-    ensureRhythmVexFlow();
-    configureEngineForCustom(stage);
-    eng.editId = null;
-    eng.testSource = null;
-    state.bpm = stage.bpm;
-    state.bars = stage.bars;
-    if (els.tempoVal) els.tempoVal.textContent = String(state.bpm);
-    updateBarsUI();
-    applyStageBars();
-    showCustomFlowScoreLayer();
-    renderRhythmCustomTestPreview(eng.custom);
-    els.practiceNum.innerHTML = `<small>EX</small><b>+</b>`;
-    els.practiceTitle.textContent = stage.title;
-    setInputMode(state.inputMode);
-    show('practice');
-    requestAnimationFrame(() => { fitLane(); resetGame(); renderRhythmFlowScore(); });
-}
-
-function renderBuiltinExtraStages() {
-    if (!els.builtinExtraStageList) return;
-    els.builtinExtraStageList.innerHTML = '';
-    BUILTIN_EXTRA_STAGES.forEach((s) => {
-        const item = document.createElement('div');
-        item.className = 'stage-card pro-custom-home-stage builtin-extra-stage';
-        item.setAttribute('role', 'button');
-        item.setAttribute('tabindex', '0');
-        item.dataset.id = s.id;
-        item.innerHTML = `
-            <span class="stage-num builtin-extra-badge"><small>EX</small><b>+</b></span>
-            <span class="stage-body"><span class="stage-title">${escapeHtml(s.title)}</span></span>
-            <span class="stage-chevron">›</span>`;
-        item.addEventListener('click', () => openBuiltinExtraStage(s.id));
-        item.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openBuiltinExtraStage(s.id); } });
-        els.builtinExtraStageList.appendChild(item);
-    });
+    const existing = getSavedRhythmCustomStages();
+    const existingIds = new Set(existing.map((s) => s.id));
+    const toAdd = samples
+        .filter((s) => !existingIds.has(s.id))
+        .map((s) => normalizeRhythmCustomStageSettings(s))
+        .filter(Boolean);
+    if (toAdd.length > 0) {
+        state.rhythmProCustomStages = [...toAdd, ...existing];
+        saveSettings();
+    }
+    localStorage.setItem(RHYTHM_SAMPLE_STAGES_SEEDED_KEY, '1');
 }
 
 /* セル i（負＝カウントイン）に対応するパターンセル。カスタムはループ折り返し。 */
@@ -15661,6 +15591,7 @@ function applyAppVersionDisplay() {
 function init() {
     applyAppVersionDisplay();    // バージョン表示（Ver X.Y.Z）
     loadSettings();              // 保存済みのマイク設定を反映
+    seedRhythmCustomStageSamples();
     renderStages();
     bind();
     applySettingsToUI();         // スライダー・数値・しきい値ラインを現在値に

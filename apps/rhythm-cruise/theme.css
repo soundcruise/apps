@@ -5877,10 +5877,3 @@ body.results-open #settings-btn {
 #home-top {
     padding-top: 48px;
 }
-
-/* ── v0.9.205: 組み込み追加STAGE バッジ ── */
-.builtin-extra-badge {
-    background: rgba(180, 255, 200, 0.12);
-    color: #a0e8b8;
-    border: 1px solid rgba(160, 232, 184, 0.3);
-}
