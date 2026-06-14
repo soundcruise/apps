@@ -3720,6 +3720,25 @@ h1 {
     text-align: center;
 }
 
+.custom-test-preview-reset {
+    align-self: center;
+    min-height: 32px;
+    padding: 6px 12px;
+    margin: -2px 0 8px;
+    border: 1px solid rgba(253, 246, 238, 0.16);
+    border-radius: 999px;
+    background: rgba(253, 246, 238, 0.06);
+    color: var(--muted-color);
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.custom-test-preview-reset:hover {
+    border-color: rgba(255, 159, 28, 0.34);
+    color: var(--text-color);
+}
+
 /* STAGE画面の常時表示バー：くり返し練習をコンパクトに表示。BPM / 小節はプレビュー内へ移動（v0.9.193）。 */
 .stage-bar {
     display: flex;
