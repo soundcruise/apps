@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.206';
+const RHYTHM_CRUISE_VERSION = '0.9.207';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -3244,10 +3244,18 @@ function renderRhythmCustomStages() {
      入力のたびに更新する。保存で配列へ追加/上書きする。
    ・練習開始・再生・判定エンジン接続は今回は行わない。
 ═══════════════════════════════════════════════════════════ */
-let proCustomEditDraft = null; // 編集中のドラフト（normalize済み）
+let proCustomEditDraft = null;    // 編集中のドラフト（normalize済み）
+let proCustomEditSnapshot = null; // 未保存変更検知用：編集画面を開いた時点のJSON文字列
 
 function rhythmCustomStageExists(id) {
     return !!id && getSavedRhythmCustomStages().some(s => s.id === id);
+}
+
+/* 編集画面からの離脱ガード。差分があるときだけ confirm を出す。 */
+function confirmLeaveProCustomEdit() {
+    if (homeView !== 'proCustomEdit' || !proCustomEditSnapshot || !proCustomEditDraft) return true;
+    if (JSON.stringify(proCustomEditDraft) === proCustomEditSnapshot) return true;
+    return window.confirm('保存していない変更があります。\n保存せずに移動しますか？');
 }
 
 /* 編集画面を開く：未保存ドラフトを表示する。保存するまで state.rhythmProCustomStages へは追加しない。 */
@@ -3255,6 +3263,7 @@ function openRhythmProCustomEditorDraft(stage) {
     if (!isRhythmProCustomStageAvailable()) return;
     proCustomEditDraft = normalizeRhythmCustomStageSettings(stage || getDefaultRhythmCustomStage());
     if (!proCustomEditDraft) return;
+    proCustomEditSnapshot = JSON.stringify(proCustomEditDraft);
     // 「＋ 編集方法」は編集画面を開くたびに閉じた状態へ戻す（v0.9.189）。
     if (els.pceHowtoBody) els.pceHowtoBody.classList.add('hidden');
     if (els.pceHowtoToggle) { els.pceHowtoToggle.setAttribute('aria-expanded', 'false'); els.pceHowtoToggle.textContent = '＋ 編集方法'; }
@@ -4829,6 +4838,7 @@ function saveRhythmCustomEditor(editorStay) {
     const saved = isExisting ? updateRhythmCustomStage(d) : addRhythmCustomStage(d);
     if (!saved) { showRcToast('保存できませんでした'); return null; }
     proCustomEditDraft = saved; // 正規化後の値で同期
+    proCustomEditSnapshot = JSON.stringify(proCustomEditDraft);
     renderRhythmCustomStages();
     renderRhythmHomeCustomStages();
     if (editorStay === true) {
@@ -4854,6 +4864,7 @@ function saveRhythmCustomEditorAsCopy() {
     const saved = addRhythmCustomStage({ ...d, id: generateRhythmCustomStageId() });
     if (!saved) { showRcToast('保存できませんでした'); return null; }
     proCustomEditDraft = saved;
+    proCustomEditSnapshot = JSON.stringify(proCustomEditDraft);
     renderRhythmCustomStages();
     renderRhythmHomeCustomStages();
     setHomeView('rhythm');
@@ -5060,6 +5071,7 @@ function openSettingsFromCurrent() {
 
 /* 全画面共通ナビ：TOP＝常にホーム、戻る＝自然な前画面 */
 function goTop() {
+    if (!confirmLeaveProCustomEdit()) return;
     // カスタムテスト再生中は、未保存のBPM/小節数が破棄される可能性があるため確認する（v0.9.124）。
     // 組み込みSTAGE（STAGE1）は editId が無く、BPM/小節数は通常設定として保存されるので確認は不要（v0.9.143）。
     if (eng.editId) {
@@ -5102,6 +5114,7 @@ function navBack() {
         if (homeView === 'soon') { setHomeView('rhythm'); return; }
         if (homeView === 'proCustom') { setHomeView('rhythm'); return; }
         if (homeView === 'proCustomEdit') {
+            if (!confirmLeaveProCustomEdit()) return;
             renderRhythmHomeCustomStages();
             if (proCustomEditFrom === 'rhythmCreateSaved') { renderRhythmCreateSavedList(); setHomeView('rhythmCreateSaved'); }
             else { setHomeView('rhythm'); }
@@ -15183,6 +15196,7 @@ function bind() {
     if (els.pceTest) els.pceTest.addEventListener('click', testPlayFromEditor);
     if (els.pceCopy) els.pceCopy.addEventListener('click', copyRhythmCustomEditorJson);
     if (els.pceBack) els.pceBack.addEventListener('click', () => {
+        if (!confirmLeaveProCustomEdit()) return;
         renderRhythmHomeCustomStages();
         if (proCustomEditFrom === 'rhythmCreateSaved') { renderRhythmCreateSavedList(); setHomeView('rhythmCreateSaved'); }
         else { setHomeView('rhythm'); }
