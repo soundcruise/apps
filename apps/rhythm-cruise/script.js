@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.207';
+const RHYTHM_CRUISE_VERSION = '0.9.208';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -5252,7 +5252,8 @@ function openRhythmProCustomTest(id, source = 'home') {
 
 /* ── Web Audio クリック ─────────────────────────────────── */
 function ensureAudio() {
-    if (!state.audioCtx) {
+    // closed の場合は再生成（iOS Safariスリープ後にcloseされるケースに対応）
+    if (!state.audioCtx || state.audioCtx.state === 'closed') {
         const AC = window.AudioContext || window.webkitAudioContext;
         state.audioCtx = new AC();
     }
@@ -5263,6 +5264,17 @@ function ensureAudio() {
         );
     }
     return state.audioCtx;
+}
+
+/* iOS Safariスリープ/バックグラウンド復帰時のベストエフォートresume。
+   ユーザー操作起点でない場合もあるため、エラーは無視する。 */
+function tryResumeAudio() {
+    try {
+        const ctx = state.audioCtx;
+        if (ctx && ctx.state !== 'running' && ctx.state !== 'closed') {
+            ctx.resume().catch(() => {});
+        }
+    } catch (_) { /* ignore */ }
 }
 
 /* force=true のときは clickEnabled に関わらず鳴らす（カウントイン合図用） */
@@ -15576,10 +15588,19 @@ function bind() {
 
     // 画面非表示/離脱で安全停止（v0.9.133）。自動再開はしない＝復帰後はユーザーが再度「開始」を押す。
     document.addEventListener('visibilitychange', () => {
-        if (document.hidden) stopForPageHidden();
+        if (document.hidden) {
+            stopForPageHidden();
+        } else {
+            // iOS Safariスリープ復帰時にAudioContextをベストエフォートで復帰させる（v0.9.208）。
+            // 音は自動で鳴らさない。復帰処理のみ。
+            tryResumeAudio();
+        }
     });
     // iOS Safari / ホーム画面アプリでは visibilitychange を取りこぼすことがあるため pagehide でも安全停止。
     window.addEventListener('pagehide', stopForPageHidden);
+    // スリープ/バックグラウンド復帰時の追加フォールバック（v0.9.208）。
+    window.addEventListener('pageshow', () => { tryResumeAudio(); });
+    window.addEventListener('focus', () => { tryResumeAudio(); });
 }
 
 /* ── ページ更新（キャッシュバスター付き・シリーズ共通の挙動） ── */
