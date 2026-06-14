@@ -3801,8 +3801,11 @@ h1 {
     font-weight: 700;
 }
 .custom-test-preview-step {
-    min-width: 32px;
+    width: 32px;
     height: 32px;
+    min-width: 32px;
+    flex-shrink: 0;
+    aspect-ratio: 1;
 }
 .custom-test-preview-num {
     color: var(--text-color);
@@ -3982,6 +3985,30 @@ h1 {
 /* 「リズムプレビューを表示」タブの直後にSTAGE常時バーが続く時（カスタム）は、間の余白を詰める（v0.9.148）。 */
 .custom-test-preview:not(.hidden) + .stage-bar {
     margin-top: 4px;
+}
+/* くり返し練習をプレビューカード内へ移動（v0.9.204）。 */
+.preview-loop-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(253, 246, 238, 0.1);
+    width: 100%;
+}
+.preview-loop-cap {
+    color: var(--muted-color);
+    font-size: 0.82rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.preview-loop-row .loop-help-text {
+    width: 100%;
+    margin: 2px 2px 0;
+    color: var(--muted-color);
+    font-size: 0.74rem;
+    line-height: 1.5;
 }
 /* クリックする拍を4つの丸で視認（v0.9.147・視認用）。選択に連動して ● / ○ が切り替わる。 */
 .click-dots-row {
@@ -5768,4 +5795,151 @@ body.results-open #settings-btn {
     transform: translateY(-50%);
     font-size: 1.3rem;
     color: rgba(253, 246, 238, 0.35);
+}
+
+/* ══════════════════════════════════════════════════════════
+   v0.9.204 追加CSS
+══════════════════════════════════════════════════════════ */
+
+/* ── 修正6: 保存済みリズム一覧カードをリズム練側カードと揃える ── */
+.rc-saved-card {
+    border-color: rgba(255, 200, 87, 0.35);
+    background:
+        radial-gradient(120% 120% at 0% 0%, rgba(255, 200, 87, 0.1), transparent 55%),
+        rgba(255, 200, 87, 0.05);
+}
+.rc-saved-card:active {
+    background:
+        radial-gradient(120% 120% at 0% 0%, rgba(255, 200, 87, 0.18), transparent 55%),
+        rgba(255, 200, 87, 0.1);
+}
+@media (hover: hover) {
+    .rc-saved-card:hover {
+        border-color: rgba(255, 200, 87, 0.55);
+        background:
+            radial-gradient(120% 120% at 0% 0%, rgba(255, 200, 87, 0.16), transparent 55%),
+            rgba(255, 200, 87, 0.09);
+    }
+}
+.rc-saved-card-title {
+    color: #ffe7a8;
+}
+.rc-saved-card-edit-hint {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    color: rgba(253, 246, 238, 0.38);
+    font-size: 0.75rem;
+}
+
+/* ── 修正4: リズム作成STAGE再生設定「デフォルトに戻す」ボタン ── */
+.rc-create-reset-default {
+    display: block;
+    width: fit-content;
+    margin: 6px 10px 8px auto;
+    min-height: 28px;
+    padding: 4px 12px;
+    border: 1px solid rgba(253, 246, 238, 0.16);
+    border-radius: 999px;
+    background: rgba(253, 246, 238, 0.06);
+    color: var(--muted-color);
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: border-color 0.15s, color 0.15s;
+}
+.rc-create-reset-default:active {
+    color: var(--text-color);
+    border-color: rgba(255, 159, 28, 0.4);
+}
+@media (hover: hover) {
+    .rc-create-reset-default:hover {
+        color: var(--text-color);
+        border-color: rgba(255, 159, 28, 0.34);
+    }
+}
+
+/* ── 修正1: TOPデザイン切り替えタブ ── */
+.top-design-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 999px;
+    width: fit-content;
+    max-width: 100%;
+}
+.top-design-tab {
+    padding: 4px 14px;
+    border-radius: 999px;
+    border: none;
+    background: transparent;
+    color: var(--muted-color);
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background 0.15s, color 0.15s;
+}
+.top-design-tab.is-active {
+    background: var(--surface-raised);
+    color: var(--text-color);
+}
+
+/* ── 案A: 標準（現行）。デフォルト表示。変更なし ── */
+
+/* ── 案B: ゲーム感 ── */
+#home-top[data-top-design="B"] .rc-category-card {
+    border-color: rgba(255, 159, 28, 0.5);
+    background:
+        radial-gradient(140% 140% at 50% 0%, rgba(255, 159, 28, 0.18), transparent 60%),
+        rgba(255, 159, 28, 0.06);
+    box-shadow: 0 0 0 1px rgba(255, 159, 28, 0.12) inset;
+}
+#home-top[data-top-design="B"] .rc-category-card:active {
+    background:
+        radial-gradient(140% 140% at 50% 0%, rgba(255, 159, 28, 0.28), transparent 60%),
+        rgba(255, 159, 28, 0.12);
+}
+#home-top[data-top-design="B"] .rc-category-card-label {
+    font-size: 1.15rem;
+    letter-spacing: 0.05em;
+    color: #ffcc66;
+}
+#home-top[data-top-design="B"] .rc-category-card-icon {
+    font-size: 2.4rem;
+    filter: drop-shadow(0 0 8px rgba(255, 159, 28, 0.5));
+}
+#home-top[data-top-design="B"] .rc-category-card-sub {
+    color: rgba(255, 200, 120, 0.65);
+}
+
+/* ── 案C: クルーズ感 ── */
+#home-top[data-top-design="C"] .rc-category-card {
+    border-color: rgba(80, 180, 220, 0.4);
+    background:
+        radial-gradient(140% 140% at 0% 100%, rgba(40, 120, 180, 0.2), transparent 60%),
+        rgba(40, 120, 180, 0.07);
+    border-radius: 18px;
+}
+#home-top[data-top-design="C"] .rc-category-card:active {
+    background:
+        radial-gradient(140% 140% at 0% 100%, rgba(40, 120, 180, 0.32), transparent 60%),
+        rgba(40, 120, 180, 0.12);
+}
+#home-top[data-top-design="C"] .rc-category-card-label {
+    color: #90d8f0;
+    letter-spacing: 0.03em;
+}
+#home-top[data-top-design="C"] .rc-category-card-icon {
+    color: #60c8e8;
+    font-size: 2.2rem;
+}
+#home-top[data-top-design="C"] .rc-category-card-sub {
+    color: rgba(144, 216, 240, 0.6);
 }

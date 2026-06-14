@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.203';
+const RHYTHM_CRUISE_VERSION = '0.9.204';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -583,6 +583,7 @@ const els = {
     rcCreateZoomDown: $('rc-create-zoom-down'),
     rcCreateZoomUp: $('rc-create-zoom-up'),
     rcCreateZoomVal: $('rc-create-zoom-val'),
+    rcCreateResetDefault: $('rc-create-reset-default'),
     rcCreatePractice: $('rc-create-practice'),
     catKiso: $('cat-kiso'),
     catStroke: $('cat-stroke'),
@@ -1485,6 +1486,15 @@ function stepRhythmCreateBpm(delta) { setRhythmCreateBpmFromValue(getRhythmCreat
 function stepRhythmCreateBars(delta) { setRhythmCreateBarsFromValue(getRhythmCreateBars() + delta); }
 function stepRhythmCreatePatternBars(delta) { setRhythmCreatePatternBarsFromValue(getRhythmCreatePatternBars() + delta); }
 
+/* リズム作成STAGE再生設定をデフォルトに戻す（v0.9.204）。BPM/小節/拡大/パターン長を初期値へリセット。 */
+function resetRhythmCreateSettingsToDefault() {
+    stopPreviewRhythm();
+    setRhythmCreateBpmFromValue(RHYTHM_CREATE_BPM_DEFAULT);
+    setRhythmCreateBarsFromValue(RHYTHM_CREATE_BARS_DEFAULT);
+    setRhythmCreatePatternBarsFromValue(RHYTHM_CREATE_PATTERN_BARS_DEFAULT);
+    setRhythmCreateZoom(RHYTHM_VEX_ZOOM_MIN);
+}
+
 function syncRhythmCreatePatternBarsUI() {
     if (els.rcCreatePbars) {
         els.rcCreatePbars.max = String(Math.max(1, Math.min(getRhythmCreateBars(), RHYTHM_CREATE_PATTERN_BARS_MAX)));
@@ -1790,6 +1800,7 @@ function renderRhythmCreateSavedList() {
             ${meta ? `<span class="rc-saved-card-meta">${escapeHtml(meta)}</span>` : ''}
             ${gridLabel ? `<span class="rc-saved-card-grid">最小音符: ${escapeHtml(gridLabel)}</span>` : ''}
             ${desc}
+            <span class="rc-saved-card-edit-hint">📝 編集する</span>
             <span class="rc-saved-card-chevron">›</span>`;
         item.addEventListener('click', () => openRhythmProCustomEditorFromSaved(s.id));
         els.rcSavedList.appendChild(item);
@@ -2912,10 +2923,22 @@ function saveRhythmCreateAsCustomStage(title) {
     return addRhythmCustomStage(stage);
 }
 
-/* 練習STAGE保存モーダルを開く（v0.9.201）。 */
+/* 練習STAGE保存モーダルを開く（v0.9.201）。初期名を現在のプリセット名にする（v0.9.204）。 */
 function openRhythmStageSaveModal() {
     if (!els.rcStageSaveModal || !els.rcStageSaveModalInput) return;
-    const defaultTitle = makeFreshRhythmSaveTitle('作成リズム');
+    const def = getRhythmCreateStageDef();
+    let baseName = '作成リズム';
+    if (els.rcCreatePresetSelect) {
+        const parsed = parseRhythmCreatePresetSelectValue(els.rcCreatePresetSelect.value);
+        if (parsed.type === 'official') {
+            const idx = Math.max(0, Math.min(def.presets.length - 1, parsed.index));
+            baseName = (def.presets[idx] && def.presets[idx].name) ? def.presets[idx].name : '作成リズム';
+        } else if (parsed.type === 'user') {
+            const up = getRhythmCreateUserPresetsForStage(def.n).find((p) => p.id === parsed.id);
+            baseName = (up && up.name) ? up.name : '作成リズム';
+        }
+    }
+    const defaultTitle = makeFreshRhythmSaveTitle(baseName);
     els.rcStageSaveModalInput.value = defaultTitle;
     els.rcStageSaveModal.classList.remove('hidden');
     requestAnimationFrame(() => els.rcStageSaveModalInput.focus());
@@ -14979,6 +15002,17 @@ function applyCalibration() {
 
 /* ── イベント結線 ───────────────────────────────────────── */
 function bind() {
+    // TOP デザイン切り替えタブ（v0.9.204）。
+    const homeTopEl = document.getElementById('home-top');
+    if (homeTopEl) {
+        homeTopEl.addEventListener('click', (e) => {
+            const tab = e.target.closest('.top-design-tab');
+            if (!tab || !tab.dataset.design) return;
+            e.stopPropagation();
+            homeTopEl.setAttribute('data-top-design', tab.dataset.design);
+            homeTopEl.querySelectorAll('.top-design-tab').forEach((t) => t.classList.toggle('is-active', t === tab));
+        });
+    }
     // ホーム階層ナビ（v0.9.166）：TOP → リズム練（STAGE一覧を直接表示）。
     // 各サブビューからの「戻る/TOP」は共通ナビ #app-nav に統一（v0.9.118）。
     if (els.rhythmTrainBtn) els.rhythmTrainBtn.addEventListener('click', () => setHomeView('rhythm'));
@@ -15031,6 +15065,7 @@ function bind() {
     if (els.rcCreateBarsUp) els.rcCreateBarsUp.addEventListener('click', () => stepRhythmCreateBars(1));
     if (els.rcCreateZoomDown) els.rcCreateZoomDown.addEventListener('click', () => stepRhythmCreateZoom(-RHYTHM_VEX_ZOOM_STEP));
     if (els.rcCreateZoomUp) els.rcCreateZoomUp.addEventListener('click', () => stepRhythmCreateZoom(RHYTHM_VEX_ZOOM_STEP));
+    if (els.rcCreateResetDefault) els.rcCreateResetDefault.addEventListener('click', resetRhythmCreateSettingsToDefault);
     if (els.catKiso) els.catKiso.addEventListener('click', () => setHomeView('kiso'));
     if (els.catStroke) els.catStroke.addEventListener('click', () => openSoonCategory('ストロークパターン'));
     if (els.catChord) els.catChord.addEventListener('click', () => openSoonCategory('コード進行'));
