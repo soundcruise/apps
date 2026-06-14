@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.200';
+const RHYTHM_CRUISE_VERSION = '0.9.201';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -640,6 +640,13 @@ const els = {
     stagePreviewZoomUp: $('stage-preview-zoom-up'),
     stagePreviewZoomVal: $('stage-preview-zoom-val'),
     stagePreviewResetDefault: $('stage-preview-reset-default'),
+    practiceBackWrap: $('practice-back-wrap'),
+    stageSaveCustomWrap: $('stage-save-custom-wrap'),
+    stageSaveCustomBtn: $('stage-save-custom-btn'),
+    rcStageSaveModal: $('rc-stage-save-modal'),
+    rcStageSaveModalInput: $('rc-stage-save-modal-input'),
+    rcStageSaveModalOk: $('rc-stage-save-modal-ok'),
+    rcStageSaveModalCancel: $('rc-stage-save-modal-cancel'),
     customFlowScoreLayer: $('custom-flow-score-layer'),
     tempoVal: $('tempo-val'),
     tempoUp: $('tempo-up'),
@@ -1304,6 +1311,9 @@ function rhythmPracticeStageZoomScale() {
 function syncRhythmStagePreviewResetUI() {
     if (els.stagePreviewResetDefault) {
         els.stagePreviewResetDefault.classList.toggle('hidden', !(rhythmBuiltinPracticeStageN() || rhythmCustomPracticeStage() || (eng && eng.testSource === 'rhythmCreate')));
+    }
+    if (els.stageSaveCustomWrap) {
+        els.stageSaveCustomWrap.classList.toggle('hidden', !(eng && eng.testSource === 'rhythmCreate'));
     }
 }
 function syncRhythmCreateZoomUI() {
@@ -2364,9 +2374,11 @@ function openRhythmCreatePractice() {
     eng.editId = null;                  // 保存済みPROカスタムSTAGEではない
     eng.testSource = 'rhythmCreate';    // 戻り先と履歴保存の分岐に使う
     if (els.practiceEditBack) els.practiceEditBack.classList.remove('hidden');
-    if (els.customTestActions) els.customTestActions.classList.remove('hidden');
-    if (els.customTestEditBack) els.customTestEditBack.textContent = 'リズム作成に戻る';
+    // customTestActions には保存ボタンのみ入れているため、リズム作成Practiceでは非表示
+    if (els.customTestActions) els.customTestActions.classList.add('hidden');
     if (els.customTestSave) els.customTestSave.classList.add('hidden');
+    if (els.customTestEditBack) els.customTestEditBack.textContent = '←リズム作成に戻る';
+    if (els.practiceBackWrap) els.practiceBackWrap.classList.remove('hidden');
     rhythmVexZoomPrefs.stage = rhythmVexZoomPrefs.create; // create拡大率をPractice表示に使う（v0.9.198）
     syncRhythmStagePreviewZoomUI();
     renderRhythmCustomTestPreview(eng.custom);
@@ -2824,6 +2836,59 @@ function makeFreshRhythmCopyTitle(baseTitle) {
         if (!titles.has(cand)) return cand;
     }
     return base;
+}
+
+/* リズム作成からSTAGE保存する際に重複しないタイトルを返す（v0.9.201）。
+   例: 「作成リズム」→「作成リズム (2)」→「作成リズム (3)」… */
+function makeFreshRhythmSaveTitle(baseTitle) {
+    const stages = getSavedRhythmCustomStages();
+    const titles = new Set(stages.map(s => s.title));
+    const base = String(baseTitle == null ? '' : baseTitle).trim() || '作成リズム';
+    if (!titles.has(base)) return base;
+    for (let n = 2; n < 1000; n++) {
+        const cand = `${base} (${n})`;
+        if (!titles.has(cand)) return cand;
+    }
+    return base;
+}
+
+/* リズム作成Practiceの内容を練習STAGEとして保存する（v0.9.201）。
+   buildRhythmCreatePreviewStage() の返り値（PROカスタムSTAGE互換）に新規IDとタイトルを付与して addRhythmCustomStage() で保存。 */
+function saveRhythmCreateAsCustomStage(title) {
+    const stage = buildRhythmCreatePreviewStage();
+    if (!stage) return null;
+    // Practice中の現在値で上書き（BPM/小節/拡大をリズム作成編集画面の初期値ではなく使用中の値で保存）
+    stage.bpm = state.bpm;
+    stage.bars = state.bars;
+    stage.zoom = rhythmVexZoomPrefs.stage;
+    stage.id = generateRhythmCustomStageId();
+    stage.title = String(title || '').trim() || '作成リズム';
+    return addRhythmCustomStage(stage);
+}
+
+/* 練習STAGE保存モーダルを開く（v0.9.201）。 */
+function openRhythmStageSaveModal() {
+    if (!els.rcStageSaveModal || !els.rcStageSaveModalInput) return;
+    const defaultTitle = makeFreshRhythmSaveTitle('作成リズム');
+    els.rcStageSaveModalInput.value = defaultTitle;
+    els.rcStageSaveModal.classList.remove('hidden');
+    requestAnimationFrame(() => els.rcStageSaveModalInput.focus());
+}
+
+/* 練習STAGE保存モーダルを閉じる（v0.9.201）。 */
+function closeRhythmStageSaveModal() {
+    if (els.rcStageSaveModal) els.rcStageSaveModal.classList.add('hidden');
+}
+
+/* 練習STAGE保存モーダルのOKを確定する（v0.9.201）。 */
+function confirmRhythmStageSave() {
+    if (!els.rcStageSaveModalInput) return;
+    const title = els.rcStageSaveModalInput.value.trim() || '作成リズム';
+    closeRhythmStageSaveModal();
+    const saved = saveRhythmCreateAsCustomStage(title);
+    if (saved) {
+        showRcToast('練習STAGEとして保存しました');
+    }
 }
 
 /* 保存済みSTAGEを複製（JSONコピーではなく保存データの複製・v0.9.169）。
@@ -5021,7 +5086,8 @@ function guardMicSetupInterruption(action) {
 function openStage(n) {
     leaveCustomTestState();          // カスタムテスト → 通常STAGEへ戻るときはエンジン/一時設定を元に戻す
     if (els.practiceEditBack) els.practiceEditBack.classList.add('hidden'); // STAGE1では「編集に戻る」を出さない
-    if (els.customTestActions) els.customTestActions.classList.add('hidden'); // STAGE1では開始ボタン下の2ボタンを出さない
+    if (els.customTestActions) els.customTestActions.classList.add('hidden'); // STAGE1では保存ボタンを出さない
+    if (els.practiceBackWrap) els.practiceBackWrap.classList.add('hidden'); // STAGE1では戻るリンクを出さない
     const s = STAGES.find((x) => x.n === n) || STAGES[0];
     state.currentStage = s.n;
     // v0.9.143：組み込みSTAGE（STAGE1）を ProカスタムSTAGE と同じ新Play/Result基盤で表示する。
@@ -5081,13 +5147,14 @@ function openRhythmProCustomTest(id, source = 'home') {
     eng.editId = stage.id;                        // 編集導線・一時BPM/小節数の扱い用に元STAGEを記憶
     eng.testSource = (source === 'editor') ? 'editor' : 'home'; // v0.9.170：戻り先・ボタン文言の判別用
     if (els.practiceEditBack) els.practiceEditBack.classList.remove('hidden');
-    if (els.customTestActions) els.customTestActions.classList.remove('hidden'); // 開始ボタン下のボタンを表示
     // v0.9.170：開き元で操作ボタンを出し分ける。
-    //   編集画面のテスト再生＝「編集に戻る」＋「このSTAGEを保存」を表示。
-    //   保存済みカード＝「編集する」だけ表示（保存済みSTAGEなので保存ボタンは不要）。
+    //   編集画面のテスト再生＝「このSTAGEを保存」＋「←編集に戻る」を表示。
+    //   保存済みカード＝「←編集する」だけ表示（保存済みSTAGEなので保存ボタンは不要）。
     const fromEditor = eng.testSource === 'editor';
-    if (els.customTestEditBack) els.customTestEditBack.textContent = fromEditor ? '編集に戻る' : '編集する';
+    if (els.customTestActions) els.customTestActions.classList.toggle('hidden', !fromEditor); // 保存は編集時のみ
     if (els.customTestSave) els.customTestSave.classList.toggle('hidden', !fromEditor);
+    if (els.customTestEditBack) els.customTestEditBack.textContent = fromEditor ? '←編集に戻る' : '←編集する';
+    if (els.practiceBackWrap) els.practiceBackWrap.classList.remove('hidden');
     applyRhythmCustomStagePreviewZoom(stage);      // 保存済みPROカスタムSTAGEの拡大率をPracticeへ反映
     renderRhythmCustomTestPreview(eng.custom);    // 読み取り専用のVexFlow譜面プレビューを表示（v0.9.125）
     showCustomFlowScoreLayer();                   // 流れるVexFlow譜面レイヤー枠を表示（中身は次工程・v0.9.126）
@@ -7474,7 +7541,7 @@ function finish(opts) {
         const fromRhythmCreate = eng.testSource === 'rhythmCreate';
         els.rEditBackBtn.classList.toggle('hidden', !showBack);
         els.rEditBackBtn.classList.toggle('rhythm-create-result-back', fromRhythmCreate);
-        els.rEditBackBtn.textContent = fromRhythmCreate ? 'リズム作成に戻る' : '編集に戻る';
+        els.rEditBackBtn.textContent = fromRhythmCreate ? '←リズム作成に戻る' : '編集に戻る';
     }
 
     // 今回の結果を端末内の履歴へ保存（v0.9.146）。保存失敗してもSTAGE結果表示は継続する（try/catch）。
@@ -15337,6 +15404,14 @@ function bind() {
     if (els.stagePreviewZoomDown) els.stagePreviewZoomDown.addEventListener('click', () => stepRhythmStagePreviewZoom(-RHYTHM_VEX_ZOOM_STEP));
     if (els.stagePreviewZoomUp) els.stagePreviewZoomUp.addEventListener('click', () => stepRhythmStagePreviewZoom(RHYTHM_VEX_ZOOM_STEP));
     if (els.stagePreviewResetDefault) els.stagePreviewResetDefault.addEventListener('click', resetCurrentRhythmPracticeDefaults);
+    // 練習STAGEとして保存ボタン（v0.9.201）。リズム作成Practice中のみ表示。
+    if (els.stageSaveCustomBtn) els.stageSaveCustomBtn.addEventListener('click', openRhythmStageSaveModal);
+    if (els.rcStageSaveModalOk) els.rcStageSaveModalOk.addEventListener('click', confirmRhythmStageSave);
+    if (els.rcStageSaveModalCancel) els.rcStageSaveModalCancel.addEventListener('click', closeRhythmStageSaveModal);
+    if (els.rcStageSaveModalInput) els.rcStageSaveModalInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') confirmRhythmStageSave();
+        if (e.key === 'Escape') closeRhythmStageSaveModal();
+    });
     // 確認音バランススライダー（v0.9.135）。0..100 → -1..+1（左：クリック大きめ／右：ストローク大きめ）。次に鳴る音から反映。
     if (els.customTestPreviewBalance) els.customTestPreviewBalance.addEventListener('input', (e) => {
         setRhythmPreviewSoundBalanceFromValue(e.target.value);

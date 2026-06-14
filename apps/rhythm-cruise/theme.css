@@ -602,18 +602,18 @@ h1 {
 }
 
 .btn-mini.rhythm-create-preset-save {
-    flex: 0 0 auto;
+    display: block;
+    width: 100%;
     min-height: 42px;
     padding-inline: 14px;
-    border: 1px solid rgba(255, 159, 28, 0.55);
-    background: rgba(255, 159, 28, 0.18);
-    color: var(--text-color);
+    border: 1px solid rgba(46, 204, 113, 0.55);
+    border-radius: 12px;
+    background: rgba(46, 204, 113, 0.16);
+    color: #c8f7d8;
     font-weight: 800;
-    box-shadow: 0 2px 8px rgba(255, 159, 28, 0.15);
 }
 .btn-mini.rhythm-create-preset-save:active {
-    background: rgba(255, 159, 28, 0.30);
-    box-shadow: none;
+    background: rgba(46, 204, 113, 0.28);
 }
 
 .rhythm-create-preset-actions {
@@ -704,11 +704,11 @@ h1 {
     min-height: 40px;
     padding: 9px 12px;
     border-radius: 999px;
-    border: 1px solid rgba(253, 246, 238, 0.18);
-    background: rgba(255, 255, 255, 0.04);
+    border: 2px solid #ff9f1c;
+    background: rgba(255, 159, 28, 0.12);
     color: var(--text-color);
     font-family: inherit;
-    font-weight: 700;
+    font-weight: 800;
     font-size: 0.84rem;
 }
 
@@ -945,9 +945,11 @@ h1 {
 /* テスト再生は主アクション：1行を占有して目立たせる（v0.9.124） */
 .pro-custom-act.is-test {
     flex-basis: 100%;
-    border-color: rgba(46, 204, 113, 0.55);
-    background: rgba(46, 204, 113, 0.16);
-    color: #c8f7d8;
+    border-color: #ff9f1c;
+    border-width: 2px;
+    background: rgba(255, 159, 28, 0.12);
+    color: var(--text-color);
+    font-weight: 800;
 }
 
 .pro-custom-act {
@@ -1954,9 +1956,17 @@ h1 {
 .pce-action-row .pce-save {
     padding: 12px;
     border-width: 1px;
-    border-color: rgba(255, 200, 87, 0.46);
-    background: rgba(255, 200, 87, 0.10);
+    border-color: rgba(46, 204, 113, 0.55);
+    background: rgba(46, 204, 113, 0.16);
+    color: #c8f7d8;
     font-size: 0.9rem;
+    font-weight: 800;
+}
+
+.pce-action-row .pce-save-as {
+    border-color: rgba(46, 204, 113, 0.45);
+    background: rgba(46, 204, 113, 0.10);
+    color: #c8f7d8;
 }
 
 .pce-actions .pce-copy {
@@ -2644,8 +2654,9 @@ h1 {
 .history-entry {
     width: 100%;
     display: flex;
-    justify-content: center;
-    margin-top: 8px;
+    justify-content: flex-end;
+    margin-top: 12px;
+    padding-right: 4px;
 }
 .history-entry-btn {
     background: transparent;
@@ -3667,19 +3678,43 @@ h1 {
     background: rgba(255, 255, 255, 0.08);
 }
 
-/* カスタムSTAGEテスト再生：開始ボタン下の「編集に戻る」「このSTAGEを保存」（v0.9.124）。
-   STAGE1/基礎練では非表示。スマホ幅で押しやすいよう横並び→狭ければ折り返す。 */
+/* カスタムSTAGEテスト再生：「このSTAGEを保存」中央配置（v0.9.124 → v0.9.201 で単独化）。
+   STAGE1/基礎練では非表示。 */
 .custom-test-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
     width: 100%;
     max-width: 420px;
     margin: 10px auto 0;
 }
 
+/* 戻るテキストリンク（←リズム作成に戻る / ←編集に戻る）。v0.9.201。 */
+.practice-back-wrap {
+    width: 100%;
+    max-width: 420px;
+    margin: 6px auto 0;
+    padding-left: 4px;
+}
+.practice-back-wrap.hidden { display: none; }
+
+.practice-back-link {
+    background: transparent;
+    border: none;
+    color: rgba(253, 246, 238, 0.45);
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 500;
+    padding: 6px 0;
+    cursor: pointer;
+    text-align: left;
+    touch-action: manipulation;
+    transition: color 0.15s;
+}
+.practice-back-link:active {
+    color: rgba(253, 246, 238, 0.75);
+}
+
 .custom-test-act {
-    flex: 1 1 140px;
+    display: block;
+    width: 100%;
     padding: 12px 10px;
     border-radius: 12px;
     font-family: inherit;
@@ -3797,6 +3832,34 @@ h1 {
 .custom-test-preview-reset:hover {
     border-color: rgba(255, 159, 28, 0.34);
     color: var(--text-color);
+}
+
+/* 練習STAGEとして保存ラッパー（v0.9.201）。リズム作成Practice中のみ表示。 */
+.stage-save-custom-wrap {
+    width: 100%;
+    max-width: 420px;
+    margin: 10px auto 0;
+}
+.stage-save-custom-wrap.hidden { display: none; }
+
+.stage-save-custom-btn {
+    display: block;
+    width: 100%;
+    min-height: 40px;
+    margin-top: 8px;
+    padding: 8px 14px;
+    border: 1px solid rgba(46, 204, 113, 0.55);
+    border-radius: 12px;
+    background: rgba(46, 204, 113, 0.16);
+    color: #c8f7d8;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+.stage-save-custom-btn:active {
+    background: rgba(46, 204, 113, 0.28);
 }
 
 /* STAGE画面の常時表示バー：くり返し練習をコンパクトに表示。BPM / 小節はプレビュー内へ移動（v0.9.193）。 */

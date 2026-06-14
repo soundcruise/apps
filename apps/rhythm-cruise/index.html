@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.200">
+    <link rel="stylesheet" href="theme.css?v=0.9.201">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -135,12 +135,18 @@
                     <select class="pce-select rhythm-create-preset-select" id="rc-create-preset-select">
                         <!-- script.js が描画 -->
                     </select>
-                    <button type="button" class="btn-mini rhythm-create-preset-save" id="rc-create-preset-save">このリズムを保存</button>
                 </div>
                 <div class="rhythm-create-preset-actions hidden" id="rc-create-user-preset-actions">
                     <button type="button" class="btn-mini" id="rc-create-preset-rename">名前変更</button>
                     <button type="button" class="btn-mini" id="rc-create-preset-duplicate">複製</button>
                     <button type="button" class="btn-mini btn-reset" id="rc-create-preset-delete">削除</button>
+                </div>
+
+                <div class="pce-howto rhythm-create-edithelp">
+                    <button type="button" class="pce-howto-toggle" id="rc-create-edithelp-toggle" aria-expanded="false">＋ 編集方法</button>
+                    <div class="pce-howto-body hidden" id="rc-create-edithelp-body">
+                        <p class="pce-hint">タップ：短い音符 → 長い音符 → 休符 → タイ → 音符。<br>長い音符にすると、同じ拍の後ろのマスは自動でタイになります。<br>↓ / ↑ でストローク方向を切り替えられます。</p>
+                    </div>
                 </div>
 
                 <div class="pce-pattern rhythm-create-pattern" id="rc-create-stage1-grid" aria-label="4拍のリズムパターン">
@@ -151,14 +157,9 @@
                     <button type="button" class="btn-primary rhythm-create-play" id="rc-create-preview-play" aria-pressed="false">▶ リズムを再生</button>
                 </div>
 
-                <div class="pce-howto rhythm-create-edithelp">
-                    <button type="button" class="pce-howto-toggle" id="rc-create-edithelp-toggle" aria-expanded="false">＋ 編集方法</button>
-                    <div class="pce-howto-body hidden" id="rc-create-edithelp-body">
-                        <p class="pce-hint">タップ：短い音符 → 長い音符 → 休符 → タイ → 音符。<br>長い音符にすると、同じ拍の後ろのマスは自動でタイになります。<br>↓ / ↑ でストローク方向を切り替えられます。</p>
-                    </div>
-                </div>
+                <button type="button" class="btn-mini rhythm-create-preset-save" id="rc-create-preset-save">プリセットに保存</button>
 
-                <button type="button" class="rhythm-create-practice" id="rc-create-practice">このリズムで練習する</button>
+                <button type="button" class="rhythm-create-practice" id="rc-create-practice">このリズムで練習する→</button>
             </div>
 
             <div class="rhythm-create-preset-modal hidden" id="rc-create-preset-modal" role="dialog" aria-modal="true" aria-labelledby="rc-create-preset-modal-title">
@@ -280,7 +281,7 @@
 
                 <div class="pce-action-groups">
                     <div class="pce-action-primary">
-                        <button type="button" class="pro-custom-act is-test pce-test" id="pce-test">STAGEを試す</button>
+                        <button type="button" class="pro-custom-act is-test pce-test" id="pce-test">このリズムで練習する→</button>
                     </div>
 
                     <div class="pce-action-section">
@@ -467,15 +468,21 @@
                 <button class="btn-primary transport-main" id="play-btn">▶ 開始</button>
             </div>
 
-            <!-- 6a. 過去の結果カードを見る（控えめなサブボタン・v0.9.146）。全STAGE共通で表示。マイク設定モーダル内には出さない。 -->
+            <!-- 6b. PROカスタムSTAGEのみ：このSTAGEを保存（中央配置・編集からのPractice時のみ）。 -->
+            <div class="custom-test-actions hidden" id="custom-test-actions">
+                <button type="button" class="custom-test-act is-save" id="custom-test-save">このSTAGEを保存</button>
+            </div>
+            <!-- 6c. リズム作成Practice中だけ表示（v0.9.201）。 -->
+            <div class="stage-save-custom-wrap hidden" id="stage-save-custom-wrap">
+                <button type="button" class="stage-save-custom-btn" id="stage-save-custom-btn">練習STAGEとして保存</button>
+            </div>
+            <!-- 6d. 戻るテキストリンク（PROカスタム=←編集に戻る / リズム作成=←リズム作成に戻る）。v0.9.201。 -->
+            <div class="practice-back-wrap hidden" id="practice-back-wrap">
+                <button type="button" class="practice-back-link" id="custom-test-edit-back">編集に戻る</button>
+            </div>
+            <!-- 6a. 過去の結果カードを見る（v0.9.146）。全STAGE共通・右下の控えめな補助導線。 -->
             <div class="history-entry">
                 <button type="button" class="history-entry-btn" id="history-open-btn">過去の結果を見る</button>
-            </div>
-
-            <!-- 6b. カスタムSTAGEテスト再生時だけ表示（v0.9.124）。STAGE1/基礎練では非表示。 -->
-            <div class="custom-test-actions hidden" id="custom-test-actions">
-                <button type="button" class="custom-test-act is-edit-back" id="custom-test-edit-back">編集に戻る</button>
-                <button type="button" class="custom-test-act is-save" id="custom-test-save">このSTAGEを保存</button>
             </div>
         </section>
 
@@ -1212,6 +1219,19 @@
         </div>
     </div>
 
+    <!-- 練習STAGEとして保存モーダル（v0.9.201）。screen-home外に置くことでPractice中も表示可能。 -->
+    <div class="rhythm-create-preset-modal hidden" id="rc-stage-save-modal" role="dialog" aria-modal="true" aria-labelledby="rc-stage-save-modal-title">
+        <div class="rhythm-create-preset-modal-card">
+            <div class="rhythm-create-preset-modal-title" id="rc-stage-save-modal-title">練習STAGEとして保存</div>
+            <p class="rhythm-create-preset-modal-msg">リズム練で使うSTAGEとして保存します。</p>
+            <input class="rhythm-create-preset-modal-input" id="rc-stage-save-modal-input" type="text" maxlength="40" autocomplete="off">
+            <div class="rhythm-create-preset-modal-actions">
+                <button type="button" class="btn-mini" id="rc-stage-save-modal-cancel">キャンセル</button>
+                <button type="button" class="btn-primary" id="rc-stage-save-modal-ok">保存</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 軽いフィードバック用トースト（JSONコピー等・v0.9.119） -->
     <div class="rc-toast hidden" id="rc-toast" role="status" aria-live="polite"></div>
 
@@ -1228,7 +1248,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.200"></script>
+    <script src="script.js?v=0.9.201"></script>
 </body>
 
 </html>
