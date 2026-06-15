@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.222';
+const RHYTHM_CRUISE_VERSION = '0.9.223';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -8805,7 +8805,6 @@ function ptNearWin() {
 const PT_CAP_WIN_MS = PT_BEAT_MS * 0.5; // 取り込み開始/終了のゆとり
 const PT_WAVE_WINDOW_MS = 4000;         // 波形バッファの保持時間
 const PT_LANE_HEIGHT = 168;             // STAGE1本体の #lane-canvas と同じCSS高さ
-const PT_NORMAL_CLICK_HARD_GUARD_MS = 90; // 通常マイクの最終確認テストだけ、クリック直後の誤反応を短く除外
 const pt = {
     active: false, capturing: false, timers: [], scheduled: [], raf: 0,
     audioStart: 0, flowStartPerf: 0, playT0Ms: 0,
@@ -8909,10 +8908,6 @@ function ptDetectionThreshold() {
 
 /* 実践テストのクリックガード（v0.9.78）：STAGE本体 isClickGuardedOnset をそのまま流用。 */
 function isPtClickGuardedOnset(now, peak, lastClickPerf) {
-    if (isNormalMicInput()) {
-        const sinceClick = now - lastClickPerf;
-        if (sinceClick >= -10 && sinceClick <= PT_NORMAL_CLICK_HARD_GUARD_MS + clickLatencyMs()) return true;
-    }
     return isClickGuardedOnset(now, peak, lastClickPerf, true);
 }
 

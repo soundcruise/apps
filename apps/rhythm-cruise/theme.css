@@ -43,6 +43,10 @@ body {
     min-height: 100%;
 }
 
+html {
+    background: #070b11;
+}
+
 body {
     font-family: 'Outfit', system-ui, sans-serif;
     background:
@@ -6074,7 +6078,8 @@ body[data-rc-theme="clean-pro"] #screen-home header h1 {
 body[data-rc-theme="clean-pro"] {
     background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 24%),
-        linear-gradient(145deg, #070b11, #0c1219 54%, #10161d);
+        linear-gradient(145deg, #070b11, #0c1219 54%, #10161d),
+        #070b11;
 }
 
 body[data-rc-theme="clean-pro"] .app-container {
