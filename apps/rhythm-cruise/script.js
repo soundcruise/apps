@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.219';
+const RHYTHM_CRUISE_VERSION = '0.9.220';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -9590,7 +9590,7 @@ function renderPracticeResult(r) {
     if (c.kind === 'ok') {
         // 「この設定を保存」は共通の保存モーダルを開く（v0.9.80）。
         actions =
-            '<button type="button" id="pt-result-done" style="' + primary + '">完了する</button>' +
+            '<button type="button" class="rc-mic-action-primary" id="pt-result-done" style="' + primary + '">完了する</button>' +
             '<button type="button" id="pt-result-save" style="' + subQuiet + '">この設定を保存</button>';
     } else {
         let fixLabel = '最終確認テストをやり直す', fixId = 'pt-result-fix-rerun';
@@ -9602,8 +9602,8 @@ function renderPracticeResult(r) {
         else if (c.issue === 'btdelay') { fixLabel = 'マイク遅れ補正を行う'; fixId = 'pt-result-fix-btdelay'; }
         else if (c.issue === 'double') { fixLabel = '二重反応防止を調整する'; fixId = 'pt-result-fix-manual'; }
         actions =
-            '<button type="button" id="' + fixId + '" style="' + primary + '">' + fixLabel + '</button>' +
-            '<button type="button" id="pt-result-rerun" style="' + sub + '">もう1度テストする</button>';
+            '<button type="button" class="rc-mic-action-primary" id="' + fixId + '" style="' + primary + '">' + fixLabel + '</button>' +
+            '<button type="button" class="rc-mic-action-secondary" id="pt-result-rerun" style="' + sub + '">もう1度テストする</button>';
     }
 
     // 「詳しい数値・手動設定を見る」：押すと手動設定ページへ移動する（v0.9.89）。
@@ -10148,13 +10148,13 @@ function renderBtCalResult(r) {
     let head, actions;
     if (!r.enoughInput) {
         head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">入力が少なくて測れませんでした。クリックに合わせて、もう一度はっきり手拍子してください。</p>';
-        actions = '<button type="button" id="bt-cal-rerun" style="' + primary + '">もう1度テストする</button>';
+        actions = '<button type="button" class="rc-mic-action-secondary" id="bt-cal-rerun" style="' + primary + '">もう1度テストする</button>';
     } else if (r.propose) {
         head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">判定が' + (r.avg > 0 ? '遅め（LATE）' : '早め（EARLY）') + 'に大きくズレています。マイク遅れ補正で合わせましょう。</p>';
         const proposeRow = '<div class="cal-result-row"><span>補正後の目安</span><b>' + sign(r.proposed) + '</b></div>';
         actions =
-            '<button type="button" id="bt-cal-apply" style="' + primary + '">この補正を適用してもう1度テストする</button>' +
-            '<button type="button" id="bt-cal-rerun" style="' + sub + '">補正せずにもう1度テストする</button>';
+            '<button type="button" class="rc-mic-action-primary" id="bt-cal-apply" style="' + primary + '">この補正を適用してもう1度テストする</button>' +
+            '<button type="button" class="rc-mic-action-secondary" id="bt-cal-rerun" style="' + sub + '">補正せずにもう1度テストする</button>';
         els.btCalResult.innerHTML = head + rows + proposeRow + extra + '<div style="margin-top:6px;">' + actions + '</div>';
         els.btCalResult.classList.remove('hidden');
         bindBtCalResultActions();
@@ -10166,8 +10166,8 @@ function renderBtCalResult(r) {
             ? '<p class="cal-status" style="color:#6ed28c;font-weight:600;margin-top:6px;">最新の平均ズレ（' + avgTxt + '）に合わせて、マイク遅れ補正を ' + sign(r.appliedOffset) + ' に微調整しました。</p>'
             : '';
         actions =
-            '<button type="button" id="bt-cal-proceed" style="' + primary + '">最終確認テストへ進む</button>' +
-            '<button type="button" id="bt-cal-rerun" style="' + sub + '">もう1度テストする</button>';
+            '<button type="button" class="rc-mic-action-primary" id="bt-cal-proceed" style="' + primary + '">最終確認テストへ進む</button>' +
+            '<button type="button" class="rc-mic-action-secondary" id="bt-cal-rerun" style="' + sub + '">もう1度テストする</button>';
         els.btCalResult.innerHTML = head + autoNote + rows + extra + '<div style="margin-top:6px;">' + actions + '</div>';
         els.btCalResult.classList.remove('hidden');
         bindBtCalResultActions();
@@ -10189,7 +10189,7 @@ function btManualBlockHtml(start, sub) {
         + '<input type="range" id="bt-cal-manual-slider" min="' + headphoneMicOffsetMin() + '" max="' + headphoneMicOffsetMax() + '" step="5" value="' + start + '">'
         + '<div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;"><span>← 判定を早める</span><span>判定を遅らせる →</span></div>'
         + '<p class="setting-note">最終確認テストで EARLY（早め）が残るなら右（遅らせる）へ、LATE（遅め）が残るなら左（早める）へ少し動かします。0ms＝補正なし。</p>'
-        + '<button type="button" id="bt-cal-manual-use" style="' + sub + '">この補正を使う</button>'
+        + '<button type="button" class="rc-mic-action-secondary" id="bt-cal-manual-use" style="' + sub + '">この補正を使う</button>'
         + '</div></details>';
 }
 
@@ -10624,7 +10624,7 @@ function renderTapCalResult(r) {
     let head;
     if (!r.enoughInput) {
         head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">タップが少ないため測れませんでした。クリック音に合わせて、もう一度8回タップしてください。</p>';
-        const action = '<button type="button" id="tap-cal-apply" style="' + primary + '">もう1度テスト</button>';
+        const action = '<button type="button" class="rc-mic-action-secondary" id="tap-cal-apply" style="' + primary + '">もう1度テスト</button>';
         els.tapCalResult.innerHTML = head + '<div class="cal-result-row"><span>有効タップ</span><b>' + r.valid + ' / ' + TAP_CAL_PLAY_BEATS + '</b></div>'
             + '<div style="margin-top:6px;">' + action + '</div>';
         els.tapCalResult.classList.remove('hidden');
@@ -10643,8 +10643,8 @@ function renderTapCalResult(r) {
     }
     // v0.9.101：主導線は「この補正を適用してもう1度テスト」に一本化。「もう1度テストする」「手動で微調整する」ボタンは廃止。
     const actions =
-        '<button type="button" id="tap-cal-apply" style="' + primary + '">この補正を適用してもう1度テスト</button>' +
-        '<button type="button" id="tap-cal-use" style="' + sub + '">この設定で使う</button>' +
+        '<button type="button" class="rc-mic-action-primary" id="tap-cal-apply" style="' + primary + '">この補正を適用してもう1度テスト</button>' +
+        '<button type="button" class="rc-mic-action-primary" id="tap-cal-use" style="' + sub + '">この設定で使う</button>' +
         '<button type="button" id="tap-cal-save" style="' + sub + '">この設定を保存</button>';
     // v0.9.101：折りたたみ（＋タブ）を「拍ごとのズレを見る」→「手動で微調整する」の順で、ボタン群の下に置く。
     // 手動スライダーの初期値＝補正後の目安（大きくズレた場合は newOffset、小ズレ時は現在値）。
@@ -13963,7 +13963,7 @@ function computeChordCooldown(aboveMsArr, hasRing) {
 }
 
 function recoRetestButtonHtml() {
-    return '<button type="button" class="btn-mic results-retest-btn test-start-btn reco-inline-retest" data-reco-retest="1">もう一度テストする</button>';
+    return '<button type="button" class="btn-mic results-retest-btn test-start-btn rc-mic-action-secondary reco-inline-retest" data-reco-retest="1">もう一度テストする</button>';
 }
 
 function btDiagNumber(v) {

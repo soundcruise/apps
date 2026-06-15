@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.219">
+    <link rel="stylesheet" href="theme.css?v=0.9.220">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -770,13 +770,13 @@
                     <p class="setting-note" id="test-input-note">入力の大きさに合わせて自動調整します。</p>
                 </details>
                 <div class="test-row">
-                    <button class="btn-mic test-run-btn test-start-btn" id="mic-test-btn">マイク反応テストを開始</button>
+                    <button class="btn-mic test-run-btn test-start-btn rc-mic-action-primary" id="mic-test-btn">マイク反応テストを開始</button>
                     <span class="test-mic-state hidden" id="test-mic-state">マイク ON</span>
                 </div>
                 <!-- マイクを開始できなかったとき（許可ダイアログが出ない/拒否など）の案内と再試行（v0.9.160） -->
                 <div class="mic-perm-help hidden" id="mic-perm-help" role="alert">
                     <p class="mph-text" id="mic-perm-help-text">マイクを開始できませんでした。ブラウザのマイク許可を確認してから、もう一度お試しください。</p>
-                    <button type="button" class="btn-mic test-start-btn" id="mic-perm-retry">もう一度マイクをONにする</button>
+                    <button type="button" class="btn-mic test-start-btn rc-mic-action-secondary" id="mic-perm-retry">もう一度マイクをONにする</button>
                     <details class="card-help">
                         <summary>うまくいかないとき</summary>
                         <p class="setting-note">スマホ本体やブラウザの設定で、このページのマイク許可が「許可」になっているか確認してください。Safariの場合は、アドレスバー左側の設定、またはスマホ本体の設定アプリ内のSafariから、マイクの許可を確認できます。許可が「確認（その都度きく）」のときは、ページを一度再読み込みしてから、もう一度お試しください。</p>
@@ -797,7 +797,7 @@
                 <!-- イヤホン接続時のクリック音漏れ警告＋通常マイク側テストへの導線（v0.9.152） -->
                 <div class="earphone-leak hidden" id="earphone-leak">
                     <p class="test-reco-msg warn" id="earphone-leak-msg"></p>
-                    <button type="button" class="btn-mic test-start-btn" id="earphone-leak-switch">通常マイクでテストする</button>
+                    <button type="button" class="btn-mic test-start-btn rc-mic-action-primary" id="earphone-leak-switch">通常マイクでテストする</button>
                 </div>
                 <div class="test-reco hidden" id="test-reco">
                     <div class="reco-title">おすすめ設定</div>
@@ -806,11 +806,11 @@
                         <div class="reco-item"><span>クリック音量</span><b id="reco-clickvol">–</b></div>
                         <div class="reco-item"><span>二重反応防止</span><b id="reco-cooldown">–</b></div>
                     </div>
-                    <button class="btn-primary hidden" id="reco-apply-btn">おすすめ設定を適用</button>
+                    <button class="btn-primary rc-mic-action-primary hidden" id="reco-apply-btn">おすすめ設定を適用</button>
                     <div class="test-reco-msg hidden" id="reco-msg"></div>
                     <div class="reco-device-vol-note hidden" id="reco-device-vol-note"></div>
                     <div class="test-reco-msg warn hidden" id="reco-retest"></div>
-                    <button type="button" class="btn-mic results-retest-btn test-start-btn hidden" id="reco-retest-btn">🎤 もう1度テスト</button>
+                    <button type="button" class="btn-mic results-retest-btn test-start-btn rc-mic-action-secondary hidden" id="reco-retest-btn">🎤 もう1度テスト</button>
                     <p class="test-reco-msg warn hidden" id="auto-earphone-hint"></p>
                     <details class="settings-detail bt-mic-diagnostic hidden" id="bt-mic-diagnostic">
                         <summary>診断ログを見る</summary>
@@ -850,9 +850,9 @@
                     <summary>詳しい説明</summary>
                     <p class="setting-note">クリック音をマイクが拾うまでの遅れを測って、判定タイミングを合わせます。測定中は静かにして、終わるまで待ってください。</p>
                 </details>
-                <button class="btn-mic cal-run-btn test-start-btn" id="cal-btn">テストを開始</button>
+                <button class="btn-mic cal-run-btn test-start-btn rc-mic-action-primary" id="cal-btn">テストを開始</button>
                 <p class="cal-status hidden" id="cal-status"></p>
-                <button type="button" class="btn-mic results-retest-btn test-start-btn hidden" id="cal-retest-mic-btn">マイク反応テストをやり直す</button>
+                <button type="button" class="btn-mic results-retest-btn test-start-btn rc-mic-action-secondary hidden" id="cal-retest-mic-btn">マイク反応テストをやり直す</button>
                 <div class="cal-monitor hidden" id="cal-monitor">
                     <div class="mic-meter">
                         <div class="mic-meter-fill" id="cal-level"></div>
@@ -869,10 +869,10 @@
                     <div class="cal-result-row"><span>補正値</span><b id="cal-offset">–</b></div>
                     <div class="cal-result-row"><span>検出成功</span><b id="cal-success">–</b></div>
                     <div class="cal-result-row"><span>ばらつき</span><b id="cal-spread">–</b></div>
-                    <button class="btn-primary cal-apply-btn" id="cal-apply-btn">この補正を適用</button>
+                    <button class="btn-primary cal-apply-btn rc-mic-action-primary" id="cal-apply-btn">この補正を適用</button>
                 </div>
                 <!-- 補正は必須ではない。実践テストへ進む導線（押したら補正系完了扱い） -->
-                <button type="button" class="btn-mini" id="cal-skip-btn" style="width:100%;margin-top:10px;">補正せずに進む</button>
+                <button type="button" class="btn-mini rc-mic-action-secondary" id="cal-skip-btn" style="width:100%;margin-top:10px;">補正せずに進む</button>
 
                 <!-- 遅れ補正の結果確認（実施済み後に表示・後から見返せる） -->
                 <details class="settings-detail test-result-detail hidden" id="cal-result-detail">
@@ -902,7 +902,7 @@
                 </details>
                 <!-- v0.9.111：説明を読んだ直後に押せるよう説明文の直下に置く。v0.9.112：BPM調整を横に並べる（狭い画面では折り返す） -->
                 <div class="hp-start-row" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px;">
-                    <button class="btn-mic cal-run-btn test-start-btn" id="hp-cal-btn" style="margin:0;flex:1;min-width:160px;">補正テスト開始</button>
+                    <button class="btn-mic cal-run-btn test-start-btn rc-mic-action-primary" id="hp-cal-btn" style="margin:0;flex:1;min-width:160px;">補正テスト開始</button>
                     <!-- テスト専用BPM（v0.9.92）。STAGE/最終確認テストのテンポには影響しない -->
                     <div class="hp-bpm-row" style="display:flex;align-items:center;gap:10px;">
                         <span class="setting-label" style="margin:0;">BPM</span>
@@ -938,12 +938,12 @@
                 <p class="setting-note hidden" id="hp-cal-auto-msg" style="margin-top:14px;padding:10px 12px;border:1px solid rgba(255,159,28,0.35);border-radius:10px;background:rgba(255,159,28,0.08);text-align:center;">テストが終わりました。このタイミングでよければ、下の「この設定で進む」を押してください。</p>
                 <!-- 「ここは終わった」と分かる導線（v0.9.111：再テストと横並び）。進む＝補正系完了扱いで実践テストへ -->
                 <div class="hp-proceed-row" style="display:flex;gap:8px;margin-top:12px;align-items:stretch;">
-                    <button type="button" class="btn-primary" id="hp-proceed-btn" style="flex:1;margin:0;">この設定で進む</button>
-                    <button type="button" class="btn-mini" id="hp-retest-btn" style="flex:none;margin:0;padding:0 16px;white-space:nowrap;">再テスト</button>
+                    <button type="button" class="btn-primary rc-mic-action-primary" id="hp-proceed-btn" style="flex:1;margin:0;">この設定で進む</button>
+                    <button type="button" class="btn-mini rc-mic-action-secondary" id="hp-retest-btn" style="flex:none;margin:0;padding:0 16px;white-space:nowrap;">再テスト</button>
                 </div>
                 </div><!-- /#hp-cal-staged -->
                 <!-- 画面タップ設定タブから使う場合の導線（v0.9.95）：保存してアプリTOPへ戻る（テストへは進まない） -->
-                <button type="button" class="btn-primary hidden" id="hp-tap-use-btn" style="width:100%;margin-top:12px;">この音ズレ設定で使う</button>
+                <button type="button" class="btn-primary rc-mic-action-primary hidden" id="hp-tap-use-btn" style="width:100%;margin-top:12px;">この音ズレ設定で使う</button>
                 <!-- 画面タップ設定タブから：現在のタップ補正値をプリセットとして保存（v0.9.97） -->
                 <button type="button" class="btn-mini hidden" id="hp-tap-save-btn" style="width:100%;margin-top:10px;padding:11px;border:1px solid rgba(255,255,255,0.22);border-radius:10px;background:rgba(255,255,255,0.04);font-weight:700;">この設定を保存</button>
             </div>
@@ -952,7 +952,7 @@
             <div class="settings-card" id="correction-wired-note">
                 <div class="cal-head">補正</div>
                 <p class="setting-note">有線イヤホンは、音ズレ補正なし（0ms）が基本です。違和感がある場合だけ、最後の「手動設定」で調整できます。</p>
-                <button type="button" class="btn-primary" id="wired-proceed-btn" style="width:100%;margin-top:8px;">この設定で進む</button>
+                <button type="button" class="btn-primary rc-mic-action-primary" id="wired-proceed-btn" style="width:100%;margin-top:8px;">この設定で進む</button>
             </div>
 
             <!-- 6. マイク遅れ補正（イヤホン接続時。クリックに合わせて手拍子/ストロークし判定遅れを測る。有線にもv0.9.152で対応） v0.9.80 -->
@@ -978,11 +978,11 @@
                     </div>
                 </div>
                 <p class="test-phase" id="bt-cal-phase"></p>
-                <button class="btn-mic cal-run-btn test-start-btn" id="bt-cal-btn">マイク遅れ補正テストを開始</button>
+                <button class="btn-mic cal-run-btn test-start-btn rc-mic-action-primary" id="bt-cal-btn">マイク遅れ補正テストを開始</button>
                 <p class="cal-status" id="bt-cal-status"></p>
                 <div class="cal-result hidden" id="bt-cal-result"></div>
                 <!-- 測らずに進みたい人向け：このまま最終確認テストへ -->
-                <button type="button" class="btn-mini" id="bt-cal-skip" style="width:100%;margin-top:8px;">このまま最終確認テストへ</button>
+                <button type="button" class="btn-mini rc-mic-action-primary" id="bt-cal-skip" style="width:100%;margin-top:8px;">このまま最終確認テストへ</button>
             </div>
 
             <!-- 7. 最終確認テスト（基本設定後の確認。入力タイプに関係なく表示。確認・表示のみ／補正は未適用） -->
@@ -1012,9 +1012,9 @@
                         <button type="button" class="btn-mini" id="pt-review-last">最後へ</button>
                     </div>
                 </div>
-                <button class="btn-mic cal-run-btn test-start-btn" id="pt-btn">最終確認テストを開始</button>
+                <button class="btn-mic cal-run-btn test-start-btn rc-mic-action-primary" id="pt-btn">最終確認テストを開始</button>
                 <!-- Bluetoothイヤホンで波形がラインに届かないとき用：反応テストをやり直して感度を測り直す（v0.9.160） -->
-                <button type="button" class="btn-mic results-retest-btn test-start-btn hidden" id="pt-retest-mic-btn">マイク反応テストをやり直す</button>
+                <button type="button" class="btn-mic results-retest-btn test-start-btn rc-mic-action-secondary hidden" id="pt-retest-mic-btn">マイク反応テストをやり直す</button>
                 <p class="cal-status" id="pt-status"></p>
                 <div class="cal-result hidden" id="pt-result"></div>
             </div>
@@ -1076,9 +1076,9 @@
                     <!-- 未保存の案内（数字を変更した／テストで新しい設定が適用された等のときに表示・v0.9.152） -->
                     <p class="mic-save-hint hidden" id="manual-save-hint">変更があります。この設定を保存できます。</p>
                     <!-- 主導線：この設定を現在設定として使い、マイク設定TOPへ戻る -->
-                    <button type="button" class="btn-primary manual-action-primary" id="manual-use-btn">この設定を使う</button>
+                    <button type="button" class="btn-primary manual-action-primary rc-mic-action-primary" id="manual-use-btn">この設定を使う</button>
                     <!-- サブ導線：最終確認テストを実施する -->
-                    <button type="button" class="manual-action-sub" id="manual-practice-btn">最終確認テストを実施する</button>
+                    <button type="button" class="manual-action-sub rc-mic-action-primary" id="manual-practice-btn">最終確認テストを実施する</button>
                     <!-- サブ導線：上書き保存（ユーザープリセット由来で変更があるときだけ表示・v0.9.152） -->
                     <button type="button" class="manual-action-sub mic-overwrite-btn hidden" id="manual-overwrite-trigger">上書き保存</button>
                     <!-- サブ導線：この設定を保存（別名で保存・共通の保存モーダルを開く／未保存時は強調） -->
@@ -1269,7 +1269,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.219"></script>
+    <script src="script.js?v=0.9.220"></script>
 </body>
 
 </html>

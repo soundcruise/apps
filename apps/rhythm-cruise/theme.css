@@ -6766,6 +6766,63 @@ body[data-rc-theme="clean-pro"] #history-clear-btn {
     color: #ffb0b0;
 }
 
+body[data-rc-theme="clean-pro"] .rc-mic-action-primary {
+    min-height: 48px !important;
+    width: 100%;
+    border-radius: 13px !important;
+    border: 1px solid rgba(229, 196, 124, 0.74) !important;
+    background:
+        linear-gradient(180deg, rgba(238, 205, 135, 0.96), rgba(194, 143, 61, 0.92)) !important;
+    color: #17120b !important;
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 850 !important;
+    letter-spacing: 0;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.30),
+        0 12px 24px rgba(0, 0, 0, 0.24),
+        0 0 0 1px rgba(255, 255, 255, 0.025) !important;
+}
+
+body[data-rc-theme="clean-pro"] .rc-mic-action-primary:active {
+    transform: translateY(1px) scale(0.99);
+    background:
+        linear-gradient(180deg, rgba(224, 188, 112, 0.96), rgba(177, 125, 48, 0.94)) !important;
+}
+
+body[data-rc-theme="clean-pro"] .rc-mic-action-secondary {
+    min-height: 42px !important;
+    border-radius: 12px !important;
+    border: 1px solid rgba(222, 194, 122, 0.34) !important;
+    background:
+        linear-gradient(180deg, rgba(222, 194, 122, 0.12), rgba(255, 255, 255, 0.035)) !important;
+    color: #f0e4c8 !important;
+    font-family: inherit;
+    font-weight: 780 !important;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        0 6px 14px rgba(0, 0, 0, 0.12) !important;
+}
+
+body[data-rc-theme="clean-pro"] .rc-mic-action-secondary:active {
+    transform: translateY(1px) scale(0.99);
+    background:
+        linear-gradient(180deg, rgba(222, 194, 122, 0.18), rgba(255, 255, 255, 0.05)) !important;
+}
+
+body[data-rc-theme="clean-pro"] .rc-mic-action-primary.is-on,
+body[data-rc-theme="clean-pro"] .rc-mic-action-secondary.is-on {
+    border-color: rgba(255, 99, 99, 0.48) !important;
+    background: rgba(255, 79, 110, 0.10) !important;
+    color: #ffb0b0 !important;
+}
+
+body[data-rc-theme="clean-pro"] .rc-mic-action-primary:disabled,
+body[data-rc-theme="clean-pro"] .rc-mic-action-secondary:disabled {
+    opacity: 0.56;
+    box-shadow: none !important;
+}
+
 @media (max-width: 420px) {
     body[data-rc-theme="clean-pro"] #screen-practice {
         padding-top: 70px;
