@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.215">
+    <link rel="stylesheet" href="theme.css?v=0.9.216">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -930,10 +930,10 @@
                     <button type="button" class="btn-mini btn-reset" id="hp-std">Bluetoothイヤホン標準</button>
                 </div>
                 <!-- 4小節で自動停止したあとの案内（v0.9.109→v0.9.110で4小節）。普段は隠し、自動停止時だけ表示する -->
-                <p class="setting-note hidden" id="hp-cal-auto-msg" style="margin-top:14px;padding:10px 12px;border:1px solid rgba(255,159,28,0.35);border-radius:10px;background:rgba(255,159,28,0.08);text-align:center;">テストが終わりました。このタイミングでよければ、下の「この音ズレ設定で進む」を押してください。</p>
+                <p class="setting-note hidden" id="hp-cal-auto-msg" style="margin-top:14px;padding:10px 12px;border:1px solid rgba(255,159,28,0.35);border-radius:10px;background:rgba(255,159,28,0.08);text-align:center;">テストが終わりました。このタイミングでよければ、下の「この設定で進む」を押してください。</p>
                 <!-- 「ここは終わった」と分かる導線（v0.9.111：再テストと横並び）。進む＝補正系完了扱いで実践テストへ -->
                 <div class="hp-proceed-row" style="display:flex;gap:8px;margin-top:12px;align-items:stretch;">
-                    <button type="button" class="btn-primary" id="hp-proceed-btn" style="flex:1;margin:0;">この音ズレ設定で進む</button>
+                    <button type="button" class="btn-primary" id="hp-proceed-btn" style="flex:1;margin:0;">この設定で進む</button>
                     <button type="button" class="btn-mini" id="hp-retest-btn" style="flex:none;margin:0;padding:0 16px;white-space:nowrap;">再テスト</button>
                 </div>
                 </div><!-- /#hp-cal-staged -->
@@ -1264,7 +1264,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.215"></script>
+    <script src="script.js?v=0.9.216"></script>
 </body>
 
 </html>

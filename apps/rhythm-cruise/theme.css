@@ -2244,6 +2244,25 @@ h1 {
     background: rgba(255, 159, 28, 0.18);
 }
 
+#preset-list .preset-builtin-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+#preset-list .preset-builtin-btn {
+    width: 100%;
+    min-width: 0;
+    padding-inline: 6px;
+    white-space: nowrap;
+}
+
+@media (max-width: 360px) {
+    #preset-list .preset-builtin-btn {
+        font-size: 0.78rem;
+        padding-inline: 4px;
+    }
+}
+
 .preset-help {
     margin-bottom: 10px;
 }

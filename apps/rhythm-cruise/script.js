@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.215';
+const RHYTHM_CRUISE_VERSION = '0.9.216';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -8579,14 +8579,14 @@ function hpBeatTick() {
 
 /* 4小節ぶん流れたあとの自動停止（v0.9.109→v0.9.110で4小節に短縮）。
    手動停止と同じく「レーンは閉じず、丸を初期位置へ戻して静止」させ、
-   「この音ズレ設定で進む」ボタンが押しやすい位置までスクロールし、案内文を表示する。 */
+   「この設定で進む」ボタンが押しやすい位置までスクロールし、案内文を表示する。 */
 function finishHeadphoneCalAuto() {
     stopHeadphoneCal({ keepLane: true });
     if (els.hpCalAutoMsg) els.hpCalAutoMsg.classList.remove('hidden');
     scrollHpProceedIntoView();
 }
 
-/* 「この音ズレ設定で進む（or この音ズレ設定で使う）」ボタンを、画面下端ギリギリではなく
+/* 「この設定で進む（or この音ズレ設定で使う）」ボタンを、画面下端ギリギリではなく
    画面の中央〜やや下（下に余白が残る位置）へ1回だけスクロールする（v0.9.111）。
    ガクつかないよう、レイアウト確定（2フレーム）後に window.scrollTo を1回だけ呼ぶ。 */
 function scrollHpProceedIntoView() {
@@ -8666,10 +8666,10 @@ function stopHeadphoneCal(opts) {
 
 function toggleHeadphoneCal() {
     // v0.9.100：ユーザーが明示的に「停止」した場合もレーンは閉じず、丸を初期位置へ戻して静止表示する。
-    // （「この音ズレ設定で進む」「設定を閉じる」「別ステップ移動」「マイク設定TOP」「タブ切替」では従来どおり閉じる）
+    // （「この設定で進む」「設定を閉じる」「別ステップ移動」「マイク設定TOP」「タブ切替」では従来どおり閉じる）
     if (hpCal.active) {
         stopHeadphoneCal({ keepLane: true });
-        // v0.9.104→v0.9.111：停止したら「この音ズレ設定で進む」ボタンを押しやすい位置（中央〜やや下）へスクロール。
+        // v0.9.104→v0.9.111：停止したら「この設定で進む」ボタンを押しやすい位置（中央〜やや下）へスクロール。
         scrollHpProceedIntoView();
     } else {
         startHeadphoneCal();
@@ -11982,7 +11982,7 @@ function invalidatePracticeResult(note) {
 /* 補正系を完了として次のステップへ（適用 / スキップ / 進む 共通）。
    Bluetoothイヤホン時は「マイク遅れ補正」ステップへ、それ以外は最終確認テストへ。 */
 function completeCorrectionStep() {
-    // イヤホン音ズレ補正テスト中に「この音ズレ設定で進む」を押したら、
+    // イヤホン音ズレ補正テスト中に「この設定で進む」を押したら、
     // クリック音・丸点灯ループ・残りタイマーを必ず止める（v0.9.87）。
     if (hpCal.active || hpCal.timer || hpCal.lightTimers.length) stopHeadphoneCal();
     // v0.9.117：進んだら段階表示を初期（説明＋開始＋BPMのみ）へ戻す（停止済みで stop を呼ばない場合も確実に畳む）
@@ -13094,6 +13094,49 @@ function setTestResult(text, kind) {
 
 function setTestPhase(t) { if (els.testPhase) els.testPhase.textContent = t; }
 
+/* マイク反応テストを新しく始める前に、前回テストの表示だけを初期化する。
+   保存済みマイク設定やlocalStorageは変更しない。 */
+function resetMicReactionTestRunDisplay() {
+    state.micTestDone = false;
+    setupProgress.recoApplied = false;
+    practiceResultOk = false;
+    test.recommended = null;
+    test.recoCooldown = null;
+    test.recoClickVolume = null;
+    test.projClickMax = null;
+    test.lowInputTuned = false;
+    if (els.testReco) els.testReco.classList.add('hidden');
+    if (els.recoApplyBtn) els.recoApplyBtn.classList.add('hidden');
+    if (els.recoMsg) {
+        els.recoMsg.textContent = '';
+        els.recoMsg.className = 'test-reco-msg hidden';
+    }
+    if (els.recoDeviceVolNote) {
+        els.recoDeviceVolNote.textContent = '';
+        els.recoDeviceVolNote.className = 'reco-device-vol-note hidden';
+    }
+    if (els.recoRetest) {
+        els.recoRetest.textContent = '';
+        els.recoRetest.className = 'test-reco-msg warn hidden';
+    }
+    if (els.recoRetestBtn) els.recoRetestBtn.classList.add('hidden');
+    if (els.autoEarphoneHint) {
+        els.autoEarphoneHint.textContent = '';
+        els.autoEarphoneHint.classList.add('hidden');
+    }
+    if (els.earphoneLeak) els.earphoneLeak.classList.add('hidden');
+    if (els.earphoneLeakMsg) els.earphoneLeakMsg.textContent = '';
+    if (els.testResultDetail) els.testResultDetail.classList.add('hidden');
+    if (els.testDetailStats) els.testDetailStats.innerHTML = '';
+    if (els.barLine) els.barLine.style.display = 'none';
+    if (els.barZone) els.barZone.style.display = 'none';
+    if (els.barClick) els.barClick.style.left = '0%';
+    if (els.barStroke) els.barStroke.style.left = '0%';
+    setTestResult('', '');
+    setTestPhase('');
+    updateMicTestDoneUI();
+}
+
 /* マイク反応テストの「今やること」をフェーズで出し分ける（v0.9.91。検出ロジックは変更しない・表示のみ）。
    ・環境音/クリック音テスト中：弾かずに待つ
    ・ストロークテスト中：いつもの強さで8回ストローク
@@ -13257,6 +13300,7 @@ function toggleMicTest() {
 async function startMicTestFlow() {
     if (pt.active) stopPracticeTest(); // 最終確認テストと排他
     stopBtCal(); // マイク遅れ補正と排他
+    resetMicReactionTestRunDisplay();
     if (!(await ensureTestMic())) { setTestResult('マイクを許可してください。', 'ng'); showMicPermHelp(); return; }
     hideMicPermHelp(); // v0.9.160：開始できたので許可エラー案内は隠す
     test.flow = true;
@@ -13882,6 +13926,9 @@ function updateReco() {
     const displaySamples = strokeSamples.map((v) => micDisplayFrac(v));
     const strokeDisplayMax = displaySamples.length ? displaySamples[displaySamples.length - 1] : null;
     const strokeDisplayAvg = displaySamples.length ? displaySamples.reduce((a, b) => a + b, 0) / displaySamples.length : null;
+    const totalStrokeNotes = test.notes.length || STROKE_TEST_COUNT;
+    const detectedStrokeNotes = test.strokeDetected || 0;
+    const strokeDetectionShort = detectedStrokeNotes < totalStrokeNotes;
     const lowInputMax = (maxStroke != null) ? maxStroke : maxStrokeRaw;
     const hasAnyInput = (maxStrokeRaw != null && maxStrokeRaw > 0);
     let lowInput = hasAnyInput && (
@@ -13899,6 +13946,7 @@ function updateReco() {
         (strokeAvg != null && strokeAvg >= BT_STRONG_RAW_AVG) ||
         (strokeDisplayMax != null && strokeDisplayMax >= BT_STRONG_DISPLAY_FRAC)
     );
+    const btStrongButStrokeShort = btInputLooksStrong && strokeDetectionShort;
     if (btInputLooksStrong) lowInput = false;
     // 救済(rescueHighSens)やイヤホン接続で拾った結果も低入力として扱い、おすすめ表示・手動プロファイルをそろえる。
     const lowInputTuned = (isLowInputTestEnv() || shouldUseLowInputDisplayProfile()) && lowInput;
@@ -13995,7 +14043,7 @@ function updateReco() {
     //     iPhone+Bluetooth等はAGCでストローク間の余韻が持ち上がり、ラインが低いと
     //     ・結果波形がMAX張り付き ・二重反応 が起きやすい。実測ピークの一定割合を下限にして自然な高さへ。
     //     UA分岐はせず、入力タイプ（Bluetoothイヤホン）と実測値だけで判断する。判定スケール/表示は変えない。
-    if (isBluetoothHeadphone() && test.recommended != null) {
+    if (isBluetoothHeadphone() && test.recommended != null && !strokeDetectionShort) {
         // v0.9.85では minStroke 基準だったため、1拍だけ小さい入力があると下限が低くなりやすかった。
         // v0.9.86では p95/平均/最大も見て、実際に大きく反応している環境ではラインを自然な高さへ寄せる。
         const btFloorCandidates = [
@@ -14089,10 +14137,20 @@ function updateReco() {
     const volChanged = recoVol !== state.clickVolume;
     const projTxt = (test.projClickMax != null) ? '（クリック音量' + recoVol + '%適用後の目安：約' + test.projClickMax.toFixed(3) + '）' : '';
     const lineTxt = (test.recommended != null) ? '反応ライン約' + test.recommended.toFixed(3) : '';
-    if (!canApply) {
+    if (!canApply && isBluetoothHeadphone() && hasAnyInput) {
+        els.recoMsg.className = 'test-reco-msg warn';
+        els.recoMsg.classList.remove('hidden');
+        els.recoMsg.textContent = '入力音量はありますが、ストロークとして十分には判定できませんでした。'
+            + 'イヤホンマイクをギターに近づけるか、手動設定で反応ラインを少し下げてください。';
+    } else if (!canApply) {
         els.recoMsg.className = 'test-reco-msg ng';
         els.recoMsg.classList.remove('hidden');
         els.recoMsg.textContent = 'ストローク音がほとんど入っていません。もう少し大きめに弾くか、マイクに近づけてください。';
+    } else if (btStrongButStrokeShort) {
+        els.recoMsg.className = 'test-reco-msg warn';
+        els.recoMsg.classList.remove('hidden');
+        els.recoMsg.textContent = '入力音量はありますが、ストロークとして拾えた回数が少なめです。'
+            + 'Bluetoothイヤホンでは反応ラインを上げすぎず、拾いやすさを優先した設定にしています（' + lineTxt + '）。';
     } else if (btInputLooksStrong) {
         els.recoMsg.className = 'test-reco-msg';
         els.recoMsg.classList.remove('hidden');
@@ -14165,8 +14223,10 @@ function updateReco() {
     if (els.recoRetest) {
         if (retestExhausted) {
             els.recoRetest.className = 'test-reco-msg warn';
-            els.recoRetest.textContent = 'ストロークがまだ十分に拾えていません。イヤホンマイクがギターから離れている可能性があります。'
-                + 'マイク位置を近づけるか、手動設定で反応ラインを調整してください。';
+            els.recoRetest.textContent = btStrongButStrokeShort
+                ? '入力音量はありますが、ストロークとして拾えた回数が少なめです。マイク位置を近づけるか、手動設定で反応ラインを少し下げてください。'
+                : 'ストロークがまだ十分に拾えていません。イヤホンマイクがギターから離れている可能性があります。'
+                    + 'マイク位置を近づけるか、手動設定で反応ラインを調整してください。';
             els.recoRetest.classList.remove('hidden');
         } else {
             els.recoRetest.classList.add('hidden');
