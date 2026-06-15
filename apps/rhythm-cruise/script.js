@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.212';
+const RHYTHM_CRUISE_VERSION = '0.9.213';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -539,7 +539,6 @@ const els = {
     rhythmProCustomSavedList: $('rhythm-pro-custom-saved-list'),
     // v0.9.117：ホームを「リズム練をする → 基礎練/ストロークパターン/コード進行」の階層に再構成
     homeTop: $('home-top'),
-    topDesignTabs: $('top-design-tabs'),
     homeRhythm: $('home-rhythm'),
     homeKiso: $('home-kiso'),
     homeSoon: $('home-soon'),
@@ -5037,18 +5036,9 @@ function deleteRhythmCustomFromEditor() {
 let homeView = 'top'; // 'top' | 'rhythm' | 'rhythmCreate' | 'rhythmCreateStage1' | 'rhythmCreateSaved' | 'kiso' | 'soon' | 'proCustom' | 'proCustomEdit'
 let currentScreen = 'home'; // 'home' | 'practice' | 'settings'（v0.9.118：共通ナビ表示判定に使う）
 let proCustomEditFrom = 'rhythm'; // 'rhythm' | 'rhythmCreateSaved'：編集画面を開いた入口。戻り先の分岐に使う（v0.9.202）。
-const TOP_DESIGN_CHOICES = ['original', 'clean-pro'];
 
-function setTopDesignChoice(choice) {
-    const next = TOP_DESIGN_CHOICES.includes(choice) ? choice : 'original';
-    if (els.homeTop) els.homeTop.dataset.topDesign = next;
-    if (document.body) document.body.dataset.rcTheme = next;
-    if (!els.topDesignTabs) return;
-    els.topDesignTabs.querySelectorAll('[data-top-design-choice]').forEach((btn) => {
-        const active = btn.getAttribute('data-top-design-choice') === next;
-        btn.classList.toggle('is-active', active);
-        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-    });
+function applyCleanProTheme() {
+    if (document.body) document.body.dataset.rcTheme = 'clean-pro';
 }
 
 /* 共通ナビ（左上 戻る/TOP・右上 設定）の表示制御（v0.9.118）。
@@ -15106,11 +15096,6 @@ function applyCalibration() {
 function bind() {
     // ホーム階層ナビ（v0.9.166）：TOP → リズム練（STAGE一覧を直接表示）。
     // 各サブビューからの「戻る/TOP」は共通ナビ #app-nav に統一（v0.9.118）。
-    if (els.topDesignTabs) els.topDesignTabs.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-top-design-choice]');
-        if (!btn) return;
-        setTopDesignChoice(btn.getAttribute('data-top-design-choice'));
-    });
     if (els.rhythmTrainBtn) els.rhythmTrainBtn.addEventListener('click', () => setHomeView('rhythm'));
     if (els.rhythmCreateBtn) els.rhythmCreateBtn.addEventListener('click', openRhythmCreate);
     if (els.rcSavedEntryBtn) els.rcSavedEntryBtn.addEventListener('click', openRhythmCreateSaved);
@@ -15689,7 +15674,7 @@ function init() {
     seedRhythmCustomStageSamples();
     renderStages();
     bind();
-    setTopDesignChoice((els.homeTop && els.homeTop.dataset && els.homeTop.dataset.topDesign) || 'original');
+    applyCleanProTheme();
     applySettingsToUI();         // スライダー・数値・しきい値ラインを現在値に
     updateInputModeUI();         // v0.9.118：入力方式（タップ/ストローク）の切替UI・表示を保存値に同期
     updateBarsUI();              // v0.9.118：小節数の表示を保存値に同期
