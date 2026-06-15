@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.208';
+const RHYTHM_CRUISE_VERSION = '0.9.212';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -539,6 +539,7 @@ const els = {
     rhythmProCustomSavedList: $('rhythm-pro-custom-saved-list'),
     // v0.9.117：ホームを「リズム練をする → 基礎練/ストロークパターン/コード進行」の階層に再構成
     homeTop: $('home-top'),
+    topDesignTabs: $('top-design-tabs'),
     homeRhythm: $('home-rhythm'),
     homeKiso: $('home-kiso'),
     homeSoon: $('home-soon'),
@@ -1121,8 +1122,8 @@ const RHYTHM_CREATE_STAGES = [
         patternBars: 1,
         states: ['hit', 'rest', 'tie'],
         beatLabels: ['1', 'ta', 'ta', '2', 'ta', 'ta', '3', 'ta', 'ta', '4', 'ta', 'ta'],
-        dirs: ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'],
-        motion: 'alternate',
+        dirs: makeRhythmTripletDirs(12),
+        motion: 'custom',
         previewId: 'rhythm_create_stage4_preview',
         howto: '三連符は、1拍を3つに分けるリズムです。<br>いつもの8分音符とは違う、転がるような感じを作ることができます。<br>まずは音を出す場所、休む場所、伸ばす場所を選んで、3つに分ける感覚を試してみましょう。',
         presets: [
@@ -1850,6 +1851,10 @@ function toggleRhythmCreateEditHelp() {
     els.rcCreateEditHelpToggle.textContent = next ? '− 編集方法' : '＋ 編集方法';
 }
 
+function alertRhythmCreateOutsidePatternBars() {
+    window.alert('この小節は現在の「パターンの長さ」の範囲外です。\n編集したい場合は、「パターンの長さ」を増やしてください。');
+}
+
 function renderRhythmCreateStageGrid() {
     const def = getRhythmCreateStageDef();
     const mount = els.rcCreateStage1Grid;
@@ -1973,12 +1978,13 @@ function drawRhythmCreateVexLane(VF, mount, def) {
         const isBeat = ((i % stepsPerBar) % beatCells === 0);
         const isBarStart = (i % stepsPerBar === 0);
         btn.className = 'pce-tap-cell' + (isBeat ? ' beat' : '') + (isBarStart ? ' bar-start' : '') + (isBeat ? ' is-beat' : ' is-offbeat') + (editable ? '' : ' is-locked');
-        if (editable) btn.dataset.index = String(bi);
+        btn.dataset.index = String(bi);
         btn.dataset.zone = 'note';
+        if (!editable) btn.dataset.locked = 'pattern-outside';
         btn.dataset.state = state;
-        if (!editable) btn.disabled = true;
+        if (!editable) btn.setAttribute('aria-disabled', 'true');
         btn.setAttribute('aria-pressed', isRhythmCreateHit(state) ? 'true' : 'false');
-        btn.setAttribute('aria-label', getRhythmCreateCellLabel(def, i) + (editable ? 'を切り替え' : '（繰り返し表示）') + '（現在：' + rhythmCreateStateLabel(state) + '）');
+        btn.setAttribute('aria-label', getRhythmCreateCellLabel(def, i) + (editable ? 'を切り替え' : '（パターンの長さ範囲外）') + '（現在：' + rhythmCreateStateLabel(state) + '）');
         tap.appendChild(btn);
     }
     lane.appendChild(tap);
@@ -1996,10 +2002,13 @@ function drawRhythmCreateVexLane(VF, mount, def) {
         const arrow = document.createElement('button');
         arrow.type = 'button';
         arrow.className = 'pce-arrow pce-arrow-' + cell.type + (isBarStart ? ' bar-start' : '') + (editable ? '' : ' is-locked');
-        if (editable) arrow.dataset.index = String(bi);
+        arrow.dataset.index = String(bi);
         arrow.dataset.zone = 'arrow';
-        if (!editable) arrow.disabled = true;
-        arrow.setAttribute('aria-label', getRhythmCreateCellLabel(def, i) + (editable ? 'のストローク方向を切り替え' : '（繰り返し表示）'));
+        if (!editable) {
+            arrow.dataset.locked = 'pattern-outside';
+            arrow.setAttribute('aria-disabled', 'true');
+        }
+        arrow.setAttribute('aria-label', getRhythmCreateCellLabel(def, i) + (editable ? 'のストローク方向を切り替え' : '（パターンの長さ範囲外）'));
         arrow.innerHTML = rhythmArrowGlyph(cell);
         arrowrow.appendChild(arrow);
 
@@ -2649,28 +2658,51 @@ function makeRhythmRestCell() {
 }
 
 /* grid・位置に応じた初期マス（v0.9.121）。
-   quarter：すべて 音符＋↓。eighth／sixteenth：down/up の自然な交互（偶数=↓、奇数=↑）。 */
+   quarter：すべて 音符＋↓。eighth／sixteenth：down/up の自然な交互。
+   三連符系は各3連を DDU（↓↓↑）にする。 */
+function rhythmDefaultTripletDirForIndex(i) {
+    return (i % 3 === 2) ? 'up' : 'down';
+}
+
+function makeRhythmTripletDirs(count) {
+    return Array.from({ length: count }, (_, i) => rhythmDefaultTripletDirForIndex(i));
+}
+
 function defaultRhythmCellForIndex(grid, i) {
     if (grid === 'quarter') return { hit: true, dir: 'down', type: 'hit' };
+    if (RHYTHM_GRID_IS_TRIPLET[grid]) return { hit: true, dir: rhythmDefaultTripletDirForIndex(i), type: 'hit' };
     return { hit: true, dir: (i % 2 === 0 ? 'down' : 'up'), type: 'hit' };
 }
 
 function rhythmDefaultDirForIndex(d, index) {
     if (!d || d.grid === 'quarter') return 'down';
+    if (RHYTHM_GRID_IS_TRIPLET[d.grid]) return rhythmDefaultTripletDirForIndex(index);
     return (index % 2 === 0) ? 'down' : 'up';
 }
 
 /* セル位置に応じた「デフォルトのストローク方向」を、dirManual でない音符へ反映する。
-   ルール：8分/16分は各セル位置の基本オルタネイト（↓↑↓↑…）、4分はすべて↓。
+   ルール：8分/16分は基本オルタネイト（↓↑↓↑…）、4分はすべて↓。
+   三連符系は新規生成セル側の DDU（↓↓↑）を尊重し、既存パターンは一括上書きしない。
    ユーザーが矢印タップで指定した音符（dirManual:true）は上書きしない。
    hit以外（休符/tie）は方向を表示しないので対象外。 */
 function applyRhythmDefaultDirections(d) {
     if (!d || !Array.isArray(d.pattern)) return;
+    // 三連符系は新規生成セル側で DDU を持たせる。既存保存済みSTAGEの方向を表示時に一括変更しない。
+    if (RHYTHM_GRID_IS_TRIPLET[d.grid]) return;
     const pat = d.pattern;
     for (let i = 0; i < pat.length; i++) {
         const c = pat[i];
         if (!c || c.type !== 'hit' || c.dirManual === true) continue;
         c.dir = rhythmDefaultDirForIndex(d, i);
+    }
+}
+
+function applyRhythmTripletDefaultDirections(d) {
+    if (!d || !RHYTHM_GRID_IS_TRIPLET[d.grid] || !Array.isArray(d.pattern)) return;
+    for (let i = 0; i < d.pattern.length; i++) {
+        const c = d.pattern[i];
+        if (!c || c.type !== 'hit' || c.dirManual === true) continue;
+        c.dir = rhythmDefaultTripletDirForIndex(i);
     }
 }
 
@@ -4762,6 +4794,7 @@ function setRhythmEditorGrid(grid) {
     const to = { grid: grid, patternBars: d.patternBars, timeSignature: d.timeSignature };
     d.pattern = rhythmResizePattern(d.pattern, from, to);
     d.grid = grid;
+    applyRhythmTripletDefaultDirections(d);
     d.displayLabels = defaultRhythmDisplayLabels(grid, d.patternBars, d.timeSignature);
     renderRhythmCustomEditor();
 }
@@ -4777,6 +4810,7 @@ function setRhythmEditorTimeSignature(ts) {
     d.pattern = rhythmResizePattern(d.pattern, from, to);
     d.timeSignature = ts;
     d.grid = newGrid;
+    applyRhythmTripletDefaultDirections(d);
     d.displayLabels = defaultRhythmDisplayLabels(newGrid, d.patternBars, ts);
     renderRhythmCustomEditor();
 }
@@ -4790,6 +4824,7 @@ function setRhythmEditorPatternBars(n) {
     const to = { grid: d.grid, patternBars: n, timeSignature: d.timeSignature };
     d.pattern = rhythmResizePattern(d.pattern, from, to);
     d.patternBars = n;
+    applyRhythmTripletDefaultDirections(d);
     d.displayLabels = defaultRhythmDisplayLabels(d.grid, n, d.timeSignature);
     renderRhythmCustomEditor();
 }
@@ -5002,6 +5037,19 @@ function deleteRhythmCustomFromEditor() {
 let homeView = 'top'; // 'top' | 'rhythm' | 'rhythmCreate' | 'rhythmCreateStage1' | 'rhythmCreateSaved' | 'kiso' | 'soon' | 'proCustom' | 'proCustomEdit'
 let currentScreen = 'home'; // 'home' | 'practice' | 'settings'（v0.9.118：共通ナビ表示判定に使う）
 let proCustomEditFrom = 'rhythm'; // 'rhythm' | 'rhythmCreateSaved'：編集画面を開いた入口。戻り先の分岐に使う（v0.9.202）。
+const TOP_DESIGN_CHOICES = ['original', 'clean-pro'];
+
+function setTopDesignChoice(choice) {
+    const next = TOP_DESIGN_CHOICES.includes(choice) ? choice : 'original';
+    if (els.homeTop) els.homeTop.dataset.topDesign = next;
+    if (document.body) document.body.dataset.rcTheme = next;
+    if (!els.topDesignTabs) return;
+    els.topDesignTabs.querySelectorAll('[data-top-design-choice]').forEach((btn) => {
+        const active = btn.getAttribute('data-top-design-choice') === next;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+}
 
 /* 共通ナビ（左上 戻る/TOP・右上 設定）の表示制御（v0.9.118）。
    TOPページ（ホームのリズム練導線）でだけ #app-nav を隠す。それ以外の全ページ・全サブビューで表示する。 */
@@ -6932,11 +6980,14 @@ function seedRhythmCustomStageSamples() {
     const makeAlt = (count) => Array.from({ length: count }, (_, i) => ({
         hit: true, dir: i % 2 === 0 ? 'down' : 'up', type: 'hit',
     }));
+    const makeTriplet = (count) => Array.from({ length: count }, (_, i) => ({
+        hit: true, dir: rhythmDefaultTripletDirForIndex(i), type: 'hit',
+    }));
     const samples = [
         {
             id: 'rc_sample_triplet', version: 1, title: '三連符', description: '',
             grid: 'eighthTriplet', timeSignature: '4/4', patternBars: 1, bars: 4, bpm: 70,
-            rhythmFeel: 'straight', pattern: makeAlt(12),
+            rhythmFeel: 'straight', pattern: makeTriplet(12),
         },
         {
             id: 'rc_sample_shuffle8', version: 1, title: '8分のシャッフル', description: '',
@@ -15055,6 +15106,11 @@ function applyCalibration() {
 function bind() {
     // ホーム階層ナビ（v0.9.166）：TOP → リズム練（STAGE一覧を直接表示）。
     // 各サブビューからの「戻る/TOP」は共通ナビ #app-nav に統一（v0.9.118）。
+    if (els.topDesignTabs) els.topDesignTabs.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-top-design-choice]');
+        if (!btn) return;
+        setTopDesignChoice(btn.getAttribute('data-top-design-choice'));
+    });
     if (els.rhythmTrainBtn) els.rhythmTrainBtn.addEventListener('click', () => setHomeView('rhythm'));
     if (els.rhythmCreateBtn) els.rhythmCreateBtn.addEventListener('click', openRhythmCreate);
     if (els.rcSavedEntryBtn) els.rcSavedEntryBtn.addEventListener('click', openRhythmCreateSaved);
@@ -15068,6 +15124,10 @@ function bind() {
     if (els.rcCreateStage1Grid) els.rcCreateStage1Grid.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-index]');
         if (!btn) return;
+        if (btn.dataset.locked === 'pattern-outside') {
+            alertRhythmCreateOutsidePatternBars();
+            return;
+        }
         const index = parseInt(btn.dataset.index, 10);
         if (btn.dataset.zone === 'arrow') tapRhythmCreateArrow(index);
         else toggleRhythmCreateCell(index);
@@ -15629,6 +15689,7 @@ function init() {
     seedRhythmCustomStageSamples();
     renderStages();
     bind();
+    setTopDesignChoice((els.homeTop && els.homeTop.dataset && els.homeTop.dataset.topDesign) || 'original');
     applySettingsToUI();         // スライダー・数値・しきい値ラインを現在値に
     updateInputModeUI();         // v0.9.118：入力方式（タップ/ストローク）の切替UI・表示を保存値に同期
     updateBarsUI();              // v0.9.118：小節数の表示を保存値に同期

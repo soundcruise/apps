@@ -5873,7 +5873,1302 @@ body.results-open #settings-btn {
     }
 }
 
-/* ── v0.9.205: TOPのタブ削除後の余白補完（タブ分の高さ相当を padding-top で維持） */
+/* ── v0.9.211: TOPデザイン比較タブ（Original / Clean Pro） ── */
 #home-top {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
     padding-top: 48px;
+}
+
+#home-top::before,
+#home-top::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    pointer-events: none;
+}
+
+#home-top::after {
+    z-index: -1;
+}
+
+.top-design-tabs {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    z-index: 3;
+    display: flex;
+    gap: 8px;
+    padding: 2px 2px 10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+.top-design-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.top-design-tab {
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: 8px 13px;
+    border: 1px solid rgba(253, 246, 238, 0.16);
+    border-radius: 999px;
+    background: rgba(18, 14, 12, 0.44);
+    color: rgba(253, 246, 238, 0.72);
+    font: inherit;
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    white-space: nowrap;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.top-design-tab.is-active {
+    color: #1b140b;
+    border-color: rgba(255, 204, 102, 0.78);
+    background: linear-gradient(180deg, #ffd98a, #ffb13b);
+    box-shadow: 0 6px 16px rgba(255, 159, 28, 0.16);
+}
+
+.top-design-tab:active {
+    transform: scale(0.98);
+}
+
+.top-design-scene,
+.top-design-mark,
+.top-design-beatline {
+    position: absolute;
+    pointer-events: none;
+}
+
+.top-design-scene {
+    inset: 48px 0 0;
+    z-index: -1;
+    overflow: hidden;
+}
+
+.top-design-mark-a {
+    width: 132px;
+    height: 132px;
+    left: -54px;
+    top: 10px;
+}
+
+.top-design-mark-b {
+    width: 92px;
+    height: 92px;
+    right: -34px;
+    top: 78px;
+}
+
+.top-design-mark-c {
+    width: 160px;
+    height: 160px;
+    right: 16%;
+    bottom: -108px;
+}
+
+.top-design-beatline {
+    left: 18px;
+    right: 18px;
+    top: 48%;
+    height: 1px;
+}
+
+#home-top .rc-category-card {
+    position: relative;
+    z-index: 1;
+}
+
+#home-top .rc-category-card::before,
+#home-top .rc-category-card::after {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+}
+
+#home-top .rc-category-card-label,
+#home-top .rc-category-card-sub,
+#home-top .rc-category-card-icon {
+    position: relative;
+    z-index: 1;
+}
+
+#home-top[data-top-design="original"] .top-design-scene {
+    display: none;
+}
+
+#home-top[data-top-design="original"] .rc-category-card::before,
+#home-top[data-top-design="original"] .rc-category-card::after {
+    display: none;
+}
+
+#home-top[data-top-design="original"] .top-design-tab {
+    background: rgba(20, 15, 12, 0.44);
+}
+
+body[data-rc-theme="clean-pro"] #screen-home {
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 28%),
+        linear-gradient(145deg, #080b11, #0d121a 52%, #10161d);
+}
+
+body[data-rc-theme="clean-pro"] #screen-home header h1 {
+    background: linear-gradient(90deg, #f5efe4, #dec27a, #f5efe4);
+    background-size: 180% 180%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: none;
+    letter-spacing: 0.02em;
+}
+
+#home-top[data-top-design="clean-pro"] {
+    padding: 56px 12px 18px;
+    border: 1px solid rgba(245, 239, 228, 0.11);
+    border-radius: 18px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 30%),
+        linear-gradient(135deg, rgba(9, 12, 17, 0.98), rgba(14, 19, 26, 0.99) 58%, rgba(10, 15, 22, 0.99));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        0 14px 32px rgba(0, 0, 0, 0.24);
+}
+
+#home-top[data-top-design="clean-pro"]::before {
+    inset: 12px;
+    border: 1px solid rgba(245, 239, 228, 0.05);
+    border-radius: 14px;
+    background:
+        linear-gradient(90deg, transparent, rgba(222, 194, 122, 0.06), transparent);
+}
+
+#home-top[data-top-design="clean-pro"]::after {
+    inset: auto 18px 22px 18px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(196, 204, 216, 0.14), transparent);
+}
+
+#home-top[data-top-design="clean-pro"] .top-design-scene {
+    display: none;
+}
+
+#home-top[data-top-design="clean-pro"] .top-design-tabs {
+    gap: 10px;
+}
+
+#home-top[data-top-design="clean-pro"] .top-design-tab {
+    min-width: 106px;
+    justify-content: center;
+    border-color: rgba(245, 239, 228, 0.12);
+    background: rgba(255, 255, 255, 0.035);
+    color: rgba(245, 239, 228, 0.72);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(10px);
+}
+
+#home-top[data-top-design="clean-pro"] .top-design-tab.is-active {
+    color: #17120c;
+    border-color: rgba(222, 194, 122, 0.90);
+    background: linear-gradient(180deg, #f0d79a, #d7b66f);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
+}
+
+#home-top[data-top-design="clean-pro"] .rc-category-card {
+    align-items: flex-start;
+    min-height: 112px;
+    padding: 20px 20px 20px 72px;
+    justify-content: center;
+    border: 1px solid rgba(245, 239, 228, 0.13);
+    border-radius: 14px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.016)),
+        rgba(255, 255, 255, 0.015);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        0 8px 20px rgba(0, 0, 0, 0.14);
+}
+
+#home-top[data-top-design="clean-pro"] .rc-category-card::before {
+    left: 18px;
+    top: 50%;
+    width: 38px;
+    height: 38px;
+    border: 1px solid rgba(222, 194, 122, 0.30);
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 50%, rgba(222, 194, 122, 0.14), rgba(222, 194, 122, 0.03) 62%, transparent 63%);
+    transform: translateY(-50%);
+}
+
+#home-top[data-top-design="clean-pro"] .rc-category-card::after {
+    left: 66px;
+    right: 18px;
+    bottom: 16px;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(222, 194, 122, 0.22), transparent 72%);
+}
+
+#home-top[data-top-design="clean-pro"] .rc-category-card-icon {
+    position: absolute;
+    left: 28px;
+    top: 50%;
+    font-size: 1.2rem;
+    color: #efe6d4;
+    filter: none;
+    transform: translateY(-50%);
+    opacity: 0.92;
+}
+
+#home-top[data-top-design="clean-pro"] .rc-category-card-icon svg {
+    display: block;
+}
+
+#home-top[data-top-design="clean-pro"] .rc-category-card-label {
+    margin-top: 0;
+    color: #dec27a;
+    font-size: 1.04rem;
+    letter-spacing: 0.04em;
+}
+
+#home-top[data-top-design="clean-pro"] .rc-category-card-sub {
+    margin-top: 4px;
+    color: rgba(237, 232, 225, 0.62);
+    font-size: 0.77rem;
+    line-height: 1.55;
+}
+
+@media (hover: hover) {
+    #home-top[data-top-design="clean-pro"] .rc-category-card:hover {
+        transform: translateY(-1px);
+        border-color: rgba(222, 194, 122, 0.20);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.05),
+            0 12px 24px rgba(0, 0, 0, 0.18);
+    }
+}
+
+@media (max-width: 420px) {
+    .top-design-tab {
+        min-height: 34px;
+        padding: 8px 12px;
+        font-size: 0.72rem;
+    }
+
+    #home-top[data-top-design="clean-pro"] {
+        padding-left: 10px;
+        padding-right: 10px;
+        border-radius: 16px;
+    }
+
+    #home-top[data-top-design="clean-pro"] .top-design-tab {
+        min-width: 100px;
+    }
+
+    #home-top[data-top-design="clean-pro"] .rc-category-card {
+        min-height: 108px;
+        padding: 18px 16px 18px 66px;
+    }
+
+    #home-top[data-top-design="clean-pro"] .rc-category-card::before {
+        left: 14px;
+        width: 34px;
+        height: 34px;
+    }
+
+    #home-top[data-top-design="clean-pro"] .rc-category-card-icon {
+        left: 24px;
+        font-size: 1.08rem;
+    }
+
+    #home-top[data-top-design="clean-pro"] .rc-category-card::after {
+        left: 58px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #home-top .top-design-tab,
+    #home-top .rc-category-card {
+        transition: none !important;
+    }
+}
+
+/* ── v0.9.212: Clean Pro 全画面テーマ ───────────────────── */
+body[data-rc-theme="clean-pro"] {
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 24%),
+        linear-gradient(145deg, #070b11, #0c1219 54%, #10161d);
+}
+
+body[data-rc-theme="clean-pro"] .app-container {
+    gap: 26px;
+}
+
+body[data-rc-theme="clean-pro"] .screen:not(#screen-home) {
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 22%),
+        linear-gradient(145deg, rgba(8, 12, 18, 0.88), rgba(12, 17, 24, 0.92));
+    border: 1px solid rgba(245, 239, 228, 0.06);
+    border-radius: 20px;
+    padding: 18px 14px 20px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+body[data-rc-theme="clean-pro"] .section-label,
+body[data-rc-theme="clean-pro"] .pce-action-heading,
+body[data-rc-theme="clean-pro"] .app-footer,
+body[data-rc-theme="clean-pro"] .app-version-display,
+body[data-rc-theme="clean-pro"] .setting-note,
+body[data-rc-theme="clean-pro"] .stage-desc,
+body[data-rc-theme="clean-pro"] .pro-custom-card-desc,
+body[data-rc-theme="clean-pro"] .pce-hint,
+body[data-rc-theme="clean-pro"] .rc-saved-entry-sub,
+body[data-rc-theme="clean-pro"] .rc-category-card-sub {
+    color: rgba(237, 232, 225, 0.58);
+}
+
+body[data-rc-theme="clean-pro"] .section-label::before,
+body[data-rc-theme="clean-pro"] .section-label::after,
+body[data-rc-theme="clean-pro"] .in-game-refresh-bar,
+body[data-rc-theme="clean-pro"] .manual-actions,
+body[data-rc-theme="clean-pro"] .pce-action-danger {
+    border-color: rgba(245, 239, 228, 0.08);
+}
+
+body[data-rc-theme="clean-pro"] .btn-primary,
+body[data-rc-theme="clean-pro"] .btn-ghost,
+body[data-rc-theme="clean-pro"] .btn-mini,
+body[data-rc-theme="clean-pro"] .btn-refresh,
+body[data-rc-theme="clean-pro"] .nav-btn,
+body[data-rc-theme="clean-pro"] .settings-corner-btn,
+body[data-rc-theme="clean-pro"] .settings-top-main,
+body[data-rc-theme="clean-pro"] .preset-builtin-btn,
+body[data-rc-theme="clean-pro"] .manual-action-sub,
+body[data-rc-theme="clean-pro"] .btn-mic,
+body[data-rc-theme="clean-pro"] .pro-custom-act,
+body[data-rc-theme="clean-pro"] .pro-custom-home-toggle,
+body[data-rc-theme="clean-pro"] .pro-custom-home-act,
+body[data-rc-theme="clean-pro"] .pro-custom-home-move-btn,
+body[data-rc-theme="clean-pro"] .pro-custom-home-reorder-toggle,
+body[data-rc-theme="clean-pro"] .pce-seg-btn,
+body[data-rc-theme="clean-pro"] .pce-back-link,
+body[data-rc-theme="clean-pro"] .pce-delete-link,
+body[data-rc-theme="clean-pro"] .chooser-btn,
+body[data-rc-theme="clean-pro"] .simple-choice,
+body[data-rc-theme="clean-pro"] .result-mic-tune-link {
+    border-radius: 12px;
+    border: 1px solid rgba(245, 239, 228, 0.14);
+    background: rgba(255, 255, 255, 0.035);
+    color: #efe8dc;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+body[data-rc-theme="clean-pro"] .btn-primary,
+body[data-rc-theme="clean-pro"] .top-design-tab.is-active,
+body[data-rc-theme="clean-pro"] #home-top[data-top-design="clean-pro"] .top-design-tab.is-active {
+    background: linear-gradient(180deg, #f0d79a, #d7b66f);
+    color: #18130d;
+    border: 1px solid rgba(222, 194, 122, 0.88);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.16);
+}
+
+body[data-rc-theme="clean-pro"] .btn-ghost,
+body[data-rc-theme="clean-pro"] .btn-refresh,
+body[data-rc-theme="clean-pro"] .nav-btn,
+body[data-rc-theme="clean-pro"] .settings-corner-btn,
+body[data-rc-theme="clean-pro"] .btn-mini,
+body[data-rc-theme="clean-pro"] .settings-top-main,
+body[data-rc-theme="clean-pro"] .settings-top-sub,
+body[data-rc-theme="clean-pro"] .settings-top-preset,
+body[data-rc-theme="clean-pro"] .preset-builtin-btn,
+body[data-rc-theme="clean-pro"] .manual-action-sub,
+body[data-rc-theme="clean-pro"] .chooser-btn.chooser-sub,
+body[data-rc-theme="clean-pro"] .simple-choice,
+body[data-rc-theme="clean-pro"] .result-mic-tune-link,
+body[data-rc-theme="clean-pro"] .btn-mic.test-start-btn {
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(245, 239, 228, 0.86);
+    border-color: rgba(245, 239, 228, 0.15);
+}
+
+body[data-rc-theme="clean-pro"] .settings-corner-btn,
+body[data-rc-theme="clean-pro"] .nav-btn,
+body[data-rc-theme="clean-pro"] .btn-refresh {
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+body[data-rc-theme="clean-pro"] .settings-corner-btn .gear {
+    color: #dec27a;
+}
+
+body[data-rc-theme="clean-pro"] .settings-top-main,
+body[data-rc-theme="clean-pro"] .chooser-btn.chooser-main,
+body[data-rc-theme="clean-pro"] .pro-custom-act.is-test,
+body[data-rc-theme="clean-pro"] .pce-action-row .pce-save,
+body[data-rc-theme="clean-pro"] .pce-action-row .pce-save-as,
+body[data-rc-theme="clean-pro"] .btn-mic.is-on,
+body[data-rc-theme="clean-pro"] .btn-mic.test-start-btn.is-on,
+body[data-rc-theme="clean-pro"] .settings-top-main.pro-custom-new {
+    border-color: rgba(222, 194, 122, 0.40);
+    background: rgba(222, 194, 122, 0.10);
+    color: #f3e7cb;
+}
+
+body[data-rc-theme="clean-pro"] .btn-mic.is-todo,
+body[data-rc-theme="clean-pro"] .btn-mic.test-start-btn.is-todo {
+    border-color: rgba(222, 194, 122, 0.40);
+    background: rgba(255, 255, 255, 0.03);
+    color: #f0e7d5;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+body[data-rc-theme="clean-pro"] .btn-mini.btn-reset,
+body[data-rc-theme="clean-pro"] .btn-mini.hp-bpm-btn,
+body[data-rc-theme="clean-pro"] .tempo-btn,
+body[data-rc-theme="clean-pro"] .practice-mode-label {
+    border-color: rgba(245, 239, 228, 0.18);
+    background: rgba(255, 255, 255, 0.035);
+    color: rgba(245, 239, 228, 0.84);
+}
+
+body[data-rc-theme="clean-pro"] .practice-mode-label,
+body[data-rc-theme="clean-pro"] .bt-cal-lead,
+body[data-rc-theme="clean-pro"] .do-now,
+body[data-rc-theme="clean-pro"] .cal-head,
+body[data-rc-theme="clean-pro"] .preview-head,
+body[data-rc-theme="clean-pro"] .rc-category-card-label,
+body[data-rc-theme="clean-pro"] .pro-custom-home-stage .stage-title,
+body[data-rc-theme="clean-pro"] .pro-custom-card-title,
+body[data-rc-theme="clean-pro"] .stage-title,
+body[data-rc-theme="clean-pro"] .setting-label b,
+body[data-rc-theme="clean-pro"] .cal-result-row b,
+body[data-rc-theme="clean-pro"] .mic-preset-name-row b,
+body[data-rc-theme="clean-pro"] .results-title {
+    color: #dec27a;
+}
+
+body[data-rc-theme="clean-pro"] .stage-card,
+body[data-rc-theme="clean-pro"] .timing-panel,
+body[data-rc-theme="clean-pro"] .results-card,
+body[data-rc-theme="clean-pro"] .history-card,
+body[data-rc-theme="clean-pro"] .settings-card,
+body[data-rc-theme="clean-pro"] .preview-card,
+body[data-rc-theme="clean-pro"] .test-card,
+body[data-rc-theme="clean-pro"] .cal-card,
+body[data-rc-theme="clean-pro"] .mic-card,
+body[data-rc-theme="clean-pro"] .rc-json-card,
+body[data-rc-theme="clean-pro"] .preset-modal-card,
+body[data-rc-theme="clean-pro"] .rhythm-create-settings,
+body[data-rc-theme="clean-pro"] .pro-custom-card,
+body[data-rc-theme="clean-pro"] .pro-custom-home-menu,
+body[data-rc-theme="clean-pro"] .pro-custom-home-help,
+body[data-rc-theme="clean-pro"] .rc-saved-entry-btn,
+body[data-rc-theme="clean-pro"] .pce-settings,
+body[data-rc-theme="clean-pro"] .pce-pattern,
+body[data-rc-theme="clean-pro"] .rhythm-create-preset-modal-card,
+body[data-rc-theme="clean-pro"] .rc-json-text,
+body[data-rc-theme="clean-pro"] .pce-input,
+body[data-rc-theme="clean-pro"] .pce-select,
+body[data-rc-theme="clean-pro"] .pce-num,
+body[data-rc-theme="clean-pro"] .settings-card input[type="number"],
+body[data-rc-theme="clean-pro"] #preset-modal-input,
+body[data-rc-theme="clean-pro"] .rhythm-create-preset-modal-input {
+    border-color: rgba(245, 239, 228, 0.11);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.016)),
+        rgba(255, 255, 255, 0.015);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    color: #efe8dc;
+}
+
+body[data-rc-theme="clean-pro"] .stage-card,
+body[data-rc-theme="clean-pro"] .timing-panel,
+body[data-rc-theme="clean-pro"] .lane-wrap,
+body[data-rc-theme="clean-pro"] .results-card,
+body[data-rc-theme="clean-pro"] .history-card,
+body[data-rc-theme="clean-pro"] .settings-card,
+body[data-rc-theme="clean-pro"] .pce-pattern,
+body[data-rc-theme="clean-pro"] .test-lane-wrap,
+body[data-rc-theme="clean-pro"] .preview-card,
+body[data-rc-theme="clean-pro"] .rc-json-card,
+body[data-rc-theme="clean-pro"] .preset-modal-card,
+body[data-rc-theme="clean-pro"] .rhythm-create-preset-modal-card {
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.014)),
+        linear-gradient(145deg, rgba(9, 12, 18, 0.98), rgba(13, 18, 25, 0.99));
+    border-color: rgba(245, 239, 228, 0.11);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.035),
+        0 12px 28px rgba(0, 0, 0, 0.20);
+}
+
+body[data-rc-theme="clean-pro"] .stage-card:hover,
+body[data-rc-theme="clean-pro"] .rc-saved-entry-btn:active,
+body[data-rc-theme="clean-pro"] .btn-ghost:active,
+body[data-rc-theme="clean-pro"] .btn-mini:active,
+body[data-rc-theme="clean-pro"] .settings-corner-btn:active,
+body[data-rc-theme="clean-pro"] .nav-btn:active,
+body[data-rc-theme="clean-pro"] .btn-refresh:active,
+body[data-rc-theme="clean-pro"] .pro-custom-act:active,
+body[data-rc-theme="clean-pro"] .pro-custom-home-toggle:active,
+body[data-rc-theme="clean-pro"] .pro-custom-home-act:active,
+body[data-rc-theme="clean-pro"] .pro-custom-home-move-btn:active,
+body[data-rc-theme="clean-pro"] .pro-custom-home-reorder-toggle:active,
+body[data-rc-theme="clean-pro"] .pce-seg-btn:active,
+body[data-rc-theme="clean-pro"] .pce-delete-link:active,
+body[data-rc-theme="clean-pro"] .practice-mode-label:active {
+    background: rgba(255, 255, 255, 0.07);
+}
+
+body[data-rc-theme="clean-pro"] .stage-card,
+body[data-rc-theme="clean-pro"] .pro-custom-home-stage,
+body[data-rc-theme="clean-pro"] .rc-saved-entry-btn,
+body[data-rc-theme="clean-pro"] .pro-custom-card {
+    border-radius: 14px;
+}
+
+body[data-rc-theme="clean-pro"] .stage-num,
+body[data-rc-theme="clean-pro"] .pro-custom-home-badge {
+    background: linear-gradient(180deg, rgba(222, 194, 122, 0.12), rgba(255, 255, 255, 0.03));
+    border-color: rgba(222, 194, 122, 0.22);
+    color: #dec27a;
+}
+
+body[data-rc-theme="clean-pro"] .stage-chevron,
+body[data-rc-theme="clean-pro"] .rc-saved-entry-chevron {
+    color: rgba(245, 239, 228, 0.36);
+}
+
+body[data-rc-theme="clean-pro"] .pro-custom-chip,
+body[data-rc-theme="clean-pro"] .status-pill,
+body[data-rc-theme="clean-pro"] .badge-soon {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(245, 239, 228, 0.10);
+    color: rgba(245, 239, 228, 0.78);
+}
+
+body[data-rc-theme="clean-pro"] .input-mode,
+body[data-rc-theme="clean-pro"] .pce-seg,
+body[data-rc-theme="clean-pro"] .pce-stepper {
+    background: transparent;
+}
+
+body[data-rc-theme="clean-pro"] .input-mode {
+    border: 1px solid rgba(245, 239, 228, 0.08);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+body[data-rc-theme="clean-pro"] .input-seg,
+body[data-rc-theme="clean-pro"] .seg-cards .input-seg {
+    border: 1px solid rgba(245, 239, 228, 0.10);
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(245, 239, 228, 0.72);
+    box-shadow: none;
+}
+
+body[data-rc-theme="clean-pro"] .input-seg.is-active,
+body[data-rc-theme="clean-pro"] .seg-cards .input-seg.is-active,
+body[data-rc-theme="clean-pro"] .pce-seg-btn.is-active {
+    border-color: rgba(222, 194, 122, 0.46);
+    background: rgba(222, 194, 122, 0.12);
+    color: #f3ead8;
+    box-shadow: inset 0 0 0 1px rgba(222, 194, 122, 0.16);
+}
+
+body[data-rc-theme="clean-pro"] .setting-row input[type="range"],
+body[data-rc-theme="clean-pro"] input[type="range"] {
+    accent-color: #dec27a;
+}
+
+body[data-rc-theme="clean-pro"] .tap-cal-pad {
+    border-color: rgba(222, 194, 122, 0.30);
+    background: rgba(255, 255, 255, 0.03);
+    color: #e7d2a1;
+}
+
+body[data-rc-theme="clean-pro"] .progress-wrap,
+body[data-rc-theme="clean-pro"] .mic-meter,
+body[data-rc-theme="clean-pro"] #mic-preview-canvas {
+    background: rgba(0, 0, 0, 0.24);
+}
+
+body[data-rc-theme="clean-pro"] .progress-fill,
+body[data-rc-theme="clean-pro"] .mic-meter-fill,
+body[data-rc-theme="clean-pro"] .cal-warmup-badge {
+    background: linear-gradient(90deg, #efe0b5, #d8b96f);
+    color: #17120c;
+}
+
+body[data-rc-theme="clean-pro"] .settings-card input[type="number"],
+body[data-rc-theme="clean-pro"] .pce-input,
+body[data-rc-theme="clean-pro"] .pce-select,
+body[data-rc-theme="clean-pro"] .pce-num,
+body[data-rc-theme="clean-pro"] #preset-modal-input,
+body[data-rc-theme="clean-pro"] .rhythm-create-preset-modal-input {
+    border-radius: 10px;
+}
+
+body[data-rc-theme="clean-pro"] .pce-select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath fill='%23efe8dc' fill-opacity='0.7' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+}
+
+body[data-rc-theme="clean-pro"] .pce-vex-score svg path,
+body[data-rc-theme="clean-pro"] .pce-vex-score svg rect,
+body[data-rc-theme="clean-pro"] .pce-vex-arrow,
+body[data-rc-theme="clean-pro"] .pce-arrow {
+    color: #dec27a;
+    fill: #dec27a;
+    stroke: #dec27a;
+}
+
+body[data-rc-theme="clean-pro"] .pce-vex-lane,
+body[data-rc-theme="clean-pro"] .pce-vex-barline,
+body[data-rc-theme="clean-pro"] .pce-tap-cell.beat,
+body[data-rc-theme="clean-pro"] .pce-vex-beatline {
+    border-color: rgba(245, 239, 228, 0.18);
+    background-color: rgba(245, 239, 228, 0.18);
+}
+
+body[data-rc-theme="clean-pro"] .lane-wrap,
+body[data-rc-theme="clean-pro"] .pce-pattern {
+    border-color: rgba(245, 239, 228, 0.12);
+}
+
+body[data-rc-theme="clean-pro"] .results-overlay,
+body[data-rc-theme="clean-pro"] .preset-modal-overlay,
+body[data-rc-theme="clean-pro"] .rc-json-overlay {
+    background: rgba(4, 7, 11, 0.78);
+}
+
+body[data-rc-theme="clean-pro"] .result-grid .rg-item.avg .rg-val b,
+body[data-rc-theme="clean-pro"] .tendency,
+body[data-rc-theme="clean-pro"] .result-breakdown b:not(.bd-just):not(.bd-early):not(.bd-late):not(.bd-miss) {
+    color: #dec27a;
+}
+
+body[data-rc-theme="clean-pro"] .tendency,
+body[data-rc-theme="clean-pro"] .test-result,
+body[data-rc-theme="clean-pro"] .cal-status,
+body[data-rc-theme="clean-pro"] .mic-save-hint,
+body[data-rc-theme="clean-pro"] .mic-unsaved-row {
+    border-color: rgba(245, 239, 228, 0.12);
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(245, 239, 228, 0.80);
+}
+
+body[data-rc-theme="clean-pro"] .mic-overwrite-btn {
+    border-color: rgba(222, 194, 122, 0.24) !important;
+    background: rgba(222, 194, 122, 0.08) !important;
+}
+
+body[data-rc-theme="clean-pro"] .results-actions .btn-primary,
+body[data-rc-theme="clean-pro"] .cal-apply-btn,
+body[data-rc-theme="clean-pro"] #wired-proceed-btn,
+body[data-rc-theme="clean-pro"] #hp-proceed-btn,
+body[data-rc-theme="clean-pro"] #hp-tap-use-btn,
+body[data-rc-theme="clean-pro"] #manual-use-btn,
+body[data-rc-theme="clean-pro"] #retry-btn {
+    max-width: none;
+}
+
+@media (max-width: 420px) {
+    body[data-rc-theme="clean-pro"] .screen:not(#screen-home) {
+        padding: 16px 10px 18px;
+        border-radius: 18px;
+    }
+
+    body[data-rc-theme="clean-pro"] .settings-corner-btn,
+    body[data-rc-theme="clean-pro"] .nav-btn {
+        min-height: 36px;
+    }
+}
+
+/* Clean Proでも状態を伝える意味色は維持する。 */
+body[data-rc-theme="clean-pro"] .btn-mic.is-on,
+body[data-rc-theme="clean-pro"] .btn-mic.test-start-btn.is-on {
+    border-color: rgba(255, 92, 118, 0.56);
+    background: rgba(255, 79, 110, 0.13);
+    color: #ff9aaa;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+body[data-rc-theme="clean-pro"] .mic-meter-fill.over {
+    background: linear-gradient(90deg, #2ecc71, #27ae60);
+}
+
+body[data-rc-theme="clean-pro"] .test-card.is-done,
+body[data-rc-theme="clean-pro"] .cal-card.is-done {
+    border-color: rgba(46, 204, 113, 0.46);
+    background:
+        linear-gradient(180deg, rgba(46, 204, 113, 0.07), rgba(255, 255, 255, 0.014)),
+        linear-gradient(145deg, rgba(9, 12, 18, 0.98), rgba(13, 18, 25, 0.99));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.035),
+        0 0 0 1px rgba(46, 204, 113, 0.18),
+        0 12px 28px rgba(0, 0, 0, 0.20);
+}
+
+body[data-rc-theme="clean-pro"] .test-card.is-done .cal-head,
+body[data-rc-theme="clean-pro"] .cal-card.is-done .cal-head,
+body[data-rc-theme="clean-pro"] .status-pill.done,
+body[data-rc-theme="clean-pro"] .mic-card.mic-active .mic-state,
+body[data-rc-theme="clean-pro"] .mic-state.on {
+    color: #6ed28c;
+}
+
+body[data-rc-theme="clean-pro"] .status-pill.done {
+    background: rgba(46, 204, 113, 0.10);
+    border-color: rgba(46, 204, 113, 0.42);
+}
+
+body[data-rc-theme="clean-pro"] .mic-card.mic-active {
+    border-color: rgba(46, 204, 113, 0.42);
+    background:
+        linear-gradient(180deg, rgba(46, 204, 113, 0.06), rgba(255, 255, 255, 0.014)),
+        linear-gradient(145deg, rgba(9, 12, 18, 0.98), rgba(13, 18, 25, 0.99));
+}
+
+body[data-rc-theme="clean-pro"] .mic-card.mic-error,
+body[data-rc-theme="clean-pro"] .pro-custom-act.is-delete,
+body[data-rc-theme="clean-pro"] .pro-custom-home-act--danger,
+body[data-rc-theme="clean-pro"] .pce-delete-link {
+    border-color: rgba(255, 99, 99, 0.36);
+    color: #ffb0b0;
+}
+
+/* Clean Pro: 実機確認で見えた個別崩れの補正。 */
+body[data-rc-theme="clean-pro"] #screen-practice {
+    padding-top: 64px;
+}
+
+body[data-rc-theme="clean-pro"] .practice-head {
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 0;
+}
+
+body[data-rc-theme="clean-pro"] .practice-title-row {
+    align-items: flex-start;
+    gap: 8px;
+}
+
+body[data-rc-theme="clean-pro"] .practice-head h2 {
+    color: #efe8dc;
+    line-height: 1.25;
+}
+
+body[data-rc-theme="clean-pro"] .lane-wrap,
+body[data-rc-theme="clean-pro"] #tap-pad,
+body[data-rc-theme="clean-pro"] .custom-test-preview-score,
+body[data-rc-theme="clean-pro"] .pce-pattern,
+body[data-rc-theme="clean-pro"] .rhythm-create-pattern {
+    border-color: rgba(245, 239, 228, 0.14);
+    background:
+        linear-gradient(90deg, rgba(245, 239, 228, 0.045) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(245, 239, 228, 0.035), rgba(255, 255, 255, 0.012)),
+        linear-gradient(145deg, rgba(8, 12, 18, 0.98), rgba(13, 18, 25, 0.99));
+    background-size: 28px 100%, auto, auto;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        0 12px 26px rgba(0, 0, 0, 0.20);
+}
+
+body[data-rc-theme="clean-pro"] #tap-pad {
+    cursor: pointer;
+    border-color: rgba(222, 194, 122, 0.24);
+}
+
+body[data-rc-theme="clean-pro"] #tap-pad:active {
+    border-color: rgba(222, 194, 122, 0.44);
+    background:
+        linear-gradient(90deg, rgba(245, 239, 228, 0.045) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(222, 194, 122, 0.075), rgba(255, 255, 255, 0.018)),
+        linear-gradient(145deg, rgba(8, 12, 18, 0.98), rgba(13, 18, 25, 0.99));
+    background-size: 28px 100%, auto, auto;
+}
+
+body[data-rc-theme="clean-pro"] .pce-vex-scroll {
+    border-radius: 14px;
+    background:
+        linear-gradient(90deg, rgba(245, 239, 228, 0.035) 1px, transparent 1px),
+        rgba(255, 255, 255, 0.012);
+    background-size: 28px 100%, auto;
+}
+
+body[data-rc-theme="clean-pro"] .pce-vex-lane {
+    background:
+        linear-gradient(180deg, rgba(245, 239, 228, 0.025), transparent 56%),
+        rgba(4, 7, 11, 0.18);
+}
+
+body[data-rc-theme="clean-pro"] .pce-tap-cell:active,
+body[data-rc-theme="clean-pro"] .pce-arrow:active {
+    background: rgba(222, 194, 122, 0.10);
+    color: #f0d79a;
+}
+
+body[data-rc-theme="clean-pro"] .pce-select,
+body[data-rc-theme="clean-pro"] select {
+    min-height: 42px;
+    width: 100%;
+    max-width: 100%;
+    padding: 11px 38px 11px 13px;
+    border: 1px solid rgba(245, 239, 228, 0.16);
+    border-radius: 10px;
+    background-color: #101720;
+    color: #efe8dc;
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color-scheme: dark;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image:
+        linear-gradient(45deg, transparent 50%, rgba(239, 232, 220, 0.76) 50%),
+        linear-gradient(135deg, rgba(239, 232, 220, 0.76) 50%, transparent 50%);
+    background-position:
+        calc(100% - 18px) 50%,
+        calc(100% - 12px) 50%;
+    background-size: 6px 6px, 6px 6px;
+    background-repeat: no-repeat;
+}
+
+body[data-rc-theme="clean-pro"] .pce-select:focus,
+body[data-rc-theme="clean-pro"] select:focus,
+body[data-rc-theme="clean-pro"] .pce-input:focus,
+body[data-rc-theme="clean-pro"] .pce-num:focus,
+body[data-rc-theme="clean-pro"] input:focus {
+    outline: none;
+    border-color: rgba(222, 194, 122, 0.48);
+    box-shadow: 0 0 0 2px rgba(222, 194, 122, 0.12);
+}
+
+body[data-rc-theme="clean-pro"] .pce-select option,
+body[data-rc-theme="clean-pro"] select option {
+    background: #101720;
+    color: #efe8dc;
+}
+
+body[data-rc-theme="clean-pro"] .pce-field-row {
+    align-items: flex-start;
+}
+
+body[data-rc-theme="clean-pro"] .pce-field-row .pce-label {
+    padding-top: 11px;
+}
+
+body[data-rc-theme="clean-pro"] .pce-field-row .pce-select,
+body[data-rc-theme="clean-pro"] .rhythm-create-preset-select,
+body[data-rc-theme="clean-pro"] .pce-settings-param .pce-select {
+    flex: 1 1 180px;
+    min-width: 0;
+}
+
+body[data-rc-theme="clean-pro"] .pce-settings-param {
+    align-items: center;
+}
+
+body[data-rc-theme="clean-pro"] .pce-settings-num,
+body[data-rc-theme="clean-pro"] .rc-create-param input[type="number"],
+body[data-rc-theme="clean-pro"] .rc-create-zoom-val,
+body[data-rc-theme="clean-pro"] .custom-test-preview-num {
+    border-color: rgba(245, 239, 228, 0.16);
+    background: rgba(255, 255, 255, 0.035);
+    color: #efe8dc;
+}
+
+body[data-rc-theme="clean-pro"] .rhythm-create-play,
+body[data-rc-theme="clean-pro"] .custom-test-preview-play,
+body[data-rc-theme="clean-pro"] .custom-test-preview-play--primary,
+body[data-rc-theme="clean-pro"] #pce-preview-play,
+body[data-rc-theme="clean-pro"] .pce-action-primary .pce-test,
+body[data-rc-theme="clean-pro"] .pro-custom-act.is-test,
+body[data-rc-theme="clean-pro"] .transport-main {
+    min-height: 46px;
+    border: 1px solid rgba(222, 194, 122, 0.58);
+    border-radius: 12px;
+    background:
+        linear-gradient(180deg, rgba(240, 215, 154, 0.20), rgba(215, 182, 111, 0.11)),
+        rgba(255, 255, 255, 0.025);
+    color: #f4ead7;
+    font-family: inherit;
+    font-weight: 800;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        0 10px 22px rgba(0, 0, 0, 0.16);
+    text-transform: none;
+    letter-spacing: 0.03em;
+}
+
+body[data-rc-theme="clean-pro"] .rhythm-create-play:active,
+body[data-rc-theme="clean-pro"] .custom-test-preview-play:active,
+body[data-rc-theme="clean-pro"] #pce-preview-play:active,
+body[data-rc-theme="clean-pro"] .pce-action-primary .pce-test:active,
+body[data-rc-theme="clean-pro"] .pro-custom-act.is-test:active,
+body[data-rc-theme="clean-pro"] .transport-main:active {
+    background:
+        linear-gradient(180deg, rgba(240, 215, 154, 0.28), rgba(215, 182, 111, 0.16)),
+        rgba(255, 255, 255, 0.035);
+}
+
+body[data-rc-theme="clean-pro"] .custom-test-preview-play[aria-pressed="true"],
+body[data-rc-theme="clean-pro"] .custom-test-preview-play--primary[aria-pressed="true"],
+body[data-rc-theme="clean-pro"] #pce-preview-play[aria-pressed="true"],
+body[data-rc-theme="clean-pro"] .rhythm-create-play[aria-pressed="true"] {
+    border-color: rgba(255, 92, 118, 0.56);
+    background: rgba(255, 79, 110, 0.13);
+    color: #ff9aaa;
+}
+
+body[data-rc-theme="clean-pro"] .pce-action-row .pce-save,
+body[data-rc-theme="clean-pro"] .pce-action-row .pce-save-as,
+body[data-rc-theme="clean-pro"] .custom-test-act.is-save,
+body[data-rc-theme="clean-pro"] .stage-save-custom-btn,
+body[data-rc-theme="clean-pro"] .rhythm-create-preset-save,
+body[data-rc-theme="clean-pro"] #settings-summary-save,
+body[data-rc-theme="clean-pro"] #settings-summary-overwrite,
+body[data-rc-theme="clean-pro"] #tap-manual-save,
+body[data-rc-theme="clean-pro"] #hp-tap-save-btn,
+body[data-rc-theme="clean-pro"] #rc-stage-save-modal-ok,
+body[data-rc-theme="clean-pro"] #preset-modal-save,
+body[data-rc-theme="clean-pro"] .cal-apply-btn,
+body[data-rc-theme="clean-pro"] #reco-apply-btn,
+body[data-rc-theme="clean-pro"] #manual-use-btn,
+body[data-rc-theme="clean-pro"] #tap-manual-use,
+body[data-rc-theme="clean-pro"] #wired-proceed-btn,
+body[data-rc-theme="clean-pro"] #hp-proceed-btn,
+body[data-rc-theme="clean-pro"] #hp-tap-use-btn,
+body[data-rc-theme="clean-pro"] #bt-cal-skip {
+    min-height: 42px;
+    border: 1px solid rgba(73, 188, 126, 0.50);
+    border-radius: 12px;
+    background:
+        linear-gradient(180deg, rgba(46, 122, 82, 0.36), rgba(27, 74, 53, 0.30)),
+        rgba(255, 255, 255, 0.02);
+    color: #d8f6e3;
+    font-family: inherit;
+    font-weight: 800;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.035),
+        0 8px 18px rgba(0, 0, 0, 0.14);
+    text-transform: none;
+}
+
+body[data-rc-theme="clean-pro"] .pce-action-row .pce-save:active,
+body[data-rc-theme="clean-pro"] .pce-action-row .pce-save-as:active,
+body[data-rc-theme="clean-pro"] .custom-test-act.is-save:active,
+body[data-rc-theme="clean-pro"] .stage-save-custom-btn:active,
+body[data-rc-theme="clean-pro"] .rhythm-create-preset-save:active,
+body[data-rc-theme="clean-pro"] #settings-summary-save:active,
+body[data-rc-theme="clean-pro"] #settings-summary-overwrite:active,
+body[data-rc-theme="clean-pro"] #tap-manual-save:active,
+body[data-rc-theme="clean-pro"] #hp-tap-save-btn:active,
+body[data-rc-theme="clean-pro"] #rc-stage-save-modal-ok:active,
+body[data-rc-theme="clean-pro"] #preset-modal-save:active,
+body[data-rc-theme="clean-pro"] .cal-apply-btn:active,
+body[data-rc-theme="clean-pro"] #reco-apply-btn:active,
+body[data-rc-theme="clean-pro"] #manual-use-btn:active,
+body[data-rc-theme="clean-pro"] #tap-manual-use:active,
+body[data-rc-theme="clean-pro"] #wired-proceed-btn:active,
+body[data-rc-theme="clean-pro"] #hp-proceed-btn:active,
+body[data-rc-theme="clean-pro"] #hp-tap-use-btn:active,
+body[data-rc-theme="clean-pro"] #bt-cal-skip:active {
+    background:
+        linear-gradient(180deg, rgba(56, 148, 96, 0.44), rgba(29, 86, 59, 0.36)),
+        rgba(255, 255, 255, 0.025);
+}
+
+body[data-rc-theme="clean-pro"] .pro-custom-act.is-delete,
+body[data-rc-theme="clean-pro"] .pro-custom-home-act--danger,
+body[data-rc-theme="clean-pro"] .pce-delete-link,
+body[data-rc-theme="clean-pro"] #rc-create-preset-delete,
+body[data-rc-theme="clean-pro"] #history-clear-btn {
+    border-color: rgba(255, 99, 99, 0.40);
+    background: rgba(255, 79, 110, 0.08);
+    color: #ffb0b0;
+}
+
+@media (max-width: 420px) {
+    body[data-rc-theme="clean-pro"] #screen-practice {
+        padding-top: 70px;
+    }
+
+    body[data-rc-theme="clean-pro"] .practice-head {
+        gap: 9px;
+    }
+
+    body[data-rc-theme="clean-pro"] .practice-head .stage-num {
+        width: 36px;
+        height: 36px;
+    }
+
+    body[data-rc-theme="clean-pro"] .practice-head h2 {
+        font-size: 1.02rem;
+    }
+
+    body[data-rc-theme="clean-pro"] .pce-field-row,
+    body[data-rc-theme="clean-pro"] .pce-settings-param,
+    body[data-rc-theme="clean-pro"] .rc-create-param {
+        align-items: stretch;
+        flex-wrap: wrap;
+    }
+
+    body[data-rc-theme="clean-pro"] .pce-field-row .pce-label {
+        width: 100%;
+        padding-top: 0;
+    }
+
+    body[data-rc-theme="clean-pro"] .pce-field-row .pce-select,
+    body[data-rc-theme="clean-pro"] .rhythm-create-preset-select,
+    body[data-rc-theme="clean-pro"] .pce-settings-param .pce-select {
+        flex-basis: 100%;
+    }
+}
+
+/* Clean Pro: 譜面背景の固定グリッドを外し、実機で見えた重なりと主要導線を補正する。 */
+body[data-rc-theme="clean-pro"] #screen-practice {
+    padding-top: 86px;
+}
+
+body[data-rc-theme="clean-pro"] .practice-head {
+    align-items: flex-start;
+    gap: 12px;
+    margin-top: 2px;
+}
+
+body[data-rc-theme="clean-pro"] .practice-title-row {
+    align-items: center;
+    gap: 9px;
+    padding-top: 2px;
+}
+
+body[data-rc-theme="clean-pro"] .practice-mode-label {
+    margin-top: 2px;
+}
+
+body[data-rc-theme="clean-pro"] .lane-wrap,
+body[data-rc-theme="clean-pro"] .custom-test-preview-score,
+body[data-rc-theme="clean-pro"] .pce-pattern,
+body[data-rc-theme="clean-pro"] .rhythm-create-pattern,
+body[data-rc-theme="clean-pro"] .pce-vex-scroll,
+body[data-rc-theme="clean-pro"] .pce-vex-lane {
+    background-image: none;
+    background-size: auto;
+}
+
+body[data-rc-theme="clean-pro"] .lane-wrap,
+body[data-rc-theme="clean-pro"] .custom-test-preview-score,
+body[data-rc-theme="clean-pro"] .pce-pattern,
+body[data-rc-theme="clean-pro"] .rhythm-create-pattern {
+    border-color: rgba(245, 239, 228, 0.13);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.032), rgba(255, 255, 255, 0.012)),
+        linear-gradient(145deg, rgba(7, 11, 17, 0.98), rgba(12, 17, 24, 0.99));
+}
+
+body[data-rc-theme="clean-pro"] .pce-vex-scroll {
+    background: rgba(255, 255, 255, 0.012);
+}
+
+body[data-rc-theme="clean-pro"] .pce-vex-lane {
+    background: rgba(4, 7, 11, 0.12);
+}
+
+body[data-rc-theme="clean-pro"] .pce-tap-cell.beat {
+    background-color: transparent;
+}
+
+body[data-rc-theme="clean-pro"] .pce-vex-beatline {
+    background-color: rgba(245, 239, 228, 0.10);
+}
+
+body[data-rc-theme="clean-pro"] #tap-pad {
+    border: 1px solid rgba(222, 194, 122, 0.34);
+    background:
+        radial-gradient(circle at 50% 36%, rgba(222, 194, 122, 0.12), transparent 48%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.012)),
+        linear-gradient(145deg, rgba(7, 11, 17, 0.99), rgba(12, 17, 24, 0.99));
+    color: #efe8dc;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.045),
+        inset 0 0 0 1px rgba(222, 194, 122, 0.08),
+        0 12px 26px rgba(0, 0, 0, 0.20);
+}
+
+body[data-rc-theme="clean-pro"] #tap-pad:active {
+    border-color: rgba(240, 215, 154, 0.62);
+    background:
+        radial-gradient(circle at 50% 36%, rgba(240, 215, 154, 0.20), transparent 50%),
+        linear-gradient(180deg, rgba(240, 215, 154, 0.11), rgba(255, 255, 255, 0.018)),
+        linear-gradient(145deg, rgba(8, 12, 18, 0.99), rgba(13, 18, 25, 0.99));
+    transform: translateY(1px);
+}
+
+body[data-rc-theme="clean-pro"] .transport-main {
+    min-height: 54px;
+    max-width: 280px;
+    border-color: rgba(240, 215, 154, 0.84);
+    background:
+        linear-gradient(180deg, #f0d79a, #d1aa5d),
+        #d7b66f;
+    color: #17120c;
+    font-size: 1.08rem;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.35),
+        0 12px 28px rgba(0, 0, 0, 0.26);
+}
+
+body[data-rc-theme="clean-pro"] .transport-main:active {
+    background:
+        linear-gradient(180deg, #e6c67f, #bd9349),
+        #caa457;
+}
+
+body[data-rc-theme="clean-pro"] .rhythm-create-practice,
+body[data-rc-theme="clean-pro"] .pce-test,
+body[data-rc-theme="clean-pro"] .pro-custom-act.is-test {
+    min-height: 46px;
+    border: 1px solid rgba(222, 194, 122, 0.66);
+    border-radius: 12px;
+    background:
+        linear-gradient(180deg, rgba(240, 215, 154, 0.24), rgba(215, 182, 111, 0.13)),
+        rgba(255, 255, 255, 0.025);
+    color: #f4ead7;
+    font-family: inherit;
+    font-weight: 800;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        0 10px 22px rgba(0, 0, 0, 0.16);
+}
+
+body[data-rc-theme="clean-pro"] .rhythm-create-practice:active,
+body[data-rc-theme="clean-pro"] .pce-test:active,
+body[data-rc-theme="clean-pro"] .pro-custom-act.is-test:active {
+    background:
+        linear-gradient(180deg, rgba(240, 215, 154, 0.30), rgba(215, 182, 111, 0.17)),
+        rgba(255, 255, 255, 0.035);
+}
+
+body[data-rc-theme="clean-pro"] .custom-test-preview-play[aria-pressed="true"],
+body[data-rc-theme="clean-pro"] .custom-test-preview-play--primary[aria-pressed="true"],
+body[data-rc-theme="clean-pro"] #pce-preview-play[aria-pressed="true"],
+body[data-rc-theme="clean-pro"] .rhythm-create-play[aria-pressed="true"] {
+    border-color: rgba(222, 194, 122, 0.54);
+    background:
+        linear-gradient(180deg, rgba(240, 215, 154, 0.14), rgba(255, 255, 255, 0.026)),
+        rgba(255, 255, 255, 0.025);
+    color: #efe8dc;
+}
+
+@media (max-width: 420px) {
+    body[data-rc-theme="clean-pro"] #screen-practice {
+        padding-top: 108px;
+    }
+
+    body[data-rc-theme="clean-pro"] .practice-head {
+        gap: 10px;
+    }
+
+    body[data-rc-theme="clean-pro"] .practice-title-row {
+        gap: 7px;
+    }
+}
+
+/* Clean Pro: 実DOMに合わせた追加補正。 */
+body[data-rc-theme="clean-pro"] #screen-practice .practice-head {
+    margin-top: 30px;
+    padding-inline: 4px;
+}
+
+body[data-rc-theme="clean-pro"] #screen-practice .practice-title-row {
+    align-items: center;
+    row-gap: 8px;
+}
+
+body[data-rc-theme="clean-pro"] #screen-practice #practice-mode-label {
+    flex: 0 0 auto;
+}
+
+body[data-rc-theme="clean-pro"] #tap-pad,
+body[data-rc-theme="clean-pro"] #tap-pad:active,
+body[data-rc-theme="clean-pro"] .lane-wrap,
+body[data-rc-theme="clean-pro"] .custom-test-preview-score,
+body[data-rc-theme="clean-pro"] .pce-pattern,
+body[data-rc-theme="clean-pro"] .rhythm-create-pattern,
+body[data-rc-theme="clean-pro"] .pce-vex-scroll,
+body[data-rc-theme="clean-pro"] .pce-vex-lane {
+    filter: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+body[data-rc-theme="clean-pro"] #tap-pad,
+body[data-rc-theme="clean-pro"] #tap-pad:active {
+    border-color: rgba(245, 239, 228, 0.13);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.026), rgba(255, 255, 255, 0.010)),
+        linear-gradient(145deg, rgba(7, 11, 17, 0.99), rgba(12, 17, 24, 0.99));
+    box-shadow:
+        0 10px 24px rgba(0, 0, 0, 0.22),
+        inset 0 0 0 1px rgba(245, 239, 228, 0.035);
+    transform: none;
+}
+
+body[data-rc-theme="clean-pro"] #tap-area {
+    width: 100%;
+    gap: 10px;
+}
+
+body[data-rc-theme="clean-pro"] #tap-area .tap-half {
+    border: 1px solid rgba(214, 172, 86, 0.55);
+    background:
+        radial-gradient(circle at center, rgba(255, 255, 255, 0.13), transparent 58%),
+        linear-gradient(180deg, rgba(18, 21, 24, 0.96), rgba(8, 12, 18, 0.98));
+    color: rgba(255, 255, 255, 0.92);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        inset 0 0 0 1px rgba(214, 172, 86, 0.08),
+        0 12px 28px rgba(0, 0, 0, 0.28);
+}
+
+body[data-rc-theme="clean-pro"] #tap-area .tap-half:active {
+    border-color: rgba(240, 215, 154, 0.74);
+    background:
+        radial-gradient(circle at center, rgba(255, 255, 255, 0.18), transparent 58%),
+        linear-gradient(180deg, rgba(35, 32, 24, 0.98), rgba(10, 14, 20, 0.99));
+}
+
+body[data-rc-theme="clean-pro"] #tap-area .tap-half.flash {
+    background:
+        radial-gradient(circle at center, rgba(255, 255, 255, 0.20), transparent 58%),
+        linear-gradient(180deg, rgba(38, 34, 24, 0.98), rgba(10, 14, 20, 0.99));
+    border-color: rgba(240, 215, 154, 0.76);
+}
+
+body[data-rc-theme="clean-pro"] #tap-area .tap-arrow,
+body[data-rc-theme="clean-pro"] #tap-area .tap-label {
+    color: rgba(255, 255, 255, 0.92);
+    text-shadow: 0 1px 10px rgba(255, 255, 255, 0.12);
+}
+
+body[data-rc-theme="clean-pro"] #tap-area .tap-unify {
+    min-height: var(--tap-h, 106px);
+}
+
+@media (max-width: 420px) {
+    body[data-rc-theme="clean-pro"] #screen-practice .practice-head {
+        margin-top: 34px;
+    }
+
+    body[data-rc-theme="clean-pro"] #screen-practice .stage-body {
+        min-width: 0;
+    }
 }
