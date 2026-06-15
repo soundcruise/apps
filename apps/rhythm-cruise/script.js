@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.224';
+const RHYTHM_CRUISE_VERSION = '0.9.225';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -97,6 +97,24 @@ const PT_CLICK_STRONG_FACTOR = 1.1;
    STAGE本番・最終確認テスト・BT補正・タップ補正・補正テストの「同じクリック音」で共通に使う（音量スケールを揃える）。 */
 const CLICK_PEAK_ACCENT = 0.80;
 const CLICK_PEAK_NORMAL = 0.66;
+/* v0.9.225：通常マイク用の1拍目アクセントのピーク。
+   通常マイクは本体スピーカーからクリックを鳴らすため、強いアクセント(0.80)だと1拍目だけが
+   マイクへ強く回り込み、最終確認テスト/本番STAGEで「1拍目クリックだけ」反応ラインを超えてしまう
+   （2〜4拍目=0.66は超えない）。通常マイク時はアクセントを通常拍(0.66)のすぐ上まで下げ、
+   1拍目が過剰に拾われないようにする。
+   ・これは STAGE本番・最終確認テスト共通で使う「実際に採用されるクリック再生設定」そのもの
+     （clickBasePeak を click / scheduleStageClick / ptScheduleClick の3経路で共通利用）なので、
+     最終確認テストと本番STAGEのクリック条件はズレない。
+   ・判定側（クリック直後ガード等）の入力除外は一切増やさない＝ストロークは従来どおり拾う。
+   ・音色(1500Hz)は維持するので、1拍目はアクセントとして聞き分けられる（聞き取りやすさは保つ）。
+   ・イヤホン等（非通常マイク）は従来どおり 0.80（変更しない）。 */
+const CLICK_PEAK_ACCENT_NORMAL_MIC = 0.68;
+/* クリックのベースピーク（clickVolume / clickPeakGain を掛ける前）。
+   通常マイク時だけ1拍目アクセントを控えめにし、それ以外は従来値のまま返す。 */
+function clickBasePeak(accent) {
+    if (!accent) return CLICK_PEAK_NORMAL;
+    return isNormalMicInput() ? CLICK_PEAK_ACCENT_NORMAL_MIC : CLICK_PEAK_ACCENT;
+}
 /* v0.9.155/0.9.156：通常マイク時だけ、本体スピーカーから鳴るクリックの実出力を底上げする倍率。
    端末本体音量が50%程度でもクリックが聞こえ・マイクに拾われやすくするため。
    ・通常マイクは本体スピーカーでクリックを鳴らす前提なので、ここを少し強くする。
@@ -5401,7 +5419,8 @@ function click(accent, force) {
     // クリック音量設定（0..100%）を反映。0なら無音
     const vol = Math.max(0, Math.min(1, state.clickVolume / 100));
     // v0.9.155：通常マイク時のみ実出力を底上げ（イヤホンは1.0）。デジタルクリップはCLICK_PEAK_CLIPで防ぐ。
-    const peak = Math.min(CLICK_PEAK_CLIP, (accent ? CLICK_PEAK_ACCENT : CLICK_PEAK_NORMAL) * vol * clickPeakGain());
+    // v0.9.225：通常マイク時は1拍目アクセントを控えめに（clickBasePeak）。STAGE/最終確認テスト共通の同じ設定。
+    const peak = Math.min(CLICK_PEAK_CLIP, clickBasePeak(accent) * vol * clickPeakGain());
     if (peak < 0.001) return; // 実質無音
     // v0.9.157：波形・エンベロープは共通ヘルパーへ。通常マイク時だけサステインを持たせ実効音量を上げる。
     const stopAt = applyClickEnvelope(ctx, osc, gain, t0, accent, peak);
@@ -5516,7 +5535,8 @@ function scheduleStageClick(audioTime, accent, force) {
     if (!ctx) return;
     const vol = Math.max(0, Math.min(1, state.clickVolume / 100));
     // v0.9.155：通常マイク時のみ実出力を底上げ（イヤホンは1.0）。デジタルクリップはCLICK_PEAK_CLIPで防ぐ。
-    const peak = Math.min(CLICK_PEAK_CLIP, (accent ? CLICK_PEAK_ACCENT : CLICK_PEAK_NORMAL) * vol * clickPeakGain());
+    // v0.9.225：通常マイク時は1拍目アクセントを控えめに（clickBasePeak）。最終確認テストと完全に同一式。
+    const peak = Math.min(CLICK_PEAK_CLIP, clickBasePeak(accent) * vol * clickPeakGain());
     if (peak < 0.001) return;
     const t0 = Math.max(audioTime, ctx.currentTime); // 過去時刻なら即時
     const osc = ctx.createOscillator();
@@ -7657,16 +7677,19 @@ function updateChordDev() {
     els.resultsChordDev.textContent = '🎸 コードストローク判定：' + (good ? '良好' : '注意')
         + '｜拾った入力 ' + picked + ' ／ 二重反応 ' + doubles;
     els.resultsChordDev.classList.remove('hidden');
-    // ② 詳細診断（開発用寄り）：再ピーク・クールダウン・ゲート
+    // ② 詳細診断（開発用）：再ピーク・クールダウン・ゲート。v0.9.225：通常ユーザーには出さず ?debugMic=1 のときだけ表示。
     if (els.resultsChordDetail) {
-        els.resultsChordDetail.textContent = '（詳細診断）無視した再ピーク ' + (state.chordIgnoredRePeaks || 0)
-            + ' ／ クールダウン ' + state.chordMinCooldown + 'ms ／ 谷上昇ゲート ' + state.chordRiseGate.toFixed(3)
-            + ' ／ 瞬間上昇ゲート ' + state.chordInstantRiseGate.toFixed(3);
-        els.resultsChordDetail.classList.remove('hidden');
+        if (!MIC_DEBUG_ON) { els.resultsChordDetail.classList.add('hidden'); }
+        else {
+            els.resultsChordDetail.textContent = '（詳細診断）無視した再ピーク ' + (state.chordIgnoredRePeaks || 0)
+                + ' ／ クールダウン ' + state.chordMinCooldown + 'ms ／ 谷上昇ゲート ' + state.chordRiseGate.toFixed(3)
+                + ' ／ 瞬間上昇ゲート ' + state.chordInstantRiseGate.toFixed(3);
+            els.resultsChordDetail.classList.remove('hidden');
+        }
     }
-    // ③ 立ち上がり未検出MISSの診断（MISSが出たときだけ・開発用）
+    // ③ 立ち上がり未検出MISSの診断（MISSが出たときだけ・開発用）。v0.9.225：?debugMic=1 のときだけ表示。
     if (els.resultsChordMiss) {
-        if (!miss.lines.length) { els.resultsChordMiss.classList.add('hidden'); }
+        if (!MIC_DEBUG_ON || !miss.lines.length) { els.resultsChordMiss.classList.add('hidden'); }
         else {
             const mainReason = Object.keys(miss.reasons).sort((a, b) => miss.reasons[b] - miss.reasons[a])[0];
             const shown = miss.lines.slice(0, 8);
@@ -8933,7 +8956,8 @@ function ptScheduleClick(atSec, accent) {
     const t0 = Math.max(atSec, ctx.currentTime);
     // v0.9.157：最終確認テストのクリックも、通常マイク時は他経路（反応/補正テスト・STAGE）と同じ
     //   倍率(clickPeakGain)＋エンベロープに統一。イヤホン等は clickPeakGain()=1.0・従来の短いクリックのまま。
-    const peak = Math.min(CLICK_PEAK_CLIP, (accent ? CLICK_PEAK_ACCENT : CLICK_PEAK_NORMAL) * vol * clickPeakGain());
+    // v0.9.225：通常マイク時は1拍目アクセントを控えめに（clickBasePeak）。STAGE本番(scheduleStageClick)と完全に同一式。
+    const peak = Math.min(CLICK_PEAK_CLIP, clickBasePeak(accent) * vol * clickPeakGain());
     if (peak < 0.001) return;
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
