@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.223">
+    <link rel="stylesheet" href="theme.css?v=0.9.224">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -552,18 +552,24 @@
                  通常STAGE / カスタムSTAGE / くり返し練習 / 最終確認テストで共通。スコア配点・譜面・結果グラフには影響しない。 -->
             <div class="settings-card hidden" id="judge-settings-card">
                 <div class="cal-head">判定のきびしさ</div>
-                <p class="setting-note" style="margin-top:0;">GOOD / EARLY / LATE の判定幅を変更します。迷ったら「標準」がおすすめです。</p>
-                <div class="stage-set-row">
-                    <span class="stage-set-label">きびしさ</span>
-                    <div class="stage-set-seg" id="judge-preset-seg" role="group" aria-label="判定のきびしさ">
-                        <button type="button" class="ss-seg" data-judge="easy" aria-pressed="false">やさしい</button>
-                        <button type="button" class="ss-seg is-active" data-judge="standard" aria-pressed="true">標準</button>
-                        <button type="button" class="ss-seg" data-judge="semiStrict" aria-pressed="false">やや厳しい</button>
-                        <button type="button" class="ss-seg" data-judge="strict" aria-pressed="false">厳しい</button>
-                        <button type="button" class="ss-seg" data-judge="veryStrict" aria-pressed="false">もっと厳しい</button>
+                <p class="setting-note judge-setting-lead">左ほど成功しやすく、右ほど正確さが必要になります。中央の「標準」がデフォルトです。</p>
+                <div class="judge-dot-control" id="judge-preset-seg" role="group" aria-label="判定のきびしさ">
+                    <div class="judge-dot-track" aria-hidden="true"></div>
+                    <button type="button" class="judge-dot-btn" data-judge="easy" aria-pressed="false" aria-label="易しい"><span class="judge-dot"></span></button>
+                    <button type="button" class="judge-dot-btn" data-judge="standard" aria-pressed="false" aria-label="やや易しい"><span class="judge-dot"></span></button>
+                    <button type="button" class="judge-dot-btn is-active" data-judge="semiStrict" aria-pressed="true" aria-label="標準"><span class="judge-dot"></span></button>
+                    <button type="button" class="judge-dot-btn" data-judge="strict" aria-pressed="false" aria-label="やや厳しい"><span class="judge-dot"></span></button>
+                    <button type="button" class="judge-dot-btn" data-judge="veryStrict" aria-pressed="false" aria-label="厳しい"><span class="judge-dot"></span></button>
+                    <div class="judge-dot-labels" aria-hidden="true">
+                        <span>← 易しい</span>
+                        <span>厳しい →</span>
                     </div>
                 </div>
                 <p class="setting-note" id="judge-preset-note" style="margin-top:8px;"></p>
+            </div>
+
+            <div class="pro-settings-reset-wrap hidden" id="pro-settings-reset-wrap">
+                <button type="button" class="pro-settings-reset-btn" id="pro-settings-reset-btn">デフォルトに戻す</button>
             </div>
 
             <!-- 画面タップ設定タブ（v0.9.95→v0.9.97）：画面タップでプレイする人向け。
@@ -1267,7 +1273,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.223"></script>
+    <script src="script.js?v=0.9.224"></script>
 </body>
 
 </html>

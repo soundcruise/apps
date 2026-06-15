@@ -3993,6 +3993,93 @@ h1 {
     border-color: var(--secondary-color);
     font-weight: 700;
 }
+.judge-setting-lead {
+    margin-top: 0;
+    line-height: 1.6;
+}
+.judge-dot-control {
+    position: relative;
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(42px, 1fr));
+    gap: 0;
+    margin-top: 4px;
+    padding: 8px 4px 28px;
+}
+.judge-dot-track {
+    position: absolute;
+    left: 12%;
+    right: 12%;
+    top: 26px;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(245, 239, 228, 0.10), rgba(222, 194, 122, 0.36), rgba(245, 239, 228, 0.10));
+    pointer-events: none;
+}
+.judge-dot-btn {
+    position: relative;
+    z-index: 1;
+    min-width: 42px;
+    min-height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    color: rgba(245, 239, 228, 0.58);
+    cursor: pointer;
+}
+.judge-dot {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(245, 239, 228, 0.42);
+    background: #0b1017;
+    box-shadow: 0 0 0 4px rgba(11, 16, 23, 0.96);
+    transition: transform 0.15s, background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.judge-dot-btn.is-active .judge-dot {
+    width: 18px;
+    height: 18px;
+    background: #dec27a;
+    border-color: #f5efe4;
+    box-shadow:
+        0 0 0 4px rgba(11, 16, 23, 0.96),
+        0 0 0 7px rgba(222, 194, 122, 0.14);
+}
+.judge-dot-btn:active .judge-dot {
+    transform: scale(0.92);
+}
+.judge-dot-labels {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    margin-top: 2px;
+    color: rgba(237, 232, 225, 0.62);
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+.pro-settings-reset-wrap {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin-top: -6px;
+}
+.pro-settings-reset-btn {
+    min-height: 40px;
+    padding: 9px 18px;
+    border-radius: 999px;
+    border: 1px solid rgba(245, 239, 228, 0.18);
+    background: rgba(255, 255, 255, 0.035);
+    color: rgba(245, 239, 228, 0.72);
+    font-family: inherit;
+    font-size: 0.84rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+.pro-settings-reset-btn:active {
+    transform: scale(0.98);
+}
 .ss-toggle {
     min-width: 56px;
     padding: 6px 16px;
