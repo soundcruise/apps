@@ -5959,10 +5959,11 @@ body[data-rc-theme="clean-pro"] #screen-home header h1 {
 #home-top .rc-category-card {
     position: relative;
     z-index: 1;
-    align-items: flex-start;
+    align-items: center;
     min-height: 112px;
-    padding: 20px 20px 20px 72px;
+    padding: 20px 22px;
     justify-content: center;
+    text-align: center;
     border: 1px solid rgba(245, 239, 228, 0.17);
     border-radius: 14px;
     background:
@@ -5979,14 +5980,14 @@ body[data-rc-theme="clean-pro"] #screen-home header h1 {
     content: "";
     position: absolute;
     pointer-events: none;
-    left: 18px;
-    top: 50%;
+    left: 50%;
+    top: 20px;
     width: 38px;
     height: 38px;
     border: 1px solid rgba(222, 194, 122, 0.30);
     border-radius: 50%;
     background: radial-gradient(circle at 50% 50%, rgba(222, 194, 122, 0.17), rgba(222, 194, 122, 0.045) 62%, transparent 63%);
-    transform: translateY(-50%);
+    transform: translateX(-50%);
 }
 
 #home-top .rc-category-card::after {
@@ -6001,13 +6002,13 @@ body[data-rc-theme="clean-pro"] #screen-home header h1 {
 }
 
 #home-top .rc-category-card-icon {
-    position: absolute;
-    left: 28px;
-    top: 50%;
+    position: relative;
+    left: auto;
+    top: auto;
     font-size: 1.2rem;
     color: #efe6d4;
     filter: none;
-    transform: translateY(-50%);
+    transform: none;
     opacity: 0.92;
 }
 
@@ -6049,17 +6050,18 @@ body[data-rc-theme="clean-pro"] #screen-home header h1 {
 
     #home-top .rc-category-card {
         min-height: 108px;
-        padding: 18px 16px 18px 66px;
+        padding: 18px 16px;
     }
 
     #home-top .rc-category-card::before {
-        left: 14px;
+        left: 50%;
+        top: 18px;
         width: 34px;
         height: 34px;
     }
 
     #home-top .rc-category-card-icon {
-        left: 24px;
+        left: auto;
         font-size: 1.08rem;
     }
 

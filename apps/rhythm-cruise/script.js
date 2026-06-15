@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.220';
+const RHYTHM_CRUISE_VERSION = '0.9.221';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -60,11 +60,8 @@ const CAL_THR_FLOOR_MIN = 0.006;
 const CAL_THR_FLOOR_NOISE_MULT = 2;
 const CAL_THR_CEIL = 0.08;          // 補正用反応ラインの絶対上限
 const CAL_MIN_VOLUME = 40;     // 補正テスト中の最低クリック音量(%)。10%等で不安定なため引き上げる（STAGEは据え置き）。v0.9.140：Mac通常マイクでクリックを確実に拾うため 30→40 に微増
-/* v0.9.156：通常マイクで、マイク反応テストのおすすめクリック音量がここ以上＝端末本体音量で頭打ち気味（クリックが小さい端末）と判断し、
-   補正テスト中だけクリックを 100% 相当の一時音量で鳴らす（実機で再テスト時に100%へ上がると補正が通る挙動を、初回から再現する）。
-   ★STAGE用 state.clickVolume は変更しない＝補正テスト中だけ。applyCalSettings の退避/復元で必ず元へ戻す。
-   ゲイン底上げ(1.35)で、おすすめが90%付近から少し下がっても拾えるよう、トリガーは90より少し下の85にする。 */
-const CAL_FULL_VOLUME_AT = 85;
+/* 通常マイクの補正テストは、端末スピーカーのクリックを聞き取りやすくするため、
+   補正テスト中だけクリックを100%相当の一時音量で鳴らす。STAGE用 state.clickVolume は保存せず復元する。 */
 /* v0.9.157：補正テスト開始時の較正用クリック（warm-up）の回数。1発目はiPhoneのマイクAGC前で大きく、
    2発目以降は圧縮で小さくなりがち。1発だけで反応ラインを決めると、その後のクリックが届かず失敗する。
    複数回鳴らし、1発目を除いた代表値（低めの中央値）で反応ラインを決め、AGC後のクリックに合わせる。 */
@@ -497,6 +494,7 @@ const test = {
     clickWinFrom: 0, clickWinTo: 0,
     maxClickPeak: 0,
     clickMeasureVol: 70,  // クリックテストを鳴らした時のクリック音量（10%適用後の目安計算用）
+    flowSavedClickVolume: null, // 通常マイク初回テスト中だけクリック音量を一時退避
     clickDone: false,
     // ストロークテスト（流れる譜面型・8分ダウンアップ）
     strokeRound: 0,
@@ -13087,6 +13085,7 @@ function exitTestMode() {
     test.active = false;
     test.mode = null;
     test.flow = false;
+    restoreMicTestClickVolume();
     if (els.testLaneWrap) els.testLaneWrap.classList.add('hidden');
     if (els.micTestBtn) {
         els.micTestBtn.textContent = micTestBtnIdleLabel();
@@ -13165,6 +13164,7 @@ function resetMicReactionTestRunDisplay() {
     test.recoCooldown = null;
     test.recoClickVolume = null;
     test.projClickMax = null;
+    test.flowSavedClickVolume = null;
     test.lowInputTuned = false;
     test.btStrokePeriodMax = null;
     test.btStrokePeriodP75 = null;
@@ -13265,6 +13265,12 @@ function calBtnIdleLabel() {
     return state.micDelayDone ? 'もう一度テストする' : 'テストを開始';
 }
 
+function setCalRunButtonSecondary(on) {
+    if (!els.calBtn) return;
+    els.calBtn.classList.toggle('rc-mic-action-primary', !on);
+    els.calBtn.classList.toggle('rc-mic-action-secondary', !!on);
+}
+
 /* マイクの遅れ補正「未/実施済み」表示（マイク反応テストとデザインを揃える） */
 function updateMicDelayDoneUI() {
     const done = state.micDelayDone;
@@ -13278,6 +13284,7 @@ function updateMicDelayDoneUI() {
     if (els.calBtn && !cal.active && !mic.calibrating) {
         els.calBtn.textContent = calBtnIdleLabel();
         els.calBtn.classList.toggle('is-todo', !done); // 未実施は赤系で目立たせる
+        setCalRunButtonSecondary(done);
     }
     // 「結果を見る」は実施済みのときだけ表示
     if (els.calResultDetail) {
@@ -13361,10 +13368,23 @@ function toggleMicTest() {
     test.rescueHighSens = false;  // 通常テスト開始時は救済モードを解除（従来どおりの検出しきい値）
     test.autoRetestCount = 0;     // 一連の自動再テスト回数もリセット
     scrollToSettingsEl(els.testCard); // カード上部（タイトル/「今やること」/説明）が隠れないように（v0.9.92）
-    startMicTestFlow();
+    startMicTestFlow({ normalInitialClickBoost: true });
 }
 
-async function startMicTestFlow() {
+function boostNormalMicTestClickVolumeOnce(options) {
+    if (!options || !options.normalInitialClickBoost || !isNormalMicInput()) return;
+    if (test.flowSavedClickVolume != null) return;
+    test.flowSavedClickVolume = state.clickVolume;
+    state.clickVolume = 100;
+}
+
+function restoreMicTestClickVolume() {
+    if (test.flowSavedClickVolume == null) return;
+    state.clickVolume = test.flowSavedClickVolume;
+    test.flowSavedClickVolume = null;
+}
+
+async function startMicTestFlow(options = {}) {
     if (pt.active) stopPracticeTest(); // 最終確認テストと排他
     stopBtCal(); // マイク遅れ補正と排他
     resetMicDelayCalibrationUiState();
@@ -13373,6 +13393,7 @@ async function startMicTestFlow() {
     if (!(await ensureTestMic())) { setTestResult('マイクを許可してください。', 'ng'); showMicPermHelp(); return; }
     hideMicPermHelp(); // v0.9.160：開始できたので許可エラー案内は隠す
     test.flow = true;
+    boostNormalMicTestClickVolumeOnce(options);
     // イヤホン接続は初回テストから高感度寄り（救済しきい値）で拾いにいく。auto/normalは従来どおり。
     if (shouldStartMicTestInHighSensitivity()) test.rescueHighSens = true;
     test.clickDone = false; test.strokeDone = false;
@@ -13418,6 +13439,7 @@ function abortMicTest() {
     cancelAnimationFrame(test.flowRaf); test.flowRaf = 0;
     cancelAnimationFrame(test.clickRaf); test.clickRaf = 0;
     test.flow = false; test.mode = null;
+    restoreMicTestClickVolume();
     if (els.testLaneWrap) els.testLaneWrap.classList.add('hidden');
     els.micTestBtn.classList.remove('is-on');
     els.micTestBtn.textContent = micTestBtnIdleLabel();
@@ -13906,6 +13928,7 @@ function endStrokePhase() {
     }
     test.strokeDone = true;
     setTestResult('', '');
+    restoreMicTestClickVolume();
     updateReco();
     // コードストローク観察：波形・各ストローク観察値をコンソールへダンプ（開発用）
     if (state.strokeDetectMode === 'chord') logChordStrokeDiag();
@@ -15161,6 +15184,7 @@ function setCalUI(mode, arg) {
         els.calResult.classList.add('hidden');
         els.calBtn.disabled = true;
         els.calBtn.classList.remove('is-todo'); // 測定中は赤系を外す
+        setCalRunButtonSecondary(false);
         showMonitor(true);
         updateCalMonitor();
     } else if (mode === 'result') {
@@ -15171,8 +15195,9 @@ function setCalUI(mode, arg) {
         if (els.calSuccess) els.calSuccess.textContent = cal.successCount + ' / ' + CAL_CLICKS;
         if (els.calSpread) els.calSpread.textContent = '±' + cal.spread + 'ms';
         els.calBtn.disabled = false;
-        els.calBtn.textContent = calBtnIdleLabel();
-        els.calBtn.classList.toggle('is-todo', !state.micDelayDone);
+        els.calBtn.textContent = 'もう一度テストする';
+        els.calBtn.classList.remove('is-todo');
+        setCalRunButtonSecondary(true);
         showMonitor(false);
     } else if (mode === 'failed') {
         els.calStatus.classList.remove('hidden');
@@ -15180,8 +15205,9 @@ function setCalUI(mode, arg) {
         if (els.calRetestMicBtn) els.calRetestMicBtn.classList.remove('hidden');
         els.calResult.classList.add('hidden');
         els.calBtn.disabled = false;
-        els.calBtn.textContent = calBtnIdleLabel();
-        els.calBtn.classList.toggle('is-todo', !state.micDelayDone);
+        els.calBtn.textContent = 'もう一度テストする';
+        els.calBtn.classList.remove('is-todo');
+        setCalRunButtonSecondary(true);
         showMonitor(false);
     } else if (mode === 'idle') {
         els.calStatus.classList.add('hidden');
@@ -15189,6 +15215,7 @@ function setCalUI(mode, arg) {
         els.calBtn.disabled = false;
         els.calBtn.textContent = calBtnIdleLabel();
         els.calBtn.classList.toggle('is-todo', !state.micDelayDone);
+        setCalRunButtonSecondary(state.micDelayDone);
         showMonitor(false);
     }
 }
@@ -15256,10 +15283,10 @@ function calibrationClickVolume() {
             vol = Math.max(vol, Math.ceil(CAL_MIN_DETECT_PEAK / peakPerPct));
         }
     }
-    // v0.9.156：通常マイクで、おすすめクリック音量が高い（=端末本体音量で頭打ち・クリックが小さい）端末は、
-    //   補正テスト中だけ 100% 相当まで上げる。1回目の補正テストでも十分なクリックピークを確保して通りやすくする。
+    // 通常マイクでは、補正テスト中だけ100%相当まで上げる。
+    // 端末スピーカーのクリックを聞き取りやすくし、1回目の補正テストでも十分なクリックピークを確保する。
     //   ※STAGE用音量(state.clickVolume)は変えない（restoreで戻る一時値）。
-    if (isNormalMicInput() && state.clickVolume >= CAL_FULL_VOLUME_AT) vol = 100;
+    if (isNormalMicInput()) vol = 100;
     return Math.max(5, Math.min(100, Math.round(vol)));
 }
 
