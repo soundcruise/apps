@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.218';
+const RHYTHM_CRUISE_VERSION = '0.9.219';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -13992,6 +13992,13 @@ function renderBtMicDiagnostic() {
         row('推奨クリック音量', d.recoClick + '%') +
         row('推奨二重反応防止', d.recoCooldown + 'ms') +
         row('推奨反応ライン', btDiagNumber(d.recommendedThreshold)) +
+        row('現在マイク感度', d.currentSens + '%') +
+        row('現在反応ライン', btDiagNumber(d.currentThreshold)) +
+        row('代表ピーク', btDiagNumber(d.representativePeak)) +
+        row('代表ピーク種別', d.representativePeakType || '不明') +
+        row('推奨との差', d.sensDiff) +
+        row('感度変換', d.sensConversion || '共通') +
+        row('感度抑制理由', d.sensGuardReason || 'なし') +
         row('全体最大ピーク', btDiagNumber(d.overallMax)) +
         row('ストローク期間ピーク p75', btDiagNumber(d.periodP75)) +
         row('ストローク期間ピーク p90', btDiagNumber(d.periodP90)) +
@@ -14051,6 +14058,7 @@ function updateReco() {
     const maxStroke = test.maxStrokePeak; // 全ストローク最大（検出分）
     const strokeSamples = (test.strokePeaks || []).filter((v) => typeof v === 'number' && isFinite(v)).sort((a, b) => a - b);
     const strokeAvg = strokeSamples.length ? strokeSamples.reduce((a, b) => a + b, 0) / strokeSamples.length : null;
+    const strokeP50 = strokeSamples.length ? strokeSamples[Math.floor(strokeSamples.length * 0.5)] : null;
     const strokeP95 = strokeSamples.length ? strokeSamples[Math.min(strokeSamples.length - 1, Math.floor(strokeSamples.length * 0.95))] : null;
     const btPeriodP75 = isBluetoothHeadphone() ? test.btStrokePeriodP75 : null;
     const btPeriodP90 = isBluetoothHeadphone() ? test.btStrokePeriodP90 : null;
@@ -14089,6 +14097,25 @@ function updateReco() {
     const lowInputTuned = (isLowInputTestEnv() || shouldUseLowInputDisplayProfile()) && lowInput;
     test.lowInputTuned = lowInputTuned; // 詳細表示(updateTestDetail)で表示スケールを合わせるため保持
     const lowInputNoiseLine = Math.max(THR_MIN, TEST_LOW_STROKE_FLOOR, (test.noiseP95 || 0) * 4, (test.noiseMax || 0) * 1.5);
+    let representativePeak = strokeBasis;
+    let representativePeakType = minStroke != null ? '検出窓' : (maxStrokeRaw != null ? '補助' : '不明');
+    let sensGuardReason = 'なし';
+    // Bluetoothは遅延で「判定窓内の最小ピーク」だけが低く見えることがある。
+    // 入力・検出が十分なら、ピーク取得だけ広めの期間ピークで補助し、以降の推奨式と感度%変換は共通スケールを使う。
+    let recoStrokeBasis = minStroke;
+    if (isBluetoothHeadphone() && minStroke != null && !strokeDetectionShort && btInputLooksStrong && !test.earphoneClickLeak) {
+        const robustCandidates = [strokeP50, strokeAvg, btPeriodP75]
+            .filter((v) => typeof v === 'number' && isFinite(v) && v >= BT_STRONG_RAW_AVG);
+        if (robustCandidates.length) {
+            const assistBasis = Math.max(THR_MIN, Math.min(...robustCandidates) * 0.5);
+            if (assistBasis > minStroke) {
+                recoStrokeBasis = assistBasis;
+                representativePeak = assistBasis;
+                representativePeakType = '補助';
+                sensGuardReason = '検出十分・ピーク十分のため維持';
+            }
+        }
+    }
 
     // ② クリック音量を先に決める：クリックをストローク最小より十分下げ、間に反応ラインを置ける状態にする。
     //    目標＝クリック音最大がストローク最小の半分以下。
@@ -14125,6 +14152,7 @@ function updateReco() {
     let highSens = false;
     let cannotSeparate = false; // クリック音量を下げてもクリックとストロークを分離できない
     if (minStroke != null) {
+        const recBasis = recoStrokeBasis || minStroke;
         // v0.9.140（おすすめ余裕の見直し）：おすすめは「実効判定ライン」をストローク最小の92%程度（上限）に置く。
         //   検出は 生threshold×感度カーブ倍率 なので、生thresholdをそのまま置くと低感度域では実効ラインが
         //   ストローク最小付近まで上がり、最終確認テストで届かずMISSになっていた。そこで欲しい実効ラインから
@@ -14134,18 +14162,18 @@ function updateReco() {
         //   v0.9.142：クリック音目標を「ラインの約88%」に上げたため、ラインはクリック予測ピークの約1.12倍上に置く（クリックは
         //   ラインの約89%に収まる）。分離可否は「その1.12倍ラインがストローク最小×0.96の下に収まるか」で判断＝クリックが
         //   ラインに肉薄/超える（拾いやすい）ときだけ cannotSeparate 警告に乗せる（ライン自体の上限は下の min で 0.92 にクランプ）。
-        const separable = postClick * 1.12 < minStroke * 0.96;  // クリック予測ピーク×1.12（ライン）がストローク最小0.96倍以下に収まる隙間があるか
+        const separable = postClick * 1.12 < recBasis * 0.96;  // クリック予測ピーク×1.12（ライン）がストローク最小0.96倍以下に収まる隙間があるか
         if (lowInputTuned) {
             // 有線イヤホン等：クリック音がほぼ競合しないため、ストローク最小の4割弱まで高感度に寄せる。
             // ノイズより十分上には置くが、クリック回避のために不必要に上げない。（高感度域なので倍率≒1＝逆算は恒等）
-            let rec = Math.max(lowInputNoiseLine, minStroke * 0.38);
-            rec = Math.min(rec, minStroke * 0.55);
+            let rec = Math.max(lowInputNoiseLine, recBasis * 0.38);
+            rec = Math.min(rec, recBasis * 0.55);
             rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
             test.recommended = rec;
             canApply = true;
         } else if (separable) {
             // 実効判定ライン＝クリックより上(×1.12) かつ ストローク最小の0.5〜0.92倍（ストローク側に余裕・実機微調整で 0.65→…→0.90→0.92）。
-            const lineEff = Math.min(minStroke * 0.92, Math.max(postClick * 1.12, minStroke * 0.5));
+            const lineEff = Math.min(recBasis * 0.92, Math.max(postClick * 1.12, recBasis * 0.5));
             let rec = recoRawThresholdForEffectiveLine(lineEff);     // 実効ラインが lineEff になる生thresholdへ逆算
             rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
             test.recommended = rec;
@@ -14154,7 +14182,7 @@ function updateReco() {
             // 分離不可：クリックとストロークが近い。ストローク検出を最優先し、実効ラインをストローク最小×0.92に置く
             // （ストロークは確実に超える・実機微調整で 0.65→…→0.90→0.92）。クリックもライン付近に来るので、警告で音量ダウン/イヤホンへ誘導する。
             cannotSeparate = true;
-            const lineEff = minStroke * 0.92;
+            const lineEff = recBasis * 0.92;
             let rec = recoRawThresholdForEffectiveLine(lineEff);
             rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
             test.recommended = rec;
@@ -14207,8 +14235,8 @@ function updateReco() {
             //   これは「無条件に大きく下げる」ものではなく、①で決めた値より下げず、最弱ストロークの少し下
             //   （約8%の余裕）までに収める“上振れ防止”のみ。ノイズはminStrokeより十分小さいので誤検出は増やさない。
             //   STAGEの判定ロジック・GOOD/EARLY/LATE/MISS条件・通常/有線の算出は一切変更しない。
-            if (minStroke != null) {
-                const btCeil = Math.max(THR_MIN, Math.min(THR_MAX, recoRawThresholdForEffectiveLine(minStroke * 0.92)));
+            if (recoStrokeBasis != null) {
+                const btCeil = Math.max(THR_MIN, Math.min(THR_MAX, recoRawThresholdForEffectiveLine(recoStrokeBasis * 0.92)));
                 btFloor = Math.min(btFloor, Math.max(btCeil, test.recommended));
             }
             if (btFloor > test.recommended) {
@@ -14417,6 +14445,13 @@ function updateReco() {
             recoClick: test.recoClickVolume != null ? test.recoClickVolume : state.clickVolume,
             recoCooldown: test.recoCooldown != null ? test.recoCooldown : mic.cooldownMs,
             recommendedThreshold: test.recommended,
+            currentSens: sensFromThresholdUI(mic.threshold),
+            currentThreshold: mic.threshold,
+            representativePeak,
+            representativePeakType,
+            sensDiff: test.recommended != null ? ((sensFromThreshold(test.recommended) - sensFromThresholdUI(mic.threshold)) >= 0 ? '+' : '') + (sensFromThreshold(test.recommended) - sensFromThresholdUI(mic.threshold)) + '%' : '–',
+            sensConversion: lowInputTuned ? '低入力表示' : '共通',
+            sensGuardReason,
             overallMax: Math.max(maxStrokeRaw || 0, btPeriodMax || 0) || null,
             periodP75: btPeriodP75,
             periodP90: btPeriodP90,
