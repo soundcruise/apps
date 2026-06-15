@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.216';
+const RHYTHM_CRUISE_VERSION = '0.9.217';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -504,6 +504,7 @@ const test = {
     strokePeaks: [],          // 全ノートの受付窓ピーク（検出有無に無関係）
     strokeDownPeaks: [],      // ダウン音符の受付窓ピーク
     strokeUpPeaks: [],        // アップ音符の受付窓ピーク
+    strokePeriodPeaks: [],    // Bluetooth用：ストローク入力期間全体のピーク候補
     strokeDetected: 0,
     strokeDoubleCount: 0,
     minStrokePeak: null, maxStrokePeak: null,
@@ -518,6 +519,9 @@ const test = {
     recoCooldown: null,
     recoClickVolume: null,
     projClickMax: null, // おすすめ音量適用後のクリック音最大の目安（線形近似）
+    btStrokePeriodMax: null,
+    btStrokePeriodP75: null,
+    btStrokePeriodP90: null,
     flow: false,   // 自動フロー実行中
     rescueHighSens: false, // 再テスト時に、最初から高感度寄りで拾い直す救済モード
     autoRetestCount: 0,    // このテスト一連での自動再テスト回数（最大1回）
@@ -9920,6 +9924,7 @@ async function startBtCal() {
     if (cal.active) cancelCalibration();
     if (test.flow) abortMicTest();
     stopPracticeTest();
+    resetBtCalTransientUiState();
     if (!(await ensureTestMic())) { setBtCalStatus('マイクを許可してください。'); return; }
     ensureAudio();
     try { if (state.audioCtx && state.audioCtx.state === 'suspended') await state.audioCtx.resume(); } catch (_) { /* ignore */ }
@@ -12061,7 +12066,8 @@ function resetSetupFlowDisplay() {
     setTestResult('', ''); setTestPhase('');
     if (els.ptResult) els.ptResult.classList.add('hidden');
     if (els.ptStatus) els.ptStatus.textContent = '';
-    if (els.calResult) els.calResult.classList.add('hidden');
+    resetMicDelayCalibrationUiState();
+    resetBtCalTransientUiState();
     updateMicTestDoneUI();
     updateMicDelayDoneUI();
 }
@@ -13094,6 +13100,57 @@ function setTestResult(text, kind) {
 
 function setTestPhase(t) { if (els.testPhase) els.testPhase.textContent = t; }
 
+function resetMicDelayCalibrationUiState() {
+    state.micDelayDone = false;
+    cal.measuredDelay = null;
+    cal.proposedOffset = null;
+    cal.successCount = 0;
+    cal.spread = null;
+    cal.unstable = false;
+    cal.samples = [];
+    cal.maxPeak = 0;
+    cal.rawOnsets = 0;
+    cal.outOfRange = 0;
+    cal.lastLevel = 0;
+    if (els.calResult) els.calResult.classList.add('hidden');
+    if (els.calStatus) {
+        els.calStatus.textContent = '';
+        els.calStatus.classList.add('hidden');
+    }
+    if (els.calResultDetail) els.calResultDetail.classList.add('hidden');
+    if (els.calRetestMicBtn) els.calRetestMicBtn.classList.add('hidden');
+    if (els.calLevel) {
+        els.calLevel.style.width = '0%';
+        els.calLevel.classList.remove('over');
+    }
+    if (els.calCount) els.calCount.textContent = '0回';
+    if (els.calLast) els.calLast.textContent = '0.00';
+    if (els.calMax) els.calMax.textContent = '0.00';
+    updateMicDelayDoneUI();
+}
+
+function resetBtCalTransientUiState() {
+    bt.result = null;
+    bt.onsets = [];
+    bt.wave = [];
+    bt.hasRun = false;
+    setupProgress.btDelayDone = false;
+    if (els.btCalResult) {
+        els.btCalResult.classList.add('hidden');
+        els.btCalResult.innerHTML = '';
+    }
+    if (els.btCalStatus) els.btCalStatus.textContent = '';
+    if (els.btCalPhase) els.btCalPhase.textContent = '';
+    if (els.btCalLive) els.btCalLive.classList.add('hidden');
+    if (els.btCalLaneWrap) els.btCalLaneWrap.classList.add('hidden');
+    if (els.btCalLevel) {
+        els.btCalLevel.style.width = '0%';
+        els.btCalLevel.classList.remove('over');
+    }
+    updateBtCalBadge();
+    if (els.btCalBtn && !bt.active) els.btCalBtn.textContent = 'マイク遅れ補正テストを開始';
+}
+
 /* マイク反応テストを新しく始める前に、前回テストの表示だけを初期化する。
    保存済みマイク設定やlocalStorageは変更しない。 */
 function resetMicReactionTestRunDisplay() {
@@ -13105,6 +13162,9 @@ function resetMicReactionTestRunDisplay() {
     test.recoClickVolume = null;
     test.projClickMax = null;
     test.lowInputTuned = false;
+    test.btStrokePeriodMax = null;
+    test.btStrokePeriodP75 = null;
+    test.btStrokePeriodP90 = null;
     if (els.testReco) els.testReco.classList.add('hidden');
     if (els.recoApplyBtn) els.recoApplyBtn.classList.add('hidden');
     if (els.recoMsg) {
@@ -13300,6 +13360,8 @@ function toggleMicTest() {
 async function startMicTestFlow() {
     if (pt.active) stopPracticeTest(); // 最終確認テストと排他
     stopBtCal(); // マイク遅れ補正と排他
+    resetMicDelayCalibrationUiState();
+    resetBtCalTransientUiState();
     resetMicReactionTestRunDisplay();
     if (!(await ensureTestMic())) { setTestResult('マイクを許可してください。', 'ng'); showMicPermHelp(); return; }
     hideMicPermHelp(); // v0.9.160：開始できたので許可エラー案内は隠す
@@ -13606,9 +13668,11 @@ function beginStrokePhase() {
     test.mode = 'stroke';
     updateMicTestDoNow();
     test.strokePeaks = []; test.strokeDownPeaks = []; test.strokeUpPeaks = [];
+    test.strokePeriodPeaks = [];
     test.strokeAboveMs = [];
     test.strokeChordDiag = []; test.chordWave = [];
     test.strokeDetected = 0; test.strokeDoubleCount = 0;
+    test.btStrokePeriodMax = null; test.btStrokePeriodP75 = null; test.btStrokePeriodP90 = null;
     test.strokeDetectThreshold = testStrokeThreshold(); // 低入力/通常環境ごとに、このテスト中の検出ラインを固定
     // 8音符＝1小節（ダウン4・アップ4）。t は flowStart からの相対ms
     test.notes = [];
@@ -13822,6 +13886,15 @@ function endStrokePhase() {
     test.strokeP25 = valid.length ? valid[Math.floor((valid.length - 1) * 0.25)] : null;
     // 検出有無に関わらず、受付ウィンドウ内の生の最大入力を記録（検出0回でも推奨に使う）
     test.maxStrokeRaw = test.strokePeaks.length ? Math.max(...test.strokePeaks) : null;
+    if (isBluetoothHeadphone()) {
+        const period = (test.strokePeriodPeaks || []).filter((p) => typeof p === 'number' && isFinite(p)).sort((a, b) => a - b);
+        test.btStrokePeriodMax = period.length ? period[period.length - 1] : null;
+        test.btStrokePeriodP75 = period.length ? period[Math.floor((period.length - 1) * 0.75)] : null;
+        test.btStrokePeriodP90 = period.length ? period[Math.floor((period.length - 1) * 0.9)] : null;
+        if (test.btStrokePeriodP75 != null) {
+            test.maxStrokeRaw = Math.max(test.maxStrokeRaw || 0, test.btStrokePeriodP75);
+        }
+    }
     test.strokeDone = true;
     setTestResult('', '');
     updateReco();
@@ -13880,6 +13953,10 @@ function computeChordCooldown(aboveMsArr, hasRing) {
     return Math.round(Math.max(140, Math.min(cd, cap)));
 }
 
+function recoRetestButtonHtml() {
+    return '<button type="button" class="btn-mic results-retest-btn test-start-btn reco-inline-retest" data-reco-retest="1">もう一度テストする</button>';
+}
+
 /* ── おすすめ設定（反応ライン＝%／クリック音量／二重反応防止）＋詳細結果 ── */
 function updateReco() {
     if (!els.testReco) return;
@@ -13923,9 +14000,13 @@ function updateReco() {
     const strokeSamples = (test.strokePeaks || []).filter((v) => typeof v === 'number' && isFinite(v)).sort((a, b) => a - b);
     const strokeAvg = strokeSamples.length ? strokeSamples.reduce((a, b) => a + b, 0) / strokeSamples.length : null;
     const strokeP95 = strokeSamples.length ? strokeSamples[Math.min(strokeSamples.length - 1, Math.floor(strokeSamples.length * 0.95))] : null;
+    const btPeriodP75 = isBluetoothHeadphone() ? test.btStrokePeriodP75 : null;
+    const btPeriodP90 = isBluetoothHeadphone() ? test.btStrokePeriodP90 : null;
+    const btPeriodMax = isBluetoothHeadphone() ? test.btStrokePeriodMax : null;
     const displaySamples = strokeSamples.map((v) => micDisplayFrac(v));
     const strokeDisplayMax = displaySamples.length ? displaySamples[displaySamples.length - 1] : null;
     const strokeDisplayAvg = displaySamples.length ? displaySamples.reduce((a, b) => a + b, 0) / displaySamples.length : null;
+    const btPeriodDisplayMax = btPeriodMax != null ? micDisplayFrac(btPeriodMax) : null;
     const totalStrokeNotes = test.notes.length || STROKE_TEST_COUNT;
     const detectedStrokeNotes = test.strokeDetected || 0;
     const strokeDetectionShort = detectedStrokeNotes < totalStrokeNotes;
@@ -13944,7 +14025,10 @@ function updateReco() {
         (maxStrokeRaw != null && maxStrokeRaw >= BT_STRONG_RAW_MAX) ||
         (strokeP95 != null && strokeP95 >= BT_STRONG_RAW_P95) ||
         (strokeAvg != null && strokeAvg >= BT_STRONG_RAW_AVG) ||
-        (strokeDisplayMax != null && strokeDisplayMax >= BT_STRONG_DISPLAY_FRAC)
+        (btPeriodP75 != null && btPeriodP75 >= BT_STRONG_RAW_P95) ||
+        (btPeriodP90 != null && btPeriodP90 >= BT_STRONG_RAW_MAX) ||
+        (strokeDisplayMax != null && strokeDisplayMax >= BT_STRONG_DISPLAY_FRAC) ||
+        (btPeriodDisplayMax != null && btPeriodDisplayMax >= BT_STRONG_DISPLAY_FRAC)
     );
     const btStrongButStrokeShort = btInputLooksStrong && strokeDetectionShort;
     if (btInputLooksStrong) lowInput = false;
@@ -14028,8 +14112,15 @@ function updateReco() {
         els.recoThr.textContent = recoSensDisplay(test.recommended, lowInputTuned) + '％';
     } else if (maxStrokeRaw != null && maxStrokeRaw > THR_MIN * 2) {
         // 検出0回でも、受付中最大の少し下を仮提案（拾う方向に低めへ）。クリックよりは上に。
-        let rec = lowInputTuned ? Math.max(lowInputNoiseLine, maxStrokeRaw * 0.4) : Math.max(THR_MIN, maxStrokeRaw * 0.7);
-        if (!lowInputTuned) rec = Math.max(rec, postClick * 1.2);
+        let rec;
+        if (isBluetoothHeadphone()) {
+            const btBasis = btPeriodP75 != null ? btPeriodP75 : maxStrokeRaw;
+            rec = Math.max(lowInputNoiseLine, btBasis * 0.35);
+            rec = Math.min(rec, Math.max(THR_MIN, btBasis * 0.55));
+        } else {
+            rec = lowInputTuned ? Math.max(lowInputNoiseLine, maxStrokeRaw * 0.4) : Math.max(THR_MIN, maxStrokeRaw * 0.7);
+            if (!lowInputTuned) rec = Math.max(rec, postClick * 1.2);
+        }
         rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
         test.recommended = rec;
         els.recoThr.textContent = (provisional ? '仮 ' : '') + recoSensDisplay(rec, lowInputTuned) + '％';
@@ -14140,8 +14231,9 @@ function updateReco() {
     if (!canApply && isBluetoothHeadphone() && hasAnyInput) {
         els.recoMsg.className = 'test-reco-msg warn';
         els.recoMsg.classList.remove('hidden');
-        els.recoMsg.textContent = '入力音量はありますが、ストロークとして十分には判定できませんでした。'
-            + 'イヤホンマイクをギターに近づけるか、手動設定で反応ラインを少し下げてください。';
+        els.recoMsg.innerHTML = '入力音量はありますが、ストロークとして十分には判定できませんでした。'
+            + 'イヤホンマイクをギターに近づけるか、手動設定で反応ラインを少し下げてください。'
+            + recoRetestButtonHtml();
     } else if (!canApply) {
         els.recoMsg.className = 'test-reco-msg ng';
         els.recoMsg.classList.remove('hidden');
@@ -14149,8 +14241,9 @@ function updateReco() {
     } else if (btStrongButStrokeShort) {
         els.recoMsg.className = 'test-reco-msg warn';
         els.recoMsg.classList.remove('hidden');
-        els.recoMsg.textContent = '入力音量はありますが、ストロークとして拾えた回数が少なめです。'
-            + 'Bluetoothイヤホンでは反応ラインを上げすぎず、拾いやすさを優先した設定にしています（' + lineTxt + '）。';
+        els.recoMsg.innerHTML = '入力音量はありますが、ストロークとして拾えた回数が少なめです。'
+            + 'Bluetoothイヤホンでは反応ラインを上げすぎず、拾いやすさを優先した設定にしています（' + lineTxt + '）。'
+            + recoRetestButtonHtml();
     } else if (btInputLooksStrong) {
         els.recoMsg.className = 'test-reco-msg';
         els.recoMsg.classList.remove('hidden');
@@ -14200,12 +14293,14 @@ function updateReco() {
             // 検出が小さい案内は従来どおりの淡い注意カード（アンバー）。
             els.recoDeviceVolNote.className = 'reco-device-vol-note';
             els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音が小さめに検出されています。</b><br>'
-                + 'スマホ本体の音量を少し上げると、補正テストが安定しやすくなります。';
+                + 'スマホ本体の音量を少し上げると、補正テストが安定しやすくなります。'
+                + recoRetestButtonHtml();
         } else if (clickVolHigh) {
             // v0.9.157：クリック音量が高め時は赤系カードで少し目立たせる（見落とし防止）。
             els.recoDeviceVolNote.className = 'reco-device-vol-note reco-device-vol-note--alert';
             els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音量が高めに設定されています。</b><br>'
-                + 'スマホ本体の音量を少し上げると、補正テストが安定しやすくなります。';
+                + 'スマホ本体の音量を少し上げると、補正テストが安定しやすくなります。'
+                + recoRetestButtonHtml();
         } else {
             els.recoDeviceVolNote.className = 'reco-device-vol-note hidden';
         }
@@ -14223,10 +14318,11 @@ function updateReco() {
     if (els.recoRetest) {
         if (retestExhausted) {
             els.recoRetest.className = 'test-reco-msg warn';
-            els.recoRetest.textContent = btStrongButStrokeShort
+            const retestText = btStrongButStrokeShort
                 ? '入力音量はありますが、ストロークとして拾えた回数が少なめです。マイク位置を近づけるか、手動設定で反応ラインを少し下げてください。'
                 : 'ストロークがまだ十分に拾えていません。イヤホンマイクがギターから離れている可能性があります。'
                     + 'マイク位置を近づけるか、手動設定で反応ラインを調整してください。';
+            els.recoRetest.innerHTML = retestText + recoRetestButtonHtml();
             els.recoRetest.classList.remove('hidden');
         } else {
             els.recoRetest.classList.add('hidden');
@@ -14263,6 +14359,9 @@ function updateReco() {
             displayedMeterMax: strokeDisplayMax != null ? +strokeDisplayMax.toFixed(3) : null,
             displayedMeterAvg: strokeDisplayAvg != null ? +strokeDisplayAvg.toFixed(3) : null,
             strokeRawPeaks: sp.map((v) => +v.toFixed(4)),
+            btStrokePeriodMax: test.btStrokePeriodMax != null ? +test.btStrokePeriodMax.toFixed(4) : null,
+            btStrokePeriodP75: test.btStrokePeriodP75 != null ? +test.btStrokePeriodP75.toFixed(4) : null,
+            btStrokePeriodP90: test.btStrokePeriodP90 != null ? +test.btStrokePeriodP90.toFixed(4) : null,
             noiseP95: +(test.noiseP95 || 0).toFixed(4),
             noiseMax: +(test.noiseMax || 0).toFixed(4),
             maxClick: +maxClick.toFixed(4),
@@ -14308,6 +14407,7 @@ function updateTestDetail(maxClick, minStroke, maxStroke, clickReacted, canApply
         ['ダウン 最小 / 最大', fx(test.downMin) + ' / ' + fx(test.downMax)],
         ['アップ 最小 / 最大', fx(test.upMin) + ' / ' + fx(test.upMax)],
         ['全ストローク 最小 / 最大', fx(minStroke) + ' / ' + fx(maxStroke)],
+        ['BT期間ピーク p75 / p90', isBluetoothHeadphone() ? (fx(test.btStrokePeriodP75) + ' / ' + fx(test.btStrokePeriodP90)) : '–'],
         ['環境ノイズ 最大 / p95', fx(test.noiseMax) + ' / ' + fx(test.noiseP95)],
         ['ストローク反応ライン超過時間', (test.strokeAboveMedian != null ? Math.round(test.strokeAboveMedian) + 'ms' : '–')],
         ['現在のマイク感度', fx(mic.threshold)],
@@ -14350,11 +14450,11 @@ function updateTestDetail(maxClick, minStroke, maxStroke, clickReacted, canApply
     }
 }
 
-function applyReco() {
+function applyRecoValues(persist) {
     // 反応ライン・クリック音量・二重反応防止を、計算できたものはまとめて適用する。
     const lineChanged = (test.recommended != null);
     const volChanged = (test.recoClickVolume != null && test.recoClickVolume !== state.clickVolume);
-    if (!lineChanged && !volChanged && test.recoCooldown === mic.cooldownMs) return; // 変更なし
+    if (!lineChanged && !volChanged && test.recoCooldown === mic.cooldownMs) return { lineChanged, volChanged, changed: false };
     if (lineChanged) {
         mic.threshold = Math.max(THR_MIN, Math.min(THR_MAX, test.recommended));
         // 低入力テスト由来かを記録。手動設定の表示%もテスト結果と同じ低入力スケールにそろえる。
@@ -14373,7 +14473,7 @@ function applyReco() {
     //   さらに wired/bluetooth プロファイルにも80%を書き戻し、過去に保存された100%を残さない。
     if (shouldUseEarphoneMicTestFeatures()) {
         state.clickVolume = EARPHONE_CLICK_VOLUME_FIXED;
-        storeActiveMicProfile(currentMicProfileKey());
+        if (persist) storeActiveMicProfile(currentMicProfileKey());
     } else if (test.recoClickVolume != null) {
         state.clickVolume = test.recoClickVolume;
     }
@@ -14381,13 +14481,19 @@ function applyReco() {
     // 内部値→スライダー・数値・マーカー・プレビューを同期
     applySettingsToUI();
     drawMicPreview();
-    saveSettings();
+    if (persist) saveSettings();
+    return { lineChanged, volChanged, changed: true };
+}
+
+function applyReco() {
+    const result = applyRecoValues(true);
+    if (!result.changed) return; // 変更なし
     test.clickDone = false; test.strokeDone = false;
     els.testReco.classList.add('hidden');
     // 反応ライン未適用（クリック音量だけ下げた）場合は、再テストを促す
-    setTestResult(lineChanged ? 'おすすめ設定を適用しました。' : 'クリック音量を下げました。もう一度テストしてください。', 'ok');
+    setTestResult(result.lineChanged ? 'おすすめ設定を適用しました。' : 'クリック音量を下げました。もう一度テストしてください。', 'ok');
     // v0.9.61〜：反応ラインを適用できたら、次のステップ（補正系だけ）を表示
-    if (lineChanged) {
+    if (result.lineChanged) {
         setupProgress.recoApplied = true;
         // テストをやり直して適用したら、補正系以降は未完了へ戻す
         setupProgress.correctionDone = false;
@@ -14401,6 +14507,14 @@ function applyReco() {
             scrollToSettingsEl(nextCard || els.ptCard);
         }
     }
+}
+
+function retestMicWithRecommendedSettings() {
+    if (test.flow) return;
+    applyRecoValues(false);
+    test.rescueHighSens = shouldStartMicTestInHighSensitivity();
+    test.autoRetestCount = 0;
+    startMicTestFlow();
 }
 
 function stopMic() {
@@ -14659,6 +14773,13 @@ function micLoop() {
         const inClickWin = test.mode === 'click' && now >= test.clickWinFrom && now <= test.clickWinTo;
         const inStrokeWin = test.mode === 'stroke' && now >= test.strokeFrom && now <= test.strokeUntil;
         if (inClickWin || inStrokeWin) test.curPeak = Math.max(test.curPeak, peak);
+        if (isBluetoothHeadphone() && test.mode === 'stroke' && test.flowStart) {
+            const strokeT = now - test.flowStart;
+            const lastNoteT = test.notes && test.notes.length ? test.notes[test.notes.length - 1].t : TEST_LEAD_MS;
+            if (strokeT >= TEST_LEAD_MS - TEST_NOTE_WIN && strokeT <= lastNoteT + TEST_NOTE_WIN + 450) {
+                test.strokePeriodPeaks.push(peak);
+            }
+        }
         // ストローク窓内：反応ラインを超えている連続時間(最長)を計測（二重反応防止の推奨に使う）
         if (inStrokeWin) {
             if (peak >= mic.threshold) {
@@ -15045,6 +15166,7 @@ async function startCalibration() {
     if (state.running) stop();
     if (test.active) exitTestMode();
     stopBtCal();
+    resetMicDelayCalibrationUiState();
     if (!mic.on) {
         await startMic();
         if (!mic.on) { setCalUI('failed'); return; }
@@ -15617,7 +15739,13 @@ function bind() {
 
     // 実音テスト（1ボタン自動フロー）
     els.micTestBtn.addEventListener('click', toggleMicTest);
-    if (els.recoRetestBtn) els.recoRetestBtn.addEventListener('click', () => { if (!test.flow) { test.rescueHighSens = true; startMicTestFlow(); } });
+    if (els.recoRetestBtn) els.recoRetestBtn.addEventListener('click', retestMicWithRecommendedSettings);
+    if (els.testReco) els.testReco.addEventListener('click', (e) => {
+        const btn = e.target && e.target.closest ? e.target.closest('[data-reco-retest="1"]') : null;
+        if (!btn) return;
+        e.preventDefault();
+        retestMicWithRecommendedSettings();
+    });
     // v0.9.160：マイクを開始できなかったときの「もう一度マイクをONにする」／
     //   Bluetooth最終テストからの反応テストやり直し。
     if (els.micPermRetry) els.micPermRetry.addEventListener('click', retryMicStart);

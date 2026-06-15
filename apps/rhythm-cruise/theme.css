@@ -4930,6 +4930,12 @@ h1 {
     color: #ff6b6b;
 }
 
+.reco-inline-retest {
+    width: 100%;
+    margin-top: 10px;
+    padding: 11px 12px;
+}
+
 /* v0.9.160：マイクを開始できなかったとき（許可が出ない/拒否など）の案内カード＋再試行ボタン。 */
 .mic-perm-help {
     margin-top: 12px;
