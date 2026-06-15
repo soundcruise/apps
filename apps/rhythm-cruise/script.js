@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.213';
+const RHYTHM_CRUISE_VERSION = '0.9.214';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -1105,8 +1105,13 @@ const RHYTHM_CREATE_STAGES = [
         previewId: 'rhythm_create_stage3_preview',
         howto: '16分音符では、1拍を4つに分けて細かいリズムを作ります。<br>細かくしすぎず、音を抜きながら作ると弾き語りらしいリズムになります。',
         presets: [
-            { name: '16ビート連続', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'] },
-            { name: '16分基本のストローク', pattern: ['hit', 'tie', 'hit', 'tie', 'hit', 'tie', 'hit', 'hit', 'hit', 'tie', 'hit', 'tie', 'hit', 'tie', 'hit', 'hit'] },
+            { name: '16分の連続', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'] },
+            {
+                name: '8・16・16の繰り返し',
+                pattern: ['hit', 'tie', 'hit', 'hit', 'hit', 'tie', 'hit', 'hit', 'hit', 'tie', 'hit', 'hit', 'hit', 'tie', 'hit', 'hit'],
+                dirs: ['down', null, 'up', 'down', 'down', null, 'up', 'down', 'down', null, 'up', 'down', 'down', null, 'up', 'down'],
+            },
+            { name: '16分のノリが入るストローク', pattern: ['hit', 'tie', 'hit', 'tie', 'hit', 'tie', 'hit', 'hit', 'hit', 'tie', 'hit', 'tie', 'hit', 'tie', 'hit', 'hit'] },
             { name: '16分王道のストローク', pattern: ['hit', 'tie', 'tie', 'tie', 'hit', 'tie', 'hit', 'hit', 'tie', 'hit', 'hit', 'tie', 'hit', 'tie', 'hit', 'hit'] },
         ],
     },
@@ -1126,12 +1131,9 @@ const RHYTHM_CREATE_STAGES = [
         previewId: 'rhythm_create_stage4_preview',
         howto: '三連符は、1拍を3つに分けるリズムです。<br>いつもの8分音符とは違う、転がるような感じを作ることができます。<br>まずは音を出す場所、休む場所、伸ばす場所を選んで、3つに分ける感覚を試してみましょう。',
         presets: [
-            { name: '基本の三連符', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'] },
-            { name: '拍頭だけ', pattern: ['hit', 'rest', 'rest', 'hit', 'rest', 'rest', 'hit', 'rest', 'rest', 'hit', 'rest', 'rest'] },
-            { name: '1・3拍だけ', pattern: ['hit', 'rest', 'rest', 'rest', 'rest', 'rest', 'hit', 'rest', 'rest', 'rest', 'rest', 'rest'] },
-            { name: '転がる三連', pattern: ['rest', 'hit', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit', 'hit', 'rest', 'hit', 'hit'] },
-            { name: '休符入り三連', pattern: ['rest', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit'] },
-            { name: '最後を伸ばす三連', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'tie'] },
+            { name: '三連符の連続', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'] },
+            { name: '三連符とシャッフルの関係', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'tie', 'hit', 'hit', 'tie', 'hit'] },
+            { name: '休符をいれた三連符', pattern: ['hit', 'hit', 'hit', 'hit', 'rest', 'rest', 'hit', 'hit', 'hit', 'hit', 'rest', 'rest'] },
         ],
     },
     {
@@ -1151,15 +1153,36 @@ const RHYTHM_CREATE_STAGES = [
         previewId: 'rhythm_create_stage5_preview',
         howto: 'シャッフルは、8分音符を均等にせず、少し跳ねるように弾くリズムです。<br>表拍を長く、裏拍を少し遅らせることで、ブルースや弾き語りでよく使うノリになります。',
         presets: [
-            { name: '基本のシャッフル', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'] },
-            { name: '表だけシャッフル', pattern: ['hit', 'rest', 'hit', 'rest', 'hit', 'rest', 'hit', 'rest'] },
-            { name: '裏を入れる', pattern: ['rest', 'hit', 'hit', 'hit', 'rest', 'hit', 'hit', 'hit'] },
-            { name: '軽いシャッフル', pattern: ['rest', 'hit', 'hit', 'rest', 'rest', 'hit', 'hit', 'rest'] },
-            { name: '休符で跳ねる', pattern: ['rest', 'rest', 'hit', 'hit', 'rest', 'rest', 'hit', 'hit'] },
-            { name: '最後を伸ばすシャッフル', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'tie'] },
+            { name: '8ビートのシャッフル', pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'] },
+            { name: '8ビートシャッフルの4分と8分', pattern: ['hit', 'tie', 'hit', 'hit', 'hit', 'tie', 'hit', 'hit'] },
+            {
+                name: '16ビートのシャッフル',
+                grid: 'sixteenth',
+                noteDuration: '16',
+                cellCount: 16,
+                beatLabels: ['1', 'e', '&', 'a', '2', 'e', '&', 'a', '3', 'e', '&', 'a', '4', 'e', '&', 'a'],
+                dirs: ['down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up', 'down', 'up'],
+                pattern: ['hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit', 'hit'],
+            },
+            {
+                name: '16ビートシャッフルの8分と16分',
+                grid: 'sixteenth',
+                noteDuration: '16',
+                cellCount: 16,
+                beatLabels: ['1', 'e', '&', 'a', '2', 'e', '&', 'a', '3', 'e', '&', 'a', '4', 'e', '&', 'a'],
+                dirs: ['down', null, 'up', 'down', 'down', null, 'up', 'down', 'down', null, 'up', 'down', 'down', null, 'up', 'down'],
+                pattern: ['hit', 'tie', 'hit', 'hit', 'hit', 'tie', 'hit', 'hit', 'hit', 'tie', 'hit', 'hit', 'hit', 'tie', 'hit', 'hit'],
+            },
         ],
     },
 ];
+const RHYTHM_CREATE_PRESET_SHAPE_KEYS = ['grid', 'noteDuration', 'cellCount', 'beatLabels', 'dirs', 'motion', 'rhythmFeel'];
+RHYTHM_CREATE_STAGES.forEach((def) => {
+    def.baseShape = {};
+    RHYTHM_CREATE_PRESET_SHAPE_KEYS.forEach((key) => {
+        def.baseShape[key] = Array.isArray(def[key]) ? def[key].slice() : def[key];
+    });
+});
 let rhythmCreateCurrentStage = 1;
 const rhythmCreateStagePatterns = {};
 const rhythmCreateStageDirs = {};
@@ -1506,6 +1529,18 @@ function getRhythmCreateStageDef(n = rhythmCreateCurrentStage) {
     return RHYTHM_CREATE_STAGES.find((s) => s.n === n && s.ready) || RHYTHM_CREATE_STAGES[0];
 }
 
+function applyRhythmCreatePresetShape(def, preset = null) {
+    if (!def || !def.baseShape) return;
+    RHYTHM_CREATE_PRESET_SHAPE_KEYS.forEach((key) => {
+        const source = preset && Object.prototype.hasOwnProperty.call(preset, key) ? preset[key] : def.baseShape[key];
+        if (source === undefined) {
+            delete def[key];
+        } else {
+            def[key] = Array.isArray(source) ? source.slice() : source;
+        }
+    });
+}
+
 function getRhythmCreatePattern(def = getRhythmCreateStageDef()) {
     if (!rhythmCreateStagePatterns[def.n]) {
         rhythmCreateSelectedPreset[def.n] = rhythmCreatePresetSelectValue('official', 0);
@@ -1517,8 +1552,12 @@ function getRhythmCreatePattern(def = getRhythmCreateStageDef()) {
     return rhythmCreateStagePatterns[def.n];
 }
 
-function setRhythmCreatePatternForStage(def, pattern) {
+function setRhythmCreatePatternForStage(def, pattern, dirs = null) {
     rhythmCreateStagePatterns[def.n] = normalizeRhythmCreatePattern(def, pattern, getRhythmCreatePatternCellCount(def));
+    if (Array.isArray(dirs) && dirs.length) {
+        rhythmCreateStageDirs[def.n] = normalizeRhythmCreatePresetDirs(def, rhythmCreateStagePatterns[def.n], dirs);
+        return;
+    }
     resetRhythmCreateDirsForStage(def);
 }
 
@@ -1854,6 +1893,30 @@ function alertRhythmCreateOutsidePatternBars() {
     window.alert('この小節は現在の「パターンの長さ」の範囲外です。\n編集したい場合は、「パターンの長さ」を増やしてください。');
 }
 
+function captureRhythmCreateScrollPosition() {
+    const lane = els.rcCreateStage1Grid ? els.rcCreateStage1Grid.querySelector('.pce-vex-scroll') : null;
+    return {
+        x: window.scrollX || 0,
+        y: window.scrollY || 0,
+        laneLeft: lane ? lane.scrollLeft : 0,
+    };
+}
+
+function restoreRhythmCreateScrollPosition(pos) {
+    if (!pos) return;
+    requestAnimationFrame(() => {
+        window.scrollTo(pos.x, pos.y);
+        const lane = els.rcCreateStage1Grid ? els.rcCreateStage1Grid.querySelector('.pce-vex-scroll') : null;
+        if (lane) lane.scrollLeft = pos.laneLeft || 0;
+    });
+}
+
+function runRhythmCreateEditPreservingScroll(fn) {
+    const pos = captureRhythmCreateScrollPosition();
+    fn();
+    restoreRhythmCreateScrollPosition(pos);
+}
+
 function renderRhythmCreateStageGrid() {
     const def = getRhythmCreateStageDef();
     const mount = els.rcCreateStage1Grid;
@@ -2104,11 +2167,13 @@ function renderRhythmCreatePresets() {
     syncRhythmCreateUserPresetActions();
 }
 
-function setRhythmCreatePattern(pattern, presetIndex) {
+function setRhythmCreatePattern(pattern, presetIndex, dirs = null) {
     const def = getRhythmCreateStageDef();
     stopPreviewRhythm();
+    const officialPreset = typeof presetIndex === 'number' ? def.presets[presetIndex] : null;
     if (typeof presetIndex === 'number') rhythmCreateSelectedPreset[def.n] = rhythmCreatePresetSelectValue('official', presetIndex);
-    setRhythmCreatePatternForStage(def, pattern);
+    applyRhythmCreatePresetShape(def, officialPreset);
+    setRhythmCreatePatternForStage(def, pattern, dirs || (officialPreset && officialPreset.dirs));
     renderRhythmCreateStageGrid();
     renderRhythmCreatePresets();
 }
@@ -2127,6 +2192,7 @@ function applyRhythmCreateUserPreset(preset) {
     const def = getRhythmCreateStageDef();
     if (!preset || preset.stageN !== def.n) return;
     stopPreviewRhythm();
+    applyRhythmCreatePresetShape(def);
     rhythmCreatePatternBars = clampRhythmCreatePresetPatternBars(preset.patternBars);
     if (getRhythmCreateBars() < rhythmCreatePatternBars) rhythmCreateBars = rhythmCreatePatternBars;
     syncRhythmCreatePatternBarsUI();
@@ -2149,7 +2215,7 @@ function handleRhythmCreatePresetChange() {
     }
     const index = Math.max(0, Math.min(def.presets.length - 1, parsed.index));
     const p = def.presets[index];
-    if (p) setRhythmCreatePattern(p.pattern, index);
+    if (p) setRhythmCreatePattern(p.pattern, index, p.dirs);
 }
 
 function closeRhythmCreatePresetModal() {
@@ -15114,8 +15180,10 @@ function bind() {
             return;
         }
         const index = parseInt(btn.dataset.index, 10);
-        if (btn.dataset.zone === 'arrow') tapRhythmCreateArrow(index);
-        else toggleRhythmCreateCell(index);
+        runRhythmCreateEditPreservingScroll(() => {
+            if (btn.dataset.zone === 'arrow') tapRhythmCreateArrow(index);
+            else toggleRhythmCreateCell(index);
+        });
     });
     if (els.rcCreateHowtoToggle) els.rcCreateHowtoToggle.addEventListener('click', toggleRhythmCreateHowto);
     if (els.rcCreateEditHelpToggle) els.rcCreateEditHelpToggle.addEventListener('click', toggleRhythmCreateEditHelp);
