@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.217">
+    <link rel="stylesheet" href="theme.css?v=0.9.218">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -812,6 +812,11 @@
                     <div class="test-reco-msg warn hidden" id="reco-retest"></div>
                     <button type="button" class="btn-mic results-retest-btn test-start-btn hidden" id="reco-retest-btn">🎤 もう1度テスト</button>
                     <p class="test-reco-msg warn hidden" id="auto-earphone-hint"></p>
+                    <details class="settings-detail bt-mic-diagnostic hidden" id="bt-mic-diagnostic">
+                        <summary>診断ログを見る</summary>
+                        <p class="setting-note">Bluetoothテストの判定材料です。必要に応じて確認用に使います。</p>
+                        <div class="bt-mic-diagnostic-body" id="bt-mic-diagnostic-body"></div>
+                    </details>
                 </div>
 
                 <!-- テスト結果の確認（実施済み後に表示・後から見返せる） -->
@@ -1264,7 +1269,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.217"></script>
+    <script src="script.js?v=0.9.218"></script>
 </body>
 
 </html>

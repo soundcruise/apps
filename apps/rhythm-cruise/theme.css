@@ -4846,6 +4846,38 @@ h1 {
     color: var(--text-color);
 }
 
+.bt-mic-diagnostic {
+    margin-top: 4px;
+}
+
+.bt-mic-diagnostic-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: 0.74rem;
+}
+
+.bt-diag-grid,
+.bt-diag-beats {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.bt-diag-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--muted-color);
+    font-variant-numeric: tabular-nums;
+}
+
+.bt-diag-row b {
+    color: var(--text-color);
+    text-align: right;
+}
+
 /* おすすめ設定 */
 .test-reco {
     display: flex;
