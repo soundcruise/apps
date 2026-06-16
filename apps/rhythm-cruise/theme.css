@@ -2257,7 +2257,9 @@ h1 {
     width: 100%;
     min-width: 0;
     padding-inline: 6px;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: break-all;
 }
 
 @media (max-width: 360px) {

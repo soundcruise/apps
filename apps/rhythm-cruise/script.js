@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.228';
+const RHYTHM_CRUISE_VERSION = '0.9.229';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -230,7 +230,7 @@ const EARPHONE_CLICK_LEAK_FLOOR = 0.012;
 /* 組み込みプリセット（v0.9.63）：削除不可。ユーザーが消しても常に一覧の先頭に出る「開始点」。 */
 const BUILTIN_MIC_PRESETS = [
     {
-        id: 'builtin_mic', name: 'マイク見本', builtin: true,
+        id: 'builtin_mic', name: '本体マイク', builtin: true,
         settings: {
             inputType: 'normal', headphoneType: 'wired', strokeDetectMode: 'brush',
             threshold: 0.019855, cooldownMs: 100, clickVolume: 63, timingOffsetMs: -91,
@@ -241,7 +241,7 @@ const BUILTIN_MIC_PRESETS = [
         },
     },
     {
-        id: 'builtin_wired', name: '有線イヤホン見本', builtin: true,
+        id: 'builtin_wired', name: '有線イヤホン', builtin: true,
         settings: {
             inputType: 'headphone', headphoneType: 'wired', strokeDetectMode: 'brush',
             threshold: 0.003567, cooldownMs: 100, clickVolume: 70, timingOffsetMs: 0,
@@ -252,7 +252,7 @@ const BUILTIN_MIC_PRESETS = [
         },
     },
     {
-        id: 'builtin_bt', name: 'Bluetoothイヤホン見本', builtin: true,
+        id: 'builtin_bt', name: 'Bluetoothイヤホン', builtin: true,
         settings: {
             inputType: 'headphone', headphoneType: 'bluetooth', strokeDetectMode: 'brush',
             threshold: 0.042285, cooldownMs: 120, clickVolume: 70, timingOffsetMs: 0,
@@ -9609,10 +9609,16 @@ function renderPracticeResult(r) {
         + 'background:transparent;color:inherit;font-size:0.85rem;opacity:0.85;cursor:pointer;';
     let actions = '';
     if (c.kind === 'ok') {
-        // 「この設定を保存」を主導線（Primary）に、「保存せずにこの設定を使う」を副導線（v0.9.228）。
+        // 「この設定を保存」を金色っぽい主導線に、「保存せずにこの設定を使う」を黒系副導線に（v0.9.229）。
+        const gold = 'width:100%;padding:14px;margin-top:12px;border-radius:10px;'
+            + 'border:1px solid rgba(220,170,60,0.8);background:rgba(200,155,40,0.18);'
+            + 'color:#f5d97a;font-weight:800;font-size:1rem;cursor:pointer;';
+        const dark = 'width:100%;padding:10px;margin-top:8px;border-radius:10px;'
+            + 'border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.25);'
+            + 'color:inherit;font-size:0.85rem;opacity:0.7;cursor:pointer;';
         actions =
-            '<button type="button" id="pt-result-save" style="' + primary + '">この設定を保存</button>' +
-            '<button type="button" class="rc-mic-action-primary" id="pt-result-done" style="' + subQuiet + '">保存せずにこの設定を使う</button>';
+            '<button type="button" id="pt-result-save" style="' + gold + '">この設定を保存</button>' +
+            '<button type="button" class="rc-mic-action-primary" id="pt-result-done" style="' + dark + '">保存せずにこの設定を使う</button>';
     } else {
         let fixLabel = '最終確認テストをやり直す', fixId = 'pt-result-fix-rerun';
         if (c.issue === 'input') { fixLabel = 'マイク反応テストをやり直す'; fixId = 'pt-result-fix-test'; }
@@ -12284,6 +12290,39 @@ function restoreMicProfileForCurrent(prevKey) {
 /* ── 選択ハンドラ（選んだら自動で次の項目を出す。上流変更時は下流結果をリセット）── */
 /* イヤホン（有線/Bluetooth）を選んだら、以降のテストのクリック音量を初期値(70%)に初期化する（v0.9.88／v0.9.159で70%）。
    通常マイクは対象外（既存のクリック音量設定を維持）。 */
+/* 補正テスト開始時の出発点として、入力タイプに応じた見本プリセット値をstateへ反映する（v0.9.229）。
+   テストロジック・計算式・micJudgeOffsetMs()・localStorage構造は変更しない。
+   クリック音量は flowSavedClickVolume 機構で一時的に100%へ上がるが、終了/中止時に復元される。 */
+function applyStepsBuiltinDefaults() {
+    const type = getMicInputType();
+    const hpType = getHeadphoneType();
+    if (type === 'normal') {
+        mic.threshold = 0.019855;   // 感度55%相当
+        state.clickVolume = 63;
+        mic.cooldownMs = 100;
+        mic.timingOffsetMs = -91;
+        mic.lowInputProfile = false;
+    } else if (hpType === 'wired') {
+        mic.threshold = 0.003567;   // 感度76%相当（低入力スケール）
+        state.clickVolume = 70;
+        mic.cooldownMs = 100;
+        mic.wiredMicOffsetMs = 30;
+        mic.headphoneOffsetWiredMs = 0;
+        mic.headphoneOutputOffsetMs = 0;
+        mic.lowInputProfile = true;
+    } else {                        // bluetooth
+        mic.threshold = 0.042285;   // 感度37%相当
+        state.clickVolume = 70;
+        mic.cooldownMs = 120;
+        mic.bluetoothMicOffsetMs = -100;
+        mic.headphoneOffsetBluetoothMs = 100;
+        mic.headphoneOutputOffsetMs = 100;
+        mic.lowInputProfile = false;
+    }
+    applySettingsToUI();
+    saveSettings();
+}
+
 function applyEarphoneClickVolumeDefault() {
     state.clickVolume = EARPHONE_CLICK_VOLUME;
     if (els.setClickVol) els.setClickVol.value = state.clickVolume;
@@ -12311,6 +12350,8 @@ function onPickInputType(type) {
     if (settingsView === 'steps') {
         renderSettingsView();
         scrollToSettingsEl(next === 'headphone' ? els.hpTypeCard : els.strokeModeCard);
+        // 通常マイク選択時は見本プリセット値を出発点にする（v0.9.229）。
+        if (next === 'normal') applyStepsBuiltinDefaults();
     }
 }
 
@@ -12330,6 +12371,8 @@ function onPickHeadphoneType(type) {
         if (changed) resetSetupFlowDisplay();
         renderSettingsView();
         scrollToSettingsEl(els.strokeModeCard);
+        // 有線/Bluetooth選択時は見本プリセット値を出発点にする（v0.9.229）。
+        applyStepsBuiltinDefaults();
     }
 }
 
