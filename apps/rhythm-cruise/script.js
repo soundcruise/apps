@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.227';
+const RHYTHM_CRUISE_VERSION = '0.9.228';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -230,33 +230,34 @@ const EARPHONE_CLICK_LEAK_FLOOR = 0.012;
 /* 組み込みプリセット（v0.9.63）：削除不可。ユーザーが消しても常に一覧の先頭に出る「開始点」。 */
 const BUILTIN_MIC_PRESETS = [
     {
-        id: 'builtin_mic', name: '通常マイク', builtin: true,
+        id: 'builtin_mic', name: 'マイク見本', builtin: true,
         settings: {
             inputType: 'normal', headphoneType: 'wired', strokeDetectMode: 'brush',
-            threshold: 0.025, cooldownMs: 200, clickVolume: 15, timingOffsetMs: 0,
+            threshold: 0.019855, cooldownMs: 100, clickVolume: 63, timingOffsetMs: -91,
             lowInputProfile: false,
+            wiredMicOffsetMs: 0, bluetoothMicOffsetMs: 0,
             headphoneOffsetWiredMs: 0, headphoneOffsetBluetoothMs: 0, headphoneOutputOffsetMs: 0,
             clickGuardMs: 60,
         },
     },
     {
-        id: 'builtin_wired', name: '有線イヤホン', builtin: true,
+        id: 'builtin_wired', name: '有線イヤホン見本', builtin: true,
         settings: {
             inputType: 'headphone', headphoneType: 'wired', strokeDetectMode: 'brush',
-            threshold: 0.008, cooldownMs: 100, clickVolume: 50, timingOffsetMs: 0,
+            threshold: 0.003567, cooldownMs: 100, clickVolume: 70, timingOffsetMs: 0,
             lowInputProfile: true,
+            wiredMicOffsetMs: 30, bluetoothMicOffsetMs: 0,
             headphoneOffsetWiredMs: 0, headphoneOffsetBluetoothMs: 0, headphoneOutputOffsetMs: 0,
             clickGuardMs: 60,
         },
     },
     {
-        id: 'builtin_bt', name: 'Bluetoothイヤホン', builtin: true,
+        id: 'builtin_bt', name: 'Bluetoothイヤホン見本', builtin: true,
         settings: {
             inputType: 'headphone', headphoneType: 'bluetooth', strokeDetectMode: 'brush',
-            threshold: 0.008, cooldownMs: 100, clickVolume: 50, timingOffsetMs: 0,
-            lowInputProfile: true,
-            // マイク設定側のBluetoothイヤホン標準の表示補正100msをスタートラインにする（v0.9.99で200ms→v0.9.100で100msへ）。
-            // マイク設定側はマイク遅れ補正画面の表示/クリック合わせ用。判定（STAGE/最終確認テスト）には反映しない。
+            threshold: 0.042285, cooldownMs: 120, clickVolume: 70, timingOffsetMs: 0,
+            lowInputProfile: false,
+            wiredMicOffsetMs: 0, bluetoothMicOffsetMs: -155,
             headphoneOffsetWiredMs: 0, headphoneOffsetBluetoothMs: 100, headphoneOutputOffsetMs: 100,
             clickGuardMs: 60,
         },
@@ -9608,10 +9609,10 @@ function renderPracticeResult(r) {
         + 'background:transparent;color:inherit;font-size:0.85rem;opacity:0.85;cursor:pointer;';
     let actions = '';
     if (c.kind === 'ok') {
-        // 「この設定を保存」は共通の保存モーダルを開く（v0.9.80）。
+        // 「この設定を保存」を主導線（Primary）に、「保存せずにこの設定を使う」を副導線（v0.9.228）。
         actions =
-            '<button type="button" class="rc-mic-action-primary" id="pt-result-done" style="' + primary + '">完了する</button>' +
-            '<button type="button" id="pt-result-save" style="' + subQuiet + '">この設定を保存</button>';
+            '<button type="button" id="pt-result-save" style="' + primary + '">この設定を保存</button>' +
+            '<button type="button" class="rc-mic-action-primary" id="pt-result-done" style="' + subQuiet + '">保存せずにこの設定を使う</button>';
     } else {
         let fixLabel = '最終確認テストをやり直す', fixId = 'pt-result-fix-rerun';
         if (c.issue === 'input') { fixLabel = 'マイク反応テストをやり直す'; fixId = 'pt-result-fix-test'; }
@@ -12788,7 +12789,11 @@ function simpleGoPractice() {
 
 /* プリセット削除（個別）。組み込みは消せない。リセット系でも消さない。 */
 function deletePreset(id) {
-    const arr = loadPresets().filter((x) => x && x.id !== id);
+    const presets = loadPresets();
+    const target = presets.find((x) => x && x.id === id);
+    const name = target ? target.name : 'このプリセット';
+    if (!window.confirm('「' + name + '」を削除しますか？')) return;
+    const arr = presets.filter((x) => x && x.id !== id);
     savePresets(arr);
     renderPresetList();
 }
