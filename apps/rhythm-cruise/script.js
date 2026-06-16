@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.238';
+const RHYTHM_CRUISE_VERSION = '0.9.239';
 
 function isProEdition() {
     return document.documentElement?.dataset?.appEdition === 'Pro';
@@ -11797,6 +11797,10 @@ function updateTapCurrentOffsetDisplay() {
    マイク設定タブを押したら、詳細テスト途中のカードに残さず、必ずマイク設定TOP（chooser）へ戻す。 */
 function setSettingsTab(tab) {
     const next = (tab === 'tap') ? 'tap' : (tab === 'click') ? 'click' : 'mic';
+    if (next === 'click' && isStandardEdition()) {
+        showProLockNotice('proSettings');
+        return;
+    }
     settingsTab = next;
     tapView = 'home'; // タブを切り替えたら必ずホームから
     if (next === 'mic') {
