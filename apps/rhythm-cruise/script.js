@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.236';
+const RHYTHM_CRUISE_VERSION = '0.9.237';
 
 function isProEdition() {
     return document.documentElement?.dataset?.appEdition === 'Pro';
@@ -78,6 +78,27 @@ function renderProLockedCard(title, body) {
             <div class="rc-pro-locked-card__body">${body}</div>
         </div>
     `;
+}
+
+/* ── 通常版Practice画面プレビュー設定ロック ─────────────────── */
+function isStandardPracticePreviewLocked() {
+    return isStandardEdition() && currentScreen === 'practice';
+}
+
+function applyStandardPracticePreviewLock() {
+    if (!isStandardEdition()) return;
+    [
+        els.tempoUp, els.tempoDown,
+        els.barsUp, els.barsDown,
+        els.stagePreviewZoomUp, els.stagePreviewZoomDown,
+        els.loopToggle,
+    ].forEach((el) => {
+        if (!el) return;
+        el.disabled = true;
+        el.classList.add('is-disabled');
+    });
+    if (els.stagePreviewResetDefault) els.stagePreviewResetDefault.classList.add('hidden');
+    updateStageSettingsUI();
 }
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
@@ -2601,11 +2622,21 @@ function openRhythmCreatePractice() {
     state.bars = clampRhythmCreateBars(getRhythmCreateBars());
     if (els.tempoVal) els.tempoVal.textContent = String(state.bpm);
     updateBarsUI();
+    if (isStandardEdition()) {      // 通常版：作成リズム練習もデフォルト値へ固定
+        state.bpm = RHYTHM_CREATE_BPM_DEFAULT;
+        state.bars = RHYTHM_CREATE_BARS_DEFAULT;
+        rhythmVexZoomPrefs.stage = RHYTHM_VEX_ZOOM_MIN;
+        state.rcLoop = false;
+        if (els.tempoVal) els.tempoVal.textContent = String(state.bpm);
+        updateBarsUI();
+        syncRhythmStagePreviewZoomUI();
+    }
     applyStageBars();
     state.currentStage = 0;
     els.practiceNum.innerHTML = `<small>STAGE</small><b>${def.n}</b>`;
     els.practiceTitle.textContent = def.title;
     setInputMode(state.inputMode, { save: false });
+    applyStandardPracticePreviewLock();
     show('practice');
     requestAnimationFrame(() => { fitLane(); resetGame(); renderRhythmFlowScore(); });
 }
@@ -5403,6 +5434,16 @@ function openStage(n) {
         eng.editId = null;            // 編集テスト再生ではない（「編集に戻る」等の編集UIを抑制）
         eng.testSource = null;
         applyRhythmBuiltinStagePrefs(s.n); // v0.9.196：通常STAGEごとの BPM/小節/拡大 を適用
+        if (isStandardEdition()) {          // 通常版：localStorageの保存値を無視してSTAGEデフォルトへ固定
+            const def = rhythmBuiltinStageDefaultPrefs(s.n);
+            state.bpm = def.bpm;
+            state.bars = def.bars;
+            rhythmVexZoomPrefs.stage = RHYTHM_VEX_ZOOM_MIN;
+            state.rcLoop = false;
+            if (els.tempoVal) els.tempoVal.textContent = String(state.bpm);
+            updateBarsUI();
+            syncRhythmStagePreviewZoomUI();
+        }
         applyStageBars();             // TOTAL_BEATS = state.bars × cellsPerBar（STAGE2は8分=8）
         showCustomFlowScoreLayer();   // 流れるVexFlow固定譜面レイヤーを表示
         // v0.9.145：固定STAGEでも ProカスタムSTAGE と同じリズムプレビュー（表示/隠す＋リズムを再生）を使えるようにする。
@@ -5413,6 +5454,7 @@ function openStage(n) {
     els.practiceNum.innerHTML = `<small>STAGE</small><b>${s.n}</b>`;
     els.practiceTitle.textContent = s.title;
     setInputMode(state.inputMode);   // v0.9.118：リズム練画面で選んだ入力方式（タップ/ストローク）で開始
+    applyStandardPracticePreviewLock();
     show('practice');
     requestAnimationFrame(() => { fitLane(); resetGame(); renderRhythmFlowScore(); });
 }
@@ -5466,11 +5508,17 @@ function openRhythmProCustomTest(id, source = 'home') {
     state.bars = stage.bars;
     if (els.tempoVal) els.tempoVal.textContent = state.bpm;
     updateBarsUI();
+    if (isStandardEdition()) {      // 通常版：PROカスタムSTAGEもzoom/loopをデフォルト固定（BPM/barsはSTAGE保存値）
+        rhythmVexZoomPrefs.stage = RHYTHM_VEX_ZOOM_MIN;
+        state.rcLoop = false;
+        syncRhythmStagePreviewZoomUI();
+    }
     applyStageBars();                             // TOTAL_BEATS = 小節数 × 1小節のセル数
     state.currentStage = 0;                       // 通常STAGE番号ではない（カスタム）
     els.practiceNum.innerHTML = '<small>PRO</small><b>★</b>'; // v0.9.169：PROカスタムSTAGEは「PRO★」バッジに統一
     els.practiceTitle.textContent = stage.title;
     setInputMode(state.inputMode);
+    applyStandardPracticePreviewLock();
     show('practice');
     // fitLane で pxPerBeat/judgeX が確定した後に、流れる譜面レイヤーへ静止描画する（v0.9.127・Step2）
     requestAnimationFrame(() => { fitLane(); resetGame(); renderRhythmFlowScore(); });
@@ -11066,13 +11114,15 @@ function applyStrokeMicToolsUI() {
 
 /* ── テンポ操作 ─────────────────────────────────────────── */
 function setTempoEnabled(on) {
-    els.tempoUp.disabled = !on;
-    els.tempoDown.disabled = !on;
-    els.tempoUp.classList.toggle('is-disabled', !on);
-    els.tempoDown.classList.toggle('is-disabled', !on);
+    // 通常版Practice画面では停止後も操作不可（再生中ロックが解除されても通常版ロックを維持）
+    const actualOn = on && !isStandardPracticePreviewLocked();
+    els.tempoUp.disabled = !actualOn;
+    els.tempoDown.disabled = !actualOn;
+    els.tempoUp.classList.toggle('is-disabled', !actualOn);
+    els.tempoDown.classList.toggle('is-disabled', !actualOn);
     // 小節数の−/＋もBPMと同じく再生中はロック（v0.9.118）
-    if (els.barsUp) { els.barsUp.disabled = !on; els.barsUp.classList.toggle('is-disabled', !on); }
-    if (els.barsDown) { els.barsDown.disabled = !on; els.barsDown.classList.toggle('is-disabled', !on); }
+    if (els.barsUp) { els.barsUp.disabled = !actualOn; els.barsUp.classList.toggle('is-disabled', !actualOn); }
+    if (els.barsDown) { els.barsDown.disabled = !actualOn; els.barsDown.classList.toggle('is-disabled', !actualOn); }
 }
 
 /* 小節数（テスト長さ）の反映と表示（v0.9.118）。
