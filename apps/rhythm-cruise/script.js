@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.242';
+const RHYTHM_CRUISE_VERSION = '0.9.243';
 
 function isProEdition() {
     return document.documentElement?.dataset?.appEdition === 'Pro';
@@ -5650,12 +5650,23 @@ function ensureAudio() {
 }
 
 /* iOS Safariスリープ/バックグラウンド復帰時のベストエフォートresume。
-   ユーザー操作起点でない場合もあるため、エラーは無視する。 */
+   ユーザー操作起点でない場合もあるため、エラーは無視する。
+   v0.9.243：closed の場合は ensureAudio() で再生成。マイクが古い AudioContext に紐づいていたり
+   stream track が ended になっていた場合は stopMic() で破棄し、次の操作で再取得できる状態にする。 */
 function tryResumeAudio() {
     try {
         const ctx = state.audioCtx;
-        if (ctx && ctx.state !== 'running' && ctx.state !== 'closed') {
+        const needsNewAudio = !ctx || ctx.state === 'closed';
+        if (needsNewAudio) {
+            ensureAudio(); // closed なら再生成（suspended から resume は次のユーザー操作で）
+        } else if (ctx.state !== 'running') {
             ctx.resume().catch(() => {});
+        }
+        if (mic.on) {
+            const trackEnded = mic.stream &&
+                mic.stream.getTracks &&
+                mic.stream.getTracks().some((t) => t.readyState === 'ended');
+            if (needsNewAudio || trackEnded) stopMic(); // 古いノード / ended track を破棄
         }
     } catch (_) { /* ignore */ }
 }
