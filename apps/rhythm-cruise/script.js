@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.233';
+const RHYTHM_CRUISE_VERSION = '0.9.234';
 
 function isProEdition() {
     return document.documentElement?.dataset?.appEdition === 'Pro';
@@ -5231,10 +5231,6 @@ function openSoonCategory(title) {
 }
 /* PROカスタムSTAGE一覧を開く（判定フック経由・v0.9.119）。 */
 function openRhythmProCustom() {
-    if (isStandardEdition()) {
-        showProLockNotice('proCustomStage');
-        return;
-    }
     if (!isRhythmProCustomStageAvailable()) return;
     createNewRhythmCustomStage();
 }
@@ -16271,10 +16267,6 @@ function applyAppVersionDisplay() {
 /* ── 初期化 ─────────────────────────────────────────────── */
 function applyProLockBadges() {
     if (isProEdition()) return;
-    const catProCustom = $('cat-pro-custom');
-    if (catProCustom && !catProCustom.querySelector('.rc-pro-lock-badge')) {
-        catProCustom.insertAdjacentHTML('beforeend', ' ' + proLockedBadgeHtml());
-    }
     const savedEntryBtn = $('rc-saved-entry-btn');
     if (savedEntryBtn && !savedEntryBtn.querySelector('.rc-pro-lock-badge')) {
         savedEntryBtn.insertAdjacentHTML('beforeend', ' ' + proLockedBadgeHtml());
