@@ -2269,6 +2269,14 @@ h1 {
     }
 }
 
+/* mod 5: 本体マイクプリセットボタン内の「(初期状態)」小字表示（v0.9.240）。 */
+.preset-initial-label {
+    display: block;
+    font-size: 0.75em;
+    font-weight: 400;
+    opacity: 0.75;
+}
+
 .preset-help {
     margin-bottom: 10px;
 }
@@ -7372,5 +7380,11 @@ body[data-rc-theme="clean-pro"] #tap-area .tap-unify {
 .is-pro-locked {
     opacity: 0.5;
     pointer-events: none;
+    cursor: default;
+}
+
+/* 通常版PRO専用コントロール：タップで案内を出すため pointer-events は切らず、見た目だけロック調に（v0.9.240）。 */
+.is-pro-locked-tap {
+    opacity: 0.5;
     cursor: default;
 }

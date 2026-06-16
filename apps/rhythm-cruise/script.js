@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.239';
+const RHYTHM_CRUISE_VERSION = '0.9.240';
 
 function isProEdition() {
     return document.documentElement?.dataset?.appEdition === 'Pro';
@@ -38,6 +38,14 @@ const RHYTHM_PRO_LOCK_MESSAGES = {
         title: 'PRO版限定機能です',
         body: '判定のきびしさなどの詳細設定はPRO版で利用できます。'
     },
+    proPracticeSettings: {
+        title: 'PRO版限定機能です',
+        body: 'BPM・小節数・拡大・くり返し練習などの練習設定は、PRO版で変更できます。'
+    },
+    proCreateSettings: {
+        title: 'PRO版限定機能です',
+        body: 'BPM・パターンの長さ・小節数・拡大などのリズム作成設定は、PRO版で変更できます。'
+    },
     rhythmCreateStart: {
         title: 'PRO版限定機能です',
         body: '作成したリズムの練習開始はPRO版で利用できます。'
@@ -45,6 +53,18 @@ const RHYTHM_PRO_LOCK_MESSAGES = {
     proCustomStageStart: {
         title: 'PRO版限定機能です',
         body: 'カスタムSTAGEの練習開始はPRO版で利用できます。'
+    },
+    proCustomStageSettings: {
+        title: 'PRO版限定機能です',
+        body: 'BPM・パターンの長さ・小節数・拡大などのカスタムSTAGE再生設定は、PRO版で変更できます。'
+    },
+    rhythmCreatePresetSave: {
+        title: 'PRO版限定機能です',
+        body: '作成したリズムをプリセットに保存する機能は、PRO版で使えます。'
+    },
+    proStrokeChordMode: {
+        title: 'PRO版限定機能です',
+        body: 'コードストローク検出モードは、PRO版で使えます。'
     },
     default: {
         title: 'PRO版限定機能です',
@@ -80,24 +100,70 @@ function renderProLockedCard(title, body) {
     `;
 }
 
-/* ── 通常版Practice画面プレビュー設定ロック ─────────────────── */
-function isStandardPracticePreviewLocked() {
-    return isStandardEdition() && currentScreen === 'practice';
+/* ── 通常版PRO専用コントロールの共通ロック（v0.9.240） ───────────
+   .is-pro-locked（pointer-events:none）と違い、タップを受け付けたまま
+   案内を出すための仕組み。disabled にせず readOnly / クラス付与で値変更を防ぎ、
+   キャプチャ段の単一リスナーでタップを握って showProLockNotice を出す。 */
+function appendProLockIcon(el) {
+    if (!el || !isStandardEdition()) return;
+    if (el.querySelector('.rc-pro-lock-icon')) return;
+    el.insertAdjacentHTML('beforeend', ' ' + proLockIconHtml());
 }
 
+function lockProControlTap(el, featureName) {
+    if (!el || !isStandardEdition()) return;
+    el.classList.add('is-pro-locked-tap');
+    el.dataset.proFeature = featureName;
+    if (el.tagName === 'INPUT') el.readOnly = true;
+}
+
+/* 通常版PRO専用コントロールのタップを握って案内を出す（既存ハンドラへ伝播させない）。 */
+function handleProLockedTapCapture(e) {
+    const t = e.target;
+    const locked = (t && t.closest) ? t.closest('.is-pro-locked-tap') : null;
+    if (!locked) return;
+    e.preventDefault();
+    e.stopPropagation();
+    showProLockNotice(locked.dataset.proFeature || 'default');
+}
+
+/* 開始ボタン（play-btn）のPROロック状態を更新（v0.9.240）。
+   practice画面を開くたびに呼ぶ。まず既存ロックをクリアし、条件を満たすときだけ🔒を付与。
+   PRO版・基本STAGEではクリアのみ実行される（ロックは付かない）。 */
+function updatePlayBtnLock() {
+    const btn = els.playBtn;
+    if (!btn) return;
+    btn.classList.remove('is-pro-locked-tap');
+    delete btn.dataset.proFeature;
+    const icon = btn.querySelector('.rc-pro-lock-icon');
+    if (icon) icon.remove();
+    if (!isStandardEdition()) return;
+    const featureName = eng.editId ? 'proCustomStageStart'
+        : (eng.testSource === 'rhythmCreate') ? 'rhythmCreateStart'
+        : null;
+    if (!featureName) return;
+    lockProControlTap(btn, featureName);
+    appendProLockIcon(btn);
+}
+
+/* ── 通常版Practice画面プレビュー設定ロック ─────────────────── */
 function applyStandardPracticePreviewLock() {
+    updatePlayBtnLock(); // 開始ボタンのロック状態を更新（全エディション共通・v0.9.240）
     if (!isStandardEdition()) return;
     [
         els.tempoUp, els.tempoDown,
         els.barsUp, els.barsDown,
         els.stagePreviewZoomUp, els.stagePreviewZoomDown,
         els.loopToggle,
-    ].forEach((el) => {
-        if (!el) return;
-        el.disabled = true;
-        el.classList.add('is-disabled');
-    });
-    if (els.stagePreviewResetDefault) els.stagePreviewResetDefault.classList.add('hidden');
+        els.stagePreviewResetDefault,
+    ].forEach((el) => lockProControlTap(el, 'proPracticeSettings'));
+    [
+        els.tempoDown && els.tempoDown.parentElement && els.tempoDown.parentElement.querySelector('.custom-test-preview-param-cap'),
+        els.barsDown && els.barsDown.parentElement && els.barsDown.parentElement.querySelector('.custom-test-preview-param-cap'),
+        els.stagePreviewZoomDown && els.stagePreviewZoomDown.parentElement && els.stagePreviewZoomDown.parentElement.querySelector('.custom-test-preview-param-cap'),
+        els.loopToggle && els.loopToggle.parentElement && els.loopToggle.parentElement.querySelector('.preview-loop-cap'),
+        els.stagePreviewResetDefault,
+    ].forEach(appendProLockIcon);
     updateStageSettingsUI();
 }
 
@@ -113,11 +179,11 @@ function applyStandardCreatePreviewLock() {
         els.rcCreateBarsDown, els.rcCreateBarsUp,
         els.rcCreateZoomDown, els.rcCreateZoomUp,
         els.rcCreateResetDefault,
-    ].forEach((el) => {
-        if (!el) return;
-        el.disabled = true;
-        el.classList.add('is-disabled');
-    });
+    ].forEach((el) => lockProControlTap(el, 'proCreateSettings'));
+    document.querySelectorAll('.rc-create-params .rc-create-param-cap').forEach(appendProLockIcon);
+    appendProLockIcon(els.rcCreateResetDefault);
+    lockProControlTap(els.rcCreatePresetSave, 'rhythmCreatePresetSave'); // mod 6 通常版：プリセットに保存を🔒（v0.9.240）
+    appendProLockIcon(els.rcCreatePresetSave);
 }
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
@@ -340,8 +406,9 @@ const BUILTIN_MIC_PRESETS = [
     {
         id: 'builtin_mic', name: '本体マイク', builtin: true,
         settings: {
+            // mod 5: アプリ初期状態（SETTINGS_DEFAULTS / resetSettings）と一致させた（v0.9.240）
             inputType: 'normal', headphoneType: 'wired', strokeDetectMode: 'brush',
-            threshold: 0.019855, cooldownMs: 100, clickVolume: 63, timingOffsetMs: -91,
+            threshold: 0.025, cooldownMs: 200, clickVolume: 70, timingOffsetMs: 0,
             lowInputProfile: false,
             wiredMicOffsetMs: 0, bluetoothMicOffsetMs: 0,
             headphoneOffsetWiredMs: 0, headphoneOffsetBluetoothMs: 0, headphoneOutputOffsetMs: 0,
@@ -1047,6 +1114,7 @@ const els = {
     presetModalInput: $('preset-modal-input'),
     presetModalMsg: $('preset-modal-msg'),
     presetModalSave: $('preset-modal-save'),
+    presetModalSkip: $('preset-modal-skip'),
     presetModalCancel: $('preset-modal-cancel'),
     ptOpenManual: $('pt-open-manual'),
     setThreshold: $('set-threshold'),
@@ -2413,6 +2481,7 @@ function showRhythmCreatePresetNotice(title, message) {
 }
 
 function saveCurrentRhythmCreatePreset() {
+    if (isStandardEdition()) { showProLockNotice('rhythmCreatePresetSave'); return; } // mod 6 通常版ガード（v0.9.240）
     const def = getRhythmCreateStageDef();
     if (!canAddRhythmCreateUserPreset(def.n)) {
         alertRhythmCreatePresetLimit();
@@ -3525,6 +3594,7 @@ function openRhythmProCustomEditorDraft(stage) {
     ensureRhythmVexFlow(); // 譜面ライブラリを先読み（編集画面を開いた時だけ・CDN不使用）
     renderRhythmCustomEditor();
     setHomeView('proCustomEdit');
+    if (isStandardEdition()) applyStandardProCustomEditorSettingsLock(); // mod 7-2 通常版：再生設定を🔒（v0.9.240）
 }
 
 /* 編集画面を開く：保存済みSTAGEを読み込みドラフト化して表示。
@@ -5142,6 +5212,12 @@ function saveRhythmCustomEditorAsCopy() {
    保存に失敗したらトーストで知らせて再生しない（保存ロジックは二重実装しない）。 */
 function testPlayFromEditor() {
     stopPreviewRhythm();
+    if (isStandardEdition()) {
+        // mod 7-1: 通常版は保存せずにドラフトを直接テスト再生（保存はPRO専用）
+        if (!proCustomEditDraft) return;
+        openRhythmProCustomTest(null, 'editor', proCustomEditDraft);
+        return;
+    }
     const saved = saveRhythmCustomEditor(true);
     if (!saved) return; // 失敗時は saveRhythmCustomEditor 側でトースト表示済み
     openRhythmProCustomTest(saved.id, 'editor'); // 編集画面から来た＝「戻る」で編集画面へ（v0.9.170）
@@ -5172,6 +5248,13 @@ function backToEditorFromTest() {
             proCustomEditDraft.zoom = clampRhythmVexZoom(tempZoom);
             renderRhythmCustomEditor();
         }
+    } else if (proCustomEditDraft) {
+        // mod 7-1: 通常版など、ドラフトは存在するが未保存の場合も編集画面へ戻る（v0.9.240）
+        proCustomEditDraft.bpm = clampNum(Math.round(tempBpm), RHYTHM_CUSTOM_BPM_MIN, RHYTHM_CUSTOM_BPM_MAX, proCustomEditDraft.bpm);
+        if (Number.isInteger(tempBars) && tempBars >= 1 && tempBars <= 128) proCustomEditDraft.bars = tempBars;
+        proCustomEditDraft.zoom = clampRhythmVexZoom(tempZoom);
+        setHomeView('proCustomEdit');
+        renderRhythmCustomEditor();
     } else {
         renderRhythmHomeCustomStages();
         setHomeView('rhythm');
@@ -5507,9 +5590,9 @@ function leaveCustomTestState() {
 /* PROカスタムSTAGEのテスト再生（v0.9.124）。
    保存済み設定（拍子/最小音符/パターンの長さ/pattern/bpm/小節数）を使って、既存STAGE画面で練習する。
    カスタムSTAGE自体の保存データは書き換えない（bpm/小節数はテスト中の一時設定）。 */
-function openRhythmProCustomTest(id, source = 'home') {
+function openRhythmProCustomTest(id, source = 'home', _stageOverride = null) {
     if (!isRhythmProCustomStageAvailable()) return;
-    const stage = getSavedRhythmCustomStages().find((s) => s.id === id);
+    const stage = _stageOverride || getSavedRhythmCustomStages().find((s) => s.id === id);
     if (!stage) { showRcToast('STAGEが見つかりません'); return; }
     ensureRhythmVexFlow();                        // 譜面ライブラリ先読み（編集画面と共通・CDN不使用）
     if (!eng.restore) eng.restore = { bpm: state.bpm, bars: state.bars }; // 退出時に戻すSTAGE設定を退避
@@ -11138,15 +11221,14 @@ function applyStrokeMicToolsUI() {
 
 /* ── テンポ操作 ─────────────────────────────────────────── */
 function setTempoEnabled(on) {
-    // 通常版Practice画面では停止後も操作不可（再生中ロックが解除されても通常版ロックを維持）
-    const actualOn = on && !isStandardPracticePreviewLocked();
-    els.tempoUp.disabled = !actualOn;
-    els.tempoDown.disabled = !actualOn;
-    els.tempoUp.classList.toggle('is-disabled', !actualOn);
-    els.tempoDown.classList.toggle('is-disabled', !actualOn);
+    // 再生中は全エディションで一時disable。通常版の恒常ロックは is-pro-locked-tap（タップで案内）側で担保する。
+    els.tempoUp.disabled = !on;
+    els.tempoDown.disabled = !on;
+    els.tempoUp.classList.toggle('is-disabled', !on);
+    els.tempoDown.classList.toggle('is-disabled', !on);
     // 小節数の−/＋もBPMと同じく再生中はロック（v0.9.118）
-    if (els.barsUp) { els.barsUp.disabled = !actualOn; els.barsUp.classList.toggle('is-disabled', !actualOn); }
-    if (els.barsDown) { els.barsDown.disabled = !actualOn; els.barsDown.classList.toggle('is-disabled', !actualOn); }
+    if (els.barsUp) { els.barsUp.disabled = !on; els.barsUp.classList.toggle('is-disabled', !on); }
+    if (els.barsDown) { els.barsDown.disabled = !on; els.barsDown.classList.toggle('is-disabled', !on); }
 }
 
 /* 小節数（テスト長さ）の反映と表示（v0.9.118）。
@@ -11758,6 +11840,35 @@ function renderClickSettingsView() {
     if (els.proSettingsResetWrap) els.proSettingsResetWrap.classList.remove('hidden');
     updateStageSettingsUI(); // セグメント点灯・4つの丸・裏拍トグルを現在のクリック設定に合わせる
     updateJudgePresetUI();   // 判定プリセットのセグメント点灯・補足文を同期
+    if (isStandardEdition()) applyStandardClickSettingsLock(); // mod 8 通常版：各項目を🔒+案内でロック（v0.9.240）
+}
+
+/* 通常版PRO設定タブのコントロールを🔒+タップ案内でロック（v0.9.240 mod 8）。
+   appendProLockIcon は2重付与を防ぐ内部チェックあり。renderClickSettingsView から毎回呼んでよい。 */
+function applyStandardClickSettingsLock() {
+    if (!isStandardEdition()) return;
+    if (els.clickRangeSeg) els.clickRangeSeg.querySelectorAll('[data-clickrange]').forEach((b) => lockProControlTap(b, 'proSettings'));
+    if (els.clickBeatsSeg) els.clickBeatsSeg.querySelectorAll('[data-clickbeats]').forEach((b) => lockProControlTap(b, 'proSettings'));
+    lockProControlTap(els.offbeatToggle, 'proSettings');
+    if (els.judgePresetSeg) els.judgePresetSeg.querySelectorAll('[data-judge]').forEach((b) => lockProControlTap(b, 'proSettings'));
+    lockProControlTap(els.proSettingsResetBtn, 'proSettings');
+    if (els.clickSettingsCard) els.clickSettingsCard.querySelectorAll('.stage-set-label').forEach(appendProLockIcon);
+    if (els.judgeSettingsCard) appendProLockIcon(els.judgeSettingsCard.querySelector('.cal-head'));
+    appendProLockIcon(els.proSettingsResetBtn);
+}
+
+/* 通常版PROカスタムSTAGEエディタの再生設定を🔒+タップ案内でロック（v0.9.240 mod 7-2）。
+   appendProLockIcon は2重付与を防ぐ内部チェックあり。openRhythmProCustomEditorDraft から毎回呼んでよい。
+   クリック-ストロークスライダー（pcePreviewBalance）はロックしない（通常版でも使用可）。 */
+function applyStandardProCustomEditorSettingsLock() {
+    if (!isStandardEdition()) return;
+    [
+        els.pcePbars,
+        els.pceBpm, els.pceBpmDown, els.pceBpmUp,
+        els.pceBarsDown, els.pceBarsUp,
+        els.pceZoomDown, els.pceZoomUp,
+    ].forEach((el) => lockProControlTap(el, 'proCustomStageSettings'));
+    document.querySelectorAll('.pce-settings-params .pce-settings-param-cap').forEach(appendProLockIcon);
 }
 
 /* 判定のきびしさ（v0.9.164）：セグメントの点灯と補足文を現在のプリセットへ同期する。 */
@@ -11797,10 +11908,6 @@ function updateTapCurrentOffsetDisplay() {
    マイク設定タブを押したら、詳細テスト途中のカードに残さず、必ずマイク設定TOP（chooser）へ戻す。 */
 function setSettingsTab(tab) {
     const next = (tab === 'tap') ? 'tap' : (tab === 'click') ? 'click' : 'mic';
-    if (next === 'click' && isStandardEdition()) {
-        showProLockNotice('proSettings');
-        return;
-    }
     settingsTab = next;
     tapView = 'home'; // タブを切り替えたら必ずホームから
     if (next === 'mic') {
@@ -12555,6 +12662,7 @@ function onPickHeadphoneType(type) {
 }
 
 function onPickStrokeMode(mode) {
+    if (mode === 'chord' && isStandardEdition()) { showProLockNotice('proStrokeChordMode'); return; } // mod 4
     const next = (mode === 'chord') ? 'chord' : 'brush';
     const changed = (state.strokeDetectMode !== next);
     setStrokeDetectMode(next);
@@ -13082,6 +13190,7 @@ function renderPresetList() {
 function micPresetBtnLabel(p) {
     if (!p) return '';
     if (p.id === 'builtin_bt') return 'Bluetooth<br>イヤホン';
+    if (p.id === 'builtin_mic') return '本体マイク<br><span class="preset-initial-label">(初期状態)</span>'; // mod 5
     return escapeHtml(p.name);
 }
 
@@ -14703,7 +14812,7 @@ function updateReco() {
             els.recoRetest.classList.add('hidden');
         }
     }
-    if (els.recoRetestBtn) els.recoRetestBtn.classList.toggle('hidden', !retestExhausted);
+    if (els.recoRetestBtn) els.recoRetestBtn.classList.add('hidden'); // mod 2: #reco-retest内のインラインボタンに統一（v0.9.240）
 
     // ── 自動おすすめ時のイヤホン案内（v0.9.56）──
     // auto のまま低入力/イヤホンっぽい入力が拾われたら、入力タイプ変更を「案内」する（自動切替はしない）。
@@ -16118,6 +16227,7 @@ function bind() {
     if (els.tapCalPad) els.tapCalPad.addEventListener('pointerdown', (e) => { e.preventDefault(); registerTapCalTap(); });
     // プリセット保存モーダル（v0.9.80）
     if (els.presetModalSave) els.presetModalSave.addEventListener('click', savePresetFromModal);
+    if (els.presetModalSkip) els.presetModalSkip.addEventListener('click', () => { closePresetModal(); closeSettings(); }); // mod 3
     if (els.presetModalCancel) els.presetModalCancel.addEventListener('click', closePresetModal);
     if (els.presetModalInput) {
         els.presetModalInput.addEventListener('input', () => setPresetSaveMsg(''));
@@ -16385,6 +16495,9 @@ function applyProLockBadges() {
     if (savedEntryBtn && !savedEntryBtn.querySelector('.rc-pro-lock-badge')) {
         savedEntryBtn.insertAdjacentHTML('beforeend', ' ' + proLockedBadgeHtml());
     }
+    // mod 4: コードストロークはPRO専用（v0.9.240）
+    lockProControlTap(els.strokeModeChord, 'proStrokeChordMode');
+    appendProLockIcon(els.strokeModeChord);
 }
 
 function init() {
@@ -16399,6 +16512,7 @@ function init() {
     updateBarsUI();              // v0.9.118：小節数の表示を保存値に同期
     updateMicDiag();             // マイク診断カウンタ・補正値の初期表示
     applyProLockBadges();
+    document.addEventListener('click', handleProLockedTapCapture, true); // 通常版PRO専用コントロールのタップ案内（v0.9.240）
     setClickEnabled(true);
     show('home');
 }
