@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.225';
+const RHYTHM_CRUISE_VERSION = '0.9.226';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -5215,7 +5215,15 @@ function goTop() {
 
 function navBack() {
     // 設定画面（マイク/画面タップ設定など）→ 直前の自然な画面（呼び出し元）へ
-    if (!els.settings.classList.contains('hidden')) { closeSettings(); return; }
+    if (!els.settings.classList.contains('hidden')) {
+        // 「現在の設定を見る」→「手動設定を開く」経由の場合は summary へ戻る（v0.9.226）
+        if (settingsView === 'manual' && manualSettingsReturnView === 'summary') {
+            cancelManualSettings();
+            return;
+        }
+        closeSettings();
+        return;
+    }
     // STAGE画面（結果・見返し含む）→ カスタムテスト中はPROカスタム一覧へ、通常はリズム練画面へ（v0.9.166）
     if (currentScreen === 'practice') {
         if (eng.testSource === 'rhythmCreate') {
@@ -8469,8 +8477,8 @@ const HP_TYPE_NOTE = {
 };
 /* 手動設定（イヤホン音ズレ補正行）に出す種類別の説明文 */
 const HP_MANUAL_NOTE = {
-    wired: '有線イヤホンは通常、補正なし（0ms）で問題ありません。違和感がある場合だけ調整してください。',
-    bluetooth: 'Bluetoothは機種によってズレが大きいため、必要に応じて微調整してください。音が丸より遅れて聞こえるなら「丸を遅らせる（右）」、早く聞こえるなら「丸を早める（左）」へ。',
+    wired: 'イヤホンでクリック音が遅れて聞こえる分を補正します。通常は0msで問題ありません。',
+    bluetooth: 'イヤホンでクリック音が遅れて聞こえる分を補正します。Bluetoothでは大きくなることがあります。',
 };
 function getHeadphoneType() { return mic.headphoneType === 'bluetooth' ? 'bluetooth' : 'wired'; }
 /* Bluetoothイヤホン接続中か（マイク遅れ補正の表示/判定反映の条件・v0.9.80） */
@@ -11260,8 +11268,14 @@ function applySettingsToUI() {
     if (els.micThreshold) els.micThreshold.style.left = micThresholdMarkerPct() + '%';
     if (els.testThreshold) els.testThreshold.style.left = micThresholdMarkerPct() + '%';
     if (els.setOffset) {
-        els.setOffset.value = mic.timingOffsetMs;
-        els.setOffsetVal.textContent = (mic.timingOffsetMs > 0 ? '+' : '') + mic.timingOffsetMs + 'ms';
+        // イヤホン時は手拍子テストで得た headphoneMicOffsetGet() を表示・編集（v0.9.226）。
+        // 通常マイク時は従来通り timingOffsetMs。
+        const headphone = isHeadphoneInput();
+        const offsetVal = headphone ? headphoneMicOffsetGet() : mic.timingOffsetMs;
+        els.setOffset.min = headphone ? headphoneMicOffsetMin() : -150;
+        els.setOffset.max = headphone ? headphoneMicOffsetMax() : 150;
+        els.setOffset.value = offsetVal;
+        els.setOffsetVal.textContent = (offsetVal > 0 ? '+' : '') + offsetVal + 'ms';
     }
     if (els.calCurrentOffset) els.calCurrentOffset.textContent = (mic.timingOffsetMs > 0 ? '+' : '') + mic.timingOffsetMs + 'ms';
     if (els.setClickVol) {
@@ -11283,6 +11297,8 @@ function applySettingsToUI() {
    「次へ」は廃止：選択・適用・完了するたびに次の項目を自動で出す（setupProgress で制御）。
    重要：判定ロジック・補正値・STAGE側には一切手を入れない（見せ方の制御のみ）。 */
 let settingsView = 'chooser';
+/* 手動設定を開いたときの戻り先（v0.9.226）：'chooser' または 'summary'。キャンセル時に使う。 */
+let manualSettingsReturnView = 'chooser';
 /* 設定タブ（v0.9.95）：'mic'（既存マイク設定フロー）/ 'tap'（画面タップ設定）。
    tapView は画面タップ設定タブ内のサブ表示（v0.9.97）：
    'home'（補正値＋3ボタン）/ 'cal'（イヤホン音ズレ補正カードを再利用）/ 'preset'（タップ用プリセット）/ 'manual'（手動設定）。 */
@@ -12371,14 +12387,15 @@ function renderSettingsSummary() {
         rows.push(row('イヤホン種類', getHeadphoneType() === 'bluetooth' ? 'Bluetoothイヤホン' : '有線イヤホン'));
     }
     rows.push(row('ストローク検出モード', state.strokeDetectMode === 'chord' ? 'コードストローク' : 'ブラッシング'));
+    // 手動設定ページと同じ順番で表示（v0.9.226）。
     rows.push(row('マイク感度', userMicSensitivityPercent() + '％'));
-    rows.push(row('二重反応防止', mic.cooldownMs + 'ms'));
     rows.push(row('クリック音量', state.clickVolume + '％'));
+    rows.push(row('二重反応防止', mic.cooldownMs + 'ms'));
     if (t === 'headphone') {
-        rows.push(row('イヤホン音ズレ補正', mic.headphoneOutputOffsetMs + 'ms'));
-        // 手拍子補正：有線は wiredMicOffsetMs、Bluetoothは bluetoothMicOffsetMs（v0.9.153で分離）。
+        // 手動設定スライダーと同じ headphoneMicOffsetGet() を表示（v0.9.226）。
         const mo = headphoneMicOffsetGet();
-        rows.push(row('マイク遅れ補正', (mo > 0 ? '+' : '') + mo + 'ms'));
+        rows.push(row('マイクの遅れ補正', (mo > 0 ? '+' : '') + mo + 'ms'));
+        rows.push(row('イヤホン音ズレ補正', mic.headphoneOutputOffsetMs + 'ms'));
     } else {
         const off = mic.timingOffsetMs;
         rows.push(row('マイクの遅れ補正', (off > 0 ? '+' : '') + off + 'ms'));
@@ -12627,7 +12644,7 @@ function restoreMicSettingsFrom(s) {
 }
 
 /* 手動設定の「キャンセル」（v0.9.89）：手動設定ページで変更した内容を破棄して、
-   マイク設定TOP（chooser）へ戻る。 */
+   開く前の画面（chooser または summary）へ戻る（v0.9.226）。 */
 function cancelManualSettings() {
     if (manualSettingsSnapshot) {
         restoreMicSettingsFrom(manualSettingsSnapshot);
@@ -12636,7 +12653,9 @@ function cancelManualSettings() {
         saveSettings();
     }
     clearManualSnapshot();
-    setSettingsView('chooser');
+    const returnView = manualSettingsReturnView;
+    manualSettingsReturnView = 'chooser';
+    setSettingsView(returnView);
 }
 
 /* ── プリセット保存モーダル（v0.9.80）──────────────────────────────
@@ -15810,6 +15829,11 @@ function bind() {
             scrollToSettingsEl(els.ptCard);
             return;
         }
+        // 「現在の設定を見る」→「手動設定を開く」経由の場合は summary へ戻る（v0.9.226）
+        if (settingsView === 'manual' && manualSettingsReturnView === 'summary') {
+            cancelManualSettings();
+            return;
+        }
         closeSettings();
     }));
     if (els.settingsResetBtn) els.settingsResetBtn.addEventListener('click', resetSettings);
@@ -15818,6 +15842,23 @@ function bind() {
     if (els.settingsTopBtn) els.settingsTopBtn.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsView('chooser')));
     // 手動設定内の「キャンセル」：変更を破棄してマイク設定TOPへ戻る（v0.9.89）
     if (els.manualTopBtn) els.manualTopBtn.addEventListener('click', () => guardMicSetupInterruption(cancelManualSettings));
+    // 手動設定「＋ 説明」トグル（v0.9.226）
+    document.querySelectorAll('.setting-note-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const body = btn.nextElementSibling;
+            if (!body) return;
+            const open = btn.getAttribute('aria-expanded') === 'true';
+            if (open) {
+                body.classList.add('hidden');
+                btn.setAttribute('aria-expanded', 'false');
+                btn.textContent = '＋ 説明';
+            } else {
+                body.classList.remove('hidden');
+                btn.setAttribute('aria-expanded', 'true');
+                btn.textContent = '− 説明';
+            }
+        });
+    });
     if (els.manualUseBtn) els.manualUseBtn.addEventListener('click', () => guardMicSetupInterruption(useManualSettings));
     // トップ導線（v0.9.71）：簡易設定／詳細テスト／現在の設定を見る
     if (els.settingsSimpleBtn) els.settingsSimpleBtn.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsView('simple')));
@@ -15838,7 +15879,7 @@ function bind() {
     if (els.settingsSummarySave) els.settingsSummarySave.addEventListener('click', () => openPresetModal());
     if (els.settingsSummaryOverwrite) els.settingsSummaryOverwrite.addEventListener('click', overwriteCurrentMicPreset);
     if (els.manualOverwriteTrigger) els.manualOverwriteTrigger.addEventListener('click', overwriteCurrentMicPreset);
-    if (els.settingsSummaryManual) els.settingsSummaryManual.addEventListener('click', () => openManualView(els.manualCard));
+    if (els.settingsSummaryManual) els.settingsSummaryManual.addEventListener('click', () => { manualSettingsReturnView = 'summary'; openManualView(els.manualCard); });
     // 手動設定カード内「この設定を保存」：共通の保存モーダルを開く（v0.9.80）
     if (els.manualPresetTrigger) els.manualPresetTrigger.addEventListener('click', () => openPresetModal());
     // 補正系の「進む/スキップ」（v0.9.62）：押したら補正系完了として最終確認テストへ
@@ -15904,11 +15945,19 @@ function bind() {
         drawMicPreview();
     });
     els.setOffset.addEventListener('input', () => {
-        mic.timingOffsetMs = parseInt(els.setOffset.value, 10);
-        els.setOffsetVal.textContent = (mic.timingOffsetMs > 0 ? '+' : '') + mic.timingOffsetMs + 'ms';
-        if (els.calCurrentOffset) els.calCurrentOffset.textContent = (mic.timingOffsetMs > 0 ? '+' : '') + mic.timingOffsetMs + 'ms';
+        const raw = parseInt(els.setOffset.value, 10);
+        // イヤホン時は手拍子テスト由来の補正値を編集（v0.9.226）。通常マイク時は timingOffsetMs。
+        if (isHeadphoneInput()) {
+            headphoneMicOffsetSet(raw);
+            const v = headphoneMicOffsetGet();
+            els.setOffsetVal.textContent = (v > 0 ? '+' : '') + v + 'ms';
+        } else {
+            mic.timingOffsetMs = raw;
+            els.setOffsetVal.textContent = (raw > 0 ? '+' : '') + raw + 'ms';
+            if (els.calCurrentOffset) els.calCurrentOffset.textContent = (raw > 0 ? '+' : '') + raw + 'ms';
+        }
         updateMicDiag();
-        syncMicSaveStateUI();     // v0.9.152
+        syncMicSaveStateUI();
         drawMicPreview();
     });
     els.setClickVol.addEventListener('input', () => {

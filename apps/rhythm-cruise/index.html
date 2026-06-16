@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.225">
+    <link rel="stylesheet" href="theme.css?v=0.9.226">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1037,22 +1037,34 @@
                     <div class="setting-row">
                         <div class="setting-label">マイク感度 <b id="set-threshold-val">69％</b></div>
                         <input type="range" id="set-threshold" min="0" max="100" step="1" value="69">
-                        <p class="setting-note">右＝小さい音にも反応しやすい（小さいストロークが拾われないとき）／左＝周囲の音やクリック音に反応しにくい（誤反応が多いとき）。</p>
+                        <div class="setting-note-toggle">
+                            <button type="button" class="setting-note-btn" aria-expanded="false">＋ 説明</button>
+                            <p class="setting-note setting-note-body hidden">小さいストロークが反応しないときは上げます。クリック音や周囲の音に誤反応するときは下げます。</p>
+                        </div>
                     </div>
                     <div class="setting-row">
                         <div class="setting-label">クリック音量 <b id="set-clickvol-val">70％</b></div>
                         <input type="range" id="set-clickvol" min="0" max="100" step="5" value="70">
-                        <p class="setting-note">クリック音がマイクに入る場合は下げます。聞き取りにくい場合は上げます。</p>
+                        <div class="setting-note-toggle">
+                            <button type="button" class="setting-note-btn" aria-expanded="false">＋ 説明</button>
+                            <p class="setting-note setting-note-body hidden">聞こえにくいときは上げます。クリック音をマイクが拾うときは下げます。</p>
+                        </div>
                     </div>
                     <div class="setting-row" id="set-cooldown-row">
                         <div class="setting-label">二重反応防止 <b id="set-cooldown-val">200ms</b></div>
                         <input type="range" id="set-cooldown" min="100" max="400" step="10" value="200">
-                        <p class="setting-note">1回のストロークで何度も反応する場合は長めにします。</p>
+                        <div class="setting-note-toggle">
+                            <button type="button" class="setting-note-btn" aria-expanded="false">＋ 説明</button>
+                            <p class="setting-note setting-note-body hidden">1回のストロークで何度も反応するときは長めにします。細かいリズムが拾いにくいときは短めにします。</p>
+                        </div>
                     </div>
                     <div class="setting-row">
                         <div class="setting-label">マイクの遅れ補正 <b id="set-offset-val">0ms</b></div>
                         <input type="range" id="set-offset" min="-150" max="150" step="5" value="0">
-                        <p class="setting-note">判定が遅れ気味に出る場合はマイナス方向へ。上のカードで自動測定もできます。</p>
+                        <div class="setting-note-toggle">
+                            <button type="button" class="setting-note-btn" aria-expanded="false">＋ 説明</button>
+                            <p class="setting-note setting-note-body hidden">マイク入力の遅れを補正します。イヤホン時は手拍子テストで測った値が入ります。遅れ気味のときはマイナス方向へ。</p>
+                        </div>
                     </div>
                     <!-- イヤホン音ズレ補正（入力タイプ=イヤホン接続 のとき表示）。v0.9.52ではUI/保存のみ・STAGE判定には未反映 -->
                     <div class="setting-row hidden" id="set-hp-offset-row">
@@ -1061,7 +1073,10 @@
                         <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
                             <span>← 音が早く聞こえる</span><span>音が遅く聞こえる →</span>
                         </div>
-                        <p class="setting-note" id="set-hp-offset-note">有線イヤホンは通常、補正なし（0ms）で問題ありません。違和感がある場合だけ調整してください。</p>
+                        <div class="setting-note-toggle">
+                            <button type="button" class="setting-note-btn" aria-expanded="false">＋ 説明</button>
+                            <p class="setting-note setting-note-body hidden" id="set-hp-offset-note">イヤホンでクリック音が遅れて聞こえる分を補正します。Bluetoothでは大きくなることがあります。</p>
+                        </div>
                         <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
                             <button type="button" class="btn-mini btn-reset" id="set-hp-reset">補正なしに戻す</button>
                             <button type="button" class="btn-mini btn-reset" id="set-hp-zero" style="display:none;">補正なしに戻す</button>
@@ -1273,7 +1288,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.225"></script>
+    <script src="script.js?v=0.9.226"></script>
 </body>
 
 </html>
