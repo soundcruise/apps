@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.232';
+const RHYTHM_CRUISE_VERSION = '0.9.233';
 
 function isProEdition() {
     return document.documentElement?.dataset?.appEdition === 'Pro';
@@ -1919,6 +1919,10 @@ function renderRhythmCreateSavedList() {
 
 /* 保存済みリズム一覧ビューを開く（v0.9.202）。 */
 function openRhythmCreateSaved() {
+    if (isStandardEdition()) {
+        showProLockNotice('savedRhythms');
+        return;
+    }
     renderRhythmCreateSavedList();
     setHomeView('rhythmCreateSaved');
 }
@@ -5227,6 +5231,10 @@ function openSoonCategory(title) {
 }
 /* PROカスタムSTAGE一覧を開く（判定フック経由・v0.9.119）。 */
 function openRhythmProCustom() {
+    if (isStandardEdition()) {
+        showProLockNotice('proCustomStage');
+        return;
+    }
     if (!isRhythmProCustomStageAvailable()) return;
     createNewRhythmCustomStage();
 }
@@ -16261,6 +16269,18 @@ function applyAppVersionDisplay() {
 }
 
 /* ── 初期化 ─────────────────────────────────────────────── */
+function applyProLockBadges() {
+    if (isProEdition()) return;
+    const catProCustom = $('cat-pro-custom');
+    if (catProCustom && !catProCustom.querySelector('.rc-pro-lock-badge')) {
+        catProCustom.insertAdjacentHTML('beforeend', ' ' + proLockedBadgeHtml());
+    }
+    const savedEntryBtn = $('rc-saved-entry-btn');
+    if (savedEntryBtn && !savedEntryBtn.querySelector('.rc-pro-lock-badge')) {
+        savedEntryBtn.insertAdjacentHTML('beforeend', ' ' + proLockedBadgeHtml());
+    }
+}
+
 function init() {
     applyAppVersionDisplay();    // バージョン表示（Ver X.Y.Z）
     loadSettings();              // 保存済みのマイク設定を反映
@@ -16272,6 +16292,7 @@ function init() {
     updateInputModeUI();         // v0.9.118：入力方式（タップ/ストローク）の切替UI・表示を保存値に同期
     updateBarsUI();              // v0.9.118：小節数の表示を保存値に同期
     updateMicDiag();             // マイク診断カウンタ・補正値の初期表示
+    applyProLockBadges();
     setClickEnabled(true);
     show('home');
 }
