@@ -10,7 +10,11 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.230';
+const RHYTHM_CRUISE_VERSION = '0.9.231';
+
+function isProEdition() {
+    return document.documentElement?.dataset?.appEdition === 'Pro';
+}
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
