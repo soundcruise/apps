@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.226';
+const RHYTHM_CRUISE_VERSION = '0.9.227';
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
    STAGE_WAVE_DEBUG：STAGE再生中の波形描画ソース/時間軸/補正値を画面右下に小さく出す。
@@ -5769,14 +5769,17 @@ function drawMicPreview() {
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(x0, baseY); ctx.lineTo(x1, baseY); ctx.stroke();
 
-    // しきい値ライン（水平・振幅）。感度を上げると上へ
-    const thrY = baseY - Math.min(1, mic.threshold / 0.5) * ampH;
+    // しきい値ライン：userMicSensitivityPercent() で位置を決める（v0.9.227）
+    // 感度100%→ライン高い（ストローク山より高め）、感度0%→ライン低い（クリック山より低め）
+    const sensPercent = userMicSensitivityPercent();
+    const thrAmp = 0.90 - (sensPercent / 100) * 0.68;
+    const thrY = baseY - Math.max(0.08, Math.min(0.92, thrAmp)) * ampH;
     ctx.strokeStyle = 'rgba(255,159,28,0.9)';
     ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(x0, thrY); ctx.lineTo(x1, thrY); ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = 'rgba(255,159,28,0.95)'; ctx.font = font; ctx.textAlign = 'left';
-    ctx.fillText('判定ライン', x0 + 2, thrY - 3); // 手動設定・Play・結果カードすべて「判定ライン」で統一（v0.9.140）
+    ctx.fillText('判定ライン（感度）', x0 + 2, thrY - 3);
     ctx.textAlign = 'left';
 
     // 波形ラベル：クリック音 / ストローク音
@@ -5787,32 +5790,6 @@ function drawMicPreview() {
     // 二重反応防止ラベル（ブルー帯）
     ctx.fillStyle = 'rgba(120,170,255,0.95)';
     ctx.fillText('二重反応防止', tX(strokeT) + 3, padT + 9);
-
-    // 判定点（補正前＝グレー / 補正後＝緑）＋矢印。時間軸より少し上の「判定列」に描く
-    const dotY = baseY - 16;
-    const rawX = tX(strokeT);
-    const corrX = tX(strokeT + micJudgeOffsetMs());
-    if (Math.abs(corrX - rawX) > 1) {
-        ctx.strokeStyle = 'rgba(253,246,238,0.5)'; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(rawX, dotY); ctx.lineTo(corrX, dotY); ctx.stroke();
-        const dir = corrX < rawX ? -1 : 1;
-        ctx.beginPath();
-        ctx.moveTo(corrX, dotY);
-        ctx.lineTo(corrX - dir * 5, dotY - 3);
-        ctx.lineTo(corrX - dir * 5, dotY + 3);
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(253,246,238,0.5)'; ctx.fill();
-    }
-    // 補正前（グレー・ラベルなし。矢印の起点として薄く表示）
-    ctx.beginPath(); ctx.arc(rawX, dotY, 4, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(180,180,180,0.7)'; ctx.fill();
-    // 補正後（緑）
-    ctx.beginPath(); ctx.arc(corrX, dotY, 5, 0, Math.PI * 2);
-    ctx.fillStyle = '#2ecc71'; ctx.fill();
-    ctx.font = font;
-    ctx.fillStyle = 'rgba(46,204,113,0.98)'; ctx.textAlign = 'left';
-    ctx.fillText('補正後', corrX + 8, dotY + 3);
-    ctx.textAlign = 'left';
 }
 
 /* ── 4分音符を描く ──────────────────────────────────────── */
@@ -11289,6 +11266,8 @@ function applySettingsToUI() {
     applyStrokeMicToolsUI();
     // 保存状態（未保存/上書き可否）にもとづく保存ボタンの見た目も同期（v0.9.152）。
     syncMicSaveStateUI();
+    // マイク感度スライダー変更時に図も必ず更新（v0.9.227）。
+    drawMicPreview();
 }
 
 /* ── ステップ式マイク設定UI（v0.9.61）────────────────────────────
@@ -12602,6 +12581,7 @@ function openManualView(scrollTarget) {
     captureManualSnapshot();
     // 「手動設定を開く」ので、折りたたみは開いた状態で全項目を見せる（v0.9.69）。
     if (els.manualDetail && !els.manualDetail.open) { els.manualDetail.open = true; fitPreview(); }
+    else { drawMicPreview(); } // すでに開いている場合も図を更新（v0.9.227）
     renderSettingsView();
     syncMicSaveStateUI(); // 手動設定を開いた時点の保存状態（未保存/上書き可否）を保存ボタンへ反映（v0.9.152）
     scrollToSettingsEl(scrollTarget || els.manualCard);
