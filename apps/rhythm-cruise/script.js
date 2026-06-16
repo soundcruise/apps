@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.241';
+const RHYTHM_CRUISE_VERSION = '0.9.242';
 
 function isProEdition() {
     return document.documentElement?.dataset?.appEdition === 'Pro';
@@ -164,6 +164,8 @@ function applyStandardPracticePreviewLock() {
         els.loopToggle && els.loopToggle.parentElement && els.loopToggle.parentElement.querySelector('.preview-loop-cap'),
         els.stagePreviewResetDefault,
     ].forEach(appendProLockIcon);
+    lockProControlTap(els.customTestSave, 'proCustomStage'); // 「このSTAGEを保存」はPRO専用（v0.9.242）
+    appendProLockIcon(els.customTestSave);
     updateStageSettingsUI();
 }
 
