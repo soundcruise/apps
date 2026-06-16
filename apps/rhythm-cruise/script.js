@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.240';
+const RHYTHM_CRUISE_VERSION = '0.9.241';
 
 function isProEdition() {
     return document.documentElement?.dataset?.appEdition === 'Pro';
@@ -11869,6 +11869,11 @@ function applyStandardProCustomEditorSettingsLock() {
         els.pceZoomDown, els.pceZoomUp,
     ].forEach((el) => lockProControlTap(el, 'proCustomStageSettings'));
     document.querySelectorAll('.pce-settings-params .pce-settings-param-cap').forEach(appendProLockIcon);
+    // 修正3: 保存 / 別名保存もPRO専用（v0.9.241）
+    lockProControlTap(els.pceSave, 'proCustomStage');
+    appendProLockIcon(els.pceSave);
+    lockProControlTap(els.pceSaveAs, 'proCustomStage');
+    appendProLockIcon(els.pceSaveAs);
 }
 
 /* 判定のきびしさ（v0.9.164）：セグメントの点灯と補足文を現在のプリセットへ同期する。 */
@@ -16498,6 +16503,9 @@ function applyProLockBadges() {
     // mod 4: コードストロークはPRO専用（v0.9.240）
     lockProControlTap(els.strokeModeChord, 'proStrokeChordMode');
     appendProLockIcon(els.strokeModeChord);
+    // 修正2: 「練習STAGEとして保存」はPRO専用（v0.9.241）
+    lockProControlTap(els.stageSaveCustomBtn, 'rhythmCreateSave');
+    appendProLockIcon(els.stageSaveCustomBtn);
 }
 
 function init() {

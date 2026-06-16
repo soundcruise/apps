@@ -7331,7 +7331,7 @@ body[data-rc-theme="clean-pro"] #tap-area .tap-unify {
     align-items: center;
     font-size: 0.9rem;
     vertical-align: middle;
-    opacity: 0.7;
+    /* opacity は指定しない：ボタン・ラベル問わず🔒を鮮明に表示（v0.9.241）。 */
 }
 
 .rc-pro-locked-card {
@@ -7383,8 +7383,16 @@ body[data-rc-theme="clean-pro"] #tap-area .tap-unify {
     cursor: default;
 }
 
-/* 通常版PRO専用コントロール：タップで案内を出すため pointer-events は切らず、見た目だけロック調に（v0.9.240）。 */
+/* 通常版PRO専用コントロール：ロック機能はJSで担保。見た目は通常と同じ（グレイアウトなし・v0.9.241）。 */
 .is-pro-locked-tap {
-    opacity: 0.5;
-    cursor: default;
+    /* opacity / cursor はなし：🔒表示とタップ検知のみ担保 */
+}
+
+/* 通常版：元々 --muted-color のラベル・ボタンに🔒が付いたとき文字色を通常色に（v0.9.241）。
+   PRO版は appendProLockIcon が何も付けないため .rc-pro-lock-icon が存在せず、この規則は一切マッチしない。 */
+.custom-test-preview-param-cap:has(.rc-pro-lock-icon),
+.stage-set-label:has(.rc-pro-lock-icon),
+.custom-test-preview-reset:has(.rc-pro-lock-icon),
+.preview-loop-cap:has(.rc-pro-lock-icon) {
+    color: var(--text-color);
 }
