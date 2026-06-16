@@ -10,10 +10,66 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.231';
+const RHYTHM_CRUISE_VERSION = '0.9.232';
 
 function isProEdition() {
     return document.documentElement?.dataset?.appEdition === 'Pro';
+}
+
+function isStandardEdition() {
+    return !isProEdition();
+}
+
+/* ── PRO版ロック文言 ──────────────────────────────────────── */
+const RHYTHM_PRO_LOCK_MESSAGES = {
+    proCustomStage: {
+        title: 'PRO版限定機能です',
+        body: 'カスタムSTAGEの作成・保存はPRO版で利用できます。'
+    },
+    rhythmCreateSave: {
+        title: 'PRO版限定機能です',
+        body: '作成したリズムの保存はPRO版で利用できます。'
+    },
+    savedRhythms: {
+        title: 'PRO版限定機能です',
+        body: '保存済みリズムの呼び出しはPRO版で利用できます。'
+    },
+    proSettings: {
+        title: 'PRO版限定機能です',
+        body: '判定のきびしさなどの詳細設定はPRO版で利用できます。'
+    },
+    default: {
+        title: 'PRO版限定機能です',
+        body: 'この機能はPRO版で利用できます。'
+    }
+};
+
+function getRhythmProLockMessage(featureName) {
+    return RHYTHM_PRO_LOCK_MESSAGES[featureName] || RHYTHM_PRO_LOCK_MESSAGES.default;
+}
+
+function showProLockNotice(featureName) {
+    const message = getRhythmProLockMessage(featureName);
+    window.alert(`${message.title}\n\n${message.body}`);
+}
+
+/* ── PRO版ロック表示 HTML 部品 ────────────────────────────── */
+function proLockedBadgeHtml() {
+    return '<span class="rc-pro-lock-badge" aria-hidden="true">PRO</span>';
+}
+
+function proLockIconHtml() {
+    return '<span class="rc-pro-lock-icon" aria-hidden="true">🔒</span>';
+}
+
+function renderProLockedCard(title, body) {
+    return `
+        <div class="rc-pro-locked-card">
+            <div class="rc-pro-locked-card__badge">PRO</div>
+            <div class="rc-pro-locked-card__title">${title}</div>
+            <div class="rc-pro-locked-card__body">${body}</div>
+        </div>
+    `;
 }
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
