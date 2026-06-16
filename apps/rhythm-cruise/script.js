@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.235';
+const RHYTHM_CRUISE_VERSION = '0.9.236';
 
 function isProEdition() {
     return document.documentElement?.dataset?.appEdition === 'Pro';
@@ -37,6 +37,14 @@ const RHYTHM_PRO_LOCK_MESSAGES = {
     proSettings: {
         title: 'PRO版限定機能です',
         body: '判定のきびしさなどの詳細設定はPRO版で利用できます。'
+    },
+    rhythmCreateStart: {
+        title: 'PRO版限定機能です',
+        body: '作成したリズムの練習開始はPRO版で利用できます。'
+    },
+    proCustomStageStart: {
+        title: 'PRO版限定機能です',
+        body: 'カスタムSTAGEの練習開始はPRO版で利用できます。'
     },
     default: {
         title: 'PRO版限定機能です',
@@ -7415,7 +7423,19 @@ function onPlayBtn() {
     if (state.running) {
         if (state.loopActive) { stopLoopWithResult(); return; } // くり返し練習：STOPでそこまでの結果カードを出す（v0.9.147）
         stop(); resetGame();
-    } else { play(); }
+    } else {
+        if (isStandardEdition()) {
+            if (eng.testSource === 'rhythmCreate') {
+                showProLockNotice('rhythmCreateStart');
+                return;
+            }
+            if (eng.editId) {
+                showProLockNotice('proCustomStageStart');
+                return;
+            }
+        }
+        play();
+    }
 }
 
 /* くり返し練習のSTOP（v0.9.147）：そこまで（最新ラップで到達済み）の判定対象だけで結果カードを出す。
