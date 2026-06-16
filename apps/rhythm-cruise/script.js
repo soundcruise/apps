@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.237';
+const RHYTHM_CRUISE_VERSION = '0.9.238';
 
 function isProEdition() {
     return document.documentElement?.dataset?.appEdition === 'Pro';
@@ -99,6 +99,25 @@ function applyStandardPracticePreviewLock() {
     });
     if (els.stagePreviewResetDefault) els.stagePreviewResetDefault.classList.add('hidden');
     updateStageSettingsUI();
+}
+
+/* ── 通常版リズムを作る画面プレビュー設定ロック ─────────────────── */
+function applyStandardCreatePreviewLock() {
+    if (!isStandardEdition()) return;
+    [
+        els.rcCreateBpm,
+        els.rcCreateBpmDown, els.rcCreateBpmUp,
+        els.rcCreatePbars,
+        els.rcCreatePbarsDown, els.rcCreatePbarsUp,
+        els.rcCreateBars,
+        els.rcCreateBarsDown, els.rcCreateBarsUp,
+        els.rcCreateZoomDown, els.rcCreateZoomUp,
+        els.rcCreateResetDefault,
+    ].forEach((el) => {
+        if (!el) return;
+        el.disabled = true;
+        el.classList.add('is-disabled');
+    });
 }
 
 /* ── DEBUG フラグ（本番は必ず false）──────────────────────────
@@ -1969,6 +1988,11 @@ function openRhythmCreateStage(stageNo) {
     rhythmCreateCurrentStage = def.n;
     getRhythmCreatePattern(def);
     resetRhythmCreatePreviewControls();
+    if (isStandardEdition()) {
+        rhythmVexZoomPrefs.create = RHYTHM_VEX_ZOOM_MIN;
+        syncRhythmCreateZoomUI();
+        applyStandardCreatePreviewLock();
+    }
     setRhythmCreateHowtoOpen(false);
     ensureRhythmVexFlow();
     setHomeView('rhythmCreateStage1');
