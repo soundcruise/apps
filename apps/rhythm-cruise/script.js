@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.234';
+const RHYTHM_CRUISE_VERSION = '0.9.235';
 
 function isProEdition() {
     return document.documentElement?.dataset?.appEdition === 'Pro';
@@ -3097,6 +3097,10 @@ function saveRhythmCreateAsCustomStage(title) {
 
 /* 練習STAGE保存モーダルを開く（v0.9.201）。初期名を現在のプリセット名にする（v0.9.204）。 */
 function openRhythmStageSaveModal() {
+    if (isStandardEdition()) {
+        showProLockNotice('rhythmCreateSave');
+        return;
+    }
     if (!els.rcStageSaveModal || !els.rcStageSaveModalInput) return;
     const def = getRhythmCreateStageDef();
     let baseName = '作成リズム';
@@ -5021,6 +5025,10 @@ function collectRhythmCustomEditorInputs() {
 /* 現在ドラフトを正規化して保存。既存IDがあれば上書き、未保存ドラフトなら新規追加する。
    editorStay=true のときは編集画面に留まり、それ以外は一覧へ戻る。 */
 function saveRhythmCustomEditor(editorStay) {
+    if (isStandardEdition()) {
+        showProLockNotice('proCustomStage');
+        return null;
+    }
     const d = collectRhythmCustomEditorInputs();
     if (!d) return null;
     stopPreviewRhythm();
@@ -5043,6 +5051,10 @@ function saveRhythmCustomEditor(editorStay) {
 
 /* 既存STAGE編集中の「別名で保存」。現在の編集内容を新しいIDで追加する。 */
 function saveRhythmCustomEditorAsCopy() {
+    if (isStandardEdition()) {
+        showProLockNotice('proCustomStage');
+        return null;
+    }
     const d = collectRhythmCustomEditorInputs();
     if (!d) return null;
     stopPreviewRhythm();
@@ -5144,6 +5156,10 @@ function backFromCustomTestAction() {
    pattern/grid/timeSignature/patternBars/title などは保存済みデータをそのまま使い、誤って変更しない。
    localStorage形式は変えず、既存の updateRhythmCustomStage（normalize＋保存）を再利用する。 */
 function saveRhythmCustomTestSettings() {
+    if (isStandardEdition()) {
+        showProLockNotice('proCustomStage');
+        return;
+    }
     const id = eng.editId || (eng.custom && eng.custom.id);
     const saved = id ? getSavedRhythmCustomStages().find((s) => s.id === id) : null;
     if (!saved) { showRcToast('保存できませんでした'); return; }
