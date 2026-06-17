@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="../theme.css?v=0.9.244">
+    <link rel="stylesheet" href="../theme.css?v=0.9.245">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -211,10 +211,7 @@
             <div class="home-view hidden" id="home-pro-custom-edit">
                 <div class="section-label">カスタムSTAGE編集</div>
 
-                <div class="pce-field">
-                    <label class="pce-label" for="pce-title">タイトル</label>
-                    <input type="text" id="pce-title" class="pce-input" maxlength="40" placeholder="カスタムSTAGE" autocomplete="off">
-                </div>
+                <p class="pce-stage-name" id="pce-stage-name"></p>
 
                 <div class="pce-field pce-field-row">
                     <label class="pce-label" for="pce-timesig">拍子</label>
@@ -487,9 +484,10 @@
                 <button class="btn-primary transport-main" id="play-btn">▶ 開始</button>
             </div>
 
-            <!-- 6b. PROカスタムSTAGEのみ：このSTAGEを保存（中央配置・編集からのPractice時のみ）。 -->
+            <!-- 6b. PROカスタムSTAGEのみ：保存／別名で保存（中央配置・編集からのPractice時のみ）。v0.9.245で「このSTAGEを保存」から変更。 -->
             <div class="custom-test-actions hidden" id="custom-test-actions">
-                <button type="button" class="custom-test-act is-save" id="custom-test-save">このSTAGEを保存</button>
+                <button type="button" class="custom-test-act is-save" id="custom-test-save">保存</button>
+                <button type="button" class="custom-test-act is-save-as" id="custom-test-save-as">別名で保存</button>
             </div>
             <!-- 6c. リズム作成Practice中だけ表示（v0.9.201）。 -->
             <div class="stage-save-custom-wrap hidden" id="stage-save-custom-wrap">
@@ -1221,7 +1219,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.9.244"></script>
+    <script src="../script.js?v=0.9.245"></script>
 </body>
 
 </html>

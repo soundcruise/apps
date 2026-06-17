@@ -1275,6 +1275,15 @@ h1 {
 }
 
 /* ── PROカスタムSTAGE 編集画面（v0.9.120）──────────────────── */
+/* 編集画面タイトル入力欄廃止後の現在STAGE名表示（v0.9.245）。読み取り専用テキスト。 */
+.pce-stage-name {
+    margin: 0 0 6px;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-color);
+    min-height: 1.4em;
+}
+
 .pce-field {
     width: 100%;
     display: flex;
@@ -3726,6 +3735,12 @@ h1 {
     width: 100%;
     max-width: 420px;
     margin: 10px auto 0;
+    display: flex;
+    gap: 10px;
+}
+.custom-test-actions .custom-test-act {
+    flex: 1 1 0;
+    min-width: 0;
 }
 
 /* 戻るテキストリンク（←リズム作成に戻る / ←編集に戻る）。v0.9.201。 */
@@ -3773,6 +3788,12 @@ h1 {
 .custom-test-act.is-save {
     border-color: rgba(46, 204, 113, 0.55);
     background: rgba(46, 204, 113, 0.16);
+    color: #c8f7d8;
+}
+
+.custom-test-act.is-save-as {
+    border-color: rgba(46, 204, 113, 0.40);
+    background: rgba(46, 204, 113, 0.08);
     color: #c8f7d8;
 }
 
@@ -6828,6 +6849,7 @@ body[data-rc-theme="clean-pro"] .rhythm-create-play[aria-pressed="true"] {
 body[data-rc-theme="clean-pro"] .pce-action-row .pce-save,
 body[data-rc-theme="clean-pro"] .pce-action-row .pce-save-as,
 body[data-rc-theme="clean-pro"] .custom-test-act.is-save,
+body[data-rc-theme="clean-pro"] .custom-test-act.is-save-as,
 body[data-rc-theme="clean-pro"] .stage-save-custom-btn,
 body[data-rc-theme="clean-pro"] .rhythm-create-preset-save,
 body[data-rc-theme="clean-pro"] #settings-summary-save,
@@ -6861,6 +6883,7 @@ body[data-rc-theme="clean-pro"] #hp-tap-use-btn {
 body[data-rc-theme="clean-pro"] .pce-action-row .pce-save:active,
 body[data-rc-theme="clean-pro"] .pce-action-row .pce-save-as:active,
 body[data-rc-theme="clean-pro"] .custom-test-act.is-save:active,
+body[data-rc-theme="clean-pro"] .custom-test-act.is-save-as:active,
 body[data-rc-theme="clean-pro"] .stage-save-custom-btn:active,
 body[data-rc-theme="clean-pro"] .rhythm-create-preset-save:active,
 body[data-rc-theme="clean-pro"] #settings-summary-save:active,
