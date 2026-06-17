@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.247">
+    <link rel="stylesheet" href="theme.css?v=0.9.248">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -177,6 +177,10 @@
                 </div>
 
                 <button type="button" class="btn-mini rhythm-create-preset-save" id="rc-create-preset-save">プリセットに保存</button>
+                <div class="rhythm-create-preset-save-group hidden" id="rc-create-preset-save-group">
+                    <button type="button" class="btn-mini rhythm-create-preset-save" id="rc-create-preset-overwrite">上書き保存</button>
+                    <button type="button" class="btn-mini rhythm-create-preset-save" id="rc-create-preset-saveas">名前をつけて保存</button>
+                </div>
 
                 <button type="button" class="rhythm-create-practice" id="rc-create-practice">このリズムで練習する→</button>
             </div>
@@ -196,13 +200,17 @@
             <div class="home-view hidden" id="home-pro-custom-edit">
                 <div class="section-label">カスタムSTAGE編集</div>
 
-                <p class="pce-stage-name" id="pce-stage-name"></p>
-
-                <!-- プリセット（v0.9.247）：作ったリズム＋再生設定を保存し、タップで読み込む。練習STAGE一覧とは別管理。 -->
+                <!-- プリセット（v0.9.248）：作ったリズム＋再生設定を保存し、プルダウンで選んで読み込む。練習STAGE一覧とは別管理。固定STAGE「リズムを作る」と同じUI形式。 -->
                 <div class="pce-preset-section">
-                    <div class="pce-preset-heading">プリセット</div>
-                    <div class="pce-preset-list" id="pce-preset-list"></div>
-                    <p class="pce-preset-empty" id="pce-preset-empty">まだ保存されたプリセットはありません。</p>
+                    <div class="rhythm-create-preset-field">
+                        <label class="rhythm-create-presets-label" for="pce-preset-select">プリセット</label>
+                        <select class="pce-select rhythm-create-preset-select" id="pce-preset-select">
+                            <!-- script.js が描画 -->
+                        </select>
+                    </div>
+                    <div class="rhythm-create-preset-actions hidden" id="pce-preset-actions">
+                        <button type="button" class="btn-mini btn-reset" id="pce-preset-delete-btn">プリセット削除</button>
+                    </div>
                 </div>
 
                 <div class="pce-field pce-field-row">
@@ -297,8 +305,12 @@
 
                     <div class="pce-action-section">
                         <div class="pce-action-heading">プリセット</div>
-                        <div class="pce-action-row">
+                        <div class="pce-action-row" id="pce-save-single-row">
                             <button type="button" class="settings-top-main pce-save" id="pce-save">プリセットに保存</button>
+                        </div>
+                        <div class="pce-action-row pce-save-group hidden" id="pce-save-group">
+                            <button type="button" class="settings-top-main pce-save pce-save-overwrite" id="pce-save-overwrite">上書き保存</button>
+                            <button type="button" class="settings-top-main pce-save pce-save-as" id="pce-save-as">名前をつけて保存</button>
                         </div>
                     </div>
 
@@ -479,6 +491,10 @@
                  v0.9.247：保存系は「練習STAGEとして保存」のみ。既存STAGE由来でも常に新規の練習STAGEとして保存する。 -->
             <div class="custom-test-actions hidden" id="custom-test-actions">
                 <button type="button" class="custom-test-act is-save" id="custom-test-save">練習STAGEとして保存</button>
+                <div class="custom-test-save-group hidden" id="custom-test-save-group">
+                    <button type="button" class="custom-test-act is-save" id="custom-test-overwrite">上書き保存</button>
+                    <button type="button" class="custom-test-act is-save-as" id="custom-test-saveas">名前をつけて保存</button>
+                </div>
             </div>
             <!-- 6c. リズム作成Practice中だけ表示（v0.9.201）。 -->
             <div class="stage-save-custom-wrap hidden" id="stage-save-custom-wrap">
@@ -1299,7 +1315,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.247"></script>
+    <script src="script.js?v=0.9.248"></script>
 </body>
 
 </html>

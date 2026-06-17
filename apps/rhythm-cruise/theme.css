@@ -631,6 +631,26 @@ h1 {
     display: none;
 }
 
+/* リズム作成プリセット保存の出し分け（v0.9.248）。
+   公式/未選択＝「プリセットに保存」1本、ユーザープリセット選択中＝「上書き保存」「名前をつけて保存」の2本。 */
+.rhythm-create-preset-save-group {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+}
+.rhythm-create-preset-save-group.hidden {
+    display: none;
+}
+.rhythm-create-preset-save-group .btn-mini.rhythm-create-preset-save {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+}
+.rhythm-create-preset-save-group .btn-mini.rhythm-create-preset-save#rc-create-preset-saveas {
+    border-color: rgba(46, 204, 113, 0.40);
+    background: rgba(46, 204, 113, 0.08);
+}
+
 .rhythm-create-preset-actions .btn-mini {
     flex: 1 1 92px;
     min-height: 38px;
@@ -1275,16 +1295,9 @@ h1 {
 }
 
 /* ── PROカスタムSTAGE 編集画面（v0.9.120）──────────────────── */
-/* 編集画面タイトル入力欄廃止後の現在STAGE名表示（v0.9.245）。読み取り専用テキスト。 */
-.pce-stage-name {
-    margin: 0 0 6px;
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--text-color);
-    min-height: 1.4em;
-}
-
-/* 編集画面のプリセット一覧（v0.9.247） */
+/* 編集画面のプリセット欄（v0.9.248：固定STAGE「リズムを作る」と同じプルダウン形式へ統一）。
+   プルダウン本体（.rhythm-create-preset-field）と削除導線（.rhythm-create-preset-actions）は
+   リズム作成側と共通クラスを流用する。ここは外枠だけを与える。 */
 .pce-preset-section {
     width: 100%;
     display: flex;
@@ -1297,76 +1310,8 @@ h1 {
     background: rgba(253, 246, 238, 0.04);
 }
 
-.pce-preset-heading {
-    color: rgba(253, 246, 238, 0.58);
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-}
-
-.pce-preset-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.pce-preset-list:empty {
-    display: none;
-}
-
-.pce-preset-card {
-    display: inline-flex;
-    align-items: stretch;
-    border: 1px solid rgba(46, 204, 113, 0.45);
-    border-radius: 10px;
-    background: rgba(46, 204, 113, 0.10);
-    overflow: hidden;
-}
-
-.pce-preset-load {
-    appearance: none;
-    border: none;
-    background: transparent;
-    color: #c8f7d8;
-    font-size: 0.88rem;
-    font-weight: 700;
-    padding: 9px 12px;
-    cursor: pointer;
-    max-width: 220px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.pce-preset-load:active {
-    background: rgba(46, 204, 113, 0.18);
-}
-
-.pce-preset-del {
-    appearance: none;
-    border: none;
-    border-left: 1px solid rgba(46, 204, 113, 0.35);
-    background: transparent;
-    color: rgba(253, 246, 238, 0.6);
-    font-size: 1rem;
-    line-height: 1;
-    padding: 0 11px;
-    cursor: pointer;
-}
-
-.pce-preset-del:active {
-    background: rgba(231, 76, 60, 0.22);
-    color: #ffd6cf;
-}
-
-.pce-preset-empty {
+.pce-preset-section .rhythm-create-preset-field {
     margin: 0;
-    color: rgba(253, 246, 238, 0.5);
-    font-size: 0.82rem;
-}
-
-.pce-preset-empty.hidden {
-    display: none;
 }
 
 .pce-field {
@@ -3824,6 +3769,19 @@ h1 {
     gap: 10px;
 }
 .custom-test-actions .custom-test-act {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+/* Practice保存ボタンの出し分け（v0.9.248）。
+   新規＝「練習STAGEとして保存」1本、既存STAGE由来＝「上書き保存」「名前をつけて保存」の2本。 */
+.custom-test-save-group {
+    flex: 1 1 100%;
+    display: flex;
+    gap: 10px;
+}
+.custom-test-save-group.hidden { display: none; }
+.custom-test-save-group .custom-test-act {
     flex: 1 1 0;
     min-width: 0;
 }
@@ -6327,8 +6285,6 @@ body[data-rc-theme="clean-pro"] .setting-note-btn {
 
 body[data-rc-theme="clean-pro"] .section-label,
 body[data-rc-theme="clean-pro"] .pce-action-heading,
-body[data-rc-theme="clean-pro"] .pce-preset-heading,
-body[data-rc-theme="clean-pro"] .pce-preset-empty,
 body[data-rc-theme="clean-pro"] .app-footer,
 body[data-rc-theme="clean-pro"] .app-version-display,
 body[data-rc-theme="clean-pro"] .setting-note,
