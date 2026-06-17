@@ -10,7 +10,19 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.243';
+const RHYTHM_CRUISE_VERSION = '0.9.244';
+
+/* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
+   ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
+   （pro_a9f4k7q2m8z/ から ../script.js を参照）でも常に rhythm-cruise/ 直下を指す。
+   これで vendor/vexflow.js が PRO版で 404 にならず、譜面UIが旧Canvasへフォールバックしない（v0.9.244）。 */
+const RHYTHM_ASSET_BASE = (() => {
+    try {
+        const src = document.currentScript && document.currentScript.src;
+        if (src) return src.replace(/[?#].*$/, '').replace(/[^/]*$/, '');
+    } catch (_) { /* ignore */ }
+    return '';
+})();
 
 function isProEdition() {
     return document.documentElement?.dataset?.appEdition === 'Pro';
@@ -3704,7 +3716,7 @@ function ensureRhythmVexFlow(cb) {
     if (rhythmVexState === 'loading') return;
     rhythmVexState = 'loading';
     const s = document.createElement('script');
-    s.src = 'vendor/vexflow.js?v=0.9.140';
+    s.src = RHYTHM_ASSET_BASE + 'vendor/vexflow.js?v=' + RHYTHM_CRUISE_VERSION; // PRO版でも rhythm-cruise/vendor/ を指す。?v= は現在バージョンに連動（v0.9.244）
     s.async = true;
     s.onload = () => {
         rhythmVexState = getRhythmVexFlow() ? 'ready' : 'error';
