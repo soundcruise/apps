@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.245';
+const RHYTHM_CRUISE_VERSION = '0.9.246';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -127,6 +127,19 @@ function lockProControlTap(el, featureName) {
     el.classList.add('is-pro-locked-tap');
     el.dataset.proFeature = featureName;
     if (el.tagName === 'INPUT') el.readOnly = true;
+}
+
+/* PROカスタムSTAGE保存ボタンの文言/表示を保存状態で切り替える（v0.9.246）。
+   未保存（保存済みリストに存在しないドラフト）：主ボタン＝「保存」のみ、別名で保存は隠す。
+   保存済み：主ボタン＝「上書き保存」、別名で保存を表示。
+   通常版では文言設定後に🔒アイコンを再付与する（textContent変更でアイコンが消えるため）。 */
+function updateRhythmSaveButtonState(saveBtn, saveAsBtn, isExisting) {
+    if (saveBtn) saveBtn.textContent = isExisting ? '上書き保存' : '保存';
+    if (saveAsBtn) saveAsBtn.classList.toggle('hidden', !isExisting);
+    if (isStandardEdition()) {
+        appendProLockIcon(saveBtn);
+        if (isExisting) appendProLockIcon(saveAsBtn);
+    }
 }
 
 /* 通常版PRO専用コントロールのタップを握って案内を出す（既存ハンドラへ伝播させない）。 */
@@ -3647,7 +3660,8 @@ function renderRhythmCustomEditor() {
     syncRhythmFeelSegUI(); // リズムタイプ（ストレート/スウィング）の選択状態（v0.9.165）
     if (els.pceBarsVal) els.pceBarsVal.textContent = String(d.bars);
     if (els.pceDelete) els.pceDelete.classList.toggle('hidden', !rhythmCustomStageExists(d.id));
-    if (els.pceSaveAs) els.pceSaveAs.classList.toggle('hidden', !rhythmCustomStageExists(d.id));
+    // v0.9.246: 保存ボタンの文言/表示を保存状態で切り替える（未保存=「保存」のみ／保存済み=「上書き保存」「別名で保存」）
+    updateRhythmSaveButtonState(els.pceSave, els.pceSaveAs, rhythmCustomStageExists(d.id));
     rhythmVexZoomPrefs.editor = clampRhythmVexZoom(d.zoom);
     syncRhythmEditorZoomUI();
     renderRhythmEditorPattern();
@@ -5369,6 +5383,8 @@ function savePracticeCustomStage() {
                 eng.editId = result.id;
                 proCustomEditDraft = result; // 新規保存後もドラフトを同期
             }
+            // v0.9.246: 保存後は保存済み扱い＝「上書き保存」「別名で保存」へ切り替え（再保存は同ID上書き）
+            updateRhythmSaveButtonState(els.customTestSave, els.customTestSaveAs, true);
             renderRhythmCustomStages();
             renderRhythmHomeCustomStages();
             showRcToast(isExisting ? '保存しました' : 'カスタムSTAGEを保存しました');
@@ -5407,6 +5423,8 @@ function savePracticeCustomStageAsCopy() {
             eng.custom = result;
             eng.editId = result.id;
             proCustomEditDraft = result; // 編集ドラフトも同期（「←編集に戻る」時に最新状態を反映）
+            // v0.9.246: 別名保存後はコピーが現在STAGE＝保存済み扱い（「上書き保存」「別名で保存」）
+            updateRhythmSaveButtonState(els.customTestSave, els.customTestSaveAs, true);
             renderRhythmCustomStages();
             renderRhythmHomeCustomStages();
             showRcToast('別名で保存しました');
@@ -5701,6 +5719,8 @@ function openRhythmProCustomTest(id, source = 'home', _stageOverride = null) {
     //   保存済みカード＝「←編集する」だけ表示（保存ボタンは不要）。
     const fromEditor = eng.testSource === 'editor';
     if (els.customTestActions) els.customTestActions.classList.toggle('hidden', !fromEditor); // 保存行は編集時のみ
+    // v0.9.246: 未保存=「保存」のみ／保存済み=「上書き保存」「別名で保存」を出し分ける（編集由来のときのみ）
+    if (fromEditor) updateRhythmSaveButtonState(els.customTestSave, els.customTestSaveAs, rhythmCustomStageExists(stage.id));
     if (els.customTestEditBack) els.customTestEditBack.textContent = fromEditor ? '←編集に戻る' : '←編集する';
     if (els.practiceBackWrap) els.practiceBackWrap.classList.remove('hidden');
     applyRhythmCustomStagePreviewZoom(stage);      // 保存済みPROカスタムSTAGEの拡大率をPracticeへ反映
