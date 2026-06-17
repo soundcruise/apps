@@ -1284,6 +1284,91 @@ h1 {
     min-height: 1.4em;
 }
 
+/* 編集画面のプリセット一覧（v0.9.247） */
+.pce-preset-section {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0 0 14px;
+    padding: 12px;
+    border: 1px solid rgba(253, 246, 238, 0.14);
+    border-radius: 12px;
+    background: rgba(253, 246, 238, 0.04);
+}
+
+.pce-preset-heading {
+    color: rgba(253, 246, 238, 0.58);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+}
+
+.pce-preset-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.pce-preset-list:empty {
+    display: none;
+}
+
+.pce-preset-card {
+    display: inline-flex;
+    align-items: stretch;
+    border: 1px solid rgba(46, 204, 113, 0.45);
+    border-radius: 10px;
+    background: rgba(46, 204, 113, 0.10);
+    overflow: hidden;
+}
+
+.pce-preset-load {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: #c8f7d8;
+    font-size: 0.88rem;
+    font-weight: 700;
+    padding: 9px 12px;
+    cursor: pointer;
+    max-width: 220px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pce-preset-load:active {
+    background: rgba(46, 204, 113, 0.18);
+}
+
+.pce-preset-del {
+    appearance: none;
+    border: none;
+    border-left: 1px solid rgba(46, 204, 113, 0.35);
+    background: transparent;
+    color: rgba(253, 246, 238, 0.6);
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0 11px;
+    cursor: pointer;
+}
+
+.pce-preset-del:active {
+    background: rgba(231, 76, 60, 0.22);
+    color: #ffd6cf;
+}
+
+.pce-preset-empty {
+    margin: 0;
+    color: rgba(253, 246, 238, 0.5);
+    font-size: 0.82rem;
+}
+
+.pce-preset-empty.hidden {
+    display: none;
+}
+
 .pce-field {
     width: 100%;
     display: flex;
@@ -6242,6 +6327,8 @@ body[data-rc-theme="clean-pro"] .setting-note-btn {
 
 body[data-rc-theme="clean-pro"] .section-label,
 body[data-rc-theme="clean-pro"] .pce-action-heading,
+body[data-rc-theme="clean-pro"] .pce-preset-heading,
+body[data-rc-theme="clean-pro"] .pce-preset-empty,
 body[data-rc-theme="clean-pro"] .app-footer,
 body[data-rc-theme="clean-pro"] .app-version-display,
 body[data-rc-theme="clean-pro"] .setting-note,
@@ -6257,6 +6344,7 @@ body[data-rc-theme="clean-pro"] .section-label::before,
 body[data-rc-theme="clean-pro"] .section-label::after,
 body[data-rc-theme="clean-pro"] .in-game-refresh-bar,
 body[data-rc-theme="clean-pro"] .manual-actions,
+body[data-rc-theme="clean-pro"] .pce-preset-section,
 body[data-rc-theme="clean-pro"] .pce-action-danger {
     border-color: rgba(245, 239, 228, 0.08);
 }

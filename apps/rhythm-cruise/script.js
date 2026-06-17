@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.246';
+const RHYTHM_CRUISE_VERSION = '0.9.247';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -74,6 +74,14 @@ const RHYTHM_PRO_LOCK_MESSAGES = {
         title: 'PRO版限定機能です',
         body: '作成したリズムをプリセットに保存する機能は、PRO版で使えます。'
     },
+    proCustomStage: {
+        title: 'PRO版限定機能です',
+        body: 'カスタムSTAGEの保存はPRO版で利用できます。'
+    },
+    proCustomPresetSave: {
+        title: 'PRO版限定機能です',
+        body: 'カスタムSTAGEをプリセットに保存する機能は、PRO版で使えます。'
+    },
     proStrokeChordMode: {
         title: 'PRO版限定機能です',
         body: 'コードストローク検出モードは、PRO版で使えます。'
@@ -129,17 +137,21 @@ function lockProControlTap(el, featureName) {
     if (el.tagName === 'INPUT') el.readOnly = true;
 }
 
-/* PROカスタムSTAGE保存ボタンの文言/表示を保存状態で切り替える（v0.9.246）。
-   未保存（保存済みリストに存在しないドラフト）：主ボタン＝「保存」のみ、別名で保存は隠す。
-   保存済み：主ボタン＝「上書き保存」、別名で保存を表示。
-   通常版では文言設定後に🔒アイコンを再付与する（textContent変更でアイコンが消えるため）。 */
-function updateRhythmSaveButtonState(saveBtn, saveAsBtn, isExisting) {
-    if (saveBtn) saveBtn.textContent = isExisting ? '上書き保存' : '保存';
-    if (saveAsBtn) saveAsBtn.classList.toggle('hidden', !isExisting);
-    if (isStandardEdition()) {
-        appendProLockIcon(saveBtn);
-        if (isExisting) appendProLockIcon(saveAsBtn);
-    }
+/* 確認音バランス（クリック↔ストローク）スライダーの 0〜100 値を取得/反映する共通ヘルパー（v0.9.247）。
+   プリセット保存時に現在のスライダー値を取り込み、呼び出し時に復元するために使う。
+   内部の rhythmPreviewSoundBalance は -1〜+1。スライダーは 0〜100（50=中央）。 */
+function clampRhythmBalanceSliderValue(v) {
+    const n = Math.round(Number(v));
+    return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 50;
+}
+function readRhythmBalanceSliderValue(slider) {
+    if (slider && Number.isFinite(Number(slider.value))) return clampRhythmBalanceSliderValue(slider.value);
+    return clampRhythmBalanceSliderValue((rhythmPreviewSoundBalance + 1) * 50);
+}
+function applyRhythmBalanceSliderValue(slider, value) {
+    const v = clampRhythmBalanceSliderValue(value);
+    if (slider) slider.value = String(v);
+    setRhythmPreviewSoundBalanceFromValue(v);
 }
 
 /* 通常版PRO専用コントロールのタップを握って案内を出す（既存ハンドラへ伝播させない）。 */
@@ -189,10 +201,8 @@ function applyStandardPracticePreviewLock() {
         els.loopToggle && els.loopToggle.parentElement && els.loopToggle.parentElement.querySelector('.preview-loop-cap'),
         els.stagePreviewResetDefault,
     ].forEach(appendProLockIcon);
-    lockProControlTap(els.customTestSave, 'proCustomStage'); // 「保存」はPRO専用（v0.9.245）
+    lockProControlTap(els.customTestSave, 'proCustomStage'); // 「練習STAGEとして保存」はPRO専用（v0.9.247）
     appendProLockIcon(els.customTestSave);
-    lockProControlTap(els.customTestSaveAs, 'proCustomStage'); // 「別名で保存」はPRO専用（v0.9.245）
-    appendProLockIcon(els.customTestSaveAs);
     updateStageSettingsUI();
 }
 
@@ -838,7 +848,6 @@ const els = {
     pceBpm: $('pce-bpm'),
     pceBpmDown: $('pce-bpm-down'),
     pceBpmUp: $('pce-bpm-up'),
-    pceSaveAs: $('pce-save-as'),
     pceBarsDown: $('pce-bars-down'),
     pceBarsUp: $('pce-bars-up'),
     pceBarsVal: $('pce-bars-val'),
@@ -851,6 +860,8 @@ const els = {
     pceHowtoToggle: $('pce-howto-toggle'),
     pceHowtoBody: $('pce-howto-body'),
     pceSave: $('pce-save'),
+    pcePresetList: $('pce-preset-list'),       // v0.9.247 編集画面のプリセット一覧
+    pcePresetEmpty: $('pce-preset-empty'),     // v0.9.247 プリセット空表示
     pceTest: $('pce-test'),
     pceCopy: $('pce-copy'),
     pceBack: $('pce-back'),
@@ -862,8 +873,7 @@ const els = {
     practiceEditBack: $('practice-edit-back'),
     customTestActions: $('custom-test-actions'),
     customTestEditBack: $('custom-test-edit-back'),
-    customTestSave: $('custom-test-save'),
-    customTestSaveAs: $('custom-test-save-as'),  // v0.9.245: 「別名で保存」ボタン
+    customTestSave: $('custom-test-save'),  // v0.9.247: 「練習STAGEとして保存」ボタン
     customTestPreview: $('custom-test-preview'),
     customTestPreviewToggle: $('custom-test-preview-toggle'),
     customTestPreviewBody: $('custom-test-preview-body'),
@@ -1442,6 +1452,13 @@ const RHYTHM_CREATE_PRESET_OFFICIAL_PREFIX = 'official:';
 const RHYTHM_CREATE_PRESET_USER_PREFIX = 'user:';
 let rhythmCreatePresetModalHandler = null;
 
+/* PROカスタムSTAGE編集画面のプリセット（v0.9.247）。
+   練習STAGE保存（state.rhythmProCustomStages）とは別ストアで管理し、一覧に混入させない。
+   1件＝{ id, name, settings(正規化済みカスタムSTAGE設定), balance(0〜100), createdAt, updatedAt }。 */
+const RHYTHM_CUSTOM_PRESETS_KEY = 'rhythmCruiseCustomPresets:v1';
+const RHYTHM_CUSTOM_PRESET_LIMIT = 24;
+const RHYTHM_CUSTOM_PRESET_NAME_MAX = 40;
+
 const RHYTHM_VEX_ZOOM_KEY = 'rhythmCruiseVexZoom:v1';
 const RHYTHM_STAGE_PREFS_KEY = 'rhythmCruiseStagePrefs:v1';
 const RHYTHM_VEX_ZOOM_MIN = 1.0;
@@ -1913,6 +1930,12 @@ function normalizeRhythmCreateUserPreset(raw) {
     const pattern = normalizeRhythmCreatePattern(def, Array.isArray(raw.pattern) ? raw.pattern : [], length);
     const dirs = normalizeRhythmCreatePresetDirs(def, pattern, Array.isArray(raw.dirs) ? raw.dirs : []);
     const now = Date.now();
+    // v0.9.247: BPM / 小節 / 拡大 / クリック-ストロークも保存・復元する。
+    // 旧プリセット（これらのキーが無い）は null とし、呼び出し時は現在値を維持する（互換維持）。
+    const bpm = Number.isFinite(Number(raw.bpm)) ? clampRhythmCreateBpm(raw.bpm) : null;
+    const bars = Number.isFinite(Number(raw.bars)) ? clampRhythmCreateBars(raw.bars) : null;
+    const zoom = Number.isFinite(Number(raw.zoom)) ? clampRhythmVexZoom(raw.zoom) : null;
+    const balance = Number.isFinite(Number(raw.balance)) ? clampRhythmBalanceSliderValue(raw.balance) : null;
     return {
         id: String(raw.id || makeRhythmCreatePresetId()),
         stageN: def.n,
@@ -1920,6 +1943,10 @@ function normalizeRhythmCreateUserPreset(raw) {
         pattern,
         dirs,
         patternBars,
+        bpm,
+        bars,
+        zoom,
+        balance,
         createdAt: Number.isFinite(Number(raw.createdAt)) ? Number(raw.createdAt) : now,
         updatedAt: Number.isFinite(Number(raw.updatedAt)) ? Number(raw.updatedAt) : now,
     };
@@ -2434,12 +2461,20 @@ function applyRhythmCreateUserPreset(preset) {
     if (!preset || preset.stageN !== def.n) return;
     stopPreviewRhythm();
     applyRhythmCreatePresetShape(def);
+    // v0.9.247: 保存済みなら BPM / 拡大 / クリック-ストローク を先に復元する（旧プリセットは null＝現在値を維持）。
+    if (preset.bpm != null) setRhythmCreateBpmFromValue(preset.bpm);
+    if (preset.zoom != null) setRhythmCreateZoom(preset.zoom);
+    if (preset.balance != null) applyRhythmBalanceSliderValue(els.rcCreatePreviewBalance, preset.balance);
+    // 小節：保存値があれば優先。無ければ従来どおりパターン長以上を保証する。
+    if (preset.bars != null) rhythmCreateBars = clampRhythmCreateBars(preset.bars);
     rhythmCreatePatternBars = clampRhythmCreatePresetPatternBars(preset.patternBars);
     if (getRhythmCreateBars() < rhythmCreatePatternBars) rhythmCreateBars = rhythmCreatePatternBars;
+    if (els.rcCreateBpm) els.rcCreateBpm.value = String(getRhythmCreateBpm());
     syncRhythmCreatePatternBarsUI();
     if (els.rcCreateBars) els.rcCreateBars.value = String(getRhythmCreateBars());
     setRhythmCreatePatternWithDirs(def, preset.pattern, preset.dirs);
     rhythmCreateSelectedPreset[def.n] = rhythmCreatePresetSelectValue('user', preset.id);
+    syncRhythmCreateZoomUI();
     renderRhythmCreateStageGrid();
     renderRhythmCreatePresets();
 }
@@ -2528,6 +2563,11 @@ function saveCurrentRhythmCreatePreset() {
         pattern,
         dirs: normalizeRhythmCreatePresetDirs(def, pattern, dirs),
         patternBars: getRhythmCreatePatternBars(),
+        // v0.9.247: 再生設定（BPM/小節/拡大/クリック-ストローク）も一緒に保存する。
+        bpm: clampRhythmCreateBpm(getRhythmCreateBpm()),
+        bars: clampRhythmCreateBars(getRhythmCreateBars()),
+        zoom: clampRhythmVexZoom(rhythmVexZoomPrefs.create),
+        balance: readRhythmBalanceSliderValue(els.rcCreatePreviewBalance),
         createdAt: now,
         updatedAt: now,
     };
@@ -3200,6 +3240,91 @@ function updateRhythmCustomStage(stage) {
     return incoming;
 }
 
+/* ═══════════ PROカスタムSTAGE編集画面のプリセット（v0.9.247）═══════════
+   練習STAGE（state.rhythmProCustomStages）とは独立した localStorage ストア。
+   編集中のパターン＋再生設定（BPM/小節/拡大/クリック-ストローク）に名前を付けて保存し、
+   タップで編集画面へ読み込む。一覧表示（STAGE一覧）には混ざらない。 */
+function makeRhythmCustomPresetId() {
+    return 'rccustpreset_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+}
+
+function sanitizeRhythmCustomPresetName(name) {
+    return String(name == null ? '' : name).trim().slice(0, RHYTHM_CUSTOM_PRESET_NAME_MAX);
+}
+
+function normalizeRhythmCustomPreset(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const name = sanitizeRhythmCustomPresetName(raw.name);
+    if (!name) return null;
+    const settings = normalizeRhythmCustomStageSettings(raw.settings);
+    if (!settings) return null;
+    const now = Date.now();
+    return {
+        id: String(raw.id || makeRhythmCustomPresetId()),
+        name,
+        settings,
+        balance: Number.isFinite(Number(raw.balance)) ? clampRhythmBalanceSliderValue(raw.balance) : 50,
+        createdAt: Number.isFinite(Number(raw.createdAt)) ? Number(raw.createdAt) : now,
+        updatedAt: Number.isFinite(Number(raw.updatedAt)) ? Number(raw.updatedAt) : now,
+    };
+}
+
+function loadRhythmCustomPresets() {
+    try {
+        const raw = JSON.parse(localStorage.getItem(RHYTHM_CUSTOM_PRESETS_KEY) || '[]');
+        if (!Array.isArray(raw)) return [];
+        return raw.map(normalizeRhythmCustomPreset).filter(Boolean).slice(0, RHYTHM_CUSTOM_PRESET_LIMIT);
+    } catch (e) {
+        return [];
+    }
+}
+
+function saveRhythmCustomPresets(list) {
+    try {
+        const safe = (Array.isArray(list) ? list : []).map(normalizeRhythmCustomPreset).filter(Boolean).slice(0, RHYTHM_CUSTOM_PRESET_LIMIT);
+        localStorage.setItem(RHYTHM_CUSTOM_PRESETS_KEY, JSON.stringify(safe));
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+function makeUniqueRhythmCustomPresetName(baseName, ignoreId = null) {
+    const base = sanitizeRhythmCustomPresetName(baseName) || 'プリセット';
+    const existing = new Set(loadRhythmCustomPresets().filter((p) => p.id !== ignoreId).map((p) => p.name));
+    if (!existing.has(base)) return base;
+    for (let i = 2; i < 1000; i++) {
+        const cand = sanitizeRhythmCustomPresetName(base + ' (' + i + ')');
+        if (!existing.has(cand)) return cand;
+    }
+    return sanitizeRhythmCustomPresetName(base + ' ' + Date.now());
+}
+
+/* 1件追加。上限超過なら null。成功したら正規化済みプリセットを返す。 */
+function addRhythmCustomPreset(name, settings, balance) {
+    const list = loadRhythmCustomPresets();
+    if (list.length >= RHYTHM_CUSTOM_PRESET_LIMIT) return null;
+    const preset = normalizeRhythmCustomPreset({
+        id: makeRhythmCustomPresetId(),
+        name: makeUniqueRhythmCustomPresetName(name),
+        settings,
+        balance,
+    });
+    if (!preset) return null;
+    list.push(preset);
+    if (!saveRhythmCustomPresets(list)) return null;
+    return preset;
+}
+
+/* id指定で削除。削除できたら true。 */
+function deleteRhythmCustomPresetById(id) {
+    if (!id) return false;
+    const list = loadRhythmCustomPresets();
+    const filtered = list.filter((p) => p.id !== id);
+    if (filtered.length === list.length) return false;
+    return saveRhythmCustomPresets(filtered);
+}
+
 /* id指定で「タイトルだけ」を更新（名前の編集用・v0.9.169）。
    pattern / bpm / rhythmFeel / judgeTargets などの中身は一切変えない。成功したら true。 */
 function renameRhythmCustomStageById(id, newTitle) {
@@ -3660,11 +3785,94 @@ function renderRhythmCustomEditor() {
     syncRhythmFeelSegUI(); // リズムタイプ（ストレート/スウィング）の選択状態（v0.9.165）
     if (els.pceBarsVal) els.pceBarsVal.textContent = String(d.bars);
     if (els.pceDelete) els.pceDelete.classList.toggle('hidden', !rhythmCustomStageExists(d.id));
-    // v0.9.246: 保存ボタンの文言/表示を保存状態で切り替える（未保存=「保存」のみ／保存済み=「上書き保存」「別名で保存」）
-    updateRhythmSaveButtonState(els.pceSave, els.pceSaveAs, rhythmCustomStageExists(d.id));
+    // v0.9.247: 編集画面はプリセット作成・呼び出しの場。保存系は「プリセットに保存」のみ（上書き/別名は廃止）。
+    if (els.pceSave) els.pceSave.textContent = 'プリセットに保存';
+    renderRhythmCustomEditorPresets();
     rhythmVexZoomPrefs.editor = clampRhythmVexZoom(d.zoom);
     syncRhythmEditorZoomUI();
     renderRhythmEditorPattern();
+}
+
+/* 編集画面のプリセット一覧を描画（v0.9.247）。
+   空ならガイド文、保存があればカード（タップで読み込み・×で削除）を並べる。 */
+function renderRhythmCustomEditorPresets() {
+    const list = loadRhythmCustomPresets();
+    if (els.pcePresetEmpty) els.pcePresetEmpty.classList.toggle('hidden', list.length > 0);
+    if (!els.pcePresetList) return;
+    els.pcePresetList.innerHTML = '';
+    list.forEach((p) => {
+        const card = document.createElement('div');
+        card.className = 'pce-preset-card';
+        const load = document.createElement('button');
+        load.type = 'button';
+        load.className = 'pce-preset-load';
+        load.dataset.id = p.id;
+        load.dataset.act = 'load';
+        load.textContent = p.name;
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'pce-preset-del';
+        del.dataset.id = p.id;
+        del.dataset.act = 'delete';
+        del.setAttribute('aria-label', p.name + ' を削除');
+        del.textContent = '×';
+        card.appendChild(load);
+        card.appendChild(del);
+        els.pcePresetList.appendChild(card);
+    });
+}
+
+/* プリセットを編集画面へ読み込む（v0.9.247）。
+   パターンと再生設定（BPM/小節/拡大/クリック-ストローク）を復元する。
+   現在ドラフトの id / title は保持し、STAGE一覧の保存状態には影響させない。 */
+function applyRhythmCustomEditorPreset(id) {
+    const preset = loadRhythmCustomPresets().find((p) => p.id === id);
+    if (!preset || !proCustomEditDraft) return;
+    stopPreviewRhythm();
+    const s = normalizeRhythmCustomStageSettings(preset.settings);
+    if (!s) return;
+    const cur = proCustomEditDraft;
+    proCustomEditDraft = { ...s, id: cur.id, title: cur.title };
+    rhythmVexZoomPrefs.editor = clampRhythmVexZoom(proCustomEditDraft.zoom);
+    applyRhythmBalanceSliderValue(els.pcePreviewBalance, preset.balance);
+    renderRhythmCustomEditor();
+    if (isStandardEdition()) applyStandardProCustomEditorSettingsLock();
+    showRcToast('プリセットを読み込みました');
+}
+
+/* 編集画面のプリセット削除（v0.9.247）。確認後に削除して一覧を更新。 */
+function deleteRhythmCustomEditorPreset(id) {
+    const preset = loadRhythmCustomPresets().find((p) => p.id === id);
+    if (!preset) return;
+    if (!window.confirm('プリセット「' + preset.name + '」を削除しますか？')) return;
+    deleteRhythmCustomPresetById(id);
+    renderRhythmCustomEditorPresets();
+}
+
+/* 編集画面の「プリセットに保存」（v0.9.247）。
+   現在のパターン＋再生設定を名前付きでプリセット保存する（練習STAGEとしては保存しない）。 */
+function saveRhythmCustomEditorAsPreset() {
+    if (isStandardEdition()) { showProLockNotice('proCustomPresetSave'); return; }
+    const d = collectRhythmCustomEditorInputs();
+    if (!d) return;
+    stopPreviewRhythm();
+    if (loadRhythmCustomPresets().length >= RHYTHM_CUSTOM_PRESET_LIMIT) {
+        showRcToast(`保存できるプリセットの上限（${RHYTHM_CUSTOM_PRESET_LIMIT}件）に達しています`);
+        return;
+    }
+    openRhythmCreatePresetNameModal(
+        'プリセットに保存',
+        '現在のリズムに名前をつけて保存します。',
+        d.title || '',
+        (name) => {
+            const settings = normalizeRhythmCustomStageSettings(d);
+            const balance = readRhythmBalanceSliderValue(els.pcePreviewBalance);
+            const preset = addRhythmCustomPreset(name, settings, balance);
+            if (!preset) { showRcToast('保存できませんでした'); return; }
+            renderRhythmCustomEditorPresets();
+            showRcToast('プリセットに保存しました');
+        }
+    );
 }
 
 /* リズムタイプ・セグメントの選択状態をドラフト(rhythmFeel)に合わせる（v0.9.165）。 */
@@ -5189,78 +5397,6 @@ function collectRhythmCustomEditorInputs() {
     return d;
 }
 
-/* 現在ドラフトをタイトルモーダル経由で保存。既存IDがあれば上書き、未保存ドラフトなら新規追加する。
-   editorStay=true のときは編集画面に留まり、それ以外は一覧へ戻る。（v0.9.245：タイトルはモーダルで入力） */
-function saveRhythmCustomEditor(editorStay) {
-    if (isStandardEdition()) {
-        showProLockNotice('proCustomStage');
-        return null;
-    }
-    const d = collectRhythmCustomEditorInputs();
-    if (!d) return null;
-    stopPreviewRhythm();
-    const isExisting = rhythmCustomStageExists(d.id);
-    openRhythmCreatePresetNameModal(
-        isExisting ? '上書き保存' : 'STAGEを保存',
-        '',
-        d.title || '',
-        (title) => {
-            d.title = title;
-            const saved = isExisting ? updateRhythmCustomStage(d) : addRhythmCustomStage(d);
-            if (!saved) { showRcToast('保存できませんでした'); return; }
-            proCustomEditDraft = saved;
-            proCustomEditSnapshot = JSON.stringify(proCustomEditDraft);
-            renderRhythmCustomStages();
-            renderRhythmHomeCustomStages();
-            if (editorStay === true) {
-                renderRhythmCustomEditor();
-                showRcToast('保存しました');
-            } else {
-                setHomeView('rhythm');
-                showRcToast(isExisting ? '保存しました' : 'カスタムSTAGEを保存しました');
-            }
-        }
-    );
-    return null; // モーダルで非同期保存のため即時返却なし
-}
-
-/* 既存STAGE編集中の「別名で保存」。タイトルモーダル経由で新しいIDの別STAGEとして保存する。（v0.9.245） */
-function saveRhythmCustomEditorAsCopy() {
-    if (isStandardEdition()) {
-        showProLockNotice('proCustomStage');
-        return null;
-    }
-    const d = collectRhythmCustomEditorInputs();
-    if (!d) return null;
-    stopPreviewRhythm();
-    if (!rhythmCustomStageExists(d.id)) {
-        // 未保存ドラフトは「別名で保存」でも新規保存として扱う
-        saveRhythmCustomEditor(false);
-        return null;
-    }
-    if (getSavedRhythmCustomStages().length >= RHYTHM_CUSTOM_STAGE_MAX_SAVED) {
-        showRcToast(`保存できる上限（${RHYTHM_CUSTOM_STAGE_MAX_SAVED}件）に達しています`);
-        return null;
-    }
-    const defaultTitle = ((d.title || '') + ' コピー').trim();
-    openRhythmCreatePresetNameModal(
-        '別名で保存',
-        '',
-        defaultTitle,
-        (title) => {
-            const saved = addRhythmCustomStage({ ...d, id: generateRhythmCustomStageId(), title });
-            if (!saved) { showRcToast('保存できませんでした'); return; }
-            proCustomEditDraft = saved;
-            proCustomEditSnapshot = JSON.stringify(proCustomEditDraft);
-            renderRhythmCustomStages();
-            renderRhythmHomeCustomStages();
-            setHomeView('rhythm');
-            showRcToast('別名で保存しました');
-        }
-    );
-    return null;
-}
-
 /* 編集画面の「このリズムで練習する→」（v0.9.124、v0.9.245変更）。
    v0.9.245：自動保存を廃止。現在の編集内容をそのままPracticeへ渡す。
    保存はPractice画面の「保存」「別名で保存」ボタンで明示的に行う。 */
@@ -5347,54 +5483,10 @@ function backFromCustomTestAction() {
     else backToEditorFromTest();
 }
 
-/* Practice画面の「保存」（v0.9.245）。
-   タイトルモーダルを経由して保存する。既存STAGEなら上書き、未保存ドラフト由来なら新規作成。
+/* Practice画面の「練習STAGEとして保存」（v0.9.247）。
+   既存STAGE由来でも常に「新規の練習STAGE」として保存する（上書き／別名保存の概念は廃止）。
    BPM/小節数/拡大率は現在のPractice画面の値を使い、pattern/grid/timeSignature/patternBars はeng.customの値を使う。 */
 function savePracticeCustomStage() {
-    if (isStandardEdition()) {
-        showProLockNotice('proCustomStage');
-        return;
-    }
-    const base = eng.custom;
-    if (!base) { showRcToast('保存できませんでした'); return; }
-    const stageToSave = {
-        ...base,
-        bpm: state.bpm,
-        bars: state.bars,
-        zoom: clampRhythmVexZoom(rhythmVexZoomPrefs.stage),
-    };
-    const isExisting = rhythmCustomStageExists(stageToSave.id);
-    openRhythmCreatePresetNameModal(
-        isExisting ? '上書き保存' : 'STAGEを保存',
-        '',
-        stageToSave.title || '',
-        (title) => {
-            stageToSave.title = title;
-            if (isExisting) {
-                const result = updateRhythmCustomStage(stageToSave);
-                if (!result) { showRcToast('保存できませんでした'); return; }
-                eng.custom = result;
-                proCustomEditDraft = result; // 編集ドラフトも同期（「←編集に戻る」時に最新状態を反映）
-            } else {
-                stageToSave.id = generateRhythmCustomStageId();
-                const result = addRhythmCustomStage(stageToSave);
-                if (!result) { showRcToast('保存できませんでした'); return; }
-                eng.custom = result;
-                eng.editId = result.id;
-                proCustomEditDraft = result; // 新規保存後もドラフトを同期
-            }
-            // v0.9.246: 保存後は保存済み扱い＝「上書き保存」「別名で保存」へ切り替え（再保存は同ID上書き）
-            updateRhythmSaveButtonState(els.customTestSave, els.customTestSaveAs, true);
-            renderRhythmCustomStages();
-            renderRhythmHomeCustomStages();
-            showRcToast(isExisting ? '保存しました' : 'カスタムSTAGEを保存しました');
-        }
-    );
-}
-
-/* Practice画面の「別名で保存」（v0.9.245）。
-   タイトルモーダルを経由して元STAGEを上書きせず新規IDで保存する。 */
-function savePracticeCustomStageAsCopy() {
     if (isStandardEdition()) {
         showProLockNotice('proCustomStage');
         return;
@@ -5411,23 +5503,19 @@ function savePracticeCustomStageAsCopy() {
         bars: state.bars,
         zoom: clampRhythmVexZoom(rhythmVexZoomPrefs.stage),
     };
-    const defaultTitle = ((stageToSave.title || '') + ' コピー').trim();
     openRhythmCreatePresetNameModal(
-        '別名で保存',
+        '練習STAGEとして保存',
         '',
-        defaultTitle,
+        stageToSave.title || '',
         (title) => {
-            const copy = { ...stageToSave, id: generateRhythmCustomStageId(), title };
-            const result = addRhythmCustomStage(copy);
+            const result = addRhythmCustomStage({ ...stageToSave, id: generateRhythmCustomStageId(), title });
             if (!result) { showRcToast('保存できませんでした'); return; }
             eng.custom = result;
             eng.editId = result.id;
             proCustomEditDraft = result; // 編集ドラフトも同期（「←編集に戻る」時に最新状態を反映）
-            // v0.9.246: 別名保存後はコピーが現在STAGE＝保存済み扱い（「上書き保存」「別名で保存」）
-            updateRhythmSaveButtonState(els.customTestSave, els.customTestSaveAs, true);
             renderRhythmCustomStages();
             renderRhythmHomeCustomStages();
-            showRcToast('別名で保存しました');
+            showRcToast('練習STAGEとして保存しました');
         }
     );
 }
@@ -5718,9 +5806,7 @@ function openRhythmProCustomTest(id, source = 'home', _stageOverride = null) {
     //   編集画面のテスト再生＝「保存」「別名で保存」＋「←編集に戻る」を表示（v0.9.245）。
     //   保存済みカード＝「←編集する」だけ表示（保存ボタンは不要）。
     const fromEditor = eng.testSource === 'editor';
-    if (els.customTestActions) els.customTestActions.classList.toggle('hidden', !fromEditor); // 保存行は編集時のみ
-    // v0.9.246: 未保存=「保存」のみ／保存済み=「上書き保存」「別名で保存」を出し分ける（編集由来のときのみ）
-    if (fromEditor) updateRhythmSaveButtonState(els.customTestSave, els.customTestSaveAs, rhythmCustomStageExists(stage.id));
+    if (els.customTestActions) els.customTestActions.classList.toggle('hidden', !fromEditor); // 「練習STAGEとして保存」行は編集時のみ
     if (els.customTestEditBack) els.customTestEditBack.textContent = fromEditor ? '←編集に戻る' : '←編集する';
     if (els.practiceBackWrap) els.practiceBackWrap.classList.remove('hidden');
     applyRhythmCustomStagePreviewZoom(stage);      // 保存済みPROカスタムSTAGEの拡大率をPracticeへ反映
@@ -11995,11 +12081,9 @@ function applyStandardProCustomEditorSettingsLock() {
         els.pceZoomDown, els.pceZoomUp,
     ].forEach((el) => lockProControlTap(el, 'proCustomStageSettings'));
     document.querySelectorAll('.pce-settings-params .pce-settings-param-cap').forEach(appendProLockIcon);
-    // 修正3: 保存 / 別名保存もPRO専用（v0.9.241）
-    lockProControlTap(els.pceSave, 'proCustomStage');
+    // v0.9.247: 「プリセットに保存」もPRO専用（編集画面の保存系は上書き/別名を廃止しプリセット保存のみ）
+    lockProControlTap(els.pceSave, 'proCustomPresetSave');
     appendProLockIcon(els.pceSave);
-    lockProControlTap(els.pceSaveAs, 'proCustomStage');
-    appendProLockIcon(els.pceSaveAs);
 }
 
 /* 判定のきびしさ（v0.9.164）：セグメントの点灯と補足文を現在のプリセットへ同期する。 */
@@ -16163,8 +16247,15 @@ function bind() {
     if (els.pcePreviewBalance) els.pcePreviewBalance.addEventListener('input', (e) => {
         setRhythmPreviewSoundBalanceFromValue(e.target.value);
     });
-    if (els.pceSave) els.pceSave.addEventListener('click', () => saveRhythmCustomEditor(false));
-    if (els.pceSaveAs) els.pceSaveAs.addEventListener('click', saveRhythmCustomEditorAsCopy);
+    if (els.pceSave) els.pceSave.addEventListener('click', saveRhythmCustomEditorAsPreset);
+    // v0.9.247 編集画面プリセット一覧：カードのタップで読み込み、×で削除。
+    if (els.pcePresetList) els.pcePresetList.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-act]');
+        if (!btn || !els.pcePresetList.contains(btn)) return;
+        const id = btn.dataset.id;
+        if (btn.dataset.act === 'delete') deleteRhythmCustomEditorPreset(id);
+        else applyRhythmCustomEditorPreset(id);
+    });
     if (els.pceTest) els.pceTest.addEventListener('click', testPlayFromEditor);
     if (els.pceCopy) els.pceCopy.addEventListener('click', copyRhythmCustomEditorJson);
     if (els.pceBack) els.pceBack.addEventListener('click', () => {
@@ -16491,9 +16582,8 @@ function bind() {
     if (els.rEditBackBtn) els.rEditBackBtn.addEventListener('click', backFromCustomTestAction);
     // カスタムテスト：開始ボタン下の「編集に戻る」「このSTAGEを保存」（v0.9.124）
     if (els.customTestEditBack) els.customTestEditBack.addEventListener('click', backFromCustomTestAction);
-    // v0.9.245: 「保存」「別名で保存」に置換
+    // v0.9.247: Practice画面は「練習STAGEとして保存」のみ（常に新規の練習STAGEとして保存）
     if (els.customTestSave) els.customTestSave.addEventListener('click', savePracticeCustomStage);
-    if (els.customTestSaveAs) els.customTestSaveAs.addEventListener('click', savePracticeCustomStageAsCopy);
     els.retryBtn.addEventListener('click', () => { stopPreviewRhythm(); if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden'); resetGame(); play(); });
     // 二重反応時：結果を閉じてマイク設定（反応テスト）へ誘導
     if (els.resultsRetestBtn) els.resultsRetestBtn.addEventListener('click', () => {

@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.9.246">
+    <link rel="stylesheet" href="theme.css?v=0.9.247">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -198,6 +198,13 @@
 
                 <p class="pce-stage-name" id="pce-stage-name"></p>
 
+                <!-- プリセット（v0.9.247）：作ったリズム＋再生設定を保存し、タップで読み込む。練習STAGE一覧とは別管理。 -->
+                <div class="pce-preset-section">
+                    <div class="pce-preset-heading">プリセット</div>
+                    <div class="pce-preset-list" id="pce-preset-list"></div>
+                    <p class="pce-preset-empty" id="pce-preset-empty">まだ保存されたプリセットはありません。</p>
+                </div>
+
                 <div class="pce-field pce-field-row">
                     <label class="pce-label" for="pce-timesig">拍子</label>
                     <select class="pce-select" id="pce-timesig">
@@ -289,10 +296,9 @@
                     </div>
 
                     <div class="pce-action-section">
-                        <div class="pce-action-heading">保存</div>
+                        <div class="pce-action-heading">プリセット</div>
                         <div class="pce-action-row">
-                            <button type="button" class="settings-top-main pce-save" id="pce-save">保存</button>
-                            <button type="button" class="pro-custom-act is-edit pce-save-as hidden" id="pce-save-as">別名で保存</button>
+                            <button type="button" class="settings-top-main pce-save" id="pce-save">プリセットに保存</button>
                         </div>
                     </div>
 
@@ -469,11 +475,10 @@
                 <button class="btn-primary transport-main" id="play-btn">▶ 開始</button>
             </div>
 
-            <!-- 6b. PROカスタムSTAGEのみ：保存／別名で保存（中央配置・編集からのPractice時のみ）。
-                 v0.9.246：未保存は「保存」のみ、保存済みは「上書き保存」「別名で保存」をJSで出し分ける。 -->
+            <!-- 6b. PROカスタムSTAGEのみ：練習STAGEとして保存（中央配置・編集からのPractice時のみ）。
+                 v0.9.247：保存系は「練習STAGEとして保存」のみ。既存STAGE由来でも常に新規の練習STAGEとして保存する。 -->
             <div class="custom-test-actions hidden" id="custom-test-actions">
-                <button type="button" class="custom-test-act is-save" id="custom-test-save">保存</button>
-                <button type="button" class="custom-test-act is-save-as hidden" id="custom-test-save-as">別名で保存</button>
+                <button type="button" class="custom-test-act is-save" id="custom-test-save">練習STAGEとして保存</button>
             </div>
             <!-- 6c. リズム作成Practice中だけ表示（v0.9.201）。 -->
             <div class="stage-save-custom-wrap hidden" id="stage-save-custom-wrap">
@@ -1294,7 +1299,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.9.246"></script>
+    <script src="script.js?v=0.9.247"></script>
 </body>
 
 </html>
