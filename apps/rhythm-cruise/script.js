@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.248';
+const RHYTHM_CRUISE_VERSION = '0.9.249';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -5678,10 +5678,17 @@ function savePracticeCustomStage(modalTitle = '練習STAGEとして保存') {
         bars: state.bars,
         zoom: clampRhythmVexZoom(rhythmVexZoomPrefs.stage),
     };
+    // v0.9.249: 編集画面でプリセット選択中かつ未保存の新規作成時は、プリセット名をモーダル初期値にする
+    const _isNewStage = !(eng.editId && rhythmCustomStageExists(eng.editId));
+    let _initialStageName = stageToSave.title || '';
+    if (eng.testSource === 'editor' && _isNewStage && rhythmCustomEditorSelectedPresetId) {
+        const _selPreset = loadRhythmCustomPresets().find((p) => p.id === rhythmCustomEditorSelectedPresetId);
+        if (_selPreset && _selPreset.name) _initialStageName = _selPreset.name;
+    }
     openRhythmCreatePresetNameModal(
         modalTitle,
         '',
-        stageToSave.title || '',
+        _initialStageName,
         (title) => {
             const result = addRhythmCustomStage({ ...stageToSave, id: generateRhythmCustomStageId(), title });
             if (!result) { showRcToast('保存できませんでした'); return; }
