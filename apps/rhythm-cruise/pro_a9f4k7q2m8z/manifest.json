@@ -1,14 +1,14 @@
 {
   "id": "./",
-  "name": "リズムクルーズ",
-  "short_name": "リズムクルーズ",
+  "name": "リズムクルーズ PRO",
+  "short_name": "リズムPRO",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#120f0c",
   "theme_color": "#ff9f1c",
-  "description": "アコギ弾き語り向けのリズム練習アプリ。ストロークのズレを見える化し、原因に合わせて段階的に練習できます。",
+  "description": "アコギ弾き語り向けのリズム練習アプリPRO版。ストロークのズレを見える化し、カスタムSTAGE作成・保存にも対応します。",
   "icons": [
     {
       "src": "icon-192.png",
@@ -27,12 +27,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
-    },
-    {
-      "src": "icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
     }
   ]
 }
