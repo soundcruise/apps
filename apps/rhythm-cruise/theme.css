@@ -3698,6 +3698,19 @@ h1 {
 /* リズム練をする：入力方式の切替を中央寄せ（v0.9.118） */
 #rhythm-input-mode {
     align-self: center;
+    max-width: 380px; /* タップ/ブラッシング/コードの3分割が1行で収まる幅（v0.10.1） */
+}
+/* 3分割セグメントは文言を1行に収める（「ブラッシング」の折り返し防止・v0.10.1） */
+#rhythm-input-mode .input-seg {
+    padding: 9px 6px;
+    font-size: 0.82rem;
+    white-space: nowrap;
+}
+/* 入力モードの説明文：セレクタ直下に中央寄せで添える（v0.10.1） */
+.rhythm-input-mode-note {
+    text-align: center;
+    margin: 6px auto 0;
+    max-width: 380px;
 }
 
 /* STAGE：タイトル横の入力方式トグル（v0.9.118：タップで タップ⇄ストローク を切替） */

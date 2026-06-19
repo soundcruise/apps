@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.0';
+const RHYTHM_CRUISE_VERSION = '0.10.1';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -935,7 +935,9 @@ const els = {
     playBtn: $('play-btn'),
     // v0.9.118：入力方式の切替は「リズム練をする」画面へ移動。STAGE側は現在方式の表示のみ。
     rhythmModeTap: $('rhythm-mode-tap'),
-    rhythmModeStroke: $('rhythm-mode-stroke'),
+    rhythmModeBrush: $('rhythm-mode-brush'),
+    rhythmModeChord: $('rhythm-mode-chord'),
+    rhythmInputModeNote: $('rhythm-input-mode-note'),
     practiceModeLabel: $('practice-mode-label'),
     strokeModeBrush: $('stroke-mode-brush'),
     strokeModeChord: $('stroke-mode-chord'),
@@ -9042,6 +9044,7 @@ function chordCommentSuffix() {
 function setStrokeDetectMode(mode) {
     state.strokeDetectMode = (mode === 'chord') ? 'chord' : 'brush';
     updateStrokeDetectModeUI();
+    updateInputModeUI(); // ホームの3ボタン（ブラッシング/コード）表示も同期（v0.10.1・表示のみ）
     saveSettings();
 }
 function updateStrokeDetectModeUI() {
@@ -11441,11 +11444,27 @@ function shouldAllowRescueHighSens() {
 
 /* ── 入力方法（タップ / ストローク）──────────────────────── */
 /* 入力方式の切替UI（リズム練の［タップ｜ストローク］）とSTAGEの「現在：」表示を同期する（v0.9.118） */
+/* ユーザー向け3分類（タップ / ブラッシング / コード）の表示名・説明文。
+   内部2軸（inputMode + strokeDetectMode）を1つの呼び名へ写すための表示専用テーブル。判定には不使用。 */
+const UNIFIED_MODE_NOTE = {
+    tap: 'タップ：画面をタップしてリズムを取ります。',
+    brush: 'ブラッシング：ミュート気味の短いストロークや、音の切れがよい入力向けです。',
+    chord: 'コード：コードを鳴らすストローク向けです。余韻が長い場合の判定は今後さらに調整します。',
+};
+const UNIFIED_MODE_LABEL = { tap: 'タップモード', brush: 'ブラッシングモード', chord: 'コードモード' };
+/* 内部2軸 → ユーザー向け呼び名（表示専用）。inputMode='tap'→tap、stroke時はstrokeDetectModeでbrush/chord。 */
+function unifiedInputMode() {
+    if (state.inputMode !== 'stroke') return 'tap';
+    return (state.strokeDetectMode === 'chord') ? 'chord' : 'brush';
+}
+
 function updateInputModeUI() {
-    const m = state.inputMode;
-    if (els.rhythmModeTap) els.rhythmModeTap.classList.toggle('is-active', m === 'tap');
-    if (els.rhythmModeStroke) els.rhythmModeStroke.classList.toggle('is-active', m === 'stroke');
-    if (els.practiceModeLabel) els.practiceModeLabel.textContent = (m === 'tap') ? 'タップモード' : 'ストロークモード';
+    const u = unifiedInputMode();
+    if (els.rhythmModeTap) els.rhythmModeTap.classList.toggle('is-active', u === 'tap');
+    if (els.rhythmModeBrush) els.rhythmModeBrush.classList.toggle('is-active', u === 'brush');
+    if (els.rhythmModeChord) els.rhythmModeChord.classList.toggle('is-active', u === 'chord');
+    if (els.rhythmInputModeNote) els.rhythmInputModeNote.textContent = UNIFIED_MODE_NOTE[u] || UNIFIED_MODE_NOTE.tap;
+    if (els.practiceModeLabel) els.practiceModeLabel.textContent = UNIFIED_MODE_LABEL[u] || UNIFIED_MODE_LABEL.tap;
 }
 
 /* 「リズム練をする」画面での入力方式の選択（v0.9.118）。
@@ -11455,6 +11474,18 @@ function selectInputMode(mode) {
     state.inputMode = (mode === 'stroke') ? 'stroke' : 'tap';
     updateInputModeUI();
     saveSettings();
+}
+
+/* ユーザー向け3分類（タップ / ブラッシング / コード）→ 内部2軸への薄いマッピング（v0.10.1）。
+   判定ロジックは一切持たず、既存の selectInputMode / setStrokeDetectMode を呼ぶだけ。
+   ・タップ        → inputMode='tap'
+   ・ブラッシング → strokeDetectMode='brush' + inputMode='stroke'
+   ・コード        → strokeDetectMode='chord' + inputMode='stroke'
+   stroke系は先に検出モードを確定してからコンテナを stroke にする（UI/保存が最終状態で揃う）。 */
+function setUnifiedInputMode(mode) {
+    if (mode === 'tap') { selectInputMode('tap'); return; }
+    setStrokeDetectMode(mode === 'chord' ? 'chord' : 'brush'); // 検出モード確定（UI同期＋保存）
+    selectInputMode('stroke');                                  // コンテナをstrokeへ（UI同期＋保存）
 }
 
 function setInputMode(mode, opts) {
@@ -16501,8 +16532,9 @@ function bind() {
     if (els.settingsBtn) els.settingsBtn.addEventListener('click', openSettingsFromCurrent);
     // 入力方法（タップ / ストローク）
     // 入力方式の切替（v0.9.118：リズム練をする画面）。ここでは選択の記録のみ。STAGE開始時に反映。
-    if (els.rhythmModeTap) els.rhythmModeTap.addEventListener('click', () => selectInputMode('tap'));
-    if (els.rhythmModeStroke) els.rhythmModeStroke.addEventListener('click', () => selectInputMode('stroke'));
+    if (els.rhythmModeTap) els.rhythmModeTap.addEventListener('click', () => setUnifiedInputMode('tap'));
+    if (els.rhythmModeBrush) els.rhythmModeBrush.addEventListener('click', () => setUnifiedInputMode('brush'));
+    if (els.rhythmModeChord) els.rhythmModeChord.addEventListener('click', () => setUnifiedInputMode('chord'));
     // ストローク検出モード：選んだら自動で次（マイク反応テスト）へ
     if (els.strokeModeBrush) els.strokeModeBrush.addEventListener('click', () => onPickStrokeMode('brush'));
     if (els.strokeModeChord) els.strokeModeChord.addEventListener('click', () => onPickStrokeMode('chord'));

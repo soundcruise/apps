@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.10.0">
+    <link rel="stylesheet" href="theme.css?v=0.10.1">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -65,9 +65,11 @@
                 <div class="section-label">リズム練をする</div>
                 <!-- 入力方式の切替（v0.9.118：STAGE内から移動）。ここで選んだ方式でSTAGEを開始する。 -->
                 <div class="input-mode" id="rhythm-input-mode">
-                    <button type="button" class="input-seg is-active" id="rhythm-mode-tap" data-mode="tap">タップ</button>
-                    <button type="button" class="input-seg" id="rhythm-mode-stroke" data-mode="stroke">ストローク</button>
+                    <button type="button" class="input-seg is-active" id="rhythm-mode-tap" data-unified-mode="tap">タップ</button>
+                    <button type="button" class="input-seg" id="rhythm-mode-brush" data-unified-mode="brush">ブラッシング</button>
+                    <button type="button" class="input-seg" id="rhythm-mode-chord" data-unified-mode="chord">コード</button>
                 </div>
+                <p class="setting-note rhythm-input-mode-note" id="rhythm-input-mode-note">タップ：画面をタップしてリズムを取ります。</p>
                 <div class="stage-list" id="stage-list">
                     <!-- script.js が描画 -->
                 </div>
@@ -458,8 +460,8 @@
                         <input type="range" id="tap-height" min="80" max="160" step="8" value="106" aria-label="タップボタンの高さ">
                     </div>
                     <button type="button" class="tap-tools-reset" id="tap-tools-reset">デフォルトに戻す</button>
-                    <!-- ストロークモードへの切替導線（v0.9.140） -->
-                    <button type="button" class="tap-tools-switch" id="tap-to-stroke">ストロークモードに切り替える</button>
+                    <!-- マイク入力（ブラッシング/コード）への切替導線（v0.9.140→v0.10.1で表記統一） -->
+                    <button type="button" class="tap-tools-switch" id="tap-to-stroke">マイク入力に切り替える</button>
                 </div>
             </div>
 
@@ -1316,7 +1318,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.10.0"></script>
+    <script src="script.js?v=0.10.1"></script>
 </body>
 
 </html>
