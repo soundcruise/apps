@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="../theme.css?v=0.10.6">
+    <link rel="stylesheet" href="../theme.css?v=0.10.7">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1108,6 +1108,8 @@
             <p class="tendency" id="r-comment"></p>
             <p class="results-warn hidden" id="results-warn">⚠️ クリック音をマイクが拾っている可能性があります。スピーカー使用時はクリック音量をさらに下げるか、イヤホン使用がおすすめです。</p>
             <div class="results-double-notice hidden" id="results-double-notice">
+                <p><strong>二重反応とは？</strong></p>
+                <p>1回弾いた音の余韻や再ピークを、もう1回の入力として拾ってしまう状態です。強く弾いて音を長く伸ばした時に出やすくなります。</p>
                 <p id="results-double-msg">⚠ 二重反応が出ています。マイク反応テストをやり直すと改善する場合があります。</p>
                 <button type="button" class="btn-mic results-retest-btn" id="results-retest-btn">マイク反応テストをやり直す</button>
             </div>
@@ -1118,25 +1120,6 @@
                     <p class="result-breakdown hidden" id="results-miss-info"></p>
                     <p class="result-breakdown hidden" id="results-chord-dev"></p>
                     <p class="result-breakdown hidden" id="results-chord-speed-warning"></p>
-                    <div class="result-double-detail hidden" id="results-double-detail">
-                        <p class="rdd-head">二重反応とは？</p>
-                        <p class="rdd-body">1回のストロークが、マイク上では2回以上の入力として検出されている状態です。</p>
-                        <p class="rdd-sub">主な原因</p>
-                        <ul class="rdd-list">
-                            <li>感度が高すぎる</li>
-                            <li>二重反応防止時間が短い</li>
-                            <li>クリック音や弦ノイズを拾っている</li>
-                            <li>ストロークの余韻を別入力として拾っている</li>
-                        </ul>
-                        <p class="rdd-sub">改善方法</p>
-                        <ul class="rdd-list">
-                            <li>マイク反応テストをやり直す</li>
-                            <li>二重反応防止を長めにする</li>
-                            <li>感度を少し左へ下げる</li>
-                            <li>クリック音量を下げる</li>
-                            <li>可能ならイヤホンを使う</li>
-                        </ul>
-                    </div>
                     <div class="graph-wrap">
                         <div class="graph-head">
                             <span>ズレ履歴</span>
@@ -1163,7 +1146,7 @@
             <details class="results-detail is-quiet hidden" id="miss-cause-details">
                 <summary class="results-detail-summary">開発用ログ</summary>
                 <div class="results-detail-body">
-                    <p class="miss-cause-lead">判定調整のための内部ログです。棄却された入力候補も含むため、スコア上のMISS数とは一致しない場合があります。</p>
+                    <p class="miss-cause-lead">これは不具合の原因を調べるための開発用ログです。通常の練習結果として読む必要はありません。</p>
                     <div class="miss-cause-list" id="miss-cause-list"></div>
                     <p class="result-breakdown result-miss-debug hidden" id="results-chord-detail"></p>
                     <p class="result-breakdown result-miss-debug hidden" id="results-chord-miss"></p>
@@ -1252,7 +1235,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.10.6"></script>
+    <script src="../script.js?v=0.10.7"></script>
 </body>
 
 </html>
