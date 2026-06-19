@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.1';
+const RHYTHM_CRUISE_VERSION = '0.10.2';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -598,6 +598,7 @@ const state = {
     beatExcluded: new Array(TOTAL_BEATS).fill(false), // 各拍で入力がクールダウン/ガード等で除外されたか
     micEventLog: [],  // 各オンセットの記録（MISS原因デバッグ用）{t,peak,nearBeat,outcome,assignedBeat,cls}
     chordBeatProbe: [], // コードストローク：拍ごとの候補フレーム情報（立ち上がり未検出MISSの原因分析用）
+    chordDebug: null,   // Phase2ログ可視化（?debugMic=1 時のみ確保）。判定には一切不使用。詳細は newChordDebug()
     doubleReactionCount: 0, // 二重反応の総数
     markers: [],
     micWaveHistory: [],   // {perf, level} マイク音量の時系列（STAGE中の背景波形用・直近のみ）
@@ -1036,6 +1037,7 @@ const els = {
     resultsChordDev: $('results-chord-dev'),
     resultsChordDetail: $('results-chord-detail'),
     resultsChordMiss: $('results-chord-miss'),
+    resultsChordDebug: $('results-chord-debug'),
     resultsDoubleNotice: $('results-double-notice'),
     resultsDoubleMsg: $('results-double-msg'),
     resultsDoubleDetail: $('results-double-detail'),
@@ -8138,6 +8140,7 @@ function resetData() {
     mic.valley = 1;             // 谷（コードストローク用）をリセット
     state.chordPicked = 0;
     state.chordIgnoredRePeaks = 0;
+    state.chordDebug = MIC_DEBUG_ON ? newChordDebug() : null; // Phase2：debugMic時のみ収集・Practice開始でリセット
     updateMicDiag();
     updateCombo();
     if (els.judgeFxLayer) els.judgeFxLayer.innerHTML = '';
@@ -8336,11 +8339,26 @@ function chordMissAnalyze() {
     return { count: rows.length, reasons, lines };
 }
 
+/* Phase2 ログ可視化用の入れ物（?debugMic=1 のときだけ resetData で確保）。
+   判定ロジックには一切関与しない、純粋な観察バッファ。
+   ・frames：コード判定ブロックの各フレーム実測値（上限3000で打ち切り）
+   ・onsets：採用したコード入力ごとの「ライン超え→採用」差分・要因
+   ・rej*  ：ライン超え候補がどのゲートで棄却されたかのカウント
+   ・ep*   ：現在のアタックの起点時刻と、採用までの遅延要因の累積（onset確定で締める） */
+function newChordDebug() {
+    return {
+        frames: [],
+        onsets: [],
+        rejCooldown: 0, rejRise: 0, rejInstant: 0,
+        epStartMs: null, epBlockCooldown: 0, epBlockRise: 0, epBlockInstant: 0,
+    };
+}
+
 /* コードストロークモードのPLAY観察（開発用）：拾った入力数・無視した再ピーク・二重反応・ゲート値＋立ち上がり未検出MISS要約 */
 function updateChordDev() {
     if (!els.resultsChordDev) return;
     const hideAll = () => {
-        [els.resultsChordDev, els.resultsChordDetail, els.resultsChordMiss].forEach((e) => { if (e) e.classList.add('hidden'); });
+        [els.resultsChordDev, els.resultsChordDetail, els.resultsChordMiss, els.resultsChordDebug].forEach((e) => { if (e) e.classList.add('hidden'); });
     };
     if (state.strokeDetectMode !== 'chord' || state.inputMode !== 'stroke') { hideAll(); return; }
     const miss = chordMissAnalyze();
@@ -8372,6 +8390,29 @@ function updateChordDev() {
             els.resultsChordMiss.textContent = '🔎（開発用）立ち上がり未検出MISS ' + miss.count + '（主因：' + mainReason + '）｜'
                 + shown.join(' / ') + (extra > 0 ? ' ／ ほか' + extra + '拍' : '');
             els.resultsChordMiss.classList.remove('hidden');
+        }
+    }
+    // ④ Phase2 ログ可視化サマリー（?debugMic=1 のときだけ・Lateの内訳を見える化）。
+    if (els.resultsChordDebug) {
+        const cd = state.chordDebug;
+        if (!MIC_DEBUG_ON || !cd || !cd.onsets.length) { els.resultsChordDebug.classList.add('hidden'); }
+        else {
+            const fmt = (v) => (v >= 0 ? '+' : '') + v + 'ms';
+            const fmtT = (ms) => { if (ms == null) return '--'; const s = Math.max(0, ms) / 1000; const m = Math.floor(s / 60); const r = s % 60; return (m < 10 ? '0' : '') + m + ':' + (r < 10 ? '0' : '') + r.toFixed(3); };
+            const delays = cd.onsets.map((o) => o.adoptDelay).filter((v) => typeof v === 'number').sort((a, b) => a - b);
+            const med = delays.length ? delays[Math.floor(delays.length / 2)] : 0;
+            const max = delays.length ? delays[delays.length - 1] : 0;
+            const worst = cd.onsets.filter((o) => typeof o.adoptDelay === 'number').slice().sort((a, b) => b.adoptDelay - a.adoptDelay).slice(0, 3);
+            const lines = worst.map((o, i) => (i + 1) + '. target ' + fmtT(o.targetMs)
+                + ' / adopted ' + (o.adoptedDiff != null ? fmt(o.adoptedDiff) : '--')
+                + ' / lineCross ' + (o.lineCrossDiff != null ? fmt(o.lineCrossDiff) : '--')
+                + ' / reason: ' + o.reason);
+            els.resultsChordDebug.textContent = '🛠（debugMic）コード判定デバッグ｜検出数 ' + cd.onsets.length
+                + ' ／ ライン超え→採用 中央値 ' + fmt(med) + ' ／ 最大 ' + fmt(max)
+                + ' ｜ クールダウン棄却 ' + cd.rejCooldown + ' ／ rise不足棄却 ' + cd.rejRise + ' ／ instantRise不足棄却 ' + cd.rejInstant
+                + (lines.length ? '｜Lateが出た主な候補：' + lines.join('　') : '');
+            els.resultsChordDebug.classList.remove('hidden');
+            console.debug('[chordDebug] onsets=' + cd.onsets.length + ' frames=' + cd.frames.length + ' adoptDelay med=' + med + 'ms max=' + max + 'ms');
         }
     }
 }
@@ -8744,7 +8785,7 @@ function prepareResultsOverlayForHistory() {
     hide(els.retryBtn); hide(els.rEditBackBtn);
     hide(els.resultsWarn); hide(els.resultsDoubleNotice); hide(els.resultsDoubleDetail);
     hide(els.resultsMissInfo); hide(els.missCauseDetails); hide(els.resultsChordDev);
-    hide(els.resultsChordDetail); hide(els.resultsChordMiss);
+    hide(els.resultsChordDetail); hide(els.resultsChordMiss); hide(els.resultsChordDebug);
     hide(els.resultsMicWrap); // 波形系（ストローク音量）は履歴では保存していない＝出さない
     const micTuneRow = els.resultsMicTune ? els.resultsMicTune.closest('.result-mic-tune-row') : null;
     hide(micTuneRow);          // マイク手動設定への導線は履歴では不要
@@ -15884,6 +15925,39 @@ function micLoop() {
             && (sinceHit >= state.chordMinCooldown)
             && (riseFromValley >= state.chordRiseGate)
             && (instantRise >= state.chordInstantRiseGate);
+        // ── Phase2 ログ可視化（?debugMic=1 のときだけ・読むだけで判定には一切不使用）──
+        if (MIC_DEBUG_ON && state.chordDebug && !inCountIn) {
+            const cd = state.chordDebug;
+            const gtw = gameAudioMs() + micJudgeOffsetMs(); // 判定と同一基準のゲーム時刻（読むだけ）
+            const thresholdOk = peak >= detThr;
+            const cooldownOk = sinceHit >= state.chordMinCooldown;
+            const riseOk = riseFromValley >= state.chordRiseGate;
+            const instantRiseOk = instantRise >= state.chordInstantRiseGate;
+            // アタックの起点（ライン到達 or 余韻中の再アタック）の時刻を記録
+            if (thresholdOk && mic.prevPeak < detThr) {
+                cd.epStartMs = gtw; cd.epBlockCooldown = 0; cd.epBlockRise = 0; cd.epBlockInstant = 0;
+            } else if (thresholdOk && cd.epStartMs == null && instantRise > 0) {
+                cd.epStartMs = gtw; cd.epBlockCooldown = 0; cd.epBlockRise = 0; cd.epBlockInstant = 0;
+            }
+            // 採用までの遅延要因（ライン超え中・未採用フレーム）を累積
+            if (thresholdOk && !chordOnset) {
+                if (!cooldownOk && riseOk && instantRiseOk) cd.epBlockCooldown++;
+                else if (cooldownOk && !riseOk) cd.epBlockRise++;
+                else if (cooldownOk && riseOk && !instantRiseOk) cd.epBlockInstant++;
+            }
+            // ライン超え候補の棄却カウント（既存 chordIgnoredRePeaks と同じ「候補」条件で分類）
+            if (thresholdOk && !chordOnset && instantRise >= state.chordInstantRiseGate * 0.5) {
+                if (!cooldownOk) cd.rejCooldown++;
+                if (!riseOk) cd.rejRise++;
+                if (!instantRiseOk) cd.rejInstant++;
+            }
+            // フレームサンプル（上限3000で打ち切り＝重くなりすぎ防止）
+            if (cd.frames.length < 3000) {
+                cd.frames.push({ t: Math.round(gtw), peak: +peak.toFixed(3), env: +mic.env.toFixed(3), detThr: +detThr.toFixed(3),
+                    instantRise: +instantRise.toFixed(3), riseFromValley: +riseFromValley.toFixed(3), sinceHit: Math.round(sinceHit),
+                    chordOnset, cooldownOk, thresholdOk, riseOk, instantRiseOk });
+            }
+        }
         // 余韻中などで「立ち上がりらしいが条件未達」を無視としてカウント（観察用）
         if (!chordOnset && !inCountIn && peak >= detThr && instantRise >= state.chordInstantRiseGate * 0.5
             && (sinceHit < state.chordMinCooldown || riseFromValley < state.chordRiseGate || instantRise < state.chordInstantRiseGate)) {
@@ -15902,6 +15976,23 @@ function micLoop() {
                 if (ok) {
                     mic.lastDetect = now; mic.valley = peak; mic.doubleCounted = false;
                     mic.registerCount++; state.chordPicked++; updateMicDiag();
+                    // ── Phase2：採用onsetの「ライン超え→採用」差分・遅延要因を記録（debugMic時のみ・判定不変）──
+                    if (MIC_DEBUG_ON && state.chordDebug) {
+                        const cd = state.chordDebug;
+                        const adoptedMs = Math.round(gameAudioMs() + micJudgeOffsetMs()); // registerHit が採用したのと同基準のゲーム時刻
+                        const lineCrossMs = (cd.epStartMs != null) ? Math.round(cd.epStartMs) : adoptedMs;
+                        const targetMs = (la.beat != null) ? Math.round(engTargetTimeMs(la.beat)) : null;
+                        const blocks = [['cooldown明け待ち', cd.epBlockCooldown], ['rise待ち', cd.epBlockRise], ['instantRise待ち', cd.epBlockInstant]];
+                        blocks.sort((a, b) => b[1] - a[1]);
+                        cd.onsets.push({
+                            targetMs,
+                            adoptedDiff: (la.diff != null) ? la.diff : (targetMs != null ? adoptedMs - targetMs : null), // 採用ズレ（例：+85ms）
+                            lineCrossDiff: (targetMs != null) ? (lineCrossMs - targetMs) : null,                       // ライン超え時刻のズレ
+                            adoptDelay: adoptedMs - lineCrossMs,                                                       // ライン超え→採用 の遅れ
+                            reason: (blocks[0][1] > 0) ? blocks[0][0] : '—',
+                        });
+                        cd.epStartMs = null; cd.epBlockCooldown = 0; cd.epBlockRise = 0; cd.epBlockInstant = 0; // エピソードを締める
+                    }
                 } else micExclude('範囲外');
             }
             if (state.micEventLog && state.micEventLog.length < 200) {

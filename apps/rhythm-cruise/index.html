@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.10.1">
+    <link rel="stylesheet" href="theme.css?v=0.10.2">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -460,7 +460,7 @@
                         <input type="range" id="tap-height" min="80" max="160" step="8" value="106" aria-label="タップボタンの高さ">
                     </div>
                     <button type="button" class="tap-tools-reset" id="tap-tools-reset">デフォルトに戻す</button>
-                    <!-- マイク入力（ブラッシング/コード）への切替導線（v0.9.140→v0.10.1で表記統一） -->
+                    <!-- マイク入力（ブラッシング/コード）への切替導線（v0.9.140→v0.10.2で表記統一） -->
                     <button type="button" class="tap-tools-switch" id="tap-to-stroke">マイク入力に切り替える</button>
                 </div>
             </div>
@@ -1177,6 +1177,7 @@
                     <p class="result-breakdown hidden" id="results-chord-dev"></p>
                     <p class="result-breakdown result-miss-debug hidden" id="results-chord-detail"></p>
                     <p class="result-breakdown result-miss-debug hidden" id="results-chord-miss"></p>
+                    <p class="result-breakdown result-miss-debug hidden" id="results-chord-debug"></p>
                     <!-- 二重反応の詳しい説明＋改善方法（詳細タブ内・二重反応時のみ表示） -->
                     <div class="result-double-detail hidden" id="results-double-detail">
                         <p class="rdd-head">二重反応とは？</p>
@@ -1318,7 +1319,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.10.1"></script>
+    <script src="script.js?v=0.10.2"></script>
 </body>
 
 </html>
