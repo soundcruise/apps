@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.20';
+const RHYTHM_CRUISE_VERSION = '0.10.21';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -8157,6 +8157,19 @@ function engChordEffectiveCooldownMs(hitTime) {
     const localCapMs = Math.max(CHORD_COOLDOWN_MIN_MS, localGapMs * CHORD_COOLDOWN_GAP_FRAC);
     return Math.min(state.chordMinCooldown, localCapMs);
 }
+/* v0.10.21：ストローク(旧ブラッシング)経路の二重反応防止クールダウンを、その地点の実ターゲット間隔に追従させる。
+   旧コードストロークの engChordEffectiveCooldownMs と同じ考え方を、保存値 mic.cooldownMs を土台にして brush 経路へ薄く移植。
+   ・速い音符（例：STAGE6の16分＝約188ms間隔）では mic.cooldownMs(既定200ms)が次の正規ストロークまで塞いでMISSを生む。
+     localGap×45% を上限にして、次の正規入力までは塞がない。
+   ・下限は CHORD_COOLDOWN_MIN_MS(100ms)＝余韻の再ピーク扱い(DOUBLE_MIN_GAP_MS)の範囲。よって二重反応の取りこぼしは増やさない。
+   ・遅い音符では mic.cooldownMs を据え置き（min で上振れしない）＝従来挙動。判定幅・登録処理・二重反応カウントは一切不変。 */
+function strokeBrushEffectiveCooldownMs(hitTime) {
+    const base = mic.cooldownMs;
+    const localGapMs = engChordLocalTargetGapMs(hitTime);
+    if (localGapMs == null) return base;
+    const localCapMs = Math.max(CHORD_COOLDOWN_MIN_MS, localGapMs * CHORD_COOLDOWN_GAP_FRAC);
+    return Math.min(base, localCapMs);
+}
 /* 結果診断用：全判定ターゲットの前後実時刻差から、最小gapと高速対象数を集計する。 */
 function engChordTargetGapSummary() {
     const targets = [];
@@ -10321,7 +10334,7 @@ function updateStrokeDetectModeUI() {
     if (els.strokeModeNote) els.strokeModeNote.classList.toggle('hidden', !chord);
     // v0.10.20：ストローク反応テストの案内文。ユーザー導線は brush 固定なので、軽いミュート／クロスミュート前提の文言にする。
     if (els.testCardNote) {
-        els.testCardNote.textContent = '弦を軽くミュートして、短く軽くストロークしてください。クリック音では反応せず、ストロークで反応する感度に自動調整します。音が大きすぎる／二重反応が出る場合は、弦にクロスを挟むと安定しやすくなります。';
+        els.testCardNote.textContent = '弦にクロスを挟むなど、響きを抑えると判定が安定します。';
     }
 }
 
@@ -12714,7 +12727,7 @@ function shouldAllowRescueHighSens() {
    旧 brush/chord はユーザーUIに出さず、いずれも「ストローク」として表示する。 */
 const UNIFIED_MODE_NOTE = {
     tap: 'タップ：画面をタップしてリズムを取ります。',
-    stroke: 'ストローク：弦を軽くミュートして、短く軽くストロークします。音が大きすぎる／二重反応が出る場合は、弦にクロスを挟むと安定しやすくなります。',
+    stroke: 'ストローク：弦を軽くミュートしてストロークして練習します。',
 };
 const UNIFIED_MODE_LABEL = { tap: 'タップモード', stroke: 'ストロークモード' };
 /* 内部2軸 → ユーザー向け呼び名（表示専用）。v0.10.20：inputMode='tap'→tap、それ以外（stroke）は brush/chord 問わず 'stroke'。 */
@@ -17089,7 +17102,12 @@ function micLoop() {
 
     // 二重反応防止（クールダウン）の基点は「登録できた検出」のみ。
     // クリック音拾い等の除外検出では基点を更新しない（本物のストロークを巻き込まないため）。
-    const cooled = (now - mic.lastDetect) > mic.cooldownMs;
+    // v0.10.21：ストローク本番中は、その地点の実ターゲット間隔に追従する実効クールダウンを使う（速い16分等で
+    //   固定200msが次の正規ストロークを塞いでMISSになるのを防ぐ）。下限100msは余韻の再ピーク範囲なので二重反応は増やさない。
+    const effectiveCooldownMs = (state.running && state.inputMode === 'stroke')
+        ? strokeBrushEffectiveCooldownMs(gameAudioMs() + micJudgeOffsetMs())
+        : mic.cooldownMs;
+    const cooled = (now - mic.lastDetect) > effectiveCooldownMs;
     // クリック音直後の最小ガード（詳細設定）。クリック音ON時のみ・既定は短い。
     const guardActive = state.clickEnabled;
     const guardMs = guardActive ? (mic.clickGuardMs + clickLatencyMs()) : 0;

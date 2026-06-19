@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="../theme.css?v=0.10.20">
+    <link rel="stylesheet" href="../theme.css?v=0.10.21">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -770,12 +770,11 @@
                     <div class="cal-head" id="test-card-head">ストローク反応テスト</div>
                     <span class="status-pill" id="test-done-badge">未実施</span>
                 </div>
-                <p class="do-now" id="test-do-now">弦を軽くミュートして、短く軽く8回ストローク</p>
-                <p class="do-now-sub">目標：クリック音では反応せず、ストロークでは反応する感度にします。音が大きすぎる／二重反応が出る場合は、弦にクロスを挟むと安定しやすくなります。</p>
+                <p class="do-now" id="test-do-now">弦を左手でミュートして、8回ストロークしてください。</p>
+                <p class="do-now-sub">目標：クリック音では反応せず、ストロークでは反応する感度にします。</p>
                 <details class="card-help">
-                    <summary>詳しい説明</summary>
-                    <p class="setting-note" id="test-card-note">クリック音が反応せず、ストローク音だけ反応するかを自動でチェックします。</p>
-                    <p class="setting-note" id="test-input-note">入力の大きさに合わせて自動調整します。</p>
+                    <summary>コードストロークする場合</summary>
+                    <p class="setting-note" id="test-card-note">弦にクロスを挟むなど、響きを抑えると判定が安定します。</p>
                 </details>
                 <div class="test-row">
                     <button class="btn-mic test-run-btn test-start-btn rc-mic-action-primary" id="mic-test-btn">マイク反応テストを開始</button>
@@ -1249,7 +1248,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.10.20"></script>
+    <script src="../script.js?v=0.10.21"></script>
 </body>
 
 </html>
