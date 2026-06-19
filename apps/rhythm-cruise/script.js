@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.9';
+const RHYTHM_CRUISE_VERSION = '0.10.10';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -7616,20 +7616,27 @@ function registerChordHit(backdatedGameMs) {
         beat: i, origBeat, diff: Math.round(diff), cls,
         reassigned: (i !== origBeat),
         doubled: !!prev,
-        kept: !(!prev || Math.abs(diff) < Math.abs(prev.diff)),
+        kept: !!prev,           // 同一target再入力は常に既存結果を維持（v0.10.10）
+        suppressed: false,
         outcome: 'register',
     };
+    // ── v0.10.10：同一target再入力（最寄りに既存結果が残り、隣の空きへも吸収できなかった）──
+    //   強いコードの余韻の揺れ戻り/再ピークが「2回目」として入ったケース。二重反応としては記録するが、
+    //   スコア結果(state.results)・スコア用マーカー・コンボ・判定表示は既存のまま変えない（再入力で揺らさない）。
+    //   隣の空きtargetへ吸収できた正規入力は prev=null なので下の通常登録へ進む＝救済(隣ターゲット吸収)は維持。
     if (prev) {
         state.beatDoubled[i] = true;
         state.doubleReactionCount++;
         spawnDoubleFx();
+        mic.lastAssign.suppressed = true;
+        mic.lastAssign.outcome = '同一target再入力をスコア登録せず';
+        return true; // 検出は成立（cooldown基点・chordPicked等は呼び出し側で従来どおり更新）
     }
-    if (!prev || Math.abs(diff) < Math.abs(prev.diff)) {
-        state.results[i] = {
-            tapped: true, diff, cls, source,
-            direction: dir, inputDirection: dir, expectedDirection, directionMatched: true, dirMiss: false,
-        };
-    }
+    // 新規 or 隣の空きtargetへ吸収された正規入力：従来どおりスコア登録する。
+    state.results[i] = {
+        tapped: true, diff, cls, source,
+        direction: dir, inputDirection: dir, expectedDirection, directionMatched: true, dirMiss: false,
+    };
     state.markers.push({ t: hitTime, cls, source, direction: dir, dirMiss: false });
     const sign = diff > 0 ? '+' : (diff < 0 ? '−' : '±');
     els.latestVerdict.dataset.state = cls;
@@ -8586,6 +8593,7 @@ function newChordDebug() {
         frames: [],
         onsets: [],
         repeatEvents: [],
+        suppressedSameTarget: 0, // v0.10.10：同一target再入力をスコア登録しなかった件数
         rejCooldown: 0, rejRise: 0, rejInstant: 0,
         epStartMs: null, epBlockCooldown: 0, epBlockRise: 0, epBlockInstant: 0,
     };
@@ -8687,8 +8695,9 @@ function updateChordDev() {
                 + ' / savedCooldown ' + state.chordMinCooldown + 'ms / effectiveCooldown ' + (o.effectiveCooldownMs != null ? o.effectiveCooldownMs + 'ms' : '--')
                 + ' / cooldown明け ' + (o.cooldownMarginMs != null ? fmt(o.cooldownMarginMs) : '--') + (o.cooldownJustEnded ? '（直後）' : '')
                 + ' / peak ' + o.peak + ' / env ' + o.env + ' / rise ' + o.riseFromValley + ' / instantRise ' + o.instantRise
+                + (o.existingDiff != null ? ' / 既存結果 ' + (o.existingCls || '--') + ' ' + fmt(o.existingDiff) : '')
                 + ' / reason ' + o.repeatKind + (o.reason && o.reason !== '—' ? '・' + o.reason : '')
-                + ' / result ' + (o.kept ? '既存入力を維持' : '今回入力を採用'));
+                + ' / result ' + (o.suppressed ? 'スコア登録せず（既存結果を維持）' : (o.kept ? '既存入力を維持' : '今回入力を採用')));
             els.resultsChordDebug.textContent = '🛠（debugMic）コード判定デバッグ｜検出数 ' + cd.onsets.length
                 + ' ／ ライン超え→採用 中央値 ' + fmt(med) + ' ／ 最大 ' + fmt(max)
                 + ' ｜ バックデート中央値 ' + bdMed + 'ms'
@@ -8702,6 +8711,7 @@ function updateChordDev() {
                 + ' ｜ クールダウン棄却 ' + cd.rejCooldown + ' ／ rise不足棄却 ' + cd.rejRise + ' ／ instantRise不足棄却 ' + cd.rejInstant
                 + (lines.length ? '｜ズレが大きい候補：' + lines.join('　') : '')
                 + '｜二重反応／隣ターゲット吸収候補 ' + repeatEvents.length
+                + ' ／ 同一target再入力をスコア登録せず ' + (cd.suppressedSameTarget || 0) + '件'
                 + (repeatLines.length ? '：' + repeatLines.join('　') : '');
             els.resultsChordDebug.classList.remove('hidden');
             console.debug('[chordDebug] onsets=' + cd.onsets.length + ' repeatEvents=' + repeatEvents.length + ' frames=' + cd.frames.length + ' adoptDelay med=' + med + 'ms max=' + max + 'ms backdate med=' + bdMed + 'ms cap med=' + capMed + 'ms gap med=' + gapMed + 'ms minGap=' + minGapMs + 'ms savedCooldown=' + state.chordMinCooldown + 'ms effectiveCooldown med=' + effectiveCdMed + 'ms judgeGood=' + jw.justMs + 'ms judgeMax=' + judgeMaxMs + 'ms fastTargets=' + gapSummary.fastTargetCount + ' rawAbsMed=' + rawAbsMed + ' bdAbsMed=' + bdAbsMed);
@@ -16346,6 +16356,9 @@ function micLoop() {
                             reassigned: !!la.reassigned,
                             doubled: !!la.doubled,
                             kept: !!la.kept,
+                            suppressed: !!la.suppressed,                                                  // v0.10.10：同一target再入力をスコア登録しなかったか
+                            existingDiff: (la.beat != null && state.results[la.beat]) ? state.results[la.beat].diff : null,  // 維持した既存結果のズレ
+                            existingCls: (la.beat != null && state.results[la.beat]) ? state.results[la.beat].cls : null,    // 維持した既存結果の判定
                             adoptedMs,
                             rawAdoptedMs,
                             adoptedDiff: (la.diff != null) ? la.diff : (targetMs != null ? adoptedMs - targetMs : null),  // バックデート後の採用ズレ
@@ -16373,9 +16386,12 @@ function micLoop() {
                         cd.onsets.push(onsetEntry);
                         // 同一ターゲットの再登録と、占有済みターゲットから隣への再割り当てを実機調査用に分離記録する。
                         if (onsetEntry.doubled || onsetEntry.reassigned) {
-                            onsetEntry.repeatKind = onsetEntry.doubled ? '同一ターゲット再入力' : '隣ターゲット吸収候補';
+                            onsetEntry.repeatKind = onsetEntry.doubled
+                                ? (onsetEntry.suppressed ? '同一target再入力をスコア登録せず' : '同一ターゲット再入力')
+                                : '隣ターゲット吸収候補';
                             cd.repeatEvents.push(onsetEntry);
                         }
+                        if (onsetEntry.suppressed) cd.suppressedSameTarget = (cd.suppressedSameTarget || 0) + 1;
                         cd.epStartMs = null; cd.epBlockCooldown = 0; cd.epBlockRise = 0; cd.epBlockInstant = 0; // エピソードを締める
                     }
                 } else micExclude('範囲外');
