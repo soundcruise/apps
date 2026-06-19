@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.2';
+const RHYTHM_CRUISE_VERSION = '0.10.3';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -399,6 +399,17 @@ const MIC_STAGE_DETECT_FACTOR = 1.0;
 /* 再アーム条件：検出しきい値×この値を下回ったら次の入力を拾える状態に戻す */
 const MIC_REARM_FACTOR = 0.6;
 
+/* Phase3：コード専用バックデートの上限(ms)。ゲート確定フレームから、これ以上は過去へ戻さない
+   （前の音・前拍まで遡りすぎない安全弁。約5フレーム@60fps）。通常BPM・4分〜8分ではこの値が上限。 */
+const CHORD_BACKDATE_MAX_MS = 80;
+/* アタック立ち上がり開始が、確定フレームからこの時間より古い場合は「別アタック/前音」とみなし
+   バックデートせず従来どおりの時刻を使う（古すぎる起点の誤適用を防ぐ）。 */
+const CHORD_BACKDATE_STALE_MS = 200;
+/* 適応上限の係数：採用判定対象の前後ターゲット間隔の、最大この割合までしか戻さない。
+   隣ターゲットとの中点(=0.5)より十分手前で止め、前のターゲットへの誤割当を防ぐ安全マージン。
+   例：16分間隔(=隣との差)が 62.5ms のとき上限は 62.5×0.4≒25ms に縮む。 */
+const CHORD_BACKDATE_GAP_FRAC = 0.4;
+
 /* 波形・レベル表示のスケール。反応ライン(threshold)を表示上 1/SCALE の高さに見せる＝
    threshold は常に約 40% の位置。thresholdが低いほど同じ入力でも波形が大きく見える（表示のみ・判定は不変）。 */
 const MIC_DISPLAY_SCALE = 2.5;
@@ -663,6 +674,11 @@ const mic = {
     lastOnsetAt: -100000, // 直近の立ち上がり(オンセット)時刻。beatMicPeakを実打直後だけ記録するために使う
     doubleCounted: false, // 現在のクールダウン窓で二重反応を既に1回数えたか（余韻の多重カウント防止）
     valley: 1,            // 直前入力後の最小音量（コードストローク：谷からの上昇量の基準）
+    // ── Phase3：コード専用バックデート用（chordモードPractice本番のみ・既存 valley とは別管理）──
+    chordValley: 1,            // コード専用ローカル谷（採用ごとにリセット）。mic.valley は変更しない
+    chordValleyRawMs: 0,       // ローカル谷を更新した補正前ゲーム時刻
+    chordRising: false,        // 直近フレームで上昇中か（上昇開始の検出に使う）
+    chordAttackStartRawMs: null, // 直近アタックの立ち上がり開始の「補正前ゲーム時刻(raw gameAudioMs)」。採用時にバックデート元へ
     // 診断カウンタ
     inputCount: 0,     // 入力検出（しきい値超え）
     registerCount: 0,  // 判定登録（registerHitでマーカー）
@@ -7473,6 +7489,78 @@ function registerHit(perfNow, source, direction) {
     return true;
 }
 
+/* Phase3：コードストローク専用の判定登録（chordモードPractice本番のみが呼ぶ）。
+   既存 registerHit() は一切変更しない。本関数は registerHit() の mic 経路と「同じ結果登録」を行うが、
+   入力時刻だけは gameAudioMs() の再取得ではなく、呼び出し側が算出したバックデート済みゲーム時刻
+   backdatedGameMs（＝補正前 gameAudioMs 相当）に micJudgeOffsetMs() を足したものを使う。
+   ・source は常に 'mic'、direction は 'stroke' 固定（コード入力に方向の概念はない）。
+   ・mic.lastAssign / state.results / state.markers / 二重反応 / 判定演出は registerHit と同一仕様。
+   ・タップ/ブラッシング経路はこの関数を呼ばないため一切影響しない。 */
+function registerChordHit(backdatedGameMs) {
+    if (!state.running) return false;
+    const source = 'mic';
+    const dir = 'stroke';
+    // 入力時刻：確定フレームの gameAudioMs() ではなく、アタック開始寄りの backdatedGameMs を使う（ここだけが registerHit と異なる）。
+    const audioMs = backdatedGameMs;
+    const hitTime = audioMs + micJudgeOffsetMs();
+    const bi = state.beatInterval;
+    const swing = engUsesSwingTiming();
+    const diffTo = swing ? (b) => hitTime - engTargetTimeMs(b)
+                         : (b) => hitTime - (state.T0 + b * bi);
+    let i;
+    if (swing) {
+        const approx = Math.round((hitTime - state.T0) / bi);
+        if (approx < 0 || approx > TOTAL_BEATS - 1) { mic.lastAssign = { beat: approx, outcome: '範囲外' }; return false; }
+        i = engNearestHitIndexByTime(hitTime);
+        if (i < 0) { mic.lastAssign = { beat: approx, outcome: '判定対象なし' }; return false; }
+    } else {
+        i = Math.round((hitTime - state.T0) / bi);
+        if (i < 0 || i > TOTAL_BEATS - 1) { mic.lastAssign = { beat: i, outcome: '範囲外' }; return false; }
+        i = engNearestHitIndex(i);
+        if (i < 0) { mic.lastAssign = { beat: i, outcome: '判定対象なし' }; return false; }
+    }
+    const origBeat = i;
+    const occupiedCloser = state.results[i] && Math.abs(state.results[i].diff) <= Math.abs(diffTo(i));
+    if (occupiedCloser) {
+        const cand = i + (diffTo(i) >= 0 ? 1 : -1);
+        const w = judgeWindows();
+        const nearWin = Math.max(w.nearMs, bi * w.nearFrac);
+        if (cand >= 0 && cand <= TOTAL_BEATS - 1 && engIsHit(cand) && !state.results[cand] && Math.abs(diffTo(cand)) <= nearWin) {
+            i = cand;
+        }
+    }
+    const diff = diffTo(i);
+    const cls = classify(diff); // コードは常に方向一致＝タイミング分類がそのまま結果
+    const expectedDirection = engDirAt(i);
+    const prev = state.results[i];
+    mic.lastAssign = {
+        beat: i, origBeat, diff: Math.round(diff), cls,
+        reassigned: (i !== origBeat),
+        doubled: !!prev,
+        kept: !(!prev || Math.abs(diff) < Math.abs(prev.diff)),
+        outcome: 'register',
+    };
+    if (prev) {
+        state.beatDoubled[i] = true;
+        state.doubleReactionCount++;
+        spawnDoubleFx();
+    }
+    if (!prev || Math.abs(diff) < Math.abs(prev.diff)) {
+        state.results[i] = {
+            tapped: true, diff, cls, source,
+            direction: dir, inputDirection: dir, expectedDirection, directionMatched: true, dirMiss: false,
+        };
+    }
+    state.markers.push({ t: hitTime, cls, source, direction: dir, dirMiss: false });
+    const sign = diff > 0 ? '+' : (diff < 0 ? '−' : '±');
+    els.latestVerdict.dataset.state = cls;
+    els.latestVerdict.textContent = `🎤 ${LABELS[cls]} ${sign}${Math.abs(Math.round(diff))}ms`;
+    spawnJudgeFx(cls);
+    if (cls === 'just') state.combo++; else state.combo = 0;
+    updateCombo();
+    return true;
+}
+
 /* ── 判定演出（GOOD/EARLY/LATE/MISS） ──────────────────── */
 function spawnJudgeFx(cls) {
     if (!els.judgeFxLayer) return;
@@ -7852,6 +7940,20 @@ function engNearestHitIndexByTime(hitTime) {
     }
     return best;
 }
+/* Phase3：バックデート適応上限のための「採用判定対象まわりのローカルなターゲット間隔(ms)」。
+   hitTime（補正後ゲーム時刻）に最も近い hit セルを基準に、その直前・直後の hit セルとの
+   ターゲット時刻差を取り、小さい方（=より厳しい安全側）を返す。前後どちらも無ければ null。
+   engTargetTimeMs は通常STAGE/カスタム/スウィングの実ターゲット時刻を返すため、
+   8分・16分・スウィング・カスタムでも、その地点での実際の音符間隔に追従する。 */
+function engChordLocalTargetGapMs(hitTime) {
+    const cur = engNearestHitIndexByTime(hitTime);
+    if (cur < 0) return null;
+    const curT = engTargetTimeMs(cur);
+    let gap = Infinity;
+    for (let p = cur - 1; p >= 0; p--) { if (engIsHit(p)) { gap = Math.min(gap, Math.abs(curT - engTargetTimeMs(p))); break; } }
+    for (let n = cur + 1; n < TOTAL_BEATS; n++) { if (engIsHit(n)) { gap = Math.min(gap, Math.abs(engTargetTimeMs(n) - curT)); break; } }
+    return (Number.isFinite(gap) && gap > 0) ? gap : null;
+}
 /* 判定対象セル数（採点の母数）。STAGE1 は全セル。 */
 function engJudgeCount() {
     if (!eng.pattern) return TOTAL_BEATS;
@@ -8138,6 +8240,10 @@ function resetData() {
     mic.lastOnsetAt = -100000;
     mic.doubleCounted = false;
     mic.valley = 1;             // 谷（コードストローク用）をリセット
+    mic.chordValley = 1;        // Phase3：コード専用ローカル谷もリセット（mic.valley とは別管理）
+    mic.chordValleyRawMs = 0;
+    mic.chordRising = false;
+    mic.chordAttackStartRawMs = null; // Phase3：バックデート起点もリセット
     state.chordPicked = 0;
     state.chordIgnoredRePeaks = 0;
     state.chordDebug = MIC_DEBUG_ON ? newChordDebug() : null; // Phase2：debugMic時のみ収集・Practice開始でリセット
@@ -8402,17 +8508,34 @@ function updateChordDev() {
             const delays = cd.onsets.map((o) => o.adoptDelay).filter((v) => typeof v === 'number').sort((a, b) => a - b);
             const med = delays.length ? delays[Math.floor(delays.length / 2)] : 0;
             const max = delays.length ? delays[delays.length - 1] : 0;
+            // Phase3：バックデート量と、戻す前(raw)／戻した後の採用ズレ中央値で効果を見える化
+            const bdArr = cd.onsets.map((o) => o.backdateMs).filter((v) => typeof v === 'number').sort((a, b) => a - b);
+            const bdMed = bdArr.length ? bdArr[Math.floor(bdArr.length / 2)] : 0;
+            const absMed = (key) => { const a = cd.onsets.map((o) => o[key]).filter((v) => typeof v === 'number').map(Math.abs).sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : null; };
+            const rawAbsMed = absMed('rawAdoptedDiff');
+            const bdAbsMed = absMed('adoptedDiff');
+            // Phase3：適応上限とローカルターゲット間隔の中央値（高BPM/細かいリズムで上限が縮むことを確認用）
+            const med2 = (key) => { const a = cd.onsets.map((o) => o[key]).filter((v) => typeof v === 'number').sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : null; };
+            const capMed = med2('safeBackdateMaxMs');
+            const gapMed = med2('localTargetGapMs');
             const worst = cd.onsets.filter((o) => typeof o.adoptDelay === 'number').slice().sort((a, b) => b.adoptDelay - a.adoptDelay).slice(0, 3);
             const lines = worst.map((o, i) => (i + 1) + '. target ' + fmtT(o.targetMs)
+                + ' / raw ' + (o.rawAdoptedDiff != null ? fmt(o.rawAdoptedDiff) : '--')
                 + ' / adopted ' + (o.adoptedDiff != null ? fmt(o.adoptedDiff) : '--')
+                + ' / backdate ' + (typeof o.backdateMs === 'number' ? o.backdateMs + 'ms' : '--')
+                + ' / cap ' + (typeof o.safeBackdateMaxMs === 'number' ? o.safeBackdateMaxMs + 'ms' : '--')
+                + ' / gap ' + (typeof o.localTargetGapMs === 'number' ? o.localTargetGapMs + 'ms' : '--')
                 + ' / lineCross ' + (o.lineCrossDiff != null ? fmt(o.lineCrossDiff) : '--')
                 + ' / reason: ' + o.reason);
             els.resultsChordDebug.textContent = '🛠（debugMic）コード判定デバッグ｜検出数 ' + cd.onsets.length
                 + ' ／ ライン超え→採用 中央値 ' + fmt(med) + ' ／ 最大 ' + fmt(max)
+                + ' ｜ バックデート中央値 ' + bdMed + 'ms'
+                + ' ／ 適応上限中央値 ' + (capMed != null ? capMed + 'ms' : '--') + '（gap中央値 ' + (gapMed != null ? gapMed + 'ms' : '--') + '）'
+                + ' ／ 採用ズレ中央値 raw ' + (rawAbsMed != null ? rawAbsMed + 'ms' : '--') + ' → 補正後 ' + (bdAbsMed != null ? bdAbsMed + 'ms' : '--')
                 + ' ｜ クールダウン棄却 ' + cd.rejCooldown + ' ／ rise不足棄却 ' + cd.rejRise + ' ／ instantRise不足棄却 ' + cd.rejInstant
                 + (lines.length ? '｜Lateが出た主な候補：' + lines.join('　') : '');
             els.resultsChordDebug.classList.remove('hidden');
-            console.debug('[chordDebug] onsets=' + cd.onsets.length + ' frames=' + cd.frames.length + ' adoptDelay med=' + med + 'ms max=' + max + 'ms');
+            console.debug('[chordDebug] onsets=' + cd.onsets.length + ' frames=' + cd.frames.length + ' adoptDelay med=' + med + 'ms max=' + max + 'ms backdate med=' + bdMed + 'ms cap med=' + capMed + 'ms gap med=' + gapMed + 'ms rawAbsMed=' + rawAbsMed + ' bdAbsMed=' + bdAbsMed);
         }
     }
 }
@@ -15905,6 +16028,19 @@ function micLoop() {
         const sinceHit = now - mic.lastDetect;
         const riseFromValley = peak - mic.valley;
         const instantRise = peak - mic.prevPeak;
+        // ── Phase3：コード専用バックデート起点の追跡（既存 mic.valley・ゲート判定には一切干渉しない）──
+        //   この上昇の開始フレーム（直前の谷）を chordAttackStartRawMs に記録し、採用時のバックデート元にする。
+        if (!inCountIn) {
+            const rawNow = gameAudioMs(); // 補正前ゲーム時刻（micJudgeOffsetMs は採用時に加算）
+            if (peak < mic.chordValley) { mic.chordValley = peak; mic.chordValleyRawMs = rawNow; } // コード専用ローカル谷
+            const goingUp = peak > mic.prevPeak;
+            if (goingUp && !mic.chordRising) {
+                mic.chordRising = true;
+                mic.chordAttackStartRawMs = rawNow; // 上昇開始＝この直前の谷を起点とする
+            } else if (!goingUp) {
+                mic.chordRising = false;
+            }
+        }
         // 立ち上がり未検出MISSの原因分析用：拍ごとに候補フレームの情報を記録（判定には不使用）。
         if (!inCountIn && nearestBeat >= 0) {
             let pb = state.chordBeatProbe[nearestBeat];
@@ -15969,26 +16105,50 @@ function micLoop() {
             if (inCountIn) {
                 micExclude('カウントイン中'); outcome = 'カウントイン中';
             } else {
-                const ok = registerHit(now, 'mic');
+                // ── Phase3：採用時刻を「アタック立ち上がり開始」へバックデート（chord専用経路のみ・適応上限あり）──
+                const rawConfirm = gameAudioMs();                 // 確定フレームの補正前ゲーム時刻（＝従来採用していた時刻）
+                const attackStart = mic.chordAttackStartRawMs;    // この上昇の開始（直前の谷）
+                const rawAmount = (attackStart != null) ? (rawConfirm - attackStart) : -1;
+                // 適応上限：採用される判定対象の前後ターゲット間隔に応じて、戻し幅の上限を絞る。
+                //   ・通常BPM/4分〜8分では間隔が広く、上限は従来どおり固定80msのまま。
+                //   ・高BPM/16分などで間隔が狭いときは、間隔の40%以下に縮め、前ターゲットへの誤割当を防ぐ。
+                const confirmHitTime = rawConfirm + micJudgeOffsetMs(); // ターゲット時刻と同じ補正後の時間軸で最寄りを探す
+                const localTargetGapMs = engChordLocalTargetGapMs(confirmHitTime);
+                const safeBackdateMaxMs = (localTargetGapMs != null)
+                    ? Math.min(CHORD_BACKDATE_MAX_MS, localTargetGapMs * CHORD_BACKDATE_GAP_FRAC)
+                    : CHORD_BACKDATE_MAX_MS;
+                // 起点が有効で、古すぎない（前音/前拍でない）ときだけ、適応上限内でバックデートする。
+                const backdateMs = (attackStart != null && rawAmount >= 0 && rawAmount <= CHORD_BACKDATE_STALE_MS)
+                    ? Math.min(rawAmount, safeBackdateMaxMs) : 0;
+                const backdatedRaw = rawConfirm - backdateMs;
+                const ok = registerChordHit(backdatedRaw);         // 既存 registerHit は使わない（chord専用登録）
                 const la = mic.lastAssign || {};
                 outcome = ok ? 'chord-register' : (la.outcome || '範囲外');
                 aBeat = (la.beat != null) ? la.beat : null; aCls = la.cls || null;
                 if (ok) {
                     mic.lastDetect = now; mic.valley = peak; mic.doubleCounted = false;
                     mic.registerCount++; state.chordPicked++; updateMicDiag();
-                    // ── Phase2：採用onsetの「ライン超え→採用」差分・遅延要因を記録（debugMic時のみ・判定不変）──
+                    // 採用後はコード専用の起点をリセット（次アタックの谷から測り直す）。mic.valley と同様の扱い。
+                    mic.chordValley = peak; mic.chordValleyRawMs = rawConfirm; mic.chordRising = false; mic.chordAttackStartRawMs = null;
+                    // ── Phase2/3：採用onsetの「ライン超え→採用」差分・遅延要因・バックデート量を記録（debugMic時のみ・判定不変）──
                     if (MIC_DEBUG_ON && state.chordDebug) {
                         const cd = state.chordDebug;
-                        const adoptedMs = Math.round(gameAudioMs() + micJudgeOffsetMs()); // registerHit が採用したのと同基準のゲーム時刻
+                        const adoptedMs = Math.round(backdatedRaw + micJudgeOffsetMs()); // バックデート後に実採用したゲーム時刻
+                        const rawAdoptedMs = Math.round(rawConfirm + micJudgeOffsetMs()); // バックデートしなかった場合の時刻
                         const lineCrossMs = (cd.epStartMs != null) ? Math.round(cd.epStartMs) : adoptedMs;
                         const targetMs = (la.beat != null) ? Math.round(engTargetTimeMs(la.beat)) : null;
                         const blocks = [['cooldown明け待ち', cd.epBlockCooldown], ['rise待ち', cd.epBlockRise], ['instantRise待ち', cd.epBlockInstant]];
                         blocks.sort((a, b) => b[1] - a[1]);
                         cd.onsets.push({
                             targetMs,
-                            adoptedDiff: (la.diff != null) ? la.diff : (targetMs != null ? adoptedMs - targetMs : null), // 採用ズレ（例：+85ms）
-                            lineCrossDiff: (targetMs != null) ? (lineCrossMs - targetMs) : null,                       // ライン超え時刻のズレ
-                            adoptDelay: adoptedMs - lineCrossMs,                                                       // ライン超え→採用 の遅れ
+                            adoptedDiff: (la.diff != null) ? la.diff : (targetMs != null ? adoptedMs - targetMs : null),  // バックデート後の採用ズレ
+                            backdatedAdoptedDiff: (la.diff != null) ? la.diff : null,                                     // 〃（明示）
+                            rawAdoptedDiff: (targetMs != null) ? (rawAdoptedMs - targetMs) : null,                        // バックデートなしの採用ズレ
+                            backdateMs,                                                                                  // 実際に戻した量(ms)
+                            safeBackdateMaxMs: Math.round(safeBackdateMaxMs),                                            // この採用時点の適応上限(ms)
+                            localTargetGapMs: (localTargetGapMs != null) ? Math.round(localTargetGapMs) : null,          // 前後ターゲット間隔(ms)
+                            lineCrossDiff: (targetMs != null) ? (lineCrossMs - targetMs) : null,                          // ライン超え時刻のズレ
+                            adoptDelay: adoptedMs - lineCrossMs,                                                          // ライン超え→採用 の遅れ（バックデート後）
                             reason: (blocks[0][1] > 0) ? blocks[0][0] : '—',
                         });
                         cd.epStartMs = null; cd.epBlockCooldown = 0; cd.epBlockRise = 0; cd.epBlockInstant = 0; // エピソードを締める
