@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.10.5">
+    <link rel="stylesheet" href="theme.css?v=0.10.6">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1176,9 +1176,6 @@
                     <p class="result-breakdown hidden" id="results-miss-info"></p>
                     <p class="result-breakdown hidden" id="results-chord-dev"></p>
                     <p class="result-breakdown hidden" id="results-chord-speed-warning"></p>
-                    <p class="result-breakdown result-miss-debug hidden" id="results-chord-detail"></p>
-                    <p class="result-breakdown result-miss-debug hidden" id="results-chord-miss"></p>
-                    <p class="result-breakdown result-miss-debug hidden" id="results-chord-debug"></p>
                     <!-- 二重反応の詳しい説明＋改善方法（詳細タブ内・二重反応時のみ表示） -->
                     <div class="result-double-detail hidden" id="results-double-detail">
                         <p class="rdd-head">二重反応とは？</p>
@@ -1226,12 +1223,15 @@
                 </div>
             </details>
 
-            <!-- 4b. MISS拍の原因（折りたたみ・v0.9.147）：MISSになった拍のわかりやすい原因を、開いた時だけ表示。 -->
+            <!-- 4b. 開発用ログ：スコアMISSと、debugMic時の内部診断を分けて表示。 -->
             <details class="results-detail is-quiet hidden" id="miss-cause-details">
-                <summary class="results-detail-summary">MISS拍の原因</summary>
+                <summary class="results-detail-summary">開発用ログ</summary>
                 <div class="results-detail-body">
-                    <p class="miss-cause-lead">MISSになった拍について、考えられる原因の目安です。</p>
+                    <p class="miss-cause-lead">判定調整のための内部ログです。棄却された入力候補も含むため、スコア上のMISS数とは一致しない場合があります。</p>
                     <div class="miss-cause-list" id="miss-cause-list"></div>
+                    <p class="result-breakdown result-miss-debug hidden" id="results-chord-detail"></p>
+                    <p class="result-breakdown result-miss-debug hidden" id="results-chord-miss"></p>
+                    <p class="result-breakdown result-miss-debug hidden" id="results-chord-debug"></p>
                 </div>
             </details>
 
@@ -1320,7 +1320,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.10.5"></script>
+    <script src="script.js?v=0.10.6"></script>
 </body>
 
 </html>

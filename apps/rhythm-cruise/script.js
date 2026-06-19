@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.5';
+const RHYTHM_CRUISE_VERSION = '0.10.6';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -8407,6 +8407,8 @@ function maybeShowClickPickupWarning() {
 function missReason(i) {
     // くり返し練習のSTOP部分集計では、未到達セルはMISS扱いしない（v0.9.147）
     if (i >= (state.judgeCutoff != null ? state.judgeCutoff : TOTAL_BEATS)) return null;
+    // 採点と同じく、休符・タイなど判定対象でないセルはMISSに含めない。
+    if (!engIsHit(i)) return null;
     const r = state.results[i];
     const isMiss = !r || r.cls === 'miss';
     if (!isMiss) return null;
@@ -8446,10 +8448,9 @@ function updateMissInfo() {
     els.resultsMissInfo.classList.remove('hidden');
 }
 
-/* MISS原因デバッグ：各MISS拍について「オンセットがあったか／結末（クリックガード・クールダウン・未検出 等）」を
-   コンソールと結果詳細に出す。なぜライン超えに見える入力がMISSになったのかを説明できるようにする。 */
+/* MISS原因デバッグ：各拍のオンセットと結末を、debugMic時だけコンソールへ出す。 */
 function logBeatDebug() {
-    if (state.inputMode !== 'stroke') return;
+    if (!MIC_DEBUG_ON || state.inputMode !== 'stroke') return;
     const rows = [];
     for (let i = 0; i < TOTAL_BEATS; i++) {
         const r = state.results[i];
@@ -8477,42 +8478,54 @@ function missBeatPosLabel(i) {
     return bar + '小節目 ' + beatNo + '拍目' + (off ? 'の裏' : '');
 }
 
-/* MISS拍のわかりやすい原因（内部変数・debug表現を出さない・v0.9.147）。
-   判定できる範囲（向き違い／タイミング外／二重反応／音量不足／入力なし／クリック拾いの可能性）に分類して文章で返す。 */
-function missCauseFriendly(i) {
+/* スコア上のMISSを、結果登録の有無に沿って表示用に分類する。 */
+function scoreMissLogLabel(i) {
     const mr = missReason(i);
     if (!mr) return null;
-    if (mr.code === 'dir') return 'ストロークの向きが違った可能性があります';
-    if (mr.code === 'timing') return 'タイミングが判定範囲から外れた可能性があります';
-    if (mr.code === 'double') return '1回のストロークが二重に反応した可能性があります';
-    // 未登録（mr.code === 'low'）：マイク入力のピークと反応ラインから音量不足/入力なし等を切り分け
-    const peak = state.beatMicPeak ? (state.beatMicPeak[i] || 0) : 0;
-    if (state.inputMode === 'stroke') {
-        const line = micEffectiveThreshold();
-        if (peak <= 0) return '入力が見つかりませんでした（音が拾えていない可能性があります）';
-        if (peak < line) return '音量が反応ラインに届かなかった可能性があります';
-        return '入力はありましたが、クリック音を拾った／余韻が重なったなどで判定対象になりませんでした';
-    }
-    return '入力が見つかりませんでした';
+    if (mr.code === 'dir') return '方向違いMISS';
+    if (mr.code === 'timing') return 'タイミング外MISS';
+    if (mr.code === 'double') return '二重反応MISS';
+    return '未入力MISS';
 }
 
-/* 結果カードの「MISS拍の原因」折りたたみを更新（v0.9.147）。
-   MISSが無ければ折りたたみごと非表示。開いた時だけ中身を読む（<details>）。 */
+/* コード判定の拍別観察値から、採用されなかった入力候補の主因を表示用に返す。 */
+function chordRejectedCandidateLabel(i) {
+    const pb = state.chordBeatProbe ? state.chordBeatProbe[i] : null;
+    if (!pb || state.results[i]) return null;
+    if (pb.cooldownBlocked) return 'クールダウン中／余韻候補';
+    if ((pb.maxPeak || 0) <= 0) return null;
+    if (pb.maxPeak < mic.threshold) return '反応ライン未満';
+    if (pb.bestInstantRise < state.chordInstantRiseGate) return 'instantRise不足／再ピーク候補';
+    if (pb.bestRiseFromValley < state.chordRiseGate) return 'rise不足／再ピーク候補';
+    return '条件通過候補（近い拍への割り当てなど）';
+}
+
+/* 結果カードの「開発用ログ」を更新する。
+   スコアMISSは採点対象だけを列挙し、棄却候補は debugMic 時だけ別枠に出す。 */
 function updateMissDebug() {
     if (!els.missCauseDetails || !els.missCauseList) return;
-    const items = [];
+    const scoreMisses = [];
     for (let i = 0; i < TOTAL_BEATS; i++) {
-        const r = state.results[i];
-        const isMiss = !r || r.cls === 'miss';
-        if (!isMiss) continue;
-        const cause = missCauseFriendly(i);
-        if (!cause) continue;
-        items.push('<p class="miss-cause-item">' + missBeatPosLabel(i) + '：' + cause + '</p>');
+        const label = scoreMissLogLabel(i);
+        if (label) scoreMisses.push('<p class="miss-cause-item">' + missBeatPosLabel(i) + '：' + label + '</p>');
     }
-    if (!items.length) { els.missCauseDetails.classList.add('hidden'); els.missCauseList.innerHTML = ''; return; }
-    const shown = items.slice(0, 16);
-    const extra = items.length - shown.length;
-    els.missCauseList.innerHTML = shown.join('') + (extra > 0 ? '<p class="miss-cause-item">ほか ' + extra + ' 拍</p>' : '');
+    const sections = [
+        '<p class="miss-cause-item"><b>【スコア上のMISS】' + scoreMisses.length + '拍</b></p>',
+        scoreMisses.length ? scoreMisses.join('') : '<p class="miss-cause-item">なし</p>',
+    ];
+    if (MIC_DEBUG_ON && state.inputMode === 'stroke' && state.strokeDetectMode === 'chord') {
+        const candidates = [];
+        for (let i = 0; i < TOTAL_BEATS; i++) {
+            const label = chordRejectedCandidateLabel(i);
+            if (label) candidates.push('<p class="miss-cause-item">' + missBeatPosLabel(i) + '：' + label + '</p>');
+        }
+        const shown = candidates.slice(0, 16);
+        const extra = candidates.length - shown.length;
+        sections.push('<p class="miss-cause-item"><b>【判定対象外になった入力候補】' + candidates.length + '件</b></p>');
+        sections.push(shown.length ? shown.join('') : '<p class="miss-cause-item">なし</p>');
+        if (extra > 0) sections.push('<p class="miss-cause-item">ほか ' + extra + ' 件</p>');
+    }
+    els.missCauseList.innerHTML = sections.join('');
     els.missCauseDetails.classList.remove('hidden');
 }
 
@@ -8533,7 +8546,9 @@ function chordMissReason(i) {
 function chordMissAnalyze() {
     const reasons = {}; const lines = []; const rows = [];
     let timingMissCount = 0;
+    const cutoff = state.judgeCutoff != null ? state.judgeCutoff : TOTAL_BEATS;
     for (let i = 0; i < TOTAL_BEATS; i++) {
+        if (!engIsHit(i) || i >= cutoff) continue;
         const r = state.results[i];
         if (r && r.tapped) {
             if (r.cls === 'miss') timingMissCount++;
@@ -8553,7 +8568,7 @@ function chordMissAnalyze() {
             実効クールダウンms: (pb.effectiveCooldownMs != null ? pb.effectiveCooldownMs : ''), 理由: reason,
         });
     }
-    if (rows.length) {
+    if (MIC_DEBUG_ON && rows.length) {
         console.log('[chord] 立ち上がり未検出MISS', { count: rows.length, reasons, gates: { cooldown: state.chordMinCooldown, riseGate: +state.chordRiseGate.toFixed(3), instGate: +state.chordInstantRiseGate.toFixed(3), threshold: +mic.threshold.toFixed(3) } });
         try { console.table(rows); } catch (_) { console.log('[chord] missTable', JSON.stringify(rows)); }
     }
