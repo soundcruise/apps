@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="../theme.css?v=0.10.19">
+    <link rel="stylesheet" href="../theme.css?v=0.10.20">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -70,8 +70,7 @@
                 <!-- 入力方式の切替（v0.9.118：STAGE内から移動）。ここで選んだ方式でSTAGEを開始する。 -->
                 <div class="input-mode" id="rhythm-input-mode">
                     <button type="button" class="input-seg is-active" id="rhythm-mode-tap" data-unified-mode="tap">タップ</button>
-                    <button type="button" class="input-seg" id="rhythm-mode-brush" data-unified-mode="brush">ブラッシング</button>
-                    <button type="button" class="input-seg" id="rhythm-mode-chord" data-unified-mode="chord">コード</button>
+                    <button type="button" class="input-seg" id="rhythm-mode-stroke" data-unified-mode="stroke">ストローク</button>
                 </div>
                 <p class="setting-note rhythm-input-mode-note" id="rhythm-input-mode-note">タップ：画面をタップしてリズムを取ります。</p>
                 <div class="stage-list" id="stage-list">
@@ -749,8 +748,9 @@
                 </details>
             </div>
 
-            <!-- 1. ストローク検出モード -->
-            <div class="settings-card stroke-mode-card" id="stroke-mode-card">
+            <!-- 1. ストローク検出モード（v0.10.20：ユーザー選択UIは廃止。新ストロークは旧ブラッシング判定固定。
+                 DOM/関数は legacy のため残すが、常時非表示＋ウィザードのステップからも除外。） -->
+            <div class="settings-card stroke-mode-card hidden" id="stroke-mode-card">
                 <div class="cal-head">ストローク検出モード</div>
                 <p class="do-now">練習する弾き方を選んでください</p>
                 <div class="input-mode seg-cards" id="stroke-detect-mode">
@@ -767,11 +767,11 @@
             <!-- 2. マイク反応テスト -->
             <div class="settings-card test-card" id="test-card">
                 <div class="cal-head-row">
-                    <div class="cal-head" id="test-card-head">マイク反応テスト</div>
+                    <div class="cal-head" id="test-card-head">ストローク反応テスト</div>
                     <span class="status-pill" id="test-done-badge">未実施</span>
                 </div>
-                <p class="do-now" id="test-do-now">クリックに続けて、いつもの強さで8回ストローク</p>
-                <p class="do-now-sub">目標：クリック音では反応せず、ストロークでは反応する感度にします。</p>
+                <p class="do-now" id="test-do-now">弦を軽くミュートして、短く軽く8回ストローク</p>
+                <p class="do-now-sub">目標：クリック音では反応せず、ストロークでは反応する感度にします。音が大きすぎる／二重反応が出る場合は、弦にクロスを挟むと安定しやすくなります。</p>
                 <details class="card-help">
                     <summary>詳しい説明</summary>
                     <p class="setting-note" id="test-card-note">クリック音が反応せず、ストローク音だけ反応するかを自動でチェックします。</p>
@@ -978,7 +978,7 @@
                     <div class="cal-head">最終確認テスト</div>
                 </div>
                 <p class="do-now">クリックに合わせてストローク</p>
-                <p class="do-now-sub">クリック音だけでは反応しないこと、コードストロークでは反応することを確認します。</p>
+                <p class="do-now-sub">クリック音だけでは反応しないこと、ストロークでは反応することを確認します。</p>
                 <details class="card-help">
                     <summary>詳しい説明</summary>
                     <p class="setting-note">実際のSTAGEに近い画面で、音量と判定タイミングを確認します。ここまでの設定で問題なく弾けるかを確認します。</p>
@@ -1249,7 +1249,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.10.19"></script>
+    <script src="../script.js?v=0.10.20"></script>
 </body>
 
 </html>

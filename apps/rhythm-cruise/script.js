@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.19';
+const RHYTHM_CRUISE_VERSION = '0.10.20';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -973,8 +973,7 @@ const els = {
     playBtn: $('play-btn'),
     // v0.9.118：入力方式の切替は「リズム練をする」画面へ移動。STAGE側は現在方式の表示のみ。
     rhythmModeTap: $('rhythm-mode-tap'),
-    rhythmModeBrush: $('rhythm-mode-brush'),
-    rhythmModeChord: $('rhythm-mode-chord'),
+    rhythmModeStroke: $('rhythm-mode-stroke'), // v0.10.20：旧 brush/chord ボタンを1本化した「ストローク」
     rhythmInputModeNote: $('rhythm-input-mode-note'),
     practiceModeLabel: $('practice-mode-label'),
     strokeModeBrush: $('stroke-mode-brush'),
@@ -8916,7 +8915,10 @@ function applyWaveOnsetFallbacks(cutoff) {
     });
 }
 
-/* v0.10.17：STAGE6コード判定のdebug比較。すべて読み取り専用で、本番結果へ接続しない。 */
+/* v0.10.17：STAGE6コード判定のdebug比較。すべて読み取り専用で、本番結果へ接続しない。
+   STAGE6 debug experiment only / not connected to production scoring（v0.10.20）。
+   実験C/D/E/F（stage6CodeExperimentAnalyze 系）は ?debugMic=1 のログ表示専用で state.results を書かない。
+   v0.10.20 のユーザー向けストロークは旧ブラッシング判定（registerHit）であり、この実験系は採点に一切関与しない。 */
 function stage6ExperimentEnabled() {
     return MIC_DEBUG_ON && state.currentStage === 6
         && state.inputMode === 'stroke' && state.strokeDetectMode === 'chord';
@@ -9516,14 +9518,14 @@ function updateChordDev() {
     // ユーザー向けの良否：拾った入力が32前後・二重反応が少ない・未検出MISSが少ない → 良好
     const good = (doubles <= 1) && (picked >= 28 && picked <= 36) && (miss.count + miss.timingMissCount <= 2);
     // ① ユーザー向け（シンプル）
-    els.resultsChordDev.textContent = '🎸 コードストローク判定：' + (good ? '良好' : '注意')
+    els.resultsChordDev.textContent = '🎸 ストローク判定：' + (good ? '良好' : '注意')
         + '｜拾った入力 ' + picked + ' ／ 二重反応 ' + doubles;
     els.resultsChordDev.classList.remove('hidden');
     const gapSummary = engChordTargetGapSummary();
     const hasFastGap = gapSummary.minGapMs != null && gapSummary.minGapMs < CHORD_FAST_GAP_WARN_MS;
     if (els.resultsChordSpeedWarning) {
         els.resultsChordSpeedWarning.textContent = hasFastGap
-            ? '⚠ コード間隔がとても短いため、判定が不安定になる場合があります。BPMを下げるか、細かい音符ではブラッシング／タップもお試しください。'
+            ? '⚠ 音符の間隔がとても短いため、判定が不安定になる場合があります。BPMを下げるか、弦を軽くミュートして短く軽くストロークしてみてください。タップに切り替えるのも有効です。'
             : '';
         els.resultsChordSpeedWarning.classList.toggle('hidden', !hasFastGap);
     }
@@ -9642,6 +9644,7 @@ function updateDoubleInfo() {
         if (els.resultsDoubleDetailMsg) {
             els.resultsDoubleDetailMsg.textContent = frequentDouble
                 ? 'ほぼ毎小節で二重反応が出ています。強く弾いた音の余韻を、次の入力として拾っている可能性があります。'
+                    + '弦を軽くミュートする、または弦にクロスを挟んで短く軽くストロークすると、余韻が短くなって安定しやすくなります。'
                     + 'スマホとギターの距離や向きを少し変えると、余韻や反射音の拾い方が変わり、二重反応が減ることがあります。'
                     + '気になる場合は、マイク反応テストをやり直すか、手動設定で「二重反応防止」を少し長めにしてください（例：' + cur + 'ms → ' + next + 'ms）。'
                 : 'たまに二重反応が出ています。1〜2回程度であれば、練習結果への影響は大きくない場合があります。'
@@ -10316,11 +10319,9 @@ function updateStrokeDetectModeUI() {
     if (els.strokeModeBrush) els.strokeModeBrush.classList.toggle('is-active', !chord);
     if (els.strokeModeChord) els.strokeModeChord.classList.toggle('is-active', chord);
     if (els.strokeModeNote) els.strokeModeNote.classList.toggle('hidden', !chord);
-    // マイク反応テストの案内文をモードに合わせる（ブラッシングは従来文を維持）
+    // v0.10.20：ストローク反応テストの案内文。ユーザー導線は brush 固定なので、軽いミュート／クロスミュート前提の文言にする。
     if (els.testCardNote) {
-        els.testCardNote.textContent = chord
-            ? '実際にコードを鳴らして、表示に合わせてストロークしてください。コードの余韻は無視し、弾き始めを拾う設定を作ります。'
-            : 'クリック音が反応せず、ストローク音だけ反応するかを自動でチェックします。';
+        els.testCardNote.textContent = '弦を軽くミュートして、短く軽くストロークしてください。クリック音では反応せず、ストロークで反応する感度に自動調整します。音が大きすぎる／二重反応が出る場合は、弦にクロスを挟むと安定しやすくなります。';
     }
 }
 
@@ -12708,25 +12709,23 @@ function shouldAllowRescueHighSens() {
 
 /* ── 入力方法（タップ / ストローク）──────────────────────── */
 /* 入力方式の切替UI（リズム練の［タップ｜ストローク］）とSTAGEの「現在：」表示を同期する（v0.9.118） */
-/* ユーザー向け3分類（タップ / ブラッシング / コード）の表示名・説明文。
-   内部2軸（inputMode + strokeDetectMode）を1つの呼び名へ写すための表示専用テーブル。判定には不使用。 */
+/* v0.10.20：ユーザー向けは「タップ / ストローク」の2分類に統一。表示専用テーブル（判定には不使用）。
+   ストロークの内部判定は旧ブラッシング（strokeDetectMode='brush' → registerHit(now,'mic')）に寄せる。
+   旧 brush/chord はユーザーUIに出さず、いずれも「ストローク」として表示する。 */
 const UNIFIED_MODE_NOTE = {
     tap: 'タップ：画面をタップしてリズムを取ります。',
-    brush: 'ブラッシング：ミュート気味の短いストロークや、音の切れがよい入力向けです。',
-    chord: 'コード：コードを鳴らすストローク向けです。余韻が長い場合の判定は今後さらに調整します。',
+    stroke: 'ストローク：弦を軽くミュートして、短く軽くストロークします。音が大きすぎる／二重反応が出る場合は、弦にクロスを挟むと安定しやすくなります。',
 };
-const UNIFIED_MODE_LABEL = { tap: 'タップモード', brush: 'ブラッシングモード', chord: 'コードモード' };
-/* 内部2軸 → ユーザー向け呼び名（表示専用）。inputMode='tap'→tap、stroke時はstrokeDetectModeでbrush/chord。 */
+const UNIFIED_MODE_LABEL = { tap: 'タップモード', stroke: 'ストロークモード' };
+/* 内部2軸 → ユーザー向け呼び名（表示専用）。v0.10.20：inputMode='tap'→tap、それ以外（stroke）は brush/chord 問わず 'stroke'。 */
 function unifiedInputMode() {
-    if (state.inputMode !== 'stroke') return 'tap';
-    return (state.strokeDetectMode === 'chord') ? 'chord' : 'brush';
+    return (state.inputMode === 'stroke') ? 'stroke' : 'tap';
 }
 
 function updateInputModeUI() {
     const u = unifiedInputMode();
     if (els.rhythmModeTap) els.rhythmModeTap.classList.toggle('is-active', u === 'tap');
-    if (els.rhythmModeBrush) els.rhythmModeBrush.classList.toggle('is-active', u === 'brush');
-    if (els.rhythmModeChord) els.rhythmModeChord.classList.toggle('is-active', u === 'chord');
+    if (els.rhythmModeStroke) els.rhythmModeStroke.classList.toggle('is-active', u === 'stroke');
     if (els.rhythmInputModeNote) els.rhythmInputModeNote.textContent = UNIFIED_MODE_NOTE[u] || UNIFIED_MODE_NOTE.tap;
     if (els.practiceModeLabel) els.practiceModeLabel.textContent = UNIFIED_MODE_LABEL[u] || UNIFIED_MODE_LABEL.tap;
 }
@@ -12743,13 +12742,14 @@ function selectInputMode(mode) {
 /* ユーザー向け3分類（タップ / ブラッシング / コード）→ 内部2軸への薄いマッピング（v0.10.1）。
    判定ロジックは一切持たず、既存の selectInputMode / setStrokeDetectMode を呼ぶだけ。
    ・タップ        → inputMode='tap'
-   ・ブラッシング → strokeDetectMode='brush' + inputMode='stroke'
-   ・コード        → strokeDetectMode='chord' + inputMode='stroke'
+   ・ストローク    → strokeDetectMode='brush'（旧ブラッシング判定）+ inputMode='stroke'
+   v0.10.20：ユーザー向けは tap / stroke の2択。stroke / brush / chord いずれが来ても新ストローク＝
+   旧ブラッシング判定（brush）へ寄せる。旧コードストローク(chord)経路には通常導線で到達しない。
    stroke系は先に検出モードを確定してからコンテナを stroke にする（UI/保存が最終状態で揃う）。 */
 function setUnifiedInputMode(mode) {
     if (mode === 'tap') { selectInputMode('tap'); return; }
-    setStrokeDetectMode(mode === 'chord' ? 'chord' : 'brush'); // 検出モード確定（UI同期＋保存）
-    selectInputMode('stroke');                                  // コンテナをstrokeへ（UI同期＋保存）
+    setStrokeDetectMode('brush'); // 新ストロークは旧ブラッシング判定固定（chordは本命にしない）
+    selectInputMode('stroke');    // コンテナをstrokeへ（UI同期＋保存）
 }
 
 function setInputMode(mode, opts) {
@@ -12770,6 +12770,9 @@ function setInputMode(mode, opts) {
         applyTapLayout();
         hideMicSetupPrompt();
     } else {
+        // v0.10.20：新ストロークは旧ブラッシング判定（registerHit(now,'mic')）固定。保存値やプリセットに旧chordが
+        //   残っていても、通常導線ではここで brush に寄せる（registerChordHit経路へ到達させない）。判定本体は不変。
+        if (state.strokeDetectMode === 'chord') { state.strokeDetectMode = 'brush'; updateStrokeDetectModeUI(); }
         if (els.tapTools) els.tapTools.classList.add('hidden');   // ストローク時はタップボタン設定を隠す
         if (els.tapArea) els.tapArea.classList.add('hidden');     // ストローク時はタップエリアを畳む
         if (els.strokeMicTools) els.strokeMicTools.classList.remove('hidden'); // ストローク時は簡易マイク設定タブを表示（v0.9.140）
@@ -13305,7 +13308,9 @@ function wizardSteps() {
     // Bluetooth：input → hptype → stroke → test → correction(イヤホン音ズレ補正) → btdelay → practice → final
     const steps = ['input'];
     if (isHeadphoneInput()) steps.push('hptype');
-    steps.push('stroke', 'test');
+    // v0.10.20：ストローク検出モード（ブラッシング/コード）のユーザー選択ステップは廃止。
+    //   新ストローク＝旧ブラッシング固定のため、'stroke' ステップは出さない（カードも非表示）。
+    steps.push('test');
     if (!isHeadphoneInput()) {
         steps.push('correction');            // 通常マイク：マイクの遅れ補正
     } else if (isBluetoothHeadphone()) {
@@ -15338,7 +15343,7 @@ function micTestBtnIdleLabel() {
 function updateMicTestDoneUI() {
     const done = state.micTestDone;
     if (els.testCard) els.testCard.classList.toggle('is-done', done);
-    if (els.testCardHead) els.testCardHead.textContent = done ? '✅ マイク反応テスト済み' : 'マイク反応テスト';
+    if (els.testCardHead) els.testCardHead.textContent = done ? '✅ ストローク反応テスト済み' : 'ストローク反応テスト';
     if (els.testDoneBadge) {
         els.testDoneBadge.textContent = '未実施';
         els.testDoneBadge.classList.toggle('hidden', done); // 済みのときは出さない（見出しの✅と二重になるため）
@@ -17976,9 +17981,9 @@ function bind() {
     // 入力方法（タップ / ストローク）
     // 入力方式の切替（v0.9.118：リズム練をする画面）。ここでは選択の記録のみ。STAGE開始時に反映。
     if (els.rhythmModeTap) els.rhythmModeTap.addEventListener('click', () => setUnifiedInputMode('tap'));
-    if (els.rhythmModeBrush) els.rhythmModeBrush.addEventListener('click', () => setUnifiedInputMode('brush'));
-    if (els.rhythmModeChord) els.rhythmModeChord.addEventListener('click', () => setUnifiedInputMode('chord'));
-    // ストローク検出モード：選んだら自動で次（マイク反応テスト）へ
+    if (els.rhythmModeStroke) els.rhythmModeStroke.addEventListener('click', () => setUnifiedInputMode('stroke')); // v0.10.20：ストローク＝旧ブラッシング判定
+    // v0.10.20：ストローク検出モード（brush/chord）のユーザー選択UIは廃止。els.strokeModeBrush/Chord は
+    //   HTMLから除去済みのため下記ハンドラは付かない。setStrokeDetectMode / onPickStrokeMode は内部・legacy用に存続。
     if (els.strokeModeBrush) els.strokeModeBrush.addEventListener('click', () => onPickStrokeMode('brush'));
     if (els.strokeModeChord) els.strokeModeChord.addEventListener('click', () => onPickStrokeMode('chord'));
     // 入力タイプ（通常マイク / イヤホン接続）：選んだら自動で次へ
