@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.12';
+const RHYTHM_CRUISE_VERSION = '0.10.13';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -8576,6 +8576,20 @@ function chordMissNearbyAnalyze() {
     const frames = Array.isArray(cd.frames) ? cd.frames : [];   // フレーム実測（しきい値超え/ゲート可否）
     const fmt = (v) => (v == null ? '--' : (v >= 0 ? '+' : '') + Math.round(v) + 'ms');
     const fmtT = (ms) => { if (ms == null) return '--'; const s = Math.max(0, ms) / 1000; const m = Math.floor(s / 60); const r = s % 60; return (m < 10 ? '0' : '') + m + ':' + (r < 10 ? '0' : '') + r.toFixed(3); };
+    const frameTimeLine = (label, f, T) => {
+        if (!f) return label + ': --';
+        const judgedT = f.t; // micRunWave と同じ rawGame + micJudgeOffsetMs の時間軸
+        const adoptedT = (f.hypotheticalAdoptedT != null) ? f.hypotheticalAdoptedT : judgedT;
+        return label + ': target ' + fmtT(T)
+            + ' / rawGame ' + fmtT(f.rawT) + '（target差 ' + fmt(f.rawT != null ? f.rawT - T : null) + '）'
+            + ' / frame判定時刻 ' + fmtT(judgedT) + '（frameDiff ' + fmt(judgedT - T) + '）'
+            + ' / 仮adopted ' + fmtT(adoptedT) + '（adoptedDiff ' + fmt(adoptedT - T) + '）'
+            + ' / backdate ' + fmt(f.backdateMs)
+            + ' / waveDiff ' + fmt(judgedT - T) + ' / yellowLine ' + fmtT(T)
+            + ' / micJudgeOffset ' + fmt(f.micJudgeOffsetMs)
+            + ' / bluetoothMicOffset ' + fmt(f.bluetoothMicOffsetMs)
+            + ' / headphoneOutputOffset ' + fmt(f.headphoneOutputOffsetMs);
+    };
     const onsetDist = (o, T) => Math.min(
         (o.adoptedMs != null) ? Math.abs(o.adoptedMs - T) : Infinity,
         (o.rawAdoptedMs != null) ? Math.abs(o.rawAdoptedMs - T) : Infinity);
@@ -8631,11 +8645,17 @@ function chordMissNearbyAnalyze() {
                 + ' / cooldown明け ' + fmt(o.cooldownMarginMs));
         });
         if (!near.length && crossClosest) {
-            const g = crossBestPeak || crossClosest;
             candLines.push('波形候補（未採用フレーム）: Δtarget ' + fmt(crossClosest.t - T)
-                + ' / peak ' + g.peak + ' / detThr ' + g.detThr
-                + ' / rise ' + g.riseFromValley + ' / instantRise ' + g.instantRise
-                + ' / cooldown ' + (g.cooldownOk ? 'OK' : '未') + '（' + g.effectiveCooldownMs + 'ms）');
+                + ' / peak ' + crossClosest.peak + ' / detThr ' + crossClosest.detThr
+                + ' / rise ' + crossClosest.riseFromValley + ' / instantRise ' + crossClosest.instantRise
+                + ' / cooldown ' + (crossClosest.cooldownOk ? 'OK' : '未') + '（' + crossClosest.effectiveCooldownMs + 'ms）');
+            candLines.push('【時刻基準チェック】' + frameTimeLine('target最寄りフレーム', crossClosest, T));
+            if (crossBestPeak && crossBestPeak !== crossClosest) {
+                candLines.push(frameTimeLine('近辺最大peakフレーム', crossBestPeak, T)
+                    + ' / peak ' + crossBestPeak.peak + ' / rise ' + crossBestPeak.riseFromValley
+                    + ' / instantRise ' + crossBestPeak.instantRise);
+            }
+            candLines.push('基準: Δtarget/frameDiff/waveDiff は同じ補正後frame時刻。仮adoptedDiffだけ chordComputeBackdatedRaw 相当の戻し後。未採用のため resultDiff はなし。');
         } else if (!near.length && !crossClosest && pb && (pb.maxPeak || 0) > 0) {
             candLines.push('波形候補（反応ライン未満）: 最大peak ' + (pb.maxPeak || 0).toFixed(3)
                 + ' / 最大rise ' + (pb.bestRiseFromValley || 0).toFixed(3)
@@ -8700,6 +8720,13 @@ function updateMissDebug() {
                     + ' / rise ' + (rc.riseFromValley != null ? rc.riseFromValley : '--')
                     + ' / instantRise ' + (rc.instantRise != null ? rc.instantRise : '--')
                     + ' / reason ' + (rc.reason || '--') + ' / result: GOOD範囲救済で採用</p>');
+                sections.push('<p class="miss-cause-item">　【時刻基準チェック】target ' + (rc.targetMs != null ? rc.targetMs + 'ms' : '--')
+                    + ' / raw確定Diff ' + fmtR(rc.rawAdoptedDiff) + ' / adoptedDiff ' + fmtR(rc.adoptedDiff)
+                    + ' / backdate ' + fmtR(rc.backdateMs) + ' / waveDiff ' + fmtR(rc.rawAdoptedDiff)
+                    + ' / resultDiff ' + fmtR(rc.resultDiff) + ' / yellowLine=target'
+                    + ' / micJudgeOffset ' + fmtR(rc.micJudgeOffsetMs)
+                    + ' / bluetoothMicOffset ' + fmtR(rc.bluetoothMicOffsetMs)
+                    + ' / headphoneOutputOffset ' + fmtR(rc.headphoneOutputOffsetMs) + '</p>');
             });
             if (rescues.length > 12) sections.push('<p class="miss-cause-item">ほか ' + (rescues.length - 12) + ' 件</p>');
         }
@@ -16456,7 +16483,10 @@ function micLoop() {
         // ── Phase2 ログ可視化（?debugMic=1 のときだけ・読むだけで判定には一切不使用）──
         if (MIC_DEBUG_ON && state.chordDebug && !inCountIn) {
             const cd = state.chordDebug;
-            const gtw = gameAudioMs() + micJudgeOffsetMs(); // 判定と同一基準のゲーム時刻（読むだけ）
+            const frameRawT = gameAudioMs();
+            const judgeOffset = micJudgeOffsetMs();
+            const gtw = frameRawT + judgeOffset; // 判定・結果波形と同一基準のゲーム時刻（読むだけ）
+            const debugBackdate = chordComputeBackdatedRaw(); // 観察専用：このフレームを採用した場合の戻し量
             const thresholdOk = peak >= detThr;
             const cooldownOk = sinceHit >= effectiveChordCooldownMs;
             const riseOk = riseFromValley >= state.chordRiseGate;
@@ -16481,7 +16511,11 @@ function micLoop() {
             }
             // フレームサンプル（上限3000で打ち切り＝重くなりすぎ防止）
             if (cd.frames.length < 3000) {
-                cd.frames.push({ t: Math.round(gtw), peak: +peak.toFixed(3), env: +mic.env.toFixed(3), detThr: +detThr.toFixed(3),
+                cd.frames.push({ t: Math.round(gtw), rawT: Math.round(frameRawT),
+                    hypotheticalAdoptedT: Math.round(debugBackdate.backdatedRaw + judgeOffset), backdateMs: Math.round(debugBackdate.backdateMs),
+                    micJudgeOffsetMs: Math.round(judgeOffset), bluetoothMicOffsetMs: Math.round(mic.bluetoothMicOffsetMs || 0),
+                    headphoneOutputOffsetMs: Math.round(mic.headphoneOutputOffsetMs || 0),
+                    peak: +peak.toFixed(3), env: +mic.env.toFixed(3), detThr: +detThr.toFixed(3),
                     instantRise: +instantRise.toFixed(3), riseFromValley: +riseFromValley.toFixed(3), sinceHit: Math.round(sinceHit),
                     effectiveCooldownMs: Math.round(effectiveChordCooldownMs),
                     chordOnset, cooldownOk, thresholdOk, riseOk, instantRiseOk });
@@ -16582,6 +16616,12 @@ function micLoop() {
                         // v0.10.12：救済採用は専用バッファにも記録（開発用ログ【GOOD範囲救済採用】で表示）。
                         if (isChordRescue) cd.rescues.push({
                             beat: onsetEntry.beat, adoptedDiff: onsetEntry.adoptedDiff,
+                            targetMs: onsetEntry.targetMs, rawAdoptedDiff: onsetEntry.rawAdoptedDiff,
+                            backdateMs: onsetEntry.backdateMs,
+                            resultDiff: (onsetEntry.beat != null && state.results[onsetEntry.beat]) ? state.results[onsetEntry.beat].diff : null,
+                            micJudgeOffsetMs: Math.round(micJudgeOffsetMs()),
+                            bluetoothMicOffsetMs: Math.round(mic.bluetoothMicOffsetMs || 0),
+                            headphoneOutputOffsetMs: Math.round(mic.headphoneOutputOffsetMs || 0),
                             peak: onsetEntry.peak, detThr: +detThr.toFixed(3),
                             riseFromValley: onsetEntry.riseFromValley, instantRise: onsetEntry.instantRise,
                             reason: chordRescueReason,
