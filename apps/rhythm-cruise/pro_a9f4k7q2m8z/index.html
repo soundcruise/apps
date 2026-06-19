@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="../theme.css?v=0.10.16">
+    <link rel="stylesheet" href="../theme.css?v=0.10.17">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1102,6 +1102,12 @@
             <div class="results-history-head hidden" id="r-history-head" aria-hidden="true"></div>
             <div class="score-big"><b id="r-score">0</b><span>点</span></div>
             <p class="review-hint">本来の音符＝薄い黄色／自分の入力＝<b class="rv-just">緑</b>・<b class="rv-early">青</b>・<b class="rv-late">赤</b>・<b class="rv-miss">×</b>。横にスクロールして全32拍を確認できます。</p>
+            <div class="debug-wave-controls hidden" id="debug-wave-controls" aria-label="開発用波形表示切替">
+                <span>波形表示</span>
+                <button type="button" class="debug-wave-btn is-active" data-wave-mode="linear">リニア</button>
+                <button type="button" class="debug-wave-btn" data-wave-mode="log">対数</button>
+                <button type="button" class="debug-wave-btn" data-wave-mode="rise">立ち上がり強調</button>
+            </div>
             <div class="review-wrap" id="review-wrap">
                 <div class="review-flow-score-layer hidden" id="review-flow-score-layer" aria-hidden="true"></div>
                 <canvas id="review-canvas"></canvas>
@@ -1243,7 +1249,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.10.16"></script>
+    <script src="../script.js?v=0.10.17"></script>
 </body>
 
 </html>

@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.16';
+const RHYTHM_CRUISE_VERSION = '0.10.17';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -1081,6 +1081,7 @@ const els = {
     resultsMicTune: $('results-mic-tune'),
     resultsMicWrap: $('results-mic-wrap'),
     resultsMicCanvas: $('results-mic-canvas'),
+    debugWaveControls: $('debug-wave-controls'),
     reviewWrap: $('review-wrap'),
     reviewCanvas: $('review-canvas'),
     reviewFlowScoreLayer: $('review-flow-score-layer'), // 結果見返しの固定譜面（VexFlow層・v0.9.140）
@@ -6383,6 +6384,7 @@ function fitGraph() {
 }
 
 let resultsMic = { ctx: null, w: 0, h: 0 };
+let debugReviewWaveMode = 'linear'; // debugMic結果レーン専用。判定・保存には使わない。
 function fitResultsMic() {
     if (!els.resultsMicCanvas) return;
     applyResultGraphWidth(els.resultsMicCanvas);
@@ -7140,6 +7142,37 @@ function fitReview() {
     drawReview();
 }
 
+/* debugMic結果レーンの表示値だけを変換する。元のmicRunWaveと判定値は変更しない。 */
+function debugReviewWaveLevels(wave, mode) {
+    if (!Array.isArray(wave)) return [];
+    if (mode === 'log') {
+        const k = 8;
+        const denom = Math.log1p(k);
+        return wave.map((s) => Math.log1p(Math.max(0, s.level || 0) * k) / denom);
+    }
+    if (mode === 'rise') {
+        const scale = Math.max(0.08, micEffectiveThreshold() * 0.35);
+        return wave.map((s, i) => {
+            let localMin = Math.max(0, s.level || 0);
+            for (let p = i - 1; p >= 0 && wave[p].t >= s.t - 72; p--) {
+                localMin = Math.min(localMin, Math.max(0, wave[p].level || 0));
+            }
+            return Math.max(0, Math.min(1, ((s.level || 0) - localMin) / scale));
+        });
+    }
+    return wave.map((s) => Math.max(0, s.level || 0));
+}
+
+function syncDebugWaveControls() {
+    if (!els.debugWaveControls) return;
+    const show = MIC_DEBUG_ON && state.currentStage === 6
+        && state.inputMode === 'stroke' && state.strokeDetectMode === 'chord';
+    els.debugWaveControls.classList.toggle('hidden', !show);
+    els.debugWaveControls.querySelectorAll('[data-wave-mode]').forEach((btn) => {
+        btn.classList.toggle('is-active', btn.getAttribute('data-wave-mode') === debugReviewWaveMode);
+    });
+}
+
 /* 結果レーンに、STAGE中に見えていたのと同じ時間軸のストローク音量波形（state.micRunWave）と
    反応ラインを薄く重ねる。音符・判定文字より先に（背面に）描く。ストロークモードのみ。
    時間→x は音符と同じ「拍位置」マッピング（t→拍番号→beatX）なので、各ストロークのピークが
@@ -7156,12 +7189,17 @@ function drawReviewMicOverlay(ctx, w, h, yc, beatX, beatPx) {
 
     const rw = state.micRunWave;
     if (rw && rw.length >= 2) {
+        const displayMode = MIC_DEBUG_ON ? debugReviewWaveMode : 'linear';
+        const displayLevels = debugReviewWaveLevels(rw, displayMode);
         // STAGE中と同じ時間軸の連続波形（上下対称の薄い塗り＋上端の輪郭）
         const pts = [];
         for (let k = 0; k < rw.length; k++) {
             const x = tToX(rw[k].t);
             if (x < leftPad - 8 || x > w + 8) continue;
-            pts.push([x, frac(rw[k].level) * maxAmp]);
+            const displayFrac = displayMode === 'linear'
+                ? frac(displayLevels[k])
+                : Math.max(0, Math.min(1, displayLevels[k]));
+            pts.push([x, displayFrac * maxAmp]);
         }
         if (pts.length >= 2) {
             ctx.beginPath();
@@ -8427,6 +8465,7 @@ function resetData() {
     state.chordDebug = MIC_DEBUG_ON ? newChordDebug() : null; // Phase2：debugMic時のみ収集・Practice開始でリセット
     state.waveRiseAnalysis = [];
     state.waveFallbackLog = [];
+    debugReviewWaveMode = 'linear';
     updateMicDiag();
     updateCombo();
     if (els.judgeFxLayer) els.judgeFxLayer.innerHTML = '';
@@ -8839,6 +8878,197 @@ function applyWaveOnsetFallbacks(cutoff) {
     });
 }
 
+/* v0.10.17：STAGE6コード判定のdebug比較。すべて読み取り専用で、本番結果へ接続しない。 */
+function stage6ExperimentEnabled() {
+    return MIC_DEBUG_ON && state.currentStage === 6
+        && state.inputMode === 'stroke' && state.strokeDetectMode === 'chord';
+}
+
+function stage6ExperimentTargets() {
+    const cutoff = state.judgeCutoff != null ? state.judgeCutoff : TOTAL_BEATS;
+    const out = [];
+    for (let i = 0; i < TOTAL_BEATS; i++) {
+        if (i < cutoff && engIsHit(i)) out.push({ beat: i, target: engTargetTimeMs(i) });
+    }
+    return out;
+}
+
+function stage6ClassSummary(entries, total) {
+    const out = { good: 0, early: 0, late: 0, miss: total, candidates: 0 };
+    entries.forEach((entry) => {
+        if (!entry || !entry.candidate) return;
+        out.candidates++;
+        const cls = entry.candidate.classification;
+        if (cls === 'just') out.good++;
+        else if (cls === 'early') out.early++;
+        else if (cls === 'late') out.late++;
+    });
+    out.miss = Math.max(0, total - out.good - out.early - out.late);
+    return out;
+}
+
+function stage6FindTargetOnset(wave, beat, target, mode) {
+    const levels = mode === 'log' ? debugReviewWaveLevels(wave, 'log') : wave.map((s) => Math.max(0, s.level || 0));
+    const detThr = micEffectiveThreshold();
+    const transformedThr = mode === 'log'
+        ? Math.log1p(detThr * 8) / Math.log1p(8)
+        : detThr;
+    const minRise = mode === 'log' ? 0.045 : Math.max(0.05, detThr * 0.14);
+    const minStep = mode === 'log' ? 0.006 : Math.max(0.009, detThr * 0.025);
+    let best = null;
+    let maxRise = 0;
+    let maxSlope = 0;
+    let samples = 0;
+    for (let k = 1; k < wave.length - 2; k++) {
+        const cur = wave[k];
+        if (cur.t < target - 120 || cur.t > target + 120) continue;
+        samples++;
+        let before = levels[k - 1];
+        for (let p = k - 1; p >= 0 && wave[p].t >= cur.t - 60; p--) before = Math.min(before, levels[p]);
+        let after = levels[k];
+        for (let n = k; n < wave.length && wave[n].t <= cur.t + 40; n++) after = Math.max(after, levels[n]);
+        const rise = after - before;
+        const firstStep = levels[k] - levels[k - 1];
+        let slopeFrames = 0;
+        for (let n = k; n < Math.min(wave.length, k + 4); n++) {
+            if (levels[n] - levels[n - 1] >= -0.003) slopeFrames++;
+            else break;
+        }
+        maxRise = Math.max(maxRise, rise);
+        maxSlope = Math.max(maxSlope, slopeFrames);
+        const reachesLine = after >= transformedThr;
+        const clearRise = rise >= minRise && rise >= Math.max(0.025, before * 0.1);
+        const startsUp = firstStep >= minStep;
+        if (!reachesLine || !clearRise || !startsUp || slopeFrames < 2) continue;
+        const diff = cur.t - target;
+        const candidate = {
+            beat, time: cur.t, candidateDiff: diff, classification: classify(diff),
+            before, after, rise, firstStep, slopeFrames,
+        };
+        const score = rise - Math.abs(diff) * 0.00015;
+        if (!best || score > best.score) best = { ...candidate, score };
+    }
+    return {
+        beat,
+        candidate: best,
+        reason: best ? '' : (samples < 3 ? 'target近辺の波形サンプル不足'
+            : '高止まり／下降／上昇不足（maxRise ' + maxRise.toFixed(3) + ' / maxSlope ' + maxSlope + '）'),
+    };
+}
+
+function stage6ExtractGlobalEvents(wave) {
+    const detThr = micEffectiveThreshold();
+    const minRise = Math.max(0.05, detThr * 0.14);
+    const minStep = Math.max(0.009, detThr * 0.025);
+    const raw = [];
+    for (let k = 1; k < wave.length - 2; k++) {
+        const cur = wave[k];
+        let before = wave[k - 1].level || 0;
+        for (let p = k - 1; p >= 0 && wave[p].t >= cur.t - 60; p--) before = Math.min(before, wave[p].level || 0);
+        let after = cur.level || 0;
+        for (let n = k; n < wave.length && wave[n].t <= cur.t + 40; n++) after = Math.max(after, wave[n].level || 0);
+        const rise = after - before;
+        const firstStep = (cur.level || 0) - (wave[k - 1].level || 0);
+        let slopeFrames = 0;
+        for (let n = k; n < Math.min(wave.length, k + 4); n++) {
+            if ((wave[n].level || 0) - (wave[n - 1].level || 0) >= -0.003) slopeFrames++;
+            else break;
+        }
+        if (after < detThr || rise < minRise || rise < Math.max(0.025, before * 0.1)
+            || firstStep < minStep || slopeFrames < 2) continue;
+        const event = { time: cur.t, rise, firstStep, slopeFrames };
+        const prev = raw[raw.length - 1];
+        if (prev && event.time - prev.time < 70) {
+            if (event.rise > prev.rise) raw[raw.length - 1] = event;
+        } else raw.push(event);
+    }
+    return raw;
+}
+
+function stage6AssignGlobalEvents(wave, targets) {
+    const events = stage6ExtractGlobalEvents(wave);
+    const usedTargets = new Set();
+    const assignments = [];
+    const nearWin = Math.min(150, Math.max(judgeWindows().nearMs, state.beatInterval * judgeWindows().nearFrac));
+    events.forEach((event, eventIndex) => {
+        let best = null;
+        targets.forEach((target) => {
+            if (usedTargets.has(target.beat)) return;
+            const diff = event.time - target.target;
+            if (Math.abs(diff) > nearWin) return;
+            if (!best || Math.abs(diff) < Math.abs(best.diff)) best = { target, diff };
+        });
+        if (!best) return;
+        usedTargets.add(best.target.beat);
+        assignments.push({
+            eventIndex,
+            beat: best.target.beat,
+            event,
+            candidate: { candidateDiff: best.diff, classification: classify(best.diff) },
+        });
+    });
+    const byBeat = new Map(assignments.map((a) => [a.beat, a]));
+    const details = targets.map((target) => {
+        const assigned = byBeat.get(target.beat) || null;
+        let nearest = null;
+        events.forEach((event) => {
+            const diff = event.time - target.target;
+            if (!nearest || Math.abs(diff) < Math.abs(nearest.diff)) nearest = { event, diff };
+        });
+        return {
+            beat: target.beat,
+            candidate: assigned ? assigned.candidate : null,
+            nearestDiff: nearest ? nearest.diff : null,
+            assigned: !!assigned,
+            reason: assigned ? '' : (nearest ? '最寄りイベントが範囲外または別targetへ割り当て済み' : '候補イベントなし'),
+        };
+    });
+    return {
+        events,
+        assignments,
+        details,
+        summary: stage6ClassSummary(details, targets.length),
+        unusedEvents: Math.max(0, events.length - assignments.length),
+    };
+}
+
+function stage6CodeExperimentAnalyze() {
+    if (!stage6ExperimentEnabled()) return null;
+    const wave = Array.isArray(state.micRunWave) ? state.micRunWave : [];
+    const targets = stage6ExperimentTargets();
+    const actual = { good: 0, early: 0, late: 0, miss: 0 };
+    targets.forEach((target) => {
+        const cls = state.results[target.beat] ? state.results[target.beat].cls : 'miss';
+        if (cls === 'just') actual.good++;
+        else if (cls === 'early') actual.early++;
+        else if (cls === 'late') actual.late++;
+        else actual.miss++;
+    });
+    const fallbackEntries = Array.isArray(state.waveFallbackLog) ? state.waveFallbackLog : [];
+    const fallback = { adopted: 0, good: 0, early: 0, late: 0, none: 0 };
+    fallbackEntries.forEach((entry) => {
+        if (!entry.adopted || !entry.candidate) { fallback.none++; return; }
+        fallback.adopted++;
+        const cls = entry.candidate.classification;
+        if (cls === 'just') fallback.good++;
+        else if (cls === 'early') fallback.early++;
+        else if (cls === 'late') fallback.late++;
+    });
+    const logEntries = targets.map((target) => stage6FindTargetOnset(wave, target.beat, target.target, 'log'));
+    const riseEntries = targets.map((target) => stage6FindTargetOnset(wave, target.beat, target.target, 'rise'));
+    return {
+        targets, actual, fallback,
+        log: { entries: logEntries, summary: stage6ClassSummary(logEntries, targets.length) },
+        rise: { entries: riseEntries, summary: stage6ClassSummary(riseEntries, targets.length) },
+        global: stage6AssignGlobalEvents(wave, targets),
+    };
+}
+
+function stage6SummaryText(label, summary) {
+    return label + ': GOOD ' + summary.good + ' / EARLY ' + summary.early
+        + ' / LATE ' + summary.late + ' / MISS ' + summary.miss;
+}
+
 /* 結果カードの「開発用ログ」を更新する。
    スコアMISSは採点対象だけを列挙し、棄却候補は debugMic 時だけ別枠に出す。 */
 function updateMissDebug() {
@@ -8909,6 +9139,64 @@ function updateMissDebug() {
                 sections.push('<p class="miss-cause-item">' + line + '</p>');
             });
             if (waveFallbacks.length > 12) sections.push('<p class="miss-cause-item">ほか ' + (waveFallbacks.length - 12) + ' 拍</p>');
+        }
+        const stage6Exp = stage6CodeExperimentAnalyze();
+        if (stage6Exp) {
+            const fmtDiff = (v) => v == null ? '--' : (v >= 0 ? '+' : '') + Math.round(v) + 'ms';
+            const clsLabel = (cls) => cls === 'just' ? 'GOOD' : cls === 'early' ? 'EARLY' : cls === 'late' ? 'LATE' : 'MISS';
+            const a = stage6Exp.actual, b = stage6Exp.fallback;
+            const c = stage6Exp.log.summary, d = stage6Exp.rise.summary, e = stage6Exp.global.summary;
+            sections.push('<p class="miss-cause-item"><b>【STAGE6コード判定実験】</b></p>');
+            sections.push('<p class="miss-cause-item">実験A 実判定（v0.10.16波形補完込み）：GOOD ' + a.good
+                + ' / EARLY ' + a.early + ' / LATE ' + a.late + ' / MISS ' + a.miss
+                + ' / 拾った入力 ' + (state.chordPicked || 0) + ' / 二重反応 ' + (state.doubleReactionCount || 0) + '</p>');
+            sections.push('<p class="miss-cause-item">実験B 現行波形補完：採用 ' + b.adopted
+                + ' / GOOD ' + b.good + ' / EARLY ' + b.early + ' / LATE ' + b.late + ' / 補完なし ' + b.none + '</p>');
+            sections.push('<p class="miss-cause-item">実験C 対数波形検出：候補あり ' + c.candidates
+                + ' / GOOD ' + c.good + ' / EARLY ' + c.early + ' / LATE ' + c.late + ' / MISS候補なし等 ' + c.miss + '</p>');
+            sections.push('<p class="miss-cause-item">実験D 立ち上がり強調：候補あり ' + d.candidates
+                + ' / GOOD ' + d.good + ' / EARLY ' + d.early + ' / LATE ' + d.late + ' / 候補なし等 ' + d.miss + '</p>');
+            sections.push('<p class="miss-cause-item">実験E 全体候補割り当て：候補イベント ' + stage6Exp.global.events.length
+                + ' / 割り当て成功 ' + stage6Exp.global.assignments.length
+                + ' / GOOD ' + e.good + ' / EARLY ' + e.early + ' / LATE ' + e.late + ' / MISS ' + e.miss
+                + ' / 未割り当てtarget ' + e.miss + ' / 余った候補 ' + stage6Exp.global.unusedEvents + '</p>');
+
+            const actualMissBeats = new Set(stage6Exp.targets
+                .filter((target) => !state.results[target.beat] || state.results[target.beat].cls === 'miss')
+                .map((target) => target.beat));
+            [['対数波形', stage6Exp.log.entries, 'logRise'], ['立ち上がり強調', stage6Exp.rise.entries, 'localRise']].forEach(([label, entries, riseLabel]) => {
+                entries.filter((entry) => actualMissBeats.has(entry.beat)).slice(0, 12).forEach((entry) => {
+                    const candidate = entry.candidate;
+                    sections.push('<p class="miss-cause-item">　' + label + ' ' + missBeatPosLabel(entry.beat) + '：'
+                        + (candidate
+                            ? 'candidateDiff ' + fmtDiff(candidate.candidateDiff) + ' / classification ' + clsLabel(candidate.classification)
+                                + ' / ' + riseLabel + ' ' + candidate.rise.toFixed(3)
+                            : '候補なし / reason ' + entry.reason) + '</p>');
+                });
+            });
+            stage6Exp.global.details.filter((entry) => actualMissBeats.has(entry.beat)).slice(0, 12).forEach((entry) => {
+                sections.push('<p class="miss-cause-item">　全体割り当て ' + missBeatPosLabel(entry.beat)
+                    + '：nearestEventDiff ' + fmtDiff(entry.nearestDiff)
+                    + ' / classification ' + (entry.candidate ? clsLabel(entry.candidate.classification) : '--')
+                    + ' / assigned ' + (entry.assigned ? 'true' : 'false')
+                    + (entry.reason ? ' / reason ' + entry.reason : '') + '</p>');
+            });
+
+            sections.push('<p class="miss-cause-item"><b>【STAGE6実験比較】</b></p>');
+            sections.push('<p class="miss-cause-item">' + stage6SummaryText('実判定', a) + '</p>');
+            sections.push('<p class="miss-cause-item">' + stage6SummaryText('対数波形', c) + '</p>');
+            sections.push('<p class="miss-cause-item">' + stage6SummaryText('立ち上がり強調', d) + '</p>');
+            sections.push('<p class="miss-cause-item">' + stage6SummaryText('全体候補割り当て', e) + '</p>');
+            sections.push('<p class="miss-cause-item">これはdebug用の仮判定です。実験C/D/Eは実際のスコアに反映していません。v0.10.16の既存波形補完だけは本番スコアに反映済みです。</p>');
+            const gap = engChordTargetGapSummary();
+            const targetGaps = [];
+            for (let i = 1; i < stage6Exp.targets.length; i++) targetGaps.push(stage6Exp.targets[i].target - stage6Exp.targets[i - 1].target);
+            targetGaps.sort((x, y) => x - y);
+            const medianGap = targetGaps.length ? targetGaps[Math.floor(targetGaps.length / 2)] : null;
+            sections.push('<p class="miss-cause-item">STAGE6診断：target間隔は中央値 '
+                + (medianGap != null ? Math.round(medianGap) + 'ms' : '--') + '・最小 '
+                + (gap.minGapMs != null ? Math.round(gap.minGapMs) + 'ms' : '--')
+                + ' のため、コード音の余韻が隣targetへまたがりやすいです。現在のMISSには別target割り当て・判定窓外・反応ライン未満・立ち上がり候補なしが混在し得るため、単純に判定を緩めると誤登録が増える可能性があります。</p>');
         }
         // v0.10.12：GOOD範囲救済で採用した入力（開発用・debugMic時のみ）。通常URLでは出さない。
         const rescues = (state.chordDebug && Array.isArray(state.chordDebug.rescues)) ? state.chordDebug.rescues : [];
@@ -9324,6 +9612,7 @@ function finish(opts) {
     if (els.resultsOverlay) els.resultsOverlay.classList.remove('hidden');
     if (els.refreshBar) els.refreshBar.classList.add('hidden'); // モーダル背後に透けないよう一時的に隠す
     document.body.classList.add('results-open');               // モーダル中は戻る/TOP/設定を隠す（修正8）
+    syncDebugWaveControls();
     applyResultDetailOpenPref();                               // 詳細は既定で開く（ユーザーが閉じた設定があれば反映・v0.9.150）
     scrollResultsToTop();                                      // 詳細OPENでも必ず「RESULT」見出しが見える位置から表示（v0.9.151）
     drawResults();
@@ -17843,6 +18132,14 @@ function bind() {
         startRetestFlow(true);
     });
     if (els.devLogCopyBtn) els.devLogCopyBtn.addEventListener('click', copyDevelopmentLog);
+    if (els.debugWaveControls) els.debugWaveControls.querySelectorAll('[data-wave-mode]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const mode = btn.getAttribute('data-wave-mode');
+            debugReviewWaveMode = (mode === 'log' || mode === 'rise') ? mode : 'linear';
+            syncDebugWaveControls();
+            drawReview();
+        });
+    });
     // 結果詳細：ズレ傾向を見たあと、マイクの手動設定（現在の設定を見る）へ直接行く（v0.9.107）
     if (els.resultsMicTune) els.resultsMicTune.addEventListener('click', () => {
         if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden');

@@ -2718,6 +2718,11 @@ h1 {
     align-items: flex-start;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-x pan-y;
+    height: 100dvh;
+    max-height: 100dvh;
+    pointer-events: auto;
     padding: 24px 16px;
     background: rgba(6, 4, 3, 0.86);
     backdrop-filter: blur(5px);
@@ -2728,8 +2733,9 @@ h1 {
 .results-card {
     width: 100%;
     max-width: 420px;
-    /* margin:auto で、短いときは中央寄せ・長いときは上端から見えてオーバーレイがスクロール */
-    margin: auto;
+    /* 上端から配置し、縦スクロールを常にオーバーレイへ渡す。横方向だけ中央寄せ。 */
+    margin: 0 auto;
+    flex: 0 0 auto;
     border: 1px solid rgba(255, 159, 28, 0.3);
     border-radius: 22px;
     background:
@@ -5287,6 +5293,43 @@ h1 {
 body.results-open #app-nav,
 body.results-open #settings-btn {
     display: none !important;
+}
+
+/* 結果表示中は背面を固定し、縦スクロールをresults-overlayだけに所有させる。 */
+body.results-open {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+}
+
+.debug-wave-controls {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    color: rgba(253, 246, 238, 0.68);
+    font-size: 0.7rem;
+}
+
+.debug-wave-controls.hidden { display: none; }
+
+.debug-wave-btn {
+    border: 1px solid rgba(210, 126, 255, 0.38);
+    border-radius: 999px;
+    padding: 4px 9px;
+    background: rgba(210, 126, 255, 0.07);
+    color: rgba(253, 246, 238, 0.8);
+    font: 700 0.68rem Outfit, sans-serif;
+}
+
+.debug-wave-btn.is-active {
+    border-color: rgba(210, 126, 255, 0.85);
+    background: rgba(210, 126, 255, 0.2);
+    color: #f0c9ff;
 }
 
 /* 結果モーダル：クリック音拾いの可能性の注意（控えめ） */
