@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.7';
+const RHYTHM_CRUISE_VERSION = '0.10.8';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -8716,11 +8716,20 @@ function updateDoubleInfo() {
     if (els.resultsDoubleNotice) els.resultsDoubleNotice.classList.toggle('hidden', !show);
     if (!show) return;
     if (els.resultsDoubleMsg) {
-        // 具体的な対処を案内（v0.9.79）。文言のみでSTAGE判定ロジックは変更しない。
+        // 文言のみ。回数の集計・STAGE判定ロジックは変更しない（v0.10.8で段階表現に整理）。
         const cur = mic.cooldownMs || 0;
         const next = Math.min(400, cur + 50);
-        els.resultsDoubleMsg.textContent = '⚠ 二重反応が ' + n + ' 回出ています。マイク設定の「マイク反応テスト」で反応ラインやクールダウンを調整してください。'
+        // 段階のしきい値：拍数に応じた「多め」判定。短いSTAGEで過敏にならないよう下限4回。
+        const highThreshold = Math.max(4, Math.round((TOTAL_BEATS || 0) * 0.12));
+        const guide = '気になる場合は、マイク設定の「マイク反応テスト」をやり直してください。'
             + '改善しない場合は、手動設定で「二重反応防止」を少し長めにしてください（例：' + cur + 'ms → ' + next + 'ms）。';
+        if (n >= highThreshold) {
+            els.resultsDoubleMsg.textContent = '⚠ 二重反応が ' + n + ' 回と多めに出ています。'
+                + 'マイク反応テストで反応ラインやクールダウンを調整すると改善する場合があります。' + guide;
+        } else {
+            els.resultsDoubleMsg.textContent = '二重反応が ' + n + ' 回、少し出ています。'
+                + '強く弾いて音が伸びた時に、余韻をもう1回の入力として拾うことがあります。' + guide;
+        }
     }
 }
 
@@ -13790,7 +13799,12 @@ function savePresetFromModal() {
     if (ok) {
         // 成功：少し成功メッセージを見せてから閉じる
         if (presetModalMode === 'tap') setTimeout(() => { closePresetModal(); if (settingsTab === 'tap' && tapView === 'preset') renderTapPresetList(); }, 700);
-        else setTimeout(closePresetModal, 700);
+        else {
+            // マイク設定の保存（v0.10.8）：保存＝現在設定として適用済み（savePresetWithName が linkMicPreset 済み）。
+            // 保存後は設定画面に留めず、開いた元の画面（settingsReturn＝TOP/Practice）へ戻す。
+            // 「保存せずにこの設定を使う」(presetModalSkip) と同じ復帰挙動に揃える。
+            setTimeout(() => { closePresetModal(); closeSettings(); }, 700);
+        }
     }
 }
 
