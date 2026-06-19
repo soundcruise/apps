@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.15';
+const RHYTHM_CRUISE_VERSION = '0.10.16';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -622,6 +622,8 @@ const state = {
     micEventLog: [],  // 各オンセットの記録（MISS原因デバッグ用）{t,peak,nearBeat,outcome,assignedBeat,cls}
     chordBeatProbe: [], // コードストローク：拍ごとの候補フレーム情報（立ち上がり未検出MISSの原因分析用）
     chordDebug: null,   // Phase2ログ可視化（?debugMic=1 時のみ確保）。判定には一切不使用。詳細は newChordDebug()
+    waveRiseAnalysis: [], // コードPractice終了時の波形立ち上がり分析（結果波形と同じmicRunWaveを参照）
+    waveFallbackLog: [], // 波形立ち上がり補完の採否ログ（debugMic表示用）
     doubleReactionCount: 0, // 二重反応の総数
     markers: [],
     micWaveHistory: [],   // {perf, level} マイク音量の時系列（STAGE中の背景波形用・直近のみ）
@@ -8423,6 +8425,8 @@ function resetData() {
     state.chordPicked = 0;
     state.chordIgnoredRePeaks = 0;
     state.chordDebug = MIC_DEBUG_ON ? newChordDebug() : null; // Phase2：debugMic時のみ収集・Practice開始でリセット
+    state.waveRiseAnalysis = [];
+    state.waveFallbackLog = [];
     updateMicDiag();
     updateCombo();
     if (els.judgeFxLayer) els.judgeFxLayer.innerHTML = '';
@@ -8678,15 +8682,15 @@ function chordMissNearbyAnalyze() {
     return out;
 }
 
-/* v0.10.15（debugMic専用・観察のみ）：結果カードと同じ state.micRunWave（mic.env）から、
-   未入力target近辺の局所的な立ち上がりを探す。既存コード判定・救済・結果登録には接続しない。
+/* v0.10.16：結果カードと同じ state.micRunWave（mic.env）から、
+   未入力target近辺の局所的な立ち上がりを探す。既存コード判定・救済とは分離する。
    ・候補時刻は target -80ms〜+120ms の上昇開始サンプル。
    ・直前72msの局所最小→次48msの最大値が十分上がり、反応ラインへ到達すること。
    ・単発の微小揺れ／高止まりを避けるため、初動差・相対上昇率・複数フレーム上昇も確認する。
-   約12ms間引きの表示波形を使うため、閾値は登録には使わず実機観察で妥当性を確認する。 */
+   約12ms間引きの表示波形を使い、Practice終了後の未入力target補完にだけ利用する。 */
 function chordWaveRiseCandidatesAnalyze() {
     const out = [];
-    if (!MIC_DEBUG_ON || state.inputMode !== 'stroke' || state.strokeDetectMode !== 'chord') return out;
+    if (state.inputMode !== 'stroke' || state.strokeDetectMode !== 'chord') return out;
     const wave = Array.isArray(state.micRunWave) ? state.micRunWave : [];
     const cutoff = state.judgeCutoff != null ? state.judgeCutoff : TOTAL_BEATS;
     const detThr = micEffectiveThreshold();
@@ -8744,6 +8748,8 @@ function chordWaveRiseCandidatesAnalyze() {
         if (best) {
             out.push({
                 beat,
+                candidate: best,
+                reason: null,
                 lines: [
                     'candidateDiff ' + (best.candidateDiff >= 0 ? '+' : '') + Math.round(best.candidateDiff) + 'ms'
                         + ' / classification ' + clsLabel(best.classification)
@@ -8752,23 +8758,85 @@ function chordWaveRiseCandidatesAnalyze() {
                         + ' / firstStep ' + fmt3(best.firstStep)
                         + ' / slopeFrames ' + best.slopeFrames
                         + ' / detThr ' + fmt3(best.detThr),
-                    'result: 立ち上がり候補あり（debug観察のみ・スコア未登録）',
+                    'result: 立ち上がり候補あり',
                 ],
             });
         } else {
+            const reason = windowSamples < 3
+                ? 'target近辺の波形サンプル不足'
+                : 'target近辺は高止まり／下降／上昇不足（観測最大localRise ' + fmt3(observedMaxRise)
+                    + ' / 最大slopeFrames ' + observedMaxSlopeFrames + '）';
             out.push({
                 beat,
+                candidate: null,
+                reason,
                 lines: [
                     'result: 立ち上がり候補なし',
-                    'reason: ' + (windowSamples < 3
-                        ? 'target近辺の波形サンプル不足'
-                        : 'target近辺は高止まり／下降／上昇不足（観測最大localRise ' + fmt3(observedMaxRise)
-                            + ' / 最大slopeFrames ' + observedMaxSlopeFrames + '）'),
+                    'reason: ' + reason,
                 ],
             });
         }
     }
     return out;
+}
+
+/* v0.10.16：波形補完の適用条件。合成テストから単独で検証できる純粋関数に保つ。 */
+function waveFallbackCanAdopt(opts) {
+    if (!opts || !opts.isChordMode || !opts.isHit || opts.hasExisting) return false;
+    if (!Number.isFinite(opts.diff) || !Number.isFinite(opts.nearWinMs)) return false;
+    if (Math.abs(opts.diff) > Math.min(150, opts.nearWinMs)) return false;
+    return opts.classification === 'just' || opts.classification === 'early' || opts.classification === 'late';
+}
+
+/* 通常コード判定を優先し、Practice終了後・集計前に残った未入力targetだけを補完する。 */
+function applyWaveOnsetFallbacks(cutoff) {
+    state.waveRiseAnalysis = [];
+    state.waveFallbackLog = [];
+    const isChordMode = state.inputMode === 'stroke' && state.strokeDetectMode === 'chord';
+    if (!isChordMode) return;
+
+    const analysis = chordWaveRiseCandidatesAnalyze();
+    state.waveRiseAnalysis = analysis;
+    const jw = judgeWindows();
+    const nearWinMs = Math.max(jw.nearMs, state.beatInterval * jw.nearFrac);
+    analysis.forEach((entry) => {
+        const beat = entry.beat;
+        const candidate = entry.candidate;
+        const hasExisting = !!state.results[beat];
+        const isHit = beat >= 0 && beat < cutoff && engIsHit(beat);
+        const canAdopt = !!candidate && waveFallbackCanAdopt({
+            isChordMode, isHit, hasExisting,
+            diff: candidate.candidateDiff,
+            nearWinMs,
+            classification: candidate.classification,
+        });
+        let reason = entry.reason || '';
+        if (!candidate) reason = reason || '立ち上がり候補なし';
+        else if (hasExisting) reason = '既存結果あり';
+        else if (!isHit) reason = '採点対象外';
+        else if (!canAdopt) reason = 'candidateDiffがEARLY/LATE判定範囲外';
+
+        if (canAdopt && !state.results[beat]) {
+            const diff = candidate.candidateDiff;
+            const cls = classify(diff);
+            state.results[beat] = {
+                tapped: true,
+                diff,
+                cls,
+                source: 'mic',
+                direction: 'stroke',
+                inputDirection: 'stroke',
+                expectedDirection: engDirAt(beat),
+                directionMatched: true,
+                dirMiss: false,
+                waveFallback: true,
+            };
+            state.chordPicked++;
+            state.waveFallbackLog.push({ beat, candidate, adopted: true, reason: '' });
+        } else {
+            state.waveFallbackLog.push({ beat, candidate, adopted: false, reason });
+        }
+    });
 }
 
 /* 結果カードの「開発用ログ」を更新する。
@@ -8810,8 +8878,8 @@ function updateMissDebug() {
             const extraNearby = nearby.length - shownNearby.length;
             if (extraNearby > 0) sections.push('<p class="miss-cause-item">ほか ' + extraNearby + ' 拍</p>');
         }
-        // v0.10.15：結果波形(mic.env)そのものから局所上昇を探す。観察専用で登録・スコアには使わない。
-        const waveRises = chordWaveRiseCandidatesAnalyze();
+        // v0.10.16：集計直前に保存した分析を使い、補完後も元の未入力target候補を表示する。
+        const waveRises = Array.isArray(state.waveRiseAnalysis) ? state.waveRiseAnalysis : [];
         sections.push('<p class="miss-cause-item"><b>【波形立ち上がり候補】' + waveRises.length + '拍</b></p>');
         if (!waveRises.length) {
             sections.push('<p class="miss-cause-item">なし</p>');
@@ -8821,6 +8889,26 @@ function updateMissDebug() {
                 entry.lines.forEach((line) => sections.push('<p class="miss-cause-item">　' + line + '</p>'));
             });
             if (waveRises.length > 12) sections.push('<p class="miss-cause-item">ほか ' + (waveRises.length - 12) + ' 拍</p>');
+        }
+        const waveFallbacks = Array.isArray(state.waveFallbackLog) ? state.waveFallbackLog : [];
+        sections.push('<p class="miss-cause-item"><b>【波形立ち上がり補完】' + waveFallbacks.length + '拍</b></p>');
+        if (!waveFallbacks.length) {
+            sections.push('<p class="miss-cause-item">なし</p>');
+        } else {
+            const clsLabel = (cls) => cls === 'just' ? 'GOOD' : cls === 'early' ? 'EARLY' : cls === 'late' ? 'LATE' : 'MISS';
+            waveFallbacks.slice(0, 12).forEach((entry) => {
+                const candidate = entry.candidate;
+                let line = missBeatPosLabel(entry.beat) + '：';
+                if (candidate) {
+                    line += 'candidateDiff ' + (candidate.candidateDiff >= 0 ? '+' : '') + Math.round(candidate.candidateDiff) + 'ms'
+                        + ' / classification ' + clsLabel(candidate.classification) + ' / ';
+                }
+                line += entry.adopted
+                    ? 'result: 波形立ち上がり候補で補完採用'
+                    : 'result: 補完なし / reason: ' + (entry.reason || '条件不一致');
+                sections.push('<p class="miss-cause-item">' + line + '</p>');
+            });
+            if (waveFallbacks.length > 12) sections.push('<p class="miss-cause-item">ほか ' + (waveFallbacks.length - 12) + ' 拍</p>');
         }
         // v0.10.12：GOOD範囲救済で採用した入力（開発用・debugMic時のみ）。通常URLでは出さない。
         const rescues = (state.chordDebug && Array.isArray(state.chordDebug.rescues)) ? state.chordDebug.rescues : [];
@@ -9137,6 +9225,9 @@ function finish(opts) {
     els.latestVerdict.textContent = '終了';
     els.latestVerdict.dataset.state = 'idle';
     els.progressFill.style.width = '100%';
+
+    // 既存コード判定が確定した後、集計に入る直前に未入力targetだけを波形立ち上がりで補完する。
+    applyWaveOnsetFallbacks(cutoff);
 
     let just = 0, early = 0, late = 0, miss = 0, scoreSum = 0;
     const diffs = [];
