@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.14';
+const RHYTHM_CRUISE_VERSION = '0.10.15';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -8678,6 +8678,99 @@ function chordMissNearbyAnalyze() {
     return out;
 }
 
+/* v0.10.15（debugMic専用・観察のみ）：結果カードと同じ state.micRunWave（mic.env）から、
+   未入力target近辺の局所的な立ち上がりを探す。既存コード判定・救済・結果登録には接続しない。
+   ・候補時刻は target -80ms〜+120ms の上昇開始サンプル。
+   ・直前72msの局所最小→次48msの最大値が十分上がり、反応ラインへ到達すること。
+   ・単発の微小揺れ／高止まりを避けるため、初動差・相対上昇率・複数フレーム上昇も確認する。
+   約12ms間引きの表示波形を使うため、閾値は登録には使わず実機観察で妥当性を確認する。 */
+function chordWaveRiseCandidatesAnalyze() {
+    const out = [];
+    if (!MIC_DEBUG_ON || state.inputMode !== 'stroke' || state.strokeDetectMode !== 'chord') return out;
+    const wave = Array.isArray(state.micRunWave) ? state.micRunWave : [];
+    const cutoff = state.judgeCutoff != null ? state.judgeCutoff : TOTAL_BEATS;
+    const detThr = micEffectiveThreshold();
+    const windowBeforeMs = 80, windowAfterMs = 120;
+    const baselineMs = 72, followMs = 48;
+    const minLocalRise = Math.max(0.06, detThr * 0.18);
+    const minStep = Math.max(0.012, detThr * 0.035);
+    const fmt3 = (v) => (v == null ? '--' : Number(v).toFixed(3));
+    const clsLabel = (cls) => cls === 'just' ? 'GOOD' : cls === 'early' ? 'EARLY' : cls === 'late' ? 'LATE' : 'MISS';
+
+    for (let beat = 0; beat < TOTAL_BEATS; beat++) {
+        if (!engIsHit(beat) || beat >= cutoff || state.results[beat]) continue;
+        const target = engTargetTimeMs(beat);
+        let best = null;
+        let observedMaxRise = 0, observedMaxSlopeFrames = 0;
+        let windowSamples = 0;
+        for (let k = 1; k < wave.length - 1; k++) {
+            const cur = wave[k];
+            if (cur.t < target - windowBeforeMs || cur.t > target + windowAfterMs) continue;
+            windowSamples++;
+            const prevSamples = [];
+            for (let p = k - 1; p >= 0 && wave[p].t >= cur.t - baselineMs; p--) prevSamples.push(wave[p]);
+            const nextSamples = [];
+            for (let n = k; n < wave.length && wave[n].t <= cur.t + followMs; n++) nextSamples.push(wave[n]);
+            if (prevSamples.length < 2 || nextSamples.length < 3) continue;
+
+            const envBefore = Math.min(...prevSamples.map((s) => s.level));
+            const envAfter = Math.max(...nextSamples.map((s) => s.level));
+            const localRise = envAfter - envBefore;
+            const firstStep = cur.level - wave[k - 1].level;
+            let slopeFrames = 0;
+            for (let n = k; n < Math.min(wave.length, k + 4); n++) {
+                if (wave[n].level - wave[n - 1].level >= -0.003) slopeFrames++;
+                else break;
+            }
+            observedMaxRise = Math.max(observedMaxRise, localRise);
+            observedMaxSlopeFrames = Math.max(observedMaxSlopeFrames, slopeFrames);
+
+            const reachesLine = envAfter >= detThr;
+            const clearLocalRise = localRise >= minLocalRise && localRise >= envBefore * 0.18;
+            const risingStart = firstStep >= minStep;
+            const sustainedOrFast = slopeFrames >= 2 || firstStep >= minLocalRise * 0.55;
+            if (!reachesLine || !clearLocalRise || !risingStart || !sustainedOrFast) continue;
+
+            const diff = cur.t - target;
+            const candidate = {
+                beat, target, candidateTime: cur.t, candidateDiff: diff,
+                classification: classify(diff), envBefore, envAfter, localRise,
+                firstStep, slopeFrames, detThr,
+            };
+            // 局所上昇量を優先し、同程度ならtargetに近い上昇開始を採る。近辺最大peak時刻は使わない。
+            const score = localRise - Math.abs(diff) * 0.0002;
+            if (!best || score > best.score) best = { ...candidate, score };
+        }
+        if (best) {
+            out.push({
+                beat,
+                lines: [
+                    'candidateDiff ' + (best.candidateDiff >= 0 ? '+' : '') + Math.round(best.candidateDiff) + 'ms'
+                        + ' / classification ' + clsLabel(best.classification)
+                        + ' / envBefore ' + fmt3(best.envBefore) + ' → envAfter ' + fmt3(best.envAfter)
+                        + ' / localRise ' + fmt3(best.localRise)
+                        + ' / firstStep ' + fmt3(best.firstStep)
+                        + ' / slopeFrames ' + best.slopeFrames
+                        + ' / detThr ' + fmt3(best.detThr),
+                    'result: 立ち上がり候補あり（debug観察のみ・スコア未登録）',
+                ],
+            });
+        } else {
+            out.push({
+                beat,
+                lines: [
+                    'result: 立ち上がり候補なし',
+                    'reason: ' + (windowSamples < 3
+                        ? 'target近辺の波形サンプル不足'
+                        : 'target近辺は高止まり／下降／上昇不足（観測最大localRise ' + fmt3(observedMaxRise)
+                            + ' / 最大slopeFrames ' + observedMaxSlopeFrames + '）'),
+                ],
+            });
+        }
+    }
+    return out;
+}
+
 /* 結果カードの「開発用ログ」を更新する。
    スコアMISSは採点対象だけを列挙し、棄却候補は debugMic 時だけ別枠に出す。 */
 function updateMissDebug() {
@@ -8716,6 +8809,18 @@ function updateMissDebug() {
             });
             const extraNearby = nearby.length - shownNearby.length;
             if (extraNearby > 0) sections.push('<p class="miss-cause-item">ほか ' + extraNearby + ' 拍</p>');
+        }
+        // v0.10.15：結果波形(mic.env)そのものから局所上昇を探す。観察専用で登録・スコアには使わない。
+        const waveRises = chordWaveRiseCandidatesAnalyze();
+        sections.push('<p class="miss-cause-item"><b>【波形立ち上がり候補】' + waveRises.length + '拍</b></p>');
+        if (!waveRises.length) {
+            sections.push('<p class="miss-cause-item">なし</p>');
+        } else {
+            waveRises.slice(0, 12).forEach((entry) => {
+                sections.push('<p class="miss-cause-item">' + missBeatPosLabel(entry.beat) + '：</p>');
+                entry.lines.forEach((line) => sections.push('<p class="miss-cause-item">　' + line + '</p>'));
+            });
+            if (waveRises.length > 12) sections.push('<p class="miss-cause-item">ほか ' + (waveRises.length - 12) + ' 拍</p>');
         }
         // v0.10.12：GOOD範囲救済で採用した入力（開発用・debugMic時のみ）。通常URLでは出さない。
         const rescues = (state.chordDebug && Array.isArray(state.chordDebug.rescues)) ? state.chordDebug.rescues : [];
