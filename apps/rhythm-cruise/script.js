@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.8';
+const RHYTHM_CRUISE_VERSION = '0.10.9';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -8724,10 +8724,10 @@ function updateDoubleInfo() {
         const guide = '気になる場合は、マイク設定の「マイク反応テスト」をやり直してください。'
             + '改善しない場合は、手動設定で「二重反応防止」を少し長めにしてください（例：' + cur + 'ms → ' + next + 'ms）。';
         if (n >= highThreshold) {
-            els.resultsDoubleMsg.textContent = '⚠ 二重反応が ' + n + ' 回と多めに出ています。'
-                + 'マイク反応テストで反応ラインやクールダウンを調整すると改善する場合があります。' + guide;
+            els.resultsDoubleMsg.textContent = '⚠ 二重反応が ' + n + ' 回出ています。'
+                + '強く弾いて音が伸びた時に、余韻をもう1回の入力として拾っている可能性があります。' + guide;
         } else {
-            els.resultsDoubleMsg.textContent = '二重反応が ' + n + ' 回、少し出ています。'
+            els.resultsDoubleMsg.textContent = '二重反応が ' + n + ' 回出ています。'
                 + '強く弾いて音が伸びた時に、余韻をもう1回の入力として拾うことがあります。' + guide;
         }
     }

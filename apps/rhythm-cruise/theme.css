@@ -2634,37 +2634,6 @@ h1 {
     color: #ffd9a0;
 }
 
-/* 「二重反応とは？」折りたたみ（既定は閉じる・v0.10.8）。注意カード内の改善導線の下に置く。 */
-.results-double-about {
-    margin-top: 6px;
-    border-top: 1px solid rgba(255, 159, 28, 0.25);
-    padding-top: 6px;
-}
-.results-double-about-summary {
-    list-style: none;
-    cursor: pointer;
-    font-size: 0.82rem;
-    font-weight: 700;
-    color: #ffd9a0;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    touch-action: manipulation;
-}
-.results-double-about-summary::-webkit-details-marker { display: none; }
-.results-double-about-summary::after {
-    content: '▾';
-    font-size: 0.72rem;
-    transition: transform 0.2s;
-}
-.results-double-about[open] .results-double-about-summary::after { transform: rotate(180deg); }
-.results-double-about-body {
-    margin: 8px 0 2px;
-    font-size: 0.82rem;
-    line-height: 1.5;
-    color: #f0ddc4;
-}
-
 /* 二重反応の詳しい説明（詳細タブ内） */
 .result-double-detail {
     margin: 8px 0 4px;
