@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.3';
+const RHYTHM_CRUISE_VERSION = '0.10.4';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -7167,16 +7167,83 @@ function drawReviewMicOverlay(ctx, w, h, yc, beatX, beatPx) {
     }
 
     // 反応ライン（薄いオレンジ破線・上下）＋小ラベル
-    ctx.strokeStyle = 'rgba(255,159,28,0.22)';
-    ctx.setLineDash([4, 4]);
-    ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(0, yc - lineAmp); ctx.lineTo(w, yc - lineAmp); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, yc + lineAmp); ctx.lineTo(w, yc + lineAmp); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = 'rgba(255,159,28,0.45)';
-    ctx.font = '600 9px Outfit, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('判定ライン', 4, yc - lineAmp - 3);
+    //   v0.10.4：コードモードは「波形が判定ラインを跨いだ瞬間＝判定」ではなく、chordゲート成立後に
+    //   バックデートした採用時刻で判定する。判定ラインを残すと「ここを超えたら判定」と誤解されるため、
+    //   コードモード時だけ非表示にする。ブラッシングは従来どおり跨ぎ＝判定に近いので表示を残す。
+    //   （タップは関数冒頭の inputMode!=='stroke' で既に return 済み＝影響なし。）
+    if (state.strokeDetectMode !== 'chord') {
+        ctx.strokeStyle = 'rgba(255,159,28,0.22)';
+        ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, yc - lineAmp); ctx.lineTo(w, yc - lineAmp); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, yc + lineAmp); ctx.lineTo(w, yc + lineAmp); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(255,159,28,0.45)';
+        ctx.font = '600 9px Outfit, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('判定ライン', 4, yc - lineAmp - 3);
+    }
+    ctx.restore();
+}
+
+/* v0.10.4：コードモード結果カードの「採用判定時刻」縦線（表示専用・判定/集計には一切不使用）。
+   コードモードはブラッシングと違い「波形が判定ラインを跨いだ瞬間＝判定時刻」ではなく、
+   chordゲート成立後にバックデートした採用時刻でGOOD/EARLY/LATEを判定する。そのため波形だけ
+   見るとどこで判定されたか分かりにくい。ここで採用時刻を波形帯に縦線として可視化する。
+   ・通常URL：採用時刻（adopted）の実線（判定色）だけ。raw確定時刻は出さない。
+   ・?debugMic=1：raw確定時刻（薄グレー点線）も併記し、raw→adopted（バックデート）の関係を見せる。
+   ・二重反応のあった拍には控えめな ⚠ を添える（debug時は double ラベルも）。表示のみ・ロジック不変。
+   コードモード(inputMode='stroke' かつ strokeDetectMode='chord')以外は何も描かない
+   ＝ブラッシング/タップの既存表示は完全に不変。x基準は色付き符頭と同じ beatX(i)+diff×offScale。 */
+function drawReviewChordTimeLines(ctx, w, h, yc, beatX, beatPx) {
+    if (state.inputMode !== 'stroke' || state.strokeDetectMode !== 'chord') return;
+    const offScale = beatPx / state.beatInterval;       // 色付き符頭(drawReview)と同じ ms→px スケール
+    const maxOff = beatPx * 0.46;                        // 隣拍に被らない範囲（符頭と同じ制限）
+    const maxAmp = h * STAGE_WAVE_AMP_FRAC;              // 波形帯の高さ（drawReviewMicOverlayと共通）
+    const top = yc - maxAmp, bot = yc + maxAmp;
+    const reviewCutoff = Number.isFinite(state.judgeCutoff) ? state.judgeCutoff : TOTAL_BEATS;
+    const clampOff = (d) => Math.max(-maxOff, Math.min(maxOff, d * offScale));
+    ctx.save();
+
+    // ① debug時のみ：raw確定時刻（バックデート前）を薄いグレーの点線で。adoptedより右（遅い側）に出る想定。
+    if (MIC_DEBUG_ON && state.chordDebug && Array.isArray(state.chordDebug.onsets)) {
+        ctx.setLineDash([3, 3]);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(253,246,238,0.30)';
+        for (const o of state.chordDebug.onsets) {
+            if (!o || o.beat == null || o.rawAdoptedDiff == null || o.beat >= reviewCutoff) continue;
+            const rx = beatX(o.beat) + clampOff(o.rawAdoptedDiff);
+            ctx.beginPath(); ctx.moveTo(rx, top); ctx.lineTo(rx, bot); ctx.stroke();
+        }
+        ctx.setLineDash([]);
+    }
+
+    // ② 採用判定時刻（adopted）：判定色の実線。state.results（実際に採点へ使われた値）から描く＝符頭と一致。
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < TOTAL_BEATS; i++) {
+        if (i >= reviewCutoff) continue;
+        const r = state.results[i];
+        if (!r || !r.tapped || r.source !== 'mic' || r.cls === 'miss') continue; // MISSは採用時刻なし＝線を出さない
+        const lx = beatX(i) + clampOff(r.diff);
+        const col = COLORS[r.cls] || COLORS.miss;
+        ctx.strokeStyle = col; ctx.globalAlpha = 0.85;
+        ctx.beginPath(); ctx.moveTo(lx, top); ctx.lineTo(lx, bot); ctx.stroke();
+        // 上端に小さな採用マーカー（▼）で「ここが採用時刻」と分かるように
+        ctx.globalAlpha = 1; ctx.fillStyle = col;
+        ctx.beginPath(); ctx.moveTo(lx - 3, top - 6); ctx.lineTo(lx + 3, top - 6); ctx.lineTo(lx, top - 1); ctx.closePath(); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // ③ 二重反応：その拍に控えめな ⚠（debug時は下に double ラベル）。検出ロジックは不変・表示だけ。
+    ctx.textAlign = 'center';
+    for (let i = 0; i < TOTAL_BEATS; i++) {
+        if (i >= reviewCutoff || !state.beatDoubled[i]) continue;
+        const mx = beatX(i);
+        const wy = Math.max(11, top - 7);
+        ctx.font = '700 11px Outfit, sans-serif'; ctx.fillStyle = 'rgba(255,159,28,0.9)';
+        ctx.fillText('⚠', mx, wy);
+        if (MIC_DEBUG_ON) { ctx.font = '600 8px Outfit, sans-serif'; ctx.fillStyle = 'rgba(255,159,28,0.7)'; ctx.fillText('double', mx, wy + 9); }
+    }
     ctx.restore();
 }
 
@@ -7201,6 +7268,9 @@ function drawReview() {
 
     // ストローク音量波形＋反応ライン（STAGE本番と同じ時間軸で薄く重ねる。なぜタイミング外かを見やすく）
     drawReviewMicOverlay(ctx, w, h, yc, beatX, beatPx);
+
+    // コードモードのみ：採用判定時刻の縦線（波形だけでは判定位置が分かりにくいため）。表示専用・判定不変（v0.10.4）。
+    drawReviewChordTimeLines(ctx, w, h, yc, beatX, beatPx);
 
     // 各音符の中心にオレンジの垂直ライン（実践テスト見返しレーンと同じ見た目・v0.9.75）。
     // 波形の上・音符/判定ラベルの下に薄く重ね、理想の拍位置と波形/実打位置のズレを見やすくする。
@@ -16141,6 +16211,7 @@ function micLoop() {
                         blocks.sort((a, b) => b[1] - a[1]);
                         cd.onsets.push({
                             targetMs,
+                            beat: (la.beat != null) ? la.beat : null,                                                    // v0.10.4：結果カードのraw/adopted縦線を符頭と同じx基準で描くため
                             adoptedDiff: (la.diff != null) ? la.diff : (targetMs != null ? adoptedMs - targetMs : null),  // バックデート後の採用ズレ
                             backdatedAdoptedDiff: (la.diff != null) ? la.diff : null,                                     // 〃（明示）
                             rawAdoptedDiff: (targetMs != null) ? (rawAdoptedMs - targetMs) : null,                        // バックデートなしの採用ズレ
