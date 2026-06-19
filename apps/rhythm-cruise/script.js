@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.10';
+const RHYTHM_CRUISE_VERSION = '0.10.11';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -8506,6 +8506,96 @@ function chordRejectedCandidateLabel(i) {
     return '条件通過候補（近い拍への割り当てなど）';
 }
 
+/* v0.10.11（開発用・?debugMic=1 のときだけ意味を持つ純粋な観察）：
+   未入力MISSになった各targetの近辺(±250ms)に、どんな入力候補があったかを集計して暫定分類する。
+   救済も判定変更も一切しない。既存の観察バッファ（cd.onsets＝採用済み入力／cd.frames＝フレーム実測／
+   state.chordBeatProbe＝拍別ベスト）をそのまま流用して、未入力MISSの原因を切り分けるための材料を返す。
+   戻り値：[{ head, candLines:[...] }]（updateMissDebug が debugMic 時だけHTML化して表示）。 */
+function chordMissNearbyAnalyze() {
+    const out = [];
+    const cd = state.chordDebug;
+    if (!cd || state.inputMode !== 'stroke' || state.strokeDetectMode !== 'chord') return out;
+    const cutoff = state.judgeCutoff != null ? state.judgeCutoff : TOTAL_BEATS;
+    const jw = judgeWindows();
+    const justMs = Math.round(jw.justMs);
+    const judgeMaxMs = Math.round(Math.max(jw.nearMs, state.beatInterval * jw.nearFrac)); // EARLY/LATE半幅（debug表示と同式）
+    const NEAR_MS = 250; // 近辺候補の探索範囲（target時刻 ±250ms）
+    const onsets = Array.isArray(cd.onsets) ? cd.onsets : [];   // 採用済み入力（別拍へ採用された等を含む）
+    const frames = Array.isArray(cd.frames) ? cd.frames : [];   // フレーム実測（しきい値超え/ゲート可否）
+    const fmt = (v) => (v == null ? '--' : (v >= 0 ? '+' : '') + Math.round(v) + 'ms');
+    const fmtT = (ms) => { if (ms == null) return '--'; const s = Math.max(0, ms) / 1000; const m = Math.floor(s / 60); const r = s % 60; return (m < 10 ? '0' : '') + m + ':' + (r < 10 ? '0' : '') + r.toFixed(3); };
+    const onsetDist = (o, T) => Math.min(
+        (o.adoptedMs != null) ? Math.abs(o.adoptedMs - T) : Infinity,
+        (o.rawAdoptedMs != null) ? Math.abs(o.rawAdoptedMs - T) : Infinity);
+    for (let i = 0; i < TOTAL_BEATS; i++) {
+        if (!engIsHit(i) || i >= cutoff) continue;
+        const r = state.results[i];
+        if (r && r.tapped) continue; // 未入力MISSだけ対象（タイミング外/方向違い/二重反応MISSは結果ありなので除外）
+        const T = engTargetTimeMs(i);
+        const near = onsets.filter((o) => onsetDist(o, T) <= NEAR_MS).sort((a, b) => onsetDist(a, T) - onsetDist(b, T));
+        // フレーム候補：しきい値を越えたが onset 不成立だったフレーム（最寄り／最大peak）と、しきい値未満のピーク
+        let crossClosest = null, crossBestPeak = null, subPeak = 0;
+        for (const f of frames) {
+            const d = f.t - T;
+            if (Math.abs(d) > NEAR_MS) continue;
+            if (f.thresholdOk) {
+                if (!crossClosest || Math.abs(d) < Math.abs(crossClosest.t - T)) crossClosest = f;
+                if (!crossBestPeak || f.peak > crossBestPeak.peak) crossBestPeak = f;
+            } else if (f.peak >= f.detThr * 0.5 && f.peak > subPeak) { subPeak = f.peak; }
+        }
+        const pb = state.chordBeatProbe ? state.chordBeatProbe[i] : null;
+        // ── 暫定分類（次の対策判断ができる粒度。完璧な確定でなくてよい）──
+        let kind;
+        const reassignedAway = near.find((o) => o.origBeat === i && o.beat != null && o.beat !== i); // 元候補=この拍だが隣へ採用
+        const neighborTaken = near.find((o) => o.beat != null && o.beat !== i);                      // 近辺の入力が別拍に採用済み
+        if (reassignedAway || neighborTaken) {
+            kind = '候補あり・別targetへ割り当て';
+        } else if (crossClosest) {
+            const gate = crossBestPeak || crossClosest;
+            if (Math.abs(crossClosest.t - T) > judgeMaxMs) kind = '候補あり・判定窓外';
+            else if (!gate.cooldownOk) kind = '候補あり・クールダウン中';
+            else if (!gate.riseOk) kind = '候補あり・rise不足';
+            else if (!gate.instantRiseOk) kind = '候補あり・instantRise不足';
+            else kind = '候補あり・条件通過候補だが未採用';
+        } else if (subPeak > 0 || (pb && (pb.maxPeak || 0) > 0)) {
+            kind = '候補あり・反応ライン未満';
+        } else {
+            kind = '候補なし';
+        }
+        const head = missBeatPosLabel(i) + '：target ' + fmtT(T) + ' / index ' + i
+            + ' / 方向 ' + (engDirAt(i) === 'up' ? '↑' : '↓')
+            + ' / 判定窓 GOOD ±' + justMs + 'ms・EARLY/LATE ±' + judgeMaxMs + 'ms ／ 分類: ' + kind;
+        const candLines = [];
+        near.slice(0, 3).forEach((o, n) => {
+            candLines.push('候補' + (n + 1) + '（採用済み入力）: adopted ' + fmt(o.adoptedMs != null ? o.adoptedMs - T : null)
+                + ' / raw ' + fmt(o.rawAdoptedMs != null ? o.rawAdoptedMs - T : null)
+                + ' / 採用拍 ' + (o.beat != null ? missBeatPosLabel(o.beat) : '--')
+                + (o.origBeat != null && o.origBeat !== o.beat ? '（元候補 ' + missBeatPosLabel(o.origBeat) + '）' : '')
+                + (o.suppressed ? '・同一target抑止' : '')
+                + ' / peak ' + (o.peak != null ? o.peak : '--') + ' / env ' + (o.env != null ? o.env : '--')
+                + ' / rise ' + (o.riseFromValley != null ? o.riseFromValley : '--')
+                + ' / instantRise ' + (o.instantRise != null ? o.instantRise : '--')
+                + ' / backdate ' + (o.backdateMs != null ? o.backdateMs + 'ms' : '--')
+                + ' / cooldown明け ' + fmt(o.cooldownMarginMs));
+        });
+        if (!near.length && crossClosest) {
+            const g = crossBestPeak || crossClosest;
+            candLines.push('波形候補（未採用フレーム）: Δtarget ' + fmt(crossClosest.t - T)
+                + ' / peak ' + g.peak + ' / detThr ' + g.detThr
+                + ' / rise ' + g.riseFromValley + ' / instantRise ' + g.instantRise
+                + ' / cooldown ' + (g.cooldownOk ? 'OK' : '未') + '（' + g.effectiveCooldownMs + 'ms）');
+        } else if (!near.length && !crossClosest && pb && (pb.maxPeak || 0) > 0) {
+            candLines.push('波形候補（反応ライン未満）: 最大peak ' + (pb.maxPeak || 0).toFixed(3)
+                + ' / 最大rise ' + (pb.bestRiseFromValley || 0).toFixed(3)
+                + ' / 最大instantRise ' + (pb.bestInstantRise || 0).toFixed(3));
+        } else if (!near.length) {
+            candLines.push('近辺±' + NEAR_MS + 'msに入力候補なし');
+        }
+        out.push({ head, candLines });
+    }
+    return out;
+}
+
 /* 結果カードの「開発用ログ」を更新する。
    スコアMISSは採点対象だけを列挙し、棄却候補は debugMic 時だけ別枠に出す。 */
 function updateMissDebug() {
@@ -8530,6 +8620,20 @@ function updateMissDebug() {
         sections.push('<p class="miss-cause-item"><b>【判定対象外になった入力候補】' + candidates.length + '件</b></p>');
         sections.push(shown.length ? shown.join('') : '<p class="miss-cause-item">なし</p>');
         if (extra > 0) sections.push('<p class="miss-cause-item">ほか ' + extra + ' 件</p>');
+        // v0.10.11：未入力MISSごとに、近辺±250msの入力候補と暫定分類を出す（開発用・debugMic時のみ・通常URLでは出さない）。
+        const nearby = chordMissNearbyAnalyze();
+        sections.push('<p class="miss-cause-item"><b>【未入力MISS近辺の入力候補】' + nearby.length + '拍</b></p>');
+        if (!nearby.length) {
+            sections.push('<p class="miss-cause-item">なし</p>');
+        } else {
+            const shownNearby = nearby.slice(0, 12);
+            shownNearby.forEach((m) => {
+                sections.push('<p class="miss-cause-item">' + m.head + '</p>');
+                m.candLines.forEach((cl) => sections.push('<p class="miss-cause-item">　' + cl + '</p>'));
+            });
+            const extraNearby = nearby.length - shownNearby.length;
+            if (extraNearby > 0) sections.push('<p class="miss-cause-item">ほか ' + extraNearby + ' 拍</p>');
+        }
     }
     els.missCauseList.innerHTML = sections.join('');
     els.missCauseDetails.classList.remove('hidden');
