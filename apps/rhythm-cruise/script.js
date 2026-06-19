@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.13';
+const RHYTHM_CRUISE_VERSION = '0.10.14';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -1063,6 +1063,9 @@ const els = {
     resultsMissInfo: $('results-miss-info'),
     missCauseDetails: $('miss-cause-details'),
     missCauseList: $('miss-cause-list'),
+    devLogCopyRow: $('dev-log-copy-row'),
+    devLogCopyBtn: $('dev-log-copy-btn'),
+    devLogCopyStatus: $('dev-log-copy-status'),
     resultsChordDev: $('results-chord-dev'),
     resultsChordSpeedWarning: $('results-chord-speed-warning'),
     resultsChordDetail: $('results-chord-detail'),
@@ -6386,7 +6389,7 @@ function fitResultsMic() {
 }
 
 /* 結果画面：各拍のストローク音量（state.beatMicPeak）を縦バーで表示し、反応ライン横線を引く。
-   入力あり（反応ライン超え）＝緑、未満＝グレー、二重反応＝上に⚠。 */
+   入力あり（反応ライン超え）＝緑、未満＝グレー、二重反応＝紫系の縦線＋double。 */
 function drawResultsMic() {
     const { ctx, w, h } = resultsMic;
     if (!ctx) return;
@@ -6416,10 +6419,14 @@ function drawResultsMic() {
         const over = v >= micEffectiveThreshold();
         ctx.fillStyle = over ? 'rgba(46,204,113,0.85)' : 'rgba(253,246,238,0.28)';
         ctx.fillRect(cx - bw / 2, y, bw, baseY - y);
-        if (state.beatDoubled[i]) { // 二重反応マーク
-            ctx.fillStyle = '#ffd166';
-            ctx.font = '700 9px Outfit, sans-serif'; ctx.textAlign = 'center';
-            ctx.fillText('⚠', cx, Math.max(topY + 8, y - 3));
+        if (state.beatDoubled[i]) { // 二重反応の表示（集計・判定には不使用）
+            const doubleColor = 'rgba(210, 126, 255, 0.9)';
+            ctx.strokeStyle = doubleColor;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(cx, topY); ctx.lineTo(cx, baseY); ctx.stroke();
+            ctx.fillStyle = doubleColor;
+            ctx.font = '700 8px Outfit, sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText('double', cx, topY + 8);
         }
     }
     // 小節区切り
@@ -7207,7 +7214,7 @@ function drawReviewMicOverlay(ctx, w, h, yc, beatX, beatPx) {
    見るとどこで判定されたか分かりにくい。ここで採用時刻を波形帯に縦線として可視化する。
    ・通常URL：採用時刻（adopted）の実線（判定色）だけ。raw確定時刻は出さない。
    ・?debugMic=1：raw確定時刻（薄グレー点線）も併記し、raw→adopted（バックデート）の関係を見せる。
-   ・二重反応のあった拍には控えめな ⚠ を添える（debug時は double ラベルも）。表示のみ・ロジック不変。
+   ・二重反応のあった拍には紫系の縦線と double ラベルを添える。表示のみ・ロジック不変。
    コードモード(inputMode='stroke' かつ strokeDetectMode='chord')以外は何も描かない
    ＝ブラッシング/タップの既存表示は完全に不変。x基準は色付き符頭と同じ beatX(i)+diff×offScale。 */
 function drawReviewChordTimeLines(ctx, w, h, yc, beatX, beatPx) {
@@ -7252,15 +7259,18 @@ function drawReviewChordTimeLines(ctx, w, h, yc, beatX, beatPx) {
     }
     ctx.globalAlpha = 1;
 
-    // ③ 二重反応：その拍に控えめな ⚠（debug時は下に double ラベル）。検出ロジックは不変・表示だけ。
+    // ③ 二重反応：採用線や判定色と区別できる紫系の縦線＋double。検出ロジックは不変・表示だけ。
     ctx.textAlign = 'center';
     for (let i = 0; i < TOTAL_BEATS; i++) {
         if (i >= reviewCutoff || !state.beatDoubled[i]) continue;
         const mx = beatX(i);
-        const wy = Math.min(h - (MIC_DEBUG_ON ? 13 : 5), msTextY + 19); // ズレ量行の下へ退避
-        ctx.font = '700 11px Outfit, sans-serif'; ctx.fillStyle = 'rgba(255,159,28,0.9)';
-        ctx.fillText('⚠', mx, wy);
-        if (MIC_DEBUG_ON) { ctx.font = '600 8px Outfit, sans-serif'; ctx.fillStyle = 'rgba(255,159,28,0.7)'; ctx.fillText('double', mx, wy + 9); }
+        const doubleColor = 'rgba(210, 126, 255, 0.9)';
+        ctx.strokeStyle = doubleColor;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(mx, lineTop); ctx.lineTo(mx, lineBot); ctx.stroke();
+        ctx.font = '700 9px Outfit, sans-serif';
+        ctx.fillStyle = doubleColor;
+        ctx.fillText('double', mx, Math.min(h - 4, msTextY + 19));
     }
     ctx.restore();
 }
@@ -8672,6 +8682,7 @@ function chordMissNearbyAnalyze() {
    スコアMISSは採点対象だけを列挙し、棄却候補は debugMic 時だけ別枠に出す。 */
 function updateMissDebug() {
     if (!els.missCauseDetails || !els.missCauseList) return;
+    if (els.devLogCopyStatus) els.devLogCopyStatus.textContent = '';
     const scoreMisses = [];
     for (let i = 0; i < TOTAL_BEATS; i++) {
         const label = scoreMissLogLabel(i);
@@ -8733,6 +8744,58 @@ function updateMissDebug() {
     }
     els.missCauseList.innerHTML = sections.join('');
     els.missCauseDetails.classList.remove('hidden');
+}
+
+/* v0.10.14：?debugMic=1 の開発用ログ全文をコピーする。Clipboard API が使えないiOS Safari等では
+   一時textarea＋execCommandへフォールバックし、それも失敗した場合はログ本文を選択状態にする。 */
+function developmentLogText() {
+    if (!els.missCauseDetails) return '';
+    const body = els.missCauseDetails.querySelector('.results-detail-body');
+    if (!body) return '';
+    return Array.from(body.children)
+        .filter((el) => el !== els.devLogCopyRow && !el.classList.contains('hidden'))
+        .map((el) => (el.innerText || el.textContent || '').trim())
+        .filter(Boolean)
+        .join('\n\n');
+}
+
+function fallbackCopyDevelopmentLog(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '0';
+    ta.style.fontSize = '16px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+    let copied = false;
+    try { copied = !!document.execCommand('copy'); } catch (_) { copied = false; }
+    ta.remove();
+    if (!copied && els.missCauseList && window.getSelection) {
+        const range = document.createRange();
+        range.selectNodeContents(els.missCauseList);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+    }
+    return copied;
+}
+
+async function copyDevelopmentLog() {
+    const text = developmentLogText();
+    let copied = false;
+    if (text && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        try { await navigator.clipboard.writeText(text); copied = true; } catch (_) { copied = false; }
+    }
+    if (!copied && text) copied = fallbackCopyDevelopmentLog(text);
+    if (els.devLogCopyStatus) {
+        els.devLogCopyStatus.textContent = copied
+            ? 'コピーしました'
+            : 'コピーできませんでした。ログを長押しして手動でコピーしてください。';
+    }
 }
 
 /* コードストローク：立ち上がり未検出MISSの原因を拍ごとに短く分類する。
@@ -8928,22 +8991,22 @@ function updateDoubleInfo() {
     if (!show) return;
     if (els.resultsDoubleDetail) els.resultsDoubleDetail.open = false; // v0.10.12：原因と対策は毎回閉じた状態から
     if (els.resultsDoubleMsg) {
-        // 文言のみ。回数の集計・STAGE判定ロジックは変更しない（v0.10.8で段階表現に整理）。
+        // 文言のみ。回数の集計・STAGE判定ロジックは変更しない。
         const cur = mic.cooldownMs || 0;
         const next = Math.min(400, cur + 50);
-        // 段階のしきい値：拍数に応じた「多め」判定。短いSTAGEで過敏にならないよう下限4回。
-        const highThreshold = Math.max(4, Math.round((TOTAL_BEATS || 0) * 0.12));
-        // v0.10.12：カード上部は「二重反応が N 回出ています。」だけを常時表示。
-        els.resultsDoubleMsg.textContent = (n >= highThreshold ? '⚠ ' : '') + '二重反応が ' + n + ' 回出ています。';
+        const cutoff = Number.isFinite(state.judgeCutoff) ? state.judgeCutoff : TOTAL_BEATS;
+        const measureCount = Math.max(1, Math.ceil(cutoff / (eng.cellsPerBar || BEATS_PER_BAR)));
+        const frequentDouble = n >= measureCount; // 1小節あたり約1回以上
+        els.resultsDoubleMsg.textContent = '二重反応が ' + n + ' 回出ています。';
         // 原因と対策は折りたたみ（results-double-detail）の中だけに出す。初期状態は閉じる。
         if (els.resultsDoubleDetailMsg) {
-            const cause = (n >= highThreshold)
-                ? '強く弾いて音が伸びた時に、余韻をもう1回の入力として拾っている可能性があります。'
-                : '強く弾いて音が伸びた時に、余韻をもう1回の入力として拾うことがあります。';
-            els.resultsDoubleDetailMsg.textContent = cause
-                + 'スマホをギターに近づけすぎている場合は、少し離すと改善することがあります。'
-                + '気になる場合は、マイク設定の「マイク反応テスト」をやり直してください。'
-                + '改善しない場合は、手動設定で「二重反応防止」を少し長めにしてください（例：' + cur + 'ms → ' + next + 'ms）。';
+            els.resultsDoubleDetailMsg.textContent = frequentDouble
+                ? 'ほぼ毎小節で二重反応が出ています。強く弾いた音の余韻を、次の入力として拾っている可能性があります。'
+                    + 'スマホをギターに近づけすぎている場合は、少し離すと改善することがあります。'
+                    + '気になる場合は、マイク反応テストをやり直すか、手動設定で「二重反応防止」を少し長めにしてください（例：' + cur + 'ms → ' + next + 'ms）。'
+                : 'たまに二重反応が出ています。1〜2回程度であれば、練習結果への影響は大きくない場合があります。'
+                    + '同じ箇所で何度も出る場合や、判定が不自然に感じる場合は、マイク反応テストをやり直してください。'
+                    + 'スマホをギターに近づけすぎている場合は、少し離すと改善することがあります。';
         }
     }
 }
@@ -17583,6 +17646,7 @@ function bind() {
         // ステップ式UIでマイク反応テストまで一気に開く（結果はリセット）
         startRetestFlow(true);
     });
+    if (els.devLogCopyBtn) els.devLogCopyBtn.addEventListener('click', copyDevelopmentLog);
     // 結果詳細：ズレ傾向を見たあと、マイクの手動設定（現在の設定を見る）へ直接行く（v0.9.107）
     if (els.resultsMicTune) els.resultsMicTune.addEventListener('click', () => {
         if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden');
@@ -17718,6 +17782,7 @@ function applyProLockBadges() {
 
 function init() {
     applyAppVersionDisplay();    // バージョン表示（Ver X.Y.Z）
+    if (els.devLogCopyRow) els.devLogCopyRow.classList.toggle('hidden', !MIC_DEBUG_ON);
     loadSettings();              // 保存済みのマイク設定を反映
     seedRhythmCustomStageSamples();
     renderStages();

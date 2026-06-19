@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.10.13">
+    <link rel="stylesheet" href="theme.css?v=0.10.14">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1165,6 +1165,7 @@
 
             <!-- 二重反応の注意。回数だけ常時表示し、原因と対策は折りたたみ内に格納（v0.10.12）。 -->
             <div class="results-double-notice hidden" id="results-double-notice">
+                <p class="results-double-title">二重反応について</p>
                 <p id="results-double-msg">二重反応が出ています。</p>
                 <details class="results-double-detail" id="results-double-detail">
                     <summary class="results-double-summary">原因と対策を見る</summary>
@@ -1213,6 +1214,10 @@
                 <summary class="results-detail-summary">開発用ログ</summary>
                 <div class="results-detail-body">
                     <p class="miss-cause-lead">これは不具合の原因を調べるための開発用ログです。通常の練習結果として読む必要はありません。</p>
+                    <div class="dev-log-copy-row hidden" id="dev-log-copy-row">
+                        <button type="button" class="dev-log-copy-btn" id="dev-log-copy-btn">ログをコピー</button>
+                        <span class="dev-log-copy-status" id="dev-log-copy-status" aria-live="polite"></span>
+                    </div>
                     <div class="miss-cause-list" id="miss-cause-list"></div>
                     <p class="result-breakdown result-miss-debug hidden" id="results-chord-detail"></p>
                     <p class="result-breakdown result-miss-debug hidden" id="results-chord-miss"></p>
@@ -1305,7 +1310,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.10.13"></script>
+    <script src="script.js?v=0.10.14"></script>
 </body>
 
 </html>
