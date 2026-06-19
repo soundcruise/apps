@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.18';
+const RHYTHM_CRUISE_VERSION = '0.10.19';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -566,6 +566,10 @@ function judgeWindows() {
 }
 
 const TAIL_BEATS = 1;            // 最終拍の後に少し余韻
+/* v0.10.19：波形立ち上がり補完(chordWaveRiseCandidatesAnalyze)が最後のtargetを見るのに必要な後方探索幅(ms)。
+   = windowAfterMs(120) + followMs(48)。最後の16分音符まで測り切るための採点猶予(strokeTailGraceMs)に使う。 */
+const CHORD_WAVE_LOOKAHEAD_MS = 168;
+const TAIL_GRACE_SAFETY_MS = 200; // 採点猶予の安全余白（150〜250msの中庸）。長くしすぎず最後のtargetを拾い切る。
 
 const COLORS = { just: '#2ecc71', early: '#4d96ff', late: '#ff6b6b', miss: '#8a8a8a' };
 const LABELS = { just: '🎯 GOOD', early: '⏪ EARLY', late: '⏩ LATE', miss: '× MISS' };
@@ -612,6 +616,9 @@ const state = {
     beatInterval: 750,
     T0: 0,
     endTime: 0,
+    tailGraceMs: 0,         // v0.10.19：stroke時、最後のtargetまでマイク解析・判定を続ける採点猶予(ms)。判定幅は変えない。
+    finishGameMs: null,     // v0.10.19：finish() 実行時のゲーム時刻(t)。【終了タイミング診断】用。
+    finishAtPerf: null,     // v0.10.19：finish() 実行時の performance.now()。【終了タイミング診断】用。
     clickTimes: [],
     nextClick: 0,
     scheduledClicks: [],    // 先読みスケジュール済みのクリック音オシレータ（停止時に止める）
@@ -8203,11 +8210,39 @@ function stageBeatSelected(i) {
     return true;
 }
 
+/* v0.10.19：採点対象（engIsHit）の最後のtargetのゲーム時刻(ms)。cutoff（くり返しSTOP部分集計）も尊重する。
+   無ければ null。endTime/採点猶予の基準に使う。 */
+function lastJudgedTargetGameMs() {
+    const cutoff = state.judgeCutoff != null ? state.judgeCutoff : TOTAL_BEATS;
+    const lastIdx = Math.min(TOTAL_BEATS, cutoff);
+    for (let i = lastIdx - 1; i >= 0; i--) {
+        if (engIsHit(i)) return engTargetTimeMs(i);
+    }
+    return null;
+}
+
+/* v0.10.19：stroke（マイク）時に、最後のtargetまでマイク解析・判定更新を続けるための採点猶予(ms)。
+   「最後のtarget時刻 + max(LATE判定幅, 波形立ち上がり後方探索幅) + 安全余白」まで終了を遅らせる。
+   既存tail（endTime までの余韻）を超える分だけ延長する＝STAGE6のような16分の速いステージでだけ効き、
+   STAGE1など拍間隔の広いステージは既存tailで足りるので延長0。
+   判定幅・cooldown・riseGate等は一切変更しない（終了タイミングだけを延ばす）。 */
+function strokeTailGraceMs() {
+    if (state.inputMode !== 'stroke') return 0;     // tap はマイク解析の後方探索が不要（即時入力）。挙動を変えない。
+    const lastT = lastJudgedTargetGameMs();
+    if (lastT == null) return 0;
+    const jw = judgeWindows();
+    const lateWindow = Math.max(jw.nearMs, state.beatInterval * jw.nearFrac); // LATE側の半幅（判定式と同一・読み取りのみ）
+    const neededFromLastTarget = Math.max(lateWindow, CHORD_WAVE_LOOKAHEAD_MS) + TAIL_GRACE_SAFETY_MS;
+    const neededEnd = lastT + neededFromLastTarget;
+    return Math.max(0, Math.round(neededEnd - state.endTime)); // 既存tailを超える分だけ
+}
+
 function buildSchedule() {
     state.beatInterval = engCellMs();                                  // エンジンの1拍＝1セル
     state.pxPerMs = state.pxPerBeat / engQuarterMs();                  // スクロール速度は4分基準（grid非依存で一定）
     state.T0 = eng.countInCells * state.beatInterval;
     state.endTime = state.T0 + (TOTAL_BEATS - 1 + TAIL_BEATS) * state.beatInterval;
+    state.tailGraceMs = strokeTailGraceMs();                            // v0.10.19：最後のtargetまで測り切る採点猶予（stroke時のみ）
     state.clickTimes = [];
     const halfBeatMs = engPulseMs() / 2;            // 裏拍ON時のずらし量（1拍の半分）
     const offbeat = !!state.rcClickOffbeat;
@@ -8271,7 +8306,10 @@ function loop() {
     updateCustomFlowScorePosition(t); // 流れるVexFlow譜面を同じ時間軸で横移動（カスタムのみ・v0.9.128）
 
     if (t >= state.endTime) {
-        if (state.loopActive) { advanceLoopLap(); state.raf = requestAnimationFrame(loop); return; } // くり返し練習：finishせず次ラップへ（v0.9.147）
+        if (state.loopActive) { advanceLoopLap(); state.raf = requestAnimationFrame(loop); return; } // くり返し練習：finishせず次ラップへ（v0.9.147・採点猶予は使わない）
+        // v0.10.19：単発Practiceは、最後のtargetまでマイク解析・判定を続けるため採点猶予ぶんだけ終了を遅らせる。
+        //   この間も state.running は true のまま＝micRunWave収集・registerChordHit が継続する。クリックは最終拍で打ち切り済み。
+        if (t < state.endTime + (state.tailGraceMs || 0)) { state.raf = requestAnimationFrame(loop); return; }
         finish(); return;
     }
     state.raf = requestAnimationFrame(loop);
@@ -8681,15 +8719,15 @@ function chordMissNearbyAnalyze() {
         } else {
             kind = '候補なし';
         }
-        const head = missBeatPosLabel(i) + '：target ' + fmtT(T) + ' / index ' + i
+        const head = debugBeatLabel(i) + '：target ' + fmtT(T) + ' / index ' + i
             + ' / 方向 ' + (engDirAt(i) === 'up' ? '↑' : '↓')
             + ' / 判定窓 GOOD ±' + justMs + 'ms・EARLY/LATE ±' + judgeMaxMs + 'ms ／ 分類: ' + kind;
         const candLines = [];
         near.slice(0, 3).forEach((o, n) => {
             candLines.push('候補' + (n + 1) + '（採用済み入力）: adopted ' + fmt(o.adoptedMs != null ? o.adoptedMs - T : null)
                 + ' / raw ' + fmt(o.rawAdoptedMs != null ? o.rawAdoptedMs - T : null)
-                + ' / 採用拍 ' + (o.beat != null ? missBeatPosLabel(o.beat) : '--')
-                + (o.origBeat != null && o.origBeat !== o.beat ? '（元候補 ' + missBeatPosLabel(o.origBeat) + '）' : '')
+                + ' / 採用拍 ' + (o.beat != null ? debugBeatLabel(o.beat) : '--')
+                + (o.origBeat != null && o.origBeat !== o.beat ? '（元候補 ' + debugBeatLabel(o.origBeat) + '）' : '')
                 + (o.suppressed ? '・同一target抑止' : '')
                 + ' / peak ' + (o.peak != null ? o.peak : '--') + ' / env ' + (o.env != null ? o.env : '--')
                 + ' / rise ' + (o.riseFromValley != null ? o.riseFromValley : '--')
@@ -8905,6 +8943,13 @@ function stage6TargetLabel(i) {
     const s = ms / 1000, m = Math.floor(s / 60), r = s % 60;
     const clock = (m < 10 ? '0' : '') + m + ':' + (r < 10 ? '0' : '') + r.toFixed(3);
     return base + '（idx ' + i + ' / ' + posInBeat + 'つ目 / 小節内16分 ' + (inBar + 1) + ' / target ' + clock + '）';
+}
+
+/* v0.10.19：debug用ログの拍ラベル。?debugMic=1 かつ STAGE6（chordストローク）のときだけ
+   idx/16分位置/target時刻つきの詳細ラベル（stage6TargetLabel）を使い、16分targetの重複表示を避ける。
+   それ以外（通常URL・他STAGE）は従来どおり missBeatPosLabel ＝表示は不変。 */
+function debugBeatLabel(i) {
+    return stage6ExperimentEnabled() ? stage6TargetLabel(i) : missBeatPosLabel(i);
 }
 
 function stage6ClassSummary(entries, total) {
@@ -9137,17 +9182,54 @@ function updateMissDebug() {
     const scoreMisses = [];
     for (let i = 0; i < TOTAL_BEATS; i++) {
         const label = scoreMissLogLabel(i);
-        if (label) scoreMisses.push('<p class="miss-cause-item">' + missBeatPosLabel(i) + '：' + label + '</p>');
+        if (label) scoreMisses.push('<p class="miss-cause-item">' + debugBeatLabel(i) + '：' + label + '</p>');
     }
     const sections = [
         '<p class="miss-cause-item"><b>【スコア上のMISS】' + scoreMisses.length + '拍</b></p>',
         scoreMisses.length ? scoreMisses.join('') : '<p class="miss-cause-item">なし</p>',
     ];
+    // v0.10.19：?debugMic=1 限定。最後のtargetが採点対象として最後まで見られているかを確認する。通常URLには出さない。
+    if (MIC_DEBUG_ON) {
+        const cutoffD = state.judgeCutoff != null ? state.judgeCutoff : TOTAL_BEATS;
+        let lastIdx = -1;
+        for (let i = Math.min(TOTAL_BEATS, cutoffD) - 1; i >= 0; i--) { if (engIsHit(i)) { lastIdx = i; break; } }
+        sections.push('<p class="miss-cause-item"><b>【終了タイミング診断】</b></p>');
+        if (lastIdx < 0) {
+            sections.push('<p class="miss-cause-item">採点対象のtargetなし</p>');
+        } else {
+            const lastT = engTargetTimeMs(lastIdx);
+            const jwD = judgeWindows();
+            const lateWin = Math.round(Math.max(jwD.nearMs, state.beatInterval * jwD.nearFrac));
+            const grace = Math.round(state.tailGraceMs || 0);
+            const rLast = state.results[lastIdx];
+            const lastCls = rLast ? rLast.cls : 'miss';
+            const clsJp = lastCls === 'just' ? 'GOOD' : lastCls === 'early' ? 'EARLY' : lastCls === 'late' ? 'LATE' : 'MISS';
+            const waveD = Array.isArray(state.micRunWave) ? state.micRunWave : [];
+            const winLo = lastT - 120, winHi = lastT + CHORD_WAVE_LOOKAHEAD_MS;
+            let near = 0;
+            waveD.forEach((s) => { if (s.t >= winLo && s.t <= winHi) near++; });
+            const lastSampleT = waveD.length ? waveD[waveD.length - 1].t : null;
+            const coversLookAhead = lastSampleT != null && lastSampleT >= winHi;
+            const reqEnd = lastT + Math.max(lateWin, CHORD_WAVE_LOOKAHEAD_MS) + TAIL_GRACE_SAFETY_MS;
+            const effEnd = state.endTime + grace;
+            sections.push('<p class="miss-cause-item">lastTargetIndex ' + lastIdx + ' / ' + debugBeatLabel(lastIdx) + '</p>');
+            sections.push('<p class="miss-cause-item">lastTargetTime ' + Math.round(lastT) + 'ms / practiceEndTime(endTime) ' + Math.round(state.endTime)
+                + 'ms / finishTime(game) ' + (state.finishGameMs != null ? Math.round(state.finishGameMs) + 'ms' : '--') + '</p>');
+            sections.push('<p class="miss-cause-item">lateWindow ' + lateWin + 'ms / waveLookAhead ' + CHORD_WAVE_LOOKAHEAD_MS + 'ms / 安全余白 ' + TAIL_GRACE_SAFETY_MS
+                + 'ms / tailGraceMs ' + grace + 'ms' + (state.inputMode === 'stroke' ? '' : '（tapは0）') + '</p>');
+            sections.push('<p class="miss-cause-item">必要終了 lastTarget+max(late,wave)+安全余白 ≈ ' + Math.round(reqEnd)
+                + 'ms ／ 実効終了 endTime+grace ' + Math.round(effEnd) + 'ms → ' + (effEnd >= reqEnd ? '充足' : '不足') + '</p>');
+            sections.push('<p class="miss-cause-item">lastTarget判定結果 ' + clsJp + (rLast && rLast.waveFallback ? '（波形補完）' : '') + '</p>');
+            sections.push('<p class="miss-cause-item">lastTarget付近のwaveサンプル ' + near + '個（[' + Math.round(winLo) + ',' + Math.round(winHi)
+                + ']ms）/ 最終サンプル ' + (lastSampleT != null ? Math.round(lastSampleT) + 'ms' : '--') + ' / 後方探索カバー ' + (coversLookAhead ? 'OK' : 'NG') + '</p>');
+            sections.push('<p class="miss-cause-item">tailGraceMs により endTime 以降も state.running を保ち、micRunWave収集・判定更新を継続します（判定幅・cooldown等は不変）。最後の16分が他targetと同条件で見られているかの確認用です。</p>');
+        }
+    }
     if (MIC_DEBUG_ON && state.inputMode === 'stroke' && state.strokeDetectMode === 'chord') {
         const candidates = [];
         for (let i = 0; i < TOTAL_BEATS; i++) {
             const label = chordRejectedCandidateLabel(i);
-            if (label) candidates.push('<p class="miss-cause-item">' + missBeatPosLabel(i) + '：' + label + '</p>');
+            if (label) candidates.push('<p class="miss-cause-item">' + debugBeatLabel(i) + '：' + label + '</p>');
         }
         const shown = candidates.slice(0, 16);
         const extra = candidates.length - shown.length;
@@ -9175,7 +9257,7 @@ function updateMissDebug() {
             sections.push('<p class="miss-cause-item">なし</p>');
         } else {
             waveRises.slice(0, 12).forEach((entry) => {
-                sections.push('<p class="miss-cause-item">' + missBeatPosLabel(entry.beat) + '：</p>');
+                sections.push('<p class="miss-cause-item">' + debugBeatLabel(entry.beat) + '：</p>');
                 entry.lines.forEach((line) => sections.push('<p class="miss-cause-item">　' + line + '</p>'));
             });
             if (waveRises.length > 12) sections.push('<p class="miss-cause-item">ほか ' + (waveRises.length - 12) + ' 拍</p>');
@@ -9188,7 +9270,7 @@ function updateMissDebug() {
             const clsLabel = (cls) => cls === 'just' ? 'GOOD' : cls === 'early' ? 'EARLY' : cls === 'late' ? 'LATE' : 'MISS';
             waveFallbacks.slice(0, 12).forEach((entry) => {
                 const candidate = entry.candidate;
-                let line = missBeatPosLabel(entry.beat) + '：';
+                let line = debugBeatLabel(entry.beat) + '：';
                 if (candidate) {
                     line += 'candidateDiff ' + (candidate.candidateDiff >= 0 ? '+' : '') + Math.round(candidate.candidateDiff) + 'ms'
                         + ' / classification ' + clsLabel(candidate.classification) + ' / ';
@@ -9283,7 +9365,7 @@ function updateMissDebug() {
         } else {
             const fmtR = (v) => (v == null ? '--' : (v >= 0 ? '+' : '') + Math.round(v) + 'ms');
             rescues.slice(0, 12).forEach((rc) => {
-                sections.push('<p class="miss-cause-item">' + (rc.beat != null ? missBeatPosLabel(rc.beat) : '--') + '：'
+                sections.push('<p class="miss-cause-item">' + (rc.beat != null ? debugBeatLabel(rc.beat) : '--') + '：'
                     + 'Δtarget ' + fmtR(rc.adoptedDiff) + ' / peak ' + (rc.peak != null ? rc.peak : '--')
                     + ' / detThr ' + (rc.detThr != null ? rc.detThr : '--')
                     + ' / rise ' + (rc.riseFromValley != null ? rc.riseFromValley : '--')
@@ -9560,11 +9642,11 @@ function updateDoubleInfo() {
         if (els.resultsDoubleDetailMsg) {
             els.resultsDoubleDetailMsg.textContent = frequentDouble
                 ? 'ほぼ毎小節で二重反応が出ています。強く弾いた音の余韻を、次の入力として拾っている可能性があります。'
-                    + 'スマホをギターに近づけすぎている場合は、少し離すと改善することがあります。'
+                    + 'スマホとギターの距離や向きを少し変えると、余韻や反射音の拾い方が変わり、二重反応が減ることがあります。'
                     + '気になる場合は、マイク反応テストをやり直すか、手動設定で「二重反応防止」を少し長めにしてください（例：' + cur + 'ms → ' + next + 'ms）。'
                 : 'たまに二重反応が出ています。1〜2回程度であれば、練習結果への影響は大きくない場合があります。'
                     + '同じ箇所で何度も出る場合や、判定が不自然に感じる場合は、マイク反応テストをやり直してください。'
-                    + 'スマホをギターに近づけすぎている場合は、少し離すと改善することがあります。';
+                    + 'スマホとギターの距離や向きを少し変えると、余韻や反射音の拾い方が変わり、二重反応が減ることがあります。';
         }
     }
 }
@@ -9576,6 +9658,8 @@ function finish(opts) {
     // 採点対象セルの上限。くり返しSTOPの部分集計でのみ縮める。通常プレイは全セル。
     const cutoff = Number.isFinite(opts.cutoff) ? Math.max(0, Math.min(TOTAL_BEATS, opts.cutoff)) : TOTAL_BEATS;
     state.judgeCutoff = cutoff;                          // drawReview が未到達セルのMISS表示を省くために参照
+    state.finishGameMs = state.currentTime;             // v0.10.19：終了時のゲーム時刻（【終了タイミング診断】用）
+    state.finishAtPerf = performance.now();             // v0.10.19：終了の実時刻（同上）
     state.running = false;
     state.loopActive = false;
     // 停止後に未発音クリックを止める（途中停止と同様）
