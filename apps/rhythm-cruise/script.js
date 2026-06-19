@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.17';
+const RHYTHM_CRUISE_VERSION = '0.10.18';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -8893,6 +8893,20 @@ function stage6ExperimentTargets() {
     return out;
 }
 
+/* v0.10.18：STAGE6専用のdebugラベル。「裏」表現だけでは区別できない16分targetを、
+   idx・拍内16分位置・小節内16分位置・target時刻で一意に識別できるようにする。debugログ専用で、
+   通常URLの表示（missBeatPosLabel）はそのまま。 */
+function stage6TargetLabel(i) {
+    const base = missBeatPosLabel(i);
+    const cellsPerBeat = Math.max(1, Math.round(eng.pulseTicks / eng.cellTicks)); // 16分=4
+    const inBar = engInBarPos(i);
+    const posInBeat = (inBar % cellsPerBeat) + 1; // 拍内の何番目の16分か（拍頭=1つ目）
+    const ms = Math.max(0, engTargetTimeMs(i));   // 他のdebug時刻表示（fmtT）と同じ絶対ms軸
+    const s = ms / 1000, m = Math.floor(s / 60), r = s % 60;
+    const clock = (m < 10 ? '0' : '') + m + ':' + (r < 10 ? '0' : '') + r.toFixed(3);
+    return base + '（idx ' + i + ' / ' + posInBeat + 'つ目 / 小節内16分 ' + (inBar + 1) + ' / target ' + clock + '）';
+}
+
 function stage6ClassSummary(entries, total) {
     const out = { good: 0, early: 0, late: 0, miss: total, candidates: 0 };
     entries.forEach((entry) => {
@@ -8985,8 +8999,12 @@ function stage6ExtractGlobalEvents(wave) {
     return raw;
 }
 
-function stage6AssignGlobalEvents(wave, targets) {
-    const events = stage6ExtractGlobalEvents(wave);
+/* 時刻順のevent listを、未使用targetへ最寄りで1対1割り当てする（読み取り専用）。
+   実験E（全体波形event）と実験F（立ち上がり強調event）が共通で使う。
+   ・1つのeventは1targetまで／1targetに1eventまで
+   ・判定窓(nearWin)外は割り当てない＝未割り当てtarget
+   ・candidateDiff から classify() で GOOD/EARLY/LATE を分類（本番スコアには接続しない） */
+function stage6AssignEventsToTargets(events, targets) {
     const usedTargets = new Set();
     const assignments = [];
     const nearWin = Math.min(150, Math.max(judgeWindows().nearMs, state.beatInterval * judgeWindows().nearFrac));
@@ -9032,6 +9050,47 @@ function stage6AssignGlobalEvents(wave, targets) {
     };
 }
 
+function stage6AssignGlobalEvents(wave, targets) {
+    return stage6AssignEventsToTargets(stage6ExtractGlobalEvents(wave), targets);
+}
+
+/* v0.10.18 実験F：立ち上がり強調波形（debugReviewWaveLevels 'rise'）からストローク候補eventを抽出する。
+   targetごとの個別探索ではなく、人間が立ち上がり強調表示で見ている「山」を時間順のeventとして取り出す。
+   直前72msの局所最小からの上昇量・firstStep・連続上昇フレーム・反応ライン到達で、
+   高止まり/下降/微小揺れを除外する。70ms以内の連続検出は上昇量が大きい方へ統合する。 */
+function stage6ExtractRiseEvents(wave) {
+    const levels = debugReviewWaveLevels(wave, 'rise'); // 0..1 の立ち上がり強調値
+    const minLevel = 0.14; // 反応ライン到達相当（立ち上がり強調空間の山の高さ）
+    const minRise = 0.08;  // 局所最小からの上昇量
+    const minStep = 0.02;  // firstStep（初動の立ち上がり）
+    const raw = [];
+    for (let k = 1; k < wave.length - 2; k++) {
+        const cur = wave[k];
+        let before = levels[k - 1];
+        for (let p = k - 1; p >= 0 && wave[p].t >= cur.t - 72; p--) before = Math.min(before, levels[p]);
+        let after = levels[k];
+        for (let n = k; n < wave.length && wave[n].t <= cur.t + 40; n++) after = Math.max(after, levels[n]);
+        const localRise = after - before;
+        const firstStep = levels[k] - levels[k - 1];
+        let slopeFrames = 0;
+        for (let n = k; n < Math.min(wave.length, k + 4); n++) {
+            if (levels[n] - levels[n - 1] >= -0.003) slopeFrames++;
+            else break;
+        }
+        if (after < minLevel || localRise < minRise || firstStep < minStep || slopeFrames < 2) continue;
+        const event = { time: cur.t, rise: localRise, firstStep, slopeFrames, level: after };
+        const prev = raw[raw.length - 1];
+        if (prev && event.time - prev.time < 70) {
+            if (event.rise > prev.rise) raw[raw.length - 1] = event;
+        } else raw.push(event);
+    }
+    return raw;
+}
+
+function stage6AssignRiseEvents(wave, targets) {
+    return stage6AssignEventsToTargets(stage6ExtractRiseEvents(wave), targets);
+}
+
 function stage6CodeExperimentAnalyze() {
     if (!stage6ExperimentEnabled()) return null;
     const wave = Array.isArray(state.micRunWave) ? state.micRunWave : [];
@@ -9061,6 +9120,7 @@ function stage6CodeExperimentAnalyze() {
         log: { entries: logEntries, summary: stage6ClassSummary(logEntries, targets.length) },
         rise: { entries: riseEntries, summary: stage6ClassSummary(riseEntries, targets.length) },
         global: stage6AssignGlobalEvents(wave, targets),
+        riseEvents: stage6AssignRiseEvents(wave, targets),
     };
 }
 
@@ -9146,6 +9206,7 @@ function updateMissDebug() {
             const clsLabel = (cls) => cls === 'just' ? 'GOOD' : cls === 'early' ? 'EARLY' : cls === 'late' ? 'LATE' : 'MISS';
             const a = stage6Exp.actual, b = stage6Exp.fallback;
             const c = stage6Exp.log.summary, d = stage6Exp.rise.summary, e = stage6Exp.global.summary;
+            const f = stage6Exp.riseEvents.summary;
             sections.push('<p class="miss-cause-item"><b>【STAGE6コード判定実験】</b></p>');
             sections.push('<p class="miss-cause-item">実験A 実判定（v0.10.16波形補完込み）：GOOD ' + a.good
                 + ' / EARLY ' + a.early + ' / LATE ' + a.late + ' / MISS ' + a.miss
@@ -9160,34 +9221,50 @@ function updateMissDebug() {
                 + ' / 割り当て成功 ' + stage6Exp.global.assignments.length
                 + ' / GOOD ' + e.good + ' / EARLY ' + e.early + ' / LATE ' + e.late + ' / MISS ' + e.miss
                 + ' / 未割り当てtarget ' + e.miss + ' / 余った候補 ' + stage6Exp.global.unusedEvents + '</p>');
+            sections.push('<p class="miss-cause-item">実験F 立ち上がり強調イベント割り当て：候補イベント ' + stage6Exp.riseEvents.events.length
+                + ' / 割り当て成功 ' + stage6Exp.riseEvents.assignments.length
+                + ' / GOOD ' + f.good + ' / EARLY ' + f.early + ' / LATE ' + f.late + ' / MISS ' + f.miss
+                + ' / 未割り当てtarget ' + f.miss + ' / 余った候補 ' + stage6Exp.riseEvents.unusedEvents + '</p>');
 
+            // D. スコア上MISSだったtargetを、各方式（実判定/C/D/E/F）で横比較する。
             const actualMissBeats = new Set(stage6Exp.targets
                 .filter((target) => !state.results[target.beat] || state.results[target.beat].cls === 'miss')
                 .map((target) => target.beat));
-            [['対数波形', stage6Exp.log.entries, 'logRise'], ['立ち上がり強調', stage6Exp.rise.entries, 'localRise']].forEach(([label, entries, riseLabel]) => {
-                entries.filter((entry) => actualMissBeats.has(entry.beat)).slice(0, 12).forEach((entry) => {
-                    const candidate = entry.candidate;
-                    sections.push('<p class="miss-cause-item">　' + label + ' ' + missBeatPosLabel(entry.beat) + '：'
-                        + (candidate
-                            ? 'candidateDiff ' + fmtDiff(candidate.candidateDiff) + ' / classification ' + clsLabel(candidate.classification)
-                                + ' / ' + riseLabel + ' ' + candidate.rise.toFixed(3)
-                            : '候補なし / reason ' + entry.reason) + '</p>');
-                });
+            const logByBeat = new Map(stage6Exp.log.entries.map((entry) => [entry.beat, entry]));
+            const riseByBeat = new Map(stage6Exp.rise.entries.map((entry) => [entry.beat, entry]));
+            const globalByBeat = new Map(stage6Exp.global.details.map((entry) => [entry.beat, entry]));
+            const riseEvByBeat = new Map(stage6Exp.riseEvents.details.map((entry) => [entry.beat, entry]));
+            const onsetCompareLine = (label, entry) => '　' + label + '：' + (entry && entry.candidate
+                ? clsLabel(entry.candidate.classification) + ' ' + fmtDiff(entry.candidate.candidateDiff)
+                    + ' / candidateDiff ' + fmtDiff(entry.candidate.candidateDiff)
+                : '候補なし' + (entry && entry.reason ? ' / reason ' + entry.reason : ''));
+            const assignCompareLine = (label, entry) => '　' + label + '：' + (entry && entry.assigned && entry.candidate
+                ? clsLabel(entry.candidate.classification) + ' ' + fmtDiff(entry.candidate.candidateDiff)
+                    + ' / candidateDiff ' + fmtDiff(entry.candidate.candidateDiff) + ' / assigned true'
+                : '未割当 / nearest ' + fmtDiff(entry ? entry.nearestDiff : null) + ' / assigned false'
+                    + (entry && entry.reason ? ' / reason ' + entry.reason : ''));
+            const missTargets = stage6Exp.targets.filter((target) => actualMissBeats.has(target.beat));
+            sections.push('<p class="miss-cause-item"><b>MISS付近の方式比較（スコア上MISS ' + missTargets.length + '拍）</b></p>');
+            missTargets.slice(0, 12).forEach((target) => {
+                const beat = target.beat;
+                sections.push('<p class="miss-cause-item">' + stage6TargetLabel(beat) + '：</p>');
+                sections.push('<p class="miss-cause-item">　実判定：MISS</p>');
+                sections.push('<p class="miss-cause-item">' + onsetCompareLine('C 対数波形', logByBeat.get(beat)) + '</p>');
+                sections.push('<p class="miss-cause-item">' + onsetCompareLine('D 立ち上がり強調', riseByBeat.get(beat)) + '</p>');
+                sections.push('<p class="miss-cause-item">' + assignCompareLine('E 全体候補割り当て', globalByBeat.get(beat)) + '</p>');
+                sections.push('<p class="miss-cause-item">' + assignCompareLine('F 立ち上がり強調イベント割り当て', riseEvByBeat.get(beat)) + '</p>');
             });
-            stage6Exp.global.details.filter((entry) => actualMissBeats.has(entry.beat)).slice(0, 12).forEach((entry) => {
-                sections.push('<p class="miss-cause-item">　全体割り当て ' + missBeatPosLabel(entry.beat)
-                    + '：nearestEventDiff ' + fmtDiff(entry.nearestDiff)
-                    + ' / classification ' + (entry.candidate ? clsLabel(entry.candidate.classification) : '--')
-                    + ' / assigned ' + (entry.assigned ? 'true' : 'false')
-                    + (entry.reason ? ' / reason ' + entry.reason : '') + '</p>');
-            });
+            if (missTargets.length > 12) sections.push('<p class="miss-cause-item">ほか ' + (missTargets.length - 12) + ' 拍</p>');
 
             sections.push('<p class="miss-cause-item"><b>【STAGE6実験比較】</b></p>');
             sections.push('<p class="miss-cause-item">' + stage6SummaryText('実判定', a) + '</p>');
             sections.push('<p class="miss-cause-item">' + stage6SummaryText('対数波形', c) + '</p>');
             sections.push('<p class="miss-cause-item">' + stage6SummaryText('立ち上がり強調', d) + '</p>');
             sections.push('<p class="miss-cause-item">' + stage6SummaryText('全体候補割り当て', e) + '</p>');
-            sections.push('<p class="miss-cause-item">これはdebug用の仮判定です。実験C/D/Eは実際のスコアに反映していません。v0.10.16の既存波形補完だけは本番スコアに反映済みです。</p>');
+            sections.push('<p class="miss-cause-item">' + stage6SummaryText('立ち上がり強調イベント割り当て', f) + '</p>');
+            sections.push('<p class="miss-cause-item">これはdebug用の仮判定です。実験C/D/E/Fは実際のスコアに反映していません。v0.10.16の既存波形補完だけは本番スコアに反映済みです。</p>');
+            sections.push('<p class="miss-cause-item">STAGE6改善方針：個別target探索（C/D）よりも、立ち上がりeventを先に抽出してtargetへ割り当てる方式（E/F）が有効な可能性があります。ただしLATEが増える場合は「弾き遅れ」として扱うべきで、GOOD化してはいけません。</p>');
+            sections.push('<p class="miss-cause-item">比較の見方：MISSが減ってもLATEが大きく増える場合は、判定が甘くなったのではなく、遅れて弾いている可能性があります。</p>');
             const gap = engChordTargetGapSummary();
             const targetGaps = [];
             for (let i = 1; i < stage6Exp.targets.length; i++) targetGaps.push(stage6Exp.targets[i].target - stage6Exp.targets[i - 1].target);
