@@ -2633,6 +2633,26 @@ h1 {
     line-height: 1.5;
     color: #ffd9a0;
 }
+/* v0.10.12：二重反応カードの「原因と対策」折りたたみ。回数だけ常時表示し、説明・対策は初期は閉じる。 */
+.results-double-detail { margin-top: 2px; }
+.results-double-summary {
+    list-style: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #ffd9a0;
+}
+.results-double-summary::-webkit-details-marker { display: none; }
+.results-double-summary::before {
+    content: '▶';
+    font-size: 0.7rem;
+    transition: transform 0.2s;
+}
+.results-double-detail[open] .results-double-summary::before { transform: rotate(90deg); }
+.results-double-detail > p { margin-top: 8px; margin-bottom: 8px; }
 
 /* 二重反応の詳しい説明（詳細タブ内） */
 .result-double-detail {

@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.11';
+const RHYTHM_CRUISE_VERSION = '0.10.12';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -409,6 +409,12 @@ const CHORD_BACKDATE_STALE_MS = 200;
    隣ターゲットとの中点(=0.5)より十分手前で止め、前のターゲットへの誤割当を防ぐ安全マージン。
    例：16分間隔(=隣との差)が 62.5ms のとき上限は 62.5×0.4≒25ms に縮む。 */
 const CHORD_BACKDATE_GAP_FRAC = 0.4;
+/* v0.10.12：コードモードPractice本番のGOOD範囲限定救済（未入力target埋め）。
+   通常ゲート（cooldown／instantRise）で落ちた入力でも、未入力targetのGOOD範囲内に
+   「反応ラインを明確に超える強い立ち上がり」があるときだけ正規入力として救済登録する。
+   peakがこの倍率以上＝明確なライン超え（減衰中の余韻の小さな揺れ戻りを除外）。
+   ・グローバルなcooldown短縮／instantRise緩和ではなく、空きtargetのGOOD窓だけの限定救済。 */
+const CHORD_RESCUE_PEAK_FACTOR = 1.5;
 /* コード検出クールダウンも実ターゲット間隔の45%を上限にする。
    マイク反応テストで保存した値は余韻対策として維持し、本番の細かい音符だけ局所的に短縮する。 */
 const CHORD_COOLDOWN_GAP_FRAC = 0.45;
@@ -1046,6 +1052,7 @@ const els = {
     micSetupPrompt: $('mic-setup-prompt'),
     micSetupPromptText: $('mic-setup-text'),
     micSetupYesBtn: $('mic-setup-yes'),
+    micSetupPresetBtn: $('mic-setup-preset'), // v0.10.12：プリセットから選ぶ
     micSetupLaterBtn: $('mic-setup-later'),
     resultsOverlay: $('results-overlay'),
     rCloseBtn: $('r-close-btn'),
@@ -1063,6 +1070,8 @@ const els = {
     resultsChordDebug: $('results-chord-debug'),
     resultsDoubleNotice: $('results-double-notice'),
     resultsDoubleMsg: $('results-double-msg'),
+    resultsDoubleDetail: $('results-double-detail'),        // v0.10.12：原因と対策の折りたたみ
+    resultsDoubleDetailMsg: $('results-double-detail-msg'), // v0.10.12：折りたたみ内の説明・対策本文
     resultsRetestBtn: $('results-retest-btn'),
     resultsMicTune: $('results-mic-tune'),
     resultsMicWrap: $('results-mic-wrap'),
@@ -7647,6 +7656,49 @@ function registerChordHit(backdatedGameMs) {
     return true;
 }
 
+/* v0.10.12：コード採用時刻（バックデート後の補正前ゲーム時刻）を算出する共通ヘルパー。
+   通常採用とGOOD範囲救済の両方でまったく同じ式を使い、採用時刻がズレないようにする。
+   判定ゲート（peak/cooldown/rise/instantRise）には一切干渉しない。算出のみ。 */
+function chordComputeBackdatedRaw() {
+    const rawConfirm = gameAudioMs();                 // 確定フレームの補正前ゲーム時刻（＝従来採用していた時刻）
+    const attackStart = mic.chordAttackStartRawMs;    // この上昇の開始（直前の谷）
+    const rawAmount = (attackStart != null) ? (rawConfirm - attackStart) : -1;
+    const confirmHitTime = rawConfirm + micJudgeOffsetMs(); // ターゲット時刻と同じ補正後の時間軸で最寄りを探す
+    const localTargetGapMs = engChordLocalTargetGapMs(confirmHitTime);
+    const safeBackdateMaxMs = (localTargetGapMs != null)
+        ? Math.min(CHORD_BACKDATE_MAX_MS, localTargetGapMs * CHORD_BACKDATE_GAP_FRAC)
+        : CHORD_BACKDATE_MAX_MS;
+    const backdateMs = (attackStart != null && rawAmount >= 0 && rawAmount <= CHORD_BACKDATE_STALE_MS)
+        ? Math.min(rawAmount, safeBackdateMaxMs) : 0;
+    return { rawConfirm, backdateMs, backdatedRaw: rawConfirm - backdateMs, safeBackdateMaxMs, localTargetGapMs };
+}
+
+/* v0.10.12：GOOD範囲救済の事前/最終ガード（副作用なし）。
+   バックデート後の判定時刻 hitTime が着地する最寄りhit targetを返す。
+   ・engIsHit かつ 未入力（state.results 空）かつ |ズレ| <= justMs（GOOD範囲内）のときだけ その index。
+   ・既に結果があるtarget／GOOD範囲外／範囲外 は -1（救済しない）。
+   これを registerChordHit() の前後で必ず確認することで、既存結果の上書き・二重反応の増加・
+   判定窓外/EARLY/LATE救済を完全に防ぐ。registerChordHit と同じ最寄り選択ロジックを用いる。 */
+function chordRescueTarget(hitTime, justMs) {
+    const bi = state.beatInterval;
+    const swing = engUsesSwingTiming();
+    let i;
+    if (swing) {
+        const approx = Math.round((hitTime - state.T0) / bi);
+        if (approx < 0 || approx > TOTAL_BEATS - 1) return -1;
+        i = engNearestHitIndexByTime(hitTime);
+    } else {
+        i = Math.round((hitTime - state.T0) / bi);
+        if (i < 0 || i > TOTAL_BEATS - 1) return -1;
+        i = engNearestHitIndex(i);
+    }
+    if (i < 0) return -1;
+    if (state.results[i]) return -1; // 既存結果があるtargetには絶対に救済しない（v0.10.10抑止を打ち消さない／二重反応を増やさない）
+    const diff = swing ? (hitTime - engTargetTimeMs(i)) : (hitTime - (state.T0 + i * bi));
+    if (Math.abs(diff) > justMs) return -1; // GOOD範囲外（EARLY/LATE/判定窓外）は救済しない
+    return i;
+}
+
 /* ── 判定演出（GOOD/EARLY/LATE/MISS） ──────────────────── */
 function spawnJudgeFx(cls) {
     if (!els.judgeFxLayer) return;
@@ -8634,6 +8686,23 @@ function updateMissDebug() {
             const extraNearby = nearby.length - shownNearby.length;
             if (extraNearby > 0) sections.push('<p class="miss-cause-item">ほか ' + extraNearby + ' 拍</p>');
         }
+        // v0.10.12：GOOD範囲救済で採用した入力（開発用・debugMic時のみ）。通常URLでは出さない。
+        const rescues = (state.chordDebug && Array.isArray(state.chordDebug.rescues)) ? state.chordDebug.rescues : [];
+        sections.push('<p class="miss-cause-item"><b>【GOOD範囲救済採用】' + rescues.length + '件</b></p>');
+        if (!rescues.length) {
+            sections.push('<p class="miss-cause-item">なし</p>');
+        } else {
+            const fmtR = (v) => (v == null ? '--' : (v >= 0 ? '+' : '') + Math.round(v) + 'ms');
+            rescues.slice(0, 12).forEach((rc) => {
+                sections.push('<p class="miss-cause-item">' + (rc.beat != null ? missBeatPosLabel(rc.beat) : '--') + '：'
+                    + 'Δtarget ' + fmtR(rc.adoptedDiff) + ' / peak ' + (rc.peak != null ? rc.peak : '--')
+                    + ' / detThr ' + (rc.detThr != null ? rc.detThr : '--')
+                    + ' / rise ' + (rc.riseFromValley != null ? rc.riseFromValley : '--')
+                    + ' / instantRise ' + (rc.instantRise != null ? rc.instantRise : '--')
+                    + ' / reason ' + (rc.reason || '--') + ' / result: GOOD範囲救済で採用</p>');
+            });
+            if (rescues.length > 12) sections.push('<p class="miss-cause-item">ほか ' + (rescues.length - 12) + ' 件</p>');
+        }
     }
     els.missCauseList.innerHTML = sections.join('');
     els.missCauseDetails.classList.remove('hidden');
@@ -8697,6 +8766,7 @@ function newChordDebug() {
         frames: [],
         onsets: [],
         repeatEvents: [],
+        rescues: [],             // v0.10.12：GOOD範囲救済で採用した入力の記録（debugMic時のみ）
         suppressedSameTarget: 0, // v0.10.10：同一target再入力をスコア登録しなかった件数
         rejCooldown: 0, rejRise: 0, rejInstant: 0,
         epStartMs: null, epBlockCooldown: 0, epBlockRise: 0, epBlockInstant: 0,
@@ -8829,20 +8899,24 @@ function updateDoubleInfo() {
     const show = (state.inputMode === 'stroke' && n > 0);
     if (els.resultsDoubleNotice) els.resultsDoubleNotice.classList.toggle('hidden', !show);
     if (!show) return;
+    if (els.resultsDoubleDetail) els.resultsDoubleDetail.open = false; // v0.10.12：原因と対策は毎回閉じた状態から
     if (els.resultsDoubleMsg) {
         // 文言のみ。回数の集計・STAGE判定ロジックは変更しない（v0.10.8で段階表現に整理）。
         const cur = mic.cooldownMs || 0;
         const next = Math.min(400, cur + 50);
         // 段階のしきい値：拍数に応じた「多め」判定。短いSTAGEで過敏にならないよう下限4回。
         const highThreshold = Math.max(4, Math.round((TOTAL_BEATS || 0) * 0.12));
-        const guide = '気になる場合は、マイク設定の「マイク反応テスト」をやり直してください。'
-            + '改善しない場合は、手動設定で「二重反応防止」を少し長めにしてください（例：' + cur + 'ms → ' + next + 'ms）。';
-        if (n >= highThreshold) {
-            els.resultsDoubleMsg.textContent = '⚠ 二重反応が ' + n + ' 回出ています。'
-                + '強く弾いて音が伸びた時に、余韻をもう1回の入力として拾っている可能性があります。' + guide;
-        } else {
-            els.resultsDoubleMsg.textContent = '二重反応が ' + n + ' 回出ています。'
-                + '強く弾いて音が伸びた時に、余韻をもう1回の入力として拾うことがあります。' + guide;
+        // v0.10.12：カード上部は「二重反応が N 回出ています。」だけを常時表示。
+        els.resultsDoubleMsg.textContent = (n >= highThreshold ? '⚠ ' : '') + '二重反応が ' + n + ' 回出ています。';
+        // 原因と対策は折りたたみ（results-double-detail）の中だけに出す。初期状態は閉じる。
+        if (els.resultsDoubleDetailMsg) {
+            const cause = (n >= highThreshold)
+                ? '強く弾いて音が伸びた時に、余韻をもう1回の入力として拾っている可能性があります。'
+                : '強く弾いて音が伸びた時に、余韻をもう1回の入力として拾うことがあります。';
+            els.resultsDoubleDetailMsg.textContent = cause
+                + 'スマホをギターに近づけすぎている場合は、少し離すと改善することがあります。'
+                + '気になる場合は、マイク設定の「マイク反応テスト」をやり直してください。'
+                + '改善しない場合は、手動設定で「二重反応防止」を少し長めにしてください（例：' + cur + 'ms → ' + next + 'ms）。';
         }
     }
 }
@@ -16363,6 +16437,22 @@ function micLoop() {
             && (sinceHit >= effectiveChordCooldownMs)
             && (riseFromValley >= state.chordRiseGate)
             && (instantRise >= state.chordInstantRiseGate);
+        // ── v0.10.12：GOOD範囲限定救済の事前判定（コードモードPractice本番のみ）──────────────
+        //   通常ゲートで落ちた入力でも、未入力targetのGOOD範囲内に「反応ラインを明確に超える強い
+        //   立ち上がり」があり、落ちた主因が cooldown中 / instantRise不足 のときだけ救済対象にする。
+        //   peak/rise が十分なものだけが対象＝判定窓外・反応ライン未満・rise不足は救済しない。
+        //   既存結果のあるtarget・別targetへの吸収は chordRescueTarget が弾く（二重反応を増やさない）。
+        let chordRescue = false, chordRescueReason = null;
+        if (!chordOnset && !inCountIn
+            && peak >= detThr * CHORD_RESCUE_PEAK_FACTOR          // 反応ラインを明確に超える強い入力（余韻の揺れ戻りを除外）
+            && riseFromValley >= state.chordRiseGate              // 谷からの立ち上がりは十分（rise不足は救済しない）
+            && (sinceHit < effectiveChordCooldownMs || instantRise < state.chordInstantRiseGate)) { // 主因が cooldown中 か instantRise不足
+            const rb = chordComputeBackdatedRaw();
+            if (chordRescueTarget(rb.backdatedRaw + micJudgeOffsetMs(), judgeWindows().justMs) >= 0) {
+                chordRescue = true;
+                chordRescueReason = (sinceHit < effectiveChordCooldownMs) ? 'cooldown中' : 'instantRise不足';
+            }
+        }
         // ── Phase2 ログ可視化（?debugMic=1 のときだけ・読むだけで判定には一切不使用）──
         if (MIC_DEBUG_ON && state.chordDebug && !inCountIn) {
             const cd = state.chordDebug;
@@ -16402,37 +16492,36 @@ function micLoop() {
             && (sinceHit < effectiveChordCooldownMs || riseFromValley < state.chordRiseGate || instantRise < state.chordInstantRiseGate)) {
             state.chordIgnoredRePeaks++;
         }
-        if (chordOnset) {
+        if (chordOnset || chordRescue) {
             mic.inputCount++; flashDetect(peak); mic.lastOnsetAt = now;
             let outcome = 'chord-register', aBeat = null, aCls = null;
             if (inCountIn) {
                 micExclude('カウントイン中'); outcome = 'カウントイン中';
             } else {
                 // ── Phase3：採用時刻を「アタック立ち上がり開始」へバックデート（chord専用経路のみ・適応上限あり）──
-                const rawConfirm = gameAudioMs();                 // 確定フレームの補正前ゲーム時刻（＝従来採用していた時刻）
-                const attackStart = mic.chordAttackStartRawMs;    // この上昇の開始（直前の谷）
-                const rawAmount = (attackStart != null) ? (rawConfirm - attackStart) : -1;
-                // 適応上限：採用される判定対象の前後ターゲット間隔に応じて、戻し幅の上限を絞る。
-                //   ・通常BPM/4分〜8分では間隔が広く、上限は従来どおり固定80msのまま。
-                //   ・高BPM/16分などで間隔が狭いときは、間隔の40%以下に縮め、前ターゲットへの誤割当を防ぐ。
-                const confirmHitTime = rawConfirm + micJudgeOffsetMs(); // ターゲット時刻と同じ補正後の時間軸で最寄りを探す
-                const localTargetGapMs = engChordLocalTargetGapMs(confirmHitTime);
-                const safeBackdateMaxMs = (localTargetGapMs != null)
-                    ? Math.min(CHORD_BACKDATE_MAX_MS, localTargetGapMs * CHORD_BACKDATE_GAP_FRAC)
-                    : CHORD_BACKDATE_MAX_MS;
-                // 起点が有効で、古すぎない（前音/前拍でない）ときだけ、適応上限内でバックデートする。
-                const backdateMs = (attackStart != null && rawAmount >= 0 && rawAmount <= CHORD_BACKDATE_STALE_MS)
-                    ? Math.min(rawAmount, safeBackdateMaxMs) : 0;
-                const backdatedRaw = rawConfirm - backdateMs;
-                const ok = registerChordHit(backdatedRaw);         // 既存 registerHit は使わない（chord専用登録）
+                //   通常採用と v0.10.12 のGOOD範囲救済で、まったく同じバックデート式を使う（採用時刻をズラさない）。
+                const bd = chordComputeBackdatedRaw();
+                const rawConfirm = bd.rawConfirm, backdateMs = bd.backdateMs, backdatedRaw = bd.backdatedRaw;
+                const safeBackdateMaxMs = bd.safeBackdateMaxMs, localTargetGapMs = bd.localTargetGapMs;
+                // v0.10.12：このフレームが通常ゲートでは落ちた「救済」での採用かどうか。
+                const isChordRescue = !chordOnset && chordRescue;
+                // 救済時は実バックデート時刻で「未入力targetのGOOD範囲内へ着地」を最終確認。外れたら絶対に登録しない
+                //   （既存結果のあるtarget・GOOD範囲外・判定窓外を守り、二重反応を増やさない）。
+                const rescueLands = !isChordRescue || chordRescueTarget(backdatedRaw + micJudgeOffsetMs(), judgeWindows().justMs) >= 0;
+                const ok = rescueLands ? registerChordHit(backdatedRaw) : false;  // 既存 registerHit は使わない（chord専用登録）
                 const la = mic.lastAssign || {};
-                outcome = ok ? 'chord-register' : (la.outcome || '範囲外');
+                outcome = ok ? (isChordRescue ? 'chord-rescue' : 'chord-register') : (la.outcome || '範囲外');
                 aBeat = (la.beat != null) ? la.beat : null; aCls = la.cls || null;
                 if (ok) {
                     mic.lastDetect = now; mic.valley = peak; mic.doubleCounted = false;
                     mic.registerCount++; state.chordPicked++; updateMicDiag();
                     // 採用後はコード専用の起点をリセット（次アタックの谷から測り直す）。mic.valley と同様の扱い。
                     mic.chordValley = peak; mic.chordValleyRawMs = rawConfirm; mic.chordRising = false; mic.chordAttackStartRawMs = null;
+                    // v0.10.12：救済採用なら結果にフラグを残す（スコアは通常GOODとして自然に加算・source は 'mic' のまま維持）。
+                    if (isChordRescue && la.beat != null && state.results[la.beat]) {
+                        state.results[la.beat].rescue = true;
+                        state.results[la.beat].rescueReason = chordRescueReason;
+                    }
                     // ── Phase2/3：採用onsetの「ライン超え→採用」差分・遅延要因・バックデート量を記録（debugMic時のみ・判定不変）──
                     if (MIC_DEBUG_ON && state.chordDebug) {
                         const cd = state.chordDebug;
@@ -16486,8 +16575,17 @@ function micLoop() {
                             previousTargetBeat: occupiedBeat,
                             previousAdoptedMs: previousTargetOnset ? previousTargetOnset.adoptedMs : null,
                             reason: (blocks[0][1] > 0) ? blocks[0][0] : '—',
+                            rescue: isChordRescue,                                                        // v0.10.12：GOOD範囲救済での採用か
+                            rescueReason: isChordRescue ? chordRescueReason : null,                       // 救済の主因（cooldown中／instantRise不足）
                         };
                         cd.onsets.push(onsetEntry);
+                        // v0.10.12：救済採用は専用バッファにも記録（開発用ログ【GOOD範囲救済採用】で表示）。
+                        if (isChordRescue) cd.rescues.push({
+                            beat: onsetEntry.beat, adoptedDiff: onsetEntry.adoptedDiff,
+                            peak: onsetEntry.peak, detThr: +detThr.toFixed(3),
+                            riseFromValley: onsetEntry.riseFromValley, instantRise: onsetEntry.instantRise,
+                            reason: chordRescueReason,
+                        });
                         // 同一ターゲットの再登録と、占有済みターゲットから隣への再割り当てを実機調査用に分離記録する。
                         if (onsetEntry.doubled || onsetEntry.reassigned) {
                             onsetEntry.repeatKind = onsetEntry.doubled
@@ -17498,6 +17596,9 @@ function bind() {
 
     // マイク許可後の設定誘導バナー
     if (els.micSetupYesBtn) els.micSetupYesBtn.addEventListener('click', () => { hideMicSetupPrompt(); openSettings('practice'); });
+    // v0.10.12：「プリセットから選ぶ」。マイク設定を開いて、既存の保存済みプリセット一覧へ直行する。
+    //   適用は既存 applyPreset（renderPresetList の「適用」）を再利用。戻り先は settingsReturn='practice' で維持。
+    if (els.micSetupPresetBtn) els.micSetupPresetBtn.addEventListener('click', () => { hideMicSetupPrompt(); openSettings('practice'); openMicPreset(); });
     if (els.micSetupLaterBtn) els.micSetupLaterBtn.addEventListener('click', hideMicSetupPrompt);
 
     // 「ページを更新」ボタン（クルーズアプリシリーズ共通）
