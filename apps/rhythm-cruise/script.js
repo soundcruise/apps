@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.9.250';
+const RHYTHM_CRUISE_VERSION = '0.10.0';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -8386,7 +8386,7 @@ function updateDoubleInfo() {
         // 具体的な対処を案内（v0.9.79）。文言のみでSTAGE判定ロジックは変更しない。
         const cur = mic.cooldownMs || 0;
         const next = Math.min(400, cur + 50);
-        els.resultsDoubleMsg.textContent = '⚠ 二重反応が ' + n + ' 回出ています。まずはマイク設定の「詳細テスト」でマイク反応テストをやり直してください。'
+        els.resultsDoubleMsg.textContent = '⚠ 二重反応が ' + n + ' 回出ています。マイク設定の「マイク反応テスト」で反応ラインやクールダウンを調整してください。'
             + '改善しない場合は、手動設定で「二重反応防止」を少し長めにしてください（例：' + cur + 'ms → ' + next + 'ms）。';
     }
 }
@@ -13099,7 +13099,6 @@ function onPickHeadphoneType(type) {
 }
 
 function onPickStrokeMode(mode) {
-    if (mode === 'chord' && isStandardEdition()) { showProLockNotice('proStrokeChordMode'); return; } // mod 4
     const next = (mode === 'chord') ? 'chord' : 'brush';
     const changed = (state.strokeDetectMode !== next);
     setStrokeDetectMode(next);
@@ -16943,9 +16942,6 @@ function applyProLockBadges() {
     if (savedEntryBtn && !savedEntryBtn.querySelector('.rc-pro-lock-badge')) {
         savedEntryBtn.insertAdjacentHTML('beforeend', ' ' + proLockedBadgeHtml());
     }
-    // mod 4: コードストロークはPRO専用（v0.9.240）
-    lockProControlTap(els.strokeModeChord, 'proStrokeChordMode');
-    appendProLockIcon(els.strokeModeChord);
     // 修正2: 「練習STAGEとして保存」はPRO専用（v0.9.241）
     lockProControlTap(els.stageSaveCustomBtn, 'rhythmCreateSave');
     appendProLockIcon(els.stageSaveCustomBtn);
