@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.23';
+const RHYTHM_CRUISE_VERSION = '0.10.24';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -1093,7 +1093,7 @@ const els = {
     resultsChordDebug: $('results-chord-debug'),
     resultsDoubleNotice: $('results-double-notice'),
     resultsDoubleMsg: $('results-double-msg'),
-    resultsDoubleDetail: $('results-double-detail'),        // v0.10.12：原因と対策の折りたたみ
+    resultsDoubleDetail: $('results-double-detail'),        // v0.10.24：二重反応カードの対策本文
     resultsDoubleDetailMsg: $('results-double-detail-msg'), // v0.10.12：折りたたみ内の説明・対策本文
     resultsRetestBtn: $('results-retest-btn'),
     resultsMicTune: $('results-mic-tune'),
@@ -7552,12 +7552,11 @@ function drawReview() {
     }
 }
 
-/* 結果モーダルの描画。ズレ確認レーンは常にメイン表示。
-   ズレ履歴グラフは詳細（折りたたみ）が開いているときだけ描画する。 */
+/* 結果モーダルの描画。ズレ確認レーンと結果詳細グラフを常に描画する。 */
 function drawResults() {
     requestAnimationFrame(() => {
         fitReview();
-        if (els.resultsDetail && els.resultsDetail.open) { fitGraph(); fitResultsMic(); }
+        fitGraph(); fitResultsMic();
     });
 }
 
@@ -9771,7 +9770,7 @@ function updateDoubleInfo() {
     const show = (state.inputMode === 'stroke' && n > 0);
     if (els.resultsDoubleNotice) els.resultsDoubleNotice.classList.toggle('hidden', !show);
     if (!show) return;
-    if (els.resultsDoubleDetail) els.resultsDoubleDetail.open = false; // v0.10.12：原因と対策は毎回閉じた状態から
+    if (els.resultsDoubleNotice) els.resultsDoubleNotice.open = false; // 毎回閉じた状態から表示
     if (els.resultsDoubleMsg) {
         // 文言のみ。回数の集計・STAGE判定ロジックは変更しない。
         const cur = mic.cooldownMs || 0;
@@ -9779,15 +9778,15 @@ function updateDoubleInfo() {
         const cutoff = Number.isFinite(state.judgeCutoff) ? state.judgeCutoff : TOTAL_BEATS;
         const measureCount = Math.max(1, Math.ceil(cutoff / (eng.cellsPerBar || BEATS_PER_BAR)));
         const frequentDouble = n >= measureCount; // 1小節あたり約1回以上
-        els.resultsDoubleMsg.textContent = '二重反応が ' + n + ' 回出ています。';
-        // 原因と対策は折りたたみ（results-double-detail）の中だけに出す。初期状態は閉じる。
+        els.resultsDoubleMsg.textContent = '二重反応が' + n + '回出ています。▼';
+        // 対策はカードを開いたときだけ表示する。
         if (els.resultsDoubleDetailMsg) {
             els.resultsDoubleDetailMsg.textContent = frequentDouble
                 ? 'ほぼ毎小節で二重反応が出ています。強く弾いた音の余韻を、次の入力として拾っている可能性があります。'
                     + '弦を軽くミュートする、または弦にクロスを挟んで短く軽くストロークすると、余韻が短くなって安定しやすくなります。'
                     + 'スマホとギターの距離や向きを少し変えると、余韻や反射音の拾い方が変わり、二重反応が減ることがあります。'
                     + '気になる場合は、マイク反応テストをやり直すか、手動設定で「二重反応防止」を少し長めにしてください（例：' + cur + 'ms → ' + next + 'ms）。'
-                : 'たまに二重反応が出ています。1〜2回程度であれば、練習結果への影響は大きくない場合があります。'
+                : 'たまに二重反応が出ています。4小節に1〜2回程度であれば、影響は少ないです。'
                     + '同じ箇所で何度も出る場合や、判定が不自然に感じる場合は、マイク反応テストをやり直してください。'
                     + 'スマホとギターの距離や向きを少し変えると、余韻や反射音の拾い方が変わり、二重反応が減ることがあります。';
         }
@@ -9920,7 +9919,6 @@ function finish(opts) {
     if (els.refreshBar) els.refreshBar.classList.add('hidden'); // モーダル背後に透けないよう一時的に隠す
     document.body.classList.add('results-open');               // モーダル中は戻る/TOP/設定を隠す（修正8）
     syncDebugWaveControls();
-    applyResultDetailOpenPref();                               // 詳細は既定で開く（ユーザーが閉じた設定があれば反映・v0.9.150）
     scrollResultsToTop();                                      // 詳細OPENでも必ず「RESULT」見出しが見える位置から表示（v0.9.151）
     drawResults();
 }
@@ -9945,29 +9943,6 @@ function scrollResultsToTop() {
 const RESULT_HISTORY_KEY = 'rhythmCruiseResultHistory:v1';
 const RESULT_HISTORY_MAX = 100;
 let historyViewRecord = null; // 履歴モードで表示中の1件（null=本番結果表示）
-
-/* 結果カード詳細（内訳・ズレ履歴グラフ）の開閉状態を端末内に保存（v0.9.150）。
-   既定は「開く」。ユーザーが閉じたらその状態を記憶し、次回以降の結果カードへ反映する。
-   通常結果・くり返し練習STOP・過去履歴詳細のいずれでも同じ設定を使う。 */
-const RESULT_DETAIL_OPEN_KEY = 'rhythmCruiseResultDetailOpen:v1';
-let suppressResultDetailSave = false; // プログラムで open を切り替える間は保存しない（ユーザー操作だけ記憶）
-function loadResultDetailOpen() {
-    try {
-        const v = localStorage.getItem(RESULT_DETAIL_OPEN_KEY);
-        if (v === null) return true; // 未設定＝既定で開く
-        return v === 'true';
-    } catch (_) { return true; }
-}
-function saveResultDetailOpen(open) {
-    try { localStorage.setItem(RESULT_DETAIL_OPEN_KEY, open ? 'true' : 'false'); } catch (_) { /* 保存失敗は無視 */ }
-}
-/* 保存設定にもとづいて詳細の開閉を反映（toggleイベントは発火するが保存はしない） */
-function applyResultDetailOpenPref() {
-    if (!els.resultsDetail) return;
-    suppressResultDetailSave = true;
-    els.resultsDetail.open = loadResultDetailOpen();
-    suppressResultDetailSave = false;
-}
 
 function loadResultHistory() {
     try {
@@ -10158,7 +10133,7 @@ function prepareResultsOverlayForHistory() {
     hide(els.resultsMicWrap); // 波形系（ストローク音量）は履歴では保存していない＝出さない
     const micTuneRow = els.resultsMicTune ? els.resultsMicTune.closest('.result-mic-tune-row') : null;
     hide(micTuneRow);          // マイク手動設定への導線は履歴では不要
-    show(els.resultsDetail);   // 「詳細（内訳・ズレ履歴グラフ）」タブは本番同様に表示（開閉式）
+    show(els.resultsDetail);   // 「結果の詳細」固定カードは本番同様に表示
     if (els.rHistoryHead) show(els.rHistoryHead);
 }
 /* 履歴詳細タブのズレ履歴グラフを、保存済み judgements から再描画する（v0.9.146）。
@@ -10207,10 +10182,9 @@ function renderHistoryResultCard(rec) {
     }
     if (els.resultsOverlay) els.resultsOverlay.classList.remove('hidden');
     document.body.classList.add('results-open');
-    applyResultDetailOpenPref();  // 詳細は既定で開く（ユーザーが閉じた設定があれば反映・履歴も同じ設定・v0.9.150）
     scrollResultsToTop();         // 履歴詳細でも上端（RESULT/過去結果見出し）から表示する（v0.9.151）
     // ズレ履歴グラフは clientWidth に依存するため、オーバーレイ表示後（サイズ確定後）に履歴データで描く。
-    if (els.resultsDetail && els.resultsDetail.open) renderHistoryDetailGraphs(rec);
+    renderHistoryDetailGraphs(rec);
 }
 function closeResultHistoryDetail() {
     historyViewRecord = null;
@@ -18461,13 +18435,6 @@ function bind() {
         openSettings('practice');   // マイク設定タブで設定画面を開く
         openManualView(els.manualCard); // 「現在の設定を見る／手動設定」を開く
     });
-    // 結果モーダルの詳細（折りたたみ）を開いたら、中のズレ履歴グラフをサイズ確定して描画
-    if (els.resultsDetail) els.resultsDetail.addEventListener('toggle', () => {
-        if (!suppressResultDetailSave) saveResultDetailOpen(els.resultsDetail.open); // ユーザー操作だけ開閉状態を記憶（v0.9.150）
-        if (!els.resultsDetail.open) return;
-        if (historyViewRecord) { renderHistoryDetailGraphs(historyViewRecord); return; } // 履歴モード：判定結果からズレ履歴グラフを再現（v0.9.146）
-        fitGraph(); fitResultsMic();
-    });
 
     // タップ判定は「左右2分割タップエリア」だけが対象。
     // レーン/画面タップでは判定しない（方向を明確にするため・修正7）。
@@ -18534,7 +18501,7 @@ function bind() {
             if (historyViewRecord) { renderHistoryResultCard(historyViewRecord); } // 履歴モードは履歴データで再描画（v0.9.146）
             else {
                 fitReview();
-                if (els.resultsDetail && els.resultsDetail.open) { fitGraph(); fitResultsMic(); }
+                fitGraph(); fitResultsMic();
             }
         }
     });

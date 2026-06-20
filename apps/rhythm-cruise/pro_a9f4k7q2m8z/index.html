@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="../theme.css?v=0.10.23">
+    <link rel="stylesheet" href="../theme.css?v=0.10.24">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1118,17 +1118,15 @@
             </div>
             <p class="tendency" id="r-comment"></p>
             <p class="results-warn hidden" id="results-warn">⚠️ クリック音をマイクが拾っている可能性があります。スピーカー使用時はクリック音量をさらに下げるか、イヤホン使用がおすすめです。</p>
-            <div class="results-double-notice hidden" id="results-double-notice">
-                <p class="results-double-title">二重反応について</p>
-                <p id="results-double-msg">二重反応が出ています。</p>
-                <details class="results-double-detail" id="results-double-detail">
-                    <summary class="results-double-summary">原因と対策を見る</summary>
+            <details class="results-double-notice hidden" id="results-double-notice">
+                <summary class="results-double-summary" id="results-double-msg">二重反応が出ています。▼</summary>
+                <div class="results-double-detail" id="results-double-detail">
                     <p id="results-double-detail-msg"></p>
                     <button type="button" class="btn-mic results-retest-btn" id="results-retest-btn">マイク反応テストをやり直す</button>
-                </details>
-            </div>
-            <details class="results-detail" id="results-detail">
-                <summary class="results-detail-summary">詳細（内訳・ズレ履歴グラフ）</summary>
+                </div>
+            </details>
+            <section class="results-detail" id="results-detail" aria-labelledby="results-detail-title">
+                <h3 class="results-detail-title" id="results-detail-title">結果の詳細</h3>
                 <div class="results-detail-body">
                     <p class="result-breakdown">内訳：<b class="bd-just">GOOD</b> <b id="r-just">0</b>／<b class="bd-early">EARLY</b> <b id="r-early">0</b>／<b class="bd-late">LATE</b> <b id="r-late">0</b>／<b class="bd-miss">MISS</b> <b id="r-miss">0</b>　｜　平均ズレ <b id="r-avg">±0</b>ms</p>
                     <p class="result-breakdown hidden" id="results-miss-info"></p>
@@ -1156,7 +1154,7 @@
                         <button type="button" class="result-mic-tune-link" id="results-mic-tune">マイクの手動設定を開く</button>
                     </p>
                 </div>
-            </details>
+            </section>
             <details class="results-detail is-quiet hidden" id="miss-cause-details">
                 <summary class="results-detail-summary">開発用ログ</summary>
                 <div class="results-detail-body">
@@ -1253,7 +1251,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.10.23"></script>
+    <script src="../script.js?v=0.10.24"></script>
 </body>
 
 </html>

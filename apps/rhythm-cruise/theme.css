@@ -2627,37 +2627,23 @@ h1 {
     background: rgba(255, 159, 28, 0.08);
 }
 .results-double-notice.hidden { display: none; }
-.results-double-notice .results-double-title {
-    margin-bottom: 2px;
-    font-size: 0.95rem;
-    font-weight: 800;
-    color: #ffe5bd;
-}
 .results-double-notice p {
     margin: 0 0 8px;
     font-size: 0.88rem;
     line-height: 1.5;
     color: #ffd9a0;
 }
-/* v0.10.12：二重反応カードの「原因と対策」折りたたみ。回数だけ常時表示し、説明・対策は初期は閉じる。 */
-.results-double-detail { margin-top: 2px; }
+/* v0.10.24：閉じた状態は回数の1行だけ。カード全体をタップして対策を表示する。 */
 .results-double-summary {
     list-style: none;
     cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 0.82rem;
+    display: block;
+    width: 100%;
+    font-size: 0.88rem;
     font-weight: 700;
     color: #ffd9a0;
 }
 .results-double-summary::-webkit-details-marker { display: none; }
-.results-double-summary::before {
-    content: '▶';
-    font-size: 0.7rem;
-    transition: transform 0.2s;
-}
-.results-double-detail[open] .results-double-summary::before { transform: rotate(90deg); }
 .results-double-detail > p { margin-top: 8px; margin-bottom: 8px; }
 
 /* 二重反応の詳しい説明（詳細タブ内） */
@@ -2890,7 +2876,7 @@ h1 {
 .results-history-head .rhh-meta { font-size: 0.82rem; color: var(--muted-color); }
 .results-history-head .rhh-breakdown { font-size: 0.8rem; color: var(--muted-color); margin-top: 2px; }
 
-/* 詳細（内訳・ズレ履歴グラフ）：折りたたみ */
+/* 結果の詳細（内訳・ズレ履歴グラフ）：常時表示カード（v0.10.24） */
 .results-detail {
     width: 100%;
     border: 1px solid rgba(253, 246, 238, 0.1);
@@ -2899,6 +2885,16 @@ h1 {
     overflow: hidden;
 }
 
+.results-detail-title {
+    margin: 0;
+    padding: 11px 14px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--muted-color);
+    text-align: center;
+}
+
+/* debugMic の開発用ログは従来どおり折りたたみ表示。 */
 .results-detail-summary {
     list-style: none;
     cursor: pointer;
@@ -2906,27 +2902,12 @@ h1 {
     font-size: 0.82rem;
     font-weight: 700;
     color: var(--muted-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
     text-align: center;
     touch-action: manipulation;
 }
-
-.results-detail-summary::-webkit-details-marker {
-    display: none;
-}
-
-.results-detail-summary::after {
-    content: '▾';
-    font-size: 0.75rem;
-    transition: transform 0.2s;
-}
-
-.results-detail[open] .results-detail-summary::after {
-    transform: rotate(180deg);
-}
+.results-detail-summary::-webkit-details-marker { display: none; }
+.results-detail-summary::after { content: ' ▾'; font-size: 0.75rem; }
+.results-detail[open] .results-detail-summary::after { content: ' ▴'; }
 
 .results-detail-body {
     display: flex;
