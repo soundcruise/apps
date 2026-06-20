@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.10.31">
+    <link rel="stylesheet" href="theme.css?v=0.10.32">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1192,6 +1192,16 @@
                     <input type="range" id="results-recording-volume" min="1" max="10" step="0.5" value="1">
                     <b id="results-recording-volume-value">1.0x</b>
                 </label>
+                <!-- v0.10.32：録音再生にPractice時のクリックを重ねる（Bluetoothイヤホン対策。既定ON） -->
+                <label class="results-recording-clicktoggle">
+                    <input type="checkbox" id="results-recording-click-toggle" checked>
+                    <span>クリックを重ねる</span>
+                </label>
+                <label class="results-recording-volume" id="results-recording-click-volume-row" for="results-recording-click-volume">
+                    <span>クリック音量</span>
+                    <input type="range" id="results-recording-click-volume" min="0" max="100" step="5" value="50">
+                    <b id="results-recording-click-volume-value">50%</b>
+                </label>
                 <div class="results-recording-actions" id="results-recording-actions">
                     <button type="button" class="btn-primary" id="results-recording-play">▶ 録音を再生</button>
                     <button type="button" class="btn-ghost" id="results-recording-stop" disabled>■ 停止</button>
@@ -1334,7 +1344,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.10.31"></script>
+    <script src="script.js?v=0.10.32"></script>
 </body>
 
 </html>

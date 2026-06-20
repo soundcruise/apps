@@ -2688,6 +2688,24 @@ h1 {
     font-variant-numeric: tabular-nums;
     text-align: right;
 }
+/* v0.10.32：録音再生のクリック重ねON/OFF */
+.results-recording-clicktoggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 0.8rem;
+    color: var(--muted-color);
+    cursor: pointer;
+}
+.results-recording-clicktoggle input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--secondary-color);
+}
+.results-recording-volume.is-muted {
+    opacity: 0.45;
+}
 .results-recording-actions {
     display: flex;
     gap: 8px;
