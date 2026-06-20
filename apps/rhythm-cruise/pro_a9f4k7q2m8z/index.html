@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="../theme.css?v=0.10.51">
+    <link rel="stylesheet" href="../theme.css?v=0.10.52">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1124,8 +1124,8 @@
                 <div class="results-recording-body">
                 <audio id="results-recording-audio" preload="metadata"></audio>
                 <div class="results-recording-actions" id="results-recording-actions">
-                    <button type="button" class="btn-ghost" id="results-recording-play">▶ 再生</button>
                     <button type="button" class="btn-ghost results-recording-restart" id="results-recording-restart" aria-label="最初に戻る" title="最初に戻る">⏮</button>
+                    <button type="button" class="btn-ghost" id="results-recording-play">▶ 再生</button>
                 </div>
                 <label class="results-recording-volume" id="results-recording-volume-row" for="results-recording-volume">
                     <span>録音音量</span>
@@ -1182,7 +1182,7 @@
                     <div class="graph-wrap results-mic-wrap hidden" id="results-mic-wrap">
                         <div class="graph-head">
                             <span>ストローク音量</span>
-                            <span class="graph-axis">点線＝反応ライン</span>
+                            <span class="graph-axis">縦軸＝音量</span>
                         </div>
                         <div class="result-graph-scroll">
                             <canvas id="results-mic-canvas"></canvas>
@@ -1290,7 +1290,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.10.51"></script>
+    <script src="../script.js?v=0.10.52"></script>
 </body>
 
 </html>

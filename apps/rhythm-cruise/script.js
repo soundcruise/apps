@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.51';
+const RHYTHM_CRUISE_VERSION = '0.10.52';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -7329,7 +7329,7 @@ function drawGraph() {
     ctx.fillText('早い', 6, padY * 0.6);
     ctx.textBaseline = 'middle';
     ctx.fillStyle = COLORS.just;
-    ctx.fillText('ジャスト', 6, yc);
+    ctx.fillText('ジャスト', 1, yc);
     ctx.textBaseline = 'bottom';
     ctx.fillStyle = COLORS.late;
     ctx.fillText('遅い', 6, h - padY * 0.6);
@@ -12043,7 +12043,7 @@ function commentTendency(avg, fAvg, sAvg) {
 }
 
 /* 結果カードのコメント（v0.9.149で全面見直し）。
-   方針：4小節以上のキープを自然に促す。
+   方針：プレイした長さに応じて評価の温度感を変え、変更できない設定操作は促さない。
    ・プレイ小節数（bars）でニュアンスを変える。
        1〜3小節：プレイ時間が短く、リズムキープ力の評価としては不十分。点数が高くても褒めすぎない（温度感を一段下げる）。
        4〜7小節：標準的な練習量として、点数帯ごとに評価。
@@ -12068,22 +12068,22 @@ function buildComment({ score, just, miss, tapped, avg, fAvg, sAvg, total, bars,
 
     let core;
 
-    // 1〜3小節：短いので褒めすぎない。点数が高くても完全に褒め切らず、4小節以上を自然に促す。
+    // 1〜3小節：短いので褒めすぎない。点数が高くても完全に褒め切らず、再現性を見る言葉を添える。
     if (bars <= 3) {
         if (bars <= 2) {
-            if (score >= 98) core = '短い範囲ではかなり良い精度です。リズムの安定を見るには、4小節以上でも試してみましょう。';
-            else if (score >= 94) core = '短い確認としては良いスタートです。もう少し長く続けると、細かいズレの傾向が見えやすくなります。';
-            else if (score >= 90) core = '形は見えてきています。短い確認の次は、4小節くらいでGOODの位置を増やしていきましょう。';
-            else if (score >= 80) core = 'クリックに合わせる感覚を整えている段階です。まずはゆっくり、1拍ずつ合わせていきましょう。';
-            else if (score >= 70) core = 'まだ確認段階です。テンポを落として、クリックに合わせる位置を整えていきましょう。';
-            else core = 'まずはテンポを落として、クリックに合わせるところから整えていきましょう。';
+            if (score >= 98) core = '短い範囲ではかなり良い精度です。次もこのGOODの位置を保てるか試してみましょう。';
+            else if (score >= 94) core = '短い確認としては良いスタートです。ズレ履歴を見ながら、同じ位置で鳴らしていきましょう。';
+            else if (score >= 90) core = '形は見えてきています。クリックをよく聴いて、GOODの位置を増やしていきましょう。';
+            else if (score >= 80) core = 'クリックに合わせる感覚を整えている段階です。1拍ずつ真ん中に合わせていきましょう。';
+            else if (score >= 70) core = 'まだ確認段階です。まずは1拍目を安定させ、クリックに合わせる位置を整えていきましょう。';
+            else core = 'まずはクリックをよく聴いて、1拍ずつ同じ位置で鳴らすことから整えていきましょう。';
         } else { // 3小節
-            if (score >= 98) core = '短い範囲ではかなり良い精度です。次は4小節以上でも、この感覚を保てるか試してみましょう。';
-            else if (score >= 94) core = '全体の流れは良いです。もう少し長く続けると、安定感がさらに確認しやすくなります。';
+            if (score >= 98) core = '短い範囲ではかなり良い精度です。次もこの感覚を保てるか試してみましょう。';
+            else if (score >= 94) core = '全体の流れは良いです。細かいズレをそろえると、安定感がさらに増します。';
             else if (score >= 90) core = '流れはつかめています。クリックをよく聴いて、GOODの位置を少しずつ増やしていきましょう。';
-            else if (score >= 80) core = '形は見えてきています。少しテンポを落として、4小節を安定させる練習につなげていきましょう。';
+            else if (score >= 80) core = '形は見えてきています。クリックをよく聴いて、GOODの位置を安定させていきましょう。';
             else if (score >= 70) core = 'クリックに合わせる基礎を整えている段階です。まずは落ち着いて、同じ位置で鳴らすことを意識しましょう。';
-            else core = 'まだ安定させる途中です。テンポを落として、1拍ずつクリックに合わせる練習から始めましょう。';
+            else core = 'まだ安定させる途中です。まずは1拍目を意識して、1拍ずつクリックに合わせていきましょう。';
         }
         return core + firstBarNote;
     }
@@ -12109,10 +12109,10 @@ function buildComment({ score, just, miss, tapped, avg, fAvg, sAvg, total, bars,
                 : 'クリックをよく聴いて、GOODの位置を少しずつ増やし、後半まで安定させていきましょう。');
         } else if (score >= 70) {
             // 挑戦は認めつつ、基礎へ戻す。
-            core = '長めの小節数に挑戦できています。まずは少しテンポを落とすか、4小節で安定させてから、もう一度長めに挑戦してみましょう。';
+            core = '長めの小節数に挑戦できています。クリックをよく聴いて、GOODの位置を少しずつ増やしていきましょう。';
         } else {
             // 無理に褒めすぎない。
-            core = '長く続ける練習に挑戦できています。まずはテンポを落として、短めの小節数で安定させてから、少しずつ長くしていきましょう。';
+            core = '長く続ける練習に挑戦できています。まずは1拍目を意識して、同じ位置で鳴らせる拍を増やしていきましょう。';
         }
         return core + firstBarNote;
     }
@@ -12129,11 +12129,11 @@ function buildComment({ score, just, miss, tapped, avg, fAvg, sAvg, total, bars,
     } else if (score >= 80) {
         core = '全体の流れはつかめています。' + (tendency
             ? tendency + '。同じ位置で鳴らせるようにしましょう。'
-            : '走り／もたりの傾向を見ながら、同じテンポで安定させていきましょう。');
+            : '走り／もたりの傾向を見ながら、真ん中の位置へそろえていきましょう。');
     } else if (score >= 70) {
         core = 'まずは形が見えてきています。クリックをよく聴いて、GOODの位置を少しずつ増やしていきましょう。';
     } else {
-        core = 'まずはゆっくりのテンポで、1拍ずつクリックに合わせるところから整えていきましょう。';
+        core = 'まずはクリックをよく聴いて、1拍ずつ同じ位置で鳴らすところから整えていきましょう。';
     }
     return core + firstBarNote;
 }
@@ -20122,7 +20122,9 @@ function bind() {
     });
     if (els.resultsRecordingRestart) els.resultsRecordingRestart.addEventListener('click', () => {
         if (state.practiceRecording.status !== 'available') return;
-        stopPracticeRecordingPlayback(); // 先頭（0秒）へ戻し、停止状態にする
+        stopPracticeRecordingPlayback(); // 録音・後付けクリックを停止し、再生位置を0秒へ戻す
+        updateReviewTimelineUI(0);        // JUSTラインも0秒時点へ戻す
+        if (els.reviewWrap) els.reviewWrap.scrollLeft = 0;
     });
     if (els.resultsRecordingVolume) {
         els.resultsRecordingVolume.addEventListener('input', () => updatePracticeRecordingPlaybackGain(els.resultsRecordingVolume.value));

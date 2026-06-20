@@ -2649,24 +2649,27 @@ h1 {
 /* 結果レーンの読み方は、必要なときだけ開く短いガイドにまとめる（v0.10.50）。 */
 .results-guide {
     width: 100%;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.02);
+    border: none;
+    border-radius: 0;
+    background: transparent;
 }
 .results-guide-summary {
     list-style: none;
     cursor: pointer;
-    padding: 9px 12px;
-    color: var(--muted-color);
-    font-size: 0.8rem;
-    font-weight: 700;
+    padding: 4px 6px;
+    color: rgba(253, 246, 238, 0.48);
+    font-size: 0.74rem;
+    font-weight: 500;
     text-align: left;
+    text-decoration: underline;
+    text-decoration-color: rgba(253, 246, 238, 0.22);
+    text-underline-offset: 2px;
     touch-action: manipulation;
 }
 .results-guide-summary::-webkit-details-marker { display: none; }
 .results-guide-summary::before { content: '▶ '; font-size: 0.7rem; }
 .results-guide[open] > .results-guide-summary::before { content: '▼ '; }
-.results-guide-body { padding: 0 12px 10px; }
+.results-guide-body { padding: 7px 6px 8px; }
 .results-guide-body p {
     margin: 0 0 6px;
     color: var(--muted-color);
