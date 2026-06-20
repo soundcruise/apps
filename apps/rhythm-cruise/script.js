@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.39';
+const RHYTHM_CRUISE_VERSION = '0.10.40';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -1418,13 +1418,16 @@ let lane = { ctx: null, w: 0, h: 0 };
 let laneJudge = { ctx: null, w: 0, h: 0 }; // 判定符頭オーバーレイのCanvasコンテキスト（v0.9.140）
 let preview = { ctx: null, w: 0, h: 0 };
 let graph = { ctx: null, w: 0, h: 0 };
-let review = { ctx: null, w: 0, h: 0, beatPx: 70, leftPad: 38 };
+let review = { ctx: null, w: 0, h: 0, beatPx: 70, leftPad: 38, timelineMap: null };
 let reviewPlayhead = { ctx: null, w: 0, h: 0 }; // v0.10.38：結果カードJUSTライン overlay canvas
 let reviewTimelineRaf = 0; // v0.10.38：録音再生中のJUSTライン更新RAF（Practice本番とは別）
 const reviewTimelineDebug = {
     enabled: false, currentTimeSec: 0, gameTimeMs: 0, judgeTimeMs: 0, judgeOffsetMs: 0,
-    visualOffsetMs: 0, visualOffsetSource: 'none', visualTimeMs: 0, xMode: 'visual',
+    visualOffsetMs: 0, visualOffsetSource: 'none', visualTimeMs: 0, xMode: 'target-index-map',
     x: NaN, scrollLeft: 0, scrollTarget: 0, rafActive: false,
+    nearestTargetIndex: null, nearestTargetTimeMs: NaN, nearestTargetX: NaN,
+    deltaToNearestTargetMs: NaN, xDeltaToNearestTarget: NaN,
+    beatInterval: NaN, T0: NaN, targetMapMode: 'none',
 };
 const REVIEW_WRAP_SCROLL_ANCHOR = 0.35; // playhead を表示幅の左35%付近に保つ
 let reviewFlowScoreReady = false; // 結果見返しの固定譜面(VexFlow)が正常描画できているか（true時だけCanvas固定音符を隠す・v0.9.140）
@@ -6367,6 +6370,14 @@ function micDebugText() {
         + 'reviewTimeline.visualTimeMs: ' + (Number.isFinite(reviewTimelineDebug.visualTimeMs) ? Math.round(reviewTimelineDebug.visualTimeMs) : '-') + '\n'
         + 'reviewTimeline.xMode: ' + (reviewTimelineDebug.xMode || 'visual') + '\n'
         + 'reviewTimeline.x: ' + (Number.isFinite(reviewTimelineDebug.x) ? reviewTimelineDebug.x.toFixed(1) : '-') + '\n'
+        + 'reviewTimeline.nearestTargetIndex: ' + (reviewTimelineDebug.nearestTargetIndex != null ? reviewTimelineDebug.nearestTargetIndex : '-') + '\n'
+        + 'reviewTimeline.nearestTargetTimeMs: ' + (Number.isFinite(reviewTimelineDebug.nearestTargetTimeMs) ? Math.round(reviewTimelineDebug.nearestTargetTimeMs) : '-') + '\n'
+        + 'reviewTimeline.nearestTargetX: ' + (Number.isFinite(reviewTimelineDebug.nearestTargetX) ? reviewTimelineDebug.nearestTargetX.toFixed(1) : '-') + '\n'
+        + 'reviewTimeline.deltaToNearestTargetMs: ' + (Number.isFinite(reviewTimelineDebug.deltaToNearestTargetMs) ? Math.round(reviewTimelineDebug.deltaToNearestTargetMs) : '-') + '\n'
+        + 'reviewTimeline.xDeltaToNearestTarget: ' + (Number.isFinite(reviewTimelineDebug.xDeltaToNearestTarget) ? reviewTimelineDebug.xDeltaToNearestTarget.toFixed(1) : '-') + '\n'
+        + 'reviewTimeline.beatInterval: ' + (Number.isFinite(reviewTimelineDebug.beatInterval) ? Math.round(reviewTimelineDebug.beatInterval) : '-') + '\n'
+        + 'reviewTimeline.T0: ' + (Number.isFinite(reviewTimelineDebug.T0) ? Math.round(reviewTimelineDebug.T0) : '-') + '\n'
+        + 'reviewTimeline.targetMapMode: ' + (reviewTimelineDebug.targetMapMode || 'none') + '\n'
         + 'reviewTimeline.scrollLeft: ' + (Number.isFinite(reviewTimelineDebug.scrollLeft) ? Math.round(reviewTimelineDebug.scrollLeft) : '-') + '\n'
         + 'reviewTimeline.scrollTarget: ' + (Number.isFinite(reviewTimelineDebug.scrollTarget) ? Math.round(reviewTimelineDebug.scrollTarget) : '-') + '\n'
         + 'reviewTimeline.rafActive: ' + (reviewTimelineDebug.rafActive ? 'yes' : 'no') + '\n'
@@ -7370,6 +7381,11 @@ function drawReviewFlowScore(VF) {
 function fitReview() {
     if (!els.reviewCanvas) return;
     const cssH = 168;
+    // pxPerBeatRaw 未設定時の防御（結果画面だけ開いた直後など）
+    if (!state.pxPerBeatRaw || state.pxPerBeatRaw <= 0) {
+        const laneW = els.laneCanvas ? els.laneCanvas.clientWidth : 0;
+        state.pxPerBeatRaw = Math.max(64, Math.min(120, (laneW || 320) * 0.24));
+    }
     // 結果画面の1セル横幅は STAGE画面(drawRhythmFlowScore)の基準式に統一する（v0.9.145）。
     //   STAGE: cellW = state.pxPerBeat * (eng.cellTicks / RHYTHM_TPQ)（state.pxPerBeat は engDisplayScale 済み）。
     //   以前は「固定70 × engDisplayScale」を1セル幅に使っていたため、cellTicks<24（16分/16分3連/32分など）で
@@ -7396,7 +7412,91 @@ function fitReview() {
     if (els.reviewFlowScoreLayer) els.reviewFlowScoreLayer.style.width = cssW + 'px';
     if (eng.custom) renderReviewFlowScore(); else hideReviewFlowScore();
     drawReview();
+    rebuildReviewTimelineMap();
     fitReviewPlayhead();
+}
+
+/* v0.10.40：drawReview と同じ x = leftPad + i*beatPx（表示専用・判定には使わない）。 */
+function reviewBeatX(i) {
+    if (!review || !Number.isFinite(review.beatPx) || !Number.isFinite(review.leftPad)) return NaN;
+    return review.leftPad + i * review.beatPx;
+}
+
+/* v0.10.40：engTargetTimeMs(i) → reviewBeatX(i) の対応表。スウィング/カスタムでも drawReview と一致。 */
+function rebuildReviewTimelineMap() {
+    if (!review || !Number.isFinite(review.beatPx)) {
+        review.timelineMap = null;
+        reviewTimelineDebug.targetMapMode = 'none';
+        return;
+    }
+    const cellMs = engCellMs();
+    const points = [];
+    const iStart = -Math.max(0, eng.countInCells || 0);
+    for (let i = iStart; i < TOTAL_BEATS; i++) {
+        points.push({ index: i, timeMs: engTargetTimeMs(i), x: reviewBeatX(i) });
+    }
+    review.timelineMap = {
+        points,
+        mode: 'target-index-map',
+        cellMs,
+        T0: state.T0,
+        beatPx: review.beatPx,
+        leftPad: review.leftPad,
+    };
+    reviewTimelineDebug.targetMapMode = 'target-index-map';
+    reviewTimelineDebug.beatInterval = cellMs;
+    reviewTimelineDebug.T0 = state.T0;
+}
+
+function reviewTimeMsToXLinear(timeMs) {
+    const map = review.timelineMap;
+    const bi = (map && map.cellMs) || engCellMs() || state.beatInterval;
+    const t0 = (map && map.T0 != null) ? map.T0 : state.T0;
+    if (!review || !bi || !Number.isFinite(review.beatPx)) return NaN;
+    return review.leftPad + ((timeMs - t0) / bi) * review.beatPx;
+}
+
+/* v0.10.40：target-index-map 上で timeMs → x を線形補間（drawReview の音符位置と同一座標系）。 */
+function reviewTimeMsToX(timeMs) {
+    const map = review.timelineMap;
+    if (!map || !Array.isArray(map.points) || !map.points.length) return reviewTimeMsToXLinear(timeMs);
+    const pts = map.points;
+    if (timeMs <= pts[0].timeMs) {
+        const p0 = pts[0], p1 = pts[1] || p0;
+        const dt = p1.timeMs - p0.timeMs || map.cellMs || 1;
+        return p0.x + ((timeMs - p0.timeMs) / dt) * (p1.x - p0.x);
+    }
+    if (timeMs >= pts[pts.length - 1].timeMs) {
+        const pn = pts[pts.length - 1], pm = pts[pts.length - 2] || pn;
+        const dt = pn.timeMs - pm.timeMs || map.cellMs || 1;
+        return pn.x + ((timeMs - pn.timeMs) / dt) * (pn.x - pm.x);
+    }
+    for (let k = 0; k < pts.length - 1; k++) {
+        if (timeMs >= pts[k].timeMs && timeMs <= pts[k + 1].timeMs) {
+            const t0 = pts[k].timeMs, t1 = pts[k + 1].timeMs;
+            const x0 = pts[k].x, x1 = pts[k + 1].x;
+            if (t1 === t0) return x0;
+            return x0 + ((timeMs - t0) / (t1 - t0)) * (x1 - x0);
+        }
+    }
+    return reviewTimeMsToXLinear(timeMs);
+}
+
+function reviewTimelineNearestTarget(timeMs) {
+    const map = review.timelineMap;
+    if (!map || !Array.isArray(map.points) || !map.points.length) return null;
+    let best = null, bestAbs = Infinity;
+    for (const p of map.points) {
+        const d = Math.abs(timeMs - p.timeMs);
+        if (d < bestAbs) { bestAbs = d; best = p; }
+    }
+    if (!best) return null;
+    return { index: best.index, timeMs: best.timeMs, x: best.x, deltaMs: timeMs - best.timeMs };
+}
+
+/* v0.10.40：JUSTライン x 用の時刻。録音再生位置(gameMs)をそのまま map へ（クリック遅延は scheduleReviewClick 側）。 */
+function reviewPlayheadTimeMsForX(sec) {
+    return reviewGameTimeMsFromSec(sec);
 }
 
 /* v0.10.38：結果カード overlay canvas を #review-canvas と同じ寸法に合わせる。 */
@@ -7464,12 +7564,9 @@ function reviewVisualTimeMsFromSec(sec) {
     return reviewGameTimeMsFromSec(sec) + reviewVisualOffsetMs();
 }
 
-/* drawReviewMicOverlay / drawReview と同じ x 座標系（ms → px）。 */
+/* drawReview / target-index-map と同じ x 座標系（ms → px）。 */
 function reviewTimeToReviewX(timeMs) {
-    if (!review || !Number.isFinite(review.beatPx) || !Number.isFinite(review.leftPad)) return NaN;
-    const bi = state.beatInterval;
-    if (!bi) return NaN;
-    return review.leftPad + ((timeMs - state.T0) / bi) * review.beatPx;
+    return reviewTimeMsToX(timeMs);
 }
 
 /* v0.10.39：録音再生中、JUSTラインが見えるよう #review-wrap を横スクロール追従。 */
@@ -7496,7 +7593,8 @@ function drawReviewPlayheadAtSec(sec) {
     const gameMs = reviewGameTimeMsFromSec(sec);
     const judgeMs = reviewJudgeTimeMsFromSec(sec);
     const visualMs = reviewVisualTimeMsFromSec(sec);
-    const x = reviewTimeToReviewX(visualMs);
+    const playheadMs = reviewPlayheadTimeMsForX(sec);
+    const x = reviewTimeToReviewX(playheadMs);
     reviewTimelineDebug.currentTimeSec = sec;
     reviewTimelineDebug.gameTimeMs = gameMs;
     reviewTimelineDebug.judgeTimeMs = judgeMs;
@@ -7504,15 +7602,29 @@ function drawReviewPlayheadAtSec(sec) {
     reviewTimelineDebug.visualOffsetMs = reviewVisualOffsetMs(rec);
     reviewTimelineDebug.visualOffsetSource = reviewVisualOffsetSource(rec);
     reviewTimelineDebug.visualTimeMs = visualMs;
-    reviewTimelineDebug.xMode = 'visual';
+    reviewTimelineDebug.xMode = 'target-index-map';
     reviewTimelineDebug.x = x;
+    const nearest = reviewTimelineNearestTarget(playheadMs);
+    if (nearest) {
+        reviewTimelineDebug.nearestTargetIndex = nearest.index;
+        reviewTimelineDebug.nearestTargetTimeMs = nearest.timeMs;
+        reviewTimelineDebug.nearestTargetX = nearest.x;
+        reviewTimelineDebug.deltaToNearestTargetMs = nearest.deltaMs;
+        reviewTimelineDebug.xDeltaToNearestTarget = Number.isFinite(x) ? (x - nearest.x) : NaN;
+    } else {
+        reviewTimelineDebug.nearestTargetIndex = null;
+        reviewTimelineDebug.nearestTargetTimeMs = NaN;
+        reviewTimelineDebug.nearestTargetX = NaN;
+        reviewTimelineDebug.deltaToNearestTargetMs = NaN;
+        reviewTimelineDebug.xDeltaToNearestTarget = NaN;
+    }
     if (!Number.isFinite(x) || x < -8 || x > w + 8) {
         els.reviewPlayheadCanvas.classList.add('hidden');
         if (rec.playbackActive) updateReviewWrapScroll(x);
         return;
     }
     els.reviewPlayheadCanvas.classList.remove('hidden');
-    const glow = beatGlow(visualMs - state.T0, engPulseMs());
+    const glow = beatGlow(playheadMs - state.T0, engPulseMs());
     drawJustLineMarker(ctx, x, h, { glow });
     if (rec.playbackActive) updateReviewWrapScroll(x);
 }
@@ -7548,6 +7660,7 @@ function startReviewTimelineRaf() {
     if (rec.status !== 'available' || !rec.decodedBuffer) return;
     reviewTimelineDebug.rafActive = true;
     reviewTimelineDebug.enabled = true;
+    rebuildReviewTimelineMap();
     fitReviewPlayhead();
     reviewTimelineRafTick();
 }
