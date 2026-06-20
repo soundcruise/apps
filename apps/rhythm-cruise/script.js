@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.27';
+const RHYTHM_CRUISE_VERSION = '0.10.28';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -646,7 +646,7 @@ const state = {
         startedAtPerformanceTime: null,
         errorMessage: '',
         generation: 0,
-        playbackGainValue: 5,
+        playbackGainValue: 1,
         playbackSource: null,
         playbackGain: null,
         playbackContext: null,
@@ -8371,7 +8371,7 @@ const PRACTICE_RECORDING_MIME_TYPES = [
     'audio/webm;codecs=opus',
     'audio/webm',
 ];
-const PRACTICE_RECORDING_GAIN_DEFAULT = 5;
+const PRACTICE_RECORDING_GAIN_DEFAULT = 1;
 const PRACTICE_RECORDING_GAIN_MIN = 1;
 const PRACTICE_RECORDING_GAIN_MAX = 10;
 
