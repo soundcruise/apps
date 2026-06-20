@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="../theme.css?v=0.10.48">
+    <link rel="stylesheet" href="../theme.css?v=0.10.49">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1106,12 +1106,6 @@
                 <summary>反応ラインについて</summary>
                 <p class="setting-note">反応ラインは、入力として反応しやすい音量の目安です。線より下まで毎回落ちなくても、次の山が分かれていれば入力として採用されることがあります。実際の判定は、タイミング・連続入力の間隔・採用済み入力との関係も含めて行われます。</p>
             </details>
-            <div class="debug-wave-controls hidden" id="debug-wave-controls" aria-label="開発用波形表示切替">
-                <span>波形表示</span>
-                <button type="button" class="debug-wave-btn is-active" data-wave-mode="linear">リニア</button>
-                <button type="button" class="debug-wave-btn" data-wave-mode="log">対数</button>
-                <button type="button" class="debug-wave-btn" data-wave-mode="rise">立ち上がり強調</button>
-            </div>
             <div class="review-wrap" id="review-wrap">
                 <div class="review-flow-score-layer hidden" id="review-flow-score-layer" aria-hidden="true"></div>
                 <canvas id="review-canvas"></canvas>
@@ -1126,42 +1120,56 @@
                     <button type="button" class="btn-mic results-retest-btn" id="results-retest-btn">マイク反応テストをやり直す</button>
                 </div>
             </details>
-            <section class="results-recording hidden" id="results-recording" aria-labelledby="results-recording-title">
-                <h3 id="results-recording-title">録音で振り返る</h3>
-                <p id="results-recording-message">今回の演奏を録音しました。<br>結果を見ながら、自分のストローク音を確認できます。</p>
+            <details class="results-recording hidden" id="results-recording">
+                <summary class="results-recording-summary">録音を聴く</summary>
+                <div class="results-recording-body">
                 <audio id="results-recording-audio" preload="metadata"></audio>
+                <div class="results-recording-actions" id="results-recording-actions">
+                    <button type="button" class="btn-ghost" id="results-recording-play">▶ 再生</button>
+                </div>
                 <label class="results-recording-volume" id="results-recording-volume-row" for="results-recording-volume">
                     <span>録音音量</span>
                     <input type="range" id="results-recording-volume" min="1" max="10" step="0.5" value="1">
                     <b id="results-recording-volume-value">1.0x</b>
-                </label>
-                <!-- v0.10.32：録音再生にPractice時のクリックを重ねる（Bluetoothイヤホン対策。既定ON） -->
-                <label class="results-recording-clicktoggle">
-                    <input type="checkbox" id="results-recording-click-toggle" checked>
-                    <span>クリックを重ねる</span>
                 </label>
                 <label class="results-recording-volume" id="results-recording-click-volume-row" for="results-recording-click-volume">
                     <span>クリック音量</span>
                     <input type="range" id="results-recording-click-volume" min="0" max="100" step="5" value="50">
                     <b id="results-recording-click-volume-value">50%</b>
                 </label>
-                <!-- v0.10.35：後付けクリックの位置補正（+msで遅らせる。録音振り返り専用の一時設定） -->
-                <label class="results-recording-volume hidden" id="results-recording-click-offset-row" for="results-recording-click-offset">
+                <details class="results-recording-dev hidden" id="results-recording-dev">
+                    <summary class="results-recording-dev-summary">開発用調整</summary>
+                    <div class="results-recording-dev-body">
+                <label class="results-recording-volume" id="results-recording-click-offset-row" for="results-recording-click-offset">
                     <span>クリック位置</span>
                     <input type="range" id="results-recording-click-offset" min="-100" max="250" step="10" value="0">
                     <b id="results-recording-click-offset-value">0ms</b>
                 </label>
-                <div class="setting-row hidden" id="debug-review-visual-delay">
-                    <div class="setting-label">開発用：JUSTライン表示ディレイ</div>
-                    <p class="setting-note">録音音声・後付けクリック音は動かさず、画面上のJUSTラインだけを遅らせます。「クリック位置」とは別の調整です。</p>
+                <div class="setting-row" id="debug-review-visual-delay">
+                    <div class="setting-label">JUSTライン表示ディレイ</div>
+                    <p class="setting-note">録音音声・後付けクリック音は動かさず、画面上のJUSTラインだけを調整します。「クリック位置」とは別の調整です。</p>
                     <input type="range" id="debug-review-visual-delay-input" min="-150" max="250" step="10" value="0">
                     <p class="setting-note"><b>BT自動表示補正: <span id="debug-review-visual-bt-delay-value">0ms</span></b><br><b>開発用追加ディレイ: <span id="debug-review-visual-delay-value">0ms</span></b><br><b>実効表示遅延: <span id="debug-review-visual-effective-delay-value">0ms</span></b></p>
                 </div>
-                <div class="results-recording-actions" id="results-recording-actions">
-                    <button type="button" class="btn-primary" id="results-recording-play">▶ 録音を再生</button>
-                    <button type="button" class="btn-ghost" id="results-recording-stop" disabled>一時停止</button>
+                <details class="results-detail is-quiet" id="miss-cause-details">
+                    <summary class="results-detail-summary">debugログ</summary>
+                                <div class="results-detail-body">
+                                    <p class="miss-cause-lead">これは不具合の原因を調べるための開発用ログです。</p>
+                                    <pre class="results-recording-debug-log" id="results-recording-debug-log"></pre>
+                                    <div class="dev-log-copy-row hidden" id="dev-log-copy-row">
+                            <button type="button" class="dev-log-copy-btn" id="dev-log-copy-btn">ログをコピー</button>
+                            <span class="dev-log-copy-status" id="dev-log-copy-status" aria-live="polite"></span>
+                        </div>
+                        <div class="miss-cause-list" id="miss-cause-list"></div>
+                        <p class="result-breakdown result-miss-debug hidden" id="results-chord-detail"></p>
+                        <p class="result-breakdown result-miss-debug hidden" id="results-chord-miss"></p>
+                        <p class="result-breakdown result-miss-debug hidden" id="results-chord-debug"></p>
+                    </div>
+                </details>
+                    </div>
+                </details>
                 </div>
-            </section>
+            </details>
             <section class="results-detail" id="results-detail" aria-labelledby="results-detail-title">
                 <h3 class="results-detail-title" id="results-detail-title">結果の詳細</h3>
                 <div class="results-detail-body">
@@ -1192,20 +1200,6 @@
                     </p>
                 </div>
             </section>
-            <details class="results-detail is-quiet hidden" id="miss-cause-details">
-                <summary class="results-detail-summary">開発用ログ</summary>
-                <div class="results-detail-body">
-                    <p class="miss-cause-lead">これは不具合の原因を調べるための開発用ログです。通常の練習結果として読む必要はありません。</p>
-                    <div class="dev-log-copy-row hidden" id="dev-log-copy-row">
-                        <button type="button" class="dev-log-copy-btn" id="dev-log-copy-btn">ログをコピー</button>
-                        <span class="dev-log-copy-status" id="dev-log-copy-status" aria-live="polite"></span>
-                    </div>
-                    <div class="miss-cause-list" id="miss-cause-list"></div>
-                    <p class="result-breakdown result-miss-debug hidden" id="results-chord-detail"></p>
-                    <p class="result-breakdown result-miss-debug hidden" id="results-chord-miss"></p>
-                    <p class="result-breakdown result-miss-debug hidden" id="results-chord-debug"></p>
-                </div>
-            </details>
             <div class="results-actions">
                 <button class="btn-ghost" id="r-close-btn">閉じる</button>
                 <button class="btn-ghost hidden" id="r-edit-back-btn">編集に戻る</button>
@@ -1288,7 +1282,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.10.48"></script>
+    <script src="../script.js?v=0.10.49"></script>
 </body>
 
 </html>

@@ -2646,21 +2646,32 @@ h1 {
 .results-double-summary::-webkit-details-marker { display: none; }
 .results-double-detail > p { margin-top: 8px; margin-bottom: 8px; }
 
-/* 今回のPracticeだけに紐づく録音再生カード（v0.10.25）。 */
+/* 今回のPracticeだけに紐づく控えめな録音レビュー折りたたみ（v0.10.49）。 */
 .results-recording {
     width: 100%;
-    padding: 14px;
-    border: 1px solid rgba(255, 209, 102, 0.28);
-    border-radius: 14px;
-    background: rgba(255, 209, 102, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.025);
 }
 .results-recording.hidden { display: none; }
-.results-recording h3 {
-    margin: 0 0 6px;
-    font-size: 0.94rem;
-    color: var(--secondary-color);
-    text-align: center;
+.results-recording-summary,
+.results-recording-dev-summary {
+    list-style: none;
+    cursor: pointer;
+    color: var(--muted-color);
+    font-weight: 700;
+    touch-action: manipulation;
 }
+.results-recording-summary {
+    padding: 10px 12px;
+    font-size: 0.84rem;
+    text-align: left;
+}
+.results-recording-summary::-webkit-details-marker,
+.results-recording-dev-summary::-webkit-details-marker { display: none; }
+.results-recording-summary::before { content: '▶ '; font-size: 0.72rem; }
+.results-recording[open] > .results-recording-summary::before { content: '▼ '; }
+.results-recording-body { padding: 0 12px 12px; }
 .results-recording p {
     margin: 0;
     font-size: 0.82rem;
@@ -2669,6 +2680,37 @@ h1 {
     text-align: center;
 }
 .results-recording audio { display: none; }
+.results-recording-dev {
+    margin-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.results-recording-dev.hidden { display: none; }
+.results-recording-dev-summary {
+    padding: 10px 2px 4px;
+    font-size: 0.76rem;
+    opacity: 0.82;
+}
+.results-recording-dev-summary::before { content: '▶ '; font-size: 0.68rem; }
+.results-recording-dev[open] > .results-recording-dev-summary::before { content: '▼ '; }
+.results-recording-dev-body { padding: 0 2px 4px; }
+.results-recording-debug-log {
+    max-height: 240px;
+    margin: 0;
+    padding: 8px;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.24);
+    color: rgba(253, 246, 238, 0.72);
+    font: 500 0.66rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.results-recording-dev-body .setting-row {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+}
 .results-recording-volume {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) 3.2em;
@@ -2708,16 +2750,17 @@ h1 {
 }
 .results-recording-actions {
     display: flex;
+    justify-content: center;
     gap: 8px;
     margin-top: 10px;
 }
 .results-recording-actions.hidden { display: none; }
 .results-recording-actions button {
-    flex: 1 1 0;
+    flex: 0 1 160px;
     min-width: 0;
     width: auto;
-    padding: 11px 8px;
-    font-size: 0.86rem;
+    padding: 9px 12px;
+    font-size: 0.82rem;
     white-space: nowrap;
 }
 .results-recording-actions button:disabled {
@@ -5376,34 +5419,6 @@ body.results-open {
     width: 100%;
     overflow: hidden;
     overscroll-behavior: none;
-}
-
-.debug-wave-controls {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 6px;
-    color: rgba(253, 246, 238, 0.68);
-    font-size: 0.7rem;
-}
-
-.debug-wave-controls.hidden { display: none; }
-
-.debug-wave-btn {
-    border: 1px solid rgba(210, 126, 255, 0.38);
-    border-radius: 999px;
-    padding: 4px 9px;
-    background: rgba(210, 126, 255, 0.07);
-    color: rgba(253, 246, 238, 0.8);
-    font: 700 0.68rem Outfit, sans-serif;
-}
-
-.debug-wave-btn.is-active {
-    border-color: rgba(210, 126, 255, 0.85);
-    background: rgba(210, 126, 255, 0.2);
-    color: #f0c9ff;
 }
 
 /* 結果モーダル：クリック音拾いの可能性の注意（控えめ） */
