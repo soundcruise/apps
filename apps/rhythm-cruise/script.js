@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.44';
+const RHYTHM_CRUISE_VERSION = '0.10.45';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -1432,7 +1432,8 @@ const reviewTimelineDebug = {
     nearestTargetIndex: null, nearestTargetTimeMs: NaN, nearestTargetX: NaN,
     deltaToNearestTargetMs: NaN, xDeltaToNearestTarget: NaN,
     beatInterval: NaN, T0: NaN, targetMapMode: 'none',
-    currentFormula: 'B', reviewClickAutoOffsetSource: 'none', paused: false,
+    currentFormula: 'C', reviewClickAutoOffsetSource: 'none', paused: false,
+    additionalReviewClickOffsetMs: 0, additionalReviewClickOffsetSource: 'none',
     candidateA_timeMs: NaN, candidateA_deltaToTargetMs: NaN, candidateA_xDeltaToTarget: NaN,
     candidateB_timeMs: NaN, candidateB_deltaToTargetMs: NaN, candidateB_xDeltaToTarget: NaN,
     candidateC_timeMs: NaN, candidateC_deltaToTargetMs: NaN, candidateC_xDeltaToTarget: NaN,
@@ -6389,6 +6390,8 @@ function micDebugText() {
         + 'reviewTimeline.judgeOffsetMs: ' + (rec && Number.isFinite(rec.reviewJudgeOffsetMs) ? rec.reviewJudgeOffsetMs : 0) + '\n'
         + 'reviewTimeline.justDisplayOffsetMs: ' + (Number.isFinite(reviewTimelineDebug.justDisplayOffsetMs) ? reviewTimelineDebug.justDisplayOffsetMs : 0) + '\n'
         + 'reviewTimeline.justDisplayOffsetSource: ' + (reviewTimelineDebug.justDisplayOffsetSource || 'none') + '\n'
+        + 'reviewTimeline.additionalReviewClickOffsetMs: ' + (Number.isFinite(reviewTimelineDebug.additionalReviewClickOffsetMs) ? reviewTimelineDebug.additionalReviewClickOffsetMs : 0) + '\n'
+        + 'reviewTimeline.additionalReviewClickOffsetSource: ' + (reviewTimelineDebug.additionalReviewClickOffsetSource || 'none') + '\n'
         + 'reviewTimeline.headphoneOutputOffsetMs: ' + (Number.isFinite(reviewTimelineDebug.headphoneOutputOffsetMs) ? reviewTimelineDebug.headphoneOutputOffsetMs : 0) + '\n'
         + 'reviewTimeline.reviewClickTotalOffsetMs: ' + (Number.isFinite(reviewTimelineDebug.reviewClickTotalOffsetMs) ? reviewTimelineDebug.reviewClickTotalOffsetMs : 0) + '\n'
         + 'reviewTimeline.visualOffsetMs: ' + (Number.isFinite(reviewTimelineDebug.visualOffsetMs) ? reviewTimelineDebug.visualOffsetMs : 0) + '\n'
@@ -6404,7 +6407,7 @@ function micDebugText() {
         + 'reviewTimeline.beatInterval: ' + (Number.isFinite(reviewTimelineDebug.beatInterval) ? Math.round(reviewTimelineDebug.beatInterval) : '-') + '\n'
         + 'reviewTimeline.T0: ' + (Number.isFinite(reviewTimelineDebug.T0) ? Math.round(reviewTimelineDebug.T0) : '-') + '\n'
         + 'reviewTimeline.targetMapMode: ' + (reviewTimelineDebug.targetMapMode || 'none') + '\n'
-        + 'reviewTimeline.currentFormula: ' + (reviewTimelineDebug.currentFormula || 'B') + ' (v0.10.41 production)\n'
+        + 'reviewTimeline.currentFormula: ' + (reviewTimelineDebug.currentFormula || 'C') + '\n'
         + 'reviewTimeline.reviewClickAutoOffsetSource: ' + (reviewTimelineDebug.reviewClickAutoOffsetSource || '-') + '\n'
         + reviewTimelineCandidateDebugLine('A')
         + reviewTimelineCandidateDebugLine('B')
@@ -7534,28 +7537,40 @@ function reviewTimelineNearestTarget(timeMs) {
     return { index: best.index, timeMs: best.timeMs, x: best.x, deltaMs: timeMs - best.timeMs };
 }
 
-/* v0.10.42：debugMic専用。本番JUSTラインは変更せず、候補式A〜Eの時刻・ターゲットズレを診断表示する。 */
-function reviewTimelineCandidateTimeMs(gameMs, formula, hpOut, clickOff) {
+/* v0.10.42：debugMic専用。C は v0.10.45 本番式（hpOut + additionalReviewClick、二重引きガード済み）。 */
+function reviewTimelineCandidateTimeMs(gameMs, formula, rec) {
     const g = Number(gameMs) || 0;
-    const hp = Number(hpOut) || 0;
-    const clk = Number(clickOff) || 0;
+    const hp = reviewPracticeHeadphoneOutputOffsetMs(rec);
+    const clk = reviewClickTotalOffsetMs(rec);
+    const add = reviewAdditionalClickDisplayOffsetMs(rec);
     switch (formula) {
         case 'A': return Math.max(0, g);
         case 'B': return Math.max(0, g - hp);
-        case 'C': return Math.max(0, g - hp - clk);
+        case 'C': return Math.max(0, g - hp - add);
         case 'D': return Math.max(0, g - clk);
         case 'E': return Math.max(0, g - Math.max(hp, clk));
         default: return Math.max(0, g);
     }
 }
 
+function reviewProductionCurrentFormulaLabel(rec) {
+    const hp = reviewPracticeHeadphoneOutputOffsetMs(rec);
+    const add = reviewAdditionalClickDisplayOffsetMs(rec);
+    if (add > 0) return 'C (hpOut + review-click display)';
+    if (hp > 0) return 'B (hpOut only)';
+    return 'A';
+}
+
 function populateReviewTimelineCandidateDebug(gameMs, rec) {
     const hp = reviewPracticeHeadphoneOutputOffsetMs(rec);
     const clk = reviewClickTotalOffsetMs(rec);
-    reviewTimelineDebug.currentFormula = 'B';
+    const addClick = reviewAdditionalClickDisplayOffsetMs(rec);
+    reviewTimelineDebug.currentFormula = reviewProductionCurrentFormulaLabel(rec);
     reviewTimelineDebug.reviewClickAutoOffsetSource = rec.reviewClickAutoOffsetSource || 'none';
+    reviewTimelineDebug.additionalReviewClickOffsetMs = addClick;
+    reviewTimelineDebug.additionalReviewClickOffsetSource = reviewAdditionalClickDisplayOffsetSource(rec);
     for (const key of ['A', 'B', 'C', 'D', 'E']) {
-        const timeMs = reviewTimelineCandidateTimeMs(gameMs, key, hp, clk);
+        const timeMs = reviewTimelineCandidateTimeMs(gameMs, key, rec);
         const nearest = reviewTimelineNearestTarget(timeMs);
         const cx = reviewTimeToReviewX(timeMs);
         reviewTimelineDebug['candidate' + key + '_timeMs'] = timeMs;
@@ -7629,7 +7644,7 @@ function populateReviewTimelineLastClickDebug(gameMs, rec, hp, clk) {
     reviewTimelineDebug.lastReviewClickDeltaGameToExpectedHeardMs = g - ref.expectedHeardGameMs;
     const refX = Number.isFinite(ref.targetX) ? ref.targetX : reviewTimeToReviewX(ref.targetTimeMs);
     for (const key of ['A', 'B', 'C', 'D', 'E']) {
-        const timeMs = reviewTimelineCandidateTimeMs(gameMs, key, hp, clk);
+        const timeMs = reviewTimelineCandidateTimeMs(gameMs, key, rec);
         reviewTimelineDebug['candidate' + key + '_deltaToLastClickTargetMs'] = timeMs - ref.targetTimeMs;
         const cx = reviewTimeToReviewX(timeMs);
         reviewTimelineDebug['candidate' + key + '_xDeltaToLastClickTarget'] = Number.isFinite(cx) && Number.isFinite(refX)
@@ -7677,22 +7692,49 @@ function reviewTimelineCandidateDebugLine(key) {
         + (Number.isFinite(x) ? x.toFixed(1) : '-') + '\n';
 }
 
-/* v0.10.41：結果JUSTライン専用の出力表示補正（Practice drawLane の gridDispOff と同じ heard-time 寄せ）。
-   固定JUST+動く譜面(Practice)では bt+gridDispOff で音符を遅らせる。
-   固定譜面+動くJUST(Review)では playhead を gameMs-gridDispOff へ＝justDisplayOffsetMs=-hpOut。
+/* v0.10.45：結果JUSTライン専用の出力表示補正（candidateC 本番採用・表示専用）。
+   visualTimeMs = gameMs - hpOut - additionalReviewClickOffsetMs
+   additionalReviewClickOffsetMs は headphone-output 由来 autoOffset を二重引きしない。
    判定・クリック音声・履歴には使わない。 */
+function reviewClickAutoFromHeadphoneOutput(rec) {
+    const source = String((rec || state.practiceRecording).reviewClickAutoOffsetSource || '');
+    return source.includes('headphone-output');
+}
+
+function reviewAdditionalClickDisplayOffsetMs(rec) {
+    const r = rec || state.practiceRecording;
+    const auto = Number(r.reviewClickAutoOffsetMs) || 0;
+    const manual = reviewClickManualOffsetMs(r);
+    const autoPart = reviewClickAutoFromHeadphoneOutput(r) ? 0 : auto;
+    return autoPart + manual;
+}
+
+function reviewAdditionalClickDisplayOffsetSource(rec) {
+    const r = rec || state.practiceRecording;
+    const manual = reviewClickManualOffsetMs(r);
+    const autoPart = reviewClickAutoFromHeadphoneOutput(r) ? 0 : (Number(r.reviewClickAutoOffsetMs) || 0);
+    if (manual !== 0 && autoPart !== 0) return (r.reviewClickAutoOffsetSource || 'auto') + '+manual';
+    if (manual !== 0) return 'review-click-manual-offset';
+    if (autoPart !== 0) return r.reviewClickAutoOffsetSource || 'review-click-auto-offset';
+    return 'none';
+}
+
 function reviewJustDisplayOffsetMs(rec) {
     const r = rec || state.practiceRecording;
     if (!r || r.reviewPracticeInputType === 'normal') return 0;
-    const hp = Number(r.reviewPracticeHeadphoneOutputOffsetMs) || 0;
-    return hp > 0 ? -hp : 0;
+    const hp = reviewPracticeHeadphoneOutputOffsetMs(r);
+    const addClick = reviewAdditionalClickDisplayOffsetMs(r);
+    if (hp <= 0 && addClick <= 0) return 0;
+    return -(hp + addClick);
 }
 
 function reviewJustDisplayOffsetSource(rec) {
     const r = rec || state.practiceRecording;
     if (!r || r.reviewPracticeInputType === 'normal') return 'normal-mic';
-    const hp = Number(r.reviewPracticeHeadphoneOutputOffsetMs) || 0;
-    if (hp <= 0) return 'headphone-no-offset';
+    const hp = reviewPracticeHeadphoneOutputOffsetMs(r);
+    const add = reviewAdditionalClickDisplayOffsetMs(r);
+    if (hp <= 0 && add <= 0) return 'headphone-no-offset';
+    if (add > 0) return 'hp-out+review-click-display';
     return r.reviewPracticeHeadphoneType === 'bluetooth' ? 'bluetooth-headphone-output' : 'wired-headphone-output';
 }
 
