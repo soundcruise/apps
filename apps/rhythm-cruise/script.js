@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.24';
+const RHYTHM_CRUISE_VERSION = '0.10.25';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -633,6 +633,20 @@ const state = {
     clickTimes: [],
     nextClick: 0,
     scheduledClicks: [],    // 先読みスケジュール済みのクリック音オシレータ（停止時に止める）
+    // 今回のPracticeだけに紐づく一時録音。結果履歴や state.results には混ぜない（v0.10.25）。
+    practiceRecording: {
+        supported: false,
+        status: 'idle', // idle | recording | available | unavailable | error
+        recorder: null,
+        chunks: [],
+        blob: null,
+        url: null,
+        mimeType: '',
+        startedAtAudioTime: null,
+        startedAtPerformanceTime: null,
+        errorMessage: '',
+        generation: 0,
+    },
     results: new Array(TOTAL_BEATS).fill(null),
     beatMicPeak: new Array(TOTAL_BEATS).fill(0), // 各拍の判定窓内で観測した最大マイク入力（MISS原因の切り分け用）
     beatDoubled: new Array(TOTAL_BEATS).fill(false), // 各拍で二重反応（重複入力）が起きたか
@@ -1099,6 +1113,12 @@ const els = {
     resultsMicTune: $('results-mic-tune'),
     resultsMicWrap: $('results-mic-wrap'),
     resultsMicCanvas: $('results-mic-canvas'),
+    resultsRecording: $('results-recording'),
+    resultsRecordingMessage: $('results-recording-message'),
+    resultsRecordingAudio: $('results-recording-audio'),
+    resultsRecordingActions: $('results-recording-actions'),
+    resultsRecordingPlay: $('results-recording-play'),
+    resultsRecordingStop: $('results-recording-stop'),
     debugWaveControls: $('debug-wave-controls'),
     reviewWrap: $('review-wrap'),
     reviewCanvas: $('review-canvas'),
@@ -5886,6 +5906,7 @@ function goHomeView(v) {
 
 /* ── 画面遷移 ───────────────────────────────────────────── */
 function show(screen) {
+    if (screen !== 'practice') discardPracticeRecording();
     currentScreen = screen;
     els.home.classList.toggle('hidden', screen !== 'home');
     els.practice.classList.toggle('hidden', screen !== 'practice');
@@ -8331,6 +8352,198 @@ function buildSchedule() {
 const CLICK_LOOKAHEAD_MS = 130; // クリックを実際の発音より少し前に正確スケジュール
 const AUDIO_CONTEXT_START_TIMEOUT_MS = 1800; // AudioContext が running にならない時にUIを固めないための上限（v0.9.132）
 
+/* ── Practice録音（v0.10.25）──────────────────────────────
+   既存のマイクMediaStreamを録音にも共用する。判定・波形・履歴には一切接続せず、
+   今回の結果カードを離れた時点でBlob/Object URLを破棄する。 */
+const PRACTICE_RECORDING_MIME_TYPES = [
+    'audio/mp4',
+    'audio/mp4;codecs=mp4a.40.2',
+    'audio/aac',
+    'audio/webm;codecs=opus',
+    'audio/webm',
+];
+
+function practiceRecordingMimeType() {
+    if (!window.MediaRecorder || typeof window.MediaRecorder.isTypeSupported !== 'function') return '';
+    for (const mimeType of PRACTICE_RECORDING_MIME_TYPES) {
+        try { if (window.MediaRecorder.isTypeSupported(mimeType)) return mimeType; } catch (_) { /* 次候補へ */ }
+    }
+    return '';
+}
+
+function setPracticeRecordingPlaybackUI(playing) {
+    if (els.resultsRecordingPlay) els.resultsRecordingPlay.disabled = !!playing;
+    if (els.resultsRecordingStop) els.resultsRecordingStop.disabled = !playing;
+}
+
+function stopPracticeRecordingPlayback() {
+    const audio = els.resultsRecordingAudio;
+    if (audio) {
+        try { audio.pause(); audio.currentTime = 0; } catch (_) { /* noop */ }
+    }
+    setPracticeRecordingPlaybackUI(false);
+}
+
+function updatePracticeRecordingUI() {
+    const rec = state.practiceRecording;
+    if (!els.resultsRecording) return;
+    if (historyViewRecord) {
+        els.resultsRecording.classList.add('hidden');
+        return;
+    }
+    const available = rec.status === 'available' && !!rec.url && !!rec.blob;
+    const debugUnavailable = MIC_DEBUG_ON && (rec.status === 'unavailable' || rec.status === 'error');
+    els.resultsRecording.classList.toggle('hidden', !available && !debugUnavailable);
+    if (available) {
+        if (els.resultsRecordingMessage) {
+            els.resultsRecordingMessage.innerHTML = '今回の演奏を録音しました。<br>結果を見ながら、自分のストローク音を確認できます。';
+        }
+        if (els.resultsRecordingActions) els.resultsRecordingActions.classList.remove('hidden');
+        if (els.resultsRecordingAudio && els.resultsRecordingAudio.src !== rec.url) els.resultsRecordingAudio.src = rec.url;
+        setPracticeRecordingPlaybackUI(false);
+    } else if (debugUnavailable) {
+        if (els.resultsRecordingMessage) {
+            els.resultsRecordingMessage.textContent = 'debugMic: 録音を利用できません。' + (rec.errorMessage || '対応状況を確認してください。');
+        }
+        if (els.resultsRecordingActions) els.resultsRecordingActions.classList.add('hidden');
+    }
+}
+
+function discardPracticeRecording() {
+    const rec = state.practiceRecording;
+    rec.generation++;
+    stopPracticeRecordingPlayback();
+    const recorder = rec.recorder;
+    if (recorder) {
+        recorder.ondataavailable = null;
+        recorder.onstop = null;
+        recorder.onerror = null;
+        try { if (recorder.state !== 'inactive') recorder.stop(); } catch (_) { /* noop */ }
+    }
+    if (els.resultsRecordingAudio) {
+        els.resultsRecordingAudio.removeAttribute('src');
+        try { els.resultsRecordingAudio.load(); } catch (_) { /* noop */ }
+    }
+    if (rec.url) {
+        try { URL.revokeObjectURL(rec.url); } catch (_) { /* noop */ }
+    }
+    rec.supported = false;
+    rec.status = 'idle';
+    rec.recorder = null;
+    rec.chunks = [];
+    rec.blob = null;
+    rec.url = null;
+    rec.mimeType = '';
+    rec.startedAtAudioTime = null;
+    rec.startedAtPerformanceTime = null;
+    rec.errorMessage = '';
+    if (els.resultsRecording) els.resultsRecording.classList.add('hidden');
+}
+
+function startPracticeRecording() {
+    discardPracticeRecording();
+    const rec = state.practiceRecording;
+    const generation = rec.generation;
+    if (state.inputMode !== 'stroke') {
+        rec.status = 'unavailable';
+        rec.errorMessage = 'ストロークモード以外では録音しません。';
+        return;
+    }
+    if (!window.MediaRecorder) {
+        rec.status = 'unavailable';
+        rec.errorMessage = 'MediaRecorderがありません。';
+        return;
+    }
+    const stream = mic.stream;
+    const tracks = stream && typeof stream.getAudioTracks === 'function' ? stream.getAudioTracks() : [];
+    if (!tracks.length || !tracks.some((track) => track.readyState === 'live')) {
+        rec.status = 'unavailable';
+        rec.errorMessage = '利用できるマイク音声トラックがありません。';
+        return;
+    }
+    const mimeType = practiceRecordingMimeType();
+    let recorder;
+    try {
+        recorder = mimeType ? new window.MediaRecorder(stream, { mimeType }) : new window.MediaRecorder(stream);
+    } catch (e) {
+        rec.status = 'error';
+        rec.errorMessage = '録音の初期化に失敗しました。';
+        console.warn('[practice-recording] init failed:', e && e.name);
+        return;
+    }
+    rec.supported = true;
+    rec.status = 'recording';
+    rec.recorder = recorder;
+    rec.chunks = [];
+    rec.mimeType = recorder.mimeType || mimeType || '';
+    rec.startedAtAudioTime = state.audioCtx ? state.audioCtx.currentTime : null;
+    rec.startedAtPerformanceTime = performance.now();
+    recorder.ondataavailable = (event) => {
+        if (generation !== rec.generation) return;
+        if (event.data && event.data.size > 0) rec.chunks.push(event.data);
+    };
+    recorder.onerror = (event) => {
+        if (generation !== rec.generation) return;
+        rec.status = 'error';
+        rec.errorMessage = '録音中にエラーが発生しました。';
+        console.warn('[practice-recording] recorder error:', event && event.error && event.error.name);
+        updatePracticeRecordingUI();
+    };
+    recorder.onstop = () => {
+        if (generation !== rec.generation) return;
+        rec.recorder = null;
+        if (!rec.chunks.length) {
+            rec.status = 'error';
+            rec.errorMessage = '録音データを作成できませんでした。';
+            updatePracticeRecordingUI();
+            return;
+        }
+        const blob = new Blob(rec.chunks, rec.mimeType ? { type: rec.mimeType } : undefined);
+        rec.chunks = [];
+        if (!blob.size) {
+            rec.status = 'error';
+            rec.errorMessage = '録音データが空でした。';
+            updatePracticeRecordingUI();
+            return;
+        }
+        rec.blob = blob;
+        try { rec.url = URL.createObjectURL(blob); }
+        catch (_) {
+            rec.blob = null;
+            rec.status = 'error';
+            rec.errorMessage = '録音の再生URLを作成できませんでした。';
+            updatePracticeRecordingUI();
+            return;
+        }
+        rec.status = 'available';
+        updatePracticeRecordingUI();
+    };
+    try {
+        recorder.start();
+    } catch (e) {
+        recorder.ondataavailable = null;
+        recorder.onstop = null;
+        recorder.onerror = null;
+        rec.recorder = null;
+        rec.status = 'error';
+        rec.errorMessage = '録音を開始できませんでした。';
+        console.warn('[practice-recording] start failed:', e && e.name);
+    }
+}
+
+function stopPracticeRecording() {
+    const recorder = state.practiceRecording.recorder;
+    if (!recorder) return;
+    try {
+        if (recorder.state !== 'inactive') recorder.stop();
+    } catch (e) {
+        state.practiceRecording.status = 'error';
+        state.practiceRecording.errorMessage = '録音を停止できませんでした。';
+        console.warn('[practice-recording] stop failed:', e && e.name);
+        updatePracticeRecordingUI();
+    }
+}
+
 function loop() {
     if (!state.running) return;
     // オーディオ時計の開始基準を、ctxが実際にrunningになった最初のフレームで確定（suspended中の0を避ける）
@@ -8338,6 +8551,7 @@ function loop() {
         if (state.audioCtx && state.audioCtx.state === 'running') {
             state.audioStartTime = state.audioCtx.currentTime;
             state.audioWaitStartTime = 0;
+            startPracticeRecording(); // AudioContextのPractice開始基準と同じフレームで録音開始時刻を保持
         } else {
             const now = performance.now();
             if (!state.audioWaitStartTime) state.audioWaitStartTime = now;
@@ -8473,6 +8687,8 @@ function stopLoopWithResult() {
 }
 
 function play() {
+    discardPracticeRecording(); // 新しいPractice開始前に前回録音を必ず破棄
+    if (els.missCauseDetails) els.missCauseDetails.open = false; // debugMicログの開閉状態を次回へ持ち越さない
     if (state.raf) {
         cancelAnimationFrame(state.raf);
         state.raf = 0;
@@ -8504,6 +8720,7 @@ function play() {
 }
 
 function stop() {
+    discardPracticeRecording();
     if (state.raf) {
         cancelAnimationFrame(state.raf);
         state.raf = 0;
@@ -8533,7 +8750,7 @@ function stopForPageHidden() {
     // cancelCalibration/stopBtCal は内部ガード（cal.saved 等）で多重実行しても壊れない（v0.9.140）。
     if (cal.active || mic.calibrating) cancelCalibration();
     stopBtCal();
-    if (!state.running) return;
+    if (!state.running) { discardPracticeRecording(); return; }
     stop();
     showRcToast('画面が非表示になったため停止しました');
 }
@@ -9804,6 +10021,8 @@ function finish(opts) {
     state.finishAtPerf = performance.now();             // v0.10.19：終了の実時刻（同上）
     state.running = false;
     state.loopActive = false;
+    stopPracticeRecording();
+    if (els.missCauseDetails) els.missCauseDetails.open = false; // 結果表示は開発用ログを必ず閉じた状態から
     // 停止後に未発音クリックを止める（途中停止と同様）
     state.scheduledClicks.forEach((osc) => { try { osc.stop(); } catch (_) { } });
     state.scheduledClicks = [];
@@ -9911,6 +10130,7 @@ function finish(opts) {
     if (els.rHistoryHead) els.rHistoryHead.classList.add('hidden');
     if (els.retryBtn) els.retryBtn.classList.remove('hidden');
     if (els.resultsDetail) els.resultsDetail.classList.remove('hidden');
+    updatePracticeRecordingUI();
     const micTuneRowLive = els.resultsMicTune ? els.resultsMicTune.closest('.result-mic-tune-row') : null;
     if (micTuneRowLive) micTuneRowLive.classList.remove('hidden'); // 履歴モードで隠したマイク導線を本番では戻す
 
@@ -10131,6 +10351,7 @@ function prepareResultsOverlayForHistory() {
     hide(els.resultsMissInfo); hide(els.missCauseDetails); hide(els.resultsChordDev); hide(els.resultsChordSpeedWarning);
     hide(els.resultsChordDetail); hide(els.resultsChordMiss); hide(els.resultsChordDebug);
     hide(els.resultsMicWrap); // 波形系（ストローク音量）は履歴では保存していない＝出さない
+    hide(els.resultsRecording); // 録音は今回のPracticeだけ。過去結果には保存・表示しない
     const micTuneRow = els.resultsMicTune ? els.resultsMicTune.closest('.result-mic-tune-row') : null;
     hide(micTuneRow);          // マイク手動設定への導線は履歴では不要
     show(els.resultsDetail);   // 「結果の詳細」固定カードは本番同様に表示
@@ -16902,6 +17123,7 @@ function retestMicWithRecommendedSettings() {
 }
 
 function stopMic() {
+    discardPracticeRecording(); // マイクstreamを止める前に、そのstreamを使う一時録音も破棄
     micStartGeneration++; // 起動中(許可ダイアログ中)の getUserMedia を無効化（v0.9.140）
     mic.on = false;
     cancelAnimationFrame(mic.raf);
@@ -18376,6 +18598,27 @@ function bind() {
         if (historyViewRecord) { closeResultHistoryDetail(); return; } // 履歴モード：現在のSTAGEを壊さず一覧へ戻る（v0.9.146）
         resetGame();
     });
+    if (els.resultsRecordingPlay) els.resultsRecordingPlay.addEventListener('click', () => {
+        const audio = els.resultsRecordingAudio;
+        if (!audio || state.practiceRecording.status !== 'available') return;
+        try { audio.currentTime = 0; } catch (_) { /* noop */ }
+        const started = audio.play();
+        setPracticeRecordingPlaybackUI(true);
+        if (started && typeof started.catch === 'function') {
+            started.catch(() => {
+                setPracticeRecordingPlaybackUI(false);
+                if (MIC_DEBUG_ON && els.resultsRecordingMessage) {
+                    els.resultsRecordingMessage.textContent = 'debugMic: 録音を再生できませんでした。';
+                }
+            });
+        }
+    });
+    if (els.resultsRecordingStop) els.resultsRecordingStop.addEventListener('click', stopPracticeRecordingPlayback);
+    if (els.resultsRecordingAudio) {
+        els.resultsRecordingAudio.addEventListener('ended', () => setPracticeRecordingPlaybackUI(false));
+        els.resultsRecordingAudio.addEventListener('pause', () => setPracticeRecordingPlaybackUI(false));
+        els.resultsRecordingAudio.addEventListener('error', () => setPracticeRecordingPlaybackUI(false));
+    }
     // 過去の結果（履歴）UI（v0.9.146）
     if (els.historyOpenBtn) els.historyOpenBtn.addEventListener('click', openResultHistory);
     if (els.historyCloseBtn) els.historyCloseBtn.addEventListener('click', closeResultHistory);

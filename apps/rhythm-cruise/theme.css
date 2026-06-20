@@ -2646,6 +2646,48 @@ h1 {
 .results-double-summary::-webkit-details-marker { display: none; }
 .results-double-detail > p { margin-top: 8px; margin-bottom: 8px; }
 
+/* 今回のPracticeだけに紐づく録音再生カード（v0.10.25）。 */
+.results-recording {
+    width: 100%;
+    padding: 14px;
+    border: 1px solid rgba(255, 209, 102, 0.28);
+    border-radius: 14px;
+    background: rgba(255, 209, 102, 0.06);
+}
+.results-recording.hidden { display: none; }
+.results-recording h3 {
+    margin: 0 0 6px;
+    font-size: 0.94rem;
+    color: var(--secondary-color);
+    text-align: center;
+}
+.results-recording p {
+    margin: 0;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: var(--muted-color);
+    text-align: center;
+}
+.results-recording audio { display: none; }
+.results-recording-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+.results-recording-actions.hidden { display: none; }
+.results-recording-actions button {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+    padding: 11px 8px;
+    font-size: 0.86rem;
+    white-space: nowrap;
+}
+.results-recording-actions button:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
 /* 二重反応の詳しい説明（詳細タブ内） */
 .result-double-detail {
     margin: 8px 0 4px;

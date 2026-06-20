@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.10.24">
+    <link rel="stylesheet" href="theme.css?v=0.10.25">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1182,7 +1182,18 @@
                 </div>
             </details>
 
-            <!-- 4. 結果の詳細（内訳・ズレ履歴グラフ）：常時表示（v0.10.24） -->
+            <!-- 4. 今回のPractice録音。過去履歴には保存せず、結果カードを離れたら破棄（v0.10.25）。 -->
+            <section class="results-recording hidden" id="results-recording" aria-labelledby="results-recording-title">
+                <h3 id="results-recording-title">録音で振り返る</h3>
+                <p id="results-recording-message">今回の演奏を録音しました。<br>結果を見ながら、自分のストローク音を確認できます。</p>
+                <audio id="results-recording-audio" preload="metadata"></audio>
+                <div class="results-recording-actions" id="results-recording-actions">
+                    <button type="button" class="btn-primary" id="results-recording-play">▶ 録音を再生</button>
+                    <button type="button" class="btn-ghost" id="results-recording-stop" disabled>■ 停止</button>
+                </div>
+            </section>
+
+            <!-- 5. 結果の詳細（内訳・ズレ履歴グラフ）：常時表示（v0.10.24） -->
             <section class="results-detail" id="results-detail" aria-labelledby="results-detail-title">
                 <h3 class="results-detail-title" id="results-detail-title">結果の詳細</h3>
                 <div class="results-detail-body">
@@ -1217,7 +1228,7 @@
                 </div>
             </section>
 
-            <!-- 4b. 開発用ログ：スコアMISSと、debugMic時の内部診断を分けて表示。 -->
+            <!-- 5b. 開発用ログ：スコアMISSと、debugMic時の内部診断を分けて表示。 -->
             <details class="results-detail is-quiet hidden" id="miss-cause-details">
                 <summary class="results-detail-summary">開発用ログ</summary>
                 <div class="results-detail-body">
@@ -1233,7 +1244,7 @@
                 </div>
             </details>
 
-            <!-- 5. 閉じる / もう一度（カスタムテスト時は「編集に戻る」も表示・v0.9.124） -->
+            <!-- 6. 閉じる / もう一度（カスタムテスト時は「編集に戻る」も表示・v0.9.124） -->
             <div class="results-actions">
                 <button class="btn-ghost" id="r-close-btn">閉じる</button>
                 <button class="btn-ghost hidden" id="r-edit-back-btn">編集に戻る</button>
@@ -1318,7 +1329,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.10.24"></script>
+    <script src="script.js?v=0.10.25"></script>
 </body>
 
 </html>
