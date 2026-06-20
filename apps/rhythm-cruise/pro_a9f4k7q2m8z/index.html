@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="../theme.css?v=0.10.47">
+    <link rel="stylesheet" href="../theme.css?v=0.10.48">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1155,7 +1155,7 @@
                     <div class="setting-label">開発用：JUSTライン表示ディレイ</div>
                     <p class="setting-note">録音音声・後付けクリック音は動かさず、画面上のJUSTラインだけを遅らせます。「クリック位置」とは別の調整です。</p>
                     <input type="range" id="debug-review-visual-delay-input" min="-150" max="250" step="10" value="0">
-                    <p class="setting-note"><b>現在: <span id="debug-review-visual-delay-value">0ms</span></b><br><b>実効表示遅延: <span id="debug-review-visual-effective-delay-value">0ms</span></b></p>
+                    <p class="setting-note"><b>BT自動表示補正: <span id="debug-review-visual-bt-delay-value">0ms</span></b><br><b>開発用追加ディレイ: <span id="debug-review-visual-delay-value">0ms</span></b><br><b>実効表示遅延: <span id="debug-review-visual-effective-delay-value">0ms</span></b></p>
                 </div>
                 <div class="results-recording-actions" id="results-recording-actions">
                     <button type="button" class="btn-primary" id="results-recording-play">▶ 録音を再生</button>
@@ -1288,7 +1288,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.10.47"></script>
+    <script src="../script.js?v=0.10.48"></script>
 </body>
 
 </html>

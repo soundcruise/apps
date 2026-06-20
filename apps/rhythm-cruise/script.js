@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.47';
+const RHYTHM_CRUISE_VERSION = '0.10.48';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -1162,6 +1162,7 @@ const els = {
     debugReviewVisualDelay: $('debug-review-visual-delay'),
     debugReviewVisualDelayInput: $('debug-review-visual-delay-input'),
     debugReviewVisualDelayValue: $('debug-review-visual-delay-value'),
+    debugReviewVisualBtDelayValue: $('debug-review-visual-bt-delay-value'),
     debugReviewVisualEffectiveDelayValue: $('debug-review-visual-effective-delay-value'),
     resultsChordDev: $('results-chord-dev'),
     resultsChordSpeedWarning: $('results-chord-speed-warning'),
@@ -1439,7 +1440,8 @@ const reviewTimelineDebug = {
     beatInterval: NaN, T0: NaN, targetMapMode: 'none',
     currentFormula: 'C', reviewClickAutoOffsetSource: 'none', paused: false,
     additionalReviewClickOffsetMs: 0, additionalReviewClickOffsetSource: 'none',
-    debugReviewVisualExtraDelayMs: 0, effectiveReviewVisualOutputLatencyMs: 0,
+    bluetoothReviewVisualExtraDelayMs: 0, debugReviewVisualExtraDelayMs: 0,
+    effectiveReviewVisualOutputLatencyMs: 0,
     candidateA_timeMs: NaN, candidateA_deltaToTargetMs: NaN, candidateA_xDeltaToTarget: NaN,
     candidateB_timeMs: NaN, candidateB_deltaToTargetMs: NaN, candidateB_xDeltaToTarget: NaN,
     candidateC_timeMs: NaN, candidateC_deltaToTargetMs: NaN, candidateC_xDeltaToTarget: NaN,
@@ -6399,6 +6401,7 @@ function micDebugText() {
         + 'reviewTimeline.additionalReviewClickOffsetMs: ' + (Number.isFinite(reviewTimelineDebug.additionalReviewClickOffsetMs) ? reviewTimelineDebug.additionalReviewClickOffsetMs : 0) + '\n'
         + 'reviewTimeline.additionalReviewClickOffsetSource: ' + (reviewTimelineDebug.additionalReviewClickOffsetSource || 'none') + '\n'
         + 'reviewTimeline.headphoneOutputOffsetMs: ' + (Number.isFinite(reviewTimelineDebug.headphoneOutputOffsetMs) ? reviewTimelineDebug.headphoneOutputOffsetMs : 0) + '\n'
+        + 'reviewTimeline.bluetoothReviewVisualExtraDelayMs: ' + (Number.isFinite(reviewTimelineDebug.bluetoothReviewVisualExtraDelayMs) ? reviewTimelineDebug.bluetoothReviewVisualExtraDelayMs : 0) + '\n'
         + 'reviewTimeline.debugReviewVisualExtraDelayMs: ' + (Number.isFinite(reviewTimelineDebug.debugReviewVisualExtraDelayMs) ? reviewTimelineDebug.debugReviewVisualExtraDelayMs : 0) + '\n'
         + 'reviewTimeline.effectiveReviewVisualOutputLatencyMs: ' + (Number.isFinite(reviewTimelineDebug.effectiveReviewVisualOutputLatencyMs) ? reviewTimelineDebug.effectiveReviewVisualOutputLatencyMs : 0) + '\n'
         + 'reviewTimeline.reviewClickTotalOffsetMs: ' + (Number.isFinite(reviewTimelineDebug.reviewClickTotalOffsetMs) ? reviewTimelineDebug.reviewClickTotalOffsetMs : 0) + '\n'
@@ -7545,17 +7548,18 @@ function reviewTimelineNearestTarget(timeMs) {
     return { index: best.index, timeMs: best.timeMs, x: best.x, deltaMs: timeMs - best.timeMs };
 }
 
-/* v0.10.42：debugMic専用。C は v0.10.45 本番式（hpOut + additionalReviewClick、二重引きガード済み）。 */
+/* v0.10.42：debugMic専用。C は本番JUST表示式（BT表示補正とdebug微調整を含む）。 */
 function reviewTimelineCandidateTimeMs(gameMs, formula, rec) {
     const g = Number(gameMs) || 0;
     const hp = reviewPracticeHeadphoneOutputOffsetMs(rec);
     const clk = reviewClickTotalOffsetMs(rec);
     const add = reviewAdditionalClickDisplayOffsetMs(rec);
+    const btExtra = reviewBluetoothVisualExtraDelayMs(rec);
     const debugExtra = reviewDebugVisualExtraDelayMs();
     switch (formula) {
         case 'A': return Math.max(0, g);
         case 'B': return Math.max(0, g - hp);
-        case 'C': return Math.max(0, g - hp - add - debugExtra);
+        case 'C': return Math.max(0, g - hp - btExtra - add - debugExtra);
         case 'D': return Math.max(0, g - clk);
         case 'E': return Math.max(0, g - Math.max(hp, clk));
         default: return Math.max(0, g);
@@ -7565,6 +7569,8 @@ function reviewTimelineCandidateTimeMs(gameMs, formula, rec) {
 function reviewProductionCurrentFormulaLabel(rec) {
     const hp = reviewPracticeHeadphoneOutputOffsetMs(rec);
     const add = reviewAdditionalClickDisplayOffsetMs(rec);
+    const btExtra = reviewBluetoothVisualExtraDelayMs(rec);
+    if (btExtra > 0) return 'C (hpOut + BT visual + review-click display)';
     if (add > 0) return 'C (hpOut + review-click display)';
     if (hp > 0) return 'B (hpOut only)';
     return 'A';
@@ -7732,19 +7738,35 @@ function reviewDebugVisualExtraDelayMs() {
     return MIC_DEBUG_ON ? debugReviewVisualExtraDelayMs : 0;
 }
 
+const BT_REVIEW_VISUAL_EXTRA_DELAY_MS = 170;
+
+function reviewBluetoothVisualExtraDelayMs(rec) {
+    const r = rec || state.practiceRecording;
+    const isBtReview = r && r.reviewPracticeInputType === 'headphone'
+        && r.reviewPracticeHeadphoneType === 'bluetooth'
+        && r.reviewClickBtDetected === true;
+    return isBtReview ? BT_REVIEW_VISUAL_EXTRA_DELAY_MS : 0;
+}
+
+function reviewEffectiveVisualOutputLatencyMs(rec) {
+    return reviewPracticeHeadphoneOutputOffsetMs(rec)
+        + reviewBluetoothVisualExtraDelayMs(rec)
+        + reviewDebugVisualExtraDelayMs();
+}
+
 function reviewJustDisplayOffsetMs(rec) {
     const r = rec || state.practiceRecording;
-    const debugExtra = reviewDebugVisualExtraDelayMs();
-    if (!r || r.reviewPracticeInputType === 'normal') return -debugExtra;
-    const hp = reviewPracticeHeadphoneOutputOffsetMs(r);
+    if (!r || r.reviewPracticeInputType === 'normal') return -reviewDebugVisualExtraDelayMs();
+    const outputLatency = reviewEffectiveVisualOutputLatencyMs(r);
     const addClick = reviewAdditionalClickDisplayOffsetMs(r);
-    return -(hp + addClick + debugExtra);
+    return -(outputLatency + addClick);
 }
 
 function reviewJustDisplayOffsetSource(rec) {
     const r = rec || state.practiceRecording;
     const debugExtra = reviewDebugVisualExtraDelayMs();
     if (debugExtra !== 0) return 'debug-review-visual-extra-delay';
+    if (reviewBluetoothVisualExtraDelayMs(r) > 0) return 'bluetooth-review-visual-extra-delay';
     if (!r || r.reviewPracticeInputType === 'normal') return 'normal-mic';
     const hp = reviewPracticeHeadphoneOutputOffsetMs(r);
     const add = reviewAdditionalClickDisplayOffsetMs(r);
@@ -7869,9 +7891,9 @@ function drawReviewPlayheadAtSec(sec) {
     reviewTimelineDebug.justDisplayOffsetMs = justOff;
     reviewTimelineDebug.justDisplayOffsetSource = reviewJustDisplayOffsetSource(rec);
     reviewTimelineDebug.headphoneOutputOffsetMs = reviewPracticeHeadphoneOutputOffsetMs(rec);
+    reviewTimelineDebug.bluetoothReviewVisualExtraDelayMs = reviewBluetoothVisualExtraDelayMs(rec);
     reviewTimelineDebug.debugReviewVisualExtraDelayMs = reviewDebugVisualExtraDelayMs();
-    reviewTimelineDebug.effectiveReviewVisualOutputLatencyMs = reviewTimelineDebug.headphoneOutputOffsetMs
-        + reviewTimelineDebug.debugReviewVisualExtraDelayMs;
+    reviewTimelineDebug.effectiveReviewVisualOutputLatencyMs = reviewEffectiveVisualOutputLatencyMs(rec);
     reviewTimelineDebug.reviewClickTotalOffsetMs = reviewClickTotalOffsetMs(rec);
     reviewTimelineDebug.visualOffsetMs = reviewVisualOffsetMs(rec);
     reviewTimelineDebug.visualOffsetSource = reviewVisualOffsetSource(rec);
@@ -9755,9 +9777,11 @@ function updateDebugReviewVisualDelayUI() {
     if (els.debugReviewVisualDelay) els.debugReviewVisualDelay.classList.toggle('hidden', !MIC_DEBUG_ON);
     if (!MIC_DEBUG_ON) return;
     const extra = reviewDebugVisualExtraDelayMs();
-    const effective = reviewPracticeHeadphoneOutputOffsetMs(state.practiceRecording) + extra;
+    const btExtra = reviewBluetoothVisualExtraDelayMs(state.practiceRecording);
+    const effective = reviewEffectiveVisualOutputLatencyMs(state.practiceRecording);
     if (els.debugReviewVisualDelayInput) els.debugReviewVisualDelayInput.value = String(extra);
     if (els.debugReviewVisualDelayValue) els.debugReviewVisualDelayValue.textContent = formatSignedReviewDelayMs(extra);
+    if (els.debugReviewVisualBtDelayValue) els.debugReviewVisualBtDelayValue.textContent = formatSignedReviewDelayMs(btExtra);
     if (els.debugReviewVisualEffectiveDelayValue) els.debugReviewVisualEffectiveDelayValue.textContent = Math.round(effective) + 'ms';
 }
 
