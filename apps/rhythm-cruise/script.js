@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.41';
+const RHYTHM_CRUISE_VERSION = '0.10.42';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -1430,6 +1430,12 @@ const reviewTimelineDebug = {
     nearestTargetIndex: null, nearestTargetTimeMs: NaN, nearestTargetX: NaN,
     deltaToNearestTargetMs: NaN, xDeltaToNearestTarget: NaN,
     beatInterval: NaN, T0: NaN, targetMapMode: 'none',
+    currentFormula: 'B', reviewClickAutoOffsetSource: 'none',
+    candidateA_timeMs: NaN, candidateA_deltaToTargetMs: NaN, candidateA_xDeltaToTarget: NaN,
+    candidateB_timeMs: NaN, candidateB_deltaToTargetMs: NaN, candidateB_xDeltaToTarget: NaN,
+    candidateC_timeMs: NaN, candidateC_deltaToTargetMs: NaN, candidateC_xDeltaToTarget: NaN,
+    candidateD_timeMs: NaN, candidateD_deltaToTargetMs: NaN, candidateD_xDeltaToTarget: NaN,
+    candidateE_timeMs: NaN, candidateE_deltaToTargetMs: NaN, candidateE_xDeltaToTarget: NaN,
 };
 const REVIEW_WRAP_SCROLL_ANCHOR = 0.35; // playhead を表示幅の左35%付近に保つ
 let reviewFlowScoreReady = false; // 結果見返しの固定譜面(VexFlow)が正常描画できているか（true時だけCanvas固定音符を隠す・v0.9.140）
@@ -6384,6 +6390,13 @@ function micDebugText() {
         + 'reviewTimeline.beatInterval: ' + (Number.isFinite(reviewTimelineDebug.beatInterval) ? Math.round(reviewTimelineDebug.beatInterval) : '-') + '\n'
         + 'reviewTimeline.T0: ' + (Number.isFinite(reviewTimelineDebug.T0) ? Math.round(reviewTimelineDebug.T0) : '-') + '\n'
         + 'reviewTimeline.targetMapMode: ' + (reviewTimelineDebug.targetMapMode || 'none') + '\n'
+        + 'reviewTimeline.currentFormula: ' + (reviewTimelineDebug.currentFormula || 'B') + ' (v0.10.41 production)\n'
+        + 'reviewTimeline.reviewClickAutoOffsetSource: ' + (reviewTimelineDebug.reviewClickAutoOffsetSource || '-') + '\n'
+        + reviewTimelineCandidateDebugLine('A')
+        + reviewTimelineCandidateDebugLine('B')
+        + reviewTimelineCandidateDebugLine('C')
+        + reviewTimelineCandidateDebugLine('D')
+        + reviewTimelineCandidateDebugLine('E')
         + 'reviewTimeline.scrollLeft: ' + (Number.isFinite(reviewTimelineDebug.scrollLeft) ? Math.round(reviewTimelineDebug.scrollLeft) : '-') + '\n'
         + 'reviewTimeline.scrollTarget: ' + (Number.isFinite(reviewTimelineDebug.scrollTarget) ? Math.round(reviewTimelineDebug.scrollTarget) : '-') + '\n'
         + 'reviewTimeline.rafActive: ' + (reviewTimelineDebug.rafActive ? 'yes' : 'no') + '\n'
@@ -7500,6 +7513,46 @@ function reviewTimelineNearestTarget(timeMs) {
     return { index: best.index, timeMs: best.timeMs, x: best.x, deltaMs: timeMs - best.timeMs };
 }
 
+/* v0.10.42：debugMic専用。本番JUSTラインは変更せず、候補式A〜Eの時刻・ターゲットズレを診断表示する。 */
+function reviewTimelineCandidateTimeMs(gameMs, formula, hpOut, clickOff) {
+    const g = Number(gameMs) || 0;
+    const hp = Number(hpOut) || 0;
+    const clk = Number(clickOff) || 0;
+    switch (formula) {
+        case 'A': return Math.max(0, g);
+        case 'B': return Math.max(0, g - hp);
+        case 'C': return Math.max(0, g - hp - clk);
+        case 'D': return Math.max(0, g - clk);
+        case 'E': return Math.max(0, g - Math.max(hp, clk));
+        default: return Math.max(0, g);
+    }
+}
+
+function populateReviewTimelineCandidateDebug(gameMs, rec) {
+    const hp = reviewPracticeHeadphoneOutputOffsetMs(rec);
+    const clk = reviewClickTotalOffsetMs(rec);
+    reviewTimelineDebug.currentFormula = 'B';
+    reviewTimelineDebug.reviewClickAutoOffsetSource = rec.reviewClickAutoOffsetSource || 'none';
+    for (const key of ['A', 'B', 'C', 'D', 'E']) {
+        const timeMs = reviewTimelineCandidateTimeMs(gameMs, key, hp, clk);
+        const nearest = reviewTimelineNearestTarget(timeMs);
+        const cx = reviewTimeToReviewX(timeMs);
+        reviewTimelineDebug['candidate' + key + '_timeMs'] = timeMs;
+        reviewTimelineDebug['candidate' + key + '_deltaToTargetMs'] = nearest ? nearest.deltaMs : NaN;
+        reviewTimelineDebug['candidate' + key + '_xDeltaToTarget'] = (nearest && Number.isFinite(cx)) ? (cx - nearest.x) : NaN;
+    }
+}
+
+function reviewTimelineCandidateDebugLine(key) {
+    const t = reviewTimelineDebug['candidate' + key + '_timeMs'];
+    const d = reviewTimelineDebug['candidate' + key + '_deltaToTargetMs'];
+    const x = reviewTimelineDebug['candidate' + key + '_xDeltaToTarget'];
+    return 'reviewTimeline.candidate' + key + ': time='
+        + (Number.isFinite(t) ? Math.round(t) : '-') + ', delta='
+        + (Number.isFinite(d) ? Math.round(d) : '-') + ', xDelta='
+        + (Number.isFinite(x) ? x.toFixed(1) : '-') + '\n';
+}
+
 /* v0.10.41：結果JUSTライン専用の出力表示補正（Practice drawLane の gridDispOff と同じ heard-time 寄せ）。
    固定JUST+動く譜面(Practice)では bt+gridDispOff で音符を遅らせる。
    固定譜面+動くJUST(Review)では playhead を gameMs-gridDispOff へ＝justDisplayOffsetMs=-hpOut。
@@ -7655,6 +7708,7 @@ function drawReviewPlayheadAtSec(sec) {
         reviewTimelineDebug.deltaToNearestTargetMs = NaN;
         reviewTimelineDebug.xDeltaToNearestTarget = NaN;
     }
+    populateReviewTimelineCandidateDebug(gameMs, rec);
     if (!Number.isFinite(x) || x < -8 || x > w + 8) {
         els.reviewPlayheadCanvas.classList.add('hidden');
         if (rec.playbackActive) updateReviewWrapScroll(x);
