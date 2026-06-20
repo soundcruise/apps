@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.34';
+const RHYTHM_CRUISE_VERSION = '0.10.35';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -679,6 +679,11 @@ const state = {
         reviewClickSessionScheduledCount: 0,// 現在の再生セッション内の予約数（reviewClickTimesを大きく超えないこと）
         reviewClickTotalScheduledCount: 0,  // 全再生通算の予約数（累計・debug表示用）
         reviewClickPlayFallbackTimer: null, // playからplayingが来ないときのフォールバックtimer
+        // v0.10.35：クリック位置補正（録音振り返り専用・一時state。+msで後付けクリックを遅らせる）
+        reviewClickOffsetMs: 0,
+        reviewClickSeekedIgnoredCount: 0,   // Safari等の不要seekedを無視した回数（debug）
+        reviewClickSeekedHandledCount: 0,   // 将来の明示シーク対応用（v0.10.35では増えない）
+        reviewClickVisibilityStopCount: 0,// ページ非表示でクリックoverlayを止めた回数（debug）
         debug: null,
     },
     results: new Array(TOTAL_BEATS).fill(null),
@@ -1157,6 +1162,9 @@ const els = {
     resultsRecordingClickVolumeRow: $('results-recording-click-volume-row'),
     resultsRecordingClickVolume: $('results-recording-click-volume'),       // v0.10.32：クリック音量スライダー
     resultsRecordingClickVolumeValue: $('results-recording-click-volume-value'),
+    resultsRecordingClickOffsetRow: $('results-recording-click-offset-row'),   // v0.10.35：クリック位置補正
+    resultsRecordingClickOffset: $('results-recording-click-offset'),
+    resultsRecordingClickOffsetValue: $('results-recording-click-offset-value'),
     resultsRecordingActions: $('results-recording-actions'),
     resultsRecordingPlay: $('results-recording-play'),
     resultsRecordingStop: $('results-recording-stop'),
@@ -6301,6 +6309,10 @@ function micDebugText() {
         + 'reviewClick.resyncCount: ' + (rec ? (rec.reviewClickResyncCount || 0) : 0) + '\n'
         + 'reviewClick.resyncReason: ' + (rec ? rec.reviewClickResyncReason : '-') + '\n'
         + 'reviewClick.skippedPastCount: ' + (rec ? (rec.reviewClickSkippedPastCount || 0) : 0) + '\n'
+        + 'reviewClick.offsetMs: ' + (rec ? (rec.reviewClickOffsetMs || 0) : 0) + '\n'
+        + 'reviewClick.seekedIgnoredCount: ' + (rec ? (rec.reviewClickSeekedIgnoredCount || 0) : 0) + '\n'
+        + 'reviewClick.seekedHandledCount: ' + (rec ? (rec.reviewClickSeekedHandledCount || 0) : 0) + '\n'
+        + 'reviewClick.visibilityStopCount: ' + (rec ? (rec.reviewClickVisibilityStopCount || 0) : 0) + '\n'
         + 'reviewClick.pending: ' + (rec && Array.isArray(rec.reviewClickOscillators) ? rec.reviewClickOscillators.length : 0) + '\n'
         + 'track.events: ' + (rd && rd.trackEvents.length ? rd.trackEvents.join(', ') : '-');
 }
@@ -8465,10 +8477,15 @@ const REVIEW_CLICK_VOLUME_DEFAULT = 50;   // クリック音量初期値（%）
 const REVIEW_CLICK_LOOKAHEAD_SEC = 0.6;   // 先読みスケジュール幅（秒）：iPhone Safari/Web Audio経路でも遅れにくいよう少し長め
 const REVIEW_CLICK_TICK_MS = 100;         // 先読みスケジュールの監視間隔（ms）
 const REVIEW_CLICK_PAST_SEC = 0.03;       // この秒数より過去になったクリックはスキップ（無理に遅れて鳴らさない）
-/* v0.10.34：再同期の暴れ抑制。通常再生中はアンカーを張り直さず、固定アンカーのまま ctx クロックで進める。
-   再アンカーは playing / seeked / 経路切替 / 明確な巻き戻り のときだけ。 */
+/* v0.10.34→35：再同期の暴れ抑制。通常再生中はアンカーを張り直さず、固定アンカーのまま ctx クロックで進める。
+   再アンカーは playing / 経路切替 / 明確な巻き戻り / 位置補正変更 のときだけ。seekedは再セッションしない（v0.10.35）。 */
 const REVIEW_CLICK_PLAY_FALLBACK_MS = 280;// playからplayingが来ないときに、この時間後にフォールバックでセッション開始
 const REVIEW_CLICK_REWIND_SEC = 0.6;      // 実audio.currentTimeがアンカー開始位置よりこの秒数以上「前」へ戻ったら巻き戻しとみなして再アンカー
+/* v0.10.35：後付けクリックの位置補正（録音振り返り専用）。+msで遅らせる／-msで早める。 */
+const REVIEW_CLICK_OFFSET_MS_DEFAULT = 0;
+const REVIEW_CLICK_OFFSET_MS_MIN = -100;
+const REVIEW_CLICK_OFFSET_MS_MAX = 250;
+const REVIEW_CLICK_OFFSET_MS_STEP = 10;
 
 function createPracticeRecordingDebug() {
     return {
@@ -8640,8 +8657,8 @@ function bindPracticeRecordingAudioEvents(audio) {
     audio.addEventListener('playing', () => beginReviewClickSession('playing'));
     audio.addEventListener('pause', () => { stopReviewClickOverlay(); setPracticeRecordingPlaybackUI(false); });
     audio.addEventListener('error', () => { stopReviewClickOverlay(); setPracticeRecordingPlaybackUI(false); });
-    // v0.10.33→34：seek完了時だけ再アンカー（再生中のみ）。通常再生中は再アンカーしない。
-    audio.addEventListener('seeked', () => { if (!audio.paused) beginReviewClickSession('seeked', 'seeked'); });
+    // v0.10.35：seekedはdebug記録のみ（Safari/iOSは再生開始・経路切替等でもseekedが出るため再セッションしない）。
+    audio.addEventListener('seeked', onPracticeRecordingSeeked);
     const updateDuration = () => {
         const duration = Number(audio.duration);
         const debug = state.practiceRecording.debug;
@@ -8893,12 +8910,52 @@ function scheduleReviewClicksAhead() {
         rec.reviewClickSkippedPastCount++;
     }
     const horizon = estPos + REVIEW_CLICK_LOOKAHEAD_SEC;
+    const offsetSec = reviewClickOffsetSec(rec.reviewClickOffsetMs);
     while (rec.reviewClickNextIndex < times.length && times[rec.reviewClickNextIndex].t <= horizon) {
         const c = times[rec.reviewClickNextIndex];
-        const when = anchorC + (c.t - anchorM); // ★固定アンカー基準のctx時刻へ予約（逐次audio.currentTimeに依存しない）
+        const when = anchorC + (c.t - anchorM) + offsetSec; // ★固定アンカー＋位置補正（+msで遅らせる）
         scheduleReviewClick(when, c.accent);
         rec.reviewClickNextIndex++;
     }
+}
+
+function reviewClickOffsetMsValue(value) {
+    const n = Number(value);
+    const clamped = Number.isFinite(n) ? n : REVIEW_CLICK_OFFSET_MS_DEFAULT;
+    return Math.max(REVIEW_CLICK_OFFSET_MS_MIN, Math.min(REVIEW_CLICK_OFFSET_MS_MAX, clamped));
+}
+function reviewClickOffsetSec(offsetMs) {
+    return reviewClickOffsetMsValue(offsetMs) / 1000;
+}
+function formatReviewClickOffsetMs(offsetMs) {
+    const n = reviewClickOffsetMsValue(offsetMs);
+    if (n > 0) return '+' + n + 'ms';
+    if (n < 0) return n + 'ms';
+    return '0ms';
+}
+
+/* v0.10.35：Safari等の不要seekedは記録のみ。明示シークUIが無い間は再セッション開始しない。 */
+function onPracticeRecordingSeeked() {
+    const rec = state.practiceRecording;
+    rec.reviewClickSeekedIgnoredCount = (rec.reviewClickSeekedIgnoredCount || 0) + 1;
+    if (MIC_DEBUG_ON) updateMicDebugBox();
+}
+
+/* v0.10.35：再生中にクリック位置補正を変えたとき、録音再生は止めずoverlayだけ現在位置から作り直す。 */
+function restartReviewClickFromCurrentPosition() {
+    const rec = state.practiceRecording;
+    if (!rec.reviewClickEnabled) return;
+    const audio = els.resultsRecordingAudio;
+    if (!audio || audio.paused) return;
+    if (!rec.reviewClickTimer) {
+        beginReviewClickSession('offset');
+        return;
+    }
+    cancelScheduledReviewClicks();
+    if (!setReviewClickAnchor()) return;
+    scheduleReviewClicksAhead();
+    rec.reviewClickResyncReason = 'offset';
+    if (MIC_DEBUG_ON) updateMicDebugBox();
 }
 
 /* v0.10.34：1再生セッションを開始する（アンカー固定＋スケジューラ起動）。source は debug用のアンカー根拠。
@@ -8968,6 +9025,10 @@ function cleanupReviewClickOverlay() {
     rec.reviewClickResyncReason = '-';
     rec.reviewClickEnabled = true;
     rec.reviewClickVolume = REVIEW_CLICK_VOLUME_DEFAULT;
+    rec.reviewClickOffsetMs = REVIEW_CLICK_OFFSET_MS_DEFAULT;
+    rec.reviewClickSeekedIgnoredCount = 0;
+    rec.reviewClickSeekedHandledCount = 0;
+    rec.reviewClickVisibilityStopCount = 0;
 }
 
 /* v0.10.32：クリック重ねのUI（ON/OFFチェック・音量スライダー）を一時stateの現在値へ反映する。 */
@@ -8977,6 +9038,9 @@ function applyReviewClickUI() {
     if (els.resultsRecordingClickVolume) els.resultsRecordingClickVolume.value = String(rec.reviewClickVolume);
     if (els.resultsRecordingClickVolumeValue) els.resultsRecordingClickVolumeValue.textContent = Math.round(rec.reviewClickVolume) + '%';
     if (els.resultsRecordingClickVolumeRow) els.resultsRecordingClickVolumeRow.classList.toggle('is-muted', !rec.reviewClickEnabled);
+    if (els.resultsRecordingClickOffset) els.resultsRecordingClickOffset.value = String(reviewClickOffsetMsValue(rec.reviewClickOffsetMs));
+    if (els.resultsRecordingClickOffsetValue) els.resultsRecordingClickOffsetValue.textContent = formatReviewClickOffsetMs(rec.reviewClickOffsetMs);
+    if (els.resultsRecordingClickOffsetRow) els.resultsRecordingClickOffsetRow.classList.toggle('is-muted', !rec.reviewClickEnabled);
 }
 
 function updatePracticeRecordingUI() {
@@ -9427,11 +9491,21 @@ function stopForPageHidden() {
     // cancelCalibration/stopBtCal は内部ガード（cal.saved 等）で多重実行しても壊れない（v0.9.140）。
     if (cal.active || mic.calibrating) cancelCalibration();
     stopBtCal();
-    stopReviewClickOverlay(); // v0.10.32：録音再生クリック重ねの予約を必ず止める
+    // v0.10.35：録音再生中ならpause＋クリックoverlay停止。Blob/Object URLは破棄しない。
+    const rec = state.practiceRecording;
+    const recAudio = els.resultsRecordingAudio;
+    if (recAudio && !recAudio.paused) {
+        try { recAudio.pause(); } catch (_) { /* noop */ }
+        setPracticeRecordingPlaybackUI(false);
+    }
+    stopReviewClickOverlay();
+    if (rec.status === 'available' || rec.status === 'recording') {
+        rec.reviewClickVisibilityStopCount = (rec.reviewClickVisibilityStopCount || 0) + 1;
+    }
     const wasRunning = state.running;
     if (wasRunning) stop();
     if (mic.on) stopMic();
-    else discardPracticeRecording();
+    else if (rec.status !== 'available' && rec.status !== 'recording') discardPracticeRecording();
     // 共有AudioContextは再利用するためcloseせず、非表示中だけベストエフォートでsuspendする。
     const ctx = state.audioCtx;
     if (ctx && ctx.state === 'running' && typeof ctx.suspend === 'function') {
@@ -19334,6 +19408,17 @@ function bind() {
             rec.reviewClickVolume = Math.max(0, Math.min(100, Number.isFinite(n) ? n : REVIEW_CLICK_VOLUME_DEFAULT));
             if (els.resultsRecordingClickVolumeValue) els.resultsRecordingClickVolumeValue.textContent = Math.round(rec.reviewClickVolume) + '%';
             if (MIC_DEBUG_ON) updateMicDebugBox();
+        });
+    }
+    // v0.10.35：クリック位置補正（+msで後付けクリックを遅らせる）。再生中はoverlayだけ作り直す。
+    if (els.resultsRecordingClickOffset) {
+        els.resultsRecordingClickOffset.addEventListener('input', () => {
+            const rec = state.practiceRecording;
+            rec.reviewClickOffsetMs = reviewClickOffsetMsValue(els.resultsRecordingClickOffset.value);
+            if (els.resultsRecordingClickOffsetValue) {
+                els.resultsRecordingClickOffsetValue.textContent = formatReviewClickOffsetMs(rec.reviewClickOffsetMs);
+            }
+            restartReviewClickFromCurrentPosition();
         });
     }
     if (els.resultsRecordingStop) els.resultsRecordingStop.addEventListener('click', stopPracticeRecordingPlayback);
