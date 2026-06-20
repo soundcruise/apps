@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.22';
+const RHYTHM_CRUISE_VERSION = '0.10.23';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -443,6 +443,17 @@ function micDisplayFracEff(peak) {
 }
 function micThresholdMarkerPct() {
     return (1 / MIC_DISPLAY_SCALE) * 100; // 反応ラインの表示位置（約40%固定）
+}
+/* v0.10.23：音量「波形」描画専用の共通縦スケール（Play画面の波形・結果カードの見返し波形・各拍バーで共通）。
+   反応ラインを 1/MIC_WAVE_DISPLAY_SCALE(≒22%) と低めに置くことで、普通の良いストローク（ピーク〜4×反応ライン）が
+   上端で切れず10〜15%程度の余白を残す。真の過大入力（5×以上）はそれでも上端で切れる＝過大入力に見える余地は残す。
+   micDisplayFracEff と同じ実効しきい値(micEffectiveThreshold)基準なので、マイク感度カーブはそのまま反映される。
+   レベルバー(meter)は従来の micDisplayFracEff/MIC_DISPLAY_SCALE のまま（ここは波形描画にだけ使う・判定は不変）。 */
+const MIC_WAVE_DISPLAY_SCALE = 4.5;
+function micWaveDisplayFrac(peak) {
+    const thr = micEffectiveThreshold();
+    const base = (thr > 0 ? thr : 0.16) * MIC_WAVE_DISPLAY_SCALE;
+    return Math.max(0, Math.min(1, peak / base));
 }
 
 /* マイク波形（背景表示）用の保持時間。古いサンプルはこれを超えたら破棄 */
@@ -6448,8 +6459,9 @@ function drawResultsMic() {
     const padX = 10, padTop = 12, padBot = 14;
     const x0 = padX, x1 = w - padX, baseY = h - padBot, topY = padTop;
     const usableH = baseY - topY;
-    // 表示スケール：Play画面と同じ実効しきい値基準（micDisplayFracEff）で揃える（v0.9.140）。マイク感度カーブ反映後。
-    const valToY = (v) => baseY - Math.max(0, Math.min(1, micDisplayFracEff(v))) * usableH;
+    // v0.10.23：Play画面の波形・結果見返しと共通の波形スケール（micWaveDisplayFrac）で揃える。
+    //   良い入力のピークが上端で切れにくく、反応ラインも同じスケール上に描かれる（判定は不変）。
+    const valToY = (v) => baseY - Math.max(0, Math.min(1, micWaveDisplayFrac(v))) * usableH;
     // 反応ライン（薄い横線＋ラベル）。この高さを超える入力が「反応しやすい」目安（判定そのものではない）。
     const lineY = valToY(micEffectiveThreshold());
     ctx.strokeStyle = 'rgba(255,159,28,0.45)';
@@ -6706,7 +6718,7 @@ function drawMicWaveform(ctx, w, h, yc, rawT, dispOff) {
     // 実効しきい値基準（v0.9.140）なので、波形も反応ラインもマイク感度カーブを反映する（0%ではほぼ平坦）。
     // 表示は相対スケールなので、反応ラインは常に振幅 micDisplayFracEff(effective)（≒0.4）の高さに来る。
     if (state.inputMode === 'stroke' || mic.on) {
-        const lineAmp = micDisplayFracEff(micEffectiveThreshold()) * maxAmp;
+        const lineAmp = micWaveDisplayFrac(micEffectiveThreshold()) * maxAmp; // v0.10.23：波形と共通スケール
         ctx.save();
         ctx.strokeStyle = 'rgba(255,159,28,0.30)';
         ctx.setLineDash([4, 4]);
@@ -6735,7 +6747,7 @@ function drawMicWaveform(ctx, w, h, yc, rawT, dispOff) {
         for (let k = 0; k < rw.length; k++) {
             const x = jx + (rw[k].t + dOff - rawT) * ppm;
             if (x < -24 || x > w + 24) continue;
-            pts.push([x, micDisplayFracEff(rw[k].level)]);
+            pts.push([x, micWaveDisplayFrac(rw[k].level)]); // v0.10.23：波形共通スケール
         }
     } else {
         // STAGE停止中など micRunWave が無い場面は、従来どおりライブ履歴(perf基準＋判定補正)で描く。
@@ -6747,9 +6759,9 @@ function drawMicWaveform(ctx, w, h, yc, rawT, dispOff) {
             latestWaveT = hist[hist.length - 1].perf + off;
             for (let k = 0; k < hist.length; k++) {
                 const s = hist[k];
-                const x = jx + (s.perf + off + dOff - now) * ppm; // 今＝判定ライン、過去＝左へ流れる（補正＋表示寄せ込み）
+                const x = jx + (s.perf + off + dOff - now) * ppm; // 今＝反応ライン、過去＝左へ流れる（補正＋表示寄せ込み）
                 if (x < -24 || x > w + 24) continue;
-                pts.push([x, micDisplayFracEff(s.level)]);
+                pts.push([x, micWaveDisplayFrac(s.level)]); // v0.10.23：波形共通スケール
             }
         }
     }
@@ -7227,7 +7239,7 @@ function syncDebugWaveControls() {
 function drawReviewMicOverlay(ctx, w, h, yc, beatX, beatPx) {
     if (state.inputMode !== 'stroke') return;
     const maxAmp = h * STAGE_WAVE_AMP_FRAC; // Play画面と同じ縦スケール（v0.9.140：0.26→共通値。波形は音符/文字の背後に薄く描くので重なっても可読性は保たれる）
-    const frac = (v) => Math.max(0, Math.min(1, micDisplayFracEff(v))); // Play画面と同じ実効しきい値基準（v0.9.140）
+    const frac = (v) => Math.max(0, Math.min(1, micWaveDisplayFrac(v))); // v0.10.23：Play画面・各拍バーと共通の波形スケール（ピークが切れにくい）
     const lineAmp = frac(micEffectiveThreshold()) * maxAmp; // 判定ラインの表示高さ（≒0.4×maxAmp）
     const leftPad = beatX(0);
     // t(補正後ゲームms) → x（音符と同じ拍位置）
@@ -7296,17 +7308,18 @@ function drawReviewMicOverlay(ctx, w, h, yc, beatX, beatPx) {
     ctx.restore();
 }
 
-/* v0.10.4：コードモード結果カードの「採用判定時刻」縦線（表示専用・判定/集計には一切不使用）。
-   コードモードはブラッシングと違い「波形が判定ラインを跨いだ瞬間＝判定時刻」ではなく、
-   chordゲート成立後にバックデートした採用時刻でGOOD/EARLY/LATEを判定する。そのため波形だけ
-   見るとどこで判定されたか分かりにくい。ここで採用時刻を波形帯に縦線として可視化する。
-   ・通常URL：採用時刻（adopted）の実線（判定色）だけ。raw確定時刻は出さない。
-   ・?debugMic=1：raw確定時刻（薄グレー点線）も併記し、raw→adopted（バックデート）の関係を見せる。
-   ・二重反応のあった拍には紫系の縦線と double ラベルを添える。表示のみ・ロジック不変。
-   コードモード(inputMode='stroke' かつ strokeDetectMode='chord')以外は何も描かない
-   ＝ブラッシング/タップの既存表示は完全に不変。x基準は色付き符頭と同じ beatX(i)+diff×offScale。 */
-function drawReviewChordTimeLines(ctx, w, h, yc, beatX, beatPx) {
-    if (state.inputMode !== 'stroke' || state.strokeDetectMode !== 'chord') return;
+/* v0.10.4 → v0.10.23：結果カードの「採用された入力タイミング」縦線（表示専用・判定/集計には一切不使用）。
+   反応ライン（音量の目安）だけでは「線より下に落ちないと拾われない」と誤解されやすいため、実際に採用された
+   入力タイミングを波形帯に判定色の縦線で可視化する。
+   ・データ元は state.results（＝実際に採点へ使われた値）。位置は符頭と同じ beatX(i)+diff×offScale で
+     結果カードのズレms表示と一致する。STAGE6 MISS専用補完(stage6RiseFallback)で採用された入力も source==='mic'
+     なので同様に描かれる。registerChordHit専用のdebugデータからは描かない。
+   ・縦線色：GOOD=緑 / EARLY=青 / LATE=赤。MISS（採用なし）は線を出さない。
+   ・?debugMic=1 かつ chord のときだけ、raw確定時刻（薄グレー点線）を併記（chord専用debug・brushでは空）。
+   ・二重反応のあった拍には紫系の縦線と double ラベル。表示のみ・ロジック不変。
+   v0.10.23：旧コードストローク専用だったのを、新ストローク本体（brush）でも描くよう ungate。タップでは出さない。 */
+function drawReviewAdoptedTimeLines(ctx, w, h, yc, beatX, beatPx) {
+    if (state.inputMode !== 'stroke') return; // ストローク（brush/chord）でのみ。タップは従来どおり出さない。
     const offScale = beatPx / state.beatInterval;       // 色付き符頭(drawReview)と同じ ms→px スケール
     const maxOff = beatPx * 0.46;                        // 隣拍に被らない範囲（符頭と同じ制限）
     const maxAmp = h * STAGE_WAVE_AMP_FRAC;              // 波形帯の高さ（drawReviewMicOverlayと共通）
@@ -7385,8 +7398,9 @@ function drawReview() {
     // ストローク音量波形＋反応ライン（STAGE本番と同じ時間軸で薄く重ねる。なぜタイミング外かを見やすく）
     drawReviewMicOverlay(ctx, w, h, yc, beatX, beatPx);
 
-    // コードモードのみ：採用判定時刻の縦線（波形だけでは判定位置が分かりにくいため）。表示専用・判定不変（v0.10.4）。
-    drawReviewChordTimeLines(ctx, w, h, yc, beatX, beatPx);
+    // ストローク：採用された入力タイミングの縦線（GOOD/EARLY/LATE色）。波形だけでは採用位置が分かりにくいため。
+    //   表示専用・判定不変（v0.10.4 chord専用 → v0.10.23 brush本体でも表示）。
+    drawReviewAdoptedTimeLines(ctx, w, h, yc, beatX, beatPx);
 
     // 各音符の中心にオレンジの垂直ライン（実践テスト見返しレーンと同じ見た目・v0.9.75）。
     // 波形の上・音符/判定ラベルの下に薄く重ね、理想の拍位置と波形/実打位置のズレを見やすくする。

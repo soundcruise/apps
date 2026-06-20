@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="../theme.css?v=0.10.22">
+    <link rel="stylesheet" href="../theme.css?v=0.10.23">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1101,6 +1101,11 @@
             <div class="results-history-head hidden" id="r-history-head" aria-hidden="true"></div>
             <div class="score-big"><b id="r-score">0</b><span>点</span></div>
             <p class="review-hint">本来の音符＝薄い黄色／自分の入力＝<b class="rv-just">緑</b>・<b class="rv-early">青</b>・<b class="rv-late">赤</b>・<b class="rv-miss">×</b>。横にスクロールして全32拍を確認できます。</p>
+            <p class="review-hint review-line-legend">点線＝反応ライン ／ 縦線＝採用された入力タイミング（<b class="rv-just">緑</b>GOOD・<b class="rv-early">青</b>EARLY・<b class="rv-late">赤</b>LATE）</p>
+            <details class="card-help review-line-help">
+                <summary>反応ラインについて</summary>
+                <p class="setting-note">反応ラインは、入力として反応しやすい音量の目安です。線より下まで毎回落ちなくても、次の山が分かれていれば入力として採用されることがあります。実際の判定は、タイミング・連続入力の間隔・採用済み入力との関係も含めて行われます。</p>
+            </details>
             <div class="debug-wave-controls hidden" id="debug-wave-controls" aria-label="開発用波形表示切替">
                 <span>波形表示</span>
                 <button type="button" class="debug-wave-btn is-active" data-wave-mode="linear">リニア</button>
@@ -1141,12 +1146,11 @@
                     <div class="graph-wrap results-mic-wrap hidden" id="results-mic-wrap">
                         <div class="graph-head">
                             <span>ストローク音量</span>
-                            <span class="graph-axis">点線＝反応ライン（超えると反応しやすい目安）</span>
+                            <span class="graph-axis">点線＝反応ライン</span>
                         </div>
                         <div class="result-graph-scroll">
                             <canvas id="results-mic-canvas"></canvas>
                         </div>
-                        <p class="setting-note results-mic-legend">点線の「反応ライン」を超えるくらいの入力だと、ストロークとして反応しやすくなります。実際の判定はタイミングや連続入力の間隔も含めて行われます。</p>
                     </div>
                     <p class="result-mic-tune-row">
                         <button type="button" class="result-mic-tune-link" id="results-mic-tune">マイクの手動設定を開く</button>
@@ -1249,7 +1253,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.10.22"></script>
+    <script src="../script.js?v=0.10.23"></script>
 </body>
 
 </html>
