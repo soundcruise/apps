@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.10.46">
+    <link rel="stylesheet" href="theme.css?v=0.10.47">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1210,6 +1210,12 @@
                     <input type="range" id="results-recording-click-offset" min="-100" max="250" step="10" value="0">
                     <b id="results-recording-click-offset-value">0ms</b>
                 </label>
+                <div class="setting-row hidden" id="debug-review-visual-delay">
+                    <div class="setting-label">開発用：JUSTライン表示ディレイ</div>
+                    <p class="setting-note">録音音声・後付けクリック音は動かさず、画面上のJUSTラインだけを遅らせます。「クリック位置」とは別の調整です。</p>
+                    <input type="range" id="debug-review-visual-delay-input" min="-150" max="250" step="10" value="0">
+                    <p class="setting-note"><b>現在: <span id="debug-review-visual-delay-value">0ms</span></b><br><b>実効表示遅延: <span id="debug-review-visual-effective-delay-value">0ms</span></b></p>
+                </div>
                 <div class="results-recording-actions" id="results-recording-actions">
                     <button type="button" class="btn-primary" id="results-recording-play">▶ 録音を再生</button>
                     <button type="button" class="btn-ghost" id="results-recording-stop" disabled>一時停止</button>
@@ -1259,11 +1265,6 @@
                     <div class="dev-log-copy-row hidden" id="dev-log-copy-row">
                         <button type="button" class="dev-log-copy-btn" id="dev-log-copy-btn">ログをコピー</button>
                         <span class="dev-log-copy-status" id="dev-log-copy-status" aria-live="polite"></span>
-                    </div>
-                    <div class="setting-row hidden" id="debug-review-visual-delay">
-                        <div class="setting-label">JUST表示追加ディレイ <b id="debug-review-visual-delay-value">0ms</b></div>
-                        <input type="range" id="debug-review-visual-delay-input" min="-150" max="250" step="10" value="0">
-                        <p class="setting-note">debugMic限定。録音音声と後付けクリック音には影響しません。</p>
                     </div>
                     <div class="miss-cause-list" id="miss-cause-list"></div>
                     <p class="result-breakdown result-miss-debug hidden" id="results-chord-detail"></p>
@@ -1357,7 +1358,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.10.46"></script>
+    <script src="script.js?v=0.10.47"></script>
 </body>
 
 </html>

@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.46';
+const RHYTHM_CRUISE_VERSION = '0.10.47';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -1162,6 +1162,7 @@ const els = {
     debugReviewVisualDelay: $('debug-review-visual-delay'),
     debugReviewVisualDelayInput: $('debug-review-visual-delay-input'),
     debugReviewVisualDelayValue: $('debug-review-visual-delay-value'),
+    debugReviewVisualEffectiveDelayValue: $('debug-review-visual-effective-delay-value'),
     resultsChordDev: $('results-chord-dev'),
     resultsChordSpeedWarning: $('results-chord-speed-warning'),
     resultsChordDetail: $('results-chord-detail'),
@@ -9745,9 +9746,25 @@ function applyReviewClickUI() {
     if (els.resultsRecordingClickOffsetRow) els.resultsRecordingClickOffsetRow.classList.toggle('hidden', !MIC_DEBUG_ON);
 }
 
+function formatSignedReviewDelayMs(value) {
+    const n = Math.round(Number(value) || 0);
+    return (n > 0 ? '+' : '') + n + 'ms';
+}
+
+function updateDebugReviewVisualDelayUI() {
+    if (els.debugReviewVisualDelay) els.debugReviewVisualDelay.classList.toggle('hidden', !MIC_DEBUG_ON);
+    if (!MIC_DEBUG_ON) return;
+    const extra = reviewDebugVisualExtraDelayMs();
+    const effective = reviewPracticeHeadphoneOutputOffsetMs(state.practiceRecording) + extra;
+    if (els.debugReviewVisualDelayInput) els.debugReviewVisualDelayInput.value = String(extra);
+    if (els.debugReviewVisualDelayValue) els.debugReviewVisualDelayValue.textContent = formatSignedReviewDelayMs(extra);
+    if (els.debugReviewVisualEffectiveDelayValue) els.debugReviewVisualEffectiveDelayValue.textContent = Math.round(effective) + 'ms';
+}
+
 function updatePracticeRecordingUI() {
     const rec = state.practiceRecording;
     if (!els.resultsRecording) return;
+    updateDebugReviewVisualDelayUI();
     if (historyViewRecord) {
         els.resultsRecording.classList.add('hidden');
         return;
@@ -20175,7 +20192,7 @@ function bind() {
     if (els.debugReviewVisualDelayInput) els.debugReviewVisualDelayInput.addEventListener('input', () => {
         const raw = Number(els.debugReviewVisualDelayInput.value);
         debugReviewVisualExtraDelayMs = Math.max(-150, Math.min(250, Number.isFinite(raw) ? raw : 0));
-        if (els.debugReviewVisualDelayValue) els.debugReviewVisualDelayValue.textContent = debugReviewVisualExtraDelayMs + 'ms';
+        updateDebugReviewVisualDelayUI();
         const sec = getReviewPlaybackCurrentTimeSec();
         if (sec != null) updateReviewTimelineUI(sec);
     });
@@ -20316,7 +20333,7 @@ function applyProLockBadges() {
 function init() {
     applyAppVersionDisplay();    // バージョン表示（Ver X.Y.Z）
     if (els.devLogCopyRow) els.devLogCopyRow.classList.toggle('hidden', !MIC_DEBUG_ON);
-    if (els.debugReviewVisualDelay) els.debugReviewVisualDelay.classList.toggle('hidden', !MIC_DEBUG_ON);
+    updateDebugReviewVisualDelayUI();
     loadSettings();              // 保存済みのマイク設定を反映
     seedRhythmCustomStageSamples();
     renderStages();
