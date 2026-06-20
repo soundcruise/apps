@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.40';
+const RHYTHM_CRUISE_VERSION = '0.10.41';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -1423,6 +1423,8 @@ let reviewPlayhead = { ctx: null, w: 0, h: 0 }; // v0.10.38：結果カードJUS
 let reviewTimelineRaf = 0; // v0.10.38：録音再生中のJUSTライン更新RAF（Practice本番とは別）
 const reviewTimelineDebug = {
     enabled: false, currentTimeSec: 0, gameTimeMs: 0, judgeTimeMs: 0, judgeOffsetMs: 0,
+    justDisplayOffsetMs: 0, justDisplayOffsetSource: 'none', headphoneOutputOffsetMs: 0,
+    reviewClickTotalOffsetMs: 0,
     visualOffsetMs: 0, visualOffsetSource: 'none', visualTimeMs: 0, xMode: 'target-index-map',
     x: NaN, scrollLeft: 0, scrollTarget: 0, rafActive: false,
     nearestTargetIndex: null, nearestTargetTimeMs: NaN, nearestTargetX: NaN,
@@ -6365,6 +6367,10 @@ function micDebugText() {
         + 'reviewTimeline.gameTimeMs: ' + (Number.isFinite(reviewTimelineDebug.gameTimeMs) ? Math.round(reviewTimelineDebug.gameTimeMs) : '-') + '\n'
         + 'reviewTimeline.judgeTimeMs: ' + (Number.isFinite(reviewTimelineDebug.judgeTimeMs) ? Math.round(reviewTimelineDebug.judgeTimeMs) : '-') + '\n'
         + 'reviewTimeline.judgeOffsetMs: ' + (rec && Number.isFinite(rec.reviewJudgeOffsetMs) ? rec.reviewJudgeOffsetMs : 0) + '\n'
+        + 'reviewTimeline.justDisplayOffsetMs: ' + (Number.isFinite(reviewTimelineDebug.justDisplayOffsetMs) ? reviewTimelineDebug.justDisplayOffsetMs : 0) + '\n'
+        + 'reviewTimeline.justDisplayOffsetSource: ' + (reviewTimelineDebug.justDisplayOffsetSource || 'none') + '\n'
+        + 'reviewTimeline.headphoneOutputOffsetMs: ' + (Number.isFinite(reviewTimelineDebug.headphoneOutputOffsetMs) ? reviewTimelineDebug.headphoneOutputOffsetMs : 0) + '\n'
+        + 'reviewTimeline.reviewClickTotalOffsetMs: ' + (Number.isFinite(reviewTimelineDebug.reviewClickTotalOffsetMs) ? reviewTimelineDebug.reviewClickTotalOffsetMs : 0) + '\n'
         + 'reviewTimeline.visualOffsetMs: ' + (Number.isFinite(reviewTimelineDebug.visualOffsetMs) ? reviewTimelineDebug.visualOffsetMs : 0) + '\n'
         + 'reviewTimeline.visualOffsetSource: ' + (reviewTimelineDebug.visualOffsetSource || 'none') + '\n'
         + 'reviewTimeline.visualTimeMs: ' + (Number.isFinite(reviewTimelineDebug.visualTimeMs) ? Math.round(reviewTimelineDebug.visualTimeMs) : '-') + '\n'
@@ -7494,9 +7500,35 @@ function reviewTimelineNearestTarget(timeMs) {
     return { index: best.index, timeMs: best.timeMs, x: best.x, deltaMs: timeMs - best.timeMs };
 }
 
-/* v0.10.40：JUSTライン x 用の時刻。録音再生位置(gameMs)をそのまま map へ（クリック遅延は scheduleReviewClick 側）。 */
-function reviewPlayheadTimeMsForX(sec) {
-    return reviewGameTimeMsFromSec(sec);
+/* v0.10.41：結果JUSTライン専用の出力表示補正（Practice drawLane の gridDispOff と同じ heard-time 寄せ）。
+   固定JUST+動く譜面(Practice)では bt+gridDispOff で音符を遅らせる。
+   固定譜面+動くJUST(Review)では playhead を gameMs-gridDispOff へ＝justDisplayOffsetMs=-hpOut。
+   判定・クリック音声・履歴には使わない。 */
+function reviewJustDisplayOffsetMs(rec) {
+    const r = rec || state.practiceRecording;
+    if (!r || r.reviewPracticeInputType === 'normal') return 0;
+    const hp = Number(r.reviewPracticeHeadphoneOutputOffsetMs) || 0;
+    return hp > 0 ? -hp : 0;
+}
+
+function reviewJustDisplayOffsetSource(rec) {
+    const r = rec || state.practiceRecording;
+    if (!r || r.reviewPracticeInputType === 'normal') return 'normal-mic';
+    const hp = Number(r.reviewPracticeHeadphoneOutputOffsetMs) || 0;
+    if (hp <= 0) return 'headphone-no-offset';
+    return r.reviewPracticeHeadphoneType === 'bluetooth' ? 'bluetooth-headphone-output' : 'wired-headphone-output';
+}
+
+function reviewPracticeHeadphoneOutputOffsetMs(rec) {
+    const r = rec || state.practiceRecording;
+    return Number(r.reviewPracticeHeadphoneOutputOffsetMs) || 0;
+}
+
+/* v0.10.40：JUSTライン x 用の時刻。録音再生位置 + 出力表示補正（クリック遅延は scheduleReviewClick 側）。 */
+function reviewPlayheadTimeMsForX(sec, rec) {
+    const gameMs = reviewGameTimeMsFromSec(sec);
+    const off = reviewJustDisplayOffsetMs(rec);
+    return Math.max(0, gameMs + off);
 }
 
 /* v0.10.38：結果カード overlay canvas を #review-canvas と同じ寸法に合わせる。 */
@@ -7560,8 +7592,8 @@ function reviewVisualOffsetSource(rec) {
     return 'none';
 }
 
-function reviewVisualTimeMsFromSec(sec) {
-    return reviewGameTimeMsFromSec(sec) + reviewVisualOffsetMs();
+function reviewVisualTimeMsFromSec(sec, rec) {
+    return reviewPlayheadTimeMsForX(sec, rec);
 }
 
 /* drawReview / target-index-map と同じ x 座標系（ms → px）。 */
@@ -7592,13 +7624,18 @@ function drawReviewPlayheadAtSec(sec) {
     ctx.clearRect(0, 0, w, h);
     const gameMs = reviewGameTimeMsFromSec(sec);
     const judgeMs = reviewJudgeTimeMsFromSec(sec);
-    const visualMs = reviewVisualTimeMsFromSec(sec);
-    const playheadMs = reviewPlayheadTimeMsForX(sec);
+    const justOff = reviewJustDisplayOffsetMs(rec);
+    const visualMs = reviewVisualTimeMsFromSec(sec, rec);
+    const playheadMs = reviewPlayheadTimeMsForX(sec, rec);
     const x = reviewTimeToReviewX(playheadMs);
     reviewTimelineDebug.currentTimeSec = sec;
     reviewTimelineDebug.gameTimeMs = gameMs;
     reviewTimelineDebug.judgeTimeMs = judgeMs;
     reviewTimelineDebug.judgeOffsetMs = rec.reviewJudgeOffsetMs || 0;
+    reviewTimelineDebug.justDisplayOffsetMs = justOff;
+    reviewTimelineDebug.justDisplayOffsetSource = reviewJustDisplayOffsetSource(rec);
+    reviewTimelineDebug.headphoneOutputOffsetMs = reviewPracticeHeadphoneOutputOffsetMs(rec);
+    reviewTimelineDebug.reviewClickTotalOffsetMs = reviewClickTotalOffsetMs(rec);
     reviewTimelineDebug.visualOffsetMs = reviewVisualOffsetMs(rec);
     reviewTimelineDebug.visualOffsetSource = reviewVisualOffsetSource(rec);
     reviewTimelineDebug.visualTimeMs = visualMs;
