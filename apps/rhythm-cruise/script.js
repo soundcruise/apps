@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.30';
+const RHYTHM_CRUISE_VERSION = '0.10.31';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -649,10 +649,16 @@ const state = {
         playbackGainValue: 1,
         playbackSource: null,
         playbackGain: null,
+        playbackSplitter: null, // v0.10.31：2ch片側録音のときだけ使うChannelSplitter（cleanup対象）
+        playbackMerger: null,   // v0.10.31：dominant chをL/R両方へ複製するChannelMerger（cleanup対象）
         playbackContext: null,
         playbackConnected: false,
         playbackRoute: 'idle',
         playbackActive: false,
+        channelMode: 'unknown',          // v0.10.31：'normal-stereo' | 'mono-dual' | 'dual-mono-left' | 'dual-mono-right' | 'unknown'
+        dominantChannel: null,           // v0.10.31：片側録音時の音が入っている側（0=L / 1=R）。それ以外は null
+        channelImbalanceRatio: null,     // v0.10.31：minPeak/maxPeak（片側録音判定の根拠・debug表示用）
+        singleSidedCorrection: false,    // v0.10.31：2ch片側録音をdominant dual monoで補正中か
         debug: null,
     },
     results: new Array(TOTAL_BEATS).fill(null),
@@ -6250,7 +6256,11 @@ function micDebugText() {
         + 'decoded.sampleRate: ' + (rd && rd.decodedSampleRate != null ? rd.decodedSampleRate : '-') + '\n'
         + 'decoded.channelPeaks: [' + (rd && rd.decodedChannelPeaks.length ? rd.decodedChannelPeaks.join(', ') : '') + ']\n'
         + 'decoded.error: ' + (rd && rd.decodeError ? rd.decodeError : '-') + '\n'
+        + 'channel.imbalanceRatio: ' + (rec && rec.channelImbalanceRatio != null ? rec.channelImbalanceRatio.toFixed(4) : '-') + '\n'
+        + 'dominant.channel: ' + (rec && rec.dominantChannel != null ? (rec.dominantChannel === 0 ? 'L' : 'R') : '-') + '\n'
+        + 'singleSidedCorrection: ' + (rec ? (rec.singleSidedCorrection ? 'on' : 'off') : '-') + '\n'
         + 'playback.route: ' + (rd && rd.playbackRoute ? rd.playbackRoute : (rec ? rec.playbackRoute : '-')) + '\n'
+        + 'playback.channelMode: ' + (rec && rec.channelMode ? rec.channelMode : '-') + '\n'
         + 'playback.gain: ' + (rd && rd.sliderValue != null ? rd.sliderValue.toFixed(1) + 'x' : (rec ? rec.playbackGainValue.toFixed(1) + 'x' : '-')) + '\n'
         + 'track.events: ' + (rd && rd.trackEvents.length ? rd.trackEvents.join(', ') : '-');
 }
@@ -8401,6 +8411,11 @@ const PRACTICE_RECORDING_GAIN_DEFAULT = 1;
 const PRACTICE_RECORDING_GAIN_MIN = 1;
 const PRACTICE_RECORDING_GAIN_MAX = 10;
 const PRACTICE_RECORDING_GAIN_ROUTE_MIN = 1.5;
+/* v0.10.31：2ch録音だが片側chがほぼ無音（例：Apple有線EarPodsで右ch=ほぼ0）の検出しきい値。
+   maxPeak がこの値以上で、minPeak/maxPeak がこの比率以下のとき「片側録音」とみなし、音のある側をL/R両方へ複製して再生する。
+   録音再生（表示・体験）専用。判定ロジック・波形スケール・履歴には一切関与しない。 */
+const PRACTICE_RECORDING_SINGLE_SIDED_MIN_PEAK = 0.003;
+const PRACTICE_RECORDING_SINGLE_SIDED_RATIO = 0.1;
 
 function createPracticeRecordingDebug() {
     return {
@@ -8434,29 +8449,65 @@ function logPracticeRecordingTrackEvent(name) {
     updatePracticeRecordingDebugUI();
 }
 
+/* v0.10.31：録音再生のchannel mode（再生時のL/R展開方法）を決める。
+   ・1ch（mono）→ 'mono-dual'（標準のspeaker解釈でL/R両方化。Splitter不要）
+   ・2ch以上で片側がほぼ無音 → 'dual-mono-left' / 'dual-mono-right'（音のある側をL/R両方へ複製）
+   ・それ以外の2ch → 'normal-stereo'（そのまま）
+   表示・再生専用。判定/波形/履歴には一切関与しない。 */
+function classifyPracticeRecordingChannels(channelCount, peaks) {
+    if (!(channelCount >= 1)) return { mode: 'unknown', dominant: null, ratio: null, singleSided: false };
+    if (channelCount <= 1) return { mode: 'mono-dual', dominant: 0, ratio: null, singleSided: false };
+    const left = peaks[0] || 0;
+    const right = peaks[1] || 0;
+    const maxPeak = Math.max(left, right);
+    const minPeak = Math.min(left, right);
+    const ratio = maxPeak > 0 ? minPeak / maxPeak : 1;
+    if (maxPeak >= PRACTICE_RECORDING_SINGLE_SIDED_MIN_PEAK && ratio <= PRACTICE_RECORDING_SINGLE_SIDED_RATIO) {
+        const dominant = left >= right ? 0 : 1;
+        return { mode: dominant === 0 ? 'dual-mono-left' : 'dual-mono-right', dominant, ratio, singleSided: true };
+    }
+    return { mode: 'normal-stereo', dominant: null, ratio, singleSided: false };
+}
+
+/* v0.10.31：録音Blobをデコードしてchannel数・各chピークを調べ、再生時のchannel modeを決定する。
+   片側録音補正のため debugMic でなくても常に実行する（録音再生の体験に関わるため）。
+   debugMic 時は各chピーク等を debug 表示にも反映する。失敗時は normal-stereo 扱いにフォールバック。 */
 async function inspectPracticeRecordingBlob(blob, generation) {
-    if (!MIC_DEBUG_ON || !blob || typeof blob.arrayBuffer !== 'function') return;
+    if (!blob || typeof blob.arrayBuffer !== 'function') return;
     const rec = state.practiceRecording;
     const debug = rec.debug;
-    const ctx = state.audioCtx;
-    if (!debug || !ctx || typeof ctx.decodeAudioData !== 'function') return;
+    let ctx = state.audioCtx;
+    if (!ctx) { try { ctx = ensureAudio(); } catch (_) { ctx = null; } }
+    if (!ctx || typeof ctx.decodeAudioData !== 'function') return;
     try {
         const buffer = await blob.arrayBuffer();
         const decoded = await ctx.decodeAudioData(buffer);
-        if (generation !== rec.generation || debug !== rec.debug) return;
-        debug.decodedChannelCount = decoded.numberOfChannels;
-        debug.decodedSampleRate = decoded.sampleRate;
-        debug.decodedChannelPeaks = [];
+        if (generation !== rec.generation) return;
+        const peaks = [];
         for (let ch = 0; ch < decoded.numberOfChannels; ch++) {
             const data = decoded.getChannelData(ch);
             const step = Math.max(1, Math.floor(data.length / 200000));
             let peak = 0;
             for (let i = 0; i < data.length; i += step) peak = Math.max(peak, Math.abs(data[i]));
-            debug.decodedChannelPeaks.push(+peak.toFixed(4));
+            peaks.push(+peak.toFixed(4));
+        }
+        const cls = classifyPracticeRecordingChannels(decoded.numberOfChannels, peaks);
+        rec.channelMode = cls.mode;
+        rec.dominantChannel = cls.dominant;
+        rec.channelImbalanceRatio = cls.ratio;
+        rec.singleSidedCorrection = cls.singleSided;
+        if (debug && debug === rec.debug) {
+            debug.decodedChannelCount = decoded.numberOfChannels;
+            debug.decodedSampleRate = decoded.sampleRate;
+            debug.decodedChannelPeaks = peaks;
         }
     } catch (e) {
-        if (generation !== rec.generation || debug !== rec.debug) return;
-        debug.decodeError = (e && e.name) || 'decode failed';
+        if (generation !== rec.generation) return;
+        rec.channelMode = 'normal-stereo';
+        rec.dominantChannel = null;
+        rec.channelImbalanceRatio = null;
+        rec.singleSidedCorrection = false;
+        if (debug && debug === rec.debug) debug.decodeError = (e && e.name) || 'decode failed';
     }
     updatePracticeRecordingDebugUI();
 }
@@ -8481,7 +8532,13 @@ function practiceRecordingGainValue(value) {
         Number.isFinite(n) ? n : PRACTICE_RECORDING_GAIN_DEFAULT));
 }
 
+/* v0.10.31：2ch片側録音の補正（dominant chをL/R両方化）はdirect再生では作れないため、Web Audio経路が必須。
+   片側録音検出時は録音音量1.0xでもgain経路を使う。 */
+function practiceRecordingNeedsWebAudio() {
+    return !!state.practiceRecording.singleSidedCorrection;
+}
 function practiceRecordingPlaybackRoute(value) {
+    if (practiceRecordingNeedsWebAudio()) return 'gain';
     return practiceRecordingGainValue(value) >= PRACTICE_RECORDING_GAIN_ROUTE_MIN ? 'gain' : 'direct';
 }
 
@@ -8515,6 +8572,8 @@ function applyPracticeRecordingGain(value) {
 function disconnectPracticeRecordingPlaybackGraph() {
     const rec = state.practiceRecording;
     if (rec.playbackSource) { try { rec.playbackSource.disconnect(); } catch (_) { /* noop */ } }
+    if (rec.playbackSplitter) { try { rec.playbackSplitter.disconnect(); } catch (_) { /* noop */ } }
+    if (rec.playbackMerger) { try { rec.playbackMerger.disconnect(); } catch (_) { /* noop */ } }
     if (rec.playbackGain) { try { rec.playbackGain.disconnect(); } catch (_) { /* noop */ } }
     rec.playbackConnected = false;
 }
@@ -8558,6 +8617,8 @@ function preparePracticeRecordingDirectAudio() {
         disconnectPracticeRecordingPlaybackGraph();
         rec.playbackSource = null;
         rec.playbackGain = null;
+        rec.playbackSplitter = null;
+        rec.playbackMerger = null;
         rec.playbackContext = null;
         audio = replacePracticeRecordingAudioElement();
     }
@@ -8577,10 +8638,15 @@ function ensurePracticeRecordingPlaybackGraph() {
         disconnectPracticeRecordingPlaybackGraph();
         rec.playbackSource = null;
         rec.playbackGain = null;
+        rec.playbackSplitter = null;
+        rec.playbackMerger = null;
         rec.playbackContext = null;
         audio = replacePracticeRecordingAudioElement();
         if (!audio) return false;
     }
+    // v0.10.31：2ch片側録音は dominant ch を L/R 両方へ複製する Splitter/Merger を挟む。
+    const singleSided = !!rec.singleSidedCorrection
+        && typeof ctx.createChannelSplitter === 'function' && typeof ctx.createChannelMerger === 'function';
     try {
         if (!rec.playbackSource) {
             rec.playbackSource = ctx.createMediaElementSource(audio);
@@ -8591,11 +8657,24 @@ function ensurePracticeRecordingPlaybackGraph() {
                 rec.playbackGain.channelCountMode = 'explicit';
                 rec.playbackGain.channelInterpretation = 'speakers';
             } catch (_) { /* 未対応環境は既定のspeaker解釈を使う */ }
+            if (singleSided) {
+                // ソースを2chへ分け、音のある側(dominant)だけを取り出して Merger の L/R 両方へ接続する。
+                rec.playbackSplitter = ctx.createChannelSplitter(2);
+                rec.playbackMerger = ctx.createChannelMerger(2);
+            }
             rec.playbackContext = ctx;
         }
         applyPracticeRecordingGain(rec.playbackGainValue);
         if (!rec.playbackConnected) {
-            rec.playbackSource.connect(rec.playbackGain);
+            if (singleSided && rec.playbackSplitter && rec.playbackMerger) {
+                const d = rec.dominantChannel === 1 ? 1 : 0; // 音のある側
+                rec.playbackSource.connect(rec.playbackSplitter);
+                rec.playbackSplitter.connect(rec.playbackMerger, d, 0); // → L
+                rec.playbackSplitter.connect(rec.playbackMerger, d, 1); // → R
+                rec.playbackMerger.connect(rec.playbackGain);
+            } else {
+                rec.playbackSource.connect(rec.playbackGain);
+            }
             rec.playbackGain.connect(ctx.destination);
             rec.playbackConnected = true;
         }
@@ -8704,9 +8783,11 @@ function discardPracticeRecording() {
     const rec = state.practiceRecording;
     rec.generation++;
     stopPracticeRecordingPlayback();
-    const hadPlaybackGraph = !!(rec.playbackSource || rec.playbackGain || rec.playbackContext);
+    const hadPlaybackGraph = !!(rec.playbackSource || rec.playbackGain || rec.playbackSplitter || rec.playbackMerger || rec.playbackContext);
     rec.playbackSource = null;
     rec.playbackGain = null;
+    rec.playbackSplitter = null;
+    rec.playbackMerger = null;
     rec.playbackContext = null;
     rec.playbackConnected = false;
     if (hadPlaybackGraph) replacePracticeRecordingAudioElement();
@@ -8736,6 +8817,10 @@ function discardPracticeRecording() {
     rec.errorMessage = '';
     rec.playbackRoute = 'idle';
     rec.playbackActive = false;
+    rec.channelMode = 'unknown';
+    rec.dominantChannel = null;
+    rec.channelImbalanceRatio = null;
+    rec.singleSidedCorrection = false;
     rec.debug = null;
     applyPracticeRecordingGain(PRACTICE_RECORDING_GAIN_DEFAULT);
     if (els.resultsRecording) els.resultsRecording.classList.add('hidden');
