@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.28';
+const RHYTHM_CRUISE_VERSION = '0.10.29';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -651,6 +651,8 @@ const state = {
         playbackGain: null,
         playbackContext: null,
         playbackConnected: false,
+        playbackRoute: 'idle',
+        debug: null,
     },
     results: new Array(TOTAL_BEATS).fill(null),
     beatMicPeak: new Array(TOTAL_BEATS).fill(0), // 各拍の判定窓内で観測した最大マイク入力（MISS原因の切り分け用）
@@ -6214,6 +6216,12 @@ function gameAudioMs() {
 /* v0.10.22：debugMic のライブ実測値テキスト（折りたたみパネルに表示）。 */
 function micDebugText() {
     const f3 = (v) => (typeof v === 'number' && isFinite(v)) ? v.toFixed(3) : '-';
+    const rec = state.practiceRecording;
+    const rd = rec && rec.debug;
+    let trackSettings = '-';
+    if (rd && rd.trackSettings) {
+        try { trackSettings = JSON.stringify(rd.trackSettings); } catch (_) { trackSettings = '[unavailable]'; }
+    }
     let calVol = '-';
     try { calVol = calibrationClickVolume(); } catch (_) { /* noop */ }
     return 'debugMic\n'
@@ -6226,7 +6234,18 @@ function micDebugText() {
         + 'test.clickMeasureVol: ' + (test.clickMeasureVol != null ? test.clickMeasureVol : '-') + '\n'
         + 'cal.threshold: ' + f3(cal.threshold) + '\n'
         + 'cal.maxPeak: ' + f3(cal.maxPeak) + '\n'
-        + 'cal.successCount: ' + (cal.successCount || 0) + ' / ' + CAL_CLICKS;
+        + 'cal.successCount: ' + (cal.successCount || 0) + ' / ' + CAL_CLICKS + '\n'
+        + '--- Practice recording ---\n'
+        + 'status: ' + (rec ? rec.status : '-') + '\n'
+        + 'track.label: ' + (rd && rd.trackLabel ? rd.trackLabel : '-') + '\n'
+        + 'track.settings: ' + trackSettings + '\n'
+        + 'recorder.mimeType: ' + (rd && rd.recorderMimeType ? rd.recorderMimeType : (rec && rec.mimeType ? rec.mimeType : '-')) + '\n'
+        + 'chunks: ' + (rd ? rd.chunkSizes.length : 0) + ' [' + (rd ? rd.chunkSizes.join(', ') : '') + ']\n'
+        + 'blob.size: ' + (rd && rd.blobSize != null ? rd.blobSize : '-') + '\n'
+        + 'audio.duration: ' + (rd && rd.audioDuration != null ? rd.audioDuration.toFixed(3) + 's' : '-') + '\n'
+        + 'playback.route: ' + (rd && rd.playbackRoute ? rd.playbackRoute : (rec ? rec.playbackRoute : '-')) + '\n'
+        + 'playback.gain: ' + (rd && rd.sliderValue != null ? rd.sliderValue.toFixed(1) + 'x' : (rec ? rec.playbackGainValue.toFixed(1) + 'x' : '-')) + '\n'
+        + 'track.events: ' + (rd && rd.trackEvents.length ? rd.trackEvents.join(', ') : '-');
 }
 let micDebugPanelOpen = false;
 /* v0.10.22：debugMic の左上ライブログを「常時大きく出し続ける」のをやめ、小さなトグル(🛠)＋折りたたみパネルへ。
@@ -8374,6 +8393,33 @@ const PRACTICE_RECORDING_MIME_TYPES = [
 const PRACTICE_RECORDING_GAIN_DEFAULT = 1;
 const PRACTICE_RECORDING_GAIN_MIN = 1;
 const PRACTICE_RECORDING_GAIN_MAX = 10;
+const PRACTICE_RECORDING_GAIN_ROUTE_MIN = 1.5;
+
+function createPracticeRecordingDebug() {
+    return {
+        trackLabel: '',
+        trackSettings: null,
+        recorderMimeType: '',
+        chunkSizes: [],
+        blobSize: null,
+        audioDuration: null,
+        playbackRoute: 'idle',
+        sliderValue: PRACTICE_RECORDING_GAIN_DEFAULT,
+        trackEvents: [],
+    };
+}
+
+function updatePracticeRecordingDebugUI() {
+    if (MIC_DEBUG_ON) updateMicDebugBox();
+}
+
+function logPracticeRecordingTrackEvent(name) {
+    if (!MIC_DEBUG_ON) return;
+    const debug = state.practiceRecording.debug;
+    if (!debug) return;
+    debug.trackEvents.push(name + '@' + Math.round(performance.now()));
+    updatePracticeRecordingDebugUI();
+}
 
 function practiceRecordingMimeType() {
     if (!window.MediaRecorder || typeof window.MediaRecorder.isTypeSupported !== 'function') return '';
@@ -8394,9 +8440,24 @@ function practiceRecordingGainValue(value) {
         Number.isFinite(n) ? n : PRACTICE_RECORDING_GAIN_DEFAULT));
 }
 
+function practiceRecordingPlaybackRoute(value) {
+    return practiceRecordingGainValue(value) >= PRACTICE_RECORDING_GAIN_ROUTE_MIN ? 'gain' : 'direct';
+}
+
+function setPracticeRecordingPlaybackRoute(route) {
+    const rec = state.practiceRecording;
+    rec.playbackRoute = route;
+    if (rec.debug) {
+        rec.debug.playbackRoute = route;
+        rec.debug.sliderValue = rec.playbackGainValue;
+    }
+    updatePracticeRecordingDebugUI();
+}
+
 function applyPracticeRecordingGain(value) {
     const rec = state.practiceRecording;
     rec.playbackGainValue = practiceRecordingGainValue(value);
+    if (rec.debug) rec.debug.sliderValue = rec.playbackGainValue;
     if (els.resultsRecordingVolume) els.resultsRecordingVolume.value = String(rec.playbackGainValue);
     if (els.resultsRecordingVolumeValue) els.resultsRecordingVolumeValue.textContent = rec.playbackGainValue.toFixed(1) + 'x';
     const gain = rec.playbackGain && rec.playbackGain.gain;
@@ -8407,6 +8468,7 @@ function applyPracticeRecordingGain(value) {
             else gain.value = rec.playbackGainValue;
         } catch (_) { gain.value = rec.playbackGainValue; }
     }
+    updatePracticeRecordingDebugUI();
 }
 
 function disconnectPracticeRecordingPlaybackGraph() {
@@ -8421,6 +8483,16 @@ function bindPracticeRecordingAudioEvents(audio) {
     audio.addEventListener('ended', stopPracticeRecordingPlayback);
     audio.addEventListener('pause', () => setPracticeRecordingPlaybackUI(false));
     audio.addEventListener('error', () => setPracticeRecordingPlaybackUI(false));
+    const updateDuration = () => {
+        const duration = Number(audio.duration);
+        const debug = state.practiceRecording.debug;
+        if (MIC_DEBUG_ON && debug && Number.isFinite(duration)) {
+            debug.audioDuration = duration;
+            updatePracticeRecordingDebugUI();
+        }
+    };
+    audio.addEventListener('loadedmetadata', updateDuration);
+    audio.addEventListener('durationchange', updateDuration);
 }
 
 /* MediaElementSourceは同じaudio要素へ再作成できないため、AudioContextが作り直された場合だけ要素も交換する。 */
@@ -8433,6 +8505,22 @@ function replacePracticeRecordingAudioElement() {
     oldAudio.parentNode.replaceChild(audio, oldAudio);
     els.resultsRecordingAudio = audio;
     bindPracticeRecordingAudioEvents(audio);
+    return audio;
+}
+
+/* MediaElementSourceを一度作ったaudio要素は直接出力へ戻せないため、direct再生前に要素を交換する。 */
+function preparePracticeRecordingDirectAudio() {
+    const rec = state.practiceRecording;
+    let audio = els.resultsRecordingAudio;
+    if (!audio) return null;
+    if (rec.playbackSource || rec.playbackContext) {
+        disconnectPracticeRecordingPlaybackGraph();
+        rec.playbackSource = null;
+        rec.playbackGain = null;
+        rec.playbackContext = null;
+        audio = replacePracticeRecordingAudioElement();
+    }
+    if (audio) audio.volume = 1;
     return audio;
 }
 
@@ -8542,6 +8630,8 @@ function discardPracticeRecording() {
     rec.startedAtAudioTime = null;
     rec.startedAtPerformanceTime = null;
     rec.errorMessage = '';
+    rec.playbackRoute = 'idle';
+    rec.debug = null;
     applyPracticeRecordingGain(PRACTICE_RECORDING_GAIN_DEFAULT);
     if (els.resultsRecording) els.resultsRecording.classList.add('hidden');
 }
@@ -8550,6 +8640,7 @@ function startPracticeRecording() {
     discardPracticeRecording();
     const rec = state.practiceRecording;
     const generation = rec.generation;
+    rec.debug = MIC_DEBUG_ON ? createPracticeRecordingDebug() : null;
     if (state.inputMode !== 'stroke') {
         rec.status = 'unavailable';
         rec.errorMessage = 'ストロークモード以外では録音しません。';
@@ -8567,6 +8658,21 @@ function startPracticeRecording() {
         rec.errorMessage = '利用できるマイク音声トラックがありません。';
         return;
     }
+    const track = tracks.find((item) => item.readyState === 'live') || tracks[0];
+    if (rec.debug && track) {
+        rec.debug.trackLabel = track.label || '';
+        try { rec.debug.trackSettings = typeof track.getSettings === 'function' ? track.getSettings() : null; }
+        catch (_) { rec.debug.trackSettings = null; }
+        track.addEventListener('mute', () => {
+            if (generation === rec.generation) logPracticeRecordingTrackEvent('mute');
+        });
+        track.addEventListener('unmute', () => {
+            if (generation === rec.generation) logPracticeRecordingTrackEvent('unmute');
+        });
+        track.addEventListener('ended', () => {
+            if (generation === rec.generation) logPracticeRecordingTrackEvent('ended');
+        });
+    }
     const mimeType = practiceRecordingMimeType();
     let recorder;
     try {
@@ -8582,10 +8688,15 @@ function startPracticeRecording() {
     rec.recorder = recorder;
     rec.chunks = [];
     rec.mimeType = recorder.mimeType || mimeType || '';
+    if (rec.debug) rec.debug.recorderMimeType = rec.mimeType;
     rec.startedAtAudioTime = state.audioCtx ? state.audioCtx.currentTime : null;
     rec.startedAtPerformanceTime = performance.now();
     recorder.ondataavailable = (event) => {
         if (generation !== rec.generation) return;
+        if (rec.debug) {
+            rec.debug.chunkSizes.push(event.data ? event.data.size : 0);
+            updatePracticeRecordingDebugUI();
+        }
         if (event.data && event.data.size > 0) rec.chunks.push(event.data);
     };
     recorder.onerror = (event) => {
@@ -8606,6 +8717,7 @@ function startPracticeRecording() {
             return;
         }
         const blob = new Blob(rec.chunks, rec.mimeType ? { type: rec.mimeType } : undefined);
+        if (rec.debug) rec.debug.blobSize = blob.size;
         rec.chunks = [];
         if (!blob.size) {
             rec.status = 'error';
@@ -17259,6 +17371,7 @@ function retestMicWithRecommendedSettings() {
 function stopMic(opts) {
     const preserveRecording = !!(opts && opts.preserveRecording);
     if (!preserveRecording) discardPracticeRecording(); // 通常の停止では一時録音も破棄
+    else logPracticeRecordingTrackEvent('capture-stop');
     micStartGeneration++; // 起動中(許可ダイアログ中)の getUserMedia を無効化（v0.9.140）
     mic.on = false;
     cancelAnimationFrame(mic.raf);
@@ -18735,11 +18848,26 @@ function bind() {
     });
     if (els.resultsRecordingPlay) els.resultsRecordingPlay.addEventListener('click', () => {
         if (!els.resultsRecordingAudio || state.practiceRecording.status !== 'available') return;
-        const amplified = ensurePracticeRecordingPlaybackGraph();
-        const audio = els.resultsRecordingAudio; // Context再生成時はaudio要素も交換されるため取得し直す
-        if (!amplified && els.resultsRecordingMessage) {
-            els.resultsRecordingMessage.innerHTML = '今回の演奏を録音しました。<br>音が小さい場合は、iPhone本体の音量も上げてください。';
+        const requestedRoute = practiceRecordingPlaybackRoute(state.practiceRecording.playbackGainValue);
+        let audio;
+        if (requestedRoute === 'direct') {
+            audio = preparePracticeRecordingDirectAudio();
+            setPracticeRecordingPlaybackRoute('direct');
+        } else {
+            const amplified = ensurePracticeRecordingPlaybackGraph();
+            audio = els.resultsRecordingAudio; // Context再生成時はaudio要素も交換されるため取得し直す
+            if (amplified) {
+                setPracticeRecordingPlaybackRoute('gain');
+            } else {
+                // Web Audio接続に失敗した場合も、要素を交換して確実に直接再生へ戻す。
+                audio = preparePracticeRecordingDirectAudio();
+                setPracticeRecordingPlaybackRoute('direct');
+                if (els.resultsRecordingMessage) {
+                    els.resultsRecordingMessage.innerHTML = '今回の演奏を録音しました。<br>音が小さい場合は、iPhone本体の音量も上げてください。';
+                }
+            }
         }
+        if (!audio) return;
         try { audio.currentTime = 0; } catch (_) { /* noop */ }
         let started;
         try { started = audio.play(); }
@@ -18755,6 +18883,7 @@ function bind() {
         }
     });
     if (els.resultsRecordingVolume) {
+        // 再生中にdirect/gain境界を跨いだ場合、経路変更は安全のため次回再生から反映する。
         els.resultsRecordingVolume.addEventListener('input', () => applyPracticeRecordingGain(els.resultsRecordingVolume.value));
     }
     if (els.resultsRecordingStop) els.resultsRecordingStop.addEventListener('click', stopPracticeRecordingPlayback);
