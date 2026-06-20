@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.10.52">
+    <link rel="stylesheet" href="theme.css?v=0.10.53">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -635,7 +635,7 @@
                     <summary>詳しい説明</summary>
                     <p class="setting-note">流れてくる音符がJUSTラインに近づく頃、イヤホンからクリック音が聞こえます。その音に合わせて下の「ここをタップ」を8回タップしてください。タップのズレを測って、ちょうど良い補正値に自動で合わせます。</p>
                 </details>
-                <!-- テスト専用BPM（イヤホン音ズレ補正テストと同じ 20〜160／20刻み／初期100） -->
+                <!-- テスト専用BPM（イヤホン音ズレの画面補正テストと同じ 20〜160／20刻み／初期100） -->
                 <div class="hp-bpm-row" style="display:flex;align-items:center;justify-content:center;gap:14px;margin:6px 0 4px;">
                     <span class="setting-label" style="margin:0;">BPM</span>
                     <button type="button" class="btn-mini hp-bpm-btn" id="tap-cal-bpm-minus" aria-label="BPMを下げる">−</button>
@@ -909,10 +909,10 @@
                 </details>
             </div>
 
-            <!-- 4. イヤホンの音ズレ補正（イヤホン種類=Bluetooth のときだけ表示。UI/保存のみ・STAGE判定には未反映） -->
+            <!-- 4. イヤホン音ズレの画面補正（イヤホン種類=Bluetooth のときだけ表示。UI/保存のみ・STAGE判定には未反映） -->
             <div class="settings-card cal-card hidden" id="hp-cal-card">
                 <div class="cal-head-row">
-                    <div class="cal-head">イヤホンの音ズレ補正</div>
+                    <div class="cal-head">イヤホン音ズレの画面補正</div>
                 </div>
                 <p class="do-now">クリック音と丸の動きが同時に感じるように、スライダーで調整してください。</p>
                 <details class="card-help">
@@ -962,7 +962,7 @@
                 </div>
                 </div><!-- /#hp-cal-staged -->
                 <!-- 画面タップ設定タブから使う場合の導線（v0.9.95）：保存してアプリTOPへ戻る（テストへは進まない） -->
-                <button type="button" class="btn-primary rc-mic-action-primary hidden" id="hp-tap-use-btn" style="width:100%;margin-top:12px;">この音ズレ設定で使う</button>
+                <button type="button" class="btn-primary rc-mic-action-primary hidden" id="hp-tap-use-btn" style="width:100%;margin-top:12px;">この画面補正設定で使う</button>
                 <!-- 画面タップ設定タブから：現在のタップ補正値をプリセットとして保存（v0.9.97） -->
                 <button type="button" class="btn-mini hidden" id="hp-tap-save-btn" style="width:100%;margin-top:10px;padding:11px;border:1px solid rgba(255,255,255,0.22);border-radius:10px;background:rgba(255,255,255,0.04);font-weight:700;">この設定を保存</button>
             </div>
@@ -970,14 +970,14 @@
             <!-- 補正系（有線イヤホン時の案内）。有線は補正カードを出さず、補正なし（0ms）が基本の旨だけ伝える -->
             <div class="settings-card" id="correction-wired-note">
                 <div class="cal-head">補正</div>
-                <p class="setting-note">有線イヤホンは、音ズレ補正なし（0ms）が基本です。違和感がある場合だけ、最後の「手動設定」で調整できます。</p>
+                <p class="setting-note">有線イヤホンの「イヤホン音ズレの画面補正」は、0ms（補正なし）が基本です。違和感がある場合だけ、最後の「手動設定」で調整できます。</p>
                 <button type="button" class="btn-primary rc-mic-action-primary" id="wired-proceed-btn" style="width:100%;margin-top:8px;">この設定で進む</button>
             </div>
 
-            <!-- 6. マイク遅れ補正（イヤホン接続時。クリックに合わせて手拍子/ストロークし判定遅れを測る。有線にもv0.9.152で対応） v0.9.80 -->
+            <!-- 6. マイクの遅れ補正（イヤホン接続時。クリックに合わせて手拍子/ストロークし判定遅れを測る。有線にもv0.9.152で対応） v0.9.80 -->
             <div class="settings-card cal-card" id="bt-cal-card">
                 <div class="cal-head-row">
-                    <div class="cal-head">マイク遅れ補正</div>
+                    <div class="cal-head">マイクの遅れ補正</div>
                     <span class="status-pill" id="bt-cal-badge">未実施</span>
                 </div>
                 <p class="do-now">クリックに合わせて手拍子</p>
@@ -997,7 +997,7 @@
                     </div>
                 </div>
                 <p class="test-phase" id="bt-cal-phase"></p>
-                <button class="btn-mic cal-run-btn test-start-btn rc-mic-action-primary" id="bt-cal-btn">マイク遅れ補正テストを開始</button>
+                <button class="btn-mic cal-run-btn test-start-btn rc-mic-action-primary" id="bt-cal-btn">マイクの遅れ補正テストを開始</button>
                 <p class="cal-status" id="bt-cal-status"></p>
                 <div class="cal-result hidden" id="bt-cal-result"></div>
             </div>
@@ -1071,28 +1071,28 @@
                             <p class="setting-note setting-note-body hidden">1回のストロークで何度も反応するときは長めにします。細かいリズムが拾いにくいときは短めにします。</p>
                         </div>
                     </div>
-                    <div class="setting-row">
-                        <div class="setting-label">マイクの遅れ補正 <b id="set-offset-val">0ms</b></div>
-                        <input type="range" id="set-offset" min="-150" max="150" step="5" value="0">
-                        <div class="setting-note-toggle">
-                            <button type="button" class="setting-note-btn" aria-expanded="false">＋ 説明</button>
-                            <p class="setting-note setting-note-body hidden">マイク入力の遅れを補正します。イヤホン時は手拍子テストで測った値が入ります。遅れ気味のときはマイナス方向へ。</p>
-                        </div>
-                    </div>
-                    <!-- イヤホン音ズレ補正（入力タイプ=イヤホン接続 のとき表示）。v0.9.52ではUI/保存のみ・STAGE判定には未反映 -->
+                    <!-- イヤホン音ズレの画面補正（入力タイプ=イヤホン接続 のとき表示）。v0.9.52ではUI/保存のみ・STAGE判定には未反映 -->
                     <div class="setting-row hidden" id="set-hp-offset-row">
-                        <div class="setting-label">イヤホン音ズレ補正 <b id="set-hp-offset-val">0ms</b></div>
+                        <div class="setting-label">イヤホン音ズレの画面補正 <b id="set-hp-offset-val">0ms</b></div>
                         <input type="range" id="set-hp-offset" min="-200" max="400" step="5" value="0">
                         <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
                             <span>← 音が早く聞こえる</span><span>音が遅く聞こえる →</span>
                         </div>
                         <div class="setting-note-toggle">
                             <button type="button" class="setting-note-btn" aria-expanded="false">＋ 説明</button>
-                            <p class="setting-note setting-note-body hidden" id="set-hp-offset-note">イヤホンでクリック音が遅れて聞こえる分を補正します。Bluetoothでは大きくなることがあります。</p>
+                            <p class="setting-note setting-note-body hidden" id="set-hp-offset-note">イヤホンで音が遅れて聞こえる分だけ画面表示を合わせます。判定時間は変わりません。Bluetoothでは大きくなることがあります。</p>
                         </div>
                         <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
                             <button type="button" class="btn-mini btn-reset" id="set-hp-reset">補正なしに戻す</button>
                             <button type="button" class="btn-mini btn-reset" id="set-hp-zero" style="display:none;">補正なしに戻す</button>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-label">マイクの遅れ補正 <b id="set-offset-val">0ms</b></div>
+                        <input type="range" id="set-offset" min="-150" max="150" step="5" value="0">
+                        <div class="setting-note-toggle">
+                            <button type="button" class="setting-note-btn" aria-expanded="false">＋ 説明</button>
+                            <p class="setting-note setting-note-body hidden">マイク入力の遅れを補正します。イヤホン時は手拍子テストで測った値が入ります。遅れ気味のときはマイナス方向へ。</p>
                         </div>
                     </div>
 
@@ -1360,7 +1360,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.10.52"></script>
+    <script src="script.js?v=0.10.53"></script>
 </body>
 
 </html>

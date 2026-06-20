@@ -2337,7 +2337,7 @@ h1 {
     gap: 12px;
 }
 
-/* イヤホン音ズレ補正テストのBPM −/＋ ボタン（v0.9.92）：はっきり押せる丸ボタン */
+/* イヤホン音ズレの画面補正テストのBPM −/＋ ボタン（v0.9.92）：はっきり押せる丸ボタン */
 .btn-mini.hp-bpm-btn {
     width: 40px;
     height: 40px;
@@ -3669,7 +3669,7 @@ h1 {
     padding: 8px 10px;
 }
 
-/* マイク遅れ補正の warm-up（準備中）表示（v0.9.67）。
+/* マイクの遅れ補正の warm-up（準備中）表示（v0.9.67）。
    本番測定と見た目を分けるためのアンバーのバッジ＋案内。 */
 .cal-warmup-badge {
     display: inline-block;
@@ -5565,6 +5565,51 @@ body.results-open {
 
 .settings-detail .setting-row {
     margin-top: 10px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 10px;
+    row-gap: 8px;
+}
+
+.settings-detail .setting-row > .setting-label {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+.settings-detail .setting-row > input[type="range"] {
+    grid-column: 1 / -1;
+    grid-row: 2;
+}
+
+.settings-detail .setting-note-toggle {
+    display: contents;
+}
+
+.settings-detail .setting-note-btn {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    white-space: nowrap;
+}
+
+.settings-detail .setting-note-body {
+    grid-column: 1 / -1;
+    grid-row: 3;
+}
+
+.settings-detail #set-hp-offset-row .hp-offset-labels {
+    grid-column: 1 / -1;
+    grid-row: 3;
+}
+
+.settings-detail #set-hp-offset-row .setting-note-body {
+    grid-row: 4;
+}
+
+.settings-detail #set-hp-offset-row > div:last-child {
+    grid-column: 1 / -1;
 }
 
 .mic-clickhint {
@@ -6050,7 +6095,7 @@ body.results-open {
     background: rgba(255, 159, 28, 0.24);
 }
 
-/* ── マイク遅れ補正カードの一番大事な一行（v0.9.83）───────────── */
+/* ── マイクの遅れ補正カードの一番大事な一行（v0.9.83）───────────── */
 .bt-cal-lead {
     margin: 2px 0 6px;
     font-size: 1.06rem;
