@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.26';
+const RHYTHM_CRUISE_VERSION = '0.10.27';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -1360,6 +1360,7 @@ let preview = { ctx: null, w: 0, h: 0 };
 let graph = { ctx: null, w: 0, h: 0 };
 let review = { ctx: null, w: 0, h: 0, beatPx: 70, leftPad: 38 };
 let reviewFlowScoreReady = false; // 結果見返しの固定譜面(VexFlow)が正常描画できているか（true時だけCanvas固定音符を隠す・v0.9.140）
+let practiceStartPending = false; // 結果後のマイク再取得中にPractice開始を重複させない
 let testLane = { ctx: null, w: 0, h: 0 }; // マイク反応テストの流れる譜面
 let ptLane = { ctx: null, w: 0, h: 0 };   // 実践テストの流れる譜面（STAGE1風）
 let ptReviewLane = { ctx: null, w: 0, h: 0 }; // 実践テスト終了後の見返し用（横長・静的）レーン（v0.9.74）
@@ -8600,6 +8601,7 @@ function startPracticeRecording() {
         if (!rec.chunks.length) {
             rec.status = 'error';
             rec.errorMessage = '録音データを作成できませんでした。';
+            if (mic.on) stopMic({ preserveRecording: true });
             updatePracticeRecordingUI();
             return;
         }
@@ -8608,6 +8610,7 @@ function startPracticeRecording() {
         if (!blob.size) {
             rec.status = 'error';
             rec.errorMessage = '録音データが空でした。';
+            if (mic.on) stopMic({ preserveRecording: true });
             updatePracticeRecordingUI();
             return;
         }
@@ -8617,10 +8620,13 @@ function startPracticeRecording() {
             rec.blob = null;
             rec.status = 'error';
             rec.errorMessage = '録音の再生URLを作成できませんでした。';
+            if (mic.on) stopMic({ preserveRecording: true });
             updatePracticeRecordingUI();
             return;
         }
         rec.status = 'available';
+        // Blob/Object URLが完成してからcaptureを止める。録音データは結果カード用に保持する。
+        if (mic.on) stopMic({ preserveRecording: true });
         updatePracticeRecordingUI();
     };
     try {
@@ -8638,13 +8644,17 @@ function startPracticeRecording() {
 
 function stopPracticeRecording() {
     const recorder = state.practiceRecording.recorder;
-    if (!recorder) return;
+    if (!recorder) {
+        if (mic.on) stopMic({ preserveRecording: true });
+        return;
+    }
     try {
         if (recorder.state !== 'inactive') recorder.stop();
     } catch (e) {
         state.practiceRecording.status = 'error';
         state.practiceRecording.errorMessage = '録音を停止できませんでした。';
         console.warn('[practice-recording] stop failed:', e && e.name);
+        if (mic.on) stopMic({ preserveRecording: true });
         updatePracticeRecordingUI();
     }
 }
@@ -8791,7 +8801,9 @@ function stopLoopWithResult() {
     finish({ save: false, cutoff: cutoff }); // 履歴保存せず・部分集計で結果表示
 }
 
-function play() {
+async function play() {
+    if (practiceStartPending || state.running) return;
+    practiceStartPending = true;
     discardPracticeRecording(); // 新しいPractice開始前に前回録音を必ず破棄
     if (els.missCauseDetails) els.missCauseDetails.open = false; // debugMicログの開閉状態を次回へ持ち越さない
     if (state.raf) {
@@ -8801,6 +8813,23 @@ function play() {
     stopPracticeTest(); // STAGE開始時は最終確認テストを停止（安全処理）
     stopBtCal();
     stopTapCal();
+    if (state.inputMode === 'stroke' && !mic.on) {
+        els.playBtn.disabled = true;
+        els.playBtn.textContent = 'マイク準備中…';
+        await startMic();
+        // 許可待ち中に画面移動・入力切替された場合、または再取得できなかった場合は開始しない。
+        if (currentScreen !== 'practice' || state.inputMode !== 'stroke' || !mic.on) {
+            els.playBtn.disabled = false;
+            els.playBtn.textContent = '▶ 開始';
+            practiceStartPending = false;
+            if (currentScreen === 'practice' && state.inputMode === 'stroke' && !mic.on) {
+                showRcToast('マイクを開始できませんでした。設定を確認してください');
+            }
+            return;
+        }
+    }
+    // ここから先は同期処理で直ちに state.running=true へ進むため、再取得待ちガードを解除する。
+    practiceStartPending = false;
     ensureAudio();
     resetData();
     state.lastCompletedLap = null;                      // 新しいランの開始時に、前回くり返し練習の完了周回データを破棄（v0.9.151）
@@ -17227,8 +17256,9 @@ function retestMicWithRecommendedSettings() {
     startMicTestFlow();
 }
 
-function stopMic() {
-    discardPracticeRecording(); // マイクstreamを止める前に、そのstreamを使う一時録音も破棄
+function stopMic(opts) {
+    const preserveRecording = !!(opts && opts.preserveRecording);
+    if (!preserveRecording) discardPracticeRecording(); // 通常の停止では一時録音も破棄
     micStartGeneration++; // 起動中(許可ダイアログ中)の getUserMedia を無効化（v0.9.140）
     mic.on = false;
     cancelAnimationFrame(mic.raf);
