@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.38';
+const RHYTHM_CRUISE_VERSION = '0.10.39';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -1421,7 +1421,12 @@ let graph = { ctx: null, w: 0, h: 0 };
 let review = { ctx: null, w: 0, h: 0, beatPx: 70, leftPad: 38 };
 let reviewPlayhead = { ctx: null, w: 0, h: 0 }; // v0.10.38：結果カードJUSTライン overlay canvas
 let reviewTimelineRaf = 0; // v0.10.38：録音再生中のJUSTライン更新RAF（Practice本番とは別）
-const reviewTimelineDebug = { enabled: false, currentTimeSec: 0, gameTimeMs: 0, judgeTimeMs: 0, judgeOffsetMs: 0, x: NaN, rafActive: false };
+const reviewTimelineDebug = {
+    enabled: false, currentTimeSec: 0, gameTimeMs: 0, judgeTimeMs: 0, judgeOffsetMs: 0,
+    visualOffsetMs: 0, visualOffsetSource: 'none', visualTimeMs: 0, xMode: 'visual',
+    x: NaN, scrollLeft: 0, scrollTarget: 0, rafActive: false,
+};
+const REVIEW_WRAP_SCROLL_ANCHOR = 0.35; // playhead を表示幅の左35%付近に保つ
 let reviewFlowScoreReady = false; // 結果見返しの固定譜面(VexFlow)が正常描画できているか（true時だけCanvas固定音符を隠す・v0.9.140）
 let practiceStartPending = false; // 結果後のマイク再取得中にPractice開始を重複させない
 let testLane = { ctx: null, w: 0, h: 0 }; // マイク反応テストの流れる譜面
@@ -6357,7 +6362,13 @@ function micDebugText() {
         + 'reviewTimeline.gameTimeMs: ' + (Number.isFinite(reviewTimelineDebug.gameTimeMs) ? Math.round(reviewTimelineDebug.gameTimeMs) : '-') + '\n'
         + 'reviewTimeline.judgeTimeMs: ' + (Number.isFinite(reviewTimelineDebug.judgeTimeMs) ? Math.round(reviewTimelineDebug.judgeTimeMs) : '-') + '\n'
         + 'reviewTimeline.judgeOffsetMs: ' + (rec && Number.isFinite(rec.reviewJudgeOffsetMs) ? rec.reviewJudgeOffsetMs : 0) + '\n'
+        + 'reviewTimeline.visualOffsetMs: ' + (Number.isFinite(reviewTimelineDebug.visualOffsetMs) ? reviewTimelineDebug.visualOffsetMs : 0) + '\n'
+        + 'reviewTimeline.visualOffsetSource: ' + (reviewTimelineDebug.visualOffsetSource || 'none') + '\n'
+        + 'reviewTimeline.visualTimeMs: ' + (Number.isFinite(reviewTimelineDebug.visualTimeMs) ? Math.round(reviewTimelineDebug.visualTimeMs) : '-') + '\n'
+        + 'reviewTimeline.xMode: ' + (reviewTimelineDebug.xMode || 'visual') + '\n'
         + 'reviewTimeline.x: ' + (Number.isFinite(reviewTimelineDebug.x) ? reviewTimelineDebug.x.toFixed(1) : '-') + '\n'
+        + 'reviewTimeline.scrollLeft: ' + (Number.isFinite(reviewTimelineDebug.scrollLeft) ? Math.round(reviewTimelineDebug.scrollLeft) : '-') + '\n'
+        + 'reviewTimeline.scrollTarget: ' + (Number.isFinite(reviewTimelineDebug.scrollTarget) ? Math.round(reviewTimelineDebug.scrollTarget) : '-') + '\n'
         + 'reviewTimeline.rafActive: ' + (reviewTimelineDebug.rafActive ? 'yes' : 'no') + '\n'
         + 'track.events: ' + (rd && rd.trackEvents.length ? rd.trackEvents.join(', ') : '-');
 }
@@ -7433,12 +7444,45 @@ function reviewJudgeTimeMsFromSec(sec) {
     return reviewGameTimeMsFromSec(sec) + off;
 }
 
-/* drawReviewMicOverlay / drawReview と同じ x 座標系（判定時間軸 ms → px）。 */
-function reviewTimeToReviewX(judgeMs) {
+/* v0.10.39：結果JUSTライン用の表示offset（録音・後付けクリックと同じ聴感軸）。
+   判定時間軸(micJudgeOffsetMs)ではなく reviewClickTotalOffsetMs を使う。表示専用。 */
+function reviewVisualOffsetMs(rec) {
+    return reviewClickTotalOffsetMs(rec || state.practiceRecording);
+}
+
+function reviewVisualOffsetSource(rec) {
+    const r = rec || state.practiceRecording;
+    const manual = reviewClickManualOffsetMs(r);
+    const auto = Number(r.reviewClickAutoOffsetMs) || 0;
+    if (manual !== 0 && auto !== 0) return 'review-click-total-offset';
+    if (manual !== 0) return 'review-click-manual-offset';
+    if (auto !== 0) return 'review-click-auto-offset';
+    return 'none';
+}
+
+function reviewVisualTimeMsFromSec(sec) {
+    return reviewGameTimeMsFromSec(sec) + reviewVisualOffsetMs();
+}
+
+/* drawReviewMicOverlay / drawReview と同じ x 座標系（ms → px）。 */
+function reviewTimeToReviewX(timeMs) {
     if (!review || !Number.isFinite(review.beatPx) || !Number.isFinite(review.leftPad)) return NaN;
     const bi = state.beatInterval;
     if (!bi) return NaN;
-    return review.leftPad + ((judgeMs - state.T0) / bi) * review.beatPx;
+    return review.leftPad + ((timeMs - state.T0) / bi) * review.beatPx;
+}
+
+/* v0.10.39：録音再生中、JUSTラインが見えるよう #review-wrap を横スクロール追従。 */
+function updateReviewWrapScroll(playheadX) {
+    if (!els.reviewWrap || !Number.isFinite(playheadX)) return;
+    const wrap = els.reviewWrap;
+    const vw = wrap.clientWidth;
+    if (vw <= 0) return;
+    const maxScroll = Math.max(0, wrap.scrollWidth - vw);
+    const target = Math.max(0, Math.min(maxScroll, playheadX - vw * REVIEW_WRAP_SCROLL_ANCHOR));
+    reviewTimelineDebug.scrollTarget = target;
+    reviewTimelineDebug.scrollLeft = wrap.scrollLeft;
+    wrap.scrollLeft = target;
 }
 
 function drawReviewPlayheadAtSec(sec) {
@@ -7451,19 +7495,26 @@ function drawReviewPlayheadAtSec(sec) {
     ctx.clearRect(0, 0, w, h);
     const gameMs = reviewGameTimeMsFromSec(sec);
     const judgeMs = reviewJudgeTimeMsFromSec(sec);
-    const x = reviewTimeToReviewX(judgeMs);
+    const visualMs = reviewVisualTimeMsFromSec(sec);
+    const x = reviewTimeToReviewX(visualMs);
     reviewTimelineDebug.currentTimeSec = sec;
     reviewTimelineDebug.gameTimeMs = gameMs;
     reviewTimelineDebug.judgeTimeMs = judgeMs;
     reviewTimelineDebug.judgeOffsetMs = rec.reviewJudgeOffsetMs || 0;
+    reviewTimelineDebug.visualOffsetMs = reviewVisualOffsetMs(rec);
+    reviewTimelineDebug.visualOffsetSource = reviewVisualOffsetSource(rec);
+    reviewTimelineDebug.visualTimeMs = visualMs;
+    reviewTimelineDebug.xMode = 'visual';
     reviewTimelineDebug.x = x;
     if (!Number.isFinite(x) || x < -8 || x > w + 8) {
         els.reviewPlayheadCanvas.classList.add('hidden');
+        if (rec.playbackActive) updateReviewWrapScroll(x);
         return;
     }
     els.reviewPlayheadCanvas.classList.remove('hidden');
-    const glow = beatGlow(judgeMs - state.T0, engPulseMs());
+    const glow = beatGlow(visualMs - state.T0, engPulseMs());
     drawJustLineMarker(ctx, x, h, { glow });
+    if (rec.playbackActive) updateReviewWrapScroll(x);
 }
 
 function updateReviewTimelineUI(sec) {
