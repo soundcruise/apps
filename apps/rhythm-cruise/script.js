@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.45';
+const RHYTHM_CRUISE_VERSION = '0.10.46';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -1159,6 +1159,9 @@ const els = {
     devLogCopyRow: $('dev-log-copy-row'),
     devLogCopyBtn: $('dev-log-copy-btn'),
     devLogCopyStatus: $('dev-log-copy-status'),
+    debugReviewVisualDelay: $('debug-review-visual-delay'),
+    debugReviewVisualDelayInput: $('debug-review-visual-delay-input'),
+    debugReviewVisualDelayValue: $('debug-review-visual-delay-value'),
     resultsChordDev: $('results-chord-dev'),
     resultsChordSpeedWarning: $('results-chord-speed-warning'),
     resultsChordDetail: $('results-chord-detail'),
@@ -1423,6 +1426,7 @@ let graph = { ctx: null, w: 0, h: 0 };
 let review = { ctx: null, w: 0, h: 0, beatPx: 70, leftPad: 38, timelineMap: null };
 let reviewPlayhead = { ctx: null, w: 0, h: 0 }; // v0.10.38：結果カードJUSTライン overlay canvas
 let reviewTimelineRaf = 0; // v0.10.38：録音再生中のJUSTライン更新RAF（Practice本番とは別）
+let debugReviewVisualExtraDelayMs = 0; // v0.10.46：debugMic限定・JUSTライン表示だけの追加遅延（保存しない）
 const reviewTimelineDebug = {
     enabled: false, currentTimeSec: 0, gameTimeMs: 0, judgeTimeMs: 0, judgeOffsetMs: 0,
     justDisplayOffsetMs: 0, justDisplayOffsetSource: 'none', headphoneOutputOffsetMs: 0,
@@ -1434,6 +1438,7 @@ const reviewTimelineDebug = {
     beatInterval: NaN, T0: NaN, targetMapMode: 'none',
     currentFormula: 'C', reviewClickAutoOffsetSource: 'none', paused: false,
     additionalReviewClickOffsetMs: 0, additionalReviewClickOffsetSource: 'none',
+    debugReviewVisualExtraDelayMs: 0, effectiveReviewVisualOutputLatencyMs: 0,
     candidateA_timeMs: NaN, candidateA_deltaToTargetMs: NaN, candidateA_xDeltaToTarget: NaN,
     candidateB_timeMs: NaN, candidateB_deltaToTargetMs: NaN, candidateB_xDeltaToTarget: NaN,
     candidateC_timeMs: NaN, candidateC_deltaToTargetMs: NaN, candidateC_xDeltaToTarget: NaN,
@@ -6393,6 +6398,8 @@ function micDebugText() {
         + 'reviewTimeline.additionalReviewClickOffsetMs: ' + (Number.isFinite(reviewTimelineDebug.additionalReviewClickOffsetMs) ? reviewTimelineDebug.additionalReviewClickOffsetMs : 0) + '\n'
         + 'reviewTimeline.additionalReviewClickOffsetSource: ' + (reviewTimelineDebug.additionalReviewClickOffsetSource || 'none') + '\n'
         + 'reviewTimeline.headphoneOutputOffsetMs: ' + (Number.isFinite(reviewTimelineDebug.headphoneOutputOffsetMs) ? reviewTimelineDebug.headphoneOutputOffsetMs : 0) + '\n'
+        + 'reviewTimeline.debugReviewVisualExtraDelayMs: ' + (Number.isFinite(reviewTimelineDebug.debugReviewVisualExtraDelayMs) ? reviewTimelineDebug.debugReviewVisualExtraDelayMs : 0) + '\n'
+        + 'reviewTimeline.effectiveReviewVisualOutputLatencyMs: ' + (Number.isFinite(reviewTimelineDebug.effectiveReviewVisualOutputLatencyMs) ? reviewTimelineDebug.effectiveReviewVisualOutputLatencyMs : 0) + '\n'
         + 'reviewTimeline.reviewClickTotalOffsetMs: ' + (Number.isFinite(reviewTimelineDebug.reviewClickTotalOffsetMs) ? reviewTimelineDebug.reviewClickTotalOffsetMs : 0) + '\n'
         + 'reviewTimeline.visualOffsetMs: ' + (Number.isFinite(reviewTimelineDebug.visualOffsetMs) ? reviewTimelineDebug.visualOffsetMs : 0) + '\n'
         + 'reviewTimeline.visualOffsetSource: ' + (reviewTimelineDebug.visualOffsetSource || 'none') + '\n'
@@ -7543,10 +7550,11 @@ function reviewTimelineCandidateTimeMs(gameMs, formula, rec) {
     const hp = reviewPracticeHeadphoneOutputOffsetMs(rec);
     const clk = reviewClickTotalOffsetMs(rec);
     const add = reviewAdditionalClickDisplayOffsetMs(rec);
+    const debugExtra = reviewDebugVisualExtraDelayMs();
     switch (formula) {
         case 'A': return Math.max(0, g);
         case 'B': return Math.max(0, g - hp);
-        case 'C': return Math.max(0, g - hp - add);
+        case 'C': return Math.max(0, g - hp - add - debugExtra);
         case 'D': return Math.max(0, g - clk);
         case 'E': return Math.max(0, g - Math.max(hp, clk));
         default: return Math.max(0, g);
@@ -7719,17 +7727,23 @@ function reviewAdditionalClickDisplayOffsetSource(rec) {
     return 'none';
 }
 
+function reviewDebugVisualExtraDelayMs() {
+    return MIC_DEBUG_ON ? debugReviewVisualExtraDelayMs : 0;
+}
+
 function reviewJustDisplayOffsetMs(rec) {
     const r = rec || state.practiceRecording;
-    if (!r || r.reviewPracticeInputType === 'normal') return 0;
+    const debugExtra = reviewDebugVisualExtraDelayMs();
+    if (!r || r.reviewPracticeInputType === 'normal') return -debugExtra;
     const hp = reviewPracticeHeadphoneOutputOffsetMs(r);
     const addClick = reviewAdditionalClickDisplayOffsetMs(r);
-    if (hp <= 0 && addClick <= 0) return 0;
-    return -(hp + addClick);
+    return -(hp + addClick + debugExtra);
 }
 
 function reviewJustDisplayOffsetSource(rec) {
     const r = rec || state.practiceRecording;
+    const debugExtra = reviewDebugVisualExtraDelayMs();
+    if (debugExtra !== 0) return 'debug-review-visual-extra-delay';
     if (!r || r.reviewPracticeInputType === 'normal') return 'normal-mic';
     const hp = reviewPracticeHeadphoneOutputOffsetMs(r);
     const add = reviewAdditionalClickDisplayOffsetMs(r);
@@ -7854,6 +7868,9 @@ function drawReviewPlayheadAtSec(sec) {
     reviewTimelineDebug.justDisplayOffsetMs = justOff;
     reviewTimelineDebug.justDisplayOffsetSource = reviewJustDisplayOffsetSource(rec);
     reviewTimelineDebug.headphoneOutputOffsetMs = reviewPracticeHeadphoneOutputOffsetMs(rec);
+    reviewTimelineDebug.debugReviewVisualExtraDelayMs = reviewDebugVisualExtraDelayMs();
+    reviewTimelineDebug.effectiveReviewVisualOutputLatencyMs = reviewTimelineDebug.headphoneOutputOffsetMs
+        + reviewTimelineDebug.debugReviewVisualExtraDelayMs;
     reviewTimelineDebug.reviewClickTotalOffsetMs = reviewClickTotalOffsetMs(rec);
     reviewTimelineDebug.visualOffsetMs = reviewVisualOffsetMs(rec);
     reviewTimelineDebug.visualOffsetSource = reviewVisualOffsetSource(rec);
@@ -20155,6 +20172,13 @@ function bind() {
         startRetestFlow(true);
     });
     if (els.devLogCopyBtn) els.devLogCopyBtn.addEventListener('click', copyDevelopmentLog);
+    if (els.debugReviewVisualDelayInput) els.debugReviewVisualDelayInput.addEventListener('input', () => {
+        const raw = Number(els.debugReviewVisualDelayInput.value);
+        debugReviewVisualExtraDelayMs = Math.max(-150, Math.min(250, Number.isFinite(raw) ? raw : 0));
+        if (els.debugReviewVisualDelayValue) els.debugReviewVisualDelayValue.textContent = debugReviewVisualExtraDelayMs + 'ms';
+        const sec = getReviewPlaybackCurrentTimeSec();
+        if (sec != null) updateReviewTimelineUI(sec);
+    });
     if (els.debugWaveControls) els.debugWaveControls.querySelectorAll('[data-wave-mode]').forEach((btn) => {
         btn.addEventListener('click', () => {
             const mode = btn.getAttribute('data-wave-mode');
@@ -20292,6 +20316,7 @@ function applyProLockBadges() {
 function init() {
     applyAppVersionDisplay();    // バージョン表示（Ver X.Y.Z）
     if (els.devLogCopyRow) els.devLogCopyRow.classList.toggle('hidden', !MIC_DEBUG_ON);
+    if (els.debugReviewVisualDelay) els.debugReviewVisualDelay.classList.toggle('hidden', !MIC_DEBUG_ON);
     loadSettings();              // 保存済みのマイク設定を反映
     seedRhythmCustomStageSamples();
     renderStages();
