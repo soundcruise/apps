@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.10.21">
+    <link rel="stylesheet" href="theme.css?v=0.10.22">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -786,7 +786,7 @@
                 <p class="do-now-sub">目標：クリック音では反応せず、ストロークでは反応する感度にします。</p>
                 <details class="card-help">
                     <summary>コードストロークする場合</summary>
-                    <p class="setting-note" id="test-card-note">弦にクロスを挟むなど、響きを抑えると判定が安定します。</p>
+                    <p class="setting-note" id="test-card-note">弦にクロスを挟むなど、響きを抑えてストロークしてください</p>
                 </details>
                 <div class="test-row">
                     <button class="btn-mic test-run-btn test-start-btn rc-mic-action-primary" id="mic-test-btn">マイク反応テストを開始</button>
@@ -1201,11 +1201,12 @@
                     <div class="graph-wrap results-mic-wrap hidden" id="results-mic-wrap">
                         <div class="graph-head">
                             <span>ストローク音量</span>
-                            <span class="graph-axis">横線＝判定ライン</span>
+                            <span class="graph-axis">点線＝反応ライン（超えると反応しやすい目安）</span>
                         </div>
                         <div class="result-graph-scroll">
                             <canvas id="results-mic-canvas"></canvas>
                         </div>
+                        <p class="setting-note results-mic-legend">点線の「反応ライン」を超えるくらいの入力だと、ストロークとして反応しやすくなります。実際の判定はタイミングや連続入力の間隔も含めて行われます。</p>
                     </div>
                     <!-- ズレ傾向を見たあと、マイクの手動設定（現在の設定を見る）へ直接行ける控えめなリンク（v0.9.107） -->
                     <p class="result-mic-tune-row">
@@ -1315,7 +1316,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.10.21"></script>
+    <script src="script.js?v=0.10.22"></script>
 </body>
 
 </html>

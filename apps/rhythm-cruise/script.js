@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.21';
+const RHYTHM_CRUISE_VERSION = '0.10.22';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -631,6 +631,7 @@ const state = {
     chordDebug: null,   // Phase2ログ可視化（?debugMic=1 時のみ確保）。判定には一切不使用。詳細は newChordDebug()
     waveRiseAnalysis: [], // コードPractice終了時の波形立ち上がり分析（結果波形と同じmicRunWaveを参照）
     waveFallbackLog: [], // 波形立ち上がり補完の採否ログ（debugMic表示用）
+    stage6FallbackLog: [], // v0.10.22：STAGE6 MISS専用補完（立ち上がりイベント）の採否ログ（debugMic表示用）
     doubleReactionCount: 0, // 二重反応の総数
     markers: [],
     micWaveHistory: [],   // {perf, level} マイク音量の時系列（STAGE中の背景波形用・直近のみ）
@@ -6169,15 +6170,12 @@ function gameAudioMs() {
 
 /* v0.9.157：?debugMic=1 のときだけ、通常マイク/クリック/補正テストの実測値を小さなオーバーレイで出す。
    ensureDebugBox を流用。本番URLには debugMic が付かないので通常ユーザーには一切出ない。 */
-function updateMicDebugBox() {
-    if (!MIC_DEBUG_ON) return;
-    const box = ensureDebugBox('mic-debug', 'top');
-    if (!box) return;
+/* v0.10.22：debugMic のライブ実測値テキスト（折りたたみパネルに表示）。 */
+function micDebugText() {
     const f3 = (v) => (typeof v === 'number' && isFinite(v)) ? v.toFixed(3) : '-';
     let calVol = '-';
     try { calVol = calibrationClickVolume(); } catch (_) { /* noop */ }
-    box.textContent =
-        'debugMic\n'
+    return 'debugMic\n'
         + 'inputType: ' + getMicInputType() + '\n'
         + 'isNormalMic: ' + isNormalMicInput() + '\n'
         + 'clickPeakGain: ' + clickPeakGain() + '\n'
@@ -6188,6 +6186,47 @@ function updateMicDebugBox() {
         + 'cal.threshold: ' + f3(cal.threshold) + '\n'
         + 'cal.maxPeak: ' + f3(cal.maxPeak) + '\n'
         + 'cal.successCount: ' + (cal.successCount || 0) + ' / ' + CAL_CLICKS;
+}
+let micDebugPanelOpen = false;
+/* v0.10.22：debugMic の左上ライブログを「常時大きく出し続ける」のをやめ、小さなトグル(🛠)＋折りたたみパネルへ。
+   ・初期は閉じる（トグルだけ）。開いたときだけライブ更新。
+   ・全文コピー／閉じる ボタン付き。MIC_DEBUG_ON のときだけ生成され、通常ユーザーには一切出ない。 */
+function ensureMicDebugUI() {
+    if (document.getElementById('mic-debug-toggle')) return;
+    if (!document.body) return;
+    const toggle = document.createElement('button');
+    toggle.id = 'mic-debug-toggle'; toggle.type = 'button'; toggle.textContent = '🛠';
+    toggle.setAttribute('aria-label', '開発ログ（debugMic）');
+    toggle.style.cssText = 'position:fixed;top:calc(var(--safe-top, 0px) + 4px);left:4px;z-index:100000;'
+        + 'width:30px;height:30px;padding:0;border-radius:8px;border:1px solid rgba(124,252,0,0.5);'
+        + 'background:rgba(0,0,0,0.55);color:#7CFC00;font-size:14px;line-height:30px;';
+    const panel = document.createElement('div');
+    panel.id = 'mic-debug-panel';
+    panel.style.cssText = 'position:fixed;top:calc(var(--safe-top, 0px) + 38px);left:4px;z-index:99999;'
+        + 'display:none;max-width:84vw;max-height:60vh;overflow:auto;padding:8px;border-radius:8px;'
+        + 'background:rgba(0,0,0,0.86);color:#7CFC00;font:600 10px/1.4 ui-monospace, Menlo, monospace;';
+    const pre = document.createElement('pre');
+    pre.id = 'mic-debug-pre'; pre.style.cssText = 'white-space:pre-wrap;margin:0 0 6px;user-select:text;-webkit-user-select:text;';
+    const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:6px;';
+    const mkBtn = (label) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
+        b.style.cssText = 'flex:1;padding:5px 8px;border-radius:6px;border:1px solid rgba(124,252,0,0.5);background:rgba(0,0,0,0.4);color:#7CFC00;font:700 10px ui-monospace,monospace;'; return b; };
+    const copyBtn = mkBtn('コピー'); const closeBtn = mkBtn('閉じる');
+    copyBtn.addEventListener('click', () => {
+        const txt = micDebugText();
+        const done = () => { copyBtn.textContent = 'コピー済'; setTimeout(() => { copyBtn.textContent = 'コピー'; }, 1200); };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, () => { pre.focus(); });
+        else { try { const r = document.createRange(); r.selectNodeContents(pre); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); document.execCommand('copy'); done(); } catch (_) { /* noop */ } }
+    });
+    closeBtn.addEventListener('click', () => { micDebugPanelOpen = false; panel.style.display = 'none'; });
+    toggle.addEventListener('click', () => { micDebugPanelOpen = !micDebugPanelOpen; panel.style.display = micDebugPanelOpen ? 'block' : 'none'; if (micDebugPanelOpen) pre.textContent = micDebugText(); });
+    row.appendChild(copyBtn); row.appendChild(closeBtn);
+    panel.appendChild(pre); panel.appendChild(row);
+    document.body.appendChild(toggle); document.body.appendChild(panel);
+}
+function updateMicDebugBox() {
+    if (!MIC_DEBUG_ON) return;
+    ensureMicDebugUI();
+    if (micDebugPanelOpen) { const pre = document.getElementById('mic-debug-pre'); if (pre) pre.textContent = micDebugText(); }
 }
 
 /* ── DEBUG オーバーレイ（本番OFF・v0.9.110）──────────────────────
@@ -6399,7 +6438,9 @@ function fitResultsMic() {
 }
 
 /* 結果画面：各拍のストローク音量（state.beatMicPeak）を縦バーで表示し、反応ライン横線を引く。
-   入力あり（反応ライン超え）＝緑、未満＝グレー、二重反応＝紫系の縦線＋double。 */
+   入力あり（反応ライン超え）＝緑、未満＝グレー、二重反応＝紫系の縦線＋double。
+   v0.10.22：横線ラベルは「反応ライン」（超えると反応しやすい目安）。「判定ライン」とは呼ばない
+   （実際の判定はcooldown・target割り当て・タイミング補正・tailGrace等も絡むため、誤解を避ける）。 */
 function drawResultsMic() {
     const { ctx, w, h } = resultsMic;
     if (!ctx) return;
@@ -6409,7 +6450,7 @@ function drawResultsMic() {
     const usableH = baseY - topY;
     // 表示スケール：Play画面と同じ実効しきい値基準（micDisplayFracEff）で揃える（v0.9.140）。マイク感度カーブ反映後。
     const valToY = (v) => baseY - Math.max(0, Math.min(1, micDisplayFracEff(v))) * usableH;
-    // 判定ライン（薄い横線＋ラベル）
+    // 反応ライン（薄い横線＋ラベル）。この高さを超える入力が「反応しやすい」目安（判定そのものではない）。
     const lineY = valToY(micEffectiveThreshold());
     ctx.strokeStyle = 'rgba(255,159,28,0.45)';
     ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
@@ -6417,7 +6458,7 @@ function drawResultsMic() {
     ctx.setLineDash([]);
     ctx.fillStyle = 'rgba(255,159,28,0.6)';
     ctx.font = '600 9px Outfit, sans-serif'; ctx.textAlign = 'left';
-    ctx.fillText('判定ライン', x0 + 2, lineY - 3);
+    ctx.fillText('反応ライン', x0 + 2, lineY - 3);
     // 各拍のバー
     const n = TOTAL_BEATS;
     const slot = (x1 - x0) / n;
@@ -6676,7 +6717,7 @@ function drawMicWaveform(ctx, w, h, yc, rawT, dispOff) {
         ctx.fillStyle = 'rgba(255,159,28,0.5)';
         ctx.font = '600 9px Outfit, sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText('判定ライン', 4, yc - lineAmp - 3);
+        ctx.fillText('反応ライン', 4, yc - lineAmp - 3); // v0.10.22：「判定ライン」ではなく「反応ライン」（反応しやすい目安）
         ctx.restore();
     }
 
@@ -7193,9 +7234,10 @@ function drawReviewMicOverlay(ctx, w, h, yc, beatX, beatPx) {
     const tToX = (t) => leftPad + ((t - state.T0) / state.beatInterval) * beatPx;
     ctx.save();
 
+    // 表示モード：通常URLは常に 'linear'。?debugMic=1 のときだけ 対数/立ち上がり強調 へ切替可能。
+    const displayMode = MIC_DEBUG_ON ? debugReviewWaveMode : 'linear';
     const rw = state.micRunWave;
     if (rw && rw.length >= 2) {
-        const displayMode = MIC_DEBUG_ON ? debugReviewWaveMode : 'linear';
         const displayLevels = debugReviewWaveLevels(rw, displayMode);
         // STAGE中と同じ時間軸の連続波形（上下対称の薄い塗り＋上端の輪郭）
         const pts = [];
@@ -7234,12 +7276,12 @@ function drawReviewMicOverlay(ctx, w, h, yc, beatX, beatPx) {
         ctx.fill();
     }
 
-    // 反応ライン（薄いオレンジ破線・上下）＋小ラベル
-    //   v0.10.4：コードモードは「波形が判定ラインを跨いだ瞬間＝判定」ではなく、chordゲート成立後に
-    //   バックデートした採用時刻で判定する。判定ラインを残すと「ここを超えたら判定」と誤解されるため、
-    //   コードモード時だけ非表示にする。ブラッシングは従来どおり跨ぎ＝判定に近いので表示を残す。
+    // 反応ライン（薄いオレンジ破線・上下）＋小ラベル。「超えると反応しやすい目安」であり判定そのものではない。
+    //   v0.10.4：コードモードは跨ぎ＝判定ではないため非表示（ブラッシング＝現行ストロークは表示）。
+    //   v0.10.22：lineAmp はリニア音量基準の反応ライン位置なので、リニア表示のときだけ描く。
+    //     対数/立ち上がり強調（?debugMic=1 の波形切替）はスケールや意味が異なり、同じ高さに出すと誤解を招くため出さない。
     //   （タップは関数冒頭の inputMode!=='stroke' で既に return 済み＝影響なし。）
-    if (state.strokeDetectMode !== 'chord') {
+    if (state.strokeDetectMode !== 'chord' && displayMode === 'linear') {
         ctx.strokeStyle = 'rgba(255,159,28,0.22)';
         ctx.setLineDash([4, 4]);
         ctx.lineWidth = 1;
@@ -7249,7 +7291,7 @@ function drawReviewMicOverlay(ctx, w, h, yc, beatX, beatPx) {
         ctx.fillStyle = 'rgba(255,159,28,0.45)';
         ctx.font = '600 9px Outfit, sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText('判定ライン', 4, yc - lineAmp - 3);
+        ctx.fillText('反応ライン', 4, yc - lineAmp - 3);
     }
     ctx.restore();
 }
@@ -8515,6 +8557,7 @@ function resetData() {
     state.chordDebug = MIC_DEBUG_ON ? newChordDebug() : null; // Phase2：debugMic時のみ収集・Practice開始でリセット
     state.waveRiseAnalysis = [];
     state.waveFallbackLog = [];
+    state.stage6FallbackLog = [];
     debugReviewWaveMode = 'linear';
     updateMicDiag();
     updateCombo();
@@ -8928,6 +8971,62 @@ function applyWaveOnsetFallbacks(cutoff) {
     });
 }
 
+/* v0.10.22：STAGE6（16分ストローク）専用のMISS補完。
+   ── 方針 ──
+   ・通常判定（registerHit / 旧ブラッシング経路）が主判定。実験Fを丸ごと置き換えない・全targetを採点し直さない。
+   ・通常判定で「未入力MISS」になったtargetだけを対象に、立ち上がり強調イベント（実験Fのevent抽出を再利用）を
+     ごく狭い窓(±STAGE6_FALLBACK_*_MS=30〜45ms)で1つだけ拾い、本来分類(classify)のまま補完する。
+   ・LATEをGOOD化しない（classifyの結果をそのまま使う）。判定窓は広げない（窓はnearWin~115msより遥かに狭い）。
+   ・同じイベントを複数targetに使わない／既存採用targetの近傍イベントは消費済みとして除外。
+   ・gate：stroke かつ brush かつ STAGE6。chord経路(registerChordHit)へは戻さない。debugログにも出す。 */
+const STAGE6_FALLBACK_MIN_MS = 30;  // 補完を許す最小窓（GOOD窓が狭いプリセットでもこの範囲までは見る）
+const STAGE6_FALLBACK_MAX_MS = 45;  // 補完を許す最大窓（これ以上離れた候補は採らない＝判定窓を広げない）
+function applyStage6RiseEventMissFallback() {
+    state.stage6FallbackLog = [];
+    if (!(state.inputMode === 'stroke' && state.strokeDetectMode === 'brush' && state.currentStage === 6)) return;
+    const wave = Array.isArray(state.micRunWave) ? state.micRunWave : [];
+    if (wave.length < 2) return;
+    const cutoff = state.judgeCutoff != null ? state.judgeCutoff : TOTAL_BEATS;
+    const jw = judgeWindows();
+    const cap = Math.min(STAGE6_FALLBACK_MAX_MS, Math.max(STAGE6_FALLBACK_MIN_MS, jw.justMs)); // 30〜45ms
+    const events = stage6ExtractRiseEvents(wave); // 実験Fと同じ立ち上がり強調イベント抽出（{time,rise,firstStep,slopeFrames,level}）
+    if (!events.length) return;
+    const used = new Array(events.length).fill(false);
+    // 既に通常判定で採用済みのtargetの近傍(±cap)イベントは「使用済み」として除外（他targetへの二重採用防止）。
+    for (let i = 0; i < TOTAL_BEATS; i++) {
+        if (i >= cutoff || !engIsHit(i) || !state.results[i]) continue;
+        const T = engTargetTimeMs(i);
+        for (let e = 0; e < events.length; e++) {
+            if (!used[e] && Math.abs(events[e].time - T) <= cap) used[e] = true;
+        }
+    }
+    // 未入力MISSのtargetだけを時刻順に、±cap以内の未使用イベントで補完。
+    for (let i = 0; i < TOTAL_BEATS; i++) {
+        if (i >= cutoff || !engIsHit(i) || state.results[i]) continue; // 採点対象の未入力MISSのみ
+        const target = engTargetTimeMs(i);
+        let bestE = -1, bestAbs = Infinity;
+        for (let e = 0; e < events.length; e++) {
+            if (used[e]) continue;
+            const d = Math.abs(events[e].time - target);
+            if (d > cap) continue;
+            if (d < bestAbs) { bestAbs = d; bestE = e; }
+        }
+        if (bestE < 0) { state.stage6FallbackLog.push({ beat: i, adopted: false, reason: '±' + Math.round(cap) + 'ms内に未使用の立ち上がりイベントなし' }); continue; }
+        const ev = events[bestE];
+        const diff = ev.time - target;
+        const cls = classify(diff); // ±cap(≤45ms)内なので GOOD/EARLY/LATE のいずれか（MISSにはならない）。LATEをGOOD化しない。
+        if (cls !== 'just' && cls !== 'early' && cls !== 'late') { state.stage6FallbackLog.push({ beat: i, adopted: false, reason: '分類が判定外' }); continue; }
+        used[bestE] = true;
+        state.results[i] = {
+            tapped: true, diff, cls, source: 'mic',
+            direction: 'stroke', inputDirection: 'stroke',
+            expectedDirection: engDirAt(i), directionMatched: true, dirMiss: false,
+            stage6RiseFallback: true, // 通常波形補完(waveFallback)とは別の、STAGE6 MISS専用補完の印
+        };
+        state.stage6FallbackLog.push({ beat: i, adopted: true, diff: Math.round(diff), cls, eventTime: Math.round(ev.time), rise: +ev.rise.toFixed(3) });
+    }
+}
+
 /* v0.10.17：STAGE6コード判定のdebug比較。すべて読み取り専用で、本番結果へ接続しない。
    STAGE6 debug experiment only / not connected to production scoring（v0.10.20）。
    実験C/D/E/F（stage6CodeExperimentAnalyze 系）は ?debugMic=1 のログ表示専用で state.results を書かない。
@@ -9238,6 +9337,20 @@ function updateMissDebug() {
             sections.push('<p class="miss-cause-item">lastTarget付近のwaveサンプル ' + near + '個（[' + Math.round(winLo) + ',' + Math.round(winHi)
                 + ']ms）/ 最終サンプル ' + (lastSampleT != null ? Math.round(lastSampleT) + 'ms' : '--') + ' / 後方探索カバー ' + (coversLookAhead ? 'OK' : 'NG') + '</p>');
             sections.push('<p class="miss-cause-item">tailGraceMs により endTime 以降も state.running を保ち、micRunWave収集・判定更新を継続します（判定幅・cooldown等は不変）。最後の16分が他targetと同条件で見られているかの確認用です。</p>');
+        }
+        // v0.10.22：STAGE6 MISS専用補完（立ち上がり強調イベント・GOOD/EARLY/LATE範囲±30〜45ms）のログ。
+        const s6fb = Array.isArray(state.stage6FallbackLog) ? state.stage6FallbackLog : [];
+        if (s6fb.length) {
+            const adopted = s6fb.filter((x) => x.adopted);
+            sections.push('<p class="miss-cause-item"><b>【STAGE6 MISS専用補完（立ち上がりイベント）】採用 ' + adopted.length + ' / 対象MISS ' + s6fb.length + '</b></p>');
+            const clsJp = (c) => c === 'just' ? 'GOOD' : c === 'early' ? 'EARLY' : c === 'late' ? 'LATE' : '--';
+            s6fb.slice(0, 12).forEach((x) => {
+                sections.push('<p class="miss-cause-item">' + missBeatPosLabel(x.beat) + '（idx ' + x.beat + '）：'
+                    + (x.adopted
+                        ? '補完採用 ' + clsJp(x.cls) + ' ' + (x.diff >= 0 ? '+' : '') + x.diff + 'ms / eventTime ' + x.eventTime + 'ms / rise ' + x.rise
+                        : '補完なし / reason ' + (x.reason || '--')) + '</p>');
+            });
+            sections.push('<p class="miss-cause-item">通常判定でMISSのtargetのみ対象。LATEはGOOD化せずclassifyの本来分類で登録。実験Fの丸ごと採用ではありません。</p>');
         }
     }
     if (MIC_DEBUG_ON && state.inputMode === 'stroke' && state.strokeDetectMode === 'chord') {
@@ -9693,6 +9806,9 @@ function finish(opts) {
 
     // 既存コード判定が確定した後、集計に入る直前に未入力targetだけを波形立ち上がりで補完する。
     applyWaveOnsetFallbacks(cutoff);
+    // v0.10.22：STAGE6（16分ストローク）専用。通常判定でMISSになったtargetだけ、立ち上がり強調イベントの
+    //   GOOD/EARLY/LATE候補(±30〜45ms)で補完する。実験Fの丸ごと採用ではなくMISS救済のみ（LATEはGOOD化しない）。
+    applyStage6RiseEventMissFallback();
 
     let just = 0, early = 0, late = 0, miss = 0, scoreSum = 0;
     const diffs = [];
@@ -10334,7 +10450,7 @@ function updateStrokeDetectModeUI() {
     if (els.strokeModeNote) els.strokeModeNote.classList.toggle('hidden', !chord);
     // v0.10.20：ストローク反応テストの案内文。ユーザー導線は brush 固定なので、軽いミュート／クロスミュート前提の文言にする。
     if (els.testCardNote) {
-        els.testCardNote.textContent = '弦にクロスを挟むなど、響きを抑えると判定が安定します。';
+        els.testCardNote.textContent = '弦にクロスを挟むなど、響きを抑えてストロークしてください';
     }
 }
 
@@ -12727,7 +12843,7 @@ function shouldAllowRescueHighSens() {
    旧 brush/chord はユーザーUIに出さず、いずれも「ストローク」として表示する。 */
 const UNIFIED_MODE_NOTE = {
     tap: 'タップ：画面をタップしてリズムを取ります。',
-    stroke: 'ストローク：弦を軽くミュートしてストロークして練習します。',
+    stroke: 'ストローク：弦を軽くミュートしてストローク練習をします。',
 };
 const UNIFIED_MODE_LABEL = { tap: 'タップモード', stroke: 'ストロークモード' };
 /* 内部2軸 → ユーザー向け呼び名（表示専用）。v0.10.20：inputMode='tap'→tap、それ以外（stroke）は brush/chord 問わず 'stroke'。 */
