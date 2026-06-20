@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.25';
+const RHYTHM_CRUISE_VERSION = '0.10.26';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -646,6 +646,11 @@ const state = {
         startedAtPerformanceTime: null,
         errorMessage: '',
         generation: 0,
+        playbackGainValue: 5,
+        playbackSource: null,
+        playbackGain: null,
+        playbackContext: null,
+        playbackConnected: false,
     },
     results: new Array(TOTAL_BEATS).fill(null),
     beatMicPeak: new Array(TOTAL_BEATS).fill(0), // 各拍の判定窓内で観測した最大マイク入力（MISS原因の切り分け用）
@@ -1116,6 +1121,9 @@ const els = {
     resultsRecording: $('results-recording'),
     resultsRecordingMessage: $('results-recording-message'),
     resultsRecordingAudio: $('results-recording-audio'),
+    resultsRecordingVolumeRow: $('results-recording-volume-row'),
+    resultsRecordingVolume: $('results-recording-volume'),
+    resultsRecordingVolumeValue: $('results-recording-volume-value'),
     resultsRecordingActions: $('results-recording-actions'),
     resultsRecordingPlay: $('results-recording-play'),
     resultsRecordingStop: $('results-recording-stop'),
@@ -8362,6 +8370,9 @@ const PRACTICE_RECORDING_MIME_TYPES = [
     'audio/webm;codecs=opus',
     'audio/webm',
 ];
+const PRACTICE_RECORDING_GAIN_DEFAULT = 5;
+const PRACTICE_RECORDING_GAIN_MIN = 1;
+const PRACTICE_RECORDING_GAIN_MAX = 10;
 
 function practiceRecordingMimeType() {
     if (!window.MediaRecorder || typeof window.MediaRecorder.isTypeSupported !== 'function') return '';
@@ -8376,11 +8387,100 @@ function setPracticeRecordingPlaybackUI(playing) {
     if (els.resultsRecordingStop) els.resultsRecordingStop.disabled = !playing;
 }
 
+function practiceRecordingGainValue(value) {
+    const n = Number(value);
+    return Math.max(PRACTICE_RECORDING_GAIN_MIN, Math.min(PRACTICE_RECORDING_GAIN_MAX,
+        Number.isFinite(n) ? n : PRACTICE_RECORDING_GAIN_DEFAULT));
+}
+
+function applyPracticeRecordingGain(value) {
+    const rec = state.practiceRecording;
+    rec.playbackGainValue = practiceRecordingGainValue(value);
+    if (els.resultsRecordingVolume) els.resultsRecordingVolume.value = String(rec.playbackGainValue);
+    if (els.resultsRecordingVolumeValue) els.resultsRecordingVolumeValue.textContent = rec.playbackGainValue.toFixed(1) + 'x';
+    const gain = rec.playbackGain && rec.playbackGain.gain;
+    if (gain) {
+        const ctx = rec.playbackContext;
+        try {
+            if (typeof gain.setValueAtTime === 'function' && ctx) gain.setValueAtTime(rec.playbackGainValue, ctx.currentTime);
+            else gain.value = rec.playbackGainValue;
+        } catch (_) { gain.value = rec.playbackGainValue; }
+    }
+}
+
+function disconnectPracticeRecordingPlaybackGraph() {
+    const rec = state.practiceRecording;
+    if (rec.playbackSource) { try { rec.playbackSource.disconnect(); } catch (_) { /* noop */ } }
+    if (rec.playbackGain) { try { rec.playbackGain.disconnect(); } catch (_) { /* noop */ } }
+    rec.playbackConnected = false;
+}
+
+function bindPracticeRecordingAudioEvents(audio) {
+    if (!audio) return;
+    audio.addEventListener('ended', stopPracticeRecordingPlayback);
+    audio.addEventListener('pause', () => setPracticeRecordingPlaybackUI(false));
+    audio.addEventListener('error', () => setPracticeRecordingPlaybackUI(false));
+}
+
+/* MediaElementSourceは同じaudio要素へ再作成できないため、AudioContextが作り直された場合だけ要素も交換する。 */
+function replacePracticeRecordingAudioElement() {
+    const oldAudio = els.resultsRecordingAudio;
+    if (!oldAudio || !oldAudio.parentNode) return oldAudio;
+    const audio = oldAudio.cloneNode(false);
+    audio.removeAttribute('src');
+    if (state.practiceRecording.url) audio.src = state.practiceRecording.url;
+    oldAudio.parentNode.replaceChild(audio, oldAudio);
+    els.resultsRecordingAudio = audio;
+    bindPracticeRecordingAudioEvents(audio);
+    return audio;
+}
+
+function ensurePracticeRecordingPlaybackGraph() {
+    const rec = state.practiceRecording;
+    let audio = els.resultsRecordingAudio;
+    if (!audio) return false;
+    audio.volume = 1;
+    let ctx;
+    try { ctx = ensureAudio(); } catch (_) { return false; }
+    if (!ctx || typeof ctx.createMediaElementSource !== 'function' || typeof ctx.createGain !== 'function') return false;
+    if (rec.playbackContext && rec.playbackContext !== ctx) {
+        disconnectPracticeRecordingPlaybackGraph();
+        rec.playbackSource = null;
+        rec.playbackGain = null;
+        rec.playbackContext = null;
+        audio = replacePracticeRecordingAudioElement();
+        if (!audio) return false;
+    }
+    try {
+        if (!rec.playbackSource) {
+            rec.playbackSource = ctx.createMediaElementSource(audio);
+            rec.playbackGain = ctx.createGain();
+            rec.playbackContext = ctx;
+        }
+        applyPracticeRecordingGain(rec.playbackGainValue);
+        if (!rec.playbackConnected) {
+            rec.playbackSource.connect(rec.playbackGain);
+            rec.playbackGain.connect(ctx.destination);
+            rec.playbackConnected = true;
+        }
+        if (ctx.state === 'suspended') {
+            const resumed = ctx.resume();
+            if (resumed && typeof resumed.catch === 'function') resumed.catch(() => { /* audio.play側で失敗を処理 */ });
+        }
+        return true;
+    } catch (e) {
+        disconnectPracticeRecordingPlaybackGraph();
+        console.warn('[practice-recording] gain setup failed:', e && e.name);
+        return false;
+    }
+}
+
 function stopPracticeRecordingPlayback() {
     const audio = els.resultsRecordingAudio;
     if (audio) {
         try { audio.pause(); audio.currentTime = 0; } catch (_) { /* noop */ }
     }
+    disconnectPracticeRecordingPlaybackGraph();
     setPracticeRecordingPlaybackUI(false);
 }
 
@@ -8398,13 +8498,17 @@ function updatePracticeRecordingUI() {
         if (els.resultsRecordingMessage) {
             els.resultsRecordingMessage.innerHTML = '今回の演奏を録音しました。<br>結果を見ながら、自分のストローク音を確認できます。';
         }
+        if (els.resultsRecordingVolumeRow) els.resultsRecordingVolumeRow.classList.remove('hidden');
         if (els.resultsRecordingActions) els.resultsRecordingActions.classList.remove('hidden');
         if (els.resultsRecordingAudio && els.resultsRecordingAudio.src !== rec.url) els.resultsRecordingAudio.src = rec.url;
+        if (els.resultsRecordingAudio) els.resultsRecordingAudio.volume = 1;
+        applyPracticeRecordingGain(rec.playbackGainValue);
         setPracticeRecordingPlaybackUI(false);
     } else if (debugUnavailable) {
         if (els.resultsRecordingMessage) {
             els.resultsRecordingMessage.textContent = 'debugMic: 録音を利用できません。' + (rec.errorMessage || '対応状況を確認してください。');
         }
+        if (els.resultsRecordingVolumeRow) els.resultsRecordingVolumeRow.classList.add('hidden');
         if (els.resultsRecordingActions) els.resultsRecordingActions.classList.add('hidden');
     }
 }
@@ -8437,6 +8541,7 @@ function discardPracticeRecording() {
     rec.startedAtAudioTime = null;
     rec.startedAtPerformanceTime = null;
     rec.errorMessage = '';
+    applyPracticeRecordingGain(PRACTICE_RECORDING_GAIN_DEFAULT);
     if (els.resultsRecording) els.resultsRecording.classList.add('hidden');
 }
 
@@ -18599,26 +18704,31 @@ function bind() {
         resetGame();
     });
     if (els.resultsRecordingPlay) els.resultsRecordingPlay.addEventListener('click', () => {
-        const audio = els.resultsRecordingAudio;
-        if (!audio || state.practiceRecording.status !== 'available') return;
+        if (!els.resultsRecordingAudio || state.practiceRecording.status !== 'available') return;
+        const amplified = ensurePracticeRecordingPlaybackGraph();
+        const audio = els.resultsRecordingAudio; // Context再生成時はaudio要素も交換されるため取得し直す
+        if (!amplified && els.resultsRecordingMessage) {
+            els.resultsRecordingMessage.innerHTML = '今回の演奏を録音しました。<br>音が小さい場合は、iPhone本体の音量も上げてください。';
+        }
         try { audio.currentTime = 0; } catch (_) { /* noop */ }
-        const started = audio.play();
+        let started;
+        try { started = audio.play(); }
+        catch (_) { stopPracticeRecordingPlayback(); return; }
         setPracticeRecordingPlaybackUI(true);
         if (started && typeof started.catch === 'function') {
             started.catch(() => {
-                setPracticeRecordingPlaybackUI(false);
+                stopPracticeRecordingPlayback();
                 if (MIC_DEBUG_ON && els.resultsRecordingMessage) {
                     els.resultsRecordingMessage.textContent = 'debugMic: 録音を再生できませんでした。';
                 }
             });
         }
     });
-    if (els.resultsRecordingStop) els.resultsRecordingStop.addEventListener('click', stopPracticeRecordingPlayback);
-    if (els.resultsRecordingAudio) {
-        els.resultsRecordingAudio.addEventListener('ended', () => setPracticeRecordingPlaybackUI(false));
-        els.resultsRecordingAudio.addEventListener('pause', () => setPracticeRecordingPlaybackUI(false));
-        els.resultsRecordingAudio.addEventListener('error', () => setPracticeRecordingPlaybackUI(false));
+    if (els.resultsRecordingVolume) {
+        els.resultsRecordingVolume.addEventListener('input', () => applyPracticeRecordingGain(els.resultsRecordingVolume.value));
     }
+    if (els.resultsRecordingStop) els.resultsRecordingStop.addEventListener('click', stopPracticeRecordingPlayback);
+    bindPracticeRecordingAudioEvents(els.resultsRecordingAudio);
     // 過去の結果（履歴）UI（v0.9.146）
     if (els.historyOpenBtn) els.historyOpenBtn.addEventListener('click', openResultHistory);
     if (els.historyCloseBtn) els.historyCloseBtn.addEventListener('click', closeResultHistory);

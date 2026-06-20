@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.10.25">
+    <link rel="stylesheet" href="theme.css?v=0.10.26">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1187,6 +1187,11 @@
                 <h3 id="results-recording-title">録音で振り返る</h3>
                 <p id="results-recording-message">今回の演奏を録音しました。<br>結果を見ながら、自分のストローク音を確認できます。</p>
                 <audio id="results-recording-audio" preload="metadata"></audio>
+                <label class="results-recording-volume" id="results-recording-volume-row" for="results-recording-volume">
+                    <span>録音音量</span>
+                    <input type="range" id="results-recording-volume" min="1" max="10" step="0.5" value="5">
+                    <b id="results-recording-volume-value">5.0x</b>
+                </label>
                 <div class="results-recording-actions" id="results-recording-actions">
                     <button type="button" class="btn-primary" id="results-recording-play">▶ 録音を再生</button>
                     <button type="button" class="btn-ghost" id="results-recording-stop" disabled>■ 停止</button>
@@ -1329,7 +1334,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.10.25"></script>
+    <script src="script.js?v=0.10.26"></script>
 </body>
 
 </html>

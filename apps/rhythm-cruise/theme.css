@@ -2669,6 +2669,25 @@ h1 {
     text-align: center;
 }
 .results-recording audio { display: none; }
+.results-recording-volume {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) 3.2em;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 0.8rem;
+    color: var(--muted-color);
+}
+.results-recording-volume.hidden { display: none; }
+.results-recording-volume input {
+    width: 100%;
+    accent-color: var(--secondary-color);
+}
+.results-recording-volume b {
+    color: var(--secondary-color);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
 .results-recording-actions {
     display: flex;
     gap: 8px;
