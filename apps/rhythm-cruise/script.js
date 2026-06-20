@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.32';
+const RHYTHM_CRUISE_VERSION = '0.10.33';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -666,9 +666,14 @@ const state = {
         reviewClickOscillators: [],      // 先読み予約済みOscillator（停止時に全て止める）
         reviewClickTimer: null,          // 先読みスケジュールの監視タイマー
         reviewClickNextIndex: 0,         // 次に予約するreviewClickTimesのindex
-        reviewClickLastPos: null,        // 直近のaudio.currentTime（巻き戻し検出用）
         reviewClickContext: null,        // クリック生成に使うAudioContext参照
         reviewClickScheduledCount: 0,    // 累計予約数（debug表示用）
+        // v0.10.33：同期アンカー（再生開始/再開/seek/経路切替で張り直す）
+        reviewClickAnchorMediaTime: null,   // アンカー時のaudio.currentTime（秒）
+        reviewClickAnchorContextTime: null, // アンカー時のctx.currentTime（秒）
+        reviewClickResyncCount: 0,          // 再アンカー回数（debug表示用）
+        reviewClickSkippedPastCount: 0,     // 過去になってスキップしたクリック数（debug表示用）
+        reviewClickLastScheduleBase: 'idle',// 直近の予約基準（debug表示用：'anchor' 等）
         debug: null,
     },
     results: new Array(TOTAL_BEATS).fill(null),
@@ -6280,6 +6285,13 @@ function micDebugText() {
         + 'reviewClick.volume: ' + (rec ? rec.reviewClickVolume + '%' : '-') + '\n'
         + 'reviewClick.times: ' + (rec && Array.isArray(rec.reviewClickTimes) ? rec.reviewClickTimes.length : 0) + '\n'
         + 'reviewClick.route: ' + (rec && rec.reviewClickTimer ? 'overlay(ctx.destination)' : 'idle') + '\n'
+        + 'reviewClick.anchorMediaTime: ' + (rec && rec.reviewClickAnchorMediaTime != null ? rec.reviewClickAnchorMediaTime.toFixed(3) + 's' : '-') + '\n'
+        + 'reviewClick.anchorContextTime: ' + (rec && rec.reviewClickAnchorContextTime != null ? rec.reviewClickAnchorContextTime.toFixed(3) + 's' : '-') + '\n'
+        + 'reviewClick.lookahead: ' + REVIEW_CLICK_LOOKAHEAD_SEC + 's\n'
+        + 'reviewClick.timerInterval: ' + REVIEW_CLICK_TICK_MS + 'ms\n'
+        + 'reviewClick.lastScheduleBase: ' + (rec ? rec.reviewClickLastScheduleBase : '-') + '\n'
+        + 'reviewClick.resyncCount: ' + (rec ? (rec.reviewClickResyncCount || 0) : 0) + '\n'
+        + 'reviewClick.skippedPastCount: ' + (rec ? (rec.reviewClickSkippedPastCount || 0) : 0) + '\n'
         + 'reviewClick.scheduledCount: ' + (rec ? (rec.reviewClickScheduledCount || 0) : 0) + '\n'
         + 'reviewClick.pending: ' + (rec && Array.isArray(rec.reviewClickOscillators) ? rec.reviewClickOscillators.length : 0) + '\n'
         + 'track.events: ' + (rd && rd.trackEvents.length ? rd.trackEvents.join(', ') : '-');
@@ -8439,8 +8451,13 @@ const PRACTICE_RECORDING_SINGLE_SIDED_RATIO = 0.1;
 /* v0.10.32：録音再生のクリック重ね（Bluetoothイヤホンでクリックが録音に入らない対策）。録音振り返り専用の一時設定。
    localStorage/履歴/判定には一切関与しない。クリック時刻は録音開始(=game-time 0)基準の相対秒で持つ。 */
 const REVIEW_CLICK_VOLUME_DEFAULT = 50;   // クリック音量初期値（%）
-const REVIEW_CLICK_LOOKAHEAD_SEC = 0.3;   // 先読みスケジュール幅（秒）
+/* v0.10.33：同期はアンカー方式に変更。再生開始/再開/seek/経路切替時に (audio.currentTime, ctx.currentTime) を固定し、
+   各クリックの予約時刻を anchorContextTime + (clickTime - anchorMediaTime) で求める（audio.currentTimeの逐次参照の
+   ジッタ／Safariの粗い更新による遅れを避ける）。判定用のBluetooth補正値などは使わない。 */
+const REVIEW_CLICK_LOOKAHEAD_SEC = 0.6;   // 先読みスケジュール幅（秒）：iPhone Safari/Web Audio経路でも遅れにくいよう少し長め
 const REVIEW_CLICK_TICK_MS = 100;         // 先読みスケジュールの監視間隔（ms）
+const REVIEW_CLICK_PAST_SEC = 0.03;       // この秒数より過去になったクリックはスキップ（無理に遅れて鳴らさない）
+const REVIEW_CLICK_RESYNC_DRIFT_SEC = 0.2;// ctxクロック推定位置と実audio.currentTimeがこれ以上ズレたら再アンカー（seek等）
 
 function createPracticeRecordingDebug() {
     return {
@@ -8610,6 +8627,8 @@ function bindPracticeRecordingAudioEvents(audio) {
     audio.addEventListener('play', startReviewClickOverlay);
     audio.addEventListener('pause', () => { stopReviewClickOverlay(); setPracticeRecordingPlaybackUI(false); });
     audio.addEventListener('error', () => { stopReviewClickOverlay(); setPracticeRecordingPlaybackUI(false); });
+    // v0.10.33：seek完了時はアンカーを張り直す（再生中のみ）。startReviewClickOverlayが既存予約を止めてから再アンカーする。
+    audio.addEventListener('seeked', () => { if (!audio.paused) startReviewClickOverlay(); });
     const updateDuration = () => {
         const duration = Number(audio.duration);
         const debug = state.practiceRecording.debug;
@@ -8799,34 +8818,73 @@ function scheduleReviewClick(audioTime, accent) {
     osc.stop(stopAt);
     rec.reviewClickOscillators.push(osc);
     rec.reviewClickScheduledCount++;
-    if (rec.reviewClickOscillators.length > 16) rec.reviewClickOscillators.shift(); // 直近のみ保持
+    // 直近のみ保持（先頭＝古い＝発音済みから捨てる。未発音は末尾なので落とさない）。lookahead拡大に合わせ余裕を持たせる。
+    if (rec.reviewClickOscillators.length > 24) rec.reviewClickOscillators.shift();
 }
 
-/* 現在のaudio.currentTimeから先読み範囲内のクリックを予約する。タイマーから繰り返し呼ばれる。 */
+/* v0.10.33：予約済みOscillatorだけ止める（タイマー・indexは保持）。再アンカー時に使う。 */
+function cancelScheduledReviewClicks() {
+    const rec = state.practiceRecording;
+    if (Array.isArray(rec.reviewClickOscillators)) {
+        rec.reviewClickOscillators.forEach((osc) => { try { osc.stop(); } catch (_) { /* noop */ } });
+    }
+    rec.reviewClickOscillators = [];
+}
+
+/* v0.10.33：再生開始/再開/seek/経路切替の瞬間に (audio.currentTime, ctx.currentTime) を固定する。
+   以降のクリックは anchorContextTime + (clickTime - anchorMediaTime) で予約する（逐次参照のジッタを避ける）。 */
+function setReviewClickAnchor() {
+    const rec = state.practiceRecording;
+    const audio = els.resultsRecordingAudio;
+    const ctx = rec.reviewClickContext || state.audioCtx;
+    if (!audio || !ctx) return false;
+    rec.reviewClickAnchorMediaTime = Math.max(0, Number(audio.currentTime) || 0);
+    rec.reviewClickAnchorContextTime = ctx.currentTime;
+    rec.reviewClickNextIndex = 0; // skip-while で再生位置以降へ寄せ直す
+    rec.reviewClickResyncCount++;
+    return true;
+}
+
+/* 先読み範囲内のクリックを、固定アンカー基準でAudioContext時刻へ予約する。タイマーから繰り返し呼ばれる。
+   再生位置はctxクロックから推定（anchorMediaTime + (ctx.currentTime - anchorContextTime)）し、
+   audio.currentTimeとの差が大きいとき（seek/巻き戻し）は再アンカーする。 */
 function scheduleReviewClicksAhead() {
     const rec = state.practiceRecording;
     const audio = els.resultsRecordingAudio;
     const ctx = rec.reviewClickContext || state.audioCtx;
     if (!audio || !ctx || !Array.isArray(rec.reviewClickTimes) || !rec.reviewClickTimes.length) return;
-    const pos = Math.max(0, Number(audio.currentTime) || 0); // 再生位置（録音開始基準の秒）
-    // 巻き戻し（再生し直し）を検出したらindexをリセットする。
-    if (rec.reviewClickLastPos != null && pos + 0.05 < rec.reviewClickLastPos) rec.reviewClickNextIndex = 0;
-    rec.reviewClickLastPos = pos;
+    if (rec.reviewClickAnchorMediaTime == null || rec.reviewClickAnchorContextTime == null) {
+        if (!setReviewClickAnchor()) return;
+    }
+    // ctxクロックから推定した再生位置（高解像度・安定）。実audio.currentTimeはSafariで粗く遅れるので予約基準には使わない。
+    let estPos = rec.reviewClickAnchorMediaTime + (ctx.currentTime - rec.reviewClickAnchorContextTime);
+    const actualPos = Math.max(0, Number(audio.currentTime) || 0);
+    // seek/巻き戻し/大きなドリフト → 予約を止めて再アンカー（二重予約を避けてから張り直す）。
+    if (Math.abs(actualPos - estPos) > REVIEW_CLICK_RESYNC_DRIFT_SEC) {
+        cancelScheduledReviewClicks();
+        setReviewClickAnchor();
+        estPos = rec.reviewClickAnchorMediaTime + (ctx.currentTime - rec.reviewClickAnchorContextTime);
+    }
+    const anchorM = rec.reviewClickAnchorMediaTime, anchorC = rec.reviewClickAnchorContextTime;
     const times = rec.reviewClickTimes;
-    // すでに通り過ぎたクリックは飛ばす（過去のクリックは鳴らさない）。
-    while (rec.reviewClickNextIndex < times.length && times[rec.reviewClickNextIndex].t < pos - 0.02) rec.reviewClickNextIndex++;
-    const horizon = pos + REVIEW_CLICK_LOOKAHEAD_SEC;
+    // すでに通り過ぎたクリックは飛ばす（無理に遅れて鳴らさない）。
+    while (rec.reviewClickNextIndex < times.length && times[rec.reviewClickNextIndex].t < estPos - REVIEW_CLICK_PAST_SEC) {
+        rec.reviewClickNextIndex++;
+        rec.reviewClickSkippedPastCount++;
+    }
+    const horizon = estPos + REVIEW_CLICK_LOOKAHEAD_SEC;
     while (rec.reviewClickNextIndex < times.length && times[rec.reviewClickNextIndex].t <= horizon) {
         const c = times[rec.reviewClickNextIndex];
-        const when = ctx.currentTime + (c.t - pos); // 再生はリアルタイムなので、相対秒ぶん先のctx時刻へ予約
+        const when = anchorC + (c.t - anchorM); // ★アンカー基準のctx時刻へ予約（逐次audio.currentTimeに依存しない）
         scheduleReviewClick(when, c.accent);
+        rec.reviewClickLastScheduleBase = 'anchor';
         rec.reviewClickNextIndex++;
     }
 }
 
 function startReviewClickOverlay() {
     const rec = state.practiceRecording;
-    stopReviewClickOverlay(); // 多重起動防止（再生し直し/経路切替の再playにも対応）
+    stopReviewClickOverlay(); // 多重起動防止（再生し直し/経路切替/seekの再開にも対応）
     if (!rec.reviewClickEnabled) return;
     if (!Array.isArray(rec.reviewClickTimes) || !rec.reviewClickTimes.length) return;
     const audio = els.resultsRecordingAudio;
@@ -8838,8 +8896,7 @@ function startReviewClickOverlay() {
         const resumed = ctx.resume();
         if (resumed && typeof resumed.catch === 'function') resumed.catch(() => { /* noop */ });
     }
-    rec.reviewClickNextIndex = 0;
-    rec.reviewClickLastPos = null;
+    setReviewClickAnchor(); // ★再生開始時にアンカーを固定
     scheduleReviewClicksAhead(); // 即時に1回
     rec.reviewClickTimer = setInterval(() => {
         const a = els.resultsRecordingAudio;
@@ -8851,12 +8908,11 @@ function startReviewClickOverlay() {
 function stopReviewClickOverlay() {
     const rec = state.practiceRecording;
     if (rec.reviewClickTimer) { clearInterval(rec.reviewClickTimer); rec.reviewClickTimer = null; }
-    if (Array.isArray(rec.reviewClickOscillators)) {
-        rec.reviewClickOscillators.forEach((osc) => { try { osc.stop(); } catch (_) { /* noop */ } });
-    }
-    rec.reviewClickOscillators = [];
+    cancelScheduledReviewClicks();
     rec.reviewClickNextIndex = 0;
-    rec.reviewClickLastPos = null;
+    rec.reviewClickAnchorMediaTime = null;
+    rec.reviewClickAnchorContextTime = null;
+    rec.reviewClickLastScheduleBase = 'idle';
 }
 
 /* 録音破棄時の全クリーンアップ：予約停止＋時刻リストもクリアして既定へ戻す。 */
@@ -8866,6 +8922,8 @@ function cleanupReviewClickOverlay() {
     rec.reviewClickTimes = [];
     rec.reviewClickContext = null;
     rec.reviewClickScheduledCount = 0;
+    rec.reviewClickSkippedPastCount = 0;
+    rec.reviewClickResyncCount = 0;
     rec.reviewClickEnabled = true;
     rec.reviewClickVolume = REVIEW_CLICK_VOLUME_DEFAULT;
 }
