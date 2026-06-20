@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.43';
+const RHYTHM_CRUISE_VERSION = '0.10.44';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -1438,6 +1438,15 @@ const reviewTimelineDebug = {
     candidateC_timeMs: NaN, candidateC_deltaToTargetMs: NaN, candidateC_xDeltaToTarget: NaN,
     candidateD_timeMs: NaN, candidateD_deltaToTargetMs: NaN, candidateD_xDeltaToTarget: NaN,
     candidateE_timeMs: NaN, candidateE_deltaToTargetMs: NaN, candidateE_xDeltaToTarget: NaN,
+    lastReviewClickTargetIndex: null, lastReviewClickTargetTimeMs: NaN, lastReviewClickAccent: null,
+    lastReviewClickScheduledGameMs: NaN, lastReviewClickReviewClickOffsetMs: NaN,
+    lastReviewClickHeadphoneOutputOffsetMs: NaN, lastReviewClickExpectedHeardGameMs: NaN,
+    lastReviewClickDeltaGameToExpectedHeardMs: NaN,
+    candidateA_deltaToLastClickTargetMs: NaN, candidateA_xDeltaToLastClickTarget: NaN,
+    candidateB_deltaToLastClickTargetMs: NaN, candidateB_xDeltaToLastClickTarget: NaN,
+    candidateC_deltaToLastClickTargetMs: NaN, candidateC_xDeltaToLastClickTarget: NaN,
+    candidateD_deltaToLastClickTargetMs: NaN, candidateD_xDeltaToLastClickTarget: NaN,
+    candidateE_deltaToLastClickTargetMs: NaN, candidateE_xDeltaToLastClickTarget: NaN,
 };
 const REVIEW_WRAP_SCROLL_ANCHOR = 0.35; // playhead を表示幅の左35%付近に保つ
 let reviewFlowScoreReady = false; // 結果見返しの固定譜面(VexFlow)が正常描画できているか（true時だけCanvas固定音符を隠す・v0.9.140）
@@ -6402,6 +6411,13 @@ function micDebugText() {
         + reviewTimelineCandidateDebugLine('C')
         + reviewTimelineCandidateDebugLine('D')
         + reviewTimelineCandidateDebugLine('E')
+        + '--- Review click reference ---\n'
+        + reviewTimelineLastClickDebugBlock()
+        + reviewTimelineCandidateToLastClickDebugLine('A')
+        + reviewTimelineCandidateToLastClickDebugLine('B')
+        + reviewTimelineCandidateToLastClickDebugLine('C')
+        + reviewTimelineCandidateToLastClickDebugLine('D')
+        + reviewTimelineCandidateToLastClickDebugLine('E')
         + 'reviewTimeline.scrollLeft: ' + (Number.isFinite(reviewTimelineDebug.scrollLeft) ? Math.round(reviewTimelineDebug.scrollLeft) : '-') + '\n'
         + 'reviewTimeline.scrollTarget: ' + (Number.isFinite(reviewTimelineDebug.scrollTarget) ? Math.round(reviewTimelineDebug.scrollTarget) : '-') + '\n'
         + 'reviewTimeline.rafActive: ' + (reviewTimelineDebug.rafActive ? 'yes' : 'no') + '\n'
@@ -7546,6 +7562,109 @@ function populateReviewTimelineCandidateDebug(gameMs, rec) {
         reviewTimelineDebug['candidate' + key + '_deltaToTargetMs'] = nearest ? nearest.deltaMs : NaN;
         reviewTimelineDebug['candidate' + key + '_xDeltaToTarget'] = (nearest && Number.isFinite(cx)) ? (cx - nearest.x) : NaN;
     }
+    populateReviewTimelineLastClickDebug(gameMs, rec, hp, clk);
+}
+
+/* v0.10.44：debugMic専用。reviewClickTimes から expectedHeardGameMs が gameMs に最も近いクリックを基準にする。 */
+function reviewClickDebugEntryFromTimeSec(tSec, accent, rec, clkOff, hpOut) {
+    const targetTimeMs = Math.round(Number(tSec) * 1000);
+    const clk = Number(clkOff) || 0;
+    const hp = Number(hpOut) || 0;
+    const scheduledGameMs = targetTimeMs + clk;
+    const expectedHeardGameMs = scheduledGameMs + hp;
+    const mapPt = reviewTimelineNearestTarget(targetTimeMs);
+    return {
+        targetTimeMs,
+        targetIndex: mapPt ? mapPt.index : null,
+        targetX: mapPt ? mapPt.x : NaN,
+        accent: !!accent,
+        scheduledGameMs,
+        reviewClickOffsetMs: clk,
+        headphoneOutputOffsetMs: hp,
+        expectedHeardGameMs,
+    };
+}
+
+function selectReviewClickReferenceForGameMs(gameMs, rec) {
+    const clicks = rec && Array.isArray(rec.reviewClickTimes) ? rec.reviewClickTimes : [];
+    if (!clicks.length) return null;
+    const g = Number(gameMs) || 0;
+    const clk = reviewClickTotalOffsetMs(rec);
+    const hp = reviewPracticeHeadphoneOutputOffsetMs(rec);
+    let best = null, bestAbs = Infinity;
+    for (const c of clicks) {
+        const entry = reviewClickDebugEntryFromTimeSec(c.t, c.accent, rec, clk, hp);
+        const d = Math.abs(g - entry.expectedHeardGameMs);
+        if (d < bestAbs) { bestAbs = d; best = entry; }
+    }
+    return best;
+}
+
+function clearReviewTimelineLastClickDebug() {
+    reviewTimelineDebug.lastReviewClickTargetIndex = null;
+    reviewTimelineDebug.lastReviewClickTargetTimeMs = NaN;
+    reviewTimelineDebug.lastReviewClickAccent = null;
+    reviewTimelineDebug.lastReviewClickScheduledGameMs = NaN;
+    reviewTimelineDebug.lastReviewClickReviewClickOffsetMs = NaN;
+    reviewTimelineDebug.lastReviewClickHeadphoneOutputOffsetMs = NaN;
+    reviewTimelineDebug.lastReviewClickExpectedHeardGameMs = NaN;
+    reviewTimelineDebug.lastReviewClickDeltaGameToExpectedHeardMs = NaN;
+    for (const key of ['A', 'B', 'C', 'D', 'E']) {
+        reviewTimelineDebug['candidate' + key + '_deltaToLastClickTargetMs'] = NaN;
+        reviewTimelineDebug['candidate' + key + '_xDeltaToLastClickTarget'] = NaN;
+    }
+}
+
+function populateReviewTimelineLastClickDebug(gameMs, rec, hp, clk) {
+    const ref = selectReviewClickReferenceForGameMs(gameMs, rec);
+    if (!ref) { clearReviewTimelineLastClickDebug(); return; }
+    const g = Number(gameMs) || 0;
+    reviewTimelineDebug.lastReviewClickTargetIndex = ref.targetIndex;
+    reviewTimelineDebug.lastReviewClickTargetTimeMs = ref.targetTimeMs;
+    reviewTimelineDebug.lastReviewClickAccent = ref.accent;
+    reviewTimelineDebug.lastReviewClickScheduledGameMs = ref.scheduledGameMs;
+    reviewTimelineDebug.lastReviewClickReviewClickOffsetMs = ref.reviewClickOffsetMs;
+    reviewTimelineDebug.lastReviewClickHeadphoneOutputOffsetMs = ref.headphoneOutputOffsetMs;
+    reviewTimelineDebug.lastReviewClickExpectedHeardGameMs = ref.expectedHeardGameMs;
+    reviewTimelineDebug.lastReviewClickDeltaGameToExpectedHeardMs = g - ref.expectedHeardGameMs;
+    const refX = Number.isFinite(ref.targetX) ? ref.targetX : reviewTimeToReviewX(ref.targetTimeMs);
+    for (const key of ['A', 'B', 'C', 'D', 'E']) {
+        const timeMs = reviewTimelineCandidateTimeMs(gameMs, key, hp, clk);
+        reviewTimelineDebug['candidate' + key + '_deltaToLastClickTargetMs'] = timeMs - ref.targetTimeMs;
+        const cx = reviewTimeToReviewX(timeMs);
+        reviewTimelineDebug['candidate' + key + '_xDeltaToLastClickTarget'] = Number.isFinite(cx) && Number.isFinite(refX)
+            ? (cx - refX) : NaN;
+    }
+}
+
+function reviewTimelineLastClickDebugBlock() {
+    const d = reviewTimelineDebug;
+    if (!Number.isFinite(d.lastReviewClickTargetTimeMs)) {
+        return 'lastReviewClick.targetIndex: -\n'
+            + 'lastReviewClick.targetTimeMs: -\n'
+            + 'lastReviewClick.accent: -\n'
+            + 'lastReviewClick.scheduledGameMs: -\n'
+            + 'lastReviewClick.reviewClickOffsetMs: -\n'
+            + 'lastReviewClick.headphoneOutputOffsetMs: -\n'
+            + 'lastReviewClick.expectedHeardGameMs: -\n'
+            + 'lastReviewClick.deltaGameToExpectedHeardMs: -\n';
+    }
+    return 'lastReviewClick.targetIndex: ' + (d.lastReviewClickTargetIndex != null ? d.lastReviewClickTargetIndex : '-') + '\n'
+        + 'lastReviewClick.targetTimeMs: ' + Math.round(d.lastReviewClickTargetTimeMs) + '\n'
+        + 'lastReviewClick.accent: ' + (d.lastReviewClickAccent ? 'yes' : 'no') + '\n'
+        + 'lastReviewClick.scheduledGameMs: ' + Math.round(d.lastReviewClickScheduledGameMs) + '\n'
+        + 'lastReviewClick.reviewClickOffsetMs: ' + Math.round(d.lastReviewClickReviewClickOffsetMs) + '\n'
+        + 'lastReviewClick.headphoneOutputOffsetMs: ' + Math.round(d.lastReviewClickHeadphoneOutputOffsetMs) + '\n'
+        + 'lastReviewClick.expectedHeardGameMs: ' + Math.round(d.lastReviewClickExpectedHeardGameMs) + '\n'
+        + 'lastReviewClick.deltaGameToExpectedHeardMs: ' + Math.round(d.lastReviewClickDeltaGameToExpectedHeardMs) + '\n';
+}
+
+function reviewTimelineCandidateToLastClickDebugLine(key) {
+    const d = reviewTimelineDebug['candidate' + key + '_deltaToLastClickTargetMs'];
+    const x = reviewTimelineDebug['candidate' + key + '_xDeltaToLastClickTarget'];
+    return 'reviewTimeline.candidate' + key + '.toLastClick: delta='
+        + (Number.isFinite(d) ? Math.round(d) : '-') + ', xDelta='
+        + (Number.isFinite(x) ? x.toFixed(1) : '-') + '\n';
 }
 
 function reviewTimelineCandidateDebugLine(key) {
