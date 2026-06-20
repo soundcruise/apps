@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.10.35">
+    <link rel="stylesheet" href="theme.css?v=0.10.36">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1203,7 +1203,7 @@
                     <b id="results-recording-click-volume-value">50%</b>
                 </label>
                 <!-- v0.10.35：後付けクリックの位置補正（+msで遅らせる。録音振り返り専用の一時設定） -->
-                <label class="results-recording-volume" id="results-recording-click-offset-row" for="results-recording-click-offset">
+                <label class="results-recording-volume hidden" id="results-recording-click-offset-row" for="results-recording-click-offset">
                     <span>クリック位置</span>
                     <input type="range" id="results-recording-click-offset" min="-100" max="250" step="10" value="0">
                     <b id="results-recording-click-offset-value">0ms</b>
@@ -1350,7 +1350,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.10.35"></script>
+    <script src="script.js?v=0.10.36"></script>
 </body>
 
 </html>

@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.35';
+const RHYTHM_CRUISE_VERSION = '0.10.36';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -647,12 +647,18 @@ const state = {
         errorMessage: '',
         generation: 0,
         playbackGainValue: 1,
-        playbackSource: null,
+        decodedBuffer: null,         // v0.10.36：decode済みAudioBuffer（結果画面の録音再生専用・一時state）
+        bufferDuration: null,        // v0.10.36：decodedBuffer.duration（秒）
+        bufferSource: null,          // v0.10.36：再生中のAudioBufferSourceNode（都度作り直し）
+        playbackEngine: 'idle',      // v0.10.36：'idle' | 'audio-buffer'
+        playbackStartCtx: null,      // v0.10.36：source.start()に渡したctx時刻
+        playbackOffsetSec: 0,        // v0.10.36：バッファ内の再生開始位置（秒）
+        playbackEndTimer: null,      // v0.10.36：再生終了フォールバックtimer
+        playbackGraphReady: false,   // v0.10.36：Gain/Splitter/Mergerがdestinationへ接続済みか
         playbackGain: null,
         playbackSplitter: null, // v0.10.31：2ch片側録音のときだけ使うChannelSplitter（cleanup対象）
         playbackMerger: null,   // v0.10.31：dominant chをL/R両方へ複製するChannelMerger（cleanup対象）
         playbackContext: null,
-        playbackConnected: false,
         playbackRoute: 'idle',
         playbackActive: false,
         channelMode: 'unknown',          // v0.10.31：'normal-stereo' | 'mono-dual' | 'dual-mono-left' | 'dual-mono-right' | 'unknown'
@@ -667,9 +673,11 @@ const state = {
         reviewClickTimer: null,          // 先読みスケジュールの監視タイマー
         reviewClickNextIndex: 0,         // 次に予約するreviewClickTimesのindex
         reviewClickContext: null,        // クリック生成に使うAudioContext参照
-        // v0.10.33：同期アンカー（再生開始/再開/seek/経路切替で張り直す）
-        reviewClickAnchorMediaTime: null,   // アンカー時のaudio.currentTime（秒）
-        reviewClickAnchorContextTime: null, // アンカー時のctx.currentTime（秒）
+        reviewClickClockMode: 'idle',    // v0.10.36：'audio-buffer-context' | 'idle'
+        reviewClickPlayStartCtx: null,   // v0.10.36：録音再生と同じplayStartCtx
+        // v0.10.33：同期アンカー（audio-buffer方式ではplayStartCtx/playbackOffsetSecが基準）
+        reviewClickAnchorMediaTime: null,   // バッファ内位置（秒）= playbackOffsetSec
+        reviewClickAnchorContextTime: null, // ctx基準 = playStartCtx
         // v0.10.34：再同期の暴れ抑制＋セッション管理（playingアンカー化・通常再生中は再アンカーしない）
         reviewClickSessionId: 0,            // 再生セッションID（play/playing/seeked/toggleごとに+1）
         reviewClickAnchorSource: 'idle',    // アンカー根拠：'playing' | 'play-fallback' | 'seeked' | 'toggle' | 'idle'
@@ -6291,12 +6299,21 @@ function micDebugText() {
         + 'channel.imbalanceRatio: ' + (rec && rec.channelImbalanceRatio != null ? rec.channelImbalanceRatio.toFixed(4) : '-') + '\n'
         + 'dominant.channel: ' + (rec && rec.dominantChannel != null ? (rec.dominantChannel === 0 ? 'L' : 'R') : '-') + '\n'
         + 'singleSidedCorrection: ' + (rec ? (rec.singleSidedCorrection ? 'on' : 'off') : '-') + '\n'
-        + 'playback.route: ' + (rd && rd.playbackRoute ? rd.playbackRoute : (rec ? rec.playbackRoute : '-')) + '\n'
+        + 'playback.route: ' + (rec ? rec.playbackRoute : '-') + '\n'
         + 'playback.channelMode: ' + (rec && rec.channelMode ? rec.channelMode : '-') + '\n'
-        + 'playback.gain: ' + (rd && rd.sliderValue != null ? rd.sliderValue.toFixed(1) + 'x' : (rec ? rec.playbackGainValue.toFixed(1) + 'x' : '-')) + '\n'
+        + 'playback.gain: ' + (rec ? rec.playbackGainValue.toFixed(1) + 'x' : '-') + '\n'
+        + 'reviewPlayback.engine: ' + (rec ? (rec.playbackEngine || 'idle') : '-') + '\n'
+        + 'reviewPlayback.bufferDuration: ' + (rec && rec.bufferDuration != null ? rec.bufferDuration.toFixed(3) + 's' : '-') + '\n'
+        + 'reviewPlayback.playbackOffsetSec: ' + (rec ? getPracticeRecordingPlaybackPosition().toFixed(3) + 's' : '-') + '\n'
+        + 'reviewPlayback.playStartCtx: ' + (rec && rec.playbackStartCtx != null ? rec.playbackStartCtx.toFixed(3) + 's' : '-') + '\n'
+        + 'reviewPlayback.sourceActive: ' + (rec ? (!!rec.bufferSource) : '-') + '\n'
+        + 'reviewPlayback.gain: ' + (rec ? rec.playbackGainValue.toFixed(1) + 'x' : '-') + '\n'
+        + 'reviewPlayback.channelMode: ' + (rec && rec.channelMode ? rec.channelMode : '-') + '\n'
         + 'reviewClick.enabled: ' + (rec ? (rec.reviewClickEnabled ? 'on' : 'off') : '-') + '\n'
         + 'reviewClick.volume: ' + (rec ? rec.reviewClickVolume + '%' : '-') + '\n'
         + 'reviewClick.times: ' + (rec && Array.isArray(rec.reviewClickTimes) ? rec.reviewClickTimes.length : 0) + '\n'
+        + 'reviewClick.clockMode: ' + (rec ? (rec.reviewClickClockMode || 'idle') : '-') + '\n'
+        + 'reviewClick.manualOffsetVisible: ' + (MIC_DEBUG_ON ? 'on' : 'off') + '\n'
         + 'reviewClick.route: ' + (rec && rec.reviewClickTimer ? 'overlay(ctx.destination)' : 'idle') + '\n'
         + 'reviewClick.anchorMediaTime: ' + (rec && rec.reviewClickAnchorMediaTime != null ? rec.reviewClickAnchorMediaTime.toFixed(3) + 's' : '-') + '\n'
         + 'reviewClick.anchorContextTime: ' + (rec && rec.reviewClickAnchorContextTime != null ? rec.reviewClickAnchorContextTime.toFixed(3) + 's' : '-') + '\n'
@@ -8486,6 +8503,8 @@ const REVIEW_CLICK_OFFSET_MS_DEFAULT = 0;
 const REVIEW_CLICK_OFFSET_MS_MIN = -100;
 const REVIEW_CLICK_OFFSET_MS_MAX = 250;
 const REVIEW_CLICK_OFFSET_MS_STEP = 10;
+/* v0.10.36：AudioBufferSource再生の開始リード（秒）。ctx.currentTime + この値で source.start() する。 */
+const REVIEW_PLAYBACK_LEAD_SEC = 0.05;
 
 function createPracticeRecordingDebug() {
     return {
@@ -8566,13 +8585,18 @@ async function inspectPracticeRecordingBlob(blob, generation) {
         rec.dominantChannel = cls.dominant;
         rec.channelImbalanceRatio = cls.ratio;
         rec.singleSidedCorrection = cls.singleSided;
+        rec.decodedBuffer = decoded; // v0.10.36：結果画面のAudioBufferSource再生用（一時state）
+        rec.bufferDuration = decoded.duration;
         if (debug && debug === rec.debug) {
             debug.decodedChannelCount = decoded.numberOfChannels;
             debug.decodedSampleRate = decoded.sampleRate;
             debug.decodedChannelPeaks = peaks;
+            debug.audioDuration = decoded.duration;
         }
     } catch (e) {
         if (generation !== rec.generation) return;
+        rec.decodedBuffer = null;
+        rec.bufferDuration = null;
         rec.channelMode = 'normal-stereo';
         rec.dominantChannel = null;
         rec.channelImbalanceRatio = null;
@@ -8602,14 +8626,12 @@ function practiceRecordingGainValue(value) {
         Number.isFinite(n) ? n : PRACTICE_RECORDING_GAIN_DEFAULT));
 }
 
-/* v0.10.31：2ch片側録音の補正（dominant chをL/R両方化）はdirect再生では作れないため、Web Audio経路が必須。
-   片側録音検出時は録音音量1.0xでもgain経路を使う。 */
+/* v0.10.31：2ch片側録音の補正はWeb Audio経路が必須。v0.10.36：AudioBufferSource方式では常にWeb Audio。 */
 function practiceRecordingNeedsWebAudio() {
-    return !!state.practiceRecording.singleSidedCorrection;
+    return true;
 }
-function practiceRecordingPlaybackRoute(value) {
-    if (practiceRecordingNeedsWebAudio()) return 'gain';
-    return practiceRecordingGainValue(value) >= PRACTICE_RECORDING_GAIN_ROUTE_MIN ? 'gain' : 'direct';
+function practiceRecordingPlaybackRoute() {
+    return 'audio-buffer';
 }
 
 function setPracticeRecordingPlaybackRoute(route) {
@@ -8639,198 +8661,166 @@ function applyPracticeRecordingGain(value) {
     updatePracticeRecordingDebugUI();
 }
 
-function disconnectPracticeRecordingPlaybackGraph() {
+function stopPracticeRecordingBufferSource() {
     const rec = state.practiceRecording;
-    if (rec.playbackSource) { try { rec.playbackSource.disconnect(); } catch (_) { /* noop */ } }
+    if (rec.playbackEndTimer) { clearTimeout(rec.playbackEndTimer); rec.playbackEndTimer = null; }
+    if (rec.bufferSource) {
+        try { rec.bufferSource.onended = null; } catch (_) { /* noop */ }
+        try { rec.bufferSource.stop(); } catch (_) { /* noop */ }
+        try { rec.bufferSource.disconnect(); } catch (_) { /* noop */ }
+        rec.bufferSource = null;
+    }
+    rec.playbackStartCtx = null;
+}
+
+function teardownPracticeRecordingPlaybackGraph() {
+    const rec = state.practiceRecording;
+    stopPracticeRecordingBufferSource();
+    if (rec.playbackGain) { try { rec.playbackGain.disconnect(); } catch (_) { /* noop */ } }
     if (rec.playbackSplitter) { try { rec.playbackSplitter.disconnect(); } catch (_) { /* noop */ } }
     if (rec.playbackMerger) { try { rec.playbackMerger.disconnect(); } catch (_) { /* noop */ } }
-    if (rec.playbackGain) { try { rec.playbackGain.disconnect(); } catch (_) { /* noop */ } }
-    rec.playbackConnected = false;
+    rec.playbackGain = null;
+    rec.playbackSplitter = null;
+    rec.playbackMerger = null;
+    rec.playbackContext = null;
+    rec.playbackGraphReady = false;
 }
 
-function bindPracticeRecordingAudioEvents(audio) {
-    if (!audio) return;
-    audio.addEventListener('ended', stopPracticeRecordingPlayback);
-    // v0.10.34：アンカーは「実際に音が出始める」playing で固定する（playは要求時点で早すぎてクリックが先行しやすい）。
-    //   play では playing 待ちのフォールバックだけ仕掛ける（playingが来ない環境向け）。playingが来れば二重開始しない。
-    audio.addEventListener('play', scheduleReviewClickPlayFallback);
-    audio.addEventListener('playing', () => beginReviewClickSession('playing'));
-    audio.addEventListener('pause', () => { stopReviewClickOverlay(); setPracticeRecordingPlaybackUI(false); });
-    audio.addEventListener('error', () => { stopReviewClickOverlay(); setPracticeRecordingPlaybackUI(false); });
-    // v0.10.35：seekedはdebug記録のみ（Safari/iOSは再生開始・経路切替等でもseekedが出るため再セッションしない）。
-    audio.addEventListener('seeked', onPracticeRecordingSeeked);
-    const updateDuration = () => {
-        const duration = Number(audio.duration);
-        const debug = state.practiceRecording.debug;
-        if (MIC_DEBUG_ON && debug && Number.isFinite(duration)) {
-            debug.audioDuration = duration;
-            updatePracticeRecordingDebugUI();
-        }
-    };
-    audio.addEventListener('loadedmetadata', updateDuration);
-    audio.addEventListener('durationchange', updateDuration);
+function disconnectPracticeRecordingPlaybackGraph() {
+    stopPracticeRecordingBufferSource();
 }
 
-/* MediaElementSourceは同じaudio要素へ再作成できないため、AudioContextが作り直された場合だけ要素も交換する。 */
-function replacePracticeRecordingAudioElement() {
-    const oldAudio = els.resultsRecordingAudio;
-    if (!oldAudio || !oldAudio.parentNode) return oldAudio;
-    const audio = oldAudio.cloneNode(false);
-    audio.removeAttribute('src');
-    if (state.practiceRecording.url) audio.src = state.practiceRecording.url;
-    oldAudio.parentNode.replaceChild(audio, oldAudio);
-    els.resultsRecordingAudio = audio;
-    bindPracticeRecordingAudioEvents(audio);
-    return audio;
-}
-
-/* MediaElementSourceを一度作ったaudio要素は直接出力へ戻せないため、direct再生前に要素を交換する。 */
-function preparePracticeRecordingDirectAudio() {
+function getPracticeRecordingPlaybackPosition() {
     const rec = state.practiceRecording;
-    let audio = els.resultsRecordingAudio;
-    if (!audio) return null;
-    if (rec.playbackSource || rec.playbackContext) {
-        disconnectPracticeRecordingPlaybackGraph();
-        rec.playbackSource = null;
-        rec.playbackGain = null;
-        rec.playbackSplitter = null;
-        rec.playbackMerger = null;
-        rec.playbackContext = null;
-        audio = replacePracticeRecordingAudioElement();
-    }
-    if (audio) audio.volume = 1;
-    return audio;
+    if (!rec.playbackActive || rec.playbackStartCtx == null) return Math.max(0, rec.playbackOffsetSec || 0);
+    const ctx = rec.playbackContext || state.audioCtx;
+    if (!ctx) return Math.max(0, rec.playbackOffsetSec || 0);
+    return Math.max(0, rec.playbackOffsetSec + Math.max(0, ctx.currentTime - rec.playbackStartCtx));
 }
 
-function ensurePracticeRecordingPlaybackGraph() {
+/* v0.10.36：録音再生用の永続Web Audioグラフ（Gain/Splitter/Merger）。BufferSourceは再生のたびに作り直す。 */
+function ensurePracticeRecordingBufferGraph() {
     const rec = state.practiceRecording;
-    let audio = els.resultsRecordingAudio;
-    if (!audio) return false;
-    audio.volume = 1;
     let ctx;
     try { ctx = ensureAudio(); } catch (_) { return false; }
-    if (!ctx || typeof ctx.createMediaElementSource !== 'function' || typeof ctx.createGain !== 'function') return false;
-    if (rec.playbackContext && rec.playbackContext !== ctx) {
-        disconnectPracticeRecordingPlaybackGraph();
-        rec.playbackSource = null;
-        rec.playbackGain = null;
-        rec.playbackSplitter = null;
-        rec.playbackMerger = null;
-        rec.playbackContext = null;
-        audio = replacePracticeRecordingAudioElement();
-        if (!audio) return false;
-    }
-    // v0.10.31：2ch片側録音は dominant ch を L/R 両方へ複製する Splitter/Merger を挟む。
+    if (!ctx || typeof ctx.createGain !== 'function' || typeof ctx.createBufferSource !== 'function') return false;
+    if (rec.playbackContext && rec.playbackContext !== ctx) teardownPracticeRecordingPlaybackGraph();
     const singleSided = !!rec.singleSidedCorrection
         && typeof ctx.createChannelSplitter === 'function' && typeof ctx.createChannelMerger === 'function';
+    if (rec.playbackGraphReady) {
+        const hasSplit = !!(rec.playbackSplitter && rec.playbackMerger);
+        if (singleSided !== hasSplit) teardownPracticeRecordingPlaybackGraph();
+    }
     try {
-        if (!rec.playbackSource) {
-            rec.playbackSource = ctx.createMediaElementSource(audio);
+        if (!rec.playbackGain) {
             rec.playbackGain = ctx.createGain();
-            // 1ch録音は標準のspeaker解釈でL/Rへ同じ信号を送る。追加ノードは作らない。
             try {
                 rec.playbackGain.channelCount = 2;
                 rec.playbackGain.channelCountMode = 'explicit';
                 rec.playbackGain.channelInterpretation = 'speakers';
             } catch (_) { /* 未対応環境は既定のspeaker解釈を使う */ }
             if (singleSided) {
-                // ソースを2chへ分け、音のある側(dominant)だけを取り出して Merger の L/R 両方へ接続する。
                 rec.playbackSplitter = ctx.createChannelSplitter(2);
                 rec.playbackMerger = ctx.createChannelMerger(2);
             }
             rec.playbackContext = ctx;
         }
         applyPracticeRecordingGain(rec.playbackGainValue);
-        if (!rec.playbackConnected) {
+        if (!rec.playbackGraphReady) {
             if (singleSided && rec.playbackSplitter && rec.playbackMerger) {
-                const d = rec.dominantChannel === 1 ? 1 : 0; // 音のある側
-                rec.playbackSource.connect(rec.playbackSplitter);
-                rec.playbackSplitter.connect(rec.playbackMerger, d, 0); // → L
-                rec.playbackSplitter.connect(rec.playbackMerger, d, 1); // → R
+                const d = rec.dominantChannel === 1 ? 1 : 0;
+                rec.playbackSplitter.connect(rec.playbackMerger, d, 0);
+                rec.playbackSplitter.connect(rec.playbackMerger, d, 1);
                 rec.playbackMerger.connect(rec.playbackGain);
-            } else {
-                rec.playbackSource.connect(rec.playbackGain);
             }
             rec.playbackGain.connect(ctx.destination);
-            rec.playbackConnected = true;
+            rec.playbackGraphReady = true;
         }
         if (ctx.state === 'suspended') {
             const resumed = ctx.resume();
-            if (resumed && typeof resumed.catch === 'function') resumed.catch(() => { /* audio.play側で失敗を処理 */ });
+            if (resumed && typeof resumed.catch === 'function') resumed.catch(() => { /* noop */ });
         }
+        rec.playbackEngine = 'audio-buffer';
+        setPracticeRecordingPlaybackRoute('audio-buffer');
         return true;
     } catch (e) {
-        disconnectPracticeRecordingPlaybackGraph();
-        console.warn('[practice-recording] gain setup failed:', e && e.name);
+        teardownPracticeRecordingPlaybackGraph();
+        console.warn('[practice-recording] buffer graph setup failed:', e && e.name);
         return false;
     }
 }
 
-function playPracticeRecordingAudio(audio, currentTime) {
-    if (!audio) return false;
-    const position = Math.max(0, Number(currentTime) || 0);
-    let positioned = position === 0;
-    try { audio.currentTime = position; positioned = true; } catch (_) { /* metadata待ち */ }
-    if (!positioned && typeof audio.addEventListener === 'function') {
-        audio.addEventListener('loadedmetadata', () => {
-            try { audio.currentTime = position; } catch (_) { /* noop */ }
-        }, { once: true });
+function connectPracticeRecordingBufferSource(source) {
+    const rec = state.practiceRecording;
+    const singleSided = !!rec.singleSidedCorrection && rec.playbackSplitter && rec.playbackMerger;
+    if (singleSided) source.connect(rec.playbackSplitter);
+    else source.connect(rec.playbackGain);
+}
+
+/* v0.10.36：AudioBufferSourceNodeで録音を再生。クリックoverlayも同じplayStartCtx基準で予約する。 */
+function playPracticeRecordingFromBuffer(offsetSec) {
+    const rec = state.practiceRecording;
+    const generation = rec.generation;
+    if (rec.status !== 'available' || !rec.decodedBuffer) return false;
+    stopPracticeRecordingBufferSource();
+    stopReviewClickOverlay();
+    if (!ensurePracticeRecordingBufferGraph()) return false;
+    const ctx = rec.playbackContext || state.audioCtx;
+    if (!ctx) return false;
+    const buffer = rec.decodedBuffer;
+    const duration = Number(buffer.duration) || Number(rec.bufferDuration) || 0;
+    const position = Math.max(0, Math.min(Number(offsetSec) || 0, Math.max(0, duration - 0.01)));
+    let source;
+    try { source = ctx.createBufferSource(); } catch (_) { return false; }
+    source.buffer = buffer;
+    connectPracticeRecordingBufferSource(source);
+    const playStartCtx = ctx.currentTime + REVIEW_PLAYBACK_LEAD_SEC;
+    rec.bufferSource = source;
+    rec.playbackStartCtx = playStartCtx;
+    rec.playbackOffsetSec = position;
+    rec.reviewClickPlayStartCtx = playStartCtx;
+    source.onended = () => {
+        if (generation !== rec.generation) return;
+        stopPracticeRecordingPlayback();
+    };
+    try { source.start(playStartCtx, position); }
+    catch (e) {
+        try { source.disconnect(); } catch (_) { /* noop */ }
+        rec.bufferSource = null;
+        console.warn('[practice-recording] buffer start failed:', e && e.name);
+        return false;
     }
-    let started;
-    try { started = audio.play(); }
-    catch (_) { stopPracticeRecordingPlayback(); return false; }
+    const remainSec = Math.max(0, duration - position) + REVIEW_PLAYBACK_LEAD_SEC + 0.15;
+    rec.playbackEndTimer = setTimeout(() => {
+        rec.playbackEndTimer = null;
+        if (generation !== rec.generation) return;
+        if (rec.playbackActive) stopPracticeRecordingPlayback();
+    }, Math.ceil(remainSec * 1000));
     setPracticeRecordingPlaybackUI(true);
-    if (started && typeof started.catch === 'function') {
-        started.catch(() => {
-            stopPracticeRecordingPlayback();
-            if (MIC_DEBUG_ON && els.resultsRecordingMessage) {
-                els.resultsRecordingMessage.textContent = 'debugMic: 録音を再生できませんでした。';
-            }
-        });
-    }
+    beginReviewClickBufferSession(playStartCtx, position);
+    updatePracticeRecordingDebugUI();
     return true;
 }
 
-/* 再生中のdirect/gain境界変更は、同じ再生位置から要素を再開する。追加の経路変更は行わない。 */
 function updatePracticeRecordingPlaybackGain(value) {
-    const rec = state.practiceRecording;
-    const wasPlaying = rec.playbackActive;
-    const previousRoute = rec.playbackRoute;
-    const audio = els.resultsRecordingAudio;
-    const currentTime = audio ? audio.currentTime : 0;
     applyPracticeRecordingGain(value);
-    if (!wasPlaying || !audio) return;
-    const requestedRoute = practiceRecordingPlaybackRoute(rec.playbackGainValue);
-    if (requestedRoute === previousRoute) return; // gain経路内の変更はapplyPracticeRecordingGainで即時反映済み
-
-    try { audio.pause(); } catch (_) { /* noop */ }
-    if (requestedRoute === 'gain') {
-        if (ensurePracticeRecordingPlaybackGraph()) {
-            setPracticeRecordingPlaybackRoute('gain');
-            playPracticeRecordingAudio(els.resultsRecordingAudio, currentTime);
-            return;
-        }
-    }
-    // directへ戻す場合、またはGain接続失敗時は、MediaElementSourceに未接続の要素へ交換する。
-    const directAudio = preparePracticeRecordingDirectAudio();
-    setPracticeRecordingPlaybackRoute('direct');
-    playPracticeRecordingAudio(directAudio, currentTime);
 }
 
 function stopPracticeRecordingPlayback() {
-    const audio = els.resultsRecordingAudio;
-    if (audio) {
-        try { audio.pause(); audio.currentTime = 0; } catch (_) { /* noop */ }
-    }
+    stopPracticeRecordingBufferSource();
     stopReviewClickOverlay();
-    disconnectPracticeRecordingPlaybackGraph();
+    recResetPlaybackOffset();
     setPracticeRecordingPlaybackUI(false);
+    updatePracticeRecordingDebugUI();
 }
 
-/* ── v0.10.32：録音再生のクリック重ね（録音振り返り専用）─────────────────────────
-   Practice時と同じBPM・拍位置のクリックを、録音再生に後乗せする。判定用のBluetooth補正値などは使わず、
-   録音開始基準の相対秒(reviewClickTimes)と audio.currentTime だけで同期する。Practice本番のクリック
-   (scheduleStageClick / state.scheduledClicks) とは別系統で、判定・スケジュールには副作用を出さない。 */
+function recResetPlaybackOffset() {
+    state.practiceRecording.playbackOffsetSec = 0;
+}
+
+/* ── v0.10.32/36：録音再生のクリック重ね（録音振り返り専用）─────────────────────────
+   v0.10.36：AudioBufferSource再生と同じ playStartCtx / playbackOffsetSec 基準で予約する。
+   Practice本番 (scheduleStageClick) とは別系統。判定・スケジュールには副作用を出さない。 */
 function scheduleReviewClick(audioTime, accent) {
     const rec = state.practiceRecording;
     const ctx = rec.reviewClickContext || state.audioCtx;
@@ -8862,58 +8852,57 @@ function cancelScheduledReviewClicks() {
     rec.reviewClickOscillators = [];
 }
 
-/* v0.10.34：play→playing が来ないときのフォールバックtimerを止める。 */
+/* v0.10.34：play→playing が来ないときのフォールバックtimerを止める（v0.10.36：audio-buffer方式では未使用）。 */
 function clearReviewClickPlayFallback() {
     const rec = state.practiceRecording;
     if (rec.reviewClickPlayFallbackTimer) { clearTimeout(rec.reviewClickPlayFallbackTimer); rec.reviewClickPlayFallbackTimer = null; }
 }
 
-/* 再生開始/再開/seek/経路切替の瞬間に (audio.currentTime, ctx.currentTime) を固定する。
-   以降のクリックは anchorContextTime + (clickTime - anchorMediaTime) で予約する（逐次参照のジッタを避ける）。 */
-function setReviewClickAnchor() {
-    const rec = state.practiceRecording;
-    const audio = els.resultsRecordingAudio;
-    const ctx = rec.reviewClickContext || state.audioCtx;
-    if (!audio || !ctx) return false;
-    rec.reviewClickAnchorMediaTime = Math.max(0, Number(audio.currentTime) || 0);
-    rec.reviewClickAnchorContextTime = ctx.currentTime;
-    rec.reviewClickNextIndex = 0; // skip-while で再生位置以降へ寄せ直す
-    return true;
+/* v0.10.36：バッファ再生位置をctxクロックから推定（HTMLAudioElementに依存しない）。 */
+function getReviewBufferPlaybackPosition() {
+    return getPracticeRecordingPlaybackPosition();
 }
 
-/* 先読み範囲内のクリックを、固定アンカー基準でAudioContext時刻へ予約する。タイマーから繰り返し呼ばれる。
-   v0.10.34：通常再生中は再アンカーしない（固定アンカーのままctxクロックで進める＝再生ごとのズレ量が安定）。
-   実audio.currentTimeがアンカー開始位置より明確に前へ戻ったときだけ「巻き戻し」とみなして再アンカーする。 */
-function scheduleReviewClicksAhead() {
+/* v0.10.36：playStartCtx + (clickTime - playbackOffsetSec) でクリックを一括予約する。 */
+function scheduleReviewClicksForBuffer(playStartCtx, playbackOffsetSec) {
     const rec = state.practiceRecording;
-    const audio = els.resultsRecordingAudio;
     const ctx = rec.reviewClickContext || state.audioCtx;
-    if (!audio || !ctx || !Array.isArray(rec.reviewClickTimes) || !rec.reviewClickTimes.length) return;
-    if (rec.reviewClickAnchorMediaTime == null || rec.reviewClickAnchorContextTime == null) {
-        if (!setReviewClickAnchor()) return;
+    if (!ctx || !Array.isArray(rec.reviewClickTimes) || !rec.reviewClickTimes.length) return 0;
+    rec.reviewClickPlayStartCtx = playStartCtx;
+    rec.reviewClickAnchorContextTime = playStartCtx;
+    rec.reviewClickAnchorMediaTime = playbackOffsetSec;
+    rec.reviewClickClockMode = 'audio-buffer-context';
+    rec.reviewClickAnchorSource = 'audio-buffer';
+    const offsetSec = reviewClickOffsetSec(rec.reviewClickOffsetMs);
+    let scheduled = 0;
+    for (let i = 0; i < rec.reviewClickTimes.length; i++) {
+        const c = rec.reviewClickTimes[i];
+        if (c.t < playbackOffsetSec - REVIEW_CLICK_PAST_SEC) continue;
+        const when = playStartCtx + (c.t - playbackOffsetSec) + offsetSec;
+        scheduleReviewClick(when, c.accent);
+        scheduled++;
     }
-    // 明確な巻き戻りだけ再アンカー（Safariのaudio.currentTimeの粗さ・小さなドリフトでは再アンカーしない）。
-    const actualPos = Math.max(0, Number(audio.currentTime) || 0);
-    if (actualPos < rec.reviewClickAnchorMediaTime - REVIEW_CLICK_REWIND_SEC) {
-        cancelScheduledReviewClicks();
-        setReviewClickAnchor();
-        rec.reviewClickResyncCount++;
-        rec.reviewClickResyncReason = 'rewind';
-    }
-    // 再生位置はctxクロックから推定（高解像度・安定）。実audio.currentTimeはSafariで粗く遅れるので予約基準には使わない。
-    const anchorM = rec.reviewClickAnchorMediaTime, anchorC = rec.reviewClickAnchorContextTime;
-    const estPos = anchorM + (ctx.currentTime - anchorC);
-    const times = rec.reviewClickTimes;
-    // すでに通り過ぎたクリックは飛ばす（無理に遅れて鳴らさない）。
-    while (rec.reviewClickNextIndex < times.length && times[rec.reviewClickNextIndex].t < estPos - REVIEW_CLICK_PAST_SEC) {
+    rec.reviewClickNextIndex = rec.reviewClickTimes.length;
+    return scheduled;
+}
+
+/* v0.10.36：再生中の残りクリックを先読み予約（タイマーから呼ぶ）。 */
+function scheduleReviewClicksAheadBuffer() {
+    const rec = state.practiceRecording;
+    const ctx = rec.reviewClickContext || state.audioCtx;
+    if (!ctx || !rec.playbackActive || rec.playbackStartCtx == null) return;
+    if (!Array.isArray(rec.reviewClickTimes) || !rec.reviewClickTimes.length) return;
+    const estPos = getReviewBufferPlaybackPosition();
+    const playStartCtx = rec.reviewClickPlayStartCtx != null ? rec.reviewClickPlayStartCtx : rec.playbackStartCtx;
+    const offsetSec = reviewClickOffsetSec(rec.reviewClickOffsetMs);
+    const horizon = estPos + REVIEW_CLICK_LOOKAHEAD_SEC;
+    while (rec.reviewClickNextIndex < rec.reviewClickTimes.length && rec.reviewClickTimes[rec.reviewClickNextIndex].t < estPos - REVIEW_CLICK_PAST_SEC) {
         rec.reviewClickNextIndex++;
         rec.reviewClickSkippedPastCount++;
     }
-    const horizon = estPos + REVIEW_CLICK_LOOKAHEAD_SEC;
-    const offsetSec = reviewClickOffsetSec(rec.reviewClickOffsetMs);
-    while (rec.reviewClickNextIndex < times.length && times[rec.reviewClickNextIndex].t <= horizon) {
-        const c = times[rec.reviewClickNextIndex];
-        const when = anchorC + (c.t - anchorM) + offsetSec; // ★固定アンカー＋位置補正（+msで遅らせる）
+    while (rec.reviewClickNextIndex < rec.reviewClickTimes.length && rec.reviewClickTimes[rec.reviewClickNextIndex].t <= horizon) {
+        const c = rec.reviewClickTimes[rec.reviewClickNextIndex];
+        const when = playStartCtx + (c.t - rec.playbackOffsetSec) + offsetSec;
         scheduleReviewClick(when, c.accent);
         rec.reviewClickNextIndex++;
     }
@@ -8934,39 +8923,34 @@ function formatReviewClickOffsetMs(offsetMs) {
     return '0ms';
 }
 
-/* v0.10.35：Safari等の不要seekedは記録のみ。明示シークUIが無い間は再セッション開始しない。 */
+/* v0.10.35：Safari等の不要seekedは記録のみ（v0.10.36：audio-buffer方式ではHTMLAudioElement再生を使わない）。 */
 function onPracticeRecordingSeeked() {
     const rec = state.practiceRecording;
     rec.reviewClickSeekedIgnoredCount = (rec.reviewClickSeekedIgnoredCount || 0) + 1;
     if (MIC_DEBUG_ON) updateMicDebugBox();
 }
 
-/* v0.10.35：再生中にクリック位置補正を変えたとき、録音再生は止めずoverlayだけ現在位置から作り直す。 */
+/* v0.10.36：再生中にクリック位置補正を変えたとき（debugMic診断用）、overlayだけ現在位置から作り直す。 */
 function restartReviewClickFromCurrentPosition() {
     const rec = state.practiceRecording;
-    if (!rec.reviewClickEnabled) return;
-    const audio = els.resultsRecordingAudio;
-    if (!audio || audio.paused) return;
-    if (!rec.reviewClickTimer) {
-        beginReviewClickSession('offset');
-        return;
-    }
+    if (!rec.reviewClickEnabled || !rec.playbackActive) return;
     cancelScheduledReviewClicks();
-    if (!setReviewClickAnchor()) return;
-    scheduleReviewClicksAhead();
+    rec.reviewClickNextIndex = 0;
+    const estPos = getReviewBufferPlaybackPosition();
+    while (rec.reviewClickNextIndex < rec.reviewClickTimes.length && rec.reviewClickTimes[rec.reviewClickNextIndex].t < estPos - REVIEW_CLICK_PAST_SEC) {
+        rec.reviewClickNextIndex++;
+    }
+    scheduleReviewClicksAheadBuffer();
     rec.reviewClickResyncReason = 'offset';
     if (MIC_DEBUG_ON) updateMicDebugBox();
 }
 
-/* v0.10.34：1再生セッションを開始する（アンカー固定＋スケジューラ起動）。source は debug用のアンカー根拠。
-   既存セッションを必ず止めてから始めるので二重起動・二重予約しない。resyncReason を渡すと再アンカー回数を数える。 */
-function beginReviewClickSession(source, resyncReason) {
+/* v0.10.36：AudioBufferSource再生開始時にクリックoverlayセッションを開始する。 */
+function beginReviewClickBufferSession(playStartCtx, playbackOffsetSec) {
     const rec = state.practiceRecording;
-    stopReviewClickOverlay(); // 既存セッションの予約・タイマー・フォールバックを完全に止める
+    stopReviewClickOverlay();
     if (!rec.reviewClickEnabled) return;
     if (!Array.isArray(rec.reviewClickTimes) || !rec.reviewClickTimes.length) return;
-    const audio = els.resultsRecordingAudio;
-    if (!audio || audio.paused) return;
     let ctx; try { ctx = ensureAudio(); } catch (_) { return; }
     if (!ctx) return;
     rec.reviewClickContext = ctx;
@@ -8976,28 +8960,12 @@ function beginReviewClickSession(source, resyncReason) {
     }
     rec.reviewClickSessionId++;
     rec.reviewClickSessionScheduledCount = 0;
-    rec.reviewClickAnchorSource = source || 'playing';
-    if (resyncReason) { rec.reviewClickResyncCount++; rec.reviewClickResyncReason = resyncReason; }
-    setReviewClickAnchor();           // ★実際に音が出るタイミング(playing)でアンカーを固定
-    scheduleReviewClicksAhead();      // 即時に1回
+    rec.reviewClickNextIndex = 0;
+    scheduleReviewClicksForBuffer(playStartCtx, playbackOffsetSec);
     rec.reviewClickTimer = setInterval(() => {
-        const a = els.resultsRecordingAudio;
-        if (!a || a.paused) { stopReviewClickOverlay(); return; }
-        scheduleReviewClicksAhead();
+        if (!rec.playbackActive) { stopReviewClickOverlay(); return; }
+        scheduleReviewClicksAheadBuffer();
     }, REVIEW_CLICK_TICK_MS);
-}
-
-/* v0.10.34：play イベント用。playing が来ないブラウザのために、少し待ってからフォールバックでセッション開始する。
-   playing が来れば beginReviewClickSession 側で clearReviewClickPlayFallback して二重開始を防ぐ。 */
-function scheduleReviewClickPlayFallback() {
-    const rec = state.practiceRecording;
-    if (!rec.reviewClickEnabled) return;
-    clearReviewClickPlayFallback();
-    rec.reviewClickPlayFallbackTimer = setTimeout(() => {
-        rec.reviewClickPlayFallbackTimer = null;
-        const a = els.resultsRecordingAudio;
-        if (a && !a.paused && !rec.reviewClickTimer) beginReviewClickSession('play-fallback');
-    }, REVIEW_CLICK_PLAY_FALLBACK_MS);
 }
 
 function stopReviewClickOverlay() {
@@ -9009,6 +8977,8 @@ function stopReviewClickOverlay() {
     rec.reviewClickAnchorMediaTime = null;
     rec.reviewClickAnchorContextTime = null;
     rec.reviewClickAnchorSource = 'idle';
+    rec.reviewClickClockMode = 'idle';
+    rec.reviewClickPlayStartCtx = null;
 }
 
 /* 録音破棄時の全クリーンアップ：予約停止＋時刻リストもクリアして既定へ戻す。 */
@@ -9041,6 +9011,8 @@ function applyReviewClickUI() {
     if (els.resultsRecordingClickOffset) els.resultsRecordingClickOffset.value = String(reviewClickOffsetMsValue(rec.reviewClickOffsetMs));
     if (els.resultsRecordingClickOffsetValue) els.resultsRecordingClickOffsetValue.textContent = formatReviewClickOffsetMs(rec.reviewClickOffsetMs);
     if (els.resultsRecordingClickOffsetRow) els.resultsRecordingClickOffsetRow.classList.toggle('is-muted', !rec.reviewClickEnabled);
+    // v0.10.36：手動補正スライダーはdebugMic診断用のみ表示
+    if (els.resultsRecordingClickOffsetRow) els.resultsRecordingClickOffsetRow.classList.toggle('hidden', !MIC_DEBUG_ON);
 }
 
 function updatePracticeRecordingUI() {
@@ -9078,14 +9050,7 @@ function discardPracticeRecording() {
     rec.generation++;
     stopPracticeRecordingPlayback();
     cleanupReviewClickOverlay(); // v0.10.32：クリック重ねの予約停止＋一時データ破棄
-    const hadPlaybackGraph = !!(rec.playbackSource || rec.playbackGain || rec.playbackSplitter || rec.playbackMerger || rec.playbackContext);
-    rec.playbackSource = null;
-    rec.playbackGain = null;
-    rec.playbackSplitter = null;
-    rec.playbackMerger = null;
-    rec.playbackContext = null;
-    rec.playbackConnected = false;
-    if (hadPlaybackGraph) replacePracticeRecordingAudioElement();
+    teardownPracticeRecordingPlaybackGraph();
     const recorder = rec.recorder;
     if (recorder) {
         recorder.ondataavailable = null;
@@ -9112,6 +9077,9 @@ function discardPracticeRecording() {
     rec.errorMessage = '';
     rec.playbackRoute = 'idle';
     rec.playbackActive = false;
+    rec.playbackEngine = 'idle';
+    rec.decodedBuffer = null;
+    rec.bufferDuration = null;
     rec.channelMode = 'unknown';
     rec.dominantChannel = null;
     rec.channelImbalanceRatio = null;
@@ -9491,14 +9459,10 @@ function stopForPageHidden() {
     // cancelCalibration/stopBtCal は内部ガード（cal.saved 等）で多重実行しても壊れない（v0.9.140）。
     if (cal.active || mic.calibrating) cancelCalibration();
     stopBtCal();
-    // v0.10.35：録音再生中ならpause＋クリックoverlay停止。Blob/Object URLは破棄しない。
+    // v0.10.35：録音再生中なら停止＋クリックoverlay停止。Blob/Object URLは破棄しない。
     const rec = state.practiceRecording;
-    const recAudio = els.resultsRecordingAudio;
-    if (recAudio && !recAudio.paused) {
-        try { recAudio.pause(); } catch (_) { /* noop */ }
-        setPracticeRecordingPlaybackUI(false);
-    }
-    stopReviewClickOverlay();
+    if (rec.playbackActive) stopPracticeRecordingPlayback();
+    else stopReviewClickOverlay();
     if (rec.status === 'available' || rec.status === 'recording') {
         rec.reviewClickVisibilityStopCount = (rec.reviewClickVisibilityStopCount || 0) + 1;
     }
@@ -19363,28 +19327,10 @@ function bind() {
         resetGame();
     });
     if (els.resultsRecordingPlay) els.resultsRecordingPlay.addEventListener('click', () => {
-        if (!els.resultsRecordingAudio || state.practiceRecording.status !== 'available') return;
-        const requestedRoute = practiceRecordingPlaybackRoute(state.practiceRecording.playbackGainValue);
-        let audio;
-        if (requestedRoute === 'direct') {
-            audio = preparePracticeRecordingDirectAudio();
-            setPracticeRecordingPlaybackRoute('direct');
-        } else {
-            const amplified = ensurePracticeRecordingPlaybackGraph();
-            audio = els.resultsRecordingAudio; // Context再生成時はaudio要素も交換されるため取得し直す
-            if (amplified) {
-                setPracticeRecordingPlaybackRoute('gain');
-            } else {
-                // Web Audio接続に失敗した場合も、要素を交換して確実に直接再生へ戻す。
-                audio = preparePracticeRecordingDirectAudio();
-                setPracticeRecordingPlaybackRoute('direct');
-                if (els.resultsRecordingMessage) {
-                    els.resultsRecordingMessage.innerHTML = '今回の演奏を録音しました。<br>音が小さい場合は、iPhone本体の音量も上げてください。';
-                }
-            }
+        if (state.practiceRecording.status !== 'available') return;
+        if (!playPracticeRecordingFromBuffer(0) && MIC_DEBUG_ON && els.resultsRecordingMessage) {
+            els.resultsRecordingMessage.textContent = 'debugMic: 録音を再生できませんでした。';
         }
-        if (!audio) return;
-        playPracticeRecordingAudio(audio, 0);
     });
     if (els.resultsRecordingVolume) {
         els.resultsRecordingVolume.addEventListener('input', () => updatePracticeRecordingPlaybackGain(els.resultsRecordingVolume.value));
@@ -19395,8 +19341,27 @@ function bind() {
             const rec = state.practiceRecording;
             rec.reviewClickEnabled = !!els.resultsRecordingClickToggle.checked;
             applyReviewClickUI();
-            const audio = els.resultsRecordingAudio;
-            if (audio && !audio.paused) { if (rec.reviewClickEnabled) beginReviewClickSession('toggle'); else stopReviewClickOverlay(); }
+            if (rec.playbackActive) {
+                if (rec.reviewClickEnabled) {
+                    cancelScheduledReviewClicks();
+                    rec.reviewClickNextIndex = 0;
+                    const estPos = getReviewBufferPlaybackPosition();
+                    while (rec.reviewClickNextIndex < rec.reviewClickTimes.length && rec.reviewClickTimes[rec.reviewClickNextIndex].t < estPos - REVIEW_CLICK_PAST_SEC) {
+                        rec.reviewClickNextIndex++;
+                    }
+                    if (!rec.reviewClickTimer) {
+                        let ctx; try { ctx = ensureAudio(); } catch (_) { return; }
+                        if (!ctx) return;
+                        rec.reviewClickContext = ctx;
+                        rec.reviewClickClockMode = 'audio-buffer-context';
+                        rec.reviewClickTimer = setInterval(() => {
+                            if (!rec.playbackActive) { stopReviewClickOverlay(); return; }
+                            scheduleReviewClicksAheadBuffer();
+                        }, REVIEW_CLICK_TICK_MS);
+                    }
+                    scheduleReviewClicksAheadBuffer();
+                } else stopReviewClickOverlay();
+            }
             if (MIC_DEBUG_ON) updateMicDebugBox();
         });
     }
@@ -19422,7 +19387,6 @@ function bind() {
         });
     }
     if (els.resultsRecordingStop) els.resultsRecordingStop.addEventListener('click', stopPracticeRecordingPlayback);
-    bindPracticeRecordingAudioEvents(els.resultsRecordingAudio);
     // 過去の結果（履歴）UI（v0.9.146）
     if (els.historyOpenBtn) els.historyOpenBtn.addEventListener('click', openResultHistory);
     if (els.historyCloseBtn) els.historyCloseBtn.addEventListener('click', closeResultHistory);
