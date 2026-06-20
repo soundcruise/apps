@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.42';
+const RHYTHM_CRUISE_VERSION = '0.10.43';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -661,6 +661,8 @@ const state = {
         playbackContext: null,
         playbackRoute: 'idle',
         playbackActive: false,
+        playbackPaused: false,           // v0.10.43：一時停止中（位置・JUSTライン・debug候補を保持）
+        playbackPausePositionSec: 0,     // v0.10.43：一時停止したバッファ内位置（秒）
         channelMode: 'unknown',          // v0.10.31：'normal-stereo' | 'mono-dual' | 'dual-mono-left' | 'dual-mono-right' | 'unknown'
         dominantChannel: null,           // v0.10.31：片側録音時の音が入っている側（0=L / 1=R）。それ以外は null
         channelImbalanceRatio: null,     // v0.10.31：minPeak/maxPeak（片側録音判定の根拠・debug表示用）
@@ -1430,7 +1432,7 @@ const reviewTimelineDebug = {
     nearestTargetIndex: null, nearestTargetTimeMs: NaN, nearestTargetX: NaN,
     deltaToNearestTargetMs: NaN, xDeltaToNearestTarget: NaN,
     beatInterval: NaN, T0: NaN, targetMapMode: 'none',
-    currentFormula: 'B', reviewClickAutoOffsetSource: 'none',
+    currentFormula: 'B', reviewClickAutoOffsetSource: 'none', paused: false,
     candidateA_timeMs: NaN, candidateA_deltaToTargetMs: NaN, candidateA_xDeltaToTarget: NaN,
     candidateB_timeMs: NaN, candidateB_deltaToTargetMs: NaN, candidateB_xDeltaToTarget: NaN,
     candidateC_timeMs: NaN, candidateC_deltaToTargetMs: NaN, candidateC_xDeltaToTarget: NaN,
@@ -6335,6 +6337,8 @@ function micDebugText() {
         + 'reviewPlayback.engine: ' + (rec ? (rec.playbackEngine || 'idle') : '-') + '\n'
         + 'reviewPlayback.bufferDuration: ' + (rec && rec.bufferDuration != null ? rec.bufferDuration.toFixed(3) + 's' : '-') + '\n'
         + 'reviewPlayback.playbackOffsetSec: ' + (rec ? getPracticeRecordingPlaybackPosition().toFixed(3) + 's' : '-') + '\n'
+        + 'reviewPlayback.paused: ' + (rec ? (rec.playbackPaused ? 'yes' : 'no') : '-') + '\n'
+        + 'reviewPlayback.pausePositionSec: ' + (rec && rec.playbackPaused && Number.isFinite(rec.playbackPausePositionSec) ? rec.playbackPausePositionSec.toFixed(3) + 's' : '-') + '\n'
         + 'reviewPlayback.playStartCtx: ' + (rec && rec.playbackStartCtx != null ? rec.playbackStartCtx.toFixed(3) + 's' : '-') + '\n'
         + 'reviewPlayback.sourceActive: ' + (rec ? (!!rec.bufferSource) : '-') + '\n'
         + 'reviewPlayback.gain: ' + (rec ? rec.playbackGainValue.toFixed(1) + 'x' : '-') + '\n'
@@ -6369,6 +6373,7 @@ function micDebugText() {
         + 'reviewClick.pending: ' + (rec && Array.isArray(rec.reviewClickOscillators) ? rec.reviewClickOscillators.length : 0) + '\n'
         + '--- Review timeline ---\n'
         + 'reviewTimeline.enabled: ' + (reviewTimelineDebug.enabled ? 'on' : 'off') + '\n'
+        + 'reviewTimeline.paused: ' + (reviewTimelineDebug.paused ? 'yes' : 'no') + '\n'
         + 'reviewTimeline.currentTimeSec: ' + f3(reviewTimelineDebug.currentTimeSec) + '\n'
         + 'reviewTimeline.gameTimeMs: ' + (Number.isFinite(reviewTimelineDebug.gameTimeMs) ? Math.round(reviewTimelineDebug.gameTimeMs) : '-') + '\n'
         + 'reviewTimeline.judgeTimeMs: ' + (Number.isFinite(reviewTimelineDebug.judgeTimeMs) ? Math.round(reviewTimelineDebug.judgeTimeMs) : '-') + '\n'
@@ -7728,7 +7733,8 @@ function updateReviewTimelineUI(sec) {
         if (MIC_DEBUG_ON) updateMicDebugBox();
         return;
     }
-    reviewTimelineDebug.enabled = !!state.practiceRecording.playbackActive;
+    reviewTimelineDebug.enabled = !!(state.practiceRecording.playbackActive || state.practiceRecording.playbackPaused);
+    reviewTimelineDebug.paused = !!state.practiceRecording.playbackPaused;
     drawReviewPlayheadAtSec(s);
     if (MIC_DEBUG_ON) updateMicDebugBox();
 }
@@ -9049,9 +9055,25 @@ function practiceRecordingMimeType() {
 }
 
 function setPracticeRecordingPlaybackUI(playing) {
-    state.practiceRecording.playbackActive = !!playing;
-    if (els.resultsRecordingPlay) els.resultsRecordingPlay.disabled = !!playing;
-    if (els.resultsRecordingStop) els.resultsRecordingStop.disabled = !playing;
+    const rec = state.practiceRecording;
+    rec.playbackActive = !!playing;
+    if (playing) rec.playbackPaused = false;
+    updatePracticeRecordingPlaybackButtons();
+}
+
+/* v0.10.43：録音レビュー再生ボタン（再生/再開・一時停止）の表示を更新。 */
+function updatePracticeRecordingPlaybackButtons() {
+    const rec = state.practiceRecording;
+    const playing = !!rec.playbackActive;
+    const paused = !!rec.playbackPaused;
+    if (els.resultsRecordingPlay) {
+        els.resultsRecordingPlay.disabled = playing;
+        els.resultsRecordingPlay.textContent = paused ? '▶ 再開' : '▶ 録音を再生';
+    }
+    if (els.resultsRecordingStop) {
+        els.resultsRecordingStop.disabled = !playing;
+        els.resultsRecordingStop.textContent = '一時停止';
+    }
 }
 
 function practiceRecordingGainValue(value) {
@@ -9126,6 +9148,9 @@ function disconnectPracticeRecordingPlaybackGraph() {
 
 function getPracticeRecordingPlaybackPosition() {
     const rec = state.practiceRecording;
+    if (rec.playbackPaused) {
+        return Math.max(0, Number(rec.playbackPausePositionSec) || Number(rec.playbackOffsetSec) || 0);
+    }
     if (!rec.playbackActive || rec.playbackStartCtx == null) return Math.max(0, rec.playbackOffsetSec || 0);
     const ctx = rec.playbackContext || state.audioCtx;
     if (!ctx) return Math.max(0, rec.playbackOffsetSec || 0);
@@ -9204,6 +9229,8 @@ function playPracticeRecordingFromBuffer(offsetSec) {
     const buffer = rec.decodedBuffer;
     const duration = Number(buffer.duration) || Number(rec.bufferDuration) || 0;
     const position = Math.max(0, Math.min(Number(offsetSec) || 0, Math.max(0, duration - 0.01)));
+    rec.playbackPaused = false;
+    rec.playbackPausePositionSec = 0;
     let source;
     try { source = ctx.createBufferSource(); } catch (_) { return false; }
     source.buffer = buffer;
@@ -9241,7 +9268,33 @@ function updatePracticeRecordingPlaybackGain(value) {
     applyPracticeRecordingGain(value);
 }
 
+function pausePracticeRecordingPlayback() {
+    const rec = state.practiceRecording;
+    if (!rec.playbackActive || rec.status !== 'available') return;
+    const pos = getPracticeRecordingPlaybackPosition();
+    rec.playbackPausePositionSec = pos;
+    rec.playbackOffsetSec = pos;
+    rec.playbackPaused = true;
+    stopReviewTimelineRaf(false);
+    stopPracticeRecordingBufferSource();
+    stopReviewClickOverlay();
+    rec.playbackActive = false;
+    updatePracticeRecordingPlaybackButtons();
+    updateReviewTimelineUI(pos);
+    updatePracticeRecordingDebugUI();
+}
+
+function resumePracticeRecordingPlayback() {
+    const rec = state.practiceRecording;
+    if (!rec.playbackPaused || rec.status !== 'available') return false;
+    const pos = Math.max(0, Number(rec.playbackPausePositionSec) || Number(rec.playbackOffsetSec) || 0);
+    return playPracticeRecordingFromBuffer(pos);
+}
+
 function stopPracticeRecordingPlayback() {
+    const rec = state.practiceRecording;
+    rec.playbackPaused = false;
+    rec.playbackPausePositionSec = 0;
     stopReviewTimelineRaf();
     stopPracticeRecordingBufferSource();
     stopReviewClickOverlay();
@@ -9576,6 +9629,8 @@ function discardPracticeRecording() {
     rec.errorMessage = '';
     rec.playbackRoute = 'idle';
     rec.playbackActive = false;
+    rec.playbackPaused = false;
+    rec.playbackPausePositionSec = 0;
     rec.playbackEngine = 'idle';
     rec.decodedBuffer = null;
     rec.bufferDuration = null;
@@ -9960,9 +10015,9 @@ function stopForPageHidden() {
     // cancelCalibration/stopBtCal は内部ガード（cal.saved 等）で多重実行しても壊れない（v0.9.140）。
     if (cal.active || mic.calibrating) cancelCalibration();
     stopBtCal();
-    // v0.10.35：録音再生中なら停止＋クリックoverlay停止。Blob/Object URLは破棄しない。
+    // v0.10.35：録音再生中/一時停止中なら完全停止＋クリックoverlay停止。Blob/Object URLは破棄しない。
     const rec = state.practiceRecording;
-    if (rec.playbackActive) stopPracticeRecordingPlayback();
+    if (rec.playbackActive || rec.playbackPaused) stopPracticeRecordingPlayback();
     else stopReviewClickOverlay();
     if (rec.status === 'available' || rec.status === 'recording') {
         rec.reviewClickVisibilityStopCount = (rec.reviewClickVisibilityStopCount || 0) + 1;
@@ -19832,7 +19887,11 @@ function bind() {
     });
     if (els.resultsRecordingPlay) els.resultsRecordingPlay.addEventListener('click', () => {
         if (state.practiceRecording.status !== 'available') return;
-        if (!playPracticeRecordingFromBuffer(0) && MIC_DEBUG_ON && els.resultsRecordingMessage) {
+        const rec = state.practiceRecording;
+        const ok = rec.playbackPaused
+            ? resumePracticeRecordingPlayback()
+            : playPracticeRecordingFromBuffer(0);
+        if (!ok && MIC_DEBUG_ON && els.resultsRecordingMessage) {
             els.resultsRecordingMessage.textContent = 'debugMic: 録音を再生できませんでした。';
         }
     });
@@ -19890,7 +19949,7 @@ function bind() {
             restartReviewClickFromCurrentPosition();
         });
     }
-    if (els.resultsRecordingStop) els.resultsRecordingStop.addEventListener('click', stopPracticeRecordingPlayback);
+    if (els.resultsRecordingStop) els.resultsRecordingStop.addEventListener('click', pausePracticeRecordingPlayback);
     // 過去の結果（履歴）UI（v0.9.146）
     if (els.historyOpenBtn) els.historyOpenBtn.addEventListener('click', openResultHistory);
     if (els.historyCloseBtn) els.historyCloseBtn.addEventListener('click', closeResultHistory);
