@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.37';
+const RHYTHM_CRUISE_VERSION = '0.10.38';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -698,6 +698,7 @@ const state = {
         reviewPracticeHeadphoneType: '',         // 'wired' | 'bluetooth' | ''（通常マイク時）
         reviewPracticeBluetoothMicOffsetMs: 0,   // Practice時の bluetoothMicOffsetMs スナップショット
         reviewPracticeHeadphoneOutputOffsetMs: 0,// Practice時の headphoneOutputOffsetMs スナップショット
+        reviewJudgeOffsetMs: 0,            // v0.10.38：Practice時の micJudgeOffsetMs スナップショット（結果JUSTライン表示専用）
         reviewClickSeekedIgnoredCount: 0,   // Safari等の不要seekedを無視した回数（debug）
         reviewClickSeekedHandledCount: 0,   // 将来の明示シーク対応用（v0.10.35では増えない）
         reviewClickVisibilityStopCount: 0,// ページ非表示でクリックoverlayを止めた回数（debug）
@@ -1188,6 +1189,7 @@ const els = {
     debugWaveControls: $('debug-wave-controls'),
     reviewWrap: $('review-wrap'),
     reviewCanvas: $('review-canvas'),
+    reviewPlayheadCanvas: $('review-playhead-canvas'),
     reviewFlowScoreLayer: $('review-flow-score-layer'), // 結果見返しの固定譜面（VexFlow層・v0.9.140）
     rScore: $('r-score'),
     rJust: $('r-just'),
@@ -1417,6 +1419,9 @@ let laneJudge = { ctx: null, w: 0, h: 0 }; // 判定符頭オーバーレイのC
 let preview = { ctx: null, w: 0, h: 0 };
 let graph = { ctx: null, w: 0, h: 0 };
 let review = { ctx: null, w: 0, h: 0, beatPx: 70, leftPad: 38 };
+let reviewPlayhead = { ctx: null, w: 0, h: 0 }; // v0.10.38：結果カードJUSTライン overlay canvas
+let reviewTimelineRaf = 0; // v0.10.38：録音再生中のJUSTライン更新RAF（Practice本番とは別）
+const reviewTimelineDebug = { enabled: false, currentTimeSec: 0, gameTimeMs: 0, judgeTimeMs: 0, judgeOffsetMs: 0, x: NaN, rafActive: false };
 let reviewFlowScoreReady = false; // 結果見返しの固定譜面(VexFlow)が正常描画できているか（true時だけCanvas固定音符を隠す・v0.9.140）
 let practiceStartPending = false; // 結果後のマイク再取得中にPractice開始を重複させない
 let testLane = { ctx: null, w: 0, h: 0 }; // マイク反応テストの流れる譜面
@@ -6346,6 +6351,14 @@ function micDebugText() {
         + 'reviewClick.seekedHandledCount: ' + (rec ? (rec.reviewClickSeekedHandledCount || 0) : 0) + '\n'
         + 'reviewClick.visibilityStopCount: ' + (rec ? (rec.reviewClickVisibilityStopCount || 0) : 0) + '\n'
         + 'reviewClick.pending: ' + (rec && Array.isArray(rec.reviewClickOscillators) ? rec.reviewClickOscillators.length : 0) + '\n'
+        + '--- Review timeline ---\n'
+        + 'reviewTimeline.enabled: ' + (reviewTimelineDebug.enabled ? 'on' : 'off') + '\n'
+        + 'reviewTimeline.currentTimeSec: ' + f3(reviewTimelineDebug.currentTimeSec) + '\n'
+        + 'reviewTimeline.gameTimeMs: ' + (Number.isFinite(reviewTimelineDebug.gameTimeMs) ? Math.round(reviewTimelineDebug.gameTimeMs) : '-') + '\n'
+        + 'reviewTimeline.judgeTimeMs: ' + (Number.isFinite(reviewTimelineDebug.judgeTimeMs) ? Math.round(reviewTimelineDebug.judgeTimeMs) : '-') + '\n'
+        + 'reviewTimeline.judgeOffsetMs: ' + (rec && Number.isFinite(rec.reviewJudgeOffsetMs) ? rec.reviewJudgeOffsetMs : 0) + '\n'
+        + 'reviewTimeline.x: ' + (Number.isFinite(reviewTimelineDebug.x) ? reviewTimelineDebug.x.toFixed(1) : '-') + '\n'
+        + 'reviewTimeline.rafActive: ' + (reviewTimelineDebug.rafActive ? 'yes' : 'no') + '\n'
         + 'track.events: ' + (rd && rd.trackEvents.length ? rd.trackEvents.join(', ') : '-');
 }
 let micDebugPanelOpen = false;
@@ -7169,6 +7182,29 @@ function drawBeatDot(ctx, x, y, glow) {
     ctx.restore();
 }
 
+/* v0.10.38：Practice/結果カード共通のJUSTライン見た目（縦線＋拍ドット＋ラベル）。座標は呼び出し側が決める。 */
+function drawJustLineMarker(ctx, x, h, opts) {
+    if (!ctx || !Number.isFinite(x) || !Number.isFinite(h)) return;
+    opts = opts || {};
+    const top = opts.top != null ? opts.top : h * 0.1;
+    const bottom = opts.bottom != null ? opts.bottom : h * 0.94;
+    const dotY = opts.dotY != null ? opts.dotY : h * 0.9;
+    const labelY = opts.labelY != null ? opts.labelY : h * 0.99;
+    const glow = opts.glow != null ? opts.glow : 0;
+    ctx.save();
+    ctx.shadowColor = 'rgba(255,159,28,0.95)';
+    ctx.shadowBlur = 14 + glow * 24;
+    ctx.strokeStyle = 'rgba(255,159,28,' + (0.85 + glow * 0.15).toFixed(2) + ')';
+    ctx.lineWidth = 3 + glow * 2;
+    ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke();
+    ctx.restore();
+    drawBeatDot(ctx, x, dotY, glow);
+    ctx.fillStyle = 'rgba(255,159,28,0.95)';
+    ctx.font = '700 10px Outfit, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('JUST', x, labelY);
+}
+
 /* ── ズレ履歴グラフ描画（結果画面） ─────────────────────── */
 function drawGraph() {
     const { ctx, w, h } = graph;
@@ -7349,6 +7385,134 @@ function fitReview() {
     if (els.reviewFlowScoreLayer) els.reviewFlowScoreLayer.style.width = cssW + 'px';
     if (eng.custom) renderReviewFlowScore(); else hideReviewFlowScore();
     drawReview();
+    fitReviewPlayhead();
+}
+
+/* v0.10.38：結果カード overlay canvas を #review-canvas と同じ寸法に合わせる。 */
+function fitReviewPlayhead() {
+    if (!els.reviewPlayheadCanvas || !els.reviewCanvas || !review.w) return;
+    const cssW = els.reviewCanvas.style.width || (review.w + 'px');
+    const cssH = els.reviewCanvas.style.height || (review.h + 'px');
+    els.reviewPlayheadCanvas.style.width = cssW;
+    els.reviewPlayheadCanvas.style.height = cssH;
+    const dpr = window.devicePixelRatio || 1;
+    els.reviewPlayheadCanvas.width = Math.round(review.w * dpr);
+    els.reviewPlayheadCanvas.height = Math.round(review.h * dpr);
+    const ctx = els.reviewPlayheadCanvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    reviewPlayhead = { ctx, w: review.w, h: review.h };
+}
+
+function clearReviewPlayhead() {
+    if (reviewPlayhead.ctx) reviewPlayhead.ctx.clearRect(0, 0, reviewPlayhead.w, reviewPlayhead.h);
+    if (els.reviewPlayheadCanvas) els.reviewPlayheadCanvas.classList.add('hidden');
+    reviewTimelineDebug.x = NaN;
+}
+
+/* v0.10.38：Practice終了/録音開始時の micJudgeOffsetMs を表示専用に保持（判定・履歴には使わない）。 */
+function captureReviewJudgeOffsetSnapshot() {
+    state.practiceRecording.reviewJudgeOffsetMs = micJudgeOffsetMs();
+}
+
+function getReviewPlaybackCurrentTimeSec() {
+    if (historyViewRecord) return null;
+    const rec = state.practiceRecording;
+    if (!rec || rec.status !== 'available') return null;
+    return getPracticeRecordingPlaybackPosition();
+}
+
+function reviewGameTimeMsFromSec(sec) {
+    const s = Number(sec);
+    if (!Number.isFinite(s)) return 0;
+    return Math.max(0, s * 1000);
+}
+
+function reviewJudgeTimeMsFromSec(sec) {
+    const rec = state.practiceRecording;
+    const off = rec && Number.isFinite(rec.reviewJudgeOffsetMs) ? rec.reviewJudgeOffsetMs : 0;
+    return reviewGameTimeMsFromSec(sec) + off;
+}
+
+/* drawReviewMicOverlay / drawReview と同じ x 座標系（判定時間軸 ms → px）。 */
+function reviewTimeToReviewX(judgeMs) {
+    if (!review || !Number.isFinite(review.beatPx) || !Number.isFinite(review.leftPad)) return NaN;
+    const bi = state.beatInterval;
+    if (!bi) return NaN;
+    return review.leftPad + ((judgeMs - state.T0) / bi) * review.beatPx;
+}
+
+function drawReviewPlayheadAtSec(sec) {
+    if (!els.reviewPlayheadCanvas || historyViewRecord) { clearReviewPlayhead(); return; }
+    const rec = state.practiceRecording;
+    if (rec.status !== 'available') { clearReviewPlayhead(); return; }
+    fitReviewPlayhead();
+    const { ctx, w, h } = reviewPlayhead;
+    if (!ctx) return;
+    ctx.clearRect(0, 0, w, h);
+    const gameMs = reviewGameTimeMsFromSec(sec);
+    const judgeMs = reviewJudgeTimeMsFromSec(sec);
+    const x = reviewTimeToReviewX(judgeMs);
+    reviewTimelineDebug.currentTimeSec = sec;
+    reviewTimelineDebug.gameTimeMs = gameMs;
+    reviewTimelineDebug.judgeTimeMs = judgeMs;
+    reviewTimelineDebug.judgeOffsetMs = rec.reviewJudgeOffsetMs || 0;
+    reviewTimelineDebug.x = x;
+    if (!Number.isFinite(x) || x < -8 || x > w + 8) {
+        els.reviewPlayheadCanvas.classList.add('hidden');
+        return;
+    }
+    els.reviewPlayheadCanvas.classList.remove('hidden');
+    const glow = beatGlow(judgeMs - state.T0, engPulseMs());
+    drawJustLineMarker(ctx, x, h, { glow });
+}
+
+function updateReviewTimelineUI(sec) {
+    const s = (sec != null && Number.isFinite(sec)) ? sec : getReviewPlaybackCurrentTimeSec();
+    if (s == null) {
+        reviewTimelineDebug.enabled = false;
+        clearReviewPlayhead();
+        if (MIC_DEBUG_ON) updateMicDebugBox();
+        return;
+    }
+    reviewTimelineDebug.enabled = !!state.practiceRecording.playbackActive;
+    drawReviewPlayheadAtSec(s);
+    if (MIC_DEBUG_ON) updateMicDebugBox();
+}
+
+function reviewTimelineRafTick() {
+    reviewTimelineRaf = 0;
+    const rec = state.practiceRecording;
+    if (!rec.playbackActive || historyViewRecord || rec.status !== 'available') {
+        stopReviewTimelineRaf(true);
+        return;
+    }
+    updateReviewTimelineUI(getReviewPlaybackCurrentTimeSec());
+    reviewTimelineRaf = requestAnimationFrame(reviewTimelineRafTick);
+}
+
+function startReviewTimelineRaf() {
+    stopReviewTimelineRaf(true);
+    if (historyViewRecord) return;
+    const rec = state.practiceRecording;
+    if (rec.status !== 'available' || !rec.decodedBuffer) return;
+    reviewTimelineDebug.rafActive = true;
+    reviewTimelineDebug.enabled = true;
+    fitReviewPlayhead();
+    reviewTimelineRafTick();
+}
+
+/* keepPlayhead=true のとき停止位置のJUSTラインを残す（未使用・既定は消す）。 */
+function stopReviewTimelineRaf(clearPlayhead) {
+    if (reviewTimelineRaf) {
+        cancelAnimationFrame(reviewTimelineRaf);
+        reviewTimelineRaf = 0;
+    }
+    reviewTimelineDebug.rafActive = false;
+    if (clearPlayhead !== false) {
+        reviewTimelineDebug.enabled = false;
+        clearReviewPlayhead();
+    }
+    if (MIC_DEBUG_ON) updateMicDebugBox();
 }
 
 /* debugMic結果レーンの表示値だけを変換する。元のmicRunWaveと判定値は変更しない。 */
@@ -8813,6 +8977,7 @@ function playPracticeRecordingFromBuffer(offsetSec) {
     }, Math.ceil(remainSec * 1000));
     setPracticeRecordingPlaybackUI(true);
     beginReviewClickBufferSession(playStartCtx, position);
+    startReviewTimelineRaf(); // v0.10.38：録音再生に合わせて結果カードJUSTラインを更新
     updatePracticeRecordingDebugUI();
     return true;
 }
@@ -8822,6 +8987,7 @@ function updatePracticeRecordingPlaybackGain(value) {
 }
 
 function stopPracticeRecordingPlayback() {
+    stopReviewTimelineRaf();
     stopPracticeRecordingBufferSource();
     stopReviewClickOverlay();
     recResetPlaybackOffset();
@@ -8950,6 +9116,7 @@ function reviewClickTotalOffsetSec(rec) {
    判定用補正値(bluetoothMicOffsetMs等)は読むだけで、Practice本番の判定/クリックには影響しない。 */
 function captureReviewClickPracticeContext() {
     const rec = state.practiceRecording;
+    captureReviewJudgeOffsetSnapshot(); // v0.10.38：結果JUSTライン用（表示専用・判定には使わない）
     rec.reviewPracticeInputType = getMicInputType();
     rec.reviewPracticeHeadphoneType = isHeadphoneInput() ? getHeadphoneType() : '';
     rec.reviewPracticeBluetoothMicOffsetMs = mic.bluetoothMicOffsetMs || 0;
@@ -9161,6 +9328,7 @@ function discardPracticeRecording() {
     rec.dominantChannel = null;
     rec.channelImbalanceRatio = null;
     rec.singleSidedCorrection = false;
+    rec.reviewJudgeOffsetMs = 0;
     rec.debug = null;
     applyPracticeRecordingGain(PRACTICE_RECORDING_GAIN_DEFAULT);
     if (els.resultsRecording) els.resultsRecording.classList.add('hidden');
@@ -9599,6 +9767,7 @@ function resetData() {
 }
 
 function resetGame() {
+    stopReviewTimelineRaf();
     stop();
     resetData();
     if (els.resultsOverlay) els.resultsOverlay.classList.add('hidden');
@@ -10944,6 +11113,7 @@ function finish(opts) {
     document.body.classList.add('results-open');               // モーダル中は戻る/TOP/設定を隠す（修正8）
     syncDebugWaveControls();
     scrollResultsToTop();                                      // 詳細OPENでも必ず「RESULT」見出しが見える位置から表示（v0.9.151）
+    captureReviewJudgeOffsetSnapshot(); // v0.10.38：Practice終了時点の判定offsetを結果JUSTライン用に保持
     drawResults();
 }
 
@@ -11148,6 +11318,7 @@ function applyHistoryRecordToEngine(rec) {
     state.beatExcluded = new Array(N).fill(false);
 }
 function prepareResultsOverlayForHistory() {
+    stopReviewTimelineRaf();
     const hide = (el) => { if (el) el.classList.add('hidden'); };
     const show = (el) => { if (el) el.classList.remove('hidden'); };
     hide(els.retryBtn); hide(els.rEditBackBtn);

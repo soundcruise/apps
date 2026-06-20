@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.10.37">
+    <link rel="stylesheet" href="theme.css?v=0.10.38">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1165,6 +1165,8 @@
                 <!-- 固定音符はVexFlow層（編集/プレビュー/Play画面と同じデザイン）。判定符頭・矢印・文字はCanvas側で前面に描く（v0.9.140） -->
                 <div class="review-flow-score-layer hidden" id="review-flow-score-layer" aria-hidden="true"></div>
                 <canvas id="review-canvas"></canvas>
+                <!-- v0.10.38：録音再生中のJUSTライン（静止結果Canvasの上に重ねる・Practice本番とは別） -->
+                <canvas id="review-playhead-canvas" class="review-playhead-canvas hidden" aria-hidden="true"></canvas>
             </div>
 
             <!-- 3. 一言コメント -->
@@ -1350,7 +1352,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.10.37"></script>
+    <script src="script.js?v=0.10.38"></script>
 </body>
 
 </html>

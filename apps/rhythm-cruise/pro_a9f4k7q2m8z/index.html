@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="../theme.css?v=0.10.37">
+    <link rel="stylesheet" href="../theme.css?v=0.10.38">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1115,6 +1115,7 @@
             <div class="review-wrap" id="review-wrap">
                 <div class="review-flow-score-layer hidden" id="review-flow-score-layer" aria-hidden="true"></div>
                 <canvas id="review-canvas"></canvas>
+                <canvas id="review-playhead-canvas" class="review-playhead-canvas hidden" aria-hidden="true"></canvas>
             </div>
             <p class="tendency" id="r-comment"></p>
             <p class="results-warn hidden" id="results-warn">⚠️ クリック音をマイクが拾っている可能性があります。スピーカー使用時はクリック音量をさらに下げるか、イヤホン使用がおすすめです。</p>
@@ -1281,7 +1282,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.10.37"></script>
+    <script src="../script.js?v=0.10.38"></script>
 </body>
 
 </html>

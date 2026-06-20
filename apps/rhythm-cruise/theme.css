@@ -3075,6 +3075,20 @@ h1 {
     height: 168px;
 }
 
+/* v0.10.38：結果カードの録音再生JUSTライン（#review-canvas の上・pointer-events なし） */
+#review-playhead-canvas.review-playhead-canvas {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 3;
+    display: block;
+    height: 168px;
+    pointer-events: none;
+}
+#review-playhead-canvas.review-playhead-canvas.hidden {
+    display: none;
+}
+
 /* 結果見返しの固定譜面（VexFlow層・v0.9.140）。Canvas(#review-canvas)の背後(z-index:1)に重ね、
    横スクロールでCanvasと一緒に動く（幅はJSがCanvasと同じ cssW に設定）。薄く表示して判定符頭を引き立てる。 */
 .review-flow-score-layer {
