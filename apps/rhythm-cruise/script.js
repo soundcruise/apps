@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.36';
+const RHYTHM_CRUISE_VERSION = '0.10.37';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -687,8 +687,17 @@ const state = {
         reviewClickSessionScheduledCount: 0,// 現在の再生セッション内の予約数（reviewClickTimesを大きく超えないこと）
         reviewClickTotalScheduledCount: 0,  // 全再生通算の予約数（累計・debug表示用）
         reviewClickPlayFallbackTimer: null, // playからplayingが来ないときのフォールバックtimer
-        // v0.10.35：クリック位置補正（録音振り返り専用・一時state。+msで後付けクリックを遅らせる）
+        // v0.10.35：クリック位置補正（debugMic診断用の手動offset。通常UIでは使わない）
         reviewClickOffsetMs: 0,
+        // v0.10.37：録音再生クリック重ねの内部autoOffset（Practice時の入力環境から算出・判定には使わない）
+        reviewClickAutoOffsetMs: 0,
+        reviewClickAutoOffsetSource: 'none',
+        reviewClickBtDetected: false,
+        reviewClickBtOffsetSourceValue: 0,
+        reviewPracticeInputType: 'normal',       // Practice録音開始時の inputType スナップショット
+        reviewPracticeHeadphoneType: '',         // 'wired' | 'bluetooth' | ''（通常マイク時）
+        reviewPracticeBluetoothMicOffsetMs: 0,   // Practice時の bluetoothMicOffsetMs スナップショット
+        reviewPracticeHeadphoneOutputOffsetMs: 0,// Practice時の headphoneOutputOffsetMs スナップショット
         reviewClickSeekedIgnoredCount: 0,   // Safari等の不要seekedを無視した回数（debug）
         reviewClickSeekedHandledCount: 0,   // 将来の明示シーク対応用（v0.10.35では増えない）
         reviewClickVisibilityStopCount: 0,// ページ非表示でクリックoverlayを止めた回数（debug）
@@ -6326,7 +6335,13 @@ function micDebugText() {
         + 'reviewClick.resyncCount: ' + (rec ? (rec.reviewClickResyncCount || 0) : 0) + '\n'
         + 'reviewClick.resyncReason: ' + (rec ? rec.reviewClickResyncReason : '-') + '\n'
         + 'reviewClick.skippedPastCount: ' + (rec ? (rec.reviewClickSkippedPastCount || 0) : 0) + '\n'
-        + 'reviewClick.offsetMs: ' + (rec ? (rec.reviewClickOffsetMs || 0) : 0) + '\n'
+        + 'reviewClick.offsetMs: ' + (rec ? reviewClickTotalOffsetMs(rec) : 0) + ' (total)\n'
+        + 'reviewClick.autoOffsetMs: ' + (rec ? (rec.reviewClickAutoOffsetMs || 0) : 0) + '\n'
+        + 'reviewClick.autoOffsetSource: ' + (rec ? (rec.reviewClickAutoOffsetSource || 'none') : '-') + '\n'
+        + 'reviewClick.manualOffsetMs: ' + (rec ? reviewClickManualOffsetMs(rec) : 0) + '\n'
+        + 'reviewClick.totalOffsetMs: ' + (rec ? reviewClickTotalOffsetMs(rec) : 0) + '\n'
+        + 'reviewClick.btDetected: ' + (rec ? (rec.reviewClickBtDetected ? 'yes' : 'no') : '-') + '\n'
+        + 'reviewClick.btOffsetSourceValue: ' + (rec ? (rec.reviewClickBtOffsetSourceValue != null ? rec.reviewClickBtOffsetSourceValue : 0) : '-') + '\n'
         + 'reviewClick.seekedIgnoredCount: ' + (rec ? (rec.reviewClickSeekedIgnoredCount || 0) : 0) + '\n'
         + 'reviewClick.seekedHandledCount: ' + (rec ? (rec.reviewClickSeekedHandledCount || 0) : 0) + '\n'
         + 'reviewClick.visibilityStopCount: ' + (rec ? (rec.reviewClickVisibilityStopCount || 0) : 0) + '\n'
@@ -8873,7 +8888,7 @@ function scheduleReviewClicksForBuffer(playStartCtx, playbackOffsetSec) {
     rec.reviewClickAnchorMediaTime = playbackOffsetSec;
     rec.reviewClickClockMode = 'audio-buffer-context';
     rec.reviewClickAnchorSource = 'audio-buffer';
-    const offsetSec = reviewClickOffsetSec(rec.reviewClickOffsetMs);
+    const offsetSec = reviewClickTotalOffsetSec(rec);
     let scheduled = 0;
     for (let i = 0; i < rec.reviewClickTimes.length; i++) {
         const c = rec.reviewClickTimes[i];
@@ -8894,7 +8909,7 @@ function scheduleReviewClicksAheadBuffer() {
     if (!Array.isArray(rec.reviewClickTimes) || !rec.reviewClickTimes.length) return;
     const estPos = getReviewBufferPlaybackPosition();
     const playStartCtx = rec.reviewClickPlayStartCtx != null ? rec.reviewClickPlayStartCtx : rec.playbackStartCtx;
-    const offsetSec = reviewClickOffsetSec(rec.reviewClickOffsetMs);
+    const offsetSec = reviewClickTotalOffsetSec(rec);
     const horizon = estPos + REVIEW_CLICK_LOOKAHEAD_SEC;
     while (rec.reviewClickNextIndex < rec.reviewClickTimes.length && rec.reviewClickTimes[rec.reviewClickNextIndex].t < estPos - REVIEW_CLICK_PAST_SEC) {
         rec.reviewClickNextIndex++;
@@ -8916,6 +8931,60 @@ function reviewClickOffsetMsValue(value) {
 function reviewClickOffsetSec(offsetMs) {
     return reviewClickOffsetMsValue(offsetMs) / 1000;
 }
+/* v0.10.37：debugMic診断用の手動offset（通常UIでは常に0として扱う）。 */
+function reviewClickManualOffsetMs(rec) {
+    const r = rec || state.practiceRecording;
+    return MIC_DEBUG_ON ? reviewClickOffsetMsValue(r.reviewClickOffsetMs) : 0;
+}
+/* v0.10.37：autoOffset + manualOffset（録音再生クリック重ね専用。判定には使わない）。 */
+function reviewClickTotalOffsetMs(rec) {
+    const r = rec || state.practiceRecording;
+    const sum = (Number(r.reviewClickAutoOffsetMs) || 0) + reviewClickManualOffsetMs(r);
+    return reviewClickOffsetMsValue(sum);
+}
+function reviewClickTotalOffsetSec(rec) {
+    return reviewClickTotalOffsetMs(rec) / 1000;
+}
+
+/* v0.10.37：Practice録音開始時の入力環境をスナップショットし、review専用autoOffsetを算出する。
+   判定用補正値(bluetoothMicOffsetMs等)は読むだけで、Practice本番の判定/クリックには影響しない。 */
+function captureReviewClickPracticeContext() {
+    const rec = state.practiceRecording;
+    rec.reviewPracticeInputType = getMicInputType();
+    rec.reviewPracticeHeadphoneType = isHeadphoneInput() ? getHeadphoneType() : '';
+    rec.reviewPracticeBluetoothMicOffsetMs = mic.bluetoothMicOffsetMs || 0;
+    rec.reviewPracticeHeadphoneOutputOffsetMs = mic.headphoneOutputOffsetMs || 0;
+    const isBt = rec.reviewPracticeInputType === 'headphone' && rec.reviewPracticeHeadphoneType === 'bluetooth';
+    rec.reviewClickBtDetected = isBt;
+    if (!isBt) {
+        rec.reviewClickAutoOffsetMs = 0;
+        rec.reviewClickAutoOffsetSource = rec.reviewPracticeInputType === 'normal' ? 'normal-mic' : 'wired-headphone';
+        rec.reviewClickBtOffsetSourceValue = 0;
+        return;
+    }
+    const micOff = Number(rec.reviewPracticeBluetoothMicOffsetMs) || 0;
+    rec.reviewClickBtOffsetSourceValue = micOff;
+    // bluetoothMicOffsetMs：負＝マイク入力が遅い→判定を早める。ユーザーが聞いたクリックは理論時刻より遅い→overlayも遅らせる(+ms)。
+    if (micOff < 0) {
+        rec.reviewClickAutoOffsetMs = Math.round(Math.abs(micOff));
+        rec.reviewClickAutoOffsetSource = 'bluetooth-mic-offset-abs';
+    } else if (micOff > 0) {
+        rec.reviewClickAutoOffsetMs = Math.round(micOff);
+        rec.reviewClickAutoOffsetSource = 'bluetooth-mic-offset';
+    } else {
+        const hpOut = Number(rec.reviewPracticeHeadphoneOutputOffsetMs) || 0;
+        rec.reviewClickBtOffsetSourceValue = hpOut;
+        if (hpOut > 0) {
+            rec.reviewClickAutoOffsetMs = Math.round(hpOut);
+            rec.reviewClickAutoOffsetSource = 'bluetooth-headphone-output';
+        } else {
+            rec.reviewClickAutoOffsetMs = 0;
+            rec.reviewClickAutoOffsetSource = 'bluetooth-none';
+        }
+    }
+    rec.reviewClickAutoOffsetMs = reviewClickOffsetMsValue(rec.reviewClickAutoOffsetMs);
+}
+
 function formatReviewClickOffsetMs(offsetMs) {
     const n = reviewClickOffsetMsValue(offsetMs);
     if (n > 0) return '+' + n + 'ms';
@@ -8996,6 +9065,14 @@ function cleanupReviewClickOverlay() {
     rec.reviewClickEnabled = true;
     rec.reviewClickVolume = REVIEW_CLICK_VOLUME_DEFAULT;
     rec.reviewClickOffsetMs = REVIEW_CLICK_OFFSET_MS_DEFAULT;
+    rec.reviewClickAutoOffsetMs = 0;
+    rec.reviewClickAutoOffsetSource = 'none';
+    rec.reviewClickBtDetected = false;
+    rec.reviewClickBtOffsetSourceValue = 0;
+    rec.reviewPracticeInputType = 'normal';
+    rec.reviewPracticeHeadphoneType = '';
+    rec.reviewPracticeBluetoothMicOffsetMs = 0;
+    rec.reviewPracticeHeadphoneOutputOffsetMs = 0;
     rec.reviewClickSeekedIgnoredCount = 0;
     rec.reviewClickSeekedHandledCount = 0;
     rec.reviewClickVisibilityStopCount = 0;
@@ -9153,6 +9230,7 @@ function startPracticeRecording() {
     rec.reviewClickTimes = (Array.isArray(state.clickTimes) ? state.clickTimes : [])
         .map((c) => ({ t: c.time / 1000, accent: !!c.accent }))
         .filter((c) => c.t >= 0);
+    captureReviewClickPracticeContext(); // v0.10.37：Practice時の入力環境からreview専用autoOffsetを算出
     recorder.ondataavailable = (event) => {
         if (generation !== rec.generation) return;
         if (rec.debug) {
