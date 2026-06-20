@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.33';
+const RHYTHM_CRUISE_VERSION = '0.10.34';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -667,13 +667,18 @@ const state = {
         reviewClickTimer: null,          // 先読みスケジュールの監視タイマー
         reviewClickNextIndex: 0,         // 次に予約するreviewClickTimesのindex
         reviewClickContext: null,        // クリック生成に使うAudioContext参照
-        reviewClickScheduledCount: 0,    // 累計予約数（debug表示用）
         // v0.10.33：同期アンカー（再生開始/再開/seek/経路切替で張り直す）
         reviewClickAnchorMediaTime: null,   // アンカー時のaudio.currentTime（秒）
         reviewClickAnchorContextTime: null, // アンカー時のctx.currentTime（秒）
-        reviewClickResyncCount: 0,          // 再アンカー回数（debug表示用）
-        reviewClickSkippedPastCount: 0,     // 過去になってスキップしたクリック数（debug表示用）
-        reviewClickLastScheduleBase: 'idle',// 直近の予約基準（debug表示用：'anchor' 等）
+        // v0.10.34：再同期の暴れ抑制＋セッション管理（playingアンカー化・通常再生中は再アンカーしない）
+        reviewClickSessionId: 0,            // 再生セッションID（play/playing/seeked/toggleごとに+1）
+        reviewClickAnchorSource: 'idle',    // アンカー根拠：'playing' | 'play-fallback' | 'seeked' | 'toggle' | 'idle'
+        reviewClickResyncReason: '-',       // 直近の再アンカー理由（debug表示用）
+        reviewClickResyncCount: 0,          // 再アンカー回数（seek等のみ。通常再生では増えない）
+        reviewClickSkippedPastCount: 0,     // 過去になってスキップしたクリック数（debug表示用・累計）
+        reviewClickSessionScheduledCount: 0,// 現在の再生セッション内の予約数（reviewClickTimesを大きく超えないこと）
+        reviewClickTotalScheduledCount: 0,  // 全再生通算の予約数（累計・debug表示用）
+        reviewClickPlayFallbackTimer: null, // playからplayingが来ないときのフォールバックtimer
         debug: null,
     },
     results: new Array(TOTAL_BEATS).fill(null),
@@ -6289,10 +6294,13 @@ function micDebugText() {
         + 'reviewClick.anchorContextTime: ' + (rec && rec.reviewClickAnchorContextTime != null ? rec.reviewClickAnchorContextTime.toFixed(3) + 's' : '-') + '\n'
         + 'reviewClick.lookahead: ' + REVIEW_CLICK_LOOKAHEAD_SEC + 's\n'
         + 'reviewClick.timerInterval: ' + REVIEW_CLICK_TICK_MS + 'ms\n'
-        + 'reviewClick.lastScheduleBase: ' + (rec ? rec.reviewClickLastScheduleBase : '-') + '\n'
+        + 'reviewClick.anchorSource: ' + (rec ? rec.reviewClickAnchorSource : '-') + '\n'
+        + 'reviewClick.sessionId: ' + (rec ? (rec.reviewClickSessionId || 0) : 0) + '\n'
+        + 'reviewClick.sessionScheduledCount: ' + (rec ? (rec.reviewClickSessionScheduledCount || 0) : 0) + '\n'
+        + 'reviewClick.totalScheduledCount: ' + (rec ? (rec.reviewClickTotalScheduledCount || 0) : 0) + '\n'
         + 'reviewClick.resyncCount: ' + (rec ? (rec.reviewClickResyncCount || 0) : 0) + '\n'
+        + 'reviewClick.resyncReason: ' + (rec ? rec.reviewClickResyncReason : '-') + '\n'
         + 'reviewClick.skippedPastCount: ' + (rec ? (rec.reviewClickSkippedPastCount || 0) : 0) + '\n'
-        + 'reviewClick.scheduledCount: ' + (rec ? (rec.reviewClickScheduledCount || 0) : 0) + '\n'
         + 'reviewClick.pending: ' + (rec && Array.isArray(rec.reviewClickOscillators) ? rec.reviewClickOscillators.length : 0) + '\n'
         + 'track.events: ' + (rd && rd.trackEvents.length ? rd.trackEvents.join(', ') : '-');
 }
@@ -8457,7 +8465,10 @@ const REVIEW_CLICK_VOLUME_DEFAULT = 50;   // クリック音量初期値（%）
 const REVIEW_CLICK_LOOKAHEAD_SEC = 0.6;   // 先読みスケジュール幅（秒）：iPhone Safari/Web Audio経路でも遅れにくいよう少し長め
 const REVIEW_CLICK_TICK_MS = 100;         // 先読みスケジュールの監視間隔（ms）
 const REVIEW_CLICK_PAST_SEC = 0.03;       // この秒数より過去になったクリックはスキップ（無理に遅れて鳴らさない）
-const REVIEW_CLICK_RESYNC_DRIFT_SEC = 0.2;// ctxクロック推定位置と実audio.currentTimeがこれ以上ズレたら再アンカー（seek等）
+/* v0.10.34：再同期の暴れ抑制。通常再生中はアンカーを張り直さず、固定アンカーのまま ctx クロックで進める。
+   再アンカーは playing / seeked / 経路切替 / 明確な巻き戻り のときだけ。 */
+const REVIEW_CLICK_PLAY_FALLBACK_MS = 280;// playからplayingが来ないときに、この時間後にフォールバックでセッション開始
+const REVIEW_CLICK_REWIND_SEC = 0.6;      // 実audio.currentTimeがアンカー開始位置よりこの秒数以上「前」へ戻ったら巻き戻しとみなして再アンカー
 
 function createPracticeRecordingDebug() {
     return {
@@ -8623,12 +8634,14 @@ function disconnectPracticeRecordingPlaybackGraph() {
 function bindPracticeRecordingAudioEvents(audio) {
     if (!audio) return;
     audio.addEventListener('ended', stopPracticeRecordingPlayback);
-    // v0.10.32：再生開始/一時停止に合わせてクリック重ねも開始/停止（経路切替の再play・終了・エラーも含む）。
-    audio.addEventListener('play', startReviewClickOverlay);
+    // v0.10.34：アンカーは「実際に音が出始める」playing で固定する（playは要求時点で早すぎてクリックが先行しやすい）。
+    //   play では playing 待ちのフォールバックだけ仕掛ける（playingが来ない環境向け）。playingが来れば二重開始しない。
+    audio.addEventListener('play', scheduleReviewClickPlayFallback);
+    audio.addEventListener('playing', () => beginReviewClickSession('playing'));
     audio.addEventListener('pause', () => { stopReviewClickOverlay(); setPracticeRecordingPlaybackUI(false); });
     audio.addEventListener('error', () => { stopReviewClickOverlay(); setPracticeRecordingPlaybackUI(false); });
-    // v0.10.33：seek完了時はアンカーを張り直す（再生中のみ）。startReviewClickOverlayが既存予約を止めてから再アンカーする。
-    audio.addEventListener('seeked', () => { if (!audio.paused) startReviewClickOverlay(); });
+    // v0.10.33→34：seek完了時だけ再アンカー（再生中のみ）。通常再生中は再アンカーしない。
+    audio.addEventListener('seeked', () => { if (!audio.paused) beginReviewClickSession('seeked', 'seeked'); });
     const updateDuration = () => {
         const duration = Number(audio.duration);
         const debug = state.practiceRecording.debug;
@@ -8817,7 +8830,8 @@ function scheduleReviewClick(audioTime, accent) {
     osc.start(t0);
     osc.stop(stopAt);
     rec.reviewClickOscillators.push(osc);
-    rec.reviewClickScheduledCount++;
+    rec.reviewClickSessionScheduledCount++;  // この再生セッション内の予約数（reviewClickTimesを大きく超えないこと）
+    rec.reviewClickTotalScheduledCount++;    // 全再生通算（累計）
     // 直近のみ保持（先頭＝古い＝発音済みから捨てる。未発音は末尾なので落とさない）。lookahead拡大に合わせ余裕を持たせる。
     if (rec.reviewClickOscillators.length > 24) rec.reviewClickOscillators.shift();
 }
@@ -8831,7 +8845,13 @@ function cancelScheduledReviewClicks() {
     rec.reviewClickOscillators = [];
 }
 
-/* v0.10.33：再生開始/再開/seek/経路切替の瞬間に (audio.currentTime, ctx.currentTime) を固定する。
+/* v0.10.34：play→playing が来ないときのフォールバックtimerを止める。 */
+function clearReviewClickPlayFallback() {
+    const rec = state.practiceRecording;
+    if (rec.reviewClickPlayFallbackTimer) { clearTimeout(rec.reviewClickPlayFallbackTimer); rec.reviewClickPlayFallbackTimer = null; }
+}
+
+/* 再生開始/再開/seek/経路切替の瞬間に (audio.currentTime, ctx.currentTime) を固定する。
    以降のクリックは anchorContextTime + (clickTime - anchorMediaTime) で予約する（逐次参照のジッタを避ける）。 */
 function setReviewClickAnchor() {
     const rec = state.practiceRecording;
@@ -8841,13 +8861,12 @@ function setReviewClickAnchor() {
     rec.reviewClickAnchorMediaTime = Math.max(0, Number(audio.currentTime) || 0);
     rec.reviewClickAnchorContextTime = ctx.currentTime;
     rec.reviewClickNextIndex = 0; // skip-while で再生位置以降へ寄せ直す
-    rec.reviewClickResyncCount++;
     return true;
 }
 
 /* 先読み範囲内のクリックを、固定アンカー基準でAudioContext時刻へ予約する。タイマーから繰り返し呼ばれる。
-   再生位置はctxクロックから推定（anchorMediaTime + (ctx.currentTime - anchorContextTime)）し、
-   audio.currentTimeとの差が大きいとき（seek/巻き戻し）は再アンカーする。 */
+   v0.10.34：通常再生中は再アンカーしない（固定アンカーのままctxクロックで進める＝再生ごとのズレ量が安定）。
+   実audio.currentTimeがアンカー開始位置より明確に前へ戻ったときだけ「巻き戻し」とみなして再アンカーする。 */
 function scheduleReviewClicksAhead() {
     const rec = state.practiceRecording;
     const audio = els.resultsRecordingAudio;
@@ -8856,16 +8875,17 @@ function scheduleReviewClicksAhead() {
     if (rec.reviewClickAnchorMediaTime == null || rec.reviewClickAnchorContextTime == null) {
         if (!setReviewClickAnchor()) return;
     }
-    // ctxクロックから推定した再生位置（高解像度・安定）。実audio.currentTimeはSafariで粗く遅れるので予約基準には使わない。
-    let estPos = rec.reviewClickAnchorMediaTime + (ctx.currentTime - rec.reviewClickAnchorContextTime);
+    // 明確な巻き戻りだけ再アンカー（Safariのaudio.currentTimeの粗さ・小さなドリフトでは再アンカーしない）。
     const actualPos = Math.max(0, Number(audio.currentTime) || 0);
-    // seek/巻き戻し/大きなドリフト → 予約を止めて再アンカー（二重予約を避けてから張り直す）。
-    if (Math.abs(actualPos - estPos) > REVIEW_CLICK_RESYNC_DRIFT_SEC) {
+    if (actualPos < rec.reviewClickAnchorMediaTime - REVIEW_CLICK_REWIND_SEC) {
         cancelScheduledReviewClicks();
         setReviewClickAnchor();
-        estPos = rec.reviewClickAnchorMediaTime + (ctx.currentTime - rec.reviewClickAnchorContextTime);
+        rec.reviewClickResyncCount++;
+        rec.reviewClickResyncReason = 'rewind';
     }
+    // 再生位置はctxクロックから推定（高解像度・安定）。実audio.currentTimeはSafariで粗く遅れるので予約基準には使わない。
     const anchorM = rec.reviewClickAnchorMediaTime, anchorC = rec.reviewClickAnchorContextTime;
+    const estPos = anchorM + (ctx.currentTime - anchorC);
     const times = rec.reviewClickTimes;
     // すでに通り過ぎたクリックは飛ばす（無理に遅れて鳴らさない）。
     while (rec.reviewClickNextIndex < times.length && times[rec.reviewClickNextIndex].t < estPos - REVIEW_CLICK_PAST_SEC) {
@@ -8875,16 +8895,17 @@ function scheduleReviewClicksAhead() {
     const horizon = estPos + REVIEW_CLICK_LOOKAHEAD_SEC;
     while (rec.reviewClickNextIndex < times.length && times[rec.reviewClickNextIndex].t <= horizon) {
         const c = times[rec.reviewClickNextIndex];
-        const when = anchorC + (c.t - anchorM); // ★アンカー基準のctx時刻へ予約（逐次audio.currentTimeに依存しない）
+        const when = anchorC + (c.t - anchorM); // ★固定アンカー基準のctx時刻へ予約（逐次audio.currentTimeに依存しない）
         scheduleReviewClick(when, c.accent);
-        rec.reviewClickLastScheduleBase = 'anchor';
         rec.reviewClickNextIndex++;
     }
 }
 
-function startReviewClickOverlay() {
+/* v0.10.34：1再生セッションを開始する（アンカー固定＋スケジューラ起動）。source は debug用のアンカー根拠。
+   既存セッションを必ず止めてから始めるので二重起動・二重予約しない。resyncReason を渡すと再アンカー回数を数える。 */
+function beginReviewClickSession(source, resyncReason) {
     const rec = state.practiceRecording;
-    stopReviewClickOverlay(); // 多重起動防止（再生し直し/経路切替/seekの再開にも対応）
+    stopReviewClickOverlay(); // 既存セッションの予約・タイマー・フォールバックを完全に止める
     if (!rec.reviewClickEnabled) return;
     if (!Array.isArray(rec.reviewClickTimes) || !rec.reviewClickTimes.length) return;
     const audio = els.resultsRecordingAudio;
@@ -8896,8 +8917,12 @@ function startReviewClickOverlay() {
         const resumed = ctx.resume();
         if (resumed && typeof resumed.catch === 'function') resumed.catch(() => { /* noop */ });
     }
-    setReviewClickAnchor(); // ★再生開始時にアンカーを固定
-    scheduleReviewClicksAhead(); // 即時に1回
+    rec.reviewClickSessionId++;
+    rec.reviewClickSessionScheduledCount = 0;
+    rec.reviewClickAnchorSource = source || 'playing';
+    if (resyncReason) { rec.reviewClickResyncCount++; rec.reviewClickResyncReason = resyncReason; }
+    setReviewClickAnchor();           // ★実際に音が出るタイミング(playing)でアンカーを固定
+    scheduleReviewClicksAhead();      // 即時に1回
     rec.reviewClickTimer = setInterval(() => {
         const a = els.resultsRecordingAudio;
         if (!a || a.paused) { stopReviewClickOverlay(); return; }
@@ -8905,14 +8930,28 @@ function startReviewClickOverlay() {
     }, REVIEW_CLICK_TICK_MS);
 }
 
+/* v0.10.34：play イベント用。playing が来ないブラウザのために、少し待ってからフォールバックでセッション開始する。
+   playing が来れば beginReviewClickSession 側で clearReviewClickPlayFallback して二重開始を防ぐ。 */
+function scheduleReviewClickPlayFallback() {
+    const rec = state.practiceRecording;
+    if (!rec.reviewClickEnabled) return;
+    clearReviewClickPlayFallback();
+    rec.reviewClickPlayFallbackTimer = setTimeout(() => {
+        rec.reviewClickPlayFallbackTimer = null;
+        const a = els.resultsRecordingAudio;
+        if (a && !a.paused && !rec.reviewClickTimer) beginReviewClickSession('play-fallback');
+    }, REVIEW_CLICK_PLAY_FALLBACK_MS);
+}
+
 function stopReviewClickOverlay() {
     const rec = state.practiceRecording;
+    clearReviewClickPlayFallback();
     if (rec.reviewClickTimer) { clearInterval(rec.reviewClickTimer); rec.reviewClickTimer = null; }
     cancelScheduledReviewClicks();
     rec.reviewClickNextIndex = 0;
     rec.reviewClickAnchorMediaTime = null;
     rec.reviewClickAnchorContextTime = null;
-    rec.reviewClickLastScheduleBase = 'idle';
+    rec.reviewClickAnchorSource = 'idle';
 }
 
 /* 録音破棄時の全クリーンアップ：予約停止＋時刻リストもクリアして既定へ戻す。 */
@@ -8921,9 +8960,12 @@ function cleanupReviewClickOverlay() {
     const rec = state.practiceRecording;
     rec.reviewClickTimes = [];
     rec.reviewClickContext = null;
-    rec.reviewClickScheduledCount = 0;
+    rec.reviewClickSessionId = 0;
+    rec.reviewClickSessionScheduledCount = 0;
+    rec.reviewClickTotalScheduledCount = 0;
     rec.reviewClickSkippedPastCount = 0;
     rec.reviewClickResyncCount = 0;
+    rec.reviewClickResyncReason = '-';
     rec.reviewClickEnabled = true;
     rec.reviewClickVolume = REVIEW_CLICK_VOLUME_DEFAULT;
 }
@@ -19280,7 +19322,7 @@ function bind() {
             rec.reviewClickEnabled = !!els.resultsRecordingClickToggle.checked;
             applyReviewClickUI();
             const audio = els.resultsRecordingAudio;
-            if (audio && !audio.paused) { if (rec.reviewClickEnabled) startReviewClickOverlay(); else stopReviewClickOverlay(); }
+            if (audio && !audio.paused) { if (rec.reviewClickEnabled) beginReviewClickSession('toggle'); else stopReviewClickOverlay(); }
             if (MIC_DEBUG_ON) updateMicDebugBox();
         });
     }
