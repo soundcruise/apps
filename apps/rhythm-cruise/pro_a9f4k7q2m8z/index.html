@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="../theme.css?v=0.10.49">
+    <link rel="stylesheet" href="../theme.css?v=0.10.50">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1100,26 +1100,18 @@
             <div class="results-title">RESULT</div>
             <div class="results-history-head hidden" id="r-history-head" aria-hidden="true"></div>
             <div class="score-big"><b id="r-score">0</b><span>点</span></div>
-            <p class="review-hint">本来の音符＝薄い黄色／自分の入力＝<b class="rv-just">緑</b>・<b class="rv-early">青</b>・<b class="rv-late">赤</b>・<b class="rv-miss">×</b>。横にスクロールして全32拍を確認できます。</p>
-            <p class="review-hint review-line-legend">点線＝反応ライン ／ 縦線＝採用された入力タイミング（<b class="rv-just">緑</b>GOOD・<b class="rv-early">青</b>EARLY・<b class="rv-late">赤</b>LATE）</p>
-            <details class="card-help review-line-help">
-                <summary>反応ラインについて</summary>
-                <p class="setting-note">反応ラインは、入力として反応しやすい音量の目安です。線より下まで毎回落ちなくても、次の山が分かれていれば入力として採用されることがあります。実際の判定は、タイミング・連続入力の間隔・採用済み入力との関係も含めて行われます。</p>
+            <details class="results-guide" id="results-guide">
+                <summary class="results-guide-summary">結果の見方</summary>
+                <div class="results-guide-body">
+                    <p>音符の位置が本来のリズムです。演奏が早いとEARLY、遅いとLATE、合っているとGOODになります。</p>
+                    <p>縦のラインやマーカーで反応したタイミングを確認できます。反応ラインは、マイクが反応した音の強さを見る目安です。</p>
+                </div>
             </details>
             <div class="review-wrap" id="review-wrap">
                 <div class="review-flow-score-layer hidden" id="review-flow-score-layer" aria-hidden="true"></div>
                 <canvas id="review-canvas"></canvas>
                 <canvas id="review-playhead-canvas" class="review-playhead-canvas hidden" aria-hidden="true"></canvas>
             </div>
-            <p class="tendency" id="r-comment"></p>
-            <p class="results-warn hidden" id="results-warn">⚠️ クリック音をマイクが拾っている可能性があります。スピーカー使用時はクリック音量をさらに下げるか、イヤホン使用がおすすめです。</p>
-            <details class="results-double-notice hidden" id="results-double-notice">
-                <summary class="results-double-summary" id="results-double-msg">二重反応が出ています。▼</summary>
-                <div class="results-double-detail" id="results-double-detail">
-                    <p id="results-double-detail-msg"></p>
-                    <button type="button" class="btn-mic results-retest-btn" id="results-retest-btn">マイク反応テストをやり直す</button>
-                </div>
-            </details>
             <details class="results-recording hidden" id="results-recording">
                 <summary class="results-recording-summary">録音を聴く</summary>
                 <div class="results-recording-body">
@@ -1151,23 +1143,17 @@
                     <input type="range" id="debug-review-visual-delay-input" min="-150" max="250" step="10" value="0">
                     <p class="setting-note"><b>BT自動表示補正: <span id="debug-review-visual-bt-delay-value">0ms</span></b><br><b>開発用追加ディレイ: <span id="debug-review-visual-delay-value">0ms</span></b><br><b>実効表示遅延: <span id="debug-review-visual-effective-delay-value">0ms</span></b></p>
                 </div>
-                <details class="results-detail is-quiet" id="miss-cause-details">
-                    <summary class="results-detail-summary">debugログ</summary>
-                                <div class="results-detail-body">
-                                    <p class="miss-cause-lead">これは不具合の原因を調べるための開発用ログです。</p>
-                                    <pre class="results-recording-debug-log" id="results-recording-debug-log"></pre>
-                                    <div class="dev-log-copy-row hidden" id="dev-log-copy-row">
-                            <button type="button" class="dev-log-copy-btn" id="dev-log-copy-btn">ログをコピー</button>
-                            <span class="dev-log-copy-status" id="dev-log-copy-status" aria-live="polite"></span>
-                        </div>
-                        <div class="miss-cause-list" id="miss-cause-list"></div>
-                        <p class="result-breakdown result-miss-debug hidden" id="results-chord-detail"></p>
-                        <p class="result-breakdown result-miss-debug hidden" id="results-chord-miss"></p>
-                        <p class="result-breakdown result-miss-debug hidden" id="results-chord-debug"></p>
                     </div>
                 </details>
-                    </div>
-                </details>
+                </div>
+            </details>
+            <p class="tendency" id="r-comment"></p>
+            <p class="results-warn hidden" id="results-warn">⚠️ クリック音をマイクが拾っている可能性があります。スピーカー使用時はクリック音量をさらに下げるか、イヤホン使用がおすすめです。</p>
+            <details class="results-double-notice hidden" id="results-double-notice">
+                <summary class="results-double-summary" id="results-double-msg">二重反応が出ています。▼</summary>
+                <div class="results-double-detail" id="results-double-detail">
+                    <p id="results-double-detail-msg"></p>
+                    <button type="button" class="btn-mic results-retest-btn" id="results-retest-btn">マイク反応テストをやり直す</button>
                 </div>
             </details>
             <section class="results-detail" id="results-detail" aria-labelledby="results-detail-title">
@@ -1200,6 +1186,21 @@
                     </p>
                 </div>
             </section>
+            <details class="results-detail results-dev-log is-quiet" id="miss-cause-details">
+                <summary class="results-detail-summary">開発用ログ</summary>
+                <div class="results-detail-body">
+                    <p class="miss-cause-lead">トラブル調査用の情報です。</p>
+                    <pre class="results-recording-debug-log" id="results-recording-debug-log"></pre>
+                    <div class="dev-log-copy-row" id="dev-log-copy-row">
+                        <button type="button" class="dev-log-copy-btn" id="dev-log-copy-btn">ログをコピー</button>
+                        <span class="dev-log-copy-status" id="dev-log-copy-status" aria-live="polite"></span>
+                    </div>
+                    <div class="miss-cause-list" id="miss-cause-list"></div>
+                    <p class="result-breakdown result-miss-debug hidden" id="results-chord-detail"></p>
+                    <p class="result-breakdown result-miss-debug hidden" id="results-chord-miss"></p>
+                    <p class="result-breakdown result-miss-debug hidden" id="results-chord-debug"></p>
+                </div>
+            </details>
             <div class="results-actions">
                 <button class="btn-ghost" id="r-close-btn">閉じる</button>
                 <button class="btn-ghost hidden" id="r-edit-back-btn">編集に戻る</button>
@@ -1282,7 +1283,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.10.49"></script>
+    <script src="../script.js?v=0.10.50"></script>
 </body>
 
 </html>

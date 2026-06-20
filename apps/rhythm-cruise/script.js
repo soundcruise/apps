@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.49';
+const RHYTHM_CRUISE_VERSION = '0.10.50';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -1151,6 +1151,7 @@ const els = {
     rCloseBtn: $('r-close-btn'),
     rEditBackBtn: $('r-edit-back-btn'),
     resultsCard: $('results-card'),
+    resultsGuide: $('results-guide'),
     resultsDetail: $('results-detail'),
     resultsWarn: $('results-warn'),
     resultsMissInfo: $('results-miss-info'),
@@ -6320,7 +6321,7 @@ function micDebugText() {
     }
     let calVol = '-';
     try { calVol = calibrationClickVolume(); } catch (_) { /* noop */ }
-    return 'debugMic\n'
+    return 'debugMic: ' + (MIC_DEBUG_ON ? 'on' : 'off') + '\n'
         + 'inputType: ' + getMicInputType() + '\n'
         + 'isNormalMic: ' + isNormalMicInput() + '\n'
         + 'clickPeakGain: ' + clickPeakGain() + '\n'
@@ -6473,9 +6474,9 @@ function ensureMicDebugUI() {
     document.body.appendChild(toggle); document.body.appendChild(panel);
 }
 function updateMicDebugBox() {
+    if (els.resultsRecordingDebugLog) els.resultsRecordingDebugLog.textContent = micDebugText();
     if (!MIC_DEBUG_ON) return;
     ensureMicDebugUI();
-    if (els.resultsRecordingDebugLog) els.resultsRecordingDebugLog.textContent = micDebugText();
     if (micDebugPanelOpen) { const pre = document.getElementById('mic-debug-pre'); if (pre) pre.textContent = micDebugText(); }
 }
 
@@ -7930,13 +7931,13 @@ function updateReviewTimelineUI(sec) {
     if (s == null) {
         reviewTimelineDebug.enabled = false;
         clearReviewPlayhead();
-        if (MIC_DEBUG_ON) updateMicDebugBox();
+        if (MIC_DEBUG_ON || (els.missCauseDetails && els.missCauseDetails.open)) updateMicDebugBox();
         return;
     }
     reviewTimelineDebug.enabled = !!(state.practiceRecording.playbackActive || state.practiceRecording.playbackPaused);
     reviewTimelineDebug.paused = !!state.practiceRecording.playbackPaused;
     drawReviewPlayheadAtSec(s);
-    if (MIC_DEBUG_ON) updateMicDebugBox();
+    if (MIC_DEBUG_ON || (els.missCauseDetails && els.missCauseDetails.open)) updateMicDebugBox();
 }
 
 function reviewTimelineRafTick() {
@@ -7973,7 +7974,7 @@ function stopReviewTimelineRaf(clearPlayhead) {
         reviewTimelineDebug.enabled = false;
         clearReviewPlayhead();
     }
-    if (MIC_DEBUG_ON) updateMicDebugBox();
+    if (MIC_DEBUG_ON || (els.missCauseDetails && els.missCauseDetails.open)) updateMicDebugBox();
 }
 
 /* debugMic結果レーンの表示値だけを変換する。元のmicRunWaveと判定値は変更しない。 */
@@ -9612,6 +9613,9 @@ function captureReviewClickPracticeContext() {
     const rec = state.practiceRecording;
     captureReviewJudgeOffsetSnapshot(); // v0.10.38：結果JUSTライン用（表示専用・判定には使わない）
     rec.reviewPracticeInputType = getMicInputType();
+    // v0.10.50：本体マイク録音にはPracticeクリックが入りやすいため、後付けクリック初期音量だけ0%にする。
+    // 有線／Bluetoothは従来値を維持。以降の手動変更はこの録音レビュー中そのまま尊重する。
+    rec.reviewClickVolume = rec.reviewPracticeInputType === 'normal' ? 0 : REVIEW_CLICK_VOLUME_DEFAULT;
     rec.reviewPracticeHeadphoneType = isHeadphoneInput() ? getHeadphoneType() : '';
     rec.reviewPracticeBluetoothMicOffsetMs = mic.bluetoothMicOffsetMs || 0;
     rec.reviewPracticeHeadphoneOutputOffsetMs = mic.headphoneOutputOffsetMs || 0;
@@ -9774,7 +9778,7 @@ function updatePracticeRecordingUI() {
     const rec = state.practiceRecording;
     if (!els.resultsRecording) return;
     updateDebugReviewVisualDelayUI();
-    if (MIC_DEBUG_ON && els.resultsRecordingDebugLog) els.resultsRecordingDebugLog.textContent = micDebugText();
+    if (els.resultsRecordingDebugLog) els.resultsRecordingDebugLog.textContent = micDebugText();
     if (els.resultsRecordingDev) els.resultsRecordingDev.classList.toggle('hidden', !MIC_DEBUG_ON);
     if (historyViewRecord) {
         els.resultsRecording.classList.add('hidden');
@@ -9844,11 +9848,18 @@ function discardPracticeRecording() {
     if (els.resultsRecordingDev) els.resultsRecordingDev.open = false;
 }
 
+function resetResultAuxDetails() {
+    if (els.resultsGuide) els.resultsGuide.open = false;
+    if (els.resultsRecording) els.resultsRecording.open = false;
+    if (els.resultsRecordingDev) els.resultsRecordingDev.open = false;
+    if (els.missCauseDetails) els.missCauseDetails.open = false;
+}
+
 function startPracticeRecording() {
     discardPracticeRecording();
     const rec = state.practiceRecording;
     const generation = rec.generation;
-    rec.debug = MIC_DEBUG_ON ? createPracticeRecordingDebug() : null;
+    rec.debug = createPracticeRecordingDebug(); // 通常URLの開発用ログにも録音経路情報を残す
     if (state.inputMode !== 'stroke') {
         rec.status = 'unavailable';
         rec.errorMessage = 'ストロークモード以外では録音しません。';
@@ -10136,7 +10147,7 @@ async function play() {
     if (practiceStartPending || state.running) return;
     practiceStartPending = true;
     discardPracticeRecording(); // 新しいPractice開始前に前回録音を必ず破棄
-    if (els.missCauseDetails) els.missCauseDetails.open = false; // debugMicログの開閉状態を次回へ持ち越さない
+    resetResultAuxDetails();
     if (state.raf) {
         cancelAnimationFrame(state.raf);
         state.raf = 0;
@@ -11254,9 +11265,10 @@ function fallbackCopyDevelopmentLog(text) {
     let copied = false;
     try { copied = !!document.execCommand('copy'); } catch (_) { copied = false; }
     ta.remove();
-    if (!copied && els.missCauseList && window.getSelection) {
+    const manualCopyTarget = els.resultsRecordingDebugLog || els.missCauseList;
+    if (!copied && manualCopyTarget && window.getSelection) {
         const range = document.createRange();
-        range.selectNodeContents(els.missCauseList);
+        range.selectNodeContents(manualCopyTarget);
         const selection = window.getSelection();
         selection.removeAllRanges();
         selection.addRange(range);
@@ -11504,7 +11516,7 @@ function finish(opts) {
     state.running = false;
     state.loopActive = false;
     stopPracticeRecording();
-    if (els.missCauseDetails) els.missCauseDetails.open = false; // 結果表示は開発用ログを必ず閉じた状態から
+    resetResultAuxDetails(); // 結果の補助UIは毎回必ず閉じた状態から
     // 停止後に未発音クリックを止める（途中停止と同様）
     state.scheduledClicks.forEach((osc) => { try { osc.stop(); } catch (_) { } });
     state.scheduledClicks = [];
@@ -20194,6 +20206,9 @@ function bind() {
         startRetestFlow(true);
     });
     if (els.devLogCopyBtn) els.devLogCopyBtn.addEventListener('click', copyDevelopmentLog);
+    if (els.missCauseDetails) els.missCauseDetails.addEventListener('toggle', () => {
+        if (els.missCauseDetails.open) updateMicDebugBox();
+    });
     if (els.debugReviewVisualDelayInput) els.debugReviewVisualDelayInput.addEventListener('input', () => {
         const raw = Number(els.debugReviewVisualDelayInput.value);
         debugReviewVisualExtraDelayMs = Math.max(-150, Math.min(250, Number.isFinite(raw) ? raw : 0));
@@ -20329,7 +20344,7 @@ function applyProLockBadges() {
 
 function init() {
     applyAppVersionDisplay();    // バージョン表示（Ver X.Y.Z）
-    if (els.devLogCopyRow) els.devLogCopyRow.classList.toggle('hidden', !MIC_DEBUG_ON);
+    if (els.devLogCopyRow) els.devLogCopyRow.classList.remove('hidden');
     updateDebugReviewVisualDelayUI();
     loadSettings();              // 保存済みのマイク設定を反映
     seedRhythmCustomStageSamples();

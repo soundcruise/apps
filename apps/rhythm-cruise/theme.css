@@ -2646,6 +2646,36 @@ h1 {
 .results-double-summary::-webkit-details-marker { display: none; }
 .results-double-detail > p { margin-top: 8px; margin-bottom: 8px; }
 
+/* 結果レーンの読み方は、必要なときだけ開く短いガイドにまとめる（v0.10.50）。 */
+.results-guide {
+    width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+}
+.results-guide-summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 9px 12px;
+    color: var(--muted-color);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-align: left;
+    touch-action: manipulation;
+}
+.results-guide-summary::-webkit-details-marker { display: none; }
+.results-guide-summary::before { content: '▶ '; font-size: 0.7rem; }
+.results-guide[open] > .results-guide-summary::before { content: '▼ '; }
+.results-guide-body { padding: 0 12px 10px; }
+.results-guide-body p {
+    margin: 0 0 6px;
+    color: var(--muted-color);
+    font-size: 0.78rem;
+    line-height: 1.55;
+    text-align: left;
+}
+.results-guide-body p:last-child { margin-bottom: 0; }
+
 /* 今回のPracticeだけに紐づく控えめな録音レビュー折りたたみ（v0.10.49）。 */
 .results-recording {
     width: 100%;
@@ -2857,6 +2887,17 @@ h1 {
     gap: 12px;
     animation: resultPopIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
+
+/* 補助UIの視覚順を固定し、録音レビューを結果レーンの直下に置く（v0.10.50）。 */
+.results-card > .results-guide { order: 1; }
+.results-card > .review-wrap { order: 2; }
+.results-card > .results-recording { order: 3; }
+.results-card > .tendency { order: 4; }
+.results-card > .results-warn { order: 5; }
+.results-card > .results-double-notice { order: 6; }
+.results-card > .results-detail { order: 7; }
+.results-card > .results-dev-log { order: 8; }
+.results-card > .results-actions { order: 9; }
 
 @keyframes resultPopIn {
     from { opacity: 0; transform: translateY(12px) scale(0.96); }
@@ -4411,6 +4452,23 @@ h1 {
 }
 .results-detail.is-quiet .results-detail-body {
     padding: 2px 8px 8px;
+}
+.results-dev-log {
+    opacity: 0.72;
+}
+.results-dev-log[open] {
+    opacity: 0.92;
+}
+.results-dev-log .results-detail-summary::after {
+    content: none;
+}
+.results-dev-log .results-detail-summary::before {
+    content: '▶ ';
+    font-size: 0.64rem;
+    opacity: 0.6;
+}
+.results-dev-log[open] .results-detail-summary::before {
+    content: '▼ ';
 }
 
 /* 結果カード「MISS拍の原因」（v0.9.147）：開いた時だけ表示する折りたたみ。ユーザー向けの原因を1拍1行で。 */
