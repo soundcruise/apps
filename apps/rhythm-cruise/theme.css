@@ -2675,6 +2675,23 @@ h1 {
     text-align: left;
 }
 .results-guide-body p:last-child { margin-bottom: 0; }
+.results-guide-list {
+    display: grid;
+    gap: 3px;
+    margin: 8px 0 10px;
+}
+.results-guide-list p {
+    display: grid;
+    grid-template-columns: 118px minmax(0, 1fr);
+    gap: 8px;
+    margin: 0;
+}
+.results-guide-list b { font-weight: 800; }
+.results-guide-good { color: var(--just-color); }
+.results-guide-early { color: var(--early-color); }
+.results-guide-late { color: var(--late-color); }
+.results-guide-miss { color: #b0b0b0; }
+.results-guide-threshold { color: var(--primary-color); }
 
 /* 今回のPracticeだけに紐づく控えめな録音レビュー折りたたみ（v0.10.49）。 */
 .results-recording {
@@ -2793,6 +2810,12 @@ h1 {
     font-size: 0.82rem;
     white-space: nowrap;
 }
+.results-recording-actions .results-recording-restart {
+    flex: 0 0 44px;
+    width: 44px;
+    padding-inline: 0;
+    font-size: 1rem;
+}
 .results-recording-actions button:disabled {
     opacity: 0.45;
     cursor: default;
@@ -2862,6 +2885,8 @@ h1 {
     max-height: 100dvh;
     pointer-events: auto;
     padding: 24px 16px;
+    padding-top: max(24px, calc(env(safe-area-inset-top, 0px) + 10px));
+    padding-bottom: max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px));
     background: rgba(6, 4, 3, 0.86);
     backdrop-filter: blur(5px);
     -webkit-backdrop-filter: blur(5px);
@@ -2888,11 +2913,11 @@ h1 {
     animation: resultPopIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* 補助UIの視覚順を固定し、録音レビューを結果レーンの直下に置く（v0.10.50）。 */
-.results-card > .results-guide { order: 1; }
-.results-card > .review-wrap { order: 2; }
-.results-card > .results-recording { order: 3; }
-.results-card > .tendency { order: 4; }
+/* コメントを得点直下、録音レビューを結果レーン直下に固定する（v0.10.51）。 */
+.results-card > .tendency { order: 1; }
+.results-card > .results-guide { order: 2; }
+.results-card > .review-wrap { order: 3; }
+.results-card > .results-recording { order: 4; }
 .results-card > .results-warn { order: 5; }
 .results-card > .results-double-notice { order: 6; }
 .results-card > .results-detail { order: 7; }
@@ -3277,13 +3302,13 @@ h1 {
 .tendency {
     width: 100%;
     text-align: center;
-    font-size: 0.92rem;
-    line-height: 1.5;
-    color: var(--text-color);
-    padding: 12px 14px;
+    font-size: 0.86rem;
+    line-height: 1.55;
+    color: #fff1bd;
+    padding: 10px 13px;
     border-radius: 14px;
-    background: rgba(255, 159, 28, 0.08);
-    border: 1px dashed rgba(255, 159, 28, 0.35);
+    background: linear-gradient(180deg, rgba(255, 209, 102, 0.12), rgba(255, 159, 28, 0.06));
+    border: 1px solid rgba(255, 209, 102, 0.28);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -6879,6 +6904,12 @@ body[data-rc-theme="clean-pro"] .mic-unsaved-row {
     border-color: rgba(245, 239, 228, 0.12);
     background: rgba(255, 255, 255, 0.03);
     color: rgba(245, 239, 228, 0.80);
+}
+
+body[data-rc-theme="clean-pro"] .tendency {
+    border-color: rgba(222, 194, 122, 0.24);
+    background: linear-gradient(180deg, rgba(222, 194, 122, 0.10), rgba(255, 255, 255, 0.025));
+    color: #f0dfad;
 }
 
 body[data-rc-theme="clean-pro"] .mic-overwrite-btn {

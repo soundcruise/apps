@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.50';
+const RHYTHM_CRUISE_VERSION = '0.10.51';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -1193,6 +1193,7 @@ const els = {
     resultsRecordingClickOffsetValue: $('results-recording-click-offset-value'),
     resultsRecordingActions: $('results-recording-actions'),
     resultsRecordingPlay: $('results-recording-play'),
+    resultsRecordingRestart: $('results-recording-restart'),
     resultsRecordingDev: $('results-recording-dev'),
     reviewWrap: $('review-wrap'),
     reviewCanvas: $('review-canvas'),
@@ -6698,11 +6699,21 @@ function drawResultsMic() {
     const padX = 10, padTop = 12, padBot = 14;
     const x0 = padX, x1 = w - padX, baseY = h - padBot, topY = padTop;
     const usableH = baseY - topY;
-    // v0.10.23：Play画面の波形・結果見返しと共通の波形スケール（micWaveDisplayFrac）で揃える。
-    //   良い入力のピークが上端で切れにくく、反応ラインも同じスケール上に描かれる（判定は不変）。
-    const valToY = (v) => baseY - Math.max(0, Math.min(1, micWaveDisplayFrac(v))) * usableH;
+    // v0.10.51：結果グラフ内だけ、反応ラインが高さの約58%になる区分スケールへ変換する。
+    // ラインより上にも42%を残すため、良いストロークの強弱を上端で潰さず確認できる。
+    // micWaveDisplayFrac・実しきい値・判定用ピーク自体は変更しない。
+    const threshold = micEffectiveThreshold();
+    const thresholdFrac = Math.max(0, Math.min(1, micWaveDisplayFrac(threshold)));
+    const lineDisplayFrac = 0.58;
+    const resultDisplayFrac = (v) => {
+        const frac = Math.max(0, Math.min(1, micWaveDisplayFrac(v)));
+        if (thresholdFrac <= 0.001 || thresholdFrac >= 0.999) return frac;
+        if (frac <= thresholdFrac) return (frac / thresholdFrac) * lineDisplayFrac;
+        return lineDisplayFrac + ((frac - thresholdFrac) / (1 - thresholdFrac)) * (1 - lineDisplayFrac);
+    };
+    const valToY = (v) => baseY - resultDisplayFrac(v) * usableH;
     // 反応ライン（薄い横線＋ラベル）。この高さを超える入力が「反応しやすい」目安（判定そのものではない）。
-    const lineY = valToY(micEffectiveThreshold());
+    const lineY = valToY(threshold);
     ctx.strokeStyle = 'rgba(255,159,28,0.45)';
     ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(x0, lineY); ctx.lineTo(x1, lineY); ctx.stroke();
@@ -6718,7 +6729,7 @@ function drawResultsMic() {
         const v = state.beatMicPeak[i] || 0;
         const cx = x0 + slot * (i + 0.5);
         const y = valToY(v);
-        const over = v >= micEffectiveThreshold();
+        const over = v >= threshold;
         ctx.fillStyle = over ? 'rgba(46,204,113,0.85)' : 'rgba(253,246,238,0.28)';
         ctx.fillRect(cx - bw / 2, y, bw, baseY - y);
         if (state.beatDoubled[i]) { // 二重反応の表示（集計・判定には不使用）
@@ -9261,6 +9272,7 @@ function updatePracticeRecordingPlaybackButtons() {
         els.resultsRecordingPlay.disabled = false;
         els.resultsRecordingPlay.textContent = playing ? '⏸ 一時停止' : '▶ 再生';
     }
+    if (els.resultsRecordingRestart) els.resultsRecordingRestart.disabled = rec.status !== 'available';
 }
 
 function practiceRecordingGainValue(value) {
@@ -20107,6 +20119,10 @@ function bind() {
             els.resultsRecording.open = false;
             els.resultsRecording.classList.add('hidden');
         }
+    });
+    if (els.resultsRecordingRestart) els.resultsRecordingRestart.addEventListener('click', () => {
+        if (state.practiceRecording.status !== 'available') return;
+        stopPracticeRecordingPlayback(); // 先頭（0秒）へ戻し、停止状態にする
     });
     if (els.resultsRecordingVolume) {
         els.resultsRecordingVolume.addEventListener('input', () => updatePracticeRecordingPlaybackGain(els.resultsRecordingVolume.value));

@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="../theme.css?v=0.10.50">
+    <link rel="stylesheet" href="../theme.css?v=0.10.51">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1100,11 +1100,18 @@
             <div class="results-title">RESULT</div>
             <div class="results-history-head hidden" id="r-history-head" aria-hidden="true"></div>
             <div class="score-big"><b id="r-score">0</b><span>点</span></div>
+            <p class="tendency" id="r-comment"></p>
             <details class="results-guide" id="results-guide">
                 <summary class="results-guide-summary">結果の見方</summary>
                 <div class="results-guide-body">
-                    <p>音符の位置が本来のリズムです。演奏が早いとEARLY、遅いとLATE、合っているとGOODになります。</p>
-                    <p>縦のラインやマーカーで反応したタイミングを確認できます。反応ラインは、マイクが反応した音の強さを見る目安です。</p>
+                    <p>音符の位置が本来のリズムです。</p>
+                    <div class="results-guide-list">
+                        <p><b class="results-guide-good">GOOD（緑）</b><span>ちょうど良いタイミング</span></p>
+                        <p><b class="results-guide-early">EARLY（青）</b><span>少し早い</span></p>
+                        <p><b class="results-guide-late">LATE（赤）</b><span>少し遅い</span></p>
+                        <p><b class="results-guide-miss">MISS（グレー）</b><span>音が入らなかった／拾えなかった</span></p>
+                    </div>
+                    <p><b class="results-guide-threshold">オレンジの点線は反応ライン</b>です。ストローク音量がこのラインを超えると、マイクが反応しやすくなります。</p>
                 </div>
             </details>
             <div class="review-wrap" id="review-wrap">
@@ -1118,6 +1125,7 @@
                 <audio id="results-recording-audio" preload="metadata"></audio>
                 <div class="results-recording-actions" id="results-recording-actions">
                     <button type="button" class="btn-ghost" id="results-recording-play">▶ 再生</button>
+                    <button type="button" class="btn-ghost results-recording-restart" id="results-recording-restart" aria-label="最初に戻る" title="最初に戻る">⏮</button>
                 </div>
                 <label class="results-recording-volume" id="results-recording-volume-row" for="results-recording-volume">
                     <span>録音音量</span>
@@ -1147,7 +1155,6 @@
                 </details>
                 </div>
             </details>
-            <p class="tendency" id="r-comment"></p>
             <p class="results-warn hidden" id="results-warn">⚠️ クリック音をマイクが拾っている可能性があります。スピーカー使用時はクリック音量をさらに下げるか、イヤホン使用がおすすめです。</p>
             <details class="results-double-notice hidden" id="results-double-notice">
                 <summary class="results-double-summary" id="results-double-msg">二重反応が出ています。▼</summary>
@@ -1283,7 +1290,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.10.50"></script>
+    <script src="../script.js?v=0.10.51"></script>
 </body>
 
 </html>
