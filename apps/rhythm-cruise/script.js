@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.4';
+const RHYTHM_CRUISE_VERSION = '0.11.5';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -12685,6 +12685,8 @@ const hpAd = {
     candidateRaw: null, candidateAdjusted: null,
     targetFinalOffsetRaw: null, finalOffsetIfApplyRaw: null,
     kind: null, // 'wired' | 'bluetooth'
+    // デバッグ用（79ms/92ms差の原因調査）
+    debugHits: [], lastRafPerf: -9999,
 };
 
 /* ── 手拍子マイクの遅れ補正テストの補正先（v0.9.152）──────────────────────
@@ -18786,11 +18788,33 @@ function micLoop() {
 
     // ── イヤホン自己収音テスト（実験）：クリック音をイヤホンマイクが拾うまでの遅延を測るだけ・判定には流さない──
     if (hpAd.active) {
+        const rafIntervalMs = hpAd.lastRafPerf >= 0 ? (now - hpAd.lastRafPerf) : -1;
+        hpAd.lastRafPerf = now;
         if (peak > hpAd.maxPeak) hpAd.maxPeak = peak;
         if (onset) {
             const d = now - hpAd.lastClickPerf;
             if (hpAd.clickArmed && d >= CAL_DETECT_WIN_FROM && d <= hpAd.detectWinTo) {
+                // バッファ内でthresholdを最初に超えたサンプル位置を探す（デバッグ用）
+                let sampleIndex = -1;
+                for (let si = 0; si < mic.buf.length; si++) {
+                    if (Math.abs(mic.buf[si]) >= detThr) { sampleIndex = si; break; }
+                }
+                const sr = mic.analyser.context.sampleRate;
+                const bufDurMs = Math.round(mic.analyser.fftSize / sr * 1000 * 10) / 10;
+                const sampleOffsetMs = sampleIndex >= 0 ? Math.round(sampleIndex / sr * 1000 * 10) / 10 : -1;
                 hpAd.samples.push(d);
+                hpAd.debugHits.push({
+                    index: hpAd.samples.length,
+                    delayMs: Math.round(d * 10) / 10,
+                    peak: Math.round(peak * 10000) / 10000,
+                    threshold: Math.round(detThr * 10000) / 10000,
+                    clickPerf: Math.round(hpAd.lastClickPerf * 10) / 10,
+                    detectedPerf: Math.round(now * 10) / 10,
+                    rafIntervalMs: rafIntervalMs >= 0 ? Math.round(rafIntervalMs * 10) / 10 : null,
+                    sampleIndex,
+                    sampleOffsetMs,
+                    bufferDurationMs: bufDurMs,
+                });
                 hpAd.clickArmed = false;
             }
         }
@@ -19581,6 +19605,8 @@ async function startHpAutoDetect() {
     hpAd.clickArmed   = false;
     hpAd.maxPeak      = 0;
     hpAd.detectWinTo  = isBluetoothHeadphone() ? 800 : 600;
+    hpAd.debugHits    = [];
+    hpAd.lastRafPerf  = -9999;
     mic.prevPeak      = 0;
     mic.armed         = true;
 
@@ -19611,12 +19637,19 @@ async function startHpAutoDetect() {
 }
 
 function finishHpAutoDetect() {
+    const rawSamples = hpAd.samples.slice(); // 検出順（ソート前）
+    const debugHits  = hpAd.debugHits.slice();
     stopHpAutoDetect();
-    const s = hpAd.samples.slice().sort((a, b) => a - b);
+    const s = rawSamples.slice().sort((a, b) => a - b);
     const n = s.length;
     const rawMedian = n ? Math.round(s[Math.floor(n / 2)]) : 0;
     const devs = s.map((x) => Math.abs(x - rawMedian)).sort((a, b) => a - b);
     const spread = n ? Math.round(devs[Math.floor(devs.length / 2)] || 0) : 0;
+    const minVal  = n ? Math.round(s[0]) : 0;
+    const maxVal  = n ? Math.round(s[n - 1]) : 0;
+    const lowCount = Math.max(1, Math.min(3, Math.ceil(n / 3)));
+    const lowAvg  = n ? Math.round(s.slice(0, lowCount).reduce((a, b) => a + b, 0) / lowCount) : 0;
+    const highAvg = n ? Math.round(s.slice(n - lowCount).reduce((a, b) => a + b, 0) / lowCount) : 0;
     const outputMs = Math.min(30, clickLatencyMs());
     const adjustedDelay = Math.max(0, Math.round(rawMedian - outputMs));
 
@@ -19645,27 +19678,41 @@ function finishHpAutoDetect() {
     hpAd.finalOffsetIfApplyRaw = finalOffsetIfApplyRaw;
     hpAd.kind                  = isBT ? 'bluetooth' : 'wired';
 
-    console.info(
-        '[hpAd] ── 自己収音テスト結果 ──\n' +
-        '  type=' + type + '  n=' + n + '/' + CAL_CLICKS +
-        '  samples=' + JSON.stringify(s) + '\n' +
-        '  rawMedian=' + rawMedian + 'ms ±' + spread +
-        '  outputMs=' + Math.round(outputMs) +
-        '  adjustedDelay=' + adjustedDelay + 'ms\n' +
-        '  maxPeak=' + hpAd.maxPeak.toFixed(4) + '\n' +
-        '  ── 適用候補（保存しない） ──\n' +
-        '  検出がクリック基準より ' + rawMedian + 'ms 遅い → 最終補正は ' + targetFinalOffsetRaw + 'ms 方向\n' +
-        '  [適用候補・raw]      targetFinalOffset=' + targetFinalOffsetRaw +
-            'ms  ' + deviceField + '=' + deviceOffsetCandidateRaw + 'ms' +
-            '  → 最終補正結果=' + finalOffsetIfApplyRaw + 'ms\n' +
-        '  [参考候補・adjusted] targetFinalOffset=' + targetFinalOffsetAdjusted +
-            'ms  ' + deviceField + '=' + deviceOffsetCandidateAdjusted + 'ms' +
-            '  → 最終補正結果=' + finalOffsetIfApplyAdjusted + 'ms\n' +
-        '  ── 現在の設定値 ──\n' +
-        '  currentBaseOffset(timingOffsetMs)=' + currentBaseOffset +
-            'ms  currentDeviceOffset(' + deviceField + ')=' + currentDeviceOffset +
-            'ms  currentFinalOffset=' + currentFinalOffset + 'ms'
-    );
+    const ctx = state.audioCtx;
+    console.info('[hpAd] ── 自己収音テスト結果 ──', {
+        kind: hpAd.kind,
+        isBluetooth: isBT,
+        type,
+        n,
+        samples: rawSamples.map((v) => Math.round(v * 10) / 10),
+        sorted: s.map((v) => Math.round(v * 10) / 10),
+        min: minVal,
+        max: maxVal,
+        lowAvg,
+        highAvg,
+        median: rawMedian,
+        spread,
+        outputMs: Math.round(outputMs),
+        adjustedDelay,
+        maxPeak: Math.round(hpAd.maxPeak * 10000) / 10000,
+        timingOffsetMs: currentBaseOffset,
+        candidateRaw: deviceOffsetCandidateRaw,
+        candidateAdjusted: deviceOffsetCandidateAdjusted,
+        finalOffsetIfApplyRaw,
+        finalOffsetIfApplyAdjusted,
+        currentFinalOffset,
+        threshold: 0.003,
+        cooldownMs: CAL_COOLDOWN_MS,
+        clickVolume: 100,
+        inputType: getMicInputType(),
+        headphoneType: getHeadphoneType(),
+        sampleRate: ctx ? ctx.sampleRate : null,
+        fftSize: mic.analyser ? mic.analyser.fftSize : null,
+        userAgent: navigator.userAgent,
+    });
+    if (debugHits.length) {
+        console.info('[hpAd] ── 個別ヒット詳細 ──', debugHits);
+    }
 
     let msg;
     if (n === 0) {
@@ -19681,6 +19728,10 @@ function finishHpAutoDetect() {
               '\n' +
               '現在: timingOffset=' + currentBaseOffset + 'ms  ' + deviceField + '=' + currentDeviceOffset + 'ms\n' +
               '現在の最終補正: ' + currentFinalOffset + 'ms\n' +
+              '\n' +
+              '── 開発用 ──\n' +
+              '個別値: ' + rawSamples.map((v) => Math.round(v)) + 'ms\n' +
+              'min/lowAvg/median/max: ' + minVal + ' / ' + lowAvg + ' / ' + rawMedian + ' / ' + maxVal + 'ms\n' +
               '（詳細はコンソールを確認）';
     }
     if (els.hpAdResult) { els.hpAdResult.textContent = msg; els.hpAdResult.style.display = 'block'; }
