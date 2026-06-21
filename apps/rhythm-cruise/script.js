@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.1';
+const RHYTHM_CRUISE_VERSION = '0.11.2';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -1121,6 +1121,8 @@ const els = {
     btCalBtn: $('bt-cal-btn'),
     btCalStatus: $('bt-cal-status'),
     btCalResult: $('bt-cal-result'),
+    hpAdBtn: $('hp-ad-btn'),
+    hpAdResult: $('hp-ad-result'),
     autoEarphoneHint: $('auto-earphone-hint'),
     testInputNote: $('test-input-note'),
     testCardNote: $('test-card-note'),
@@ -6106,7 +6108,7 @@ function navBack() {
    Bluetoothマイクの遅れ補正 / 最終確認テスト）が実行中、または詳細テスト（ウィザード）が
    途中で未完了のまま、画面遷移や設定を閉じる操作が行われた場合に、中断するか確認する。 */
 function anyTestRunning() {
-    return !!(test.flow || cal.active || hpCal.active || bt.active || pt.active || tapCal.active);
+    return !!(test.flow || cal.active || hpCal.active || bt.active || pt.active || tapCal.active || hpAd.active);
 }
 /* 詳細テスト（ステップ式ウィザード）が途中で未完了か（v0.9.92）。
    ・設定画面を開いていて、ステップ表示中で、入力タイプを選び済み、かつ最終確認テスト未完了。
@@ -6123,6 +6125,7 @@ function stopAllRunningTests() {
     if (bt.active) stopBtCal();
     if (pt.active) stopPracticeTest();
     if (tapCal.active) stopTapCal();
+    if (hpAd.active) stopHpAutoDetect();
 }
 /* テスト実行中 or 詳細テスト未完了なら確認。OKなら停止して true、キャンセルなら false。 */
 function confirmMicInterruptIfNeeded() {
@@ -12673,6 +12676,11 @@ const bt = {
     result: null, // { valid, avg, early, late, just, miss, propose, proposed, cur }
 };
 let btLane = { ctx: null, w: 0, h: 0 }; // マイクの遅れ補正の流れるレーン（v0.9.81）
+const hpAd = {
+    active: false, timer: 0, samples: [], i: 0,
+    lastClickPerf: -9999, clickArmed: false, maxPeak: 0,
+    detectWinTo: 600, _saved: null,
+};
 
 /* ── 手拍子マイクの遅れ補正テストの補正先（v0.9.152）──────────────────────
    有線イヤホンにもBluetoothと同じ「手拍子によるマイクの遅れ補正テスト」を使えるよう共通化する。
@@ -18726,7 +18734,7 @@ function micLoop() {
     // ただし補正テスト（mic.calibrating/cal.active）はクリック音を確実に拾うのが目的なので、感度カーブで「鈍くする」
     // 方向(倍率>1)は効かせない＝基準しきい値(補正用 calThr)のままで検出する（クリックを取りこぼさない）。
     let sensMult = micSensitivityMultiplier();
-    if (mic.calibrating || cal.active) sensMult = Math.min(sensMult, 1);
+    if (mic.calibrating || cal.active || hpAd.active) sensMult = Math.min(sensMult, 1);
     const detThr = mic.threshold * sensMult * MIC_STAGE_DETECT_FACTOR;
     const crossed = peak >= detThr && mic.prevPeak < detThr;
     const bigRise = peak >= detThr && rise >= RISE_DELTA;
@@ -18766,6 +18774,21 @@ function micLoop() {
             }
         }
         updateCalMonitor();
+        mic.prevPeak = peak;
+        mic.raf = requestAnimationFrame(micLoop);
+        return;
+    }
+
+    // ── イヤホン自己収音テスト（実験）：クリック音をイヤホンマイクが拾うまでの遅延を測るだけ・判定には流さない──
+    if (hpAd.active) {
+        if (peak > hpAd.maxPeak) hpAd.maxPeak = peak;
+        if (onset) {
+            const d = now - hpAd.lastClickPerf;
+            if (hpAd.clickArmed && d >= CAL_DETECT_WIN_FROM && d <= hpAd.detectWinTo) {
+                hpAd.samples.push(d);
+                hpAd.clickArmed = false;
+            }
+        }
         mic.prevPeak = peak;
         mic.raf = requestAnimationFrame(micLoop);
         return;
@@ -19498,6 +19521,118 @@ function restoreCalSettings() {
     cal.saved = null;
 }
 
+/* ── イヤホン自己収音テスト（実験）──────────────────────────────────────────
+   イヤホンのスピーカーが鳴らしたクリック音を、同じイヤホンのマイクが拾うまでの遅延を実測する。
+   結果はコンソールに出力するだけ。wiredMicOffsetMs/bluetoothMicOffsetMs には一切保存しない。 */
+function stopHpAutoDetect() {
+    if (hpAd.timer) { clearInterval(hpAd.timer); hpAd.timer = 0; }
+    hpAd.active = false;
+    hpAd.clickArmed = false;
+    if (hpAd._saved) {
+        mic.threshold     = hpAd._saved.threshold;
+        mic.cooldownMs    = hpAd._saved.cooldownMs;
+        mic.clickGuardMs  = hpAd._saved.clickGuardMs;
+        state.clickVolume = hpAd._saved.clickVolume;
+        hpAd._saved = null;
+    }
+    if (els.hpAdBtn) { els.hpAdBtn.textContent = '🔬 イヤホン音の自動検出テスト（実験）'; els.hpAdBtn.disabled = false; }
+}
+
+async function startHpAutoDetect() {
+    if (hpAd.active) { stopHpAutoDetect(); return; }
+    if (state.running) stop();
+    if (test.active) exitTestMode();
+    stopBtCal();
+    if (cal.active) cancelCalibration();
+    if (!mic.on) {
+        await startMic();
+        if (!mic.on) {
+            if (els.hpAdResult) { els.hpAdResult.textContent = 'マイクが使えません'; els.hpAdResult.style.display = 'block'; }
+            return;
+        }
+    }
+    ensureAudio();
+    try { if (state.audioCtx.state === 'suspended') await state.audioCtx.resume(); } catch (_) {}
+
+    hpAd._saved = {
+        threshold: mic.threshold, cooldownMs: mic.cooldownMs,
+        clickGuardMs: mic.clickGuardMs, clickVolume: state.clickVolume,
+    };
+    mic.threshold    = 0.003;
+    mic.cooldownMs   = CAL_COOLDOWN_MS;
+    mic.clickGuardMs = 0;
+    state.clickVolume = 100;
+
+    hpAd.active       = true;
+    hpAd.samples      = [];
+    hpAd.i            = 0;
+    hpAd.lastClickPerf = -9999;
+    hpAd.clickArmed   = false;
+    hpAd.maxPeak      = 0;
+    hpAd.detectWinTo  = isBluetoothHeadphone() ? 800 : 600;
+    mic.prevPeak      = 0;
+    mic.armed         = true;
+
+    if (els.hpAdBtn) { els.hpAdBtn.textContent = 'テスト中...'; els.hpAdBtn.disabled = true; }
+    if (els.hpAdResult) { els.hpAdResult.textContent = 'テスト中（クリック8回）...'; els.hpAdResult.style.display = 'block'; }
+
+    let warmupDone = false;
+    hpAd.timer = setInterval(() => {
+        if (!warmupDone) {
+            warmupDone = true;
+            hpAd.lastClickPerf = performance.now();
+            hpAd.clickArmed = false;
+            click(true, true);
+            return;
+        }
+        if (hpAd.i >= CAL_CLICKS) {
+            clearInterval(hpAd.timer); hpAd.timer = 0;
+            finishHpAutoDetect();
+            return;
+        }
+        hpAd.i++;
+        hpAd.lastClickPerf = performance.now();
+        hpAd.clickArmed = true;
+        mic.prevPeak = 0;
+        mic.armed = true;
+        click(true, true);
+    }, CAL_INTERVAL_MS);
+}
+
+function finishHpAutoDetect() {
+    stopHpAutoDetect();
+    const s = hpAd.samples.slice().sort((a, b) => a - b);
+    const n = s.length;
+    const median = n ? s[Math.floor(n / 2)] : 0;
+    const devs = s.map((x) => Math.abs(x - median)).sort((a, b) => a - b);
+    const spread = n ? Math.round(devs[Math.floor(devs.length / 2)] || 0) : 0;
+    const outputMs = Math.min(30, clickLatencyMs());
+    const adjusted = Math.max(0, Math.round(median - outputMs));
+
+    const type = isBluetoothHeadphone() ? 'BT' : (isHeadphoneInput() ? '有線' : 'ノーマル');
+    console.info(
+        '[hpAd] type=' + type +
+        ' samples=' + JSON.stringify(s) +
+        ' n=' + n + '/' + CAL_CLICKS +
+        ' median=' + Math.round(median) + 'ms ±' + spread +
+        ' outputMs=' + Math.round(outputMs) +
+        ' adjusted=' + adjusted + 'ms' +
+        ' maxPeak=' + hpAd.maxPeak.toFixed(4)
+    );
+
+    let msg;
+    if (n === 0) {
+        msg = '検出できませんでした。\nイヤホンのマイクがクリック音を拾えていません。';
+    } else {
+        msg = '検出: ' + n + '/' + CAL_CLICKS + '回\n' +
+              '中央値: ' + Math.round(median) + 'ms  ばらつき: ±' + spread + 'ms\n' +
+              '（outputLatency差し引き後: ' + adjusted + 'ms）\n' +
+              '最大ピーク: ' + hpAd.maxPeak.toFixed(4) + '\n' +
+              '（結果はコンソールにも出力されます）';
+    }
+    if (els.hpAdResult) { els.hpAdResult.textContent = msg; els.hpAdResult.style.display = 'block'; }
+}
+
 async function startCalibration() {
     if (state.running) stop();
     if (test.active) exitTestMode();
@@ -19908,6 +20043,8 @@ function bind() {
     if (els.ptBtn) els.ptBtn.addEventListener('click', togglePracticeTest);
     // マイクの遅れ補正（Bluetooth用・v0.9.80）
     if (els.btCalBtn) els.btCalBtn.addEventListener('click', toggleBtCal);
+    // イヤホン自己収音テスト（実験）
+    if (els.hpAdBtn) els.hpAdBtn.addEventListener('click', startHpAutoDetect);
     // 見返しレーンの「最初へ / 最後へ」（v0.9.74）
     if (els.ptReviewFirst) els.ptReviewFirst.addEventListener('click', () => { if (els.ptReviewScroll) els.ptReviewScroll.scrollTo({ left: 0, behavior: 'smooth' }); });
     if (els.ptReviewLast) els.ptReviewLast.addEventListener('click', () => { if (els.ptReviewScroll) els.ptReviewScroll.scrollTo({ left: els.ptReviewScroll.scrollWidth, behavior: 'smooth' }); });
