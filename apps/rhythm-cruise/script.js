@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.53';
+const RHYTHM_CRUISE_VERSION = '0.10.54';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -20276,7 +20276,8 @@ function bind() {
                 // 大きなタップボタンの上をドラッグしてもページを縦スクロールできる（iOS Safariのスクロール不能対策・v0.9.140）。
                 if (state.running) e.preventDefault();
                 onTap(half.getAttribute('data-dir'));
-                half.classList.remove('flash'); void half.offsetWidth; half.classList.add('flash');
+                half.classList.remove('flash');
+                requestAnimationFrame(() => half.classList.add('flash'));
             });
         });
     }
