@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.3';
+const RHYTHM_CRUISE_VERSION = '0.11.4';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -1123,6 +1123,7 @@ const els = {
     btCalResult: $('bt-cal-result'),
     hpAdBtn: $('hp-ad-btn'),
     hpAdResult: $('hp-ad-result'),
+    hpAdApplyBtn: $('hp-ad-apply-btn'),
     autoEarphoneHint: $('auto-earphone-hint'),
     testInputNote: $('test-input-note'),
     testCardNote: $('test-card-note'),
@@ -12680,6 +12681,10 @@ const hpAd = {
     active: false, timer: 0, samples: [], i: 0,
     lastClickPerf: -9999, clickArmed: false, maxPeak: 0,
     detectWinTo: 600, _saved: null,
+    // テスト完了後の候補値（適用ボタン押下まで保存しない）
+    candidateRaw: null, candidateAdjusted: null,
+    targetFinalOffsetRaw: null, finalOffsetIfApplyRaw: null,
+    kind: null, // 'wired' | 'bluetooth'
 };
 
 /* ── 手拍子マイクの遅れ補正テストの補正先（v0.9.152）──────────────────────
@@ -19528,6 +19533,11 @@ function stopHpAutoDetect() {
     if (hpAd.timer) { clearInterval(hpAd.timer); hpAd.timer = 0; }
     hpAd.active = false;
     hpAd.clickArmed = false;
+    hpAd.candidateRaw = null;
+    hpAd.candidateAdjusted = null;
+    hpAd.targetFinalOffsetRaw = null;
+    hpAd.finalOffsetIfApplyRaw = null;
+    hpAd.kind = null;
     if (hpAd._saved) {
         mic.threshold     = hpAd._saved.threshold;
         mic.cooldownMs    = hpAd._saved.cooldownMs;
@@ -19536,6 +19546,7 @@ function stopHpAutoDetect() {
         hpAd._saved = null;
     }
     if (els.hpAdBtn) { els.hpAdBtn.textContent = '🔬 イヤホン音の自動検出テスト（実験）'; els.hpAdBtn.disabled = false; }
+    if (els.hpAdApplyBtn) { els.hpAdApplyBtn.style.display = 'none'; els.hpAdApplyBtn.disabled = false; }
 }
 
 async function startHpAutoDetect() {
@@ -19627,6 +19638,13 @@ function finishHpAutoDetect() {
     const deviceField = isBT ? 'bluetoothMicOffsetMs' : 'wiredMicOffsetMs';
     const type = isBT ? 'BT' : (isHeadphoneInput() ? '有線' : 'ノーマル');
 
+    // 候補値を hpAd に保持（適用ボタン押下まで保存しない）
+    hpAd.candidateRaw          = deviceOffsetCandidateRaw;
+    hpAd.candidateAdjusted     = deviceOffsetCandidateAdjusted;
+    hpAd.targetFinalOffsetRaw  = targetFinalOffsetRaw;
+    hpAd.finalOffsetIfApplyRaw = finalOffsetIfApplyRaw;
+    hpAd.kind                  = isBT ? 'bluetooth' : 'wired';
+
     console.info(
         '[hpAd] ── 自己収音テスト結果 ──\n' +
         '  type=' + type + '  n=' + n + '/' + CAL_CLICKS +
@@ -19666,6 +19684,34 @@ function finishHpAutoDetect() {
               '（詳細はコンソールを確認）';
     }
     if (els.hpAdResult) { els.hpAdResult.textContent = msg; els.hpAdResult.style.display = 'block'; }
+
+    // 検出できた場合のみ適用ボタンを表示
+    if (n > 0 && els.hpAdApplyBtn) {
+        els.hpAdApplyBtn.textContent = isBT ? 'Bluetooth補正に適用' : '有線イヤホン補正に適用';
+        els.hpAdApplyBtn.style.display = 'block';
+        els.hpAdApplyBtn.disabled = false;
+    }
+}
+
+function applyHpAutoDetect() {
+    if (hpAd.candidateRaw === null) return;
+    const isBT = hpAd.kind === 'bluetooth';
+    // クランプ：有線は -150〜150、BT は BT_MIC_OFFSET_MIN〜MAX
+    const min = isBT ? BT_MIC_OFFSET_MIN : -150;
+    const max = isBT ? BT_MIC_OFFSET_MAX : 150;
+    const clamped = Math.max(min, Math.min(max, Math.round(hpAd.candidateRaw)));
+    const deviceField = isBT ? 'bluetoothMicOffsetMs' : 'wiredMicOffsetMs';
+    if (isBT) mic.bluetoothMicOffsetMs = clamped;
+    else mic.wiredMicOffsetMs = clamped;
+    saveSettings();
+    setupProgress.btDelayDone = true;
+    updateBtCalBadge();
+    invalidatePracticeResult();
+    const newFinal = micJudgeOffsetMs(); // 読み取りのみ・変更しない
+    const applyMsg = '適用しました: ' + deviceField + ' = ' + clamped + 'ms\n現在の最終補正: ' + newFinal + 'ms';
+    if (els.hpAdApplyBtn) { els.hpAdApplyBtn.disabled = true; els.hpAdApplyBtn.textContent = '適用済み'; }
+    if (els.hpAdResult) { els.hpAdResult.textContent += '\n\n' + applyMsg; }
+    console.info('[hpAd] 適用: ' + deviceField + '=' + clamped + 'ms (候補raw=' + hpAd.candidateRaw + 'ms) → 最終補正=' + newFinal + 'ms');
 }
 
 async function startCalibration() {
@@ -20080,6 +20126,7 @@ function bind() {
     if (els.btCalBtn) els.btCalBtn.addEventListener('click', toggleBtCal);
     // イヤホン自己収音テスト（実験）
     if (els.hpAdBtn) els.hpAdBtn.addEventListener('click', startHpAutoDetect);
+    if (els.hpAdApplyBtn) els.hpAdApplyBtn.addEventListener('click', applyHpAutoDetect);
     // 見返しレーンの「最初へ / 最後へ」（v0.9.74）
     if (els.ptReviewFirst) els.ptReviewFirst.addEventListener('click', () => { if (els.ptReviewScroll) els.ptReviewScroll.scrollTo({ left: 0, behavior: 'smooth' }); });
     if (els.ptReviewLast) els.ptReviewLast.addEventListener('click', () => { if (els.ptReviewScroll) els.ptReviewScroll.scrollTo({ left: els.ptReviewScroll.scrollWidth, behavior: 'smooth' }); });
