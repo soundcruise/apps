@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.10.54';
+const RHYTHM_CRUISE_VERSION = '0.11.1';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -813,6 +813,8 @@ const cal = {
     lastResultThreshold: null, // 直前に「採用可」となった測定の補正用反応ライン（前回比較用）
     lastResultOffset: null,    // 直前に「採用可」となった測定の補正値（前回比較用）
     spread: null,    // 直近測定のばらつき（中央絶対偏差ms）
+    outputLatencyMs: null, // 通常マイク補正テスト時に差し引いた出力遅延推定値(ms)
+    adjustedDelay: null,   // 出力遅延を差し引いた後の遅延(ms)。Practice用補正値の算出元
     unstable: false, // ばらつき過大で測定不安定と判定したか
     threshold: CAL_THR_DEFAULT, // 補正テストで実際に使った反応ライン（STAGE用とは別物・表示用）
     clickVol: 70,    // 補正テストで実際に使ったクリック音量（一時的に上げた場合を含む・表示用）
@@ -6333,6 +6335,14 @@ function micDebugText() {
         + 'cal.threshold: ' + f3(cal.threshold) + '\n'
         + 'cal.maxPeak: ' + f3(cal.maxPeak) + '\n'
         + 'cal.successCount: ' + (cal.successCount || 0) + ' / ' + CAL_CLICKS + '\n'
+        + 'cal.measuredDelay: ' + (cal.measuredDelay != null ? cal.measuredDelay + 'ms' : '-') + '\n'
+        + 'cal.outputLatencyMs: ' + (cal.outputLatencyMs != null ? cal.outputLatencyMs + 'ms' : '-') + '\n'
+        + 'cal.adjustedDelay: ' + (cal.adjustedDelay != null ? cal.adjustedDelay + 'ms' : '-') + '\n'
+        + 'cal.proposedOffset: ' + (cal.proposedOffset != null ? cal.proposedOffset + 'ms' : '-') + '\n'
+        + 'ctx.outputLatency: ' + (state.audioCtx && state.audioCtx.outputLatency != null ? (state.audioCtx.outputLatency * 1000).toFixed(1) + 'ms' : '-') + '\n'
+        + 'ctx.baseLatency: ' + (state.audioCtx && state.audioCtx.baseLatency != null ? (state.audioCtx.baseLatency * 1000).toFixed(1) + 'ms' : '-') + '\n'
+        + 'ctx.sampleRate: ' + (state.audioCtx ? state.audioCtx.sampleRate : '-') + '\n'
+        + 'ua: ' + navigator.userAgent + '\n'
         + '--- Practice recording ---\n'
         + 'status: ' + (rec ? rec.status : '-') + '\n'
         + 'track.label: ' + (rd && rd.trackLabel ? rd.trackLabel : '-') + '\n'
@@ -17087,6 +17097,8 @@ function setTestPhase(t) { if (els.testPhase) els.testPhase.textContent = t; }
 function resetMicDelayCalibrationUiState() {
     state.micDelayDone = false;
     cal.measuredDelay = null;
+    cal.outputLatencyMs = null;
+    cal.adjustedDelay = null;
     cal.proposedOffset = null;
     cal.successCount = 0;
     cal.spread = null;
@@ -19596,9 +19608,17 @@ function finishCalibration() {
     const median = s.length ? s[Math.floor(s.length / 2)] : 0;
     const devs = s.map((x) => Math.abs(x - median)).sort((a, b) => a - b);
     const spread = s.length ? Math.round(devs[Math.floor(devs.length / 2)] || 0) : 0;
-    cal.measuredDelay = Math.round(median);
+    const rawDelay = Math.round(median);
+    // ギター入力用途では本体スピーカーの出力遅延は不要なため、差し引く。
+    // clickLatencyMs() (ctx.outputLatency || ctx.baseLatency) を最大30msでクランプして使用。
+    // outputLatency / baseLatency が取得できない・0 の場合は outputMs = 0 = 現状維持（固定fallbackは使わない）。
+    const outputMs = Math.min(30, clickLatencyMs());
+    const adjustedDelay = Math.max(0, Math.round(rawDelay - outputMs));
+    cal.measuredDelay = rawDelay;
+    cal.outputLatencyMs = Math.round(outputMs);
+    cal.adjustedDelay = adjustedDelay;
     cal.spread = spread;
-    cal.proposedOffset = Math.max(-CAL_OFFSET_LIMIT_MS, Math.min(CAL_OFFSET_LIMIT_MS, -cal.measuredDelay));
+    cal.proposedOffset = Math.max(-CAL_OFFSET_LIMIT_MS, Math.min(CAL_OFFSET_LIMIT_MS, -adjustedDelay));
 
     // ほとんど検出できない（<3）→ 失敗理由を表示
     if (s.length < 3) { cal.unstable = true; setCalUI('failed', buildCalFailReason()); return; }
@@ -19606,7 +19626,7 @@ function finishCalibration() {
     // 採用条件を満たさない場合は「測定不安定」として補正値を採用しない（適用ボタンを出さない）。
     const fewDetect = s.length < CAL_MIN_SUCCESS;                 // 7/8 未満
     const tooNoisy = spread > CAL_MAX_SPREAD_MS;                  // ばらつき大
-    const clamped = Math.abs(cal.measuredDelay) >= CAL_OFFSET_LIMIT_MS; // 補正値が上限に張り付く
+    const clamped = Math.abs(adjustedDelay) >= CAL_OFFSET_LIMIT_MS; // 補正値が上限に張り付く
     cal.unstable = fewDetect || tooNoisy || clamped;
     if (cal.unstable) {
         cal.proposedOffset = null;   // 採用しない
@@ -19640,7 +19660,7 @@ function finishCalibration() {
         els.calStatus.classList.remove('hidden');
         els.calStatus.textContent = '補正値・補正用反応ラインが前回と変わりました。もう一度テストして安定性を確認してください。';
     }
-    console.info('[cal] samples=' + JSON.stringify(s) + ' success=' + s.length + '/' + CAL_CLICKS + ' median=' + cal.measuredDelay + 'ms ±' + spread + ' → offset=' + cal.proposedOffset + 'ms bigChange=' + bigChange);
+    console.info('[cal] samples=' + JSON.stringify(s) + ' success=' + s.length + '/' + CAL_CLICKS + ' median=' + cal.measuredDelay + 'ms ±' + spread + ' outputMs=' + cal.outputLatencyMs + 'ms adjustedDelay=' + cal.adjustedDelay + 'ms → offset=' + cal.proposedOffset + 'ms bigChange=' + bigChange);
 }
 
 function applyCalibration() {
