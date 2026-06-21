@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.6';
+const RHYTHM_CRUISE_VERSION = '0.11.7';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -19701,6 +19701,16 @@ function finishHpAutoDetect() {
     hpAd.finalOffsetIfApplyRaw = finalOffsetIfApplyRaw;
     hpAd.kind                  = isBT ? 'bluetooth' : 'wired';
 
+    // ── Practice式diff（実験：delayAudioMs + micJudgeOffsetMs() = BtCal/Practice軸でのdiff）──
+    // 同じクリック入力がPractice判定上どれくらいズレるかを示す参考値（読み取りのみ・保存しない）
+    const practiceDiffSamples = rawSamplesAudio.map((v) => Math.round(v + currentFinalOffset));
+    const sPD = practiceDiffSamples.slice().sort((a, b) => a - b);
+    const nPD = sPD.length;
+    const medianPracticeDiff = nPD ? sPD[Math.floor(nPD / 2)] : 0;
+    const minPracticeDiff    = nPD ? sPD[0] : 0;
+    const maxPracticeDiff    = nPD ? sPD[nPD - 1] : 0;
+    const lowAvgPracticeDiff = nPD ? Math.round(sPD.slice(0, lowCount).reduce((a, b) => a + b, 0) / lowCount) : 0;
+
     const ctx = state.audioCtx;
     console.info('[hpAd] ── 自己収音テスト結果 ──', {
         kind: hpAd.kind,
@@ -19722,6 +19732,14 @@ function finishHpAutoDetect() {
         maxAudio,
         lowAvgAudio,
         medianAudio,
+        // Practice式diff（実験・delayAudioMs + micJudgeOffsetMs() = BtCal/Practiceと同じdiff軸）
+        currentJudgeOffset: currentFinalOffset,
+        practiceDiffSamples,
+        sortedPracticeDiff: sPD,
+        minPracticeDiff,
+        maxPracticeDiff,
+        lowAvgPracticeDiff,
+        medianPracticeDiff,
         // 共通
         outputMs: Math.round(outputMs),
         adjustedDelay,
@@ -19742,7 +19760,9 @@ function finishHpAutoDetect() {
         userAgent: navigator.userAgent,
     });
     if (debugHits.length) {
-        console.info('[hpAd] ── 個別ヒット詳細 ──', debugHits);
+        console.info('[hpAd] ── 個別ヒット詳細 ──', debugHits.map((h) => ({
+            ...h, practiceDiffMs: Math.round(h.delayAudioMs + currentFinalOffset),
+        })));
     }
 
     let msg;
@@ -19760,12 +19780,16 @@ function finishHpAutoDetect() {
               '現在: timingOffset=' + currentBaseOffset + 'ms  ' + deviceField + '=' + currentDeviceOffset + 'ms\n' +
               '現在の最終補正: ' + currentFinalOffset + 'ms\n' +
               '\n' +
-              '── 開発用（perf基準 / audio基準） ──\n' +
+              '── 開発用（perf基準 / audio基準 / Practice式diff） ──\n' +
               'perf個別値: ' + rawSamples.map((v) => Math.round(v)) + 'ms\n' +
               'perf min/lowAvg/median/max: ' + minVal + ' / ' + lowAvg + ' / ' + rawMedian + ' / ' + maxVal + 'ms\n' +
               '\n' +
               'audio個別値: ' + rawSamplesAudio.map((v) => Math.round(v)) + 'ms\n' +
               'audio min/lowAvg/median/max: ' + minAudio + ' / ' + lowAvgAudio + ' / ' + medianAudio + ' / ' + maxAudio + 'ms\n' +
+              '\n' +
+              'Practice式diff個別値: ' + practiceDiffSamples + 'ms\n' +
+              'Practice式diff min/lowAvg/median/max: ' + minPracticeDiff + ' / ' + lowAvgPracticeDiff + ' / ' + medianPracticeDiff + ' / ' + maxPracticeDiff + 'ms\n' +
+              '（補正値 ' + currentFinalOffset + 'ms で、クリック入力がPractice上どれくらいズレるか）\n' +
               '（詳細はコンソールを確認）';
     }
     if (els.hpAdResult) { els.hpAdResult.textContent = msg; els.hpAdResult.style.display = 'block'; }
