@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.2';
+const RHYTHM_CRUISE_VERSION = '0.11.3';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -19603,32 +19603,67 @@ function finishHpAutoDetect() {
     stopHpAutoDetect();
     const s = hpAd.samples.slice().sort((a, b) => a - b);
     const n = s.length;
-    const median = n ? s[Math.floor(n / 2)] : 0;
-    const devs = s.map((x) => Math.abs(x - median)).sort((a, b) => a - b);
+    const rawMedian = n ? Math.round(s[Math.floor(n / 2)]) : 0;
+    const devs = s.map((x) => Math.abs(x - rawMedian)).sort((a, b) => a - b);
     const spread = n ? Math.round(devs[Math.floor(devs.length / 2)] || 0) : 0;
     const outputMs = Math.min(30, clickLatencyMs());
-    const adjusted = Math.max(0, Math.round(median - outputMs));
+    const adjustedDelay = Math.max(0, Math.round(rawMedian - outputMs));
 
-    const type = isBluetoothHeadphone() ? 'BT' : (isHeadphoneInput() ? '有線' : 'ノーマル');
+    // ── 適用候補の計算（保存はしない・表示のみ）──
+    // イヤホン自己収音の本命は rawMedian ベース。
+    // ユーザーはイヤホンから聞こえるクリック音に合わせて演奏するため、
+    // イヤホン出力遅延はすでに体感基準に含まれており、差し引かない。
+    // adjusted は参考値として並列表示する。
+    const targetFinalOffsetRaw      = -rawMedian;
+    const targetFinalOffsetAdjusted = -adjustedDelay;
+    const currentBaseOffset         = mic.timingOffsetMs;
+    const deviceOffsetCandidateRaw      = targetFinalOffsetRaw      - currentBaseOffset;
+    const deviceOffsetCandidateAdjusted = targetFinalOffsetAdjusted - currentBaseOffset;
+    const isBT = isBluetoothHeadphone();
+    const currentDeviceOffset = isBT ? (mic.bluetoothMicOffsetMs || 0) : (mic.wiredMicOffsetMs || 0);
+    const currentFinalOffset  = micJudgeOffsetMs(); // 読み取りのみ・変更しない
+    const finalOffsetIfApplyRaw      = mic.timingOffsetMs + deviceOffsetCandidateRaw;
+    const finalOffsetIfApplyAdjusted = mic.timingOffsetMs + deviceOffsetCandidateAdjusted;
+    const deviceField = isBT ? 'bluetoothMicOffsetMs' : 'wiredMicOffsetMs';
+    const type = isBT ? 'BT' : (isHeadphoneInput() ? '有線' : 'ノーマル');
+
     console.info(
-        '[hpAd] type=' + type +
-        ' samples=' + JSON.stringify(s) +
-        ' n=' + n + '/' + CAL_CLICKS +
-        ' median=' + Math.round(median) + 'ms ±' + spread +
-        ' outputMs=' + Math.round(outputMs) +
-        ' adjusted=' + adjusted + 'ms' +
-        ' maxPeak=' + hpAd.maxPeak.toFixed(4)
+        '[hpAd] ── 自己収音テスト結果 ──\n' +
+        '  type=' + type + '  n=' + n + '/' + CAL_CLICKS +
+        '  samples=' + JSON.stringify(s) + '\n' +
+        '  rawMedian=' + rawMedian + 'ms ±' + spread +
+        '  outputMs=' + Math.round(outputMs) +
+        '  adjustedDelay=' + adjustedDelay + 'ms\n' +
+        '  maxPeak=' + hpAd.maxPeak.toFixed(4) + '\n' +
+        '  ── 適用候補（保存しない） ──\n' +
+        '  検出がクリック基準より ' + rawMedian + 'ms 遅い → 最終補正は ' + targetFinalOffsetRaw + 'ms 方向\n' +
+        '  [適用候補・raw]      targetFinalOffset=' + targetFinalOffsetRaw +
+            'ms  ' + deviceField + '=' + deviceOffsetCandidateRaw + 'ms' +
+            '  → 最終補正結果=' + finalOffsetIfApplyRaw + 'ms\n' +
+        '  [参考候補・adjusted] targetFinalOffset=' + targetFinalOffsetAdjusted +
+            'ms  ' + deviceField + '=' + deviceOffsetCandidateAdjusted + 'ms' +
+            '  → 最終補正結果=' + finalOffsetIfApplyAdjusted + 'ms\n' +
+        '  ── 現在の設定値 ──\n' +
+        '  currentBaseOffset(timingOffsetMs)=' + currentBaseOffset +
+            'ms  currentDeviceOffset(' + deviceField + ')=' + currentDeviceOffset +
+            'ms  currentFinalOffset=' + currentFinalOffset + 'ms'
     );
 
     let msg;
     if (n === 0) {
-        msg = '検出できませんでした。\nイヤホンのマイクがクリック音を拾えていません。';
+        msg = '検出できませんでした。\nスマホ音量を大きめにして再試行してください。';
     } else {
-        msg = '検出: ' + n + '/' + CAL_CLICKS + '回\n' +
-              '中央値: ' + Math.round(median) + 'ms  ばらつき: ±' + spread + 'ms\n' +
-              '（outputLatency差し引き後: ' + adjusted + 'ms）\n' +
-              '最大ピーク: ' + hpAd.maxPeak.toFixed(4) + '\n' +
-              '（結果はコンソールにも出力されます）';
+        msg = '検出: ' + n + '/' + CAL_CLICKS + '回  中央値: ' + rawMedian + 'ms ±' + spread + 'ms\n' +
+              'クリックより ' + rawMedian + 'ms 遅れて検出 → 最終補正は ' + targetFinalOffsetRaw + 'ms 方向\n' +
+              '\n' +
+              '適用候補(raw):      最終補正=' + targetFinalOffsetRaw + 'ms\n' +
+              '  → ' + deviceField + ' は ' + deviceOffsetCandidateRaw + 'ms\n' +
+              '参考候補(adjusted): 最終補正=' + targetFinalOffsetAdjusted + 'ms\n' +
+              '  → ' + deviceField + ' は ' + deviceOffsetCandidateAdjusted + 'ms\n' +
+              '\n' +
+              '現在: timingOffset=' + currentBaseOffset + 'ms  ' + deviceField + '=' + currentDeviceOffset + 'ms\n' +
+              '現在の最終補正: ' + currentFinalOffset + 'ms\n' +
+              '（詳細はコンソールを確認）';
     }
     if (els.hpAdResult) { els.hpAdResult.textContent = msg; els.hpAdResult.style.display = 'block'; }
 }
