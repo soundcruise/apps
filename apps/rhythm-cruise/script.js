@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.9';
+const RHYTHM_CRUISE_VERSION = '0.11.10';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -6134,6 +6134,7 @@ function confirmMicInterruptIfNeeded() {
     if (anyTestRunning() || isMicSetupInProgress()) {
         if (!window.confirm('マイク設定がまだ完了していません。\n中断して移動しますか？')) return false;
         stopAllRunningTests();
+        restoreMicSetupDraft();
     }
     return true;
 }
@@ -10264,6 +10265,9 @@ function stopForPageHidden() {
     if (wasRunning) stop();
     if (mic.on) stopMic();
     else if (rec.status !== 'available' && rec.status !== 'recording') discardPracticeRecording();
+    // 詳細テスト中の一時設定は、画面離脱時に最後の確定値へ戻す。
+    const restoredMicSetupDraft = restoreMicSetupDraft();
+    if (restoredMicSetupDraft && !els.settings.classList.contains('hidden')) renderSettingsView();
     // 共有AudioContextは再利用するためcloseせず、非表示中だけベストエフォートでsuspendする。
     const ctx = state.audioCtx;
     if (ctx && ctx.state === 'running' && typeof ctx.suspend === 'function') {
@@ -13953,6 +13957,7 @@ function finishBtCal() {
         headphoneMicOffsetSet(fineProposed);
         appliedOffset = fineProposed;
         saveSettings();
+        commitMicSetupDraft();
         invalidatePracticeResult();
         autoFineApplied = true;
     }
@@ -14097,6 +14102,7 @@ function bindBtCalResultActions() {
         if (!slider) return;
         const v = headphoneMicOffsetSet(parseInt(slider.value, 10) || 0);
         saveSettings();
+        commitMicSetupDraft();
         // v0.9.163：手動でも補正値を確定したら「マイクの遅れ補正＝実施済み」にする（適用と同じ扱い）。
         setupProgress.btDelayDone = true;
         updateBtCalBadge();
@@ -14113,6 +14119,7 @@ function applyBtCal() {
     if (!bt.result) return;
     const v = headphoneMicOffsetSet(bt.result.proposed);
     saveSettings();
+    commitMicSetupDraft();
     // v0.9.163：補正値を適用した時点で「マイクの遅れ補正＝実施済み」とする（このカードの説明どおり
     //   「適用 or スキップで完了」）。これを立てておかないと、最終確認テスト前に戻ったとき
     //   実施済みなのにバッジが「未実施」のまま残ってしまう。
@@ -15194,6 +15201,51 @@ let setupProgress = freshSetupProgress();
 let wizardEditing = null; // 要約をタップして選び直し中のステップid（null=通常進行）
 let practiceResultOk = false; // 直近の実践テストが「問題なさそう」だったか（完了ボタンの有効判定に使う）
 
+/* 詳細テスト中だけ使う設定スナップショット。localStorageには新しい構造を追加しない。 */
+let micSetupDraftSnapshot = null;
+function cloneMicSetupProfiles(value) {
+    if (!value || typeof value !== 'object') return value;
+    try { return JSON.parse(JSON.stringify(value)); } catch (_) { return value; }
+}
+function currentMicSetupDraftSnapshot() {
+    return {
+        settings: currentMicPresetSettings(),
+        profiles: cloneMicSetupProfiles(mic.profiles),
+        micTestDone: !!state.micTestDone,
+        micDelayDone: !!state.micDelayDone,
+        micSetupPrompted: !!state.micSetupPrompted,
+    };
+}
+function beginMicSetupDraft() {
+    if (!micSetupDraftSnapshot) micSetupDraftSnapshot = currentMicSetupDraftSnapshot();
+}
+/* 明示適用・確定後は、その時点を次の中断時の復元先にする。 */
+function commitMicSetupDraft() {
+    if (micSetupDraftSnapshot) micSetupDraftSnapshot = currentMicSetupDraftSnapshot();
+}
+function clearMicSetupDraft() { micSetupDraftSnapshot = null; }
+function restoreMicSetupDraft() {
+    const snap = micSetupDraftSnapshot;
+    if (!snap) return false;
+    restoreMicSettingsFrom(snap.settings);
+    mic.profiles = cloneMicSetupProfiles(snap.profiles);
+    state.micTestDone = snap.micTestDone;
+    state.micDelayDone = snap.micDelayDone;
+    state.micSetupPrompted = snap.micSetupPrompted;
+    setupProgress = freshSetupProgress();
+    wizardEditing = null;
+    practiceResultOk = false;
+    settingsView = 'chooser';
+    clearMicSetupDraft();
+    applySettingsToUI();
+    updateMicTestDoneUI();
+    updateMicDelayDoneUI();
+    drawMicPreview();
+    updateMicDiag();
+    saveSettings();
+    return true;
+}
+
 /* HTMLエスケープ（プリセット名・要約テキスト用） */
 function escapeHtml(t) {
     return String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -15960,6 +16012,7 @@ function completeCorrectionStep() {
     if (els.hpCalStaged) els.hpCalStaged.classList.add('hidden');
     if (els.hpCalLaneWrap) els.hpCalLaneWrap.classList.add('hidden');
     setupProgress.correctionDone = true;
+    commitMicSetupDraft();
     // 補正を変更した時点で前回の最終確認テスト結果は古くなる → 初期化して再確認を促す
     invalidatePracticeResult('補正を反映しました。もう一度最終確認テストで確認してください。');
     wizardEditing = null;
@@ -16042,6 +16095,7 @@ function resetSetupFlowDisplay() {
    jumpToTest=true（結果画面からの再テスト導線）なら、入力/種類/モードは選択済み扱いにして
    マイク反応テストまで一気に表示する（結果だけリセット）。 */
 function startRetestFlow(jumpToTest) {
+    beginMicSetupDraft();
     resetSetupFlowDisplay();
     setupProgress = freshSetupProgress();
     wizardEditing = null;
@@ -16213,8 +16267,9 @@ function restoreMicProfileForCurrent(prevKey) {
 /* ── 選択ハンドラ（選んだら自動で次の項目を出す。上流変更時は下流結果をリセット）── */
 /* イヤホン（有線/Bluetooth）を選んだら、以降のテストのクリック音量を初期値(70%)に初期化する（v0.9.88／v0.9.159で70%）。
    通常マイクは対象外（既存のクリック音量設定を維持）。 */
-/* 補正テスト開始時の出発点として、入力タイプに応じた見本プリセット値をstateへ反映する（v0.9.229）。
+/* 補正テスト開始時の出発点として、入力タイプに応じた検出用の見本値をstateへ一時反映する（v0.9.229）。
    テストロジック・計算式・micJudgeOffsetMs()・localStorage構造は変更しない。
+   既存の各種補正値は維持し、見本値は明示適用まで永続保存しない。
    クリック音量は flowSavedClickVolume 機構で一時的に100%へ上がるが、終了/中止時に復元される。 */
 function applyStepsBuiltinDefaults() {
     const type = getMicInputType();
@@ -16223,27 +16278,19 @@ function applyStepsBuiltinDefaults() {
         mic.threshold = 0.019855;   // 感度55%相当
         state.clickVolume = 63;
         mic.cooldownMs = 100;
-        mic.timingOffsetMs = -91;
         mic.lowInputProfile = false;
     } else if (hpType === 'wired') {
         mic.threshold = 0.003567;   // 感度76%相当（低入力スケール）
         state.clickVolume = 70;
         mic.cooldownMs = 100;
-        mic.wiredMicOffsetMs = 30;
-        mic.headphoneOffsetWiredMs = 0;
-        mic.headphoneOutputOffsetMs = 0;
         mic.lowInputProfile = true;
     } else {                        // bluetooth
         mic.threshold = 0.042285;   // 感度37%相当
         state.clickVolume = 70;
         mic.cooldownMs = 120;
-        mic.bluetoothMicOffsetMs = -100;
-        mic.headphoneOffsetBluetoothMs = 100;
-        mic.headphoneOutputOffsetMs = 100;
         mic.lowInputProfile = false;
     }
     applySettingsToUI();
-    saveSettings();
 }
 
 function applyEarphoneClickVolumeDefault() {
@@ -16281,12 +16328,11 @@ function onPickInputType(type) {
 function onPickHeadphoneType(type) {
     const next = (type === 'bluetooth') ? 'bluetooth' : 'wired';
     const changed = (getHeadphoneType() !== next);
-    // v0.9.87：詳細テストで種類を新しく選び直すときは、その種類の基本値(0ms)から始める。
-    // 過去のBluetooth 180msや互換用 headphoneOutputOffsetMs が有線側へ混ざるのを防ぐ。
+    // 詳細テストで種類を選び直しても、その種類で確定済みの補正値は出発点として維持する。
     // v0.9.153：有線/Bluetoothそれぞれの設定（clickVolume/threshold等）も分離・復元する。
     const prevKey = currentMicProfileKey();
     storeActiveMicProfile(prevKey);
-    setHeadphoneType(next, { resetDefault: true });
+    setHeadphoneType(next);
     restoreMicProfileForCurrent(prevKey);
     setupProgress.hpChosen = true;
     wizardEditing = null;
@@ -16558,6 +16604,7 @@ function openManualView(scrollTarget) {
    マイク設定画面を閉じてアプリ全体のTOPページへ戻る。プリセットには保存しない。 */
 function useManualSettings() {
     saveSettings(); // いまの mic.* / state.* を現在設定として保存（プリセット化はしない）
+    commitMicSetupDraft();
     clearManualSnapshot(); // 変更を確定したのでスナップショットは破棄
     closeSettings();        // アプリ全体のTOPページへ戻る
 }
@@ -16882,6 +16929,7 @@ function closeSettings() {
     stopBtCal();
     stopTapCal();
     exitTestMode();
+    clearMicSetupDraft();
     show(settingsReturn);
     if (settingsReturn === 'practice') { fitLane(); }
 }
@@ -18658,6 +18706,7 @@ function applyRecoValues(persist) {
 function applyReco() {
     const result = applyRecoValues(true);
     if (!result.changed) return; // 変更なし
+    commitMicSetupDraft();
     test.clickDone = false; test.strokeDone = false;
     els.testReco.classList.add('hidden');
     // 反応ライン未適用（クリック音量だけ下げた）場合は、再テストを促す
@@ -19837,6 +19886,7 @@ function applyHpAutoDetect() {
     if (isBT) mic.bluetoothMicOffsetMs = clamped;
     else mic.wiredMicOffsetMs = clamped;
     saveSettings();
+    commitMicSetupDraft();
     setupProgress.btDelayDone = true;
     updateBtCalBadge();
     invalidatePracticeResult();
@@ -20020,6 +20070,7 @@ function applyCalibration() {
     updateMicDiag();
     state.micDelayDone = true;   // 適用したので「済み」にする
     saveSettings();
+    commitMicSetupDraft();
     markMicDelayDone();          // 見出し・バッジ・ボタン文言を更新
     // 結果を閉じて短い完了メッセージ
     if (els.calResult) els.calResult.classList.add('hidden');
