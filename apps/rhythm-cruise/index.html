@@ -974,18 +974,18 @@
                 <button type="button" class="btn-primary rc-mic-action-primary" id="wired-proceed-btn" style="width:100%;margin-top:8px;">この設定で進む</button>
             </div>
 
-            <!-- 6. マイクの遅れ補正（イヤホン接続時。クリックに合わせて手拍子/ストロークし判定遅れを測る。有線にもv0.9.152で対応） v0.9.80 -->
+            <!-- 6. クリック音入力テスト（イヤホン接続時。聞こえているクリック音をマイクへ入力し判定遅れを測る。有線にもv0.9.152で対応） v0.9.80 -->
             <div class="settings-card cal-card" id="bt-cal-card">
                 <div class="cal-head-row">
-                    <div class="cal-head">マイクの遅れ補正</div>
+                    <div class="cal-head">クリック音入力テスト</div>
                     <span class="status-pill" id="bt-cal-badge">未実施</span>
                 </div>
-                <p class="do-now">クリックに合わせて手拍子</p>
-                <p class="do-now-sub">画面ではなく、イヤホンのクリック音に合わせてください</p>
+                <p class="do-now">クリック音をイヤホンのマイクに入力</p>
+                <p class="do-now-sub">画面ではなく、聞こえているクリック音を基準にしてください</p>
                 <details class="card-help">
                     <summary>詳しい説明</summary>
-                    <p class="setting-note" id="bt-cal-guide">イヤホンから聞こえるクリック音に合わせて、手拍子してください。画面の👏は回数の目安です。タイミングは音で合わせてください。</p>
-                    <p class="setting-note">イヤホンでは、弾いた音をマイクが拾って判定するまでに遅れが出ることがあります。この遅れを測って、判定タイミングを合わせます。有線イヤホンの初期目安は0ms（補正なし）で、このテストで実測して調整できます。</p>
+                    <p class="setting-note" id="bt-cal-guide">イヤホンから鳴るクリック音を、イヤホンのマイクに入力してください。拍番号は入力回数の目安です。</p>
+                    <p class="setting-note">クリック入力がPractice判定で0ms付近になるよう補正します。クリック音をマイクへ入力できない場合は、クリックに合わせた手拍子でも確認できます。ただし手拍子の個人差が結果に含まれます。</p>
                 </details>
                 <!-- 流れる👏＋判定ライン＋反応ライン＋入力波形（最終確認テストと同じ考え方・v0.9.81） -->
                 <div class="test-lane-wrap hidden" id="bt-cal-lane-wrap">
@@ -997,13 +997,13 @@
                     </div>
                 </div>
                 <p class="test-phase" id="bt-cal-phase"></p>
-                <button class="btn-mic cal-run-btn test-start-btn rc-mic-action-primary" id="bt-cal-btn">マイクの遅れ補正テストを開始</button>
+                <button class="btn-mic cal-run-btn test-start-btn rc-mic-action-primary" id="bt-cal-btn">クリック音入力テストを開始</button>
                 <p class="cal-status" id="bt-cal-status"></p>
                 <div class="cal-result hidden" id="bt-cal-result"></div>
-                <!-- 実験：イヤホン自己収音テスト（手拍子不要の自動クリック検出）。結果は保存しない。 -->
+                <!-- 参考：イヤホン自己収音テスト。候補表示のみでは保存せず、Bluetooth時は適用操作で保存できる。 -->
                 <hr style="border:none;border-top:1px solid rgba(255,255,255,0.1);margin:14px 0 10px;">
-                <button id="hp-ad-btn" style="width:100%;padding:9px 0;font-size:0.85em;background:rgba(255,255,255,0.07);color:#bbb;border:1px solid rgba(255,255,255,0.18);border-radius:6px;cursor:pointer;">🔬 イヤホン音の自動検出テスト（実験）</button>
-                <p style="margin:5px 0 0;font-size:0.75em;color:#888;line-height:1.4;">検出できない場合は、このテスト中だけスマホ音量を大きめにしてください。</p>
+                <button id="hp-ad-btn" style="width:100%;padding:9px 0;font-size:0.85em;background:rgba(255,255,255,0.07);color:#bbb;border:1px solid rgba(255,255,255,0.18);border-radius:6px;cursor:pointer;">🔬 参考: イヤホン音の自動検出テスト</button>
+                <p id="hp-ad-note" style="margin:5px 0 0;font-size:0.75em;color:#888;line-height:1.4;">実験・参考用のテストです。検出できない場合は、このテスト中だけスマホ音量を大きめにしてください。</p>
                 <div id="hp-ad-result" style="display:none;margin-top:8px;font-size:0.8em;color:#aaa;white-space:pre-line;line-height:1.5;"></div>
                 <button id="hp-ad-apply-btn" style="display:none;width:100%;margin-top:8px;padding:9px 0;font-size:0.85em;background:rgba(100,200,120,0.12);color:#8ddb9a;border:1px solid rgba(100,200,120,0.3);border-radius:6px;cursor:pointer;"></button>
             </div>
@@ -1098,7 +1098,7 @@
                         <input type="range" id="set-offset" min="-150" max="150" step="5" value="0">
                         <div class="setting-note-toggle">
                             <button type="button" class="setting-note-btn" aria-expanded="false">＋ 説明</button>
-                            <p class="setting-note setting-note-body hidden">マイク入力の遅れを補正します。イヤホン時は手拍子テストで測った値が入ります。遅れ気味のときはマイナス方向へ。</p>
+                            <p class="setting-note setting-note-body hidden">マイク入力の遅れを補正します。イヤホン時はクリック音入力テストで測った値が入ります。遅れ気味のときはマイナス方向へ。</p>
                         </div>
                     </div>
 
@@ -1366,7 +1366,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.11.8"></script>
+    <script src="script.js?v=0.11.9"></script>
 </body>
 
 </html>
