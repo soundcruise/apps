@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.19';
+const RHYTHM_CRUISE_VERSION = '0.11.20';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -18456,6 +18456,21 @@ function updateReco() {
         }
     }
 
+    // 診断表示専用：おすすめ適用後の感度カーブ込み実効ラインと、各入力ピークとの比率。
+    // 保存値・おすすめ算出・判定には使わず、警告分類と debugMic の実測確認だけに使う。
+    const ratioTo = (value, base) => (
+        typeof value === 'number' && isFinite(value) && typeof base === 'number' && isFinite(base) && base > 0
+    ) ? value / base : null;
+    const effectiveRecommendedThreshold = test.recommended != null
+        ? test.recommended * micLowSensitivityThresholdMultiplier(recoSensDisplay(test.recommended, lowInputTuned))
+        : null;
+    const clickEnoughRatioAtReco = ratioTo(test.projClickMax, targetClickMax);
+    const projectedClickToEffectiveLineRatio = ratioTo(test.projClickMax, effectiveRecommendedThreshold);
+    const noiseMaxToEffectiveLineRatio = ratioTo(test.noiseMax, effectiveRecommendedThreshold);
+    const noiseP95ToEffectiveLineRatio = ratioTo(test.noiseP95, effectiveRecommendedThreshold);
+    const strokeP25ToEffectiveLineRatio = ratioTo(test.strokeP25, effectiveRecommendedThreshold);
+    const minStrokeToEffectiveLineRatio = ratioTo(minStroke, effectiveRecommendedThreshold);
+
     // ③ 二重反応防止：ストローク波形が反応ラインを超えている時間幅をベースに算出する。
     //    おすすめ = min( 超過時間 × 1.2, 最短音符間隔 × 0.45 )。
     //    最短音符間隔の上限で、将来のBPUP・16分でも次の音符を潰さないようにする。
@@ -18538,8 +18553,8 @@ function updateReco() {
         // クリック音量を下げてもクリックがストローク最小に近い/超える＝反応ラインだけでは分離不可
         els.recoMsg.className = 'test-reco-msg warn';
         els.recoMsg.classList.remove('hidden');
-        els.recoMsg.textContent = 'この環境ではクリック音とストローク音の大きさが近く、反応ラインだけでは分けにくいです。'
-            + 'クリック音量を ' + recoVol + '% 以下に下げるか、イヤホンのご利用をおすすめします。' + projTxt;
+        els.recoMsg.textContent = 'クリック音とストローク音を安全に分けにくい状態です。'
+            + 'スマホ本体音量を少し下げる、少し強めに弾く、静かな場所で試す、またはイヤホンを使ってください。' + projTxt;
     } else if (highSens) {
         // 高感度寄り：手動で下げられることを案内（UIの「左＝反応しにくい」と整合）
         els.recoMsg.className = 'test-reco-msg';
@@ -18552,31 +18567,24 @@ function updateReco() {
         els.recoMsg.textContent = 'クリック音とストローク音の間に反応ラインを置きました（' + lineTxt + '）。'
             + (volChanged ? 'クリック音量を ' + recoVol + '% にすると安定します。' : '') + projTxt;
     }
-    // v0.9.155：端末本体の音量に関する案内を、専用カードで少し目立たせる（通常マイクのみ）。
-    //   v0.9.154 では recoMsg の末尾に括弧書きを足していたが、実機では見落としやすかったため
-    //   ⚠付きの淡い注意カード（reco-device-vol-note）に分離。文言は端末非依存の一般表現にする。
-    //   ・「検出が小さい」＝ソフト100%張り付き かつ 想定ピークが補正用ライン下限付近にも届かない（=本体音量で頭打ちの疑い）
-    //   ・「最大張り付き」＝クリック音量おすすめが100% だが検出自体は届いている（=さらに必要なら本体音量を）
-    //   ※クリック音量おすすめ値そのものは変更しない（案内のみ）。
+    // 通常マイクでおすすめクリック音量が90%以上のとき、目標ピークに対する充足率で案内を分ける。
+    // おすすめ計算・適用条件は変えず、ユーザー向け文言だけを実測状態に合わせる。
     if (els.recoDeviceVolNote) {
-        const projClickAt100 = (peakPerPct > 0) ? peakPerPct * 100 : 0;
-        // 検出自体が小さい（ソフト最大でも補正用ライン下限付近にも届かない）＝本体音量で頭打ちの疑いが濃い
-        const detectedTooSmall = isNormalMicInput() && canApply && recoVol >= 100
-            && projClickAt100 < calThrFloor() * 1.3;
-        // v0.9.156：クリック音量おすすめが90%以上＝本体音量が低めの可能性。補正テストが不安定なら本体音量を促す。
         const clickVolHigh = isNormalMicInput() && canApply && recoVol >= 90;
-        if (detectedTooSmall) {
-            // 検出が小さい案内は従来どおりの淡い注意カード（アンバー）。
-            els.recoDeviceVolNote.className = 'reco-device-vol-note';
-            els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音が小さめに検出されています。</b><br>'
-                + 'スマホ本体の音量を少し上げて、もう一度テストしてください。改善しない場合は、ホーム画面のアプリを完全に終了してから、もう一度開いてください。<br>'
+        if (clickVolHigh && clickEnoughRatioAtReco != null && clickEnoughRatioAtReco < 0.6) {
+            els.recoDeviceVolNote.className = 'reco-device-vol-note reco-device-vol-note--alert';
+            els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音がマイクに十分入っていません。</b><br>'
+                + 'スマホ本体の音量をかなり高め（目安：80%以上）にし、出力先を確認してから、もう一度マイク反応テストを行ってください。音量や出力先を変えた場合も再テストが必要です。改善しない場合は、ホーム画面のアプリを完全に終了してから、もう一度開いてください。<br>'
                 + micRestartHelpLinkHtml()
                 + recoRetestButtonHtml();
+        } else if (clickVolHigh && clickEnoughRatioAtReco != null && clickEnoughRatioAtReco >= 0.85) {
+            els.recoDeviceVolNote.className = 'reco-device-vol-note';
+            els.recoDeviceVolNote.innerHTML = '<b>クリック音はほぼ十分に検出されています。</b><br>'
+                + '音量をさらに上げすぎず、このまま最終確認テストで確認してください。';
         } else if (clickVolHigh) {
-            // v0.9.157：クリック音量が高め時は赤系カードで少し目立たせる（見落とし防止）。
-            els.recoDeviceVolNote.className = 'reco-device-vol-note reco-device-vol-note--alert';
-            els.recoDeviceVolNote.innerHTML = '<b>⚠ アプリ内クリック音量のおすすめが高めです。</b><br>'
-                + 'クリック音がマイクに十分入っていない可能性があります。スマホ本体の音量を少し上げて、もう一度テストしてください。改善しない場合は、ホーム画面のアプリを完全に終了してから、もう一度開いてください。<br>'
+            els.recoDeviceVolNote.className = 'reco-device-vol-note';
+            els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音がやや小さめに検出されています。</b><br>'
+                + 'スマホ本体の音量をかなり高め（目安：80%以上）にし、出力先を確認してから、もう一度マイク反応テストを行ってください。音量や出力先を変えた場合も再テストが必要です。改善しない場合は、ホーム画面のアプリを完全に終了してから、もう一度開いてください。<br>'
                 + micRestartHelpLinkHtml()
                 + recoRetestButtonHtml();
         } else {
@@ -18673,6 +18681,14 @@ function updateReco() {
         targetClickMax,
         recoVol,
         projectedClickAtReco: test.projClickMax,
+        effectiveRecommendedThreshold,
+        clickEnoughRatioAtReco,
+        projectedClickToEffectiveLineRatio,
+        noiseMaxToEffectiveLineRatio,
+        noiseP95ToEffectiveLineRatio,
+        strokeP25ToEffectiveLineRatio,
+        minStrokeToEffectiveLineRatio,
+        cannotSeparate,
         noiseP95: test.noiseP95,
         noiseMax: test.noiseMax,
         strokePeaks: (test.strokePeaks || []).slice(),
