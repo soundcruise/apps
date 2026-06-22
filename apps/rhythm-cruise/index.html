@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.10.53">
+    <link rel="stylesheet" href="theme.css?v=0.11.21">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -855,6 +855,15 @@
                         <span class="lg-stroke">● ストローク最小</span>
                     </div>
                     <div class="test-detail-stats" id="test-detail-stats"></div>
+                    <details class="settings-detail mic-test-dev-log" id="mic-test-dev-log">
+                        <summary>開発用ログ（調査用）</summary>
+                        <p class="setting-note">うまく動かない時は、このログをコピーして開発者へ送ってください。通常の練習では使いません。</p>
+                        <textarea class="mic-test-dev-log-text" id="mic-test-dev-log-text" rows="14" readonly aria-label="マイク反応テストの開発用ログ"></textarea>
+                        <div class="dev-log-copy-row">
+                            <button type="button" class="dev-log-copy-btn" id="mic-test-dev-log-copy">ログをコピー</button>
+                            <span class="dev-log-copy-status" id="mic-test-dev-log-status" aria-live="polite"></span>
+                        </div>
+                    </details>
                 </details>
             </div>
 
@@ -1366,7 +1375,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.11.20"></script>
+    <script src="script.js?v=0.11.21"></script>
 </body>
 
 </html>

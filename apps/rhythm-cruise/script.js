@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.20';
+const RHYTHM_CRUISE_VERSION = '0.11.21';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -894,6 +894,7 @@ const test = {
 let micTestRunSeq = 0;
 let micAcquireCount = 0;
 const micTestDebugRuns = [];
+let micTestPermissionDebugState = 'unknown';
 const micLifecycleDebugEvents = [];
 
 /* ── 要素参照 ───────────────────────────────────────────── */
@@ -1422,6 +1423,10 @@ const els = {
     testResultDetail: $('test-result-detail'),
     testDetail: $('test-detail'),
     testDetailStats: $('test-detail-stats'),
+    micTestDevLog: $('mic-test-dev-log'),
+    micTestDevLogText: $('mic-test-dev-log-text'),
+    micTestDevLogCopy: $('mic-test-dev-log-copy'),
+    micTestDevLogStatus: $('mic-test-dev-log-status'),
     barZone: $('bar-zone'),
     barClick: $('bar-click'),
     barLine: $('bar-line'),
@@ -17093,6 +17098,169 @@ function completeMicTestRunDebug(details) {
     micTestDebugRuns.push(snapshot);
     if (micTestDebugRuns.length > 6) micTestDebugRuns.splice(0, micTestDebugRuns.length - 6);
     if (MIC_DEBUG_ON || MIC_DEBUG) console.info('[mic-test-run]', snapshot);
+    renderMicTestDevelopmentLog();
+}
+
+function micTestRunForDevelopmentLog(run) {
+    if (!run) return null;
+    return {
+        runId: run.runId,
+        startRoute: run.startRoute,
+        inputType: run.inputType,
+        headphoneType: run.headphoneType,
+        normalInitialClickBoost: run.normalInitialClickBoost,
+        normalInitialClickBoostApplied: run.normalInitialClickBoostApplied,
+        startClickVolume: run.startClickVolume,
+        clickVolumeAfterBoost: run.clickVolumeAfterBoost,
+        clickMeasureVol: run.clickMeasureVol,
+        resultClickVolume: run.resultClickVolume,
+        clickPeaks: run.clickPeaks,
+        maxClickPeak: run.maxClickPeak,
+        clickMedian: run.clickMedian,
+        maxClickAfterFirst: run.maxClickAfterFirst,
+        peakPerPct: run.peakPerPct,
+        projClickAt100: run.projClickAt100,
+        targetClickMax: run.targetClickMax,
+        recoVol: run.recoVol,
+        projectedClickAtReco: run.projectedClickAtReco,
+        noiseP95: run.noiseP95,
+        noiseMax: run.noiseMax,
+        strokePeaks: run.strokePeaks,
+        minStrokePeak: run.minStrokePeak,
+        strokeP25: run.strokeP25,
+        recommendedThreshold: run.recommendedThreshold,
+        effectiveRecommendedThreshold: run.effectiveRecommendedThreshold,
+        clickEnoughRatio: run.clickEnoughRatioAtReco,
+        clickEnoughRatioAtReco: run.clickEnoughRatioAtReco,
+        projectedClickToEffectiveLineRatio: run.projectedClickToEffectiveLineRatio,
+        noiseMaxToEffectiveLineRatio: run.noiseMaxToEffectiveLineRatio,
+        noiseP95ToEffectiveLineRatio: run.noiseP95ToEffectiveLineRatio,
+        strokeP25ToEffectiveLineRatio: run.strokeP25ToEffectiveLineRatio,
+        minStrokeToEffectiveLineRatio: run.minStrokeToEffectiveLineRatio,
+        cannotSeparate: run.cannotSeparate,
+        currentThreshold: run.currentThreshold,
+        cooldownMs: run.cooldownMs,
+        startedAt: run.startedAt,
+        completedAt: run.completedAt,
+        audioStart: run.audioStart,
+        audioResult: run.audioResult,
+        trackStart: run.trackStart,
+        trackResult: run.trackResult,
+        micAcquireCount: run.micAcquireCount,
+        micAcquireCountAtResult: run.micAcquireCountAtResult,
+        lifecycleAtStart: run.lifecycleAtStart,
+        lifecycleAtResult: run.lifecycleAtResult,
+    };
+}
+
+function currentMicTracksForDevelopmentLog() {
+    if (!mic.stream || typeof mic.stream.getTracks !== 'function') return [];
+    return mic.stream.getTracks().map((track) => {
+        let settings = null;
+        try { settings = typeof track.getSettings === 'function' ? track.getSettings() : null; } catch (_) { settings = null; }
+        return {
+            kind: track.kind,
+            label: track.label || '',
+            readyState: track.readyState || '',
+            muted: !!track.muted,
+            enabled: track.enabled !== false,
+            settings,
+        };
+    });
+}
+
+function micTestDevelopmentLogText() {
+    let timezone = null;
+    try { timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (_) { timezone = null; }
+    let calClickVol = null;
+    try { calClickVol = calibrationClickVolume(); } catch (_) { calClickVol = null; }
+    let standalone = false;
+    try {
+        standalone = !!(navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches));
+    } catch (_) { standalone = false; }
+    const tracks = currentMicTracksForDevelopmentLog();
+    const payload = {
+        app: {
+            name: 'リズムクルーズ',
+            version: RHYTHM_CRUISE_VERSION,
+            edition: isProEdition() ? 'PRO' : '通常版',
+            path: location.pathname,
+            userAgent: navigator.userAgent,
+            standalone,
+            timestamp: new Date().toISOString(),
+            timezone,
+        },
+        current: {
+            inputType: getMicInputType(),
+            headphoneType: isHeadphoneInput() ? getHeadphoneType() : null,
+            isNormalMic: isNormalMicInput(),
+            clickVolume: state.clickVolume,
+            stateClickVolume: state.clickVolume,
+            clickPeakGain: clickPeakGain(),
+            calClickVol,
+            resultSummary: {
+                testResult: els.testResult ? els.testResult.textContent : '',
+                recommendedSensitivity: els.recoThr ? els.recoThr.textContent : '',
+                recommendedClickVolume: els.recoClickVol ? els.recoClickVol.textContent : '',
+                recommendedCooldown: els.recoCooldown ? els.recoCooldown.textContent : '',
+                recommendationMessage: els.recoMsg ? els.recoMsg.textContent : '',
+                deviceVolumeMessage: els.recoDeviceVolNote ? els.recoDeviceVolNote.textContent : '',
+            },
+            audioContext: micTestAudioContextDebugSnapshot(),
+            micOn: mic.on,
+            micAcquireCount,
+            streamTrackCount: tracks.length,
+            tracks,
+            permissionState: micTestPermissionDebugState,
+            visibilityState: document.visibilityState,
+            lifecycle: micLifecycleDebugEvents.slice(),
+            reloadCacheBust: new URLSearchParams(location.search).get('_r'),
+        },
+        calibration: {
+            threshold: cal.threshold,
+            maxPeak: cal.maxPeak,
+            successCount: cal.successCount,
+            measuredDelay: cal.measuredDelay,
+            outputLatencyMs: cal.outputLatencyMs,
+            adjustedDelay: cal.adjustedDelay,
+            proposedOffset: cal.proposedOffset,
+        },
+        micReactionTestRuns: micTestDebugRuns.slice(-3).map(micTestRunForDevelopmentLog),
+    };
+    return JSON.stringify(payload, (_key, value) => value === undefined ? null : value, 2);
+}
+
+function renderMicTestDevelopmentLog() {
+    if (els.micTestDevLogText) els.micTestDevLogText.value = micTestDevelopmentLogText();
+}
+
+async function refreshMicTestPermissionDebugState() {
+    if (!navigator.permissions || typeof navigator.permissions.query !== 'function') {
+        micTestPermissionDebugState = 'unsupported';
+        renderMicTestDevelopmentLog();
+        return;
+    }
+    try {
+        const status = await navigator.permissions.query({ name: 'microphone' });
+        micTestPermissionDebugState = status && status.state ? status.state : 'unknown';
+    } catch (e) {
+        micTestPermissionDebugState = 'unavailable' + (e && e.name ? ':' + e.name : '');
+    }
+    renderMicTestDevelopmentLog();
+}
+
+async function copyMicTestDevelopmentLog() {
+    renderMicTestDevelopmentLog();
+    const text = els.micTestDevLogText ? els.micTestDevLogText.value : '';
+    const copied = !!text && await copyTextToClipboard(text);
+    if (els.micTestDevLogStatus) {
+        els.micTestDevLogStatus.textContent = copied
+            ? 'コピーしました'
+            : 'コピーできませんでした。長押ししてコピーしてください。';
+    }
+    if (!copied && els.micTestDevLogText) {
+        try { els.micTestDevLogText.focus(); els.micTestDevLogText.select(); } catch (_) { /* noop */ }
+    }
 }
 async function startMic() {
     if (mic.on) return;
@@ -17333,6 +17501,9 @@ function resetMicReactionTestRunDisplay() {
     if (els.btMicDiagnosticBody) els.btMicDiagnosticBody.innerHTML = '';
     if (els.testResultDetail) els.testResultDetail.classList.add('hidden');
     if (els.testDetailStats) els.testDetailStats.innerHTML = '';
+    if (els.micTestDevLog) els.micTestDevLog.open = false;
+    if (els.micTestDevLogText) els.micTestDevLogText.value = '';
+    if (els.micTestDevLogStatus) els.micTestDevLogStatus.textContent = '';
     if (els.barLine) els.barLine.style.display = 'none';
     if (els.barZone) els.barZone.style.display = 'none';
     if (els.barClick) els.barClick.style.left = '0%';
@@ -20812,6 +20983,12 @@ function bind() {
         startRetestFlow(true);
     });
     if (els.devLogCopyBtn) els.devLogCopyBtn.addEventListener('click', copyDevelopmentLog);
+    if (els.micTestDevLog) els.micTestDevLog.addEventListener('toggle', () => {
+        if (!els.micTestDevLog.open) return;
+        renderMicTestDevelopmentLog();
+        refreshMicTestPermissionDebugState();
+    });
+    if (els.micTestDevLogCopy) els.micTestDevLogCopy.addEventListener('click', copyMicTestDevelopmentLog);
     if (els.missCauseDetails) els.missCauseDetails.addEventListener('toggle', () => {
         if (els.missCauseDetails.open) updateMicDebugBox();
     });
