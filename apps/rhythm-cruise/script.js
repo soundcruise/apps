@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.22';
+const RHYTHM_CRUISE_VERSION = '0.11.23';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -17123,12 +17123,17 @@ function micTestRunForDevelopmentLog(run) {
         targetClickMax: run.targetClickMax,
         recoVol: run.recoVol,
         clickVolSafeRate: run.clickVolSafeRate,
+        clickIndependentLine: run.clickIndependentLine,
+        safeClickPeak88: run.safeClickPeak88,
         recoVolBeforeSafetyCap: run.recoVolBeforeSafetyCap,
         safeClickVol88: run.safeClickVol88,
         recoVolAfterSafetyCap: run.recoVolAfterSafetyCap,
         safetyCapApplied: run.safetyCapApplied,
+        clickSupplyRatioToSafePeak: run.clickSupplyRatioToSafePeak,
         projectedClickBeforeSafetyCap: run.projectedClickBeforeSafetyCap,
         projectedClickAfterSafetyCap: run.projectedClickAfterSafetyCap,
+        beforeSafetyCapToSafePeakRatio: run.beforeSafetyCapToSafePeakRatio,
+        afterSafetyCapToSafePeakRatio: run.afterSafetyCapToSafePeakRatio,
         beforeSafetyCapToEffectiveLineRatio: run.beforeSafetyCapToEffectiveLineRatio,
         afterSafetyCapToEffectiveLineRatio: run.afterSafetyCapToEffectiveLineRatio,
         projectedClickAtReco: run.projectedClickAtReco,
@@ -18637,18 +18642,20 @@ function updateReco() {
     }
 
     // おすすめ適用後の感度カーブ込み実効ライン。判定ライン自体は再計算せず、
-    // 通常マイクのクリック音量安全上限と、警告分類・debugMic の実測確認に使う。
+    // 上限適用前後の診断比率と debugMic の実測確認に使う。
     const ratioTo = (value, base) => (
         typeof value === 'number' && isFinite(value) && typeof base === 'number' && isFinite(base) && base > 0
     ) ? value / base : null;
     const effectiveRecommendedThreshold = test.recommended != null
         ? test.recommended * micLowSensitivityThresholdMultiplier(recoSensDisplay(test.recommended, lowInputTuned))
         : null;
-    // 通常マイクだけ、現行計算後の実効判定ラインを基準にクリック音量の安全上限を適用する。
+    // 通常マイクだけ、クリック音に依存しないストローク基準ラインから安全上限を決める。
     // recommendedThreshold は再計算せず、既存の感度・判定ライン計算をそのまま維持する。
     const clickVolSafeRate = 0.88;
-    const safeClickVol88 = isNormalMicInput() && peakPerPct > 0 && effectiveRecommendedThreshold != null
-        ? Math.floor(effectiveRecommendedThreshold * clickVolSafeRate / peakPerPct)
+    const clickIndependentLine = isNormalMicInput() && minStroke != null ? minStroke * 0.5 : null;
+    const safeClickPeak88 = clickIndependentLine != null ? clickIndependentLine * clickVolSafeRate : null;
+    const safeClickVol88 = safeClickPeak88 != null && peakPerPct > 0
+        ? Math.floor(safeClickPeak88 / peakPerPct)
         : null;
     if (safeClickVol88 != null) {
         recoVol = Math.max(10, Math.min(100, Math.min(recoVolBeforeSafetyCap, safeClickVol88)));
@@ -18658,7 +18665,11 @@ function updateReco() {
     els.recoClickVol.textContent = recoVol + '％';
     test.projClickMax = (peakPerPct > 0) ? (peakPerPct * recoVol) : (maxClick > 0 ? maxClick : null);
     const projectedClickAfterSafetyCap = test.projClickMax;
+    const projectedClickAt100 = peakPerPct > 0 ? peakPerPct * 100 : null;
     const clickEnoughRatioAtReco = ratioTo(test.projClickMax, targetClickMax);
+    const clickSupplyRatioToSafePeak = ratioTo(projectedClickAt100, safeClickPeak88);
+    const beforeSafetyCapToSafePeakRatio = ratioTo(projectedClickBeforeSafetyCap, safeClickPeak88);
+    const afterSafetyCapToSafePeakRatio = ratioTo(projectedClickAfterSafetyCap, safeClickPeak88);
     const beforeSafetyCapToEffectiveLineRatio = ratioTo(projectedClickBeforeSafetyCap, effectiveRecommendedThreshold);
     const afterSafetyCapToEffectiveLineRatio = ratioTo(projectedClickAfterSafetyCap, effectiveRecommendedThreshold);
     const projectedClickToEffectiveLineRatio = ratioTo(test.projClickMax, effectiveRecommendedThreshold);
@@ -18763,26 +18774,26 @@ function updateReco() {
         els.recoMsg.textContent = 'クリック音とストローク音の間に反応ラインを置きました（' + lineTxt + '）。'
             + (volChanged ? 'クリック音量を ' + recoVol + '% にすると安定します。' : '') + projTxt;
     }
-    // 通常マイクでおすすめクリック音量が90%以上のとき、目標ピークに対する充足率で案内を分ける。
-    // おすすめ計算・適用条件は変えず、ユーザー向け文言だけを実測状態に合わせる。
+    // 通常マイクでは、100%時のクリック予測がクリック非依存の安全ピークへどれだけ届くかで案内を分ける。
+    // 旧targetClickMaxの充足率はストロークの強さに左右されるため、ユーザー向け不足判定には使わない。
     if (els.recoDeviceVolNote) {
-        const clickVolHigh = isNormalMicInput() && canApply && recoVol >= 90;
-        if (clickVolHigh && clickEnoughRatioAtReco != null && clickEnoughRatioAtReco < 0.6) {
+        const canClassifyClickSupply = isNormalMicInput() && canApply && clickSupplyRatioToSafePeak != null;
+        if (canClassifyClickSupply && clickSupplyRatioToSafePeak < 0.6) {
             els.recoDeviceVolNote.className = 'reco-device-vol-note reco-device-vol-note--alert';
             els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音がマイクに十分入っていません。</b><br>'
                 + 'スマホ本体の音量をかなり高め（目安：80%以上）にし、出力先を確認してから、もう一度マイク反応テストを行ってください。音量や出力先を変えた場合も再テストが必要です。改善しない場合は、ホーム画面のアプリを完全に終了してから、もう一度開いてください。<br>'
                 + micRestartHelpLinkHtml()
                 + recoRetestButtonHtml();
-        } else if (clickVolHigh && clickEnoughRatioAtReco != null && clickEnoughRatioAtReco >= 0.85) {
-            els.recoDeviceVolNote.className = 'reco-device-vol-note';
-            els.recoDeviceVolNote.innerHTML = '<b>クリック音はほぼ十分に検出されています。</b><br>'
-                + '音量をさらに上げすぎず、このまま最終確認テストで確認してください。';
-        } else if (clickVolHigh) {
+        } else if (canClassifyClickSupply && clickSupplyRatioToSafePeak < 0.85) {
             els.recoDeviceVolNote.className = 'reco-device-vol-note';
             els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音がやや小さめに検出されています。</b><br>'
                 + 'スマホ本体の音量をかなり高め（目安：80%以上）にし、出力先を確認してから、もう一度マイク反応テストを行ってください。音量や出力先を変えた場合も再テストが必要です。改善しない場合は、ホーム画面のアプリを完全に終了してから、もう一度開いてください。<br>'
                 + micRestartHelpLinkHtml()
                 + recoRetestButtonHtml();
+        } else if (canClassifyClickSupply) {
+            els.recoDeviceVolNote.className = 'reco-device-vol-note';
+            els.recoDeviceVolNote.innerHTML = '<b>クリック音は十分に検出されています。</b><br>'
+                + 'スマホ本体の音量をさらに上げず、このまま最終確認テストで確認してください。';
         } else {
             els.recoDeviceVolNote.className = 'reco-device-vol-note hidden';
         }
@@ -18873,16 +18884,21 @@ function updateReco() {
         clickMedian: medianNumber(test.clickPeaks || []),
         maxClickAfterFirst: (test.clickPeaks || []).length > 1 ? Math.max(...test.clickPeaks.slice(1)) : null,
         peakPerPct,
-        projClickAt100: peakPerPct > 0 ? peakPerPct * 100 : null,
+        projClickAt100: projectedClickAt100,
         targetClickMax,
         recoVol,
         clickVolSafeRate,
+        clickIndependentLine,
+        safeClickPeak88,
         recoVolBeforeSafetyCap,
         safeClickVol88,
         recoVolAfterSafetyCap: recoVol,
         safetyCapApplied,
+        clickSupplyRatioToSafePeak,
         projectedClickBeforeSafetyCap,
         projectedClickAfterSafetyCap,
+        beforeSafetyCapToSafePeakRatio,
+        afterSafetyCapToSafePeakRatio,
         beforeSafetyCapToEffectiveLineRatio,
         afterSafetyCapToEffectiveLineRatio,
         projectedClickAtReco: test.projClickMax,
