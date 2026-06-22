@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.11';
+const RHYTHM_CRUISE_VERSION = '0.11.12';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -10173,6 +10173,7 @@ function stopLoopWithResult() {
 
 async function play() {
     if (practiceStartPending || state.running) return;
+    if (hpAd.active) stopHpAutoDetect();
     practiceStartPending = true;
     discardPracticeRecording(); // 新しいPractice開始前に前回録音を必ず破棄
     resetResultAuxDetails();
@@ -10250,6 +10251,7 @@ function stop() {
    判定・再生エンジンには手を入れず、既存の stop() をそのまま使う。 */
 function stopForPageHidden() {
     stopPreviewRhythm(); // 譜面プレビューのリズム確認音は state.running に関係なく止める（v0.9.135）
+    if (hpAd.active) stopHpAutoDetect();
     // 補正テスト/BT補正中に画面が非表示/離脱したら、退避してあるユーザー設定(mic.threshold等)を必ず復元する。
     // cancelCalibration/stopBtCal は内部ガード（cal.saved 等）で多重実行しても壊れない（v0.9.140）。
     if (cal.active || mic.calibrating) cancelCalibration();
@@ -13306,6 +13308,7 @@ function resetPracticeView() {
 
 async function startPracticeTest() {
     // 排他：他テスト（イヤホン音ズレの画面補正／マイク反応テスト／マイクの遅れ補正）が動いていたら止める
+    if (hpAd.active) stopHpAutoDetect();
     if (hpCal.active) stopHeadphoneCal();
     if (test.flow) abortMicTest();
     stopBtCal();
@@ -13815,6 +13818,7 @@ function renderBtCalIdle() {
 
 async function startBtCal() {
     // 排他：他テストを止める
+    if (hpAd.active) stopHpAutoDetect();
     if (hpCal.active) stopHeadphoneCal();
     if (cal.active) cancelCalibration();
     if (test.flow) abortMicTest();
@@ -15843,6 +15847,7 @@ function useTapCorrection() {
 /* ステップ表示：いまのアクティブステップのカードだけ出し、前の完了ステップは要約に畳む */
 function renderWizardSteps() {
     const active = activeWizardStep();
+    if (active !== 'btdelay' && hpAd.active) stopHpAutoDetect();
     allStepCards().forEach((el) => { if (el) el.style.display = 'none'; });
     wizardStepCards(active).forEach((el) => { if (el) el.style.display = ''; });
     // イヤホン種類カードは独立ステップ（hptype）として表示する。入力タイプが
@@ -16062,6 +16067,7 @@ function resetTestRunHistory() {
 }
 
 function resetSetupFlowDisplay() {
+    if (hpAd.active) stopHpAutoDetect();
     if (test.flow) abortMicTest();
     if (cal.active) cancelCalibration();
     if (hpCal.active) stopHeadphoneCal();
@@ -16927,6 +16933,7 @@ function openSettings(from) {
 }
 
 function closeSettings() {
+    if (hpAd.active) stopHpAutoDetect();
     if (cal.active) cancelCalibration();
     if (hpCal.active) stopHeadphoneCal();
     stopPracticeTest();
@@ -17454,6 +17461,7 @@ function restoreMicTestClickVolume() {
 }
 
 async function startMicTestFlow(options = {}) {
+    if (hpAd.active) stopHpAutoDetect();
     if (pt.active) stopPracticeTest(); // 最終確認テストと排他
     stopBtCal(); // マイクの遅れ補正と排他
     resetMicDelayCalibrationUiState();
@@ -19647,6 +19655,7 @@ async function startHpAutoDetect() {
     if (state.running) stop();
     if (test.active) exitTestMode();
     stopBtCal();
+    stopPracticeTest();
     if (cal.active) cancelCalibration();
     if (!mic.on) {
         await startMic();
@@ -19902,6 +19911,7 @@ function applyHpAutoDetect() {
 }
 
 async function startCalibration() {
+    if (hpAd.active) stopHpAutoDetect();
     if (state.running) stop();
     if (test.active) exitTestMode();
     stopBtCal();
