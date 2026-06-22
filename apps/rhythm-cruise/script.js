@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.13';
+const RHYTHM_CRUISE_VERSION = '0.11.14';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -6474,16 +6474,22 @@ function ensureMicDebugUI() {
     if (document.getElementById('mic-debug-toggle')) return;
     if (!document.body) return;
     const toggle = document.createElement('button');
-    toggle.id = 'mic-debug-toggle'; toggle.type = 'button'; toggle.textContent = '🛠';
+    toggle.id = 'mic-debug-toggle'; toggle.type = 'button'; toggle.textContent = '🛠 ログ';
     toggle.setAttribute('aria-label', '開発ログ（debugMic）');
     toggle.style.cssText = 'position:fixed;top:calc(var(--safe-top, 0px) + 4px);left:4px;z-index:100000;'
-        + 'width:30px;height:30px;padding:0;border-radius:8px;border:1px solid rgba(124,252,0,0.5);'
+        + 'width:62px;height:30px;padding:0;border-radius:8px;border:1px solid rgba(124,252,0,0.5);'
         + 'background:rgba(0,0,0,0.55);color:#7CFC00;font-size:14px;line-height:30px;';
     const panel = document.createElement('div');
     panel.id = 'mic-debug-panel';
     panel.style.cssText = 'position:fixed;top:calc(var(--safe-top, 0px) + 38px);left:4px;z-index:99999;'
         + 'display:none;max-width:84vw;max-height:60vh;overflow:auto;padding:8px;border-radius:8px;'
         + 'background:rgba(0,0,0,0.86);color:#7CFC00;font:600 10px/1.4 ui-monospace, Menlo, monospace;';
+    const title = document.createElement('div');
+    title.textContent = '開発用ログ（debugMic）';
+    title.style.cssText = 'font-weight:700;margin-bottom:2px';
+    const subtitle = document.createElement('div');
+    subtitle.textContent = '直近のマイク反応テスト';
+    subtitle.style.cssText = 'color:#9ecbff;margin-bottom:8px';
     const pre = document.createElement('pre');
     pre.id = 'mic-debug-pre'; pre.style.cssText = 'white-space:pre-wrap;margin:0 0 6px;user-select:text;-webkit-user-select:text;';
     const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:6px;';
@@ -6499,7 +6505,7 @@ function ensureMicDebugUI() {
     closeBtn.addEventListener('click', () => { micDebugPanelOpen = false; panel.style.display = 'none'; });
     toggle.addEventListener('click', () => { micDebugPanelOpen = !micDebugPanelOpen; panel.style.display = micDebugPanelOpen ? 'block' : 'none'; if (micDebugPanelOpen) pre.textContent = micDebugText(); });
     row.appendChild(copyBtn); row.appendChild(closeBtn);
-    panel.appendChild(pre); panel.appendChild(row);
+    panel.appendChild(title); panel.appendChild(subtitle); panel.appendChild(pre); panel.appendChild(row);
     document.body.appendChild(toggle); document.body.appendChild(panel);
 }
 function updateMicDebugBox() {
@@ -18564,7 +18570,7 @@ function updateReco() {
             // v0.9.157：クリック音量が高め時は赤系カードで少し目立たせる（見落とし防止）。
             els.recoDeviceVolNote.className = 'reco-device-vol-note reco-device-vol-note--alert';
             els.recoDeviceVolNote.innerHTML = '<b>⚠ アプリ内クリック音量のおすすめが高めです。</b><br>'
-                + '未適用のおすすめ値で、スマホ本体の音量とは別です。聞こえにくい場合は、端末のメディア音量と出力先を確認してください。'
+                + 'クリック音がマイクに小さく入っている可能性があります。スマホ本体の音量を少し上げて、もう一度テストしてください。'
                 + recoRetestButtonHtml();
         } else {
             els.recoDeviceVolNote.className = 'reco-device-vol-note hidden';
