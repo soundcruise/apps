@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.10';
+const RHYTHM_CRUISE_VERSION = '0.11.11';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -5561,7 +5561,7 @@ function updateCustomFlowScorePosition(rawT) {
     if (!scoreEl || !scoreEl.classList.contains('custom-flow-score')) return;
     // drawLane と同じ表示時刻 t / 表示補正 gridDispOff（タップ＝出力遅延を戻す・ストローク＝イヤホン音ズレの画面補正）
     const t = (state.inputMode === 'tap') ? (rawT - tapOutputOffsetMs()) : rawT;
-    const gridDispOff = (state.inputMode === 'tap') ? 0 : (mic.headphoneOutputOffsetMs || 0);
+    const gridDispOff = (state.inputMode === 'tap') ? 0 : strokeDisplayOffsetMs();
     const tx = (state.T0 + gridDispOff - t) * state.pxPerMs;
     scoreEl.style.transform = 'translate(' + tx + 'px,' + rhythmFlowVY + 'px)';
 }
@@ -7078,7 +7078,7 @@ function drawLane(rawT) {
     //             音符・波形・自分の入力マークが画面上で自然に揃うようにする（表示位置だけ）。
     //   判定(registerHit)・スコア・結果カード(drawReview/drawReviewMicOverlay)には一切入れない（そちらは判定時間軸のまま）。
     // gridDispOff は表示補正。タップモードは t で既に寄せているので二重ずらし防止に0。
-    const gridDispOff = (state.inputMode === 'tap') ? 0 : (mic.headphoneOutputOffsetMs || 0);
+    const gridDispOff = (state.inputMode === 'tap') ? 0 : strokeDisplayOffsetMs();
 
     // カスタムSTAGEテスト再生で、VexFlow流し込み譜面が正常描画できているときだけ、
     // 「本来のヒット音符本体（drawQuarterNote）」を描かず VexFlow譜面を主表示にする（v0.9.130）。
@@ -12291,6 +12291,10 @@ function micJudgeOffsetMs() {
     if (isHeadphoneInput()) return mic.timingOffsetMs + (mic.wiredMicOffsetMs || 0);
     return mic.timingOffsetMs;
 }
+/* ストローク表示専用のイヤホン出力補正。本体マイクでは保存値を残したまま表示へ適用しない。 */
+function strokeDisplayOffsetMs() {
+    return isHeadphoneInput() ? (mic.headphoneOutputOffsetMs || 0) : 0;
+}
 /* タップモード専用の出力ズレ補正（ms・v0.9.95）。
    タップは「イヤホンから聞こえるクリック音」に合わせて押すモード。Bluetooth等でイヤホン音が遅れて
    出る分（イヤホン音ズレの画面補正 headphoneOutputOffsetMs ≒ 出力遅延）を、タップ判定時刻から差し引くことで、
@@ -12990,8 +12994,8 @@ function drawPracticeLane(t) {
     // 「表示タイミング」だけに反映する（drawBtLane と同じ考え方）。クリック音(scheduled)は動かさず、
     // 音符/拍/JUST光を、イヤホンで実際に聞こえる音に寄せる。これでBluetoothイヤホン時に音と音符の通過が合う。
     // 判定(micJudgeOffsetMs)・スコア・GOOD/EARLY/LATE/MISSには一切混ぜない（役割分離を維持）。
-    // 通常マイク/有線は補正値が0msなのでズレない。
-    const hpDispOff = mic.headphoneOutputOffsetMs || 0;
+    // 通常マイクは0ms扱い。イヤホン入力時だけ、種類別に保存された表示補正を使う。
+    const hpDispOff = strokeDisplayOffsetMs();
     // 中央ガイド
     ctx.strokeStyle = 'rgba(253,246,238,0.08)';
     ctx.lineWidth = 2;
@@ -13700,7 +13704,7 @@ function drawBtLane(t) {
     ctx.textAlign = 'left';
     ctx.fillText('判定ライン', 4, yc - lineAmp - 3);
     // イヤホン音ズレの画面補正（headphoneOutputOffsetMs）。👏と波形を「聞こえる音」に寄せる表示用オフセット。
-    const hpDispOff = mic.headphoneOutputOffsetMs || 0;
+    const hpDispOff = strokeDisplayOffsetMs();
     // 入力波形（右→左へ流れる）。off は micJudgeOffsetMs()＝Bluetooth時は timingOffsetMs＋bluetoothMicOffsetMs。
     // v0.9.112（案B＝STAGE本体PLAY中と同じ思想）：PLAY中のリアルタイム波形は「演奏中の視覚フィードバック」として
     //   👏（heard-time）と同じく hpDispOff も足して画面上で自然に揃える（表示位置のみ・測定/判定ロジックは不変）。
