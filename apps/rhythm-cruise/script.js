@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.24';
+const RHYTHM_CRUISE_VERSION = '0.11.25';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -12693,11 +12693,10 @@ const pt = {
     debug: null, // 開発確認用（v0.9.77）：検出/割り当て/除外理由の集計。ユーザー表示には使わない。
 };
 
-/* ── Bluetooth用マイクの遅れ補正（v0.9.80）─────────────────────────────
-   クリックに合わせた手拍子/ストロークの「判定タイミングの偏り」を測り、
-   Bluetoothイヤホン時だけ判定時刻へ加算する補正値 bluetoothMicOffsetMs を提案する。
-   検出は最終確認テストと同じテンポ・同じクリックガードを使うが、拍割り当て等の
-   複雑なロジックは持たず「各拍に最も近いオンセット時刻」を集めて平均ズレを出すだけ。 */
+/* ── イヤホン用マイクの遅れ補正（v0.9.80）─────────────────────────────
+   イヤホンから鳴るクリック音（入力できない場合は手拍子）のタイミングを測り、
+   有線/Bluetoothそれぞれのマイク補正値を提案する。検出中だけクリック専用設定を使い、
+   拍割り当ては「各拍に最も近いオンセット時刻」を集めて平均ズレを出す。 */
 const BT_MIC_OFFSET_MIN = -400;     // 補正値の下限(ms)。v0.9.105：BTの大きな出力+入力遅延（実測で約-280msが必要なケース）に届かず
                                     //   下限-200で頭打ち→平均ズレが残ったまま「小さめ」誤判定になっていたため -400 まで拡張。
 const BT_MIC_OFFSET_MAX = 200;      // 補正値の上限(ms)
@@ -12708,6 +12707,9 @@ const BT_DEBUG = false;
    既存の「大きな補正」とは別枠。符号ルールは大きな補正と同じ（new = cur - avg）。 */
 const BT_FINE_STEP_CLAMP = 30;      // 1回の微調整で動かす量の上限(ms)
 const BT_PLAY_BEATS = PT_PLAY_BEATS; // 8回入力（最終確認テストと同じ）
+const BT_CLICK_INPUT_THRESHOLD_FLOOR = 0.005;
+const BT_CLICK_INPUT_THRESHOLD_CEIL = 0.03;
+const BT_CLICK_INPUT_COOLDOWN_MS = 120;
 const bt = {
     active: false, capturing: false, timers: [], scheduled: [], raf: 0,
     audioStart: 0, flowStartPerf: 0, playT0Ms: 0,
@@ -12716,6 +12718,8 @@ const bt = {
     notes: [], // 流れる👏（v0.9.81・表示専用）：{ t, num, cls, closed, peak }
     wave: [],  // 流れる波形バッファ（v0.9.81・表示専用）：{ t, level }
     result: null, // { valid, avg, early, late, just, miss, propose, proposed, cur }
+    savedSettings: null, // クリック音入力テスト中だけ退避するPractice用設定
+    debug: null, // 直近の専用検出モード・復元結果
 };
 let btLane = { ctx: null, w: 0, h: 0 }; // マイクの遅れ補正の流れるレーン（v0.9.81）
 const hpAd = {
@@ -12790,10 +12794,9 @@ function fitPtLane() {
 
 function ptDetectionThreshold() {
     // 実践テストはSTAGEと同じ検出にするため、マイク感度カーブ補正後の実効しきい値を使う（v0.9.140）。
-    // ただしBT補正（マイクの遅れ補正）はクリック音を確実に拾うのが目的なので、感度カーブで「鈍くする」方向(倍率>1)は
-    // 効かせない＝基準しきい値のままで検出する。60〜100%は倍率1.0で従来と同一なので、高感度側の挙動は変わらない。
+    // ただしクリック音入力テストはクリック専用しきい値を直接使い、Practice用感度カーブから分離する。
+    if (bt.active && bt.debug) return bt.debug.thresholdDuringClickInputTest;
     let mult = micSensitivityMultiplier();
-    if (bt.active) mult = Math.min(mult, 1);
     return mic.threshold * mult * MIC_STAGE_DETECT_FACTOR;
 }
 
@@ -13839,6 +13842,69 @@ function renderBtCalIdle() {
     updateBtCalBadge();
 }
 
+function btClickInputThreshold() {
+    const noiseBased = Math.max((test.noiseP95 || 0) * 6, (test.noiseMax || 0) * 2);
+    return Math.min(BT_CLICK_INPUT_THRESHOLD_CEIL, Math.max(BT_CLICK_INPUT_THRESHOLD_FLOOR, noiseBased));
+}
+
+function applyBtCalTestSettings() {
+    if (bt.savedSettings) return;
+    const threshold = btClickInputThreshold();
+    bt.savedSettings = {
+        threshold: mic.threshold,
+        cooldownMs: mic.cooldownMs,
+        clickGuardMs: mic.clickGuardMs,
+        clickVolume: state.clickVolume,
+    };
+    mic.threshold = threshold;
+    mic.cooldownMs = BT_CLICK_INPUT_COOLDOWN_MS;
+    mic.clickGuardMs = 0;
+    state.clickVolume = 100;
+    mic.prevPeak = 0;
+    mic.armed = true;
+    bt.debug = {
+        clickInputTestActive: true,
+        inputType: getMicInputType(),
+        headphoneType: getHeadphoneType(),
+        isWired: isHeadphoneInput() && !isBluetoothHeadphone(),
+        isBluetooth: isBluetoothHeadphone(),
+        thresholdBeforeClickInputTest: bt.savedSettings.threshold,
+        thresholdDuringClickInputTest: mic.threshold,
+        cooldownBeforeClickInputTest: bt.savedSettings.cooldownMs,
+        cooldownDuringClickInputTest: mic.cooldownMs,
+        clickGuardBeforeClickInputTest: bt.savedSettings.clickGuardMs,
+        clickGuardDuringClickInputTest: mic.clickGuardMs,
+        clickVolumeBeforeClickInputTest: bt.savedSettings.clickVolume,
+        clickVolumeDuringClickInputTest: state.clickVolume,
+        detectedClickCount: 0,
+        expectedClickCount: BT_PLAY_BEATS,
+        clickPeaks: [],
+        noiseP95: test.noiseP95 || 0,
+        noiseMax: test.noiseMax || 0,
+        restoreCompleted: false,
+        restoreReason: null,
+    };
+}
+
+function restoreBtCalTestSettings(reason) {
+    if (!bt.savedSettings) return false;
+    mic.threshold = bt.savedSettings.threshold;
+    mic.cooldownMs = bt.savedSettings.cooldownMs;
+    mic.clickGuardMs = bt.savedSettings.clickGuardMs;
+    state.clickVolume = bt.savedSettings.clickVolume;
+    bt.savedSettings = null;
+    mic.prevPeak = 0;
+    mic.armed = true;
+    if (bt.debug) {
+        bt.debug.detectedClickCount = bt.onsets.length;
+        bt.debug.clickInputTestActive = false;
+        bt.debug.restoreCompleted = true;
+        bt.debug.restoreReason = reason || 'unknown';
+    }
+    console.info('[bt-click-input-test]', bt.debug);
+    return true;
+}
+
 async function startBtCal() {
     // 排他：他テストを止める
     if (hpAd.active) stopHpAutoDetect();
@@ -13868,6 +13934,7 @@ async function startBtCal() {
     bt.scheduled = [];
     bt.hasRun = true;
     bt.wave = [];
+    applyBtCalTestSettings();
     if (els.btCalResult) { els.btCalResult.classList.add('hidden'); els.btCalResult.innerHTML = ''; }
     if (els.btCalLive) els.btCalLive.classList.remove('hidden');
     if (els.btCalBtn) els.btCalBtn.textContent = 'クリック音入力テストを停止';
@@ -13890,9 +13957,16 @@ async function startBtCal() {
 
     const beatSec = PT_BEAT_MS / 1000;
     const startSec = bt.audioStart + PT_LEAD_MS / 1000;
-    for (let i = 0; i < PT_COUNTIN; i++) btScheduleClick(startSec + i * beatSec, i === 0);
-    const playStartSec = startSec + PT_COUNTIN * beatSec;
-    for (let j = 0; j < BT_PLAY_BEATS; j++) btScheduleClick(playStartSec + j * beatSec, j % 4 === 0);
+    try {
+        for (let i = 0; i < PT_COUNTIN; i++) btScheduleClick(startSec + i * beatSec, i === 0);
+        const playStartSec = startSec + PT_COUNTIN * beatSec;
+        for (let j = 0; j < BT_PLAY_BEATS; j++) btScheduleClick(playStartSec + j * beatSec, j % 4 === 0);
+    } catch (err) {
+        stopBtCal();
+        setBtCalStatus('クリック音を開始できませんでした。もう一度お試しください。');
+        console.error('[bt-click-input-test] schedule failed', err);
+        return;
+    }
 
     setBtCalStatus('カウントイン…');
     for (let j = 0; j < BT_PLAY_BEATS; j++) {
@@ -13906,13 +13980,14 @@ async function startBtCal() {
 
 /* 進行中のテストを止める（カードを離れる/排他時）。結果カードは触らない。 */
 function stopBtCal() {
-    if (!bt.active && !bt.timers.length) return;
+    if (!bt.active && !bt.timers.length && !bt.savedSettings) return;
     bt.active = false;
     bt.capturing = false;
     cancelAnimationFrame(bt.raf); bt.raf = 0;
     bt.timers.forEach(clearTimeout); bt.timers = [];
     bt.scheduled.forEach((o) => { try { o.stop(); } catch (_) { /* already stopped */ } });
     bt.scheduled = [];
+    restoreBtCalTestSettings('stopped');
     if (els.btCalLive) els.btCalLive.classList.add('hidden');
     if (els.btCalLaneWrap) els.btCalLaneWrap.classList.add('hidden');
     if (els.btCalBtn) els.btCalBtn.textContent = bt.hasRun ? 'もう1度テストする' : 'クリック音入力テストを開始';
@@ -13928,6 +14003,7 @@ function finishBtCal() {
     bt.active = false;
     bt.capturing = false;
     cancelAnimationFrame(bt.raf); bt.raf = 0;
+    restoreBtCalTestSettings('completed');
     if (els.btCalLive) els.btCalLive.classList.add('hidden');
     // v0.9.100：結果後もレーン（拍マーカー）は閉じず、各拍のズレを見られるようにする。
     if (els.btCalBtn) els.btCalBtn.textContent = bt.hasRun ? 'もう1度テストする' : 'クリック音入力テストを開始';
@@ -13956,6 +14032,7 @@ function finishBtCal() {
         }
     }
     const valid = just + early + late;
+    if (bt.debug) bt.debug.detectedClickCount = valid;
     const avg = validN ? Math.round(sum / validN) : 0;
     // 補正提案条件（v0.9.104→v0.9.105）：有効入力6以上・|平均ズレ|>=35ms。
     // ・v0.9.104：「方向が60%以上偏っている(biased)」条件を撤廃。
@@ -13993,6 +14070,7 @@ function finishBtCal() {
         autoFineApplied = true;
     }
     bt.result = { just, early, late, miss, valid, avg, cur, proposed, propose, fine, fineProposed, autoFineApplied, appliedOffset, enoughInput, perBeat };
+    console.info('[bt-click-input-test-result]', bt.debug);
     if (BT_DEBUG) {
         console.debug('[bt-cal-result]', {
             avg, valid, enoughInput, cur, proposed,
@@ -14066,7 +14144,7 @@ function renderBtCalResult(r) {
     const extra = perBeatListHtml(r.perBeat) + btManualBlockHtml(curShown, sub);
     let head, actions;
     if (!r.enoughInput) {
-        head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">入力が少なくて測れませんでした。クリック音がマイクへ入っていることを確認して、もう一度テストしてください。</p>';
+        head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">クリック音がマイクに十分入っていません。スマホ本体の音量を高めにし、イヤホン/マイクの接続を確認してから、もう一度テストしてください。</p>';
         actions = '<button type="button" class="rc-mic-action-secondary" id="bt-cal-rerun" style="' + primary + '">もう1度テストする</button>';
     } else if (r.propose) {
         head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">判定が' + (r.avg > 0 ? '遅め（LATE）' : '早め（EARLY）') + 'に大きくズレています。クリック音入力テストで合わせましょう。</p>';
@@ -17250,6 +17328,7 @@ function micTestDevelopmentLogText() {
             adjustedDelay: cal.adjustedDelay,
             proposedOffset: cal.proposedOffset,
         },
+        clickInputTest: bt.debug,
         micReactionTestRuns: micTestDebugRuns.slice(-3).map(micTestRunForDevelopmentLog),
     };
     return JSON.stringify(payload, (_key, value) => value === undefined ? null : value, 2);
@@ -19143,6 +19222,7 @@ function stopMic(opts) {
     mic.on = false;
     cancelAnimationFrame(mic.raf);
     cancelCalibration();
+    stopBtCal();
     if (mic.src) { try { mic.src.disconnect(); } catch (_) { } }
     if (mic.stream) mic.stream.getTracks().forEach((t) => t.stop());
     mic.stream = null; mic.src = null; mic.analyser = null; mic.buf = null;
@@ -19198,7 +19278,8 @@ function micLoop() {
     // ただし補正テスト（mic.calibrating/cal.active）はクリック音を確実に拾うのが目的なので、感度カーブで「鈍くする」
     // 方向(倍率>1)は効かせない＝基準しきい値(補正用 calThr)のままで検出する（クリックを取りこぼさない）。
     let sensMult = micSensitivityMultiplier();
-    if (mic.calibrating || cal.active || hpAd.active) sensMult = Math.min(sensMult, 1);
+    if (bt.active) sensMult = 1;
+    else if (mic.calibrating || cal.active || hpAd.active) sensMult = Math.min(sensMult, 1);
     const detThr = mic.threshold * sensMult * MIC_STAGE_DETECT_FACTOR;
     const crossed = peak >= detThr && mic.prevPeak < detThr;
     const bigRise = peak >= detThr && rise >= RISE_DELTA;
@@ -19301,8 +19382,8 @@ function micLoop() {
             // 判定と同じ「オーディオ時計＋判定オフセット（現在のBT補正込み）」で時刻化する。
             const tMs = (state.audioCtx.currentTime - bt.audioStart) * 1000 + micJudgeOffsetMs();
             if (peak > bt.maxPeak) bt.maxPeak = peak;
-            // 立ち上がり検出（STAGEと同じ検出しきい値・ブラッシング型）。手拍子/軽いストロークの鋭いアタックを拾う。
-            const btDetThr = ptDetectionThreshold();
+            // クリック入力専用しきい値で立ち上がりを検出する。Practice用感度・ガードには依存させない。
+            const btDetThr = bt.debug ? bt.debug.thresholdDuringClickInputTest : ptDetectionThreshold();
             const btCrossed = peak >= btDetThr && mic.prevPeak < btDetThr;
             const btBigRise = peak >= btDetThr && rise >= RISE_DELTA;
             if (peak < btDetThr * MIC_REARM_FACTOR) bt.armed = true;
@@ -19311,11 +19392,13 @@ function micLoop() {
             if (btOnset) {
                 bt.armed = false;
                 bt.lastOnsetAt = now;
-                const guarded = isClickGuardedOnset(now, peak, btLatestClickPerf(now), true);
+                // クリック音そのものを拾うテストなので、Practice用クリックガードは適用しない。
+                const guarded = false;
                 const cooled = (now - bt.lastDetectAt) > mic.cooldownMs;
                 if (!guarded && cooled) {
                     bt.lastDetectAt = now;
                     bt.onsets.push({ t: tMs, peak });
+                    if (bt.debug) bt.debug.clickPeaks.push(peak);
                 }
             }
         }
