@@ -924,6 +924,7 @@
                     <div class="cal-head">イヤホン音ズレの画面補正</div>
                 </div>
                 <p class="do-now">クリック音と丸の動きが同時に感じるように、スライダーで調整してください。</p>
+                <p class="setting-note hidden" id="hp-cal-from-click-note" style="color:#6ed28c;font-weight:600;"></p>
                 <details class="card-help">
                     <summary>詳しい説明</summary>
                     <p class="setting-note">テストを開始すると、右から丸が流れてきて、イヤホンからクリック音が鳴ります。音と丸の動きが「同時」に感じられるように、下のスライダーで合わせてください。クリック音が丸より遅れて聞こえる場合は、スライダーを右へ動かします。クリック音が丸より早く聞こえる場合は、左へ動かします。0ms＝補正なしです。練習時の判定には影響せず、音符がJUSTラインを通る見た目だけを調整します。</p>
@@ -993,10 +994,10 @@
                 <p class="do-now-sub">画面ではなく、聞こえているクリック音を基準にしてください</p>
                 <details class="card-help">
                     <summary>詳しい説明</summary>
-                    <p class="setting-note" id="bt-cal-guide">イヤホンから鳴るクリック音をマイクで拾い、マイク側の遅れを測ります。テスト中はクリック音を大きめに鳴らします。拍番号は入力回数の目安です。</p>
-                    <p class="setting-note">クリック入力が練習時の判定で0ms付近になるよう補正します。クリック音をマイクへ入力できない場合は、クリックに合わせた手拍子でも確認できます。ただし手拍子の個人差が結果に含まれます。</p>
+                    <p class="setting-note" id="bt-cal-guide">イヤホンから鳴るクリック音をマイクで拾い、マイク側の遅れを測ります。テスト中は検出しやすいよう、アプリ内のクリック音量を一時的に大きくします。</p>
+                    <p class="setting-note">有線はズレが小さいことが多く、測れない場合はスキップできます。Bluetoothは遅れが大きくなりやすいため、できるだけテストしてください。</p>
                 </details>
-                <p class="setting-note" style="margin-top:8px;"><a href="click-input-help.html" style="color:var(--secondary-color);font-weight:700;">計測のコツを見る</a></p>
+                <p class="setting-note" style="margin-top:8px;"><a href="click-input-help.html?return=standard" style="color:var(--secondary-color);font-weight:700;">計測のコツを見る</a></p>
                 <!-- 流れる👏＋判定ライン＋反応ライン＋入力波形（最終確認テストと同じ考え方・v0.9.81） -->
                 <div class="test-lane-wrap hidden" id="bt-cal-lane-wrap">
                     <canvas id="bt-cal-lane-canvas"></canvas>
@@ -1010,6 +1011,8 @@
                 <button class="btn-mic cal-run-btn test-start-btn rc-mic-action-primary" id="bt-cal-btn">クリック音入力テストを開始</button>
                 <p class="cal-status" id="bt-cal-status"></p>
                 <div class="cal-result hidden" id="bt-cal-result"></div>
+                <p class="setting-note hidden" id="bt-cal-skip-wired-note" style="margin:10px 0 4px;">有線イヤホンはズレが小さいため、うまく測れない場合はスキップできます。</p>
+                <button type="button" class="btn-mini hidden" id="bt-cal-skip-wired" style="width:100%;margin-top:6px;">スキップして最終確認へ進む</button>
                 <!-- 参考：イヤホン自己収音テスト。ロジックは保持し、通常導線からは非表示。 -->
                 <div id="hp-ad-tools" hidden>
                 <hr style="border:none;border-top:1px solid rgba(255,255,255,0.1);margin:14px 0 10px;">
@@ -1378,7 +1381,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.11.26"></script>
+    <script src="script.js?v=0.11.27"></script>
 </body>
 
 </html>

@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.26';
+const RHYTHM_CRUISE_VERSION = '0.11.27';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -1127,6 +1127,9 @@ const els = {
     btCalBtn: $('bt-cal-btn'),
     btCalStatus: $('bt-cal-status'),
     btCalResult: $('bt-cal-result'),
+    btCalSkipWired: $('bt-cal-skip-wired'),
+    btCalSkipWiredNote: $('bt-cal-skip-wired-note'),
+    hpCalFromClickNote: $('hp-cal-from-click-note'),
     hpAdBtn: $('hp-ad-btn'),
     hpAdResult: $('hp-ad-result'),
     hpAdApplyBtn: $('hp-ad-apply-btn'),
@@ -13841,6 +13844,13 @@ function renderBtCalIdle() {
     if (els.btCalLaneWrap) els.btCalLaneWrap.classList.add('hidden');
     if (els.btCalPhase) els.btCalPhase.textContent = '';
     updateBtCalBadge();
+    updateBtCalSkipUI();
+}
+
+function updateBtCalSkipUI() {
+    const show = isHeadphoneInput() && !isBluetoothHeadphone() && !bt.active;
+    if (els.btCalSkipWired) els.btCalSkipWired.classList.toggle('hidden', !show);
+    if (els.btCalSkipWiredNote) els.btCalSkipWiredNote.classList.toggle('hidden', !show);
 }
 
 function btClickInputThreshold() {
@@ -13939,6 +13949,7 @@ async function startBtCal() {
     if (els.btCalResult) { els.btCalResult.classList.add('hidden'); els.btCalResult.innerHTML = ''; }
     if (els.btCalLive) els.btCalLive.classList.remove('hidden');
     if (els.btCalBtn) els.btCalBtn.textContent = 'クリック音入力テストを停止';
+    updateBtCalSkipUI();
 
     bt.audioStart = ctx.currentTime;
     bt.flowStartPerf = performance.now();
@@ -13993,6 +14004,7 @@ function stopBtCal() {
     if (els.btCalLaneWrap) els.btCalLaneWrap.classList.add('hidden');
     if (els.btCalBtn) els.btCalBtn.textContent = bt.hasRun ? 'もう1度テストする' : 'クリック音入力テストを開始';
     setBtCalStatus('');
+    updateBtCalSkipUI();
 }
 
 function toggleBtCal() {
@@ -14008,6 +14020,7 @@ function finishBtCal() {
     if (els.btCalLive) els.btCalLive.classList.add('hidden');
     // v0.9.100：結果後もレーン（拍マーカー）は閉じず、各拍のズレを見られるようにする。
     if (els.btCalBtn) els.btCalBtn.textContent = bt.hasRun ? 'もう1度テストする' : 'クリック音入力テストを開始';
+    updateBtCalSkipUI();
 
     let just = 0, early = 0, late = 0, miss = 0, sum = 0, validN = 0;
     const used = new Array(bt.onsets.length).fill(false);
@@ -14169,8 +14182,10 @@ function renderBtCalResult(r) {
         if (isBluetoothHeadphone()) {
             head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">判定タイミングのズレは小さめです。次に、クリック音と画面表示の見た目を合わせます。</p>';
         }
+        const volumeNote = '<p class="setting-note" style="margin:8px 0 0;font-size:0.78rem;">※音量を上げて計測した場合は、次の確認前にスマホ本体音量を少し下げてください。</p>';
         actions =
             '<button type="button" class="rc-mic-action-primary" id="bt-cal-proceed" style="' + primary + '">' + proceedLabel + '</button>' +
+            volumeNote +
             '<button type="button" class="rc-mic-action-secondary" id="bt-cal-rerun" style="' + sub + '">もう1度テストする</button>';
         els.btCalResult.innerHTML = head + autoNote + rows + extra + '<div style="margin-top:6px;">' + actions + '</div>';
         els.btCalResult.classList.remove('hidden');
@@ -14250,10 +14265,31 @@ function applyBtCal() {
 function completeBtCalStep() {
     stopBtCal();
     setupProgress.btDelayDone = true;
+    if (isBluetoothHeadphone() && bt.result && bt.result.enoughInput) {
+        const displayOffset = Math.max(HP_OFFSET_MIN, Math.min(HP_OFFSET_MAX, -headphoneMicOffsetGet()));
+        setHeadphoneOffset(displayOffset);
+        setupProgress.correctionDone = false;
+        if (els.hpCalFromClickNote) {
+            const displayOffsetText = (displayOffset > 0 ? '+' : '') + displayOffset + 'ms';
+            els.hpCalFromClickNote.textContent = 'クリック音入力テストの結果をもとに、画面補正の初期値を ' + displayOffsetText + ' に設定しました。次のテストで見た目と音のズレを確認してください。';
+            els.hpCalFromClickNote.classList.remove('hidden');
+        }
+    }
     wizardEditing = null;
     if (settingsView === 'steps') {
         renderSettingsView();
         scrollToSettingsEl(isBluetoothHeadphone() ? els.hpCalCard : els.ptCard);
+    }
+}
+
+function skipWiredBtCal() {
+    if (!isHeadphoneInput() || isBluetoothHeadphone()) return;
+    stopBtCal();
+    setupProgress.btDelayDone = true;
+    wizardEditing = null;
+    if (settingsView === 'steps') {
+        renderSettingsView();
+        scrollToSettingsEl(els.ptCard);
     }
 }
 
@@ -17038,6 +17074,23 @@ function openSettings(from) {
     requestAnimationFrame(fitPreview); // 表示後にサイズ確定→プレビュー描画
 }
 
+function resumeClickInputFromHelp() {
+    let url;
+    try { url = new URL(window.location.href); } catch (_) { return; }
+    if (url.searchParams.get('resume') !== 'click-input') return;
+    url.searchParams.delete('resume');
+    try { history.replaceState(null, '', url.pathname + (url.search ? url.search : '') + (url.hash || '')); } catch (_) { /* noop */ }
+    openSettings('home');
+    if (!isHeadphoneInput()) return;
+    setupProgress.inputChosen = true;
+    setupProgress.hpChosen = true;
+    setupProgress.recoApplied = true;
+    settingsView = 'steps';
+    wizardEditing = 'btdelay';
+    renderSettingsView();
+    requestAnimationFrame(() => scrollToSettingsEl(els.btCalCard));
+}
+
 function closeSettings() {
     if (hpAd.active) stopHpAutoDetect();
     if (cal.active) cancelCalibration();
@@ -17555,6 +17608,10 @@ function resetBtCalTransientUiState() {
     if (els.btCalResult) {
         els.btCalResult.classList.add('hidden');
         els.btCalResult.innerHTML = '';
+    }
+    if (els.hpCalFromClickNote) {
+        els.hpCalFromClickNote.classList.add('hidden');
+        els.hpCalFromClickNote.textContent = '';
     }
     if (els.btCalStatus) els.btCalStatus.textContent = '';
     if (els.btCalPhase) els.btCalPhase.textContent = '';
@@ -20799,6 +20856,7 @@ function bind() {
     if (els.btCalBtn) els.btCalBtn.addEventListener('click', toggleBtCal);
     // イヤホン自己収音テスト（実験）
     if (els.hpAdBtn) els.hpAdBtn.addEventListener('click', startHpAutoDetect);
+    if (els.btCalSkipWired) els.btCalSkipWired.addEventListener('click', skipWiredBtCal);
     if (els.hpAdApplyBtn) els.hpAdApplyBtn.addEventListener('click', applyHpAutoDetect);
     // 見返しレーンの「最初へ / 最後へ」（v0.9.74）
     if (els.ptReviewFirst) els.ptReviewFirst.addEventListener('click', () => { if (els.ptReviewScroll) els.ptReviewScroll.scrollTo({ left: 0, behavior: 'smooth' }); });
@@ -21321,6 +21379,7 @@ function init() {
     document.addEventListener('click', handleProLockedTapCapture, true); // 通常版PRO専用コントロールのタップ案内（v0.9.240）
     setClickEnabled(true);
     show('home');
+    resumeClickInputFromHelp();
 }
 
 document.addEventListener('DOMContentLoaded', init);
