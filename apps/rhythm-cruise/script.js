@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.21';
+const RHYTHM_CRUISE_VERSION = '0.11.22';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -17122,6 +17122,15 @@ function micTestRunForDevelopmentLog(run) {
         projClickAt100: run.projClickAt100,
         targetClickMax: run.targetClickMax,
         recoVol: run.recoVol,
+        clickVolSafeRate: run.clickVolSafeRate,
+        recoVolBeforeSafetyCap: run.recoVolBeforeSafetyCap,
+        safeClickVol88: run.safeClickVol88,
+        recoVolAfterSafetyCap: run.recoVolAfterSafetyCap,
+        safetyCapApplied: run.safetyCapApplied,
+        projectedClickBeforeSafetyCap: run.projectedClickBeforeSafetyCap,
+        projectedClickAfterSafetyCap: run.projectedClickAfterSafetyCap,
+        beforeSafetyCapToEffectiveLineRatio: run.beforeSafetyCapToEffectiveLineRatio,
+        afterSafetyCapToEffectiveLineRatio: run.afterSafetyCapToEffectiveLineRatio,
         projectedClickAtReco: run.projectedClickAtReco,
         noiseP95: run.noiseP95,
         noiseMax: run.noiseMax,
@@ -18499,11 +18508,11 @@ function updateReco() {
     //   表示(els.recoClickVol)・test.recoClickVolume・適用後目安(projClickMax) すべて80%基準にそろえる。
     //   通常マイクのおすすめ算出式は一切変更しない。
     if (shouldUseEarphoneMicTestFeatures()) recoVol = EARPHONE_CLICK_VOLUME_FIXED;
-    test.recoClickVolume = recoVol;
-    els.recoClickVol.textContent = recoVol + '％';
-    // おすすめ音量を適用したときのクリック音最大の「目安」（線形近似）。
-    test.projClickMax = (peakPerPct > 0) ? (peakPerPct * recoVol) : (maxClick > 0 ? maxClick : null);
-    const postClick = (test.projClickMax != null) ? test.projClickMax : maxClick; // 適用後に想定されるクリック最大
+    const recoVolBeforeSafetyCap = recoVol;
+    const projectedClickBeforeSafetyCap = (peakPerPct > 0)
+        ? peakPerPct * recoVolBeforeSafetyCap
+        : (maxClick > 0 ? maxClick : null);
+    const postClick = projectedClickBeforeSafetyCap != null ? projectedClickBeforeSafetyCap : maxClick;
 
     // ① STAGE用反応ライン：適用後クリック最大(postClick)とストローク最小の「間」に置く。
     //    STAGEの目的＝クリックを拾わずストロークを拾う。クリックより上・ストローク最小より下。
@@ -18627,15 +18636,31 @@ function updateReco() {
         }
     }
 
-    // 診断表示専用：おすすめ適用後の感度カーブ込み実効ラインと、各入力ピークとの比率。
-    // 保存値・おすすめ算出・判定には使わず、警告分類と debugMic の実測確認だけに使う。
+    // おすすめ適用後の感度カーブ込み実効ライン。判定ライン自体は再計算せず、
+    // 通常マイクのクリック音量安全上限と、警告分類・debugMic の実測確認に使う。
     const ratioTo = (value, base) => (
         typeof value === 'number' && isFinite(value) && typeof base === 'number' && isFinite(base) && base > 0
     ) ? value / base : null;
     const effectiveRecommendedThreshold = test.recommended != null
         ? test.recommended * micLowSensitivityThresholdMultiplier(recoSensDisplay(test.recommended, lowInputTuned))
         : null;
+    // 通常マイクだけ、現行計算後の実効判定ラインを基準にクリック音量の安全上限を適用する。
+    // recommendedThreshold は再計算せず、既存の感度・判定ライン計算をそのまま維持する。
+    const clickVolSafeRate = 0.88;
+    const safeClickVol88 = isNormalMicInput() && peakPerPct > 0 && effectiveRecommendedThreshold != null
+        ? Math.floor(effectiveRecommendedThreshold * clickVolSafeRate / peakPerPct)
+        : null;
+    if (safeClickVol88 != null) {
+        recoVol = Math.max(10, Math.min(100, Math.min(recoVolBeforeSafetyCap, safeClickVol88)));
+    }
+    const safetyCapApplied = recoVol < recoVolBeforeSafetyCap;
+    test.recoClickVolume = recoVol;
+    els.recoClickVol.textContent = recoVol + '％';
+    test.projClickMax = (peakPerPct > 0) ? (peakPerPct * recoVol) : (maxClick > 0 ? maxClick : null);
+    const projectedClickAfterSafetyCap = test.projClickMax;
     const clickEnoughRatioAtReco = ratioTo(test.projClickMax, targetClickMax);
+    const beforeSafetyCapToEffectiveLineRatio = ratioTo(projectedClickBeforeSafetyCap, effectiveRecommendedThreshold);
+    const afterSafetyCapToEffectiveLineRatio = ratioTo(projectedClickAfterSafetyCap, effectiveRecommendedThreshold);
     const projectedClickToEffectiveLineRatio = ratioTo(test.projClickMax, effectiveRecommendedThreshold);
     const noiseMaxToEffectiveLineRatio = ratioTo(test.noiseMax, effectiveRecommendedThreshold);
     const noiseP95ToEffectiveLineRatio = ratioTo(test.noiseP95, effectiveRecommendedThreshold);
@@ -18851,6 +18876,15 @@ function updateReco() {
         projClickAt100: peakPerPct > 0 ? peakPerPct * 100 : null,
         targetClickMax,
         recoVol,
+        clickVolSafeRate,
+        recoVolBeforeSafetyCap,
+        safeClickVol88,
+        recoVolAfterSafetyCap: recoVol,
+        safetyCapApplied,
+        projectedClickBeforeSafetyCap,
+        projectedClickAfterSafetyCap,
+        beforeSafetyCapToEffectiveLineRatio,
+        afterSafetyCapToEffectiveLineRatio,
         projectedClickAtReco: test.projClickMax,
         effectiveRecommendedThreshold,
         clickEnoughRatioAtReco,
