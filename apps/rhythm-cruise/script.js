@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.12';
+const RHYTHM_CRUISE_VERSION = '0.11.13';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -889,7 +889,12 @@ const test = {
     flow: false,   // 自動フロー実行中
     rescueHighSens: false, // 再テスト時に、最初から高感度寄りで拾い直す救済モード
     autoRetestCount: 0,    // このテスト一連での自動再テスト回数（最大1回）
+    runDebug: null,        // 開発用：現在実行中の測定条件スナップショット
 };
+let micTestRunSeq = 0;
+let micAcquireCount = 0;
+const micTestDebugRuns = [];
+const micLifecycleDebugEvents = [];
 
 /* ── 要素参照 ───────────────────────────────────────────── */
 const $ = (id) => document.getElementById(id);
@@ -6330,6 +6335,11 @@ function micDebugText() {
     }
     let calVol = '-';
     try { calVol = calibrationClickVolume(); } catch (_) { /* noop */ }
+    let micTestRuns = '-';
+    if (micTestDebugRuns.length) {
+        try { micTestRuns = micTestDebugRuns.map((x) => JSON.stringify(x)).join('\n'); }
+        catch (_) { micTestRuns = '[unavailable]'; }
+    }
     return 'debugMic: ' + (MIC_DEBUG_ON ? 'on' : 'off') + '\n'
         + 'inputType: ' + getMicInputType() + '\n'
         + 'isNormalMic: ' + isNormalMicInput() + '\n'
@@ -6348,6 +6358,8 @@ function micDebugText() {
         + 'ctx.outputLatency: ' + (state.audioCtx && state.audioCtx.outputLatency != null ? (state.audioCtx.outputLatency * 1000).toFixed(1) + 'ms' : '-') + '\n'
         + 'ctx.baseLatency: ' + (state.audioCtx && state.audioCtx.baseLatency != null ? (state.audioCtx.baseLatency * 1000).toFixed(1) + 'ms' : '-') + '\n'
         + 'ctx.sampleRate: ' + (state.audioCtx ? state.audioCtx.sampleRate : '-') + '\n'
+        + '--- Mic reaction test runs (latest ' + micTestDebugRuns.length + ') ---\n'
+        + micTestRuns + '\n'
         + 'ua: ' + navigator.userAgent + '\n'
         + '--- Practice recording ---\n'
         + 'status: ' + (rec ? rec.status : '-') + '\n'
@@ -17035,6 +17047,47 @@ function micExclude(reason) {
    タップモードへ戻す/停止/画面を離れると、完了後に mic.on=true になってしまう恐れがある。
    起動開始時に世代を進め、完了時に世代が変わっていたら取得した stream を即停止して mic.on にしない。 */
 let micStartGeneration = 0;
+function recordMicLifecycleDebugEvent(type) {
+    micLifecycleDebugEvents.push({ type, at: new Date().toISOString(), perfMs: Math.round(performance.now()) });
+    if (micLifecycleDebugEvents.length > 12) micLifecycleDebugEvents.splice(0, micLifecycleDebugEvents.length - 12);
+}
+function micTestTrackDebugSnapshot() {
+    const track = mic.stream && mic.stream.getAudioTracks ? mic.stream.getAudioTracks()[0] : null;
+    if (!track) return null;
+    let settings = null;
+    try { settings = typeof track.getSettings === 'function' ? track.getSettings() : null; } catch (_) { settings = null; }
+    return { label: track.label || '', readyState: track.readyState || '', muted: !!track.muted, enabled: track.enabled !== false, settings };
+}
+function micTestAudioContextDebugSnapshot() {
+    const ctx = state.audioCtx;
+    return ctx ? {
+        state: ctx.state,
+        sampleRate: ctx.sampleRate,
+        baseLatency: ctx.baseLatency != null ? ctx.baseLatency : null,
+        outputLatency: ctx.outputLatency != null ? ctx.outputLatency : null,
+    } : null;
+}
+function medianNumber(values) {
+    const sorted = (values || []).filter((v) => typeof v === 'number' && isFinite(v)).slice().sort((a, b) => a - b);
+    return sorted.length ? sorted[Math.floor(sorted.length / 2)] : null;
+}
+function completeMicTestRunDebug(details) {
+    if (!test.runDebug || test.runDebug.completed) return;
+    const snapshot = {
+        ...test.runDebug,
+        ...details,
+        completed: true,
+        completedAt: new Date().toISOString(),
+        audioResult: micTestAudioContextDebugSnapshot(),
+        trackResult: micTestTrackDebugSnapshot(),
+        micAcquireCountAtResult: micAcquireCount,
+        lifecycleAtResult: micLifecycleDebugEvents.slice(),
+    };
+    test.runDebug = snapshot;
+    micTestDebugRuns.push(snapshot);
+    if (micTestDebugRuns.length > 6) micTestDebugRuns.splice(0, micTestDebugRuns.length - 6);
+    if (MIC_DEBUG_ON || MIC_DEBUG) console.info('[mic-test-run]', snapshot);
+}
 async function startMic() {
     if (mic.on) return;
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -17071,6 +17124,8 @@ async function startMic() {
         mic.buf = new Float32Array(mic.analyser.fftSize);
         mic.src.connect(mic.analyser); // destination には繋がない（ハウリング防止）
         mic.on = true;
+        micAcquireCount++;
+        recordMicLifecycleDebugEvent('mic-acquired');
         mic.prevPeak = 0;
         mic.env = 0;
         if (els.micCard) els.micCard.classList.remove('mic-error');
@@ -17241,6 +17296,7 @@ function resetMicReactionTestRunDisplay() {
     test.recoClickVolume = null;
     test.projClickMax = null;
     test.flowSavedClickVolume = null;
+    test.runDebug = null;
     test.lowInputTuned = false;
     test.btStrokePeriodMax = null;
     test.btStrokePeriodP75 = null;
@@ -17444,7 +17500,7 @@ function toggleMicTest() {
     test.rescueHighSens = false;  // 通常テスト開始時は救済モードを解除（従来どおりの検出しきい値）
     test.autoRetestCount = 0;     // 一連の自動再テスト回数もリセット
     scrollToSettingsEl(els.testCard); // カード上部（タイトル/「今やること」/説明）が隠れないように（v0.9.92）
-    startMicTestFlow({ normalInitialClickBoost: true });
+    startMicTestFlow({ normalInitialClickBoost: true, startRoute: 'main' });
 }
 
 function boostNormalMicTestClickVolumeOnce(options) {
@@ -17461,16 +17517,36 @@ function restoreMicTestClickVolume() {
 }
 
 async function startMicTestFlow(options = {}) {
+    const startRoute = ['main', 'auto-retest', 'recommended-retest'].includes(options.startRoute)
+        ? options.startRoute : 'unknown';
     if (hpAd.active) stopHpAutoDetect();
     if (pt.active) stopPracticeTest(); // 最終確認テストと排他
     stopBtCal(); // マイクの遅れ補正と排他
     resetMicDelayCalibrationUiState();
     resetBtCalTransientUiState();
     resetMicReactionTestRunDisplay();
+    const startClickVolume = state.clickVolume;
     if (!(await ensureTestMic())) { setTestResult('マイクを許可してください。', 'ng'); showMicPermHelp(); return; }
     hideMicPermHelp(); // v0.9.160：開始できたので許可エラー案内は隠す
     test.flow = true;
+    test.runDebug = {
+        runId: ++micTestRunSeq,
+        startRoute,
+        inputType: getMicInputType(),
+        headphoneType: isHeadphoneInput() ? getHeadphoneType() : null,
+        normalInitialClickBoost: !!options.normalInitialClickBoost,
+        normalInitialClickBoostApplied: !!options.normalInitialClickBoost && isNormalMicInput(),
+        startClickVolume,
+        startedAt: new Date().toISOString(),
+        startedPerfMs: Math.round(performance.now()),
+        micAcquireCount,
+        audioStart: micTestAudioContextDebugSnapshot(),
+        trackStart: micTestTrackDebugSnapshot(),
+        lifecycleAtStart: micLifecycleDebugEvents.slice(),
+        completed: false,
+    };
     boostNormalMicTestClickVolumeOnce(options);
+    test.runDebug.clickVolumeAfterBoost = state.clickVolume;
     // イヤホン接続は初回テストから高感度寄り（救済しきい値）で拾いにいく。auto/normalは従来どおり。
     if (shouldStartMicTestInHighSensitivity()) test.rescueHighSens = true;
     test.clickDone = false; test.strokeDone = false;
@@ -18140,7 +18216,7 @@ function updateReco() {
             setTestResult(test.rescueHighSens
                 ? '入力が小さめなので、もう一度高感度で確認します。'
                 : 'ストロークをもう一度確認します。', '');
-            test.timers.push(setTimeout(() => { if (!test.flow) startMicTestFlow(); }, AUTO_RETEST_DELAY_MS));
+            test.timers.push(setTimeout(() => { if (!test.flow) startMicTestFlow({ startRoute: 'auto-retest' }); }, AUTO_RETEST_DELAY_MS));
             return;
         }
     }
@@ -18221,6 +18297,7 @@ function updateReco() {
     //    目標＝クリック音最大がストローク最小の半分以下。
     const measureVol = Math.max(1, test.clickMeasureVol || state.clickVolume || 1);
     const peakPerPct = (maxClick > 0) ? maxClick / measureVol : 0; // 1%あたりの想定クリックピーク
+    let targetClickMax = null; // 開発ログにも同じ算出途中値を残す（おすすめ計算には従来どおり使用）
     let recoVol = state.clickVolume;
     if (minStroke != null && peakPerPct > 0) {
         // v0.9.142（再調整）：実機で本体音量最大でもクリックが聞こえにくく、おすすめクリック音量も低め（42%）だったため、
@@ -18229,7 +18306,7 @@ function updateReco() {
         //   “ラインは超えない／ストロークは超える”を保つ。小さすぎるクリックは上げ・大きすぎるクリックは下げる（クランプ 10〜100%）。
         //   クリックが上がっても上限はラインの下に収まる。ライン超え（クリックも拾いやすい状態）は従来どおり cannotSeparate 経由で警告。
         const lineEstimate = minStroke * 0.92;             // ①で置く判定ラインのおおよその位置（上限0.92に合わせた概算）
-        const targetClickMax = Math.min(lineEstimate * 0.88, minStroke * 0.85); // ライン約88%・かつストローク0.85倍以下（クリックは大きめ・ラインは超えない）
+        targetClickMax = Math.min(lineEstimate * 0.88, minStroke * 0.85); // ライン約88%・かつストローク0.85倍以下（クリックは大きめ・ラインは超えない）
         recoVol = Math.round(targetClickMax / peakPerPct);
         recoVol = Math.max(10, Math.min(100, recoVol));    // 小さすぎるクリックは上げ・大きすぎるクリックは下げる（両方向）
     } else if (clickReacted > 0) {
@@ -18486,8 +18563,8 @@ function updateReco() {
         } else if (clickVolHigh) {
             // v0.9.157：クリック音量が高め時は赤系カードで少し目立たせる（見落とし防止）。
             els.recoDeviceVolNote.className = 'reco-device-vol-note reco-device-vol-note--alert';
-            els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音量が高めに設定されています。</b><br>'
-                + 'スマホ本体の音量を少し上げると、補正テストが安定しやすくなります。'
+            els.recoDeviceVolNote.innerHTML = '<b>⚠ アプリ内クリック音量のおすすめが高めです。</b><br>'
+                + '未適用のおすすめ値で、スマホ本体の音量とは別です。聞こえにくい場合は、端末のメディア音量と出力先を確認してください。'
                 + recoRetestButtonHtml();
         } else {
             els.recoDeviceVolNote.className = 'reco-device-vol-note hidden';
@@ -18570,6 +18647,28 @@ function updateReco() {
         test.btDiag = null;
     }
     renderBtMicDiagnostic();
+
+    completeMicTestRunDebug({
+        clickMeasureVol: test.clickMeasureVol,
+        resultClickVolume: state.clickVolume,
+        clickPeaks: (test.clickPeaks || []).slice(),
+        maxClickPeak: maxClick,
+        clickMedian: medianNumber(test.clickPeaks || []),
+        maxClickAfterFirst: (test.clickPeaks || []).length > 1 ? Math.max(...test.clickPeaks.slice(1)) : null,
+        peakPerPct,
+        projClickAt100: peakPerPct > 0 ? peakPerPct * 100 : null,
+        targetClickMax,
+        recoVol,
+        projectedClickAtReco: test.projClickMax,
+        noiseP95: test.noiseP95,
+        noiseMax: test.noiseMax,
+        strokePeaks: (test.strokePeaks || []).slice(),
+        minStrokePeak: minStroke,
+        strokeP25: test.strokeP25,
+        recommendedThreshold: test.recommended,
+        currentThreshold: mic.threshold,
+        cooldownMs: mic.cooldownMs,
+    });
 
     if (MIC_DEBUG) {
         const sp = test.strokePeaks || [];
@@ -18745,7 +18844,7 @@ function retestMicWithRecommendedSettings() {
     applyRecoValues(false);
     test.rescueHighSens = shouldStartMicTestInHighSensitivity();
     test.autoRetestCount = 0;
-    startMicTestFlow();
+    startMicTestFlow({ startRoute: 'recommended-retest' });
 }
 
 function stopMic(opts) {
@@ -20776,18 +20875,20 @@ function bind() {
     // 画面非表示/離脱で安全停止（v0.9.133）。自動再開はしない＝復帰後はユーザーが再度「開始」を押す。
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
+            recordMicLifecycleDebugEvent('visibility-hidden');
             stopForPageHidden();
         } else {
+            recordMicLifecycleDebugEvent('visibility-visible');
             // iOS Safariスリープ復帰時にAudioContextをベストエフォートで復帰させる（v0.9.208）。
             // 音は自動で鳴らさない。復帰処理のみ。
             tryResumeAudio();
         }
     });
     // iOS Safari / ホーム画面アプリでは visibilitychange を取りこぼすことがあるため pagehide でも安全停止。
-    window.addEventListener('pagehide', stopForPageHidden);
+    window.addEventListener('pagehide', () => { recordMicLifecycleDebugEvent('pagehide'); stopForPageHidden(); });
     // スリープ/バックグラウンド復帰時の追加フォールバック（v0.9.208）。
-    window.addEventListener('pageshow', () => { tryResumeAudio(); });
-    window.addEventListener('focus', () => { tryResumeAudio(); });
+    window.addEventListener('pageshow', () => { recordMicLifecycleDebugEvent('pageshow'); tryResumeAudio(); });
+    window.addEventListener('focus', () => { recordMicLifecycleDebugEvent('focus'); tryResumeAudio(); });
 }
 
 /* ── ページ更新（キャッシュバスター付き・シリーズ共通の挙動） ── */
