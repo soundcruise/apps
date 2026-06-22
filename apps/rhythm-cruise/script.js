@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.25';
+const RHYTHM_CRUISE_VERSION = '0.11.26';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -12707,6 +12707,7 @@ const BT_DEBUG = false;
    既存の「大きな補正」とは別枠。符号ルールは大きな補正と同じ（new = cur - avg）。 */
 const BT_FINE_STEP_CLAMP = 30;      // 1回の微調整で動かす量の上限(ms)
 const BT_PLAY_BEATS = PT_PLAY_BEATS; // 8回入力（最終確認テストと同じ）
+const SHOW_BT_CAL_ADVANCED_UI = false; // 拍ごとのズレ・手動微調整はロジックを残して通常UIから隠す
 const BT_CLICK_INPUT_THRESHOLD_FLOOR = 0.005;
 const BT_CLICK_INPUT_THRESHOLD_CEIL = 0.03;
 const BT_CLICK_INPUT_COOLDOWN_MS = 120;
@@ -14141,7 +14142,9 @@ function renderBtCalResult(r) {
         '<div class="cal-result-row"><span>平均ズレ</span><b>' + avgTxt + '</b></div>' +
         '<div class="cal-result-row"><span>現在のクリック入力の補正値</span><b id="bt-cal-cur">' + sign(curShown) + '</b></div>';
     // v0.9.100：拍ごとのズレリスト＋手動スライダー（bluetoothMicOffsetMs用）。
-    const extra = perBeatListHtml(r.perBeat) + btManualBlockHtml(curShown, sub);
+    const extra = SHOW_BT_CAL_ADVANCED_UI
+        ? perBeatListHtml(r.perBeat) + btManualBlockHtml(curShown, sub)
+        : '';
     let head, actions;
     if (!r.enoughInput) {
         head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">クリック音がマイクに十分入っていません。スマホ本体の音量を高めにし、イヤホン/マイクの接続を確認してから、もう一度テストしてください。</p>';
@@ -14162,15 +14165,19 @@ function renderBtCalResult(r) {
         const autoNote = r.autoFineApplied
             ? '<p class="cal-status" style="color:#6ed28c;font-weight:600;margin-top:6px;">最新の平均ズレ（' + avgTxt + '）に合わせて、クリック入力の補正値を ' + sign(r.appliedOffset) + ' に微調整しました。</p>'
             : '';
+        const proceedLabel = isBluetoothHeadphone() ? 'イヤホン音ズレの画面補正へ進む' : '最終確認テストへ進む';
+        if (isBluetoothHeadphone()) {
+            head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">判定タイミングのズレは小さめです。次に、クリック音と画面表示の見た目を合わせます。</p>';
+        }
         actions =
-            '<button type="button" class="rc-mic-action-primary" id="bt-cal-proceed" style="' + primary + '">最終確認テストへ進む</button>' +
+            '<button type="button" class="rc-mic-action-primary" id="bt-cal-proceed" style="' + primary + '">' + proceedLabel + '</button>' +
             '<button type="button" class="rc-mic-action-secondary" id="bt-cal-rerun" style="' + sub + '">もう1度テストする</button>';
         els.btCalResult.innerHTML = head + autoNote + rows + extra + '<div style="margin-top:6px;">' + actions + '</div>';
         els.btCalResult.classList.remove('hidden');
         bindBtCalResultActions();
         return;
     }
-    els.btCalResult.innerHTML = head + rows + perBeatListHtml(r.perBeat) + '<div style="margin-top:6px;">' + actions + '</div>';
+    els.btCalResult.innerHTML = head + rows + extra + '<div style="margin-top:6px;">' + actions + '</div>';
     els.btCalResult.classList.remove('hidden');
     bindBtCalResultActions();
 }
@@ -14239,14 +14246,14 @@ function applyBtCal() {
     setBtCalStatus('クリック入力の補正値を ' + (v > 0 ? '+' : '') + v + 'ms に設定しました。');
 }
 
-/* マイクの遅れ補正ステップ完了 → 最終確認テストへ。 */
+/* クリック音入力テスト完了。有線は最終確認へ、Bluetoothは画面補正へ進む。 */
 function completeBtCalStep() {
     stopBtCal();
     setupProgress.btDelayDone = true;
     wizardEditing = null;
     if (settingsView === 'steps') {
         renderSettingsView();
-        scrollToSettingsEl(els.ptCard);
+        scrollToSettingsEl(isBluetoothHeadphone() ? els.hpCalCard : els.ptCard);
     }
 }
 
@@ -15361,13 +15368,12 @@ function escapeHtml(t) {
 }
 
 /* ── ウィザードのステップ定義 ───────────────────────────────
-   input(=入力タイプ＋イヤホン種類) → stroke → test → correction → [btdelay] → practice → final(手動＋プリセット)
-   btdelay（マイクの遅れ補正）は Bluetoothイヤホン時だけ補正(correction)の後に差し込む（v0.9.80）。 */
+   input(=入力タイプ＋イヤホン種類) → test → イヤホン時はbtdelay → correction → practice → final。 */
 function wizardSteps() {
     // 入力タイプ別にステップを動的に組み立てる（v0.9.89）。
     // 通常マイク：input → stroke → test → correction(マイクの遅れ補正) → practice → final
     // 有線イヤホン：input → hptype → stroke → test → practice → final（音ズレ補正は出さない）
-    // Bluetooth：input → hptype → stroke → test → correction(イヤホン音ズレの画面補正) → btdelay → practice → final
+    // Bluetooth：input → hptype → test → btdelay(クリック音入力) → correction(画面補正) → practice → final
     const steps = ['input'];
     if (isHeadphoneInput()) steps.push('hptype');
     // v0.10.20：ストローク検出モード（ブラッシング/コード）のユーザー選択ステップは廃止。
@@ -15376,9 +15382,9 @@ function wizardSteps() {
     if (!isHeadphoneInput()) {
         steps.push('correction');            // 通常マイク：マイクの遅れ補正
     } else if (isBluetoothHeadphone()) {
-        steps.push('correction', 'btdelay'); // Bluetooth：イヤホン音ズレの画面補正＋マイクの遅れ補正
+        steps.push('btdelay', 'correction'); // Bluetooth：クリック音入力テスト後に画面補正
     } else {
-        steps.push('btdelay');               // 有線イヤホン：手拍子によるマイクの遅れ補正（v0.9.152で追加）
+        steps.push('btdelay');               // 有線イヤホン：クリック音入力テスト（v0.9.152で追加）
     }
     steps.push('practice', 'final');
     return steps;
@@ -16112,8 +16118,7 @@ function invalidatePracticeResult(note) {
     updateDoneButtonState();
 }
 
-/* 補正系を完了として次のステップへ（適用 / スキップ / 進む 共通）。
-   Bluetoothイヤホン時は「マイクの遅れ補正」ステップへ、それ以外は最終確認テストへ。 */
+/* 補正系を完了として最終確認テストへ（適用 / スキップ / 進む 共通）。 */
 function completeCorrectionStep() {
     // イヤホン音ズレの画面補正テスト中に「この設定で進む」を押したら、
     // クリック音・丸点灯ループ・残りタイマーを必ず止める（v0.9.87）。
@@ -16128,7 +16133,7 @@ function completeCorrectionStep() {
     wizardEditing = null;
     if (settingsView === 'steps') {
         renderSettingsView();
-        scrollToSettingsEl(isBluetoothHeadphone() ? els.btCalCard : els.ptCard);
+        scrollToSettingsEl(els.ptCard);
     }
 }
 

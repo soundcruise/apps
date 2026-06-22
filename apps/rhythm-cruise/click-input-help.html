@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>クリック音入力テストの計測方法 | リズムクルーズ</title>
+    <link rel="stylesheet" href="theme.css?v=0.11.21">
+    <meta name="theme-color" content="#070b11">
+    <style>
+        .click-help-page { align-items: stretch; gap: 18px; }
+        .click-help-page header { padding-top: 8px; }
+        .click-help-page h1 { font-size: clamp(1.4rem, 6vw, 2rem); letter-spacing: 1px; text-transform: none; }
+        .click-help-card { gap: 12px; }
+        .click-help-card h2 { color: var(--secondary-color); font-size: 1.1rem; }
+        .click-help-card p,
+        .click-help-card li { color: var(--muted-color); font-size: 0.92rem; line-height: 1.7; }
+        .click-help-card ol { padding-left: 1.4rem; }
+        .click-help-lead { color: var(--text-color) !important; }
+        .click-help-figure {
+            margin: 4px 0;
+            padding: 14px;
+            border: 1px solid rgba(255, 159, 28, 0.3);
+            border-radius: 12px;
+            background: rgba(255, 159, 28, 0.06);
+        }
+        .click-help-figure svg { display: block; width: 100%; height: auto; max-height: 190px; }
+        .click-help-figure text { fill: #fdf6ee; font-family: system-ui, sans-serif; font-size: 13px; }
+        .click-help-back { align-self: center; color: var(--muted-color); text-decoration: none; }
+    </style>
+</head>
+
+<body data-rc-theme="clean-pro">
+    <main class="app-container click-help-page">
+        <header>
+            <h1>クリック音入力テストの計測方法</h1>
+        </header>
+
+        <section class="settings-card click-help-card">
+            <p class="click-help-lead">イヤホンから鳴るクリック音をマイクで拾い、マイク側の遅れを測るテストです。テスト中はクリック音を大きめに鳴らします。</p>
+            <ol>
+                <li>スマホ本体の音量を高めにします。うまく測れない場合は最大音量にしてください。</li>
+                <li>イヤホンの音が出る部分を、マイク部分に近づけます。</li>
+                <li>テストを開始し、クリック音が認識されるまで動かさずに待ちます。</li>
+            </ol>
+        </section>
+
+        <section class="settings-card click-help-card">
+            <h2>有線イヤホン</h2>
+            <p>音量＋/−操作部の近くにマイクがあることが多いです。イヤホンの音が出る部分を、そのマイク部分に近づけるか、軽く押し当ててください。</p>
+            <div class="click-help-figure" role="img" aria-label="有線イヤホンの音が出る部分を、音量操作部付近のマイクへ近づける図">
+                <svg viewBox="0 0 520 180" aria-hidden="true">
+                    <defs>
+                        <marker id="wired-arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+                            <path d="M0,0 L0,6 L9,3 z" fill="#ff9f1c" />
+                        </marker>
+                    </defs>
+                    <circle cx="76" cy="72" r="30" fill="none" stroke="#fdf6ee" stroke-width="5" />
+                    <path d="M76 102 C78 135, 145 138, 190 140" fill="none" stroke="#fdf6ee" stroke-width="4" />
+                    <rect x="350" y="48" width="92" height="96" rx="18" fill="none" stroke="#fdf6ee" stroke-width="4" />
+                    <circle cx="396" cy="72" r="7" fill="#ff9f1c" />
+                    <path d="M350 132 C300 142, 260 144, 224 144" fill="none" stroke="#fdf6ee" stroke-width="4" />
+                    <line x1="120" y1="75" x2="330" y2="75" stroke="#ff9f1c" stroke-width="5" marker-end="url(#wired-arrow)" />
+                    <text x="20" y="32">音が出る部分</text>
+                    <text x="342" y="30">操作部付近のマイク</text>
+                    <text x="183" y="62">近づける</text>
+                </svg>
+            </div>
+        </section>
+
+        <section class="settings-card click-help-card">
+            <h2>Bluetoothイヤホン</h2>
+            <p>イヤホン本体の下端付近にマイクがあることが多いです。片方から鳴るクリック音が、もう片方、または同じイヤホンのマイク部分に入るように近づけてください。</p>
+            <div class="click-help-figure" role="img" aria-label="Bluetoothイヤホンの音がマイクへ入るように近づける図">
+                <svg viewBox="0 0 520 180" aria-hidden="true">
+                    <defs>
+                        <marker id="bt-arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+                            <path d="M0,0 L0,6 L9,3 z" fill="#ff9f1c" />
+                        </marker>
+                    </defs>
+                    <path d="M95 40 C55 40,45 85,70 108 C86 122,105 112,108 92 L114 48 C110 43,103 40,95 40Z" fill="none" stroke="#fdf6ee" stroke-width="5" />
+                    <path d="M408 40 C448 40,458 85,433 108 C417 122,398 112,395 92 L389 48 C393 43,400 40,408 40Z" fill="none" stroke="#fdf6ee" stroke-width="5" />
+                    <circle cx="398" cy="105" r="7" fill="#ff9f1c" />
+                    <line x1="130" y1="80" x2="372" y2="100" stroke="#ff9f1c" stroke-width="5" marker-end="url(#bt-arrow)" />
+                    <text x="38" y="28">クリック音</text>
+                    <text x="350" y="138">下端付近のマイク</text>
+                    <text x="206" y="68">音が入るように近づける</text>
+                </svg>
+            </div>
+        </section>
+
+        <section class="settings-card click-help-card">
+            <h2>注意</h2>
+            <p>強く押しつける必要はありません。マイク部分を完全にふさいだり、イヤホンを傷つけたりしないようにしてください。</p>
+            <p>クリック音が認識されない場合は、スマホ本体音量を上げ、イヤホン/マイクの接続を確認してから、もう一度テストしてください。</p>
+        </section>
+
+        <a class="btn-ghost click-help-back" href="index.html" onclick="if (history.length > 1) { event.preventDefault(); history.back(); }">← アプリに戻る</a>
+    </main>
+</body>
+
+</html>
