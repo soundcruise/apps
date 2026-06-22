@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.23';
+const RHYTHM_CRUISE_VERSION = '0.11.24';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -17118,6 +17118,17 @@ function micTestRunForDevelopmentLog(run) {
         maxClickPeak: run.maxClickPeak,
         clickMedian: run.clickMedian,
         maxClickAfterFirst: run.maxClickAfterFirst,
+        clickDetectedCount: run.clickDetectedCount,
+        clickDetectionPass: run.clickDetectionPass,
+        clickToNoiseRatio: run.clickToNoiseRatio,
+        clickToNoisePass: run.clickToNoisePass,
+        delayTestClickVolume: run.delayTestClickVolume,
+        delayTestThreshold: run.delayTestThreshold,
+        projectedClickMedianAtDelayTestVolume: run.projectedClickMedianAtDelayTestVolume,
+        clickToDelayTestThresholdRatio: run.clickToDelayTestThresholdRatio,
+        clickDelayTestReadinessPass: run.clickDelayTestReadinessPass,
+        deviceVolumeWarningReason: run.deviceVolumeWarningReason,
+        deviceVolumeWarningShown: run.deviceVolumeWarningShown,
         peakPerPct: run.peakPerPct,
         projClickAt100: run.projClickAt100,
         targetClickMax: run.targetClickMax,
@@ -18678,6 +18689,33 @@ function updateReco() {
     const strokeP25ToEffectiveLineRatio = ratioTo(test.strokeP25, effectiveRecommendedThreshold);
     const minStrokeToEffectiveLineRatio = ratioTo(minStroke, effectiveRecommendedThreshold);
 
+    // スマホ本体音量の警告は、ストローク由来のおすすめ比率ではなくクリックの実測状態で判断する。
+    // 次の通常マイク補正はクリック音量100%と専用反応ラインを使うため、その条件へ換算して安全性も確認する。
+    const clickDetectedCount = clickReacted;
+    const clickDetectionPass = clickDetectedCount >= 6;
+    const clickMedian = medianNumber(test.clickPeaks || []);
+    const clickNoiseRef = Math.max(test.noiseP95 || 0, test.noiseMax || 0);
+    const clickToNoiseRatio = ratioTo(clickMedian, clickNoiseRef);
+    const clickToNoisePass = clickMedian != null && clickMedian > 0
+        && clickMedian >= (test.noiseP95 || 0) * 8
+        && clickMedian >= (test.noiseMax || 0) * 6;
+    const delayTestClickVolume = isNormalMicInput() ? calibrationClickVolume() : null;
+    const delayTestThreshold = delayTestClickVolume != null ? calibrationInitialThreshold(delayTestClickVolume) : null;
+    const projectedClickMedianAtDelayTestVolume = clickMedian != null && delayTestClickVolume != null
+        ? clickMedian * (delayTestClickVolume / measureVol)
+        : null;
+    const clickToDelayTestThresholdRatio = ratioTo(projectedClickMedianAtDelayTestVolume, delayTestThreshold);
+    const clickDelayTestReadinessPass = clickToDelayTestThresholdRatio != null
+        && clickToDelayTestThresholdRatio >= 1.15;
+    const deviceVolumeWarningReasons = [];
+    if (!clickDetectionPass) deviceVolumeWarningReasons.push('click-detection-count');
+    if (!clickToNoisePass) deviceVolumeWarningReasons.push('click-to-noise');
+    if (!clickDelayTestReadinessPass) deviceVolumeWarningReasons.push('delay-test-threshold');
+    const deviceVolumeWarningReason = deviceVolumeWarningReasons.length
+        ? deviceVolumeWarningReasons.join(',')
+        : 'none';
+    const deviceVolumeWarningShown = isNormalMicInput() && canApply && deviceVolumeWarningReasons.length > 0;
+
     // ③ 二重反応防止：ストローク波形が反応ラインを超えている時間幅をベースに算出する。
     //    おすすめ = min( 超過時間 × 1.2, 最短音符間隔 × 0.45 )。
     //    最短音符間隔の上限で、将来のBPUP・16分でも次の音符を潰さないようにする。
@@ -18774,26 +18812,15 @@ function updateReco() {
         els.recoMsg.textContent = 'クリック音とストローク音の間に反応ラインを置きました（' + lineTxt + '）。'
             + (volChanged ? 'クリック音量を ' + recoVol + '% にすると安定します。' : '') + projTxt;
     }
-    // 通常マイクでは、100%時のクリック予測がクリック非依存の安全ピークへどれだけ届くかで案内を分ける。
-    // 旧targetClickMaxの充足率はストロークの強さに左右されるため、ユーザー向け不足判定には使わない。
+    // 通常マイクの音量アップ案内は、クリック検出数・ノイズ比・次の補正テスト用ラインだけで判断する。
+    // targetClickMax / safeClickPeak88 に対する比率は、クリック音量おすすめと開発ログにのみ残す。
     if (els.recoDeviceVolNote) {
-        const canClassifyClickSupply = isNormalMicInput() && canApply && clickSupplyRatioToSafePeak != null;
-        if (canClassifyClickSupply && clickSupplyRatioToSafePeak < 0.6) {
+        if (deviceVolumeWarningShown) {
             els.recoDeviceVolNote.className = 'reco-device-vol-note reco-device-vol-note--alert';
             els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音がマイクに十分入っていません。</b><br>'
                 + 'スマホ本体の音量をかなり高め（目安：80%以上）にし、出力先を確認してから、もう一度マイク反応テストを行ってください。音量や出力先を変えた場合も再テストが必要です。改善しない場合は、ホーム画面のアプリを完全に終了してから、もう一度開いてください。<br>'
                 + micRestartHelpLinkHtml()
                 + recoRetestButtonHtml();
-        } else if (canClassifyClickSupply && clickSupplyRatioToSafePeak < 0.85) {
-            els.recoDeviceVolNote.className = 'reco-device-vol-note';
-            els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音がやや小さめに検出されています。</b><br>'
-                + 'スマホ本体の音量をかなり高め（目安：80%以上）にし、出力先を確認してから、もう一度マイク反応テストを行ってください。音量や出力先を変えた場合も再テストが必要です。改善しない場合は、ホーム画面のアプリを完全に終了してから、もう一度開いてください。<br>'
-                + micRestartHelpLinkHtml()
-                + recoRetestButtonHtml();
-        } else if (canClassifyClickSupply) {
-            els.recoDeviceVolNote.className = 'reco-device-vol-note';
-            els.recoDeviceVolNote.innerHTML = '<b>クリック音は十分に検出されています。</b><br>'
-                + 'スマホ本体の音量をさらに上げず、このまま最終確認テストで確認してください。';
         } else {
             els.recoDeviceVolNote.className = 'reco-device-vol-note hidden';
         }
@@ -18881,8 +18908,19 @@ function updateReco() {
         resultClickVolume: state.clickVolume,
         clickPeaks: (test.clickPeaks || []).slice(),
         maxClickPeak: maxClick,
-        clickMedian: medianNumber(test.clickPeaks || []),
+        clickMedian,
         maxClickAfterFirst: (test.clickPeaks || []).length > 1 ? Math.max(...test.clickPeaks.slice(1)) : null,
+        clickDetectedCount,
+        clickDetectionPass,
+        clickToNoiseRatio,
+        clickToNoisePass,
+        delayTestClickVolume,
+        delayTestThreshold,
+        projectedClickMedianAtDelayTestVolume,
+        clickToDelayTestThresholdRatio,
+        clickDelayTestReadinessPass,
+        deviceVolumeWarningReason,
+        deviceVolumeWarningShown,
         peakPerPct,
         projClickAt100: projectedClickAt100,
         targetClickMax,
