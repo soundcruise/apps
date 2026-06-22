@@ -694,7 +694,7 @@
                 <div id="simple-result" class="hidden">
                     <p class="cal-status" id="simple-result-msg" style="margin-top:0;color:#6ed28c;font-weight:700;"></p>
                     <div class="chooser-row" style="margin-top:8px;">
-                        <button type="button" class="chooser-btn chooser-main" id="simple-practice-btn">確認テストを行う</button>
+                        <button type="button" class="chooser-btn chooser-main" id="simple-practice-btn">最終確認テストを行う</button>
                         <button type="button" class="chooser-btn chooser-sub" id="simple-done-btn">このまま完了</button>
                     </div>
                     <button type="button" class="btn-mini" id="simple-back-btn" style="width:100%;margin-top:10px;padding:10px;">環境を選び直す</button>
@@ -767,11 +767,11 @@
             <!-- 2. マイク反応テスト -->
             <div class="settings-card test-card" id="test-card">
                 <div class="cal-head-row">
-                    <div class="cal-head" id="test-card-head">ストローク反応テスト</div>
+                    <div class="cal-head" id="test-card-head">マイク反応テスト</div>
                     <span class="status-pill" id="test-done-badge">未実施</span>
                 </div>
                 <p class="do-now" id="test-do-now">弦を左手でミュートして、8回ストロークしてください。</p>
-                <p class="do-now-sub">目標：クリック音では反応せず、ストロークでは反応する感度にします。</p>
+                <p class="do-now-sub">目標：クリック音では反応せず、ストロークでは反応する感度にします。タイミング判定のテストではありません。</p>
                 <details class="card-help">
                     <summary>コードストロークする場合</summary>
                     <p class="setting-note" id="test-card-note">弦にクロスを挟むなど、響きを抑えてストロークしてください</p>
@@ -897,7 +897,7 @@
                 <p class="do-now">クリック音と丸の動きが同時に感じるように、スライダーで調整してください。</p>
                 <details class="card-help">
                     <summary>詳しい説明</summary>
-                    <p class="setting-note">テストを開始すると、右から丸が流れてきて、イヤホンからクリック音が鳴ります。音と丸の動きが「同時」に感じられるように、下のスライダーで合わせてください。クリック音が丸より遅れて聞こえる場合は、スライダーを右へ動かします。クリック音が丸より早く聞こえる場合は、左へ動かします。0ms＝補正なしです。</p>
+                    <p class="setting-note">テストを開始すると、右から丸が流れてきて、イヤホンからクリック音が鳴ります。音と丸の動きが「同時」に感じられるように、下のスライダーで合わせてください。クリック音が丸より遅れて聞こえる場合は、スライダーを右へ動かします。クリック音が丸より早く聞こえる場合は、左へ動かします。0ms＝補正なしです。練習時の判定には影響せず、音符がJUSTラインを通る見た目だけを調整します。</p>
                 </details>
                 <div class="hp-start-row" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px;">
                     <button class="btn-mic cal-run-btn test-start-btn rc-mic-action-primary" id="hp-cal-btn" style="margin:0;flex:1;min-width:160px;">補正テスト開始</button>
@@ -955,7 +955,7 @@
                 <details class="card-help">
                     <summary>詳しい説明</summary>
                     <p class="setting-note" id="bt-cal-guide">イヤホンから鳴るクリック音を、イヤホンのマイクに入力してください。拍番号は入力回数の目安です。</p>
-                    <p class="setting-note">クリック入力がPractice判定で0ms付近になるよう補正します。クリック音をマイクへ入力できない場合は、クリックに合わせた手拍子でも確認できます。ただし手拍子の個人差が結果に含まれます。</p>
+                    <p class="setting-note">クリック入力が練習時の判定で0ms付近になるよう補正します。クリック音をマイクへ入力できない場合は、クリックに合わせた手拍子でも確認できます。ただし手拍子の個人差が結果に含まれます。</p>
                 </details>
                 <div class="test-lane-wrap hidden" id="bt-cal-lane-wrap">
                     <canvas id="bt-cal-lane-canvas"></canvas>
@@ -982,7 +982,7 @@
                     <div class="cal-head">最終確認テスト</div>
                 </div>
                 <p class="do-now">クリックに合わせてストローク</p>
-                <p class="do-now-sub">クリック音だけでは反応しないこと、ストロークでは反応することを確認します。</p>
+                <p class="do-now-sub">クリック音だけでは反応しないことと、実際にストロークしてGOODが多く、平均ズレが0ms付近になるかを確認します。</p>
                 <details class="card-help">
                     <summary>詳しい説明</summary>
                     <p class="setting-note">実際のSTAGEに近い画面で、音量と判定タイミングを確認します。ここまでの設定で問題なく弾けるかを確認します。</p>
@@ -1295,7 +1295,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.11.15"></script>
+    <script src="../script.js?v=0.11.16"></script>
 </body>
 
 </html>

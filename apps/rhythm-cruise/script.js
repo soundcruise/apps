@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.15';
+const RHYTHM_CRUISE_VERSION = '0.11.16';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -12290,7 +12290,7 @@ const HP_TYPES = ['wired', 'bluetooth'];
 const HP_TYPE_DEFAULT_OFFSET = { wired: 0, bluetooth: 0 }; // v0.9.84：有線/Bluetoothとも目安0ms（補正なし）
 const HP_TYPE_NOTE = {
     wired: '有線イヤホンの「イヤホン音ズレの画面補正」は0ms（補正なし）が基本です。違和感がある場合だけ手動設定で調整してください。',
-    bluetooth: 'Bluetoothイヤホンの「イヤホン音ズレの画面補正」も0ms（補正なし）が基本です。画面と音がズレて感じるときだけ、補正テストで音と丸を合わせてください。（マイク判定のズレは「マイクの遅れ補正」で合わせます）',
+    bluetooth: 'Bluetoothイヤホンの「イヤホン音ズレの画面補正」も0ms（補正なし）が基本です。画面と音がズレて感じるときだけ、補正テストで音と丸を合わせてください。（練習時の判定のズレは「クリック音入力テスト」で0ms付近に合わせます）',
 };
 /* 手動設定（イヤホン音ズレの画面補正行）に出す種類別の説明文 */
 const HP_MANUAL_NOTE = {
@@ -13448,11 +13448,11 @@ function practiceComment(r) {
     const isHp = isHeadphoneInput();
     if (biased && (r.avg >= 40 || (lateRatio >= 0.7 && lateRatio >= earlyRatio))) {
         if (isHp) return { kind: 'warn', issue: 'btdelay', text: 'イヤホンではマイク判定が遅め（LATE）にずれている可能性があります。「クリック音入力テスト」で補正してから、もう一度最終確認テストを行ってください。' };
-        return { kind: 'warn', issue: 'timing', text: '判定がLATE（遅め）に片寄っています。マイクの遅れ補正やイヤホン音ズレの画面補正が合っているか確認してから、もう一度最終確認テストを行ってください。' };
+        return { kind: 'warn', issue: 'timing', text: '判定がLATE（遅め）に片寄っています。マイクの遅れ補正を確認してから、もう一度最終確認テストを行ってください。' };
     }
     if (biased && (r.avg <= -40 || (earlyRatio >= 0.7 && earlyRatio > lateRatio))) {
         if (isHp) return { kind: 'warn', issue: 'btdelay', text: 'イヤホンではマイク判定が早め（EARLY）にずれている可能性があります。「クリック音入力テスト」で補正してから、もう一度最終確認テストを行ってください。' };
-        return { kind: 'warn', issue: 'timing', text: '判定がEARLY（早め）に片寄っています。マイクの遅れ補正やイヤホン音ズレの画面補正が合っているか確認してから、もう一度最終確認テストを行ってください。' };
+        return { kind: 'warn', issue: 'timing', text: '判定がEARLY（早め）に片寄っています。マイクの遅れ補正を確認してから、もう一度最終確認テストを行ってください。' };
     }
     // 二重反応が出ているときは「問題なし」にせず、軽く注意（クリック音・余韻拾いの可能性）
     if (r.doubleCount > 0) {
@@ -13512,7 +13512,7 @@ function renderPracticeResult(r) {
         else if (c.issue === 'clickpickup') { fixLabel = 'マイク感度を確認する'; fixId = 'pt-result-fix-test'; }
         else if (c.issue === 'miss') { fixLabel = 'マイク感度を確認する'; fixId = 'pt-result-fix-test'; }
         else if (c.issue === 'timing') { fixLabel = '補正を確認する'; fixId = 'pt-result-fix-correction'; }
-        else if (c.issue === 'btdelay') { fixLabel = 'マイクの遅れ補正を行う'; fixId = 'pt-result-fix-btdelay'; }
+        else if (c.issue === 'btdelay') { fixLabel = 'クリック音入力テストに戻る'; fixId = 'pt-result-fix-btdelay'; }
         else if (c.issue === 'double') { fixLabel = '二重反応防止を調整する'; fixId = 'pt-result-fix-manual'; }
         actions =
             '<button type="button" class="rc-mic-action-primary" id="' + fixId + '" style="' + primary + '">' + fixLabel + '</button>' +
@@ -14056,7 +14056,7 @@ function renderBtCalResult(r) {
     const rows =
         '<div class="cal-result-row"><span>有効入力</span><b>' + r.valid + ' / ' + BT_PLAY_BEATS + '</b></div>' +
         '<div class="cal-result-row"><span>平均ズレ</span><b>' + avgTxt + '</b></div>' +
-        '<div class="cal-result-row"><span>現在のマイクの遅れ補正</span><b id="bt-cal-cur">' + sign(curShown) + '</b></div>';
+        '<div class="cal-result-row"><span>現在のクリック入力の補正値</span><b id="bt-cal-cur">' + sign(curShown) + '</b></div>';
     // v0.9.100：拍ごとのズレリスト＋手動スライダー（bluetoothMicOffsetMs用）。
     const extra = perBeatListHtml(r.perBeat) + btManualBlockHtml(curShown, sub);
     let head, actions;
@@ -14064,7 +14064,7 @@ function renderBtCalResult(r) {
         head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">入力が少なくて測れませんでした。クリック音がマイクへ入っていることを確認して、もう一度テストしてください。</p>';
         actions = '<button type="button" class="rc-mic-action-secondary" id="bt-cal-rerun" style="' + primary + '">もう1度テストする</button>';
     } else if (r.propose) {
-        head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">判定が' + (r.avg > 0 ? '遅め（LATE）' : '早め（EARLY）') + 'に大きくズレています。マイクの遅れ補正で合わせましょう。</p>';
+        head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">判定が' + (r.avg > 0 ? '遅め（LATE）' : '早め（EARLY）') + 'に大きくズレています。クリック音入力テストで合わせましょう。</p>';
         const proposeRow = '<div class="cal-result-row"><span>補正後の目安</span><b>' + sign(r.proposed) + '</b></div>';
         actions =
             '<button type="button" class="rc-mic-action-primary" id="bt-cal-apply" style="' + primary + '">この補正を適用してもう1度テストする</button>' +
@@ -14077,7 +14077,7 @@ function renderBtCalResult(r) {
         head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">判定タイミングのズレは小さめです。このまま最終確認テストへ進めます。</p>';
         // v0.9.94：OK判定でも、有効な平均ズレがあれば最新結果で自動微調整済み。控えめに案内する（ボタンは出さない）。
         const autoNote = r.autoFineApplied
-            ? '<p class="cal-status" style="color:#6ed28c;font-weight:600;margin-top:6px;">最新の平均ズレ（' + avgTxt + '）に合わせて、マイクの遅れ補正を ' + sign(r.appliedOffset) + ' に微調整しました。</p>'
+            ? '<p class="cal-status" style="color:#6ed28c;font-weight:600;margin-top:6px;">最新の平均ズレ（' + avgTxt + '）に合わせて、クリック入力の補正値を ' + sign(r.appliedOffset) + ' に微調整しました。</p>'
             : '';
         actions =
             '<button type="button" class="rc-mic-action-primary" id="bt-cal-proceed" style="' + primary + '">最終確認テストへ進む</button>' +
@@ -14099,7 +14099,7 @@ function btManualBlockHtml(start, sub) {
     const sign = (v) => (v > 0 ? '+' : '') + v + 'ms';
     return '<details class="card-help" style="margin-top:10px;"><summary>手動で微調整</summary>'
         + '<div class="setting-row" style="margin-top:10px;">'
-        + '<div class="setting-label">マイクの遅れ補正 <b id="bt-cal-manual-val">' + sign(start) + '</b></div>'
+        + '<div class="setting-label">クリック入力の補正値 <b id="bt-cal-manual-val">' + sign(start) + '</b></div>'
         + '<input type="range" id="bt-cal-manual-slider" min="' + headphoneMicOffsetMin() + '" max="' + headphoneMicOffsetMax() + '" step="5" value="' + start + '">'
         + '<div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;"><span>← 判定を早める</span><span>判定を遅らせる →</span></div>'
         + '<p class="setting-note">最終確認テストで EARLY（早め）が残るなら右（遅らせる）へ、LATE（遅め）が残るなら左（早める）へ少し動かします。0ms＝補正なし。</p>'
@@ -14136,7 +14136,7 @@ function bindBtCalResultActions() {
         if (bt.result) bt.result.cur = v; // 再テスト時の基準にも反映
         const curEl = document.getElementById('bt-cal-cur');
         if (curEl) curEl.textContent = (v > 0 ? '+' : '') + v + 'ms';
-        setBtCalStatus('マイクの遅れ補正を ' + (v > 0 ? '+' : '') + v + 'ms に設定しました。そのまま再テスト、または最終確認テストへ進めます。');
+        setBtCalStatus('クリック入力の補正値を ' + (v > 0 ? '+' : '') + v + 'ms に設定しました。そのまま再テスト、または最終確認テストへ進めます。');
     });
 }
 
@@ -14153,7 +14153,7 @@ function applyBtCal() {
     updateBtCalBadge();
     // 補正したので、前回の最終確認テスト結果は古くなる
     invalidatePracticeResult();
-    setBtCalStatus('マイクの遅れ補正を ' + (v > 0 ? '+' : '') + v + 'ms に設定しました。');
+    setBtCalStatus('クリック入力の補正値を ' + (v > 0 ? '+' : '') + v + 'ms に設定しました。');
 }
 
 /* マイクの遅れ補正ステップ完了 → 最終確認テストへ。 */
@@ -17367,7 +17367,7 @@ function micTestBtnIdleLabel() {
 function updateMicTestDoneUI() {
     const done = state.micTestDone;
     if (els.testCard) els.testCard.classList.toggle('is-done', done);
-    if (els.testCardHead) els.testCardHead.textContent = done ? '✅ ストローク反応テスト済み' : 'ストローク反応テスト';
+    if (els.testCardHead) els.testCardHead.textContent = done ? '✅ マイク反応テスト済み' : 'マイク反応テスト';
     if (els.testDoneBadge) {
         els.testDoneBadge.textContent = '未実施';
         els.testDoneBadge.classList.toggle('hidden', done); // 済みのときは出さない（見出しの✅と二重になるため）
@@ -19994,7 +19994,7 @@ function finishHpAutoDetect() {
 
     // Bluetoothで検出できた場合のみ適用ボタンを表示。有線は結果を参考表示するだけに留める。
     if (n > 0 && isBT && els.hpAdApplyBtn) {
-        els.hpAdApplyBtn.textContent = 'Bluetooth補正に適用';
+        els.hpAdApplyBtn.textContent = '参考値をBluetoothのマイク補正に適用';
         els.hpAdApplyBtn.style.display = 'block';
         els.hpAdApplyBtn.disabled = false;
     }
