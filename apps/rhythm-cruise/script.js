@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.18';
+const RHYTHM_CRUISE_VERSION = '0.11.19';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -20858,6 +20858,10 @@ function bind() {
     if (els.micSetupPresetBtn) els.micSetupPresetBtn.addEventListener('click', () => { hideMicSetupPrompt(); openSettings('practice'); openMicPreset(); });
     if (els.micSetupLaterBtn) els.micSetupLaterBtn.addEventListener('click', hideMicSetupPrompt);
 
+    // 「ページを更新」ボタン（クルーズアプリシリーズ共通）
+    document.querySelectorAll('.js-reload-app').forEach((btn) =>
+        btn.addEventListener('click', reloadAppWithCacheBust));
+
     window.addEventListener('resize', () => {
         if (!els.settings.classList.contains('hidden')) {
             fitPreview();
@@ -20898,6 +20902,21 @@ function bind() {
     // スリープ/バックグラウンド復帰時の追加フォールバック（v0.9.208）。
     window.addEventListener('pageshow', () => { recordMicLifecycleDebugEvent('pageshow'); tryResumeAudio(); });
     window.addEventListener('focus', () => { recordMicLifecycleDebugEvent('focus'); tryResumeAudio(); });
+}
+
+/* ── ページ更新（キャッシュバスター付き・シリーズ共通の挙動） ── */
+function reloadAppWithCacheBust() {
+    try {
+        if (mic.on) stopMic();
+        if (state.audioCtx && typeof state.audioCtx.close === 'function') state.audioCtx.close();
+    } catch (_) { /* ignore */ }
+    try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('_r', String(Date.now()));
+        window.location.replace(url.toString());
+    } catch (e) {
+        window.location.reload();
+    }
 }
 
 function applyAppVersionDisplay() {
