@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.7';
+const RHYTHM_CRUISE_VERSION = '0.11.8';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -19710,6 +19710,13 @@ function finishHpAutoDetect() {
     const minPracticeDiff    = nPD ? sPD[0] : 0;
     const maxPracticeDiff    = nPD ? sPD[nPD - 1] : 0;
     const lowAvgPracticeDiff = nPD ? Math.round(sPD.slice(0, lowCount).reduce((a, b) => a + b, 0) / lowCount) : 0;
+    // ── Practice式diff補正候補（表示・ログ専用・保存しない）──
+    // BtCal の符号ルール（LATE=+diff なら負方向へ動かす = cur - avg）と同じ
+    const candidatePractice = headphoneMicOffsetClampVal(currentDeviceOffset - medianPracticeDiff);
+    const newFinalIfApplyPractice = mic.timingOffsetMs + candidatePractice;
+    const practiceCandidateLine = Math.abs(medianPracticeDiff) <= 10
+        ? '→ 変更不要目安（±10ms以内）'
+        : '→ ' + deviceField + '候補: ' + (candidatePractice >= 0 ? '+' : '') + candidatePractice + 'ms  適用後最終補正: ' + (newFinalIfApplyPractice >= 0 ? '+' : '') + newFinalIfApplyPractice + 'ms';
 
     const ctx = state.audioCtx;
     console.info('[hpAd] ── 自己収音テスト結果 ──', {
@@ -19740,6 +19747,12 @@ function finishHpAutoDetect() {
         maxPracticeDiff,
         lowAvgPracticeDiff,
         medianPracticeDiff,
+        // Practice式diff補正候補（表示・ログ専用・保存しない）
+        currentDeviceOffset,
+        practiceCandidateDeviceOffset: candidatePractice,
+        practiceCandidateFinalOffset: newFinalIfApplyPractice,
+        practiceCandidateKind: hpAd.kind,
+        practiceCandidateBasedOn: 'medianPracticeDiff',
         // 共通
         outputMs: Math.round(outputMs),
         adjustedDelay,
@@ -19790,6 +19803,10 @@ function finishHpAutoDetect() {
               'Practice式diff個別値: ' + practiceDiffSamples + 'ms\n' +
               'Practice式diff min/lowAvg/median/max: ' + minPracticeDiff + ' / ' + lowAvgPracticeDiff + ' / ' + medianPracticeDiff + ' / ' + maxPracticeDiff + 'ms\n' +
               '（補正値 ' + currentFinalOffset + 'ms で、クリック入力がPractice上どれくらいズレるか）\n' +
+              '\n' +
+              '── Practice式diff補正候補（表示のみ・保存しない） ──\n' +
+              'Practice式diff中央値: ' + (medianPracticeDiff > 0 ? '+' : '') + medianPracticeDiff + 'ms  現在の最終補正: ' + (currentFinalOffset > 0 ? '+' : '') + currentFinalOffset + 'ms\n' +
+              practiceCandidateLine + '\n' +
               '（詳細はコンソールを確認）';
     }
     if (els.hpAdResult) { els.hpAdResult.textContent = msg; els.hpAdResult.style.display = 'block'; }
