@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>アプリを完全に終了する方法 | リズムクルーズ</title>
+    <link rel="stylesheet" href="theme.css?v=0.10.53">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
+    <meta name="theme-color" content="#070b11">
+    <style>
+        .restart-help-page {
+            align-items: stretch;
+            gap: 20px;
+        }
+
+        .restart-help-page header {
+            padding-top: 8px;
+        }
+
+        .restart-help-page h1 {
+            font-size: clamp(1.45rem, 6vw, 2rem);
+            letter-spacing: 1px;
+            text-transform: none;
+        }
+
+        .restart-help-card {
+            gap: 12px;
+        }
+
+        .restart-help-card h2 {
+            color: var(--secondary-color);
+            font-size: 1.1rem;
+        }
+
+        .restart-help-card p,
+        .restart-help-card li {
+            color: var(--muted-color);
+            font-size: 0.92rem;
+            line-height: 1.7;
+        }
+
+        .restart-help-card ol {
+            padding-left: 1.4rem;
+        }
+
+        .restart-help-card .restart-help-note {
+            color: var(--text-color);
+        }
+
+        .restart-help-back {
+            align-self: center;
+            color: var(--muted-color);
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body data-rc-theme="clean-pro">
+    <main class="app-container restart-help-page">
+        <header>
+            <h1>アプリを完全に終了する方法</h1>
+        </header>
+
+        <section class="settings-card restart-help-card">
+            <p class="restart-help-note">音が出ない、マイクが反応しない、クリック音がうまく検出されない時は、ホーム画面のアプリを完全に終了すると改善することがあります。保存済み設定は消えません。</p>
+        </section>
+
+        <section class="settings-card restart-help-card">
+            <h2>iPhone / iPad</h2>
+            <ol>
+                <li>画面下から上にスワイプして、中央で少し止めます。</li>
+                <li>Appスイッチャーが開いたら、リズムクルーズの画面を探します。</li>
+                <li>リズムクルーズの画面を上にスワイプして終了します。</li>
+            </ol>
+            <p>ホームボタンがある端末では、ホームボタンを2回押してAppスイッチャーを開きます。</p>
+        </section>
+
+        <section class="settings-card restart-help-card">
+            <h2>Android</h2>
+            <ol>
+                <li>画面下から上にスワイプして、少し止めます。</li>
+                <li>最近使ったアプリ画面が開いたら、リズムクルーズの画面を探します。</li>
+                <li>リズムクルーズの画面を上にスワイプして終了します。</li>
+            </ol>
+            <p>Androidは機種によって操作が少し違います。□ボタンや「最近使ったアプリ」ボタンから開く場合もあります。</p>
+        </section>
+
+        <section class="settings-card restart-help-card">
+            <p class="restart-help-note">完全終了しても保存済み設定は消えません。ただし、実行中のテストは終了します。</p>
+        </section>
+
+        <a class="btn-ghost restart-help-back" href="index.html" onclick="if (history.length > 1) { event.preventDefault(); history.back(); }">← アプリに戻る</a>
+    </main>
+</body>
+
+</html>

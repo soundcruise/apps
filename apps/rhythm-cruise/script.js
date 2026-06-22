@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.17';
+const RHYTHM_CRUISE_VERSION = '0.11.18';
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -18148,6 +18148,11 @@ function recoRetestButtonHtml() {
     return '<button type="button" class="btn-mic results-retest-btn test-start-btn rc-mic-action-secondary reco-inline-retest" data-reco-retest="1">もう一度テストする</button>';
 }
 
+function micRestartHelpLinkHtml() {
+    return '<a class="result-mic-tune-link" style="display:inline-block;margin-top:8px" href="'
+        + RHYTHM_ASSET_BASE + 'mic-restart-help.html">詳しい手順を見る</a>';
+}
+
 function btDiagNumber(v) {
     return (typeof v === 'number' && isFinite(v)) ? v.toFixed(4) : '–';
 }
@@ -18564,13 +18569,15 @@ function updateReco() {
             // 検出が小さい案内は従来どおりの淡い注意カード（アンバー）。
             els.recoDeviceVolNote.className = 'reco-device-vol-note';
             els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音が小さめに検出されています。</b><br>'
-                + 'スマホ本体の音量を少し上げて、もう一度テストしてください。最大付近にしても改善しない場合は、アプリを完全に終了してから開き直してください。iPhoneでは、AppスイッチャーでSafariまたはこのアプリを上へスワイプして終了します。'
+                + 'スマホ本体の音量を少し上げて、もう一度テストしてください。改善しない場合は、ホーム画面のアプリを完全に終了してから、もう一度開いてください。<br>'
+                + micRestartHelpLinkHtml()
                 + recoRetestButtonHtml();
         } else if (clickVolHigh) {
             // v0.9.157：クリック音量が高め時は赤系カードで少し目立たせる（見落とし防止）。
             els.recoDeviceVolNote.className = 'reco-device-vol-note reco-device-vol-note--alert';
             els.recoDeviceVolNote.innerHTML = '<b>⚠ アプリ内クリック音量のおすすめが高めです。</b><br>'
-                + 'クリック音がマイクに十分入っていない可能性があります。スマホ本体の音量を少し上げて、もう一度テストしてください。最大付近にしても改善しない場合は、アプリを完全に終了してから開き直してください。iPhoneでは、AppスイッチャーでSafariまたはこのアプリを上へスワイプして終了します。'
+                + 'クリック音がマイクに十分入っていない可能性があります。スマホ本体の音量を少し上げて、もう一度テストしてください。改善しない場合は、ホーム画面のアプリを完全に終了してから、もう一度開いてください。<br>'
+                + micRestartHelpLinkHtml()
                 + recoRetestButtonHtml();
         } else {
             els.recoDeviceVolNote.className = 'reco-device-vol-note hidden';
