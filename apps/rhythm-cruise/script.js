@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.44';
+const RHYTHM_CRUISE_VERSION = '0.11.45';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -771,6 +771,7 @@ const mic = {
     headphoneOutputOffsetMs: 0, // 選択中の種類の音ズレ補正(ms)。互換用。v0.9.51でもUI/保存のみ・STAGE判定/マイク判定には未反映
     bluetoothMicOffsetMs: 0, // Bluetoothイヤホン時のマイクの遅れ補正(ms)。v0.9.80で新設。Bluetooth時のみ判定時刻に加算（負＝早める）。未保存は0=補正なし
     wiredMicOffsetMs: 0, // 有線イヤホン時のマイクの遅れ補正(ms)。v0.9.153で新設。有線手拍子補正の保存先。通常マイクのtimingOffsetMsとは分離（汚染防止）。未保存は0=補正なし
+    androidBluetoothMicOffsetMs: 0, // v0.11.45新設。Android端末でBluetoothイヤホン入力時に使う予定のマイク遅延補正値(ms)。負値。短いノイズ集中テストのcorrectionCandidate.saveOffsetMsを保存。範囲-600〜0。※まだPractice判定/micJudgeOffsetMs()には未接続。既存bluetoothMicOffsetMsとは完全分離。
     // 入力タイプ別のマイク設定プロファイル（v0.9.153）。
     // clickVolume / threshold / lowInputProfile を「通常マイク/有線/Bluetooth」で分離保存し、
     // 入力タイプ切替時にその種類の値を復元する（イヤホン用80%固定などが通常マイクを汚染しない）。
@@ -1081,7 +1082,7 @@ const els = {
     strokeModeNote: $('stroke-mode-note'),
     inputTypeNormal: $('input-type-normal'),
     inputTypeHeadphone: $('input-type-headphone'),
-    platformAutoNote: $('platform-auto-note'), platformIos: $('platform-ios'), platformAndroid: $('platform-android'), androidPlatformChoices: $('android-platform-choices'), androidInputNormal: $('android-input-normal'), androidInputHeadphone: $('android-input-headphone'), androidHeadphoneChoices: $('android-headphone-choices'), androidHpWired: $('android-hp-wired'), androidHpBluetooth: $('android-hp-bluetooth'), androidCheckCard: $('android-check-card'), androidCheckRun: $('android-check-run'), androidCheckStatus: $('android-check-status'), androidCheckResult: $('android-check-result'), androidCheckNext: $('android-check-next'), androidCheckClear: $('android-check-clear'), androidCheckCopy: $('android-check-copy'), androidCheckManualLog: $('android-check-manual-log'),
+    platformAutoNote: $('platform-auto-note'), platformIos: $('platform-ios'), platformAndroid: $('platform-android'), androidPlatformChoices: $('android-platform-choices'), androidInputNormal: $('android-input-normal'), androidInputHeadphone: $('android-input-headphone'), androidHeadphoneChoices: $('android-headphone-choices'), androidHpWired: $('android-hp-wired'), androidHpBluetooth: $('android-hp-bluetooth'), androidCheckCard: $('android-check-card'), androidCheckRun: $('android-check-run'), androidCheckStatus: $('android-check-status'), androidCheckResult: $('android-check-result'), androidCheckNext: $('android-check-next'), androidCheckClear: $('android-check-clear'), androidCheckCopy: $('android-check-copy'), androidCheckManualLog: $('android-check-manual-log'), androidCheckSaveBt: $('android-check-save-bt'), androidCheckSaveBtStatus: $('android-check-save-bt-status'),
     inputTypeNote: $('input-type-note'),
     // イヤホン音ズレの画面補正（v0.9.50）
     hpCalCard: $('hp-cal-card'),
@@ -12933,9 +12934,47 @@ async function runAndroidAudioCheck() {
         ]);
         const bestObj = bestCandidate === 'short-noise-focused-test' ? shortNoiseFocusedTest : (bestCandidate === 'double-noise-pattern' ? doublePatternDetection : triplePatternDetection);
         run.bluetoothExploration = { constraintsProfile: 'current', shortNoiseFocusedWindowMs: [430, 530], patternFocusedWindowMs: [450, 560], tests: ex, shortNoiseFocusedTest, doublePatternDetection, triplePatternDetection, bestCandidate, finalGuess: bestObj ? bestObj.finalGuess : 'not-usable' };
+        // finalGuess整合（ログ/表示のみ）：Bluetooth時はトップレベルfinalGuessをbluetoothExploration側優先にする。
+        // ※補正値保存・Practice判定にはこの値を使わない（保存可否は correctionCandidate.isReadyToSave で判定）。
+        run.finalGuess = run.bluetoothExploration.finalGuess;
     }
-    if (els.androidCheckResult) { const best = run.summary.filter((x) => x.stableEnoughGuess).map((x) => x.soundLabel).join(' / ') || 'なし'; const wm = run.androidWaveformMatch, bt = run.bluetoothExploration, sn = bt && bt.shortNoiseFocusedTest, dp = bt && bt.doublePatternDetection, tp = bt && bt.triplePatternDetection; const rd = (v) => v != null ? Math.round(v) + 'ms' : '–'; const snBlock = !sn ? '' : '\n・短いノイズ集中テスト: ' + sn.finalGuess + '\n  推定offset ' + rd(sn.focusedOffsetMedianMs) + ' / trimmed ' + rd(sn.focusedOffsetTrimmedMedianMs) + '\n  範囲 ' + rd(sn.focusedOffsetRangeMs) + ' / trimmed範囲 ' + rd(sn.focusedOffsetTrimmedRangeMs) + '\n  採用 ' + sn.acceptedCount + '/' + sn.repeatCount + ' / peak/noise中央値 ' + (sn.peakToNoiseMedian != null ? sn.peakToNoiseMedian.toFixed(2) : '–'); const ca = sn && sn.clusterAnalysis; const caBlock = !ca ? '' : '\n・cluster判定: ' + ca.finalGuess + '\n  cluster中央値 ' + rd(ca.clusterMedianMs) + ' / cluster範囲 ' + rd(ca.clusterRangeMs) + '\n  cluster採用 ' + ca.clusterCount + '/' + sn.repeatCount + ' / 外れ値 ' + ca.outlierCount + '件'; const patBlock = (label, p) => !p ? '' : '\n・' + label + ': ' + p.finalGuess + '\n  推定offset ' + rd(p.focusedOffsetMedianMs) + ' / trimmed ' + rd(p.focusedOffsetTrimmedMedianMs) + '\n  範囲 ' + rd(p.focusedOffsetRangeMs) + ' / trimmed範囲 ' + rd(p.focusedOffsetTrimmedRangeMs) + '\n  採用 ' + p.acceptedCount + '/' + p.repeatCount + ' / interval OK ' + p.intervalOkCount + '/' + p.repeatCount + ' / matched中央値 ' + (p.matchedCountMedian != null ? p.matchedCountMedian : '–') + ' / score中央値 ' + (p.patternScoreMedian != null ? p.patternScoreMedian.toFixed(2) : '–'); els.androidCheckResult.textContent = 'イヤホン音チェック結果\n・直接測定できる可能性: ' + (run.finalGuess === 'usable' ? '高' : (run.finalGuess === 'weak' ? '中' : '低')) + '\n・有力な音: ' + best + '\n・波形照合: ' + wm.finalGuess + ' / offset中央値 ' + (wm.offsetMedianMs != null ? Math.round(wm.offsetMedianMs) + 'ms' : '–') + ' / 範囲 ' + (wm.offsetRangeMs != null ? Math.round(wm.offsetRangeMs) + 'ms' : '–') + ' / 採用 ' + wm.acceptedCount + '/5' + (bt ? '\n・Bluetooth探索: 最有力 ' + bt.bestCandidate + ' / 判定 ' + bt.finalGuess : '') + snBlock + caBlock + patBlock('2連ノイズパターン', dp) + patBlock('3連ノイズパターン', tp) + ((sn && sn.correctionCandidate) ? ('\n──\nAndroid Bluetooth補正候補:\n測定遅延: ' + rd(sn.correctionCandidate.measurementDelayMs) + '\n保存候補: ' + (sn.correctionCandidate.saveOffsetMs != null ? Math.round(sn.correctionCandidate.saveOffsetMs) + 'ms' : '–') + '\n候補ソース: ' + sn.correctionCandidate.source + '\n信頼度: ' + sn.correctionCandidate.confidence + '\n保存可能: ' + (sn.correctionCandidate.isReadyToSave ? 'はい' : 'いいえ') + '\n※まだPractice判定には反映していません') : '') + '\n・この結果は補正には保存されていません'; els.androidCheckResult.classList.remove('hidden'); }
+    if (els.androidCheckResult) { const best = run.summary.filter((x) => x.stableEnoughGuess).map((x) => x.soundLabel).join(' / ') || 'なし'; const wm = run.androidWaveformMatch, bt = run.bluetoothExploration, sn = bt && bt.shortNoiseFocusedTest, dp = bt && bt.doublePatternDetection, tp = bt && bt.triplePatternDetection; const rd = (v) => v != null ? Math.round(v) + 'ms' : '–'; const snBlock = !sn ? '' : '\n・短いノイズ集中テスト: ' + sn.finalGuess + '\n  推定offset ' + rd(sn.focusedOffsetMedianMs) + ' / trimmed ' + rd(sn.focusedOffsetTrimmedMedianMs) + '\n  範囲 ' + rd(sn.focusedOffsetRangeMs) + ' / trimmed範囲 ' + rd(sn.focusedOffsetTrimmedRangeMs) + '\n  採用 ' + sn.acceptedCount + '/' + sn.repeatCount + ' / peak/noise中央値 ' + (sn.peakToNoiseMedian != null ? sn.peakToNoiseMedian.toFixed(2) : '–'); const ca = sn && sn.clusterAnalysis; const caBlock = !ca ? '' : '\n・cluster判定: ' + ca.finalGuess + '\n  cluster中央値 ' + rd(ca.clusterMedianMs) + ' / cluster範囲 ' + rd(ca.clusterRangeMs) + '\n  cluster採用 ' + ca.clusterCount + '/' + sn.repeatCount + ' / 外れ値 ' + ca.outlierCount + '件'; const patBlock = (label, p) => !p ? '' : '\n・' + label + ': ' + p.finalGuess + '\n  推定offset ' + rd(p.focusedOffsetMedianMs) + ' / trimmed ' + rd(p.focusedOffsetTrimmedMedianMs) + '\n  範囲 ' + rd(p.focusedOffsetRangeMs) + ' / trimmed範囲 ' + rd(p.focusedOffsetTrimmedRangeMs) + '\n  採用 ' + p.acceptedCount + '/' + p.repeatCount + ' / interval OK ' + p.intervalOkCount + '/' + p.repeatCount + ' / matched中央値 ' + (p.matchedCountMedian != null ? p.matchedCountMedian : '–') + ' / score中央値 ' + (p.patternScoreMedian != null ? p.patternScoreMedian.toFixed(2) : '–'); els.androidCheckResult.textContent = 'イヤホン音チェック結果\n・直接測定できる可能性: ' + (run.finalGuess === 'usable' ? '高' : (run.finalGuess === 'weak' ? '中' : '低')) + '\n・有力な音: ' + best + '\n・波形照合: ' + wm.finalGuess + ' / offset中央値 ' + (wm.offsetMedianMs != null ? Math.round(wm.offsetMedianMs) + 'ms' : '–') + ' / 範囲 ' + (wm.offsetRangeMs != null ? Math.round(wm.offsetRangeMs) + 'ms' : '–') + ' / 採用 ' + wm.acceptedCount + '/5' + (bt ? '\n・Bluetooth探索: 最有力 ' + bt.bestCandidate + ' / 判定 ' + bt.finalGuess : '') + snBlock + caBlock + patBlock('2連ノイズパターン', dp) + patBlock('3連ノイズパターン', tp) + ((sn && sn.correctionCandidate) ? ('\n──\nAndroid Bluetooth補正候補:\n測定遅延: ' + rd(sn.correctionCandidate.measurementDelayMs) + '\n保存候補: ' + (sn.correctionCandidate.saveOffsetMs != null ? Math.round(sn.correctionCandidate.saveOffsetMs) + 'ms' : '–') + '\n候補ソース: ' + sn.correctionCandidate.source + '\n信頼度: ' + sn.correctionCandidate.confidence + '\n保存可能: ' + (sn.correctionCandidate.isReadyToSave ? 'はい' : 'いいえ') + '\n※まだPractice判定には反映していません') : '') + (bt ? ('\n──\n保存済み Android Bluetooth補正値:\n' + (mic.androidBluetoothMicOffsetMs ? Math.round(mic.androidBluetoothMicOffsetMs) + 'ms\n※まだPractice判定には反映していません' : '未保存')) : '') + '\n・この結果は補正には保存されていません'; els.androidCheckResult.classList.remove('hidden'); }
+    refreshAndroidBtSaveButton();
     if (els.androidCheckStatus) els.androidCheckStatus.textContent = '完了しました。ログをコピーできます。';
+}
+/* v0.11.45：Android Bluetooth補正候補の保存ボタン表示制御。
+   表示条件：android / headphone / bluetooth かつ correctionCandidate.isReadyToSave === true。
+   ※保存先は androidBluetoothMicOffsetMs（既存キーとは完全分離）。Practice判定には未接続。 */
+function androidBtCorrectionCandidate() {
+    const run = headphoneAudioProbe.run;
+    const sn = run && run.bluetoothExploration && run.bluetoothExploration.shortNoiseFocusedTest;
+    return sn && sn.correctionCandidate || null;
+}
+function refreshAndroidBtSaveButton() {
+    if (!els.androidCheckSaveBt) return;
+    const isAndroidBt = selectedTestPlatform === 'android' && getMicInputType() === 'headphone' && getHeadphoneType() === 'bluetooth';
+    const cc = androidBtCorrectionCandidate();
+    const canSave = isAndroidBt && cc && cc.isReadyToSave === true && cc.saveOffsetMs != null;
+    els.androidCheckSaveBt.classList.toggle('hidden', !canSave);
+    if (els.androidCheckSaveBtStatus) {
+        if (canSave) { els.androidCheckSaveBtStatus.classList.add('hidden'); els.androidCheckSaveBtStatus.textContent = ''; }
+        else if (isAndroidBt && cc) { els.androidCheckSaveBtStatus.classList.remove('hidden'); els.androidCheckSaveBtStatus.textContent = '保存条件未達: ' + (cc.reason || '条件を満たしていません'); }
+        else { els.androidCheckSaveBtStatus.classList.add('hidden'); els.androidCheckSaveBtStatus.textContent = ''; }
+    }
+}
+/* 保存：correctionCandidate.saveOffsetMs を androidBluetoothMicOffsetMs へ（-600〜0でクランプ）。
+   既存 bluetoothMicOffsetMs / timingOffsetMs / wiredMicOffsetMs には一切触れない。Practice判定にも未接続。 */
+function saveAndroidBluetoothCorrection() {
+    const isAndroidBt = selectedTestPlatform === 'android' && getMicInputType() === 'headphone' && getHeadphoneType() === 'bluetooth';
+    const cc = androidBtCorrectionCandidate();
+    if (!isAndroidBt || !cc || cc.isReadyToSave !== true || cc.saveOffsetMs == null) {
+        if (els.androidCheckSaveBtStatus) { els.androidCheckSaveBtStatus.classList.remove('hidden'); els.androidCheckSaveBtStatus.textContent = '保存条件未達: ' + (cc && cc.reason || 'Android Bluetoothの保存可能な候補がありません'); }
+        return;
+    }
+    mic.androidBluetoothMicOffsetMs = clampNum(cc.saveOffsetMs, ANDROID_BT_MIC_OFFSET_MIN, ANDROID_BT_MIC_OFFSET_MAX, 0);
+    saveSettings();
+    if (els.androidCheckSaveBtStatus) { els.androidCheckSaveBtStatus.classList.remove('hidden'); els.androidCheckSaveBtStatus.textContent = '保存済み Android Bluetooth補正値: ' + Math.round(mic.androidBluetoothMicOffsetMs) + 'ms　※まだPractice判定には反映していません'; }
+    console.info('[android-bt] 保存 androidBluetoothMicOffsetMs=' + mic.androidBluetoothMicOffsetMs + 'ms（Practice判定には未接続）');
 }
 function clearAndroidAudioLogs() { headphoneAudioProbe.run = null; headphoneAudioProbe.runs = []; if (els.androidCheckResult) { els.androidCheckResult.textContent = ''; els.androidCheckResult.classList.add('hidden'); } if (els.androidCheckStatus) els.androidCheckStatus.textContent = 'Android音声調査ログをクリアしました。設定値は変更していません。'; renderHeadphoneAudioProbeLog(); }
 function androidCheckLightweightLog(run) {
@@ -12951,6 +12990,7 @@ function androidCheckLightweightLog(run) {
         summary: (run && run.summary || []).map((s) => pick(s, ['soundId', 'soundLabel', 'detectedCount', 'peakMedian', 'peakMin', 'peakMax', 'offsetMedianMs', 'offsetMinMs', 'offsetMaxMs', 'offsetRangeMs', 'peakToNoiseMedian', 'peakToNoiseMin', 'stableEnoughGuess'])),
         androidWaveformMatch: { ...pick(wm, ['probeLabel', 'probeDurationMs', 'repeatCount', 'acceptedCount', 'offsetMedianMs', 'offsetMeanMs', 'offsetMinMs', 'offsetMaxMs', 'offsetRangeMs', 'scoreMedian', 'finalGuess']), scoreMin: Math.min(...(wm.results || []).map((x) => x.correlationScore).filter(Number.isFinite), Infinity), scoreMax: Math.max(...(wm.results || []).map((x) => x.correlationScore).filter(Number.isFinite), -Infinity), results: (wm.results || []).map((x) => pick(x, ['index', 'peakOffsetMs', 'correlationOffsetMs', 'correlationScore', 'peakToNoise', 'accepted', 'rejectReason'])) },
         bluetoothExploration: run && run.bluetoothExploration || null,
+        androidSavedOffsets: { androidBluetoothMicOffsetMs: mic.androidBluetoothMicOffsetMs || 0 }, // v0.11.45。保存済みAndroid BT補正値（Practice判定未接続）。
         finalGuess: run && run.finalGuess, notes: run && run.notes
     };
 }
@@ -13180,6 +13220,10 @@ const pt = {
 const BT_MIC_OFFSET_MIN = -400;     // 補正値の下限(ms)。v0.9.105：BTの大きな出力+入力遅延（実測で約-280msが必要なケース）に届かず
                                     //   下限-200で頭打ち→平均ズレが残ったまま「小さめ」誤判定になっていたため -400 まで拡張。
 const BT_MIC_OFFSET_MAX = 200;      // 補正値の上限(ms)
+// v0.11.45：Android Bluetooth専用キーのクランプ範囲。実測-460〜-480ms、機種差を見て-600まで許容、正方向は不要で0まで。
+// 既存 BT_MIC_OFFSET_MIN/MAX（bluetoothMicOffsetMs用）とは別物。Practice判定には未接続。
+const ANDROID_BT_MIC_OFFSET_MIN = -600;
+const ANDROID_BT_MIC_OFFSET_MAX = 0;
 const BT_MIC_STEP_CLAMP = 80;       // 1回の補正で動かす量の上限(ms)
 /* デバッグ用（v0.9.105）：マイクの遅れ補正の判定値を確認したいときだけ true。本番は false。 */
 const BT_DEBUG = false;
@@ -15706,6 +15750,7 @@ function loadSettings() {
     mic.timingOffsetMs = clampNum(s.timingOffsetMs, -150, 150, SETTINGS_DEFAULTS.timingOffsetMs);
     mic.bluetoothMicOffsetMs = clampNum(s.bluetoothMicOffsetMs, BT_MIC_OFFSET_MIN, BT_MIC_OFFSET_MAX, 0);
     mic.wiredMicOffsetMs = clampNum(s.wiredMicOffsetMs, -150, 150, 0); // 有線イヤホンの手拍子補正（v0.9.153で分離）。古いデータには無いので0。
+    mic.androidBluetoothMicOffsetMs = clampNum(s.androidBluetoothMicOffsetMs, ANDROID_BT_MIC_OFFSET_MIN, ANDROID_BT_MIC_OFFSET_MAX, 0); // v0.11.45。Android BT専用。Practice判定には未接続。
     state.clickVolume = clampNum(s.clickVolume, 0, 100, SETTINGS_DEFAULTS.clickVolume);
     if (typeof s.lastCalibrationDelayMs === 'number') cal.measuredDelay = s.lastCalibrationDelayMs;
     if (typeof s.lastCalibrationAt === 'number') cal.lastAt = s.lastCalibrationAt;
@@ -15754,6 +15799,7 @@ function saveSettings() {
             timingOffsetMs: mic.timingOffsetMs,
             bluetoothMicOffsetMs: mic.bluetoothMicOffsetMs,
             wiredMicOffsetMs: mic.wiredMicOffsetMs,
+            androidBluetoothMicOffsetMs: mic.androidBluetoothMicOffsetMs, // v0.11.45。Android BT専用・Practice判定未接続。
             micProfiles: mic.profiles,
             clickVolume: state.clickVolume,
             lastCalibrationDelayMs: cal.measuredDelay,
@@ -17279,6 +17325,8 @@ function restoreMicSettingsFrom(s) {
     mic.timingOffsetMs = s.timingOffsetMs;
     mic.bluetoothMicOffsetMs = s.bluetoothMicOffsetMs;
     if (typeof s.wiredMicOffsetMs === 'number') mic.wiredMicOffsetMs = s.wiredMicOffsetMs;
+    // v0.11.45：Android BT専用値。プリセット適用で消さないよう、存在するときだけ反映（既存値は保持）。
+    if (typeof s.androidBluetoothMicOffsetMs === 'number') mic.androidBluetoothMicOffsetMs = s.androidBluetoothMicOffsetMs;
     mic.lowInputProfile = !!s.lowInputProfile;
     mic.headphoneOffsetWiredMs = s.headphoneOffsetWiredMs;
     mic.headphoneOffsetBluetoothMs = s.headphoneOffsetBluetoothMs;
@@ -17359,6 +17407,8 @@ function applyPresetCore(id) {
     mic.bluetoothMicOffsetMs = clampNum(s.bluetoothMicOffsetMs, BT_MIC_OFFSET_MIN, BT_MIC_OFFSET_MAX, 0);
     // 有線用マイクの遅れ補正：未保存（古いプリセット）は0=補正なし（v0.9.153）
     mic.wiredMicOffsetMs = clampNum(s.wiredMicOffsetMs, -150, 150, 0);
+    // v0.11.45：Android BT専用値。プリセット適用で消さないよう、存在するときだけ反映（既存値は保持）。
+    if (typeof s.androidBluetoothMicOffsetMs === 'number') mic.androidBluetoothMicOffsetMs = clampNum(s.androidBluetoothMicOffsetMs, ANDROID_BT_MIC_OFFSET_MIN, ANDROID_BT_MIC_OFFSET_MAX, 0);
     mic.lowInputProfile = !!s.lowInputProfile;
     mic.headphoneOffsetWiredMs = validHpOffset(s.headphoneOffsetWiredMs, HP_TYPE_DEFAULT_OFFSET.wired);
     mic.headphoneOffsetBluetoothMs = validHpOffset(s.headphoneOffsetBluetoothMs, HP_TYPE_DEFAULT_OFFSET.bluetooth);
@@ -17611,6 +17661,7 @@ function resetSettings() {
     mic.timingOffsetMs = SETTINGS_DEFAULTS.timingOffsetMs;
     mic.bluetoothMicOffsetMs = 0;
     mic.wiredMicOffsetMs = 0;
+    mic.androidBluetoothMicOffsetMs = 0; // v0.11.45。設定リセットでAndroid BT専用値も初期化。
     mic.profiles = null; // 入力タイプ別プロファイルも初期化（v0.9.153。次のload/切替で作り直す）
     mic.headphoneOffsetWiredMs = HP_TYPE_DEFAULT_OFFSET.wired;
     mic.headphoneOffsetBluetoothMs = HP_TYPE_DEFAULT_OFFSET.bluetooth;
@@ -21481,6 +21532,7 @@ function bind() {
     if (els.androidCheckRun) els.androidCheckRun.addEventListener('click', runAndroidAudioCheck);
     if (els.androidCheckClear) els.androidCheckClear.addEventListener('click', clearAndroidAudioLogs);
     if (els.androidCheckCopy) els.androidCheckCopy.addEventListener('click', copyAndroidCheckLog);
+    if (els.androidCheckSaveBt) els.androidCheckSaveBt.addEventListener('click', saveAndroidBluetoothCorrection);
     if (els.androidCheckNext) els.androidCheckNext.addEventListener('click', () => { if (settingsView === 'steps') { renderSettingsView(); scrollToMicTestCard(); } else if (els.testCard) scrollToSettingsEl(els.testCard); });
     // イヤホン音ズレの画面補正（v0.9.50〜）
     if (els.hpCalBtn) els.hpCalBtn.addEventListener('click', toggleHeadphoneCal);
