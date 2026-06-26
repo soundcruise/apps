@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.36';
+const RHYTHM_CRUISE_VERSION = '0.11.37';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -12718,13 +12718,28 @@ async function runAndroidAudioCheck() {
     if (els.androidCheckStatus) els.androidCheckStatus.textContent = '完了しました。ログをコピーできます。';
 }
 function clearAndroidAudioLogs() { headphoneAudioProbe.run = null; headphoneAudioProbe.runs = []; if (els.androidCheckResult) { els.androidCheckResult.textContent = ''; els.androidCheckResult.classList.add('hidden'); } if (els.androidCheckStatus) els.androidCheckStatus.textContent = 'Android音声調査ログをクリアしました。設定値は変更していません。'; renderHeadphoneAudioProbeLog(); }
+function androidCheckLightweightLog(run) {
+    const pick = (obj, keys) => Object.fromEntries(keys.map((key) => [key, obj && obj[key] != null ? obj[key] : null]));
+    const settings = run && run.activeTrack && run.activeTrack.settings || {};
+    const wm = run && run.androidWaveformMatch || {};
+    return {
+        version: RHYTHM_CRUISE_VERSION, selectedTestPlatform: run && run.selectedTestPlatform, selectedInputType: run && run.selectedInputType, selectedHeadphoneType: run && run.selectedHeadphoneType,
+        stateInputType: run && run.stateInputType, stateHeadphoneType: run && run.stateHeadphoneType, inputTypeMatchesUi: run && run.inputTypeMatchesUi, headphoneTypeMatchesUi: run && run.headphoneTypeMatchesUi,
+        autoDetectedPlatform: pick(run && run.autoDetectedPlatform, ['isAndroid', 'isIOS', 'browserGuess', 'androidVersionGuess', 'chromeVersionGuess', 'isStandalonePwa']),
+        activeTrackSummary: { label: run && run.activeTrack && run.activeTrack.label || null, deviceId: settings.deviceId || null, groupId: settings.groupId || null, sampleRate: settings.sampleRate || null, latency: settings.latency || null, echoCancellation: settings.echoCancellation || null, noiseSuppression: settings.noiseSuppression || null, autoGainControl: settings.autoGainControl || null, voiceIsolation: settings.voiceIsolation || null },
+        audioInputLabels: (run && run.deviceListAudioInputs || []).map((d) => d.label || '').filter(Boolean), hasBluetoothInput: !!(run && run.bluetoothHeadsetInputCandidateExists), noise: pick(run && run.noise, ['p95', 'max']),
+        summary: (run && run.summary || []).map((s) => pick(s, ['soundId', 'soundLabel', 'detectedCount', 'peakMedian', 'peakMin', 'peakMax', 'offsetMedianMs', 'offsetMinMs', 'offsetMaxMs', 'offsetRangeMs', 'peakToNoiseMedian', 'peakToNoiseMin', 'stableEnoughGuess'])),
+        androidWaveformMatch: { ...pick(wm, ['probeLabel', 'probeDurationMs', 'repeatCount', 'acceptedCount', 'offsetMedianMs', 'offsetMeanMs', 'offsetMinMs', 'offsetMaxMs', 'offsetRangeMs', 'scoreMedian', 'finalGuess']), scoreMin: Math.min(...(wm.results || []).map((x) => x.correlationScore).filter(Number.isFinite), Infinity), scoreMax: Math.max(...(wm.results || []).map((x) => x.correlationScore).filter(Number.isFinite), -Infinity), results: (wm.results || []).map((x) => pick(x, ['index', 'peakOffsetMs', 'correlationOffsetMs', 'correlationScore', 'peakToNoise', 'accepted', 'rejectReason'])) },
+        finalGuess: run && run.finalGuess, notes: run && run.notes
+    };
+}
 async function copyAndroidCheckLog() {
     if (!headphoneAudioProbe.run && !headphoneAudioProbe.runs.length) {
         if (els.androidCheckStatus) els.androidCheckStatus.textContent = 'まだコピーできるAndroid音声チェックログがありません。先に「イヤホン音がマイクに入るか確認」を実行してください。';
         return;
     }
     let text;
-    try { text = JSON.stringify({ selectedTestPlatform, autoDetectedPlatform: androidAudioProbeDeviceInfo(), latestRun: headphoneAudioProbe.run, runs: headphoneAudioProbe.runs }, null, 2); }
+    try { text = JSON.stringify(androidCheckLightweightLog(headphoneAudioProbe.run), null, 2); }
     catch (_) { text = '{"error":"Android音声チェックログをJSON化できませんでした"}'; }
     // 先に常時手動コピー可能な欄へ入れる。Clipboard APIの可否に関わらずログを失わない。
     if (els.androidCheckManualLog) { els.androidCheckManualLog.value = text; els.androidCheckManualLog.classList.remove('hidden'); els.androidCheckManualLog.style.display = 'block'; }
