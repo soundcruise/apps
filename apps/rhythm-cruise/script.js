@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.31';
+const RHYTHM_CRUISE_VERSION = '0.11.32';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -301,7 +301,7 @@ const CAL_MAX_SPREAD_MS = 45;
 /* 補正値の絶対上限（ms）。この値に張り付く（=測定遅延が大きすぎる）場合は不安定扱いにする */
 const CAL_OFFSET_LIMIT_MS = 150;
 
-/* Android 音声遅延調査（v0.11.31）：判定・保存・補正値には一切使わない読み取り専用の広域ピーク観測。
+/* Android 音声遅延調査（v0.11.32）：判定・保存・補正値には一切使わない読み取り専用の広域ピーク観測。
    Pixel 等で通常の検出窓外にある入力を、既存 analyser の各フレームから記録する。 */
 const ANDROID_AUDIO_PROBE_WIDE_FROM_MS = -500;
 const ANDROID_AUDIO_PROBE_WIDE_TO_MS = 1200;
@@ -1136,6 +1136,15 @@ const els = {
     btCalResult: $('bt-cal-result'),
     btCalSkipWired: $('bt-cal-skip-wired'),
     btCalSkipWiredNote: $('bt-cal-skip-wired-note'),
+    androidHpAudioProbe: $('android-hp-audio-probe'),
+    androidHpProbeConstraints: $('android-hp-probe-constraints'),
+    androidHpProbeDuration: $('android-hp-probe-duration'),
+    androidHpProbeRun: $('android-hp-probe-run'),
+    androidHpProbeVoice: $('android-hp-probe-voice'),
+    androidHpProbeStatus: $('android-hp-probe-status'),
+    androidHpProbeLog: $('android-hp-probe-log'),
+    androidHpProbeCopy: $('android-hp-probe-copy'),
+    androidHpProbeCopyStatus: $('android-hp-probe-copy-status'),
     hpCalFromClickNote: $('hp-cal-from-click-note'),
     hpAdBtn: $('hp-ad-btn'),
     hpAdResult: $('hp-ad-result'),
@@ -12674,7 +12683,151 @@ function updateHeadphoneTypeUI() {
     }
     // Bluetoothで候補表示後に有線へ切り替えた場合も、適用ボタンを標準導線へ残さない。
     if (t === 'wired' && els.hpAdApplyBtn) els.hpAdApplyBtn.style.display = 'none';
+    refreshAndroidHeadphoneAudioProbeVisibility();
 }
+
+/* Android専用・イヤホン音入力の成立性調査。既存マイク/補正/Practiceとは別stream・別analyserのみを使う。 */
+const headphoneAudioProbe = { active: false, stream: null, src: null, analyser: null, buf: null, raf: 0, run: null, runs: [], manual: null };
+function hpProbeSetStatus(text) { if (els.androidHpProbeStatus) els.androidHpProbeStatus.textContent = text || ''; }
+function hpProbeConstraints(profile) {
+    if (profile === 'minimal') return true;
+    if (profile === 'aec-off') return { echoCancellation: false };
+    if (profile === 'aec-on') return { echoCancellation: true, noiseSuppression: false, autoGainControl: false };
+    if (profile === 'sparse') return { noiseSuppression: false, autoGainControl: false };
+    return { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+}
+function hpProbeTrackInfo(track) {
+    if (!track) return null;
+    const read = (name) => { try { return typeof track[name] === 'function' ? track[name]() : null; } catch (_) { return null; } };
+    const label = track.label || '';
+    const lower = label.toLowerCase();
+    return { label, kind: track.kind, readyState: track.readyState, muted: !!track.muted, enabled: track.enabled !== false,
+        settings: read('getSettings'), constraints: read('getConstraints'), capabilities: read('getCapabilities'),
+        activeInputLooksLikeDeviceMic: /built.?in|device|phone|pixel|microphone/.test(lower), activeInputLooksLikeHeadsetMic: /headset|headphone|earbud|bluetooth|airpods|usb/.test(lower),
+        inputDeviceGuess: /headset|headphone|earbud|bluetooth|airpods|usb/.test(lower) ? 'headsetMic' : (/built.?in|device|phone|pixel/.test(lower) ? 'deviceMic' : 'unknown') };
+}
+async function hpProbeDevices() {
+    try {
+        const list = await navigator.mediaDevices.enumerateDevices();
+        const row = (d) => ({ deviceId: d.deviceId, groupId: d.groupId, label: d.label, kind: d.kind });
+        return { deviceListAudioInputs: list.filter((d) => d.kind === 'audioinput').map(row), deviceListAudioOutputs: list.filter((d) => d.kind === 'audiooutput').map(row) };
+    } catch (e) { return { enumerateDevicesError: e && e.name ? e.name : 'unavailable', deviceListAudioInputs: [], deviceListAudioOutputs: [] }; }
+}
+function refreshAndroidHeadphoneAudioProbeVisibility() {
+    if (!els.androidHpAudioProbe) return;
+    const show = androidAudioProbeDeviceInfo().isAndroid && isHeadphoneInput();
+    els.androidHpAudioProbe.classList.toggle('hidden', !show);
+    if (show) renderHeadphoneAudioProbeLog();
+}
+function hpProbePeak() {
+    const a = headphoneAudioProbe.analyser, b = headphoneAudioProbe.buf;
+    if (!a || !b) return 0;
+    a.getFloatTimeDomainData(b); let peak = 0;
+    for (let i = 0; i < b.length; i++) peak = Math.max(peak, Math.abs(b[i]));
+    return peak;
+}
+function hpProbeAddPeak(event, now, peak) {
+    const offset = now - event.scheduledAtPerformanceTime;
+    if (offset < event.wideWindowMs[0] || offset > event.wideWindowMs[1]) return;
+    const row = { offsetMs: Math.round(offset * 10) / 10, value: Math.round(peak * 1000000) / 1000000 };
+    const add = (list) => { list.push(row); list.sort((x, y) => y.value - x.value); if (list.length > 5) list.length = 5; };
+    add(event.rankTop5);
+    if (offset >= event.normalWindowMs[0] && offset <= event.normalWindowMs[1]) add(event.normalRankTop5);
+}
+function hpProbeLoop() {
+    if (!headphoneAudioProbe.active) return;
+    const now = performance.now(), peak = hpProbePeak(), run = headphoneAudioProbe.run;
+    if (run) run.events.forEach((event) => hpProbeAddPeak(event, now, peak));
+    if (headphoneAudioProbe.manual) headphoneAudioProbe.manual.samples.push(peak);
+    headphoneAudioProbe.raf = requestAnimationFrame(hpProbeLoop);
+}
+function hpProbeMakeBuffer(ctx, spec, durationMs) {
+    const len = Math.max(1, Math.ceil(ctx.sampleRate * durationMs / 1000)), buffer = ctx.createBuffer(1, len, ctx.sampleRate), data = buffer.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+        const t = i / ctx.sampleRate, env = Math.pow(1 - i / len, 2);
+        if (spec.soundType === 'noise') data[i] = (Math.random() * 2 - 1) * env * 0.7;
+        else if (spec.soundType === 'chord') data[i] = PREVIEW_CHORD_FREQS.reduce((sum, f) => sum + Math.sin(2 * Math.PI * f * t), 0) / PREVIEW_CHORD_FREQS.length * env * 0.75;
+        else data[i] = Math.sin(2 * Math.PI * spec.frequencyHz * t) * env * 0.72;
+    }
+    return buffer;
+}
+function hpProbePlayWebAudio(ctx, spec, durationMs, route) {
+    const at = ctx.currentTime + 0.08;
+    if (route === 'existing-click') {
+        const osc = ctx.createOscillator(), gain = ctx.createGain(); osc.type = 'square'; osc.frequency.value = 1500;
+        gain.gain.setValueAtTime(0.0001, at); gain.gain.exponentialRampToValueAtTime(0.8, at + 0.002); gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.08); osc.connect(gain).connect(ctx.destination); osc.start(at); osc.stop(at + 0.09);
+    } else if (route === 'oscillator') {
+        const osc = ctx.createOscillator(), gain = ctx.createGain(); osc.type = 'sine'; osc.frequency.value = spec.frequencyHz;
+        gain.gain.setValueAtTime(0.0001, at); gain.gain.exponentialRampToValueAtTime(0.75, at + 0.003); gain.gain.exponentialRampToValueAtTime(0.0001, at + durationMs / 1000); osc.connect(gain).connect(ctx.destination); osc.start(at); osc.stop(at + durationMs / 1000 + 0.01);
+    } else {
+        const source = ctx.createBufferSource(), gain = ctx.createGain(); source.buffer = hpProbeMakeBuffer(ctx, spec, durationMs); gain.gain.value = 1; source.connect(gain).connect(ctx.destination); source.start(at); source.stop(at + durationMs / 1000 + 0.01);
+    }
+    return { scheduledAtAudioTime: at, scheduledAtPerformanceTime: performance.now() + (at - ctx.currentTime) * 1000, playbackRoute: route };
+}
+function hpProbePlayHtmlAudio(ctx, spec, durationMs) {
+    const buffer = hpProbeMakeBuffer(ctx, spec, durationMs), data = buffer.getChannelData(0), bytes = new ArrayBuffer(44 + data.length * 2), view = new DataView(bytes);
+    const put = (offset, text) => { for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i)); };
+    put(0, 'RIFF'); view.setUint32(4, 36 + data.length * 2, true); put(8, 'WAVEfmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true); view.setUint32(24, ctx.sampleRate, true); view.setUint32(28, ctx.sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true); put(36, 'data'); view.setUint32(40, data.length * 2, true);
+    for (let i = 0; i < data.length; i++) view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, data[i])) * 32767, true);
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' })), audio = new Audio(url); audio.volume = 1;
+    const scheduledAtPerformanceTime = performance.now(); audio.play().catch(() => {}); setTimeout(() => URL.revokeObjectURL(url), 2000);
+    return { scheduledAtAudioTime: null, scheduledAtPerformanceTime, playbackRoute: 'HTMLAudioElement/wav' };
+}
+function hpProbeFinalizeEvent(event, noise) {
+    const wide = event.rankTop5[0] || null, normal = event.normalRankTop5[0] || null;
+    event.normalWindowMaxPeak = normal ? normal.value : 0; event.normalWindowPeakOffsetMs = normal ? normal.offsetMs : null;
+    event.wideWindowMaxPeak = wide ? wide.value : 0; event.wideWindowPeakOffsetMs = wide ? wide.offsetMs : null;
+    event.threshold = 0.005; event.noiseP95 = noise.p95; event.noiseMax = noise.max;
+    event.soundToThresholdRatio = event.normalWindowMaxPeak / event.threshold; event.soundToNoiseRatio = noise.p95 ? event.normalWindowMaxPeak / noise.p95 : null;
+    event.detected = event.normalWindowMaxPeak >= event.threshold;
+    event.detectionReason = event.detected ? 'normalWindowPeak>=probeThreshold' : 'normalWindowPeak<probeThreshold'; event.failedReason = event.detected ? null : 'no measurable playback peak in normal window';
+    event.overlapsAdjacentSound = false; event.isLikelyPlaybackLeak = event.detected && event.soundToNoiseRatio != null && event.soundToNoiseRatio >= 3; event.isLikelyVoiceOrTap = false; event.notes = '調査専用。既存補正・判定・保存には未使用。';
+}
+async function startHeadphoneAudioProbe() {
+    if (!androidAudioProbeDeviceInfo().isAndroid || !isHeadphoneInput() || headphoneAudioProbe.active) return;
+    const profile = els.androidHpProbeConstraints ? els.androidHpProbeConstraints.value : 'current', durationMs = Number(els.androidHpProbeDuration && els.androidHpProbeDuration.value) || 100;
+    hpProbeSetStatus('調査用マイクを開始しています…');
+    const ctx = ensureAudio();
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: hpProbeConstraints(profile) });
+        const src = ctx.createMediaStreamSource(stream), analyser = ctx.createAnalyser(); analyser.fftSize = 2048; src.connect(analyser);
+        headphoneAudioProbe.active = true; headphoneAudioProbe.stream = stream; headphoneAudioProbe.src = src; headphoneAudioProbe.analyser = analyser; headphoneAudioProbe.buf = new Float32Array(analyser.fftSize);
+        const devices = await hpProbeDevices();
+        const run = headphoneAudioProbe.run = { kind: 'androidHeadphoneClickInputFeasibility', startedAt: new Date().toISOString(), device: androidAudioProbeDeviceInfo(), inputType: getHeadphoneType(), constraintsProfile: profile, requestedConstraints: hpProbeConstraints(profile), activeTrack: hpProbeTrackInfo(stream.getAudioTracks()[0]), ...devices, noiseSamples: [], events: [] }; headphoneAudioProbe.runs.push(run); if (headphoneAudioProbe.runs.length > 10) headphoneAudioProbe.runs.splice(0, headphoneAudioProbe.runs.length - 10);
+        headphoneAudioProbe.raf = requestAnimationFrame(hpProbeLoop);
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        for (let i = 0; i < 30; i++) run.noiseSamples.push(hpProbePeak());
+        const specs = [
+            { soundId: 'current-click', soundLabel: '現行クリック音', soundType: 'click', frequencyHz: 1500, route: 'existing-click' },
+            { soundId: 'tone-800', soundLabel: '800Hz 短音（Oscillator）', soundType: 'tone', frequencyHz: 800, route: 'oscillator' }, { soundId: 'tone-1000', soundLabel: '1000Hz 短音（AudioBuffer）', soundType: 'tone', frequencyHz: 1000, route: 'AudioBuffer' }, { soundId: 'tone-1500', soundLabel: '1500Hz 短音（AudioBuffer）', soundType: 'tone', frequencyHz: 1500, route: 'AudioBuffer' }, { soundId: 'tone-2000', soundLabel: '2000Hz 短音（AudioBuffer）', soundType: 'tone', frequencyHz: 2000, route: 'AudioBuffer' },
+            { soundId: 'low-pop', soundLabel: '低めのトッ・ポッ音', soundType: 'tone', frequencyHz: 220, route: 'oscillator/buffer' }, { soundId: 'noise', soundLabel: '短いノイズ音', soundType: 'noise', frequencyHz: null, route: 'oscillator/buffer' }, { soundId: 'c-chord', soundLabel: 'Cコード（短音）', soundType: 'chord', frequencyHz: null, route: 'AudioBuffer/C chord' }, { soundId: 'c-chord-short', soundLabel: 'Cコード（さらに短く）', soundType: 'chord', frequencyHz: null, route: 'AudioBuffer/C chord', forceDurationMs: 50 }, { soundId: 'htmlaudio-1000', soundLabel: '1000Hz HTMLAudio WAV', soundType: 'tone', frequencyHz: 1000, route: 'HTMLAudioElement/wav' }
+        ];
+        hpProbeSetStatus('テスト音を順番に再生しています。イヤホンとマイクの位置を変えずにお待ちください。');
+        for (const spec of specs) {
+            const actualDuration = spec.forceDurationMs || durationMs, timing = spec.route === 'HTMLAudioElement/wav' ? hpProbePlayHtmlAudio(ctx, spec, actualDuration) : hpProbePlayWebAudio(ctx, spec, actualDuration, spec.route);
+            const event = { soundId: spec.soundId, soundLabel: spec.soundLabel, soundType: spec.soundType, frequencyHz: spec.frequencyHz, durationMs: actualDuration, playbackRoute: timing.playbackRoute, constraintsProfile: profile, scheduledAtAudioTime: timing.scheduledAtAudioTime, scheduledAtPerformanceTime: timing.scheduledAtPerformanceTime, normalWindowMs: [0, 520], wideWindowMs: [-500, 1200], rankTop5: [], normalRankTop5: [] };
+            run.events.push(event); await new Promise((resolve) => setTimeout(resolve, 1250));
+        }
+        const sortedNoise = run.noiseSamples.slice().sort((a, b) => a - b), noise = { max: sortedNoise[sortedNoise.length - 1] || 0, p95: sortedNoise[Math.min(sortedNoise.length - 1, Math.floor(sortedNoise.length * 0.95))] || 0 };
+        run.events.forEach((event) => { hpProbeFinalizeEvent(event, noise); event.overlapsAdjacentSound = run.events.some((other) => other !== event && Math.abs(other.scheduledAtPerformanceTime - event.scheduledAtPerformanceTime) <= event.wideWindowMs[1]); }); run.finishedAt = new Date().toISOString(); run.noise = noise; run.activeTrackResult = hpProbeTrackInfo(stream.getAudioTracks()[0]);
+        hpProbeSetStatus('完了。開発ログをコピーして比較できます。'); renderHeadphoneAudioProbeLog();
+    } catch (e) { hpProbeSetStatus('調査用マイクを開始できませんでした: ' + (e && e.name ? e.name : 'unknown')); headphoneAudioProbe.run = { kind: 'androidHeadphoneClickInputFeasibility', error: e && e.name ? e.name : 'unknown', requestedConstraints: hpProbeConstraints(profile) }; headphoneAudioProbe.runs.push(headphoneAudioProbe.run); if (headphoneAudioProbe.runs.length > 10) headphoneAudioProbe.runs.splice(0, headphoneAudioProbe.runs.length - 10); renderHeadphoneAudioProbeLog(); }
+    finally { stopHeadphoneAudioProbeCapture(); }
+}
+function stopHeadphoneAudioProbeCapture() {
+    headphoneAudioProbe.active = false; cancelAnimationFrame(headphoneAudioProbe.raf); headphoneAudioProbe.raf = 0;
+    try { headphoneAudioProbe.src && headphoneAudioProbe.src.disconnect(); } catch (_) { /* noop */ }
+    try { headphoneAudioProbe.stream && headphoneAudioProbe.stream.getTracks().forEach((track) => track.stop()); } catch (_) { /* noop */ }
+    headphoneAudioProbe.stream = headphoneAudioProbe.src = headphoneAudioProbe.analyser = headphoneAudioProbe.buf = null;
+}
+async function startHeadphoneAudioProbeVoiceTap() {
+    if (headphoneAudioProbe.active || !androidAudioProbeDeviceInfo().isAndroid || !isHeadphoneInput()) return;
+    hpProbeSetStatus('最初の4秒は声、次の4秒は指タップまたはクラップを入力してください（比較ログのみ）。');
+    const ctx = ensureAudio();
+    try { const stream = await navigator.mediaDevices.getUserMedia({ audio: hpProbeConstraints(els.androidHpProbeConstraints ? els.androidHpProbeConstraints.value : 'current') }); const src = ctx.createMediaStreamSource(stream), analyser = ctx.createAnalyser(); analyser.fftSize = 2048; src.connect(analyser); headphoneAudioProbe.active = true; headphoneAudioProbe.stream = stream; headphoneAudioProbe.src = src; headphoneAudioProbe.analyser = analyser; headphoneAudioProbe.buf = new Float32Array(analyser.fftSize); const manual = headphoneAudioProbe.manual = { startedAt: new Date().toISOString(), samples: [], activeTrack: hpProbeTrackInfo(stream.getAudioTracks()[0]) }; headphoneAudioProbe.raf = requestAnimationFrame(hpProbeLoop); await new Promise((resolve) => setTimeout(resolve, 8000)); const split = Math.floor(manual.samples.length / 2), max = (xs) => xs.length ? Math.max(...xs) : 0; if (headphoneAudioProbe.run) headphoneAudioProbe.run.voiceOrTapComparison = { voicePeakMax: max(manual.samples.slice(0, split)), tapOrClapPeakMax: max(manual.samples.slice(split)), notes: '前半4秒=声、後半4秒=タップ/クラップ。補正には使わない比較値。' }; hpProbeSetStatus('声・タップ比較を記録しました。'); renderHeadphoneAudioProbeLog(); } catch (e) { hpProbeSetStatus('比較記録を開始できませんでした: ' + (e && e.name ? e.name : 'unknown')); } finally { headphoneAudioProbe.manual = null; stopHeadphoneAudioProbeCapture(); }
+}
+function renderHeadphoneAudioProbeLog() { if (els.androidHpProbeLog) els.androidHpProbeLog.value = JSON.stringify({ latestRun: headphoneAudioProbe.run || null, runs: headphoneAudioProbe.runs, note: '各constraints・有線/Bluetoothの実行履歴を比較してください。すべて調査専用です。' }, (_k, value) => value === undefined ? null : value, 2); }
+async function copyHeadphoneAudioProbeLog() { renderHeadphoneAudioProbeLog(); const text = els.androidHpProbeLog ? els.androidHpProbeLog.value : ''; const copied = !!text && await copyTextToClipboard(text); if (els.androidHpProbeCopyStatus) els.androidHpProbeCopyStatus.textContent = copied ? 'コピーしました' : 'コピーできませんでした。長押ししてコピーしてください。'; }
 
 /* ── 実践テスト（v0.9.56。旧「判定ズレ確認」を再設計）─────────────────
    通常マイク・イヤホン共通の「実践テスト」。STAGE1「4分ジャスト」に近い内容で、
@@ -21029,6 +21182,9 @@ function bind() {
     if (els.ptBtn) els.ptBtn.addEventListener('click', togglePracticeTest);
     // マイクの遅れ補正（Bluetooth用・v0.9.80）
     if (els.btCalBtn) els.btCalBtn.addEventListener('click', toggleBtCal);
+    if (els.androidHpProbeRun) els.androidHpProbeRun.addEventListener('click', startHeadphoneAudioProbe);
+    if (els.androidHpProbeVoice) els.androidHpProbeVoice.addEventListener('click', startHeadphoneAudioProbeVoiceTap);
+    if (els.androidHpProbeCopy) els.androidHpProbeCopy.addEventListener('click', copyHeadphoneAudioProbeLog);
     // イヤホン自己収音テスト（実験）
     if (els.hpAdBtn) els.hpAdBtn.addEventListener('click', startHpAutoDetect);
     if (els.btCalSkipWired) els.btCalSkipWired.addEventListener('click', skipWiredBtCal);
