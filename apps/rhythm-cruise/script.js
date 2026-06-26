@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.34';
+const RHYTHM_CRUISE_VERSION = '0.11.35';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -1081,7 +1081,7 @@ const els = {
     strokeModeNote: $('stroke-mode-note'),
     inputTypeNormal: $('input-type-normal'),
     inputTypeHeadphone: $('input-type-headphone'),
-    platformAutoNote: $('platform-auto-note'), platformIos: $('platform-ios'), platformAndroid: $('platform-android'), androidCheckCard: $('android-check-card'), androidCheckRun: $('android-check-run'), androidCheckStatus: $('android-check-status'), androidCheckResult: $('android-check-result'), androidCheckNext: $('android-check-next'), androidCheckClear: $('android-check-clear'), androidCheckCopy: $('android-check-copy'),
+    platformAutoNote: $('platform-auto-note'), platformIos: $('platform-ios'), platformAndroid: $('platform-android'), androidPlatformChoices: $('android-platform-choices'), androidInputNormal: $('android-input-normal'), androidInputHeadphone: $('android-input-headphone'), androidHeadphoneChoices: $('android-headphone-choices'), androidHpWired: $('android-hp-wired'), androidHpBluetooth: $('android-hp-bluetooth'), androidCheckCard: $('android-check-card'), androidCheckRun: $('android-check-run'), androidCheckStatus: $('android-check-status'), androidCheckResult: $('android-check-result'), androidCheckNext: $('android-check-next'), androidCheckClear: $('android-check-clear'), androidCheckCopy: $('android-check-copy'), androidCheckManualLog: $('android-check-manual-log'),
     inputTypeNote: $('input-type-note'),
     // イヤホン音ズレの画面補正（v0.9.50）
     hpCalCard: $('hp-cal-card'),
@@ -12697,7 +12697,10 @@ function updatePlatformChoiceUI() {
     if (els.platformAutoNote) els.platformAutoNote.textContent = info.isAndroid ? 'この端末は Android と判定されました。' : (info.isIOS ? 'この端末は iPhone / iPad と判定されました。' : '端末を推定できませんでした。手動で選んでください。');
     if (els.platformIos) els.platformIos.classList.toggle('is-active', selectedTestPlatform === 'ios');
     if (els.platformAndroid) els.platformAndroid.classList.toggle('is-active', selectedTestPlatform === 'android');
-    if (els.androidCheckCard) els.androidCheckCard.classList.toggle('hidden', selectedTestPlatform !== 'android' || !isHeadphoneInput());
+    const android = selectedTestPlatform === 'android';
+    if (els.androidPlatformChoices) els.androidPlatformChoices.classList.toggle('hidden', !android);
+    if (els.androidHeadphoneChoices) els.androidHeadphoneChoices.classList.toggle('hidden', !android || !isHeadphoneInput() || !setupProgress.inputChosen);
+    if (els.androidCheckCard) els.androidCheckCard.classList.toggle('hidden', !android || !isHeadphoneInput() || !setupProgress.inputChosen || !setupProgress.hpChosen);
 }
 function selectTestPlatform(platform) { selectedTestPlatform = platform; updatePlatformChoiceUI(); }
 function androidCheckStats(events) {
@@ -12715,7 +12718,7 @@ async function runAndroidAudioCheck() {
     if (els.androidCheckStatus) els.androidCheckStatus.textContent = '完了しました。ログをコピーできます。';
 }
 function clearAndroidAudioLogs() { headphoneAudioProbe.run = null; headphoneAudioProbe.runs = []; if (els.androidCheckResult) { els.androidCheckResult.textContent = ''; els.androidCheckResult.classList.add('hidden'); } if (els.androidCheckStatus) els.androidCheckStatus.textContent = 'Android音声調査ログをクリアしました。設定値は変更していません。'; renderHeadphoneAudioProbeLog(); }
-async function copyAndroidCheckLog() { const text = JSON.stringify({ selectedTestPlatform, autoDetectedPlatform: androidAudioProbeDeviceInfo(), latestRun: headphoneAudioProbe.run, runs: headphoneAudioProbe.runs }, null, 2); const copied = await copyTextToClipboard(text); if (els.androidCheckStatus) els.androidCheckStatus.textContent = copied ? 'Android音声チェックログをコピーしました。' : 'コピーできませんでした。'; }
+async function copyAndroidCheckLog() { const text = JSON.stringify({ selectedTestPlatform, autoDetectedPlatform: androidAudioProbeDeviceInfo(), latestRun: headphoneAudioProbe.run, runs: headphoneAudioProbe.runs }, null, 2); const copied = await copyTextToClipboard(text); if (copied) { if (els.androidCheckStatus) els.androidCheckStatus.textContent = 'Android音声チェックログをコピーしました。'; return; } if (els.androidCheckManualLog) { els.androidCheckManualLog.value = text; els.androidCheckManualLog.classList.remove('hidden'); try { els.androidCheckManualLog.focus(); els.androidCheckManualLog.select(); } catch (_) { /* manual long-press remains available */ } } if (els.androidCheckStatus) els.androidCheckStatus.textContent = '自動コピーできませんでした。下のログを長押ししてコピーしてください。'; }
 function hpProbeSetStatus(text) { if (els.androidHpProbeStatus) els.androidHpProbeStatus.textContent = text || ''; }
 function hpProbeConstraints(profile) {
     if (profile === 'minimal') return true;
@@ -12829,7 +12832,7 @@ async function startHeadphoneAudioProbe() {
         const src = ctx.createMediaStreamSource(stream), analyser = ctx.createAnalyser(); analyser.fftSize = androidCheckMode ? 8192 : 2048; src.connect(analyser);
         headphoneAudioProbe.active = true; headphoneAudioProbe.stream = stream; headphoneAudioProbe.src = src; headphoneAudioProbe.analyser = analyser; headphoneAudioProbe.buf = new Float32Array(analyser.fftSize);
         const devices = await hpProbeDevices();
-        const run = headphoneAudioProbe.run = { kind: 'androidHeadphoneClickInputFeasibility', startedAt: new Date().toISOString(), device: androidAudioProbeDeviceInfo(), selectedTestPlatform, selectedInputType: getMicInputType(), selectedHeadphoneType: getHeadphoneType(), stateInputType: mic.inputType, stateHeadphoneType: mic.headphoneType, constraintsProfile: profile, requestedConstraints: hpProbeConstraints(profile), activeTrack: hpProbeTrackInfo(stream.getAudioTracks()[0]), ...devices, bluetoothHeadsetInputCandidateExists: devices.deviceListAudioInputs.some((d) => /bluetooth headset/i.test(d.label || '')), uiAndStateHeadphoneTypeMatch: getHeadphoneType() === mic.headphoneType, noiseSamples: [], events: [] }; headphoneAudioProbe.runs.push(run); if (headphoneAudioProbe.runs.length > 10) headphoneAudioProbe.runs.splice(0, headphoneAudioProbe.runs.length - 10);
+        const run = headphoneAudioProbe.run = { kind: 'androidHeadphoneClickInputFeasibility', startedAt: new Date().toISOString(), device: androidAudioProbeDeviceInfo(), selectedTestPlatform, selectedInputType: getMicInputType(), selectedHeadphoneType: getHeadphoneType(), stateInputType: mic.inputType, stateHeadphoneType: mic.headphoneType, constraintsProfile: profile, requestedConstraints: hpProbeConstraints(profile), activeTrack: hpProbeTrackInfo(stream.getAudioTracks()[0]), ...devices, bluetoothHeadsetInputCandidateExists: devices.deviceListAudioInputs.some((d) => /bluetooth headset/i.test(d.label || '')), headphoneTypeMatchesUi: getHeadphoneType() === mic.headphoneType, inputTypeMatchesUi: getMicInputType() === mic.inputType, noiseSamples: [], events: [] }; headphoneAudioProbe.runs.push(run); if (headphoneAudioProbe.runs.length > 10) headphoneAudioProbe.runs.splice(0, headphoneAudioProbe.runs.length - 10);
         headphoneAudioProbe.raf = requestAnimationFrame(hpProbeLoop);
         await new Promise((resolve) => setTimeout(resolve, 600));
         for (let i = 0; i < 30; i++) run.noiseSamples.push(hpProbePeak());
@@ -16701,6 +16704,7 @@ function onPickInputType(type) {
         // 通常マイク選択時は見本プリセット値を出発点にする（v0.9.229）。
         if (next === 'normal') applyStepsBuiltinDefaults();
     }
+    updatePlatformChoiceUI();
 }
 
 function onPickHeadphoneType(type) {
@@ -16721,6 +16725,7 @@ function onPickHeadphoneType(type) {
         // 有線/Bluetooth選択時は見本プリセット値を出発点にする（v0.9.229）。
         applyStepsBuiltinDefaults();
     }
+    updatePlatformChoiceUI();
 }
 
 function onPickStrokeMode(mode) {
@@ -21203,6 +21208,10 @@ function bind() {
     if (els.inputTypeHeadphone) els.inputTypeHeadphone.addEventListener('click', () => onPickInputType('headphone'));
     if (els.platformIos) els.platformIos.addEventListener('click', () => selectTestPlatform('ios'));
     if (els.platformAndroid) els.platformAndroid.addEventListener('click', () => selectTestPlatform('android'));
+    if (els.androidInputNormal) els.androidInputNormal.addEventListener('click', () => onPickInputType('normal'));
+    if (els.androidInputHeadphone) els.androidInputHeadphone.addEventListener('click', () => onPickInputType('headphone'));
+    if (els.androidHpWired) els.androidHpWired.addEventListener('click', () => onPickHeadphoneType('wired'));
+    if (els.androidHpBluetooth) els.androidHpBluetooth.addEventListener('click', () => onPickHeadphoneType('bluetooth'));
     if (els.androidCheckRun) els.androidCheckRun.addEventListener('click', runAndroidAudioCheck);
     if (els.androidCheckClear) els.androidCheckClear.addEventListener('click', clearAndroidAudioLogs);
     if (els.androidCheckCopy) els.androidCheckCopy.addEventListener('click', copyAndroidCheckLog);
