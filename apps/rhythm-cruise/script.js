@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.35';
+const RHYTHM_CRUISE_VERSION = '0.11.36';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -12718,7 +12718,22 @@ async function runAndroidAudioCheck() {
     if (els.androidCheckStatus) els.androidCheckStatus.textContent = '完了しました。ログをコピーできます。';
 }
 function clearAndroidAudioLogs() { headphoneAudioProbe.run = null; headphoneAudioProbe.runs = []; if (els.androidCheckResult) { els.androidCheckResult.textContent = ''; els.androidCheckResult.classList.add('hidden'); } if (els.androidCheckStatus) els.androidCheckStatus.textContent = 'Android音声調査ログをクリアしました。設定値は変更していません。'; renderHeadphoneAudioProbeLog(); }
-async function copyAndroidCheckLog() { const text = JSON.stringify({ selectedTestPlatform, autoDetectedPlatform: androidAudioProbeDeviceInfo(), latestRun: headphoneAudioProbe.run, runs: headphoneAudioProbe.runs }, null, 2); const copied = await copyTextToClipboard(text); if (copied) { if (els.androidCheckStatus) els.androidCheckStatus.textContent = 'Android音声チェックログをコピーしました。'; return; } if (els.androidCheckManualLog) { els.androidCheckManualLog.value = text; els.androidCheckManualLog.classList.remove('hidden'); try { els.androidCheckManualLog.focus(); els.androidCheckManualLog.select(); } catch (_) { /* manual long-press remains available */ } } if (els.androidCheckStatus) els.androidCheckStatus.textContent = '自動コピーできませんでした。下のログを長押ししてコピーしてください。'; }
+async function copyAndroidCheckLog() {
+    if (!headphoneAudioProbe.run && !headphoneAudioProbe.runs.length) {
+        if (els.androidCheckStatus) els.androidCheckStatus.textContent = 'まだコピーできるAndroid音声チェックログがありません。先に「イヤホン音がマイクに入るか確認」を実行してください。';
+        return;
+    }
+    let text;
+    try { text = JSON.stringify({ selectedTestPlatform, autoDetectedPlatform: androidAudioProbeDeviceInfo(), latestRun: headphoneAudioProbe.run, runs: headphoneAudioProbe.runs }, null, 2); }
+    catch (_) { text = '{"error":"Android音声チェックログをJSON化できませんでした"}'; }
+    // 先に常時手動コピー可能な欄へ入れる。Clipboard APIの可否に関わらずログを失わない。
+    if (els.androidCheckManualLog) { els.androidCheckManualLog.value = text; els.androidCheckManualLog.classList.remove('hidden'); els.androidCheckManualLog.style.display = 'block'; }
+    let copied = false;
+    try { copied = await copyTextToClipboard(text); } catch (_) { copied = false; }
+    if (copied) { if (els.androidCheckStatus) els.androidCheckStatus.textContent = 'Android音声チェックログをコピーしました。'; return; }
+    if (els.androidCheckManualLog) { try { els.androidCheckManualLog.focus(); els.androidCheckManualLog.select(); } catch (_) { /* long-press remains available */ } }
+    if (els.androidCheckStatus) els.androidCheckStatus.textContent = '自動コピーできませんでした。下のログを長押ししてコピーしてください。';
+}
 function hpProbeSetStatus(text) { if (els.androidHpProbeStatus) els.androidHpProbeStatus.textContent = text || ''; }
 function hpProbeConstraints(profile) {
     if (profile === 'minimal') return true;
