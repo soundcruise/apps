@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.40';
+const RHYTHM_CRUISE_VERSION = '0.11.41';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -12709,13 +12709,80 @@ function androidCheckStats(events) {
     events.forEach((e) => { (groups[e.soundId] || (groups[e.soundId] = [])).push(e); });
     return Object.entries(groups).map(([soundId, rows]) => { const p = rows.map((x) => x.normalWindowMaxPeak), o = rows.map((x) => x.normalWindowPeakOffsetMs), ratios = rows.map((x) => x.soundToNoiseRatio); const peakMedian = med(p), offsetMedianMs = med(o); const range = (a) => a.length ? Math.max(...a) - Math.min(...a) : null; const detectedCount = rows.filter((x) => x.detected).length; return { soundId, soundLabel: rows[0].soundLabel, detectedCount, peakMedian, peakMean: p.reduce((a,b)=>a+b,0)/p.length, peakMin: Math.min(...p), peakMax: Math.max(...p), peakRange: range(p), offsetMedianMs, offsetMeanMs: o.filter(Number.isFinite).reduce((a,b)=>a+b,0)/Math.max(1,o.filter(Number.isFinite).length), offsetMinMs: o.length ? Math.min(...o) : null, offsetMaxMs: o.length ? Math.max(...o) : null, offsetRangeMs: range(o.filter(Number.isFinite)), noiseP95: rows[0].noiseP95, noiseMax: rows[0].noiseMax, peakToNoiseMedian: med(ratios), peakToNoiseMin: ratios.length ? Math.min(...ratios) : null, stableEnoughGuess: detectedCount >= 2 && (med(ratios) || 0) >= 2 && (range(o.filter(Number.isFinite)) || Infinity) <= 80 }; });
 }
+/* v0.11.41：2連/3連ノイズパターンの解析（調査専用・補正値/保存/Practice判定には一切使わない）。
+   アンカーは「最強ピーク」ではなく earliest-valid-pair 方式：
+   focused window 内の候補ピークを時間順に並べ、各候補を1発目候補として +120ms 付近に2発目があるかを調べ、
+   有効ペアになる最も早い候補を1発目(offset)に採用する。これで1発目/2発目の取り違え(120ms跳び)を避ける。 */
+function hpAnalyzeNoisePattern(events, opts) {
+    const win = 30, noiseMult = 2.0, focusFrom = 450, focusTo = 560;
+    const sorted = (xs) => xs.filter(Number.isFinite).slice().sort((a, b) => a - b);
+    const med = (xs) => { const a = sorted(xs); return a.length ? a[Math.floor(a.length / 2)] : null; };
+    const trim = (xs) => { const a = sorted(xs); return a.length <= 2 ? a : a.slice(1, a.length - 1); };
+    const range = (xs) => { const a = sorted(xs); return a.length ? Math.round((a[a.length - 1] - a[0]) * 10) / 10 : null; };
+    const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
+    const rows = events.filter((x) => x.soundId === opts.soundId).map((x, i) => {
+        const thr = (x.noiseP95 || 0) * noiseMult;
+        const tl = (x.energyTimeline || []).filter((p) => p.offsetMs >= focusFrom && p.offsetMs <= focusTo);
+        const peakNear = (expected) => expected == null ? null : (tl.filter((q) => Math.abs(q.offsetMs - expected) <= win).sort((a, b) => b.value - a.value)[0] || null);
+        const candidates = tl.filter((p) => p.value > thr).sort((a, b) => a.offsetMs - b.offsetMs);
+        let validPairsCount = 0, anchor = null;
+        for (const c of candidates) { const second = peakNear(c.offsetMs + 120); if (second && second.value > thr) { validPairsCount++; if (!anchor) anchor = c; } }
+        const off = anchor ? anchor.offsetMs : null;
+        const peaks = opts.targetsMs.map((t, idx) => {
+            const expected = off == null ? null : off + t, p = peakNear(expected);
+            return { targetIndex: idx + 1, targetMs: t, expectedOffsetMs: r1(expected), peakOffsetMs: p ? p.offsetMs : null,
+                deltaMs: p && expected != null ? Math.round((p.offsetMs - expected) * 10) / 10 : null, value: p ? p.value : 0,
+                peakToNoise: p && x.noiseP95 ? Math.round(p.value / x.noiseP95 * 1000) / 1000 : null, matched: !!p && p.value > thr };
+        });
+        const matched = peaks.filter((p) => p.matched);
+        const d01 = peaks[0].peakOffsetMs != null && peaks[1].peakOffsetMs != null ? Math.round((peaks[1].peakOffsetMs - peaks[0].peakOffsetMs) * 10) / 10 : null;
+        const intervalOk = d01 != null && Math.abs(d01 - 120) <= 35;
+        const score = Math.round(matched.reduce((s, p) => s + (p.peakToNoise || 0), 0) * 1000) / 1000;
+        const accepted = anchor != null && peaks[0].matched && peaks[1].matched && intervalOk;
+        return { index: i + 1, focusedPatternOffsetMs: off, focusedPatternScore: score, matchedCount: matched.length, matchedPeaks: peaks,
+            intervalCheck: { peak01DeltaMs: d01, expected01Ms: 120, intervalOk }, candidatePeaksCount: candidates.length, validPairsCount,
+            anchorStrategy: 'earliest-valid-pair', accepted,
+            rejectReason: accepted ? null : (anchor == null ? 'no-valid-pair' : (!peaks[0].matched || !peaks[1].matched ? 'targets-unmatched' : 'interval-mismatch')) };
+    });
+    const acc = rows.filter((r) => r.accepted), po = acc.map((r) => r.focusedPatternOffsetMs), tpo = trim(po), ps = rows.map((r) => r.focusedPatternScore);
+    const acceptedCount = acc.length, intervalOkCount = rows.filter((r) => r.intervalCheck.intervalOk).length;
+    const matchedCountMedian = med(rows.map((r) => r.matchedCount)), trimmedRange = range(tpo);
+    const finalGuess = acceptedCount >= 5 && trimmedRange != null && trimmedRange <= 25 && matchedCountMedian >= 2 && intervalOkCount >= 5 ? 'usable'
+        : (acceptedCount >= 4 && trimmedRange != null && trimmedRange <= 45 && matchedCountMedian >= 2 && intervalOkCount >= 4 ? 'candidate'
+        : (acceptedCount >= 1 ? 'weak' : 'not-usable'));
+    return { soundId: opts.soundId, soundLabel: opts.soundLabel, repeatCount: opts.repeatCount, focusedWindowMs: [focusFrom, focusTo], anchorStrategy: 'earliest-valid-pair',
+        results: rows, acceptedCount, intervalOkCount, focusedOffsetMedianMs: r1(med(po)), focusedOffsetTrimmedMedianMs: r1(med(tpo)),
+        focusedOffsetMeanMs: po.length ? Math.round(po.reduce((a, b) => a + b, 0) / po.length * 10) / 10 : null,
+        focusedOffsetMinMs: po.length ? Math.min(...po) : null, focusedOffsetMaxMs: po.length ? Math.max(...po) : null,
+        focusedOffsetRangeMs: range(po), focusedOffsetTrimmedRangeMs: trimmedRange, patternScoreMedian: med(ps),
+        patternScoreMin: ps.length ? Math.min(...ps) : null, patternScoreMax: ps.length ? Math.max(...ps) : null,
+        matchedCountMedian, finalGuess };
+}
+/* finalGuess の優先度比較で double / triple の bestCandidate を決める。 */
+function hpPatternBest(dbl, tri) {
+    const rank = { usable: 3, candidate: 2, weak: 1, 'not-usable': 0 };
+    const score = (d) => d ? rank[d.finalGuess] : -1;
+    const sd = score(dbl), st = score(tri);
+    if (sd !== st) return sd > st ? 'double-noise-pattern' : 'triple-noise-pattern';
+    if ((dbl && dbl.acceptedCount || 0) !== (tri && tri.acceptedCount || 0)) return (dbl.acceptedCount > tri.acceptedCount) ? 'double-noise-pattern' : 'triple-noise-pattern';
+    const dr = dbl && dbl.focusedOffsetTrimmedRangeMs, tr = tri && tri.focusedOffsetTrimmedRangeMs;
+    if (dr != null && tr != null && dr !== tr) return dr < tr ? 'double-noise-pattern' : 'triple-noise-pattern';
+    return 'double-noise-pattern'; // 同等なら短い2連を優先
+}
 async function runAndroidAudioCheck() {
     if (!isHeadphoneInput()) { if (els.androidCheckStatus) els.androidCheckStatus.textContent = 'イヤホン接続を選ぶと、このチェックを実行できます。通常マイクは既存の通常マイク補正へ進みます。'; return; }
     androidCheckMode = true; if (els.androidCheckStatus) els.androidCheckStatus.textContent = '4種類を各3回測定しています…'; await startHeadphoneAudioProbe(); androidCheckMode = false;
     const run = headphoneAudioProbe.run; if (!run || !run.events) return;
     run.kind = 'androidAudioCheck'; run.selectedTestPlatform = selectedTestPlatform; run.autoDetectedPlatform = androidAudioProbeDeviceInfo(); run.summary = androidCheckStats(run.events); const wave = run.events.filter((x) => x.waveformMatch).map((x) => ({ index: x.index, peakOffsetMs: x.normalWindowPeakOffsetMs, correlationOffsetMs: x.waveformMatch.correlationOffsetMs, correlationScore: x.waveformMatch.correlationScore, peakToNoise: x.soundToNoiseRatio })); wave.forEach((x) => { x.accepted = x.correlationScore != null && x.correlationScore >= 0.2; x.rejectReason = x.accepted ? null : 'low-or-missing-correlation'; }); const offs = wave.filter((x) => x.accepted).map((x) => x.correlationOffsetMs), scores = wave.map((x) => x.correlationScore).filter(Number.isFinite), med = (xs) => { const a = xs.slice().sort((a,b)=>a-b); return a.length ? a[Math.floor(a.length/2)] : null; }; run.androidWaveformMatch = { probeLabel: 'Android calibration probe', probeDurationMs: 100, repeatCount: 5, results: wave, acceptedCount: offs.length, offsetMedianMs: med(offs), offsetMeanMs: offs.length ? offs.reduce((a,b)=>a+b,0)/offs.length : null, offsetMinMs: offs.length ? Math.min(...offs) : null, offsetMaxMs: offs.length ? Math.max(...offs) : null, offsetRangeMs: offs.length ? Math.max(...offs)-Math.min(...offs) : null, scoreMedian: med(scores), finalGuess: offs.length >= 3 && (Math.max(...offs)-Math.min(...offs)) <= 80 ? 'usable' : (offs.length ? 'weak' : 'not-usable') }; run.finalGuess = run.androidWaveformMatch.finalGuess; run.notes = '補正値・保存値・Practice判定には未使用。';
-    if (getHeadphoneType() === 'bluetooth') { const ex = androidCheckStats(run.events.filter((x) => x.bluetoothExploration)); const targets = [0,120,280], win = 30; const patternRows = run.events.filter((x) => x.soundId === 'triple-noise-pattern').map((x,i) => { const base = x.energyTimeline.filter((p)=>p.offsetMs>=350&&p.offsetMs<=600).sort((a,b)=>b.value-a.value)[0]; const off = base ? base.offsetMs : null; const peaks = targets.map((t,idx)=>{ const expected=off==null?null:off+t, p=expected==null?null:x.energyTimeline.filter((q)=>Math.abs(q.offsetMs-expected)<=win).sort((a,b)=>b.value-a.value)[0]; return { targetIndex:idx+1,targetMs:t,expectedOffsetMs:expected,peakOffsetMs:p?p.offsetMs:null,deltaMs:p?Math.round((p.offsetMs-expected)*10)/10:null,value:p?p.value:0,peakToNoise:p&&x.noiseP95?p.value/x.noiseP95:null,matched:!!p&&p.value>(x.noiseP95||0)*2 }; }); const m=peaks.filter(p=>p.matched), ds=peaks.map(p=>p.peakOffsetMs), i01=ds[1]-ds[0],i12=ds[2]-ds[1],i02=ds[2]-ds[0], ok=m.length>=2&&Math.abs(i01-120)<=35&&Math.abs(i12-160)<=35&&Math.abs(i02-280)<=35; return {index:i+1,widePatternOffsetMs:x.normalWindowPeakOffsetMs,widePatternScore:x.soundToNoiseRatio,focusedPatternOffsetMs:off,focusedPatternScore:m.reduce((s,p)=>s+(p.peakToNoise||0),0),matchedCount:m.length,matchedPeaks:peaks,intervalCheck:{peak01DeltaMs:i01,peak12DeltaMs:i12,peak02DeltaMs:i02,expected01Ms:120,expected12Ms:160,expected02Ms:280,intervalOk:ok},peakToNoiseApprox:x.soundToNoiseRatio,accepted:ok,rejectReason:ok?null:(m.length<2?'fewer-than-two-targets':'interval-mismatch')}; }); const po=patternRows.filter(x=>x.accepted).map(x=>x.focusedPatternOffsetMs), med2=xs=>{const a=xs.filter(Number.isFinite).sort((a,b)=>a-b);return a.length?a[Math.floor(a.length/2)]:null}, ps=patternRows.map(x=>x.focusedPatternScore); const triplePatternDetection={soundId:'triple-noise-pattern',soundLabel:'3連ノイズパターン',repeatCount:5,results:patternRows,acceptedCount:po.length,focusedOffsetMedianMs:med2(po),focusedOffsetMeanMs:po.length?po.reduce((a,b)=>a+b,0)/po.length:null,focusedOffsetMinMs:po.length?Math.min(...po):null,focusedOffsetMaxMs:po.length?Math.max(...po):null,focusedOffsetRangeMs:po.length?Math.max(...po)-Math.min(...po):null,patternScoreMedian:med2(ps),patternScoreMin:Math.min(...ps),patternScoreMax:Math.max(...ps),matchedCountMedian:med2(patternRows.map(x=>x.matchedCount)),intervalOkCount:patternRows.filter(x=>x.intervalCheck.intervalOk).length,finalGuess:po.length>=4&&Math.max(...po)-Math.min(...po)<=30&&med2(patternRows.map(x=>x.matchedCount))>=3?'usable':(po.length>=3&&Math.max(...po)-Math.min(...po)<=50&&med2(patternRows.map(x=>x.matchedCount))>=2?'candidate':(po.length?'weak':'not-usable'))}; const best=ex.sort((a,b)=>(b.peakToNoiseMedian||0)-(a.peakToNoiseMedian||0))[0]; run.bluetoothExploration={constraintsProfile:'current',tests:ex,triplePatternDetection,bestCandidate:triplePatternDetection.finalGuess==='usable'||triplePatternDetection.finalGuess==='candidate'?'triple-noise-pattern':(best?best.soundId:'none'),finalGuess:triplePatternDetection.finalGuess}; }
-    if (els.androidCheckResult) { const best = run.summary.filter((x) => x.stableEnoughGuess).map((x) => x.soundLabel).join(' / ') || 'なし'; const wm = run.androidWaveformMatch, bt = run.bluetoothExploration, tp = bt && bt.triplePatternDetection; els.androidCheckResult.textContent = 'イヤホン音チェック結果\n・直接測定できる可能性: ' + (run.finalGuess === 'usable' ? '高' : (run.finalGuess === 'weak' ? '中' : '低')) + '\n・有力な音: ' + best + '\n・波形照合: ' + wm.finalGuess + ' / offset中央値 ' + (wm.offsetMedianMs != null ? Math.round(wm.offsetMedianMs) + 'ms' : '–') + ' / 範囲 ' + (wm.offsetRangeMs != null ? Math.round(wm.offsetRangeMs) + 'ms' : '–') + ' / 採用 ' + wm.acceptedCount + '/5' + (bt ? '\n・Bluetooth探索: 最有力 ' + bt.bestCandidate + ' / 判定 ' + bt.finalGuess : '') + (tp ? '\n・3連ノイズパターン: ' + tp.finalGuess + ' / 推定offset ' + (tp.focusedOffsetMedianMs != null ? Math.round(tp.focusedOffsetMedianMs) + 'ms' : '–') + ' / 範囲 ' + (tp.focusedOffsetRangeMs != null ? Math.round(tp.focusedOffsetRangeMs) + 'ms' : '–') + ' / 採用 ' + tp.acceptedCount + '/5 / score中央値 ' + (tp.patternScoreMedian != null ? tp.patternScoreMedian.toFixed(2) : '–') : '') + '\n・この結果は補正には保存されていません'; els.androidCheckResult.classList.remove('hidden'); }
+    if (getHeadphoneType() === 'bluetooth') {
+        const ex = androidCheckStats(run.events.filter((x) => x.bluetoothExploration));
+        const doublePatternDetection = hpAnalyzeNoisePattern(run.events, { soundId: 'double-noise-pattern', soundLabel: '2連ノイズパターン', repeatCount: 7, targetsMs: [0, 120] });
+        const triplePatternDetection = hpAnalyzeNoisePattern(run.events, { soundId: 'triple-noise-pattern', soundLabel: '3連ノイズパターン', repeatCount: 7, targetsMs: [0, 120, 280] });
+        const bestCandidate = hpPatternBest(doublePatternDetection, triplePatternDetection);
+        const bestObj = bestCandidate === 'double-noise-pattern' ? doublePatternDetection : triplePatternDetection;
+        run.bluetoothExploration = { constraintsProfile: 'current', focusedWindowMs: [450, 560], tests: ex, doublePatternDetection, triplePatternDetection, bestCandidate, finalGuess: bestObj.finalGuess };
+    }
+    if (els.androidCheckResult) { const best = run.summary.filter((x) => x.stableEnoughGuess).map((x) => x.soundLabel).join(' / ') || 'なし'; const wm = run.androidWaveformMatch, bt = run.bluetoothExploration, dp = bt && bt.doublePatternDetection, tp = bt && bt.triplePatternDetection; const rd = (v) => v != null ? Math.round(v) + 'ms' : '–'; const patBlock = (label, p) => !p ? '' : '\n・' + label + ': ' + p.finalGuess + '\n  推定offset ' + rd(p.focusedOffsetMedianMs) + ' / trimmed ' + rd(p.focusedOffsetTrimmedMedianMs) + '\n  範囲 ' + rd(p.focusedOffsetRangeMs) + ' / trimmed範囲 ' + rd(p.focusedOffsetTrimmedRangeMs) + '\n  採用 ' + p.acceptedCount + '/' + p.repeatCount + ' / interval OK ' + p.intervalOkCount + '/' + p.repeatCount + ' / matched中央値 ' + (p.matchedCountMedian != null ? p.matchedCountMedian : '–') + ' / score中央値 ' + (p.patternScoreMedian != null ? p.patternScoreMedian.toFixed(2) : '–'); els.androidCheckResult.textContent = 'イヤホン音チェック結果\n・直接測定できる可能性: ' + (run.finalGuess === 'usable' ? '高' : (run.finalGuess === 'weak' ? '中' : '低')) + '\n・有力な音: ' + best + '\n・波形照合: ' + wm.finalGuess + ' / offset中央値 ' + (wm.offsetMedianMs != null ? Math.round(wm.offsetMedianMs) + 'ms' : '–') + ' / 範囲 ' + (wm.offsetRangeMs != null ? Math.round(wm.offsetRangeMs) + 'ms' : '–') + ' / 採用 ' + wm.acceptedCount + '/5' + (bt ? '\n・Bluetooth探索: 最有力 ' + bt.bestCandidate + ' / 判定 ' + bt.finalGuess : '') + patBlock('2連ノイズパターン', dp) + patBlock('3連ノイズパターン', tp) + '\n・この結果は補正には保存されていません'; els.androidCheckResult.classList.remove('hidden'); }
     if (els.androidCheckStatus) els.androidCheckStatus.textContent = '完了しました。ログをコピーできます。';
 }
 function clearAndroidAudioLogs() { headphoneAudioProbe.run = null; headphoneAudioProbe.runs = []; if (els.androidCheckResult) { els.androidCheckResult.textContent = ''; els.androidCheckResult.classList.add('hidden'); } if (els.androidCheckStatus) els.androidCheckStatus.textContent = 'Android音声調査ログをクリアしました。設定値は変更していません。'; renderHeadphoneAudioProbeLog(); }
@@ -12793,7 +12860,7 @@ function hpProbeAddPeak(event, now, peak) {
     const offset = now - event.scheduledAtPerformanceTime;
     if (offset < event.wideWindowMs[0] || offset > event.wideWindowMs[1]) return;
     const row = { offsetMs: Math.round(offset * 10) / 10, value: Math.round(peak * 1000000) / 1000000 };
-    if (event.soundId === 'triple-noise-pattern') { event.energyTimeline.push(row); if (event.energyTimeline.length > 120) event.energyTimeline.shift(); }
+    if (event.soundId === 'triple-noise-pattern' || event.soundId === 'double-noise-pattern') { event.energyTimeline.push(row); if (event.energyTimeline.length > 160) event.energyTimeline.shift(); }
     const add = (list) => { list.push(row); list.sort((x, y) => y.value - x.value); if (list.length > 5) list.length = 5; };
     add(event.rankTop5);
     if (offset >= event.normalWindowMs[0] && offset <= event.normalWindowMs[1]) add(event.normalRankTop5);
@@ -12818,7 +12885,7 @@ function hpProbeMakeBuffer(ctx, spec, durationMs) {
         const t = i / ctx.sampleRate, env = Math.pow(1 - i / len, 2);
         if (spec.soundType === 'voicepop') data[i] = (Math.sin(2*Math.PI*190*t) + .45*Math.sin(2*Math.PI*850*t) + .25*Math.sin(2*Math.PI*1800*t)) / 1.7 * env * .75;
         else if (spec.soundType === 'chirp') data[i] = Math.sin(2*Math.PI*(300*t + 9000*t*t)) * Math.sin(Math.PI*i/len) * .7;
-        else if (spec.soundType === 'pattern') { const ms = i / ctx.sampleRate * 1000; const hit = [0, 120, 280].some((at) => ms >= at && ms < at + 60); const n = (Math.sin((i + 7) * 12.9898) * 43758.5453) % 1; data[i] = hit ? ((n < 0 ? n + 1 : n) * 2 - 1) * .72 : 0; }
+        else if (spec.soundType === 'pattern') { const ms = i / ctx.sampleRate * 1000; const ats = spec.patternPulsesMs || [0, 120, 280]; const hit = ats.some((at) => ms >= at && ms < at + 60); const n = (Math.sin((i + 7) * 12.9898) * 43758.5453) % 1; data[i] = hit ? ((n < 0 ? n + 1 : n) * 2 - 1) * .72 : 0; }
         else if (spec.soundType === 'probe') { const n = (Math.sin((i + 1) * 12.9898) * 43758.5453) % 1; data[i] = ((n < 0 ? n + 1 : n) * 2 - 1) * env * 0.7; }
         else if (spec.soundType === 'noise') data[i] = (Math.random() * 2 - 1) * env * 0.7;
         else if (spec.soundType === 'chord') data[i] = PREVIEW_CHORD_FREQS.reduce((sum, f) => sum + Math.sin(2 * Math.PI * f * t), 0) / PREVIEW_CHORD_FREQS.length * env * 0.75;
@@ -12879,12 +12946,16 @@ async function startHeadphoneAudioProbe() {
             { soundId: 'tone-1500', soundLabel: '1500Hz 短音', soundType: 'tone', frequencyHz: 1500, route: 'AudioBuffer' },
             { soundId: 'tone-2000', soundLabel: '2000Hz 短音', soundType: 'tone', frequencyHz: 2000, route: 'AudioBuffer' },
             { soundId: 'noise', soundLabel: '短いノイズ音', soundType: 'noise', frequencyHz: null, route: 'AudioBuffer' }
-        ]).flat(), ...(getHeadphoneType() === 'bluetooth' ? Array.from({ length: 5 }, () => [
-            { soundId: 'voice-like-pop', soundLabel: '声っぽい短音', soundType: 'voicepop', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true },
-            { soundId: 'low-mid-thump', soundLabel: '低〜中域の物音', soundType: 'voicepop', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true },
-            { soundId: 'speech-band-chirp', soundLabel: '音声帯域チャープ', soundType: 'chirp', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true },
-            { soundId: 'triple-noise-pattern', soundLabel: '3連ノイズパターン', soundType: 'pattern', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true }
-        ]).flat() : [])] : [
+        ]).flat(), ...(getHeadphoneType() === 'bluetooth' ? [
+            ...Array.from({ length: 3 }, () => [
+                { soundId: 'voice-like-pop', soundLabel: '声っぽい短音', soundType: 'voicepop', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true },
+                { soundId: 'low-mid-thump', soundLabel: '低〜中域の物音', soundType: 'voicepop', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true },
+                { soundId: 'speech-band-chirp', soundLabel: '音声帯域チャープ', soundType: 'chirp', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true }
+            ]).flat(),
+            // v0.11.41：2連/3連を比較。各パルスが実際に鳴るよう forceDurationMs でバッファ長を確保（patternPulsesMs の最終パルス+余白）。
+            ...Array.from({ length: 7 }, () => ({ soundId: 'double-noise-pattern', soundLabel: '2連ノイズパターン', soundType: 'pattern', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true, patternPulsesMs: [0, 120], forceDurationMs: 200 })),
+            ...Array.from({ length: 7 }, () => ({ soundId: 'triple-noise-pattern', soundLabel: '3連ノイズパターン', soundType: 'pattern', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true, patternPulsesMs: [0, 120, 280], forceDurationMs: 360 }))
+        ] : [])] : [
             { soundId: 'current-click', soundLabel: '現行クリック音', soundType: 'click', frequencyHz: 1500, route: 'existing-click' },
             { soundId: 'tone-800', soundLabel: '800Hz 短音（Oscillator）', soundType: 'tone', frequencyHz: 800, route: 'oscillator' }, { soundId: 'tone-1000', soundLabel: '1000Hz 短音（AudioBuffer）', soundType: 'tone', frequencyHz: 1000, route: 'AudioBuffer' }, { soundId: 'tone-1500', soundLabel: '1500Hz 短音（AudioBuffer）', soundType: 'tone', frequencyHz: 1500, route: 'AudioBuffer' }, { soundId: 'tone-2000', soundLabel: '2000Hz 短音（AudioBuffer）', soundType: 'tone', frequencyHz: 2000, route: 'AudioBuffer' },
             { soundId: 'low-pop', soundLabel: '低めのトッ・ポッ音', soundType: 'tone', frequencyHz: 220, route: 'oscillator/buffer' }, { soundId: 'noise', soundLabel: '短いノイズ音', soundType: 'noise', frequencyHz: null, route: 'oscillator/buffer' }, { soundId: 'c-chord', soundLabel: 'Cコード（短音）', soundType: 'chord', frequencyHz: null, route: 'AudioBuffer/C chord' }, { soundId: 'c-chord-short', soundLabel: 'Cコード（さらに短く）', soundType: 'chord', frequencyHz: null, route: 'AudioBuffer/C chord', forceDurationMs: 50 }, { soundId: 'htmlaudio-1000', soundLabel: '1000Hz HTMLAudio WAV', soundType: 'tone', frequencyHz: 1000, route: 'HTMLAudioElement/wav' }
