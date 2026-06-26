@@ -10,7 +10,9 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.29';
+const RHYTHM_CRUISE_VERSION = '0.11.30';
+let audioContextDebugCreatedAt = null;
+let audioContextDebugLastResumeAt = null;
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
@@ -298,6 +300,11 @@ const CAL_DETECT_WIN_TO = 520;
 const CAL_MAX_SPREAD_MS = 45;
 /* 補正値の絶対上限（ms）。この値に張り付く（=測定遅延が大きすぎる）場合は不安定扱いにする */
 const CAL_OFFSET_LIMIT_MS = 150;
+
+/* Android 音声遅延調査（v0.11.30）：判定・保存・補正値には一切使わない読み取り専用の広域ピーク観測。
+   Pixel 等で通常の検出窓外にある入力を、既存 analyser の各フレームから記録する。 */
+const ANDROID_AUDIO_PROBE_WIDE_FROM_MS = -500;
+const ANDROID_AUDIO_PROBE_WIDE_TO_MS = 1200;
 
 /* クリック音ガード中でも、これ以上の大きさなら本物のストロークとみなして通す（しきい値の倍率）。
    反応ラインはおすすめ適用後クリック音より上にあるため、ライン超え＝ストローク。
@@ -6268,10 +6275,11 @@ function ensureAudio() {
     if (!state.audioCtx || state.audioCtx.state === 'closed') {
         const AC = window.AudioContext || window.webkitAudioContext;
         state.audioCtx = new AC();
+        audioContextDebugCreatedAt = new Date().toISOString();
     }
     if (state.audioCtx.state === 'suspended') {
         state.audioCtx.resume().then(
-            () => console.info('[audio] resumed →', state.audioCtx.state),
+            () => { audioContextDebugLastResumeAt = new Date().toISOString(); console.info('[audio] resumed →', state.audioCtx.state); },
             (err) => console.warn('[audio] resume失敗', err)
         );
     }
@@ -13344,7 +13352,7 @@ async function startPracticeTest() {
     stopBtCal();
     if (!(await ensureTestMic())) { setPtStatus('マイクを許可してください。'); return; }
     ensureAudio();
-    try { if (state.audioCtx && state.audioCtx.state === 'suspended') await state.audioCtx.resume(); } catch (_) { /* ignore */ }
+    try { if (state.audioCtx && state.audioCtx.state === 'suspended') { await state.audioCtx.resume(); audioContextDebugLastResumeAt = new Date().toISOString(); } } catch (_) { /* ignore */ }
     const ctx = state.audioCtx;
     if (!ctx) { setPtStatus('音声を初期化できませんでした。'); return; }
     // 前回の音符・波形・結果・内部状態を必ず初期化してから開始する（v0.9.73）
@@ -13946,6 +13954,11 @@ async function startBtCal() {
     bt.hasRun = true;
     bt.wave = [];
     applyBtCalTestSettings();
+    androidAudioProbeStart('clickInputTest', {
+        measurementWindowMs: { from: -PT_NEAR_WIN, to: PT_NEAR_WIN },
+        correctionClampMs: { min: headphoneMicOffsetMin(), max: headphoneMicOffsetMax() },
+        normalDetection: 'nearest captured onset per click',
+    });
     if (els.btCalResult) { els.btCalResult.classList.add('hidden'); els.btCalResult.innerHTML = ''; }
     if (els.btCalLive) els.btCalLive.classList.remove('hidden');
     if (els.btCalBtn) els.btCalBtn.textContent = 'クリック音入力テストを停止';
@@ -13973,6 +13986,9 @@ async function startBtCal() {
         for (let i = 0; i < PT_COUNTIN; i++) btScheduleClick(startSec + i * beatSec, i === 0);
         const playStartSec = startSec + PT_COUNTIN * beatSec;
         for (let j = 0; j < BT_PLAY_BEATS; j++) btScheduleClick(playStartSec + j * beatSec, j % 4 === 0);
+        for (let j = 0; j < BT_PLAY_BEATS; j++) {
+            androidAudioProbeMarkClick('clickInputTest', bt.flowStartPerf + bt.playT0Ms + j * PT_BEAT_MS, -PT_NEAR_WIN, PT_NEAR_WIN);
+        }
     } catch (err) {
         stopBtCal();
         setBtCalStatus('クリック音を開始できませんでした。もう一度お試しください。');
@@ -14082,6 +14098,16 @@ function finishBtCal() {
         commitMicSetupDraft();
         invalidatePracticeResult();
         autoFineApplied = true;
+    }
+    const clickInputProbe = androidAudioProbe.current;
+    if (clickInputProbe && clickInputProbe.kind === 'clickInputTest') {
+        clickInputProbe.measurement.result = {
+            rawEstimatedDelayMs: avg, clampedDelayMs: proposed,
+            hitUpperLimit: proposed === headphoneMicOffsetMax(), hitLowerLimit: proposed === headphoneMicOffsetMin(),
+            outOfMeasurementWindow: miss > 0, outOfRangeOnsetCount: Math.max(0, bt.onsets.length - valid),
+            measurementFailureMayBeOutOfRange: miss > 0,
+        };
+        androidAudioProbeClose('clickInputTest');
     }
     bt.result = { just, early, late, miss, valid, avg, cur, proposed, propose, fine, fineProposed, autoFineApplied, appliedOffset, enoughInput, perBeat };
     console.info('[bt-click-input-test-result]', bt.debug);
@@ -17203,7 +17229,10 @@ function micTestTrackDebugSnapshot() {
     if (!track) return null;
     let settings = null;
     try { settings = typeof track.getSettings === 'function' ? track.getSettings() : null; } catch (_) { settings = null; }
-    return { label: track.label || '', readyState: track.readyState || '', muted: !!track.muted, enabled: track.enabled !== false, settings };
+    let constraints = null, capabilities = null;
+    try { constraints = typeof track.getConstraints === 'function' ? track.getConstraints() : null; } catch (_) { constraints = null; }
+    try { capabilities = typeof track.getCapabilities === 'function' ? track.getCapabilities() : null; } catch (_) { capabilities = null; }
+    return { label: track.label || '', readyState: track.readyState || '', muted: !!track.muted, enabled: track.enabled !== false, settings, constraints, capabilities };
 }
 function micTestAudioContextDebugSnapshot() {
     const ctx = state.audioCtx;
@@ -17212,7 +17241,83 @@ function micTestAudioContextDebugSnapshot() {
         sampleRate: ctx.sampleRate,
         baseLatency: ctx.baseLatency != null ? ctx.baseLatency : null,
         outputLatency: ctx.outputLatency != null ? ctx.outputLatency : null,
+        currentTime: ctx.currentTime,
+        createdAt: audioContextDebugCreatedAt,
+        lastResumeAt: audioContextDebugLastResumeAt,
+        resumeAgeMs: audioContextDebugLastResumeAt ? Math.max(0, Date.now() - Date.parse(audioContextDebugLastResumeAt)) : null,
     } : null;
+}
+
+const androidAudioProbe = { sessions: [], current: null };
+function androidAudioProbeDeviceInfo() {
+    const ua = navigator.userAgent || '';
+    const android = /Android/i.test(ua);
+    const ios = /iPad|iPhone|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const chrome = ua.match(/(?:Chrome|CriOS)\/(\d+(?:\.\d+)*)/i);
+    const androidVersion = ua.match(/Android\s+([\d.]+)/i);
+    let standalone = false;
+    try { standalone = !!(navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)); } catch (_) { /* noop */ }
+    return {
+        userAgent: ua, platform: navigator.platform || '', vendor: navigator.vendor || '', maxTouchPoints: navigator.maxTouchPoints || 0,
+        isAndroid: android, isIOS: ios, isStandalonePwa: standalone,
+        browserGuess: chrome ? 'Chrome' : (/Safari/i.test(ua) && !/Chrome|CriOS|Android/i.test(ua) ? 'Safari' : 'unknown'),
+        androidVersionGuess: androidVersion ? androidVersion[1] : null, chromeVersionGuess: chrome ? chrome[1] : null,
+    };
+}
+function androidAudioProbeEnabled() { return androidAudioProbeDeviceInfo().isAndroid; }
+function androidAudioProbeStart(kind, measurement) {
+    if (!androidAudioProbeEnabled()) return null;
+    const session = {
+        kind, startedAt: new Date().toISOString(), device: androidAudioProbeDeviceInfo(), audioContextStart: micTestAudioContextDebugSnapshot(),
+        trackStart: micTestTrackDebugSnapshot(), measurement, wideSearchEnabled: true,
+        wideSearchWindowMs: { from: ANDROID_AUDIO_PROBE_WIDE_FROM_MS, to: ANDROID_AUDIO_PROBE_WIDE_TO_MS }, clicks: [],
+    };
+    androidAudioProbe.current = session;
+    androidAudioProbe.sessions.push(session);
+    if (androidAudioProbe.sessions.length > 4) androidAudioProbe.sessions.splice(0, androidAudioProbe.sessions.length - 4);
+    return session;
+}
+function androidAudioProbeMarkClick(kind, clickPerf, normalFrom, normalTo) {
+    const s = androidAudioProbe.current;
+    if (!s || s.kind !== kind || !Number.isFinite(clickPerf)) return;
+    s.clicks.push({ clickPerf, normalWindowMs: { from: normalFrom, to: normalTo }, top: [], normalTop: [] });
+}
+function androidAudioProbeObserve(now, peak) {
+    const s = androidAudioProbe.current;
+    if (!s || !Number.isFinite(peak)) return;
+    for (const click of s.clicks) {
+        const offsetMs = now - click.clickPerf;
+        if (offsetMs < ANDROID_AUDIO_PROBE_WIDE_FROM_MS || offsetMs > ANDROID_AUDIO_PROBE_WIDE_TO_MS) continue;
+        const row = { offsetMs: Math.round(offsetMs * 10) / 10, value: Math.round(peak * 1000000) / 1000000 };
+        const add = (list) => { list.push(row); list.sort((a, b) => b.value - a.value); if (list.length > 5) list.length = 5; };
+        add(click.top);
+        if (offsetMs >= click.normalWindowMs.from && offsetMs <= click.normalWindowMs.to) add(click.normalTop);
+    }
+    if (s.closeRequested && s.clicks.length && now >= Math.max(...s.clicks.map((click) => click.clickPerf)) + ANDROID_AUDIO_PROBE_WIDE_TO_MS) {
+        androidAudioProbeFinish(s.kind);
+    }
+}
+function androidAudioProbeClose(kind) {
+    const s = androidAudioProbe.current;
+    if (s && s.kind === kind) s.closeRequested = true;
+}
+function androidAudioProbeFinish(kind) {
+    const s = androidAudioProbe.current;
+    if (!s || s.kind !== kind) return;
+    s.finishedAt = new Date().toISOString();
+    s.audioContextResult = micTestAudioContextDebugSnapshot();
+    s.trackResult = micTestTrackDebugSnapshot();
+    s.clicks = s.clicks.map((click, i) => {
+        const wide = click.top[0] || null, normal = click.normalTop[0] || null;
+        const outside = !!wide && (wide.offsetMs < click.normalWindowMs.from || wide.offsetMs > click.normalWindowMs.to);
+        const overlapsOtherClick = s.clicks.some((other) => other !== click && other.clickPerf >= click.clickPerf + ANDROID_AUDIO_PROBE_WIDE_FROM_MS && other.clickPerf <= click.clickPerf + ANDROID_AUDIO_PROBE_WIDE_TO_MS);
+        return { index: i + 1, normalDetection: { detected: !!normal, offsetMs: normal ? normal.offsetMs : null, peak: normal ? normal.value : 0, windowMs: [click.normalWindowMs.from, click.normalWindowMs.to] }, wideSearch: { found: !!wide, offsetMs: wide ? wide.offsetMs : null, peak: wide ? wide.value : 0, windowMs: [ANDROID_AUDIO_PROBE_WIDE_FROM_MS, ANDROID_AUDIO_PROBE_WIDE_TO_MS], outsideNormalWindow: outside, afterNormalWindowMs: outside && wide.offsetMs > click.normalWindowMs.to ? Math.round((wide.offsetMs - click.normalWindowMs.to) * 10) / 10 : null, overlapsAdjacentClick: overlapsOtherClick, rankTop5: click.top }, wideToNormalPeakRatio: wide && normal && normal.value ? Math.round(wide.value / normal.value * 1000) / 1000 : null };
+    });
+    const offsets = s.clicks.map((c) => c.wideSearch.offsetMs).filter((v) => Number.isFinite(v));
+    const mean = offsets.length ? offsets.reduce((a, b) => a + b, 0) / offsets.length : null;
+    const std = offsets.length ? Math.sqrt(offsets.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / offsets.length) : null;
+    s.summary = { widePeakOffsetMedianMs: medianNumber(offsets), widePeakOffsetMeanMs: mean == null ? null : Math.round(mean * 10) / 10, widePeakOffsetMinMs: offsets.length ? Math.min(...offsets) : null, widePeakOffsetMaxMs: offsets.length ? Math.max(...offsets) : null, widePeakOffsetStdMs: std == null ? null : Math.round(std * 10) / 10, widePeakOffsetRangeMs: offsets.length ? Math.max(...offsets) - Math.min(...offsets) : null, widePeakOutsideNormalCount: s.clicks.filter((c) => c.wideSearch.outsideNormalWindow).length };
+    androidAudioProbe.current = null;
 }
 function medianNumber(values) {
     const sorted = (values || []).filter((v) => typeof v === 'number' && isFinite(v)).slice().sort((a, b) => a - b);
@@ -17231,6 +17336,11 @@ function completeMicTestRunDebug(details) {
         lifecycleAtResult: micLifecycleDebugEvents.slice(),
     };
     test.runDebug = snapshot;
+    const reactionProbe = androidAudioProbe.current;
+    if (reactionProbe && reactionProbe.kind === 'micReactionTest') {
+        reactionProbe.measurement.result = { normalWindowPeakCount: (test.clickPeaks || []).length, outOfMeasurementWindow: false, hitUpperLimit: false, hitLowerLimit: false, clampedDelayMs: null };
+        androidAudioProbeClose('micReactionTest');
+    }
     micTestDebugRuns.push(snapshot);
     if (micTestDebugRuns.length > 6) micTestDebugRuns.splice(0, micTestDebugRuns.length - 6);
     if (MIC_DEBUG_ON || MIC_DEBUG) console.info('[mic-test-run]', snapshot);
@@ -17317,8 +17427,10 @@ function micTestRunForDevelopmentLog(run) {
 function currentMicTracksForDevelopmentLog() {
     if (!mic.stream || typeof mic.stream.getTracks !== 'function') return [];
     return mic.stream.getTracks().map((track) => {
-        let settings = null;
+        let settings = null, constraints = null, capabilities = null;
         try { settings = typeof track.getSettings === 'function' ? track.getSettings() : null; } catch (_) { settings = null; }
+        try { constraints = typeof track.getConstraints === 'function' ? track.getConstraints() : null; } catch (_) { constraints = null; }
+        try { capabilities = typeof track.getCapabilities === 'function' ? track.getCapabilities() : null; } catch (_) { capabilities = null; }
         return {
             kind: track.kind,
             label: track.label || '',
@@ -17326,6 +17438,8 @@ function currentMicTracksForDevelopmentLog() {
             muted: !!track.muted,
             enabled: track.enabled !== false,
             settings,
+            constraints,
+            capabilities,
         };
     });
 }
@@ -17350,6 +17464,11 @@ function micTestDevelopmentLogText() {
             standalone,
             timestamp: new Date().toISOString(),
             timezone,
+        },
+        androidAudioProbe: {
+            device: androidAudioProbeDeviceInfo(),
+            sessions: androidAudioProbe.sessions,
+            activeSession: androidAudioProbe.current,
         },
         current: {
             inputType: getMicInputType(),
@@ -17888,6 +18007,10 @@ async function startMicTestFlow(options = {}) {
         lifecycleAtStart: micLifecycleDebugEvents.slice(),
         completed: false,
     };
+    androidAudioProbeStart('micReactionTest', {
+        measurementWindowMs: { from: 0, to: 520 }, correctionClampMs: null,
+        normalDetection: 'microphone reaction-test raw peak window',
+    });
     boostNormalMicTestClickVolumeOnce(options);
     test.runDebug.clickVolumeAfterBoost = state.clickVolume;
     // イヤホン接続は初回テストから高感度寄り（救済しきい値）で拾いにいく。auto/normalは従来どおり。
@@ -18001,6 +18124,7 @@ function beginClickPhase() {
         test.clickWinFrom = test.clickPlayedAt;
         test.clickWinTo = test.clickPlayedAt + 520;
         click(beat === 0, true);                // 本番と同一の click()／クリック音量反映
+        androidAudioProbeMarkClick('micReactionTest', test.clickPlayedAt, 0, 520);
         test.clickI++;
         setTestPhase('クリック音を確認中 ' + test.clickI + ' / ' + CLICK_TEST_COUNT);
     }, 600);
@@ -19317,6 +19441,8 @@ function micLoop() {
     }
 
     const now = performance.now();
+    // Android調査専用。既存のpeakを読むだけで、オンセット/判定/保存には渡さない。
+    androidAudioProbeObserve(now, peak);
 
     // 背景波形用にエンベロープを時系列バッファへ保存（古いものは破棄）
     const hist = state.micWaveHistory;
@@ -20454,8 +20580,13 @@ async function startCalibration() {
     }
     ensureAudio();
     // iOS Safari / PWA 対策：AudioContext が suspended のままだとクリックが鳴らないため明示的に復帰
-    try { if (state.audioCtx.state === 'suspended') await state.audioCtx.resume(); } catch (_) { /* ignore */ }
+    try { if (state.audioCtx.state === 'suspended') { await state.audioCtx.resume(); audioContextDebugLastResumeAt = new Date().toISOString(); } } catch (_) { /* ignore */ }
     applyCalSettings();        // 測定専用値に切替（退避済み）
+    androidAudioProbeStart('normalMicCalibration', {
+        measurementWindowMs: { from: CAL_DETECT_WIN_FROM, to: CAL_DETECT_WIN_TO },
+        correctionClampMs: { min: -CAL_OFFSET_LIMIT_MS, max: CAL_OFFSET_LIMIT_MS },
+        normalDetection: 'first valid onset per click',
+    });
     cal.active = true;
     cal.samples = [];
     cal.i = 0;
@@ -20519,6 +20650,7 @@ async function startCalibration() {
         mic.prevPeak = 0;      // 各クリック直前にリセットし、立ち上がり交差を確実に拾う
         mic.armed = true;
         click(true, true); // STAGE等と同じ click() を使用（音・クリック音量をSTAGE/適用後設定と統一）
+        androidAudioProbeMarkClick('normalMicCalibration', cal.lastClickPerf, CAL_DETECT_WIN_FROM, CAL_DETECT_WIN_TO);
         setCalUI('measuring');
     }, CAL_INTERVAL_MS);
 }
@@ -20564,6 +20696,16 @@ function finishCalibration() {
     cal.adjustedDelay = adjustedDelay;
     cal.spread = spread;
     cal.proposedOffset = Math.max(-CAL_OFFSET_LIMIT_MS, Math.min(CAL_OFFSET_LIMIT_MS, -adjustedDelay));
+    const calibrationProbe = androidAudioProbe.current;
+    if (calibrationProbe && calibrationProbe.kind === 'normalMicCalibration') {
+        calibrationProbe.measurement.result = {
+            rawEstimatedDelayMs: rawDelay, clampedDelayMs: cal.proposedOffset,
+            hitUpperLimit: adjustedDelay >= CAL_OFFSET_LIMIT_MS, hitLowerLimit: adjustedDelay <= -CAL_OFFSET_LIMIT_MS,
+            outOfMeasurementWindow: cal.outOfRange > 0, outOfRangeOnsetCount: cal.outOfRange,
+            measurementFailureMayBeOutOfRange: cal.samples.length < CAL_CLICKS && cal.outOfRange > 0,
+        };
+        androidAudioProbeClose('normalMicCalibration');
+    }
 
     // ほとんど検出できない（<3）→ 失敗理由を表示
     if (s.length < 3) { cal.unstable = true; setCalUI('failed', buildCalFailReason()); return; }
