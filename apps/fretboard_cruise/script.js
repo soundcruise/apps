@@ -1,5 +1,5 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.8.2';
-window.FRETBOARD_CRUISE_APP_VERSION = '2.8.2';
+const FRETBOARD_CRUISE_APP_VERSION = '2.8.3';
+window.FRETBOARD_CRUISE_APP_VERSION = '2.8.3';
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = false;
 const DEBUG_PORTRAIT_FRETBOARD_LAYOUT = false;
@@ -552,6 +552,47 @@ function applyShippedDefaultQuizSettingsForcefullyIfNeeded() {
  */
 const CRUISE_SHIPPED_DEFAULTS_VERSION = 2;
 const CRUISE_SHIPPED_DEFAULTS_TARGET_STAGES = [1, 2, 3, 4, 5, 6];
+/** 通常版 saveState 時も localStorage 上で維持する settings キー（進捗・閲覧状態のみ） */
+const STANDARD_EDITION_WRITABLE_SETTINGS_KEYS = [
+    'cruiseStageClearCounts',
+    'quizStageAttemptCounts',
+    'quizStagePerfectCounts',
+    'lastSettingsTab'
+];
+const RELOAD_TO_HOME_SESSION_KEY = 'fretboard_cruise_reload_to_home';
+
+function applyShippedDefaultCruiseSettingsToRuntimeState() {
+    if (!state.settings.cruiseStageRoutes || typeof state.settings.cruiseStageRoutes !== 'object' || Array.isArray(state.settings.cruiseStageRoutes)) {
+        state.settings.cruiseStageRoutes = {};
+    }
+    if (!state.settings.cruiseStageRouteGroups || typeof state.settings.cruiseStageRouteGroups !== 'object' || Array.isArray(state.settings.cruiseStageRouteGroups)) {
+        state.settings.cruiseStageRouteGroups = {};
+    }
+    if (!state.settings.cruiseStageGroupScrollLefts || typeof state.settings.cruiseStageGroupScrollLefts !== 'object' || Array.isArray(state.settings.cruiseStageGroupScrollLefts)) {
+        state.settings.cruiseStageGroupScrollLefts = {};
+    }
+    CRUISE_SHIPPED_DEFAULTS_TARGET_STAGES.forEach(stage => {
+        const slots = getShippedDefaultCruiseRouteSlotsForStage(stage);
+        const breaks = getShippedDefaultCruiseGroupBreaksForStage(stage);
+        const scrolls = getShippedDefaultCruiseGroupScrollLeftsForStage(stage);
+        if (!Array.isArray(slots) || !Array.isArray(breaks) || !scrolls || typeof scrolls !== 'object') return;
+        const k = String(stage);
+        state.settings.cruiseStageRoutes[k] = JSON.parse(JSON.stringify(slots));
+        state.settings.cruiseStageRouteGroups[k] = breaks.slice();
+        state.settings.cruiseStageGroupScrollLefts[k] = JSON.parse(JSON.stringify(scrolls));
+    });
+}
+
+function applyShippedDefaultQuizSettingsToRuntimeState() {
+    if (!state.settings.quizStageEditorSettings || typeof state.settings.quizStageEditorSettings !== 'object' || Array.isArray(state.settings.quizStageEditorSettings)) {
+        state.settings.quizStageEditorSettings = {};
+    }
+    [1, 2, 3, 4, 5, 6].forEach(stage => {
+        const shipped = getShippedDefaultQuizGroups(stage);
+        if (!shipped) return;
+        state.settings.quizStageEditorSettings[String(stage)] = { groups: JSON.parse(JSON.stringify(shipped)) };
+    });
+}
 
 function getShippedDefaultCruiseRouteSlotsForStage(stage) {
     const st = clamp(parseInt(stage, 10), 1, 6);
@@ -589,26 +630,7 @@ function getShippedDefaultCruiseGroupScrollLeftsForStage(stage) {
 function applyShippedDefaultCruiseSettingsForcefullyIfNeeded() {
     const appliedVersion = parseInt(state?.settings?.cruiseShippedDefaultsAppliedVersion, 10);
     if (Number.isFinite(appliedVersion) && appliedVersion >= CRUISE_SHIPPED_DEFAULTS_VERSION) return false;
-    if (!state.settings.cruiseStageRoutes || typeof state.settings.cruiseStageRoutes !== 'object' || Array.isArray(state.settings.cruiseStageRoutes)) {
-        state.settings.cruiseStageRoutes = {};
-    }
-    if (!state.settings.cruiseStageRouteGroups || typeof state.settings.cruiseStageRouteGroups !== 'object' || Array.isArray(state.settings.cruiseStageRouteGroups)) {
-        state.settings.cruiseStageRouteGroups = {};
-    }
-    if (!state.settings.cruiseStageGroupScrollLefts || typeof state.settings.cruiseStageGroupScrollLefts !== 'object' || Array.isArray(state.settings.cruiseStageGroupScrollLefts)) {
-        state.settings.cruiseStageGroupScrollLefts = {};
-    }
-    CRUISE_SHIPPED_DEFAULTS_TARGET_STAGES.forEach(stage => {
-        const slots = getShippedDefaultCruiseRouteSlotsForStage(stage);
-        const breaks = getShippedDefaultCruiseGroupBreaksForStage(stage);
-        const scrolls = getShippedDefaultCruiseGroupScrollLeftsForStage(stage);
-        if (!Array.isArray(slots) || !Array.isArray(breaks) || !scrolls || typeof scrolls !== 'object') return;
-        const k = String(stage);
-        // 配布定数を直接代入すると state 経由で破壊的編集される恐れがあるので毎回ディープコピー
-        state.settings.cruiseStageRoutes[k] = JSON.parse(JSON.stringify(slots));
-        state.settings.cruiseStageRouteGroups[k] = breaks.slice();
-        state.settings.cruiseStageGroupScrollLefts[k] = JSON.parse(JSON.stringify(scrolls));
-    });
+    applyShippedDefaultCruiseSettingsToRuntimeState();
     state.settings.cruiseShippedDefaultsAppliedVersion = CRUISE_SHIPPED_DEFAULTS_VERSION;
     return true;
 }
@@ -1438,10 +1460,8 @@ if (applyShippedDefaultCruiseSettingsForcefullyIfNeeded()) {
     try { localStorage.setItem('fretboard_cruise_state', JSON.stringify(state)); } catch (e) {}
 }
 
-// 古い localStorage 対策：STAGE1 保存ルートが公式と異なる場合のみ正規化
-if (normalizeSavedCruiseStage1RouteIfNeeded()) {
-    try { localStorage.setItem('fretboard_cruise_state', JSON.stringify(state)); } catch (e) {}
-}
+// 通常版：実行時のみ公式デフォルトを適用（共有 localStorage の PRO 保存値は上書きしない）
+applyStandardEditionRuntimeDefaults();
 
 function isProEdition() {
     return document.documentElement?.dataset?.appEdition === 'Pro';
@@ -1449,6 +1469,80 @@ function isProEdition() {
 
 function isStandardEdition() {
     return !isProEdition();
+}
+
+/** 通常版：メモリ上だけ公式デフォルトへ。localStorage の PRO 保存値は触らない。 */
+function applyStandardEditionRuntimeDefaults() {
+    if (!isStandardEdition()) return;
+    const preserveKeys = new Set(STANDARD_EDITION_WRITABLE_SETTINGS_KEYS.concat([
+        'cruiseShippedDefaultsAppliedVersion',
+        'quizShippedDefaultsAppliedVersion',
+        'routeNumberingVersion',
+        'neckModelVersion'
+    ]));
+    const preserved = {};
+    preserveKeys.forEach(k => {
+        if (state.settings[k] !== undefined) {
+            preserved[k] = JSON.parse(JSON.stringify(state.settings[k]));
+        }
+    });
+    const defaults = getDefaultSettings();
+    Object.keys(defaults).forEach(key => {
+        if (preserveKeys.has(key)) return;
+        if (key === 'cruiseStageRoutes' || key === 'cruiseStageRouteGroups' || key === 'cruiseStageGroupScrollLefts' || key === 'quizStageEditorSettings') {
+            return;
+        }
+        state.settings[key] = JSON.parse(JSON.stringify(defaults[key]));
+    });
+    applyShippedDefaultCruiseSettingsToRuntimeState();
+    applyShippedDefaultQuizSettingsToRuntimeState();
+    preserveKeys.forEach(k => {
+        if (preserved[k] !== undefined) {
+            state.settings[k] = preserved[k];
+        }
+    });
+    state.settings.noteLabelMode = 'solfege';
+}
+
+/** 通常版 saveState：共有 localStorage 上の PRO 保存 settings / visualize / 編集状態を維持する。 */
+function restoreProOwnedStateForStandardPersistence(persistent) {
+    const raw = localStorage.getItem('fretboard_cruise_state');
+    if (!raw) return;
+    try {
+        const stored = JSON.parse(raw);
+        if (stored.settings && typeof stored.settings === 'object') {
+            const merged = JSON.parse(JSON.stringify(stored.settings));
+            STANDARD_EDITION_WRITABLE_SETTINGS_KEYS.forEach(k => {
+                if (persistent.settings && Object.prototype.hasOwnProperty.call(persistent.settings, k)) {
+                    merged[k] = JSON.parse(JSON.stringify(persistent.settings[k]));
+                }
+            });
+            persistent.settings = merged;
+        }
+        if (stored.visualize && typeof stored.visualize === 'object') {
+            persistent.visualize = JSON.parse(JSON.stringify(stored.visualize));
+        }
+        ['routeEditor', 'quizEditor', 'proCustomRouteEditor', 'proCustomQuizEditor'].forEach(key => {
+            if (stored[key] && typeof stored[key] === 'object' && !Array.isArray(stored[key])) {
+                persistent[key] = JSON.parse(JSON.stringify(stored[key]));
+            }
+        });
+    } catch (e) {}
+}
+
+function handleReloadToHomeFlagIfNeeded() {
+    try {
+        if (sessionStorage.getItem(RELOAD_TO_HOME_SESSION_KEY) !== '1') return false;
+        sessionStorage.removeItem(RELOAD_TO_HOME_SESSION_KEY);
+        state.course = null;
+        if (state.memorize) {
+            state.memorize.isCruisePlaying = false;
+            state.memorize.cruiseCountdown = 0;
+        }
+        return true;
+    } catch (e) {
+        return false;
+    }
 }
 
 function getFeatureAccess() {
@@ -1729,6 +1823,7 @@ function getStateForPersistence() {
         persistent.memorize.cruiseCountdown = 0;
     }
     persistent.quizEditorPreview = null;
+    restoreProOwnedStateForStandardPersistence(persistent);
     return persistent;
 }
 
@@ -1972,6 +2067,7 @@ function getDefaultSettings() {
         tempo: DEFAULT_TEMPO,
         quizTimeLimit: DEFAULT_QUIZ_TIME_LIMIT,
         quizQuestionLimit: DEFAULT_QUIZ_QUESTION_LIMIT,
+        quizCountdownSound: 'beep',
         stringSpacing: DEFAULT_STRING_SPACING,
         noteLabelMode: 'solfege',
         viewMode: 'custom',
@@ -4269,29 +4365,6 @@ function getSavedCruiseRouteSlots(stage) {
     return cloneCruiseRouteSlots(saved);
 }
 
-/** 起動時：STAGE1 の保存ルートが公式と異なる場合のみ公式へ正規化（古い localStorage 対策）。 */
-function normalizeSavedCruiseStage1RouteIfNeeded() {
-    if (!isStandardEdition()) return false;
-    if (
-        !state.settings.cruiseStageRoutes ||
-        typeof state.settings.cruiseStageRoutes !== 'object' ||
-        Array.isArray(state.settings.cruiseStageRoutes)
-    ) {
-        state.settings.cruiseStageRoutes = {};
-    }
-    const savedKey = '1';
-    if (!Object.prototype.hasOwnProperty.call(state.settings.cruiseStageRoutes, savedKey)) {
-        return false;
-    }
-    const shipped = getShippedDefaultStage1RouteSlots();
-    const saved = state.settings.cruiseStageRoutes[savedKey];
-    if (!Array.isArray(saved) || !areCruiseRouteSlotsEqual(saved, shipped)) {
-        state.settings.cruiseStageRoutes[savedKey] = cloneCruiseRouteSlots(shipped);
-        return true;
-    }
-    return false;
-}
-
 function getSavedCruiseGroupScrollLeft(stage, groupIndex) {
     const all = state.settings.cruiseStageGroupScrollLefts || {};
     const stageMap = all[String(stage)];
@@ -6137,6 +6210,9 @@ function renderApp() {
         if (reloadBtn) {
             reloadBtn.onclick = () => {
                 stopRhythm();
+                try {
+                    sessionStorage.setItem(RELOAD_TO_HOME_SESSION_KEY, '1');
+                } catch (e) {}
                 window.location.reload();
             };
         }
@@ -17313,6 +17389,7 @@ function hideAppLoadingScreen() {
 
 /** index.html から script.js を動的挿入しているため、読み込みが遅いと DOMContentLoaded が先に終わり初回描画が抜ける。readyState で即時起動する。 */
 function runFretboardBoot() {
+    const reloadToHome = handleReloadToHomeFlagIfNeeded();
     const saved = localStorage.getItem('fretboard_cruise_state');
     if (saved) {
         try {
@@ -17320,18 +17397,15 @@ function runFretboardBoot() {
             if (loaded.settings && typeof loaded.settings === 'object') {
                 state.settings = { ...state.settings, ...loaded.settings };
             }
+            if (!reloadToHome && loaded.course !== undefined) {
+                state.course = loaded.course;
+            }
         } catch (e) {
             console.error('Failed to restore state from localStorage:', e);
         }
     }
-    if (!isProEdition()) {
-        state.settings.noteLabelMode = 'solfege';
-        state.settings.cruiseRhythmVolume      = DEFAULT_CRUISE_RHYTHM_VOLUME;
-        state.settings.cruiseRhythmKickVolume  = DEFAULT_CRUISE_RHYTHM_KICK_VOLUME;
-        state.settings.cruiseRhythmSnareVolume = DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME;
-        state.settings.cruiseRhythmHatVolume   = DEFAULT_CRUISE_RHYTHM_HAT_VOLUME;
-    }
-    if (normalizeSavedCruiseStage1RouteIfNeeded()) {
+    applyStandardEditionRuntimeDefaults();
+    if (reloadToHome) {
         saveState();
     }
     tryRenderApp('load');
