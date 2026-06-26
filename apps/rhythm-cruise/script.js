@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.43';
+const RHYTHM_CRUISE_VERSION = '0.11.44';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -12760,6 +12760,50 @@ function hpAnalyzeNoisePattern(events, opts) {
 }
 /* v0.11.42：短いノイズ音の単発7回集中テスト解析（調査専用）。
    energyTimeline の focused window 内の最大ピークを各回の単発ピークとして採用する。 */
+/* v0.11.44：offset群から最も密集したクラスタを見つけ、外れピークを除いた中心値を返す再利用可能な小関数。
+   将来 Android有線/通常マイク/iOS にも使い回せるよう、rows（{focusedOffsetMs, peakToNoise, accepted}）と
+   閾値だけを受け取る。今回は Android Bluetooth の shortNoiseFocusedTest からのみ呼ぶ。 */
+function buildOffsetClusterAnalysis(rows, opts) {
+    const windowSizeMs = opts.windowSizeMs, minClusterCount = opts.minClusterCount, nearMid = opts.preferMedianNearMs;
+    const sorted = (xs) => xs.filter(Number.isFinite).slice().sort((a, b) => a - b);
+    const med = (xs) => { const a = sorted(xs); return a.length ? a[Math.floor(a.length / 2)] : null; };
+    const range = (xs) => { const a = sorted(xs); return a.length ? Math.round((a[a.length - 1] - a[0]) * 10) / 10 : null; };
+    const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
+    const pts = rows.filter((r) => r.accepted && Number.isFinite(r.focusedOffsetMs)).map((r) => ({ offsetMs: r.focusedOffsetMs, peakToNoise: r.peakToNoise }));
+    const all = pts.map((p) => p.offsetMs);
+    let best = null;
+    // 各点を起点に windowSizeMs 以内の点を集め、最大点数のクラスタを選ぶ（同点は range狭→median近さ で決める）。
+    pts.forEach((seed) => {
+        const inWin = pts.filter((p) => Math.abs(p.offsetMs - seed.offsetMs) <= windowSizeMs);
+        const offs = inWin.map((p) => p.offsetMs), rng = range(offs), mid = med(offs);
+        const cand = { offs, peaks: inWin.map((p) => p.peakToNoise), count: inWin.length, range: rng, median: mid };
+        if (!best) { best = cand; return; }
+        if (cand.count !== best.count) { if (cand.count > best.count) best = cand; return; }
+        const cr = cand.range == null ? Infinity : cand.range, br = best.range == null ? Infinity : best.range;
+        if (cr !== br) { if (cr < br) best = cand; return; }
+        if (nearMid != null && cand.median != null && best.median != null && Math.abs(cand.median - nearMid) < Math.abs(best.median - nearMid)) best = cand;
+    });
+    const clusterOffsets = best ? sorted(best.offs) : [];
+    const clusterSet = new Set(clusterOffsets);
+    const outliers = sorted(all.filter((o) => !clusterSet.has(o)));
+    const clusterMedianMs = r1(med(clusterOffsets)), clusterRangeMs = range(clusterOffsets), clusterCount = clusterOffsets.length;
+    const clusterPtnMed = best ? med(best.peaks) : null;
+    const inDelayRange = clusterMedianMs != null && clusterMedianMs >= ANDROID_CORR_DELAY_MIN_MS && clusterMedianMs <= ANDROID_CORR_DELAY_MAX_MS;
+    const ptnOk = clusterPtnMed != null && clusterPtnMed >= 2.0;
+    const finalGuess = clusterCount >= 5 && clusterRangeMs != null && clusterRangeMs <= 25 && ptnOk && inDelayRange ? 'usable'
+        : (clusterCount >= minClusterCount && clusterRangeMs != null && clusterRangeMs <= 35 && ptnOk && inDelayRange ? 'candidate'
+        : (clusterCount >= 3 ? 'weak' : 'not-usable'));
+    return {
+        method: 'greedy-window-densest', windowSizeMs, minClusterCount,
+        clusterOffsetsMs: clusterOffsets, clusterMedianMs, clusterMeanMs: clusterOffsets.length ? Math.round(clusterOffsets.reduce((a, b) => a + b, 0) / clusterOffsets.length * 10) / 10 : null,
+        clusterMinMs: clusterOffsets.length ? clusterOffsets[0] : null, clusterMaxMs: clusterOffsets.length ? clusterOffsets[clusterOffsets.length - 1] : null,
+        clusterRangeMs, clusterCount, outlierOffsetsMs: outliers, outlierCount: outliers.length,
+        clusterPeakToNoiseMedian: clusterPtnMed != null ? Math.round(clusterPtnMed * 1000) / 1000 : null,
+        finalGuess, reason: finalGuess === 'usable' || finalGuess === 'candidate'
+            ? 'clusterCount>=' + minClusterCount + ' / clusterRange<=35ms / peakToNoise条件OK'
+            : (clusterCount <= 2 ? 'クラスタ点数不足(<=2)' : (clusterRangeMs == null || clusterRangeMs > 35 ? 'clusterRange>35ms' : (!ptnOk ? 'clusterPeakToNoise<2.0' : (!inDelayRange ? 'cluster中央値が範囲外' : '条件未達'))))
+    };
+}
 function hpAnalyzeShortNoise(events, opts) {
     const focusFrom = 430, focusTo = 530;
     const sorted = (xs) => xs.filter(Number.isFinite).slice().sort((a, b) => a - b);
@@ -12783,12 +12827,13 @@ function hpAnalyzeShortNoise(events, opts) {
     const finalGuess = acceptedCount >= 6 && trimmedRange != null && trimmedRange <= 25 && ptnMed != null && ptnMed >= 2.5 ? 'usable'
         : (acceptedCount >= 5 && trimmedRange != null && trimmedRange <= 40 && ptnMed != null && ptnMed >= 2.0 ? 'candidate'
         : (acceptedCount >= 3 ? 'weak' : 'not-usable'));
+    const clusterAnalysis = buildOffsetClusterAnalysis(rows, { windowSizeMs: 35, minClusterCount: 4, preferMedianNearMs: 470 });
     return { soundId: opts.soundId, soundLabel: opts.soundLabel, repeatCount: opts.repeatCount, focusedWindowMs: [focusFrom, focusTo], results: rows,
         acceptedCount, focusedOffsetMedianMs: r1(med(fo)), focusedOffsetTrimmedMedianMs: r1(med(tfo)),
         focusedOffsetMeanMs: fo.length ? Math.round(fo.reduce((a, b) => a + b, 0) / fo.length * 10) / 10 : null,
         focusedOffsetMinMs: fo.length ? Math.min(...fo) : null, focusedOffsetMaxMs: fo.length ? Math.max(...fo) : null,
         focusedOffsetRangeMs: range(fo), focusedOffsetTrimmedRangeMs: trimmedRange,
-        peakToNoiseMedian: ptnMed, peakToNoiseMin: pn.length ? Math.min(...pn) : null, peakToNoiseMax: pn.length ? Math.max(...pn) : null, finalGuess };
+        peakToNoiseMedian: ptnMed, peakToNoiseMin: pn.length ? Math.min(...pn) : null, peakToNoiseMax: pn.length ? Math.max(...pn) : null, finalGuess, clusterAnalysis };
 }
 /* v0.11.43：Android専用の補正候補値を算出（調査専用・保存もPractice反映もまだしない）。
    ── 符号規則（既存コードを確認して統一）──
@@ -12804,31 +12849,51 @@ const ANDROID_CORR_DELAY_MAX_MS = 600;            // 妥当な測定遅延の上
 const ANDROID_CORR_MIN_ACCEPTED = 5;              // 7回中の最低採用数
 const ANDROID_CORR_MAX_TRIMMED_RANGE_MS = 40;     // trimmed range の上限(ms)
 const ANDROID_CORR_MIN_PEAK_TO_NOISE = 2.0;       // peakToNoise中央値の下限
+const ANDROID_CORR_CLUSTER_MIN_COUNT = 4;         // cluster判定の最低点数
+const ANDROID_CORR_CLUSTER_MAX_RANGE_MS = 35;     // cluster range の上限(ms)
 function buildAndroidCorrectionCandidate(det, opts) {
     const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
-    // 測定遅延：trimmed median を基本に、無ければ通常 median へフォールバック。
-    const measurementDelayMs = r1(det && det.focusedOffsetTrimmedMedianMs != null ? det.focusedOffsetTrimmedMedianMs : (det ? det.focusedOffsetMedianMs : null));
-    const saveOffsetMs = measurementDelayMs != null ? -measurementDelayMs : null; // 符号規則：保存値 = -(測定遅延)
+    const ca = det && det.clusterAnalysis || null;
+    // 条件A：cluster判定でOK（外れピーク除去後の中心値）。Aを最優先する。
+    const clusterGuessOk = !!(ca && (ca.finalGuess === 'usable' || ca.finalGuess === 'candidate'));
+    const clusterCountOk = !!(ca && (ca.clusterCount || 0) >= ANDROID_CORR_CLUSTER_MIN_COUNT);
+    const clusterRangeOk = !!(ca && ca.clusterRangeMs != null && ca.clusterRangeMs <= ANDROID_CORR_CLUSTER_MAX_RANGE_MS);
+    const clusterPtnOk = !!(ca && ca.clusterPeakToNoiseMedian != null && ca.clusterPeakToNoiseMedian >= ANDROID_CORR_MIN_PEAK_TO_NOISE);
+    const clusterDelayOk = !!(ca && ca.clusterMedianMs != null && ca.clusterMedianMs >= ANDROID_CORR_DELAY_MIN_MS && ca.clusterMedianMs <= ANDROID_CORR_DELAY_MAX_MS);
+    const clusterOk = clusterGuessOk && clusterCountOk && clusterRangeOk && clusterPtnOk && clusterDelayOk;
+    // 条件B：従来の trimmed 判定でOK。
+    const trimMeasurement = r1(det && det.focusedOffsetTrimmedMedianMs != null ? det.focusedOffsetTrimmedMedianMs : (det ? det.focusedOffsetMedianMs : null));
     const guessOk = !!(det && (det.finalGuess === 'usable' || det.finalGuess === 'candidate'));
     const acceptedOk = !!(det && (det.acceptedCount || 0) >= ANDROID_CORR_MIN_ACCEPTED);
     const rangeOk = !!(det && det.focusedOffsetTrimmedRangeMs != null && det.focusedOffsetTrimmedRangeMs <= ANDROID_CORR_MAX_TRIMMED_RANGE_MS);
     const ptnOk = !!(det && det.peakToNoiseMedian != null && det.peakToNoiseMedian >= ANDROID_CORR_MIN_PEAK_TO_NOISE);
-    const inDelayRange = measurementDelayMs != null && measurementDelayMs >= ANDROID_CORR_DELAY_MIN_MS && measurementDelayMs <= ANDROID_CORR_DELAY_MAX_MS;
-    const isReadyToSave = guessOk && acceptedOk && rangeOk && ptnOk && inDelayRange;
-    const reasons = [];
-    if (!guessOk) reasons.push('finalGuessがcandidate未満');
-    if (!acceptedOk) reasons.push('採用数<' + ANDROID_CORR_MIN_ACCEPTED + '/7');
-    if (!rangeOk) reasons.push('trimmed範囲>' + ANDROID_CORR_MAX_TRIMMED_RANGE_MS + 'ms');
-    if (!ptnOk) reasons.push('peakToNoise中央値<' + ANDROID_CORR_MIN_PEAK_TO_NOISE);
-    if (!inDelayRange) reasons.push('測定遅延が' + ANDROID_CORR_DELAY_MIN_MS + '〜' + ANDROID_CORR_DELAY_MAX_MS + 'ms外');
+    const trimDelayOk = trimMeasurement != null && trimMeasurement >= ANDROID_CORR_DELAY_MIN_MS && trimMeasurement <= ANDROID_CORR_DELAY_MAX_MS;
+    const trimOk = guessOk && acceptedOk && rangeOk && ptnOk && trimDelayOk;
+    // 測定遅延の採用：A（cluster）優先 → trimmed → 通常median。
+    const source = clusterOk ? 'clusterMedianMs' : (trimOk ? 'focusedOffsetTrimmedMedianMs' : (ca && ca.clusterMedianMs != null ? 'clusterMedianMs' : 'focusedOffsetTrimmedMedianMs'));
+    const measurementDelayMs = source === 'clusterMedianMs' && ca ? r1(ca.clusterMedianMs) : trimMeasurement;
+    const saveOffsetMs = measurementDelayMs != null ? -measurementDelayMs : null; // 符号規則：保存値 = -(測定遅延)
+    const isReadyToSave = clusterOk || trimOk;
+    let reason;
+    if (clusterOk) reason = 'cluster条件OK（clusterCount>=' + ANDROID_CORR_CLUSTER_MIN_COUNT + ' / clusterRange<=' + ANDROID_CORR_CLUSTER_MAX_RANGE_MS + 'ms / peakToNoise条件OK）';
+    else if (trimOk) reason = '従来trimmed条件OK';
+    else {
+        const rs = [];
+        if (!clusterCountOk) rs.push('clusterCount<' + ANDROID_CORR_CLUSTER_MIN_COUNT);
+        if (!clusterRangeOk) rs.push('clusterRange>' + ANDROID_CORR_CLUSTER_MAX_RANGE_MS + 'ms');
+        if (!rangeOk) rs.push('trimmed範囲>' + ANDROID_CORR_MAX_TRIMMED_RANGE_MS + 'ms');
+        if (!ptnOk && !clusterPtnOk) rs.push('peakToNoise<' + ANDROID_CORR_MIN_PEAK_TO_NOISE);
+        reason = 'cluster/trimmed どちらも未達（' + (rs.join(' / ') || 'finalGuess不足') + '）';
+    }
     return {
-        measurementDelayMs, saveOffsetMs,
+        measurementDelayMs, saveOffsetMs, source,
+        clusterMedianMs: ca ? ca.clusterMedianMs : null, clusterRangeMs: ca ? ca.clusterRangeMs : null,
+        clusterCount: ca ? ca.clusterCount : null, clusterOutlierCount: ca ? ca.outlierCount : null,
         saveKey: opts.saveKey,                  // 将来の保存先キー名（今回は保存しない）
         signRule: '保存値 = -(測定遅延)。判定時刻=audio+offset / finishCalibration・finishBtCal と同規則',
         signConfidence: 'confirmed',
-        confidence: det ? det.finalGuess : 'not-usable',
-        reason: isReadyToSave ? '全条件を満たす（ただし今回は保存しない）' : reasons.join(' / '),
-        isReadyToSave,
+        confidence: clusterOk && ca ? ca.finalGuess : (det ? det.finalGuess : 'not-usable'),
+        reason, isReadyToSave,
         notUsedYet: '補正値保存・Practice判定には未使用。将来 ' + opts.saveKey + ' へ保存予定。'
     };
 }
@@ -12869,7 +12934,7 @@ async function runAndroidAudioCheck() {
         const bestObj = bestCandidate === 'short-noise-focused-test' ? shortNoiseFocusedTest : (bestCandidate === 'double-noise-pattern' ? doublePatternDetection : triplePatternDetection);
         run.bluetoothExploration = { constraintsProfile: 'current', shortNoiseFocusedWindowMs: [430, 530], patternFocusedWindowMs: [450, 560], tests: ex, shortNoiseFocusedTest, doublePatternDetection, triplePatternDetection, bestCandidate, finalGuess: bestObj ? bestObj.finalGuess : 'not-usable' };
     }
-    if (els.androidCheckResult) { const best = run.summary.filter((x) => x.stableEnoughGuess).map((x) => x.soundLabel).join(' / ') || 'なし'; const wm = run.androidWaveformMatch, bt = run.bluetoothExploration, sn = bt && bt.shortNoiseFocusedTest, dp = bt && bt.doublePatternDetection, tp = bt && bt.triplePatternDetection; const rd = (v) => v != null ? Math.round(v) + 'ms' : '–'; const snBlock = !sn ? '' : '\n・短いノイズ集中テスト: ' + sn.finalGuess + '\n  推定offset ' + rd(sn.focusedOffsetMedianMs) + ' / trimmed ' + rd(sn.focusedOffsetTrimmedMedianMs) + '\n  範囲 ' + rd(sn.focusedOffsetRangeMs) + ' / trimmed範囲 ' + rd(sn.focusedOffsetTrimmedRangeMs) + '\n  採用 ' + sn.acceptedCount + '/' + sn.repeatCount + ' / peak/noise中央値 ' + (sn.peakToNoiseMedian != null ? sn.peakToNoiseMedian.toFixed(2) : '–'); const patBlock = (label, p) => !p ? '' : '\n・' + label + ': ' + p.finalGuess + '\n  推定offset ' + rd(p.focusedOffsetMedianMs) + ' / trimmed ' + rd(p.focusedOffsetTrimmedMedianMs) + '\n  範囲 ' + rd(p.focusedOffsetRangeMs) + ' / trimmed範囲 ' + rd(p.focusedOffsetTrimmedRangeMs) + '\n  採用 ' + p.acceptedCount + '/' + p.repeatCount + ' / interval OK ' + p.intervalOkCount + '/' + p.repeatCount + ' / matched中央値 ' + (p.matchedCountMedian != null ? p.matchedCountMedian : '–') + ' / score中央値 ' + (p.patternScoreMedian != null ? p.patternScoreMedian.toFixed(2) : '–'); els.androidCheckResult.textContent = 'イヤホン音チェック結果\n・直接測定できる可能性: ' + (run.finalGuess === 'usable' ? '高' : (run.finalGuess === 'weak' ? '中' : '低')) + '\n・有力な音: ' + best + '\n・波形照合: ' + wm.finalGuess + ' / offset中央値 ' + (wm.offsetMedianMs != null ? Math.round(wm.offsetMedianMs) + 'ms' : '–') + ' / 範囲 ' + (wm.offsetRangeMs != null ? Math.round(wm.offsetRangeMs) + 'ms' : '–') + ' / 採用 ' + wm.acceptedCount + '/5' + (bt ? '\n・Bluetooth探索: 最有力 ' + bt.bestCandidate + ' / 判定 ' + bt.finalGuess : '') + snBlock + patBlock('2連ノイズパターン', dp) + patBlock('3連ノイズパターン', tp) + ((sn && sn.correctionCandidate) ? ('\n──\nAndroid Bluetooth補正候補:\n測定遅延: ' + rd(sn.correctionCandidate.measurementDelayMs) + '\n保存候補: ' + (sn.correctionCandidate.saveOffsetMs != null ? Math.round(sn.correctionCandidate.saveOffsetMs) + 'ms' : '–') + '\n信頼度: ' + sn.correctionCandidate.confidence + '\n保存可能: ' + (sn.correctionCandidate.isReadyToSave ? 'はい' : 'いいえ') + '\n※まだPractice判定には反映していません') : '') + '\n・この結果は補正には保存されていません'; els.androidCheckResult.classList.remove('hidden'); }
+    if (els.androidCheckResult) { const best = run.summary.filter((x) => x.stableEnoughGuess).map((x) => x.soundLabel).join(' / ') || 'なし'; const wm = run.androidWaveformMatch, bt = run.bluetoothExploration, sn = bt && bt.shortNoiseFocusedTest, dp = bt && bt.doublePatternDetection, tp = bt && bt.triplePatternDetection; const rd = (v) => v != null ? Math.round(v) + 'ms' : '–'; const snBlock = !sn ? '' : '\n・短いノイズ集中テスト: ' + sn.finalGuess + '\n  推定offset ' + rd(sn.focusedOffsetMedianMs) + ' / trimmed ' + rd(sn.focusedOffsetTrimmedMedianMs) + '\n  範囲 ' + rd(sn.focusedOffsetRangeMs) + ' / trimmed範囲 ' + rd(sn.focusedOffsetTrimmedRangeMs) + '\n  採用 ' + sn.acceptedCount + '/' + sn.repeatCount + ' / peak/noise中央値 ' + (sn.peakToNoiseMedian != null ? sn.peakToNoiseMedian.toFixed(2) : '–'); const ca = sn && sn.clusterAnalysis; const caBlock = !ca ? '' : '\n・cluster判定: ' + ca.finalGuess + '\n  cluster中央値 ' + rd(ca.clusterMedianMs) + ' / cluster範囲 ' + rd(ca.clusterRangeMs) + '\n  cluster採用 ' + ca.clusterCount + '/' + sn.repeatCount + ' / 外れ値 ' + ca.outlierCount + '件'; const patBlock = (label, p) => !p ? '' : '\n・' + label + ': ' + p.finalGuess + '\n  推定offset ' + rd(p.focusedOffsetMedianMs) + ' / trimmed ' + rd(p.focusedOffsetTrimmedMedianMs) + '\n  範囲 ' + rd(p.focusedOffsetRangeMs) + ' / trimmed範囲 ' + rd(p.focusedOffsetTrimmedRangeMs) + '\n  採用 ' + p.acceptedCount + '/' + p.repeatCount + ' / interval OK ' + p.intervalOkCount + '/' + p.repeatCount + ' / matched中央値 ' + (p.matchedCountMedian != null ? p.matchedCountMedian : '–') + ' / score中央値 ' + (p.patternScoreMedian != null ? p.patternScoreMedian.toFixed(2) : '–'); els.androidCheckResult.textContent = 'イヤホン音チェック結果\n・直接測定できる可能性: ' + (run.finalGuess === 'usable' ? '高' : (run.finalGuess === 'weak' ? '中' : '低')) + '\n・有力な音: ' + best + '\n・波形照合: ' + wm.finalGuess + ' / offset中央値 ' + (wm.offsetMedianMs != null ? Math.round(wm.offsetMedianMs) + 'ms' : '–') + ' / 範囲 ' + (wm.offsetRangeMs != null ? Math.round(wm.offsetRangeMs) + 'ms' : '–') + ' / 採用 ' + wm.acceptedCount + '/5' + (bt ? '\n・Bluetooth探索: 最有力 ' + bt.bestCandidate + ' / 判定 ' + bt.finalGuess : '') + snBlock + caBlock + patBlock('2連ノイズパターン', dp) + patBlock('3連ノイズパターン', tp) + ((sn && sn.correctionCandidate) ? ('\n──\nAndroid Bluetooth補正候補:\n測定遅延: ' + rd(sn.correctionCandidate.measurementDelayMs) + '\n保存候補: ' + (sn.correctionCandidate.saveOffsetMs != null ? Math.round(sn.correctionCandidate.saveOffsetMs) + 'ms' : '–') + '\n候補ソース: ' + sn.correctionCandidate.source + '\n信頼度: ' + sn.correctionCandidate.confidence + '\n保存可能: ' + (sn.correctionCandidate.isReadyToSave ? 'はい' : 'いいえ') + '\n※まだPractice判定には反映していません') : '') + '\n・この結果は補正には保存されていません'; els.androidCheckResult.classList.remove('hidden'); }
     if (els.androidCheckStatus) els.androidCheckStatus.textContent = '完了しました。ログをコピーできます。';
 }
 function clearAndroidAudioLogs() { headphoneAudioProbe.run = null; headphoneAudioProbe.runs = []; if (els.androidCheckResult) { els.androidCheckResult.textContent = ''; els.androidCheckResult.classList.add('hidden'); } if (els.androidCheckStatus) els.androidCheckStatus.textContent = 'Android音声調査ログをクリアしました。設定値は変更していません。'; renderHeadphoneAudioProbeLog(); }
