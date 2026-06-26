@@ -885,6 +885,15 @@
                     <div class="cal-result-row"><span>ばらつき</span><b id="cal-spread">–</b></div>
                     <button class="btn-primary cal-apply-btn rc-mic-action-primary" id="cal-apply-btn">この補正を適用</button>
                 </div>
+                <details class="settings-detail mic-test-dev-log" id="cal-dev-log" open>
+                    <summary>開発ログ（Android音声遅延調査用）</summary>
+                    <p class="setting-note">失敗・不安定時も、ここから調査ログをコピーできます。</p>
+                    <textarea class="mic-test-dev-log-text" id="cal-dev-log-text" rows="14" readonly aria-label="マイクの遅れ補正の開発用ログ"></textarea>
+                    <div class="dev-log-copy-row">
+                        <button type="button" class="dev-log-copy-btn" id="cal-dev-log-copy">開発ログをコピー</button>
+                        <span class="dev-log-copy-status" id="cal-dev-log-status" aria-live="polite"></span>
+                    </div>
+                </details>
                 <button type="button" class="btn-mini rc-mic-action-secondary" id="cal-skip-btn" style="width:100%;margin-top:10px;">補正せずに進む</button>
                 <details class="settings-detail test-result-detail hidden" id="cal-result-detail">
                     <summary>詳細を見る</summary>
@@ -1313,7 +1322,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.11.30"></script>
+    <script src="../script.js?v=0.11.31"></script>
 </body>
 
 </html>

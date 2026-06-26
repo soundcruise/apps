@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.30';
+const RHYTHM_CRUISE_VERSION = '0.11.31';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -301,7 +301,7 @@ const CAL_MAX_SPREAD_MS = 45;
 /* 補正値の絶対上限（ms）。この値に張り付く（=測定遅延が大きすぎる）場合は不安定扱いにする */
 const CAL_OFFSET_LIMIT_MS = 150;
 
-/* Android 音声遅延調査（v0.11.30）：判定・保存・補正値には一切使わない読み取り専用の広域ピーク観測。
+/* Android 音声遅延調査（v0.11.31）：判定・保存・補正値には一切使わない読み取り専用の広域ピーク観測。
    Pixel 等で通常の検出窓外にある入力を、既存 analyser の各フレームから記録する。 */
 const ANDROID_AUDIO_PROBE_WIDE_FROM_MS = -500;
 const ANDROID_AUDIO_PROBE_WIDE_TO_MS = 1200;
@@ -1388,6 +1388,10 @@ const els = {
     calMax: $('cal-max'),
     calSuccess: $('cal-success'),
     calSpread: $('cal-spread'),
+    calDevLog: $('cal-dev-log'),
+    calDevLogText: $('cal-dev-log-text'),
+    calDevLogCopy: $('cal-dev-log-copy'),
+    calDevLogStatus: $('cal-dev-log-status'),
     // 遅れ補正「結果を見る」
     calResultDetail: $('cal-result-detail'),
     calRdDelay: $('cal-rd-delay'),
@@ -17292,7 +17296,21 @@ function androidAudioProbeObserve(now, peak) {
         const add = (list) => { list.push(row); list.sort((a, b) => b.value - a.value); if (list.length > 5) list.length = 5; };
         add(click.top);
         if (offsetMs >= click.normalWindowMs.from && offsetMs <= click.normalWindowMs.to) add(click.normalTop);
+        const wide = click.top[0] || null, normal = click.normalTop[0] || null;
+        click.widePeakOffsetMs = wide ? wide.offsetMs : null;
+        click.widePeakValue = wide ? wide.value : null;
+        click.widePeakRankTop5 = click.top;
+        click.widePeakFound = !!wide;
+        click.normalWindowMaxPeak = normal ? normal.value : 0;
+        click.normalWindowPeakOffsetMs = normal ? normal.offsetMs : null;
+        click.widePeakInsideNormalWindow = !!wide && wide.offsetMs >= click.normalWindowMs.from && wide.offsetMs <= click.normalWindowMs.to;
+        click.widePeakOutsideNormalWindow = !!wide && !click.widePeakInsideNormalWindow;
+        click.widePeakAfterNormalWindowMs = click.widePeakOutsideNormalWindow && wide.offsetMs > click.normalWindowMs.to ? Math.round((wide.offsetMs - click.normalWindowMs.to) * 10) / 10 : null;
     }
+    const liveOffsets = s.clicks.map((click) => click.widePeakOffsetMs).filter((v) => Number.isFinite(v));
+    const liveMean = liveOffsets.length ? liveOffsets.reduce((a, b) => a + b, 0) / liveOffsets.length : null;
+    const liveStd = liveOffsets.length ? Math.sqrt(liveOffsets.reduce((sum, v) => sum + Math.pow(v - liveMean, 2), 0) / liveOffsets.length) : null;
+    s.liveSummary = { widePeakOffsetMedianMs: medianNumber(liveOffsets), widePeakOffsetMeanMs: liveMean == null ? null : Math.round(liveMean * 10) / 10, widePeakOffsetMinMs: liveOffsets.length ? Math.min(...liveOffsets) : null, widePeakOffsetMaxMs: liveOffsets.length ? Math.max(...liveOffsets) : null, widePeakOffsetStdMs: liveStd == null ? null : Math.round(liveStd * 10) / 10, widePeakOffsetRangeMs: liveOffsets.length ? Math.max(...liveOffsets) - Math.min(...liveOffsets) : null, wideSearchComplete: false };
     if (s.closeRequested && s.clicks.length && now >= Math.max(...s.clicks.map((click) => click.clickPerf)) + ANDROID_AUDIO_PROBE_WIDE_TO_MS) {
         androidAudioProbeFinish(s.kind);
     }
@@ -17316,7 +17334,7 @@ function androidAudioProbeFinish(kind) {
     const offsets = s.clicks.map((c) => c.wideSearch.offsetMs).filter((v) => Number.isFinite(v));
     const mean = offsets.length ? offsets.reduce((a, b) => a + b, 0) / offsets.length : null;
     const std = offsets.length ? Math.sqrt(offsets.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / offsets.length) : null;
-    s.summary = { widePeakOffsetMedianMs: medianNumber(offsets), widePeakOffsetMeanMs: mean == null ? null : Math.round(mean * 10) / 10, widePeakOffsetMinMs: offsets.length ? Math.min(...offsets) : null, widePeakOffsetMaxMs: offsets.length ? Math.max(...offsets) : null, widePeakOffsetStdMs: std == null ? null : Math.round(std * 10) / 10, widePeakOffsetRangeMs: offsets.length ? Math.max(...offsets) - Math.min(...offsets) : null, widePeakOutsideNormalCount: s.clicks.filter((c) => c.wideSearch.outsideNormalWindow).length };
+    s.summary = { widePeakOffsetMedianMs: medianNumber(offsets), widePeakOffsetMeanMs: mean == null ? null : Math.round(mean * 10) / 10, widePeakOffsetMinMs: offsets.length ? Math.min(...offsets) : null, widePeakOffsetMaxMs: offsets.length ? Math.max(...offsets) : null, widePeakOffsetStdMs: std == null ? null : Math.round(std * 10) / 10, widePeakOffsetRangeMs: offsets.length ? Math.max(...offsets) - Math.min(...offsets) : null, widePeakOutsideNormalCount: s.clicks.filter((c) => c.wideSearch.outsideNormalWindow).length, wideSearchComplete: true };
     androidAudioProbe.current = null;
 }
 function medianNumber(values) {
@@ -17541,6 +17559,20 @@ async function copyMicTestDevelopmentLog() {
     }
     if (!copied && els.micTestDevLogText) {
         try { els.micTestDevLogText.focus(); els.micTestDevLogText.select(); } catch (_) { /* noop */ }
+    }
+}
+function renderCalibrationDevelopmentLog() {
+    if (els.calDevLogText) els.calDevLogText.value = micTestDevelopmentLogText();
+}
+async function copyCalibrationDevelopmentLog() {
+    renderCalibrationDevelopmentLog();
+    const text = els.calDevLogText ? els.calDevLogText.value : '';
+    const copied = !!text && await copyTextToClipboard(text);
+    if (els.calDevLogStatus) {
+        els.calDevLogStatus.textContent = copied ? 'コピーしました' : 'コピーできませんでした。長押ししてコピーしてください。';
+    }
+    if (!copied && els.calDevLogText) {
+        try { els.calDevLogText.focus(); els.calDevLogText.select(); } catch (_) { /* noop */ }
     }
 }
 async function startMic() {
@@ -20138,6 +20170,7 @@ function renderCalMeasuringStatus() {
 
 function setCalUI(mode, arg) {
     if (!els.calStatus) return;
+    renderCalibrationDevelopmentLog();
     const showMonitor = (on) => { if (els.calMonitor) els.calMonitor.classList.toggle('hidden', !on); };
     if (els.calRetestMicBtn) els.calRetestMicBtn.classList.add('hidden');
     if (mode === 'measuring') {
@@ -21210,6 +21243,7 @@ function bind() {
 
     // キャリブレーション
     els.calBtn.addEventListener('click', startCalibration);
+    if (els.calDevLogCopy) els.calDevLogCopy.addEventListener('click', copyCalibrationDevelopmentLog);
     if (els.calRetestMicBtn) els.calRetestMicBtn.addEventListener('click', calibrationRetestMicLine);
     els.calApplyBtn.addEventListener('click', applyCalibration);
 
