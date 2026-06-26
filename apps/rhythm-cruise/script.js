@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.32';
+const RHYTHM_CRUISE_VERSION = '0.11.33';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -301,7 +301,7 @@ const CAL_MAX_SPREAD_MS = 45;
 /* 補正値の絶対上限（ms）。この値に張り付く（=測定遅延が大きすぎる）場合は不安定扱いにする */
 const CAL_OFFSET_LIMIT_MS = 150;
 
-/* Android 音声遅延調査（v0.11.32）：判定・保存・補正値には一切使わない読み取り専用の広域ピーク観測。
+/* Android 音声遅延調査（v0.11.33）：判定・保存・補正値には一切使わない読み取り専用の広域ピーク観測。
    Pixel 等で通常の検出窓外にある入力を、既存 analyser の各フレームから記録する。 */
 const ANDROID_AUDIO_PROBE_WIDE_FROM_MS = -500;
 const ANDROID_AUDIO_PROBE_WIDE_TO_MS = 1200;
@@ -1081,6 +1081,7 @@ const els = {
     strokeModeNote: $('stroke-mode-note'),
     inputTypeNormal: $('input-type-normal'),
     inputTypeHeadphone: $('input-type-headphone'),
+    platformAutoNote: $('platform-auto-note'), platformIos: $('platform-ios'), platformAndroid: $('platform-android'), androidCheckCard: $('android-check-card'), androidCheckRun: $('android-check-run'), androidCheckStatus: $('android-check-status'), androidCheckResult: $('android-check-result'), androidCheckNext: $('android-check-next'), androidCheckClear: $('android-check-clear'), androidCheckCopy: $('android-check-copy'),
     inputTypeNote: $('input-type-note'),
     // イヤホン音ズレの画面補正（v0.9.50）
     hpCalCard: $('hp-cal-card'),
@@ -12286,6 +12287,7 @@ function updateMicInputTypeUI() {
     stopPracticeTest(); // 入力タイプを変更したら実践テストは停止
     if (els.setHpOffsetRow) els.setHpOffsetRow.classList.toggle('hidden', !headphone); // 手動設定の補正行は headphone のときだけ
     updateHeadphoneTypeUI();
+    updatePlatformChoiceUI();
 }
 
 /* ── イヤホン音ズレの画面補正（v0.9.50〜）─────────────────────────────
@@ -12688,6 +12690,32 @@ function updateHeadphoneTypeUI() {
 
 /* Android専用・イヤホン音入力の成立性調査。既存マイク/補正/Practiceとは別stream・別analyserのみを使う。 */
 const headphoneAudioProbe = { active: false, stream: null, src: null, analyser: null, buf: null, raf: 0, run: null, runs: [], manual: null };
+let selectedTestPlatform = null;
+let androidCheckMode = false;
+function updatePlatformChoiceUI() {
+    const info = androidAudioProbeDeviceInfo();
+    if (els.platformAutoNote) els.platformAutoNote.textContent = info.isAndroid ? 'この端末は Android と判定されました。' : (info.isIOS ? 'この端末は iPhone / iPad と判定されました。' : '端末を推定できませんでした。手動で選んでください。');
+    if (els.platformIos) els.platformIos.classList.toggle('is-active', selectedTestPlatform === 'ios');
+    if (els.platformAndroid) els.platformAndroid.classList.toggle('is-active', selectedTestPlatform === 'android');
+    if (els.androidCheckCard) els.androidCheckCard.classList.toggle('hidden', selectedTestPlatform !== 'android' || !isHeadphoneInput());
+}
+function selectTestPlatform(platform) { selectedTestPlatform = platform; updatePlatformChoiceUI(); }
+function androidCheckStats(events) {
+    const med = (xs) => { const a = xs.filter(Number.isFinite).sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : null; };
+    const groups = {};
+    events.forEach((e) => { (groups[e.soundId] || (groups[e.soundId] = [])).push(e); });
+    return Object.entries(groups).map(([soundId, rows]) => { const p = rows.map((x) => x.normalWindowMaxPeak), o = rows.map((x) => x.normalWindowPeakOffsetMs), ratios = rows.map((x) => x.soundToNoiseRatio); const peakMedian = med(p), offsetMedianMs = med(o); const range = (a) => a.length ? Math.max(...a) - Math.min(...a) : null; const detectedCount = rows.filter((x) => x.detected).length; return { soundId, soundLabel: rows[0].soundLabel, detectedCount, peakMedian, peakMean: p.reduce((a,b)=>a+b,0)/p.length, peakMin: Math.min(...p), peakMax: Math.max(...p), peakRange: range(p), offsetMedianMs, offsetMeanMs: o.filter(Number.isFinite).reduce((a,b)=>a+b,0)/Math.max(1,o.filter(Number.isFinite).length), offsetMinMs: o.length ? Math.min(...o) : null, offsetMaxMs: o.length ? Math.max(...o) : null, offsetRangeMs: range(o.filter(Number.isFinite)), noiseP95: rows[0].noiseP95, noiseMax: rows[0].noiseMax, peakToNoiseMedian: med(ratios), peakToNoiseMin: ratios.length ? Math.min(...ratios) : null, stableEnoughGuess: detectedCount >= 2 && (med(ratios) || 0) >= 2 && (range(o.filter(Number.isFinite)) || Infinity) <= 80 }; });
+}
+async function runAndroidAudioCheck() {
+    if (!isHeadphoneInput()) { if (els.androidCheckStatus) els.androidCheckStatus.textContent = 'イヤホン接続を選ぶと、このチェックを実行できます。通常マイクは既存の通常マイク補正へ進みます。'; return; }
+    androidCheckMode = true; if (els.androidCheckStatus) els.androidCheckStatus.textContent = '4種類を各3回測定しています…'; await startHeadphoneAudioProbe(); androidCheckMode = false;
+    const run = headphoneAudioProbe.run; if (!run || !run.events) return;
+    run.kind = 'androidAudioCheck'; run.selectedTestPlatform = selectedTestPlatform; run.autoDetectedPlatform = androidAudioProbeDeviceInfo(); run.summary = androidCheckStats(run.events); run.finalGuess = run.summary.some((x) => x.stableEnoughGuess) ? 'medium-or-high' : 'low'; run.notes = '補正値・保存値・Practice判定には未使用。';
+    if (els.androidCheckResult) { const best = run.summary.filter((x) => x.stableEnoughGuess).map((x) => x.soundLabel).join(' / ') || 'なし'; els.androidCheckResult.textContent = 'イヤホン音チェック結果\n・直接測定できる可能性: ' + (run.finalGuess === 'low' ? '低' : '中') + '\n・有力な音: ' + best + '\n・この結果は補正には保存されていません'; els.androidCheckResult.classList.remove('hidden'); }
+    if (els.androidCheckStatus) els.androidCheckStatus.textContent = '完了しました。ログをコピーできます。';
+}
+function clearAndroidAudioLogs() { headphoneAudioProbe.run = null; headphoneAudioProbe.runs = []; if (els.androidCheckResult) { els.androidCheckResult.textContent = ''; els.androidCheckResult.classList.add('hidden'); } if (els.androidCheckStatus) els.androidCheckStatus.textContent = 'Android音声調査ログをクリアしました。設定値は変更していません。'; renderHeadphoneAudioProbeLog(); }
+async function copyAndroidCheckLog() { const text = JSON.stringify({ selectedTestPlatform, autoDetectedPlatform: androidAudioProbeDeviceInfo(), latestRun: headphoneAudioProbe.run, runs: headphoneAudioProbe.runs }, null, 2); const copied = await copyTextToClipboard(text); if (els.androidCheckStatus) els.androidCheckStatus.textContent = copied ? 'Android音声チェックログをコピーしました。' : 'コピーできませんでした。'; }
 function hpProbeSetStatus(text) { if (els.androidHpProbeStatus) els.androidHpProbeStatus.textContent = text || ''; }
 function hpProbeConstraints(profile) {
     if (profile === 'minimal') return true;
@@ -12785,7 +12813,7 @@ function hpProbeFinalizeEvent(event, noise) {
 }
 async function startHeadphoneAudioProbe() {
     if (!androidAudioProbeDeviceInfo().isAndroid || !isHeadphoneInput() || headphoneAudioProbe.active) return;
-    const profile = els.androidHpProbeConstraints ? els.androidHpProbeConstraints.value : 'current', durationMs = Number(els.androidHpProbeDuration && els.androidHpProbeDuration.value) || 100;
+    const profile = androidCheckMode ? 'current' : (els.androidHpProbeConstraints ? els.androidHpProbeConstraints.value : 'current'), durationMs = androidCheckMode ? 100 : (Number(els.androidHpProbeDuration && els.androidHpProbeDuration.value) || 100);
     hpProbeSetStatus('調査用マイクを開始しています…');
     const ctx = ensureAudio();
     try {
@@ -12797,7 +12825,12 @@ async function startHeadphoneAudioProbe() {
         headphoneAudioProbe.raf = requestAnimationFrame(hpProbeLoop);
         await new Promise((resolve) => setTimeout(resolve, 600));
         for (let i = 0; i < 30; i++) run.noiseSamples.push(hpProbePeak());
-        const specs = [
+        const specs = androidCheckMode ? Array.from({ length: 3 }, () => [
+            { soundId: 'current-click', soundLabel: '現行クリック音', soundType: 'click', frequencyHz: 1500, route: 'existing-click' },
+            { soundId: 'tone-1500', soundLabel: '1500Hz 短音', soundType: 'tone', frequencyHz: 1500, route: 'AudioBuffer' },
+            { soundId: 'tone-2000', soundLabel: '2000Hz 短音', soundType: 'tone', frequencyHz: 2000, route: 'AudioBuffer' },
+            { soundId: 'noise', soundLabel: '短いノイズ音', soundType: 'noise', frequencyHz: null, route: 'AudioBuffer' }
+        ]).flat() : [
             { soundId: 'current-click', soundLabel: '現行クリック音', soundType: 'click', frequencyHz: 1500, route: 'existing-click' },
             { soundId: 'tone-800', soundLabel: '800Hz 短音（Oscillator）', soundType: 'tone', frequencyHz: 800, route: 'oscillator' }, { soundId: 'tone-1000', soundLabel: '1000Hz 短音（AudioBuffer）', soundType: 'tone', frequencyHz: 1000, route: 'AudioBuffer' }, { soundId: 'tone-1500', soundLabel: '1500Hz 短音（AudioBuffer）', soundType: 'tone', frequencyHz: 1500, route: 'AudioBuffer' }, { soundId: 'tone-2000', soundLabel: '2000Hz 短音（AudioBuffer）', soundType: 'tone', frequencyHz: 2000, route: 'AudioBuffer' },
             { soundId: 'low-pop', soundLabel: '低めのトッ・ポッ音', soundType: 'tone', frequencyHz: 220, route: 'oscillator/buffer' }, { soundId: 'noise', soundLabel: '短いノイズ音', soundType: 'noise', frequencyHz: null, route: 'oscillator/buffer' }, { soundId: 'c-chord', soundLabel: 'Cコード（短音）', soundType: 'chord', frequencyHz: null, route: 'AudioBuffer/C chord' }, { soundId: 'c-chord-short', soundLabel: 'Cコード（さらに短く）', soundType: 'chord', frequencyHz: null, route: 'AudioBuffer/C chord', forceDurationMs: 50 }, { soundId: 'htmlaudio-1000', soundLabel: '1000Hz HTMLAudio WAV', soundType: 'tone', frequencyHz: 1000, route: 'HTMLAudioElement/wav' }
@@ -21158,6 +21191,12 @@ function bind() {
     // 入力タイプ（通常マイク / イヤホン接続）：選んだら自動で次へ
     if (els.inputTypeNormal) els.inputTypeNormal.addEventListener('click', () => onPickInputType('normal'));
     if (els.inputTypeHeadphone) els.inputTypeHeadphone.addEventListener('click', () => onPickInputType('headphone'));
+    if (els.platformIos) els.platformIos.addEventListener('click', () => selectTestPlatform('ios'));
+    if (els.platformAndroid) els.platformAndroid.addEventListener('click', () => selectTestPlatform('android'));
+    if (els.androidCheckRun) els.androidCheckRun.addEventListener('click', runAndroidAudioCheck);
+    if (els.androidCheckClear) els.androidCheckClear.addEventListener('click', clearAndroidAudioLogs);
+    if (els.androidCheckCopy) els.androidCheckCopy.addEventListener('click', copyAndroidCheckLog);
+    if (els.androidCheckNext) els.androidCheckNext.addEventListener('click', () => { if (settingsView === 'steps') { renderSettingsView(); scrollToMicTestCard(); } else if (els.testCard) scrollToSettingsEl(els.testCard); });
     // イヤホン音ズレの画面補正（v0.9.50〜）
     if (els.hpCalBtn) els.hpCalBtn.addEventListener('click', toggleHeadphoneCal);
     if (els.hpRetestBtn) els.hpRetestBtn.addEventListener('click', retestHeadphoneCal); // v0.9.111：再テスト
