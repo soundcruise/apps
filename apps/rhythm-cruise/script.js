@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.41';
+const RHYTHM_CRUISE_VERSION = '0.11.42';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -12758,16 +12758,54 @@ function hpAnalyzeNoisePattern(events, opts) {
         patternScoreMin: ps.length ? Math.min(...ps) : null, patternScoreMax: ps.length ? Math.max(...ps) : null,
         matchedCountMedian, finalGuess };
 }
-/* finalGuess の優先度比較で double / triple の bestCandidate を決める。 */
-function hpPatternBest(dbl, tri) {
+/* v0.11.42：短いノイズ音の単発7回集中テスト解析（調査専用）。
+   energyTimeline の focused window 内の最大ピークを各回の単発ピークとして採用する。 */
+function hpAnalyzeShortNoise(events, opts) {
+    const focusFrom = 430, focusTo = 530;
+    const sorted = (xs) => xs.filter(Number.isFinite).slice().sort((a, b) => a - b);
+    const med = (xs) => { const a = sorted(xs); return a.length ? a[Math.floor(a.length / 2)] : null; };
+    const trim = (xs) => { const a = sorted(xs); return a.length <= 2 ? a : a.slice(1, a.length - 1); };
+    const range = (xs) => { const a = sorted(xs); return a.length ? Math.round((a[a.length - 1] - a[0]) * 10) / 10 : null; };
+    const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
+    const rows = events.filter((x) => x.soundId === opts.soundId).map((x, i) => {
+        const fp = (x.energyTimeline || []).filter((p) => p.offsetMs >= focusFrom && p.offsetMs <= focusTo).sort((a, b) => b.value - a.value)[0] || null;
+        const focusedOffsetMs = fp ? fp.offsetMs : null, peak = fp ? fp.value : 0;
+        const peakToNoise = fp && x.noiseP95 ? Math.round(peak / x.noiseP95 * 1000) / 1000 : null;
+        const inFocusedWindow = !!fp, hadAnyPeak = (x.wideWindowMaxPeak || 0) > (x.threshold || 0.005);
+        const accepted = inFocusedWindow && peakToNoise != null && peakToNoise >= 2.0;
+        return { index: i + 1, offsetMs: x.wideWindowPeakOffsetMs, focusedOffsetMs, peak: Math.round(peak * 1000000) / 1000000, noiseP95: x.noiseP95,
+            peakToNoise, inFocusedWindow, accepted,
+            rejectReason: accepted ? null : (!fp ? (hadAnyPeak ? 'outside-focused-window' : 'no-peak') : 'low-peak-to-noise') };
+    });
+    const acc = rows.filter((r) => r.accepted), fo = acc.map((r) => r.focusedOffsetMs), pn = acc.map((r) => r.peakToNoise);
+    const useTrim = acc.length >= 5, tfo = useTrim ? trim(fo) : fo;
+    const acceptedCount = acc.length, ptnMed = med(pn), trimmedRange = range(tfo);
+    const finalGuess = acceptedCount >= 6 && trimmedRange != null && trimmedRange <= 25 && ptnMed != null && ptnMed >= 2.5 ? 'usable'
+        : (acceptedCount >= 5 && trimmedRange != null && trimmedRange <= 40 && ptnMed != null && ptnMed >= 2.0 ? 'candidate'
+        : (acceptedCount >= 3 ? 'weak' : 'not-usable'));
+    return { soundId: opts.soundId, soundLabel: opts.soundLabel, repeatCount: opts.repeatCount, focusedWindowMs: [focusFrom, focusTo], results: rows,
+        acceptedCount, focusedOffsetMedianMs: r1(med(fo)), focusedOffsetTrimmedMedianMs: r1(med(tfo)),
+        focusedOffsetMeanMs: fo.length ? Math.round(fo.reduce((a, b) => a + b, 0) / fo.length * 10) / 10 : null,
+        focusedOffsetMinMs: fo.length ? Math.min(...fo) : null, focusedOffsetMaxMs: fo.length ? Math.max(...fo) : null,
+        focusedOffsetRangeMs: range(fo), focusedOffsetTrimmedRangeMs: trimmedRange,
+        peakToNoiseMedian: ptnMed, peakToNoiseMin: pn.length ? Math.min(...pn) : null, peakToNoiseMax: pn.length ? Math.max(...pn) : null, finalGuess };
+}
+/* finalGuess→acceptedCount→trimmedRange→peakToNoiseMedian→テストの短さ の順で bestCandidate を選ぶ。 */
+function hpBestCandidate(cands) {
     const rank = { usable: 3, candidate: 2, weak: 1, 'not-usable': 0 };
-    const score = (d) => d ? rank[d.finalGuess] : -1;
-    const sd = score(dbl), st = score(tri);
-    if (sd !== st) return sd > st ? 'double-noise-pattern' : 'triple-noise-pattern';
-    if ((dbl && dbl.acceptedCount || 0) !== (tri && tri.acceptedCount || 0)) return (dbl.acceptedCount > tri.acceptedCount) ? 'double-noise-pattern' : 'triple-noise-pattern';
-    const dr = dbl && dbl.focusedOffsetTrimmedRangeMs, tr = tri && tri.focusedOffsetTrimmedRangeMs;
-    if (dr != null && tr != null && dr !== tr) return dr < tr ? 'double-noise-pattern' : 'triple-noise-pattern';
-    return 'double-noise-pattern'; // 同等なら短い2連を優先
+    const valid = cands.filter((c) => c.det);
+    if (!valid.length) return 'none';
+    valid.sort((a, b) => {
+        const ra = rank[a.det.finalGuess] || 0, rb = rank[b.det.finalGuess] || 0;
+        if (ra !== rb) return rb - ra;
+        if ((a.det.acceptedCount || 0) !== (b.det.acceptedCount || 0)) return (b.det.acceptedCount || 0) - (a.det.acceptedCount || 0);
+        const ta = a.det.focusedOffsetTrimmedRangeMs, tb = b.det.focusedOffsetTrimmedRangeMs;
+        if (ta != null && tb != null && ta !== tb) return ta - tb;
+        const pa = a.det.peakToNoiseMedian || 0, pb = b.det.peakToNoiseMedian || 0;
+        if (pa !== pb) return pb - pa;
+        return a.durRank - b.durRank;
+    });
+    return valid[0].soundId;
 }
 async function runAndroidAudioCheck() {
     if (!isHeadphoneInput()) { if (els.androidCheckStatus) els.androidCheckStatus.textContent = 'イヤホン接続を選ぶと、このチェックを実行できます。通常マイクは既存の通常マイク補正へ進みます。'; return; }
@@ -12776,13 +12814,18 @@ async function runAndroidAudioCheck() {
     run.kind = 'androidAudioCheck'; run.selectedTestPlatform = selectedTestPlatform; run.autoDetectedPlatform = androidAudioProbeDeviceInfo(); run.summary = androidCheckStats(run.events); const wave = run.events.filter((x) => x.waveformMatch).map((x) => ({ index: x.index, peakOffsetMs: x.normalWindowPeakOffsetMs, correlationOffsetMs: x.waveformMatch.correlationOffsetMs, correlationScore: x.waveformMatch.correlationScore, peakToNoise: x.soundToNoiseRatio })); wave.forEach((x) => { x.accepted = x.correlationScore != null && x.correlationScore >= 0.2; x.rejectReason = x.accepted ? null : 'low-or-missing-correlation'; }); const offs = wave.filter((x) => x.accepted).map((x) => x.correlationOffsetMs), scores = wave.map((x) => x.correlationScore).filter(Number.isFinite), med = (xs) => { const a = xs.slice().sort((a,b)=>a-b); return a.length ? a[Math.floor(a.length/2)] : null; }; run.androidWaveformMatch = { probeLabel: 'Android calibration probe', probeDurationMs: 100, repeatCount: 5, results: wave, acceptedCount: offs.length, offsetMedianMs: med(offs), offsetMeanMs: offs.length ? offs.reduce((a,b)=>a+b,0)/offs.length : null, offsetMinMs: offs.length ? Math.min(...offs) : null, offsetMaxMs: offs.length ? Math.max(...offs) : null, offsetRangeMs: offs.length ? Math.max(...offs)-Math.min(...offs) : null, scoreMedian: med(scores), finalGuess: offs.length >= 3 && (Math.max(...offs)-Math.min(...offs)) <= 80 ? 'usable' : (offs.length ? 'weak' : 'not-usable') }; run.finalGuess = run.androidWaveformMatch.finalGuess; run.notes = '補正値・保存値・Practice判定には未使用。';
     if (getHeadphoneType() === 'bluetooth') {
         const ex = androidCheckStats(run.events.filter((x) => x.bluetoothExploration));
+        const shortNoiseFocusedTest = hpAnalyzeShortNoise(run.events, { soundId: 'short-noise-focused-test', soundLabel: '短いノイズ集中テスト', repeatCount: 7 });
         const doublePatternDetection = hpAnalyzeNoisePattern(run.events, { soundId: 'double-noise-pattern', soundLabel: '2連ノイズパターン', repeatCount: 7, targetsMs: [0, 120] });
         const triplePatternDetection = hpAnalyzeNoisePattern(run.events, { soundId: 'triple-noise-pattern', soundLabel: '3連ノイズパターン', repeatCount: 7, targetsMs: [0, 120, 280] });
-        const bestCandidate = hpPatternBest(doublePatternDetection, triplePatternDetection);
-        const bestObj = bestCandidate === 'double-noise-pattern' ? doublePatternDetection : triplePatternDetection;
-        run.bluetoothExploration = { constraintsProfile: 'current', focusedWindowMs: [450, 560], tests: ex, doublePatternDetection, triplePatternDetection, bestCandidate, finalGuess: bestObj.finalGuess };
+        const bestCandidate = hpBestCandidate([
+            { soundId: 'short-noise-focused-test', det: shortNoiseFocusedTest, durRank: 0 },
+            { soundId: 'double-noise-pattern', det: doublePatternDetection, durRank: 1 },
+            { soundId: 'triple-noise-pattern', det: triplePatternDetection, durRank: 2 }
+        ]);
+        const bestObj = bestCandidate === 'short-noise-focused-test' ? shortNoiseFocusedTest : (bestCandidate === 'double-noise-pattern' ? doublePatternDetection : triplePatternDetection);
+        run.bluetoothExploration = { constraintsProfile: 'current', shortNoiseFocusedWindowMs: [430, 530], patternFocusedWindowMs: [450, 560], tests: ex, shortNoiseFocusedTest, doublePatternDetection, triplePatternDetection, bestCandidate, finalGuess: bestObj ? bestObj.finalGuess : 'not-usable' };
     }
-    if (els.androidCheckResult) { const best = run.summary.filter((x) => x.stableEnoughGuess).map((x) => x.soundLabel).join(' / ') || 'なし'; const wm = run.androidWaveformMatch, bt = run.bluetoothExploration, dp = bt && bt.doublePatternDetection, tp = bt && bt.triplePatternDetection; const rd = (v) => v != null ? Math.round(v) + 'ms' : '–'; const patBlock = (label, p) => !p ? '' : '\n・' + label + ': ' + p.finalGuess + '\n  推定offset ' + rd(p.focusedOffsetMedianMs) + ' / trimmed ' + rd(p.focusedOffsetTrimmedMedianMs) + '\n  範囲 ' + rd(p.focusedOffsetRangeMs) + ' / trimmed範囲 ' + rd(p.focusedOffsetTrimmedRangeMs) + '\n  採用 ' + p.acceptedCount + '/' + p.repeatCount + ' / interval OK ' + p.intervalOkCount + '/' + p.repeatCount + ' / matched中央値 ' + (p.matchedCountMedian != null ? p.matchedCountMedian : '–') + ' / score中央値 ' + (p.patternScoreMedian != null ? p.patternScoreMedian.toFixed(2) : '–'); els.androidCheckResult.textContent = 'イヤホン音チェック結果\n・直接測定できる可能性: ' + (run.finalGuess === 'usable' ? '高' : (run.finalGuess === 'weak' ? '中' : '低')) + '\n・有力な音: ' + best + '\n・波形照合: ' + wm.finalGuess + ' / offset中央値 ' + (wm.offsetMedianMs != null ? Math.round(wm.offsetMedianMs) + 'ms' : '–') + ' / 範囲 ' + (wm.offsetRangeMs != null ? Math.round(wm.offsetRangeMs) + 'ms' : '–') + ' / 採用 ' + wm.acceptedCount + '/5' + (bt ? '\n・Bluetooth探索: 最有力 ' + bt.bestCandidate + ' / 判定 ' + bt.finalGuess : '') + patBlock('2連ノイズパターン', dp) + patBlock('3連ノイズパターン', tp) + '\n・この結果は補正には保存されていません'; els.androidCheckResult.classList.remove('hidden'); }
+    if (els.androidCheckResult) { const best = run.summary.filter((x) => x.stableEnoughGuess).map((x) => x.soundLabel).join(' / ') || 'なし'; const wm = run.androidWaveformMatch, bt = run.bluetoothExploration, sn = bt && bt.shortNoiseFocusedTest, dp = bt && bt.doublePatternDetection, tp = bt && bt.triplePatternDetection; const rd = (v) => v != null ? Math.round(v) + 'ms' : '–'; const snBlock = !sn ? '' : '\n・短いノイズ集中テスト: ' + sn.finalGuess + '\n  推定offset ' + rd(sn.focusedOffsetMedianMs) + ' / trimmed ' + rd(sn.focusedOffsetTrimmedMedianMs) + '\n  範囲 ' + rd(sn.focusedOffsetRangeMs) + ' / trimmed範囲 ' + rd(sn.focusedOffsetTrimmedRangeMs) + '\n  採用 ' + sn.acceptedCount + '/' + sn.repeatCount + ' / peak/noise中央値 ' + (sn.peakToNoiseMedian != null ? sn.peakToNoiseMedian.toFixed(2) : '–'); const patBlock = (label, p) => !p ? '' : '\n・' + label + ': ' + p.finalGuess + '\n  推定offset ' + rd(p.focusedOffsetMedianMs) + ' / trimmed ' + rd(p.focusedOffsetTrimmedMedianMs) + '\n  範囲 ' + rd(p.focusedOffsetRangeMs) + ' / trimmed範囲 ' + rd(p.focusedOffsetTrimmedRangeMs) + '\n  採用 ' + p.acceptedCount + '/' + p.repeatCount + ' / interval OK ' + p.intervalOkCount + '/' + p.repeatCount + ' / matched中央値 ' + (p.matchedCountMedian != null ? p.matchedCountMedian : '–') + ' / score中央値 ' + (p.patternScoreMedian != null ? p.patternScoreMedian.toFixed(2) : '–'); els.androidCheckResult.textContent = 'イヤホン音チェック結果\n・直接測定できる可能性: ' + (run.finalGuess === 'usable' ? '高' : (run.finalGuess === 'weak' ? '中' : '低')) + '\n・有力な音: ' + best + '\n・波形照合: ' + wm.finalGuess + ' / offset中央値 ' + (wm.offsetMedianMs != null ? Math.round(wm.offsetMedianMs) + 'ms' : '–') + ' / 範囲 ' + (wm.offsetRangeMs != null ? Math.round(wm.offsetRangeMs) + 'ms' : '–') + ' / 採用 ' + wm.acceptedCount + '/5' + (bt ? '\n・Bluetooth探索: 最有力 ' + bt.bestCandidate + ' / 判定 ' + bt.finalGuess : '') + snBlock + patBlock('2連ノイズパターン', dp) + patBlock('3連ノイズパターン', tp) + '\n・この結果は補正には保存されていません'; els.androidCheckResult.classList.remove('hidden'); }
     if (els.androidCheckStatus) els.androidCheckStatus.textContent = '完了しました。ログをコピーできます。';
 }
 function clearAndroidAudioLogs() { headphoneAudioProbe.run = null; headphoneAudioProbe.runs = []; if (els.androidCheckResult) { els.androidCheckResult.textContent = ''; els.androidCheckResult.classList.add('hidden'); } if (els.androidCheckStatus) els.androidCheckStatus.textContent = 'Android音声調査ログをクリアしました。設定値は変更していません。'; renderHeadphoneAudioProbeLog(); }
@@ -12860,7 +12903,7 @@ function hpProbeAddPeak(event, now, peak) {
     const offset = now - event.scheduledAtPerformanceTime;
     if (offset < event.wideWindowMs[0] || offset > event.wideWindowMs[1]) return;
     const row = { offsetMs: Math.round(offset * 10) / 10, value: Math.round(peak * 1000000) / 1000000 };
-    if (event.soundId === 'triple-noise-pattern' || event.soundId === 'double-noise-pattern') { event.energyTimeline.push(row); if (event.energyTimeline.length > 160) event.energyTimeline.shift(); }
+    if (event.soundId === 'triple-noise-pattern' || event.soundId === 'double-noise-pattern' || event.soundId === 'short-noise-focused-test') { event.energyTimeline.push(row); if (event.energyTimeline.length > 160) event.energyTimeline.shift(); }
     const add = (list) => { list.push(row); list.sort((x, y) => y.value - x.value); if (list.length > 5) list.length = 5; };
     add(event.rankTop5);
     if (offset >= event.normalWindowMs[0] && offset <= event.normalWindowMs[1]) add(event.normalRankTop5);
@@ -12952,6 +12995,8 @@ async function startHeadphoneAudioProbe() {
                 { soundId: 'low-mid-thump', soundLabel: '低〜中域の物音', soundType: 'voicepop', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true },
                 { soundId: 'speech-band-chirp', soundLabel: '音声帯域チャープ', soundType: 'chirp', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true }
             ]).flat(),
+            // v0.11.42：短いノイズ音を単発7回（既存の noise と同系統音）。Bluetoothで一番安定していた短ノイズの単発ピーク集中テスト。
+            ...Array.from({ length: 7 }, () => ({ soundId: 'short-noise-focused-test', soundLabel: '短いノイズ集中テスト', soundType: 'noise', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true })),
             // v0.11.41：2連/3連を比較。各パルスが実際に鳴るよう forceDurationMs でバッファ長を確保（patternPulsesMs の最終パルス+余白）。
             ...Array.from({ length: 7 }, () => ({ soundId: 'double-noise-pattern', soundLabel: '2連ノイズパターン', soundType: 'pattern', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true, patternPulsesMs: [0, 120], forceDurationMs: 200 })),
             ...Array.from({ length: 7 }, () => ({ soundId: 'triple-noise-pattern', soundLabel: '3連ノイズパターン', soundType: 'pattern', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true, patternPulsesMs: [0, 120, 280], forceDurationMs: 360 }))
