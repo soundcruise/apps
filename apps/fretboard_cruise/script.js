@@ -1,5 +1,5 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.8.1';
-window.FRETBOARD_CRUISE_APP_VERSION = '2.8.1';
+const FRETBOARD_CRUISE_APP_VERSION = '2.8.2';
+window.FRETBOARD_CRUISE_APP_VERSION = '2.8.2';
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = false;
 const DEBUG_PORTRAIT_FRETBOARD_LAYOUT = false;
@@ -1435,6 +1435,11 @@ if (applyShippedDefaultQuizSettingsForcefullyIfNeeded()) {
 
 // 配布前の片方向上書き：指板をたどる STAGE 1〜6 のルート／Gr／グループ位置を公式デフォルトで強制セット
 if (applyShippedDefaultCruiseSettingsForcefullyIfNeeded()) {
+    try { localStorage.setItem('fretboard_cruise_state', JSON.stringify(state)); } catch (e) {}
+}
+
+// 古い localStorage 対策：STAGE1 保存ルートが公式と異なる場合のみ正規化
+if (normalizeSavedCruiseStage1RouteIfNeeded()) {
     try { localStorage.setItem('fretboard_cruise_state', JSON.stringify(state)); } catch (e) {}
 }
 
@@ -4262,6 +4267,29 @@ function getSavedCruiseRouteSlots(stage) {
     const saved = routes[String(stage)];
     if (!Array.isArray(saved)) return [];
     return cloneCruiseRouteSlots(saved);
+}
+
+/** 起動時：STAGE1 の保存ルートが公式と異なる場合のみ公式へ正規化（古い localStorage 対策）。 */
+function normalizeSavedCruiseStage1RouteIfNeeded() {
+    if (!isStandardEdition()) return false;
+    if (
+        !state.settings.cruiseStageRoutes ||
+        typeof state.settings.cruiseStageRoutes !== 'object' ||
+        Array.isArray(state.settings.cruiseStageRoutes)
+    ) {
+        state.settings.cruiseStageRoutes = {};
+    }
+    const savedKey = '1';
+    if (!Object.prototype.hasOwnProperty.call(state.settings.cruiseStageRoutes, savedKey)) {
+        return false;
+    }
+    const shipped = getShippedDefaultStage1RouteSlots();
+    const saved = state.settings.cruiseStageRoutes[savedKey];
+    if (!Array.isArray(saved) || !areCruiseRouteSlotsEqual(saved, shipped)) {
+        state.settings.cruiseStageRoutes[savedKey] = cloneCruiseRouteSlots(shipped);
+        return true;
+    }
+    return false;
 }
 
 function getSavedCruiseGroupScrollLeft(stage, groupIndex) {
@@ -17302,6 +17330,9 @@ function runFretboardBoot() {
         state.settings.cruiseRhythmKickVolume  = DEFAULT_CRUISE_RHYTHM_KICK_VOLUME;
         state.settings.cruiseRhythmSnareVolume = DEFAULT_CRUISE_RHYTHM_SNARE_VOLUME;
         state.settings.cruiseRhythmHatVolume   = DEFAULT_CRUISE_RHYTHM_HAT_VOLUME;
+    }
+    if (normalizeSavedCruiseStage1RouteIfNeeded()) {
+        saveState();
     }
     tryRenderApp('load');
 }
