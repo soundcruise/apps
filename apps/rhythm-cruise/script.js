@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.52';
+const RHYTHM_CRUISE_VERSION = '0.11.54';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -17486,12 +17486,95 @@ function onPickStrokeMode(mode) {
     }
 }
 
+/* v0.11.54：「現在の設定を見る」のPractice補正サマリー表示用（表示のみ・判定ロジックは変更しない）。 */
+function formatSummaryMs(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return '—';
+    return (n > 0 ? '+' : '') + (Math.round(n * 10) / 10) + 'ms';
+}
+function summaryInputSettingLabel() {
+    const t = getMicInputType();
+    if (t === 'headphone') return getHeadphoneType() === 'bluetooth' ? 'Bluetoothイヤホン' : '有線イヤホン';
+    return '本体マイク';
+}
+const SUMMARY_CORRECTION_TYPE_LABELS = {
+    androidBluetoothMicOffsetMs: 'Android Bluetooth補正',
+    androidWiredMicOffsetMs: 'Android有線イヤホン補正',
+    androidBuiltinMicOffsetMs: 'Android本体マイク補正',
+    bluetoothMicOffsetMs: 'Bluetoothイヤホン補正',
+    wiredMicOffsetMs: '有線イヤホン補正',
+    timingOffsetMs: '通常マイク補正'
+};
+function buildSettingsSummaryPracticeInfo() {
+    const isAndroid = androidAudioProbeDeviceInfo().isAndroid;
+    const inputLabel = summaryInputSettingLabel();
+    const finalOffsetMs = micJudgeOffsetMs();
+    let statusObj = null;
+    if (isBluetoothHeadphone()) statusObj = getAndroidBluetoothOffsetStatus();
+    else if (isHeadphoneInput() && getHeadphoneType() === 'wired') statusObj = getAndroidWiredOffsetStatus();
+    else if (isNormalMicInput()) statusObj = getAndroidBuiltinMicOffsetStatus();
+    if (isAndroid && statusObj) {
+        const dbg = androidJudgeOffsetDebug();
+        const source = dbg ? dbg.usedOffsetSource : 'timingOffsetMs';
+        const correctionTypeLabel = SUMMARY_CORRECTION_TYPE_LABELS[source] || source;
+        const isActive = statusObj.isUsedForCurrentPractice;
+        let activeOffsetMs = finalOffsetMs;
+        if (source === 'androidBluetoothMicOffsetMs') activeOffsetMs = mic.androidBluetoothMicOffsetMs || 0;
+        else if (source === 'androidWiredMicOffsetMs') activeOffsetMs = mic.androidWiredMicOffsetMs || 0;
+        else if (source === 'androidBuiltinMicOffsetMs') activeOffsetMs = mic.androidBuiltinMicOffsetMs || 0;
+        else if (source === 'bluetoothMicOffsetMs') activeOffsetMs = mic.bluetoothMicOffsetMs || 0;
+        else if (source === 'wiredMicOffsetMs') activeOffsetMs = mic.wiredMicOffsetMs || 0;
+        else activeOffsetMs = mic.timingOffsetMs;
+        let delayEstimateMs = statusObj.measurementDelayEstimateMs;
+        if (delayEstimateMs == null) delayEstimateMs = Math.round(Math.abs(activeOffsetMs) * 10) / 10;
+        return {
+            inputLabel, practiceStatus: isActive ? '使用中' : '未使用', activeOffsetMs, correctionTypeLabel,
+            delayEstimateMs, isActive, notUsedReason: statusObj.messageForUser, finalOffsetMs, showFinalOffset: finalOffsetMs !== activeOffsetMs
+        };
+    }
+    let correctionTypeLabel, activeOffsetMs;
+    if (isBluetoothHeadphone()) { correctionTypeLabel = 'Bluetoothイヤホン補正'; activeOffsetMs = mic.bluetoothMicOffsetMs || 0; }
+    else if (isHeadphoneInput()) { correctionTypeLabel = '有線イヤホン補正'; activeOffsetMs = mic.wiredMicOffsetMs || 0; }
+    else { correctionTypeLabel = '通常マイク補正'; activeOffsetMs = mic.timingOffsetMs; }
+    return {
+        inputLabel, practiceStatus: '使用中', activeOffsetMs: finalOffsetMs, correctionTypeLabel,
+        delayEstimateMs: Math.round(Math.abs(activeOffsetMs) * 10) / 10, isActive: true, notUsedReason: '',
+        finalOffsetMs, showFinalOffset: false
+    };
+}
+function renderSettingsSummaryAndroidDetailsHtml(row, noteRow) {
+    if (!androidAudioProbeDeviceInfo().isAndroid) return '';
+    const abs = getAndroidBluetoothOffsetStatus();
+    const aws = getAndroidWiredOffsetStatus();
+    const abms = getAndroidBuiltinMicOffsetStatus();
+    const androidDetailRow = (label, status, keyName, hasSaved) => {
+        const saved = hasSaved ? status.savedOffsetMs + 'ms' : '未保存';
+        const use = status.isUsedForCurrentPractice ? '使用中' : '未使用';
+        return row(label, saved + ' / ' + use) + noteRow('内部キー: ' + keyName);
+    };
+    const parts = [];
+    parts.push(androidDetailRow('Android Bluetooth補正', abs, 'androidBluetoothMicOffsetMs', abs.hasAndroidBluetoothOffset));
+    parts.push(androidDetailRow('Android有線イヤホン補正', aws, 'androidWiredMicOffsetMs', aws.hasAndroidWiredOffset));
+    parts.push(androidDetailRow('Android本体マイク補正', abms, 'androidBuiltinMicOffsetMs', abms.hasAndroidBuiltinMicOffset));
+    const dbg = androidJudgeOffsetDebug();
+    if (dbg) parts.push(row('Practice判定の最終補正', formatSummaryMs(dbg.finalJudgeOffsetMs)) + noteRow('内部: finalJudgeOffsetMs / usedOffsetSource=' + dbg.usedOffsetSource));
+    return parts.join('');
+}
+async function copyAndroidOffsetStatusLogFromSummary() {
+    await copyAndroidOffsetStatusLog();
+    const el = document.getElementById('settings-summary-android-log-status');
+    if (el) el.textContent = 'Android補正状態ログをコピーしました。';
+}
+
 function renderSettingsSummary() {
     if (!els.settingsSummaryList) return;
+    const row = (k, v) => '<div class="cal-result-row"><span>' + k + '</span><b>' + escapeHtml(String(v)) + '</b></div>';
+    const noteRow = (msg) => '<div class="mic-unsaved-row" style="background:none;color:inherit;">' + escapeHtml(msg) + '</div>';
+    const sectionHead = (title) => '<div class="cal-result-row" style="margin-top:8px;"><span><b>' + escapeHtml(title) + '</b></span><b></b></div>';
     const t = getMicInputType();
-    const row = (k, v) => '<div class="cal-result-row"><span>' + k + '</span><b>' + v + '</b></div>';
     const typeLabel = { normal: '通常マイク', headphone: 'イヤホン接続' }[t] || '通常マイク';
     const rows = [];
+    const practice = buildSettingsSummaryPracticeInfo();
     // プリセット名／未保存状態を最初に表示（v0.9.152）。
     const dirty = micSettingsAreDirty();
     const presetName = state.micPresetName ? escapeHtml(state.micPresetName) : '未保存の設定';
@@ -17500,64 +17583,56 @@ function renderSettingsSummary() {
     if (dirty) {
         rows.push('<div class="mic-unsaved-row">⚠ この設定はまだプリセット保存されていません</div>');
     }
+    // v0.11.54：現在使用中のPractice補正サマリー（ユーザー向け・1画面で把握）。
+    rows.push(sectionHead('現在使用中の設定'));
+    rows.push(row('現在の入力設定', practice.inputLabel));
+    rows.push(row('現在のPractice判定', practice.practiceStatus));
+    if (practice.isActive) {
+        rows.push(row('使用中の補正', formatSummaryMs(practice.activeOffsetMs)));
+        rows.push(row('補正タイプ', practice.correctionTypeLabel));
+        if (practice.delayEstimateMs != null) rows.push(row('推定入力遅延', practice.delayEstimateMs + 'ms'));
+        if (practice.showFinalOffset) rows.push(row('Practice判定での最終補正', formatSummaryMs(practice.finalOffsetMs)));
+    } else {
+        rows.push(noteRow(practice.notUsedReason || '現在の入力ではAndroid専用補正は使われていません'));
+        rows.push(row('Practice判定での最終補正', formatSummaryMs(practice.finalOffsetMs)));
+    }
+    // マイク反応設定（ユーザー向けに必要な項目を維持）。
+    rows.push(sectionHead('マイク反応設定'));
+    rows.push(row('反応ライン', mic.threshold.toFixed(3)));
+    rows.push(row('マイク感度', userMicSensitivityPercent() + '％'));
+    rows.push(row('クリック音量', state.clickVolume + '％'));
+    rows.push(row('二重反応防止', mic.cooldownMs + 'ms'));
+    // その他の設定（従来の有用情報を維持）。
+    rows.push(sectionHead('その他の設定'));
     rows.push(row('入力タイプ', typeLabel));
     if (t === 'headphone') {
         rows.push(row('イヤホン種類', getHeadphoneType() === 'bluetooth' ? 'Bluetoothイヤホン' : '有線イヤホン'));
     }
     rows.push(row('ストローク検出モード', state.strokeDetectMode === 'chord' ? 'コードストローク' : 'ブラッシング'));
-    // 手動設定ページと同じ順番で表示（v0.9.226）。
-    rows.push(row('マイク感度', userMicSensitivityPercent() + '％'));
-    rows.push(row('クリック音量', state.clickVolume + '％'));
-    rows.push(row('二重反応防止', mic.cooldownMs + 'ms'));
-    if (t === 'headphone') {
-        // 手動設定スライダーと同じ headphoneMicOffsetGet() を表示（v0.9.226）。
-        const mo = headphoneMicOffsetGet();
-        rows.push(row('マイクの遅れ補正', (mo > 0 ? '+' : '') + mo + 'ms'));
-        rows.push(row('イヤホン音ズレの画面補正', mic.headphoneOutputOffsetMs + 'ms'));
-    } else {
-        const off = mic.timingOffsetMs;
-        rows.push(row('マイクの遅れ補正', (off > 0 ? '+' : '') + off + 'ms'));
-    }
     rows.push(row('低入力プロファイル', mic.lowInputProfile ? 'あり' : 'なし'));
     rows.push(row('マイク反応テスト', state.micTestDone ? '実施済み' : '未実施'));
     if (t !== 'headphone') rows.push(row('マイクの遅れ補正テスト', state.micDelayDone ? '実施済み' : '未実施'));
-    // v0.11.47：Android Bluetooth専用補正の保存値と「現在のPractice判定で使用中か」を分けて表示。
-    const abs = getAndroidBluetoothOffsetStatus();
-    const noteRow = (msg) => '<div class="mic-unsaved-row" style="background:none;color:inherit;">' + escapeHtml(msg) + '</div>';
-    rows.push('<div class="cal-result-row" style="margin-top:8px;"><span><b>Android Bluetoothマイク補正</b></span><b></b></div>');
-    if (!abs.isAndroid) {
-        rows.push(noteRow('この端末では対象外です'));
+    rows.push(row('最終確認テスト', ptHasRun ? '実施済み' : '未実施'));
+    // 保存済み補正値（手動設定と同じ値源・v0.9.226）。
+    rows.push(sectionHead('保存済み補正'));
+    if (t === 'headphone') {
+        const mo = headphoneMicOffsetGet();
+        rows.push(row('マイクの遅れ補正', formatSummaryMs(mo)));
+        rows.push(row('イヤホン音ズレの画面補正', mic.headphoneOutputOffsetMs + 'ms'));
     } else {
-        rows.push(row('保存値', abs.hasAndroidBluetoothOffset ? abs.savedOffsetMs + 'ms' : '未保存'));
-        if (abs.hasAndroidBluetoothOffset) rows.push(row('推定入力遅延', abs.measurementDelayEstimateMs + 'ms'));
-        rows.push(row('現在のPractice判定', abs.isUsedForCurrentPractice ? '使用中' : '未使用'));
-        if (abs.isUsedForCurrentPractice) rows.push(row('最終判定補正', abs.finalJudgeOffsetMs + 'ms'));
-        else rows.push(noteRow('理由: ' + abs.messageForUser));
+        rows.push(row('マイクの遅れ補正', formatSummaryMs(mic.timingOffsetMs)));
     }
-    // v0.11.48/v0.11.50：Android有線イヤホン専用補正。保存値と「現在のPractice判定」を分けて表示。
-    const aws = getAndroidWiredOffsetStatus();
-    rows.push('<div class="cal-result-row" style="margin-top:8px;"><span><b>Android有線イヤホンマイク補正</b></span><b></b></div>');
-    if (!aws.isAndroid) {
-        rows.push(noteRow('この端末では対象外です'));
+    // v0.11.54：Android 3系統の詳細は折りたたみ内へ（iOSでは対象外セクションを常時表示しない）。
+    const androidDetailsInner = renderSettingsSummaryAndroidDetailsHtml(row, noteRow);
+    rows.push('<details class="settings-detail mic-test-dev-log" style="margin-top:10px;"><summary style="cursor:pointer;font-weight:700;">詳細な補正状態を見る</summary><div style="margin-top:8px;">');
+    if (androidDetailsInner) {
+        rows.push(androidDetailsInner);
     } else {
-        rows.push(row('保存値', aws.hasAndroidWiredOffset ? aws.savedOffsetMs + 'ms' : '未保存'));
-        if (aws.hasAndroidWiredOffset) rows.push(row('推定入力遅延', aws.measurementDelayEstimateMs + 'ms'));
-        rows.push(row('現在のPractice判定', aws.isUsedForCurrentPractice ? '使用中' : '未使用'));
-        if (aws.isUsedForCurrentPractice) rows.push(row('最終判定補正', aws.finalJudgeOffsetMs + 'ms'));
-        else rows.push(noteRow('理由: ' + aws.messageForUser));
+        rows.push(noteRow('Android専用補正の詳細は、Android端末でのみ表示されます。'));
     }
-    // v0.11.51/v0.11.52：Android本体マイク専用補正。保存値と「現在のPractice判定」を分けて表示。
-    const abms = getAndroidBuiltinMicOffsetStatus();
-    rows.push('<div class="cal-result-row" style="margin-top:8px;"><span><b>Android本体マイク補正</b></span><b></b></div>');
-    if (!abms.isAndroid) {
-        rows.push(noteRow('この端末では対象外です'));
-    } else {
-        rows.push(row('保存値', abms.hasAndroidBuiltinMicOffset ? abms.savedOffsetMs + 'ms' : '未保存'));
-        if (abms.hasAndroidBuiltinMicOffset) rows.push(row('推定入力遅延', abms.measurementDelayEstimateMs + 'ms'));
-        rows.push(row('現在のPractice判定', abms.isUsedForCurrentPractice ? '使用中' : '未使用'));
-        if (abms.isUsedForCurrentPractice) rows.push(row('最終判定補正', abms.finalJudgeOffsetMs + 'ms'));
-        else rows.push(noteRow('理由: ' + abms.messageForUser));
-    }
+    rows.push('<button type="button" class="btn-mini" id="settings-summary-copy-android-log" style="width:100%;margin-top:10px;padding:10px;">Android補正状態ログをコピー</button>');
+    rows.push('<p class="cal-status" id="settings-summary-android-log-status" style="margin-top:6px;"></p>');
+    rows.push('</div></details>');
     els.settingsSummaryList.innerHTML = rows.join('');
     syncMicSaveStateUI(); // 保存ボタンの強調・上書き/別名の出し分けも同期（v0.9.152）
 }
@@ -22134,6 +22209,9 @@ function bind() {
     if (els.settingsDetailBtn) els.settingsDetailBtn.addEventListener('click', () => guardMicSetupInterruption(() => startRetestFlow(false)));
     if (els.settingsViewCurrent) els.settingsViewCurrent.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsView('summary')));
     if (els.settingsSummaryBack) els.settingsSummaryBack.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsView('chooser')));
+    if (els.settingsSummaryList) els.settingsSummaryList.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'settings-summary-copy-android-log') copyAndroidOffsetStatusLogFromSummary();
+    });
     // 簡易設定：環境選択／適用後の導線（v0.9.71）
     if (els.simpleChoices) els.simpleChoices.querySelectorAll('.simple-choice').forEach((b) => {
         b.addEventListener('click', () => applySimpleSetup(b.getAttribute('data-preset'), b.getAttribute('data-label')));
