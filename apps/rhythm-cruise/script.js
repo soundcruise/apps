@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.95';
+const RHYTHM_CRUISE_VERSION = '0.11.96';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13934,7 +13934,9 @@ function androidCheckSpecPlan(target) {
 let lastAndroidBluetoothCandidateComparison = null; // v0.11.95：直近BT遅延テストの候補比較（表示・ログ専用。保存値や採用ルールには未使用）。
 /* v0.11.95：Bluetooth音ズレ・遅延テストの候補値を比較ログ用に保持する（表示専用）。
    保存値・採用ルール・補正ロジックは一切変更しない。2連/3連は正式フォールバック候補にしない。
-   各 measurementMs は各音源の focusedOffsetMedianMs（生の中央値）。used は今回の遅延テストで採用された候補（shortNoise）。 */
+   used は今回の遅延テストで採用された候補（shortNoise）。
+   v0.11.96：double/triple の measurementMs は「正式採用可（usableForSegment）」のときだけ入れ、
+   それ以外は null。検出はされているが正式採用不可のケースのために rawOffsetMedianMs/rawOffsetRangeMs を参考値として常時出す。 */
 function buildAndroidBluetoothCandidateComparison(run) {
     const bt = run && run.bluetoothExploration;
     if (!bt) return null;
@@ -13951,8 +13953,8 @@ function buildAndroidBluetoothCandidateComparison(run) {
     return {
         used: { source: cc ? cc.source : null, measurementMs: cc ? r1(cc.measurementDelayMs) : null, saveOffsetMs: cc ? r1(cc.saveOffsetMs) : null, isReadyToSave: !!(cc && cc.isReadyToSave) },
         shortNoise: { measurementMs: sn ? r1(sn.focusedOffsetMedianMs) : null, clusterMeasurementMs: cc ? r1(cc.measurementDelayMs) : null, isReadyToSave: !!(cc && cc.isReadyToSave), reason: cc ? cc.reason : null },
-        double: { measurementMs: dp ? r1(dp.focusedOffsetMedianMs) : null, detectedCount: sD.detectedCount != null ? sD.detectedCount : null, peakToNoiseMedian: r6(sD.peakToNoiseMedian), offsetRangeMs: r1(sD.offsetRangeMs), usableForSegment: usable(sD), note: '表示専用・正式フォールバック候補ではない' },
-        triple: { measurementMs: tp ? r1(tp.focusedOffsetMedianMs) : null, detectedCount: sT.detectedCount != null ? sT.detectedCount : null, peakToNoiseMedian: r6(sT.peakToNoiseMedian), offsetRangeMs: r1(sT.offsetRangeMs), usableForSegment: usable(sT), note: '表示専用・正式フォールバック候補ではない' },
+        double: { measurementMs: usable(sD) && dp && dp.focusedOffsetMedianMs != null ? r1(dp.focusedOffsetMedianMs) : null, rawOffsetMedianMs: r1(sD.offsetMedianMs), rawOffsetRangeMs: r1(sD.offsetRangeMs), detectedCount: sD.detectedCount != null ? sD.detectedCount : null, peakToNoiseMedian: r6(sD.peakToNoiseMedian), offsetRangeMs: r1(sD.offsetRangeMs), usableForSegment: usable(sD), note: '表示専用・正式フォールバック候補ではない（measurementMsは正式採用可のときのみ／rawは検出ベースの参考値）' },
+        triple: { measurementMs: usable(sT) && tp && tp.focusedOffsetMedianMs != null ? r1(tp.focusedOffsetMedianMs) : null, rawOffsetMedianMs: r1(sT.offsetMedianMs), rawOffsetRangeMs: r1(sT.offsetRangeMs), detectedCount: sT.detectedCount != null ? sT.detectedCount : null, peakToNoiseMedian: r6(sT.peakToNoiseMedian), offsetRangeMs: r1(sT.offsetRangeMs), usableForSegment: usable(sT), note: '表示専用・正式フォールバック候補ではない（measurementMsは正式採用可のときのみ／rawは検出ベースの参考値）' },
         noiseFamily: { measurementMs: nf ? r1(nf.measurementDelayMs) : null, isReadyToSave: !!(nf && nf.isReadyToSave), reason: nf ? nf.reason : null },
         capturedAt: new Date().toISOString(),
         note: '比較ログ用（v0.11.95）。保存値・採用ルールは未変更。2連/3連は正式フォールバック候補にしない。',
@@ -13970,6 +13972,8 @@ function androidBluetoothFinalCheckPrediction(actualAvgDiffMs) {
     const usedMeasurementMs = status.measurementDelayEstimateMs != null ? status.measurementDelayEstimateMs : (cmp.used ? cmp.used.measurementMs : null);
     const predict = (m) => (m == null || usedMeasurementMs == null || actualAvgDiffMs == null) ? null : r1(actualAvgDiffMs - (m - usedMeasurementMs));
     const entry = (m) => ({ candidateMeasurementMs: m, predictedAvgDiffMs: predict(m) });
+    // v0.11.96：正式採用不可（measurementMs=null）でも、検出ベースの raw offset で参考予測を出す。
+    const rawEntry = (m) => ({ candidateMeasurementMs: m, predictedAvgDiffMs: predict(m), note: '正式採用不可のため参考値のみ' });
     return {
         usedMeasurementMs: r1(usedMeasurementMs),
         usedOffsetSource: status.usedOffsetSource,
@@ -13977,9 +13981,11 @@ function androidBluetoothFinalCheckPrediction(actualAvgDiffMs) {
         actualAvgDiffMs: r1(actualAvgDiffMs),
         ifShortNoise: entry(cmp.shortNoise ? cmp.shortNoise.measurementMs : null),
         ifDouble: entry(cmp.double ? cmp.double.measurementMs : null),
+        ifDoubleRaw: rawEntry(cmp.double ? cmp.double.rawOffsetMedianMs : null),
         ifTriple: entry(cmp.triple ? cmp.triple.measurementMs : null),
+        ifTripleRaw: rawEntry(cmp.triple ? cmp.triple.rawOffsetMedianMs : null),
         ifNoiseFamily: entry(cmp.noiseFamily ? cmp.noiseFamily.measurementMs : null),
-        note: '予測のみ（v0.11.95）。保存値・採用ルールは未変更。2連/3連は正式採用していない。',
+        note: '予測のみ（v0.11.96）。保存値・採用ルールは未変更。2連/3連は正式採用していない。',
     };
 }
 async function runAndroidAudioCheck(options) {
