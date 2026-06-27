@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.91';
+const RHYTHM_CRUISE_VERSION = '0.11.92';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13323,6 +13323,73 @@ function androidLatencyHeadphoneFailureHtml(run, candidate) {
         + '<p class="android-latency-result-help">イヤホンの音量を最大にして、音が出る部分をスマホのマイクに軽く押し当て、動かさずにもう一度テストしてください。</p>'
         + androidLatencyHeadphoneFailureDetailsHtml(run, candidate);
 }
+function androidLatencyCandidateForLog(run) {
+    if (!run) return null;
+    if (run.selectedInputType === 'normal') return run.androidBuiltinMicCandidate || null;
+    if (run.selectedHeadphoneType === 'wired') return run.androidWiredCandidate || null;
+    if (run.selectedHeadphoneType === 'bluetooth') {
+        return run.bluetoothExploration && run.bluetoothExploration.shortNoiseFocusedTest && run.bluetoothExploration.shortNoiseFocusedTest.correctionCandidate || null;
+    }
+    return androidLatencyCandidateForRun(run);
+}
+function androidLatencyResultLogText(run) {
+    const candidate = androidLatencyCandidateForLog(run);
+    const debug = run && run.androidLatencySegmentDebug || null;
+    const lines = [];
+    const val = (v) => v == null ? 'null' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
+    const add = (key, value, indent) => lines.push((indent || '') + key + ': ' + val(value));
+    lines.push('version: ' + RHYTHM_CRUISE_VERSION);
+    add('inputType', run && run.selectedInputType);
+    add('headphoneType', run && run.selectedHeadphoneType);
+    add('finalGuess', run && run.finalGuess);
+    lines.push('');
+    lines.push('measurementResult:');
+    add('eventCount', run && run.events && run.events.length, '  ');
+    add('detected', run && run.events ? run.events.filter((e) => e.detected).length : null, '  ');
+    add('summary', run && run.summary ? run.summary.map((s) => ({
+        soundId: s.soundId, detectedCount: s.detectedCount, peakMedian: s.peakMedian,
+        offsetMedianMs: s.offsetMedianMs, offsetRangeMs: s.offsetRangeMs, stableEnoughGuess: s.stableEnoughGuess
+    })) : null, '  ');
+    lines.push('');
+    lines.push('candidate:');
+    add('measurementDelayMs', candidate && candidate.measurementDelayMs, '  ');
+    add('saveOffsetMs', candidate && candidate.saveOffsetMs, '  ');
+    add('source', candidate && candidate.source, '  ');
+    add('confidence', candidate && candidate.confidence, '  ');
+    add('isReadyToSave', candidate && candidate.isReadyToSave, '  ');
+    add('reason', candidate && candidate.reason || (run && run.abortedEarlyReason) || null, '  ');
+    lines.push('');
+    lines.push('androidLatencySegmentDebug:');
+    const segments = debug && debug.segments || {};
+    ['test1', 'test2', 'test3'].forEach((key) => {
+        const row = segments[key] || {};
+        lines.push(key + ':');
+        ['label', 'durationMs', 'detected', 'maxPeak', 'avgPeak', 'candidateMs', 'stability', 'usable', 'failReason'].forEach((field) => add(field, row[field], '  '));
+    });
+    lines.push('');
+    lines.push('overall:');
+    const overall = debug && debug.overall || {};
+    ['candidateMs', 'detected', 'stability', 'selectedSource', 'canShortenEstimate'].forEach((field) => add(field, overall[field], '  '));
+    add('shortenHint', debug && debug.shortenHint, '  ');
+    return lines.join('\n');
+}
+function androidLatencyResultLogHtml(run) {
+    const text = androidLatencyResultLogText(run);
+    return '<details class="card-help android-latency-result-log"><summary>結果ログ</summary>'
+        + '<p class="setting-note">短縮検証用のログです。通常の判定や保存には使いません。</p>'
+        + '<button type="button" class="btn-mini android-latency-result-log-copy">ログをコピー</button>'
+        + '<span class="dev-log-copy-status android-latency-result-log-status" aria-live="polite"></span>'
+        + '<pre class="android-latency-result-log-text">' + escapeHtml(text) + '</pre>'
+        + '</details>';
+}
+async function copyWizardAndroidLatencyResultLog(btn) {
+    const text = androidLatencyResultLogText(headphoneAudioProbe.run);
+    let copied = false;
+    try { copied = await copyTextToClipboard(text); } catch (_) { copied = false; }
+    const root = btn && btn.closest ? btn.closest('.android-latency-result-log') : null;
+    const status = root && root.querySelector ? root.querySelector('.android-latency-result-log-status') : null;
+    if (status) status.textContent = copied ? 'コピーしました' : 'コピーできませんでした。ログ本文を長押ししてコピーしてください。';
+}
 function renderWizardAndroidLatencyResult(run) {
     const el = androidCheckResultEl(true);
     if (!el || !run) return;
@@ -13358,12 +13425,13 @@ function renderWizardAndroidLatencyResult(run) {
             } else html = androidLatencyHeadphoneFailureHtml(run, cc);
         } else html = androidLatencyHeadphoneFailureHtml(run, cc);
     }
+    const logHtml = androidLatencyResultLogHtml(run);
     if (html) {
         el.style.whiteSpace = 'normal';
-        el.innerHTML = html;
+        el.innerHTML = html + logHtml;
     } else {
-        el.style.whiteSpace = 'pre-line';
-        el.textContent = lines.join('\n');
+        el.style.whiteSpace = 'normal';
+        el.innerHTML = '<div class="android-latency-result-text">' + escapeHtml(lines.join('\n')) + '</div>' + logHtml;
     }
     el.classList.remove('hidden');
     refreshAllAndroidSaveButtons();
@@ -23633,6 +23701,10 @@ function bind() {
     if (els.wizardAndroidSaveBtWizard) els.wizardAndroidSaveBtWizard.addEventListener('click', () => { saveAndroidBluetoothCorrection(); syncWizardSaveStatusFromDetail('bt'); onAndroidWizardLatencySaved('bt'); onWizardAndroidLatencyProceed(); });
     if (els.wizardAndroidProceedBuiltin) els.wizardAndroidProceedBuiltin.addEventListener('click', onWizardAndroidLatencyProceed);
     if (els.wizardAndroidProceedHp) els.wizardAndroidProceedHp.addEventListener('click', onWizardAndroidLatencyProceed);
+    document.addEventListener('click', (e) => {
+        const btn = e.target && e.target.closest ? e.target.closest('.android-latency-result-log-copy') : null;
+        if (btn) copyWizardAndroidLatencyResultLog(btn);
+    });
     // イヤホン音ズレの画面補正（v0.9.50〜）
     if (els.hpCalBtn) els.hpCalBtn.addEventListener('click', toggleHeadphoneCal);
     if (els.hpRetestBtn) els.hpRetestBtn.addEventListener('click', retestHeadphoneCal); // v0.9.111：再テスト

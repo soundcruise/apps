@@ -6252,6 +6252,45 @@ body.results-open {
     line-height: 1.7;
 }
 
+.android-latency-result-text,
+.android-latency-result-log-text {
+    white-space: pre-line;
+}
+
+.android-latency-result-log-text {
+    white-space: pre-wrap;
+}
+
+.android-latency-result-log {
+    margin-top: 12px;
+    border-top: 1px solid rgba(253, 246, 238, 0.1);
+    padding-top: 8px;
+}
+
+.android-latency-result-log-copy {
+    width: 100%;
+    margin-top: 8px;
+    padding: 10px;
+}
+
+.android-latency-result-log-status {
+    display: block;
+    margin-top: 6px;
+}
+
+.android-latency-result-log-text {
+    overflow: auto;
+    max-height: 260px;
+    margin: 10px 0 0;
+    padding: 10px;
+    border: 1px solid rgba(253, 246, 238, 0.12);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.18);
+    color: var(--muted-color);
+    font-size: 0.78rem;
+    line-height: 1.55;
+}
+
 /* ── 実施済みバッジの強調（v0.9.80）─────────────────────────── */
 .status-pill.done {
     color: #6ed28c;
