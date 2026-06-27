@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.60';
+const RHYTHM_CRUISE_VERSION = '0.11.61';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13414,6 +13414,11 @@ function onWizardAndroidLatencyProceed() {
     renderSettingsView();
     scrollToMicTestCard();
 }
+function shouldKeepAndroidBuiltinLatencyAfterMicTest() {
+    if (selectedTestPlatform !== 'android' || !isNormalMicInput()) return false;
+    const saved = Number(mic.androidBuiltinMicOffsetMs);
+    return setupProgress.correctionDone && Number.isFinite(saved) && saved !== 0;
+}
 async function runAndroidAudioCheck(options) {
     const fromWizard = !!(options && options.fromWizard);
     androidCheckFromWizard = fromWizard;
@@ -13947,7 +13952,13 @@ function ptDetectionThreshold() {
 
 /* 実践テストのクリックガード（v0.9.78）：STAGE本体 isClickGuardedOnset をそのまま流用。 */
 function isPtClickGuardedOnset(now, peak, lastClickPerf) {
-    return isClickGuardedOnset(now, peak, lastClickPerf, true);
+    if (isClickGuardedOnset(now, peak, lastClickPerf, true)) return true;
+    if (androidAudioProbeDeviceInfo().isAndroid && isNormalMicInput()) {
+        const saved = Number(mic.androidBuiltinMicOffsetMs);
+        const delayMs = Number.isFinite(saved) && saved < 0 ? Math.min(800, Math.max(0, -saved)) : 0;
+        if (delayMs > 0 && isClickGuardedOnset(now, peak, lastClickPerf + delayMs, true)) return true;
+    }
+    return false;
 }
 
 /* 実践テスト専用クリック。STAGE本番と同じ clickVolume / 音量カーブで鳴らす。 */
@@ -14557,7 +14568,8 @@ function finishPracticeTest() {
     }
     const valid = good + early + late;
     const avg = validN ? Math.round(sum / validN) : 0;
-    const r = { good, early, late, miss, valid, avg, maxPeak: pt.maxPeak, doubleCount: pt.doubleCount, threshold: mic.threshold, detectThreshold: ptDetectionThreshold(), cooldownMs: mic.cooldownMs };
+    const r = { good, early, late, miss, valid, avg, maxPeak: pt.maxPeak, doubleCount: pt.doubleCount, threshold: mic.threshold, detectThreshold: ptDetectionThreshold(), cooldownMs: mic.cooldownMs, finalCheckOffsetDebug: androidJudgeOffsetDebug() };
+    if (r.finalCheckOffsetDebug) console.info('[final-check] offset', r.finalCheckOffsetDebug);
     ptFinalizeDebug();
     renderPracticeResult(r);
     setPtStatus('完了');
@@ -14638,7 +14650,8 @@ function renderPracticeResult(r) {
         '<div class="cal-result-row"><span>EARLY</span><b>' + r.early + '</b></div>' +
         '<div class="cal-result-row"><span>LATE</span><b>' + r.late + '</b></div>' +
         '<div class="cal-result-row"><span>MISS</span><b>' + r.miss + '</b></div>' +
-        '<div class="cal-result-row"><span>平均ズレ</span><b>' + avgTxt + '</b></div>';
+        '<div class="cal-result-row"><span>平均ズレ</span><b>' + avgTxt + '</b></div>' +
+        (r.finalCheckOffsetDebug ? '<div class="cal-result-row"><span>判定補正</span><b>' + formatSummaryMs(r.finalCheckOffsetDebug.finalJudgeOffsetMs) + ' / ' + escapeHtml(r.finalCheckOffsetDebug.usedOffsetSource) + '</b></div>' : '');
     // 次の行動ボタン
     const primary = 'width:100%;padding:14px;margin-top:12px;border-radius:10px;border:none;'
         + 'background:linear-gradient(180deg,#ff9f1c,#ff8c00);color:#1a130a;font-weight:800;font-size:1rem;cursor:pointer;';
@@ -14722,7 +14735,7 @@ function practiceFixGoTo(route) {
     if (route === 'test') {
         // 反応ラインからやり直す：補正系以降は未完了に戻す
         setupProgress.recoApplied = false;
-        setupProgress.correctionDone = false;
+        if (!shouldKeepAndroidBuiltinLatencyAfterMicTest()) setupProgress.correctionDone = false;
         wizardEditing = 'test';
         if (settingsView !== 'steps') settingsView = 'steps';
         renderSettingsView();
@@ -20717,7 +20730,7 @@ function applyReco() {
     if (result.lineChanged) {
         setupProgress.recoApplied = true;
         // テストをやり直して適用したら、補正系以降は未完了へ戻す
-        setupProgress.correctionDone = false;
+        if (!shouldKeepAndroidBuiltinLatencyAfterMicTest()) setupProgress.correctionDone = false;
         // 反応ラインが変わったので前回の実践テスト結果は無効化する
         invalidatePracticeResult();
         wizardEditing = null;
