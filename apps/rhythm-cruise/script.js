@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.76';
+const RHYTHM_CRUISE_VERSION = '0.11.77';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -20051,6 +20051,23 @@ function micTestClickInputDelayMs() {
     return micTestAndroidNormalStrokeDelayMs();
 }
 
+/* v0.11.77：stroke phase の測定窓に使う入力遅延補正(ms)。
+   Android通常マイク=androidBuiltinMicOffsetMs / Android有線=androidWiredMicOffsetMs /
+   Android Bluetooth=androidBluetoothMicOffsetMs の保存済み補正（負値）から min(800, max(0, -saved)) を返す。
+   iPhone/iPad・非Android・未保存・不正値(0以上)は 0。これは測定窓の位置だけを直すためのもので、
+   threshold / recommendedThreshold / cooldown / clickVolume / Practice判定 / micJudgeOffsetMs() には一切影響しない。
+   ※ Android通常マイクは従来の micTestAndroidNormalStrokeDelayMs() と同一値を返す（既存挙動を維持）。 */
+function micTestStrokeInputDelayMs() {
+    if (selectedTestPlatform !== 'android' || !androidAudioProbeDeviceInfo().isAndroid) return 0;
+    let saved;
+    if (isBluetoothHeadphone()) saved = Number(mic.androidBluetoothMicOffsetMs);
+    else if (isHeadphoneInput() && getHeadphoneType() === 'wired') saved = Number(mic.androidWiredMicOffsetMs);
+    else if (isNormalMicInput()) saved = Number(mic.androidBuiltinMicOffsetMs);
+    else return 0;
+    if (!Number.isFinite(saved) || saved >= 0) return 0;
+    return Math.min(800, Math.max(0, -saved));
+}
+
 /* カウントイン用ビープ（clickVolumeに依存しない固定音量。タイミングを掴むための合図）。
    本編クリック(click)とは別物。譜面が流れ始めたら鳴らさない。 */
 function testCountBeep(accent) {
@@ -20082,7 +20099,7 @@ function beginStrokePhase() {
     test.strokeDetected = 0; test.strokeDoubleCount = 0;
     test.btStrokePeriodMax = null; test.btStrokePeriodP75 = null; test.btStrokePeriodP90 = null; test.btDiag = null;
     test.strokeDetectThreshold = testStrokeThreshold(); // 低入力/通常環境ごとに、このテスト中の検出ラインを固定
-    test.strokeInputDelayMs = micTestAndroidNormalStrokeDelayMs();
+    test.strokeInputDelayMs = micTestStrokeInputDelayMs(); // v0.11.77：Android通常/有線/BTそれぞれの保存済み遅延で測定窓を後ろへ補正
     if (test.runDebug) test.runDebug.strokeInputDelayMs = test.strokeInputDelayMs;
     // 8音符＝1小節（ダウン4・アップ4）。t は flowStart からの相対ms
     test.notes = [];
