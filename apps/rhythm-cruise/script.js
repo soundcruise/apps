@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.77';
+const RHYTHM_CRUISE_VERSION = '0.11.78';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13424,6 +13424,11 @@ function onAndroidWizardLatencySaved(kind) {
     if (settingsView === 'steps') renderStepSummaries(activeWizardStep());
 }
 function onWizardAndroidLatencyProceed() {
+    // v0.11.78：最終確認から音ズレ・遅延テストへ戻った場合（practiceFixGoTo が wizardEditing='btdelay'/'correction' を立てる）でも、
+    //   保存後の「次へ進む」で現在のフロー上の次の未完了ステップへ進めるようにする。
+    //   wizardEditing が残っていると activeWizardStep() がそのステップに固定され、保存しても画面が進まない（Android BT/有線で発生）。
+    //   通常の前進フローでは wizardEditing は元々 null のため挙動は変わらない。
+    wizardEditing = null;
     renderSettingsView();
     scrollToMicTestCard();
 }
