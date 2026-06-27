@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.67';
+const RHYTHM_CRUISE_VERSION = '0.11.68';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14550,6 +14550,17 @@ async function startPracticeTest() {
     if (hpCal.active) stopHeadphoneCal();
     if (test.flow) abortMicTest();
     stopBtCal();
+    if (isAndroidNormalMicFlow()) {
+        console.info('finalCheckStartDebug', {
+            setupProgress: Object.assign({}, setupProgress),
+            currentWizardStep: activeWizardStep(),
+            clickVolume: state.clickVolume,
+            threshold: mic.threshold,
+            cooldownMs: mic.cooldownMs,
+            offsetDebug: androidJudgeOffsetDebug(),
+            androidBuiltinMicOffsetMs: mic.androidBuiltinMicOffsetMs || 0,
+        });
+    }
     if (!(await ensureTestMic())) { setPtStatus('マイクを許可してください。'); return; }
     ensureAudio();
     try { if (state.audioCtx && state.audioCtx.state === 'suspended') { await state.audioCtx.resume(); audioContextDebugLastResumeAt = new Date().toISOString(); } } catch (_) { /* ignore */ }
@@ -19736,6 +19747,13 @@ function isTestStrokeDetected(peak) {
     return peak >= (test.strokeDetectThreshold || testStrokeThreshold());
 }
 
+function micTestAndroidNormalStrokeDelayMs() {
+    if (!isAndroidNormalMicFlow()) return 0;
+    const saved = Number(mic.androidBuiltinMicOffsetMs);
+    if (!Number.isFinite(saved) || saved >= 0) return 0;
+    return Math.min(800, Math.max(0, -saved));
+}
+
 /* カウントイン用ビープ（clickVolumeに依存しない固定音量。タイミングを掴むための合図）。
    本編クリック(click)とは別物。譜面が流れ始めたら鳴らさない。 */
 function testCountBeep(accent) {
@@ -19766,6 +19784,8 @@ function beginStrokePhase() {
     test.strokeDetected = 0; test.strokeDoubleCount = 0;
     test.btStrokePeriodMax = null; test.btStrokePeriodP75 = null; test.btStrokePeriodP90 = null; test.btDiag = null;
     test.strokeDetectThreshold = testStrokeThreshold(); // 低入力/通常環境ごとに、このテスト中の検出ラインを固定
+    test.strokeInputDelayMs = micTestAndroidNormalStrokeDelayMs();
+    if (test.runDebug) test.runDebug.strokeInputDelayMs = test.strokeInputDelayMs;
     // 8音符＝1小節（ダウン4・アップ4）。t は flowStart からの相対ms
     test.notes = [];
     const COUNT = 8;
@@ -19805,7 +19825,10 @@ function testFlowLoop() {
     // 現在の音符の判定窓を開閉。開いている間は micLoop が test.curPeak を更新する
     const note = test.notes[test.noteIdx];
     if (note) {
-        if (!note.opened && t >= note.t - TEST_NOTE_WIN) {
+        const strokeDelayMs = test.strokeInputDelayMs || 0;
+        const measureOpenT = note.t - TEST_NOTE_WIN + strokeDelayMs;
+        const measureCloseT = note.t + TEST_NOTE_WIN + strokeDelayMs;
+        if (!note.opened && t >= measureOpenT) {
             note.opened = true;
             test.curPeak = 0; test.curOnsets = 0;
             test.curAbove = false; test.curAboveMax = 0; test.curAboveStart = 0;
@@ -19813,7 +19836,7 @@ function testFlowLoop() {
             test.strokeFrom = now;
             test.strokeUntil = now + TEST_NOTE_WIN * 2;
         }
-        if (note.opened && !note.closed && t >= note.t + TEST_NOTE_WIN) {
+        if (note.opened && !note.closed && t >= measureCloseT) {
             note.closed = true;
             note.peak = test.curPeak;
             note.onsets = test.curOnsets;
@@ -19849,7 +19872,7 @@ function testFlowLoop() {
     drawTestLane(t);
 
     const lastT = test.notes.length ? test.notes[test.notes.length - 1].t : 0;
-    if (test.noteIdx >= test.notes.length && t > lastT + TEST_NOTE_WIN + 250) {
+    if (test.noteIdx >= test.notes.length && t > lastT + TEST_NOTE_WIN + (test.strokeInputDelayMs || 0) + 250) {
         endStrokePhase();
         return;
     }
