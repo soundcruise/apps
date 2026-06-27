@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.84';
+const RHYTHM_CRUISE_VERSION = '0.11.85';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -1437,6 +1437,8 @@ const els = {
     wizardAndroidResultBuiltin: $('wizard-android-result-builtin'), wizardAndroidSaveBuiltin: $('wizard-android-save-builtin'),
     wizardAndroidSaveBuiltinStatus: $('wizard-android-save-builtin-status'), wizardAndroidProceedBuiltin: $('wizard-android-proceed-builtin'),
     wizardAndroidProceedHintBuiltin: $('wizard-android-proceed-hint-builtin'), wizardAndroidNonDeviceNoteCal: $('wizard-android-nondevice-note-cal'),
+    wizardAndroidLiveBuiltin: $('wizard-android-live-builtin'), wizardAndroidWaveBuiltin: $('wizard-android-wave-builtin'),
+    wizardAndroidLevelStateBuiltin: $('wizard-android-level-state-builtin'),
     wizardAndroidBtBlock: $('wizard-android-bt-block'), wizardIosBtUi: $('wizard-ios-bt-ui'),
     wizardAndroidBtDesc: $('wizard-android-bt-desc'), wizardAndroidRunHp: $('wizard-android-run-hp'),
     wizardAndroidStatusHp: $('wizard-android-status-hp'), wizardAndroidResultHp: $('wizard-android-result-hp'),
@@ -1444,6 +1446,8 @@ const els = {
     wizardAndroidSaveWiredWizard: $('wizard-android-save-wired'), wizardAndroidSaveWiredStatus: $('wizard-android-save-wired-status'),
     wizardAndroidProceedHp: $('wizard-android-proceed-hp'), wizardAndroidProceedHintHp: $('wizard-android-proceed-hint-hp'),
     wizardAndroidNonDeviceNoteBt: $('wizard-android-nondevice-note-bt'),
+    wizardAndroidLiveHp: $('wizard-android-live-hp'), wizardAndroidWaveHp: $('wizard-android-wave-hp'),
+    wizardAndroidLevelStateHp: $('wizard-android-level-state-hp'),
     // 遅れ補正「結果を見る」
     calResultDetail: $('cal-result-detail'),
     calRdDelay: $('cal-rd-delay'),
@@ -12896,6 +12900,13 @@ function updateHeadphoneTypeUI() {
 
 /* Android専用・イヤホン音入力の成立性調査。既存マイク/補正/Practiceとは別stream・別analyserのみを使う。 */
 const headphoneAudioProbe = { active: false, stream: null, src: null, analyser: null, buf: null, raf: 0, run: null, runs: [], manual: null };
+const ANDROID_CHECK_WAVE_WINDOW_MS = 4200;
+const ANDROID_CHECK_WAVE_SAMPLE_MS = 18;
+const ANDROID_CHECK_LIVE_THRESHOLD = 0.005;
+const androidCheckLive = {
+    active: false, startPerf: 0, wave: [], maxPeak: 0, detected: 0,
+    armed: true, lastDetectAt: -100000, done: 0, total: 1, lane: { ctx: null, w: 0, h: 0 },
+};
 let selectedTestPlatform = null;
 let androidCheckMode = false;
 function updatePlatformChoiceUI() {
@@ -13478,7 +13489,7 @@ async function runAndroidAudioCheck(options) {
     const statusEl = androidCheckStatusEl(fromWizard);
     if (!androidAudioProbeDeviceInfo().isAndroid) { if (statusEl) statusEl.textContent = 'Android端末でのみ実行できます。'; androidCheckFromWizard = false; return; }
     if (!isHeadphoneInput() && !isNormalMicInput()) { if (statusEl) statusEl.textContent = '入力タイプを選んでから実行してください。'; androidCheckFromWizard = false; return; }
-    androidCheckMode = true; if (statusEl) statusEl.textContent = '4種類を各3回測定しています…'; await startHeadphoneAudioProbe(); androidCheckMode = false;
+    androidCheckMode = true; resetAndroidCheckLive(1); if (statusEl) statusEl.textContent = '測定を開始しています…'; await startHeadphoneAudioProbe(); androidCheckMode = false;
     const run = headphoneAudioProbe.run; if (!run || !run.events) { androidCheckFromWizard = false; return; }
     run.kind = 'androidAudioCheck'; run.fromWizard = fromWizard; run.selectedTestPlatform = selectedTestPlatform; run.selectedInputType = getMicInputType(); run.selectedHeadphoneType = getHeadphoneType(); run.autoDetectedPlatform = androidAudioProbeDeviceInfo(); run.summary = androidCheckStats(run.events); const wave = run.events.filter((x) => x.waveformMatch).map((x) => ({ index: x.index, peakOffsetMs: x.normalWindowPeakOffsetMs, correlationOffsetMs: x.waveformMatch.correlationOffsetMs, correlationScore: x.waveformMatch.correlationScore, peakToNoise: x.soundToNoiseRatio })); wave.forEach((x) => { x.accepted = x.correlationScore != null && x.correlationScore >= 0.2; x.rejectReason = x.accepted ? null : 'low-or-missing-correlation'; }); const offs = wave.filter((x) => x.accepted).map((x) => x.correlationOffsetMs), scores = wave.map((x) => x.correlationScore).filter(Number.isFinite), med = (xs) => { const a = xs.slice().sort((a,b)=>a-b); return a.length ? a[Math.floor(a.length/2)] : null; }; run.androidWaveformMatch = { probeLabel: 'Android calibration probe', probeDurationMs: 100, repeatCount: 5, results: wave, acceptedCount: offs.length, offsetMedianMs: med(offs), offsetMeanMs: offs.length ? offs.reduce((a,b)=>a+b,0)/offs.length : null, offsetMinMs: offs.length ? Math.min(...offs) : null, offsetMaxMs: offs.length ? Math.max(...offs) : null, offsetRangeMs: offs.length ? Math.max(...offs)-Math.min(...offs) : null, scoreMedian: med(scores), finalGuess: offs.length >= 3 && (Math.max(...offs)-Math.min(...offs)) <= 80 ? 'usable' : (offs.length ? 'weak' : 'not-usable') }; run.finalGuess = run.androidWaveformMatch.finalGuess; run.notes = '補正値・保存値・Practice判定には未使用。';
     if (getHeadphoneType() === 'bluetooth') {
@@ -13613,7 +13624,7 @@ function saveAndroidBuiltinMicCorrection() {
     if (els.androidCheckSaveBuiltinStatus) { els.androidCheckSaveBuiltinStatus.classList.remove('hidden'); els.androidCheckSaveBuiltinStatus.textContent = '保存しました: Android本体マイク補正値 ' + Math.round(mic.androidBuiltinMicOffsetMs) + 'ms　現在のPractice判定: 使用中'; }
     console.info('[android-builtin] 保存 androidBuiltinMicOffsetMs=' + mic.androidBuiltinMicOffsetMs + 'ms（Android+本体マイク時のPractice判定で使用）');
 }
-function clearAndroidAudioLogs() { headphoneAudioProbe.run = null; headphoneAudioProbe.runs = []; if (els.androidCheckResult) { els.androidCheckResult.textContent = ''; els.androidCheckResult.classList.add('hidden'); } if (els.wizardAndroidResultBuiltin) { els.wizardAndroidResultBuiltin.textContent = ''; els.wizardAndroidResultBuiltin.classList.add('hidden'); } if (els.wizardAndroidResultHp) { els.wizardAndroidResultHp.textContent = ''; els.wizardAndroidResultHp.classList.add('hidden'); } if (els.androidCheckStatus) els.androidCheckStatus.textContent = 'Android音声調査ログをクリアしました。設定値は変更していません。'; renderHeadphoneAudioProbeLog(); refreshAllAndroidSaveButtons(); }
+function clearAndroidAudioLogs() { headphoneAudioProbe.run = null; headphoneAudioProbe.runs = []; hideAndroidCheckLive(); if (els.androidCheckResult) { els.androidCheckResult.textContent = ''; els.androidCheckResult.classList.add('hidden'); } if (els.wizardAndroidResultBuiltin) { els.wizardAndroidResultBuiltin.textContent = ''; els.wizardAndroidResultBuiltin.classList.add('hidden'); } if (els.wizardAndroidResultHp) { els.wizardAndroidResultHp.textContent = ''; els.wizardAndroidResultHp.classList.add('hidden'); } if (els.androidCheckStatus) els.androidCheckStatus.textContent = 'Android音声調査ログをクリアしました。設定値は変更していません。'; renderHeadphoneAudioProbeLog(); refreshAllAndroidSaveButtons(); }
 function androidCheckLightweightLog(run) {
     const pick = (obj, keys) => Object.fromEntries(keys.map((key) => [key, obj && obj[key] != null ? obj[key] : null]));
     const settings = run && run.activeTrack && run.activeTrack.settings || {};
@@ -13684,6 +13695,149 @@ function hpProbeSetStatus(text) {
     const wizardStatus = androidCheckFromWizard ? androidCheckStatusEl(true) : null;
     if (androidCheckMode && wizardStatus) wizardStatus.textContent = msg;
 }
+
+function androidCheckLiveEls() {
+    const normal = isNormalMicInput();
+    return normal
+        ? { wrap: els.wizardAndroidLiveBuiltin, canvas: els.wizardAndroidWaveBuiltin, state: els.wizardAndroidLevelStateBuiltin }
+        : { wrap: els.wizardAndroidLiveHp, canvas: els.wizardAndroidWaveHp, state: els.wizardAndroidLevelStateHp };
+}
+
+function resetAndroidCheckLive(total) {
+    const live = androidCheckLive;
+    live.active = true;
+    live.startPerf = performance.now();
+    live.wave = [];
+    live.maxPeak = 0;
+    live.detected = 0;
+    live.armed = true;
+    live.lastDetectAt = -100000;
+    live.done = 0;
+    live.total = Math.max(1, total || 1);
+    const ui = androidCheckLiveEls();
+    if (ui.wrap) ui.wrap.classList.remove('hidden');
+    if (ui.state) setCalLevelState(ui.state, '', '音を確認中…');
+    fitAndroidCheckLive();
+    drawAndroidCheckLive();
+}
+
+function fitAndroidCheckLive() {
+    const ui = androidCheckLiveEls();
+    if (!ui.canvas) return;
+    ui.canvas.style.width = '100%';
+    ui.canvas.style.height = '118px';
+    androidCheckLive.lane = fitOne(ui.canvas);
+}
+
+function androidCheckLiveStatus() {
+    const live = androidCheckLive;
+    const progress = Math.max(0, Math.min(1, (live.done || 0) / Math.max(1, live.total || 1)));
+    const peak = Math.max(0, live.maxPeak || 0);
+    if (progress < 0.15) return { kind: '', text: '音を確認中…' };
+    if (live.detected >= Math.max(2, Math.floor((live.done || 0) * 0.28)) || peak >= ANDROID_CHECK_LIVE_THRESHOLD) {
+        return { kind: 'ok', text: 'いい感じに拾えています' };
+    }
+    if (progress >= 0.85 && peak < ANDROID_CHECK_LIVE_THRESHOLD * 0.45) {
+        return { kind: 'retry', text: '音量が小さすぎるかもしれません。もう一度テストしてください' };
+    }
+    if (peak >= ANDROID_CHECK_LIVE_THRESHOLD * 0.45 || live.detected > 0) {
+        return { kind: 'warn', text: '少し音が小さいかもしれません' };
+    }
+    return { kind: '', text: '音を確認中…' };
+}
+
+function updateAndroidCheckLiveState() {
+    const ui = androidCheckLiveEls();
+    if (!ui.state) return;
+    const status = androidCheckLiveStatus();
+    setCalLevelState(ui.state, status.kind, status.text);
+}
+
+function pushAndroidCheckLivePeak(peak) {
+    const live = androidCheckLive;
+    if (!androidCheckMode || !live.active) return;
+    const now = performance.now();
+    const t = now - live.startPerf;
+    live.maxPeak = Math.max(live.maxPeak || 0, peak || 0);
+    if (peak < ANDROID_CHECK_LIVE_THRESHOLD * 0.55) live.armed = true;
+    if (live.armed && peak >= ANDROID_CHECK_LIVE_THRESHOLD && (now - live.lastDetectAt) > 160) {
+        live.detected++;
+        live.lastDetectAt = now;
+        live.armed = false;
+    }
+    const wave = live.wave;
+    if (!wave.length || t - wave[wave.length - 1].t >= ANDROID_CHECK_WAVE_SAMPLE_MS) {
+        wave.push({ t, level: peak || 0 });
+        while (wave.length && t - wave[0].t > ANDROID_CHECK_WAVE_WINDOW_MS) wave.shift();
+    }
+    drawAndroidCheckLive();
+    updateAndroidCheckLiveState();
+}
+
+function drawAndroidCheckLive() {
+    const lane = androidCheckLive.lane;
+    if (!lane || !lane.ctx) return;
+    const { ctx, w, h } = lane;
+    const wave = androidCheckLive.wave || [];
+    ctx.clearRect(0, 0, w, h);
+    const yc = h * 0.54;
+    ctx.strokeStyle = 'rgba(253,246,238,0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke();
+    const ampPx = h * 0.36;
+    const lineAmp = Math.min(1, ANDROID_CHECK_LIVE_THRESHOLD / (ANDROID_CHECK_LIVE_THRESHOLD * 3)) * ampPx;
+    ctx.strokeStyle = 'rgba(255,159,28,0.30)';
+    ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, yc - lineAmp); ctx.lineTo(w, yc - lineAmp); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, yc + lineAmp); ctx.lineTo(w, yc + lineAmp); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,159,28,0.58)';
+    ctx.font = '600 9px Outfit, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('目安ライン', 6, Math.max(10, yc - lineAmp - 4));
+    if (wave.length >= 2) {
+        const latestT = wave[wave.length - 1].t;
+        const pts = [];
+        for (let i = 0; i < wave.length; i++) {
+            const p = wave[i];
+            const x = w - ((latestT - p.t) / ANDROID_CHECK_WAVE_WINDOW_MS) * w;
+            if (x < -8 || x > w + 8) continue;
+            const frac = Math.max(0, Math.min(1, (p.level || 0) / (ANDROID_CHECK_LIVE_THRESHOLD * 3)));
+            pts.push([x, frac * ampPx]);
+        }
+        if (pts.length >= 2) {
+            ctx.beginPath();
+            ctx.moveTo(pts[0][0], yc - pts[0][1]);
+            for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], yc - pts[i][1]);
+            for (let i = pts.length - 1; i >= 0; i--) ctx.lineTo(pts[i][0], yc + pts[i][1]);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(255,255,255,0.15)';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(pts[0][0], yc - pts[0][1]);
+            for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], yc - pts[i][1]);
+            ctx.strokeStyle = 'rgba(255,255,255,0.24)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+    }
+    ctx.strokeStyle = 'rgba(255,159,28,0.48)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(w - 1, h * 0.12); ctx.lineTo(w - 1, h * 0.90); ctx.stroke();
+    ctx.fillStyle = 'rgba(253,246,238,0.55)';
+    ctx.font = '600 9px Outfit, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('いま', w - 5, h - 8);
+}
+
+function hideAndroidCheckLive() {
+    androidCheckLive.active = false;
+    androidCheckLive.wave = [];
+    [els.wizardAndroidLiveBuiltin, els.wizardAndroidLiveHp].forEach((el) => { if (el) el.classList.add('hidden'); });
+    setCalLevelState(els.wizardAndroidLevelStateBuiltin, '', '');
+    setCalLevelState(els.wizardAndroidLevelStateHp, '', '');
+}
+
 function hpProbeConstraints(profile) {
     if (profile === 'minimal') return true;
     if (profile === 'aec-off') return { echoCancellation: false };
@@ -13740,6 +13894,7 @@ function hpProbeAddPeak(event, now, peak) {
 function hpProbeLoop() {
     if (!headphoneAudioProbe.active) return;
     const now = performance.now(), peak = hpProbePeak(), run = headphoneAudioProbe.run;
+    pushAndroidCheckLivePeak(peak);
     if (run) run.events.forEach((event) => hpProbeAddPeak(event, now, peak));
     if (headphoneAudioProbe.manual) headphoneAudioProbe.manual.samples.push(peak);
     headphoneAudioProbe.raf = requestAnimationFrame(hpProbeLoop);
@@ -13830,9 +13985,15 @@ async function startHeadphoneAudioProbe() {
         ];
         hpProbeSetStatus('テスト音を順番に再生しています。イヤホンとマイクの位置を変えずにお待ちください。');
         const totalSpecs = specs.length;
+        if (androidCheckMode) {
+            androidCheckLive.total = totalSpecs;
+            updateAndroidCheckLiveState();
+        }
         for (let specIndex = 0; specIndex < totalSpecs; specIndex++) {
             const spec = specs[specIndex];
             if (androidCheckMode) {
+                androidCheckLive.done = specIndex;
+                updateAndroidCheckLiveState();
                 const current = specIndex + 1;
                 const remainSec = Math.max(1, Math.ceil((totalSpecs - specIndex) * 1.25));
                 hpProbeSetStatus('測定中… ' + current + ' / ' + totalSpecs + '　' + spec.soundLabel + '　あと約' + remainSec + '秒');
@@ -13840,8 +14001,16 @@ async function startHeadphoneAudioProbe() {
             const actualDuration = spec.forceDurationMs || durationMs, timing = spec.route === 'HTMLAudioElement/wav' ? hpProbePlayHtmlAudio(ctx, spec, actualDuration) : hpProbePlayWebAudio(ctx, spec, actualDuration, spec.route);
             const event = { soundId: spec.soundId, soundLabel: spec.soundLabel, soundType: spec.soundType, frequencyHz: spec.frequencyHz, bluetoothExploration: !!spec.bluetoothExploration, durationMs: actualDuration, playbackRoute: timing.playbackRoute, constraintsProfile: profile, scheduledAtAudioTime: timing.scheduledAtAudioTime, scheduledAtPerformanceTime: timing.scheduledAtPerformanceTime, normalWindowMs: [0, 520], wideWindowMs: [-500, 1200], rankTop5: [], normalRankTop5: [], energyTimeline: [], probeReference: spec.waveformMatch ? hpProbeMakeBuffer(ctx, spec, actualDuration).getChannelData(0) : null, waveformMatch: spec.waveformMatch ? { probeLabel: 'Android calibration probe', probeDurationMs: actualDuration, correlationOffsetMs: null, correlationScore: null, accepted: false, rejectReason: 'input-frame-correlation-not-captured' } : null };
             run.events.push(event); await new Promise((resolve) => setTimeout(resolve, 1250));
+            if (androidCheckMode) {
+                androidCheckLive.done = specIndex + 1;
+                updateAndroidCheckLiveState();
+            }
         }
-        if (androidCheckMode) hpProbeSetStatus('測定中… ' + totalSpecs + ' / ' + totalSpecs + '　解析しています…');
+        if (androidCheckMode) {
+            androidCheckLive.done = totalSpecs;
+            updateAndroidCheckLiveState();
+            hpProbeSetStatus('測定中… ' + totalSpecs + ' / ' + totalSpecs + '　解析しています…');
+        }
         const sortedNoise = run.noiseSamples.slice().sort((a, b) => a - b), noise = { max: sortedNoise[sortedNoise.length - 1] || 0, p95: sortedNoise[Math.min(sortedNoise.length - 1, Math.floor(sortedNoise.length * 0.95))] || 0 };
         run.events.forEach((event) => { hpProbeFinalizeEvent(event, noise); event.overlapsAdjacentSound = run.events.some((other) => other !== event && Math.abs(other.scheduledAtPerformanceTime - event.scheduledAtPerformanceTime) <= event.wideWindowMs[1]); }); run.finishedAt = new Date().toISOString(); run.noise = noise; run.activeTrackResult = hpProbeTrackInfo(stream.getAudioTracks()[0]);
         hpProbeSetStatus('完了。開発ログをコピーして比較できます。'); renderHeadphoneAudioProbeLog();
@@ -13850,6 +14019,7 @@ async function startHeadphoneAudioProbe() {
 }
 function stopHeadphoneAudioProbeCapture() {
     headphoneAudioProbe.active = false; cancelAnimationFrame(headphoneAudioProbe.raf); headphoneAudioProbe.raf = 0;
+    androidCheckLive.active = false;
     try { headphoneAudioProbe.src && headphoneAudioProbe.src.disconnect(); } catch (_) { /* noop */ }
     try { headphoneAudioProbe.stream && headphoneAudioProbe.stream.getTracks().forEach((track) => track.stop()); } catch (_) { /* noop */ }
     headphoneAudioProbe.stream = headphoneAudioProbe.src = headphoneAudioProbe.analyser = headphoneAudioProbe.buf = null;
