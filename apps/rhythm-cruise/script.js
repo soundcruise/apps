@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.93';
+const RHYTHM_CRUISE_VERSION = '0.11.94';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13342,6 +13342,11 @@ function androidLatencyResultLogText(run) {
     add('inputType', run && run.selectedInputType);
     add('headphoneType', run && run.selectedHeadphoneType);
     add('finalGuess', run && run.finalGuess);
+    // v0.11.94：短縮プロファイル情報（表示専用）。
+    const dbgProfile = run && run.androidLatencySegmentDebug || null;
+    add('testProfile', (run && run.androidCheckProfile) || (dbgProfile && dbgProfile.testProfile) || null);
+    add('eventCount', dbgProfile ? dbgProfile.eventCount : (run && run.events ? run.events.length : null));
+    add('estimatedDurationMs', dbgProfile ? dbgProfile.estimatedDurationMs : null);
     lines.push('');
     lines.push('measurementResult:');
     add('eventCount', run && run.events && run.events.length, '  ');
@@ -13764,6 +13769,10 @@ function buildAndroidLatencySegmentDebug(run) {
     }
     return {
         target: kind,
+        // v0.11.94：短縮プロファイル情報（表示専用・測定/保存ロジックには未使用）。
+        testProfile: (run && run.androidCheckProfile) || null,
+        eventCount: events.length,
+        estimatedDurationMs: events.length ? events.length * 1250 + 600 : 0,
         segments: rows.reduce((acc, row) => { acc[row.key] = row; return acc; }, {}),
         shortenSimulation,
         overall: {
@@ -13887,6 +13896,41 @@ function toggleAndroidAudioCheck(options) {
     if (androidCheckMode) { cancelAndroidAudioCheck(); return; }
     runAndroidAudioCheck(options);
 }
+/* v0.11.94：Android音ズレ・遅延テストの測定対象を一意に決める（normal / wired / bluetooth）。
+   getHeadphoneType() だけに依存せず、現在の入力タイプ（本体マイク / イヤホン）を優先する。
+   これにより、本体マイクなのに headphoneType=bluetooth が残っていてもBT用音源列に巻き込まれない。 */
+function androidCheckTarget() {
+    if (isNormalMicInput()) return 'normal';
+    if (isHeadphoneInput() && getHeadphoneType() === 'wired') return 'wired';
+    if (isHeadphoneInput() && getHeadphoneType() === 'bluetooth') return 'bluetooth';
+    return 'normal';
+}
+/* v0.11.94：測定対象別の短縮音源列プラン（音源列のみ短縮。保存候補の算出・保存関数・判定ロジックは一切不変）。
+   - normal / wired：BT探索音（voice系 / short-noise / 2連 / 3連）を一切含めない。probe＋クリック / 単音 / ノイズ。
+   - bluetooth：short-noise-focused-test ×7 を保存候補の主軸として維持（clusterCount>=4 のため7は削らない）。
+     確認・将来のフォールバック検討用に noise ×3 / 2連 ×3 / 3連 ×3 を少数だけ含める。2連/3連は今回は正式フォールバック候補にしない。 */
+function androidCheckSpecPlan(target) {
+    const rep = (n, factory) => Array.from({ length: n }, factory);
+    const probe = () => ({ soundId: 'waveform-probe', soundLabel: 'Android calibration probe', soundType: 'probe', frequencyHz: null, route: 'AudioBuffer', waveformMatch: true });
+    const click = () => ({ soundId: 'current-click', soundLabel: '現行クリック音', soundType: 'click', frequencyHz: 1500, route: 'existing-click' });
+    const tone1500 = () => ({ soundId: 'tone-1500', soundLabel: '1500Hz 短音', soundType: 'tone', frequencyHz: 1500, route: 'AudioBuffer' });
+    const tone2000 = () => ({ soundId: 'tone-2000', soundLabel: '2000Hz 短音', soundType: 'tone', frequencyHz: 2000, route: 'AudioBuffer' });
+    const noise = () => ({ soundId: 'noise', soundLabel: '短いノイズ音', soundType: 'noise', frequencyHz: null, route: 'AudioBuffer' });
+    const shortNoise = () => ({ soundId: 'short-noise-focused-test', soundLabel: '短いノイズ集中テスト', soundType: 'noise', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true });
+    const dbl = () => ({ soundId: 'double-noise-pattern', soundLabel: '2連ノイズパターン', soundType: 'pattern', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true, patternPulsesMs: [0, 120], forceDurationMs: 200 });
+    const trpl = () => ({ soundId: 'triple-noise-pattern', soundLabel: '3連ノイズパターン', soundType: 'pattern', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true, patternPulsesMs: [0, 120, 280], forceDurationMs: 360 });
+    if (target === 'bluetooth') {
+        return { profile: 'bluetooth-short', specs: [
+            ...rep(3, noise),                 // Phase0：音量確認・位置合わせ
+            ...rep(7, shortNoise),            // Phase1：保存候補の主測定（維持）
+            ...rep(3, dbl), ...rep(3, trpl),  // Phase2：確認・将来のフォールバック検討用（正式採用しない）
+        ] };
+    }
+    return { profile: target === 'wired' ? 'wired-short' : 'normal-short', specs: [
+        ...rep(5, probe),
+        ...rep(3, () => [click(), tone1500(), tone2000(), noise()]).flat(),
+    ] };
+}
 async function runAndroidAudioCheck(options) {
     const fromWizard = !!(options && options.fromWizard);
     const token = ++androidCheckRunToken;
@@ -13903,13 +13947,18 @@ async function runAndroidAudioCheck(options) {
     if (androidCheckCancelRequested || token !== androidCheckRunToken) { androidCheckFromWizard = false; startAndroidCheckLiveMonitor(); return; }
     const run = headphoneAudioProbe.run; if (!run || !run.events) { androidCheckFromWizard = false; startAndroidCheckLiveMonitor(); return; }
     run.kind = 'androidAudioCheck'; run.fromWizard = fromWizard; run.selectedTestPlatform = selectedTestPlatform; run.selectedInputType = getMicInputType(); run.selectedHeadphoneType = getHeadphoneType(); run.autoDetectedPlatform = androidAudioProbeDeviceInfo(); run.summary = androidCheckStats(run.events); const wave = run.events.filter((x) => x.waveformMatch).map((x) => ({ index: x.index, peakOffsetMs: x.normalWindowPeakOffsetMs, correlationOffsetMs: x.waveformMatch.correlationOffsetMs, correlationScore: x.waveformMatch.correlationScore, peakToNoise: x.soundToNoiseRatio })); wave.forEach((x) => { x.accepted = x.correlationScore != null && x.correlationScore >= 0.2; x.rejectReason = x.accepted ? null : 'low-or-missing-correlation'; }); const offs = wave.filter((x) => x.accepted).map((x) => x.correlationOffsetMs), scores = wave.map((x) => x.correlationScore).filter(Number.isFinite), med = (xs) => { const a = xs.slice().sort((a,b)=>a-b); return a.length ? a[Math.floor(a.length/2)] : null; }; run.androidWaveformMatch = { probeLabel: 'Android calibration probe', probeDurationMs: 100, repeatCount: 5, results: wave, acceptedCount: offs.length, offsetMedianMs: med(offs), offsetMeanMs: offs.length ? offs.reduce((a,b)=>a+b,0)/offs.length : null, offsetMinMs: offs.length ? Math.min(...offs) : null, offsetMaxMs: offs.length ? Math.max(...offs) : null, offsetRangeMs: offs.length ? Math.max(...offs)-Math.min(...offs) : null, scoreMedian: med(scores), finalGuess: offs.length >= 3 && (Math.max(...offs)-Math.min(...offs)) <= 80 ? 'usable' : (offs.length ? 'weak' : 'not-usable') }; run.finalGuess = run.androidWaveformMatch.finalGuess; run.notes = '補正値・保存値・Practice判定には未使用。';
-    if (getHeadphoneType() === 'bluetooth') {
+    // v0.11.94：BT探索の解析は「測定対象が bluetooth のときだけ」行う（本体マイク/有線では走らせない）。
+    if (androidCheckTarget() === 'bluetooth') {
         const ex = androidCheckStats(run.events.filter((x) => x.bluetoothExploration));
-        const shortNoiseFocusedTest = hpAnalyzeShortNoise(run.events, { soundId: 'short-noise-focused-test', soundLabel: '短いノイズ集中テスト', repeatCount: 7 });
+        // v0.11.94：短縮で各音の回数が変わり得るため repeatCount は実イベント数に合わせる（表示メタのみ・解析は soundId で抽出）。
+        const snCount = run.events.filter((x) => x.soundId === 'short-noise-focused-test').length || 7;
+        const dblCount = run.events.filter((x) => x.soundId === 'double-noise-pattern').length;
+        const trplCount = run.events.filter((x) => x.soundId === 'triple-noise-pattern').length;
+        const shortNoiseFocusedTest = hpAnalyzeShortNoise(run.events, { soundId: 'short-noise-focused-test', soundLabel: '短いノイズ集中テスト', repeatCount: snCount });
         // 補正候補値（調査専用・保存もPractice反映もしない）。将来は inputType/headphoneType ごとに使い回す想定。
         shortNoiseFocusedTest.correctionCandidate = buildAndroidCorrectionCandidate(shortNoiseFocusedTest, { saveKey: 'androidBluetoothMicOffsetMs' });
-        const doublePatternDetection = hpAnalyzeNoisePattern(run.events, { soundId: 'double-noise-pattern', soundLabel: '2連ノイズパターン', repeatCount: 7, targetsMs: [0, 120] });
-        const triplePatternDetection = hpAnalyzeNoisePattern(run.events, { soundId: 'triple-noise-pattern', soundLabel: '3連ノイズパターン', repeatCount: 7, targetsMs: [0, 120, 280] });
+        const doublePatternDetection = hpAnalyzeNoisePattern(run.events, { soundId: 'double-noise-pattern', soundLabel: '2連ノイズパターン', repeatCount: dblCount, targetsMs: [0, 120] });
+        const triplePatternDetection = hpAnalyzeNoisePattern(run.events, { soundId: 'triple-noise-pattern', soundLabel: '3連ノイズパターン', repeatCount: trplCount, targetsMs: [0, 120, 280] });
         const bestCandidate = hpBestCandidate([
             { soundId: 'short-noise-focused-test', det: shortNoiseFocusedTest, durRank: 0 },
             { soundId: 'double-noise-pattern', det: doublePatternDetection, durRank: 1 },
@@ -14450,25 +14499,10 @@ async function startHeadphoneAudioProbe() {
         await new Promise((resolve) => setTimeout(resolve, 600));
         if (androidCheckCancelRequested) return;
         for (let i = 0; i < 30; i++) run.noiseSamples.push(hpProbePeak());
-        const specs = androidCheckMode ? [
-            ...Array.from({ length: 5 }, () => ({ soundId: 'waveform-probe', soundLabel: 'Android calibration probe', soundType: 'probe', frequencyHz: null, route: 'AudioBuffer', waveformMatch: true })),
-            ...Array.from({ length: 3 }, () => [
-            { soundId: 'current-click', soundLabel: '現行クリック音', soundType: 'click', frequencyHz: 1500, route: 'existing-click' },
-            { soundId: 'tone-1500', soundLabel: '1500Hz 短音', soundType: 'tone', frequencyHz: 1500, route: 'AudioBuffer' },
-            { soundId: 'tone-2000', soundLabel: '2000Hz 短音', soundType: 'tone', frequencyHz: 2000, route: 'AudioBuffer' },
-            { soundId: 'noise', soundLabel: '短いノイズ音', soundType: 'noise', frequencyHz: null, route: 'AudioBuffer' }
-        ]).flat(), ...(getHeadphoneType() === 'bluetooth' ? [
-            ...Array.from({ length: 3 }, () => [
-                { soundId: 'voice-like-pop', soundLabel: '声っぽい短音', soundType: 'voicepop', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true },
-                { soundId: 'low-mid-thump', soundLabel: '低〜中域の物音', soundType: 'voicepop', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true },
-                { soundId: 'speech-band-chirp', soundLabel: '音声帯域チャープ', soundType: 'chirp', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true }
-            ]).flat(),
-            // v0.11.42：短いノイズ音を単発7回（既存の noise と同系統音）。Bluetoothで一番安定していた短ノイズの単発ピーク集中テスト。
-            ...Array.from({ length: 7 }, () => ({ soundId: 'short-noise-focused-test', soundLabel: '短いノイズ集中テスト', soundType: 'noise', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true })),
-            // v0.11.41：2連/3連を比較。各パルスが実際に鳴るよう forceDurationMs でバッファ長を確保（patternPulsesMs の最終パルス+余白）。
-            ...Array.from({ length: 7 }, () => ({ soundId: 'double-noise-pattern', soundLabel: '2連ノイズパターン', soundType: 'pattern', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true, patternPulsesMs: [0, 120], forceDurationMs: 200 })),
-            ...Array.from({ length: 7 }, () => ({ soundId: 'triple-noise-pattern', soundLabel: '3連ノイズパターン', soundType: 'pattern', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true, patternPulsesMs: [0, 120, 280], forceDurationMs: 360 }))
-        ] : [])] : [
+        // v0.11.94：測定対象（normal/wired/bluetooth）別の短縮音源列を使う。BT探索音は bluetooth のときだけ。
+        const androidPlan = androidCheckMode ? androidCheckSpecPlan(androidCheckTarget()) : null;
+        if (androidPlan) { run.androidCheckTarget = androidCheckTarget(); run.androidCheckProfile = androidPlan.profile; }
+        const specs = androidPlan ? androidPlan.specs : [
             { soundId: 'current-click', soundLabel: '現行クリック音', soundType: 'click', frequencyHz: 1500, route: 'existing-click' },
             { soundId: 'tone-800', soundLabel: '800Hz 短音（Oscillator）', soundType: 'tone', frequencyHz: 800, route: 'oscillator' }, { soundId: 'tone-1000', soundLabel: '1000Hz 短音（AudioBuffer）', soundType: 'tone', frequencyHz: 1000, route: 'AudioBuffer' }, { soundId: 'tone-1500', soundLabel: '1500Hz 短音（AudioBuffer）', soundType: 'tone', frequencyHz: 1500, route: 'AudioBuffer' }, { soundId: 'tone-2000', soundLabel: '2000Hz 短音（AudioBuffer）', soundType: 'tone', frequencyHz: 2000, route: 'AudioBuffer' },
             { soundId: 'low-pop', soundLabel: '低めのトッ・ポッ音', soundType: 'tone', frequencyHz: 220, route: 'oscillator/buffer' }, { soundId: 'noise', soundLabel: '短いノイズ音', soundType: 'noise', frequencyHz: null, route: 'oscillator/buffer' }, { soundId: 'c-chord', soundLabel: 'Cコード（短音）', soundType: 'chord', frequencyHz: null, route: 'AudioBuffer/C chord' }, { soundId: 'c-chord-short', soundLabel: 'Cコード（さらに短く）', soundType: 'chord', frequencyHz: null, route: 'AudioBuffer/C chord', forceDurationMs: 50 }, { soundId: 'htmlaudio-1000', soundLabel: '1000Hz HTMLAudio WAV', soundType: 'tone', frequencyHz: 1000, route: 'HTMLAudioElement/wav' }
