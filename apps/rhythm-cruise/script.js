@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.63';
+const RHYTHM_CRUISE_VERSION = '0.11.64';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13840,6 +13840,7 @@ const pt = {
     valley: 1, // コードストローク用の谷（直前検出後の最小音量）。実践テスト専用（STAGEの mic.valley とは別）。
     fullWave: [], // 見返し用（v0.9.74）：全区間の音量波形（flowStart基準ms）。間引きせず保持。
     debug: null, // 開発確認用（v0.9.77）：検出/割り当て/除外理由の集計。ユーザー表示には使わない。
+    savedClickVolume: null, clickVolumeDuringTest: null, clickDebug: null,
 };
 
 /* ── イヤホン用マイクの遅れ補正（v0.9.80）─────────────────────────────
@@ -13961,6 +13962,52 @@ function ptDetectionThreshold() {
     if (bt.active && bt.debug) return bt.debug.thresholdDuringClickInputTest;
     let mult = micSensitivityMultiplier();
     return mic.threshold * mult * MIC_STAGE_DETECT_FACTOR;
+}
+
+function shouldUseAndroidFinalCheckQuietClick() {
+    return selectedTestPlatform === 'android' && androidAudioProbeDeviceInfo().isAndroid && isNormalMicInput();
+}
+
+function finalCheckClickVolumeForCurrentInput() {
+    if (!shouldUseAndroidFinalCheckQuietClick()) return state.clickVolume;
+    return Math.min(state.clickVolume, 1);
+}
+
+function freshFinalCheckClickDebug(originalVolume, usedVolume) {
+    const saved = Number(mic.androidBuiltinMicOffsetMs);
+    const delayedGuardMs = Number.isFinite(saved) && saved < 0 ? Math.min(800, Math.max(0, -saved)) : 0;
+    return {
+        inputType: getMicInputType(),
+        selectedTestPlatform,
+        androidDevice: !!androidAudioProbeDeviceInfo().isAndroid,
+        originalClickVolume: originalVolume,
+        usedClickVolume: usedVolume,
+        threshold: mic.threshold,
+        detectThreshold: ptDetectionThreshold(),
+        clickPeakGain: clickPeakGain(),
+        clickGuardMs: mic.clickGuardMs,
+        delayedClickGuardMs,
+        maxNearClickPeak: 0,
+        maxDelayedClickPeak: 0,
+        maxPeakOverThresholdNearClick: 0,
+    };
+}
+
+function updateFinalCheckClickDebug(now, peak, threshold) {
+    const d = pt.clickDebug;
+    if (!d) return;
+    const latest = ptLatestClickPerf(now);
+    if (latest <= -99999) return;
+    const sinceClick = now - latest;
+    const inDirectWindow = sinceClick >= 0 && sinceClick <= Math.max(120, mic.clickGuardMs || 0);
+    const delayed = d.delayedClickGuardMs || 0;
+    const delayedDelta = delayed > 0 ? Math.abs(sinceClick - delayed) : Infinity;
+    const inDelayedWindow = delayed > 0 && delayedDelta <= 120;
+    if (inDirectWindow && peak > d.maxNearClickPeak) d.maxNearClickPeak = peak;
+    if (inDelayedWindow && peak > d.maxDelayedClickPeak) d.maxDelayedClickPeak = peak;
+    if ((inDirectWindow || inDelayedWindow) && peak >= threshold && peak > d.maxPeakOverThresholdNearClick) {
+        d.maxPeakOverThresholdNearClick = peak;
+    }
 }
 
 /* 実践テストのクリックガード（v0.9.78）：STAGE本体 isClickGuardedOnset をそのまま流用。 */
@@ -14493,6 +14540,7 @@ function resetPracticeView() {
     pt.armed = true;
     pt.valley = 1;
     pt.debug = null;
+    pt.clickDebug = null;
     if (ptLane && ptLane.ctx) ptLane.ctx.clearRect(0, 0, ptLane.w, ptLane.h);
     if (els.ptLaneWrap) els.ptLaneWrap.classList.add('hidden');
     hidePracticeReview();
@@ -14527,6 +14575,10 @@ async function startPracticeTest() {
     pt.armed = true;
     pt.valley = 1; // コードストローク用の谷をリセット
     pt.debug = freshPtDebug();
+    pt.savedClickVolume = state.clickVolume;
+    pt.clickVolumeDuringTest = finalCheckClickVolumeForCurrentInput();
+    pt.clickDebug = freshFinalCheckClickDebug(pt.savedClickVolume, pt.clickVolumeDuringTest);
+    state.clickVolume = pt.clickVolumeDuringTest;
     // 立ち上がり検出の基準を毎回そろえる（前回テストの prevPeak 残りで1回目だけ挙動が変わるのを防ぐ・v0.9.68）
     mic.prevPeak = 0;
     mic.env = 0;
@@ -14581,8 +14633,14 @@ function finishPracticeTest() {
     }
     const valid = good + early + late;
     const avg = validN ? Math.round(sum / validN) : 0;
-    const r = { good, early, late, miss, valid, avg, maxPeak: pt.maxPeak, doubleCount: pt.doubleCount, threshold: mic.threshold, detectThreshold: ptDetectionThreshold(), cooldownMs: mic.cooldownMs, finalCheckOffsetDebug: androidJudgeOffsetDebug() };
+    const clickDebug = pt.clickDebug ? Object.assign({}, pt.clickDebug, {
+        maxNearClickPeak: +pt.clickDebug.maxNearClickPeak.toFixed(4),
+        maxDelayedClickPeak: +pt.clickDebug.maxDelayedClickPeak.toFixed(4),
+        maxPeakOverThresholdNearClick: +pt.clickDebug.maxPeakOverThresholdNearClick.toFixed(4),
+    }) : null;
+    const r = { good, early, late, miss, valid, avg, maxPeak: pt.maxPeak, doubleCount: pt.doubleCount, threshold: mic.threshold, detectThreshold: ptDetectionThreshold(), cooldownMs: mic.cooldownMs, finalCheckOffsetDebug: androidJudgeOffsetDebug(), finalCheckClickDebug: clickDebug };
     if (r.finalCheckOffsetDebug) console.info('[final-check] offset', r.finalCheckOffsetDebug);
+    if (r.finalCheckClickDebug) console.info('[final-check] click', r.finalCheckClickDebug);
     ptFinalizeDebug();
     renderPracticeResult(r);
     setPtStatus('完了');
@@ -14658,13 +14716,22 @@ function renderPracticeResult(r) {
         + '<div style="font-size:0.9rem;opacity:0.9;margin-top:4px;">' + escapeHtml(c.text) + '</div></div>';
 
     // 表に出す主要情報（GOOD/EARLY/LATE/MISS と平均ズレ）
+    const clickRows = r.finalCheckClickDebug
+        ? '<div class="cal-result-row"><span>最終確認クリック音量</span><b>' + r.finalCheckClickDebug.usedClickVolume + '%'
+            + (r.finalCheckClickDebug.usedClickVolume !== r.finalCheckClickDebug.originalClickVolume ? '（通常 ' + r.finalCheckClickDebug.originalClickVolume + '%）' : '')
+            + '</b></div>'
+            + '<div class="cal-result-row"><span>クリック近傍ピーク</span><b>'
+            + r.finalCheckClickDebug.maxNearClickPeak.toFixed(3) + ' / 遅延側 ' + r.finalCheckClickDebug.maxDelayedClickPeak.toFixed(3)
+            + '</b></div>'
+        : '';
     const mainRows =
         '<div class="cal-result-row"><span>GOOD</span><b>' + r.good + '</b></div>' +
         '<div class="cal-result-row"><span>EARLY</span><b>' + r.early + '</b></div>' +
         '<div class="cal-result-row"><span>LATE</span><b>' + r.late + '</b></div>' +
         '<div class="cal-result-row"><span>MISS</span><b>' + r.miss + '</b></div>' +
         '<div class="cal-result-row"><span>平均ズレ</span><b>' + avgTxt + '</b></div>' +
-        (r.finalCheckOffsetDebug ? '<div class="cal-result-row"><span>判定補正</span><b>' + formatSummaryMs(r.finalCheckOffsetDebug.finalJudgeOffsetMs) + ' / ' + escapeHtml(r.finalCheckOffsetDebug.usedOffsetSource) + '</b></div>' : '');
+        (r.finalCheckOffsetDebug ? '<div class="cal-result-row"><span>判定補正</span><b>' + formatSummaryMs(r.finalCheckOffsetDebug.finalJudgeOffsetMs) + ' / ' + escapeHtml(r.finalCheckOffsetDebug.usedOffsetSource) + '</b></div>' : '') +
+        clickRows;
     // 次の行動ボタン
     const primary = 'width:100%;padding:14px;margin-top:12px;border-radius:10px;border:none;'
         + 'background:linear-gradient(180deg,#ff9f1c,#ff8c00);color:#1a130a;font-weight:800;font-size:1rem;cursor:pointer;';
@@ -14803,6 +14870,12 @@ function calibrationRetestMicLine() {
 
 /* 後始末。showResult=true のときは結果表示と「完了」状態を残す（finishから呼ぶ） */
 function endPracticeTest(showResult) {
+    if (pt.savedClickVolume != null) {
+        state.clickVolume = pt.savedClickVolume;
+        pt.savedClickVolume = null;
+        pt.clickVolumeDuringTest = null;
+        applySettingsToUI();
+    }
     pt.active = false;
     pt.capturing = false;
     cancelAnimationFrame(pt.raf); pt.raf = 0;
@@ -21014,6 +21087,7 @@ function micLoop() {
             }
             if (peak > pt.maxPeak) pt.maxPeak = peak;
             const ptDetThr = ptDetectionThreshold();
+            updateFinalCheckClickDebug(now, peak, ptDetThr);
             if (peak >= ptDetThr) ptDebugCount('totalPeaksOverThreshold');
             // 直前検出後の谷（コードストローク：谷からの上昇量の基準）。STAGEの mic.valley とは別に追跡。
             if (peak < pt.valley) pt.valley = peak;
