@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.66';
+const RHYTHM_CRUISE_VERSION = '0.11.67';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -20828,12 +20828,12 @@ function applyRecoValues(persist) {
 
 function applyReco() {
     const result = applyRecoValues(true);
-    if (!result.changed) return; // 変更なし
+    if (!result.changed && !result.lineChanged) return; // 変更なし、かつ反応ラインも適用不可
     commitMicSetupDraft();
     test.clickDone = false; test.strokeDone = false;
     els.testReco.classList.add('hidden');
     // 反応ライン未適用（クリック音量だけ下げた）場合は、再テストを促す
-    setTestResult(result.lineChanged ? 'おすすめ設定を適用しました。' : 'クリック音量を下げました。もう一度テストしてください。', 'ok');
+    setTestResult(result.lineChanged ? (result.changed ? 'おすすめ設定を適用しました。' : 'おすすめ設定を確認しました。') : 'クリック音量を下げました。もう一度テストしてください。', 'ok');
     // v0.9.61〜：反応ラインを適用できたら、次のステップ（補正系だけ）を表示
     if (result.lineChanged) {
         setupProgress.recoApplied = true;
