@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.82';
+const RHYTHM_CRUISE_VERSION = '0.11.83';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -897,6 +897,7 @@ const test = {
     noteIdx: 0,
     flowStart: 0,
     flowRaf: 0,
+    wave: [],                 // マイク反応テストのレーン背景波形（表示専用・判定/推奨には不使用）
     // 推奨
     recommended: null,
     recoCooldown: null,
@@ -19489,6 +19490,7 @@ function exitTestMode() {
     test.active = false;
     test.mode = null;
     test.flow = false;
+    test.wave = [];
     restoreMicTestClickVolume();
     if (els.testLaneWrap) els.testLaneWrap.classList.add('hidden');
     if (els.micTestBtn) {
@@ -20059,6 +20061,7 @@ function earphoneLeakSwitchToNormal() {
 const TEST_CLICK_INTERVAL_MS = 600;               // クリック音テストの間隔（四分・100BPM相当）
 const TEST_NOTE_MS = TEST_CLICK_INTERVAL_MS;      // ストローク間隔＝600ms（1拍ごと＝4分）
 const TEST_NOTE_WIN = 200;    // 判定窓 ±ms（最大入力を記録する範囲・4分なので広め）
+const TEST_WAVE_WINDOW_MS = 5200; // マイク反応テストの背景波形表示幅（表示専用）
 /* v0.11.76：イヤホン余韻診断ログ用。判定窓を出た直後「ストローク余韻(tail)」とみなす長さ(ms)。
    計測・ログ専用で、判定ライン・cooldown・推奨値・Practice判定には一切使わない。 */
 const HP_TAIL_MS = 150;
@@ -20200,6 +20203,7 @@ function beginStrokePhase() {
     test.hpPeriodPeaks = []; test.hpTailPeaks = []; test.hpPostPeaks = []; // v0.11.76：イヤホン余韻診断ログ専用
     test.strokeAboveMs = [];
     test.strokeChordDiag = []; test.chordWave = [];
+    test.wave = [];
     test.strokeDetected = 0; test.strokeDoubleCount = 0;
     test.btStrokePeriodMax = null; test.btStrokePeriodP75 = null; test.btStrokePeriodP90 = null; test.btDiag = null;
     test.strokeDetectThreshold = testStrokeThreshold(); // 低入力/通常環境ごとに、このテスト中の検出ラインを固定
@@ -20331,6 +20335,7 @@ function drawTestLane(t) {
     ctx.strokeStyle = 'rgba(253,246,238,0.08)';
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke();
+    drawTestLaneWaveform(ctx, w, h, yc, judgeX, ppm, t, dispOff);
     // 音符
     for (let i = 0; i < test.notes.length; i++) {
         const n = test.notes[i];
@@ -20364,6 +20369,35 @@ function drawTestLane(t) {
     ctx.beginPath(); ctx.moveTo(judgeX, h * 0.12); ctx.lineTo(judgeX, h * 0.86); ctx.stroke();
     ctx.restore();
     drawBeatDot(ctx, judgeX, h * 0.92, glow);
+}
+
+function drawTestLaneWaveform(ctx, w, h, yc, judgeX, ppm, t, dispOff) {
+    const wave = Array.isArray(test.wave) ? test.wave : [];
+    if (wave.length < 2) return;
+    const ampPx = h * 0.24;
+    const pts = [];
+    for (let i = 0; i < wave.length; i++) {
+        const p = wave[i];
+        const x = judgeX + (p.t + dispOff - t) * ppm;
+        if (x < -24 || x > w + 24) continue;
+        pts.push([x, micDisplayFrac(p.level) * ampPx]);
+    }
+    if (pts.length < 2) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], yc - pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], yc - pts[i][1]);
+    for (let i = pts.length - 1; i >= 0; i--) ctx.lineTo(pts[i][0], yc + pts[i][1]);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,255,255,0.11)';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], yc - pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], yc - pts[i][1]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.20)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
 }
 
 /* 拍頭付近の発光量(0..1)を返す。rel: 拍グリッド起点からの経過ms / interval: 拍間隔ms */
@@ -21755,6 +21789,14 @@ function micLoop() {
         const inClickWin = test.mode === 'click' && now >= test.clickWinFrom && now <= test.clickWinTo;
         const inStrokeWin = test.mode === 'stroke' && now >= test.strokeFrom && now <= test.strokeUntil;
         if (inClickWin || inStrokeWin) test.curPeak = Math.max(test.curPeak, peak);
+        if (test.mode === 'stroke' && test.flowStart) {
+            const waveT = now - test.flowStart;
+            const tw = test.wave;
+            if (Array.isArray(tw) && (!tw.length || waveT - tw[tw.length - 1].t >= 12)) {
+                tw.push({ t: waveT, level: mic.env });
+                while (tw.length && (waveT - tw[0].t) > TEST_WAVE_WINDOW_MS) tw.shift();
+            }
+        }
         // v0.11.74：click phase の near/delayed ピーク分離測定（測定・ログのみ。curPeak/maxClickPeak・recommendedClickVolumeには未使用）。
         //   最終確認テスト updateFinalCheckClickDebug() の inDirectWindow / inDelayedWindow と同じ考え方で揃える。
         if (test.mode === 'click') {
