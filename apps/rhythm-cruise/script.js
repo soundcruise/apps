@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.83';
+const RHYTHM_CRUISE_VERSION = '0.11.84';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -559,7 +559,8 @@ const NEAR_FRAC = 0.5;
 /* 判定のきびしさプリセット（v0.9.164）。GOOD/EARLY/LATE の「窓（幅）」だけを切り替える。
    表示上の5段階：易しい / やや易しい / 標準 / やや厳しい / 厳しい。初期値・未保存・不正値は semiStrict（表示名は標準）。
    スコア配点(SCORE_PTS)・MISS原因・譜面・結果グラフ・各補正テストの測定窓には手を付けない。
-   通常STAGE / カスタムSTAGE / くり返し練習 / 最終確認テストで、同じプリセットを共有する。
+   通常STAGE / カスタムSTAGE / くり返し練習で、同じプリセットを共有する。
+   補正フロー内の最終確認テストだけは、補正確認用として finalCheckJudgeWindows() の専用幅を使う。
    設計方針：
    ・justMs（GOOD幅）< nearMs（EARLY/LATEの最低幅）を必ず満たす（GOODよりEARLY/LATEが必ず広い）。
    ・実際のEARLY/LATE窓は max(nearMs, 拍間隔×nearFrac)。速いテンポでは nearMs 床が効いて隣拍に吸われすぎず、
@@ -581,6 +582,10 @@ function normalizeJudgePreset(v) {
 /* 現在の判定窓 { justMs, nearMs, nearFrac } を返す。classify()/ptClassify() はこれを使う。 */
 function judgeWindows() {
     return JUDGE_PRESETS[normalizeJudgePreset(state.judgePreset)] || JUDGE_PRESETS.standard;
+}
+
+function finalCheckJudgeWindows() {
+    return JUDGE_PRESETS.easy;
 }
 
 const TAIL_BEATS = 1;            // 最終拍の後に少し余韻
@@ -13872,12 +13877,15 @@ const PT_COUNTIN = 4;                   // カウントイン4拍
 const PT_PLAY_BEATS = 8;                // 本番8回ストローク
 const PT_LEAD_MS = 400;                 // 開始から最初のカウントインまでの小休止
 const PT_NEAR_WIN = Math.max(NEAR_MS, PT_BEAT_MS * NEAR_FRAC); // 標準窓（マイクの遅れ補正テスト等の測定用。判定プリセットの影響を受けない）
-/* v0.9.164：最終確認テストの拍割り当て窓は、STAGE本番と同じ判定プリセット幅を使う（読み込み時固定にしない）。 */
+const PT_CAP_WIN_MS = PT_BEAT_MS * 0.5; // 取り込み開始/終了のゆとり
+/* v0.11.84：最終確認テストはリズム採点ではなく補正確認なので、専用の easy 相当幅を使う。 */
 function ptNearWin() {
-    const w = judgeWindows();
+    const w = finalCheckJudgeWindows();
     return Math.max(w.nearMs, PT_BEAT_MS * w.nearFrac);
 }
-const PT_CAP_WIN_MS = PT_BEAT_MS * 0.5; // 取り込み開始/終了のゆとり
+function ptCaptureWin() {
+    return Math.max(PT_CAP_WIN_MS, ptNearWin());
+}
 const PT_WAVE_WINDOW_MS = 4000;         // 波形バッファの保持時間
 const PT_LANE_HEIGHT = 168;             // STAGE1本体の #lane-canvas と同じCSS高さ
 const pt = {
@@ -14267,7 +14275,7 @@ function ptLatestClickPerf(now) {
 
 function ptClassify(diff) {
     const a = Math.abs(diff);
-    const w = judgeWindows(); // v0.9.164：最終確認テストもSTAGE本番と同じプリセット幅で判定する
+    const w = finalCheckJudgeWindows();
     if (a <= w.justMs) return 'just';
     if (a <= ptNearWin()) return diff < 0 ? 'early' : 'late';
     return 'miss';
@@ -14837,9 +14845,10 @@ async function startPracticeTest() {
     for (let j = 0; j < PT_PLAY_BEATS; j++) {
         ptTimer(() => setPtStatus('ストローク中　' + (j + 1) + ' / ' + PT_PLAY_BEATS), pt.playT0Ms + j * PT_BEAT_MS);
     }
-    // 取り込み窓：最初の本番拍の半拍前〜最終拍の半拍後
-    const capStartMs = pt.playT0Ms - PT_CAP_WIN_MS;
-    const capEndMs = pt.playT0Ms + (PT_PLAY_BEATS - 1) * PT_BEAT_MS + PT_CAP_WIN_MS;
+    // 取り込み窓：最終確認専用の判定幅に合わせ、端の拍でも分類窓どおり拾えるようにする。
+    const capWin = ptCaptureWin();
+    const capStartMs = pt.playT0Ms - capWin;
+    const capEndMs = pt.playT0Ms + (PT_PLAY_BEATS - 1) * PT_BEAT_MS + capWin;
     ptTimer(() => { pt.capturing = true; }, capStartMs);
     ptTimer(() => { pt.capturing = false; finishPracticeTest(); }, capEndMs + 250);
 
