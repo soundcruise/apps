@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.59';
+const RHYTHM_CRUISE_VERSION = '0.11.60';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13145,20 +13145,29 @@ function buildAndroidBuiltinMicCandidate(run) {
     const measurementDelayMs = r1(med(offs));
     const acrossSoundRangeMs = offs.length ? r1(Math.max(...offs) - Math.min(...offs)) : null;
     const saveOffsetMs = measurementDelayMs != null ? -measurementDelayMs : null;
-    const inDelayRange = measurementDelayMs != null && measurementDelayMs >= 200 && measurementDelayMs <= 600;
+    const inStrictDelayRange = measurementDelayMs != null && measurementDelayMs >= 200 && measurementDelayMs <= 600;
+    const inFallbackDelayRange = measurementDelayMs != null && measurementDelayMs >= 100 && measurementDelayMs <= 800;
     const enoughSounds = offs.length >= 2;
     const tightEnough = acrossSoundRangeMs != null && acrossSoundRangeMs <= 60;
-    const isReadyToSave = enoughSounds && inDelayRange && tightEnough;
+    const fallbackSpreadOk = acrossSoundRangeMs != null && acrossSoundRangeMs <= 200;
+    const strictReady = enoughSounds && inStrictDelayRange && tightEnough;
+    // v0.11.60：音種間のばらつきが60ms超でも、測定遅延・保存値が妥当なら保存可能（fallback）。自動保存はしない。
+    const fallbackReady = !strictReady && enoughSounds && inFallbackDelayRange && Number.isFinite(saveOffsetMs) && fallbackSpreadOk;
+    const isReadyToSave = strictReady || fallbackReady;
+    const saveConfidence = strictReady ? 'strict' : (fallbackReady ? 'fallback' : 'none');
     const reasons = [];
     if (!enoughSounds) reasons.push('安定検出音が2種未満');
-    if (!inDelayRange) reasons.push('測定遅延が200〜600ms外');
-    if (!tightEnough) reasons.push('音間のばらつき>60ms');
+    if (!inFallbackDelayRange) reasons.push('測定遅延が100〜800ms外');
+    else if (!inStrictDelayRange && !fallbackReady) reasons.push('測定遅延が200〜600ms外');
+    if (!tightEnough && !fallbackSpreadOk) reasons.push('音間のばらつき>200ms');
+    else if (!tightEnough && !fallbackReady) reasons.push('音間のばらつき>60ms');
     return {
         measurementDelayMs, saveOffsetMs, saveKey,
         signRule: '保存値 = -(測定遅延)。判定時刻=audio+offset / 既存補正と同規則',
         signConfidence: 'confirmed',
         sourcesUsed: included.map((s) => s.soundId), excludedSources, soundsCount: offs.length, acrossSoundRangeMs,
-        isReadyToSave, reason: isReadyToSave ? '安定して測定できています（保存可能）' : (reasons.join(' / ') || '測定値が不足'),
+        isReadyToSave, isStrictReadyToSave: strictReady, saveConfidence,
+        reason: isReadyToSave ? (saveConfidence === 'strict' ? '安定して測定できています（保存可能）' : '遅延値は取得できました（音間ばらつきあり・保存可能）') : (reasons.join(' / ') || '測定値が不足'),
         notUsedYet: 'この候補値は保存するまで未適用。保存後は ' + saveKey + ' として Practice判定で使用される（v0.11.52〜）。'
     };
 }
@@ -13260,7 +13269,10 @@ function renderWizardAndroidLatencyResult(run) {
         if (bc && bc.measurementDelayMs != null) {
             lines.push('測定遅延: ' + rd(bc.measurementDelayMs));
             lines.push('保存値: ' + rd(bc.saveOffsetMs));
-            if (!bc.isReadyToSave) {
+            if (bc.isReadyToSave && bc.saveConfidence === 'fallback') {
+                lines.push('測定にばらつきがありますが、遅延値は取得できています。');
+                lines.push('何度測っても同じくらいの値になる場合は、この補正値を保存できます。');
+            } else if (!bc.isReadyToSave) {
                 lines.push('今回は測定が安定しませんでした。もう一度測定してください。');
                 if (bc.reason) lines.push('理由: ' + bc.reason);
             }
@@ -13446,7 +13458,11 @@ async function runAndroidAudioCheck(options) {
         if (fromWizard) {
             const bc = run.androidBuiltinMicCandidate, wc = run.androidWiredCandidate, cc = androidBtCorrectionCandidate();
             const cand = (isNormalMicInput() || run.selectedInputType === 'normal') ? bc : ((getHeadphoneType() === 'wired' || run.selectedHeadphoneType === 'wired') ? wc : cc);
-            statusEl.textContent = (cand && cand.isReadyToSave) ? '測定が完了しました。保存ボタンで補正を保存できます。' : '測定が完了しました。保存条件を満たさない場合は、もう一度測定してください。';
+            if (cand && cand.isReadyToSave) {
+                statusEl.textContent = (cand.saveConfidence === 'fallback')
+                    ? '測定が完了しました。ばらつきがありますが、保存ボタンから補正を保存できます。'
+                    : '測定が完了しました。保存ボタンで補正を保存できます。';
+            } else statusEl.textContent = '測定が完了しました。保存条件を満たさない場合は、もう一度測定してください。';
         } else statusEl.textContent = '完了しました。ログをコピーできます。';
     }
     androidCheckFromWizard = false;
@@ -13518,7 +13534,11 @@ function refreshAndroidBuiltinSaveButton() {
     const inCtx = androidBuiltinMicSaveContext();
     const bc = androidBuiltinMicCandidate();
     const canSave = inCtx && bc && bc.isReadyToSave === true && bc.saveOffsetMs != null;
-    applyDualAndroidSaveButtonUi(els.androidCheckSaveBuiltin, els.wizardAndroidSaveBuiltin, els.androidCheckSaveBuiltinNote, els.androidCheckSaveBuiltinStatus, els.wizardAndroidSaveBuiltinStatus, canSave, inCtx, bc, '保存条件未達: ');
+    const notReadyBc = (canSave && bc && bc.saveConfidence === 'fallback') ? null : bc;
+    applyDualAndroidSaveButtonUi(els.androidCheckSaveBuiltin, els.wizardAndroidSaveBuiltin, els.androidCheckSaveBuiltinNote, els.androidCheckSaveBuiltinStatus, els.wizardAndroidSaveBuiltinStatus, canSave, inCtx, notReadyBc, '保存条件未達: ');
+    const saveLabel = (bc && bc.saveConfidence === 'fallback') ? 'この測定値でAndroid本体マイク補正として保存' : 'Android本体マイク補正として保存';
+    if (els.androidCheckSaveBuiltin) els.androidCheckSaveBuiltin.textContent = saveLabel;
+    if (els.wizardAndroidSaveBuiltin) els.wizardAndroidSaveBuiltin.textContent = saveLabel;
 }
 /* 保存：candidate.saveOffsetMs を androidBuiltinMicOffsetMs へ（-600〜0でクランプ）。
    既存 timingOffsetMs / androidBluetoothMicOffsetMs / androidWiredMicOffsetMs には一切触れない。
