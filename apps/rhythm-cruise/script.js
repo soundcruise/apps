@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.61';
+const RHYTHM_CRUISE_VERSION = '0.11.62';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13625,7 +13625,12 @@ async function copyAndroidCheckLog() {
     if (els.androidCheckManualLog) { try { els.androidCheckManualLog.focus(); els.androidCheckManualLog.select(); } catch (_) { /* long-press remains available */ } }
     if (els.androidCheckStatus) els.androidCheckStatus.textContent = '自動コピーできませんでした。下のログを長押ししてコピーしてください。';
 }
-function hpProbeSetStatus(text) { if (els.androidHpProbeStatus) els.androidHpProbeStatus.textContent = text || ''; }
+function hpProbeSetStatus(text) {
+    const msg = text || '';
+    if (els.androidHpProbeStatus) els.androidHpProbeStatus.textContent = msg;
+    const wizardStatus = androidCheckFromWizard ? androidCheckStatusEl(true) : null;
+    if (androidCheckMode && wizardStatus) wizardStatus.textContent = msg;
+}
 function hpProbeConstraints(profile) {
     if (profile === 'minimal') return true;
     if (profile === 'aec-off') return { echoCancellation: false };
@@ -13771,11 +13776,19 @@ async function startHeadphoneAudioProbe() {
             { soundId: 'low-pop', soundLabel: '低めのトッ・ポッ音', soundType: 'tone', frequencyHz: 220, route: 'oscillator/buffer' }, { soundId: 'noise', soundLabel: '短いノイズ音', soundType: 'noise', frequencyHz: null, route: 'oscillator/buffer' }, { soundId: 'c-chord', soundLabel: 'Cコード（短音）', soundType: 'chord', frequencyHz: null, route: 'AudioBuffer/C chord' }, { soundId: 'c-chord-short', soundLabel: 'Cコード（さらに短く）', soundType: 'chord', frequencyHz: null, route: 'AudioBuffer/C chord', forceDurationMs: 50 }, { soundId: 'htmlaudio-1000', soundLabel: '1000Hz HTMLAudio WAV', soundType: 'tone', frequencyHz: 1000, route: 'HTMLAudioElement/wav' }
         ];
         hpProbeSetStatus('テスト音を順番に再生しています。イヤホンとマイクの位置を変えずにお待ちください。');
-        for (const spec of specs) {
+        const totalSpecs = specs.length;
+        for (let specIndex = 0; specIndex < totalSpecs; specIndex++) {
+            const spec = specs[specIndex];
+            if (androidCheckMode) {
+                const current = specIndex + 1;
+                const remainSec = Math.max(1, Math.ceil((totalSpecs - specIndex) * 1.25));
+                hpProbeSetStatus('測定中… ' + current + ' / ' + totalSpecs + '　' + spec.soundLabel + '　あと約' + remainSec + '秒');
+            }
             const actualDuration = spec.forceDurationMs || durationMs, timing = spec.route === 'HTMLAudioElement/wav' ? hpProbePlayHtmlAudio(ctx, spec, actualDuration) : hpProbePlayWebAudio(ctx, spec, actualDuration, spec.route);
             const event = { soundId: spec.soundId, soundLabel: spec.soundLabel, soundType: spec.soundType, frequencyHz: spec.frequencyHz, bluetoothExploration: !!spec.bluetoothExploration, durationMs: actualDuration, playbackRoute: timing.playbackRoute, constraintsProfile: profile, scheduledAtAudioTime: timing.scheduledAtAudioTime, scheduledAtPerformanceTime: timing.scheduledAtPerformanceTime, normalWindowMs: [0, 520], wideWindowMs: [-500, 1200], rankTop5: [], normalRankTop5: [], energyTimeline: [], probeReference: spec.waveformMatch ? hpProbeMakeBuffer(ctx, spec, actualDuration).getChannelData(0) : null, waveformMatch: spec.waveformMatch ? { probeLabel: 'Android calibration probe', probeDurationMs: actualDuration, correlationOffsetMs: null, correlationScore: null, accepted: false, rejectReason: 'input-frame-correlation-not-captured' } : null };
             run.events.push(event); await new Promise((resolve) => setTimeout(resolve, 1250));
         }
+        if (androidCheckMode) hpProbeSetStatus('測定中… ' + totalSpecs + ' / ' + totalSpecs + '　解析しています…');
         const sortedNoise = run.noiseSamples.slice().sort((a, b) => a - b), noise = { max: sortedNoise[sortedNoise.length - 1] || 0, p95: sortedNoise[Math.min(sortedNoise.length - 1, Math.floor(sortedNoise.length * 0.95))] || 0 };
         run.events.forEach((event) => { hpProbeFinalizeEvent(event, noise); event.overlapsAdjacentSound = run.events.some((other) => other !== event && Math.abs(other.scheduledAtPerformanceTime - event.scheduledAtPerformanceTime) <= event.wideWindowMs[1]); }); run.finishedAt = new Date().toISOString(); run.noise = noise; run.activeTrackResult = hpProbeTrackInfo(stream.getAudioTracks()[0]);
         hpProbeSetStatus('完了。開発ログをコピーして比較できます。'); renderHeadphoneAudioProbeLog();
@@ -20126,14 +20139,15 @@ function updateReco() {
         // v0.9.142（再調整）：実機で本体音量最大でもクリックが聞こえにくく、おすすめクリック音量も低め（42%）だったため、
         //   クリックピークを「判定ラインの85〜90%程度」まで引き上げる。判定ラインは下の①でストローク最小の0.92付近（上限）に
         //   置かれるので、その目安(lineEstimate)の約0.88倍を狙いつつ、ストローク最小×0.85 も上限にして
-        //   “ラインは超えない／ストロークは超える”を保つ。小さすぎるクリックは上げ・大きすぎるクリックは下げる（クランプ 10〜100%）。
+        //   “ラインは超えない／ストロークは超える”を保つ。小さすぎるクリックは上げ・大きすぎるクリックは下げる。
+        //   Android通常マイクだけは、クリック自己反応が強い実機向けに1%まで許可する。
         //   クリックが上がっても上限はラインの下に収まる。ライン超え（クリックも拾いやすい状態）は従来どおり cannotSeparate 経由で警告。
         const lineEstimate = minStroke * 0.92;             // ①で置く判定ラインのおおよその位置（上限0.92に合わせた概算）
         targetClickMax = Math.min(lineEstimate * 0.88, minStroke * 0.85); // ライン約88%・かつストローク0.85倍以下（クリックは大きめ・ラインは超えない）
         recoVol = Math.round(targetClickMax / peakPerPct);
-        recoVol = Math.max(10, Math.min(100, recoVol));    // 小さすぎるクリックは上げ・大きすぎるクリックは下げる（両方向）
+        recoVol = Math.max(androidAudioProbeDeviceInfo().isAndroid && isNormalMicInput() ? 1 : 10, Math.min(100, recoVol));    // 小さすぎるクリックは上げ・大きすぎるクリックは下げる（両方向）
     } else if (clickReacted > 0) {
-        recoVol = Math.max(10, state.clickVolume - 20);
+        recoVol = Math.max(androidAudioProbeDeviceInfo().isAndroid && isNormalMicInput() ? 1 : 10, state.clickVolume - 20);
     }
     // v0.9.158：有線/Bluetoothイヤホン時はクリック音量を80%固定にする。イヤホンではクリック音がマイクに
     //   ほぼ入らない（=正常）ため maxClick が小さく、通常マイク式だと recoVol が100%へ張り付く。
@@ -20285,7 +20299,7 @@ function updateReco() {
         ? Math.floor(safeClickPeak88 / peakPerPct)
         : null;
     if (safeClickVol88 != null) {
-        recoVol = Math.max(10, Math.min(100, Math.min(recoVolBeforeSafetyCap, safeClickVol88)));
+        recoVol = Math.max(androidAudioProbeDeviceInfo().isAndroid && isNormalMicInput() ? 1 : 10, Math.min(100, Math.min(recoVolBeforeSafetyCap, safeClickVol88)));
     }
     const safetyCapApplied = recoVol < recoVolBeforeSafetyCap;
     test.recoClickVolume = recoVol;
@@ -20304,6 +20318,11 @@ function updateReco() {
     const noiseP95ToEffectiveLineRatio = ratioTo(test.noiseP95, effectiveRecommendedThreshold);
     const strokeP25ToEffectiveLineRatio = ratioTo(test.strokeP25, effectiveRecommendedThreshold);
     const minStrokeToEffectiveLineRatio = ratioTo(minStroke, effectiveRecommendedThreshold);
+    const androidNormalMicSelfLeak = androidAudioProbeDeviceInfo().isAndroid && isNormalMicInput() && clickReacted > 0;
+    const clickVsStrokeRatio = ratioTo(test.projClickMax, minStroke);
+    const clickStillCrossesRecommendedLine = projectedClickToEffectiveLineRatio != null && projectedClickToEffectiveLineRatio >= 0.85;
+    const clickTooCloseToStroke = clickVsStrokeRatio != null && clickVsStrokeRatio >= 0.5;
+    test.recoBlockedByClickLeak = !!(androidNormalMicSelfLeak && (clickStillCrossesRecommendedLine || clickTooCloseToStroke || cannotSeparate));
 
     // スマホ本体音量の警告は、ストローク由来のおすすめ比率ではなくクリックの実測状態で判断する。
     // 次の通常マイク補正はクリック音量100%と専用反応ラインを使うため、その条件へ換算して安全性も確認する。
@@ -20380,7 +20399,15 @@ function updateReco() {
     const volChanged = recoVol !== state.clickVolume;
     const projTxt = (test.projClickMax != null) ? '（クリック音量' + recoVol + '%適用後の目安：約' + test.projClickMax.toFixed(3) + '）' : '';
     const lineTxt = (test.recommended != null) ? '反応ライン約' + test.recommended.toFixed(3) : '';
-    if (!canApply && isBluetoothHeadphone() && hasAnyInput) {
+    if (test.recoBlockedByClickLeak) {
+        els.recoMsg.className = 'test-reco-msg warn';
+        els.recoMsg.classList.remove('hidden');
+        els.recoMsg.innerHTML = '端末のクリック音がマイクに入っています。'
+            + 'このままだと、クリック音だけでGOOD判定になる可能性があります。<br>'
+            + 'クリック音量を ' + recoVol + '% に下げてもう一度テストしてください。'
+            + '改善しない場合は、イヤホン使用をおすすめします。' + projTxt
+            + recoRetestButtonHtml();
+    } else if (!canApply && isBluetoothHeadphone() && hasAnyInput) {
         els.recoMsg.className = 'test-reco-msg warn';
         els.recoMsg.classList.remove('hidden');
         els.recoMsg.innerHTML = '入力音量はありますが、ストロークとして十分には判定できませんでした。'
@@ -20442,7 +20469,7 @@ function updateReco() {
         }
     }
     // 反応ラインが提案できる or クリック音量を下げられる → 適用ボタンを出す
-    if (canApply || volChanged) els.recoApplyBtn.classList.remove('hidden');
+    if ((canApply && !test.recoBlockedByClickLeak) || volChanged) els.recoApplyBtn.classList.remove('hidden');
     else els.recoApplyBtn.classList.add('hidden');
 
     // ここに来る時点で自動再テストは行わない（8/8で成功、または自動再テストを使い切った後）。
@@ -20685,7 +20712,7 @@ function updateTestDetail(maxClick, minStroke, maxStroke, clickReacted, canApply
 
 function applyRecoValues(persist) {
     // 反応ライン・クリック音量・二重反応防止を、計算できたものはまとめて適用する。
-    const lineChanged = (test.recommended != null);
+    const lineChanged = (test.recommended != null && !test.recoBlockedByClickLeak);
     const volChanged = (test.recoClickVolume != null && test.recoClickVolume !== state.clickVolume);
     if (!lineChanged && !volChanged && test.recoCooldown === mic.cooldownMs) return { lineChanged, volChanged, changed: false };
     if (lineChanged) {
