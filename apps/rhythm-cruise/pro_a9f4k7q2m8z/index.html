@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="../theme.css?v=0.11.86">
+    <link rel="stylesheet" href="../theme.css?v=0.11.90">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1039,22 +1039,28 @@
                 </div>
                 <!-- v0.11.58：Android選択時のウィザード内 Android式遅延測定（有線/BT） -->
                 <div class="hidden" id="wizard-android-bt-block">
-                    <p class="setting-note" style="margin-top:0;"><b>Android向け 音ズレ・遅延テスト</b></p>
-                    <p class="setting-note" id="wizard-android-bt-desc">Bluetoothイヤホン環境で、クリック音がマイクに届くまでの遅れを測定します。測定後、Android Bluetooth補正として保存できます。</p>
+                    <p class="do-now" id="wizard-android-bt-desc">イヤホンの音量を最大にして、音が出る部分をスマホのマイクに軽く押し当ててください。</p>
+                    <p class="setting-note">波形が大きく出る位置で、動かさずにテストします。</p>
+                    <details class="card-help">
+                        <summary>測定できない場合</summary>
+                        <p class="setting-note">静かな場所で測定し、イヤホンの音量を最大にしてください。</p>
+                        <p class="setting-note">音が出る部分をスマホのマイクに軽く押し当て、波形が大きく出る位置を少しずつ探します。</p>
+                        <p class="setting-note">測定中はイヤホンとスマホを動かさないでください。それでもダメな場合は、イヤホンの仕様が合わない可能性があります。別のイヤホン、または本体マイクで試してください。</p>
+                    </details>
                     <p class="setting-note hidden" id="wizard-android-nondevice-note-bt">実際のAndroid端末で使う補正です。iPhone / iPadでは通常の補正テストを使ってください。</p>
-                    <button type="button" class="btn-mic test-start-btn rc-mic-action-primary" id="wizard-android-run-hp" style="width:100%;">Android Bluetoothの遅延を測定</button>
+                    <button type="button" class="btn-mic test-start-btn rc-mic-action-primary" id="wizard-android-run-hp" style="width:100%;">テスト開始</button>
                     <div class="android-latency-live hidden" id="wizard-android-live-hp">
                         <canvas id="wizard-android-wave-hp"></canvas>
                         <p class="cal-level-state" id="wizard-android-level-state-hp" aria-live="polite">音を確認中…</p>
                     </div>
                     <p class="cal-status" id="wizard-android-status-hp"></p>
                     <div class="cal-result hidden" id="wizard-android-result-hp" style="white-space:pre-line;"></div>
-                    <button type="button" class="btn-mic rc-mic-action-primary hidden" id="wizard-android-save-bt" style="width:100%;margin-top:8px;">Android Bluetooth補正として保存</button>
+                    <button type="button" class="btn-primary rc-mic-action-primary hidden" id="wizard-android-save-bt" style="width:100%;margin-top:8px;"><span class="android-proceed-main">マイク反応テストへ進む</span><span class="android-proceed-sub">イヤホンの音量を真ん中くらいまで下げてから</span></button>
                     <p class="cal-status hidden" id="wizard-android-save-bt-status"></p>
-                    <button type="button" class="btn-mic rc-mic-action-primary hidden" id="wizard-android-save-wired" style="width:100%;margin-top:8px;">Android有線補正として保存</button>
+                    <button type="button" class="btn-primary rc-mic-action-primary hidden" id="wizard-android-save-wired" style="width:100%;margin-top:8px;"><span class="android-proceed-main">マイク反応テストへ進む</span><span class="android-proceed-sub">イヤホンの音量を真ん中くらいまで下げてから</span></button>
                     <p class="cal-status hidden" id="wizard-android-save-wired-status"></p>
-                    <p class="setting-note" id="wizard-android-proceed-hint-hp">測定・保存後、マイク反応テストへ進んでください。</p>
-                    <button type="button" class="btn-primary hidden" id="wizard-android-proceed-hp" style="width:100%;margin-top:8px;">保存してマイク反応テストへ進む</button>
+                    <p class="setting-note hidden" id="wizard-android-proceed-hint-hp"></p>
+                    <button type="button" class="btn-primary hidden" id="wizard-android-proceed-hp" style="width:100%;margin-top:8px;">マイク反応テストへ進む</button>
                 </div>
                 <div id="wizard-ios-bt-ui">
                 <p class="do-now">クリック音がマイクに届くタイミングを確認します</p>
@@ -1413,7 +1419,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.11.89"></script>
+    <script src="../script.js?v=0.11.90"></script>
 </body>
 
 </html>

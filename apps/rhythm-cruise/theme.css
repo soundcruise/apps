@@ -6219,6 +6219,39 @@ body.results-open {
     margin-top: 8px;
 }
 
+.android-proceed-main,
+.android-proceed-sub {
+    display: block;
+    letter-spacing: 0;
+}
+
+.android-proceed-sub {
+    margin-top: 3px;
+    font-size: 0.72rem;
+    line-height: 1.25;
+    font-weight: 700;
+    opacity: 0.78;
+    text-transform: none;
+}
+
+.android-latency-result-main,
+.android-latency-result-help {
+    margin: 0;
+    line-height: 1.7;
+}
+
+.android-latency-result-main {
+    font-weight: 800;
+    color: var(--secondary-color);
+}
+
+.android-latency-detail-list {
+    margin: 8px 0 0;
+    padding-left: 1.25em;
+    color: var(--muted-color);
+    line-height: 1.7;
+}
+
 /* ── 実施済みバッジの強調（v0.9.80）─────────────────────────── */
 .status-pill.done {
     color: #6ed28c;

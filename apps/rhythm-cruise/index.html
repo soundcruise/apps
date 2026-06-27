@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.11.86">
+    <link rel="stylesheet" href="theme.css?v=0.11.90">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1084,11 +1084,11 @@
                     </div>
                     <p class="cal-status" id="wizard-android-status-hp"></p>
                     <div class="cal-result hidden" id="wizard-android-result-hp" style="white-space:pre-line;"></div>
-                    <button type="button" class="btn-primary rc-mic-action-primary hidden" id="wizard-android-save-bt" style="width:100%;margin-top:8px;">マイク反応テストへ進む</button>
+                    <button type="button" class="btn-primary rc-mic-action-primary hidden" id="wizard-android-save-bt" style="width:100%;margin-top:8px;"><span class="android-proceed-main">マイク反応テストへ進む</span><span class="android-proceed-sub">イヤホンの音量を真ん中くらいまで下げてから</span></button>
                     <p class="cal-status hidden" id="wizard-android-save-bt-status"></p>
-                    <button type="button" class="btn-primary rc-mic-action-primary hidden" id="wizard-android-save-wired" style="width:100%;margin-top:8px;">マイク反応テストへ進む</button>
+                    <button type="button" class="btn-primary rc-mic-action-primary hidden" id="wizard-android-save-wired" style="width:100%;margin-top:8px;"><span class="android-proceed-main">マイク反応テストへ進む</span><span class="android-proceed-sub">イヤホンの音量を真ん中くらいまで下げてから</span></button>
                     <p class="cal-status hidden" id="wizard-android-save-wired-status"></p>
-                    <p class="setting-note" id="wizard-android-proceed-hint-hp">測定できたら、イヤホンの音量を真ん中くらいまで下げてから進んでください。</p>
+                    <p class="setting-note hidden" id="wizard-android-proceed-hint-hp"></p>
                     <button type="button" class="btn-primary hidden" id="wizard-android-proceed-hp" style="width:100%;margin-top:8px;">マイク反応テストへ進む</button>
                 </div>
                 <div id="wizard-ios-bt-ui">
@@ -1489,7 +1489,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.11.89"></script>
+    <script src="script.js?v=0.11.90"></script>
 </body>
 
 </html>

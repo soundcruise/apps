@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.89';
+const RHYTHM_CRUISE_VERSION = '0.11.90';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13294,11 +13294,41 @@ function androidCheckResultEl(fromWizard) {
     if (fw) return isNormalMicInput() ? els.wizardAndroidResultBuiltin : els.wizardAndroidResultHp;
     return els.androidCheckResult;
 }
+function isAndroidLatencyHeadphoneRun(run) {
+    return isHeadphoneInput() || (run && run.selectedInputType === 'headphone');
+}
+function androidLatencyHeadphoneFailureDetailsHtml(run, candidate) {
+    const st = androidLatencyRunStats(run);
+    const items = [
+        '音量検出数が足りなかった',
+        '検出タイミングのばらつきが大きかった',
+        'ノイズに対して音量差が小さかった',
+        '測定候補を安定して絞れなかった'
+    ];
+    const stats = '検出 ' + st.detected + '/' + st.total + '、最大ピーク ' + (Math.round(st.maxPeak * 10000) / 10000);
+    const reason = run && run.abortedEarlyReason
+        ? run.abortedEarlyReason
+        : (candidate && candidate.reason ? '保存条件未達: ' + candidate.reason : '');
+    return '<details class="card-help"><summary>詳しく見る</summary>'
+        + '<p class="setting-note">主な理由の候補です。</p>'
+        + '<ul class="android-latency-detail-list">'
+        + items.map((item) => '<li>' + escapeHtml(item) + '</li>').join('')
+        + '</ul>'
+        + '<p class="setting-note">' + escapeHtml(stats) + '</p>'
+        + (reason ? '<p class="setting-note">' + escapeHtml(reason) + '</p>' : '')
+        + '</details>';
+}
+function androidLatencyHeadphoneFailureHtml(run, candidate) {
+    return '<p class="android-latency-result-main">測定候補を算出できませんでした。</p>'
+        + '<p class="android-latency-result-help">イヤホンの音量を最大にして、音が出る部分をスマホのマイクに軽く押し当て、動かさずにもう一度テストしてください。</p>'
+        + androidLatencyHeadphoneFailureDetailsHtml(run, candidate);
+}
 function renderWizardAndroidLatencyResult(run) {
     const el = androidCheckResultEl(true);
     if (!el || !run) return;
     const rd = (v) => v != null ? (Math.round(v * 10) / 10) + 'ms' : '–';
     const lines = [];
+    let html = '';
     if (isNormalMicInput() || (run.selectedInputType === 'normal')) {
         const bc = run.androidBuiltinMicCandidate;
         if (bc && bc.measurementDelayMs != null) {
@@ -13314,23 +13344,27 @@ function renderWizardAndroidLatencyResult(run) {
     } else if (getHeadphoneType() === 'wired' || run.selectedHeadphoneType === 'wired') {
         const wc = run.androidWiredCandidate;
         if (wc && wc.measurementDelayMs != null) {
-            lines.push('測定遅延: ' + rd(wc.measurementDelayMs));
-            lines.push('保存値: ' + rd(wc.saveOffsetMs));
-            if (!wc.isReadyToSave) {
-                lines.push(androidLatencyFailureText(androidLatencyFailureKind(run, wc), run, wc));
-            }
-        } else lines.push(androidLatencyFailureText('no-candidate', run, wc));
+            if (wc.isReadyToSave) {
+                lines.push('測定遅延: ' + rd(wc.measurementDelayMs));
+                lines.push('保存値: ' + rd(wc.saveOffsetMs));
+            } else html = androidLatencyHeadphoneFailureHtml(run, wc);
+        } else html = androidLatencyHeadphoneFailureHtml(run, wc);
     } else {
         const cc = run.bluetoothExploration && run.bluetoothExploration.shortNoiseFocusedTest && run.bluetoothExploration.shortNoiseFocusedTest.correctionCandidate || androidBtCorrectionCandidate();
         if (cc && cc.measurementDelayMs != null) {
-            lines.push('測定遅延: ' + rd(cc.measurementDelayMs));
-            lines.push('保存値: ' + rd(cc.saveOffsetMs));
-            if (!cc.isReadyToSave) {
-                lines.push(androidLatencyFailureText(androidLatencyFailureKind(run, cc), run, cc));
-            }
-        } else lines.push(androidLatencyFailureText('no-candidate', run, cc));
+            if (cc.isReadyToSave) {
+                lines.push('測定遅延: ' + rd(cc.measurementDelayMs));
+                lines.push('保存値: ' + rd(cc.saveOffsetMs));
+            } else html = androidLatencyHeadphoneFailureHtml(run, cc);
+        } else html = androidLatencyHeadphoneFailureHtml(run, cc);
     }
-    el.textContent = lines.join('\n');
+    if (html) {
+        el.style.whiteSpace = 'normal';
+        el.innerHTML = html;
+    } else {
+        el.style.whiteSpace = 'pre-line';
+        el.textContent = lines.join('\n');
+    }
     el.classList.remove('hidden');
     refreshAllAndroidSaveButtons();
     refreshWizardAndroidProceedButtons();
@@ -13365,14 +13399,31 @@ function applyDualAndroidSaveButtonUi(detailBtn, wizardBtn, detailNote, detailSt
     if (detailBtn) detailBtn.classList.toggle('hidden', !canSave);
     if (wizardBtn) wizardBtn.classList.toggle('hidden', !canSave);
     if (detailNote) detailNote.classList.toggle('hidden', !canSave);
-    if (wizardBtn) wizardBtn.textContent = 'マイク反応テストへ進む';
+    setWizardAndroidSaveButtonLabel(wizardBtn);
     const reason = candidate ? ((notReadyPrefix || '') + (candidate.reason || '条件を満たしていません')) : '';
-    [detailStatus, wizardStatus].forEach((st) => {
-        if (!st) return;
-        if (canSave) { st.classList.add('hidden'); st.textContent = ''; }
-        else if (inContext && candidate) { st.classList.remove('hidden'); st.textContent = reason; }
-        else { st.classList.add('hidden'); st.textContent = ''; }
-    });
+    if (detailStatus) {
+        if (canSave) { detailStatus.classList.add('hidden'); detailStatus.textContent = ''; }
+        else if (inContext && candidate) { detailStatus.classList.remove('hidden'); detailStatus.textContent = reason; }
+        else { detailStatus.classList.add('hidden'); detailStatus.textContent = ''; }
+    }
+    if (wizardStatus) {
+        const hideReason = wizardBtn === els.wizardAndroidSaveBtWizard || wizardBtn === els.wizardAndroidSaveWiredWizard;
+        if (!hideReason && !canSave && inContext && candidate) {
+            wizardStatus.classList.remove('hidden');
+            wizardStatus.textContent = reason;
+        } else {
+            wizardStatus.classList.add('hidden');
+            wizardStatus.textContent = '';
+        }
+    }
+}
+function setWizardAndroidSaveButtonLabel(btn) {
+    if (!btn) return;
+    if (btn === els.wizardAndroidSaveBtWizard || btn === els.wizardAndroidSaveWiredWizard) {
+        btn.innerHTML = '<span class="android-proceed-main">マイク反応テストへ進む</span><span class="android-proceed-sub">イヤホンの音量を真ん中くらいまで下げてから</span>';
+    } else {
+        btn.textContent = 'マイク反応テストへ進む';
+    }
 }
 function refreshAllAndroidSaveButtons() {
     refreshAndroidBuiltinSaveButton();
@@ -13390,10 +13441,8 @@ function refreshWizardAndroidProceedButtons() {
         els.wizardAndroidProceedHintBuiltin.textContent = ready ? '測定できました。マイク反応テストへ進めます。' : '測定できたら、マイク反応テストへ進めます。';
     }
     if (els.wizardAndroidProceedHintHp) {
-        els.wizardAndroidProceedHintHp.classList.toggle('hidden', !(isHeadphoneInput() || (run && run.selectedInputType === 'headphone')));
-        els.wizardAndroidProceedHintHp.textContent = ready
-            ? '測定できました。イヤホンの音量を真ん中くらいまで下げてから進んでください。'
-            : '測定できたら、イヤホンの音量を真ん中くらいまで下げてから進んでください。';
+        els.wizardAndroidProceedHintHp.classList.add('hidden');
+        els.wizardAndroidProceedHintHp.textContent = '';
     }
 }
 function updateWizardAndroidBtBlockCopy() {
@@ -13717,7 +13766,8 @@ async function runAndroidAudioCheck(options) {
                 statusEl.textContent = (cand.saveConfidence === 'fallback')
                     ? '測定できました。少しばらつきがありますが、マイク反応テストへ進めます。'
                     : '測定できました。マイク反応テストへ進めます。';
-            } else statusEl.textContent = '測定が完了しました。' + androidLatencyFailureText(androidLatencyFailureKind(run, cand), run, cand).split('\n')[0];
+            } else if (isAndroidLatencyHeadphoneRun(run)) statusEl.textContent = 'もう一度テストしてください。';
+            else statusEl.textContent = '測定が完了しました。' + androidLatencyFailureText(androidLatencyFailureKind(run, cand), run, cand).split('\n')[0];
         } else statusEl.textContent = '完了しました。ログをコピーできます。';
     }
     androidCheckFromWizard = false;
