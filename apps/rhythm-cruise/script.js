@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.73';
+const RHYTHM_CRUISE_VERSION = '0.11.74';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -866,6 +866,12 @@ const test = {
     clickPeaks: [],     // 各クリック窓のピーク
     clickResults: [],   // {beat, peak, reacted}
     clickWinFrom: 0, clickWinTo: 0,
+    // v0.11.74：near/delayed クリックピークの分離測定（測定・ログのみ。recommendedClickVolume計算には未使用）
+    clickNearPeaks: [],     // 各クリックの near窓ピーク（clickPlayedAt直後）
+    clickDelayedPeaks: [],  // 各クリックの delayed窓ピーク（clickPlayedAt + inputDelayMs 付近）
+    curNearPeak: 0, curDelayedPeak: 0,
+    clickInputDelayMs: 0,   // = min(800, max(0, -androidBuiltinMicOffsetMs))。Android通常マイク以外は0
+    clickWinExtended: false,
     maxClickPeak: 0,
     clickMeasureVol: 70,  // クリックテストを鳴らした時のクリック音量（10%適用後の目安計算用）
     flowSavedClickVolume: null, // 通常マイク初回テスト中だけクリック音量を一時退避
@@ -18992,6 +18998,24 @@ function micTestRunForDevelopmentLog(run) {
         resultClickVolume: run.resultClickVolume,
         clickPeaks: run.clickPeaks,
         maxClickPeak: run.maxClickPeak,
+        // v0.11.74：near/delayed クリックピークの分離測定ログ（測定のみ・recommendedClickVolume計算には未使用）
+        clickPhaseNearPeaks: run.clickPhaseNearPeaks,
+        clickPhaseDelayedPeaks: run.clickPhaseDelayedPeaks,
+        clickPhaseMaxNearPeak: run.clickPhaseMaxNearPeak,
+        clickPhaseMaxDelayedPeak: run.clickPhaseMaxDelayedPeak,
+        clickPhaseNearPeakPerPct: run.clickPhaseNearPeakPerPct,
+        clickPhaseDelayedPeakPerPct: run.clickPhaseDelayedPeakPerPct,
+        clickPhasePeakPerPctRatio: run.clickPhasePeakPerPctRatio,
+        clickPhaseInputDelayMs: run.clickPhaseInputDelayMs,
+        clickPhaseDelayedWindowMs: run.clickPhaseDelayedWindowMs,
+        clickPhaseWindowExtended: run.clickPhaseWindowExtended,
+        peakPerPctCurrent: run.peakPerPctCurrent,
+        peakPerPctNear: run.peakPerPctNear,
+        peakPerPctDelayed: run.peakPerPctDelayed,
+        peakPerPctMaxNearDelayed: run.peakPerPctMaxNearDelayed,
+        wouldUseDelayedPeakForReco: run.wouldUseDelayedPeakForReco,
+        wouldPeakPerPctForReco: run.wouldPeakPerPctForReco,
+        wouldRecoVolIfDelayedPeakUsed: run.wouldRecoVolIfDelayedPeakUsed,
         clickMedian: run.clickMedian,
         maxClickAfterFirst: run.maxClickAfterFirst,
         clickDetectedCount: run.clickDetectedCount,
@@ -19764,6 +19788,11 @@ function beginClickPhase() {
     test.mode = 'click';
     updateMicTestDoNow();
     test.clickI = 0; test.clickPeaks = []; test.clickResults = []; test.curPeak = 0;
+    // v0.11.74：near/delayed クリックピークの分離測定（測定・ログのみ）
+    test.clickNearPeaks = []; test.clickDelayedPeaks = [];
+    test.curNearPeak = 0; test.curDelayedPeak = 0;
+    test.clickInputDelayMs = micTestClickInputDelayMs(); // = min(800, max(0, -androidBuiltinMicOffsetMs))
+    test.clickWinExtended = false;
     test.clickMeasureVol = state.clickVolume; // この音量で鳴らした前提で「○%適用後の目安」を後で計算
     // 視覚クリック：レーンを表示してクリックに合わせて点滅
     if (els.testLaneWrap) els.testLaneWrap.classList.remove('hidden');
@@ -19776,15 +19805,25 @@ function beginClickPhase() {
             const beat = (test.clickI - 1) % 4;
             test.clickResults.push({ beat, peak: test.curPeak, reacted: test.curPeak >= mic.threshold });
             test.clickPeaks.push(test.curPeak);
+            // v0.11.74：前クリックの near/delayed 窓ピークを確定（測定・ログのみ）
+            test.clickNearPeaks.push(test.curNearPeak || 0);
+            test.clickDelayedPeaks.push(test.curDelayedPeak || 0);
         }
         if (test.clickI >= CLICK_TEST_COUNT) { clearInterval(test.seqTimer); test.seqTimer = 0; endClickPhase(); return; }
         const beat = test.clickI % 4;          // 0=1拍目（アクセント）= 本番と同一
         test.curPeak = 0;
+        test.curNearPeak = 0; test.curDelayedPeak = 0;
         test.clickPlayedAt = performance.now();
         test.clickWinFrom = test.clickPlayedAt;
-        test.clickWinTo = test.clickPlayedAt + 520;
+        // v0.11.74：Android通常マイクでは遅延側ピーク(約397ms後)を取りこぼさないよう、必要なら窓を少しだけ後ろへ広げる。
+        //   クリック間隔600msと重ならないよう上限580msでクランプ。それ以外は従来どおり520ms。
+        const baseClickWinMs = 520;
+        const wantClickWinMs = test.clickInputDelayMs > 0 ? test.clickInputDelayMs + 160 : baseClickWinMs;
+        const clickWinMs = Math.min(580, Math.max(baseClickWinMs, wantClickWinMs));
+        test.clickWinExtended = clickWinMs > baseClickWinMs;
+        test.clickWinTo = test.clickPlayedAt + clickWinMs;
         click(beat === 0, true);                // 本番と同一の click()／クリック音量反映
-        androidAudioProbeMarkClick('micReactionTest', test.clickPlayedAt, 0, 520);
+        androidAudioProbeMarkClick('micReactionTest', test.clickPlayedAt, 0, clickWinMs);
         test.clickI++;
         setTestPhase('クリック音を確認中 ' + test.clickI + ' / ' + CLICK_TEST_COUNT);
     }, 600);
@@ -19960,6 +19999,14 @@ function micTestAndroidNormalStrokeDelayMs() {
     const saved = Number(mic.androidBuiltinMicOffsetMs);
     if (!Number.isFinite(saved) || saved >= 0) return 0;
     return Math.min(800, Math.max(0, -saved));
+}
+
+/* v0.11.74：click phase の遅延側クリックピーク測定に使う入力遅延(ms)。
+   stroke phase（micTestAndroidNormalStrokeDelayMs）と符号・上限を完全に揃える：
+   inputDelayMs = min(800, max(0, -androidBuiltinMicOffsetMs))。Android通常マイク以外は0。
+   測定・ログのみで、Practice判定・recommendedClickVolume計算には一切使わない。 */
+function micTestClickInputDelayMs() {
+    return micTestAndroidNormalStrokeDelayMs();
 }
 
 /* カウントイン用ビープ（clickVolumeに依存しない固定音量。タイミングを掴むための合図）。
@@ -20883,11 +20930,54 @@ function updateReco() {
     }
     renderBtMicDiagnostic();
 
+    // ── v0.11.74：near/delayed クリックピークの分離測定ログ（測定のみ。peakPerPct/safeClickVol88/recoVol は変更しない）──
+    //    目的：Android通常マイクの「遅延側クリックピーク」と、100%測定→Practice音量への線形換算誤差を実機ログで確認する。
+    const clickPhaseNearPeaks = (test.clickNearPeaks || []).slice();
+    const clickPhaseDelayedPeaks = (test.clickDelayedPeaks || []).slice();
+    const clickPhaseMaxNearPeak = clickPhaseNearPeaks.length ? Math.max(...clickPhaseNearPeaks) : 0;
+    const clickPhaseMaxDelayedPeak = clickPhaseDelayedPeaks.length ? Math.max(...clickPhaseDelayedPeaks) : 0;
+    const clickPhaseNearPeakPerPct = measureVol > 0 ? clickPhaseMaxNearPeak / measureVol : 0;
+    const clickPhaseDelayedPeakPerPct = measureVol > 0 ? clickPhaseMaxDelayedPeak / measureVol : 0;
+    const clickPhasePeakPerPctRatio = clickPhaseNearPeakPerPct > 0 ? (clickPhaseDelayedPeakPerPct / clickPhaseNearPeakPerPct) : null;
+    const clickPhaseInputDelayMs = test.clickInputDelayMs || 0;
+    const clickPhaseDelayedWindowMs = clickPhaseInputDelayMs > 0 ? 120 : 0; // ±120ms（最終確認 inDelayedWindow と同思想）
+    const clickPhaseWindowExtended = !!test.clickWinExtended;
+    // 現行 peakPerPct（= maxClick/measureVol。near/delayed を区別しない単一max）との比較用
+    const peakPerPctCurrent = peakPerPct;
+    const peakPerPctNear = clickPhaseNearPeakPerPct;
+    const peakPerPctDelayed = clickPhaseDelayedPeakPerPct;
+    const peakPerPctMaxNearDelayed = Math.max(clickPhaseNearPeakPerPct, clickPhaseDelayedPeakPerPct);
+    // 将来 updateReco に delayed peak を入れた場合の「仮の」参考値（保存しない・recommendedClickVolumeには未反映）。
+    //   wouldRecoVolIfDelayedPeakUsed は safeClickVol88 と同じ式（safeClickPeak88 / per-pct）に
+    //   per-pct = max(near, delayed, current) を入れた場合の参考上限。実際の recoVol は変えない。
+    const wouldPeakPerPctForReco = Math.max(peakPerPctMaxNearDelayed, peakPerPctCurrent);
+    const wouldUseDelayedPeakForReco = peakPerPctMaxNearDelayed > peakPerPctCurrent;
+    const wouldRecoVolIfDelayedPeakUsed = (wouldPeakPerPctForReco > 0 && safeClickPeak88 != null)
+        ? Math.max(1, Math.min(100, Math.floor(safeClickPeak88 / wouldPeakPerPctForReco)))
+        : null;
+
     completeMicTestRunDebug({
         clickMeasureVol: test.clickMeasureVol,
         resultClickVolume: state.clickVolume,
         clickPeaks: (test.clickPeaks || []).slice(),
         maxClickPeak: maxClick,
+        clickPhaseNearPeaks,
+        clickPhaseDelayedPeaks,
+        clickPhaseMaxNearPeak,
+        clickPhaseMaxDelayedPeak,
+        clickPhaseNearPeakPerPct,
+        clickPhaseDelayedPeakPerPct,
+        clickPhasePeakPerPctRatio,
+        clickPhaseInputDelayMs,
+        clickPhaseDelayedWindowMs,
+        clickPhaseWindowExtended,
+        peakPerPctCurrent,
+        peakPerPctNear,
+        peakPerPctDelayed,
+        peakPerPctMaxNearDelayed,
+        wouldUseDelayedPeakForReco,
+        wouldPeakPerPctForReco,
+        wouldRecoVolIfDelayedPeakUsed,
         clickMedian,
         maxClickAfterFirst: (test.clickPeaks || []).length > 1 ? Math.max(...test.clickPeaks.slice(1)) : null,
         clickDetectedCount,
@@ -21440,6 +21530,15 @@ function micLoop() {
         const inClickWin = test.mode === 'click' && now >= test.clickWinFrom && now <= test.clickWinTo;
         const inStrokeWin = test.mode === 'stroke' && now >= test.strokeFrom && now <= test.strokeUntil;
         if (inClickWin || inStrokeWin) test.curPeak = Math.max(test.curPeak, peak);
+        // v0.11.74：click phase の near/delayed ピーク分離測定（測定・ログのみ。curPeak/maxClickPeak・recommendedClickVolumeには未使用）。
+        //   最終確認テスト updateFinalCheckClickDebug() の inDirectWindow / inDelayedWindow と同じ考え方で揃える。
+        if (test.mode === 'click') {
+            const sinceClick = now - (test.clickPlayedAt || -99999);
+            const nearTo = Math.max(120, mic.clickGuardMs || 0);                 // near窓 = [0, max(120, clickGuardMs)]
+            if (sinceClick >= 0 && sinceClick <= nearTo) test.curNearPeak = Math.max(test.curNearPeak || 0, peak);
+            const delayed = test.clickInputDelayMs || 0;                          // delayed窓 = |sinceClick - inputDelayMs| <= 120
+            if (delayed > 0 && Math.abs(sinceClick - delayed) <= 120) test.curDelayedPeak = Math.max(test.curDelayedPeak || 0, peak);
+        }
         if (isBluetoothHeadphone() && test.mode === 'stroke' && test.flowStart) {
             const strokeT = now - test.flowStart;
             const lastNoteT = test.notes && test.notes.length ? test.notes[test.notes.length - 1].t : TEST_LEAD_MS;
