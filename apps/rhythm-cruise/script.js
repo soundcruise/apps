@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.97';
+const RHYTHM_CRUISE_VERSION = '0.11.98';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13919,11 +13919,14 @@ function androidCheckSpecPlan(target) {
     const shortNoise = () => ({ soundId: 'short-noise-focused-test', soundLabel: '短いノイズ集中テスト', soundType: 'noise', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true });
     const dbl = () => ({ soundId: 'double-noise-pattern', soundLabel: '2連ノイズパターン', soundType: 'pattern', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true, patternPulsesMs: [0, 120], forceDurationMs: 200 });
     const trpl = () => ({ soundId: 'triple-noise-pattern', soundLabel: '3連ノイズパターン', soundType: 'pattern', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true, patternPulsesMs: [0, 120, 280], forceDurationMs: 360 });
+    // v0.11.98：BT向け「読み取りやすい単発ノイズ」候補（比較用・正式採用しない）。先頭アタック＋緩やか減衰の120ms広帯域ノイズ。
+    const readableSingle = () => ({ soundId: 'bt-readable-single-noise', soundLabel: '読み取りやすい単発ノイズ', soundType: 'readableNoise', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true, forceDurationMs: 120 });
     if (target === 'bluetooth') {
         return { profile: 'bluetooth-short', specs: [
             ...rep(3, noise),                 // Phase0：音量確認・位置合わせ
             ...rep(7, shortNoise),            // Phase1：保存候補の主測定（維持）
-            ...rep(5, dbl), ...rep(5, trpl),  // Phase2：pattern候補の検証用（v0.11.97で3→5に増やした。正式採用しない）
+            ...rep(5, dbl), ...rep(5, trpl),  // Phase2：pattern候補の検証用（v0.11.97で3→5。正式採用しない）
+            ...rep(3, readableSingle),        // Phase3：v0.11.98 読み取りやすい単発ノイズの比較用（正式採用しない）
         ] };
     }
     return { profile: target === 'wired' ? 'wired-short' : 'normal-short', specs: [
@@ -13945,11 +13948,13 @@ function buildAndroidBluetoothCandidateComparison(run) {
     const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
     const r6 = (v) => v == null ? null : Math.round(v * 1e6) / 1e6;
     const sn = bt.shortNoiseFocusedTest || null, dp = bt.doublePatternDetection || null, tp = bt.triplePatternDetection || null;
+    const rs = bt.readableSingleFocusedTest || null; // v0.11.98：読み取りやすい単発ノイズ候補（比較専用）。
     const cc = sn && sn.correctionCandidate || null;
+    const rcc = rs && rs.correctionCandidate || null;
     const sumOf = (id) => (run.summary || []).find((s) => s.soundId === id) || {};
     const cnt = (id) => (run.events || []).filter((e) => e.soundId === id).length; // v0.11.97：再生回数（表示専用）。
     const usable = (s) => s.stableEnoughGuess === true && (s.peakToNoiseMedian || 0) >= ANDROID_CORR_MIN_PEAK_TO_NOISE && s.offsetRangeMs != null && s.offsetRangeMs <= ANDROID_CORR_MAX_TRIMMED_RANGE_MS;
-    const sD = sumOf('double-noise-pattern'), sT = sumOf('triple-noise-pattern');
+    const sD = sumOf('double-noise-pattern'), sT = sumOf('triple-noise-pattern'), sR = sumOf('bt-readable-single-noise');
     const eventCount = (run.events || []).length;
     // noiseFamily：short+double+triple をまとめた既存の区間候補ロジックを再利用（表示専用・保存しない）。
     const nfEvents = (run.events || []).filter((e) => e.soundId === 'short-noise-focused-test' || e.soundId === 'double-noise-pattern' || e.soundId === 'triple-noise-pattern');
@@ -13962,13 +13967,16 @@ function buildAndroidBluetoothCandidateComparison(run) {
         shortNoiseCount: cnt('short-noise-focused-test'),
         doubleCount: cnt('double-noise-pattern'),
         tripleCount: cnt('triple-noise-pattern'),
+        readableSingleCount: cnt('bt-readable-single-noise'),
         used: { source: cc ? cc.source : null, measurementMs: cc ? r1(cc.measurementDelayMs) : null, saveOffsetMs: cc ? r1(cc.saveOffsetMs) : null, isReadyToSave: !!(cc && cc.isReadyToSave) },
         shortNoise: { measurementMs: sn ? r1(sn.focusedOffsetMedianMs) : null, clusterMeasurementMs: cc ? r1(cc.measurementDelayMs) : null, isReadyToSave: !!(cc && cc.isReadyToSave), reason: cc ? cc.reason : null },
+        // v0.11.98：読み取りやすい単発ノイズ候補（表示専用・正式保存候補ではない）。short-noise と同じ解析窓で比較。
+        readableSingle: { measurementMs: rs ? r1(rs.focusedOffsetMedianMs) : null, clusterMeasurementMs: rcc ? r1(rcc.measurementDelayMs) : null, rawOffsetMedianMs: r1(sR.offsetMedianMs), rawOffsetRangeMs: r1(sR.offsetRangeMs), detectedCount: sR.detectedCount != null ? sR.detectedCount : null, peakToNoiseMedian: r6(sR.peakToNoiseMedian), offsetRangeMs: r1(sR.offsetRangeMs), isReadyToSave: !!(rcc && rcc.isReadyToSave), usableForSegment: usable(sR), reason: rcc ? rcc.reason : null, note: '表示専用・正式保存候補ではない' },
         double: { patternMeasurementMs: dp ? r1(dp.focusedOffsetMedianMs) : null, measurementMs: usable(sD) && dp && dp.focusedOffsetMedianMs != null ? r1(dp.focusedOffsetMedianMs) : null, rawOffsetMedianMs: r1(sD.offsetMedianMs), rawOffsetRangeMs: r1(sD.offsetRangeMs), detectedCount: sD.detectedCount != null ? sD.detectedCount : null, peakToNoiseMedian: r6(sD.peakToNoiseMedian), offsetRangeMs: r1(sD.offsetRangeMs), usableForSegment: usable(sD), note: '表示専用・正式フォールバック候補ではない（patternMeasurementMsがパターン解析候補／rawは単純ピーク中央値で遅め・採用に使わない）' },
         triple: { patternMeasurementMs: tp ? r1(tp.focusedOffsetMedianMs) : null, measurementMs: usable(sT) && tp && tp.focusedOffsetMedianMs != null ? r1(tp.focusedOffsetMedianMs) : null, rawOffsetMedianMs: r1(sT.offsetMedianMs), rawOffsetRangeMs: r1(sT.offsetRangeMs), detectedCount: sT.detectedCount != null ? sT.detectedCount : null, peakToNoiseMedian: r6(sT.peakToNoiseMedian), offsetRangeMs: r1(sT.offsetRangeMs), usableForSegment: usable(sT), note: '表示専用・正式フォールバック候補ではない（patternMeasurementMsがパターン解析候補／rawは単純ピーク中央値で遅め・採用に使わない）' },
         noiseFamily: { measurementMs: nf ? r1(nf.measurementDelayMs) : null, isReadyToSave: !!(nf && nf.isReadyToSave), reason: nf ? nf.reason : null },
         capturedAt: new Date().toISOString(),
-        note: '比較ログ用（v0.11.97）。保存値・採用ルールは未変更。2連/3連は正式フォールバック候補にしない。',
+        note: '比較ログ用（v0.11.98）。保存値・採用ルールは未変更。2連/3連は正式フォールバック候補にしない。',
     };
 }
 /* v0.11.95：最終確認テストの平均ズレに対し、各BT候補を採用していた場合の予測平均ズレを出す（表示専用）。
@@ -14000,6 +14008,7 @@ function androidBluetoothFinalCheckPrediction(actualAvgDiffMs) {
         savedOffsetMs: r1(status.savedOffsetMs),
         actualAvgDiffMs: r1(actualAvgDiffMs),
         ifShortNoise: entry(cmp.shortNoise ? cmp.shortNoise.measurementMs : null),
+        ifReadableSingle: { candidateMeasurementMs: cmp.readableSingle ? cmp.readableSingle.measurementMs : null, predictedAvgDiffMs: predict(cmp.readableSingle ? cmp.readableSingle.measurementMs : null), note: '読み取りやすい単発ノイズ候補。表示専用・正式採用していない' },
         ifDouble: entry(cmp.double ? cmp.double.measurementMs : null),
         ifDoubleRaw: rawEntry(cmp.double ? cmp.double.rawOffsetMedianMs : null),
         ifDoublePattern: patEntry(cmp.double ? cmp.double.patternMeasurementMs : null),
@@ -14008,7 +14017,7 @@ function androidBluetoothFinalCheckPrediction(actualAvgDiffMs) {
         ifTriplePattern: patEntry(cmp.triple ? cmp.triple.patternMeasurementMs : null),
         ifNoiseFamily: entry(cmp.noiseFamily ? cmp.noiseFamily.measurementMs : null),
         ifPatternFamily: { candidateMeasurementMs: famMs, predictedAvgDiffMs: predict(famMs), source: famSource, note: 'usableなpattern候補のみ集約（表示専用・保存しない）' },
-        note: '予測のみ（v0.11.97）。保存値・採用ルールは未変更。2連/3連は正式採用していない。',
+        note: '予測のみ（v0.11.98）。保存値・採用ルールは未変更。2連/3連は正式採用していない。',
     };
 }
 async function runAndroidAudioCheck(options) {
@@ -14039,13 +14048,20 @@ async function runAndroidAudioCheck(options) {
         shortNoiseFocusedTest.correctionCandidate = buildAndroidCorrectionCandidate(shortNoiseFocusedTest, { saveKey: 'androidBluetoothMicOffsetMs' });
         const doublePatternDetection = hpAnalyzeNoisePattern(run.events, { soundId: 'double-noise-pattern', soundLabel: '2連ノイズパターン', repeatCount: dblCount, targetsMs: [0, 120] });
         const triplePatternDetection = hpAnalyzeNoisePattern(run.events, { soundId: 'triple-noise-pattern', soundLabel: '3連ノイズパターン', repeatCount: trplCount, targetsMs: [0, 120, 280] });
+        // v0.11.98：読み取りやすい単発ノイズ候補（比較専用）。short-noise と同じ解析窓で並走比較する。保存もPractice反映もしない。
+        const readableCount = run.events.filter((x) => x.soundId === 'bt-readable-single-noise').length;
+        let readableSingleFocusedTest = null;
+        if (readableCount > 0) {
+            readableSingleFocusedTest = hpAnalyzeShortNoise(run.events, { soundId: 'bt-readable-single-noise', soundLabel: '読み取りやすい単発ノイズ', repeatCount: readableCount });
+            readableSingleFocusedTest.correctionCandidate = buildAndroidCorrectionCandidate(readableSingleFocusedTest, { saveKey: 'androidBluetoothMicOffsetMs' }); // 候補値の算出のみ（保存しない）
+        }
         const bestCandidate = hpBestCandidate([
             { soundId: 'short-noise-focused-test', det: shortNoiseFocusedTest, durRank: 0 },
             { soundId: 'double-noise-pattern', det: doublePatternDetection, durRank: 1 },
             { soundId: 'triple-noise-pattern', det: triplePatternDetection, durRank: 2 }
         ]);
         const bestObj = bestCandidate === 'short-noise-focused-test' ? shortNoiseFocusedTest : (bestCandidate === 'double-noise-pattern' ? doublePatternDetection : triplePatternDetection);
-        run.bluetoothExploration = { constraintsProfile: 'current', shortNoiseFocusedWindowMs: [430, 530], patternFocusedWindowMs: [450, 560], tests: ex, shortNoiseFocusedTest, doublePatternDetection, triplePatternDetection, bestCandidate, finalGuess: bestObj ? bestObj.finalGuess : 'not-usable' };
+        run.bluetoothExploration = { constraintsProfile: 'current', shortNoiseFocusedWindowMs: [430, 530], patternFocusedWindowMs: [450, 560], tests: ex, shortNoiseFocusedTest, doublePatternDetection, triplePatternDetection, readableSingleFocusedTest, bestCandidate, finalGuess: bestObj ? bestObj.finalGuess : 'not-usable' };
         // finalGuess整合（ログ/表示のみ）：Bluetooth時はトップレベルfinalGuessをbluetoothExploration側優先にする。
         // ※補正値保存・Practice判定にはこの値を使わない（保存可否は correctionCandidate.isReadyToSave で判定）。
         run.finalGuess = run.bluetoothExploration.finalGuess;
@@ -14466,7 +14482,7 @@ function hpProbeAddPeak(event, now, peak) {
     const offset = now - event.scheduledAtPerformanceTime;
     if (offset < event.wideWindowMs[0] || offset > event.wideWindowMs[1]) return;
     const row = { offsetMs: Math.round(offset * 10) / 10, value: Math.round(peak * 1000000) / 1000000 };
-    if (event.soundId === 'triple-noise-pattern' || event.soundId === 'double-noise-pattern' || event.soundId === 'short-noise-focused-test') { event.energyTimeline.push(row); if (event.energyTimeline.length > 160) event.energyTimeline.shift(); }
+    if (event.soundId === 'triple-noise-pattern' || event.soundId === 'double-noise-pattern' || event.soundId === 'short-noise-focused-test' || event.soundId === 'bt-readable-single-noise') { event.energyTimeline.push(row); if (event.energyTimeline.length > 160) event.energyTimeline.shift(); }
     const add = (list) => { list.push(row); list.sort((x, y) => y.value - x.value); if (list.length > 5) list.length = 5; };
     add(event.rankTop5);
     if (offset >= event.normalWindowMs[0] && offset <= event.normalWindowMs[1]) add(event.normalRankTop5);
@@ -14498,6 +14514,14 @@ function hpProbeMakeBuffer(ctx, spec, durationMs) {
         else if (spec.soundType === 'pattern') { const ms = i / ctx.sampleRate * 1000; const ats = spec.patternPulsesMs || [0, 120, 280]; const hit = ats.some((at) => ms >= at && ms < at + 60); const n = (Math.sin((i + 7) * 12.9898) * 43758.5453) % 1; data[i] = hit ? ((n < 0 ? n + 1 : n) * 2 - 1) * hpProbeTestLevel(.72) : 0; }
         else if (spec.soundType === 'probe') { const n = (Math.sin((i + 1) * 12.9898) * 43758.5453) % 1; data[i] = ((n < 0 ? n + 1 : n) * 2 - 1) * env * hpProbeTestLevel(.7); }
         else if (spec.soundType === 'noise') data[i] = (Math.random() * 2 - 1) * env * hpProbeTestLevel(.7);
+        else if (spec.soundType === 'readableNoise') {
+            // v0.11.98：BT向け「読み取りやすい単発ノイズ」。先頭〜4msに少し強いアタックを足し、その後の広帯域ノイズを
+            //   緩やかに減衰（pow 1.1）させて BT音声処理に残りやすくする。音量は現行 short-noise（env*level）より上げない。
+            const ms = i / ctx.sampleRate * 1000;
+            const attackBoost = ms < 4 ? (1 - ms / 4) * 0.35 : 0;
+            const bodyEnv = Math.pow(1 - i / len, 1.1);
+            data[i] = (Math.random() * 2 - 1) * Math.min(1, bodyEnv * 0.62 + attackBoost) * hpProbeTestLevel(.7);
+        }
         else if (spec.soundType === 'chord') data[i] = PREVIEW_CHORD_FREQS.reduce((sum, f) => sum + Math.sin(2 * Math.PI * f * t), 0) / PREVIEW_CHORD_FREQS.length * env * hpProbeTestLevel(.75);
         else data[i] = Math.sin(2 * Math.PI * spec.frequencyHz * t) * env * hpProbeTestLevel(.72);
     }
