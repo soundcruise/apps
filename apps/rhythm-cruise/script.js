@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.78';
+const RHYTHM_CRUISE_VERSION = '0.11.79';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -16904,9 +16904,11 @@ function wizardSteps() {
             steps.push('correction'); // 通常マイク：Android式の音ズレ・遅延テスト
         } else {
             steps.push('btdelay');    // 有線/BT：Android式の音ズレ・遅延テスト
+            // v0.11.79：Android Bluetoothのみ、イヤホン音ズレの画面補正をマイク反応テストの前に置く
+            //   （マイク反応テスト表示を本番Practiceの視覚補正に合わせる準備。順序変更のみ・表示/測定窓は次フェーズ）。
+            if (isBluetoothHeadphone()) steps.push('correction');
         }
         steps.push('test');            // マイク反応テスト
-        if (isBluetoothHeadphone()) steps.push('correction'); // BTのみ：イヤホン音ズレの画面補正
     } else {
         steps.push('test');            // iPhone / iPad：従来どおりマイク反応テストを先に行う
         if (!isHeadphoneInput()) {
