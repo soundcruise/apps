@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.90';
+const RHYTHM_CRUISE_VERSION = '0.11.91';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13420,7 +13420,7 @@ function applyDualAndroidSaveButtonUi(detailBtn, wizardBtn, detailNote, detailSt
 function setWizardAndroidSaveButtonLabel(btn) {
     if (!btn) return;
     if (btn === els.wizardAndroidSaveBtWizard || btn === els.wizardAndroidSaveWiredWizard) {
-        btn.innerHTML = '<span class="android-proceed-main">マイク反応テストへ進む</span><span class="android-proceed-sub">イヤホンの音量を真ん中くらいまで下げてから</span>';
+        btn.innerHTML = '<span class="android-proceed-sub">イヤホンの音量を真ん中くらいまで下げてから</span><span class="android-proceed-main">マイク反応テストへ進む</span>';
     } else {
         btn.textContent = 'マイク反応テストへ進む';
     }
@@ -13450,12 +13450,17 @@ function updateWizardAndroidBtBlockCopy() {
         els.wizardAndroidBtDesc.textContent = 'イヤホンの音量を最大にして、音が出る部分をスマホのマイクに軽く押し当ててください。';
     }
     if (els.wizardAndroidRunHp) {
-        els.wizardAndroidRunHp.textContent = androidCheckMode ? '停止する' : 'テスト開始';
+        if (androidCheckMode) els.wizardAndroidRunHp.textContent = '停止する';
+        else setWizardAndroidRunHpButtonLabel('テスト開始');
     }
+}
+function setWizardAndroidRunHpButtonLabel(label) {
+    if (!els.wizardAndroidRunHp) return;
+    els.wizardAndroidRunHp.innerHTML = '<span class="android-proceed-sub">イヤホンを耳から外して</span><span class="android-proceed-main">' + escapeHtml(label) + '</span>';
 }
 function setAndroidCheckRunButtonsFailure() {
     if (els.wizardAndroidRunBuiltin && isNormalMicInput()) els.wizardAndroidRunBuiltin.textContent = 'もう一度テストする';
-    if (els.wizardAndroidRunHp && isHeadphoneInput()) els.wizardAndroidRunHp.textContent = 'もう一度テストする';
+    if (els.wizardAndroidRunHp && isHeadphoneInput()) setWizardAndroidRunHpButtonLabel('もう一度テストする');
 }
 function androidCheckDefaultRunLabel() {
     return 'テスト開始';
@@ -13467,7 +13472,8 @@ function setAndroidCheckRunButtonsRunning(running) {
         els.wizardAndroidRunBuiltin.classList.toggle('rc-mic-action-primary', !(running && isNormalMicInput()));
     }
     if (els.wizardAndroidRunHp) {
-        els.wizardAndroidRunHp.textContent = running && isHeadphoneInput() ? '停止する' : 'テスト開始';
+        if (running && isHeadphoneInput()) els.wizardAndroidRunHp.textContent = '停止する';
+        else setWizardAndroidRunHpButtonLabel('テスト開始');
         els.wizardAndroidRunHp.classList.toggle('rc-mic-action-secondary', running && isHeadphoneInput());
         els.wizardAndroidRunHp.classList.toggle('rc-mic-action-primary', !(running && isHeadphoneInput()));
     }
