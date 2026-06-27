@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.74';
+const RHYTHM_CRUISE_VERSION = '0.11.75';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13428,6 +13428,22 @@ function shouldKeepAndroidBuiltinLatencyAfterMicTest() {
     const saved = Number(mic.androidBuiltinMicOffsetMs);
     return setupProgress.correctionDone && Number.isFinite(saved) && saved !== 0;
 }
+/* v0.11.75：Android有線/Bluetoothの音ズレ・遅延テスト完了状態（btDelayDone）を、マイク反応テスト開始後も保持するか。
+   shouldKeepAndroidBuiltinLatencyAfterMicTest() の有線/BT版（対称）。該当する専用補正値が保存済み（有効な非0値）の
+   ときだけ true を返す。startMicTestFlow() の resetBtCalTransientUiState() が btDelayDone を落とすため、保存済み時だけ
+   復元してウィザードが btdelay ステップへ戻るのを防ぐ。判定・感度・閾値ロジックには一切影響しない。 */
+function shouldKeepAndroidHeadphoneLatencyAfterMicTest() {
+    if (!useAndroidLatencyFirstFlow() || !isHeadphoneInput()) return false;
+    if (isBluetoothHeadphone()) {
+        const saved = Number(mic.androidBluetoothMicOffsetMs);
+        return Number.isFinite(saved) && saved !== 0;
+    }
+    if (getHeadphoneType() === 'wired') {
+        const saved = Number(mic.androidWiredMicOffsetMs);
+        return Number.isFinite(saved) && saved !== 0;
+    }
+    return false;
+}
 async function runAndroidAudioCheck(options) {
     const fromWizard = !!(options && options.fromWizard);
     androidCheckFromWizard = fromWizard;
@@ -19671,6 +19687,10 @@ async function startMicTestFlow(options = {}) {
     resetMicDelayCalibrationUiState();
     resetBtCalTransientUiState();
     resetMicReactionTestRunDisplay();
+    // v0.11.75：Android有線/BTは、保存済み遅延補正があれば音ズレ・遅延テスト完了状態(btDelayDone)を
+    //   マイク反応テスト開始後も保持する。resetBtCalTransientUiState() が btDelayDone を落とすため、
+    //   保存済み時だけここで復元する（通常マイクの correctionDone 保護と対称）。
+    if (shouldKeepAndroidHeadphoneLatencyAfterMicTest()) setupProgress.btDelayDone = true;
     const startClickVolume = state.clickVolume;
     if (!(await ensureTestMic())) { setTestResult('マイクを許可してください。', 'ng'); showMicPermHelp(); return; }
     hideMicPermHelp(); // v0.9.160：開始できたので許可エラー案内は隠す
