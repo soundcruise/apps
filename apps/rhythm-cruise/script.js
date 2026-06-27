@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.65';
+const RHYTHM_CRUISE_VERSION = '0.11.66';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -20541,8 +20541,8 @@ function updateReco() {
     if (els.recoDeviceVolNote) {
         if (deviceVolumeWarningShown) {
             els.recoDeviceVolNote.className = 'reco-device-vol-note reco-device-vol-note--alert';
-            els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音がマイクに十分入っていません。</b><br>'
-                + 'スマホ本体の音量をかなり高め（目安：80%以上）にし、出力先を確認してから、もう一度マイク反応テストを行ってください。音量や出力先を変えた場合も再テストが必要です。改善しない場合は、ホーム画面のアプリを完全に終了してから、もう一度開いてください。<br>'
+            els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音の測定が不安定です。</b><br>'
+                + '測定用クリック音量でもクリック音を十分に確認できませんでした。音ズレ・遅延テストで測定できない場合は、スマホ本体の音量や出力先を確認してください。音量や出力先を変えた場合は、もう一度マイク反応テストを行ってください。改善しない場合は、ホーム画面のアプリを完全に終了してから、もう一度開いてください。<br>'
                 + micRestartHelpLinkHtml()
                 + recoRetestButtonHtml();
         } else {
@@ -20856,7 +20856,7 @@ function retestMicWithRecommendedSettings() {
     applyRecoValues(false);
     test.rescueHighSens = shouldStartMicTestInHighSensitivity();
     test.autoRetestCount = 0;
-    startMicTestFlow({ startRoute: 'recommended-retest' });
+    startMicTestFlow({ normalInitialClickBoost: true, startRoute: 'recommended-retest' });
 }
 
 function stopMic(opts) {
