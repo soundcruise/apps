@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.75';
+const RHYTHM_CRUISE_VERSION = '0.11.76';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -884,6 +884,10 @@ const test = {
     strokeUpPeaks: [],        // アップ音符の受付窓ピーク
     strokePeriodPeaks: [],    // Bluetooth用：ストローク入力期間全体のピーク候補
     strokePeriodBeatPeaks: [], // Bluetooth用：各拍周辺の期間ピーク候補
+    // v0.11.76：イヤホン余韻/二重反応リスクの診断ログ専用（全イヤホン共通・計測のみ。判定/推奨/cooldownには未使用）
+    hpPeriodPeaks: [],  // ストローク区間全体の生ピーク（BTのstrokePeriodPeaks相当を全イヤホンで）
+    hpTailPeaks: [],    // 判定窓を出た直後の余韻(tail)区間ピーク
+    hpPostPeaks: [],    // 次ストローク手前のストローク間(post)区間ピーク
     strokeDetected: 0,
     strokeDoubleCount: 0,
     minStrokePeak: null, maxStrokePeak: null,
@@ -19032,6 +19036,21 @@ function micTestRunForDevelopmentLog(run) {
         wouldUseDelayedPeakForReco: run.wouldUseDelayedPeakForReco,
         wouldPeakPerPctForReco: run.wouldPeakPerPctForReco,
         wouldRecoVolIfDelayedPeakUsed: run.wouldRecoVolIfDelayedPeakUsed,
+        // v0.11.76：イヤホン余韻/二重反応リスク診断（全イヤホン共通・計測のみ・ロジック未変更）
+        headphoneSustainDiagnosticsEnabled: run.headphoneSustainDiagnosticsEnabled,
+        strokePeriodPeaks: run.strokePeriodPeaks,
+        strokeTailPeaks: run.strokeTailPeaks,
+        strokePostPeaks: run.strokePostPeaks,
+        strokeAboveDurationsMs: run.strokeAboveDurationsMs,
+        strokeAboveMedianMs: run.strokeAboveMedianMs,
+        strokeAboveMaxMs: run.strokeAboveMaxMs,
+        strokeTailToLineRatio: run.strokeTailToLineRatio,
+        strokePostToLineRatio: run.strokePostToLineRatio,
+        strokeSustainToLineRatio: run.strokeSustainToLineRatio,
+        strokeTailToMinStrokeRatio: run.strokeTailToMinStrokeRatio,
+        strokePostToMinStrokeRatio: run.strokePostToMinStrokeRatio,
+        doubleTriggerRiskCount: run.doubleTriggerRiskCount,
+        doubleTriggerRiskReason: run.doubleTriggerRiskReason,
         clickMedian: run.clickMedian,
         maxClickAfterFirst: run.maxClickAfterFirst,
         clickDetectedCount: run.clickDetectedCount,
@@ -19936,6 +19955,9 @@ function earphoneLeakSwitchToNormal() {
 const TEST_CLICK_INTERVAL_MS = 600;               // クリック音テストの間隔（四分・100BPM相当）
 const TEST_NOTE_MS = TEST_CLICK_INTERVAL_MS;      // ストローク間隔＝600ms（1拍ごと＝4分）
 const TEST_NOTE_WIN = 200;    // 判定窓 ±ms（最大入力を記録する範囲・4分なので広め）
+/* v0.11.76：イヤホン余韻診断ログ用。判定窓を出た直後「ストローク余韻(tail)」とみなす長さ(ms)。
+   計測・ログ専用で、判定ライン・cooldown・推奨値・Practice判定には一切使わない。 */
+const HP_TAIL_MS = 150;
 /* カウントイン：4分で4回（1 2 3 4）。最後の4の1拍後に最初の音符が判定ラインに来る。 */
 const TEST_COUNTIN_BEEPS = 4;
 const TEST_COUNTIN_START = 500; // 最初のビープまでの小休止(ms)
@@ -20054,6 +20076,7 @@ function beginStrokePhase() {
     updateMicTestDoNow();
     test.strokePeaks = []; test.strokeDownPeaks = []; test.strokeUpPeaks = [];
     test.strokePeriodPeaks = []; test.strokePeriodBeatPeaks = [];
+    test.hpPeriodPeaks = []; test.hpTailPeaks = []; test.hpPostPeaks = []; // v0.11.76：イヤホン余韻診断ログ専用
     test.strokeAboveMs = [];
     test.strokeChordDiag = []; test.chordWave = [];
     test.strokeDetected = 0; test.strokeDoubleCount = 0;
@@ -20976,6 +20999,35 @@ function updateReco() {
         ? Math.max(1, Math.min(100, Math.floor(safeClickPeak88 / wouldPeakPerPctForReco)))
         : null;
 
+    // ── v0.11.76：イヤホン余韻/二重反応リスクの診断ログ（全イヤホン共通・計測のみ。recommendedThreshold/threshold/cooldown/clickVolume・Practice判定は不変）──
+    //    ストローク余韻(tail)・ストローク間(post)・区間全体(period)の生ピークと、反応ライン超過時間から、16分/32分で二重反応しそうかを比較する。
+    const headphoneSustainDiagnosticsEnabled = isHeadphoneInput();
+    const hpDiagMaxOf = (arr) => (arr && arr.length) ? Math.max(...arr) : 0;
+    const strokePeriodPeaks = (test.hpPeriodPeaks || []).map((v) => +v.toFixed(3));
+    const strokeTailPeaks = (test.hpTailPeaks || []).map((v) => +v.toFixed(3));
+    const strokePostPeaks = (test.hpPostPeaks || []).map((v) => +v.toFixed(3));
+    const hpTailMax = hpDiagMaxOf(test.hpTailPeaks);
+    const hpPostMax = hpDiagMaxOf(test.hpPostPeaks);
+    const hpPeriodMax = hpDiagMaxOf(test.hpPeriodPeaks);
+    const strokeAboveDurationsMs = (test.strokeAboveMs || []).filter((v) => v > 0).map((v) => Math.round(v)).sort((a, b) => a - b);
+    const strokeAboveMedianMs = test.strokeAboveMedian != null ? Math.round(test.strokeAboveMedian) : null;
+    const strokeAboveMaxMs = strokeAboveDurationsMs.length ? Math.max(...strokeAboveDurationsMs) : null;
+    const hpDiagLine = effectiveRecommendedThreshold; // 適用後の実効反応ライン相当（診断用・線そのものは変更しない）
+    const strokeTailToLineRatio = ratioTo(hpTailMax, hpDiagLine);
+    const strokePostToLineRatio = ratioTo(hpPostMax, hpDiagLine);
+    const strokeSustainToLineRatio = ratioTo(hpPeriodMax, hpDiagLine);
+    const strokeTailToMinStrokeRatio = ratioTo(hpTailMax, minStroke);
+    const strokePostToMinStrokeRatio = ratioTo(hpPostMax, minStroke);
+    // 二重反応リスク：実測オンセット由来の二重反応数 + 「ライン超過時間が二重反応防止(cooldown)を超える / 余韻・ストローク間がラインを超える」を理由として併記（ログのみ）。
+    const hpDiagCooldownMs = (test.recoCooldown != null) ? test.recoCooldown : mic.cooldownMs;
+    const doubleTriggerRiskCount = test.strokeDoubleCount || 0;
+    const doubleTriggerRiskReasons = [];
+    if (doubleTriggerRiskCount > 0) doubleTriggerRiskReasons.push('onsets>=2');
+    if (strokeAboveMaxMs != null && hpDiagCooldownMs > 0 && strokeAboveMaxMs > hpDiagCooldownMs) doubleTriggerRiskReasons.push('above-exceeds-cooldown');
+    if (strokeTailToLineRatio != null && strokeTailToLineRatio >= 1) doubleTriggerRiskReasons.push('tail-above-line');
+    if (strokePostToLineRatio != null && strokePostToLineRatio >= 1) doubleTriggerRiskReasons.push('post-above-line');
+    const doubleTriggerRiskReason = doubleTriggerRiskReasons.length ? doubleTriggerRiskReasons.join(',') : 'none';
+
     completeMicTestRunDebug({
         clickMeasureVol: test.clickMeasureVol,
         resultClickVolume: state.clickVolume,
@@ -20998,6 +21050,21 @@ function updateReco() {
         wouldUseDelayedPeakForReco,
         wouldPeakPerPctForReco,
         wouldRecoVolIfDelayedPeakUsed,
+        // v0.11.76：イヤホン余韻/二重反応リスク診断（全イヤホン共通・計測のみ）
+        headphoneSustainDiagnosticsEnabled,
+        strokePeriodPeaks,
+        strokeTailPeaks,
+        strokePostPeaks,
+        strokeAboveDurationsMs,
+        strokeAboveMedianMs,
+        strokeAboveMaxMs,
+        strokeTailToLineRatio,
+        strokePostToLineRatio,
+        strokeSustainToLineRatio,
+        strokeTailToMinStrokeRatio,
+        strokePostToMinStrokeRatio,
+        doubleTriggerRiskCount,
+        doubleTriggerRiskReason,
         clickMedian,
         maxClickAfterFirst: (test.clickPeaks || []).length > 1 ? Math.max(...test.clickPeaks.slice(1)) : null,
         clickDetectedCount,
@@ -21567,6 +21634,25 @@ function micLoop() {
                 const idx = Math.round((strokeT - TEST_LEAD_MS) / TEST_NOTE_MS);
                 if (idx >= 0 && idx < test.strokePeriodBeatPeaks.length) {
                     test.strokePeriodBeatPeaks[idx] = Math.max(test.strokePeriodBeatPeaks[idx] || 0, peak);
+                }
+            }
+        }
+        // v0.11.76：イヤホン余韻/二重反応リスクの診断ログ（全イヤホン共通・計測のみ。判定/推奨/cooldown/Practiceには未使用）。
+        //   ストローク区間を near(判定窓内＝本体) / tail(窓直後の余韻) / post(次ストローク手前のストローク間) に分けて生ピークを蓄積し、
+        //   iPhone有線 / Android有線 / Bluetooth を同じ指標で比較できるようにする。BT専用の strokePeriodPeaks には影響しない。
+        if (isHeadphoneInput() && test.mode === 'stroke' && test.flowStart && test.notes && test.notes.length) {
+            const strokeT = now - test.flowStart;
+            const lastNoteT = test.notes[test.notes.length - 1].t;
+            if (strokeT >= TEST_LEAD_MS - TEST_NOTE_WIN && strokeT <= lastNoteT + TEST_NOTE_WIN + 450) {
+                test.hpPeriodPeaks.push(peak);
+                const period = TEST_NOTE_MS;
+                const phase = (((strokeT - TEST_LEAD_MS) % period) + period) % period; // 0=ノート中心、period手前=次ノート直前
+                if (phase <= TEST_NOTE_WIN || phase >= period - TEST_NOTE_WIN) {
+                    // 判定窓内（本体・前後ノート中心付近）— 本体ピークは既存 curPeak が記録するため蓄積しない
+                } else if (phase <= TEST_NOTE_WIN + HP_TAIL_MS) {
+                    test.hpTailPeaks.push(peak);   // 直後の余韻(tail)
+                } else {
+                    test.hpPostPeaks.push(peak);   // ストローク間(post)
                 }
             }
         }
