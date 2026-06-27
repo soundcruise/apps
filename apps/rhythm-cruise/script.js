@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.69';
+const RHYTHM_CRUISE_VERSION = '0.11.70';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14128,23 +14128,36 @@ function isAndroidNormalMicFlow() {
 }
 
 function freshFinalCheckClickDebug(originalVolume, usedVolume) {
-    const saved = Number(mic.androidBuiltinMicOffsetMs);
-    const delayedGuardMs = Number.isFinite(saved) && saved < 0 ? Math.min(800, Math.max(0, -saved)) : 0;
-    return {
-        inputType: getMicInputType(),
-        selectedTestPlatform,
-        androidDevice: !!androidAudioProbeDeviceInfo().isAndroid,
-        originalClickVolume: originalVolume,
-        usedClickVolume: usedVolume,
-        threshold: mic.threshold,
-        detectThreshold: ptDetectionThreshold(),
-        clickPeakGain: clickPeakGain(),
-        clickGuardMs: mic.clickGuardMs,
-        delayedClickGuardMs,
-        maxNearClickPeak: 0,
-        maxDelayedClickPeak: 0,
-        maxPeakOverThresholdNearClick: 0,
-    };
+    try {
+        const saved = Number(mic.androidBuiltinMicOffsetMs);
+        const delayedGuardMs = Number.isFinite(saved) && saved < 0 ? Math.min(800, Math.max(0, -saved)) : 0;
+        return {
+            inputType: getMicInputType(),
+            selectedTestPlatform,
+            androidDevice: !!androidAudioProbeDeviceInfo().isAndroid,
+            originalClickVolume: originalVolume,
+            usedClickVolume: usedVolume,
+            threshold: mic.threshold,
+            detectThreshold: ptDetectionThreshold(),
+            clickPeakGain: clickPeakGain(),
+            clickGuardMs: mic.clickGuardMs,
+            delayedClickGuardMs: delayedGuardMs,
+            maxNearClickPeak: 0,
+            maxDelayedClickPeak: 0,
+            maxPeakOverThresholdNearClick: 0,
+        };
+    } catch (err) {
+        recordCorrectionFlowError(err, 'freshFinalCheckClickDebug');
+        return {
+            originalClickVolume: originalVolume,
+            usedClickVolume: usedVolume,
+            delayedClickGuardMs: null,
+            debugError: errorForCorrectionFlowLog(err),
+            maxNearClickPeak: 0,
+            maxDelayedClickPeak: 0,
+            maxPeakOverThresholdNearClick: 0,
+        };
+    }
 }
 
 function updateFinalCheckClickDebug(now, peak, threshold) {
