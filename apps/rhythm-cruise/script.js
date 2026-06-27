@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.79';
+const RHYTHM_CRUISE_VERSION = '0.11.80';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13453,6 +13453,17 @@ function shouldKeepAndroidHeadphoneLatencyAfterMicTest() {
     }
     return false;
 }
+/* v0.11.80：Android Bluetooth は v0.11.79 で correction（イヤホン音ズレの画面補正）を test（マイク反応テスト）の前へ移した。
+   マイク反応テストの適用/やり直しで correctionDone を落とすと、test 後に「完了済みの画面補正」へ戻ってしまう。
+   現在フローで correction が test より前にある（＝上流の完了ステップ）Android BT の場合は correctionDone を維持する。
+   iPhone BT（test→…→correction の後置き）や他フローは対象外（correction は test より後なので従来どおりリセット）。
+   画面補正値・判定・感度・閾値ロジックには一切影響しない（ウィザード完了フラグの維持のみ）。 */
+function shouldKeepBtCorrectionAfterMicTest() {
+    if (!useAndroidLatencyFirstFlow() || !isBluetoothHeadphone()) return false;
+    const steps = wizardSteps();
+    const ci = steps.indexOf('correction'), ti = steps.indexOf('test');
+    return ci >= 0 && ti >= 0 && ci < ti;
+}
 async function runAndroidAudioCheck(options) {
     const fromWizard = !!(options && options.fromWizard);
     androidCheckFromWizard = fromWizard;
@@ -15031,9 +15042,10 @@ function bindPracticeResultActions() {
 function practiceFixGoTo(route) {
     invalidatePracticeResult(); // 古い結果を消し、完了ボタンも無効へ
     if (route === 'test') {
-        // 反応ラインからやり直す：補正系以降は未完了に戻す
+        // 反応ラインからやり直す：補正系以降（test より後の補正）は未完了に戻す。
+        // correction が test より前にある上流ステップ（Android通常マイク／v0.11.80以降のAndroid BT）は維持する。
         setupProgress.recoApplied = false;
-        if (!shouldKeepAndroidBuiltinLatencyAfterMicTest()) setupProgress.correctionDone = false;
+        if (!shouldKeepAndroidBuiltinLatencyAfterMicTest() && !shouldKeepBtCorrectionAfterMicTest()) setupProgress.correctionDone = false;
         wizardEditing = 'test';
         if (settingsView !== 'steps') settingsView = 'steps';
         renderSettingsView();
@@ -21309,8 +21321,9 @@ function applyReco() {
     // v0.9.61〜：反応ラインを適用できたら、次のステップ（補正系だけ）を表示
     if (result.lineChanged) {
         setupProgress.recoApplied = true;
-        // テストをやり直して適用したら、補正系以降は未完了へ戻す
-        if (!shouldKeepAndroidBuiltinLatencyAfterMicTest()) setupProgress.correctionDone = false;
+        // テストをやり直して適用したら、補正系以降（test より後の補正）は未完了へ戻す。
+        // ただし correction が test より前にある上流ステップ（Android通常マイク／v0.11.80以降のAndroid BT）は維持する。
+        if (!shouldKeepAndroidBuiltinLatencyAfterMicTest() && !shouldKeepBtCorrectionAfterMicTest()) setupProgress.correctionDone = false;
         // 反応ラインが変わったので前回の実践テスト結果は無効化する
         invalidatePracticeResult();
         wizardEditing = null;
