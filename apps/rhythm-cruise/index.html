@@ -762,9 +762,21 @@
             <!-- ステップ式：完了した項目の要約（タップで選び直し）。JSで描画 -->
             <div id="settings-steps-summary" style="display:none;"></div>
 
+            <!-- 端末選択（v0.11.56：補正テストウィザードの最初のステップ。UIモード選択のみ） -->
+            <div class="settings-card platform-type-card" id="platform-type-card">
+                <div class="cal-head">端末</div>
+                <p class="do-now">端末を選んでください</p>
+                <div class="input-mode seg-cards" id="wizard-platform-mode">
+                    <button type="button" class="input-seg" id="wizard-platform-ios">iPhone / iPad</button>
+                    <button type="button" class="input-seg" id="wizard-platform-android">Android</button>
+                </div>
+                <p class="setting-note" id="wizard-platform-note">この選択は、補正テストの案内と測定方式を切り替えるためのものです。Practice判定では、端末情報も自動判定します。</p>
+            </div>
+
             <!-- 入力タイプ（通常マイク / イヤホン接続）。テストや補正方式の切替土台 -->
             <div class="settings-card input-type-card" id="input-type-card">
                 <div class="cal-head">入力タイプ</div>
+                <p class="setting-note hidden" id="wizard-flow-platform-note" style="margin-top:0;"></p>
                 <p class="do-now">使うほうを選んでください</p>
                 <p class="setting-note" style="margin:4px 0 8px;font-size:0.8rem;opacity:0.7;">※有線イヤホン 推奨</p>
                 <div class="input-mode seg-cards" id="input-type-mode">
@@ -1426,7 +1438,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.11.55"></script>
+    <script src="script.js?v=0.11.56"></script>
 </body>
 
 </html>

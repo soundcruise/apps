@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.55';
+const RHYTHM_CRUISE_VERSION = '0.11.56';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -1338,6 +1338,11 @@ const els = {
     presetToggleBtn: $('preset-toggle-btn'),
     micPresetCard: $('mic-preset-card'),
     micPresetBack: $('mic-preset-back'),
+    platformTypeCard: $('platform-type-card'),
+    wizardPlatformIos: $('wizard-platform-ios'),
+    wizardPlatformAndroid: $('wizard-platform-android'),
+    wizardPlatformNote: $('wizard-platform-note'),
+    wizardFlowPlatformNote: $('wizard-flow-platform-note'),
     inputTypeCard: $('input-type-card'),
     strokeModeCard: $('stroke-mode-card'),
     manualCard: $('manual-card'),
@@ -14572,6 +14577,7 @@ function practiceFixGoTo(route) {
 function calibrationRetestMicLine() {
     cancelCalibration();
     setMicInputType('normal');
+    setupProgress.platformChosen = true;
     setupProgress.inputChosen = true;
     setupProgress.strokeChosen = true; // 既に選んだストローク種別は維持
     setupProgress.recoApplied = false;
@@ -16320,7 +16326,7 @@ let presetModalMode = 'mic';
    correctionDone（補正系完了：適用 or スキップ or 進む）を追加。 */
 function freshSetupProgress() {
     return {
-        inputChosen: false, hpChosen: false, strokeChosen: false,
+        platformChosen: false, inputChosen: false, hpChosen: false, strokeChosen: false,
         recoApplied: false, correctionDone: false, btDelayDone: false, practiceDone: false, manualForced: false,
     };
 }
@@ -16379,13 +16385,10 @@ function escapeHtml(t) {
 }
 
 /* ── ウィザードのステップ定義 ───────────────────────────────
-   input(=入力タイプ＋イヤホン種類) → test → イヤホン時はbtdelay → correction → practice → final。 */
+   platform → input(=入力タイプ＋イヤホン種類) → test → イヤホン時はbtdelay → correction → practice → final。 */
 function wizardSteps() {
-    // 入力タイプ別にステップを動的に組み立てる（v0.9.89）。
-    // 通常マイク：input → stroke → test → correction(マイクの遅れ補正) → practice → final
-    // 有線イヤホン：input → hptype → stroke → test → practice → final（音ズレ補正は出さない）
-    // Bluetooth：input → hptype → test → btdelay(クリック音入力) → correction(画面補正) → practice → final
-    const steps = ['input'];
+    // v0.11.56：補正テスト開始後、最初に iOS/Android を選ぶ（UIモード選択のみ。Practice判定は端末自動判定）。
+    const steps = ['platform', 'input'];
     if (isHeadphoneInput()) steps.push('hptype');
     // v0.10.20：ストローク検出モード（ブラッシング/コード）のユーザー選択ステップは廃止。
     //   新ストローク＝旧ブラッシング固定のため、'stroke' ステップは出さない（カードも非表示）。
@@ -16402,6 +16405,7 @@ function wizardSteps() {
 }
 function wizardStepComplete(id) {
     switch (id) {
+        case 'platform': return setupProgress.platformChosen;
         case 'input': return setupProgress.inputChosen;
         case 'hptype': return setupProgress.hpChosen;
         case 'stroke': return setupProgress.strokeChosen;
@@ -16423,6 +16427,7 @@ function activeWizardStep() {
 /* そのステップで表示するカード（補正系は入力タイプ/イヤホン種類で出し分け） */
 function wizardStepCards(id) {
     switch (id) {
+        case 'platform': return [els.platformTypeCard];
         case 'input': return [els.inputTypeCard];
         case 'hptype': return [els.hpTypeCard];
         case 'stroke': return [els.strokeModeCard];
@@ -16437,13 +16442,15 @@ function wizardStepCards(id) {
     }
 }
 function allStepCards() {
-    return [els.inputTypeCard, els.hpTypeCard, els.strokeModeCard, els.testCard, els.calCard, els.hpCalCard,
+    return [els.platformTypeCard, els.inputTypeCard, els.hpTypeCard, els.strokeModeCard, els.testCard, els.calCard, els.hpCalCard,
     els.correctionWiredNote, els.btCalCard, els.ptCard, els.manualCard];
 }
 
 /* 完了済みステップの要約テキスト */
 function wizardStepSummary(id) {
     switch (id) {
+        case 'platform':
+            return selectedTestPlatform === 'android' ? '端末：Android' : (selectedTestPlatform === 'ios' ? '端末：iPhone / iPad' : '端末：未選択');
         case 'input': {
             if (!isHeadphoneInput()) return '入力タイプ：通常マイク';
             return '入力タイプ：イヤホン接続';
@@ -16472,6 +16479,9 @@ function wizardStepSummary(id) {
 /* セグメントボタンの点灯：ステップ開始直後（未選択）は両方とも消灯にする */
 function refreshSegmentSelections() {
     const steps = (settingsView === 'steps');
+    const showPlatform = !(steps && !setupProgress.platformChosen);
+    if (els.wizardPlatformIos) els.wizardPlatformIos.classList.toggle('is-active', showPlatform && selectedTestPlatform === 'ios');
+    if (els.wizardPlatformAndroid) els.wizardPlatformAndroid.classList.toggle('is-active', showPlatform && selectedTestPlatform === 'android');
     const t = getMicInputType();
     const showInput = !(steps && !setupProgress.inputChosen);
     if (els.inputTypeNormal) els.inputTypeNormal.classList.toggle('is-active', showInput && t === 'normal');
@@ -16975,6 +16985,7 @@ function renderWizardSteps() {
     if (active === 'final') captureManualSnapshot();
     renderStepProgress(active);
     renderStepSummaries(active);
+    updateWizardFlowPlatformNotes();
     if (els.ptOpenManual) els.ptOpenManual.style.display = (active === 'practice') ? '' : 'none';
     // v0.9.160：最終確認テストカードでは、Bluetoothイヤホン時だけ「マイク反応テストをやり直す」を出す
     //   （波形がラインに届かないときの測り直し導線）。通常マイク/有線では出さない。
@@ -17004,7 +17015,7 @@ function renderWizardSteps() {
 
 /* ステップ現在地：「ステップ X / N」＋ドット。WIZARD_STEPS の並びから算出。 */
 const WIZARD_STEP_LABELS = {
-    input: '入力タイプ', hptype: 'イヤホン種類', stroke: 'ストローク', test: 'マイク反応テスト',
+    platform: '端末', input: '入力タイプ', hptype: 'イヤホン種類', stroke: 'ストローク', test: 'マイク反応テスト',
     correction: '補正', btdelay: 'クリック音入力テスト', practice: '最終確認テスト', final: '手動設定・保存',
 };
 /* ステップ見出し（correction は入力タイプで意味が変わるので動的に出す・v0.9.89） */
@@ -17224,16 +17235,21 @@ function resetSetupFlowDisplay() {
 function startRetestFlow(jumpToTest) {
     beginMicSetupDraft();
     resetSetupFlowDisplay();
+    selectedTestPlatform = null; // v0.11.56：補正テストは端末選択ステップから開始
     setupProgress = freshSetupProgress();
     wizardEditing = null;
     if (jumpToTest) {
+        setupProgress.platformChosen = true;
+        selectedTestPlatform = androidAudioProbeDeviceInfo().isAndroid ? 'android' : 'ios';
         setupProgress.inputChosen = true;
         setupProgress.hpChosen = true;
         setupProgress.strokeChosen = true;
     }
     settingsView = 'steps';
+    updateWizardFlowPlatformNotes();
     renderSettingsView();
-    const target = jumpToTest ? els.testCard : els.inputTypeCard;
+    updatePlatformChoiceUI();
+    const target = jumpToTest ? els.testCard : els.platformTypeCard;
     scrollToSettingsEl(target);
 }
 
@@ -17427,7 +17443,37 @@ function applyEarphoneClickVolumeDefault() {
     saveSettings();
 }
 
+function updateWizardFlowPlatformNotes() {
+    const msg = selectedTestPlatform === 'android'
+        ? 'Android向けの補正テストを行います。'
+        : (selectedTestPlatform === 'ios' ? 'iPhone / iPad向けの補正テストを行います。' : '');
+    if (els.wizardFlowPlatformNote) {
+        els.wizardFlowPlatformNote.textContent = msg;
+        els.wizardFlowPlatformNote.classList.toggle('hidden', !msg);
+    }
+}
+/* v0.11.56：補正テストウィザード内の端末選択（UIモードのみ。Practice判定は端末自動判定のまま）。 */
+function onPickWizardPlatform(platform) {
+    selectedTestPlatform = platform;
+    setupProgress.platformChosen = true;
+    wizardEditing = null;
+    updatePlatformChoiceUI();
+    updateWizardFlowPlatformNotes();
+    if (settingsView === 'steps') {
+        renderSettingsView();
+        scrollToSettingsEl(els.inputTypeCard);
+    }
+}
+function ensureWizardPlatformChosenForMidFlow() {
+    if (!setupProgress.platformChosen) {
+        setupProgress.platformChosen = true;
+        if (!selectedTestPlatform) selectedTestPlatform = androidAudioProbeDeviceInfo().isAndroid ? 'android' : 'ios';
+        updateWizardFlowPlatformNotes();
+    }
+}
+
 function onPickInputType(type) {
+    if (settingsView === 'steps' && !setupProgress.platformChosen) return;
     const next = (type === 'headphone') ? 'headphone' : 'normal';
     const changed = (getMicInputType() !== next);
     // v0.9.153：切替前の設定を入力タイプ別プロファイルへ退避し、切替後はその種類の設定を復元する。
@@ -18179,6 +18225,7 @@ function resumeClickInputFromHelp() {
     try { history.replaceState(null, '', url.pathname + (url.search ? url.search : '') + (url.hash || '')); } catch (_) { /* noop */ }
     openSettings('home');
     if (!isHeadphoneInput()) return;
+    setupProgress.platformChosen = true;
     setupProgress.inputChosen = true;
     setupProgress.hpChosen = true;
     setupProgress.recoApplied = true;
@@ -19298,6 +19345,7 @@ function earphoneLeakSwitchToNormal() {
     storeActiveMicProfile(prevKey);
     setMicInputType('normal');
     restoreMicProfileForCurrent(prevKey);
+    ensureWizardPlatformChosenForMidFlow();
     setupProgress.inputChosen = true;
     setupProgress.strokeChosen = true; // ストローク検出モードの選択は引き継ぐ
     setupProgress.recoApplied = false;
@@ -22075,6 +22123,8 @@ function bind() {
     // 入力タイプ（通常マイク / イヤホン接続）：選んだら自動で次へ
     if (els.inputTypeNormal) els.inputTypeNormal.addEventListener('click', () => onPickInputType('normal'));
     if (els.inputTypeHeadphone) els.inputTypeHeadphone.addEventListener('click', () => onPickInputType('headphone'));
+    if (els.wizardPlatformIos) els.wizardPlatformIos.addEventListener('click', () => onPickWizardPlatform('ios'));
+    if (els.wizardPlatformAndroid) els.wizardPlatformAndroid.addEventListener('click', () => onPickWizardPlatform('android'));
     if (els.platformIos) els.platformIos.addEventListener('click', () => selectTestPlatform('ios'));
     if (els.platformAndroid) els.platformAndroid.addEventListener('click', () => selectTestPlatform('android'));
     if (els.androidInputNormal) els.androidInputNormal.addEventListener('click', () => onPickInputType('normal'));
