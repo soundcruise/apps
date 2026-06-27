@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.92';
+const RHYTHM_CRUISE_VERSION = '0.11.93';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13348,7 +13348,8 @@ function androidLatencyResultLogText(run) {
     add('detected', run && run.events ? run.events.filter((e) => e.detected).length : null, '  ');
     add('summary', run && run.summary ? run.summary.map((s) => ({
         soundId: s.soundId, detectedCount: s.detectedCount, peakMedian: s.peakMedian,
-        offsetMedianMs: s.offsetMedianMs, offsetRangeMs: s.offsetRangeMs, stableEnoughGuess: s.stableEnoughGuess
+        offsetMedianMs: s.offsetMedianMs, offsetRangeMs: s.offsetRangeMs,
+        peakToNoiseMedian: s.peakToNoiseMedian, stableEnoughGuess: s.stableEnoughGuess
     })) : null, '  ');
     lines.push('');
     lines.push('candidate:');
@@ -13364,9 +13365,28 @@ function androidLatencyResultLogText(run) {
     ['test1', 'test2', 'test3'].forEach((key) => {
         const row = segments[key] || {};
         lines.push(key + ':');
-        ['label', 'durationMs', 'detected', 'maxPeak', 'avgPeak', 'candidateMs', 'stability', 'usable', 'failReason'].forEach((field) => add(field, row[field], '  '));
+        ['label', 'durationMs', 'detected', 'maxPeak', 'avgPeak', 'candidateMs', 'deltaFromOverallMs', 'stability', 'usable', 'failReason'].forEach((field) => add(field, row[field], '  '));
+        // v0.11.93：soundId 別 items（どの音が効いているか・区間stability膨張の原因可視化）。
+        const items = row.items || [];
+        if (items.length) {
+            lines.push('  items:');
+            items.forEach((it) => {
+                lines.push('    - soundId: ' + val(it.soundId));
+                ['detectedCount', 'peakMedian', 'peakToNoiseMedian', 'offsetMedianMs', 'offsetRangeMs', 'stableEnoughGuess', 'usableForSegment'].forEach((f) => add(f, it[f], '      '));
+            });
+        }
     });
     lines.push('');
+    // v0.11.93：短縮シミュレーション（表示専用・正式採用ではない）。
+    const sim = debug && debug.shortenSimulation || [];
+    if (sim.length) {
+        lines.push('shortenSimulation:');
+        sim.forEach((sc) => {
+            lines.push('  - id: ' + val(sc.id));
+            ['label', 'eventCount', 'candidateMs', 'deltaFromOverallMs', 'isReadyToSave', 'reason'].forEach((f) => add(f, sc[f], '    '));
+        });
+        lines.push('');
+    }
     lines.push('overall:');
     const overall = debug && debug.overall || {};
     ['candidateMs', 'detected', 'stability', 'selectedSource', 'canShortenEstimate'].forEach((field) => add(field, overall[field], '  '));
@@ -13615,8 +13635,29 @@ function androidLatencySegmentCandidate(run, events, kind) {
     if (kind === 'wired') return buildAndroidWiredCandidate(segRun);
     return null;
 }
-function androidLatencySegmentRow(run, key, label, events, kind) {
+/* v0.11.93：区間内の soundId 別 items（表示専用・短縮判断ログ）。
+   既存 androidCheckStats を再利用し、どの音が効いているかを見えるようにする。
+   usableForSegment は表示専用ヒューリスティックで、既存 ANDROID_CORR 定数に揃える（正式採用判定ではない）。 */
+function androidLatencySegmentItems(events) {
+    const r6 = (v) => v == null ? null : Math.round(v * 1e6) / 1e6;
     const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
+    return androidCheckStats(events || []).map((s) => ({
+        soundId: s.soundId,
+        detectedCount: s.detectedCount,
+        peakMedian: r6(s.peakMedian),
+        peakToNoiseMedian: r6(s.peakToNoiseMedian),
+        offsetMedianMs: r1(s.offsetMedianMs),
+        offsetRangeMs: r1(s.offsetRangeMs),
+        stableEnoughGuess: s.stableEnoughGuess,
+        usableForSegment: s.stableEnoughGuess === true
+            && (s.peakToNoiseMedian || 0) >= ANDROID_CORR_MIN_PEAK_TO_NOISE
+            && s.offsetRangeMs != null && s.offsetRangeMs <= ANDROID_CORR_MAX_TRIMMED_RANGE_MS,
+    }));
+}
+function androidLatencySegmentRow(run, key, label, events, kind, overallCandidate) {
+    const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
+    // v0.11.93：BTの微小ピーク（0.005〜0.012）が1桁丸めで0に潰れないよう、表示専用に小数6桁を保持する。
+    const r6 = (v) => v == null ? null : Math.round(v * 1e6) / 1e6;
     const peaks = events.map((e) => Number(e.normalWindowMaxPeak || 0)).filter(Number.isFinite);
     const offsets = events.map((e) => Number(e.normalWindowPeakOffsetMs)).filter(Number.isFinite);
     const candidate = androidLatencySegmentCandidate(run, events, kind);
@@ -13624,18 +13665,56 @@ function androidLatencySegmentRow(run, key, label, events, kind) {
         ? r1((Math.max(...events.map((e) => e.scheduledAtPerformanceTime || 0)) - Math.min(...events.map((e) => e.scheduledAtPerformanceTime || 0))) + 1250)
         : 0;
     const stability = offsets.length >= 2 ? r1(Math.max(...offsets) - Math.min(...offsets)) : null;
+    const candidateMs = candidate && candidate.measurementDelayMs != null ? r1(candidate.measurementDelayMs) : null;
+    const overallMs = overallCandidate && overallCandidate.measurementDelayMs != null ? overallCandidate.measurementDelayMs : null;
     return {
         key, label, durationMs,
         eventCount: events.length,
         detected: events.filter((e) => e.detected).length,
-        maxPeak: peaks.length ? r1(Math.max(...peaks)) : 0,
-        avgPeak: peaks.length ? r1(peaks.reduce((a, b) => a + b, 0) / peaks.length) : 0,
-        candidateMs: candidate && candidate.measurementDelayMs != null ? r1(candidate.measurementDelayMs) : null,
+        // v0.11.93：小数6桁（表示専用）。測定・保存・候補計算には使わない。
+        maxPeak: peaks.length ? r6(Math.max(...peaks)) : 0,
+        avgPeak: peaks.length ? r6(peaks.reduce((a, b) => a + b, 0) / peaks.length) : 0,
+        candidateMs,
         saveOffsetMs: candidate && candidate.saveOffsetMs != null ? r1(candidate.saveOffsetMs) : null,
+        // v0.11.93：区間候補と overall 候補の差（表示専用）。overall が無ければ null。
+        deltaFromOverallMs: (candidateMs != null && overallMs != null) ? r1(candidateMs - overallMs) : null,
         stability,
         usable: !!(candidate && candidate.isReadyToSave),
+        usableForSegment: !!(candidate && candidate.isReadyToSave),
         failReason: candidate && !candidate.isReadyToSave ? candidate.reason : (events.length ? null : '対象イベントなし'),
+        // v0.11.93：soundId 別の効き具合（区間 stability が混在外れ値で膨らむ原因を可視化）。
+        items: androidLatencySegmentItems(events),
     };
+}
+/* v0.11.93：短縮シミュレーション（表示専用）。
+   既存ログのイベントを部分集合に絞って区間候補ロジック（androidLatencySegmentCandidate）を再実行し、
+   overall 候補との差を出すだけ。正式測定・保存・候補計算・specs には一切影響しない。
+   2連/3連は依然フォールバック昇格していない（これは候補に「なり得るか」を見るログにすぎない）。 */
+function androidLatencyShortenSimulation(run, kind, overallCandidate) {
+    const events = (run && run.events) || [];
+    if (!events.length) return [];
+    const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
+    const overallMs = overallCandidate && overallCandidate.measurementDelayMs != null ? overallCandidate.measurementDelayMs : null;
+    const scenarios = kind === 'bluetooth' ? [
+        { id: 'short-noise-only', label: '短いノイズ集中のみ', filter: (e) => e.soundId === 'short-noise-focused-test' },
+        { id: 'double-triple-only', label: '2連+3連のみ', filter: (e) => e.soundId === 'double-noise-pattern' || e.soundId === 'triple-noise-pattern' },
+        { id: 'noise-family', label: 'ノイズ系（短ノイズ+2連+3連）', filter: (e) => e.soundId === 'short-noise-focused-test' || e.soundId === 'double-noise-pattern' || e.soundId === 'triple-noise-pattern' },
+    ] : kind === 'normal' ? [
+        { id: 'test2-click-tone', label: 'クリック・単音のみ', filter: (e) => e.soundId === 'current-click' || e.soundId === 'tone-1500' || e.soundId === 'tone-2000' },
+        { id: 'click-tone-noise', label: 'クリック・単音+ノイズ', filter: (e) => e.soundId === 'current-click' || e.soundId === 'tone-1500' || e.soundId === 'tone-2000' || e.soundId === 'noise' },
+    ] : [];
+    return scenarios.map((sc) => {
+        const subset = events.filter(sc.filter);
+        const cand = subset.length ? androidLatencySegmentCandidate(run, subset, kind) : null;
+        const ms = cand && cand.measurementDelayMs != null ? r1(cand.measurementDelayMs) : null;
+        return {
+            id: sc.id, label: sc.label, eventCount: subset.length,
+            candidateMs: ms,
+            deltaFromOverallMs: (ms != null && overallMs != null) ? r1(ms - overallMs) : null,
+            isReadyToSave: !!(cand && cand.isReadyToSave),
+            reason: cand ? cand.reason : null,
+        };
+    });
 }
 function buildAndroidLatencySegmentDebug(run) {
     const events = (run && run.events || []).slice();
@@ -13650,19 +13729,43 @@ function buildAndroidLatencySegmentDebug(run) {
         { key: 'test2', label: '中盤 / クリック・単音', events: by((e) => e.soundId === 'current-click' || e.soundId === 'tone-1500' || e.soundId === 'tone-2000') },
         { key: 'test3', label: '後半 / ノイズ音', events: by((e) => e.soundId === 'noise') },
     ];
-    const rows = segments.map((s) => androidLatencySegmentRow(run, s.key, s.label, s.events, kind));
+    // v0.11.93：overall 候補を先に算出し、各区間の deltaFromOverallMs に渡す（表示専用）。
     const overallCandidate = androidLatencyCandidateForRun(run);
+    const rows = segments.map((s) => androidLatencySegmentRow(run, s.key, s.label, s.events, kind, overallCandidate));
     const detected = events.filter((e) => e.detected).length;
     const stableRows = rows.filter((r) => r.usable);
-    let shortenHint = '区間別ログを確認してください';
-    if (!events.length || rows.every((r) => r.maxPeak < ANDROID_CHECK_LIVE_THRESHOLD * 0.7)) shortenHint = '音量不足のため短縮判断はできません';
-    else if (kind === 'bluetooth' && rows[2] && rows[2].usable) shortenHint = '後半の2連/3連区間だけでも候補が安定している可能性があります';
-    else if (kind === 'bluetooth' && rows[1] && rows[1].usable) shortenHint = '中盤の短いノイズ集中区間が候補に効いている可能性があります';
-    else if (stableRows.length) shortenHint = '一部区間だけでも候補が出ています。全体結果との差を比較してください';
-    else shortenHint = '区間単独では検出または安定度が不足しています';
+    // v0.11.93：音量不足判定は丸め前（小数6桁の maxPeak）で行う。以前は1桁丸めで0になりBT全件が誤って音量不足になっていた。
+    const lowVolume = !events.length || rows.every((r) => (r.maxPeak || 0) < ANDROID_CHECK_LIVE_THRESHOLD * 0.7);
+    const shortenSimulation = androidLatencyShortenSimulation(run, kind, overallCandidate);
+    let shortenHint;
+    if (lowVolume) {
+        shortenHint = '音量不足のため短縮判断はできません（peakは小数表示。実値が小さいか確認してください）';
+    } else {
+        // v0.11.93：区間ごとの overall 差・保存条件・peakToNoise を踏まえて具体化する。
+        const segHint = [];
+        rows.forEach((r) => {
+            if (r.candidateMs == null) return;
+            const d = r.deltaFromOverallMs;
+            const near = d != null && Math.abs(d) <= 10;
+            const dtxt = d != null ? '（overall差' + d + 'ms）' : '';
+            if (r.usable && near) segHint.push(r.key + 'はoverallに近い保存可能候補' + dtxt + '。短縮候補になりそうです。');
+            else if (r.usable) segHint.push(r.key + 'は保存条件を満たしますがoverallと差があります' + dtxt + '。');
+            else if (near) segHint.push(r.key + 'はoverallに近い候補' + dtxt + 'ですが、保存条件未達のため単独採用は危険です。');
+        });
+        if (kind === 'bluetooth') {
+            segHint.push('Bluetoothはshort-noise/2連/3連系の反応が比較的良好です。');
+            segHint.push('区間stabilityは混在音源（voice系等）の外れ値で大きく見えることがあるため、items（soundId別）とpeakToNoiseを確認してください。');
+        } else if (kind === 'normal' && rows[1] && rows[1].usable) {
+            segHint.push('通常マイクはtest2（クリック・単音）だけでも短縮候補になりそうです。');
+        }
+        shortenHint = segHint.length
+            ? segHint.join(' ')
+            : (stableRows.length ? '一部区間で候補が出ています。items と deltaFromOverallMs を確認してください。' : '区間単独では検出または安定度が不足しています。');
+    }
     return {
         target: kind,
         segments: rows.reduce((acc, row) => { acc[row.key] = row; return acc; }, {}),
+        shortenSimulation,
         overall: {
             candidateMs: overallCandidate && overallCandidate.measurementDelayMs != null ? Math.round(overallCandidate.measurementDelayMs * 10) / 10 : null,
             saveOffsetMs: overallCandidate && overallCandidate.saveOffsetMs != null ? Math.round(overallCandidate.saveOffsetMs * 10) / 10 : null,
