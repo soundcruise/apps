@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.88';
+const RHYTHM_CRUISE_VERSION = '0.11.89';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13334,6 +13334,8 @@ function renderWizardAndroidLatencyResult(run) {
     el.classList.remove('hidden');
     refreshAllAndroidSaveButtons();
     refreshWizardAndroidProceedButtons();
+    const cand = androidLatencyCandidateForRun(run);
+    if (!(cand && cand.isReadyToSave)) setAndroidCheckRunButtonsFailure();
 }
 /* v0.11.59：Android式測定の保存ボタン表示（詳細チェック＋ウィザードを同時更新）。 */
 function androidTestPlatformSelected() {
@@ -13395,15 +13397,16 @@ function refreshWizardAndroidProceedButtons() {
     }
 }
 function updateWizardAndroidBtBlockCopy() {
-    const wired = getHeadphoneType() === 'wired';
     if (els.wizardAndroidBtDesc) {
-        els.wizardAndroidBtDesc.textContent = wired
-            ? 'イヤホンの音をスマホのマイクに近づけて測定します。音量を最大にして、イヤホンをマイクに軽く押し当ててください。'
-            : 'イヤホンの音をスマホのマイクに近づけて測定します。音量を最大にして、イヤホンをマイクに軽く押し当ててください。';
+        els.wizardAndroidBtDesc.textContent = 'イヤホンの音量を最大にして、音が出る部分をスマホのマイクに軽く押し当ててください。';
     }
     if (els.wizardAndroidRunHp) {
         els.wizardAndroidRunHp.textContent = androidCheckMode ? '停止する' : 'テスト開始';
     }
+}
+function setAndroidCheckRunButtonsFailure() {
+    if (els.wizardAndroidRunBuiltin && isNormalMicInput()) els.wizardAndroidRunBuiltin.textContent = 'もう一度テストする';
+    if (els.wizardAndroidRunHp && isHeadphoneInput()) els.wizardAndroidRunHp.textContent = 'もう一度テストする';
 }
 function androidCheckDefaultRunLabel() {
     return 'テスト開始';
@@ -13920,7 +13923,9 @@ function androidCheckLiveStatus() {
     const progress = Math.max(0, Math.min(1, (live.done || 0) / Math.max(1, live.total || 1)));
     const peak = Math.max(0, live.maxPeak || 0);
     if (androidCheckLiveMonitor && !androidCheckMode) {
-        return { kind: '', text: '波形を見ながら、音が大きく入る位置を探してください' };
+        return isNormalMicInput()
+            ? { kind: '', text: 'クリック音をスマホのマイクで確認します。静かな場所で、そのままテストを開始してください。' }
+            : { kind: '', text: '波形を見ながら、音が大きく入る位置を探してください' };
     }
     if (progress < 0.15) return { kind: '', text: '測定中… 音を確認中…' };
     if (live.detected >= Math.max(2, Math.floor((live.done || 0) * 0.28)) || peak >= ANDROID_CHECK_LIVE_THRESHOLD) {
@@ -14122,17 +14127,20 @@ function hpProbeLoop() {
     if (headphoneAudioProbe.manual) headphoneAudioProbe.manual.samples.push(peak);
     headphoneAudioProbe.raf = requestAnimationFrame(hpProbeLoop);
 }
+function hpProbeTestLevel(defaultLevel) {
+    return androidCheckMode ? 0.95 : defaultLevel;
+}
 function hpProbeMakeBuffer(ctx, spec, durationMs) {
     const len = Math.max(1, Math.ceil(ctx.sampleRate * durationMs / 1000)), buffer = ctx.createBuffer(1, len, ctx.sampleRate), data = buffer.getChannelData(0);
     for (let i = 0; i < len; i++) {
         const t = i / ctx.sampleRate, env = Math.pow(1 - i / len, 2);
-        if (spec.soundType === 'voicepop') data[i] = (Math.sin(2*Math.PI*190*t) + .45*Math.sin(2*Math.PI*850*t) + .25*Math.sin(2*Math.PI*1800*t)) / 1.7 * env * .75;
-        else if (spec.soundType === 'chirp') data[i] = Math.sin(2*Math.PI*(300*t + 9000*t*t)) * Math.sin(Math.PI*i/len) * .7;
-        else if (spec.soundType === 'pattern') { const ms = i / ctx.sampleRate * 1000; const ats = spec.patternPulsesMs || [0, 120, 280]; const hit = ats.some((at) => ms >= at && ms < at + 60); const n = (Math.sin((i + 7) * 12.9898) * 43758.5453) % 1; data[i] = hit ? ((n < 0 ? n + 1 : n) * 2 - 1) * .72 : 0; }
-        else if (spec.soundType === 'probe') { const n = (Math.sin((i + 1) * 12.9898) * 43758.5453) % 1; data[i] = ((n < 0 ? n + 1 : n) * 2 - 1) * env * 0.7; }
-        else if (spec.soundType === 'noise') data[i] = (Math.random() * 2 - 1) * env * 0.7;
-        else if (spec.soundType === 'chord') data[i] = PREVIEW_CHORD_FREQS.reduce((sum, f) => sum + Math.sin(2 * Math.PI * f * t), 0) / PREVIEW_CHORD_FREQS.length * env * 0.75;
-        else data[i] = Math.sin(2 * Math.PI * spec.frequencyHz * t) * env * 0.72;
+        if (spec.soundType === 'voicepop') data[i] = (Math.sin(2*Math.PI*190*t) + .45*Math.sin(2*Math.PI*850*t) + .25*Math.sin(2*Math.PI*1800*t)) / 1.7 * env * hpProbeTestLevel(.75);
+        else if (spec.soundType === 'chirp') data[i] = Math.sin(2*Math.PI*(300*t + 9000*t*t)) * Math.sin(Math.PI*i/len) * hpProbeTestLevel(.7);
+        else if (spec.soundType === 'pattern') { const ms = i / ctx.sampleRate * 1000; const ats = spec.patternPulsesMs || [0, 120, 280]; const hit = ats.some((at) => ms >= at && ms < at + 60); const n = (Math.sin((i + 7) * 12.9898) * 43758.5453) % 1; data[i] = hit ? ((n < 0 ? n + 1 : n) * 2 - 1) * hpProbeTestLevel(.72) : 0; }
+        else if (spec.soundType === 'probe') { const n = (Math.sin((i + 1) * 12.9898) * 43758.5453) % 1; data[i] = ((n < 0 ? n + 1 : n) * 2 - 1) * env * hpProbeTestLevel(.7); }
+        else if (spec.soundType === 'noise') data[i] = (Math.random() * 2 - 1) * env * hpProbeTestLevel(.7);
+        else if (spec.soundType === 'chord') data[i] = PREVIEW_CHORD_FREQS.reduce((sum, f) => sum + Math.sin(2 * Math.PI * f * t), 0) / PREVIEW_CHORD_FREQS.length * env * hpProbeTestLevel(.75);
+        else data[i] = Math.sin(2 * Math.PI * spec.frequencyHz * t) * env * hpProbeTestLevel(.72);
     }
     return buffer;
 }
@@ -14140,10 +14148,10 @@ function hpProbePlayWebAudio(ctx, spec, durationMs, route) {
     const at = ctx.currentTime + 0.08;
     if (route === 'existing-click') {
         const osc = ctx.createOscillator(), gain = ctx.createGain(); osc.type = 'square'; osc.frequency.value = 1500;
-        gain.gain.setValueAtTime(0.0001, at); gain.gain.exponentialRampToValueAtTime(0.8, at + 0.002); gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.08); osc.connect(gain).connect(ctx.destination); osc.start(at); osc.stop(at + 0.09);
+        gain.gain.setValueAtTime(0.0001, at); gain.gain.exponentialRampToValueAtTime(hpProbeTestLevel(0.8), at + 0.002); gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.08); osc.connect(gain).connect(ctx.destination); osc.start(at); osc.stop(at + 0.09);
     } else if (route === 'oscillator') {
         const osc = ctx.createOscillator(), gain = ctx.createGain(); osc.type = 'sine'; osc.frequency.value = spec.frequencyHz;
-        gain.gain.setValueAtTime(0.0001, at); gain.gain.exponentialRampToValueAtTime(0.75, at + 0.003); gain.gain.exponentialRampToValueAtTime(0.0001, at + durationMs / 1000); osc.connect(gain).connect(ctx.destination); osc.start(at); osc.stop(at + durationMs / 1000 + 0.01);
+        gain.gain.setValueAtTime(0.0001, at); gain.gain.exponentialRampToValueAtTime(hpProbeTestLevel(0.75), at + 0.003); gain.gain.exponentialRampToValueAtTime(0.0001, at + durationMs / 1000); osc.connect(gain).connect(ctx.destination); osc.start(at); osc.stop(at + durationMs / 1000 + 0.01);
     } else {
         const source = ctx.createBufferSource(), gain = ctx.createGain(); source.buffer = hpProbeMakeBuffer(ctx, spec, durationMs); gain.gain.value = 1; source.connect(gain).connect(ctx.destination); source.start(at); source.stop(at + durationMs / 1000 + 0.01);
     }
