@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.56';
+const RHYTHM_CRUISE_VERSION = '0.11.57';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -15153,7 +15153,7 @@ function renderBtCalResult(r) {
         const autoNote = r.autoFineApplied
             ? '<p class="cal-status" style="color:#6ed28c;font-weight:600;margin-top:6px;">最新の平均ズレ（' + avgTxt + '）に合わせて、クリック入力の補正値を ' + sign(r.appliedOffset) + ' に微調整しました。</p>'
             : '';
-        const proceedLabel = isBluetoothHeadphone() ? 'イヤホン音ズレの画面補正へ進む' : '最終確認テストへ進む';
+        const proceedLabel = 'マイク反応テストへ進む';
         if (isBluetoothHeadphone()) {
             head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">判定タイミングのズレは小さめです。次に、クリック音と画面表示の見た目を合わせます。</p>';
         }
@@ -15216,7 +15216,7 @@ function bindBtCalResultActions() {
         if (bt.result) bt.result.cur = v; // 再テスト時の基準にも反映
         const curEl = document.getElementById('bt-cal-cur');
         if (curEl) curEl.textContent = (v > 0 ? '+' : '') + v + 'ms';
-        setBtCalStatus('クリック入力の補正値を ' + (v > 0 ? '+' : '') + v + 'ms に設定しました。そのまま再テスト、または最終確認テストへ進めます。');
+        setBtCalStatus('クリック入力の補正値を ' + (v > 0 ? '+' : '') + v + 'ms に設定しました。そのまま再テスト、またはマイク反応テストへ進めます。');
     });
 }
 
@@ -15253,7 +15253,7 @@ function completeBtCalStep() {
     wizardEditing = null;
     if (settingsView === 'steps') {
         renderSettingsView();
-        scrollToSettingsEl(isBluetoothHeadphone() ? els.hpCalCard : els.ptCard);
+        scrollToActiveWizardStep(els.testCard);
     }
 }
 
@@ -15264,7 +15264,7 @@ function skipWiredBtCal() {
     wizardEditing = null;
     if (settingsView === 'steps') {
         renderSettingsView();
-        scrollToSettingsEl(els.ptCard);
+        scrollToActiveWizardStep(els.testCard);
     }
 }
 
@@ -16385,21 +16385,19 @@ function escapeHtml(t) {
 }
 
 /* ── ウィザードのステップ定義 ───────────────────────────────
-   platform → input(=入力タイプ＋イヤホン種類) → test → イヤホン時はbtdelay → correction → practice → final。 */
+   v0.11.57：音ズレ・遅延テストをマイク反応テストより先に配置。
+   platform → input → (hptype) → correction/btdelay → test → (BT:correction) → practice → final。 */
 function wizardSteps() {
     // v0.11.56：補正テスト開始後、最初に iOS/Android を選ぶ（UIモード選択のみ。Practice判定は端末自動判定）。
     const steps = ['platform', 'input'];
     if (isHeadphoneInput()) steps.push('hptype');
-    // v0.10.20：ストローク検出モード（ブラッシング/コード）のユーザー選択ステップは廃止。
-    //   新ストローク＝旧ブラッシング固定のため、'stroke' ステップは出さない（カードも非表示）。
-    steps.push('test');
     if (!isHeadphoneInput()) {
-        steps.push('correction');            // 通常マイク：マイクの遅れ補正
-    } else if (isBluetoothHeadphone()) {
-        steps.push('btdelay', 'correction'); // Bluetooth：クリック音入力テスト後に画面補正
+        steps.push('correction'); // 通常マイク：マイクの遅れ補正（音ズレ・遅延テスト）
     } else {
-        steps.push('btdelay');               // 有線イヤホン：クリック音入力テスト（v0.9.152で追加）
+        steps.push('btdelay');    // 有線/BT：クリック音入力テスト（音ズレ・遅延テスト）
     }
+    steps.push('test');            // マイク反応テスト
+    if (isBluetoothHeadphone()) steps.push('correction'); // BTのみ：イヤホン音ズレの画面補正
     steps.push('practice', 'final');
     return steps;
 }
@@ -16462,13 +16460,12 @@ function wizardStepSummary(id) {
         case 'test':
             return 'マイク反応テスト：適用済み（マイク感度 ' + userMicSensitivityPercent() + '%、二重反応防止 ' + mic.cooldownMs + 'ms）';
         case 'correction': {
-            // 通常マイク＝マイクの遅れ補正／Bluetooth＝イヤホン音ズレの画面補正（有線はこのステップが無い）
-            if (!isHeadphoneInput()) return 'マイクの遅れ補正：' + (mic.timingOffsetMs > 0 ? '+' : '') + mic.timingOffsetMs + 'ms';
+            if (!isHeadphoneInput()) return '音ズレ・遅延テスト：' + (mic.timingOffsetMs > 0 ? '+' : '') + mic.timingOffsetMs + 'ms';
             return 'イヤホン音ズレの画面補正：' + mic.headphoneOutputOffsetMs + 'ms';
         }
         case 'btdelay': {
             const v = headphoneMicOffsetGet();
-            return 'クリック音入力テスト：補正 ' + (v > 0 ? '+' : '') + v + 'ms';
+            return '音ズレ・遅延テスト：補正 ' + (v > 0 ? '+' : '') + v + 'ms';
         }
         case 'practice':
             return '最終確認テスト：完了';
@@ -17016,11 +17013,11 @@ function renderWizardSteps() {
 /* ステップ現在地：「ステップ X / N」＋ドット。WIZARD_STEPS の並びから算出。 */
 const WIZARD_STEP_LABELS = {
     platform: '端末', input: '入力タイプ', hptype: 'イヤホン種類', stroke: 'ストローク', test: 'マイク反応テスト',
-    correction: '補正', btdelay: 'クリック音入力テスト', practice: '最終確認テスト', final: '手動設定・保存',
+    correction: '補正', btdelay: '音ズレ・遅延テスト', practice: '最終確認テスト', final: '手動設定・保存',
 };
-/* ステップ見出し（correction は入力タイプで意味が変わるので動的に出す・v0.9.89） */
 function wizardStepLabel(id) {
-    if (id === 'correction') return isHeadphoneInput() ? 'イヤホン音ズレの画面補正' : 'マイクの遅れ補正';
+    if (id === 'btdelay') return '音ズレ・遅延テスト';
+    if (id === 'correction') return isHeadphoneInput() ? 'イヤホン音ズレの画面補正' : '音ズレ・遅延テスト';
     return WIZARD_STEP_LABELS[id] || '';
 }
 function renderStepProgress(active) {
@@ -17155,7 +17152,7 @@ function completeCorrectionStep() {
     wizardEditing = null;
     if (settingsView === 'steps') {
         renderSettingsView();
-        scrollToSettingsEl(els.ptCard);
+        scrollToActiveWizardStep(els.ptCard);
     }
 }
 
@@ -17265,6 +17262,11 @@ function scrollToSettingsEl(el, block, delayMs) {
         if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: block || 'start' });
     }));
     if (delayMs && delayMs > 0) setTimeout(go, delayMs); else go();
+}
+/* v0.11.57：ウィザードの次ステップカードへスクロール（音ズレテスト先行フロー用）。 */
+function scrollToActiveWizardStep(fallbackEl) {
+    const card = wizardStepCards(activeWizardStep())[0];
+    scrollToSettingsEl(card || fallbackEl);
 }
 
 /* 設定画面の実スクロール親はウィンドウ（document）。.app-container 等に overflow は無く、
@@ -17492,7 +17494,7 @@ function onPickInputType(type) {
     }
     if (settingsView === 'steps') {
         renderSettingsView();
-        scrollToSettingsEl(next === 'headphone' ? els.hpTypeCard : els.strokeModeCard);
+        scrollToActiveWizardStep();
         // 通常マイク選択時は見本プリセット値を出発点にする（v0.9.229）。
         if (next === 'normal') applyStepsBuiltinDefaults();
     }
@@ -17513,7 +17515,7 @@ function onPickHeadphoneType(type) {
     if (settingsView === 'steps') {
         if (changed) resetSetupFlowDisplay();
         renderSettingsView();
-        scrollToSettingsEl(els.strokeModeCard);
+        scrollToActiveWizardStep();
         // 有線/Bluetooth選択時は見本プリセット値を出発点にする（v0.9.229）。
         applyStepsBuiltinDefaults();
     }
@@ -19018,7 +19020,7 @@ function setCalRunButtonSecondary(on) {
 function updateMicDelayDoneUI() {
     const done = state.micDelayDone;
     if (els.calCard) els.calCard.classList.toggle('is-done', done);
-    if (els.calHead) els.calHead.textContent = done ? '✅ マイクの遅れ補正済み' : 'マイクの遅れ補正';
+    if (els.calHead) els.calHead.textContent = done ? '✅ 音ズレ・遅延テスト済み' : '音ズレ・遅延テスト';
     if (els.calDoneBadge) {
         els.calDoneBadge.textContent = '未実施';
         els.calDoneBadge.classList.toggle('hidden', done);
