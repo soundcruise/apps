@@ -5301,9 +5301,9 @@ h1 {
 }
 
 .cal-level-state.retry {
-    border-color: rgba(255, 159, 28, 0.45);
-    background: rgba(255, 159, 28, 0.12);
-    color: var(--secondary-color);
+    border-color: rgba(255, 79, 110, 0.48);
+    background: rgba(255, 79, 110, 0.10);
+    color: #ff9db0;
 }
 
 .cal-level-state.hidden {
@@ -7024,6 +7024,24 @@ body[data-rc-theme="clean-pro"] .tendency {
     border-color: rgba(222, 194, 122, 0.24);
     background: linear-gradient(180deg, rgba(222, 194, 122, 0.10), rgba(255, 255, 255, 0.025));
     color: #f0dfad;
+}
+
+body[data-rc-theme="clean-pro"] .cal-level-state.ok {
+    border-color: rgba(110, 210, 140, 0.36);
+    background: rgba(110, 210, 140, 0.10);
+    color: #8de8a4;
+}
+
+body[data-rc-theme="clean-pro"] .cal-level-state.warn {
+    border-color: rgba(255, 209, 102, 0.36);
+    background: rgba(255, 209, 102, 0.10);
+    color: #ffd479;
+}
+
+body[data-rc-theme="clean-pro"] .cal-level-state.retry {
+    border-color: rgba(255, 79, 110, 0.48);
+    background: rgba(255, 79, 110, 0.10);
+    color: #ff9db0;
 }
 
 body[data-rc-theme="clean-pro"] .mic-overwrite-btn {

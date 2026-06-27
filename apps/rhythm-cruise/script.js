@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.85';
+const RHYTHM_CRUISE_VERSION = '0.11.86';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -20500,6 +20500,15 @@ function micTestDisplayOffsetMs() {
     return Number.isFinite(hp) ? hp : 0;
 }
 
+/* v0.11.86：マイク反応テストの背景波形だけ、保存済み入力遅延補正を表示位置に反映する。
+   音量値(test.wave.level)・stroke測定窓・strokeInputDelayMs・おすすめ設定計算には一切使わない。 */
+function micTestWaveDisplayOffsetMs() {
+    const visual = micTestDisplayOffsetMs();
+    if (!useAndroidLatencyFirstFlow()) return visual;
+    const judge = Number(micJudgeOffsetMs());
+    return visual + (Number.isFinite(judge) ? judge : 0);
+}
+
 function drawTestLane(t) {
     const { ctx, w, h } = testLane;
     if (!ctx) return;
@@ -20514,7 +20523,7 @@ function drawTestLane(t) {
     ctx.strokeStyle = 'rgba(253,246,238,0.08)';
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke();
-    drawTestLaneWaveform(ctx, w, h, yc, judgeX, ppm, t, dispOff);
+    drawTestLaneWaveform(ctx, w, h, yc, judgeX, ppm, t, micTestWaveDisplayOffsetMs());
     // 音符
     for (let i = 0; i < test.notes.length; i++) {
         const n = test.notes[i];
