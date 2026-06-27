@@ -681,7 +681,7 @@
                     <details class="hidden card-help" id="android-check-details" style="margin-top:10px;">
                         <summary>Android補正の詳細チェック</summary>
                         <div id="android-check-card" style="margin-top:8px;">
-                            <p class="setting-note">Android端末で補正値やログを詳しく確認したい場合に使います。通常は上の「補正テストを始める」から進めてください。</p>
+                            <p class="setting-note">通常は上の「補正テスト」内で測定できます。ログ確認や詳しい調査をしたい場合だけ使います。</p>
                             <p class="setting-note">測定後、必要に応じてAndroid専用補正として保存できます。保存ボタンを押すまでは設定には反映されません。</p>
                             <button type="button" class="btn-mic test-start-btn rc-mic-action-primary" id="android-check-run">詳細チェックを実行</button>
                             <p class="cal-status" id="android-check-status"></p>
@@ -921,6 +921,20 @@
                     <div class="cal-head" id="cal-head">音ズレ・遅延テスト</div>
                     <span class="status-pill" id="cal-done-badge">未実施</span>
                 </div>
+                <!-- v0.11.58：Android選択時のウィザード内 Android式遅延測定（本体マイク） -->
+                <div class="hidden" id="wizard-android-cal-block">
+                    <p class="setting-note" style="margin-top:0;"><b>Android向け 音ズレ・遅延テスト</b></p>
+                    <p class="setting-note">この端末のクリック音がマイクに届くまでの遅れを測定します。測定後、Android本体マイク補正として保存できます。</p>
+                    <p class="setting-note hidden" id="wizard-android-nondevice-note-cal">実際のAndroid端末で使う補正です。iPhone / iPadでは通常の補正テストを使ってください。</p>
+                    <button type="button" class="btn-mic test-start-btn rc-mic-action-primary" id="wizard-android-run-builtin" style="width:100%;">Android本体マイクの遅延を測定</button>
+                    <p class="cal-status" id="wizard-android-status-builtin"></p>
+                    <div class="cal-result hidden" id="wizard-android-result-builtin" style="white-space:pre-line;"></div>
+                    <button type="button" class="btn-mic rc-mic-action-primary hidden" id="wizard-android-save-builtin" style="width:100%;margin-top:8px;">Android本体マイク補正として保存</button>
+                    <p class="cal-status hidden" id="wizard-android-save-builtin-status"></p>
+                    <p class="setting-note" id="wizard-android-proceed-hint-builtin">測定・保存後、マイク反応テストへ進んでください。</p>
+                    <button type="button" class="btn-primary hidden" id="wizard-android-proceed-builtin" style="width:100%;margin-top:8px;">保存してマイク反応テストへ進む</button>
+                </div>
+                <div id="wizard-ios-cal-ui">
                 <p class="do-now">まず、クリック音とマイク入力のズレを測ります。終わるまで待ってください</p>
                 <details class="card-help">
                     <summary>詳しい説明</summary>
@@ -973,6 +987,7 @@
                     <div class="cal-result-row"><span>測定日時</span><b id="cal-rd-at">–</b></div>
                     <p class="setting-note">補正テストはクリック音を「拾う」ため、STAGE本番（クリックを避けてストロークを拾う）とは別の反応ラインを使います。</p>
                 </details>
+                </div><!-- /#wizard-ios-cal-ui -->
             </div>
 
             <!-- 4. イヤホン音ズレの画面補正（イヤホン種類=Bluetooth のときだけ表示。UI/保存のみ・STAGE判定には未反映） -->
@@ -1047,6 +1062,22 @@
                     <div class="cal-head">音ズレ・遅延テスト</div>
                     <span class="status-pill" id="bt-cal-badge">未実施</span>
                 </div>
+                <!-- v0.11.58：Android選択時のウィザード内 Android式遅延測定（有線/BT） -->
+                <div class="hidden" id="wizard-android-bt-block">
+                    <p class="setting-note" style="margin-top:0;"><b>Android向け 音ズレ・遅延テスト</b></p>
+                    <p class="setting-note" id="wizard-android-bt-desc">Bluetoothイヤホン環境で、クリック音がマイクに届くまでの遅れを測定します。測定後、Android Bluetooth補正として保存できます。</p>
+                    <p class="setting-note hidden" id="wizard-android-nondevice-note-bt">実際のAndroid端末で使う補正です。iPhone / iPadでは通常の補正テストを使ってください。</p>
+                    <button type="button" class="btn-mic test-start-btn rc-mic-action-primary" id="wizard-android-run-hp" style="width:100%;">Android Bluetoothの遅延を測定</button>
+                    <p class="cal-status" id="wizard-android-status-hp"></p>
+                    <div class="cal-result hidden" id="wizard-android-result-hp" style="white-space:pre-line;"></div>
+                    <button type="button" class="btn-mic rc-mic-action-primary hidden" id="wizard-android-save-bt" style="width:100%;margin-top:8px;">Android Bluetooth補正として保存</button>
+                    <p class="cal-status hidden" id="wizard-android-save-bt-status"></p>
+                    <button type="button" class="btn-mic rc-mic-action-primary hidden" id="wizard-android-save-wired" style="width:100%;margin-top:8px;">Android有線補正として保存</button>
+                    <p class="cal-status hidden" id="wizard-android-save-wired-status"></p>
+                    <p class="setting-note" id="wizard-android-proceed-hint-hp">測定・保存後、マイク反応テストへ進んでください。</p>
+                    <button type="button" class="btn-primary hidden" id="wizard-android-proceed-hp" style="width:100%;margin-top:8px;">保存してマイク反応テストへ進む</button>
+                </div>
+                <div id="wizard-ios-bt-ui">
                 <p class="do-now">クリック音がマイクに届くタイミングを確認します</p>
                 <p class="do-now-sub">イヤホンから鳴るクリック音をマイクで拾って、入力遅延を測ります。イヤホンの音が出る部分をマイク部分に軽く当ててください。</p>
                 <details class="card-help">
@@ -1079,6 +1110,7 @@
                 <div id="hp-ad-result" style="display:none;margin-top:8px;font-size:0.8em;color:#aaa;white-space:pre-line;line-height:1.5;"></div>
                 <button id="hp-ad-apply-btn" style="display:none;width:100%;margin-top:8px;padding:9px 0;font-size:0.85em;background:rgba(100,200,120,0.12);color:#8ddb9a;border:1px solid rgba(100,200,120,0.3);border-radius:6px;cursor:pointer;"></button>
                 </div>
+                </div><!-- /#wizard-ios-bt-ui -->
             </div>
 
             <!-- 7. 最終確認テスト（基本設定後の確認。入力タイプに関係なく表示。確認・表示のみ／補正は未適用） -->
@@ -1439,7 +1471,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.11.57"></script>
+    <script src="script.js?v=0.11.58"></script>
 </body>
 
 </html>
