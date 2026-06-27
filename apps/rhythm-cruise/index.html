@@ -849,12 +849,6 @@
                         <p class="setting-note">スマホ本体やブラウザの設定で、このページのマイク許可が「許可」になっているか確認してください。Safariの場合は、アドレスバー左側の設定、またはスマホ本体の設定アプリ内のSafariから、マイクの許可を確認できます。許可が「確認（その都度きく）」のときは、ページを一度再読み込みしてから、もう一度お試しください。</p>
                     </details>
                 </div>
-                <div class="test-live hidden" id="test-live">
-                    <div class="mic-meter test-meter">
-                        <div class="mic-meter-fill" id="test-level"></div>
-                        <div class="mic-threshold" id="test-threshold"></div>
-                    </div>
-                </div>
                 <!-- ストロークテストの流れる譜面（↓↑が右から左へ流れる） -->
                 <div class="test-lane-wrap hidden" id="test-lane-wrap">
                     <canvas id="test-lane-canvas"></canvas>
@@ -924,7 +918,12 @@
                 <!-- v0.11.58：Android選択時のウィザード内 Android式遅延測定（本体マイク） -->
                 <div class="hidden" id="wizard-android-cal-block">
                     <p class="setting-note" style="margin-top:0;"><b>Android向け 音ズレ・遅延テスト</b></p>
-                    <p class="setting-note">この端末のクリック音がマイクに届くまでの遅れを測定します。測定後、Android本体マイク補正として保存できます。</p>
+                    <p class="do-now">クリック音がマイクに届くタイミングを確認します</p>
+                    <p class="setting-note">この端末のクリック音を本体マイクで拾って、入力遅延を測ります。静かな場所で、終わるまで待ってください。</p>
+                    <details class="card-help">
+                        <summary>詳しい説明</summary>
+                        <p class="setting-note">クリック音をマイクが拾うまでの遅れを測って、判定タイミングを合わせます。測定中は静かにして、スマホの位置を動かさずに待ってください。</p>
+                    </details>
                     <p class="setting-note hidden" id="wizard-android-nondevice-note-cal">実際のAndroid端末で使う補正です。iPhone / iPadでは通常の補正テストを使ってください。</p>
                     <button type="button" class="btn-mic test-start-btn rc-mic-action-primary" id="wizard-android-run-builtin" style="width:100%;">Android本体マイクの遅延を測定</button>
                     <div class="android-latency-live hidden" id="wizard-android-live-builtin">
@@ -1070,7 +1069,13 @@
                 <!-- v0.11.58：Android選択時のウィザード内 Android式遅延測定（有線/BT） -->
                 <div class="hidden" id="wizard-android-bt-block">
                     <p class="setting-note" style="margin-top:0;"><b>Android向け 音ズレ・遅延テスト</b></p>
-                    <p class="setting-note" id="wizard-android-bt-desc">Bluetoothイヤホン環境で、クリック音がマイクに届くまでの遅れを測定します。測定後、Android Bluetooth補正として保存できます。</p>
+                    <p class="do-now">クリック音がマイクに届くタイミングを確認します</p>
+                    <p class="do-now-sub" id="wizard-android-bt-desc">イヤホンの音をスマホのマイクに近づけて測定します。音量を最大にして、イヤホンをマイクに軽く押し当ててください。</p>
+                    <details class="card-help">
+                        <summary>詳しい説明</summary>
+                        <p class="setting-note">静かな場所で行い、イヤホン音量を最大にしてください。イヤホンの音が出る部分をスマホのマイクに軽く押し当て、測定中は位置を動かさないでください。</p>
+                        <p class="setting-note">測定前に波形が大きく出る位置を探してから開始すると安定しやすくなります。うまくいかない場合は、音量や位置を変えて再測定してください。</p>
+                    </details>
                     <p class="setting-note hidden" id="wizard-android-nondevice-note-bt">実際のAndroid端末で使う補正です。iPhone / iPadでは通常の補正テストを使ってください。</p>
                     <button type="button" class="btn-mic test-start-btn rc-mic-action-primary" id="wizard-android-run-hp" style="width:100%;">Android Bluetoothの遅延を測定</button>
                     <div class="android-latency-live hidden" id="wizard-android-live-hp">
@@ -1484,7 +1489,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.11.86"></script>
+    <script src="script.js?v=0.11.87"></script>
 </body>
 
 </html>
