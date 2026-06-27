@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.64';
+const RHYTHM_CRUISE_VERSION = '0.11.65';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13840,7 +13840,7 @@ const pt = {
     valley: 1, // コードストローク用の谷（直前検出後の最小音量）。実践テスト専用（STAGEの mic.valley とは別）。
     fullWave: [], // 見返し用（v0.9.74）：全区間の音量波形（flowStart基準ms）。間引きせず保持。
     debug: null, // 開発確認用（v0.9.77）：検出/割り当て/除外理由の集計。ユーザー表示には使わない。
-    savedClickVolume: null, clickVolumeDuringTest: null, clickDebug: null,
+    clickDebug: null,
 };
 
 /* ── イヤホン用マイクの遅れ補正（v0.9.80）─────────────────────────────
@@ -13964,13 +13964,8 @@ function ptDetectionThreshold() {
     return mic.threshold * mult * MIC_STAGE_DETECT_FACTOR;
 }
 
-function shouldUseAndroidFinalCheckQuietClick() {
+function isAndroidNormalMicFlow() {
     return selectedTestPlatform === 'android' && androidAudioProbeDeviceInfo().isAndroid && isNormalMicInput();
-}
-
-function finalCheckClickVolumeForCurrentInput() {
-    if (!shouldUseAndroidFinalCheckQuietClick()) return state.clickVolume;
-    return Math.min(state.clickVolume, 1);
 }
 
 function freshFinalCheckClickDebug(originalVolume, usedVolume) {
@@ -14575,10 +14570,7 @@ async function startPracticeTest() {
     pt.armed = true;
     pt.valley = 1; // コードストローク用の谷をリセット
     pt.debug = freshPtDebug();
-    pt.savedClickVolume = state.clickVolume;
-    pt.clickVolumeDuringTest = finalCheckClickVolumeForCurrentInput();
-    pt.clickDebug = freshFinalCheckClickDebug(pt.savedClickVolume, pt.clickVolumeDuringTest);
-    state.clickVolume = pt.clickVolumeDuringTest;
+    pt.clickDebug = freshFinalCheckClickDebug(state.clickVolume, state.clickVolume);
     // 立ち上がり検出の基準を毎回そろえる（前回テストの prevPeak 残りで1回目だけ挙動が変わるのを防ぐ・v0.9.68）
     mic.prevPeak = 0;
     mic.env = 0;
@@ -14717,7 +14709,7 @@ function renderPracticeResult(r) {
 
     // 表に出す主要情報（GOOD/EARLY/LATE/MISS と平均ズレ）
     const clickRows = r.finalCheckClickDebug
-        ? '<div class="cal-result-row"><span>最終確認クリック音量</span><b>' + r.finalCheckClickDebug.usedClickVolume + '%'
+        ? '<div class="cal-result-row"><span>Practiceクリック音量</span><b>' + r.finalCheckClickDebug.usedClickVolume + '%'
             + (r.finalCheckClickDebug.usedClickVolume !== r.finalCheckClickDebug.originalClickVolume ? '（通常 ' + r.finalCheckClickDebug.originalClickVolume + '%）' : '')
             + '</b></div>'
             + '<div class="cal-result-row"><span>クリック近傍ピーク</span><b>'
@@ -14870,12 +14862,6 @@ function calibrationRetestMicLine() {
 
 /* 後始末。showResult=true のときは結果表示と「完了」状態を残す（finishから呼ぶ） */
 function endPracticeTest(showResult) {
-    if (pt.savedClickVolume != null) {
-        state.clickVolume = pt.savedClickVolume;
-        pt.savedClickVolume = null;
-        pt.clickVolumeDuringTest = null;
-        applySettingsToUI();
-    }
     pt.active = false;
     pt.capturing = false;
     cancelAnimationFrame(pt.raf); pt.raf = 0;
@@ -20392,6 +20378,9 @@ function updateReco() {
         : null;
     if (safeClickVol88 != null) {
         recoVol = Math.max(androidAudioProbeDeviceInfo().isAndroid && isNormalMicInput() ? 1 : 10, Math.min(100, Math.min(recoVolBeforeSafetyCap, safeClickVol88)));
+    }
+    if (isAndroidNormalMicFlow()) {
+        recoVol = Math.min(recoVol, 1);
     }
     const safetyCapApplied = recoVol < recoVolBeforeSafetyCap;
     test.recoClickVolume = recoVol;
