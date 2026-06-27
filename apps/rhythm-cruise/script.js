@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.81';
+const RHYTHM_CRUISE_VERSION = '0.11.82';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -1147,6 +1147,7 @@ const els = {
     btCalLaneCanvas: $('bt-cal-lane-canvas'),
     btCalLive: $('bt-cal-live'),
     btCalLevel: $('bt-cal-level'),
+    btCalLevelState: $('bt-cal-level-state'),
     btCalPhase: $('bt-cal-phase'),
     btCalBtn: $('bt-cal-btn'),
     btCalStatus: $('bt-cal-status'),
@@ -1417,6 +1418,7 @@ const els = {
     calCount: $('cal-count'),
     calLast: $('cal-last'),
     calMax: $('cal-max'),
+    calLevelState: $('cal-level-state'),
     calSuccess: $('cal-success'),
     calSpread: $('cal-spread'),
     calDevLog: $('cal-dev-log'),
@@ -15147,6 +15149,83 @@ function togglePracticeTest() {
 function btTimer(fn, ms) { const id = setTimeout(fn, ms); bt.timers.push(id); return id; }
 function setBtCalStatus(t) { if (els.btCalStatus) els.btCalStatus.textContent = t || ''; }
 
+function setCalLevelState(el, stateName, text) {
+    if (!el) return;
+    el.textContent = text || '';
+    el.className = 'cal-level-state' + (stateName ? ' ' + stateName : '');
+    el.classList.toggle('hidden', !text);
+}
+
+function calVolumeStatusFromProgress(doneCount, totalCount, detectedCount, maxPeak, threshold, hasAnyOnset) {
+    const total = Math.max(1, totalCount || 1);
+    const done = Math.max(0, Math.min(total, doneCount || 0));
+    const detected = Math.max(0, detectedCount || 0);
+    const progress = done / total;
+    const thr = (Number.isFinite(threshold) && threshold > 0) ? threshold : 0.001;
+    const peak = Math.max(0, maxPeak || 0);
+    const enoughDetected = detected >= Math.max(2, Math.floor(done * 0.55));
+    const hasUsablePeak = peak >= thr * 0.85;
+    const hasWeakPeak = peak >= thr * 0.55 || !!hasAnyOnset;
+
+    if (progress < 0.3) {
+        return { kind: '', text: '音を確認中…' };
+    }
+    if (enoughDetected) {
+        return { kind: 'ok', text: 'いい感じに拾えています' };
+    }
+    if (progress >= 0.85 && (detected < 3 || peak < thr * 0.55)) {
+        return { kind: 'retry', text: '音量が小さすぎるかもしれません。もう一度テストしてください' };
+    }
+    if (hasUsablePeak && detected >= 1) {
+        return { kind: 'ok', text: 'いい感じに拾えています' };
+    }
+    if (hasWeakPeak || detected > 0) {
+        return { kind: 'warn', text: '少し音が小さいかもしれません' };
+    }
+    return { kind: '', text: '音を確認中…' };
+}
+
+function updateCalLevelState() {
+    if (!els.calLevelState) return;
+    if (!mic.calibrating) {
+        setCalLevelState(els.calLevelState, '', '');
+        return;
+    }
+    if (!cal.warmupDone) {
+        setCalLevelState(els.calLevelState, '', '音を確認中…');
+        return;
+    }
+    const status = calVolumeStatusFromProgress(
+        cal.i,
+        CAL_CLICKS,
+        cal.samples.length,
+        Math.max(cal.maxPeak || 0, cal.curWindowPeak || 0, cal.lastLevel || 0),
+        cal.threshold,
+        cal.rawOnsets > 0
+    );
+    setCalLevelState(els.calLevelState, status.kind, status.text);
+}
+
+function updateBtCalLevelState() {
+    if (!els.btCalLevelState) return;
+    if (!bt.active) {
+        setCalLevelState(els.btCalLevelState, '', '');
+        return;
+    }
+    const elapsed = Math.max(0, performance.now() - (bt.flowStartPerf || performance.now()));
+    const done = Math.max(0, Math.min(BT_PLAY_BEATS, Math.floor((elapsed - bt.playT0Ms + PT_BEAT_MS * 0.5) / PT_BEAT_MS)));
+    const threshold = bt.debug ? bt.debug.thresholdDuringClickInputTest : mic.threshold;
+    const status = calVolumeStatusFromProgress(
+        done,
+        BT_PLAY_BEATS,
+        bt.onsets.length,
+        bt.maxPeak,
+        threshold,
+        bt.onsets.length > 0
+    );
+    setCalLevelState(els.btCalLevelState, status.kind, status.text);
+}
+
 /* ── マイクの遅れ補正の流れるレーン（v0.9.81・表示専用）──────────────
    最終確認テスト（drawPracticeLane）と同じ考え方で、👏を右→左へ流し、波形・反応ライン・
    判定ラインを描く。判定ロジック・測定ロジックには一切影響しない（見た目だけ）。 */
@@ -15317,6 +15396,7 @@ function renderBtCalIdle() {
     if (els.btCalLive) els.btCalLive.classList.add('hidden');
     if (els.btCalLaneWrap) els.btCalLaneWrap.classList.add('hidden');
     if (els.btCalPhase) els.btCalPhase.textContent = '';
+    setCalLevelState(els.btCalLevelState, '', '');
     updateBtCalBadge();
     updateBtCalSkipUI();
 }
@@ -15428,6 +15508,7 @@ async function startBtCal() {
     if (els.btCalResult) { els.btCalResult.classList.add('hidden'); els.btCalResult.innerHTML = ''; }
     if (els.btCalLive) els.btCalLive.classList.remove('hidden');
     if (els.btCalBtn) els.btCalBtn.textContent = 'クリック音入力テストを停止';
+    setCalLevelState(els.btCalLevelState, '', '音を確認中…');
     updateBtCalSkipUI();
 
     bt.audioStart = ctx.currentTime;
@@ -15486,6 +15567,7 @@ function stopBtCal() {
     if (els.btCalLaneWrap) els.btCalLaneWrap.classList.add('hidden');
     if (els.btCalBtn) els.btCalBtn.textContent = bt.hasRun ? 'もう1度テストする' : 'クリック音入力テストを開始';
     setBtCalStatus('');
+    updateBtCalLevelState();
     updateBtCalSkipUI();
 }
 
@@ -15500,6 +15582,7 @@ function finishBtCal() {
     cancelAnimationFrame(bt.raf); bt.raf = 0;
     restoreBtCalTestSettings('completed');
     if (els.btCalLive) els.btCalLive.classList.add('hidden');
+    updateBtCalLevelState();
     // v0.9.100：結果後もレーン（拍マーカー）は閉じず、各拍のズレを見られるようにする。
     if (els.btCalBtn) els.btCalBtn.textContent = bt.hasRun ? 'もう1度テストする' : 'クリック音入力テストを開始';
     updateBtCalSkipUI();
@@ -19452,6 +19535,7 @@ function resetMicDelayCalibrationUiState() {
     if (els.calCount) els.calCount.textContent = '0回';
     if (els.calLast) els.calLast.textContent = '0.00';
     if (els.calMax) els.calMax.textContent = '0.00';
+    if (els.calLevelState) setCalLevelState(els.calLevelState, '', '');
     updateMicDelayDoneUI();
 }
 
@@ -19477,6 +19561,7 @@ function resetBtCalTransientUiState() {
         els.btCalLevel.style.width = '0%';
         els.btCalLevel.classList.remove('over');
     }
+    if (els.btCalLevelState) setCalLevelState(els.btCalLevelState, '', '');
     updateBtCalBadge();
     if (els.btCalBtn && !bt.active) els.btCalBtn.textContent = 'クリック音入力テストを開始';
 }
@@ -21549,6 +21634,7 @@ function micLoop() {
                 }
             }
         }
+        updateBtCalLevelState();
         mic.prevPeak = peak;
         mic.raf = requestAnimationFrame(micLoop);
         return;
@@ -22100,6 +22186,7 @@ function updateCalMonitor() {
     if (els.calCount) els.calCount.textContent = cal.samples.length + '回';
     if (els.calLast) els.calLast.textContent = cal.lastLevel.toFixed(2);
     if (els.calMax) els.calMax.textContent = cal.maxPeak.toFixed(2);
+    updateCalLevelState();
     // 測定中は検出が来るたびに状況テキストも更新（クリック発音→検出の遅れで「検出」数が1つ遅れて
     // 見える問題への対策。micLoop から毎フレーム呼ばれるので検出反映が即座に表示へ届く）。
     if (mic.calibrating) renderCalMeasuringStatus();
@@ -22150,6 +22237,7 @@ function setCalUI(mode, arg) {
         els.calBtn.classList.remove('is-todo');
         setCalRunButtonSecondary(true);
         showMonitor(false);
+        updateCalLevelState();
     } else if (mode === 'failed') {
         els.calStatus.classList.remove('hidden');
         els.calStatus.textContent = arg || '測定できませんでした。スピーカー音量、マイク許可、周囲の音を確認してください。';
@@ -22160,6 +22248,7 @@ function setCalUI(mode, arg) {
         els.calBtn.classList.remove('is-todo');
         setCalRunButtonSecondary(true);
         showMonitor(false);
+        updateCalLevelState();
     } else if (mode === 'idle') {
         els.calStatus.classList.add('hidden');
         els.calResult.classList.add('hidden');
@@ -22168,6 +22257,7 @@ function setCalUI(mode, arg) {
         els.calBtn.classList.toggle('is-todo', !state.micDelayDone);
         setCalRunButtonSecondary(state.micDelayDone);
         showMonitor(false);
+        updateCalLevelState();
     }
 }
 

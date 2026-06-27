@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.11.21">
+    <link rel="stylesheet" href="theme.css?v=0.11.82">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -953,6 +953,7 @@
                         <span>直近レベル <b id="cal-last">0.00</b></span>
                         <span>最大レベル <b id="cal-max">0.00</b></span>
                     </div>
+                    <p class="cal-level-state" id="cal-level-state" aria-live="polite">音を確認中…</p>
                 </div>
                 <div class="cal-result hidden" id="cal-result">
                     <div class="cal-result-row"><span>測定遅延</span><b id="cal-delay">–</b></div>
@@ -1094,6 +1095,7 @@
                     <div class="mic-meter test-meter">
                         <div class="mic-meter-fill" id="bt-cal-level"></div>
                     </div>
+                    <p class="cal-level-state" id="bt-cal-level-state" aria-live="polite">音を確認中…</p>
                 </div>
                 <p class="test-phase" id="bt-cal-phase"></p>
                 <button class="btn-mic cal-run-btn test-start-btn rc-mic-action-primary" id="bt-cal-btn">クリック音入力テストを開始</button>
@@ -1474,7 +1476,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.11.81"></script>
+    <script src="script.js?v=0.11.82"></script>
 </body>
 
 </html>

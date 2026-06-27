@@ -5263,6 +5263,40 @@ h1 {
     font-variant-numeric: tabular-nums;
 }
 
+.cal-level-state {
+    margin: 8px 0 0;
+    padding: 8px 10px;
+    border: 1px solid rgba(253, 246, 238, 0.12);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--muted-color);
+    font-size: 0.8rem;
+    font-weight: 700;
+    line-height: 1.45;
+}
+
+.cal-level-state.ok {
+    border-color: rgba(110, 210, 140, 0.36);
+    background: rgba(110, 210, 140, 0.10);
+    color: #8de8a4;
+}
+
+.cal-level-state.warn {
+    border-color: rgba(255, 209, 102, 0.36);
+    background: rgba(255, 209, 102, 0.10);
+    color: #ffd479;
+}
+
+.cal-level-state.retry {
+    border-color: rgba(255, 159, 28, 0.45);
+    background: rgba(255, 159, 28, 0.12);
+    color: var(--secondary-color);
+}
+
+.cal-level-state.hidden {
+    display: none;
+}
+
 /* レベルメーターが反応ライン超えで色付き（測定モニター用） */
 #cal-level.over {
     background: linear-gradient(90deg, #2ecc71, #ffd166);
@@ -6965,6 +6999,7 @@ body[data-rc-theme="clean-pro"] .result-breakdown b:not(.bd-just):not(.bd-early)
 body[data-rc-theme="clean-pro"] .tendency,
 body[data-rc-theme="clean-pro"] .test-result,
 body[data-rc-theme="clean-pro"] .cal-status,
+body[data-rc-theme="clean-pro"] .cal-level-state,
 body[data-rc-theme="clean-pro"] .mic-save-hint,
 body[data-rc-theme="clean-pro"] .mic-unsaved-row {
     border-color: rgba(245, 239, 228, 0.12);
