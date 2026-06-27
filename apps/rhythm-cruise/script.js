@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.62';
+const RHYTHM_CRUISE_VERSION = '0.11.63';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -16595,20 +16595,34 @@ function escapeHtml(t) {
     return String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
+function useAndroidLatencyFirstFlow() {
+    return selectedTestPlatform === 'android';
+}
 /* ── ウィザードのステップ定義 ───────────────────────────────
-   v0.11.57：音ズレ・遅延テストをマイク反応テストより先に配置。
-   platform → input → (hptype) → correction/btdelay → test → (BT:correction) → practice → final。 */
+   Androidのみ v0.11.57 の音ズレ・遅延テスト先行フロー。
+   iPhone / iPad は従来どおり、マイク反応テスト後に補正系へ進む。 */
 function wizardSteps() {
     // v0.11.56：補正テスト開始後、最初に iOS/Android を選ぶ（UIモード選択のみ。Practice判定は端末自動判定）。
     const steps = ['platform', 'input'];
     if (isHeadphoneInput()) steps.push('hptype');
-    if (!isHeadphoneInput()) {
-        steps.push('correction'); // 通常マイク：マイクの遅れ補正（音ズレ・遅延テスト）
+    if (useAndroidLatencyFirstFlow()) {
+        if (!isHeadphoneInput()) {
+            steps.push('correction'); // 通常マイク：Android式の音ズレ・遅延テスト
+        } else {
+            steps.push('btdelay');    // 有線/BT：Android式の音ズレ・遅延テスト
+        }
+        steps.push('test');            // マイク反応テスト
+        if (isBluetoothHeadphone()) steps.push('correction'); // BTのみ：イヤホン音ズレの画面補正
     } else {
-        steps.push('btdelay');    // 有線/BT：クリック音入力テスト（音ズレ・遅延テスト）
+        steps.push('test');            // iPhone / iPad：従来どおりマイク反応テストを先に行う
+        if (!isHeadphoneInput()) {
+            steps.push('correction');  // 通常マイク：従来のマイクの遅れ補正
+        } else if (isBluetoothHeadphone()) {
+            steps.push('btdelay', 'correction'); // Bluetooth：クリック音入力テスト後に画面補正
+        } else {
+            steps.push('btdelay');     // 有線イヤホン：クリック音入力テスト
+        }
     }
-    steps.push('test');            // マイク反応テスト
-    if (isBluetoothHeadphone()) steps.push('correction'); // BTのみ：イヤホン音ズレの画面補正
     steps.push('practice', 'final');
     return steps;
 }
@@ -16671,12 +16685,16 @@ function wizardStepSummary(id) {
         case 'test':
             return 'マイク反応テスト：適用済み（マイク感度 ' + userMicSensitivityPercent() + '%、二重反応防止 ' + mic.cooldownMs + 'ms）';
         case 'correction': {
-            if (!isHeadphoneInput()) return '音ズレ・遅延テスト：' + (mic.timingOffsetMs > 0 ? '+' : '') + mic.timingOffsetMs + 'ms';
+            if (!isHeadphoneInput()) {
+                const label = useAndroidLatencyFirstFlow() ? '音ズレ・遅延テスト' : 'マイクの遅れ補正';
+                return label + '：' + (mic.timingOffsetMs > 0 ? '+' : '') + mic.timingOffsetMs + 'ms';
+            }
             return 'イヤホン音ズレの画面補正：' + mic.headphoneOutputOffsetMs + 'ms';
         }
         case 'btdelay': {
             const v = headphoneMicOffsetGet();
-            return '音ズレ・遅延テスト：補正 ' + (v > 0 ? '+' : '') + v + 'ms';
+            const label = useAndroidLatencyFirstFlow() ? '音ズレ・遅延テスト' : 'クリック音入力テスト';
+            return label + '：補正 ' + (v > 0 ? '+' : '') + v + 'ms';
         }
         case 'practice':
             return '最終確認テスト：完了';
@@ -17228,8 +17246,8 @@ const WIZARD_STEP_LABELS = {
     correction: '補正', btdelay: '音ズレ・遅延テスト', practice: '最終確認テスト', final: '手動設定・保存',
 };
 function wizardStepLabel(id) {
-    if (id === 'btdelay') return '音ズレ・遅延テスト';
-    if (id === 'correction') return isHeadphoneInput() ? 'イヤホン音ズレの画面補正' : '音ズレ・遅延テスト';
+    if (id === 'btdelay') return useAndroidLatencyFirstFlow() ? '音ズレ・遅延テスト' : 'クリック音入力テスト';
+    if (id === 'correction') return isHeadphoneInput() ? 'イヤホン音ズレの画面補正' : (useAndroidLatencyFirstFlow() ? '音ズレ・遅延テスト' : 'マイクの遅れ補正');
     return WIZARD_STEP_LABELS[id] || '';
 }
 function renderStepProgress(active) {
@@ -19231,8 +19249,9 @@ function setCalRunButtonSecondary(on) {
 /* マイクの遅れ補正「未/実施済み」表示（マイク反応テストとデザインを揃える） */
 function updateMicDelayDoneUI() {
     const done = state.micDelayDone;
+    const label = useAndroidLatencyFirstFlow() ? '音ズレ・遅延テスト' : 'マイクの遅れ補正';
     if (els.calCard) els.calCard.classList.toggle('is-done', done);
-    if (els.calHead) els.calHead.textContent = done ? '✅ 音ズレ・遅延テスト済み' : '音ズレ・遅延テスト';
+    if (els.calHead) els.calHead.textContent = done ? '✅ ' + label + '済み' : label;
     if (els.calDoneBadge) {
         els.calDoneBadge.textContent = '未実施';
         els.calDoneBadge.classList.toggle('hidden', done);
