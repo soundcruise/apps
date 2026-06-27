@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.71';
+const RHYTHM_CRUISE_VERSION = '0.11.72';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -19016,6 +19016,8 @@ function micTestRunForDevelopmentLog(run) {
         safeClickVol88: run.safeClickVol88,
         recoVolAfterSafetyCap: run.recoVolAfterSafetyCap,
         safetyCapApplied: run.safetyCapApplied,
+        androidNormalMicLimiterMode: run.androidNormalMicLimiterMode,
+        androidNormalMicExtraLimiterApplied: run.androidNormalMicExtraLimiterApplied,
         androidNormalMicLimiterApplied: run.androidNormalMicLimiterApplied,
         androidNormalMicSafeRate: run.androidNormalMicSafeRate,
         androidNormalMicLineRatio: run.androidNormalMicLineRatio,
@@ -19024,8 +19026,11 @@ function micTestRunForDevelopmentLog(run) {
         androidNormalMicMaxByLine: run.androidNormalMicMaxByLine,
         androidNormalMicRecoVolBeforeLimiter: run.androidNormalMicRecoVolBeforeLimiter,
         androidNormalMicRecoVolAfterLimiter: run.androidNormalMicRecoVolAfterLimiter,
+        recoVolBeforeAndroidLimiter: run.recoVolBeforeAndroidLimiter,
+        recoVolAfterAndroidLimiter: run.recoVolAfterAndroidLimiter,
         androidNormalMicProjectedClickAtReco: run.androidNormalMicProjectedClickAtReco,
         androidNormalMicProjectedClickToThresholdRatio: run.androidNormalMicProjectedClickToThresholdRatio,
+        androidNormalMicProjectedClickToEffectiveLineRatio: run.androidNormalMicProjectedClickToEffectiveLineRatio,
         clickSupplyRatioToSafePeak: run.clickSupplyRatioToSafePeak,
         projectedClickBeforeSafetyCap: run.projectedClickBeforeSafetyCap,
         projectedClickAfterSafetyCap: run.projectedClickAfterSafetyCap,
@@ -20605,27 +20610,19 @@ function updateReco() {
     if (safeClickVol88 != null) {
         recoVol = Math.max(androidAudioProbeDeviceInfo().isAndroid && isNormalMicInput() ? 1 : 10, Math.min(100, Math.min(recoVolBeforeSafetyCap, safeClickVol88)));
     }
-    const androidNormalMicSafeRate = 0.5;
-    const androidNormalMicLineRatio = 0.75;
-    const androidNormalMicHardMax = 30;
-    let androidNormalMicLimiterApplied = false;
-    let androidNormalMicMaxBySafeVol = null;
-    let androidNormalMicMaxByLine = null;
-    let androidNormalMicRecoVolBeforeLimiter = null;
+    const androidNormalMicLimiterMode = isAndroidNormalMicFlow() ? 'off-for-test' : 'not-android-normal';
+    const androidNormalMicExtraLimiterApplied = false;
+    const androidNormalMicSafeRate = null;
+    const androidNormalMicLineRatio = null;
+    const androidNormalMicHardMax = null;
+    const androidNormalMicLimiterApplied = false;
+    const androidNormalMicMaxBySafeVol = null;
+    const androidNormalMicMaxByLine = null;
+    const androidNormalMicRecoVolBeforeLimiter = isAndroidNormalMicFlow() ? recoVol : null;
+    const androidNormalMicRecoVolAfterLimiter = isAndroidNormalMicFlow() ? recoVol : null;
     if (isAndroidNormalMicFlow()) {
-        androidNormalMicRecoVolBeforeLimiter = recoVol;
-        androidNormalMicMaxBySafeVol = safeClickVol88 != null
-            ? Math.max(1, Math.floor(safeClickVol88 * androidNormalMicSafeRate))
-            : null;
-        androidNormalMicMaxByLine = effectiveRecommendedThreshold != null && peakPerPct > 0
-            ? Math.max(1, Math.floor((effectiveRecommendedThreshold * androidNormalMicLineRatio) / peakPerPct))
-            : null;
-        const androidLimits = [recoVol, androidNormalMicHardMax, androidNormalMicMaxBySafeVol, androidNormalMicMaxByLine]
-            .filter((v) => typeof v === 'number' && isFinite(v) && v > 0);
-        if (androidLimits.length) {
-            recoVol = Math.max(1, Math.min(...androidLimits));
-            androidNormalMicLimiterApplied = recoVol < androidNormalMicRecoVolBeforeLimiter;
-        }
+        // v0.11.72 検証版: Android通常マイク専用の追加リミッターだけ外し、
+        // iPhone通常マイク相当の共通安全リミッターまででおすすめ音量を確認する。
     }
     const safetyCapApplied = recoVol < recoVolBeforeSafetyCap;
     test.recoClickVolume = recoVol;
@@ -20902,6 +20899,8 @@ function updateReco() {
         safeClickVol88,
         recoVolAfterSafetyCap: recoVol,
         safetyCapApplied,
+        androidNormalMicLimiterMode,
+        androidNormalMicExtraLimiterApplied,
         androidNormalMicLimiterApplied,
         androidNormalMicSafeRate,
         androidNormalMicLineRatio,
@@ -20909,9 +20908,12 @@ function updateReco() {
         androidNormalMicMaxBySafeVol,
         androidNormalMicMaxByLine,
         androidNormalMicRecoVolBeforeLimiter,
-        androidNormalMicRecoVolAfterLimiter: isAndroidNormalMicFlow() ? recoVol : null,
+        androidNormalMicRecoVolAfterLimiter,
+        recoVolBeforeAndroidLimiter: androidNormalMicRecoVolBeforeLimiter,
+        recoVolAfterAndroidLimiter: androidNormalMicRecoVolAfterLimiter,
         androidNormalMicProjectedClickAtReco: isAndroidNormalMicFlow() ? test.projClickMax : null,
         androidNormalMicProjectedClickToThresholdRatio,
+        androidNormalMicProjectedClickToEffectiveLineRatio: isAndroidNormalMicFlow() ? projectedClickToEffectiveLineRatio : null,
         clickSupplyRatioToSafePeak,
         projectedClickBeforeSafetyCap,
         projectedClickAfterSafetyCap,
