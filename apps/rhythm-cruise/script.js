@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.80';
+const RHYTHM_CRUISE_VERSION = '0.11.81';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -20220,6 +20220,18 @@ function fitTestLane() {
 }
 
 /* テスト譜面レーン描画（右→左に流れる8分音符＋↓↑） */
+/* v0.11.81：マイク反応テストの「表示」専用の視覚補正(ms)。Android Bluetoothで画面補正(correction)済みのときだけ、
+   本番Practice（strokeDisplayOffsetMs＝headphoneOutputOffsetMs）と同じく表示を heard-time へ H 寄せする。
+   drawTestLane() の表示計算だけで使い、stroke測定窓（testFlowLoop / measureOpenT・CloseT）や strokeInputDelayMs、
+   judge/感度/閾値には一切使わない。strokeInputDelayMs（往復遅延）に H が含まれるため、窓側へ加算すると二重補正になる。
+   iPhone・Android通常マイク・Android有線・correction未完了は 0（従来の raw 表示のまま）。 */
+function micTestDisplayOffsetMs() {
+    if (!useAndroidLatencyFirstFlow() || !isBluetoothHeadphone()) return 0;
+    if (!setupProgress.correctionDone) return 0;
+    const hp = Number(mic.headphoneOutputOffsetMs);
+    return Number.isFinite(hp) ? hp : 0;
+}
+
 function drawTestLane(t) {
     const { ctx, w, h } = testLane;
     if (!ctx) return;
@@ -20227,6 +20239,9 @@ function drawTestLane(t) {
     const yc = h * 0.44;
     const judgeX = w * 0.28;
     const ppm = (w * 0.18) / TEST_NOTE_MS;  // 1音符ぶんを画面幅の約18%に
+    // v0.11.81：Android Bluetoothで画面補正(correction)済みのときだけ、本番Practiceと同じく表示をheard-timeへH寄せする（表示のみ）。
+    //   測定窓(testFlowLoop)・strokeInputDelayMs・判定には使わない。それ以外は0で従来表示。二重補正防止のため窓側へは加算しない。
+    const dispOff = micTestDisplayOffsetMs();
     // 中央ガイド
     ctx.strokeStyle = 'rgba(253,246,238,0.08)';
     ctx.lineWidth = 2;
@@ -20234,9 +20249,9 @@ function drawTestLane(t) {
     // 音符
     for (let i = 0; i < test.notes.length; i++) {
         const n = test.notes[i];
-        const x = judgeX + (n.t - t) * ppm;
+        const x = judgeX + (n.t + dispOff - t) * ppm;
         if (x < -24 || x > w + 24) continue;
-        const inWin = (!n.closed) && Math.abs(t - n.t) <= TEST_NOTE_WIN;
+        const inWin = (!n.closed) && Math.abs(t - (n.t + dispOff)) <= TEST_NOTE_WIN;
         // STAGEと同じ4分音符の見た目。検出＝緑／未検出＝薄い／判定窓中＝光る黄色
         const col = n.closed
             ? (n.detected ? COLORS.just : 'rgba(253,246,238,0.3)')
@@ -20254,9 +20269,9 @@ function drawTestLane(t) {
         ctx.textAlign = 'center';
         ctx.fillText(n.dir === 'down' ? '↓' : '↑', x, yc + 30);
     }
-    // 判定ライン（拍の視覚クリック：拍頭付近で軽く光る）
+    // 判定ライン（拍の視覚クリック：拍頭付近で軽く光る）。v0.11.81：表示H寄せに合わせて拍グロウも dispOff ぶん後ろへ（表示のみ）。
     const gridFrom = (test.beatGridFrom != null) ? test.beatGridFrom : TEST_COUNTIN_START;
-    const glow = beatGlow(t - gridFrom, TEST_NOTE_MS);
+    const glow = beatGlow(t - gridFrom - dispOff, TEST_NOTE_MS);
     ctx.save();
     ctx.shadowColor = 'rgba(255,159,28,0.95)'; ctx.shadowBlur = 10 + glow * 24;
     ctx.strokeStyle = 'rgba(255,159,28,' + (0.85 + glow * 0.15).toFixed(2) + ')';
