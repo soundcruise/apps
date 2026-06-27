@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.94';
+const RHYTHM_CRUISE_VERSION = '0.11.95';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13931,6 +13931,57 @@ function androidCheckSpecPlan(target) {
         ...rep(3, () => [click(), tone1500(), tone2000(), noise()]).flat(),
     ] };
 }
+let lastAndroidBluetoothCandidateComparison = null; // v0.11.95：直近BT遅延テストの候補比較（表示・ログ専用。保存値や採用ルールには未使用）。
+/* v0.11.95：Bluetooth音ズレ・遅延テストの候補値を比較ログ用に保持する（表示専用）。
+   保存値・採用ルール・補正ロジックは一切変更しない。2連/3連は正式フォールバック候補にしない。
+   各 measurementMs は各音源の focusedOffsetMedianMs（生の中央値）。used は今回の遅延テストで採用された候補（shortNoise）。 */
+function buildAndroidBluetoothCandidateComparison(run) {
+    const bt = run && run.bluetoothExploration;
+    if (!bt) return null;
+    const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
+    const r6 = (v) => v == null ? null : Math.round(v * 1e6) / 1e6;
+    const sn = bt.shortNoiseFocusedTest || null, dp = bt.doublePatternDetection || null, tp = bt.triplePatternDetection || null;
+    const cc = sn && sn.correctionCandidate || null;
+    const sumOf = (id) => (run.summary || []).find((s) => s.soundId === id) || {};
+    const usable = (s) => s.stableEnoughGuess === true && (s.peakToNoiseMedian || 0) >= ANDROID_CORR_MIN_PEAK_TO_NOISE && s.offsetRangeMs != null && s.offsetRangeMs <= ANDROID_CORR_MAX_TRIMMED_RANGE_MS;
+    const sD = sumOf('double-noise-pattern'), sT = sumOf('triple-noise-pattern');
+    // noiseFamily：short+double+triple をまとめた既存の区間候補ロジックを再利用（表示専用・保存しない）。
+    const nfEvents = (run.events || []).filter((e) => e.soundId === 'short-noise-focused-test' || e.soundId === 'double-noise-pattern' || e.soundId === 'triple-noise-pattern');
+    const nf = nfEvents.length ? androidLatencySegmentCandidate(run, nfEvents, 'bluetooth') : null;
+    return {
+        used: { source: cc ? cc.source : null, measurementMs: cc ? r1(cc.measurementDelayMs) : null, saveOffsetMs: cc ? r1(cc.saveOffsetMs) : null, isReadyToSave: !!(cc && cc.isReadyToSave) },
+        shortNoise: { measurementMs: sn ? r1(sn.focusedOffsetMedianMs) : null, clusterMeasurementMs: cc ? r1(cc.measurementDelayMs) : null, isReadyToSave: !!(cc && cc.isReadyToSave), reason: cc ? cc.reason : null },
+        double: { measurementMs: dp ? r1(dp.focusedOffsetMedianMs) : null, detectedCount: sD.detectedCount != null ? sD.detectedCount : null, peakToNoiseMedian: r6(sD.peakToNoiseMedian), offsetRangeMs: r1(sD.offsetRangeMs), usableForSegment: usable(sD), note: '表示専用・正式フォールバック候補ではない' },
+        triple: { measurementMs: tp ? r1(tp.focusedOffsetMedianMs) : null, detectedCount: sT.detectedCount != null ? sT.detectedCount : null, peakToNoiseMedian: r6(sT.peakToNoiseMedian), offsetRangeMs: r1(sT.offsetRangeMs), usableForSegment: usable(sT), note: '表示専用・正式フォールバック候補ではない' },
+        noiseFamily: { measurementMs: nf ? r1(nf.measurementDelayMs) : null, isReadyToSave: !!(nf && nf.isReadyToSave), reason: nf ? nf.reason : null },
+        capturedAt: new Date().toISOString(),
+        note: '比較ログ用（v0.11.95）。保存値・採用ルールは未変更。2連/3連は正式フォールバック候補にしない。',
+    };
+}
+/* v0.11.95：最終確認テストの平均ズレに対し、各BT候補を採用していた場合の予測平均ズレを出す（表示専用）。
+   predictedAvgDiffMs = actualAvgDiffMs - (candidateMeasurementMs - usedMeasurementMs)
+   usedMeasurementMs は最終確認時に実際に適用されていた保存値（-androidBluetoothMicOffsetMs）。補正ロジック・保存値は変更しない。 */
+function androidBluetoothFinalCheckPrediction(actualAvgDiffMs) {
+    if (!isBluetoothHeadphone()) return null;
+    const cmp = lastAndroidBluetoothCandidateComparison;
+    if (!cmp) return null;
+    const status = getAndroidBluetoothOffsetStatus();
+    const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
+    const usedMeasurementMs = status.measurementDelayEstimateMs != null ? status.measurementDelayEstimateMs : (cmp.used ? cmp.used.measurementMs : null);
+    const predict = (m) => (m == null || usedMeasurementMs == null || actualAvgDiffMs == null) ? null : r1(actualAvgDiffMs - (m - usedMeasurementMs));
+    const entry = (m) => ({ candidateMeasurementMs: m, predictedAvgDiffMs: predict(m) });
+    return {
+        usedMeasurementMs: r1(usedMeasurementMs),
+        usedOffsetSource: status.usedOffsetSource,
+        savedOffsetMs: r1(status.savedOffsetMs),
+        actualAvgDiffMs: r1(actualAvgDiffMs),
+        ifShortNoise: entry(cmp.shortNoise ? cmp.shortNoise.measurementMs : null),
+        ifDouble: entry(cmp.double ? cmp.double.measurementMs : null),
+        ifTriple: entry(cmp.triple ? cmp.triple.measurementMs : null),
+        ifNoiseFamily: entry(cmp.noiseFamily ? cmp.noiseFamily.measurementMs : null),
+        note: '予測のみ（v0.11.95）。保存値・採用ルールは未変更。2連/3連は正式採用していない。',
+    };
+}
 async function runAndroidAudioCheck(options) {
     const fromWizard = !!(options && options.fromWizard);
     const token = ++androidCheckRunToken;
@@ -13969,6 +14020,9 @@ async function runAndroidAudioCheck(options) {
         // finalGuess整合（ログ/表示のみ）：Bluetooth時はトップレベルfinalGuessをbluetoothExploration側優先にする。
         // ※補正値保存・Practice判定にはこの値を使わない（保存可否は correctionCandidate.isReadyToSave で判定）。
         run.finalGuess = run.bluetoothExploration.finalGuess;
+        // v0.11.95：候補比較ログ用に保持（表示・ログ専用。保存値・採用ルールは変更しない）。
+        run.androidBluetoothCandidateComparison = buildAndroidBluetoothCandidateComparison(run);
+        lastAndroidBluetoothCandidateComparison = run.androidBluetoothCandidateComparison;
     }
     if (isHeadphoneInput() && getHeadphoneType() === 'wired') {
         // v0.11.48/v0.11.50：有線は既存 summary（測定済み）から補正候補を算出。保存後は Android+有線時のPractice判定で使用。
@@ -14718,6 +14772,10 @@ const finalCheckFlowDebug = {
     startPracticeStartedAt: null,
     lastError: null,
     lastFinalCheckError: null,
+    // v0.11.95：直近の最終確認テスト統計とBT候補比較（補正フロー状態ログ用・表示専用）。
+    lastFinalCheckStats: null,
+    lastBluetoothCandidateComparison: null,
+    lastBluetoothFinalCheckPrediction: null,
 };
 
 function errorForCorrectionFlowLog(err) {
@@ -14833,6 +14891,10 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
             ptResult: correctionFlowElementState(els.ptResult),
             debug: finalDebug,
         },
+        // v0.11.95：最終確認テストの詳細統計＋BT候補比較＋予測平均ズレ（表示・ログ専用。保存値・採用ルールは未変更）。
+        finalCheckStats: finalCheckFlowDebug.lastFinalCheckStats || null,
+        bluetoothCandidateComparison: finalCheckFlowDebug.lastBluetoothCandidateComparison || null,
+        bluetoothFinalCheckPrediction: finalCheckFlowDebug.lastBluetoothFinalCheckPrediction || null,
     };
 }
 
@@ -15567,6 +15629,7 @@ async function startPracticeTest() {
 
 function finishPracticeTest() {
     let good = 0, early = 0, late = 0, miss = 0, sum = 0, validN = 0;
+    const diffMsList = []; // v0.11.95：有効入力ごとのズレ（表示・ログ専用）。
     for (let i = 0; i < PT_PLAY_BEATS; i++) {
         const n = pt.notes[i];
         if (!n.cls || n.cls === 'miss') { miss++; continue; }
@@ -15574,6 +15637,7 @@ function finishPracticeTest() {
         else if (n.cls === 'early') early++;
         else if (n.cls === 'late') late++;
         sum += n.diff; validN++;
+        if (Number.isFinite(n.diff)) diffMsList.push(Math.round(n.diff * 10) / 10);
     }
     const valid = good + early + late;
     const avg = validN ? Math.round(sum / validN) : 0;
@@ -15583,6 +15647,23 @@ function finishPracticeTest() {
         maxPeakOverThresholdNearClick: +pt.clickDebug.maxPeakOverThresholdNearClick.toFixed(4),
     }) : null;
     const r = { good, early, late, miss, valid, avg, maxPeak: pt.maxPeak, doubleCount: pt.doubleCount, threshold: mic.threshold, detectThreshold: ptDetectionThreshold(), cooldownMs: mic.cooldownMs, finalCheckOffsetDebug: androidJudgeOffsetDebug(), finalCheckClickDebug: clickDebug };
+    // v0.11.95：最終確認テストの詳細統計＋BT候補比較＋予測平均ズレ（すべて表示・ログ専用。判定/保存ロジックは不変）。
+    const offDbg = r.finalCheckOffsetDebug;
+    const medianOf = (xs) => { if (!xs.length) return null; const a = xs.slice().sort((p, q) => p - q); const m = Math.floor(a.length / 2); return a.length % 2 ? a[m] : Math.round((a[m - 1] + a[m]) / 2 * 10) / 10; };
+    r.finalCheckStats = {
+        count: valid, good, early, late, miss,
+        avgDiffMs: avg, medianDiffMs: medianOf(diffMsList),
+        minDiffMs: diffMsList.length ? Math.min(...diffMsList) : null,
+        maxDiffMs: diffMsList.length ? Math.max(...diffMsList) : null,
+        diffMsList,
+        usedJudgeOffsetMs: offDbg ? offDbg.finalJudgeOffsetMs : micJudgeOffsetMs(),
+        usedOffsetSource: offDbg ? offDbg.usedOffsetSource : null,
+    };
+    r.androidBluetoothCandidateComparison = isBluetoothHeadphone() ? (lastAndroidBluetoothCandidateComparison || null) : null;
+    r.androidBluetoothFinalCheckPrediction = androidBluetoothFinalCheckPrediction(avg);
+    finalCheckFlowDebug.lastFinalCheckStats = r.finalCheckStats;
+    finalCheckFlowDebug.lastBluetoothCandidateComparison = r.androidBluetoothCandidateComparison;
+    finalCheckFlowDebug.lastBluetoothFinalCheckPrediction = r.androidBluetoothFinalCheckPrediction;
     if (r.finalCheckOffsetDebug) console.info('[final-check] offset', r.finalCheckOffsetDebug);
     if (r.finalCheckClickDebug) console.info('[final-check] click', r.finalCheckClickDebug);
     ptFinalizeDebug();
@@ -15713,10 +15794,29 @@ function renderPracticeResult(r) {
     // 主導線（この設定を使う／完了）ほどは目立たせない、少し目立つサブ導線。
     const manualBtn = '<button type="button" id="pt-result-manual" style="' + sub + '">詳しい数値・手動設定を見る</button>';
 
+    // v0.11.95：開発確認用の閉じたブロック（BT候補比較・最終確認統計・予測平均ズレ）。通常表示は重くしない。
+    let devCompareBlock = '';
+    if (r.finalCheckStats || r.androidBluetoothCandidateComparison || r.androidBluetoothFinalCheckPrediction) {
+        let pre = '';
+        try {
+            pre = JSON.stringify({
+                finalCheckStats: r.finalCheckStats || null,
+                androidBluetoothCandidateComparison: r.androidBluetoothCandidateComparison || null,
+                bluetoothFinalCheckPrediction: r.androidBluetoothFinalCheckPrediction || null,
+            }, null, 2);
+        } catch (_) { pre = ''; }
+        if (pre) {
+            devCompareBlock = '<details class="card-help" style="margin-top:8px;"><summary style="font-size:0.8rem;opacity:0.7;">開発用：BT候補比較・最終確認統計</summary>'
+                + '<p class="setting-note">比較ログ用（v0.11.95）。保存値・採用ルールは未変更。2連/3連は正式採用していません。</p>'
+                + '<pre style="white-space:pre-wrap;font-size:0.72rem;overflow:auto;max-height:240px;">' + escapeHtml(pre) + '</pre></details>';
+        }
+    }
+
     els.ptResult.innerHTML =
         (c.kind === 'ok' ? okBanner : warnBanner) + mainRows +
         '<div style="margin-top:6px;">' + actions + '</div>' +
-        '<div style="margin-top:6px;">' + manualBtn + '</div>';
+        '<div style="margin-top:6px;">' + manualBtn + '</div>' +
+        devCompareBlock;
     els.ptResult.classList.remove('hidden');
     bindPracticeResultActions();
 }
