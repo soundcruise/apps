@@ -661,7 +661,8 @@
                 <div class="cal-head">マイク設定</div>
                 <p class="cal-status hidden" id="chooser-applied-msg" style="margin-top:0;color:#6ed28c;font-weight:700;"></p>
                 <!-- 主導線：補正テスト -->
-                <button type="button" class="settings-top-main" id="settings-detail-btn" style="width:100%;margin-top:4px;">補正テスト</button>
+                <button type="button" class="settings-top-main" id="settings-detail-btn" style="width:100%;margin-top:4px;">補正テストを始める</button>
+                <p class="setting-note" style="margin-top:6px;">リズム判定に使うマイク設定を、順番に確認します。</p>
                 <!-- サブ導線：保存済みプリセット（押すと専用ページへ移動・v0.9.104） -->
                 <button type="button" class="btn-mini settings-top-preset" id="preset-toggle-btn" style="width:100%;margin-top:10px;">保存済みプリセット</button>
                 <!-- サブ導線：現在の設定を見る -->
@@ -672,11 +673,35 @@
                     <p class="setting-note" style="margin-top:8px;">保存済みプリセットは、すぐ試せる基本設定です。うまく反応しない場合は、補正テストで環境に合わせて調整できます。調整した設定は保存して、次回からプリセットとして使えます。</p>
                 </details>
                 <div class="settings-detail" style="margin-top:12px;padding:12px;">
-                    <b>使っている端末を選んでください</b><p class="setting-note" id="platform-auto-note"></p>
+                    <b>端末に合わせたチェック項目（任意）</b>
+                    <p class="setting-note" id="platform-auto-note"></p>
                     <div class="input-mode seg-cards"><button type="button" class="input-seg" id="platform-ios">iPhone / iPad向け</button><button type="button" class="input-seg" id="platform-android">Android向け</button></div>
-                    <p class="setting-note">iPhone / iPad向け: 現在おすすめの補正テストです。Android向け: 専用の確認から始めます。</p>
+                    <p class="setting-note">端末に合わせたチェック項目を表示します。Practice判定は端末情報を自動判定します。</p>
                     <div class="hidden" id="android-platform-choices"><p class="do-now">入力タイプを選んでください</p><div class="input-mode seg-cards"><button type="button" class="input-seg" id="android-input-normal">通常マイク</button><button type="button" class="input-seg" id="android-input-headphone">イヤホン接続</button></div><div class="hidden" id="android-headphone-choices"><p class="do-now">イヤホンの種類を選んでください</p><div class="input-mode seg-cards"><button type="button" class="input-seg" id="android-hp-wired">有線イヤホン</button><button type="button" class="input-seg" id="android-hp-bluetooth">Bluetoothイヤホン</button></div></div></div>
-                    <div class="hidden" id="android-check-card"><b>Android音声チェック</b><p class="setting-note">イヤホン音がマイクに入るか確認します。この結果は補正値には保存されません。</p><button type="button" class="btn-mic test-start-btn rc-mic-action-primary" id="android-check-run">イヤホン音がマイクに入るか確認</button><p class="cal-status" id="android-check-status"></p><div class="cal-result hidden" id="android-check-result"></div><button type="button" class="btn-mic rc-mic-action-primary hidden" id="android-check-save-bt" style="width:100%;margin-top:8px;">Android Bluetooth補正候補を保存</button><p class="cal-status hidden" id="android-check-save-bt-status"></p><button type="button" class="btn-mic rc-mic-action-primary hidden" id="android-check-save-wired" style="width:100%;margin-top:8px;">Android有線補正として保存</button><p class="cal-status hidden" id="android-check-save-wired-status"></p><button type="button" class="btn-mic rc-mic-action-primary hidden" id="android-check-save-builtin" style="width:100%;margin-top:8px;">Android本体マイク補正として保存</button><p class="cal-status hidden" id="android-check-save-builtin-status"></p><button type="button" class="btn-mini" id="android-check-next" style="width:100%;margin-top:8px;">マイク反応テストへ進む</button><button type="button" class="btn-mini" id="android-check-clear" style="width:100%;margin-top:8px;">ログをクリア</button><button type="button" class="btn-mini" id="android-check-copy" style="width:100%;margin-top:8px;">Android音声チェックログをコピー</button><button type="button" class="btn-mini" id="android-check-copy-status" style="width:100%;margin-top:8px;">Android補正状態ログをコピー</button><textarea class="mic-test-dev-log-text hidden" id="android-check-manual-log" rows="14" readonly aria-label="手動コピー用Android音声チェックログ"></textarea></div>
+                    <details class="hidden card-help" id="android-check-details" style="margin-top:10px;">
+                        <summary>Android補正の詳細チェック</summary>
+                        <div id="android-check-card" style="margin-top:8px;">
+                            <p class="setting-note">Android端末で補正値やログを詳しく確認したい場合に使います。通常は上の「補正テストを始める」から進めてください。</p>
+                            <p class="setting-note">測定後、必要に応じてAndroid専用補正として保存できます。保存ボタンを押すまでは設定には反映されません。</p>
+                            <button type="button" class="btn-mic test-start-btn rc-mic-action-primary" id="android-check-run">詳細チェックを実行</button>
+                            <p class="cal-status" id="android-check-status"></p>
+                            <div class="cal-result hidden" id="android-check-result"></div>
+                            <button type="button" class="btn-mic rc-mic-action-primary hidden" id="android-check-save-bt" style="width:100%;margin-top:8px;">Android Bluetooth補正として保存</button>
+                            <p class="setting-note hidden" id="android-check-save-bt-note">保存後、Bluetoothイヤホン使用時のPractice判定で使われます。</p>
+                            <p class="cal-status hidden" id="android-check-save-bt-status"></p>
+                            <button type="button" class="btn-mic rc-mic-action-primary hidden" id="android-check-save-wired" style="width:100%;margin-top:8px;">Android有線補正として保存</button>
+                            <p class="setting-note hidden" id="android-check-save-wired-note">保存後、有線イヤホン使用時のPractice判定で使われます。</p>
+                            <p class="cal-status hidden" id="android-check-save-wired-status"></p>
+                            <button type="button" class="btn-mic rc-mic-action-primary hidden" id="android-check-save-builtin" style="width:100%;margin-top:8px;">Android本体マイク補正として保存</button>
+                            <p class="setting-note hidden" id="android-check-save-builtin-note">保存後、通常マイク使用時のPractice判定で使われます。</p>
+                            <p class="cal-status hidden" id="android-check-save-builtin-status"></p>
+                            <button type="button" class="btn-mini" id="android-check-next" style="width:100%;margin-top:8px;">マイク反応テストへ進む</button>
+                            <button type="button" class="btn-mini" id="android-check-clear" style="width:100%;margin-top:8px;">ログをクリア</button>
+                            <button type="button" class="btn-mini" id="android-check-copy" style="width:100%;margin-top:8px;">詳細ログをコピー</button>
+                            <button type="button" class="btn-mini" id="android-check-copy-status" style="width:100%;margin-top:8px;">Android補正状態ログをコピー（開発確認用）</button>
+                            <textarea class="mic-test-dev-log-text hidden" id="android-check-manual-log" rows="14" readonly aria-label="手動コピー用Android音声チェックログ"></textarea>
+                        </div>
+                    </details>
                 </div>
             </div>
 
@@ -1401,7 +1426,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.11.54"></script>
+    <script src="script.js?v=0.11.55"></script>
 </body>
 
 </html>
