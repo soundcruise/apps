@@ -1143,6 +1143,9 @@
                 <button class="btn-mic cal-run-btn test-start-btn rc-mic-action-primary" id="pt-btn">最終確認テストを開始</button>
                 <!-- Bluetoothイヤホンで波形がラインに届かないとき用：反応テストをやり直して感度を測り直す（v0.9.160） -->
                 <button type="button" class="btn-mic results-retest-btn test-start-btn rc-mic-action-secondary hidden" id="pt-retest-mic-btn">マイク反応テストをやり直す</button>
+                <button type="button" class="btn-mini" id="correction-flow-log-copy" style="width:100%;margin-top:8px;">補正フロー状態ログをコピー</button>
+                <p class="cal-status" id="correction-flow-log-status"></p>
+                <textarea id="correction-flow-log-text" class="hidden" readonly style="width:100%;min-height:160px;margin-top:8px;font-size:0.75rem;line-height:1.45;"></textarea>
                 <p class="cal-status" id="pt-status"></p>
                 <div class="cal-result hidden" id="pt-result"></div>
             </div>
@@ -1471,7 +1474,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.11.68"></script>
+    <script src="script.js?v=0.11.69"></script>
 </body>
 
 </html>

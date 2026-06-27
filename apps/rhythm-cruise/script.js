@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.68';
+const RHYTHM_CRUISE_VERSION = '0.11.69';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -1124,6 +1124,9 @@ const els = {
     ptReviewLast: $('pt-review-last'),
     ptBtn: $('pt-btn'),
     ptRetestMicBtn: $('pt-retest-mic-btn'),
+    correctionFlowLogCopy: $('correction-flow-log-copy'),
+    correctionFlowLogStatus: $('correction-flow-log-status'),
+    correctionFlowLogText: $('correction-flow-log-text'),
     ptStatus: $('pt-status'),
     ptResult: $('pt-result'),
     // マイクの遅れ補正（Bluetoothイヤホン用・v0.9.80）
@@ -13947,6 +13950,162 @@ function ptIdleBtnLabel() { return ptHasRun ? 'もう1度テストする' : '最
 
 function setPtStatus(t) { if (els.ptStatus) els.ptStatus.textContent = t || ''; }
 function ptTimer(fn, ms) { const id = setTimeout(fn, ms); pt.timers.push(id); return id; }
+const finalCheckFlowDebug = {
+    buttonClickCount: 0,
+    buttonClickedAt: null,
+    buttonHandlerReached: false,
+    lastButtonSnapshot: null,
+    startPracticeTestCalledAt: null,
+    startPracticeTestCallCount: 0,
+    startPracticeSnapshot: null,
+    startPracticeStopReason: null,
+    startPracticeStartedAt: null,
+    lastError: null,
+    lastFinalCheckError: null,
+};
+
+function errorForCorrectionFlowLog(err) {
+    if (!err) return null;
+    return {
+        name: err.name || null,
+        message: err.message || String(err),
+        stack: err.stack || null,
+    };
+}
+
+function recordCorrectionFlowError(err, scope) {
+    const info = { scope: scope || 'unknown', at: new Date().toISOString(), error: errorForCorrectionFlowLog(err) };
+    finalCheckFlowDebug.lastError = info;
+    if (scope === 'startPracticeTest' || scope === 'togglePracticeTest') finalCheckFlowDebug.lastFinalCheckError = info;
+}
+
+function correctionFlowElementState(el) {
+    if (!el) return { exists: false };
+    let computed = null;
+    try { computed = window.getComputedStyle ? window.getComputedStyle(el) : null; } catch (_) { computed = null; }
+    return {
+        exists: true,
+        disabled: !!el.disabled,
+        hiddenAttr: !!el.hidden,
+        classHidden: !!(el.classList && el.classList.contains('hidden')),
+        displayNone: !!(computed && computed.display === 'none'),
+        visibilityHidden: !!(computed && computed.visibility === 'hidden'),
+        offsetParentNull: el.offsetParent === null,
+        text: (el.textContent || '').trim(),
+    };
+}
+
+function correctionFlowStepLog() {
+    return wizardSteps().map((id) => ({
+        id,
+        label: wizardStepLabel(id),
+        complete: wizardStepComplete(id),
+    }));
+}
+
+function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
+    const device = androidAudioProbeDeviceInfo();
+    let activeStep = null, steps = [];
+    try { activeStep = activeWizardStep(); steps = correctionFlowStepLog(); } catch (err) { recordCorrectionFlowError(err, 'correctionFlowSnapshot.wizard'); }
+    const finalDebug = {
+        buttonClickCount: finalCheckFlowDebug.buttonClickCount,
+        buttonClickedAt: finalCheckFlowDebug.buttonClickedAt,
+        buttonHandlerReached: finalCheckFlowDebug.buttonHandlerReached,
+        startPracticeTestCalledAt: finalCheckFlowDebug.startPracticeTestCalledAt,
+        startPracticeTestCallCount: finalCheckFlowDebug.startPracticeTestCallCount,
+        startPracticeStopReason: finalCheckFlowDebug.startPracticeStopReason,
+        startPracticeStartedAt: finalCheckFlowDebug.startPracticeStartedAt,
+        lastError: finalCheckFlowDebug.lastError,
+        lastFinalCheckError: finalCheckFlowDebug.lastFinalCheckError,
+    };
+    if (includeSavedSnapshots) {
+        finalDebug.lastButtonSnapshot = finalCheckFlowDebug.lastButtonSnapshot;
+        finalDebug.startPracticeSnapshot = finalCheckFlowDebug.startPracticeSnapshot;
+    }
+    return {
+        version: RHYTHM_CRUISE_VERSION,
+        userAgent: navigator.userAgent,
+        timestamp: new Date().toISOString(),
+        reason: reason || 'manual',
+        selectedTestPlatform,
+        selectedInputType: getMicInputType(),
+        selectedHeadphoneType: isHeadphoneInput() ? getHeadphoneType() : null,
+        isAndroid: !!device.isAndroid,
+        isNormalMicInput: isNormalMicInput(),
+        isAndroidNormalMicFlow: isAndroidNormalMicFlow(),
+        settingsView,
+        wizardEditing,
+        currentWizardStep: activeStep,
+        activeWizardStep: activeStep,
+        wizardSteps: steps,
+        setupProgress: Object.assign({ testDone: !!state.micTestDone }, setupProgress),
+        micReactionTest: {
+            stateMicTestDone: !!state.micTestDone,
+            flow: !!test.flow,
+            active: !!test.active,
+            mode: test.mode || null,
+            clickDone: !!test.clickDone,
+            strokeDone: !!test.strokeDone,
+            strokeDetected: test.strokeDetected || 0,
+            strokeInputDelayMs: test.strokeInputDelayMs || 0,
+            recommendedThreshold: test.recommended != null ? test.recommended : null,
+            recommendedClickVolume: test.recoClickVolume != null ? test.recoClickVolume : null,
+            recommendedCooldown: test.recoCooldown != null ? test.recoCooldown : null,
+            recoBlockedByClickLeak: !!test.recoBlockedByClickLeak,
+            runDebug: micTestRunForDevelopmentLog(test.runDebug),
+        },
+        settings: {
+            clickVolume: state.clickVolume,
+            threshold: mic.threshold,
+            cooldownMs: mic.cooldownMs,
+            practiceResultOk,
+            ptActive: !!pt.active,
+            ptCapturing: !!pt.capturing,
+            ptHasRun,
+        },
+        androidCorrection: {
+            androidBuiltinMicOffsetMs: mic.androidBuiltinMicOffsetMs || 0,
+            androidWiredMicOffsetMs: mic.androidWiredMicOffsetMs || 0,
+            androidBluetoothMicOffsetMs: mic.androidBluetoothMicOffsetMs || 0,
+            micJudgeOffsetMs: micJudgeOffsetMs(),
+            offsetDebug: androidJudgeOffsetDebug(),
+        },
+        finalCheckButton: {
+            ptBtn: correctionFlowElementState(els.ptBtn),
+            ptCard: correctionFlowElementState(els.ptCard),
+            ptLaneWrap: correctionFlowElementState(els.ptLaneWrap),
+            ptResult: correctionFlowElementState(els.ptResult),
+            debug: finalDebug,
+        },
+    };
+}
+
+async function copyCorrectionFlowLog() {
+    let text;
+    try { text = JSON.stringify(correctionFlowSnapshot('copy-button'), null, 2); }
+    catch (err) {
+        recordCorrectionFlowError(err, 'copyCorrectionFlowLog.stringify');
+        text = JSON.stringify({ version: RHYTHM_CRUISE_VERSION, error: errorForCorrectionFlowLog(err) }, null, 2);
+    }
+    if (els.correctionFlowLogText) {
+        els.correctionFlowLogText.value = text;
+        els.correctionFlowLogText.classList.add('hidden');
+    }
+    let copied = false;
+    try { copied = await copyTextToClipboard(text); } catch (err) { recordCorrectionFlowError(err, 'copyCorrectionFlowLog.clipboard'); copied = false; }
+    if (els.correctionFlowLogStatus) {
+        els.correctionFlowLogStatus.textContent = copied
+            ? '補正フロー状態ログをコピーしました。'
+            : '自動コピーできませんでした。下のログを長押ししてコピーしてください。';
+    }
+    if (!copied && els.correctionFlowLogText) {
+        els.correctionFlowLogText.classList.remove('hidden');
+        try { els.correctionFlowLogText.focus(); els.correctionFlowLogText.select(); } catch (_) { /* long-press remains available */ }
+    }
+}
+
+window.addEventListener('error', (event) => recordCorrectionFlowError(event.error || new Error(event.message), 'window.error'));
+window.addEventListener('unhandledrejection', (event) => recordCorrectionFlowError(event.reason, 'window.unhandledrejection'));
 function fitPtLane() {
     if (!els.ptLaneCanvas) return;
     // CSS高さを固定し、fitOne() はその値をDPR変換するだけにする。
@@ -14545,6 +14704,11 @@ function resetPracticeView() {
 }
 
 async function startPracticeTest() {
+    finalCheckFlowDebug.startPracticeTestCallCount++;
+    finalCheckFlowDebug.startPracticeTestCalledAt = new Date().toISOString();
+    finalCheckFlowDebug.startPracticeStopReason = 'entered';
+    finalCheckFlowDebug.startPracticeSnapshot = correctionFlowSnapshot('startPracticeTest-enter', false);
+    try {
     // 排他：他テスト（イヤホン音ズレの画面補正／マイク反応テスト／マイクの遅れ補正）が動いていたら止める
     if (hpAd.active) stopHpAutoDetect();
     if (hpCal.active) stopHeadphoneCal();
@@ -14561,11 +14725,11 @@ async function startPracticeTest() {
             androidBuiltinMicOffsetMs: mic.androidBuiltinMicOffsetMs || 0,
         });
     }
-    if (!(await ensureTestMic())) { setPtStatus('マイクを許可してください。'); return; }
+    if (!(await ensureTestMic())) { finalCheckFlowDebug.startPracticeStopReason = 'ensureTestMic:false'; setPtStatus('マイクを許可してください。'); return; }
     ensureAudio();
-    try { if (state.audioCtx && state.audioCtx.state === 'suspended') { await state.audioCtx.resume(); audioContextDebugLastResumeAt = new Date().toISOString(); } } catch (_) { /* ignore */ }
+    try { if (state.audioCtx && state.audioCtx.state === 'suspended') { await state.audioCtx.resume(); audioContextDebugLastResumeAt = new Date().toISOString(); } } catch (err) { recordCorrectionFlowError(err, 'audioContext.resume'); }
     const ctx = state.audioCtx;
-    if (!ctx) { setPtStatus('音声を初期化できませんでした。'); return; }
+    if (!ctx) { finalCheckFlowDebug.startPracticeStopReason = 'audioContext:null'; setPtStatus('音声を初期化できませんでした。'); return; }
     // 前回の音符・波形・結果・内部状態を必ず初期化してから開始する（v0.9.73）
     resetPracticeView();
     pt.active = true;
@@ -14622,6 +14786,13 @@ async function startPracticeTest() {
     ptTimer(() => { pt.capturing = false; finishPracticeTest(); }, capEndMs + 250);
 
     pt.raf = requestAnimationFrame(ptLoop);
+    finalCheckFlowDebug.startPracticeStopReason = 'started';
+    finalCheckFlowDebug.startPracticeStartedAt = new Date().toISOString();
+    } catch (err) {
+        finalCheckFlowDebug.startPracticeStopReason = 'exception';
+        recordCorrectionFlowError(err, 'startPracticeTest');
+        throw err;
+    }
 }
 
 function finishPracticeTest() {
@@ -14898,7 +15069,16 @@ function stopPracticeTest() {
 }
 
 function togglePracticeTest() {
-    if (pt.active) stopPracticeTest(); else startPracticeTest();
+    finalCheckFlowDebug.buttonClickCount++;
+    finalCheckFlowDebug.buttonClickedAt = new Date().toISOString();
+    finalCheckFlowDebug.buttonHandlerReached = true;
+    finalCheckFlowDebug.lastButtonSnapshot = correctionFlowSnapshot('pt-btn-click', false);
+    try {
+        if (pt.active) stopPracticeTest(); else startPracticeTest();
+    } catch (err) {
+        recordCorrectionFlowError(err, 'togglePracticeTest');
+        throw err;
+    }
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -22502,6 +22682,7 @@ function bind() {
     if (els.setHpZeroBtn) els.setHpZeroBtn.addEventListener('click', resetHeadphoneOffsetToZero);
     // 実践テスト（v0.9.56）
     if (els.ptBtn) els.ptBtn.addEventListener('click', togglePracticeTest);
+    if (els.correctionFlowLogCopy) els.correctionFlowLogCopy.addEventListener('click', copyCorrectionFlowLog);
     // マイクの遅れ補正（Bluetooth用・v0.9.80）
     if (els.btCalBtn) els.btCalBtn.addEventListener('click', toggleBtCal);
     if (els.androidHpProbeRun) els.androidHpProbeRun.addEventListener('click', startHeadphoneAudioProbe);
