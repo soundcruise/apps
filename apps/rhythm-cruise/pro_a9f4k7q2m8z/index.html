@@ -1041,9 +1041,14 @@
                 <div class="hidden" id="wizard-android-bt-block">
                     <p class="do-now" id="wizard-android-bt-desc">イヤホンの音量を最大にして、音が出る部分をスマホのマイクに軽く押し当ててください。</p>
                     <p class="setting-note">波形が大きく出る位置で、動かさずにテストします。</p>
+                    <div style="display:flex;justify-content:flex-end;margin:6px 0 8px;">
+                        <button type="button" class="btn-mini rc-mic-action-secondary" id="wizard-android-bt-volume-test" style="margin:0;padding:7px 12px;">音量テスト</button>
+                    </div>
                     <details class="card-help">
                         <summary>測定できない場合</summary>
                         <p class="setting-note">静かな場所で測定し、イヤホンの音量を最大にしてください。</p>
+                        <p class="setting-note">測定前に「音量テスト」を押すと、テスト音をループ再生しながら音量の反応を確認できます。「安定して測定できています」と出る位置にスマホを置いてから、本測定を開始してください。</p>
+                        <p class="setting-note">音量テスト中に本測定を開始すると、音量テストは自動で停止します。</p>
                         <p class="setting-note">音が出る部分をスマホのマイクに軽く押し当て、波形が大きく出る位置を少しずつ探します。</p>
                         <p class="setting-note">測定中はイヤホンとスマホを動かさないでください。それでもダメな場合は、イヤホンの仕様が合わない可能性があります。別のイヤホン、または本体マイクで試してください。</p>
                     </details>
@@ -1419,7 +1424,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.12.0"></script>
+    <script src="../script.js?v=0.12.1"></script>
 </body>
 
 </html>
