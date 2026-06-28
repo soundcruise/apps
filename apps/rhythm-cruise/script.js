@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.10';
+const RHYTHM_CRUISE_VERSION = '0.12.11';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14878,6 +14878,40 @@ function androidVolumeTestReadiness(target) {
             ? '音は入っていますが、タイミングが不安定です。位置を固定してもう一度試してください。'
             : '音は入っていますが、少し弱めです。端末音量を上げるか、マイクとイヤホンの位置を近づけてください。';
     }
+    // v0.12.11：UI主表示は「波形音量が本測定を始めてよい程度か」だけを見る。
+    //   候補化の安定性・タイミングは見ない（それは下の volumeCandidateReadiness ＝開発ログ側へ寄せる）。
+    //   judge/閾値/保存候補ロジックには一切影響しない（読むだけ）。
+    const noise = run.noise || {};
+    const noiseP95 = Number.isFinite(Number(noise.p95)) ? Number(noise.p95) : 0;
+    const noiseFloorRatio = threshold ? Math.round((noiseP95 / threshold) * 100) / 100 : null;
+    let levelStatus = 'ng';
+    if (peakToThresholdRatio != null && peakToThresholdRatio >= 2.0) levelStatus = 'ok';
+    else if (peakToThresholdRatio != null && peakToThresholdRatio >= 0.7) levelStatus = 'weak';
+    // ノイズ警告は「常に大きいノイズが測定を邪魔する」明確な場合だけ。ノイズフロアが実判定ラインに達し、
+    //   かつ信号比でも無視できない（ピークの半分以上）ときのみ high とする。
+    const noiseStatus = (noiseP95 >= threshold && peakLevel > 0 && noiseP95 >= peakLevel * 0.5) ? 'high' : 'ok';
+    const volumeLevelReadiness = {
+        status: levelStatus,
+        peakLevel: Math.round(peakLevel * 1000000) / 1000000,
+        threshold,
+        peakToThresholdRatio,
+        stableDetectedCount,
+        noiseStatus,
+        noiseP95: Math.round(noiseP95 * 1000000) / 1000000,
+        noiseFloorRatio,
+        recommendedAction: levelStatus === 'ok'
+            ? 'この音量で本測定を開始できます。'
+            : (levelStatus === 'weak'
+                ? '音は入っていますが波形が小さめです。端末音量を上げるか、マイクとイヤホンを近づけてください。'
+                : '音量が足りません。端末音量を上げるか、音が出る部分をマイクに近づけてください。'),
+    };
+    const volumeCandidateReadiness = {
+        status,
+        reason,
+        candidateLikeCount,
+        rejectedReasons,
+        wouldLikelyProduceCandidate,
+    };
     const result = {
         status,
         reason,
@@ -14896,12 +14930,24 @@ function androidVolumeTestReadiness(target) {
             reason: candidate.reason || null,
         } : null,
         volumeTestPatternReadiness: patternInfo,
+        // v0.12.11：UI主表示用（音量十分か）と開発ログ用（候補化できそうか）を分離。
+        volumeLevelReadiness,
+        volumeCandidateReadiness,
     };
     androidBtVolumeTest.volumeTestReadiness = result;
     return result;
 }
 function androidVolumeTestStatusForReadiness(readiness) {
     if (!readiness) return { kind: '', text: '音を確認中…' };
+    // v0.12.11：主表示は「音量が十分か」だけを見る。候補化の安定性は主表示にしない（開発ログ側で見る）。
+    const lvl = readiness.volumeLevelReadiness || null;
+    if (lvl) {
+        if (lvl.noiseStatus === 'high') return { kind: 'warn', text: 'ノイズが大きいようです。静かな場所で確認してください' };
+        if (lvl.status === 'ok') return { kind: 'ok', text: '音量は十分です。測定を開始できます' };
+        if (lvl.status === 'weak') return { kind: 'warn', text: '音は入っていますが、波形が小さめです' };
+        return { kind: 'retry', text: '音量が足りません。端末音量を上げてください' };
+    }
+    // フォールバック（旧構造のreadiness）
     if (readiness.status === 'ok') return { kind: 'ok', text: '安定して測定できそうです' };
     if (readiness.status === 'weak') return { kind: 'warn', text: '音は入っていますが、少し弱めです' };
     if (readiness.status === 'unstable') return { kind: 'warn', text: '音は入っていますが、タイミングが不安定です' };
@@ -14971,8 +15017,10 @@ async function startAndroidBtVolumeTest() {
             const status = androidVolumeTestStatusForReadiness(readiness);
             const ui = androidCheckLiveEls();
             if (ui.state) setCalLevelState(ui.state, status.kind, status.text);
-            if (statusEl && readiness.status !== 'ok') statusEl.textContent = readiness.recommendedAction;
-            else if (statusEl) statusEl.textContent = '音量テスト中… この位置で本測定を開始できます。';
+            // v0.12.11：補足文も音量主判定（volumeLevelReadiness）基準にする。候補化の可否では出し分けない。
+            const lvl = readiness.volumeLevelReadiness || null;
+            if (statusEl && lvl && lvl.status !== 'ok') statusEl.textContent = lvl.recommendedAction;
+            else if (statusEl) statusEl.textContent = '音量テスト中… この音量で本測定を開始できます。';
         }
     }
     if (androidBtVolumeTest.token === token) stopAndroidBtVolumeTest({ keepMonitor: true });
@@ -15378,6 +15426,8 @@ const finalCheckFlowDebug = {
     lastFinalCheckOffsetComparison: null,
     lastBluetoothCandidateComparison: null,
     lastBluetoothFinalCheckPrediction: null,
+    // v0.12.11：判定に使う補正・最終確認の波形描画に使う補正・ステップ表示の補正を分離した診断ログ（表示専用）。
+    lastFinalCheckVisualOffsetDebug: null,
 };
 
 function errorForCorrectionFlowLog(err) {
@@ -15502,6 +15552,7 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
         // v0.12.0：最終確認テストの詳細統計＋BT候補比較＋予測平均ズレ。selectedForSave が実保存候補。
         finalCheckStats: finalCheckFlowDebug.lastFinalCheckStats || null,
         finalCheckOffsetComparison: finalCheckFlowDebug.lastFinalCheckOffsetComparison || null,
+        finalCheckVisualOffsetDebug: finalCheckFlowDebug.lastFinalCheckVisualOffsetDebug || null,
         bluetoothCandidateComparison: finalCheckFlowDebug.lastBluetoothCandidateComparison || null,
         bluetoothFinalCheckPrediction: finalCheckFlowDebug.lastBluetoothFinalCheckPrediction || null,
     };
@@ -16333,6 +16384,39 @@ function buildFinalCheckOffsetComparison(currentStats) {
     };
 }
 
+/* v0.12.11：最終確認テストの「判定に使う補正」「波形描画に使う補正」「ステップ表示の補正」を分離した診断ログ。
+   すべて現在値を読むだけ。judge/表示/保存ロジックには一切影響しない。
+   - judgeOffsetMs        … 最終確認の判定で実際に使った補正（finishPracticeTest の tMs に加算した値）
+   - displayOffsetMs      … 最終確認レーンの波形描画に使う補正（micJudgeOffsetMs + イヤホン画面補正）
+   - headphoneDisplayOffsetMs … 表示専用のイヤホン音ズレ画面補正（strokeDisplayOffsetMs）
+   - latencyTrialOffsetMs … iPhone仮で音ズレ・遅延テストが測った仮補正（判定には乗らない／表示・参考のみ）
+   - stepBtdelayLabelOffsetMs … btdelayステップに「補正 ◯ms」と出している値（headphoneMicOffsetGet）
+   - judgeMinusDisplayMs  … 判定補正と波形描画補正の差（≒0が正常） */
+function buildFinalCheckVisualOffsetDebug() {
+    const judgeOffsetMs = Number(finalCheckJudgeOffsetMs());
+    const headphoneDisplayOffsetMs = Number(strokeDisplayOffsetMs()) || 0;
+    const displayOffsetMs = Number(micJudgeOffsetMs()) + headphoneDisplayOffsetMs;
+    const latencyTrialOffsetMs = isIphoneAndroidTrialFlow() ? Number(iphoneAndroidTrialCurrentOffsetMs()) : null;
+    const stepBtdelayLabelOffsetMs = isHeadphoneInput() ? Number(headphoneMicOffsetGet()) : null;
+    return {
+        correctionFlowKind: correctionFlowKind(),
+        selectedInputType: getMicInputType(),
+        selectedHeadphoneType: isHeadphoneInput() ? getHeadphoneType() : null,
+        judgeOffsetMs: Number.isFinite(judgeOffsetMs) ? judgeOffsetMs : null,
+        micJudgeOffsetMs: Number(micJudgeOffsetMs()),
+        wizardJudgeOffsetMs: Number(wizardMicJudgeOffsetMs()),
+        displayOffsetMs: Number.isFinite(displayOffsetMs) ? displayOffsetMs : null,
+        headphoneDisplayOffsetMs,
+        latencyTrialOffsetMs: latencyTrialOffsetMs != null && Number.isFinite(latencyTrialOffsetMs) ? latencyTrialOffsetMs : null,
+        stepBtdelayLabelOffsetMs: stepBtdelayLabelOffsetMs != null && Number.isFinite(stepBtdelayLabelOffsetMs) ? stepBtdelayLabelOffsetMs : null,
+        timingOffsetMs: Number(mic.timingOffsetMs) || 0,
+        wiredMicOffsetMs: Number(mic.wiredMicOffsetMs) || 0,
+        bluetoothMicOffsetMs: Number(mic.bluetoothMicOffsetMs) || 0,
+        judgeMinusDisplayMs: (Number.isFinite(judgeOffsetMs) && Number.isFinite(displayOffsetMs)) ? Math.round((judgeOffsetMs - displayOffsetMs) * 10) / 10 : null,
+        note: 'judgeOffsetMs＝判定で使った補正 / displayOffsetMs＝波形描画の補正 / latencyTrialOffsetMs＝iPhone仮の音ズレ遅延テスト測定値（判定には乗らない）',
+    };
+}
+
 function finishPracticeTest() {
     let good = 0, early = 0, late = 0, miss = 0, sum = 0, validN = 0;
     const diffMsList = []; // v0.11.95：有効入力ごとのズレ（表示・ログ専用）。
@@ -16365,10 +16449,12 @@ function finishPracticeTest() {
         usedOffsetSource: offDbg ? offDbg.usedOffsetSource : null,
     };
     r.finalCheckOffsetComparison = buildFinalCheckOffsetComparison(r.finalCheckStats);
+    r.finalCheckVisualOffsetDebug = buildFinalCheckVisualOffsetDebug();
     r.androidBluetoothCandidateComparison = isBluetoothHeadphone() ? (lastAndroidBluetoothCandidateComparison || null) : null;
     r.androidBluetoothFinalCheckPrediction = androidBluetoothFinalCheckPrediction(avg);
     finalCheckFlowDebug.lastFinalCheckStats = r.finalCheckStats;
     finalCheckFlowDebug.lastFinalCheckOffsetComparison = r.finalCheckOffsetComparison;
+    finalCheckFlowDebug.lastFinalCheckVisualOffsetDebug = r.finalCheckVisualOffsetDebug;
     finalCheckFlowDebug.lastBluetoothCandidateComparison = r.androidBluetoothCandidateComparison;
     finalCheckFlowDebug.lastBluetoothFinalCheckPrediction = r.androidBluetoothFinalCheckPrediction;
     if (r.finalCheckOffsetDebug) console.info('[final-check] offset', r.finalCheckOffsetDebug);
