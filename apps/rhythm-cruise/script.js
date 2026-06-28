@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.3';
+const RHYTHM_CRUISE_VERSION = '0.12.4';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -1361,6 +1361,7 @@ const els = {
     platformTypeCard: $('platform-type-card'),
     wizardPlatformIos: $('wizard-platform-ios'),
     wizardPlatformAndroid: $('wizard-platform-android'),
+    wizardPlatformIphoneTrial: $('wizard-platform-iphone-trial'),
     wizardPlatformNote: $('wizard-platform-note'),
     wizardFlowPlatformNote: $('wizard-flow-platform-note'),
     inputTypeCard: $('input-type-card'),
@@ -18174,7 +18175,9 @@ function allStepCards() {
 function wizardStepSummary(id) {
     switch (id) {
         case 'platform':
-            return selectedTestPlatform === 'android' ? '端末：Android' : (selectedTestPlatform === 'ios' ? '端末：iPhone / iPad' : '端末：未選択');
+            return selectedTestPlatform === 'android' ? '端末：Android'
+                : (selectedTestPlatform === 'iphone_android_trial' ? '端末：iPhone仮'
+                : (selectedTestPlatform === 'ios' ? '端末：iPhone / iPad' : '端末：未選択'));
         case 'input': {
             if (!isHeadphoneInput()) return '入力タイプ：通常マイク';
             return '入力タイプ：イヤホン接続';
@@ -18209,6 +18212,7 @@ function refreshSegmentSelections() {
     const showPlatform = !(steps && !setupProgress.platformChosen);
     if (els.wizardPlatformIos) els.wizardPlatformIos.classList.toggle('is-active', showPlatform && selectedTestPlatform === 'ios');
     if (els.wizardPlatformAndroid) els.wizardPlatformAndroid.classList.toggle('is-active', showPlatform && selectedTestPlatform === 'android');
+    if (els.wizardPlatformIphoneTrial) els.wizardPlatformIphoneTrial.classList.toggle('is-active', showPlatform && selectedTestPlatform === 'iphone_android_trial');
     const t = getMicInputType();
     const showInput = !(steps && !setupProgress.inputChosen);
     if (els.inputTypeNormal) els.inputTypeNormal.classList.toggle('is-active', showInput && t === 'normal');
@@ -19179,7 +19183,9 @@ function applyEarphoneClickVolumeDefault() {
 function updateWizardFlowPlatformNotes() {
     const msg = selectedTestPlatform === 'android'
         ? 'Android向けの補正テストを行います。'
-        : (selectedTestPlatform === 'ios' ? 'iPhone / iPad向けの補正テストを行います。' : '');
+        : (selectedTestPlatform === 'iphone_android_trial'
+            ? 'iPhone仮テスト中です。現在のiPhone本番設定には保存しません。selectedTestPlatform: iphone_android_trial'
+            : (selectedTestPlatform === 'ios' ? 'iPhone / iPad向けの補正テストを行います。' : ''));
     if (els.wizardFlowPlatformNote) {
         els.wizardFlowPlatformNote.textContent = msg;
         els.wizardFlowPlatformNote.classList.toggle('hidden', !msg);
@@ -24216,6 +24222,7 @@ function bind() {
     if (els.inputTypeHeadphone) els.inputTypeHeadphone.addEventListener('click', () => onPickInputType('headphone'));
     if (els.wizardPlatformIos) els.wizardPlatformIos.addEventListener('click', () => onPickWizardPlatform('ios'));
     if (els.wizardPlatformAndroid) els.wizardPlatformAndroid.addEventListener('click', () => onPickWizardPlatform('android'));
+    if (els.wizardPlatformIphoneTrial) els.wizardPlatformIphoneTrial.addEventListener('click', () => onPickWizardPlatform('iphone_android_trial'));
     if (els.platformIos) els.platformIos.addEventListener('click', () => selectTestPlatform('ios'));
     if (els.platformAndroid) els.platformAndroid.addEventListener('click', () => selectTestPlatform('android'));
     if (els.androidInputNormal) els.androidInputNormal.addEventListener('click', () => onPickInputType('normal'));
