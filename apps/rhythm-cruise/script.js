@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.1';
+const RHYTHM_CRUISE_VERSION = '0.12.2';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -1441,6 +1441,7 @@ const els = {
     wizardAndroidLevelStateBuiltin: $('wizard-android-level-state-builtin'),
     wizardAndroidBtBlock: $('wizard-android-bt-block'), wizardIosBtUi: $('wizard-ios-bt-ui'),
     wizardAndroidBtDesc: $('wizard-android-bt-desc'), wizardAndroidRunHp: $('wizard-android-run-hp'),
+    wizardAndroidCalVolumeTest: $('wizard-android-cal-volume-test'),
     wizardAndroidBtVolumeTest: $('wizard-android-bt-volume-test'),
     wizardAndroidStatusHp: $('wizard-android-status-hp'), wizardAndroidResultHp: $('wizard-android-result-hp'),
     wizardAndroidSaveBtWizard: $('wizard-android-save-bt'), wizardAndroidSaveBtStatus: $('wizard-android-save-bt-status'),
@@ -12913,7 +12914,7 @@ let androidCheckCancelRequested = false;
 let androidCheckRunToken = 0;
 let selectedTestPlatform = null;
 let androidCheckMode = false;
-const androidBtVolumeTest = { active: false, stopRequested: false, loopTimer: 0, token: 0 };
+const androidBtVolumeTest = { active: false, stopRequested: false, loopTimer: 0, token: 0, target: null };
 function updatePlatformChoiceUI() {
     const info = androidAudioProbeDeviceInfo();
     if (els.platformAutoNote) els.platformAutoNote.textContent = info.isAndroid ? 'この端末は Android と判定されました。' : (info.isIOS ? 'この端末は iPhone / iPad と判定されました。' : '端末を推定できませんでした。手動で選んでください。');
@@ -13837,7 +13838,7 @@ function renderWizardAndroidLatencyUi(active) {
     if (els.wizardIosCalUi) els.wizardIosCalUi.classList.toggle('hidden', !showIosCal);
     if (els.wizardAndroidBtBlock) els.wizardAndroidBtBlock.classList.toggle('hidden', !showAndroidBt);
     if (els.wizardIosBtUi) els.wizardIosBtUi.classList.toggle('hidden', !showIosBt);
-    if (!showAndroidBt) stopAndroidBtVolumeTest({ keepMonitor: true });
+    if (!showAndroidCal && !showAndroidBt) stopAndroidBtVolumeTest({ keepMonitor: true });
     const warn = androidPlatform && !androidAudioProbeDeviceInfo().isAndroid;
     if (els.wizardAndroidNonDeviceNoteCal) els.wizardAndroidNonDeviceNoteCal.classList.toggle('hidden', !warn || !showAndroidCal);
     if (els.wizardAndroidNonDeviceNoteBt) els.wizardAndroidNonDeviceNoteBt.classList.toggle('hidden', !warn || !showAndroidBt);
@@ -14232,18 +14233,25 @@ function refreshAndroidBtSaveButton() {
     const canSave = inCtx && cc && cc.isReadyToSave === true && cc.saveOffsetMs != null;
     applyDualAndroidSaveButtonUi(els.androidCheckSaveBt, els.wizardAndroidSaveBtWizard, els.androidCheckSaveBtNote, els.androidCheckSaveBtStatus, els.wizardAndroidSaveBtStatus, canSave, inCtx, cc, '保存条件未達: ');
 }
+function setAndroidSaveStatus(detailEl, wizardEl, text) {
+    [detailEl, wizardEl].forEach((el) => {
+        if (!el) return;
+        el.classList.remove('hidden');
+        el.textContent = text;
+    });
+}
 /* 保存：correctionCandidate.saveOffsetMs を androidBluetoothMicOffsetMs へ（-600〜0でクランプ）。
    既存 bluetoothMicOffsetMs / timingOffsetMs / wiredMicOffsetMs には一切触れない。Practice判定はv0.11.46で接続済み（Android+Bluetooth時のみ優先）。 */
 function saveAndroidBluetoothCorrection() {
     const isAndroidBt = selectedTestPlatform === 'android' && getMicInputType() === 'headphone' && getHeadphoneType() === 'bluetooth';
     const cc = androidBtCorrectionCandidate();
     if (!isAndroidBt || !cc || cc.isReadyToSave !== true || cc.saveOffsetMs == null) {
-        if (els.androidCheckSaveBtStatus) { els.androidCheckSaveBtStatus.classList.remove('hidden'); els.androidCheckSaveBtStatus.textContent = '保存条件未達: ' + (cc && cc.reason || 'Android Bluetoothの保存可能な候補がありません'); }
+        setAndroidSaveStatus(els.androidCheckSaveBtStatus, els.wizardAndroidSaveBtStatus, '保存条件未達: ' + (cc && cc.reason || 'Android Bluetoothの保存可能な候補がありません'));
         return;
     }
     mic.androidBluetoothMicOffsetMs = clampNum(cc.saveOffsetMs, ANDROID_BT_MIC_OFFSET_MIN, ANDROID_BT_MIC_OFFSET_MAX, 0);
     saveSettings();
-    if (els.androidCheckSaveBtStatus) { els.androidCheckSaveBtStatus.classList.remove('hidden'); els.androidCheckSaveBtStatus.textContent = '保存済み Android Bluetooth補正値: ' + Math.round(mic.androidBluetoothMicOffsetMs) + 'ms　現在のPractice判定: 使用中'; }
+    setAndroidSaveStatus(els.androidCheckSaveBtStatus, els.wizardAndroidSaveBtStatus, '保存済み Android Bluetooth補正値: ' + Math.round(mic.androidBluetoothMicOffsetMs) + 'ms　現在のPractice判定: 使用中');
     console.info('[android-bt] 保存 androidBluetoothMicOffsetMs=' + mic.androidBluetoothMicOffsetMs + 'ms（Android+Bluetooth時のPractice判定で使用）');
 }
 /* v0.11.48：Android有線補正候補の保存ボタン表示制御。
@@ -14266,12 +14274,12 @@ function saveAndroidWiredCorrection() {
     const isAndroidWired = selectedTestPlatform === 'android' && getMicInputType() === 'headphone' && getHeadphoneType() === 'wired';
     const wc = androidWiredCandidate();
     if (!isAndroidWired || !wc || wc.isReadyToSave !== true || wc.saveOffsetMs == null) {
-        if (els.androidCheckSaveWiredStatus) { els.androidCheckSaveWiredStatus.classList.remove('hidden'); els.androidCheckSaveWiredStatus.textContent = '保存条件未達: ' + (wc && wc.reason || 'Android有線の保存可能な候補がありません'); }
+        setAndroidSaveStatus(els.androidCheckSaveWiredStatus, els.wizardAndroidSaveWiredStatus, '保存条件未達: ' + (wc && wc.reason || 'Android有線の保存可能な候補がありません'));
         return;
     }
     mic.androidWiredMicOffsetMs = clampNum(wc.saveOffsetMs, ANDROID_WIRED_MIC_OFFSET_MIN, ANDROID_WIRED_MIC_OFFSET_MAX, 0);
     saveSettings();
-    if (els.androidCheckSaveWiredStatus) { els.androidCheckSaveWiredStatus.classList.remove('hidden'); els.androidCheckSaveWiredStatus.textContent = '保存しました: Android有線補正値 ' + Math.round(mic.androidWiredMicOffsetMs) + 'ms　現在のPractice判定: 使用中'; }
+    setAndroidSaveStatus(els.androidCheckSaveWiredStatus, els.wizardAndroidSaveWiredStatus, '保存しました: Android有線補正値 ' + Math.round(mic.androidWiredMicOffsetMs) + 'ms　現在のPractice判定: 使用中');
     console.info('[android-wired] 保存 androidWiredMicOffsetMs=' + mic.androidWiredMicOffsetMs + 'ms（Android+有線時のPractice判定で使用）');
 }
 /* v0.11.51/v0.11.52：Android本体マイク補正候補の保存ボタン表示制御。
@@ -14298,12 +14306,12 @@ function saveAndroidBuiltinMicCorrection() {
     const isAndroidBuiltin = selectedTestPlatform === 'android' && isNormalMicInput();
     const bc = androidBuiltinMicCandidate();
     if (!isAndroidBuiltin || !bc || bc.isReadyToSave !== true || bc.saveOffsetMs == null) {
-        if (els.androidCheckSaveBuiltinStatus) { els.androidCheckSaveBuiltinStatus.classList.remove('hidden'); els.androidCheckSaveBuiltinStatus.textContent = '保存条件未達: ' + (bc && bc.reason || 'Android本体マイクの保存可能な候補がありません'); }
+        setAndroidSaveStatus(els.androidCheckSaveBuiltinStatus, els.wizardAndroidSaveBuiltinStatus, '保存条件未達: ' + (bc && bc.reason || 'Android本体マイクの保存可能な候補がありません'));
         return;
     }
     mic.androidBuiltinMicOffsetMs = clampNum(bc.saveOffsetMs, ANDROID_BUILTIN_MIC_OFFSET_MIN, ANDROID_BUILTIN_MIC_OFFSET_MAX, 0);
     saveSettings();
-    if (els.androidCheckSaveBuiltinStatus) { els.androidCheckSaveBuiltinStatus.classList.remove('hidden'); els.androidCheckSaveBuiltinStatus.textContent = '保存しました: Android本体マイク補正値 ' + Math.round(mic.androidBuiltinMicOffsetMs) + 'ms　現在のPractice判定: 使用中'; }
+    setAndroidSaveStatus(els.androidCheckSaveBuiltinStatus, els.wizardAndroidSaveBuiltinStatus, '保存しました: Android本体マイク補正値 ' + Math.round(mic.androidBuiltinMicOffsetMs) + 'ms　現在のPractice判定: 使用中');
     console.info('[android-builtin] 保存 androidBuiltinMicOffsetMs=' + mic.androidBuiltinMicOffsetMs + 'ms（Android+本体マイク時のPractice判定で使用）');
 }
 function clearAndroidAudioLogs() { headphoneAudioProbe.run = null; headphoneAudioProbe.runs = []; hideAndroidCheckLive(); if (els.androidCheckResult) { els.androidCheckResult.textContent = ''; els.androidCheckResult.classList.add('hidden'); } if (els.wizardAndroidResultBuiltin) { els.wizardAndroidResultBuiltin.textContent = ''; els.wizardAndroidResultBuiltin.classList.add('hidden'); } if (els.wizardAndroidResultHp) { els.wizardAndroidResultHp.textContent = ''; els.wizardAndroidResultHp.classList.add('hidden'); } if (els.androidCheckStatus) els.androidCheckStatus.textContent = 'Android音声調査ログをクリアしました。設定値は変更していません。'; renderHeadphoneAudioProbeLog(); refreshAllAndroidSaveButtons(); }
@@ -14569,16 +14577,25 @@ function stopAndroidCheckLiveMonitor() {
 }
 
 function setAndroidBtVolumeTestButton(active) {
-    if (!els.wizardAndroidBtVolumeTest) return;
-    els.wizardAndroidBtVolumeTest.textContent = active ? '音量テスト停止' : '音量テスト';
-    els.wizardAndroidBtVolumeTest.classList.toggle('rc-mic-action-primary', active);
-    els.wizardAndroidBtVolumeTest.classList.toggle('rc-mic-action-secondary', !active);
+    const target = androidBtVolumeTest.target;
+    [
+        { el: els.wizardAndroidCalVolumeTest, target: 'normal' },
+        { el: els.wizardAndroidBtVolumeTest, target: isHeadphoneInput() ? getHeadphoneType() : 'headphone' },
+    ].forEach((item) => {
+        if (!item.el) return;
+        const isActiveButton = !!active && target && (target === item.target || (item.target === 'headphone' && target !== 'normal'));
+        item.el.textContent = isActiveButton ? '音量テスト停止' : '音量テスト';
+        item.el.classList.toggle('rc-mic-action-primary', isActiveButton);
+        item.el.classList.toggle('rc-mic-action-secondary', !isActiveButton);
+    });
 }
 function stopAndroidBtVolumeTest(options) {
     if (!androidBtVolumeTest.active && !androidBtVolumeTest.loopTimer) {
         setAndroidBtVolumeTestButton(false);
+        androidBtVolumeTest.target = null;
         return;
     }
+    const stoppedTarget = androidBtVolumeTest.target;
     androidBtVolumeTest.stopRequested = true;
     androidBtVolumeTest.active = false;
     androidBtVolumeTest.token++;
@@ -14588,7 +14605,8 @@ function stopAndroidBtVolumeTest(options) {
     }
     setAndroidBtVolumeTestButton(false);
     const statusEl = androidCheckStatusEl(true);
-    if (statusEl && isHeadphoneInput() && getHeadphoneType() === 'bluetooth') statusEl.textContent = '音量テストを停止しました。';
+    if (statusEl && stoppedTarget && !(options && options.silent)) statusEl.textContent = '音量テストを停止しました。';
+    androidBtVolumeTest.target = null;
     if (!(options && options.keepMonitor)) startAndroidCheckLiveMonitor();
 }
 function androidBtVolumeTestSleep(ms, token) {
@@ -14599,9 +14617,21 @@ function androidBtVolumeTestSleep(ms, token) {
         }, ms);
     });
 }
+function androidVolumeTestSpecs(target) {
+    if (target === 'bluetooth') {
+        return [
+            { soundId: 'double-noise-pattern', soundLabel: '2連ノイズパターン', soundType: 'pattern', frequencyHz: null, route: 'AudioBuffer', patternPulsesMs: [0, 120], forceDurationMs: 200 },
+            { soundId: 'triple-noise-pattern', soundLabel: '3連ノイズパターン', soundType: 'pattern', frequencyHz: null, route: 'AudioBuffer', patternPulsesMs: [0, 120, 280], forceDurationMs: 360 },
+        ];
+    }
+    const plan = androidCheckSpecPlan(target);
+    return (plan && Array.isArray(plan.specs)) ? plan.specs : [];
+}
 async function startAndroidBtVolumeTest() {
     if (androidBtVolumeTest.active) { stopAndroidBtVolumeTest(); return; }
-    if (!useAndroidLatencyFirstFlow() || !isHeadphoneInput() || getHeadphoneType() !== 'bluetooth') return;
+    if (!useAndroidLatencyFirstFlow() || !androidTestPlatformSelected()) return;
+    const target = androidCheckTarget();
+    if (!['normal', 'wired', 'bluetooth'].includes(target)) return;
     if (!androidAudioProbeDeviceInfo().isAndroid) {
         const statusEl = androidCheckStatusEl(true);
         if (statusEl) statusEl.textContent = '音量テストはAndroid端末で確認してください。';
@@ -14610,6 +14640,7 @@ async function startAndroidBtVolumeTest() {
     if (androidCheckMode) return;
     androidBtVolumeTest.active = true;
     androidBtVolumeTest.stopRequested = false;
+    androidBtVolumeTest.target = target;
     const token = ++androidBtVolumeTest.token;
     setAndroidBtVolumeTestButton(true);
     const statusEl = androidCheckStatusEl(true);
@@ -14618,16 +14649,16 @@ async function startAndroidBtVolumeTest() {
     resetAndroidCheckLive(1);
     updateAndroidCheckLiveState();
     const ctx = ensureAudio();
-    const specs = [
-        { soundId: 'double-noise-pattern', soundLabel: '2連ノイズパターン', soundType: 'pattern', frequencyHz: null, route: 'AudioBuffer', patternPulsesMs: [0, 120], forceDurationMs: 200 },
-        { soundId: 'triple-noise-pattern', soundLabel: '3連ノイズパターン', soundType: 'pattern', frequencyHz: null, route: 'AudioBuffer', patternPulsesMs: [0, 120, 280], forceDurationMs: 360 },
-    ];
+    const specs = androidVolumeTestSpecs(target);
+    if (!specs.length) { stopAndroidBtVolumeTest({ keepMonitor: true }); return; }
     let i = 0;
     while (androidBtVolumeTest.active && !androidBtVolumeTest.stopRequested && androidBtVolumeTest.token === token) {
         const spec = specs[i % specs.length];
-        hpProbePlayWebAudio(ctx, spec, spec.forceDurationMs, spec.route);
+        const durationMs = spec.forceDurationMs || 100;
+        if (spec.route === 'HTMLAudioElement/wav') hpProbePlayHtmlAudio(ctx, spec, durationMs);
+        else hpProbePlayWebAudio(ctx, spec, durationMs, spec.route);
         i++;
-        await androidBtVolumeTestSleep(spec.forceDurationMs + 850, token);
+        await androidBtVolumeTestSleep(durationMs + 850, token);
     }
     if (androidBtVolumeTest.token === token) stopAndroidBtVolumeTest({ keepMonitor: true });
 }
@@ -24184,6 +24215,7 @@ function bind() {
     // v0.11.58：ウィザード内 Android式遅延測定
     if (els.wizardAndroidRunBuiltin) els.wizardAndroidRunBuiltin.addEventListener('click', () => toggleAndroidAudioCheck({ fromWizard: true }));
     if (els.wizardAndroidRunHp) els.wizardAndroidRunHp.addEventListener('click', () => toggleAndroidAudioCheck({ fromWizard: true }));
+    if (els.wizardAndroidCalVolumeTest) els.wizardAndroidCalVolumeTest.addEventListener('click', toggleAndroidBtVolumeTest);
     if (els.wizardAndroidBtVolumeTest) els.wizardAndroidBtVolumeTest.addEventListener('click', toggleAndroidBtVolumeTest);
     if (els.wizardAndroidSaveBuiltin) els.wizardAndroidSaveBuiltin.addEventListener('click', () => { saveAndroidBuiltinMicCorrection(); syncWizardSaveStatusFromDetail('builtin'); onAndroidWizardLatencySaved('builtin'); onWizardAndroidLatencyProceed(); });
     if (els.wizardAndroidSaveWiredWizard) els.wizardAndroidSaveWiredWizard.addEventListener('click', () => { saveAndroidWiredCorrection(); syncWizardSaveStatusFromDetail('wired'); onAndroidWizardLatencySaved('wired'); onWizardAndroidLatencyProceed(); });
