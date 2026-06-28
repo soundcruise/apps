@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.16';
+const RHYTHM_CRUISE_VERSION = '0.12.17';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14986,6 +14986,24 @@ function androidVolumeTestReadiness(target) {
     const btSignalVisible = simpleWaveformAnalysis.visibleWaveformScore >= 0.4
         || simpleWaveformAnalysis.repeatedBurstCount >= 4
         || (simpleWaveformAnalysis.burstToNoiseRatio != null && simpleWaveformAnalysis.burstToNoiseRatio >= 4);
+    // v0.12.17：波形が十分に見えているなら、短区間の候補化(candidateOk)が立たなくても「測定を始めてよい」とみなす。
+    //   peakToThresholdRatio 単独では ok にせず、必ず simpleWaveformScore / repeatedBurstCount / burstToNoiseRatio /
+    //   ノイズ・安定性を絡める（有線で過去にあった「ピークは大きいが本測定候補が出ない」false-positiveを防ぐ）。
+    const swa = simpleWaveformAnalysis;
+    const preflightWaveformOk = (swa.visibleWaveformScore >= 0.75)
+        && (swa.usableBurstCount >= 4)
+        && (swa.repeatedBurstCount >= 4)
+        && (swa.burstToNoiseRatio != null && swa.burstToNoiseRatio >= 4)
+        && !swa.isWaveformTooSmall
+        && !swa.isWaveformUnstable
+        && !swa.isNoiseTooHigh
+        && noiseStatus !== 'high';
+    const preflightStrongOk = (peakToThresholdRatio != null && peakToThresholdRatio >= 20)
+        && (swa.repeatedBurstCount >= 4)
+        && (swa.burstToNoiseRatio != null && swa.burstToNoiseRatio >= 4)
+        && !swa.isNoiseTooHigh
+        && noiseStatus !== 'high';
+    const preflightWaveformReady = preflightWaveformOk || preflightStrongOk;
     let mStatus, mReason, mUserMessage, mAction, mUiText;
     if (isBluetoothVolumeProbe) {
         // BTのノイズ判定は peakLevel基準の noiseStatus のみ（median基準の isNoiseTooHigh は誤発火しやすい）。
@@ -14994,6 +15012,12 @@ function androidVolumeTestReadiness(target) {
             mUserMessage = '周囲のノイズが大きく、測定しづらい状態です。';
             mAction = '静かな場所で再テストしてください。';
             mUiText = '周囲のノイズが大きく、測定しづらい状態です。静かな場所で再テストしてください';
+        } else if (preflightWaveformReady) {
+            // v0.12.17：波形が十分。候補化が短区間で立たなくても本測定を始めてよい（今回のギャップ修正の主眼）。
+            mStatus = 'ok'; mReason = 'bt-waveform-ready';
+            mUserMessage = '波形は十分に出ています。本測定を始められそうです。';
+            mAction = 'このまま本測定を開始できます。';
+            mUiText = '波形は十分に出ています。本測定を始められそうです';
         } else if (strongBtSignal || btSignalVisible) {
             if (candidateOk) {
                 mStatus = 'ok'; mReason = 'bt-measurement-ready';
@@ -15057,6 +15081,9 @@ function androidVolumeTestReadiness(target) {
         isBluetoothVolumeProbe,
         strongBtSignal: isBluetoothVolumeProbe ? strongBtSignal : null,
         btSignalVisible: isBluetoothVolumeProbe ? btSignalVisible : null,
+        preflightWaveformReady,
+        preflightWaveformOk,
+        preflightStrongOk,
         peakLevel: Math.round(peakLevel * 1000000) / 1000000,
         threshold,
         peakToThresholdRatio,
@@ -15612,6 +15639,8 @@ const finalCheckFlowDebug = {
     // v0.12.16：旧UI vs Android型新UI のBT補正比較ログ／判定・表示・画面補正offsetの分離ログ（表示専用）。
     lastLegacyVsAndroidBtCalibrationComparison: null,
     lastFinalCheckDisplayCorrectionDebug: null,
+    // v0.12.17：iPhone仮・BluetoothのAndroid型trial値が iOS判定に危険かの安全ログ（表示専用）。
+    lastIphoneTrialBluetoothSafetyDebug: null,
 };
 
 function errorForCorrectionFlowLog(err) {
@@ -15740,6 +15769,7 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
         iphoneTrialOffsetComparison: finalCheckFlowDebug.lastIphoneTrialOffsetComparison || null,
         bluetoothOffsetHypothesisComparison: finalCheckFlowDebug.lastBluetoothOffsetHypothesisComparison || null,
         legacyVsAndroidBtCalibrationComparison: finalCheckFlowDebug.lastLegacyVsAndroidBtCalibrationComparison || null,
+        iphoneTrialBluetoothSafetyDebug: finalCheckFlowDebug.lastIphoneTrialBluetoothSafetyDebug || null,
         finalCheckDisplayCorrectionDebug: finalCheckFlowDebug.lastFinalCheckDisplayCorrectionDebug || null,
         bluetoothCandidateComparison: finalCheckFlowDebug.lastBluetoothCandidateComparison || null,
         bluetoothFinalCheckPrediction: finalCheckFlowDebug.lastBluetoothFinalCheckPrediction || null,
@@ -16841,12 +16871,73 @@ function buildLegacyVsAndroidBtCalibrationComparison(currentStats) {
             wizardStats: predict(wizardOffsetMs),
             selectedForSaveStats: (selectedForSaveOffsetMs != null) ? predict(selectedForSaveOffsetMs) : null,
         },
+        // v0.12.17：今回の最終確認で「実際に使われた」judge offset を明示。旧UI由来値か、trialとどれだけ違うかが一目で分かる。
+        finalCheckActuallyUsed: {
+            usedJudgeOffsetMs: Number.isFinite(usedJudgeOffsetMs) ? usedJudgeOffsetMs : currentOffsetMs,
+            source: 'micJudgeOffsetMs()＝current ios bluetooth setting（timingOffsetMs + bluetoothMicOffsetMs＝旧UI由来）',
+            matchesLegacyJudgeOffset: Math.abs(currentOffsetMs - legacyJudgeOffsetMs) < 0.5,
+            differsFromLegacyByMs: Math.round((currentOffsetMs - legacyJudgeOffsetMs) * 10) / 10,
+            differsFromTrialByMs: (trialMeasuredOffsetMs != null) ? Math.round((currentOffsetMs - trialMeasuredOffsetMs) * 10) / 10 : null,
+            usedTrialValue: (trialMeasuredOffsetMs != null) && Math.abs(currentOffsetMs - trialMeasuredOffsetMs) < 0.5,
+            note: '最終確認が合ったのは Android型trial値ではなく旧UI由来の既存BT補正値(timingOffsetMs + bluetoothMicOffsetMs)が使われたため。',
+        },
         interpretation: {
             likelySameMeasurementTarget: false,
             suspectedDifference: '旧UIは判定時間軸での閉ループ反復（micJudgeOffsetMs込みの残差を0へ収束）で、最終確認と同一フレーム→自然。Android型は開ループでスケジュール→ピークの絶対遅延を測り、BTは HTMLAudioElement/wav 経路の起動遅延＋BT出力遅延を含むため絶対値が大きい。さらに wizard=timing+trial は timingOffsetMs を二重計上。',
             recommendedNextAction: 'iPhone仮/Android型BTでは bluetoothOnly か legacy(bluetoothMicOffsetMs) を判定候補にする方が自然。trial/wizardは過補正。実機で legacyJudgeStats / bluetoothOnlyStats / selectedForSaveStats を比較して採用方針を決める。実判定・保存は未変更。',
         },
         note: 'すべて現在値/保存値を読むだけ。実判定・保存・Android BT候補優先順位は不変。',
+    };
+}
+
+/* v0.12.17：iPhone仮・Bluetooth限定。Android型trial値を iPhone側の判定/保存に採用すると危険であることを明示する安全ログ（表示専用）。
+   trial を使った場合の予測と、現在の実判定（旧UI由来 -222 など）/legacy判定の予測を並べ、trialが危険かを判定する。
+   実判定・保存・Android BT候補優先順位は一切変えない（読むだけ）。 */
+function buildIphoneTrialBluetoothSafetyDebug(currentStats) {
+    if (!isIphoneAndroidTrialFlow() || !isBluetoothHeadphone() || !currentStats) return null;
+    const diffs = Array.isArray(currentStats.diffMsList) ? currentStats.diffMsList : [];
+    const usedJudgeOffsetMs = Number(currentStats.usedJudgeOffsetMs);
+    const actualOffsetMs = Number(finalCheckJudgeOffsetMs());
+    const consistent = Number.isFinite(usedJudgeOffsetMs) && Math.abs(usedJudgeOffsetMs - actualOffsetMs) < 0.5;
+    const currentOffsetMs = consistent ? usedJudgeOffsetMs : actualOffsetMs;
+    if (!Number.isFinite(currentOffsetMs)) return null;
+    const predict = (off) => Number.isFinite(off) ? finalCheckStatsForOffsetPrediction(diffs, currentOffsetMs, off) : null;
+
+    const trialMeasuredOffsetMs = Number(iphoneAndroidTrialCurrentOffsetMs());
+    const legacyJudgeOffsetMs = (Number(mic.timingOffsetMs) || 0) + (Number(mic.bluetoothMicOffsetMs) || 0);
+    const currentStatsPred = predict(currentOffsetMs);
+    const trialPredictedStats = predict(trialMeasuredOffsetMs);
+    const legacyPredictedStats = predict(legacyJudgeOffsetMs);
+
+    // trialが iOS判定に危険か：trial予測が現在より明らかに悪い／GOODが減る／trialとlegacyの差が大きい。
+    const worseAvg = !!(trialPredictedStats && currentStatsPred
+        && Math.abs(Number(trialPredictedStats.avgDiffMs) || 0) >= Math.abs(Number(currentStatsPred.avgDiffMs) || 0) + 20);
+    const fewerGood = !!(trialPredictedStats && currentStatsPred
+        && Number(trialPredictedStats.good) < Number(currentStatsPred.good));
+    const farFromLegacy = Number.isFinite(trialMeasuredOffsetMs) && Number.isFinite(legacyJudgeOffsetMs)
+        && Math.abs(trialMeasuredOffsetMs - legacyJudgeOffsetMs) >= 80;
+    const trialLooksUnsafeForIosJudging = worseAvg || fewerGood || farFromLegacy;
+    const reasonDetail = [
+        worseAvg ? 'trial予測の平均ズレが現在より20ms以上悪い' : null,
+        fewerGood ? 'trial予測のGOODが現在より少ない' : null,
+        farFromLegacy ? ('trialMeasuredOffsetMs と legacyJudgeOffsetMs の差が80ms以上（' + Math.round(trialMeasuredOffsetMs - legacyJudgeOffsetMs) + 'ms）') : null,
+    ].filter(Boolean).join(' / ') || 'trialは現在判定と大きく乖離していない';
+
+    return {
+        enabled: true,
+        reason: 'iphone_android_trial_bluetooth',
+        comparisonFormula: 'predictedDiffMs = currentDiffMs - currentOffsetMs + predictedOffsetMs',
+        trialMeasuredOffsetMs: Number.isFinite(trialMeasuredOffsetMs) ? trialMeasuredOffsetMs : null,
+        trialPredictedStats,
+        currentUsedJudgeOffsetMs: currentOffsetMs,
+        currentStats: currentStatsPred,
+        legacyJudgeOffsetMs,
+        legacyPredictedStats,
+        trialLooksUnsafeForIosJudging,
+        reasonDetail,
+        adoptedTrialForJudging: false,
+        adoptedTrialForSaving: false,
+        note: 'iPhone仮BluetoothではAndroid型trial値は参考値。現時点では判定/保存に採用しない（実判定は旧UI由来 timingOffsetMs + bluetoothMicOffsetMs のまま）。',
     };
 }
 
@@ -16918,6 +17009,7 @@ function finishPracticeTest() {
     r.iphoneTrialOffsetComparison = buildIphoneTrialOffsetComparison(r.finalCheckStats);
     r.bluetoothOffsetHypothesisComparison = buildBluetoothOffsetHypothesisComparison(r.finalCheckStats);
     r.legacyVsAndroidBtCalibrationComparison = buildLegacyVsAndroidBtCalibrationComparison(r.finalCheckStats);
+    r.iphoneTrialBluetoothSafetyDebug = buildIphoneTrialBluetoothSafetyDebug(r.finalCheckStats);
     r.finalCheckDisplayCorrectionDebug = buildFinalCheckDisplayCorrectionDebug();
     r.androidBluetoothCandidateComparison = isBluetoothHeadphone() ? (lastAndroidBluetoothCandidateComparison || null) : null;
     r.androidBluetoothFinalCheckPrediction = androidBluetoothFinalCheckPrediction(avg);
@@ -16927,6 +17019,7 @@ function finishPracticeTest() {
     finalCheckFlowDebug.lastIphoneTrialOffsetComparison = r.iphoneTrialOffsetComparison;
     finalCheckFlowDebug.lastBluetoothOffsetHypothesisComparison = r.bluetoothOffsetHypothesisComparison;
     finalCheckFlowDebug.lastLegacyVsAndroidBtCalibrationComparison = r.legacyVsAndroidBtCalibrationComparison;
+    finalCheckFlowDebug.lastIphoneTrialBluetoothSafetyDebug = r.iphoneTrialBluetoothSafetyDebug;
     finalCheckFlowDebug.lastFinalCheckDisplayCorrectionDebug = r.finalCheckDisplayCorrectionDebug;
     finalCheckFlowDebug.lastBluetoothCandidateComparison = r.androidBluetoothCandidateComparison;
     finalCheckFlowDebug.lastBluetoothFinalCheckPrediction = r.androidBluetoothFinalCheckPrediction;
