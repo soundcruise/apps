@@ -5593,6 +5593,14 @@ h1 {
     white-space: nowrap;
 }
 
+.iphone-bt-unified-progress {
+    margin: 0 0 8px;
+    min-height: 1.35em;
+    line-height: 1.45;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
 .iphone-bt-unified-scroll {
     min-height: 168px;
     overflow: hidden;
