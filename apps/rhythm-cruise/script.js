@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.17';
+const RHYTHM_CRUISE_VERSION = '0.12.18';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -15641,6 +15641,8 @@ const finalCheckFlowDebug = {
     lastFinalCheckDisplayCorrectionDebug: null,
     // v0.12.17：iPhone仮・BluetoothのAndroid型trial値が iOS判定に危険かの安全ログ（表示専用）。
     lastIphoneTrialBluetoothSafetyDebug: null,
+    // v0.12.18：BTイヤホン機種差の診断ログ（表示専用）。
+    lastBluetoothDeviceCalibrationDebug: null,
 };
 
 function errorForCorrectionFlowLog(err) {
@@ -15770,6 +15772,7 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
         bluetoothOffsetHypothesisComparison: finalCheckFlowDebug.lastBluetoothOffsetHypothesisComparison || null,
         legacyVsAndroidBtCalibrationComparison: finalCheckFlowDebug.lastLegacyVsAndroidBtCalibrationComparison || null,
         iphoneTrialBluetoothSafetyDebug: finalCheckFlowDebug.lastIphoneTrialBluetoothSafetyDebug || null,
+        bluetoothDeviceCalibrationDebug: finalCheckFlowDebug.lastBluetoothDeviceCalibrationDebug || null,
         finalCheckDisplayCorrectionDebug: finalCheckFlowDebug.lastFinalCheckDisplayCorrectionDebug || null,
         bluetoothCandidateComparison: finalCheckFlowDebug.lastBluetoothCandidateComparison || null,
         bluetoothFinalCheckPrediction: finalCheckFlowDebug.lastBluetoothFinalCheckPrediction || null,
@@ -16745,7 +16748,8 @@ function buildBluetoothOffsetHypothesisComparison(currentStats) {
     const bluetoothOnlyOffsetMs = bluetoothMicOffsetMs;                       // timingを足さない仮説
     const timingPlusBluetoothOffsetMs = timingOffsetMs + bluetoothMicOffsetMs; // = micJudgeOffsetMs()（現在の実判定）
     const currentProductionOffsetMs = Number(micJudgeOffsetMs());
-    const trialMeasuredOffsetMs = isIphoneAndroidTrialFlow() ? Number(iphoneAndroidTrialCurrentOffsetMs()) : null;
+    const trialRawOffsetMs = isIphoneAndroidTrialFlow() ? iphoneAndroidTrialOffsets[iphoneAndroidTrialOffsetKey()] : null;
+    const trialMeasuredOffsetMs = trialRawOffsetMs != null ? Number(trialRawOffsetMs) : null;
     const wizardOffsetMs = Number(wizardMicJudgeOffsetMs());
     // 予測の基準 currentOffsetMs は、finalCheckStats.usedJudgeOffsetMs と一致するときだけそれを使う。
     const usedJudgeOffsetMs = Number(currentStats.usedJudgeOffsetMs);
@@ -16835,6 +16839,10 @@ function buildLegacyVsAndroidBtCalibrationComparison(currentStats) {
     const selectedForSaveMeasurementMs = cmp && cmp.selectedForSave ? cmp.selectedForSave.measurementMs : null;
     const selectedForSaveSource = cmp && cmp.selectedForSave ? cmp.selectedForSave.source : null;
     const selectedForSaveOffsetMs = (selectedForSaveMeasurementMs != null) ? -Number(selectedForSaveMeasurementMs) : null;
+    const currentStatsPred = predict(currentOffsetMs);
+    const trialStats = (trialMeasuredOffsetMs != null) ? predict(trialMeasuredOffsetMs) : null;
+    const deviceContext = currentBluetoothDeviceContext();
+    const safety = evaluateBluetoothDeviceOffsetFit(currentStatsPred, trialStats);
 
     return {
         enabled: true,
@@ -16863,11 +16871,18 @@ function buildLegacyVsAndroidBtCalibrationComparison(currentStats) {
             wizardOffsetMs,
             source: 'startAndroidHeadphoneLatencyTest/androidBluetoothCandidateComparison（音ズレ・遅延テスト・開ループ・normalWindowPeakOffsetMs＝スケジュール→ピークの絶対遅延）。',
         },
+        deviceContext,
+        deviceSpecificInterpretation: {
+            globalBluetoothOffsetMayBeStale: safety.legacyLooksStaleForCurrentDevice,
+            trialLooksBetterForCurrentDevice: safety.trialLooksBetterForCurrentDevice,
+            legacyLooksBetterForCurrentDevice: safety.hasTrial && !safety.trialLooksBetterForCurrentDevice && !safety.legacyLooksStaleForCurrentDevice,
+            note: safety.note,
+        },
         finalCheckPrediction: {
             legacyJudgeStats: predict(legacyJudgeOffsetMs),
-            currentProductionStats: predict(currentProductionOffsetMs),
+            currentProductionStats: currentStatsPred,
             bluetoothOnlyStats: predict(bluetoothOnlyOffsetMs),
-            trialStats: (trialMeasuredOffsetMs != null) ? predict(trialMeasuredOffsetMs) : null,
+            trialStats,
             wizardStats: predict(wizardOffsetMs),
             selectedForSaveStats: (selectedForSaveOffsetMs != null) ? predict(selectedForSaveOffsetMs) : null,
         },
@@ -16890,6 +16905,127 @@ function buildLegacyVsAndroidBtCalibrationComparison(currentStats) {
     };
 }
 
+function currentBluetoothDeviceContext() {
+    let track = null, settings = null;
+    try {
+        track = mic.stream && typeof mic.stream.getAudioTracks === 'function' ? mic.stream.getAudioTracks()[0] : null;
+    } catch (_) { track = null; }
+    if (track && typeof track.getSettings === 'function') {
+        try { settings = track.getSettings() || null; } catch (_) { settings = null; }
+    }
+    if (!settings && headphoneAudioProbe.run) {
+        const tr = headphoneAudioProbe.run.activeTrackResult || headphoneAudioProbe.run.activeTrack || null;
+        if (tr) {
+            track = track || tr;
+            settings = tr.settings || null;
+        }
+    }
+    settings = settings || {};
+    return {
+        label: track && track.label || '',
+        deviceId: settings.deviceId || null,
+        groupId: settings.groupId || null,
+        sampleRate: settings.sampleRate != null ? settings.sampleRate : null,
+        source: 'current MediaStreamTrack settings',
+        note: 'BT機種差の診断用。保存キーではない',
+    };
+}
+
+function evaluateBluetoothDeviceOffsetFit(currentStats, trialPredictedStats) {
+    const curGood = Number(currentStats && currentStats.good);
+    const trialGood = Number(trialPredictedStats && trialPredictedStats.good);
+    const curAvg = Number(currentStats && currentStats.avgDiffMs);
+    const trialAvg = Number(trialPredictedStats && trialPredictedStats.avgDiffMs);
+    const hasCurrent = Number.isFinite(curGood) && Number.isFinite(curAvg);
+    const hasTrial = Number.isFinite(trialGood) && Number.isFinite(trialAvg);
+    const trialLooksBetterForCurrentDevice = !!(hasCurrent && hasTrial
+        && (trialGood > curGood || Math.abs(trialAvg) + 20 < Math.abs(curAvg)));
+    const legacyLooksStaleForCurrentDevice = !!(hasCurrent && hasTrial
+        && curGood === 0 && Math.abs(curAvg) >= 80 && trialGood >= 4);
+    const trialClearlyWorse = !!(hasCurrent && hasTrial
+        && Math.abs(trialAvg) >= Math.abs(curAvg) + 20);
+    const trialHasFewerGood = !!(hasCurrent && hasTrial && trialGood < curGood);
+    const trialLooksUnsafeForIosJudging = !trialLooksBetterForCurrentDevice && (trialClearlyWorse || trialHasFewerGood);
+    const note = !hasTrial
+        ? 'Android型trial値が未取得のため、BT機種差の優劣はまだ評価していません。'
+        : trialLooksBetterForCurrentDevice
+        ? '現在のBTイヤホンでは、既存のグローバルBT補正よりAndroid型trial値の方が最終確認に合う可能性があります。ただし現時点では、判定/保存には採用していません。BTイヤホンごとの補正保存が必要か検討してください。'
+        : '現在のBTイヤホンでは、既存のグローバルBT補正が最終確認に合っています。Android型trial値は参考値に留めています。';
+    return {
+        hasCurrent,
+        hasTrial,
+        trialLooksBetterForCurrentDevice,
+        legacyLooksStaleForCurrentDevice,
+        trialClearlyWorse,
+        trialHasFewerGood,
+        trialLooksUnsafeForIosJudging,
+        note,
+    };
+}
+
+function buildBluetoothDeviceCalibrationDebug(currentStats) {
+    if (!isIphoneAndroidTrialFlow() || !isBluetoothHeadphone() || !currentStats) return null;
+    const diffs = Array.isArray(currentStats.diffMsList) ? currentStats.diffMsList : [];
+    const usedJudgeOffsetMs = Number(currentStats.usedJudgeOffsetMs);
+    const actualOffsetMs = Number(finalCheckJudgeOffsetMs());
+    const currentOffsetMs = Number.isFinite(usedJudgeOffsetMs) ? usedJudgeOffsetMs : actualOffsetMs;
+    if (!Number.isFinite(currentOffsetMs)) return null;
+    const predict = (off) => Number.isFinite(off) ? finalCheckStatsForOffsetPrediction(diffs, currentOffsetMs, off) : null;
+    const trialRawOffsetMs = iphoneAndroidTrialOffsets[iphoneAndroidTrialOffsetKey()];
+    const trialMeasuredOffsetMs = trialRawOffsetMs != null ? Number(trialRawOffsetMs) : null;
+    const trialPredictedStats = Number.isFinite(trialMeasuredOffsetMs) ? predict(trialMeasuredOffsetMs) : null;
+    const currentStatsPred = predict(currentOffsetMs);
+    const cmp = lastAndroidBluetoothCandidateComparison;
+    const selected = cmp && cmp.selectedForSave || null;
+    const safety = evaluateBluetoothDeviceOffsetFit(currentStatsPred, trialPredictedStats);
+    return {
+        enabled: true,
+        selectedTestPlatform,
+        selectedHeadphoneType: getHeadphoneType(),
+        currentDevice: currentBluetoothDeviceContext(),
+        legacyGlobalBluetoothOffset: {
+            timingOffsetMs: Number(mic.timingOffsetMs) || 0,
+            bluetoothMicOffsetMs: Number(mic.bluetoothMicOffsetMs) || 0,
+            judgeOffsetMs: (Number(mic.timingOffsetMs) || 0) + (Number(mic.bluetoothMicOffsetMs) || 0),
+            headphoneDisplayOffsetMs: Number(mic.headphoneOutputOffsetMs) || 0,
+            note: '現在のグローバルBT補正値。BTイヤホン機種別ではない',
+        },
+        androidTrialForCurrentDevice: {
+            trialMeasuredOffsetMs: Number.isFinite(trialMeasuredOffsetMs) ? trialMeasuredOffsetMs : null,
+            selectedForSaveSource: selected ? selected.source : null,
+            selectedForSaveMeasurementMs: selected ? selected.measurementMs : null,
+            selectedForSaveOffsetMs: selected ? selected.saveOffsetMs : null,
+            trialPredictedStats,
+        },
+        finalCheckActuallyUsed: {
+            usedJudgeOffsetMs: currentOffsetMs,
+            currentStats: currentStatsPred,
+            usedGlobalBluetoothOffset: true,
+            usedTrialForCurrentDevice: false,
+        },
+        deviceMismatchSuspicion: {
+            enabled: true,
+            reason: safety.legacyLooksStaleForCurrentDevice ? 'legacy-global-offset-stale-for-current-device' : (safety.trialLooksBetterForCurrentDevice ? 'trial-looks-better-for-current-device' : 'legacy-global-offset-still-fits-current-device'),
+            legacyLooksStaleForCurrentDevice: safety.legacyLooksStaleForCurrentDevice,
+            trialLooksBetterForCurrentDevice: safety.trialLooksBetterForCurrentDevice,
+            recommendedAction: safety.trialLooksBetterForCurrentDevice
+                ? 'BTイヤホンごとの補正保存が必要か検討してください。現時点ではtrial値を判定/保存には採用していません。'
+                : '現在のグローバルBT補正を維持し、trial値は参考ログとして扱ってください。',
+        },
+        futureDesignHint: {
+            needsPerBluetoothDeviceCalibration: safety.legacyLooksStaleForCurrentDevice || safety.trialLooksBetterForCurrentDevice,
+            suggestedKey: 'track.label + deviceId fallback',
+            caution: 'iOS/SafariではdeviceId/groupIdが変わる可能性があるため、labelも併用して診断する',
+            candidates: [
+                'bluetoothMicOffsetMs をBT機種別に持つ',
+                'headphoneOutputOffsetMs もBT機種別に持つ',
+                'BTイヤホンが変わったら再テストを促す',
+                'Android本番でも複数BT機種で同じ問題が出るか確認する'
+            ],
+        },
+    };
+}
+
 /* v0.12.17：iPhone仮・Bluetooth限定。Android型trial値を iPhone側の判定/保存に採用すると危険であることを明示する安全ログ（表示専用）。
    trial を使った場合の予測と、現在の実判定（旧UI由来 -222 など）/legacy判定の予測を並べ、trialが危険かを判定する。
    実判定・保存・Android BT候補優先順位は一切変えない（読むだけ）。 */
@@ -16903,25 +17039,24 @@ function buildIphoneTrialBluetoothSafetyDebug(currentStats) {
     if (!Number.isFinite(currentOffsetMs)) return null;
     const predict = (off) => Number.isFinite(off) ? finalCheckStatsForOffsetPrediction(diffs, currentOffsetMs, off) : null;
 
-    const trialMeasuredOffsetMs = Number(iphoneAndroidTrialCurrentOffsetMs());
+    const trialRawOffsetMs = iphoneAndroidTrialOffsets[iphoneAndroidTrialOffsetKey()];
+    const trialMeasuredOffsetMs = trialRawOffsetMs != null ? Number(trialRawOffsetMs) : null;
     const legacyJudgeOffsetMs = (Number(mic.timingOffsetMs) || 0) + (Number(mic.bluetoothMicOffsetMs) || 0);
     const currentStatsPred = predict(currentOffsetMs);
-    const trialPredictedStats = predict(trialMeasuredOffsetMs);
+    const trialPredictedStats = Number.isFinite(trialMeasuredOffsetMs) ? predict(trialMeasuredOffsetMs) : null;
     const legacyPredictedStats = predict(legacyJudgeOffsetMs);
 
-    // trialが iOS判定に危険か：trial予測が現在より明らかに悪い／GOODが減る／trialとlegacyの差が大きい。
-    const worseAvg = !!(trialPredictedStats && currentStatsPred
-        && Math.abs(Number(trialPredictedStats.avgDiffMs) || 0) >= Math.abs(Number(currentStatsPred.avgDiffMs) || 0) + 20);
-    const fewerGood = !!(trialPredictedStats && currentStatsPred
-        && Number(trialPredictedStats.good) < Number(currentStatsPred.good));
+    // trialが iOS判定に危険か：legacyとの差が大きいだけでは unsafe にしない。
+    const fit = evaluateBluetoothDeviceOffsetFit(currentStatsPred, trialPredictedStats);
     const farFromLegacy = Number.isFinite(trialMeasuredOffsetMs) && Number.isFinite(legacyJudgeOffsetMs)
         && Math.abs(trialMeasuredOffsetMs - legacyJudgeOffsetMs) >= 80;
-    const trialLooksUnsafeForIosJudging = worseAvg || fewerGood || farFromLegacy;
     const reasonDetail = [
-        worseAvg ? 'trial予測の平均ズレが現在より20ms以上悪い' : null,
-        fewerGood ? 'trial予測のGOODが現在より少ない' : null,
-        farFromLegacy ? ('trialMeasuredOffsetMs と legacyJudgeOffsetMs の差が80ms以上（' + Math.round(trialMeasuredOffsetMs - legacyJudgeOffsetMs) + 'ms）') : null,
-    ].filter(Boolean).join(' / ') || 'trialは現在判定と大きく乖離していない';
+        fit.trialLooksBetterForCurrentDevice ? 'trial予測が現在判定より良い' : null,
+        fit.legacyLooksStaleForCurrentDevice ? '現在のグローバルBT補正が接続中イヤホンに合っていない疑い' : null,
+        fit.trialClearlyWorse ? 'trial予測の平均ズレが現在より20ms以上悪い' : null,
+        fit.trialHasFewerGood ? 'trial予測のGOODが現在より少ない' : null,
+        farFromLegacy ? ('trialMeasuredOffsetMs と legacyJudgeOffsetMs の差が80ms以上（' + Math.round(trialMeasuredOffsetMs - legacyJudgeOffsetMs) + 'ms）※差だけではunsafe扱いしない') : null,
+    ].filter(Boolean).join(' / ') || 'trialは現在判定より明確に悪くない';
 
     return {
         enabled: true,
@@ -16933,11 +17068,13 @@ function buildIphoneTrialBluetoothSafetyDebug(currentStats) {
         currentStats: currentStatsPred,
         legacyJudgeOffsetMs,
         legacyPredictedStats,
-        trialLooksUnsafeForIosJudging,
+        trialLooksBetterForCurrentDevice: fit.trialLooksBetterForCurrentDevice,
+        legacyLooksStaleForCurrentDevice: fit.legacyLooksStaleForCurrentDevice,
+        trialLooksUnsafeForIosJudging: fit.trialLooksUnsafeForIosJudging,
         reasonDetail,
         adoptedTrialForJudging: false,
         adoptedTrialForSaving: false,
-        note: 'iPhone仮BluetoothではAndroid型trial値は参考値。現時点では判定/保存に採用しない（実判定は旧UI由来 timingOffsetMs + bluetoothMicOffsetMs のまま）。',
+        note: fit.note,
     };
 }
 
@@ -17010,6 +17147,7 @@ function finishPracticeTest() {
     r.bluetoothOffsetHypothesisComparison = buildBluetoothOffsetHypothesisComparison(r.finalCheckStats);
     r.legacyVsAndroidBtCalibrationComparison = buildLegacyVsAndroidBtCalibrationComparison(r.finalCheckStats);
     r.iphoneTrialBluetoothSafetyDebug = buildIphoneTrialBluetoothSafetyDebug(r.finalCheckStats);
+    r.bluetoothDeviceCalibrationDebug = buildBluetoothDeviceCalibrationDebug(r.finalCheckStats);
     r.finalCheckDisplayCorrectionDebug = buildFinalCheckDisplayCorrectionDebug();
     r.androidBluetoothCandidateComparison = isBluetoothHeadphone() ? (lastAndroidBluetoothCandidateComparison || null) : null;
     r.androidBluetoothFinalCheckPrediction = androidBluetoothFinalCheckPrediction(avg);
@@ -17020,6 +17158,7 @@ function finishPracticeTest() {
     finalCheckFlowDebug.lastBluetoothOffsetHypothesisComparison = r.bluetoothOffsetHypothesisComparison;
     finalCheckFlowDebug.lastLegacyVsAndroidBtCalibrationComparison = r.legacyVsAndroidBtCalibrationComparison;
     finalCheckFlowDebug.lastIphoneTrialBluetoothSafetyDebug = r.iphoneTrialBluetoothSafetyDebug;
+    finalCheckFlowDebug.lastBluetoothDeviceCalibrationDebug = r.bluetoothDeviceCalibrationDebug;
     finalCheckFlowDebug.lastFinalCheckDisplayCorrectionDebug = r.finalCheckDisplayCorrectionDebug;
     finalCheckFlowDebug.lastBluetoothCandidateComparison = r.androidBluetoothCandidateComparison;
     finalCheckFlowDebug.lastBluetoothFinalCheckPrediction = r.androidBluetoothFinalCheckPrediction;
@@ -17161,6 +17300,9 @@ function renderPracticeResult(r) {
             pre = JSON.stringify({
                 finalCheckStats: r.finalCheckStats || null,
                 finalCheckOffsetComparison: r.finalCheckOffsetComparison || null,
+                legacyVsAndroidBtCalibrationComparison: r.legacyVsAndroidBtCalibrationComparison || null,
+                iphoneTrialBluetoothSafetyDebug: r.iphoneTrialBluetoothSafetyDebug || null,
+                bluetoothDeviceCalibrationDebug: r.bluetoothDeviceCalibrationDebug || null,
                 androidBluetoothCandidateComparison: r.androidBluetoothCandidateComparison || null,
                 bluetoothFinalCheckPrediction: r.androidBluetoothFinalCheckPrediction || null,
             }, null, 2);
