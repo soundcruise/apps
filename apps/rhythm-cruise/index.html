@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.12.6">
+    <link rel="stylesheet" href="theme.css?v=0.12.7">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1038,7 +1038,7 @@
             <!-- 6. クリック音入力テスト（イヤホン接続時。聞こえているクリック音をマイクへ入力し判定遅れを測る。有線にもv0.9.152で対応） v0.9.80 -->
             <div class="settings-card cal-card" id="bt-cal-card">
                 <div class="cal-head-row">
-                    <div class="cal-head">音ズレ・遅延テスト</div>
+                    <div class="cal-head" id="bt-cal-head">クリック音入力テスト</div>
                     <span class="status-pill" id="bt-cal-badge">未実施</span>
                 </div>
                 <!-- v0.11.58：Android選択時のウィザード内 Android式遅延測定（有線/BT） -->
@@ -1469,7 +1469,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.12.6"></script>
+    <script src="script.js?v=0.12.7"></script>
 </body>
 
 </html>

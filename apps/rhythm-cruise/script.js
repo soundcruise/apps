@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.6';
+const RHYTHM_CRUISE_VERSION = '0.12.7';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -1147,6 +1147,7 @@ const els = {
     ptResult: $('pt-result'),
     // マイクの遅れ補正（Bluetoothイヤホン用・v0.9.80）
     btCalCard: $('bt-cal-card'),
+    btCalHead: $('bt-cal-head'),
     btCalBadge: $('bt-cal-badge'),
     btCalGuide: $('bt-cal-guide'),
     btCalLaneWrap: $('bt-cal-lane-wrap'),
@@ -12930,6 +12931,12 @@ function isRealAndroidCorrectionFlow() {
 function isAndroidStyleCorrectionFlow() {
     return isRealAndroidCorrectionFlow() || isIphoneAndroidTrialFlow();
 }
+function correctionFlowKind() {
+    if (isIphoneAndroidTrialFlow()) return 'iphone_android_trial';
+    if (isRealAndroidCorrectionFlow()) return 'android_production';
+    if (selectedTestPlatform === 'ios') return 'ios_production';
+    return 'unknown';
+}
 function iphoneAndroidTrialOffsetKey() {
     if (isBluetoothHeadphone()) return 'bluetooth';
     if (isHeadphoneInput() && getHeadphoneType() === 'wired') return 'wired';
@@ -15263,6 +15270,11 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
         timestamp: new Date().toISOString(),
         reason: reason || 'manual',
         selectedTestPlatform,
+        correctionFlowKind: correctionFlowKind(),
+        isIphoneAndroidTrialFlow: isIphoneAndroidTrialFlow(),
+        isRealAndroidCorrectionFlow: isRealAndroidCorrectionFlow(),
+        isAndroidStyleCorrectionFlow: isAndroidStyleCorrectionFlow(),
+        useAndroidLatencyFirstFlow: useAndroidLatencyFirstFlow(),
         selectedInputType: getMicInputType(),
         selectedHeadphoneType: isHeadphoneInput() ? getHeadphoneType() : null,
         isAndroid: !!device.isAndroid,
@@ -16627,6 +16639,7 @@ function updateBtCalBadge() {
 /* 待機中のカード表示（ボタン文言・ステータス）。 */
 function renderBtCalIdle() {
     if (els.btCalBtn) els.btCalBtn.textContent = bt.hasRun ? 'もう1度テストする' : 'クリック音入力テストを開始';
+    updateBtCalTitleUI();
     if (els.btCalLive) els.btCalLive.classList.add('hidden');
     if (els.btCalLaneWrap) els.btCalLaneWrap.classList.add('hidden');
     if (els.btCalPhase) els.btCalPhase.textContent = '';
@@ -18840,6 +18853,7 @@ function renderWizardSteps() {
     renderStepProgress(active);
     renderStepSummaries(active);
     updateWizardFlowPlatformNotes();
+    updateBtCalTitleUI();
     renderWizardAndroidLatencyUi(active);
     if (els.ptOpenManual) els.ptOpenManual.style.display = (active === 'practice') ? '' : 'none';
     // v0.9.160：最終確認テストカードでは、Bluetoothイヤホン時だけ「マイク反応テストをやり直す」を出す
@@ -18877,6 +18891,9 @@ function wizardStepLabel(id) {
     if (id === 'btdelay') return useAndroidLatencyFirstFlow() ? '音ズレ・遅延テスト' : 'クリック音入力テスト';
     if (id === 'correction') return isHeadphoneInput() ? 'イヤホン音ズレの画面補正' : (useAndroidLatencyFirstFlow() ? '音ズレ・遅延テスト' : 'マイクの遅れ補正');
     return WIZARD_STEP_LABELS[id] || '';
+}
+function updateBtCalTitleUI() {
+    if (els.btCalHead) els.btCalHead.textContent = useAndroidLatencyFirstFlow() ? '音ズレ・遅延テスト' : 'クリック音入力テスト';
 }
 function renderStepProgress(active) {
     const wrap = els.settingsStepsProgress;
