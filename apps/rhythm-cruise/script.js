@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.19';
+const RHYTHM_CRUISE_VERSION = '0.12.20';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13465,6 +13465,20 @@ function androidLatencyResultLogText(run) {
     add('isNearZeroLatencyCandidate', candidate ? androidLatencyCandidateDebugFields(candidate.measurementDelayMs).isNearZeroLatencyCandidate : false, '  ');
     add('nearZeroLatencyThresholdMs', ANDROID_CORR_NEAR_ZERO_LATENCY_MS, '  ');
     add('reason', candidate && candidate.reason || (run && run.abortedEarlyReason) || null, '  ');
+    const btCmp = run && run.androidBluetoothCandidateComparison || null;
+    if (btCmp && btCmp.iphoneBtTwoStageCalibrationDebug) {
+        const two = btCmp.iphoneBtTwoStageCalibrationDebug;
+        lines.push('');
+        lines.push('iphoneBtTwoStageCalibrationDebug:');
+        add('phase2Status', two.phase2Status, '  ');
+        add('roughOffsetMs', two.phase1 && two.phase1.roughOffsetMs, '  ');
+        add('medianOnsetResidualMs', two.phase2 && two.phase2.medianOnsetResidualMs, '  ');
+        add('medianPeakResidualMs', two.phase2 && two.phase2.medianPeakResidualMs, '  ');
+        add('fineOffsetMs', two.phase2 && two.phase2.fineOffsetMs, '  ');
+        add('confidence', two.phase2 && two.phase2.confidence, '  ');
+        add('failureReason', two.phase2 && two.phase2.failureReason, '  ');
+        add('full', two, '  ');
+    }
     lines.push('');
     lines.push('androidLatencySegmentDebug:');
     const segments = debug && debug.segments || {};
@@ -13551,6 +13565,11 @@ function renderWizardAndroidLatencyResult(run) {
             if (cc.isReadyToSave) {
                 lines.push('測定遅延: ' + rd(cc.measurementDelayMs));
                 lines.push(offsetLabel + ': ' + rd(cc.saveOffsetMs));
+                const two = run.androidBluetoothCandidateComparison && run.androidBluetoothCandidateComparison.iphoneBtTwoStageCalibrationDebug;
+                if (two && two.phase2 && two.phase2.fineOffsetMs != null) {
+                    lines.push('詳細補正候補: ' + rd(two.phase2.fineOffsetMs) + '（保存には未使用）');
+                    lines.push('次に最終確認テストで、弾いたときの違和感を確認してください。');
+                }
             } else html = androidLatencyHeadphoneFailureHtml(run, cc);
         } else html = androidLatencyHeadphoneFailureHtml(run, cc);
     }
@@ -14289,6 +14308,22 @@ function buildIphoneBtOnsetVsPeakCandidateDebug(run, cmp) {
         },
     };
 }
+function buildIphoneBtTwoStagePhase1(run, cmp) {
+    if (!run || !cmp || !isIphoneAndroidTrialFlow() || !isBluetoothHeadphone()) return null;
+    const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
+    const onset = cmp.iphoneBtOnsetVsPeakCandidateDebug && cmp.iphoneBtOnsetVsPeakCandidateDebug.onsetBased || {};
+    const selected = cmp.selectedForSave || {};
+    const roughMeasurementMs = selected.measurementMs != null ? Number(selected.measurementMs) : null;
+    return {
+        roughMeasurementMs: r1(roughMeasurementMs),
+        roughOffsetMs: roughMeasurementMs != null ? r1(-roughMeasurementMs) : null,
+        selectedCandidateSource: selected.source || null,
+        onsetOffsetMs: onset.doubleOnsetOffsetMs != null ? r1(onset.doubleOnsetOffsetMs) : (onset.tripleOnsetOffsetMs != null ? r1(onset.tripleOnsetOffsetMs) : (onset.shortNoiseOnsetOffsetMs != null ? r1(onset.shortNoiseOnsetOffsetMs) : null)),
+        peakOffsetMs: selected.saveOffsetMs != null ? r1(selected.saveOffsetMs) : null,
+        outputLatencyMs: null,
+        baseLatencyMs: null,
+    };
+}
 /* v0.11.95：Bluetooth音ズレ・遅延テストの候補値を比較ログ用に保持する。
    v0.12.0 では selectedForSave に実際の保存候補（double/triple主軸）と patternDebug を出す。
    used は今回の遅延テストで採用された候補（shortNoise）。
@@ -14451,6 +14486,10 @@ async function runAndroidAudioCheck(options) {
         run.androidBluetoothCandidateComparison = buildAndroidBluetoothCandidateComparison(run);
         if (run.androidBluetoothCandidateComparison) {
             run.androidBluetoothCandidateComparison.iphoneBtOnsetVsPeakCandidateDebug = buildIphoneBtOnsetVsPeakCandidateDebug(run, run.androidBluetoothCandidateComparison);
+            if (isIphoneAndroidTrialFlow() && isBluetoothHeadphone()) {
+                const phase1 = buildIphoneBtTwoStagePhase1(run, run.androidBluetoothCandidateComparison);
+                run.androidBluetoothCandidateComparison.iphoneBtTwoStageCalibrationDebug = await runIphoneBtFineClickProbe(phase1 && phase1.roughOffsetMs, phase1, statusEl);
+            }
         }
         lastAndroidBluetoothCandidateComparison = run.androidBluetoothCandidateComparison;
     }
@@ -14483,7 +14522,9 @@ async function runAndroidAudioCheck(options) {
         const ca = sn && sn.clusterAnalysis;
         const caBlock = !ca ? '' : '\n・cluster判定: ' + ca.finalGuess + '\n  cluster中央値 ' + rd(ca.clusterMedianMs) + ' / cluster範囲 ' + rd(ca.clusterRangeMs) + '\n  cluster採用 ' + ca.clusterCount + '/' + sn.repeatCount + ' / 外れ値 ' + ca.outlierCount + '件';
         const patBlock = (label, p) => !p ? '' : '\n・' + label + ': ' + p.finalGuess + '\n  推定offset ' + rd(p.focusedOffsetMedianMs) + ' / trimmed ' + rd(p.focusedOffsetTrimmedMedianMs) + '\n  範囲 ' + rd(p.focusedOffsetRangeMs) + ' / trimmed範囲 ' + rd(p.focusedOffsetTrimmedRangeMs) + '\n  採用 ' + p.acceptedCount + '/' + p.repeatCount + ' / interval OK ' + p.intervalOkCount + '/' + p.repeatCount + ' / matched中央値 ' + (p.matchedCountMedian != null ? p.matchedCountMedian : '–') + ' / score中央値 ' + (p.patternScoreMedian != null ? p.patternScoreMedian.toFixed(2) : '–');
-        els.androidCheckResult.textContent = 'Android詳細チェック結果\n・直接測定できる可能性: ' + (run.finalGuess === 'usable' ? '高' : (run.finalGuess === 'weak' ? '中' : '低')) + '\n・有力な音: ' + best + '\n・波形照合: ' + wm.finalGuess + ' / offset中央値 ' + (wm.offsetMedianMs != null ? Math.round(wm.offsetMedianMs) + 'ms' : '–') + ' / 範囲 ' + (wm.offsetRangeMs != null ? Math.round(wm.offsetRangeMs) + 'ms' : '–') + ' / 採用 ' + wm.acceptedCount + '/5' + (bt ? '\n・Bluetooth探索: 最有力 ' + bt.bestCandidate + ' / 判定 ' + bt.finalGuess : '') + snBlock + caBlock + patBlock('2連ノイズパターン', dp) + patBlock('3連ノイズパターン', tp) + (btCc ? ('\n──\nAndroid Bluetooth補正候補:\n測定遅延: ' + rd(btCc.measurementDelayMs) + '\n保存候補: ' + (btCc.saveOffsetMs != null ? Math.round(btCc.saveOffsetMs) + 'ms' : '–') + '\n候補ソース: ' + btCc.source + '\n信頼度: ' + btCc.confidence + '\n保存可能: ' + (btCc.isReadyToSave ? 'はい' : 'いいえ') + '\n※この候補値は「保存」するとPractice判定に反映されます') : '') + (bt ? ('\n──\n保存済み Android Bluetooth補正値: ' + (abs.hasAndroidBluetoothOffset ? abs.savedOffsetMs + 'ms' : '未保存') + '\n推定入力遅延: ' + (abs.measurementDelayEstimateMs != null ? abs.measurementDelayEstimateMs + 'ms' : '–') + '\n現在のPractice判定: ' + (abs.isUsedForCurrentPractice ? '使用中' : '未使用') + (abs.isUsedForCurrentPractice ? '\n最終判定補正: ' + abs.finalJudgeOffsetMs + 'ms' : '\n理由: ' + abs.messageForUser)) : '') + (isWiredRun ? ('\n──\nAndroid有線イヤホン補正\n' + (aws.hasAndroidWiredOffset ? ('保存値: ' + aws.savedOffsetMs + 'ms\n推定入力遅延: ' + (aws.measurementDelayEstimateMs != null ? aws.measurementDelayEstimateMs + 'ms' : '–') + '\n現在のPractice判定: ' + (aws.isUsedForCurrentPractice ? '使用中' : '未使用') + (aws.isUsedForCurrentPractice ? '\n最終判定補正: ' + aws.finalJudgeOffsetMs + 'ms' : '\n理由: ' + aws.messageForUser)) : ('候補: ' + (wc && wc.saveOffsetMs != null ? Math.round(wc.saveOffsetMs) + 'ms' : '–') + '\n保存状態: 未保存\n保存先: androidWiredMicOffsetMs\n現在のPractice判定: 未使用\n理由: Android有線専用補正がまだ保存されていません'))) : '') + (isBuiltinRun ? ('\n──\nAndroid本体マイク補正\n' + (abms.hasAndroidBuiltinMicOffset ? ('保存値: ' + abms.savedOffsetMs + 'ms\n推定入力遅延: ' + (abms.measurementDelayEstimateMs != null ? abms.measurementDelayEstimateMs + 'ms' : '–') + '\n現在のPractice判定: ' + (abms.isUsedForCurrentPractice ? '使用中' : '未使用') + (abms.isUsedForCurrentPractice ? '\n最終判定補正: ' + abms.finalJudgeOffsetMs + 'ms' : '\n理由: ' + abms.messageForUser)) : ('候補: ' + (bc && bc.saveOffsetMs != null ? Math.round(bc.saveOffsetMs) + 'ms' : '–') + '\n保存状態: 未保存\n保存先: androidBuiltinMicOffsetMs\n現在のPractice判定: 未使用\n理由: Android本体マイク専用補正がまだ保存されていません'))) : '') + (run.androidLatencyBreakdown ? '\n──\nAndroid遅延内訳ログを追加しました。コピーして確認できます。' : '') + '\n・保存ボタンを押すとAndroid専用補正として保存できます';
+        const two = run.androidBluetoothCandidateComparison && run.androidBluetoothCandidateComparison.iphoneBtTwoStageCalibrationDebug;
+        const twoBlock = two && two.phase2 && two.phase2.fineOffsetMs != null ? ('\n──\niPhone BT詳細補正候補: ' + rd(two.phase2.fineOffsetMs) + '\n※表示・ログ用です。保存やPractice判定にはまだ使いません。') : '';
+        els.androidCheckResult.textContent = 'Android詳細チェック結果\n・直接測定できる可能性: ' + (run.finalGuess === 'usable' ? '高' : (run.finalGuess === 'weak' ? '中' : '低')) + '\n・有力な音: ' + best + '\n・波形照合: ' + wm.finalGuess + ' / offset中央値 ' + (wm.offsetMedianMs != null ? Math.round(wm.offsetMedianMs) + 'ms' : '–') + ' / 範囲 ' + (wm.offsetRangeMs != null ? Math.round(wm.offsetRangeMs) + 'ms' : '–') + ' / 採用 ' + wm.acceptedCount + '/5' + (bt ? '\n・Bluetooth探索: 最有力 ' + bt.bestCandidate + ' / 判定 ' + bt.finalGuess : '') + snBlock + caBlock + patBlock('2連ノイズパターン', dp) + patBlock('3連ノイズパターン', tp) + (btCc ? ('\n──\nAndroid Bluetooth補正候補:\n測定遅延: ' + rd(btCc.measurementDelayMs) + '\n保存候補: ' + (btCc.saveOffsetMs != null ? Math.round(btCc.saveOffsetMs) + 'ms' : '–') + '\n候補ソース: ' + btCc.source + '\n信頼度: ' + btCc.confidence + '\n保存可能: ' + (btCc.isReadyToSave ? 'はい' : 'いいえ') + '\n※この候補値は「保存」するとPractice判定に反映されます') : '') + twoBlock + (bt ? ('\n──\n保存済み Android Bluetooth補正値: ' + (abs.hasAndroidBluetoothOffset ? abs.savedOffsetMs + 'ms' : '未保存') + '\n推定入力遅延: ' + (abs.measurementDelayEstimateMs != null ? abs.measurementDelayEstimateMs + 'ms' : '–') + '\n現在のPractice判定: ' + (abs.isUsedForCurrentPractice ? '使用中' : '未使用') + (abs.isUsedForCurrentPractice ? '\n最終判定補正: ' + abs.finalJudgeOffsetMs + 'ms' : '\n理由: ' + abs.messageForUser)) : '') + (isWiredRun ? ('\n──\nAndroid有線イヤホン補正\n' + (aws.hasAndroidWiredOffset ? ('保存値: ' + aws.savedOffsetMs + 'ms\n推定入力遅延: ' + (aws.measurementDelayEstimateMs != null ? aws.measurementDelayEstimateMs + 'ms' : '–') + '\n現在のPractice判定: ' + (aws.isUsedForCurrentPractice ? '使用中' : '未使用') + (aws.isUsedForCurrentPractice ? '\n最終判定補正: ' + aws.finalJudgeOffsetMs + 'ms' : '\n理由: ' + aws.messageForUser)) : ('候補: ' + (wc && wc.saveOffsetMs != null ? Math.round(wc.saveOffsetMs) + 'ms' : '–') + '\n保存状態: 未保存\n保存先: androidWiredMicOffsetMs\n現在のPractice判定: 未使用\n理由: Android有線専用補正がまだ保存されていません'))) : '') + (isBuiltinRun ? ('\n──\nAndroid本体マイク補正\n' + (abms.hasAndroidBuiltinMicOffset ? ('保存値: ' + abms.savedOffsetMs + 'ms\n推定入力遅延: ' + (abms.measurementDelayEstimateMs != null ? abms.measurementDelayEstimateMs + 'ms' : '–') + '\n現在のPractice判定: ' + (abms.isUsedForCurrentPractice ? '使用中' : '未使用') + (abms.isUsedForCurrentPractice ? '\n最終判定補正: ' + abms.finalJudgeOffsetMs + 'ms' : '\n理由: ' + abms.messageForUser)) : ('候補: ' + (bc && bc.saveOffsetMs != null ? Math.round(bc.saveOffsetMs) + 'ms' : '–') + '\n保存状態: 未保存\n保存先: androidBuiltinMicOffsetMs\n現在のPractice判定: 未使用\n理由: Android本体マイク専用補正がまだ保存されていません'))) : '') + (run.androidLatencyBreakdown ? '\n──\nAndroid遅延内訳ログを追加しました。コピーして確認できます。' : '') + '\n・保存ボタンを押すとAndroid専用補正として保存できます';
         els.androidCheckResult.classList.remove('hidden');
         refreshAllAndroidSaveButtons();
     }
@@ -15565,6 +15606,193 @@ function hpProbeFinalizeEvent(event, noise) {
     event.detected = event.normalWindowMaxPeak >= event.threshold;
     event.detectionReason = event.detected ? 'normalWindowPeak>=probeThreshold' : 'normalWindowPeak<probeThreshold'; event.failedReason = event.detected ? null : 'no measurable playback peak in normal window';
     event.overlapsAdjacentSound = false; event.isLikelyPlaybackLeak = event.detected && event.soundToNoiseRatio != null && event.soundToNoiseRatio >= 3; event.isLikelyVoiceOrTap = false; event.notes = '調査専用。既存補正・判定・保存には未使用。';
+}
+function hpProbeLatencyMs(ctx) {
+    if (!ctx) return { outputLatencyMs: null, baseLatencyMs: null };
+    const r1 = (v) => v == null ? null : Math.round(v * 1000 * 10) / 10;
+    return {
+        outputLatencyMs: ctx.outputLatency != null ? r1(ctx.outputLatency) : null,
+        baseLatencyMs: ctx.baseLatency != null ? r1(ctx.baseLatency) : null,
+    };
+}
+function scheduleIphoneBtFineClick(ctx, atSec, accent) {
+    const vol = Math.max(0, Math.min(1, state.clickVolume / 100));
+    const peak = Math.min(CLICK_PEAK_CLIP, clickBasePeak(!!accent) * vol * clickPeakGain());
+    if (peak < 0.001) return false;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    const stopAt = applyClickEnvelope(ctx, osc, g, atSec, !!accent, peak);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(atSec);
+    osc.stop(stopAt);
+    return true;
+}
+async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
+    const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
+    const sorted = (xs) => xs.filter(Number.isFinite).slice().sort((a, b) => a - b);
+    const med = (xs) => { const a = sorted(xs); return a.length ? a[Math.floor(a.length / 2)] : null; };
+    const trimmed = (xs) => { const a = sorted(xs); return a.length <= 2 ? a : a.slice(1, a.length - 1); };
+    const rough = Number(roughOffsetMs);
+    const debug = {
+        enabled: true,
+        phase1,
+        phase2: {
+            clickType: 'final-check-like-ptScheduleClick',
+            scheduledClickCount: 0,
+            detectedClickCount: 0,
+            usableDetectionCount: 0,
+            onsetResidualsMs: [],
+            peakResidualsMs: [],
+            medianOnsetResidualMs: null,
+            medianPeakResidualMs: null,
+            residualMsUsed: null,
+            fineOffsetMs: null,
+            candidateOffsetMs: null,
+            confidence: 'not-run',
+            failureReason: null,
+        },
+        comparison: {
+            currentLegacyOrPracticeOffsetMs: micJudgeOffsetMs(),
+            previousSelectedForSaveOffsetMs: Number.isFinite(rough) ? r1(rough) : null,
+            finalCheckSuggestedOffsetMsIfAvailable: null,
+            errorVsFinalCheckSuggested: null,
+            expectedDirection: 'residualMsが正ならfineOffsetMsはroughOffsetMsより負方向、負なら正方向へ戻す',
+        },
+        phase2Status: 'not-run',
+        fallbackCandidate: Number.isFinite(rough) ? r1(rough) : null,
+        note: 'iPhone仮+Bluetooth限定の2段階目。ログ/セッション内候補のみで、本番保存・本番判定には未採用。',
+    };
+    if (!Number.isFinite(rough)) {
+        debug.phase2.failureReason = 'roughOffsetMs-missing';
+        debug.phase2Status = 'failed';
+        return debug;
+    }
+    const ctx = ensureAudio();
+    if (!ctx) {
+        debug.phase2.failureReason = 'audioContext-null';
+        debug.phase2Status = 'failed';
+        return debug;
+    }
+    try { if (ctx.state === 'suspended') await ctx.resume(); } catch (_) { /* noop */ }
+    if (statusEl) statusEl.textContent = '詳細補正を確認中… イヤホンとマイクの位置を変えずにお待ちください。';
+    let stream = null, src = null, analyser = null, raf = 0;
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: hpProbeConstraints('current') });
+        src = ctx.createMediaStreamSource(stream);
+        analyser = ctx.createAnalyser();
+        analyser.fftSize = 8192;
+        const buf = new Float32Array(analyser.fftSize);
+        src.connect(analyser);
+        const noiseSamples = [];
+        for (let i = 0; i < 24; i++) {
+            analyser.getFloatTimeDomainData(buf);
+            let p = 0;
+            for (let j = 0; j < buf.length; j++) p = Math.max(p, Math.abs(buf[j]));
+            noiseSamples.push(p);
+            await new Promise((resolve) => setTimeout(resolve, 16));
+        }
+        const ns = sorted(noiseSamples);
+        const noise = {
+            max: ns.length ? ns[ns.length - 1] : 0,
+            p95: ns.length ? ns[Math.min(ns.length - 1, Math.floor(ns.length * 0.95))] : 0,
+        };
+        const clickCount = 10;
+        const intervalSec = 0.65;
+        const audioStart = ctx.currentTime + 0.22;
+        const expectedDelayMs = Math.max(0, -rough);
+        const windowFrom = Math.max(0, expectedDelayMs - 190);
+        const windowTo = Math.min(900, expectedDelayMs + 220);
+        const events = [];
+        for (let i = 0; i < clickCount; i++) {
+            const at = audioStart + i * intervalSec;
+            const scheduledClickMs = (at - audioStart) * 1000;
+            const scheduled = scheduleIphoneBtFineClick(ctx, at, i % 4 === 0);
+            events.push({
+                index: i + 1,
+                scheduled,
+                scheduledAtAudioTime: at,
+                scheduledClickMs: r1(scheduledClickMs),
+                normalWindowMs: [r1(windowFrom), r1(windowTo)],
+                rankTop5: [],
+                normalRankTop5: [],
+                energyTimeline: [],
+                noiseP95: noise.p95,
+                noiseMax: noise.max,
+            });
+        }
+        debug.phase2.scheduledClickCount = events.filter((e) => e.scheduled).length;
+        const addPeak = (list, row) => { list.push(row); list.sort((a, b) => b.value - a.value); if (list.length > 5) list.length = 5; };
+        await new Promise((resolve) => {
+            const endAt = audioStart + (clickCount - 1) * intervalSec + (windowTo / 1000) + 0.18;
+            const tick = () => {
+                analyser.getFloatTimeDomainData(buf);
+                let peak = 0;
+                for (let i = 0; i < buf.length; i++) peak = Math.max(peak, Math.abs(buf[i]));
+                const nowMs = (ctx.currentTime - audioStart) * 1000;
+                events.forEach((event) => {
+                    const off = nowMs - event.scheduledClickMs;
+                    if (off < windowFrom || off > windowTo) return;
+                    const row = { offsetMs: r1(off), value: Math.round(peak * 1000000) / 1000000 };
+                    event.energyTimeline.push(row);
+                    if (event.energyTimeline.length > 180) event.energyTimeline.shift();
+                    addPeak(event.rankTop5, row);
+                    addPeak(event.normalRankTop5, row);
+                });
+                if (ctx.currentTime >= endAt) resolve();
+                else raf = requestAnimationFrame(tick);
+            };
+            raf = requestAnimationFrame(tick);
+        });
+        cancelAnimationFrame(raf);
+        events.forEach((event) => {
+            const normal = event.normalRankTop5[0] || null;
+            event.normalWindowMaxPeak = normal ? normal.value : 0;
+            event.normalWindowPeakOffsetMs = normal ? normal.offsetMs : null;
+            event.soundToNoiseRatio = noise.p95 ? event.normalWindowMaxPeak / noise.p95 : null;
+            event.onsetDebug = hpEventOnsetDebug(event, windowFrom, windowTo);
+        });
+        const onsetOffsets = events.map((e) => e.onsetDebug && e.onsetDebug.onsetOffsetMs).filter(Number.isFinite);
+        const peakOffsets = events.map((e) => e.normalWindowPeakOffsetMs).filter(Number.isFinite);
+        const onsetResiduals = onsetOffsets.map((v) => r1(v + rough));
+        const peakResiduals = peakOffsets.map((v) => r1(v + rough));
+        const onsetTrim = trimmed(onsetResiduals);
+        const peakTrim = trimmed(peakResiduals);
+        const residual = med(onsetTrim);
+        const fine = Number.isFinite(residual) ? r1(rough - residual) : null;
+        const usable = onsetTrim.length >= 6 && residual != null;
+        const lat = hpProbeLatencyMs(ctx);
+        debug.phase1.outputLatencyMs = lat.outputLatencyMs;
+        debug.phase1.baseLatencyMs = lat.baseLatencyMs;
+        debug.phase2.detectedClickCount = events.filter((e) => Number.isFinite(e.normalWindowPeakOffsetMs)).length;
+        debug.phase2.usableDetectionCount = onsetTrim.length;
+        debug.phase2.onsetResidualsMs = onsetResiduals;
+        debug.phase2.peakResidualsMs = peakResiduals;
+        debug.phase2.medianOnsetResidualMs = r1(residual);
+        debug.phase2.medianPeakResidualMs = r1(med(peakTrim));
+        debug.phase2.residualMsUsed = r1(residual);
+        debug.phase2.fineOffsetMs = fine;
+        debug.phase2.candidateOffsetMs = fine;
+        debug.phase2.confidence = usable ? (onsetTrim.length >= 8 ? 'candidate' : 'weak') : 'failed';
+        debug.phase2.failureReason = usable ? null : 'usable-onset-count<6';
+        debug.phase2.events = events.map((e) => ({
+            index: e.index,
+            scheduledClickMs: e.scheduledClickMs,
+            onsetOffsetMs: e.onsetDebug ? e.onsetDebug.onsetOffsetMs : null,
+            peakOffsetMs: e.normalWindowPeakOffsetMs,
+            peakToNoise: e.soundToNoiseRatio != null ? Math.round(e.soundToNoiseRatio * 1000) / 1000 : null,
+        }));
+        debug.phase2Status = usable ? 'candidate' : 'failed';
+        debug.fallbackCandidate = fine != null ? fine : r1(rough);
+        return debug;
+    } catch (err) {
+        debug.phase2.failureReason = err && err.name ? err.name : 'phase2-exception';
+        debug.phase2Status = 'failed';
+        return debug;
+    } finally {
+        cancelAnimationFrame(raf);
+        try { src && src.disconnect(); } catch (_) { /* noop */ }
+        try { stream && stream.getTracks().forEach((track) => track.stop()); } catch (_) { /* noop */ }
+    }
 }
 function hpProbeEventPeakNow(event) {
     const normal = event && event.normalRankTop5 && event.normalRankTop5[0];
@@ -17249,6 +17477,11 @@ function buildIphoneBtLatencyCandidateAudit(currentStats) {
     if (!Number.isFinite(used) || !Number.isFinite(avg)) return null;
     const finalCheckSuggestedOffsetMs = r1(used - avg);
     const onset = cmp.iphoneBtOnsetVsPeakCandidateDebug && cmp.iphoneBtOnsetVsPeakCandidateDebug.onsetBased || {};
+    const twoStage = cmp.iphoneBtTwoStageCalibrationDebug || null;
+    if (twoStage && twoStage.comparison) {
+        twoStage.comparison.finalCheckSuggestedOffsetMsIfAvailable = finalCheckSuggestedOffsetMs;
+        twoStage.comparison.errorVsFinalCheckSuggested = twoStage.phase2 && twoStage.phase2.fineOffsetMs != null ? r1(twoStage.phase2.fineOffsetMs - finalCheckSuggestedOffsetMs) : null;
+    }
     const offsets = {
         selectedForSave: cmp.selectedForSave ? cmp.selectedForSave.saveOffsetMs : null,
         shortNoise: cmp.shortNoise && cmp.shortNoise.measurementMs != null ? -cmp.shortNoise.measurementMs : null,
@@ -17259,6 +17492,7 @@ function buildIphoneBtLatencyCandidateAudit(currentStats) {
         shortNoiseOnset: onset.shortNoiseOnsetOffsetMs,
         doubleOnset: onset.doubleOnsetOffsetMs,
         tripleOnset: onset.tripleOnsetOffsetMs,
+        twoStageFine: twoStage && twoStage.phase2 ? twoStage.phase2.fineOffsetMs : null,
     };
     const err = {};
     Object.keys(offsets).forEach((key) => { err[key] = offsets[key] != null ? r1(offsets[key] - finalCheckSuggestedOffsetMs) : null; });
@@ -17282,6 +17516,7 @@ function buildIphoneBtLatencyCandidateAudit(currentStats) {
             doubleOnsetOffsetMs: offsets.doubleOnset,
             tripleOnsetOffsetMs: offsets.tripleOnset,
         },
+        twoStageFineOffsetMs: twoStage && twoStage.phase2 ? twoStage.phase2.fineOffsetMs : null,
         errorVsFinalSuggested: err,
         bestCandidateForFinalCheck: best ? { name: best, offsetMs: offsets[best], errorMs: err[best] } : null,
         overCorrectionSuspicion: err.selectedForSave != null && err.selectedForSave < -40,
