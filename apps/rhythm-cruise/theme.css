@@ -5593,13 +5593,15 @@ h1 {
     white-space: nowrap;
 }
 
-.iphone-bt-phase2-scroll {
+.iphone-bt-unified-scroll {
     min-height: 168px;
 }
 
-#iphone-bt-phase2-canvas {
+.iphone-bt-unified-scroll #wizard-android-wave-hp {
     display: block;
     height: 168px;
+    border: 0;
+    border-radius: 0;
 }
 
 /* 結果モーダル表示中は、戻る/TOP/設定を隠す（モーダル内の閉じる/もう一度だけ操作・修正8） */

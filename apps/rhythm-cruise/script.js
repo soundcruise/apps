@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.24';
+const RHYTHM_CRUISE_VERSION = '0.12.25';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -6753,6 +6753,18 @@ function fitOne(canvas) {
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
     if (w === 0 || h === 0) return { ctx: null, w: 0, h: 0 };
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w, h };
+}
+function fitSizedCanvas(canvas, cssW, cssH) {
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(1, Math.round(cssW || 1));
+    const h = Math.max(1, Math.round(cssH || 1));
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     const ctx = canvas.getContext('2d');
@@ -14920,6 +14932,178 @@ function hideIphoneBtUnifiedTimelineUi() {
     if (label) label.classList.add('hidden');
     hideIphoneBtPhase2Timeline();
 }
+function ensureIphoneBtUnifiedTimelineScroll() {
+    const wrap = els.wizardAndroidLiveHp;
+    const canvas = els.wizardAndroidWaveHp;
+    if (!wrap || !canvas || !isIphoneBtPhase2UiContext()) return null;
+    let scroll = document.getElementById('iphone-bt-unified-scroll');
+    if (!scroll) {
+        scroll = document.createElement('div');
+        scroll.id = 'iphone-bt-unified-scroll';
+        scroll.className = 'pt-review-scroll iphone-bt-unified-scroll';
+        canvas.parentNode.insertBefore(scroll, canvas);
+        scroll.appendChild(canvas);
+        const nav = document.createElement('div');
+        nav.id = 'iphone-bt-unified-nav';
+        nav.className = 'pt-review-nav iphone-bt-unified-nav';
+        nav.innerHTML = '<button type="button" class="btn-mini" id="iphone-bt-unified-first">最初へ</button><button type="button" class="btn-mini" id="iphone-bt-unified-last">最後へ</button>';
+        const state = els.wizardAndroidLevelStateHp;
+        if (state && state.parentNode === wrap) wrap.insertBefore(nav, state.nextSibling);
+        else wrap.appendChild(nav);
+        const first = nav.querySelector('#iphone-bt-unified-first');
+        const last = nav.querySelector('#iphone-bt-unified-last');
+        if (first) first.addEventListener('click', () => scroll.scrollTo({ left: 0, behavior: 'smooth' }));
+        if (last) last.addEventListener('click', () => scroll.scrollTo({ left: scroll.scrollWidth, behavior: 'smooth' }));
+    }
+    return scroll;
+}
+function restoreIphoneBtUnifiedTimelineScroll() {
+    const scroll = document.getElementById('iphone-bt-unified-scroll');
+    const canvas = els.wizardAndroidWaveHp;
+    if (scroll && canvas && canvas.parentNode === scroll) {
+        scroll.parentNode.insertBefore(canvas, scroll);
+        scroll.remove();
+    }
+    const nav = document.getElementById('iphone-bt-unified-nav');
+    if (nav) nav.remove();
+}
+function iphoneBtUnifiedTimelineBounds() {
+    const live = androidCheckLive;
+    const phase2 = live.phase2 || null;
+    const phase1End = (live.fullWave && live.fullWave.length) ? live.fullWave[live.fullWave.length - 1].t : ((live.wave && live.wave.length) ? live.wave[live.wave.length - 1].t : 0);
+    const phase2End = phase2 && phase2.markers && phase2.markers.length
+        ? (phase2.baseMs + phase2.markers[phase2.markers.length - 1].scheduledMarkerMs + 900)
+        : 0;
+    return {
+        fromMs: -220,
+        toMs: Math.max(1600, phase1End + 400, phase2End),
+        phase1EndMs: phase1End,
+        phase2BaseMs: phase2 ? phase2.baseMs : null,
+    };
+}
+function fitIphoneBtUnifiedTimeline() {
+    const canvas = els.wizardAndroidWaveHp;
+    const scroll = ensureIphoneBtUnifiedTimelineScroll();
+    if (!canvas) return { ctx: null, w: 0, h: 0 };
+    const bounds = iphoneBtUnifiedTimelineBounds();
+    const minW = scroll ? scroll.clientWidth : 900;
+    const contentW = Math.max(minW || 900, Math.round((bounds.toMs - bounds.fromMs) * IPHONE_BT_PHASE2_TIMELINE_PX_PER_MS) + 90);
+    androidCheckLive.lane = fitSizedCanvas(canvas, contentW, PT_LANE_HEIGHT);
+    return androidCheckLive.lane;
+}
+function drawIphoneBtUnifiedTimeline(autoScroll) {
+    const lane = fitIphoneBtUnifiedTimeline();
+    if (!lane || !lane.ctx) return;
+    const { ctx, w, h } = lane;
+    const live = androidCheckLive;
+    const phase2 = live.phase2 || null;
+    const bounds = iphoneBtUnifiedTimelineBounds();
+    const xOf = (ms) => 42 + (ms - bounds.fromMs) * IPHONE_BT_PHASE2_TIMELINE_PX_PER_MS;
+    const yc = h * 0.52;
+    const ampPx = h * STAGE_WAVE_AMP_FRAC;
+    const wave1 = live.fullWave && live.fullWave.length ? live.fullWave : (live.wave || []);
+    const wave2 = phase2 && phase2.wave ? phase2.wave : [];
+    const maxPeak = Math.max(0.000001, ...wave1.map((p) => Math.abs(p.level || 0)), ...wave2.map((p) => Math.abs(p.level || 0)));
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgba(253,246,238,0.08)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke();
+    const drawWave = (wave, offsetMs, fill, stroke) => {
+        if (!wave || wave.length < 2) return;
+        const pts = [];
+        for (let i = 0; i < wave.length; i++) {
+            const p = wave[i];
+            const x = xOf(offsetMs + p.t);
+            if (x < -12 || x > w + 12) continue;
+            pts.push([x, Math.min(1, Math.abs(p.level || 0) / maxPeak) * ampPx]);
+        }
+        if (pts.length < 2) return;
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0], yc - pts[0][1]);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], yc - pts[i][1]);
+        for (let i = pts.length - 1; i >= 0; i--) ctx.lineTo(pts[i][0], yc + pts[i][1]);
+        ctx.closePath();
+        ctx.fillStyle = fill;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0], yc - pts[0][1]);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], yc - pts[i][1]);
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    };
+    drawWave(wave1, 0, 'rgba(255,255,255,0.13)', 'rgba(255,255,255,0.22)');
+    if (phase2) {
+        const cutX = xOf(phase2.baseMs - 360);
+        ctx.strokeStyle = 'rgba(255,209,102,0.42)';
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath(); ctx.moveTo(cutX, h * 0.10); ctx.lineTo(cutX, h * 0.92); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(255,209,102,0.92)';
+        ctx.font = '800 11px Outfit, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('第2段階: 詳細補正チェック', cutX + 8, 18);
+        drawWave(wave2, phase2.baseMs, 'rgba(46,204,113,0.12)', 'rgba(46,204,113,0.24)');
+    }
+    ctx.fillStyle = 'rgba(253,246,238,0.72)';
+    ctx.font = '800 11px Outfit, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('第1段階: 大まかな音ズレ測定', xOf(0), 18);
+    if (phase2 && phase2.markers) {
+        phase2.markers.forEach((m, i) => {
+            const e = phase2.events[i] || m;
+            const bx = xOf(phase2.baseMs + m.scheduledMarkerMs);
+            const label = e.label || (m.closed ? 'MISS' : null);
+            const col = iphoneBtPhase2TimelineColor(label);
+            ctx.strokeStyle = 'rgba(255,209,102,0.56)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(bx, h * 0.12); ctx.lineTo(bx, h * 0.82); ctx.stroke();
+            ctx.save();
+            if (label && label !== 'MISS') { ctx.shadowColor = col; ctx.shadowBlur = 10; }
+            drawQuarterNote(ctx, bx, yc, label ? col : NOTE_COLOR);
+            ctx.restore();
+            ctx.fillStyle = 'rgba(255,180,90,0.9)';
+            ctx.font = '800 12px Outfit, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('M' + (i + 1), bx, yc + 34);
+            if (Number.isFinite(e.detectedOnsetMs)) {
+                const ox = xOf(phase2.baseMs + e.detectedOnsetMs);
+                ctx.strokeStyle = '#2ecc71';
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(ox, h * 0.15); ctx.lineTo(ox, h * 0.76); ctx.stroke();
+                ctx.fillStyle = '#2ecc71';
+                ctx.beginPath(); ctx.arc(ox, yc - 45, 4, 0, Math.PI * 2); ctx.fill();
+            }
+            if (Number.isFinite(e.detectedPeakMs)) {
+                const px = xOf(phase2.baseMs + e.detectedPeakMs);
+                ctx.strokeStyle = '#4da3ff';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath(); ctx.moveTo(px, h * 0.2); ctx.lineTo(px, h * 0.78); ctx.stroke();
+                ctx.setLineDash([]);
+            }
+            if (label) {
+                const diff = e.diffMsUsed;
+                const sign = diff > 0 ? '+' : (diff < 0 ? '−' : '±');
+                ctx.fillStyle = col;
+                ctx.font = '800 11px Outfit, sans-serif';
+                ctx.fillText(iphoneBtPhase2StatusLabel(label), bx, h * 0.9);
+                ctx.font = '700 10px Outfit, sans-serif';
+                ctx.fillText(Number.isFinite(diff) ? sign + Math.abs(Math.round(diff)) + 'ms' : '–', bx, h * 0.98);
+            }
+        });
+    }
+    const latest = phase2 ? (phase2.baseMs + (phase2.nowMs || 0)) : (wave1.length ? wave1[wave1.length - 1].t : 0);
+    const playX = xOf(latest);
+    ctx.strokeStyle = 'rgba(255,159,28,0.92)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(playX, h * 0.08); ctx.lineTo(playX, h * 0.96); ctx.stroke();
+    const scroll = document.getElementById('iphone-bt-unified-scroll');
+    if (scroll && autoScroll) {
+        const target = Math.max(0, playX - scroll.clientWidth * 0.42);
+        scroll.scrollLeft = Math.min(target, Math.max(0, scroll.scrollWidth - scroll.clientWidth));
+    }
+}
 
 function resetAndroidCheckLive(total) {
     const live = androidCheckLive;
@@ -14928,6 +15112,8 @@ function resetAndroidCheckLive(total) {
     live.wave = [];
     live.maxPeak = 0;
     live.detected = 0;
+    live.fullWave = [];
+    live.phase2 = null;
     live.armed = true;
     live.lastDetectAt = -100000;
     live.done = 0;
@@ -14943,9 +15129,15 @@ function resetAndroidCheckLive(total) {
 function fitAndroidCheckLive() {
     const ui = androidCheckLiveEls();
     if (!ui.canvas) return;
-    ui.canvas.style.width = '100%';
-    ui.canvas.style.height = '118px';
-    androidCheckLive.lane = fitOne(ui.canvas);
+    if (isIphoneBtPhase2UiContext() && ui.canvas === els.wizardAndroidWaveHp) {
+        ensureIphoneBtUnifiedTimelineScroll();
+        fitIphoneBtUnifiedTimeline();
+    } else {
+        restoreIphoneBtUnifiedTimelineScroll();
+        ui.canvas.style.width = '100%';
+        ui.canvas.style.height = '118px';
+        androidCheckLive.lane = fitOne(ui.canvas);
+    }
 }
 
 function androidCheckLiveStatus() {
@@ -15000,11 +15192,22 @@ function pushAndroidCheckLivePeak(peak) {
         wave.push({ t, level: peak || 0 });
         while (wave.length && t - wave[0].t > ANDROID_CHECK_WAVE_WINDOW_MS) wave.shift();
     }
+    if (isIphoneBtPhase2UiContext()) {
+        const full = live.fullWave || (live.fullWave = []);
+        if (!full.length || t - full[full.length - 1].t >= ANDROID_CHECK_WAVE_SAMPLE_MS) {
+            full.push({ t, level: peak || 0 });
+            if (full.length > 2600) full.shift();
+        }
+    }
     drawAndroidCheckLive();
     updateAndroidCheckLiveState();
 }
 
 function drawAndroidCheckLive() {
+    if (isIphoneBtPhase2UiContext() && androidCheckLiveEls().canvas === els.wizardAndroidWaveHp) {
+        drawIphoneBtUnifiedTimeline(true);
+        return;
+    }
     const lane = androidCheckLive.lane;
     if (!lane || !lane.ctx) return;
     const { ctx, w, h } = lane;
@@ -15817,9 +16020,7 @@ function ensureIphoneBtPhase2Timeline(anchorEl) {
             '<div class="iphone-bt-phase2-head">'
             + '<div><div class="iphone-bt-phase-label">第2段階: 詳細補正チェック</div><p class="setting-note">機械マーカー音とBTマイク入力をリアルタイムで照合します。</p></div>'
             + '<div class="iphone-bt-phase2-summary" id="iphone-bt-phase2-summary">待機中</div>'
-            + '</div>'
-            + '<div class="pt-review-scroll iphone-bt-phase2-scroll" id="iphone-bt-phase2-scroll"><canvas id="iphone-bt-phase2-canvas"></canvas></div>'
-            + '<div class="pt-review-nav"><button type="button" class="btn-mini" id="iphone-bt-phase2-first">最初へ</button><button type="button" class="btn-mini" id="iphone-bt-phase2-last">最後へ</button></div>';
+            + '</div>';
         const parent = isIphoneBtPhase2UiContext() ? els.wizardAndroidLiveHp : null;
         if (parent) parent.appendChild(root);
         else {
@@ -15827,11 +16028,6 @@ function ensureIphoneBtPhase2Timeline(anchorEl) {
             if (target && target.parentNode) target.parentNode.insertBefore(root, target.nextSibling);
             else document.body.appendChild(root);
         }
-        const first = root.querySelector('#iphone-bt-phase2-first');
-        const last = root.querySelector('#iphone-bt-phase2-last');
-        const scroll = root.querySelector('#iphone-bt-phase2-scroll');
-        if (first) first.addEventListener('click', () => { if (scroll) scroll.scrollTo({ left: 0, behavior: 'smooth' }); });
-        if (last) last.addEventListener('click', () => { if (scroll) scroll.scrollTo({ left: scroll.scrollWidth, behavior: 'smooth' }); });
     }
     if (isIphoneBtPhase2UiContext() && els.wizardAndroidLiveHp && root.parentNode !== els.wizardAndroidLiveHp) {
         els.wizardAndroidLiveHp.appendChild(root);
@@ -15843,115 +16039,15 @@ function hideIphoneBtPhase2Timeline() {
     const root = document.getElementById('iphone-bt-phase2-timeline');
     if (root) root.classList.add('hidden');
 }
-function iphoneBtPhase2TimelineCanvas(root, contentW, contentH) {
-    const canvas = root && root.querySelector ? root.querySelector('#iphone-bt-phase2-canvas') : null;
-    if (!canvas) return null;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.style.width = contentW + 'px';
-    canvas.style.height = contentH + 'px';
-    canvas.width = Math.round(contentW * dpr);
-    canvas.height = Math.round(contentH * dpr);
-    const ctx = canvas.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    return { canvas, ctx, w: contentW, h: contentH };
-}
 function drawIphoneBtPhase2Timeline(view, live, autoScroll) {
-    if (!live || !live.root) return;
-    const markers = live.markers || [];
-    const wave = live.wave || [];
-    const events = live.events || markers;
-    const tailMs = 620;
-    const maxMarker = markers.length ? markers[markers.length - 1].scheduledMarkerMs : 0;
-    const nowMs = Math.max(0, live.nowMs || 0);
-    const toMs = Math.max(maxMarker + tailMs, nowMs + 220, 1000);
-    const fromMs = -180;
-    const h = PT_LANE_HEIGHT;
-    const w = Math.max(720, Math.round((toMs - fromMs) * IPHONE_BT_PHASE2_TIMELINE_PX_PER_MS) + 80);
-    const root = live.root;
-    const lane = iphoneBtPhase2TimelineCanvas(root, w, h);
-    if (!lane) return;
-    const { ctx } = lane;
-    const yc = h * 0.52;
-    const padL = 42;
-    const xOf = (ms) => padL + (ms - fromMs) * IPHONE_BT_PHASE2_TIMELINE_PX_PER_MS;
-    ctx.clearRect(0, 0, w, h);
-    ctx.strokeStyle = 'rgba(253,246,238,0.08)';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke();
-    const ampPx = h * STAGE_WAVE_AMP_FRAC;
-    const maxPeak = Math.max(0.000001, ...wave.map((p) => Math.abs(Number(p.level) || 0)));
-    if (wave.length >= 2) {
-        const pts = wave.map((p) => [xOf(p.t), Math.min(1, Math.abs(Number(p.level) || 0) / maxPeak) * ampPx]);
-        ctx.beginPath();
-        ctx.moveTo(pts[0][0], yc - pts[0][1]);
-        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], yc - pts[i][1]);
-        for (let i = pts.length - 1; i >= 0; i--) ctx.lineTo(pts[i][0], yc + pts[i][1]);
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(255,255,255,0.15)';
-        ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(pts[0][0], yc - pts[0][1]);
-        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], yc - pts[i][1]);
-        ctx.strokeStyle = 'rgba(255,255,255,0.24)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-    }
-    markers.forEach((m, i) => {
-        const e = events[i] || m;
-        const bx = xOf(m.scheduledMarkerMs);
-        const label = e.label || (m.closed ? 'MISS' : null);
-        const col = iphoneBtPhase2TimelineColor(label);
-        ctx.strokeStyle = 'rgba(255,209,102,0.56)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.moveTo(bx, h * 0.12); ctx.lineTo(bx, h * 0.82); ctx.stroke();
-        ctx.save();
-        if (label && label !== 'MISS') { ctx.shadowColor = col; ctx.shadowBlur = 10; }
-        drawQuarterNote(ctx, bx, yc, label ? col : NOTE_COLOR);
-        ctx.restore();
-        ctx.fillStyle = 'rgba(255,180,90,0.9)';
-        ctx.font = '800 12px Outfit, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('M' + (i + 1), bx, yc + 34);
-        if (Number.isFinite(e.detectedOnsetMs)) {
-            const ox = xOf(e.detectedOnsetMs);
-            ctx.strokeStyle = '#2ecc71';
-            ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.moveTo(ox, h * 0.15); ctx.lineTo(ox, h * 0.76); ctx.stroke();
-            ctx.fillStyle = '#2ecc71';
-            ctx.beginPath(); ctx.arc(ox, yc - 45, 4, 0, Math.PI * 2); ctx.fill();
-        }
-        if (Number.isFinite(e.detectedPeakMs)) {
-            const px = xOf(e.detectedPeakMs);
-            ctx.strokeStyle = '#4da3ff';
-            ctx.lineWidth = 1.5;
-            ctx.setLineDash([4, 4]);
-            ctx.beginPath(); ctx.moveTo(px, h * 0.2); ctx.lineTo(px, h * 0.78); ctx.stroke();
-            ctx.setLineDash([]);
-        }
-        if (label) {
-            const diff = e.diffMsUsed;
-            const sign = diff > 0 ? '+' : (diff < 0 ? '−' : '±');
-            ctx.fillStyle = col;
-            ctx.font = '800 11px Outfit, sans-serif';
-            ctx.fillText(iphoneBtPhase2StatusLabel(label), bx, h * 0.9);
-            ctx.font = '700 10px Outfit, sans-serif';
-            ctx.fillText(Number.isFinite(diff) ? sign + Math.abs(Math.round(diff)) + 'ms' : '–', bx, h * 0.98);
-        }
-    });
-    const playX = xOf(nowMs);
-    ctx.strokeStyle = 'rgba(255,159,28,0.92)';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.moveTo(playX, h * 0.08); ctx.lineTo(playX, h * 0.96); ctx.stroke();
-    const summary = root.querySelector('#iphone-bt-phase2-summary');
+    if (!live) return;
+    androidCheckLive.phase2 = live;
+    const summary = live.root && live.root.querySelector ? live.root.querySelector('#iphone-bt-phase2-summary') : null;
     if (summary) {
         const counts = live.labelCounts || { good: 0, early: 0, late: 0, miss: 0 };
         summary.textContent = 'GOOD ' + (counts.good || 0) + ' / EARLY ' + (counts.early || 0) + ' / LATE ' + (counts.late || 0) + ' / MISS ' + (counts.miss || 0);
     }
-    const scroll = root.querySelector('#iphone-bt-phase2-scroll');
-    if (scroll && autoScroll) {
-        const target = Math.max(0, playX - scroll.clientWidth * 0.42);
-        scroll.scrollLeft = Math.min(target, Math.max(0, scroll.scrollWidth - scroll.clientWidth));
-    }
+    drawIphoneBtUnifiedTimeline(autoScroll);
 }
 function finalizeIphoneBtPhase2LiveMarker(live, markerIndex, row) {
     if (!live || !live.markers || markerIndex < 0 || markerIndex >= live.markers.length) return;
@@ -16076,9 +16172,13 @@ async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
         debug.phase2.scheduledClickCount = events.filter((e) => e.scheduled).length;
         debug.phase2.scheduledMarkerCount = debug.phase2.scheduledClickCount;
         const timelineRoot = ensureIphoneBtPhase2Timeline(statusEl);
+        const phase1EndMs = (androidCheckLive.fullWave && androidCheckLive.fullWave.length)
+            ? androidCheckLive.fullWave[androidCheckLive.fullWave.length - 1].t
+            : ((androidCheckLive.wave && androidCheckLive.wave.length) ? androidCheckLive.wave[androidCheckLive.wave.length - 1].t : 0);
         live = {
             root: timelineRoot,
             roughOffsetMs: rough,
+            baseMs: Math.max(0, phase1EndMs) + 800,
             windowFrom,
             windowTo,
             nowMs: 0,
