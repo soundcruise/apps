@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.5';
+const RHYTHM_CRUISE_VERSION = '0.12.6';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13082,7 +13082,7 @@ function buildOffsetClusterAnalysis(rows, opts) {
     const outliers = sorted(all.filter((o) => !clusterSet.has(o)));
     const clusterMedianMs = r1(med(clusterOffsets)), clusterRangeMs = range(clusterOffsets), clusterCount = clusterOffsets.length;
     const clusterPtnMed = best ? med(best.peaks) : null;
-    const inDelayRange = clusterMedianMs != null && clusterMedianMs >= ANDROID_CORR_DELAY_MIN_MS && clusterMedianMs <= ANDROID_CORR_DELAY_MAX_MS;
+    const inDelayRange = androidLatencyCandidateInRange(clusterMedianMs);
     const ptnOk = clusterPtnMed != null && clusterPtnMed >= 2.0;
     const finalGuess = clusterCount >= 5 && clusterRangeMs != null && clusterRangeMs <= 25 && ptnOk && inDelayRange ? 'usable'
         : (clusterCount >= minClusterCount && clusterRangeMs != null && clusterRangeMs <= 35 && ptnOk && inDelayRange ? 'candidate'
@@ -13138,13 +13138,28 @@ function hpAnalyzeShortNoise(events, opts) {
    ── 再利用設計 ──
    det（shortNoiseFocusedTest 等の集計）と opts.saveKey を渡せば、将来 Android有線/通常マイク/iOS にも
    inputType / headphoneType ごとに使い回せる（今回は Bluetooth のみ呼び出し・水平展開は未実装）。 */
-const ANDROID_CORR_DELAY_MIN_MS = 350;            // 妥当な測定遅延の下限(ms)
-const ANDROID_CORR_DELAY_MAX_MS = 600;            // 妥当な測定遅延の上限(ms)
+const ANDROID_CORR_DELAY_MIN_MS = 0;              // Android型補正候補の測定遅延下限(ms)
+const ANDROID_CORR_DELAY_MAX_MS = 800;            // Android型補正候補の測定遅延上限(ms)
+const ANDROID_CORR_NEAR_ZERO_LATENCY_MS = 100;    // 低遅延候補のログ判別用しきい値(ms)
 const ANDROID_CORR_MIN_ACCEPTED = 5;              // 7回中の最低採用数
 const ANDROID_CORR_MAX_TRIMMED_RANGE_MS = 40;     // trimmed range の上限(ms)
 const ANDROID_CORR_MIN_PEAK_TO_NOISE = 2.0;       // peakToNoise中央値の下限
 const ANDROID_CORR_CLUSTER_MIN_COUNT = 4;         // cluster判定の最低点数
 const ANDROID_CORR_CLUSTER_MAX_RANGE_MS = 35;     // cluster range の上限(ms)
+function androidLatencyCandidateRangeLabel() {
+    return ANDROID_CORR_DELAY_MIN_MS + '〜' + ANDROID_CORR_DELAY_MAX_MS;
+}
+function androidLatencyCandidateInRange(ms) {
+    return Number.isFinite(ms) && ms >= ANDROID_CORR_DELAY_MIN_MS && ms <= ANDROID_CORR_DELAY_MAX_MS;
+}
+function androidLatencyCandidateDebugFields(ms) {
+    const n = Number(ms);
+    return {
+        latencyCandidateRangeMs: androidLatencyCandidateRangeLabel(),
+        isNearZeroLatencyCandidate: Number.isFinite(n) && n >= ANDROID_CORR_DELAY_MIN_MS && n < ANDROID_CORR_NEAR_ZERO_LATENCY_MS,
+        nearZeroLatencyThresholdMs: ANDROID_CORR_NEAR_ZERO_LATENCY_MS,
+    };
+}
 function buildAndroidCorrectionCandidate(det, opts) {
     const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
     const ca = det && det.clusterAnalysis || null;
@@ -13153,7 +13168,7 @@ function buildAndroidCorrectionCandidate(det, opts) {
     const clusterCountOk = !!(ca && (ca.clusterCount || 0) >= ANDROID_CORR_CLUSTER_MIN_COUNT);
     const clusterRangeOk = !!(ca && ca.clusterRangeMs != null && ca.clusterRangeMs <= ANDROID_CORR_CLUSTER_MAX_RANGE_MS);
     const clusterPtnOk = !!(ca && ca.clusterPeakToNoiseMedian != null && ca.clusterPeakToNoiseMedian >= ANDROID_CORR_MIN_PEAK_TO_NOISE);
-    const clusterDelayOk = !!(ca && ca.clusterMedianMs != null && ca.clusterMedianMs >= ANDROID_CORR_DELAY_MIN_MS && ca.clusterMedianMs <= ANDROID_CORR_DELAY_MAX_MS);
+    const clusterDelayOk = !!(ca && androidLatencyCandidateInRange(ca.clusterMedianMs));
     const clusterOk = clusterGuessOk && clusterCountOk && clusterRangeOk && clusterPtnOk && clusterDelayOk;
     // 条件B：従来の trimmed 判定でOK。
     const trimMeasurement = r1(det && det.focusedOffsetTrimmedMedianMs != null ? det.focusedOffsetTrimmedMedianMs : (det ? det.focusedOffsetMedianMs : null));
@@ -13161,7 +13176,7 @@ function buildAndroidCorrectionCandidate(det, opts) {
     const acceptedOk = !!(det && (det.acceptedCount || 0) >= ANDROID_CORR_MIN_ACCEPTED);
     const rangeOk = !!(det && det.focusedOffsetTrimmedRangeMs != null && det.focusedOffsetTrimmedRangeMs <= ANDROID_CORR_MAX_TRIMMED_RANGE_MS);
     const ptnOk = !!(det && det.peakToNoiseMedian != null && det.peakToNoiseMedian >= ANDROID_CORR_MIN_PEAK_TO_NOISE);
-    const trimDelayOk = trimMeasurement != null && trimMeasurement >= ANDROID_CORR_DELAY_MIN_MS && trimMeasurement <= ANDROID_CORR_DELAY_MAX_MS;
+    const trimDelayOk = androidLatencyCandidateInRange(trimMeasurement);
     const trimOk = guessOk && acceptedOk && rangeOk && ptnOk && trimDelayOk;
     // 測定遅延の採用：A（cluster）優先 → trimmed → 通常median。
     const source = clusterOk ? 'clusterMedianMs' : (trimOk ? 'focusedOffsetTrimmedMedianMs' : (ca && ca.clusterMedianMs != null ? 'clusterMedianMs' : 'focusedOffsetTrimmedMedianMs'));
@@ -13189,6 +13204,7 @@ function buildAndroidCorrectionCandidate(det, opts) {
         confidence: clusterOk && ca ? ca.finalGuess : (det ? det.finalGuess : 'not-usable'),
         reason, isReadyToSave,
         // 互換フィールド（ユーザー向け表示には使わない）。v0.11.46で接続済み：保存すると Practice判定で使用される。
+        ...androidLatencyCandidateDebugFields(measurementDelayMs),
         notUsedYet: 'この候補値は保存するまで未適用。保存後は ' + opts.saveKey + ' として Practice判定で使用される（v0.11.46〜）。'
     };
 }
@@ -13205,7 +13221,7 @@ function buildAndroidWiredCandidate(run) {
         const why = [];
         if ((s.detectedCount || 0) < 2) why.push('detectedCount不足(' + (s.detectedCount || 0) + ')');
         if (s.stableEnoughGuess !== true) why.push('stableEnoughGuess=false');
-        if (!Number.isFinite(s.offsetMedianMs) || s.offsetMedianMs < 200 || s.offsetMedianMs > 700) why.push('offset範囲外(' + (r1(s.offsetMedianMs)) + 'ms)');
+        if (!androidLatencyCandidateInRange(s.offsetMedianMs)) why.push('offset範囲外(' + (r1(s.offsetMedianMs)) + 'ms)');
         if ((s.peakToNoiseMedian || 0) < 2) why.push('peakToNoise低(' + (r1(s.peakToNoiseMedian)) + ')');
         if (!(Number.isFinite(s.offsetRangeMs) && s.offsetRangeMs <= ANDROID_WIRED_MAX_SOUND_RANGE_MS)) why.push('unstable offsetRangeMs ' + (r1(s.offsetRangeMs)) + 'ms');
         if (why.length) excludedSources.push({ soundId: s.soundId, reason: why.join(' / ') });
@@ -13215,13 +13231,13 @@ function buildAndroidWiredCandidate(run) {
     const measurementDelayMs = r1(med(offs));
     const acrossSoundRangeMs = offs.length ? r1(Math.max(...offs) - Math.min(...offs)) : null;
     const saveOffsetMs = measurementDelayMs != null ? -measurementDelayMs : null;
-    const inDelayRange = measurementDelayMs != null && measurementDelayMs >= 200 && measurementDelayMs <= 600;
+    const inDelayRange = androidLatencyCandidateInRange(measurementDelayMs);
     const enoughSounds = offs.length >= 2;
     const tightEnough = acrossSoundRangeMs != null && acrossSoundRangeMs <= 60; // 採用音どうしの音間±60ms以内を合格目安
     const isReadyToSave = enoughSounds && inDelayRange && tightEnough;
     const reasons = [];
     if (!enoughSounds) reasons.push('安定検出音が2種未満');
-    if (!inDelayRange) reasons.push('測定遅延が200〜600ms外');
+    if (!inDelayRange) reasons.push('測定遅延が' + androidLatencyCandidateRangeLabel() + 'ms外');
     if (!tightEnough) reasons.push('音間のばらつき>60ms');
     return {
         measurementDelayMs, saveOffsetMs, saveKey,
@@ -13229,6 +13245,7 @@ function buildAndroidWiredCandidate(run) {
         signConfidence: 'confirmed',
         sourcesUsed: included.map((s) => s.soundId), excludedSources, soundsCount: offs.length, acrossSoundRangeMs,
         isReadyToSave, reason: isReadyToSave ? '安定して測定できています（保存可能）' : (reasons.join(' / ') || '測定値が不足'),
+        ...androidLatencyCandidateDebugFields(measurementDelayMs),
         notUsedYet: 'この候補値は保存するまで未適用。保存後は ' + saveKey + ' として Practice判定で使用される（v0.11.50〜）。'
     };
 }
@@ -13243,7 +13260,7 @@ function buildAndroidBuiltinMicCandidate(run) {
         const why = [];
         if ((s.detectedCount || 0) < 2) why.push('detectedCount不足(' + (s.detectedCount || 0) + ')');
         if (s.stableEnoughGuess !== true) why.push('stableEnoughGuess=false');
-        if (!Number.isFinite(s.offsetMedianMs) || s.offsetMedianMs < 200 || s.offsetMedianMs > 700) why.push('offset範囲外(' + (r1(s.offsetMedianMs)) + 'ms)');
+        if (!androidLatencyCandidateInRange(s.offsetMedianMs)) why.push('offset範囲外(' + (r1(s.offsetMedianMs)) + 'ms)');
         if ((s.peakToNoiseMedian || 0) < 2) why.push('peakToNoise低(' + (r1(s.peakToNoiseMedian)) + ')');
         if (!(Number.isFinite(s.offsetRangeMs) && s.offsetRangeMs <= ANDROID_BUILTIN_MIC_MAX_SOUND_RANGE_MS)) why.push('unstable offsetRangeMs ' + (r1(s.offsetRangeMs)) + 'ms');
         if (why.length) excludedSources.push({ soundId: s.soundId, reason: why.join(' / ') });
@@ -13253,8 +13270,8 @@ function buildAndroidBuiltinMicCandidate(run) {
     const measurementDelayMs = r1(med(offs));
     const acrossSoundRangeMs = offs.length ? r1(Math.max(...offs) - Math.min(...offs)) : null;
     const saveOffsetMs = measurementDelayMs != null ? -measurementDelayMs : null;
-    const inStrictDelayRange = measurementDelayMs != null && measurementDelayMs >= 200 && measurementDelayMs <= 600;
-    const inFallbackDelayRange = measurementDelayMs != null && measurementDelayMs >= 100 && measurementDelayMs <= 800;
+    const inStrictDelayRange = androidLatencyCandidateInRange(measurementDelayMs);
+    const inFallbackDelayRange = androidLatencyCandidateInRange(measurementDelayMs);
     const enoughSounds = offs.length >= 2;
     const tightEnough = acrossSoundRangeMs != null && acrossSoundRangeMs <= 60;
     const fallbackSpreadOk = acrossSoundRangeMs != null && acrossSoundRangeMs <= 200;
@@ -13265,8 +13282,8 @@ function buildAndroidBuiltinMicCandidate(run) {
     const saveConfidence = strictReady ? 'strict' : (fallbackReady ? 'fallback' : 'none');
     const reasons = [];
     if (!enoughSounds) reasons.push('安定検出音が2種未満');
-    if (!inFallbackDelayRange) reasons.push('測定遅延が100〜800ms外');
-    else if (!inStrictDelayRange && !fallbackReady) reasons.push('測定遅延が200〜600ms外');
+    if (!inFallbackDelayRange) reasons.push('測定遅延が' + androidLatencyCandidateRangeLabel() + 'ms外');
+    else if (!inStrictDelayRange && !fallbackReady) reasons.push('測定遅延が' + androidLatencyCandidateRangeLabel() + 'ms外');
     if (!tightEnough && !fallbackSpreadOk) reasons.push('音間のばらつき>200ms');
     else if (!tightEnough && !fallbackReady) reasons.push('音間のばらつき>60ms');
     return {
@@ -13276,6 +13293,7 @@ function buildAndroidBuiltinMicCandidate(run) {
         sourcesUsed: included.map((s) => s.soundId), excludedSources, soundsCount: offs.length, acrossSoundRangeMs,
         isReadyToSave, isStrictReadyToSave: strictReady, saveConfidence,
         reason: isReadyToSave ? (saveConfidence === 'strict' ? '安定して測定できています（保存可能）' : '遅延値は取得できました（音間ばらつきあり・保存可能）') : (reasons.join(' / ') || '測定値が不足'),
+        ...androidLatencyCandidateDebugFields(measurementDelayMs),
         notUsedYet: 'この候補値は保存するまで未適用。保存後は ' + saveKey + ' として Practice判定で使用される（v0.11.52〜）。'
     };
 }
@@ -13436,6 +13454,9 @@ function androidLatencyResultLogText(run) {
     add('source', candidate && candidate.source, '  ');
     add('confidence', candidate && candidate.confidence, '  ');
     add('isReadyToSave', candidate && candidate.isReadyToSave, '  ');
+    add('latencyCandidateRangeMs', androidLatencyCandidateRangeLabel(), '  ');
+    add('isNearZeroLatencyCandidate', candidate ? androidLatencyCandidateDebugFields(candidate.measurementDelayMs).isNearZeroLatencyCandidate : false, '  ');
+    add('nearZeroLatencyThresholdMs', ANDROID_CORR_NEAR_ZERO_LATENCY_MS, '  ');
     add('reason', candidate && candidate.reason || (run && run.abortedEarlyReason) || null, '  ');
     lines.push('');
     lines.push('androidLatencySegmentDebug:');
@@ -14124,7 +14145,14 @@ function buildAndroidBluetoothCandidateComparison(run) {
         tripleCount: cnt('triple-noise-pattern'),
         readableSingleCount: cnt('bt-readable-single-noise'),
         // v0.12.0：実際に保存に使われる選択候補（double/triple主軸）。
-        selectedForSave: { source: sel ? sel.source : null, measurementMs: sel ? r1(sel.measurementDelayMs) : null, saveOffsetMs: sel ? r1(sel.saveOffsetMs) : null, isReadyToSave: !!(sel && sel.isReadyToSave), reason: sel ? sel.reason : null },
+        selectedForSave: {
+            source: sel ? sel.source : null,
+            measurementMs: sel ? r1(sel.measurementDelayMs) : null,
+            saveOffsetMs: sel ? r1(sel.saveOffsetMs) : null,
+            isReadyToSave: !!(sel && sel.isReadyToSave),
+            reason: sel ? sel.reason : null,
+            ...androidLatencyCandidateDebugFields(sel ? sel.measurementDelayMs : null),
+        },
         used: { source: cc ? cc.source : null, measurementMs: cc ? r1(cc.measurementDelayMs) : null, saveOffsetMs: cc ? r1(cc.saveOffsetMs) : null, isReadyToSave: !!(cc && cc.isReadyToSave) },
         shortNoise: { measurementMs: sn ? r1(sn.focusedOffsetMedianMs) : null, clusterMeasurementMs: cc ? r1(cc.measurementDelayMs) : null, isReadyToSave: !!(cc && cc.isReadyToSave), reason: cc ? cc.reason : null },
         // v0.11.98：読み取りやすい単発ノイズ候補（表示専用・正式保存候補ではない）。v0.11.99で測定列から外したため通常 null。
@@ -14319,6 +14347,7 @@ function androidBtSelectedSaveCandidate(run) {
         signRule: '保存値 = -(測定遅延)。判定時刻=audio+offset / finishCalibration・finishBtCal と同規則',
         signConfidence: 'confirmed', confidence: confidence || 'candidate',
         reason, isReadyToSave: ms != null,
+        ...androidLatencyCandidateDebugFields(ms),
         patternEval: { double: dEval, triple: tEval },
         notUsedYet: 'この候補値は保存するまで未適用。保存後は androidBluetoothMicOffsetMs として Practice判定で使用される。',
     });
