@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.18';
+const RHYTHM_CRUISE_VERSION = '0.12.19';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14087,6 +14087,40 @@ function androidCheckTarget() {
     if (isHeadphoneInput() && getHeadphoneType() === 'bluetooth') return 'bluetooth';
     return 'normal';
 }
+function isIphoneBtLatencyProbeContext() {
+    return androidCheckMode && isIphoneAndroidTrialFlow() && androidCheckTarget() === 'bluetooth';
+}
+function iphoneBtProbeSignalProfile() {
+    return {
+        enabled: true,
+        reason: 'iphone_bt_probe_signal',
+        outputRoute: 'bluetooth',
+        inputRoute: 'headset_mic',
+        signalProfile: 'strong-wideband-burst-with-soft-fade',
+        signalGain: 0.92,
+        normalizedPeak: 0.92,
+        limiterOrClampApplied: true,
+        fadeMs: 2,
+        expectedBenefit: 'ノイキャン/ノイズゲートに消されにくくするため、強めの短い広帯域バーストを使う',
+        note: '実判定・保存値には未反映。音ズレテスト音の診断用。',
+    };
+}
+function btPhysicalRouteDebug() {
+    const iphoneBt = isIphoneAndroidTrialFlow() && isBluetoothHeadphone();
+    const androidBt = isRealAndroidCorrectionFlow() && isBluetoothHeadphone();
+    if (!iphoneBt && !androidBt) return null;
+    const inputRoute = iphoneBt ? 'headset_mic' : 'phone_mic';
+    return {
+        selectedTestPlatform,
+        selectedHeadphoneType: getHeadphoneType(),
+        outputRoute: 'bluetooth',
+        inputRoute,
+        measurementMeaning: iphoneBt
+            ? 'BTイヤホン出力をBTイヤホン側マイクで拾った遅延'
+            : 'BTイヤホン出力をスマホ本体マイクで拾った遅延',
+        note: 'BTイヤホン機種別分岐ではなく、Android/iPhoneの物理入力経路差を明示する診断ログ。',
+    };
+}
 /* v0.11.94：測定対象別の短縮音源列プラン（音源列のみ短縮。通常マイク/有線の保存候補・保存関数・判定ロジックは一切不変）。
    - normal / wired：BT探索音（voice系 / short-noise / 2連 / 3連）を一切含めない。probe＋クリック / 単音 / ノイズ。
    - bluetooth：2連 ×5 / 3連 ×5 を主軸にし、short-noise-focused-test ×7 は最後の保険として維持する。 */
@@ -14097,14 +14131,16 @@ function androidCheckSpecPlan(target) {
     const tone1500 = () => ({ soundId: 'tone-1500', soundLabel: '1500Hz 短音', soundType: 'tone', frequencyHz: 1500, route: 'AudioBuffer' });
     const tone2000 = () => ({ soundId: 'tone-2000', soundLabel: '2000Hz 短音', soundType: 'tone', frequencyHz: 2000, route: 'AudioBuffer' });
     const noise = () => ({ soundId: 'noise', soundLabel: '短いノイズ音', soundType: 'noise', frequencyHz: null, route: 'AudioBuffer' });
-    const shortNoise = () => ({ soundId: 'short-noise-focused-test', soundLabel: '短いノイズ集中テスト', soundType: 'noise', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true });
-    const dbl = () => ({ soundId: 'double-noise-pattern', soundLabel: '2連ノイズパターン', soundType: 'pattern', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true, patternPulsesMs: [0, 120], forceDurationMs: 200 });
-    const trpl = () => ({ soundId: 'triple-noise-pattern', soundLabel: '3連ノイズパターン', soundType: 'pattern', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true, patternPulsesMs: [0, 120, 280], forceDurationMs: 360 });
+    const iphoneBtSignal = isIphoneBtLatencyProbeContext() ? iphoneBtProbeSignalProfile() : null;
+    const strong = (spec) => iphoneBtSignal ? Object.assign(spec, { iphoneBtStrongSignal: true, iphoneBtProbeSignalProfile: iphoneBtSignal.signalProfile, iphoneBtProbeSignalGain: iphoneBtSignal.signalGain, iphoneBtProbeSignalFadeMs: iphoneBtSignal.fadeMs }) : spec;
+    const shortNoise = () => strong({ soundId: 'short-noise-focused-test', soundLabel: '短いノイズ集中テスト', soundType: 'noise', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true });
+    const dbl = () => strong({ soundId: 'double-noise-pattern', soundLabel: '2連ノイズパターン', soundType: 'pattern', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true, patternPulsesMs: [0, 120], forceDurationMs: 200 });
+    const trpl = () => strong({ soundId: 'triple-noise-pattern', soundLabel: '3連ノイズパターン', soundType: 'pattern', frequencyHz: null, route: 'AudioBuffer', bluetoothExploration: true, patternPulsesMs: [0, 120, 280], forceDurationMs: 360 });
     // v0.11.98：BT向け「読み取りやすい単発ノイズ」候補。v0.11.99で測定列からは外した（実機で遅め・悪化しやすいため）。
     //   soundType 'readableNoise' と解析コードは残置（再評価用）。保存候補にも使わない。
     if (target === 'bluetooth') {
         return { profile: 'bluetooth-short', specs: [
-            ...rep(3, noise),                 // Phase0：音量確認・位置合わせ
+            ...rep(3, () => strong(noise())), // Phase0：音量確認・位置合わせ
             ...rep(5, dbl), ...rep(5, trpl),  // Phase1：pattern候補（v0.12.0で測定列の主軸）
             ...rep(7, shortNoise),            // Phase2：保険・フォールバック候補として維持
         ] };
@@ -14115,6 +14151,144 @@ function androidCheckSpecPlan(target) {
     ] };
 }
 let lastAndroidBluetoothCandidateComparison = null; // v0.11.95：直近BT遅延テストの候補比較（表示・ログ用）。
+function hpEventOnsetDebug(event, focusFrom, focusTo) {
+    const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
+    const tl = (event && event.energyTimeline || []).filter((p) => p.offsetMs >= focusFrom && p.offsetMs <= focusTo).slice().sort((a, b) => a.offsetMs - b.offsetMs);
+    if (!tl.length) return { onsetOffsetMs: null, peakOffsetMs: null, peakValue: 0, noiseFloor: event ? event.noiseP95 || 0 : 0, threshold: null, attackMs: null, decayMs: null, energy: 0 };
+    const peak = tl.slice().sort((a, b) => b.value - a.value)[0];
+    const noiseFloor = event.noiseP95 || 0;
+    const threshold = Math.max(noiseFloor * 2.5, (peak ? peak.value : 0) * 0.18, 0.005);
+    let onset = null;
+    for (let i = 0; i < tl.length; i++) {
+        const p = tl[i], next = tl[i + 1] || null;
+        if (p.value >= threshold && (!next || next.value >= threshold * 0.75 || (next.offsetMs - p.offsetMs) > 24)) { onset = p; break; }
+    }
+    let decay = null;
+    if (peak) {
+        const half = peak.value * 0.5;
+        const after = tl.filter((p) => p.offsetMs > peak.offsetMs).find((p) => p.value <= half);
+        if (after) decay = after.offsetMs - peak.offsetMs;
+    }
+    return {
+        onsetOffsetMs: onset ? r1(onset.offsetMs) : null,
+        peakOffsetMs: peak ? r1(peak.offsetMs) : null,
+        peakValue: peak ? Math.round(peak.value * 1000000) / 1000000 : 0,
+        noiseFloor: Math.round(noiseFloor * 1000000) / 1000000,
+        threshold: Math.round(threshold * 1000000) / 1000000,
+        attackMs: onset && peak ? r1(peak.offsetMs - onset.offsetMs) : null,
+        decayMs: r1(decay),
+        energy: Math.round(tl.reduce((s, p) => s + p.value, 0) * 1000000) / 1000000,
+    };
+}
+function iphoneBtOnsetMedian(run, soundId, focusFrom, focusTo) {
+    const sorted = (xs) => xs.filter(Number.isFinite).slice().sort((a, b) => a - b);
+    const med = (xs) => { const a = sorted(xs); return a.length ? a[Math.floor(a.length / 2)] : null; };
+    const rows = (run && run.events || []).filter((e) => e.soundId === soundId).map((e) => hpEventOnsetDebug(e, focusFrom, focusTo));
+    const onsetOffsets = rows.map((r) => r.onsetOffsetMs).filter(Number.isFinite);
+    return {
+        offsetMs: med(onsetOffsets) != null ? Math.round(med(onsetOffsets) * 10) / 10 : null,
+        stableCount: onsetOffsets.length,
+        rows,
+    };
+}
+function buildIphoneBtProbeSignalDebug(run) {
+    if (!run || !isIphoneAndroidTrialFlow() || !isBluetoothHeadphone()) return null;
+    const strongSpecs = (run.events || []).filter((e) => e.iphoneBtStrongSignal);
+    if (!strongSpecs.length && !run.iphoneBtProbeSignalDebug) return null;
+    return Object.assign({}, run.iphoneBtProbeSignalDebug || iphoneBtProbeSignalProfile(), {
+        strongEventCount: strongSpecs.length,
+        strongSoundIds: Array.from(new Set(strongSpecs.map((e) => e.soundId))),
+    });
+}
+function buildIphoneBtNoiseGateDebug(run) {
+    if (!run || !isIphoneAndroidTrialFlow() || !isBluetoothHeadphone()) return null;
+    const events = (run.events || []).filter((e) => e.bluetoothExploration);
+    if (!events.length) return null;
+    const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
+    const sorted = (xs) => xs.filter(Number.isFinite).slice().sort((a, b) => a - b);
+    const med = (xs) => { const a = sorted(xs); return a.length ? a[Math.floor(a.length / 2)] : null; };
+    const range = (xs) => { const a = sorted(xs); return a.length ? r1(a[a.length - 1] - a[0]) : null; };
+    const pulse = events.map((e, i) => Object.assign({ index: i + 1, soundId: e.soundId }, hpEventOnsetDebug(e, 430, 560), {
+        peakToNoise: e.soundToNoiseRatio != null ? Math.round(e.soundToNoiseRatio * 1000) / 1000 : null,
+    }));
+    const peaks = pulse.map((p) => p.peakValue).filter(Number.isFinite);
+    const onsets = pulse.map((p) => p.onsetOffsetMs).filter(Number.isFinite);
+    const peakOffsets = pulse.map((p) => p.peakOffsetMs).filter(Number.isFinite);
+    const firstPeak = peaks.length ? peaks[0] : null;
+    const lastPeak = peaks.length ? peaks[peaks.length - 1] : null;
+    const maxPeak = peaks.length ? Math.max(...peaks) : null;
+    const minPeak = peaks.length ? Math.min(...peaks) : null;
+    const lastToFirstRatio = firstPeak ? Math.round((lastPeak / firstPeak) * 1000) / 1000 : null;
+    const minToMaxRatio = maxPeak ? Math.round((minPeak / maxPeak) * 1000) / 1000 : null;
+    const decliningTrendLikely = peaks.length >= 5 && lastToFirstRatio != null && lastToFirstRatio < 0.65;
+    const unstablePulseCount = pulse.filter((p) => !Number.isFinite(p.onsetOffsetMs) || !Number.isFinite(p.peakOffsetMs) || (p.peakToNoise != null && p.peakToNoise < 2)).length;
+    return {
+        enabled: true,
+        reason: 'iphone_bt_headset_mic_noise_gate_suspected',
+        inputRoute: 'headset_mic',
+        outputRoute: 'bluetooth',
+        pulsePeaks: peaks,
+        pulseOnsets: onsets,
+        pulsePeakToNoiseRatios: pulse.map((p) => p.peakToNoise),
+        pulseEnergy: pulse.map((p) => p.energy),
+        pulseAttackMs: pulse.map((p) => p.attackMs),
+        pulseDecayMs: pulse.map((p) => p.decayMs),
+        attenuation: {
+            firstPulsePeak: firstPeak,
+            medianPulsePeak: med(peaks),
+            lastPulsePeak: lastPeak,
+            lastToFirstRatio,
+            minToMaxRatio,
+            decliningTrendLikely,
+        },
+        stability: {
+            peakRangeMs: range(peakOffsets),
+            onsetRangeMs: range(onsets),
+            peakLevelRange: peaks.length ? Math.round((maxPeak - minPeak) * 1000000) / 1000000 : null,
+            usablePulseCount: pulse.length - unstablePulseCount,
+            unstablePulseCount,
+        },
+        interpretation: {
+            noiseGateOrAncLikely: decliningTrendLikely || unstablePulseCount >= Math.max(3, Math.ceil(pulse.length * 0.35)),
+            reason: decliningTrendLikely ? 'pulse-peak-declines' : (unstablePulseCount ? 'unstable-or-low-snr-pulses' : 'pulse-levels-stable'),
+            note: '表示専用。パルスごとの減衰・オンセット安定性を見て、iPhone BTのノイキャン/ノイズゲート影響を推定する。',
+        },
+    };
+}
+function buildIphoneBtOnsetVsPeakCandidateDebug(run, cmp) {
+    if (!run || !cmp || !isIphoneAndroidTrialFlow() || !isBluetoothHeadphone()) return null;
+    const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
+    const shortOnset = iphoneBtOnsetMedian(run, 'short-noise-focused-test', 430, 530);
+    const doubleOnset = iphoneBtOnsetMedian(run, 'double-noise-pattern', 450, 560);
+    const tripleOnset = iphoneBtOnsetMedian(run, 'triple-noise-pattern', 450, 560);
+    const selectedMs = cmp.selectedForSave ? cmp.selectedForSave.measurementMs : null;
+    const bestOnsetMs = doubleOnset.offsetMs != null ? doubleOnset.offsetMs : (tripleOnset.offsetMs != null ? tripleOnset.offsetMs : shortOnset.offsetMs);
+    const peakMinusOnsetMs = selectedMs != null && bestOnsetMs != null ? r1(selectedMs - bestOnsetMs) : null;
+    return {
+        enabled: true,
+        selectedForSaveOffsetMs: cmp.selectedForSave ? cmp.selectedForSave.saveOffsetMs : null,
+        peakBased: {
+            doublePatternOffsetMs: cmp.double && cmp.double.patternMeasurementMs != null ? -cmp.double.patternMeasurementMs : null,
+            triplePatternOffsetMs: cmp.triple && cmp.triple.patternMeasurementMs != null ? -cmp.triple.patternMeasurementMs : null,
+            shortNoiseOffsetMs: cmp.shortNoise && cmp.shortNoise.measurementMs != null ? -cmp.shortNoise.measurementMs : null,
+            selectedForSaveOffsetMs: cmp.selectedForSave ? cmp.selectedForSave.saveOffsetMs : null,
+        },
+        onsetBased: {
+            doubleOnsetOffsetMs: doubleOnset.offsetMs != null ? -doubleOnset.offsetMs : null,
+            tripleOnsetOffsetMs: tripleOnset.offsetMs != null ? -tripleOnset.offsetMs : null,
+            shortNoiseOnsetOffsetMs: shortOnset.offsetMs != null ? -shortOnset.offsetMs : null,
+            onsetThresholdRatio: 0.18,
+            onsetNoiseFloor: run.noise ? run.noise.p95 : null,
+            onsetStableCount: shortOnset.stableCount + doubleOnset.stableCount + tripleOnset.stableCount,
+        },
+        comparison: {
+            peakMinusOnsetMs,
+            onsetLooksEarlier: peakMinusOnsetMs != null && peakMinusOnsetMs > 20,
+            onsetMayReduceOverCorrection: peakMinusOnsetMs != null && peakMinusOnsetMs > 20,
+            note: 'オンセット候補はログのみ。保存候補・判定候補には未採用。',
+        },
+    };
+}
 /* v0.11.95：Bluetooth音ズレ・遅延テストの候補値を比較ログ用に保持する。
    v0.12.0 では selectedForSave に実際の保存候補（double/triple主軸）と patternDebug を出す。
    used は今回の遅延テストで採用された候補（shortNoise）。
@@ -14147,8 +14321,13 @@ function buildAndroidBluetoothCandidateComparison(run) {
     // noiseFamily：short+double+triple をまとめた既存の区間候補ロジックを再利用（表示専用・保存しない）。
     const nfEvents = (run.events || []).filter((e) => e.soundId === 'short-noise-focused-test' || e.soundId === 'double-noise-pattern' || e.soundId === 'triple-noise-pattern');
     const nf = nfEvents.length ? androidLatencySegmentCandidate(run, nfEvents, 'bluetooth') : null;
+    const base = {};
+    base.btPhysicalRouteDebug = btPhysicalRouteDebug();
+    base.iphoneBtProbeSignalDebug = buildIphoneBtProbeSignalDebug(run);
+    base.iphoneBtNoiseGateDebug = buildIphoneBtNoiseGateDebug(run);
     return {
         // v0.11.97：プロファイル情報（表示専用）。double/triple を増やしたので回数・所要時間を見られるようにする。
+        ...base,
         testProfile: run.androidCheckProfile || null,
         eventCount,
         estimatedDurationMs: eventCount ? eventCount * 1250 + 600 : 0,
@@ -14173,6 +14352,7 @@ function buildAndroidBluetoothCandidateComparison(run) {
         doublePatternDebug: dp ? dp.patternDebug : null,
         triple: { patternMeasurementMs: tp ? r1(tp.focusedOffsetMedianMs) : null, measurementMs: usable(sT) && tp && tp.focusedOffsetMedianMs != null ? r1(tp.focusedOffsetMedianMs) : null, rawOffsetMedianMs: r1(sT.offsetMedianMs), rawOffsetRangeMs: r1(sT.offsetRangeMs), detectedCount: sT.detectedCount != null ? sT.detectedCount : null, peakToNoiseMedian: r6(sT.peakToNoiseMedian), offsetRangeMs: r1(sT.offsetRangeMs), usableForSegment: usable(sT), usableForSaveCandidate: tSaveEval.usable, saveCandidateReason: tSaveEval.reason, patternDebug: tp ? tp.patternDebug : null, note: 'patternMeasurementMsが保存候補／rawは単純ピーク中央値で遅め・保存には使わない' },
         triplePatternDebug: tp ? tp.patternDebug : null,
+        iphoneBtOnsetVsPeakCandidateDebug: null,
         // v0.12.0：double/triple の安全な pattern候補をまとめた保存候補（第一候補）。
         patternFamily: { measurementMs: famMs, source: famSource, reason: famReason },
         noiseFamily: { measurementMs: nf ? r1(nf.measurementDelayMs) : null, isReadyToSave: !!(nf && nf.isReadyToSave), reason: nf ? nf.reason : null },
@@ -14269,6 +14449,9 @@ async function runAndroidAudioCheck(options) {
         run.finalGuess = run.bluetoothExploration.finalGuess;
         // v0.12.0：候補比較ログ用に保持。selectedForSave が実際の保存候補。
         run.androidBluetoothCandidateComparison = buildAndroidBluetoothCandidateComparison(run);
+        if (run.androidBluetoothCandidateComparison) {
+            run.androidBluetoothCandidateComparison.iphoneBtOnsetVsPeakCandidateDebug = buildIphoneBtOnsetVsPeakCandidateDebug(run, run.androidBluetoothCandidateComparison);
+        }
         lastAndroidBluetoothCandidateComparison = run.androidBluetoothCandidateComparison;
     }
     if (isHeadphoneInput() && getHeadphoneType() === 'wired') {
@@ -15304,11 +15487,36 @@ function hpProbeLoop() {
 function hpProbeTestLevel(defaultLevel) {
     return androidCheckMode ? 0.95 : defaultLevel;
 }
+function hpProbeStrongSignalSample(spec, i, len, sampleRate) {
+    const gain = Number(spec.iphoneBtProbeSignalGain) || 0.92;
+    const fadeMs = Number(spec.iphoneBtProbeSignalFadeMs) || 2;
+    const fadeN = Math.max(1, Math.round(sampleRate * fadeMs / 1000));
+    const pulseMs = spec.soundType === 'pattern' ? 70 : Math.max(80, len / sampleRate * 1000);
+    const pulseN = Math.max(1, Math.round(sampleRate * pulseMs / 1000));
+    const ms = i / sampleRate * 1000;
+    const pulses = spec.soundType === 'pattern' ? (spec.patternPulsesMs || [0, 120, 280]) : [0];
+    let env = 0;
+    for (const at of pulses) {
+        const local = ms - at;
+        if (local < 0 || local >= pulseMs) continue;
+        const p = Math.min(pulseN - 1, Math.max(0, Math.round(local * sampleRate / 1000)));
+        const head = Math.min(1, p / fadeN);
+        const tail = Math.min(1, (pulseN - 1 - p) / fadeN);
+        env = Math.max(env, Math.max(0, Math.min(head, tail)));
+    }
+    if (env <= 0) return 0;
+    const n = (Math.sin((i + 31) * 12.9898) * 43758.5453) % 1;
+    const white = ((n < 0 ? n + 1 : n) * 2 - 1);
+    const t = i / sampleRate;
+    const bright = 0.35 * Math.sin(2 * Math.PI * 3200 * t) + 0.2 * Math.sin(2 * Math.PI * 6100 * t);
+    return Math.max(-gain, Math.min(gain, (white * 0.75 + bright) * env * gain));
+}
 function hpProbeMakeBuffer(ctx, spec, durationMs) {
     const len = Math.max(1, Math.ceil(ctx.sampleRate * durationMs / 1000)), buffer = ctx.createBuffer(1, len, ctx.sampleRate), data = buffer.getChannelData(0);
     for (let i = 0; i < len; i++) {
         const t = i / ctx.sampleRate, env = Math.pow(1 - i / len, 2);
-        if (spec.soundType === 'voicepop') data[i] = (Math.sin(2*Math.PI*190*t) + .45*Math.sin(2*Math.PI*850*t) + .25*Math.sin(2*Math.PI*1800*t)) / 1.7 * env * hpProbeTestLevel(.75);
+        if (spec.iphoneBtStrongSignal && (spec.soundType === 'noise' || spec.soundType === 'pattern' || spec.soundType === 'readableNoise')) data[i] = hpProbeStrongSignalSample(spec, i, len, ctx.sampleRate);
+        else if (spec.soundType === 'voicepop') data[i] = (Math.sin(2*Math.PI*190*t) + .45*Math.sin(2*Math.PI*850*t) + .25*Math.sin(2*Math.PI*1800*t)) / 1.7 * env * hpProbeTestLevel(.75);
         else if (spec.soundType === 'chirp') data[i] = Math.sin(2*Math.PI*(300*t + 9000*t*t)) * Math.sin(Math.PI*i/len) * hpProbeTestLevel(.7);
         else if (spec.soundType === 'pattern') { const ms = i / ctx.sampleRate * 1000; const ats = spec.patternPulsesMs || [0, 120, 280]; const hit = ats.some((at) => ms >= at && ms < at + 60); const n = (Math.sin((i + 7) * 12.9898) * 43758.5453) % 1; data[i] = hit ? ((n < 0 ? n + 1 : n) * 2 - 1) * hpProbeTestLevel(.72) : 0; }
         else if (spec.soundType === 'probe') { const n = (Math.sin((i + 1) * 12.9898) * 43758.5453) % 1; data[i] = ((n < 0 ? n + 1 : n) * 2 - 1) * env * hpProbeTestLevel(.7); }
@@ -15409,6 +15617,7 @@ async function startHeadphoneAudioProbe() {
         // v0.11.94：測定対象（normal/wired/bluetooth）別の短縮音源列を使う。BT探索音は bluetooth のときだけ。
         const androidPlan = androidCheckMode ? androidCheckSpecPlan(androidCheckTarget()) : null;
         if (androidPlan) { run.androidCheckTarget = androidCheckTarget(); run.androidCheckProfile = androidPlan.profile; }
+        if (androidCheckMode && isIphoneBtLatencyProbeContext()) run.iphoneBtProbeSignalDebug = iphoneBtProbeSignalProfile();
         const specs = androidPlan ? androidPlan.specs : [
             { soundId: 'current-click', soundLabel: '現行クリック音', soundType: 'click', frequencyHz: 1500, route: 'existing-click' },
             { soundId: 'tone-800', soundLabel: '800Hz 短音（Oscillator）', soundType: 'tone', frequencyHz: 800, route: 'oscillator' }, { soundId: 'tone-1000', soundLabel: '1000Hz 短音（AudioBuffer）', soundType: 'tone', frequencyHz: 1000, route: 'AudioBuffer' }, { soundId: 'tone-1500', soundLabel: '1500Hz 短音（AudioBuffer）', soundType: 'tone', frequencyHz: 1500, route: 'AudioBuffer' }, { soundId: 'tone-2000', soundLabel: '2000Hz 短音（AudioBuffer）', soundType: 'tone', frequencyHz: 2000, route: 'AudioBuffer' },
@@ -15431,7 +15640,7 @@ async function startHeadphoneAudioProbe() {
                 hpProbeSetStatus('測定中… ' + current + ' / ' + totalSpecs + '　' + spec.soundLabel + '　あと約' + remainSec + '秒');
             }
             const actualDuration = spec.forceDurationMs || durationMs, timing = spec.route === 'HTMLAudioElement/wav' ? hpProbePlayHtmlAudio(ctx, spec, actualDuration) : hpProbePlayWebAudio(ctx, spec, actualDuration, spec.route);
-            const event = { soundId: spec.soundId, soundLabel: spec.soundLabel, soundType: spec.soundType, frequencyHz: spec.frequencyHz, bluetoothExploration: !!spec.bluetoothExploration, durationMs: actualDuration, playbackRoute: timing.playbackRoute, constraintsProfile: profile, scheduledAtAudioTime: timing.scheduledAtAudioTime, scheduledAtPerformanceTime: timing.scheduledAtPerformanceTime, normalWindowMs: [0, 520], wideWindowMs: [-500, 1200], rankTop5: [], normalRankTop5: [], energyTimeline: [], probeReference: spec.waveformMatch ? hpProbeMakeBuffer(ctx, spec, actualDuration).getChannelData(0) : null, waveformMatch: spec.waveformMatch ? { probeLabel: 'Android calibration probe', probeDurationMs: actualDuration, correlationOffsetMs: null, correlationScore: null, accepted: false, rejectReason: 'input-frame-correlation-not-captured' } : null };
+            const event = { soundId: spec.soundId, soundLabel: spec.soundLabel, soundType: spec.soundType, frequencyHz: spec.frequencyHz, bluetoothExploration: !!spec.bluetoothExploration, iphoneBtStrongSignal: !!spec.iphoneBtStrongSignal, iphoneBtProbeSignalProfile: spec.iphoneBtProbeSignalProfile || null, iphoneBtProbeSignalGain: spec.iphoneBtProbeSignalGain || null, iphoneBtProbeSignalFadeMs: spec.iphoneBtProbeSignalFadeMs || null, durationMs: actualDuration, playbackRoute: timing.playbackRoute, constraintsProfile: profile, scheduledAtAudioTime: timing.scheduledAtAudioTime, scheduledAtPerformanceTime: timing.scheduledAtPerformanceTime, normalWindowMs: [0, 520], wideWindowMs: [-500, 1200], rankTop5: [], normalRankTop5: [], energyTimeline: [], probeReference: spec.waveformMatch ? hpProbeMakeBuffer(ctx, spec, actualDuration).getChannelData(0) : null, waveformMatch: spec.waveformMatch ? { probeLabel: 'Android calibration probe', probeDurationMs: actualDuration, correlationOffsetMs: null, correlationScore: null, accepted: false, rejectReason: 'input-frame-correlation-not-captured' } : null };
             run.events.push(event); await new Promise((resolve) => setTimeout(resolve, 1250));
             if (androidCheckCancelRequested) return;
             if (androidCheckMode) {
@@ -15643,6 +15852,8 @@ const finalCheckFlowDebug = {
     lastIphoneTrialBluetoothSafetyDebug: null,
     // v0.12.18：BTイヤホン機種差の診断ログ（表示専用）。
     lastBluetoothDeviceCalibrationDebug: null,
+    // v0.12.19：iPhone BT音ズレテスト候補と最終確認逆算値の監査ログ（表示専用）。
+    lastIphoneBtLatencyCandidateAudit: null,
 };
 
 function errorForCorrectionFlowLog(err) {
@@ -15773,6 +15984,7 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
         legacyVsAndroidBtCalibrationComparison: finalCheckFlowDebug.lastLegacyVsAndroidBtCalibrationComparison || null,
         iphoneTrialBluetoothSafetyDebug: finalCheckFlowDebug.lastIphoneTrialBluetoothSafetyDebug || null,
         bluetoothDeviceCalibrationDebug: finalCheckFlowDebug.lastBluetoothDeviceCalibrationDebug || null,
+        iphoneBtLatencyCandidateAudit: finalCheckFlowDebug.lastIphoneBtLatencyCandidateAudit || null,
         finalCheckDisplayCorrectionDebug: finalCheckFlowDebug.lastFinalCheckDisplayCorrectionDebug || null,
         bluetoothCandidateComparison: finalCheckFlowDebug.lastBluetoothCandidateComparison || null,
         bluetoothFinalCheckPrediction: finalCheckFlowDebug.lastBluetoothFinalCheckPrediction || null,
@@ -16833,7 +17045,8 @@ function buildLegacyVsAndroidBtCalibrationComparison(currentStats) {
     // Android型新UI（開ループ・スケジュール→ピークの絶対遅延）。
     const currentProductionOffsetMs = Number(micJudgeOffsetMs());
     const bluetoothOnlyOffsetMs = bluetoothMicOffsetMs;
-    const trialMeasuredOffsetMs = isIphoneAndroidTrialFlow() ? Number(iphoneAndroidTrialCurrentOffsetMs()) : null;
+    const trialRawOffsetMs = isIphoneAndroidTrialFlow() ? iphoneAndroidTrialOffsets[iphoneAndroidTrialOffsetKey()] : null;
+    const trialMeasuredOffsetMs = trialRawOffsetMs != null ? Number(trialRawOffsetMs) : null;
     const wizardOffsetMs = Number(wizardMicJudgeOffsetMs());
     const cmp = lastAndroidBluetoothCandidateComparison;
     const selectedForSaveMeasurementMs = cmp && cmp.selectedForSave ? cmp.selectedForSave.measurementMs : null;
@@ -16899,7 +17112,7 @@ function buildLegacyVsAndroidBtCalibrationComparison(currentStats) {
         interpretation: {
             likelySameMeasurementTarget: false,
             suspectedDifference: '旧UIは判定時間軸での閉ループ反復（micJudgeOffsetMs込みの残差を0へ収束）で、最終確認と同一フレーム→自然。Android型は開ループでスケジュール→ピークの絶対遅延を測り、BTは HTMLAudioElement/wav 経路の起動遅延＋BT出力遅延を含むため絶対値が大きい。さらに wizard=timing+trial は timingOffsetMs を二重計上。',
-            recommendedNextAction: 'iPhone仮/Android型BTでは bluetoothOnly か legacy(bluetoothMicOffsetMs) を判定候補にする方が自然。trial/wizardは過補正。実機で legacyJudgeStats / bluetoothOnlyStats / selectedForSaveStats を比較して採用方針を決める。実判定・保存は未変更。',
+            recommendedNextAction: 'iPhone BTでは、legacy/global補正が合う機種とAndroid型trialの方が近い機種がある。現時点ではtrialを判定/保存には採用していない。音ズレテスト候補と最終確認逆算値を比較し、iPhone BT用の候補採用基準を精査する。実判定・保存は未変更。',
         },
         note: 'すべて現在値/保存値を読むだけ。実判定・保存・Android BT候補優先順位は不変。',
     };
@@ -17026,6 +17239,56 @@ function buildBluetoothDeviceCalibrationDebug(currentStats) {
     };
 }
 
+function buildIphoneBtLatencyCandidateAudit(currentStats) {
+    if (!isIphoneAndroidTrialFlow() || !isBluetoothHeadphone() || !currentStats) return null;
+    const cmp = lastAndroidBluetoothCandidateComparison;
+    if (!cmp) return null;
+    const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
+    const used = Number(currentStats.usedJudgeOffsetMs);
+    const avg = Number(currentStats.avgDiffMs);
+    if (!Number.isFinite(used) || !Number.isFinite(avg)) return null;
+    const finalCheckSuggestedOffsetMs = r1(used - avg);
+    const onset = cmp.iphoneBtOnsetVsPeakCandidateDebug && cmp.iphoneBtOnsetVsPeakCandidateDebug.onsetBased || {};
+    const offsets = {
+        selectedForSave: cmp.selectedForSave ? cmp.selectedForSave.saveOffsetMs : null,
+        shortNoise: cmp.shortNoise && cmp.shortNoise.measurementMs != null ? -cmp.shortNoise.measurementMs : null,
+        doublePattern: cmp.double && cmp.double.patternMeasurementMs != null ? -cmp.double.patternMeasurementMs : null,
+        triplePattern: cmp.triple && cmp.triple.patternMeasurementMs != null ? -cmp.triple.patternMeasurementMs : null,
+        rawDouble: cmp.double && cmp.double.rawOffsetMedianMs != null ? -cmp.double.rawOffsetMedianMs : null,
+        rawTriple: cmp.triple && cmp.triple.rawOffsetMedianMs != null ? -cmp.triple.rawOffsetMedianMs : null,
+        shortNoiseOnset: onset.shortNoiseOnsetOffsetMs,
+        doubleOnset: onset.doubleOnsetOffsetMs,
+        tripleOnset: onset.tripleOnsetOffsetMs,
+    };
+    const err = {};
+    Object.keys(offsets).forEach((key) => { err[key] = offsets[key] != null ? r1(offsets[key] - finalCheckSuggestedOffsetMs) : null; });
+    const best = Object.keys(err).filter((key) => err[key] != null).sort((a, b) => Math.abs(err[a]) - Math.abs(err[b]))[0] || null;
+    return {
+        enabled: true,
+        selectedTestPlatform,
+        selectedHeadphoneType: getHeadphoneType(),
+        inputRoute: 'headset_mic',
+        currentUsedJudgeOffsetMs: r1(used),
+        finalCheckAvgDiffMs: r1(avg),
+        finalCheckSuggestedOffsetMs,
+        selectedForSaveOffsetMs: offsets.selectedForSave,
+        shortNoiseOffsetMs: offsets.shortNoise,
+        doublePatternOffsetMs: offsets.doublePattern,
+        triplePatternOffsetMs: offsets.triplePattern,
+        rawDoubleOffsetMs: offsets.rawDouble,
+        rawTripleOffsetMs: offsets.rawTriple,
+        onsetCandidateOffsets: {
+            shortNoiseOnsetOffsetMs: offsets.shortNoiseOnset,
+            doubleOnsetOffsetMs: offsets.doubleOnset,
+            tripleOnsetOffsetMs: offsets.tripleOnset,
+        },
+        errorVsFinalSuggested: err,
+        bestCandidateForFinalCheck: best ? { name: best, offsetMs: offsets[best], errorMs: err[best] } : null,
+        overCorrectionSuspicion: err.selectedForSave != null && err.selectedForSave < -40,
+        note: '最終確認の平均ズレから逆算した候補監査ログ。表示専用で、実判定・保存・候補優先順位には未使用。',
+    };
+}
+
 /* v0.12.17：iPhone仮・Bluetooth限定。Android型trial値を iPhone側の判定/保存に採用すると危険であることを明示する安全ログ（表示専用）。
    trial を使った場合の予測と、現在の実判定（旧UI由来 -222 など）/legacy判定の予測を並べ、trialが危険かを判定する。
    実判定・保存・Android BT候補優先順位は一切変えない（読むだけ）。 */
@@ -17148,6 +17411,7 @@ function finishPracticeTest() {
     r.legacyVsAndroidBtCalibrationComparison = buildLegacyVsAndroidBtCalibrationComparison(r.finalCheckStats);
     r.iphoneTrialBluetoothSafetyDebug = buildIphoneTrialBluetoothSafetyDebug(r.finalCheckStats);
     r.bluetoothDeviceCalibrationDebug = buildBluetoothDeviceCalibrationDebug(r.finalCheckStats);
+    r.iphoneBtLatencyCandidateAudit = buildIphoneBtLatencyCandidateAudit(r.finalCheckStats);
     r.finalCheckDisplayCorrectionDebug = buildFinalCheckDisplayCorrectionDebug();
     r.androidBluetoothCandidateComparison = isBluetoothHeadphone() ? (lastAndroidBluetoothCandidateComparison || null) : null;
     r.androidBluetoothFinalCheckPrediction = androidBluetoothFinalCheckPrediction(avg);
@@ -17159,6 +17423,7 @@ function finishPracticeTest() {
     finalCheckFlowDebug.lastLegacyVsAndroidBtCalibrationComparison = r.legacyVsAndroidBtCalibrationComparison;
     finalCheckFlowDebug.lastIphoneTrialBluetoothSafetyDebug = r.iphoneTrialBluetoothSafetyDebug;
     finalCheckFlowDebug.lastBluetoothDeviceCalibrationDebug = r.bluetoothDeviceCalibrationDebug;
+    finalCheckFlowDebug.lastIphoneBtLatencyCandidateAudit = r.iphoneBtLatencyCandidateAudit;
     finalCheckFlowDebug.lastFinalCheckDisplayCorrectionDebug = r.finalCheckDisplayCorrectionDebug;
     finalCheckFlowDebug.lastBluetoothCandidateComparison = r.androidBluetoothCandidateComparison;
     finalCheckFlowDebug.lastBluetoothFinalCheckPrediction = r.androidBluetoothFinalCheckPrediction;
@@ -17303,6 +17568,7 @@ function renderPracticeResult(r) {
                 legacyVsAndroidBtCalibrationComparison: r.legacyVsAndroidBtCalibrationComparison || null,
                 iphoneTrialBluetoothSafetyDebug: r.iphoneTrialBluetoothSafetyDebug || null,
                 bluetoothDeviceCalibrationDebug: r.bluetoothDeviceCalibrationDebug || null,
+                iphoneBtLatencyCandidateAudit: r.iphoneBtLatencyCandidateAudit || null,
                 androidBluetoothCandidateComparison: r.androidBluetoothCandidateComparison || null,
                 bluetoothFinalCheckPrediction: r.androidBluetoothFinalCheckPrediction || null,
             }, null, 2);
