@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.9';
+const RHYTHM_CRUISE_VERSION = '0.12.10';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -12916,7 +12916,7 @@ let androidCheckCancelRequested = false;
 let androidCheckRunToken = 0;
 let selectedTestPlatform = null;
 let androidCheckMode = false;
-const androidBtVolumeTest = { active: false, stopRequested: false, loopTimer: 0, token: 0, target: null };
+const androidBtVolumeTest = { active: false, stopRequested: false, loopTimer: 0, token: 0, target: null, events: [], noiseSamples: [], volumeTestReadiness: null };
 const iphoneAndroidTrialOffsets = {
     builtin: null,
     wired: null,
@@ -14574,7 +14574,8 @@ function androidCheckLiveStatus() {
     const progress = Math.max(0, Math.min(1, (live.done || 0) / Math.max(1, live.total || 1)));
     const peak = Math.max(0, live.maxPeak || 0);
     if (androidBtVolumeTest.active) {
-        if (live.detected >= 2 || peak >= ANDROID_CHECK_LIVE_THRESHOLD) return { kind: 'ok', text: '安定して測定できています' };
+        const readiness = androidBtVolumeTest.volumeTestReadiness || null;
+        if (readiness) return androidVolumeTestStatusForReadiness(readiness);
         if (peak >= ANDROID_CHECK_LIVE_THRESHOLD * 0.45 || live.detected > 0) return { kind: 'warn', text: '測定が少し不安定です' };
         return { kind: 'retry', text: '音量不足で測定できないかもしれません' };
     }
@@ -14775,6 +14776,158 @@ function androidVolumeTestSpecs(target) {
     const plan = androidCheckSpecPlan(target);
     return (plan && Array.isArray(plan.specs)) ? plan.specs : [];
 }
+function androidVolumeTestRunSnapshot() {
+    const target = androidBtVolumeTest.target || androidCheckTarget();
+    const events = (androidBtVolumeTest.events || []).slice();
+    const noiseSamples = (androidBtVolumeTest.noiseSamples || []).filter(Number.isFinite).slice().sort((a, b) => a - b);
+    const noise = {
+        max: noiseSamples.length ? noiseSamples[noiseSamples.length - 1] : 0,
+        p95: noiseSamples.length ? noiseSamples[Math.min(noiseSamples.length - 1, Math.floor(noiseSamples.length * 0.95))] : 0,
+    };
+    events.forEach((event) => hpProbeFinalizeEvent(event, noise));
+    const run = {
+        kind: 'androidVolumeReadinessCheck',
+        selectedTestPlatform,
+        selectedInputType: target === 'normal' ? 'normal' : 'headphone',
+        selectedHeadphoneType: target === 'normal' ? 'normal' : target,
+        events,
+        noise,
+    };
+    run.summary = androidCheckStats(events);
+    return run;
+}
+function androidVolumeTestBluetoothReadiness(run) {
+    const shortCount = run.events.filter((x) => x.soundId === 'short-noise-focused-test').length;
+    const dblCount = run.events.filter((x) => x.soundId === 'double-noise-pattern').length;
+    const trplCount = run.events.filter((x) => x.soundId === 'triple-noise-pattern').length;
+    const shortNoiseFocusedTest = shortCount ? hpAnalyzeShortNoise(run.events, { soundId: 'short-noise-focused-test', soundLabel: '短いノイズ集中テスト', repeatCount: shortCount }) : null;
+    if (shortNoiseFocusedTest) shortNoiseFocusedTest.correctionCandidate = buildAndroidCorrectionCandidate(shortNoiseFocusedTest, { saveKey: 'androidBluetoothMicOffsetMs' });
+    const doublePatternDetection = dblCount ? hpAnalyzeNoisePattern(run.events, { soundId: 'double-noise-pattern', soundLabel: '2連ノイズパターン', repeatCount: dblCount, targetsMs: [0, 120] }) : null;
+    const triplePatternDetection = trplCount ? hpAnalyzeNoisePattern(run.events, { soundId: 'triple-noise-pattern', soundLabel: '3連ノイズパターン', repeatCount: trplCount, targetsMs: [0, 120, 280] }) : null;
+    run.bluetoothExploration = {
+        constraintsProfile: 'current',
+        shortNoiseFocusedTest,
+        doublePatternDetection,
+        triplePatternDetection,
+        readableSingleFocusedTest: null,
+        selectedSaveCandidate: null,
+    };
+    run.bluetoothExploration.selectedSaveCandidate = androidBtSelectedSaveCandidate(run);
+    const cc = btSavePathCandidate(run);
+    const sumOf = (id) => (run.summary || []).find((s) => s.soundId === id) || {};
+    const dEval = androidBtPatternUsability(doublePatternDetection, sumOf('double-noise-pattern'));
+    const tEval = androidBtPatternUsability(triplePatternDetection, sumOf('triple-noise-pattern'));
+    return {
+        candidate: cc,
+        pattern: {
+            patternFamilyLike: dEval.usable && tEval.usable,
+            doublePatternLike: dEval.usable,
+            triplePatternLike: tEval.usable,
+            shortNoiseLike: !!(shortNoiseFocusedTest && shortNoiseFocusedTest.correctionCandidate && shortNoiseFocusedTest.correctionCandidate.isReadyToSave),
+            bestSourceLike: cc && cc.source || null,
+            wouldPassCandidateRange: !!(cc && androidLatencyCandidateInRange(cc.measurementDelayMs)),
+            wouldPassStability: !!((dEval.usable || tEval.usable) || (shortNoiseFocusedTest && shortNoiseFocusedTest.focusedOffsetTrimmedRangeMs != null && shortNoiseFocusedTest.focusedOffsetTrimmedRangeMs <= ANDROID_CORR_MAX_TRIMMED_RANGE_MS)),
+            wouldPassDetectedTypeCount: !!(dEval.detectedCount >= ANDROID_BT_PATTERN_MIN_DETECTED || tEval.detectedCount >= ANDROID_BT_PATTERN_MIN_DETECTED || (shortNoiseFocusedTest && shortNoiseFocusedTest.acceptedCount >= ANDROID_CORR_MIN_ACCEPTED)),
+            double: dEval,
+            triple: tEval,
+        },
+    };
+}
+function androidVolumeTestReadiness(target) {
+    const run = androidVolumeTestRunSnapshot();
+    const events = run.events || [];
+    const peaks = events.map((e) => Number(e.normalWindowMaxPeak || 0)).filter(Number.isFinite);
+    const peakLevel = peaks.length ? Math.max(...peaks) : 0;
+    const threshold = ANDROID_CHECK_LIVE_THRESHOLD;
+    const peakToThresholdRatio = threshold ? Math.round((peakLevel / threshold) * 100) / 100 : null;
+    const stableDetectedCount = events.filter((e) => e.detected).length;
+    const rejectedReasons = {};
+    const addReject = (reason) => { if (reason) rejectedReasons[reason] = (rejectedReasons[reason] || 0) + 1; };
+    let candidate = null, patternInfo = null;
+    if (target === 'bluetooth') {
+        const bt = androidVolumeTestBluetoothReadiness(run);
+        candidate = bt.candidate;
+        patternInfo = bt.pattern;
+        (run.bluetoothExploration.doublePatternDetection && run.bluetoothExploration.doublePatternDetection.results || []).forEach((r) => addReject(r.rejectReason));
+        (run.bluetoothExploration.triplePatternDetection && run.bluetoothExploration.triplePatternDetection.results || []).forEach((r) => addReject(r.rejectReason));
+        (run.bluetoothExploration.shortNoiseFocusedTest && run.bluetoothExploration.shortNoiseFocusedTest.results || []).forEach((r) => addReject(r.rejectReason));
+    } else {
+        candidate = target === 'wired' ? buildAndroidWiredCandidate(run) : buildAndroidBuiltinMicCandidate(run);
+        (candidate && candidate.excludedSources || []).forEach((r) => addReject(r.reason));
+    }
+    const candidateLikeCount = target === 'bluetooth'
+        ? [
+            patternInfo && patternInfo.doublePatternLike,
+            patternInfo && patternInfo.triplePatternLike,
+            patternInfo && patternInfo.shortNoiseLike,
+        ].filter(Boolean).length
+        : (candidate && Array.isArray(candidate.sourcesUsed) ? candidate.sourcesUsed.length : 0);
+    const wouldLikelyProduceCandidate = !!(candidate && candidate.isReadyToSave && candidate.saveOffsetMs != null);
+    let status = 'ng', reason = '音量が足りません', recommendedAction = '端末音量を上げるか、音が出る部分をマイクに近づけてください。';
+    if (wouldLikelyProduceCandidate) {
+        status = 'ok';
+        reason = 'candidate-ready';
+        recommendedAction = 'この位置で本測定を開始できます。';
+    } else if (peakToThresholdRatio != null && peakToThresholdRatio < 0.7) {
+        status = 'ng';
+        reason = 'peak-below-threshold';
+    } else if (stableDetectedCount > 0 || peakToThresholdRatio >= 0.7) {
+        status = candidateLikeCount > 0 ? 'unstable' : 'weak';
+        reason = candidate && candidate.reason || 'candidate-conditions-not-met';
+        recommendedAction = status === 'unstable'
+            ? '音は入っていますが、タイミングが不安定です。位置を固定してもう一度試してください。'
+            : '音は入っていますが、少し弱めです。端末音量を上げるか、マイクとイヤホンの位置を近づけてください。';
+    }
+    const result = {
+        status,
+        reason,
+        peakLevel: Math.round(peakLevel * 1000000) / 1000000,
+        threshold,
+        peakToThresholdRatio,
+        stableDetectedCount,
+        candidateLikeCount,
+        rejectedReasons,
+        wouldLikelyProduceCandidate,
+        recommendedAction,
+        candidate: candidate ? {
+            source: candidate.source || null,
+            measurementDelayMs: candidate.measurementDelayMs != null ? Math.round(candidate.measurementDelayMs * 10) / 10 : null,
+            isReadyToSave: !!candidate.isReadyToSave,
+            reason: candidate.reason || null,
+        } : null,
+        volumeTestPatternReadiness: patternInfo,
+    };
+    androidBtVolumeTest.volumeTestReadiness = result;
+    return result;
+}
+function androidVolumeTestStatusForReadiness(readiness) {
+    if (!readiness) return { kind: '', text: '音を確認中…' };
+    if (readiness.status === 'ok') return { kind: 'ok', text: '安定して測定できそうです' };
+    if (readiness.status === 'weak') return { kind: 'warn', text: '音は入っていますが、少し弱めです' };
+    if (readiness.status === 'unstable') return { kind: 'warn', text: '音は入っていますが、タイミングが不安定です' };
+    return { kind: 'retry', text: '音量が足りません。測定候補を算出できない可能性があります' };
+}
+function androidVolumeTestMakeEvent(spec, timing, durationMs) {
+    return {
+        soundId: spec.soundId,
+        soundLabel: spec.soundLabel,
+        soundType: spec.soundType,
+        frequencyHz: spec.frequencyHz,
+        bluetoothExploration: !!spec.bluetoothExploration,
+        durationMs,
+        playbackRoute: timing.playbackRoute,
+        constraintsProfile: 'current',
+        scheduledAtAudioTime: timing.scheduledAtAudioTime,
+        scheduledAtPerformanceTime: timing.scheduledAtPerformanceTime,
+        normalWindowMs: [0, 520],
+        wideWindowMs: [-500, 1200],
+        rankTop5: [],
+        normalRankTop5: [],
+        energyTimeline: [],
+        probeReference: null,
+        waveformMatch: null,
+    };
+}
 async function startAndroidBtVolumeTest() {
     if (androidBtVolumeTest.active) { stopAndroidBtVolumeTest(); return; }
     if (!useAndroidLatencyFirstFlow() || !androidTestPlatformSelected()) return;
@@ -14789,6 +14942,9 @@ async function startAndroidBtVolumeTest() {
     androidBtVolumeTest.active = true;
     androidBtVolumeTest.stopRequested = false;
     androidBtVolumeTest.target = target;
+    androidBtVolumeTest.events = [];
+    androidBtVolumeTest.noiseSamples = [];
+    androidBtVolumeTest.volumeTestReadiness = null;
     const token = ++androidBtVolumeTest.token;
     setAndroidBtVolumeTestButton(true);
     const statusEl = androidCheckStatusEl(true);
@@ -14796,6 +14952,7 @@ async function startAndroidBtVolumeTest() {
     if (!androidCheckLiveMonitor && !headphoneAudioProbe.active) await startAndroidCheckLiveMonitor();
     resetAndroidCheckLive(1);
     updateAndroidCheckLiveState();
+    await androidBtVolumeTestSleep(320, token);
     const ctx = ensureAudio();
     const specs = androidVolumeTestSpecs(target);
     if (!specs.length) { stopAndroidBtVolumeTest({ keepMonitor: true }); return; }
@@ -14803,10 +14960,20 @@ async function startAndroidBtVolumeTest() {
     while (androidBtVolumeTest.active && !androidBtVolumeTest.stopRequested && androidBtVolumeTest.token === token) {
         const spec = specs[i % specs.length];
         const durationMs = spec.forceDurationMs || 100;
-        if (spec.route === 'HTMLAudioElement/wav') hpProbePlayHtmlAudio(ctx, spec, durationMs);
-        else hpProbePlayWebAudio(ctx, spec, durationMs, spec.route);
+        const timing = spec.route === 'HTMLAudioElement/wav'
+            ? hpProbePlayHtmlAudio(ctx, spec, durationMs)
+            : hpProbePlayWebAudio(ctx, spec, durationMs, spec.route);
+        androidBtVolumeTest.events.push(androidVolumeTestMakeEvent(spec, timing, durationMs));
         i++;
         await androidBtVolumeTestSleep(durationMs + 850, token);
+        if (androidBtVolumeTest.active && androidBtVolumeTest.token === token) {
+            const readiness = androidVolumeTestReadiness(target);
+            const status = androidVolumeTestStatusForReadiness(readiness);
+            const ui = androidCheckLiveEls();
+            if (ui.state) setCalLevelState(ui.state, status.kind, status.text);
+            if (statusEl && readiness.status !== 'ok') statusEl.textContent = readiness.recommendedAction;
+            else if (statusEl) statusEl.textContent = '音量テスト中… この位置で本測定を開始できます。';
+        }
     }
     if (androidBtVolumeTest.token === token) stopAndroidBtVolumeTest({ keepMonitor: true });
 }
@@ -14872,6 +15039,12 @@ function hpProbeLoop() {
     if (!headphoneAudioProbe.active) return;
     const now = performance.now(), peak = hpProbePeak(), run = headphoneAudioProbe.run;
     pushAndroidCheckLivePeak(peak);
+    if (androidBtVolumeTest.active) {
+        if (!androidBtVolumeTest.events.length && androidBtVolumeTest.noiseSamples.length < 80) androidBtVolumeTest.noiseSamples.push(peak);
+        (androidBtVolumeTest.events || []).forEach((event) => {
+            if (now - event.scheduledAtPerformanceTime <= event.wideWindowMs[1] + 120) hpProbeAddPeak(event, now, peak);
+        });
+    }
     if (run && !androidCheckLiveMonitor) run.events.forEach((event) => hpProbeAddPeak(event, now, peak));
     if (headphoneAudioProbe.manual) headphoneAudioProbe.manual.samples.push(peak);
     headphoneAudioProbe.raf = requestAnimationFrame(hpProbeLoop);
@@ -15317,6 +15490,7 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
             androidBluetoothMicOffsetMs: mic.androidBluetoothMicOffsetMs || 0,
             micJudgeOffsetMs: micJudgeOffsetMs(),
             offsetDebug: androidJudgeOffsetDebug(),
+            volumeTestReadiness: androidBtVolumeTest.volumeTestReadiness || null,
         },
         finalCheckButton: {
             ptBtn: correctionFlowElementState(els.ptBtn),
@@ -16069,7 +16243,7 @@ function finalCheckMedianMs(xs) {
     return a.length % 2 ? a[m] : Math.round((a[m - 1] + a[m]) / 2 * 10) / 10;
 }
 function finalCheckUsesPracticeOnlyJudgeOffset() {
-    return isIphoneAndroidTrialFlow() && isNormalMicInput();
+    return isIphoneAndroidTrialFlow();
 }
 function finalCheckJudgeOffsetMs() {
     return finalCheckUsesPracticeOnlyJudgeOffset() ? micJudgeOffsetMs() : wizardMicJudgeOffsetMs();
@@ -16083,7 +16257,6 @@ function finalCheckOffsetComparisonInfo() {
     const combinedOffsetMs = strokeInputDelayMs + (Number.isFinite(latencyOffsetMs) ? latencyOffsetMs : 0);
     const practicePlusLatencyOffsetMs = practiceJudgeOffsetMs + (Number.isFinite(latencyOffsetMs) ? latencyOffsetMs : 0);
     const doubleApplyDetected = isIphoneAndroidTrialFlow()
-        && isNormalMicInput()
         && Number.isFinite(practiceJudgeOffsetMs)
         && Number.isFinite(wizardJudgeOffsetMs)
         && Math.abs(wizardJudgeOffsetMs - practiceJudgeOffsetMs) >= 1;
