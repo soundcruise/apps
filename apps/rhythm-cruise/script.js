@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.11.99';
+const RHYTHM_CRUISE_VERSION = '0.12.0';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -12930,12 +12930,14 @@ function androidCheckStats(events) {
     events.forEach((e) => { (groups[e.soundId] || (groups[e.soundId] = [])).push(e); });
     return Object.entries(groups).map(([soundId, rows]) => { const p = rows.map((x) => x.normalWindowMaxPeak), o = rows.map((x) => x.normalWindowPeakOffsetMs), ratios = rows.map((x) => x.soundToNoiseRatio); const peakMedian = med(p), offsetMedianMs = med(o); const range = (a) => a.length ? Math.max(...a) - Math.min(...a) : null; const detectedCount = rows.filter((x) => x.detected).length; return { soundId, soundLabel: rows[0].soundLabel, detectedCount, peakMedian, peakMean: p.reduce((a,b)=>a+b,0)/p.length, peakMin: Math.min(...p), peakMax: Math.max(...p), peakRange: range(p), offsetMedianMs, offsetMeanMs: o.filter(Number.isFinite).reduce((a,b)=>a+b,0)/Math.max(1,o.filter(Number.isFinite).length), offsetMinMs: o.length ? Math.min(...o) : null, offsetMaxMs: o.length ? Math.max(...o) : null, offsetRangeMs: range(o.filter(Number.isFinite)), noiseP95: rows[0].noiseP95, noiseMax: rows[0].noiseMax, peakToNoiseMedian: med(ratios), peakToNoiseMin: ratios.length ? Math.min(...ratios) : null, stableEnoughGuess: detectedCount >= 2 && (med(ratios) || 0) >= 2 && (range(o.filter(Number.isFinite)) || Infinity) <= 80 }; });
 }
-/* v0.11.41：2連/3連ノイズパターンの解析（調査専用・補正値/保存/Practice判定には一切使わない）。
+/* v0.11.41/v0.12.0：2連/3連ノイズパターンの解析。
    アンカーは「最強ピーク」ではなく earliest-valid-pair 方式：
    focused window 内の候補ピークを時間順に並べ、各候補を1発目候補として +120ms 付近に2発目があるかを調べ、
    有効ペアになる最も早い候補を1発目(offset)に採用する。これで1発目/2発目の取り違え(120ms跳び)を避ける。 */
 function hpAnalyzeNoisePattern(events, opts) {
     const win = 30, noiseMult = 2.0, focusFrom = 450, focusTo = 560;
+    const maxTargetMs = Math.max(...(opts.targetsMs || [0]));
+    const searchFrom = focusFrom - win, searchTo = focusTo + maxTargetMs + win;
     const sorted = (xs) => xs.filter(Number.isFinite).slice().sort((a, b) => a - b);
     const med = (xs) => { const a = sorted(xs); return a.length ? a[Math.floor(a.length / 2)] : null; };
     const trim = (xs) => { const a = sorted(xs); return a.length <= 2 ? a : a.slice(1, a.length - 1); };
@@ -12943,9 +12945,10 @@ function hpAnalyzeNoisePattern(events, opts) {
     const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
     const rows = events.filter((x) => x.soundId === opts.soundId).map((x, i) => {
         const thr = (x.noiseP95 || 0) * noiseMult;
-        const tl = (x.energyTimeline || []).filter((p) => p.offsetMs >= focusFrom && p.offsetMs <= focusTo);
-        const peakNear = (expected) => expected == null ? null : (tl.filter((q) => Math.abs(q.offsetMs - expected) <= win).sort((a, b) => b.value - a.value)[0] || null);
-        const candidates = tl.filter((p) => p.value > thr).sort((a, b) => a.offsetMs - b.offsetMs);
+        const searchTl = (x.energyTimeline || []).filter((p) => p.offsetMs >= searchFrom && p.offsetMs <= searchTo);
+        const anchorTl = searchTl.filter((p) => p.offsetMs >= focusFrom && p.offsetMs <= focusTo);
+        const peakNear = (expected) => expected == null ? null : (searchTl.filter((q) => Math.abs(q.offsetMs - expected) <= win).sort((a, b) => b.value - a.value)[0] || null);
+        const candidates = anchorTl.filter((p) => p.value > thr).sort((a, b) => a.offsetMs - b.offsetMs);
         let validPairsCount = 0, anchor = null;
         for (const c of candidates) { const second = peakNear(c.offsetMs + 120); if (second && second.value > thr) { validPairsCount++; if (!anchor) anchor = c; } }
         const off = anchor ? anchor.offsetMs : null;
@@ -12962,7 +12965,9 @@ function hpAnalyzeNoisePattern(events, opts) {
         const accepted = anchor != null && peaks[0].matched && peaks[1].matched && intervalOk;
         return { index: i + 1, focusedPatternOffsetMs: off, focusedPatternScore: score, matchedCount: matched.length, matchedPeaks: peaks,
             intervalCheck: { peak01DeltaMs: d01, expected01Ms: 120, intervalOk }, candidatePeaksCount: candidates.length, validPairsCount,
-            anchorStrategy: 'earliest-valid-pair', accepted,
+            anchorStrategy: 'earliest-valid-pair', anchorSearchWindowMs: [focusFrom, focusTo], pulseSearchWindowMs: [searchFrom, searchTo],
+            threshold: thr, selectedPulseIndex: anchor ? 1 : null, firstPulseOffsetMs: peaks[0] ? peaks[0].peakOffsetMs : null,
+            secondPulseOffsetMs: peaks[1] ? peaks[1].peakOffsetMs : null, thirdPulseOffsetMs: peaks[2] ? peaks[2].peakOffsetMs : null, accepted,
             rejectReason: accepted ? null : (anchor == null ? 'no-valid-pair' : (!peaks[0].matched || !peaks[1].matched ? 'targets-unmatched' : 'interval-mismatch')) };
     });
     const acc = rows.filter((r) => r.accepted), po = acc.map((r) => r.focusedPatternOffsetMs), tpo = trim(po), ps = rows.map((r) => r.focusedPatternScore);
@@ -12971,13 +12976,37 @@ function hpAnalyzeNoisePattern(events, opts) {
     const finalGuess = acceptedCount >= 5 && trimmedRange != null && trimmedRange <= 25 && matchedCountMedian >= 2 && intervalOkCount >= 5 ? 'usable'
         : (acceptedCount >= 4 && trimmedRange != null && trimmedRange <= 45 && matchedCountMedian >= 2 && intervalOkCount >= 4 ? 'candidate'
         : (acceptedCount >= 1 ? 'weak' : 'not-usable'));
+    const candidateBeforeRangeCheckMs = r1(med(po));
+    const rejectCounts = rows.reduce((m, r) => { const k = r.rejectReason || 'accepted'; m[k] = (m[k] || 0) + 1; return m; }, {});
+    const rejectedReason = finalGuess === 'usable' || finalGuess === 'candidate' ? null
+        : (acceptedCount === 0 ? 'no-accepted-pattern-events'
+        : (trimmedRange == null ? 'trimmed-range-missing'
+        : (trimmedRange > 45 ? 'trimmed-range-too-wide'
+        : (matchedCountMedian < 2 ? 'matched-count-low'
+        : (intervalOkCount < 4 ? 'interval-ok-count-low' : 'pattern-quality-low')))));
+    const patternDebug = {
+        candidateBeforeRangeCheckMs,
+        rejectedReason,
+        rejectCounts,
+        perEventOffsets: rows.map((r) => ({
+            index: r.index, accepted: r.accepted, focusedPatternOffsetMs: r.focusedPatternOffsetMs,
+            rejectedReason: r.rejectReason, candidatePeaksCount: r.candidatePeaksCount, validPairsCount: r.validPairsCount,
+            matchedCount: r.matchedCount, intervalOk: r.intervalCheck.intervalOk, peak01DeltaMs: r.intervalCheck.peak01DeltaMs,
+        })),
+        perEventPatternAnchors: rows.map((r) => ({
+            index: r.index, expectedPulseIndex: 1, selectedPulseIndex: r.selectedPulseIndex,
+            firstPulseOffsetMs: r.firstPulseOffsetMs, secondPulseOffsetMs: r.secondPulseOffsetMs,
+            thirdPulseOffsetMs: r.thirdPulseOffsetMs, matchedPeaks: r.matchedPeaks,
+        })),
+    };
     return { soundId: opts.soundId, soundLabel: opts.soundLabel, repeatCount: opts.repeatCount, focusedWindowMs: [focusFrom, focusTo], anchorStrategy: 'earliest-valid-pair',
+        pulseSearchWindowMs: [searchFrom, searchTo],
         results: rows, acceptedCount, intervalOkCount, focusedOffsetMedianMs: r1(med(po)), focusedOffsetTrimmedMedianMs: r1(med(tpo)),
         focusedOffsetMeanMs: po.length ? Math.round(po.reduce((a, b) => a + b, 0) / po.length * 10) / 10 : null,
         focusedOffsetMinMs: po.length ? Math.min(...po) : null, focusedOffsetMaxMs: po.length ? Math.max(...po) : null,
         focusedOffsetRangeMs: range(po), focusedOffsetTrimmedRangeMs: trimmedRange, patternScoreMedian: med(ps),
         patternScoreMin: ps.length ? Math.min(...ps) : null, patternScoreMax: ps.length ? Math.max(...ps) : null,
-        matchedCountMedian, finalGuess };
+        matchedCountMedian, patternDebug, finalGuess };
 }
 /* v0.11.42：短いノイズ音の単発7回集中テスト解析（調査専用）。
    energyTimeline の focused window 内の最大ピークを各回の単発ピークとして採用する。 */
@@ -13328,7 +13357,7 @@ function androidLatencyCandidateForLog(run) {
     if (run.selectedInputType === 'normal') return run.androidBuiltinMicCandidate || null;
     if (run.selectedHeadphoneType === 'wired') return run.androidWiredCandidate || null;
     if (run.selectedHeadphoneType === 'bluetooth') {
-        return btSavePathCandidate(run); // v0.11.99：pattern主軸の選択候補
+        return btSavePathCandidate(run); // v0.12.0：double/triple主軸の選択候補
     }
     return androidLatencyCandidateForRun(run);
 }
@@ -13442,7 +13471,7 @@ function renderWizardAndroidLatencyResult(run) {
             } else html = androidLatencyHeadphoneFailureHtml(run, wc);
         } else html = androidLatencyHeadphoneFailureHtml(run, wc);
     } else {
-        const cc = btSavePathCandidate(run) || androidBtCorrectionCandidate(); // v0.11.99：pattern主軸の選択候補
+        const cc = btSavePathCandidate(run) || androidBtCorrectionCandidate(); // v0.12.0：double/triple主軸の選択候補
         if (cc && cc.measurementDelayMs != null) {
             if (cc.isReadyToSave) {
                 lines.push('測定遅延: ' + rd(cc.measurementDelayMs));
@@ -13622,7 +13651,7 @@ function androidLatencyCandidateForRun(run) {
     if (!run) return null;
     if (isNormalMicInput() || run.selectedInputType === 'normal') return run.androidBuiltinMicCandidate || null;
     if (getHeadphoneType() === 'wired' || run.selectedHeadphoneType === 'wired') return run.androidWiredCandidate || null;
-    return btSavePathCandidate(run) || androidBtCorrectionCandidate(); // v0.11.99：pattern主軸の選択候補
+    return btSavePathCandidate(run) || androidBtCorrectionCandidate(); // v0.12.0：double/triple主軸の選択候補
 }
 function androidLatencySegmentCandidate(run, events, kind) {
     if (!events.length) return null;
@@ -13907,7 +13936,7 @@ function androidCheckTarget() {
 }
 /* v0.11.94：測定対象別の短縮音源列プラン（音源列のみ短縮。通常マイク/有線の保存候補・保存関数・判定ロジックは一切不変）。
    - normal / wired：BT探索音（voice系 / short-noise / 2連 / 3連）を一切含めない。probe＋クリック / 単音 / ノイズ。
-   - bluetooth：short-noise-focused-test ×7 は保険として維持し、2連 ×5 / 3連 ×5 の pattern候補を保存主軸にする。 */
+   - bluetooth：2連 ×5 / 3連 ×5 を主軸にし、short-noise-focused-test ×7 は最後の保険として維持する。 */
 function androidCheckSpecPlan(target) {
     const rep = (n, factory) => Array.from({ length: n }, factory);
     const probe = () => ({ soundId: 'waveform-probe', soundLabel: 'Android calibration probe', soundType: 'probe', frequencyHz: null, route: 'AudioBuffer', waveformMatch: true });
@@ -13923,8 +13952,8 @@ function androidCheckSpecPlan(target) {
     if (target === 'bluetooth') {
         return { profile: 'bluetooth-short', specs: [
             ...rep(3, noise),                 // Phase0：音量確認・位置合わせ
-            ...rep(7, shortNoise),            // Phase1：保険・フォールバック候補として維持
-            ...rep(5, dbl), ...rep(5, trpl),  // Phase2：pattern候補（v0.11.99で保存主軸に昇格）
+            ...rep(5, dbl), ...rep(5, trpl),  // Phase1：pattern候補（v0.12.0で測定列の主軸）
+            ...rep(7, shortNoise),            // Phase2：保険・フォールバック候補として維持
         ] };
     }
     return { profile: target === 'wired' ? 'wired-short' : 'normal-short', specs: [
@@ -13934,7 +13963,7 @@ function androidCheckSpecPlan(target) {
 }
 let lastAndroidBluetoothCandidateComparison = null; // v0.11.95：直近BT遅延テストの候補比較（表示・ログ用）。
 /* v0.11.95：Bluetooth音ズレ・遅延テストの候補値を比較ログ用に保持する。
-   v0.11.99 では selectedForSave に実際の保存候補（pattern主軸）を出す。
+   v0.12.0 では selectedForSave に実際の保存候補（double/triple主軸）と patternDebug を出す。
    used は今回の遅延テストで採用された候補（shortNoise）。
    v0.11.96：double/triple の measurementMs は「正式採用可（usableForSegment）」のときだけ入れ、
    それ以外は null。検出はされているが正式採用不可のケースのために rawOffsetMedianMs/rawOffsetRangeMs を参考値として常時出す。
@@ -13954,7 +13983,7 @@ function buildAndroidBluetoothCandidateComparison(run) {
     const usable = (s) => s.stableEnoughGuess === true && (s.peakToNoiseMedian || 0) >= ANDROID_CORR_MIN_PEAK_TO_NOISE && s.offsetRangeMs != null && s.offsetRangeMs <= ANDROID_CORR_MAX_TRIMMED_RANGE_MS;
     const sD = sumOf('double-noise-pattern'), sT = sumOf('triple-noise-pattern'), sR = sumOf('bt-readable-single-noise');
     const eventCount = (run.events || []).length;
-    // v0.11.99：pattern保存候補の安全条件評価（保存可否＝usableForSaveCandidate）と、選択された保存候補。
+    // v0.12.0：pattern保存候補の安全条件評価（保存可否＝usableForSaveCandidate）と、選択された保存候補。
     const dSaveEval = androidBtPatternUsability(dp, sD), tSaveEval = androidBtPatternUsability(tp, sT);
     let famMs = null, famSource = null, famReason = null;
     if (dSaveEval.usable && tSaveEval.usable) { famMs = r1((dSaveEval.measurementMs + tSaveEval.measurementMs) / 2); famSource = 'double+triple-median'; famReason = '2連/3連とも安全条件OK（中央値）'; }
@@ -13974,19 +14003,21 @@ function buildAndroidBluetoothCandidateComparison(run) {
         doubleCount: cnt('double-noise-pattern'),
         tripleCount: cnt('triple-noise-pattern'),
         readableSingleCount: cnt('bt-readable-single-noise'),
-        // v0.11.99：実際に保存に使われる選択候補（pattern主軸）。
+        // v0.12.0：実際に保存に使われる選択候補（double/triple主軸）。
         selectedForSave: { source: sel ? sel.source : null, measurementMs: sel ? r1(sel.measurementDelayMs) : null, saveOffsetMs: sel ? r1(sel.saveOffsetMs) : null, isReadyToSave: !!(sel && sel.isReadyToSave), reason: sel ? sel.reason : null },
         used: { source: cc ? cc.source : null, measurementMs: cc ? r1(cc.measurementDelayMs) : null, saveOffsetMs: cc ? r1(cc.saveOffsetMs) : null, isReadyToSave: !!(cc && cc.isReadyToSave) },
         shortNoise: { measurementMs: sn ? r1(sn.focusedOffsetMedianMs) : null, clusterMeasurementMs: cc ? r1(cc.measurementDelayMs) : null, isReadyToSave: !!(cc && cc.isReadyToSave), reason: cc ? cc.reason : null },
         // v0.11.98：読み取りやすい単発ノイズ候補（表示専用・正式保存候補ではない）。v0.11.99で測定列から外したため通常 null。
         readableSingle: { measurementMs: rs ? r1(rs.focusedOffsetMedianMs) : null, clusterMeasurementMs: rcc ? r1(rcc.measurementDelayMs) : null, rawOffsetMedianMs: r1(sR.offsetMedianMs), rawOffsetRangeMs: r1(sR.offsetRangeMs), detectedCount: sR.detectedCount != null ? sR.detectedCount : null, peakToNoiseMedian: r6(sR.peakToNoiseMedian), offsetRangeMs: r1(sR.offsetRangeMs), isReadyToSave: !!(rcc && rcc.isReadyToSave), usableForSegment: usable(sR), reason: rcc ? rcc.reason : null, note: '表示専用・正式保存候補ではない（測定列から外した）' },
-        double: { patternMeasurementMs: dp ? r1(dp.focusedOffsetMedianMs) : null, measurementMs: usable(sD) && dp && dp.focusedOffsetMedianMs != null ? r1(dp.focusedOffsetMedianMs) : null, rawOffsetMedianMs: r1(sD.offsetMedianMs), rawOffsetRangeMs: r1(sD.offsetRangeMs), detectedCount: sD.detectedCount != null ? sD.detectedCount : null, peakToNoiseMedian: r6(sD.peakToNoiseMedian), offsetRangeMs: r1(sD.offsetRangeMs), usableForSegment: usable(sD), usableForSaveCandidate: dSaveEval.usable, saveCandidateReason: dSaveEval.reason, note: 'patternMeasurementMsが保存候補／rawは単純ピーク中央値で遅め・保存には使わない' },
-        triple: { patternMeasurementMs: tp ? r1(tp.focusedOffsetMedianMs) : null, measurementMs: usable(sT) && tp && tp.focusedOffsetMedianMs != null ? r1(tp.focusedOffsetMedianMs) : null, rawOffsetMedianMs: r1(sT.offsetMedianMs), rawOffsetRangeMs: r1(sT.offsetRangeMs), detectedCount: sT.detectedCount != null ? sT.detectedCount : null, peakToNoiseMedian: r6(sT.peakToNoiseMedian), offsetRangeMs: r1(sT.offsetRangeMs), usableForSegment: usable(sT), usableForSaveCandidate: tSaveEval.usable, saveCandidateReason: tSaveEval.reason, note: 'patternMeasurementMsが保存候補／rawは単純ピーク中央値で遅め・保存には使わない' },
-        // v0.11.99：double/triple の安全な pattern候補をまとめた保存候補（第一候補）。
+        double: { patternMeasurementMs: dp ? r1(dp.focusedOffsetMedianMs) : null, measurementMs: usable(sD) && dp && dp.focusedOffsetMedianMs != null ? r1(dp.focusedOffsetMedianMs) : null, rawOffsetMedianMs: r1(sD.offsetMedianMs), rawOffsetRangeMs: r1(sD.offsetRangeMs), detectedCount: sD.detectedCount != null ? sD.detectedCount : null, peakToNoiseMedian: r6(sD.peakToNoiseMedian), offsetRangeMs: r1(sD.offsetRangeMs), usableForSegment: usable(sD), usableForSaveCandidate: dSaveEval.usable, saveCandidateReason: dSaveEval.reason, patternDebug: dp ? dp.patternDebug : null, note: 'patternMeasurementMsが保存候補／rawは単純ピーク中央値で遅め・保存には使わない' },
+        doublePatternDebug: dp ? dp.patternDebug : null,
+        triple: { patternMeasurementMs: tp ? r1(tp.focusedOffsetMedianMs) : null, measurementMs: usable(sT) && tp && tp.focusedOffsetMedianMs != null ? r1(tp.focusedOffsetMedianMs) : null, rawOffsetMedianMs: r1(sT.offsetMedianMs), rawOffsetRangeMs: r1(sT.offsetRangeMs), detectedCount: sT.detectedCount != null ? sT.detectedCount : null, peakToNoiseMedian: r6(sT.peakToNoiseMedian), offsetRangeMs: r1(sT.offsetRangeMs), usableForSegment: usable(sT), usableForSaveCandidate: tSaveEval.usable, saveCandidateReason: tSaveEval.reason, patternDebug: tp ? tp.patternDebug : null, note: 'patternMeasurementMsが保存候補／rawは単純ピーク中央値で遅め・保存には使わない' },
+        triplePatternDebug: tp ? tp.patternDebug : null,
+        // v0.12.0：double/triple の安全な pattern候補をまとめた保存候補（第一候補）。
         patternFamily: { measurementMs: famMs, source: famSource, reason: famReason },
         noiseFamily: { measurementMs: nf ? r1(nf.measurementDelayMs) : null, isReadyToSave: !!(nf && nf.isReadyToSave), reason: nf ? nf.reason : null },
         capturedAt: new Date().toISOString(),
-        note: '比較ログ用（v0.11.99）。保存はpattern主軸（patternFamily→double→triple→shortNoiseFallback）。rawOffsetMedianMs/readableSingleは保存に使わない。',
+        note: '比較ログ用（v0.12.0）。保存はpattern主軸（patternFamily→double→triple→shortNoiseFallback）。rawOffsetMedianMs/readableSingleは保存に使わない。',
     };
 }
 /* v0.11.95：最終確認テストの平均ズレに対し、各BT候補を採用していた場合の予測平均ズレを出す（表示用）。
@@ -14005,19 +14036,15 @@ function androidBluetoothFinalCheckPrediction(actualAvgDiffMs) {
     const rawEntry = (m) => ({ candidateMeasurementMs: m, predictedAvgDiffMs: predict(m), note: '正式採用不可のため参考値のみ' });
     // v0.11.97：2連/3連のパターン解析候補（patternMeasurementMs）での予測。
     const patEntry = (m) => ({ candidateMeasurementMs: m, predictedAvgDiffMs: predict(m), note: '2連/3連パターン解析候補' });
-    // v0.11.97/v0.11.99：ifPatternFamily＝usable な pattern候補のみ集約（両方usableなら中央値、片方ならそれ）。
-    const famParts = [];
-    if (cmp.double && cmp.double.usableForSegment && cmp.double.patternMeasurementMs != null) famParts.push({ id: 'double', ms: cmp.double.patternMeasurementMs });
-    if (cmp.triple && cmp.triple.usableForSegment && cmp.triple.patternMeasurementMs != null) famParts.push({ id: 'triple', ms: cmp.triple.patternMeasurementMs });
-    let famMs = null, famSource = null;
-    if (famParts.length === 2) { famMs = r1((famParts[0].ms + famParts[1].ms) / 2); famSource = 'double+triple-median'; }
-    else if (famParts.length === 1) { famMs = famParts[0].ms; famSource = famParts[0].id; }
+    // v0.12.0：ifPatternFamily は保存候補比較ログの patternFamily と同じ値を使う。
+    const famMs = cmp.patternFamily ? cmp.patternFamily.measurementMs : null;
+    const famSource = cmp.patternFamily ? cmp.patternFamily.source : null;
     return {
         usedMeasurementMs: r1(usedMeasurementMs),
         usedOffsetSource: status.usedOffsetSource,
         savedOffsetMs: r1(status.savedOffsetMs),
         actualAvgDiffMs: r1(actualAvgDiffMs),
-        // v0.11.99：実際に保存される選択候補（pattern主軸）の予測。
+        // v0.12.0：実際に保存される選択候補（double/triple主軸）の予測。
         ifSelectedForSave: { candidateMeasurementMs: cmp.selectedForSave ? cmp.selectedForSave.measurementMs : null, predictedAvgDiffMs: predict(cmp.selectedForSave ? cmp.selectedForSave.measurementMs : null), source: cmp.selectedForSave ? cmp.selectedForSave.source : null },
         ifShortNoise: entry(cmp.shortNoise ? cmp.shortNoise.measurementMs : null),
         ifReadableSingle: { candidateMeasurementMs: cmp.readableSingle ? cmp.readableSingle.measurementMs : null, predictedAvgDiffMs: predict(cmp.readableSingle ? cmp.readableSingle.measurementMs : null), note: '読み取りやすい単発ノイズ候補。表示専用・正式採用していない' },
@@ -14029,7 +14056,7 @@ function androidBluetoothFinalCheckPrediction(actualAvgDiffMs) {
         ifTriplePattern: patEntry(cmp.triple ? cmp.triple.patternMeasurementMs : null),
         ifNoiseFamily: entry(cmp.noiseFamily ? cmp.noiseFamily.measurementMs : null),
         ifPatternFamily: { candidateMeasurementMs: famMs, predictedAvgDiffMs: predict(famMs), source: famSource, note: 'usableなpattern候補のみ集約' },
-        note: '予測のみ（v0.11.99）。実保存候補は ifSelectedForSave を参照。',
+        note: '予測のみ（v0.12.0）。実保存候補は ifSelectedForSave を参照。',
     };
 }
 async function runAndroidAudioCheck(options) {
@@ -14074,12 +14101,12 @@ async function runAndroidAudioCheck(options) {
         ]);
         const bestObj = bestCandidate === 'short-noise-focused-test' ? shortNoiseFocusedTest : (bestCandidate === 'double-noise-pattern' ? doublePatternDetection : triplePatternDetection);
         run.bluetoothExploration = { constraintsProfile: 'current', shortNoiseFocusedWindowMs: [430, 530], patternFocusedWindowMs: [450, 560], tests: ex, shortNoiseFocusedTest, doublePatternDetection, triplePatternDetection, readableSingleFocusedTest, bestCandidate, finalGuess: bestObj ? bestObj.finalGuess : 'not-usable' };
-        // v0.11.99：保存候補を pattern主軸で選択（patternFamily→doublePattern→triplePattern→shortNoiseFallback）。save/log/run はこれを参照。
+        // v0.12.0：保存候補を double/triple主軸で選択（patternFamily→doublePattern→triplePattern→shortNoiseFallback）。save/log/run はこれを参照。
         run.bluetoothExploration.selectedSaveCandidate = androidBtSelectedSaveCandidate(run);
         // finalGuess整合（ログ/表示のみ）：Bluetooth時はトップレベルfinalGuessをbluetoothExploration側優先にする。
         // ※補正値保存・Practice判定にはこの値を使わない（保存可否は correctionCandidate.isReadyToSave で判定）。
         run.finalGuess = run.bluetoothExploration.finalGuess;
-        // v0.11.95：候補比較ログ用に保持（表示・ログ専用。保存値・採用ルールは変更しない）。
+        // v0.12.0：候補比較ログ用に保持。selectedForSave が実際の保存候補。
         run.androidBluetoothCandidateComparison = buildAndroidBluetoothCandidateComparison(run);
         lastAndroidBluetoothCandidateComparison = run.androidBluetoothCandidateComparison;
     }
@@ -14134,7 +14161,7 @@ async function runAndroidAudioCheck(options) {
 /* v0.11.45：Android Bluetooth補正候補の保存ボタン表示制御。
    表示条件：android / headphone / bluetooth かつ correctionCandidate.isReadyToSave === true。
    ※保存先は androidBluetoothMicOffsetMs（既存キーとは完全分離）。Practice判定はv0.11.46で接続済み（Android+Bluetooth時のみ優先）。 */
-/* v0.11.99：Bluetooth保存候補を pattern主軸に切り替える。実機では1発ノイズ(shortNoise)は位置がシビアで測定が止まりやすく、
+/* v0.12.0：Bluetooth保存候補を double/triple主軸に寄せる。実機では1発ノイズ(shortNoise)は位置がシビアで測定が止まりやすく、
    2連/3連pattern は安定してマイクに入るため。raw値・readableSingle は保存候補に使わない（遅め・悪化しやすい）。
    保存先キー(androidBluetoothMicOffsetMs)・符号規則・クランプ・saveAndroidBluetoothCorrection 本体は変更しない。 */
 const ANDROID_BT_PATTERN_MIN_DETECTED = 4;       // pattern保存候補の最低検出数
@@ -15029,7 +15056,7 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
             ptResult: correctionFlowElementState(els.ptResult),
             debug: finalDebug,
         },
-        // v0.11.95/v0.11.99：最終確認テストの詳細統計＋BT候補比較＋予測平均ズレ。selectedForSave が実保存候補。
+        // v0.12.0：最終確認テストの詳細統計＋BT候補比較＋予測平均ズレ。selectedForSave が実保存候補。
         finalCheckStats: finalCheckFlowDebug.lastFinalCheckStats || null,
         bluetoothCandidateComparison: finalCheckFlowDebug.lastBluetoothCandidateComparison || null,
         bluetoothFinalCheckPrediction: finalCheckFlowDebug.lastBluetoothFinalCheckPrediction || null,
@@ -15945,7 +15972,7 @@ function renderPracticeResult(r) {
         } catch (_) { pre = ''; }
         if (pre) {
             devCompareBlock = '<details class="card-help" style="margin-top:8px;"><summary style="font-size:0.8rem;opacity:0.7;">開発用：BT候補比較・最終確認統計</summary>'
-                + '<p class="setting-note">比較ログ用（v0.11.99）。selectedForSave が実際の保存候補です。</p>'
+                + '<p class="setting-note">比較ログ用（v0.12.0）。selectedForSave が実際の保存候補です。</p>'
                 + '<pre style="white-space:pre-wrap;font-size:0.72rem;overflow:auto;max-height:240px;">' + escapeHtml(pre) + '</pre></details>';
         }
     }
