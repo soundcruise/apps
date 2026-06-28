@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.20';
+const RHYTHM_CRUISE_VERSION = '0.12.21';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13472,6 +13472,10 @@ function androidLatencyResultLogText(run) {
         lines.push('iphoneBtTwoStageCalibrationDebug:');
         add('phase2Status', two.phase2Status, '  ');
         add('roughOffsetMs', two.phase1 && two.phase1.roughOffsetMs, '  ');
+        add('phase2SignalProfile', two.phase2 && two.phase2.phase2SignalProfile, '  ');
+        add('scheduledMarkerCount', two.phase2 && two.phase2.scheduledMarkerCount, '  ');
+        add('detectedMarkerCount', two.phase2 && two.phase2.detectedMarkerCount, '  ');
+        add('usableDetectionCount', two.phase2 && two.phase2.usableDetectionCount, '  ');
         add('medianOnsetResidualMs', two.phase2 && two.phase2.medianOnsetResidualMs, '  ');
         add('medianPeakResidualMs', two.phase2 && two.phase2.medianPeakResidualMs, '  ');
         add('fineOffsetMs', two.phase2 && two.phase2.fineOffsetMs, '  ');
@@ -15615,16 +15619,26 @@ function hpProbeLatencyMs(ctx) {
         baseLatencyMs: ctx.baseLatency != null ? r1(ctx.baseLatency) : null,
     };
 }
-function scheduleIphoneBtFineClick(ctx, atSec, accent) {
-    const vol = Math.max(0, Math.min(1, state.clickVolume / 100));
-    const peak = Math.min(CLICK_PEAK_CLIP, clickBasePeak(!!accent) * vol * clickPeakGain());
-    if (peak < 0.001) return false;
-    const osc = ctx.createOscillator();
-    const g = ctx.createGain();
-    const stopAt = applyClickEnvelope(ctx, osc, g, atSec, !!accent, peak);
-    osc.connect(g).connect(ctx.destination);
-    osc.start(atSec);
-    osc.stop(stopAt);
+function iphoneBtFineMarkerSpec() {
+    const profile = iphoneBtProbeSignalProfile();
+    return {
+        soundId: 'iphone-bt-fine-marker',
+        soundLabel: 'iPhone BT詳細補正マーカー',
+        soundType: 'noise',
+        route: 'AudioBuffer',
+        iphoneBtStrongSignal: true,
+        iphoneBtProbeSignalProfile: profile.signalProfile,
+        iphoneBtProbeSignalGain: profile.signalGain,
+        iphoneBtProbeSignalFadeMs: profile.fadeMs,
+    };
+}
+function scheduleIphoneBtFineMarker(ctx, atSec) {
+    if (!ctx) return false;
+    const spec = iphoneBtFineMarkerSpec();
+    const src = ctx.createBufferSource();
+    src.buffer = hpProbeMakeBuffer(ctx, spec, 90);
+    src.connect(ctx.destination);
+    src.start(atSec);
     return true;
 }
 async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
@@ -15633,13 +15647,21 @@ async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
     const med = (xs) => { const a = sorted(xs); return a.length ? a[Math.floor(a.length / 2)] : null; };
     const trimmed = (xs) => { const a = sorted(xs); return a.length <= 2 ? a : a.slice(1, a.length - 1); };
     const rough = Number(roughOffsetMs);
+    const markerProfile = iphoneBtProbeSignalProfile();
     const debug = {
         enabled: true,
         phase1,
         phase2: {
-            clickType: 'final-check-like-ptScheduleClick',
+            clickType: null,
+            markerType: 'machine-detection-marker',
+            phase2SignalProfile: markerProfile.signalProfile,
+            signalGain: markerProfile.signalGain,
+            normalizedPeak: markerProfile.normalizedPeak,
+            fadeMs: markerProfile.fadeMs,
             scheduledClickCount: 0,
             detectedClickCount: 0,
+            scheduledMarkerCount: 0,
+            detectedMarkerCount: 0,
             usableDetectionCount: 0,
             onsetResidualsMs: [],
             peakResidualsMs: [],
@@ -15660,7 +15682,7 @@ async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
         },
         phase2Status: 'not-run',
         fallbackCandidate: Number.isFinite(rough) ? r1(rough) : null,
-        note: 'iPhone仮+Bluetooth限定の2段階目。ログ/セッション内候補のみで、本番保存・本番判定には未採用。',
+        note: 'iPhone仮+Bluetooth限定の2段階目。AudioContext時刻基準の強い機械マーカー音を使う。ログ/セッション内候補のみで、本番保存・本番判定には未採用。',
     };
     if (!Number.isFinite(rough)) {
         debug.phase2.failureReason = 'roughOffsetMs-missing';
@@ -15706,7 +15728,7 @@ async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
         for (let i = 0; i < clickCount; i++) {
             const at = audioStart + i * intervalSec;
             const scheduledClickMs = (at - audioStart) * 1000;
-            const scheduled = scheduleIphoneBtFineClick(ctx, at, i % 4 === 0);
+            const scheduled = scheduleIphoneBtFineMarker(ctx, at);
             events.push({
                 index: i + 1,
                 scheduled,
@@ -15721,6 +15743,7 @@ async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
             });
         }
         debug.phase2.scheduledClickCount = events.filter((e) => e.scheduled).length;
+        debug.phase2.scheduledMarkerCount = debug.phase2.scheduledClickCount;
         const addPeak = (list, row) => { list.push(row); list.sort((a, b) => b.value - a.value); if (list.length > 5) list.length = 5; };
         await new Promise((resolve) => {
             const endAt = audioStart + (clickCount - 1) * intervalSec + (windowTo / 1000) + 0.18;
@@ -15764,6 +15787,7 @@ async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
         debug.phase1.outputLatencyMs = lat.outputLatencyMs;
         debug.phase1.baseLatencyMs = lat.baseLatencyMs;
         debug.phase2.detectedClickCount = events.filter((e) => Number.isFinite(e.normalWindowPeakOffsetMs)).length;
+        debug.phase2.detectedMarkerCount = debug.phase2.detectedClickCount;
         debug.phase2.usableDetectionCount = onsetTrim.length;
         debug.phase2.onsetResidualsMs = onsetResiduals;
         debug.phase2.peakResidualsMs = peakResiduals;
