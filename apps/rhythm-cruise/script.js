@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.2';
+const RHYTHM_CRUISE_VERSION = '0.12.3';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13494,6 +13494,7 @@ function renderWizardAndroidLatencyResult(run) {
     refreshAllAndroidSaveButtons();
     refreshWizardAndroidProceedButtons();
     const cand = androidLatencyCandidateForRun(run);
+    if (cand && cand.isReadyToSave && cand.saveOffsetMs != null) scrollToAndroidLatencyNextButtonAfterSuccess(run);
     if (!(cand && cand.isReadyToSave)) setAndroidCheckRunButtonsFailure();
 }
 /* v0.11.59：Android式測定の保存ボタン表示（詳細チェック＋ウィザードを同時更新）。 */
@@ -13569,6 +13570,23 @@ function refreshWizardAndroidProceedButtons() {
         els.wizardAndroidProceedHintHp.classList.add('hidden');
         els.wizardAndroidProceedHintHp.textContent = '';
     }
+}
+function visibleAndroidLatencyNextButtonForRun(run) {
+    let btn = null;
+    if (run && run.selectedInputType === 'normal') btn = els.wizardAndroidSaveBuiltin;
+    else if (run && run.selectedHeadphoneType === 'wired') btn = els.wizardAndroidSaveWiredWizard;
+    else if (run && run.selectedHeadphoneType === 'bluetooth') btn = els.wizardAndroidSaveBtWizard;
+    if (!btn || btn.classList.contains('hidden')) return null;
+    return btn;
+}
+function scrollToAndroidLatencyNextButtonAfterSuccess(run) {
+    requestAnimationFrame(() => {
+        setTimeout(() => {
+            const target = visibleAndroidLatencyNextButtonForRun(run);
+            if (!target) return;
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 80);
+    });
 }
 function updateWizardAndroidBtBlockCopy() {
     if (els.wizardAndroidBtDesc) {
