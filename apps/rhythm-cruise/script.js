@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.27';
+const RHYTHM_CRUISE_VERSION = '0.12.28';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13173,8 +13173,6 @@ const IPHONE_BT_PHASE2_GOOD_WINDOW_MS = 45;        // iPhone仮+BT 第2段階の
 const IPHONE_BT_PHASE2_MARKER_COUNT = 10;          // iPhone仮+BT 第2段階の表示進捗用マーカー数（保存・判定には未使用）
 const IPHONE_BT_UNIFIED_TIMELINE_PX_PER_MS = 0.20; // iPhone仮+BT 統合タイムラインの横スクロール表示幅
 const IPHONE_BT_PHASE2_TIMELINE_PX_PER_MS = IPHONE_BT_UNIFIED_TIMELINE_PX_PER_MS;  // 旧名参照を統合タイムライン倍率へ合わせる
-const IPHONE_BT_TIMELINE_WIDTH_CHUNK_PX = 384;     // 測定中にcanvas幅が毎フレーム変わらないよう、表示幅は塊で伸ばす
-const IPHONE_BT_TIMELINE_SCROLL_INTERVAL_MS = 90;  // DOM scrollLeft更新を間引いてlayout更新を抑える
 function androidLatencyCandidateRangeLabel() {
     return ANDROID_CORR_DELAY_MIN_MS + '〜' + ANDROID_CORR_DELAY_MAX_MS;
 }
@@ -14973,7 +14971,7 @@ function ensureIphoneBtUnifiedTimelineScroll() {
     if (!scroll) {
         scroll = document.createElement('div');
         scroll.id = 'iphone-bt-unified-scroll';
-        scroll.className = 'pt-review-scroll iphone-bt-unified-scroll';
+        scroll.className = 'iphone-bt-unified-scroll';
         canvas.parentNode.insertBefore(scroll, canvas);
         scroll.appendChild(canvas);
         const nav = document.createElement('div');
@@ -14985,8 +14983,14 @@ function ensureIphoneBtUnifiedTimelineScroll() {
         else wrap.appendChild(nav);
         const first = nav.querySelector('#iphone-bt-unified-first');
         const last = nav.querySelector('#iphone-bt-unified-last');
-        if (first) first.addEventListener('click', () => scroll.scrollTo({ left: 0, behavior: 'smooth' }));
-        if (last) last.addEventListener('click', () => scroll.scrollTo({ left: scroll.scrollWidth, behavior: 'smooth' }));
+        if (first) first.addEventListener('click', () => {
+            androidCheckLive.timelineManualViewMs = 0;
+            drawIphoneBtUnifiedTimeline(false);
+        });
+        if (last) last.addEventListener('click', () => {
+            androidCheckLive.timelineManualViewMs = null;
+            drawIphoneBtUnifiedTimeline(false);
+        });
     }
     return scroll;
 }
@@ -15018,17 +15022,17 @@ function fitIphoneBtUnifiedTimeline() {
     const canvas = els.wizardAndroidWaveHp;
     const scroll = ensureIphoneBtUnifiedTimelineScroll();
     if (!canvas) return { ctx: null, w: 0, h: 0 };
-    const bounds = iphoneBtUnifiedTimelineBounds();
-    const minW = scroll ? scroll.clientWidth : 900;
-    const desiredW = Math.max(minW || 900, Math.round((bounds.toMs - bounds.fromMs) * IPHONE_BT_UNIFIED_TIMELINE_PX_PER_MS) + 90);
-    const currentW = androidCheckLive.timelineCssW || 0;
-    const contentW = desiredW > currentW
-        ? Math.ceil(desiredW / IPHONE_BT_TIMELINE_WIDTH_CHUNK_PX) * IPHONE_BT_TIMELINE_WIDTH_CHUNK_PX
-        : Math.max(currentW, minW || 900);
+    const contentW = Math.max(1, Math.round((scroll && scroll.clientWidth) || (canvas.parentNode && canvas.parentNode.clientWidth) || canvas.clientWidth || 900));
     androidCheckLive.timelineCssW = contentW;
-    androidCheckLive.timelineClientW = scroll ? scroll.clientWidth : contentW;
+    androidCheckLive.timelineClientW = contentW;
     androidCheckLive.lane = fitSizedCanvas(canvas, contentW, PT_LANE_HEIGHT);
     return androidCheckLive.lane;
+}
+function iphoneBtUnifiedTimelineNowMs(live, phase2, wave1) {
+    if (Number.isFinite(live.timelineManualViewMs)) return live.timelineManualViewMs;
+    if (phase2) return (phase2.baseMs || 0) + Math.max(0, phase2.nowMs || 0);
+    if (wave1 && wave1.length) return wave1[wave1.length - 1].t;
+    return 0;
 }
 function drawIphoneBtUnifiedTimeline(autoScroll) {
     const lane = fitIphoneBtUnifiedTimeline();
@@ -15037,16 +15041,16 @@ function drawIphoneBtUnifiedTimeline(autoScroll) {
     const live = androidCheckLive;
     const phase2 = live.phase2 || null;
     const bounds = iphoneBtUnifiedTimelineBounds();
-    const xOf = (ms) => 42 + (ms - bounds.fromMs) * IPHONE_BT_UNIFIED_TIMELINE_PX_PER_MS;
-    const scroll = document.getElementById('iphone-bt-unified-scroll');
-    const viewLeft = scroll ? scroll.scrollLeft : 0;
-    const viewW = scroll ? (live.timelineClientW || scroll.clientWidth || w) : w;
-    const viewMinX = Math.max(0, viewLeft - 48);
-    const viewMaxX = Math.min(w, viewLeft + viewW + 48);
-    const yc = h * 0.52;
-    const ampPx = h * STAGE_WAVE_AMP_FRAC;
     const wave1 = live.fullWave && live.fullWave.length ? live.fullWave : (live.wave || []);
     const wave2 = phase2 && phase2.wave ? phase2.wave : [];
+    if (autoScroll) live.timelineManualViewMs = null;
+    const nowMs = iphoneBtUnifiedTimelineNowMs(live, phase2, wave1);
+    const judgeX = Math.max(120, Math.round(w * 0.68));
+    const xOf = (ms) => judgeX + (ms - nowMs) * IPHONE_BT_UNIFIED_TIMELINE_PX_PER_MS;
+    const viewMinX = -48;
+    const viewMaxX = w + 48;
+    const yc = h * 0.52;
+    const ampPx = h * STAGE_WAVE_AMP_FRAC;
     const maxPeak = Math.max(0.000001, live.maxPeak || 0, phase2 && phase2.maxPeak || 0);
     ctx.clearRect(0, 0, w, h);
     ctx.strokeStyle = 'rgba(253,246,238,0.08)';
@@ -15169,24 +15173,9 @@ function drawIphoneBtUnifiedTimeline(autoScroll) {
             }
         });
     }
-    const latest = phase2 ? (phase2.baseMs + (phase2.nowMs || 0)) : (wave1.length ? wave1[wave1.length - 1].t : 0);
-    const playX = xOf(latest);
     ctx.strokeStyle = 'rgba(255,159,28,0.92)';
     ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.moveTo(playX, h * 0.08); ctx.lineTo(playX, h * 0.96); ctx.stroke();
-    if (scroll && autoScroll) {
-        const now = performance.now();
-        if (now - (live.timelineLastScrollAt || 0) >= IPHONE_BT_TIMELINE_SCROLL_INTERVAL_MS) {
-            const target = Math.max(0, playX - viewW * 0.56);
-            const maxLeft = Math.max(0, scroll.scrollWidth - viewW);
-            const nextLeft = Math.min(target, maxLeft);
-            live.timelineScrollMax = maxLeft;
-            live.timelineLastScrollAt = now;
-            if (Math.abs(nextLeft - scroll.scrollLeft) > 4) {
-                scroll.scrollLeft = scroll.scrollLeft + (nextLeft - scroll.scrollLeft) * 0.32;
-            }
-        }
-    }
+    ctx.beginPath(); ctx.moveTo(judgeX, h * 0.08); ctx.lineTo(judgeX, h * 0.96); ctx.stroke();
 }
 
 function resetAndroidCheckLive(total) {
@@ -15201,8 +15190,7 @@ function resetAndroidCheckLive(total) {
     live.iphoneBtPhaseProgress = null;
     live.timelineCssW = 0;
     live.timelineClientW = 0;
-    live.timelineScrollMax = 0;
-    live.timelineLastScrollAt = 0;
+    live.timelineManualViewMs = null;
     live.armed = true;
     live.lastDetectAt = -100000;
     live.done = 0;
