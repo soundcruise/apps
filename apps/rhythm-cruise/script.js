@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.12';
+const RHYTHM_CRUISE_VERSION = '0.12.13';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14833,6 +14833,55 @@ function androidVolumeTestBluetoothReadiness(run) {
         },
     };
 }
+/* v0.12.13：音量テスト中の波形イベントから「本測定に使える山」を簡易解析する（表示・ログ専用）。
+   各 event の normalWindowMaxPeak / soundToNoiseRatio を使い、山の大きさ・安定度・ノイズ比・繰り返し回数を出す。
+   本測定の候補・保存ロジックには一切影響しない（読むだけ）。 */
+function buildVolumeWaveformAnalysis(events, threshold, noiseP95) {
+    const peaks = (events || []).map((e) => Number(e.normalWindowMaxPeak || 0)).filter(Number.isFinite);
+    const snrs = (events || []).map((e) => Number(e.soundToNoiseRatio)).filter(Number.isFinite);
+    const sortAsc = (a) => a.slice().sort((x, y) => x - y);
+    const sorted = sortAsc(peaks);
+    const median = (a) => a.length ? (a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2) : 0;
+    const pct = (a, p) => a.length ? a[Math.min(a.length - 1, Math.floor(a.length * p))] : 0;
+    const burstPeakMedian = median(sorted);
+    const burstPeakP25 = pct(sorted, 0.25);
+    const burstPeakMin = sorted.length ? sorted[0] : 0;
+    const burstToNoiseRatio = noiseP95 ? Math.round((burstPeakMedian / noiseP95) * 100) / 100 : (median(sortAsc(snrs)) || null);
+    const USABLE_PEAK = threshold * 3;     // 実判定ラインの3倍以上を「測定に使える山」とみなす
+    const SNR_MIN = 2;                      // ノイズの2倍以上立っている
+    const usableBurstCount = (events || []).filter((e) => {
+        const p = Number(e.normalWindowMaxPeak || 0);
+        const snrOk = noiseP95 ? (p / noiseP95) >= SNR_MIN : true;
+        return p >= USABLE_PEAK && snrOk;
+    }).length;
+    const repeatedBurstCount = usableBurstCount;
+    const peakStabilityRatio = burstPeakMedian > 0 ? Math.round((burstPeakP25 / burstPeakMedian) * 100) / 100 : 0;
+    const isWaveformTooSmall = burstPeakMedian < threshold * 2;
+    const isWaveformUnstable = usableBurstCount < 3 || peakStabilityRatio < 0.4;
+    const isNoiseTooHigh = noiseP95 >= threshold && burstPeakMedian > 0 && noiseP95 >= burstPeakMedian * 0.5;
+    // 0..1 の総合スコア（大きさ・安定度・ノイズ比・繰り返し回数）。UIには直接出さず参考ログのみ。
+    const clamp01 = (v) => Math.max(0, Math.min(1, v));
+    const sizeScore = clamp01((burstPeakMedian / threshold - 2) / 8);
+    const stabilityScore = clamp01(peakStabilityRatio);
+    const snrScore = burstToNoiseRatio != null ? clamp01((burstToNoiseRatio - 1) / 4) : 0;
+    const repeatScore = clamp01(usableBurstCount / 4);
+    const visibleWaveformScore = Math.round((0.35 * sizeScore + 0.25 * stabilityScore + 0.2 * snrScore + 0.2 * repeatScore) * 100) / 100;
+    const round6 = (v) => Math.round(v * 1000000) / 1000000;
+    return {
+        usableBurstCount,
+        repeatedBurstCount,
+        burstPeakMedian: round6(burstPeakMedian),
+        burstPeakP25: round6(burstPeakP25),
+        burstPeakMin: round6(burstPeakMin),
+        burstToNoiseRatio,
+        peakStabilityRatio,
+        simpleWaveformScore: visibleWaveformScore,
+        visibleWaveformScore,
+        isWaveformTooSmall,
+        isWaveformUnstable,
+        isNoiseTooHigh,
+    };
+}
 function androidVolumeTestReadiness(target) {
     const run = androidVolumeTestRunSnapshot();
     const events = run.events || [];
@@ -14912,6 +14961,60 @@ function androidVolumeTestReadiness(target) {
         rejectedReasons,
         wouldLikelyProduceCandidate,
     };
+    // v0.12.13：UI主表示は「本測定を開始してよい準備ができているか」を総合判定する。
+    //   peakToThresholdRatio だけでなく、安定検出数・候補化可能性・ノイズ・簡易波形解析を加味してシビアにする。
+    //   本測定候補・保存ロジックには一切影響しない（読むだけ）。
+    const simpleWaveformAnalysis = buildVolumeWaveformAnalysis(events, threshold, noiseP95);
+    const candidateOk = wouldLikelyProduceCandidate || candidateLikeCount > 0;
+    const loudEnough = peakToThresholdRatio != null && peakToThresholdRatio >= 4;
+    const VM_SMALL_RATIO = 2;
+    let mStatus, mReason, mUserMessage, mAction;
+    if (noiseStatus === 'high' || simpleWaveformAnalysis.isNoiseTooHigh) {
+        mStatus = 'ng'; mReason = 'noise-too-high';
+        mUserMessage = '周囲のノイズが大きく、測定しづらい状態です。';
+        mAction = '静かな場所で再テストしてください。';
+    } else if (peakToThresholdRatio == null || peakToThresholdRatio < VM_SMALL_RATIO || simpleWaveformAnalysis.isWaveformTooSmall) {
+        // 波形が小さい：1倍以上なら weak（あと少し）、未満は ng（明確に不足）。
+        mStatus = (peakToThresholdRatio != null && peakToThresholdRatio >= 1 && !simpleWaveformAnalysis.isWaveformTooSmall) ? 'weak' : 'ng';
+        mReason = 'waveform-too-small';
+        mUserMessage = mStatus === 'weak'
+            ? '音は入っていますが、測定に使える波形がまだ弱めです。'
+            : '音量が足りません。';
+        mAction = '端末音量を上げるか、イヤホンとマイクの位置を近づけてください。';
+    } else if (loudEnough && candidateOk && !simpleWaveformAnalysis.isWaveformUnstable) {
+        mStatus = 'ok'; mReason = 'measurement-ready';
+        mUserMessage = '測定を始められそうです。';
+        mAction = 'このまま本測定を開始できます。';
+    } else if (loudEnough && (!candidateOk || simpleWaveformAnalysis.isWaveformUnstable) && simpleWaveformAnalysis.usableBurstCount >= 2 && stableDetectedCount >= 6) {
+        mStatus = 'unstable'; mReason = 'waveform-unstable';
+        mUserMessage = '音は入っていますが、測定に使える波形が安定していません。';
+        mAction = 'イヤホンとマイクの位置を固定して、もう少し大きく入るようにしてください。';
+    } else {
+        mStatus = 'weak'; mReason = 'waveform-weak';
+        mUserMessage = '音は入っていますが、測定に使える波形がまだ弱めです。';
+        mAction = '端末音量を上げるか、イヤホンとマイクの位置を近づけてください。';
+    }
+    const volumeMeasurementReadiness = {
+        status: mStatus,
+        reason: mReason,
+        userMessage: mUserMessage,
+        recommendedAction: mAction,
+        peakLevel: Math.round(peakLevel * 1000000) / 1000000,
+        threshold,
+        peakToThresholdRatio,
+        stableDetectedCount,
+        candidateLikeCount,
+        wouldLikelyProduceCandidate,
+        noiseStatus,
+        noiseReason: (noiseStatus === 'high' || simpleWaveformAnalysis.isNoiseTooHigh) ? 'noise-floor-near-signal' : null,
+        simpleWaveformScore: simpleWaveformAnalysis.visibleWaveformScore,
+        usableBurstCount: simpleWaveformAnalysis.usableBurstCount,
+        repeatedBurstCount: simpleWaveformAnalysis.repeatedBurstCount,
+        burstPeakMedian: simpleWaveformAnalysis.burstPeakMedian,
+        burstPeakP25: simpleWaveformAnalysis.burstPeakP25,
+        burstToNoiseRatio: simpleWaveformAnalysis.burstToNoiseRatio,
+        simpleWaveformAnalysis,
+    };
     const result = {
         status,
         reason,
@@ -14933,13 +15036,26 @@ function androidVolumeTestReadiness(target) {
         // v0.12.11：UI主表示用（音量十分か）と開発ログ用（候補化できそうか）を分離。
         volumeLevelReadiness,
         volumeCandidateReadiness,
+        // v0.12.13：UI主表示はこの総合判定（本測定の準備ができているか）を使う。上2つは開発ログとして併存。
+        volumeMeasurementReadiness,
+        simpleWaveformAnalysis,
     };
     androidBtVolumeTest.volumeTestReadiness = result;
     return result;
 }
 function androidVolumeTestStatusForReadiness(readiness) {
     if (!readiness) return { kind: '', text: '音を確認中…' };
-    // v0.12.11：主表示は「音量が十分か」だけを見る。候補化の安定性は主表示にしない（開発ログ側で見る）。
+    // v0.12.13：主表示は「本測定の準備ができているか」を総合判定（volumeMeasurementReadiness）で見る。
+    //   技術理由は出さず、ユーザー向けに丸めた文言を出す。
+    const m = readiness.volumeMeasurementReadiness || null;
+    if (m) {
+        if (m.status === 'ok') return { kind: 'ok', text: '測定を始められそうです' };
+        if (m.status === 'unstable') return { kind: 'warn', text: '音は入っていますが、測定に使える波形が安定していません' };
+        if (m.status === 'weak') return { kind: 'warn', text: '音は入っていますが、測定に使える波形が弱めです' };
+        if (m.reason === 'noise-too-high') return { kind: 'retry', text: '周囲のノイズが大きく、測定しづらい状態です。静かな場所で再テストしてください' };
+        return { kind: 'retry', text: '音量が足りません。端末音量を上げるか、イヤホンをマイクに近づけてください' };
+    }
+    // フォールバック（旧 volumeLevelReadiness）
     const lvl = readiness.volumeLevelReadiness || null;
     if (lvl) {
         if (lvl.noiseStatus === 'high') return { kind: 'warn', text: 'ノイズが大きいようです。静かな場所で確認してください' };
@@ -15017,10 +15133,10 @@ async function startAndroidBtVolumeTest() {
             const status = androidVolumeTestStatusForReadiness(readiness);
             const ui = androidCheckLiveEls();
             if (ui.state) setCalLevelState(ui.state, status.kind, status.text);
-            // v0.12.11：補足文も音量主判定（volumeLevelReadiness）基準にする。候補化の可否では出し分けない。
-            const lvl = readiness.volumeLevelReadiness || null;
-            if (statusEl && lvl && lvl.status !== 'ok') statusEl.textContent = lvl.recommendedAction;
-            else if (statusEl) statusEl.textContent = '音量テスト中… この音量で本測定を開始できます。';
+            // v0.12.13：補足文も測定準備の総合判定（volumeMeasurementReadiness）基準にする。
+            const m = readiness.volumeMeasurementReadiness || null;
+            if (statusEl && m && m.status !== 'ok') statusEl.textContent = m.recommendedAction;
+            else if (statusEl) statusEl.textContent = '音量テスト中… このまま本測定を開始できます。';
         }
     }
     if (androidBtVolumeTest.token === token) stopAndroidBtVolumeTest({ keepMonitor: true });
