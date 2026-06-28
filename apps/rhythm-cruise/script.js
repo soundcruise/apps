@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.7';
+const RHYTHM_CRUISE_VERSION = '0.12.8';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -15202,6 +15202,7 @@ const finalCheckFlowDebug = {
     lastFinalCheckError: null,
     // v0.11.95：直近の最終確認テスト統計とBT候補比較（補正フロー状態ログ用・表示専用）。
     lastFinalCheckStats: null,
+    lastFinalCheckOffsetComparison: null,
     lastBluetoothCandidateComparison: null,
     lastBluetoothFinalCheckPrediction: null,
 };
@@ -15326,6 +15327,7 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
         },
         // v0.12.0：最終確認テストの詳細統計＋BT候補比較＋予測平均ズレ。selectedForSave が実保存候補。
         finalCheckStats: finalCheckFlowDebug.lastFinalCheckStats || null,
+        finalCheckOffsetComparison: finalCheckFlowDebug.lastFinalCheckOffsetComparison || null,
         bluetoothCandidateComparison: finalCheckFlowDebug.lastBluetoothCandidateComparison || null,
         bluetoothFinalCheckPrediction: finalCheckFlowDebug.lastBluetoothFinalCheckPrediction || null,
     };
@@ -16060,6 +16062,62 @@ async function startPracticeTest() {
     }
 }
 
+function finalCheckMedianMs(xs) {
+    if (!xs.length) return null;
+    const a = xs.slice().sort((p, q) => p - q);
+    const m = Math.floor(a.length / 2);
+    return a.length % 2 ? a[m] : Math.round((a[m - 1] + a[m]) / 2 * 10) / 10;
+}
+function finalCheckStatsForOffsetPrediction(currentDiffMsList, currentOffsetMs, usedOffsetMs) {
+    const curOff = Number(currentOffsetMs);
+    const nextOff = Number(usedOffsetMs);
+    const shifted = (currentDiffMsList || [])
+        .map((diff) => Number(diff))
+        .filter(Number.isFinite)
+        .map((diff) => Math.round((diff - curOff + nextOff) * 10) / 10);
+    let good = 0, early = 0, late = 0, valid = 0, sum = 0;
+    shifted.forEach((diff) => {
+        const cls = ptClassify(diff);
+        if (cls === 'just') good++;
+        else if (cls === 'early') early++;
+        else if (cls === 'late') late++;
+        else return;
+        valid++;
+        sum += diff;
+    });
+    const miss = Math.max(0, PT_PLAY_BEATS - valid);
+    return {
+        count: valid, good, early, late, miss,
+        avgDiffMs: valid ? Math.round(sum / valid) : 0,
+        medianDiffMs: finalCheckMedianMs(shifted),
+        minDiffMs: shifted.length ? Math.min(...shifted) : null,
+        maxDiffMs: shifted.length ? Math.max(...shifted) : null,
+        diffMsList: shifted,
+        usedOffsetMs: nextOff,
+    };
+}
+function buildFinalCheckOffsetComparison(currentStats) {
+    if (!isIphoneAndroidTrialFlow() || !currentStats) return null;
+    const currentOffsetMs = Number(wizardMicJudgeOffsetMs());
+    if (!Number.isFinite(currentOffsetMs)) return null;
+    const currentDiffMsList = Array.isArray(currentStats.diffMsList) ? currentStats.diffMsList : [];
+    return {
+        enabled: true,
+        reason: 'iphone_android_trial',
+        correctionFlowKind: correctionFlowKind(),
+        selectedTestPlatform,
+        selectedInputType: getMicInputType(),
+        selectedHeadphoneType: isHeadphoneInput() ? getHeadphoneType() : null,
+        currentOffsetMs,
+        noOffsetMs: 0,
+        invertedOffsetMs: -currentOffsetMs,
+        comparisonFormula: 'predictedDiffMs = currentDiffMs - currentOffsetMs + predictedOffsetMs',
+        currentStats: finalCheckStatsForOffsetPrediction(currentDiffMsList, currentOffsetMs, currentOffsetMs),
+        noOffsetPredictedStats: finalCheckStatsForOffsetPrediction(currentDiffMsList, currentOffsetMs, 0),
+        invertedOffsetPredictedStats: finalCheckStatsForOffsetPrediction(currentDiffMsList, currentOffsetMs, -currentOffsetMs),
+    };
+}
+
 function finishPracticeTest() {
     let good = 0, early = 0, late = 0, miss = 0, sum = 0, validN = 0;
     const diffMsList = []; // v0.11.95：有効入力ごとのズレ（表示・ログ専用）。
@@ -16082,19 +16140,20 @@ function finishPracticeTest() {
     const r = { good, early, late, miss, valid, avg, maxPeak: pt.maxPeak, doubleCount: pt.doubleCount, threshold: mic.threshold, detectThreshold: ptDetectionThreshold(), cooldownMs: mic.cooldownMs, finalCheckOffsetDebug: androidJudgeOffsetDebug(), finalCheckClickDebug: clickDebug };
     // v0.11.95：最終確認テストの詳細統計＋BT候補比較＋予測平均ズレ（すべて表示・ログ専用。判定/保存ロジックは不変）。
     const offDbg = r.finalCheckOffsetDebug;
-    const medianOf = (xs) => { if (!xs.length) return null; const a = xs.slice().sort((p, q) => p - q); const m = Math.floor(a.length / 2); return a.length % 2 ? a[m] : Math.round((a[m - 1] + a[m]) / 2 * 10) / 10; };
     r.finalCheckStats = {
         count: valid, good, early, late, miss,
-        avgDiffMs: avg, medianDiffMs: medianOf(diffMsList),
+        avgDiffMs: avg, medianDiffMs: finalCheckMedianMs(diffMsList),
         minDiffMs: diffMsList.length ? Math.min(...diffMsList) : null,
         maxDiffMs: diffMsList.length ? Math.max(...diffMsList) : null,
         diffMsList,
         usedJudgeOffsetMs: offDbg ? offDbg.finalJudgeOffsetMs : micJudgeOffsetMs(),
         usedOffsetSource: offDbg ? offDbg.usedOffsetSource : null,
     };
+    r.finalCheckOffsetComparison = buildFinalCheckOffsetComparison(r.finalCheckStats);
     r.androidBluetoothCandidateComparison = isBluetoothHeadphone() ? (lastAndroidBluetoothCandidateComparison || null) : null;
     r.androidBluetoothFinalCheckPrediction = androidBluetoothFinalCheckPrediction(avg);
     finalCheckFlowDebug.lastFinalCheckStats = r.finalCheckStats;
+    finalCheckFlowDebug.lastFinalCheckOffsetComparison = r.finalCheckOffsetComparison;
     finalCheckFlowDebug.lastBluetoothCandidateComparison = r.androidBluetoothCandidateComparison;
     finalCheckFlowDebug.lastBluetoothFinalCheckPrediction = r.androidBluetoothFinalCheckPrediction;
     if (r.finalCheckOffsetDebug) console.info('[final-check] offset', r.finalCheckOffsetDebug);
@@ -16229,11 +16288,12 @@ function renderPracticeResult(r) {
 
     // v0.11.95：開発確認用の閉じたブロック（BT候補比較・最終確認統計・予測平均ズレ）。通常表示は重くしない。
     let devCompareBlock = '';
-    if (r.finalCheckStats || r.androidBluetoothCandidateComparison || r.androidBluetoothFinalCheckPrediction) {
+    if (r.finalCheckStats || r.finalCheckOffsetComparison || r.androidBluetoothCandidateComparison || r.androidBluetoothFinalCheckPrediction) {
         let pre = '';
         try {
             pre = JSON.stringify({
                 finalCheckStats: r.finalCheckStats || null,
+                finalCheckOffsetComparison: r.finalCheckOffsetComparison || null,
                 androidBluetoothCandidateComparison: r.androidBluetoothCandidateComparison || null,
                 bluetoothFinalCheckPrediction: r.androidBluetoothFinalCheckPrediction || null,
             }, null, 2);
