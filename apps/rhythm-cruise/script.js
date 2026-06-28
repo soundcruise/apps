@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.11';
+const RHYTHM_CRUISE_VERSION = '0.12.12';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -15428,6 +15428,8 @@ const finalCheckFlowDebug = {
     lastBluetoothFinalCheckPrediction: null,
     // v0.12.11：判定に使う補正・最終確認の波形描画に使う補正・ステップ表示の補正を分離した診断ログ（表示専用）。
     lastFinalCheckVisualOffsetDebug: null,
+    // v0.12.12：iPhone仮の production / trial / wizard offset 比較ログ（表示専用）。
+    lastIphoneTrialOffsetComparison: null,
 };
 
 function errorForCorrectionFlowLog(err) {
@@ -15553,6 +15555,7 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
         finalCheckStats: finalCheckFlowDebug.lastFinalCheckStats || null,
         finalCheckOffsetComparison: finalCheckFlowDebug.lastFinalCheckOffsetComparison || null,
         finalCheckVisualOffsetDebug: finalCheckFlowDebug.lastFinalCheckVisualOffsetDebug || null,
+        iphoneTrialOffsetComparison: finalCheckFlowDebug.lastIphoneTrialOffsetComparison || null,
         bluetoothCandidateComparison: finalCheckFlowDebug.lastBluetoothCandidateComparison || null,
         bluetoothFinalCheckPrediction: finalCheckFlowDebug.lastBluetoothFinalCheckPrediction || null,
     };
@@ -16417,6 +16420,98 @@ function buildFinalCheckVisualOffsetDebug() {
     };
 }
 
+/* v0.12.12：iPhone仮限定。Android型テストで測った仮補正(trial)・既存iPhone本番系(production)・表示系(wizard)の
+   3系統を、最終確認テストの実diffから「もし各offsetで判定していたら」を再計算して比較する診断ログ（表示専用）。
+   実判定（finishPracticeTest の tMs ＝ finalCheckJudgeOffsetMs ＝ micJudgeOffsetMs）は一切変えない。読むだけ。
+   目的：iPhone仮で trial/production/wizard のどれが自然に判定できるかをログで比較できるようにする。 */
+function buildIphoneTrialOffsetComparison(currentStats) {
+    if (!isIphoneAndroidTrialFlow() || !currentStats) return null;
+    const currentDiffMsList = Array.isArray(currentStats.diffMsList) ? currentStats.diffMsList : [];
+    // 実判定で実際に使った補正（finishPracticeTest の tMs に乗った値）。
+    const finalCheckActualOffsetMs = Number(finalCheckJudgeOffsetMs());
+    // 予測の基準 currentOffsetMs は、finalCheckStats.usedJudgeOffsetMs と一致するときだけそれを使う（指示）。
+    const usedJudgeOffsetMs = Number(currentStats.usedJudgeOffsetMs);
+    const currentOffsetConsistentWithUsed = Number.isFinite(usedJudgeOffsetMs) && Math.abs(usedJudgeOffsetMs - finalCheckActualOffsetMs) < 0.5;
+    const currentOffsetMs = currentOffsetConsistentWithUsed ? usedJudgeOffsetMs : finalCheckActualOffsetMs;
+    if (!Number.isFinite(currentOffsetMs)) return null;
+
+    // 3系統の judge offset
+    const productionJudgeOffsetMs = Number(micJudgeOffsetMs());            // 既存iPhone本番系（timing + wired/bt）。現在の実判定値。
+    const trialMeasuredOffsetMs = Number(iphoneAndroidTrialCurrentOffsetMs()); // Android型テストで測った仮補正（生値）。
+    const trialJudgeOffsetMs = Number.isFinite(trialMeasuredOffsetMs) ? trialMeasuredOffsetMs : 0; // 仮補正を「単独で」判定に使った場合。
+    const wizardJudgeOffsetMs = Number(wizardMicJudgeOffsetMs());          // 表示系で使う値（= timingOffsetMs + trial）。
+
+    const productionStats = finalCheckStatsForOffsetPrediction(currentDiffMsList, currentOffsetMs, productionJudgeOffsetMs);
+    const trialPredictedStats = finalCheckStatsForOffsetPrediction(currentDiffMsList, currentOffsetMs, trialJudgeOffsetMs);
+    const wizardPredictedStats = finalCheckStatsForOffsetPrediction(currentDiffMsList, currentOffsetMs, wizardJudgeOffsetMs);
+
+    // どれが自然か（参考のみ・判定は変えない）：GOODが多く、平均ズレが0に近いものを示唆。
+    const score = (s) => (s.good * 1000) - Math.abs(Number(s.avgDiffMs) || 0);
+    let recommendationHint = 'similar';
+    const ps = score(productionStats), ts = score(trialPredictedStats);
+    if (ts > ps + 0.5) recommendationHint = 'trial_offset_looks_better';
+    else if (ps > ts + 0.5) recommendationHint = 'production_offset_looks_better';
+
+    // 「補正 ◯ms」表示の正体を分離（既存iPhone補正値 vs Android型trial測定値）。
+    const headphone = isHeadphoneInput();
+    const wired = headphone && getHeadphoneType() === 'wired';
+    const bluetooth = isBluetoothHeadphone();
+    const productionHeadphoneOffsetMs = headphone ? Number(headphoneMicOffsetGet()) : 0;
+    const productionHeadphoneOffsetSource = bluetooth ? 'mic.bluetoothMicOffsetMs' : (wired ? 'mic.wiredMicOffsetMs' : (headphone ? 'mic.wiredMicOffsetMs' : 'mic.timingOffsetMs'));
+    const stepDisplayOffsetBreakdown = {
+        // btdelayステップ（イヤホン）に「補正 ◯ms」と出している値の正体。
+        stepDisplayedOffsetMs: headphone ? productionHeadphoneOffsetMs : Number(mic.timingOffsetMs) || 0,
+        stepDisplayedOffsetSource: headphone ? productionHeadphoneOffsetSource : 'mic.timingOffsetMs',
+        // Android型テストが実際に測った仮補正値（セッション内・判定には乗らない）。
+        trialMeasuredOffsetMs: Number.isFinite(trialMeasuredOffsetMs) ? trialMeasuredOffsetMs : null,
+        trialMeasuredOffsetSource: 'iphoneAndroidTrialOffsets.' + iphoneAndroidTrialOffsetKey(),
+        // 既存iPhone本番系のイヤホン補正値。
+        productionHeadphoneOffsetMs,
+        productionHeadphoneOffsetSource,
+        note: 'ステップ「音ズレ・遅延テスト：補正 ◯ms」は stepDisplayedOffsetSource 由来。Android型テストの測定値は trialMeasuredOffsetMs。両者は別物。',
+    };
+
+    return {
+        enabled: true,
+        reason: 'iphone_android_trial',
+        correctionFlowKind: correctionFlowKind(),
+        selectedInputType: getMicInputType(),
+        selectedHeadphoneType: headphone ? getHeadphoneType() : null,
+        comparisonFormula: 'predictedDiffMs = currentDiffMs - currentOffsetMs + predictedOffsetMs',
+        currentOffsetMs,
+        finalCheckActualOffsetMs,
+        usedJudgeOffsetMs: Number.isFinite(usedJudgeOffsetMs) ? usedJudgeOffsetMs : null,
+        currentOffsetConsistentWithUsed,
+        // 3系統の judge offset。
+        productionJudgeOffsetMs,
+        trialJudgeOffsetMs,
+        trialMeasuredOffsetMs: Number.isFinite(trialMeasuredOffsetMs) ? trialMeasuredOffsetMs : null,
+        wizardJudgeOffsetMs,
+        // それぞれの offset で判定していた場合の予測 stats。
+        productionStats,
+        trialPredictedStats,
+        wizardPredictedStats,
+        // offset の内訳。
+        productionOffsetSourceBreakdown: {
+            totalMs: productionJudgeOffsetMs,
+            timingOffsetMs: Number(mic.timingOffsetMs) || 0,
+            wiredMicOffsetMs: wired ? (Number(mic.wiredMicOffsetMs) || 0) : 0,
+            bluetoothMicOffsetMs: bluetooth ? (Number(mic.bluetoothMicOffsetMs) || 0) : 0,
+            source: 'micJudgeOffsetMs()＝timingOffsetMs + wired/bluetoothMicOffsetMs（既存iPhone本番系・現在の実判定）',
+        },
+        trialOffsetSourceBreakdown: {
+            totalMs: trialJudgeOffsetMs,
+            trialMeasuredOffsetMs: Number.isFinite(trialMeasuredOffsetMs) ? trialMeasuredOffsetMs : 0,
+            trialOffsetKey: iphoneAndroidTrialOffsetKey(),
+            wizardWithTimingMs: wizardJudgeOffsetMs,
+            source: 'iphoneAndroidTrialOffsets[key]（Android型テスト測定値・単独）。wizardは timingOffsetMs を足した表示系の値。',
+        },
+        stepDisplayOffsetBreakdown,
+        recommendationHint,
+        note: '実判定は production（micJudgeOffsetMs）のまま不変。trial/wizard は「もしこの値で判定していたら」の予測。',
+    };
+}
+
 function finishPracticeTest() {
     let good = 0, early = 0, late = 0, miss = 0, sum = 0, validN = 0;
     const diffMsList = []; // v0.11.95：有効入力ごとのズレ（表示・ログ専用）。
@@ -16450,11 +16545,13 @@ function finishPracticeTest() {
     };
     r.finalCheckOffsetComparison = buildFinalCheckOffsetComparison(r.finalCheckStats);
     r.finalCheckVisualOffsetDebug = buildFinalCheckVisualOffsetDebug();
+    r.iphoneTrialOffsetComparison = buildIphoneTrialOffsetComparison(r.finalCheckStats);
     r.androidBluetoothCandidateComparison = isBluetoothHeadphone() ? (lastAndroidBluetoothCandidateComparison || null) : null;
     r.androidBluetoothFinalCheckPrediction = androidBluetoothFinalCheckPrediction(avg);
     finalCheckFlowDebug.lastFinalCheckStats = r.finalCheckStats;
     finalCheckFlowDebug.lastFinalCheckOffsetComparison = r.finalCheckOffsetComparison;
     finalCheckFlowDebug.lastFinalCheckVisualOffsetDebug = r.finalCheckVisualOffsetDebug;
+    finalCheckFlowDebug.lastIphoneTrialOffsetComparison = r.iphoneTrialOffsetComparison;
     finalCheckFlowDebug.lastBluetoothCandidateComparison = r.androidBluetoothCandidateComparison;
     finalCheckFlowDebug.lastBluetoothFinalCheckPrediction = r.androidBluetoothFinalCheckPrediction;
     if (r.finalCheckOffsetDebug) console.info('[final-check] offset', r.finalCheckOffsetDebug);
@@ -18687,12 +18784,23 @@ function wizardStepSummary(id) {
             return 'マイク反応テスト：適用済み（マイク感度 ' + userMicSensitivityPercent() + '%、二重反応防止 ' + mic.cooldownMs + 'ms）';
         case 'correction': {
             if (!isHeadphoneInput()) {
+                // v0.12.12：iPhone仮では「Android型テストが測った仮補正」と「既存設定」を分けて見せる（混同防止・表示のみ）。
+                if (isIphoneAndroidTrialFlow()) {
+                    const trial = Math.round(iphoneAndroidTrialCurrentOffsetMs());
+                    return '音ズレ・遅延テスト：仮補正 ' + (trial > 0 ? '+' : '') + trial + 'ms（既存設定 ' + (mic.timingOffsetMs > 0 ? '+' : '') + mic.timingOffsetMs + 'ms）';
+                }
                 const label = useAndroidLatencyFirstFlow() ? '音ズレ・遅延テスト' : 'マイクの遅れ補正';
                 return label + '：' + (mic.timingOffsetMs > 0 ? '+' : '') + mic.timingOffsetMs + 'ms';
             }
             return 'イヤホン音ズレの画面補正：' + mic.headphoneOutputOffsetMs + 'ms';
         }
         case 'btdelay': {
+            // v0.12.12：iPhone仮では「Android型テストが測った仮補正」と「既存設定（wired/btMicOffsetMs）」を分けて見せる。
+            if (isIphoneAndroidTrialFlow()) {
+                const trial = Math.round(iphoneAndroidTrialCurrentOffsetMs());
+                const existing = headphoneMicOffsetGet();
+                return '音ズレ・遅延テスト：仮補正 ' + (trial > 0 ? '+' : '') + trial + 'ms（既存設定 ' + (existing > 0 ? '+' : '') + existing + 'ms）';
+            }
             const v = headphoneMicOffsetGet();
             const label = useAndroidLatencyFirstFlow() ? '音ズレ・遅延テスト' : 'クリック音入力テスト';
             return label + '：補正 ' + (v > 0 ? '+' : '') + v + 'ms';
