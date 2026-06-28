@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.26';
+const RHYTHM_CRUISE_VERSION = '0.12.27';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13173,6 +13173,8 @@ const IPHONE_BT_PHASE2_GOOD_WINDOW_MS = 45;        // iPhone仮+BT 第2段階の
 const IPHONE_BT_PHASE2_MARKER_COUNT = 10;          // iPhone仮+BT 第2段階の表示進捗用マーカー数（保存・判定には未使用）
 const IPHONE_BT_UNIFIED_TIMELINE_PX_PER_MS = 0.20; // iPhone仮+BT 統合タイムラインの横スクロール表示幅
 const IPHONE_BT_PHASE2_TIMELINE_PX_PER_MS = IPHONE_BT_UNIFIED_TIMELINE_PX_PER_MS;  // 旧名参照を統合タイムライン倍率へ合わせる
+const IPHONE_BT_TIMELINE_WIDTH_CHUNK_PX = 384;     // 測定中にcanvas幅が毎フレーム変わらないよう、表示幅は塊で伸ばす
+const IPHONE_BT_TIMELINE_SCROLL_INTERVAL_MS = 90;  // DOM scrollLeft更新を間引いてlayout更新を抑える
 function androidLatencyCandidateRangeLabel() {
     return ANDROID_CORR_DELAY_MIN_MS + '〜' + ANDROID_CORR_DELAY_MAX_MS;
 }
@@ -15018,7 +15020,13 @@ function fitIphoneBtUnifiedTimeline() {
     if (!canvas) return { ctx: null, w: 0, h: 0 };
     const bounds = iphoneBtUnifiedTimelineBounds();
     const minW = scroll ? scroll.clientWidth : 900;
-    const contentW = Math.max(minW || 900, Math.round((bounds.toMs - bounds.fromMs) * IPHONE_BT_UNIFIED_TIMELINE_PX_PER_MS) + 90);
+    const desiredW = Math.max(minW || 900, Math.round((bounds.toMs - bounds.fromMs) * IPHONE_BT_UNIFIED_TIMELINE_PX_PER_MS) + 90);
+    const currentW = androidCheckLive.timelineCssW || 0;
+    const contentW = desiredW > currentW
+        ? Math.ceil(desiredW / IPHONE_BT_TIMELINE_WIDTH_CHUNK_PX) * IPHONE_BT_TIMELINE_WIDTH_CHUNK_PX
+        : Math.max(currentW, minW || 900);
+    androidCheckLive.timelineCssW = contentW;
+    androidCheckLive.timelineClientW = scroll ? scroll.clientWidth : contentW;
     androidCheckLive.lane = fitSizedCanvas(canvas, contentW, PT_LANE_HEIGHT);
     return androidCheckLive.lane;
 }
@@ -15030,11 +15038,16 @@ function drawIphoneBtUnifiedTimeline(autoScroll) {
     const phase2 = live.phase2 || null;
     const bounds = iphoneBtUnifiedTimelineBounds();
     const xOf = (ms) => 42 + (ms - bounds.fromMs) * IPHONE_BT_UNIFIED_TIMELINE_PX_PER_MS;
+    const scroll = document.getElementById('iphone-bt-unified-scroll');
+    const viewLeft = scroll ? scroll.scrollLeft : 0;
+    const viewW = scroll ? (live.timelineClientW || scroll.clientWidth || w) : w;
+    const viewMinX = Math.max(0, viewLeft - 48);
+    const viewMaxX = Math.min(w, viewLeft + viewW + 48);
     const yc = h * 0.52;
     const ampPx = h * STAGE_WAVE_AMP_FRAC;
     const wave1 = live.fullWave && live.fullWave.length ? live.fullWave : (live.wave || []);
     const wave2 = phase2 && phase2.wave ? phase2.wave : [];
-    const maxPeak = Math.max(0.000001, ...wave1.map((p) => Math.abs(p.level || 0)), ...wave2.map((p) => Math.abs(p.level || 0)));
+    const maxPeak = Math.max(0.000001, live.maxPeak || 0, phase2 && phase2.maxPeak || 0);
     ctx.clearRect(0, 0, w, h);
     ctx.strokeStyle = 'rgba(253,246,238,0.08)';
     ctx.lineWidth = 2;
@@ -15042,10 +15055,13 @@ function drawIphoneBtUnifiedTimeline(autoScroll) {
     const drawWave = (wave, offsetMs, fill, stroke) => {
         if (!wave || wave.length < 2) return;
         const pts = [];
+        let lastX = -100000;
         for (let i = 0; i < wave.length; i++) {
             const p = wave[i];
             const x = xOf(offsetMs + p.t);
-            if (x < -12 || x > w + 12) continue;
+            if (x < viewMinX || x > viewMaxX) continue;
+            if (x - lastX < 1.4 && i < wave.length - 1) continue;
+            lastX = x;
             pts.push([x, Math.min(1, Math.abs(p.level || 0) / maxPeak) * ampPx]);
         }
         if (pts.length < 2) return;
@@ -15158,13 +15174,17 @@ function drawIphoneBtUnifiedTimeline(autoScroll) {
     ctx.strokeStyle = 'rgba(255,159,28,0.92)';
     ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.moveTo(playX, h * 0.08); ctx.lineTo(playX, h * 0.96); ctx.stroke();
-    const scroll = document.getElementById('iphone-bt-unified-scroll');
     if (scroll && autoScroll) {
-        const target = Math.max(0, playX - scroll.clientWidth * 0.56);
-        const maxLeft = Math.max(0, scroll.scrollWidth - scroll.clientWidth);
-        const nextLeft = Math.min(target, maxLeft);
-        if (Math.abs(nextLeft - scroll.scrollLeft) > 1) {
-            scroll.scrollLeft = scroll.scrollLeft + (nextLeft - scroll.scrollLeft) * 0.32;
+        const now = performance.now();
+        if (now - (live.timelineLastScrollAt || 0) >= IPHONE_BT_TIMELINE_SCROLL_INTERVAL_MS) {
+            const target = Math.max(0, playX - viewW * 0.56);
+            const maxLeft = Math.max(0, scroll.scrollWidth - viewW);
+            const nextLeft = Math.min(target, maxLeft);
+            live.timelineScrollMax = maxLeft;
+            live.timelineLastScrollAt = now;
+            if (Math.abs(nextLeft - scroll.scrollLeft) > 4) {
+                scroll.scrollLeft = scroll.scrollLeft + (nextLeft - scroll.scrollLeft) * 0.32;
+            }
         }
     }
 }
@@ -15179,6 +15199,10 @@ function resetAndroidCheckLive(total) {
     live.fullWave = [];
     live.phase2 = null;
     live.iphoneBtPhaseProgress = null;
+    live.timelineCssW = 0;
+    live.timelineClientW = 0;
+    live.timelineScrollMax = 0;
+    live.timelineLastScrollAt = 0;
     live.armed = true;
     live.lastDetectAt = -100000;
     live.done = 0;
@@ -16262,6 +16286,7 @@ async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
             windowTo,
             nowMs: 0,
             wave: [],
+            maxPeak: 0,
             markers: events.map((e, index) => ({
                 markerIndex: index,
                 scheduledMarkerMs: e.scheduledClickMs,
@@ -16313,6 +16338,7 @@ async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
                     live.nowMs = r1(nowMs);
                     if (!live.wave.length || nowMs - live.wave[live.wave.length - 1].t >= 10) {
                         live.wave.push({ t: r1(nowMs), level: Math.round(peak * 1000000) / 1000000 });
+                        live.maxPeak = Math.max(live.maxPeak || 0, peak || 0);
                         if (live.wave.length > 1200) live.wave.shift();
                     }
                 }
@@ -16488,6 +16514,7 @@ async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
         if (live) {
             phase2Events.forEach((row, index) => finalizeIphoneBtPhase2LiveMarker(live, index, row));
             live.wave = waveformSamples.map((p) => ({ t: p.tMs, level: p.value }));
+            live.maxPeak = live.wave.reduce((m, p) => Math.max(m, Math.abs(p.level || 0)), 0);
             live.nowMs = events.length ? events[events.length - 1].scheduledClickMs + windowTo : live.nowMs;
             live.labelCounts = labelCounts;
             drawIphoneBtPhase2Timeline(null, live, false);
@@ -18722,9 +18749,12 @@ function setBtCalStatus(t) { if (els.btCalStatus) els.btCalStatus.textContent = 
 
 function setCalLevelState(el, stateName, text) {
     if (!el) return;
-    el.textContent = text || '';
-    el.className = 'cal-level-state' + (stateName ? ' ' + stateName : '');
-    el.classList.toggle('hidden', !text);
+    const nextText = text || '';
+    const nextClass = 'cal-level-state' + (stateName ? ' ' + stateName : '');
+    const nextHidden = !nextText;
+    if (el.textContent !== nextText) el.textContent = nextText;
+    if (el.className !== nextClass) el.className = nextClass;
+    if (el.classList.contains('hidden') !== nextHidden) el.classList.toggle('hidden', nextHidden);
 }
 
 function calVolumeStatusFromProgress(doneCount, totalCount, detectedCount, maxPeak, threshold, hasAnyOnset) {
