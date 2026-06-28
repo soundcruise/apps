@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.22';
+const RHYTHM_CRUISE_VERSION = '0.12.23';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13154,6 +13154,7 @@ const ANDROID_CORR_MIN_PEAK_TO_NOISE = 2.0;       // peakToNoise中央値の下�
 const ANDROID_CORR_CLUSTER_MIN_COUNT = 4;         // cluster判定の最低点数
 const ANDROID_CORR_CLUSTER_MAX_RANGE_MS = 35;     // cluster range の上限(ms)
 const IPHONE_BT_PHASE2_GOOD_WINDOW_MS = 45;        // iPhone仮+BT 第2段階の表示用GOOD幅（保存・本番判定には未使用）
+const IPHONE_BT_PHASE2_TIMELINE_PX_PER_MS = 0.32;  // iPhone仮+BT 第2段階の横スクロール表示幅
 function androidLatencyCandidateRangeLabel() {
     return ANDROID_CORR_DELAY_MIN_MS + '〜' + ANDROID_CORR_DELAY_MAX_MS;
 }
@@ -13604,8 +13605,9 @@ function iphoneBtPhase2VisualizationHtml(two) {
         + '<td>' + esc(r(e.detectedOnsetMs)) + '</td>'
         + '<td>' + esc(r(e.detectedPeakMs)) + '</td>'
         + '</tr>').join('');
-    return '<section class="iphone-bt-phase2-visual" style="margin-top:12px;padding:12px;border:1px solid rgba(255,255,255,.13);border-radius:8px;background:rgba(0,0,0,.16);">'
-        + '<h4 style="margin:0 0 8px;font-size:15px;">第2段階: 詳細補正チェック</h4>'
+    return '<details class="iphone-bt-phase2-visual card-help" style="margin-top:12px;">'
+        + '<summary>第2段階の詳細診断グラフ・表</summary>'
+        + '<div style="margin-top:10px;padding:12px;border:1px solid rgba(255,255,255,.13);border-radius:8px;background:rgba(0,0,0,.16);">'
         + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;font-size:12px;color:rgba(253,246,238,.82);">'
         + '<span>rough ' + esc(r(two.phase1 && two.phase1.roughOffsetMs)) + '</span>'
         + '<span>fine ' + esc(r(phase2.fineOffsetMs)) + '</span>'
@@ -13629,7 +13631,7 @@ function iphoneBtPhase2VisualizationHtml(two) {
         + '<div style="overflow-x:auto;margin-top:8px;"><table style="width:100%;border-collapse:collapse;font-size:12px;">'
         + '<thead><tr><th style="text-align:left;">marker</th><th style="text-align:left;">label</th><th style="text-align:left;">ズレ</th><th style="text-align:left;">onset</th><th style="text-align:left;">peak</th></tr></thead>'
         + '<tbody>' + rows + '</tbody></table></div>'
-        + '</section>';
+        + '</div></details>';
 }
 async function copyWizardAndroidLatencyResultLog(btn) {
     const text = androidLatencyResultLogText(headphoneAudioProbe.run);
@@ -14547,6 +14549,7 @@ function androidBluetoothFinalCheckPrediction(actualAvgDiffMs) {
 }
 async function runAndroidAudioCheck(options) {
     stopAndroidBtVolumeTest({ keepMonitor: true });
+    hideIphoneBtPhase2Timeline();
     const fromWizard = !!(options && options.fromWizard);
     const token = ++androidCheckRunToken;
     androidCheckCancelRequested = false;
@@ -15757,6 +15760,171 @@ function iphoneBtPhase2Label(diffMs) {
     if (Math.abs(diffMs) <= IPHONE_BT_PHASE2_GOOD_WINDOW_MS) return 'GOOD';
     return diffMs < 0 ? 'EARLY' : 'LATE';
 }
+function iphoneBtPhase2StatusLabel(label) {
+    if (label === 'GOOD') return 'GOOD';
+    if (label === 'EARLY') return 'EARLY';
+    if (label === 'LATE') return 'LATE';
+    if (label === 'EXTRA') return 'EXTRA';
+    return 'MISS';
+}
+function iphoneBtPhase2TimelineColor(label) {
+    if (label === 'GOOD') return COLORS.just;
+    if (label === 'EARLY') return COLORS.early;
+    if (label === 'LATE') return COLORS.late;
+    if (label === 'EXTRA') return '#cfc7bd';
+    return 'rgba(253,246,238,0.36)';
+}
+function ensureIphoneBtPhase2Timeline(anchorEl) {
+    let root = document.getElementById('iphone-bt-phase2-timeline');
+    if (!root) {
+        root = document.createElement('section');
+        root.id = 'iphone-bt-phase2-timeline';
+        root.className = 'iphone-bt-phase2-timeline hidden';
+        root.innerHTML =
+            '<div class="iphone-bt-phase2-head">'
+            + '<div><div class="cal-head">第2段階: 詳細補正チェック</div><p class="setting-note">機械マーカー音とBTマイク入力をリアルタイムで照合します。</p></div>'
+            + '<div class="iphone-bt-phase2-summary" id="iphone-bt-phase2-summary">待機中</div>'
+            + '</div>'
+            + '<div class="pt-review-scroll iphone-bt-phase2-scroll" id="iphone-bt-phase2-scroll"><canvas id="iphone-bt-phase2-canvas"></canvas></div>'
+            + '<div class="pt-review-nav"><button type="button" class="btn-mini" id="iphone-bt-phase2-first">最初へ</button><button type="button" class="btn-mini" id="iphone-bt-phase2-last">最後へ</button></div>';
+        const target = anchorEl && anchorEl.parentNode ? anchorEl : androidCheckStatusEl(true);
+        if (target && target.parentNode) target.parentNode.insertBefore(root, target.nextSibling);
+        else document.body.appendChild(root);
+        const first = root.querySelector('#iphone-bt-phase2-first');
+        const last = root.querySelector('#iphone-bt-phase2-last');
+        const scroll = root.querySelector('#iphone-bt-phase2-scroll');
+        if (first) first.addEventListener('click', () => { if (scroll) scroll.scrollTo({ left: 0, behavior: 'smooth' }); });
+        if (last) last.addEventListener('click', () => { if (scroll) scroll.scrollTo({ left: scroll.scrollWidth, behavior: 'smooth' }); });
+    }
+    root.classList.remove('hidden');
+    return root;
+}
+function hideIphoneBtPhase2Timeline() {
+    const root = document.getElementById('iphone-bt-phase2-timeline');
+    if (root) root.classList.add('hidden');
+}
+function iphoneBtPhase2TimelineCanvas(root, contentW, contentH) {
+    const canvas = root && root.querySelector ? root.querySelector('#iphone-bt-phase2-canvas') : null;
+    if (!canvas) return null;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.style.width = contentW + 'px';
+    canvas.style.height = contentH + 'px';
+    canvas.width = Math.round(contentW * dpr);
+    canvas.height = Math.round(contentH * dpr);
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { canvas, ctx, w: contentW, h: contentH };
+}
+function drawIphoneBtPhase2Timeline(view, live, autoScroll) {
+    if (!live || !live.root) return;
+    const markers = live.markers || [];
+    const wave = live.wave || [];
+    const events = live.events || markers;
+    const tailMs = 620;
+    const maxMarker = markers.length ? markers[markers.length - 1].scheduledMarkerMs : 0;
+    const nowMs = Math.max(0, live.nowMs || 0);
+    const toMs = Math.max(maxMarker + tailMs, nowMs + 220, 1000);
+    const fromMs = -180;
+    const h = PT_LANE_HEIGHT;
+    const w = Math.max(720, Math.round((toMs - fromMs) * IPHONE_BT_PHASE2_TIMELINE_PX_PER_MS) + 80);
+    const root = live.root;
+    const lane = iphoneBtPhase2TimelineCanvas(root, w, h);
+    if (!lane) return;
+    const { ctx } = lane;
+    const yc = h * 0.52;
+    const padL = 42;
+    const xOf = (ms) => padL + (ms - fromMs) * IPHONE_BT_PHASE2_TIMELINE_PX_PER_MS;
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgba(253,246,238,0.08)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke();
+    const ampPx = h * STAGE_WAVE_AMP_FRAC;
+    const maxPeak = Math.max(0.000001, ...wave.map((p) => Math.abs(Number(p.level) || 0)));
+    if (wave.length >= 2) {
+        const pts = wave.map((p) => [xOf(p.t), Math.min(1, Math.abs(Number(p.level) || 0) / maxPeak) * ampPx]);
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0], yc - pts[0][1]);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], yc - pts[i][1]);
+        for (let i = pts.length - 1; i >= 0; i--) ctx.lineTo(pts[i][0], yc + pts[i][1]);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0], yc - pts[0][1]);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], yc - pts[i][1]);
+        ctx.strokeStyle = 'rgba(255,255,255,0.24)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+    markers.forEach((m, i) => {
+        const e = events[i] || m;
+        const bx = xOf(m.scheduledMarkerMs);
+        const label = e.label || (m.closed ? 'MISS' : null);
+        const col = iphoneBtPhase2TimelineColor(label);
+        ctx.strokeStyle = 'rgba(255,209,102,0.56)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(bx, h * 0.12); ctx.lineTo(bx, h * 0.82); ctx.stroke();
+        ctx.save();
+        if (label && label !== 'MISS') { ctx.shadowColor = col; ctx.shadowBlur = 10; }
+        drawQuarterNote(ctx, bx, yc, label ? col : NOTE_COLOR);
+        ctx.restore();
+        ctx.fillStyle = 'rgba(255,180,90,0.9)';
+        ctx.font = '800 12px Outfit, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('M' + (i + 1), bx, yc + 34);
+        if (Number.isFinite(e.detectedOnsetMs)) {
+            const ox = xOf(e.detectedOnsetMs);
+            ctx.strokeStyle = '#2ecc71';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(ox, h * 0.15); ctx.lineTo(ox, h * 0.76); ctx.stroke();
+            ctx.fillStyle = '#2ecc71';
+            ctx.beginPath(); ctx.arc(ox, yc - 45, 4, 0, Math.PI * 2); ctx.fill();
+        }
+        if (Number.isFinite(e.detectedPeakMs)) {
+            const px = xOf(e.detectedPeakMs);
+            ctx.strokeStyle = '#4da3ff';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath(); ctx.moveTo(px, h * 0.2); ctx.lineTo(px, h * 0.78); ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        if (label) {
+            const diff = e.diffMsUsed;
+            const sign = diff > 0 ? '+' : (diff < 0 ? '−' : '±');
+            ctx.fillStyle = col;
+            ctx.font = '800 11px Outfit, sans-serif';
+            ctx.fillText(iphoneBtPhase2StatusLabel(label), bx, h * 0.9);
+            ctx.font = '700 10px Outfit, sans-serif';
+            ctx.fillText(Number.isFinite(diff) ? sign + Math.abs(Math.round(diff)) + 'ms' : '–', bx, h * 0.98);
+        }
+    });
+    const playX = xOf(nowMs);
+    ctx.strokeStyle = 'rgba(255,159,28,0.92)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(playX, h * 0.08); ctx.lineTo(playX, h * 0.96); ctx.stroke();
+    const summary = root.querySelector('#iphone-bt-phase2-summary');
+    if (summary) {
+        const counts = live.labelCounts || { good: 0, early: 0, late: 0, miss: 0 };
+        summary.textContent = 'GOOD ' + (counts.good || 0) + ' / EARLY ' + (counts.early || 0) + ' / LATE ' + (counts.late || 0) + ' / MISS ' + (counts.miss || 0);
+    }
+    const scroll = root.querySelector('#iphone-bt-phase2-scroll');
+    if (scroll && autoScroll) {
+        const target = Math.max(0, playX - scroll.clientWidth * 0.42);
+        scroll.scrollLeft = Math.min(target, Math.max(0, scroll.scrollWidth - scroll.clientWidth));
+    }
+}
+function finalizeIphoneBtPhase2LiveMarker(live, markerIndex, row) {
+    if (!live || !live.markers || markerIndex < 0 || markerIndex >= live.markers.length) return;
+    live.events[markerIndex] = Object.assign({}, live.events[markerIndex] || live.markers[markerIndex], row || {});
+    const label = live.events[markerIndex].label || 'MISS';
+    live.markers[markerIndex].closed = true;
+    live.markers[markerIndex].label = label;
+    live.labelCounts = { good: 0, early: 0, late: 0, miss: 0, extra: 0 };
+    live.events.forEach((e) => {
+        const key = (e && e.label || '').toLowerCase();
+        if (live.labelCounts[key] != null) live.labelCounts[key]++;
+    });
+}
 async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
     const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
     const r3 = (v) => v == null ? null : Math.round(v * 1000) / 1000;
@@ -15820,7 +15988,7 @@ async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
     }
     try { if (ctx.state === 'suspended') await ctx.resume(); } catch (_) { /* noop */ }
     if (statusEl) statusEl.textContent = '詳細補正を確認中… イヤホンとマイクの位置を変えずにお待ちください。';
-    let stream = null, src = null, analyser = null, raf = 0;
+    let stream = null, src = null, analyser = null, raf = 0, live = null;
     try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: hpProbeConstraints('current') });
         src = ctx.createMediaStreamSource(stream);
@@ -15867,6 +16035,30 @@ async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
         }
         debug.phase2.scheduledClickCount = events.filter((e) => e.scheduled).length;
         debug.phase2.scheduledMarkerCount = debug.phase2.scheduledClickCount;
+        const timelineRoot = ensureIphoneBtPhase2Timeline(statusEl);
+        live = {
+            root: timelineRoot,
+            roughOffsetMs: rough,
+            windowFrom,
+            windowTo,
+            nowMs: 0,
+            wave: [],
+            markers: events.map((e, index) => ({
+                markerIndex: index,
+                scheduledMarkerMs: e.scheduledClickMs,
+                expectedInputMs: r1(e.scheduledClickMs - rough),
+                closed: false,
+                label: null,
+            })),
+            events: events.map((e, index) => ({
+                markerIndex: index,
+                scheduledMarkerMs: e.scheduledClickMs,
+                expectedInputMs: r1(e.scheduledClickMs - rough),
+                label: null,
+            })),
+            labelCounts: { good: 0, early: 0, late: 0, miss: 0, extra: 0 },
+        };
+        drawIphoneBtPhase2Timeline(null, live, false);
         const addPeak = (list, row) => { list.push(row); list.sort((a, b) => b.value - a.value); if (list.length > 5) list.length = 5; };
         await new Promise((resolve) => {
             const endAt = audioStart + (clickCount - 1) * intervalSec + (windowTo / 1000) + 0.18;
@@ -15875,6 +16067,13 @@ async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
                 let peak = 0;
                 for (let i = 0; i < buf.length; i++) peak = Math.max(peak, Math.abs(buf[i]));
                 const nowMs = (ctx.currentTime - audioStart) * 1000;
+                if (live) {
+                    live.nowMs = r1(nowMs);
+                    if (!live.wave.length || nowMs - live.wave[live.wave.length - 1].t >= 10) {
+                        live.wave.push({ t: r1(nowMs), level: Math.round(peak * 1000000) / 1000000 });
+                        if (live.wave.length > 1200) live.wave.shift();
+                    }
+                }
                 events.forEach((event) => {
                     const off = nowMs - event.scheduledClickMs;
                     if (off < windowFrom || off > windowTo) return;
@@ -15884,6 +16083,39 @@ async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
                     addPeak(event.rankTop5, row);
                     addPeak(event.normalRankTop5, row);
                 });
+                if (live) {
+                    events.forEach((event, index) => {
+                        if (event.phase2LiveClosed || nowMs < event.scheduledClickMs + windowTo) return;
+                        event.phase2LiveClosed = true;
+                        const normal = event.normalRankTop5[0] || null;
+                        event.normalWindowMaxPeak = normal ? normal.value : 0;
+                        event.normalWindowPeakOffsetMs = normal ? normal.offsetMs : null;
+                        event.onsetDebug = hpEventOnsetDebug(event, windowFrom, windowTo);
+                        const onsetOffset = event.onsetDebug && Number.isFinite(event.onsetDebug.onsetOffsetMs) ? Number(event.onsetDebug.onsetOffsetMs) : null;
+                        const peakOffset = Number.isFinite(event.normalWindowPeakOffsetMs) ? Number(event.normalWindowPeakOffsetMs) : null;
+                        if (onsetOffset == null && peakOffset == null) {
+                            finalizeIphoneBtPhase2LiveMarker(live, index, { label: 'MISS', diffMsUsed: null, detectedOnsetMs: null, detectedPeakMs: null });
+                            return;
+                        }
+                        const expectedInputMs = event.scheduledClickMs - rough;
+                        const detectedOnsetMs = onsetOffset != null ? r1(event.scheduledClickMs + onsetOffset) : null;
+                        const detectedPeakMs = peakOffset != null ? r1(event.scheduledClickMs + peakOffset) : null;
+                        const onsetDiffMs = detectedOnsetMs != null ? r1(detectedOnsetMs - expectedInputMs) : null;
+                        const peakDiffMs = detectedPeakMs != null ? r1(detectedPeakMs - expectedInputMs) : null;
+                        const diffMsUsed = onsetDiffMs != null ? onsetDiffMs : peakDiffMs;
+                        finalizeIphoneBtPhase2LiveMarker(live, index, {
+                            detectedEventIndex: index,
+                            detectedOnsetMs,
+                            detectedPeakMs,
+                            onsetDiffMs,
+                            peakDiffMs,
+                            diffMsUsed,
+                            label: iphoneBtPhase2Label(diffMsUsed),
+                            matchMethod: 'sequence',
+                        });
+                    });
+                    drawIphoneBtPhase2Timeline(null, live, true);
+                }
                 if (ctx.currentTime >= endAt) resolve();
                 else raf = requestAnimationFrame(tick);
             };
@@ -15897,33 +16129,37 @@ async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
             event.soundToNoiseRatio = noise.p95 ? event.normalWindowMaxPeak / noise.p95 : null;
             event.onsetDebug = hpEventOnsetDebug(event, windowFrom, windowTo);
         });
-        const detectedEvents = events
-            .map((event, index) => {
+        const detectedEvents = [];
+        const markerDetections = events
+            .map((event) => {
                 const onsetOffset = event.onsetDebug && Number.isFinite(event.onsetDebug.onsetOffsetMs) ? Number(event.onsetDebug.onsetOffsetMs) : null;
                 const peakOffset = Number.isFinite(event.normalWindowPeakOffsetMs) ? Number(event.normalWindowPeakOffsetMs) : null;
                 if (onsetOffset == null && peakOffset == null) return null;
-                return {
-                    detectedEventIndex: index,
-                    sourceMarkerIndex: index,
+                const detectedEventIndex = detectedEvents.length;
+                const row = {
+                    detectedEventIndex,
+                    sourceMarkerIndex: event.index - 1,
                     detectedOnsetMs: onsetOffset != null ? r1(event.scheduledClickMs + onsetOffset) : null,
                     detectedPeakMs: peakOffset != null ? r1(event.scheduledClickMs + peakOffset) : null,
                     onsetOffsetMs: onsetOffset != null ? r1(onsetOffset) : null,
                     peakOffsetMs: peakOffset != null ? r1(peakOffset) : null,
                     peakToNoise: event.soundToNoiseRatio != null ? Math.round(event.soundToNoiseRatio * 1000) / 1000 : null,
                 };
-            })
-            .filter(Boolean)
-            .sort((a, b) => {
-                const av = a.detectedOnsetMs != null ? a.detectedOnsetMs : a.detectedPeakMs;
-                const bv = b.detectedOnsetMs != null ? b.detectedOnsetMs : b.detectedPeakMs;
-                return av - bv;
-            })
-            .map((event, index) => Object.assign(event, { detectedEventIndex: index }));
+                detectedEvents.push(row);
+                return {
+                    detectedEventIndex,
+                    detectedOnsetMs: row.detectedOnsetMs,
+                    detectedPeakMs: row.detectedPeakMs,
+                    onsetOffsetMs: row.onsetOffsetMs,
+                    peakOffsetMs: row.peakOffsetMs,
+                    peakToNoise: row.peakToNoise,
+                };
+            });
         const phase2Events = [];
         const missingMarkers = [];
         const labelCounts = { good: 0, early: 0, late: 0, miss: 0, extra: 0 };
         events.forEach((marker, markerIndex) => {
-            const detected = detectedEvents[markerIndex] || null;
+            const detected = markerDetections[markerIndex] || null;
             const expectedInputMs = marker.scheduledClickMs - rough;
             if (!detected) {
                 const row = {
@@ -15963,18 +16199,11 @@ async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
                 label,
                 matchMethod: 'sequence',
                 usedForMedian: onsetDiff != null,
-                sourceMarkerIndex: detected.sourceMarkerIndex,
+                sourceMarkerIndex: markerIndex,
                 peakToNoise: detected.peakToNoise,
             });
         });
-        const extraDetectedEvents = detectedEvents.slice(events.length).map((event) => ({
-            detectedEventIndex: event.detectedEventIndex,
-            detectedOnsetMs: event.detectedOnsetMs,
-            detectedPeakMs: event.detectedPeakMs,
-            reason: 'extra-input-event',
-            sourceMarkerIndex: event.sourceMarkerIndex,
-            peakToNoise: event.peakToNoise,
-        }));
+        const extraDetectedEvents = [];
         labelCounts.extra = extraDetectedEvents.length;
         const onsetResiduals = phase2Events.filter((e) => e.usedForMedian).map((e) => e.onsetDiffMs);
         const peakResiduals = phase2Events.map((e) => e.peakDiffMs).filter(Number.isFinite);
@@ -16014,6 +16243,13 @@ async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
         debug.phase2.candidateOffsetMs = fine;
         debug.phase2.confidence = usable ? (onsetTrim.length >= 8 ? 'candidate' : 'weak') : 'failed';
         debug.phase2.failureReason = usable ? null : 'usable-onset-count<6';
+        if (live) {
+            phase2Events.forEach((row, index) => finalizeIphoneBtPhase2LiveMarker(live, index, row));
+            live.wave = waveformSamples.map((p) => ({ t: p.tMs, level: p.value }));
+            live.nowMs = events.length ? events[events.length - 1].scheduledClickMs + windowTo : live.nowMs;
+            live.labelCounts = labelCounts;
+            drawIphoneBtPhase2Timeline(null, live, false);
+        }
         debug.phase2Status = usable ? 'candidate' : 'failed';
         debug.fallbackCandidate = fine != null ? fine : r1(rough);
         return debug;

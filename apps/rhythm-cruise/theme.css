@@ -5557,6 +5557,46 @@ h1 {
     margin-top: 8px;
 }
 
+.iphone-bt-phase2-timeline {
+    margin: 12px 0;
+    padding: 12px;
+    border: 1px solid rgba(253, 246, 238, 0.12);
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.16);
+}
+
+.iphone-bt-phase2-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.iphone-bt-phase2-head .setting-note {
+    margin: 3px 0 0;
+}
+
+.iphone-bt-phase2-summary {
+    flex: 0 0 auto;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(253, 246, 238, 0.84);
+    font-size: 0.74rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.iphone-bt-phase2-scroll {
+    min-height: 168px;
+}
+
+#iphone-bt-phase2-canvas {
+    display: block;
+    height: 168px;
+}
+
 /* 結果モーダル表示中は、戻る/TOP/設定を隠す（モーダル内の閉じる/もう一度だけ操作・修正8） */
 body.results-open #app-nav,
 body.results-open #settings-btn {
