@@ -5558,11 +5558,9 @@ h1 {
 }
 
 .iphone-bt-phase2-timeline {
-    margin: 12px 0;
-    padding: 12px;
-    border: 1px solid rgba(253, 246, 238, 0.12);
-    border-radius: 14px;
-    background: rgba(0, 0, 0, 0.16);
+    margin: 10px 0 0;
+    padding-top: 10px;
+    border-top: 1px solid rgba(253, 246, 238, 0.12);
 }
 
 .iphone-bt-phase2-head {
@@ -5575,6 +5573,13 @@ h1 {
 
 .iphone-bt-phase2-head .setting-note {
     margin: 3px 0 0;
+}
+
+.iphone-bt-phase-label {
+    margin: 0 0 6px;
+    color: rgba(253, 246, 238, 0.9);
+    font-size: 0.86rem;
+    font-weight: 800;
 }
 
 .iphone-bt-phase2-summary {

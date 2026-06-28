@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.23';
+const RHYTHM_CRUISE_VERSION = '0.12.24';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14549,7 +14549,7 @@ function androidBluetoothFinalCheckPrediction(actualAvgDiffMs) {
 }
 async function runAndroidAudioCheck(options) {
     stopAndroidBtVolumeTest({ keepMonitor: true });
-    hideIphoneBtPhase2Timeline();
+    hideIphoneBtUnifiedTimelineUi();
     const fromWizard = !!(options && options.fromWizard);
     const token = ++androidCheckRunToken;
     androidCheckCancelRequested = false;
@@ -14602,6 +14602,7 @@ async function runAndroidAudioCheck(options) {
             run.androidBluetoothCandidateComparison.iphoneBtOnsetVsPeakCandidateDebug = buildIphoneBtOnsetVsPeakCandidateDebug(run, run.androidBluetoothCandidateComparison);
             if (isIphoneAndroidTrialFlow() && isBluetoothHeadphone()) {
                 const phase1 = buildIphoneBtTwoStagePhase1(run, run.androidBluetoothCandidateComparison);
+                updateIphoneBtPhase1Label(phase1);
                 run.androidBluetoothCandidateComparison.iphoneBtTwoStageCalibrationDebug = await runIphoneBtFineClickProbe(phase1 && phase1.roughOffsetMs, phase1, statusEl);
             }
         }
@@ -14889,6 +14890,36 @@ function androidCheckLiveEls() {
         ? { wrap: els.wizardAndroidLiveBuiltin, canvas: els.wizardAndroidWaveBuiltin, state: els.wizardAndroidLevelStateBuiltin }
         : { wrap: els.wizardAndroidLiveHp, canvas: els.wizardAndroidWaveHp, state: els.wizardAndroidLevelStateHp };
 }
+function isIphoneBtPhase2UiContext() {
+    return isIphoneAndroidTrialFlow() && isHeadphoneInput() && isBluetoothHeadphone();
+}
+function ensureIphoneBtPhase1Label() {
+    const wrap = els.wizardAndroidLiveHp;
+    if (!wrap || !isIphoneBtPhase2UiContext()) return null;
+    let label = document.getElementById('iphone-bt-phase1-label');
+    if (!label) {
+        label = document.createElement('div');
+        label.id = 'iphone-bt-phase1-label';
+        label.className = 'iphone-bt-phase-label';
+        const canvas = els.wizardAndroidWaveHp;
+        if (canvas && canvas.parentNode === wrap) wrap.insertBefore(label, canvas);
+        else wrap.insertBefore(label, wrap.firstChild);
+    }
+    label.textContent = '第1段階: 大まかな音ズレ測定';
+    label.classList.remove('hidden');
+    return label;
+}
+function updateIphoneBtPhase1Label(info) {
+    const label = ensureIphoneBtPhase1Label();
+    if (!label) return;
+    const rough = info && info.roughOffsetMs != null ? ' / rough ' + (Math.round(info.roughOffsetMs * 10) / 10) + 'ms' : '';
+    label.textContent = '第1段階: 大まかな音ズレ測定' + rough;
+}
+function hideIphoneBtUnifiedTimelineUi() {
+    const label = document.getElementById('iphone-bt-phase1-label');
+    if (label) label.classList.add('hidden');
+    hideIphoneBtPhase2Timeline();
+}
 
 function resetAndroidCheckLive(total) {
     const live = androidCheckLive;
@@ -14903,6 +14934,7 @@ function resetAndroidCheckLive(total) {
     live.total = Math.max(1, total || 1);
     const ui = androidCheckLiveEls();
     if (ui.wrap) ui.wrap.classList.remove('hidden');
+    if (isIphoneBtPhase2UiContext()) ensureIphoneBtPhase1Label();
     if (ui.state) setCalLevelState(ui.state, '', '音を確認中…');
     fitAndroidCheckLive();
     drawAndroidCheckLive();
@@ -15032,6 +15064,7 @@ function hideAndroidCheckLive() {
     stopAndroidBtVolumeTest({ keepMonitor: true });
     androidCheckLive.active = false;
     androidCheckLive.wave = [];
+    hideIphoneBtUnifiedTimelineUi();
     [els.wizardAndroidLiveBuiltin, els.wizardAndroidLiveHp].forEach((el) => { if (el) el.classList.add('hidden'); });
     setCalLevelState(els.wizardAndroidLevelStateBuiltin, '', '');
     setCalLevelState(els.wizardAndroidLevelStateHp, '', '');
@@ -15782,19 +15815,26 @@ function ensureIphoneBtPhase2Timeline(anchorEl) {
         root.className = 'iphone-bt-phase2-timeline hidden';
         root.innerHTML =
             '<div class="iphone-bt-phase2-head">'
-            + '<div><div class="cal-head">第2段階: 詳細補正チェック</div><p class="setting-note">機械マーカー音とBTマイク入力をリアルタイムで照合します。</p></div>'
+            + '<div><div class="iphone-bt-phase-label">第2段階: 詳細補正チェック</div><p class="setting-note">機械マーカー音とBTマイク入力をリアルタイムで照合します。</p></div>'
             + '<div class="iphone-bt-phase2-summary" id="iphone-bt-phase2-summary">待機中</div>'
             + '</div>'
             + '<div class="pt-review-scroll iphone-bt-phase2-scroll" id="iphone-bt-phase2-scroll"><canvas id="iphone-bt-phase2-canvas"></canvas></div>'
             + '<div class="pt-review-nav"><button type="button" class="btn-mini" id="iphone-bt-phase2-first">最初へ</button><button type="button" class="btn-mini" id="iphone-bt-phase2-last">最後へ</button></div>';
-        const target = anchorEl && anchorEl.parentNode ? anchorEl : androidCheckStatusEl(true);
-        if (target && target.parentNode) target.parentNode.insertBefore(root, target.nextSibling);
-        else document.body.appendChild(root);
+        const parent = isIphoneBtPhase2UiContext() ? els.wizardAndroidLiveHp : null;
+        if (parent) parent.appendChild(root);
+        else {
+            const target = anchorEl && anchorEl.parentNode ? anchorEl : androidCheckStatusEl(true);
+            if (target && target.parentNode) target.parentNode.insertBefore(root, target.nextSibling);
+            else document.body.appendChild(root);
+        }
         const first = root.querySelector('#iphone-bt-phase2-first');
         const last = root.querySelector('#iphone-bt-phase2-last');
         const scroll = root.querySelector('#iphone-bt-phase2-scroll');
         if (first) first.addEventListener('click', () => { if (scroll) scroll.scrollTo({ left: 0, behavior: 'smooth' }); });
         if (last) last.addEventListener('click', () => { if (scroll) scroll.scrollTo({ left: scroll.scrollWidth, behavior: 'smooth' }); });
+    }
+    if (isIphoneBtPhase2UiContext() && els.wizardAndroidLiveHp && root.parentNode !== els.wizardAndroidLiveHp) {
+        els.wizardAndroidLiveHp.appendChild(root);
     }
     root.classList.remove('hidden');
     return root;
