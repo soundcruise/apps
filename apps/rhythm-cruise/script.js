@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.21';
+const RHYTHM_CRUISE_VERSION = '0.12.22';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13153,6 +13153,7 @@ const ANDROID_CORR_MAX_TRIMMED_RANGE_MS = 40;     // trimmed range の上限(ms)
 const ANDROID_CORR_MIN_PEAK_TO_NOISE = 2.0;       // peakToNoise中央値の下限
 const ANDROID_CORR_CLUSTER_MIN_COUNT = 4;         // cluster判定の最低点数
 const ANDROID_CORR_CLUSTER_MAX_RANGE_MS = 35;     // cluster range の上限(ms)
+const IPHONE_BT_PHASE2_GOOD_WINDOW_MS = 45;        // iPhone仮+BT 第2段階の表示用GOOD幅（保存・本番判定には未使用）
 function androidLatencyCandidateRangeLabel() {
     return ANDROID_CORR_DELAY_MIN_MS + '〜' + ANDROID_CORR_DELAY_MAX_MS;
 }
@@ -13476,6 +13477,9 @@ function androidLatencyResultLogText(run) {
         add('scheduledMarkerCount', two.phase2 && two.phase2.scheduledMarkerCount, '  ');
         add('detectedMarkerCount', two.phase2 && two.phase2.detectedMarkerCount, '  ');
         add('usableDetectionCount', two.phase2 && two.phase2.usableDetectionCount, '  ');
+        add('labelCounts', two.phase2 && two.phase2.labelCounts, '  ');
+        add('missingMarkers', two.phase2 && two.phase2.missingMarkers, '  ');
+        add('extraDetectedEvents', two.phase2 && two.phase2.extraDetectedEvents, '  ');
         add('medianOnsetResidualMs', two.phase2 && two.phase2.medianOnsetResidualMs, '  ');
         add('medianPeakResidualMs', two.phase2 && two.phase2.medianPeakResidualMs, '  ');
         add('fineOffsetMs', two.phase2 && two.phase2.fineOffsetMs, '  ');
@@ -13525,6 +13529,107 @@ function androidLatencyResultLogHtml(run) {
         + '<span class="dev-log-copy-status android-latency-result-log-status" aria-live="polite"></span>'
         + '<pre class="android-latency-result-log-text">' + escapeHtml(text) + '</pre>'
         + '</details>';
+}
+function iphoneBtPhase2LabelColor(label) {
+    if (label === 'GOOD') return '#2ecc71';
+    if (label === 'EARLY') return '#4da3ff';
+    if (label === 'LATE') return '#ff9f1c';
+    if (label === 'MISS') return '#ff5c7a';
+    return '#cfc7bd';
+}
+function iphoneBtPhase2VisualizationHtml(two) {
+    const phase2 = two && two.phase2;
+    if (!phase2 || !Array.isArray(phase2.events) || !phase2.events.length) return '';
+    const r = (v) => v != null && Number.isFinite(Number(v)) ? (Math.round(Number(v) * 10) / 10) + 'ms' : '–';
+    const esc = escapeHtml;
+    const events = phase2.events;
+    const waveform = Array.isArray(phase2.waveformSamples) ? phase2.waveformSamples.filter((p) => Number.isFinite(p.tMs) && Number.isFinite(p.value)) : [];
+    const detectedTimes = [];
+    events.forEach((e) => {
+        if (Number.isFinite(e.detectedOnsetMs)) detectedTimes.push(e.detectedOnsetMs);
+        if (Number.isFinite(e.detectedPeakMs)) detectedTimes.push(e.detectedPeakMs);
+        if (Number.isFinite(e.expectedInputMs)) detectedTimes.push(e.expectedInputMs);
+    });
+    const timeMax = Math.max(
+        1000,
+        ...events.map((e) => Number(e.scheduledMarkerMs) || 0),
+        ...detectedTimes,
+        ...waveform.map((p) => Number(p.tMs) || 0)
+    ) + 140;
+    const width = 960, height = 260, left = 34, right = 18, top = 28, mid = 122, bottom = 220;
+    const span = Math.max(1, timeMax);
+    const x = (ms) => left + (Math.max(0, Math.min(span, Number(ms) || 0)) / span) * (width - left - right);
+    const maxPeak = Math.max(0.000001, ...waveform.map((p) => Math.abs(Number(p.value) || 0)));
+    const maxPoints = 520;
+    const step = Math.max(1, Math.ceil(waveform.length / maxPoints));
+    const sampled = waveform.filter((_, i) => i % step === 0);
+    const wavePath = sampled.map((p, i) => {
+        const y = mid - Math.min(1, Math.abs(Number(p.value) || 0) / maxPeak) * 54;
+        return (i ? 'L' : 'M') + x(p.tMs).toFixed(1) + ' ' + y.toFixed(1);
+    }).join(' ');
+    const scheduledLines = events.map((e) => {
+        const sx = x(e.scheduledMarkerMs).toFixed(1);
+        return '<line x1="' + sx + '" y1="' + top + '" x2="' + sx + '" y2="' + bottom + '" stroke="rgba(255,209,102,.72)" stroke-width="1.4"/>'
+            + '<text x="' + sx + '" y="20" text-anchor="middle" fill="#ffd166" font-size="11">M' + (e.markerIndex + 1) + '</text>';
+    }).join('');
+    const expectedLines = events.filter((e) => Number.isFinite(e.expectedInputMs)).map((e) => {
+        const ex = x(e.expectedInputMs).toFixed(1);
+        return '<line x1="' + ex + '" y1="' + (top + 16) + '" x2="' + ex + '" y2="' + bottom + '" stroke="rgba(255,255,255,.16)" stroke-width="1" stroke-dasharray="3 5"/>';
+    }).join('');
+    const detectionLines = events.map((e) => {
+        let out = '';
+        if (Number.isFinite(e.detectedOnsetMs)) {
+            const ox = x(e.detectedOnsetMs).toFixed(1);
+            out += '<line x1="' + ox + '" y1="' + (top + 7) + '" x2="' + ox + '" y2="' + bottom + '" stroke="#2ecc71" stroke-width="2"/>';
+            out += '<circle cx="' + ox + '" cy="' + (mid - 64) + '" r="4" fill="#2ecc71"/>';
+        }
+        if (Number.isFinite(e.detectedPeakMs)) {
+            const px = x(e.detectedPeakMs).toFixed(1);
+            out += '<line x1="' + px + '" y1="' + (top + 20) + '" x2="' + px + '" y2="' + bottom + '" stroke="#4da3ff" stroke-width="1.5" stroke-dasharray="4 4"/>';
+            out += '<circle cx="' + px + '" cy="' + (mid - 47) + '" r="3.5" fill="#4da3ff"/>';
+        }
+        return out;
+    }).join('');
+    const labelRows = events.map((e, i) => {
+        const lx = x(e.scheduledMarkerMs).toFixed(1);
+        const ly = 238 + (i % 2) * 13;
+        const color = iphoneBtPhase2LabelColor(e.label);
+        return '<text x="' + lx + '" y="' + ly + '" text-anchor="middle" fill="' + color + '" font-size="11" font-weight="700">' + esc(e.label) + ' ' + esc(r(e.diffMsUsed)) + '</text>';
+    }).join('');
+    const counts = phase2.labelCounts || {};
+    const rows = events.map((e) => '<tr>'
+        + '<td>M' + (e.markerIndex + 1) + '</td>'
+        + '<td>' + esc(e.label) + '</td>'
+        + '<td>' + esc(r(e.diffMsUsed)) + '</td>'
+        + '<td>' + esc(r(e.detectedOnsetMs)) + '</td>'
+        + '<td>' + esc(r(e.detectedPeakMs)) + '</td>'
+        + '</tr>').join('');
+    return '<section class="iphone-bt-phase2-visual" style="margin-top:12px;padding:12px;border:1px solid rgba(255,255,255,.13);border-radius:8px;background:rgba(0,0,0,.16);">'
+        + '<h4 style="margin:0 0 8px;font-size:15px;">第2段階: 詳細補正チェック</h4>'
+        + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;font-size:12px;color:rgba(253,246,238,.82);">'
+        + '<span>rough ' + esc(r(two.phase1 && two.phase1.roughOffsetMs)) + '</span>'
+        + '<span>fine ' + esc(r(phase2.fineOffsetMs)) + '</span>'
+        + '<span>residual ' + esc(r(phase2.residualMsUsed)) + '</span>'
+        + '<span>GOOD幅 ±' + IPHONE_BT_PHASE2_GOOD_WINDOW_MS + 'ms</span>'
+        + '<span>GOOD ' + (counts.good || 0) + '</span>'
+        + '<span>EARLY ' + (counts.early || 0) + '</span>'
+        + '<span>LATE ' + (counts.late || 0) + '</span>'
+        + '<span>MISS ' + (counts.miss || 0) + '</span>'
+        + '<span>EXTRA ' + (counts.extra || 0) + '</span>'
+        + '</div>'
+        + '<div style="overflow-x:auto;">'
+        + '<svg viewBox="0 0 ' + width + ' ' + height + '" width="100%" height="260" role="img" aria-label="iPhone BT詳細補正チェック波形">'
+        + '<rect x="0" y="0" width="' + width + '" height="' + height + '" fill="rgba(255,255,255,.03)"/>'
+        + '<line x1="' + left + '" y1="' + mid + '" x2="' + (width - right) + '" y2="' + mid + '" stroke="rgba(255,255,255,.12)" stroke-width="1"/>'
+        + expectedLines + scheduledLines
+        + (wavePath ? '<path d="' + wavePath + '" fill="none" stroke="rgba(255,255,255,.72)" stroke-width="1.8"/>' : '')
+        + detectionLines + labelRows
+        + '<text x="' + left + '" y="252" fill="rgba(253,246,238,.62)" font-size="11">黄=出力予定 / 白点線=rough後の期待入力 / 緑=onset / 青=peak / 白=入力波形</text>'
+        + '</svg></div>'
+        + '<div style="overflow-x:auto;margin-top:8px;"><table style="width:100%;border-collapse:collapse;font-size:12px;">'
+        + '<thead><tr><th style="text-align:left;">marker</th><th style="text-align:left;">label</th><th style="text-align:left;">ズレ</th><th style="text-align:left;">onset</th><th style="text-align:left;">peak</th></tr></thead>'
+        + '<tbody>' + rows + '</tbody></table></div>'
+        + '</section>';
 }
 async function copyWizardAndroidLatencyResultLog(btn) {
     const text = androidLatencyResultLogText(headphoneAudioProbe.run);
@@ -13578,12 +13683,14 @@ function renderWizardAndroidLatencyResult(run) {
         } else html = androidLatencyHeadphoneFailureHtml(run, cc);
     }
     const logHtml = androidLatencyResultLogHtml(run);
+    const btTwoStage = run.androidBluetoothCandidateComparison && run.androidBluetoothCandidateComparison.iphoneBtTwoStageCalibrationDebug;
+    const phase2Html = iphoneBtPhase2VisualizationHtml(btTwoStage);
     if (html) {
         el.style.whiteSpace = 'normal';
-        el.innerHTML = html + logHtml;
+        el.innerHTML = html + phase2Html + logHtml;
     } else {
         el.style.whiteSpace = 'normal';
-        el.innerHTML = '<div class="android-latency-result-text">' + escapeHtml(lines.join('\n')) + '</div>' + logHtml;
+        el.innerHTML = '<div class="android-latency-result-text">' + escapeHtml(lines.join('\n')) + '</div>' + phase2Html + logHtml;
     }
     el.classList.remove('hidden');
     refreshAllAndroidSaveButtons();
@@ -14529,6 +14636,10 @@ async function runAndroidAudioCheck(options) {
         const two = run.androidBluetoothCandidateComparison && run.androidBluetoothCandidateComparison.iphoneBtTwoStageCalibrationDebug;
         const twoBlock = two && two.phase2 && two.phase2.fineOffsetMs != null ? ('\n──\niPhone BT詳細補正候補: ' + rd(two.phase2.fineOffsetMs) + '\n※表示・ログ用です。保存やPractice判定にはまだ使いません。') : '';
         els.androidCheckResult.textContent = 'Android詳細チェック結果\n・直接測定できる可能性: ' + (run.finalGuess === 'usable' ? '高' : (run.finalGuess === 'weak' ? '中' : '低')) + '\n・有力な音: ' + best + '\n・波形照合: ' + wm.finalGuess + ' / offset中央値 ' + (wm.offsetMedianMs != null ? Math.round(wm.offsetMedianMs) + 'ms' : '–') + ' / 範囲 ' + (wm.offsetRangeMs != null ? Math.round(wm.offsetRangeMs) + 'ms' : '–') + ' / 採用 ' + wm.acceptedCount + '/5' + (bt ? '\n・Bluetooth探索: 最有力 ' + bt.bestCandidate + ' / 判定 ' + bt.finalGuess : '') + snBlock + caBlock + patBlock('2連ノイズパターン', dp) + patBlock('3連ノイズパターン', tp) + (btCc ? ('\n──\nAndroid Bluetooth補正候補:\n測定遅延: ' + rd(btCc.measurementDelayMs) + '\n保存候補: ' + (btCc.saveOffsetMs != null ? Math.round(btCc.saveOffsetMs) + 'ms' : '–') + '\n候補ソース: ' + btCc.source + '\n信頼度: ' + btCc.confidence + '\n保存可能: ' + (btCc.isReadyToSave ? 'はい' : 'いいえ') + '\n※この候補値は「保存」するとPractice判定に反映されます') : '') + twoBlock + (bt ? ('\n──\n保存済み Android Bluetooth補正値: ' + (abs.hasAndroidBluetoothOffset ? abs.savedOffsetMs + 'ms' : '未保存') + '\n推定入力遅延: ' + (abs.measurementDelayEstimateMs != null ? abs.measurementDelayEstimateMs + 'ms' : '–') + '\n現在のPractice判定: ' + (abs.isUsedForCurrentPractice ? '使用中' : '未使用') + (abs.isUsedForCurrentPractice ? '\n最終判定補正: ' + abs.finalJudgeOffsetMs + 'ms' : '\n理由: ' + abs.messageForUser)) : '') + (isWiredRun ? ('\n──\nAndroid有線イヤホン補正\n' + (aws.hasAndroidWiredOffset ? ('保存値: ' + aws.savedOffsetMs + 'ms\n推定入力遅延: ' + (aws.measurementDelayEstimateMs != null ? aws.measurementDelayEstimateMs + 'ms' : '–') + '\n現在のPractice判定: ' + (aws.isUsedForCurrentPractice ? '使用中' : '未使用') + (aws.isUsedForCurrentPractice ? '\n最終判定補正: ' + aws.finalJudgeOffsetMs + 'ms' : '\n理由: ' + aws.messageForUser)) : ('候補: ' + (wc && wc.saveOffsetMs != null ? Math.round(wc.saveOffsetMs) + 'ms' : '–') + '\n保存状態: 未保存\n保存先: androidWiredMicOffsetMs\n現在のPractice判定: 未使用\n理由: Android有線専用補正がまだ保存されていません'))) : '') + (isBuiltinRun ? ('\n──\nAndroid本体マイク補正\n' + (abms.hasAndroidBuiltinMicOffset ? ('保存値: ' + abms.savedOffsetMs + 'ms\n推定入力遅延: ' + (abms.measurementDelayEstimateMs != null ? abms.measurementDelayEstimateMs + 'ms' : '–') + '\n現在のPractice判定: ' + (abms.isUsedForCurrentPractice ? '使用中' : '未使用') + (abms.isUsedForCurrentPractice ? '\n最終判定補正: ' + abms.finalJudgeOffsetMs + 'ms' : '\n理由: ' + abms.messageForUser)) : ('候補: ' + (bc && bc.saveOffsetMs != null ? Math.round(bc.saveOffsetMs) + 'ms' : '–') + '\n保存状態: 未保存\n保存先: androidBuiltinMicOffsetMs\n現在のPractice判定: 未使用\n理由: Android本体マイク専用補正がまだ保存されていません'))) : '') + (run.androidLatencyBreakdown ? '\n──\nAndroid遅延内訳ログを追加しました。コピーして確認できます。' : '') + '\n・保存ボタンを押すとAndroid専用補正として保存できます';
+        const phase2Html = iphoneBtPhase2VisualizationHtml(two);
+        if (phase2Html) {
+            els.androidCheckResult.innerHTML = '<div style="white-space:pre-wrap;">' + escapeHtml(els.androidCheckResult.textContent) + '</div>' + phase2Html;
+        }
         els.androidCheckResult.classList.remove('hidden');
         refreshAllAndroidSaveButtons();
     }
@@ -15641,8 +15752,14 @@ function scheduleIphoneBtFineMarker(ctx, atSec) {
     src.start(atSec);
     return true;
 }
+function iphoneBtPhase2Label(diffMs) {
+    if (!Number.isFinite(diffMs)) return 'MISS';
+    if (Math.abs(diffMs) <= IPHONE_BT_PHASE2_GOOD_WINDOW_MS) return 'GOOD';
+    return diffMs < 0 ? 'EARLY' : 'LATE';
+}
 async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
     const r1 = (v) => v == null ? null : Math.round(v * 10) / 10;
+    const r3 = (v) => v == null ? null : Math.round(v * 1000) / 1000;
     const sorted = (xs) => xs.filter(Number.isFinite).slice().sort((a, b) => a - b);
     const med = (xs) => { const a = sorted(xs); return a.length ? a[Math.floor(a.length / 2)] : null; };
     const trimmed = (xs) => { const a = sorted(xs); return a.length <= 2 ? a : a.slice(1, a.length - 1); };
@@ -15665,6 +15782,12 @@ async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
             usableDetectionCount: 0,
             onsetResidualsMs: [],
             peakResidualsMs: [],
+            events: [],
+            missingMarkers: [],
+            extraDetectedEvents: [],
+            labelCounts: { good: 0, early: 0, late: 0, miss: 0, extra: 0 },
+            goodWindowMs: IPHONE_BT_PHASE2_GOOD_WINDOW_MS,
+            waveformSamples: [],
             medianOnsetResidualMs: null,
             medianPeakResidualMs: null,
             residualMsUsed: null,
@@ -15774,23 +15897,116 @@ async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
             event.soundToNoiseRatio = noise.p95 ? event.normalWindowMaxPeak / noise.p95 : null;
             event.onsetDebug = hpEventOnsetDebug(event, windowFrom, windowTo);
         });
-        const onsetOffsets = events.map((e) => e.onsetDebug && e.onsetDebug.onsetOffsetMs).filter(Number.isFinite);
-        const peakOffsets = events.map((e) => e.normalWindowPeakOffsetMs).filter(Number.isFinite);
-        const onsetResiduals = onsetOffsets.map((v) => r1(v + rough));
-        const peakResiduals = peakOffsets.map((v) => r1(v + rough));
+        const detectedEvents = events
+            .map((event, index) => {
+                const onsetOffset = event.onsetDebug && Number.isFinite(event.onsetDebug.onsetOffsetMs) ? Number(event.onsetDebug.onsetOffsetMs) : null;
+                const peakOffset = Number.isFinite(event.normalWindowPeakOffsetMs) ? Number(event.normalWindowPeakOffsetMs) : null;
+                if (onsetOffset == null && peakOffset == null) return null;
+                return {
+                    detectedEventIndex: index,
+                    sourceMarkerIndex: index,
+                    detectedOnsetMs: onsetOffset != null ? r1(event.scheduledClickMs + onsetOffset) : null,
+                    detectedPeakMs: peakOffset != null ? r1(event.scheduledClickMs + peakOffset) : null,
+                    onsetOffsetMs: onsetOffset != null ? r1(onsetOffset) : null,
+                    peakOffsetMs: peakOffset != null ? r1(peakOffset) : null,
+                    peakToNoise: event.soundToNoiseRatio != null ? Math.round(event.soundToNoiseRatio * 1000) / 1000 : null,
+                };
+            })
+            .filter(Boolean)
+            .sort((a, b) => {
+                const av = a.detectedOnsetMs != null ? a.detectedOnsetMs : a.detectedPeakMs;
+                const bv = b.detectedOnsetMs != null ? b.detectedOnsetMs : b.detectedPeakMs;
+                return av - bv;
+            })
+            .map((event, index) => Object.assign(event, { detectedEventIndex: index }));
+        const phase2Events = [];
+        const missingMarkers = [];
+        const labelCounts = { good: 0, early: 0, late: 0, miss: 0, extra: 0 };
+        events.forEach((marker, markerIndex) => {
+            const detected = detectedEvents[markerIndex] || null;
+            const expectedInputMs = marker.scheduledClickMs - rough;
+            if (!detected) {
+                const row = {
+                    markerIndex,
+                    scheduledMarkerMs: marker.scheduledClickMs,
+                    detectedEventIndex: null,
+                    detectedOnsetMs: null,
+                    detectedPeakMs: null,
+                    onsetDiffMs: null,
+                    peakDiffMs: null,
+                    diffMsUsed: null,
+                    label: 'MISS',
+                    matchMethod: 'sequence',
+                    usedForMedian: false,
+                };
+                phase2Events.push(row);
+                missingMarkers.push({ markerIndex, scheduledMarkerMs: marker.scheduledClickMs, label: 'MISS' });
+                labelCounts.miss++;
+                return;
+            }
+            const onsetDiff = detected.detectedOnsetMs != null ? r1(detected.detectedOnsetMs - expectedInputMs) : null;
+            const peakDiff = detected.detectedPeakMs != null ? r1(detected.detectedPeakMs - expectedInputMs) : null;
+            const diffUsed = onsetDiff != null ? onsetDiff : peakDiff;
+            const label = iphoneBtPhase2Label(diffUsed);
+            const key = label.toLowerCase();
+            if (labelCounts[key] != null) labelCounts[key]++;
+            phase2Events.push({
+                markerIndex,
+                scheduledMarkerMs: marker.scheduledClickMs,
+                expectedInputMs: r1(expectedInputMs),
+                detectedEventIndex: detected.detectedEventIndex,
+                detectedOnsetMs: detected.detectedOnsetMs,
+                detectedPeakMs: detected.detectedPeakMs,
+                onsetDiffMs: onsetDiff,
+                peakDiffMs: peakDiff,
+                diffMsUsed: diffUsed,
+                label,
+                matchMethod: 'sequence',
+                usedForMedian: onsetDiff != null,
+                sourceMarkerIndex: detected.sourceMarkerIndex,
+                peakToNoise: detected.peakToNoise,
+            });
+        });
+        const extraDetectedEvents = detectedEvents.slice(events.length).map((event) => ({
+            detectedEventIndex: event.detectedEventIndex,
+            detectedOnsetMs: event.detectedOnsetMs,
+            detectedPeakMs: event.detectedPeakMs,
+            reason: 'extra-input-event',
+            sourceMarkerIndex: event.sourceMarkerIndex,
+            peakToNoise: event.peakToNoise,
+        }));
+        labelCounts.extra = extraDetectedEvents.length;
+        const onsetResiduals = phase2Events.filter((e) => e.usedForMedian).map((e) => e.onsetDiffMs);
+        const peakResiduals = phase2Events.map((e) => e.peakDiffMs).filter(Number.isFinite);
         const onsetTrim = trimmed(onsetResiduals);
         const peakTrim = trimmed(peakResiduals);
         const residual = med(onsetTrim);
         const fine = Number.isFinite(residual) ? r1(rough - residual) : null;
         const usable = onsetTrim.length >= 6 && residual != null;
+        const waveformSamples = [];
+        events.forEach((event) => {
+            (event.energyTimeline || []).forEach((p) => {
+                waveformSamples.push({
+                    markerIndex: event.index - 1,
+                    tMs: r1(event.scheduledClickMs + p.offsetMs),
+                    offsetMs: p.offsetMs,
+                    value: r3(p.value),
+                });
+            });
+        });
         const lat = hpProbeLatencyMs(ctx);
         debug.phase1.outputLatencyMs = lat.outputLatencyMs;
         debug.phase1.baseLatencyMs = lat.baseLatencyMs;
-        debug.phase2.detectedClickCount = events.filter((e) => Number.isFinite(e.normalWindowPeakOffsetMs)).length;
+        debug.phase2.detectedClickCount = detectedEvents.length;
         debug.phase2.detectedMarkerCount = debug.phase2.detectedClickCount;
         debug.phase2.usableDetectionCount = onsetTrim.length;
         debug.phase2.onsetResidualsMs = onsetResiduals;
         debug.phase2.peakResidualsMs = peakResiduals;
+        debug.phase2.events = phase2Events;
+        debug.phase2.missingMarkers = missingMarkers;
+        debug.phase2.extraDetectedEvents = extraDetectedEvents;
+        debug.phase2.labelCounts = labelCounts;
+        debug.phase2.waveformSamples = waveformSamples;
         debug.phase2.medianOnsetResidualMs = r1(residual);
         debug.phase2.medianPeakResidualMs = r1(med(peakTrim));
         debug.phase2.residualMsUsed = r1(residual);
@@ -15798,13 +16014,6 @@ async function runIphoneBtFineClickProbe(roughOffsetMs, phase1, statusEl) {
         debug.phase2.candidateOffsetMs = fine;
         debug.phase2.confidence = usable ? (onsetTrim.length >= 8 ? 'candidate' : 'weak') : 'failed';
         debug.phase2.failureReason = usable ? null : 'usable-onset-count<6';
-        debug.phase2.events = events.map((e) => ({
-            index: e.index,
-            scheduledClickMs: e.scheduledClickMs,
-            onsetOffsetMs: e.onsetDebug ? e.onsetDebug.onsetOffsetMs : null,
-            peakOffsetMs: e.normalWindowPeakOffsetMs,
-            peakToNoise: e.soundToNoiseRatio != null ? Math.round(e.soundToNoiseRatio * 1000) / 1000 : null,
-        }));
         debug.phase2Status = usable ? 'candidate' : 'failed';
         debug.fallbackCandidate = fine != null ? fine : r1(rough);
         return debug;
