@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.8';
+const RHYTHM_CRUISE_VERSION = '0.12.9';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -16068,6 +16068,38 @@ function finalCheckMedianMs(xs) {
     const m = Math.floor(a.length / 2);
     return a.length % 2 ? a[m] : Math.round((a[m - 1] + a[m]) / 2 * 10) / 10;
 }
+function finalCheckUsesPracticeOnlyJudgeOffset() {
+    return isIphoneAndroidTrialFlow() && isNormalMicInput();
+}
+function finalCheckJudgeOffsetMs() {
+    return finalCheckUsesPracticeOnlyJudgeOffset() ? micJudgeOffsetMs() : wizardMicJudgeOffsetMs();
+}
+function finalCheckOffsetComparisonInfo() {
+    const actualUsedJudgeOffsetMs = Number(finalCheckJudgeOffsetMs());
+    const practiceJudgeOffsetMs = Number(micJudgeOffsetMs());
+    const wizardJudgeOffsetMs = Number(wizardMicJudgeOffsetMs());
+    const latencyOffsetMs = isIphoneAndroidTrialFlow() ? Number(iphoneAndroidTrialCurrentOffsetMs()) : 0;
+    const strokeInputDelayMs = Number(test.strokeInputDelayMs || 0);
+    const combinedOffsetMs = strokeInputDelayMs + (Number.isFinite(latencyOffsetMs) ? latencyOffsetMs : 0);
+    const practicePlusLatencyOffsetMs = practiceJudgeOffsetMs + (Number.isFinite(latencyOffsetMs) ? latencyOffsetMs : 0);
+    const doubleApplyDetected = isIphoneAndroidTrialFlow()
+        && isNormalMicInput()
+        && Number.isFinite(practiceJudgeOffsetMs)
+        && Number.isFinite(wizardJudgeOffsetMs)
+        && Math.abs(wizardJudgeOffsetMs - practiceJudgeOffsetMs) >= 1;
+    return {
+        actualUsedJudgeOffsetMs,
+        practiceJudgeOffsetMs,
+        wizardJudgeOffsetMs,
+        strokeInputDelayMs: Number.isFinite(strokeInputDelayMs) ? strokeInputDelayMs : 0,
+        latencyOffsetMs: Number.isFinite(latencyOffsetMs) ? latencyOffsetMs : 0,
+        combinedOffsetMs: Number.isFinite(combinedOffsetMs) ? combinedOffsetMs : null,
+        practicePlusLatencyOffsetMs: Number.isFinite(practicePlusLatencyOffsetMs) ? practicePlusLatencyOffsetMs : null,
+        currentOffsetMs: actualUsedJudgeOffsetMs,
+        doubleApplyDetected,
+        doubleApplyFixed: doubleApplyDetected && Math.abs(actualUsedJudgeOffsetMs - practiceJudgeOffsetMs) < 0.5,
+    };
+}
 function finalCheckStatsForOffsetPrediction(currentDiffMsList, currentOffsetMs, usedOffsetMs) {
     const curOff = Number(currentOffsetMs);
     const nextOff = Number(usedOffsetMs);
@@ -16098,7 +16130,8 @@ function finalCheckStatsForOffsetPrediction(currentDiffMsList, currentOffsetMs, 
 }
 function buildFinalCheckOffsetComparison(currentStats) {
     if (!isIphoneAndroidTrialFlow() || !currentStats) return null;
-    const currentOffsetMs = Number(wizardMicJudgeOffsetMs());
+    const offsetInfo = finalCheckOffsetComparisonInfo();
+    const currentOffsetMs = Number(offsetInfo.currentOffsetMs);
     if (!Number.isFinite(currentOffsetMs)) return null;
     const currentDiffMsList = Array.isArray(currentStats.diffMsList) ? currentStats.diffMsList : [];
     return {
@@ -16108,6 +16141,15 @@ function buildFinalCheckOffsetComparison(currentStats) {
         selectedTestPlatform,
         selectedInputType: getMicInputType(),
         selectedHeadphoneType: isHeadphoneInput() ? getHeadphoneType() : null,
+        actualUsedJudgeOffsetMs: offsetInfo.actualUsedJudgeOffsetMs,
+        practiceJudgeOffsetMs: offsetInfo.practiceJudgeOffsetMs,
+        wizardJudgeOffsetMs: offsetInfo.wizardJudgeOffsetMs,
+        strokeInputDelayMs: offsetInfo.strokeInputDelayMs,
+        latencyOffsetMs: offsetInfo.latencyOffsetMs,
+        combinedOffsetMs: offsetInfo.combinedOffsetMs,
+        practicePlusLatencyOffsetMs: offsetInfo.practicePlusLatencyOffsetMs,
+        doubleApplyDetected: offsetInfo.doubleApplyDetected,
+        doubleApplyFixed: offsetInfo.doubleApplyFixed,
         currentOffsetMs,
         noOffsetMs: 0,
         invertedOffsetMs: -currentOffsetMs,
@@ -16146,7 +16188,7 @@ function finishPracticeTest() {
         minDiffMs: diffMsList.length ? Math.min(...diffMsList) : null,
         maxDiffMs: diffMsList.length ? Math.max(...diffMsList) : null,
         diffMsList,
-        usedJudgeOffsetMs: offDbg ? offDbg.finalJudgeOffsetMs : micJudgeOffsetMs(),
+        usedJudgeOffsetMs: finalCheckJudgeOffsetMs(),
         usedOffsetSource: offDbg ? offDbg.usedOffsetSource : null,
     };
     r.finalCheckOffsetComparison = buildFinalCheckOffsetComparison(r.finalCheckStats);
@@ -23024,7 +23066,7 @@ function micLoop() {
         }
         if (pt.capturing) {
             // STAGEと同じ「オーディオ時計＋判定オフセット」で時刻化（補正値は読むだけ・変更しない）
-            const tMs = (state.audioCtx.currentTime - pt.audioStart) * 1000 + wizardMicJudgeOffsetMs();
+            const tMs = (state.audioCtx.currentTime - pt.audioStart) * 1000 + finalCheckJudgeOffsetMs();
             const ni = Math.round((tMs - pt.playT0Ms) / PT_BEAT_MS);
             // 各拍のpeakは許容窓内なら更新（v0.9.78）。最寄り拍だけだとMISS拍の波形ヒントが欠ける。
             for (let bi = 0; bi < PT_PLAY_BEATS; bi++) {
