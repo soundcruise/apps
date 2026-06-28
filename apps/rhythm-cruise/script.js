@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.14';
+const RHYTHM_CRUISE_VERSION = '0.12.15';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13572,6 +13572,11 @@ function renderWizardAndroidLatencyResult(run) {
 /* v0.11.59：Android式測定の保存ボタン表示（詳細チェック＋ウィザードを同時更新）。 */
 function androidTestPlatformSelected() {
     if (isAndroidStyleCorrectionFlow()) return true;
+    // v0.12.15：iPhone本番（ios）は明示的にAndroid型扱いしない。直前にiPhone仮/Android本番のイヤホン音声チェックを
+    //   実行すると headphoneAudioProbe.run（kind='androidAudioCheck'）が残り、下のフォールバックが true を返して
+    //   iPhone本番イヤホンの btdelay が Android型UI（wizard-android-bt-block）に化け、旧クリック音入力テストの
+    //   開始ボタンが効かなくなっていた。iPhone本番は常に旧iOSルートを使う。判定・保存ロジックには影響しない。
+    if (selectedTestPlatform === 'ios') return false;
     const run = headphoneAudioProbe.run;
     return !!(run && run.kind === 'androidAudioCheck'
         && (run.selectedTestPlatform === 'android' || run.selectedTestPlatform === 'iphone_android_trial'));
