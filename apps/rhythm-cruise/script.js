@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.13';
+const RHYTHM_CRUISE_VERSION = '0.12.14';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14968,11 +14968,56 @@ function androidVolumeTestReadiness(target) {
     const candidateOk = wouldLikelyProduceCandidate || candidateLikeCount > 0;
     const loudEnough = peakToThresholdRatio != null && peakToThresholdRatio >= 4;
     const VM_SMALL_RATIO = 2;
-    let mStatus, mReason, mUserMessage, mAction;
-    if (noiseStatus === 'high' || simpleWaveformAnalysis.isNoiseTooHigh) {
+    // v0.12.14：Bluetooth入力特性への対応（platform分岐ではなく headphoneType=bluetooth で分ける）。
+    //   Bluetoothはマイク入力がAGC/圧縮でバースト的になり、burstPeakMedian が小さくても本測定では
+    //   shortNoiseFallback 等で測定が成立する。よって候補化が短区間で不安定でも、波形が十分見えていれば
+    //   「音量が足りません」にはしない。判定・保存・候補ロジックには一切影響しない（読むだけ）。
+    const isBluetoothVolumeProbe = (target === 'bluetooth');
+    // Bluetoothで「波形が十分見えている」かの指標（median基準は使わない：BTは median が小さくなりがち）。
+    const strongBtSignal = peakLevel >= 0.1
+        || (peakToThresholdRatio != null && peakToThresholdRatio >= 20)
+        || simpleWaveformAnalysis.usableBurstCount >= 4
+        || simpleWaveformAnalysis.burstPeakMedian >= threshold * 4;
+    const btSignalVisible = simpleWaveformAnalysis.visibleWaveformScore >= 0.4
+        || simpleWaveformAnalysis.repeatedBurstCount >= 4
+        || (simpleWaveformAnalysis.burstToNoiseRatio != null && simpleWaveformAnalysis.burstToNoiseRatio >= 4);
+    let mStatus, mReason, mUserMessage, mAction, mUiText;
+    if (isBluetoothVolumeProbe) {
+        // BTのノイズ判定は peakLevel基準の noiseStatus のみ（median基準の isNoiseTooHigh は誤発火しやすい）。
+        if (noiseStatus === 'high') {
+            mStatus = 'ng'; mReason = 'bt-noise-too-high';
+            mUserMessage = '周囲のノイズが大きく、測定しづらい状態です。';
+            mAction = '静かな場所で再テストしてください。';
+            mUiText = '周囲のノイズが大きく、測定しづらい状態です。静かな場所で再テストしてください';
+        } else if (strongBtSignal || btSignalVisible) {
+            if (candidateOk) {
+                mStatus = 'ok'; mReason = 'bt-measurement-ready';
+                mUserMessage = '波形は十分に出ています。本測定を始められそうです。';
+                mAction = 'このまま本測定を開始できます。';
+                mUiText = '波形は十分に出ています。本測定を始められそうです';
+            } else {
+                // 波形は出ているが短区間では候補化が不安定。本測定（shortNoiseFallback等）では成立しうる。
+                mStatus = 'unstable'; mReason = 'bt-signal-visible-candidate-unstable';
+                mUserMessage = '音量は出ていますが、測定値がばらつく可能性があります。';
+                mAction = 'イヤホンとマイクの位置を固定して、本測定を始めてください。';
+                mUiText = '音量は出ていますが、測定値がばらつく可能性があります';
+            }
+        } else if (peakToThresholdRatio != null && peakToThresholdRatio >= VM_SMALL_RATIO) {
+            mStatus = 'weak'; mReason = 'bt-waveform-weak';
+            mUserMessage = '波形が小さめです。端末音量を上げるか、イヤホンをマイクに近づけてください。';
+            mAction = '端末音量を上げるか、イヤホンをマイクに近づけてください。';
+            mUiText = '音は入っていますが、波形が小さめです';
+        } else {
+            mStatus = 'ng'; mReason = 'bt-no-signal';
+            mUserMessage = 'ほとんど音が入っていません。';
+            mAction = '端末音量を上げるか、イヤホンをマイクに近づけてください。';
+            mUiText = '音量が足りません。端末音量を上げるか、イヤホンをマイクに近づけてください';
+        }
+    } else if (noiseStatus === 'high' || simpleWaveformAnalysis.isNoiseTooHigh) {
         mStatus = 'ng'; mReason = 'noise-too-high';
         mUserMessage = '周囲のノイズが大きく、測定しづらい状態です。';
         mAction = '静かな場所で再テストしてください。';
+        mUiText = '周囲のノイズが大きく、測定しづらい状態です。静かな場所で再テストしてください';
     } else if (peakToThresholdRatio == null || peakToThresholdRatio < VM_SMALL_RATIO || simpleWaveformAnalysis.isWaveformTooSmall) {
         // 波形が小さい：1倍以上なら weak（あと少し）、未満は ng（明確に不足）。
         mStatus = (peakToThresholdRatio != null && peakToThresholdRatio >= 1 && !simpleWaveformAnalysis.isWaveformTooSmall) ? 'weak' : 'ng';
@@ -14981,24 +15026,32 @@ function androidVolumeTestReadiness(target) {
             ? '音は入っていますが、測定に使える波形がまだ弱めです。'
             : '音量が足りません。';
         mAction = '端末音量を上げるか、イヤホンとマイクの位置を近づけてください。';
+        mUiText = mStatus === 'weak' ? '音は入っていますが、測定に使える波形が弱めです' : '音量が足りません。端末音量を上げるか、イヤホンをマイクに近づけてください';
     } else if (loudEnough && candidateOk && !simpleWaveformAnalysis.isWaveformUnstable) {
         mStatus = 'ok'; mReason = 'measurement-ready';
         mUserMessage = '測定を始められそうです。';
         mAction = 'このまま本測定を開始できます。';
+        mUiText = '測定を始められそうです';
     } else if (loudEnough && (!candidateOk || simpleWaveformAnalysis.isWaveformUnstable) && simpleWaveformAnalysis.usableBurstCount >= 2 && stableDetectedCount >= 6) {
         mStatus = 'unstable'; mReason = 'waveform-unstable';
         mUserMessage = '音は入っていますが、測定に使える波形が安定していません。';
         mAction = 'イヤホンとマイクの位置を固定して、もう少し大きく入るようにしてください。';
+        mUiText = '音は入っていますが、測定に使える波形が安定していません';
     } else {
         mStatus = 'weak'; mReason = 'waveform-weak';
         mUserMessage = '音は入っていますが、測定に使える波形がまだ弱めです。';
         mAction = '端末音量を上げるか、イヤホンとマイクの位置を近づけてください。';
+        mUiText = '音は入っていますが、測定に使える波形が弱めです';
     }
     const volumeMeasurementReadiness = {
         status: mStatus,
         reason: mReason,
         userMessage: mUserMessage,
         recommendedAction: mAction,
+        uiText: mUiText,
+        isBluetoothVolumeProbe,
+        strongBtSignal: isBluetoothVolumeProbe ? strongBtSignal : null,
+        btSignalVisible: isBluetoothVolumeProbe ? btSignalVisible : null,
         peakLevel: Math.round(peakLevel * 1000000) / 1000000,
         threshold,
         peakToThresholdRatio,
@@ -15006,7 +15059,7 @@ function androidVolumeTestReadiness(target) {
         candidateLikeCount,
         wouldLikelyProduceCandidate,
         noiseStatus,
-        noiseReason: (noiseStatus === 'high' || simpleWaveformAnalysis.isNoiseTooHigh) ? 'noise-floor-near-signal' : null,
+        noiseReason: (noiseStatus === 'high' || (!isBluetoothVolumeProbe && simpleWaveformAnalysis.isNoiseTooHigh)) ? 'noise-floor-near-signal' : null,
         simpleWaveformScore: simpleWaveformAnalysis.visibleWaveformScore,
         usableBurstCount: simpleWaveformAnalysis.usableBurstCount,
         repeatedBurstCount: simpleWaveformAnalysis.repeatedBurstCount,
@@ -15049,10 +15102,13 @@ function androidVolumeTestStatusForReadiness(readiness) {
     //   技術理由は出さず、ユーザー向けに丸めた文言を出す。
     const m = readiness.volumeMeasurementReadiness || null;
     if (m) {
+        // v0.12.14：表示文言は readiness 側で確定した uiText を使う（Bluetooth入力特性の文言もここに含まれる）。
+        const kind = m.status === 'ok' ? 'ok' : (m.status === 'ng' ? 'retry' : 'warn');
+        if (m.uiText) return { kind, text: m.uiText };
         if (m.status === 'ok') return { kind: 'ok', text: '測定を始められそうです' };
         if (m.status === 'unstable') return { kind: 'warn', text: '音は入っていますが、測定に使える波形が安定していません' };
         if (m.status === 'weak') return { kind: 'warn', text: '音は入っていますが、測定に使える波形が弱めです' };
-        if (m.reason === 'noise-too-high') return { kind: 'retry', text: '周囲のノイズが大きく、測定しづらい状態です。静かな場所で再テストしてください' };
+        if (m.reason === 'noise-too-high' || m.reason === 'bt-noise-too-high') return { kind: 'retry', text: '周囲のノイズが大きく、測定しづらい状態です。静かな場所で再テストしてください' };
         return { kind: 'retry', text: '音量が足りません。端末音量を上げるか、イヤホンをマイクに近づけてください' };
     }
     // フォールバック（旧 volumeLevelReadiness）
@@ -15546,6 +15602,8 @@ const finalCheckFlowDebug = {
     lastFinalCheckVisualOffsetDebug: null,
     // v0.12.12：iPhone仮の production / trial / wizard offset 比較ログ（表示専用）。
     lastIphoneTrialOffsetComparison: null,
+    // v0.12.14：Bluetooth限定の production / bluetoothOnly / trial / wizard offset 仮説比較ログ（表示専用）。
+    lastBluetoothOffsetHypothesisComparison: null,
 };
 
 function errorForCorrectionFlowLog(err) {
@@ -15672,6 +15730,7 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
         finalCheckOffsetComparison: finalCheckFlowDebug.lastFinalCheckOffsetComparison || null,
         finalCheckVisualOffsetDebug: finalCheckFlowDebug.lastFinalCheckVisualOffsetDebug || null,
         iphoneTrialOffsetComparison: finalCheckFlowDebug.lastIphoneTrialOffsetComparison || null,
+        bluetoothOffsetHypothesisComparison: finalCheckFlowDebug.lastBluetoothOffsetHypothesisComparison || null,
         bluetoothCandidateComparison: finalCheckFlowDebug.lastBluetoothCandidateComparison || null,
         bluetoothFinalCheckPrediction: finalCheckFlowDebug.lastBluetoothFinalCheckPrediction || null,
     };
@@ -16628,6 +16687,84 @@ function buildIphoneTrialOffsetComparison(currentStats) {
     };
 }
 
+/* v0.12.14：Bluetooth入力限定。最終確認テストの実diffから、
+   production（timingOffsetMs + btOffset＝現在の実判定）／bluetoothOnly（btOffset単独・timing非加算）／
+   trial（Android型測定値）／wizard（timing + trial）で「もしその値で判定していたら」を比較する診断ログ（表示専用）。
+   実判定（finalCheckJudgeOffsetMs＝micJudgeOffsetMs）は一切変えない。読むだけ。
+   目的：Bluetoothで timingOffsetMs を足すと過補正なのか、btOffset単独の方が自然なのかをログで判断できるようにする。
+   ※ platformSplitNeeded は原則 false（micJudgeOffsetMs(BT)=timingOffsetMs+btOffset は iPhone本番/iPhone仮/Android本番
+      すべて同一構造のため、timingを足すかは platform ではなく Bluetooth共通の設計判断）。 */
+function buildBluetoothOffsetHypothesisComparison(currentStats) {
+    if (!isBluetoothHeadphone() || !currentStats) return null;
+    const currentDiffMsList = Array.isArray(currentStats.diffMsList) ? currentStats.diffMsList : [];
+    const timingOffsetMs = Number(mic.timingOffsetMs) || 0;
+    // micJudgeOffsetMs() がBTで使うBT成分（Android保存値があればそれ、なければ bluetoothMicOffsetMs）。
+    const androidBt = Number(mic.androidBluetoothMicOffsetMs);
+    const usesAndroidBt = androidAudioProbeDeviceInfo().isAndroid && Number.isFinite(androidBt) && androidBt !== 0;
+    const bluetoothMicOffsetMs = usesAndroidBt ? androidBt : (Number(mic.bluetoothMicOffsetMs) || 0);
+    const bluetoothOnlyOffsetMs = bluetoothMicOffsetMs;                       // timingを足さない仮説
+    const timingPlusBluetoothOffsetMs = timingOffsetMs + bluetoothMicOffsetMs; // = micJudgeOffsetMs()（現在の実判定）
+    const currentProductionOffsetMs = Number(micJudgeOffsetMs());
+    const trialMeasuredOffsetMs = isIphoneAndroidTrialFlow() ? Number(iphoneAndroidTrialCurrentOffsetMs()) : null;
+    const wizardOffsetMs = Number(wizardMicJudgeOffsetMs());
+    // 予測の基準 currentOffsetMs は、finalCheckStats.usedJudgeOffsetMs と一致するときだけそれを使う。
+    const usedJudgeOffsetMs = Number(currentStats.usedJudgeOffsetMs);
+    const actualOffsetMs = Number(finalCheckJudgeOffsetMs());
+    const currentOffsetConsistentWithUsed = Number.isFinite(usedJudgeOffsetMs) && Math.abs(usedJudgeOffsetMs - actualOffsetMs) < 0.5;
+    const currentOffsetMs = currentOffsetConsistentWithUsed ? usedJudgeOffsetMs : actualOffsetMs;
+    if (!Number.isFinite(currentOffsetMs)) return null;
+    const predict = (off) => Number.isFinite(off) ? finalCheckStatsForOffsetPrediction(currentDiffMsList, currentOffsetMs, off) : null;
+    const currentStatsPred = predict(currentProductionOffsetMs);
+    const bluetoothOnlyPredictedStats = predict(bluetoothOnlyOffsetMs);
+    const trialPredictedStats = (trialMeasuredOffsetMs != null) ? predict(trialMeasuredOffsetMs) : null;
+    const wizardPredictedStats = predict(wizardOffsetMs);
+    // どれが自然か（GOOD最大・平均ズレ|0|最小）。実判定は変えない・参考のみ。
+    const score = (s) => s ? (s.good * 1000) - Math.abs(Number(s.avgDiffMs) || 0) : -Infinity;
+    const ps = score(currentStatsPred), bs = score(bluetoothOnlyPredictedStats);
+    let recommendationHint = 'similar';
+    if (bs > ps + 0.5) recommendationHint = 'bluetooth_only_looks_better';
+    else if (ps > bs + 0.5) recommendationHint = 'production_offset_looks_better';
+    // raw/pattern系の参考予測（正式採用はしない・selectedForSave優先順位は変えない）。
+    const btPrediction = androidBluetoothFinalCheckPrediction(Number(currentStats.avgDiffMs));
+    const rawPatternReference = btPrediction ? {
+        ifDoubleRaw: btPrediction.ifDoubleRaw || null,
+        ifTripleRaw: btPrediction.ifTripleRaw || null,
+        ifDoublePattern: btPrediction.ifDoublePattern || null,
+        ifTriplePattern: btPrediction.ifTriplePattern || null,
+        ifSelectedForSave: btPrediction.ifSelectedForSave || null,
+        note: '正式採用不可の参考値。rawOffsetMedianMs/readableSingle は保存候補に使わない方針を維持。',
+    } : null;
+    return {
+        enabled: true,
+        reason: 'bluetooth_offset_hypothesis',
+        correctionFlowKind: correctionFlowKind(),
+        selectedInputType: getMicInputType(),
+        selectedHeadphoneType: getHeadphoneType(),
+        comparisonFormula: 'predictedDiffMs = currentDiffMs - currentOffsetMs + predictedOffsetMs',
+        currentOffsetMs,
+        currentOffsetConsistentWithUsed,
+        currentProductionOffsetMs,
+        bluetoothOnlyOffsetMs,
+        timingPlusBluetoothOffsetMs,
+        trialMeasuredOffsetMs,
+        wizardOffsetMs,
+        currentStats: currentStatsPred,
+        bluetoothOnlyPredictedStats,
+        trialPredictedStats,
+        wizardPredictedStats,
+        timingOffsetMs,
+        bluetoothMicOffsetMs,
+        btOffsetComponentSource: usesAndroidBt ? 'androidBluetoothMicOffsetMs' : 'bluetoothMicOffsetMs',
+        rawPatternReference,
+        recommendationHint,
+        // iOS/Androidで分けず、Bluetooth共通の補正構造として整理できるかの所見。
+        platformSplitNeeded: false,
+        platformSplitReason: null,
+        btCommonStructureNote: 'micJudgeOffsetMs(BT)=timingOffsetMs+btOffset は iPhone本番/iPhone仮/Android本番すべて同一構造。timingを足すかは platform ではなく Bluetooth共通の設計判断。',
+        note: '実判定は production（timingOffsetMs + btOffset）のまま不変。bluetoothOnly/trial/wizard/raw系は予測・参考のみ。',
+    };
+}
+
 function finishPracticeTest() {
     let good = 0, early = 0, late = 0, miss = 0, sum = 0, validN = 0;
     const diffMsList = []; // v0.11.95：有効入力ごとのズレ（表示・ログ専用）。
@@ -16662,12 +16799,14 @@ function finishPracticeTest() {
     r.finalCheckOffsetComparison = buildFinalCheckOffsetComparison(r.finalCheckStats);
     r.finalCheckVisualOffsetDebug = buildFinalCheckVisualOffsetDebug();
     r.iphoneTrialOffsetComparison = buildIphoneTrialOffsetComparison(r.finalCheckStats);
+    r.bluetoothOffsetHypothesisComparison = buildBluetoothOffsetHypothesisComparison(r.finalCheckStats);
     r.androidBluetoothCandidateComparison = isBluetoothHeadphone() ? (lastAndroidBluetoothCandidateComparison || null) : null;
     r.androidBluetoothFinalCheckPrediction = androidBluetoothFinalCheckPrediction(avg);
     finalCheckFlowDebug.lastFinalCheckStats = r.finalCheckStats;
     finalCheckFlowDebug.lastFinalCheckOffsetComparison = r.finalCheckOffsetComparison;
     finalCheckFlowDebug.lastFinalCheckVisualOffsetDebug = r.finalCheckVisualOffsetDebug;
     finalCheckFlowDebug.lastIphoneTrialOffsetComparison = r.iphoneTrialOffsetComparison;
+    finalCheckFlowDebug.lastBluetoothOffsetHypothesisComparison = r.bluetoothOffsetHypothesisComparison;
     finalCheckFlowDebug.lastBluetoothCandidateComparison = r.androidBluetoothCandidateComparison;
     finalCheckFlowDebug.lastBluetoothFinalCheckPrediction = r.androidBluetoothFinalCheckPrediction;
     if (r.finalCheckOffsetDebug) console.info('[final-check] offset', r.finalCheckOffsetDebug);
