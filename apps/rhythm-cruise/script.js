@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.64';
+const RHYTHM_CRUISE_VERSION = '0.12.65';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -12726,15 +12726,14 @@ function setMicInputType(type) {
 }
 function updateMicInputTypeUI() {
     const t = getMicInputType();
-    const androidTrial = isAndroidIphoneStyleTrialFlow();
     if (els.inputTypeNormal) {
-        els.inputTypeNormal.classList.toggle('is-active', !androidTrial && t === 'normal');
-        els.inputTypeNormal.classList.toggle('hidden', androidTrial);
-        els.inputTypeNormal.disabled = androidTrial;
+        els.inputTypeNormal.classList.toggle('is-active', t === 'normal');
+        els.inputTypeNormal.classList.remove('hidden');
+        els.inputTypeNormal.disabled = false;
     }
     if (els.inputTypeHeadphone) els.inputTypeHeadphone.classList.toggle('is-active', t === 'headphone');
-    if (els.inputTypeNote) els.inputTypeNote.textContent = androidTrial
-        ? 'Android仮は試験中のため、有線イヤホン / Bluetoothイヤホンのみ対応しています。'
+    if (els.inputTypeNote) els.inputTypeNote.textContent = isAndroidIphoneStyleTrialFlow()
+        ? 'Android仮では、通常マイクは現行Android式、有線 / BluetoothイヤホンはiPhone式の音ズレ・遅延テストで確認します。'
         : (MIC_INPUT_TYPE_NOTE[t] || MIC_INPUT_TYPE_NOTE.normal);
     if (els.testInputNote) els.testInputNote.textContent = MIC_TEST_NOTE_BY_TYPE[t] || MIC_TEST_NOTE_BY_TYPE.normal;
     // 入力タイプに応じてカードを出し分ける。
@@ -13345,6 +13344,9 @@ function isIosNewProductionFlow() {
 }
 function isAndroidIphoneStyleTrialFlow() {
     return selectedTestPlatform === 'android_ios_style_trial';
+}
+function isAndroidTrialNormalMicFlow() {
+    return isAndroidIphoneStyleTrialFlow() && isNormalMicInput();
 }
 const IOS_NEW_START_TIMING_OFFSET_MS = -80;
 const IOS_NEW_HEADPHONE_START_TIMING_OFFSET_MS = 0;
@@ -14166,6 +14168,7 @@ function renderWizardAndroidLatencyResult(run) {
 /* v0.11.59：Android式測定の保存ボタン表示（詳細チェック＋ウィザードを同時更新）。 */
 function androidTestPlatformSelected() {
     if (isAndroidStyleCorrectionFlow()) return true;
+    if (isAndroidTrialNormalMicFlow()) return true;
     // v0.12.15：iPhone本番（ios）は明示的にAndroid型扱いしない。直前にiPhone仮/Android本番のイヤホン音声チェックを
     //   実行すると headphoneAudioProbe.run（kind='androidAudioCheck'）が残り、下のフォールバックが true を返して
     //   iPhone本番イヤホンの btdelay が Android型UI（wizard-android-bt-block）に化け、旧クリック音入力テストの
@@ -14645,7 +14648,7 @@ function onWizardAndroidLatencyProceed() {
     scrollToMicTestCard();
 }
 function shouldKeepAndroidBuiltinLatencyAfterMicTest() {
-    if (!isAndroidStyleCorrectionFlow() || !isNormalMicInput()) return false;
+    if (!(isAndroidStyleCorrectionFlow() || isAndroidTrialNormalMicFlow()) || !isNormalMicInput()) return false;
     const saved = isIphoneAndroidTrialFlow() ? Number(iphoneAndroidTrialOffsets.builtin) : Number(mic.androidBuiltinMicOffsetMs);
     return setupProgress.correctionDone && Number.isFinite(saved) && saved !== 0;
 }
@@ -22190,7 +22193,9 @@ function completeBtCalStep() {
             try { console.log('[iosNewDisplayCorrectionInitialDebug]', JSON.stringify(iosNewDisplayCorrectionInitialDebug)); } catch (_) { /* ignore */ }
         }
         if (bt.result.enoughInput) {
-            const displayOffset = (isIosNewProductionFlow() && iosNewDisplayCorrectionInitialDebug)
+            const displayOffset = (isAndroidIphoneStyleTrialFlow() && isBluetoothHeadphone())
+                ? HP_BLUETOOTH_STANDARD_OFFSET_MIC
+                : (isIosNewProductionFlow() && iosNewDisplayCorrectionInitialDebug)
                 ? iosNewDisplayCorrectionInitialDebug.appliedInitialDisplayCorrectionMs
                 : Math.max(HP_OFFSET_MIN, Math.min(HP_OFFSET_MAX, -btMicBefore));
             setHeadphoneOffset(displayOffset);
@@ -23234,12 +23239,9 @@ function applySettingsToUI() {
     if (els.micThreshold) els.micThreshold.style.left = micThresholdMarkerPct() + '%';
     if (els.testThreshold) els.testThreshold.style.left = micThresholdMarkerPct() + '%';
     if (els.setOffset) {
-        // イヤホン時は手拍子テストで得た headphoneMicOffsetGet() を表示・編集（v0.9.226）。
-        // 通常マイク時は従来通り timingOffsetMs。
-        const headphone = isHeadphoneInput();
-        const offsetVal = headphone ? headphoneMicOffsetGet() : mic.timingOffsetMs;
-        els.setOffset.min = headphone ? headphoneMicOffsetMin() : -150;
-        els.setOffset.max = headphone ? headphoneMicOffsetMax() : 150;
+        const offsetVal = manualMicOffsetGet();
+        els.setOffset.min = manualMicOffsetMin();
+        els.setOffset.max = manualMicOffsetMax();
         els.setOffset.value = offsetVal;
         els.setOffsetVal.textContent = (offsetVal > 0 ? '+' : '') + offsetVal + 'ms';
     }
@@ -23342,6 +23344,9 @@ function escapeHtml(t) {
 function useAndroidLatencyFirstFlow() {
     return isAndroidStyleCorrectionFlow();
 }
+function usesAndroidNormalLatencyUi() {
+    return useAndroidLatencyFirstFlow() || isAndroidTrialNormalMicFlow();
+}
 /* ── ウィザードのステップ定義 ───────────────────────────────
    Android本番とiPhone仮のみ v0.11.57 の音ズレ・遅延テスト先行フロー。
    iPhone / iPad は従来どおり、マイク反応テスト後に補正系へ進む。 */
@@ -23351,7 +23356,7 @@ function wizardSteps() {
     if (isHeadphoneInput()) steps.push('hptype');
     if (isAndroidIphoneStyleTrialFlow()) {
         if (!isHeadphoneInput()) {
-            // Android仮は今回イヤホンのみ対象。通常マイクは入力選択でブロックする。
+            steps.push('correction', 'test');
         } else if (isBluetoothHeadphone()) {
             steps.push('btdelay', 'correction', 'test');
         } else {
@@ -23460,8 +23465,9 @@ function wizardStepSummary(id) {
                     const trial = Math.round(iphoneAndroidTrialCurrentOffsetMs());
                     return '音ズレ・遅延テスト：仮補正 ' + (trial > 0 ? '+' : '') + trial + 'ms（既存設定 ' + (mic.timingOffsetMs > 0 ? '+' : '') + mic.timingOffsetMs + 'ms）';
                 }
-                const label = useAndroidLatencyFirstFlow() ? '音ズレ・遅延テスト' : 'マイクの遅れ補正';
-                return label + '：' + (mic.timingOffsetMs > 0 ? '+' : '') + mic.timingOffsetMs + 'ms';
+                const label = usesAndroidNormalLatencyUi() ? '音ズレ・遅延テスト' : 'マイクの遅れ補正';
+                const v = isAndroidTrialNormalMicFlow() ? manualMicOffsetGet() : mic.timingOffsetMs;
+                return label + '：' + (v > 0 ? '+' : '') + v + 'ms';
             }
             return 'イヤホン音ズレの画面補正：' + mic.headphoneOutputOffsetMs + 'ms';
         }
@@ -24044,7 +24050,7 @@ const WIZARD_STEP_LABELS = {
 };
 function wizardStepLabel(id) {
     if (id === 'btdelay') return btDelayStepUserLabel();
-    if (id === 'correction') return isHeadphoneInput() ? 'イヤホン音ズレの画面補正' : (useAndroidLatencyFirstFlow() ? '音ズレ・遅延テスト' : 'マイクの遅れ補正');
+    if (id === 'correction') return isHeadphoneInput() ? 'イヤホン音ズレの画面補正' : (usesAndroidNormalLatencyUi() ? '音ズレ・遅延テスト' : 'マイクの遅れ補正');
     return WIZARD_STEP_LABELS[id] || '';
 }
 function updateBtCalTitleUI() {
@@ -24486,7 +24492,7 @@ function updateWizardFlowPlatformNotes() {
     const msg = selectedTestPlatform === 'android'
         ? 'Android向けの補正テストを行います。'
         : (selectedTestPlatform === 'android_ios_style_trial'
-            ? 'Android仮テスト中です。iPhone式の音ズレ・遅延テストを試します。保存先はAndroid専用補正です。'
+            ? 'Android仮テスト中です。通常マイクは現行Android式、イヤホンはiPhone式の音ズレ・遅延テストを試します。保存先はAndroid専用補正です。'
         : (selectedTestPlatform === 'iphone_android_trial'
             ? 'iPhone仮テスト中です。現在のiPhone本番設定には保存しません。Android設定にも保存しません。ページを再読み込みすると、この仮設定は消えます。selectedTestPlatform: iphone_android_trial'
             : (selectedTestPlatform === 'ios_new'
@@ -24524,10 +24530,6 @@ function ensureWizardPlatformChosenForMidFlow() {
 function onPickInputType(type) {
     stopAndroidBtVolumeTest({ keepMonitor: true });
     if (settingsView === 'steps' && !setupProgress.platformChosen) return;
-    if (isAndroidIphoneStyleTrialFlow() && type !== 'headphone') {
-        if (els.inputTypeNote) els.inputTypeNote.textContent = 'Android仮は現在、有線イヤホン / Bluetoothイヤホンのみ対応しています。';
-        return;
-    }
     const next = (type === 'headphone') ? 'headphone' : 'normal';
     const changed = (getMicInputType() !== next);
     // v0.9.153：切替前の設定を入力タイプ別プロファイルへ退避し、切替後はその種類の設定を復元する。
@@ -24717,11 +24719,11 @@ function renderSettingsSummary() {
     // 保存済み補正値（手動設定と同じ値源・v0.9.226）。
     rows.push(sectionHead('保存済み補正'));
     if (t === 'headphone') {
-        const mo = headphoneMicOffsetGet();
+        const mo = manualMicOffsetGet();
         rows.push(row('音ズレ補正', formatSummaryMs(mo)));
         rows.push(row('イヤホン音ズレの画面補正', mic.headphoneOutputOffsetMs + 'ms'));
     } else {
-        rows.push(row('音ズレ補正', formatSummaryMs(mic.timingOffsetMs)));
+        rows.push(row('音ズレ補正', formatSummaryMs(manualMicOffsetGet())));
     }
     // v0.11.54：Android 3系統の詳細は折りたたみ内へ（iOSでは対象外セクションを常時表示しない）。
     // v0.12.55：生threshold値・低入力プロファイルなど開発/診断向けの値も、この折りたたみ「詳しい数値を見る」へ退避する。
@@ -24764,9 +24766,58 @@ function manualSummaryInputLabel() {
     if (!isHeadphoneInput()) return '本体マイク';
     return getHeadphoneType() === 'bluetooth' ? 'Bluetoothイヤホン' : '有線イヤホン';
 }
-function manualSummaryOffsetMs() {
-    if (isAndroidIphoneStyleTrialFlow() && isHeadphoneInput()) return androidTrialHeadphoneMicOffsetGet();
+function manualAndroidDedicatedOffsetKey() {
+    const key = isBluetoothHeadphone()
+        ? 'androidBluetoothMicOffsetMs'
+        : (isHeadphoneInput() ? 'androidWiredMicOffsetMs' : 'androidBuiltinMicOffsetMs');
+    if (isAndroidIphoneStyleTrialFlow()) return key;
+    if (!androidAudioProbeDeviceInfo().isAndroid) return null;
+    const saved = Number(mic[key]);
+    return Number.isFinite(saved) && saved !== 0 ? key : null;
+}
+function manualMicOffsetGet() {
+    const androidKey = manualAndroidDedicatedOffsetKey();
+    if (androidKey) {
+        if (isAndroidIphoneStyleTrialFlow() && isHeadphoneInput()) return androidTrialHeadphoneMicOffsetGet();
+        const raw = Number(mic[androidKey]);
+        return Number.isFinite(raw) ? raw : 0;
+    }
     return isHeadphoneInput() ? headphoneMicOffsetGet() : mic.timingOffsetMs;
+}
+function manualMicOffsetMin() {
+    const androidKey = manualAndroidDedicatedOffsetKey();
+    if (androidKey) {
+        if (isAndroidIphoneStyleTrialFlow() && isHeadphoneInput()) return androidTrialHeadphoneMicOffsetMin();
+        if (androidKey === 'androidBluetoothMicOffsetMs') return ANDROID_BT_MIC_OFFSET_MIN;
+        if (androidKey === 'androidWiredMicOffsetMs') return ANDROID_WIRED_MIC_OFFSET_MIN;
+        return ANDROID_BUILTIN_MIC_OFFSET_MIN;
+    }
+    return isHeadphoneInput() ? headphoneMicOffsetMin() : -150;
+}
+function manualMicOffsetMax() {
+    const androidKey = manualAndroidDedicatedOffsetKey();
+    if (androidKey) {
+        if (isAndroidIphoneStyleTrialFlow() && isHeadphoneInput()) return androidTrialHeadphoneMicOffsetMax();
+        if (androidKey === 'androidBluetoothMicOffsetMs') return ANDROID_BT_MIC_OFFSET_MAX;
+        if (androidKey === 'androidWiredMicOffsetMs') return ANDROID_WIRED_MIC_OFFSET_MAX;
+        return ANDROID_BUILTIN_MIC_OFFSET_MAX;
+    }
+    return isHeadphoneInput() ? headphoneMicOffsetMax() : 150;
+}
+function manualMicOffsetSet(v) {
+    const androidKey = manualAndroidDedicatedOffsetKey();
+    if (androidKey) {
+        if (isAndroidIphoneStyleTrialFlow() && isHeadphoneInput()) return androidTrialHeadphoneMicOffsetSet(v);
+        const c = clampNum(v, manualMicOffsetMin(), manualMicOffsetMax(), 0);
+        mic[androidKey] = c;
+        return c;
+    }
+    if (isHeadphoneInput()) return headphoneMicOffsetSet(v);
+    mic.timingOffsetMs = clampNum(v, -150, 150, SETTINGS_DEFAULTS.timingOffsetMs);
+    return mic.timingOffsetMs;
+}
+function manualSummaryOffsetMs() {
+    return manualMicOffsetGet();
 }
 function renderManualSummary() {
     const row = (k, v) => '<div class="cal-result-row"><span>' + escapeHtml(k) + '</span><b>' + escapeHtml(String(v)) + '</b></div>';
@@ -26212,7 +26263,7 @@ function setCalRunButtonSecondary(on) {
 /* マイクの遅れ補正「未/実施済み」表示（マイク反応テストとデザインを揃える） */
 function updateMicDelayDoneUI() {
     const done = state.micDelayDone;
-    const label = useAndroidLatencyFirstFlow() ? '音ズレ・遅延テスト' : 'マイクの遅れ補正';
+    const label = usesAndroidNormalLatencyUi() ? '音ズレ・遅延テスト' : 'マイクの遅れ補正';
     if (els.calCard) els.calCard.classList.toggle('is-done', done);
     if (els.calHead) els.calHead.textContent = done ? '✅ ' + label + '済み' : label;
     if (els.calDoneBadge) {
@@ -30081,15 +30132,10 @@ function bind() {
     });
     els.setOffset.addEventListener('input', () => {
         const raw = parseInt(els.setOffset.value, 10);
-        // イヤホン時は手拍子テスト由来の補正値を編集（v0.9.226）。通常マイク時は timingOffsetMs。
-        if (isHeadphoneInput()) {
-            headphoneMicOffsetSet(raw);
-            const v = headphoneMicOffsetGet();
-            els.setOffsetVal.textContent = (v > 0 ? '+' : '') + v + 'ms';
-        } else {
-            mic.timingOffsetMs = raw;
-            els.setOffsetVal.textContent = (raw > 0 ? '+' : '') + raw + 'ms';
-            if (els.calCurrentOffset) els.calCurrentOffset.textContent = (raw > 0 ? '+' : '') + raw + 'ms';
+        const v = manualMicOffsetSet(raw);
+        els.setOffsetVal.textContent = (v > 0 ? '+' : '') + v + 'ms';
+        if (!isHeadphoneInput() && !isAndroidIphoneStyleTrialFlow()) {
+            if (els.calCurrentOffset) els.calCurrentOffset.textContent = (v > 0 ? '+' : '') + v + 'ms';
         }
         updateMicDiag();
         syncMicSaveStateUI();
