@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.40';
+const RHYTHM_CRUISE_VERSION = '0.12.41';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -10376,6 +10376,8 @@ function stopForPageHidden() {
     // cancelCalibration/stopBtCal は内部ガード（cal.saved 等）で多重実行しても壊れない（v0.9.140）。
     if (cal.active || mic.calibrating) cancelCalibration();
     stopBtCal();
+    stopIosNewBtVolumeTest('page-hidden');
+    stopIosNewBtDelayPreview();
     // v0.10.35：録音再生中/一時停止中なら完全停止＋クリックoverlay停止。Blob/Object URLは破棄しない。
     const rec = state.practiceRecording;
     if (rec.playbackActive || rec.playbackPaused) stopPracticeRecordingPlayback();
@@ -14320,11 +14322,10 @@ function iosNewBtDelaySoundSpec() {
 }
 const IOS_NEW_BT_DELAY_STRONG_SOUND_MS = 120;
 const IOS_NEW_BT_VOLUME_TEST_BURST_INTERVAL_MS = 1400;
-const IOS_NEW_BT_VOLUME_TEST_DURATION_MS = 12000;
 const iosNewBtVolumeTest = {
-    active: false, hasRun: false, token: 0, loopTimer: 0, stopTimer: 0,
+    active: false, hasRun: false, looping: false, token: 0, loopTimer: 0,
     peaks: [], noiseSamples: [], maxPeak: 0, flowStartPerf: 0,
-    startedAt: null, completedAt: null, result: null,
+    startedAt: null, stoppedAt: null, completedAt: null, stopReason: null, result: null,
     waveformTimelineUpdated: false, timelineSampleCount: 0,
 };
 const iosNewBtPreview = { active: false, raf: 0, flowStartPerf: 0 };
@@ -14332,6 +14333,166 @@ let correctionFlowSnapshotSeq = 0;
 let correctionFlowCopySeq = 0;
 function iosNewFlowDebugNote() {
     return '新iPhoneは従来iPhoneの閉ループ補正（startBtCal/finishBtCal→bluetoothMicOffsetMs）を維持。ステップ順は btdelay→correction→test。音ズレ・遅延テストではクリック音の代わりに強いノイズ音を使用。';
+}
+function isIosNewMicReactionFlow() {
+    return isIosNewProductionFlow() && isBluetoothHeadphone();
+}
+function iosNewMicReactionJudgeOffsetMs() {
+    if (!isIosNewMicReactionFlow()) return 0;
+    return Number(finalCheckJudgeOffsetMs());
+}
+function micTestIosNewReactionInputDelayMs() {
+    if (!isIosNewMicReactionFlow()) return 0;
+    const judge = iosNewMicReactionJudgeOffsetMs();
+    if (!Number.isFinite(judge) || judge >= 0) return 0;
+    return Math.min(800, Math.max(0, -judge));
+}
+function buildIosNewMicReactionOffsetDebug(phase) {
+    const judge = iosNewMicReactionJudgeOffsetMs();
+    const delay = micTestIosNewReactionInputDelayMs();
+    return {
+        enabled: true,
+        selectedTestPlatform,
+        selectedHeadphoneType: getHeadphoneType(),
+        bluetoothMicOffsetMs: mic.bluetoothMicOffsetMs || 0,
+        timingOffsetMs: mic.timingOffsetMs || 0,
+        micJudgeOffsetMs: micJudgeOffsetMs(),
+        finalCheckJudgeOffsetMs: finalCheckJudgeOffsetMs(),
+        usedMicReactionJudgeOffsetMs: judge,
+        usedForClickPhase: phase === 'click' || phase === 'both',
+        usedForStrokePhase: phase === 'stroke' || phase === 'both',
+        nearWindowKept: true,
+        adjustedWindowEnabled: delay > 0,
+        adjustedWindowMs: delay > 0 ? 120 : 0,
+        fallbackReason: delay > 0 ? null : 'judge-offset-not-negative-or-zero',
+    };
+}
+function buildIosNewMicReactionSignConventionDebug(inputDelayMs, nearPeak, adjustedPeak, selectedSource) {
+    const usedOffsetMs = iosNewMicReactionJudgeOffsetMs();
+    return {
+        formula: 'inputDelayMs=min(800,max(0,-finalCheckJudgeOffsetMs())); adjustedWindow=|sinceClick-inputDelayMs|<=120; aligned with finalCheck diff axis (positive offset shifts judged time later)',
+        rawExpectedTimeMs: 0,
+        adjustedExpectedTimeMs: inputDelayMs,
+        usedOffsetMs,
+        expectedShiftDirection: usedOffsetMs < 0 ? 'negative-judge-offset→positive-input-delay→search-later' : 'none',
+        nearPeak: nearPeak != null ? +Number(nearPeak).toFixed(4) : null,
+        adjustedPeak: adjustedPeak != null ? +Number(adjustedPeak).toFixed(4) : null,
+        selectedPeakSource: selectedSource || null,
+    };
+}
+function iosNewMicReactionClickPeakSelection(nearPeak, adjustedPeak, noiseP95) {
+    if (!isIosNewMicReactionFlow()) {
+        return {
+            clickPhaseSelectedPeakSource: 'near',
+            wouldUseAdjustedPeakForReco: false,
+            actualUsedAdjustedPeakForReco: false,
+            fallbackReason: 'not-ios-new-bluetooth',
+        };
+    }
+    const near = Number(nearPeak) || 0;
+    const adj = Number(adjustedPeak) || 0;
+    const noise = Number(noiseP95) || 0;
+    const delayMs = test.clickInputDelayMs || 0;
+    if (!(delayMs > 0)) {
+        return {
+            clickPhaseSelectedPeakSource: 'near',
+            wouldUseAdjustedPeakForReco: false,
+            actualUsedAdjustedPeakForReco: false,
+            fallbackReason: 'zero-input-delay',
+        };
+    }
+    const adjustedValid = Number.isFinite(adj) && adj > near * 1.2 && adj > noise * 3;
+    if (adjustedValid) {
+        return {
+            clickPhaseSelectedPeakSource: 'adjusted',
+            wouldUseAdjustedPeakForReco: true,
+            actualUsedAdjustedPeakForReco: true,
+            fallbackReason: null,
+        };
+    }
+    return {
+        clickPhaseSelectedPeakSource: 'fallback-near',
+        wouldUseAdjustedPeakForReco: adj > near,
+        actualUsedAdjustedPeakForReco: false,
+        fallbackReason: 'adjusted-peak-insufficient',
+    };
+}
+function iosNewMicReactionStrokePeakSelection(nearPeak, adjustedPeak, noiseP95) {
+    if (!isIosNewMicReactionFlow()) {
+        return {
+            strokePhaseSelectedPeakSource: 'near',
+            wouldUseAdjustedPeakForReco: false,
+            actualUsedAdjustedPeakForReco: false,
+            fallbackReason: 'not-ios-new-bluetooth',
+        };
+    }
+    const near = Number(nearPeak) || 0;
+    const adj = Number(adjustedPeak) || 0;
+    const noise = Number(noiseP95) || 0;
+    const delayMs = test.strokeInputDelayMs || 0;
+    if (!(delayMs > 0)) {
+        return {
+            strokePhaseSelectedPeakSource: 'near',
+            wouldUseAdjustedPeakForReco: false,
+            actualUsedAdjustedPeakForReco: false,
+            fallbackReason: 'zero-input-delay',
+        };
+    }
+    const adjustedValid = Number.isFinite(adj) && adj > near * 1.2 && adj > noise * 3;
+    if (adjustedValid) {
+        return {
+            strokePhaseSelectedPeakSource: 'adjusted',
+            wouldUseAdjustedPeakForReco: true,
+            actualUsedAdjustedPeakForReco: true,
+            fallbackReason: null,
+        };
+    }
+    return {
+        strokePhaseSelectedPeakSource: 'fallback-near',
+        wouldUseAdjustedPeakForReco: adj > near,
+        actualUsedAdjustedPeakForReco: false,
+        fallbackReason: 'adjusted-peak-insufficient',
+    };
+}
+function buildIosNewDisplayCorrectionInitialDebug(bluetoothMicOffsetBefore) {
+    if (!isIosNewProductionFlow() || !isBluetoothHeadphone()) return null;
+    const bluetoothMicOffsetMs = Number(bluetoothMicOffsetBefore != null ? bluetoothMicOffsetBefore : mic.bluetoothMicOffsetMs) || 0;
+    const timingOffsetMs = Number(mic.timingOffsetMs) || 0;
+    const headphoneDisplayOffsetMs = Number(strokeDisplayOffsetMs()) || 0;
+    const displayOffsetMs = Number(micJudgeOffsetMs()) + headphoneDisplayOffsetMs;
+    const currentInitialDisplayCorrectionMs = Math.max(HP_OFFSET_MIN, Math.min(HP_OFFSET_MAX, -bluetoothMicOffsetMs));
+    const derivedInitialDisplayCorrectionMs = Math.max(HP_OFFSET_MIN, Math.min(HP_OFFSET_MAX, -(timingOffsetMs + bluetoothMicOffsetMs)));
+    const finalCheckJudge = Number(finalCheckJudgeOffsetMs());
+    const currentFormula = 'clamp(-headphoneMicOffsetGet(), HP_OFFSET_MIN, HP_OFFSET_MAX)';
+    const proposedFormula = 'clamp(-(timingOffsetMs+bluetoothMicOffsetMs), HP_OFFSET_MIN, HP_OFFSET_MAX) [log-only candidate]';
+    let formulaLooksConsistent = Math.abs(currentInitialDisplayCorrectionMs + bluetoothMicOffsetMs) < 0.5;
+    let mismatchReason = null;
+    if (!formulaLooksConsistent) mismatchReason = 'initial-not-negation-of-bluetoothMicOffsetMs';
+    else if (timingOffsetMs !== 0) {
+        mismatchReason = 'display-init-uses-bluetoothMicOffsetMs-only; finalCheckJudgeOffsetMs includes timingOffsetMs';
+        formulaLooksConsistent = false;
+    } else if (Math.abs(finalCheckJudge - (timingOffsetMs + bluetoothMicOffsetMs)) >= 1) {
+        mismatchReason = 'finalCheckJudgeOffsetMs differs from timing+bluetooth sum';
+        formulaLooksConsistent = false;
+    }
+    return {
+        enabled: true,
+        selectedTestPlatform,
+        selectedHeadphoneType: getHeadphoneType(),
+        bluetoothMicOffsetMs,
+        timingOffsetMs,
+        headphoneDisplayOffsetMs,
+        displayOffsetMs,
+        currentInitialDisplayCorrectionMs,
+        derivedInitialDisplayCorrectionMs,
+        derivedFrom: 'negate-bluetoothMicOffsetMs-only',
+        currentFormula,
+        proposedFormula,
+        formulaLooksConsistent,
+        mismatchReason,
+        finalCheckJudgeOffsetMs: finalCheckJudge,
+        note: '画面補正初期値は表示専用。最終確認の usedJudgeOffsetMs は micJudgeOffsetMs 系で別軸。不確実なため保存・判定は変更しない。',
+    };
 }
 let iosNewBtCorrectionRunSeq = 0;
 let iosNewBtCorrectionRunStartedAt = null;
@@ -14544,7 +14705,7 @@ function updateBtCalIosNewUi() {
     const iosNew = usesIosNewStrongBtDelaySound();
     if (els.btCalDoNow) {
         if (iosNew) {
-            els.btCalDoNow.innerHTML = '<span class="bt-cal-loud-warning">強い音が出ます。</span><br>イヤホンを外し、マイク部にイヤホンを押し当ててください';
+            els.btCalDoNow.innerHTML = '<span class="bt-cal-loud-warning">強い音が出ます。</span><br>イヤホンをはずし、音量を最大にして、マイク部にイヤホンを押し当ててください';
         } else {
             els.btCalDoNow.textContent = 'クリック音がマイクに届くタイミングを確認します';
         }
@@ -14571,6 +14732,11 @@ function logIosNewBtVolumeTest(phase) {
     const r = iosNewBtVolumeTest.result;
     const payload = {
         phase,
+        looping: r ? !!r.looping : !!iosNewBtVolumeTest.looping,
+        startedAt: r ? r.startedAt : iosNewBtVolumeTest.startedAt,
+        stoppedAt: r ? r.stoppedAt : iosNewBtVolumeTest.stoppedAt,
+        stopReason: r ? r.stopReason : iosNewBtVolumeTest.stopReason,
+        soundProfile: r ? r.soundProfile : 'short-noise-focused-test',
         waveformTimelineUpdated: r ? r.waveformTimelineUpdated : !!iosNewBtVolumeTest.waveformTimelineUpdated,
         timelineSampleCount: r ? r.timelineSampleCount : (iosNewBtVolumeTest.timelineSampleCount || 0),
         indicatorRemoved: true,
@@ -14623,9 +14789,11 @@ function finishIosNewBtVolumeTestResult() {
     const noiseP95 = noiseSamples.length ? noiseSamples[Math.min(noiseSamples.length - 1, Math.floor(noiseSamples.length * 0.95))] : 0;
     const noiseMax = noiseSamples.length ? noiseSamples[noiseSamples.length - 1] : 0;
     const enoughVolume = maxPeak >= thresholdUsed * 0.85;
+    iosNewBtVolumeTest.looping = false;
     iosNewBtVolumeTest.result = {
         active: false,
         hasRun: true,
+        looping: false,
         soundProfile: 'short-noise-focused-test',
         maxPeak: +maxPeak.toFixed(4),
         medianPeak: medianPeak != null ? +medianPeak.toFixed(4) : null,
@@ -14637,8 +14805,10 @@ function finishIosNewBtVolumeTestResult() {
         timelineSampleCount: iosNewBtVolumeTest.timelineSampleCount || 0,
         indicatorRemoved: true,
         startedAt: iosNewBtVolumeTest.startedAt,
+        stoppedAt: iosNewBtVolumeTest.stoppedAt,
+        stopReason: iosNewBtVolumeTest.stopReason,
         completedAt: new Date().toISOString(),
-        note: '音量テストは補正値保存に使わない。波形はタイムラインへ描画（インジケーターは非表示）。',
+        note: '音量テストは補正値保存に使わない。トグル式連続再生。波形はタイムラインへ描画（白丸インジケーターは非表示）。',
     };
     const msg = enoughVolume
         ? '音量は十分です。このままテストできます。'
@@ -14646,30 +14816,36 @@ function finishIosNewBtVolumeTestResult() {
     setBtCalVolumeStatus(msg);
     logIosNewBtVolumeTest('finish');
 }
-function stopIosNewBtVolumeTest() {
+function stopIosNewBtVolumeTest(stopReason) {
     const wasActive = iosNewBtVolumeTest.active;
     iosNewBtVolumeTest.active = false;
+    iosNewBtVolumeTest.looping = false;
     iosNewBtVolumeTest.token++;
     if (iosNewBtVolumeTest.loopTimer) { clearTimeout(iosNewBtVolumeTest.loopTimer); iosNewBtVolumeTest.loopTimer = 0; }
-    if (iosNewBtVolumeTest.stopTimer) { clearTimeout(iosNewBtVolumeTest.stopTimer); iosNewBtVolumeTest.stopTimer = 0; }
-    if (wasActive) finishIosNewBtVolumeTestResult();
+    if (wasActive) {
+        iosNewBtVolumeTest.stoppedAt = new Date().toISOString();
+        iosNewBtVolumeTest.stopReason = stopReason || 'manual-toggle';
+        finishIosNewBtVolumeTestResult();
+    }
     updateIosNewBtVolumeTestButton();
     if (usesIosNewStrongBtDelaySound() && activeWizardStep() === 'btdelay' && !bt.active) startIosNewBtDelayPreview();
 }
 async function startIosNewBtVolumeTest() {
-    if (iosNewBtVolumeTest.active) { stopIosNewBtVolumeTest(); return; }
+    if (iosNewBtVolumeTest.active) { stopIosNewBtVolumeTest('manual-toggle'); return; }
     if (bt.active) return;
     if (!usesIosNewStrongBtDelaySound()) return;
-    stopIosNewBtVolumeTest();
     if (!(await ensureTestMic())) { setBtCalVolumeStatus('マイクを許可してください。'); return; }
     ensureAudio();
     try { if (state.audioCtx && state.audioCtx.state === 'suspended') await state.audioCtx.resume(); } catch (_) { /* ignore */ }
     iosNewBtVolumeTest.active = true;
+    iosNewBtVolumeTest.looping = true;
     iosNewBtVolumeTest.hasRun = true;
     iosNewBtVolumeTest.peaks = [];
     iosNewBtVolumeTest.noiseSamples = [];
     iosNewBtVolumeTest.maxPeak = 0;
     iosNewBtVolumeTest.startedAt = new Date().toISOString();
+    iosNewBtVolumeTest.stoppedAt = null;
+    iosNewBtVolumeTest.stopReason = null;
     iosNewBtVolumeTest.completedAt = null;
     iosNewBtVolumeTest.result = null;
     iosNewBtVolumeTest.waveformTimelineUpdated = false;
@@ -14688,7 +14864,7 @@ async function startIosNewBtVolumeTest() {
         iosNewBtPreviewLoop();
     }
     hideIosNewBtCalMeter();
-    setBtCalVolumeStatus('音量テスト中… 波形が大きく出るか確認してください。');
+    setBtCalVolumeStatus('音量テスト中… もう一度押すと停止します。波形が大きく出るか確認してください。');
     updateIosNewBtVolumeTestButton();
     logIosNewBtVolumeTest('start');
     const playLoop = async () => {
@@ -14700,17 +14876,14 @@ async function startIosNewBtVolumeTest() {
             const thr = btClickInputThreshold();
             const interimOk = iosNewBtVolumeTest.maxPeak >= thr * 0.85;
             setBtCalVolumeStatus(interimOk
-                ? '音量は十分です。このままテストできます。'
+                ? '音量は十分です。停止するまでテスト音を流し続けます。'
                 : '音量が小さい可能性があります。イヤホンの音が出る部分をマイク部に近づけてください。');
         }
     };
     playLoop();
-    iosNewBtVolumeTest.stopTimer = setTimeout(() => {
-        if (iosNewBtVolumeTest.active && iosNewBtVolumeTest.token === token) stopIosNewBtVolumeTest();
-    }, IOS_NEW_BT_VOLUME_TEST_DURATION_MS);
 }
 function toggleIosNewBtVolumeTest() {
-    if (iosNewBtVolumeTest.active) stopIosNewBtVolumeTest();
+    if (iosNewBtVolumeTest.active) stopIosNewBtVolumeTest('manual-toggle');
     else startIosNewBtVolumeTest();
 }
 function cancelAndroidAudioCheck() {
@@ -17707,9 +17880,11 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
             btCorrectionRunHistory: isIosNewProductionFlow() && isBluetoothHeadphone()
                 ? iosNewBtCorrectionRunHistory.slice() : null,
             iosNewFinalCheckOffsetMismatchDebug: finalCheckFlowDebug.lastIosNewFinalCheckOffsetMismatchDebug || null,
+            iosNewDisplayCorrectionInitialDebug: (bt.result && bt.result.iosNewDisplayCorrectionInitialDebug) || null,
             iosNewBtVolumeTest: iosNewBtVolumeTest.result || (iosNewBtVolumeTest.active ? {
                 active: true,
                 hasRun: iosNewBtVolumeTest.hasRun,
+                looping: !!iosNewBtVolumeTest.looping,
                 soundProfile: 'short-noise-focused-test',
                 maxPeak: iosNewBtVolumeTest.maxPeak,
                 medianPeak: null,
@@ -17718,7 +17893,9 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
                 timelineSampleCount: iosNewBtVolumeTest.timelineSampleCount || 0,
                 indicatorRemoved: true,
                 startedAt: iosNewBtVolumeTest.startedAt,
-                note: '音量テスト実行中（波形タイムラインへ描画）',
+                stoppedAt: iosNewBtVolumeTest.stoppedAt,
+                stopReason: iosNewBtVolumeTest.stopReason,
+                note: '音量テスト実行中（トグル式連続再生・波形タイムラインへ描画）',
             } : (iosNewBtVolumeTest.hasRun ? iosNewBtVolumeTest.result : null)),
             note: iosNewFlowDebugNote(),
         },
@@ -19778,14 +19955,14 @@ function drawBtLane(t) {
             ctx.stroke();
         }
     }
-    // ●（右→左へ流れる）＋拍番号。控えめ表示で、タイミングは音を基準にしてもらう。
-    // v0.9.91：イヤホン音ズレの画面補正（hpDispOff＝上で宣言）を「表示タイミング」にだけ反映する。
-    // クリック音(scheduled)は動かさず、拍マーカーだけをイヤホンで聞こえる音へ寄せる。判定(micJudgeOffsetMs)とは混ぜない。
-    for (let i = 0; i < bt.notes.length; i++) {
-        const n = bt.notes[i];
-        const x = judgeX + (n.t + hpDispOff - t) * ppm;
-        if (x < -28 || x > w + 28) continue;
-        drawClapIcon(ctx, x, yc, n.num);
+    // ●（右→左へ流れる）＋拍番号。新iPhone+Bluetoothの音ズレ/音量テストでは白丸を出さない（波形のみ）。
+    if (!usesIosNewStrongBtDelaySound()) {
+        for (let i = 0; i < bt.notes.length; i++) {
+            const n = bt.notes[i];
+            const x = judgeX + (n.t + hpDispOff - t) * ppm;
+            if (x < -28 || x > w + 28) continue;
+            drawClapIcon(ctx, x, yc, n.num);
+        }
     }
     // 判定ライン（縦・静的。拍頭で強く光る演出はしない＝視覚でタイミング誘導しない・v0.9.82）
     ctx.save();
@@ -19877,7 +20054,7 @@ function renderBtCalIdle() {
         startIosNewBtDelayPreview();
     } else {
         stopIosNewBtDelayPreview();
-        stopIosNewBtVolumeTest();
+        stopIosNewBtVolumeTest('flow-ui-reset');
         if (els.btCalLaneWrap) els.btCalLaneWrap.classList.add('hidden');
         if (els.btCalLive) els.btCalLive.classList.add('hidden');
         setBtCalVolumeStatus('');
@@ -19973,7 +20150,7 @@ async function startBtCal() {
     if (cal.active) cancelCalibration();
     if (test.flow) abortMicTest();
     stopPracticeTest();
-    stopIosNewBtVolumeTest();
+    stopIosNewBtVolumeTest('btdelay-test-start');
     stopIosNewBtDelayPreview();
     resetBtCalTransientUiState();
     if (!(await ensureTestMic())) { setBtCalStatus('マイクを許可してください。'); return; }
@@ -20387,7 +20564,13 @@ function completeBtCalStep() {
     stopBtCal();
     setupProgress.btDelayDone = true;
     if (isBluetoothHeadphone() && bt.result && bt.result.enoughInput) {
-        const displayOffset = Math.max(HP_OFFSET_MIN, Math.min(HP_OFFSET_MAX, -headphoneMicOffsetGet()));
+        const btMicBefore = headphoneMicOffsetGet();
+        const iosNewDisplayCorrectionInitialDebug = buildIosNewDisplayCorrectionInitialDebug(btMicBefore);
+        if (iosNewDisplayCorrectionInitialDebug) {
+            bt.result.iosNewDisplayCorrectionInitialDebug = iosNewDisplayCorrectionInitialDebug;
+            try { console.log('[iosNewDisplayCorrectionInitialDebug]', JSON.stringify(iosNewDisplayCorrectionInitialDebug)); } catch (_) { /* ignore */ }
+        }
+        const displayOffset = Math.max(HP_OFFSET_MIN, Math.min(HP_OFFSET_MAX, -btMicBefore));
         setHeadphoneOffset(displayOffset);
         setupProgress.correctionDone = false;
         if (els.hpCalFromClickNote) {
@@ -22192,7 +22375,7 @@ function renderWizardSteps() {
     // マイクの遅れ補正（btdelay）：他ステップへ移ったら停止。表示時はアイドルUIへ（v0.9.80）
     if (active !== 'btdelay') {
         if (bt.active || bt.timers.length) stopBtCal();
-        stopIosNewBtVolumeTest();
+        stopIosNewBtVolumeTest('wizard-step-change');
         stopIosNewBtDelayPreview();
     }
     if (active === 'btdelay' && !bt.active && els.btCalResult && els.btCalResult.classList.contains('hidden')) {
@@ -23728,6 +23911,19 @@ function micTestRunForDevelopmentLog(run) {
         clickPhaseInputDelayMs: run.clickPhaseInputDelayMs,
         clickPhaseDelayedWindowMs: run.clickPhaseDelayedWindowMs,
         clickPhaseWindowExtended: run.clickPhaseWindowExtended,
+        clickPhaseAdjustedPeaks: run.clickPhaseAdjustedPeaks,
+        clickPhaseMaxAdjustedPeak: run.clickPhaseMaxAdjustedPeak,
+        clickPhaseSelectedPeakSource: run.clickPhaseSelectedPeakSource,
+        wouldUseAdjustedPeakForReco: run.wouldUseAdjustedPeakForReco,
+        actualUsedAdjustedPeakForReco: run.actualUsedAdjustedPeakForReco,
+        strokePhaseNearPeaks: run.strokePhaseNearPeaks,
+        strokePhaseMaxNearPeak: run.strokePhaseMaxNearPeak,
+        strokePhaseMaxAdjustedPeak: run.strokePhaseMaxAdjustedPeak,
+        strokePhaseSelectedPeakSource: run.strokePhaseSelectedPeakSource,
+        strokeWouldUseAdjustedPeakForReco: run.strokeWouldUseAdjustedPeakForReco,
+        strokeActualUsedAdjustedPeakForReco: run.strokeActualUsedAdjustedPeakForReco,
+        iosNewMicReactionOffsetDebug: run.iosNewMicReactionOffsetDebug,
+        signConventionDebug: run.signConventionDebug,
         peakPerPctCurrent: run.peakPerPctCurrent,
         peakPerPctNear: run.peakPerPctNear,
         peakPerPctDelayed: run.peakPerPctDelayed,
@@ -24548,9 +24744,14 @@ function beginClickPhase() {
     updateMicTestDoNow();
     test.clickI = 0; test.clickPeaks = []; test.clickResults = []; test.curPeak = 0;
     // v0.11.74：near/delayed クリックピークの分離測定（測定・ログのみ）
-    test.clickNearPeaks = []; test.clickDelayedPeaks = [];
-    test.curNearPeak = 0; test.curDelayedPeak = 0;
-    test.clickInputDelayMs = micTestClickInputDelayMs(); // = min(800, max(0, -androidBuiltinMicOffsetMs))
+    test.clickNearPeaks = []; test.clickDelayedPeaks = []; test.clickAdjustedPeaks = [];
+    test.curNearPeak = 0; test.curDelayedPeak = 0; test.curAdjustedPeak = 0;
+    if (isIosNewMicReactionFlow()) {
+        test.clickInputDelayMs = micTestIosNewReactionInputDelayMs();
+        test.iosNewMicReactionOffsetDebug = buildIosNewMicReactionOffsetDebug('click');
+    } else {
+        test.clickInputDelayMs = micTestClickInputDelayMs(); // = min(800, max(0, -androidBuiltinMicOffsetMs))
+    }
     test.clickWinExtended = false;
     test.clickMeasureVol = state.clickVolume; // この音量で鳴らした前提で「○%適用後の目安」を後で計算
     // 視覚クリック：レーンを表示してクリックに合わせて点滅
@@ -24567,11 +24768,12 @@ function beginClickPhase() {
             // v0.11.74：前クリックの near/delayed 窓ピークを確定（測定・ログのみ）
             test.clickNearPeaks.push(test.curNearPeak || 0);
             test.clickDelayedPeaks.push(test.curDelayedPeak || 0);
+            test.clickAdjustedPeaks.push(test.curAdjustedPeak || test.curDelayedPeak || 0);
         }
         if (test.clickI >= CLICK_TEST_COUNT) { clearInterval(test.seqTimer); test.seqTimer = 0; endClickPhase(); return; }
         const beat = test.clickI % 4;          // 0=1拍目（アクセント）= 本番と同一
         test.curPeak = 0;
-        test.curNearPeak = 0; test.curDelayedPeak = 0;
+        test.curNearPeak = 0; test.curDelayedPeak = 0; test.curAdjustedPeak = 0;
         test.clickPlayedAt = performance.now();
         test.clickWinFrom = test.clickPlayedAt;
         // v0.11.74：Android通常マイクでは遅延側ピーク(約397ms後)を取りこぼさないよう、必要なら窓を少しだけ後ろへ広げる。
@@ -24831,8 +25033,17 @@ function beginStrokePhase() {
     test.strokeDetected = 0; test.strokeDoubleCount = 0;
     test.btStrokePeriodMax = null; test.btStrokePeriodP75 = null; test.btStrokePeriodP90 = null; test.btDiag = null;
     test.strokeDetectThreshold = testStrokeThreshold(); // 低入力/通常環境ごとに、このテスト中の検出ラインを固定
-    test.strokeInputDelayMs = micTestStrokeInputDelayMs(); // v0.11.77：Android通常/有線/BTそれぞれの保存済み遅延で測定窓を後ろへ補正
-    if (test.runDebug) test.runDebug.strokeInputDelayMs = test.strokeInputDelayMs;
+    test.strokeNearPeaks = [];
+    if (isIosNewMicReactionFlow()) {
+        test.strokeInputDelayMs = micTestIosNewReactionInputDelayMs();
+        test.iosNewMicReactionOffsetDebug = buildIosNewMicReactionOffsetDebug('stroke');
+    } else {
+        test.strokeInputDelayMs = micTestStrokeInputDelayMs(); // v0.11.77：Android通常/有線/BTそれぞれの保存済み遅延で測定窓を後ろへ補正
+    }
+    if (test.runDebug) {
+        test.runDebug.strokeInputDelayMs = test.strokeInputDelayMs;
+        if (test.iosNewMicReactionOffsetDebug) test.runDebug.iosNewMicReactionOffsetDebug = test.iosNewMicReactionOffsetDebug;
+    }
     // 8音符＝1小節（ダウン4・アップ4）。t は flowStart からの相対ms
     test.notes = [];
     const COUNT = 8;
@@ -24873,8 +25084,15 @@ function testFlowLoop() {
     const note = test.notes[test.noteIdx];
     if (note) {
         const strokeDelayMs = test.strokeInputDelayMs || 0;
+        const iosNewDual = isIosNewMicReactionFlow() && strokeDelayMs > 0;
+        const nearOpenT = note.t - TEST_NOTE_WIN;
+        const nearCloseT = note.t + TEST_NOTE_WIN;
         const measureOpenT = note.t - TEST_NOTE_WIN + strokeDelayMs;
         const measureCloseT = note.t + TEST_NOTE_WIN + strokeDelayMs;
+        if (iosNewDual && !note.nearOpened && t >= nearOpenT) {
+            note.nearOpened = true;
+            test.curNearStrokePeak = 0;
+        }
         if (!note.opened && t >= measureOpenT) {
             note.opened = true;
             test.curPeak = 0; test.curOnsets = 0;
@@ -24883,9 +25101,25 @@ function testFlowLoop() {
             test.strokeFrom = now;
             test.strokeUntil = now + TEST_NOTE_WIN * 2;
         }
+        if (iosNewDual && note.nearOpened && !note.nearClosed && t >= nearCloseT) {
+            note.nearClosed = true;
+            test.strokeNearPeaks.push(test.curNearStrokePeak || 0);
+        }
         if (note.opened && !note.closed && t >= measureCloseT) {
             note.closed = true;
-            note.peak = test.curPeak;
+            const nearPeak = iosNewDual ? (test.strokeNearPeaks[test.strokeNearPeaks.length - 1] || 0) : test.curPeak;
+            const adjustedPeak = test.curPeak;
+            const strokeSel = iosNewDual
+                ? iosNewMicReactionStrokePeakSelection(nearPeak, adjustedPeak, test.noiseP95 || 0)
+                : null;
+            note.nearPeak = iosNewDual ? nearPeak : null;
+            note.adjustedPeak = iosNewDual ? adjustedPeak : null;
+            note.peakSource = strokeSel ? strokeSel.strokePhaseSelectedPeakSource : 'near';
+            if (iosNewDual) {
+                note.peak = (strokeSel && strokeSel.actualUsedAdjustedPeakForReco) ? adjustedPeak : nearPeak;
+            } else {
+                note.peak = test.curPeak;
+            }
             note.onsets = test.curOnsets;
             note.aboveMs = test.curAboveMax; // この音符の反応ライン超過時間（最長連続）
             test.strokeUntil = 0;
@@ -25831,6 +26065,27 @@ function updateReco() {
     if (strokePostToLineRatio != null && strokePostToLineRatio >= 1) doubleTriggerRiskReasons.push('post-above-line');
     const doubleTriggerRiskReason = doubleTriggerRiskReasons.length ? doubleTriggerRiskReasons.join(',') : 'none';
 
+    const clickPhaseAdjustedPeaks = (test.clickAdjustedPeaks || test.clickDelayedPeaks || []).slice();
+    const clickPhaseMaxAdjustedPeak = clickPhaseAdjustedPeaks.length ? Math.max(...clickPhaseAdjustedPeaks) : 0;
+    const iosNewClickPeakSel = iosNewMicReactionClickPeakSelection(clickPhaseMaxNearPeak, clickPhaseMaxAdjustedPeak, test.noiseP95 || 0);
+    const iosNewMicReactionOffsetDebug = test.iosNewMicReactionOffsetDebug
+        || (isIosNewMicReactionFlow() ? buildIosNewMicReactionOffsetDebug('both') : null);
+    const signConventionDebug = isIosNewMicReactionFlow()
+        ? buildIosNewMicReactionSignConventionDebug(
+            clickPhaseInputDelayMs,
+            clickPhaseMaxNearPeak,
+            clickPhaseMaxAdjustedPeak,
+            iosNewClickPeakSel.clickPhaseSelectedPeakSource,
+        )
+        : null;
+    const strokeNearPeaks = (test.strokeNearPeaks || []).slice();
+    const strokePhaseMaxNearPeak = strokeNearPeaks.length ? Math.max(...strokeNearPeaks) : 0;
+    const strokePhaseMaxAdjustedPeak = (test.notes || []).map((n) => n.adjustedPeak).filter(Number.isFinite);
+    const strokePhaseMaxAdjustedPeakVal = strokePhaseMaxAdjustedPeak.length ? Math.max(...strokePhaseMaxAdjustedPeak) : 0;
+    const iosNewStrokePeakSel = isIosNewMicReactionFlow()
+        ? iosNewMicReactionStrokePeakSelection(strokePhaseMaxNearPeak, strokePhaseMaxAdjustedPeakVal, test.noiseP95 || 0)
+        : null;
+
     completeMicTestRunDebug({
         clickMeasureVol: test.clickMeasureVol,
         resultClickVolume: state.clickVolume,
@@ -25853,6 +26108,19 @@ function updateReco() {
         wouldUseDelayedPeakForReco,
         wouldPeakPerPctForReco,
         wouldRecoVolIfDelayedPeakUsed,
+        clickPhaseAdjustedPeaks,
+        clickPhaseMaxAdjustedPeak,
+        clickPhaseSelectedPeakSource: iosNewClickPeakSel.clickPhaseSelectedPeakSource,
+        wouldUseAdjustedPeakForReco: iosNewClickPeakSel.wouldUseAdjustedPeakForReco,
+        actualUsedAdjustedPeakForReco: iosNewClickPeakSel.actualUsedAdjustedPeakForReco,
+        strokePhaseNearPeaks: strokeNearPeaks,
+        strokePhaseMaxNearPeak,
+        strokePhaseMaxAdjustedPeak: strokePhaseMaxAdjustedPeakVal,
+        strokePhaseSelectedPeakSource: iosNewStrokePeakSel ? iosNewStrokePeakSel.strokePhaseSelectedPeakSource : null,
+        strokeWouldUseAdjustedPeakForReco: iosNewStrokePeakSel ? iosNewStrokePeakSel.wouldUseAdjustedPeakForReco : null,
+        strokeActualUsedAdjustedPeakForReco: iosNewStrokePeakSel ? iosNewStrokePeakSel.actualUsedAdjustedPeakForReco : null,
+        iosNewMicReactionOffsetDebug,
+        signConventionDebug,
         // v0.11.76：イヤホン余韻/二重反応リスク診断（全イヤホン共通・計測のみ）
         headphoneSustainDiagnosticsEnabled,
         strokePeriodPeaks,
@@ -26461,7 +26729,21 @@ function micLoop() {
             const nearTo = Math.max(120, mic.clickGuardMs || 0);                 // near窓 = [0, max(120, clickGuardMs)]
             if (sinceClick >= 0 && sinceClick <= nearTo) test.curNearPeak = Math.max(test.curNearPeak || 0, peak);
             const delayed = test.clickInputDelayMs || 0;                          // delayed窓 = |sinceClick - inputDelayMs| <= 120
-            if (delayed > 0 && Math.abs(sinceClick - delayed) <= 120) test.curDelayedPeak = Math.max(test.curDelayedPeak || 0, peak);
+            if (delayed > 0 && Math.abs(sinceClick - delayed) <= 120) {
+                test.curDelayedPeak = Math.max(test.curDelayedPeak || 0, peak);
+                if (isIosNewMicReactionFlow()) test.curAdjustedPeak = Math.max(test.curAdjustedPeak || 0, peak);
+            }
+        }
+        if (isIosNewMicReactionFlow() && test.mode === 'stroke' && test.flowStart && test.notes) {
+            const strokeT = now - test.flowStart;
+            const note = test.notes[test.noteIdx];
+            if (note && note.nearOpened && !note.nearClosed) {
+                const nearOpenT = note.t - TEST_NOTE_WIN;
+                const nearCloseT = note.t + TEST_NOTE_WIN;
+                if (strokeT >= nearOpenT && strokeT <= nearCloseT) {
+                    test.curNearStrokePeak = Math.max(test.curNearStrokePeak || 0, peak);
+                }
+            }
         }
         if (isBluetoothHeadphone() && test.mode === 'stroke' && test.flowStart) {
             const strokeT = now - test.flowStart;
