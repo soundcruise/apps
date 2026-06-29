@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.56';
+const RHYTHM_CRUISE_VERSION = '0.12.57';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -24660,9 +24660,6 @@ function renderManualSummary() {
     mainRows.push(row('プリセット', presetName + nameSuffix));
     if (dirty) mainRows.push('<div class="mic-unsaved-row">⚠ この設定はまだプリセット保存されていません</div>');
     mainRows.push(row('現在の環境', envLabel));
-    mainRows.push(row('音ズレ補正', formatSummaryMs(manualSummaryOffsetMs())));
-    mainRows.push(row('マイク感度', userMicSensitivityPercent() + '％'));
-    mainRows.push(row('クリック音量', state.clickVolume + '％'));
     if (els.manualSummaryPanel) els.manualSummaryPanel.innerHTML = mainRows.join('');
 
     if (els.manualDetailValues) {
