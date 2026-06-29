@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.12.47">
+    <link rel="stylesheet" href="theme.css?v=0.12.48">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1084,13 +1084,7 @@
                 <p class="setting-note" style="margin-top:8px;"><a href="click-input-help.html?return=standard" style="color:var(--secondary-color);font-weight:700;">計測のコツを見る</a></p>
                 <div class="bt-cal-handclap-row hidden" id="bt-cal-handclap-row">
                     <button type="button" class="btn-mini rc-mic-action-secondary" id="bt-cal-handclap-btn">手拍子で測る</button>
-                    <button type="button" class="btn-mini rc-mic-action-secondary bt-cal-handclap-help-btn" id="bt-cal-handclap-help" aria-label="手拍子で測る説明">？</button>
                 </div>
-                <details class="card-help hidden" id="bt-cal-handclap-help-panel" style="margin-top:6px;">
-                    <summary style="display:none;"></summary>
-                    <p class="setting-note" style="margin:0;font-size:0.78rem;">イヤホンのクリック音に合わせて、👏のタイミングで手拍子します。イヤホンの音がマイクに入りにくい場合の応急的な方法です。通常はイヤホンの音をマイクで拾うテストを使ってください。</p>
-                </details>
-                <button type="button" class="btn-mini rc-mic-action-secondary hidden" id="bt-cal-handclap-back" style="width:auto;margin-top:6px;padding:6px 10px;font-size:0.78rem;">通常の音ズレテストに戻る</button>
                 <p class="setting-note hidden" id="bt-cal-stale-note" style="margin-top:8px;font-size:0.78rem;"></p>
                 <!-- 流れる👏＋判定ライン＋反応ライン＋入力波形（最終確認テストと同じ考え方・v0.9.81） -->
                 <div class="test-lane-wrap hidden" id="bt-cal-lane-wrap">
@@ -1483,7 +1477,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.12.47"></script>
+    <script src="script.js?v=0.12.48"></script>
 </body>
 
 </html>

@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.47';
+const RHYTHM_CRUISE_VERSION = '0.12.48';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -461,6 +461,131 @@ function micWaveDisplayFrac(peak) {
     const thr = micEffectiveThreshold();
     const base = (thr > 0 ? thr : 0.16) * MIC_WAVE_DISPLAY_SCALE;
     return Math.max(0, Math.min(1, peak / base));
+}
+/* v0.12.48：ストローク波形の表示専用スケール。ピークが大きいときは自動でスケールを広げ、
+   micWaveDisplayFrac の 1.0 上限クリップによる平らな山頂を避ける（判定・検出値は不変）。 */
+const STROKE_WAVE_DISPLAY_HEADROOM = 1.12;
+function strokeWaveformLevelsFromWaveArray(wave) {
+    if (!Array.isArray(wave) || !wave.length) return [];
+    const levels = [];
+    for (let i = 0; i < wave.length; i++) {
+        const v = Number(wave[i].level);
+        if (Number.isFinite(v)) levels.push(v);
+    }
+    return levels;
+}
+function computeStrokeWaveformDisplayScale(levels, thresholdOverride) {
+    const effThr = thresholdOverride != null ? thresholdOverride : micEffectiveThreshold();
+    const baseThr = effThr > 0 ? effThr : 0.16;
+    let rawPeakMax = 0;
+    const sorted = [];
+    for (let i = 0; i < levels.length; i++) {
+        const v = Math.abs(Number(levels[i]) || 0);
+        if (v > rawPeakMax) rawPeakMax = v;
+        sorted.push(v);
+    }
+    sorted.sort((a, b) => a - b);
+    const rawPeakP95 = sorted.length
+        ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))] : 0;
+    const minScale = MIC_WAVE_DISPLAY_SCALE;
+    let displayScale = minScale;
+    if (rawPeakMax > 0) {
+        displayScale = Math.max(minScale, (rawPeakMax / baseThr) * STROKE_WAVE_DISPLAY_HEADROOM);
+    }
+    const legacyDisplayedMax = micWaveDisplayFrac(rawPeakMax);
+    return {
+        displayScale,
+        baseThr,
+        effectiveThreshold: effThr,
+        rawPeakMax,
+        rawPeakP95,
+        legacyDisplayedMax,
+        displayClampApplied: legacyDisplayedMax >= 0.995,
+        displayClampValue: MIC_WAVE_DISPLAY_SCALE,
+    };
+}
+function micStrokeWaveDisplayFrac(peak, displayScale) {
+    const thr = micEffectiveThreshold();
+    const base = (thr > 0 ? thr : 0.16) * displayScale;
+    if (!(base > 0)) return 0;
+    return Math.max(0, Math.min(1, peak / base));
+}
+function micStrokeWaveLineFrac(threshold, displayScale) {
+    const thr = threshold != null ? threshold : micEffectiveThreshold();
+    const base = (thr > 0 ? thr : 0.16) * displayScale;
+    if (!(base > 0)) return micWaveDisplayFrac(thr);
+    return Math.max(0, Math.min(1, thr / base));
+}
+const strokeWaveformClipLogDone = {};
+function resetStrokeWaveformClipLog() {
+    Object.keys(strokeWaveformClipLogDone).forEach((k) => { delete strokeWaveformClipLogDone[k]; });
+}
+function buildStrokeWaveformClipDebug(context, levels, thresholdOverride) {
+    const scaleInfo = computeStrokeWaveformDisplayScale(levels, thresholdOverride);
+    const displayed = levels.map((v) => micStrokeWaveDisplayFrac(v, scaleInfo.displayScale));
+    let flatTopSamples = 0;
+    let legacyFlatTopSamples = 0;
+    for (let i = 0; i < levels.length; i++) {
+        if (micWaveDisplayFrac(levels[i]) >= 0.995) legacyFlatTopSamples++;
+        if (displayed[i] >= 0.995) flatTopSamples++;
+    }
+    const flatTopRatio = displayed.length ? flatTopSamples / displayed.length : 0;
+    const legacyFlatTopRatio = levels.length ? legacyFlatTopSamples / levels.length : 0;
+    const displayedPeakMax = displayed.length ? Math.max(...displayed) : 0;
+    const displayedPeakP95 = (() => {
+        if (!displayed.length) return 0;
+        const s = displayed.slice().sort((a, b) => a - b);
+        return s[Math.min(s.length - 1, Math.floor(s.length * 0.95))];
+    })();
+    let likelyCause = 'unknown';
+    if (scaleInfo.displayClampApplied && flatTopRatio < 0.05) likelyCause = 'display-clamp';
+    else if (scaleInfo.rawPeakMax >= 0.98) likelyCause = 'raw-input-saturation';
+    else if (legacyFlatTopRatio > 0.2 && flatTopRatio < legacyFlatTopRatio * 0.5) likelyCause = 'display-clamp';
+    return {
+        enabled: true,
+        context: context || 'unknown',
+        selectedInputType: getMicInputType(),
+        selectedHeadphoneType: getHeadphoneType(),
+        selectedTestPlatform,
+        isNormalMicInput: isNormalMicInput(),
+        isBluetooth: isBluetoothHeadphone(),
+        isWired: isHeadphoneInput() && !isBluetoothHeadphone(),
+        rawPeakMax: scaleInfo.rawPeakMax,
+        rawPeakP95: scaleInfo.rawPeakP95,
+        displayedPeakMax,
+        displayedPeakP95,
+        threshold: mic.threshold,
+        effectiveThreshold: scaleInfo.effectiveThreshold,
+        judgeLineValue: thresholdOverride != null ? thresholdOverride : ptDetectionThreshold(),
+        displayScale: scaleInfo.displayScale,
+        displayClampApplied: scaleInfo.displayClampApplied,
+        displayClampValue: scaleInfo.displayClampValue,
+        rawDataClampApplied: false,
+        rawDataClampValue: null,
+        normalizedForDisplay: true,
+        limiterLikeLogicApplied: scaleInfo.displayClampApplied,
+        limiterSource: scaleInfo.displayClampApplied ? 'display-scale' : 'none',
+        flatTopDetected: flatTopRatio > 0.05 || legacyFlatTopRatio > 0.05,
+        flatTopRatio,
+        flatTopSamples,
+        legacyFlatTopRatio,
+        likelyCause,
+        changedJudgeLogic: false,
+        changedRecommendationLogic: false,
+    };
+}
+function logStrokeWaveformClipDebugOnce(context, levels, thresholdOverride) {
+    if (!levels || !levels.length) return computeStrokeWaveformDisplayScale([], thresholdOverride);
+    const key = context || 'unknown';
+    const scaleInfo = computeStrokeWaveformDisplayScale(levels, thresholdOverride);
+    if (!strokeWaveformClipLogDone[key]) {
+        strokeWaveformClipLogDone[key] = true;
+        try {
+            console.info('[strokeWaveformClipDebug]',
+                JSON.stringify(buildStrokeWaveformClipDebug(context, levels, thresholdOverride)));
+        } catch (_) { /* ignore */ }
+    }
+    return scaleInfo;
 }
 
 /* マイク波形（背景表示）用の保持時間。古いサンプルはこれを超えたら破棄 */
@@ -1167,9 +1292,6 @@ const els = {
     btCalSkipWiredNote: $('bt-cal-skip-wired-note'),
     btCalHandclapRow: $('bt-cal-handclap-row'),
     btCalHandclapBtn: $('bt-cal-handclap-btn'),
-    btCalHandclapHelp: $('bt-cal-handclap-help'),
-    btCalHandclapHelpPanel: $('bt-cal-handclap-help-panel'),
-    btCalHandclapBack: $('bt-cal-handclap-back'),
     btCalStaleNote: $('bt-cal-stale-note'),
     testStaleNote: $('test-stale-note'),
     androidHpAudioProbe: $('android-hp-audio-probe'),
@@ -7108,11 +7230,42 @@ function drawMicWaveform(ctx, w, h, yc, rawT, dispOff) {
     const maxAmp = h * STAGE_WAVE_AMP_FRAC; // Play画面と結果見返しレーンで共通の縦スケール（v0.9.140）
     const dOff = dispOff || 0;
 
-    // 反応ライン（ストロークモード時）：波形の上下に薄い横線＋小ラベル。
-    // 実効しきい値基準（v0.9.140）なので、波形も反応ラインもマイク感度カーブを反映する（0%ではほぼ平坦）。
-    // 表示は相対スケールなので、反応ラインは常に振幅 micDisplayFracEff(effective)（≒0.4）の高さに来る。
+    // 画面内に入るサンプルだけを時系列順（古い→新しい＝左→右）に集める。
+    const pts = [];
+    let waveSource = 'none';   // 'micRunWave' / 'liveFallback' / 'none'（DEBUG用：今どのデータで描いているか）
+    let latestWaveT = NaN;     // 最新サンプルの時刻[ms]（micRunWave=補正後ゲーム時刻 / live=perf+off）。DEBUG用
+    const rw = state.micRunWave;
+    const waveLevels = [];
+    if (state.running && rw && rw.length >= 2 && typeof rawT === 'number') {
+        // STAGE再生中は結果レーン(drawReviewMicOverlay)と同じ micRunWave を使う。
+        waveSource = 'micRunWave';
+        latestWaveT = rw[rw.length - 1].t;
+        for (let k = 0; k < rw.length; k++) {
+            const x = jx + (rw[k].t + dOff - rawT) * ppm;
+            if (x < -24 || x > w + 24) continue;
+            waveLevels.push(rw[k].level);
+            pts.push([x, rw[k].level]); // level only; frac applied after scale
+        }
+    } else {
+        const hist = state.micWaveHistory;
+        if (hist.length >= 2) {
+            waveSource = 'liveFallback';
+            const now = performance.now();
+            const off = micJudgeOffsetMs();
+            latestWaveT = hist[hist.length - 1].perf + off;
+            for (let k = 0; k < hist.length; k++) {
+                const s = hist[k];
+                const x = jx + (s.perf + off + dOff - now) * ppm;
+                if (x < -24 || x > w + 24) continue;
+                waveLevels.push(s.level);
+                pts.push([x, s.level]);
+            }
+        }
+    }
+    const scaleInfo = logStrokeWaveformClipDebugOnce('stage-play', waveLevels);
+    const displayScale = scaleInfo.displayScale;
     if (state.inputMode === 'stroke' || mic.on) {
-        const lineAmp = micWaveDisplayFrac(micEffectiveThreshold()) * maxAmp; // v0.10.23：波形と共通スケール
+        const lineAmp = micStrokeWaveLineFrac(micEffectiveThreshold(), displayScale) * maxAmp;
         ctx.save();
         ctx.strokeStyle = 'rgba(255,159,28,0.30)';
         ctx.setLineDash([4, 4]);
@@ -7123,41 +7276,11 @@ function drawMicWaveform(ctx, w, h, yc, rawT, dispOff) {
         ctx.fillStyle = 'rgba(255,159,28,0.5)';
         ctx.font = '600 9px Outfit, sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText('反応ライン', 4, yc - lineAmp - 3); // v0.10.22：「判定ライン」ではなく「反応ライン」（反応しやすい目安）
+        ctx.fillText('反応ライン', 4, yc - lineAmp - 3);
         ctx.restore();
     }
-
-    // 画面内に入るサンプルだけを時系列順（古い→新しい＝左→右）に集める。
-    const pts = [];
-    let waveSource = 'none';   // 'micRunWave' / 'liveFallback' / 'none'（DEBUG用：今どのデータで描いているか）
-    let latestWaveT = NaN;     // 最新サンプルの時刻[ms]（micRunWave=補正後ゲーム時刻 / live=perf+off）。DEBUG用
-    const rw = state.micRunWave;
-    if (state.running && rw && rw.length >= 2 && typeof rawT === 'number') {
-        // STAGE再生中は結果レーン(drawReviewMicOverlay)と同じ micRunWave を使う。
-        //   micRunWave の t は「補正後ゲーム時刻 = gameAudioMs() + micJudgeOffsetMs()」（判定時間軸）。
-        //   v0.9.111（案B）：表示は音符と揃えるため dOff（heard-time）を足す。x = jx + (t + dOff - rawT) * ppm。
-        waveSource = 'micRunWave';
-        latestWaveT = rw[rw.length - 1].t;
-        for (let k = 0; k < rw.length; k++) {
-            const x = jx + (rw[k].t + dOff - rawT) * ppm;
-            if (x < -24 || x > w + 24) continue;
-            pts.push([x, micWaveDisplayFrac(rw[k].level)]); // v0.10.23：波形共通スケール
-        }
-    } else {
-        // STAGE停止中など micRunWave が無い場面は、従来どおりライブ履歴(perf基準＋判定補正)で描く。
-        const hist = state.micWaveHistory;
-        if (hist.length >= 2) {
-            waveSource = 'liveFallback';
-            const now = performance.now();
-            const off = micJudgeOffsetMs();
-            latestWaveT = hist[hist.length - 1].perf + off;
-            for (let k = 0; k < hist.length; k++) {
-                const s = hist[k];
-                const x = jx + (s.perf + off + dOff - now) * ppm; // 今＝反応ライン、過去＝左へ流れる（補正＋表示寄せ込み）
-                if (x < -24 || x > w + 24) continue;
-                pts.push([x, micWaveDisplayFrac(s.level)]); // v0.10.23：波形共通スケール
-            }
-        }
+    for (let i = 0; i < pts.length; i++) {
+        pts[i][1] = micStrokeWaveDisplayFrac(pts[i][1], displayScale);
     }
     // DEBUG：実機で「どのデータ・どの時間軸で描いているか」を可視化する（本番OFF）
     if (STAGE_WAVE_DEBUG) {
@@ -8159,20 +8282,20 @@ function debugReviewWaveLevels(wave, mode) {
    対応する音符の位置に立つ。micRunWave が無い場合のみ beatMicPeak のエンベロープにフォールバック。 */
 function drawReviewMicOverlay(ctx, w, h, yc, beatX, beatPx) {
     if (state.inputMode !== 'stroke') return;
-    const maxAmp = h * STAGE_WAVE_AMP_FRAC; // Play画面と同じ縦スケール（v0.9.140：0.26→共通値。波形は音符/文字の背後に薄く描くので重なっても可読性は保たれる）
-    const frac = (v) => Math.max(0, Math.min(1, micWaveDisplayFrac(v))); // v0.10.23：Play画面・各拍バーと共通の波形スケール（ピークが切れにくい）
-    const lineAmp = frac(micEffectiveThreshold()) * maxAmp; // 判定ラインの表示高さ（≒0.4×maxAmp）
+    const maxAmp = h * STAGE_WAVE_AMP_FRAC;
     const leftPad = beatX(0);
-    // t(補正後ゲームms) → x（音符と同じ拍位置）
     const tToX = (t) => leftPad + ((t - state.T0) / state.beatInterval) * beatPx;
     ctx.save();
 
-    // v0.10.49：結果波形はSTAGE6を含め常にリニア表示。判定・元データ・スケールは変更しない。
     const displayMode = 'linear';
     const rw = state.micRunWave;
+    const allLevels = rw && rw.length ? strokeWaveformLevelsFromWaveArray(rw) : [];
+    const scaleInfo = logStrokeWaveformClipDebugOnce('practice-review', allLevels);
+    const displayScale = scaleInfo.displayScale;
+    const frac = (v) => micStrokeWaveDisplayFrac(v, displayScale);
+    const lineAmp = micStrokeWaveLineFrac(micEffectiveThreshold(), displayScale) * maxAmp;
     if (rw && rw.length >= 2) {
         const displayLevels = debugReviewWaveLevels(rw, displayMode);
-        // STAGE中と同じ時間軸の連続波形（上下対称の薄い塗り＋上端の輪郭）
         const pts = [];
         for (let k = 0; k < rw.length; k++) {
             const x = tToX(rw[k].t);
@@ -8198,8 +8321,8 @@ function drawReviewMicOverlay(ctx, w, h, yc, beatX, beatPx) {
             ctx.stroke();
         }
     } else {
-        // フォールバック：拍ごとの最大値エンベロープ
-        const amp = (i) => frac(state.beatMicPeak[i] || 0) * maxAmp;
+        const fracBeat = (v) => micStrokeWaveDisplayFrac(v, displayScale);
+        const amp = (i) => fracBeat(state.beatMicPeak[i] || 0) * maxAmp;
         ctx.beginPath();
         ctx.moveTo(beatX(0), yc - amp(0));
         for (let i = 1; i < TOTAL_BEATS; i++) ctx.lineTo(beatX(i), yc - amp(i));
@@ -14946,7 +15069,6 @@ function buildIosNewBtHandclapModeDebug(extra) {
 function setIosNewBtDelayTestMode(mode) {
     const next = mode === 'handclap' ? 'handclap' : 'noise';
     iosNewBtDelayTestMode = next;
-    if (els.btCalHandclapHelpPanel) els.btCalHandclapHelpPanel.open = false;
     updateBtCalIosNewUi();
     if (usesIosNewStrongBtDelaySound() && !bt.active) {
         stopIosNewBtDelayPreview();
@@ -15463,11 +15585,10 @@ function updateBtCalIosNewUi() {
         }
     }
     if (els.btCalHandclapBtn) {
+        els.btCalHandclapBtn.textContent = handclap ? '通常の音ズレテストに戻る' : '手拍子で測る';
         els.btCalHandclapBtn.classList.toggle('active', handclap);
         els.btCalHandclapBtn.setAttribute('aria-pressed', handclap ? 'true' : 'false');
     }
-    if (els.btCalHandclapBack) els.btCalHandclapBack.classList.toggle('hidden', !handclap);
-    if (els.btCalHandclapHelpPanel && !iosNew) els.btCalHandclapHelpPanel.open = false;
     updateIosNewCorrectionStaleUi();
     updateIosNewBtVolumeTestButton();
     if (iosNew) hideIosNewBtCalMeter();
@@ -19090,8 +19211,12 @@ function drawPracticeLane(t) {
     //   ラインを実効しきい値基準で描いていたため、感度カーブで実効しきい値が上がると lineAmp が表示上限に
     //   張り付き「波形がラインの高さでバッサリ切れる」ように見えた。両方を micDisplayFracEff に揃えると、
     //   ラインは常に約40%高さ＝固定で、ストロークがそれを超えた分だけ上に飛び出して見える。
-    const ampPx = h * STAGE_WAVE_AMP_FRAC; // STAGE1の drawMicWaveform() と同じ共通縦スケール（v0.9.140）
-    const lineAmp = micDisplayFracEff(ptDetectionThreshold()) * ampPx;
+    const ampPx = h * STAGE_WAVE_AMP_FRAC;
+    const detThr = ptDetectionThreshold();
+    const waveLevels = strokeWaveformLevelsFromWaveArray(pt.wave);
+    const scaleInfo = logStrokeWaveformClipDebugOnce('final-check', waveLevels, detThr);
+    const displayScale = scaleInfo.displayScale;
+    const lineAmp = micStrokeWaveLineFrac(detThr, displayScale) * ampPx;
     ctx.strokeStyle = 'rgba(255,159,28,0.30)';
     ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, yc - lineAmp); ctx.lineTo(w, yc - lineAmp); ctx.stroke();
@@ -19102,16 +19227,13 @@ function drawPracticeLane(t) {
     ctx.textAlign = 'left';
     ctx.fillText('実判定ライン', 4, yc - lineAmp - 3);
     if (pt.wave.length) {
-        // v0.9.112（案B＝STAGE本体PLAY中と同じ思想）：PLAY中のリアルタイム波形は「演奏中の視覚フィードバック」として
-        //   音符と同じ heard-time（off＝micJudgeOffsetMs に加え hpDispOff＝headphoneOutputOffsetMs）へ寄せ、
-        //   音符・波形が画面上で自然に揃うようにする。表示位置だけの調整で、判定・平均ズレ・見返しレーンには影響しない。
         const off = micJudgeOffsetMs();
         const pts = [];
         for (let i = 0; i < pt.wave.length; i++) {
             const p = pt.wave[i];
             const x = judgeX + (p.t + off + hpDispOff - t) * ppm;
             if (x < -24 || x > w + 24) continue;
-            pts.push([x, micDisplayFracEff(p.level) * ampPx]);
+            pts.push([x, micStrokeWaveDisplayFrac(p.level, displayScale) * ampPx]);
         }
         if (pts.length >= 2) {
             ctx.beginPath();
@@ -19255,8 +19377,12 @@ function drawPracticeReview() {
     // 判定ライン（実判定ライン）：上下の破線。
     // v0.9.140：波形・ラインともに検出と同じ実効しきい値(micDisplayFracEff)で描く。これで「波形がラインの
     //   高さで切れて見える（実は表示上限へのクリップ）」を解消し、ストロークがラインを超えた分だけ上に出る。
-    const ampPx = h * STAGE_WAVE_AMP_FRAC; // STAGE/最終確認テスト/結果カードと同じ共通縦スケール（v0.9.140）
-    const lineAmp = micDisplayFracEff(ptDetectionThreshold()) * ampPx;
+    const ampPx = h * STAGE_WAVE_AMP_FRAC;
+    const detThr = ptDetectionThreshold();
+    const waveLevels = strokeWaveformLevelsFromWaveArray(pt.fullWave);
+    const scaleInfo = logStrokeWaveformClipDebugOnce('final-check-review', waveLevels, detThr);
+    const displayScale = scaleInfo.displayScale;
+    const lineAmp = micStrokeWaveLineFrac(detThr, displayScale) * ampPx;
     ctx.strokeStyle = 'rgba(255,159,28,0.30)';
     ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, yc - lineAmp); ctx.lineTo(w, yc - lineAmp); ctx.stroke();
@@ -19267,13 +19393,12 @@ function drawPracticeReview() {
     ctx.textAlign = 'left';
     ctx.fillText('実判定ライン', 4, yc - lineAmp - 3);
 
-    // 波形（全区間）：マイクの遅れ補正分を足して、判定された位置と重なるように描く（表示のみ）
     if (pt.fullWave.length >= 2) {
         const off = micJudgeOffsetMs();
         const pts = [];
         for (let i = 0; i < pt.fullWave.length; i++) {
             const p = pt.fullWave[i];
-            pts.push([xOf(p.t + off), micDisplayFracEff(p.level) * ampPx]);
+            pts.push([xOf(p.t + off), micStrokeWaveDisplayFrac(p.level, displayScale) * ampPx]);
         }
         ctx.beginPath();
         ctx.moveTo(pts[0][0], yc - pts[0][1]);
@@ -19392,6 +19517,7 @@ function resetPracticeView() {
 
 async function startPracticeTest() {
     finalCheckFlowDebug.startPracticeTestCallCount++;
+    resetStrokeWaveformClipLog();
     finalCheckFlowDebug.startPracticeTestCalledAt = new Date().toISOString();
     finalCheckFlowDebug.startPracticeStopReason = 'entered';
     finalCheckFlowDebug.startPracticeSnapshot = correctionFlowSnapshot('startPracticeTest-enter', false);
@@ -25652,6 +25778,7 @@ async function startMicTestFlow(options = {}) {
     captureIosNewPreMicProgress();
     resetBtCalTransientUiState();
     resetMicReactionTestRunDisplay();
+    resetStrokeWaveformClipLog();
     iosNewMicReactionDisplayAlignmentLogged = false;
     // v0.11.75：Android有線/BTは、保存済み遅延補正があれば音ズレ・遅延テスト完了状態(btDelayDone)を
     //   マイク反応テスト開始後も保持する。resetBtCalTransientUiState() が btDelayDone を落とすため、
@@ -26331,12 +26458,15 @@ function drawTestLaneWaveform(ctx, w, h, yc, judgeX, ppm, t, dispOff) {
     const wave = Array.isArray(test.wave) ? test.wave : [];
     if (wave.length < 2) return;
     const ampPx = h * 0.24;
+    const waveLevels = strokeWaveformLevelsFromWaveArray(wave);
+    const scaleInfo = logStrokeWaveformClipDebugOnce('mic-reaction', waveLevels, mic.threshold);
+    const displayScale = scaleInfo.displayScale;
     const pts = [];
     for (let i = 0; i < wave.length; i++) {
         const p = wave[i];
         const x = judgeX + (p.t + dispOff - t) * ppm;
         if (x < -24 || x > w + 24) continue;
-        pts.push([x, micDisplayFrac(p.level) * ampPx]);
+        pts.push([x, micStrokeWaveDisplayFrac(p.level, displayScale) * ampPx]);
     }
     if (pts.length < 2) return;
     ctx.save();
@@ -29415,11 +29545,6 @@ function bind() {
     if (els.calRetestMicBtn) els.calRetestMicBtn.addEventListener('click', calibrationRetestMicLine);
     els.calApplyBtn.addEventListener('click', applyCalibration);
     if (els.btCalHandclapBtn) els.btCalHandclapBtn.addEventListener('click', () => toggleIosNewBtHandclapMode());
-    if (els.btCalHandclapHelp) els.btCalHandclapHelp.addEventListener('click', () => {
-        if (!els.btCalHandclapHelpPanel) return;
-        els.btCalHandclapHelpPanel.open = !els.btCalHandclapHelpPanel.open;
-    });
-    if (els.btCalHandclapBack) els.btCalHandclapBack.addEventListener('click', () => setIosNewBtDelayTestMode('noise'));
 
     // 実音テスト（1ボタン自動フロー）
     els.micTestBtn.addEventListener('click', toggleMicTest);
