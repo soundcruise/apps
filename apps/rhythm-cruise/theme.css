@@ -5288,6 +5288,11 @@ h1 {
     line-height: 1.45;
 }
 
+.bt-cal-loud-warning {
+    color: var(--error-color);
+    font-weight: 700;
+}
+
 .cal-level-state.ok {
     border-color: rgba(110, 210, 140, 0.36);
     background: rgba(110, 210, 140, 0.10);
