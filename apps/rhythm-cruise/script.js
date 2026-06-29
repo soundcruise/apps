@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.48';
+const RHYTHM_CRUISE_VERSION = '0.12.49';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -405,6 +405,12 @@ const MIC_SUSTAINED_ONSET = true;
 const MIC_STAGE_DETECT_FACTOR = 1.0;
 /* 再アーム条件：検出しきい値×この値を下回ったら次の入力を拾える状態に戻す */
 const MIC_REARM_FACTOR = 0.6;
+/* v0.12.49：ストローク検出の実効ライン位置（ストローク最小ピークに対する割合）。
+   旧0.92は実効しきい値がストローク最小に近すぎ、最終確認/STAGEでMISSが増えていた。 */
+const STROKE_DETECTION_LINE_FRAC = 0.58;
+const STROKE_DETECTION_LINE_FRAC_MIN = 0.40;
+const STROKE_DETECTION_MIN_PEAK_RATIO = 1.5;
+const STROKE_CLICK_SEPARATION_MULT = 1.12;
 
 /* Phase3：コード専用バックデートの上限(ms)。ゲート確定フレームから、これ以上は過去へ戻さない
    （前の音・前拍まで遡りすぎない安全弁。約5フレーム@60fps）。通常BPM・4分〜8分ではこの値が上限。 */
@@ -519,6 +525,7 @@ function micStrokeWaveLineFrac(threshold, displayScale) {
 const strokeWaveformClipLogDone = {};
 function resetStrokeWaveformClipLog() {
     Object.keys(strokeWaveformClipLogDone).forEach((k) => { delete strokeWaveformClipLogDone[k]; });
+    resetStrokeDetectionThresholdLog();
 }
 function buildStrokeWaveformClipDebug(context, levels, thresholdOverride) {
     const scaleInfo = computeStrokeWaveformDisplayScale(levels, thresholdOverride);
@@ -557,6 +564,14 @@ function buildStrokeWaveformClipDebug(context, levels, thresholdOverride) {
         threshold: mic.threshold,
         effectiveThreshold: scaleInfo.effectiveThreshold,
         judgeLineValue: thresholdOverride != null ? thresholdOverride : ptDetectionThreshold(),
+        actualDetectionThreshold: thresholdOverride != null ? thresholdOverride : ptDetectionThreshold(),
+        displayLineThreshold: thresholdOverride != null ? thresholdOverride : ptDetectionThreshold(),
+        strokePeakToDetectionThresholdRatio: (() => {
+            const det = thresholdOverride != null ? thresholdOverride : ptDetectionThreshold();
+            const pk = scaleInfo.rawPeakMax;
+            return (det > 0 && pk > 0) ? pk / det : null;
+        })(),
+        effectiveThresholdUsedForDetection: false,
         displayScale: scaleInfo.displayScale,
         displayClampApplied: scaleInfo.displayClampApplied,
         displayClampValue: scaleInfo.displayClampValue,
@@ -586,6 +601,128 @@ function logStrokeWaveformClipDebugOnce(context, levels, thresholdOverride) {
         } catch (_) { /* ignore */ }
     }
     return scaleInfo;
+}
+
+const strokeDetectionThresholdLogDone = {};
+function resetStrokeDetectionThresholdLog() {
+    Object.keys(strokeDetectionThresholdLogDone).forEach((k) => { delete strokeDetectionThresholdLogDone[k]; });
+}
+function strokePeakStatsFromLevels(levels) {
+    const sorted = (levels || []).filter((v) => typeof v === 'number' && isFinite(v) && v > 0).sort((a, b) => a - b);
+    if (!sorted.length) return { strokePeakMin: null, strokePeakP25: null, strokePeakMedian: null };
+    return {
+        strokePeakMin: sorted[0],
+        strokePeakP25: sorted[Math.floor(sorted.length * 0.25)],
+        strokePeakMedian: sorted[Math.floor(sorted.length * 0.5)],
+    };
+}
+function effectiveThresholdFromRecommendedRaw(rawThr, lowInput) {
+    if (rawThr == null) return null;
+    return rawThr * micLowSensitivityThresholdMultiplier(recoSensDisplay(rawThr, lowInput));
+}
+function computeStrokeDetectionLineEff(recBasis, postClick) {
+    if (!(recBasis > 0)) return null;
+    const maxEff = recBasis / STROKE_DETECTION_MIN_PEAK_RATIO;
+    const clickMinEff = (postClick != null && postClick > 0) ? postClick * STROKE_CLICK_SEPARATION_MULT : 0;
+    const fracEff = recBasis * STROKE_DETECTION_LINE_FRAC;
+    let lineEff = Math.min(fracEff, maxEff);
+    lineEff = Math.max(lineEff, clickMinEff, recBasis * STROKE_DETECTION_LINE_FRAC_MIN);
+    return lineEff;
+}
+function capRawThresholdForStrokeHeadroom(rawThr, strokeBasis, lowInput) {
+    if (!(strokeBasis > 0) || rawThr == null) return rawThr;
+    const maxEff = strokeBasis / STROKE_DETECTION_MIN_PEAK_RATIO;
+    const eff = effectiveThresholdFromRecommendedRaw(rawThr, lowInput);
+    if (eff != null && eff > maxEff) {
+        let capped = recoRawThresholdForEffectiveLine(maxEff);
+        return Math.max(THR_MIN, Math.min(THR_MAX, capped));
+    }
+    return rawThr;
+}
+function buildStrokeDetectionThresholdDebug(context, opts) {
+    opts = opts || {};
+    const ratioToDbg = (value, base) => (
+        typeof value === 'number' && isFinite(value) && typeof base === 'number' && isFinite(base) && base > 0
+    ) ? value / base : null;
+    const lowInput = opts.lowInput != null ? opts.lowInput : !!(test.lowInputTuned || mic.lowInputProfile);
+    const savedThreshold = mic.threshold;
+    const recommendedThreshold = opts.recommendedThreshold != null ? opts.recommendedThreshold : test.recommended;
+    const effectiveRecommendedThreshold = recommendedThreshold != null
+        ? effectiveThresholdFromRecommendedRaw(recommendedThreshold, lowInput)
+        : null;
+    let actualDetectionThreshold = opts.actualDetectionThreshold;
+    let actualDetectionThresholdSource = opts.actualDetectionThresholdSource || null;
+    if (actualDetectionThreshold == null) {
+        if (context === 'final-check' || context === 'practice-review') {
+            actualDetectionThreshold = ptDetectionThreshold();
+            actualDetectionThresholdSource = actualDetectionThresholdSource || 'current-threshold';
+        } else if (context === 'stage-practice') {
+            actualDetectionThreshold = micEffectiveThreshold();
+            actualDetectionThresholdSource = actualDetectionThresholdSource || 'current-threshold';
+        } else if (recommendedThreshold != null) {
+            actualDetectionThreshold = effectiveThresholdFromRecommendedRaw(recommendedThreshold, lowInput);
+            actualDetectionThresholdSource = actualDetectionThresholdSource || 'recommended-threshold';
+        } else {
+            actualDetectionThreshold = micEffectiveThreshold();
+            actualDetectionThresholdSource = actualDetectionThresholdSource || 'saved-threshold';
+        }
+    }
+    const displayLineThreshold = actualDetectionThreshold;
+    const rawStrokePeaks = opts.rawStrokePeaks || (test.strokePeaks || []);
+    const peakStats = opts.strokePeakMin != null ? {
+        strokePeakMin: opts.strokePeakMin,
+        strokePeakP25: opts.strokePeakP25,
+        strokePeakMedian: opts.strokePeakMedian,
+    } : strokePeakStatsFromLevels(rawStrokePeaks);
+    const clickPeaks = opts.clickPeaks || test.clickPeaks || [];
+    const clickPeakMax = clickPeaks.length ? Math.max(...clickPeaks) : (opts.clickPeakMax != null ? opts.clickPeakMax : null);
+    const noiseMax = opts.noiseMax != null ? opts.noiseMax : test.noiseMax;
+    const refStroke = peakStats.strokePeakP25 != null ? peakStats.strokePeakP25
+        : (peakStats.strokePeakMin != null ? peakStats.strokePeakMin : opts.strokeBasis);
+    const strokePeakToDetectionThresholdRatio = ratioToDbg(refStroke, actualDetectionThreshold);
+    const missLikelyBecauseThresholdTooHigh = strokePeakToDetectionThresholdRatio != null
+        && strokePeakToDetectionThresholdRatio < STROKE_DETECTION_MIN_PEAK_RATIO;
+    return {
+        enabled: true,
+        context: context || 'unknown',
+        selectedInputType: getMicInputType(),
+        selectedHeadphoneType: getHeadphoneType(),
+        selectedTestPlatform,
+        rawStrokePeaks,
+        strokePeakMin: peakStats.strokePeakMin,
+        strokePeakP25: peakStats.strokePeakP25,
+        strokePeakMedian: peakStats.strokePeakMedian,
+        clickPeakMax,
+        noiseMax,
+        savedThreshold,
+        currentThreshold: mic.threshold,
+        recommendedThreshold,
+        effectiveRecommendedThreshold,
+        actualDetectionThreshold,
+        actualDetectionThresholdSource,
+        displayLineThreshold,
+        effectiveThresholdUsedForDetection: false,
+        effectiveThresholdUsedForDisplay: false,
+        strokePeakToDetectionThresholdRatio,
+        strokePeakToDisplayLineRatio: ratioToDbg(refStroke, displayLineThreshold),
+        clickPeakToDetectionThresholdRatio: ratioToDbg(clickPeakMax, actualDetectionThreshold),
+        noisePeakToDetectionThresholdRatio: ratioToDbg(noiseMax, actualDetectionThreshold),
+        missLikelyBecauseThresholdTooHigh,
+        clickLeakRisk: opts.clickLeakRisk != null ? opts.clickLeakRisk : !!test.recoBlockedByClickLeak,
+        doubleTriggerRisk: opts.doubleTriggerRisk != null ? opts.doubleTriggerRisk : ((test.strokeDoubleCount || 0) > 0),
+        changedJudgeTimingLogic: false,
+        changedOffsetLogic: false,
+        changedLocalStorageStructure: false,
+    };
+}
+function logStrokeDetectionThresholdDebugOnce(context, opts) {
+    const key = context || 'unknown';
+    if (strokeDetectionThresholdLogDone[key]) return;
+    strokeDetectionThresholdLogDone[key] = true;
+    try {
+        console.info('[strokeDetectionThresholdDebug]',
+            JSON.stringify(buildStrokeDetectionThresholdDebug(context, opts)));
+    } catch (_) { /* ignore */ }
 }
 
 /* マイク波形（背景表示）用の保持時間。古いサンプルはこれを超えたら破棄 */
@@ -7263,6 +7400,11 @@ function drawMicWaveform(ctx, w, h, yc, rawT, dispOff) {
         }
     }
     const scaleInfo = logStrokeWaveformClipDebugOnce('stage-play', waveLevels);
+    logStrokeDetectionThresholdDebugOnce('stage-practice', {
+        rawStrokePeaks: waveLevels,
+        actualDetectionThreshold: micEffectiveThreshold(),
+        actualDetectionThresholdSource: 'current-threshold',
+    });
     const displayScale = scaleInfo.displayScale;
     if (state.inputMode === 'stroke' || mic.on) {
         const lineAmp = micStrokeWaveLineFrac(micEffectiveThreshold(), displayScale) * maxAmp;
@@ -8291,6 +8433,11 @@ function drawReviewMicOverlay(ctx, w, h, yc, beatX, beatPx) {
     const rw = state.micRunWave;
     const allLevels = rw && rw.length ? strokeWaveformLevelsFromWaveArray(rw) : [];
     const scaleInfo = logStrokeWaveformClipDebugOnce('practice-review', allLevels);
+    logStrokeDetectionThresholdDebugOnce('practice-review', {
+        rawStrokePeaks: allLevels,
+        actualDetectionThreshold: micEffectiveThreshold(),
+        actualDetectionThresholdSource: 'current-threshold',
+    });
     const displayScale = scaleInfo.displayScale;
     const frac = (v) => micStrokeWaveDisplayFrac(v, displayScale);
     const lineAmp = micStrokeWaveLineFrac(micEffectiveThreshold(), displayScale) * maxAmp;
@@ -19215,6 +19362,11 @@ function drawPracticeLane(t) {
     const detThr = ptDetectionThreshold();
     const waveLevels = strokeWaveformLevelsFromWaveArray(pt.wave);
     const scaleInfo = logStrokeWaveformClipDebugOnce('final-check', waveLevels, detThr);
+    logStrokeDetectionThresholdDebugOnce('final-check', {
+        rawStrokePeaks: waveLevels,
+        actualDetectionThreshold: detThr,
+        actualDetectionThresholdSource: 'current-threshold',
+    });
     const displayScale = scaleInfo.displayScale;
     const lineAmp = micStrokeWaveLineFrac(detThr, displayScale) * ampPx;
     ctx.strokeStyle = 'rgba(255,159,28,0.30)';
@@ -19381,6 +19533,11 @@ function drawPracticeReview() {
     const detThr = ptDetectionThreshold();
     const waveLevels = strokeWaveformLevelsFromWaveArray(pt.fullWave);
     const scaleInfo = logStrokeWaveformClipDebugOnce('final-check-review', waveLevels, detThr);
+    logStrokeDetectionThresholdDebugOnce('final-check', {
+        rawStrokePeaks: waveLevels,
+        actualDetectionThreshold: detThr,
+        actualDetectionThresholdSource: 'current-threshold',
+    });
     const displayScale = scaleInfo.displayScale;
     const lineAmp = micStrokeWaveLineFrac(detThr, displayScale) * ampPx;
     ctx.strokeStyle = 'rgba(255,159,28,0.30)';
@@ -26797,7 +26954,8 @@ function updateReco() {
         //   “ラインは超えない／ストロークは超える”を保つ。小さすぎるクリックは上げ・大きすぎるクリックは下げる。
         //   Android通常マイクだけは、クリック自己反応が強い実機向けに1%まで許可する。
         //   クリックが上がっても上限はラインの下に収まる。ライン超え（クリックも拾いやすい状態）は従来どおり cannotSeparate 経由で警告。
-        const lineEstimate = minStroke * 0.92;             // ①で置く判定ラインのおおよその位置（上限0.92に合わせた概算）
+        // v0.12.49：実効判定ラインはストローク最小の約58%（旧0.92は高すぎてMISS増加）。
+        const lineEstimate = minStroke * STROKE_DETECTION_LINE_FRAC;
         targetClickMax = Math.min(lineEstimate * 0.88, minStroke * 0.85); // ライン約88%・かつストローク0.85倍以下（クリックは大きめ・ラインは超えない）
         recoVol = Math.round(targetClickMax / peakPerPct);
         recoVol = Math.max(androidAudioProbeDeviceInfo().isAndroid && isNormalMicInput() ? 1 : 10, Math.min(100, recoVol));    // 小さすぎるクリックは上げ・大きすぎるクリックは下げる（両方向）
@@ -26822,16 +26980,9 @@ function updateReco() {
     let cannotSeparate = false; // クリック音量を下げてもクリックとストロークを分離できない
     if (minStroke != null) {
         const recBasis = recoStrokeBasis || minStroke;
-        // v0.9.140（おすすめ余裕の見直し）：おすすめは「実効判定ライン」をストローク最小の92%程度（上限）に置く。
-        //   検出は 生threshold×感度カーブ倍率 なので、生thresholdをそのまま置くと低感度域では実効ラインが
-        //   ストローク最小付近まで上がり、最終確認テストで届かずMISSになっていた。そこで欲しい実効ラインから
-        //   生thresholdを逆算(recoRawThresholdForEffectiveLine)して保存する。
-        //   実機微調整：0.65→0.75→0.85→0.90 と上げ、v0.9.142でさらに上限を 0.92 へ（実機ベスト約45%に対しおすすめ49%だったため）。
-        //   普通〜やや強めのストロークは拾い・弱い入力は超えにくくする（ストローク最小には約8%の余裕＝MISSしない／0.95以上にはしない）。
-        //   v0.9.142：クリック音目標を「ラインの約88%」に上げたため、ラインはクリック予測ピークの約1.12倍上に置く（クリックは
-        //   ラインの約89%に収まる）。分離可否は「その1.12倍ラインがストローク最小×0.96の下に収まるか」で判断＝クリックが
-        //   ラインに肉薄/超える（拾いやすい）ときだけ cannotSeparate 警告に乗せる（ライン自体の上限は下の min で 0.92 にクランプ）。
-        const separable = postClick * 1.12 < recBasis * 0.96;  // クリック予測ピーク×1.12（ライン）がストローク最小0.96倍以下に収まる隙間があるか
+        // v0.12.49：実効判定ラインをストローク最小の58%付近に置き、最低1.5倍の余裕を確保する。
+        //   effectiveRecommendedThreshold は診断用。検出は recommended→逆算した生threshold を保存・適用する。
+        const separable = postClick * STROKE_CLICK_SEPARATION_MULT < recBasis * 0.96;
         if (lowInputTuned) {
             // 有線イヤホン等：クリック音がほぼ競合しないため、ストローク最小の4割弱まで高感度に寄せる。
             // ノイズより十分上には置くが、クリック回避のために不必要に上げない。（高感度域なので倍率≒1＝逆算は恒等）
@@ -26841,17 +26992,14 @@ function updateReco() {
             test.recommended = rec;
             canApply = true;
         } else if (separable) {
-            // 実効判定ライン＝クリックより上(×1.12) かつ ストローク最小の0.5〜0.92倍（ストローク側に余裕・実機微調整で 0.65→…→0.90→0.92）。
-            const lineEff = Math.min(recBasis * 0.92, Math.max(postClick * 1.12, recBasis * 0.5));
-            let rec = recoRawThresholdForEffectiveLine(lineEff);     // 実効ラインが lineEff になる生thresholdへ逆算
+            const lineEff = computeStrokeDetectionLineEff(recBasis, postClick);
+            let rec = recoRawThresholdForEffectiveLine(lineEff);
             rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
             test.recommended = rec;
             canApply = true;
         } else {
-            // 分離不可：クリックとストロークが近い。ストローク検出を最優先し、実効ラインをストローク最小×0.92に置く
-            // （ストロークは確実に超える・実機微調整で 0.65→…→0.90→0.92）。クリックもライン付近に来るので、警告で音量ダウン/イヤホンへ誘導する。
             cannotSeparate = true;
-            const lineEff = recBasis * 0.92;
+            const lineEff = computeStrokeDetectionLineEff(recBasis, postClick);
             let rec = recoRawThresholdForEffectiveLine(lineEff);
             rec = Math.max(THR_MIN, Math.min(THR_MAX, rec));
             test.recommended = rec;
@@ -26880,40 +27028,7 @@ function updateReco() {
         els.recoThr.textContent = '—';
     }
 
-    // ②-B Bluetoothイヤホン専用：反応ラインが実測ストロークに対して低すぎる場合だけ引き上げる（v0.9.85）。
-    //     iPhone+Bluetooth等はAGCでストローク間の余韻が持ち上がり、ラインが低いと
-    //     ・結果波形がMAX張り付き ・二重反応 が起きやすい。実測ピークの一定割合を下限にして自然な高さへ。
-    //     UA分岐はせず、入力タイプ（Bluetoothイヤホン）と実測値だけで判断する。判定スケール/表示は変えない。
-    if (isBluetoothHeadphone() && test.recommended != null && !strokeDetectionShort) {
-        // v0.9.85では minStroke 基準だったため、1拍だけ小さい入力があると下限が低くなりやすかった。
-        // v0.9.86では p95/平均/最大も見て、実際に大きく反応している環境ではラインを自然な高さへ寄せる。
-        const btFloorCandidates = [
-            minStroke != null ? minStroke * 0.5 : null,
-            strokeP95 != null ? strokeP95 * BT_RECO_MIN_FRAC : null,
-            strokeAvg != null ? strokeAvg * 0.55 : null,
-            maxStrokeRaw != null ? maxStrokeRaw * 0.4 : null,
-            lowInputNoiseLine,
-        ].filter((v) => typeof v === 'number' && isFinite(v) && v > 0);
-        if (btFloorCandidates.length) {
-            let btFloor = Math.max(THR_MIN, Math.min(THR_MAX, Math.max(...btFloorCandidates)));
-            // v0.9.160：Bluetoothの反応ライン上限ガード。
-            //   AGCでマイク反応テスト中（連続ストローク）の入力が持ち上がり、上の候補（p95×0.5 等）が
-            //   実測ストロークの弱い側（minStroke）付近まで上がると、最終確認テストやSTAGEで「単発の普通の
-            //   ストロークがラインに届かない（=波形が小さく超えない）」状態になりやすい。
-            //   そこで、通常マイクの分離パスと同じ上限（実効ライン＝minStroke×0.92）を超えないようにキャップする。
-            //   これは「無条件に大きく下げる」ものではなく、①で決めた値より下げず、最弱ストロークの少し下
-            //   （約8%の余裕）までに収める“上振れ防止”のみ。ノイズはminStrokeより十分小さいので誤検出は増やさない。
-            //   STAGEの判定ロジック・GOOD/EARLY/LATE/MISS条件・通常/有線の算出は一切変更しない。
-            if (recoStrokeBasis != null) {
-                const btCeil = Math.max(THR_MIN, Math.min(THR_MAX, recoRawThresholdForEffectiveLine(recoStrokeBasis * 0.92)));
-                btFloor = Math.min(btFloor, Math.max(btCeil, test.recommended));
-            }
-            if (btFloor > test.recommended) {
-                test.recommended = btFloor;
-                els.recoThr.textContent = (provisional ? '仮 ' : '') + recoSensDisplay(test.recommended, lowInputTuned) + '％';
-            }
-        }
-    }
+    // v0.12.49：Bluetoothの反応ライン引き上げ（v0.9.85〜）は廃止。二重反応は cooldown 診断で対応。
 
     // ②-C 近ミュート回避（v0.9.140）：マイク感度0〜5%付近は感度カーブで実効しきい値が跳ね上がり、
     //     最終確認テストでコードストロークを拾えなくなる。おすすめ感度には実用下限(RECO_MIN_SENS)を設け、
@@ -26937,8 +27052,19 @@ function updateReco() {
         }
     }
 
-    // おすすめ適用後の感度カーブ込み実効ライン。判定ライン自体は再計算せず、
-    // 上限適用前後の診断比率と debugMic の実測確認に使う。
+    // v0.12.49：全入力タイプ共通で、実効検出ラインがストローク最小の1/1.5を超えないよう最終キャップ。
+    if (test.recommended != null && !lowInputTuned) {
+        const strokeCapBasis = recoStrokeBasis != null ? recoStrokeBasis : minStroke;
+        if (strokeCapBasis != null) {
+            const beforeCap = test.recommended;
+            test.recommended = capRawThresholdForStrokeHeadroom(test.recommended, strokeCapBasis, lowInputTuned);
+            if (test.recommended !== beforeCap) {
+                els.recoThr.textContent = (provisional ? '仮 ' : '') + recoSensDisplay(test.recommended, lowInputTuned) + '％';
+            }
+        }
+    }
+
+    // おすすめ適用後の感度カーブ込み実効ライン（診断・クリック音量安全判定・二重反応診断用。実検出には使わない）。
     const ratioTo = (value, base) => (
         typeof value === 'number' && isFinite(value) && typeof base === 'number' && isFinite(base) && base > 0
     ) ? value / base : null;
@@ -27315,6 +27441,18 @@ function updateReco() {
     if (iosNewMicReactionAlignmentAudit) {
         try { console.info('[iosNewMicReactionAlignmentAudit]', JSON.stringify(iosNewMicReactionAlignmentAudit)); } catch (_) { /* ignore */ }
     }
+
+    logStrokeDetectionThresholdDebugOnce('mic-reaction', {
+        recommendedThreshold: test.recommended,
+        lowInput: lowInputTuned,
+        rawStrokePeaks: (test.strokePeaks || []).slice(),
+        strokePeakMin: minStroke,
+        strokePeakP25: test.strokeP25,
+        strokeBasis: recoStrokeBasis || minStroke,
+        clickLeakRisk: !!test.recoBlockedByClickLeak,
+        doubleTriggerRisk: doubleTriggerRiskReasons.length > 0,
+        noiseMax: test.noiseMax,
+    });
 
     completeMicTestRunDebug({
         clickMeasureVol: test.clickMeasureVol,
