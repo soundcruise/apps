@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.51';
+const RHYTHM_CRUISE_VERSION = '0.12.52';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -526,6 +526,7 @@ const strokeWaveformClipLogDone = {};
 function resetStrokeWaveformClipLog() {
     Object.keys(strokeWaveformClipLogDone).forEach((k) => { delete strokeWaveformClipLogDone[k]; });
     resetStrokeDetectionThresholdLog();
+    resetStrokeWaveformDisplayFreezeLog();
 }
 function buildStrokeWaveformClipDebug(context, levels, thresholdOverride) {
     const scaleInfo = computeStrokeWaveformDisplayScale(levels, thresholdOverride);
@@ -601,6 +602,86 @@ function logStrokeWaveformClipDebugOnce(context, levels, thresholdOverride) {
         } catch (_) { /* ignore */ }
     }
     return scaleInfo;
+}
+
+/* v0.12.52：ライブ描画の表示スケールを開始時に1回だけ決めて凍結する（判定は不変・表示専用）。 */
+function strokeCalibrationPeakLevelsForDisplayScale() {
+    const peaks = [];
+    const add = (v) => { if (typeof v === 'number' && isFinite(v) && v > 0) peaks.push(v); };
+    if (Array.isArray(test.strokePeaks)) test.strokePeaks.forEach(add);
+    add(test.strokeP25);
+    add(test.maxStrokePeak);
+    add(test.minStrokePeak);
+    add(test.maxStrokeRaw);
+    return peaks.length ? peaks : null;
+}
+function createStrokeDisplayScaleSnapshot(thresholdOverride) {
+    const thr = thresholdOverride != null ? thresholdOverride : micEffectiveThreshold();
+    const calPeaks = strokeCalibrationPeakLevelsForDisplayScale();
+    if (calPeaks && calPeaks.length) {
+        const scaleInfo = computeStrokeWaveformDisplayScale(calPeaks, thr);
+        return {
+            displayScale: scaleInfo.displayScale,
+            displayThreshold: thr,
+            displayScaleSource: 'mic-reaction-stroke-peaks',
+        };
+    }
+    const scaleInfo = computeStrokeWaveformDisplayScale([], thr);
+    return {
+        displayScale: scaleInfo.displayScale,
+        displayThreshold: thr,
+        displayScaleSource: 'fallback-fixed',
+    };
+}
+const strokeWaveformDisplayFreezeLogDone = {};
+function resetStrokeWaveformDisplayFreezeLog() {
+    Object.keys(strokeWaveformDisplayFreezeLogDone).forEach((k) => { delete strokeWaveformDisplayFreezeLogDone[k]; });
+}
+function buildStrokeWaveformDisplayFreezeDebug(context, info) {
+    info = info || {};
+    return {
+        enabled: true,
+        context: context || 'unknown',
+        selectedInputType: getMicInputType(),
+        selectedHeadphoneType: getHeadphoneType(),
+        selectedTestPlatform,
+        displayScaleFrozen: !!info.displayScaleFrozen,
+        displayScaleSource: info.displayScaleSource || null,
+        displayScaleSnapshot: info.displayScaleSnapshot != null ? info.displayScaleSnapshot : null,
+        displayThresholdSnapshot: info.displayThresholdSnapshot != null ? info.displayThresholdSnapshot : null,
+        liveDisplayScaleWouldHaveBeen: info.liveDisplayScaleWouldHaveBeen != null ? info.liveDisplayScaleWouldHaveBeen : null,
+        liveRawPeakMax: info.liveRawPeakMax != null ? info.liveRawPeakMax : null,
+        threshold: info.threshold != null ? info.threshold : null,
+        changedJudgeLogic: false,
+        changedTimingLogic: false,
+        changedLocalStorageStructure: false,
+    };
+}
+function logStrokeWaveformDisplayFreezeDebugOnce(context, info) {
+    const key = context || 'unknown';
+    if (strokeWaveformDisplayFreezeLogDone[key]) return;
+    strokeWaveformDisplayFreezeLogDone[key] = true;
+    try {
+        console.info('[strokeWaveformDisplayFreezeDebug]',
+            JSON.stringify(buildStrokeWaveformDisplayFreezeDebug(context, info)));
+    } catch (_) { /* ignore */ }
+}
+function resolveStrokeLiveDisplayScale(context, waveLevels, thresholdOverride, snapshot) {
+    const thr = thresholdOverride != null ? thresholdOverride : micEffectiveThreshold();
+    const liveScaleInfo = computeStrokeWaveformDisplayScale(waveLevels || [], thr);
+    const frozen = !!(snapshot && snapshot.displayScale != null);
+    const displayScale = frozen ? snapshot.displayScale : liveScaleInfo.displayScale;
+    const displayThreshold = frozen && snapshot.displayThreshold != null ? snapshot.displayThreshold : thr;
+    logStrokeWaveformDisplayFreezeDebugOnce(context, {
+        displayScaleFrozen: frozen,
+        displayScaleSource: frozen ? (snapshot.displayScaleSource || 'start-snapshot') : 'live-window-peak',
+        displayScaleSnapshot: frozen ? snapshot.displayScale : null,
+        displayThresholdSnapshot: frozen ? snapshot.displayThreshold : null,
+        liveDisplayScaleWouldHaveBeen: liveScaleInfo.displayScale,
+        liveRawPeakMax: liveScaleInfo.rawPeakMax,
+        threshold: displayThreshold,
+    });
+    return { displayScale, displayThreshold, frozen, liveScaleInfo };
 }
 
 const strokeDetectionThresholdLogDone = {};
@@ -994,6 +1075,9 @@ const state = {
     markers: [],
     micWaveHistory: [],   // {perf, level} マイク音量の時系列（STAGE中の背景波形用・直近のみ）
     micRunWave: [],       // {t, level} 演奏全区間の音量履歴（補正後ゲーム時刻基準）。結果レーンでSTAGE同等の波形を再描画
+    stageDisplayScaleSnapshot: null,      // v0.12.52：STAGE Practiceライブ描画の固定表示スケール（セッション内のみ）
+    stageDisplayThresholdSnapshot: null,  // v0.12.52：同上の固定しきい値（表示専用）
+    stageDisplayScaleSource: null,
     combo: 0,             // 連続GOOD数
     pxPerBeat: 90,
     pxPerBeatRaw: 90,     // 表示密度スケール適用前の基準pxPerBeat（譜面プレビューが参照・v0.9.138）
@@ -7405,9 +7489,16 @@ function drawMicWaveform(ctx, w, h, yc, rawT, dispOff) {
         actualDetectionThreshold: micEffectiveThreshold(),
         actualDetectionThresholdSource: 'current-threshold',
     });
-    const displayScale = scaleInfo.displayScale;
+    const stageSnap = (state.stageDisplayScaleSnapshot != null) ? {
+        displayScale: state.stageDisplayScaleSnapshot,
+        displayThreshold: state.stageDisplayThresholdSnapshot,
+        displayScaleSource: state.stageDisplayScaleSource || 'start-snapshot',
+    } : null;
+    const resolved = resolveStrokeLiveDisplayScale('stage-practice-live', waveLevels, micEffectiveThreshold(), stageSnap);
+    const displayScale = resolved.displayScale;
+    const lineThr = resolved.displayThreshold;
     if (state.inputMode === 'stroke' || mic.on) {
-        const lineAmp = micStrokeWaveLineFrac(micEffectiveThreshold(), displayScale) * maxAmp;
+        const lineAmp = micStrokeWaveLineFrac(lineThr, displayScale) * maxAmp;
         ctx.save();
         ctx.strokeStyle = 'rgba(255,159,28,0.30)';
         ctx.setLineDash([4, 4]);
@@ -10610,6 +10701,17 @@ async function play() {
     els.playBtn.textContent = '■ 停止';     // 兼用ボタン
     els.playBtn.disabled = false;
     if (els.tapHint) els.tapHint.classList.add('dim'); // 再生中はタップ案内を薄く
+    if (state.inputMode === 'stroke') {
+        resetStrokeWaveformClipLog();
+        const stageSnap = createStrokeDisplayScaleSnapshot(micEffectiveThreshold());
+        state.stageDisplayScaleSnapshot = stageSnap.displayScale;
+        state.stageDisplayThresholdSnapshot = stageSnap.displayThreshold;
+        state.stageDisplayScaleSource = stageSnap.displayScaleSource;
+    } else {
+        state.stageDisplayScaleSnapshot = null;
+        state.stageDisplayThresholdSnapshot = null;
+        state.stageDisplayScaleSource = null;
+    }
     state.running = true;
     state.loopActive = !!state.rcLoop;                  // くり返し練習ONなら、このラン中は繰り返す（v0.9.147）
     if (state.loopActive) els.playBtn.textContent = '■ STOP'; // くり返し中はSTOP表記
@@ -10630,6 +10732,9 @@ function stop() {
     }
     if (!state.running) return;
     state.running = false;
+    state.stageDisplayScaleSnapshot = null;
+    state.stageDisplayThresholdSnapshot = null;
+    state.stageDisplayScaleSource = null;
     state.loopActive = false; // くり返し中の安全停止（画面遷移/戻る/TOP等）でもループ状態を残さない（v0.9.147）
     state.audioWaitStartTime = 0;
     // 先読みでスケジュール済みの未発音クリックを止める（停止後に鳴り続けないように）
@@ -10692,6 +10797,9 @@ function resetData() {
     state.markers = [];
     state.micWaveHistory = [];
     state.micRunWave = [];
+    state.stageDisplayScaleSnapshot = null;
+    state.stageDisplayThresholdSnapshot = null;
+    state.stageDisplayScaleSource = null;
     state.currentTime = 0;
     state.combo = 0;
     // この走行のマイク診断カウンタ・クールダウン基点をリセット
@@ -14593,8 +14701,15 @@ function usesIosNewStrongBtDelaySound() {
     return usesIosNewBtDelayLabel();
 }
 function btDelayStepUserLabel() {
-    if (useAndroidLatencyFirstFlow() || usesIosNewBtDelayLabel()) return '音ズレ・遅延テスト';
+    if (useAndroidLatencyFirstFlow()) return '音ズレ・遅延テスト';
+    // v0.12.52：新iPhone+有線もBTと同じ見出しに統一（音源・補正フラグは変更しない）
+    if (isIosNewProductionFlow() && isHeadphoneInput()) return '音ズレ・遅延テスト';
+    if (usesIosNewBtDelayLabel()) return '音ズレ・遅延テスト';
     return 'クリック音入力テスト';
+}
+function btDelayCorrectionValueLabel() {
+    if (isIosNewProductionFlow() && isHeadphoneInput() && !isBluetoothHeadphone()) return '音ズレ補正値';
+    return null;
 }
 function btCalIdleStartLabel() {
     return bt.hasRun ? 'もう1度テストする' : (btDelayStepUserLabel() + 'を開始');
@@ -18641,6 +18756,11 @@ const pt = {
     fullWave: [], // 見返し用（v0.9.74）：全区間の音量波形（flowStart基準ms）。間引きせず保持。
     debug: null, // 開発確認用（v0.9.77）：検出/割り当て/除外理由の集計。ユーザー表示には使わない。
     clickDebug: null,
+    displayScaleSnapshot: null,           // v0.12.52：最終確認ライブ描画の固定表示スケール（セッション内のみ）
+    displayThresholdSnapshot: null,       // v0.12.52：同上の固定しきい値（表示専用）
+    displayScaleSource: null,
+    reviewDisplayScaleSnapshot: null,     // v0.12.52：見返しでライブと同じスケールを使う（任意）
+    reviewDisplayThresholdSnapshot: null,
 };
 
 /* ── イヤホン用マイクの遅れ補正（v0.9.80）─────────────────────────────
@@ -19419,14 +19539,21 @@ function drawPracticeLane(t) {
     const ampPx = h * STAGE_WAVE_AMP_FRAC;
     const detThr = ptDetectionThreshold();
     const waveLevels = strokeWaveformLevelsFromWaveArray(pt.wave);
-    const scaleInfo = logStrokeWaveformClipDebugOnce('final-check', waveLevels, detThr);
+    logStrokeWaveformClipDebugOnce('final-check', waveLevels, detThr);
     logStrokeDetectionThresholdDebugOnce('final-check', {
         rawStrokePeaks: waveLevels,
         actualDetectionThreshold: detThr,
         actualDetectionThresholdSource: 'current-threshold',
     });
-    const displayScale = scaleInfo.displayScale;
-    const lineAmp = micStrokeWaveLineFrac(detThr, displayScale) * ampPx;
+    const fcSnap = (pt.displayScaleSnapshot != null) ? {
+        displayScale: pt.displayScaleSnapshot,
+        displayThreshold: pt.displayThresholdSnapshot,
+        displayScaleSource: pt.displayScaleSource || 'start-snapshot',
+    } : null;
+    const resolved = resolveStrokeLiveDisplayScale('final-check-live', waveLevels, detThr, fcSnap);
+    const displayScale = resolved.displayScale;
+    const lineThr = resolved.displayThreshold;
+    const lineAmp = micStrokeWaveLineFrac(lineThr, displayScale) * ampPx;
     ctx.strokeStyle = 'rgba(255,159,28,0.30)';
     ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, yc - lineAmp); ctx.lineTo(w, yc - lineAmp); ctx.stroke();
@@ -19590,14 +19717,21 @@ function drawPracticeReview() {
     const ampPx = h * STAGE_WAVE_AMP_FRAC;
     const detThr = ptDetectionThreshold();
     const waveLevels = strokeWaveformLevelsFromWaveArray(pt.fullWave);
-    const scaleInfo = logStrokeWaveformClipDebugOnce('final-check-review', waveLevels, detThr);
+    logStrokeWaveformClipDebugOnce('final-check-review', waveLevels, detThr);
     logStrokeDetectionThresholdDebugOnce('final-check', {
         rawStrokePeaks: waveLevels,
         actualDetectionThreshold: detThr,
         actualDetectionThresholdSource: 'current-threshold',
     });
-    const displayScale = scaleInfo.displayScale;
-    const lineAmp = micStrokeWaveLineFrac(detThr, displayScale) * ampPx;
+    const reviewSnap = (pt.reviewDisplayScaleSnapshot != null) ? {
+        displayScale: pt.reviewDisplayScaleSnapshot,
+        displayThreshold: pt.reviewDisplayThresholdSnapshot,
+        displayScaleSource: pt.displayScaleSource || 'start-snapshot',
+    } : null;
+    const resolved = resolveStrokeLiveDisplayScale('final-check-review', waveLevels, detThr, reviewSnap);
+    const displayScale = resolved.displayScale;
+    const lineThr = resolved.displayThreshold;
+    const lineAmp = micStrokeWaveLineFrac(lineThr, displayScale) * ampPx;
     ctx.strokeStyle = 'rgba(255,159,28,0.30)';
     ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, yc - lineAmp); ctx.lineTo(w, yc - lineAmp); ctx.stroke();
@@ -19722,6 +19856,11 @@ function resetPracticeView() {
     pt.valley = 1;
     pt.debug = null;
     pt.clickDebug = null;
+    pt.displayScaleSnapshot = null;
+    pt.displayThresholdSnapshot = null;
+    pt.displayScaleSource = null;
+    pt.reviewDisplayScaleSnapshot = null;
+    pt.reviewDisplayThresholdSnapshot = null;
     if (ptLane && ptLane.ctx) ptLane.ctx.clearRect(0, 0, ptLane.w, ptLane.h);
     if (els.ptLaneWrap) els.ptLaneWrap.classList.add('hidden');
     hidePracticeReview();
@@ -19817,6 +19956,11 @@ async function startPracticeTest() {
     const capEndMs = pt.playT0Ms + (PT_PLAY_BEATS - 1) * PT_BEAT_MS + capWin;
     ptTimer(() => { pt.capturing = true; }, capStartMs);
     ptTimer(() => { pt.capturing = false; finishPracticeTest(); }, capEndMs + 250);
+
+    const fcSnap = createStrokeDisplayScaleSnapshot(ptDetectionThreshold());
+    pt.displayScaleSnapshot = fcSnap.displayScale;
+    pt.displayThresholdSnapshot = fcSnap.displayThreshold;
+    pt.displayScaleSource = fcSnap.displayScaleSource;
 
     pt.raf = requestAnimationFrame(ptLoop);
     finalCheckFlowDebug.startPracticeStopReason = 'started';
@@ -20711,6 +20855,8 @@ function finishPracticeTest() {
     }
     if (r.finalCheckClickDebug) console.info('[final-check] click', r.finalCheckClickDebug);
     ptFinalizeDebug();
+    pt.reviewDisplayScaleSnapshot = pt.displayScaleSnapshot;
+    pt.reviewDisplayThresholdSnapshot = pt.displayThresholdSnapshot;
     renderPracticeResult(r);
     setPtStatus('完了');
     endPracticeTest(true);
@@ -21778,7 +21924,10 @@ function renderBtCalResult(r) {
     const stepLabel = btDelayStepUserLabel();
     const useStrongSound = usesIosNewStrongBtDelaySound() && !isIosNewBtHandclapMode();
     const inputLabel = useStrongSound ? 'テスト音' : (isIosNewBtHandclapMode() ? '手拍子' : 'クリック音');
-    const correctionLabel = useStrongSound ? '入力' : (isIosNewBtHandclapMode() ? '手拍子入力' : 'クリック入力');
+    const wiredIosNewCorrection = btDelayCorrectionValueLabel();
+    const correctionLabel = wiredIosNewCorrection
+        ? '音ズレ'
+        : (useStrongSound ? '入力' : (isIosNewBtHandclapMode() ? '手拍子入力' : 'クリック入力'));
     const primary = 'width:100%;padding:14px;margin-top:12px;border-radius:10px;border:none;'
         + 'background:linear-gradient(180deg,#ff9f1c,#ff8c00);color:#1a130a;font-weight:800;font-size:1rem;cursor:pointer;';
     const sub = 'width:100%;padding:12px;margin-top:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.28);'
@@ -21788,7 +21937,7 @@ function renderBtCalResult(r) {
     const rows =
         '<div class="cal-result-row"><span>有効入力</span><b>' + r.valid + ' / ' + BT_PLAY_BEATS + '</b></div>' +
         '<div class="cal-result-row"><span>平均ズレ</span><b>' + avgTxt + '</b></div>' +
-        '<div class="cal-result-row"><span>現在の' + correctionLabel + 'の補正値</span><b id="bt-cal-cur">' + sign(curShown) + '</b></div>';
+        '<div class="cal-result-row"><span>' + (wiredIosNewCorrection ? ('現在の' + wiredIosNewCorrection) : ('現在の' + correctionLabel + 'の補正値')) + '</span><b id="bt-cal-cur">' + sign(curShown) + '</b></div>';
     // v0.9.100：拍ごとのズレリスト＋手動スライダー（bluetoothMicOffsetMs用）。
     const extra = SHOW_BT_CAL_ADVANCED_UI
         ? perBeatListHtml(r.perBeat) + btManualBlockHtml(curShown, sub)
@@ -21855,9 +22004,10 @@ function renderBtCalResult(r) {
    符号：値を大きく(右)＝判定を遅らせる＝最終確認テストのEARLY（早め）を減らす。 */
 function btManualBlockHtml(start, sub) {
     const sign = (v) => (v > 0 ? '+' : '') + v + 'ms';
+    const valueLabel = btDelayCorrectionValueLabel() || 'クリック入力の補正値';
     return '<details class="card-help" style="margin-top:10px;"><summary>手動で微調整</summary>'
         + '<div class="setting-row" style="margin-top:10px;">'
-        + '<div class="setting-label">クリック入力の補正値 <b id="bt-cal-manual-val">' + sign(start) + '</b></div>'
+        + '<div class="setting-label">' + valueLabel + ' <b id="bt-cal-manual-val">' + sign(start) + '</b></div>'
         + '<input type="range" id="bt-cal-manual-slider" min="' + headphoneMicOffsetMin() + '" max="' + headphoneMicOffsetMax() + '" step="5" value="' + start + '">'
         + '<div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;"><span>← 判定を早める</span><span>判定を遅らせる →</span></div>'
         + '<p class="setting-note">最終確認テストで EARLY（早め）が残るなら右（遅らせる）へ、LATE（遅め）が残るなら左（早める）へ少し動かします。0ms＝補正なし。</p>'
@@ -21896,7 +22046,7 @@ function bindBtCalResultActions() {
         if (bt.result) bt.result.cur = v; // 再テスト時の基準にも反映
         const curEl = document.getElementById('bt-cal-cur');
         if (curEl) curEl.textContent = (v > 0 ? '+' : '') + v + 'ms';
-        setBtCalStatus('クリック入力の補正値を ' + (v > 0 ? '+' : '') + v + 'ms に設定しました。そのまま再テスト、またはマイク反応テストへ進めます。');
+        setBtCalStatus((btDelayCorrectionValueLabel() || 'クリック入力の補正値') + 'を ' + (v > 0 ? '+' : '') + v + 'ms に設定しました。そのまま再テスト、またはマイク反応テストへ進めます。');
     });
 }
 
@@ -21920,7 +22070,7 @@ function applyBtCal() {
     // 補正したので、前回の最終確認テスト結果は古くなる
     invalidatePracticeResult();
     if (before) recordIosNewCorrectionStaleChange(isIosNewBtHandclapMode() ? 'bt-handclap-delay' : 'bt-delay-retest', before);
-    setBtCalStatus('クリック入力の補正値を ' + (v > 0 ? '+' : '') + v + 'ms に設定しました。');
+    setBtCalStatus((btDelayCorrectionValueLabel() || 'クリック入力の補正値') + 'を ' + (v > 0 ? '+' : '') + v + 'ms に設定しました。');
 }
 
 /* クリック音入力テスト完了。有線は最終確認へ、Bluetoothは画面補正へ進む。 */
