@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.12.45">
+    <link rel="stylesheet" href="theme.css?v=0.12.46">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -798,6 +798,7 @@
                     <span class="status-pill" id="test-done-badge">未実施</span>
                 </div>
                 <p class="setting-note" style="margin-top:0;">次に、ストロークや手拍子を安定して拾えるように、マイクの反応ラインを確認します。</p>
+                <p class="setting-note hidden" id="test-stale-note" style="margin-top:6px;font-size:0.78rem;"></p>
                 <p class="do-now" id="test-do-now">弦を左手でミュートして、8回ストロークしてください。</p>
                 <details class="card-help">
                     <summary>このテストで確認すること</summary>
@@ -1081,6 +1082,18 @@
                     <p class="setting-note">有線はズレが小さいことが多く、測れない場合はスキップできます。Bluetoothは遅れが大きくなりやすいため、できるだけテストしてください。</p>
                 </details>
                 <p class="setting-note" style="margin-top:8px;"><a href="click-input-help.html?return=standard" style="color:var(--secondary-color);font-weight:700;">計測のコツを見る</a></p>
+                <button type="button" class="btn-mini rc-mic-action-secondary hidden" id="bt-cal-handclap-btn" style="width:auto;margin-top:6px;padding:6px 10px;font-size:0.78rem;">手拍子で測る</button>
+                <div class="hidden" id="bt-cal-handclap-panel" style="margin-top:8px;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);">
+                    <p class="setting-note" style="margin:0 0 8px;font-size:0.78rem;">手拍子では土台の反応タイミングを確認します。Bluetoothの音ズレは通常テストで合わせます。</p>
+                    <p class="cal-status hidden" id="bt-cal-handclap-status"></p>
+                    <div class="hidden" id="bt-cal-handclap-result">
+                        <div class="cal-result-row"><span>測定遅延</span><b id="bt-cal-handclap-delay">–</b></div>
+                        <div class="cal-result-row"><span>土台補正（timingOffsetMs）</span><b id="bt-cal-handclap-offset">–</b></div>
+                    </div>
+                    <button type="button" class="rc-mic-action-primary hidden" id="bt-cal-handclap-apply" style="width:100%;margin-top:8px;padding:10px;">この手拍子補正を使う</button>
+                    <button type="button" class="rc-mic-action-secondary hidden" id="bt-cal-handclap-back" style="width:100%;margin-top:6px;padding:8px;">通常の音ズレテストに戻る</button>
+                </div>
+                <p class="setting-note hidden" id="bt-cal-stale-note" style="margin-top:8px;font-size:0.78rem;"></p>
                 <!-- 流れる👏＋判定ライン＋反応ライン＋入力波形（最終確認テストと同じ考え方・v0.9.81） -->
                 <div class="test-lane-wrap hidden" id="bt-cal-lane-wrap">
                     <canvas id="bt-cal-lane-canvas"></canvas>
@@ -1472,7 +1485,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.12.45"></script>
+    <script src="script.js?v=0.12.46"></script>
 </body>
 
 </html>

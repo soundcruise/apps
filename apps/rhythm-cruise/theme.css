@@ -8062,3 +8062,6 @@ body[data-rc-theme="clean-pro"] #tap-area .tap-unify {
     opacity: 0.75;
     margin: 0 0 4px;
 }
+#bt-cal-handclap-btn {
+    display: inline-block;
+}
