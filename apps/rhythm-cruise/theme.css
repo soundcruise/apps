@@ -8054,3 +8054,11 @@ body[data-rc-theme="clean-pro"] #tap-area .tap-unify {
     width: 100%;
     margin: 4px 0 8px;
 }
+.ios-new-manual-slider-labels {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.72rem;
+    opacity: 0.75;
+    margin: 0 0 4px;
+}
