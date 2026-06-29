@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.49';
+const RHYTHM_CRUISE_VERSION = '0.12.50';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14539,22 +14539,35 @@ function shouldKeepBtCorrectionAfterMicTest() {
 /* v0.12.33：新iPhone+Bluetooth は btdelay→correction→test の順。マイク反応テスト前後で完了フラグを維持する。
    resetBtCalTransientUiState() の後に setupProgress を読むと常に false になるため、開始前のフラグを一時保存して復元する。 */
 function captureIosNewPreMicProgress() {
-    if (!isIosNewProductionFlow() || !isBluetoothHeadphone()) {
+    if (!isIosNewProductionFlow() || !isHeadphoneInput()) {
         test.iosNewPreMicProgress = null;
         return;
     }
-    test.iosNewPreMicProgress = {
-        btDelayDone: setupProgress.btDelayDone === true,
-        correctionDone: setupProgress.correctionDone === true,
-        capturedAt: new Date().toISOString(),
-    };
+    if (isBluetoothHeadphone()) {
+        test.iosNewPreMicProgress = {
+            btDelayDone: setupProgress.btDelayDone === true,
+            correctionDone: setupProgress.correctionDone === true,
+            capturedAt: new Date().toISOString(),
+            wiredOnly: false,
+        };
+    } else if (getHeadphoneType() === 'wired') {
+        // v0.12.50：btdelay→test 順のため、マイク反応テスト開始後も btDelayDone を維持（フラグのみ・音源/補正計算は不変）
+        test.iosNewPreMicProgress = {
+            btDelayDone: setupProgress.btDelayDone === true,
+            correctionDone: false,
+            capturedAt: new Date().toISOString(),
+            wiredOnly: true,
+        };
+    } else {
+        test.iosNewPreMicProgress = null;
+    }
 }
 function restoreIosNewPreMicProgress(reason) {
-    if (!isIosNewProductionFlow() || !isBluetoothHeadphone()) return;
+    if (!isIosNewProductionFlow() || !isHeadphoneInput()) return;
     const keep = test.iosNewPreMicProgress;
     if (!keep) return;
     if (keep.btDelayDone) setupProgress.btDelayDone = true;
-    if (keep.correctionDone) setupProgress.correctionDone = true;
+    if (!keep.wiredOnly && keep.correctionDone) setupProgress.correctionDone = true;
     const dbg = test.runDebug && test.runDebug.iosNewMicTestStart;
     if (dbg) {
         dbg.lastRestoreReason = reason || 'unknown';
@@ -14622,6 +14635,43 @@ let correctionFlowSnapshotSeq = 0;
 let correctionFlowCopySeq = 0;
 function iosNewFlowDebugNote() {
     return '新iPhoneは従来iPhoneの閉ループ補正（startBtCal/finishBtCal→bluetoothMicOffsetMs）を維持。ステップ順は btdelay→correction→test。音ズレ・遅延テストではクリック音の代わりに強いノイズ音を使用。';
+}
+const iosNewWiredFlowDebugLogged = {};
+function buildIosNewWiredFlowDebug() {
+    if (!isIosNewProductionFlow() || !isHeadphoneInput() || isBluetoothHeadphone()) {
+        return { enabled: false };
+    }
+    const steps = wizardSteps();
+    return {
+        enabled: true,
+        selectedTestPlatform,
+        selectedInputType: getMicInputType(),
+        selectedHeadphoneType: getHeadphoneType(),
+        wizardSteps: steps,
+        activeWizardStep: activeWizardStep(),
+        currentWizardStep: activeWizardStep(),
+        btDelayDone: !!setupProgress.btDelayDone,
+        recoApplied: !!setupProgress.recoApplied,
+        practiceDone: !!setupProgress.practiceDone,
+        wiredMicOffsetMs: mic.wiredMicOffsetMs || 0,
+        bluetoothMicOffsetMs: mic.bluetoothMicOffsetMs || 0,
+        micJudgeOffsetMs: micJudgeOffsetMs(),
+        finalCheckJudgeOffsetMs: finalCheckJudgeOffsetMs(),
+        skipWiredAvailable: isHeadphoneInput() && !isBluetoothHeadphone() && !bt.active,
+        correctionStepIncluded: steps.indexOf('correction') >= 0,
+        changedSoundLogic: false,
+        changedClampLogic: false,
+        changedOffsetFunctionBodies: false,
+    };
+}
+function logIosNewWiredFlowDebugOnce(context) {
+    if (!isIosNewProductionFlow() || !isHeadphoneInput() || isBluetoothHeadphone()) return;
+    const key = context || 'wizard';
+    if (iosNewWiredFlowDebugLogged[key]) return;
+    iosNewWiredFlowDebugLogged[key] = true;
+    try {
+        console.info('[iosNewWiredFlowDebug]', JSON.stringify(buildIosNewWiredFlowDebug()));
+    } catch (_) { /* ignore */ }
 }
 function isIosNewMicReactionFlow() {
     return isIosNewProductionFlow() && isBluetoothHeadphone();
@@ -18946,6 +18996,7 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
                 || (bt.debug && bt.debug.iosNewAdaptiveCorrectionDebug) || null,
             btCorrectionRunHistory: isIosNewProductionFlow() && isBluetoothHeadphone()
                 ? iosNewBtCorrectionRunHistory.slice() : null,
+            iosNewWiredFlowDebug: buildIosNewWiredFlowDebug(),
             iosNewFinalCheckOffsetMismatchDebug: finalCheckFlowDebug.lastIosNewFinalCheckOffsetMismatchDebug || null,
             iosNewFinalCheckCorrectionSuggestionDebug: finalCheckFlowDebug.lastIosNewFinalCheckCorrectionSuggestionDebug || null,
             iosNewFinalCheckMicReactionStaleDebug: finalCheckFlowDebug.lastIosNewFinalCheckMicReactionStaleDebug || null,
@@ -23062,12 +23113,12 @@ function wizardSteps() {
         // v0.12.32：新iPhone+Bluetooth のみ btdelay→correction→test（iOSクリック音入力テスト方式は現行iPhoneと同じ）
         steps.push('btdelay', 'correction', 'test');
     } else if (isIosNewProductionFlow()) {
-        // 新iPhoneの有線/通常マイクは現行iPhoneと同じ順序
-        steps.push('test');
         if (!isHeadphoneInput()) {
-            steps.push('correction');
+            // 新iPhone+本体マイク：従来どおり test→correction
+            steps.push('test', 'correction');
         } else {
-            steps.push('btdelay');
+            // v0.12.50：新iPhone+有線は btdelay→test（correction は出さない。BTは上の分岐で維持）
+            steps.push('btdelay', 'test');
         }
     } else {
         steps.push('test');            // iPhone / iPad：従来どおりマイク反応テストを先に行う
@@ -23695,6 +23746,9 @@ function renderWizardSteps() {
         els.ptRetestMicBtn.classList.toggle('hidden', !(active === 'practice' && isBluetoothHeadphone()));
     }
     if (active === 'practice') updatePracticeTestNote(); // v0.9.160：BluetoothのガイドをカードのDOMへ確実に反映
+    if (isIosNewProductionFlow() && isHeadphoneInput() && !isBluetoothHeadphone()) {
+        logIosNewWiredFlowDebugOnce('step-' + active);
+    }
     updateIosNewCorrectionStaleUi();
     // マイクの遅れ補正（btdelay）：他ステップへ移ったら停止。表示時はアイドルUIへ（v0.9.80）
     if (active !== 'btdelay') {
