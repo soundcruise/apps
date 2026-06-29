@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.55';
+const RHYTHM_CRUISE_VERSION = '0.12.56';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -1712,6 +1712,10 @@ const els = {
     inputTypeCard: $('input-type-card'),
     strokeModeCard: $('stroke-mode-card'),
     manualCard: $('manual-card'),
+    manualSummaryPanel: $('manual-summary-panel'),
+    manualAdvancedDetail: $('manual-advanced-detail'),
+    manualValuesDetail: $('manual-values-detail'),
+    manualDetailValues: $('manual-detail-values'),
     correctionWiredNote: $('correction-wired-note'),
     // ウィザード化（v0.9.62）：要約・補正系の進む/スキップ
     settingsStepsSummary: $('settings-steps-summary'),
@@ -23481,6 +23485,7 @@ function renderSettingsView() {
         // 「手動設定だけ開く」軽量ビュー：手動設定カードのみ表示（プリセット保存はカード内）
         allStepCards().forEach((el) => { if (el) el.style.display = 'none'; });
         if (els.manualCard) els.manualCard.style.display = '';
+        renderManualSummary();
         if (els.settingsStepsSummary) els.settingsStepsSummary.style.display = 'none';
         if (els.settingsStepsProgress) els.settingsStepsProgress.style.display = 'none';
         if (els.ptOpenManual) els.ptOpenManual.style.display = 'none';
@@ -24551,6 +24556,11 @@ async function copyAndroidOffsetStatusLogFromSummary() {
     const el = document.getElementById('settings-summary-android-log-status');
     if (el) el.textContent = 'Android補正状態ログをコピーしました。';
 }
+async function copyAndroidOffsetStatusLogFromManual() {
+    await copyAndroidOffsetStatusLog();
+    const el = document.getElementById('manual-android-log-status');
+    if (el) el.textContent = 'Android補正状態ログをコピーしました。';
+}
 
 function renderSettingsSummary() {
     if (!els.settingsSummaryList) return;
@@ -24620,6 +24630,59 @@ function renderSettingsSummary() {
     rows.push('</div></details>');
     els.settingsSummaryList.innerHTML = rows.join('');
     syncMicSaveStateUI(); // 保存ボタンの強調・上書き/別名の出し分けも同期（v0.9.152）
+}
+
+function manualSummaryPlatformLabel() {
+    if (selectedTestPlatform === 'android') return 'Android';
+    if (selectedTestPlatform === 'iphone_android_trial') return 'iPhone仮';
+    if (selectedTestPlatform === 'ios_new') return '新iPhone';
+    if (selectedTestPlatform === 'ios') return 'iOS';
+    const info = androidAudioProbeDeviceInfo();
+    if (info.isAndroid) return 'Android';
+    if (info.isIOS) return 'iOS';
+    return '端末未選択';
+}
+function manualSummaryInputLabel() {
+    if (!isHeadphoneInput()) return '本体マイク';
+    return getHeadphoneType() === 'bluetooth' ? 'Bluetoothイヤホン' : '有線イヤホン';
+}
+function manualSummaryOffsetMs() {
+    return isHeadphoneInput() ? headphoneMicOffsetGet() : mic.timingOffsetMs;
+}
+function renderManualSummary() {
+    const row = (k, v) => '<div class="cal-result-row"><span>' + escapeHtml(k) + '</span><b>' + escapeHtml(String(v)) + '</b></div>';
+    const noteRow = (msg) => '<div class="mic-unsaved-row" style="background:none;color:inherit;">' + escapeHtml(msg) + '</div>';
+    const dirty = micSettingsAreDirty();
+    const presetName = state.micPresetName || '未保存の設定';
+    const nameSuffix = (state.micPresetName && dirty) ? '（変更あり）' : '';
+    const envLabel = manualSummaryPlatformLabel() + ' / ' + manualSummaryInputLabel();
+    const mainRows = [];
+    mainRows.push(row('プリセット', presetName + nameSuffix));
+    if (dirty) mainRows.push('<div class="mic-unsaved-row">⚠ この設定はまだプリセット保存されていません</div>');
+    mainRows.push(row('現在の環境', envLabel));
+    mainRows.push(row('音ズレ補正', formatSummaryMs(manualSummaryOffsetMs())));
+    mainRows.push(row('マイク感度', userMicSensitivityPercent() + '％'));
+    mainRows.push(row('クリック音量', state.clickVolume + '％'));
+    if (els.manualSummaryPanel) els.manualSummaryPanel.innerHTML = mainRows.join('');
+
+    if (els.manualDetailValues) {
+        const detailRows = [];
+        const practice = buildSettingsSummaryPracticeInfo();
+        detailRows.push(row('入力タイプ', isHeadphoneInput() ? 'イヤホン接続' : '通常マイク'));
+        if (isHeadphoneInput()) detailRows.push(row('イヤホン種類', manualSummaryInputLabel()));
+        detailRows.push(row('使用中の補正', formatSummaryMs(practice.activeOffsetMs)));
+        detailRows.push(row('補正状態', practice.practiceStatus));
+        detailRows.push(row('二重反応防止', mic.cooldownMs + 'ms'));
+        if (isHeadphoneInput()) detailRows.push(row('イヤホン音ズレの画面補正', mic.headphoneOutputOffsetMs + 'ms'));
+        detailRows.push(row('反応ライン（生threshold）', mic.threshold.toFixed(3)));
+        detailRows.push(row('低入力プロファイル', mic.lowInputProfile ? 'あり' : 'なし'));
+        const androidDetailsInner = renderSettingsSummaryAndroidDetailsHtml(row, noteRow);
+        if (androidDetailsInner) detailRows.push(androidDetailsInner);
+        else detailRows.push(noteRow('Android専用補正の詳細は、Android端末でのみ表示されます。'));
+        detailRows.push('<button type="button" class="btn-mini" id="manual-copy-android-log" style="width:100%;margin-top:10px;padding:10px;">Android補正状態ログをコピー（開発確認用）</button>');
+        detailRows.push('<p class="cal-status" id="manual-android-log-status" style="margin-top:6px;"></p>');
+        els.manualDetailValues.innerHTML = detailRows.join('');
+    }
 }
 
 /* ── マイク設定プリセット（名前をつけて保存／呼び出し）v0.9.61 ────────
@@ -24716,6 +24779,7 @@ function syncMicSaveStateUI() {
 function syncMicSettingsUI() {
     applySettingsToUI();                 // 手動スライダー＋モード/種類UI（内部で簡易スライダーも同期）
     if (settingsView === 'summary') renderSettingsSummary();
+    if (settingsView === 'manual') renderManualSummary();
     syncMicSaveStateUI();
 }
 
@@ -24816,9 +24880,16 @@ function openManualView(scrollTarget) {
     settingsView = 'manual';
     // 「キャンセル」で戻せるよう、開いた時点の設定値を控える（v0.9.89）。
     captureManualSnapshot();
-    // 「手動設定を開く」ので、折りたたみは開いた状態で全項目を見せる（v0.9.69）。
+    // 「手動設定を開く」ので、外側は開いた状態にする。v0.12.56以降、詳細項目だけ内側の折りたたみに退避。
     if (els.manualDetail && !els.manualDetail.open) { els.manualDetail.open = true; fitPreview(); }
     else { drawMicPreview(); } // すでに開いている場合も図を更新（v0.9.227）
+    if (els.manualAdvancedDetail) {
+        const target = scrollTarget || els.manualCard;
+        const needsAdvanced = target === els.setCooldownRow || target === els.setHpOffsetRow;
+        els.manualAdvancedDetail.open = needsAdvanced ? true : false;
+    }
+    if (els.manualValuesDetail && (scrollTarget || els.manualCard) === els.manualCard) els.manualValuesDetail.open = false;
+    renderManualSummary();
     renderSettingsView();
     syncMicSaveStateUI(); // 手動設定を開いた時点の保存状態（未保存/上書き可否）を保存ボタンへ反映（v0.9.152）
     scrollToSettingsEl(scrollTarget || els.manualCard);
@@ -29658,7 +29729,10 @@ function bind() {
     if (els.hpZeroBtn) els.hpZeroBtn.addEventListener('click', resetHeadphoneOffsetToZero);
     if (els.hpStdBtn) els.hpStdBtn.addEventListener('click', resetHeadphoneOffsetToBluetoothStandard);
     // 手動設定のイヤホン音ズレの画面補正（v0.9.52）：選択中の種類の値を調整。補正カード側スライダーとも同期
-    if (els.setHpOffset) els.setHpOffset.addEventListener('input', () => setHeadphoneOffset(parseInt(els.setHpOffset.value, 10)));
+    if (els.setHpOffset) els.setHpOffset.addEventListener('input', () => {
+        setHeadphoneOffset(parseInt(els.setHpOffset.value, 10));
+        if (settingsView === 'manual') renderManualSummary();
+    });
     if (els.setHpResetBtn) els.setHpResetBtn.addEventListener('click', resetHeadphoneOffsetToGuide);
     if (els.setHpZeroBtn) els.setHpZeroBtn.addEventListener('click', resetHeadphoneOffsetToZero);
     // 実践テスト（v0.9.56）
@@ -29764,10 +29838,16 @@ function bind() {
     // トップ導線（v0.9.71）：簡易設定／詳細テスト／現在の設定を見る
     if (els.settingsSimpleBtn) els.settingsSimpleBtn.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsView('simple')));
     if (els.settingsDetailBtn) els.settingsDetailBtn.addEventListener('click', () => guardMicSetupInterruption(() => startRetestFlow(false)));
-    if (els.settingsViewCurrent) els.settingsViewCurrent.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsView('summary')));
+    if (els.settingsViewCurrent) els.settingsViewCurrent.addEventListener('click', () => guardMicSetupInterruption(() => {
+        manualSettingsReturnView = 'chooser';
+        openManualView(els.manualCard);
+    }));
     if (els.settingsSummaryBack) els.settingsSummaryBack.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsView('chooser')));
     if (els.settingsSummaryList) els.settingsSummaryList.addEventListener('click', (e) => {
         if (e.target && e.target.id === 'settings-summary-copy-android-log') copyAndroidOffsetStatusLogFromSummary();
+    });
+    if (els.manualDetailValues) els.manualDetailValues.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'manual-copy-android-log') copyAndroidOffsetStatusLogFromManual();
     });
     // 簡易設定：環境選択／適用後の導線（v0.9.71）
     if (els.simpleChoices) els.simpleChoices.querySelectorAll('.simple-choice').forEach((b) => {
@@ -29786,6 +29866,13 @@ function bind() {
     if (els.settingsSummaryManual) els.settingsSummaryManual.addEventListener('click', () => { manualSettingsReturnView = 'summary'; openManualView(els.manualCard); });
     // 手動設定カード内「この設定を保存」：共通の保存モーダルを開く（v0.9.80）
     if (els.manualPresetTrigger) els.manualPresetTrigger.addEventListener('click', () => openPresetModal());
+    if (els.manualValuesDetail) els.manualValuesDetail.addEventListener('toggle', () => {
+        if (els.manualValuesDetail.open) {
+            renderManualSummary();
+            fitPreview();
+            drawMicPreview();
+        }
+    });
     // 補正系の「進む/スキップ」（v0.9.62）：押したら補正系完了として最終確認テストへ
     if (els.calSkipBtn) els.calSkipBtn.addEventListener('click', completeCorrectionStep);
     if (els.hpProceedBtn) els.hpProceedBtn.addEventListener('click', completeCorrectionStep);
@@ -29841,12 +29928,14 @@ function bind() {
         if (els.testThreshold) els.testThreshold.style.left = micThresholdMarkerPct() + '%';
         applyStrokeMicToolsUI();  // STAGE簡易マイク設定も同期（v0.9.152）
         syncMicSaveStateUI();     // 手動で変えたら未保存→保存ボタンを強調（v0.9.152）
+        if (settingsView === 'manual') renderManualSummary();
         drawMicPreview();
     });
     els.setCooldown.addEventListener('input', () => {
         mic.cooldownMs = parseInt(els.setCooldown.value, 10);
         els.setCooldownVal.textContent = mic.cooldownMs + 'ms';
         syncMicSaveStateUI();     // v0.9.152
+        if (settingsView === 'manual') renderManualSummary();
         drawMicPreview();
     });
     els.setOffset.addEventListener('input', () => {
@@ -29863,6 +29952,7 @@ function bind() {
         }
         updateMicDiag();
         syncMicSaveStateUI();
+        if (settingsView === 'manual') renderManualSummary();
         drawMicPreview();
     });
     els.setClickVol.addEventListener('input', () => {
@@ -29870,6 +29960,7 @@ function bind() {
         els.setClickVolVal.textContent = state.clickVolume + '％';
         applyStrokeMicToolsUI();  // STAGE簡易マイク設定も同期（v0.9.152）
         syncMicSaveStateUI();     // v0.9.152
+        if (settingsView === 'manual') renderManualSummary();
         drawMicPreview();
     });
     // 値が確定したら保存
