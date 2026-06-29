@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.31';
+const RHYTHM_CRUISE_VERSION = '0.12.32';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -1361,6 +1361,7 @@ const els = {
     micPresetBack: $('mic-preset-back'),
     platformTypeCard: $('platform-type-card'),
     wizardPlatformIos: $('wizard-platform-ios'),
+    wizardPlatformIosNew: $('wizard-platform-ios-new'),
     wizardPlatformAndroid: $('wizard-platform-android'),
     wizardPlatformIphoneTrial: $('wizard-platform-iphone-trial'),
     wizardPlatformNote: $('wizard-platform-note'),
@@ -12942,6 +12943,9 @@ const iphoneAndroidTrialOffsets = {
 function isIphoneAndroidTrialFlow() {
     return selectedTestPlatform === 'iphone_android_trial';
 }
+function isIosNewProductionFlow() {
+    return selectedTestPlatform === 'ios_new';
+}
 function isRealAndroidCorrectionFlow() {
     return selectedTestPlatform === 'android';
 }
@@ -12951,6 +12955,7 @@ function isAndroidStyleCorrectionFlow() {
 function correctionFlowKind() {
     if (isIphoneAndroidTrialFlow()) return 'iphone_android_trial';
     if (isRealAndroidCorrectionFlow()) return 'android_production';
+    if (isIosNewProductionFlow()) return 'ios_new_production';
     if (selectedTestPlatform === 'ios') return 'ios_production';
     return 'unknown';
 }
@@ -13738,7 +13743,7 @@ function androidTestPlatformSelected() {
     //   実行すると headphoneAudioProbe.run（kind='androidAudioCheck'）が残り、下のフォールバックが true を返して
     //   iPhone本番イヤホンの btdelay が Android型UI（wizard-android-bt-block）に化け、旧クリック音入力テストの
     //   開始ボタンが効かなくなっていた。iPhone本番は常に旧iOSルートを使う。判定・保存ロジックには影響しない。
-    if (selectedTestPlatform === 'ios') return false;
+    if (selectedTestPlatform === 'ios' || selectedTestPlatform === 'ios_new') return false;
     const run = headphoneAudioProbe.run;
     return !!(run && run.kind === 'androidAudioCheck'
         && (run.selectedTestPlatform === 'android' || run.selectedTestPlatform === 'iphone_android_trial'));
@@ -14243,6 +14248,22 @@ function shouldKeepBtCorrectionAfterMicTest() {
     const steps = wizardSteps();
     const ci = steps.indexOf('correction'), ti = steps.indexOf('test');
     return ci >= 0 && ti >= 0 && ci < ti;
+}
+/* v0.12.32：新iPhone+Bluetooth は btdelay→correction→test の順。マイク反応テスト開始後も btDelayDone を維持する。
+   現行iPhone・Android・iPhone仮には影響しない（ウィザード完了フラグの維持のみ）。 */
+function shouldKeepIosNewBtDelayAfterMicTest() {
+    if (!isIosNewProductionFlow() || !isBluetoothHeadphone()) return false;
+    return !!setupProgress.btDelayDone;
+}
+/* v0.12.32：新iPhone+Bluetooth で correction が test より前にあるとき、マイク反応テスト後も correctionDone を維持する。 */
+function shouldKeepIosNewCorrectionAfterMicTest() {
+    if (!isIosNewProductionFlow() || !isBluetoothHeadphone()) return false;
+    const steps = wizardSteps();
+    const ci = steps.indexOf('correction'), ti = steps.indexOf('test');
+    return ci >= 0 && ti >= 0 && ci < ti && !!setupProgress.correctionDone;
+}
+function iosNewFlowDebugNote() {
+    return '新iPhoneはiOSクリック音入力テスト方式のまま、ステップ順だけ btdelay→correction→test に変更している。bluetoothMicOffsetMs を更新する可能性あり（次Stepで測定窓反映予定）。';
 }
 function cancelAndroidAudioCheck() {
     stopAndroidBtVolumeTest({ keepMonitor: true });
@@ -17181,6 +17202,35 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
         finalCheckDisplayCorrectionDebug: finalCheckFlowDebug.lastFinalCheckDisplayCorrectionDebug || null,
         bluetoothCandidateComparison: finalCheckFlowDebug.lastBluetoothCandidateComparison || null,
         bluetoothFinalCheckPrediction: finalCheckFlowDebug.lastBluetoothFinalCheckPrediction || null,
+        iosNewFlow: {
+            isIosNewFlow: isIosNewProductionFlow(),
+            correctionFlowKind: correctionFlowKind(),
+            selectedTestPlatform,
+            wizardSteps: steps,
+            activeWizardStep: activeStep,
+            currentWizardStep: activeStep,
+            btDelayDone: !!setupProgress.btDelayDone,
+            correctionDone: !!setupProgress.correctionDone,
+            btDelayDoneBeforeMicTest: test.runDebug && test.runDebug.iosNewMicTestStart
+                ? test.runDebug.iosNewMicTestStart.btDelayDoneBeforeMicTest : null,
+            btDelayDoneAfterMicTest: test.runDebug && test.runDebug.iosNewMicTestStart
+                ? test.runDebug.iosNewMicTestStart.btDelayDoneAfterMicTest : null,
+            correctionDoneBeforeMicTest: test.runDebug && test.runDebug.iosNewMicTestStart
+                ? test.runDebug.iosNewMicTestStart.correctionDoneBeforeMicTest : null,
+            correctionDoneAfterMicTest: test.runDebug && test.runDebug.iosNewMicTestStart
+                ? test.runDebug.iosNewMicTestStart.correctionDoneAfterMicTest : null,
+            bluetoothMicOffsetMsAtMicTestStart: test.runDebug && test.runDebug.iosNewMicTestStart
+                ? test.runDebug.iosNewMicTestStart.bluetoothMicOffsetMsAtMicTestStart : (mic.bluetoothMicOffsetMs || 0),
+            timingOffsetMsAtMicTestStart: test.runDebug && test.runDebug.iosNewMicTestStart
+                ? test.runDebug.iosNewMicTestStart.timingOffsetMsAtMicTestStart : (mic.timingOffsetMs || 0),
+            micJudgeOffsetMsAtMicTestStart: test.runDebug && test.runDebug.iosNewMicTestStart
+                ? test.runDebug.iosNewMicTestStart.micJudgeOffsetMsAtMicTestStart : micJudgeOffsetMs(),
+            finalCheckJudgeOffsetMs: finalCheckJudgeOffsetMs(),
+            micJudgeOffsetMs: micJudgeOffsetMs(),
+            wizardMicJudgeOffsetMs: wizardMicJudgeOffsetMs(),
+            bluetoothMicOffsetMs: mic.bluetoothMicOffsetMs || 0,
+            note: iosNewFlowDebugNote(),
+        },
     };
 }
 
@@ -18834,7 +18884,7 @@ function practiceFixGoTo(route) {
         // 反応ラインからやり直す：補正系以降（test より後の補正）は未完了に戻す。
         // correction が test より前にある上流ステップ（Android通常マイク／v0.11.80以降のAndroid BT）は維持する。
         setupProgress.recoApplied = false;
-        if (!shouldKeepAndroidBuiltinLatencyAfterMicTest() && !shouldKeepBtCorrectionAfterMicTest()) setupProgress.correctionDone = false;
+        if (!shouldKeepAndroidBuiltinLatencyAfterMicTest() && !shouldKeepBtCorrectionAfterMicTest() && !shouldKeepIosNewCorrectionAfterMicTest()) setupProgress.correctionDone = false;
         wizardEditing = 'test';
         if (settingsView !== 'steps') settingsView = 'steps';
         renderSettingsView();
@@ -19644,7 +19694,11 @@ function completeBtCalStep() {
     wizardEditing = null;
     if (settingsView === 'steps') {
         renderSettingsView();
-        scrollToActiveWizardStep(els.testCard);
+        if (isIosNewProductionFlow() && isBluetoothHeadphone()) {
+            scrollToActiveWizardStep(els.hpCalCard);
+        } else {
+            scrollToActiveWizardStep(els.testCard);
+        }
     }
 }
 
@@ -20795,6 +20849,17 @@ function wizardSteps() {
             if (isBluetoothHeadphone()) steps.push('correction');
         }
         steps.push('test');            // マイク反応テスト
+    } else if (isIosNewProductionFlow() && isHeadphoneInput() && isBluetoothHeadphone()) {
+        // v0.12.32：新iPhone+Bluetooth のみ btdelay→correction→test（iOSクリック音入力テスト方式は現行iPhoneと同じ）
+        steps.push('btdelay', 'correction', 'test');
+    } else if (isIosNewProductionFlow()) {
+        // 新iPhoneの有線/通常マイクは現行iPhoneと同じ順序
+        steps.push('test');
+        if (!isHeadphoneInput()) {
+            steps.push('correction');
+        } else {
+            steps.push('btdelay');
+        }
     } else {
         steps.push('test');            // iPhone / iPad：従来どおりマイク反応テストを先に行う
         if (!isHeadphoneInput()) {
@@ -20857,7 +20922,8 @@ function wizardStepSummary(id) {
         case 'platform':
             return selectedTestPlatform === 'android' ? '端末：Android'
                 : (selectedTestPlatform === 'iphone_android_trial' ? '端末：iPhone仮'
-                : (selectedTestPlatform === 'ios' ? '端末：iPhone / iPad' : '端末：未選択'));
+                : (selectedTestPlatform === 'ios_new' ? '端末：新iPhone'
+                : (selectedTestPlatform === 'ios' ? '端末：iPhone / iPad' : '端末：未選択')));
         case 'input': {
             if (!isHeadphoneInput()) return '入力タイプ：通常マイク';
             return '入力タイプ：イヤホン接続';
@@ -20902,6 +20968,7 @@ function refreshSegmentSelections() {
     const steps = (settingsView === 'steps');
     const showPlatform = !(steps && !setupProgress.platformChosen);
     if (els.wizardPlatformIos) els.wizardPlatformIos.classList.toggle('is-active', showPlatform && selectedTestPlatform === 'ios');
+    if (els.wizardPlatformIosNew) els.wizardPlatformIosNew.classList.toggle('is-active', showPlatform && selectedTestPlatform === 'ios_new');
     if (els.wizardPlatformAndroid) els.wizardPlatformAndroid.classList.toggle('is-active', showPlatform && selectedTestPlatform === 'android');
     if (els.wizardPlatformIphoneTrial) els.wizardPlatformIphoneTrial.classList.toggle('is-active', showPlatform && selectedTestPlatform === 'iphone_android_trial');
     const t = getMicInputType();
@@ -21582,7 +21649,11 @@ function completeCorrectionStep() {
     wizardEditing = null;
     if (settingsView === 'steps') {
         renderSettingsView();
-        scrollToActiveWizardStep(els.ptCard);
+        if (isIosNewProductionFlow() && isBluetoothHeadphone()) {
+            scrollToActiveWizardStep(els.testCard);
+        } else {
+            scrollToActiveWizardStep(els.ptCard);
+        }
     }
 }
 
@@ -21880,7 +21951,9 @@ function updateWizardFlowPlatformNotes() {
         ? 'Android向けの補正テストを行います。'
         : (selectedTestPlatform === 'iphone_android_trial'
             ? 'iPhone仮テスト中です。現在のiPhone本番設定には保存しません。Android設定にも保存しません。ページを再読み込みすると、この仮設定は消えます。selectedTestPlatform: iphone_android_trial'
-            : (selectedTestPlatform === 'ios' ? 'iPhone / iPad向けの補正テストを行います。' : ''));
+            : (selectedTestPlatform === 'ios_new'
+                ? '新iPhone向けの補正テストを行います。新しい順番で補正テストを試す開発用です。'
+                : (selectedTestPlatform === 'ios' ? 'iPhone / iPad向けの補正テストを行います。' : '')));
     if (els.wizardFlowPlatformNote) {
         els.wizardFlowPlatformNote.textContent = msg;
         els.wizardFlowPlatformNote.classList.toggle('hidden', !msg);
@@ -23623,12 +23696,21 @@ async function startMicTestFlow(options = {}) {
     if (pt.active) stopPracticeTest(); // 最終確認テストと排他
     stopBtCal(); // マイクの遅れ補正と排他
     resetMicDelayCalibrationUiState();
+    const iosNewMicTestProgress = isIosNewProductionFlow() ? {
+        btDelayDoneBeforeMicTest: !!setupProgress.btDelayDone,
+        correctionDoneBeforeMicTest: !!setupProgress.correctionDone,
+        bluetoothMicOffsetMsAtMicTestStart: headphoneMicOffsetGet(),
+        timingOffsetMsAtMicTestStart: mic.timingOffsetMs || 0,
+        micJudgeOffsetMsAtMicTestStart: micJudgeOffsetMs(),
+    } : null;
     resetBtCalTransientUiState();
     resetMicReactionTestRunDisplay();
     // v0.11.75：Android有線/BTは、保存済み遅延補正があれば音ズレ・遅延テスト完了状態(btDelayDone)を
     //   マイク反応テスト開始後も保持する。resetBtCalTransientUiState() が btDelayDone を落とすため、
     //   保存済み時だけここで復元する（通常マイクの correctionDone 保護と対称）。
     if (shouldKeepAndroidHeadphoneLatencyAfterMicTest()) setupProgress.btDelayDone = true;
+    // v0.12.32：新iPhone+Bluetooth も btdelay 完了後に test へ進むため、btDelayDone を維持する。
+    if (shouldKeepIosNewBtDelayAfterMicTest()) setupProgress.btDelayDone = true;
     const startClickVolume = state.clickVolume;
     if (!(await ensureTestMic())) { setTestResult('マイクを許可してください。', 'ng'); showMicPermHelp(); return; }
     hideMicPermHelp(); // v0.9.160：開始できたので許可エラー案内は隠す
@@ -23649,6 +23731,13 @@ async function startMicTestFlow(options = {}) {
         lifecycleAtStart: micLifecycleDebugEvents.slice(),
         completed: false,
     };
+    if (iosNewMicTestProgress) {
+        test.runDebug.iosNewMicTestStart = Object.assign(iosNewMicTestProgress, {
+            btDelayDoneAfterMicTest: !!setupProgress.btDelayDone,
+            correctionDoneAfterMicTest: !!setupProgress.correctionDone,
+            note: iosNewFlowDebugNote(),
+        });
+    }
     androidAudioProbeStart('micReactionTest', {
         measurementWindowMs: { from: 0, to: 520 }, correctionClampMs: null,
         normalDetection: 'microphone reaction-test raw peak window',
@@ -25289,7 +25378,7 @@ function applyReco() {
         setupProgress.recoApplied = true;
         // テストをやり直して適用したら、補正系以降（test より後の補正）は未完了へ戻す。
         // ただし correction が test より前にある上流ステップ（Android通常マイク／v0.11.80以降のAndroid BT）は維持する。
-        if (!shouldKeepAndroidBuiltinLatencyAfterMicTest() && !shouldKeepBtCorrectionAfterMicTest()) setupProgress.correctionDone = false;
+        if (!shouldKeepAndroidBuiltinLatencyAfterMicTest() && !shouldKeepBtCorrectionAfterMicTest() && !shouldKeepIosNewCorrectionAfterMicTest()) setupProgress.correctionDone = false;
         // 反応ラインが変わったので前回の実践テスト結果は無効化する
         invalidatePracticeResult();
         wizardEditing = null;
@@ -26926,6 +27015,7 @@ function bind() {
     if (els.inputTypeNormal) els.inputTypeNormal.addEventListener('click', () => onPickInputType('normal'));
     if (els.inputTypeHeadphone) els.inputTypeHeadphone.addEventListener('click', () => onPickInputType('headphone'));
     if (els.wizardPlatformIos) els.wizardPlatformIos.addEventListener('click', () => onPickWizardPlatform('ios'));
+    if (els.wizardPlatformIosNew) els.wizardPlatformIosNew.addEventListener('click', () => onPickWizardPlatform('ios_new'));
     if (els.wizardPlatformAndroid) els.wizardPlatformAndroid.addEventListener('click', () => onPickWizardPlatform('android'));
     if (els.wizardPlatformIphoneTrial) els.wizardPlatformIphoneTrial.addEventListener('click', () => onPickWizardPlatform('iphone_android_trial'));
     if (els.platformIos) els.platformIos.addEventListener('click', () => selectTestPlatform('ios'));
