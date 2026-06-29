@@ -1073,8 +1073,8 @@
                     <button type="button" class="btn-primary hidden" id="wizard-android-proceed-hp" style="width:100%;margin-top:8px;">マイク反応テストへ進む</button>
                 </div>
                 <div id="wizard-ios-bt-ui">
-                <p class="do-now">クリック音がマイクに届くタイミングを確認します</p>
-                <p class="do-now-sub">イヤホンから鳴るクリック音をマイクで拾って、入力遅延を測ります。イヤホンの音が出る部分をマイク部分に軽く当ててください。</p>
+                <p class="do-now" id="bt-cal-do-now">クリック音がマイクに届くタイミングを確認します</p>
+                <p class="do-now-sub" id="bt-cal-do-now-sub">イヤホンから鳴るクリック音をマイクで拾って、入力遅延を測ります。イヤホンの音が出る部分をマイク部分に軽く当ててください。</p>
                 <details class="card-help">
                     <summary>詳しい説明</summary>
                     <p class="setting-note" id="bt-cal-guide">イヤホンから鳴るクリック音をマイクで拾い、マイク側の遅れを測ります。テスト中は検出しやすいよう、アプリ内のクリック音量を一時的に大きくします。</p>
@@ -1092,6 +1092,8 @@
                     <p class="cal-level-state" id="bt-cal-level-state" aria-live="polite">音を確認中…</p>
                 </div>
                 <p class="test-phase" id="bt-cal-phase"></p>
+                <button type="button" class="btn-mini rc-mic-action-secondary hidden" id="bt-cal-volume-test" style="width:100%;margin-top:8px;padding:10px 12px;">音量テスト</button>
+                <p class="cal-status hidden" id="bt-cal-volume-status"></p>
                 <button class="btn-mic cal-run-btn test-start-btn rc-mic-action-primary" id="bt-cal-btn">クリック音入力テストを開始</button>
                 <p class="cal-status" id="bt-cal-status"></p>
                 <div class="cal-result hidden" id="bt-cal-result"></div>
@@ -1470,7 +1472,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.12.34"></script>
+    <script src="script.js?v=0.12.35"></script>
 </body>
 
 </html>
