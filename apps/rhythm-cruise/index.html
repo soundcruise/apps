@@ -797,12 +797,12 @@
                     <div class="cal-head" id="test-card-head">マイク反応テスト</div>
                     <span class="status-pill" id="test-done-badge">未実施</span>
                 </div>
-                <p class="setting-note" style="margin-top:0;">次に、ストロークや手拍子を安定して拾えるように、マイクの反応ラインを確認します。</p>
+                <p class="setting-note" style="margin-top:0;">次に、実際のストロークを拾いやすく、クリック音などの不要な音には反応しにくいマイク感度を確認します。</p>
                 <p class="setting-note hidden" id="test-stale-note" style="margin-top:6px;font-size:0.78rem;"></p>
                 <p class="do-now" id="test-do-now">弦を左手でミュートして、8回ストロークしてください。</p>
                 <details class="card-help">
                     <summary>このテストで確認すること</summary>
-                    <p class="setting-note">リズム練のSTAGEで、クリック音だけでは反応しにくく、ストロークは拾える設定を探します。「音ズレ・遅延テスト」は、イヤホンから出た音がマイクに届くまでのズレを測る別のテストです。マイク反応テストは、実際のストロークを拾いやすい感度を決めるテストです。</p>
+                    <p class="setting-note">実際のストロークを拾いやすく、クリック音などの不要な音には反応しにくい設定を探します。「音ズレ・遅延テスト」は、イヤホンから出た音がマイクに届くまでのズレを測る別のテストです。</p>
                 </details>
                 <details class="card-help">
                     <summary>コードストロークする場合</summary>
@@ -1075,7 +1075,7 @@
                 </div>
                 <div id="wizard-ios-bt-ui">
                 <p class="do-now" id="bt-cal-do-now">イヤホンから出た音が、マイクに届くまでのズレを測ります</p>
-                <p class="do-now-sub" id="bt-cal-do-now-sub">イヤホンの音をマイクで拾って、入力の遅れを測ります。</p>
+                <p class="do-now-sub" id="bt-cal-do-now-sub">イヤホンから出た音がマイクに届くまでのズレを測ります。</p>
                 <details class="card-help">
                     <summary>詳しい説明</summary>
                     <p class="setting-note" id="bt-cal-guide">イヤホンから出た音が、マイクに届くまでのズレを測ります。</p>
@@ -1102,7 +1102,7 @@
                 <button class="btn-mic cal-run-btn test-start-btn rc-mic-action-primary" id="bt-cal-btn">音ズレ・遅延テストを開始</button>
                 <p class="cal-status" id="bt-cal-status"></p>
                 <div class="cal-result hidden" id="bt-cal-result"></div>
-                <p class="setting-note hidden" id="bt-cal-skip-wired-note" style="margin:10px 0 4px;">有線イヤホンはズレが小さいため、うまく測れない場合はスキップできます。</p>
+                <p class="setting-note hidden" id="bt-cal-skip-wired-note" style="margin:10px 0 4px;">有線イヤホンは遅延が小さいことが多いため、このテストはスキップできます。タイミングが気になる場合だけ測ってください。</p>
                 <button type="button" class="btn-mini hidden" id="bt-cal-skip-wired" style="width:100%;margin-top:6px;">スキップしてマイク反応テストへ進む</button>
                 <section class="settings-detail mic-test-dev-log hidden" id="android-hp-audio-probe" style="margin-top:14px;padding:12px;"><h3 style="margin:0 0 6px;font-size:1rem;">Android音声調査</h3><p class="setting-note">イヤホンから出る音が実際にどの入力へ入るかを調べます。補正値・保存値・判定には使いません。</p><label class="setting-note">入力制約<select id="android-hp-probe-constraints" style="width:100%;margin:4px 0 8px;"><option value="current">現行（全処理OFF）</option><option value="minimal">最小（audio:true）</option><option value="aec-off">echoCancellation:false</option><option value="aec-on">echoCancellation:true</option><option value="sparse">最少指定（noise/AGC OFF）</option></select></label><label class="setting-note">テスト音の長さ<select id="android-hp-probe-duration" style="width:100%;margin:4px 0 8px;"><option value="50">50ms</option><option value="100" selected>100ms</option><option value="20">20ms</option><option value="150">150ms</option></select></label><button type="button" class="btn-mic test-start-btn rc-mic-action-primary" id="android-hp-probe-run">イヤホン音がマイクに入るか調べる</button><button type="button" class="btn-mini rc-mic-action-secondary" id="android-hp-probe-voice" style="width:100%;margin-top:8px;">声・タップ比較を記録（8秒）</button><p class="cal-status" id="android-hp-probe-status"></p><textarea class="mic-test-dev-log-text" id="android-hp-probe-log" rows="14" readonly aria-label="Androidイヤホン音入力調査ログ"></textarea><div class="dev-log-copy-row"><button type="button" class="dev-log-copy-btn" id="android-hp-probe-copy">開発ログをコピー</button><span class="dev-log-copy-status" id="android-hp-probe-copy-status" aria-live="polite"></span></div></section>
                 <!-- 参考：イヤホン自己収音テスト。ロジックは保持し、通常導線からは非表示。 -->
@@ -1125,7 +1125,7 @@
                 <p class="do-now-sub">クリック音だけでは反応しないことと、実際にストロークしてGOODが多く、平均ズレが0ms付近になるかを確認します。</p>
                 <details class="card-help">
                     <summary>詳しい説明</summary>
-                    <p class="setting-note">実際のSTAGEに近い画面で、音量と判定タイミングを確認します。ここまでの設定で問題なく弾けるかを確認します。</p>
+                    <p class="setting-note">ここまでの設定で、実際の練習画面に近い状態で判定できるか確認します。クリック音だけでは反応しにくく、ストロークでGOODが多く出るかを見ます。</p>
                     <p class="setting-note" id="pt-note">入力状態に合わせた設定で、実際に問題なく判定されるか確認します。</p>
                 </details>
                 <!-- STAGE1風の流れる音符＋判定ライン＋音量波形 -->
@@ -1496,7 +1496,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.12.57"></script>
+    <script src="script.js?v=0.12.58"></script>
 </body>
 
 </html>

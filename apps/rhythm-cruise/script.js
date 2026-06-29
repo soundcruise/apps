@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.57';
+const RHYTHM_CRUISE_VERSION = '0.12.58';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -12774,7 +12774,7 @@ const HP_TYPES = ['wired', 'bluetooth'];
 const HP_TYPE_DEFAULT_OFFSET = { wired: 0, bluetooth: 0 }; // v0.9.84：有線/Bluetoothとも目安0ms（補正なし）
 const HP_TYPE_NOTE = {
     wired: '有線イヤホンの「イヤホン音ズレの画面補正」は0ms（補正なし）が基本です。違和感がある場合だけ手動設定で調整してください。',
-    bluetooth: 'Bluetoothイヤホンの「イヤホン音ズレの画面補正」も0ms（補正なし）が基本です。画面と音がズレて感じるときだけ、補正テストで音と丸を合わせてください。（練習時の判定のズレは「クリック音入力テスト」で0ms付近に合わせます）',
+    bluetooth: 'Bluetoothイヤホンの「イヤホン音ズレの画面補正」も0ms（補正なし）が基本です。画面と音がズレて感じるときだけ、補正テストで音と丸を合わせてください。（練習時の判定のズレは「音ズレ・遅延テスト」で0ms付近に合わせます）',
 };
 /* 手動設定（イヤホン音ズレの画面補正行）に出す種類別の説明文 */
 const HP_MANUAL_NOTE = {
@@ -13300,7 +13300,7 @@ function updateHeadphoneTypeUI() {
     if (els.setHpZeroBtn) els.setHpZeroBtn.style.display = 'none';
     if (els.hpAdNote) {
         els.hpAdNote.textContent = t === 'wired'
-            ? '有線イヤホンでは参考値です。標準の補正は「クリック音入力テスト」を使ってください。'
+            ? '有線イヤホンでは参考値です。標準の補正は「音ズレ・遅延テスト」を使ってください。'
             : '実験・参考用のテストです。Bluetoothでは検出結果を補正へ適用できます。';
     }
     // Bluetoothで候補表示後に有線へ切り替えた場合も、適用ボタンを標準導線へ残さない。
@@ -15864,10 +15864,13 @@ function updateIosNewBtVolumeTestButton() {
 function updateBtCalIosNewUi() {
     const iosNew = usesIosNewStrongBtDelaySound();
     const handclap = isIosNewBtHandclapMode();
+    const iosNewWired = isIosNewProductionFlow() && isHeadphoneInput() && !isBluetoothHeadphone();
     if (els.btCalHandclapRow) els.btCalHandclapRow.classList.toggle('hidden', !iosNew);
     if (els.btCalDoNow) {
         if (iosNew && handclap) {
             els.btCalDoNow.textContent = 'イヤホンのクリック音に合わせて、👏のタイミングで手拍子してください';
+        } else if (iosNewWired) {
+            els.btCalDoNow.textContent = 'イヤホンから出た音が、マイクに届くまでのズレを測ります';
         } else if (iosNew) {
             els.btCalDoNow.innerHTML = '<span class="bt-cal-loud-warning">強い音が出ます。</span><br>イヤホンをはずし、音量を最大にして、マイク部にイヤホンを押し当ててください';
         } else {
@@ -15877,6 +15880,9 @@ function updateBtCalIosNewUi() {
     if (els.btCalDoNowSub) {
         if (iosNew && handclap) {
             els.btCalDoNowSub.textContent = '手拍子の音をマイクで拾って、音ズレを測ります。イヤホンの音がマイクに入りにくい場合の応急的な方法です。';
+            els.btCalDoNowSub.classList.remove('hidden');
+        } else if (iosNewWired) {
+            els.btCalDoNowSub.textContent = '有線イヤホンは遅延が小さいことが多いため、このテストはスキップできます。タイミングが気になる場合だけ測ってください。';
             els.btCalDoNowSub.classList.remove('hidden');
         } else if (iosNew) {
             els.btCalDoNowSub.textContent = '';
@@ -15889,7 +15895,7 @@ function updateBtCalIosNewUi() {
     if (els.btCalGuide) {
         if (iosNew && handclap) {
             els.btCalGuide.textContent = 'イヤホンのクリック音に合わせて、👏のタイミングで手拍子してください。手拍子の音をマイクで拾って、音ズレを測ります。';
-        } else if (isIosNewProductionFlow() && isHeadphoneInput() && !isBluetoothHeadphone()) {
+        } else if (iosNewWired) {
             // 新iPhone+有線：共通の骨格＋有線のみスキップ補足（音源はクリック音）。
             els.btCalGuide.textContent = 'イヤホンから出た音が、マイクに届くまでのズレを測ります。有線イヤホンは遅延が小さいことが多いため、このテストはスキップできます。タイミングが気になる場合だけ測ってください。';
         } else {
