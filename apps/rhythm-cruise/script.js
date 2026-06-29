@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.39';
+const RHYTHM_CRUISE_VERSION = '0.12.40';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14337,6 +14337,8 @@ let iosNewBtCorrectionRunSeq = 0;
 let iosNewBtCorrectionRunStartedAt = null;
 const iosNewBtCorrectionRunHistory = [];
 const IOS_NEW_BT_CORRECTION_RUN_HISTORY_MAX = 10;
+const IOS_NEW_ADAPTIVE_APPLY_TO_PROPOSED = false; // v0.12.40：最終確認過補正調査のため一時停止（候補はログのみ）
+const IOS_NEW_ADAPTIVE_DISABLED_REASON = 'disabled-v0.12.40-final-check-overcorrection-investigation';
 function btCorrectionStdDevMs(diffs) {
     const vals = (diffs || []).filter(Number.isFinite);
     if (vals.length < 2) return 0;
@@ -14412,10 +14414,14 @@ function buildIosNewAdaptiveCorrectionDebug(params) {
     const applyEval = iosNewAdaptiveWouldApplyToProposedCandidate(
         confidence, valid, miss, legacyProposedStepMs, adaptiveStepCandidateMs, propose,
     );
-    const useAdaptiveProposed = applyEval.wouldApply;
+    const wouldApplyCandidate = applyEval.wouldApply;
+    const useAdaptiveProposed = IOS_NEW_ADAPTIVE_APPLY_TO_PROPOSED && wouldApplyCandidate;
     const actualProposedStepMs = useAdaptiveProposed ? adaptiveStepCandidateMs : legacyProposedStepMs;
     const actualProposedOffsetMs = useAdaptiveProposed ? adaptiveProposedOffsetCandidateMs : legacyProposedOffsetMs;
     const proposedSource = useAdaptiveProposed ? 'ios-new-adaptive-step' : 'current-legacy-step';
+    const adaptiveRejectedReason = useAdaptiveProposed
+        ? null
+        : (IOS_NEW_ADAPTIVE_APPLY_TO_PROPOSED ? applyEval.reason : IOS_NEW_ADAPTIVE_DISABLED_REASON);
     const applyType = autoFineApplied ? 'auto-fine' : 'none';
     const actualAppliedDeltaMs = appliedOffset - beforeOffsetMs;
     const runId = ++iosNewBtCorrectionRunSeq;
@@ -14475,22 +14481,25 @@ function buildIosNewAdaptiveCorrectionDebug(params) {
         btCorrectionAdaptiveMaxStepCandidateMs: adaptiveMaxStepCandidateMs,
         btCorrectionAdaptiveStepCandidateMs: adaptiveStepCandidateMs,
         btCorrectionAdaptiveProposedOffsetCandidateMs: adaptiveProposedOffsetCandidateMs,
-        btCorrectionAdaptiveWouldApplyCandidate: applyEval.wouldApply,
-        btCorrectionAdaptiveWouldApply: useAdaptiveProposed,
+        btCorrectionAdaptiveWouldApplyCandidate: wouldApplyCandidate,
+        btCorrectionAdaptiveWouldApply: wouldApplyCandidate && IOS_NEW_ADAPTIVE_APPLY_TO_PROPOSED,
         btCorrectionAdaptiveActuallyAppliedToProposed: useAdaptiveProposed,
         btCorrectionAdaptiveAppliedReason: useAdaptiveProposed ? applyEval.reason : null,
-        btCorrectionAdaptiveRejectedReason: useAdaptiveProposed ? null : applyEval.reason,
-        btCorrectionAdaptiveNotAppliedReason: useAdaptiveProposed ? null : applyEval.reason,
+        btCorrectionAdaptiveRejectedReason: adaptiveRejectedReason,
+        btCorrectionAdaptiveNotAppliedReason: adaptiveRejectedReason,
         adaptiveCandidateFormulaVersion: 'v0.12.38',
+        adaptiveApplyToProposedEnabled: IOS_NEW_ADAPTIVE_APPLY_TO_PROPOSED,
         baseDiffSource,
         baseDiffMs,
         avgMedianDiffMs,
         iosNewBtDelaySoundProfile: 'short-noise-focused-test',
         iosNewBtDelayUsesStrongSound: true,
         btCorrectionRunHistory: iosNewBtCorrectionRunHistory.slice(),
-        note: useAdaptiveProposed
-            ? 'v0.12.39: 高confidence時のみadaptive候補を手動proposedへ反映（fine自動補正・自動保存には未使用）。'
-            : 'v0.12.39: adaptive候補は算出済み。手動proposedは現行stepのまま（fine自動補正・自動保存には未使用）。',
+        note: IOS_NEW_ADAPTIVE_APPLY_TO_PROPOSED
+            ? (useAdaptiveProposed
+                ? 'v0.12.39: 高confidence時のみadaptive候補を手動proposedへ反映（fine自動補正・自動保存には未使用）。'
+                : 'adaptive候補は算出済み。手動proposedは現行stepのまま。')
+            : 'v0.12.40: adaptive候補はログのみ（実適用一時停止）。手動proposedは常に現行legacy step。',
     };
     return {
         debug,
@@ -17507,6 +17516,7 @@ const finalCheckFlowDebug = {
     lastBluetoothDeviceCalibrationDebug: null,
     // v0.12.19：iPhone BT音ズレテスト候補と最終確認逆算値の監査ログ（表示専用）。
     lastIphoneBtLatencyCandidateAudit: null,
+    lastIosNewFinalCheckOffsetMismatchDebug: null,
     practiceTestRunId: 0,
     ptResultUpdatedAt: null,
     finalCheckStatsUpdatedAt: null,
@@ -17696,6 +17706,7 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
                 || (bt.debug && bt.debug.iosNewAdaptiveCorrectionDebug) || null,
             btCorrectionRunHistory: isIosNewProductionFlow() && isBluetoothHeadphone()
                 ? iosNewBtCorrectionRunHistory.slice() : null,
+            iosNewFinalCheckOffsetMismatchDebug: finalCheckFlowDebug.lastIosNewFinalCheckOffsetMismatchDebug || null,
             iosNewBtVolumeTest: iosNewBtVolumeTest.result || (iosNewBtVolumeTest.active ? {
                 active: true,
                 hasRun: iosNewBtVolumeTest.hasRun,
@@ -18876,6 +18887,76 @@ function buildLegacyVsAndroidBtCalibrationComparison(currentStats) {
     };
 }
 
+/* v0.12.40：新iPhone+Bluetooth限定。音ズレテスト収束値(bluetoothMicOffsetMs)と最終確認の usedJudgeOffsetMs のズレ診断（表示・ログ専用）。 */
+function buildIosNewFinalCheckOffsetMismatchDebug(currentStats) {
+    if (!isIosNewProductionFlow() || !isBluetoothHeadphone() || !currentStats) return null;
+    const diffs = Array.isArray(currentStats.diffMsList) ? currentStats.diffMsList : [];
+    const usedJudgeOffsetMs = Number(currentStats.usedJudgeOffsetMs);
+    const actualOffsetMs = Number(finalCheckJudgeOffsetMs());
+    const consistent = Number.isFinite(usedJudgeOffsetMs) && Math.abs(usedJudgeOffsetMs - actualOffsetMs) < 0.5;
+    const currentOffsetMs = consistent ? usedJudgeOffsetMs : actualOffsetMs;
+    if (!Number.isFinite(currentOffsetMs)) return null;
+    const timingOffsetMs = Number(mic.timingOffsetMs) || 0;
+    const bluetoothMicOffsetMs = Number(mic.bluetoothMicOffsetMs) || 0;
+    const bluetoothOnlyOffsetMs = bluetoothMicOffsetMs;
+    const timingPlusBluetoothOffsetMs = timingOffsetMs + bluetoothMicOffsetMs;
+    const predict = (off) => finalCheckStatsForOffsetPrediction(diffs, currentOffsetMs, off);
+    const finalCheckActualStats = {
+        count: currentStats.count, good: currentStats.good, early: currentStats.early,
+        late: currentStats.late, miss: currentStats.miss,
+        avgDiffMs: currentStats.avgDiffMs, medianDiffMs: currentStats.medianDiffMs,
+        usedOffsetMs: currentOffsetMs,
+    };
+    const finalCheckBluetoothOnlyPredictedStats = predict(bluetoothOnlyOffsetMs);
+    const finalCheckTimingPlusBluetoothStats = predict(timingPlusBluetoothOffsetMs);
+    const actualAvgDiffMs = Number(currentStats.avgDiffMs) || 0;
+    const actualGood = Number(currentStats.good) || 0;
+    const bluetoothOnlyPredictedAvgDiffMs = finalCheckBluetoothOnlyPredictedStats.avgDiffMs;
+    const bluetoothOnlyPredictedGood = finalCheckBluetoothOnlyPredictedStats.good;
+    const timingPlusBluetoothPredictedAvgDiffMs = finalCheckTimingPlusBluetoothStats.avgDiffMs;
+    const timingPlusBluetoothPredictedGood = finalCheckTimingPlusBluetoothStats.good;
+    const timingOffsetMayBeDoubleApplied =
+        Math.abs(actualAvgDiffMs) >= 45
+        && bluetoothOnlyPredictedGood > actualGood
+        && Math.abs(bluetoothOnlyPredictedAvgDiffMs) < Math.abs(actualAvgDiffMs);
+    const currentUsedLooksOvercorrected = actualAvgDiffMs <= -45;
+    const bluetoothOnlyLooksBetter =
+        bluetoothOnlyPredictedGood > actualGood
+        && Math.abs(bluetoothOnlyPredictedAvgDiffMs) < Math.abs(actualAvgDiffMs);
+    let diagnosisReason = 'no-clear-mismatch';
+    if (timingOffsetMayBeDoubleApplied) {
+        diagnosisReason = 'timingOffsetMs may add extra early bias on top of bluetoothMicOffsetMs; bluetooth-only prediction fits better';
+    } else if (currentUsedLooksOvercorrected && bluetoothOnlyLooksBetter) {
+        diagnosisReason = 'usedJudgeOffsetMs looks overcorrected early; bluetoothMicOffsetMs alone predicts better';
+    } else if (Math.abs(actualAvgDiffMs) < 45) {
+        diagnosisReason = 'final-check avg diff within tolerance';
+    }
+    return {
+        enabled: true,
+        selectedTestPlatform,
+        selectedHeadphoneType: getHeadphoneType(),
+        bluetoothMicOffsetMs,
+        timingOffsetMs,
+        usedJudgeOffsetMs: currentOffsetMs,
+        bluetoothOnlyOffsetMs,
+        timingPlusBluetoothOffsetMs,
+        finalCheckActualStats,
+        finalCheckBluetoothOnlyPredictedStats,
+        finalCheckTimingPlusBluetoothStats,
+        actualAvgDiffMs,
+        bluetoothOnlyPredictedAvgDiffMs,
+        timingPlusBluetoothPredictedAvgDiffMs,
+        actualGood,
+        bluetoothOnlyPredictedGood,
+        timingPlusBluetoothPredictedGood,
+        timingOffsetMayBeDoubleApplied,
+        bluetoothOnlyLooksBetter,
+        currentUsedLooksOvercorrected,
+        diagnosisReason,
+        note: '最終確認では timingOffsetMs + bluetoothMicOffsetMs が使われています。今回の結果では bluetoothMicOffsetMs 単独の方が合う可能性があります。ただし現時点では判定・保存には採用していません。',
+    };
+}
+
 function currentBluetoothDeviceContext() {
     let track = null, settings = null;
     try {
@@ -19180,6 +19261,7 @@ function finishPracticeTest() {
     r.iphoneTrialOffsetComparison = buildIphoneTrialOffsetComparison(r.finalCheckStats);
     r.bluetoothOffsetHypothesisComparison = buildBluetoothOffsetHypothesisComparison(r.finalCheckStats);
     r.legacyVsAndroidBtCalibrationComparison = buildLegacyVsAndroidBtCalibrationComparison(r.finalCheckStats);
+    r.iosNewFinalCheckOffsetMismatchDebug = buildIosNewFinalCheckOffsetMismatchDebug(r.finalCheckStats);
     r.iphoneTrialBluetoothSafetyDebug = buildIphoneTrialBluetoothSafetyDebug(r.finalCheckStats);
     r.bluetoothDeviceCalibrationDebug = buildBluetoothDeviceCalibrationDebug(r.finalCheckStats);
     r.iphoneBtLatencyCandidateAudit = buildIphoneBtLatencyCandidateAudit(r.finalCheckStats);
@@ -19192,6 +19274,7 @@ function finishPracticeTest() {
     finalCheckFlowDebug.lastIphoneTrialOffsetComparison = r.iphoneTrialOffsetComparison;
     finalCheckFlowDebug.lastBluetoothOffsetHypothesisComparison = r.bluetoothOffsetHypothesisComparison;
     finalCheckFlowDebug.lastLegacyVsAndroidBtCalibrationComparison = r.legacyVsAndroidBtCalibrationComparison;
+    finalCheckFlowDebug.lastIosNewFinalCheckOffsetMismatchDebug = r.iosNewFinalCheckOffsetMismatchDebug;
     finalCheckFlowDebug.lastIphoneTrialBluetoothSafetyDebug = r.iphoneTrialBluetoothSafetyDebug;
     finalCheckFlowDebug.lastBluetoothDeviceCalibrationDebug = r.bluetoothDeviceCalibrationDebug;
     finalCheckFlowDebug.lastIphoneBtLatencyCandidateAudit = r.iphoneBtLatencyCandidateAudit;
@@ -19202,6 +19285,9 @@ function finishPracticeTest() {
     finalCheckFlowDebug.ptResultUpdatedAt = nowIso;
     finalCheckFlowDebug.finalCheckStatsUpdatedAt = nowIso;
     if (r.finalCheckOffsetDebug) console.info('[final-check] offset', r.finalCheckOffsetDebug);
+    if (r.iosNewFinalCheckOffsetMismatchDebug) {
+        try { console.info('[iosNewFinalCheckOffsetMismatchDebug]', JSON.stringify(r.iosNewFinalCheckOffsetMismatchDebug)); } catch (_) { /* ignore */ }
+    }
     if (r.finalCheckClickDebug) console.info('[final-check] click', r.finalCheckClickDebug);
     ptFinalizeDebug();
     renderPracticeResult(r);
@@ -19333,13 +19419,14 @@ function renderPracticeResult(r) {
 
     // v0.11.95：開発確認用の閉じたブロック（BT候補比較・最終確認統計・予測平均ズレ）。通常表示は重くしない。
     let devCompareBlock = '';
-    if (r.finalCheckStats || r.finalCheckOffsetComparison || r.androidBluetoothCandidateComparison || r.androidBluetoothFinalCheckPrediction) {
+    if (r.finalCheckStats || r.finalCheckOffsetComparison || r.androidBluetoothCandidateComparison || r.androidBluetoothFinalCheckPrediction || r.iosNewFinalCheckOffsetMismatchDebug) {
         let pre = '';
         try {
             pre = JSON.stringify({
                 finalCheckStats: r.finalCheckStats || null,
                 finalCheckOffsetComparison: r.finalCheckOffsetComparison || null,
                 legacyVsAndroidBtCalibrationComparison: r.legacyVsAndroidBtCalibrationComparison || null,
+                iosNewFinalCheckOffsetMismatchDebug: r.iosNewFinalCheckOffsetMismatchDebug || null,
                 iphoneTrialBluetoothSafetyDebug: r.iphoneTrialBluetoothSafetyDebug || null,
                 bluetoothDeviceCalibrationDebug: r.bluetoothDeviceCalibrationDebug || null,
                 iphoneBtLatencyCandidateAudit: r.iphoneBtLatencyCandidateAudit || null,
@@ -19354,8 +19441,13 @@ function renderPracticeResult(r) {
         }
     }
 
+    const mismatchNote = (r.iosNewFinalCheckOffsetMismatchDebug && r.iosNewFinalCheckOffsetMismatchDebug.timingOffsetMayBeDoubleApplied)
+        ? '<p class="setting-note" style="margin:8px 0 0;font-size:0.78rem;">'
+            + escapeHtml(r.iosNewFinalCheckOffsetMismatchDebug.note) + '</p>'
+        : '';
+
     els.ptResult.innerHTML =
-        (c.kind === 'ok' ? okBanner : warnBanner) + mainRows +
+        (c.kind === 'ok' ? okBanner : warnBanner) + mainRows + mismatchNote +
         '<div style="margin-top:6px;">' + actions + '</div>' +
         '<div style="margin-top:6px;">' + manualBtn + '</div>' +
         devCompareBlock;
@@ -20065,7 +20157,6 @@ function finishBtCal() {
     const medianDiff = matchedDiffs.length ? matchedDiffs[Math.floor(matchedDiffs.length / 2)] : null;
     const perBeatDiffs = perBeat.filter((row) => row.matched && Number.isFinite(row.diff)).map((row) => row.diff);
     let iosNewAdaptiveCorrectionDebug = null;
-    let finalProposed = proposed;
     if (usesIosNewStrongBtDelaySound()) {
         const adaptiveResult = buildIosNewAdaptiveCorrectionDebug({
             cur, avg, medianDiff, perBeatDiffs, miss, valid, expectedCount: BT_PLAY_BEATS,
@@ -20073,7 +20164,6 @@ function finishBtCal() {
             autoFineApplied, appliedOffset, beforeOffsetMs,
         });
         iosNewAdaptiveCorrectionDebug = adaptiveResult.debug;
-        if (adaptiveResult.useAdaptiveProposed) finalProposed = adaptiveResult.actualProposedOffsetMs;
         try { console.info('[iosNewAdaptiveCorrectionDebug]', JSON.stringify(iosNewAdaptiveCorrectionDebug)); } catch (_) { /* ignore */ }
     }
     if (bt.debug) {
@@ -20082,7 +20172,7 @@ function finishBtCal() {
         bt.debug.expectedCount = BT_PLAY_BEATS;
         bt.debug.avgDiffMs = validN ? avg : null;
         bt.debug.medianDiffMs = medianDiff;
-        bt.debug.proposedBluetoothMicOffsetMs = finalProposed;
+        bt.debug.proposedBluetoothMicOffsetMs = proposed;
         bt.debug.legacyProposedBluetoothMicOffsetMs = proposed;
         bt.debug.appliedBluetoothMicOffsetMs = autoFineApplied ? appliedOffset : cur;
         bt.debug.thresholdUsed = bt.debug.thresholdDuringClickInputTest;
@@ -20092,15 +20182,15 @@ function finishBtCal() {
     const clickInputProbe = androidAudioProbe.current;
     if (clickInputProbe && clickInputProbe.kind === 'clickInputTest') {
         clickInputProbe.measurement.result = {
-            rawEstimatedDelayMs: avg, clampedDelayMs: finalProposed,
-            hitUpperLimit: finalProposed === headphoneMicOffsetMax(), hitLowerLimit: finalProposed === headphoneMicOffsetMin(),
+            rawEstimatedDelayMs: avg, clampedDelayMs: proposed,
+            hitUpperLimit: proposed === headphoneMicOffsetMax(), hitLowerLimit: proposed === headphoneMicOffsetMin(),
             outOfMeasurementWindow: miss > 0, outOfRangeOnsetCount: Math.max(0, bt.onsets.length - valid),
             measurementFailureMayBeOutOfRange: miss > 0,
         };
         androidAudioProbeClose('clickInputTest');
     }
     bt.result = {
-        just, early, late, miss, valid, avg, cur, proposed: finalProposed, legacyProposed: proposed,
+        just, early, late, miss, valid, avg, cur, proposed, legacyProposed: proposed,
         propose, fine, fineProposed, autoFineApplied, appliedOffset, enoughInput, perBeat,
         iosNewAdaptiveCorrectionDebug,
     };
