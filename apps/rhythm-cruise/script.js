@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.41';
+const RHYTHM_CRUISE_VERSION = '0.12.42';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -12757,6 +12757,9 @@ function startHeadphoneCal() {
     fitHpLane();
     if (els.hpCalBtn) els.hpCalBtn.textContent = '停止';
     hpCal.flowStartPerf = performance.now(); // 1拍目(k=0)のクリックと表示軸の原点を合わせる
+    if (isIosNewProductionFlow() && isBluetoothHeadphone()) {
+        hpCal.iosNewDisplayCorrectionInitialDebug = emitIosNewDisplayCorrectionInitialDebug('headphone-cal-start', headphoneMicOffsetGet());
+    }
     hpBeatTick(); // 押した直後に1拍目
     hpCal.timer = setInterval(hpBeatTick, hpCalBeatMs());
     cancelAnimationFrame(hpCal.raf);
@@ -14414,7 +14417,7 @@ function iosNewMicReactionClickPeakSelection(nearPeak, adjustedPeak, noiseP95) {
         clickPhaseSelectedPeakSource: 'fallback-near',
         wouldUseAdjustedPeakForReco: adj > near,
         actualUsedAdjustedPeakForReco: false,
-        fallbackReason: 'adjusted-peak-insufficient',
+        fallbackReason: iosNewMicReactionFallbackReasonDetail(near, adj, noise, delayMs),
     };
 }
 function iosNewMicReactionStrokePeakSelection(nearPeak, adjustedPeak, noiseP95) {
@@ -14451,48 +14454,138 @@ function iosNewMicReactionStrokePeakSelection(nearPeak, adjustedPeak, noiseP95) 
         strokePhaseSelectedPeakSource: 'fallback-near',
         wouldUseAdjustedPeakForReco: adj > near,
         actualUsedAdjustedPeakForReco: false,
-        fallbackReason: 'adjusted-peak-insufficient',
+        fallbackReason: iosNewMicReactionFallbackReasonDetail(near, adj, noise, delayMs),
     };
 }
-function buildIosNewDisplayCorrectionInitialDebug(bluetoothMicOffsetBefore) {
+function clampHpDisplayOffsetMs(v) {
+    const n = Math.round(Number(v) / 5) * 5;
+    return Math.max(HP_OFFSET_MIN, Math.min(HP_OFFSET_MAX, n));
+}
+function iosNewDisplayCorrectionInitialCandidates(bluetoothMicOffsetMs) {
+    const bt = Number(bluetoothMicOffsetMs) || 0;
+    const currentFullFromBtMs = clampHpDisplayOffsetMs(-bt);
+    const halfFromBtMs = clampHpDisplayOffsetMs(-bt * 0.5);
+    const sixtyPercentFromBtMs = clampHpDisplayOffsetMs(-bt * 0.6);
+    const conservativeCappedMs = clampHpDisplayOffsetMs(Math.min(-bt, 150));
+    const appliedInitialDisplayCorrectionMs = clampHpDisplayOffsetMs(-bt * IOS_NEW_BT_DISPLAY_INITIAL_RATIO);
+    return {
+        currentFullFromBtMs,
+        halfFromBtMs,
+        sixtyPercentFromBtMs,
+        conservativeCappedMs,
+        appliedInitialDisplayCorrectionMs,
+    };
+}
+function computeIosNewAdaptiveConfidence(avg, medianDiff, perBeatDiffs, miss, valid, expectedCount) {
+    const stdDevMs = btCorrectionStdDevMs(perBeatDiffs);
+    const avgMedianDiffMs = (medianDiff != null && Number.isFinite(avg)) ? Math.abs(avg - medianDiff) : null;
+    const detectedScore = expectedCount > 0 ? +(valid / expectedCount).toFixed(4) : 0;
+    const avgMedianScore = avgMedianDiffMs != null ? +(1 - Math.min(1, avgMedianDiffMs / 50)).toFixed(4) : 0;
+    const stdDevScore = +(1 - Math.min(1, stdDevMs / 50)).toFixed(4);
+    const missScore = miss === 0 ? 1 : 0.5;
+    return +(detectedScore * avgMedianScore * stdDevScore * missScore).toFixed(4);
+}
+function iosNewBtProposalClampMin(valid, miss, confidence) {
+    if (!usesIosNewStrongBtDelaySound() || !isIosNewProductionFlow() || !isBluetoothHeadphone()) {
+        return BT_MIC_OFFSET_MIN;
+    }
+    if (valid >= 7 && miss <= 1 && confidence >= 0.55) return IOS_NEW_BT_MIC_OFFSET_MIN;
+    return BT_MIC_OFFSET_MIN;
+}
+function buildIosNewBtClampDebug(params) {
+    const {
+        cur, step, valid, miss, confidence, proposalMin, proposed,
+    } = params;
+    const rawProposedOffsetBeforeClampMs = cur + step;
+    const hitCurrentClamp = proposed <= BT_MIC_OFFSET_MIN && rawProposedOffsetBeforeClampMs < BT_MIC_OFFSET_MIN;
+    const wouldBeOffsetWith600ClampMs = Math.max(
+        IOS_NEW_BT_MIC_OFFSET_MIN,
+        Math.min(BT_MIC_OFFSET_MAX, Math.round(rawProposedOffsetBeforeClampMs)),
+    );
+    const canSafelyApplyExpandedClamp = usesIosNewStrongBtDelaySound()
+        && isIosNewProductionFlow()
+        && isBluetoothHeadphone()
+        && valid >= 7
+        && miss <= 1
+        && confidence >= 0.55;
+    let blockReason = null;
+    if (!usesIosNewStrongBtDelaySound()) blockReason = 'not-ios-new-strong-sound';
+    else if (!isIosNewProductionFlow() || !isBluetoothHeadphone()) blockReason = 'not-ios-new-production-bluetooth';
+    else if (valid < 7) blockReason = 'detected-count-low';
+    else if (miss > 1) blockReason = 'miss-count-high';
+    else if (confidence < 0.55) blockReason = 'confidence-low';
+    return {
+        enabled: true,
+        currentClampMs: BT_MIC_OFFSET_MIN,
+        proposedExpandedClampMs: IOS_NEW_BT_MIC_OFFSET_MIN,
+        currentOffsetMs: cur,
+        rawProposedStepMs: step,
+        rawProposedOffsetBeforeClampMs,
+        clampedOffsetMs: proposed,
+        hitCurrentClamp,
+        wouldBeOffsetWith600ClampMs,
+        wouldChangeByMs: wouldBeOffsetWith600ClampMs - proposed,
+        canSafelyApplyExpandedClamp,
+        blockReason,
+        proposalClampMinUsed: proposalMin,
+        confidence,
+        detectedCount: valid,
+        missCount: miss,
+        note: 'step幅はBT_MIC_STEP_CLAMPのまま。拡張は提案clamp下限のみ（adaptive実適用はOFF）。',
+    };
+}
+function iosNewMicReactionFallbackReasonDetail(near, adj, noise, delayMs) {
+    if (!(delayMs > 0)) return 'zero-input-delay';
+    if (!Number.isFinite(adj)) return 'adjusted-peak-not-finite';
+    if (!(adj > near * 1.2)) return 'adjusted-not-1.2x-near';
+    if (!(adj > noise * 3)) return 'adjusted-not-3x-noiseP95';
+    return 'adjusted-peak-insufficient';
+}
+function buildIosNewDisplayCorrectionInitialDebug(bluetoothMicOffsetBefore, opts) {
     if (!isIosNewProductionFlow() || !isBluetoothHeadphone()) return null;
     const bluetoothMicOffsetMs = Number(bluetoothMicOffsetBefore != null ? bluetoothMicOffsetBefore : mic.bluetoothMicOffsetMs) || 0;
     const timingOffsetMs = Number(mic.timingOffsetMs) || 0;
     const headphoneDisplayOffsetMs = Number(strokeDisplayOffsetMs()) || 0;
     const displayOffsetMs = Number(micJudgeOffsetMs()) + headphoneDisplayOffsetMs;
-    const currentInitialDisplayCorrectionMs = Math.max(HP_OFFSET_MIN, Math.min(HP_OFFSET_MAX, -bluetoothMicOffsetMs));
-    const derivedInitialDisplayCorrectionMs = Math.max(HP_OFFSET_MIN, Math.min(HP_OFFSET_MAX, -(timingOffsetMs + bluetoothMicOffsetMs)));
+    const candidates = iosNewDisplayCorrectionInitialCandidates(bluetoothMicOffsetMs);
     const finalCheckJudge = Number(finalCheckJudgeOffsetMs());
-    const currentFormula = 'clamp(-headphoneMicOffsetGet(), HP_OFFSET_MIN, HP_OFFSET_MAX)';
-    const proposedFormula = 'clamp(-(timingOffsetMs+bluetoothMicOffsetMs), HP_OFFSET_MIN, HP_OFFSET_MAX) [log-only candidate]';
-    let formulaLooksConsistent = Math.abs(currentInitialDisplayCorrectionMs + bluetoothMicOffsetMs) < 0.5;
+    const appliedOnlyToInitialValue = !!(opts && opts.appliedOnlyToInitialValue);
+    const triggerReason = (opts && opts.reason) || null;
     let mismatchReason = null;
-    if (!formulaLooksConsistent) mismatchReason = 'initial-not-negation-of-bluetoothMicOffsetMs';
-    else if (timingOffsetMs !== 0) {
+    if (timingOffsetMs !== 0) {
         mismatchReason = 'display-init-uses-bluetoothMicOffsetMs-only; finalCheckJudgeOffsetMs includes timingOffsetMs';
-        formulaLooksConsistent = false;
-    } else if (Math.abs(finalCheckJudge - (timingOffsetMs + bluetoothMicOffsetMs)) >= 1) {
-        mismatchReason = 'finalCheckJudgeOffsetMs differs from timing+bluetooth sum';
-        formulaLooksConsistent = false;
     }
     return {
         enabled: true,
         selectedTestPlatform,
         selectedHeadphoneType: getHeadphoneType(),
+        correctionFlowKind: correctionFlowKind(),
         bluetoothMicOffsetMs,
         timingOffsetMs,
         headphoneDisplayOffsetMs,
         displayOffsetMs,
-        currentInitialDisplayCorrectionMs,
-        derivedInitialDisplayCorrectionMs,
-        derivedFrom: 'negate-bluetoothMicOffsetMs-only',
-        currentFormula,
-        proposedFormula,
-        formulaLooksConsistent,
-        mismatchReason,
+        micJudgeOffsetMs: micJudgeOffsetMs(),
         finalCheckJudgeOffsetMs: finalCheckJudge,
-        note: '画面補正初期値は表示専用。最終確認の usedJudgeOffsetMs は micJudgeOffsetMs 系で別軸。不確実なため保存・判定は変更しない。',
+        currentInitialDisplayCorrectionMs: candidates.currentFullFromBtMs,
+        appliedInitialDisplayCorrectionMs: candidates.appliedInitialDisplayCorrectionMs,
+        currentFullFromBtMs: candidates.currentFullFromBtMs,
+        halfFromBtMs: candidates.halfFromBtMs,
+        sixtyPercentFromBtMs: candidates.sixtyPercentFromBtMs,
+        conservativeCappedMs: candidates.conservativeCappedMs,
+        formulaUsed: 'clamp(roundTo5(-bluetoothMicOffsetMs * ' + IOS_NEW_BT_DISPLAY_INITIAL_RATIO + '), HP_OFFSET_MIN, HP_OFFSET_MAX)',
+        appliedOnlyToInitialValue,
+        savedValueChanged: false,
+        judgeValueChanged: false,
+        triggerReason,
+        mismatchReason,
+        note: '画面補正初期値のみ0.55倍に弱める。bluetoothMicOffsetMs・判定関数・保存済み手動値は変更しない。',
     };
+}
+function emitIosNewDisplayCorrectionInitialDebug(reason, bluetoothMicOffsetBefore) {
+    const dbg = buildIosNewDisplayCorrectionInitialDebug(bluetoothMicOffsetBefore, { reason });
+    if (!dbg) return null;
+    try { console.log('[iosNewDisplayCorrectionInitialDebug]', JSON.stringify(dbg)); } catch (_) { /* ignore */ }
+    return dbg;
 }
 let iosNewBtCorrectionRunSeq = 0;
 let iosNewBtCorrectionRunStartedAt = null;
@@ -17560,6 +17653,8 @@ const pt = {
 const BT_MIC_OFFSET_MIN = -400;     // 補正値の下限(ms)。v0.9.105：BTの大きな出力+入力遅延（実測で約-280msが必要なケース）に届かず
                                     //   下限-200で頭打ち→平均ズレが残ったまま「小さめ」誤判定になっていたため -400 まで拡張。
 const BT_MIC_OFFSET_MAX = 200;      // 補正値の上限(ms)
+const IOS_NEW_BT_MIC_OFFSET_MIN = -600; // v0.12.42：新iPhone本番BTのみ。保存上限＋信頼度十分時の提案clamp拡張用（現行iPhone/AndroidはBT_MIC_OFFSET_MINのまま）。
+const IOS_NEW_BT_DISPLAY_INITIAL_RATIO = 0.55; // v0.12.42：新iPhone+BTの画面補正テスト初期値だけ弱める（判定・bluetoothMicOffsetMsは不変）。
 // v0.11.45：Android Bluetooth専用キーのクランプ範囲。実測-460〜-480ms、機種差を見て-600まで許容、正方向は不要で0まで。
 // 既存 BT_MIC_OFFSET_MIN/MAX（bluetoothMicOffsetMs用）とは別物。v0.11.46でPractice判定に接続済み（Android+Bluetooth時のみ優先）。
 const ANDROID_BT_MIC_OFFSET_MIN = -600;
@@ -17616,14 +17711,22 @@ const hpAd = {
    ・有線イヤホン/通常 … timingOffsetMs（範囲 -150〜150。マイク判定の遅れ補正と同じ枠）
    どちらも micJudgeOffsetMs() を通して判定時刻へ反映される（micJudgeOffsetMs() の式自体は変更しない）。
    有線イヤホンの初期目安は0ms（補正なし）。このテストで実測して調整できる。 */
-function headphoneMicOffsetMin() { return isBluetoothHeadphone() ? BT_MIC_OFFSET_MIN : -150; }
+function headphoneMicOffsetMin() {
+    if (isBluetoothHeadphone()) {
+        // v0.12.42：新iPhone本番BTのみ保存上限を-600へ（現行iPhone/Androidは-400のまま）。
+        if (isIosNewProductionFlow()) return IOS_NEW_BT_MIC_OFFSET_MIN;
+        return BT_MIC_OFFSET_MIN;
+    }
+    return -150;
+}
 function headphoneMicOffsetMax() { return isBluetoothHeadphone() ? BT_MIC_OFFSET_MAX : 150; }
 function headphoneMicOffsetGet() {
     // 有線は専用の wiredMicOffsetMs（v0.9.153で分離）。Bluetoothは bluetoothMicOffsetMs。
     return isBluetoothHeadphone() ? (mic.bluetoothMicOffsetMs || 0) : (mic.wiredMicOffsetMs || 0);
 }
-function headphoneMicOffsetClampVal(v) {
-    return Math.max(headphoneMicOffsetMin(), Math.min(headphoneMicOffsetMax(), Math.round(v)));
+function headphoneMicOffsetClampVal(v, minOverride) {
+    const min = minOverride != null ? minOverride : headphoneMicOffsetMin();
+    return Math.max(min, Math.min(headphoneMicOffsetMax(), Math.round(v)));
 }
 function headphoneMicOffsetSet(v) {
     const c = headphoneMicOffsetClampVal(v);
@@ -17880,7 +17983,10 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
             btCorrectionRunHistory: isIosNewProductionFlow() && isBluetoothHeadphone()
                 ? iosNewBtCorrectionRunHistory.slice() : null,
             iosNewFinalCheckOffsetMismatchDebug: finalCheckFlowDebug.lastIosNewFinalCheckOffsetMismatchDebug || null,
-            iosNewDisplayCorrectionInitialDebug: (bt.result && bt.result.iosNewDisplayCorrectionInitialDebug) || null,
+            iosNewDisplayCorrectionInitialDebug: (bt.result && bt.result.iosNewDisplayCorrectionInitialDebug)
+                || (hpCal && hpCal.iosNewDisplayCorrectionInitialDebug) || null,
+            iosNewBtClampDebug: (bt.result && bt.result.iosNewBtClampDebug)
+                || (bt.debug && bt.debug.iosNewBtClampDebug) || null,
             iosNewBtVolumeTest: iosNewBtVolumeTest.result || (iosNewBtVolumeTest.active ? {
                 active: true,
                 hasRun: iosNewBtVolumeTest.hasRun,
@@ -19955,8 +20061,9 @@ function drawBtLane(t) {
             ctx.stroke();
         }
     }
-    // ●（右→左へ流れる）＋拍番号。新iPhone+Bluetoothの音ズレ/音量テストでは白丸を出さない（波形のみ）。
-    if (!usesIosNewStrongBtDelaySound()) {
+    // ●（右→左へ流れる）＋拍番号。新iPhone+Bluetoothの音量テスト中だけ白丸を出さない（本番テストでは表示）。
+    const hideBtLaneClapIcons = usesIosNewStrongBtDelaySound() && iosNewBtVolumeTest.active && !bt.active;
+    if (!hideBtLaneClapIcons) {
         for (let i = 0; i < bt.notes.length; i++) {
             const n = bt.notes[i];
             const x = judgeX + (n.t + hpDispOff - t) * ppm;
@@ -20304,17 +20411,34 @@ function finishBtCal() {
     const bigZure = Math.abs(avg) >= 35;
     const cur = headphoneMicOffsetGet(); // 有線イヤホンはwiredMicOffsetMs、BluetoothはbluetoothMicOffsetMs（v0.9.153で分離）
     const beforeOffsetMs = cur;
+    const matchedDiffs = perBeat.filter((row) => row.matched && Number.isFinite(row.diff)).map((row) => row.diff).sort((a, b) => a - b);
+    const medianDiff = matchedDiffs.length ? matchedDiffs[Math.floor(matchedDiffs.length / 2)] : null;
+    const perBeatDiffs = perBeat.filter((row) => row.matched && Number.isFinite(row.diff)).map((row) => row.diff);
     // 符号：判定時刻 = audio + offset。LATE(avg>0)なら offset を小さく（負方向）して早める。
     // → new = cur - avg。1回の補正量は ±BT_MIC_STEP_CLAMP に制限し、全体は補正先の範囲にクランプ。
     const step = Math.max(-BT_MIC_STEP_CLAMP, Math.min(BT_MIC_STEP_CLAMP, -avg));
-    const proposed = headphoneMicOffsetClampVal(cur + step);
+    const fineStep = Math.max(-BT_FINE_STEP_CLAMP, Math.min(BT_FINE_STEP_CLAMP, -avg));
+    let proposed;
+    let fineProposed;
+    let iosNewBtClampDebug = null;
+    if (usesIosNewStrongBtDelaySound()) {
+        const confidence = computeIosNewAdaptiveConfidence(avg, medianDiff, perBeatDiffs, miss, valid, BT_PLAY_BEATS);
+        const proposalMin = iosNewBtProposalClampMin(valid, miss, confidence);
+        proposed = headphoneMicOffsetClampVal(cur + step, proposalMin);
+        fineProposed = headphoneMicOffsetClampVal(cur + fineStep, proposalMin);
+        iosNewBtClampDebug = buildIosNewBtClampDebug({
+            cur, step, valid, miss, confidence, proposalMin, proposed,
+        });
+        try { console.info('[iosNewBtClampDebug]', JSON.stringify(iosNewBtClampDebug)); } catch (_) { /* ignore */ }
+    } else {
+        proposed = headphoneMicOffsetClampVal(cur + step);
+        fineProposed = headphoneMicOffsetClampVal(cur + fineStep);
+    }
     const propose = enoughInput && bigZure;
     // 微調整（v0.9.94）：大きな補正提案が出ないケースでは、複雑な条件分岐をやめ、
     // 有効入力が十分で平均ズレが算出できれば（|avg|>=1ms）、最新結果で必ず微調整する。
     // 平均ズレが0msになることはほぼ無いので、小さなズレでも最新値へ自然に詰める。
     // 符号ルールは大きな補正と同じ（new = cur - avg）。1回の補正量は ±BT_FINE_STEP_CLAMP に制限。
-    const fineStep = Math.max(-BT_FINE_STEP_CLAMP, Math.min(BT_FINE_STEP_CLAMP, -avg));
-    const fineProposed = headphoneMicOffsetClampVal(cur + fineStep);
     const fine = !propose && enoughInput
         && Math.abs(avg) >= 1
         && (fineProposed !== cur);
@@ -20330,9 +20454,6 @@ function finishBtCal() {
         invalidatePracticeResult();
         autoFineApplied = true;
     }
-    const matchedDiffs = perBeat.filter((row) => row.matched && Number.isFinite(row.diff)).map((row) => row.diff).sort((a, b) => a - b);
-    const medianDiff = matchedDiffs.length ? matchedDiffs[Math.floor(matchedDiffs.length / 2)] : null;
-    const perBeatDiffs = perBeat.filter((row) => row.matched && Number.isFinite(row.diff)).map((row) => row.diff);
     let iosNewAdaptiveCorrectionDebug = null;
     if (usesIosNewStrongBtDelaySound()) {
         const adaptiveResult = buildIosNewAdaptiveCorrectionDebug({
@@ -20341,6 +20462,7 @@ function finishBtCal() {
             autoFineApplied, appliedOffset, beforeOffsetMs,
         });
         iosNewAdaptiveCorrectionDebug = adaptiveResult.debug;
+        if (iosNewBtClampDebug) iosNewAdaptiveCorrectionDebug.iosNewBtClampDebug = iosNewBtClampDebug;
         try { console.info('[iosNewAdaptiveCorrectionDebug]', JSON.stringify(iosNewAdaptiveCorrectionDebug)); } catch (_) { /* ignore */ }
     }
     if (bt.debug) {
@@ -20355,6 +20477,7 @@ function finishBtCal() {
         bt.debug.thresholdUsed = bt.debug.thresholdDuringClickInputTest;
         bt.debug.cooldownUsed = bt.debug.cooldownDuringClickInputTest;
         if (iosNewAdaptiveCorrectionDebug) bt.debug.iosNewAdaptiveCorrectionDebug = iosNewAdaptiveCorrectionDebug;
+        if (iosNewBtClampDebug) bt.debug.iosNewBtClampDebug = iosNewBtClampDebug;
     }
     const clickInputProbe = androidAudioProbe.current;
     if (clickInputProbe && clickInputProbe.kind === 'clickInputTest') {
@@ -20370,6 +20493,7 @@ function finishBtCal() {
         just, early, late, miss, valid, avg, cur, proposed, legacyProposed: proposed,
         propose, fine, fineProposed, autoFineApplied, appliedOffset, enoughInput, perBeat,
         iosNewAdaptiveCorrectionDebug,
+        iosNewBtClampDebug,
     };
     console.info('[bt-click-input-test-result]', bt.debug);
     if (BT_DEBUG) {
@@ -20563,20 +20687,30 @@ function applyBtCal() {
 function completeBtCalStep() {
     stopBtCal();
     setupProgress.btDelayDone = true;
-    if (isBluetoothHeadphone() && bt.result && bt.result.enoughInput) {
+    if (isBluetoothHeadphone() && bt.result) {
         const btMicBefore = headphoneMicOffsetGet();
-        const iosNewDisplayCorrectionInitialDebug = buildIosNewDisplayCorrectionInitialDebug(btMicBefore);
+        const iosNewDisplayCorrectionInitialDebug = buildIosNewDisplayCorrectionInitialDebug(btMicBefore, {
+            appliedOnlyToInitialValue: !!(bt.result.enoughInput && isIosNewProductionFlow()),
+            reason: 'btdelay-complete',
+        });
         if (iosNewDisplayCorrectionInitialDebug) {
             bt.result.iosNewDisplayCorrectionInitialDebug = iosNewDisplayCorrectionInitialDebug;
             try { console.log('[iosNewDisplayCorrectionInitialDebug]', JSON.stringify(iosNewDisplayCorrectionInitialDebug)); } catch (_) { /* ignore */ }
         }
-        const displayOffset = Math.max(HP_OFFSET_MIN, Math.min(HP_OFFSET_MAX, -btMicBefore));
-        setHeadphoneOffset(displayOffset);
-        setupProgress.correctionDone = false;
-        if (els.hpCalFromClickNote) {
-            const displayOffsetText = (displayOffset > 0 ? '+' : '') + displayOffset + 'ms';
-            els.hpCalFromClickNote.textContent = btDelayStepUserLabel() + 'の結果をもとに、画面補正の初期値を ' + displayOffsetText + ' に設定しました。次のテストで見た目と音のズレを確認してください。';
-            els.hpCalFromClickNote.classList.remove('hidden');
+        if (bt.result.enoughInput) {
+            const displayOffset = (isIosNewProductionFlow() && iosNewDisplayCorrectionInitialDebug)
+                ? iosNewDisplayCorrectionInitialDebug.appliedInitialDisplayCorrectionMs
+                : Math.max(HP_OFFSET_MIN, Math.min(HP_OFFSET_MAX, -btMicBefore));
+            setHeadphoneOffset(displayOffset);
+            setupProgress.correctionDone = false;
+            if (els.hpCalFromClickNote) {
+                const displayOffsetText = (displayOffset > 0 ? '+' : '') + displayOffset + 'ms';
+                const noteLead = isIosNewProductionFlow()
+                    ? btDelayStepUserLabel() + 'の結果をもとに、画面補正の初期値を ' + displayOffsetText + ' に設定しました（音ズレ値の55%）。'
+                    : btDelayStepUserLabel() + 'の結果をもとに、画面補正の初期値を ' + displayOffsetText + ' に設定しました。';
+                els.hpCalFromClickNote.textContent = noteLead + '次のテストで見た目と音のズレを確認してください。';
+                els.hpCalFromClickNote.classList.remove('hidden');
+            }
         }
     }
     wizardEditing = null;
