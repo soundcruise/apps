@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.63';
+const RHYTHM_CRUISE_VERSION = '0.12.64';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14654,7 +14654,7 @@ function shouldKeepAndroidBuiltinLatencyAfterMicTest() {
    ときだけ true を返す。startMicTestFlow() の resetBtCalTransientUiState() が btDelayDone を落とすため、保存済み時だけ
    復元してウィザードが btdelay ステップへ戻るのを防ぐ。判定・感度・閾値ロジックには一切影響しない。 */
 function shouldKeepAndroidHeadphoneLatencyAfterMicTest() {
-    if (!useAndroidLatencyFirstFlow() || !isHeadphoneInput()) return false;
+    if (!(useAndroidLatencyFirstFlow() || isAndroidIphoneStyleTrialFlow()) || !isHeadphoneInput()) return false;
     if (isBluetoothHeadphone()) {
         const saved = isIphoneAndroidTrialFlow() ? Number(iphoneAndroidTrialOffsets.bluetooth) : Number(mic.androidBluetoothMicOffsetMs);
         return Number.isFinite(saved) && saved !== 0;
@@ -14671,7 +14671,7 @@ function shouldKeepAndroidHeadphoneLatencyAfterMicTest() {
    iPhone BT（test→…→correction の後置き）や他フローは対象外（correction は test より後なので従来どおりリセット）。
    画面補正値・判定・感度・閾値ロジックには一切影響しない（ウィザード完了フラグの維持のみ）。 */
 function shouldKeepBtCorrectionAfterMicTest() {
-    if (!useAndroidLatencyFirstFlow() || !isBluetoothHeadphone()) return false;
+    if (!(useAndroidLatencyFirstFlow() || isAndroidIphoneStyleTrialFlow()) || !isBluetoothHeadphone()) return false;
     const steps = wizardSteps();
     const ci = steps.indexOf('correction'), ti = steps.indexOf('test');
     return ci >= 0 && ti >= 0 && ci < ti;
@@ -14679,7 +14679,7 @@ function shouldKeepBtCorrectionAfterMicTest() {
 /* v0.12.33：新iPhone+Bluetooth は btdelay→correction→test の順。マイク反応テスト前後で完了フラグを維持する。
    resetBtCalTransientUiState() の後に setupProgress を読むと常に false になるため、開始前のフラグを一時保存して復元する。 */
 function captureIosNewPreMicProgress() {
-    if (!isIosNewProductionFlow() || !isHeadphoneInput()) {
+    if (!(isIosNewProductionFlow() || isAndroidIphoneStyleTrialFlow()) || !isHeadphoneInput()) {
         test.iosNewPreMicProgress = null;
         return;
     }
@@ -14703,7 +14703,7 @@ function captureIosNewPreMicProgress() {
     }
 }
 function restoreIosNewPreMicProgress(reason) {
-    if (!isIosNewProductionFlow() || !isHeadphoneInput()) return;
+    if (!(isIosNewProductionFlow() || isAndroidIphoneStyleTrialFlow()) || !isHeadphoneInput()) return;
     const keep = test.iosNewPreMicProgress;
     if (!keep) return;
     if (keep.btDelayDone) setupProgress.btDelayDone = true;
@@ -21404,7 +21404,7 @@ function drawClapIcon(ctx, x, yc, num, markerType) {
     ctx.shadowBlur = 0;
     ctx.shadowColor = 'transparent';
     ctx.globalCompositeOperation = 'source-over';
-    if (!useClap) ctx.fillStyle = '#fdf6ee';
+    ctx.fillStyle = '#fdf6ee';
     ctx.font = (useClap ? '22px' : '18px') + ' Outfit, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -26721,6 +26721,11 @@ function micTestStrokeInputDelayMs() {
         if (!Number.isFinite(saved) || saved >= 0) return 0;
         return Math.min(800, Math.max(0, -saved));
     }
+    if (isAndroidIphoneStyleTrialFlow() && androidAudioProbeDeviceInfo().isAndroid && isHeadphoneInput()) {
+        const saved = isBluetoothHeadphone() ? Number(mic.androidBluetoothMicOffsetMs) : Number(mic.androidWiredMicOffsetMs);
+        if (!Number.isFinite(saved) || saved >= 0) return 0;
+        return Math.min(1000, Math.max(0, -saved));
+    }
     if (selectedTestPlatform !== 'android' || !androidAudioProbeDeviceInfo().isAndroid) return 0;
     let saved;
     if (isBluetoothHeadphone()) saved = Number(mic.androidBluetoothMicOffsetMs);
@@ -26906,6 +26911,9 @@ function micTestDisplayOffsetMs() {
     if (isIosNewMicReactionFlow() && setupProgress.btDelayDone) {
         return Number(strokeDisplayOffsetMs()) || 0;
     }
+    if (isAndroidIphoneStyleTrialFlow() && isBluetoothHeadphone() && setupProgress.correctionDone) {
+        return Number(strokeDisplayOffsetMs()) || 0;
+    }
     if (!useAndroidLatencyFirstFlow() || !isBluetoothHeadphone()) return 0;
     if (!setupProgress.correctionDone) return 0;
     const hp = Number(mic.headphoneOutputOffsetMs);
@@ -26921,6 +26929,10 @@ function micTestWaveDisplayOffsetMs() {
         return hp + (Number.isFinite(judge) ? judge : 0);
     }
     const visual = micTestDisplayOffsetMs();
+    if (isAndroidIphoneStyleTrialFlow() && isHeadphoneInput()) {
+        const judge = Number(wizardMicJudgeOffsetMs());
+        return visual + (Number.isFinite(judge) ? judge : 0);
+    }
     if (!useAndroidLatencyFirstFlow()) return visual;
     const judge = Number(wizardMicJudgeOffsetMs());
     return visual + (Number.isFinite(judge) ? judge : 0);
