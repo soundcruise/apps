@@ -8041,3 +8041,16 @@ body[data-rc-theme="clean-pro"] #tap-area .tap-unify {
 .preview-loop-cap:has(.rc-pro-lock-icon) {
     color: var(--text-color);
 }
+
+/* v0.12.44：新iPhone+BT 最終確認の手動補正パネル */
+.ios-new-manual-correct-panel {
+    margin-top: 10px;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.04);
+}
+.ios-new-manual-correct-panel input[type="range"] {
+    width: 100%;
+    margin: 4px 0 8px;
+}

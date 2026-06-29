@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.43';
+const RHYTHM_CRUISE_VERSION = '0.12.44';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -6110,6 +6110,7 @@ function goHomeView(v) {
 
 /* ── 画面遷移 ───────────────────────────────────────────── */
 function show(screen) {
+    if (screen !== 'settings') stopIosNewBtVolumeTestOnLeave('route-change');
     if (screen !== 'practice') discardPracticeRecording();
     currentScreen = screen;
     els.home.classList.toggle('hidden', screen !== 'home');
@@ -10376,8 +10377,7 @@ function stopForPageHidden() {
     // cancelCalibration/stopBtCal は内部ガード（cal.saved 等）で多重実行しても壊れない（v0.9.140）。
     if (cal.active || mic.calibrating) cancelCalibration();
     stopBtCal();
-    stopIosNewBtVolumeTest('page-hidden');
-    stopIosNewBtDelayPreview();
+    stopIosNewBtVolumeTestOnLeave('visibility-hidden');
     // v0.10.35：録音再生中/一時停止中なら完全停止＋クリックoverlay停止。Blob/Object URLは破棄しない。
     const rec = state.practiceRecording;
     if (rec.playbackActive || rec.playbackPaused) stopPracticeRecordingPlayback();
@@ -12745,6 +12745,7 @@ function scrollHpProceedIntoView() {
 
 function startHeadphoneCal() {
     if (pt.active) stopPracticeTest(); // 最終確認テストと排他
+    stopIosNewBtVolumeTestOnLeave('step-change');
     stopBtCal(); // マイクの遅れ補正と排他
     ensureAudio();
     try { if (state.audioCtx && state.audioCtx.state === 'suspended') state.audioCtx.resume(); } catch (_) { /* ignore */ }
@@ -14330,7 +14331,12 @@ const iosNewBtVolumeTest = {
     peaks: [], noiseSamples: [], maxPeak: 0, flowStartPerf: 0,
     startedAt: null, stoppedAt: null, completedAt: null, stopReason: null, result: null,
     waveformTimelineUpdated: false, timelineSampleCount: 0,
+    stopCalledCount: 0, lastStopReason: null, audioNodeStopped: false, timerCleared: false, uiReset: false,
 };
+let iosNewManualCorrectionPanelOpen = false;
+let iosNewManualCorrectionStartValues = null;
+let iosNewManualCorrectionOpenedAt = null;
+let iosNewManualCorrectionDebug = null;
 const iosNewBtPreview = { active: false, raf: 0, flowStartPerf: 0 };
 let correctionFlowSnapshotSeq = 0;
 let correctionFlowCopySeq = 0;
@@ -14590,6 +14596,215 @@ function emitIosNewDisplayCorrectionInitialDebug(reason, bluetoothMicOffsetBefor
 }
 function iosNewBtRetestUserLabel() {
     return '音ズレテストをやり直す';
+}
+function isIosNewManualCorrectionAvailable() {
+    return isIosNewProductionFlow() && isBluetoothHeadphone();
+}
+function normalizeIosNewBtVolumeStopReason(stopReason) {
+    const r = stopReason || 'toggle-off';
+    if (r === 'manual-toggle') return 'toggle-off';
+    if (r === 'btdelay-test-start') return 'start-btdelay-test';
+    if (r === 'wizard-step-change') return 'step-change';
+    if (r === 'flow-ui-reset') return 'leave-btdelay';
+    if (r === 'page-hidden') return 'visibility-hidden';
+    if (r === 'start-final-check') return 'start-final-check';
+    return r;
+}
+function isIosNewBtDelayStepVisible() {
+    if (!usesIosNewStrongBtDelaySound()) return false;
+    if (els.settings && els.settings.classList.contains('hidden')) return false;
+    if (settingsTab !== 'mic' || settingsView !== 'steps') return false;
+    return activeWizardStep() === 'btdelay' && !bt.active;
+}
+function shouldResumeIosNewBtDelayPreviewAfterVolumeStop(stopReason) {
+    const normalized = normalizeIosNewBtVolumeStopReason(stopReason);
+    return (normalized === 'toggle-off') && isIosNewBtDelayStepVisible();
+}
+function clearBtScheduledAudioNodes() {
+    if (!bt.scheduled || !bt.scheduled.length) return false;
+    bt.scheduled.forEach((o) => { try { o.stop(); } catch (_) { /* already stopped */ } });
+    bt.scheduled = [];
+    return true;
+}
+function stopIosNewBtVolumeTestOnLeave(stopReason) {
+    stopIosNewBtVolumeTest(stopReason);
+    const normalized = normalizeIosNewBtVolumeStopReason(stopReason);
+    if (normalized !== 'toggle-off' && normalized !== 'start-btdelay-test') stopIosNewBtDelayPreview();
+}
+function captureIosNewManualCorrectionStartValues() {
+    return {
+        bluetoothMicOffsetMs: mic.bluetoothMicOffsetMs || 0,
+        timingOffsetMs: mic.timingOffsetMs || 0,
+        usedJudgeOffsetMs: finalCheckJudgeOffsetMs(),
+        threshold: mic.threshold,
+        clickVolume: state.clickVolume,
+    };
+}
+function buildIosNewManualCorrectionPanelHtml() {
+    const btMin = headphoneMicOffsetMin();
+    const btMax = headphoneMicOffsetMax();
+    const btVal = mic.bluetoothMicOffsetMs || 0;
+    const sensVal = sensFromThresholdUI(mic.threshold);
+    const clickVal = state.clickVolume;
+    const judge = finalCheckJudgeOffsetMs();
+    const timing = mic.timingOffsetMs || 0;
+    const subNote = 'font-size:0.72rem;opacity:0.75;margin:4px 0 0;line-height:1.45;';
+    const row = 'display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 0 4px;font-size:0.85rem;';
+    return '<div id="pt-result-manual-correct-panel" class="ios-new-manual-correct-panel' + (iosNewManualCorrectionPanelOpen ? '' : ' hidden') + '">'
+        + '<p class="setting-note" style="margin:8px 0 4px;font-size:0.78rem;">スライダーで微調整してから最終確認をやり直せます。保存はテスト後の既存ボタンから行えます。</p>'
+        + '<div style="' + row + '"><span>音ズレの遅延</span><b id="ios-new-manual-bt-offset-val">' + btVal + 'ms</b></div>'
+        + '<p style="' + subNote + '">判定補正 ' + judge + 'ms / Bluetooth ' + btVal + 'ms / 土台 ' + timing + 'ms</p>'
+        + '<input type="range" id="ios-new-manual-bt-offset" min="' + btMin + '" max="' + btMax + '" step="5" value="' + btVal + '">'
+        + '<div style="' + row + '"><span>マイク感度</span><b id="ios-new-manual-threshold-val">' + sensVal + '%</b></div>'
+        + '<p style="' + subNote + '">高いほど敏感（threshold ' + mic.threshold.toFixed(4) + '）</p>'
+        + '<input type="range" id="ios-new-manual-threshold" min="0" max="100" step="1" value="' + sensVal + '">'
+        + '<div style="' + row + '"><span>クリック音量</span><b id="ios-new-manual-clickvol-val">' + clickVal + '%</b></div>'
+        + '<input type="range" id="ios-new-manual-clickvol" min="0" max="100" step="1" value="' + clickVal + '">'
+        + '<button type="button" class="rc-mic-action-primary" id="ios-new-manual-apply-retest" style="width:100%;padding:12px;margin-top:12px;border-radius:10px;">この設定で最終テストする</button>'
+        + '<button type="button" class="rc-mic-action-secondary" id="ios-new-manual-close" style="width:100%;padding:10px;margin-top:8px;border-radius:10px;">閉じる</button>'
+        + '</div>';
+}
+function buildIosNewManualCorrectionDebug(phase, sliderValues) {
+    const start = iosNewManualCorrectionStartValues || captureIosNewManualCorrectionStartValues();
+    const sliders = sliderValues || {
+        bluetoothMicOffsetMs: mic.bluetoothMicOffsetMs || 0,
+        resultingJudgeOffsetMs: finalCheckJudgeOffsetMs(),
+        threshold: mic.threshold,
+        clickVolume: state.clickVolume,
+    };
+    return {
+        enabled: true,
+        selectedTestPlatform,
+        selectedHeadphoneType: getHeadphoneType(),
+        openedAt: iosNewManualCorrectionOpenedAt,
+        appliedAt: phase === 'apply' ? new Date().toISOString() : null,
+        startValues: {
+            bluetoothMicOffsetMs: start.bluetoothMicOffsetMs,
+            timingOffsetMs: start.timingOffsetMs,
+            usedJudgeOffsetMs: start.usedJudgeOffsetMs,
+            threshold: start.threshold,
+            clickVolume: start.clickVolume,
+        },
+        sliderValues: sliders,
+        delta: {
+            bluetoothMicOffsetDeltaMs: sliders.bluetoothMicOffsetMs - start.bluetoothMicOffsetMs,
+            judgeOffsetDeltaMs: sliders.resultingJudgeOffsetMs - start.usedJudgeOffsetMs,
+            thresholdDelta: sliders.threshold - start.threshold,
+            clickVolumeDelta: sliders.clickVolume - start.clickVolume,
+        },
+        appliedToCurrentSession: phase === 'apply',
+        savedValueChanged: false,
+        localStorageStructureChanged: false,
+        persistence: 'session-only-until-existing-save-path',
+        nextAction: phase === 'apply' ? 'start-final-check' : null,
+    };
+}
+function buildIosNewFinalCheckMicReactionStaleDebug() {
+    if (!isIosNewMicReactionFlow()) return null;
+    const runDebug = test.runDebug;
+    const micRunId = runDebug && runDebug.runId ? runDebug.runId : null;
+    const micRunCompletedAt = runDebug && runDebug.completedAt ? runDebug.completedAt : null;
+    const offsetAtMicTest = runDebug && runDebug.iosNewMicTestStart
+        ? runDebug.iosNewMicTestStart.micJudgeOffsetMsAtMicTestStart : null;
+    const currentOffset = micJudgeOffsetMs();
+    const offsetChangedSinceMicReaction = offsetAtMicTest != null && offsetAtMicTest !== currentOffset;
+    const manualApplied = !!(iosNewManualCorrectionDebug && iosNewManualCorrectionDebug.appliedToCurrentSession);
+    const thresholdChanged = !!(iosNewManualCorrectionDebug && iosNewManualCorrectionDebug.delta
+        && iosNewManualCorrectionDebug.delta.thresholdDelta !== 0);
+    const clickVolChanged = !!(iosNewManualCorrectionDebug && iosNewManualCorrectionDebug.delta
+        && iosNewManualCorrectionDebug.delta.clickVolumeDelta !== 0);
+    const needsMicReactionRetest = thresholdChanged || clickVolChanged;
+    let micReactionRunAge = null;
+    if (micRunCompletedAt) {
+        try { micReactionRunAge = Date.now() - new Date(micRunCompletedAt).getTime(); } catch (_) { micReactionRunAge = null; }
+    }
+    return {
+        manualCorrectionApplied: manualApplied,
+        micReactionRunStale: offsetChangedSinceMicReaction || needsMicReactionRetest,
+        micReactionRunOffsetMs: offsetAtMicTest,
+        currentFinalCheckOffsetMs: currentOffset,
+        offsetChangedSinceMicReaction,
+        needsMicReactionRetest,
+        lastMicReactionRunId: micRunId,
+        lastFinalCheckRunId: finalCheckFlowDebug.practiceTestRunId || 0,
+        micReactionRunAge,
+        micReactionRunCompletedAt: micRunCompletedAt,
+    };
+}
+function buildIosNewHandclapDelayTestDebug() {
+    const oldFnFound = typeof startCalibration === 'function' && typeof cal !== 'undefined';
+    return {
+        enabled: false,
+        oldFunctionFound: oldFnFound,
+        reusedFunctionName: oldFnFound ? 'startCalibration' : null,
+        selectedTestPlatform,
+        selectedHeadphoneType: isHeadphoneInput() ? getHeadphoneType() : null,
+        measuredTimingOffsetMs: null,
+        previousTimingOffsetMs: mic.timingOffsetMs || 0,
+        bluetoothMicOffsetMs: mic.bluetoothMicOffsetMs || 0,
+        resultingJudgeOffsetMs: finalCheckJudgeOffsetMs(),
+        appliedToTimingOffset: false,
+        appliedToBluetoothMicOffset: false,
+        savedValueChanged: false,
+        blockReason: 'v0.12.44-investigation-only: timingOffsetMs-vs-bluetoothMicOffsetMs-role-split-risk-on-ios-new-bt',
+        note: '旧手拍子遅延は cal-card/startCalibration（timingOffsetMs/headphoneMicOffsetSet）と hpAd/startHpAutoDetect が残存。新iPhone+BT本番は btdelay 強音源＋bluetoothMicOffsetMs 閉ループのため、手拍子切替は未実装（調査のみ）。',
+    };
+}
+function bindIosNewManualCorrectionPanel() {
+    const panel = document.getElementById('pt-result-manual-correct-panel');
+    const btSlider = document.getElementById('ios-new-manual-bt-offset');
+    const thrSlider = document.getElementById('ios-new-manual-threshold');
+    const clickSlider = document.getElementById('ios-new-manual-clickvol');
+    const syncBt = () => {
+        if (!btSlider) return;
+        const v = Number(btSlider.value);
+        const el = document.getElementById('ios-new-manual-bt-offset-val');
+        if (el) el.textContent = v + 'ms';
+    };
+    const syncThr = () => {
+        if (!thrSlider) return;
+        const sens = Number(thrSlider.value);
+        const thr = thresholdFromSensUI(sens);
+        const el = document.getElementById('ios-new-manual-threshold-val');
+        if (el) el.textContent = sens + '%';
+        if (panel) {
+            const notes = panel.querySelectorAll('p');
+            if (notes[2]) notes[2].textContent = '高いほど敏感（threshold ' + thr.toFixed(4) + '）';
+        }
+    };
+    const syncClick = () => {
+        if (!clickSlider) return;
+        const el = document.getElementById('ios-new-manual-clickvol-val');
+        if (el) el.textContent = clickSlider.value + '%';
+    };
+    if (btSlider) btSlider.addEventListener('input', syncBt);
+    if (thrSlider) thrSlider.addEventListener('input', syncThr);
+    if (clickSlider) clickSlider.addEventListener('input', syncClick);
+    const closeBtn = document.getElementById('ios-new-manual-close');
+    if (closeBtn) closeBtn.addEventListener('click', () => {
+        iosNewManualCorrectionPanelOpen = false;
+        if (panel) panel.classList.add('hidden');
+        const toggleBtn = document.getElementById('pt-result-manual-correct');
+        if (toggleBtn) toggleBtn.textContent = '手動で補正する';
+    });
+    const applyBtn = document.getElementById('ios-new-manual-apply-retest');
+    if (applyBtn) applyBtn.addEventListener('click', () => {
+        if (!btSlider || !thrSlider || !clickSlider) return;
+        const btOffset = headphoneMicOffsetSet(Number(btSlider.value));
+        mic.threshold = thresholdFromSensUI(Number(thrSlider.value));
+        state.clickVolume = Math.max(0, Math.min(100, Math.round(Number(clickSlider.value))));
+        applySettingsToUI();
+        drawMicPreview();
+        iosNewManualCorrectionDebug = buildIosNewManualCorrectionDebug('apply', {
+            bluetoothMicOffsetMs: btOffset,
+            resultingJudgeOffsetMs: finalCheckJudgeOffsetMs(),
+            threshold: mic.threshold,
+            clickVolume: state.clickVolume,
+        });
+        try { console.log('[iosNewManualCorrectionDebug]', JSON.stringify(iosNewManualCorrectionDebug)); } catch (_) { /* ignore */ }
+        invalidatePracticeResult();
+        startPracticeTest();
+    });
 }
 function practiceRetestMicBtnLabel() {
     if (isIosNewProductionFlow() && isBluetoothHeadphone()) return iosNewBtRetestUserLabel();
@@ -14979,6 +15194,11 @@ function finishIosNewBtVolumeTestResult() {
         startedAt: iosNewBtVolumeTest.startedAt,
         stoppedAt: iosNewBtVolumeTest.stoppedAt,
         stopReason: iosNewBtVolumeTest.stopReason,
+        stopCalledCount: iosNewBtVolumeTest.stopCalledCount,
+        lastStopReason: iosNewBtVolumeTest.lastStopReason,
+        audioNodeStopped: !!iosNewBtVolumeTest.audioNodeStopped,
+        timerCleared: !!iosNewBtVolumeTest.timerCleared,
+        uiReset: !!iosNewBtVolumeTest.uiReset,
         completedAt: new Date().toISOString(),
         note: '音量テストは補正値保存に使わない。トグル式連続再生。波形はタイムラインへ描画（白丸インジケーターは非表示）。',
     };
@@ -14989,18 +15209,33 @@ function finishIosNewBtVolumeTestResult() {
     logIosNewBtVolumeTest('finish');
 }
 function stopIosNewBtVolumeTest(stopReason) {
+    const normalizedReason = normalizeIosNewBtVolumeStopReason(stopReason);
+    iosNewBtVolumeTest.stopCalledCount++;
+    iosNewBtVolumeTest.lastStopReason = normalizedReason;
     const wasActive = iosNewBtVolumeTest.active;
+    const wasLooping = iosNewBtVolumeTest.looping;
     iosNewBtVolumeTest.active = false;
     iosNewBtVolumeTest.looping = false;
     iosNewBtVolumeTest.token++;
-    if (iosNewBtVolumeTest.loopTimer) { clearTimeout(iosNewBtVolumeTest.loopTimer); iosNewBtVolumeTest.loopTimer = 0; }
-    if (wasActive) {
+    let timerCleared = false;
+    if (iosNewBtVolumeTest.loopTimer) {
+        clearTimeout(iosNewBtVolumeTest.loopTimer);
+        iosNewBtVolumeTest.loopTimer = 0;
+        timerCleared = true;
+    }
+    iosNewBtVolumeTest.timerCleared = timerCleared || iosNewBtVolumeTest.timerCleared;
+    const audioNodeStopped = clearBtScheduledAudioNodes();
+    iosNewBtVolumeTest.audioNodeStopped = audioNodeStopped || iosNewBtVolumeTest.audioNodeStopped;
+    if (wasActive || wasLooping) {
         iosNewBtVolumeTest.stoppedAt = new Date().toISOString();
-        iosNewBtVolumeTest.stopReason = stopReason || 'manual-toggle';
+        iosNewBtVolumeTest.stopReason = normalizedReason;
         finishIosNewBtVolumeTestResult();
     }
     updateIosNewBtVolumeTestButton();
-    if (usesIosNewStrongBtDelaySound() && activeWizardStep() === 'btdelay' && !bt.active) startIosNewBtDelayPreview();
+    setBtCalVolumeStatus('');
+    iosNewBtVolumeTest.uiReset = true;
+    if (shouldResumeIosNewBtDelayPreviewAfterVolumeStop(normalizedReason)) startIosNewBtDelayPreview();
+    logIosNewBtVolumeTest(wasActive || wasLooping ? 'stop' : 'stop-idle');
 }
 async function startIosNewBtVolumeTest() {
     if (iosNewBtVolumeTest.active) { stopIosNewBtVolumeTest('manual-toggle'); return; }
@@ -15018,6 +15253,9 @@ async function startIosNewBtVolumeTest() {
     iosNewBtVolumeTest.startedAt = new Date().toISOString();
     iosNewBtVolumeTest.stoppedAt = null;
     iosNewBtVolumeTest.stopReason = null;
+    iosNewBtVolumeTest.audioNodeStopped = false;
+    iosNewBtVolumeTest.timerCleared = false;
+    iosNewBtVolumeTest.uiReset = false;
     iosNewBtVolumeTest.completedAt = null;
     iosNewBtVolumeTest.result = null;
     iosNewBtVolumeTest.waveformTimelineUpdated = false;
@@ -17881,6 +18119,7 @@ const finalCheckFlowDebug = {
     lastIphoneBtLatencyCandidateAudit: null,
     lastIosNewFinalCheckOffsetMismatchDebug: null,
     lastIosNewFinalCheckCorrectionSuggestionDebug: null,
+    lastIosNewFinalCheckMicReactionStaleDebug: null,
     practiceTestRunId: 0,
     ptResultUpdatedAt: null,
     finalCheckStatsUpdatedAt: null,
@@ -17970,7 +18209,10 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
         activeWizardStep: activeStep,
         wizardSteps: steps,
         setupProgress: Object.assign({ testDone: !!state.micTestDone }, setupProgress),
-        micReactionTest: {
+        micReactionTest: (() => {
+            const runDebug = micTestRunForDevelopmentLog(test.runDebug);
+            const staleDbg = buildIosNewFinalCheckMicReactionStaleDebug();
+            return {
             stateMicTestDone: !!state.micTestDone,
             flow: !!test.flow,
             active: !!test.active,
@@ -17983,8 +18225,14 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
             recommendedClickVolume: test.recoClickVolume != null ? test.recoClickVolume : null,
             recommendedCooldown: test.recoCooldown != null ? test.recoCooldown : null,
             recoBlockedByClickLeak: !!test.recoBlockedByClickLeak,
-            runDebug: micTestRunForDevelopmentLog(test.runDebug),
-        },
+            runDebug,
+            micReactionRunStale: staleDbg ? !!staleDbg.micReactionRunStale : false,
+            lastMicReactionRunId: staleDbg ? staleDbg.lastMicReactionRunId : (runDebug && runDebug.runId ? runDebug.runId : null),
+            lastFinalCheckRunId: finalCheckFlowDebug.practiceTestRunId || 0,
+            micReactionRunAge: staleDbg ? staleDbg.micReactionRunAge : null,
+            offsetChangedSinceMicReaction: staleDbg ? staleDbg.offsetChangedSinceMicReaction : false,
+            needsMicReactionRetest: staleDbg ? staleDbg.needsMicReactionRetest : false,
+        }; })(),
         settings: {
             clickVolume: state.clickVolume,
             threshold: mic.threshold,
@@ -18072,6 +18320,9 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
                 ? iosNewBtCorrectionRunHistory.slice() : null,
             iosNewFinalCheckOffsetMismatchDebug: finalCheckFlowDebug.lastIosNewFinalCheckOffsetMismatchDebug || null,
             iosNewFinalCheckCorrectionSuggestionDebug: finalCheckFlowDebug.lastIosNewFinalCheckCorrectionSuggestionDebug || null,
+            iosNewFinalCheckMicReactionStaleDebug: finalCheckFlowDebug.lastIosNewFinalCheckMicReactionStaleDebug || null,
+            iosNewManualCorrectionDebug: iosNewManualCorrectionDebug || null,
+            iosNewHandclapDelayTestDebug: buildIosNewHandclapDelayTestDebug(),
             iosNewDisplayCorrectionInitialDebug: (bt.result && bt.result.iosNewDisplayCorrectionInitialDebug)
                 || (hpCal && hpCal.iosNewDisplayCorrectionInitialDebug) || null,
             iosNewBtClampDebug: (bt.result && bt.result.iosNewBtClampDebug)
@@ -18090,6 +18341,11 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
                 startedAt: iosNewBtVolumeTest.startedAt,
                 stoppedAt: iosNewBtVolumeTest.stoppedAt,
                 stopReason: iosNewBtVolumeTest.stopReason,
+                stopCalledCount: iosNewBtVolumeTest.stopCalledCount,
+                lastStopReason: iosNewBtVolumeTest.lastStopReason,
+                audioNodeStopped: !!iosNewBtVolumeTest.audioNodeStopped,
+                timerCleared: !!iosNewBtVolumeTest.timerCleared,
+                uiReset: !!iosNewBtVolumeTest.uiReset,
                 note: '音量テスト実行中（トグル式連続再生・波形タイムラインへ描画）',
             } : (iosNewBtVolumeTest.hasRun ? iosNewBtVolumeTest.result : null)),
             note: iosNewFlowDebugNote(),
@@ -18098,8 +18354,10 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
             snapshotSeq,
             snapshotGeneratedAt,
             snapshotReason: reason,
+            copySeq: correctionFlowCopySeq,
             finalCheckRunId: finalCheckFlowDebug.practiceTestRunId || 0,
             practiceTestRunId: finalCheckFlowDebug.practiceTestRunId || 0,
+            lastMicReactionRunId: (test.runDebug && test.runDebug.runId) ? test.runDebug.runId : null,
             ptHasRun,
             ptResultUpdatedAt: finalCheckFlowDebug.ptResultUpdatedAt,
             finalCheckStatsUpdatedAt: finalCheckFlowDebug.finalCheckStatsUpdatedAt,
@@ -18140,9 +18398,10 @@ async function copyCorrectionFlowLog() {
     let copied = false;
     try { copied = await copyTextToClipboard(text); } catch (err) { recordCorrectionFlowError(err, 'copyCorrectionFlowLog.clipboard'); copied = false; }
     if (els.correctionFlowLogStatus) {
+        const seqLabel = snapshot && snapshot.snapshotSeq ? (' #' + snapshot.snapshotSeq + '-' + copySeq) : '';
         els.correctionFlowLogStatus.textContent = copied
-            ? '補正フロー状態ログをコピーしました。'
-            : '自動コピーできませんでした。下のログを長押ししてコピーしてください。';
+            ? ('補正フロー状態ログをコピーしました' + seqLabel + '。')
+            : ('自動コピーできませんでした' + seqLabel + '。下のログを長押ししてコピーしてください。');
     }
     if (!copied && els.correctionFlowLogText) {
         els.correctionFlowLogText.classList.remove('hidden');
@@ -18776,6 +19035,7 @@ async function startPracticeTest() {
     if (hpCal.active) stopHeadphoneCal();
     if (test.flow) abortMicTest();
     stopBtCal();
+    stopIosNewBtVolumeTestOnLeave('start-final-check');
     if (isAndroidNormalMicFlow()) {
         console.info('finalCheckStartDebug', {
             setupProgress: Object.assign({}, setupProgress),
@@ -19710,6 +19970,7 @@ function finishPracticeTest() {
     r.iosNewFinalCheckCorrectionSuggestionDebug = buildIosNewFinalCheckCorrectionSuggestionDebug(
         r.finalCheckStats, r.iosNewFinalCheckOffsetMismatchDebug,
     );
+    r.iosNewFinalCheckMicReactionStaleDebug = buildIosNewFinalCheckMicReactionStaleDebug();
     r.iphoneTrialBluetoothSafetyDebug = buildIphoneTrialBluetoothSafetyDebug(r.finalCheckStats);
     r.bluetoothDeviceCalibrationDebug = buildBluetoothDeviceCalibrationDebug(r.finalCheckStats);
     r.iphoneBtLatencyCandidateAudit = buildIphoneBtLatencyCandidateAudit(r.finalCheckStats);
@@ -19724,6 +19985,7 @@ function finishPracticeTest() {
     finalCheckFlowDebug.lastLegacyVsAndroidBtCalibrationComparison = r.legacyVsAndroidBtCalibrationComparison;
     finalCheckFlowDebug.lastIosNewFinalCheckOffsetMismatchDebug = r.iosNewFinalCheckOffsetMismatchDebug;
     finalCheckFlowDebug.lastIosNewFinalCheckCorrectionSuggestionDebug = r.iosNewFinalCheckCorrectionSuggestionDebug;
+    finalCheckFlowDebug.lastIosNewFinalCheckMicReactionStaleDebug = r.iosNewFinalCheckMicReactionStaleDebug;
     finalCheckFlowDebug.lastIphoneTrialBluetoothSafetyDebug = r.iphoneTrialBluetoothSafetyDebug;
     finalCheckFlowDebug.lastBluetoothDeviceCalibrationDebug = r.bluetoothDeviceCalibrationDebug;
     finalCheckFlowDebug.lastIphoneBtLatencyCandidateAudit = r.iphoneBtLatencyCandidateAudit;
@@ -19908,9 +20170,17 @@ function renderPracticeResult(r) {
             + '音ズレ補正を見直すと改善する可能性があります。「' + iosNewBtRetestUserLabel() + '」から再計測してください。</p>'
         : '';
 
+    let iosNewManualBlock = '';
+    if (isIosNewManualCorrectionAvailable()) {
+        iosNewManualBlock =
+            '<button type="button" id="pt-result-manual-correct" style="' + subQuiet + '">手動で補正する</button>'
+            + buildIosNewManualCorrectionPanelHtml();
+    }
+
     els.ptResult.innerHTML =
         (c.kind === 'ok' ? okBanner : warnBanner) + mainRows + mismatchNote + suggestionNote +
         '<div style="margin-top:6px;">' + actions + '</div>' +
+        (iosNewManualBlock ? '<div style="margin-top:6px;">' + iosNewManualBlock + '</div>' : '') +
         '<div style="margin-top:6px;">' + manualBtn + '</div>' +
         devCompareBlock;
     els.ptResult.classList.remove('hidden');
@@ -19946,11 +20216,28 @@ function bindPracticeResultActions() {
     if (fixBtDelay) fixBtDelay.addEventListener('click', () => practiceFixGoTo('btdelay'));
     const fixManual = document.getElementById('pt-result-fix-manual');
     if (fixManual) fixManual.addEventListener('click', () => practiceFixGoTo('double'));
+    const manualCorrect = document.getElementById('pt-result-manual-correct');
+    if (manualCorrect) {
+        manualCorrect.textContent = iosNewManualCorrectionPanelOpen ? '手動補正を閉じる' : '手動で補正する';
+        manualCorrect.addEventListener('click', () => {
+            iosNewManualCorrectionPanelOpen = !iosNewManualCorrectionPanelOpen;
+            if (iosNewManualCorrectionPanelOpen) {
+                iosNewManualCorrectionOpenedAt = new Date().toISOString();
+                iosNewManualCorrectionStartValues = captureIosNewManualCorrectionStartValues();
+                iosNewManualCorrectionDebug = buildIosNewManualCorrectionDebug('open');
+            }
+            const panel = document.getElementById('pt-result-manual-correct-panel');
+            if (panel) panel.classList.toggle('hidden', !iosNewManualCorrectionPanelOpen);
+            manualCorrect.textContent = iosNewManualCorrectionPanelOpen ? '手動補正を閉じる' : '手動で補正する';
+        });
+        bindIosNewManualCorrectionPanel();
+    }
 }
 
 /* 最終確認テスト「調整が必要」からの原因別の戻り先（v0.9.67）。
    どのルートでも古い結果は消し、戻り先のステップを開く。 */
 function practiceFixGoTo(route) {
+    stopIosNewBtVolumeTestOnLeave('step-change');
     invalidatePracticeResult(); // 古い結果を消し、完了ボタンも無効へ
     if (route === 'test') {
         // 反応ラインからやり直す：補正系以降（test より後の補正）は未完了に戻す。
@@ -20436,7 +20723,7 @@ async function startBtCal() {
     if (cal.active) cancelCalibration();
     if (test.flow) abortMicTest();
     stopPracticeTest();
-    stopIosNewBtVolumeTest('btdelay-test-start');
+    stopIosNewBtVolumeTest('start-btdelay-test');
     stopIosNewBtDelayPreview();
     resetBtCalTransientUiState();
     if (!(await ensureTestMic())) { setBtCalStatus('マイクを許可してください。'); return; }
@@ -20866,6 +21153,7 @@ function applyBtCal() {
 
 /* クリック音入力テスト完了。有線は最終確認へ、Bluetoothは画面補正へ進む。 */
 function completeBtCalStep() {
+    stopIosNewBtVolumeTestOnLeave('step-change');
     stopBtCal();
     setupProgress.btDelayDone = true;
     if (isBluetoothHeadphone() && bt.result) {
@@ -22230,6 +22518,7 @@ function showDoneHint() {
 }
 
 function renderSettingsView() {
+    if (settingsTab !== 'mic' || settingsView !== 'steps') stopIosNewBtVolumeTestOnLeave('leave-correction-flow');
     // タブの点灯（v0.9.95、v0.9.148でクリック設定タブを追加）
     if (els.settingsTabMic) els.settingsTabMic.classList.toggle('is-active', settingsTab === 'mic');
     if (els.settingsTabTap) els.settingsTabTap.classList.toggle('is-active', settingsTab === 'tap');
@@ -22426,6 +22715,7 @@ function updateTapCurrentOffsetDisplay() {
    マイク設定タブを押したら、詳細テスト途中のカードに残さず、必ずマイク設定TOP（chooser）へ戻す。 */
 function setSettingsTab(tab) {
     const next = (tab === 'tap') ? 'tap' : (tab === 'click') ? 'click' : 'mic';
+    if (next !== 'mic') stopIosNewBtVolumeTestOnLeave('leave-correction-flow');
     settingsTab = next;
     tapView = 'home'; // タブを切り替えたら必ずホームから
     if (next === 'mic') {
@@ -22690,7 +22980,7 @@ function renderWizardSteps() {
     // マイクの遅れ補正（btdelay）：他ステップへ移ったら停止。表示時はアイドルUIへ（v0.9.80）
     if (active !== 'btdelay') {
         if (bt.active || bt.timers.length) stopBtCal();
-        stopIosNewBtVolumeTest('wizard-step-change');
+        stopIosNewBtVolumeTest('step-change');
         stopIosNewBtDelayPreview();
     }
     if (active === 'btdelay' && !bt.active && els.btCalResult && els.btCalResult.classList.contains('hidden')) {
@@ -22866,6 +23156,7 @@ function completeCorrectionStep() {
 }
 
 function setSettingsView(v) {
+    if (v !== 'steps') stopIosNewBtVolumeTestOnLeave('leave-correction-flow');
     settingsView = v;
     if (v === 'summary') renderSettingsSummary();
     if (v === 'chooser') renderPresetList();
@@ -22902,6 +23193,7 @@ function resetTestRunHistory() {
 
 function resetSetupFlowDisplay() {
     if (hpAd.active) stopHpAutoDetect();
+    stopIosNewBtVolumeTestOnLeave('flow-ui-reset');
     if (test.flow) abortMicTest();
     if (cal.active) cancelCalibration();
     if (hpCal.active) stopHeadphoneCal();
@@ -23594,6 +23886,7 @@ function movePreset(id, dir) {
 
 /* 「現在の設定を見る」/「手動設定」から手動設定＋保存カードへ移動する補助ビュー */
 function openManualView(scrollTarget) {
+    stopIosNewBtVolumeTestOnLeave('leave-correction-flow');
     settingsView = 'manual';
     // 「キャンセル」で戻せるよう、開いた時点の設定値を控える（v0.9.89）。
     captureManualSnapshot();
@@ -23905,6 +24198,7 @@ function openMicPreset() {
 }
 
 function openSettings(from) {
+    stopIosNewBtVolumeTestOnLeave('leave-correction-flow');
     settingsReturn = from || 'home';
     stopPreviewRhythm(); // 設定画面へ行くときは譜面プレビューのリズム確認音を止める（v0.9.135）
     if (state.running) stop();
@@ -23954,6 +24248,7 @@ function resumeClickInputFromHelp() {
 }
 
 function closeSettings() {
+    stopIosNewBtVolumeTestOnLeave('leave-correction-flow');
     if (hpAd.active) stopHpAutoDetect();
     if (cal.active) cancelCalibration();
     if (hpCal.active) stopHeadphoneCal();
@@ -28897,6 +29192,9 @@ function bind() {
     });
     // iOS Safari / ホーム画面アプリでは visibilitychange を取りこぼすことがあるため pagehide でも安全停止。
     window.addEventListener('pagehide', () => { recordMicLifecycleDebugEvent('pagehide'); stopForPageHidden(); });
+    window.addEventListener('beforeunload', () => { stopIosNewBtVolumeTestOnLeave('beforeunload'); });
+    window.addEventListener('popstate', () => { stopIosNewBtVolumeTestOnLeave('route-change'); });
+    window.addEventListener('hashchange', () => { stopIosNewBtVolumeTestOnLeave('route-change'); });
     // スリープ/バックグラウンド復帰時の追加フォールバック（v0.9.208）。
     window.addEventListener('pageshow', () => { recordMicLifecycleDebugEvent('pageshow'); tryResumeAudio(); });
     window.addEventListener('focus', () => { recordMicLifecycleDebugEvent('focus'); tryResumeAudio(); });
