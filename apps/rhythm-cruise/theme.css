@@ -8062,6 +8062,21 @@ body[data-rc-theme="clean-pro"] #tap-area .tap-unify {
     opacity: 0.75;
     margin: 0 0 4px;
 }
-#bt-cal-handclap-btn {
-    display: inline-block;
+.bt-cal-handclap-row {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+}
+.bt-cal-handclap-help-btn {
+    width: 28px;
+    min-width: 28px;
+    padding: 6px 0;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+#bt-cal-handclap-btn.active {
+    border-color: rgba(255, 159, 28, 0.55);
+    background: rgba(255, 159, 28, 0.12);
 }
