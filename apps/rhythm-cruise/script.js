@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.58';
+const RHYTHM_CRUISE_VERSION = '0.12.59';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14694,6 +14694,12 @@ function usesIosNewBtDelayLabel() {
 function usesIosNewStrongBtDelaySound() {
     return usesIosNewBtDelayLabel();
 }
+function usesIosNewHeadphoneDelayTestUi() {
+    return isIosNewProductionFlow() && isHeadphoneInput();
+}
+function usesIosNewHeadphoneDelaySound() {
+    return usesIosNewHeadphoneDelayTestUi();
+}
 function btDelayStepUserLabel() {
     if (useAndroidLatencyFirstFlow()) return '音ズレ・遅延テスト';
     // v0.12.52：新iPhone+有線もBTと同じ見出しに統一（音源・補正フラグは変更しない）
@@ -15226,7 +15232,7 @@ function normalizeIosNewBtVolumeStopReason(stopReason) {
     return r;
 }
 function isIosNewBtDelayStepVisible() {
-    if (!usesIosNewStrongBtDelaySound()) return false;
+    if (!usesIosNewHeadphoneDelayTestUi()) return false;
     if (els.settings && els.settings.classList.contains('hidden')) return false;
     if (settingsTab !== 'mic' || settingsView !== 'steps') return false;
     return activeWizardStep() === 'btdelay' && !bt.active;
@@ -15352,13 +15358,16 @@ function buildIosNewFinalCheckMicReactionStaleDebug() {
 function isIosNewBtHandclapMode() {
     return usesIosNewStrongBtDelaySound() && iosNewBtDelayTestMode === 'handclap';
 }
+function isIosNewHeadphoneDelayHandclapMode() {
+    return usesIosNewHeadphoneDelayTestUi() && iosNewBtDelayTestMode === 'handclap';
+}
 function iosNewBtDelayMarkerType() {
-    if (!usesIosNewStrongBtDelaySound()) return 'white-dot';
+    if (!usesIosNewHeadphoneDelayTestUi()) return 'white-dot';
     if (iosNewBtVolumeTest.active && !bt.active) return 'white-dot';
     return iosNewBtDelayTestMode === 'handclap' ? 'clap-emoji' : 'white-dot';
 }
 function buildIosNewBtHandclapModeDebug(extra) {
-    const handclap = isIosNewBtHandclapMode();
+    const handclap = isIosNewHeadphoneDelayHandclapMode();
     const dbg = {
         enabled: isIosNewBtSignSanityFlow(),
         mode: iosNewBtDelayTestMode,
@@ -15381,14 +15390,14 @@ function setIosNewBtDelayTestMode(mode) {
     const next = mode === 'handclap' ? 'handclap' : 'noise';
     iosNewBtDelayTestMode = next;
     updateBtCalIosNewUi();
-    if (usesIosNewStrongBtDelaySound() && !bt.active) {
+    if (usesIosNewHeadphoneDelayTestUi() && !bt.active) {
         stopIosNewBtDelayPreview();
         startIosNewBtDelayPreview();
     }
     try { console.info('[iosNewBtHandclapModeDebug]', JSON.stringify(buildIosNewBtHandclapModeDebug())); } catch (_) { /* ignore */ }
 }
 function toggleIosNewBtHandclapMode() {
-    if (!usesIosNewStrongBtDelaySound() || bt.active) return;
+    if (!usesIosNewHeadphoneDelayTestUi() || bt.active) return;
     stopIosNewBtVolumeTestOnLeave('handclap-switch');
     clearBtScheduledAudioNodes();
     setIosNewBtDelayTestMode(iosNewBtDelayTestMode === 'handclap' ? 'noise' : 'handclap');
@@ -15845,7 +15854,7 @@ function setBtCalVolumeStatus(t) {
     }
 }
 function hideIosNewBtCalMeter() {
-    if (!usesIosNewStrongBtDelaySound()) return;
+    if (!usesIosNewHeadphoneDelayTestUi()) return;
     if (els.btCalLive) els.btCalLive.classList.add('hidden');
 }
 function syncIosNewBtWaveTimeline(resetWave) {
@@ -15856,21 +15865,21 @@ function syncIosNewBtWaveTimeline(resetWave) {
 }
 function updateIosNewBtVolumeTestButton() {
     if (!els.btCalVolumeTestBtn) return;
-    const show = usesIosNewStrongBtDelaySound() && !isIosNewBtHandclapMode();
+    const show = usesIosNewHeadphoneDelayTestUi() && !isIosNewHeadphoneDelayHandclapMode();
     els.btCalVolumeTestBtn.classList.toggle('hidden', !show);
     els.btCalVolumeTestBtn.textContent = iosNewBtVolumeTest.active ? '音量テストを停止' : '音量テスト';
     els.btCalVolumeTestBtn.disabled = !!bt.active;
 }
 function updateBtCalIosNewUi() {
-    const iosNew = usesIosNewStrongBtDelaySound();
-    const handclap = isIosNewBtHandclapMode();
+    const iosNew = usesIosNewHeadphoneDelayTestUi();
+    const handclap = isIosNewHeadphoneDelayHandclapMode();
     const iosNewWired = isIosNewProductionFlow() && isHeadphoneInput() && !isBluetoothHeadphone();
     if (els.btCalHandclapRow) els.btCalHandclapRow.classList.toggle('hidden', !iosNew);
     if (els.btCalDoNow) {
         if (iosNew && handclap) {
             els.btCalDoNow.textContent = 'イヤホンのクリック音に合わせて、👏のタイミングで手拍子してください';
         } else if (iosNewWired) {
-            els.btCalDoNow.textContent = 'イヤホンから出た音が、マイクに届くまでのズレを測ります';
+            els.btCalDoNow.innerHTML = '<span class="bt-cal-loud-warning">強い音が出ます。</span><br>イヤホンをはずし、音量を上げて、マイク部にイヤホンを近づけてください';
         } else if (iosNew) {
             els.btCalDoNow.innerHTML = '<span class="bt-cal-loud-warning">強い音が出ます。</span><br>イヤホンをはずし、音量を最大にして、マイク部にイヤホンを押し当ててください';
         } else {
@@ -15882,7 +15891,7 @@ function updateBtCalIosNewUi() {
             els.btCalDoNowSub.textContent = '手拍子の音をマイクで拾って、音ズレを測ります。イヤホンの音がマイクに入りにくい場合の応急的な方法です。';
             els.btCalDoNowSub.classList.remove('hidden');
         } else if (iosNewWired) {
-            els.btCalDoNowSub.textContent = '有線イヤホンは遅延が小さいことが多いため、このテストはスキップできます。タイミングが気になる場合だけ測ってください。';
+            els.btCalDoNowSub.textContent = 'イヤホンから出るテスト音をマイクで拾って、音ズレを測ります。';
             els.btCalDoNowSub.classList.remove('hidden');
         } else if (iosNew) {
             els.btCalDoNowSub.textContent = '';
@@ -15896,8 +15905,8 @@ function updateBtCalIosNewUi() {
         if (iosNew && handclap) {
             els.btCalGuide.textContent = 'イヤホンのクリック音に合わせて、👏のタイミングで手拍子してください。手拍子の音をマイクで拾って、音ズレを測ります。';
         } else if (iosNewWired) {
-            // 新iPhone+有線：共通の骨格＋有線のみスキップ補足（音源はクリック音）。
-            els.btCalGuide.textContent = 'イヤホンから出た音が、マイクに届くまでのズレを測ります。有線イヤホンは遅延が小さいことが多いため、このテストはスキップできます。タイミングが気になる場合だけ測ってください。';
+            // 新iPhone+有線：BTと同じテスト音・タイムラインを使うが、補正ガードはBT専用のまま。
+            els.btCalGuide.textContent = 'イヤホンから出たテスト音が、マイクに届くまでのズレを測ります。音量テストで波形が十分大きく出るか確認し、測定中はイヤホンとマイクの位置をなるべく動かさないでください。';
         } else {
             els.btCalGuide.textContent = iosNew
                 // 新iPhone+Bluetooth：共通の骨格＋BTのみ補足（音源は強いテスト音・押し当て方式）。
@@ -15915,7 +15924,7 @@ function updateBtCalIosNewUi() {
     if (iosNew) hideIosNewBtCalMeter();
 }
 function logIosNewBtVolumeTest(phase) {
-    if (!usesIosNewStrongBtDelaySound()) return;
+    if (!usesIosNewHeadphoneDelayTestUi()) return;
     const r = iosNewBtVolumeTest.result;
     const payload = {
         phase,
@@ -15948,7 +15957,7 @@ function iosNewBtPreviewLoop() {
     iosNewBtPreview.raf = requestAnimationFrame(iosNewBtPreviewLoop);
 }
 async function startIosNewBtDelayPreview() {
-    if (!usesIosNewStrongBtDelaySound() || iosNewBtPreview.active || bt.active) return;
+    if (!usesIosNewHeadphoneDelayTestUi() || iosNewBtPreview.active || bt.active) return;
     if (!(await ensureTestMic())) return;
     ensureAudio();
     iosNewBtPreview.active = true;
@@ -16040,7 +16049,7 @@ function stopIosNewBtVolumeTest(stopReason) {
 async function startIosNewBtVolumeTest() {
     if (iosNewBtVolumeTest.active) { stopIosNewBtVolumeTest('manual-toggle'); return; }
     if (bt.active) return;
-    if (!usesIosNewStrongBtDelaySound()) return;
+    if (!usesIosNewHeadphoneDelayTestUi()) return;
     if (!(await ensureTestMic())) { setBtCalVolumeStatus('マイクを許可してください。'); return; }
     ensureAudio();
     try { if (state.audioCtx && state.audioCtx.state === 'suspended') await state.audioCtx.resume(); } catch (_) { /* ignore */ }
@@ -20990,10 +20999,6 @@ function renderPracticeResult(r) {
             '<button type="button" class="rc-mic-action-secondary" id="pt-result-rerun" style="' + sub + '">もう1度テストする</button>';
     }
 
-    // 「詳しい数値・手動設定を見る」：押すと手動設定ページへ移動する（v0.9.89）。
-    // 主導線（この設定を使う／完了）ほどは目立たせない、少し目立つサブ導線。
-    const manualBtn = '<button type="button" id="pt-result-manual" style="' + sub + '">詳しい数値・手動設定を見る</button>';
-
     // v0.11.95：開発確認用の閉じたブロック（BT候補比較・最終確認統計・予測平均ズレ）。通常表示は重くしない。
     let devCompareBlock = '';
     if (r.finalCheckStats || r.finalCheckOffsetComparison || r.androidBluetoothCandidateComparison || r.androidBluetoothFinalCheckPrediction || r.iosNewFinalCheckOffsetMismatchDebug || r.iosNewFinalCheckCorrectionSuggestionDebug) {
@@ -21039,7 +21044,6 @@ function renderPracticeResult(r) {
         (c.kind === 'ok' ? okBanner : warnBanner) + mainRows + mismatchNote + suggestionNote +
         '<div style="margin-top:6px;">' + actions + '</div>' +
         (iosNewManualBlock ? '<div style="margin-top:6px;">' + iosNewManualBlock + '</div>' : '') +
-        '<div style="margin-top:6px;">' + manualBtn + '</div>' +
         devCompareBlock;
     els.ptResult.classList.remove('hidden');
     bindPracticeResultActions();
@@ -21055,12 +21059,6 @@ function bindPracticeResultActions() {
     // 「この設定を保存」：共通の保存モーダルを開く（v0.9.80）。
     const save = document.getElementById('pt-result-save');
     if (save) save.addEventListener('click', () => openPresetModal());
-    // 「詳しい数値・手動設定を見る」：手動設定ページへ移動（v0.9.89）。
-    const manual = document.getElementById('pt-result-manual');
-    if (manual) manual.addEventListener('click', () => {
-        if (els.manualDetail && !els.manualDetail.open) els.manualDetail.open = true;
-        openManualView(els.manualCard);
-    });
     const rerun = document.getElementById('pt-result-rerun');
     if (rerun) rerun.addEventListener('click', () => startPracticeTest());
     const fixRerun = document.getElementById('pt-result-fix-rerun');
@@ -21384,7 +21382,7 @@ function drawBtLane(t) {
         }
     }
     // ●（右→左へ流れる）＋拍番号。新iPhone+Bluetoothの音量テスト中だけ白丸を出さない（本番テストでは表示）。
-    const hideBtLaneClapIcons = usesIosNewStrongBtDelaySound() && iosNewBtVolumeTest.active && !bt.active;
+    const hideBtLaneClapIcons = usesIosNewHeadphoneDelayTestUi() && iosNewBtVolumeTest.active && !bt.active;
     const markerType = iosNewBtDelayMarkerType();
     if (!hideBtLaneClapIcons) {
         for (let i = 0; i < bt.notes.length; i++) {
@@ -21478,7 +21476,7 @@ function renderBtCalIdle() {
     if (els.btCalBtn) els.btCalBtn.textContent = btCalIdleStartLabel();
     updateBtCalTitleUI();
     updateBtCalIosNewUi();
-    if (usesIosNewStrongBtDelaySound()) {
+    if (usesIosNewHeadphoneDelayTestUi()) {
         if (els.btCalLaneWrap) els.btCalLaneWrap.classList.remove('hidden');
         hideIosNewBtCalMeter();
         startIosNewBtDelayPreview();
@@ -21521,8 +21519,8 @@ function applyBtCalTestSettings() {
     state.clickVolume = 100;
     mic.prevPeak = 0;
     mic.armed = true;
-    const isHandclapBt = isIosNewBtHandclapMode();
-    const useStrongSound = usesIosNewStrongBtDelaySound() && !isHandclapBt;
+    const isHandclapDelay = isIosNewHeadphoneDelayHandclapMode();
+    const useStrongSound = usesIosNewHeadphoneDelaySound() && !isHandclapDelay;
     bt.debug = {
         clickInputTestActive: true,
         inputType: getMicInputType(),
@@ -21544,16 +21542,16 @@ function applyBtCalTestSettings() {
         noiseMax: test.noiseMax || 0,
         noiseP95AtBtDelayStart: test.noiseP95 || 0,
         noiseMaxAtBtDelayStart: test.noiseMax || 0,
-        iosNewBtDelayTestMode: usesIosNewStrongBtDelaySound() ? iosNewBtDelayTestMode : null,
+        iosNewBtDelayTestMode: usesIosNewHeadphoneDelayTestUi() ? iosNewBtDelayTestMode : null,
         iosNewBtDelayUsesStrongSound: useStrongSound,
-        iosNewBtDelaySoundProfile: useStrongSound ? 'short-noise-focused-test' : (isHandclapBt ? 'handclap-user' : 'click'),
+        iosNewBtDelaySoundProfile: useStrongSound ? 'short-noise-focused-test' : (isHandclapDelay ? 'handclap-user' : 'click'),
         iosNewBtDelaySoundSource: useStrongSound ? 'hpProbeMakeBuffer+iphoneBtStrongSignal' : 'btScheduleClick',
-        iosNewBtDelayNote: isHandclapBt
+        iosNewBtDelayNote: isHandclapDelay
             ? '手拍子モード：クリック音のみ鳴らし、ノイズ音は鳴らさない。👏タイミングで手拍子を検出。'
             : (useStrongSound
                 ? '新iPhoneではクリック音ではなく強いノイズ/マーカー音を使う。補正計算は従来iPhoneの閉ループ方式を維持。'
                 : null),
-        iosNewBtHandclapModeDebug: usesIosNewStrongBtDelaySound() ? buildIosNewBtHandclapModeDebug() : null,
+        iosNewBtHandclapModeDebug: usesIosNewHeadphoneDelayTestUi() ? buildIosNewBtHandclapModeDebug() : null,
         restoreCompleted: false,
         restoreReason: null,
     };
@@ -21642,8 +21640,8 @@ async function startBtCal() {
 
     const beatSec = PT_BEAT_MS / 1000;
     const startSec = bt.audioStart + PT_LEAD_MS / 1000;
-    const isHandclapBt = isIosNewBtHandclapMode();
-    const useStrongSound = usesIosNewStrongBtDelaySound() && !isHandclapBt;
+    const isHandclapDelay = isIosNewHeadphoneDelayHandclapMode();
+    const useStrongSound = usesIosNewHeadphoneDelaySound() && !isHandclapDelay;
     try {
         for (let i = 0; i < PT_COUNTIN; i++) btScheduleClick(startSec + i * beatSec, i === 0);
         const playStartSec = startSec + PT_COUNTIN * beatSec;
@@ -21657,14 +21655,14 @@ async function startBtCal() {
         }
     } catch (err) {
         stopBtCal();
-        const errLabel = useStrongSound ? 'テスト音' : (isHandclapBt ? 'クリック音' : 'クリック音');
+        const errLabel = useStrongSound ? 'テスト音' : (isHandclapDelay ? 'クリック音' : 'クリック音');
         setBtCalStatus(errLabel + 'を開始できませんでした。もう一度お試しください。');
         console.error('[bt-click-input-test] schedule failed', err);
         return;
     }
 
     setBtCalStatus('カウントイン…');
-    const inputCue = isHandclapBt ? '👏に合わせて手拍子' : (useStrongSound ? '音に合わせて入力' : 'クリックに合わせて入力');
+    const inputCue = isHandclapDelay ? '👏に合わせて手拍子' : (useStrongSound ? '音に合わせて入力' : 'クリックに合わせて入力');
     for (let j = 0; j < BT_PLAY_BEATS; j++) {
         btTimer(() => setBtCalStatus(inputCue + '　' + (j + 1) + ' / ' + BT_PLAY_BEATS), bt.playT0Ms + j * PT_BEAT_MS);
     }
@@ -21733,7 +21731,7 @@ function finishBtCal() {
     }
     const valid = just + early + late;
     const avg = validN ? Math.round(sum / validN) : 0;
-    const isHandclapBt = isIosNewBtHandclapMode();
+    const isHandclapBt = isIosNewHeadphoneDelayHandclapMode();
     const stdDevMs = btCorrectionStdDevMs(perBeat.filter((row) => row.matched && Number.isFinite(row.diff)).map((row) => row.diff));
     // 補正提案条件（v0.9.104→v0.9.105）：有効入力6以上・|平均ズレ|>=35ms。
     // ・v0.9.104：「方向が60%以上偏っている(biased)」条件を撤廃。
@@ -21927,12 +21925,12 @@ function renderBtCalResult(r) {
     const dirTxt = r.avg > 0 ? '（遅め/LATE）' : (r.avg < 0 ? '（早め/EARLY）' : '');
     const avgTxt = sign(r.avg) + dirTxt;
     const stepLabel = btDelayStepUserLabel();
-    const useStrongSound = usesIosNewStrongBtDelaySound() && !isIosNewBtHandclapMode();
-    const inputLabel = useStrongSound ? 'テスト音' : (isIosNewBtHandclapMode() ? '手拍子' : 'クリック音');
+    const useStrongSound = usesIosNewHeadphoneDelaySound() && !isIosNewHeadphoneDelayHandclapMode();
+    const inputLabel = useStrongSound ? 'テスト音' : (isIosNewHeadphoneDelayHandclapMode() ? '手拍子' : 'クリック音');
     const wiredIosNewCorrection = btDelayCorrectionValueLabel();
     const correctionLabel = wiredIosNewCorrection
         ? '音ズレ'
-        : (useStrongSound ? '入力' : (isIosNewBtHandclapMode() ? '手拍子入力' : 'クリック入力'));
+        : (useStrongSound ? '入力' : (isIosNewHeadphoneDelayHandclapMode() ? '手拍子入力' : 'クリック入力'));
     const primary = 'width:100%;padding:14px;margin-top:12px;border-radius:10px;border:none;'
         + 'background:linear-gradient(180deg,#ff9f1c,#ff8c00);color:#1a130a;font-weight:800;font-size:1rem;cursor:pointer;';
     const sub = 'width:100%;padding:12px;margin-top:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.28);'
@@ -22104,11 +22102,7 @@ function completeBtCalStep() {
             setHeadphoneOffset(displayOffset);
             setupProgress.correctionDone = false;
             if (els.hpCalFromClickNote) {
-                const displayOffsetText = (displayOffset > 0 ? '+' : '') + displayOffset + 'ms';
-                const noteLead = isIosNewProductionFlow()
-                    ? btDelayStepUserLabel() + 'の結果をもとに、画面補正の初期値を ' + displayOffsetText + ' に設定しました（音ズレ値の55%）。'
-                    : btDelayStepUserLabel() + 'の結果をもとに、画面補正の初期値を ' + displayOffsetText + ' に設定しました。';
-                els.hpCalFromClickNote.textContent = noteLead + '次のテストで見た目と音のズレを確認してください。';
+                els.hpCalFromClickNote.textContent = '音と画面表示が合って見えるか確認します。';
                 els.hpCalFromClickNote.classList.remove('hidden');
             }
         }
@@ -24663,7 +24657,7 @@ function renderManualSummary() {
     const nameSuffix = (state.micPresetName && dirty) ? '（変更あり）' : '';
     const envLabel = manualSummaryPlatformLabel() + ' / ' + manualSummaryInputLabel();
     const mainRows = [];
-    mainRows.push(row('プリセット', presetName + nameSuffix));
+    mainRows.push(row('プリセット名', presetName + nameSuffix));
     if (dirty) mainRows.push('<div class="mic-unsaved-row">⚠ この設定はまだプリセット保存されていません</div>');
     mainRows.push(row('現在の環境', envLabel));
     if (els.manualSummaryPanel) els.manualSummaryPanel.innerHTML = mainRows.join('');

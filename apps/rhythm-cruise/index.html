@@ -797,12 +797,11 @@
                     <div class="cal-head" id="test-card-head">マイク反応テスト</div>
                     <span class="status-pill" id="test-done-badge">未実施</span>
                 </div>
-                <p class="setting-note" style="margin-top:0;">次に、実際のストロークを拾いやすく、クリック音などの不要な音には反応しにくいマイク感度を確認します。</p>
                 <p class="setting-note hidden" id="test-stale-note" style="margin-top:6px;font-size:0.78rem;"></p>
                 <p class="do-now" id="test-do-now">弦を左手でミュートして、8回ストロークしてください。</p>
                 <details class="card-help">
-                    <summary>このテストで確認すること</summary>
-                    <p class="setting-note">実際のストロークを拾いやすく、クリック音などの不要な音には反応しにくい設定を探します。「音ズレ・遅延テスト」は、イヤホンから出た音がマイクに届くまでのズレを測る別のテストです。</p>
+                    <summary>詳細</summary>
+                    <p class="setting-note">マイク反応テストでは、実際のストローク音を拾いやすい感度を確認します。クリック音などの小さな音には反応しにくく、ストロークには反応しやすい状態を目指します。うまく反応しない場合は、マイク感度を調整します。</p>
                 </details>
                 <details class="card-help">
                     <summary>コードストロークする場合</summary>
@@ -976,11 +975,12 @@
                 <div class="cal-head-row">
                     <div class="cal-head">イヤホン音ズレの画面補正</div>
                 </div>
-                <p class="do-now">クリック音と丸の動きが同時に感じるように、スライダーで調整してください。</p>
+                <p class="do-now">音と画面表示が合って見えるか確認します。</p>
                 <p class="setting-note hidden" id="hp-cal-from-click-note" style="color:#6ed28c;font-weight:600;"></p>
                 <details class="card-help">
                     <summary>詳しい説明</summary>
-                    <p class="setting-note">テストを開始すると、右から丸が流れてきて、イヤホンからクリック音が鳴ります。音と丸の動きが「同時」に感じられるように、下のスライダーで合わせてください。クリック音が丸より遅れて聞こえる場合は、スライダーを右へ動かします。クリック音が丸より早く聞こえる場合は、左へ動かします。0ms＝補正なしです。練習時の判定には影響せず、音符がJUSTラインを通る見た目だけを調整します。</p>
+                    <p class="setting-note">前の音ズレ・遅延テストで、イヤホンから出た音がマイクに届くまでのズレを測りました。この画面では、その結果をもとに、音と画面表示が合って見えるように確認します。ここで調整するのは見た目の補正で、ストローク判定そのもののタイミングとは別です。</p>
+                    <p class="setting-note">テストを開始すると、右から丸が流れてきて、イヤホンからクリック音が鳴ります。クリック音が丸より遅れて聞こえる場合は右へ、早く聞こえる場合は左へ動かします。0ms＝補正なしです。</p>
                 </details>
                 <!-- v0.9.111：説明を読んだ直後に押せるよう説明文の直下に置く。v0.9.112：BPM調整を横に並べる（狭い画面では折り返す） -->
                 <div class="hp-start-row" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px;">
@@ -1099,11 +1099,11 @@
                 <p class="test-phase" id="bt-cal-phase"></p>
                 <button type="button" class="btn-mini rc-mic-action-secondary hidden" id="bt-cal-volume-test" style="width:100%;margin-top:8px;padding:10px 12px;">音量テスト</button>
                 <p class="cal-status hidden" id="bt-cal-volume-status"></p>
+                <p class="setting-note hidden" id="bt-cal-skip-wired-note" style="margin:10px 0 4px;">有線イヤホンは遅延が小さいことが多いため、このテストはスキップできます。タイミングが気になる場合だけ測ってください。</p>
                 <button class="btn-mic cal-run-btn test-start-btn rc-mic-action-primary" id="bt-cal-btn">音ズレ・遅延テストを開始</button>
+                <button type="button" class="btn-mini hidden" id="bt-cal-skip-wired" style="width:100%;margin-top:8px;padding:13px 12px;">スキップしてマイク反応テストへ進む</button>
                 <p class="cal-status" id="bt-cal-status"></p>
                 <div class="cal-result hidden" id="bt-cal-result"></div>
-                <p class="setting-note hidden" id="bt-cal-skip-wired-note" style="margin:10px 0 4px;">有線イヤホンは遅延が小さいことが多いため、このテストはスキップできます。タイミングが気になる場合だけ測ってください。</p>
-                <button type="button" class="btn-mini hidden" id="bt-cal-skip-wired" style="width:100%;margin-top:6px;">スキップしてマイク反応テストへ進む</button>
                 <section class="settings-detail mic-test-dev-log hidden" id="android-hp-audio-probe" style="margin-top:14px;padding:12px;"><h3 style="margin:0 0 6px;font-size:1rem;">Android音声調査</h3><p class="setting-note">イヤホンから出る音が実際にどの入力へ入るかを調べます。補正値・保存値・判定には使いません。</p><label class="setting-note">入力制約<select id="android-hp-probe-constraints" style="width:100%;margin:4px 0 8px;"><option value="current">現行（全処理OFF）</option><option value="minimal">最小（audio:true）</option><option value="aec-off">echoCancellation:false</option><option value="aec-on">echoCancellation:true</option><option value="sparse">最少指定（noise/AGC OFF）</option></select></label><label class="setting-note">テスト音の長さ<select id="android-hp-probe-duration" style="width:100%;margin:4px 0 8px;"><option value="50">50ms</option><option value="100" selected>100ms</option><option value="20">20ms</option><option value="150">150ms</option></select></label><button type="button" class="btn-mic test-start-btn rc-mic-action-primary" id="android-hp-probe-run">イヤホン音がマイクに入るか調べる</button><button type="button" class="btn-mini rc-mic-action-secondary" id="android-hp-probe-voice" style="width:100%;margin-top:8px;">声・タップ比較を記録（8秒）</button><p class="cal-status" id="android-hp-probe-status"></p><textarea class="mic-test-dev-log-text" id="android-hp-probe-log" rows="14" readonly aria-label="Androidイヤホン音入力調査ログ"></textarea><div class="dev-log-copy-row"><button type="button" class="dev-log-copy-btn" id="android-hp-probe-copy">開発ログをコピー</button><span class="dev-log-copy-status" id="android-hp-probe-copy-status" aria-live="polite"></span></div></section>
                 <!-- 参考：イヤホン自己収音テスト。ロジックは保持し、通常導線からは非表示。 -->
                 <div id="hp-ad-tools" hidden>
@@ -1157,8 +1157,6 @@
             <div class="settings-card" id="manual-card">
                 <details class="settings-detail" id="manual-detail">
                     <summary>現在の設定を手動で変更</summary>
-                    <p class="setting-note">補正テストで決まった設定を、必要に応じてスライダーで微調整できます。</p>
-                    <p class="setting-note" style="margin-top:4px;">まずは現在の設定のまま使い、違和感がある時だけ調整してください。</p>
                     <div class="cal-result" id="manual-summary-panel" style="display:block;margin-top:12px;"></div>
 
                     <div class="setting-row">
@@ -1496,7 +1494,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.12.58"></script>
+    <script src="script.js?v=0.12.59"></script>
 </body>
 
 </html>
