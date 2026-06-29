@@ -802,7 +802,7 @@
                 <p class="do-now" id="test-do-now">弦を左手でミュートして、8回ストロークしてください。</p>
                 <details class="card-help">
                     <summary>このテストで確認すること</summary>
-                    <p class="setting-note">リズム練のSTAGEで、クリック音だけでは反応しにくく、ストロークは拾える設定を探します。「クリック音入力テスト」は、クリック音をあえて拾ってマイク側の遅れを測る別のテストです。</p>
+                    <p class="setting-note">リズム練のSTAGEで、クリック音だけでは反応しにくく、ストロークは拾える設定を探します。「音ズレ・遅延テスト」は、イヤホンから出た音がマイクに届くまでのズレを測る別のテストです。マイク反応テストは、実際のストロークを拾いやすい感度を決めるテストです。</p>
                 </details>
                 <details class="card-help">
                     <summary>コードストロークする場合</summary>
@@ -1037,10 +1037,10 @@
                 <button type="button" class="btn-primary rc-mic-action-primary" id="wired-proceed-btn" style="width:100%;margin-top:8px;">この設定で進む</button>
             </div>
 
-            <!-- 6. クリック音入力テスト（イヤホン接続時。聞こえているクリック音をマイクへ入力し判定遅れを測る。有線にもv0.9.152で対応） v0.9.80 -->
+            <!-- 6. 音ズレ・遅延テスト（イヤホン接続時。イヤホンから出た音をマイクへ入力し判定遅れを測る。有線にもv0.9.152で対応） v0.9.80 -->
             <div class="settings-card cal-card" id="bt-cal-card">
                 <div class="cal-head-row">
-                    <div class="cal-head" id="bt-cal-head">クリック音入力テスト</div>
+                    <div class="cal-head" id="bt-cal-head">音ズレ・遅延テスト</div>
                     <span class="status-pill" id="bt-cal-badge">未実施</span>
                 </div>
                 <!-- v0.11.58：Android選択時のウィザード内 Android式遅延測定（有線/BT） -->
@@ -1074,12 +1074,12 @@
                     <button type="button" class="btn-primary hidden" id="wizard-android-proceed-hp" style="width:100%;margin-top:8px;">マイク反応テストへ進む</button>
                 </div>
                 <div id="wizard-ios-bt-ui">
-                <p class="do-now" id="bt-cal-do-now">クリック音がマイクに届くタイミングを確認します</p>
-                <p class="do-now-sub" id="bt-cal-do-now-sub">イヤホンから鳴るクリック音をマイクで拾って、入力遅延を測ります。イヤホンの音が出る部分をマイク部分に軽く当ててください。</p>
+                <p class="do-now" id="bt-cal-do-now">イヤホンから出た音が、マイクに届くまでのズレを測ります</p>
+                <p class="do-now-sub" id="bt-cal-do-now-sub">イヤホンの音をマイクで拾って、入力の遅れを測ります。</p>
                 <details class="card-help">
                     <summary>詳しい説明</summary>
-                    <p class="setting-note" id="bt-cal-guide">イヤホンから鳴るクリック音をマイクで拾い、マイク側の遅れを測ります。テスト中は検出しやすいよう、アプリ内のクリック音量を一時的に大きくします。</p>
-                    <p class="setting-note">有線はズレが小さいことが多く、測れない場合はスキップできます。Bluetoothは遅れが大きくなりやすいため、できるだけテストしてください。</p>
+                    <p class="setting-note" id="bt-cal-guide">イヤホンから出た音が、マイクに届くまでのズレを測ります。</p>
+                    <p class="setting-note">イヤホンの種類によって、遅延の大きさやテストの要否は変わります。</p>
                 </details>
                 <p class="setting-note" style="margin-top:8px;"><a href="click-input-help.html?return=standard" style="color:var(--secondary-color);font-weight:700;">計測のコツを見る</a></p>
                 <div class="bt-cal-handclap-row hidden" id="bt-cal-handclap-row">
@@ -1099,7 +1099,7 @@
                 <p class="test-phase" id="bt-cal-phase"></p>
                 <button type="button" class="btn-mini rc-mic-action-secondary hidden" id="bt-cal-volume-test" style="width:100%;margin-top:8px;padding:10px 12px;">音量テスト</button>
                 <p class="cal-status hidden" id="bt-cal-volume-status"></p>
-                <button class="btn-mic cal-run-btn test-start-btn rc-mic-action-primary" id="bt-cal-btn">クリック音入力テストを開始</button>
+                <button class="btn-mic cal-run-btn test-start-btn rc-mic-action-primary" id="bt-cal-btn">音ズレ・遅延テストを開始</button>
                 <p class="cal-status" id="bt-cal-status"></p>
                 <div class="cal-result hidden" id="bt-cal-result"></div>
                 <p class="setting-note hidden" id="bt-cal-skip-wired-note" style="margin:10px 0 4px;">有線イヤホンはズレが小さいため、うまく測れない場合はスキップできます。</p>
@@ -1209,7 +1209,7 @@
                         <input type="range" id="set-offset" min="-150" max="150" step="5" value="0">
                         <div class="setting-note-toggle">
                             <button type="button" class="setting-note-btn" aria-expanded="false">＋ 説明</button>
-                            <p class="setting-note setting-note-body hidden">マイク入力の遅れを補正します。イヤホン時はクリック音入力テストで測った値が入ります。遅れ気味のときはマイナス方向へ。</p>
+                            <p class="setting-note setting-note-body hidden">マイク入力の遅れを補正します。イヤホン時は音ズレ・遅延テストで測った値が入ります。遅れ気味のときはマイナス方向へ。</p>
                         </div>
                     </div>
 
@@ -1477,7 +1477,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.12.53"></script>
+    <script src="script.js?v=0.12.54"></script>
 </body>
 
 </html>

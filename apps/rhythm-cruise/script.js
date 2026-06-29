@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.53';
+const RHYTHM_CRUISE_VERSION = '0.12.54';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14698,7 +14698,10 @@ function btDelayStepUserLabel() {
     return 'クリック音入力テスト';
 }
 function btDelayCorrectionValueLabel() {
-    if (isIosNewProductionFlow() && isHeadphoneInput() && !isBluetoothHeadphone()) return '音ズレ補正値';
+    // v0.12.54：新iPhone+イヤホン（BT/有線とも）は btdelay を「音ズレ・遅延テスト」と呼ぶため、
+    //   結果メッセージのラベルも「音ズレ補正値」に統一する。ラベル文字列のみ。
+    //   保存先（bluetoothMicOffsetMs / wiredMicOffsetMs）・計算ロジックは一切変更しない。
+    if (isIosNewProductionFlow() && isHeadphoneInput()) return '音ズレ補正値';
     return null;
 }
 function btCalIdleStartLabel() {
