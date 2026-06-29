@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.52';
+const RHYTHM_CRUISE_VERSION = '0.12.53';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -604,33 +604,18 @@ function logStrokeWaveformClipDebugOnce(context, levels, thresholdOverride) {
     return scaleInfo;
 }
 
-/* v0.12.52：ライブ描画の表示スケールを開始時に1回だけ決めて凍結する（判定は不変・表示専用）。 */
-function strokeCalibrationPeakLevelsForDisplayScale() {
-    const peaks = [];
-    const add = (v) => { if (typeof v === 'number' && isFinite(v) && v > 0) peaks.push(v); };
-    if (Array.isArray(test.strokePeaks)) test.strokePeaks.forEach(add);
-    add(test.strokeP25);
-    add(test.maxStrokePeak);
-    add(test.minStrokePeak);
-    add(test.maxStrokeRaw);
-    return peaks.length ? peaks : null;
-}
+/* v0.12.52→v0.12.53：ライブ描画の表示スケールを「固定タイムラインスケール」に統一する。
+   反応ラインの描画位置をマイク反応テスト結果（strokePeaks）に依存させない。
+   空配列を渡すと rawPeakMax=0 → displayScale=MIC_WAVE_DISPLAY_SCALE（固定）。
+   line position = 1 / MIC_WAVE_DISPLAY_SCALE（≒22%）で常にほぼ固定（表示専用・判定/検出/推奨値は不変）。 */
 function createStrokeDisplayScaleSnapshot(thresholdOverride) {
     const thr = thresholdOverride != null ? thresholdOverride : micEffectiveThreshold();
-    const calPeaks = strokeCalibrationPeakLevelsForDisplayScale();
-    if (calPeaks && calPeaks.length) {
-        const scaleInfo = computeStrokeWaveformDisplayScale(calPeaks, thr);
-        return {
-            displayScale: scaleInfo.displayScale,
-            displayThreshold: thr,
-            displayScaleSource: 'mic-reaction-stroke-peaks',
-        };
-    }
+    // マイク反応テストの strokePeaks は表示スケールに使わない（v0.12.53）。固定スケールのみ。
     const scaleInfo = computeStrokeWaveformDisplayScale([], thr);
     return {
         displayScale: scaleInfo.displayScale,
         displayThreshold: thr,
-        displayScaleSource: 'fallback-fixed',
+        displayScaleSource: 'fixed-timeline-scale',
     };
 }
 const strokeWaveformDisplayFreezeLogDone = {};
@@ -649,6 +634,10 @@ function buildStrokeWaveformDisplayFreezeDebug(context, info) {
         displayScaleSource: info.displayScaleSource || null,
         displayScaleSnapshot: info.displayScaleSnapshot != null ? info.displayScaleSnapshot : null,
         displayThresholdSnapshot: info.displayThresholdSnapshot != null ? info.displayThresholdSnapshot : null,
+        // v0.12.53：表示スケールはマイク反応テストの strokePeaks に依存しない固定値。
+        fixedTimelineDisplayScale: MIC_WAVE_DISPLAY_SCALE,
+        usesMicReactionStrokePeaksForScale: false,
+        linePositionStable: true,
         liveDisplayScaleWouldHaveBeen: info.liveDisplayScaleWouldHaveBeen != null ? info.liveDisplayScaleWouldHaveBeen : null,
         liveRawPeakMax: info.liveRawPeakMax != null ? info.liveRawPeakMax : null,
         threshold: info.threshold != null ? info.threshold : null,
@@ -8523,13 +8512,14 @@ function drawReviewMicOverlay(ctx, w, h, yc, beatX, beatPx) {
     const displayMode = 'linear';
     const rw = state.micRunWave;
     const allLevels = rw && rw.length ? strokeWaveformLevelsFromWaveArray(rw) : [];
-    const scaleInfo = logStrokeWaveformClipDebugOnce('practice-review', allLevels);
+    logStrokeWaveformClipDebugOnce('practice-review', allLevels);
     logStrokeDetectionThresholdDebugOnce('practice-review', {
         rawStrokePeaks: allLevels,
         actualDetectionThreshold: micEffectiveThreshold(),
         actualDetectionThresholdSource: 'current-threshold',
     });
-    const displayScale = scaleInfo.displayScale;
+    // v0.12.53：見返しも固定タイムラインスケール（反応ライン位置を録音ピークに依存させない）。
+    const displayScale = MIC_WAVE_DISPLAY_SCALE;
     const frac = (v) => micStrokeWaveDisplayFrac(v, displayScale);
     const lineAmp = micStrokeWaveLineFrac(micEffectiveThreshold(), displayScale) * maxAmp;
     if (rw && rw.length >= 2) {
@@ -15893,11 +15883,13 @@ function updateBtCalIosNewUi() {
         if (iosNew && handclap) {
             els.btCalGuide.textContent = 'イヤホンのクリック音に合わせて、👏のタイミングで手拍子してください。手拍子の音をマイクで拾って、音ズレを測ります。';
         } else if (isIosNewProductionFlow() && isHeadphoneInput() && !isBluetoothHeadphone()) {
-            els.btCalGuide.textContent = 'イヤホンから鳴るクリック音をマイクで拾い、マイク側の遅れを測ります。有線イヤホンは遅延が小さいことが多いため、このテストはスキップできます。タイミングが気になる場合だけ測ってください。';
+            // 新iPhone+有線：共通の骨格＋有線のみスキップ補足（音源はクリック音）。
+            els.btCalGuide.textContent = 'イヤホンから出た音が、マイクに届くまでのズレを測ります。有線イヤホンは遅延が小さいことが多いため、このテストはスキップできます。タイミングが気になる場合だけ測ってください。';
         } else {
             els.btCalGuide.textContent = iosNew
-                ? 'テスト音をマイクで拾い、マイク側の遅れを測ります。本番前に「音量テスト」で波形が十分大きく出るか確認してください。ズレが大きい場合は、何回か繰り返すことで少しずつ補正します。'
-                : 'イヤホンから鳴るクリック音をマイクで拾い、マイク側の遅れを測ります。テスト中は検出しやすいよう、アプリ内のクリック音量を一時的に大きくします。';
+                // 新iPhone+Bluetooth：共通の骨格＋BTのみ補足（音源は強いテスト音・押し当て方式）。
+                ? 'イヤホンから出た音が、マイクに届くまでのズレを測ります。Bluetoothイヤホンは遅延が大きくなりやすいため、通常はこのテストを行ってください。本番前に「音量テスト」で波形が十分大きく出るか確認し、ズレが大きい場合は何回か繰り返してください。'
+                : 'イヤホンから出た音が、マイクに届くまでのズレを測ります。テスト中は検出しやすいよう、アプリ内のクリック音量を一時的に大きくします。';
         }
     }
     if (els.btCalHandclapBtn) {
@@ -26829,8 +26821,9 @@ function drawTestLaneWaveform(ctx, w, h, yc, judgeX, ppm, t, dispOff) {
     if (wave.length < 2) return;
     const ampPx = h * 0.24;
     const waveLevels = strokeWaveformLevelsFromWaveArray(wave);
-    const scaleInfo = logStrokeWaveformClipDebugOnce('mic-reaction', waveLevels, mic.threshold);
-    const displayScale = scaleInfo.displayScale;
+    logStrokeWaveformClipDebugOnce('mic-reaction', waveLevels, mic.threshold);
+    // v0.12.53：マイク反応テストの波形も固定タイムラインスケールに寄せる（検出・推奨値計算は不変）。
+    const displayScale = MIC_WAVE_DISPLAY_SCALE;
     const pts = [];
     for (let i = 0; i < wave.length; i++) {
         const p = wave[i];
