@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.54';
+const RHYTHM_CRUISE_VERSION = '0.12.55';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -24569,48 +24569,47 @@ function renderSettingsSummary() {
     if (dirty) {
         rows.push('<div class="mic-unsaved-row">⚠ この設定はまだプリセット保存されていません</div>');
     }
-    // v0.11.54：現在使用中のPractice補正サマリー（ユーザー向け・1画面で把握）。
-    rows.push(sectionHead('現在使用中の設定'));
+    // v0.12.55：通常表示はユーザー向けの現在値に絞る。Practice/Android内部状態などは詳細へ退避。
+    rows.push(sectionHead('現在の入力設定'));
     rows.push(row('現在の入力設定', practice.inputLabel));
-    rows.push(row('現在のPractice判定', practice.practiceStatus));
-    if (practice.isActive) {
-        rows.push(row('使用中の補正', formatSummaryMs(practice.activeOffsetMs)));
-        rows.push(row('補正タイプ', practice.correctionTypeLabel));
-        if (practice.delayEstimateMs != null) rows.push(row('推定入力遅延', practice.delayEstimateMs + 'ms'));
-        if (practice.showFinalOffset) rows.push(row('Practice判定での最終補正', formatSummaryMs(practice.finalOffsetMs)));
-    } else {
-        rows.push(noteRow(practice.notUsedReason || '現在の入力ではAndroid専用補正は使われていません'));
-        rows.push(row('Practice判定での最終補正', formatSummaryMs(practice.finalOffsetMs)));
-    }
-    // マイク反応設定（ユーザー向けに必要な項目を維持）。
-    rows.push(sectionHead('マイク反応設定'));
-    rows.push(row('反応ライン', mic.threshold.toFixed(3)));
-    rows.push(row('マイク感度', userMicSensitivityPercent() + '％'));
-    rows.push(row('クリック音量', state.clickVolume + '％'));
-    rows.push(row('二重反応防止', mic.cooldownMs + 'ms'));
-    // その他の設定（従来の有用情報を維持）。
-    rows.push(sectionHead('その他の設定'));
-    rows.push(row('入力タイプ', typeLabel));
     if (t === 'headphone') {
         rows.push(row('イヤホン種類', getHeadphoneType() === 'bluetooth' ? 'Bluetoothイヤホン' : '有線イヤホン'));
     }
-    rows.push(row('ストローク検出モード', state.strokeDetectMode === 'chord' ? 'コードストローク' : 'ブラッシング'));
-    rows.push(row('低入力プロファイル', mic.lowInputProfile ? 'あり' : 'なし'));
-    rows.push(row('マイク反応テスト', state.micTestDone ? '実施済み' : '未実施'));
-    if (t !== 'headphone') rows.push(row('マイクの遅れ補正テスト', state.micDelayDone ? '実施済み' : '未実施'));
-    rows.push(row('最終確認テスト', ptHasRun ? '実施済み' : '未実施'));
+    if (practice.isActive) {
+        rows.push(row('使用中の補正', formatSummaryMs(practice.activeOffsetMs)));
+        rows.push(row('音ズレ補正', practice.correctionTypeLabel));
+    } else {
+        rows.push(noteRow(practice.notUsedReason || '現在の入力ではAndroid専用補正は使われていません'));
+        rows.push(row('使用中の補正', formatSummaryMs(practice.finalOffsetMs)));
+    }
+    // マイク反応設定（ユーザー向け・%表示中心。生threshold値は下の「詳しい数値を見る」へ退避・v0.12.55）。
+    rows.push(sectionHead('マイク反応設定'));
+    rows.push(row('マイク感度', userMicSensitivityPercent() + '％'));
+    rows.push(row('クリック音量', state.clickVolume + '％'));
+    rows.push(row('二重反応防止', mic.cooldownMs + 'ms'));
     // 保存済み補正値（手動設定と同じ値源・v0.9.226）。
     rows.push(sectionHead('保存済み補正'));
     if (t === 'headphone') {
         const mo = headphoneMicOffsetGet();
-        rows.push(row('マイクの遅れ補正', formatSummaryMs(mo)));
+        rows.push(row('音ズレ補正', formatSummaryMs(mo)));
         rows.push(row('イヤホン音ズレの画面補正', mic.headphoneOutputOffsetMs + 'ms'));
     } else {
-        rows.push(row('マイクの遅れ補正', formatSummaryMs(mic.timingOffsetMs)));
+        rows.push(row('音ズレ補正', formatSummaryMs(mic.timingOffsetMs)));
     }
     // v0.11.54：Android 3系統の詳細は折りたたみ内へ（iOSでは対象外セクションを常時表示しない）。
+    // v0.12.55：生threshold値・低入力プロファイルなど開発/診断向けの値も、この折りたたみ「詳しい数値を見る」へ退避する。
     const androidDetailsInner = renderSettingsSummaryAndroidDetailsHtml(row, noteRow);
-    rows.push('<details class="settings-detail mic-test-dev-log" style="margin-top:10px;"><summary style="cursor:pointer;font-weight:700;">詳細な補正状態を見る</summary><div style="margin-top:8px;">');
+    rows.push('<details class="settings-detail mic-test-dev-log" style="margin-top:10px;"><summary style="cursor:pointer;font-weight:700;">詳しい数値を見る</summary><div style="margin-top:8px;">');
+    rows.push(row('入力タイプ', typeLabel));
+    rows.push(row('ストローク検出モード', state.strokeDetectMode === 'chord' ? 'コードストローク' : 'ブラッシング'));
+    rows.push(row('補正状態', practice.practiceStatus));
+    if (practice.delayEstimateMs != null) rows.push(row('推定入力遅延', practice.delayEstimateMs + 'ms'));
+    if (practice.showFinalOffset) rows.push(row('Practice判定での最終補正', formatSummaryMs(practice.finalOffsetMs)));
+    rows.push(row('マイク反応テスト', state.micTestDone ? '実施済み' : '未実施'));
+    if (t !== 'headphone') rows.push(row('マイクの遅れ補正テスト', state.micDelayDone ? '実施済み' : '未実施'));
+    rows.push(row('最終確認テスト', ptHasRun ? '実施済み' : '未実施'));
+    rows.push(row('反応ライン（生threshold）', mic.threshold.toFixed(3)));
+    rows.push(row('低入力プロファイル', mic.lowInputProfile ? 'あり' : 'なし'));
     if (androidDetailsInner) {
         rows.push(androidDetailsInner);
     } else {

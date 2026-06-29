@@ -661,7 +661,7 @@
                 <button type="button" class="settings-top-main" id="settings-detail-btn" style="width:100%;margin-top:4px;">補正テストを始める</button>
                 <p class="setting-note" style="margin-top:6px;">リズム判定に使うマイク設定を、順番に確認します。</p>
                 <button type="button" class="btn-mini settings-top-preset" id="preset-toggle-btn" style="width:100%;margin-top:10px;">保存済みプリセット</button>
-                <button type="button" class="btn-mini settings-top-sub" id="settings-view-current" style="width:100%;margin-top:10px;">現在の設定を見る</button>
+                <button type="button" class="btn-mini settings-top-sub" id="settings-view-current" style="width:100%;margin-top:10px;">現在の設定を手動で変更</button>
                 <details class="card-help" style="margin-top:12px;">
                     <summary>詳しい説明</summary>
                     <p class="setting-note" style="margin-top:8px;">保存済みプリセットは、すぐ試せる基本設定です。うまく反応しない場合は、補正テストで環境に合わせて調整できます。調整した設定は保存して、次回からプリセットとして使えます。</p>
@@ -702,12 +702,12 @@
                 </div>
             </div>
 
-            <!-- 現在の設定を見る -->
+            <!-- 現在の設定を手動で変更（確認＋手動調整への導線つき・v0.12.55） -->
             <div class="settings-card hidden" id="settings-summary-card">
-                <div class="cal-head">現在の設定</div>
-                <p class="setting-note">いまの設定内容です。変更したいときは下のボタンから。</p>
+                <div class="cal-head">現在の設定を手動で変更</div>
+                <p class="setting-note">現在の設定を確認し、必要な場合は下の「手動で調整する」から変更できます。</p>
                 <div class="cal-result" id="settings-summary-list" style="display:block;"></div>
-                <button type="button" class="btn-primary" id="settings-summary-manual" style="width:100%;margin-top:14px;">手動設定を開く</button>
+                <button type="button" class="btn-primary" id="settings-summary-manual" style="width:100%;margin-top:14px;">手動で調整する</button>
                 <button type="button" class="btn-mini mic-overwrite-btn hidden" id="settings-summary-overwrite" style="width:100%;margin-top:10px;padding:11px;border-radius:10px;font-weight:700;">上書き保存</button>
                 <button type="button" class="btn-mini" id="settings-summary-save" style="width:100%;margin-top:10px;padding:11px;border:1px solid rgba(255,255,255,0.22);border-radius:10px;background:rgba(255,255,255,0.04);font-weight:700;">この設定を保存</button>
                 <button type="button" class="btn-mini" id="settings-summary-back" style="width:100%;margin-top:10px;padding:11px;">キャンセル</button>
@@ -1125,8 +1125,9 @@
             <!-- 6. 手動設定 -->
             <div class="settings-card" id="manual-card">
                 <details class="settings-detail" id="manual-detail">
-                    <summary>手動設定</summary>
-                    <p class="setting-note">うまく反応しない場合だけ調整してください。</p>
+                    <summary>現在の設定を手動で変更</summary>
+                    <p class="setting-note">補正テストで決まった設定を、必要に応じてスライダーで微調整できます。</p>
+                    <p class="setting-note" style="margin-top:4px;">まずは現在の設定のまま使い、違和感がある時だけ調整してください。</p>
 
                     <div class="preview-block">
                         <div class="preview-head">マイク感度と判定ライン</div>
@@ -1134,27 +1135,47 @@
                     </div>
 
                     <div class="setting-row">
-                        <div class="setting-label">マイク感度 <b id="set-threshold-val">69％</b></div>
-                        <input type="range" id="set-threshold" min="0" max="100" step="1" value="69">
+                        <div class="setting-label">音ズレの遅延 <b id="set-offset-val">0ms</b></div>
+                        <input type="range" id="set-offset" min="-150" max="150" step="5" value="0">
+                        <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
+                            <span>早めに判定 ←</span><span>→ 遅めに判定</span>
+                        </div>
                         <div class="setting-note-toggle">
                             <button type="button" class="setting-note-btn" aria-expanded="false">＋ 説明</button>
-                            <p class="setting-note setting-note-body hidden">小さいストロークが反応しないときは上げます。クリック音や周囲の音に誤反応するときは下げます。</p>
+                            <p class="setting-note setting-note-body hidden">判定が全体的に早い/遅いと感じる時に調整します。イヤホン時は音ズレ・遅延テストで測った値が入ります。</p>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <div class="setting-label">マイク感度 <b id="set-threshold-val">69％</b></div>
+                        <input type="range" id="set-threshold" min="0" max="100" step="1" value="69">
+                        <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
+                            <span>小さい音も拾う ←</span><span>→ 強い音だけ拾う</span>
+                        </div>
+                        <div class="setting-note-toggle">
+                            <button type="button" class="setting-note-btn" aria-expanded="false">＋ 説明</button>
+                            <p class="setting-note setting-note-body hidden">小さいストロークも拾うか、強いストロークだけ拾うかを調整します。</p>
                         </div>
                     </div>
                     <div class="setting-row">
                         <div class="setting-label">クリック音量 <b id="set-clickvol-val">70％</b></div>
                         <input type="range" id="set-clickvol" min="0" max="100" step="5" value="70">
+                        <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
+                            <span>小さい ←</span><span>→ 大きい</span>
+                        </div>
                         <div class="setting-note-toggle">
                             <button type="button" class="setting-note-btn" aria-expanded="false">＋ 説明</button>
-                            <p class="setting-note setting-note-body hidden">聞こえにくいときは上げます。クリック音をマイクが拾うときは下げます。</p>
+                            <p class="setting-note setting-note-body hidden">テスト中に鳴るクリック音の大きさを調整します。</p>
                         </div>
                     </div>
                     <div class="setting-row" id="set-cooldown-row">
-                        <div class="setting-label">二重反応防止 <b id="set-cooldown-val">200ms</b></div>
+                        <div class="setting-label">反応間隔 <b id="set-cooldown-val">200ms</b></div>
                         <input type="range" id="set-cooldown" min="100" max="400" step="10" value="200">
+                        <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
+                            <span>細かく反応 ←</span><span>→ 二重反応を抑える</span>
+                        </div>
                         <div class="setting-note-toggle">
                             <button type="button" class="setting-note-btn" aria-expanded="false">＋ 説明</button>
-                            <p class="setting-note setting-note-body hidden">1回のストロークで何度も反応するときは長めにします。細かいリズムが拾いにくいときは短めにします。</p>
+                            <p class="setting-note setting-note-body hidden">二重反応が出る時は長めに、細かいリズムが拾いにくい時は短めにします。</p>
                         </div>
                     </div>
                     <div class="setting-row hidden" id="set-hp-offset-row">
@@ -1165,25 +1186,17 @@
                         </div>
                         <div class="setting-note-toggle">
                             <button type="button" class="setting-note-btn" aria-expanded="false">＋ 説明</button>
-                            <p class="setting-note setting-note-body hidden" id="set-hp-offset-note">イヤホンで音が遅れて聞こえる分だけ画面表示を合わせます。判定時間は変わりません。Bluetoothでは大きくなることがあります。</p>
+                            <p class="setting-note setting-note-body hidden" id="set-hp-offset-note">音と画面表示のズレを調整します。判定タイミングは変わりません。有線イヤホンは通常0msのままでOKです。Bluetoothでは大きくなることがあります。</p>
                         </div>
                         <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
                             <button type="button" class="btn-mini btn-reset" id="set-hp-reset">補正なしに戻す</button>
                             <button type="button" class="btn-mini btn-reset" id="set-hp-zero" style="display:none;">補正なしに戻す</button>
                         </div>
                     </div>
-                    <div class="setting-row">
-                        <div class="setting-label">マイクの遅れ補正 <b id="set-offset-val">0ms</b></div>
-                        <input type="range" id="set-offset" min="-150" max="150" step="5" value="0">
-                        <div class="setting-note-toggle">
-                            <button type="button" class="setting-note-btn" aria-expanded="false">＋ 説明</button>
-                            <p class="setting-note setting-note-body hidden">マイク入力の遅れを補正します。イヤホン時は音ズレ・遅延テストで測った値が入ります。遅れ気味のときはマイナス方向へ。</p>
-                        </div>
-                    </div>
 
                     <div style="margin-top:18px;text-align:center;">
-                        <button type="button" class="btn-mini" id="settings-reset-btn" style="font-size:0.8rem;opacity:0.7;">設定値を初期値に戻す</button>
-                        <p class="setting-note" style="opacity:0.6;margin-top:4px;">マイク感度などの設定値を初期状態に戻します（保存済みプリセットは残ります）。</p>
+                        <button type="button" class="btn-mini" id="settings-reset-btn" style="font-size:0.8rem;opacity:0.7;">おすすめに戻す</button>
+                        <p class="setting-note" style="opacity:0.6;margin-top:4px;">マイク感度などの設定値をおすすめ状態に戻します（保存済みプリセットは残ります）。</p>
                     </div>
                 </details>
 
@@ -1410,7 +1423,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.12.54"></script>
+    <script src="../script.js?v=0.12.55"></script>
 </body>
 
 </html>
