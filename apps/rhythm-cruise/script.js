@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.50';
+const RHYTHM_CRUISE_VERSION = '0.12.51';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14659,6 +14659,8 @@ function buildIosNewWiredFlowDebug() {
         finalCheckJudgeOffsetMs: finalCheckJudgeOffsetMs(),
         skipWiredAvailable: isHeadphoneInput() && !isBluetoothHeadphone() && !bt.active,
         correctionStepIncluded: steps.indexOf('correction') >= 0,
+        practiceRetestRoute: practiceRetestMicFixRoute(),
+        practiceRetestButtonLabel: practiceRetestMicBtnLabel(),
         changedSoundLogic: false,
         changedClampLogic: false,
         changedOffsetFunctionBodies: false,
@@ -15466,11 +15468,11 @@ function bindIosNewManualCorrectionPanel() {
     });
 }
 function practiceRetestMicBtnLabel() {
-    if (isIosNewProductionFlow() && isBluetoothHeadphone()) return iosNewBtRetestUserLabel();
+    if (isIosNewProductionFlow() && isHeadphoneInput()) return iosNewBtRetestUserLabel();
     return 'マイク反応テストをやり直す';
 }
 function practiceRetestMicFixRoute() {
-    if (isIosNewProductionFlow() && isBluetoothHeadphone()) return 'btdelay';
+    if (isIosNewProductionFlow() && isHeadphoneInput()) return 'btdelay';
     return 'test';
 }
 function buildIosNewMicReactionAlignmentAudit(params) {
@@ -15775,6 +15777,8 @@ function updateBtCalIosNewUi() {
     if (els.btCalGuide) {
         if (iosNew && handclap) {
             els.btCalGuide.textContent = 'イヤホンのクリック音に合わせて、👏のタイミングで手拍子してください。手拍子の音をマイクで拾って、音ズレを測ります。';
+        } else if (isIosNewProductionFlow() && isHeadphoneInput() && !isBluetoothHeadphone()) {
+            els.btCalGuide.textContent = 'イヤホンから鳴るクリック音をマイクで拾い、マイク側の遅れを測ります。有線イヤホンは遅延が小さいことが多いため、このテストはスキップできます。タイミングが気になる場合だけ測ってください。';
         } else {
             els.btCalGuide.textContent = iosNew
                 ? 'テスト音をマイクで拾い、マイク側の遅れを測ります。本番前に「音量テスト」で波形が十分大きく出るか確認してください。ズレが大きい場合は、何回か繰り返すことで少しずつ補正します。'
@@ -18742,10 +18746,13 @@ const PT_NOTE_BY_TYPE = {
    届かないときは反応テストのやり直し導線（下の再テストボタン）へ誘導する。判定ロジックには触れない。 */
 const PT_NOTE_BLUETOOTH = 'Bluetoothイヤホンでは、マイク反応テストと同じくらいの強さでストロークしてください。波形が反応ラインに届かないときは、下の「マイク反応テストをやり直す」でもう一度感度を測り直せます。';
 const PT_NOTE_BLUETOOTH_IOS_NEW = 'Bluetoothイヤホンでは、マイク反応テストと同じくらいの強さでストロークしてください。タイミングが気になるときは、下の「音ズレテストをやり直す」から音ズレ補正を見直せます。';
+const PT_NOTE_WIRED_IOS_NEW = '有線イヤホンでは、マイク反応テストと同じくらいの強さでストロークしてください。タイミングが気になるときは、下の「音ズレテストをやり直す」から音ズレ補正を見直せます。';
 function updatePracticeTestNote() {
     if (!els.ptNote) return;
     if (isIosNewProductionFlow() && isBluetoothHeadphone()) {
         els.ptNote.textContent = PT_NOTE_BLUETOOTH_IOS_NEW;
+    } else if (isIosNewProductionFlow() && isHeadphoneInput() && !isBluetoothHeadphone()) {
+        els.ptNote.textContent = PT_NOTE_WIRED_IOS_NEW;
     } else {
         els.ptNote.textContent = isBluetoothHeadphone()
             ? PT_NOTE_BLUETOOTH
@@ -23740,10 +23747,12 @@ function renderWizardSteps() {
     updateBtCalTitleUI();
     renderWizardAndroidLatencyUi(active);
     if (els.ptOpenManual) els.ptOpenManual.style.display = (active === 'practice') ? '' : 'none';
-    // v0.9.160：最終確認テストカードでは、Bluetoothイヤホン時だけ「マイク反応テストをやり直す」を出す
-    //   （波形がラインに届かないときの測り直し導線）。通常マイク/有線では出さない。
+    // v0.12.51：新iPhone+有線でも「音ズレテストをやり直す」を出す。Bluetoothは従来どおり。
     if (els.ptRetestMicBtn) {
-        els.ptRetestMicBtn.classList.toggle('hidden', !(active === 'practice' && isBluetoothHeadphone()));
+        const showPtRetestMicBtn = active === 'practice' && (
+            isBluetoothHeadphone() || (isIosNewProductionFlow() && isHeadphoneInput() && !isBluetoothHeadphone())
+        );
+        els.ptRetestMicBtn.classList.toggle('hidden', !showPtRetestMicBtn);
     }
     if (active === 'practice') updatePracticeTestNote(); // v0.9.160：BluetoothのガイドをカードのDOMへ確実に反映
     if (isIosNewProductionFlow() && isHeadphoneInput() && !isBluetoothHeadphone()) {
