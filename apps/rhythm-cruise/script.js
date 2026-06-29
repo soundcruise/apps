@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.29';
+const RHYTHM_CRUISE_VERSION = '0.12.30';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -12932,6 +12932,7 @@ let androidCheckCancelRequested = false;
 let androidCheckRunToken = 0;
 let selectedTestPlatform = null;
 let androidCheckMode = false;
+let iphoneBtUnifiedTestBusy = false; // iPhone仮+BT 2段階テスト中（第2段階完了までUIを測定中扱い）
 const androidBtVolumeTest = { active: false, stopRequested: false, loopTimer: 0, token: 0, target: null, events: [], noiseSamples: [], volumeTestReadiness: null };
 const iphoneAndroidTrialOffsets = {
     builtin: null,
@@ -13750,6 +13751,13 @@ function androidBtSaveContext() {
     return !!(run && run.selectedInputType === 'headphone' && run.selectedHeadphoneType === 'bluetooth');
 }
 function applyDualAndroidSaveButtonUi(detailBtn, wizardBtn, detailNote, detailStatus, wizardStatus, canSave, inContext, candidate, notReadyPrefix) {
+    if (isIphoneBtUnifiedTestRunning()) {
+        [detailBtn, wizardBtn].forEach((btn) => { if (btn) btn.classList.add('hidden'); });
+        if (detailNote) detailNote.classList.add('hidden');
+        if (detailStatus) { detailStatus.classList.add('hidden'); detailStatus.textContent = ''; }
+        if (wizardStatus) { wizardStatus.classList.add('hidden'); wizardStatus.textContent = ''; }
+        return;
+    }
     if (detailBtn) detailBtn.classList.toggle('hidden', !canSave);
     if (wizardBtn) wizardBtn.classList.toggle('hidden', !canSave);
     if (detailNote) detailNote.classList.toggle('hidden', !canSave);
@@ -13835,8 +13843,15 @@ function updateWizardAndroidBtBlockCopy() {
         els.wizardAndroidBtDesc.textContent = 'イヤホンの音量を最大にして、音が出る部分をスマホのマイクに軽く押し当ててください。';
     }
     if (els.wizardAndroidRunHp) {
-        if (androidCheckMode) els.wizardAndroidRunHp.textContent = '停止する';
-        else setWizardAndroidRunHpButtonLabel('テスト開始');
+        if (isIphoneBtUnifiedTestRunning()) {
+            els.wizardAndroidRunHp.classList.add('hidden');
+        } else if (androidCheckMode) {
+            els.wizardAndroidRunHp.classList.remove('hidden');
+            els.wizardAndroidRunHp.textContent = '停止する';
+        } else {
+            els.wizardAndroidRunHp.classList.remove('hidden');
+            setWizardAndroidRunHpButtonLabel('テスト開始');
+        }
     }
 }
 function setWizardAndroidRunHpButtonLabel(label) {
@@ -13844,19 +13859,28 @@ function setWizardAndroidRunHpButtonLabel(label) {
     els.wizardAndroidRunHp.innerHTML = '<span class="android-proceed-sub">イヤホンを耳から外して</span><span class="android-proceed-main">' + escapeHtml(label) + '</span>';
 }
 function setAndroidCheckRunButtonsFailure() {
+    if (isIphoneBtUnifiedTestRunning()) return;
     if (els.wizardAndroidRunBuiltin && isNormalMicInput()) els.wizardAndroidRunBuiltin.textContent = 'もう一度テストする';
-    if (els.wizardAndroidRunHp && isHeadphoneInput()) setWizardAndroidRunHpButtonLabel('もう一度テストする');
+    if (els.wizardAndroidRunHp && isHeadphoneInput()) {
+        els.wizardAndroidRunHp.classList.remove('hidden');
+        setWizardAndroidRunHpButtonLabel('もう一度テストする');
+    }
 }
 function androidCheckDefaultRunLabel() {
     return 'テスト開始';
 }
 function setAndroidCheckRunButtonsRunning(running) {
+    if (isIphoneBtUnifiedTestRunning()) {
+        syncIphoneBtUnifiedTestRunUi();
+        return;
+    }
     if (els.wizardAndroidRunBuiltin) {
         els.wizardAndroidRunBuiltin.textContent = running && isNormalMicInput() ? '停止する' : 'テスト開始';
         els.wizardAndroidRunBuiltin.classList.toggle('rc-mic-action-secondary', running && isNormalMicInput());
         els.wizardAndroidRunBuiltin.classList.toggle('rc-mic-action-primary', !(running && isNormalMicInput()));
     }
     if (els.wizardAndroidRunHp) {
+        els.wizardAndroidRunHp.classList.remove('hidden');
         if (running && isHeadphoneInput()) els.wizardAndroidRunHp.textContent = '停止する';
         else setWizardAndroidRunHpButtonLabel('テスト開始');
         els.wizardAndroidRunHp.classList.toggle('rc-mic-action-secondary', running && isHeadphoneInput());
@@ -14211,10 +14235,11 @@ function shouldKeepBtCorrectionAfterMicTest() {
 }
 function cancelAndroidAudioCheck() {
     stopAndroidBtVolumeTest({ keepMonitor: true });
-    if (!androidCheckMode && !headphoneAudioProbe.active) return;
+    if (!androidCheckMode && !headphoneAudioProbe.active && !iphoneBtUnifiedTestBusy) return;
     androidCheckCancelRequested = true;
     androidCheckRunToken++;
     androidCheckMode = false;
+    finishIphoneBtUnifiedTestSession();
     stopHeadphoneAudioProbeCapture();
     setAndroidCheckRunButtonsRunning(false);
     const statusEl = androidCheckStatusEl(true);
@@ -14236,6 +14261,36 @@ function androidCheckTarget() {
     if (isHeadphoneInput() && getHeadphoneType() === 'wired') return 'wired';
     if (isHeadphoneInput() && getHeadphoneType() === 'bluetooth') return 'bluetooth';
     return 'normal';
+}
+function isIphoneBtTwoStageFlow() {
+    return isIphoneAndroidTrialFlow() && isHeadphoneInput() && isBluetoothHeadphone();
+}
+function isIphoneBtUnifiedTestRunning() {
+    if (!iphoneBtUnifiedTestBusy || !isIphoneBtPhase2UiContext()) return false;
+    const phase = androidCheckLive && androidCheckLive.iphoneBtPhaseProgress && androidCheckLive.iphoneBtPhaseProgress.phase;
+    return phase === 'phase1' || phase === 'phase2prep' || phase === 'phase2';
+}
+function finishIphoneBtUnifiedTestSession() {
+    iphoneBtUnifiedTestBusy = false;
+    const prep = document.getElementById('iphone-bt-unified-prep-banner');
+    if (prep) prep.classList.add('hidden');
+    syncIphoneBtUnifiedTestRunUi();
+}
+function syncIphoneBtUnifiedTestRunUi() {
+    if (!isIphoneBtPhase2UiContext()) return;
+    const busy = isIphoneBtUnifiedTestRunning();
+    if (els.wizardAndroidRunHp) els.wizardAndroidRunHp.classList.toggle('hidden', busy);
+    if (busy) {
+        [els.wizardAndroidSaveBt, els.wizardAndroidSaveWired, els.wizardAndroidSaveBtWizard, els.wizardAndroidSaveWiredWizard].forEach((btn) => {
+            if (btn) btn.classList.add('hidden');
+        });
+        return;
+    }
+    refreshAllAndroidSaveButtons();
+}
+function ensureIphoneBtUnifiedLiveVisible() {
+    if (!isIphoneBtPhase2UiContext()) return;
+    if (els.wizardAndroidLiveHp) els.wizardAndroidLiveHp.classList.remove('hidden');
 }
 function isIphoneBtLatencyProbeContext() {
     return androidCheckMode && isIphoneAndroidTrialFlow() && androidCheckTarget() === 'bluetooth';
@@ -14579,9 +14634,31 @@ async function runAndroidAudioCheck(options) {
     headphoneAudioProbe.run = null;
     if (fromWizard) resetWizardAndroidLatencyRunUi();
     refreshAllAndroidSaveButtons();
-    androidCheckMode = true; resetAndroidCheckLive(1); setAndroidCheckRunButtonsRunning(true); if (statusEl) statusEl.textContent = '測定を開始しています…'; await startHeadphoneAudioProbe(); androidCheckMode = false; setAndroidCheckRunButtonsRunning(false);
-    if (androidCheckCancelRequested || token !== androidCheckRunToken) { androidCheckFromWizard = false; startAndroidCheckLiveMonitor(); return; }
-    const run = headphoneAudioProbe.run; if (!run || !run.events) { androidCheckFromWizard = false; startAndroidCheckLiveMonitor(); return; }
+    const iphoneBtTwoStage = isIphoneBtTwoStageFlow() && androidCheckTarget() === 'bluetooth';
+    androidCheckMode = true; resetAndroidCheckLive(1); setAndroidCheckRunButtonsRunning(true);
+    if (statusEl) statusEl.textContent = '測定を開始しています…';
+    if (iphoneBtTwoStage) {
+        iphoneBtUnifiedTestBusy = true;
+        syncIphoneBtUnifiedTestRunUi();
+    }
+    await startHeadphoneAudioProbe();
+    if (androidCheckCancelRequested || token !== androidCheckRunToken) {
+        finishIphoneBtUnifiedTestSession();
+        androidCheckMode = false; setAndroidCheckRunButtonsRunning(false);
+        androidCheckFromWizard = false; startAndroidCheckLiveMonitor(); return;
+    }
+    const run = headphoneAudioProbe.run; if (!run || !run.events) {
+        finishIphoneBtUnifiedTestSession();
+        androidCheckMode = false; setAndroidCheckRunButtonsRunning(false);
+        androidCheckFromWizard = false; startAndroidCheckLiveMonitor(); return;
+    }
+    if (!iphoneBtTwoStage) {
+        androidCheckMode = false; setAndroidCheckRunButtonsRunning(false);
+    } else {
+        ensureIphoneBtUnifiedLiveVisible();
+        refreshIphoneBtUnifiedProgressUi();
+        syncIphoneBtUnifiedTestRunUi();
+    }
     run.kind = 'androidAudioCheck'; run.fromWizard = fromWizard; run.selectedTestPlatform = selectedTestPlatform; run.selectedInputType = getMicInputType(); run.selectedHeadphoneType = getHeadphoneType(); run.autoDetectedPlatform = androidAudioProbeDeviceInfo(); run.summary = androidCheckStats(run.events); const wave = run.events.filter((x) => x.waveformMatch).map((x) => ({ index: x.index, peakOffsetMs: x.normalWindowPeakOffsetMs, correlationOffsetMs: x.waveformMatch.correlationOffsetMs, correlationScore: x.waveformMatch.correlationScore, peakToNoise: x.soundToNoiseRatio })); wave.forEach((x) => { x.accepted = x.correlationScore != null && x.correlationScore >= 0.2; x.rejectReason = x.accepted ? null : 'low-or-missing-correlation'; }); const offs = wave.filter((x) => x.accepted).map((x) => x.correlationOffsetMs), scores = wave.map((x) => x.correlationScore).filter(Number.isFinite), med = (xs) => { const a = xs.slice().sort((a,b)=>a-b); return a.length ? a[Math.floor(a.length/2)] : null; }; run.androidWaveformMatch = { probeLabel: 'Android calibration probe', probeDurationMs: 100, repeatCount: 5, results: wave, acceptedCount: offs.length, offsetMedianMs: med(offs), offsetMeanMs: offs.length ? offs.reduce((a,b)=>a+b,0)/offs.length : null, offsetMinMs: offs.length ? Math.min(...offs) : null, offsetMaxMs: offs.length ? Math.max(...offs) : null, offsetRangeMs: offs.length ? Math.max(...offs)-Math.min(...offs) : null, scoreMedian: med(scores), finalGuess: offs.length >= 3 && (Math.max(...offs)-Math.min(...offs)) <= 80 ? 'usable' : (offs.length ? 'weak' : 'not-usable') }; run.finalGuess = run.androidWaveformMatch.finalGuess; run.notes = '補正値・保存値・Practice判定には未使用。';
     // v0.11.94：BT探索の解析は「測定対象が bluetooth のときだけ」行う（本体マイク/有線では走らせない）。
     if (androidCheckTarget() === 'bluetooth') {
@@ -14621,6 +14698,14 @@ async function runAndroidAudioCheck(options) {
             if (isIphoneAndroidTrialFlow() && isBluetoothHeadphone()) {
                 const phase1 = buildIphoneBtTwoStagePhase1(run, run.androidBluetoothCandidateComparison);
                 updateIphoneBtPhase1Label(phase1);
+                const phase1Total = Math.max(1, Number(androidCheckLive.total) || 0) - IPHONE_BT_PHASE2_PROGRESS_UNITS;
+                setIphoneBtUnifiedPhaseProgress({
+                    phase: 'phase2prep',
+                    current: phase1Total,
+                    total: androidCheckLive.total || iphoneBtCombinedProgressTotal(phase1Total),
+                    label: '第2段階の準備中です。そのままお待ちください。',
+                    remainSec: Math.max(1, Math.ceil(IPHONE_BT_PHASE2_INTERNAL_MARKER_COUNT * 0.65 + 2)),
+                });
                 run.androidBluetoothCandidateComparison.iphoneBtTwoStageCalibrationDebug = await runIphoneBtFineClickProbe(phase1 && phase1.roughOffsetMs, phase1, statusEl);
             }
         }
@@ -14638,6 +14723,9 @@ async function runAndroidAudioCheck(options) {
     run.androidLatencyBreakdown = androidLatencyBreakdown(run);
     run.androidLatencySegmentDebug = buildAndroidLatencySegmentDebug(run);
     renderHeadphoneAudioProbeLog();
+    if (iphoneBtTwoStage) finishIphoneBtUnifiedTestSession();
+    androidCheckMode = false;
+    setAndroidCheckRunButtonsRunning(false);
     if (fromWizard) renderWizardAndroidLatencyResult(run);
     else if (els.androidCheckResult) {
         const best = run.summary.filter((x) => x.stableEnoughGuess).map((x) => x.soundLabel).join(' / ') || 'なし';
@@ -14933,6 +15021,23 @@ function updateIphoneBtPhase1Label(info) {
     const rough = info && info.roughOffsetMs != null ? ' / rough ' + (Math.round(info.roughOffsetMs * 10) / 10) + 'ms' : '';
     label.textContent = '第1段階: 大まかな音ズレ測定' + rough;
 }
+function ensureIphoneBtUnifiedPrepBanner() {
+    const wrap = els.wizardAndroidLiveHp;
+    if (!wrap || !isIphoneBtPhase2UiContext()) return null;
+    let el = document.getElementById('iphone-bt-unified-prep-banner');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'iphone-bt-unified-prep-banner';
+        el.className = 'iphone-bt-unified-prep-banner hidden';
+        el.setAttribute('role', 'status');
+        el.setAttribute('aria-live', 'polite');
+        el.innerHTML = '<p class="iphone-bt-unified-prep-title">第2段階の準備中です</p><p class="iphone-bt-unified-prep-sub">そのままお待ちください</p>';
+        const progressEl = document.getElementById('iphone-bt-unified-progress');
+        if (progressEl && progressEl.parentNode === wrap) progressEl.insertAdjacentElement('afterend', el);
+        else wrap.insertBefore(el, wrap.firstChild);
+    }
+    return el;
+}
 function ensureIphoneBtUnifiedProgressEl() {
     const wrap = els.wizardAndroidLiveHp;
     if (!wrap || !isIphoneBtPhase2UiContext()) return null;
@@ -14955,14 +15060,21 @@ function ensureIphoneBtUnifiedProgressEl() {
 function refreshIphoneBtUnifiedProgressUi() {
     const progress = androidCheckLive && androidCheckLive.iphoneBtPhaseProgress;
     const progressEl = ensureIphoneBtUnifiedProgressEl();
+    const prepBanner = ensureIphoneBtUnifiedPrepBanner();
     if (!progressEl) return;
     if (!progress || !isIphoneBtPhase2UiContext()) {
         progressEl.classList.add('hidden');
         progressEl.textContent = '';
+        if (prepBanner) prepBanner.classList.add('hidden');
         return;
     }
+    ensureIphoneBtUnifiedLiveVisible();
     progressEl.classList.remove('hidden');
     progressEl.textContent = iphoneBtUnifiedProgressText();
+    if (prepBanner) {
+        const showPrep = progress.phase === 'phase2prep';
+        prepBanner.classList.toggle('hidden', !showPrep);
+    }
 }
 function setIphoneBtUnifiedPhaseProgress(info) {
     const live = androidCheckLive;
@@ -14976,6 +15088,7 @@ function setIphoneBtUnifiedPhaseProgress(info) {
         remainSec: null,
     }, info || {});
     refreshIphoneBtUnifiedProgressUi();
+    syncIphoneBtUnifiedTestRunUi();
 }
 function iphoneBtUnifiedProgressText() {
     const progress = androidCheckLive && androidCheckLive.iphoneBtPhaseProgress;
@@ -14985,7 +15098,8 @@ function iphoneBtUnifiedProgressText() {
     if (Number.isFinite(progress.remainSec)) {
         remain = progress.remainSec <= 0.5 ? '　まもなく完了します' : '　あと約' + Math.max(1, Math.ceil(progress.remainSec)) + '秒';
     }
-    return count + '　' + (progress.label || '') + remain;
+    const label = progress.phase === 'phase2prep' ? '' : (progress.label || '');
+    return count + '　' + label + remain;
 }
 function iphoneBtCombinedProgressTotal(phase1Count) {
     return Math.max(1, Number(phase1Count) || 0) + IPHONE_BT_PHASE2_PROGRESS_UNITS;
@@ -14998,6 +15112,8 @@ function hideIphoneBtUnifiedTimelineUi() {
         progressEl.classList.add('hidden');
         progressEl.textContent = '';
     }
+    const prepBanner = document.getElementById('iphone-bt-unified-prep-banner');
+    if (prepBanner) prepBanner.classList.add('hidden');
     hideIphoneBtPhase2Timeline();
 }
 function ensureIphoneBtUnifiedTimelineScroll() {
@@ -15028,6 +15144,8 @@ function restoreIphoneBtUnifiedTimelineScroll() {
     if (nav) nav.remove();
     const progressEl = document.getElementById('iphone-bt-unified-progress');
     if (progressEl) progressEl.remove();
+    const prepBanner = document.getElementById('iphone-bt-unified-prep-banner');
+    if (prepBanner) prepBanner.remove();
 }
 function iphoneBtUnifiedTimelineBounds() {
     const live = androidCheckLive;
@@ -16634,19 +16752,29 @@ async function startHeadphoneAudioProbe() {
                     remainSec: Math.max(1, Math.ceil(IPHONE_BT_PHASE2_INTERNAL_MARKER_COUNT * 0.65 + 2)),
                 });
                 drawIphoneBtUnifiedTimeline(true);
+                ensureIphoneBtUnifiedLiveVisible();
+                refreshIphoneBtUnifiedProgressUi();
+                syncIphoneBtUnifiedTestRunUi();
             }
             updateAndroidCheckLiveState();
             hpProbeSetStatus(isIphoneBtLatencyProbeContext() ? '' : '測定中… ' + totalSpecs + ' / ' + totalSpecs + '　解析しています…');
         }
         const sortedNoise = run.noiseSamples.slice().sort((a, b) => a - b), noise = { max: sortedNoise[sortedNoise.length - 1] || 0, p95: sortedNoise[Math.min(sortedNoise.length - 1, Math.floor(sortedNoise.length * 0.95))] || 0 };
         run.events.forEach((event) => { hpProbeFinalizeEvent(event, noise); event.overlapsAdjacentSound = run.events.some((other) => other !== event && Math.abs(other.scheduledAtPerformanceTime - event.scheduledAtPerformanceTime) <= event.wideWindowMs[1]); }); run.finishedAt = new Date().toISOString(); run.noise = noise; run.activeTrackResult = hpProbeTrackInfo(stream.getAudioTracks()[0]);
-        hpProbeSetStatus('完了。開発ログをコピーして比較できます。'); renderHeadphoneAudioProbeLog();
+        if (!(androidCheckMode && isIphoneBtLatencyProbeContext())) {
+            hpProbeSetStatus('完了。開発ログをコピーして比較できます。');
+        }
+        renderHeadphoneAudioProbeLog();
     } catch (e) { hpProbeSetStatus('調査用マイクを開始できませんでした: ' + (e && e.name ? e.name : 'unknown')); headphoneAudioProbe.run = { kind: 'androidHeadphoneClickInputFeasibility', error: e && e.name ? e.name : 'unknown', requestedConstraints: hpProbeConstraints(profile) }; headphoneAudioProbe.runs.push(headphoneAudioProbe.run); if (headphoneAudioProbe.runs.length > 10) headphoneAudioProbe.runs.splice(0, headphoneAudioProbe.runs.length - 10); renderHeadphoneAudioProbeLog(); }
     finally { stopHeadphoneAudioProbeCapture(); }
 }
 function stopHeadphoneAudioProbeCapture() {
     headphoneAudioProbe.active = false; cancelAnimationFrame(headphoneAudioProbe.raf); headphoneAudioProbe.raf = 0;
     androidCheckLive.active = false;
+    if (iphoneBtUnifiedTestBusy) {
+        ensureIphoneBtUnifiedLiveVisible();
+        refreshIphoneBtUnifiedProgressUi();
+    }
     try { headphoneAudioProbe.src && headphoneAudioProbe.src.disconnect(); } catch (_) { /* noop */ }
     try { headphoneAudioProbe.stream && headphoneAudioProbe.stream.getTracks().forEach((track) => track.stop()); } catch (_) { /* noop */ }
     headphoneAudioProbe.stream = headphoneAudioProbe.src = headphoneAudioProbe.analyser = headphoneAudioProbe.buf = null;
