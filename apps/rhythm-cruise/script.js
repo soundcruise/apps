@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.62';
+const RHYTHM_CRUISE_VERSION = '0.12.63';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14170,7 +14170,7 @@ function androidTestPlatformSelected() {
     //   実行すると headphoneAudioProbe.run（kind='androidAudioCheck'）が残り、下のフォールバックが true を返して
     //   iPhone本番イヤホンの btdelay が Android型UI（wizard-android-bt-block）に化け、旧クリック音入力テストの
     //   開始ボタンが効かなくなっていた。iPhone本番は常に旧iOSルートを使う。判定・保存ロジックには影響しない。
-    if (selectedTestPlatform === 'ios' || selectedTestPlatform === 'ios_new') return false;
+    if (selectedTestPlatform === 'ios' || selectedTestPlatform === 'ios_new' || isAndroidIphoneStyleTrialFlow()) return false;
     const run = headphoneAudioProbe.run;
     return !!(run && run.kind === 'androidAudioCheck'
         && (run.selectedTestPlatform === 'android' || run.selectedTestPlatform === 'iphone_android_trial'));
@@ -18033,7 +18033,7 @@ async function hpProbeDevices() {
 }
 function refreshAndroidHeadphoneAudioProbeVisibility() {
     if (!els.androidHpAudioProbe) return;
-    const show = androidAudioProbeDeviceInfo().isAndroid && isHeadphoneInput();
+    const show = androidAudioProbeDeviceInfo().isAndroid && isHeadphoneInput() && !isAndroidIphoneStyleTrialFlow();
     els.androidHpAudioProbe.classList.toggle('hidden', !show);
     if (show) renderHeadphoneAudioProbeLog();
 }
@@ -18853,6 +18853,7 @@ const ANDROID_BT_MIC_OFFSET_MAX = 0;
 const ANDROID_WIRED_MIC_OFFSET_MIN = -600;
 const ANDROID_WIRED_MIC_OFFSET_MAX = 0;
 const ANDROID_WIRED_MAX_SOUND_RANGE_MS = 80; // v0.11.49：候補に使う音の offsetRangeMs 上限（これ超は不安定として除外）
+const ANDROID_TRIAL_MIC_OFFSET_MIN = -1000; // v0.12.63：Android仮のiPhone式音ズレテストだけ、実機検証用に下限を広げる。
 // v0.11.51/v0.11.52：Android 本体マイク専用キーのクランプ範囲。v0.11.52でmicJudgeOffsetMs()に接続済み（Android+本体マイク時のみ優先使用）。
 const ANDROID_BUILTIN_MIC_OFFSET_MIN = -600;
 const ANDROID_BUILTIN_MIC_OFFSET_MAX = 0;
@@ -18928,7 +18929,7 @@ function androidTrialHeadphoneMicOffsetDefault() {
     return isBluetoothHeadphone() ? IOS_NEW_START_BLUETOOTH_MIC_OFFSET_MS : IOS_NEW_START_WIRED_MIC_OFFSET_MS;
 }
 function androidTrialHeadphoneMicOffsetMin() {
-    return isBluetoothHeadphone() ? ANDROID_BT_MIC_OFFSET_MIN : ANDROID_WIRED_MIC_OFFSET_MIN;
+    return ANDROID_TRIAL_MIC_OFFSET_MIN;
 }
 function androidTrialHeadphoneMicOffsetMax() {
     return isBluetoothHeadphone() ? ANDROID_BT_MIC_OFFSET_MAX : ANDROID_WIRED_MIC_OFFSET_MAX;
@@ -23140,8 +23141,8 @@ function loadSettings() {
     mic.timingOffsetMs = clampNum(s.timingOffsetMs, -150, 150, SETTINGS_DEFAULTS.timingOffsetMs);
     mic.bluetoothMicOffsetMs = clampNum(s.bluetoothMicOffsetMs, BT_MIC_OFFSET_MIN, BT_MIC_OFFSET_MAX, 0);
     mic.wiredMicOffsetMs = clampNum(s.wiredMicOffsetMs, -150, 150, 0); // 有線イヤホンの手拍子補正（v0.9.153で分離）。古いデータには無いので0。
-    mic.androidBluetoothMicOffsetMs = clampNum(s.androidBluetoothMicOffsetMs, ANDROID_BT_MIC_OFFSET_MIN, ANDROID_BT_MIC_OFFSET_MAX, 0); // v0.11.45保存値。v0.11.46でPractice判定に接続（Android+Bluetooth時のみ優先）。
-    mic.androidWiredMicOffsetMs = clampNum(s.androidWiredMicOffsetMs, ANDROID_WIRED_MIC_OFFSET_MIN, ANDROID_WIRED_MIC_OFFSET_MAX, 0); // v0.11.48/v0.11.50。Android有線専用。
+    mic.androidBluetoothMicOffsetMs = clampNum(s.androidBluetoothMicOffsetMs, ANDROID_TRIAL_MIC_OFFSET_MIN, ANDROID_BT_MIC_OFFSET_MAX, 0); // v0.11.45保存値。v0.12.63でAndroid仮の-1000ms保存値も読み戻せるようにする。
+    mic.androidWiredMicOffsetMs = clampNum(s.androidWiredMicOffsetMs, ANDROID_TRIAL_MIC_OFFSET_MIN, ANDROID_WIRED_MIC_OFFSET_MAX, 0); // v0.11.48/v0.12.63。Android仮の-1000ms保存値も保持。
     mic.androidBuiltinMicOffsetMs = clampNum(s.androidBuiltinMicOffsetMs, ANDROID_BUILTIN_MIC_OFFSET_MIN, ANDROID_BUILTIN_MIC_OFFSET_MAX, 0); // v0.11.51/v0.11.52。Android本体マイク専用。
     state.clickVolume = clampNum(s.clickVolume, 0, 100, SETTINGS_DEFAULTS.clickVolume);
     if (typeof s.lastCalibrationDelayMs === 'number') cal.measuredDelay = s.lastCalibrationDelayMs;
@@ -25125,8 +25126,8 @@ function applyPresetCore(id) {
     // 有線用マイクの遅れ補正：未保存（古いプリセット）は0=補正なし（v0.9.153）
     mic.wiredMicOffsetMs = clampNum(s.wiredMicOffsetMs, -150, 150, 0);
     // v0.11.45：Android BT専用値。プリセット適用で消さないよう、存在するときだけ反映（既存値は保持）。
-    if (typeof s.androidBluetoothMicOffsetMs === 'number') mic.androidBluetoothMicOffsetMs = clampNum(s.androidBluetoothMicOffsetMs, ANDROID_BT_MIC_OFFSET_MIN, ANDROID_BT_MIC_OFFSET_MAX, 0);
-    if (typeof s.androidWiredMicOffsetMs === 'number') mic.androidWiredMicOffsetMs = clampNum(s.androidWiredMicOffsetMs, ANDROID_WIRED_MIC_OFFSET_MIN, ANDROID_WIRED_MIC_OFFSET_MAX, 0); // v0.11.48。存在時のみ反映（既存値保持）。
+    if (typeof s.androidBluetoothMicOffsetMs === 'number') mic.androidBluetoothMicOffsetMs = clampNum(s.androidBluetoothMicOffsetMs, ANDROID_TRIAL_MIC_OFFSET_MIN, ANDROID_BT_MIC_OFFSET_MAX, 0);
+    if (typeof s.androidWiredMicOffsetMs === 'number') mic.androidWiredMicOffsetMs = clampNum(s.androidWiredMicOffsetMs, ANDROID_TRIAL_MIC_OFFSET_MIN, ANDROID_WIRED_MIC_OFFSET_MAX, 0); // v0.11.48/v0.12.63。存在時のみ反映（既存値保持）。
     if (typeof s.androidBuiltinMicOffsetMs === 'number') mic.androidBuiltinMicOffsetMs = clampNum(s.androidBuiltinMicOffsetMs, ANDROID_BUILTIN_MIC_OFFSET_MIN, ANDROID_BUILTIN_MIC_OFFSET_MAX, 0); // v0.11.51。存在時のみ反映（既存値保持）。
     mic.lowInputProfile = !!s.lowInputProfile;
     mic.headphoneOffsetWiredMs = validHpOffset(s.headphoneOffsetWiredMs, HP_TYPE_DEFAULT_OFFSET.wired);
