@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.37';
+const RHYTHM_CRUISE_VERSION = '0.12.38';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14370,13 +14370,12 @@ function buildIosNewAdaptiveCorrectionDebug(params) {
     let adaptiveMaxStepCandidateMs = BT_MIC_STEP_CLAMP;
     let confidenceReason = 'low-confidence';
     let fallbackReason = 'confidence-low';
-    if (confidence >= 0.75 && valid >= 7) {
-        adaptiveGainCandidate = 0.85;
+    // v0.12.38：gain減衰はやめ、高confidence時だけ maxStep を広げる（ログ候補のみ）。
+    if (confidence >= 0.75 && valid >= 8 && miss === 0) {
         adaptiveMaxStepCandidateMs = 120;
-        confidenceReason = 'high-confidence';
+        confidenceReason = 'high-confidence-full-detected';
         fallbackReason = null;
-    } else if (confidence >= 0.55 && valid >= 6) {
-        adaptiveGainCandidate = 0.70;
+    } else if (confidence >= 0.55 && valid >= 7) {
         adaptiveMaxStepCandidateMs = 100;
         confidenceReason = 'medium-confidence';
         fallbackReason = null;
@@ -14439,14 +14438,15 @@ function buildIosNewAdaptiveCorrectionDebug(params) {
         btCorrectionAdaptiveProposedOffsetCandidateMs: adaptiveProposedOffsetCandidateMs,
         btCorrectionAdaptiveWouldApply: false,
         btCorrectionAdaptiveApplyReason: null,
-        btCorrectionAdaptiveNotAppliedReason: 'log-only-v0.12.37',
+        btCorrectionAdaptiveNotAppliedReason: 'log-only-v0.12.38',
+        adaptiveCandidateFormulaVersion: 'v0.12.38',
         baseDiffSource,
         baseDiffMs,
         avgMedianDiffMs,
         iosNewBtDelaySoundProfile: 'short-noise-focused-test',
         iosNewBtDelayUsesStrongSound: true,
         btCorrectionRunHistory: iosNewBtCorrectionRunHistory.slice(),
-        note: 'adaptive候補はログ計算のみ。現行 proposed/fineProposed/保存値には未反映。',
+        note: 'adaptive候補はログ計算のみ（v0.12.38: gain=1.0、高confidence時のみmaxStep拡大）。現行 proposed/fineProposed/保存値には未反映。',
     };
 }
 function recordIosNewBtCorrectionManualApply(appliedOffset) {
