@@ -724,10 +724,10 @@
                 <div class="cal-head">端末</div>
                 <p class="do-now">端末を選んでください</p>
                 <div class="input-mode seg-cards" id="wizard-platform-mode">
-                    <button type="button" class="input-seg" id="wizard-platform-ios">iPhone / iPad</button>
-                    <button type="button" class="input-seg" id="wizard-platform-ios-new">新iPhone</button>
+                    <button type="button" class="input-seg hidden" id="wizard-platform-ios">iPhone / iPad</button>
+                    <button type="button" class="input-seg" id="wizard-platform-ios-new">iPhone</button>
                     <button type="button" class="input-seg" id="wizard-platform-android">Android</button>
-                    <button type="button" class="input-seg" id="wizard-platform-iphone-trial">iPhone仮</button>
+                    <button type="button" class="input-seg hidden" id="wizard-platform-iphone-trial">iPhone仮</button>
                 </div>
                 <p class="setting-note" id="wizard-platform-note">この選択は、補正テストの案内と測定方式を切り替えるためのものです。Practice判定では、端末情報も自動判定します。</p>
             </div>
@@ -887,7 +887,7 @@
                         <p class="setting-note">測定前に「音量テスト」を押すと、テスト音をループ再生しながら音量の反応を確認できます。「安定して測定できています」と出る位置で、本測定を開始してください。</p>
                         <p class="setting-note">音量テスト中に本測定を開始すると、音量テストは自動で停止します。</p>
                     </details>
-                    <p class="setting-note hidden" id="wizard-android-nondevice-note-cal">実際のAndroid端末で使う補正です。iPhone / iPadでは通常の補正テストを使ってください。</p>
+                    <p class="setting-note hidden" id="wizard-android-nondevice-note-cal">実際のAndroid端末で使う補正です。iPhoneでは通常の補正テストを使ってください。</p>
                     <button type="button" class="btn-mic test-start-btn rc-mic-action-primary" id="wizard-android-run-builtin" style="width:100%;">Android本体マイクの遅延を測定</button>
                     <div class="android-latency-live hidden" id="wizard-android-live-builtin">
                         <canvas id="wizard-android-wave-builtin"></canvas>
@@ -928,7 +928,7 @@
                     <div class="cal-result-row"><span>ばらつき</span><b id="cal-spread">–</b></div>
                     <button class="btn-primary cal-apply-btn rc-mic-action-primary" id="cal-apply-btn">この補正を適用</button>
                 </div>
-                <details class="settings-detail mic-test-dev-log" id="cal-dev-log" open>
+                <details class="settings-detail mic-test-dev-log hidden" id="cal-dev-log">
                     <summary>開発ログ（Android音声遅延調査用）</summary>
                     <p class="setting-note">失敗・不安定時も、ここから調査ログをコピーできます。</p>
                     <textarea class="mic-test-dev-log-text" id="cal-dev-log-text" rows="14" readonly aria-label="マイクの遅れ補正の開発用ログ"></textarea>
@@ -1032,7 +1032,7 @@
                         <p class="setting-note">音が出る部分をスマホのマイクに軽く押し当て、波形が大きく出る位置を少しずつ探します。</p>
                         <p class="setting-note">測定中はイヤホンとスマホを動かさないでください。それでもダメな場合は、イヤホンの仕様が合わない可能性があります。別のイヤホン、または本体マイクで試してください。</p>
                     </details>
-                    <p class="setting-note hidden" id="wizard-android-nondevice-note-bt">実際のAndroid端末で使う補正です。iPhone / iPadでは通常の補正テストを使ってください。</p>
+                    <p class="setting-note hidden" id="wizard-android-nondevice-note-bt">実際のAndroid端末で使う補正です。iPhoneでは通常の補正テストを使ってください。</p>
                     <button type="button" class="btn-mic test-start-btn rc-mic-action-primary" id="wizard-android-run-hp" style="width:100%;"><span class="android-proceed-sub">イヤホンを耳から外して</span><span class="android-proceed-main">テスト開始</span></button>
                     <div class="android-latency-live hidden" id="wizard-android-live-hp">
                         <canvas id="wizard-android-wave-hp"></canvas>
@@ -1428,7 +1428,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.12.60"></script>
+    <script src="../script.js?v=0.12.61"></script>
 </body>
 
 </html>

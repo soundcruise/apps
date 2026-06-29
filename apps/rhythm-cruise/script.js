@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.60';
+const RHYTHM_CRUISE_VERSION = '0.12.61';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -802,7 +802,7 @@ const MIC_WAVE_WINDOW_MS = 4000;
 const SETTINGS_KEY = 'rhythmCruiseSettings';
 /* マイク設定プリセット（名前をつけて保存／呼び出し）。v0.9.61 */
 const MIC_PRESETS_KEY = 'soundcruise_rhythm_mic_presets';
-const SETTINGS_DEFAULTS = { threshold: 0.025, cooldownMs: 200, clickGuardMs: 60, timingOffsetMs: 0, clickVolume: 70 };
+const SETTINGS_DEFAULTS = { threshold: 0.025, cooldownMs: 200, clickGuardMs: 60, timingOffsetMs: -80, clickVolume: 70 };
 
 /* イヤホン（有線/Bluetooth）選択時のクリック音量初期値（v0.9.88）。
    イヤホンではクリック音がマイクに回り込みにくいので、聞き取りやすい音量を既定にする。
@@ -826,7 +826,7 @@ const BUILTIN_MIC_PRESETS = [
         settings: {
             // mod 5: アプリ初期状態（SETTINGS_DEFAULTS / resetSettings）と一致させた（v0.9.240）
             inputType: 'normal', headphoneType: 'wired', strokeDetectMode: 'brush',
-            threshold: 0.025, cooldownMs: 200, clickVolume: 70, timingOffsetMs: 0,
+            threshold: 0.025, cooldownMs: 200, clickVolume: 70, timingOffsetMs: -80,
             lowInputProfile: false,
             wiredMicOffsetMs: 0, bluetoothMicOffsetMs: 0,
             headphoneOffsetWiredMs: 0, headphoneOffsetBluetoothMs: 0, headphoneOutputOffsetMs: 0,
@@ -839,7 +839,7 @@ const BUILTIN_MIC_PRESETS = [
             inputType: 'headphone', headphoneType: 'wired', strokeDetectMode: 'brush',
             threshold: 0.003567, cooldownMs: 100, clickVolume: 70, timingOffsetMs: 0,
             lowInputProfile: true,
-            wiredMicOffsetMs: 30, bluetoothMicOffsetMs: 0,
+            wiredMicOffsetMs: -80, bluetoothMicOffsetMs: 0,
             headphoneOffsetWiredMs: 0, headphoneOffsetBluetoothMs: 0, headphoneOutputOffsetMs: 0,
             clickGuardMs: 60,
         },
@@ -850,7 +850,7 @@ const BUILTIN_MIC_PRESETS = [
             inputType: 'headphone', headphoneType: 'bluetooth', strokeDetectMode: 'brush',
             threshold: 0.042285, cooldownMs: 120, clickVolume: 70, timingOffsetMs: 0,
             lowInputProfile: false,
-            wiredMicOffsetMs: 0, bluetoothMicOffsetMs: -155,
+            wiredMicOffsetMs: 0, bluetoothMicOffsetMs: -200,
             headphoneOffsetWiredMs: 0, headphoneOffsetBluetoothMs: 100, headphoneOutputOffsetMs: 100,
             clickGuardMs: 60,
         },
@@ -13335,16 +13335,19 @@ function isIphoneAndroidTrialFlow() {
 function isIosNewProductionFlow() {
     return selectedTestPlatform === 'ios_new';
 }
-const IOS_NEW_START_TIMING_OFFSET_MS = 0;
+const IOS_NEW_START_TIMING_OFFSET_MS = -80;
+const IOS_NEW_HEADPHONE_START_TIMING_OFFSET_MS = 0;
 const IOS_NEW_START_WIRED_MIC_OFFSET_MS = -80;
 const IOS_NEW_START_BLUETOOTH_MIC_OFFSET_MS = -200;
 function applyIosNewStartOffsetForCurrentDevice() {
     if (!isIosNewProductionFlow()) return false;
-    mic.timingOffsetMs = IOS_NEW_START_TIMING_OFFSET_MS;
     if (isHeadphoneInput()) {
+        mic.timingOffsetMs = IOS_NEW_HEADPHONE_START_TIMING_OFFSET_MS;
         headphoneMicOffsetSet(isBluetoothHeadphone()
             ? IOS_NEW_START_BLUETOOTH_MIC_OFFSET_MS
             : IOS_NEW_START_WIRED_MIC_OFFSET_MS);
+    } else {
+        mic.timingOffsetMs = IOS_NEW_START_TIMING_OFFSET_MS;
     }
     saveSettings();
     return true;
@@ -13390,7 +13393,7 @@ function wizardMicJudgeOffsetMs() {
 }
 function updatePlatformChoiceUI() {
     const info = androidAudioProbeDeviceInfo();
-    if (els.platformAutoNote) els.platformAutoNote.textContent = info.isAndroid ? 'この端末は Android と判定されました。' : (info.isIOS ? 'この端末は iPhone / iPad と判定されました。' : '端末を推定できませんでした。手動で選んでください。');
+    if (els.platformAutoNote) els.platformAutoNote.textContent = info.isAndroid ? 'この端末は Android と判定されました。' : (info.isIOS ? 'この端末は iPhone と判定されました。' : '端末を推定できませんでした。手動で選んでください。');
     if (els.platformIos) els.platformIos.classList.toggle('is-active', selectedTestPlatform === 'ios');
     if (els.platformAndroid) els.platformAndroid.classList.toggle('is-active', selectedTestPlatform === 'android');
     const android = isRealAndroidCorrectionFlow();
@@ -23357,7 +23360,7 @@ function wizardStepSummary(id) {
         case 'platform':
             return selectedTestPlatform === 'android' ? '端末：Android'
                 : (selectedTestPlatform === 'iphone_android_trial' ? '端末：iPhone仮'
-                : (selectedTestPlatform === 'ios_new' ? '端末：新iPhone'
+                : (selectedTestPlatform === 'ios_new' ? '端末：iPhone'
                 : (selectedTestPlatform === 'ios' ? '端末：iPhone / iPad' : '端末：未選択')));
         case 'input': {
             if (!isHeadphoneInput()) return '入力タイプ：通常マイク';
@@ -24189,7 +24192,7 @@ function startRetestFlow(jumpToTest) {
     wizardEditing = null;
     if (jumpToTest) {
         setupProgress.platformChosen = true;
-        selectedTestPlatform = androidAudioProbeDeviceInfo().isAndroid ? 'android' : 'ios';
+        selectedTestPlatform = androidAudioProbeDeviceInfo().isAndroid ? 'android' : 'ios_new';
         setupProgress.inputChosen = true;
         setupProgress.hpChosen = true;
         setupProgress.strokeChosen = true;
@@ -24403,7 +24406,7 @@ function updateWizardFlowPlatformNotes() {
         : (selectedTestPlatform === 'iphone_android_trial'
             ? 'iPhone仮テスト中です。現在のiPhone本番設定には保存しません。Android設定にも保存しません。ページを再読み込みすると、この仮設定は消えます。selectedTestPlatform: iphone_android_trial'
             : (selectedTestPlatform === 'ios_new'
-                ? '新iPhone向けの補正テストを行います。新しい順番で補正テストを試す開発用です。'
+                ? 'iPhone向けの補正テストを行います。'
                 : (selectedTestPlatform === 'ios' ? 'iPhone / iPad向けの補正テストを行います。' : '')));
     if (els.wizardFlowPlatformNote) {
         els.wizardFlowPlatformNote.textContent = msg;
@@ -24427,7 +24430,7 @@ function onPickWizardPlatform(platform) {
 function ensureWizardPlatformChosenForMidFlow() {
     if (!setupProgress.platformChosen) {
         setupProgress.platformChosen = true;
-        if (!selectedTestPlatform) selectedTestPlatform = androidAudioProbeDeviceInfo().isAndroid ? 'android' : 'ios';
+        if (!selectedTestPlatform) selectedTestPlatform = androidAudioProbeDeviceInfo().isAndroid ? 'android' : 'ios_new';
         updateWizardFlowPlatformNotes();
     }
 }
@@ -24657,7 +24660,7 @@ function renderSettingsSummary() {
 function manualSummaryPlatformLabel() {
     if (selectedTestPlatform === 'android') return 'Android';
     if (selectedTestPlatform === 'iphone_android_trial') return 'iPhone仮';
-    if (selectedTestPlatform === 'ios_new') return '新iPhone';
+    if (selectedTestPlatform === 'ios_new') return 'iPhone';
     if (selectedTestPlatform === 'ios') return 'iOS';
     const info = androidAudioProbeDeviceInfo();
     if (info.isAndroid) return 'Android';
