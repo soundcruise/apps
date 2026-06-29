@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.33';
+const RHYTHM_CRUISE_VERSION = '0.12.34';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14286,8 +14286,37 @@ function shouldKeepIosNewCorrectionAfterMicTest() {
     const keep = test.iosNewPreMicProgress;
     return !!(keep && keep.correctionDone);
 }
+function usesIosNewBtDelayLabel() {
+    return isIosNewProductionFlow() && isBluetoothHeadphone();
+}
+function usesIosNewStrongBtDelaySound() {
+    return usesIosNewBtDelayLabel();
+}
+function btDelayStepUserLabel() {
+    if (useAndroidLatencyFirstFlow() || usesIosNewBtDelayLabel()) return '音ズレ・遅延テスト';
+    return 'クリック音入力テスト';
+}
+function btCalIdleStartLabel() {
+    return bt.hasRun ? 'もう1度テストする' : (btDelayStepUserLabel() + 'を開始');
+}
+function btCalActiveStopLabel() {
+    return btDelayStepUserLabel() + 'を停止';
+}
+function iosNewBtDelaySoundSpec() {
+    return {
+        soundId: 'short-noise-focused-test',
+        soundLabel: '短いノイズ集中テスト',
+        soundType: 'noise',
+        frequencyHz: null,
+        route: 'AudioBuffer',
+        iphoneBtStrongSignal: true,
+        iphoneBtProbeSignalGain: 0.92,
+        iphoneBtProbeSignalFadeMs: 2,
+    };
+}
+const IOS_NEW_BT_DELAY_STRONG_SOUND_MS = 120;
 function iosNewFlowDebugNote() {
-    return '新iPhoneはiOSクリック音入力テスト方式のまま、ステップ順だけ btdelay→correction→test に変更している。bluetoothMicOffsetMs を更新する可能性あり（次Stepで測定窓反映予定）。';
+    return '新iPhoneは従来iPhoneの閉ループ補正（startBtCal/finishBtCal→bluetoothMicOffsetMs）を維持。ステップ順は btdelay→correction→test。音ズレ・遅延テストではクリック音の代わりに強いノイズ音を使用。';
 }
 function cancelAndroidAudioCheck() {
     stopAndroidBtVolumeTest({ keepMonitor: true });
@@ -17254,12 +17283,30 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
             wizardMicJudgeOffsetMs: wizardMicJudgeOffsetMs(),
             bluetoothMicOffsetMs: mic.bluetoothMicOffsetMs || 0,
             firstIncompleteWizardStep: firstIncompleteWizardStep(),
+            iosNewBtDelaySound: bt.debug && bt.debug.iosNewBtDelayUsesStrongSound ? {
+                iosNewBtDelaySoundProfile: bt.debug.iosNewBtDelaySoundProfile,
+                iosNewBtDelaySoundSource: bt.debug.iosNewBtDelaySoundSource,
+                iosNewBtDelayUsesStrongSound: bt.debug.iosNewBtDelayUsesStrongSound,
+                detectedCount: bt.debug.detectedCount,
+                expectedCount: bt.debug.expectedCount,
+                avgDiffMs: bt.debug.avgDiffMs,
+                medianDiffMs: bt.debug.medianDiffMs,
+                proposedBluetoothMicOffsetMs: bt.debug.proposedBluetoothMicOffsetMs,
+                appliedBluetoothMicOffsetMs: bt.debug.appliedBluetoothMicOffsetMs,
+                thresholdUsed: bt.debug.thresholdUsed,
+                cooldownUsed: bt.debug.cooldownUsed,
+                noiseP95AtBtDelayStart: bt.debug.noiseP95AtBtDelayStart,
+                noiseMaxAtBtDelayStart: bt.debug.noiseMaxAtBtDelayStart,
+                note: bt.debug.iosNewBtDelayNote,
+            } : null,
             note: iosNewFlowDebugNote(),
         },
     };
 }
 
 async function copyCorrectionFlowLog() {
+    const btn = els.correctionFlowLogCopy;
+    if (btn) btn.disabled = true;
     let text;
     try { text = JSON.stringify(correctionFlowSnapshot('copy-button'), null, 2); }
     catch (err) {
@@ -17279,7 +17326,10 @@ async function copyCorrectionFlowLog() {
     }
     if (!copied && els.correctionFlowLogText) {
         els.correctionFlowLogText.classList.remove('hidden');
-        try { els.correctionFlowLogText.focus(); els.correctionFlowLogText.select(); } catch (_) { /* long-press remains available */ }
+    }
+    if (btn) {
+        btn.disabled = false;
+        btn.style.opacity = '';
     }
 }
 
@@ -17924,6 +17974,8 @@ async function startPracticeTest() {
     if (!ctx) { finalCheckFlowDebug.startPracticeStopReason = 'audioContext:null'; setPtStatus('音声を初期化できませんでした。'); return; }
     // 前回の音符・波形・結果・内部状態を必ず初期化してから開始する（v0.9.73）
     resetPracticeView();
+    if (els.correctionFlowLogCopy) els.correctionFlowLogCopy.disabled = false;
+    if (els.correctionFlowLogText) els.correctionFlowLogText.classList.add('hidden');
     pt.active = true;
     pt.capturing = false;
     pt.onsets = [];
@@ -18752,11 +18804,11 @@ function practiceComment(r) {
     // イヤホン接続（有線/Bluetooth）はクリック音入力テストへ誘導（v0.9.152で有線も対応）。
     const isHp = isHeadphoneInput();
     if (biased && (r.avg >= 40 || (lateRatio >= 0.7 && lateRatio >= earlyRatio))) {
-        if (isHp) return { kind: 'warn', issue: 'btdelay', text: 'イヤホンではマイク判定が遅め（LATE）にずれている可能性があります。「クリック音入力テスト」で補正してから、もう一度最終確認テストを行ってください。' };
+        if (isHp) return { kind: 'warn', issue: 'btdelay', text: 'イヤホンではマイク判定が遅め（LATE）にずれている可能性があります。「' + btDelayStepUserLabel() + '」で補正してから、もう一度最終確認テストを行ってください。' };
         return { kind: 'warn', issue: 'timing', text: '判定がLATE（遅め）に片寄っています。マイクの遅れ補正を確認してから、もう一度最終確認テストを行ってください。' };
     }
     if (biased && (r.avg <= -40 || (earlyRatio >= 0.7 && earlyRatio > lateRatio))) {
-        if (isHp) return { kind: 'warn', issue: 'btdelay', text: 'イヤホンではマイク判定が早め（EARLY）にずれている可能性があります。「クリック音入力テスト」で補正してから、もう一度最終確認テストを行ってください。' };
+        if (isHp) return { kind: 'warn', issue: 'btdelay', text: 'イヤホンではマイク判定が早め（EARLY）にずれている可能性があります。「' + btDelayStepUserLabel() + '」で補正してから、もう一度最終確認テストを行ってください。' };
         return { kind: 'warn', issue: 'timing', text: '判定がEARLY（早め）に片寄っています。マイクの遅れ補正を確認してから、もう一度最終確認テストを行ってください。' };
     }
     // 二重反応が出ているときは「問題なし」にせず、軽く注意（クリック音・余韻拾いの可能性）
@@ -18827,7 +18879,7 @@ function renderPracticeResult(r) {
         else if (c.issue === 'clickpickup') { fixLabel = 'マイク感度を確認する'; fixId = 'pt-result-fix-test'; }
         else if (c.issue === 'miss') { fixLabel = 'マイク感度を確認する'; fixId = 'pt-result-fix-test'; }
         else if (c.issue === 'timing') { fixLabel = '補正を確認する'; fixId = 'pt-result-fix-correction'; }
-        else if (c.issue === 'btdelay') { fixLabel = 'クリック音入力テストに戻る'; fixId = 'pt-result-fix-btdelay'; }
+        else if (c.issue === 'btdelay') { fixLabel = btDelayStepUserLabel() + 'に戻る'; fixId = 'pt-result-fix-btdelay'; }
         else if (c.issue === 'double') { fixLabel = '二重反応防止を調整する'; fixId = 'pt-result-fix-manual'; }
         actions =
             '<button type="button" class="rc-mic-action-primary" id="' + fixId + '" style="' + primary + '">' + fixLabel + '</button>' +
@@ -19237,6 +19289,23 @@ function btScheduleClick(atSec, accent) {
     osc.stop(t0 + 0.09);
     bt.scheduled.push(osc);
 }
+/* v0.12.34：新iPhone+Bluetooth の音ズレ・遅延テスト用。Android式の強いノイズ音源生成だけ再利用し、閉ループ補正は従来iPhone方式。 */
+function btScheduleIosNewStrongBurst(atSec) {
+    const ctx = state.audioCtx;
+    if (!ctx) return;
+    const spec = iosNewBtDelaySoundSpec();
+    const durationMs = IOS_NEW_BT_DELAY_STRONG_SOUND_MS;
+    const t0 = Math.max(atSec, ctx.currentTime);
+    bt.clickPerfTimes.push(bt.flowStartPerf + (t0 - bt.audioStart) * 1000);
+    const source = ctx.createBufferSource();
+    const gain = ctx.createGain();
+    source.buffer = hpProbeMakeBuffer(ctx, spec, durationMs);
+    gain.gain.value = 1;
+    source.connect(gain).connect(ctx.destination);
+    source.start(t0);
+    source.stop(t0 + durationMs / 1000 + 0.01);
+    bt.scheduled.push(source);
+}
 function btLatestClickPerf(now) {
     let last = -100000;
     for (let i = 0; i < bt.clickPerfTimes.length; i++) {
@@ -19257,7 +19326,7 @@ function updateBtCalBadge() {
 
 /* 待機中のカード表示（ボタン文言・ステータス）。 */
 function renderBtCalIdle() {
-    if (els.btCalBtn) els.btCalBtn.textContent = bt.hasRun ? 'もう1度テストする' : 'クリック音入力テストを開始';
+    if (els.btCalBtn) els.btCalBtn.textContent = btCalIdleStartLabel();
     updateBtCalTitleUI();
     if (els.btCalLive) els.btCalLive.classList.add('hidden');
     if (els.btCalLaneWrap) els.btCalLaneWrap.classList.add('hidden');
@@ -19293,6 +19362,7 @@ function applyBtCalTestSettings() {
     state.clickVolume = 100;
     mic.prevPeak = 0;
     mic.armed = true;
+    const useStrongSound = usesIosNewStrongBtDelaySound();
     bt.debug = {
         clickInputTestActive: true,
         inputType: getMicInputType(),
@@ -19312,6 +19382,14 @@ function applyBtCalTestSettings() {
         clickPeaks: [],
         noiseP95: test.noiseP95 || 0,
         noiseMax: test.noiseMax || 0,
+        noiseP95AtBtDelayStart: test.noiseP95 || 0,
+        noiseMaxAtBtDelayStart: test.noiseMax || 0,
+        iosNewBtDelayUsesStrongSound: useStrongSound,
+        iosNewBtDelaySoundProfile: useStrongSound ? 'short-noise-focused-test' : 'click',
+        iosNewBtDelaySoundSource: useStrongSound ? 'hpProbeMakeBuffer+iphoneBtStrongSignal' : 'btScheduleClick',
+        iosNewBtDelayNote: useStrongSound
+            ? '新iPhoneではクリック音ではなく強いノイズ/マーカー音を使う。補正計算は従来iPhoneの閉ループ方式を維持。'
+            : null,
         restoreCompleted: false,
         restoreReason: null,
     };
@@ -19373,7 +19451,7 @@ async function startBtCal() {
     });
     if (els.btCalResult) { els.btCalResult.classList.add('hidden'); els.btCalResult.innerHTML = ''; }
     if (els.btCalLive) els.btCalLive.classList.remove('hidden');
-    if (els.btCalBtn) els.btCalBtn.textContent = 'クリック音入力テストを停止';
+    if (els.btCalBtn) els.btCalBtn.textContent = btCalActiveStopLabel();
     setCalLevelState(els.btCalLevelState, '', '音を確認中…');
     updateBtCalSkipUI();
 
@@ -19395,23 +19473,29 @@ async function startBtCal() {
 
     const beatSec = PT_BEAT_MS / 1000;
     const startSec = bt.audioStart + PT_LEAD_MS / 1000;
+    const useStrongSound = usesIosNewStrongBtDelaySound();
     try {
         for (let i = 0; i < PT_COUNTIN; i++) btScheduleClick(startSec + i * beatSec, i === 0);
         const playStartSec = startSec + PT_COUNTIN * beatSec;
-        for (let j = 0; j < BT_PLAY_BEATS; j++) btScheduleClick(playStartSec + j * beatSec, j % 4 === 0);
+        for (let j = 0; j < BT_PLAY_BEATS; j++) {
+            const at = playStartSec + j * beatSec;
+            if (useStrongSound) btScheduleIosNewStrongBurst(at);
+            else btScheduleClick(at, j % 4 === 0);
+        }
         for (let j = 0; j < BT_PLAY_BEATS; j++) {
             androidAudioProbeMarkClick('clickInputTest', bt.flowStartPerf + bt.playT0Ms + j * PT_BEAT_MS, -PT_NEAR_WIN, PT_NEAR_WIN);
         }
     } catch (err) {
         stopBtCal();
-        setBtCalStatus('クリック音を開始できませんでした。もう一度お試しください。');
+        setBtCalStatus((useStrongSound ? 'テスト音' : 'クリック音') + 'を開始できませんでした。もう一度お試しください。');
         console.error('[bt-click-input-test] schedule failed', err);
         return;
     }
 
     setBtCalStatus('カウントイン…');
+    const inputCue = useStrongSound ? '音に合わせて入力' : 'クリックに合わせて入力';
     for (let j = 0; j < BT_PLAY_BEATS; j++) {
-        btTimer(() => setBtCalStatus('クリックに合わせて入力　' + (j + 1) + ' / ' + BT_PLAY_BEATS), bt.playT0Ms + j * PT_BEAT_MS);
+        btTimer(() => setBtCalStatus(inputCue + '　' + (j + 1) + ' / ' + BT_PLAY_BEATS), bt.playT0Ms + j * PT_BEAT_MS);
     }
     const capStartMs = bt.playT0Ms - PT_CAP_WIN_MS;
     const capEndMs = bt.playT0Ms + (BT_PLAY_BEATS - 1) * PT_BEAT_MS + PT_CAP_WIN_MS;
@@ -19431,7 +19515,7 @@ function stopBtCal() {
     restoreBtCalTestSettings('stopped');
     if (els.btCalLive) els.btCalLive.classList.add('hidden');
     if (els.btCalLaneWrap) els.btCalLaneWrap.classList.add('hidden');
-    if (els.btCalBtn) els.btCalBtn.textContent = bt.hasRun ? 'もう1度テストする' : 'クリック音入力テストを開始';
+    if (els.btCalBtn) els.btCalBtn.textContent = btCalIdleStartLabel();
     setBtCalStatus('');
     updateBtCalLevelState();
     updateBtCalSkipUI();
@@ -19450,7 +19534,7 @@ function finishBtCal() {
     if (els.btCalLive) els.btCalLive.classList.add('hidden');
     updateBtCalLevelState();
     // v0.9.100：結果後もレーン（拍マーカー）は閉じず、各拍のズレを見られるようにする。
-    if (els.btCalBtn) els.btCalBtn.textContent = bt.hasRun ? 'もう1度テストする' : 'クリック音入力テストを開始';
+    if (els.btCalBtn) els.btCalBtn.textContent = btCalIdleStartLabel();
     updateBtCalSkipUI();
 
     let just = 0, early = 0, late = 0, miss = 0, sum = 0, validN = 0;
@@ -19477,7 +19561,6 @@ function finishBtCal() {
         }
     }
     const valid = just + early + late;
-    if (bt.debug) bt.debug.detectedClickCount = valid;
     const avg = validN ? Math.round(sum / validN) : 0;
     // 補正提案条件（v0.9.104→v0.9.105）：有効入力6以上・|平均ズレ|>=35ms。
     // ・v0.9.104：「方向が60%以上偏っている(biased)」条件を撤廃。
@@ -19513,6 +19596,18 @@ function finishBtCal() {
         commitMicSetupDraft();
         invalidatePracticeResult();
         autoFineApplied = true;
+    }
+    if (bt.debug) {
+        const matchedDiffs = perBeat.filter((row) => row.matched && Number.isFinite(row.diff)).map((row) => row.diff).sort((a, b) => a - b);
+        bt.debug.detectedClickCount = valid;
+        bt.debug.detectedCount = valid;
+        bt.debug.expectedCount = BT_PLAY_BEATS;
+        bt.debug.avgDiffMs = validN ? avg : null;
+        bt.debug.medianDiffMs = matchedDiffs.length ? matchedDiffs[Math.floor(matchedDiffs.length / 2)] : null;
+        bt.debug.proposedBluetoothMicOffsetMs = proposed;
+        bt.debug.appliedBluetoothMicOffsetMs = autoFineApplied ? appliedOffset : cur;
+        bt.debug.thresholdUsed = bt.debug.thresholdDuringClickInputTest;
+        bt.debug.cooldownUsed = bt.debug.cooldownDuringClickInputTest;
     }
     const clickInputProbe = androidAudioProbe.current;
     if (clickInputProbe && clickInputProbe.kind === 'clickInputTest') {
@@ -19585,6 +19680,10 @@ function renderBtCalResult(r) {
     const sign = (v) => (v > 0 ? '+' : '') + v + 'ms';
     const dirTxt = r.avg > 0 ? '（遅め/LATE）' : (r.avg < 0 ? '（早め/EARLY）' : '');
     const avgTxt = sign(r.avg) + dirTxt;
+    const stepLabel = btDelayStepUserLabel();
+    const useStrongSound = usesIosNewStrongBtDelaySound();
+    const inputLabel = useStrongSound ? 'テスト音' : 'クリック音';
+    const correctionLabel = useStrongSound ? '入力' : 'クリック入力';
     const primary = 'width:100%;padding:14px;margin-top:12px;border-radius:10px;border:none;'
         + 'background:linear-gradient(180deg,#ff9f1c,#ff8c00);color:#1a130a;font-weight:800;font-size:1rem;cursor:pointer;';
     const sub = 'width:100%;padding:12px;margin-top:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.28);'
@@ -19594,17 +19693,17 @@ function renderBtCalResult(r) {
     const rows =
         '<div class="cal-result-row"><span>有効入力</span><b>' + r.valid + ' / ' + BT_PLAY_BEATS + '</b></div>' +
         '<div class="cal-result-row"><span>平均ズレ</span><b>' + avgTxt + '</b></div>' +
-        '<div class="cal-result-row"><span>現在のクリック入力の補正値</span><b id="bt-cal-cur">' + sign(curShown) + '</b></div>';
+        '<div class="cal-result-row"><span>現在の' + correctionLabel + 'の補正値</span><b id="bt-cal-cur">' + sign(curShown) + '</b></div>';
     // v0.9.100：拍ごとのズレリスト＋手動スライダー（bluetoothMicOffsetMs用）。
     const extra = SHOW_BT_CAL_ADVANCED_UI
         ? perBeatListHtml(r.perBeat) + btManualBlockHtml(curShown, sub)
         : '';
     let head, actions;
     if (!r.enoughInput) {
-        head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">クリック音がマイクに十分入っていません。スマホ本体の音量を高めにし、イヤホン/マイクの接続を確認してから、もう一度テストしてください。</p>';
+        head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">' + inputLabel + 'がマイクに十分入っていません。スマホ本体の音量を高めにし、イヤホン/マイクの接続を確認してから、もう一度テストしてください。</p>';
         actions = '<button type="button" class="rc-mic-action-secondary" id="bt-cal-rerun" style="' + primary + '">もう1度テストする</button>';
     } else if (r.propose) {
-        head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">判定が' + (r.avg > 0 ? '遅め（LATE）' : '早め（EARLY）') + 'に大きくズレています。クリック音入力テストで合わせましょう。</p>';
+        head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">判定が' + (r.avg > 0 ? '遅め（LATE）' : '早め（EARLY）') + 'に大きくズレています。' + stepLabel + 'で合わせましょう。</p>';
         const proposeRow = '<div class="cal-result-row"><span>補正後の目安</span><b>' + sign(r.proposed) + '</b></div>';
         actions =
             '<button type="button" class="rc-mic-action-primary" id="bt-cal-apply" style="' + primary + '">この補正を適用してもう1度テストする</button>' +
@@ -19617,11 +19716,11 @@ function renderBtCalResult(r) {
         head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">判定タイミングのズレは小さめです。このまま最終確認テストへ進めます。</p>';
         // v0.9.94：OK判定でも、有効な平均ズレがあれば最新結果で自動微調整済み。控えめに案内する（ボタンは出さない）。
         const autoNote = r.autoFineApplied
-            ? '<p class="cal-status" style="color:#6ed28c;font-weight:600;margin-top:6px;">最新の平均ズレ（' + avgTxt + '）に合わせて、クリック入力の補正値を ' + sign(r.appliedOffset) + ' に微調整しました。</p>'
+            ? '<p class="cal-status" style="color:#6ed28c;font-weight:600;margin-top:6px;">最新の平均ズレ（' + avgTxt + '）に合わせて、' + correctionLabel + 'の補正値を ' + sign(r.appliedOffset) + ' に微調整しました。</p>'
             : '';
         const proceedLabel = 'マイク反応テストへ進む';
         if (isBluetoothHeadphone()) {
-            head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">判定タイミングのズレは小さめです。次に、クリック音と画面表示の見た目を合わせます。</p>';
+            head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">判定タイミングのズレは小さめです。次に、' + (useStrongSound ? 'テスト音' : 'クリック音') + 'と画面表示の見た目を合わせます。</p>';
         }
         const volumeNote = '<p class="setting-note" style="margin:8px 0 0;font-size:0.78rem;">※音量を上げて計測した場合は、次の確認前にスマホ本体音量を少し下げてください。</p>';
         actions =
@@ -19712,7 +19811,7 @@ function completeBtCalStep() {
         setupProgress.correctionDone = false;
         if (els.hpCalFromClickNote) {
             const displayOffsetText = (displayOffset > 0 ? '+' : '') + displayOffset + 'ms';
-            els.hpCalFromClickNote.textContent = 'クリック音入力テストの結果をもとに、画面補正の初期値を ' + displayOffsetText + ' に設定しました。次のテストで見た目と音のズレを確認してください。';
+            els.hpCalFromClickNote.textContent = btDelayStepUserLabel() + 'の結果をもとに、画面補正の初期値を ' + displayOffsetText + ' に設定しました。次のテストで見た目と音のズレを確認してください。';
             els.hpCalFromClickNote.classList.remove('hidden');
         }
     }
@@ -20979,7 +21078,7 @@ function wizardStepSummary(id) {
                 return '音ズレ・遅延テスト：仮補正 ' + (trial > 0 ? '+' : '') + trial + 'ms（既存設定 ' + (existing > 0 ? '+' : '') + existing + 'ms）';
             }
             const v = headphoneMicOffsetGet();
-            const label = useAndroidLatencyFirstFlow() ? '音ズレ・遅延テスト' : 'クリック音入力テスト';
+            const label = btDelayStepUserLabel();
             return label + '：補正 ' + (v > 0 ? '+' : '') + v + 'ms';
         }
         case 'practice':
@@ -21535,12 +21634,12 @@ const WIZARD_STEP_LABELS = {
     correction: '補正', btdelay: '音ズレ・遅延テスト', practice: '最終確認テスト', final: '手動設定・保存',
 };
 function wizardStepLabel(id) {
-    if (id === 'btdelay') return useAndroidLatencyFirstFlow() ? '音ズレ・遅延テスト' : 'クリック音入力テスト';
+    if (id === 'btdelay') return btDelayStepUserLabel();
     if (id === 'correction') return isHeadphoneInput() ? 'イヤホン音ズレの画面補正' : (useAndroidLatencyFirstFlow() ? '音ズレ・遅延テスト' : 'マイクの遅れ補正');
     return WIZARD_STEP_LABELS[id] || '';
 }
 function updateBtCalTitleUI() {
-    if (els.btCalHead) els.btCalHead.textContent = useAndroidLatencyFirstFlow() ? '音ズレ・遅延テスト' : 'クリック音入力テスト';
+    if (els.btCalHead) els.btCalHead.textContent = btDelayStepUserLabel();
 }
 function renderStepProgress(active) {
     const wrap = els.settingsStepsProgress;
@@ -23476,7 +23575,7 @@ function resetBtCalTransientUiState() {
     }
     if (els.btCalLevelState) setCalLevelState(els.btCalLevelState, '', '');
     updateBtCalBadge();
-    if (els.btCalBtn && !bt.active) els.btCalBtn.textContent = 'クリック音入力テストを開始';
+    if (els.btCalBtn && !bt.active) els.btCalBtn.textContent = btCalIdleStartLabel();
 }
 
 /* マイク反応テストを新しく始める前に、前回テストの表示だけを初期化する。
