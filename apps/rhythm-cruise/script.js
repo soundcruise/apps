@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.32';
+const RHYTHM_CRUISE_VERSION = '0.12.33';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14249,18 +14249,42 @@ function shouldKeepBtCorrectionAfterMicTest() {
     const ci = steps.indexOf('correction'), ti = steps.indexOf('test');
     return ci >= 0 && ti >= 0 && ci < ti;
 }
-/* v0.12.32：新iPhone+Bluetooth は btdelay→correction→test の順。マイク反応テスト開始後も btDelayDone を維持する。
-   現行iPhone・Android・iPhone仮には影響しない（ウィザード完了フラグの維持のみ）。 */
-function shouldKeepIosNewBtDelayAfterMicTest() {
-    if (!isIosNewProductionFlow() || !isBluetoothHeadphone()) return false;
-    return !!setupProgress.btDelayDone;
+/* v0.12.33：新iPhone+Bluetooth は btdelay→correction→test の順。マイク反応テスト前後で完了フラグを維持する。
+   resetBtCalTransientUiState() の後に setupProgress を読むと常に false になるため、開始前のフラグを一時保存して復元する。 */
+function captureIosNewPreMicProgress() {
+    if (!isIosNewProductionFlow() || !isBluetoothHeadphone()) {
+        test.iosNewPreMicProgress = null;
+        return;
+    }
+    test.iosNewPreMicProgress = {
+        btDelayDone: setupProgress.btDelayDone === true,
+        correctionDone: setupProgress.correctionDone === true,
+        capturedAt: new Date().toISOString(),
+    };
+}
+function restoreIosNewPreMicProgress(reason) {
+    if (!isIosNewProductionFlow() || !isBluetoothHeadphone()) return;
+    const keep = test.iosNewPreMicProgress;
+    if (!keep) return;
+    if (keep.btDelayDone) setupProgress.btDelayDone = true;
+    if (keep.correctionDone) setupProgress.correctionDone = true;
+    const dbg = test.runDebug && test.runDebug.iosNewMicTestStart;
+    if (dbg) {
+        dbg.lastRestoreReason = reason || 'unknown';
+        dbg.btDelayDoneAfterRestore = !!setupProgress.btDelayDone;
+        dbg.correctionDoneAfterRestore = !!setupProgress.correctionDone;
+        dbg.activeWizardStepAfterRestore = activeWizardStep();
+        dbg.firstIncompleteWizardStepAfterRestore = firstIncompleteWizardStep();
+    }
 }
 /* v0.12.32：新iPhone+Bluetooth で correction が test より前にあるとき、マイク反応テスト後も correctionDone を維持する。 */
 function shouldKeepIosNewCorrectionAfterMicTest() {
     if (!isIosNewProductionFlow() || !isBluetoothHeadphone()) return false;
     const steps = wizardSteps();
     const ci = steps.indexOf('correction'), ti = steps.indexOf('test');
-    return ci >= 0 && ti >= 0 && ci < ti && !!setupProgress.correctionDone;
+    if (!(ci >= 0 && ti >= 0 && ci < ti)) return false;
+    const keep = test.iosNewPreMicProgress;
+    return !!(keep && keep.correctionDone);
 }
 function iosNewFlowDebugNote() {
     return '新iPhoneはiOSクリック音入力テスト方式のまま、ステップ順だけ btdelay→correction→test に変更している。bluetoothMicOffsetMs を更新する可能性あり（次Stepで測定窓反映予定）。';
@@ -17229,6 +17253,7 @@ function correctionFlowSnapshot(reason, includeSavedSnapshots = true) {
             micJudgeOffsetMs: micJudgeOffsetMs(),
             wizardMicJudgeOffsetMs: wizardMicJudgeOffsetMs(),
             bluetoothMicOffsetMs: mic.bluetoothMicOffsetMs || 0,
+            firstIncompleteWizardStep: firstIncompleteWizardStep(),
             note: iosNewFlowDebugNote(),
         },
     };
@@ -23696,21 +23721,15 @@ async function startMicTestFlow(options = {}) {
     if (pt.active) stopPracticeTest(); // 最終確認テストと排他
     stopBtCal(); // マイクの遅れ補正と排他
     resetMicDelayCalibrationUiState();
-    const iosNewMicTestProgress = isIosNewProductionFlow() ? {
-        btDelayDoneBeforeMicTest: !!setupProgress.btDelayDone,
-        correctionDoneBeforeMicTest: !!setupProgress.correctionDone,
-        bluetoothMicOffsetMsAtMicTestStart: headphoneMicOffsetGet(),
-        timingOffsetMsAtMicTestStart: mic.timingOffsetMs || 0,
-        micJudgeOffsetMsAtMicTestStart: micJudgeOffsetMs(),
-    } : null;
+    captureIosNewPreMicProgress();
     resetBtCalTransientUiState();
     resetMicReactionTestRunDisplay();
     // v0.11.75：Android有線/BTは、保存済み遅延補正があれば音ズレ・遅延テスト完了状態(btDelayDone)を
     //   マイク反応テスト開始後も保持する。resetBtCalTransientUiState() が btDelayDone を落とすため、
     //   保存済み時だけここで復元する（通常マイクの correctionDone 保護と対称）。
     if (shouldKeepAndroidHeadphoneLatencyAfterMicTest()) setupProgress.btDelayDone = true;
-    // v0.12.32：新iPhone+Bluetooth も btdelay 完了後に test へ進むため、btDelayDone を維持する。
-    if (shouldKeepIosNewBtDelayAfterMicTest()) setupProgress.btDelayDone = true;
+    // v0.12.33：新iPhone+Bluetooth は開始前に保存した完了フラグを復元する（値の中身ではなくフラグで判断）。
+    restoreIosNewPreMicProgress('startMicTestFlow-afterReset');
     const startClickVolume = state.clickVolume;
     if (!(await ensureTestMic())) { setTestResult('マイクを許可してください。', 'ng'); showMicPermHelp(); return; }
     hideMicPermHelp(); // v0.9.160：開始できたので許可エラー案内は隠す
@@ -23731,12 +23750,20 @@ async function startMicTestFlow(options = {}) {
         lifecycleAtStart: micLifecycleDebugEvents.slice(),
         completed: false,
     };
-    if (iosNewMicTestProgress) {
-        test.runDebug.iosNewMicTestStart = Object.assign(iosNewMicTestProgress, {
+    if (test.iosNewPreMicProgress) {
+        const pre = test.iosNewPreMicProgress;
+        test.runDebug.iosNewMicTestStart = {
+            btDelayDoneBeforeMicTest: pre.btDelayDone,
+            correctionDoneBeforeMicTest: pre.correctionDone,
+            bluetoothMicOffsetMsAtMicTestStart: headphoneMicOffsetGet(),
+            timingOffsetMsAtMicTestStart: mic.timingOffsetMs || 0,
+            micJudgeOffsetMsAtMicTestStart: micJudgeOffsetMs(),
             btDelayDoneAfterMicTest: !!setupProgress.btDelayDone,
             correctionDoneAfterMicTest: !!setupProgress.correctionDone,
+            activeWizardStepAfterMicTestStart: activeWizardStep(),
+            firstIncompleteWizardStepAfterMicTestStart: firstIncompleteWizardStep(),
             note: iosNewFlowDebugNote(),
-        });
+        };
     }
     androidAudioProbeStart('micReactionTest', {
         measurementWindowMs: { from: 0, to: 520 }, correctionClampMs: null,
@@ -25379,6 +25406,13 @@ function applyReco() {
         // テストをやり直して適用したら、補正系以降（test より後の補正）は未完了へ戻す。
         // ただし correction が test より前にある上流ステップ（Android通常マイク／v0.11.80以降のAndroid BT）は維持する。
         if (!shouldKeepAndroidBuiltinLatencyAfterMicTest() && !shouldKeepBtCorrectionAfterMicTest() && !shouldKeepIosNewCorrectionAfterMicTest()) setupProgress.correctionDone = false;
+        restoreIosNewPreMicProgress('applyReco');
+        if (test.runDebug && test.runDebug.iosNewMicTestStart) {
+            test.runDebug.iosNewMicTestStart.btDelayDoneAfterApplyReco = !!setupProgress.btDelayDone;
+            test.runDebug.iosNewMicTestStart.correctionDoneAfterApplyReco = !!setupProgress.correctionDone;
+            test.runDebug.iosNewMicTestStart.activeWizardStepAfterApplyReco = activeWizardStep();
+            test.runDebug.iosNewMicTestStart.firstIncompleteWizardStepAfterApplyReco = firstIncompleteWizardStep();
+        }
         // 反応ラインが変わったので前回の実践テスト結果は無効化する
         invalidatePracticeResult();
         wizardEditing = null;
