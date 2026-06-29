@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.38';
+const RHYTHM_CRUISE_VERSION = '0.12.39';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14344,12 +14344,35 @@ function btCorrectionStdDevMs(diffs) {
     const variance = vals.reduce((s, v) => s + (v - mean) ** 2, 0) / vals.length;
     return +Math.sqrt(variance).toFixed(2);
 }
+function btCorrectionSameStepSign(a, b) {
+    if (a === 0 && b === 0) return true;
+    if (a === 0 || b === 0) return false;
+    return (a > 0) === (b > 0);
+}
+function iosNewAdaptiveWouldApplyToProposedCandidate(confidence, valid, miss, legacyStep, adaptiveStep, propose) {
+    if (!propose) return { wouldApply: false, reason: 'not-big-zure-propose' };
+    if (!usesIosNewStrongBtDelaySound() || !isIosNewProductionFlow() || !isBluetoothHeadphone()) {
+        return { wouldApply: false, reason: 'not-ios-new-bluetooth' };
+    }
+    if (valid < 7) return { wouldApply: false, reason: 'detected-count-low' };
+    if (miss > 1) return { wouldApply: false, reason: 'miss-count-high' };
+    if (confidence < 0.55) return { wouldApply: false, reason: 'confidence-low' };
+    if (!btCorrectionSameStepSign(adaptiveStep, legacyStep)) {
+        return { wouldApply: false, reason: 'adaptive-step-sign-mismatch' };
+    }
+    if (Math.abs(adaptiveStep) <= Math.abs(legacyStep)) {
+        return { wouldApply: false, reason: 'adaptive-step-not-larger' };
+    }
+    return { wouldApply: true, reason: 'high-confidence-adaptive-step' };
+}
 function buildIosNewAdaptiveCorrectionDebug(params) {
     const {
         cur, avg, medianDiff, perBeatDiffs, miss, valid, expectedCount,
-        step, fineStep, proposed, fineProposed,
+        step, fineStep, proposed, fineProposed, propose,
         autoFineApplied, appliedOffset, beforeOffsetMs,
     } = params;
+    const legacyProposedStepMs = step;
+    const legacyProposedOffsetMs = proposed;
     const minDiff = perBeatDiffs.length ? Math.min(...perBeatDiffs) : null;
     const maxDiff = perBeatDiffs.length ? Math.max(...perBeatDiffs) : null;
     const stdDevMs = btCorrectionStdDevMs(perBeatDiffs);
@@ -14386,6 +14409,13 @@ function buildIosNewAdaptiveCorrectionDebug(params) {
         Math.min(adaptiveMaxStepCandidateMs, Math.round(adaptiveStepRaw)),
     );
     const adaptiveProposedOffsetCandidateMs = headphoneMicOffsetClampVal(cur + adaptiveStepCandidateMs);
+    const applyEval = iosNewAdaptiveWouldApplyToProposedCandidate(
+        confidence, valid, miss, legacyProposedStepMs, adaptiveStepCandidateMs, propose,
+    );
+    const useAdaptiveProposed = applyEval.wouldApply;
+    const actualProposedStepMs = useAdaptiveProposed ? adaptiveStepCandidateMs : legacyProposedStepMs;
+    const actualProposedOffsetMs = useAdaptiveProposed ? adaptiveProposedOffsetCandidateMs : legacyProposedOffsetMs;
+    const proposedSource = useAdaptiveProposed ? 'ios-new-adaptive-step' : 'current-legacy-step';
     const applyType = autoFineApplied ? 'auto-fine' : 'none';
     const actualAppliedDeltaMs = appliedOffset - beforeOffsetMs;
     const runId = ++iosNewBtCorrectionRunSeq;
@@ -14401,17 +14431,21 @@ function buildIosNewAdaptiveCorrectionDebug(params) {
         detectedCount: valid,
         missCount: miss,
         confidence,
-        currentProposedStepMs: step,
-        currentProposedOffsetMs: proposed,
+        currentProposedStepMs: legacyProposedStepMs,
+        currentProposedOffsetMs: legacyProposedOffsetMs,
+        legacyProposedStepMs,
         adaptiveStepCandidateMs,
         adaptiveProposedOffsetCandidateMs,
+        actualProposedStepMs,
+        actualProposedOffsetMs,
+        proposedSource,
         actualAppliedOffsetMs: appliedOffset,
         actualAppliedDeltaMs,
         applyType,
     };
     iosNewBtCorrectionRunHistory.push(historyEntry);
     while (iosNewBtCorrectionRunHistory.length > IOS_NEW_BT_CORRECTION_RUN_HISTORY_MAX) iosNewBtCorrectionRunHistory.shift();
-    return {
+    const debug = {
         btCorrectionCurrentOffsetMs: cur,
         btCorrectionAvgDiffMs: avg,
         btCorrectionMedianDiffMs: medianDiff,
@@ -14424,10 +14458,15 @@ function buildIosNewAdaptiveCorrectionDebug(params) {
         btCorrectionPerBeatDiffs: perBeatDiffs.slice(),
         btCorrectionCurrentMaxStepMs: BT_MIC_STEP_CLAMP,
         btCorrectionCurrentFineMaxStepMs: BT_FINE_STEP_CLAMP,
-        btCorrectionCurrentProposedStepMs: step,
+        btCorrectionCurrentProposedStepMs: legacyProposedStepMs,
         btCorrectionCurrentFineStepMs: fineStep,
-        btCorrectionCurrentProposedOffsetMs: proposed,
+        btCorrectionCurrentProposedOffsetMs: legacyProposedOffsetMs,
         btCorrectionCurrentFineProposedOffsetMs: fineProposed,
+        btCorrectionLegacyProposedStepMs: legacyProposedStepMs,
+        btCorrectionLegacyProposedOffsetMs: legacyProposedOffsetMs,
+        btCorrectionActualProposedStepMs: actualProposedStepMs,
+        btCorrectionActualProposedOffsetMs: actualProposedOffsetMs,
+        btCorrectionActualProposedSource: proposedSource,
         btCorrectionConfidence: confidence,
         btCorrectionConfidenceReason: confidenceReason,
         btCorrectionConfidenceParts: confidenceParts,
@@ -14436,9 +14475,12 @@ function buildIosNewAdaptiveCorrectionDebug(params) {
         btCorrectionAdaptiveMaxStepCandidateMs: adaptiveMaxStepCandidateMs,
         btCorrectionAdaptiveStepCandidateMs: adaptiveStepCandidateMs,
         btCorrectionAdaptiveProposedOffsetCandidateMs: adaptiveProposedOffsetCandidateMs,
-        btCorrectionAdaptiveWouldApply: false,
-        btCorrectionAdaptiveApplyReason: null,
-        btCorrectionAdaptiveNotAppliedReason: 'log-only-v0.12.38',
+        btCorrectionAdaptiveWouldApplyCandidate: applyEval.wouldApply,
+        btCorrectionAdaptiveWouldApply: useAdaptiveProposed,
+        btCorrectionAdaptiveActuallyAppliedToProposed: useAdaptiveProposed,
+        btCorrectionAdaptiveAppliedReason: useAdaptiveProposed ? applyEval.reason : null,
+        btCorrectionAdaptiveRejectedReason: useAdaptiveProposed ? null : applyEval.reason,
+        btCorrectionAdaptiveNotAppliedReason: useAdaptiveProposed ? null : applyEval.reason,
         adaptiveCandidateFormulaVersion: 'v0.12.38',
         baseDiffSource,
         baseDiffMs,
@@ -14446,7 +14488,16 @@ function buildIosNewAdaptiveCorrectionDebug(params) {
         iosNewBtDelaySoundProfile: 'short-noise-focused-test',
         iosNewBtDelayUsesStrongSound: true,
         btCorrectionRunHistory: iosNewBtCorrectionRunHistory.slice(),
-        note: 'adaptive候補はログ計算のみ（v0.12.38: gain=1.0、高confidence時のみmaxStep拡大）。現行 proposed/fineProposed/保存値には未反映。',
+        note: useAdaptiveProposed
+            ? 'v0.12.39: 高confidence時のみadaptive候補を手動proposedへ反映（fine自動補正・自動保存には未使用）。'
+            : 'v0.12.39: adaptive候補は算出済み。手動proposedは現行stepのまま（fine自動補正・自動保存には未使用）。',
+    };
+    return {
+        debug,
+        useAdaptiveProposed,
+        actualProposedStepMs,
+        actualProposedOffsetMs,
+        proposedSource,
     };
 }
 function recordIosNewBtCorrectionManualApply(appliedOffset) {
@@ -20014,12 +20065,15 @@ function finishBtCal() {
     const medianDiff = matchedDiffs.length ? matchedDiffs[Math.floor(matchedDiffs.length / 2)] : null;
     const perBeatDiffs = perBeat.filter((row) => row.matched && Number.isFinite(row.diff)).map((row) => row.diff);
     let iosNewAdaptiveCorrectionDebug = null;
+    let finalProposed = proposed;
     if (usesIosNewStrongBtDelaySound()) {
-        iosNewAdaptiveCorrectionDebug = buildIosNewAdaptiveCorrectionDebug({
+        const adaptiveResult = buildIosNewAdaptiveCorrectionDebug({
             cur, avg, medianDiff, perBeatDiffs, miss, valid, expectedCount: BT_PLAY_BEATS,
-            step, fineStep, proposed, fineProposed,
+            step, fineStep, proposed, fineProposed, propose,
             autoFineApplied, appliedOffset, beforeOffsetMs,
         });
+        iosNewAdaptiveCorrectionDebug = adaptiveResult.debug;
+        if (adaptiveResult.useAdaptiveProposed) finalProposed = adaptiveResult.actualProposedOffsetMs;
         try { console.info('[iosNewAdaptiveCorrectionDebug]', JSON.stringify(iosNewAdaptiveCorrectionDebug)); } catch (_) { /* ignore */ }
     }
     if (bt.debug) {
@@ -20028,7 +20082,8 @@ function finishBtCal() {
         bt.debug.expectedCount = BT_PLAY_BEATS;
         bt.debug.avgDiffMs = validN ? avg : null;
         bt.debug.medianDiffMs = medianDiff;
-        bt.debug.proposedBluetoothMicOffsetMs = proposed;
+        bt.debug.proposedBluetoothMicOffsetMs = finalProposed;
+        bt.debug.legacyProposedBluetoothMicOffsetMs = proposed;
         bt.debug.appliedBluetoothMicOffsetMs = autoFineApplied ? appliedOffset : cur;
         bt.debug.thresholdUsed = bt.debug.thresholdDuringClickInputTest;
         bt.debug.cooldownUsed = bt.debug.cooldownDuringClickInputTest;
@@ -20037,16 +20092,16 @@ function finishBtCal() {
     const clickInputProbe = androidAudioProbe.current;
     if (clickInputProbe && clickInputProbe.kind === 'clickInputTest') {
         clickInputProbe.measurement.result = {
-            rawEstimatedDelayMs: avg, clampedDelayMs: proposed,
-            hitUpperLimit: proposed === headphoneMicOffsetMax(), hitLowerLimit: proposed === headphoneMicOffsetMin(),
+            rawEstimatedDelayMs: avg, clampedDelayMs: finalProposed,
+            hitUpperLimit: finalProposed === headphoneMicOffsetMax(), hitLowerLimit: finalProposed === headphoneMicOffsetMin(),
             outOfMeasurementWindow: miss > 0, outOfRangeOnsetCount: Math.max(0, bt.onsets.length - valid),
             measurementFailureMayBeOutOfRange: miss > 0,
         };
         androidAudioProbeClose('clickInputTest');
     }
     bt.result = {
-        just, early, late, miss, valid, avg, cur, proposed, propose, fine, fineProposed,
-        autoFineApplied, appliedOffset, enoughInput, perBeat,
+        just, early, late, miss, valid, avg, cur, proposed: finalProposed, legacyProposed: proposed,
+        propose, fine, fineProposed, autoFineApplied, appliedOffset, enoughInput, perBeat,
         iosNewAdaptiveCorrectionDebug,
     };
     console.info('[bt-click-input-test-result]', bt.debug);
@@ -20133,11 +20188,17 @@ function renderBtCalResult(r) {
         actions = '<button type="button" class="rc-mic-action-secondary" id="bt-cal-rerun" style="' + primary + '">もう1度テストする</button>';
     } else if (r.propose) {
         head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">判定が' + (r.avg > 0 ? '遅め（LATE）' : '早め（EARLY）') + 'に大きくズレています。' + stepLabel + 'で合わせましょう。</p>';
+        const adaptiveDbg = r.iosNewAdaptiveCorrectionDebug;
+        const adaptiveNote = (adaptiveDbg && adaptiveDbg.btCorrectionAdaptiveActuallyAppliedToProposed)
+            ? '<p class="setting-note" style="margin:6px 0 0;font-size:0.78rem;">高confidenceのため高速補正候補を使用。現行候補: '
+                + sign(adaptiveDbg.btCorrectionLegacyProposedStepMs) + ' / 高速候補: '
+                + sign(adaptiveDbg.btCorrectionAdaptiveStepCandidateMs) + '</p>'
+            : '';
         const proposeRow = '<div class="cal-result-row"><span>補正後の目安</span><b>' + sign(r.proposed) + '</b></div>';
         actions =
             '<button type="button" class="rc-mic-action-primary" id="bt-cal-apply" style="' + primary + '">この補正を適用してもう1度テストする</button>' +
             '<button type="button" class="rc-mic-action-secondary" id="bt-cal-rerun" style="' + sub + '">補正せずにもう1度テストする</button>';
-        els.btCalResult.innerHTML = head + rows + proposeRow + extra + '<div style="margin-top:6px;">' + actions + '</div>';
+        els.btCalResult.innerHTML = head + adaptiveNote + rows + proposeRow + extra + '<div style="margin-top:6px;">' + actions + '</div>';
         els.btCalResult.classList.remove('hidden');
         bindBtCalResultActions();
         return;
