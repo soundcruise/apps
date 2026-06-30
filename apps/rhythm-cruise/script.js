@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.81';
+const RHYTHM_CRUISE_VERSION = '0.12.82';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -1565,10 +1565,16 @@ const els = {
     strokeMicPanel: $('stroke-mic-panel'),    // 手動マイク調整の中身
     smicClickVol: $('smic-clickvol'),         // 手動調整：クリック音量（state.clickVolume と連動）
     smicClickVolVal: $('smic-clickvol-val'),
+    smicClickVolDec: $('smic-clickvol-dec'),
+    smicClickVolInc: $('smic-clickvol-inc'),
     smicThreshold: $('smic-threshold'),       // 手動調整：反応ライン（mic.threshold と連動）
     smicThresholdVal: $('smic-threshold-val'),
+    smicThresholdDec: $('smic-threshold-dec'),
+    smicThresholdInc: $('smic-threshold-inc'),
     smicOffset: $('smic-offset'),             // 手動調整：音ズレ補正（manualMicOffset* と連動）
     smicOffsetVal: $('smic-offset-val'),
+    smicOffsetDec: $('smic-offset-dec'),
+    smicOffsetInc: $('smic-offset-inc'),
     smicOpenManual: $('smic-open-manual'),    // 手動設定へのリンク
     smicToTapBtn: $('smic-to-tap'),           // 手動マイク調整内：タップモードへ切替
     micSetupPrompt: $('mic-setup-prompt'),
@@ -23501,6 +23507,47 @@ function toggleStrokeMicTools() {
     setStrokeMicToolsOpen(closed);
 }
 
+function formatStrokeMicOffsetMs(v) {
+    return (v > 0 ? '+' : '') + v + 'ms';
+}
+function syncStrokeMicClickVolume(value) {
+    const v = clampNum(value, 0, 100, SETTINGS_DEFAULTS.clickVolume);
+    state.clickVolume = v;
+    if (els.smicClickVol) els.smicClickVol.value = v;
+    if (els.smicClickVolVal) els.smicClickVolVal.textContent = v + '％';
+    if (els.setClickVol) els.setClickVol.value = v;
+    if (els.setClickVolVal) els.setClickVolVal.textContent = v + '％';
+    syncMicSaveStateUI();
+    return v;
+}
+function syncStrokeMicSensitivity(sens) {
+    const v = clampNum(sens, 0, 100, userMicSensitivityPercent());
+    mic.threshold = thresholdFromSensUI(v);
+    if (els.smicThreshold) els.smicThreshold.value = v;
+    if (els.smicThresholdVal) els.smicThresholdVal.textContent = v + '％';
+    if (els.setThreshold) els.setThreshold.value = v;
+    if (els.setThresholdVal) els.setThresholdVal.textContent = v + '％';
+    if (els.micThreshold) els.micThreshold.style.left = micThresholdMarkerPct() + '%';
+    if (els.testThreshold) els.testThreshold.style.left = micThresholdMarkerPct() + '%';
+    syncMicSaveStateUI();
+    return v;
+}
+function syncStrokeMicOffset(raw) {
+    const v = manualMicOffsetSet(raw);
+    if (els.smicOffset) els.smicOffset.value = v;
+    if (els.smicOffsetVal) els.smicOffsetVal.textContent = formatStrokeMicOffsetMs(v);
+    if (els.setOffset) els.setOffset.value = v;
+    if (els.setOffsetVal) els.setOffsetVal.textContent = formatStrokeMicOffsetMs(v);
+    if (!isHeadphoneInput() && !isAndroidIphoneStyleTrialFlow()) {
+        if (els.calCurrentOffset) els.calCurrentOffset.textContent = formatStrokeMicOffsetMs(v);
+    }
+    updateMicDiag();
+    syncMicSaveStateUI();
+    if (settingsView === 'manual') renderManualSummary();
+    drawMicPreview();
+    return v;
+}
+
 /* 現在の clickVolume / threshold / offset を手動マイク調整スライダーへ反映（手動設定側と同じ値）。 */
 function applyStrokeMicToolsUI() {
     if (els.smicClickVol) {
@@ -23517,7 +23564,7 @@ function applyStrokeMicToolsUI() {
         els.smicOffset.min = manualMicOffsetMin();
         els.smicOffset.max = manualMicOffsetMax();
         els.smicOffset.value = v;
-        if (els.smicOffsetVal) els.smicOffsetVal.textContent = (v > 0 ? '+' : '') + v + 'ms';
+        if (els.smicOffsetVal) els.smicOffsetVal.textContent = formatStrokeMicOffsetMs(v);
     }
 }
 
@@ -30619,47 +30666,58 @@ function bind() {
     if (els.strokeMicToggle) els.strokeMicToggle.addEventListener('click', toggleStrokeMicTools);
     // 手動マイク調整：クリック音（state.clickVolume を直接操作＝手動設定と同じ値・全ストロークモード共通）
     if (els.smicClickVol) els.smicClickVol.addEventListener('input', () => {
-        state.clickVolume = parseInt(els.smicClickVol.value, 10);
-        if (els.smicClickVolVal) els.smicClickVolVal.textContent = state.clickVolume + '％';
-        if (els.setClickVol) els.setClickVol.value = state.clickVolume;           // 手動設定スライダーも同期
-        if (els.setClickVolVal) els.setClickVolVal.textContent = state.clickVolume + '％';
-        syncMicSaveStateUI();                                                     // 手動調整で変えたら未保存→保存ボタンを強調（v0.9.152）
+        syncStrokeMicClickVolume(parseInt(els.smicClickVol.value, 10));
     });
     // 手動マイク調整：反応ライン（mic.threshold を直接操作＝手動設定と同じ値）
     if (els.smicThreshold) els.smicThreshold.addEventListener('input', () => {
-        const sens = parseInt(els.smicThreshold.value, 10);
-        mic.threshold = thresholdFromSensUI(sens);
-        if (els.smicThresholdVal) els.smicThresholdVal.textContent = sens + '％';
-        if (els.setThreshold) els.setThreshold.value = sens;                      // 手動設定スライダーも同期
-        if (els.setThresholdVal) els.setThresholdVal.textContent = sens + '％';
-        if (els.micThreshold) els.micThreshold.style.left = micThresholdMarkerPct() + '%';
-        if (els.testThreshold) els.testThreshold.style.left = micThresholdMarkerPct() + '%';
-        syncMicSaveStateUI();                                                     // 手動調整で変えたら未保存→保存ボタンを強調（v0.9.152）
+        syncStrokeMicSensitivity(parseInt(els.smicThreshold.value, 10));
     });
     // 手動マイク調整：音ズレ補正（manualMicOffset* を使い、端末/入力タイプごとの保存先は既存関数に任せる）
     if (els.smicOffset) els.smicOffset.addEventListener('input', () => {
-        const raw = parseInt(els.smicOffset.value, 10);
-        const v = manualMicOffsetSet(raw);
-        els.smicOffset.value = v;
-        if (els.smicOffsetVal) els.smicOffsetVal.textContent = (v > 0 ? '+' : '') + v + 'ms';
-        if (els.setOffset) els.setOffset.value = v;                               // 手動設定スライダーも同期
-        if (els.setOffsetVal) els.setOffsetVal.textContent = (v > 0 ? '+' : '') + v + 'ms';
-        if (!isHeadphoneInput() && !isAndroidIphoneStyleTrialFlow()) {
-            if (els.calCurrentOffset) els.calCurrentOffset.textContent = (v > 0 ? '+' : '') + v + 'ms';
-        }
-        updateMicDiag();
-        syncMicSaveStateUI();
-        if (settingsView === 'manual') renderManualSummary();
-        drawMicPreview();
+        syncStrokeMicOffset(parseInt(els.smicOffset.value, 10));
     });
     // 値が確定したら保存（再読込後も保持）
     if (els.smicClickVol) els.smicClickVol.addEventListener('change', saveSettings);
+    if (els.smicClickVolDec) els.smicClickVolDec.addEventListener('click', () => {
+        syncStrokeMicClickVolume(state.clickVolume - 5);
+        saveSettings();
+        applyStrokeMicToolsUI();
+    });
+    if (els.smicClickVolInc) els.smicClickVolInc.addEventListener('click', () => {
+        syncStrokeMicClickVolume(state.clickVolume + 5);
+        saveSettings();
+        applyStrokeMicToolsUI();
+    });
     if (els.smicThreshold) els.smicThreshold.addEventListener('change', () => {
         saveSettings();
         invalidatePracticeResult('設定を変更しました。もう一度最終確認テストで確認してください。');
     });
+    if (els.smicThresholdDec) els.smicThresholdDec.addEventListener('click', () => {
+        syncStrokeMicSensitivity(userMicSensitivityPercent() - 5);
+        saveSettings();
+        invalidatePracticeResult('設定を変更しました。もう一度最終確認テストで確認してください。');
+        applyStrokeMicToolsUI();
+    });
+    if (els.smicThresholdInc) els.smicThresholdInc.addEventListener('click', () => {
+        syncStrokeMicSensitivity(userMicSensitivityPercent() + 5);
+        saveSettings();
+        invalidatePracticeResult('設定を変更しました。もう一度最終確認テストで確認してください。');
+        applyStrokeMicToolsUI();
+    });
     if (els.smicOffset) els.smicOffset.addEventListener('change', () => {
-        manualMicOffsetSet(parseInt(els.smicOffset.value, 10));
+        syncStrokeMicOffset(parseInt(els.smicOffset.value, 10));
+        saveSettings();
+        invalidatePracticeResult('設定を変更しました。もう一度最終確認テストで確認してください。');
+        applyStrokeMicToolsUI();
+    });
+    if (els.smicOffsetDec) els.smicOffsetDec.addEventListener('click', () => {
+        syncStrokeMicOffset(clampNum(manualMicOffsetGet() - 5, manualMicOffsetMin(), manualMicOffsetMax(), manualMicOffsetGet()));
+        saveSettings();
+        invalidatePracticeResult('設定を変更しました。もう一度最終確認テストで確認してください。');
+        applyStrokeMicToolsUI();
+    });
+    if (els.smicOffsetInc) els.smicOffsetInc.addEventListener('click', () => {
+        syncStrokeMicOffset(clampNum(manualMicOffsetGet() + 5, manualMicOffsetMin(), manualMicOffsetMax(), manualMicOffsetGet()));
         saveSettings();
         invalidatePracticeResult('設定を変更しました。もう一度最終確認テストで確認してください。');
         applyStrokeMicToolsUI();

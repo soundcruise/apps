@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="../theme.css?v=0.12.48">
+    <link rel="stylesheet" href="../theme.css?v=0.12.82">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -473,20 +473,38 @@
             <div class="tap-tools hidden" id="stroke-mic-tools">
                 <button type="button" class="tap-tools-toggle" id="stroke-mic-toggle" aria-expanded="false">手動マイク調整 ▾</button>
                 <div class="tap-tools-panel hidden" id="stroke-mic-panel">
-                    <div class="tlt-row">
-                        <span class="tlt-label">クリック音</span>
-                        <input type="range" id="smic-clickvol" min="0" max="100" step="5" value="70" aria-label="クリック音量">
-                        <span class="tlt-val" id="smic-clickvol-val">70％</span>
-                    </div>
-                    <div class="tlt-row">
-                        <span class="tlt-label">マイク感度</span>
-                        <input type="range" id="smic-threshold" min="0" max="100" step="1" value="69" aria-label="マイク感度">
-                        <span class="tlt-val" id="smic-threshold-val">69％</span>
-                    </div>
-                    <div class="tlt-row">
-                        <span class="tlt-label">音ズレ補正</span>
+                    <div class="tlt-control">
+                        <div class="tlt-control-head">
+                            <span class="tlt-label">音ズレ補正</span>
+                            <span class="tlt-val" id="smic-offset-val">0ms</span>
+                        </div>
+                        <div class="tlt-nudge">
+                            <button type="button" class="tlt-nudge-btn" id="smic-offset-dec">判定を早める -5ms</button>
+                            <button type="button" class="tlt-nudge-btn" id="smic-offset-inc">+5ms 判定を遅らせる</button>
+                        </div>
                         <input type="range" id="smic-offset" min="-150" max="150" step="5" value="0" aria-label="音ズレ補正。マイナス側は判定を早め、プラス側は判定を遅らせます。LATEに寄るときは左へ、EARLYに寄るときは右へ少し動かします。">
-                        <span class="tlt-val" id="smic-offset-val">0ms</span>
+                    </div>
+                    <div class="tlt-control">
+                        <div class="tlt-control-head">
+                            <span class="tlt-label">マイク感度</span>
+                            <span class="tlt-val" id="smic-threshold-val">69％</span>
+                        </div>
+                        <div class="tlt-nudge">
+                            <button type="button" class="tlt-nudge-btn" id="smic-threshold-dec">感度を下げる -5%</button>
+                            <button type="button" class="tlt-nudge-btn" id="smic-threshold-inc">+5% 感度を上げる</button>
+                        </div>
+                        <input type="range" id="smic-threshold" min="0" max="100" step="1" value="69" aria-label="マイク感度">
+                    </div>
+                    <div class="tlt-control">
+                        <div class="tlt-control-head">
+                            <span class="tlt-label">クリック音</span>
+                            <span class="tlt-val" id="smic-clickvol-val">70％</span>
+                        </div>
+                        <div class="tlt-nudge">
+                            <button type="button" class="tlt-nudge-btn" id="smic-clickvol-dec">小さく -5%</button>
+                            <button type="button" class="tlt-nudge-btn" id="smic-clickvol-inc">+5% 大きく</button>
+                        </div>
+                        <input type="range" id="smic-clickvol" min="0" max="100" step="5" value="70" aria-label="クリック音量">
                     </div>
                     <button type="button" class="tap-tools-reset" id="smic-open-manual">詳しく調整する（手動設定）</button>
                     <!-- タップモードへの切替導線（v0.9.140） -->
@@ -1437,7 +1455,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.12.81"></script>
+    <script src="../script.js?v=0.12.82"></script>
 </body>
 
 </html>
