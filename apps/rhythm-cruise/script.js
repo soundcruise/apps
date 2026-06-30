@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.74';
+const RHYTHM_CRUISE_VERSION = '0.12.75';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -19467,6 +19467,87 @@ function updateFinalCheckClickDebug(now, peak, threshold) {
     }
 }
 
+function freshAndroidNormalMicInitialClickGate() {
+    const enabled = isAndroidNormalMicClickSafetyFlow();
+    return {
+        androidNormalMicFinalInitialClickGateEnabled: enabled,
+        androidNormalMicFinalInitialClickGateStatus: enabled ? 'waiting' : 'disabled',
+        androidNormalMicFinalInitialClickNearPeak: 0,
+        androidNormalMicFinalInitialClickDelayedPeak: 0,
+        androidNormalMicFinalInitialClickPeakUsed: 0,
+        androidNormalMicFinalInitialClickDetectLine: ptDetectionThreshold(),
+        androidNormalMicFinalInitialClickRatioToLine: null,
+        androidNormalMicFinalInitialClickPass: null,
+        androidNormalMicFinalInitialClickAction: enabled ? 'continue-if-safe' : 'none',
+        androidNormalMicFinalInitialClickReason: enabled ? 'initial-click-only-count-in' : 'not-android-normal-mic',
+        androidNormalMicFinalInitialClickSuggestedAction: null,
+    };
+}
+
+function updateAndroidNormalMicInitialClickGate(now, peak) {
+    const gate = pt.initialClickGate;
+    if (!gate || !gate.androidNormalMicFinalInitialClickGateEnabled || gate.evaluated) return;
+    if (gate.startedAtPerf != null && now < gate.startedAtPerf) return;
+    if (gate.endsAtPerf != null && now > gate.endsAtPerf) return;
+    const latest = ptLatestClickPerf(now);
+    if (latest <= -99999) return;
+    const sinceClick = now - latest;
+    const nearTo = Math.max(120, mic.clickGuardMs || 0);
+    if (sinceClick >= 0 && sinceClick <= nearTo && peak > gate.androidNormalMicFinalInitialClickNearPeak) {
+        gate.androidNormalMicFinalInitialClickNearPeak = peak;
+    }
+    const delayed = (pt.clickDebug && pt.clickDebug.delayedClickGuardMs) || 0;
+    if (delayed > 0 && Math.abs(sinceClick - delayed) <= 120 && peak > gate.androidNormalMicFinalInitialClickDelayedPeak) {
+        gate.androidNormalMicFinalInitialClickDelayedPeak = peak;
+    }
+}
+
+function finalizeAndroidNormalMicInitialClickGate(action) {
+    const gate = pt.initialClickGate;
+    if (!gate || !gate.androidNormalMicFinalInitialClickGateEnabled || gate.evaluated) return null;
+    const line = ptDetectionThreshold();
+    const peakUsed = Math.max(
+        Number(gate.androidNormalMicFinalInitialClickNearPeak) || 0,
+        Number(gate.androidNormalMicFinalInitialClickDelayedPeak) || 0,
+    );
+    const ratio = line > 0 ? peakUsed / line : null;
+    const pass = ratio == null || ratio <= 0.9;
+    gate.evaluated = true;
+    gate.androidNormalMicFinalInitialClickDetectLine = line;
+    gate.androidNormalMicFinalInitialClickPeakUsed = peakUsed;
+    gate.androidNormalMicFinalInitialClickRatioToLine = ratio;
+    gate.androidNormalMicFinalInitialClickPass = pass;
+    gate.androidNormalMicFinalInitialClickGateStatus = pass ? 'passed' : 'failed';
+    gate.androidNormalMicFinalInitialClickAction = pass ? 'continue-to-stroke' : (action || 'stop-before-stroke');
+    gate.androidNormalMicFinalInitialClickReason = pass
+        ? 'click-leak-under-90pct-detect-line'
+        : 'click-leak-over-90pct-detect-line';
+    gate.androidNormalMicFinalInitialClickSuggestedAction = pass
+        ? null
+        : 'device-volume-down-and-retry-mic-reaction-test';
+    return gate;
+}
+
+function androidNormalMicInitialClickGateSnapshot() {
+    const gate = pt.initialClickGate;
+    if (!gate) return null;
+    const out = {};
+    [
+        'androidNormalMicFinalInitialClickGateEnabled',
+        'androidNormalMicFinalInitialClickGateStatus',
+        'androidNormalMicFinalInitialClickNearPeak',
+        'androidNormalMicFinalInitialClickDelayedPeak',
+        'androidNormalMicFinalInitialClickPeakUsed',
+        'androidNormalMicFinalInitialClickDetectLine',
+        'androidNormalMicFinalInitialClickRatioToLine',
+        'androidNormalMicFinalInitialClickPass',
+        'androidNormalMicFinalInitialClickAction',
+        'androidNormalMicFinalInitialClickReason',
+        'androidNormalMicFinalInitialClickSuggestedAction',
+    ].forEach((key) => { out[key] = gate[key]; });
+    return out;
+}
+
 function buildFinalCheckAndroidNormalClickSafetyDebug(clickDebug) {
     if (!clickDebug || !isAndroidNormalMicClickSafetyFlow()) return null;
     const nearPeak = Number(clickDebug.maxNearClickPeak) || 0;
@@ -19501,6 +19582,7 @@ function buildFinalCheckAndroidNormalClickSafetyDebug(clickDebug) {
     } else if (lowClickVolumePrecisionRisk && crossesRecommended) {
         deviceVolumeDownReason = 'low-app-click-volume-still-crosses-line';
     }
+    const initialClickGate = androidNormalMicInitialClickGateSnapshot();
     return {
         enabled: true,
         selectedTestPlatform,
@@ -19521,6 +19603,8 @@ function buildFinalCheckAndroidNormalClickSafetyDebug(clickDebug) {
         deviceVolumeDownReason,
         safeClickVolumeRaw: safeVolRaw,
         recommendedFinalCheckClickVolume,
+        androidNormalMicFinalInitialClickGate: initialClickGate,
+        ...(initialClickGate || {}),
         androidNormalMicClickLimiterEnabled: clickDebug.androidNormalMicClickLimiterEnabled,
         androidNormalMicClickLimiterMode: clickDebug.androidNormalMicClickLimiterMode,
         androidNormalMicClickPeakGainBefore: clickDebug.androidNormalMicClickPeakGainBefore,
@@ -20091,6 +20175,7 @@ function resetPracticeView() {
     pt.valley = 1;
     pt.debug = null;
     pt.clickDebug = null;
+    pt.initialClickGate = null;
     pt.displayScaleSnapshot = null;
     pt.displayThresholdSnapshot = null;
     pt.displayScaleSource = null;
@@ -20154,6 +20239,7 @@ async function startPracticeTest() {
     pt.valley = 1; // コードストローク用の谷をリセット
     pt.debug = freshPtDebug();
     pt.clickDebug = freshFinalCheckClickDebug(state.clickVolume, state.clickVolume);
+    pt.initialClickGate = freshAndroidNormalMicInitialClickGate();
     // 立ち上がり検出の基準を毎回そろえる（前回テストの prevPeak 残りで1回目だけ挙動が変わるのを防ぐ・v0.9.68）
     mic.prevPeak = 0;
     mic.env = 0;
@@ -20183,7 +20269,9 @@ async function startPracticeTest() {
     const playStartSec = startSec + PT_COUNTIN * beatSec;
     for (let j = 0; j < PT_PLAY_BEATS; j++) ptScheduleClick(playStartSec + j * beatSec, j % 4 === 0);
 
-    setPtStatus('カウントイン…');
+    setPtStatus(isAndroidNormalMicClickSafetyFlow()
+        ? 'まずクリック音だけで反応しないか確認しています。ストロークせず、そのまま待ってください。'
+        : 'カウントイン…');
     for (let j = 0; j < PT_PLAY_BEATS; j++) {
         ptTimer(() => setPtStatus('ストローク中　' + (j + 1) + ' / ' + PT_PLAY_BEATS), pt.playT0Ms + j * PT_BEAT_MS);
     }
@@ -20191,6 +20279,14 @@ async function startPracticeTest() {
     const capWin = ptCaptureWin();
     const capStartMs = pt.playT0Ms - capWin;
     const capEndMs = pt.playT0Ms + (PT_PLAY_BEATS - 1) * PT_BEAT_MS + capWin;
+    if (pt.initialClickGate && pt.initialClickGate.androidNormalMicFinalInitialClickGateEnabled) {
+        pt.initialClickGate.startedAtPerf = pt.flowStartPerf + PT_LEAD_MS;
+        pt.initialClickGate.endsAtPerf = pt.flowStartPerf + pt.playT0Ms - 45;
+        ptTimer(() => {
+            const gate = finalizeAndroidNormalMicInitialClickGate('stop-before-stroke');
+            if (gate && !gate.androidNormalMicFinalInitialClickPass) finishPracticeTestInitialClickGateNg();
+        }, Math.max(0, pt.playT0Ms - 45));
+    }
     ptTimer(() => { pt.capturing = true; }, capStartMs);
     ptTimer(() => { pt.capturing = false; finishPracticeTest(); }, capEndMs + 250);
 
@@ -21018,6 +21114,60 @@ function buildFinalCheckDisplayCorrectionDebug() {
     };
 }
 
+function finishPracticeTestInitialClickGateNg() {
+    if (!pt.active) return;
+    const gate = finalizeAndroidNormalMicInitialClickGate('stop-before-stroke') || pt.initialClickGate;
+    const clickDebug = pt.clickDebug ? Object.assign({}, pt.clickDebug, {
+        maxNearClickPeak: +pt.clickDebug.maxNearClickPeak.toFixed(4),
+        maxDelayedClickPeak: +pt.clickDebug.maxDelayedClickPeak.toFixed(4),
+        maxPeakOverThresholdNearClick: +pt.clickDebug.maxPeakOverThresholdNearClick.toFixed(4),
+    }) : null;
+    if (clickDebug) clickDebug.androidNormalMicFinalClickSafety = buildFinalCheckAndroidNormalClickSafetyDebug(clickDebug);
+    const r = {
+        good: 0, early: 0, late: 0, miss: PT_PLAY_BEATS, valid: 0, avg: 0,
+        maxPeak: gate ? gate.androidNormalMicFinalInitialClickPeakUsed : 0,
+        doubleCount: 0,
+        threshold: mic.threshold,
+        detectThreshold: ptDetectionThreshold(),
+        cooldownMs: mic.cooldownMs,
+        finalCheckOffsetDebug: androidJudgeOffsetDebug(),
+        finalCheckClickDebug: clickDebug,
+        androidNormalMicInitialClickGateFailed: true,
+    };
+    const offDbg = r.finalCheckOffsetDebug;
+    r.finalCheckStats = {
+        count: 0, good: 0, early: 0, late: 0, miss: PT_PLAY_BEATS,
+        avgDiffMs: 0, medianDiffMs: null, minDiffMs: null, maxDiffMs: null,
+        diffMsList: [],
+        usedJudgeOffsetMs: finalCheckJudgeOffsetMs(),
+        usedOffsetSource: offDbg ? offDbg.usedOffsetSource : null,
+        finalCheckClickDebug: clickDebug,
+        androidNormalMicFinalInitialClickGate: androidNormalMicInitialClickGateSnapshot(),
+    };
+    finalCheckFlowDebug.lastFinalCheckStats = r.finalCheckStats;
+    finalCheckFlowDebug.lastFinalCheckOffsetComparison = null;
+    finalCheckFlowDebug.lastFinalCheckVisualOffsetDebug = buildFinalCheckVisualOffsetDebug();
+    finalCheckFlowDebug.lastIphoneTrialOffsetComparison = null;
+    finalCheckFlowDebug.lastBluetoothOffsetHypothesisComparison = null;
+    finalCheckFlowDebug.lastLegacyVsAndroidBtCalibrationComparison = null;
+    finalCheckFlowDebug.lastIosNewFinalCheckOffsetMismatchDebug = null;
+    finalCheckFlowDebug.lastIosNewFinalCheckCorrectionSuggestionDebug = null;
+    finalCheckFlowDebug.lastIosNewFinalCheckMicReactionStaleDebug = null;
+    finalCheckFlowDebug.lastIphoneTrialBluetoothSafetyDebug = null;
+    finalCheckFlowDebug.lastBluetoothDeviceCalibrationDebug = null;
+    finalCheckFlowDebug.lastIphoneBtLatencyCandidateAudit = null;
+    finalCheckFlowDebug.lastFinalCheckDisplayCorrectionDebug = buildFinalCheckDisplayCorrectionDebug();
+    finalCheckFlowDebug.lastBluetoothCandidateComparison = null;
+    finalCheckFlowDebug.lastBluetoothFinalCheckPrediction = null;
+    const nowIso = new Date().toISOString();
+    finalCheckFlowDebug.ptResultUpdatedAt = nowIso;
+    finalCheckFlowDebug.finalCheckStatsUpdatedAt = nowIso;
+    if (r.finalCheckClickDebug) console.info('[final-check] click', r.finalCheckClickDebug);
+    renderPracticeResult(r);
+    setPtStatus('クリック音が反応ラインを超えました。');
+    endPracticeTest(true);
+}
+
 function finishPracticeTest() {
     let good = 0, early = 0, late = 0, miss = 0, sum = 0, validN = 0;
     const diffMsList = []; // v0.11.95：有効入力ごとのズレ（表示・ログ専用）。
@@ -21118,6 +21268,14 @@ function practiceComment(r) {
     const volRatio = r.maxPeak / line;
     const lowVol = volRatio < 0.9;        // 波形はあっても判定ラインに届いていない＝コードストロークが小さい/感度が低すぎる
     const finalClickSafety = r.finalCheckClickDebug && r.finalCheckClickDebug.androidNormalMicFinalClickSafety;
+    const initialGate = finalClickSafety && finalClickSafety.androidNormalMicFinalInitialClickGate;
+    if (r.androidNormalMicInitialClickGateFailed || (initialGate && initialGate.androidNormalMicFinalInitialClickPass === false)) {
+        return {
+            kind: 'warn',
+            issue: 'devicevolume',
+            text: 'クリック音がマイクに大きく回り込んでいます。スマホ本体の音量を少し下げてから、マイク反応テストをやり直してください。',
+        };
+    }
     if (finalClickSafety && finalClickSafety.clickToRecommendedThresholdRatio >= 1) {
         if (finalClickSafety.needsDeviceVolumeDown) {
             return {
@@ -28709,6 +28867,7 @@ function micLoop() {
             const fw = pt.fullWave;
             if (!fw.length || waveT - fw[fw.length - 1].t >= 12) fw.push({ t: waveT, level: mic.env });
         }
+        updateAndroidNormalMicInitialClickGate(now, peak);
         if (pt.capturing) {
             // STAGEと同じ「オーディオ時計＋判定オフセット」で時刻化（補正値は読むだけ・変更しない）
             const tMs = (state.audioCtx.currentTime - pt.audioStart) * 1000 + finalCheckJudgeOffsetMs();
