@@ -469,9 +469,9 @@
                 </div>
             </div>
 
-            <!-- 簡易マイク設定（v0.9.140）：ストロークモード時のみ表示。クリック音と反応ラインだけを軽く調整できる折りたたみ。 -->
+            <!-- 手動マイク調整（v0.9.140）：ストロークモード時のみ表示。クリック音・反応ライン・音ズレ補正を軽く調整できる折りたたみ。 -->
             <div class="tap-tools hidden" id="stroke-mic-tools">
-                <button type="button" class="tap-tools-toggle" id="stroke-mic-toggle" aria-expanded="false">簡易マイク設定 ▾</button>
+                <button type="button" class="tap-tools-toggle" id="stroke-mic-toggle" aria-expanded="false">手動マイク調整 ▾</button>
                 <div class="tap-tools-panel hidden" id="stroke-mic-panel">
                     <div class="tlt-row">
                         <span class="tlt-label">クリック音</span>
@@ -482,6 +482,11 @@
                         <span class="tlt-label">マイク感度</span>
                         <input type="range" id="smic-threshold" min="0" max="100" step="1" value="69" aria-label="マイク感度">
                         <span class="tlt-val" id="smic-threshold-val">69％</span>
+                    </div>
+                    <div class="tlt-row">
+                        <span class="tlt-label">音ズレ補正</span>
+                        <input type="range" id="smic-offset" min="-150" max="150" step="5" value="0" aria-label="音ズレ補正。マイナス側は判定を早め、プラス側は判定を遅らせます。LATEに寄るときは左へ、EARLYに寄るときは右へ少し動かします。">
+                        <span class="tlt-val" id="smic-offset-val">0ms</span>
                     </div>
                     <button type="button" class="tap-tools-reset" id="smic-open-manual">詳しく調整する（手動設定）</button>
                     <!-- タップモードへの切替導線（v0.9.140） -->
@@ -1432,7 +1437,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.12.80"></script>
+    <script src="../script.js?v=0.12.81"></script>
 </body>
 
 </html>

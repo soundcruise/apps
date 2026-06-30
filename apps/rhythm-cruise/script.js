@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.80';
+const RHYTHM_CRUISE_VERSION = '0.12.81';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -1560,15 +1560,17 @@ const els = {
     tapUnifyBtn: $('tap-unify-btn'),          // 統合タップボタンの切替（v0.9.140）
     tapHeightSlider: $('tap-height'),
     tapToStrokeBtn: $('tap-to-stroke'),       // タップ設定内：ストロークモードへ切替（v0.9.140）
-    strokeMicTools: $('stroke-mic-tools'),    // 簡易マイク設定（ストロークモード時のみ表示・v0.9.140）
-    strokeMicToggle: $('stroke-mic-toggle'),  // 簡易マイク設定の開閉ボタン
-    strokeMicPanel: $('stroke-mic-panel'),    // 簡易マイク設定の中身
-    smicClickVol: $('smic-clickvol'),         // 簡易：クリック音量（state.clickVolume と連動）
+    strokeMicTools: $('stroke-mic-tools'),    // 手動マイク調整（ストロークモード時のみ表示・v0.9.140）
+    strokeMicToggle: $('stroke-mic-toggle'),  // 手動マイク調整の開閉ボタン
+    strokeMicPanel: $('stroke-mic-panel'),    // 手動マイク調整の中身
+    smicClickVol: $('smic-clickvol'),         // 手動調整：クリック音量（state.clickVolume と連動）
     smicClickVolVal: $('smic-clickvol-val'),
-    smicThreshold: $('smic-threshold'),       // 簡易：反応ライン（mic.threshold と連動）
+    smicThreshold: $('smic-threshold'),       // 手動調整：反応ライン（mic.threshold と連動）
     smicThresholdVal: $('smic-threshold-val'),
+    smicOffset: $('smic-offset'),             // 手動調整：音ズレ補正（manualMicOffset* と連動）
+    smicOffsetVal: $('smic-offset-val'),
     smicOpenManual: $('smic-open-manual'),    // 手動設定へのリンク
-    smicToTapBtn: $('smic-to-tap'),           // 簡易マイク設定内：タップモードへ切替
+    smicToTapBtn: $('smic-to-tap'),           // 手動マイク調整内：タップモードへ切替
     micSetupPrompt: $('mic-setup-prompt'),
     micSetupPromptText: $('mic-setup-text'),
     micSetupYesBtn: $('mic-setup-yes'),
@@ -23483,15 +23485,15 @@ function resetTapButtons() {
     saveSettings();
 }
 
-/* ── 簡易マイク設定（ストロークモード時のみ・v0.9.140）──────────
-   既存のクリック音量(state.clickVolume)・反応ライン(mic.threshold)だけを軽く操作できる折りたたみ。
+/* ── 手動マイク調整（ストロークモード時のみ・v0.9.140）──────────
+   既存のクリック音量(state.clickVolume)・反応ライン(mic.threshold)・音ズレ補正(manualMicOffset*)を軽く操作できる折りたたみ。
    新しい設定値は作らず、手動設定と同じ state/mic を直接操作するので、全ストロークモードに自動で追従し、
    saveSettings() で再読込後も保存される。判定・音声再生ロジックには手を入れない（値の共有だけ）。 */
 function setStrokeMicToolsOpen(open) {
     if (els.strokeMicPanel) els.strokeMicPanel.classList.toggle('hidden', !open);
     if (els.strokeMicToggle) {
         els.strokeMicToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-        els.strokeMicToggle.textContent = open ? '簡易マイク設定 ▴' : '簡易マイク設定 ▾';
+        els.strokeMicToggle.textContent = open ? '手動マイク調整 ▴' : '手動マイク調整 ▾';
     }
 }
 function toggleStrokeMicTools() {
@@ -23499,7 +23501,7 @@ function toggleStrokeMicTools() {
     setStrokeMicToolsOpen(closed);
 }
 
-/* 現在の clickVolume / threshold を簡易マイク設定スライダーへ反映（手動設定側と同じ値）。 */
+/* 現在の clickVolume / threshold / offset を手動マイク調整スライダーへ反映（手動設定側と同じ値）。 */
 function applyStrokeMicToolsUI() {
     if (els.smicClickVol) {
         els.smicClickVol.value = state.clickVolume;
@@ -23509,6 +23511,13 @@ function applyStrokeMicToolsUI() {
         const sens = userMicSensitivityPercent(); // 表示はユーザー本来の感度%（補正テスト中でも0%に化けない・v0.9.140）
         els.smicThreshold.value = sens;
         if (els.smicThresholdVal) els.smicThresholdVal.textContent = sens + '％';
+    }
+    if (els.smicOffset) {
+        const v = manualMicOffsetGet();
+        els.smicOffset.min = manualMicOffsetMin();
+        els.smicOffset.max = manualMicOffsetMax();
+        els.smicOffset.value = v;
+        if (els.smicOffsetVal) els.smicOffsetVal.textContent = (v > 0 ? '+' : '') + v + 'ms';
     }
 }
 
@@ -30606,17 +30615,17 @@ function bind() {
     // モード切替導線（v0.9.140）：タップ⇔ストローク。既存の setInputMode を使う（マイク起動/UI同期/保存はそのまま）。
     if (els.tapToStrokeBtn) els.tapToStrokeBtn.addEventListener('click', () => setInputMode('stroke'));
     if (els.smicToTapBtn) els.smicToTapBtn.addEventListener('click', () => setInputMode('tap'));
-    // 簡易マイク設定（v0.9.140）：開閉
+    // 手動マイク調整（v0.9.140）：開閉
     if (els.strokeMicToggle) els.strokeMicToggle.addEventListener('click', toggleStrokeMicTools);
-    // 簡易マイク設定：クリック音（state.clickVolume を直接操作＝手動設定と同じ値・全ストロークモード共通）
+    // 手動マイク調整：クリック音（state.clickVolume を直接操作＝手動設定と同じ値・全ストロークモード共通）
     if (els.smicClickVol) els.smicClickVol.addEventListener('input', () => {
         state.clickVolume = parseInt(els.smicClickVol.value, 10);
         if (els.smicClickVolVal) els.smicClickVolVal.textContent = state.clickVolume + '％';
         if (els.setClickVol) els.setClickVol.value = state.clickVolume;           // 手動設定スライダーも同期
         if (els.setClickVolVal) els.setClickVolVal.textContent = state.clickVolume + '％';
-        syncMicSaveStateUI();                                                     // 簡易で変えたら未保存→保存ボタンを強調（v0.9.152）
+        syncMicSaveStateUI();                                                     // 手動調整で変えたら未保存→保存ボタンを強調（v0.9.152）
     });
-    // 簡易マイク設定：反応ライン（mic.threshold を直接操作＝手動設定と同じ値）
+    // 手動マイク調整：反応ライン（mic.threshold を直接操作＝手動設定と同じ値）
     if (els.smicThreshold) els.smicThreshold.addEventListener('input', () => {
         const sens = parseInt(els.smicThreshold.value, 10);
         mic.threshold = thresholdFromSensUI(sens);
@@ -30625,13 +30634,35 @@ function bind() {
         if (els.setThresholdVal) els.setThresholdVal.textContent = sens + '％';
         if (els.micThreshold) els.micThreshold.style.left = micThresholdMarkerPct() + '%';
         if (els.testThreshold) els.testThreshold.style.left = micThresholdMarkerPct() + '%';
-        syncMicSaveStateUI();                                                     // 簡易で変えたら未保存→保存ボタンを強調（v0.9.152）
+        syncMicSaveStateUI();                                                     // 手動調整で変えたら未保存→保存ボタンを強調（v0.9.152）
+    });
+    // 手動マイク調整：音ズレ補正（manualMicOffset* を使い、端末/入力タイプごとの保存先は既存関数に任せる）
+    if (els.smicOffset) els.smicOffset.addEventListener('input', () => {
+        const raw = parseInt(els.smicOffset.value, 10);
+        const v = manualMicOffsetSet(raw);
+        els.smicOffset.value = v;
+        if (els.smicOffsetVal) els.smicOffsetVal.textContent = (v > 0 ? '+' : '') + v + 'ms';
+        if (els.setOffset) els.setOffset.value = v;                               // 手動設定スライダーも同期
+        if (els.setOffsetVal) els.setOffsetVal.textContent = (v > 0 ? '+' : '') + v + 'ms';
+        if (!isHeadphoneInput() && !isAndroidIphoneStyleTrialFlow()) {
+            if (els.calCurrentOffset) els.calCurrentOffset.textContent = (v > 0 ? '+' : '') + v + 'ms';
+        }
+        updateMicDiag();
+        syncMicSaveStateUI();
+        if (settingsView === 'manual') renderManualSummary();
+        drawMicPreview();
     });
     // 値が確定したら保存（再読込後も保持）
     if (els.smicClickVol) els.smicClickVol.addEventListener('change', saveSettings);
     if (els.smicThreshold) els.smicThreshold.addEventListener('change', () => {
         saveSettings();
         invalidatePracticeResult('設定を変更しました。もう一度最終確認テストで確認してください。');
+    });
+    if (els.smicOffset) els.smicOffset.addEventListener('change', () => {
+        manualMicOffsetSet(parseInt(els.smicOffset.value, 10));
+        saveSettings();
+        invalidatePracticeResult('設定を変更しました。もう一度最終確認テストで確認してください。');
+        applyStrokeMicToolsUI();
     });
     // 手動設定へのリンク（既存導線を使う：今いる画面へ戻る openSettingsFromCurrent）
     if (els.smicOpenManual) els.smicOpenManual.addEventListener('click', openSettingsFromCurrent);
