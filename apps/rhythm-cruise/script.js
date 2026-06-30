@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.71';
+const RHYTHM_CRUISE_VERSION = '0.12.72';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14262,9 +14262,14 @@ function refreshWizardAndroidProceedButtons() {
         ? '測定できたら、このページ内だけの仮設定として使えます。'
         : '測定できたら、マイク反応テストへ進めます。';
     if (els.wizardAndroidProceedHintBuiltin) {
-        els.wizardAndroidProceedHintBuiltin.classList.toggle('hidden', !(isNormalMicInput() || (run && run.selectedInputType === 'normal')));
-        els.wizardAndroidProceedHintBuiltin.textContent = ready ? readyText : waitText;
-        els.wizardAndroidProceedHintBuiltin.style.color = (ready && !isIphoneTrial) ? '#6ed28c' : '';
+        const isAndroidNormalReady = ready
+            && run
+            && run.selectedInputType === 'normal'
+            && (run.selectedTestPlatform === 'android' || run.selectedTestPlatform === 'android_ios_style_trial')
+            && !isIphoneTrial;
+        els.wizardAndroidProceedHintBuiltin.classList.toggle('hidden', isAndroidNormalReady || !(isNormalMicInput() || (run && run.selectedInputType === 'normal')));
+        els.wizardAndroidProceedHintBuiltin.textContent = isAndroidNormalReady ? '' : (ready ? readyText : waitText);
+        els.wizardAndroidProceedHintBuiltin.style.color = (ready && !isIphoneTrial && !isAndroidNormalReady) ? '#6ed28c' : '';
     }
     if (els.wizardAndroidProceedHintHp) {
         els.wizardAndroidProceedHintHp.classList.add('hidden');
@@ -27608,14 +27613,20 @@ function updateReco() {
     if (safeClickVol88 != null) {
         recoVol = Math.max(androidAudioProbeDeviceInfo().isAndroid && isNormalMicInput() ? 1 : 10, Math.min(100, Math.min(recoVolBeforeSafetyCap, safeClickVol88)));
     }
-    // v0.12.71：クリック音を反応ライン未満へ抑える通常マイク用リミッターを、Android本番に加え Android仮通常マイクにも適用する。
-    //   従来は isAndroidNormalMicFlow()（selectedTestPlatform==='android'）だけで、Android仮（android_ios_style_trial）通常マイクが
-    //   除外され、クリック目安が反応ラインを超える設定になっていた。recoVol側だけを安全に下げる（recommendedThreshold/感度・ストローク検出は不変）。
+    // v0.12.72：Android本番/Android仮の通常マイクは、画面に表示・保存されるおすすめラインをクリック安全基準にする。
+    //   effectiveRecommendedThreshold は診断用の実効ラインだが、ユーザーが確認する「おすすめマイク感度」とズレるため、
+    //   recoVol側だけを表示ライン未満へ下げる（recommendedThreshold/感度・ストローク検出は不変）。
     const androidNormalMicLimiterActive = isAndroidNormalMicFlow() || isAndroidTrialNormalMicOnDevice();
     const androidNormalMicLimiterMode = androidNormalMicLimiterActive ? 'balanced' : 'not-android-normal';
     const androidNormalMicSafeRate = androidNormalMicLimiterActive ? 0.65 : null;
     const androidNormalMicLineRatio = androidNormalMicLimiterActive ? 0.75 : null;
     const androidNormalMicHardMax = androidNormalMicLimiterActive ? 25 : null;
+    const actualReactionLineForClickSafety = androidNormalMicLimiterActive
+        ? test.recommended
+        : effectiveRecommendedThreshold;
+    const actualReactionLineSource = androidNormalMicLimiterActive
+        ? 'recommendedThreshold'
+        : 'effectiveRecommendedThreshold';
     let androidNormalMicExtraLimiterApplied = false;
     let androidNormalMicLimiterApplied = false;
     let androidNormalMicMaxBySafeVol = null;
@@ -27627,8 +27638,8 @@ function updateReco() {
         androidNormalMicMaxBySafeVol = safeClickVol88 != null
             ? Math.max(1, Math.floor(safeClickVol88 * androidNormalMicSafeRate))
             : null;
-        androidNormalMicMaxByLine = effectiveRecommendedThreshold != null && peakPerPct > 0
-            ? Math.max(1, Math.floor((effectiveRecommendedThreshold * androidNormalMicLineRatio) / peakPerPct))
+        androidNormalMicMaxByLine = actualReactionLineForClickSafety != null && peakPerPct > 0
+            ? Math.max(1, Math.floor((actualReactionLineForClickSafety * androidNormalMicLineRatio) / peakPerPct))
             : null;
         const androidLimits = [recoVol, androidNormalMicHardMax, androidNormalMicMaxBySafeVol, androidNormalMicMaxByLine]
             .filter((v) => typeof v === 'number' && isFinite(v) && v > 0);
@@ -27652,14 +27663,17 @@ function updateReco() {
     const beforeSafetyCapToEffectiveLineRatio = ratioTo(projectedClickBeforeSafetyCap, effectiveRecommendedThreshold);
     const afterSafetyCapToEffectiveLineRatio = ratioTo(projectedClickAfterSafetyCap, effectiveRecommendedThreshold);
     const projectedClickToEffectiveLineRatio = ratioTo(test.projClickMax, effectiveRecommendedThreshold);
-    const androidNormalMicProjectedClickToThresholdRatio = projectedClickToEffectiveLineRatio;
+    const projectedClickToActualReactionLineRatio = ratioTo(test.projClickMax, actualReactionLineForClickSafety);
+    const androidNormalMicProjectedClickToThresholdRatio = ratioTo(test.projClickMax, test.recommended);
     const noiseMaxToEffectiveLineRatio = ratioTo(test.noiseMax, effectiveRecommendedThreshold);
     const noiseP95ToEffectiveLineRatio = ratioTo(test.noiseP95, effectiveRecommendedThreshold);
     const strokeP25ToEffectiveLineRatio = ratioTo(test.strokeP25, effectiveRecommendedThreshold);
     const minStrokeToEffectiveLineRatio = ratioTo(minStroke, effectiveRecommendedThreshold);
     const androidNormalMicSelfLeak = androidAudioProbeDeviceInfo().isAndroid && isNormalMicInput() && clickReacted > 0;
     const clickVsStrokeRatio = ratioTo(test.projClickMax, minStroke);
-    const clickStillCrossesRecommendedLine = projectedClickToEffectiveLineRatio != null && projectedClickToEffectiveLineRatio >= 0.85;
+    const clickStillCrossesRecommendedLine = androidNormalMicLimiterActive
+        ? (projectedClickToActualReactionLineRatio != null && projectedClickToActualReactionLineRatio >= 0.85)
+        : (projectedClickToEffectiveLineRatio != null && projectedClickToEffectiveLineRatio >= 0.85);
     const clickTooCloseToStroke = clickVsStrokeRatio != null && clickVsStrokeRatio >= 0.5;
     test.recoBlockedByClickLeak = !!(androidNormalMicSelfLeak && (clickStillCrossesRecommendedLine || clickTooCloseToStroke || cannotSeparate));
 
@@ -28080,6 +28094,8 @@ function updateReco() {
         androidNormalMicProjectedClickAtReco: androidNormalMicLimiterActive ? test.projClickMax : null,
         androidNormalMicProjectedClickToThresholdRatio,
         androidNormalMicProjectedClickToEffectiveLineRatio: androidNormalMicLimiterActive ? projectedClickToEffectiveLineRatio : null,
+        actualReactionLineForClickSafety,
+        actualReactionLineSource,
         clickSupplyRatioToSafePeak,
         projectedClickBeforeSafetyCap,
         projectedClickAfterSafetyCap,
@@ -28091,6 +28107,7 @@ function updateReco() {
         effectiveRecommendedThreshold,
         clickEnoughRatioAtReco,
         projectedClickToEffectiveLineRatio,
+        projectedClickToActualReactionLineRatio,
         noiseMaxToEffectiveLineRatio,
         noiseP95ToEffectiveLineRatio,
         strokeP25ToEffectiveLineRatio,
