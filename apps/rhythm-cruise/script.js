@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.87';
+const RHYTHM_CRUISE_VERSION = '0.12.88';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -13918,7 +13918,7 @@ function androidLatencyHeadphoneFailureDetailsHtml(run, candidate) {
 }
 function androidLatencyHeadphoneFailureHtml(run, candidate) {
     return '<p class="android-latency-result-main">測定候補を算出できませんでした。</p>'
-        + '<p class="android-latency-result-help">イヤホンの音量を最大にして、音が出る部分をスマホのマイクに軽く押し当て、動かさずにもう一度テストしてください。</p>'
+        + '<p class="android-latency-result-help">イヤホンの音量を十分に上げて、音が出る部分をスマホのマイクに軽く押し当て、動かさずにもう一度テストしてください。</p>'
         + androidLatencyHeadphoneFailureDetailsHtml(run, candidate);
 }
 function androidLatencyCandidateForLog(run) {
@@ -14338,7 +14338,7 @@ function scrollToAndroidLatencyNextButtonAfterSuccess(run) {
 }
 function updateWizardAndroidBtBlockCopy() {
     if (els.wizardAndroidBtDesc) {
-        els.wizardAndroidBtDesc.textContent = 'イヤホンの音量を最大にして、音が出る部分をスマホのマイクに軽く押し当ててください。';
+        els.wizardAndroidBtDesc.textContent = 'イヤホンの音量を十分に上げて、音が出る部分をスマホのマイクに軽く押し当ててください。';
     }
     if (els.wizardAndroidRunHp) {
         if (isIphoneBtUnifiedTestRunning()) {
@@ -14421,11 +14421,11 @@ function androidLatencyFailureKind(run, candidate) {
 }
 function androidLatencyFailureText(kind, run, candidate) {
     if (run && run.abortedEarlyReason) return run.abortedEarlyReason + '\n' + ((isHeadphoneInput() || run.selectedInputType === 'headphone')
-        ? 'イヤホンの音量を最大にして、音が出る部分をスマホのマイクに軽く押し当て、動かさずにもう一度測定してください。'
+        ? 'イヤホンの音量を十分に上げて、音が出る部分をスマホのマイクに軽く押し当て、動かさずにもう一度測定してください。'
         : 'スマホ本体の音量を上げ、静かな場所でスマホの位置を動かさずにもう一度測定してください。');
     const hp = isHeadphoneInput() || (run && run.selectedInputType === 'headphone');
     const suffix = hp
-        ? 'イヤホンの音量を最大にして、音が出る部分をスマホのマイクに軽く押し当て、動かさずにもう一度測定してください。波形が大きく出る位置を先に探すと安定しやすくなります。'
+        ? 'イヤホンの音量を十分に上げて、音が出る部分をスマホのマイクに軽く押し当て、動かさずにもう一度測定してください。波形が大きく出る位置を先に探すと安定しやすくなります。'
         : 'スマホ本体の音量を上げ、静かな場所でスマホの位置を動かさずにもう一度測定してください。';
     const detail = candidate && candidate.reason ? '\n理由: ' + candidate.reason : '';
     if (kind === 'low-volume') return '音量が小さすぎて測定できませんでした。\n' + suffix + detail;
@@ -15155,10 +15155,9 @@ function iosNewBtRetestUserLabel() {
     return '音ズレテストをやり直す';
 }
 function isIosNewManualCorrectionAvailable() {
-    // v0.12.68：iPhone正式に加え、Android仮のイヤホン系（有線/Bluetooth）でも最終確認後の手動補正タブを出す。
-    //   編集先offsetは btCalMicOffset*（Android仮＝androidWired/BluetoothMicOffsetMs、iPhone正式＝wired/bluetoothMicOffsetMs）。
-    //   通常マイクはiPhone正式でも非表示のため対象外（Practice手動調整は今回スコープ外）。
-    return (isIosNewProductionFlow() || isAndroidIphoneStyleTrialFlow()) && isHeadphoneInput();
+    // v0.12.88：iPhone正式/Android正式フローでは、通常マイクも最終確認後の手動補正対象にする。
+    //   編集先offsetは manualMicOffset* に任せ、通常/有線/Bluetoothの保存先を既存分岐で分ける。
+    return isIosNewProductionFlow() || isAndroidIphoneStyleTrialFlow();
 }
 function isIosNewBtSignSanityFlow() {
     return isIosNewProductionFlow() && isBluetoothHeadphone();
@@ -15370,8 +15369,8 @@ function stopIosNewBtVolumeTestOnLeave(stopReason) {
     if (normalized !== 'toggle-off' && normalized !== 'start-btdelay-test') stopIosNewBtDelayPreview();
 }
 function captureIosNewManualCorrectionStartValues() {
-    // v0.12.68：実際に編集対象となるoffset（Android仮＝Android専用、iPhone正式＝従来）を起点値とする。
-    const headphoneMicOffsetMs = btCalMicOffsetGet();
+    // v0.12.88：通常マイクも含め、実際に編集対象となるoffsetを起点値とする。
+    const headphoneMicOffsetMs = manualMicOffsetGet();
     return {
         headphoneMicOffsetMs,
         bluetoothMicOffsetMs: mic.bluetoothMicOffsetMs || 0,
@@ -15383,10 +15382,10 @@ function captureIosNewManualCorrectionStartValues() {
     };
 }
 function buildIosNewManualCorrectionPanelHtml() {
-    // v0.12.68：btCalMicOffset* 経由で、Android仮は Android専用offset、iPhone正式は従来offsetを読む。
-    const btMin = btCalMicOffsetMin();
-    const btMax = btCalMicOffsetMax();
-    const btVal = btCalMicOffsetGet();
+    // v0.12.88：manualMicOffset* 経由で、通常/有線/Bluetoothそれぞれの保存先に合わせる。
+    const btMin = manualMicOffsetMin();
+    const btMax = manualMicOffsetMax();
+    const btVal = manualMicOffsetGet();
     const sensVal = sensFromThresholdUI(mic.threshold);
     const clickVal = state.clickVolume;
     const row = 'display:flex;align-items:center;justify-content:space-between;gap:8px;margin:12px 0 4px;font-size:0.85rem;';
@@ -15408,7 +15407,7 @@ function buildIosNewManualCorrectionPanelHtml() {
 function buildIosNewManualCorrectionDebug(phase, sliderValues) {
     const start = iosNewManualCorrectionStartValues || captureIosNewManualCorrectionStartValues();
     const sliders = sliderValues || {
-        headphoneMicOffsetMs: btCalMicOffsetGet(), // v0.12.68：Android仮はAndroid専用offset（iPhone正式は同値）
+        headphoneMicOffsetMs: manualMicOffsetGet(), // v0.12.88：通常/有線/Bluetoothの実編集先offset。
         resultingJudgeOffsetMs: finalCheckJudgeOffsetMs(),
         threshold: mic.threshold,
         clickVolume: state.clickVolume,
@@ -15649,7 +15648,7 @@ function bindIosNewManualCorrectionPanel() {
     const btSlider = document.getElementById('ios-new-manual-bt-offset');
     const thrSlider = document.getElementById('ios-new-manual-threshold');
     const clickSlider = document.getElementById('ios-new-manual-clickvol');
-    let btSliderStart = btSlider ? Number(btSlider.value) : btCalMicOffsetGet();
+    let btSliderStart = btSlider ? Number(btSlider.value) : manualMicOffsetGet();
     const syncBt = () => {
         if (!btSlider) return;
         const v = Number(btSlider.value);
@@ -15705,8 +15704,8 @@ function bindIosNewManualCorrectionPanel() {
     const applyBtn = document.getElementById('ios-new-manual-apply-retest');
     if (applyBtn) applyBtn.addEventListener('click', () => {
         if (!btSlider || !thrSlider || !clickSlider) return;
-        // v0.12.68：btCalMicOffsetSet 経由で、Android仮は Android専用offset、iPhone正式は従来offsetへ保存。
-        const btOffset = btCalMicOffsetSet(Number(btSlider.value));
+        // v0.12.88：manualMicOffsetSet 経由で、通常/有線/Bluetoothの既存保存先へ反映。
+        const btOffset = manualMicOffsetSet(Number(btSlider.value));
         mic.threshold = thresholdFromSensUI(Number(thrSlider.value));
         state.clickVolume = Math.max(0, Math.min(100, Math.round(Number(clickSlider.value))));
         applySettingsToUI();
@@ -16025,9 +16024,9 @@ function updateBtCalIosNewUi() {
         if (iosNew && handclap) {
             els.btCalDoNow.textContent = 'イヤホンのクリック音に合わせて、👏のタイミングで手拍子してください';
         } else if (iosNewWired) {
-            els.btCalDoNow.innerHTML = '<span class="bt-cal-loud-warning">強い音が出ます。</span><br>イヤホンを耳からはずし、音量を上げて、マイク部にイヤホンを近づけてください。最大5回ほど補正を適用してテストを繰り返します。';
+            els.btCalDoNow.innerHTML = '<span class="bt-cal-loud-warning">強い音が出ます。</span><br>イヤホンを耳からはずし、音量を十分に上げて、マイク部にイヤホンを近づけてください。最大5回ほど補正を適用してテストを繰り返します。';
         } else if (iosNew) {
-            els.btCalDoNow.innerHTML = '<span class="bt-cal-loud-warning">強い音が出ます。</span><br>イヤホンを耳からはずし、音量を最大にして、マイク部にイヤホンを押し当ててください。最大5回ほど補正を適用してテストを繰り返します。';
+            els.btCalDoNow.innerHTML = '<span class="bt-cal-loud-warning">強い音が出ます。</span><br>イヤホンを耳からはずし、音量を十分に上げて、マイク部にイヤホンを押し当ててください。最大5回ほど補正を適用してテストを繰り返します。';
         } else {
             els.btCalDoNow.textContent = 'クリック音がマイクに届くタイミングを確認します';
         }
