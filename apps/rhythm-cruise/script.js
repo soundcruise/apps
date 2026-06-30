@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.90';
+const RHYTHM_CRUISE_VERSION = '0.12.91';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -26914,12 +26914,18 @@ function resetMicReactionTestRunDisplay() {
    ・待機中：これから何をするかの予告（ストローク） */
 const MIC_TEST_DONOW_WAIT = 'クリック音を測っています。弾かずに待ってください';
 const MIC_TEST_DONOW_STROKE = 'クリックに続けて、いつもの強さで8回ストローク';
+const MIC_TEST_DONOW_STROKE_IOS_NORMAL = '音量を十分に上げて（8割くらい）、クリックに続けて、いつもの強さで8回ストローク';
+function micTestStrokeDoNowText() {
+    return (isNormalMicInput() && (selectedTestPlatform === 'ios' || isIosNewProductionFlow()))
+        ? MIC_TEST_DONOW_STROKE_IOS_NORMAL
+        : MIC_TEST_DONOW_STROKE;
+}
 function updateMicTestDoNow() {
     if (!els.testDoNow) return;
     let txt;
     if (test.mode === 'noise' || test.mode === 'click') txt = MIC_TEST_DONOW_WAIT;
-    else if (test.mode === 'stroke') txt = MIC_TEST_DONOW_STROKE;
-    else txt = MIC_TEST_DONOW_STROKE; // 待機中はこれからの動作（ストローク）を予告
+    else if (test.mode === 'stroke') txt = micTestStrokeDoNowText();
+    else txt = micTestStrokeDoNowText(); // 待機中はこれからの動作（ストローク）を予告
     els.testDoNow.textContent = txt;
 }
 
