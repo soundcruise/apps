@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.72';
+const RHYTHM_CRUISE_VERSION = '0.12.73';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -19386,6 +19386,9 @@ function isAndroidNormalMicFlow() {
 function isAndroidTrialNormalMicOnDevice() {
     return isAndroidIphoneStyleTrialFlow() && isNormalMicInput() && androidAudioProbeDeviceInfo().isAndroid;
 }
+function isAndroidNormalMicClickSafetyFlow() {
+    return isAndroidNormalMicFlow() || isAndroidTrialNormalMicOnDevice();
+}
 
 function freshFinalCheckClickDebug(originalVolume, usedVolume) {
     try {
@@ -19435,6 +19438,64 @@ function updateFinalCheckClickDebug(now, peak, threshold) {
     if ((inDirectWindow || inDelayedWindow) && peak >= threshold && peak > d.maxPeakOverThresholdNearClick) {
         d.maxPeakOverThresholdNearClick = peak;
     }
+}
+
+function buildFinalCheckAndroidNormalClickSafetyDebug(clickDebug) {
+    if (!clickDebug || !isAndroidNormalMicClickSafetyFlow()) return null;
+    const nearPeak = Number(clickDebug.maxNearClickPeak) || 0;
+    const delayedPeak = Number(clickDebug.maxDelayedClickPeak) || 0;
+    const peakUsed = Math.max(nearPeak, delayedPeak);
+    const peakSource = delayedPeak >= nearPeak ? 'delayed' : 'near';
+    const recommendedThreshold = mic.threshold;
+    const effectiveThreshold = ptDetectionThreshold();
+    const ratioTo = (value, base) => (
+        typeof value === 'number' && isFinite(value) && typeof base === 'number' && isFinite(base) && base > 0
+    ) ? value / base : null;
+    const targetLine = recommendedThreshold;
+    const targetPeak = targetLine > 0 ? targetLine * 0.75 : null;
+    const usedVol = Number(clickDebug.usedClickVolume);
+    const projected = test.runDebug && test.runDebug.projectedClickAtReco != null
+        ? Number(test.runDebug.projectedClickAtReco)
+        : null;
+    const safeVolRaw = (peakUsed > 0 && targetPeak != null && Number.isFinite(usedVol))
+        ? usedVol * (targetPeak / peakUsed)
+        : null;
+    const recommendedFinalCheckClickVolume = safeVolRaw != null && safeVolRaw >= 1
+        ? Math.max(1, Math.floor(safeVolRaw))
+        : null;
+    const lowClickVolumePrecisionRisk = Number.isFinite(usedVol) && usedVol <= 10;
+    const crossesRecommended = peakUsed >= recommendedThreshold;
+    const needsDeviceVolumeDown = !!(crossesRecommended && (safeVolRaw == null || safeVolRaw < 1 || usedVol <= 2));
+    let deviceVolumeDownReason = 'none';
+    if (needsDeviceVolumeDown) {
+        deviceVolumeDownReason = safeVolRaw != null && safeVolRaw < 1
+            ? 'required-app-click-volume-below-1-percent'
+            : 'app-click-volume-already-2-percent-or-less';
+    } else if (lowClickVolumePrecisionRisk && crossesRecommended) {
+        deviceVolumeDownReason = 'low-app-click-volume-still-crosses-line';
+    }
+    return {
+        enabled: true,
+        selectedTestPlatform,
+        recommendedClickVolume: test.recoClickVolume != null ? test.recoClickVolume : usedVol,
+        projectedClickAtReco: Number.isFinite(projected) ? projected : null,
+        finalCheckClickNearPeak: nearPeak,
+        finalCheckClickDelayedPeak: delayedPeak,
+        finalCheckClickPeakUsedForSafety: peakUsed,
+        finalCheckClickPeakSource: peakSource,
+        recommendedThreshold,
+        effectiveRecommendedThreshold: effectiveThreshold,
+        clickToRecommendedThresholdRatio: ratioTo(peakUsed, recommendedThreshold),
+        clickToEffectiveThresholdRatio: ratioTo(peakUsed, effectiveThreshold),
+        micReactionProjectionToFinalCheckRatio: ratioTo(peakUsed, projected),
+        lowClickVolumePrecisionRisk,
+        needsDeviceVolumeDown,
+        deviceVolumeDownReason,
+        safeClickVolumeRaw: safeVolRaw,
+        recommendedFinalCheckClickVolume,
+        changedJudgeLogic: false,
+        changedLocalStorageStructure: false,
+    };
 }
 
 /* 実践テストのクリックガード（v0.9.78）：STAGE本体 isClickGuardedOnset をそのまま流用。 */
@@ -20942,6 +21003,7 @@ function finishPracticeTest() {
         maxDelayedClickPeak: +pt.clickDebug.maxDelayedClickPeak.toFixed(4),
         maxPeakOverThresholdNearClick: +pt.clickDebug.maxPeakOverThresholdNearClick.toFixed(4),
     }) : null;
+    if (clickDebug) clickDebug.androidNormalMicFinalClickSafety = buildFinalCheckAndroidNormalClickSafetyDebug(clickDebug);
     const r = { good, early, late, miss, valid, avg, maxPeak: pt.maxPeak, doubleCount: pt.doubleCount, threshold: mic.threshold, detectThreshold: ptDetectionThreshold(), cooldownMs: mic.cooldownMs, finalCheckOffsetDebug: androidJudgeOffsetDebug(), finalCheckClickDebug: clickDebug };
     // v0.11.95：最終確認テストの詳細統計＋BT候補比較＋予測平均ズレ（すべて表示・ログ専用。判定/保存ロジックは不変）。
     const offDbg = r.finalCheckOffsetDebug;
@@ -20953,6 +21015,7 @@ function finishPracticeTest() {
         diffMsList,
         usedJudgeOffsetMs: finalCheckJudgeOffsetMs(),
         usedOffsetSource: offDbg ? offDbg.usedOffsetSource : null,
+        finalCheckClickDebug: clickDebug,
     };
     r.finalCheckOffsetComparison = buildFinalCheckOffsetComparison(r.finalCheckStats);
     r.finalCheckVisualOffsetDebug = buildFinalCheckVisualOffsetDebug();
@@ -21020,6 +21083,25 @@ function practiceComment(r) {
     const line = r.detectThreshold || r.threshold || mic.threshold || 0.0001; // 実効判定ライン（マイク感度カーブ込み）
     const volRatio = r.maxPeak / line;
     const lowVol = volRatio < 0.9;        // 波形はあっても判定ラインに届いていない＝コードストロークが小さい/感度が低すぎる
+    const finalClickSafety = r.finalCheckClickDebug && r.finalCheckClickDebug.androidNormalMicFinalClickSafety;
+    if (finalClickSafety && finalClickSafety.clickToRecommendedThresholdRatio >= 1) {
+        if (finalClickSafety.needsDeviceVolumeDown) {
+            return {
+                kind: 'warn',
+                issue: 'devicevolume',
+                text: 'クリック音がまだ反応ラインを超えています。アプリ内クリック音量だけでは下げきれない可能性があるため、スマホ本体の音量を少し下げてから、マイク反応テストをやり直してください。',
+            };
+        }
+        if (finalClickSafety.recommendedFinalCheckClickVolume != null && finalClickSafety.recommendedFinalCheckClickVolume < state.clickVolume) {
+            return {
+                kind: 'warn',
+                issue: 'clickvolume',
+                recommendedClickVolume: finalClickSafety.recommendedFinalCheckClickVolume,
+                text: 'クリック音がまだ反応ラインを超えています。クリック音量を ' + finalClickSafety.recommendedFinalCheckClickVolume + '% に下げて、もう一度最終確認テストを行ってください。',
+            };
+        }
+        return { kind: 'warn', issue: 'clickpickup', text: 'クリック音がまだ反応ラインを超えています。スマホ本体の音量を少し下げてから、マイク反応テストをやり直してください。' };
+    }
     // 判定A（v0.9.140）：コードストロークが判定ラインに届いていない → マイク感度を上げる案内。
     //   0%や3%などの近ミュート設定では、感度カーブで実効ラインが跳ね上がり、ここに該当しやすい。
     if (lowVol || (r.valid < 5 && r.maxPeak < line)) {
@@ -21110,6 +21192,8 @@ function renderPracticeResult(r) {
         let fixLabel = '最終確認テストをやり直す', fixId = 'pt-result-fix-rerun';
         if (c.issue === 'input') { fixLabel = 'マイク反応テストをやり直す'; fixId = 'pt-result-fix-test'; }
         else if (c.issue === 'lowsens') { fixLabel = 'マイク反応テストをやり直す'; fixId = 'pt-result-fix-test'; }
+        else if (c.issue === 'devicevolume') { fixLabel = 'マイク反応テストをやり直す'; fixId = 'pt-result-fix-test'; }
+        else if (c.issue === 'clickvolume') { fixLabel = 'クリック音量を下げて再テスト'; fixId = 'pt-result-fix-clickvol'; }
         else if (c.issue === 'clickpickup') { fixLabel = 'マイク感度を確認する'; fixId = 'pt-result-fix-test'; }
         else if (c.issue === 'miss') { fixLabel = 'マイク感度を確認する'; fixId = 'pt-result-fix-test'; }
         else if (c.issue === 'timing') { fixLabel = '補正を確認する'; fixId = 'pt-result-fix-correction'; }
@@ -21172,6 +21256,18 @@ function bindPracticeResultActions() {
     if (rerun) rerun.addEventListener('click', () => startPracticeTest());
     const fixRerun = document.getElementById('pt-result-fix-rerun');
     if (fixRerun) fixRerun.addEventListener('click', () => startPracticeTest());
+    const fixClickVol = document.getElementById('pt-result-fix-clickvol');
+    if (fixClickVol) fixClickVol.addEventListener('click', () => {
+        const dbg = finalCheckFlowDebug.lastFinalCheckStats;
+        const safety = dbg && dbg.finalCheckClickDebug && dbg.finalCheckClickDebug.androidNormalMicFinalClickSafety;
+        const nextVol = safety && safety.recommendedFinalCheckClickVolume;
+        if (nextVol != null && nextVol < state.clickVolume) {
+            state.clickVolume = nextVol;
+            applySettingsToUI();
+            syncMicSaveStateUI();
+        }
+        startPracticeTest();
+    });
     // 原因別の戻り先（v0.9.67）：移動前に必ず古い最終確認テスト結果を消す
     const fixTest = document.getElementById('pt-result-fix-test');
     if (fixTest) fixTest.addEventListener('click', () => practiceFixGoTo('test'));
@@ -25818,6 +25914,16 @@ function micTestRunForDevelopmentLog(run) {
         androidNormalMicProjectedClickAtReco: run.androidNormalMicProjectedClickAtReco,
         androidNormalMicProjectedClickToThresholdRatio: run.androidNormalMicProjectedClickToThresholdRatio,
         androidNormalMicProjectedClickToEffectiveLineRatio: run.androidNormalMicProjectedClickToEffectiveLineRatio,
+        clickPeakUsedForRecoSafety: run.clickPeakUsedForRecoSafety,
+        clickPeakUsedForRecoSafetySource: run.clickPeakUsedForRecoSafetySource,
+        actualReactionLineForClickSafety: run.actualReactionLineForClickSafety,
+        actualReactionLineSource: run.actualReactionLineSource,
+        projectedClickToActualReactionLineRatio: run.projectedClickToActualReactionLineRatio,
+        clickToRecommendedThresholdRatio: run.clickToRecommendedThresholdRatio,
+        clickToEffectiveThresholdRatio: run.clickToEffectiveThresholdRatio,
+        lowClickVolumePrecisionRisk: run.lowClickVolumePrecisionRisk,
+        needsDeviceVolumeDown: run.needsDeviceVolumeDown,
+        deviceVolumeDownReason: run.deviceVolumeDownReason,
         clickSupplyRatioToSafePeak: run.clickSupplyRatioToSafePeak,
         projectedClickBeforeSafetyCap: run.projectedClickBeforeSafetyCap,
         projectedClickAfterSafetyCap: run.projectedClickAfterSafetyCap,
@@ -27402,6 +27508,14 @@ function updateReco() {
 
     markMicTestDone(); // クリック＋ストロークの両テストが完了 → 実施済みにする
     const maxClick = test.clickPeaks.length ? Math.max(...test.clickPeaks) : 0;
+    const androidNormalMicClickSafetyActive = isAndroidNormalMicClickSafetyFlow();
+    const clickPhaseMaxDelayedPeakForSafety = (test.clickDelayedPeaks || []).length ? Math.max(...test.clickDelayedPeaks) : 0;
+    const clickPeakUsedForRecoSafety = androidNormalMicClickSafetyActive
+        ? Math.max(maxClick, clickPhaseMaxDelayedPeakForSafety)
+        : maxClick;
+    const clickPeakUsedForRecoSafetySource = androidNormalMicClickSafetyActive && clickPhaseMaxDelayedPeakForSafety > maxClick
+        ? 'delayed'
+        : 'combined-window';
     const minStroke = test.minStrokePeak;                 // 全ストローク最小（検出分）
     const maxStrokeRaw = (test.maxStrokeRaw != null) ? test.maxStrokeRaw : null;
     const clickReacted = test.clickResults.filter((r) => r.reacted).length;
@@ -27475,7 +27589,7 @@ function updateReco() {
     // ② クリック音量を先に決める：クリックをストローク最小より十分下げ、間に反応ラインを置ける状態にする。
     //    目標＝クリック音最大がストローク最小の半分以下。
     const measureVol = Math.max(1, test.clickMeasureVol || state.clickVolume || 1);
-    const peakPerPct = (maxClick > 0) ? maxClick / measureVol : 0; // 1%あたりの想定クリックピーク
+    const peakPerPct = (clickPeakUsedForRecoSafety > 0) ? clickPeakUsedForRecoSafety / measureVol : 0; // 1%あたりの想定クリックピーク
     let targetClickMax = null; // 開発ログにも同じ算出途中値を残す（おすすめ計算には従来どおり使用）
     let recoVol = state.clickVolume;
     if (minStroke != null && peakPerPct > 0) {
@@ -27616,7 +27730,7 @@ function updateReco() {
     // v0.12.72：Android本番/Android仮の通常マイクは、画面に表示・保存されるおすすめラインをクリック安全基準にする。
     //   effectiveRecommendedThreshold は診断用の実効ラインだが、ユーザーが確認する「おすすめマイク感度」とズレるため、
     //   recoVol側だけを表示ライン未満へ下げる（recommendedThreshold/感度・ストローク検出は不変）。
-    const androidNormalMicLimiterActive = isAndroidNormalMicFlow() || isAndroidTrialNormalMicOnDevice();
+    const androidNormalMicLimiterActive = androidNormalMicClickSafetyActive;
     const androidNormalMicLimiterMode = androidNormalMicLimiterActive ? 'balanced' : 'not-android-normal';
     const androidNormalMicSafeRate = androidNormalMicLimiterActive ? 0.65 : null;
     const androidNormalMicLineRatio = androidNormalMicLimiterActive ? 0.75 : null;
@@ -27665,6 +27779,16 @@ function updateReco() {
     const projectedClickToEffectiveLineRatio = ratioTo(test.projClickMax, effectiveRecommendedThreshold);
     const projectedClickToActualReactionLineRatio = ratioTo(test.projClickMax, actualReactionLineForClickSafety);
     const androidNormalMicProjectedClickToThresholdRatio = ratioTo(test.projClickMax, test.recommended);
+    const clickToRecommendedThresholdRatio = androidNormalMicProjectedClickToThresholdRatio;
+    const clickToEffectiveThresholdRatio = projectedClickToEffectiveLineRatio;
+    const lowClickVolumePrecisionRisk = !!(androidNormalMicLimiterActive && recoVol <= 10);
+    const needsDeviceVolumeDown = !!(androidNormalMicLimiterActive
+        && (recoVol <= 2 || (androidNormalMicMaxByLine != null && androidNormalMicMaxByLine <= 2))
+        && projectedClickToActualReactionLineRatio != null
+        && projectedClickToActualReactionLineRatio >= androidNormalMicLineRatio);
+    const deviceVolumeDownReason = needsDeviceVolumeDown
+        ? (recoVol <= 2 ? 'app-click-volume-2-percent-or-less' : 'safe-line-limit-2-percent-or-less')
+        : 'none';
     const noiseMaxToEffectiveLineRatio = ratioTo(test.noiseMax, effectiveRecommendedThreshold);
     const noiseP95ToEffectiveLineRatio = ratioTo(test.noiseP95, effectiveRecommendedThreshold);
     const strokeP25ToEffectiveLineRatio = ratioTo(test.strokeP25, effectiveRecommendedThreshold);
@@ -27802,6 +27926,11 @@ function updateReco() {
         els.recoMsg.classList.remove('hidden');
         els.recoMsg.textContent = 'クリック音とストローク音を安全に分けにくい状態です。'
             + 'スマホ本体音量を少し下げる、少し強めに弾く、静かな場所で試す、またはイヤホンを使ってください。' + projTxt;
+    } else if (needsDeviceVolumeDown) {
+        els.recoMsg.className = 'test-reco-msg warn';
+        els.recoMsg.classList.remove('hidden');
+        els.recoMsg.textContent = 'アプリ内クリック音量がかなり小さくなっています。'
+            + '最終確認でクリック音が反応ラインを超える場合は、スマホ本体の音量を少し下げてから、もう一度マイク反応テストを行ってください。' + projTxt;
     } else if (highSens) {
         // 高感度寄り：手動で下げられることを案内（UIの「左＝反応しにくい」と整合）
         els.recoMsg.className = 'test-reco-msg';
@@ -28094,8 +28223,15 @@ function updateReco() {
         androidNormalMicProjectedClickAtReco: androidNormalMicLimiterActive ? test.projClickMax : null,
         androidNormalMicProjectedClickToThresholdRatio,
         androidNormalMicProjectedClickToEffectiveLineRatio: androidNormalMicLimiterActive ? projectedClickToEffectiveLineRatio : null,
+        clickPeakUsedForRecoSafety,
+        clickPeakUsedForRecoSafetySource,
         actualReactionLineForClickSafety,
         actualReactionLineSource,
+        clickToRecommendedThresholdRatio,
+        clickToEffectiveThresholdRatio,
+        lowClickVolumePrecisionRisk,
+        needsDeviceVolumeDown,
+        deviceVolumeDownReason,
         clickSupplyRatioToSafePeak,
         projectedClickBeforeSafetyCap,
         projectedClickAfterSafetyCap,
