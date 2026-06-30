@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.66';
+const RHYTHM_CRUISE_VERSION = '0.12.67';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14769,7 +14769,8 @@ function btDelayCorrectionValueLabel() {
     return null;
 }
 function btCalIdleStartLabel() {
-    return bt.hasRun ? 'もう1度テストする' : (btDelayStepUserLabel() + 'を開始');
+    // v0.12.67：一度テスト後の開始ボタンは「補正せず再テスト」（補正を適用せずもう一度測る導線）。
+    return bt.hasRun ? '補正せず再テスト' : (btDelayStepUserLabel() + 'を開始');
 }
 function btCalActiveStopLabel() {
     return btDelayStepUserLabel() + 'を停止';
@@ -21450,9 +21451,13 @@ function drawBtLane(t) {
     ctx.strokeStyle = 'rgba(253,246,238,0.08)';
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke();
-    // 反応ライン（最終確認テストと同じ検出しきい値・v0.12.66で全フェーズ共通スケール）
+    // 反応ライン（v0.12.67：本番テスト中と同じ 40%相当＝1/MIC_DISPLAY_SCALE で全フェーズ固定。表示専用）。
+    //   v0.12.66では分子に ptDetectionThreshold() を使っていたが、本番中=btClickInputThresholdスナップ／
+    //   初期・音量テスト中=Practice式 で値が別物になり、ライン位置が音量/ノイズで上下していた。
+    //   分子に ptDetectionThreshold() を使わず固定位置にすることで全フェーズで一致させる。
+    //   ptDetectionThreshold()／mic.threshold の実値・判定ロジックは一切変更しない。
     const ampPx = h * 0.34;
-    const lineAmp = btDelayLaneDisplayFrac(ptDetectionThreshold()) * ampPx;
+    const lineAmp = (1 / MIC_DISPLAY_SCALE) * ampPx;
     ctx.strokeStyle = 'rgba(255,159,28,0.30)';
     ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, yc - lineAmp); ctx.lineTo(w, yc - lineAmp); ctx.stroke();
@@ -22098,7 +22103,7 @@ function renderBtCalResult(r) {
         bindBtCalResultActions();
         return;
     } else {
-        head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">✅ 判定タイミングのズレは小さめです。このまま最終確認テストへ進めます。</p>';
+        head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">✅ 測定できました。このまま最終確認テストへ進めます。</p>';
         // v0.9.94：OK判定でも、有効な平均ズレがあれば最新結果で自動微調整済み。控えめに案内する（ボタンは出さない）。
         // v0.12.66：「最新の平均ズレ…」の文字色は白字にする（3-7）。
         const autoNote = r.autoFineApplied
@@ -22108,7 +22113,7 @@ function renderBtCalResult(r) {
             ? '次のテストに進む'
             : 'マイク反応テストへ進む';
         if (isBluetoothHeadphone()) {
-            head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">✅ 判定タイミングのズレは小さめです。次に、' + (useStrongSound ? 'テスト音' : 'クリック音') + 'と画面表示の見た目を合わせます。</p>';
+            head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">✅ 測定できました。次に、' + (useStrongSound ? 'テスト音' : 'クリック音') + 'と画面表示の見た目を合わせます。</p>';
         }
         // v0.12.66：音量に関する注意書きは赤字で目立たせる（3-3）。
         const volumeNote = '<p class="setting-note" style="margin:8px 0 0;font-size:0.78rem;color:#ff6b6b;">※音量を上げて計測した場合は、次の確認前にスマホ本体音量を少し下げてください。</p>';
@@ -26611,7 +26616,7 @@ function endClickPhase() {
         // 単発ノイズでの誤検出を避けるため、2回以上＆最大ピークが下限以上のときだけ「音漏れ」とみなす。
         const leak = (test.maxClickPeak || 0) >= leakLine && leakCount >= 2;
         test.earphoneClickLeak = leak;
-        test.earphoneClickLeakLine = leakLine; // v0.12.66：クリック音量を下げる目標計算に使う
+        // v0.12.67：イヤホン系ではクリック音量を下げない（70%固定維持）。漏れ/ノイズ混入時は静かな場所で再テストを促すのみ。
         if (leak) { showEarphoneClickLeak(); return; }
         // 漏れなし＝正常。イヤホン接続のクリック音量は固定（70%）にする（反応ラインに合わせて下げる必要がない）。
         applyEarphoneClickVolumeFixed();
@@ -26632,10 +26637,10 @@ function applyEarphoneClickVolumeFixed() {
     saveSettings();
 }
 
-/* クリック音や周囲の音が大きく、ストロークを見分けにくいときの案内（v0.9.152／v0.12.66で全面変更）。
-   v0.12.66：通常マイクへ切り替える導線は廃止。まずアプリ内クリック音量を自動で下げ、同じマイク設定のまま
-   マイク反応テストを再テストする導線にする。クリック音量を5%以下まで下げても反応ラインを超える場合だけ、
-   スマホ本体の音量を下げるよう促す。入力タイプ（通常/イヤホン）は一切変更しない。 */
+/* イヤホン系のマイク反応テストで、クリック音や周囲の音が混ざって正しく確認できないときの案内（v0.12.67）。
+   イヤホン系の正しい仕様：クリック音量は70%固定。自動で下げない。スマホ本体音量を下げる案内も出さない。
+   通常マイクへの切替もしない。静かな場所で同じマイク設定のまま再テストするよう促すだけ。
+   （通常マイク向けのクリック音量低下/本体音量案内は recoBlockedByClickLeak 等の通常マイク側ロジックが担当する。） */
 function showEarphoneClickLeak() {
     if (!shouldUseEarphoneMicTestFeatures()) return;
     clearTestTimers();
@@ -26651,34 +26656,11 @@ function showEarphoneClickLeak() {
     }
     setTestPhase('');
     setTestResult('', '');
-    const leakLine = Number(test.earphoneClickLeakLine) || EARPHONE_CLICK_LEAK_FLOOR;
-    const measureVol = Number(test.clickMeasureVol) || Number(state.clickVolume) || 0;
-    const maxPeak = Number(test.maxClickPeak) || 0;
-    const curVol = Number(state.clickVolume) || 0;
-    // アプリ内クリック音量を5%以下まで下げても、クリック音/周囲の音が反応ラインを超える＝本体音量が大きすぎる可能性。
-    const cannotLowerEnough = curVol <= 5 && maxPeak >= leakLine;
-    let msg;
-    if (cannotLowerEnough) {
-        msg = 'アプリ内のクリック音量をかなり下げても、クリック音や周囲の音が反応ラインを超えています。'
-            + 'スマホ本体の音量ボタンで音量を少し下げてから、もう一度マイク反応テストを行ってください。';
-    } else {
-        // 反応ラインの60%未満に収まるよう、クリック音量を線形比例で下げる（最低でも現在値より1%下げる）。
-        let targetVol;
-        if (maxPeak > 0 && measureVol > 0) {
-            targetVol = Math.floor(measureVol * (leakLine * 0.6) / maxPeak);
-        } else {
-            targetVol = Math.floor(curVol / 2);
-        }
-        targetVol = Math.max(0, Math.min(curVol - 1, targetVol));
-        state.clickVolume = targetVol;
-        storeActiveMicProfile(currentMicProfileKey());
-        applySettingsToUI();
-        saveSettings();
-        msg = 'クリック音や周囲の音が大きく、ストロークだけを見分けにくい状態です。'
-            + 'アプリ内のクリック音量を下げて調整しました（' + targetVol + '%）。'
-            + 'もう一度マイク反応テストを行ってください。';
+    // イヤホン系では state.clickVolume を変更しない（70%固定を維持）。
+    if (els.earphoneLeakMsg) {
+        els.earphoneLeakMsg.textContent = 'クリック音や周囲の音が混ざって、正しく確認できませんでした。'
+            + '静かな場所で、もう一度マイク反応テストを行ってください。';
     }
-    if (els.earphoneLeakMsg) els.earphoneLeakMsg.textContent = msg;
     if (els.earphoneLeak) els.earphoneLeak.classList.remove('hidden');
 }
 
