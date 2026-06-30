@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.91';
+const RHYTHM_CRUISE_VERSION = '0.12.92';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -12792,6 +12792,7 @@ function updateMicInputTypeUI() {
     if (els.setHpOffsetRow) els.setHpOffsetRow.classList.toggle('hidden', !headphone); // 手動設定の補正行は headphone のときだけ
     updateHeadphoneTypeUI();
     updatePlatformChoiceUI();
+    updateMicTestDoNow();
 }
 
 /* ── イヤホン音ズレの画面補正（v0.9.50〜）─────────────────────────────
@@ -13468,6 +13469,7 @@ function updatePlatformChoiceUI() {
     if (els.androidHeadphoneChoices) els.androidHeadphoneChoices.classList.toggle('hidden', !android || !isHeadphoneInput() || !setupProgress.inputChosen);
     const showAndroidCheck = android && setupProgress.inputChosen && (isNormalMicInput() || (isHeadphoneInput() && setupProgress.hpChosen));
     if (els.androidCheckDetails) els.androidCheckDetails.classList.toggle('hidden', !showAndroidCheck);
+    updateMicTestDoNow();
 }
 function selectTestPlatform(platform) { stopAndroidBtVolumeTest({ keepMonitor: true }); selectedTestPlatform = platform; updatePlatformChoiceUI(); }
 function androidCheckStats(events) {
@@ -26914,19 +26916,28 @@ function resetMicReactionTestRunDisplay() {
    ・待機中：これから何をするかの予告（ストローク） */
 const MIC_TEST_DONOW_WAIT = 'クリック音を測っています。弾かずに待ってください';
 const MIC_TEST_DONOW_STROKE = 'クリックに続けて、いつもの強さで8回ストローク';
-const MIC_TEST_DONOW_STROKE_IOS_NORMAL = '音量を十分に上げて（8割くらい）、クリックに続けて、いつもの強さで8回ストローク';
-function micTestStrokeDoNowText() {
+function shouldShowIosNormalMicStartGuide() {
     return (isNormalMicInput() && (selectedTestPlatform === 'ios' || isIosNewProductionFlow()))
-        ? MIC_TEST_DONOW_STROKE_IOS_NORMAL
-        : MIC_TEST_DONOW_STROKE;
+        && !(test.mode === 'noise' || test.mode === 'click' || test.mode === 'stroke');
+}
+function micTestIosNormalStartGuideHtml() {
+    return [
+        '1. スマホ本体の音量を十分に上げてください（8割くらい）',
+        '2. クリック音が流れるので、静かにして待ちます',
+        '3. 弦を左手でミュートして、8回ストローク'
+    ].join('<br>');
 }
 function updateMicTestDoNow() {
     if (!els.testDoNow) return;
-    let txt;
-    if (test.mode === 'noise' || test.mode === 'click') txt = MIC_TEST_DONOW_WAIT;
-    else if (test.mode === 'stroke') txt = micTestStrokeDoNowText();
-    else txt = micTestStrokeDoNowText(); // 待機中はこれからの動作（ストローク）を予告
-    els.testDoNow.textContent = txt;
+    if (test.mode === 'noise' || test.mode === 'click') {
+        els.testDoNow.textContent = MIC_TEST_DONOW_WAIT;
+    } else if (test.mode === 'stroke') {
+        els.testDoNow.textContent = MIC_TEST_DONOW_STROKE;
+    } else if (shouldShowIosNormalMicStartGuide()) {
+        els.testDoNow.innerHTML = micTestIosNormalStartGuideHtml();
+    } else {
+        els.testDoNow.textContent = MIC_TEST_DONOW_STROKE; // 待機中はこれからの動作（ストローク）を予告
+    }
 }
 
 /* マイク反応テスト：未実施/実施済みのボタン文言 */
@@ -27985,7 +27996,7 @@ function recoRetestButtonHtml() {
 
 function micRestartHelpLinkHtml() {
     return '<a class="result-mic-tune-link" style="display:inline-block;margin-top:8px" href="'
-        + RHYTHM_ASSET_BASE + 'mic-restart-help.html">詳しい手順を見る</a>';
+        + RHYTHM_ASSET_BASE + 'mic-restart-help.html">マイクが反応していない場合</a>';
 }
 
 function btDiagNumber(v) {
@@ -28509,8 +28520,7 @@ function updateReco() {
     if (els.recoDeviceVolNote) {
         if (deviceVolumeWarningShown) {
             els.recoDeviceVolNote.className = 'reco-device-vol-note reco-device-vol-note--alert';
-            els.recoDeviceVolNote.innerHTML = '<b>⚠ クリック音の測定が不安定です。</b><br>'
-                + '測定用クリック音量でもクリック音を十分に確認できませんでした。音ズレ・遅延テストで測定できない場合は、スマホ本体の音量や出力先を確認してください。音量や出力先を変えた場合は、もう一度マイク反応テストを行ってください。改善しない場合は、ホーム画面のアプリを完全に終了してから、もう一度開いてください。<br>'
+            els.recoDeviceVolNote.innerHTML = 'スマホ本体の音量を上げて、もう一度テストしてください。<br>'
                 + micRestartHelpLinkHtml()
                 + recoRetestButtonHtml();
         } else {
