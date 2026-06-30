@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.65';
+const RHYTHM_CRUISE_VERSION = '0.12.66';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -15938,9 +15938,9 @@ function updateBtCalIosNewUi() {
         if (iosNew && handclap) {
             els.btCalDoNow.textContent = 'イヤホンのクリック音に合わせて、👏のタイミングで手拍子してください';
         } else if (iosNewWired) {
-            els.btCalDoNow.innerHTML = '<span class="bt-cal-loud-warning">強い音が出ます。</span><br>イヤホンをはずし、音量を上げて、マイク部にイヤホンを近づけてください。最大5回ほど補正を適用してテストを繰り返します。';
+            els.btCalDoNow.innerHTML = '<span class="bt-cal-loud-warning">強い音が出ます。</span><br>イヤホンを耳からはずし、音量を上げて、マイク部にイヤホンを近づけてください。最大5回ほど補正を適用してテストを繰り返します。';
         } else if (iosNew) {
-            els.btCalDoNow.innerHTML = '<span class="bt-cal-loud-warning">強い音が出ます。</span><br>イヤホンをはずし、音量を最大にして、マイク部にイヤホンを押し当ててください。最大5回ほど補正を適用してテストを繰り返します。';
+            els.btCalDoNow.innerHTML = '<span class="bt-cal-loud-warning">強い音が出ます。</span><br>イヤホンを耳からはずし、音量を最大にして、マイク部にイヤホンを押し当ててください。最大5回ほど補正を適用してテストを繰り返します。';
         } else {
             els.btCalDoNow.textContent = 'クリック音がマイクに届くタイミングを確認します';
         }
@@ -18882,6 +18882,7 @@ const bt = {
     result: null, // { valid, avg, early, late, just, miss, propose, proposed, cur }
     savedSettings: null, // クリック音入力テスト中だけ退避するPractice用設定
     debug: null, // 直近の専用検出モード・復元結果
+    sessionPrevAvgAbs: null, // v0.12.66：同一セッション内の前回の平均ズレ絶対値（「前回より合ってきました」判定用・表示専用）
 };
 let btLane = { ctx: null, w: 0, h: 0 }; // マイクの遅れ補正の流れるレーン（v0.9.81）
 const hpAd = {
@@ -21424,6 +21425,19 @@ function drawClapIcon(ctx, x, yc, num, markerType) {
     ctx.restore();
 }
 
+/* v0.12.66：音ズレ・遅延テストのレーン波形スケールを、初期状態/音量テスト中/本番テスト中で揃える（表示専用）。
+   本番テスト中は bt.savedSettings が有効で mic.threshold＝本番テストの検出ライン(btClickInputThreshold)。
+   それ以外（初期状態/音量テスト中）は本番テストと同じ btClickInputThreshold() を基準にして、波形の見た目のスケール感を一致させる。
+   judge/検出/感度/mic.threshold の実値には一切影響しない（drawBtLane の表示計算だけで使う）。 */
+function btDelayLaneDisplayThreshold() {
+    const thr = bt.savedSettings ? mic.threshold : btClickInputThreshold();
+    if (Number.isFinite(thr) && thr > 0) return thr;
+    return (mic.threshold > 0) ? mic.threshold : 0.16;
+}
+function btDelayLaneDisplayFrac(peak) {
+    const base = btDelayLaneDisplayThreshold() * MIC_DISPLAY_SCALE;
+    return Math.max(0, Math.min(1, peak / (base > 0 ? base : 0.16)));
+}
 function drawBtLane(t) {
     if (!btLane || !btLane.ctx) return;
     const { ctx, w, h } = btLane;
@@ -21436,9 +21450,9 @@ function drawBtLane(t) {
     ctx.strokeStyle = 'rgba(253,246,238,0.08)';
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(0, yc); ctx.lineTo(w, yc); ctx.stroke();
-    // 反応ライン（最終確認テストと同じ検出しきい値）
+    // 反応ライン（最終確認テストと同じ検出しきい値・v0.12.66で全フェーズ共通スケール）
     const ampPx = h * 0.34;
-    const lineAmp = micDisplayFrac(ptDetectionThreshold()) * ampPx;
+    const lineAmp = btDelayLaneDisplayFrac(ptDetectionThreshold()) * ampPx;
     ctx.strokeStyle = 'rgba(255,159,28,0.30)';
     ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, yc - lineAmp); ctx.lineTo(w, yc - lineAmp); ctx.stroke();
@@ -21460,7 +21474,7 @@ function drawBtLane(t) {
             const p = bt.wave[i];
             const x = judgeX + (p.t + off + hpDispOff - t) * ppm;
             if (x < -24 || x > w + 24) continue;
-            pts.push([x, micDisplayFrac(p.level) * ampPx]);
+            pts.push([x, btDelayLaneDisplayFrac(p.level) * ampPx]);
         }
         if (pts.length >= 2) {
             ctx.beginPath();
@@ -21705,6 +21719,8 @@ async function startBtCal() {
     mic.env = 0;
     bt.timers.forEach(clearTimeout); bt.timers = [];
     bt.scheduled = [];
+    // v0.12.66：新しいセッションの最初のテスト（再テストではない）のときだけ、前回ズレ比較をリセットする。
+    if (!bt.hasRun) bt.sessionPrevAvgAbs = null;
     bt.hasRun = true;
     bt.wave = [];
     applyBtCalTestSettings();
@@ -22022,6 +22038,14 @@ function renderBtCalResult(r) {
     const dirTxt = r.avg > 0 ? '（遅め/LATE）' : (r.avg < 0 ? '（早め/EARLY）' : '');
     const avgTxt = sign(r.avg) + dirTxt;
     const stepLabel = btDelayStepUserLabel();
+    // v0.12.66：同一セッション内で前回より平均ズレが10ms以上改善したかを判定（表示専用）。
+    //   有効入力のある結果のみを比較対象にし、比較後に前回値を更新する。
+    const curAvgAbs = Math.abs(Number(r.avg) || 0);
+    const prevAvgAbs = bt.sessionPrevAvgAbs;
+    const improvedFromPrev = !!r.enoughInput
+        && typeof prevAvgAbs === 'number' && Number.isFinite(prevAvgAbs)
+        && (prevAvgAbs - curAvgAbs >= 10);
+    if (r.enoughInput) bt.sessionPrevAvgAbs = curAvgAbs;
     const useStrongSound = usesUnifiedHeadphoneDelaySound() && !isIosNewHeadphoneDelayHandclapMode();
     const inputLabel = useStrongSound ? 'テスト音' : (isIosNewHeadphoneDelayHandclapMode() ? '手拍子' : 'クリック音');
     const wiredIosNewCorrection = btDelayCorrectionValueLabel();
@@ -22057,7 +22081,8 @@ function renderBtCalResult(r) {
         bindBtCalResultActions();
         return;
     } else if (r.propose) {
-        head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">判定が' + (r.avg > 0 ? '遅め（LATE）' : '早め（EARLY）') + 'に大きくズレています。' + stepLabel + 'で合わせましょう。</p>';
+        head = '<p class="cal-status" style="color:#ffd479;font-weight:700;margin-top:0;">判定が' + (r.avg > 0 ? '遅め（LATE）' : '早め（EARLY）') + 'に大きくズレています。補正を適用して再テストしましょう。'
+            + (improvedFromPrev ? '<br>前回より合ってきました。' : '') + '</p>';
         const adaptiveDbg = r.iosNewAdaptiveCorrectionDebug;
         const adaptiveNote = (adaptiveDbg && adaptiveDbg.btCorrectionAdaptiveActuallyAppliedToProposed)
             ? '<p class="setting-note" style="margin:6px 0 0;font-size:0.78rem;">高confidenceのため高速補正候補を使用。現行候補: '
@@ -22066,25 +22091,27 @@ function renderBtCalResult(r) {
             : '';
         const proposeRow = '<div class="cal-result-row"><span>補正後の目安</span><b>' + sign(r.proposed) + '</b></div>';
         actions =
-            '<button type="button" class="rc-mic-action-primary" id="bt-cal-apply" style="' + primary + '">この補正を適用してもう1度テストする</button>' +
+            '<button type="button" class="rc-mic-action-primary" id="bt-cal-apply" style="' + primary + '">この補正を適用して再テスト</button>' +
             '<button type="button" class="rc-mic-action-secondary" id="bt-cal-rerun" style="' + sub + '">補正せずにもう1度テストする</button>';
         els.btCalResult.innerHTML = head + adaptiveNote + rows + proposeRow + extra + '<div style="margin-top:6px;">' + actions + '</div>';
         els.btCalResult.classList.remove('hidden');
         bindBtCalResultActions();
         return;
     } else {
-        head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">判定タイミングのズレは小さめです。このまま最終確認テストへ進めます。</p>';
+        head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">✅ 判定タイミングのズレは小さめです。このまま最終確認テストへ進めます。</p>';
         // v0.9.94：OK判定でも、有効な平均ズレがあれば最新結果で自動微調整済み。控えめに案内する（ボタンは出さない）。
+        // v0.12.66：「最新の平均ズレ…」の文字色は白字にする（3-7）。
         const autoNote = r.autoFineApplied
-            ? '<p class="cal-status" style="color:#6ed28c;font-weight:600;margin-top:6px;">最新の平均ズレ（' + avgTxt + '）に合わせて、' + correctionLabel + 'の補正値を ' + sign(r.appliedOffset) + ' に微調整しました。</p>'
+            ? '<p class="cal-status" style="color:#ffffff;font-weight:600;margin-top:6px;">最新の平均ズレ（' + avgTxt + '）に合わせて、' + correctionLabel + 'の補正値を ' + sign(r.appliedOffset) + ' に微調整しました。</p>'
             : '';
         const proceedLabel = ((isIosNewProductionFlow() || isAndroidIphoneStyleTrialFlow()) && isBluetoothHeadphone())
             ? '次のテストに進む'
             : 'マイク反応テストへ進む';
         if (isBluetoothHeadphone()) {
-            head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">判定タイミングのズレは小さめです。次に、' + (useStrongSound ? 'テスト音' : 'クリック音') + 'と画面表示の見た目を合わせます。</p>';
+            head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">✅ 判定タイミングのズレは小さめです。次に、' + (useStrongSound ? 'テスト音' : 'クリック音') + 'と画面表示の見た目を合わせます。</p>';
         }
-        const volumeNote = '<p class="setting-note" style="margin:8px 0 0;font-size:0.78rem;">※音量を上げて計測した場合は、次の確認前にスマホ本体音量を少し下げてください。</p>';
+        // v0.12.66：音量に関する注意書きは赤字で目立たせる（3-3）。
+        const volumeNote = '<p class="setting-note" style="margin:8px 0 0;font-size:0.78rem;color:#ff6b6b;">※音量を上げて計測した場合は、次の確認前にスマホ本体音量を少し下げてください。</p>';
         actions =
             '<button type="button" class="rc-mic-action-primary" id="bt-cal-proceed" style="' + primary + '">' + proceedLabel + '</button>' +
             volumeNote +
@@ -26584,6 +26611,7 @@ function endClickPhase() {
         // 単発ノイズでの誤検出を避けるため、2回以上＆最大ピークが下限以上のときだけ「音漏れ」とみなす。
         const leak = (test.maxClickPeak || 0) >= leakLine && leakCount >= 2;
         test.earphoneClickLeak = leak;
+        test.earphoneClickLeakLine = leakLine; // v0.12.66：クリック音量を下げる目標計算に使う
         if (leak) { showEarphoneClickLeak(); return; }
         // 漏れなし＝正常。イヤホン接続のクリック音量は固定（70%）にする（反応ラインに合わせて下げる必要がない）。
         applyEarphoneClickVolumeFixed();
@@ -26604,8 +26632,10 @@ function applyEarphoneClickVolumeFixed() {
     saveSettings();
 }
 
-/* イヤホンのクリック音を本体マイクが拾っている（音漏れ）ときの案内＋通常マイク側テストへの導線（v0.9.152）。
-   この状態ではイヤホン用の測定が不安定になるため、テストを止めて通常マイク側でのテストを促す。 */
+/* クリック音や周囲の音が大きく、ストロークを見分けにくいときの案内（v0.9.152／v0.12.66で全面変更）。
+   v0.12.66：通常マイクへ切り替える導線は廃止。まずアプリ内クリック音量を自動で下げ、同じマイク設定のまま
+   マイク反応テストを再テストする導線にする。クリック音量を5%以下まで下げても反応ラインを超える場合だけ、
+   スマホ本体の音量を下げるよう促す。入力タイプ（通常/イヤホン）は一切変更しない。 */
 function showEarphoneClickLeak() {
     if (!shouldUseEarphoneMicTestFeatures()) return;
     clearTestTimers();
@@ -26621,33 +26651,45 @@ function showEarphoneClickLeak() {
     }
     setTestPhase('');
     setTestResult('', '');
-    if (els.earphoneLeakMsg) {
-        els.earphoneLeakMsg.textContent = 'イヤホンのクリック音をマイクが拾っています。'
-            + '音漏れしている可能性があります。'
-            + 'この状態ではイヤホン用の測定が不安定になるため、通常マイク側でテストしてください。';
+    const leakLine = Number(test.earphoneClickLeakLine) || EARPHONE_CLICK_LEAK_FLOOR;
+    const measureVol = Number(test.clickMeasureVol) || Number(state.clickVolume) || 0;
+    const maxPeak = Number(test.maxClickPeak) || 0;
+    const curVol = Number(state.clickVolume) || 0;
+    // アプリ内クリック音量を5%以下まで下げても、クリック音/周囲の音が反応ラインを超える＝本体音量が大きすぎる可能性。
+    const cannotLowerEnough = curVol <= 5 && maxPeak >= leakLine;
+    let msg;
+    if (cannotLowerEnough) {
+        msg = 'アプリ内のクリック音量をかなり下げても、クリック音や周囲の音が反応ラインを超えています。'
+            + 'スマホ本体の音量ボタンで音量を少し下げてから、もう一度マイク反応テストを行ってください。';
+    } else {
+        // 反応ラインの60%未満に収まるよう、クリック音量を線形比例で下げる（最低でも現在値より1%下げる）。
+        let targetVol;
+        if (maxPeak > 0 && measureVol > 0) {
+            targetVol = Math.floor(measureVol * (leakLine * 0.6) / maxPeak);
+        } else {
+            targetVol = Math.floor(curVol / 2);
+        }
+        targetVol = Math.max(0, Math.min(curVol - 1, targetVol));
+        state.clickVolume = targetVol;
+        storeActiveMicProfile(currentMicProfileKey());
+        applySettingsToUI();
+        saveSettings();
+        msg = 'クリック音や周囲の音が大きく、ストロークだけを見分けにくい状態です。'
+            + 'アプリ内のクリック音量を下げて調整しました（' + targetVol + '%）。'
+            + 'もう一度マイク反応テストを行ってください。';
     }
+    if (els.earphoneLeakMsg) els.earphoneLeakMsg.textContent = msg;
     if (els.earphoneLeak) els.earphoneLeak.classList.remove('hidden');
 }
 
-/* 「通常マイクでテストする」：入力タイプを通常マイクへ切り替え、マイク反応テストへ進む（v0.9.152）。 */
-function earphoneLeakSwitchToNormal() {
+/* v0.12.66：同じマイク設定のまま、マイク反応テストをもう一度行う（入力タイプは変更しない）。 */
+function retryMicReactionTestSameMic() {
     if (els.earphoneLeak) els.earphoneLeak.classList.add('hidden');
-    // v0.9.153：イヤホン側の設定を退避し、通常マイク用の設定を復元してから通常マイクテストへ。
-    const prevKey = currentMicProfileKey();
-    storeActiveMicProfile(prevKey);
-    setMicInputType('normal');
-    restoreMicProfileForCurrent(prevKey);
-    ensureWizardPlatformChosenForMidFlow();
-    setupProgress.inputChosen = true;
-    setupProgress.strokeChosen = true; // ストローク検出モードの選択は引き継ぐ
-    setupProgress.recoApplied = false;
-    setupProgress.correctionDone = false;
-    setupProgress.btDelayDone = false;
-    setupProgress.practiceDone = false;
-    wizardEditing = 'test';
-    if (settingsView !== 'steps') settingsView = 'steps';
-    renderSettingsView();
+    if (test.flow) return; // 進行中なら無視
+    test.rescueHighSens = false;
+    test.autoRetestCount = 0;
     scrollToSettingsEl(els.testCard);
+    startMicTestFlow({ startRoute: 'main' });
 }
 
 /* ── ストロークテスト（流れる譜面型・8分ダウンアップ）──────────
@@ -26756,6 +26798,14 @@ function micTestClickInputDelayMs() {
         const saved = iphoneAndroidTrialCurrentOffsetMs();
         if (Number.isFinite(saved) && saved < 0) return Math.min(800, Math.max(0, -saved));
         return 0;
+    }
+    // v0.12.66：Android仮（iPhone式）+ イヤホンも、stroke phase（micTestStrokeInputDelayMs）と同じ保存済み補正で
+    //   クリック窓を後ろへ寄せる。Android仮の有線=androidWiredMicOffsetMs / Bluetooth=androidBluetoothMicOffsetMs。
+    //   Android本番・iPhone正式・通常マイクには分岐しないため、それらの返り値は不変。
+    if (isAndroidIphoneStyleTrialFlow() && androidAudioProbeDeviceInfo().isAndroid && isHeadphoneInput()) {
+        const saved = isBluetoothHeadphone() ? Number(mic.androidBluetoothMicOffsetMs) : Number(mic.androidWiredMicOffsetMs);
+        if (!Number.isFinite(saved) || saved >= 0) return 0;
+        return Math.min(1000, Math.max(0, -saved));
     }
     return micTestAndroidNormalStrokeDelayMs();
 }
@@ -30183,7 +30233,7 @@ function bind() {
     //   Bluetooth最終テストからの反応テストやり直し。
     if (els.micPermRetry) els.micPermRetry.addEventListener('click', retryMicStart);
     if (els.ptRetestMicBtn) els.ptRetestMicBtn.addEventListener('click', () => { if (!test.flow) practiceFixGoTo(practiceRetestMicFixRoute()); });
-    if (els.earphoneLeakSwitch) els.earphoneLeakSwitch.addEventListener('click', earphoneLeakSwitchToNormal);
+    if (els.earphoneLeakSwitch) els.earphoneLeakSwitch.addEventListener('click', retryMicReactionTestSameMic);
     els.recoApplyBtn.addEventListener('click', applyReco);
     els.tempoUp.addEventListener('click', () => setBpm(state.bpm + 1));   // v0.9.144：BPMは1刻みで微調整（最小/最大はsetBpm内のまま）
     els.tempoDown.addEventListener('click', () => setBpm(state.bpm - 1)); // v0.9.144：BPMは1刻みで微調整
