@@ -4894,6 +4894,40 @@ h1 {
     background: rgba(253, 246, 238, 0.14);
 }
 
+#stroke-mic-panel .smic-save-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px;
+    width: 100%;
+    max-width: 380px;
+    margin-top: 4px;
+}
+
+#stroke-mic-panel .smic-save-btn {
+    min-height: 36px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 800;
+    line-height: 1.2;
+    color: var(--text-color);
+    background: rgba(255, 159, 28, 0.12);
+    border: 1px solid rgba(255, 159, 28, 0.38);
+    border-radius: 8px;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+#stroke-mic-panel .smic-save-btn:first-child:last-child,
+#stroke-mic-panel .smic-save-btn:not(.hidden):first-child:nth-last-child(3) {
+    grid-column: 1 / -1;
+}
+
+#stroke-mic-panel .smic-save-btn:active {
+    transform: scale(0.98);
+    background: rgba(255, 159, 28, 0.2);
+}
+
 .tlt-label {
     font-size: 0.76rem;
     color: var(--muted-color);

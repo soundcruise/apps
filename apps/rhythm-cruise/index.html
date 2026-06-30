@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.12.83">
+    <link rel="stylesheet" href="theme.css?v=0.12.84">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -502,7 +502,11 @@
                         </div>
                         <input type="range" id="smic-clickvol" min="0" max="100" step="5" value="70" aria-label="クリック音量">
                     </div>
-                    <button type="button" class="tap-tools-reset" id="smic-open-manual">詳しく調整する（手動設定）</button>
+                    <div class="smic-save-actions" id="smic-save-actions">
+                        <button type="button" class="smic-save-btn" id="smic-preset-save">この設定を保存</button>
+                        <button type="button" class="smic-save-btn hidden" id="smic-preset-saveas">別名で保存</button>
+                        <button type="button" class="smic-save-btn smic-overwrite-btn hidden" id="smic-preset-overwrite">上書き保存</button>
+                    </div>
                     <!-- タップモードへの切替導線（v0.9.140） -->
                     <button type="button" class="tap-tools-switch" id="smic-to-tap">タップモードに切り替える</button>
                 </div>
@@ -1521,7 +1525,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.12.83"></script>
+    <script src="script.js?v=0.12.84"></script>
 </body>
 
 </html>

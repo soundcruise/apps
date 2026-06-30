@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.83';
+const RHYTHM_CRUISE_VERSION = '0.12.84';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -1575,7 +1575,9 @@ const els = {
     smicOffsetVal: $('smic-offset-val'),
     smicOffsetDec: $('smic-offset-dec'),
     smicOffsetInc: $('smic-offset-inc'),
-    smicOpenManual: $('smic-open-manual'),    // 手動設定へのリンク
+    smicPresetSave: $('smic-preset-save'),    // Practice手動マイク調整内：プリセット保存
+    smicPresetSaveas: $('smic-preset-saveas'),
+    smicPresetOverwrite: $('smic-preset-overwrite'),
     smicToTapBtn: $('smic-to-tap'),           // 手動マイク調整内：タップモードへ切替
     micSetupPrompt: $('mic-setup-prompt'),
     micSetupPromptText: $('mic-setup-text'),
@@ -23902,6 +23904,7 @@ let tapView = 'home';
 let tapManualSnapshot = 0;
 /* 保存モーダルの保存先（v0.9.97）：'mic'＝マイク設定プリセット／'tap'＝画面タップ設定プリセット。 */
 let presetModalMode = 'mic';
+let presetModalOpenedFrom = 'settings';
 /* 今回の「もう一度テストする」フローでユーザーが選択済み/完了したかの進捗（保存値とは別物）
    v0.9.62：1ステップずつ進むウィザード。各ステップの完了フラグで「いま出すカード」を1つだけ決める。
    correctionDone（補正系完了：適用 or スキップ or 進む）を追加。 */
@@ -25565,6 +25568,10 @@ function syncMicSaveStateUI() {
         els.settingsSummarySave.textContent = showOverwrite ? '別名で保存' : 'この設定を保存';
     }
     if (els.settingsSummaryOverwrite) els.settingsSummaryOverwrite.classList.toggle('hidden', !showOverwrite);
+    // Practice画面の手動マイク調整
+    if (els.smicPresetSave) els.smicPresetSave.classList.toggle('hidden', showOverwrite);
+    if (els.smicPresetSaveas) els.smicPresetSaveas.classList.toggle('hidden', !showOverwrite);
+    if (els.smicPresetOverwrite) els.smicPresetOverwrite.classList.toggle('hidden', !showOverwrite);
 }
 /* マイク設定の値が変わったときに、関係する全UI（手動スライダー・簡易スライダー・現在の設定・保存状態）を一括同期する。 */
 function syncMicSettingsUI() {
@@ -25748,6 +25755,7 @@ function cancelManualSettings() {
 function openPresetModal(mode) {
     if (!els.presetModal) return;
     presetModalMode = (mode === 'tap') ? 'tap' : 'mic'; // 保存先を明示（v0.9.97）
+    presetModalOpenedFrom = currentScreen === 'practice' ? 'practice' : 'settings';
     setPresetSaveMsg('');
     if (els.presetModalInput) els.presetModalInput.value = '';
     els.presetModal.classList.remove('hidden');
@@ -25770,7 +25778,15 @@ function savePresetFromModal() {
             // マイク設定の保存（v0.10.8）：保存＝現在設定として適用済み（savePresetWithName が linkMicPreset 済み）。
             // 保存後は設定画面に留めず、開いた元の画面（settingsReturn＝TOP/Practice）へ戻す。
             // 「保存せずにこの設定を使う」(presetModalSkip) と同じ復帰挙動に揃える。
-            setTimeout(() => { closePresetModal(); closeSettings(); }, 700);
+            setTimeout(() => {
+                closePresetModal();
+                if (presetModalOpenedFrom === 'practice') {
+                    applyStrokeMicToolsUI();
+                    syncMicSaveStateUI();
+                } else {
+                    closeSettings();
+                }
+            }, 700);
         }
     }
 }
@@ -30722,8 +30738,14 @@ function bind() {
         invalidatePracticeResult('設定を変更しました。もう一度最終確認テストで確認してください。');
         applyStrokeMicToolsUI();
     });
-    // 手動設定へのリンク（既存導線を使う：今いる画面へ戻る openSettingsFromCurrent）
-    if (els.smicOpenManual) els.smicOpenManual.addEventListener('click', openSettingsFromCurrent);
+    // Practice手動マイク調整：マイク設定プリセット保存（保存本体は既存処理を再利用）
+    if (els.smicPresetSave) els.smicPresetSave.addEventListener('click', () => openPresetModal('mic'));
+    if (els.smicPresetSaveas) els.smicPresetSaveas.addEventListener('click', () => openPresetModal('mic'));
+    if (els.smicPresetOverwrite) els.smicPresetOverwrite.addEventListener('click', () => {
+        overwriteCurrentMicPreset();
+        applyStrokeMicToolsUI();
+        syncMicSaveStateUI();
+    });
     // タップボタンの高さ調整スライダー
     if (els.tapHeightSlider) els.tapHeightSlider.addEventListener('input', () => setTapHeight(parseInt(els.tapHeightSlider.value, 10)));
 
@@ -30838,7 +30860,15 @@ function bind() {
     if (els.tapCalPad) els.tapCalPad.addEventListener('pointerdown', (e) => { e.preventDefault(); registerTapCalTap(); });
     // プリセット保存モーダル（v0.9.80）
     if (els.presetModalSave) els.presetModalSave.addEventListener('click', savePresetFromModal);
-    if (els.presetModalSkip) els.presetModalSkip.addEventListener('click', () => { closePresetModal(); closeSettings(); }); // mod 3
+    if (els.presetModalSkip) els.presetModalSkip.addEventListener('click', () => {
+        closePresetModal();
+        if (presetModalOpenedFrom === 'practice') {
+            applyStrokeMicToolsUI();
+            syncMicSaveStateUI();
+        } else {
+            closeSettings();
+        }
+    }); // mod 3
     if (els.presetModalCancel) els.presetModalCancel.addEventListener('click', closePresetModal);
     if (els.presetModalInput) {
         els.presetModalInput.addEventListener('input', () => setPresetSaveMsg(''));
