@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.69';
+const RHYTHM_CRUISE_VERSION = '0.12.70';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -27654,7 +27654,13 @@ function updateReco() {
     const deviceVolumeWarningReason = deviceVolumeWarningReasons.length
         ? deviceVolumeWarningReasons.join(',')
         : 'none';
-    const deviceVolumeWarningShown = isNormalMicInput() && canApply && deviceVolumeWarningReasons.length > 0;
+    // v0.12.70：通常マイクの「クリック音の測定が不安定です」誤警告対策。
+    //   従来は3条件のいずれか（検出数不足 / クリック対ノイズ8倍未満 / 遅延テスト余裕1.15倍未満）で警告していたが、
+    //   クリックが 6/8 以上検出できている＝正常に拾えている場合でも、比率条件だけで誤って警告が出ていた。
+    //   クリック検出数が不足している（!clickDetectionPass＝本当にクリックを拾えていない）ときだけ警告する。
+    //   比率条件は誤警告の単独要因にしない（diagnostic用に deviceVolumeWarningReason へは引き続き全て記録）。
+    //   recoVol・マイク感度・ストローク検出・二重反応・イヤホン系分岐・判定ロジックには一切触れない（警告表示条件のみ）。
+    const deviceVolumeWarningShown = isNormalMicInput() && canApply && !clickDetectionPass;
 
     // ③ 二重反応防止：ストローク波形が反応ラインを超えている時間幅をベースに算出する。
     //    おすすめ = min( 超過時間 × 1.2, 最短音符間隔 × 0.45 )。
