@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.75';
+const RHYTHM_CRUISE_VERSION = '0.12.76';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -19552,8 +19552,13 @@ function buildFinalCheckAndroidNormalClickSafetyDebug(clickDebug) {
     if (!clickDebug || !isAndroidNormalMicClickSafetyFlow()) return null;
     const nearPeak = Number(clickDebug.maxNearClickPeak) || 0;
     const delayedPeak = Number(clickDebug.maxDelayedClickPeak) || 0;
-    const peakUsed = Math.max(nearPeak, delayedPeak);
-    const peakSource = delayedPeak >= nearPeak ? 'delayed' : 'near';
+    const postStrokePeak = Math.max(nearPeak, delayedPeak);
+    const postStrokePeakSource = delayedPeak >= nearPeak ? 'delayed' : 'near';
+    const initialClickGate = androidNormalMicInitialClickGateSnapshot();
+    const useInitialGateOnly = !!(initialClickGate && initialClickGate.androidNormalMicFinalInitialClickGateEnabled);
+    const initialGatePeak = Number(initialClickGate && initialClickGate.androidNormalMicFinalInitialClickPeakUsed) || 0;
+    const peakUsed = useInitialGateOnly ? initialGatePeak : postStrokePeak;
+    const peakSource = useInitialGateOnly ? 'initial-click-gate' : postStrokePeakSource;
     const recommendedThreshold = mic.threshold;
     const effectiveThreshold = ptDetectionThreshold();
     const ratioTo = (value, base) => (
@@ -19573,16 +19578,18 @@ function buildFinalCheckAndroidNormalClickSafetyDebug(clickDebug) {
         : null;
     const lowClickVolumePrecisionRisk = Number.isFinite(usedVol) && usedVol <= 10;
     const crossesRecommended = peakUsed >= recommendedThreshold;
-    const needsDeviceVolumeDown = !!(crossesRecommended && (safeVolRaw == null || safeVolRaw < 1 || usedVol <= 2));
+    const initialGatePassed = !!(initialClickGate && initialClickGate.androidNormalMicFinalInitialClickPass === true);
+    const needsDeviceVolumeDown = !!(!initialGatePassed && crossesRecommended && (safeVolRaw == null || safeVolRaw < 1 || usedVol <= 2));
     let deviceVolumeDownReason = 'none';
     if (needsDeviceVolumeDown) {
         deviceVolumeDownReason = safeVolRaw != null && safeVolRaw < 1
             ? 'required-app-click-volume-below-1-percent'
             : 'app-click-volume-already-2-percent-or-less';
-    } else if (lowClickVolumePrecisionRisk && crossesRecommended) {
+    } else if (!initialGatePassed && lowClickVolumePrecisionRisk && crossesRecommended) {
         deviceVolumeDownReason = 'low-app-click-volume-still-crosses-line';
+    } else if (initialGatePassed) {
+        deviceVolumeDownReason = 'initial-click-gate-passed-post-stroke-peaks-debug-only';
     }
-    const initialClickGate = androidNormalMicInitialClickGateSnapshot();
     return {
         enabled: true,
         selectedTestPlatform,
@@ -19593,6 +19600,11 @@ function buildFinalCheckAndroidNormalClickSafetyDebug(clickDebug) {
         finalCheckClickDelayedPeak: delayedPeak,
         finalCheckClickPeakUsedForSafety: peakUsed,
         finalCheckClickPeakSource: peakSource,
+        androidNormalMicFinalClickSafetySource: peakSource,
+        androidNormalMicFinalClickSafetyIgnoredStrokePhasePeaks: !!(useInitialGateOnly && initialGatePassed),
+        androidNormalMicFinalClickSafetyUsedInitialGateOnly: useInitialGateOnly,
+        androidNormalMicFinalClickSafetyPostStrokePeakForDebugOnly: postStrokePeak,
+        androidNormalMicFinalClickSafetyPostStrokePeakSourceForDebugOnly: postStrokePeakSource,
         recommendedThreshold,
         effectiveRecommendedThreshold: effectiveThreshold,
         clickToRecommendedThresholdRatio: ratioTo(peakUsed, recommendedThreshold),
@@ -21276,7 +21288,8 @@ function practiceComment(r) {
             text: 'クリック音がマイクに大きく回り込んでいます。スマホ本体の音量を少し下げてから、マイク反応テストをやり直してください。',
         };
     }
-    if (finalClickSafety && finalClickSafety.clickToRecommendedThresholdRatio >= 1) {
+    const ignorePostStrokeClickSafety = !!(finalClickSafety && finalClickSafety.androidNormalMicFinalClickSafetyUsedInitialGateOnly && initialGate && initialGate.androidNormalMicFinalInitialClickPass === true);
+    if (finalClickSafety && !ignorePostStrokeClickSafety && finalClickSafety.clickToRecommendedThresholdRatio >= 1) {
         if (finalClickSafety.needsDeviceVolumeDown) {
             return {
                 kind: 'warn',
