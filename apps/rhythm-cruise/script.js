@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.89';
+const RHYTHM_CRUISE_VERSION = '0.12.90';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -12860,11 +12860,11 @@ function micJudgeOffsetMs() {
         }
         return mic.timingOffsetMs + (mic.wiredMicOffsetMs || 0);
     }
-    // v0.11.52：Android かつ 本体マイク時だけ、保存済み androidBuiltinMicOffsetMs を優先（保存時=0以外のみ）。
+    // v0.12.90：Android かつ 本体マイク時は、保存済み androidBuiltinMicOffsetMs を単独で使う（timingOffsetMsは重ねない）。
     // 未保存(0)・iOS・イヤホンは完全に既存通り。既存 timingOffsetMs は不変。
     if (androidAudioProbeDeviceInfo().isAndroid && isNormalMicInput()) {
         const androidBuiltin = Number(mic.androidBuiltinMicOffsetMs);
-        if (Number.isFinite(androidBuiltin) && androidBuiltin !== 0) return mic.timingOffsetMs + androidBuiltin;
+        if (Number.isFinite(androidBuiltin) && androidBuiltin !== 0) return androidBuiltin;
     }
     return mic.timingOffsetMs;
 }
