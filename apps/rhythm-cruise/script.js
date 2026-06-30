@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.67';
+const RHYTHM_CRUISE_VERSION = '0.12.68';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -15103,7 +15103,10 @@ function iosNewBtRetestUserLabel() {
     return '音ズレテストをやり直す';
 }
 function isIosNewManualCorrectionAvailable() {
-    return isIosNewProductionFlow() && isHeadphoneInput();
+    // v0.12.68：iPhone正式に加え、Android仮のイヤホン系（有線/Bluetooth）でも最終確認後の手動補正タブを出す。
+    //   編集先offsetは btCalMicOffset*（Android仮＝androidWired/BluetoothMicOffsetMs、iPhone正式＝wired/bluetoothMicOffsetMs）。
+    //   通常マイクはiPhone正式でも非表示のため対象外（Practice手動調整は今回スコープ外）。
+    return (isIosNewProductionFlow() || isAndroidIphoneStyleTrialFlow()) && isHeadphoneInput();
 }
 function isIosNewBtSignSanityFlow() {
     return isIosNewProductionFlow() && isBluetoothHeadphone();
@@ -15308,7 +15311,8 @@ function stopIosNewBtVolumeTestOnLeave(stopReason) {
     if (normalized !== 'toggle-off' && normalized !== 'start-btdelay-test') stopIosNewBtDelayPreview();
 }
 function captureIosNewManualCorrectionStartValues() {
-    const headphoneMicOffsetMs = headphoneMicOffsetGet();
+    // v0.12.68：実際に編集対象となるoffset（Android仮＝Android専用、iPhone正式＝従来）を起点値とする。
+    const headphoneMicOffsetMs = btCalMicOffsetGet();
     return {
         headphoneMicOffsetMs,
         bluetoothMicOffsetMs: mic.bluetoothMicOffsetMs || 0,
@@ -15320,9 +15324,10 @@ function captureIosNewManualCorrectionStartValues() {
     };
 }
 function buildIosNewManualCorrectionPanelHtml() {
-    const btMin = headphoneMicOffsetMin();
-    const btMax = headphoneMicOffsetMax();
-    const btVal = headphoneMicOffsetGet();
+    // v0.12.68：btCalMicOffset* 経由で、Android仮は Android専用offset、iPhone正式は従来offsetを読む。
+    const btMin = btCalMicOffsetMin();
+    const btMax = btCalMicOffsetMax();
+    const btVal = btCalMicOffsetGet();
     const sensVal = sensFromThresholdUI(mic.threshold);
     const clickVal = state.clickVolume;
     const row = 'display:flex;align-items:center;justify-content:space-between;gap:8px;margin:12px 0 4px;font-size:0.85rem;';
@@ -15344,7 +15349,7 @@ function buildIosNewManualCorrectionPanelHtml() {
 function buildIosNewManualCorrectionDebug(phase, sliderValues) {
     const start = iosNewManualCorrectionStartValues || captureIosNewManualCorrectionStartValues();
     const sliders = sliderValues || {
-        headphoneMicOffsetMs: headphoneMicOffsetGet(),
+        headphoneMicOffsetMs: btCalMicOffsetGet(), // v0.12.68：Android仮はAndroid専用offset（iPhone正式は同値）
         resultingJudgeOffsetMs: finalCheckJudgeOffsetMs(),
         threshold: mic.threshold,
         clickVolume: state.clickVolume,
@@ -15585,7 +15590,7 @@ function bindIosNewManualCorrectionPanel() {
     const btSlider = document.getElementById('ios-new-manual-bt-offset');
     const thrSlider = document.getElementById('ios-new-manual-threshold');
     const clickSlider = document.getElementById('ios-new-manual-clickvol');
-    let btSliderStart = btSlider ? Number(btSlider.value) : headphoneMicOffsetGet();
+    let btSliderStart = btSlider ? Number(btSlider.value) : btCalMicOffsetGet();
     const syncBt = () => {
         if (!btSlider) return;
         const v = Number(btSlider.value);
@@ -15620,7 +15625,8 @@ function bindIosNewManualCorrectionPanel() {
     const applyBtn = document.getElementById('ios-new-manual-apply-retest');
     if (applyBtn) applyBtn.addEventListener('click', () => {
         if (!btSlider || !thrSlider || !clickSlider) return;
-        const btOffset = headphoneMicOffsetSet(Number(btSlider.value));
+        // v0.12.68：btCalMicOffsetSet 経由で、Android仮は Android専用offset、iPhone正式は従来offsetへ保存。
+        const btOffset = btCalMicOffsetSet(Number(btSlider.value));
         mic.threshold = thresholdFromSensUI(Number(thrSlider.value));
         state.clickVolume = Math.max(0, Math.min(100, Math.round(Number(clickSlider.value))));
         applySettingsToUI();
@@ -21065,8 +21071,6 @@ function renderPracticeResult(r) {
         + 'background:linear-gradient(180deg,#ff9f1c,#ff8c00);color:#1a130a;font-weight:800;font-size:1rem;cursor:pointer;';
     const sub = 'width:100%;padding:12px;margin-top:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.28);'
         + 'background:rgba(255,255,255,0.05);color:inherit;font-weight:700;cursor:pointer;';
-    const subQuiet = 'width:100%;padding:10px;margin-top:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.18);'
-        + 'background:transparent;color:inherit;font-size:0.85rem;opacity:0.85;cursor:pointer;';
     let actions = '';
     if (c.kind === 'ok') {
         // 「この設定を保存」を金色っぽい主導線に、「保存せずにこの設定を使う」を黒系副導線に（v0.9.229）。
@@ -21134,8 +21138,12 @@ function renderPracticeResult(r) {
 
     let iosNewManualBlock = '';
     if (isIosNewManualCorrectionAvailable()) {
+        // v0.12.68：iPhone正式/Android仮 共通で「手動で補正する」を少しだけ目立たせる（アクセントを軽く使う・派手にしない）。
+        const manualCorrectStyle = 'width:100%;padding:11px;margin-top:10px;border-radius:10px;'
+            + 'border:1px solid rgba(255,159,28,0.55);background:rgba(255,159,28,0.10);'
+            + 'color:#ffd9a0;font-size:0.9rem;font-weight:700;cursor:pointer;';
         iosNewManualBlock =
-            '<button type="button" id="pt-result-manual-correct" style="' + subQuiet + '">手動で補正する</button>'
+            '<button type="button" id="pt-result-manual-correct" style="' + manualCorrectStyle + '">手動で補正する</button>'
             + buildIosNewManualCorrectionPanelHtml();
     }
 
@@ -22103,7 +22111,9 @@ function renderBtCalResult(r) {
         bindBtCalResultActions();
         return;
     } else {
-        head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">✅ 測定できました。このまま最終確認テストへ進めます。</p>';
+        // v0.12.68：非BT（有線/通常）の次ステップは「マイク反応テスト」（completeBtCalStep→testCard / 下のボタンも「マイク反応テストへ進む」）。
+        //   旧文言「最終確認テストへ進めます」は実際の次ステップとズレていたため、iPhone正式・Android仮 共通でボタンに揃える。
+        head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">✅ 測定できました。このままマイク反応テストへ進めます。</p>';
         // v0.9.94：OK判定でも、有効な平均ズレがあれば最新結果で自動微調整済み。控えめに案内する（ボタンは出さない）。
         // v0.12.66：「最新の平均ズレ…」の文字色は白字にする（3-7）。
         const autoNote = r.autoFineApplied
