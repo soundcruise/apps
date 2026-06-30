@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.88';
+const RHYTHM_CRUISE_VERSION = '0.12.89';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14223,9 +14223,12 @@ function androidTestPlatformSelected() {
         && (run.selectedTestPlatform === 'android' || run.selectedTestPlatform === 'iphone_android_trial'));
 }
 function androidBuiltinMicSaveContext() {
+    const run = headphoneAudioProbe.run;
+    const isOfficialAndroidNormal = isAndroidTrialNormalMicOnDevice()
+        || !!(run && run.selectedTestPlatform === 'android_ios_style_trial' && run.selectedInputType === 'normal' && androidAudioProbeDeviceInfo().isAndroid);
+    if (isOfficialAndroidNormal) return true;
     if (!androidTestPlatformSelected()) return false;
     if (isNormalMicInput()) return true;
-    const run = headphoneAudioProbe.run;
     return !!(run && run.selectedInputType === 'normal');
 }
 function androidWiredSaveContext() {
@@ -14677,7 +14680,10 @@ function onWizardAndroidLatencyUse(kind) {
         return;
     }
     if (kind === 'builtin') {
-        saveAndroidBuiltinMicCorrection();
+        if (!saveAndroidBuiltinMicCorrection()) {
+            syncWizardSaveStatusFromDetail('builtin');
+            return;
+        }
         syncWizardSaveStatusFromDetail('builtin');
     } else if (kind === 'wired') {
         saveAndroidWiredCorrection();
@@ -16993,16 +16999,18 @@ function refreshAndroidBuiltinSaveButton() {
    既存 timingOffsetMs / androidBluetoothMicOffsetMs / androidWiredMicOffsetMs には一切触れない。
    ※v0.11.52でPractice判定に接続済み（Android+本体マイク時のみ優先）。 */
 function saveAndroidBuiltinMicCorrection() {
-    const isAndroidBuiltin = selectedTestPlatform === 'android' && isNormalMicInput();
+    const isAndroidBuiltin = (selectedTestPlatform === 'android' && isNormalMicInput())
+        || isAndroidTrialNormalMicOnDevice();
     const bc = androidBuiltinMicCandidate();
     if (!isAndroidBuiltin || !bc || bc.isReadyToSave !== true || bc.saveOffsetMs == null) {
         setAndroidSaveStatus(els.androidCheckSaveBuiltinStatus, els.wizardAndroidSaveBuiltinStatus, '保存条件未達: ' + (bc && bc.reason || 'Android本体マイクの保存可能な候補がありません'));
-        return;
+        return false;
     }
     mic.androidBuiltinMicOffsetMs = clampNum(bc.saveOffsetMs, ANDROID_BUILTIN_MIC_OFFSET_MIN, ANDROID_BUILTIN_MIC_OFFSET_MAX, 0);
     saveSettings();
     setAndroidSaveStatus(els.androidCheckSaveBuiltinStatus, els.wizardAndroidSaveBuiltinStatus, '保存しました: Android本体マイク補正値 ' + Math.round(mic.androidBuiltinMicOffsetMs) + 'ms　現在のPractice判定: 使用中');
     console.info('[android-builtin] 保存 androidBuiltinMicOffsetMs=' + mic.androidBuiltinMicOffsetMs + 'ms（Android+本体マイク時のPractice判定で使用）');
+    return true;
 }
 function clearAndroidAudioLogs() { headphoneAudioProbe.run = null; headphoneAudioProbe.runs = []; hideAndroidCheckLive(); if (els.androidCheckResult) { els.androidCheckResult.textContent = ''; els.androidCheckResult.classList.add('hidden'); } if (els.wizardAndroidResultBuiltin) { els.wizardAndroidResultBuiltin.textContent = ''; els.wizardAndroidResultBuiltin.classList.add('hidden'); } if (els.wizardAndroidResultHp) { els.wizardAndroidResultHp.textContent = ''; els.wizardAndroidResultHp.classList.add('hidden'); } if (els.androidCheckStatus) els.androidCheckStatus.textContent = 'Android音声調査ログをクリアしました。設定値は変更していません。'; renderHeadphoneAudioProbeLog(); refreshAllAndroidSaveButtons(); }
 function androidCheckLightweightLog(run) {
