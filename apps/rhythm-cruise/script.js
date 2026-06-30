@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.76';
+const RHYTHM_CRUISE_VERSION = '0.12.77';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -21348,6 +21348,13 @@ function renderPracticeResult(r) {
     practiceResultOk = (c.kind === 'ok'); // 完了ボタンの有効判定に使う
     const sign = r.avg > 0 ? '+' : (r.avg < 0 ? '−' : '±');
     const avgTxt = sign + Math.abs(r.avg) + 'ms';
+    const finalClickSafety = r.finalCheckClickDebug && r.finalCheckClickDebug.androidNormalMicFinalClickSafety;
+    const initialGate = finalClickSafety && finalClickSafety.androidNormalMicFinalInitialClickGate;
+    const showInitialGateFixInBanner = !!(
+        c.kind !== 'ok'
+        && c.issue === 'devicevolume'
+        && (r.androidNormalMicInitialClickGateFailed || (initialGate && initialGate.androidNormalMicFinalInitialClickPass === false))
+    );
 
     // 目立つ結果バナー（問題あり/なし）
     const okBanner = '<div style="text-align:center;padding:16px 14px;margin-bottom:14px;border-radius:12px;'
@@ -21357,7 +21364,11 @@ function renderPracticeResult(r) {
     const warnBanner = '<div style="text-align:center;padding:14px 12px;margin-bottom:12px;border-radius:12px;'
         + 'border:1px solid rgba(255,170,70,0.55);background:rgba(255,170,70,0.12);">'
         + '<div style="font-size:1.25rem;font-weight:800;">⚠️ 調整が必要です</div>'
-        + '<div style="font-size:0.9rem;opacity:0.9;margin-top:4px;">' + escapeHtml(c.text) + '</div></div>';
+        + '<div style="font-size:0.9rem;opacity:0.9;margin-top:4px;">' + escapeHtml(c.text) + '</div>'
+        + (showInitialGateFixInBanner
+            ? '<button type="button" class="rc-mic-action-primary" id="pt-result-card-fix-test" style="width:100%;padding:14px;margin-top:12px;border-radius:10px;border:none;background:linear-gradient(180deg,#ff9f1c,#ff8c00);color:#1a130a;font-weight:800;font-size:1rem;cursor:pointer;">マイク反応テストをやり直す</button>'
+            : '')
+        + '</div>';
 
     // 表に出す主要情報（GOOD/EARLY/LATE/MISS と平均ズレ）
     const clickRows = r.finalCheckClickDebug
@@ -21476,6 +21487,8 @@ function bindPracticeResultActions() {
     // 原因別の戻り先（v0.9.67）：移動前に必ず古い最終確認テスト結果を消す
     const fixTest = document.getElementById('pt-result-fix-test');
     if (fixTest) fixTest.addEventListener('click', () => practiceFixGoTo('test'));
+    const cardFixTest = document.getElementById('pt-result-card-fix-test');
+    if (cardFixTest) cardFixTest.addEventListener('click', () => practiceFixGoTo('test'));
     const fixCorrection = document.getElementById('pt-result-fix-correction');
     if (fixCorrection) fixCorrection.addEventListener('click', () => practiceFixGoTo('correction'));
     const fixBtDelay = document.getElementById('pt-result-fix-btdelay');
