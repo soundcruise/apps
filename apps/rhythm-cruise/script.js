@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.78';
+const RHYTHM_CRUISE_VERSION = '0.12.79';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -12761,7 +12761,7 @@ function updateMicInputTypeUI() {
     }
     if (els.inputTypeHeadphone) els.inputTypeHeadphone.classList.toggle('is-active', t === 'headphone');
     if (els.inputTypeNote) els.inputTypeNote.textContent = isAndroidIphoneStyleTrialFlow()
-        ? 'Android仮では、通常マイクは現行Android式、有線 / BluetoothイヤホンはiPhone式の音ズレ・遅延テストで確認します。'
+        ? 'Androidでは、通常マイクはAndroid式、有線 / Bluetoothイヤホンは新しい音ズレ・遅延テストで確認します。'
         : (MIC_INPUT_TYPE_NOTE[t] || MIC_INPUT_TYPE_NOTE.normal);
     if (els.testInputNote) els.testInputNote.textContent = MIC_TEST_NOTE_BY_TYPE[t] || MIC_TEST_NOTE_BY_TYPE.normal;
     // 入力タイプに応じてカードを出し分ける。
@@ -24012,7 +24012,7 @@ function wizardStepSummary(id) {
     switch (id) {
         case 'platform':
             return selectedTestPlatform === 'android' ? '端末：Android'
-                : (selectedTestPlatform === 'android_ios_style_trial' ? '端末：Android仮'
+                : (selectedTestPlatform === 'android_ios_style_trial' ? '端末：Android'
                 : (selectedTestPlatform === 'iphone_android_trial' ? '端末：iPhone仮'
                 : (selectedTestPlatform === 'ios_new' ? '端末：iPhone'
                 : (selectedTestPlatform === 'ios' ? '端末：iPhone / iPad' : '端末：未選択'))));
@@ -24062,7 +24062,7 @@ function refreshSegmentSelections() {
     const showPlatform = !(steps && !setupProgress.platformChosen);
     if (els.wizardPlatformIos) els.wizardPlatformIos.classList.toggle('is-active', showPlatform && selectedTestPlatform === 'ios');
     if (els.wizardPlatformIosNew) els.wizardPlatformIosNew.classList.toggle('is-active', showPlatform && selectedTestPlatform === 'ios_new');
-    if (els.wizardPlatformAndroid) els.wizardPlatformAndroid.classList.toggle('is-active', showPlatform && selectedTestPlatform === 'android');
+    if (els.wizardPlatformAndroid) els.wizardPlatformAndroid.classList.toggle('is-active', showPlatform && (selectedTestPlatform === 'android' || selectedTestPlatform === 'android_ios_style_trial'));
     if (els.wizardPlatformAndroidTrial) els.wizardPlatformAndroidTrial.classList.toggle('is-active', showPlatform && selectedTestPlatform === 'android_ios_style_trial');
     if (els.wizardPlatformIphoneTrial) els.wizardPlatformIphoneTrial.classList.toggle('is-active', showPlatform && selectedTestPlatform === 'iphone_android_trial');
     const t = getMicInputType();
@@ -24848,7 +24848,7 @@ function startRetestFlow(jumpToTest) {
     wizardEditing = null;
     if (jumpToTest) {
         setupProgress.platformChosen = true;
-        selectedTestPlatform = androidAudioProbeDeviceInfo().isAndroid ? 'android' : 'ios_new';
+        selectedTestPlatform = androidAudioProbeDeviceInfo().isAndroid ? 'android_ios_style_trial' : 'ios_new';
         setupProgress.inputChosen = true;
         setupProgress.hpChosen = true;
         setupProgress.strokeChosen = true;
@@ -25060,7 +25060,7 @@ function updateWizardFlowPlatformNotes() {
     const msg = selectedTestPlatform === 'android'
         ? 'Android向けの補正テストを行います。'
         : (selectedTestPlatform === 'android_ios_style_trial'
-            ? 'Android仮テスト中です。通常マイクは現行Android式、イヤホンはiPhone式の音ズレ・遅延テストを試します。保存先はAndroid専用補正です。'
+            ? 'Android向けの補正テストを行います。'
         : (selectedTestPlatform === 'iphone_android_trial'
             ? 'iPhone仮テスト中です。現在のiPhone本番設定には保存しません。Android設定にも保存しません。ページを再読み込みすると、この仮設定は消えます。selectedTestPlatform: iphone_android_trial'
             : (selectedTestPlatform === 'ios_new'
@@ -25090,7 +25090,7 @@ function onPickWizardPlatform(platform) {
 function ensureWizardPlatformChosenForMidFlow() {
     if (!setupProgress.platformChosen) {
         setupProgress.platformChosen = true;
-        if (!selectedTestPlatform) selectedTestPlatform = androidAudioProbeDeviceInfo().isAndroid ? 'android' : 'ios_new';
+        if (!selectedTestPlatform) selectedTestPlatform = androidAudioProbeDeviceInfo().isAndroid ? 'android_ios_style_trial' : 'ios_new';
         updateWizardFlowPlatformNotes();
     }
 }
@@ -25321,7 +25321,7 @@ function renderSettingsSummary() {
 
 function manualSummaryPlatformLabel() {
     if (selectedTestPlatform === 'android') return 'Android';
-    if (selectedTestPlatform === 'android_ios_style_trial') return 'Android仮';
+    if (selectedTestPlatform === 'android_ios_style_trial') return 'Android';
     if (selectedTestPlatform === 'iphone_android_trial') return 'iPhone仮';
     if (selectedTestPlatform === 'ios_new') return 'iPhone';
     if (selectedTestPlatform === 'ios') return 'iOS';
@@ -30519,7 +30519,7 @@ function bind() {
     if (els.inputTypeHeadphone) els.inputTypeHeadphone.addEventListener('click', () => onPickInputType('headphone'));
     if (els.wizardPlatformIos) els.wizardPlatformIos.addEventListener('click', () => onPickWizardPlatform('ios'));
     if (els.wizardPlatformIosNew) els.wizardPlatformIosNew.addEventListener('click', () => onPickWizardPlatform('ios_new'));
-    if (els.wizardPlatformAndroid) els.wizardPlatformAndroid.addEventListener('click', () => onPickWizardPlatform('android'));
+    if (els.wizardPlatformAndroid) els.wizardPlatformAndroid.addEventListener('click', () => onPickWizardPlatform('android_ios_style_trial'));
     if (els.wizardPlatformAndroidTrial) els.wizardPlatformAndroidTrial.addEventListener('click', () => onPickWizardPlatform('android_ios_style_trial'));
     if (els.wizardPlatformIphoneTrial) els.wizardPlatformIphoneTrial.addEventListener('click', () => onPickWizardPlatform('iphone_android_trial'));
     if (els.platformIos) els.platformIos.addEventListener('click', () => selectTestPlatform('ios'));
