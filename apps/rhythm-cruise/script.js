@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.93';
+const RHYTHM_CRUISE_VERSION = '0.12.94';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -25173,8 +25173,25 @@ function updateWizardFlowPlatformNotes() {
         els.wizardFlowPlatformNote.classList.toggle('hidden', !msg);
     }
 }
+function wizardPlatformDeviceBlockReason(platform) {
+    const info = androidAudioProbeDeviceInfo();
+    const isAndroidRoute = platform === 'android_ios_style_trial' || platform === 'android';
+    const isIosRoute = platform === 'ios_new' || platform === 'ios';
+    if (info.isAndroid && isIosRoute) return 'android-picked-ios';
+    if (info.isIOS && isAndroidRoute) return 'ios-picked-android';
+    return null;
+}
 /* v0.11.56：補正テストウィザード内の端末選択（UIモードのみ。Practice判定は端末自動判定のまま）。 */
 function onPickWizardPlatform(platform) {
+    const blockReason = wizardPlatformDeviceBlockReason(platform);
+    if (blockReason === 'ios-picked-android') {
+        alert('この端末はiPhoneとして検出されています。\niPhone用の補正テストを選んでください。');
+        return;
+    }
+    if (blockReason === 'android-picked-ios') {
+        alert('この端末はAndroidとして検出されています。\nAndroid用の補正テストを選んでください。');
+        return;
+    }
     stopAndroidBtVolumeTest({ keepMonitor: true });
     selectedTestPlatform = platform;
     setupProgress.platformChosen = true;
