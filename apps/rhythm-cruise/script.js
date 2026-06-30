@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.73';
+const RHYTHM_CRUISE_VERSION = '0.12.74';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -349,9 +349,27 @@ function clickBasePeak(accent) {
      本体音量を上げた時にスピーカー側で多少歪み始めるのは許容（明らかな破綻音にはしない）。
    ・v0.9.156：本体音量100%/クリック100%でも綺麗に鳴っていたため 1.25→1.35 に微増（安全寄り）。 */
 const NORMAL_MIC_CLICK_GAIN = 1.35;
+const ANDROID_NORMAL_MIC_CLICK_LIMITER_GAIN = 1.25;
+const ANDROID_NORMAL_MIC_CLICK_ATTACK_FACTOR = 0.78;
+const ANDROID_NORMAL_MIC_CLICK_BODY_FACTOR = 0.92;
 const CLICK_PEAK_CLIP = 0.98;       // クリックのピーク上限（デジタルクリップ回避）
+function androidNormalMicClickLimiterEnabled() {
+    return isAndroidNormalMicClickSafetyFlow();
+}
 function clickPeakGain() {
+    if (androidNormalMicClickLimiterEnabled()) return ANDROID_NORMAL_MIC_CLICK_LIMITER_GAIN;
     return isNormalMicInput() ? NORMAL_MIC_CLICK_GAIN : 1;
+}
+function androidNormalMicClickLimiterDebug() {
+    const enabled = androidNormalMicClickLimiterEnabled();
+    return {
+        androidNormalMicClickLimiterEnabled: enabled,
+        androidNormalMicClickLimiterMode: enabled ? 'attack-soft-limit-body-retain' : 'none',
+        androidNormalMicClickPeakGainBefore: isNormalMicInput() ? NORMAL_MIC_CLICK_GAIN : 1,
+        androidNormalMicClickPeakGainAfter: clickPeakGain(),
+        androidNormalMicClickEnvelopeAdjusted: enabled,
+        androidNormalMicClickLimiterReason: enabled ? 'android-normal-mic-delayed-click-peak' : 'not-android-normal-mic',
+    };
 }
 
 /* v0.9.157：クリックの波形・エンベロープを全クリック経路（click / scheduleStageClick / ptScheduleClick）で共通化。
@@ -367,12 +385,21 @@ function applyClickEnvelope(ctx, osc, gain, t0, accent, peak) {
     osc.type = 'square';
     osc.frequency.value = accent ? 1500 : 1200;
     gain.gain.setValueAtTime(0.0001, t0);
-    gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.002);
-    if (isNormalMicInput()) {
+    if (androidNormalMicClickLimiterEnabled()) {
+        // Android通常マイク：先頭の瞬間ピークだけ丸め、胴体は残して聞き取りやすさを保つ。
+        const attackPeak = Math.max(0.0001, peak * ANDROID_NORMAL_MIC_CLICK_ATTACK_FACTOR);
+        const bodyPeak = Math.max(attackPeak, peak * ANDROID_NORMAL_MIC_CLICK_BODY_FACTOR);
+        gain.gain.exponentialRampToValueAtTime(attackPeak, t0 + 0.002);
+        gain.gain.linearRampToValueAtTime(bodyPeak, t0 + 0.012);
+        gain.gain.setValueAtTime(bodyPeak, t0 + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
+    } else if (isNormalMicInput()) {
+        gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.002);
         // 通常マイク：長さは据え置きのまま、ピークを ~30ms 保持してから 80ms で減衰しきる（密度＝聞こえやすさUP）。
         gain.gain.setValueAtTime(peak, t0 + 0.03);
         gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
     } else {
+        gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.002);
         // イヤホン等：従来どおり、立ち上がり後すぐに減衰（変更しない）。
         gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
     }
@@ -19394,7 +19421,7 @@ function freshFinalCheckClickDebug(originalVolume, usedVolume) {
     try {
         const saved = Number(mic.androidBuiltinMicOffsetMs);
         const delayedGuardMs = Number.isFinite(saved) && saved < 0 ? Math.min(800, Math.max(0, -saved)) : 0;
-        return {
+        return Object.assign({
             inputType: getMicInputType(),
             selectedTestPlatform,
             androidDevice: !!androidAudioProbeDeviceInfo().isAndroid,
@@ -19408,7 +19435,7 @@ function freshFinalCheckClickDebug(originalVolume, usedVolume) {
             maxNearClickPeak: 0,
             maxDelayedClickPeak: 0,
             maxPeakOverThresholdNearClick: 0,
-        };
+        }, androidNormalMicClickLimiterDebug());
     } catch (err) {
         recordCorrectionFlowError(err, 'freshFinalCheckClickDebug');
         return {
@@ -19477,6 +19504,7 @@ function buildFinalCheckAndroidNormalClickSafetyDebug(clickDebug) {
     return {
         enabled: true,
         selectedTestPlatform,
+        stateClickVolume: state.clickVolume,
         recommendedClickVolume: test.recoClickVolume != null ? test.recoClickVolume : usedVol,
         projectedClickAtReco: Number.isFinite(projected) ? projected : null,
         finalCheckClickNearPeak: nearPeak,
@@ -19493,6 +19521,12 @@ function buildFinalCheckAndroidNormalClickSafetyDebug(clickDebug) {
         deviceVolumeDownReason,
         safeClickVolumeRaw: safeVolRaw,
         recommendedFinalCheckClickVolume,
+        androidNormalMicClickLimiterEnabled: clickDebug.androidNormalMicClickLimiterEnabled,
+        androidNormalMicClickLimiterMode: clickDebug.androidNormalMicClickLimiterMode,
+        androidNormalMicClickPeakGainBefore: clickDebug.androidNormalMicClickPeakGainBefore,
+        androidNormalMicClickPeakGainAfter: clickDebug.androidNormalMicClickPeakGainAfter,
+        androidNormalMicClickEnvelopeAdjusted: clickDebug.androidNormalMicClickEnvelopeAdjusted,
+        androidNormalMicClickLimiterReason: clickDebug.androidNormalMicClickLimiterReason,
         changedJudgeLogic: false,
         changedLocalStorageStructure: false,
     };
@@ -25914,6 +25948,12 @@ function micTestRunForDevelopmentLog(run) {
         androidNormalMicProjectedClickAtReco: run.androidNormalMicProjectedClickAtReco,
         androidNormalMicProjectedClickToThresholdRatio: run.androidNormalMicProjectedClickToThresholdRatio,
         androidNormalMicProjectedClickToEffectiveLineRatio: run.androidNormalMicProjectedClickToEffectiveLineRatio,
+        androidNormalMicClickLimiterEnabled: run.androidNormalMicClickLimiterEnabled,
+        androidNormalMicClickLimiterMode: run.androidNormalMicClickLimiterMode,
+        androidNormalMicClickPeakGainBefore: run.androidNormalMicClickPeakGainBefore,
+        androidNormalMicClickPeakGainAfter: run.androidNormalMicClickPeakGainAfter,
+        androidNormalMicClickEnvelopeAdjusted: run.androidNormalMicClickEnvelopeAdjusted,
+        androidNormalMicClickLimiterReason: run.androidNormalMicClickLimiterReason,
         clickPeakUsedForRecoSafety: run.clickPeakUsedForRecoSafety,
         clickPeakUsedForRecoSafetySource: run.clickPeakUsedForRecoSafetySource,
         actualReactionLineForClickSafety: run.actualReactionLineForClickSafety,
@@ -28223,6 +28263,7 @@ function updateReco() {
         androidNormalMicProjectedClickAtReco: androidNormalMicLimiterActive ? test.projClickMax : null,
         androidNormalMicProjectedClickToThresholdRatio,
         androidNormalMicProjectedClickToEffectiveLineRatio: androidNormalMicLimiterActive ? projectedClickToEffectiveLineRatio : null,
+        ...androidNormalMicClickLimiterDebug(),
         clickPeakUsedForRecoSafety,
         clickPeakUsedForRecoSafetySource,
         actualReactionLineForClickSafety,
