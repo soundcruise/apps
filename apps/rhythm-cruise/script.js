@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.68';
+const RHYTHM_CRUISE_VERSION = '0.12.69';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -1475,6 +1475,7 @@ const els = {
     ptReviewLast: $('pt-review-last'),
     ptBtn: $('pt-btn'),
     ptRetestMicBtn: $('pt-retest-mic-btn'),
+    devLogDetails: $('dev-log-details'),
     correctionFlowLogCopy: $('correction-flow-log-copy'),
     correctionFlowLogStatus: $('correction-flow-log-status'),
     correctionFlowLogText: $('correction-flow-log-text'),
@@ -20021,6 +20022,8 @@ async function startPracticeTest() {
     resetPracticeView();
     if (els.correctionFlowLogCopy) els.correctionFlowLogCopy.disabled = false;
     if (els.correctionFlowLogText) els.correctionFlowLogText.classList.add('hidden');
+    // v0.12.69：次のテスト開始時は「開発用ログ」を閉じた状態に戻す（普段は目立たせない）。
+    if (els.devLogDetails) els.devLogDetails.open = false;
     finalCheckFlowDebug.practiceTestRunId = (finalCheckFlowDebug.practiceTestRunId || 0) + 1;
     pt.active = true;
     pt.capturing = false;
@@ -21103,29 +21106,9 @@ function renderPracticeResult(r) {
     }
 
     // v0.11.95：開発確認用の閉じたブロック（BT候補比較・最終確認統計・予測平均ズレ）。通常表示は重くしない。
-    let devCompareBlock = '';
-    if (r.finalCheckStats || r.finalCheckOffsetComparison || r.androidBluetoothCandidateComparison || r.androidBluetoothFinalCheckPrediction || r.iosNewFinalCheckOffsetMismatchDebug || r.iosNewFinalCheckCorrectionSuggestionDebug) {
-        let pre = '';
-        try {
-            pre = JSON.stringify({
-                finalCheckStats: r.finalCheckStats || null,
-                finalCheckOffsetComparison: r.finalCheckOffsetComparison || null,
-                legacyVsAndroidBtCalibrationComparison: r.legacyVsAndroidBtCalibrationComparison || null,
-                iosNewFinalCheckOffsetMismatchDebug: r.iosNewFinalCheckOffsetMismatchDebug || null,
-                iosNewFinalCheckCorrectionSuggestionDebug: r.iosNewFinalCheckCorrectionSuggestionDebug || null,
-                iphoneTrialBluetoothSafetyDebug: r.iphoneTrialBluetoothSafetyDebug || null,
-                bluetoothDeviceCalibrationDebug: r.bluetoothDeviceCalibrationDebug || null,
-                iphoneBtLatencyCandidateAudit: r.iphoneBtLatencyCandidateAudit || null,
-                androidBluetoothCandidateComparison: r.androidBluetoothCandidateComparison || null,
-                bluetoothFinalCheckPrediction: r.androidBluetoothFinalCheckPrediction || null,
-            }, null, 2);
-        } catch (_) { pre = ''; }
-        if (pre) {
-            devCompareBlock = '<details class="card-help" style="margin-top:8px;"><summary style="font-size:0.8rem;opacity:0.7;">開発用：BT候補比較・最終確認統計</summary>'
-                + '<p class="setting-note">比較ログ用（v0.12.0）。selectedForSave が実際の保存候補です。</p>'
-                + '<pre style="white-space:pre-wrap;font-size:0.72rem;overflow:auto;max-height:240px;">' + escapeHtml(pre) + '</pre></details>';
-        }
-    }
+    // v0.12.69：「開発用：BT候補比較・最終確認統計」タブは廃止し、最終カード最下部の「開発用ログ」へ集約。
+    //   ここで表示していた finalCheckStats / BT候補比較 等は finalCheckFlowDebug.last* に保持され、
+    //   correctionFlowSnapshot()（＝開発用ログのコピー内容）に含まれるため、解析情報は失われない。
 
     const mismatchNote = (r.iosNewFinalCheckOffsetMismatchDebug && r.iosNewFinalCheckOffsetMismatchDebug.timingOffsetMayBeDoubleApplied)
         ? '<p class="setting-note" style="margin:8px 0 0;font-size:0.78rem;">'
@@ -21150,8 +21133,7 @@ function renderPracticeResult(r) {
     els.ptResult.innerHTML =
         (c.kind === 'ok' ? okBanner : warnBanner) + mainRows + mismatchNote + suggestionNote +
         '<div style="margin-top:6px;">' + actions + '</div>' +
-        (iosNewManualBlock ? '<div style="margin-top:6px;">' + iosNewManualBlock + '</div>' : '') +
-        devCompareBlock;
+        (iosNewManualBlock ? '<div style="margin-top:6px;">' + iosNewManualBlock + '</div>' : '');
     els.ptResult.classList.remove('hidden');
     bindPracticeResultActions();
 }
@@ -21795,7 +21777,17 @@ async function startBtCal() {
     const capStartMs = bt.playT0Ms - PT_CAP_WIN_MS;
     const capEndMs = bt.playT0Ms + (BT_PLAY_BEATS - 1) * PT_BEAT_MS + PT_CAP_WIN_MS;
     btTimer(() => { bt.capturing = true; }, capStartMs);
-    btTimer(() => { bt.capturing = false; finishBtCal(); }, capEndMs + 250);
+    // v0.12.69：Android仮+BTは物理BT遅延が大きく、最後(8回目)の入力が既定の受付窓尾(PT_CAP_WIN_MS+250≒625ms)
+    //   を超えて届き、取りこぼされることがある。捕捉オンセット時刻 tMs は micJudgeOffsetMs()（=現在のBT補正値）を
+    //   含むため、補正値の絶対値が物理遅延の概算になる。その分だけ受付窓尾を延ばして8回目まで確実に拾う。
+    //   これは「捕捉を止めるまでの待機時間」を延ばすだけで、判定・計測・補正計算ロジックには一切触れない。
+    //   iPhone正式BT・Android本番は対象外（待機時間を変えない）。
+    let btCalExtraTailMs = 0;
+    if (isAndroidIphoneStyleTrialFlow() && isBluetoothHeadphone()) {
+        const compMs = Math.abs(Number(micJudgeOffsetMs()) || 0);
+        btCalExtraTailMs = Math.max(0, Math.min(1500, compMs));
+    }
+    btTimer(() => { bt.capturing = false; finishBtCal(); }, capEndMs + 250 + btCalExtraTailMs);
 }
 
 /* 進行中のテストを止める（カードを離れる/排他時）。結果カードは触らない。 */
@@ -22126,7 +22118,7 @@ function renderBtCalResult(r) {
             head = '<p class="cal-status" style="color:#6ed28c;font-weight:700;margin-top:0;">✅ 測定できました。次に、' + (useStrongSound ? 'テスト音' : 'クリック音') + 'と画面表示の見た目を合わせます。</p>';
         }
         // v0.12.66：音量に関する注意書きは赤字で目立たせる（3-3）。
-        const volumeNote = '<p class="setting-note" style="margin:8px 0 0;font-size:0.78rem;color:#ff6b6b;">※音量を上げて計測した場合は、次の確認前にスマホ本体音量を少し下げてください。</p>';
+        const volumeNote = '<p class="setting-note" style="margin:8px 0 0;font-size:0.78rem;color:#ff6b6b;">必ず音量を適切な位置に下げてから、耳に装着してください。</p>';
         actions =
             '<button type="button" class="rc-mic-action-primary" id="bt-cal-proceed" style="' + primary + '">' + proceedLabel + '</button>' +
             volumeNote +
