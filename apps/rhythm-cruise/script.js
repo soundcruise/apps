@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.85';
+const RHYTHM_CRUISE_VERSION = '0.12.86';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -15394,15 +15394,12 @@ function buildIosNewManualCorrectionPanelHtml() {
         + '<p class="setting-note" style="margin:8px 0 4px;font-size:0.78rem;">スライダーで微調整してから最終確認をやり直せます。保存はテスト後の既存ボタンから行えます。</p>'
         + '<div style="' + row + '"><span>音ズレ補正</span><b id="ios-new-manual-bt-offset-val">' + btVal + 'ms</b></div>'
         + manualNudgeHtml('ios-new-manual-bt-offset-dec', '-5ms 早める', 'ios-new-manual-bt-offset-inc', '+5ms 遅らせる', 'manual-nudge ios-new-manual-nudge')
-        + manualSliderLabelsHtml('判定が早くなる', '判定が遅くなる')
         + '<input type="range" id="ios-new-manual-bt-offset" min="' + btMin + '" max="' + btMax + '" step="5" value="' + btVal + '">'
-        + '<div style="' + row + '"><span>マイク感度</span><b id="ios-new-manual-threshold-val">' + sensVal + '%</b></div>'
+        + '<div style="' + row + '"><span>マイク感度(入力音量)</span><b id="ios-new-manual-threshold-val">' + sensVal + '%</b></div>'
         + manualNudgeHtml('ios-new-manual-threshold-dec', '-5% 下げる', 'ios-new-manual-threshold-inc', '+5% 上げる', 'manual-nudge ios-new-manual-nudge')
-        + manualSliderLabelsHtml('音が小さくなる', '音が大きくなる')
         + '<input type="range" id="ios-new-manual-threshold" min="0" max="100" step="1" value="' + sensVal + '">'
         + '<div style="' + row + '"><span>クリック音量</span><b id="ios-new-manual-clickvol-val">' + clickVal + '%</b></div>'
         + manualNudgeHtml('ios-new-manual-clickvol-dec', '-5% 小さく', 'ios-new-manual-clickvol-inc', '+5% 大きく', 'manual-nudge ios-new-manual-nudge')
-        + manualSliderLabelsHtml('音が小さくなる', '音が大きくなる')
         + '<input type="range" id="ios-new-manual-clickvol" min="0" max="100" step="1" value="' + clickVal + '">'
         + '<button type="button" class="rc-mic-action-primary" id="ios-new-manual-apply-retest" style="width:100%;padding:12px;margin-top:12px;border-radius:10px;">この設定で最終テストする</button>'
         + '<button type="button" class="rc-mic-action-secondary" id="ios-new-manual-close" style="width:100%;padding:10px;margin-top:8px;border-radius:10px;">閉じる</button>'
@@ -25610,9 +25607,9 @@ function syncMicSaveStateUI() {
     if (els.smicPresetSaveas) els.smicPresetSaveas.classList.remove('hidden');
     if (els.smicPresetOverwrite) {
         els.smicPresetOverwrite.classList.remove('hidden');
-        els.smicPresetOverwrite.disabled = !userPreset;
-        els.smicPresetOverwrite.setAttribute('aria-disabled', userPreset ? 'false' : 'true');
-        els.smicPresetOverwrite.classList.toggle('is-disabled', !userPreset);
+        els.smicPresetOverwrite.disabled = !showOverwrite;
+        els.smicPresetOverwrite.setAttribute('aria-disabled', showOverwrite ? 'false' : 'true');
+        els.smicPresetOverwrite.classList.toggle('is-disabled', !showOverwrite);
     }
 }
 /* マイク設定の値が変わったときに、関係する全UI（手動スライダー・簡易スライダー・現在の設定・保存状態）を一括同期する。 */

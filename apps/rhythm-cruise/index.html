@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.12.85">
+    <link rel="stylesheet" href="theme.css?v=0.12.86">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -1125,7 +1125,6 @@
                 <p class="test-phase" id="bt-cal-phase"></p>
                 <button type="button" class="btn-mini rc-mic-action-secondary hidden" id="bt-cal-volume-test" style="width:100%;margin-top:8px;padding:10px 12px;">音量テスト</button>
                 <p class="cal-status hidden" id="bt-cal-volume-status"></p>
-                <p class="setting-note hidden" id="bt-cal-skip-wired-note" style="margin:10px 0 4px;">有線イヤホンは遅延が小さいことが多いため、このテストはスキップできます。タイミングが気になる場合だけ測ってください。</p>
                 <button class="btn-mic cal-run-btn test-start-btn rc-mic-action-primary" id="bt-cal-btn">音ズレ・遅延テストを開始</button>
                 <button type="button" class="btn-mini hidden" id="bt-cal-skip-wired" style="width:100%;margin-top:8px;padding:13px 12px;">スキップしてマイク反応テストへ進む</button>
                 <p class="cal-status" id="bt-cal-status"></p>
@@ -1190,10 +1189,13 @@
                     <div class="cal-result" id="manual-summary-panel" style="display:block;margin-top:12px;"></div>
 
                     <div class="setting-row">
-                        <div class="setting-label">音ズレ補正 <b id="set-offset-val">0ms</b></div>
-                        <div class="manual-nudge">
-                            <button type="button" class="manual-nudge-btn" id="set-offset-dec">-5ms 早める</button>
-                            <button type="button" class="manual-nudge-btn" id="set-offset-inc">+5ms 遅らせる</button>
+                        <div class="manual-control-head">
+                            <span class="manual-control-label">音ズレ補正</span>
+                            <div class="manual-nudge">
+                                <button type="button" class="manual-nudge-btn" id="set-offset-dec">-5ms 早める</button>
+                                <button type="button" class="manual-nudge-btn" id="set-offset-inc">+5ms 遅らせる</button>
+                            </div>
+                            <b class="manual-control-val" id="set-offset-val">0ms</b>
                         </div>
                         <input type="range" id="set-offset" min="-150" max="150" step="5" value="0">
                         <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
@@ -1205,10 +1207,13 @@
                         </div>
                     </div>
                     <div class="setting-row">
-                        <div class="setting-label">マイク感度 <b id="set-threshold-val">69％</b></div>
-                        <div class="manual-nudge">
-                            <button type="button" class="manual-nudge-btn" id="set-threshold-dec">-5% 下げる</button>
-                            <button type="button" class="manual-nudge-btn" id="set-threshold-inc">+5% 上げる</button>
+                        <div class="manual-control-head">
+                            <span class="manual-control-label">マイク感度</span>
+                            <div class="manual-nudge">
+                                <button type="button" class="manual-nudge-btn" id="set-threshold-dec">-5% 下げる</button>
+                                <button type="button" class="manual-nudge-btn" id="set-threshold-inc">+5% 上げる</button>
+                            </div>
+                            <b class="manual-control-val" id="set-threshold-val">69％</b>
                         </div>
                         <input type="range" id="set-threshold" min="0" max="100" step="1" value="69">
                         <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
@@ -1220,10 +1225,13 @@
                         </div>
                     </div>
                     <div class="setting-row">
-                        <div class="setting-label">クリック音量 <b id="set-clickvol-val">70％</b></div>
-                        <div class="manual-nudge">
-                            <button type="button" class="manual-nudge-btn" id="set-clickvol-dec">-5% 小さく</button>
-                            <button type="button" class="manual-nudge-btn" id="set-clickvol-inc">+5% 大きく</button>
+                        <div class="manual-control-head">
+                            <span class="manual-control-label">クリック音量</span>
+                            <div class="manual-nudge">
+                                <button type="button" class="manual-nudge-btn" id="set-clickvol-dec">-5% 小さく</button>
+                                <button type="button" class="manual-nudge-btn" id="set-clickvol-inc">+5% 大きく</button>
+                            </div>
+                            <b class="manual-control-val" id="set-clickvol-val">70％</b>
                         </div>
                         <input type="range" id="set-clickvol" min="0" max="100" step="5" value="70">
                         <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
@@ -1536,7 +1544,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.12.85"></script>
+    <script src="script.js?v=0.12.86"></script>
 </body>
 
 </html>
