@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.84';
+const RHYTHM_CRUISE_VERSION = '0.12.85';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -1578,6 +1578,12 @@ const els = {
     smicPresetSave: $('smic-preset-save'),    // Practice手動マイク調整内：プリセット保存
     smicPresetSaveas: $('smic-preset-saveas'),
     smicPresetOverwrite: $('smic-preset-overwrite'),
+    setOffsetDec: $('set-offset-dec'),
+    setOffsetInc: $('set-offset-inc'),
+    setThresholdDec: $('set-threshold-dec'),
+    setThresholdInc: $('set-threshold-inc'),
+    setClickVolDec: $('set-clickvol-dec'),
+    setClickVolInc: $('set-clickvol-inc'),
     smicToTapBtn: $('smic-to-tap'),           // 手動マイク調整内：タップモードへ切替
     micSetupPrompt: $('mic-setup-prompt'),
     micSetupPromptText: $('mic-setup-text'),
@@ -15311,6 +15317,13 @@ function resetIosNewBtToSafeStartAndRetest() {
 function manualSliderLabelsHtml(leftLabel, rightLabel) {
     return '<div class="ios-new-manual-slider-labels"><span>' + escapeHtml(leftLabel) + '</span><span>' + escapeHtml(rightLabel) + '</span></div>';
 }
+function manualNudgeHtml(leftId, leftLabel, rightId, rightLabel, className) {
+    const cls = className || 'manual-nudge';
+    return '<div class="' + cls + '">'
+        + '<button type="button" class="manual-nudge-btn" id="' + leftId + '">' + escapeHtml(leftLabel) + '</button>'
+        + '<button type="button" class="manual-nudge-btn" id="' + rightId + '">' + escapeHtml(rightLabel) + '</button>'
+        + '</div>';
+}
 function buildManualDelaySliderDirectionDebug(previousHeadphoneOffset, nextHeadphoneOffset) {
     const prevJudge = micJudgeOffsetMs();
     const nextJudge = prevJudge + (nextHeadphoneOffset - previousHeadphoneOffset);
@@ -15380,12 +15393,15 @@ function buildIosNewManualCorrectionPanelHtml() {
     return '<div id="pt-result-manual-correct-panel" class="ios-new-manual-correct-panel' + (iosNewManualCorrectionPanelOpen ? '' : ' hidden') + '">'
         + '<p class="setting-note" style="margin:8px 0 4px;font-size:0.78rem;">スライダーで微調整してから最終確認をやり直せます。保存はテスト後の既存ボタンから行えます。</p>'
         + '<div style="' + row + '"><span>音ズレ補正</span><b id="ios-new-manual-bt-offset-val">' + btVal + 'ms</b></div>'
+        + manualNudgeHtml('ios-new-manual-bt-offset-dec', '-5ms 早める', 'ios-new-manual-bt-offset-inc', '+5ms 遅らせる', 'manual-nudge ios-new-manual-nudge')
         + manualSliderLabelsHtml('判定が早くなる', '判定が遅くなる')
         + '<input type="range" id="ios-new-manual-bt-offset" min="' + btMin + '" max="' + btMax + '" step="5" value="' + btVal + '">'
         + '<div style="' + row + '"><span>マイク感度</span><b id="ios-new-manual-threshold-val">' + sensVal + '%</b></div>'
+        + manualNudgeHtml('ios-new-manual-threshold-dec', '-5% 下げる', 'ios-new-manual-threshold-inc', '+5% 上げる', 'manual-nudge ios-new-manual-nudge')
         + manualSliderLabelsHtml('音が小さくなる', '音が大きくなる')
         + '<input type="range" id="ios-new-manual-threshold" min="0" max="100" step="1" value="' + sensVal + '">'
         + '<div style="' + row + '"><span>クリック音量</span><b id="ios-new-manual-clickvol-val">' + clickVal + '%</b></div>'
+        + manualNudgeHtml('ios-new-manual-clickvol-dec', '-5% 小さく', 'ios-new-manual-clickvol-inc', '+5% 大きく', 'manual-nudge ios-new-manual-nudge')
         + manualSliderLabelsHtml('音が小さくなる', '音が大きくなる')
         + '<input type="range" id="ios-new-manual-clickvol" min="0" max="100" step="1" value="' + clickVal + '">'
         + '<button type="button" class="rc-mic-action-primary" id="ios-new-manual-apply-retest" style="width:100%;padding:12px;margin-top:12px;border-radius:10px;">この設定で最終テストする</button>'
@@ -15661,6 +15677,27 @@ function bindIosNewManualCorrectionPanel() {
     if (btSlider) btSlider.addEventListener('input', syncBt);
     if (thrSlider) thrSlider.addEventListener('input', syncThr);
     if (clickSlider) clickSlider.addEventListener('input', syncClick);
+    const nudgeSlider = (slider, delta, syncFn) => {
+        if (!slider) return;
+        const min = Number(slider.min);
+        const max = Number(slider.max);
+        const current = Number(slider.value);
+        const next = Math.max(min, Math.min(max, Math.round(current + delta)));
+        slider.value = next;
+        syncFn();
+    };
+    const btDec = document.getElementById('ios-new-manual-bt-offset-dec');
+    const btInc = document.getElementById('ios-new-manual-bt-offset-inc');
+    const thrDec = document.getElementById('ios-new-manual-threshold-dec');
+    const thrInc = document.getElementById('ios-new-manual-threshold-inc');
+    const clickDec = document.getElementById('ios-new-manual-clickvol-dec');
+    const clickInc = document.getElementById('ios-new-manual-clickvol-inc');
+    if (btDec) btDec.addEventListener('click', () => nudgeSlider(btSlider, -5, syncBt));
+    if (btInc) btInc.addEventListener('click', () => nudgeSlider(btSlider, 5, syncBt));
+    if (thrDec) thrDec.addEventListener('click', () => nudgeSlider(thrSlider, -5, syncThr));
+    if (thrInc) thrInc.addEventListener('click', () => nudgeSlider(thrSlider, 5, syncThr));
+    if (clickDec) clickDec.addEventListener('click', () => nudgeSlider(clickSlider, -5, syncClick));
+    if (clickInc) clickInc.addEventListener('click', () => nudgeSlider(clickSlider, 5, syncClick));
     const closeBtn = document.getElementById('ios-new-manual-close');
     if (closeBtn) closeBtn.addEventListener('click', () => {
         iosNewManualCorrectionPanelOpen = false;
@@ -25568,10 +25605,15 @@ function syncMicSaveStateUI() {
         els.settingsSummarySave.textContent = showOverwrite ? '別名で保存' : 'この設定を保存';
     }
     if (els.settingsSummaryOverwrite) els.settingsSummaryOverwrite.classList.toggle('hidden', !showOverwrite);
-    // Practice画面の手動マイク調整
-    if (els.smicPresetSave) els.smicPresetSave.classList.toggle('hidden', showOverwrite);
-    if (els.smicPresetSaveas) els.smicPresetSaveas.classList.toggle('hidden', !showOverwrite);
-    if (els.smicPresetOverwrite) els.smicPresetOverwrite.classList.toggle('hidden', !showOverwrite);
+    // Practice画面の手動マイク調整：常に「別名で保存 / 上書き保存」を見せ、上書き可否だけ切り替える。
+    if (els.smicPresetSave) els.smicPresetSave.classList.add('hidden');
+    if (els.smicPresetSaveas) els.smicPresetSaveas.classList.remove('hidden');
+    if (els.smicPresetOverwrite) {
+        els.smicPresetOverwrite.classList.remove('hidden');
+        els.smicPresetOverwrite.disabled = !userPreset;
+        els.smicPresetOverwrite.setAttribute('aria-disabled', userPreset ? 'false' : 'true');
+        els.smicPresetOverwrite.classList.toggle('is-disabled', !userPreset);
+    }
 }
 /* マイク設定の値が変わったときに、関係する全UI（手動スライダー・簡易スライダー・現在の設定・保存状態）を一括同期する。 */
 function syncMicSettingsUI() {
@@ -30742,6 +30784,7 @@ function bind() {
     if (els.smicPresetSave) els.smicPresetSave.addEventListener('click', () => openPresetModal('mic'));
     if (els.smicPresetSaveas) els.smicPresetSaveas.addEventListener('click', () => openPresetModal('mic'));
     if (els.smicPresetOverwrite) els.smicPresetOverwrite.addEventListener('click', () => {
+        if (els.smicPresetOverwrite.disabled) return;
         overwriteCurrentMicPreset();
         applyStrokeMicToolsUI();
         syncMicSaveStateUI();
@@ -30922,6 +30965,44 @@ function bind() {
         syncMicSaveStateUI();     // v0.9.152
         if (settingsView === 'manual') renderManualSummary();
         drawMicPreview();
+    });
+    const refreshManualNudgeUi = () => {
+        if (settingsView === 'manual') renderManualSummary();
+        drawMicPreview();
+    };
+    if (els.setOffsetDec) els.setOffsetDec.addEventListener('click', () => {
+        syncStrokeMicOffset(clampNum(manualMicOffsetGet() - 5, manualMicOffsetMin(), manualMicOffsetMax(), manualMicOffsetGet()));
+        saveSettings();
+        invalidatePracticeResult('設定を変更しました。もう一度最終確認テストで確認してください。');
+        refreshManualNudgeUi();
+    });
+    if (els.setOffsetInc) els.setOffsetInc.addEventListener('click', () => {
+        syncStrokeMicOffset(clampNum(manualMicOffsetGet() + 5, manualMicOffsetMin(), manualMicOffsetMax(), manualMicOffsetGet()));
+        saveSettings();
+        invalidatePracticeResult('設定を変更しました。もう一度最終確認テストで確認してください。');
+        refreshManualNudgeUi();
+    });
+    if (els.setThresholdDec) els.setThresholdDec.addEventListener('click', () => {
+        syncStrokeMicSensitivity(userMicSensitivityPercent() - 5);
+        saveSettings();
+        invalidatePracticeResult('設定を変更しました。もう一度最終確認テストで確認してください。');
+        refreshManualNudgeUi();
+    });
+    if (els.setThresholdInc) els.setThresholdInc.addEventListener('click', () => {
+        syncStrokeMicSensitivity(userMicSensitivityPercent() + 5);
+        saveSettings();
+        invalidatePracticeResult('設定を変更しました。もう一度最終確認テストで確認してください。');
+        refreshManualNudgeUi();
+    });
+    if (els.setClickVolDec) els.setClickVolDec.addEventListener('click', () => {
+        syncStrokeMicClickVolume(state.clickVolume - 5);
+        saveSettings();
+        refreshManualNudgeUi();
+    });
+    if (els.setClickVolInc) els.setClickVolInc.addEventListener('click', () => {
+        syncStrokeMicClickVolume(state.clickVolume + 5);
+        saveSettings();
+        refreshManualNudgeUi();
     });
     // 値が確定したら保存
     [els.setThreshold, els.setCooldown, els.setOffset, els.setClickVol].forEach((sl) =>

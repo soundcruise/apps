@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="../theme.css?v=0.12.84">
+    <link rel="stylesheet" href="../theme.css?v=0.12.85">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -477,8 +477,8 @@
                         <div class="tlt-control-head">
                             <span class="tlt-label">音ズレ補正</span>
                             <div class="tlt-nudge">
-                                <button type="button" class="tlt-nudge-btn" id="smic-offset-dec">-5ms 判定を早める</button>
-                                <button type="button" class="tlt-nudge-btn" id="smic-offset-inc">+5ms 判定を遅らせる</button>
+                                <button type="button" class="tlt-nudge-btn" id="smic-offset-dec">-5ms 早める</button>
+                                <button type="button" class="tlt-nudge-btn" id="smic-offset-inc">+5ms 遅らせる</button>
                             </div>
                             <span class="tlt-val" id="smic-offset-val">0ms</span>
                         </div>
@@ -488,8 +488,8 @@
                         <div class="tlt-control-head">
                             <span class="tlt-label">マイク感度</span>
                             <div class="tlt-nudge">
-                                <button type="button" class="tlt-nudge-btn" id="smic-threshold-dec">-5% 感度を下げる</button>
-                                <button type="button" class="tlt-nudge-btn" id="smic-threshold-inc">+5% 感度を上げる</button>
+                                <button type="button" class="tlt-nudge-btn" id="smic-threshold-dec">-5% 下げる</button>
+                                <button type="button" class="tlt-nudge-btn" id="smic-threshold-inc">+5% 上げる</button>
                             </div>
                             <span class="tlt-val" id="smic-threshold-val">69％</span>
                         </div>
@@ -507,9 +507,8 @@
                         <input type="range" id="smic-clickvol" min="0" max="100" step="5" value="70" aria-label="クリック音量">
                     </div>
                     <div class="smic-save-actions" id="smic-save-actions">
-                        <button type="button" class="smic-save-btn" id="smic-preset-save">この設定を保存</button>
-                        <button type="button" class="smic-save-btn hidden" id="smic-preset-saveas">別名で保存</button>
-                        <button type="button" class="smic-save-btn smic-overwrite-btn hidden" id="smic-preset-overwrite">上書き保存</button>
+                        <button type="button" class="smic-save-btn" id="smic-preset-saveas">別名で保存</button>
+                        <button type="button" class="smic-save-btn smic-overwrite-btn" id="smic-preset-overwrite">上書き保存</button>
                     </div>
                     <!-- タップモードへの切替導線（v0.9.140） -->
                     <button type="button" class="tap-tools-switch" id="smic-to-tap">タップモードに切り替える</button>
@@ -1161,6 +1160,10 @@
 
                     <div class="setting-row">
                         <div class="setting-label">音ズレ補正 <b id="set-offset-val">0ms</b></div>
+                        <div class="manual-nudge">
+                            <button type="button" class="manual-nudge-btn" id="set-offset-dec">-5ms 早める</button>
+                            <button type="button" class="manual-nudge-btn" id="set-offset-inc">+5ms 遅らせる</button>
+                        </div>
                         <input type="range" id="set-offset" min="-150" max="150" step="5" value="0">
                         <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
                             <span>早めに判定 ←</span><span>→ 遅めに判定</span>
@@ -1172,6 +1175,10 @@
                     </div>
                     <div class="setting-row">
                         <div class="setting-label">マイク感度 <b id="set-threshold-val">69％</b></div>
+                        <div class="manual-nudge">
+                            <button type="button" class="manual-nudge-btn" id="set-threshold-dec">-5% 下げる</button>
+                            <button type="button" class="manual-nudge-btn" id="set-threshold-inc">+5% 上げる</button>
+                        </div>
                         <input type="range" id="set-threshold" min="0" max="100" step="1" value="69">
                         <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
                             <span>小さい音も拾う ←</span><span>→ 強い音だけ拾う</span>
@@ -1183,6 +1190,10 @@
                     </div>
                     <div class="setting-row">
                         <div class="setting-label">クリック音量 <b id="set-clickvol-val">70％</b></div>
+                        <div class="manual-nudge">
+                            <button type="button" class="manual-nudge-btn" id="set-clickvol-dec">-5% 小さく</button>
+                            <button type="button" class="manual-nudge-btn" id="set-clickvol-inc">+5% 大きく</button>
+                        </div>
                         <input type="range" id="set-clickvol" min="0" max="100" step="5" value="70">
                         <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
                             <span>小さい ←</span><span>→ 大きい</span>
@@ -1459,7 +1470,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.12.84"></script>
+    <script src="../script.js?v=0.12.85"></script>
 </body>
 
 </html>

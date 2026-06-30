@@ -4928,6 +4928,43 @@ h1 {
     background: rgba(255, 159, 28, 0.2);
 }
 
+#stroke-mic-panel .smic-save-btn:disabled,
+#stroke-mic-panel .smic-save-btn.is-disabled {
+    cursor: not-allowed;
+    opacity: 0.42;
+    filter: grayscale(0.55);
+    box-shadow: none;
+}
+
+.manual-nudge {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px;
+    margin: 6px 0;
+}
+
+.manual-nudge-btn {
+    min-width: 0;
+    min-height: 32px;
+    padding: 6px 8px;
+    font-family: inherit;
+    font-size: 0.74rem;
+    font-weight: 800;
+    line-height: 1.15;
+    color: var(--text-color);
+    background: rgba(253, 246, 238, 0.07);
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    border-radius: 8px;
+    cursor: pointer;
+    overflow-wrap: anywhere;
+    touch-action: manipulation;
+}
+
+.manual-nudge-btn:active {
+    transform: scale(0.98);
+    background: rgba(253, 246, 238, 0.14);
+}
+
 .tlt-label {
     font-size: 0.76rem;
     color: var(--muted-color);
@@ -8147,6 +8184,9 @@ body[data-rc-theme="clean-pro"] #tap-area .tap-unify {
     font-size: 0.72rem;
     opacity: 0.75;
     margin: 0 0 4px;
+}
+.ios-new-manual-nudge {
+    margin: 4px 0 6px;
 }
 .bt-cal-handclap-row {
     display: flex;
