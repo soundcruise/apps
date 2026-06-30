@@ -4,8 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>クリック音入力テストの計測方法 | リズムクルーズ</title>
-    <link rel="stylesheet" href="theme.css?v=0.11.21">
+    <title>マイク位置がわからない場合 | リズムクルーズ</title>
+    <link rel="stylesheet" href="theme.css?v=0.12.86">
     <meta name="theme-color" content="#070b11">
     <style>
         .click-help-page { align-items: stretch; gap: 18px; }
@@ -33,21 +33,12 @@
 <body data-rc-theme="clean-pro">
     <main class="app-container click-help-page">
         <header>
-            <h1>クリック音入力テストの計測方法</h1>
+            <h1>マイク位置がわからない場合</h1>
         </header>
 
         <section class="settings-card click-help-card">
-            <p class="click-help-lead">イヤホンから鳴るクリック音をマイクで拾い、マイク側の遅れを測るテストです。テスト中はクリック音を大きめに鳴らします。</p>
-            <ol>
-                <li>スマホ本体の音量を高めにします。うまく測れない場合は最大音量にしてください。</li>
-                <li>イヤホンの音が出る部分を、マイク部分に近づけます。</li>
-                <li>テストを開始し、クリック音が認識されるまで動かさずに待ちます。</li>
-            </ol>
-        </section>
-
-        <section class="settings-card click-help-card">
             <h2>有線イヤホン</h2>
-            <p>音量＋/−操作部の近くにマイクがあることが多いです。イヤホンの音が出る部分を、そのマイク部分に軽く押し当ててください。</p>
+            <p>音量＋/−操作部の近くに、マイクマークやマイク穴があることが多いです。イヤホンの音が出る部分を、そのマイク部分に軽く押し当ててください。</p>
             <div class="click-help-figure" role="img" aria-label="有線イヤホンの音が出る部分を、音量操作部付近のマイクへ軽く押し当てる図">
                 <svg viewBox="0 0 520 180" aria-hidden="true">
                     <defs>
@@ -74,7 +65,7 @@
 
         <section class="settings-card click-help-card">
             <h2>Bluetoothイヤホン</h2>
-            <p>イヤホン本体の下端付近にマイクがあることが多いです。片方から鳴るクリック音が、もう片方のイヤホンのマイク部分に入るように近づけてください。</p>
+            <p>Bluetoothイヤホンは、L/Rどちらかの本体にマイク穴があることが多いです。片方から鳴るクリック音が、もう片方のマイク穴に入るように近づけてください。</p>
             <div class="click-help-figure" role="img" aria-label="Bluetoothイヤホンの音がマイクへ入るように近づける図">
                 <svg viewBox="0 0 520 180" aria-hidden="true">
                     <defs>
@@ -84,18 +75,20 @@
                     </defs>
                     <path d="M95 40 C55 40,45 85,70 108 C86 122,105 112,108 92 L114 48 C110 43,103 40,95 40Z" fill="none" stroke="#fdf6ee" stroke-width="5" />
                     <path d="M408 40 C448 40,458 85,433 108 C417 122,398 112,395 92 L389 48 C393 43,400 40,408 40Z" fill="none" stroke="#fdf6ee" stroke-width="5" />
-                    <circle cx="398" cy="105" r="7" fill="#ff9f1c" />
-                    <line x1="130" y1="80" x2="372" y2="100" stroke="#ff9f1c" stroke-width="5" marker-end="url(#bt-arrow)" />
-                    <text x="38" y="28">クリック音</text>
-                    <text x="350" y="138">下端付近のマイク</text>
-                    <text x="206" y="68">音が入るように近づける</text>
+                    <path d="M118 72 C134 64,148 65,160 74" fill="none" stroke="#ff9f1c" stroke-width="4" stroke-linecap="round" />
+                    <path d="M116 91 C138 80,160 82,178 96" fill="none" stroke="#ff9f1c" stroke-width="4" stroke-linecap="round" />
+                    <circle cx="396" cy="78" r="7" fill="#ff9f1c" />
+                    <line x1="185" y1="92" x2="374" y2="80" stroke="#ff9f1c" stroke-width="5" marker-end="url(#bt-arrow)" />
+                    <text x="36" y="28">クリック音が出る側</text>
+                    <text x="333" y="138">もう片方のマイク穴</text>
+                    <text x="200" y="58">音をマイク穴へ入れる</text>
                 </svg>
             </div>
         </section>
 
         <section class="settings-card click-help-card">
-            <h2>検出できない場合</h2>
-            <p>クリック音が認識されない場合は、スマホ本体音量を上げ、イヤホン/マイクの接続を確認してから、もう一度テストしてください。</p>
+            <h2>スマホ本体のマイクが使われる場合</h2>
+            <p>イヤホンを接続していても、機種やブラウザによってはスマホ本体のマイクが使われることがあります。その場合は、お使いのスマホのマイク位置を確認し、イヤホンの音がそのマイクに入るように近づけてください。マイク位置は下側の端子付近とは限りません。</p>
         </section>
 
         <a class="btn-ghost click-help-back" id="click-help-back" href="index.html?resume=click-input">← アプリに戻る</a>
@@ -114,7 +107,7 @@
                     cameFromApp = referrer.origin === window.location.origin
                         && /\/rhythm-cruise\/(?:pro_a9f4k7q2m8z\/)?index\.html$/.test(referrer.pathname);
                 } catch (_) { /* direct access */ }
-                if (cameFromApp) {
+                if (cameFromApp && history.length > 1) {
                     event.preventDefault();
                     history.back();
                 }

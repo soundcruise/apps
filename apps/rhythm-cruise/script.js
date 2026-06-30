@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.86';
+const RHYTHM_CRUISE_VERSION = '0.12.87';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -26079,11 +26079,24 @@ function resumeClickInputFromHelp() {
     url.searchParams.delete('resume');
     try { history.replaceState(null, '', url.pathname + (url.search ? url.search : '') + (url.hash || '')); } catch (_) { /* noop */ }
     openSettings('home');
-    if (!isHeadphoneInput()) return;
     try {
-        if (sessionStorage.getItem('rhythmCruiseClickInputResumeFlow') === 'ios_new') selectedTestPlatform = 'ios_new';
+        const savedPlatform = sessionStorage.getItem('rhythmCruiseClickInputResumePlatform');
+        const savedHpType = sessionStorage.getItem('rhythmCruiseClickInputResumeHeadphoneType');
+        if (/^(ios_new|android_ios_style_trial|iphone_android_trial|ios|android)$/.test(savedPlatform || '')) {
+            selectedTestPlatform = savedPlatform;
+        } else if (sessionStorage.getItem('rhythmCruiseClickInputResumeFlow') === 'ios_new') {
+            selectedTestPlatform = 'ios_new';
+        }
+        if (savedHpType === 'wired' || savedHpType === 'bluetooth') {
+            mic.inputType = 'headphone';
+            mic.headphoneType = savedHpType;
+            mic.headphoneOutputOffsetMs = currentHpTypeOffset();
+        }
         sessionStorage.removeItem('rhythmCruiseClickInputResumeFlow');
+        sessionStorage.removeItem('rhythmCruiseClickInputResumePlatform');
+        sessionStorage.removeItem('rhythmCruiseClickInputResumeHeadphoneType');
     } catch (_) { /* ignore */ }
+    if (!isHeadphoneInput()) return;
     setupProgress.platformChosen = true;
     setupProgress.inputChosen = true;
     setupProgress.hpChosen = true;
@@ -30651,6 +30664,13 @@ function bind() {
         const link = e.target && e.target.closest ? e.target.closest('a[href*="click-input-help.html"]') : null;
         if (!link) return;
         try {
+            if (isHeadphoneInput()) {
+                sessionStorage.setItem('rhythmCruiseClickInputResumePlatform', selectedTestPlatform || '');
+                sessionStorage.setItem('rhythmCruiseClickInputResumeHeadphoneType', getHeadphoneType());
+            } else {
+                sessionStorage.removeItem('rhythmCruiseClickInputResumePlatform');
+                sessionStorage.removeItem('rhythmCruiseClickInputResumeHeadphoneType');
+            }
             if (isIosNewProductionFlow() && isHeadphoneInput()) sessionStorage.setItem('rhythmCruiseClickInputResumeFlow', 'ios_new');
             else sessionStorage.removeItem('rhythmCruiseClickInputResumeFlow');
         } catch (_) { /* ignore */ }

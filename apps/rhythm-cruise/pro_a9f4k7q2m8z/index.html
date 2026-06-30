@@ -1081,7 +1081,7 @@
                     <p class="setting-note" id="bt-cal-guide">イヤホンから出た音が、マイクに届くまでのズレを測ります。</p>
                     <p class="setting-note">イヤホンの種類によって、遅延の大きさやテストの要否は変わります。</p>
                 </details>
-                <p class="setting-note" style="margin-top:8px;"><a href="../click-input-help.html?return=pro" style="color:var(--secondary-color);font-weight:700;">計測のコツを見る</a></p>
+                <p class="setting-note" style="margin-top:8px;"><a href="../click-input-help.html?return=pro" style="color:var(--secondary-color);font-weight:700;">マイク位置がわからない場合</a></p>
                 <div class="bt-cal-handclap-row hidden" id="bt-cal-handclap-row">
                     <button type="button" class="btn-mini rc-mic-action-secondary" id="bt-cal-handclap-btn">手拍子で測る</button>
                 </div>
@@ -1177,7 +1177,7 @@
                     </div>
                     <div class="setting-row">
                         <div class="manual-control-head">
-                            <span class="manual-control-label">マイク感度</span>
+                            <span class="manual-control-label">マイク感度(入力音量)</span>
                             <div class="manual-nudge">
                                 <button type="button" class="manual-nudge-btn" id="set-threshold-dec">-5% 下げる</button>
                                 <button type="button" class="manual-nudge-btn" id="set-threshold-inc">+5% 上げる</button>
@@ -1186,11 +1186,11 @@
                         </div>
                         <input type="range" id="set-threshold" min="0" max="100" step="1" value="69">
                         <div class="hp-offset-labels" style="display:flex;justify-content:space-between;font-size:0.72rem;opacity:0.6;margin-top:2px;">
-                            <span>小さい音も拾う ←</span><span>→ 強い音だけ拾う</span>
+                            <span>小さい ←</span><span>→ 大きい</span>
                         </div>
                         <div class="setting-note-toggle">
                             <button type="button" class="setting-note-btn" aria-expanded="false">＋ 説明</button>
-                            <p class="setting-note setting-note-body hidden">小さいストロークも拾うか、強いストロークだけ拾うかを調整します。</p>
+                            <p class="setting-note setting-note-body hidden">入力されるストローク音の大きさを調整します。右へ動かすほど反応が大きくなります。</p>
                         </div>
                     </div>
                     <div class="setting-row">
@@ -1478,7 +1478,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=0.12.86"></script>
+    <script src="../script.js?v=0.12.87"></script>
 </body>
 
 </html>
