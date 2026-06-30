@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.70';
+const RHYTHM_CRUISE_VERSION = '0.12.71';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -14253,15 +14253,18 @@ function refreshWizardAndroidProceedButtons() {
     const run = headphoneAudioProbe.run;
     const cand = androidLatencyCandidateForRun(run);
     const ready = !!(cand && cand.isReadyToSave && cand.saveOffsetMs != null);
-    const readyText = isIphoneAndroidTrialFlow()
+    // v0.12.71：Android本番/Android仮の通常マイク（iPhone仮=iphone_android_trial は対象外）は、成功文言に ✅ を付け緑字にする。
+    const isIphoneTrial = isIphoneAndroidTrialFlow();
+    const readyText = isIphoneTrial
         ? '測定できました。この仮設定でマイク反応テストへ進めます。'
-        : '測定できました。マイク反応テストへ進めます。';
-    const waitText = isIphoneAndroidTrialFlow()
+        : '✅ 測定できました。マイク反応テストへ進めます。';
+    const waitText = isIphoneTrial
         ? '測定できたら、このページ内だけの仮設定として使えます。'
         : '測定できたら、マイク反応テストへ進めます。';
     if (els.wizardAndroidProceedHintBuiltin) {
         els.wizardAndroidProceedHintBuiltin.classList.toggle('hidden', !(isNormalMicInput() || (run && run.selectedInputType === 'normal')));
         els.wizardAndroidProceedHintBuiltin.textContent = ready ? readyText : waitText;
+        els.wizardAndroidProceedHintBuiltin.style.color = (ready && !isIphoneTrial) ? '#6ed28c' : '';
     }
     if (els.wizardAndroidProceedHintHp) {
         els.wizardAndroidProceedHintHp.classList.add('hidden');
@@ -16760,15 +16763,20 @@ async function runAndroidAudioCheck(options) {
     }
     else refreshAllAndroidSaveButtons();
     if (statusEl) {
+        // v0.12.71：Android本番/Android仮の通常マイク成功時のみ ✅＋緑（iPhone仮・イヤホン系は従来どおり）。
+        let statusGreen = false;
         if (fromWizard) {
             const cand = androidLatencyCandidateForRun(run);
             if (cand && cand.isReadyToSave) {
-                statusEl.textContent = (cand.saveConfidence === 'fallback')
+                const successPrefix = (run && run.selectedInputType === 'normal' && !isIphoneAndroidTrialFlow()) ? '✅ ' : '';
+                statusGreen = successPrefix !== '';
+                statusEl.textContent = successPrefix + ((cand.saveConfidence === 'fallback')
                     ? '測定できました。少しばらつきがありますが、マイク反応テストへ進めます。'
-                    : '測定できました。マイク反応テストへ進めます。';
+                    : '測定できました。マイク反応テストへ進めます。');
             } else if (isAndroidLatencyHeadphoneRun(run)) statusEl.textContent = 'もう一度テストしてください。';
             else statusEl.textContent = '測定が完了しました。' + androidLatencyFailureText(androidLatencyFailureKind(run, cand), run, cand).split('\n')[0];
         } else statusEl.textContent = '完了しました。ログをコピーできます。';
+        statusEl.style.color = statusGreen ? '#6ed28c' : '';
     }
     androidCheckFromWizard = false;
     startAndroidCheckLiveMonitor();
@@ -19365,6 +19373,13 @@ function ptDetectionThreshold() {
 
 function isAndroidNormalMicFlow() {
     return selectedTestPlatform === 'android' && androidAudioProbeDeviceInfo().isAndroid && isNormalMicInput();
+}
+/* v0.12.71：Android仮（iPhone式・android_ios_style_trial）の通常マイクを、実機Androidで判定する。
+   Android本番（isAndroidNormalMicFlow）と同じく androidBuiltinMicOffsetMs を保存先とし、
+   遅延補正の窓/波形表示反映・クリック音量の反応ライン安全制御を同等に適用するためのゲート。
+   iPhone・Androidイヤホン系・Android仮イヤホン系は対象外。 */
+function isAndroidTrialNormalMicOnDevice() {
+    return isAndroidIphoneStyleTrialFlow() && isNormalMicInput() && androidAudioProbeDeviceInfo().isAndroid;
 }
 
 function freshFinalCheckClickDebug(originalVolume, usedVolume) {
@@ -26791,6 +26806,12 @@ function micTestClickInputDelayMs() {
         if (!Number.isFinite(saved) || saved >= 0) return 0;
         return Math.min(1000, Math.max(0, -saved));
     }
+    // v0.12.71：Android仮 + 通常マイクも、Android本番通常マイクと同じ androidBuiltinMicOffsetMs でクリック窓を後ろへ寄せる。
+    if (isAndroidTrialNormalMicOnDevice()) {
+        const saved = Number(mic.androidBuiltinMicOffsetMs);
+        if (!Number.isFinite(saved) || saved >= 0) return 0;
+        return Math.min(800, Math.max(0, -saved));
+    }
     return micTestAndroidNormalStrokeDelayMs();
 }
 
@@ -26810,6 +26831,13 @@ function micTestStrokeInputDelayMs() {
         const saved = isBluetoothHeadphone() ? Number(mic.androidBluetoothMicOffsetMs) : Number(mic.androidWiredMicOffsetMs);
         if (!Number.isFinite(saved) || saved >= 0) return 0;
         return Math.min(1000, Math.max(0, -saved));
+    }
+    // v0.12.71：Android仮（android_ios_style_trial）+ 通常マイクも、Android本番通常マイクと同じく
+    //   androidBuiltinMicOffsetMs で測定窓を後ろへ補正する（接続漏れ修正）。実機Android・通常マイク時のみ。
+    if (isAndroidTrialNormalMicOnDevice()) {
+        const saved = Number(mic.androidBuiltinMicOffsetMs);
+        if (!Number.isFinite(saved) || saved >= 0) return 0;
+        return Math.min(800, Math.max(0, -saved));
     }
     if (selectedTestPlatform !== 'android' || !androidAudioProbeDeviceInfo().isAndroid) return 0;
     let saved;
@@ -27014,7 +27042,9 @@ function micTestWaveDisplayOffsetMs() {
         return hp + (Number.isFinite(judge) ? judge : 0);
     }
     const visual = micTestDisplayOffsetMs();
-    if (isAndroidIphoneStyleTrialFlow() && isHeadphoneInput()) {
+    // v0.12.71：Android仮はイヤホン系に加え、通常マイクも背景波形を判定時間軸（wizardMicJudgeOffsetMs＝
+    //   timingOffsetMs+androidBuiltinMicOffsetMs）へ寄せる（Android本番通常マイクと同じ反映・接続漏れ修正）。
+    if (isAndroidIphoneStyleTrialFlow() && (isHeadphoneInput() || isAndroidTrialNormalMicOnDevice())) {
         const judge = Number(wizardMicJudgeOffsetMs());
         return visual + (Number.isFinite(judge) ? judge : 0);
     }
@@ -27578,17 +27608,21 @@ function updateReco() {
     if (safeClickVol88 != null) {
         recoVol = Math.max(androidAudioProbeDeviceInfo().isAndroid && isNormalMicInput() ? 1 : 10, Math.min(100, Math.min(recoVolBeforeSafetyCap, safeClickVol88)));
     }
-    const androidNormalMicLimiterMode = isAndroidNormalMicFlow() ? 'balanced' : 'not-android-normal';
-    const androidNormalMicSafeRate = isAndroidNormalMicFlow() ? 0.65 : null;
-    const androidNormalMicLineRatio = isAndroidNormalMicFlow() ? 0.75 : null;
-    const androidNormalMicHardMax = isAndroidNormalMicFlow() ? 25 : null;
+    // v0.12.71：クリック音を反応ライン未満へ抑える通常マイク用リミッターを、Android本番に加え Android仮通常マイクにも適用する。
+    //   従来は isAndroidNormalMicFlow()（selectedTestPlatform==='android'）だけで、Android仮（android_ios_style_trial）通常マイクが
+    //   除外され、クリック目安が反応ラインを超える設定になっていた。recoVol側だけを安全に下げる（recommendedThreshold/感度・ストローク検出は不変）。
+    const androidNormalMicLimiterActive = isAndroidNormalMicFlow() || isAndroidTrialNormalMicOnDevice();
+    const androidNormalMicLimiterMode = androidNormalMicLimiterActive ? 'balanced' : 'not-android-normal';
+    const androidNormalMicSafeRate = androidNormalMicLimiterActive ? 0.65 : null;
+    const androidNormalMicLineRatio = androidNormalMicLimiterActive ? 0.75 : null;
+    const androidNormalMicHardMax = androidNormalMicLimiterActive ? 25 : null;
     let androidNormalMicExtraLimiterApplied = false;
     let androidNormalMicLimiterApplied = false;
     let androidNormalMicMaxBySafeVol = null;
     let androidNormalMicMaxByLine = null;
     let androidNormalMicRecoVolBeforeLimiter = null;
     let androidNormalMicRecoVolAfterLimiter = null;
-    if (isAndroidNormalMicFlow()) {
+    if (androidNormalMicLimiterActive) {
         androidNormalMicRecoVolBeforeLimiter = recoVol;
         androidNormalMicMaxBySafeVol = safeClickVol88 != null
             ? Math.max(1, Math.floor(safeClickVol88 * androidNormalMicSafeRate))
@@ -28043,9 +28077,9 @@ function updateReco() {
         androidNormalMicRecoVolAfterLimiter,
         recoVolBeforeAndroidLimiter: androidNormalMicRecoVolBeforeLimiter,
         recoVolAfterAndroidLimiter: androidNormalMicRecoVolAfterLimiter,
-        androidNormalMicProjectedClickAtReco: isAndroidNormalMicFlow() ? test.projClickMax : null,
+        androidNormalMicProjectedClickAtReco: androidNormalMicLimiterActive ? test.projClickMax : null,
         androidNormalMicProjectedClickToThresholdRatio,
-        androidNormalMicProjectedClickToEffectiveLineRatio: isAndroidNormalMicFlow() ? projectedClickToEffectiveLineRatio : null,
+        androidNormalMicProjectedClickToEffectiveLineRatio: androidNormalMicLimiterActive ? projectedClickToEffectiveLineRatio : null,
         clickSupplyRatioToSafePeak,
         projectedClickBeforeSafetyCap,
         projectedClickAfterSafetyCap,
