@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.94';
+const RHYTHM_CRUISE_VERSION = '0.12.95';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -830,6 +830,23 @@ const SETTINGS_KEY = 'rhythmCruiseSettings';
 /* マイク設定プリセット（名前をつけて保存／呼び出し）。v0.9.61 */
 const MIC_PRESETS_KEY = 'soundcruise_rhythm_mic_presets';
 const SETTINGS_DEFAULTS = { threshold: 0.025, cooldownMs: 200, clickGuardMs: 60, timingOffsetMs: -80, clickVolume: 70 };
+const RHYTHM_CRUISE_RESET_LOCAL_STORAGE_KEYS = [
+    SETTINGS_KEY,
+    MIC_PRESETS_KEY,
+    'soundcruise_rhythm_tap_presets',
+    'rhythmCruiseCreatePresets:v1',
+    'rhythmCruiseCustomPresets:v1',
+    'rhythmCruiseVexZoom:v1',
+    'rhythmCruiseStagePrefs:v1',
+    'rhythmProCustomStageSamplesSeeded',
+    'rhythmCruiseResultHistory:v1',
+    'rhythmCruiseClickSettings:v1',
+];
+const RHYTHM_CRUISE_RESET_SESSION_STORAGE_KEYS = [
+    'rhythmCruiseClickInputResumePlatform',
+    'rhythmCruiseClickInputResumeHeadphoneType',
+    'rhythmCruiseClickInputResumeFlow',
+];
 
 /* イヤホン（有線/Bluetooth）選択時のクリック音量初期値（v0.9.88）。
    イヤホンではクリック音がマイクに回り込みにくいので、聞き取りやすい音量を既定にする。
@@ -1794,6 +1811,7 @@ const els = {
     setClickVolVal: $('set-clickvol-val'),
     micPreviewCanvas: $('mic-preview-canvas'),
     settingsResetBtn: $('settings-reset-btn'),
+    settingsResetAllBtn: $('settings-reset-all-btn'),
     settingsBackBtn: $('settings-back-btn'),
     settingsTopBtn: $('settings-top-btn'),
     manualTopBtn: $('manual-top-btn'),
@@ -12350,6 +12368,18 @@ function clearResultHistory() {
     if (!window.confirm('保存した過去の結果をすべて消去します。よろしいですか？')) return;
     try { localStorage.removeItem(RESULT_HISTORY_KEY); } catch (_) { /* noop */ }
     renderResultHistoryList();
+}
+
+function resetAllRhythmCruiseData() {
+    if (!window.confirm('保存した設定・プリセット・カスタムSTAGE・過去の結果をすべて初期化します。よろしいですか？')) return;
+    if (!window.confirm('この操作は元に戻せません。本当に初期化しますか？')) return;
+    RHYTHM_CRUISE_RESET_LOCAL_STORAGE_KEYS.forEach((key) => {
+        try { localStorage.removeItem(key); } catch (_) { /* noop */ }
+    });
+    RHYTHM_CRUISE_RESET_SESSION_STORAGE_KEYS.forEach((key) => {
+        try { sessionStorage.removeItem(key); } catch (_) { /* noop */ }
+    });
+    location.reload();
 }
 
 /* ── 履歴詳細（結果カード再表示・履歴モード）───────────────────
@@ -30869,6 +30899,7 @@ function bind() {
         closeSettings();
     }));
     if (els.settingsResetBtn) els.settingsResetBtn.addEventListener('click', resetSettings);
+    if (els.settingsResetAllBtn) els.settingsResetAllBtn.addEventListener('click', resetAllRhythmCruiseData);
     if (els.micResetBtn) els.micResetBtn.addEventListener('click', onMicResetClick);
     // マイク設定TOP（下部・手動設定内）：いつでもマイク設定トップ画面へ戻る（v0.9.70）
     if (els.settingsTopBtn) els.settingsTopBtn.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsView('chooser')));
