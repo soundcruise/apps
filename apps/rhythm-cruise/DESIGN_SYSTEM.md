@@ -10,6 +10,17 @@
 
 マイク補正、判定、保存、localStorage、service worker、PRO 認証の実装詳細は対象外です。
 
+### この資料の使い方
+
+新規アプリ制作時は、まずこの資料を参照します。使う順番は以下を目安にします。
+
+1. デザイン原則を読む。
+2. TOP / 戻る導線 / 設定画面の構造を確認する。
+3. ボタン / カード / 配色の考え方を参照する。
+4. 新規アプリ側の用途に合わせて、class名やDOMは作り直す。
+
+この資料は、リズムクルーズの HTML / CSS / JS をそのままコピーして共通化するためのものではありません。「流用しやすい」はコピー推奨ではなく、UI パターンを参考にするという意味です。
+
 ## 2. 基準バージョン
 
 - 対象アプリ: `apps/rhythm-cruise/`
@@ -18,6 +29,8 @@
 - commit message: `通常マイクの表示名をイヤホンなしに変更`
 - 作成時点の未追跡アイコン案 `rhythm-cruise-icon-proposal.png` と `rhythm-cruise-icon-proposal.svg` は、この資料の対象外です。
 
+この資料に出てくる class名、ID、DOM構造は、基準バージョン `v0.12.101 / commit 8169a43` 時点の実装をもとにしています。将来のリズムクルーズでは class名やDOM構造が変わる可能性があるため、新規アプリで参照するときは、その時点の実装や最新資料も確認します。この注意は、アプリ本体の class名やDOMを変更する意味ではありません。
+
 ## 3. デザイン原則
 
 - 黒から焦げ茶の暗い背景をベースにする。
@@ -25,6 +38,9 @@
 - スマホ縦画面を優先し、最大幅はおおむね `600px` に収める。
 - TOP では迷わせず、最初の行動を大きなカード型導線で示す。
 - 大きなカード型導線、STAGE カード、設定カードを中心に画面を組む。
+- スマホ縦画面で読みやすい文字サイズを優先し、見出し、本文、補足文の情報階層を明確にする。
+- タップ要素は指で押しやすい高さを確保する。厳密な固定値ではなく、主要ボタンやカード導線は44px前後以上のタップ領域を意識する。
+- 小さな補助ボタンは主導線より控えめにするが、押せないほど小さくしない。
 - 設定は情報を小分けにし、1カード1目的に近づける。
 - 長い説明や開発情報は `details` などで折りたたみ、初見の視線を邪魔しない。
 - 主導線とサブ導線を見た目で明確に分ける。
@@ -41,7 +57,7 @@
 - 最初に表示される導線群は `#home-top`。
 - メイン導線は `.rc-category-card` を使い、アイコン、主ラベル、補足文の3段構成にする。
 - 右上には `.settings-corner-btn` を固定表示する。
-- 左上の `#app-nav` は TOP では隠し、サブビューや Practice / 設定画面で表示する。
+- 左上の共通ナビは `#app-nav.app-nav`。TOP では隠し、サブビューや Practice / 設定画面で表示する。
 - 下部には `Sound Cruise Series` を控えめに表示する。
 
 ### PRO版
@@ -54,7 +70,7 @@
 
 ## 5. 戻る導線・ページ構造
 
-- 共通ナビは `#app-nav`。
+- 共通ナビは `#app-nav.app-nav`。
 - 戻るボタンは `#nav-back-btn`、文言は `← 戻る`。
 - TOP ボタンは `#nav-top-btn`、文言は `🏠 TOP`。
 - TOP では共通ナビを隠す。
@@ -156,47 +172,48 @@
 
 ## 11. 新規アプリへ流用しやすいclass / 構造
 
-以下は、コードを共通化する対象ではなく、考え方を参照しやすい class / 構造です。
+以下は、コードを共通化する対象ではなく、考え方を参照しやすい class / ID / 構造です。
 
-- `:root` の基本カラー変数
-- `.app-container`
-- `.screen`
-- `.home-view`
-- `.section-label`
-- `.app-nav`
-- `.nav-btn`
-- `.settings-corner-btn`
-- `.rc-category-card`
-- `.rc-category-card-icon`
-- `.rc-category-card-label`
-- `.rc-category-card-sub`
-- `.btn-primary`
-- `.btn-ghost`
-- `.btn-mini`
-- `.settings-tabs`
-- `.settings-tab`
-- `.settings-card`
-- `.settings-top-main`
-- `.settings-top-preset`
-- `.settings-top-sub`
-- `.setting-row`
-- `.setting-label`
-- `.setting-note`
-- `.card-help`
-- `.input-mode`
-- `.input-seg`
-- `.stage-card`
-- `.stage-num`
-- `.stage-body`
-- `.stage-title`
-- `.stage-desc`
-- `.stage-chevron`
-- `.results-overlay`
-- `.results-card`
-- `.history-overlay`
-- `.history-card`
-- `.pro-home-title`
-- `.pro-badge`
+- `:root` の基本カラー変数: 背景、カード、アクセント、状態色の基準。
+- `.app-container`: アプリ全体の最大幅と中央寄せの基礎。
+- `.screen`: 画面単位の表示切替コンテナ。
+- `.home-view`: TOP配下のサブビュー。
+- `.section-label`: セクション見出し。
+- `#app-nav.app-nav`: 共通の戻る / TOPナビ。
+- `#nav-back-btn`, `#nav-top-btn`: 戻る / TOP の操作ID。
+- `.nav-btn`: 共通ナビ内のボタン。
+- `.settings-corner-btn`: 右上固定の設定ボタン。
+- `.rc-category-card`: TOPの大きな導線カード。
+- `.rc-category-card-icon`: 導線カードのアイコン領域。
+- `.rc-category-card-label`: 導線カードの主ラベル。
+- `.rc-category-card-sub`: 導線カードの補足文。
+- `.btn-primary`: 主操作ボタン。
+- `.btn-ghost`: 補助操作ボタン。
+- `.btn-mini`: 小さな補助ボタン。
+- `.settings-tabs`: 設定画面のタブコンテナ。
+- `.settings-tab`: 設定画面のタブ。
+- `.settings-card`: 設定内容を小分けするカード。
+- `.settings-top-main`: 設定カード内の主導線。
+- `.settings-top-preset`: 保存済みプリセットなどの準主導線。
+- `.settings-top-sub`: 現在設定を見るなどのサブ導線。
+- `.setting-row`: 設定項目の行。
+- `.setting-label`: 設定項目のラベルと値。
+- `.setting-note`: 補足説明文。
+- `.card-help`: 折りたたみ説明。
+- `.input-mode`: セグメント切替の外枠。
+- `.input-seg`: セグメント切替の選択肢。
+- `.stage-card`: STAGEや一覧項目のカード。
+- `.stage-num`: STAGE番号やバッジ領域。
+- `.stage-body`: STAGEカードの本文領域。
+- `.stage-title`: STAGEカードの主タイトル。
+- `.stage-desc`: STAGEカードの補足文。
+- `.stage-chevron`: 右端の進む記号。
+- `.results-overlay`: 結果モーダルの暗幕。
+- `.results-card`: 結果表示カード。
+- `.history-overlay`: 履歴モーダルの暗幕。
+- `.history-card`: 履歴一覧カード。
+- `.pro-home-title`: PRO版タイトルの配置。
+- `.pro-badge`: PRO表示バッジ。
 
 ## 12. リズムクルーズ固有で流用注意 / 非推奨のclass / 構造
 
@@ -258,6 +275,7 @@
 - PRO認証に触れない。
 - マイク補正、判定、保存、localStorage構造は対象外にする。
 - 「流用可能」はコピー推奨ではなく、パターン参照の意味で使う。
+- class名、ID、DOM構造は基準バージョン時点の参照情報として扱い、新規アプリ側では用途に合わせて設計し直す。
 - まず Markdown 資料だけで残す。
 
 ## 15. 次にやるなら
