@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.95';
+const RHYTHM_CRUISE_VERSION = '0.12.97';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -30603,6 +30603,8 @@ function bind() {
         }
         // メニュー内の余白・説明文など data-act が無い領域はPlay扱いしない（v0.9.170）。
         if (!act && e.target.closest('.pro-custom-home-menu')) return;
+        // 通常版では右側の▼もカード本体と同じくPlayへ進む。PRO版は従来どおりメニューを開く。
+        if (act === 'menu' && isStandardEdition()) { closeRhythmHomeStageMenus(); openRhythmProCustomTest(id); return; }
         // カード名部分（data-act="play"）またはボタン外＝従来どおりPlay/テスト再生
         if (act === 'play' || !act) { closeRhythmHomeStageMenus(); openRhythmProCustomTest(id); return; }
         // 右側の操作（▼メニュー・各メニュー項目）：Playを誤発火させない
