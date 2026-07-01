@@ -1052,7 +1052,7 @@ h1 {
 .pro-custom-home-stage {
     position: relative;
     gap: 12px;
-    padding-right: 58px;
+    padding-right: 66px;
     border-color: rgba(255, 200, 87, 0.5);
     background:
         radial-gradient(120% 120% at 0% 0%, rgba(255, 200, 87, 0.14), transparent 55%),
@@ -1062,12 +1062,12 @@ h1 {
 .pro-custom-home-stage:not(.is-reordering)::after {
     content: '›';
     position: absolute;
-    right: 34px;
+    right: 42px;
     top: 50%;
     transform: translateY(-50%);
-    color: rgba(255, 231, 168, 0.46);
-    font-size: 1.35rem;
-    font-weight: 800;
+    color: rgba(253, 246, 238, 0.35);
+    font-size: 1.3rem;
+    font-weight: 700;
     line-height: 1;
     pointer-events: none;
 }
@@ -1094,26 +1094,34 @@ h1 {
 .pro-custom-home-toggle {
     flex-shrink: 0;
     position: absolute;
-    right: 13px;
-    bottom: 12px;
+    right: 16px;
+    bottom: 13px;
     z-index: 1;
-    width: 24px;
-    height: 24px;
+    width: 18px;
+    height: 18px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 999px;
-    border: 1px solid rgba(255, 200, 87, 0.22);
-    background: rgba(255, 255, 255, 0.018);
-    color: rgba(255, 231, 168, 0.78);
+    border: 0;
+    background: transparent;
+    color: transparent;
     font-family: inherit;
     font-weight: 700;
-    font-size: 0.62rem;
+    font-size: 0;
     line-height: 1;
     opacity: 0.82;
     cursor: pointer;
     transition: transform 0.16s, border-color 0.16s, background 0.16s, opacity 0.16s;
     touch-action: manipulation;
+}
+
+.pro-custom-home-toggle::before {
+    content: '+';
+    color: rgba(255, 231, 168, 0.58);
+    font-size: 0.8rem;
+    font-weight: 700;
+    line-height: 1;
 }
 
 .pro-custom-home-toggle:active {
@@ -1122,16 +1130,14 @@ h1 {
 
 @media (hover: hover) {
     .pro-custom-home-toggle:hover {
-        border-color: rgba(255, 200, 87, 0.4);
-        background: rgba(255, 200, 87, 0.06);
+        background: rgba(255, 200, 87, 0.04);
         opacity: 0.96;
     }
 }
 
 .pro-custom-home-item.is-open .pro-custom-home-toggle {
     transform: rotate(180deg);
-    border-color: rgba(255, 200, 87, 0.45);
-    background: rgba(255, 200, 87, 0.07);
+    background: rgba(255, 200, 87, 0.04);
     opacity: 0.96;
 }
 
@@ -7252,15 +7258,19 @@ body[data-rc-theme="clean-pro"] .pro-custom-home-badge {
 }
 
 body[data-rc-theme="clean-pro"] .pro-custom-home-toggle {
-    width: 24px;
-    height: 24px;
+    width: 18px;
+    height: 18px;
     border-radius: 999px;
-    border-color: rgba(245, 239, 228, 0.12);
-    background: rgba(255, 255, 255, 0.018);
-    color: rgba(245, 239, 228, 0.74);
-    font-size: 0.62rem;
+    border-color: transparent;
+    background: transparent;
+    color: transparent;
+    font-size: 0;
     opacity: 0.82;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.018);
+    box-shadow: none;
+}
+
+body[data-rc-theme="clean-pro"] .pro-custom-home-toggle::before {
+    color: rgba(245, 239, 228, 0.52);
 }
 
 body[data-rc-theme="clean-pro"] .stage-chevron,
@@ -7269,7 +7279,7 @@ body[data-rc-theme="clean-pro"] .rc-saved-entry-chevron {
 }
 
 body[data-rc-theme="clean-pro"] .pro-custom-home-stage:not(.is-reordering)::after {
-    color: rgba(245, 239, 228, 0.34);
+    color: rgba(245, 239, 228, 0.36);
 }
 
 body[data-rc-theme="clean-pro"] .pro-custom-chip,
