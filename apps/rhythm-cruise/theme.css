@@ -1052,24 +1052,11 @@ h1 {
 .pro-custom-home-stage {
     position: relative;
     gap: 12px;
-    padding-right: 66px;
+    padding-right: 42px;
     border-color: rgba(255, 200, 87, 0.5);
     background:
         radial-gradient(120% 120% at 0% 0%, rgba(255, 200, 87, 0.14), transparent 55%),
         rgba(255, 200, 87, 0.07);
-}
-
-.pro-custom-home-stage:not(.is-reordering)::after {
-    content: '›';
-    position: absolute;
-    right: 42px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: rgba(253, 246, 238, 0.35);
-    font-size: 1.3rem;
-    font-weight: 700;
-    line-height: 1;
-    pointer-events: none;
 }
 
 @media (hover: hover) {
@@ -7275,10 +7262,6 @@ body[data-rc-theme="clean-pro"] .pro-custom-home-toggle::before {
 
 body[data-rc-theme="clean-pro"] .stage-chevron,
 body[data-rc-theme="clean-pro"] .rc-saved-entry-chevron {
-    color: rgba(245, 239, 228, 0.36);
-}
-
-body[data-rc-theme="clean-pro"] .pro-custom-home-stage:not(.is-reordering)::after {
     color: rgba(245, 239, 228, 0.36);
 }
 
