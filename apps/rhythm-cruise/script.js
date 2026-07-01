@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.97';
+const RHYTHM_CRUISE_VERSION = '0.12.101';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -12807,7 +12807,7 @@ function updateMicInputTypeUI() {
     }
     if (els.inputTypeHeadphone) els.inputTypeHeadphone.classList.toggle('is-active', t === 'headphone');
     if (els.inputTypeNote) els.inputTypeNote.textContent = isAndroidIphoneStyleTrialFlow()
-        ? 'Androidでは、通常マイクはAndroid式、有線 / Bluetoothイヤホンは新しい音ズレ・遅延テストで確認します。'
+        ? 'Androidでは、イヤホンなしはAndroid式、有線 / Bluetoothイヤホンは新しい音ズレ・遅延テストで確認します。'
         : (MIC_INPUT_TYPE_NOTE[t] || MIC_INPUT_TYPE_NOTE.normal);
     if (els.testInputNote) els.testInputNote.textContent = MIC_TEST_NOTE_BY_TYPE[t] || MIC_TEST_NOTE_BY_TYPE.normal;
     // 入力タイプに応じてカードを出し分ける。
@@ -24149,7 +24149,7 @@ function wizardStepSummary(id) {
                 : (selectedTestPlatform === 'ios_new' ? '端末：iPhone'
                 : (selectedTestPlatform === 'ios' ? '端末：iPhone / iPad' : '端末：未選択'))));
         case 'input': {
-            if (!isHeadphoneInput()) return '入力タイプ：通常マイク';
+            if (!isHeadphoneInput()) return '入力タイプ：イヤホンなし';
             return '入力タイプ：イヤホン接続';
         }
         case 'hptype':
@@ -25330,7 +25330,7 @@ const SUMMARY_CORRECTION_TYPE_LABELS = {
     androidBuiltinMicOffsetMs: 'Android本体マイク補正',
     bluetoothMicOffsetMs: 'Bluetoothイヤホン補正',
     wiredMicOffsetMs: '有線イヤホン補正',
-    timingOffsetMs: '通常マイク補正'
+    timingOffsetMs: 'イヤホンなし補正'
 };
 function buildSettingsSummaryPracticeInfo() {
     const isAndroid = androidAudioProbeDeviceInfo().isAndroid;
@@ -25362,7 +25362,7 @@ function buildSettingsSummaryPracticeInfo() {
     let correctionTypeLabel, activeOffsetMs;
     if (isBluetoothHeadphone()) { correctionTypeLabel = 'Bluetoothイヤホン補正'; activeOffsetMs = mic.bluetoothMicOffsetMs || 0; }
     else if (isHeadphoneInput()) { correctionTypeLabel = '有線イヤホン補正'; activeOffsetMs = mic.wiredMicOffsetMs || 0; }
-    else { correctionTypeLabel = '通常マイク補正'; activeOffsetMs = mic.timingOffsetMs; }
+    else { correctionTypeLabel = 'イヤホンなし補正'; activeOffsetMs = mic.timingOffsetMs; }
     return {
         inputLabel, practiceStatus: '使用中', activeOffsetMs: finalOffsetMs, correctionTypeLabel,
         delayEstimateMs: Math.round(Math.abs(activeOffsetMs) * 10) / 10, isActive: true, notUsedReason: '',
@@ -25404,7 +25404,7 @@ function renderSettingsSummary() {
     const noteRow = (msg) => '<div class="mic-unsaved-row" style="background:none;color:inherit;">' + escapeHtml(msg) + '</div>';
     const sectionHead = (title) => '<div class="cal-result-row" style="margin-top:8px;"><span><b>' + escapeHtml(title) + '</b></span><b></b></div>';
     const t = getMicInputType();
-    const typeLabel = { normal: '通常マイク', headphone: 'イヤホン接続' }[t] || '通常マイク';
+    const typeLabel = { normal: 'イヤホンなし', headphone: 'イヤホン接続' }[t] || 'イヤホンなし';
     const rows = [];
     const practice = buildSettingsSummaryPracticeInfo();
     // プリセット名／未保存状態を最初に表示（v0.9.152）。
@@ -25552,7 +25552,7 @@ function renderManualSummary() {
     if (els.manualDetailValues) {
         const detailRows = [];
         const practice = buildSettingsSummaryPracticeInfo();
-        detailRows.push(row('入力タイプ', isHeadphoneInput() ? 'イヤホン接続' : '通常マイク'));
+        detailRows.push(row('入力タイプ', isHeadphoneInput() ? 'イヤホン接続' : 'イヤホンなし'));
         if (isHeadphoneInput()) detailRows.push(row('イヤホン種類', manualSummaryInputLabel()));
         detailRows.push(row('使用中の補正', formatSummaryMs(practice.activeOffsetMs)));
         detailRows.push(row('補正状態', practice.practiceStatus));
