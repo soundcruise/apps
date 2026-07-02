@@ -128,6 +128,23 @@ body {
     opacity: 0.92;
 }
 
+/* クリック可能なモジュールカード（button要素として置く） */
+.module-card--clickable {
+    font-family: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.module-card--clickable:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 159, 28, 0.7);
+}
+
+.module-card--clickable:active {
+    transform: translateY(0);
+}
+
 .module-card--featured {
     border-color: rgba(255, 159, 28, 0.45);
     background:
@@ -330,6 +347,236 @@ body {
     gap: 6px;
 }
 
+/* ══════════ 画面切替・共通ナビ（DESIGN_SYSTEM.md 5章の考え方を継承） ══════════ */
+
+.hidden {
+    display: none !important;
+}
+
+.screen {
+    display: flex;
+    flex-direction: column;
+    gap: 36px;
+}
+
+.app-nav {
+    position: fixed;
+    top: 18px;
+    left: 18px;
+    z-index: 20;
+    display: flex;
+    gap: 8px;
+}
+
+.nav-btn {
+    padding: 8px 16px;
+    border: 1px solid rgba(255, 209, 102, 0.35);
+    border-radius: 999px;
+    background: rgba(18, 15, 12, 0.85);
+    color: var(--secondary-color);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+}
+
+.nav-btn:hover {
+    border-color: rgba(255, 209, 102, 0.7);
+    background: rgba(37, 31, 24, 0.9);
+}
+
+/* ══════════ 譜面クルーズ画面 ══════════ */
+
+.screen-header {
+    text-align: center;
+    padding: 40px 0 0;
+}
+
+.screen-title {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: var(--secondary-color);
+}
+
+.screen-subcopy {
+    margin-top: 8px;
+    font-size: 15px;
+    color: var(--muted-color);
+    letter-spacing: 0.06em;
+}
+
+/* 左: 編集パネル / 右: 譜面プレビュー の2ペイン（Phase 2Bで右側にA4紙面が入る） */
+.sheet-layout {
+    display: grid;
+    grid-template-columns: minmax(360px, 480px) 1fr;
+    gap: 24px;
+    align-items: start;
+}
+
+.sheet-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+/* 設定カードの考え方（DESIGN_SYSTEM.md 10章）を編集パネルに適用 */
+.editor-card {
+    padding: 22px 24px;
+    border: 1px solid var(--card-border);
+    border-radius: var(--card-radius);
+    background: linear-gradient(180deg, var(--surface-raised), var(--surface-color));
+    box-shadow: var(--card-shadow);
+}
+
+.editor-card-title {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--secondary-color);
+    margin-bottom: 16px;
+}
+
+.project-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.project-row select {
+    flex: 1;
+    min-width: 0;
+}
+
+/* フォーム */
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 16px;
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.form-field--wide {
+    grid-column: 1 / -1;
+}
+
+.form-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--muted-color);
+}
+
+.form-note {
+    font-size: 11px;
+    color: var(--muted-color);
+}
+
+.form-grid input,
+.form-grid select,
+.project-row select {
+    padding: 9px 12px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.form-grid input:focus,
+.form-grid select:focus,
+.project-row select:focus {
+    outline: none;
+    border-color: rgba(255, 159, 28, 0.6);
+}
+
+.form-grid select option,
+.project-row select option {
+    background: var(--surface-raised);
+    color: var(--text-color);
+}
+
+/* キー関係チェック */
+.key-check {
+    margin-top: 16px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    min-height: 1.5em;
+}
+
+.key-check.is-ok {
+    color: #2ecc71;
+    background: rgba(46, 204, 113, 0.08);
+    border: 1px solid rgba(46, 204, 113, 0.25);
+}
+
+.key-check.is-warning {
+    color: var(--secondary-color);
+    background: rgba(255, 209, 102, 0.07);
+    border: 1px solid rgba(255, 209, 102, 0.3);
+}
+
+.editor-actions {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.save-status {
+    font-size: 13px;
+    color: var(--secondary-color);
+}
+
+.save-status.is-error {
+    color: var(--error-color);
+}
+
+/* 右: 譜面プレビュー枠（Phase 2B以降でA4紙面レンダリングに置き換える） */
+.sheet-preview {
+    min-height: 480px;
+}
+
+.sheet-preview-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 480px;
+    border: 1px dashed rgba(253, 246, 238, 0.2);
+    border-radius: var(--card-radius);
+    background: rgba(0, 0, 0, 0.15);
+    text-align: center;
+    padding: 32px;
+}
+
+.sheet-preview-placeholder-icon {
+    font-size: 34px;
+}
+
+.sheet-preview-placeholder-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--muted-color);
+    letter-spacing: 0.08em;
+}
+
+.sheet-preview-placeholder-note {
+    font-size: 12.5px;
+    color: rgba(253, 246, 238, 0.45);
+    line-height: 1.8;
+}
+
 /* ══════════ フッター ══════════ */
 
 .studio-footer {
@@ -354,6 +601,19 @@ body {
 
     .module-grid,
     .module-grid--series {
+        grid-template-columns: 1fr;
+    }
+
+    /* PC前提の2ペインは縦積みに畳む（編集のスマホ最適化はしない: ADR-005） */
+    .sheet-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .screen-header {
+        padding-top: 56px; /* 固定ナビと重ならないように */
+    }
+
+    .form-grid {
         grid-template-columns: 1fr;
     }
 }

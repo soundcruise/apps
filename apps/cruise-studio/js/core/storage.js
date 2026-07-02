@@ -9,6 +9,7 @@
     var PREFIX = 'cruiseStudio.';
     var INDEX_KEY = PREFIX + 'projects.index';
     var PROJECT_KEY_PREFIX = PREFIX + 'project.';
+    var CURRENT_PROJECT_KEY = PREFIX + 'currentProjectId';
 
     function model() {
         return window.CruiseStudio && window.CruiseStudio.model;
@@ -107,9 +108,36 @@
             writeIndex(readIndex().filter(function (e) {
                 return e && e.projectId !== projectId;
             }));
+            if (getCurrentProjectId() === projectId) {
+                setCurrentProjectId(null);
+            }
             return { ok: true, error: null };
         } catch (e) {
             return { ok: false, error: '削除に失敗しました: ' + (e && e.message) };
+        }
+    }
+
+    /**
+     * 最後に開いていたプロジェクトのIDを記録する（画面再読み込み時の復元用）。
+     */
+    function setCurrentProjectId(projectId) {
+        try {
+            if (projectId) {
+                localStorage.setItem(CURRENT_PROJECT_KEY, projectId);
+            } else {
+                localStorage.removeItem(CURRENT_PROJECT_KEY);
+            }
+        } catch (_) { /* ignore */ }
+    }
+
+    /**
+     * 最後に開いていたプロジェクトのIDを返す。未記録なら null。
+     */
+    function getCurrentProjectId() {
+        try {
+            return localStorage.getItem(CURRENT_PROJECT_KEY) || null;
+        } catch (_) {
+            return null;
         }
     }
 
@@ -158,6 +186,8 @@
         loadProject: loadProject,
         listProjects: listProjects,
         deleteProject: deleteProject,
+        setCurrentProjectId: setCurrentProjectId,
+        getCurrentProjectId: getCurrentProjectId,
         exportProjectJson: exportProjectJson,
         importProjectJson: importProjectJson
     };

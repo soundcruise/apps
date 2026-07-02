@@ -1,12 +1,53 @@
-/* クルーズスタジオ — app.js（Phase 1）
-   母艦TOPの初期化と、保存基盤の動作確認パネル。
-   Phase 2 で譜面クルーズへの画面遷移が入る。 */
+/* クルーズスタジオ — app.js（Phase 2A）
+   母艦シェル: 画面遷移（home ⇄ 譜面クルーズ）・共通ナビ・開発用パネル。
+   譜面クルーズのUIロジックは js/modules/sheet-cruise/sheet-cruise.js。 */
 (function () {
     'use strict';
 
     var CS = window.CruiseStudio || {};
     var model = CS.model;
     var storage = CS.storage;
+    var sheetCruise = CS.sheetCruise;
+
+    /* ══════════ 画面遷移 ══════════
+       「TOPは絶対復帰」「戻るは一階層戻る」「作業中は中断確認」
+       （リズムクルーズ DESIGN_SYSTEM.md 5章の鉄則を継承） */
+
+    var SCREENS = {
+        home: 'screen-home',
+        sheetCruise: 'screen-sheet-cruise'
+    };
+    var currentScreen = 'home';
+
+    function showScreen(name) {
+        if (!SCREENS[name]) return;
+        Object.keys(SCREENS).forEach(function (key) {
+            var el = document.getElementById(SCREENS[key]);
+            if (el) el.classList.toggle('hidden', key !== name);
+        });
+        var nav = document.getElementById('app-nav');
+        if (nav) nav.classList.toggle('hidden', name === 'home');
+        currentScreen = name;
+        window.scrollTo(0, 0);
+    }
+
+    function enterSheetCruise() {
+        sheetCruise.enter();
+        showScreen('sheetCruise');
+    }
+
+    /**
+     * TOPへ戻る。譜面クルーズに未保存の変更があれば中断確認を挟む。
+     * Phase 2A では階層が1段しかないため「戻る」も同じ動きになる。
+     */
+    function goHome() {
+        if (currentScreen === 'sheetCruise' && sheetCruise && !sheetCruise.canLeave()) {
+            return;
+        }
+        showScreen('home');
+    }
+
+    /* ══════════ 開発用: 保存基盤の動作確認パネル ══════════ */
 
     var statusEl = document.getElementById('dev-status');
     var listEl = document.getElementById('dev-project-list');
@@ -157,14 +198,27 @@
         }
     }
 
+    /* ══════════ 初期化 ══════════ */
+
     function init() {
-        if (!model || !storage) {
+        if (!model || !storage || !sheetCruise) {
             setStatus('コアモジュールの読み込みに失敗しました（読み込み順を確認してください）', true);
             return;
         }
         var versionEl = document.getElementById('studio-version');
         if (versionEl) versionEl.textContent = 'v' + model.APP_VERSION;
 
+        // 画面遷移
+        sheetCruise.init();
+        var openSheetBtn = document.getElementById('open-sheet-cruise');
+        if (openSheetBtn) openSheetBtn.addEventListener('click', enterSheetCruise);
+
+        var backBtn = document.getElementById('nav-back-btn');
+        if (backBtn) backBtn.addEventListener('click', goHome); // Phase 2Aでは1階層のみ
+        var topBtn = document.getElementById('nav-top-btn');
+        if (topBtn) topBtn.addEventListener('click', goHome);
+
+        // 開発用パネル
         var createBtn = document.getElementById('dev-create-sample');
         if (createBtn) createBtn.addEventListener('click', onCreateSample);
 
@@ -179,6 +233,7 @@
 
         renderProjectList();
         selfCheck();
+        showScreen('home');
     }
 
     if (document.readyState === 'loading') {
