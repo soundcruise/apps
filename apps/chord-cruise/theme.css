@@ -751,3 +751,182 @@ body {
 .cc-save-btn-row--hidden {
     display: none;
 }
+
+/* コード本棚 */
+.cc-lib-content {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 18px;
+}
+
+.cc-folder-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.cc-folder-card,
+.cc-chordcard {
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    text-align: left;
+    background: var(--cc-surface);
+    border: 1px solid var(--cc-border);
+    border-radius: var(--cc-radius-md);
+    padding: 14px 16px;
+    color: var(--cc-text);
+    transition: transform 0.12s ease;
+}
+
+.cc-chordcard {
+    grid-template-columns: 1fr auto;
+}
+
+.cc-folder-card:active,
+.cc-chordcard:active {
+    transform: scale(0.985);
+}
+
+.cc-folder-card-icon {
+    font-size: 1.2rem;
+}
+
+.cc-folder-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.cc-folder-card-name {
+    font-weight: 700;
+    color: var(--cc-champagne);
+}
+
+.cc-folder-card-count {
+    font-size: 0.76rem;
+    color: var(--cc-text-muted);
+}
+
+.cc-folder-card-chevron {
+    color: var(--cc-text-faint);
+    font-size: 1.3rem;
+}
+
+.cc-chordcard-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.cc-chordcard-main {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.cc-chordcard-name {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--cc-champagne);
+}
+
+.cc-chordcard-meta {
+    font-size: 0.78rem;
+    color: var(--cc-text-muted);
+}
+
+.cc-chordcard-memo {
+    font-size: 0.78rem;
+    color: var(--cc-text-faint);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cc-inline-input-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 10px;
+}
+
+.cc-inline-input-row .cc-input {
+    flex: 1;
+    min-width: 0;
+}
+
+.cc-inline-input-row--hidden {
+    display: none;
+}
+
+.cc-lib-folder-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.cc-lib-folder-title-row .cc-card-heading {
+    margin: 0;
+}
+
+.cc-lib-folder-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* 危険操作 */
+.cc-btn-danger {
+    background: var(--cc-danger-bg);
+    border: 1px solid rgba(207, 90, 99, 0.5);
+    color: var(--cc-danger);
+    font-weight: 700;
+    border-radius: var(--cc-radius-md);
+    padding: 12px 20px;
+}
+
+.cc-danger-zone {
+    border-color: rgba(207, 90, 99, 0.28);
+    margin-top: 10px;
+}
+
+.cc-danger-heading {
+    color: var(--cc-danger);
+}
+
+.cc-confirm-card {
+    width: 100%;
+    max-width: 420px;
+    margin-top: 15vh;
+    background: linear-gradient(165deg, var(--cc-surface-raised), var(--cc-surface));
+    border: 1px solid rgba(207, 90, 99, 0.4);
+    border-radius: var(--cc-radius-lg);
+    padding: 22px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
+}
+
+.cc-confirm-message {
+    margin: 0 0 18px;
+    line-height: 1.7;
+    font-size: 0.95rem;
+}
+
+.cc-confirm-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.cc-lib-edit-hint {
+    color: var(--cc-gold-bright);
+}

@@ -108,6 +108,65 @@
         writeJSON(KEY_FOLDERS, folders);
     }
 
+    function createFolder(name) {
+        var folders = loadFolders();
+        var maxOrder = 0;
+        folders.forEach(function (folder) {
+            if ((folder.order || 0) > maxOrder) maxOrder = folder.order || 0;
+        });
+        var folder = {
+            id: 'folder_' + Date.now() + '_' + Math.floor(Math.random() * 10000),
+            name: name,
+            builtin: false,
+            order: maxOrder + 1,
+            createdAt: nowIso(),
+            updatedAt: nowIso()
+        };
+        folders.push(folder);
+        saveFolders(folders);
+        return folder;
+    }
+
+    /** builtin フォルダは改名不可 */
+    function renameFolder(id, name) {
+        var folders = loadFolders();
+        var changed = false;
+        folders.forEach(function (folder) {
+            if (folder.id === id && !folder.builtin) {
+                folder.name = name;
+                folder.updatedAt = nowIso();
+                changed = true;
+            }
+        });
+        if (changed) saveFolders(folders);
+        return changed;
+    }
+
+    /** builtin フォルダは削除不可。中のコードは未分類へ移動する。 */
+    function deleteFolder(id) {
+        var folders = loadFolders();
+        var target = null;
+        folders.forEach(function (folder) {
+            if (folder.id === id) target = folder;
+        });
+        if (!target || target.builtin) {
+            return false;
+        }
+        loadChordIndex().forEach(function (entry) {
+            if (entry.folderId === id) {
+                var chord = loadChord(entry.id);
+                if (chord) {
+                    chord.folderId = UNCATEGORIZED_ID;
+                    saveChord(chord);
+                }
+            }
+        });
+        saveFolders(folders.filter(function (folder) {
+            return folder.id !== id;
+        }));
+        return true;
+    }
+
     // ---- 保存コード ----
 
     function chordKey(id) {
@@ -181,6 +240,9 @@
         saveSettings: saveSettings,
         loadFolders: loadFolders,
         saveFolders: saveFolders,
+        createFolder: createFolder,
+        renameFolder: renameFolder,
+        deleteFolder: deleteFolder,
         loadChordIndex: loadChordIndex,
         saveChord: saveChord,
         loadChord: loadChord,
