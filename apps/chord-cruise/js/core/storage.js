@@ -4,6 +4,10 @@
     var PREFIX = 'chordCruise.';
     var KEY_SCHEMA_VERSION = PREFIX + 'schemaVersion';
     var KEY_SETTINGS = PREFIX + 'settings';
+    var KEY_FOLDERS = PREFIX + 'folders';
+    var KEY_CHORD_INDEX = PREFIX + 'chords.index';
+    var CHORD_KEY_PREFIX = PREFIX + 'chord.';
+    var UNCATEGORIZED_ID = 'folder_uncategorized';
 
     var DEFAULT_SETTINGS = {
         selectedKey: 0,
@@ -78,10 +82,108 @@
         writeJSON(KEY_SETTINGS, next);
     }
 
+    // ---- フォルダ ----
+
+    function nowIso() {
+        return new Date().toISOString();
+    }
+
+    function loadFolders() {
+        var folders = readJSON(KEY_FOLDERS, null);
+        if (!Array.isArray(folders) || folders.length === 0) {
+            folders = [{
+                id: UNCATEGORIZED_ID,
+                name: '未分類',
+                builtin: true,
+                order: 0,
+                createdAt: nowIso(),
+                updatedAt: nowIso()
+            }];
+            writeJSON(KEY_FOLDERS, folders);
+        }
+        return folders;
+    }
+
+    function saveFolders(folders) {
+        writeJSON(KEY_FOLDERS, folders);
+    }
+
+    // ---- 保存コード ----
+
+    function chordKey(id) {
+        return CHORD_KEY_PREFIX + id;
+    }
+
+    function loadChordIndex() {
+        var index = readJSON(KEY_CHORD_INDEX, null);
+        return Array.isArray(index) ? index : [];
+    }
+
+    function writeChordIndex(index) {
+        writeJSON(KEY_CHORD_INDEX, index);
+    }
+
+    function indexEntryOf(chord) {
+        return {
+            id: chord.id,
+            chordName: chord.chordName,
+            formName: chord.formName,
+            shape: chord.shape,
+            folderId: chord.folderId,
+            fretRange: chord.fretRange,
+            memo: chord.memo || '',
+            keyContext: chord.keyContext || null,
+            updatedAt: chord.updatedAt
+        };
+    }
+
+    /** 保存コードを保存する（新規は id / createdAt を採番）。indexも同期する。 */
+    function saveChord(chord) {
+        var record = chord;
+        if (!record.id) {
+            record.id = 'cc_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+            record.createdAt = nowIso();
+        }
+        record.schemaVersion = 1;
+        record.updatedAt = nowIso();
+        if (!record.folderId) {
+            record.folderId = UNCATEGORIZED_ID;
+        }
+        writeJSON(chordKey(record.id), record);
+        var index = loadChordIndex().filter(function (entry) {
+            return entry.id !== record.id;
+        });
+        index.push(indexEntryOf(record));
+        writeChordIndex(index);
+        return record;
+    }
+
+    function loadChord(id) {
+        return readJSON(chordKey(id), null);
+    }
+
+    function deleteChord(id) {
+        try {
+            window.localStorage.removeItem(chordKey(id));
+        } catch (err) {
+            console.warn('[ChordCruise.storage] failed to remove chord: ' + id, err);
+        }
+        writeChordIndex(loadChordIndex().filter(function (entry) {
+            return entry.id !== id;
+        }));
+    }
+
     window.ChordCruise = window.ChordCruise || {};
     window.ChordCruise.storage = {
+        UNCATEGORIZED_ID: UNCATEGORIZED_ID,
         ensureSchemaVersion: ensureSchemaVersion,
         loadSettings: loadSettings,
-        saveSettings: saveSettings
+        saveSettings: saveSettings,
+        loadFolders: loadFolders,
+        saveFolders: saveFolders,
+        loadChordIndex: loadChordIndex,
+        saveChord: saveChord,
+        loadChord: loadChord,
+        deleteChord: deleteChord
     };
 })();

@@ -81,6 +81,9 @@
                 '</div>' +
                 '<div id="cc-fretboard-host" class="cc-fb-host"></div>' +
                 '<p class="cc-fb-hint" id="cc-fb-hint"></p>' +
+                '<div class="cc-save-btn-row cc-save-btn-row--hidden" id="cc-save-btn-row">' +
+                    '<button type="button" class="cc-btn cc-btn-primary cc-btn--block" id="cc-save-form-btn">このフォームを保存</button>' +
+                '</div>' +
             '</div>' +
             '<div class="cc-card" id="cc-chord-detail"></div>';
         section.appendChild(content);
@@ -145,6 +148,29 @@
             saveSetting({ fretboardDisplayMode: 'finger' });
             updateFbSegments();
             renderFretboard();
+        });
+
+        document.getElementById('cc-save-form-btn').addEventListener('click', function () {
+            var chord = selectedChord();
+            var form = currentForm();
+            if (!chord || !form) {
+                return;
+            }
+            var settings = getSettings();
+            window.ChordCruise.ui.saveEditor.open({
+                chord: chord,
+                form: form,
+                shape: getState().exploreShape,
+                useFlats: getTheory().keyUsesFlats(settings.selectedKey, settings.scaleType),
+                keyContext: {
+                    tonicPc: settings.selectedKey,
+                    mode: settings.scaleType,
+                    degreeLabel: chord.roman
+                },
+                onSaved: function () {
+                    setFbHint('保存しました。コード本棚で確認できます。');
+                }
+            });
         });
 
         document.getElementById('cc-caged-row').addEventListener('click', function (event) {
@@ -406,6 +432,11 @@
         var fingerBtn = document.getElementById('cc-fbmode-finger');
         if (fingerBtn) {
             fingerBtn.classList.toggle('cc-segment-btn--disabled', !form);
+        }
+
+        var saveRow = document.getElementById('cc-save-btn-row');
+        if (saveRow) {
+            saveRow.classList.toggle('cc-save-btn-row--hidden', !form);
         }
 
         fb.render(host, {

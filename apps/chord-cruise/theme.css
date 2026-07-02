@@ -559,3 +559,195 @@ body {
 .cc-caged-btn--na:not(.cc-caged-btn--active) {
     opacity: 0.4;
 }
+
+/* 保存前編集モーダル */
+.cc-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 4, 3, 0.72);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    z-index: 100;
+    overflow-y: auto;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 24px 12px 40px;
+}
+
+.cc-modal-overlay--hidden {
+    display: none;
+}
+
+.cc-modal {
+    width: 100%;
+    max-width: 600px;
+    background: linear-gradient(165deg, var(--cc-surface-raised), var(--cc-surface));
+    border: 1px solid var(--cc-border-strong);
+    border-radius: var(--cc-radius-lg);
+    padding: 20px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
+}
+
+.cc-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.cc-modal-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--cc-champagne);
+}
+
+.cc-btn--small {
+    padding: 8px 14px;
+    font-size: 0.82rem;
+}
+
+.cc-btn--block {
+    display: block;
+    width: 100%;
+}
+
+/* 保存範囲・入力欄 */
+.cc-save-section {
+    margin-top: 16px;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--cc-border);
+    border-radius: var(--cc-radius-md);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.cc-save-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.cc-save-label {
+    font-size: 0.82rem;
+    color: var(--cc-text-muted);
+    letter-spacing: 0.06em;
+}
+
+.cc-save-range-label {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--cc-champagne);
+}
+
+.cc-save-steppers {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+}
+
+.cc-stepper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cc-stepper-label {
+    font-size: 0.78rem;
+    color: var(--cc-text-muted);
+}
+
+.cc-stepper-btn {
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1px solid var(--cc-border-strong);
+    background: transparent;
+    color: var(--cc-text);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.cc-stepper-btn:active {
+    transform: scale(0.92);
+}
+
+.cc-stepper-value {
+    min-width: 34px;
+    text-align: center;
+    font-weight: 700;
+}
+
+.cc-save-open-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.88rem;
+    color: var(--cc-text);
+    cursor: pointer;
+}
+
+.cc-save-open-row input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--cc-gold);
+}
+
+.cc-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.cc-field-label {
+    font-size: 0.78rem;
+    color: var(--cc-text-muted);
+    letter-spacing: 0.06em;
+}
+
+.cc-input {
+    font-family: inherit;
+    background: var(--cc-surface);
+    color: var(--cc-text);
+    border: 1px solid var(--cc-border);
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 1rem;
+}
+
+.cc-input:focus {
+    outline: none;
+    border-color: var(--cc-border-strong);
+}
+
+.cc-textarea {
+    resize: vertical;
+    min-height: 56px;
+}
+
+.cc-save-error {
+    display: none;
+    margin: 12px 2px 0;
+    color: var(--cc-danger);
+    font-size: 0.85rem;
+}
+
+.cc-save-actions {
+    margin-top: 16px;
+}
+
+.cc-save-btn-row {
+    margin-top: 14px;
+}
+
+.cc-save-btn-row--hidden {
+    display: none;
+}
