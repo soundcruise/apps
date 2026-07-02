@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    var CHORD_CRUISE_APP_VERSION = '0.1.0';
+    var CHORD_CRUISE_APP_VERSION = '0.2.0';
     window.CHORD_CRUISE_APP_VERSION = CHORD_CRUISE_APP_VERSION;
 
     var SCREENS = ['home', 'explore', 'library'];
@@ -28,6 +28,10 @@
         });
 
         window.ChordCruise.state.screen = name;
+
+        if (name === 'explore' && window.ChordCruise.ui && window.ChordCruise.ui.explore) {
+            window.ChordCruise.ui.explore.render();
+        }
 
         if (navEl) {
             if (name === 'home') {

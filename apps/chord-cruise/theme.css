@@ -232,3 +232,189 @@ body {
     border-radius: var(--cc-radius-md);
     padding: 12px 20px;
 }
+
+/* コードを調べる画面 */
+.cc-explore-content {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 18px;
+}
+
+.cc-explore-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.cc-control-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.cc-control-label {
+    font-size: 0.82rem;
+    color: var(--cc-text-muted);
+    letter-spacing: 0.08em;
+}
+
+.cc-select {
+    font-family: inherit;
+    background: var(--cc-surface);
+    color: var(--cc-text);
+    border: 1px solid var(--cc-border);
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 1rem;
+    appearance: none;
+    -webkit-appearance: none;
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+}
+
+/* セグメント切替 */
+.cc-segment {
+    display: inline-flex;
+    border: 1px solid var(--cc-border);
+    border-radius: var(--cc-radius-pill);
+    background: rgba(0, 0, 0, 0.25);
+    padding: 3px;
+    gap: 2px;
+}
+
+.cc-segment-btn {
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    border: none;
+    background: transparent;
+    color: var(--cc-text-muted);
+    border-radius: var(--cc-radius-pill);
+    padding: 7px 14px;
+    font-size: 0.82rem;
+    font-weight: 500;
+}
+
+.cc-segment-btn--active {
+    background: linear-gradient(135deg, #b8963a, #e8c97a);
+    color: #171204;
+    font-weight: 700;
+}
+
+/* ダイアトニックコード一覧 */
+.cc-card-heading {
+    margin: 0 0 14px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--cc-champagne);
+    letter-spacing: 0.04em;
+}
+
+.cc-chord-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.cc-chord-btn {
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    background: var(--cc-surface);
+    border: 1px solid var(--cc-border);
+    border-radius: var(--cc-radius-md);
+    padding: 10px 4px;
+    color: var(--cc-text);
+    transition: transform 0.12s ease;
+}
+
+.cc-chord-btn:active {
+    transform: scale(0.96);
+}
+
+.cc-chord-btn-roman {
+    font-size: 0.66rem;
+    color: var(--cc-text-muted);
+}
+
+.cc-chord-btn-symbol {
+    font-size: 1.02rem;
+    font-weight: 700;
+}
+
+.cc-chord-btn--active {
+    border-color: var(--cc-border-strong);
+    background: rgba(212, 175, 55, 0.10);
+    color: var(--cc-champagne);
+}
+
+/* 選択コード情報 */
+#cc-chord-detail .cc-detail-empty {
+    margin: 0;
+    color: var(--cc-text-muted);
+    font-size: 0.9rem;
+}
+
+.cc-detail-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.cc-detail-symbol {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--cc-champagne);
+    letter-spacing: 0.02em;
+}
+
+.cc-detail-roman {
+    font-size: 0.8rem;
+    color: var(--cc-gold-bright);
+    letter-spacing: 0.08em;
+}
+
+.cc-detail-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.cc-detail-row + .cc-detail-row {
+    margin-top: 10px;
+}
+
+.cc-detail-label {
+    font-size: 0.78rem;
+    color: var(--cc-text-muted);
+    min-width: 3.4em;
+    letter-spacing: 0.06em;
+}
+
+.cc-detail-values {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.cc-note-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.2em;
+    padding: 4px 8px;
+    background: rgba(212, 175, 55, 0.08);
+    border: 1px solid var(--cc-border);
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: var(--cc-text);
+}
