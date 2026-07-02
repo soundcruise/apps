@@ -522,3 +522,40 @@ body {
 .cc-segment-btn--disabled {
     opacity: 0.38;
 }
+
+/* CAGEDフォーム切替 */
+.cc-caged-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.cc-caged-btn {
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    background: var(--cc-surface);
+    border: 1px solid var(--cc-border);
+    border-radius: var(--cc-radius-pill);
+    color: var(--cc-text-muted);
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: transform 0.12s ease;
+}
+
+.cc-caged-btn:active {
+    transform: scale(0.95);
+}
+
+.cc-caged-btn--active {
+    background: linear-gradient(135deg, #b8963a, #e8c97a);
+    border-color: transparent;
+    color: #171204;
+    font-weight: 700;
+}
+
+.cc-caged-btn--na:not(.cc-caged-btn--active) {
+    opacity: 0.4;
+}

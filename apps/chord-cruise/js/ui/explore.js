@@ -71,6 +71,14 @@
                         '<button type="button" class="cc-segment-btn cc-segment-btn--disabled" id="cc-fbmode-finger">運指</button>' +
                     '</div>' +
                 '</div>' +
+                '<div class="cc-caged-row" id="cc-caged-row" role="group" aria-label="CAGEDフォーム切替">' +
+                    '<button type="button" class="cc-caged-btn" data-shape="">全体</button>' +
+                    '<button type="button" class="cc-caged-btn" data-shape="C">C型</button>' +
+                    '<button type="button" class="cc-caged-btn" data-shape="A">A型</button>' +
+                    '<button type="button" class="cc-caged-btn" data-shape="G">G型</button>' +
+                    '<button type="button" class="cc-caged-btn" data-shape="E">E型</button>' +
+                    '<button type="button" class="cc-caged-btn" data-shape="D">D型</button>' +
+                '</div>' +
                 '<div id="cc-fretboard-host" class="cc-fb-host"></div>' +
                 '<p class="cc-fb-hint" id="cc-fb-hint"></p>' +
             '</div>' +
@@ -125,9 +133,33 @@
             });
         });
 
-        // 運指表示はCAGEDフォーム表示（STEP 4以降）で有効化する
+        // 運指表示はCAGEDフォーム表示中のみ有効
         document.getElementById('cc-fbmode-finger').addEventListener('click', function () {
-            setFbHint('運指表示はCAGEDフォームを選んだときに使えます。');
+            if (!currentForm()) {
+                setFbHint('運指表示はCAGEDフォームを選んだときに使えます。');
+                return;
+            }
+            if (getSettings().fretboardDisplayMode === 'finger') {
+                return;
+            }
+            saveSetting({ fretboardDisplayMode: 'finger' });
+            updateFbSegments();
+            renderFretboard();
+        });
+
+        document.getElementById('cc-caged-row').addEventListener('click', function (event) {
+            var btn = event.target.closest('.cc-caged-btn');
+            if (!btn) {
+                return;
+            }
+            var shape = btn.dataset.shape || null;
+            if (shape && (getState().exploreSelectedChordIndex === null || getState().exploreSelectedChordIndex === undefined)) {
+                setFbHint('先にコードを選んでください。');
+                return;
+            }
+            getState().exploreShape = shape;
+            updateCagedButtons();
+            renderFretboard();
         });
     }
 
@@ -250,21 +282,142 @@
         return markers;
     }
 
+    var FINGER_LABELS = { T: '親', 1: '人', 2: '中', 3: '薬', 4: '小' };
+
+    function selectedChord() {
+        var selectedIndex = getState().exploreSelectedChordIndex;
+        return (selectedIndex === null || selectedIndex === undefined) ? null : getChords()[selectedIndex];
+    }
+
+    /** 選択中の型のフォーム。未選択・未対応時は null */
+    function currentForm() {
+        var shape = getState().exploreShape;
+        var chord = selectedChord();
+        if (!shape || !chord) {
+            return null;
+        }
+        var form = window.ChordCruise.caged.getForm(shape, chord.qualityKey, chord.rootPc, 13);
+        return form.available ? form : null;
+    }
+
+    function markerLabelFor(pc, interval, finger, useFlats) {
+        var theory = getTheory();
+        var mode = getSettings().fretboardDisplayMode;
+        if (mode === 'finger') {
+            return finger != null ? (FINGER_LABELS[finger] || '') : '';
+        }
+        if (mode === 'solfege') {
+            return theory.solfegeName(pc, useFlats);
+        }
+        if (mode === 'degree') {
+            return theory.degreeLabels([interval])[0];
+        }
+        return theory.noteName(pc, useFlats);
+    }
+
+    function computeFormMarkers(chord, form) {
+        var theory = getTheory();
+        var settings = getSettings();
+        var useFlats = theory.keyUsesFlats(settings.selectedKey, settings.scaleType);
+        return form.notes.map(function (note) {
+            var openPc = theory.OPEN_STRINGS[6 - note.string];
+            var pc = (openPc + note.fret) % 12;
+            return {
+                string: note.string,
+                fret: note.fret,
+                label: markerLabelFor(pc, note.interval, note.finger, useFlats),
+                role: roleForInterval(note.interval)
+            };
+        });
+    }
+
+    function updateCagedButtons() {
+        var row = document.getElementById('cc-caged-row');
+        if (!row) {
+            return;
+        }
+        var chord = selectedChord();
+        var activeShape = getState().exploreShape || '';
+        Array.prototype.forEach.call(row.querySelectorAll('.cc-caged-btn'), function (btn) {
+            var shape = btn.dataset.shape;
+            btn.classList.toggle('cc-caged-btn--active', shape === activeShape);
+            var na = false;
+            if (shape && chord) {
+                na = !window.ChordCruise.caged.getForm(shape, chord.qualityKey, chord.rootPc, 13).available;
+            }
+            btn.classList.toggle('cc-caged-btn--na', na);
+        });
+    }
+
     function renderFretboard() {
         var host = document.getElementById('cc-fretboard-host');
         if (!host) {
             return;
         }
         var fb = window.ChordCruise.ui.fretboard;
-        var selectedIndex = getState().exploreSelectedChordIndex;
-        var chord = (selectedIndex === null || selectedIndex === undefined) ? null : getChords()[selectedIndex];
+        var caged = window.ChordCruise.caged;
+        var chord = selectedChord();
+        var shape = getState().exploreShape;
         var prevScroll = fb.getScrollLeft(host);
+        var hint = '';
+        var markers = [];
+        var mutedStrings = [];
+        var rangeHighlight = null;
+        var scrollToFret = null;
+        var form = null;
+
+        if (!chord) {
+            hint = 'コードを選ぶと構成音が指板に表示されます。';
+        } else if (shape) {
+            var result = caged.getForm(shape, chord.qualityKey, chord.rootPc, 13);
+            if (result.available) {
+                form = result;
+                markers = computeFormMarkers(chord, form);
+                mutedStrings = form.mutedStrings;
+                rangeHighlight = {
+                    minFret: form.fretRange.min,
+                    maxFret: form.fretRange.max,
+                    includesOpen: form.fretRange.includesOpen
+                };
+                scrollToFret = Math.round((form.fretRange.min + form.fretRange.max) / 2);
+                hint = shape + '型 ' + chord.symbol + '（' + caged.formatFretRange(form.fretRange) + '）';
+            } else if (result.reason === 'quality') {
+                markers = computeChordToneMarkers(chord);
+                hint = shape + '型の' + chord.symbol + 'は実用フォーム未収録のため、全体表示にしています。';
+            } else {
+                markers = computeChordToneMarkers(chord);
+                hint = shape + '型の' + chord.symbol + 'は13フレットまでに収まらないため、全体表示にしています。';
+            }
+        } else {
+            markers = computeChordToneMarkers(chord);
+        }
+
+        // 運指モードのままフォームが無くなった場合はCDE表示へ戻す
+        if (getSettings().fretboardDisplayMode === 'finger' && !form) {
+            saveSetting({ fretboardDisplayMode: 'note' });
+            updateFbSegments();
+            if (chord && !shape) {
+                markers = computeChordToneMarkers(chord);
+            } else if (form) {
+                markers = computeFormMarkers(chord, form);
+            }
+        }
+
+        var fingerBtn = document.getElementById('cc-fbmode-finger');
+        if (fingerBtn) {
+            fingerBtn.classList.toggle('cc-segment-btn--disabled', !form);
+        }
+
         fb.render(host, {
             maxFret: 13,
-            markers: chord ? computeChordToneMarkers(chord) : [],
-            preserveScroll: typeof prevScroll === 'number' ? prevScroll : null
+            markers: markers,
+            mutedStrings: mutedStrings,
+            rangeHighlight: rangeHighlight,
+            scrollToFret: scrollToFret,
+            preserveScroll: (form && scrollToFret !== null) ? null : (typeof prevScroll === 'number' ? prevScroll : null)
         });
-        setFbHint(chord ? '' : 'コードを選ぶと構成音が指板に表示されます。');
+        setFbHint(hint);
+        updateCagedButtons();
     }
 
     function getChords() {
