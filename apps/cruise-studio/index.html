@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>クルーズスタジオ</title>
+
+    <!-- shared/ には依存せず theme.css 1枚で構成（PCファースト。docs/DECISIONS.md ADR-005） -->
+    <link rel="stylesheet" href="theme.css?v=0.1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
+    <meta name="theme-color" content="#120f0c">
+    <!-- service-worker / manifest は当面作らない（ADR-002） -->
+</head>
+
+<body>
+    <div class="studio-container">
+
+        <header class="studio-header">
+            <h1>クルーズスタジオ</h1>
+            <p class="studio-subcopy">コード譜から、曲が動き出す。</p>
+            <span class="studio-version" id="studio-version">v0.1.0</span>
+        </header>
+
+        <!-- ══════════ スタジオモジュール ══════════ -->
+        <section class="module-section">
+            <h2 class="section-label">スタジオモジュール</h2>
+            <div class="module-grid">
+
+                <div class="module-card module-card--featured" aria-disabled="true">
+                    <span class="module-card-icon" aria-hidden="true">📝</span>
+                    <span class="module-card-label">譜面クルーズ</span>
+                    <span class="module-card-sub">弾き語り教材用のコード譜をつくる。コード・歌詞・ドレミを1枚のA4に。</span>
+                    <span class="module-card-status">準備中 / Phase 2で実装予定</span>
+                </div>
+
+                <div class="module-card" aria-disabled="true">
+                    <span class="module-card-icon" aria-hidden="true">🎛️</span>
+                    <span class="module-card-label">プレDTMクルーズ</span>
+                    <span class="module-card-sub">同じ曲データから伴奏MIDIを生成。ギター・ベース・ドラムをDAWへ。</span>
+                    <span class="module-card-status">Coming Soon</span>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ══════════ Sound Cruise シリーズ ══════════ -->
+        <section class="module-section">
+            <h2 class="section-label">Sound Cruise シリーズ</h2>
+            <div class="module-grid module-grid--series">
+
+                <div class="module-card module-card--series" aria-disabled="true">
+                    <span class="module-card-icon" aria-hidden="true">🎧</span>
+                    <span class="module-card-label">音感クルーズ</span>
+                    <span class="module-card-sub">音感トレーニング</span>
+                    <span class="module-card-status">将来連携予定</span>
+                </div>
+
+                <div class="module-card module-card--series" aria-disabled="true">
+                    <span class="module-card-icon" aria-hidden="true">🎸</span>
+                    <span class="module-card-label">指板クルーズ</span>
+                    <span class="module-card-sub">指板の音名トレーニング</span>
+                    <span class="module-card-status">将来連携予定</span>
+                </div>
+
+                <div class="module-card module-card--series" aria-disabled="true">
+                    <span class="module-card-icon" aria-hidden="true">🥁</span>
+                    <span class="module-card-label">リズムクルーズ</span>
+                    <span class="module-card-sub">リズムトレーニング</span>
+                    <span class="module-card-status">将来連携予定</span>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ══════════ 開発用: 保存基盤の動作確認（Phase 1） ══════════ -->
+        <details class="dev-panel">
+            <summary>開発用: 曲データ保存基盤の動作確認</summary>
+            <div class="dev-panel-body">
+                <p class="dev-note">
+                    Phase 1 の保存基盤（song-model / storage / music-theory）の動作確認パネルです。
+                    Phase 2 で譜面クルーズのUIに置き換わります。
+                </p>
+                <div class="dev-actions">
+                    <button type="button" id="dev-create-sample" class="btn-primary">サンプル曲を作成して保存</button>
+                    <button type="button" id="dev-refresh-list" class="btn-ghost">一覧を更新</button>
+                    <label class="btn-ghost dev-import-label">
+                        JSONを読み込む<input type="file" id="dev-import-file" accept=".json,application/json">
+                    </label>
+                </div>
+                <p class="dev-status" id="dev-status" aria-live="polite"></p>
+                <ul class="dev-project-list" id="dev-project-list"></ul>
+            </div>
+        </details>
+
+        <footer class="studio-footer">Sound Cruise Series</footer>
+    </div>
+
+    <!-- 読み込み順が正: theory → model → storage → app（ADR-007） -->
+    <script src="js/core/music-theory.js?v=0.1.0"></script>
+    <script src="js/core/song-model.js?v=0.1.0"></script>
+    <script src="js/core/storage.js?v=0.1.0"></script>
+    <script src="js/app.js?v=0.1.0"></script>
+</body>
+
+</html>
