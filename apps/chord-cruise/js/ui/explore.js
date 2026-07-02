@@ -60,6 +60,9 @@
             '<div class="cc-card">' +
                 '<h3 class="cc-card-heading">ダイアトニックコード</h3>' +
                 '<div class="cc-chord-grid" id="cc-chord-grid"></div>' +
+                '<div class="cc-custom-chord-row">' +
+                    '<button type="button" class="cc-btn cc-btn-secondary cc-btn--block" id="cc-custom-chord-btn">＋ 任意コードを作る</button>' +
+                '</div>' +
             '</div>' +
             '<div class="cc-card cc-fb-card">' +
                 '<div class="cc-fb-head">' +
@@ -119,10 +122,23 @@
             if (!btn) {
                 return;
             }
+            getState().exploreCustomChord = null;
             getState().exploreSelectedChordIndex = parseInt(btn.dataset.index, 10);
             renderChordGrid();
             renderFretboard();
             renderDetail();
+        });
+
+        document.getElementById('cc-custom-chord-btn').addEventListener('click', function () {
+            window.ChordCruise.ui.chordBuilder.open({
+                onApply: function (chord) {
+                    getState().exploreCustomChord = chord;
+                    getState().exploreSelectedChordIndex = null;
+                    renderChordGrid();
+                    renderFretboard();
+                    renderDetail();
+                }
+            });
         });
 
         ['note', 'solfege', 'degree'].forEach(function (mode) {
@@ -161,8 +177,8 @@
                 chord: chord,
                 form: form,
                 shape: getState().exploreShape,
-                useFlats: getTheory().keyUsesFlats(settings.selectedKey, settings.scaleType),
-                keyContext: {
+                useFlats: chordUseFlats(chord),
+                keyContext: chord.source === 'custom' ? null : {
                     tonicPc: settings.selectedKey,
                     mode: settings.scaleType,
                     degreeLabel: chord.roman
@@ -179,7 +195,7 @@
                 return;
             }
             var shape = btn.dataset.shape || null;
-            if (shape && (getState().exploreSelectedChordIndex === null || getState().exploreSelectedChordIndex === undefined)) {
+            if (shape && !selectedChord()) {
                 setFbHint('先にコードを選んでください。');
                 return;
             }
@@ -274,9 +290,8 @@
 
     function computeChordToneMarkers(chord) {
         var theory = getTheory();
-        var settings = getSettings();
-        var useFlats = theory.keyUsesFlats(settings.selectedKey, settings.scaleType);
-        var mode = settings.fretboardDisplayMode;
+        var useFlats = chordUseFlats(chord);
+        var mode = getSettings().fretboardDisplayMode;
         var markers = [];
         var s;
         var f;
@@ -293,7 +308,7 @@
                 if (mode === 'solfege') {
                     label = theory.solfegeName(pc, useFlats);
                 } else if (mode === 'degree') {
-                    label = theory.degreeLabels([interval])[0];
+                    label = chordDegreeLabel(chord, idx);
                 } else {
                     label = theory.noteName(pc, useFlats);
                 }
@@ -311,8 +326,28 @@
     var FINGER_LABELS = { T: '親', 1: '人', 2: '中', 3: '薬', 4: '小' };
 
     function selectedChord() {
+        if (getState().exploreCustomChord) {
+            return getState().exploreCustomChord;
+        }
         var selectedIndex = getState().exploreSelectedChordIndex;
         return (selectedIndex === null || selectedIndex === undefined) ? null : getChords()[selectedIndex];
+    }
+
+    /** 表示中コードの♭/♯表記（任意コードはコード固有、ダイアトニックはキー基準） */
+    function chordUseFlats(chord) {
+        if (chord && chord.source === 'custom') {
+            return chord.useFlats;
+        }
+        var settings = getSettings();
+        return getTheory().keyUsesFlats(settings.selectedKey, settings.scaleType);
+    }
+
+    /** interval のラベル（任意コードはテンション表記を保持） */
+    function chordDegreeLabel(chord, noteIndex) {
+        if (chord.degreeLabelsList) {
+            return chord.degreeLabelsList[noteIndex];
+        }
+        return getTheory().degreeLabels([chord.intervals[noteIndex]])[0];
     }
 
     /** 選択中の型のフォーム。未選択・未対応時は null */
@@ -343,8 +378,7 @@
 
     function computeFormMarkers(chord, form) {
         var theory = getTheory();
-        var settings = getSettings();
-        var useFlats = theory.keyUsesFlats(settings.selectedKey, settings.scaleType);
+        var useFlats = chordUseFlats(chord);
         return form.notes.map(function (note) {
             var openPc = theory.OPEN_STRINGS[6 - note.string];
             var pc = (openPc + note.fret) % 12;
@@ -409,7 +443,9 @@
                 hint = shape + '型 ' + chord.symbol + '（' + caged.formatFretRange(form.fretRange) + '）';
             } else if (result.reason === 'quality') {
                 markers = computeChordToneMarkers(chord);
-                hint = shape + '型の' + chord.symbol + 'は実用フォーム未収録のため、全体表示にしています。';
+                hint = (chord.source === 'custom' && !chord.qualityKey)
+                    ? 'このコードは現在、全体表示のみ対応しています。'
+                    : shape + '型の' + chord.symbol + 'は実用フォーム未収録のため、全体表示にしています。';
             } else {
                 markers = computeChordToneMarkers(chord);
                 hint = shape + '型の' + chord.symbol + 'は13フレットまでに収まらないため、全体表示にしています。';
@@ -458,7 +494,7 @@
 
     function renderChordGrid() {
         var grid = document.getElementById('cc-chord-grid');
-        var selectedIndex = getState().exploreSelectedChordIndex;
+        var selectedIndex = getState().exploreCustomChord ? null : getState().exploreSelectedChordIndex;
         grid.innerHTML = '';
         getChords().forEach(function (chord) {
             var btn = document.createElement('button');
@@ -482,19 +518,14 @@
 
     function renderDetail() {
         var detail = document.getElementById('cc-chord-detail');
-        var selectedIndex = getState().exploreSelectedChordIndex;
+        var chord = selectedChord();
         detail.innerHTML = '';
 
-        if (selectedIndex === null || selectedIndex === undefined) {
+        if (!chord) {
             var empty = document.createElement('p');
             empty.className = 'cc-detail-empty';
             empty.textContent = 'コードをタップすると構成音が表示されます。';
             detail.appendChild(empty);
-            return;
-        }
-
-        var chord = getChords()[selectedIndex];
-        if (!chord) {
             return;
         }
 
@@ -507,14 +538,22 @@
 
         var roman = document.createElement('span');
         roman.className = 'cc-detail-roman';
-        roman.textContent = chord.roman;
+        roman.textContent = chord.source === 'custom' ? '任意コード' : chord.roman;
 
         head.appendChild(symbol);
         head.appendChild(roman);
         detail.appendChild(head);
 
-        detail.appendChild(buildDetailRow('構成音', chord.noteNames));
-        detail.appendChild(buildDetailRow('度数', getTheory().degreeLabels(chord.intervals)));
+        var useFlats = chordUseFlats(chord);
+        var noteNames = chord.noteNames || chord.notePcs.map(function (pc) {
+            return getTheory().noteName(pc, useFlats);
+        });
+        var degrees = chord.notePcs.map(function (pc, idx) {
+            return chordDegreeLabel(chord, idx);
+        });
+
+        detail.appendChild(buildDetailRow('構成音', noteNames));
+        detail.appendChild(buildDetailRow('度数', degrees));
     }
 
     function buildDetailRow(labelText, values) {

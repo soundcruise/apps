@@ -930,3 +930,60 @@ body {
 .cc-lib-edit-hint {
     color: var(--cc-gold-bright);
 }
+
+/* 任意コード作成 */
+.cc-custom-chord-row {
+    margin-top: 12px;
+}
+
+.cc-builder-name {
+    width: 100%;
+    box-sizing: border-box;
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--cc-champagne);
+    margin-bottom: 16px;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.cc-builder-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.cc-builder-field--wide {
+    grid-column: span 2;
+}
+
+.cc-builder-tensions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.cc-tension-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--cc-surface);
+    border: 1px solid var(--cc-border);
+    border-radius: var(--cc-radius-pill);
+    font-size: 0.85rem;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.cc-tension-label input {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--cc-gold);
+}
+
+.cc-tension-label:has(input:checked) {
+    border-color: var(--cc-border-strong);
+    background: rgba(212, 175, 55, 0.10);
+    color: var(--cc-champagne);
+}
