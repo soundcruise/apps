@@ -1,0 +1,234 @@
+:root {
+    --cc-bg: #0b0a09;
+    --cc-surface: #141311;
+    --cc-surface-raised: #1c1a17;
+    --cc-border: rgba(228, 198, 124, 0.16);
+    --cc-border-strong: rgba(228, 198, 124, 0.34);
+    --cc-gold: #d4af37;
+    --cc-gold-bright: #e8c97a;
+    --cc-champagne: #f0e0b8;
+    --cc-text: #f4f1e8;
+    --cc-text-muted: rgba(244, 241, 232, 0.56);
+    --cc-text-faint: rgba(244, 241, 232, 0.36);
+    --cc-danger: #cf5a63;
+    --cc-danger-bg: rgba(207, 90, 99, 0.12);
+    --cc-radius-lg: 20px;
+    --cc-radius-md: 14px;
+    --cc-radius-pill: 999px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background-color: var(--cc-bg);
+    background-image: radial-gradient(circle at 50% -10%, rgba(212, 175, 55, 0.07), transparent 45%);
+    color: var(--cc-text);
+    font-family: 'Outfit', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+.cc-app {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 20px;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+}
+
+.cc-main {
+    flex: 1;
+}
+
+/* ナビゲーション */
+.cc-nav {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    display: flex;
+    gap: 8px;
+    z-index: 100;
+}
+
+.cc-nav--hidden {
+    display: none;
+}
+
+.cc-nav-btn {
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    background: rgba(20, 19, 17, 0.72);
+    border: 1px solid var(--cc-border-strong);
+    border-radius: var(--cc-radius-pill);
+    color: var(--cc-text);
+    padding: 8px 16px;
+    font-size: 0.82rem;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+/* 画面切り替え */
+.cc-screen--hidden {
+    display: none;
+}
+
+/* TOP画面ヘッダー */
+.cc-home-header {
+    padding-top: 48px;
+    text-align: center;
+}
+
+.cc-home-title {
+    margin: 0;
+    font-size: clamp(2rem, 8vw, 2.6rem);
+    font-weight: 800;
+    letter-spacing: 0.06em;
+}
+
+.cc-home-subtitle {
+    margin: 8px 0 0;
+    font-size: 0.78rem;
+    letter-spacing: 0.35em;
+    color: var(--cc-gold-bright);
+    font-weight: 500;
+}
+
+.cc-home-tagline {
+    margin: 18px 0 0;
+    color: var(--cc-text-muted);
+    font-size: 0.9rem;
+    line-height: 1.8;
+}
+
+/* アクションカード */
+.cc-home-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 40px;
+}
+
+.cc-action-card {
+    width: 100%;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 16px;
+    background: linear-gradient(160deg, var(--cc-surface-raised), var(--cc-surface));
+    border: 1px solid var(--cc-border);
+    border-radius: var(--cc-radius-lg);
+    padding: 20px 22px;
+    text-align: left;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5);
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    color: inherit;
+    transition: transform 0.15s ease;
+}
+
+.cc-action-card:active {
+    transform: scale(0.985);
+}
+
+.cc-action-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgba(212, 175, 55, 0.08);
+    border: 1px solid var(--cc-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+}
+
+.cc-action-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.cc-action-card-label {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--cc-champagne);
+}
+
+.cc-action-card-sub {
+    font-size: 0.82rem;
+    color: var(--cc-text-muted);
+    line-height: 1.6;
+}
+
+.cc-action-card-chevron {
+    color: var(--cc-text-faint);
+    font-size: 1.4rem;
+    align-self: center;
+}
+
+/* サブ画面共通ヘッダー */
+.cc-page-header {
+    padding-top: 64px;
+}
+
+.cc-page-title {
+    margin: 0;
+    font-size: 1.3rem;
+    font-weight: 700;
+}
+
+/* カード共通 */
+.cc-card {
+    background: linear-gradient(160deg, var(--cc-surface-raised), var(--cc-surface));
+    border: 1px solid var(--cc-border);
+    border-radius: var(--cc-radius-lg);
+    padding: 20px;
+}
+
+.cc-placeholder-card p {
+    margin: 0;
+    color: var(--cc-text-muted);
+}
+
+/* フッター */
+.cc-footer {
+    text-align: center;
+    font-size: 0.72rem;
+    letter-spacing: 0.3em;
+    color: var(--cc-text-faint);
+    padding: 28px 0 16px;
+    margin-top: auto;
+}
+
+/* 汎用ボタン */
+.cc-btn {
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    border: none;
+    background: none;
+    color: inherit;
+    font-size: 1rem;
+}
+
+.cc-btn-primary {
+    background: linear-gradient(135deg, #b8963a, #e8c97a);
+    color: #171204;
+    font-weight: 700;
+    border-radius: var(--cc-radius-md);
+    padding: 12px 20px;
+    box-shadow: 0 6px 16px rgba(184, 150, 58, 0.24);
+}
+
+.cc-btn-secondary {
+    background: transparent;
+    border: 1px solid var(--cc-border-strong);
+    color: var(--cc-text);
+    border-radius: var(--cc-radius-md);
+    padding: 12px 20px;
+}

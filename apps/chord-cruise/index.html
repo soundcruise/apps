@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>コードクルーズ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css?v=0.1.0">
+</head>
+<body>
+<div id="cc-app" class="cc-app">
+    <nav id="cc-nav" class="cc-nav cc-nav--hidden" aria-hidden="true">
+        <button type="button" id="cc-nav-back" class="cc-nav-btn">← 戻る</button>
+        <button type="button" id="cc-nav-top" class="cc-nav-btn">🏠 TOP</button>
+    </nav>
+    <main class="cc-main">
+        <!-- TOP画面 -->
+        <section id="cc-screen-home" class="cc-screen">
+            <header class="cc-home-header">
+                <h1 class="cc-home-title">コードクルーズ</h1>
+                <p class="cc-home-subtitle">CHORD CRUISE</p>
+                <p class="cc-home-tagline">キーから探して、指板で確かめて、自分のコード本棚へ。</p>
+            </header>
+            <div class="cc-home-actions">
+                <button type="button" class="cc-action-card" id="cc-go-explore">
+                    <span class="cc-action-card-icon">🔍</span>
+                    <span class="cc-action-card-body">
+                        <span class="cc-action-card-label">コードを調べる</span>
+                        <span class="cc-action-card-sub">キーからコードを探して、指板上で構成音やフォームを確認します。</span>
+                    </span>
+                    <span class="cc-action-card-chevron">›</span>
+                </button>
+                <button type="button" class="cc-action-card" id="cc-go-library">
+                    <span class="cc-action-card-icon">📚</span>
+                    <span class="cc-action-card-body">
+                        <span class="cc-action-card-label">コード本棚</span>
+                        <span class="cc-action-card-sub">保存したコードフォームをフォルダごとに整理します。</span>
+                    </span>
+                    <span class="cc-action-card-chevron">›</span>
+                </button>
+            </div>
+        </section>
+        <!-- コードを調べる（STEP 2以降で実装） -->
+        <section id="cc-screen-explore" class="cc-screen cc-screen--hidden">
+            <header class="cc-page-header"><h2 class="cc-page-title">🔍 コードを調べる</h2></header>
+            <div class="cc-card cc-placeholder-card"><p>この画面は次のSTEPで実装します。</p></div>
+        </section>
+        <!-- コード本棚（STEP 6で実装） -->
+        <section id="cc-screen-library" class="cc-screen cc-screen--hidden">
+            <header class="cc-page-header"><h2 class="cc-page-title">📚 コード本棚</h2></header>
+            <div class="cc-card cc-placeholder-card"><p>この画面は後のSTEPで実装します。</p></div>
+        </section>
+    </main>
+    <footer class="cc-footer">Sound Cruise Series</footer>
+</div>
+<script src="js/core/storage.js?v=0.1.0"></script>
+<script src="js/app.js?v=0.1.0"></script>
+</body>
+</html>
