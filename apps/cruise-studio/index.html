@@ -7,7 +7,7 @@
     <title>クルーズスタジオ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成（PCファースト。docs/DECISIONS.md ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.2.0">
+    <link rel="stylesheet" href="theme.css?v=0.3.0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -30,7 +30,7 @@
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
                 <p class="studio-subcopy">コード譜から、曲が動き出す。</p>
-                <span class="studio-version" id="studio-version">v0.2.0</span>
+                <span class="studio-version" id="studio-version">v0.3.0</span>
             </header>
 
             <section class="module-section">
@@ -168,15 +168,27 @@
                         </div>
                     </div>
 
+                    <div class="editor-card">
+                        <h3 class="editor-card-title">セクション</h3>
+                        <div id="sc-section-list" class="section-list"></div>
+                        <div class="editor-actions">
+                            <button type="button" id="sc-add-section" class="btn-ghost">＋ セクションを追加</button>
+                        </div>
+                    </div>
+
+                    <div class="editor-card">
+                        <h3 class="editor-card-title">小節グリッド（コード入力）</h3>
+                        <p class="editor-card-note">1小節1コードで入力します（例: C / Am7 / F/G）。空欄はコードなしになります。解釈できない表記は警告になりますが、保存はできます。</p>
+                        <!-- .bar-cell は将来 歌詞・ドレミ・拍位置入力の行を足して拡張する（Phase 2C以降） -->
+                        <div id="sc-bar-grid" class="bar-grid"></div>
+                    </div>
+
                 </div>
 
-                <!-- 右: 譜面プレビュー（将来のA4紙面レンダリング枠） -->
+                <!-- 右: 譜面プレビュー（Phase 3でA4固定紙面レンダリングに置き換える） -->
                 <aside class="sheet-preview">
-                    <div class="sheet-preview-placeholder">
-                        <span class="sheet-preview-placeholder-icon" aria-hidden="true">🗒️</span>
-                        <p class="sheet-preview-placeholder-title">譜面プレビュー</p>
-                        <p class="sheet-preview-placeholder-note">Phase 2B以降で実装予定です。<br>ここにA4紙面のコード譜プレビューが表示されます。</p>
-                    </div>
+                    <div id="sc-preview" class="preview-paper" aria-label="コード譜プレビュー"></div>
+                    <p class="preview-note">簡易プレビューです。A4紙面レイアウト・PDF印刷は Phase 3 で実装予定。</p>
                 </aside>
 
             </div>
@@ -187,11 +199,11 @@
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/music-theory.js?v=0.2.0"></script>
-    <script src="js/core/song-model.js?v=0.2.0"></script>
-    <script src="js/core/storage.js?v=0.2.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.2.0"></script>
-    <script src="js/app.js?v=0.2.0"></script>
+    <script src="js/core/music-theory.js?v=0.3.0"></script>
+    <script src="js/core/song-model.js?v=0.3.0"></script>
+    <script src="js/core/storage.js?v=0.3.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.3.0"></script>
+    <script src="js/app.js?v=0.3.0"></script>
 </body>
 
 </html>

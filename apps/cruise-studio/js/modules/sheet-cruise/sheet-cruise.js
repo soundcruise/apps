@@ -1,6 +1,7 @@
-/* クルーズスタジオ — sheet-cruise.js（Phase 2A）
-   譜面クルーズ画面: プロジェクト選択・曲情報フォーム・キー関係チェック・保存。
-   小節グリッド編集とA4プレビューは Phase 2B 以降。
+/* クルーズスタジオ — sheet-cruise.js（Phase 2B）
+   譜面クルーズ画面: プロジェクト選択・曲情報フォーム・キー関係チェック・
+   セクション管理・小節グリッド（1小節1コード入力）・簡易プレビュー・保存。
+   歌詞・ドレミ入力とA4紙面プレビューは Phase 2C / Phase 3。
    グローバル名前空間 CruiseStudio.sheetCruise に登録する。 */
 (function () {
     'use strict';
@@ -9,6 +10,8 @@
 
     // フォームのキー選択肢（normalizeKeyName が受ける表記に揃える）
     var KEY_OPTIONS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+
+    var PREVIEW_BARS_PER_ROW = 4; // 簡易プレビューの1行あたり小節数（A4紙面では sheetSettings.barsPerLine を使う予定）
 
     var state = {
         project: null,   // 編集中の StudioProject
@@ -32,6 +35,10 @@
         els.keyCheck = q('sc-key-check');
         els.saveBtn = q('sc-save');
         els.saveStatus = q('sc-save-status');
+        els.sectionList = q('sc-section-list');
+        els.addSectionBtn = q('sc-add-section');
+        els.barGrid = q('sc-bar-grid');
+        els.preview = q('sc-preview');
     }
 
     function fillKeySelect(select) {
@@ -46,9 +53,8 @@
 
     /**
      * キー名を KEY_OPTIONS の表記へ寄せる（'C#' → 'Db' 等の異名同音も吸収する）。
-     * 選択肢にない値は先頭（C）にフォールバックせず、そのまま option を足して保持する。
      */
-    function toOptionKey(select, keyName) {
+    function toOptionKey(keyName) {
         var theory = CS().theory;
         var semi = theory.keyToSemitone(keyName);
         if (semi === null) return null;
@@ -59,14 +65,18 @@
     }
 
     function setSelectKey(select, keyName) {
-        var mapped = toOptionKey(select, keyName);
-        select.value = mapped || 'C';
+        select.value = toOptionKey(keyName) || 'C';
     }
 
     function setSaveStatus(message, isError) {
         if (!els.saveStatus) return;
         els.saveStatus.textContent = message || '';
         els.saveStatus.classList.toggle('is-error', !!isError);
+    }
+
+    function markDirty() {
+        state.dirty = true;
+        setSaveStatus('未保存の変更があります');
     }
 
     /* ══════════ プロジェクト管理 ══════════ */
@@ -97,12 +107,19 @@
         els.projectSelect.value = state.project.projectId;
     }
 
+    function renderAll() {
+        renderForm();
+        renderSections();
+        renderBarGrid();
+        renderPreview();
+        refreshProjectSelect();
+    }
+
     function setProject(project, options) {
         state.project = project;
         state.dirty = !!(options && options.dirty);
         CS().storage.setCurrentProjectId(project.projectId);
-        renderForm();
-        refreshProjectSelect();
+        renderAll();
         setSaveStatus((options && options.statusMessage) || '');
     }
 
@@ -130,7 +147,7 @@
         setProject(project, { dirty: true, statusMessage: '新規プロジェクトを作成しました（未保存）' });
     }
 
-    /* ══════════ フォーム ══════════ */
+    /* ══════════ 曲情報フォーム ══════════ */
 
     function renderForm() {
         var si = state.project.songInfo;
@@ -166,9 +183,9 @@
 
     function onFieldChange() {
         readFormIntoProject();
-        state.dirty = true;
+        markDirty();
         updateKeyCheck();
-        setSaveStatus('未保存の変更があります');
+        renderPreview();
     }
 
     /**
@@ -195,6 +212,231 @@
                 ' と一致しません（意図した設定ならこのまま保存できます）';
             els.keyCheck.className = 'key-check is-warning';
         }
+    }
+
+    /* ══════════ セクション管理 ══════════ */
+
+    function renderSections() {
+        var model = CS().model;
+        els.sectionList.innerHTML = '';
+
+        state.project.sections.forEach(function (sec) {
+            var row = document.createElement('div');
+            row.className = 'section-row';
+
+            var nameInput = document.createElement('input');
+            nameInput.type = 'text';
+            nameInput.className = 'section-name-input';
+            nameInput.value = sec.name;
+            nameInput.setAttribute('aria-label', 'セクション名');
+            nameInput.addEventListener('change', function () {
+                model.renameSection(state.project, sec.id, nameInput.value);
+                nameInput.value = state.project.sections.filter(function (s) { return s.id === sec.id; })[0].name;
+                markDirty();
+                renderBarGrid();
+                renderPreview();
+            });
+
+            var countWrap = document.createElement('label');
+            countWrap.className = 'section-bar-count-wrap';
+            var countLabel = document.createElement('span');
+            countLabel.textContent = '小節';
+            var countInput = document.createElement('input');
+            countInput.type = 'number';
+            countInput.className = 'section-bar-count';
+            countInput.min = '1';
+            countInput.max = '64';
+            countInput.step = '1';
+            countInput.value = model.getSectionBarCount(state.project, sec.id);
+            countInput.addEventListener('change', function () {
+                model.setSectionBarCount(state.project, sec.id, parseInt(countInput.value, 10));
+                countInput.value = model.getSectionBarCount(state.project, sec.id); // クランプ結果を反映
+                markDirty();
+                renderBarGrid();
+                renderPreview();
+            });
+            countWrap.appendChild(countLabel);
+            countWrap.appendChild(countInput);
+
+            var deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
+            deleteBtn.className = 'btn-mini btn-danger';
+            deleteBtn.textContent = '削除';
+            deleteBtn.addEventListener('click', function () {
+                var barCount = model.getSectionBarCount(state.project, sec.id);
+                if (!window.confirm('セクション「' + sec.name + '」（' + barCount + '小節）を削除しますか？')) return;
+                var res = model.removeSection(state.project, sec.id);
+                if (!res.ok) {
+                    setSaveStatus(res.error, true);
+                    return;
+                }
+                markDirty();
+                renderSections();
+                renderBarGrid();
+                renderPreview();
+            });
+
+            row.appendChild(nameInput);
+            row.appendChild(countWrap);
+            row.appendChild(deleteBtn);
+            els.sectionList.appendChild(row);
+        });
+    }
+
+    function onAddSection() {
+        CS().model.addSection(state.project, '新しいセクション', 4);
+        markDirty();
+        renderSections();
+        renderBarGrid();
+        renderPreview();
+    }
+
+    /* ══════════ 小節グリッド（1小節1コード: ADR-008） ══════════ */
+
+    /**
+     * コード入力欄の簡易検証。解釈できない表記は警告表示にするが入力は禁止しない。
+     */
+    function validateChordInput(input) {
+        var theory = CS().theory;
+        var value = input.value.trim();
+        var invalid = (value !== '' && theory.parseBasicChordSymbol(value) === null);
+        input.classList.toggle('is-invalid', invalid);
+        input.title = invalid ? '解釈できないコード表記です（このまま保存はできます）' : '';
+    }
+
+    function renderBarGrid() {
+        var model = CS().model;
+        els.barGrid.innerHTML = '';
+
+        state.project.sections.forEach(function (sec) {
+            var bars = model.getSectionBars(state.project, sec.id);
+
+            var sectionBlock = document.createElement('div');
+            sectionBlock.className = 'bar-grid-section';
+
+            var heading = document.createElement('div');
+            heading.className = 'bar-grid-section-head';
+            var headName = document.createElement('span');
+            headName.className = 'bar-grid-section-name';
+            headName.textContent = sec.name;
+            var headRange = document.createElement('span');
+            headRange.className = 'bar-grid-section-range';
+            if (bars.length > 0) {
+                headRange.textContent = bars[0].barNumber + '〜' + bars[bars.length - 1].barNumber + '小節';
+            }
+            heading.appendChild(headName);
+            heading.appendChild(headRange);
+            sectionBlock.appendChild(heading);
+
+            var cells = document.createElement('div');
+            cells.className = 'bar-grid-cells';
+
+            bars.forEach(function (bar) {
+                // .bar-cell は将来 歌詞・ドレミ行を足して拡張する（Phase 2C以降）
+                var cell = document.createElement('div');
+                cell.className = 'bar-cell';
+
+                var num = document.createElement('span');
+                num.className = 'bar-cell-num';
+                num.textContent = bar.barNumber;
+
+                var chordInput = document.createElement('input');
+                chordInput.type = 'text';
+                chordInput.className = 'bar-chord-input';
+                chordInput.placeholder = '−';
+                chordInput.setAttribute('aria-label', bar.barNumber + '小節目のコード');
+                chordInput.value = (bar.chords[0] && bar.chords[0].symbol) || '';
+                validateChordInput(chordInput);
+                chordInput.addEventListener('input', function () {
+                    CS().model.setBarChord(state.project, bar.barNumber, chordInput.value);
+                    validateChordInput(chordInput);
+                    markDirty();
+                    renderPreview();
+                });
+
+                cell.appendChild(num);
+                cell.appendChild(chordInput);
+                cells.appendChild(cell);
+            });
+
+            sectionBlock.appendChild(cells);
+            els.barGrid.appendChild(sectionBlock);
+        });
+    }
+
+    /* ══════════ 簡易プレビュー（Phase 3でA4紙面レンダリングに置き換える） ══════════ */
+
+    function renderPreview() {
+        var model = CS().model;
+        var si = state.project.songInfo;
+        els.preview.innerHTML = '';
+
+        // ヘッダー: 曲名 / アーティスト / キー情報（教材コード譜の紙面ヘッダーの簡易版）
+        var header = document.createElement('div');
+        header.className = 'preview-header';
+
+        var titleRow = document.createElement('div');
+        titleRow.className = 'preview-title-row';
+        var title = document.createElement('span');
+        title.className = 'preview-title';
+        title.textContent = si.title || '無題';
+        titleRow.appendChild(title);
+        if (si.artist) {
+            var artist = document.createElement('span');
+            artist.className = 'preview-artist';
+            artist.textContent = '/ ' + si.artist;
+            titleRow.appendChild(artist);
+        }
+        header.appendChild(titleRow);
+
+        var meta = document.createElement('div');
+        meta.className = 'preview-meta';
+        [
+            'ORGキー: ' + si.originalKey,
+            'Playキー: ' + (si.capo > 0 ? si.capo + 'カポ' + si.playKey : si.playKey),
+            'BPM: ' + si.bpm,
+            '拍子: ' + si.timeSignature.beats + '/' + si.timeSignature.beatUnit
+        ].forEach(function (text) {
+            var item = document.createElement('span');
+            item.className = 'preview-meta-item';
+            item.textContent = text;
+            meta.appendChild(item);
+        });
+        header.appendChild(meta);
+        els.preview.appendChild(header);
+
+        // セクションごとのコードグリッド
+        state.project.sections.forEach(function (sec) {
+            var bars = model.getSectionBars(state.project, sec.id);
+
+            var label = document.createElement('div');
+            label.className = 'preview-section-label';
+            label.textContent = sec.name;
+            els.preview.appendChild(label);
+
+            var grid = document.createElement('div');
+            grid.className = 'preview-bars';
+            grid.style.gridTemplateColumns = 'repeat(' + PREVIEW_BARS_PER_ROW + ', 1fr)';
+
+            bars.forEach(function (bar) {
+                var box = document.createElement('div');
+                box.className = 'preview-bar';
+
+                var num = document.createElement('span');
+                num.className = 'preview-bar-num';
+                num.textContent = bar.barNumber;
+
+                var chord = document.createElement('span');
+                chord.className = 'preview-bar-chord';
+                chord.textContent = (bar.chords[0] && bar.chords[0].symbol) || '';
+
+                box.appendChild(num);
+                box.appendChild(chord);
+                grid.appendChild(box);
+            });
+
+            els.preview.appendChild(grid);
+        });
     }
 
     /* ══════════ 保存 ══════════ */
@@ -268,6 +510,7 @@
             el.addEventListener('change', onFieldChange);
         });
 
+        els.addSectionBtn.addEventListener('click', onAddSection);
         els.saveBtn.addEventListener('click', save);
     }
 

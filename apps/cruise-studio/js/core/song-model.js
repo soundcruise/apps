@@ -8,7 +8,7 @@
 
     var theory = window.CruiseStudio && window.CruiseStudio.theory;
 
-    var APP_VERSION = '0.2.0';
+    var APP_VERSION = '0.3.0';
     var SCHEMA_VERSION = 1;
     var TICKS_PER_BEAT = 480;
 
@@ -30,6 +30,10 @@
             rand = Math.random().toString(16).slice(2, 18);
         }
         return 'csp_' + Date.now().toString(36) + '_' + rand;
+    }
+
+    function generateSectionId() {
+        return 'sec_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
     }
 
     function getDefaultSheetSettings() {
@@ -81,15 +85,152 @@
         };
     }
 
+    /* ══════════ セクション・小節の操作（Phase 2B）══════════
+       譜面クルーズのUIから呼ばれるが、モデル層に置くことで
+       将来プレDTMクルーズや自動処理からも同じ操作を使えるようにする。 */
+
     /**
-     * 空のプロジェクトを生成する（セクション1つ・空の4小節）。
+     * 1小節の長さ（tick）を返す。
+     * TODO(将来): 小節単位の拍子変更（barごとの timeSignature override）に対応する。
+     *             現状は songInfo.timeSignature のみを見る（Phase 2Bは4/4前提で開始）。
+     */
+    function getBarLengthTicks(project) {
+        var ts = project && project.songInfo && project.songInfo.timeSignature;
+        var beats = (ts && typeof ts.beats === 'number' && ts.beats > 0) ? ts.beats : 4;
+        return beats * TICKS_PER_BEAT;
+    }
+
+    /**
+     * bars をセクションの並び順にグループ化し直し、barNumber を1から振り直す。
+     * セクション構造を操作したあとは必ずこれを通す。
+     */
+    function normalizeBarOrder(project) {
+        var grouped = [];
+        project.sections.forEach(function (sec) {
+            project.bars.forEach(function (bar) {
+                if (bar.sectionId === sec.id) grouped.push(bar);
+            });
+        });
+        grouped.forEach(function (bar, i) {
+            bar.barNumber = i + 1;
+        });
+        project.bars = grouped;
+    }
+
+    function getSectionBars(project, sectionId) {
+        return project.bars.filter(function (bar) {
+            return bar.sectionId === sectionId;
+        });
+    }
+
+    function getSectionBarCount(project, sectionId) {
+        return getSectionBars(project, sectionId).length;
+    }
+
+    /**
+     * セクションの小節数を変更する。増えた分は末尾に空小節を足し、
+     * 減った分は末尾から削る（既存小節の内容は保持する）。
+     */
+    function setSectionBarCount(project, sectionId, count) {
+        var target = Math.min(64, Math.max(1, Math.round(count) || 1));
+        var current = getSectionBars(project, sectionId);
+        if (target > current.length) {
+            for (var i = current.length; i < target; i++) {
+                project.bars.push(createEmptyBar(0, sectionId)); // barNumberは normalize で振り直す
+            }
+        } else if (target < current.length) {
+            var removeSet = current.slice(target);
+            project.bars = project.bars.filter(function (bar) {
+                return removeSet.indexOf(bar) === -1;
+            });
+        }
+        normalizeBarOrder(project);
+    }
+
+    function addSection(project, name, barCount) {
+        var section = {
+            id: generateSectionId(),
+            name: name || '新しいセクション',
+            lyricsHidden: false
+        };
+        project.sections.push(section);
+        var count = Math.min(64, Math.max(1, Math.round(barCount) || 4));
+        for (var i = 0; i < count; i++) {
+            project.bars.push(createEmptyBar(0, section.id));
+        }
+        normalizeBarOrder(project);
+        return section;
+    }
+
+    /**
+     * セクションとその小節を削除する。最後の1つは削除できない。
+     * @returns {{ok: boolean, error: string|null}}
+     */
+    function removeSection(project, sectionId) {
+        if (project.sections.length <= 1) {
+            return { ok: false, error: '最後のセクションは削除できません' };
+        }
+        var exists = project.sections.some(function (sec) { return sec.id === sectionId; });
+        if (!exists) {
+            return { ok: false, error: 'セクションが見つかりません: ' + sectionId };
+        }
+        project.sections = project.sections.filter(function (sec) {
+            return sec.id !== sectionId;
+        });
+        project.bars = project.bars.filter(function (bar) {
+            return bar.sectionId !== sectionId;
+        });
+        normalizeBarOrder(project);
+        return { ok: true, error: null };
+    }
+
+    function renameSection(project, sectionId, name) {
+        project.sections.forEach(function (sec) {
+            if (sec.id === sectionId) sec.name = String(name || '').trim() || '無題セクション';
+        });
+    }
+
+    /**
+     * 小節にコードを設定する（Phase 2Bは1小節1コード。ADR-008）。
+     * 空文字はコードなしとして扱う。
+     * TODO(Phase 2C以降): 小節内の複数コード（tick指定）に対応する。
+     *                     データ構造は既に対応済みで、このUI用ヘルパーだけが1個制限。
+     */
+    function setBarChord(project, barNumber, symbol) {
+        var bar = project.bars[barNumber - 1];
+        if (!bar || bar.barNumber !== barNumber) {
+            bar = project.bars.filter(function (b) { return b.barNumber === barNumber; })[0];
+        }
+        if (!bar) return;
+        var s = String(symbol || '').trim();
+        if (!s) {
+            bar.chords = [];
+        } else {
+            bar.chords = [{ tick: 0, durationTicks: getBarLengthTicks(project), symbol: s }];
+        }
+    }
+
+    /**
+     * 空のプロジェクトを生成する。
+     * 初期セクションはイントロ/Aメロ/Bメロ/サビ（ユーザーが自由に変更できる）。
      */
     function createEmptyProject() {
-        var sectionId = 'sec_a';
+        var defaults = [
+            { name: 'イントロ', barCount: 4 },
+            { name: 'Aメロ', barCount: 8 },
+            { name: 'Bメロ', barCount: 8 },
+            { name: 'サビ', barCount: 8 }
+        ];
+        var sections = [];
         var bars = [];
-        for (var i = 1; i <= 4; i++) {
-            bars.push(createEmptyBar(i, sectionId));
-        }
+        var barNumber = 1;
+        defaults.forEach(function (def) {
+            var id = generateSectionId();
+            sections.push({ id: id, name: def.name, lyricsHidden: false });
+            for (var i = 0; i < def.barCount; i++) {
+                bars.push(createEmptyBar(barNumber++, id));
+            }
+        });
         return {
             schemaVersion: SCHEMA_VERSION,
             appVersion: APP_VERSION,
@@ -106,9 +247,7 @@
                 timeSignature: { beats: 4, beatUnit: 4 },
                 ticksPerBeat: TICKS_PER_BEAT
             },
-            sections: [
-                { id: sectionId, name: 'Aメロ', lyricsHidden: false }
-            ],
+            sections: sections,
             bars: bars,
             strumPatterns: [createDefaultStrumPattern()],
             basicStrumPatternId: 'strum_8beat_a',
@@ -369,6 +508,15 @@
         createEmptyProject: createEmptyProject,
         createSampleProject: createSampleProject,
         createEmptyBar: createEmptyBar,
+        getBarLengthTicks: getBarLengthTicks,
+        normalizeBarOrder: normalizeBarOrder,
+        getSectionBars: getSectionBars,
+        getSectionBarCount: getSectionBarCount,
+        setSectionBarCount: setSectionBarCount,
+        addSection: addSection,
+        removeSection: removeSection,
+        renameSection: renameSection,
+        setBarChord: setBarChord,
         validateProject: validateProject,
         migrateProject: migrateProject,
         getDefaultSheetSettings: getDefaultSheetSettings,
