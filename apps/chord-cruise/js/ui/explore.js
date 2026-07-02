@@ -61,6 +61,19 @@
                 '<h3 class="cc-card-heading">ダイアトニックコード</h3>' +
                 '<div class="cc-chord-grid" id="cc-chord-grid"></div>' +
             '</div>' +
+            '<div class="cc-card cc-fb-card">' +
+                '<div class="cc-fb-head">' +
+                    '<h3 class="cc-card-heading">指板</h3>' +
+                    '<div class="cc-segment" role="group" aria-label="指板表示切替">' +
+                        '<button type="button" class="cc-segment-btn" id="cc-fbmode-note">CDE</button>' +
+                        '<button type="button" class="cc-segment-btn" id="cc-fbmode-solfege">ドレミ</button>' +
+                        '<button type="button" class="cc-segment-btn" id="cc-fbmode-degree">度数</button>' +
+                        '<button type="button" class="cc-segment-btn cc-segment-btn--disabled" id="cc-fbmode-finger">運指</button>' +
+                    '</div>' +
+                '</div>' +
+                '<div id="cc-fretboard-host" class="cc-fb-host"></div>' +
+                '<p class="cc-fb-hint" id="cc-fb-hint"></p>' +
+            '</div>' +
             '<div class="cc-card" id="cc-chord-detail"></div>';
         section.appendChild(content);
         bindEvents();
@@ -70,6 +83,7 @@
         document.getElementById('cc-key-select').addEventListener('change', function (event) {
             saveSetting({ selectedKey: parseInt(event.target.value, 10) });
             renderChordGrid();
+            renderFretboard();
             renderDetail();
         });
 
@@ -96,8 +110,34 @@
             }
             getState().exploreSelectedChordIndex = parseInt(btn.dataset.index, 10);
             renderChordGrid();
+            renderFretboard();
             renderDetail();
         });
+
+        ['note', 'solfege', 'degree'].forEach(function (mode) {
+            document.getElementById('cc-fbmode-' + mode).addEventListener('click', function () {
+                if (getSettings().fretboardDisplayMode === mode) {
+                    return;
+                }
+                saveSetting({ fretboardDisplayMode: mode });
+                updateFbSegments();
+                renderFretboard();
+            });
+        });
+
+        // 運指表示はCAGEDフォーム表示（STEP 4以降）で有効化する
+        document.getElementById('cc-fbmode-finger').addEventListener('click', function () {
+            setFbHint('運指表示はCAGEDフォームを選んだときに使えます。');
+        });
+    }
+
+    function setFbHint(text) {
+        var hint = document.getElementById('cc-fb-hint');
+        if (!hint) {
+            return;
+        }
+        hint.textContent = text || '';
+        hint.style.display = text ? '' : 'none';
     }
 
     function setMode(mode) {
@@ -108,6 +148,7 @@
         updateKeyOptions();
         updateSegments();
         renderChordGrid();
+        renderFretboard();
         renderDetail();
     }
 
@@ -118,6 +159,7 @@
         saveSetting({ chordToneMode: toneMode });
         updateSegments();
         renderChordGrid();
+        renderFretboard();
         renderDetail();
     }
 
@@ -151,6 +193,78 @@
                 el.classList.toggle('cc-segment-btn--active', pair[1]);
             }
         });
+        updateFbSegments();
+    }
+
+    function updateFbSegments() {
+        var mode = getSettings().fretboardDisplayMode;
+        ['note', 'solfege', 'degree', 'finger'].forEach(function (m) {
+            var el = document.getElementById('cc-fbmode-' + m);
+            if (el) {
+                el.classList.toggle('cc-segment-btn--active', mode === m);
+            }
+        });
+    }
+
+    function roleForInterval(interval) {
+        if (interval === 0) return 'root';
+        if (interval === 3 || interval === 4) return 'third';
+        if (interval === 6 || interval === 7 || interval === 8) return 'fifth';
+        if (interval === 9 || interval === 10 || interval === 11) return 'seventh';
+        return 'other';
+    }
+
+    function computeChordToneMarkers(chord) {
+        var theory = getTheory();
+        var settings = getSettings();
+        var useFlats = theory.keyUsesFlats(settings.selectedKey, settings.scaleType);
+        var mode = settings.fretboardDisplayMode;
+        var markers = [];
+        var s;
+        var f;
+        for (s = 1; s <= 6; s++) {
+            var openPc = theory.OPEN_STRINGS[6 - s];
+            for (f = 0; f <= 13; f++) {
+                var pc = (openPc + f) % 12;
+                var idx = chord.notePcs.indexOf(pc);
+                if (idx === -1) {
+                    continue;
+                }
+                var interval = chord.intervals[idx];
+                var label;
+                if (mode === 'solfege') {
+                    label = theory.solfegeName(pc, useFlats);
+                } else if (mode === 'degree') {
+                    label = theory.degreeLabels([interval])[0];
+                } else {
+                    label = theory.noteName(pc, useFlats);
+                }
+                markers.push({
+                    string: s,
+                    fret: f,
+                    label: label,
+                    role: roleForInterval(interval)
+                });
+            }
+        }
+        return markers;
+    }
+
+    function renderFretboard() {
+        var host = document.getElementById('cc-fretboard-host');
+        if (!host) {
+            return;
+        }
+        var fb = window.ChordCruise.ui.fretboard;
+        var selectedIndex = getState().exploreSelectedChordIndex;
+        var chord = (selectedIndex === null || selectedIndex === undefined) ? null : getChords()[selectedIndex];
+        var prevScroll = fb.getScrollLeft(host);
+        fb.render(host, {
+            maxFret: 13,
+            markers: chord ? computeChordToneMarkers(chord) : [],
+            preserveScroll: typeof prevScroll === 'number' ? prevScroll : null
+        });
+        setFbHint(chord ? '' : 'コードを選ぶと構成音が指板に表示されます。');
     }
 
     function getChords() {
@@ -254,6 +368,7 @@
         updateKeyOptions();
         updateSegments();
         renderChordGrid();
+        renderFretboard();
         renderDetail();
     }
 

@@ -418,3 +418,107 @@ body {
     font-weight: 500;
     color: var(--cc-text);
 }
+
+/* 指板表示 */
+:root {
+    --cc-fb-root: #ff4f6e;
+    --cc-fb-third: #ffd93d;
+    --cc-fb-fifth: #4f9cf9;
+    --cc-fb-seventh: #ffffff;
+    --cc-fb-other: #555555;
+}
+
+.cc-fb-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.cc-fb-head .cc-card-heading {
+    margin: 0;
+}
+
+.cc-fb-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+    border-radius: 10px;
+}
+
+.cc-fb-scroll::-webkit-scrollbar {
+    height: 6px;
+}
+
+.cc-fb-scroll::-webkit-scrollbar-thumb {
+    background: rgba(228, 198, 124, 0.25);
+    border-radius: 999px;
+}
+
+.cc-fb-scroll::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 999px;
+}
+
+.cc-fb-stage {
+    position: relative;
+}
+
+.cc-fb-svg {
+    display: block;
+}
+
+.cc-fb-markers {
+    position: absolute;
+    inset: 0;
+}
+
+.cc-fb-marker {
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.76rem;
+    font-weight: 700;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.cc-fb-marker--root { background: var(--cc-fb-root); color: #fff; }
+.cc-fb-marker--third { background: var(--cc-fb-third); color: #141311; }
+.cc-fb-marker--fifth { background: var(--cc-fb-fifth); color: #fff; }
+.cc-fb-marker--seventh { background: var(--cc-fb-seventh); color: #141311; }
+.cc-fb-marker--other { background: var(--cc-fb-other); color: #ddd; }
+
+.cc-fb-marker--dimmed {
+    opacity: 0.32;
+}
+
+.cc-fb-marker--tappable {
+    cursor: pointer;
+}
+
+.cc-fb-mute {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    color: var(--cc-text-muted);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.cc-fb-hint {
+    margin: 10px 2px 0;
+    font-size: 0.8rem;
+    color: var(--cc-text-muted);
+}
+
+.cc-segment-btn--disabled {
+    opacity: 0.38;
+}
