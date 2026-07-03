@@ -1,0 +1,71 @@
+/* クルーズスタジオ print.css — v0.4.0
+   ブラウザ印刷（PDF保存）用。譜面プレビュー（#sc-preview）だけを印刷対象にし、
+   編集UI・ナビ・ツールバーは印刷しない（docs/DECISIONS.md ADR-010）。
+   index.html から media="print" で読み込まれる。 */
+
+@page {
+    size: A4 portrait;
+    margin: 12mm 14mm;
+}
+
+/* 画面UIは印刷しない */
+.app-nav,
+.studio-header,
+.screen-header,
+.sheet-toolbar,
+.sheet-editor,
+.dev-panel,
+.module-section,
+.studio-footer,
+.preview-note,
+#screen-home {
+    display: none !important;
+}
+
+/* レイアウトの入れ子を解除して紙面だけを流す */
+body {
+    background: #ffffff !important;
+}
+
+.studio-container,
+.screen,
+.sheet-layout,
+.sheet-preview {
+    display: block !important;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    gap: 0 !important;
+}
+
+/* 紙面そのもの: 画面用の影・角丸・余白を落とす */
+#sc-preview {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    background: #ffffff !important;
+    /* コードの赤・ドレミの色・セクションバーを印刷にも出す */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+/* 改ページ制御: 小節・セクション見出しの途中で切らない */
+.preview-bar {
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+.preview-section-label {
+    break-after: avoid;
+    page-break-after: avoid;
+}
+
+/* A4向けの微調整 */
+#sc-preview .preview-title {
+    font-size: 22px;
+}
+
+#sc-preview .preview-meta {
+    font-size: 11px;
+}

@@ -135,6 +135,105 @@
         return note;
     }
 
+    /* ══════════ ドレミ（階名）文字列の簡易パース／整形（Phase 2C）══════════
+       MVPの入力仕様（docs/DECISIONS.md ADR-009）:
+       - 音名: ド レ ミ ファ ソ ラ シ（ひらがな どれみふぁそらし も可）
+       - 半音: 音名の直後に ♯/#/＃ または ♭/b
+       - オクターブ: 音名の直後に ↑（+1）/ ↓（-1）。重ねがけ可
+       - 伸ばし: 〜 ～ ー - は直前の音の音価を1スロット延長
+       - 区切り: 空白・読点・中黒などは無視
+       - 解釈できない文字は警告になり保存されない（正はmelodyイベント） */
+
+    var DOREMI_STEP_NAMES = ['ド', 'レ', 'ミ', 'ファ', 'ソ', 'ラ', 'シ'];
+    var DOREMI_NOTE_MAP = {
+        'ド': 0, 'レ': 1, 'ミ': 2, 'ファ': 3, 'ソ': 4, 'ラ': 5, 'シ': 6,
+        'ど': 0, 'れ': 1, 'み': 2, 'ふぁ': 3, 'そ': 4, 'ら': 5, 'し': 6
+    };
+    var DOREMI_SEPARATORS = ' 　、。・,，/｜|';
+    var DOREMI_EXTENSIONS = '〜～ーｰ-−ー';
+
+    /**
+     * ドレミ文字列をトークン列にパースする。
+     * @returns {{notes: Array<{step:number, alter:number, octave:number, extensions:number}>, warnings: string[]}}
+     */
+    function parseDoremiString(text) {
+        var notes = [];
+        var warnings = [];
+        var unknown = [];
+        var s = String(text || '');
+        var i = 0;
+        while (i < s.length) {
+            var ch = s[i];
+            if (DOREMI_SEPARATORS.indexOf(ch) !== -1) { i++; continue; }
+            if (DOREMI_EXTENSIONS.indexOf(ch) !== -1) {
+                if (notes.length > 0) {
+                    notes[notes.length - 1].extensions++;
+                } else {
+                    warnings.push('先頭の伸ばし記号は無視しました');
+                }
+                i++;
+                continue;
+            }
+            // 2文字音名（ファ/ふぁ）を先に判定
+            var two = s.substr(i, 2);
+            var name = (DOREMI_NOTE_MAP[two] !== undefined) ? two
+                : (DOREMI_NOTE_MAP[ch] !== undefined) ? ch : null;
+            if (name === null) {
+                unknown.push(ch);
+                i++;
+                continue;
+            }
+            var note = { step: DOREMI_NOTE_MAP[name], alter: 0, octave: 0, extensions: 0 };
+            i += name.length;
+            // 音名直後の修飾（♯/♭/オクターブ）を連続で読む
+            var reading = true;
+            while (reading && i < s.length) {
+                var m = s[i];
+                if (m === '#' || m === '♯' || m === '＃') { note.alter++; i++; }
+                else if (m === 'b' || m === '♭') { note.alter--; i++; }
+                else if (m === '↑') { note.octave++; i++; }
+                else if (m === '↓') { note.octave--; i++; }
+                else { reading = false; }
+            }
+            notes.push(note);
+        }
+        if (unknown.length > 0) {
+            warnings.push('解釈できない文字を無視しました: ' + unknown.join(' '));
+        }
+        return { notes: notes, warnings: warnings };
+    }
+
+    /**
+     * melodyイベント列を表示用トークンへ変換する（プレビュー・入力欄の再生成に使う）。
+     * @returns {Array<{text: string, octave: number}>}
+     */
+    function melodyEventsToDoremiTokens(events) {
+        if (!Array.isArray(events) || events.length === 0) return [];
+        var sorted = events.slice().sort(function (a, b) { return a.tick - b.tick; });
+        // スロット幅の推定: 全音価が8分(240)で割り切れれば8分、そうでなければ16分(120)
+        var slot = sorted.every(function (ev) { return ev.durationTicks % 240 === 0; }) ? 240 : 120;
+        return sorted.map(function (ev) {
+            var step = Math.min(6, Math.max(0, Math.round(ev.step || 0)));
+            var text = DOREMI_STEP_NAMES[step];
+            var alter = Math.round(ev.alter || 0);
+            for (var a = 0; a < alter; a++) text += '♯';
+            for (var b = 0; b > alter; b--) text += '♭';
+            var octave = Math.round(ev.octave || 0);
+            for (var u = 0; u < octave; u++) text += '↑';
+            for (var d = 0; d > octave; d--) text += '↓';
+            var extra = Math.max(0, Math.round((ev.durationTicks || slot) / slot) - 1);
+            for (var e = 0; e < extra; e++) text += '〜';
+            return { text: text, octave: octave };
+        });
+    }
+
+    /**
+     * melodyイベント列をドレミ文字列へ整形する（入力欄の初期値に使う）。
+     */
+    function melodyEventsToDoremiString(events) {
+        return melodyEventsToDoremiTokens(events).map(function (t) { return t.text; }).join('');
+    }
+
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.theory = {
         MAJOR_SCALE: MAJOR_SCALE.slice(),
@@ -145,6 +244,9 @@
         capoToOriginalKey: capoToOriginalKey,
         isKeyRelationConsistent: isKeyRelationConsistent,
         parseBasicChordSymbol: parseBasicChordSymbol,
-        melodyEventToMidiNote: melodyEventToMidiNote
+        melodyEventToMidiNote: melodyEventToMidiNote,
+        parseDoremiString: parseDoremiString,
+        melodyEventsToDoremiTokens: melodyEventsToDoremiTokens,
+        melodyEventsToDoremiString: melodyEventsToDoremiString
     };
 })();

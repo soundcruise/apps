@@ -36,7 +36,9 @@ body {
     min-height: 100%;
     font-family: 'Outfit', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic', sans-serif;
     background-color: var(--bg-color);
-    background-image: radial-gradient(ellipse 120% 60% at 50% -10%, rgba(255, 159, 28, 0.14), transparent 60%);
+    background-image:
+        radial-gradient(ellipse 120% 60% at 50% -10%, rgba(255, 159, 28, 0.15), transparent 60%),
+        radial-gradient(ellipse 80% 50% at 90% 110%, rgba(77, 150, 255, 0.045), transparent 65%);
     background-repeat: no-repeat;
     color: var(--text-color);
     line-height: 1.6;
@@ -407,6 +409,77 @@ body {
     letter-spacing: 0.06em;
 }
 
+/* ツールバー: プロジェクト選択と主要操作。スクロールしても上部に残す */
+.sheet-toolbar {
+    position: sticky;
+    top: 14px;
+    z-index: 15;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 12px 18px;
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(37, 31, 24, 0.94), rgba(29, 24, 19, 0.94));
+    backdrop-filter: blur(8px);
+    box-shadow: var(--card-shadow);
+}
+
+.sheet-toolbar-project {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 1 340px;
+    min-width: 240px;
+}
+
+.sheet-toolbar-project select {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 12px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 13.5px;
+}
+
+.sheet-toolbar-project select option {
+    background: var(--surface-raised);
+    color: var(--text-color);
+}
+
+.sheet-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.sheet-toolbar .save-status {
+    flex: 1;
+    min-width: 180px;
+    text-align: right;
+    font-size: 12.5px;
+}
+
+.btn-compact {
+    padding: 8px 16px;
+    font-size: 13px;
+}
+
+.file-label {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.file-label input[type="file"] {
+    display: none;
+}
+
 /* 左: 編集パネル / 右: 譜面プレビュー の2ペイン（Phase 3で右側がA4紙面になる） */
 .sheet-layout {
     display: grid;
@@ -436,17 +509,6 @@ body {
     letter-spacing: 0.1em;
     color: var(--secondary-color);
     margin-bottom: 16px;
-}
-
-.project-row {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-
-.project-row select {
-    flex: 1;
-    min-width: 0;
 }
 
 /* フォーム */
@@ -479,8 +541,7 @@ body {
 }
 
 .form-grid input,
-.form-grid select,
-.project-row select {
+.form-grid select {
     padding: 9px 12px;
     border: 1px solid rgba(253, 246, 238, 0.18);
     border-radius: 10px;
@@ -491,14 +552,12 @@ body {
 }
 
 .form-grid input:focus,
-.form-grid select:focus,
-.project-row select:focus {
+.form-grid select:focus {
     outline: none;
     border-color: rgba(255, 159, 28, 0.6);
 }
 
-.form-grid select option,
-.project-row select option {
+.form-grid select option {
     background: var(--surface-raised);
     color: var(--text-color);
 }
@@ -633,7 +692,7 @@ body {
 
 .bar-grid-cells {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
     gap: 8px;
 }
 
@@ -675,6 +734,39 @@ body {
     border-color: rgba(255, 209, 102, 0.65);
     background: rgba(255, 209, 102, 0.08);
     color: var(--secondary-color);
+}
+
+/* 歌詞・ドレミ入力（コードの下に2行） */
+.bar-lyrics-input,
+.bar-doremi-input {
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid rgba(253, 246, 238, 0.12);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.26);
+    font-family: inherit;
+    text-align: center;
+}
+
+.bar-lyrics-input {
+    font-size: 12.5px;
+    color: var(--text-color);
+}
+
+.bar-doremi-input {
+    font-size: 12px;
+    color: #8ab2f5;
+}
+
+.bar-doremi-input.is-invalid {
+    border-color: rgba(255, 209, 102, 0.65);
+    background: rgba(255, 209, 102, 0.08);
+}
+
+.bar-lyrics-input:focus,
+.bar-doremi-input:focus {
+    outline: none;
+    border-color: rgba(255, 159, 28, 0.6);
 }
 
 /* ══════════ 簡易プレビュー（紙面風。Phase 3でA4固定レンダリングへ） ══════════ */
@@ -752,7 +844,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    min-height: 52px;
+    min-height: 78px;
     padding: 4px 8px 8px;
     border-right: 1.5px solid #7a746c;
     border-bottom: 1px solid rgba(122, 116, 108, 0.25);
@@ -769,6 +861,46 @@ body {
     font-weight: 800;
     color: #c0392b;
     line-height: 1.2;
+    min-height: 1.2em;
+}
+
+/* 歌詞: 中段。太めで読みやすく */
+.preview-bar-lyrics {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #1e1a16;
+    line-height: 1.5;
+    min-height: 1.5em;
+    letter-spacing: 0.04em;
+}
+
+/* ドレミ: 下段。オクターブで色分け（中央=青 / 高い=オレンジ / 低い=グレー） */
+.preview-bar-doremi {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1px 5px;
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 1.5;
+    min-height: 1.5em;
+    letter-spacing: 0.02em;
+}
+
+.preview-doremi-note {
+    color: #4a6fa5;
+}
+
+.preview-doremi-note.is-high {
+    color: #d97706;
+}
+
+.preview-doremi-note.is-low {
+    color: #8a94a6;
+}
+
+/* コードのみのセクション（前奏など）は低い段で詰める */
+.preview-bars--chords-only .preview-bar {
+    min-height: 40px;
 }
 
 .preview-note {
@@ -785,6 +917,21 @@ body {
     letter-spacing: 0.18em;
     color: rgba(253, 246, 238, 0.35);
     padding: 12px 0 4px;
+}
+
+/* ══════════ フォーカスリングの統一（高級感のあるアンバーの淡いグロー） ══════════ */
+
+.form-grid input:focus,
+.form-grid select:focus,
+.sheet-toolbar-project select:focus,
+.section-name-input:focus,
+.section-bar-count:focus,
+.bar-chord-input:focus,
+.bar-lyrics-input:focus,
+.bar-doremi-input:focus {
+    outline: none;
+    border-color: rgba(255, 159, 28, 0.6);
+    box-shadow: 0 0 0 3px rgba(255, 159, 28, 0.12);
 }
 
 /* ══════════ 最低限のレスポンシブ（スマホ編集最適化はしない: ADR-005） ══════════ */

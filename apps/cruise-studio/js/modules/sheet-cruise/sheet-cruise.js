@@ -11,7 +11,8 @@
     // フォームのキー選択肢（normalizeKeyName が受ける表記に揃える）
     var KEY_OPTIONS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
-    var PREVIEW_BARS_PER_ROW = 4; // 簡易プレビューの1行あたり小節数（A4紙面では sheetSettings.barsPerLine を使う予定）
+    // プレビューの1行あたり小節数は sheetSettings.barsPerLine（既定2）。
+    // 歌詞もドレミもないセクション（前奏などのコードのみ）は2倍詰めで表示する。
 
     var state = {
         project: null,   // 編集中の StudioProject
@@ -35,6 +36,9 @@
         els.keyCheck = q('sc-key-check');
         els.saveBtn = q('sc-save');
         els.saveStatus = q('sc-save-status');
+        els.printBtn = q('sc-print');
+        els.exportBtn = q('sc-export-json');
+        els.importInput = q('sc-import-json');
         els.sectionList = q('sc-section-list');
         els.addSectionBtn = q('sc-add-section');
         els.barGrid = q('sc-bar-grid');
@@ -332,7 +336,7 @@
             cells.className = 'bar-grid-cells';
 
             bars.forEach(function (bar) {
-                // .bar-cell は将来 歌詞・ドレミ行を足して拡張する（Phase 2C以降）
+                // .bar-cell: コード/歌詞/ドレミの3行構成（将来は拍位置入力へ拡張）
                 var cell = document.createElement('div');
                 cell.className = 'bar-cell';
 
@@ -343,7 +347,7 @@
                 var chordInput = document.createElement('input');
                 chordInput.type = 'text';
                 chordInput.className = 'bar-chord-input';
-                chordInput.placeholder = '−';
+                chordInput.placeholder = 'コード';
                 chordInput.setAttribute('aria-label', bar.barNumber + '小節目のコード');
                 chordInput.value = (bar.chords[0] && bar.chords[0].symbol) || '';
                 validateChordInput(chordInput);
@@ -354,8 +358,36 @@
                     renderPreview();
                 });
 
+                var lyricsInput = document.createElement('input');
+                lyricsInput.type = 'text';
+                lyricsInput.className = 'bar-lyrics-input';
+                lyricsInput.placeholder = '歌詞';
+                lyricsInput.setAttribute('aria-label', bar.barNumber + '小節目の歌詞');
+                lyricsInput.value = CS().model.getBarLyricsText(bar);
+                lyricsInput.addEventListener('input', function () {
+                    CS().model.setBarLyricsText(state.project, bar.barNumber, lyricsInput.value);
+                    markDirty();
+                    renderPreview();
+                });
+
+                var doremiInput = document.createElement('input');
+                doremiInput.type = 'text';
+                doremiInput.className = 'bar-doremi-input';
+                doremiInput.placeholder = 'ドレミ';
+                doremiInput.setAttribute('aria-label', bar.barNumber + '小節目のドレミ');
+                doremiInput.value = CS().model.getBarDoremiText(bar);
+                doremiInput.addEventListener('input', function () {
+                    var res = CS().model.setBarDoremiText(state.project, bar.barNumber, doremiInput.value);
+                    doremiInput.classList.toggle('is-invalid', res.warnings.length > 0);
+                    doremiInput.title = res.warnings.join(' / ');
+                    markDirty();
+                    renderPreview();
+                });
+
                 cell.appendChild(num);
                 cell.appendChild(chordInput);
+                cell.appendChild(lyricsInput);
+                cell.appendChild(doremiInput);
                 cells.appendChild(cell);
             });
 
@@ -389,14 +421,22 @@
         }
         header.appendChild(titleRow);
 
+        var strumName = '';
+        (state.project.strumPatterns || []).forEach(function (pat) {
+            if (pat.id === state.project.basicStrumPatternId) strumName = pat.name;
+        });
+
         var meta = document.createElement('div');
         meta.className = 'preview-meta';
-        [
+        var metaItems = [
             'ORGキー: ' + si.originalKey,
             'Playキー: ' + (si.capo > 0 ? si.capo + 'カポ' + si.playKey : si.playKey),
+            'カポ: ' + (si.capo > 0 ? si.capo : 'なし'),
             'BPM: ' + si.bpm,
             '拍子: ' + si.timeSignature.beats + '/' + si.timeSignature.beatUnit
-        ].forEach(function (text) {
+        ];
+        if (strumName) metaItems.push('基本ストローク: ' + strumName);
+        metaItems.forEach(function (text) {
             var item = document.createElement('span');
             item.className = 'preview-meta-item';
             item.textContent = text;
@@ -405,7 +445,9 @@
         header.appendChild(meta);
         els.preview.appendChild(header);
 
-        // セクションごとのコードグリッド
+        var barsPerLine = (state.project.sheetSettings && state.project.sheetSettings.barsPerLine) || 2;
+
+        // セクションごとの譜面（コード上段 / 歌詞中段 / ドレミ下段）
         state.project.sections.forEach(function (sec) {
             var bars = model.getSectionBars(state.project, sec.id);
 
@@ -414,9 +456,15 @@
             label.textContent = sec.name;
             els.preview.appendChild(label);
 
+            // 歌詞もドレミもないセクションはコードのみの詰めた段組にする（前奏など）
+            var hasVocal = bars.some(function (bar) {
+                return (bar.lyrics && bar.lyrics.length > 0) || (bar.melody && bar.melody.length > 0);
+            });
+            var cols = hasVocal ? barsPerLine : barsPerLine * 2;
+
             var grid = document.createElement('div');
-            grid.className = 'preview-bars';
-            grid.style.gridTemplateColumns = 'repeat(' + PREVIEW_BARS_PER_ROW + ', 1fr)';
+            grid.className = 'preview-bars' + (hasVocal ? '' : ' preview-bars--chords-only');
+            grid.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
 
             bars.forEach(function (bar) {
                 var box = document.createElement('div');
@@ -425,18 +473,87 @@
                 var num = document.createElement('span');
                 num.className = 'preview-bar-num';
                 num.textContent = bar.barNumber;
+                box.appendChild(num);
 
                 var chord = document.createElement('span');
                 chord.className = 'preview-bar-chord';
                 chord.textContent = (bar.chords[0] && bar.chords[0].symbol) || '';
-
-                box.appendChild(num);
                 box.appendChild(chord);
+
+                if (hasVocal) {
+                    var lyrics = document.createElement('span');
+                    lyrics.className = 'preview-bar-lyrics';
+                    lyrics.textContent = model.getBarLyricsText(bar);
+                    box.appendChild(lyrics);
+
+                    var doremi = document.createElement('span');
+                    doremi.className = 'preview-bar-doremi';
+                    CS().theory.melodyEventsToDoremiTokens(bar.melody || []).forEach(function (token) {
+                        var note = document.createElement('span');
+                        note.className = 'preview-doremi-note' +
+                            (token.octave > 0 ? ' is-high' : (token.octave < 0 ? ' is-low' : ''));
+                        note.textContent = token.text;
+                        doremi.appendChild(note);
+                    });
+                    box.appendChild(doremi);
+                }
+
                 grid.appendChild(box);
             });
 
             els.preview.appendChild(grid);
         });
+    }
+
+    /* ══════════ 印刷・JSON入出力 ══════════ */
+
+    /**
+     * ブラウザ印刷（PDF保存）。print.css が譜面プレビューだけを印刷対象にする（ADR-010）。
+     */
+    function printSheet() {
+        readFormIntoProject();
+        renderPreview();
+        window.print();
+    }
+
+    function downloadCurrentProjectJson() {
+        readFormIntoProject();
+        var json = CS().storage.exportProjectJson(state.project);
+        var blob = new Blob([json], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        var title = state.project.songInfo.title || 'project';
+        a.href = url;
+        a.download = 'cruise-studio_' + title.replace(/[\\/:*?"<>|\s]+/g, '_') + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        setSaveStatus('JSONファイルへ書き出しました');
+    }
+
+    function onImportJsonFile(event) {
+        var file = event.target.files && event.target.files[0];
+        event.target.value = '';
+        if (!file) return;
+        if (!confirmDiscardIfDirty()) return;
+        var reader = new FileReader();
+        reader.onload = function () {
+            var res = CS().storage.importProjectJson(String(reader.result));
+            if (!res.ok) {
+                setSaveStatus(res.error, true);
+                return;
+            }
+            var warnText = res.warnings.length ? '（警告: ' + res.warnings.join(' / ') + '）' : '';
+            setProject(res.project, {
+                dirty: true,
+                statusMessage: 'JSONを読み込みました（未保存）' + warnText
+            });
+        };
+        reader.onerror = function () {
+            setSaveStatus('ファイルの読み取りに失敗しました', true);
+        };
+        reader.readAsText(file);
     }
 
     /* ══════════ 保存 ══════════ */
@@ -512,6 +629,9 @@
 
         els.addSectionBtn.addEventListener('click', onAddSection);
         els.saveBtn.addEventListener('click', save);
+        els.printBtn.addEventListener('click', printSheet);
+        els.exportBtn.addEventListener('click', downloadCurrentProjectJson);
+        els.importInput.addEventListener('change', onImportJsonFile);
     }
 
     window.CruiseStudio = window.CruiseStudio || {};

@@ -8,7 +8,7 @@
 
     var theory = window.CruiseStudio && window.CruiseStudio.theory;
 
-    var APP_VERSION = '0.3.0';
+    var APP_VERSION = '0.4.0';
     var SCHEMA_VERSION = 1;
     var TICKS_PER_BEAT = 480;
 
@@ -208,6 +208,84 @@
         } else {
             bar.chords = [{ tick: 0, durationTicks: getBarLengthTicks(project), symbol: s }];
         }
+    }
+
+    function findBar(project, barNumber) {
+        var bar = project.bars[barNumber - 1];
+        if (bar && bar.barNumber === barNumber) return bar;
+        return project.bars.filter(function (b) { return b.barNumber === barNumber; })[0] || null;
+    }
+
+    /**
+     * 小節の歌詞をテキストとして返す（イベントをtick順に連結）。
+     */
+    function getBarLyricsText(bar) {
+        if (!bar || !Array.isArray(bar.lyrics)) return '';
+        return bar.lyrics.slice().sort(function (a, b) { return a.tick - b.tick; })
+            .map(function (ev) { return ev.text; }).join('');
+    }
+
+    /**
+     * 小節の歌詞をテキストで設定する。
+     * MVPでは1小節分の文字列を tick:0 の単一イベントとして保存する（ADR-009）。
+     * TODO(将来Phase): 音節ごとに複数イベントへ分割する入力に対応する。
+     *                  イベントの形（{tick, text}）は変わらないため migration は不要。
+     */
+    function setBarLyricsText(project, barNumber, text) {
+        var bar = findBar(project, barNumber);
+        if (!bar) return;
+        var t = String(text || '').trim();
+        bar.lyrics = t ? [{ tick: 0, text: t }] : [];
+    }
+
+    /**
+     * 小節のドレミ（階名）をテキストで設定する。
+     * 文字列は保存せず、パースして melody イベントへ正規化する（ADR-009）。
+     * 配置規則: 音数（伸ばし含む）が8分で収まれば8分スロット、超えれば16分スロットに
+     * 先頭から詰める。伸ばし記号は直前の音の durationTicks を1スロット延長する。
+     * @returns {{warnings: string[]}}
+     */
+    function setBarDoremiText(project, barNumber, text) {
+        var bar = findBar(project, barNumber);
+        if (!bar) return { warnings: [] };
+        var parsed = theory.parseDoremiString(text);
+        var warnings = parsed.warnings.slice();
+        var barTicks = getBarLengthTicks(project);
+
+        var units = parsed.notes.reduce(function (n, note) { return n + 1 + note.extensions; }, 0);
+        var slot = (units <= barTicks / 240) ? 240 : 120; // 8分で収まらなければ16分
+
+        var events = [];
+        var cursor = 0;
+        var overflow = false;
+        parsed.notes.forEach(function (note) {
+            if (cursor >= barTicks) { overflow = true; return; }
+            var dur = slot * (1 + note.extensions);
+            if (cursor + dur > barTicks) {
+                dur = barTicks - cursor; // 末尾は小節内に収める
+                overflow = overflow || (note.extensions > 0);
+            }
+            events.push({
+                tick: cursor,
+                durationTicks: dur,
+                step: note.step,
+                alter: note.alter,
+                octave: note.octave
+            });
+            cursor += dur;
+        });
+        if (overflow) warnings.push('小節に収まらない分は詰めるか省略しました');
+
+        bar.melody = events;
+        return { warnings: warnings };
+    }
+
+    /**
+     * 小節のドレミをテキストとして返す（melodyイベントから再生成）。
+     */
+    function getBarDoremiText(bar) {
+        if (!bar || !Array.isArray(bar.melody)) return '';
+        return theory.melodyEventsToDoremiString(bar.melody);
     }
 
     /**
@@ -517,6 +595,10 @@
         removeSection: removeSection,
         renameSection: renameSection,
         setBarChord: setBarChord,
+        getBarLyricsText: getBarLyricsText,
+        setBarLyricsText: setBarLyricsText,
+        getBarDoremiText: getBarDoremiText,
+        setBarDoremiText: setBarDoremiText,
         validateProject: validateProject,
         migrateProject: migrateProject,
         getDefaultSheetSettings: getDefaultSheetSettings,

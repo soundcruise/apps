@@ -7,7 +7,9 @@
     <title>クルーズスタジオ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成（PCファースト。docs/DECISIONS.md ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.3.0">
+    <link rel="stylesheet" href="theme.css?v=0.4.0">
+    <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
+    <link rel="stylesheet" href="print.css?v=0.4.0" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -30,7 +32,7 @@
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
                 <p class="studio-subcopy">コード譜から、曲が動き出す。</p>
-                <span class="studio-version" id="studio-version">v0.3.0</span>
+                <span class="studio-version" id="studio-version">v0.4.0</span>
             </header>
 
             <section class="module-section">
@@ -41,7 +43,7 @@
                         <span class="module-card-icon" aria-hidden="true">📝</span>
                         <span class="module-card-label">譜面クルーズ</span>
                         <span class="module-card-sub">弾き語り教材用のコード譜をつくる。コード・歌詞・ドレミを1枚のA4に。</span>
-                        <span class="module-card-status">開発中 / 曲情報編集まで対応（Phase 2A）</span>
+                        <span class="module-card-status">MVP開発中 / コード・歌詞・ドレミ対応</span>
                     </button>
 
                     <div class="module-card" aria-disabled="true">
@@ -111,18 +113,27 @@
                 <p class="screen-subcopy">コード譜を、歌える・弾ける譜面にする</p>
             </header>
 
+            <!-- ツールバー: プロジェクト選択と主要操作（保存 / 印刷 / JSON） -->
+            <div class="sheet-toolbar">
+                <div class="sheet-toolbar-project">
+                    <select id="sc-project-select" aria-label="保存済みプロジェクトを開く"></select>
+                    <button type="button" id="sc-new-project" class="btn-ghost btn-compact">新規</button>
+                </div>
+                <div class="sheet-toolbar-actions">
+                    <button type="button" id="sc-save" class="btn-primary btn-compact">保存</button>
+                    <button type="button" id="sc-print" class="btn-ghost btn-compact">印刷</button>
+                    <button type="button" id="sc-export-json" class="btn-ghost btn-compact">JSON書き出し</button>
+                    <label class="btn-ghost btn-compact file-label">
+                        JSON読み込み<input type="file" id="sc-import-json" accept=".json,application/json">
+                    </label>
+                </div>
+                <span id="sc-save-status" class="save-status" aria-live="polite"></span>
+            </div>
+
             <div class="sheet-layout">
 
                 <!-- 左: 編集パネル -->
                 <div class="sheet-editor">
-
-                    <div class="editor-card">
-                        <h3 class="editor-card-title">プロジェクト</h3>
-                        <div class="project-row">
-                            <select id="sc-project-select" aria-label="保存済みプロジェクトを開く"></select>
-                            <button type="button" id="sc-new-project" class="btn-ghost">新規作成</button>
-                        </div>
-                    </div>
 
                     <div class="editor-card">
                         <h3 class="editor-card-title">曲情報</h3>
@@ -161,11 +172,6 @@
                         </div>
 
                         <p id="sc-key-check" class="key-check" aria-live="polite"></p>
-
-                        <div class="editor-actions">
-                            <button type="button" id="sc-save" class="btn-primary">保存</button>
-                            <span id="sc-save-status" class="save-status" aria-live="polite"></span>
-                        </div>
                     </div>
 
                     <div class="editor-card">
@@ -177,9 +183,9 @@
                     </div>
 
                     <div class="editor-card">
-                        <h3 class="editor-card-title">小節グリッド（コード入力）</h3>
-                        <p class="editor-card-note">1小節1コードで入力します（例: C / Am7 / F/G）。空欄はコードなしになります。解釈できない表記は警告になりますが、保存はできます。</p>
-                        <!-- .bar-cell は将来 歌詞・ドレミ・拍位置入力の行を足して拡張する（Phase 2C以降） -->
+                        <h3 class="editor-card-title">小節グリッド</h3>
+                        <p class="editor-card-note">各小節にコード（例: C / Am7 / F/G）・歌詞・ドレミ（ド〜シ、伸ばしは 〜、オクターブは ↑↓）を入力します。解釈できない表記は警告になりますが、保存はできます。</p>
+                        <!-- .bar-cell: コード/歌詞/ドレミの3行構成。将来 拍位置入力へ拡張する -->
                         <div id="sc-bar-grid" class="bar-grid"></div>
                     </div>
 
@@ -188,7 +194,7 @@
                 <!-- 右: 譜面プレビュー（Phase 3でA4固定紙面レンダリングに置き換える） -->
                 <aside class="sheet-preview">
                     <div id="sc-preview" class="preview-paper" aria-label="コード譜プレビュー"></div>
-                    <p class="preview-note">簡易プレビューです。A4紙面レイアウト・PDF印刷は Phase 3 で実装予定。</p>
+                    <p class="preview-note">「印刷」からブラウザ印刷でPDF保存できます（A4縦推奨）。A4固定紙面レイアウトは今後さらに調整予定。</p>
                 </aside>
 
             </div>
@@ -199,11 +205,11 @@
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/music-theory.js?v=0.3.0"></script>
-    <script src="js/core/song-model.js?v=0.3.0"></script>
-    <script src="js/core/storage.js?v=0.3.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.3.0"></script>
-    <script src="js/app.js?v=0.3.0"></script>
+    <script src="js/core/music-theory.js?v=0.4.0"></script>
+    <script src="js/core/song-model.js?v=0.4.0"></script>
+    <script src="js/core/storage.js?v=0.4.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.4.0"></script>
+    <script src="js/app.js?v=0.4.0"></script>
 </body>
 
 </html>
