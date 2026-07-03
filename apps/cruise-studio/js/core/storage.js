@@ -10,6 +10,7 @@
     var INDEX_KEY = PREFIX + 'projects.index';
     var PROJECT_KEY_PREFIX = PREFIX + 'project.';
     var CURRENT_PROJECT_KEY = PREFIX + 'currentProjectId';
+    var APP_SETTINGS_KEY = PREFIX + 'appSettings';
 
     function model() {
         return window.CruiseStudio && window.CruiseStudio.model;
@@ -142,6 +143,41 @@
     }
 
     /**
+     * アプリ側設定（曲データではない設定。プレDTMの伴奏設定など）を読む。
+     * DATA_MODEL.md 7章の `cruiseStudio.appSettings`。proSettings相当も将来ここ。
+     */
+    function getAppSetting(key) {
+        try {
+            var raw = localStorage.getItem(APP_SETTINGS_KEY);
+            if (!raw) return null;
+            var obj = JSON.parse(raw);
+            return (obj && typeof obj === 'object' && key in obj) ? obj[key] : null;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    /**
+     * アプリ側設定を書く。value に null を渡すとそのキーを削除する。
+     */
+    function setAppSetting(key, value) {
+        try {
+            var raw = localStorage.getItem(APP_SETTINGS_KEY);
+            var obj = raw ? JSON.parse(raw) : {};
+            if (!obj || typeof obj !== 'object') obj = {};
+            if (value === null || value === undefined) {
+                delete obj[key];
+            } else {
+                obj[key] = value;
+            }
+            localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(obj));
+            return { ok: true, error: null };
+        } catch (e) {
+            return { ok: false, error: '設定の保存に失敗しました: ' + (e && e.message) };
+        }
+    }
+
+    /**
      * プロジェクトをJSONテキストへ書き出す（ファイル保存用・整形あり）。
      */
     function exportProjectJson(project) {
@@ -188,6 +224,8 @@
         deleteProject: deleteProject,
         setCurrentProjectId: setCurrentProjectId,
         getCurrentProjectId: getCurrentProjectId,
+        getAppSetting: getAppSetting,
+        setAppSetting: setAppSetting,
         exportProjectJson: exportProjectJson,
         importProjectJson: importProjectJson
     };

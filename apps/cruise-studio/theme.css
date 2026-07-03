@@ -982,6 +982,94 @@ body {
     color: var(--text-color);
 }
 
+/* 伴奏設定 */
+.pd-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px 24px;
+}
+
+.pd-setting-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pd-setting-group-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--muted-color);
+}
+
+.pd-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13.5px;
+    color: var(--text-color);
+    cursor: pointer;
+}
+
+.pd-check input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary-color);
+    cursor: pointer;
+}
+
+.pd-setting-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pd-setting-field > span {
+    font-size: 11.5px;
+    color: var(--muted-color);
+}
+
+.pd-setting-field select {
+    padding: 8px 10px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 13px;
+}
+
+.pd-setting-field select:focus {
+    outline: none;
+    border-color: rgba(255, 159, 28, 0.6);
+    box-shadow: 0 0 0 3px rgba(255, 159, 28, 0.12);
+}
+
+.pd-setting-field select option {
+    background: var(--surface-raised);
+    color: var(--text-color);
+}
+
+.pd-midi-note {
+    margin-top: 16px;
+    padding: 10px 14px;
+    border: 1px solid rgba(253, 246, 238, 0.1);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.18);
+    font-size: 12px;
+    color: var(--muted-color);
+    line-height: 1.7;
+}
+
+.pd-midi-note strong {
+    color: var(--secondary-color);
+}
+
+.pd-part-midi {
+    font-size: 11px;
+    color: rgba(253, 246, 238, 0.45);
+}
+
 /* パート一覧 */
 .pd-parts {
     display: grid;

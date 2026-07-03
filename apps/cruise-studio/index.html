@@ -7,9 +7,9 @@
     <title>クルーズスタジオ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成（PCファースト。docs/DECISIONS.md ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.5.0">
+    <link rel="stylesheet" href="theme.css?v=0.6.0">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
-    <link rel="stylesheet" href="print.css?v=0.5.0" media="print">
+    <link rel="stylesheet" href="print.css?v=0.6.0" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -32,7 +32,7 @@
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
                 <p class="studio-subcopy">コード譜から、曲が動き出す。</p>
-                <span class="studio-version" id="studio-version">v0.5.0</span>
+                <span class="studio-version" id="studio-version">v0.6.0</span>
             </header>
 
             <section class="module-section">
@@ -216,7 +216,8 @@
                 </div>
                 <div class="sheet-toolbar-actions">
                     <button type="button" id="pd-goto-sheet" class="btn-ghost btn-compact">譜面クルーズで編集</button>
-                    <button type="button" id="pd-export-json" class="btn-primary btn-compact">伴奏JSONを書き出し</button>
+                    <button type="button" id="pd-export-json" class="btn-ghost btn-compact">伴奏JSONを書き出し</button>
+                    <button type="button" id="pd-export-midi" class="btn-primary btn-compact">MIDI書き出し（.mid）</button>
                 </div>
                 <span id="pd-status" class="save-status" aria-live="polite"></span>
             </div>
@@ -234,6 +235,49 @@
                 <div class="editor-card">
                     <h3 class="editor-card-title">曲情報</h3>
                     <div id="pd-song-info" class="pd-info-grid"></div>
+                </div>
+
+                <div class="editor-card">
+                    <h3 class="editor-card-title">伴奏設定</h3>
+                    <div class="pd-settings-grid">
+
+                        <div class="pd-setting-group">
+                            <span class="pd-setting-group-label">生成するパート</span>
+                            <label class="pd-check"><input type="checkbox" id="pd-on-guitar" checked> アコギ</label>
+                            <label class="pd-check"><input type="checkbox" id="pd-on-bass" checked> ベース</label>
+                            <label class="pd-check"><input type="checkbox" id="pd-on-drums" checked> ドラム</label>
+                        </div>
+
+                        <div class="pd-setting-group">
+                            <span class="pd-setting-group-label">アコギ</span>
+                            <label class="pd-setting-field">
+                                <span>パターン</span>
+                                <select id="pd-guitar-pattern"></select>
+                            </label>
+                            <label class="pd-setting-field">
+                                <span>アクセント</span>
+                                <select id="pd-guitar-accent"></select>
+                            </label>
+                        </div>
+
+                        <div class="pd-setting-group">
+                            <span class="pd-setting-group-label">ベース</span>
+                            <label class="pd-setting-field">
+                                <span>パターン</span>
+                                <select id="pd-bass-pattern"></select>
+                            </label>
+                        </div>
+
+                        <div class="pd-setting-group">
+                            <span class="pd-setting-group-label">ドラム</span>
+                            <label class="pd-setting-field">
+                                <span>パターン</span>
+                                <select id="pd-drums-pattern"></select>
+                            </label>
+                        </div>
+
+                    </div>
+                    <p class="pd-midi-note">現在のMIDI書き出し対象: <strong>ベース / ドラム</strong>（アコギはギターボイシング対応後にMIDI化予定。ストロークイベントは伴奏JSONに含まれます）</p>
                 </div>
 
                 <div id="pd-parts" class="pd-parts"></div>
@@ -309,13 +353,14 @@
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/music-theory.js?v=0.5.0"></script>
-    <script src="js/core/song-model.js?v=0.5.0"></script>
-    <script src="js/core/storage.js?v=0.5.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.5.0"></script>
-    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.5.0"></script>
-    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.5.0"></script>
-    <script src="js/app.js?v=0.5.0"></script>
+    <script src="js/core/music-theory.js?v=0.6.0"></script>
+    <script src="js/core/song-model.js?v=0.6.0"></script>
+    <script src="js/core/storage.js?v=0.6.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.6.0"></script>
+    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.6.0"></script>
+    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.6.0"></script>
+    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.6.0"></script>
+    <script src="js/app.js?v=0.6.0"></script>
 </body>
 
 </html>

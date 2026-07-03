@@ -68,12 +68,18 @@
 - Web Audio での試聴（簡易音源でよい）
 - SMF(.mid) 書き出し（format 1、パート別トラック）
 
-**進捗**（v0.5.0時点）:
-- 実装済み（MVP骨格）: `arrangement-engine.js` による3パートの伴奏イベント生成
-  （絶対tick・MIDIノート番号・ベロシティ付き＝SMF書き出しの土台）、
-  プレDTMクルーズ画面（曲情報・パート一覧・小節ごとの生成プレビュー・伴奏JSON書き出し）、
-  譜面クルーズと同じ currentProjectId / StudioProject の共有（ADR-013）
-- 残: SMF(.mid)バイナリ書き出し、Web Audio試聴、ギターのボイシング展開、パターン選択UI
+**進捗**（v0.6.0時点）:
+- 実装済み（実用の入口）: 伴奏設定UI（パートON/OFF、アコギ=パターン3種＋曲の基本ストローク
+  ＋アクセント3段階、ベース=ルート8分/4分/ルート＋5度、ドラム=8ビート/4つ打ち/シンプル。
+  設定は `cruiseStudio.appSettings` に保存: ADR-014）、
+  設定反映の再生成、**SMF Type 1 の .mid 書き出し（ベース/ドラム。自前実装＋自己検証: ADR-015）**、
+  伴奏JSONの強化（settings・parts・全イベント・警告を含むDAW前の設計図）
+- 残: Web Audio試聴、ギターのボイシング展開→アコギのMIDI化（Track 3追加）、
+  パターンの拡充、プロジェクト固有アレンジ保存（schemaVersion 2）
+
+**次フェーズのSMF拡張手順**（記録）: アコギのボイシング展開関数
+（chordParsed → MIDIノート配列）を engine に追加 → guitar イベントに `midiNotes[]` を持たせる
+→ `midi-export.js` の対象トラックに guitar を足す（構造は既にトラック追加だけで済む形）。
 
 **完了条件**: 譜面クルーズで作った曲の .mid を DAW（Logic等）で開き、
 コード進行どおりの伴奏が鳴る。

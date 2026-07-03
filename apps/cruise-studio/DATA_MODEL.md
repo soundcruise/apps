@@ -163,6 +163,7 @@ melody イベントへ正規化する。
 | `cruiseStudio.projects.index` | プロジェクト一覧メタ `[{projectId,title,artist,updatedAt}]` |
 | `cruiseStudio.project.<projectId>` | StudioProject 本体（JSON文字列） |
 | `cruiseStudio.currentProjectId` | 最後に開いていたプロジェクトのID（画面再読み込み時の復元用） |
+| `cruiseStudio.appSettings` | アプリ側設定のJSONオブジェクト。`preDtmSettings`（伴奏設定: ADR-014）など。曲データは入れない |
 | `cruiseStudio.appSettings` | アプリ側設定（将来。proSettings 相当もここ。曲データに入れない） |
 
 JSONファイル書き出しは StudioProject をそのまま整形出力する。

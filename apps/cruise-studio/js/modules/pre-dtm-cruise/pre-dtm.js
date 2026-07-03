@@ -1,15 +1,20 @@
-/* クルーズスタジオ — pre-dtm.js（Phase 5 MVP骨格）
+/* クルーズスタジオ — pre-dtm.js（v0.6.0）
    プレDTMクルーズ画面: 譜面クルーズと同じ StudioProject を読み込み、
-   コード進行からアコギ / ベース / ドラムの生成イベントを確認する。
-   音は鳴らさない（生成イベント確認を優先。ADR-013）。
+   伴奏設定（パートON/OFF・パターン・アクセント）を変えて伴奏イベントを再生成し、
+   伴奏JSON / SMF(.mid) を書き出す。音はまだ鳴らさない（ADR-013 / ADR-015）。
+
+   伴奏設定は曲データではなくアプリ設定（cruiseStudio.appSettings）に保存する（ADR-014）。
    グローバル名前空間 CruiseStudio.preDtm に登録する。 */
 (function () {
     'use strict';
 
     function CS() { return window.CruiseStudio || {}; }
 
+    var SETTINGS_KEY = 'preDtmSettings'; // cruiseStudio.appSettings 内のキー
+
     var state = {
         project: null,      // 閲覧中の StudioProject（読み取り専用。編集は譜面クルーズで行う）
+        settings: null,     // 伴奏設定（normalizeSettings済み）
         arrangement: null   // generateArrangement の結果
     };
 
@@ -20,7 +25,8 @@
     function resolveElements() {
         els.projectSelect = q('pd-project-select');
         els.reloadBtn = q('pd-reload');
-        els.exportBtn = q('pd-export-json');
+        els.exportJsonBtn = q('pd-export-json');
+        els.exportMidiBtn = q('pd-export-midi');
         els.gotoSheetBtn = q('pd-goto-sheet');
         els.status = q('pd-status');
         els.empty = q('pd-empty');
@@ -30,12 +36,73 @@
         els.parts = q('pd-parts');
         els.warnings = q('pd-warnings');
         els.previewBody = q('pd-preview-body');
+        els.onGuitar = q('pd-on-guitar');
+        els.onBass = q('pd-on-bass');
+        els.onDrums = q('pd-on-drums');
+        els.guitarPattern = q('pd-guitar-pattern');
+        els.guitarAccent = q('pd-guitar-accent');
+        els.bassPattern = q('pd-bass-pattern');
+        els.drumsPattern = q('pd-drums-pattern');
     }
 
     function setStatus(message, isError) {
         if (!els.status) return;
         els.status.textContent = message || '';
         els.status.classList.toggle('is-error', !!isError);
+    }
+
+    /* ══════════ 伴奏設定（アプリ設定として保存: ADR-014） ══════════ */
+
+    function loadSettings() {
+        var saved = CS().storage.getAppSetting(SETTINGS_KEY);
+        state.settings = CS().arrangement.normalizeSettings(saved);
+    }
+
+    function saveSettings() {
+        CS().storage.setAppSetting(SETTINGS_KEY, state.settings);
+    }
+
+    function fillSelect(select, options) {
+        select.innerHTML = '';
+        options.forEach(function (item) {
+            var opt = document.createElement('option');
+            opt.value = item.id;
+            opt.textContent = item.name;
+            select.appendChild(opt);
+        });
+    }
+
+    function syncSettingsUI() {
+        var s = state.settings;
+        els.onGuitar.checked = s.parts.guitar;
+        els.onBass.checked = s.parts.bass;
+        els.onDrums.checked = s.parts.drums;
+        els.guitarPattern.value = s.guitar.pattern;
+        els.guitarAccent.value = s.guitar.accent;
+        els.bassPattern.value = s.bass.pattern;
+        els.drumsPattern.value = s.drums.pattern;
+    }
+
+    function readSettingsFromUI() {
+        state.settings = CS().arrangement.normalizeSettings({
+            parts: {
+                guitar: els.onGuitar.checked,
+                bass: els.onBass.checked,
+                drums: els.onDrums.checked
+            },
+            guitar: { pattern: els.guitarPattern.value, accent: els.guitarAccent.value },
+            bass: { pattern: els.bassPattern.value },
+            drums: { pattern: els.drumsPattern.value }
+        });
+    }
+
+    function onSettingChange() {
+        readSettingsFromUI();
+        saveSettings();
+        if (state.project) {
+            regenerate();
+            setStatus('設定を反映して再生成しました');
+        }
     }
 
     /* ══════════ プロジェクト読み込み（譜面クルーズと同じ currentProjectId を参照） ══════════ */
@@ -61,6 +128,11 @@
         setStatus('');
     }
 
+    function regenerate() {
+        state.arrangement = CS().arrangement.generateArrangement(state.project, state.settings);
+        renderAll();
+    }
+
     function loadAndRender(projectId) {
         var storage = CS().storage;
         var res = storage.loadProject(projectId);
@@ -70,10 +142,9 @@
         }
         state.project = res.project;
         storage.setCurrentProjectId(res.project.projectId); // 譜面クルーズと共有
-        state.arrangement = CS().arrangement.generateArrangement(res.project);
         els.empty.classList.add('hidden');
         els.content.classList.remove('hidden');
-        renderAll();
+        regenerate();
         setStatus('「' + res.project.songInfo.title + '」から伴奏イベントを生成しました');
         return true;
     }
@@ -83,6 +154,8 @@
      * どちらもなければ空状態（譜面クルーズでの作成を案内）。
      */
     function enter() {
+        loadSettings();
+        syncSettingsUI();
         var storage = CS().storage;
         refreshProjectSelect();
         var currentId = storage.getCurrentProjectId();
@@ -105,6 +178,12 @@
         renderParts();
         renderWarnings();
         renderPreviewTable();
+    }
+
+    function patternName(list, id) {
+        var name = id;
+        list.forEach(function (item) { if (item.id === id) name = item.name; });
+        return name;
     }
 
     function infoItem(label, value) {
@@ -138,17 +217,30 @@
     }
 
     function renderParts() {
+        var arr = CS().arrangement;
         var t = state.arrangement.totals;
-        var enabled = state.arrangement.meta.enabled;
+        var s = state.arrangement.settings;
         els.parts.innerHTML = '';
         [
-            { icon: '🎸', name: 'アコギ', desc: 'コード×基本ストローク', count: t.guitar, on: enabled.guitar },
-            { icon: '🎚️', name: 'ベース', desc: 'ルート音の8分弾き', count: t.bass, on: enabled.bass },
-            { icon: '🥁', name: 'ドラム', desc: '基本8ビート', count: t.drums, on: enabled.drums }
+            {
+                icon: '🎸', name: 'アコギ', on: s.parts.guitar, count: t.guitar,
+                desc: patternName(arr.GUITAR_PATTERNS, s.guitar.pattern) +
+                    ' / アクセント: ' + patternName(arr.GUITAR_ACCENTS, s.guitar.accent),
+                midi: 'MIDI対象外（ボイシング対応後）'
+            },
+            {
+                icon: '🎚️', name: 'ベース', on: s.parts.bass, count: t.bass,
+                desc: patternName(arr.BASS_PATTERNS, s.bass.pattern),
+                midi: 'MIDI書き出し対象（ch1）'
+            },
+            {
+                icon: '🥁', name: 'ドラム', on: s.parts.drums, count: t.drums,
+                desc: patternName(arr.DRUM_PATTERNS, s.drums.pattern),
+                midi: 'MIDI書き出し対象（ch10）'
+            }
         ].forEach(function (part) {
             var card = document.createElement('div');
             card.className = 'pd-part-card' + (part.on ? '' : ' is-off');
-            card.innerHTML = '';
             var icon = document.createElement('span');
             icon.className = 'pd-part-icon';
             icon.textContent = part.icon;
@@ -158,12 +250,16 @@
             var desc = document.createElement('span');
             desc.className = 'pd-part-desc';
             desc.textContent = part.desc;
+            var midi = document.createElement('span');
+            midi.className = 'pd-part-midi';
+            midi.textContent = part.midi;
             var count = document.createElement('span');
             count.className = 'pd-part-count';
             count.textContent = part.on ? part.count + ' イベント' : 'OFF';
             card.appendChild(icon);
             card.appendChild(name);
             card.appendChild(desc);
+            card.appendChild(midi);
             card.appendChild(count);
             els.parts.appendChild(card);
         });
@@ -188,15 +284,26 @@
         return name;
     }
 
+    function bassSummary(bass) {
+        if (bass.length === 0) return '−';
+        var root = '';
+        var fifth = '';
+        bass.forEach(function (ev) {
+            if (ev.role === 'root' && !root) root = ev.noteName;
+            if (ev.role === 'fifth' && !fifth) fifth = ev.noteName;
+        });
+        var label = fifth ? ('ルート＋5度 ' + root + '/' + fifth) : ('ルート ' + root);
+        return label + '（×' + bass.length + '）';
+    }
+
     function drumSummary(drums) {
         if (drums.length === 0) return '−';
         var c = { kick: 0, snare: 0, hihat: 0 };
-        drums.forEach(function (ev) { if (c[ev.part] !== undefined) c[ev.part]++; });
-        return '8ビート（K' + c.kick + ' / S' + c.snare + ' / H' + c.hihat + '）';
+        drums.forEach(function (ev) { if (c[ev.role] !== undefined) c[ev.role]++; });
+        return 'K' + c.kick + ' / S' + c.snare + ' / H' + c.hihat;
     }
 
     function renderPreviewTable() {
-        var model = CS().model;
         els.previewBody.innerHTML = '';
         var lastSectionId = null;
 
@@ -231,15 +338,13 @@
             var guitarCell = document.createElement('td');
             guitarCell.className = 'pd-cell-pattern';
             guitarCell.textContent = arrBar.guitar.length > 0
-                ? CS().arrangement.strumPatternToGlyphs(state.project, state.project.bars[i])
+                ? CS().arrangement.strumPatternToGlyphs(state.project, state.project.bars[i], state.settings)
                 : '−';
             row.appendChild(guitarCell);
 
             var bassCell = document.createElement('td');
             bassCell.className = 'pd-cell-bass';
-            bassCell.textContent = arrBar.bass.length > 0
-                ? 'ルート ' + arrBar.bass[0].noteName + '（8分×' + arrBar.bass.length + '）'
-                : '−';
+            bassCell.textContent = bassSummary(arrBar.bass);
             row.appendChild(bassCell);
 
             var drumCell = document.createElement('td');
@@ -251,26 +356,100 @@
         });
     }
 
-    /* ══════════ 操作 ══════════ */
+    /* ══════════ 書き出し ══════════ */
 
-    function exportArrangementJson() {
-        if (!state.arrangement) return;
-        var json = JSON.stringify(state.arrangement, null, 2);
-        var blob = new Blob([json], { type: 'application/json' });
+    function downloadBlob(blob, filename) {
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
-        var title = (state.project && state.project.songInfo.title) || 'arrangement';
         a.href = url;
-        a.download = 'cruise-studio_arrangement_' + title.replace(/[\\/:*?"<>|\s]+/g, '_') + '.json';
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+    }
+
+    function safeFileName(title, suffix) {
+        var base = String(title || 'arrangement').replace(/[\\/:*?"<>|\s]+/g, '_');
+        return 'cruise-studio_' + base + suffix;
+    }
+
+    /**
+     * 伴奏JSON書き出し（DAW前の設計図。MIDI変換可能な情報を完全に含む）。
+     */
+    function exportArrangementJson() {
+        if (!state.arrangement || !state.project) return;
+        var arr = state.arrangement;
+        var flat = CS().arrangement.flattenEvents(arr);
+        var payload = {
+            type: 'cruise-studio-arrangement',
+            appVersion: CS().model.APP_VERSION,
+            projectId: arr.meta.projectId,
+            songTitle: arr.meta.title,
+            artist: arr.meta.artist || '',
+            bpm: arr.meta.bpm,
+            timeSignature: arr.meta.timeSignature,
+            ticksPerBeat: arr.meta.ticksPerBeat,
+            originalKey: arr.meta.originalKey,
+            playKey: arr.meta.playKey,
+            capo: arr.meta.capo,
+            settings: arr.settings,
+            midiExportTargets: arr.meta.midiExportTargets,
+            parts: {
+                guitar: { enabled: arr.settings.parts.guitar, events: arr.totals.guitar, midiExport: false },
+                bass: { enabled: arr.settings.parts.bass, events: arr.totals.bass, midiExport: true },
+                drums: { enabled: arr.settings.parts.drums, events: arr.totals.drums, midiExport: true }
+            },
+            generatedEvents: flat,
+            warnings: arr.warnings,
+            generatedAt: arr.meta.generatedAt
+        };
+        var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        downloadBlob(blob, safeFileName(arr.meta.title, '_arrangement.json'));
         setStatus('伴奏イベントをJSONファイルへ書き出しました');
     }
 
+    /**
+     * SMF(.mid) 書き出し（対象: ベース / ドラム。ADR-015）。
+     */
+    function exportMidi() {
+        if (!state.arrangement || !state.project) return;
+        var midi = CS().midi;
+        var result = midi.buildMidiFile(state.arrangement);
+        if (!result.ok) {
+            setStatus(result.error, true);
+            return;
+        }
+        // 自己検証: 生成バイト列の構造チェック
+        var check = midi.inspectSmf(result.bytes);
+        if (!check.ok) {
+            setStatus('MIDI生成の内部検証に失敗しました: ' + check.error, true);
+            return;
+        }
+        var blob = new Blob([result.bytes], { type: 'audio/midi' });
+        downloadBlob(blob, safeFileName(state.arrangement.meta.title, '.mid'));
+        setStatus('.mid を書き出しました（' + result.stats.tracks + 'トラック / ベース' +
+            result.stats.bassNotes + '音 / ドラム' + result.stats.drumNotes + '音）');
+    }
+
+    /* ══════════ 初期化 ══════════ */
+
     function init() {
         resolveElements();
+
+        var arr = CS().arrangement;
+        fillSelect(els.guitarPattern, arr.GUITAR_PATTERNS);
+        fillSelect(els.guitarAccent, arr.GUITAR_ACCENTS);
+        fillSelect(els.bassPattern, arr.BASS_PATTERNS);
+        fillSelect(els.drumsPattern, arr.DRUM_PATTERNS);
+        loadSettings();
+        syncSettingsUI();
+
+        [els.onGuitar, els.onBass, els.onDrums,
+         els.guitarPattern, els.guitarAccent, els.bassPattern, els.drumsPattern
+        ].forEach(function (el) {
+            el.addEventListener('change', onSettingChange);
+        });
 
         els.projectSelect.addEventListener('change', function () {
             loadAndRender(els.projectSelect.value);
@@ -278,7 +457,8 @@
         els.reloadBtn.addEventListener('click', function () {
             enter();
         });
-        els.exportBtn.addEventListener('click', exportArrangementJson);
+        els.exportJsonBtn.addEventListener('click', exportArrangementJson);
+        els.exportMidiBtn.addEventListener('click', exportMidi);
 
         // 譜面クルーズへの遷移は app.js が担当（モジュール間の直接参照を避ける）
         var goSheet = function () {
