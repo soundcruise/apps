@@ -8,14 +8,18 @@
     var model = CS.model;
     var storage = CS.storage;
     var sheetCruise = CS.sheetCruise;
+    var preDtm = CS.preDtm;
 
     /* ══════════ 画面遷移 ══════════
        「TOPは絶対復帰」「戻るは一階層戻る」「作業中は中断確認」
-       （リズムクルーズ DESIGN_SYSTEM.md 5章の鉄則を継承） */
+       （リズムクルーズ DESIGN_SYSTEM.md 5章の鉄則を継承）
+       現状は全画面がTOP直下の深さ1のため、「戻る」もTOP復帰になる。 */
 
     var SCREENS = {
         home: 'screen-home',
-        sheetCruise: 'screen-sheet-cruise'
+        sheetCruise: 'screen-sheet-cruise',
+        preDtm: 'screen-pre-dtm',
+        series: 'screen-series'
     };
     var currentScreen = 'home';
 
@@ -31,19 +35,35 @@
         window.scrollTo(0, 0);
     }
 
+    /**
+     * 現在の画面を離れてよいか。譜面クルーズだけは未保存の中断確認を持つ。
+     */
+    function canLeaveCurrentScreen() {
+        if (currentScreen === 'sheetCruise' && sheetCruise && !sheetCruise.canLeave()) {
+            return false;
+        }
+        return true;
+    }
+
     function enterSheetCruise() {
+        if (currentScreen !== 'sheetCruise' && !canLeaveCurrentScreen()) return;
         sheetCruise.enter();
         showScreen('sheetCruise');
     }
 
-    /**
-     * TOPへ戻る。譜面クルーズに未保存の変更があれば中断確認を挟む。
-     * Phase 2A では階層が1段しかないため「戻る」も同じ動きになる。
-     */
+    function enterPreDtm() {
+        if (!canLeaveCurrentScreen()) return;
+        preDtm.enter();
+        showScreen('preDtm');
+    }
+
+    function enterSeries() {
+        if (!canLeaveCurrentScreen()) return;
+        showScreen('series');
+    }
+
     function goHome() {
-        if (currentScreen === 'sheetCruise' && sheetCruise && !sheetCruise.canLeave()) {
-            return;
-        }
+        if (!canLeaveCurrentScreen()) return;
         showScreen('home');
     }
 
@@ -201,20 +221,33 @@
     /* ══════════ 初期化 ══════════ */
 
     function init() {
-        if (!model || !storage || !sheetCruise) {
+        if (!model || !storage || !sheetCruise || !preDtm || !CS.arrangement) {
             setStatus('コアモジュールの読み込みに失敗しました（読み込み順を確認してください）', true);
             return;
         }
         var versionEl = document.getElementById('studio-version');
         if (versionEl) versionEl.textContent = 'v' + model.APP_VERSION;
 
+        // モジュール間遷移用の公開API（モジュール同士の直接参照を避ける）
+        CS.app = {
+            openSheetCruise: enterSheetCruise,
+            openPreDtm: enterPreDtm,
+            goHome: goHome
+        };
+
         // 画面遷移
         sheetCruise.init();
+        preDtm.init();
         var openSheetBtn = document.getElementById('open-sheet-cruise');
         if (openSheetBtn) openSheetBtn.addEventListener('click', enterSheetCruise);
+        var openPreDtmBtn = document.getElementById('open-pre-dtm');
+        if (openPreDtmBtn) openPreDtmBtn.addEventListener('click', enterPreDtm);
+        Array.prototype.forEach.call(document.querySelectorAll('.js-open-series'), function (btn) {
+            btn.addEventListener('click', enterSeries);
+        });
 
         var backBtn = document.getElementById('nav-back-btn');
-        if (backBtn) backBtn.addEventListener('click', goHome); // Phase 2Aでは1階層のみ
+        if (backBtn) backBtn.addEventListener('click', goHome); // 全画面が深さ1のため戻る=TOP
         var topBtn = document.getElementById('nav-top-btn');
         if (topBtn) topBtn.addEventListener('click', goHome);
 

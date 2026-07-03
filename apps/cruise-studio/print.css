@@ -18,7 +18,9 @@
 .module-section,
 .studio-footer,
 .preview-note,
-#screen-home {
+#screen-home,
+#screen-pre-dtm,
+#screen-series {
     display: none !important;
 }
 

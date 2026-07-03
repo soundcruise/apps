@@ -919,6 +919,261 @@ body {
     padding: 12px 0 4px;
 }
 
+/* ══════════ プレDTMクルーズ ══════════ */
+
+#pd-content {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+/* プロジェクトなしの案内 */
+.pd-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 56px 32px;
+    border: 1px dashed rgba(253, 246, 238, 0.2);
+    border-radius: var(--card-radius);
+    background: rgba(0, 0, 0, 0.15);
+    text-align: center;
+}
+
+.pd-empty-icon {
+    font-size: 36px;
+}
+
+.pd-empty-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--secondary-color);
+}
+
+.pd-empty-note {
+    font-size: 13px;
+    color: var(--muted-color);
+    line-height: 1.9;
+}
+
+/* 曲情報 */
+.pd-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px 20px;
+}
+
+.pd-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.pd-info-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--muted-color);
+}
+
+.pd-info-value {
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+/* パート一覧 */
+.pd-parts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+}
+
+.pd-part-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 18px 20px;
+    border: 1px solid var(--card-border);
+    border-radius: var(--card-radius);
+    background: linear-gradient(180deg, var(--surface-raised), var(--surface-color));
+    box-shadow: var(--card-shadow);
+}
+
+.pd-part-card.is-off {
+    opacity: 0.5;
+}
+
+.pd-part-icon {
+    font-size: 22px;
+}
+
+.pd-part-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--secondary-color);
+}
+
+.pd-part-desc {
+    font-size: 12px;
+    color: var(--muted-color);
+}
+
+.pd-part-count {
+    margin-top: 6px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+/* 生成時の注意 */
+.pd-warnings {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 16px;
+    border: 1px solid rgba(255, 209, 102, 0.3);
+    border-radius: 12px;
+    background: rgba(255, 209, 102, 0.06);
+    font-size: 12.5px;
+    color: var(--secondary-color);
+}
+
+/* 生成プレビュー表 */
+.pd-table-wrap {
+    overflow-x: auto;
+}
+
+.pd-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.pd-table th {
+    text-align: left;
+    padding: 8px 12px;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--muted-color);
+    border-bottom: 1px solid rgba(253, 246, 238, 0.15);
+    white-space: nowrap;
+}
+
+.pd-table td {
+    padding: 7px 12px;
+    border-bottom: 1px solid rgba(253, 246, 238, 0.06);
+    vertical-align: top;
+}
+
+.pd-section-row td {
+    padding: 14px 12px 6px;
+    font-size: 12.5px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--secondary-color);
+    border-bottom: 1px solid rgba(255, 209, 102, 0.25);
+}
+
+.pd-cell-num {
+    color: var(--muted-color);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.pd-cell-chord {
+    font-weight: 800;
+    color: var(--primary-color);
+    white-space: nowrap;
+}
+
+.pd-cell-chord.is-carried {
+    color: rgba(255, 159, 28, 0.55);
+    font-weight: 600;
+}
+
+.pd-cell-pattern {
+    font-family: 'Outfit', monospace;
+    letter-spacing: 0.06em;
+    color: var(--text-color);
+    white-space: nowrap;
+}
+
+.pd-cell-bass,
+.pd-cell-drums {
+    color: var(--muted-color);
+    white-space: nowrap;
+}
+
+/* ══════════ Sound Cruise シリーズ（既存アプリランチャー） ══════════ */
+
+.series-note {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 14px 20px;
+    border: 1px solid rgba(253, 246, 238, 0.12);
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.18);
+    font-size: 13px;
+    color: var(--muted-color);
+    line-height: 1.9;
+}
+
+.series-note strong {
+    color: var(--secondary-color);
+}
+
+.series-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 18px;
+}
+
+.series-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 24px;
+    border: 1px solid var(--card-border);
+    border-radius: var(--card-radius);
+    background: linear-gradient(180deg, var(--surface-raised), var(--surface-color));
+    box-shadow: var(--card-shadow);
+}
+
+.series-card-icon {
+    font-size: 28px;
+}
+
+.series-card-name {
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--secondary-color);
+    letter-spacing: 0.03em;
+}
+
+.series-card-desc {
+    font-size: 13px;
+    color: var(--text-color);
+    line-height: 1.8;
+    flex: 1;
+}
+
+.series-card-note {
+    font-size: 11.5px;
+    color: var(--muted-color);
+    line-height: 1.7;
+}
+
+.series-open-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    align-self: flex-start;
+}
+
 /* ══════════ フォーカスリングの統一（高級感のあるアンバーの淡いグロー） ══════════ */
 
 .form-grid input:focus,

@@ -7,9 +7,9 @@
     <title>クルーズスタジオ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成（PCファースト。docs/DECISIONS.md ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.4.0">
+    <link rel="stylesheet" href="theme.css?v=0.5.0">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
-    <link rel="stylesheet" href="print.css?v=0.4.0" media="print">
+    <link rel="stylesheet" href="print.css?v=0.5.0" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -32,7 +32,7 @@
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
                 <p class="studio-subcopy">コード譜から、曲が動き出す。</p>
-                <span class="studio-version" id="studio-version">v0.4.0</span>
+                <span class="studio-version" id="studio-version">v0.5.0</span>
             </header>
 
             <section class="module-section">
@@ -42,44 +42,44 @@
                     <button type="button" id="open-sheet-cruise" class="module-card module-card--featured module-card--clickable">
                         <span class="module-card-icon" aria-hidden="true">📝</span>
                         <span class="module-card-label">譜面クルーズ</span>
-                        <span class="module-card-sub">弾き語り教材用のコード譜をつくる。コード・歌詞・ドレミを1枚のA4に。</span>
-                        <span class="module-card-status">MVP開発中 / コード・歌詞・ドレミ対応</span>
+                        <span class="module-card-sub">弾き語り教材用のコード譜をつくる。現在のプロジェクトを開いて編集。</span>
+                        <span class="module-card-status">MVP / コード・歌詞・ドレミ・印刷対応</span>
                     </button>
 
-                    <div class="module-card" aria-disabled="true">
+                    <button type="button" id="open-pre-dtm" class="module-card module-card--featured module-card--clickable">
                         <span class="module-card-icon" aria-hidden="true">🎛️</span>
                         <span class="module-card-label">プレDTMクルーズ</span>
-                        <span class="module-card-sub">同じ曲データから伴奏MIDIを生成。ギター・ベース・ドラムをDAWへ。</span>
-                        <span class="module-card-status">Coming Soon</span>
-                    </div>
+                        <span class="module-card-sub">譜面データから伴奏を作る。アコギ・ベース・ドラムの生成イベントを確認。</span>
+                        <span class="module-card-status">MVP骨格 / 生成イベント確認</span>
+                    </button>
 
                 </div>
             </section>
 
             <section class="module-section">
-                <h2 class="section-label">Sound Cruise シリーズ</h2>
+                <h2 class="section-label">Sound Cruise シリーズ（既存アプリ）</h2>
                 <div class="module-grid module-grid--series">
 
-                    <div class="module-card module-card--series" aria-disabled="true">
+                    <button type="button" class="module-card module-card--series module-card--clickable js-open-series">
                         <span class="module-card-icon" aria-hidden="true">🎧</span>
                         <span class="module-card-label">音感クルーズ</span>
-                        <span class="module-card-sub">音感トレーニング</span>
-                        <span class="module-card-status">将来連携予定</span>
-                    </div>
+                        <span class="module-card-sub">既存アプリを開く（音感トレーニング）</span>
+                        <span class="module-card-status">リンク起動 / 将来連携予定</span>
+                    </button>
 
-                    <div class="module-card module-card--series" aria-disabled="true">
+                    <button type="button" class="module-card module-card--series module-card--clickable js-open-series">
                         <span class="module-card-icon" aria-hidden="true">🎸</span>
                         <span class="module-card-label">指板クルーズ</span>
-                        <span class="module-card-sub">指板の音名トレーニング</span>
-                        <span class="module-card-status">将来連携予定</span>
-                    </div>
+                        <span class="module-card-sub">既存アプリを開く（指板の音名トレーニング）</span>
+                        <span class="module-card-status">リンク起動 / 将来連携予定</span>
+                    </button>
 
-                    <div class="module-card module-card--series" aria-disabled="true">
+                    <button type="button" class="module-card module-card--series module-card--clickable js-open-series">
                         <span class="module-card-icon" aria-hidden="true">🥁</span>
                         <span class="module-card-label">リズムクルーズ</span>
-                        <span class="module-card-sub">リズムトレーニング</span>
-                        <span class="module-card-status">将来連携予定</span>
-                    </div>
+                        <span class="module-card-sub">既存アプリを開く（リズムトレーニング）</span>
+                        <span class="module-card-status">リンク起動 / 将来連携予定</span>
+                    </button>
 
                 </div>
             </section>
@@ -201,15 +201,121 @@
 
         </section>
 
+        <!-- ══════════ プレDTMクルーズ ══════════ -->
+        <section id="screen-pre-dtm" class="screen hidden">
+
+            <header class="screen-header">
+                <h1 class="screen-title">プレDTMクルーズ</h1>
+                <p class="screen-subcopy">同じ曲データから、伴奏の設計図をつくる</p>
+            </header>
+
+            <div class="sheet-toolbar">
+                <div class="sheet-toolbar-project">
+                    <select id="pd-project-select" aria-label="プロジェクトを選ぶ"></select>
+                    <button type="button" id="pd-reload" class="btn-ghost btn-compact">再読み込み</button>
+                </div>
+                <div class="sheet-toolbar-actions">
+                    <button type="button" id="pd-goto-sheet" class="btn-ghost btn-compact">譜面クルーズで編集</button>
+                    <button type="button" id="pd-export-json" class="btn-primary btn-compact">伴奏JSONを書き出し</button>
+                </div>
+                <span id="pd-status" class="save-status" aria-live="polite"></span>
+            </div>
+
+            <!-- プロジェクトがない場合の案内 -->
+            <div id="pd-empty" class="pd-empty hidden">
+                <span class="pd-empty-icon" aria-hidden="true">🎛️</span>
+                <p class="pd-empty-title">まだプロジェクトがありません</p>
+                <p class="pd-empty-note">プレDTMクルーズは、譜面クルーズで作ったコード進行から伴奏イベントを生成します。<br>まず譜面クルーズで曲を作成してください。</p>
+                <button type="button" id="pd-empty-goto-sheet" class="btn-primary">譜面クルーズで曲をつくる</button>
+            </div>
+
+            <div id="pd-content">
+
+                <div class="editor-card">
+                    <h3 class="editor-card-title">曲情報</h3>
+                    <div id="pd-song-info" class="pd-info-grid"></div>
+                </div>
+
+                <div id="pd-parts" class="pd-parts"></div>
+
+                <ul id="pd-warnings" class="pd-warnings hidden"></ul>
+
+                <div class="editor-card">
+                    <h3 class="editor-card-title">生成プレビュー（小節ごとの伴奏イベント）</h3>
+                    <p class="editor-card-note">音はまだ鳴りません。DAWに入れる前の伴奏の設計図として、小節ごとの生成内容を確認できます。コードが（　）の小節は直前のコードを継続しています。ストローク表記: D=ダウン / U=アップ / x=ミュート / ・=休み / >=アクセント（8分刻み）。</p>
+                    <div class="pd-table-wrap">
+                        <table class="pd-table">
+                            <thead>
+                                <tr>
+                                    <th>小節</th>
+                                    <th>コード</th>
+                                    <th>アコギ（ストローク）</th>
+                                    <th>ベース</th>
+                                    <th>ドラム</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pd-preview-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+        </section>
+
+        <!-- ══════════ Sound Cruise シリーズ（既存アプリランチャー） ══════════ -->
+        <section id="screen-series" class="screen hidden">
+
+            <header class="screen-header">
+                <h1 class="screen-title">Sound Cruise シリーズ</h1>
+                <p class="screen-subcopy">既存アプリをクルーズスタジオから開く</p>
+            </header>
+
+            <p class="series-note">
+                以下はスマホ向けに作られた既存アプリです。クルーズスタジオからは<strong>新しいタブでそのまま起動</strong>します（既存アプリ側は一切変更していません）。PCブラウザでも動作しますが、画面はスマホ縦画面向けです。将来的にはクルーズスタジオの曲データ・練習データと連携する予定です。
+            </p>
+
+            <div class="series-grid">
+
+                <div class="series-card">
+                    <span class="series-card-icon" aria-hidden="true">🎧</span>
+                    <h3 class="series-card-name">音感クルーズ</h3>
+                    <p class="series-card-desc">音を聴いて当てる音感トレーニング。移動ドの感覚を鍛え、耳コピやメロディの聴き取りに効きます。</p>
+                    <p class="series-card-note">スマホ向け既存アプリをそのまま開きます / 将来クルーズスタジオ連携予定</p>
+                    <a class="btn-primary btn-compact series-open-link" href="../pitch-cruise/standard/" target="_blank" rel="noopener">新しいタブで開く ↗</a>
+                </div>
+
+                <div class="series-card">
+                    <span class="series-card-icon" aria-hidden="true">🎸</span>
+                    <h3 class="series-card-name">指板クルーズ</h3>
+                    <p class="series-card-desc">ギター指板の音名トレーニング。ポジションと音名を結びつけ、コードフォームやスケールの土台を作ります。</p>
+                    <p class="series-card-note">スマホ向け既存アプリをそのまま開きます / 将来クルーズスタジオ連携予定</p>
+                    <a class="btn-primary btn-compact series-open-link" href="../fretboard_cruise/standard/" target="_blank" rel="noopener">新しいタブで開く ↗</a>
+                </div>
+
+                <div class="series-card">
+                    <span class="series-card-icon" aria-hidden="true">🥁</span>
+                    <h3 class="series-card-name">リズムクルーズ</h3>
+                    <p class="series-card-desc">リズムのズレを見ながら練習できるリズムトレーニング。ストロークの安定感・グルーヴ強化に。</p>
+                    <p class="series-card-note">スマホ向け既存アプリをそのまま開きます / 将来クルーズスタジオ連携予定</p>
+                    <a class="btn-primary btn-compact series-open-link" href="../rhythm-cruise/" target="_blank" rel="noopener">新しいタブで開く ↗</a>
+                </div>
+
+            </div>
+
+        </section>
+
         <footer class="studio-footer">Sound Cruise Series</footer>
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/music-theory.js?v=0.4.0"></script>
-    <script src="js/core/song-model.js?v=0.4.0"></script>
-    <script src="js/core/storage.js?v=0.4.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.4.0"></script>
-    <script src="js/app.js?v=0.4.0"></script>
+    <script src="js/core/music-theory.js?v=0.5.0"></script>
+    <script src="js/core/song-model.js?v=0.5.0"></script>
+    <script src="js/core/storage.js?v=0.5.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.5.0"></script>
+    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.5.0"></script>
+    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.5.0"></script>
+    <script src="js/app.js?v=0.5.0"></script>
 </body>
 
 </html>
