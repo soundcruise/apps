@@ -64,6 +64,10 @@
                 updatedAt: project.updatedAt
             });
             writeIndex(index);
+            // 最後に保存したプロジェクト＝現在のプロジェクト。
+            // TOPのサンプル作成やJSON読み込み直後に、譜面クルーズ/プレDTMが
+            // 同じプロジェクトを開けるようにする（v0.6.1動線修正）
+            setCurrentProjectId(project.projectId);
             return { ok: true, error: null };
         } catch (e) {
             return { ok: false, error: '保存に失敗しました: ' + (e && e.message) };

@@ -129,7 +129,13 @@
 
     function confirmDiscardIfDirty() {
         if (!state.dirty) return true;
-        return window.confirm('保存されていない変更があります。破棄して続けますか？');
+        if (!window.confirm('保存されていない変更があります。破棄して続けますか？')) {
+            return false;
+        }
+        // 破棄に同意したので未保存扱いを解除する（beforeunloadガードとの整合。
+        // 次に画面へ入るときは enter() が保存済みデータから読み直す）
+        state.dirty = false;
+        return true;
     }
 
     function openProject(projectId) {
@@ -582,7 +588,8 @@
 
     /**
      * 譜面クルーズ画面に入る。
-     * 前回開いていたプロジェクトがあれば復元し、なければ新規作成する。
+     * currentProjectId → 最新の保存済みプロジェクト → 新規作成 の順で開く
+     * （TOPのサンプル作成直後などに別の新規が開かないようにする）。
      */
     function enter() {
         var storage = CS().storage;
@@ -591,6 +598,14 @@
             var res = storage.loadProject(currentId);
             if (res.ok) {
                 setProject(res.project);
+                return;
+            }
+        }
+        var latest = storage.listProjects()[0];
+        if (latest) {
+            var res2 = storage.loadProject(latest.projectId);
+            if (res2.ok) {
+                setProject(res2.project);
                 return;
             }
         }
@@ -632,6 +647,14 @@
         els.printBtn.addEventListener('click', printSheet);
         els.exportBtn.addEventListener('click', downloadCurrentProjectJson);
         els.importInput.addEventListener('change', onImportJsonFile);
+
+        // ブラウザのタブ閉じ / リロード / URL移動に対する未保存ガード。
+        // 画面内のTOP/戻る/モジュール移動は既存の中断確認（canLeave）が担当する。
+        window.addEventListener('beforeunload', function (e) {
+            if (!state.dirty) return;
+            e.preventDefault();
+            e.returnValue = ''; // ブラウザ標準の確認ダイアログを出す
+        });
     }
 
     window.CruiseStudio = window.CruiseStudio || {};

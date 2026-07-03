@@ -179,8 +179,86 @@
     }
 
     /**
-     * 生成したSMFバイト列の簡易検証パーサ（自己チェック用）。
-     * チャンク構造・ヘッダ値・Note On数を確認する。
+     * トラックボディをSMFイベントとして正規パースし、Note On数（velocity > 0）を数える。
+     * 可変長デルタタイム・running status・meta/sysexイベントを正しく読む。
+     * @returns {{ok: boolean, noteOns?: number, error?: string}}
+     */
+    function parseTrackBody(bytes, start, length) {
+        var pos = start;
+        var end = start + length;
+        var runningStatus = null;
+        var noteOns = 0;
+
+        function readVarLen() {
+            var value = 0;
+            var count = 0;
+            while (pos < end) {
+                var b = bytes[pos++];
+                value = (value << 7) | (b & 0x7f);
+                count++;
+                if ((b & 0x80) === 0) return value;
+                if (count > 4) return null; // VLQは最大4バイト
+            }
+            return null;
+        }
+
+        while (pos < end) {
+            if (readVarLen() === null) {
+                return { ok: false, error: 'デルタタイムが不正です (offset ' + pos + ')' };
+            }
+            if (pos >= end) return { ok: false, error: 'イベントが途中で切れています' };
+
+            var status;
+            if (bytes[pos] & 0x80) {
+                status = bytes[pos++];
+            } else {
+                // running status: データバイトから始まる場合は直前のステータスを再利用
+                if (runningStatus === null) {
+                    return { ok: false, error: 'running statusの前にステータスバイトがありません (offset ' + pos + ')' };
+                }
+                status = runningStatus;
+            }
+
+            if (status === 0xff) {
+                // meta event: type + 可変長len + data。running statusは無効化される
+                runningStatus = null;
+                if (pos >= end) return { ok: false, error: 'metaイベントが不正です' };
+                pos++; // type
+                var metaLen = readVarLen();
+                if (metaLen === null || pos + metaLen > end) {
+                    return { ok: false, error: 'metaイベント長が不正です' };
+                }
+                pos += metaLen;
+            } else if (status === 0xf0 || status === 0xf7) {
+                // sysex event: 可変長len + data。running statusは無効化される
+                runningStatus = null;
+                var sysexLen = readVarLen();
+                if (sysexLen === null || pos + sysexLen > end) {
+                    return { ok: false, error: 'sysexイベント長が不正です' };
+                }
+                pos += sysexLen;
+            } else if (status >= 0x80 && status <= 0xef) {
+                // チャネルメッセージ。0xC0/0xD0系はデータ1バイト、それ以外は2バイト
+                runningStatus = status;
+                var kind = status & 0xf0;
+                var dataLen = (kind === 0xc0 || kind === 0xd0) ? 1 : 2;
+                if (pos + dataLen > end) {
+                    return { ok: false, error: 'チャネルメッセージが途中で切れています' };
+                }
+                // Note On（velocity > 0）のみカウント。velocity 0 はNote Off扱い
+                if (kind === 0x90 && bytes[pos + 1] > 0) noteOns++;
+                pos += dataLen;
+            } else {
+                return { ok: false, error: '未対応のステータスバイトです: 0x' + status.toString(16) };
+            }
+        }
+        return { ok: true, noteOns: noteOns };
+    }
+
+    /**
+     * 生成したSMFバイト列の検証パーサ（自己チェック用）。
+     * チャンク構造・ヘッダ値を確認し、全イベントを正規パースして
+     * トラックごと／全体のNote On数（velocity > 0のみ）を返す。
      */
     function inspectSmf(bytes) {
         function str(offset, len) {
@@ -198,7 +276,7 @@
         var ntrks = u16(10);
         var division = u16(12);
         var offset = 14;
-        var trackCount = 0;
+        var trackNoteOns = [];
         var noteOnCount = 0;
         while (offset + 8 <= bytes.length) {
             if (str(offset, 4) !== 'MTrk') {
@@ -206,19 +284,32 @@
             }
             var len = u32(offset + 4);
             var body = offset + 8;
-            for (var i = body; i < body + len - 1; i++) {
-                if ((bytes[i] & 0xf0) === 0x90 && bytes[i + 2] > 0) noteOnCount++;
+            if (body + len > bytes.length) {
+                return { ok: false, error: 'MTrkチャンク長がファイル末尾を超えています' };
             }
-            trackCount++;
+            var parsed = parseTrackBody(bytes, body, len);
+            if (!parsed.ok) {
+                return { ok: false, error: 'Track ' + trackNoteOns.length + ': ' + parsed.error };
+            }
+            trackNoteOns.push(parsed.noteOns);
+            noteOnCount += parsed.noteOns;
             offset = body + len;
         }
         if (offset !== bytes.length) {
             return { ok: false, error: 'チャンク長がファイル末尾と一致しません' };
         }
-        if (trackCount !== ntrks) {
-            return { ok: false, error: 'ヘッダのトラック数(' + ntrks + ')と実トラック数(' + trackCount + ')が不一致です' };
+        if (trackNoteOns.length !== ntrks) {
+            return { ok: false, error: 'ヘッダのトラック数(' + ntrks + ')と実トラック数(' + trackNoteOns.length + ')が不一致です' };
         }
-        return { ok: true, format: format, ntrks: ntrks, division: division, noteOnCount: noteOnCount, byteLength: bytes.length };
+        return {
+            ok: true,
+            format: format,
+            ntrks: ntrks,
+            division: division,
+            noteOnCount: noteOnCount,
+            trackNoteOns: trackNoteOns,
+            byteLength: bytes.length
+        };
     }
 
     window.CruiseStudio = window.CruiseStudio || {};

@@ -7,9 +7,9 @@
     <title>クルーズスタジオ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成（PCファースト。docs/DECISIONS.md ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.6.0">
+    <link rel="stylesheet" href="theme.css?v=0.6.1">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
-    <link rel="stylesheet" href="print.css?v=0.6.0" media="print">
+    <link rel="stylesheet" href="print.css?v=0.6.1" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -32,7 +32,7 @@
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
                 <p class="studio-subcopy">コード譜から、曲が動き出す。</p>
-                <span class="studio-version" id="studio-version">v0.6.0</span>
+                <span class="studio-version" id="studio-version">v0.6.1</span>
             </header>
 
             <section class="module-section">
@@ -78,6 +78,13 @@
                         <span class="module-card-icon" aria-hidden="true">🥁</span>
                         <span class="module-card-label">リズムクルーズ</span>
                         <span class="module-card-sub">既存アプリを開く（リズムトレーニング）</span>
+                        <span class="module-card-status">リンク起動 / 将来連携予定</span>
+                    </button>
+
+                    <button type="button" class="module-card module-card--series module-card--clickable js-open-series">
+                        <span class="module-card-icon" aria-hidden="true">🎼</span>
+                        <span class="module-card-label">コードクルーズ</span>
+                        <span class="module-card-sub">既存アプリを開く（コードライブラリ）</span>
                         <span class="module-card-status">リンク起動 / 将来連携予定</span>
                     </button>
 
@@ -345,6 +352,14 @@
                     <a class="btn-primary btn-compact series-open-link" href="../rhythm-cruise/" target="_blank" rel="noopener">新しいタブで開く ↗</a>
                 </div>
 
+                <div class="series-card">
+                    <span class="series-card-icon" aria-hidden="true">🎼</span>
+                    <h3 class="series-card-name">コードクルーズ</h3>
+                    <p class="series-card-desc">コードを調べて学べるコードライブラリ。コード本棚や任意コード作成で、コードの引き出しを増やせます。</p>
+                    <p class="series-card-note">既存アプリをそのまま開きます / 将来クルーズスタジオ連携予定</p>
+                    <a class="btn-primary btn-compact series-open-link" href="../chord-cruise/" target="_blank" rel="noopener">新しいタブで開く ↗</a>
+                </div>
+
             </div>
 
         </section>
@@ -353,14 +368,14 @@
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/music-theory.js?v=0.6.0"></script>
-    <script src="js/core/song-model.js?v=0.6.0"></script>
-    <script src="js/core/storage.js?v=0.6.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.6.0"></script>
-    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.6.0"></script>
-    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.6.0"></script>
-    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.6.0"></script>
-    <script src="js/app.js?v=0.6.0"></script>
+    <script src="js/core/music-theory.js?v=0.6.1"></script>
+    <script src="js/core/song-model.js?v=0.6.1"></script>
+    <script src="js/core/storage.js?v=0.6.1"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.6.1"></script>
+    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.6.1"></script>
+    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.6.1"></script>
+    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.6.1"></script>
+    <script src="js/app.js?v=0.6.1"></script>
 </body>
 
 </html>
