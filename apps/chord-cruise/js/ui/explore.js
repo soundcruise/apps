@@ -554,6 +554,57 @@
 
         detail.appendChild(buildDetailRow('構成音', noteNames));
         detail.appendChild(buildDetailRow('度数', degrees));
+
+        // ダイアトニックコードには役割・雰囲気・よく行くコードの説明を出す
+        if (chord.source !== 'custom') {
+            var settings = getSettings();
+            var info = window.ChordCruise.chordInfo.getInfo(settings.scaleType, chord.index);
+            detail.appendChild(buildDetailTextRow('役割', chord.roman));
+            if (info) {
+                detail.appendChild(buildDetailTextRow('雰囲気', info.mood));
+                var chords = getChords();
+                var row = document.createElement('div');
+                row.className = 'cc-detail-row';
+                var label = document.createElement('span');
+                label.className = 'cc-detail-label';
+                label.textContent = 'よく行くコード';
+                row.appendChild(label);
+                var valuesEl = document.createElement('span');
+                valuesEl.className = 'cc-detail-values';
+                info.goesTo.forEach(function (degreeIndex) {
+                    var target = chords[degreeIndex];
+                    if (!target) return;
+                    var chip = document.createElement('button');
+                    chip.type = 'button';
+                    chip.className = 'cc-note-chip cc-note-chip--link';
+                    chip.textContent = target.symbol;
+                    chip.addEventListener('click', function () {
+                        getState().exploreCustomChord = null;
+                        getState().exploreSelectedChordIndex = degreeIndex;
+                        renderChordGrid();
+                        renderFretboard();
+                        renderDetail();
+                    });
+                    valuesEl.appendChild(chip);
+                });
+                row.appendChild(valuesEl);
+                detail.appendChild(row);
+            }
+        }
+    }
+
+    function buildDetailTextRow(labelText, text) {
+        var row = document.createElement('div');
+        row.className = 'cc-detail-row';
+        var label = document.createElement('span');
+        label.className = 'cc-detail-label';
+        label.textContent = labelText;
+        row.appendChild(label);
+        var value = document.createElement('span');
+        value.className = 'cc-detail-text';
+        value.textContent = text;
+        row.appendChild(value);
+        return row;
     }
 
     function buildDetailRow(labelText, values) {

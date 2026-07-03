@@ -987,3 +987,23 @@ body {
     background: rgba(212, 175, 55, 0.10);
     color: var(--cc-champagne);
 }
+
+/* コード説明 */
+.cc-detail-text {
+    font-size: 0.88rem;
+    line-height: 1.7;
+    color: var(--cc-text);
+}
+
+.cc-note-chip--link {
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    border: 1px solid var(--cc-border-strong);
+    color: var(--cc-champagne);
+    transition: transform 0.12s ease;
+}
+
+.cc-note-chip--link:active {
+    transform: scale(0.94);
+}
