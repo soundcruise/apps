@@ -1,9 +1,11 @@
-/* クルーズスタジオ print.css — v0.7.0
+/* クルーズスタジオ print.css — v0.8.0
    ブラウザ印刷（PDF保存）用。A4紙面（.sheet-page）だけを印刷対象にし、
    編集UI・ナビ・ツールバーは印刷しない（ADR-010 / ADR-016）。
    画面は 794×1123px（A4@96dpi）、印刷はここで 210mm/297mm のmm指定へ寄せる。
    紙面の余白は @page ではなく .sheet-page の padding で持つ
    （@page margin 0 にしないと width:210mm がはみ出すため）。
+   タイミンググリッド（.sheet-bar-grid）は紙面DOMの一部なので、
+   ONのときは印刷にも出る（OFFなら要素自体が存在しない）。
    index.html から media="print" で読み込まれる。 */
 
 @page {
@@ -25,6 +27,32 @@
 #screen-pre-dtm,
 #screen-series {
     display: none !important;
+}
+
+/* 画面専用の編集オーバーレイ類は印刷に絶対に出さない。
+   S1b以降で追加予定の編集レイヤー（.slot-overlay）と、紙面上の
+   画面専用装飾（.sheet-bar の選択ハイライト等）をここでまとめて除外する */
+.slot-overlay {
+    display: none !important;
+}
+
+/* タイミンググリッドの線色（印刷用の微調整はここで行う。
+   現状は画面と同じ濃さ。印刷で薄すぎ/濃すぎとなった場合はこの3行を調整する） */
+.sheet-bar-grid > span.is-beat {
+    border-right-color: rgba(122, 116, 108, 0.40) !important;
+}
+
+.sheet-bar-grid > span.is-8th {
+    border-right-color: rgba(122, 116, 108, 0.20) !important;
+}
+
+.sheet-bar-grid > span.is-16th {
+    border-right-color: rgba(122, 116, 108, 0.11) !important;
+}
+
+/* 段区切り横線（コード/歌詞/ドレミ段の間）の印刷用微調整もここで行う */
+.sheet-bar-row + .sheet-bar-row {
+    border-top-color: rgba(122, 116, 108, 0.18) !important;
 }
 
 /* レイアウトの入れ子を解除して紙面だけを流す */

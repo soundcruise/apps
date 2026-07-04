@@ -872,9 +872,12 @@ body {
     margin-bottom: 2px;
 }
 
-/* 小節セル */
+/* 小節セル
+   z-index: 0 でスタッキングコンテキストを作り、タイミンググリッド（z-index:-1）を
+   文字（コード・歌詞・ドレミ）より確実に背面へ敷く */
 .sheet-bar {
     position: relative;
+    z-index: 0;
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -882,6 +885,42 @@ body {
     padding: 3px 8px 8px;
     border-right: 1.5px solid #7a746c;
     border-bottom: 1px solid rgba(122, 116, 108, 0.25);
+}
+
+/* タイミンググリッド（S1a）: 小節セル背面の拍・8分・16分の縦線。
+   紙面DOMの一部なので印刷にもそのまま出る（ONのときだけ生成される）。
+   濃淡: 小節線（セル枠 #7a746c）＞ 拍線 ＞ 8分線 ＞ 16分線 */
+.sheet-bar-grid {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    display: grid;
+    pointer-events: none;
+}
+
+.sheet-bar-grid > span {
+    border-right: 1px solid transparent;
+}
+
+.sheet-bar-grid > span.is-beat {
+    border-right-color: rgba(122, 116, 108, 0.40);
+}
+
+.sheet-bar-grid > span.is-8th {
+    border-right-color: rgba(122, 116, 108, 0.20);
+}
+
+.sheet-bar-grid > span.is-16th {
+    border-right-color: rgba(122, 116, 108, 0.11);
+}
+
+/* 段区切り横線: コード/歌詞/ドレミの各段（.sheet-bar-row）の間に薄い横線を引く。
+   「段の次に段が来たとき」だけ線が付くので、表示トグルで段が消えても自然に詰まる。
+   将来のストローク段も .sheet-bar-row を付ければ自動で区切られる。
+   濃さはグリッドの8分線と同程度（可読性優先で控えめ） */
+.sheet-bar-row + .sheet-bar-row {
+    border-top: 1px solid rgba(122, 116, 108, 0.18);
+    padding-top: 2px;
 }
 
 .sheet-line--compact .sheet-bar {
@@ -947,6 +986,28 @@ body {
     gap: 14px;
     flex-wrap: wrap;
     margin-top: 14px;
+}
+
+/* グリッド解像度（8分/16分）の小型セレクト */
+.grid-res-select {
+    padding: 6px 10px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 13px;
+}
+
+.grid-res-select:focus {
+    outline: none;
+    border-color: rgba(255, 159, 28, 0.6);
+    box-shadow: 0 0 0 3px rgba(255, 159, 28, 0.12);
+}
+
+.grid-res-select option {
+    background: var(--surface-raised);
+    color: var(--text-color);
 }
 
 .preview-note {

@@ -47,6 +47,8 @@
         els.showChords = q('sc-show-chords');
         els.showLyrics = q('sc-show-lyrics');
         els.showDoremi = q('sc-show-doremi');
+        els.showGrid = q('sc-show-grid');
+        els.gridResolution = q('sc-grid-resolution');
     }
 
     function fillKeySelect(select) {
@@ -429,13 +431,17 @@
         els.preview.style.height = Math.ceil(els.scaleBox.offsetHeight * scale) + 'px';
     }
 
-    /* ══════════ 表示トグル（sheetSettings.showChords / showLyrics / showDoremi） ══════════ */
+    /* ══════════ 表示トグル（sheetSettings.showChords / showLyrics / showDoremi /
+       showTimingGrid / timingGridResolution） ══════════ */
 
     function renderDisplayToggles() {
         var show = CS().sheetRenderer.resolveShowSettings(state.project);
         els.showChords.checked = show.chords;
         els.showLyrics.checked = show.lyrics;
         els.showDoremi.checked = show.doremi;
+        els.showGrid.checked = show.timingGrid;
+        els.gridResolution.value = String(show.gridResolution);
+        els.gridResolution.disabled = !show.timingGrid;
     }
 
     function onDisplayToggleChange() {
@@ -445,6 +451,10 @@
         state.project.sheetSettings.showChords = els.showChords.checked;
         state.project.sheetSettings.showLyrics = els.showLyrics.checked;
         state.project.sheetSettings.showDoremi = els.showDoremi.checked;
+        state.project.sheetSettings.showTimingGrid = els.showGrid.checked;
+        state.project.sheetSettings.timingGridResolution =
+            (els.gridResolution.value === '16') ? 16 : 8;
+        els.gridResolution.disabled = !els.showGrid.checked;
         markDirty();
         renderPreview();
     }
@@ -586,7 +596,8 @@
         els.exportBtn.addEventListener('click', downloadCurrentProjectJson);
         els.importInput.addEventListener('change', onImportJsonFile);
 
-        [els.showChords, els.showLyrics, els.showDoremi].forEach(function (el) {
+        [els.showChords, els.showLyrics, els.showDoremi,
+         els.showGrid, els.gridResolution].forEach(function (el) {
             el.addEventListener('change', onDisplayToggleChange);
         });
 

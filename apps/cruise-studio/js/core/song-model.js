@@ -8,7 +8,7 @@
 
     var theory = window.CruiseStudio && window.CruiseStudio.theory;
 
-    var APP_VERSION = '0.7.0';
+    var APP_VERSION = '0.8.0';
     var SCHEMA_VERSION = 1;
     var TICKS_PER_BEAT = 480;
 
@@ -43,7 +43,11 @@
             showDoremi: true,
             showStrum: true,
             barsPerLine: 2,
-            paperSize: 'A4'
+            paperSize: 'A4',
+            // タイミンググリッド（S1a）。表示専用のため schemaVersion は上げない。
+            // 欠損時は sheet-renderer.js の resolveShowSettings() が既定値で補完する
+            showTimingGrid: true,
+            timingGridResolution: 8   // 8 | 16（全体設定。16分イベントを含む小節は自動で16分表示）
         };
     }
 

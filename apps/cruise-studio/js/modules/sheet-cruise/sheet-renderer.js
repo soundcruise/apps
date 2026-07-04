@@ -1,4 +1,4 @@
-/* クルーズスタジオ — sheet-renderer.js（v0.7.0）
+/* クルーズスタジオ — sheet-renderer.js（v0.8.0）
    StudioProject → A4固定紙面DOM のレンダラー（ADR-016）。
    「譜面は曲データのビュー」（APP_CONCEPT.md 4章）の紙面実装。
 
@@ -8,6 +8,9 @@
    - bars[].lineBreakAfter は現状未使用（手動改行UIの導入時に使う。ADR-016）
    - 現状は1ページに全内容を流し、印刷時の改ページはCSS（break-inside/break-after）に任せる。
      将来の複数ページ分割は、この render() がページ配列を返す形に拡張する
+   - タイミンググリッド（S1a）: sheetSettings.showTimingGrid がONのとき、各小節セルの
+     背面に .sheet-bar-grid（拍・8分・16分の縦線）を敷く。紙面DOMの一部なので
+     印刷/PDFにもそのまま反映される（OFFなら要素自体を生成しない）
    グローバル名前空間 CruiseStudio.sheetRenderer に登録する。 */
 (function () {
     'use strict';
@@ -23,6 +26,8 @@
 
     /**
      * 表示設定の欠損補完（古い保存データでも安全に読む）。
+     * showTimingGrid / timingGridResolution は表示専用の追加フィールドのため、
+     * 欠損していてもここで既定値（ON・8分）に補完する（schemaVersionは1のまま）。
      */
     function resolveShowSettings(project) {
         var s = (project && project.sheetSettings) || {};
@@ -30,7 +35,9 @@
             chords: s.showChords !== false,
             lyrics: s.showLyrics !== false,
             doremi: s.showDoremi !== false,
-            barsPerLine: (typeof s.barsPerLine === 'number' && s.barsPerLine > 0) ? s.barsPerLine : 2
+            barsPerLine: (typeof s.barsPerLine === 'number' && s.barsPerLine > 0) ? s.barsPerLine : 2,
+            timingGrid: s.showTimingGrid !== false,
+            gridResolution: (s.timingGridResolution === 16) ? 16 : 8
         };
     }
 
@@ -75,27 +82,87 @@
         return header;
     }
 
+    /* ══════════ タイミンググリッド（S1a） ══════════ */
+
+    /**
+     * 16分位置（120tick粒度）のイベントを含む小節か。
+     * 含む場合、全体設定が8分でもその小節だけ16分グリッドで表示する
+     * （分割状態はデータに持たず、tickから導出する方針）。
+     */
+    function barNeedsSixteenth(bar) {
+        var needs = false;
+        function check(ev) {
+            if (ev && typeof ev.tick === 'number' && ev.tick % 240 !== 0) needs = true;
+        }
+        (bar.lyrics || []).forEach(check);
+        (bar.chords || []).forEach(check);
+        (bar.melody || []).forEach(function (ev) {
+            check(ev);
+            if (ev && typeof ev.durationTicks === 'number' && ev.durationTicks % 240 !== 0) needs = true;
+        });
+        return needs;
+    }
+
+    /**
+     * 小節セルの背面に敷くグリッド線要素を作る。
+     * 線の濃淡は theme.css / print.css 側で
+     * 小節線（セル枠）＞ 拍線（is-beat）＞ 8分線（is-8th）＞ 16分線（is-16th）とする。
+     * @param {number} beats 拍数（4/4なら4）
+     * @param {number} resolution 8 または 16
+     */
+    function buildTimingGrid(beats, resolution) {
+        var slotsPerBeat = resolution / 4;            // 8分=2 / 16分=4
+        var slots = beats * slotsPerBeat;
+        var grid = el('div', 'sheet-bar-grid');
+        grid.setAttribute('aria-hidden', 'true');
+        grid.style.gridTemplateColumns = 'repeat(' + slots + ', 1fr)';
+        for (var s = 0; s < slots; s++) {
+            var span = el('span');
+            // 各マスの右端の線の種類（最後のマスの右端は小節線なので線なし）
+            var boundary = s + 1;
+            if (boundary < slots) {
+                if (boundary % slotsPerBeat === 0) {
+                    span.className = 'is-beat';
+                } else if (resolution === 16 && boundary % 2 === 0) {
+                    span.className = 'is-8th';
+                } else {
+                    span.className = (resolution === 16) ? 'is-16th' : 'is-8th';
+                }
+            }
+            grid.appendChild(span);
+        }
+        return grid;
+    }
+
     /* ══════════ 小節セル ══════════ */
 
-    function buildBarCell(bar, show, hasVocal) {
+    function buildBarCell(bar, show, hasVocal, beats) {
         var theory = CS().theory;
         var model = CS().model;
         var cell = el('div', 'sheet-bar');
 
+        if (show.timingGrid) {
+            var res = (show.gridResolution === 16 || barNeedsSixteenth(bar)) ? 16 : 8;
+            cell.appendChild(buildTimingGrid(beats, res));
+        }
+
         cell.appendChild(el('span', 'sheet-bar-num', String(bar.barNumber)));
 
+        // 各段に共通クラス .sheet-bar-row を付ける。段と段の間の区切り横線は
+        // CSS（.sheet-bar-row + .sheet-bar-row）が引く。将来ストローク段を
+        // 追加するときも、同じく .sheet-bar-row を付ければ区切り線が自動で付く
         if (show.chords) {
-            var chord = el('span', 'sheet-bar-chord',
+            var chord = el('span', 'sheet-bar-chord sheet-bar-row',
                 (bar.chords[0] && bar.chords[0].symbol) || '');
             cell.appendChild(chord);
         }
 
         if (hasVocal && show.lyrics) {
-            cell.appendChild(el('span', 'sheet-bar-lyrics', model.getBarLyricsText(bar)));
+            cell.appendChild(el('span', 'sheet-bar-lyrics sheet-bar-row', model.getBarLyricsText(bar)));
         }
 
         if (hasVocal && show.doremi) {
-            var doremi = el('span', 'sheet-bar-doremi');
+            var doremi = el('span', 'sheet-bar-doremi sheet-bar-row');
             theory.melodyEventsToDoremiTokens(bar.melody || []).forEach(function (token) {
                 var note = el('span', 'sheet-doremi-note' +
                     (token.octave > 0 ? ' is-high' : (token.octave < 0 ? ' is-low' : '')), token.text);
@@ -115,6 +182,8 @@
     function render(project, container) {
         var model = CS().model;
         var show = resolveShowSettings(project);
+        var ts = project.songInfo && project.songInfo.timeSignature;
+        var beats = (ts && typeof ts.beats === 'number' && ts.beats > 0) ? ts.beats : 4;
 
         container.innerHTML = '';
         var page = el('div', 'sheet-page');
@@ -139,7 +208,7 @@
                 line.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
                 var lineBars = bars.slice(i, i + cols);
                 lineBars.forEach(function (bar) {
-                    line.appendChild(buildBarCell(bar, show, hasVocal));
+                    line.appendChild(buildBarCell(bar, show, hasVocal, beats));
                 });
                 // 行末まで小節線を揃えるための空セル
                 for (var pad = lineBars.length; pad < cols; pad++) {
