@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>譜面スロット編集プロトタイプ（Phase S0）</title>
+
+    <!-- 本番テーマとA4紙面スタイルを参照（コピーしない。読み取りのみ） -->
+    <link rel="stylesheet" href="../theme.css">
+    <link rel="stylesheet" href="slot-editor.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
+    <!-- 注意: storage.js は読み込まない（localStorageへ一切書かないため） -->
+</head>
+
+<body>
+    <div class="proto-container">
+
+        <header class="proto-header">
+            <h1>譜面スロット編集プロトタイプ <span class="proto-badge">Phase S0</span></h1>
+            <p class="proto-note">次期編集方式（案C: ハイブリッド型）の操作感確認用です。<strong>本番データには保存しません</strong>（localStorage不使用・メモリ内のみ）。このページは本番画面からリンクされていません。</p>
+            <div class="proto-toolbar">
+                <span class="proto-toolbar-label">全体グリッド</span>
+                <div class="proto-seg">
+                    <button type="button" id="res-8" class="proto-seg-btn is-active">8分</button>
+                    <button type="button" id="res-16" class="proto-seg-btn">16分</button>
+                </div>
+                <button type="button" id="expand-bar" class="proto-btn">選択小節だけ16分に展開</button>
+                <button type="button" id="export-json" class="proto-btn">JSON書き出し</button>
+                <span id="proto-status" class="proto-status" aria-live="polite"></span>
+            </div>
+        </header>
+
+        <div class="proto-main">
+
+            <!-- 左: A4譜面（クリックで小節選択。選択小節に薄いスロットグリッド） -->
+            <div class="proto-sheet-pane">
+                <div id="sheet-viewport" class="proto-sheet-viewport">
+                    <div id="sheet-scale-box" class="proto-scale-box"></div>
+                </div>
+            </div>
+
+            <!-- 右: スロットエディタ＋まとめて入力 -->
+            <div class="proto-editor-pane">
+
+                <div class="proto-card" id="slot-editor">
+                    <div class="proto-editor-head">
+                        <span id="editor-bar-label" class="proto-editor-label">譜面の小節をクリックして選択してください</span>
+                    </div>
+                    <p class="proto-keys-help">
+                        Enter / Tab / →: 次のマス ・ ⇧Tab / ←: 前のマス ・ ↑↓: 歌詞⇄ドレミ ・
+                        Alt+←→: 内容を移動 ・ Esc: 解除 ・ 小節末で次の小節へ自動移動
+                    </p>
+                    <div id="slot-rows" class="proto-slot-rows"></div>
+                    <div class="proto-move-btns">
+                        <button type="button" id="move-left" class="proto-btn proto-btn-mini">← 内容を左へ移動</button>
+                        <button type="button" id="move-right" class="proto-btn proto-btn-mini">内容を右へ移動 →</button>
+                    </div>
+                </div>
+
+                <div class="proto-card">
+                    <h3 class="proto-card-title">まとめて入力（自動分解）</h3>
+                    <p class="proto-bulk-help">
+                        選択中の小節の1マス目から配置します（未選択なら1小節目から）。
+                        配置した小節のその行は上書きされます。<br>
+                        区切り: スペース・「/」 ／ 休符: 「・」 ／ 伸ばし: 「ー」「〜」 ／
+                        小書き仮名（きゃ等）は直前に結合、「っ」「ん」は独立 ／ 漢字は1文字1マス
+                    </p>
+                    <label class="proto-bulk-label">歌詞
+                        <textarea id="bulk-lyrics" rows="2" placeholder="例: かぜを うけて／こころ〜おどる"></textarea>
+                    </label>
+                    <button type="button" id="apply-lyrics" class="proto-btn">歌詞を自動分解して配置</button>
+                    <label class="proto-bulk-label">ドレミ
+                        <textarea id="bulk-doremi" rows="2" placeholder="例: ・・ドレ ミミレド〜〜 ラ↑ド↑"></textarea>
+                    </label>
+                    <button type="button" id="apply-doremi" class="proto-btn">ドレミを自動分解して配置</button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- 本番コアを読み取り参照（storage.jsは読み込まない） -->
+    <script src="../js/core/music-theory.js"></script>
+    <script src="../js/core/song-model.js"></script>
+    <script src="../js/modules/sheet-cruise/sheet-renderer.js"></script>
+    <script src="slot-editor.js"></script>
+</body>
+
+</html>
