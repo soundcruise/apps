@@ -43,6 +43,10 @@
         els.addSectionBtn = q('sc-add-section');
         els.barGrid = q('sc-bar-grid');
         els.preview = q('sc-preview');
+        els.scaleBox = q('sc-sheet-scale-box');
+        els.showChords = q('sc-show-chords');
+        els.showLyrics = q('sc-show-lyrics');
+        els.showDoremi = q('sc-show-doremi');
     }
 
     function fillKeySelect(select) {
@@ -113,6 +117,7 @@
 
     function renderAll() {
         renderForm();
+        renderDisplayToggles();
         renderSections();
         renderBarGrid();
         renderPreview();
@@ -402,113 +407,46 @@
         });
     }
 
-    /* ══════════ 簡易プレビュー（Phase 3でA4紙面レンダリングに置き換える） ══════════ */
+    /* ══════════ A4紙面プレビュー（sheet-renderer.js が紙面DOMを構築。ADR-016） ══════════ */
 
     function renderPreview() {
-        var model = CS().model;
-        var si = state.project.songInfo;
-        els.preview.innerHTML = '';
+        CS().sheetRenderer.render(state.project, els.scaleBox);
+        updateSheetScale();
+        // 画面切替直後は clientWidth が 0 のことがあるため、表示後にもう一度合わせる
+        window.requestAnimationFrame(updateSheetScale);
+    }
 
-        // ヘッダー: 曲名 / アーティスト / キー情報（教材コード譜の紙面ヘッダーの簡易版）
-        var header = document.createElement('div');
-        header.className = 'preview-header';
+    /**
+     * A4紙面（794px幅）をプレビューペインの幅に合わせて縮小表示する。
+     * transform はレイアウト寸法に影響しないため、ビューポートの高さはJSで確保する。
+     */
+    function updateSheetScale() {
+        if (!els.preview || !els.scaleBox) return;
+        var available = els.preview.clientWidth;
+        if (!available) return;
+        var scale = Math.min(1, available / 794);
+        els.scaleBox.style.transform = 'scale(' + scale + ')';
+        els.preview.style.height = Math.ceil(els.scaleBox.offsetHeight * scale) + 'px';
+    }
 
-        var titleRow = document.createElement('div');
-        titleRow.className = 'preview-title-row';
-        var title = document.createElement('span');
-        title.className = 'preview-title';
-        title.textContent = si.title || '無題';
-        titleRow.appendChild(title);
-        if (si.artist) {
-            var artist = document.createElement('span');
-            artist.className = 'preview-artist';
-            artist.textContent = '/ ' + si.artist;
-            titleRow.appendChild(artist);
+    /* ══════════ 表示トグル（sheetSettings.showChords / showLyrics / showDoremi） ══════════ */
+
+    function renderDisplayToggles() {
+        var show = CS().sheetRenderer.resolveShowSettings(state.project);
+        els.showChords.checked = show.chords;
+        els.showLyrics.checked = show.lyrics;
+        els.showDoremi.checked = show.doremi;
+    }
+
+    function onDisplayToggleChange() {
+        if (!state.project.sheetSettings) {
+            state.project.sheetSettings = CS().model.getDefaultSheetSettings();
         }
-        header.appendChild(titleRow);
-
-        var strumName = '';
-        (state.project.strumPatterns || []).forEach(function (pat) {
-            if (pat.id === state.project.basicStrumPatternId) strumName = pat.name;
-        });
-
-        var meta = document.createElement('div');
-        meta.className = 'preview-meta';
-        var metaItems = [
-            'ORGキー: ' + si.originalKey,
-            'Playキー: ' + (si.capo > 0 ? si.capo + 'カポ' + si.playKey : si.playKey),
-            'カポ: ' + (si.capo > 0 ? si.capo : 'なし'),
-            'BPM: ' + si.bpm,
-            '拍子: ' + si.timeSignature.beats + '/' + si.timeSignature.beatUnit
-        ];
-        if (strumName) metaItems.push('基本ストローク: ' + strumName);
-        metaItems.forEach(function (text) {
-            var item = document.createElement('span');
-            item.className = 'preview-meta-item';
-            item.textContent = text;
-            meta.appendChild(item);
-        });
-        header.appendChild(meta);
-        els.preview.appendChild(header);
-
-        var barsPerLine = (state.project.sheetSettings && state.project.sheetSettings.barsPerLine) || 2;
-
-        // セクションごとの譜面（コード上段 / 歌詞中段 / ドレミ下段）
-        state.project.sections.forEach(function (sec) {
-            var bars = model.getSectionBars(state.project, sec.id);
-
-            var label = document.createElement('div');
-            label.className = 'preview-section-label';
-            label.textContent = sec.name;
-            els.preview.appendChild(label);
-
-            // 歌詞もドレミもないセクションはコードのみの詰めた段組にする（前奏など）
-            var hasVocal = bars.some(function (bar) {
-                return (bar.lyrics && bar.lyrics.length > 0) || (bar.melody && bar.melody.length > 0);
-            });
-            var cols = hasVocal ? barsPerLine : barsPerLine * 2;
-
-            var grid = document.createElement('div');
-            grid.className = 'preview-bars' + (hasVocal ? '' : ' preview-bars--chords-only');
-            grid.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
-
-            bars.forEach(function (bar) {
-                var box = document.createElement('div');
-                box.className = 'preview-bar';
-
-                var num = document.createElement('span');
-                num.className = 'preview-bar-num';
-                num.textContent = bar.barNumber;
-                box.appendChild(num);
-
-                var chord = document.createElement('span');
-                chord.className = 'preview-bar-chord';
-                chord.textContent = (bar.chords[0] && bar.chords[0].symbol) || '';
-                box.appendChild(chord);
-
-                if (hasVocal) {
-                    var lyrics = document.createElement('span');
-                    lyrics.className = 'preview-bar-lyrics';
-                    lyrics.textContent = model.getBarLyricsText(bar);
-                    box.appendChild(lyrics);
-
-                    var doremi = document.createElement('span');
-                    doremi.className = 'preview-bar-doremi';
-                    CS().theory.melodyEventsToDoremiTokens(bar.melody || []).forEach(function (token) {
-                        var note = document.createElement('span');
-                        note.className = 'preview-doremi-note' +
-                            (token.octave > 0 ? ' is-high' : (token.octave < 0 ? ' is-low' : ''));
-                        note.textContent = token.text;
-                        doremi.appendChild(note);
-                    });
-                    box.appendChild(doremi);
-                }
-
-                grid.appendChild(box);
-            });
-
-            els.preview.appendChild(grid);
-        });
+        state.project.sheetSettings.showChords = els.showChords.checked;
+        state.project.sheetSettings.showLyrics = els.showLyrics.checked;
+        state.project.sheetSettings.showDoremi = els.showDoremi.checked;
+        markDirty();
+        renderPreview();
     }
 
     /* ══════════ 印刷・JSON入出力 ══════════ */
@@ -647,6 +585,13 @@
         els.printBtn.addEventListener('click', printSheet);
         els.exportBtn.addEventListener('click', downloadCurrentProjectJson);
         els.importInput.addEventListener('change', onImportJsonFile);
+
+        [els.showChords, els.showLyrics, els.showDoremi].forEach(function (el) {
+            el.addEventListener('change', onDisplayToggleChange);
+        });
+
+        // ペイン幅の変化に合わせてA4紙面のスケールを追従させる
+        window.addEventListener('resize', updateSheetScale);
 
         // ブラウザのタブ閉じ / リロード / URL移動に対する未保存ガード。
         // 画面内のTOP/戻る/モジュール移動は既存の中断確認（canLeave）が担当する。

@@ -1,11 +1,14 @@
-/* クルーズスタジオ print.css — v0.4.0
-   ブラウザ印刷（PDF保存）用。譜面プレビュー（#sc-preview）だけを印刷対象にし、
-   編集UI・ナビ・ツールバーは印刷しない（docs/DECISIONS.md ADR-010）。
+/* クルーズスタジオ print.css — v0.7.0
+   ブラウザ印刷（PDF保存）用。A4紙面（.sheet-page）だけを印刷対象にし、
+   編集UI・ナビ・ツールバーは印刷しない（ADR-010 / ADR-016）。
+   画面は 794×1123px（A4@96dpi）、印刷はここで 210mm/297mm のmm指定へ寄せる。
+   紙面の余白は @page ではなく .sheet-page の padding で持つ
+   （@page margin 0 にしないと width:210mm がはみ出すため）。
    index.html から media="print" で読み込まれる。 */
 
 @page {
     size: A4 portrait;
-    margin: 12mm 14mm;
+    margin: 0;
 }
 
 /* 画面UIは印刷しない */
@@ -32,42 +35,57 @@ body {
 .studio-container,
 .screen,
 .sheet-layout,
-.sheet-preview {
+.sheet-preview,
+.sheet-preview-viewport {
     display: block !important;
     max-width: none !important;
+    width: auto !important;
+    height: auto !important;
     padding: 0 !important;
     margin: 0 !important;
     gap: 0 !important;
+    overflow: visible !important;
 }
 
-/* 紙面そのもの: 画面用の影・角丸・余白を落とす */
-#sc-preview {
+/* 画面用のスケールを解除する */
+.sheet-scale-box {
+    transform: none !important;
+    width: auto !important;
+}
+
+/* A4ページ: mm指定へ寄せ、画面用の影・角丸を落とす */
+.sheet-page {
+    width: 210mm !important;
+    min-height: 297mm !important;
+    padding: 14mm 15mm !important;
+    margin: 0 !important;
     box-shadow: none !important;
     border-radius: 0 !important;
-    padding: 0 !important;
-    min-height: 0 !important;
     background: #ffffff !important;
-    /* コードの赤・ドレミの色・セクションバーを印刷にも出す */
+    /* コードの赤・ドレミの色・セクションバー・小節線を印刷にも出す */
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+    /* ページ単位で改ページ（複数ページ対応の土台） */
+    break-after: page;
+    page-break-after: always;
 }
 
-/* 改ページ制御: 小節・セクション見出しの途中で切らない */
-.preview-bar {
+.sheet-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+}
+
+/* 改ページ制御: 譜面行・小節・ヘッダーの途中で切らない。
+   セクション見出しの直後では改ページしない */
+.sheet-header,
+.sheet-line,
+.sheet-bar {
     break-inside: avoid;
     page-break-inside: avoid;
 }
 
-.preview-section-label {
+.sheet-section-label {
+    break-inside: avoid;
     break-after: avoid;
     page-break-after: avoid;
-}
-
-/* A4向けの微調整 */
-#sc-preview .preview-title {
-    font-size: 22px;
-}
-
-#sc-preview .preview-meta {
-    font-size: 11px;
 }

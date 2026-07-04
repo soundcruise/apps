@@ -769,94 +769,136 @@ body {
     border-color: rgba(255, 159, 28, 0.6);
 }
 
-/* ══════════ 簡易プレビュー（紙面風。Phase 3でA4固定レンダリングへ） ══════════ */
+/* ══════════ A4固定紙面プレビュー（ADR-016） ══════════
+   画面: 794×1123px（A4@96dpi）を transform:scale でペイン幅にフィット。
+   印刷: print.css が 210mm/297mm のmm指定へ寄せる（同比率なのでズレ最小）。 */
 
 .sheet-preview {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    /* gridの1frトラックが紙面794pxのmin-contentで固定されないようにする */
+    min-width: 0;
 }
 
-.preview-paper {
+/* スケール表示のビューポート。高さはJSが scale後の実寸を設定する */
+.sheet-preview-viewport {
+    overflow: hidden;
+    min-width: 0;
+}
+
+.sheet-scale-box {
+    width: 794px;
+    transform-origin: top left;
+}
+
+/* A4ページ（1ページ=1要素。将来の複数ページはこの要素を並べる） */
+.sheet-page {
+    width: 794px;              /* 210mm @96dpi */
+    min-height: 1123px;        /* 297mm @96dpi */
+    padding: 53px 57px;        /* ≒ 14mm 15mm */
     background: #fdfbf5;
     color: #2a2620;
-    border-radius: 10px;
+    border-radius: 4px;
     box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
-    padding: 36px 40px;
-    min-height: 480px;
     font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic', 'Outfit', sans-serif;
 }
 
-.preview-header {
+.sheet-page + .sheet-page {
+    margin-top: 24px;
+}
+
+/* 紙面ヘッダー */
+.sheet-header {
     border-bottom: 2px solid #2a2620;
     padding-bottom: 10px;
     margin-bottom: 18px;
 }
 
-.preview-title-row {
+.sheet-title-row {
     display: flex;
     align-items: baseline;
     gap: 10px;
     flex-wrap: wrap;
 }
 
-.preview-title {
-    font-size: 24px;
+.sheet-title {
+    font-size: 26px;
     font-weight: 800;
     letter-spacing: 0.02em;
 }
 
-.preview-artist {
+.sheet-artist {
     font-size: 14px;
     font-weight: 600;
     color: #55504a;
 }
 
-.preview-meta {
+.sheet-meta {
     display: flex;
     flex-wrap: wrap;
     gap: 4px 18px;
     margin-top: 8px;
     font-size: 12px;
-    font-weight: 600;
-    color: #3a352f;
 }
 
-.preview-section-label {
-    display: inline-block;
+.sheet-meta-label {
+    font-weight: 700;
+    color: #6a645c;
+}
+
+.sheet-meta-value {
+    font-weight: 700;
+    color: #2a2620;
+}
+
+/* セクション見出し */
+.sheet-section-label {
+    display: block;
     font-size: 13px;
     font-weight: 800;
     letter-spacing: 0.06em;
     color: #2a2620;
     border-left: 4px solid #c05621;
     padding-left: 8px;
-    margin: 16px 0 8px;
+    margin: 16px 0 6px;
 }
 
-.preview-bars {
+/* 譜面行（1行=barsPerLine小節。印刷時は行の途中で改ページしない） */
+.sheet-line {
     display: grid;
     gap: 0;
     border-left: 1.5px solid #7a746c;
+    margin-bottom: 2px;
 }
 
-.preview-bar {
+/* 小節セル */
+.sheet-bar {
     position: relative;
     display: flex;
     flex-direction: column;
     gap: 2px;
     min-height: 78px;
-    padding: 4px 8px 8px;
+    padding: 3px 8px 8px;
     border-right: 1.5px solid #7a746c;
     border-bottom: 1px solid rgba(122, 116, 108, 0.25);
 }
 
-.preview-bar-num {
+.sheet-line--compact .sheet-bar {
+    min-height: 42px;
+}
+
+.sheet-bar--empty {
+    background: repeating-linear-gradient(-45deg, transparent, transparent 6px, rgba(122, 116, 108, 0.06) 6px, rgba(122, 116, 108, 0.06) 7px);
+}
+
+.sheet-bar-num {
     font-size: 9px;
     color: #9a948c;
 }
 
 /* コードは教材コード譜らしく赤系で表示（参考PDFの紙面構造を踏襲） */
-.preview-bar-chord {
+.sheet-bar-chord {
     font-size: 17px;
     font-weight: 800;
     color: #c0392b;
@@ -865,7 +907,7 @@ body {
 }
 
 /* 歌詞: 中段。太めで読みやすく */
-.preview-bar-lyrics {
+.sheet-bar-lyrics {
     font-size: 13.5px;
     font-weight: 600;
     color: #1e1a16;
@@ -875,7 +917,7 @@ body {
 }
 
 /* ドレミ: 下段。オクターブで色分け（中央=青 / 高い=オレンジ / 低い=グレー） */
-.preview-bar-doremi {
+.sheet-bar-doremi {
     display: flex;
     flex-wrap: wrap;
     gap: 1px 5px;
@@ -886,21 +928,25 @@ body {
     letter-spacing: 0.02em;
 }
 
-.preview-doremi-note {
+.sheet-doremi-note {
     color: #4a6fa5;
 }
 
-.preview-doremi-note.is-high {
+.sheet-doremi-note.is-high {
     color: #d97706;
 }
 
-.preview-doremi-note.is-low {
+.sheet-doremi-note.is-low {
     color: #8a94a6;
 }
 
-/* コードのみのセクション（前奏など）は低い段で詰める */
-.preview-bars--chords-only .preview-bar {
-    min-height: 40px;
+/* 表示トグル（紙面に表示する段の選択） */
+.sheet-display-toggles {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 14px;
 }
 
 .preview-note {

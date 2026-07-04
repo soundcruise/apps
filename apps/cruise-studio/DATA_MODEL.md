@@ -71,7 +71,9 @@ keyToSemitone(playKey) + capo ≡ keyToSemitone(originalKey)  (mod 12)
         { "tick": 0, "durationTicks": 240, "step": 2, "alter": 0, "octave": 0 }
       ],
       "strumOverride": null,       // strumPatterns の id。null = 基本パターン
-      "lineBreakAfter": false      // 譜面レイアウト指示（唯一の見た目データ）
+      "lineBreakAfter": false      // 譜面レイアウト指示（唯一の見た目データ）。
+                                   // 現状のA4レンダラーでは未使用。手動改行UI導入時に
+                                   // barsPerLine の上書きとして使う（ADR-016）
     }
   ],
 

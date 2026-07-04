@@ -7,9 +7,9 @@
     <title>クルーズスタジオ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成（PCファースト。docs/DECISIONS.md ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.6.1">
+    <link rel="stylesheet" href="theme.css?v=0.7.0">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
-    <link rel="stylesheet" href="print.css?v=0.6.1" media="print">
+    <link rel="stylesheet" href="print.css?v=0.7.0" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -32,7 +32,7 @@
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
                 <p class="studio-subcopy">コード譜から、曲が動き出す。</p>
-                <span class="studio-version" id="studio-version">v0.6.1</span>
+                <span class="studio-version" id="studio-version">v0.7.0</span>
             </header>
 
             <section class="module-section">
@@ -179,6 +179,13 @@
                         </div>
 
                         <p id="sc-key-check" class="key-check" aria-live="polite"></p>
+
+                        <div class="sheet-display-toggles">
+                            <span class="form-label">紙面に表示</span>
+                            <label class="pd-check"><input type="checkbox" id="sc-show-chords" checked> コード</label>
+                            <label class="pd-check"><input type="checkbox" id="sc-show-lyrics" checked> 歌詞</label>
+                            <label class="pd-check"><input type="checkbox" id="sc-show-doremi" checked> ドレミ</label>
+                        </div>
                     </div>
 
                     <div class="editor-card">
@@ -198,10 +205,12 @@
 
                 </div>
 
-                <!-- 右: 譜面プレビュー（Phase 3でA4固定紙面レンダリングに置き換える） -->
+                <!-- 右: A4固定紙面プレビュー（794×1123px。ペイン幅にスケールフィット。ADR-016） -->
                 <aside class="sheet-preview">
-                    <div id="sc-preview" class="preview-paper" aria-label="コード譜プレビュー"></div>
-                    <p class="preview-note">「印刷」からブラウザ印刷でPDF保存できます（A4縦推奨）。A4固定紙面レイアウトは今後さらに調整予定。</p>
+                    <div id="sc-preview" class="sheet-preview-viewport" aria-label="コード譜プレビュー">
+                        <div id="sc-sheet-scale-box" class="sheet-scale-box"></div>
+                    </div>
+                    <p class="preview-note">A4紙面プレビューです。「印刷」からブラウザ印刷でそのままPDF保存できます（A4縦）。</p>
                 </aside>
 
             </div>
@@ -368,14 +377,15 @@
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/music-theory.js?v=0.6.1"></script>
-    <script src="js/core/song-model.js?v=0.6.1"></script>
-    <script src="js/core/storage.js?v=0.6.1"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.6.1"></script>
-    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.6.1"></script>
-    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.6.1"></script>
-    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.6.1"></script>
-    <script src="js/app.js?v=0.6.1"></script>
+    <script src="js/core/music-theory.js?v=0.7.0"></script>
+    <script src="js/core/song-model.js?v=0.7.0"></script>
+    <script src="js/core/storage.js?v=0.7.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.7.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.7.0"></script>
+    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.7.0"></script>
+    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.7.0"></script>
+    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.7.0"></script>
+    <script src="js/app.js?v=0.7.0"></script>
 </body>
 
 </html>

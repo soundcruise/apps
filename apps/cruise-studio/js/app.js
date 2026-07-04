@@ -221,7 +221,7 @@
     /* ══════════ 初期化 ══════════ */
 
     function init() {
-        if (!model || !storage || !sheetCruise || !preDtm || !CS.arrangement) {
+        if (!model || !storage || !sheetCruise || !preDtm || !CS.arrangement || !CS.sheetRenderer) {
             setStatus('コアモジュールの読み込みに失敗しました（読み込み順を確認してください）', true);
             return;
         }
