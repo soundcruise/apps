@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.13.1';
+const RHYTHM_CRUISE_VERSION = '0.13.2';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -17470,7 +17470,7 @@ function androidCheckLiveStatus() {
     }
     if (androidCheckLiveMonitor && !androidCheckMode) {
         return isNormalMicInput()
-            ? { kind: '', text: 'クリック音をスマホのマイクで確認します。テストを開始し、終わるまで静かに待ちます。' }
+            ? { kind: '', text: 'クリック音をスマホのマイクで確認します。静かな環境でテストを行なってください。' }
             : { kind: '', text: '波形を見ながら、音が大きく入る位置を探してください' };
     }
     if (isIphoneBtPhase2UiContext() && live.iphoneBtPhaseProgress) {
