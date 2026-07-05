@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.12.101';
+const RHYTHM_CRUISE_VERSION = '0.13.0';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -50,7 +50,7 @@ const RHYTHM_PRO_LOCK_MESSAGES = {
     },
     proSettings: {
         title: 'PRO版限定機能です',
-        body: '判定のきびしさなどの詳細設定はPRO版で利用できます。'
+        body: 'クリック音の詳細設定はPRO版で利用できます。'
     },
     proPracticeSettings: {
         title: 'PRO版限定機能です',
@@ -1698,10 +1698,11 @@ const els = {
     comboBadge: $('combo-badge'),
     // 設定画面
     homeSettingsBtn: $('home-settings-btn'),
-    // 設定タブ（v0.9.95）：マイク設定 / 画面タップ設定
+    // 設定タブ（v0.9.95）：マイク設定 / タップ設定 / 判定 / クリック音
     settingsTabs: $('settings-tabs'),
     settingsTabMic: $('settings-tab-mic'),
     settingsTabTap: $('settings-tab-tap'),
+    settingsTabJudge: $('settings-tab-judge'),
     settingsTabClick: $('settings-tab-click'),
     clickSettingsCard: $('click-settings-card'),
     judgeSettingsCard: $('judge-settings-card'),
@@ -12556,15 +12557,12 @@ function setStageClickOffbeat(on) {
     updateStageSettingsUI();
 }
 function resetProSettingsToDefaults() {
-    if (!window.confirm('PRO設定のクリック設定と判定のきびしさをデフォルトに戻しますか？\n判定のきびしさは中央の「標準」に戻ります。')) return;
+    if (!window.confirm('クリック音設定をデフォルトに戻しますか？')) return;
     state.rcClickMode = STAGE_CLICK_DEFAULTS.range;
     state.rcClickBeats = STAGE_CLICK_DEFAULTS.beats;
     state.rcClickOffbeat = STAGE_CLICK_DEFAULTS.offbeat;
-    state.judgePreset = 'semiStrict';
     saveStageClickSettings();
-    saveSettings();
     updateStageSettingsUI();
-    updateJudgePresetUI();
 }
 function setStageLoop(on) {
     state.rcLoop = !!on;
@@ -24257,6 +24255,7 @@ function renderSettingsView() {
     // タブの点灯（v0.9.95、v0.9.148でクリック設定タブを追加）
     if (els.settingsTabMic) els.settingsTabMic.classList.toggle('is-active', settingsTab === 'mic');
     if (els.settingsTabTap) els.settingsTabTap.classList.toggle('is-active', settingsTab === 'tap');
+    if (els.settingsTabJudge) els.settingsTabJudge.classList.toggle('is-active', settingsTab === 'judge');
     if (els.settingsTabClick) els.settingsTabClick.classList.toggle('is-active', settingsTab === 'click');
     if (els.clickSettingsCard) els.clickSettingsCard.classList.add('hidden'); // クリック設定タブ以外では隠す（v0.9.148）
     if (els.judgeSettingsCard) els.judgeSettingsCard.classList.add('hidden'); // 判定のきびしさカード（v0.9.164）も同様に隠す
@@ -24266,6 +24265,7 @@ function renderSettingsView() {
     //   スクロール命令は変更せず、スクロール可能なページ高さだけを足す方針（B案）。
     if (els.settings) els.settings.classList.toggle('is-steps-scrollable', settingsTab === 'mic' && settingsView === 'steps');
     if (settingsTab === 'click') { renderClickSettingsView(); return; }
+    if (settingsTab === 'judge') { renderJudgeSettingsView(); return; }
     if (settingsTab === 'tap') { renderTapSettingsView(); return; }
     // マイク設定タブ：画面タップ設定カードは隠し（.hidden で確実に）。
     // フッター（マイク設定TOPへ戻る）は、TOP（chooser）と保存済みプリセットページでは出さない（v0.9.104）。
@@ -24374,24 +24374,41 @@ function renderClickSettingsView() {
     if (els.settingsDoneHint) els.settingsDoneHint.classList.add('hidden');
     if (els.settingsActions) els.settingsActions.style.display = 'none';
     if (els.clickSettingsCard) els.clickSettingsCard.classList.remove('hidden');
-    if (els.judgeSettingsCard) els.judgeSettingsCard.classList.remove('hidden'); // 判定のきびしさカード（v0.9.164）
     if (els.proSettingsResetWrap) els.proSettingsResetWrap.classList.remove('hidden');
     updateStageSettingsUI(); // セグメント点灯・4つの丸・裏拍トグルを現在のクリック設定に合わせる
-    updateJudgePresetUI();   // 判定プリセットのセグメント点灯・補足文を同期
     if (isStandardEdition()) applyStandardClickSettingsLock(); // mod 8 通常版：各項目を🔒+案内でロック（v0.9.240）
 }
 
-/* 通常版PRO設定タブのコントロールを🔒+タップ案内でロック（v0.9.240 mod 8）。
+/* 判定タブの表示。クリック音設定とは分け、通常版でも判定プリセットを変更できる。 */
+function renderJudgeSettingsView() {
+    if (els.settingsChooser) els.settingsChooser.classList.add('hidden');
+    if (els.settingsSimpleCard) els.settingsSimpleCard.classList.add('hidden');
+    if (els.settingsSummaryCard) els.settingsSummaryCard.classList.add('hidden');
+    if (els.micPresetCard) els.micPresetCard.classList.add('hidden');
+    if (els.tapSettingsCard) els.tapSettingsCard.classList.add('hidden');
+    if (els.tapPresetCard) els.tapPresetCard.classList.add('hidden');
+    if (els.tapManualCard) els.tapManualCard.classList.add('hidden');
+    if (els.tapCalCard) els.tapCalCard.classList.add('hidden');
+    if (els.hpCalCard) els.hpCalCard.style.display = 'none';
+    allStepCards().forEach((el) => { if (el) el.style.display = 'none'; });
+    if (els.settingsStepsSummary) els.settingsStepsSummary.style.display = 'none';
+    if (els.settingsStepsProgress) els.settingsStepsProgress.style.display = 'none';
+    if (els.ptOpenManual) els.ptOpenManual.style.display = 'none';
+    if (els.settingsDoneHint) els.settingsDoneHint.classList.add('hidden');
+    if (els.settingsActions) els.settingsActions.style.display = 'none';
+    if (els.judgeSettingsCard) els.judgeSettingsCard.classList.remove('hidden');
+    updateJudgePresetUI();
+}
+
+/* 通常版クリック音設定タブのコントロールを🔒+タップ案内でロック（v0.9.240 mod 8）。
    appendProLockIcon は2重付与を防ぐ内部チェックあり。renderClickSettingsView から毎回呼んでよい。 */
 function applyStandardClickSettingsLock() {
     if (!isStandardEdition()) return;
     if (els.clickRangeSeg) els.clickRangeSeg.querySelectorAll('[data-clickrange]').forEach((b) => lockProControlTap(b, 'proSettings'));
     if (els.clickBeatsSeg) els.clickBeatsSeg.querySelectorAll('[data-clickbeats]').forEach((b) => lockProControlTap(b, 'proSettings'));
     lockProControlTap(els.offbeatToggle, 'proSettings');
-    if (els.judgePresetSeg) els.judgePresetSeg.querySelectorAll('[data-judge]').forEach((b) => lockProControlTap(b, 'proSettings'));
     lockProControlTap(els.proSettingsResetBtn, 'proSettings');
     if (els.clickSettingsCard) els.clickSettingsCard.querySelectorAll('.stage-set-label').forEach(appendProLockIcon);
-    if (els.judgeSettingsCard) appendProLockIcon(els.judgeSettingsCard.querySelector('.cal-head'));
     appendProLockIcon(els.proSettingsResetBtn);
 }
 
@@ -24450,7 +24467,7 @@ function updateTapCurrentOffsetDisplay() {
 /* タブ切替（v0.9.95→v0.9.96）。中断確認は呼び出し側（guardMicSetupInterruption）で行う。
    マイク設定タブを押したら、詳細テスト途中のカードに残さず、必ずマイク設定TOP（chooser）へ戻す。 */
 function setSettingsTab(tab) {
-    const next = (tab === 'tap') ? 'tap' : (tab === 'click') ? 'click' : 'mic';
+    const next = (tab === 'tap') ? 'tap' : (tab === 'judge') ? 'judge' : (tab === 'click') ? 'click' : 'mic';
     if (next !== 'mic') stopIosNewBtVolumeTestOnLeave('leave-correction-flow');
     settingsTab = next;
     tapView = 'home'; // タブを切り替えたら必ずホームから
@@ -30971,6 +30988,7 @@ function bind() {
     // 設定タブ（v0.9.95）：切替時はマイク設定の未完了/テスト中なら確認ポップ
     if (els.settingsTabMic) els.settingsTabMic.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsTab('mic')));
     if (els.settingsTabTap) els.settingsTabTap.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsTab('tap')));
+    if (els.settingsTabJudge) els.settingsTabJudge.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsTab('judge')));
     if (els.settingsTabClick) els.settingsTabClick.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsTab('click')));
     // 画面タップ設定タブの各ボタン（v0.9.95→v0.9.97）
     if (els.tapOpenCal) els.tapOpenCal.addEventListener('click', openTapCorrection);
