@@ -7029,6 +7029,187 @@ body[data-rc-theme="clean-pro"] #screen-home header h1 {
     }
 }
 
+/* ── info.html / usage.html 共通のページ骨格（v0.13.5）。
+   shared/ には依存せず、このファイル内で完結させる。 */
+.rc-info-page {
+    min-height: 100vh;
+    overflow: auto;
+}
+
+.rc-info-page .app-container {
+    max-width: 640px;
+    min-height: 100vh;
+    justify-content: flex-start;
+    padding-top: max(32px, calc(env(safe-area-inset-top) + 24px));
+    padding-bottom: max(32px, calc(env(safe-area-inset-bottom) + 24px));
+}
+
+.rc-info-card {
+    width: 100%;
+    padding: 32px 24px;
+    border-radius: 20px;
+    border: 1px solid rgba(245, 239, 228, 0.14);
+    background: rgba(255, 255, 255, 0.035);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
+}
+
+.rc-info-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.rc-info-nav-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 38px;
+    padding: 0 14px;
+    font-size: 0.86rem;
+    text-decoration: none;
+}
+
+.rc-info-home-link {
+    width: 38px;
+    min-width: 38px;
+    padding: 0;
+    font-size: 1rem;
+}
+
+/* h1 の虹色グラデーション演出（本体アプリのタイトル向け）を、
+   インフォメーション/使い方ページの見出しでは打ち消して読みやすくする */
+.rc-info-title {
+    margin: 0 0 18px;
+    color: #f5efe4 !important;
+    font-size: 1.7rem;
+    line-height: 1.2;
+    letter-spacing: 0;
+    text-align: center;
+    text-transform: none;
+    background: none !important;
+    -webkit-background-clip: unset !important;
+    background-clip: unset !important;
+    -webkit-text-fill-color: unset !important;
+    animation: none !important;
+    filter: none !important;
+}
+
+.rc-info-lead {
+    margin: 0 0 22px;
+    color: rgba(253, 246, 238, 0.82);
+    font-size: 0.92rem;
+    line-height: 1.85;
+}
+
+.rc-info-section {
+    margin-top: 22px;
+}
+
+.rc-info-section h2 {
+    margin: 0 0 10px;
+    color: #dec27a;
+    font-size: 1.02rem;
+    line-height: 1.4;
+}
+
+.rc-info-section p,
+.rc-info-section li {
+    margin: 0;
+    color: rgba(253, 246, 238, 0.78);
+    font-size: 0.9rem;
+    line-height: 1.8;
+}
+
+.rc-info-section ol {
+    margin: 0;
+    padding-left: 1.25em;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* info.html: メニューカード（説明動画/使い方/利用規約/プライバシー） */
+.rc-info-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 4px;
+}
+
+.rc-info-link-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    padding: 16px 18px;
+    border-radius: 14px;
+    border: 1px solid rgba(245, 239, 228, 0.14);
+    background: rgba(255, 255, 255, 0.035);
+    color: rgba(253, 246, 238, 0.92);
+    text-decoration: none;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+@media (hover: hover) {
+    .rc-info-link-card:not(.rc-info-link-card--disabled):hover {
+        transform: translateY(-1px);
+        background: rgba(255, 255, 255, 0.07);
+        border-color: rgba(222, 194, 122, 0.32);
+    }
+}
+
+.rc-info-link-title {
+    font-size: 0.96rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+/* 説明動画ボタンの「準備中」表示（URL未確定のため遷移させない） */
+.rc-info-link-card--disabled {
+    cursor: not-allowed;
+    opacity: 0.56;
+}
+
+.rc-info-link-badge {
+    flex: none;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(245, 239, 228, 0.22);
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(253, 246, 238, 0.72);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+    .rc-info-card {
+        padding: 26px 18px;
+        border-radius: 16px;
+    }
+
+    .rc-info-title {
+        font-size: 1.45rem;
+    }
+
+    .rc-info-section p,
+    .rc-info-section li {
+        font-size: 0.86rem;
+    }
+
+    .rc-info-link-card {
+        padding: 14px 15px;
+    }
+
+    .rc-info-link-title {
+        font-size: 0.9rem;
+    }
+}
+
 /* ── v0.9.212: Clean Pro 全画面テーマ ───────────────────── */
 body[data-rc-theme="clean-pro"] {
     background:

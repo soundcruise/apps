@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>リズムクルーズ | インフォメーション</title>
+    <title>リズムクルーズ | 基本的な使い方</title>
     <link rel="stylesheet" href="./theme.css?v=0.13.5">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,43 +15,55 @@
     <div class="app-container">
         <main class="rc-info-card">
             <div class="rc-info-nav">
-                <a class="nav-btn rc-info-nav-link" href="./index.html" id="rc-info-back-link">← 戻る</a>
-                <a class="nav-btn rc-info-nav-link rc-info-home-link" href="./index.html" id="rc-info-home-link"
+                <a class="nav-btn rc-info-nav-link" href="./info.html" id="rc-usage-info-link">← インフォメーションへ戻る</a>
+                <a class="nav-btn rc-info-nav-link rc-info-home-link" href="./index.html" id="rc-usage-home-link"
                     aria-label="ホーム画面" title="ホーム画面">🏠</a>
             </div>
 
-            <h1 class="rc-info-title">インフォメーション</h1>
+            <h1 class="rc-info-title">基本的な使い方</h1>
 
-            <p class="rc-info-lead">リズムクルーズの説明動画や使い方、利用規約・プライバシーポリシーはこちらから確認できます。</p>
+            <p class="rc-info-lead">リズムクルーズは、アコギ弾き語りのリズム感を鍛えるための練習アプリです。画面タップ、またはマイクを使ったストロークで、リズムのズレを確認しながら練習できます。</p>
 
-            <div class="rc-info-menu">
-                <!-- TODO: 説明動画URLが決まったら、この <span> を
-                     <a href="動画URL" target="_blank" rel="noopener noreferrer"> に置き換え、
-                     rc-info-link-card--disabled クラス・aria-disabled 属性・下の「準備中」バッジを外す -->
-                <span class="rc-info-link-card rc-info-link-card--disabled" aria-disabled="true" id="rc-info-video-link">
-                    <span class="rc-info-link-title">説明動画を見る</span>
-                    <span class="rc-info-link-badge">準備中</span>
-                </span>
+            <div class="rc-info-section">
+                <h2>基本の流れ</h2>
+                <ol>
+                    <li>ホーム画面の「リズム練をする」からSTAGEを選びます。</li>
+                    <li>必要に応じて「リズムプレビューを表示」でパターンを確認します。</li>
+                    <li>タップモード、またはストロークモードで練習します。</li>
+                </ol>
+            </div>
 
-                <a class="rc-info-link-card" href="./usage.html" id="rc-info-usage-link">
-                    <span class="rc-info-link-title">基本的な使い方</span>
-                </a>
+            <div class="rc-info-section">
+                <h2>タップモードについて</h2>
+                <p>タップモードは、画面のボタンをタップしてリズムを取ります。練習画面の「マイク入力に切り替える」から、ストロークモードにいつでも切り替えられます。</p>
+            </div>
 
-                <a class="rc-info-link-card" href="./terms.html" id="terms-link">
-                    <span class="rc-info-link-title">利用規約</span>
-                </a>
+            <div class="rc-info-section">
+                <h2>ストロークモードについて</h2>
+                <p>ストロークモードは、マイクでギターのストローク音を検出して判定します。練習画面の「タップモードに切り替える」から、タップモードにいつでも切り替えられます。</p>
+            </div>
 
-                <a class="rc-info-link-card" href="./privacy.html" id="privacy-link">
-                    <span class="rc-info-link-title">プライバシーポリシー</span>
-                </a>
+            <div class="rc-info-section">
+                <h2>マイク設定について</h2>
+                <p>ストロークモードを使う場合は、先に「設定」→「マイク設定」の音ズレ補正テストを行っておくと、判定が安定しやすくなります。マイクの利用にはブラウザの許可が必要です。</p>
+            </div>
+
+            <div class="rc-info-section">
+                <h2>結果カードの見方</h2>
+                <p>練習が終わると、結果カードでGOOD（緑・ちょうど良いタイミング）／EARLY（青・少し早い）／LATE（赤・少し遅い）の内訳と平均ズレを確認できます。過去の結果は「過去の結果を見る」からいつでも見返せます。</p>
+            </div>
+
+            <div class="rc-info-section">
+                <h2>リズムを作る</h2>
+                <p>「リズムを作る」では、好きなリズムパターンを作って再生できます。気に入ったパターンは練習STAGEとして保存し、あとから呼び出して練習できます。</p>
             </div>
         </main>
     </div>
 
     <script>
         (function () {
-            var backLink = document.getElementById('rc-info-back-link');
-            var homeLink = document.getElementById('rc-info-home-link');
+            var homeLink = document.getElementById('rc-usage-home-link');
+            var infoLink = document.getElementById('rc-usage-info-link');
             var defaultHome = './index.html';
             var proHome = './pro_a9f4k7q2m8z/index.html';
             var editionHomeStorageKey = 'rhythmCruiseEditionHome';
@@ -105,23 +117,7 @@
             var homePath = resolveHomePath();
             var resolvedEdition = isProHomePath(homePath) ? 'pro' : 'standard';
             homeLink.href = homePath;
-            document.getElementById('rc-info-usage-link').href = './usage.html?edition=' + encodeURIComponent(resolvedEdition);
-            document.getElementById('terms-link').href = './terms.html?edition=' + encodeURIComponent(resolvedEdition);
-            document.getElementById('privacy-link').href = './privacy.html?edition=' + encodeURIComponent(resolvedEdition);
-
-            backLink.addEventListener('click', function (event) {
-                if (currentUrl.searchParams.get('from') === 'home') {
-                    event.preventDefault();
-                    window.location.href = homePath;
-                    return;
-                }
-                if (window.history.length > 1 && document.referrer) {
-                    event.preventDefault();
-                    window.history.back();
-                    return;
-                }
-                backLink.href = homePath;
-            });
+            infoLink.href = './info.html?from=home&edition=' + encodeURIComponent(resolvedEdition);
         }());
     </script>
 </body>
