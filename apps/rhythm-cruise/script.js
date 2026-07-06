@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.13.2';
+const RHYTHM_CRUISE_VERSION = '0.13.3';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -5480,6 +5480,7 @@ const PREVIEW_TICK_MS = 40;                 // スケジューラの呼び出し
 const PREVIEW_SUSTAIN_SEC = 0.5;            // 余韻（音感クルーズ acoustic_guitar の sustainTime=0.5 と同系統）
 const PREVIEW_NOTE_DURATION_SEC = 0.45;     // 1音の発音時間（プレビューは短めで十分）
 const PREVIEW_CHORD_FREQS = [130.81, 164.81, 196.00, 261.63]; // C3 E3 G3 C4（playChord('C',3) と同系統＋高C）
+const RHYTHM_PREVIEW_CLICK_VOLUME = 70;      // STAGEプレビュー専用。マイク設定の clickVolume には連動させない。
 
 /* 確認音バランス（プレビュー専用・v0.9.135）。-1（クリック大きめ）〜0（中央）〜+1（ストローク大きめ）。
    STAGE本体の state.clickVolume やクリック音量設定には一切影響しない。テスト画面に入るたび中央(0)スタート。 */
@@ -5654,7 +5655,7 @@ function schedulePreviewClick(when, accent) {
     const ctx = rhythmPreview.ctx;
     if (!ctx) return;
     if (!state.clickEnabled) return;
-    const vol = Math.max(0, Math.min(1, state.clickVolume / 100));
+    const vol = Math.max(0, Math.min(1, RHYTHM_PREVIEW_CLICK_VOLUME / 100));
     // 確認音バランスを掛け、割れ防止に上限0.98でクランプ（クリック強調が潰れすぎない安全範囲・v0.9.135）。
     const baseGain = (accent ? 0.72 : 0.58) * vol;
     const peak = rhythmPreviewNodeGain('click', baseGain);
