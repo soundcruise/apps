@@ -6998,6 +6998,37 @@ body[data-rc-theme="clean-pro"] #screen-home header h1 {
     }
 }
 
+/* ホーム: インフォメーションボタン（v0.13.4・指板クルーズ方式を踏襲。
+   色/枠/背景は既存 .nav-btn に委ね、ここでは丸型の形状のみ上書きする） */
+.rc-info-home-slot {
+    width: 100%;
+    display: flex;
+    justify-content: flex-start;
+}
+
+.rc-info-home-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05rem;
+    text-decoration: none;
+}
+
+@media (max-width: 420px) {
+    .rc-info-home-btn {
+        width: 42px;
+        height: 42px;
+        min-width: 42px;
+        min-height: 42px;
+        font-size: 1rem;
+    }
+}
+
 /* ── v0.9.212: Clean Pro 全画面テーマ ───────────────────── */
 body[data-rc-theme="clean-pro"] {
     background:
