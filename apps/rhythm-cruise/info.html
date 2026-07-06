@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>リズムクルーズ | インフォメーション</title>
-    <link rel="stylesheet" href="./theme.css?v=0.13.5">
+    <link rel="stylesheet" href="./theme.css?v=0.13.6">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -22,8 +22,6 @@
 
             <h1 class="rc-info-title">インフォメーション</h1>
 
-            <p class="rc-info-lead">リズムクルーズの説明動画や使い方、利用規約・プライバシーポリシーはこちらから確認できます。</p>
-
             <div class="rc-info-menu">
                 <!-- TODO: 説明動画URLが決まったら、この <span> を
                      <a href="動画URL" target="_blank" rel="noopener noreferrer"> に置き換え、
@@ -32,19 +30,17 @@
                     <span class="rc-info-link-title">説明動画を見る</span>
                     <span class="rc-info-link-badge">準備中</span>
                 </span>
-
-                <a class="rc-info-link-card" href="./usage.html" id="rc-info-usage-link">
-                    <span class="rc-info-link-title">基本的な使い方</span>
-                </a>
-
-                <a class="rc-info-link-card" href="./terms.html" id="terms-link">
-                    <span class="rc-info-link-title">利用規約</span>
-                </a>
-
-                <a class="rc-info-link-card" href="./privacy.html" id="privacy-link">
-                    <span class="rc-info-link-title">プライバシーポリシー</span>
-                </a>
             </div>
+
+            <div class="rc-info-usage-row">
+                <a class="rc-info-simple-link" href="./usage.html" id="rc-info-usage-link">基本的な使い方</a>
+            </div>
+
+            <nav class="rc-info-footer-links" aria-label="法務・お問い合わせ">
+                <a href="./terms.html" id="terms-link">利用規約</a>
+                <a href="./privacy.html" id="privacy-link">プライバシーポリシー</a>
+                <a href="mailto:soundcruise.inc@gmail.com">お問い合わせ</a>
+            </nav>
         </main>
     </div>
 

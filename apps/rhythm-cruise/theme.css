@@ -7186,6 +7186,51 @@ body[data-rc-theme="clean-pro"] #screen-home header h1 {
     white-space: nowrap;
 }
 
+/* info.html: 「基本的な使い方」は、カードではなく軽いテキストリンクにする（v0.13.6・指板クルーズの雰囲気を踏襲） */
+.rc-info-usage-row {
+    margin-top: 22px;
+    text-align: center;
+}
+
+.rc-info-simple-link {
+    display: inline-block;
+    padding: 12px 10px;
+    color: #dec27a;
+    font-size: 0.96rem;
+    font-weight: 700;
+    line-height: 1.3;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.rc-info-simple-link:hover {
+    color: #f0d79a;
+}
+
+/* info.html / terms.html / privacy.html 共通の法務フッター（v0.13.6・指板クルーズの見た目に統一） */
+.rc-info-footer-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 14px;
+    margin-top: 26px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(245, 239, 228, 0.12);
+    font-size: 0.72rem;
+    line-height: 1.5;
+}
+
+.rc-info-footer-links a {
+    color: rgba(253, 246, 238, 0.58);
+    text-decoration: none;
+    text-underline-offset: 3px;
+}
+
+.rc-info-footer-links a:hover {
+    color: rgba(253, 246, 238, 0.85);
+    text-decoration: underline;
+}
+
 @media (max-width: 480px) {
     .rc-info-card {
         padding: 26px 18px;
