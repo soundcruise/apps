@@ -407,3 +407,29 @@ A4紙面のコード段の直下にストローク段を表示する（v0.9.0）
 **理由**: 直接編集感は紙面上に重ねる編集レイヤーで実現しつつ、紙面DOMを印刷物として
 きれいに保つため。S1bを「選択と空の器」だけに限定することで、S1c/S1d/S1e/R2の
 入力機能を安全に足せる土台を作る。
+
+---
+
+## ADR-020: overlayの歌詞・ドレミ入力は既存モデル関数を再利用する（S1c）
+
+- 日付: 2026-07-08 / 状態: 採用
+
+**決定**: S1cでは `.slot-overlay` の `lyrics / doremi` 行だけに入力欄を置き、
+保存先は新フィールドを増やさず既存の `setBarLyricsText()` / `setBarDoremiText()` を
+そのまま使う。`chord / strum` 行は行定義を残しつつ、入力機能は後続フェーズに送る。
+
+1. **保存構造は据え置き**: 歌詞は既存 `bar.lyrics`、ドレミは既存 `bar.melody`
+   へ正規化して保存する。overlay専用の文字列フィールドは持たず、`schemaVersion` は1のまま。
+2. **紙面DOMは表示専用**: `.sheet-page` / `.sheet-bar` に `input` / `contenteditable`
+   は入れない。入力欄は `.slot-overlay` 内だけに置き、紙面本体は印刷物として保つ。
+3. **既存UI共存**: overlay入力後もカード型のコード/歌詞/ドレミ入力UI、基本ストローク入力、
+   表示トグルは残す。overlayからの更新は既存カード側の値にも同期する。
+4. **IME/キー操作**: overlay入力欄内の `click` / `mousedown` / `keydown` は小節選択側へ
+   伝播させない。`compositionstart` / `compositionend` と `isComposing` を見て、
+   日本語入力中のEnter確定が小節選択ショートカットと競合しないようにする。
+5. **印刷分離**: 入力欄は `.slot-overlay` 配下に閉じるため、print.css の
+   `.slot-overlay { display: none !important; }` により印刷/PDFには出ない。
+
+**理由**: S1cの目的は、既存の保存・表示・JSON経路を崩さず、紙面上で歌詞とドレミを
+直接編集できる入口を作ること。既存モデル関数を再利用すると、保存/復元/JSON/プレDTMへの
+影響を最小にしたまま直接編集感だけを追加できる。

@@ -1,4 +1,4 @@
-/* クルーズスタジオ — sheet-cruise.js（Phase 2B）
+/* クルーズスタジオ — sheet-cruise.js（Phase 2B / S1c）
    譜面クルーズ画面: プロジェクト選択・曲情報フォーム・キー関係チェック・
    セクション管理・小節グリッド（1小節1コード入力）・簡易プレビュー・保存。
    歌詞・ドレミ入力とA4紙面プレビューは Phase 2C / Phase 3。
@@ -25,7 +25,9 @@
         project: null,   // 編集中の StudioProject
         dirty: false,    // 未保存の変更があるか（TOP復帰時の中断確認に使う）
         selectedBarNumber: null,
-        overlayFrame: null
+        overlayFrame: null,
+        overlayComposingRowId: null,
+        overlayWarnings: {}
     };
 
     var els = {};
@@ -462,7 +464,7 @@
         positionSlotOverlay();
     }
 
-    /* ══════════ S1b: A4紙面上の小節選択と空の編集overlay土台 ══════════ */
+    /* ══════════ S1b/S1c: A4紙面上の小節選択と編集overlay ══════════ */
 
     function getSheetBarByNumber(barNumber) {
         if (!els.scaleBox || !barNumber) return null;
@@ -474,6 +476,138 @@
         return state.project.bars.filter(function (bar) {
             return bar.barNumber === state.selectedBarNumber;
         })[0] || null;
+    }
+
+    function getOverlayFieldValue(rowId, bar) {
+        if (rowId === 'lyrics') return CS().model.getBarLyricsText(bar);
+        if (rowId === 'doremi') return CS().model.getBarDoremiText(bar);
+        return '';
+    }
+
+    function getOverlayPlaceholder(rowId) {
+        if (rowId === 'lyrics') return '歌詞を入力';
+        if (rowId === 'doremi') return 'ドレミを入力';
+        return '';
+    }
+
+    function buildOverlayPending(rowDef) {
+        var note = document.createElement('span');
+        note.className = 'slot-overlay-row-note';
+        note.textContent = '後続フェーズ';
+        note.setAttribute('aria-hidden', 'true');
+        return note;
+    }
+
+    function captureOverlayFocus(rowId, input) {
+        var active = document.activeElement;
+        if (!input || active !== input) return null;
+        return {
+            rowId: rowId,
+            value: input.value,
+            selectionStart: typeof input.selectionStart === 'number' ? input.selectionStart : null,
+            selectionEnd: typeof input.selectionEnd === 'number' ? input.selectionEnd : null
+        };
+    }
+
+    function restoreOverlayFocus(snapshot) {
+        if (!snapshot || !els.slotOverlay) return;
+        var field = els.slotOverlay.querySelector('[data-overlay-field="' + snapshot.rowId + '"]');
+        if (!field) return;
+        field.focus({ preventScroll: true });
+        if (field.value !== snapshot.value) field.value = snapshot.value;
+        if (snapshot.selectionStart !== null && snapshot.selectionEnd !== null) {
+            try {
+                field.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
+            } catch (_) {
+                // テキスト入力以外に拡張された場合の保険。
+            }
+        }
+    }
+
+    function restoreOverlayFocusAfterRender(snapshot) {
+        restoreOverlayFocus(snapshot);
+        window.requestAnimationFrame(function () {
+            restoreOverlayFocus(snapshot);
+        });
+    }
+
+    function syncBarGridInput(rowId, barNumber, value, warnings) {
+        var className = rowId === 'lyrics' ? 'bar-lyrics-input' : 'bar-doremi-input';
+        var input = els.barGrid && els.barGrid.querySelector(
+            '.' + className + '[aria-label="' + barNumber + '小節目の' +
+            (rowId === 'lyrics' ? '歌詞' : 'ドレミ') + '"]'
+        );
+        if (!input) return;
+        input.value = value;
+        if (rowId === 'doremi') {
+            input.classList.toggle('is-invalid', !!(warnings && warnings.length));
+            input.title = (warnings || []).join(' / ');
+        }
+    }
+
+    function applyOverlayFieldChange(rowId, input, options) {
+        var bar = getSelectedBar();
+        if (!bar || !input) return;
+        var isComposing = options && options.composing;
+        var warnings = [];
+
+        if (rowId === 'lyrics') {
+            CS().model.setBarLyricsText(state.project, bar.barNumber, input.value);
+            state.overlayWarnings[rowId] = [];
+        } else if (rowId === 'doremi') {
+            warnings = CS().model.setBarDoremiText(state.project, bar.barNumber, input.value).warnings;
+            state.overlayWarnings[rowId] = warnings;
+            input.classList.toggle('is-invalid', warnings.length > 0);
+            input.title = warnings.join(' / ');
+        } else {
+            return;
+        }
+
+        markDirty();
+        syncBarGridInput(rowId, bar.barNumber, input.value, warnings);
+        if (isComposing) return;
+
+        var snapshot = captureOverlayFocus(rowId, input);
+        renderPreview();
+        restoreOverlayFocusAfterRender(snapshot);
+    }
+
+    function buildOverlayInput(rowDef, bar) {
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'slot-overlay-input';
+        input.placeholder = getOverlayPlaceholder(rowDef.id);
+        input.value = getOverlayFieldValue(rowDef.id, bar);
+        input.dataset.overlayField = rowDef.id;
+        input.setAttribute('aria-label', bar.barNumber + '小節目の' + rowDef.label);
+        if (rowDef.id === 'doremi') {
+            var warnings = state.overlayWarnings[rowDef.id] || [];
+            input.classList.toggle('is-invalid', warnings.length > 0);
+            input.title = warnings.join(' / ');
+        }
+
+        input.addEventListener('compositionstart', function () {
+            state.overlayComposingRowId = rowDef.id;
+        });
+        input.addEventListener('compositionend', function () {
+            state.overlayComposingRowId = null;
+            applyOverlayFieldChange(rowDef.id, input);
+        });
+        input.addEventListener('input', function (event) {
+            applyOverlayFieldChange(rowDef.id, input, {
+                composing: !!(event.isComposing || state.overlayComposingRowId === rowDef.id)
+            });
+        });
+        input.addEventListener('keydown', function (event) {
+            event.stopPropagation();
+        });
+        input.addEventListener('click', function (event) {
+            event.stopPropagation();
+        });
+        input.addEventListener('mousedown', function (event) {
+            event.stopPropagation();
+        });
+        return input;
     }
 
     function renderSlotOverlayContent() {
@@ -509,9 +643,13 @@
             rowLabel.className = 'slot-overlay-row-label';
             rowLabel.textContent = rowDef.label;
 
-            var rowBody = document.createElement('span');
+            var rowBody = document.createElement('div');
             rowBody.className = 'slot-overlay-row-body';
-            rowBody.setAttribute('aria-hidden', 'true');
+            if (rowDef.id === 'lyrics' || rowDef.id === 'doremi') {
+                rowBody.appendChild(buildOverlayInput(rowDef, bar));
+            } else {
+                rowBody.appendChild(buildOverlayPending(rowDef));
+            }
 
             row.appendChild(rowLabel);
             row.appendChild(rowBody);

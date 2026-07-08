@@ -1,4 +1,4 @@
-/* クルーズスタジオ theme.css — v0.10.0
+/* クルーズスタジオ theme.css — v0.11.0
    リズムクルーズの DESIGN_SYSTEM.md（Clean Pro系）の考え方を継承しつつ、
    PCファーストに読み替えたテーマ。shared/style.css には依存しない（ADR-005）。
    class名・DOMはクルーズスタジオ用に新規設計している。 */
@@ -1063,8 +1063,8 @@ body {
     text-align: center;
 }
 
-/* S1b: 紙面上の小節選択に重ねる空の編集overlay土台。
-   入力欄はS1c以降でこの行定義DOMへ追加する。 */
+/* S1b/S1c: 紙面上の小節選択に重ねる編集overlay。
+   S1cでは lyrics / doremi のみ実入力欄を有効化する。 */
 .slot-overlay {
     position: absolute;
     z-index: 5;
@@ -1077,7 +1077,7 @@ body {
     background: rgba(253, 251, 245, 0.84);
     box-shadow: 0 8px 22px rgba(42, 38, 32, 0.16), inset 0 0 0 1px rgba(255, 255, 255, 0.65);
     color: #2a2620;
-    pointer-events: none;
+    pointer-events: auto;
 }
 
 .slot-overlay-head {
@@ -1124,10 +1124,48 @@ body {
 }
 
 .slot-overlay-row-body {
-    min-height: 10px;
-    border-radius: 999px;
+    min-height: 20px;
+    border-radius: 6px;
     border: 1px dashed rgba(122, 116, 108, 0.24);
     background: rgba(255, 255, 255, 0.34);
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+}
+
+.slot-overlay-input {
+    width: 100%;
+    min-width: 0;
+    padding: 2px 6px;
+    border: none;
+    background: rgba(255, 255, 255, 0.9);
+    color: #2a2620;
+    font-family: inherit;
+    font-size: 10.5px;
+    line-height: 1.45;
+}
+
+.slot-overlay-input::placeholder {
+    color: rgba(42, 38, 32, 0.38);
+}
+
+.slot-overlay-input:focus {
+    outline: none;
+    box-shadow: inset 0 0 0 1px rgba(255, 159, 28, 0.58);
+}
+
+.slot-overlay-input.is-invalid {
+    background: rgba(255, 79, 110, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(255, 79, 110, 0.36);
+}
+
+.slot-overlay-row-note {
+    width: 100%;
+    padding: 2px 6px;
+    font-size: 9px;
+    font-weight: 700;
+    color: rgba(42, 38, 32, 0.44);
+    letter-spacing: 0.02em;
 }
 
 /* ══════════ フッター ══════════ */

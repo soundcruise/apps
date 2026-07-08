@@ -1,4 +1,4 @@
-/* クルーズスタジオ — sheet-renderer.js（v0.10.0）
+/* クルーズスタジオ — sheet-renderer.js（v0.11.0）
    StudioProject → A4固定紙面DOM のレンダラー（ADR-016）。
    「譜面は曲データのビュー」（APP_CONCEPT.md 4章）の紙面実装。
 

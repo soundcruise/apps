@@ -13,14 +13,16 @@
 ## 1. 現在の最新状態
 
 - 最新push済みcommit:
-  - full hash: `8285f2d9c17b50a905a55ec113de376891653096`
-  - short hash: `8285f2d`
-  - commit message: `クルーズスタジオのAI引き継ぎドキュメントを追加`
-  - 内容: `v0.9.0 / R1` とAI引き継ぎドキュメントまでリモート反映済み
-- R1: 基本ストローク入力・ストローク段表示
-  - 実装・検証・commit・push済み。
-  - 未commitのR1差分はない。
-  - `main` と `origin/main` は同期済み。
+  - full hash: `847eccce8692aebe8f73980bbce4b04103dcf6b7`
+  - short hash: `847eccc`
+  - commit message: `補正テスト動画リンクの時間表記を追加`
+  - 内容: リポジトリ全体の最新push。クルーズスタジオ側の最新push済み機能は `v0.10.0 / S1b`
+- クルーズスタジオの最新push済みcommit:
+  - full hash: `fdb83837d2f144c5b37fb2839cbe853a39bf0ede`
+  - short hash: `fdb8383`
+  - commit message: `譜面クルーズに小節選択と編集レイヤー土台を追加`
+  - 内容: `v0.10.0 / S1b` までリモート反映済み
+- `main` と `origin/main` は同期済み。
 - `apps/rhythm-cruise/rhythm-cruise-icon-proposal.png` と
   `apps/rhythm-cruise/rhythm-cruise-icon-proposal.svg` は未追跡のまま触らない。
 - 状態管理ドキュメント commit 後は、未追跡として残る想定は rhythm-cruise のアイコン案2件のみ。
@@ -96,23 +98,32 @@
   - プレDTM読み込み
   - MIDI書き出し
   - `schemaVersion` は1のまま
+- `v0.10.0 / S1b`: 本番側に小節クリック選択 + 空の編集レイヤー土台
+  - `.sheet-bar` へ `data-bar-number` 付与
+  - A4紙面上で小節クリック選択
+  - 選択ハイライト
+  - `.slot-overlay` の位置追従
+  - `chord / strum / lyrics / doremi` 行定義DOM
+  - overlayは印刷除外
+  - 選択状態は保存しない一時UI状態
 
 ## 5. 現在作業中のフェーズ
 
-### S1b: 本番側に小節クリック選択 + 空の編集レイヤー土台
+### S1c: 歌詞・ドレミ入力を本番overlayへ移植
 
-- 予定バージョン: `v0.10.0`
+- 予定バージョン: `v0.11.0`
 - 実装・検証済み。
 - commit / push はまだ未実施。
 - 主な内容:
-  - A4紙面上の各 `.sheet-bar` をクリック選択できる。
-  - 選択中小節に自然なハイライトを付ける。
-  - 選択中小節に `.slot-overlay` を重ねる。
-  - overlayは小節クリック、紙面再描画、表示設定変更、window resize、スケール変更に追従する。
-  - overlayは `chord / strum / lyrics / doremi` の行定義配列から空行DOMを生成する。
-  - overlayは印刷/PDFに出さない。
-  - 選択状態は保存データに入れない一時UI状態。
-- S1bでは歌詞・ドレミ・コード・ストロークの実入力機能はまだ入れない。
+  - 選択中小節overlayに `lyrics` 入力欄を追加。
+  - 選択中小節overlayに `doremi` 入力欄を追加。
+  - 既存 `bar.lyrics` / `bar.melody` 構造へそのまま反映。
+  - A4紙面を即時更新。
+  - 既存カード型入力UIとも同期する。
+  - IME入力中のキー操作が小節選択と競合しないように分離。
+  - overlayは引き続き印刷/PDFに出さない。
+  - 選択状態や編集中UI状態は保存データに入れない。
+- `S1e`: コード入力のoverlay統合は後続フェーズ。
 - `R2`: 小節別ストローク上書きUIは後続フェーズ。
 
 ### R1の記号ルール
@@ -138,15 +149,14 @@
 
 ## 6. 次にやること
 
-1. S1b commit
-2. S1b push
-3. S1c: 歌詞・ドレミ入力を本番overlayへ移植
-4. S1d: まとめて入力・Alt移動
-5. S1e: コード入力をoverlayへ統合
-6. R2: ストローク行を編集レイヤーに追加、小節別 `strumOverride` UI
-7. R3: VexFlow等によるコード+リズム譜の記譜表示
-8. メロディ五線譜
-9. MusicXML / PDF品質向上
+1. S1c commit
+2. S1c push
+3. S1d: まとめて入力・Alt移動
+4. S1e: コード入力をoverlayへ統合
+5. R2: ストローク行を編集レイヤーに追加、小節別 `strumOverride` UI
+6. R3: VexFlow等によるコード+リズム譜の記譜表示
+7. メロディ五線譜
+8. MusicXML / PDF品質向上
 
 ## 7. 重要な設計方針
 
@@ -184,7 +194,8 @@
 - 8分ストローク時にグリッドが16分になることがある可能性。
 - 正しい休符マーク・タイ曲線は未実装。
 - 小節ごとのストローク上書きUIは未実装。
-- S1b overlayはまだ空で、歌詞・ドレミ・コード・ストロークの入力機能は未実装。
+- overlayのコード入力は未実装。
+- overlayのストローク入力 / 小節別 `strumOverride` は未実装。
 - S0プロトタイプは本番に未統合。
 - メロディ五線譜は未実装。
 - コード+リズム譜の五線譜化は未実装。
