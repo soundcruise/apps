@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>指板クルーズ 開発概要</title>
+    <style>
+        :root {
+            --ov-bg: #071018;
+            --ov-surface: rgba(255, 255, 255, 0.045);
+            --ov-border: rgba(210, 230, 235, 0.14);
+            --ov-text: #eaf3f5;
+            --ov-muted: rgba(234, 243, 245, 0.72);
+            --ov-accent: #36d3bf;
+            --ov-accent-strong: #7ee8d8;
+            --ov-gold: #ffd65e;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+            background:
+                radial-gradient(120% 80% at 50% -10%, rgba(54, 211, 191, 0.10), transparent 60%),
+                linear-gradient(150deg, #04090e, #071018 54%, #04090e);
+            color: var(--ov-text);
+            line-height: 1.7;
+        }
+
+        .ov-wrap {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 40px 20px 64px;
+        }
+
+        .ov-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .ov-header h1 {
+            margin: 0 0 10px;
+            font-size: clamp(1.5rem, 5vw, 2.1rem);
+            font-weight: 800;
+            background: linear-gradient(90deg, var(--ov-gold), var(--ov-accent-strong), var(--ov-gold));
+            background-size: 180% 180%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .ov-header p {
+            margin: 0;
+            color: var(--ov-muted);
+            font-size: 0.95rem;
+        }
+
+        .ov-meta {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .ov-meta span {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 14px;
+            border-radius: 999px;
+            border: 1px solid var(--ov-border);
+            background: var(--ov-surface);
+            font-size: 0.78rem;
+            color: var(--ov-muted);
+        }
+
+        .ov-meta b {
+            color: var(--ov-accent-strong);
+            margin-left: 6px;
+        }
+
+        section {
+            margin-top: 36px;
+        }
+
+        h2 {
+            margin: 0 0 16px;
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: var(--ov-accent-strong);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        h2 .num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border-radius: 8px;
+            background: rgba(54, 211, 191, 0.14);
+            color: var(--ov-accent-strong);
+            font-size: 0.85rem;
+        }
+
+        .ov-card {
+            padding: 20px 22px;
+            border-radius: 16px;
+            border: 1px solid var(--ov-border);
+            background: var(--ov-surface);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.32);
+        }
+
+        .ov-card p {
+            margin: 0 0 10px;
+            color: var(--ov-muted);
+            font-size: 0.94rem;
+        }
+
+        .ov-card p:last-child {
+            margin-bottom: 0;
+        }
+
+        .ov-card ul,
+        .ov-card ol {
+            margin: 0;
+            padding-left: 1.3em;
+            color: var(--ov-muted);
+            font-size: 0.92rem;
+        }
+
+        .ov-card li {
+            margin-bottom: 6px;
+        }
+
+        .ov-feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 14px;
+        }
+
+        .ov-feature-card {
+            padding: 18px;
+            border-radius: 14px;
+            border: 1px solid var(--ov-border);
+            background: var(--ov-surface);
+        }
+
+        .ov-feature-card .icon {
+            font-size: 1.5rem;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .ov-feature-card h3 {
+            margin: 0 0 6px;
+            font-size: 1rem;
+            color: var(--ov-text);
+        }
+
+        .ov-feature-card p {
+            margin: 0;
+            font-size: 0.86rem;
+            color: var(--ov-muted);
+        }
+
+        .ov-two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        @media (max-width: 640px) {
+            .ov-two-col {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .ov-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .ov-badge--standard {
+            background: rgba(77, 150, 255, 0.16);
+            color: #8fc0ff;
+            border: 1px solid rgba(77, 150, 255, 0.32);
+        }
+
+        .ov-badge--pro {
+            background: linear-gradient(135deg, rgba(255, 214, 94, 0.22), rgba(255, 242, 186, 0.16));
+            color: #ffe38a;
+            border: 1px solid rgba(255, 214, 94, 0.38);
+        }
+
+        .ov-warn-box {
+            padding: 16px 18px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 214, 94, 0.34);
+            background: rgba(255, 214, 94, 0.07);
+        }
+
+        .ov-warn-box p {
+            margin: 0;
+            color: rgba(234, 243, 245, 0.86);
+            font-size: 0.9rem;
+        }
+
+        code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            background: rgba(255, 255, 255, 0.08);
+            padding: 1px 6px;
+            border-radius: 5px;
+            font-size: 0.86em;
+            color: var(--ov-gold);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.86rem;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--ov-border);
+            color: var(--ov-muted);
+        }
+
+        th {
+            color: var(--ov-text);
+            font-weight: 700;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .ov-footer {
+            margin-top: 48px;
+            padding-top: 20px;
+            border-top: 1px solid var(--ov-border);
+            text-align: center;
+            color: rgba(234, 243, 245, 0.5);
+            font-size: 0.8rem;
+        }
+
+        @media (max-width: 480px) {
+            .ov-wrap {
+                padding: 28px 16px 48px;
+            }
+
+            .ov-card {
+                padding: 16px 16px;
+                border-radius: 14px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="ov-wrap">
+        <header class="ov-header">
+            <h1>指板クルーズ 開発概要</h1>
+            <p>ギターの指板・音名理解を鍛える学習アプリの、現在地・主要機能・注意点まとめ</p>
+            <div class="ov-meta">
+                <span>現在のバージョン<b>2.8.3</b></span>
+                <span>最新commit<b>a75bf6dc</b></span>
+                <span>最終更新日<b>2026年7月8日</b></span>
+            </div>
+        </header>
+
+        <section>
+            <h2><span class="num">1</span>アプリの目的</h2>
+            <div class="ov-card">
+                <p>指板クルーズは、ギターの指板上の音名・位置関係を身につけるための学習アプリです。「指板をたどる」「指板クイズ」「指板を見る」など複数の切り口で、段階的に指板理解を深められます。</p>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">2</span>主要機能</h2>
+            <div class="ov-feature-grid">
+                <div class="ov-feature-card">
+                    <span class="icon">🛳️</span>
+                    <h3>指板をたどる</h3>
+                    <p>STAGEに沿って指板の位置関係を覚えていく暗記モード。</p>
+                </div>
+                <div class="ov-feature-card">
+                    <span class="icon">🎯</span>
+                    <h3>指板クイズ</h3>
+                    <p>覚えた内容をクイズ形式で確認。</p>
+                </div>
+                <div class="ov-feature-card">
+                    <span class="icon">🧭</span>
+                    <h3>指板を見る</h3>
+                    <p>指板全体をビジュアライズして確認できるモード。</p>
+                </div>
+                <div class="ov-feature-card">
+                    <span class="icon">🔰</span>
+                    <h3>基本ルール</h3>
+                    <p>指板の基本ルールをステップ形式で解説。</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">3</span>通常版 / PRO版</h2>
+            <div class="ov-two-col">
+                <div class="ov-card">
+                    <span class="ov-badge ov-badge--standard">通常版</span>
+                    <p>固定STAGEでの暗記モード・クイズモード、指板ビジュアライズ、基本ルール、STAGE編集の体験（保存はできません）が利用できます。</p>
+                </div>
+                <div class="ov-card">
+                    <span class="ov-badge ov-badge--pro">PRO版</span>
+                    <p>専用URLとパスワード認証で保護されています。STAGE編集内容の保存、PROカスタムSTAGEの作成・編集・保存・呼び出しができます。</p>
+                    <p>PRO認証は音感クルーズと一部連携しています（共有のログイン状態管理）。</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">4</span>重要な注意点</h2>
+            <div class="ov-card">
+                <ul>
+                    <li>通常版・PRO版とも、共通の<code>script.js</code>・<code>theme.css</code>を使用しています。</li>
+                    <li>共通基盤（<code>shared/</code>）にも依存しているため、共通ファイルの変更は音感クルーズにも影響します。</li>
+                    <li>実機での細かい判定不具合の修正履歴が多く、指板描画・判定ロジックは慎重に扱う方針です。</li>
+                </ul>
+                <div class="ov-warn-box" style="margin-top: 14px;">
+                    <p><b>要確認事項:</b> レフティ（左利き）対応の有無、詳細な設定項目一覧については、今回のドキュメント調査では明確に確認できていません。</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">5</span>GitHub Pages 反映トラブル時の対応</h2>
+            <div class="ov-card">
+                <p>コードをpushしても、まれにGitHub Pages側のデプロイが失敗し、本番が古いままになることがあります（コード自体の問題ではありません）。</p>
+                <p>その場合は、GitHub Pagesの再ビルドを1回実行することで復旧できることが確認されています。空コミットや再実装で無理に直そうとしないことが重要です。</p>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">6</span>今後の更新ルール</h2>
+            <div class="ov-card">
+                <ol>
+                    <li>指板クルーズを修正するたびに、開発者向け詳細資料（<code>apps/fretboard_cruise/ai-handoff/FRETBOARD_CRUISE_OVERVIEW.md</code>）を必要に応じて更新します。</li>
+                    <li>ユーザーに見える変更を行った場合は、このページ（<code>apps/fretboard_cruise/ai-handoff/fretboard-cruise-overview.html</code>）も必要に応じて更新します。</li>
+                    <li>更新が不要と判断した場合は、その理由を作業報告に明記します。</li>
+                </ol>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">7</span>主要commit履歴（新しい順）</h2>
+            <div class="ov-card">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>commit</th>
+                            <th>内容</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>a75bf6dc</code></td><td>通常版の設定を公式デフォルトに固定</td></tr>
+                        <tr><td><code>c73fa3ab</code></td><td>STAGE1の保存ルートを正規化</td></tr>
+                        <tr><td><code>b819ec85</code></td><td>PROカスタムSTAGE操作UIを整理</td></tr>
+                        <tr><td><code>6acd1ce0</code></td><td>不要な検証用読み込み分岐を削除</td></tr>
+                        <tr><td><code>ff9d4d93</code></td><td>法務ページにホーム導線を追加</td></tr>
+                        <tr><td><code>b28038b0</code></td><td>Proの不要公開導線を整理</td></tr>
+                        <tr><td><code>7d507d40</code></td><td>InfoにPro版入手導線を追加</td></tr>
+                        <tr><td><code>beb5bef6</code></td><td>同時タップ判定と救済Perfect表示を改善</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <div class="ov-footer">
+            指板クルーズ開発概要 ／ 最終更新日: 2026年7月8日 ／ 最新commit: a75bf6dc<br>
+            詳細な開発者向け資料は <code>apps/fretboard_cruise/ai-handoff/FRETBOARD_CRUISE_OVERVIEW.md</code> を参照してください。
+        </div>
+    </div>
+</body>
+
+</html>

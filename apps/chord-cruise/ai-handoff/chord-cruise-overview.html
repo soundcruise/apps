@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>コードクルーズ 開発概要</title>
+    <style>
+        :root {
+            --ov-bg: #14110c;
+            --ov-surface: rgba(255, 255, 255, 0.04);
+            --ov-border: rgba(232, 220, 196, 0.14);
+            --ov-text: #f3ede1;
+            --ov-muted: rgba(243, 237, 225, 0.72);
+            --ov-accent: #c9a24a;
+            --ov-accent-strong: #e6c477;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+            background:
+                radial-gradient(120% 80% at 50% -10%, rgba(201, 162, 74, 0.10), transparent 60%),
+                linear-gradient(150deg, #100d09, #14110c 54%, #100d09);
+            color: var(--ov-text);
+            line-height: 1.7;
+        }
+
+        .ov-wrap {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 40px 20px 64px;
+        }
+
+        .ov-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .ov-header h1 {
+            margin: 0 0 10px;
+            font-size: clamp(1.5rem, 5vw, 2.1rem);
+            font-weight: 800;
+            color: var(--ov-accent-strong);
+        }
+
+        .ov-header p {
+            margin: 0;
+            color: var(--ov-muted);
+            font-size: 0.95rem;
+        }
+
+        .ov-meta {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .ov-meta span {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 14px;
+            border-radius: 999px;
+            border: 1px solid var(--ov-border);
+            background: var(--ov-surface);
+            font-size: 0.78rem;
+            color: var(--ov-muted);
+        }
+
+        .ov-meta b {
+            color: var(--ov-accent-strong);
+            margin-left: 6px;
+        }
+
+        section {
+            margin-top: 36px;
+        }
+
+        h2 {
+            margin: 0 0 16px;
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: var(--ov-accent-strong);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        h2 .num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border-radius: 8px;
+            background: rgba(201, 162, 74, 0.14);
+            color: var(--ov-accent-strong);
+            font-size: 0.85rem;
+        }
+
+        .ov-card {
+            padding: 20px 22px;
+            border-radius: 16px;
+            border: 1px solid var(--ov-border);
+            background: var(--ov-surface);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+        }
+
+        .ov-card p {
+            margin: 0 0 10px;
+            color: var(--ov-muted);
+            font-size: 0.94rem;
+        }
+
+        .ov-card p:last-child {
+            margin-bottom: 0;
+        }
+
+        .ov-card ul,
+        .ov-card ol {
+            margin: 0;
+            padding-left: 1.3em;
+            color: var(--ov-muted);
+            font-size: 0.92rem;
+        }
+
+        .ov-card li {
+            margin-bottom: 6px;
+        }
+
+        .ov-feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 14px;
+        }
+
+        .ov-feature-card {
+            padding: 18px;
+            border-radius: 14px;
+            border: 1px solid var(--ov-border);
+            background: var(--ov-surface);
+        }
+
+        .ov-feature-card .icon {
+            font-size: 1.5rem;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .ov-feature-card h3 {
+            margin: 0 0 6px;
+            font-size: 1rem;
+            color: var(--ov-text);
+        }
+
+        .ov-feature-card p {
+            margin: 0;
+            font-size: 0.86rem;
+            color: var(--ov-muted);
+        }
+
+        .ov-warn-box {
+            padding: 16px 18px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 159, 28, 0.34);
+            background: rgba(255, 159, 28, 0.08);
+        }
+
+        .ov-warn-box p {
+            margin: 0;
+            color: rgba(243, 237, 225, 0.86);
+            font-size: 0.9rem;
+        }
+
+        code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            background: rgba(255, 255, 255, 0.08);
+            padding: 1px 6px;
+            border-radius: 5px;
+            font-size: 0.86em;
+            color: var(--ov-accent-strong);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.86rem;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--ov-border);
+            color: var(--ov-muted);
+        }
+
+        th {
+            color: var(--ov-text);
+            font-weight: 700;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .ov-footer {
+            margin-top: 48px;
+            padding-top: 20px;
+            border-top: 1px solid var(--ov-border);
+            text-align: center;
+            color: rgba(243, 237, 225, 0.5);
+            font-size: 0.8rem;
+        }
+
+        @media (max-width: 480px) {
+            .ov-wrap {
+                padding: 28px 16px 48px;
+            }
+
+            .ov-card {
+                padding: 16px 16px;
+                border-radius: 14px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="ov-wrap">
+        <header class="ov-header">
+            <h1>コードクルーズ 開発概要</h1>
+            <p>キーから探して、指板で確かめて、自分のコード本棚へ ── 開発中のコード学習アプリ</p>
+            <div class="ov-meta">
+                <span>現在のバージョン<b>0.8.0</b></span>
+                <span>最新commit<b>b3d00e22</b></span>
+                <span>最終更新日<b>2026年7月8日</b></span>
+            </div>
+        </header>
+
+        <section>
+            <h2><span class="num">1</span>アプリの目的</h2>
+            <div class="ov-card">
+                <p>コードクルーズは、キーを選んでダイアトニックコードを調べ、指板上でCAGEDフォームを確認しながら、気に入ったコードフォームを自分の「コード本棚」に保存していけるアプリです。</p>
+                <p>現在は開発の初期〜中盤段階で、コアとなる「調べる」「保存する」機能が段階的に実装されてきています。</p>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">2</span>主要機能</h2>
+            <div class="ov-feature-grid">
+                <div class="ov-feature-card">
+                    <span class="icon">🔍</span>
+                    <h3>コードを調べる</h3>
+                    <p>キー・スケールを選び、ダイアトニックコードを指板上でCAGEDフォーム表示。</p>
+                </div>
+                <div class="ov-feature-card">
+                    <span class="icon">🎼</span>
+                    <h3>任意コード作成</h3>
+                    <p>ダイアトニックにないテンションコードなどを自由に組み立て。</p>
+                </div>
+                <div class="ov-feature-card">
+                    <span class="icon">📚</span>
+                    <h3>コード本棚</h3>
+                    <p>保存したコードフォームをフォルダごとに整理・振り返り。</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">3</span>通常版 / PRO版の概要</h2>
+            <div class="ov-card">
+                <p><strong>現時点でPRO版は存在しません。</strong> すべての機能は単一バージョンで提供されており、認証やアクセス制限もありません。</p>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">4</span>重要な注意点</h2>
+            <div class="ov-card">
+                <ul>
+                    <li>「コードを調べる」「コード本棚」画面は、HTML上に古い「次のSTEPで実装します」という文言が残っていますが、実際にはJSが画面を動的に構築するため、既にしっかり機能しています。</li>
+                    <li>指板の運指（フィンガリング）表示モードはボタンはあるものの、現状は無効化されており未実装です。</li>
+                    <li>保存データはブラウザの保存領域（localStorage）に保存されます。データ構造に関わる変更は、既存の保存データに影響しないよう慎重に扱う方針です。</li>
+                </ul>
+                <div class="ov-warn-box" style="margin-top: 14px;">
+                    <p><b>現状ステータス:</b> インフォメーションページ・利用規約・プライバシーポリシー・PWA化（マニフェスト/Service Worker）は、いずれも未実装です。</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">5</span>GitHub Pages 反映トラブル時の対応</h2>
+            <div class="ov-card">
+                <p>コードをpushしても、まれにGitHub Pages側のデプロイが失敗し、本番が古いままになることがあります（コード自体の問題ではありません）。</p>
+                <p>その場合は、GitHub Pagesの再ビルドを1回実行することで復旧できることが、他アプリで確認されています。空コミットや再実装で無理に直そうとしないことが重要です。</p>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">6</span>今後の更新ルール</h2>
+            <div class="ov-card">
+                <ol>
+                    <li>コードクルーズを修正するたびに、開発者向け詳細資料（<code>apps/chord-cruise/ai-handoff/CHORD_CRUISE_OVERVIEW.md</code>）を必要に応じて更新します。</li>
+                    <li>ユーザーに見える変更（機能・見た目・文言など）を行った場合は、このページ（<code>apps/chord-cruise/ai-handoff/chord-cruise-overview.html</code>）も必要に応じて更新します。</li>
+                    <li>更新が不要と判断した場合は、その理由を作業報告に明記します。</li>
+                </ol>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">7</span>主要commit履歴（新しい順）</h2>
+            <div class="ov-card">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>commit</th>
+                            <th>内容</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>b3d00e22</code></td><td>説明表示と導線を整備</td></tr>
+                        <tr><td><code>6dfdb748</code></td><td>任意コード作成を追加</td></tr>
+                        <tr><td><code>620c7eca</code></td><td>コード本棚を追加</td></tr>
+                        <tr><td><code>beed19ea</code></td><td>コードフォーム保存を追加</td></tr>
+                        <tr><td><code>dd0fb3de</code></td><td>CAGEDフォーム表示を追加</td></tr>
+                        <tr><td><code>0ce19aef</code></td><td>指板表示を追加</td></tr>
+                        <tr><td><code>c0000a1b</code></td><td>ダイアトニックコード表示を追加</td></tr>
+                        <tr><td><code>c1f019a0</code></td><td>初期画面を追加</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <div class="ov-footer">
+            コードクルーズ開発概要 ／ 最終更新日: 2026年7月8日 ／ 最新commit: b3d00e22<br>
+            詳細な開発者向け資料は <code>apps/chord-cruise/ai-handoff/CHORD_CRUISE_OVERVIEW.md</code> を参照してください。
+        </div>
+    </div>
+</body>
+
+</html>

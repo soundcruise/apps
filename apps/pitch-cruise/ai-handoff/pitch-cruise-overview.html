@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>音感クルーズ 開発概要</title>
+    <style>
+        :root {
+            --ov-bg: #0c0f16;
+            --ov-surface: rgba(255, 255, 255, 0.045);
+            --ov-border: rgba(210, 220, 245, 0.14);
+            --ov-text: #edeffb;
+            --ov-muted: rgba(237, 239, 251, 0.72);
+            --ov-accent: #7c9bff;
+            --ov-accent-strong: #a9c0ff;
+            --ov-gold: #ffd65e;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+            background:
+                radial-gradient(120% 80% at 50% -10%, rgba(124, 155, 255, 0.12), transparent 60%),
+                linear-gradient(150deg, #090b11, #0c0f16 54%, #090b11);
+            color: var(--ov-text);
+            line-height: 1.7;
+        }
+
+        .ov-wrap {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 40px 20px 64px;
+        }
+
+        .ov-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .ov-header h1 {
+            margin: 0 0 10px;
+            font-size: clamp(1.5rem, 5vw, 2.1rem);
+            font-weight: 800;
+            background: linear-gradient(90deg, var(--ov-gold), var(--ov-accent-strong), var(--ov-gold));
+            background-size: 180% 180%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .ov-header p {
+            margin: 0;
+            color: var(--ov-muted);
+            font-size: 0.95rem;
+        }
+
+        .ov-meta {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .ov-meta span {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 14px;
+            border-radius: 999px;
+            border: 1px solid var(--ov-border);
+            background: var(--ov-surface);
+            font-size: 0.78rem;
+            color: var(--ov-muted);
+        }
+
+        .ov-meta b {
+            color: var(--ov-accent-strong);
+            margin-left: 6px;
+        }
+
+        section {
+            margin-top: 36px;
+        }
+
+        h2 {
+            margin: 0 0 16px;
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: var(--ov-accent-strong);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        h2 .num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border-radius: 8px;
+            background: rgba(124, 155, 255, 0.16);
+            color: var(--ov-accent-strong);
+            font-size: 0.85rem;
+        }
+
+        .ov-card {
+            padding: 20px 22px;
+            border-radius: 16px;
+            border: 1px solid var(--ov-border);
+            background: var(--ov-surface);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.32);
+        }
+
+        .ov-card p {
+            margin: 0 0 10px;
+            color: var(--ov-muted);
+            font-size: 0.94rem;
+        }
+
+        .ov-card p:last-child {
+            margin-bottom: 0;
+        }
+
+        .ov-card ul,
+        .ov-card ol {
+            margin: 0;
+            padding-left: 1.3em;
+            color: var(--ov-muted);
+            font-size: 0.92rem;
+        }
+
+        .ov-card li {
+            margin-bottom: 6px;
+        }
+
+        .ov-feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 14px;
+        }
+
+        .ov-feature-card {
+            padding: 18px;
+            border-radius: 14px;
+            border: 1px solid var(--ov-border);
+            background: var(--ov-surface);
+        }
+
+        .ov-feature-card .icon {
+            font-size: 1.5rem;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .ov-feature-card h3 {
+            margin: 0 0 6px;
+            font-size: 1rem;
+            color: var(--ov-text);
+        }
+
+        .ov-feature-card p {
+            margin: 0;
+            font-size: 0.86rem;
+            color: var(--ov-muted);
+        }
+
+        .ov-two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        @media (max-width: 640px) {
+            .ov-two-col {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .ov-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .ov-badge--standard {
+            background: rgba(77, 150, 255, 0.16);
+            color: #8fc0ff;
+            border: 1px solid rgba(77, 150, 255, 0.32);
+        }
+
+        .ov-badge--pro {
+            background: linear-gradient(135deg, rgba(255, 214, 94, 0.22), rgba(255, 242, 186, 0.16));
+            color: #ffe38a;
+            border: 1px solid rgba(255, 214, 94, 0.38);
+        }
+
+        .ov-warn-box {
+            padding: 16px 18px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 107, 107, 0.34);
+            background: rgba(255, 107, 107, 0.08);
+        }
+
+        .ov-warn-box p {
+            margin: 0;
+            color: rgba(237, 239, 251, 0.86);
+            font-size: 0.9rem;
+        }
+
+        code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            background: rgba(255, 255, 255, 0.08);
+            padding: 1px 6px;
+            border-radius: 5px;
+            font-size: 0.86em;
+            color: var(--ov-gold);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.86rem;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--ov-border);
+            color: var(--ov-muted);
+        }
+
+        th {
+            color: var(--ov-text);
+            font-weight: 700;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .ov-footer {
+            margin-top: 48px;
+            padding-top: 20px;
+            border-top: 1px solid var(--ov-border);
+            text-align: center;
+            color: rgba(237, 239, 251, 0.5);
+            font-size: 0.8rem;
+        }
+
+        @media (max-width: 480px) {
+            .ov-wrap {
+                padding: 28px 16px 48px;
+            }
+
+            .ov-card {
+                padding: 16px 16px;
+                border-radius: 14px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="ov-wrap">
+        <header class="ov-header">
+            <h1>音感クルーズ 開発概要</h1>
+            <p>メロディ・コードの聴き取り力を鍛えるトレーニングアプリの、現在地・主要機能・注意点まとめ</p>
+            <div class="ov-meta">
+                <span>現在のバージョン<b>2.11.1</b></span>
+                <span>最新commit<b>62b4a3bf</b></span>
+                <span>最終更新日<b>2026年7月8日</b></span>
+            </div>
+        </header>
+
+        <section>
+            <h2><span class="num">1</span>アプリの目的</h2>
+            <div class="ov-card">
+                <p>音感クルーズは、メロディ（単音）とコード進行の聴き取り力を、ステージ形式で段階的に鍛えるトレーニングアプリです。テストモードなど、力試し用の機能も用意されています。</p>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">2</span>主要機能</h2>
+            <div class="ov-feature-grid">
+                <div class="ov-feature-card">
+                    <span class="icon">🎵</span>
+                    <h3>メロディ音感</h3>
+                    <p>単音の聴き取りをSTAGE形式で練習。</p>
+                </div>
+                <div class="ov-feature-card">
+                    <span class="icon">🎸</span>
+                    <h3>コード音感</h3>
+                    <p>コード進行の聴き取りをSTAGE形式で練習。</p>
+                </div>
+                <div class="ov-feature-card">
+                    <span class="icon">📝</span>
+                    <h3>テストモード</h3>
+                    <p>力試し用の特別な出題モード。</p>
+                </div>
+                <div class="ov-feature-card">
+                    <span class="icon">⭐</span>
+                    <h3>PROカスタムSTAGE</h3>
+                    <p>好みの出題内容を自分で組み立て可能（PRO版）。</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">3</span>通常版 / PRO版</h2>
+            <div class="ov-two-col">
+                <div class="ov-card">
+                    <span class="ov-badge ov-badge--standard">通常版</span>
+                    <p>メロディ・コードそれぞれSTAGE1〜6の固定ステージ練習、テストモードが利用できます。PROカスタムSTAGEは内容の確認のみ可能です。</p>
+                </div>
+                <div class="ov-card">
+                    <span class="ov-badge ov-badge--pro">PRO版</span>
+                    <p>専用URLとパスワード認証で保護されています。PROカスタムSTAGEの作成・保存・実プレイ、詳細なPro設定（問題の音数・スケールプリセット等）が利用できます。</p>
+                    <p>PRO認証は指板クルーズと一部連携しています（共有のログイン状態管理）。</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">4</span>重要な注意点</h2>
+            <div class="ov-card">
+                <ul>
+                    <li>通常版・PRO版とも、共通の<code>script.js</code>・<code>theme.css</code>を使用しています。</li>
+                    <li>共通基盤（<code>shared/</code>）にも依存しているため、共通ファイルの変更は指板クルーズにも影響します。</li>
+                    <li><code>beta</code>・<code>staging</code>という検証用スコープも別途存在します。</li>
+                </ul>
+                <div class="ov-warn-box" style="margin-top: 14px;">
+                    <p><b>特に注意:</b> テストモード機能は過去に不具合修正のRevert/Reapplyが発生した経緯があります。関連ロジックの変更は特に慎重な検証が必要です。</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">5</span>GitHub Pages 反映トラブル時の対応</h2>
+            <div class="ov-card">
+                <p>コードをpushしても、まれにGitHub Pages側のデプロイが失敗し、本番が古いままになることがあります（コード自体の問題ではありません）。</p>
+                <p>その場合は、GitHub Pagesの再ビルドを1回実行することで復旧できることが確認されています。空コミットや再実装で無理に直そうとしないことが重要です。</p>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">6</span>今後の更新ルール</h2>
+            <div class="ov-card">
+                <ol>
+                    <li>音感クルーズを修正するたびに、開発者向け詳細資料（<code>apps/pitch-cruise/ai-handoff/PITCH_CRUISE_OVERVIEW.md</code>）を必要に応じて更新します。</li>
+                    <li>ユーザーに見える変更を行った場合は、このページ（<code>apps/pitch-cruise/ai-handoff/pitch-cruise-overview.html</code>）も必要に応じて更新します。</li>
+                    <li>更新が不要と判断した場合は、その理由を作業報告に明記します。</li>
+                </ol>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">7</span>主要commit履歴（新しい順）</h2>
+            <div class="ov-card">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>commit</th>
+                            <th>内容</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>62b4a3bf</code></td><td>PROカスタムSTAGEの保存導線を整理</td></tr>
+                        <tr><td><code>6b19fb8e</code></td><td>法務ページにホーム導線を追加</td></tr>
+                        <tr><td><code>93106281</code></td><td>Proパス直書きを整理</td></tr>
+                        <tr><td><code>009a916d</code></td><td>不要なStaging導線を整理</td></tr>
+                        <tr><td><code>d78bf25d</code></td><td>YouTubeリンクに確認ダイアログを追加</td></tr>
+                        <tr><td><code>dfd78d8d</code></td><td>PROのパスワード平文露出を改善</td></tr>
+                        <tr><td><code>b6131a0b</code></td><td>v2.9.6 — クリア画面のスクロール不可バグ修正</td></tr>
+                        <tr><td><code>e2dcb4ed</code></td><td>v2.9.5 — テストモード解答不能バグ修正</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <div class="ov-footer">
+            音感クルーズ開発概要 ／ 最終更新日: 2026年7月8日 ／ 最新commit: 62b4a3bf<br>
+            詳細な開発者向け資料は <code>apps/pitch-cruise/ai-handoff/PITCH_CRUISE_OVERVIEW.md</code> を参照してください。
+        </div>
+    </div>
+</body>
+
+</html>
