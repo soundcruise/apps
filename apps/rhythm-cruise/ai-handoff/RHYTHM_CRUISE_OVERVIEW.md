@@ -14,10 +14,10 @@
 - ディレクトリ: `apps/rhythm-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/rhythm-cruise/`
 - PRO版URL: `https://soundcruise.jp/apps/rhythm-cruise/pro_a9f4k7q2m8z/`
-- 現在のバージョン: `0.13.9`（`script.js` の `RHYTHM_CRUISE_VERSION`）
-- このドキュメント作成時点の最新commit（rhythm-cruise関連）:
-  - hash: `847eccc`
-  - message: `補正テスト動画リンクの時間表記を追加`
+- 現在のバージョン: `1.0.0`（`script.js` の `RHYTHM_CRUISE_VERSION`。2026年7月8日付でVer 1.0.0として正式リリース）
+- このドキュメント更新時点の最新commit（rhythm-cruise関連）:
+  - message: `リズムクルーズを正式版1.0.0に更新`
+  - hash: 本ドキュメント更新と同一commitでpushされるため、この記述時点では未確定（4章「リリース準備メモ」参照）
   - ※ リポジトリ全体のHEAD/`origin/main`は、`apps/cruise-studio/`など他アプリの作業により、これより進んでいる場合があります。作業開始時は必ず `git log --oneline -- apps/rhythm-cruise/` でこのアプリ単位の最新commitを確認してください。
 - 通常版 / PRO版の構造:
   - 通常版: `apps/rhythm-cruise/index.html`（ルート直下）
@@ -37,7 +37,7 @@
 - 作業対象は原則 `apps/rhythm-cruise/` のみ。他アプリ（`apps/fretboard_cruise/`, `apps/pitch-cruise/`, `apps/chord-cruise/` など）は参照のみとし、変更しない。
 - `apps/shared/` は原則触らない。触る場合は必ず理由とリスク（他アプリ全体への影響）を説明し、ユーザーの確認を取ってから行う。
 - `apps/cruise-studio/` は対象外。別アプリであり、リズムクルーズの作業とは無関係。未コミット変更や未pushコミットが存在することがあるが、絶対に混ぜない。
-- `apps/rhythm-cruise/rhythm-cruise-icon-proposal.png` / `.svg` は未追跡ファイルとして存在することがあるが、今回のアイコン検討用であり、作業対象外。stage/commitしない。
+- `apps/rhythm-cruise/rhythm-cruise-icon-proposal.png` / `.svg` は、Ver 1.0.0リリース時点で調査の上削除済み（未参照・未使用のアイコン案だったため）。今後同様の`*-proposal.*`ファイルが未追跡のまま残っている場合は、参照有無を確認した上で、正式採用しないものはリリース前に削除する。
 - 他の未コミット変更や、pushされていないahead commitを勝手にstage/pushしない。作業前に必ず `git status -sb` で現在の状態を確認し、自分が変更したファイルだけをstageする。
 - 既存のマイク補正・Practice（練習本編）・PRO認証・録音レビューのロジックを壊さない。動作確認せずに「たぶん大丈夫」で進めない。
 - 大きな構造変更（画面遷移、判定ロジック、マイク処理など）の前には、必ず既存コードを読んで調査する。
@@ -245,6 +245,7 @@
 
 `git log --oneline -- apps/rhythm-cruise/` で確認した実際の履歴（新しい順）。
 
+- （hash未記載）`リズムクルーズを正式版1.0.0に更新`　※ Ver 1.0.0正式リリースcommit。未追跡だったアイコン案ファイル（`rhythm-cruise-icon-proposal.png` / `.svg`）を削除し、バージョン表記を`0.13.9`→`1.0.0`へ更新。commit hashは次回このファイルを更新する際に追記する（余計な追加commitを避けるため、本ドキュメント作成時点では未記入のまま運用する）。
 - `847eccc` 補正テスト動画リンクの時間表記を追加
 - `541db1c` リズムクルーズの補正テスト動画ヘルプを追加
 - `fbeb8ac` リズムクルーズの説明動画リンクを追加
@@ -280,6 +281,13 @@
 - AIエディタへの依頼プロンプトには、このファイルの存在と「触ってよい/悪い」ルールを毎回含めることが望ましい。
 - 不明点・曖昧な指示は、実装前に必ず質問する。「たぶんこうだろう」で進めない。
 - 「調査のみ」と「実装」の依頼ははっきり分けて扱う。調査のみと言われた場合はファイルを一切変更しない。
+- **未追跡の提案ファイル（アイコン案・デザイン案等）は、リリース前に必ず整理し、残さない。** どこからも参照されていない`*-proposal.*`のようなファイルを未追跡のまま放置すると、意図せぬ`git add -A`等でstageされる事故につながるため、正式採用しないものは削除する（Ver 1.0.0リリース時に`rhythm-cruise-icon-proposal.png` / `.svg`を削除した実績あり）。
+
+### リリース準備メモ（Ver 1.0.0）
+
+- 2026年7月8日、Ver 1.0.0として正式リリース。
+- リリース前に、未追跡のまま残っていたアイコン案ファイル`rhythm-cruise-icon-proposal.png` / `.svg`を調査した結果、`manifest.json`・HTML・CSS・service workerのいずれからも参照されておらず、PWAアイコンとしても未使用（実際のPWAアイコンは`icon-192.png`等の別ファイル）であることを確認し、削除した。
+- `RHYTHM_CRUISE_VERSION`を`0.13.9`→`1.0.0`に更新。アプリ本体のロジック・UI・マイク補正・Practice・PRO認証・録音レビュー・判定ロジックの変更は一切行っていない（バージョン表記の更新のみ）。
 
 ---
 
