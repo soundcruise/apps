@@ -1,4 +1,4 @@
-/* クルーズスタジオ — sheet-cruise.js（Phase 2B / S1e）
+/* クルーズスタジオ — sheet-cruise.js（Phase 2B / S1d）
    譜面クルーズ画面: プロジェクト選択・曲情報フォーム・キー関係チェック・
    セクション管理・小節グリッド（1小節1コード入力）・簡易プレビュー・保存。
    歌詞・ドレミ入力とA4紙面プレビューは Phase 2C / Phase 3。
@@ -27,6 +27,8 @@
         selectedBarNumber: null,
         overlayFrame: null,
         overlayComposingRowId: null,
+        overlayBulkComposing: false,
+        overlayBulkMessage: null,
         overlayWarnings: {}
     };
 
@@ -555,6 +557,7 @@
         var bar = getSelectedBar();
         if (!bar || !input) return;
         var isComposing = options && options.composing;
+        var skipRender = options && options.skipRender;
         var warnings = [];
 
         if (rowId === 'chord') {
@@ -576,7 +579,7 @@
 
         markDirty();
         syncBarGridInput(rowId, bar.barNumber, input.value, warnings);
-        if (isComposing) return;
+        if (isComposing || skipRender) return;
 
         var snapshot = captureOverlayFocus(rowId, input);
         renderPreview();
@@ -613,6 +616,11 @@
         });
         input.addEventListener('keydown', function (event) {
             event.stopPropagation();
+            if (event.isComposing || state.overlayComposingRowId === rowDef.id) return;
+            if (!event.altKey || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return;
+            event.preventDefault();
+            applyOverlayFieldChange(rowDef.id, input, { skipRender: true });
+            moveSelectedBar(event.key === 'ArrowLeft' ? -1 : 1, { focusRowId: rowDef.id });
         });
         input.addEventListener('click', function (event) {
             event.stopPropagation();
@@ -621,6 +629,215 @@
             event.stopPropagation();
         });
         return input;
+    }
+
+    function getSelectedBarIndex() {
+        if (!state.project || !state.selectedBarNumber) return -1;
+        for (var i = 0; i < state.project.bars.length; i++) {
+            if (state.project.bars[i].barNumber === state.selectedBarNumber) return i;
+        }
+        return -1;
+    }
+
+    function getMoveTarget(delta) {
+        if (!state.project || !Array.isArray(state.project.bars) || state.project.bars.length === 0) return null;
+        var index = getSelectedBarIndex();
+        if (index < 0) return null;
+        var nextIndex = Math.max(0, Math.min(state.project.bars.length - 1, index + delta));
+        return state.project.bars[nextIndex] || null;
+    }
+
+    function focusOverlayField(rowId) {
+        if (!rowId || !els.slotOverlay) return;
+        window.requestAnimationFrame(function () {
+            var field = els.slotOverlay.querySelector('[data-overlay-field="' + rowId + '"]');
+            if (field) field.focus({ preventScroll: true });
+        });
+    }
+
+    function moveSelectedBar(delta, options) {
+        var target = getMoveTarget(delta);
+        if (!target || target.barNumber === state.selectedBarNumber) return;
+        state.selectedBarNumber = target.barNumber;
+        state.overlayWarnings = {};
+        state.overlayBulkMessage = null;
+        syncSheetSelection();
+        if (options && options.focusRowId) focusOverlayField(options.focusRowId);
+    }
+
+    function commitActiveOverlayInput(options) {
+        if (!els.slotOverlay) return null;
+        var active = document.activeElement;
+        if (!active || !active.dataset || !active.dataset.overlayField) return null;
+        applyOverlayFieldChange(active.dataset.overlayField, active, options || { skipRender: true });
+        return active.dataset.overlayField;
+    }
+
+    function buildOverlayNavButton(label, delta) {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'slot-overlay-nav-btn';
+        button.textContent = label;
+        button.disabled = !getMoveTarget(delta) || getMoveTarget(delta).barNumber === state.selectedBarNumber;
+        button.addEventListener('click', function (event) {
+            event.stopPropagation();
+            var focusRowId = commitActiveOverlayInput({ skipRender: true });
+            moveSelectedBar(delta, { focusRowId: focusRowId });
+        });
+        button.addEventListener('mousedown', function (event) {
+            event.stopPropagation();
+        });
+        button.addEventListener('keydown', function (event) {
+            event.stopPropagation();
+        });
+        return button;
+    }
+
+    function tokenizeBulkChords(text) {
+        return String(text || '')
+            .replace(/(^|\s)\/(?=\s|$)/g, ' ')
+            .split(/\s+/)
+            .map(function (token) { return token.trim(); })
+            .filter(Boolean);
+    }
+
+    function linesForBulkText(text) {
+        return String(text || '').replace(/\r\n?/g, '\n').split('\n');
+    }
+
+    function bulkValues(kind, text) {
+        if (kind === 'chord') return tokenizeBulkChords(text);
+        return linesForBulkText(text);
+    }
+
+    function applyBulkInput(kind, text) {
+        var bar = getSelectedBar();
+        if (!bar) return;
+
+        var values = bulkValues(kind, text);
+        var start = getSelectedBarIndex();
+        var available = state.project.bars.length - start;
+        var count = Math.min(values.length, available);
+        var warnings = [];
+        var theory = CS().theory;
+
+        if (values.length === 0) {
+            state.overlayBulkMessage = { type: 'warning', text: '入力がありません' };
+            renderSlotOverlayContent();
+            return;
+        }
+        if (values.length > available) {
+            warnings.push('小節数を超えた ' + (values.length - available) + '件は反映しませんでした');
+        }
+
+        for (var i = 0; i < count; i++) {
+            var barNumber = state.project.bars[start + i].barNumber;
+            var value = values[i];
+            if (kind === 'chord') {
+                CS().model.setBarChord(state.project, barNumber, value);
+                if (String(value || '').trim() && theory.parseBasicChordSymbol(value) === null) {
+                    warnings.push(barNumber + '小節目: 解釈できないコード表記です');
+                }
+            } else if (kind === 'lyrics') {
+                CS().model.setBarLyricsText(state.project, barNumber, value);
+            } else if (kind === 'doremi') {
+                CS().model.setBarDoremiText(state.project, barNumber, value).warnings.forEach(function (warning) {
+                    warnings.push(barNumber + '小節目: ' + warning);
+                });
+            }
+        }
+
+        markDirty();
+        state.overlayBulkMessage = {
+            type: warnings.length ? 'warning' : 'ok',
+            text: count + '小節に反映しました' + (warnings.length ? ' / ' + warnings.join(' / ') : '')
+        };
+        renderBarGrid();
+        renderPreview();
+    }
+
+    function buildBulkInputPanel() {
+        var panel = document.createElement('details');
+        panel.className = 'slot-overlay-bulk';
+        panel.open = !!state.overlayBulkMessage;
+
+        var summary = document.createElement('summary');
+        summary.textContent = 'まとめて入力';
+        panel.appendChild(summary);
+
+        var body = document.createElement('div');
+        body.className = 'slot-overlay-bulk-body';
+
+        var kind = document.createElement('select');
+        kind.className = 'slot-overlay-bulk-kind';
+        [
+            ['chord', 'コード'],
+            ['lyrics', '歌詞'],
+            ['doremi', 'ドレミ']
+        ].forEach(function (pair) {
+            var option = document.createElement('option');
+            option.value = pair[0];
+            option.textContent = pair[1];
+            kind.appendChild(option);
+        });
+
+        var text = document.createElement('textarea');
+        text.className = 'slot-overlay-bulk-text';
+        text.rows = 3;
+        text.placeholder = '現在の小節から順に反映';
+        text.setAttribute('aria-label', 'まとめて入力');
+
+        var actions = document.createElement('div');
+        actions.className = 'slot-overlay-bulk-actions';
+
+        var apply = document.createElement('button');
+        apply.type = 'button';
+        apply.className = 'slot-overlay-bulk-apply';
+        apply.textContent = '現在の小節から反映';
+        apply.addEventListener('click', function (event) {
+            event.stopPropagation();
+            applyBulkInput(kind.value, text.value);
+        });
+
+        var close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'slot-overlay-bulk-close';
+        close.textContent = '閉じる';
+        close.addEventListener('click', function (event) {
+            event.stopPropagation();
+            panel.open = false;
+        });
+
+        actions.appendChild(apply);
+        actions.appendChild(close);
+        body.appendChild(kind);
+        body.appendChild(text);
+        body.appendChild(actions);
+
+        if (state.overlayBulkMessage) {
+            var message = document.createElement('p');
+            message.className = 'slot-overlay-bulk-message is-' + state.overlayBulkMessage.type;
+            message.textContent = state.overlayBulkMessage.text;
+            body.appendChild(message);
+        }
+
+        panel.appendChild(body);
+        panel.addEventListener('compositionstart', function () {
+            state.overlayBulkComposing = true;
+        });
+        panel.addEventListener('compositionend', function () {
+            state.overlayBulkComposing = false;
+        });
+        panel.addEventListener('keydown', function (event) {
+            event.stopPropagation();
+        });
+        panel.addEventListener('click', function (event) {
+            event.stopPropagation();
+        });
+        panel.addEventListener('mousedown', function (event) {
+            event.stopPropagation();
+        });
+        return panel;
     }
 
     function renderSlotOverlayContent() {
@@ -642,8 +859,13 @@
         var label = document.createElement('span');
         label.className = 'slot-overlay-label';
         label.textContent = 'この小節を編集';
+        var nav = document.createElement('div');
+        nav.className = 'slot-overlay-nav';
+        nav.appendChild(buildOverlayNavButton('前へ', -1));
+        nav.appendChild(buildOverlayNavButton('次へ', 1));
         head.appendChild(title);
         head.appendChild(label);
+        head.appendChild(nav);
 
         var rows = document.createElement('div');
         rows.className = 'slot-overlay-rows';
@@ -671,6 +893,7 @@
 
         els.slotOverlay.appendChild(head);
         els.slotOverlay.appendChild(rows);
+        els.slotOverlay.appendChild(buildBulkInputPanel());
         els.slotOverlay.classList.remove('hidden');
         els.slotOverlay.setAttribute('aria-hidden', 'false');
         els.slotOverlay.setAttribute('aria-label', bar.barNumber + '小節目の編集レイヤー');
@@ -731,6 +954,9 @@
             return bar.barNumber === barNumber;
         });
         if (!exists) return;
+        if (state.selectedBarNumber !== barNumber) {
+            state.overlayBulkMessage = null;
+        }
         state.selectedBarNumber = barNumber;
         syncSheetSelection();
     }
