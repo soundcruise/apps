@@ -1,4 +1,4 @@
-/* クルーズスタジオ — sheet-renderer.js（v0.14.0）
+/* クルーズスタジオ — sheet-renderer.js（v0.15.0）
    StudioProject → A4固定紙面DOM のレンダラー（ADR-016）。
    「譜面は曲データのビュー」（APP_CONCEPT.md 4章）の紙面実装。
 
@@ -169,6 +169,13 @@
      * 8分ストロークは8マスのまま表示する（同じ幅の等分なので拍位置は揃う）。
      * 正しい休符記号・タイ曲線の記譜描画は将来フェーズ（VexFlow導入時）。
      */
+    function strumGlyphClass(text) {
+        if (text === '・') return 'is-rest';
+        if (text === '〜') return 'is-sustain';
+        if (text === 'x') return 'is-mute';
+        return 'is-stroke';
+    }
+
     function buildStrumRow(slots, barTicks) {
         var res = strumNeedsSixteenth(slots) ? 16 : 8;
         var slotTicks = barTicks / res;
@@ -184,10 +191,10 @@
             for (var e = 1; e < len && idx + e < res; e++) cells[idx + e] = '〜';
         });
 
-        var row = el('span', 'sheet-bar-strum sheet-bar-row');
+        var row = el('span', 'sheet-bar-strum sheet-bar-row sheet-bar-strum--' + res);
         row.style.gridTemplateColumns = 'repeat(' + res + ', 1fr)';
         cells.forEach(function (text) {
-            row.appendChild(el('span', text === '・' ? 'is-rest' : null, text));
+            row.appendChild(el('span', strumGlyphClass(text), text));
         });
         return row;
     }

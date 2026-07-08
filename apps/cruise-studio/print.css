@@ -1,4 +1,4 @@
-/* クルーズスタジオ print.css — v0.14.0
+/* クルーズスタジオ print.css — v0.15.0
    ブラウザ印刷（PDF保存）用。A4紙面（.sheet-page）だけを印刷対象にし、
    編集UI・ナビ・ツールバーは印刷しない（ADR-010 / ADR-016）。
    画面は 794×1123px（A4@96dpi）、印刷はここで 210mm/297mm のmm指定へ寄せる。
@@ -60,6 +60,34 @@
 /* 段区切り横線（コード/歌詞/ドレミ段の間）の印刷用微調整もここで行う */
 .sheet-bar-row + .sheet-bar-row {
     border-top-color: rgba(122, 116, 108, 0.18) !important;
+}
+
+.sheet-bar-strum {
+    background: #fff8eb !important;
+    box-shadow: inset 0 0 0 0.18mm rgba(122, 116, 108, 0.14) !important;
+    color: #70440f !important;
+    font-size: 9pt !important;
+    min-height: 4.8mm !important;
+    padding-top: 0.7mm !important;
+    padding-bottom: 0.7mm !important;
+}
+
+.sheet-bar-strum--16 {
+    font-size: 7.5pt !important;
+}
+
+.sheet-bar-strum > span.is-stroke,
+.sheet-bar-strum > span.is-mute {
+    background: #ffffff !important;
+    box-shadow: inset 0 -0.15mm 0 rgba(122, 116, 108, 0.14) !important;
+}
+
+.sheet-bar-strum > span.is-rest {
+    color: rgba(122, 116, 108, 0.36) !important;
+}
+
+.sheet-bar-strum > span.is-sustain {
+    color: rgba(112, 68, 15, 0.64) !important;
 }
 
 /* レイアウトの入れ子を解除して紙面だけを流す */
