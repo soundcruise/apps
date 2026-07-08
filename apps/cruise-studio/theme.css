@@ -1,4 +1,4 @@
-/* クルーズスタジオ theme.css — v0.11.0
+/* クルーズスタジオ theme.css — v0.12.0
    リズムクルーズの DESIGN_SYSTEM.md（Clean Pro系）の考え方を継承しつつ、
    PCファーストに読み替えたテーマ。shared/style.css には依存しない（ADR-005）。
    class名・DOMはクルーズスタジオ用に新規設計している。 */
@@ -1063,8 +1063,8 @@ body {
     text-align: center;
 }
 
-/* S1b/S1c: 紙面上の小節選択に重ねる編集overlay。
-   S1cでは lyrics / doremi のみ実入力欄を有効化する。 */
+/* S1b/S1c/S1e: 紙面上の小節選択に重ねる編集overlay。
+   S1eでは chord / lyrics / doremi の実入力欄を有効化する。 */
 .slot-overlay {
     position: absolute;
     z-index: 5;

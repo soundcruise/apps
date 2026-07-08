@@ -1,4 +1,4 @@
-/* クルーズスタジオ — sheet-cruise.js（Phase 2B / S1c）
+/* クルーズスタジオ — sheet-cruise.js（Phase 2B / S1e）
    譜面クルーズ画面: プロジェクト選択・曲情報フォーム・キー関係チェック・
    セクション管理・小節グリッド（1小節1コード入力）・簡易プレビュー・保存。
    歌詞・ドレミ入力とA4紙面プレビューは Phase 2C / Phase 3。
@@ -479,12 +479,14 @@
     }
 
     function getOverlayFieldValue(rowId, bar) {
+        if (rowId === 'chord') return (bar.chords[0] && bar.chords[0].symbol) || '';
         if (rowId === 'lyrics') return CS().model.getBarLyricsText(bar);
         if (rowId === 'doremi') return CS().model.getBarDoremiText(bar);
         return '';
     }
 
     function getOverlayPlaceholder(rowId) {
+        if (rowId === 'chord') return 'コードを入力';
         if (rowId === 'lyrics') return '歌詞を入力';
         if (rowId === 'doremi') return 'ドレミを入力';
         return '';
@@ -532,14 +534,18 @@
     }
 
     function syncBarGridInput(rowId, barNumber, value, warnings) {
-        var className = rowId === 'lyrics' ? 'bar-lyrics-input' : 'bar-doremi-input';
+        var className = rowId === 'chord' ? 'bar-chord-input' :
+            (rowId === 'lyrics' ? 'bar-lyrics-input' : 'bar-doremi-input');
+        var labelText = rowId === 'chord' ? 'コード' :
+            (rowId === 'lyrics' ? '歌詞' : 'ドレミ');
         var input = els.barGrid && els.barGrid.querySelector(
-            '.' + className + '[aria-label="' + barNumber + '小節目の' +
-            (rowId === 'lyrics' ? '歌詞' : 'ドレミ') + '"]'
+            '.' + className + '[aria-label="' + barNumber + '小節目の' + labelText + '"]'
         );
         if (!input) return;
         input.value = value;
-        if (rowId === 'doremi') {
+        if (rowId === 'chord') {
+            validateChordInput(input);
+        } else if (rowId === 'doremi') {
             input.classList.toggle('is-invalid', !!(warnings && warnings.length));
             input.title = (warnings || []).join(' / ');
         }
@@ -551,7 +557,12 @@
         var isComposing = options && options.composing;
         var warnings = [];
 
-        if (rowId === 'lyrics') {
+        if (rowId === 'chord') {
+            CS().model.setBarChord(state.project, bar.barNumber, input.value);
+            validateChordInput(input);
+            state.overlayWarnings[rowId] = input.classList.contains('is-invalid') ?
+                [input.title] : [];
+        } else if (rowId === 'lyrics') {
             CS().model.setBarLyricsText(state.project, bar.barNumber, input.value);
             state.overlayWarnings[rowId] = [];
         } else if (rowId === 'doremi') {
@@ -580,7 +591,9 @@
         input.value = getOverlayFieldValue(rowDef.id, bar);
         input.dataset.overlayField = rowDef.id;
         input.setAttribute('aria-label', bar.barNumber + '小節目の' + rowDef.label);
-        if (rowDef.id === 'doremi') {
+        if (rowDef.id === 'chord') {
+            validateChordInput(input);
+        } else if (rowDef.id === 'doremi') {
             var warnings = state.overlayWarnings[rowDef.id] || [];
             input.classList.toggle('is-invalid', warnings.length > 0);
             input.title = warnings.join(' / ');
@@ -645,7 +658,7 @@
 
             var rowBody = document.createElement('div');
             rowBody.className = 'slot-overlay-row-body';
-            if (rowDef.id === 'lyrics' || rowDef.id === 'doremi') {
+            if (rowDef.id === 'chord' || rowDef.id === 'lyrics' || rowDef.id === 'doremi') {
                 rowBody.appendChild(buildOverlayInput(rowDef, bar));
             } else {
                 rowBody.appendChild(buildOverlayPending(rowDef));
