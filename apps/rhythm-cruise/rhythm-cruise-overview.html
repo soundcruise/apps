@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>リズムクルーズ 開発概要</title>
+    <style>
+        :root {
+            --ov-bg: #120f0c;
+            --ov-surface: rgba(255, 255, 255, 0.035);
+            --ov-border: rgba(245, 239, 228, 0.14);
+            --ov-text: #fdf6ee;
+            --ov-muted: rgba(253, 246, 238, 0.72);
+            --ov-accent: #dec27a;
+            --ov-accent-strong: #f0d79a;
+            --ov-warn: #ff6b6b;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+            background:
+                radial-gradient(120% 80% at 50% -10%, rgba(255, 159, 28, 0.10), transparent 60%),
+                linear-gradient(145deg, #0c0a08, #120f0c 54%, #0c0a08);
+            color: var(--ov-text);
+            line-height: 1.7;
+        }
+
+        .ov-wrap {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 40px 20px 64px;
+        }
+
+        .ov-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .ov-header h1 {
+            margin: 0 0 10px;
+            font-size: clamp(1.6rem, 5vw, 2.2rem);
+            font-weight: 800;
+            letter-spacing: 0.02em;
+            background: linear-gradient(90deg, #f5efe4, var(--ov-accent), #f5efe4);
+            background-size: 180% 180%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .ov-header p {
+            margin: 0;
+            color: var(--ov-muted);
+            font-size: 0.95rem;
+        }
+
+        .ov-meta {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .ov-meta span {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 14px;
+            border-radius: 999px;
+            border: 1px solid var(--ov-border);
+            background: var(--ov-surface);
+            font-size: 0.78rem;
+            color: var(--ov-muted);
+        }
+
+        .ov-meta b {
+            color: var(--ov-accent);
+            margin-left: 6px;
+        }
+
+        section {
+            margin-top: 36px;
+        }
+
+        h2 {
+            margin: 0 0 16px;
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--ov-accent);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        h2 .num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border-radius: 8px;
+            background: rgba(222, 194, 122, 0.14);
+            color: var(--ov-accent-strong);
+            font-size: 0.85rem;
+        }
+
+        .ov-card {
+            padding: 20px 22px;
+            border-radius: 18px;
+            border: 1px solid var(--ov-border);
+            background: var(--ov-surface);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+        }
+
+        .ov-card p {
+            margin: 0 0 10px;
+            color: var(--ov-muted);
+            font-size: 0.94rem;
+        }
+
+        .ov-card p:last-child {
+            margin-bottom: 0;
+        }
+
+        .ov-card ul,
+        .ov-card ol {
+            margin: 0;
+            padding-left: 1.3em;
+            color: var(--ov-muted);
+            font-size: 0.92rem;
+        }
+
+        .ov-card li {
+            margin-bottom: 6px;
+        }
+
+        .ov-card li:last-child {
+            margin-bottom: 0;
+        }
+
+        .ov-feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 14px;
+        }
+
+        .ov-feature-card {
+            padding: 18px;
+            border-radius: 16px;
+            border: 1px solid var(--ov-border);
+            background: var(--ov-surface);
+            transition: transform 0.15s ease, border-color 0.15s ease;
+        }
+
+        .ov-feature-card .icon {
+            font-size: 1.5rem;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .ov-feature-card h3 {
+            margin: 0 0 6px;
+            font-size: 1rem;
+            color: var(--ov-text);
+        }
+
+        .ov-feature-card p {
+            margin: 0;
+            font-size: 0.86rem;
+            color: var(--ov-muted);
+        }
+
+        .ov-two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        @media (max-width: 640px) {
+            .ov-two-col {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .ov-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .ov-badge--standard {
+            background: rgba(77, 150, 255, 0.16);
+            color: #8fc0ff;
+            border: 1px solid rgba(77, 150, 255, 0.32);
+        }
+
+        .ov-badge--pro {
+            background: linear-gradient(135deg, rgba(255, 214, 94, 0.22), rgba(255, 242, 186, 0.16));
+            color: #ffe38a;
+            border: 1px solid rgba(255, 214, 94, 0.38);
+        }
+
+        .ov-warn-box {
+            padding: 16px 18px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 107, 107, 0.34);
+            background: rgba(255, 107, 107, 0.08);
+        }
+
+        .ov-warn-box p {
+            margin: 0;
+            color: rgba(253, 246, 238, 0.86);
+            font-size: 0.9rem;
+        }
+
+        code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            background: rgba(255, 255, 255, 0.08);
+            padding: 1px 6px;
+            border-radius: 5px;
+            font-size: 0.86em;
+            color: #ffe38a;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.86rem;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--ov-border);
+            color: var(--ov-muted);
+        }
+
+        th {
+            color: var(--ov-text);
+            font-weight: 700;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .ov-footer {
+            margin-top: 48px;
+            padding-top: 20px;
+            border-top: 1px solid var(--ov-border);
+            text-align: center;
+            color: rgba(253, 246, 238, 0.5);
+            font-size: 0.8rem;
+        }
+
+        @media (max-width: 480px) {
+            .ov-wrap {
+                padding: 28px 16px 48px;
+            }
+
+            .ov-card {
+                padding: 16px 16px;
+                border-radius: 14px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="ov-wrap">
+        <header class="ov-header">
+            <h1>リズムクルーズ 開発概要</h1>
+            <p>アコギ弾き語り向けリズム練習アプリの、現在地・主要機能・注意点まとめ</p>
+            <div class="ov-meta">
+                <span>現在のバージョン<b>0.13.9</b></span>
+                <span>最新commit<b>847eccc</b></span>
+                <span>最終更新日<b>2026年7月8日</b></span>
+            </div>
+        </header>
+
+        <section>
+            <h2><span class="num">1</span>アプリの目的</h2>
+            <div class="ov-card">
+                <p>リズムクルーズは、アコギ弾き語りに役立つリズム感を鍛えるための練習アプリです。画面タップ、またはマイクを使ったストローク検出で、リズムのズレを見える化しながら練習できます。</p>
+                <p>ズレの原因（早い/遅い）を段階的に把握し、STAGEを進めながら改善していくことを目的としています。</p>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">2</span>主要機能</h2>
+            <div class="ov-feature-grid">
+                <div class="ov-feature-card">
+                    <span class="icon">🎸</span>
+                    <h3>リズム練習</h3>
+                    <p>STAGE1〜6の固定練習＋PROカスタムSTAGE。タップ／ストロークの2モードに対応。</p>
+                </div>
+                <div class="ov-feature-card">
+                    <span class="icon">🎵</span>
+                    <h3>リズム作成</h3>
+                    <p>好きなリズムパターンを作って再生。保存・練習開始はPRO版限定。</p>
+                </div>
+                <div class="ov-feature-card">
+                    <span class="icon">🎤</span>
+                    <h3>マイク設定</h3>
+                    <p>端末・イヤホン環境に合わせた補正テストで、判定の精度を整える。</p>
+                </div>
+                <div class="ov-feature-card">
+                    <span class="icon">⏺️</span>
+                    <h3>録音レビュー</h3>
+                    <p>Practice後にその場の演奏を聴き返せる、振り返り専用の一時機能。</p>
+                </div>
+                <div class="ov-feature-card">
+                    <span class="icon">ℹ️</span>
+                    <h3>インフォメーション</h3>
+                    <p>使い方・動画案内・利用規約などをまとめた案内ページ群。</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">3</span>通常版 / PRO版</h2>
+            <div class="ov-two-col">
+                <div class="ov-card">
+                    <span class="ov-badge ov-badge--standard">通常版</span>
+                    <p>STAGE1〜6の固定練習、タップ／ストロークモード、マイク設定・補正テスト全般、判定設定、クリック音設定、インフォメーション類は全て利用可能です。</p>
+                    <p>ただし、リズム作成の保存・練習開始、カスタムSTAGEの作成・保存・呼び出し、Practice詳細設定（BPM・小節数など）の変更はPRO版限定です。</p>
+                </div>
+                <div class="ov-card">
+                    <span class="ov-badge ov-badge--pro">PRO版</span>
+                    <p>専用URL（推測しにくいディレクトリ名）とパスワード認証で保護されています。通常版の全機能に加えて、カスタムSTAGE作成・保存、作成したリズムの保存・練習、各種詳細設定の変更ができます。</p>
+                    <p>通常版・PRO版は同じ<code>script.js</code>・<code>theme.css</code>を共有しており、実装は1箇所を直せば両方に反映されます。</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">4</span>マイク補正の注意点</h2>
+            <div class="ov-card">
+                <ul>
+                    <li>通常マイク・有線イヤホン・Bluetoothイヤホンで、それぞれ別の補正設定を保存します。</li>
+                    <li>補正テストは「端末選択 → 入力タイプ → イヤホンの種類 → ストローク検出モード」の順に進むウィザード形式です。</li>
+                    <li>音ズレ・遅延テスト、マイク反応テスト、最終確認テストの3段階で、実際にリズム判定が機能する状態まで整えます。</li>
+                    <li>手動設定から、補正テストを経由せず直接スライダーで調整することもできます。</li>
+                </ul>
+                <div class="ov-warn-box" style="margin-top: 14px;">
+                    <p><b>既知の仕様:</b> iPhone本体スピーカー使用時、マイクを同時に使っていると（ストロークモード等）、プレビュー音やクリック音が小さく聞こえる場合があります。これはiOS側の音声処理による可能性が高く、現状はアプリの不具合ではなく仕様として扱っています。</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">5</span>インフォメーション・動画リンク</h2>
+            <div class="ov-card">
+                <p>ホームTOPの丸い <code>i</code> ボタンから、インフォメーションページに入れます。説明動画・基本的な使い方・利用規約・プライバシーポリシーへの導線をまとめています。</p>
+                <p>設定 → マイク設定の <code>?</code> ボタンからは、補正テストのやり方を解説した動画ヘルプページを開けます。</p>
+                <p>いずれの動画リンクも、タップ後すぐにYouTubeへ移動するのではなく、一度「YouTubeを開きます」という確認カードを挟んでから遷移する仕様になっています（アプリからの離脱を利用者が明示的に選べるようにするためです）。</p>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">6</span>GitHub Pages 反映トラブル時の対応</h2>
+            <div class="ov-card">
+                <p>コードをpushしても、まれにGitHub Pages側のデプロイが失敗し、本番が古いままになることがあります（コード自体の問題ではありません）。</p>
+                <p>その場合は、GitHub Pagesの再ビルドを1回実行することで復旧できることが確認されています。空コミットや再実装で無理に直そうとしないことが重要です。</p>
+                <p>逆に、デプロイ直後（数分以内）はCDN側のキャッシュがまだ古い場合もあるため、少し時間を置いてから確認するのも有効です。</p>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">7</span>今後の更新ルール</h2>
+            <div class="ov-card">
+                <ol>
+                    <li>リズムクルーズを修正するたびに、開発者向け詳細資料（<code>RHYTHM_CRUISE_OVERVIEW.md</code>）を更新します。</li>
+                    <li>ユーザーに見える変更（機能・見た目・文言など）を行った場合は、このページ（<code>rhythm-cruise-overview.html</code>）も合わせて更新します。</li>
+                    <li>更新が不要と判断した場合は、その理由を作業報告に明記します。</li>
+                </ol>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">8</span>主要commit履歴（新しい順）</h2>
+            <div class="ov-card">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>commit</th>
+                            <th>内容</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>847eccc</code></td><td>補正テスト動画リンクの時間表記を追加</td></tr>
+                        <tr><td><code>541db1c</code></td><td>リズムクルーズの補正テスト動画ヘルプを追加</td></tr>
+                        <tr><td><code>fbeb8ac</code></td><td>リズムクルーズの説明動画リンクを追加</td></tr>
+                        <tr><td><code>2a8fbf9</code></td><td>インフォメーション画面のフッターUIを指板クルーズ寄りに調整</td></tr>
+                        <tr><td><code>f0c899b</code></td><td>インフォメーション構成を整理</td></tr>
+                        <tr><td><code>bde60e6</code></td><td>インフォメーションページを追加</td></tr>
+                        <tr><td><code>a03d973</code></td><td>リズムプレビューのクリック音量を固定</td></tr>
+                        <tr><td><code>062ff9f</code></td><td>Android本体マイク補正テストの補助文を調整</td></tr>
+                        <tr><td><code>b2215c8</code></td><td>Android本体マイク補正テストの案内文を調整</td></tr>
+                        <tr><td><code>12f9882</code></td><td>判定設定タブを追加</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <div class="ov-footer">
+            リズムクルーズ開発概要 ／ 最終更新日: 2026年7月8日 ／ 最新commit: 847eccc<br>
+            詳細な開発者向け資料は <code>RHYTHM_CRUISE_OVERVIEW.md</code> を参照してください。
+        </div>
+    </div>
+</body>
+
+</html>
