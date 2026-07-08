@@ -3,8 +3,8 @@
 このファイルは、ChatGPT / Claude Code / Cursor / Codex など、どのAIエディタ・どのチャットで作業を再開しても
 「リズムクルーズ」の現状・設計・注意点を正確に引き継げるようにするための資料です。
 
-**リズムクルーズを修正するたびに、このファイルも更新してください。** 更新不要と判断した場合は、完了報告にその理由を書いてください。
-ユーザー向けの変更（見た目・文言・機能追加など）を行った場合は、`rhythm-cruise-overview.html` も合わせて更新してください。
+**リズムクルーズを修正するたびに、`apps/rhythm-cruise/ai-handoff/RHYTHM_CRUISE_OVERVIEW.md`（このファイル）も更新してください。** 更新不要と判断した場合は、完了報告にその理由を書いてください。
+ユーザー向けの変更（見た目・文言・機能追加など）を行った場合は、`apps/rhythm-cruise/ai-handoff/rhythm-cruise-overview.html` も合わせて更新してください。
 
 ---
 
@@ -274,8 +274,8 @@
 
 ## 15. 今後の運用ルール
 
-- リズムクルーズを修正したら、この `RHYTHM_CRUISE_OVERVIEW.md` も更新する。
-- ユーザー向けの変更（見た目・機能・文言）を行った場合は、`rhythm-cruise-overview.html` も更新する。
+- リズムクルーズを修正したら、`apps/rhythm-cruise/ai-handoff/RHYTHM_CRUISE_OVERVIEW.md` も更新する。
+- ユーザー向けの変更（見た目・機能・文言）を行った場合は、`apps/rhythm-cruise/ai-handoff/rhythm-cruise-overview.html` も更新する。
 - 更新不要と判断する場合は、完了報告にその理由を書く（例:「今回はバージョン表記の同期のみで、設計・仕様への影響がないため更新不要」など）。
 - AIエディタへの依頼プロンプトには、このファイルの存在と「触ってよい/悪い」ルールを毎回含めることが望ましい。
 - 不明点・曖昧な指示は、実装前に必ず質問する。「たぶんこうだろう」で進めない。
@@ -309,4 +309,4 @@
 6. 本番バージョンを確認（`curl -s ".../script.js?v=X" | grep RHYTHM_CRUISE_VERSION"`）し、ローカルと本番の状態を把握
 7. 通常版/PRO版それぞれの相対パス（`./` と `../`）を意識して両方に変更を反映する
 8. 変更後は、通常版・PRO版それぞれでスクリーンショット確認・コンソールエラー確認・関連導線のクリック確認を行う
-9. 変更内容に応じて、このファイルと `rhythm-cruise-overview.html` の更新要否を判断する
+9. 変更内容に応じて、`apps/rhythm-cruise/ai-handoff/RHYTHM_CRUISE_OVERVIEW.md` と `apps/rhythm-cruise/ai-handoff/rhythm-cruise-overview.html` の更新要否を判断する
