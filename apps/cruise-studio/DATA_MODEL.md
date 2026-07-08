@@ -84,8 +84,10 @@ keyToSemitone(playKey) + capo ≡ keyToSemitone(originalKey)  (mod 12)
       "lengthTicks": 1920,         // パターン1周の長さ（通常1小節）
       "slots": [
         { "tick": 0,    "action": "down", "accent": true  },
-        { "tick": 240,  "action": "down", "accent": false }
-        // action: "down" | "up" | "mute" | "rest"
+        { "tick": 240,  "action": "down", "accent": false, "durationTicks": 480 }
+        // action: "down" | "up" | "mute" | "rest"（語彙は固定。変更しない）
+        // durationTicks: 任意。〜（伸ばし）入力による音価。無ければ「次のslotまで」
+        // tieToNext: 任意・将来。小節をまたぐタイ（現状は書かない）
       ]
     }
   ],
@@ -150,6 +152,19 @@ melody イベントへ正規化する。
 
 1小節分の歌詞テキストを tick:0 の単一イベント `[{tick: 0, text: "..."}]` として保存する。
 将来の音節単位入力は同じイベント形のまま複数イベントへ分割するだけでよい（migration不要）。
+
+### 基本ストロークの記号入力（R1 / ADR-018）
+
+譜面クルーズの「基本ストローク」欄は記号文字列を保存せず、`setBasicStrumText()` が
+専用パターン `strum_custom_basic` の slots へ正規化する（strumPatterns 内。slotsが正）。
+
+- 記号: ↓=down / ↑=up / x（X ×可）=mute / ・=休符（slotを置かない）/ 〜=直前slotの durationTicks を1マス延長
+- 空白・タブは区切りとして無視（マスを消費しない）
+- 記号数が8以内なら8分（240tick）、9以上なら16分（120tick）スロットに先頭から詰める
+- 1小節に収まらない分は切り詰めて警告。解釈できない文字は警告のうえ無視
+- 空欄にすると `strum_custom_basic` を削除し `basicStrumPatternId` をプリセットへ戻す
+  （紙面のストローク段は「ユーザー入力があるときだけ」表示。プリセットは勝手に印字しない）
+- 既存プリセット（strum_8beat_a等）は削除しない。schemaVersion は 1 のまま
 
 ## 6. コード記号の規約
 

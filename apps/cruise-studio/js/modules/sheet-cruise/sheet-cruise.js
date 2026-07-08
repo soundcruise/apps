@@ -47,8 +47,10 @@
         els.showChords = q('sc-show-chords');
         els.showLyrics = q('sc-show-lyrics');
         els.showDoremi = q('sc-show-doremi');
+        els.showStrum = q('sc-show-strum');
         els.showGrid = q('sc-show-grid');
         els.gridResolution = q('sc-grid-resolution');
+        els.basicStrum = q('sc-basic-strum');
     }
 
     function fillKeySelect(select) {
@@ -175,6 +177,10 @@
         els.capo.value = si.capo;
         els.bpm.value = si.bpm;
         els.timeSig.value = si.timeSignature.beats + '/' + si.timeSignature.beatUnit;
+        // 基本ストローク: slotsから記号列を再生成して表示（slotsが正。ADR-018）
+        els.basicStrum.value = CS().model.getBasicStrumText(state.project);
+        els.basicStrum.classList.remove('is-invalid');
+        els.basicStrum.title = '';
         updateKeyCheck();
     }
 
@@ -202,6 +208,18 @@
         readFormIntoProject();
         markDirty();
         updateKeyCheck();
+        renderPreview();
+    }
+
+    /**
+     * 基本ストローク入力（R1）。記号をslotsへ正規化して strumPatterns に保存する。
+     * 入力欄の値は打鍵中には書き換えない（次の renderForm 時に正規化表示される）。
+     */
+    function onBasicStrumInput() {
+        var res = CS().model.setBasicStrumText(state.project, els.basicStrum.value);
+        els.basicStrum.classList.toggle('is-invalid', res.warnings.length > 0);
+        els.basicStrum.title = res.warnings.join(' / ');
+        markDirty();
         renderPreview();
     }
 
@@ -431,12 +449,13 @@
         els.preview.style.height = Math.ceil(els.scaleBox.offsetHeight * scale) + 'px';
     }
 
-    /* ══════════ 表示トグル（sheetSettings.showChords / showLyrics / showDoremi /
-       showTimingGrid / timingGridResolution） ══════════ */
+    /* ══════════ 表示トグル（sheetSettings.showChords / showStrum / showLyrics /
+       showDoremi / showTimingGrid / timingGridResolution） ══════════ */
 
     function renderDisplayToggles() {
         var show = CS().sheetRenderer.resolveShowSettings(state.project);
         els.showChords.checked = show.chords;
+        els.showStrum.checked = show.strum;
         els.showLyrics.checked = show.lyrics;
         els.showDoremi.checked = show.doremi;
         els.showGrid.checked = show.timingGrid;
@@ -449,6 +468,7 @@
             state.project.sheetSettings = CS().model.getDefaultSheetSettings();
         }
         state.project.sheetSettings.showChords = els.showChords.checked;
+        state.project.sheetSettings.showStrum = els.showStrum.checked;
         state.project.sheetSettings.showLyrics = els.showLyrics.checked;
         state.project.sheetSettings.showDoremi = els.showDoremi.checked;
         state.project.sheetSettings.showTimingGrid = els.showGrid.checked;
@@ -596,7 +616,9 @@
         els.exportBtn.addEventListener('click', downloadCurrentProjectJson);
         els.importInput.addEventListener('change', onImportJsonFile);
 
-        [els.showChords, els.showLyrics, els.showDoremi,
+        els.basicStrum.addEventListener('input', onBasicStrumInput);
+
+        [els.showChords, els.showStrum, els.showLyrics, els.showDoremi,
          els.showGrid, els.gridResolution].forEach(function (el) {
             el.addEventListener('change', onDisplayToggleChange);
         });

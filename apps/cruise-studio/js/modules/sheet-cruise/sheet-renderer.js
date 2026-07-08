@@ -1,4 +1,4 @@
-/* クルーズスタジオ — sheet-renderer.js（v0.8.0）
+/* クルーズスタジオ — sheet-renderer.js（v0.9.0）
    StudioProject → A4固定紙面DOM のレンダラー（ADR-016）。
    「譜面は曲データのビュー」（APP_CONCEPT.md 4章）の紙面実装。
 
@@ -35,6 +35,7 @@
             chords: s.showChords !== false,
             lyrics: s.showLyrics !== false,
             doremi: s.showDoremi !== false,
+            strum: s.showStrum !== false,
             barsPerLine: (typeof s.barsPerLine === 'number' && s.barsPerLine > 0) ? s.barsPerLine : 2,
             timingGrid: s.showTimingGrid !== false,
             gridResolution: (s.timingGridResolution === 16) ? 16 : 8
@@ -134,15 +135,58 @@
         return grid;
     }
 
+    /* ══════════ ストローク段（R1。ADR-018） ══════════ */
+
+    /**
+     * ストロークslot列に16分位置（120tick粒度）の要素があるか。
+     * ある場合、全小節のグリッドを16分表示に引き上げる（基本ストロークは曲全体共通のため）。
+     */
+    function strumNeedsSixteenth(slots) {
+        if (!Array.isArray(slots)) return false;
+        return slots.some(function (ev) {
+            return (ev.tick % 240 !== 0) || ((ev.durationTicks || 240) % 240 !== 0);
+        });
+    }
+
+    /**
+     * ストローク段（↓↑x・〜の文字表示）を作る。
+     * マス数はパターン自身の粒度（8 or 16）で決める。グリッド線が16分でも
+     * 8分ストロークは8マスのまま表示する（同じ幅の等分なので拍位置は揃う）。
+     * 正しい休符記号・タイ曲線の記譜描画は将来フェーズ（VexFlow導入時）。
+     */
+    function buildStrumRow(slots, barTicks) {
+        var res = strumNeedsSixteenth(slots) ? 16 : 8;
+        var slotTicks = barTicks / res;
+        var glyphs = { down: '↓', up: '↑', mute: 'x' };
+
+        var cells = [];
+        for (var c = 0; c < res; c++) cells.push('・');
+        slots.forEach(function (ev) {
+            var idx = Math.round(ev.tick / slotTicks);
+            if (idx < 0 || idx >= res) return;
+            cells[idx] = glyphs[ev.action] || '・';
+            var len = Math.max(1, Math.round((ev.durationTicks || slotTicks) / slotTicks));
+            for (var e = 1; e < len && idx + e < res; e++) cells[idx + e] = '〜';
+        });
+
+        var row = el('span', 'sheet-bar-strum sheet-bar-row');
+        row.style.gridTemplateColumns = 'repeat(' + res + ', 1fr)';
+        cells.forEach(function (text) {
+            row.appendChild(el('span', text === '・' ? 'is-rest' : null, text));
+        });
+        return row;
+    }
+
     /* ══════════ 小節セル ══════════ */
 
-    function buildBarCell(bar, show, hasVocal, beats) {
+    function buildBarCell(bar, show, hasVocal, beats, strum) {
         var theory = CS().theory;
         var model = CS().model;
         var cell = el('div', 'sheet-bar');
 
         if (show.timingGrid) {
-            var res = (show.gridResolution === 16 || barNeedsSixteenth(bar)) ? 16 : 8;
+            var res = (show.gridResolution === 16 || barNeedsSixteenth(bar) ||
+                (strum && strum.needs16)) ? 16 : 8;
             cell.appendChild(buildTimingGrid(beats, res));
         }
 
@@ -155,6 +199,11 @@
             var chord = el('span', 'sheet-bar-chord sheet-bar-row',
                 (bar.chords[0] && bar.chords[0].symbol) || '');
             cell.appendChild(chord);
+        }
+
+        // ストローク段: コード段の直下（ユーザーが基本ストロークを入力したときだけ出る）
+        if (strum && strum.slots) {
+            cell.appendChild(buildStrumRow(strum.slots, strum.barTicks));
         }
 
         if (hasVocal && show.lyrics) {
@@ -185,6 +234,14 @@
         var ts = project.songInfo && project.songInfo.timeSignature;
         var beats = (ts && typeof ts.beats === 'number' && ts.beats > 0) ? ts.beats : 4;
 
+        // ストローク段の表示コンテキスト（showStrum ON かつ ユーザー入力があるときだけ）
+        var strumSlots = show.strum ? model.getBasicStrumSlots(project) : null;
+        var strum = strumSlots ? {
+            slots: strumSlots,
+            barTicks: model.getBarLengthTicks(project),
+            needs16: strumNeedsSixteenth(strumSlots)
+        } : null;
+
         container.innerHTML = '';
         var page = el('div', 'sheet-page');
         page.appendChild(buildHeader(project));
@@ -208,7 +265,7 @@
                 line.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
                 var lineBars = bars.slice(i, i + cols);
                 lineBars.forEach(function (bar) {
-                    line.appendChild(buildBarCell(bar, show, hasVocal, beats));
+                    line.appendChild(buildBarCell(bar, show, hasVocal, beats, strum));
                 });
                 // 行末まで小節線を揃えるための空セル
                 for (var pad = lineBars.length; pad < cols; pad++) {

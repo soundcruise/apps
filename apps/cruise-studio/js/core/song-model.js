@@ -8,7 +8,7 @@
 
     var theory = window.CruiseStudio && window.CruiseStudio.theory;
 
-    var APP_VERSION = '0.8.0';
+    var APP_VERSION = '0.9.0';
     var SCHEMA_VERSION = 1;
     var TICKS_PER_BEAT = 480;
 
@@ -290,6 +290,122 @@
     function getBarDoremiText(bar) {
         if (!bar || !Array.isArray(bar.melody)) return '';
         return theory.melodyEventsToDoremiString(bar.melody);
+    }
+
+    /* ══════════ 基本ストローク（R1。ADR-018） ══════════
+       ユーザーが記号（↓↑・〜x）で入力した曲全体のストロークを、
+       専用パターン CUSTOM_BASIC_STRUM_ID として strumPatterns に保存する。
+       文字列は保存せず slots が正（ADR-009と同じ思想）。
+       既存プリセット（strum_8beat_a等）は削除しない。schemaVersionは1のまま。 */
+
+    var CUSTOM_BASIC_STRUM_ID = 'strum_custom_basic';
+
+    function findStrumPattern(project, id) {
+        var found = null;
+        (project.strumPatterns || []).forEach(function (pat) {
+            if (pat && pat.id === id) found = pat;
+        });
+        return found;
+    }
+
+    function getBeats(project) {
+        var ts = project && project.songInfo && project.songInfo.timeSignature;
+        return (ts && typeof ts.beats === 'number' && ts.beats > 0) ? ts.beats : 4;
+    }
+
+    /**
+     * 基本ストロークを記号テキストで設定する。
+     * 配置規則: 記号数（1記号=1マス）が8分で収まれば8分（240tick）、超えれば16分（120tick）。
+     * 〜は直前のストロークの durationTicks を1マス延長。・はマスを空ける。
+     * 空欄なら専用パターンを外して既定プリセットへ戻す（紙面のストローク段は消える）。
+     * @returns {{warnings: string[]}}
+     */
+    function setBasicStrumText(project, text) {
+        var parsed = theory.parseStrumString(text);
+        var warnings = parsed.warnings.slice();
+        var barTicks = getBarLengthTicks(project);
+
+        if (!Array.isArray(project.strumPatterns)) project.strumPatterns = [];
+
+        if (parsed.tokens.length === 0) {
+            project.strumPatterns = project.strumPatterns.filter(function (pat) {
+                return pat && pat.id !== CUSTOM_BASIC_STRUM_ID;
+            });
+            if (project.strumPatterns.length === 0) {
+                project.strumPatterns.push(createDefaultStrumPattern());
+            }
+            if (project.basicStrumPatternId === CUSTOM_BASIC_STRUM_ID) {
+                project.basicStrumPatternId = project.strumPatterns[0].id;
+            }
+            return { warnings: warnings };
+        }
+
+        var slotTicks = (parsed.tokens.length <= barTicks / 240) ? 240 : 120;
+        var slots = [];
+        var cursor = 0;
+        var lastStroke = null;
+        var overflow = false;
+        var orphanExtend = false;
+
+        parsed.tokens.forEach(function (token) {
+            if (cursor >= barTicks) { overflow = true; return; }
+            if (token.type === 'rest') {
+                lastStroke = null; // 休符の後の〜は伸ばし対象なし（警告）
+                cursor += slotTicks;
+                return;
+            }
+            if (token.type === 'extend') {
+                if (lastStroke) {
+                    lastStroke.durationTicks = Math.min(
+                        barTicks - lastStroke.tick,
+                        (lastStroke.durationTicks || slotTicks) + slotTicks);
+                } else {
+                    orphanExtend = true;
+                }
+                cursor += slotTicks;
+                return;
+            }
+            var ev = { tick: cursor, durationTicks: slotTicks, action: token.action, accent: false };
+            slots.push(ev);
+            lastStroke = ev;
+            cursor += slotTicks;
+        });
+        if (overflow) warnings.push('1小節に収まらない分は省略しました');
+        if (orphanExtend) warnings.push('直前にストロークがない伸ばし記号（〜）は無視しました');
+
+        var pattern = findStrumPattern(project, CUSTOM_BASIC_STRUM_ID);
+        if (!pattern) {
+            pattern = { id: CUSTOM_BASIC_STRUM_ID, name: '', lengthTicks: barTicks, slots: [] };
+            project.strumPatterns.push(pattern);
+        }
+        pattern.lengthTicks = barTicks;
+        pattern.slots = slots;
+        // パターン名 = 正規化した記号列（紙面ヘッダーの「基本ストローク:」表示に使われる）
+        pattern.name = theory.strumSlotsToString(slots, barTicks, getBeats(project));
+        project.basicStrumPatternId = CUSTOM_BASIC_STRUM_ID;
+        return { warnings: warnings };
+    }
+
+    /**
+     * 基本ストロークを記号テキストとして返す（slotsから再生成。入力欄の初期値用）。
+     * ユーザー入力のカスタムパターンが有効なときだけ返す（プリセットは''）。
+     */
+    function getBasicStrumText(project) {
+        var slots = getBasicStrumSlots(project);
+        if (!slots) return '';
+        return theory.strumSlotsToString(slots, getBarLengthTicks(project), getBeats(project));
+    }
+
+    /**
+     * 紙面のストローク段に表示すべきslot列を返す。
+     * ユーザーが入力したカスタム基本ストロークが有効なときだけ配列を返し、
+     * それ以外は null（プリセットを勝手に紙面へ印字しない: ADR-018）。
+     */
+    function getBasicStrumSlots(project) {
+        if (!project || project.basicStrumPatternId !== CUSTOM_BASIC_STRUM_ID) return null;
+        var pattern = findStrumPattern(project, CUSTOM_BASIC_STRUM_ID);
+        if (!pattern || !Array.isArray(pattern.slots) || pattern.slots.length === 0) return null;
+        return pattern.slots;
     }
 
     /**
@@ -603,6 +719,10 @@
         setBarLyricsText: setBarLyricsText,
         getBarDoremiText: getBarDoremiText,
         setBarDoremiText: setBarDoremiText,
+        CUSTOM_BASIC_STRUM_ID: CUSTOM_BASIC_STRUM_ID,
+        setBasicStrumText: setBasicStrumText,
+        getBasicStrumText: getBasicStrumText,
+        getBasicStrumSlots: getBasicStrumSlots,
         validateProject: validateProject,
         migrateProject: migrateProject,
         getDefaultSheetSettings: getDefaultSheetSettings,

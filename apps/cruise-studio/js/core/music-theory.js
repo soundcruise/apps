@@ -234,6 +234,76 @@
         return melodyEventsToDoremiTokens(events).map(function (t) { return t.text; }).join('');
     }
 
+    /* ══════════ ストローク記号列の簡易パース／整形（R1）══════════
+       入力仕様（docs/DECISIONS.md ADR-018）:
+       - ↓=ダウン / ↑=アップ / x（X ×も可）=ミュート / ・=休符 / 〜=直前の音を伸ばす
+       - 空白・タブは区切りとして無視（マスを消費しない）
+       - ↓↑x・〜 は1記号=1マス消費
+       - 解釈できない文字は警告になり保存されない（正は strumPatterns の slots） */
+
+    var STRUM_ACTION_GLYPHS = { down: '↓', up: '↑', mute: 'x' };
+    var STRUM_SPACES = ' \t　';
+    var STRUM_EXTENSIONS = '〜～ーｰ-−';
+    var STRUM_MUTES = 'xXｘＸ×';
+    var STRUM_RESTS = '・.．';
+
+    /**
+     * ストローク記号文字列をトークン列にパースする。
+     * @returns {{tokens: Array<{type:'stroke'|'rest'|'extend', action?:string}>, warnings: string[]}}
+     */
+    function parseStrumString(text) {
+        var tokens = [];
+        var warnings = [];
+        var unknown = [];
+        var s = String(text || '');
+        for (var i = 0; i < s.length; i++) {
+            var ch = s[i];
+            if (STRUM_SPACES.indexOf(ch) !== -1) continue;
+            if (ch === '↓') tokens.push({ type: 'stroke', action: 'down' });
+            else if (ch === '↑') tokens.push({ type: 'stroke', action: 'up' });
+            else if (STRUM_MUTES.indexOf(ch) !== -1) tokens.push({ type: 'stroke', action: 'mute' });
+            else if (STRUM_RESTS.indexOf(ch) !== -1) tokens.push({ type: 'rest' });
+            else if (STRUM_EXTENSIONS.indexOf(ch) !== -1) tokens.push({ type: 'extend' });
+            else unknown.push(ch);
+        }
+        if (unknown.length > 0) {
+            warnings.push('解釈できない文字を無視しました: ' + unknown.join(' '));
+        }
+        return { tokens: tokens, warnings: warnings };
+    }
+
+    /**
+     * ストロークslot列を記号文字列へ整形する（入力欄の再生成・パターン名に使う）。
+     * 拍ごとに空白を入れる（パース時に空白は無視されるため往復しても安全）。
+     * @param {Array<{tick:number, durationTicks?:number, action:string}>} slots
+     * @param {number} barTicks 1小節の長さ（tick）
+     * @param {number} beats 拍数（4/4なら4）
+     */
+    function strumSlotsToString(slots, barTicks, beats) {
+        if (!Array.isArray(slots) || slots.length === 0) return '';
+        var needs16 = slots.some(function (ev) {
+            return (ev.tick % 240 !== 0) || ((ev.durationTicks || 240) % 240 !== 0);
+        });
+        var slotTicks = needs16 ? 120 : 240;
+        var res = Math.max(1, Math.round(barTicks / slotTicks));
+        var slotsPerBeat = Math.max(1, Math.round(res / (beats || 4)));
+        var cells = [];
+        for (var c = 0; c < res; c++) cells.push('・');
+        slots.forEach(function (ev) {
+            var idx = Math.round(ev.tick / slotTicks);
+            if (idx < 0 || idx >= res) return;
+            cells[idx] = STRUM_ACTION_GLYPHS[ev.action] || '・';
+            var len = Math.max(1, Math.round((ev.durationTicks || slotTicks) / slotTicks));
+            for (var e = 1; e < len && idx + e < res; e++) cells[idx + e] = '〜';
+        });
+        var out = '';
+        for (var i = 0; i < cells.length; i++) {
+            if (i > 0 && i % slotsPerBeat === 0) out += ' ';
+            out += cells[i];
+        }
+        return out;
+    }
+
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.theory = {
         MAJOR_SCALE: MAJOR_SCALE.slice(),
@@ -247,6 +317,8 @@
         melodyEventToMidiNote: melodyEventToMidiNote,
         parseDoremiString: parseDoremiString,
         melodyEventsToDoremiTokens: melodyEventsToDoremiTokens,
-        melodyEventsToDoremiString: melodyEventsToDoremiString
+        melodyEventsToDoremiString: melodyEventsToDoremiString,
+        parseStrumString: parseStrumString,
+        strumSlotsToString: strumSlotsToString
     };
 })();

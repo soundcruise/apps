@@ -557,6 +557,12 @@ body {
     border-color: rgba(255, 159, 28, 0.6);
 }
 
+/* 基本ストローク入力の警告表示（解釈できない文字など。保存は妨げない） */
+.form-grid input.is-invalid {
+    border-color: rgba(255, 209, 102, 0.65);
+    background: rgba(255, 209, 102, 0.08);
+}
+
 .form-grid select option {
     background: var(--surface-raised);
     color: var(--text-color);
@@ -914,13 +920,33 @@ body {
     border-right-color: rgba(122, 116, 108, 0.11);
 }
 
-/* 段区切り横線: コード/歌詞/ドレミの各段（.sheet-bar-row）の間に薄い横線を引く。
+/* 段区切り横線: コード/ストローク/歌詞/ドレミの各段（.sheet-bar-row）の間に薄い横線を引く。
    「段の次に段が来たとき」だけ線が付くので、表示トグルで段が消えても自然に詰まる。
-   将来のストローク段も .sheet-bar-row を付ければ自動で区切られる。
    濃さはグリッドの8分線と同程度（可読性優先で控えめ） */
 .sheet-bar-row + .sheet-bar-row {
     border-top: 1px solid rgba(122, 116, 108, 0.18);
     padding-top: 2px;
+}
+
+/* ストローク段（R1）: コード段の直下。↓↑x・〜の文字表示（記譜化はVexFlow導入時）。
+   マスはグリッドと同じ等分割で、拍位置が縦に揃う */
+.sheet-bar-strum {
+    display: grid;
+    font-size: 11px;
+    font-weight: 700;
+    color: #7d5a28;
+    line-height: 1.5;
+    min-height: 1.5em;
+}
+
+.sheet-bar-strum > span {
+    text-align: center;
+    min-width: 0;
+}
+
+/* 休符マス（・）は控えめにして、実際に弾く記号を目立たせる */
+.sheet-bar-strum > span.is-rest {
+    color: rgba(122, 116, 108, 0.45);
 }
 
 .sheet-line--compact .sheet-bar {
