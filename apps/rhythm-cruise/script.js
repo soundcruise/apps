@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '0.13.6';
+const RHYTHM_CRUISE_VERSION = '0.13.7';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 

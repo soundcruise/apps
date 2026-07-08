@@ -7231,6 +7231,81 @@ body[data-rc-theme="clean-pro"] #screen-home header h1 {
     text-decoration: underline;
 }
 
+/* info.html: 「YouTubeを開きます」確認カード（v0.13.7）。
+   指板クルーズ（apps/fretboard_cruise/info.html の .fret-youtube-confirm*）と
+   見た目・構成を同一にし、class名のみ rc-info-youtube-confirm* に置き換えている。 */
+.rc-info-youtube-confirm {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(0, 0, 0, 0.58);
+}
+
+.rc-info-youtube-confirm[hidden] {
+    display: none;
+}
+
+.rc-info-youtube-confirm__dialog {
+    width: min(360px, 100%);
+    padding: 22px 20px 18px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 18px;
+    background: rgba(22, 27, 34, 0.98);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+    color: var(--text-color);
+    text-align: center;
+}
+
+.rc-info-youtube-confirm__title {
+    margin: 0 0 10px;
+    font-size: 1.18rem;
+    line-height: 1.25;
+    font-weight: 800;
+    color: #fff;
+}
+
+.rc-info-youtube-confirm__body {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.88rem;
+    line-height: 1.65;
+}
+
+.rc-info-youtube-confirm__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.rc-info-youtube-confirm__btn {
+    min-height: 44px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    font-family: inherit;
+    font-size: 0.88rem;
+    font-weight: 700;
+    line-height: 1.2;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.rc-info-youtube-confirm__btn--cancel {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.84);
+}
+
+.rc-info-youtube-confirm__btn--open {
+    border-color: rgba(255, 214, 94, 0.42);
+    background: linear-gradient(135deg, rgba(255, 214, 94, 0.92), rgba(255, 242, 186, 0.92));
+    color: #1b1608;
+}
+
 @media (max-width: 480px) {
     .rc-info-card {
         padding: 26px 18px;
@@ -7252,6 +7327,14 @@ body[data-rc-theme="clean-pro"] #screen-home header h1 {
 
     .rc-info-link-title {
         font-size: 0.9rem;
+    }
+
+    .rc-info-youtube-confirm {
+        padding: 18px;
+    }
+
+    .rc-info-youtube-confirm__actions {
+        grid-template-columns: 1fr;
     }
 }
 
