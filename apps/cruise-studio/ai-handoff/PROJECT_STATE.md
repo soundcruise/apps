@@ -2,8 +2,8 @@
 
 ## 0. AIエージェントへの最初の指示
 
-- 作業開始時は、この `PROJECT_STATE.md` を最初に読む。
-- 次に `AI_WORKFLOW.md` を読む。
+- 作業開始時は、この `ai-handoff/PROJECT_STATE.md` を最初に読む。
+- 次に `ai-handoff/AI_WORKFLOW.md` を読む。
 - `git status -sb` を必ず確認する。
 - 今回の作業範囲を明示してから作業する。
 - 不明点があれば、実装前にユーザーへ質問する。
@@ -212,7 +212,7 @@
 
 ## 10. 次のAIへの指示
 
-- このファイルを読んだ後、`AI_WORKFLOW.md` を読む。
+- このファイルを読んだ後、`ai-handoff/AI_WORKFLOW.md` を読む。
 - `git status -sb` を確認する。
 - 現在の未commit差分を確認する。
 - 未commit差分がある場合は、それを勝手に変更せず、まず報告する。

@@ -2,8 +2,8 @@
 
 ## 1. 作業開始時の必須手順
 
-1. `PROJECT_STATE.md` を読む。
-2. `AI_WORKFLOW.md` を読む。
+1. `ai-handoff/PROJECT_STATE.md` を読む。
+2. `ai-handoff/AI_WORKFLOW.md` を読む。
 3. `git status -sb` を確認する。
 4. 現在のHEADと未commit差分を確認する。
 5. 今回の作業範囲を明示する。
@@ -68,12 +68,12 @@
 
 フェーズ完了時には、必要に応じて以下を更新する。
 
-- `PROJECT_STATE.md`
+- `ai-handoff/PROJECT_STATE.md`
 - `ROADMAP.md`
 - `DATA_MODEL.md`
 - `docs/DECISIONS.md`
 
-特に以下の場合は、必ず `PROJECT_STATE.md` を更新する。
+特に以下の場合は、必ず `ai-handoff/PROJECT_STATE.md` を更新する。
 
 - バージョンが上がった。
 - 新機能を追加した。
@@ -83,7 +83,7 @@
 - 既知課題が増えた。
 - 重要な設計判断をした。
 
-ただし、commit / pushだけの作業では `PROJECT_STATE.md` 更新は不要な場合がある。
+ただし、commit / pushだけの作業では `ai-handoff/PROJECT_STATE.md` 更新は不要な場合がある。
 
 ## 6. バージョン管理ルール
 
