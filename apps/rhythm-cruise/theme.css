@@ -7306,6 +7306,48 @@ body[data-rc-theme="clean-pro"] #screen-home header h1 {
     color: #1b1608;
 }
 
+/* マイク設定カード：「補正テストを始める」の隣に置く小さな ? ヘルプボタン（v0.13.8）。
+   既存ボタンは元々 style="width:100%;margin-top:4px" だったが、隣に並べるため
+   幅制御を .rc-mic-help-row 側へ移し、見た目（フル幅・上余白4px）は変えていない。 */
+.rc-mic-help-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.rc-mic-help-row .settings-top-main {
+    flex: 1;
+    width: auto;
+}
+
+.rc-mic-help-link {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--muted-color);
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.rc-mic-help-link:active {
+    color: var(--text-color);
+    border-color: rgba(255, 159, 28, 0.42);
+    background: rgba(255, 159, 28, 0.13);
+}
+
+.rc-mic-help-icon {
+    font-size: 0.92rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
 @media (max-width: 480px) {
     .rc-info-card {
         padding: 26px 18px;

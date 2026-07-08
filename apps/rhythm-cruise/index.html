@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=0.13.7">
+    <link rel="stylesheet" href="theme.css?v=0.13.8">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -691,7 +691,12 @@
                 <div class="cal-head">マイク設定</div>
                 <p class="cal-status hidden" id="chooser-applied-msg" style="margin-top:0;color:#6ed28c;font-weight:700;"></p>
                 <!-- 主導線：補正テスト -->
-                <button type="button" class="settings-top-main" id="settings-detail-btn" style="width:100%;margin-top:4px;">補正テストを始める</button>
+                <div class="rc-mic-help-row">
+                    <button type="button" class="settings-top-main" id="settings-detail-btn">補正テストを始める</button>
+                    <a class="rc-mic-help-link" href="mic-correction-help.html?from=settings&edition=standard" id="mic-help-link" aria-label="補正テストのやり方ヘルプ" title="補正テストのやり方ヘルプ">
+                        <span class="rc-mic-help-icon">?</span>
+                    </a>
+                </div>
                 <p class="setting-note" style="margin-top:6px;">リズム判定に使うマイク設定を、順番に確認します。</p>
                 <!-- サブ導線：保存済みプリセット（押すと専用ページへ移動・v0.9.104） -->
                 <button type="button" class="btn-mini settings-top-preset" id="preset-toggle-btn" style="width:100%;margin-top:10px;">保存済みプリセット</button>
@@ -1551,7 +1556,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=0.13.7"></script>
+    <script src="script.js?v=0.13.8"></script>
 </body>
 
 </html>
