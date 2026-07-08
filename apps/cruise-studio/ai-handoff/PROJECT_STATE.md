@@ -13,19 +13,18 @@
 ## 1. 現在の最新状態
 
 - 最新push済みcommit:
-  - full hash: `73a39dc6f4d87fa3ec49ec916ad7dbfd92b64778`
-  - short hash: `73a39dc`
-  - commit message: `クルーズスタジオのAI引き継ぎファイルを専用フォルダへ移動`
-  - 内容: AI引き継ぎファイルの専用フォルダ移動までリモート反映済み
+  - full hash: `0766225db71a90d00e3738e5dd4f8387ad1da6ea`
+  - short hash: `0766225d`
+  - commit message: `リズムクルーズを正式版1.0.0に更新`
+  - 内容: リポジトリ全体では main / origin/main 同期済み
 - クルーズスタジオの最新push済みcommit:
-  - full hash: `b5eb2488a77389313cafef702ea69ba4ac2749ee`
-  - short hash: `b5eb248`
-  - commit message: `譜面クルーズの編集レイヤーにコード入力を追加`
-  - 内容: `v0.12.0 / S1e` までリモート反映済み
+  - full hash: `7593849cb9819468471d197838872f13c48f2589`
+  - short hash: `7593849c`
+  - commit message: `譜面クルーズの編集レイヤーに小節移動とまとめて入力を追加`
+  - 内容: `v0.13.0 / S1d` までリモート反映済み
 - `main` と `origin/main` は同期済み。
-- `apps/rhythm-cruise/rhythm-cruise-icon-proposal.png` と
-  `apps/rhythm-cruise/rhythm-cruise-icon-proposal.svg` は未追跡のまま触らない。
-- 状態管理ドキュメント commit 後は、未追跡として残る想定は rhythm-cruise のアイコン案2件のみ。
+- クルーズスタジオ側の未commit差分は、R2実装分のみを想定する。
+- rhythm-cruise 側の差分や未追跡ファイルが出ていても、この作業では触らない。
 
 ## 2. クルーズスタジオの目的
 
@@ -125,27 +124,33 @@
   - 歌詞・ドレミoverlay入力は維持
   - overlayは印刷/PDFに出さない
   - `schemaVersion` は1のまま
+- `v0.13.0 / S1d`: まとめて入力・Alt移動
+  - `Alt + ArrowLeft` / `Alt + ArrowRight` で選択小節を前後移動
+  - overlay内の「前へ」「次へ」ボタン
+  - 移動先小節へoverlay位置を追従
+  - コード / 歌詞 / ドレミのまとめて入力
+  - 既存 `bar.chords` / `bar.lyrics` / `bar.melody` 構造へ順に反映
+  - A4紙面と既存カード型入力UIを即時同期
+  - 選択状態やまとめて入力UI状態は保存しない
+  - `schemaVersion` は1のまま
 
 ## 5. 現在作業中のフェーズ
 
-### S1d: まとめて入力・Alt移動
+### R2: ストローク行を編集レイヤーに追加、小節別 `strumOverride` UI
 
-- 予定バージョン: `v0.13.0`
+- 予定バージョン: `v0.14.0`
 - 実装・検証済み。
 - commit / push はまだ未実施。
 - 主な内容:
-  - `Alt + ArrowLeft` / `Alt + ArrowRight` で選択小節を前後移動。
-  - overlay内の「前へ」「次へ」ボタンで選択小節を前後移動。
-  - 移動先小節へoverlay位置を追従。
-  - 移動先小節のコード/歌詞/ドレミをoverlay入力欄へ反映。
-  - overlay上にコード/歌詞/ドレミの「まとめて入力」パネルを追加。
-  - まとめて入力は現在小節から順に既存構造へ反映。
-  - 小節数超過や未対応コード/ドレミは警告表示し、保存拒否はしない。
-  - A4紙面と既存カード型入力UIを即時同期。
-  - IME中のキー操作が小節移動と競合しないように分離。
-  - overlay/まとめて入力UIは引き続き印刷/PDFに出さない。
-  - 選択状態や編集中UI状態は保存データに入れない。
-- `R2`: 小節別ストローク上書きUIは後続フェーズ。
+  - overlayに `strum` 入力欄を追加。
+  - 空欄なら基本ストローク継承、入力ありなら小節別上書き。
+  - `bar.strumOverride` と `project.strumPatterns` の既存構造を再利用。
+  - 小節専用パターンIDを作成/更新し、未参照パターンは最小限掃除する。
+  - A4紙面のストローク段へ即時反映。
+  - 小節別上書きの16分相当をグリッド自動判定へ反映。
+  - 既存のコード / 歌詞 / ドレミoverlay入力、小節移動、まとめて入力を維持。
+  - 保存/復元、JSON、プレDTM、MIDI既存経路を壊さない。
+  - `schemaVersion` は1のまま。
 
 ### R1の記号ルール
 
@@ -170,12 +175,11 @@
 
 ## 6. 次にやること
 
-1. S1d commit
-2. S1d push
-3. R2: ストローク行を編集レイヤーに追加、小節別 `strumOverride` UI
-4. R3: VexFlow等によるコード+リズム譜の記譜表示
-5. メロディ五線譜
-6. MusicXML / PDF品質向上
+1. R2 commit
+2. R2 push
+3. R3: VexFlow等によるコード+リズム譜の記譜表示
+4. メロディ五線譜
+5. MusicXML / PDF品質向上
 
 ## 7. 重要な設計方針
 
@@ -189,7 +193,7 @@
 - 表示専用フィールドは補完で読む。
 - 音や出力に影響するスキーマ変更は `schemaVersion` 検討が必要。
 - `strumPatterns` 既存構造を活かす。
-- 小節別ストローク上書きは `bar.strumOverride` で行う予定。
+- 小節別ストローク上書きは `bar.strumOverride` で行う。
 - 休符/タイの本格記譜はVexFlow等のフェーズで行う。
 - プレDTMへの影響は慎重に分離する。
 - 既存アプリは絶対に壊さない。
@@ -212,13 +216,13 @@
 - R1の実PDF確認は最終目視が必要。
 - 8分ストローク時にグリッドが16分になることがある可能性。
 - 正しい休符マーク・タイ曲線は未実装。
-- 小節ごとのストローク上書きUIは未実装。
-- overlayのストローク入力は未実装。
-- 小節別 `strumOverride` は未実装。
-- R2でストローク行 / 小節別 `strumOverride` を扱う予定。
+- 休符記号の本格描画は未実装。
+- タイ曲線の本格描画は未実装。
+- VexFlowによる記譜表示は未実装。
 - S0プロトタイプは本番に未統合。
 - メロディ五線譜は未実装。
 - コード+リズム譜の五線譜化は未実装。
+- MusicXMLは未実装。
 
 ## 10. 次のAIへの指示
 

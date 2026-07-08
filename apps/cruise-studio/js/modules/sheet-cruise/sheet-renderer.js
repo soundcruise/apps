@@ -1,4 +1,4 @@
-/* クルーズスタジオ — sheet-renderer.js（v0.13.0）
+/* クルーズスタジオ — sheet-renderer.js（v0.14.0）
    StudioProject → A4固定紙面DOM のレンダラー（ADR-016）。
    「譜面は曲データのビュー」（APP_CONCEPT.md 4章）の紙面実装。
 
@@ -50,6 +50,17 @@
         return name;
     }
 
+    function resolveBarStrum(project, bar) {
+        var model = CS().model;
+        var slots = model.getBarEffectiveStrumSlots(project, bar.barNumber);
+        if (!Array.isArray(slots) || slots.length === 0) return null;
+        return {
+            slots: slots,
+            barTicks: model.getBarLengthTicks(project),
+            needs16: strumNeedsSixteenth(slots)
+        };
+    }
+
     /* ══════════ 紙面ヘッダー ══════════ */
 
     function buildHeader(project) {
@@ -90,7 +101,7 @@
      * 含む場合、全体設定が8分でもその小節だけ16分グリッドで表示する
      * （分割状態はデータに持たず、tickから導出する方針）。
      */
-    function barNeedsSixteenth(bar) {
+    function barNeedsSixteenth(bar, strumSlots) {
         var needs = false;
         function check(ev) {
             if (ev && typeof ev.tick === 'number' && ev.tick % 240 !== 0) needs = true;
@@ -98,6 +109,10 @@
         (bar.lyrics || []).forEach(check);
         (bar.chords || []).forEach(check);
         (bar.melody || []).forEach(function (ev) {
+            check(ev);
+            if (ev && typeof ev.durationTicks === 'number' && ev.durationTicks % 240 !== 0) needs = true;
+        });
+        (strumSlots || []).forEach(function (ev) {
             check(ev);
             if (ev && typeof ev.durationTicks === 'number' && ev.durationTicks % 240 !== 0) needs = true;
         });
@@ -189,7 +204,7 @@
         cell.setAttribute('aria-label', bar.barNumber + '小節目を選択');
 
         if (show.timingGrid) {
-            var res = (show.gridResolution === 16 || barNeedsSixteenth(bar) ||
+            var res = (show.gridResolution === 16 || barNeedsSixteenth(bar, strum && strum.slots) ||
                 (strum && strum.needs16)) ? 16 : 8;
             cell.appendChild(buildTimingGrid(beats, res));
         }
@@ -205,7 +220,8 @@
             cell.appendChild(chord);
         }
 
-        // ストローク段: コード段の直下（ユーザーが基本ストロークを入力したときだけ出る）
+        // ストローク段: コード段の直下。小節別上書きがあればそれを優先し、
+        // なければユーザー入力済みの基本ストロークを継承する
         if (strum && strum.slots) {
             cell.appendChild(buildStrumRow(strum.slots, strum.barTicks));
         }
@@ -238,14 +254,6 @@
         var ts = project.songInfo && project.songInfo.timeSignature;
         var beats = (ts && typeof ts.beats === 'number' && ts.beats > 0) ? ts.beats : 4;
 
-        // ストローク段の表示コンテキスト（showStrum ON かつ ユーザー入力があるときだけ）
-        var strumSlots = show.strum ? model.getBasicStrumSlots(project) : null;
-        var strum = strumSlots ? {
-            slots: strumSlots,
-            barTicks: model.getBarLengthTicks(project),
-            needs16: strumNeedsSixteenth(strumSlots)
-        } : null;
-
         container.innerHTML = '';
         var page = el('div', 'sheet-page');
         page.appendChild(buildHeader(project));
@@ -269,6 +277,7 @@
                 line.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
                 var lineBars = bars.slice(i, i + cols);
                 lineBars.forEach(function (bar) {
+                    var strum = show.strum ? resolveBarStrum(project, bar) : null;
                     line.appendChild(buildBarCell(bar, show, hasVocal, beats, strum));
                 });
                 // 行末まで小節線を揃えるための空セル

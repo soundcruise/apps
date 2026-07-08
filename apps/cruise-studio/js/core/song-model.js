@@ -8,7 +8,7 @@
 
     var theory = window.CruiseStudio && window.CruiseStudio.theory;
 
-    var APP_VERSION = '0.13.0';
+    var APP_VERSION = '0.14.0';
     var SCHEMA_VERSION = 1;
     var TICKS_PER_BEAT = 480;
 
@@ -299,6 +299,7 @@
        既存プリセット（strum_8beat_a等）は削除しない。schemaVersionは1のまま。 */
 
     var CUSTOM_BASIC_STRUM_ID = 'strum_custom_basic';
+    var BAR_STRUM_PATTERN_PREFIX = 'strum_bar_';
 
     function findStrumPattern(project, id) {
         var found = null;
@@ -313,33 +314,58 @@
         return (ts && typeof ts.beats === 'number' && ts.beats > 0) ? ts.beats : 4;
     }
 
-    /**
-     * 基本ストロークを記号テキストで設定する。
-     * 配置規則: 記号数（1記号=1マス）が8分で収まれば8分（240tick）、超えれば16分（120tick）。
-     * 〜は直前のストロークの durationTicks を1マス延長。・はマスを空ける。
-     * 空欄なら専用パターンを外して既定プリセットへ戻す（紙面のストローク段は消える）。
-     * @returns {{warnings: string[]}}
-     */
-    function setBasicStrumText(project, text) {
+    function isManagedBarStrumId(id) {
+        return typeof id === 'string' && id.indexOf(BAR_STRUM_PATTERN_PREFIX) === 0;
+    }
+
+    function buildManagedBarStrumId(barNumber) {
+        return BAR_STRUM_PATTERN_PREFIX + String(barNumber);
+    }
+
+    function removeStrumPatternById(project, id) {
+        if (!id || !Array.isArray(project.strumPatterns)) return;
+        project.strumPatterns = project.strumPatterns.filter(function (pat) {
+            return pat && pat.id !== id;
+        });
+    }
+
+    function isStrumPatternReferenced(project, id) {
+        if (!id || !Array.isArray(project.bars)) return false;
+        return project.bars.some(function (bar) {
+            return bar && bar.strumOverride === id;
+        });
+    }
+
+    function isStrumPatternReferencedByOtherBar(project, id, ownerBar) {
+        if (!id || !Array.isArray(project.bars)) return false;
+        return project.bars.some(function (bar) {
+            return bar && bar !== ownerBar && bar.strumOverride === id;
+        });
+    }
+
+    function allocateBarStrumPatternId(project, bar) {
+        var base = buildManagedBarStrumId(bar.barNumber);
+        var id = base;
+        var index = 2;
+        while (findStrumPattern(project, id) && isStrumPatternReferencedByOtherBar(project, id, bar)) {
+            id = base + '_' + index;
+            index++;
+        }
+        return id;
+    }
+
+    function cleanupUnusedBarStrumPatterns(project) {
+        if (!Array.isArray(project.strumPatterns)) return;
+        project.strumPatterns = project.strumPatterns.filter(function (pat) {
+            if (!pat || !isManagedBarStrumId(pat.id)) return true;
+            return isStrumPatternReferenced(project, pat.id);
+        });
+    }
+
+    function buildStrumSlotsFromText(project, text) {
         var parsed = theory.parseStrumString(text);
         var warnings = parsed.warnings.slice();
         var barTicks = getBarLengthTicks(project);
-
-        if (!Array.isArray(project.strumPatterns)) project.strumPatterns = [];
-
-        if (parsed.tokens.length === 0) {
-            project.strumPatterns = project.strumPatterns.filter(function (pat) {
-                return pat && pat.id !== CUSTOM_BASIC_STRUM_ID;
-            });
-            if (project.strumPatterns.length === 0) {
-                project.strumPatterns.push(createDefaultStrumPattern());
-            }
-            if (project.basicStrumPatternId === CUSTOM_BASIC_STRUM_ID) {
-                project.basicStrumPatternId = project.strumPatterns[0].id;
-            }
-            return { warnings: warnings };
-        }
-
         var slotTicks = (parsed.tokens.length <= barTicks / 240) ? 240 : 120;
         var slots = [];
         var cursor = 0;
@@ -350,7 +376,7 @@
         parsed.tokens.forEach(function (token) {
             if (cursor >= barTicks) { overflow = true; return; }
             if (token.type === 'rest') {
-                lastStroke = null; // 休符の後の〜は伸ばし対象なし（警告）
+                lastStroke = null;
                 cursor += slotTicks;
                 return;
             }
@@ -370,8 +396,45 @@
             lastStroke = ev;
             cursor += slotTicks;
         });
+
         if (overflow) warnings.push('1小節に収まらない分は省略しました');
         if (orphanExtend) warnings.push('直前にストロークがない伸ばし記号（〜）は無視しました');
+
+        return {
+            tokens: parsed.tokens,
+            slots: slots,
+            warnings: warnings,
+            barTicks: barTicks,
+            beats: getBeats(project)
+        };
+    }
+
+    /**
+     * 基本ストロークを記号テキストで設定する。
+     * 配置規則: 記号数（1記号=1マス）が8分で収まれば8分（240tick）、超えれば16分（120tick）。
+     * 〜は直前のストロークの durationTicks を1マス延長。・はマスを空ける。
+     * 空欄なら専用パターンを外して既定プリセットへ戻す（紙面のストローク段は消える）。
+     * @returns {{warnings: string[]}}
+     */
+    function setBasicStrumText(project, text) {
+        var built = buildStrumSlotsFromText(project, text);
+        var warnings = built.warnings.slice();
+        var barTicks = built.barTicks;
+
+        if (!Array.isArray(project.strumPatterns)) project.strumPatterns = [];
+
+        if (built.tokens.length === 0) {
+            project.strumPatterns = project.strumPatterns.filter(function (pat) {
+                return pat && pat.id !== CUSTOM_BASIC_STRUM_ID;
+            });
+            if (project.strumPatterns.length === 0) {
+                project.strumPatterns.push(createDefaultStrumPattern());
+            }
+            if (project.basicStrumPatternId === CUSTOM_BASIC_STRUM_ID) {
+                project.basicStrumPatternId = project.strumPatterns[0].id;
+            }
+            return { warnings: warnings };
+        }
 
         var pattern = findStrumPattern(project, CUSTOM_BASIC_STRUM_ID);
         if (!pattern) {
@@ -379,9 +442,9 @@
             project.strumPatterns.push(pattern);
         }
         pattern.lengthTicks = barTicks;
-        pattern.slots = slots;
+        pattern.slots = built.slots;
         // パターン名 = 正規化した記号列（紙面ヘッダーの「基本ストローク:」表示に使われる）
-        pattern.name = theory.strumSlotsToString(slots, barTicks, getBeats(project));
+        pattern.name = theory.strumSlotsToString(built.slots, barTicks, built.beats);
         project.basicStrumPatternId = CUSTOM_BASIC_STRUM_ID;
         return { warnings: warnings };
     }
@@ -406,6 +469,63 @@
         var pattern = findStrumPattern(project, CUSTOM_BASIC_STRUM_ID);
         if (!pattern || !Array.isArray(pattern.slots) || pattern.slots.length === 0) return null;
         return pattern.slots;
+    }
+
+    function getBarStrumOverrideText(project, barNumber) {
+        var bar = findBar(project, barNumber);
+        if (!bar || !bar.strumOverride) return '';
+        var pattern = findStrumPattern(project, bar.strumOverride);
+        if (!pattern || !Array.isArray(pattern.slots) || pattern.slots.length === 0) return '';
+        return theory.strumSlotsToString(pattern.slots, getBarLengthTicks(project), getBeats(project));
+    }
+
+    function getBarEffectiveStrumSlots(project, barNumber) {
+        var bar = findBar(project, barNumber);
+        if (!bar) return null;
+        if (bar.strumOverride) {
+            var pattern = findStrumPattern(project, bar.strumOverride);
+            if (pattern && Array.isArray(pattern.slots) && pattern.slots.length > 0) {
+                return pattern.slots;
+            }
+        }
+        return getBasicStrumSlots(project);
+    }
+
+    function setBarStrumText(project, barNumber, text) {
+        var bar = findBar(project, barNumber);
+        if (!bar) return { warnings: [], inherited: true, patternId: null };
+        if (!Array.isArray(project.strumPatterns)) project.strumPatterns = [];
+
+        var previousId = bar.strumOverride;
+        var built = buildStrumSlotsFromText(project, text);
+        var normalized = theory.strumSlotsToString(built.slots, built.barTicks, built.beats);
+
+        if (built.tokens.length === 0) {
+            bar.strumOverride = null;
+            if (isManagedBarStrumId(previousId) && !isStrumPatternReferenced(project, previousId)) {
+                removeStrumPatternById(project, previousId);
+            }
+            cleanupUnusedBarStrumPatterns(project);
+            return { warnings: built.warnings, inherited: true, patternId: null };
+        }
+
+        var patternId = isManagedBarStrumId(previousId) ? previousId : allocateBarStrumPatternId(project, bar);
+        var pattern = findStrumPattern(project, patternId);
+        if (!pattern) {
+            pattern = { id: patternId, name: '', lengthTicks: built.barTicks, slots: [] };
+            project.strumPatterns.push(pattern);
+        }
+        pattern.lengthTicks = built.barTicks;
+        pattern.slots = built.slots;
+        pattern.name = normalized || ('bar ' + bar.barNumber);
+        bar.strumOverride = patternId;
+
+        if (previousId && previousId !== patternId &&
+            isManagedBarStrumId(previousId) && !isStrumPatternReferenced(project, previousId)) {
+            removeStrumPatternById(project, previousId);
+        }
+        cleanupUnusedBarStrumPatterns(project);
+        return { warnings: built.warnings, inherited: false, patternId: patternId };
     }
 
     /**
@@ -602,6 +722,9 @@
                 if (!knownSections[bar.sectionId]) {
                     err(label + '.sectionId が sections に存在しません: ' + bar.sectionId);
                 }
+                if (!(bar.strumOverride === null || typeof bar.strumOverride === 'string')) {
+                    err(label + '.strumOverride は null または文字列にしてください');
+                }
                 ['chords', 'lyrics', 'melody'].forEach(function (kind) {
                     if (!Array.isArray(bar[kind])) {
                         err(label + '.' + kind + ' が配列ではありません');
@@ -650,6 +773,13 @@
         if (typeof project.basicStrumPatternId !== 'string' || !patternIds[project.basicStrumPatternId]) {
             err('basicStrumPatternId が strumPatterns に存在しません: ' + project.basicStrumPatternId);
         }
+        if (Array.isArray(project.bars)) {
+            project.bars.forEach(function (bar, i) {
+                if (bar && bar.strumOverride && !patternIds[bar.strumOverride]) {
+                    err('bars[' + i + '].strumOverride が strumPatterns に存在しません: ' + bar.strumOverride);
+                }
+            });
+        }
 
         if (!project.sheetSettings || typeof project.sheetSettings !== 'object') {
             err('sheetSettings がありません');
@@ -690,6 +820,11 @@
         // v1: 欠けているフィールドをデフォルト補完（前方互換のための安全網）
         if (!migrated.sheetSettings) migrated.sheetSettings = getDefaultSheetSettings();
         if (!migrated.arrangement) migrated.arrangement = getDefaultArrangementSettings();
+        if (Array.isArray(migrated.bars)) {
+            migrated.bars.forEach(function (bar) {
+                if (bar && typeof bar.strumOverride === 'undefined') bar.strumOverride = null;
+            });
+        }
 
         // TODO(将来): if (migrated.schemaVersion === 1) { ...v2への変換... ; migrated.schemaVersion = 2; }
 
@@ -723,6 +858,9 @@
         setBasicStrumText: setBasicStrumText,
         getBasicStrumText: getBasicStrumText,
         getBasicStrumSlots: getBasicStrumSlots,
+        getBarStrumOverrideText: getBarStrumOverrideText,
+        getBarEffectiveStrumSlots: getBarEffectiveStrumSlots,
+        setBarStrumText: setBarStrumText,
         validateProject: validateProject,
         migrateProject: migrateProject,
         getDefaultSheetSettings: getDefaultSheetSettings,

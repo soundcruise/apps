@@ -1,4 +1,4 @@
-/* クルーズスタジオ theme.css — v0.12.0
+/* クルーズスタジオ theme.css — v0.14.0
    リズムクルーズの DESIGN_SYSTEM.md（Clean Pro系）の考え方を継承しつつ、
    PCファーストに読み替えたテーマ。shared/style.css には依存しない（ADR-005）。
    class名・DOMはクルーズスタジオ用に新規設計している。 */
@@ -1165,7 +1165,8 @@ body {
     border: 1px dashed rgba(122, 116, 108, 0.24);
     background: rgba(255, 255, 255, 0.34);
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: stretch;
     overflow: hidden;
 }
 
@@ -1202,6 +1203,22 @@ body {
     font-weight: 700;
     color: rgba(42, 38, 32, 0.44);
     letter-spacing: 0.02em;
+}
+
+.slot-overlay-row-note--info {
+    color: #8a4a0a;
+}
+
+.slot-overlay-row-note--inherit {
+    color: rgba(42, 38, 32, 0.58);
+}
+
+.slot-overlay-row-note--muted {
+    color: rgba(42, 38, 32, 0.42);
+}
+
+.slot-overlay-row-note--warning {
+    color: #b44527;
 }
 
 .slot-overlay-bulk {

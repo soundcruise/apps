@@ -1,4 +1,4 @@
-/* クルーズスタジオ — sheet-cruise.js（Phase 2B / S1d）
+/* クルーズスタジオ — sheet-cruise.js（Phase 2B / R2）
    譜面クルーズ画面: プロジェクト選択・曲情報フォーム・キー関係チェック・
    セクション管理・小節グリッド（1小節1コード入力）・簡易プレビュー・保存。
    歌詞・ドレミ入力とA4紙面プレビューは Phase 2C / Phase 3。
@@ -482,23 +482,42 @@
 
     function getOverlayFieldValue(rowId, bar) {
         if (rowId === 'chord') return (bar.chords[0] && bar.chords[0].symbol) || '';
+        if (rowId === 'strum') return CS().model.getBarStrumOverrideText(state.project, bar.barNumber);
         if (rowId === 'lyrics') return CS().model.getBarLyricsText(bar);
         if (rowId === 'doremi') return CS().model.getBarDoremiText(bar);
         return '';
     }
 
-    function getOverlayPlaceholder(rowId) {
+    function getOverlayPlaceholder(rowId, bar) {
         if (rowId === 'chord') return 'コードを入力';
+        if (rowId === 'strum') {
+            var basic = CS().model.getBasicStrumText(state.project);
+            return basic ? ('基本: ' + basic) : '空欄ならストロークなし';
+        }
         if (rowId === 'lyrics') return '歌詞を入力';
         if (rowId === 'doremi') return 'ドレミを入力';
         return '';
     }
 
-    function buildOverlayPending(rowDef) {
+    function getOverlayNote(rowId, bar) {
+        var warnings = state.overlayWarnings[rowId] || [];
+        if (warnings.length > 0) return { text: warnings.join(' / '), tone: 'warning' };
+        if (rowId === 'strum') {
+            var override = CS().model.getBarStrumOverrideText(state.project, bar.barNumber);
+            var basic = CS().model.getBasicStrumText(state.project);
+            if (override) return { text: '小節別上書き中。空にすると基本ストロークへ戻ります', tone: 'info' };
+            if (basic) return { text: '基本ストロークを継承: ' + basic, tone: 'inherit' };
+            return { text: '空欄のままならこの小節のストローク段は表示しません', tone: 'muted' };
+        }
+        return null;
+    }
+
+    function buildOverlayNote(rowId, bar) {
+        var noteInfo = getOverlayNote(rowId, bar);
+        if (!noteInfo) return null;
         var note = document.createElement('span');
-        note.className = 'slot-overlay-row-note';
-        note.textContent = '後続フェーズ';
-        note.setAttribute('aria-hidden', 'true');
+        note.className = 'slot-overlay-row-note slot-overlay-row-note--' + noteInfo.tone;
+        note.textContent = noteInfo.text;
         return note;
     }
 
@@ -536,6 +555,7 @@
     }
 
     function syncBarGridInput(rowId, barNumber, value, warnings) {
+        if (rowId === 'strum') return;
         var className = rowId === 'chord' ? 'bar-chord-input' :
             (rowId === 'lyrics' ? 'bar-lyrics-input' : 'bar-doremi-input');
         var labelText = rowId === 'chord' ? 'コード' :
@@ -565,6 +585,11 @@
             validateChordInput(input);
             state.overlayWarnings[rowId] = input.classList.contains('is-invalid') ?
                 [input.title] : [];
+        } else if (rowId === 'strum') {
+            warnings = CS().model.setBarStrumText(state.project, bar.barNumber, input.value).warnings;
+            state.overlayWarnings[rowId] = warnings;
+            input.classList.toggle('is-invalid', warnings.length > 0);
+            input.title = warnings.join(' / ');
         } else if (rowId === 'lyrics') {
             CS().model.setBarLyricsText(state.project, bar.barNumber, input.value);
             state.overlayWarnings[rowId] = [];
@@ -590,13 +615,13 @@
         var input = document.createElement('input');
         input.type = 'text';
         input.className = 'slot-overlay-input';
-        input.placeholder = getOverlayPlaceholder(rowDef.id);
+        input.placeholder = getOverlayPlaceholder(rowDef.id, bar);
         input.value = getOverlayFieldValue(rowDef.id, bar);
         input.dataset.overlayField = rowDef.id;
         input.setAttribute('aria-label', bar.barNumber + '小節目の' + rowDef.label);
         if (rowDef.id === 'chord') {
             validateChordInput(input);
-        } else if (rowDef.id === 'doremi') {
+        } else if (rowDef.id === 'strum' || rowDef.id === 'doremi') {
             var warnings = state.overlayWarnings[rowDef.id] || [];
             input.classList.toggle('is-invalid', warnings.length > 0);
             input.title = warnings.join(' / ');
@@ -880,10 +905,11 @@
 
             var rowBody = document.createElement('div');
             rowBody.className = 'slot-overlay-row-body';
-            if (rowDef.id === 'chord' || rowDef.id === 'lyrics' || rowDef.id === 'doremi') {
+            if (rowDef.id === 'chord' || rowDef.id === 'strum' ||
+                rowDef.id === 'lyrics' || rowDef.id === 'doremi') {
                 rowBody.appendChild(buildOverlayInput(rowDef, bar));
-            } else {
-                rowBody.appendChild(buildOverlayPending(rowDef));
+                var note = buildOverlayNote(rowDef.id, bar);
+                if (note) rowBody.appendChild(note);
             }
 
             row.appendChild(rowLabel);
