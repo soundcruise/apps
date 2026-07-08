@@ -1,4 +1,4 @@
-/* クルーズスタジオ — sheet-renderer.js（v0.9.0）
+/* クルーズスタジオ — sheet-renderer.js（v0.10.0）
    StudioProject → A4固定紙面DOM のレンダラー（ADR-016）。
    「譜面は曲データのビュー」（APP_CONCEPT.md 4章）の紙面実装。
 
@@ -183,6 +183,10 @@
         var theory = CS().theory;
         var model = CS().model;
         var cell = el('div', 'sheet-bar');
+        cell.dataset.barNumber = String(bar.barNumber);
+        cell.tabIndex = 0;
+        cell.setAttribute('role', 'button');
+        cell.setAttribute('aria-label', bar.barNumber + '小節目を選択');
 
         if (show.timingGrid) {
             var res = (show.gridResolution === 16 || barNeedsSixteenth(bar) ||

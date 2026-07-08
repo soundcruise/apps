@@ -14,9 +14,18 @@
     // プレビューの1行あたり小節数は sheetSettings.barsPerLine（既定2）。
     // 歌詞もドレミもないセクション（前奏などのコードのみ）は2倍詰めで表示する。
 
+    var SLOT_OVERLAY_ROWS = [
+        { id: 'chord', label: 'コード' },
+        { id: 'strum', label: 'ストローク' },
+        { id: 'lyrics', label: '歌詞' },
+        { id: 'doremi', label: 'ドレミ' }
+    ];
+
     var state = {
         project: null,   // 編集中の StudioProject
-        dirty: false     // 未保存の変更があるか（TOP復帰時の中断確認に使う）
+        dirty: false,    // 未保存の変更があるか（TOP復帰時の中断確認に使う）
+        selectedBarNumber: null,
+        overlayFrame: null
     };
 
     var els = {};
@@ -44,6 +53,7 @@
         els.barGrid = q('sc-bar-grid');
         els.preview = q('sc-preview');
         els.scaleBox = q('sc-sheet-scale-box');
+        els.slotOverlay = q('sc-slot-overlay');
         els.showChords = q('sc-show-chords');
         els.showLyrics = q('sc-show-lyrics');
         els.showDoremi = q('sc-show-doremi');
@@ -131,6 +141,7 @@
     function setProject(project, options) {
         state.project = project;
         state.dirty = !!(options && options.dirty);
+        state.selectedBarNumber = null;
         CS().storage.setCurrentProjectId(project.projectId);
         renderAll();
         setSaveStatus((options && options.statusMessage) || '');
@@ -432,8 +443,9 @@
     function renderPreview() {
         CS().sheetRenderer.render(state.project, els.scaleBox);
         updateSheetScale();
+        syncSheetSelection();
         // 画面切替直後は clientWidth が 0 のことがあるため、表示後にもう一度合わせる
-        window.requestAnimationFrame(updateSheetScale);
+        scheduleOverlayPosition();
     }
 
     /**
@@ -447,6 +459,143 @@
         var scale = Math.min(1, available / 794);
         els.scaleBox.style.transform = 'scale(' + scale + ')';
         els.preview.style.height = Math.ceil(els.scaleBox.offsetHeight * scale) + 'px';
+        positionSlotOverlay();
+    }
+
+    /* ══════════ S1b: A4紙面上の小節選択と空の編集overlay土台 ══════════ */
+
+    function getSheetBarByNumber(barNumber) {
+        if (!els.scaleBox || !barNumber) return null;
+        return els.scaleBox.querySelector('.sheet-bar[data-bar-number="' + barNumber + '"]');
+    }
+
+    function getSelectedBar() {
+        if (!state.project || !state.selectedBarNumber) return null;
+        return state.project.bars.filter(function (bar) {
+            return bar.barNumber === state.selectedBarNumber;
+        })[0] || null;
+    }
+
+    function renderSlotOverlayContent() {
+        if (!els.slotOverlay) return;
+        els.slotOverlay.innerHTML = '';
+
+        var bar = getSelectedBar();
+        if (!bar) {
+            els.slotOverlay.classList.add('hidden');
+            els.slotOverlay.setAttribute('aria-hidden', 'true');
+            return;
+        }
+
+        var head = document.createElement('div');
+        head.className = 'slot-overlay-head';
+        var title = document.createElement('span');
+        title.className = 'slot-overlay-title';
+        title.textContent = bar.barNumber + '小節';
+        var label = document.createElement('span');
+        label.className = 'slot-overlay-label';
+        label.textContent = 'この小節を編集';
+        head.appendChild(title);
+        head.appendChild(label);
+
+        var rows = document.createElement('div');
+        rows.className = 'slot-overlay-rows';
+        SLOT_OVERLAY_ROWS.forEach(function (rowDef) {
+            var row = document.createElement('div');
+            row.className = 'slot-overlay-row slot-overlay-row--' + rowDef.id;
+            row.dataset.editorRow = rowDef.id;
+
+            var rowLabel = document.createElement('span');
+            rowLabel.className = 'slot-overlay-row-label';
+            rowLabel.textContent = rowDef.label;
+
+            var rowBody = document.createElement('span');
+            rowBody.className = 'slot-overlay-row-body';
+            rowBody.setAttribute('aria-hidden', 'true');
+
+            row.appendChild(rowLabel);
+            row.appendChild(rowBody);
+            rows.appendChild(row);
+        });
+
+        els.slotOverlay.appendChild(head);
+        els.slotOverlay.appendChild(rows);
+        els.slotOverlay.classList.remove('hidden');
+        els.slotOverlay.setAttribute('aria-hidden', 'false');
+        els.slotOverlay.setAttribute('aria-label', bar.barNumber + '小節目の編集レイヤー');
+    }
+
+    function syncSheetSelection() {
+        if (!els.scaleBox) return;
+        var selectedExists = false;
+        Array.prototype.forEach.call(els.scaleBox.querySelectorAll('.sheet-bar[data-bar-number]'), function (cell) {
+            var barNumber = parseInt(cell.dataset.barNumber, 10);
+            var selected = barNumber === state.selectedBarNumber;
+            if (selected) selectedExists = true;
+            cell.classList.toggle('is-selected', selected);
+            cell.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        });
+        if (state.selectedBarNumber && !selectedExists) {
+            state.selectedBarNumber = null;
+        }
+        renderSlotOverlayContent();
+        positionSlotOverlay();
+    }
+
+    function positionSlotOverlay() {
+        if (!els.preview || !els.slotOverlay || els.slotOverlay.classList.contains('hidden')) return;
+        var cell = getSheetBarByNumber(state.selectedBarNumber);
+        if (!cell) {
+            els.slotOverlay.classList.add('hidden');
+            els.slotOverlay.setAttribute('aria-hidden', 'true');
+            return;
+        }
+
+        var previewRect = els.preview.getBoundingClientRect();
+        var cellRect = cell.getBoundingClientRect();
+        var pad = 3;
+        var left = cellRect.left - previewRect.left - pad;
+        var top = cellRect.top - previewRect.top - pad;
+        var width = cellRect.width + pad * 2;
+        var height = Math.max(cellRect.height + pad * 2, 86);
+
+        els.slotOverlay.style.left = Math.round(left) + 'px';
+        els.slotOverlay.style.top = Math.round(top) + 'px';
+        els.slotOverlay.style.width = Math.round(width) + 'px';
+        els.slotOverlay.style.minHeight = Math.round(height) + 'px';
+    }
+
+    function scheduleOverlayPosition() {
+        if (state.overlayFrame) window.cancelAnimationFrame(state.overlayFrame);
+        state.overlayFrame = window.requestAnimationFrame(function () {
+            state.overlayFrame = null;
+            updateSheetScale();
+            syncSheetSelection();
+        });
+    }
+
+    function selectSheetBar(barNumber) {
+        if (!state.project || !barNumber) return;
+        var exists = state.project.bars.some(function (bar) {
+            return bar.barNumber === barNumber;
+        });
+        if (!exists) return;
+        state.selectedBarNumber = barNumber;
+        syncSheetSelection();
+    }
+
+    function onPreviewClick(event) {
+        var cell = event.target.closest && event.target.closest('.sheet-bar[data-bar-number]');
+        if (!cell || cell.classList.contains('sheet-bar--empty')) return;
+        selectSheetBar(parseInt(cell.dataset.barNumber, 10));
+    }
+
+    function onPreviewKeydown(event) {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        var cell = event.target.closest && event.target.closest('.sheet-bar[data-bar-number]');
+        if (!cell || cell.classList.contains('sheet-bar--empty')) return;
+        event.preventDefault();
+        selectSheetBar(parseInt(cell.dataset.barNumber, 10));
     }
 
     /* ══════════ 表示トグル（sheetSettings.showChords / showStrum / showLyrics /
@@ -624,7 +773,9 @@
         });
 
         // ペイン幅の変化に合わせてA4紙面のスケールを追従させる
-        window.addEventListener('resize', updateSheetScale);
+        window.addEventListener('resize', scheduleOverlayPosition);
+        els.preview.addEventListener('click', onPreviewClick);
+        els.preview.addEventListener('keydown', onPreviewKeydown);
 
         // ブラウザのタブ閉じ / リロード / URL移動に対する未保存ガード。
         // 画面内のTOP/戻る/モジュール移動は既存の中断確認（canLeave）が担当する。
