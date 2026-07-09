@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '1.0.5';
+const RHYTHM_CRUISE_VERSION = '1.0.6';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -31436,10 +31436,8 @@ function applyAppVersionDisplay() {
 /* ── 初期化 ─────────────────────────────────────────────── */
 function applyProLockBadges() {
     if (isProEdition()) return;
-    const savedEntryBtn = $('rc-saved-entry-btn');
-    if (savedEntryBtn && !savedEntryBtn.querySelector('.rc-pro-lock-badge')) {
-        savedEntryBtn.insertAdjacentHTML('beforeend', ' ' + proLockedBadgeHtml());
-    }
+    // v1.0.6: #rc-saved-entry-btn は静的マークアップ側で常時PRO★バッジを表示するため、
+    // ここでの旧「PRO」バッジ（.rc-pro-lock-badge）動的挿入は不要になった（表示のみの変更・PROロック判定自体は不変）。
     // 修正2: 「練習STAGEとして保存」はPRO専用（v0.9.241）
     lockProControlTap(els.stageSaveCustomBtn, 'rhythmCreateSave');
     appendProLockIcon(els.stageSaveCustomBtn);
