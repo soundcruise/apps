@@ -4417,6 +4417,69 @@ h1 {
     background: var(--secondary-color);
     border-color: var(--secondary-color);
 }
+#click-settings-card .click-beats-head-row {
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+#click-settings-card .click-beats-buttons-row {
+    margin-top: 8px;
+}
+#click-settings-card .offbeat-switch-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+#click-settings-card .offbeat-switch-caption {
+    font-size: 0.78rem;
+}
+#click-settings-card .offbeat-switch {
+    position: relative;
+    width: 72px;
+    min-width: 72px;
+    height: 34px;
+    padding: 0 10px 0 33px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    border-radius: 999px;
+    border-color: rgba(253, 246, 238, 0.16);
+    background: linear-gradient(180deg, rgba(74, 61, 50, 0.92), rgba(38, 34, 31, 0.96));
+    color: rgba(245, 239, 228, 0.72);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.32);
+    overflow: visible;
+}
+#click-settings-card .offbeat-switch::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 4px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: linear-gradient(180deg, #fff8e8, #c9b89a);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.34);
+    transition: transform 0.18s ease, background 0.18s ease;
+}
+#click-settings-card .offbeat-switch.is-on {
+    padding: 0 33px 0 10px;
+    justify-content: flex-start;
+    border-color: rgba(245, 186, 82, 0.75);
+    background: linear-gradient(135deg, #f3c05b, #d6812b);
+    color: #1b1205;
+}
+#click-settings-card .offbeat-switch.is-on::before {
+    transform: translateX(38px);
+    background: linear-gradient(180deg, #fff9e9, #f7df9a);
+}
+#click-settings-card .offbeat-switch-text {
+    position: relative;
+    z-index: 1;
+    font-size: 0.72rem;
+    font-weight: 900;
+    line-height: 1;
+}
 .stage-set-note {
     margin: 8px 2px 0;
     color: var(--muted-color);
@@ -4451,16 +4514,65 @@ h1 {
     font-size: 0.74rem;
     line-height: 1.5;
 }
-/* クリックする拍を4つの丸で視認（v0.9.147・視認用）。選択に連動して ● / ○ が切り替わる。 */
+/* クリックする拍を1小節の表/裏マップで視認（表示専用）。選択に連動してクリック位置を示す。 */
 .click-dots-row {
-    margin-top: 6px;
+    align-items: flex-start;
+    margin-top: 10px;
 }
 .click-dots {
-    display: inline-flex;
+    width: 100%;
+    max-width: 520px;
+    display: block;
+    padding: 10px 12px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(253, 246, 238, 0.12);
+    background: rgba(255, 255, 255, 0.035);
+}
+.click-map-title {
+    margin-bottom: 8px;
+    color: rgba(245, 239, 228, 0.86);
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+.click-map-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(56px, 1fr));
     gap: 8px;
-    font-size: 1.05rem;
-    line-height: 1;
-    letter-spacing: 0.02em;
+}
+.click-map-beat {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(22px, 1fr));
+    row-gap: 5px;
+    column-gap: 4px;
+    text-align: center;
+}
+.click-map-beat-label {
+    grid-column: 1 / -1;
+    color: rgba(245, 239, 228, 0.78);
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+.click-map-half-label {
+    color: rgba(245, 239, 228, 0.56);
+    font-size: 0.68rem;
+    font-weight: 800;
+}
+.click-map-slot {
+    min-height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.click-map-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: rgba(253, 246, 238, 0.14);
+}
+.click-map-dot.is-on {
+    background: var(--secondary-color);
+    box-shadow: 0 0 0 4px rgba(222, 194, 122, 0.13);
 }
 .click-dot.is-on {
     color: var(--secondary-color);
@@ -4469,8 +4581,30 @@ h1 {
     color: rgba(253, 246, 238, 0.32);
 }
 .click-dots-note {
+    width: 100%;
     color: var(--muted-color);
     font-size: 0.74rem;
+    line-height: 1.5;
+}
+@media (max-width: 480px) {
+    #click-settings-card .click-beats-head-row {
+        align-items: flex-start;
+    }
+    #click-settings-card .offbeat-switch-wrap {
+        width: 100%;
+        justify-content: space-between;
+        margin-left: 0;
+    }
+    .click-map-grid {
+        gap: 7px;
+    }
+    .click-dots {
+        padding: 10px 8px 12px;
+    }
+    .click-map-beat-label,
+    .click-map-half-label {
+        font-size: 0.66rem;
+    }
 }
 /* MISS拍の原因（v0.9.149）：必要な人だけが開く補助情報。強い枠/背景/色を使わず、
    小さなサブリンク風に控えめにする（最初に視線を奪わない）。中身の文言・開閉動作は維持。 */

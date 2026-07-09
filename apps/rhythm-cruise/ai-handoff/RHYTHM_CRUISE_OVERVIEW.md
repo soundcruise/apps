@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/rhythm-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/rhythm-cruise/`
 - PRO版URL: `https://soundcruise.jp/apps/rhythm-cruise/pro_a9f4k7q2m8z/`
-- 現在のバージョン: `1.0.7`（`script.js` の `RHYTHM_CRUISE_VERSION`。2026年7月8日付でVer 1.0.0として正式リリース）
+- 現在のバージョン: `1.0.8`（`script.js` の `RHYTHM_CRUISE_VERSION`。2026年7月8日付でVer 1.0.0として正式リリース）
 - このドキュメント更新時点の最新commit（rhythm-cruise関連）:
   - message: `リズムクルーズを正式版1.0.0に更新`
   - hash: 本ドキュメント更新と同一commitでpushされるため、この記述時点では未確定（4章「リリース準備メモ」参照）
@@ -59,7 +59,7 @@
 | `terms.html` | 利用規約ページ。リズムクルーズ専用（指板クルーズ・音感クルーズにはリンクしない、リズムクルーズ内で完結）。 |
 | `privacy.html` | プライバシーポリシーページ。同上、リズムクルーズ専用。 |
 | `click-input-help.html` | 「マイク位置がわからない場合」の単発ヘルプページ。有線/Bluetoothイヤホン・スマホ本体マイクの位置説明図（SVG）付き。`script.js` の `resume=click-input` パラメータと連動し、戻ると元の設定状態に復元される仕組みがある（やや複雑。触る場合は要調査）。 |
-| `mic-restart-help.html` | 「マイクが反応していない場合」の単発ヘルプページ。アプリの完全終了手順（iPhone/Android）を説明。`theme.css?v=0.11.21` を参照したままの古いバージョン指定が残っている（要修正候補だが、今回のドキュメント作業では未修正）。 |
+| `mic-restart-help.html` | 「マイクが反応していない場合」の単発ヘルプページ。アプリの完全終了手順（iPhone/Android）を説明。`theme.css?v=` はv1.0.8で最新版に更新済み。 |
 | `service-worker.js` | 通常版のみが登録するService Worker。キャッシュリストなし、常にネットワーク優先。 |
 | `manifest.json` | 通常版PWAマニフェスト。name: 「リズムクルーズ」、theme_color: `#ff9f1c`。 |
 | `pro_a9f4k7q2m8z/manifest.json` | PRO版PWAマニフェスト。name: 「リズムクルーズ PRO」、内容はほぼ同一。 |
@@ -78,7 +78,7 @@
   - **マイク設定**（`settings-tab-mic`）: 補正テストの入口（`#settings-detail-btn`＝「補正テストを始める」＋隣に`?`ヘルプボタン）、保存済みプリセット、手動設定。
   - **タップ設定**（`settings-tab-tap`）: 画面タップ時の音ズレ補正。
   - **判定**（`settings-tab-judge`）: 判定のきびしさ（5段階プリセット）。
-  - **クリック音**（`settings-tab-click`）: クリックを鳴らす範囲・拍・裏拍設定。
+  - **クリック音**（`settings-tab-click`）: クリックを鳴らす範囲・拍・裏拍設定。v1.0.8で裏拍ON/OFFを既存の `#offbeat-toggle` のままスイッチ風UIにし、「クリックする拍」見出し右側へ配置。`renderClickDots()` は4/4概念の「1小節」「1拍目〜4拍目」「表/裏」拍マップ表示に変更した。クリック音ロジック・`rcClickBeats` / `rcClickOffbeat` の意味・localStorage形式は変更なし。
 - **インフォメーションページ**（`info.html`）: ホームTOPの`i`ボタンから遷移。
 - **基本的な使い方ページ**（`usage.html`）: `info.html` から遷移。
 - **補正テスト動画ヘルプページ**（`mic-correction-help.html`）: マイク設定カードの`?`ボタンから遷移。
@@ -218,7 +218,7 @@
 - CSSを一切変えていない回でも、上記ファイル群の `?v=` は新バージョンに揃えるのが、これまでの運用実績（過去のcommit参照）。
 - Service Workerは原則変更不要（キャッシュリストを持たないため）。ただし、キャッシュ関連の変更を疑う場合は必ず `service-worker.js` の中身を確認してから判断する。
 - `manifest.json` / `pro_a9f4k7q2m8z/manifest.json` の `?v=` は、アイコンやPWA設定自体を変更したときのみ更新対象（通常のUI/文言修正では触らない）。
-- `click-input-help.html` / `mic-restart-help.html` は独自に古い `theme.css?v=` を参照したまま更新されていない箇所がある（例: `mic-restart-help.html` は `theme.css?v=0.11.21`）。これらを触る作業を行う場合は、ついでに最新版へ揃えるかどうかユーザーに確認すること（今回のドキュメント整備では未修正のまま）。
+- `click-input-help.html` / `mic-restart-help.html` もv1.0.8で `theme.css?v=` を最新版へ揃えた。今後バージョンを上げる時は、上記の静的ページと同じく更新漏れに注意する。
 
 ---
 
@@ -302,7 +302,7 @@
 | `apps/cruise-studio/` の未コミット変更・ahead commitを巻き込む | コミット前に必ず `git status -sb` で対象外ファイルが混ざっていないか確認する。 |
 | `rhythm-cruise-icon-proposal.*` をstageしてしまう | 同上。未追跡ファイルとして常に存在しうることを前提に確認する。 |
 | PRO版HTMLの相対パスを間違える（`./xxx.html` のまま等） | 新規リンク追加時は「通常版は`xxx.html`、PRO版は`../xxx.html`」を必ずセットで確認する。 |
-| `theme.css?v=` の更新漏れ | バージョンを上げた回は、`theme.css`を参照する全HTMLファイル（`index.html`両版、`info.html`, `usage.html`, `terms.html`, `privacy.html`, `mic-correction-help.html`）の`?v=`を漏れなく揃える。 |
+| `theme.css?v=` の更新漏れ | バージョンを上げた回は、`theme.css`を参照する全HTMLファイル（`index.html`両版、`info.html`, `usage.html`, `terms.html`, `privacy.html`, `mic-correction-help.html`, `mic-restart-help.html`, `click-input-help.html`）の`?v=`を漏れなく揃える。 |
 | 本番が古いのをコードミスと勘違いする | GitHub Actionsのdeploy結果を確認し、成功しているなら数分待つかキャッシュ回避で再確認。失敗しているなら13章のPages build APIを検討。 |
 | マイク補正ロジックに不用意に触る | 8章・9章を読んでから着手。既存の`v0.9.xxx`等のコメントに沿って影響範囲を確認する。 |
 | YouTubeリンクを即外部遷移にしてしまう | 新しい動画リンクを追加する際も、必ず11章のYouTube確認カードを経由させる。 |

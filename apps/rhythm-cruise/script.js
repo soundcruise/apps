@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '1.0.7';
+const RHYTHM_CRUISE_VERSION = '1.0.8';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -12599,7 +12599,7 @@ function toggleLoopHelp() {
     const open = els.loopHelpToggle && els.loopHelpToggle.getAttribute('aria-expanded') === 'true';
     setLoopHelpOpen(!open);
 }
-/* 選んでいる「クリックする拍」を4つの丸で視認用に表示（選択に連動）。裏拍ON/OFFは補足テキストで示す。 */
+/* 選んでいる「クリックする拍」を1小節の表/裏マップで視認用に表示（表示専用）。 */
 function renderClickDots() {
     if (!els.clickDots) return;
     const sel = state.rcClickBeats || 'all';
@@ -12608,12 +12608,29 @@ function renderClickDots() {
     else if (sel === 'beat1') { on[0] = true; }
     else if (sel === 'beats13') { on[0] = true; on[2] = true; }
     else if (sel === 'beats24') { on[1] = true; on[3] = true; }
-    els.clickDots.innerHTML = on
-        .map((f) => '<span class="click-dot ' + (f ? 'is-on' : 'is-off') + '">' + (f ? '●' : '○') + '</span>')
+    const offbeat = !!state.rcClickOffbeat;
+    els.clickDots.innerHTML =
+        '<div class="click-map-title">1小節</div>'
+        + '<div class="click-map-grid">'
+        + on.map((f, i) => {
+            const frontOn = f && !offbeat;
+            const backOn = f && offbeat;
+            return '<div class="click-map-beat">'
+                + '<div class="click-map-beat-label">' + (i + 1) + '拍目</div>'
+                + '<div class="click-map-half-label">表</div>'
+                + '<div class="click-map-half-label">裏</div>'
+                + '<div class="click-map-slot"><span class="click-map-dot ' + (frontOn ? 'is-on' : 'is-off') + '"></span></div>'
+                + '<div class="click-map-slot"><span class="click-map-dot ' + (backOn ? 'is-on' : 'is-off') + '"></span></div>'
+                + '</div>';
+        })
         .join('');
+    els.clickDots.innerHTML += '</div>';
+    els.clickDots.setAttribute('aria-label', offbeat
+        ? 'クリック位置の拍マップ。選んだ拍の裏で鳴ります。'
+        : 'クリック位置の拍マップ。選んだ拍の表で鳴ります。');
     if (els.clickDotsNote) {
-        els.clickDotsNote.textContent = state.rcClickOffbeat
-            ? '裏拍ON：選んだ拍の裏で鳴ります'
+        els.clickDotsNote.textContent = offbeat
+            ? '選んだ拍の裏で鳴ります'
             : '選んだ拍の表で鳴ります';
     }
 }
@@ -12633,7 +12650,9 @@ function updateStageSettingsUI() {
         });
     }
     if (els.offbeatToggle) {
-        els.offbeatToggle.textContent = state.rcClickOffbeat ? 'ON' : 'OFF';
+        const offbeatText = els.offbeatToggle.querySelector('.offbeat-switch-text');
+        if (offbeatText) offbeatText.textContent = state.rcClickOffbeat ? 'ON' : 'OFF';
+        else els.offbeatToggle.textContent = state.rcClickOffbeat ? 'ON' : 'OFF';
         els.offbeatToggle.setAttribute('aria-pressed', state.rcClickOffbeat ? 'true' : 'false');
         els.offbeatToggle.classList.toggle('is-on', state.rcClickOffbeat);
     }
@@ -24393,7 +24412,7 @@ function renderClickSettingsView() {
     if (els.settingsActions) els.settingsActions.style.display = 'none';
     if (els.clickSettingsCard) els.clickSettingsCard.classList.remove('hidden');
     if (els.proSettingsResetWrap) els.proSettingsResetWrap.classList.remove('hidden');
-    updateStageSettingsUI(); // セグメント点灯・4つの丸・裏拍トグルを現在のクリック設定に合わせる
+    updateStageSettingsUI(); // セグメント点灯・拍マップ・裏拍トグルを現在のクリック設定に合わせる
     if (isStandardEdition()) applyStandardClickSettingsLock(); // mod 8 通常版：各項目を🔒+案内でロック（v0.9.240）
 }
 
