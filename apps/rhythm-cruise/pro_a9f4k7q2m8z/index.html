@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="../theme.css?v=1.0.3">
+    <link rel="stylesheet" href="../theme.css?v=1.0.4">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -90,9 +90,15 @@
                 <div class="rhythm-create-list" id="rhythm-create-stage-list">
                     <!-- script.js が描画 -->
                 </div>
-                <!-- PROカスタムSTAGE管理導線（v0.9.205：リズムを作る側へ移設）。 -->
+                <!-- PROカスタムSTAGE管理導線（v0.9.205：リズムを作る側へ移設）。v1.0.4：他STAGEボタンと同じカードデザイン＋PRO★バッジ表示に統一（機能・遷移・id・イベントは変更なし）。 -->
                 <div class="cat-list">
-                    <button class="settings-top-main cat-btn cat-pro" id="cat-pro-custom"><span class="cat-pro-crown">👑</span> PROカスタムSTAGE</button>
+                    <button class="stage-card rhythm-create-stage-card" id="cat-pro-custom">
+                        <span class="stage-num pro-custom-home-badge"><small>PRO</small><b>★</b></span>
+                        <span class="stage-body">
+                            <span class="stage-title">PROカスタム</span>
+                        </span>
+                        <span class="stage-chevron">›</span>
+                    </button>
                 </div>
                 <!-- 保存済みリズム導線（v0.9.202）。STAGE一覧の下に独立枠として配置。 -->
                 <div class="rc-saved-entry-wrap">
@@ -1490,7 +1496,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=1.0.3"></script>
+    <script src="../script.js?v=1.0.4"></script>
 </body>
 
 </html>
