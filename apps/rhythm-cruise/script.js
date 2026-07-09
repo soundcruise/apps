@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '1.0.10';
+const RHYTHM_CRUISE_VERSION = '1.0.11';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -7870,6 +7870,12 @@ function drawJustLineMarker(ctx, x, h, opts) {
 }
 
 /* ── ズレ履歴グラフ描画（結果画面） ─────────────────────── */
+function graphBarLabelStep(barPx) {
+    if (barPx >= 18) return 1;
+    if (barPx >= 10) return 2;
+    return 4;
+}
+
 function drawGraph() {
     const { ctx, w, h } = graph;
     if (!ctx) return;
@@ -7892,6 +7898,22 @@ function drawGraph() {
         const x = x0 + (b * eng.cellsPerBar / TOTAL_BEATS) * (x1 - x0);
         ctx.beginPath(); ctx.moveTo(x, padY * 0.4); ctx.lineTo(x, h - padY * 0.4); ctx.stroke();
     }
+
+    // 小節番号（表示専用）。ズレ点より前に薄く描き、判定・集計・履歴データには触れない。
+    const barCount = Math.max(0, Number.isFinite(state.bars) ? state.bars : 0);
+    const barPx = barCount ? (x1 - x0) / barCount : 0;
+    const labelStep = graphBarLabelStep(barPx);
+    ctx.save();
+    ctx.font = '600 9px Outfit, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = 'rgba(253,246,238,0.18)';
+    for (let b = 0; b < barCount; b++) {
+        if (b % labelStep !== 0) continue;
+        const x = x0 + (((b + 0.5) * eng.cellsPerBar) / TOTAL_BEATS) * (x1 - x0);
+        ctx.fillText(String(b + 1), x, padY + 2);
+    }
+    ctx.restore();
 
     // 中央線（ジャスト）
     ctx.strokeStyle = 'rgba(46,204,113,0.55)';
