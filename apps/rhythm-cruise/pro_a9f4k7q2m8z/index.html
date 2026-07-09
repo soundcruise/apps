@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="../theme.css?v=1.0.6">
+    <link rel="stylesheet" href="../theme.css?v=1.0.7">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -100,12 +100,14 @@
                         <span class="stage-chevron">›</span>
                     </button>
                 </div>
-                <!-- 保存済みリズム導線（v0.9.202）。STAGE一覧の下に独立枠として配置。v1.0.6：表示をPRO★バッジ＋1行タイトルへ簡素化（機能・遷移・id・イベントは変更なし）。 -->
+                <!-- 保存済みリズム導線（v0.9.202）。STAGE一覧の下に独立枠として配置。v1.0.7：STAGEカードと同じ構造（.stage-card/.stage-num/.stage-body/.stage-chevron）へ統一（機能・遷移・id・イベントは変更なし）。 -->
                 <div class="rc-saved-entry-wrap">
-                    <button type="button" class="rc-saved-entry-btn" id="rc-saved-entry-btn">
-                        <span class="rc-saved-entry-icon"><span class="stage-num pro-custom-home-badge"><small>PRO</small><b>★</b></span></span>
-                        <span class="rc-saved-entry-label">保存済みSTAGEの編集</span>
-                        <span class="rc-saved-entry-chevron">›</span>
+                    <button type="button" class="stage-card rhythm-create-stage-card" id="rc-saved-entry-btn">
+                        <span class="stage-num pro-custom-home-badge"><small>PRO</small><b>★</b></span>
+                        <span class="stage-body">
+                            <span class="stage-title">保存済みSTAGEの編集</span>
+                        </span>
+                        <span class="stage-chevron">›</span>
                     </button>
                 </div>
             </div>
@@ -1495,7 +1497,7 @@
         </div>
     </div>
 
-    <script src="../script.js?v=1.0.6"></script>
+    <script src="../script.js?v=1.0.7"></script>
 </body>
 
 </html>

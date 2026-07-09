@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/rhythm-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/rhythm-cruise/`
 - PRO版URL: `https://soundcruise.jp/apps/rhythm-cruise/pro_a9f4k7q2m8z/`
-- 現在のバージョン: `1.0.6`（`script.js` の `RHYTHM_CRUISE_VERSION`。2026年7月8日付でVer 1.0.0として正式リリース）
+- 現在のバージョン: `1.0.7`（`script.js` の `RHYTHM_CRUISE_VERSION`。2026年7月8日付でVer 1.0.0として正式リリース）
 - このドキュメント更新時点の最新commit（rhythm-cruise関連）:
   - message: `リズムクルーズを正式版1.0.0に更新`
   - hash: 本ドキュメント更新と同一commitでpushされるため、この記述時点では未確定（4章「リリース準備メモ」参照）
@@ -135,7 +135,7 @@
 - 触る時の注意点: STAGE1（固定練習STAGE）とPROカスタムSTAGE・リズム作成の内部状態（`state.routeEditor`・`proCustomEditDraft`・`_stagingMelodySlotOrder`相当の各種一時state）が入り組んでいるため、保存・編集フローを変更する場合は既存コメント（`v0.9.xxx` 形式のバージョン注記が多数残っている）を必ず読んでから着手すること。
 - 未保存確認ポップの基準（v1.0.3で修正）: 編集画面の未保存判定は `proCustomEditDraft` と `proCustomEditSnapshot`（保存済み基準のJSON文字列）の比較。`refreshProCustomEditSnapshot()` で基準を取り直す。初回描画（方向補正込み）の後・保存成功後・Practiceから編集に戻った後に呼ぶ必要がある。Practice画面の未保存確認は `hasUnsavedPracticeCustomStageSettings()`（`eng.custom` のbpm/bars/zoomと現在値を比較）で判定し、`eng.editId` の有無だけでは判定しない。
 - 「リズムを作る」画面の `PROカスタムSTAGE` 入口ボタン（表示のみ・v1.0.4/v1.0.5で調整）: 内部機能名・保存形式は変わらないが、表示は「STAGE6 / 自由に作る」（v1.0.5）。`.stage-card` デザインは他STAGEボタンと同じ、バッジは通常の `<small>STAGE</small><b>6</b>`（保存済みカスタムSTAGEの`PRO★`バッジとは別で、こちらは使わない）。`id="cat-pro-custom"` とクリック導線（`openRhythmProCustom`）・PROロック仕様は変更なし。
-- 「リズムを作る」画面下部の保存済みリズム入口ボタン `#rc-saved-entry-btn`（表示のみ・v1.0.6で調整）: 表示は「PRO★（`.pro-custom-home-badge`流用）／保存済みSTAGEの編集」の1行タイトルに簡素化（フォルダ絵文字・説明文・旧`.rc-pro-lock-badge`は非表示）。内部機能名（`savedRhythms`）・クリック導線（`openRhythmCreateSaved`）・PROロック仕様は変更なし。`applyProLockBadges()` は本ボタンへの旧PROバッジ動的挿入のみ削除（PRO判定・`showProLockNotice`呼び出しは不変）。
+- 「リズムを作る」画面下部の保存済みリズム入口ボタン `#rc-saved-entry-btn`（表示のみ・v1.0.6/v1.0.7で調整）: 表示は「PRO★（`.pro-custom-home-badge`流用）／保存済みSTAGEの編集」（フォルダ絵文字・説明文・旧`.rc-pro-lock-badge`は非表示）。v1.0.7でボタン自体の構造をSTAGE1〜6と同じ`.stage-card`/`.rhythm-create-stage-card`（`.stage-num`+`.stage-body`>`.stage-title`+`.stage-chevron`）へ統一し、縦中央揃えに整えた（旧`.rc-saved-entry-btn`等の専用classは不使用）。STAGE6との区切り線は`.rc-saved-entry-wrap`（border-top）のまま維持。内部機能名（`savedRhythms`）・クリック導線（`openRhythmCreateSaved`）・PROロック仕様は変更なし。`applyProLockBadges()` は本ボタンへの旧PROバッジ動的挿入のみ削除済み（PRO判定・`showProLockNotice`呼び出しは不変）。
 
 ---
 
