@@ -421,6 +421,7 @@
         var prevScroll = fb.getScrollLeft(host);
         var hint = '';
         var markers = [];
+        var barres = [];
         var mutedStrings = [];
         var rangeHighlight = null;
         var scrollToFret = null;
@@ -433,6 +434,7 @@
             if (result.available) {
                 form = result;
                 markers = computeFormMarkers(chord, form);
+                barres = caged.detectBarres(form.notes);
                 mutedStrings = form.mutedStrings;
                 rangeHighlight = {
                     minFret: form.fretRange.min,
@@ -478,6 +480,7 @@
         fb.render(host, {
             maxFret: 13,
             markers: markers,
+            barres: barres,
             mutedStrings: mutedStrings,
             rangeHighlight: rangeHighlight,
             scrollToFret: scrollToFret,

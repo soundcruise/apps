@@ -1007,3 +1007,15 @@ body {
 .cc-note-chip--link:active {
     transform: scale(0.94);
 }
+
+/* バレー表示（同じ指で同フレットの複数弦を押さえる箇所の縦長カプセル） */
+.cc-fb-barre {
+    position: absolute;
+    width: 36px;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: rgba(255, 252, 244, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.38);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    pointer-events: none;
+}

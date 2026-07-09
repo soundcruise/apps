@@ -285,6 +285,7 @@
                     tappable: true
                 };
             }),
+            barres: window.ChordCruise.caged.detectBarres(chord.notes),
             mutedStrings: chord.mutedStrings || [],
             rangeHighlight: {
                 minFret: chord.fretRange.min,

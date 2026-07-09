@@ -130,6 +130,7 @@
      * @param {Object} options
      *   maxFret        表示最大フレット（既定 13）
      *   markers        [{ string:1-6, fret:0-13, label, role:'root'|'third'|'fifth'|'seventh'|'other', dimmed, finger }]
+     *   barres         [{ finger, fret, fromString, toString }] バレー表示（マーカー背面の縦長カプセル）
      *   mutedStrings   ミュート弦番号の配列（開放弦列に ✕ を表示）
      *   rangeHighlight { minFret, maxFret, includesOpen } | null
      *   scrollToFret   このフレットが中央付近に来るよう初期スクロール（null で先頭）
@@ -153,6 +154,22 @@
         host.innerHTML = html;
 
         var markerLayer = host.querySelector('.cc-fb-markers');
+
+        // バレーはマーカーより先に描画し、丸マーカーをカプセルの上に重ねる
+        (opts.barres || []).forEach(function (barre) {
+            if (barre.fret < 1 || barre.fret > maxFret) return;
+            var topString = Math.min(barre.fromString, barre.toString);
+            var bottomString = Math.max(barre.fromString, barre.toString);
+            if (topString < 1 || bottomString > 6 || topString === bottomString) return;
+            var topY = stringY(topString);
+            var bottomY = stringY(bottomString);
+            var el = document.createElement('div');
+            el.className = 'cc-fb-barre';
+            el.style.left = colCenter(barre.fret) + 'px';
+            el.style.top = (topY - MARKER_D / 2 - 2) + 'px';
+            el.style.height = (bottomY - topY + MARKER_D + 4) + 'px';
+            markerLayer.appendChild(el);
+        });
 
         markers.forEach(function (m) {
             if (m.fret < 0 || m.fret > maxFret || m.string < 1 || m.string > 6) return;

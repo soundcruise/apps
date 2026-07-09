@@ -137,9 +137,12 @@
                 tappable: true
             };
         });
+        // 保存範囲外（dimmed）のノートはバレー判定に含めない
+        var barres = window.ChordCruise.caged.detectBarres(draft.notes.filter(noteIncluded));
         fb.render(host, {
             maxFret: 13,
             markers: markers,
+            barres: barres,
             mutedStrings: draft.mutedStrings,
             rangeHighlight: {
                 minFret: draft.range.min,
