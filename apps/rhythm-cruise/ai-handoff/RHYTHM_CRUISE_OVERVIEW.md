@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/rhythm-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/rhythm-cruise/`
 - PRO版URL: `https://soundcruise.jp/apps/rhythm-cruise/pro_a9f4k7q2m8z/`
-- 現在のバージョン: `1.0.1`（`script.js` の `RHYTHM_CRUISE_VERSION`。2026年7月8日付でVer 1.0.0として正式リリース）
+- 現在のバージョン: `1.0.2`（`script.js` の `RHYTHM_CRUISE_VERSION`。2026年7月8日付でVer 1.0.0として正式リリース）
 - このドキュメント更新時点の最新commit（rhythm-cruise関連）:
   - message: `リズムクルーズを正式版1.0.0に更新`
   - hash: 本ドキュメント更新と同一commitでpushされるため、この記述時点では未確定（4章「リリース準備メモ」参照）
@@ -103,7 +103,7 @@
   - Practice設定（BPM・小節数・拡大・くり返し練習）の変更（`proPracticeSettings`）
   - リズム作成設定（BPM・パターン長・小節数・拡大）の変更（`proCreateSettings`）
   - カスタムSTAGE再生設定の変更（`proCustomStageSettings`）
-  - コードストローク検出モード（`proStrokeChordMode`）
+- ※ コードストローク検出モード（`chord`）はPROロック対象ではなく、UI・配線とも未実装のまま封印中。ストローク検出は現状 `brush` 固定（`setStrokeDetectMode('brush')`）。
 - 通常版で使えるもの: STAGE1〜6の固定STAGE練習、タップ/ストロークモードでの練習本編、マイク設定・補正テスト全般、判定設定、クリック音設定、インフォメーション/使い方ページ全般。
 - PRO版で使えるもの: 上記PROロック対象すべて＋PROカスタムSTAGEの一覧・並び替え・削除。
 - 通常版/PRO版で共有しているJS/CSS: `script.js`・`theme.css` は完全共有（1ファイルを両方が読む）。分岐はすべて `isProEdition()` によるランタイム判定。

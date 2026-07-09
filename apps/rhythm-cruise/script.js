@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '1.0.1';
+const RHYTHM_CRUISE_VERSION = '1.0.2';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -79,10 +79,6 @@ const RHYTHM_PRO_LOCK_MESSAGES = {
     proCustomPresetSave: {
         title: 'PRO版限定機能です',
         body: 'カスタムSTAGEをプリセットに保存する機能は、PRO版で使えます。'
-    },
-    proStrokeChordMode: {
-        title: 'PRO版限定機能です',
-        body: 'コードストローク検出モードは、PRO版で使えます。'
     },
     default: {
         title: 'PRO版限定機能です',
