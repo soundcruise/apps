@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '1.0.9';
+const RHYTHM_CRUISE_VERSION = '1.0.10';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -911,7 +911,9 @@ const FX_TEXT = { just: 'GOOD!', early: 'EARLY', late: 'LATE', miss: 'MISS' };
 
 /* ── 判定の仮ルール ─────────────────────────────────────── */
 const BEATS_PER_BAR = 4;
-const BAR_OPTIONS = [1, 2, 4, 8, 12, 16, 20, 24, 28, 32];   // STAGEで選べる小節数（v0.9.149で 12/20/24/28 を追加。最小1・最大32）
+const PRACTICE_BARS_MIN = 1;
+const PRACTICE_BARS_MAX = 64;        // v1.0.10：安全な第一段階としてPractice上限を64小節へ拡張（200小節は未対応）
+const BAR_OPTIONS = Array.from({ length: PRACTICE_BARS_MAX }, (_, i) => i + 1);   // STAGEで選べる小節数（最小1・最大64）
 const DEFAULT_BARS = 8;             // 既存仕様（8小節×4拍＝32拍）に合わせた初期値
 // TOTAL_BEATS は「小節数 × 4拍」。小節数は state.bars で可変（v0.9.118）。
 // applyStageBars() で state.bars から再計算する。配列やレーンは resetGame/resetData で作り直す。
@@ -2180,7 +2182,7 @@ function clampRhythmStagePrefBpm(v, fallback) {
 }
 function clampRhythmStagePrefBars(v, fallback) {
     const n = Math.round(Number(v));
-    return (Number.isFinite(n) && n >= 1 && n <= 32) ? n : fallback;
+    return (Number.isFinite(n) && n >= PRACTICE_BARS_MIN && n <= PRACTICE_BARS_MAX) ? n : fallback;
 }
 function normalizeRhythmStagePref(stageN, raw) {
     const def = RHYTHM_BUILTIN_STAGE_DEFAULT_PREFS[stageN];
@@ -23700,7 +23702,7 @@ function updateBarsUI() {
 }
 function setStageBars(bars) {
     if (state.running) return;          // 再生中は変更ロック（BPMと同じ）
-    if (!Number.isInteger(bars) || bars < 1 || bars > 32) return;
+    if (!Number.isInteger(bars) || bars < PRACTICE_BARS_MIN || bars > PRACTICE_BARS_MAX) return;
     state.bars = bars;
     applyStageBars();
     updateBarsUI();
@@ -23713,8 +23715,8 @@ function setStageBars(bars) {
     redrawOpenRhythmCustomTestPreview();
 }
 function stepStageBars(dir) {
-    const current = (Number.isInteger(state.bars) && state.bars >= 1 && state.bars <= 32) ? state.bars : DEFAULT_BARS;
-    setStageBars(Math.max(1, Math.min(32, current + dir)));
+    const current = (Number.isInteger(state.bars) && state.bars >= PRACTICE_BARS_MIN && state.bars <= PRACTICE_BARS_MAX) ? state.bars : DEFAULT_BARS;
+    setStageBars(Math.max(PRACTICE_BARS_MIN, Math.min(PRACTICE_BARS_MAX, current + dir)));
 }
 
 function setBpm(v) {
@@ -23898,7 +23900,7 @@ function loadSettings() {
     state.tapUnified = (s.tapUnified !== false); // 統合タップ（v0.9.140）。既定ON。保存設定がある場合のみ優先（明示OFF＝false のときだけOFF）。
     state.tapHeight = clampNum(s.tapHeight, TAP_H_MIN, TAP_H_MAX_UD, TAP_H_DEFAULT); // v0.9.118：上下配置の拡張値も保持（表示時に配置上限へクランプ）
     state.inputMode = (s.inputMode === 'stroke') ? 'stroke' : 'tap'; // v0.9.118：入力方式（タップ/ストローク）の保存値を優先
-    state.bars = (Number.isInteger(s.bars) && s.bars >= 1 && s.bars <= 32) ? s.bars : DEFAULT_BARS; // v0.9.118：小節数の保存値を優先（不正値は既定8）
+    state.bars = (Number.isInteger(s.bars) && s.bars >= PRACTICE_BARS_MIN && s.bars <= PRACTICE_BARS_MAX) ? s.bars : DEFAULT_BARS; // v0.9.118：小節数の保存値を優先（不正値は既定8）
     applyStageBars();
     state.judgePreset = normalizeJudgePreset(s.judgePreset); // 判定のきびしさ（v0.9.164）。不正値/未保存は semiStrict。
     state.strokeDetectMode = (s.strokeDetectMode === 'chord') ? 'chord' : 'brush';
