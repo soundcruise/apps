@@ -4419,27 +4419,29 @@ h1 {
 }
 #click-settings-card .click-beats-head-row {
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+    gap: 10px;
 }
 #click-settings-card .click-beats-buttons-row {
     margin-top: 8px;
 }
+#click-settings-card .offbeat-switch-row {
+    margin-top: 12px;
+    margin-bottom: -2px;
+}
 #click-settings-card .offbeat-switch-wrap {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    margin-left: auto;
+    gap: 6px;
 }
 #click-settings-card .offbeat-switch-caption {
     font-size: 0.78rem;
 }
 #click-settings-card .offbeat-switch {
     position: relative;
-    width: 72px;
-    min-width: 72px;
-    height: 34px;
-    padding: 0 10px 0 33px;
+    width: 58px;
+    min-width: 58px;
+    height: 28px;
+    padding: 0 8px 0 28px;
     display: inline-flex;
     align-items: center;
     justify-content: flex-end;
@@ -4453,30 +4455,30 @@ h1 {
 #click-settings-card .offbeat-switch::before {
     content: "";
     position: absolute;
-    left: 4px;
-    top: 4px;
-    width: 26px;
-    height: 26px;
+    left: 3px;
+    top: 3px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
     background: linear-gradient(180deg, #fff8e8, #c9b89a);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.34);
     transition: transform 0.18s ease, background 0.18s ease;
 }
 #click-settings-card .offbeat-switch.is-on {
-    padding: 0 33px 0 10px;
+    padding: 0 28px 0 8px;
     justify-content: flex-start;
     border-color: rgba(245, 186, 82, 0.75);
     background: linear-gradient(135deg, #f3c05b, #d6812b);
     color: #1b1205;
 }
 #click-settings-card .offbeat-switch.is-on::before {
-    transform: translateX(38px);
+    transform: translateX(30px);
     background: linear-gradient(180deg, #fff9e9, #f7df9a);
 }
 #click-settings-card .offbeat-switch-text {
     position: relative;
     z-index: 1;
-    font-size: 0.72rem;
+    font-size: 0.66rem;
     font-weight: 900;
     line-height: 1;
 }
@@ -4517,7 +4519,7 @@ h1 {
 /* クリックする拍を1小節の表/裏マップで視認（表示専用）。選択に連動してクリック位置を示す。 */
 .click-dots-row {
     align-items: flex-start;
-    margin-top: 10px;
+    margin-top: 8px;
 }
 .click-dots {
     width: 100%;
@@ -4587,13 +4589,9 @@ h1 {
     line-height: 1.5;
 }
 @media (max-width: 480px) {
-    #click-settings-card .click-beats-head-row {
-        align-items: flex-start;
-    }
     #click-settings-card .offbeat-switch-wrap {
-        width: 100%;
-        justify-content: space-between;
-        margin-left: 0;
+        width: auto;
+        justify-content: flex-start;
     }
     .click-map-grid {
         gap: 7px;

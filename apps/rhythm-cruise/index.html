@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=1.0.8">
+    <link rel="stylesheet" href="theme.css?v=1.0.9">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -564,7 +564,7 @@
             </div>
 
             <!-- クリック設定タブ（v0.9.148）：STAGE画面から移動。クリック音だけに反映され、判定/譜面/スコア/プレビュー/履歴には影響しない。
-                 A.鳴らす範囲　B.クリックする拍＋裏拍スイッチ　C.表/裏の拍マップ表示。 -->
+                 A.鳴らす範囲　B.クリックする拍　C.裏拍スイッチ　D.表/裏の拍マップ表示。 -->
             <div class="settings-card hidden" id="click-settings-card">
                 <div class="cal-head">クリック設定</div>
                 <p class="setting-note" style="margin-top:0;">クリック音だけに反映されます。判定・スコア・譜面・リズムプレビューには影響しません。</p>
@@ -578,10 +578,6 @@
                 </div>
                 <div class="stage-set-row click-beats-head-row">
                     <span class="stage-set-label">クリックする拍</span>
-                    <div class="offbeat-switch-wrap">
-                        <span class="stage-set-label offbeat-switch-caption">裏拍</span>
-                        <button type="button" class="ss-toggle offbeat-switch" id="offbeat-toggle" aria-pressed="false"><span class="offbeat-switch-text">OFF</span></button>
-                    </div>
                 </div>
                 <div class="stage-set-row click-beats-buttons-row">
                     <div class="stage-set-seg" id="click-beats-seg" role="group" aria-label="クリックする拍">
@@ -589,6 +585,12 @@
                         <button type="button" class="ss-seg" data-clickbeats="beat1" aria-pressed="false">1拍目だけ</button>
                         <button type="button" class="ss-seg" data-clickbeats="beats13" aria-pressed="false">1・3拍目</button>
                         <button type="button" class="ss-seg" data-clickbeats="beats24" aria-pressed="false">2・4拍目</button>
+                    </div>
+                </div>
+                <div class="stage-set-row offbeat-switch-row">
+                    <div class="offbeat-switch-wrap">
+                        <span class="stage-set-label offbeat-switch-caption">裏拍</span>
+                        <button type="button" class="ss-toggle offbeat-switch" id="offbeat-toggle" aria-pressed="false"><span class="offbeat-switch-text">OFF</span></button>
                     </div>
                 </div>
                 <!-- 選んでいる拍の表/裏位置を1小節の拍マップで視認（表示専用）。選択に連動して更新。 -->
@@ -1565,7 +1567,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=1.0.8"></script>
+    <script src="script.js?v=1.0.9"></script>
 </body>
 
 </html>
