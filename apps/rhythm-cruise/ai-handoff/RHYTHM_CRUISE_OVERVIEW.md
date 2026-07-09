@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/rhythm-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/rhythm-cruise/`
 - PRO版URL: `https://soundcruise.jp/apps/rhythm-cruise/pro_a9f4k7q2m8z/`
-- 現在のバージョン: `1.0.0`（`script.js` の `RHYTHM_CRUISE_VERSION`。2026年7月8日付でVer 1.0.0として正式リリース）
+- 現在のバージョン: `1.0.1`（`script.js` の `RHYTHM_CRUISE_VERSION`。2026年7月8日付でVer 1.0.0として正式リリース）
 - このドキュメント更新時点の最新commit（rhythm-cruise関連）:
   - message: `リズムクルーズを正式版1.0.0に更新`
   - hash: 本ドキュメント更新と同一commitでpushされるため、この記述時点では未確定（4章「リリース準備メモ」参照）
