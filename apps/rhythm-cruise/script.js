@@ -36,10 +36,6 @@ function isStandardEdition() {
 
 /* ── PRO版ロック文言 ──────────────────────────────────────── */
 const RHYTHM_PRO_LOCK_MESSAGES = {
-    proCustomStage: {
-        title: 'PRO版限定機能です',
-        body: 'カスタムSTAGEの作成・保存はPRO版で利用できます。'
-    },
     rhythmCreateSave: {
         title: 'PRO版限定機能です',
         body: '作成したリズムの保存はPRO版で利用できます。'
