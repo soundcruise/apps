@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/rhythm-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/rhythm-cruise/`
 - PRO版URL: `https://soundcruise.jp/apps/rhythm-cruise/pro_a9f4k7q2m8z/`
-- 現在のバージョン: `1.0.2`（`script.js` の `RHYTHM_CRUISE_VERSION`。2026年7月8日付でVer 1.0.0として正式リリース）
+- 現在のバージョン: `1.0.3`（`script.js` の `RHYTHM_CRUISE_VERSION`。2026年7月8日付でVer 1.0.0として正式リリース）
 - このドキュメント更新時点の最新commit（rhythm-cruise関連）:
   - message: `リズムクルーズを正式版1.0.0に更新`
   - hash: 本ドキュメント更新と同一commitでpushされるため、この記述時点では未確定（4章「リリース準備メモ」参照）
@@ -133,6 +133,7 @@
   - PROカスタムSTAGE編集画面（`home-pro-custom-edit`）では、拍子・最小音符・リズムタイプ（ストレート/シャッフル）・パターン・再生設定（BPM/パターン長/小節/拡大）・プリセット保存・削除ができる。
   - 保存済みリズム一覧（`home-rhythm-create-saved`）は「リズムを作る」から独立した導線として存在。
 - 触る時の注意点: STAGE1（固定練習STAGE）とPROカスタムSTAGE・リズム作成の内部状態（`state.routeEditor`・`proCustomEditDraft`・`_stagingMelodySlotOrder`相当の各種一時state）が入り組んでいるため、保存・編集フローを変更する場合は既存コメント（`v0.9.xxx` 形式のバージョン注記が多数残っている）を必ず読んでから着手すること。
+- 未保存確認ポップの基準（v1.0.3で修正）: 編集画面の未保存判定は `proCustomEditDraft` と `proCustomEditSnapshot`（保存済み基準のJSON文字列）の比較。`refreshProCustomEditSnapshot()` で基準を取り直す。初回描画（方向補正込み）の後・保存成功後・Practiceから編集に戻った後に呼ぶ必要がある。Practice画面の未保存確認は `hasUnsavedPracticeCustomStageSettings()`（`eng.custom` のbpm/bars/zoomと現在値を比較）で判定し、`eng.editId` の有無だけでは判定しない。
 
 ---
 

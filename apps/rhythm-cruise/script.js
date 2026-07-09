@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '1.0.2';
+const RHYTHM_CRUISE_VERSION = '1.0.3';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -4477,11 +4477,17 @@ function renderRhythmCustomStages() {
    ・練習開始・再生・判定エンジン接続は今回は行わない。
 ═══════════════════════════════════════════════════════════ */
 let proCustomEditDraft = null;    // 編集中のドラフト（normalize済み）
-let proCustomEditSnapshot = null; // 未保存変更検知用：編集画面を開いた時点のJSON文字列
+let proCustomEditSnapshot = null; // 未保存変更検知用：保存済み基準時点のJSON文字列
 let rhythmCustomEditorSelectedPresetId = null; // v0.9.248 編集画面で現在選択中のプリセットID（null＝未選択）。保存ボタンの出し分けに使う。
 
 function rhythmCustomStageExists(id) {
     return !!id && getSavedRhythmCustomStages().some(s => s.id === id);
+}
+
+/* proCustomEditDraft の現在値を「保存済み基準」として取り直す（v1.0.3）。
+   初回描画（方向補正込み）の直後、保存成功後、Practiceから編集へ戻った直後に呼ぶ。 */
+function refreshProCustomEditSnapshot() {
+    proCustomEditSnapshot = proCustomEditDraft ? JSON.stringify(proCustomEditDraft) : null;
 }
 
 /* 編集画面からの離脱ガード。差分があるときだけ confirm を出す。 */
@@ -4496,7 +4502,6 @@ function openRhythmProCustomEditorDraft(stage) {
     if (!isRhythmProCustomStageAvailable()) return;
     proCustomEditDraft = normalizeRhythmCustomStageSettings(stage || getDefaultRhythmCustomStage());
     if (!proCustomEditDraft) return;
-    proCustomEditSnapshot = JSON.stringify(proCustomEditDraft);
     rhythmCustomEditorSelectedPresetId = null; // 編集画面を開いた直後は常に未選択（プリセットに保存）状態（v0.9.248）
     // 「＋ 編集方法」は編集画面を開くたびに閉じた状態へ戻す（v0.9.189）。
     if (els.pceHowtoBody) els.pceHowtoBody.classList.add('hidden');
@@ -4504,6 +4509,9 @@ function openRhythmProCustomEditorDraft(stage) {
     resetRhythmEditorPreviewControls();
     ensureRhythmVexFlow(); // 譜面ライブラリを先読み（編集画面を開いた時だけ・CDN不使用）
     renderRhythmCustomEditor();
+    // v1.0.3: snapshot は初回描画（方向補正込み）の後に取る。ここより前に確定すると、
+    // applyRhythmDefaultDirections の描画時補正だけで未保存扱いになってしまう。
+    refreshProCustomEditSnapshot();
     setHomeView('proCustomEdit');
     if (isStandardEdition()) applyStandardProCustomEditorSettingsLock(); // mod 7-2 通常版：再生設定を🔒（v0.9.240）
 }
@@ -6281,6 +6289,9 @@ function backToEditorFromTest() {
         proCustomEditDraft.zoom = clampRhythmVexZoom(tempZoom);
         setHomeView('proCustomEdit');
         renderRhythmCustomEditor();
+        // v1.0.3: Practice側のBPM/小節数/拡大を編集ドラフトへ反映した、この状態を保存済み基準にする
+        // （Practiceから戻っただけでは未保存扱いにしない。以後の実編集は従来どおり検知する）。
+        refreshProCustomEditSnapshot();
     } else if (id && getSavedRhythmCustomStages().some((s) => s.id === id)) {
         openRhythmProCustomEditor(id);
         if (proCustomEditDraft) {
@@ -6288,6 +6299,7 @@ function backToEditorFromTest() {
             if (Number.isInteger(tempBars) && tempBars >= 1 && tempBars <= 128) proCustomEditDraft.bars = tempBars;
             proCustomEditDraft.zoom = clampRhythmVexZoom(tempZoom);
             renderRhythmCustomEditor();
+            refreshProCustomEditSnapshot(); // v1.0.3: 同上
         }
     } else {
         renderRhythmHomeCustomStages();
@@ -6378,6 +6390,7 @@ function savePracticeCustomStage(modalTitle = '練習STAGEとして保存') {
             eng.custom = result;
             eng.editId = result.id; // 以後はこの新規STAGEが対象＝「上書き保存」できる状態に切替
             proCustomEditDraft = result; // 編集ドラフトも同期（「←編集に戻る」時に最新状態を反映）
+            refreshProCustomEditSnapshot(); // v1.0.3: 保存成功時点を保存済み基準にする
             renderRhythmCustomStages();
             renderRhythmHomeCustomStages();
             syncPracticeCustomSaveButtons();
@@ -6414,6 +6427,7 @@ function overwritePracticeCustomStage() {
     if (!result) { showRcToast('保存できませんでした'); return; }
     eng.custom = result;
     proCustomEditDraft = result; // 編集ドラフトも同期
+    refreshProCustomEditSnapshot(); // v1.0.3: 上書き保存成功時点を保存済み基準にする
     renderRhythmCustomStages();
     renderRhythmHomeCustomStages();
     syncPracticeCustomSaveButtons();
@@ -6530,12 +6544,23 @@ function openSettingsFromCurrent() {
     openSettings(from);
 }
 
+/* カスタムSTAGEテスト再生中、BPM/小節数/拡大が保存済みの値から実際に変わっているか（v1.0.3）。
+   eng.editId が無い、または比較元の eng.custom が無いときは false（比較できないため確認を出さない）。 */
+function hasUnsavedPracticeCustomStageSettings() {
+    if (!eng.editId || !eng.custom) return false;
+    if (state.bpm !== eng.custom.bpm) return true;
+    if (state.bars !== eng.custom.bars) return true;
+    if (clampRhythmVexZoom(rhythmVexZoomPrefs.stage) !== eng.custom.zoom) return true;
+    return false;
+}
+
 /* 全画面共通ナビ：TOP＝常にホーム、戻る＝自然な前画面 */
 function goTop() {
     if (!confirmLeaveProCustomEdit()) return;
     // カスタムテスト再生中は、未保存のBPM/小節数が破棄される可能性があるため確認する（v0.9.124）。
     // 組み込みSTAGE（STAGE1）は editId が無く、BPM/小節数は通常設定として保存されるので確認は不要（v0.9.143）。
-    if (eng.editId) {
+    // v1.0.3: eng.editId の有無だけでなく、実際にBPM/小節数/拡大が保存済み値と異なる場合だけ確認する。
+    if (hasUnsavedPracticeCustomStageSettings()) {
         if (!window.confirm('テスト再生中に変更したBPM/小節数が保存されていない場合は破棄されます。\nTOPへ戻りますか？')) return;
     }
     stop();
