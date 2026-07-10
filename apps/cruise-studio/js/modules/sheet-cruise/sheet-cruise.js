@@ -1,7 +1,10 @@
-/* クルーズスタジオ — sheet-cruise.js（Phase 2B / R2）
+/* クルーズスタジオ — sheet-cruise.js（Phase 2B / R2、UI再編D1でレイアウトのみ改修）
    譜面クルーズ画面: プロジェクト選択・曲情報フォーム・キー関係チェック・
    セクション管理・小節グリッド（1小節1コード入力）・簡易プレビュー・保存。
    歌詞・ドレミ入力とA4紙面プレビューは Phase 2C / Phase 3。
+   D1（docs/DECISIONS.md ADR-025）: 曲情報・セクション・表示設定・小節グリッドは
+   上部ドロワー（#sc-editor-drawer）へ移動。保存/復元/JSON/プレDTM/MIDIの
+   経路・データ構造・overlay編集ロジックは変更しない。
    グローバル名前空間 CruiseStudio.sheetCruise に登録する。 */
 (function () {
     'use strict';
@@ -37,6 +40,8 @@
     function q(id) { return document.getElementById(id); }
 
     function resolveElements() {
+        els.editorDrawer = q('sc-editor-drawer');
+        els.barGridDrawer = q('sc-bar-grid-drawer');
         els.projectSelect = q('sc-project-select');
         els.newProjectBtn = q('sc-new-project');
         els.title = q('sc-title');
@@ -1179,6 +1184,10 @@
         window.addEventListener('resize', scheduleOverlayPosition);
         els.preview.addEventListener('click', onPreviewClick);
         els.preview.addEventListener('keydown', onPreviewKeydown);
+
+        // D1: ドロワー開閉でプレビュー領域の高さが変わり、overlay位置がズレうるため再計算する
+        if (els.editorDrawer) els.editorDrawer.addEventListener('toggle', scheduleOverlayPosition);
+        if (els.barGridDrawer) els.barGridDrawer.addEventListener('toggle', scheduleOverlayPosition);
 
         // ブラウザのタブ閉じ / リロード / URL移動に対する未保存ガード。
         // 画面内のTOP/戻る/モジュール移動は既存の中断確認（canLeave）が担当する。

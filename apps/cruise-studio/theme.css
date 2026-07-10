@@ -1,4 +1,4 @@
-/* クルーズスタジオ theme.css — v0.15.0
+/* クルーズスタジオ theme.css — v0.16.0
    リズムクルーズの DESIGN_SYSTEM.md（Clean Pro系）の考え方を継承しつつ、
    PCファーストに読み替えたテーマ。shared/style.css には依存しない（ADR-005）。
    class名・DOMはクルーズスタジオ用に新規設計している。 */
@@ -480,18 +480,74 @@ body {
     display: none;
 }
 
-/* 左: 編集パネル / 右: 譜面プレビュー の2ペイン（Phase 3で右側がA4紙面になる） */
+/* 譜面を主役にする1カラム構成（UI再編D1。docs/DECISIONS.md ADR-025）。
+   曲情報・セクション・表示設定・小節グリッド（旧一覧編集）は上部の
+   折りたたみドロワーへ、A4紙面プレビューは常にその下でフル幅表示する。 */
 .sheet-layout {
-    display: grid;
-    grid-template-columns: minmax(400px, 560px) 1fr;
-    gap: 24px;
-    align-items: start;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* 曲情報・セクション・表示設定・小節グリッドをまとめるドロワー。
+   既定で閉じており、必要なときだけ開く（初期状態は譜面が主役）。
+   開閉状態はUI一時状態のため保存しない。print.cssで丸ごと非表示にする。 */
+.sheet-editor-drawer {
+    border: 1px solid var(--card-border);
+    border-radius: var(--card-radius);
+    background: linear-gradient(180deg, var(--surface-raised), var(--surface-color));
+    box-shadow: var(--card-shadow);
+}
+
+.sheet-editor-drawer > summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 22px;
+    cursor: pointer;
+    list-style-position: inside;
+}
+
+.sheet-editor-drawer[open] > summary {
+    border-bottom: 1px solid rgba(253, 246, 238, 0.08);
+}
+
+.sheet-editor-drawer-icon {
+    font-size: 18px;
+    line-height: 1;
+}
+
+.sheet-editor-drawer-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sheet-editor-drawer-label {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--secondary-color);
+    letter-spacing: 0.03em;
+}
+
+.sheet-editor-drawer-hint {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--muted-color);
 }
 
 .sheet-editor {
+    padding: 20px 22px 22px;
     display: flex;
     flex-direction: column;
     gap: 18px;
+}
+
+/* 小節グリッド（一覧編集）は旧UI。紙面クリック+ミニoverlayが主導線のため
+   D1では常設表示から外し、既定で折りたたむ（機能・データは維持）。 */
+.bar-grid-drawer > summary {
+    cursor: pointer;
+    list-style-position: inside;
 }
 
 /* 設定カードの考え方（DESIGN_SYSTEM.md 10章）を編集パネルに適用 */
@@ -783,15 +839,20 @@ body {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    /* gridの1frトラックが紙面794pxのmin-contentで固定されないようにする */
     min-width: 0;
 }
 
-/* スケール表示のビューポート。高さはJSが scale後の実寸を設定する */
+/* スケール表示のビューポート。高さはJSが scale後の実寸を設定する。
+   紙面の自然サイズ（794px）を上限にして中央寄せする（D1: 画面幅いっぱいに近い状態で主役表示）。
+   scaleは既存JS（updateSheetScale）がmin(1, 利用幅/794)で計算するため、
+   ここで幅上限を紙面幅に合わせておくと常に等倍〜中央表示になる。 */
 .sheet-preview-viewport {
     position: relative;
     overflow: hidden;
     min-width: 0;
+    width: 100%;
+    max-width: 794px;
+    margin: 0 auto;
 }
 
 .sheet-scale-box {
@@ -1715,11 +1776,6 @@ body {
 
     .module-grid,
     .module-grid--series {
-        grid-template-columns: 1fr;
-    }
-
-    /* PC前提の2ペインは縦積みに畳む（編集のスマホ最適化はしない: ADR-005） */
-    .sheet-layout {
         grid-template-columns: 1fr;
     }
 

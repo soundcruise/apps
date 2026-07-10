@@ -7,9 +7,9 @@
     <title>クルーズスタジオ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成（PCファースト。docs/DECISIONS.md ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.15.0">
+    <link rel="stylesheet" href="theme.css?v=0.16.0">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
-    <link rel="stylesheet" href="print.css?v=0.15.0" media="print">
+    <link rel="stylesheet" href="print.css?v=0.16.0" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -32,7 +32,7 @@
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
                 <p class="studio-subcopy">コード譜から、曲が動き出す。</p>
-                <span class="studio-version" id="studio-version">v0.15.0</span>
+                <span class="studio-version" id="studio-version">v0.16.0</span>
             </header>
 
             <section class="module-section">
@@ -139,90 +139,104 @@
 
             <div class="sheet-layout">
 
-                <!-- 左: 編集パネル -->
-                <div class="sheet-editor">
+                <!-- 曲情報・セクション・表示設定・小節グリッド（旧一覧編集）のドロワー。
+                     UI再編D1（docs/DECISIONS.md ADR-025）: 既定で閉じ、譜面を主役にする。
+                     開閉状態はUI一時状態のため保存しない。 -->
+                <details class="sheet-editor-drawer" id="sc-editor-drawer">
+                    <summary class="sheet-editor-drawer-summary">
+                        <span class="sheet-editor-drawer-icon" aria-hidden="true">🛠️</span>
+                        <span class="sheet-editor-drawer-text">
+                            <span class="sheet-editor-drawer-label">曲情報・セクション・表示設定を編集</span>
+                            <span class="sheet-editor-drawer-hint">曲名・キー・BPM・セクション構成・紙面の表示ON/OFFなど</span>
+                        </span>
+                    </summary>
 
-                    <div class="editor-card">
-                        <h3 class="editor-card-title">曲情報</h3>
-                        <div class="form-grid">
-                            <label class="form-field form-field--wide">
-                                <span class="form-label">曲名</span>
-                                <input type="text" id="sc-title" placeholder="曲名を入力">
-                            </label>
-                            <label class="form-field form-field--wide">
-                                <span class="form-label">アーティスト</span>
-                                <input type="text" id="sc-artist" placeholder="アーティスト名を入力">
-                            </label>
-                            <label class="form-field">
-                                <span class="form-label">ORGキー（実音）</span>
-                                <select id="sc-original-key"></select>
-                            </label>
-                            <label class="form-field">
-                                <span class="form-label">Playキー（フォーム）</span>
-                                <select id="sc-play-key"></select>
-                            </label>
-                            <label class="form-field">
-                                <span class="form-label">カポ</span>
-                                <input type="number" id="sc-capo" min="0" max="11" step="1">
-                            </label>
-                            <label class="form-field">
-                                <span class="form-label">BPM</span>
-                                <input type="number" id="sc-bpm" min="20" max="400" step="1">
-                            </label>
-                            <label class="form-field">
-                                <span class="form-label">拍子</span>
-                                <select id="sc-time-sig">
-                                    <option value="4/4">4/4</option>
+                    <div class="sheet-editor">
+
+                        <div class="editor-card">
+                            <h3 class="editor-card-title">曲情報</h3>
+                            <div class="form-grid">
+                                <label class="form-field form-field--wide">
+                                    <span class="form-label">曲名</span>
+                                    <input type="text" id="sc-title" placeholder="曲名を入力">
+                                </label>
+                                <label class="form-field form-field--wide">
+                                    <span class="form-label">アーティスト</span>
+                                    <input type="text" id="sc-artist" placeholder="アーティスト名を入力">
+                                </label>
+                                <label class="form-field">
+                                    <span class="form-label">ORGキー（実音）</span>
+                                    <select id="sc-original-key"></select>
+                                </label>
+                                <label class="form-field">
+                                    <span class="form-label">Playキー（フォーム）</span>
+                                    <select id="sc-play-key"></select>
+                                </label>
+                                <label class="form-field">
+                                    <span class="form-label">カポ</span>
+                                    <input type="number" id="sc-capo" min="0" max="11" step="1">
+                                </label>
+                                <label class="form-field">
+                                    <span class="form-label">BPM</span>
+                                    <input type="number" id="sc-bpm" min="20" max="400" step="1">
+                                </label>
+                                <label class="form-field">
+                                    <span class="form-label">拍子</span>
+                                    <select id="sc-time-sig">
+                                        <option value="4/4">4/4</option>
+                                    </select>
+                                    <span class="form-note">他の拍子は将来対応</span>
+                                </label>
+                                <!-- 基本ストローク（R1）: 記号はslotsへ正規化して保存（ADR-018） -->
+                                <label class="form-field form-field--wide">
+                                    <span class="form-label">基本ストローク（↓ ↑ ・ 〜 x）</span>
+                                    <input type="text" id="sc-basic-strum" placeholder="例: ↓・↓↑ ・↑↓↑（空欄なら紙面に出ません）">
+                                    <span class="form-note">曲全体のストローク。↓=ダウン / ↑=アップ / ・=休み / 〜=伸ばす / x=ミュート。8個までは8分、9個以上は16分で配置。空白は区切りとして無視されます</span>
+                                </label>
+                            </div>
+
+                            <p id="sc-key-check" class="key-check" aria-live="polite"></p>
+
+                            <div class="sheet-display-toggles">
+                                <span class="form-label">紙面に表示</span>
+                                <label class="pd-check"><input type="checkbox" id="sc-show-chords" checked> コード</label>
+                                <label class="pd-check"><input type="checkbox" id="sc-show-strum" checked> ストローク</label>
+                                <label class="pd-check"><input type="checkbox" id="sc-show-lyrics" checked> 歌詞</label>
+                                <label class="pd-check"><input type="checkbox" id="sc-show-doremi" checked> ドレミ</label>
+                            </div>
+
+                            <!-- タイミンググリッド（S1a）。ONなら印刷/PDFにも出る -->
+                            <div class="sheet-display-toggles">
+                                <span class="form-label">グリッド線</span>
+                                <label class="pd-check"><input type="checkbox" id="sc-show-grid" checked> 表示（PDFにも出ます）</label>
+                                <select id="sc-grid-resolution" class="grid-res-select" aria-label="グリッドの細かさ">
+                                    <option value="8">8分</option>
+                                    <option value="16">16分</option>
                                 </select>
-                                <span class="form-note">他の拍子は将来対応</span>
-                            </label>
-                            <!-- 基本ストローク（R1）: 記号はslotsへ正規化して保存（ADR-018） -->
-                            <label class="form-field form-field--wide">
-                                <span class="form-label">基本ストローク（↓ ↑ ・ 〜 x）</span>
-                                <input type="text" id="sc-basic-strum" placeholder="例: ↓・↓↑ ・↑↓↑（空欄なら紙面に出ません）">
-                                <span class="form-note">曲全体のストローク。↓=ダウン / ↑=アップ / ・=休み / 〜=伸ばす / x=ミュート。8個までは8分、9個以上は16分で配置。空白は区切りとして無視されます</span>
-                            </label>
+                            </div>
                         </div>
 
-                        <p id="sc-key-check" class="key-check" aria-live="polite"></p>
-
-                        <div class="sheet-display-toggles">
-                            <span class="form-label">紙面に表示</span>
-                            <label class="pd-check"><input type="checkbox" id="sc-show-chords" checked> コード</label>
-                            <label class="pd-check"><input type="checkbox" id="sc-show-strum" checked> ストローク</label>
-                            <label class="pd-check"><input type="checkbox" id="sc-show-lyrics" checked> 歌詞</label>
-                            <label class="pd-check"><input type="checkbox" id="sc-show-doremi" checked> ドレミ</label>
+                        <div class="editor-card">
+                            <h3 class="editor-card-title">セクション</h3>
+                            <div id="sc-section-list" class="section-list"></div>
+                            <div class="editor-actions">
+                                <button type="button" id="sc-add-section" class="btn-ghost">＋ セクションを追加</button>
+                            </div>
                         </div>
 
-                        <!-- タイミンググリッド（S1a）。ONなら印刷/PDFにも出る -->
-                        <div class="sheet-display-toggles">
-                            <span class="form-label">グリッド線</span>
-                            <label class="pd-check"><input type="checkbox" id="sc-show-grid" checked> 表示（PDFにも出ます）</label>
-                            <select id="sc-grid-resolution" class="grid-res-select" aria-label="グリッドの細かさ">
-                                <option value="8">8分</option>
-                                <option value="16">16分</option>
-                            </select>
-                        </div>
+                        <!-- 小節グリッド: 一覧型の旧編集UI。紙面クリック+ミニoverlayが主導線になったため、
+                             D1では常設表示から外し、既定で折りたたむ（データ・機能は維持）。 -->
+                        <details class="editor-card bar-grid-drawer" id="sc-bar-grid-drawer">
+                            <summary class="editor-card-title">小節グリッド（一覧編集・任意）</summary>
+                            <p class="editor-card-note">各小節にコード（例: C / Am7 / F/G）・歌詞・ドレミ（ド〜シ、伸ばしは 〜、オクターブは ↑↓）を入力します。解釈できない表記は警告になりますが、保存はできます。</p>
+                            <!-- .bar-cell: コード/歌詞/ドレミの3行構成。将来 拍位置入力へ拡張する -->
+                            <div id="sc-bar-grid" class="bar-grid"></div>
+                        </details>
+
                     </div>
+                </details>
 
-                    <div class="editor-card">
-                        <h3 class="editor-card-title">セクション</h3>
-                        <div id="sc-section-list" class="section-list"></div>
-                        <div class="editor-actions">
-                            <button type="button" id="sc-add-section" class="btn-ghost">＋ セクションを追加</button>
-                        </div>
-                    </div>
-
-                    <div class="editor-card">
-                        <h3 class="editor-card-title">小節グリッド</h3>
-                        <p class="editor-card-note">各小節にコード（例: C / Am7 / F/G）・歌詞・ドレミ（ド〜シ、伸ばしは 〜、オクターブは ↑↓）を入力します。解釈できない表記は警告になりますが、保存はできます。</p>
-                        <!-- .bar-cell: コード/歌詞/ドレミの3行構成。将来 拍位置入力へ拡張する -->
-                        <div id="sc-bar-grid" class="bar-grid"></div>
-                    </div>
-
-                </div>
-
-                <!-- 右: A4固定紙面プレビュー（794×1123px。ペイン幅にスケールフィット。ADR-016） -->
+                <!-- A4固定紙面プレビュー（794×1123px。主役として画面幅いっぱいに近い状態で表示。ADR-016 / D1） -->
                 <aside class="sheet-preview">
                     <div id="sc-preview" class="sheet-preview-viewport" aria-label="コード譜プレビュー">
                         <div id="sc-sheet-scale-box" class="sheet-scale-box"></div>
@@ -395,15 +409,15 @@
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/music-theory.js?v=0.15.0"></script>
-    <script src="js/core/song-model.js?v=0.15.0"></script>
-    <script src="js/core/storage.js?v=0.15.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.15.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.15.0"></script>
-    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.15.0"></script>
-    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.15.0"></script>
-    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.15.0"></script>
-    <script src="js/app.js?v=0.15.0"></script>
+    <script src="js/core/music-theory.js?v=0.16.0"></script>
+    <script src="js/core/song-model.js?v=0.16.0"></script>
+    <script src="js/core/storage.js?v=0.16.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.16.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.16.0"></script>
+    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.16.0"></script>
+    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.16.0"></script>
+    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.16.0"></script>
+    <script src="js/app.js?v=0.16.0"></script>
 </body>
 
 </html>
