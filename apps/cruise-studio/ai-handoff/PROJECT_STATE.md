@@ -14,17 +14,17 @@
 
 - 最新push済みcommit（cruise-studio以外を含む、このリポジトリ全体の最新。origin/main。
   `main` と `origin/main` は一致しており、両者に差はない）:
-  - full hash: `6b32c65ea01c6eaed4981b0cc940987b31e94f49`
-  - short hash: `6b32c65e`
-  - commit message: `コードクルーズの減三和音表記を変更`（chord-cruise側の変更。cruise-studioは無関係）
+  - full hash: `4e27b8c090616adfdc04188d6c8d9cb4ded4ef56`
+  - short hash: `4e27b8c0`
+  - commit message: `譜面クルーズに歌詞セル編集とtick配置表示を追加`
+  - 内容: `v0.20.0 / F2a 歌詞セル編集` までリモート反映済み（**commit・push済み**）
 - cruise-studioの直近push済みcommit:
+  - `4e27b8c0` 譜面クルーズに歌詞セル編集とtick配置表示を追加（`v0.20.0 / F2a`）
   - `0906b8f4` 譜面クルーズの小節編集をフローティングルーペ化（`v0.19.0 / F1`）
   - `a3a1618f` 譜面クルーズに選択小節のタイムグリッド編集を追加（`v0.18.0 / D3a`）
-  - D3a・F1とも既にpush済み（旧版の本ファイルには「D3aはローカルcheckpointで未push」
-    「F1はcommit/push未実施」という記述が残っていたが、これは古い状態の記述であり誤り。
-    実際には両方ともorigin/mainへ反映済み）。
-- クルーズスタジオ側の未commit差分は、`v0.20.0 / F2a 歌詞セル編集` 実装分のみを想定する
-  （下記5章を参照。commit/pushはまだ実施していない）。
+  - D3a・F1・F2aとも既にpush済み。
+- クルーズスタジオ側の未commit差分は、`v0.21.0 / G1 小節ルーペの拍グループ構造化＋縦線追加`
+  実装分のみを想定する（下記5章を参照。実装・検証済み、commit/pushはまだ実施していない）。
 - chord-cruise側にも別途、このセッションとは無関係な未commit差分が存在することがある。
   cruise-studio側の作業ではchord-cruiseには一切触れない。
 - rhythm-cruise 側の差分や未追跡ファイルが出ていても、この作業では触らない。
@@ -323,91 +323,94 @@
   - データ構造・保存/復元/JSON/プレDTM/MIDI経路は無変更。`schemaVersion` は1のまま
   - 歌詞/ドレミのtick位置セル編集・`setBarLyricSlot`/`setBarMelodySlot`・
     旧小節グリッドカードの撤去・bulk自動分解配置・拍単位コード入力はF1では未着手（F2以降）
+- `v0.20.0 / F2a 歌詞のtick位置セル編集`（docs/DECISIONS.md ADR-028。push済み: `4e27b8c0`）
+  - `setBarLyricSlot()` / `getBarLyricSlots()` / `barNeedsSixteenthResolution()` を
+    `song-model.js` に新設。ルーペの歌詞行をストロークと同じ共有時間軸のセル
+    （8/16マス、`<input>`）へ置き換え、IME 3層ガード付きで1セル=1イベントの
+    単発入力に対応。既存tick:0全文は自動分割せず先頭セルへそのまま表示。
+    16分位置の歌詞があれば8分ボタンをdisabled化。紙面の歌詞段はtick配置表示
+    （tick:0単一イベントは従来どおり全文表示の後方互換）。旧・小節グリッドカードの
+    歌詞inputはreadonly化、まとめて入力の歌詞は一時停止。詳細はADR-028を参照
 
 ## 5. 現在作業中のフェーズ
 
-### F2a: 歌詞のtick位置セル編集（`docs/DECISIONS.md` ADR-028）
+### G1: 小節ルーペの拍グループ構造化＋縦線追加（`docs/DECISIONS.md` ADR-029）
 
-- 予定バージョン: `v0.20.0`
+- 予定バージョン: `v0.21.0`
 - 実装・検証済み。commit / push はまだ未実施。
-- 背景: D3a/F1のドックは歌詞をコード同様「小節1つに1つの文字列入力」のまま扱っていたため、
-  紙面のtick位置に応じた歌詞配置（1音節=1マス）ができなかった。今回はFable5の設計レビューで
-  確定したF2aスコープのみを実装し、貼り付け時の自動分割・既存全文の自動分割・小節をまたぐ
-  自動移動・ドレミのセル編集・まとめて配置の新方式はF2b/F3/F4へ送る。
+- 背景: G2（歌詞の行別/拍別8分/16分切替）・G3（ストロークの同機能）を安全に実装するには、
+  まず「拍」という単位をDOM構造として明示的に持たせておく必要がある。今回はその土台整備
+  だけを、機能等価なリファクタとして先に行う。8/16のミニボタンやローカル解像度機能は
+  今回実装しない。
 - 主な内容:
-  - **`song-model.js`**:
-    - `setBarLyricSlot(project, barNumber, slotTick, slotTicks, text)` を新設。
-      `bar.lyrics` の指定tick範囲（1セル分）だけを書き換える。`text` は前後の
-      半角/全角空白をtrimし、空文字・空白のみ・「・」はすべて削除入力として扱う
-      （`normalizeLyricSlotText`）。「ー」「〜」は通常の文字として保持し
-      `durationTicks` は持たせない。model層は `renderPreview`/`markDirty`/保存を
-      一切行わず、呼び出し側UIが担当する。`{ok, warnings}` を返す
-    - `getBarLyricSlots(project, barNumber, resolution)` を新設。`bar.lyrics` を
-      指定解像度（8 or 16）のセル配列 `{text, eventCount, isMulti}` として読み出す
-      純粋な読み取り関数（projectを変更しない）
-    - `barNeedsSixteenthResolution({strumSlots, lyrics, chords, melody})` を新設。
-      tick%240!==0（またはdurationTicks%240!==0）のイベントがあれば16分表示を要求する
-      共通判定関数。F3で `melody` 側の判定もここに統合できる設計。
-      `sheet-renderer.js` の `barNeedsSixteenth(bar, strumSlots)` はこの共通関数への
-      委譲へ置き換え、挙動は変えていない（chords/melody/lyrics/strumSlotsすべて考慮）
-    - `setBarLyricsText()` は削除せず維持（旧JSON互換・他の呼び出し元のため）が、
-      ルーペ・旧小節グリッド・まとめて入力からの新規呼び出し経路はすべて断った
-    - `APP_VERSION` を `0.20.0` へ更新
-  - **歌詞セルUI（`sheet-cruise.js`）**: ルーペの歌詞行を、ストローク行と同じ
-    共有時間軸のセル（8 or 16マス。`<input>` 要素。`.dock-lyrics-grid` /
-    `.dock-lyrics-cell`）へ置き換えた。1セル=1 `bar.lyrics` イベント。
-    - 単一文字・ひらがな・カタカナ・漢字・複数文字・貼り付けはすべて、そのセルの
-      `text` へそのまま保存する（F2a時点では自動分割・自動展開はしない）
-    - Enter: 確定して同一小節内の右セルへ（最終セルではその場）。Tab/Shift+Tab:
-      確定して右/左セルへ（`preventDefault`でネイティブTabを抑止）。
-      ArrowRight/ArrowLeft: 確定して隣セルへ（小節をまたがない）。
-      Alt+←/→: 確定して前後の小節へ移動（歌詞行フォーカスを維持）。
-      Backspace: セルが空なら左セルへ移動するだけ（左セルの内容は消さない）。
-      Delete: そのセルのイベントを削除。Space: IMEを妨げず通常入力として扱う。
-      Escapeはセル側で処理せず、既存のルーペEsc優先順位（ポップオーバー→
-      セル編集解除→ルーペを閉じる）へそのままbubbleさせる
-    - **IME 3層ガード**: (1) keydownで `isComposing`/`keyCode===229`/変換中セルなら
-      cell-move/commit処理をスキップ。(2) `compositionstart`/`compositionend`で
-      変換中フラグを管理し、変換中は `markDirty`/`renderPreview`/再描画をしない。
-      (3) `compositionend` 直後に `justComposed` フラグを立てて `setTimeout(...,0)` で
-      解除し、Safari等でIME確定のEnterが `isComposing=false` として届く場合でも
-      セル移動として誤動作させない（確定は `compositionend` 側で既に保存済み）
-    - **フォーカス復元**: `{row:'lyrics', cellIndex, selectionStart, selectionEnd}` を
-      キャプチャ/復元する仕組みを追加（D3aのストロークセル復元と同じ思想）。
-      Alt+矢印での小節移動時は、直前セルのcommitを `skipRender:true` で行い
-      （移動先の再描画と二重に走らせない）、さらに復元コールバックは
-      「commit時点で選択されていた小節番号」と現在の `state.selectedBarNumber` が
-      一致する場合だけ実行するガードを入れている（`scheduleOverlayPosition`経由の
-      同一小節の再描画では正常動作させつつ、小節移動をまたいだ古いコールバックが
-      別小節のセルへ誤って値を書き込むことを防止する）
-  - **8分/16分の強制**: 拍ルーラー・セル解像度の判定に、ストロークだけでなく
-    `bar.lyrics` も見るよう拡張（`barNeedsSixteenthResolution({strumSlots, lyrics})`）。
-    16分位置の歌詞がある場合は「8分」ボタンをdisabledにし、
-    titleに理由（ストローク由来/歌詞由来/両方）を出し分ける
-  - **紙面表示（`sheet-renderer.js`）**: 歌詞段に互換ルールを実装。
-    (A) `bar.lyrics` が `tick:0` の単一イベントのみ（または空）の場合は、
-    従来どおり全文を1つのspanで表示する（既存プロジェクトの見た目・
-    自動保存し直しをしない）。(B) それ以外は、小節の必要解像度（ルーペと同じ判定）に
-    応じた8/16分割のグリッドへ、各イベントをtick位置ごとに配置する
-    （`.sheet-bar-lyrics--timed`。画面・印刷/PDFとも同じDOMなので両方に反映される）
-  - **旧・小節グリッドカード**: 歌詞inputを `readOnly` 化（`disabled` ではない。
-    値は表示され続ける）。titleに「歌詞は小節ルーペのセルで編集します」を表示し、
-    フォーカスすると該当小節を選択してルーペを開く（歌詞セルへもフォーカスする）。
-    `setBarLyricsText()` を呼ぶ書き込み経路はここから完全に断った。コード・ドレミの
-    inputは従来どおり編集可能なまま維持
-  - **まとめて入力の歌詞は一時停止**: 「歌詞」を選択するとtextarea・適用ボタンが
-    disabledになり、「歌詞はセル編集に移行しました。まとめて配置は今後の対応予定です。」
-    を表示する。適用ハンドラ側でも `kind==='lyrics'` を早期returnで二重に防止した。
-    コード・ドレミのまとめて入力は従来どおり動作する
-  - D3a/F1の回帰（保存/復元/JSON往復/旧JSON互換/プレDTM/MIDI/印刷/
-    `schemaVersion`維持/ルーペ位置・幅保存/ドラッグ/リサイズ/ストロークセル編集/
-    基本に戻す/コード入力/ドレミ入力/前へ・次へ/Alt+←/→/showStrum/グリッドON-OFF/
-    まとめて入力のコード・ドレミ）はすべて実機確認済み
-  - `_proto` / `apps/shared` / `apps/chord-cruise` / service-worker / manifest /
-    PRO認証まわりには一切触れていない
-  - 貼り付けの自動展開・既存全文の自動分割・小節をまたぐ自動移動・ドレミのセル編集・
-    まとめて配置の新方式（「セルへ割り当て」ボタン等）・行間の上下矢印移動は
-    F2aでは未着手（F2b/F3で扱う）
+  - **`sheet-cruise.js`に共通ヘルパー `populateBeatGroups(container, res, buildSlot)` を新設**。
+    `getBeats(project)` 拍分の `.beat-group`（`flex:1 1 0`で均等幅）を作り、各グループ内へ
+    `slotsPerBeat`（=res/beats）個のスロットを敷き詰める。拍ルーラー・ストロークセル・
+    歌詞セル・コード/ドレミ背面線のすべてがこの1関数だけを経由することで、
+    拍・8分・16分の境界線のx座標が行をまたいで完全に一致する
+  - **セルのDOM順序・`data-cell-index`は既存のフラットindexと完全に同じ**。
+    `querySelectorAll('.dock-strum-cell')`等の取得順・`focusStrumCellByIndex` /
+    `focusLyricCellByIndex`・IME 3層ガード・フォーカス復元は無変更のまま動作する
+    （実機確認済み。回帰なし）
+  - **コード・ドレミは1小節1入力を維持**。`setBarChord()` / `setBarDoremiText()` の
+    経路もセル分割もしない。新設した `buildTimelineBackground(res)` が、
+    `populateBeatGroups()` を使って装飾専用の縦線レイヤーを入力欄の背面へ敷く
+    （`pointer-events:none`・入力欄側は`z-index:1`で前面に出し、クリック・
+    キャレット操作を妨げない）
+  - 境界線の強弱判定は既存の `timelineBoundaryClass()` をそのまま使用（挙動不変）
+  - **解像度ロジックは変更しない**。ヘッダーの全体8分/16分切替をそのまま使い、
+    全拍が同じ解像度で描画される機能等価リファクタにとどめる。行別/拍別のローカル
+    解像度・8/16ミニボタン・`state.loupeBeatRes`・`beatNeedsSixteenthResolution()`は
+    今回追加していない（G2以降）
+  - **拍グループ間の幅ズレ対策**: `.slot-overlay-ruler-track`に他行と同じ透明な
+    `border:1px solid transparent`を追加し、`.beat-group`への配分幅を全行で一致させた
+    （追加前は拍ルーラーだけ枠がなく、サブピクセル単位で線がズレていた）
+  - 拍ルーラー・コード・ストローク・歌詞・ドレミの拍/8分/16分境界線が
+    `getBoundingClientRect()`比較で完全に一致することを実機確認済み
+    （680px〜1240pxの通常運用幅で確認。680px未満のPCファースト狭幅フォールバックでは、
+    ストローク/歌詞セルの最小幅フロア(`min-width: max(18px, ...)`)がルーラー側に
+    ないため、極端に狭い場合のみサブピクセルの差が生じうる。これはG1で新設した問題
+    ではなく、フロア自体はD3a/F2a由来の既存仕様であり、狭幅フォールバックは
+    元々PCファーストの対象外）
+  - `song-model.js` / `sheet-renderer.js` / `print.css` / `DATA_MODEL.md` は変更していない
+  - projectデータ構造・localStorage構造・`schemaVersion`は無変更
+  - D3a/F1/F2aの回帰（保存/復元/JSON往復/プレDTM/MIDI/印刷/ルーペ位置・幅保存/
+    ドラッグ/リサイズ/ストロークセル編集/基本に戻す/コード入力/ドレミ入力/前へ・次へ/
+    Alt+←/→/showStrum/グリッドON-OFF/まとめて入力/歌詞IME・セル移動・確定操作）は
+    すべて実機確認済み
+  - 行別・拍別の8分/16分切替（G2/G3）・拍単位コード入力・ドレミのセル化（F3）・
+    旧小節グリッドカードの完全撤去は今回未着手
+- **G1実機確認後の表示修正（同日・未commit）**:
+  1. 歌詞行の縦線が表示されない不具合を修正。境界線の強弱色を定義するCSSセレクタが
+     `.slot-overlay-ruler-cell`/`.dock-strum-cell`のみを対象にしており
+     `.dock-lyrics-cell`が含まれていなかったため（F2a導入時からの既存不具合）。
+     `.dock-lyrics-cell.is-beat/.is-8th/.is-16th/.is-barend`を追加して解決
+  2. 拍ルーラーの表示を「1/2/3/4」→「1拍/2拍/3拍/4拍」に変更（`buildBeatRuler()`の
+     ラベル生成のみ。tick計算・線の位置は無変更）
+  - 詳細は`docs/DECISIONS.md` ADR-029の追記部分を参照
+
+### ユーザー確定要望（未実装・G1範囲外）
+
+以下はユーザーから確定した要望だが、G1のスコープを超えるため今回は実装していない。
+設計が固まっていない変換ルールもあるため、未確定部分は断定せず記録する。
+
+- **A. コードのセル入力化**: 将来、コードも見えている各時間セルへ入力できるようにする
+  （拍単位コード編集フェーズで実装予定）。現在は`setBarChord()`・1小節1コードのまま維持
+- **B. ドレミのセル入力化**: F3でドレミも時間セル単位で入力できるようにする。
+  現在は1小節1入力・既存保存経路のまま維持
+- **C. 16分→8分の切替許可**: 将来の拍別8分/16分切替では、16分位置に入力があっても
+  8分へ切り替え可能にし、切替時は16分位置の内容を対応する8分セルへ移す。
+  対象は歌詞・ストローク・ドレミ・コード。**同じ8分セルへ複数データが集まる場合の
+  マージ/優先ルールは未設計であり、各行の実装着手前に個別に設計する**（現時点では
+  どちらのデータを残すか・連結するか等を断定しない）。今回、既存の「16分データによる
+  8分ボタンdisabled」仕様は変更していない
+- **D. ストロークの「〜」候補追加**: 将来のストロークセル編集で、クリック循環の
+  切替候補に「〜」を追加する。今回、クリック循環（`STRUM_CELL_CYCLE`）・保存値は
+  無変更
+- **E. 紙面を常に横4小節固定表示**: 将来、楽譜本体（紙面）は入力状況にかかわらず
+  常に横4小節並びへ固定する。独立した紙面レイアウトフェーズとして扱い、
+  `sheet-renderer.js` / `print.css` / 紙面レイアウト / 画面の2小節化判定 / 印刷PDFには
+  今回一切触れていない
 
 ### R1の記号ルール
 
@@ -432,16 +435,21 @@
 
 ## 6. 次にやること
 
-1. F2a実機確認（歌詞セルのIME入力・キー操作・8分/16分の強制・紙面のtick配置表示・
-   旧グリッドのreadonly化・まとめて入力の歌詞disabled化の確認）
-2. F2a commit
-3. F2a push
-4. F2b: 貼り付けの自動展開、既存全文の自動分割（明示操作のみ）、小節をまたぐ自動移動、
+1. G1実機確認（ユーザーによる目視確認。拍/8分/16分の線が全行で揃っているか、
+   リサイズしても崩れないか、歌詞IME・ストロークセル・コード/ドレミ入力の回帰）
+2. G1 commit
+3. G1 push
+4. G2: 歌詞の行別/拍別8分/16分切替（`.beat-group`単位のローカル解像度状態を追加）
+5. G3: ストロークの行別/拍別8分/16分切替（G2と同じ機構を再利用）
+6. F2b: 貼り付けの自動展開、既存全文の自動分割（明示操作のみ）、小節をまたぐ自動移動、
    「セルへ割り当て」ボタン等の新しいまとめて配置方式、行間の上下矢印移動
-5. F3: ドレミのtick位置セル編集（`setBarMelodySlot` 相当。`barNeedsSixteenthResolution` に
-   `melody` を統合）
-6. F4: まとめて入力の自動分解配置の総仕上げ、整合仕上げ
-7. 上記UI再編（D1〜D3a・F1・F2a〜F4）が落ち着いた後に本格記譜（VexFlow / 五線譜 / MusicXML）を検討
+7. F3: ドレミのtick位置セル編集（`setBarMelodySlot` 相当。`barNeedsSixteenthResolution` に
+   `melody` を統合。ドレミのセル化時はG1の拍グループ機構をそのまま適用する）
+8. F4: まとめて入力の自動分解配置の総仕上げ、整合仕上げ
+9. 拍単位コード編集を実装する場合も、G1の拍グループ機構（`populateBeatGroups`）を
+   そのまま適用する
+10. 上記UI再編（D1〜D3a・F1・F2a〜F4・G1〜G3）が落ち着いた後に本格記譜
+    （VexFlow / 五線譜 / MusicXML）を検討
 
 ## 7. 重要な設計方針
 

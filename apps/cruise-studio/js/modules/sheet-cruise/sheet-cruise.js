@@ -807,6 +807,55 @@
         return 'is-8th';
     }
 
+    /* ══════════ G1: 拍グループ構造化（docs/DECISIONS.md ADR-029） ══════════
+       行（拍ルーラー/ストローク/歌詞/コード・ドレミ背面線）のタイムライン部分を、
+       「拍グループ（均等幅・flex） × 拍内スロット（slotsPerBeatのgrid）」の
+       二段構造で組み立てる共通ヘルパー。全行がこの1つの関数だけを経由することで、
+       拍・8分・16分の境界線のx座標が行をまたいで完全に一致する。
+       G1は見た目とDOM構造だけのリファクタであり、セル数・tick位置・index順序・
+       解像度の意味は一切変えない（既存の timelineBoundaryClass をそのまま使う）。 */
+
+    /**
+     * 拍グループを container の直下へ組み立てる。buildSlot(globalIndex, slotsPerBeat) が
+     * 返すDOM要素を、拍0のスロット0..slotsPerBeat-1 → 拍1のスロット0.. という
+     * 既存のフラットなセルindexと完全に同じ順序でDOMへ追加する
+     * （querySelectorAll等の取得順・data-cell-indexの意味は不変）。
+     */
+    function populateBeatGroups(container, res, buildSlot) {
+        var beats = getBeats(state.project);
+        var slotsPerBeat = res / beats;
+        for (var b = 0; b < beats; b++) {
+            var group = document.createElement('div');
+            group.className = 'beat-group';
+            group.dataset.beatIndex = String(b);
+            group.style.gridTemplateColumns = 'repeat(' + slotsPerBeat + ', 1fr)';
+            for (var s = 0; s < slotsPerBeat; s++) {
+                var globalIndex = b * slotsPerBeat + s;
+                group.appendChild(buildSlot(globalIndex, slotsPerBeat));
+            }
+            container.appendChild(group);
+        }
+    }
+
+    /**
+     * コード・ドレミ行（1小節1入力を維持）の背面に敷く、装飾専用の拍/8分/16分縦線。
+     * populateBeatGroups() を使うため、拍ルーラー・ストローク・歌詞セルと
+     * 完全に同じx座標で線が揃う。クリック・キャレット操作を妨げないよう
+     * pointer-events:none・aria-hidden・入力欄より背面（CSS側で z-index 制御）とする。
+     */
+    function buildTimelineBackground(res) {
+        var bg = document.createElement('div');
+        bg.className = 'slot-overlay-timeline-bg beat-groups';
+        bg.setAttribute('aria-hidden', 'true');
+        populateBeatGroups(bg, res, function (globalIndex, slotsPerBeat) {
+            var slot = document.createElement('span');
+            slot.className = 'slot-overlay-timeline-slot ' +
+                timelineBoundaryClass(globalIndex + 1, res, slotsPerBeat);
+            return slot;
+        });
+        return bg;
+    }
+
     /**
      * ルーペ全体（コード/ストローク/歌詞/ドレミ）が共有する時間軸の必要解像度判定
      * （F2a / ADR-028: song-model.jsの共通関数へ、ストロークslotsと歌詞bar.lyricsの
@@ -1000,16 +1049,15 @@
 
     function buildStrumGridRow(bar, res) {
         var actions = buildStrumGridActions(bar, res);
-        var slotsPerBeat = res / getBeats(state.project);
         var inherited = !bar.strumOverride; // 基本ストローク継承中（override未作成）はゴースト表示
 
         var wrap = document.createElement('div');
-        wrap.className = 'dock-strum-grid' + (inherited ? ' is-inherited' : '');
+        wrap.className = 'dock-strum-grid beat-groups' + (inherited ? ' is-inherited' : '');
         wrap.dataset.overlayField = 'strum';
         wrap.title = getStrumGridStatusText(bar);
-        wrap.style.gridTemplateColumns = 'repeat(' + res + ', 1fr)';
 
-        actions.forEach(function (action, index) {
+        populateBeatGroups(wrap, res, function (index, slotsPerBeat) {
+            var action = actions[index];
             var cell = document.createElement('button');
             cell.type = 'button';
             var boundary = index + 1;
@@ -1027,7 +1075,7 @@
             cell.addEventListener('keydown', function (event) {
                 onStrumCellKeydown(event, bar, res, index, action);
             });
-            wrap.appendChild(cell);
+            return cell;
         });
         return wrap;
     }
@@ -1217,14 +1265,13 @@
     function buildLyricsGridRow(bar, res) {
         var model = CS().model;
         var cells = model.getBarLyricSlots(state.project, bar.barNumber, res);
-        var slotsPerBeat = res / getBeats(state.project);
 
         var wrap = document.createElement('div');
-        wrap.className = 'dock-lyrics-grid';
+        wrap.className = 'dock-lyrics-grid beat-groups';
         wrap.dataset.overlayField = 'lyrics';
-        wrap.style.gridTemplateColumns = 'repeat(' + res + ', 1fr)';
 
-        cells.forEach(function (cellInfo, index) {
+        populateBeatGroups(wrap, res, function (index, slotsPerBeat) {
+            var cellInfo = cells[index];
             var input = document.createElement('input');
             input.type = 'text';
             var boundary = index + 1;
@@ -1266,15 +1313,12 @@
             input.addEventListener('click', function (event) { event.stopPropagation(); });
             input.addEventListener('mousedown', function (event) { event.stopPropagation(); });
 
-            wrap.appendChild(input);
+            return input;
         });
         return wrap;
     }
 
     function buildBeatRuler(bar, res) {
-        var beats = getBeats(state.project);
-        var slotsPerBeat = res / beats;
-
         var ruler = document.createElement('div');
         ruler.className = 'slot-overlay-ruler';
 
@@ -1283,20 +1327,19 @@
         ruler.appendChild(spacer);
 
         var track = document.createElement('div');
-        track.className = 'slot-overlay-ruler-track';
-        track.style.gridTemplateColumns = 'repeat(' + res + ', 1fr)';
-        for (var i = 0; i < res; i++) {
+        track.className = 'slot-overlay-ruler-track beat-groups';
+        populateBeatGroups(track, res, function (globalIndex, slotsPerBeat) {
             var cell = document.createElement('span');
-            var boundary = i + 1;
+            var boundary = globalIndex + 1;
             cell.className = 'slot-overlay-ruler-cell ' + timelineBoundaryClass(boundary, res, slotsPerBeat);
-            if (i % slotsPerBeat === 0) {
+            if (globalIndex % slotsPerBeat === 0) {
                 cell.classList.add('is-beat-head');
-                cell.textContent = String(Math.floor(i / slotsPerBeat) + 1);
-            } else if (res === 8 && slotsPerBeat === 2 && i % slotsPerBeat === 1) {
+                cell.textContent = String(Math.floor(globalIndex / slotsPerBeat) + 1) + '拍';
+            } else if (res === 8 && slotsPerBeat === 2 && globalIndex % slotsPerBeat === 1) {
                 cell.classList.add('is-offbeat-dot');
             }
-            track.appendChild(cell);
-        }
+            return cell;
+        });
         ruler.appendChild(track);
         return ruler;
     }
@@ -1957,8 +2000,11 @@
                 lyricsWrap.appendChild(buildLyricsGridRow(bar, res));
                 row.appendChild(lyricsWrap);
             } else {
+                // コード/ドレミは引き続き小節1入力のまま。背面へG1の拍/8分/16分縦線だけを
+                // 装飾として敷く（setBarChord()/setBarDoremiText()経路・入力単位は無変更）
                 var rowBody = document.createElement('div');
                 rowBody.className = 'slot-overlay-row-body';
+                rowBody.appendChild(buildTimelineBackground(res));
                 rowBody.appendChild(buildOverlayInput(rowDef, bar));
                 var note = buildOverlayNote(rowId, bar);
                 if (note) rowBody.appendChild(note);

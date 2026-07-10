@@ -1,4 +1,4 @@
-/* クルーズスタジオ theme.css — v0.20.0
+/* クルーズスタジオ theme.css — v0.21.0
    リズムクルーズの DESIGN_SYSTEM.md（Clean Pro系）の考え方を継承しつつ、
    PCファーストに読み替えたテーマ。shared/style.css には依存しない（ADR-005）。
    class名・DOMはクルーズスタジオ用に新規設計している。 */
@@ -1434,7 +1434,28 @@ body.loupe-resizing {
 
 .slot-overlay-ruler-track {
     flex: 1;
+    min-width: 0;
+    /* dock-strum-grid/dock-lyrics-grid/timeline-bgと同じ1px枠を透明で持たせ、
+       border分だけ内側が狭くなる量を揃える（G1: 拍・8分・16分の線を全行で
+       ピクセル単位で一致させるため）。 */
+    border: 1px solid transparent;
+    box-sizing: border-box;
+}
+
+/* G1（docs/DECISIONS.md ADR-029）: 拍グループ入れ子DOMの共通基盤。
+   拍ルーラー・ストローク・歌詞セル・コード/ドレミ背面線のすべてがこの2クラスだけを
+   経由することで、拍・8分・16分の境界線のx座標が行をまたいで完全に一致する。
+   .beat-groups＝拍の数だけ均等幅（flex:1）に分けるコンテナ、
+   .beat-group＝1拍分を解像度なりのスロット数へ均等分割するグリッド。 */
+.beat-groups {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+}
+
+.beat-group {
     display: grid;
+    flex: 1 1 0;
     min-width: 0;
 }
 
@@ -1466,24 +1487,31 @@ body.loupe-resizing {
     transform: translateY(-50%);
 }
 
-/* 境界線の強弱: 小節端 ＞ 拍頭 ＞ 8分位置 ＞ 16分位置（紙面のタイミンググリッドと同じ階層・トークン） */
+/* 境界線の強弱: 小節端 ＞ 拍頭 ＞ 8分位置 ＞ 16分位置（紙面のタイミンググリッドと同じ階層・トークン）
+   G1修正: .dock-lyrics-cell がこのリストに含まれておらず、歌詞行だけ縦線が
+   transparentのまま表示されない不具合があったため追加した（歌詞セルはstrumセルと同じ
+   独立した罫線ボックス構造のため、is-barendの色もstrumと同じ扱いにする）。 */
 .slot-overlay-ruler-cell.is-beat,
-.dock-strum-cell.is-beat {
+.dock-strum-cell.is-beat,
+.dock-lyrics-cell.is-beat {
     border-right-color: var(--paper-line-beat);
 }
 
 .slot-overlay-ruler-cell.is-8th,
-.dock-strum-cell.is-8th {
+.dock-strum-cell.is-8th,
+.dock-lyrics-cell.is-8th {
     border-right-color: var(--paper-line-eighth);
 }
 
 .slot-overlay-ruler-cell.is-16th,
-.dock-strum-cell.is-16th {
+.dock-strum-cell.is-16th,
+.dock-lyrics-cell.is-16th {
     border-right-color: var(--paper-line-sixteenth);
 }
 
 .slot-overlay-ruler-cell.is-barend,
-.dock-strum-cell.is-barend {
+.dock-strum-cell.is-barend,
+.dock-lyrics-cell.is-barend {
     border-right-color: rgba(255, 159, 28, 0.65);
 }
 
@@ -1513,6 +1541,7 @@ body.loupe-resizing {
 }
 
 .slot-overlay-row-body {
+    position: relative;
     flex: 1;
     min-width: 0;
     border-radius: 8px;
@@ -1532,6 +1561,8 @@ body.loupe-resizing {
 }
 
 .slot-overlay-input {
+    position: relative;
+    z-index: 1;
     width: 100%;
     min-width: 0;
     padding: 6px 12px;
@@ -1573,6 +1604,8 @@ body.loupe-resizing {
 }
 
 .slot-overlay-row-note {
+    position: relative;
+    z-index: 1;
     font-size: 10px;
     font-weight: 600;
     color: var(--paper-muted);
@@ -1586,6 +1619,38 @@ body.loupe-resizing {
 .slot-overlay-row-note--muted { color: var(--paper-faint); }
 .slot-overlay-row-note--warning { color: var(--error-color); }
 
+/* コード/ドレミ行の背面線（G1 / ADR-029）。小節1入力のまま、拍/8分/16分の位置だけを
+   装飾として見せる。クリック・キャレット操作を妨げないよう入力欄の背面に敷く
+   （.slot-overlay-input側にz-index:1を設定して前面に出す）。 */
+.slot-overlay-timeline-bg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.slot-overlay-timeline-slot {
+    display: block;
+    min-width: 0;
+    border-right: 1px solid transparent;
+}
+
+.slot-overlay-timeline-slot.is-beat {
+    border-right-color: var(--paper-line-beat);
+}
+
+.slot-overlay-timeline-slot.is-8th {
+    border-right-color: var(--paper-line-eighth);
+}
+
+.slot-overlay-timeline-slot.is-16th {
+    border-right-color: var(--paper-line-sixteenth);
+}
+
+.slot-overlay-timeline-slot.is-barend {
+    border-right-color: transparent;
+}
+
 /* ストローク行: 本格セル編集（D3a由来）。基本ストローク継承中はゴースト表示にする */
 .slot-overlay-row-body--strum {
     flex-direction: column;
@@ -1596,7 +1661,6 @@ body.loupe-resizing {
 }
 
 .dock-strum-grid {
-    display: grid;
     min-width: 0;
     border-radius: 8px;
     overflow: hidden;
@@ -1664,7 +1728,6 @@ body.loupe-resizing {
 }
 
 .dock-lyrics-grid {
-    display: grid;
     min-width: 0;
     width: 100%;
     border-radius: 8px;
