@@ -93,6 +93,10 @@
             var rootPc = (tonicPc + def.rootIntervals[i]) % 12;
             var qualityKey = qualities[i];
             var intervals = QUALITIES[qualityKey].intervals.slice();
+            // 減三和音の内部品質は dim のまま、ダイアトニック3和音の表示だけを m♭5 にする。
+            var symbol = (toneMode !== '7' && qualityKey === 'dim')
+                ? noteName(rootPc, useFlats) + 'm♭5'
+                : chordSymbol(rootPc, qualityKey, useFlats);
             var notePcs = intervals.map(function (interval) {
                 return (rootPc + interval) % 12;
             });
@@ -104,7 +108,7 @@
                 roman: romans[i],
                 rootPc: rootPc,
                 qualityKey: qualityKey,
-                symbol: chordSymbol(rootPc, qualityKey, useFlats),
+                symbol: symbol,
                 intervals: intervals,
                 notePcs: notePcs,
                 noteNames: noteNames

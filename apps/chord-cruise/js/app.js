@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    var CHORD_CRUISE_APP_VERSION = '0.9.0';
+    var CHORD_CRUISE_APP_VERSION = '0.9.1';
     window.CHORD_CRUISE_APP_VERSION = CHORD_CRUISE_APP_VERSION;
 
     var SCREENS = ['home', 'explore', 'library'];

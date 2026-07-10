@@ -14,14 +14,14 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
-- 現在のバージョン: `0.8.0`（`index.html` の各`<script>`タグの `?v=`、および `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`）
+- 現在のバージョン: `0.9.1`（`index.html` の各`<script>`タグの `?v=`、および `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`）
 - 最新commit（chord-cruise関連、`git log --oneline -- apps/chord-cruise/` で確認）:
   - hash: `b3d00e22`
   - message: `コードクルーズの説明表示と導線を整備`
 - 通常版/PRO版の構造: PRO版は存在しないため、`apps/chord-cruise/` 直下の `index.html` のみが唯一のエントリーポイント。他アプリのような `standard/` サブディレクトリも無い。
 - JS/CSSの共有関係:
   - `theme.css` はコードクルーズ専用の1ファイル（`apps/shared/` には依存していない）。
-  - JSは1本の `script.js` ではなく、`js/core/*.js`（データ・ロジック層）と `js/ui/*.js`（画面描画層）に分割されたモジュール構成。`index.html` から10本のscriptタグで個別に読み込む（`window.ChordCruise` というグローバルオブジェクトに各モジュールが機能を生やす形）。
+  - JSは1本の `script.js` ではなく、`js/core/*.js`（データ・ロジック層）と `js/ui/*.js`（画面描画層）に分割されたモジュール構成。`index.html` から11本のscriptタグで個別に読み込む（`window.ChordCruise` というグローバルオブジェクトに各モジュールが機能を生やす形）。
 - service workerの扱い: **存在しない。** `apps/chord-cruise/` 配下に `service-worker.js` は無く、`index.html` にも `navigator.serviceWorker.register` の記述は無い。PWA化はされていない。
 - manifestの扱い: **存在しない。** `manifest.json` は無い。アイコンファイルも見当たらない。
 
@@ -125,11 +125,11 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.8.0`）。
-- `?v=` によるキャッシュ管理: `index.html` 内の全10本の `<script src="...?v=0.8.0">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.8.0">` が同じバージョン文字列を共有している。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.9.1`）。
+- `?v=` によるキャッシュ管理: `index.html` 内の全11本の `<script src="...?v=0.9.1">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.9.1">` が同じバージョン文字列を共有している。
 - 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
 - service workerの更新: service worker自体が存在しないため不要。
-- **バージョン更新漏れしやすい箇所**: `index.html`内の10本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。
+- **バージョン更新漏れしやすい箇所**: `index.html`内の11本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。
 
 今回のドキュメント作成ではバージョンは上げていない。
 
@@ -189,7 +189,7 @@
 | 他アプリを誤ってstageしてしまう | `git add` は変更したファイルを明示的に列挙する。`git add -A` は使わない。 |
 | `apps/cruise-studio/` の変更を巻き込む | コミット前に必ず `git status -sb` で対象外ファイルが混ざっていないか確認する。 |
 | 未追跡ファイルをstageしてしまう | 同上。 |
-| `index.html`内10本のscriptタグの`?v=`更新漏れ | バージョンを上げる際は`grep -n "?v=" index.html`で全箇所を確認する。 |
+| `index.html`内11本のscriptタグの`?v=`更新漏れ | バージョンを上げる際は`grep -n "?v=" index.html`で全箇所を確認する。 |
 | `index.html`内の「次のSTEPで実装します」という古いプレースホルダー文言を鵜呑みにして「未実装」と誤認する | 実際は `js/ui/explore.js` / `js/ui/library.js` の `render()` が画面を動的に上書きするため、まずJS側の実装状況を確認してから判断する。 |
 | `js/core/storage.js`のスキーマを不用意に変更し、既存ユーザーの保存データ（フォルダ・保存コード）を壊す | スキーマバージョン管理の仕組みを理解してから変更する。互換性のない変更は移行処理を検討する。 |
 | PRO版が存在しないのに、他アプリのPRO実装を前提にコードを書いてしまう | 本ドキュメント5章の通り、PRO版は現状無い。追加提案の前にユーザーに確認する。 |
