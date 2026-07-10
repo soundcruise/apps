@@ -404,6 +404,8 @@
     function renderDetailFretboard(chord) {
         var host = document.getElementById('cc-lib-fb');
         if (!host) return;
+        var card = document.getElementById('cc-lib-diagram-card');
+        if (card) card.classList.toggle('cc-lib-diagram-card--monochrome', detailMonochrome);
         var fb = window.ChordCruise.ui.fretboard;
         var prevScroll = fb.getScrollLeft(host);
         var diagramOptions = savedDiagramOptions(chord, {
@@ -508,8 +510,10 @@
                     '<button type="button" class="cc-segment-btn" id="cc-libmode-finger">運指</button>' +
                 '</div>' +
             '</div>' +
-            '<div class="cc-lib-diagram-title" id="cc-lib-detail-name">' + escapeHtml(displayName) + '</div>' +
-            '<div id="cc-lib-fb" class="cc-fb-host cc-lib-exact-fb"></div>' +
+            '<div class="cc-lib-diagram-card" id="cc-lib-diagram-card">' +
+                '<div class="cc-lib-diagram-title" id="cc-lib-detail-name">' + escapeHtml(displayName) + '</div>' +
+                '<div id="cc-lib-fb" class="cc-fb-host cc-lib-exact-fb"></div>' +
+            '</div>' +
             '<p class="cc-fb-hint">音をタップすると運指が切り替わり、自動で保存されます。</p>' +
             '<div class="cc-lib-diagram-actions">' +
                 '<div class="cc-lib-monochrome-control">' +

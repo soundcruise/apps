@@ -572,13 +572,29 @@ body {
     width: 30px;
     height: 30px;
     transform: translate(-50%, -50%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--cc-text-muted);
-    font-size: 1.85rem;
-    font-weight: 700;
-    line-height: 1;
+    color: #d4cec2;
+    pointer-events: none;
+}
+
+.cc-fb-mute::before,
+.cc-fb-mute::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: currentColor;
+    transform-origin: center;
+}
+
+.cc-fb-mute::before {
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.cc-fb-mute::after {
+    transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 .cc-fb-host--monochrome .cc-fb-fret-number,
@@ -1124,15 +1140,26 @@ body {
     max-height: 100%;
 }
 
-.cc-lib-exact-fb .cc-fb-scroll {
+.cc-lib-diagram-card {
+    margin-top: 14px;
     padding: 12px;
     border: 1px solid var(--cc-border);
+    border-radius: 10px;
     background: rgba(0, 0, 0, 0.16);
 }
 
-.cc-lib-exact-fb.cc-fb-host--monochrome .cc-fb-scroll {
+.cc-lib-diagram-card--monochrome {
     border-color: #aaaaaa;
     background: #ffffff;
+}
+
+.cc-lib-diagram-card--monochrome .cc-lib-diagram-title {
+    color: #111111;
+}
+
+.cc-lib-exact-fb .cc-fb-scroll {
+    padding: 0;
+    border-radius: 0;
 }
 
 .cc-lib-exact-fb .cc-fb-stage {
@@ -1154,7 +1181,7 @@ body {
 }
 
 .cc-lib-diagram-title {
-    margin: 14px 0 7px;
+    margin: 0 0 7px;
     overflow: hidden;
     color: var(--cc-champagne);
     font-size: clamp(1.25rem, 5vw, 1.7rem);

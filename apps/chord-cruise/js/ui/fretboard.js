@@ -6,14 +6,16 @@
        既存アプリのコードには依存しない。 */
 
     var FRET_W = 65;            // 1フレット列の幅（指板クルーズと同値）
-    var TOP_Y = 15;             // ネック上端
+    var TOP_Y = 22;             // ネック上端（白黒マーカー／バレーのstroke用に上端7pxを確保）
     var STRING_GAP = 30;        // 弦間隔
     var STRING_AREA = 180;      // 弦域の高さ
-    var BOARD_BOTTOM = TOP_Y + STRING_AREA;   // 195
+    var BOARD_BOTTOM = TOP_Y + STRING_AREA;   // 202
     var NUMBER_AREA_H = 34;     // 背景なしのフレット番号表示領域
-    var SVG_H = BOARD_BOTTOM + 5 + NUMBER_AREA_H;   // 234
+    var SVG_H = BOARD_BOTTOM + 5 + NUMBER_AREA_H;   // 241
     var EDGE_H = 3;             // ネック上下端の黒縁
     var MARKER_D = 30;          // マーカー直径
+    var MUTE_HALF = 13;         // ミュート線の中心から端まで（stroke込みで約30px四方）
+    var MUTE_STROKE = 4;
     var STRING_WIDTHS = [1.1, 1.3, 1.6, 2.0, 2.4, 2.8]; // 1弦→6弦
     var INLAY_SINGLE = [3, 5, 7, 9, 15, 17, 19, 21];
     var INLAY_DOUBLE = [12, 24];
@@ -322,9 +324,14 @@
         model.barres.forEach(function (barre) {
             svg += '<rect x="' + (barre.x - 18) + '" y="' + barre.y + '" width="36" height="' + barre.height + '" rx="18" fill="' + (model.monochrome ? '#d8d8d8' : 'rgba(255,252,244,0.16)') + '" stroke="' + (model.monochrome ? '#111111' : 'rgba(255,255,255,0.38)') + '" stroke-width="1.5"/>';
         });
-        // ミュートは先頭表示列の中央へ置き、丸マーカーより先に描画する。
+        // ミュートは先頭表示列の中央へ置き、丸マーカーと同程度の太い2本線で描く。
         model.mutedStrings.forEach(function (stringNum) {
-            svg += '<text class="cc-fb-static-mute" x="' + model.muteX + '" y="' + (stringY(stringNum, model.monochrome) + 10) + '" text-anchor="middle" style="font-family:Arial,sans-serif;font-size:30px;font-weight:700;fill:' + (model.monochrome ? '#111111' : '#a5a19a') + '">×</text>';
+            var centerY = stringY(stringNum, model.monochrome);
+            var color = model.monochrome ? '#111111' : '#d4cec2';
+            svg += '<g class="cc-fb-static-mute" stroke="' + color + '" stroke-width="' + MUTE_STROKE + '" stroke-linecap="round">' +
+                '<line x1="' + (model.muteX - MUTE_HALF) + '" y1="' + (centerY - MUTE_HALF) + '" x2="' + (model.muteX + MUTE_HALF) + '" y2="' + (centerY + MUTE_HALF) + '"/>' +
+                '<line x1="' + (model.muteX + MUTE_HALF) + '" y1="' + (centerY - MUTE_HALF) + '" x2="' + (model.muteX - MUTE_HALF) + '" y2="' + (centerY + MUTE_HALF) + '"/>' +
+            '</g>';
         });
         model.markers.forEach(function (marker) {
             var palette = markerPalette(marker.role, model.monochrome, marker.fret === 0);
@@ -417,7 +424,7 @@
             el.className = 'cc-fb-mute';
             el.style.left = model.muteX + 'px';
             el.style.top = stringY(s, model.monochrome) + 'px';
-            el.textContent = '×';
+            el.setAttribute('aria-hidden', 'true');
             markerLayer.appendChild(el);
         });
 
