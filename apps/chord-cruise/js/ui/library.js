@@ -10,13 +10,24 @@
     var currentFolderId = null;
     var currentChordId = null;
     var currentDetailChord = null;
+    var detailMonochrome = false;
 
     function storage() { return window.ChordCruise.storage; }
     function theory() { return window.ChordCruise.theory; }
     function displayChordName(name) { return theory().displayChordName(name); }
+    function chordFormName(chord) {
+        if (chord && chord.formName) return chord.formName;
+        if (chord && chord.shape) return chord.shape + '型';
+        return 'フォーム';
+    }
 
     function contentEl() {
         return document.getElementById('cc-lib-content');
+    }
+
+    function setContentLayout(layout) {
+        var content = contentEl();
+        if (content) content.className = 'cc-lib-content cc-lib-content--' + layout;
     }
 
     function buildSkeleton(section) {
@@ -95,11 +106,23 @@
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
+    function buildChordThumbnailGridHtml(chords) {
+        var html = '<div class="cc-chordthumb-grid" id="cc-chordthumb-grid">';
+        chords.forEach(function (chord) {
+            html += '<button type="button" class="cc-chordthumb-card" data-chord-id="' + escapeHtml(chord.id) + '" aria-label="' + escapeHtml(displayChordName(chord.chordName)) + 'の指板を開く">' +
+                '<span class="cc-chordthumb-board" data-chord-thumb="' + escapeHtml(chord.id) + '" aria-hidden="true"></span>' +
+            '</button>';
+        });
+        return html + '</div>';
+    }
+
     // ---- ビュー: フォルダ一覧 ----
 
     function renderFolders() {
         view = 'folders';
         currentDetailChord = null;
+        detailMonochrome = false;
+        setContentLayout('folders');
         var folders = storage().loadFolders().slice().sort(function (a, b) {
             return (a.order || 0) - (b.order || 0);
         });
@@ -153,6 +176,8 @@
     function renderList() {
         view = 'list';
         currentDetailChord = null;
+        detailMonochrome = false;
+        setContentLayout('list');
         var folder = folderById(currentFolderId);
         if (!folder) {
             renderFolders();
@@ -163,6 +188,9 @@
         }).sort(function (a, b) {
             return String(b.updatedAt).localeCompare(String(a.updatedAt));
         });
+        var chords = entries.map(function (entry) {
+            return storage().loadChord(entry.id);
+        }).filter(function (chord) { return !!chord; });
 
         var html = '<div class="cc-card cc-lib-folder-head">' +
             '<div class="cc-lib-folder-title-row">' +
@@ -181,35 +209,22 @@
             '</div>' +
         '</div>';
 
-        if (entries.length === 0) {
+        if (chords.length === 0) {
             html += '<div class="cc-card cc-placeholder-card"><p>このフォルダにはまだコードがありません。「コードを調べる」からCAGEDフォームを保存できます。</p></div>';
         } else {
-            html += '<div class="cc-chordcard-list">';
-            entries.forEach(function (entry) {
-                var rangeText = window.ChordCruise.caged.formatFretRange(entry.fretRange);
-                var key = keyLabel(entry.keyContext);
-                html += '<button type="button" class="cc-chordcard" data-chord-id="' + entry.id + '">' +
-                    '<span class="cc-chordcard-main">' +
-                        '<span class="cc-chordcard-name">' + escapeHtml(displayChordName(entry.chordName)) + '</span>' +
-                        '<span class="cc-chordcard-meta">' +
-                            escapeHtml(entry.formName) + '・' + escapeHtml(rangeText) +
-                            (key ? '・Key: ' + escapeHtml(key) + (entry.keyContext && entry.keyContext.degreeLabel ? ' (' + escapeHtml(entry.keyContext.degreeLabel) + ')' : '') : '') +
-                        '</span>' +
-                        (entry.memo ? '<span class="cc-chordcard-memo">' + escapeHtml(entry.memo) + '</span>' : '') +
-                    '</span>' +
-                    '<span class="cc-folder-card-chevron">›</span>' +
-                '</button>';
-            });
-            html += '</div>';
+            html += buildChordThumbnailGridHtml(chords);
         }
         contentEl().innerHTML = html;
 
-        Array.prototype.forEach.call(contentEl().querySelectorAll('.cc-chordcard'), function (btn) {
-            btn.addEventListener('click', function () {
-                currentChordId = btn.dataset.chordId;
+        if (chords.length) {
+            renderListThumbnails(chords);
+            document.getElementById('cc-chordthumb-grid').addEventListener('click', function (event) {
+                var card = event.target.closest('.cc-chordthumb-card');
+                if (!card) return;
+                currentChordId = card.dataset.chordId;
                 renderDetail();
             });
-        });
+        }
 
         if (!folder.builtin) {
             document.getElementById('cc-folder-rename-btn').addEventListener('click', function () {
@@ -253,8 +268,8 @@
         return ['note', 'solfege', 'degree', 'finger'].indexOf(mode) !== -1 ? mode : 'note';
     }
 
-    function detailMarkerLabel(chord, note) {
-        var mode = detailDisplayMode();
+    function detailMarkerLabel(chord, note, requestedMode) {
+        var mode = requestedMode || detailDisplayMode();
         if (mode === 'finger') {
             return note.finger != null ? (FINGER_LABELS[note.finger] || '') : '';
         }
@@ -273,25 +288,81 @@
         return 'other';
     }
 
-    /** 保存コードだけを見て詳細指板の14列を決め、探索画面の設定は変更しない。 */
-    function detailFretWindow(chord) {
-        var frets = (chord.notes || []).map(function (note) { return note.fret; }).filter(function (fret) {
-            return typeof fret === 'number' && fret >= 0;
+    /** 保存範囲だけから表示列を作る。開放列と離れた範囲も余計なフレットを挟まない。 */
+    function savedFrets(chord) {
+        var range = chord && chord.fretRange ? chord.fretRange : {};
+        var notes = chord && Array.isArray(chord.notes) ? chord.notes : [];
+        var includesOpen = typeof range.includesOpen === 'boolean'
+            ? range.includesOpen
+            : notes.some(function (note) { return note && note.fret === 0; });
+        var min = typeof range.min === 'number' && Math.floor(range.min) === range.min ? range.min : null;
+        var max = typeof range.max === 'number' && Math.floor(range.max) === range.max ? range.max : null;
+        var hasExplicitRange = min !== null && max !== null && max >= min;
+        var frets = [];
+        if (includesOpen) frets.push(0);
+        if (hasExplicitRange) {
+            var fret;
+            for (fret = Math.max(1, min); fret <= max; fret++) frets.push(fret);
+        }
+        if (!hasExplicitRange) {
+            notes.forEach(function (note) {
+                if (!note || typeof note.fret !== 'number' || note.fret < 0) return;
+                if (note.fret === 0 && !includesOpen) return;
+                if (frets.indexOf(note.fret) === -1) frets.push(note.fret);
+            });
+            frets.sort(function (a, b) { return a - b; });
+        }
+        if (!frets.length) frets.push(includesOpen ? 0 : Math.max(1, min || 1));
+        return frets;
+    }
+
+    function notesInSavedRange(chord, frets) {
+        return (Array.isArray(chord.notes) ? chord.notes : []).filter(function (note) {
+            return note && frets.indexOf(note.fret) !== -1;
         });
-        var min = frets.length ? Math.min.apply(null, frets) : 0;
-        var max = frets.length ? Math.max.apply(null, frets) : 13;
-        if (max - min > 13) {
-            return { start: min, end: max };
-        }
-        if ((chord.fretRange && chord.fretRange.includesOpen) || max <= 13) {
-            return { start: 0, end: 13 };
-        }
-        if (min >= 12) {
-            return { start: 12, end: 25 };
-        }
-        // 低音域と高音域をまたぐ保存フォームは、全ノートが入る14列へ寄せる。
-        var start = Math.max(0, Math.min(12, max - 13));
-        return { start: start, end: start + 13 };
+    }
+
+    function thumbnailMarkerLabel(chord, note) {
+        if (note.finger != null) return String(note.finger);
+        return theory().degreeLabels([note.interval])[0];
+    }
+
+    /** 詳細・一覧・書き出しが同じ保存範囲と座標データを使う。 */
+    function savedDiagramOptions(chord, options) {
+        var opts = options || {};
+        var frets = savedFrets(chord);
+        var notes = notesInSavedRange(chord, frets);
+        var mode = opts.mode || detailDisplayMode();
+        return {
+            frets: frets,
+            markers: notes.map(function (note) {
+                return {
+                    string: note.string,
+                    fret: note.fret,
+                    label: opts.thumbnail
+                        ? thumbnailMarkerLabel(chord, note)
+                        : detailMarkerLabel(chord, note, mode),
+                    role: roleForInterval(note.interval),
+                    tappable: !!opts.tappable
+                };
+            }),
+            barres: window.ChordCruise.caged.detectBarres(notes),
+            mutedStrings: Array.isArray(chord.mutedStrings) ? chord.mutedStrings : [],
+            monochrome: !!opts.monochrome,
+            fretNumberHighlightMode: 'all'
+        };
+    }
+
+    function renderListThumbnails(chords) {
+        var byId = {};
+        chords.forEach(function (chord) { byId[chord.id] = chord; });
+        Array.prototype.forEach.call(contentEl().querySelectorAll('[data-chord-thumb]'), function (host) {
+            var chord = byId[host.getAttribute('data-chord-thumb')];
+            if (!chord) return;
+            var diagramOptions = savedDiagramOptions(chord, { thumbnail: true, monochrome: false });
+            diagramOptions.svgClass = 'cc-fb-svg cc-fb-static-svg cc-chordthumb-svg';
+            host.innerHTML = window.ChordCruise.ui.fretboard.buildStaticSvg(diagramOptions);
+        });
     }
 
     function renderDetailFretboard(chord) {
@@ -299,42 +370,27 @@
         if (!host) return;
         var fb = window.ChordCruise.ui.fretboard;
         var prevScroll = fb.getScrollLeft(host);
-        var range = detailFretWindow(chord);
-        fb.render(host, {
-            startFret: range.start,
-            endFret: range.end,
-            markers: chord.notes.map(function (note) {
-                return {
-                    string: note.string,
-                    fret: note.fret,
-                    label: detailMarkerLabel(chord, note),
-                    role: roleForInterval(note.interval),
-                    tappable: true
-                };
-            }),
-            barres: window.ChordCruise.caged.detectBarres(chord.notes),
-            mutedStrings: chord.mutedStrings || [],
-            rangeHighlight: {
-                minFret: chord.fretRange.min,
-                maxFret: chord.fretRange.max,
-                includesOpen: chord.fretRange.includesOpen
-            },
-            scrollToFret: typeof prevScroll === 'number' && prevScroll > 0
-                ? null
-                : Math.round((chord.fretRange.min + chord.fretRange.max) / 2),
-            preserveScroll: typeof prevScroll === 'number' && prevScroll > 0 ? prevScroll : null,
-            onSlotTap: function (stringNum, fret) {
-                var target = null;
-                chord.notes.forEach(function (note) {
-                    if (note.string === stringNum && note.fret === fret) target = note;
-                });
-                if (!target) return;
-                var pos = FINGER_CYCLE.indexOf(target.finger);
-                target.finger = FINGER_CYCLE[(pos + 1) % FINGER_CYCLE.length];
-                storage().saveChord(chord);
-                renderDetailFretboard(chord);
-            }
+        var diagramOptions = savedDiagramOptions(chord, {
+            mode: detailDisplayMode(),
+            monochrome: detailMonochrome,
+            tappable: true
         });
+        diagramOptions.scrollToFret = chord.fretRange
+            ? Math.round((chord.fretRange.min + chord.fretRange.max) / 2)
+            : null;
+        diagramOptions.preserveScroll = typeof prevScroll === 'number' && prevScroll > 0 ? prevScroll : null;
+        diagramOptions.onSlotTap = function (stringNum, fret) {
+            var target = null;
+            (chord.notes || []).forEach(function (note) {
+                if (note.string === stringNum && note.fret === fret) target = note;
+            });
+            if (!target) return;
+            var pos = FINGER_CYCLE.indexOf(target.finger);
+            target.finger = FINGER_CYCLE[(pos + 1) % FINGER_CYCLE.length];
+            storage().saveChord(chord);
+            renderDetailFretboard(chord);
+        };
+        fb.render(host, diagramOptions);
     }
 
     function updateLibModeSegments() {
@@ -345,8 +401,58 @@
         });
     }
 
+    function updateMonochromeControl() {
+        var toggle = document.getElementById('cc-lib-monochrome-toggle');
+        if (!toggle) return;
+        toggle.classList.toggle('cc-switch--on', detailMonochrome);
+        toggle.setAttribute('aria-checked', detailMonochrome ? 'true' : 'false');
+        var state = document.getElementById('cc-lib-monochrome-state');
+        if (state) state.textContent = detailMonochrome ? 'ON' : 'OFF';
+    }
+
+    function setExportStatus(text, isError) {
+        var status = document.getElementById('cc-lib-export-status');
+        if (!status) return;
+        status.textContent = text || '';
+        status.classList.toggle('cc-lib-export-status--error', !!isError);
+        status.style.display = text ? '' : 'none';
+    }
+
+    function exportCurrentChord(chord) {
+        var button = document.getElementById('cc-lib-export-btn');
+        if (!button || button.disabled) return Promise.resolve(null);
+        button.disabled = true;
+        button.textContent = '書き出し中…';
+        setExportStatus('', false);
+        var rangeText = window.ChordCruise.caged.formatFretRange(chord.fretRange);
+        var diagramOptions = savedDiagramOptions(chord, {
+            mode: detailDisplayMode(),
+            monochrome: detailMonochrome
+        });
+        return window.ChordCruise.ui.chordExport.exportPng({
+            chordName: displayChordName(chord.chordName),
+            formName: chordFormName(chord),
+            fretRange: chord.fretRange,
+            rangeText: rangeText,
+            diagramOptions: diagramOptions
+        }).then(function (result) {
+            var suffix = result.method === 'new-tab' ? '（新しいタブに表示）' : '';
+            setExportStatus(result.filename + ' を作成しました ' + result.width + '×' + result.height + 'px' + suffix, false);
+            return result;
+        }).catch(function (err) {
+            setExportStatus(err && err.message ? err.message : 'PNGを書き出せませんでした。', true);
+            return null;
+        }).then(function (result) {
+            button.disabled = false;
+            button.textContent = '書き出し';
+            return result;
+        });
+    }
+
     function renderDetail() {
         view = 'detail';
+        detailMonochrome = false;
+        setContentLayout('detail');
         var chord = storage().loadChord(currentChordId);
         if (!chord) {
             renderList();
@@ -356,11 +462,12 @@
         var rangeText = window.ChordCruise.caged.formatFretRange(chord.fretRange);
         var key = keyLabel(chord.keyContext);
         var displayName = displayChordName(chord.chordName);
+        var displayFormName = chordFormName(chord);
 
         var html = '<div class="cc-card">' +
             '<div class="cc-detail-head">' +
                 '<span class="cc-detail-symbol" id="cc-lib-detail-name">' + escapeHtml(displayName) + '</span>' +
-                '<span class="cc-detail-roman">' + escapeHtml(chord.formName) + '・' + escapeHtml(rangeText) +
+                '<span class="cc-detail-roman">' + escapeHtml(displayFormName) + '・' + escapeHtml(rangeText) +
                     (key ? '・Key: ' + escapeHtml(key) : '') + '</span>' +
             '</div>' +
             '<div class="cc-fb-head">' +
@@ -372,8 +479,19 @@
                     '<button type="button" class="cc-segment-btn" id="cc-libmode-finger">運指</button>' +
                 '</div>' +
             '</div>' +
-            '<div id="cc-lib-fb" class="cc-fb-host"></div>' +
+            '<div id="cc-lib-fb" class="cc-fb-host cc-lib-exact-fb"></div>' +
             '<p class="cc-fb-hint">音をタップすると運指が切り替わり、自動で保存されます。</p>' +
+            '<div class="cc-lib-diagram-actions">' +
+                '<div class="cc-lib-monochrome-control">' +
+                    '<span class="cc-lib-action-label">白黒 <strong id="cc-lib-monochrome-state">OFF</strong></span>' +
+                    '<button type="button" id="cc-lib-monochrome-toggle" class="cc-switch" role="switch" aria-checked="false" aria-label="指板図を白黒表示">' +
+                        '<span class="cc-switch-knob" aria-hidden="true"></span>' +
+                    '</button>' +
+                '</div>' +
+                '<button type="button" class="cc-btn cc-btn-secondary cc-lib-export-btn" id="cc-lib-export-btn">書き出し</button>' +
+                '<button type="button" class="cc-btn cc-btn-secondary cc-lib-edit-btn" id="cc-lib-edit-btn">編集</button>' +
+            '</div>' +
+            '<p class="cc-lib-export-status" id="cc-lib-export-status" style="display:none;"></p>' +
         '</div>' +
         '<div class="cc-card">' +
             '<h3 class="cc-card-heading">編集</h3>' +
@@ -381,7 +499,7 @@
                 '<label class="cc-field"><span class="cc-field-label">コード名</span>' +
                     '<input type="text" id="cc-lib-chord-name" class="cc-input" maxlength="32" value="' + escapeHtml(displayName) + '"></label>' +
                 '<label class="cc-field"><span class="cc-field-label">フォーム名</span>' +
-                    '<input type="text" id="cc-lib-form-name" class="cc-input" maxlength="32" value="' + escapeHtml(chord.formName) + '"></label>' +
+                    '<input type="text" id="cc-lib-form-name" class="cc-input" maxlength="32" value="' + escapeHtml(displayFormName) + '"></label>' +
                 '<label class="cc-field"><span class="cc-field-label">メモ</span>' +
                     '<textarea id="cc-lib-memo" class="cc-input cc-textarea" rows="2" maxlength="200">' + escapeHtml(chord.memo || '') + '</textarea></label>' +
                 '<button type="button" class="cc-btn cc-btn-primary cc-btn--block" id="cc-lib-save-edit">変更を保存</button>' +
@@ -409,13 +527,32 @@
         });
         updateLibModeSegments();
         renderDetailFretboard(chord);
+        updateMonochromeControl();
+
+        document.getElementById('cc-lib-monochrome-toggle').addEventListener('click', function () {
+            detailMonochrome = !detailMonochrome;
+            updateMonochromeControl();
+            renderDetailFretboard(chord);
+        });
+        document.getElementById('cc-lib-export-btn').addEventListener('click', function () {
+            exportCurrentChord(chord);
+        });
+        document.getElementById('cc-lib-edit-btn').addEventListener('click', function () {
+            window.ChordCruise.ui.saveEditor.openExisting({
+                chord: chord,
+                onSaved: function (record) {
+                    currentChordId = record.id;
+                    renderDetail();
+                }
+            });
+        });
 
         // 名前・メモ編集
         document.getElementById('cc-lib-save-edit').addEventListener('click', function () {
             chord.chordName = displayChordName(
                 document.getElementById('cc-lib-chord-name').value.trim() || chord.chordName
             );
-            chord.formName = document.getElementById('cc-lib-form-name').value.trim() || chord.formName;
+            chord.formName = document.getElementById('cc-lib-form-name').value.trim() || displayFormName;
             chord.memo = document.getElementById('cc-lib-memo').value.trim();
             storage().saveChord(chord);
             document.getElementById('cc-lib-detail-name').textContent = chord.chordName;
@@ -442,7 +579,7 @@
 
         // 削除
         document.getElementById('cc-lib-delete').addEventListener('click', function () {
-            confirmDanger('「' + displayChordName(chord.chordName) + '（' + chord.formName + '）」を削除しますか？この操作は取り消せません。', '削除する', function () {
+            confirmDanger('「' + displayChordName(chord.chordName) + '（' + chordFormName(chord) + '）」を削除しますか？この操作は取り消せません。', '削除する', function () {
                 storage().deleteChord(chord.id);
                 renderList();
             });
@@ -481,6 +618,7 @@
     function resetView() {
         view = 'folders';
         currentDetailChord = null;
+        detailMonochrome = false;
     }
 
     document.addEventListener('chordcruise:fretboard-settings-change', function () {
@@ -495,6 +633,8 @@
         render: render,
         back: back,
         resetView: resetView,
-        detailFretWindow: detailFretWindow
+        savedFrets: savedFrets,
+        savedDiagramOptions: savedDiagramOptions,
+        buildChordThumbnailGridHtml: buildChordThumbnailGridHtml
     };
 })();

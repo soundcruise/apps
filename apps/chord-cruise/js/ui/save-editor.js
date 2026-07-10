@@ -1,19 +1,26 @@
 (function () {
     'use strict';
 
-    /* 保存前編集モーダル。
-       表示中のCAGEDフォームを受け取り、保存範囲・運指・名前・メモ・フォルダを
-       編集してから localStorage に保存する。 */
+    /* 保存前編集・保存コード編集モーダル。
+       保存済みコードの編集では元データを複製して扱い、上書き／別名保存が
+       確定するまで localStorage を変更しない。 */
 
     var FINGER_CYCLE = [null, 'T', 1, 2, 3, 4];
     var FINGER_LABELS = { T: '親', 1: '人', 2: '中', 3: '薬', 4: '小' };
+    var DISPLAY_MODES = ['note', 'solfege', 'degree', 'finger'];
 
     var overlayEl = null;
     var draft = null;
+    var initialSnapshot = null;
     var onSavedCallback = null;
 
     function theory() {
         return window.ChordCruise.theory;
+    }
+
+    function clone(value) {
+        if (value === undefined) return undefined;
+        return JSON.parse(JSON.stringify(value));
     }
 
     function ensureDom() {
@@ -21,10 +28,19 @@
         overlayEl = document.createElement('div');
         overlayEl.className = 'cc-modal-overlay cc-modal-overlay--hidden';
         overlayEl.innerHTML =
-            '<div class="cc-modal" role="dialog" aria-label="フォームを保存">' +
+            '<div class="cc-modal" role="dialog" aria-modal="true" aria-labelledby="cc-save-title">' +
                 '<div class="cc-modal-head">' +
-                    '<h3 class="cc-modal-title">フォームを保存</h3>' +
+                    '<h3 class="cc-modal-title" id="cc-save-title">フォームを保存</h3>' +
                     '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-save-cancel">キャンセル</button>' +
+                '</div>' +
+                '<div class="cc-fb-head cc-save-display-head">' +
+                    '<span class="cc-save-label">表示</span>' +
+                    '<div class="cc-segment" role="group" aria-label="表示切替">' +
+                        '<button type="button" class="cc-segment-btn" id="cc-savemode-note">CDE</button>' +
+                        '<button type="button" class="cc-segment-btn" id="cc-savemode-solfege">ドレミ</button>' +
+                        '<button type="button" class="cc-segment-btn" id="cc-savemode-degree">度数</button>' +
+                        '<button type="button" class="cc-segment-btn" id="cc-savemode-finger">運指</button>' +
+                    '</div>' +
                 '</div>' +
                 '<div id="cc-save-fb" class="cc-fb-host"></div>' +
                 '<p class="cc-fb-hint">音をタップすると運指が切り替わります（なし→親→人→中→薬→小）。</p>' +
@@ -64,13 +80,20 @@
                 '<p class="cc-save-error" id="cc-save-error"></p>' +
                 '<div class="cc-save-actions">' +
                     '<button type="button" class="cc-btn cc-btn-primary cc-btn--block" id="cc-save-confirm">保存する</button>' +
+                    '<div class="cc-save-edit-actions cc-save-edit-actions--hidden" id="cc-save-edit-actions">' +
+                        '<button type="button" class="cc-btn cc-btn-primary" id="cc-save-overwrite">上書き保存</button>' +
+                        '<button type="button" class="cc-btn cc-btn-secondary" id="cc-save-copy">別名で保存</button>' +
+                    '</div>' +
                 '</div>' +
             '</div>';
         document.body.appendChild(overlayEl);
 
-        document.getElementById('cc-save-cancel').addEventListener('click', close);
+        document.getElementById('cc-save-cancel').addEventListener('click', requestClose);
         overlayEl.addEventListener('click', function (event) {
-            if (event.target === overlayEl) close();
+            if (event.target === overlayEl) requestClose();
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && draft) requestClose();
         });
 
         document.getElementById('cc-range-min-minus').addEventListener('click', function () { stepRange('min', -1); });
@@ -79,12 +102,24 @@
         document.getElementById('cc-range-max-plus').addEventListener('click', function () { stepRange('max', 1); });
 
         document.getElementById('cc-save-include-open').addEventListener('change', function (event) {
+            if (!draft) return;
             draft.range.includesOpen = !!event.target.checked;
             renderPreview();
             renderRange();
         });
 
-        document.getElementById('cc-save-confirm').addEventListener('click', save);
+        DISPLAY_MODES.forEach(function (mode) {
+            document.getElementById('cc-savemode-' + mode).addEventListener('click', function () {
+                if (!draft) return;
+                draft.displayMode = mode;
+                updateDisplaySegments();
+                renderPreview();
+            });
+        });
+
+        document.getElementById('cc-save-confirm').addEventListener('click', saveNew);
+        document.getElementById('cc-save-overwrite').addEventListener('click', saveOverwrite);
+        document.getElementById('cc-save-copy').addEventListener('click', saveCopy);
         document.addEventListener('chordcruise:fretboard-settings-change', function () {
             if (draft) renderPreview();
         });
@@ -104,18 +139,22 @@
     }
 
     function noteIncluded(note) {
-        if (note.fret === 0) {
-            return draft.range.includesOpen;
-        }
+        if (note.fret === 0) return draft.range.includesOpen;
         return note.fret >= draft.range.min && note.fret <= draft.range.max;
     }
 
-    function markerLabel(note) {
-        if (note.finger != null) {
-            return FINGER_LABELS[note.finger] || '';
-        }
+    function notePc(note) {
         var openPc = theory().OPEN_STRINGS[6 - note.string];
-        return theory().noteName((openPc + note.fret) % 12, draft.useFlats);
+        return (openPc + note.fret) % 12;
+    }
+
+    function markerLabel(note) {
+        if (draft.displayMode === 'finger') {
+            return note.finger != null ? (FINGER_LABELS[note.finger] || '') : '';
+        }
+        if (draft.displayMode === 'solfege') return theory().solfegeName(notePc(note), draft.useFlats);
+        if (draft.displayMode === 'degree') return theory().degreeLabels([note.interval])[0];
+        return theory().noteName(notePc(note), draft.useFlats);
     }
 
     function roleForInterval(interval) {
@@ -126,7 +165,16 @@
         return 'other';
     }
 
+    function updateDisplaySegments() {
+        if (!draft) return;
+        DISPLAY_MODES.forEach(function (mode) {
+            var button = document.getElementById('cc-savemode-' + mode);
+            button.classList.toggle('cc-segment-btn--active', draft.displayMode === mode);
+        });
+    }
+
     function renderPreview() {
+        if (!draft) return;
         var host = document.getElementById('cc-save-fb');
         var fb = window.ChordCruise.ui.fretboard;
         var prevScroll = fb.getScrollLeft(host);
@@ -140,7 +188,6 @@
                 tappable: true
             };
         });
-        // 保存範囲外（dimmed）のノートはバレー判定に含めない
         var barres = window.ChordCruise.caged.detectBarres(draft.notes.filter(noteIncluded));
         fb.render(host, {
             startFret: draft.startFret,
@@ -175,8 +222,8 @@
     }
 
     function currentRangeForDisplay() {
-        var frets = draft.notes.filter(noteIncluded).map(function (n) { return n.fret; });
-        var fretted = frets.filter(function (f) { return f > 0; });
+        var frets = draft.notes.filter(noteIncluded).map(function (note) { return note.fret; });
+        var fretted = frets.filter(function (fret) { return fret > 0; });
         return {
             min: fretted.length ? Math.min.apply(null, fretted) : 0,
             max: fretted.length ? Math.max.apply(null, fretted) : 0,
@@ -204,77 +251,153 @@
             option.textContent = folder.name;
             select.appendChild(option);
         });
-        select.value = draft.folderId;
+        var exists = folders.some(function (folder) { return folder.id === draft.folderId; });
+        select.value = exists ? draft.folderId : window.ChordCruise.storage.UNCATEGORIZED_ID;
     }
 
     function setError(text) {
-        var el = document.getElementById('cc-save-error');
-        el.textContent = text || '';
-        el.style.display = text ? '' : 'none';
+        var element = document.getElementById('cc-save-error');
+        element.textContent = text || '';
+        element.style.display = text ? '' : 'none';
     }
 
-    function save() {
+    function currentFieldValues() {
+        if (!draft) return null;
+        return {
+            chordName: document.getElementById('cc-save-chord-name').value.trim(),
+            formName: document.getElementById('cc-save-form-name').value.trim(),
+            memo: document.getElementById('cc-save-memo').value.trim(),
+            folderId: document.getElementById('cc-save-folder').value,
+            range: clone(draft.range),
+            notes: clone(draft.notes),
+            mutedStrings: clone(draft.mutedStrings)
+        };
+    }
+
+    function snapshot() {
+        return JSON.stringify(currentFieldValues());
+    }
+
+    function hasUnsavedChanges() {
+        return !!draft && initialSnapshot !== null && snapshot() !== initialSnapshot;
+    }
+
+    function requestClose() {
+        if (!draft) return;
+        if (draft.mode === 'edit' && hasUnsavedChanges() &&
+                !window.confirm('編集中の変更を破棄しますか？')) {
+            return;
+        }
+        close();
+    }
+
+    function buildRecord(copyMode) {
         var includedNotes = draft.notes.filter(noteIncluded).map(function (note) {
             return { string: note.string, fret: note.fret, interval: note.interval, finger: note.finger };
         });
         if (includedNotes.length === 0) {
             setError('保存範囲に音が1つもありません。範囲を見直してください。');
-            return;
+            return null;
         }
-        var chordName = theory().displayChordName(
-            document.getElementById('cc-save-chord-name').value.trim() || draft.chordName
-        );
-        var formName = document.getElementById('cc-save-form-name').value.trim() || draft.formName;
-        var memo = document.getElementById('cc-save-memo').value.trim();
-        var folderId = document.getElementById('cc-save-folder').value;
 
-        var record = {
-            chordName: chordName,
-            formName: formName,
-            shape: draft.shape,
-            keyContext: draft.keyContext,
-            intervals: draft.intervals,
-            rootPc: draft.rootPc,
-            fretRange: currentRangeForDisplay(),
-            notes: includedNotes,
-            mutedStrings: draft.mutedStrings,
-            memo: memo,
-            folderId: folderId
-        };
-        window.ChordCruise.storage.saveChord(record);
-        close();
-        if (typeof onSavedCallback === 'function') {
-            onSavedCallback(record);
+        var values = currentFieldValues();
+        var record = draft.original ? clone(draft.original) : {};
+        record.chordName = theory().displayChordName(values.chordName || draft.chordName);
+        record.formName = values.formName || draft.formName;
+        record.shape = draft.shape;
+        record.keyContext = clone(draft.keyContext);
+        record.intervals = clone(draft.intervals);
+        record.rootPc = draft.rootPc;
+        record.fretRange = currentRangeForDisplay();
+        record.notes = includedNotes;
+        record.mutedStrings = clone(draft.mutedStrings);
+        record.memo = values.memo;
+        record.folderId = values.folderId || window.ChordCruise.storage.UNCATEGORIZED_ID;
+
+        if (copyMode === 'copy') {
+            delete record.id;
+            delete record.createdAt;
+            delete record.updatedAt;
+            delete record.schemaVersion;
         }
+        return record;
     }
 
-    /**
-     * 保存前編集を開く。
-     * @param {Object} payload { chord, form, shape, useFlats, onSaved }
-     */
+    function finishSave(record, mode) {
+        var callback = onSavedCallback;
+        window.ChordCruise.storage.saveChord(record);
+        close();
+        if (typeof callback === 'function') callback(record, mode);
+    }
+
+    function saveNew() {
+        if (!draft || draft.mode !== 'new') return;
+        var record = buildRecord('copy');
+        if (record) finishSave(record, 'new');
+    }
+
+    function saveOverwrite() {
+        if (!draft || draft.mode !== 'edit') return;
+        var record = buildRecord('overwrite');
+        if (!record) return;
+        record.id = draft.original.id;
+        record.createdAt = draft.original.createdAt;
+        finishSave(record, 'overwrite');
+    }
+
+    function saveCopy() {
+        if (!draft || draft.mode !== 'edit') return;
+        var record = buildRecord('copy');
+        if (record) finishSave(record, 'copy');
+    }
+
+    function defaultDisplayMode() {
+        var settings = window.ChordCruise.state && window.ChordCruise.state.settings;
+        var mode = settings && settings.fretboardDisplayMode;
+        return DISPLAY_MODES.indexOf(mode) !== -1 ? mode : 'note';
+    }
+
+    function setModeUi(mode) {
+        var editing = mode === 'edit';
+        document.getElementById('cc-save-title').textContent = editing ? '保存コードを編集' : 'フォームを保存';
+        document.getElementById('cc-save-confirm').style.display = editing ? 'none' : '';
+        document.getElementById('cc-save-edit-actions').classList.toggle('cc-save-edit-actions--hidden', !editing);
+    }
+
+    function showEditor() {
+        document.getElementById('cc-save-chord-name').value = draft.chordName;
+        document.getElementById('cc-save-form-name').value = draft.formName;
+        document.getElementById('cc-save-memo').value = draft.memo;
+        renderFolders();
+        setModeUi(draft.mode);
+        updateDisplaySegments();
+        renderRange();
+        overlayEl.classList.remove('cc-modal-overlay--hidden');
+        renderPreview();
+        initialSnapshot = snapshot();
+    }
+
+    /** 新規フォームの保存前編集を開く。 */
     function open(payload) {
         ensureDom();
         var chord = payload.chord;
         var form = payload.form;
         onSavedCallback = payload.onSaved || null;
         draft = {
+            mode: 'new',
+            original: null,
             chordName: chord.symbol,
             formName: payload.shape + '型',
             shape: payload.shape,
-            keyContext: payload.keyContext || null,
+            keyContext: clone(payload.keyContext || null),
             intervals: chord.intervals.slice(),
             rootPc: chord.rootPc,
             useFlats: !!payload.useFlats,
-            notes: form.notes.map(function (note) {
-                return { string: note.string, fret: note.fret, interval: note.interval, finger: note.finger };
-            }),
+            displayMode: defaultDisplayMode(),
+            notes: clone(form.notes),
             mutedStrings: form.mutedStrings.slice(),
-            startFret: typeof payload.startFret === 'number'
-                ? payload.startFret
-                : (form.fretRange.min >= 12 ? 12 : 0),
-            endFret: typeof payload.endFret === 'number'
-                ? payload.endFret
-                : (form.fretRange.min >= 12 ? 25 : 13),
+            startFret: typeof payload.startFret === 'number' ? payload.startFret : (form.fretRange.min >= 12 ? 12 : 0),
+            endFret: typeof payload.endFret === 'number' ? payload.endFret : (form.fretRange.min >= 12 ? 25 : 13),
             formRange: {
                 min: form.fretRange.min,
                 max: form.fretRange.max,
@@ -288,27 +411,76 @@
             memo: '',
             folderId: window.ChordCruise.storage.UNCATEGORIZED_ID
         };
-        document.getElementById('cc-save-chord-name').value = draft.chordName;
-        document.getElementById('cc-save-form-name').value = draft.formName;
-        document.getElementById('cc-save-memo').value = '';
-        renderFolders();
-        renderRange();
-        overlayEl.classList.remove('cc-modal-overlay--hidden');
-        renderPreview();
+        showEditor();
+    }
+
+    /** 保存済みコードを複製し、元データへ触れずに編集を開始する。 */
+    function openExisting(payload) {
+        ensureDom();
+        var original = clone(payload.chord || {});
+        var notes = Array.isArray(original.notes) ? clone(original.notes) : [];
+        var range = original.fretRange || {};
+        var fretted = notes.filter(function (note) { return note && note.fret > 0; }).map(function (note) { return note.fret; });
+        var inferredMin = fretted.length ? Math.min.apply(null, fretted) : 0;
+        var inferredMax = fretted.length ? Math.max.apply(null, fretted) : inferredMin;
+        var min = typeof range.min === 'number' ? range.min : inferredMin;
+        var max = typeof range.max === 'number' ? range.max : inferredMax;
+        if (max < min) max = min;
+        var includesOpen = typeof range.includesOpen === 'boolean'
+            ? range.includesOpen
+            : notes.some(function (note) { return note && note.fret === 0; });
+        var keyContext = original.keyContext || null;
+        var useFlats = keyContext && typeof keyContext.tonicPc === 'number'
+            ? theory().keyUsesFlats(keyContext.tonicPc, keyContext.mode)
+            : /♭/.test(original.chordName || '');
+        var shape = original.shape || '';
+        var highFret = min >= 12 && !includesOpen;
+
+        onSavedCallback = payload.onSaved || null;
+        draft = {
+            mode: 'edit',
+            original: original,
+            chordName: theory().displayChordName(original.chordName || ''),
+            formName: original.formName || (shape ? shape + '型' : 'フォーム'),
+            shape: shape,
+            keyContext: clone(keyContext),
+            intervals: Array.isArray(original.intervals) ? original.intervals.slice() : [],
+            rootPc: typeof original.rootPc === 'number' ? original.rootPc : null,
+            useFlats: !!useFlats,
+            displayMode: defaultDisplayMode(),
+            notes: notes.map(function (note) {
+                return {
+                    string: note.string,
+                    fret: note.fret,
+                    interval: note.interval,
+                    finger: note.finger == null ? null : note.finger
+                };
+            }),
+            mutedStrings: Array.isArray(original.mutedStrings) ? original.mutedStrings.slice() : [],
+            startFret: highFret ? 12 : 0,
+            endFret: highFret ? 25 : 13,
+            formRange: { min: min, max: max, hasOpen: includesOpen },
+            range: { min: min, max: max, includesOpen: includesOpen },
+            memo: original.memo || '',
+            folderId: original.folderId || window.ChordCruise.storage.UNCATEGORIZED_ID
+        };
+        showEditor();
     }
 
     function close() {
-        if (overlayEl) {
-            overlayEl.classList.add('cc-modal-overlay--hidden');
-        }
+        if (overlayEl) overlayEl.classList.add('cc-modal-overlay--hidden');
         draft = null;
+        initialSnapshot = null;
+        onSavedCallback = null;
     }
 
     window.ChordCruise = window.ChordCruise || {};
     window.ChordCruise.ui = window.ChordCruise.ui || {};
     window.ChordCruise.ui.saveEditor = {
         open: open,
+        openExisting: openExisting,
         close: close,
+        hasUnsavedChanges: hasUnsavedChanges,
         FINGER_LABELS: FINGER_LABELS
     };
 })();

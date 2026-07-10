@@ -44,6 +44,10 @@ body {
     flex-direction: column;
 }
 
+.cc-app--library {
+    max-width: 1180px;
+}
+
 .cc-main {
     flex: 1;
 }
@@ -570,6 +574,33 @@ body {
     font-weight: 700;
 }
 
+.cc-fb-host--monochrome .cc-fb-fret-number,
+.cc-fb-host--monochrome .cc-fb-fret-number--highlighted {
+    fill: #111111;
+}
+
+.cc-fb-host--monochrome .cc-fb-marker {
+    background: #111111;
+    color: #ffffff;
+    border: 2px solid #111111;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.24);
+}
+
+.cc-fb-host--monochrome .cc-fb-marker--open {
+    background: #ffffff;
+    color: #111111;
+}
+
+.cc-fb-host--monochrome .cc-fb-barre {
+    background: #d8d8d8;
+    border-color: #111111;
+    box-shadow: none;
+}
+
+.cc-fb-host--monochrome .cc-fb-mute {
+    color: #111111;
+}
+
 .cc-fb-hint {
     margin: 10px 2px 0;
     font-size: 0.8rem;
@@ -868,6 +899,20 @@ body {
     margin-top: 16px;
 }
 
+.cc-save-display-head {
+    margin-bottom: 12px;
+}
+
+.cc-save-edit-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.cc-save-edit-actions--hidden {
+    display: none;
+}
+
 .cc-save-btn-row {
     margin-top: 14px;
 }
@@ -882,6 +927,20 @@ body {
     flex-direction: column;
     gap: 14px;
     margin-top: 18px;
+}
+
+.cc-lib-content--folders {
+    width: 100%;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.cc-lib-content--detail {
+    width: 100%;
+    max-width: 760px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .cc-folder-list {
@@ -974,6 +1033,140 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.cc-chordthumb-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+}
+
+.cc-chordthumb-card {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    padding: 2px;
+    border: 1px solid var(--cc-border);
+    border-radius: var(--cc-radius-md);
+    background: linear-gradient(165deg, var(--cc-surface-raised), var(--cc-surface));
+    color: var(--cc-text);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform 0.12s ease, border-color 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.cc-chordthumb-card:active {
+    transform: scale(0.985);
+}
+
+.cc-chordthumb-card:hover {
+    border-color: var(--cc-border-strong);
+}
+
+.cc-chordthumb-board {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 0;
+    aspect-ratio: 0.82;
+    padding: 1px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.cc-chordthumb-svg {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    max-height: 100%;
+}
+
+.cc-lib-exact-fb .cc-fb-scroll {
+    padding: 12px;
+    border: 1px solid var(--cc-border);
+    background: rgba(0, 0, 0, 0.16);
+}
+
+.cc-lib-exact-fb.cc-fb-host--monochrome .cc-fb-scroll {
+    border-color: #aaaaaa;
+    background: #ffffff;
+}
+
+.cc-lib-exact-fb .cc-fb-stage {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.cc-lib-diagram-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--cc-border);
+}
+
+.cc-lib-monochrome-control {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.cc-lib-action-label {
+    color: var(--cc-text);
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+
+.cc-lib-action-label strong {
+    color: var(--cc-gold-bright);
+    font-size: 0.76rem;
+}
+
+.cc-lib-export-btn {
+    min-width: 118px;
+}
+
+.cc-lib-edit-btn {
+    min-width: 92px;
+}
+
+.cc-lib-export-btn:disabled {
+    opacity: 0.56;
+    cursor: wait;
+}
+
+.cc-lib-export-status {
+    margin: 10px 0 0;
+    color: var(--cc-gold-bright);
+    font-size: 0.78rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.cc-lib-export-status--error {
+    color: var(--cc-danger);
+}
+
+@media (max-width: 480px) {
+    .cc-lib-diagram-actions {
+        align-items: stretch;
+    }
+
+    .cc-lib-export-btn,
+    .cc-lib-edit-btn {
+        flex: 1;
+        min-width: 88px;
+    }
 }
 
 .cc-inline-input-row {
