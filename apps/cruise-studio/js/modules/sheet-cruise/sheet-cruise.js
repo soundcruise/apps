@@ -1,15 +1,19 @@
-/* クルーズスタジオ — sheet-cruise.js（Phase 2B / R2、UI再編D1/D2/D3aでレイアウトのみ改修）
+/* クルーズスタジオ — sheet-cruise.js（Phase 2B / R2、UI再編D1/D2/D3a/F1でレイアウトのみ改修）
    譜面クルーズ画面: プロジェクト選択・曲情報フォーム・キー関係チェック・
    セクション管理・小節グリッド（1小節1コード入力）・簡易プレビュー・保存。
    歌詞・ドレミ入力とA4紙面プレビューは Phase 2C / Phase 3。
    D1（docs/DECISIONS.md ADR-025）: 曲情報・セクション・表示設定・小節グリッドは
    上部ドロワー（#sc-editor-drawer）へ移動。
    D2 MVP（同ADR-025）: 小節上の極小overlay（S1b〜R2）を画面下部の横長ドックへ移設。
-   D3a（同ADR-025）: 巨大な縦積みフォーム型ドックを、選択小節と同じ時間軸を持つ
+   D3a（同ADR-025 / ADR-026）: 巨大な縦積みフォーム型ドックを、選択小節と同じ時間軸を持つ
    コンパクトなタイムグリッド・ドックへ変更（「選択小節のX線写真」）。本格セル編集は
    ストローク行のみ。コードは1小節1セル、歌詞・ドレミは見た目だけ時間軸へ揃え、
    入力方式は現行の小節単位文字列入力のまま（tick位置セル分解はD3bで扱う）。
    まとめて入力はヘッダーのボタンから開くポップオーバー化。
+   F1（ADR-027）: D3aのタイムグリッド編集はそのまま、表示方式を bottom固定の黒いドックから
+   紙面デザイン（アイボリー・墨色・アンバー枠）の「フローティング小節ルーペ」へ変更。
+   x/y自由配置・タイトルバードラッグ・右下ハンドルでの比例リサイズ・
+   cruiseStudio.appSettings（barLoupeキー）への位置/幅保存を追加。
    保存/復元/JSON/プレDTM/MIDIの経路・データ構造は変更しない。
    グローバル名前空間 CruiseStudio.sheetCruise に登録する。 */
 (function () {
@@ -31,6 +35,20 @@
     var STRUM_CELL_CYCLE = ['down', 'up', 'mute', 'rest'];
     var STRUM_GLYPHS = { down: '↓', up: '↑', mute: 'x', rest: '・', sustain: '〜' };
 
+    // F1: フローティング小節ルーペのサイズ定数（docs/DECISIONS.md ADR-027）
+    var LOUPE_BASE_WIDTH = 960;     // --bar-loupe-scale = 現在幅 / この値
+    var LOUPE_DEFAULT_WIDTH = 960;
+    var LOUPE_MIN_WIDTH = 680;
+    var LOUPE_MAX_WIDTH = 1240;
+    var LOUPE_MAX_WIDTH_MARGIN = 32;  // 最大幅は min(1240, viewportWidth - 32)
+    var LOUPE_TOP_MARGIN = 8;         // topは8px以上
+    var LOUPE_SIDE_VISIBLE = 120;     // 左右は最低120pxを画面内へ残す
+    var LOUPE_HEADER_RESERVE = 56;    // タイトルバーが画面内に残るための下限余白
+    var LOUPE_NARROW_BREAKPOINT = 680; // これ未満はPCファーストの安全フォールバック
+    var LOUPE_NARROW_MARGIN = 28;
+    var LOUPE_MOVE_STEP = 16;         // Alt+Shift+矢印キーでの移動量(px)
+    var LOUPE_APP_SETTING_KEY = 'barLoupe';
+
     var state = {
         project: null,   // 編集中の StudioProject
         dirty: false,    // 未保存の変更があるか（TOP復帰時の中断確認に使う）
@@ -42,7 +60,8 @@
         overlayWarnings: {},
         dockManualRes: {},     // D3a: barNumber → 16（ユーザーが一時的に選んだ16分表示。保存しない）
         dockBulkOpen: false,   // D3a: まとめて入力ポップオーバーの開閉状態（UI一時状態）
-        lastAutoScrollBar: null // D3a: 自動スクロールを選択が変わった時だけ行うための直前値
+        lastAutoScrollBar: null, // D3a: 自動スクロールを選択が変わった時だけ行うための直前値
+        loupe: { x: 0, y: 0, width: LOUPE_DEFAULT_WIDTH } // F1: ルーペの位置/幅。UI状態のみ（projectに保存しない）
     };
 
     var els = {};
@@ -1088,6 +1107,239 @@
         });
     }
 
+    /* ══════════ F1: フローティング小節ルーペの位置・サイズ（docs/DECISIONS.md ADR-027） ══════════
+       「選択小節そのものを拡大した、紙面の上に浮かぶもう一枚の紙」。
+       position: fixed のまま bottom固定をやめ、x/y座標で自由配置する。
+       位置・幅はUI状態としてのみ扱い、projectデータ・schemaVersionには影響しない。
+       cruiseStudio.appSettings の barLoupe キーへ保存する（storage.getAppSetting/setAppSetting）。 */
+
+    function isNarrowViewport() {
+        return window.innerWidth < LOUPE_NARROW_BREAKPOINT;
+    }
+
+    /**
+     * ルーペ幅のクランプ。狭い画面（680px未満）では画面幅に合わせた固定幅を強制する
+     * （PCファースト。モバイル最適化は大規模には行わない）。
+     */
+    function clampLoupeWidth(width) {
+        var vw = window.innerWidth;
+        if (isNarrowViewport()) {
+            return Math.max(280, vw - LOUPE_NARROW_MARGIN);
+        }
+        var maxW = Math.min(LOUPE_MAX_WIDTH, vw - LOUPE_MAX_WIDTH_MARGIN);
+        var minW = Math.min(LOUPE_MIN_WIDTH, maxW);
+        var w = (typeof width === 'number' && isFinite(width)) ? width : LOUPE_DEFAULT_WIDTH;
+        return Math.max(minW, Math.min(maxW, w));
+    }
+
+    /**
+     * 水平位置のクランプ。左右は最低120px程度を画面内へ残せば足り、
+     * 完全に画面外へ出ることだけを防ぐ（タイトルバーの端を掴んで引き戻せる状態を保つ）。
+     */
+    function clampLoupeX(x, width) {
+        var vw = window.innerWidth;
+        var minX = LOUPE_SIDE_VISIBLE - width;
+        var maxX = vw - LOUPE_SIDE_VISIBLE;
+        if (minX > maxX) return Math.round((vw - width) / 2);
+        var v = (typeof x === 'number' && isFinite(x)) ? x : (vw - width) / 2;
+        return Math.round(Math.max(minX, Math.min(maxX, v)));
+    }
+
+    /**
+     * 垂直位置のクランプ。topは8px以上、下端はタイトルバー（閉じるボタン含む）が
+     * 必ず画面内に残る位置までに制限する。
+     */
+    function clampLoupeY(y) {
+        var vh = window.innerHeight;
+        var minY = LOUPE_TOP_MARGIN;
+        var maxY = Math.max(minY, vh - LOUPE_HEADER_RESERVE);
+        var v = (typeof y === 'number' && isFinite(y)) ? y : minY;
+        return Math.round(Math.max(minY, Math.min(maxY, v)));
+    }
+
+    function loadLoupeSettings() {
+        var storage = CS().storage;
+        if (!storage || !storage.getAppSetting) return null;
+        var saved = storage.getAppSetting(LOUPE_APP_SETTING_KEY);
+        if (!saved || typeof saved !== 'object') return null;
+        if (typeof saved.x !== 'number' || typeof saved.y !== 'number' || typeof saved.width !== 'number' ||
+            !isFinite(saved.x) || !isFinite(saved.y) || !isFinite(saved.width)) {
+            return null; // 壊れた値・異常値は無視して初期値へ戻す
+        }
+        return { x: saved.x, y: saved.y, width: saved.width };
+    }
+
+    function saveLoupeSettings() {
+        var storage = CS().storage;
+        if (!storage || !storage.setAppSetting) return;
+        storage.setAppSetting(LOUPE_APP_SETTING_KEY, {
+            x: state.loupe.x, y: state.loupe.y, width: state.loupe.width
+        });
+    }
+
+    /**
+     * 起動時に1度だけ呼ぶ。保存済み位置があれば復元（現在の画面サイズへクランプ）、
+     * なければ初期位置（水平中央・垂直はやや下寄り）を計算する。
+     */
+    function initLoupeGeometry() {
+        var saved = loadLoupeSettings();
+        var width = clampLoupeWidth(saved ? saved.width : LOUPE_DEFAULT_WIDTH);
+        var x, y;
+        if (saved) {
+            x = clampLoupeX(saved.x, width);
+            y = clampLoupeY(saved.y);
+        } else {
+            x = clampLoupeX((window.innerWidth - width) / 2, width);
+            y = clampLoupeY(window.innerHeight * 0.52);
+        }
+        state.loupe = { x: x, y: y, width: width };
+    }
+
+    /**
+     * state.loupe を実DOMへ反映する。#sc-slot-overlay はrenderSlotOverlayContent()が
+     * innerHTML='' で子要素だけを作り直すため、この関数はルート要素自身のインラインstyle
+     * （left/top/width/--bar-loupe-scale）を書くだけでよく、再描画のたびに呼んでも安全。
+     */
+    function applyLoupeGeometry() {
+        if (!els.slotOverlay) return;
+        els.slotOverlay.style.left = state.loupe.x + 'px';
+        els.slotOverlay.style.top = state.loupe.y + 'px';
+        els.slotOverlay.style.width = state.loupe.width + 'px';
+        els.slotOverlay.style.setProperty('--bar-loupe-scale', String(state.loupe.width / LOUPE_BASE_WIDTH));
+        els.slotOverlay.classList.toggle('slot-overlay--narrow', isNarrowViewport());
+    }
+
+    /**
+     * ウィンドウリサイズ時の再クランプ（幅→位置の順）。幅が変わった場合はappSettingsも
+     * 補正後の値へ更新する（仕様上「更新してよい」とされているため、ずれを溜め込まない）。
+     */
+    function reclampLoupeOnResize() {
+        if (!els.slotOverlay) return;
+        var newWidth = clampLoupeWidth(state.loupe.width);
+        var widthChanged = newWidth !== state.loupe.width;
+        state.loupe.width = newWidth;
+        state.loupe.x = clampLoupeX(state.loupe.x, newWidth);
+        state.loupe.y = clampLoupeY(state.loupe.y);
+        applyLoupeGeometry();
+        if (widthChanged) saveLoupeSettings();
+    }
+
+    // ドラッグを開始しない要素（ボタン・入力欄・ポップオーバー・リサイズハンドル等）
+    var LOUPE_DRAG_IGNORE_SELECTOR =
+        'button, input, select, textarea, a, .slot-overlay-bulk-popover, .slot-overlay-resize-handle';
+
+    function onLoupeHeaderPointerDown(event) {
+        if (event.button !== undefined && event.button !== 0) return;
+        if (event.target.closest && event.target.closest(LOUPE_DRAG_IGNORE_SELECTOR)) return;
+        event.preventDefault();
+        var header = event.currentTarget;
+        var pointerId = event.pointerId;
+        var startX = event.clientX;
+        var startY = event.clientY;
+        var originX = state.loupe.x;
+        var originY = state.loupe.y;
+        try { header.setPointerCapture(pointerId); } catch (_) { /* ignore */ }
+        document.body.classList.add('loupe-dragging');
+
+        function onMove(e) {
+            if (e.pointerId !== pointerId) return;
+            state.loupe.x = clampLoupeX(originX + (e.clientX - startX), state.loupe.width);
+            state.loupe.y = clampLoupeY(originY + (e.clientY - startY));
+            applyLoupeGeometry();
+        }
+        function onUp(e) {
+            if (e.pointerId !== pointerId) return;
+            try { header.releasePointerCapture(pointerId); } catch (_) { /* ignore */ }
+            header.removeEventListener('pointermove', onMove);
+            header.removeEventListener('pointerup', onUp);
+            header.removeEventListener('pointercancel', onUp);
+            document.body.classList.remove('loupe-dragging');
+            saveLoupeSettings();
+        }
+        header.addEventListener('pointermove', onMove);
+        header.addEventListener('pointerup', onUp);
+        header.addEventListener('pointercancel', onUp);
+    }
+
+    /**
+     * タイトルバーへのキーボード移動代替: Alt+Shift+矢印で16pxずつ移動する。
+     */
+    function onLoupeHeaderKeydown(event) {
+        if (event.isComposing) return;
+        if (!event.altKey || !event.shiftKey) return;
+        var dx = 0, dy = 0;
+        if (event.key === 'ArrowLeft') dx = -LOUPE_MOVE_STEP;
+        else if (event.key === 'ArrowRight') dx = LOUPE_MOVE_STEP;
+        else if (event.key === 'ArrowUp') dy = -LOUPE_MOVE_STEP;
+        else if (event.key === 'ArrowDown') dy = LOUPE_MOVE_STEP;
+        else return;
+        event.preventDefault();
+        state.loupe.x = clampLoupeX(state.loupe.x + dx, state.loupe.width);
+        state.loupe.y = clampLoupeY(state.loupe.y + dy);
+        applyLoupeGeometry();
+        saveLoupeSettings();
+    }
+
+    /**
+     * 右下ハンドルでの比例リサイズ。幅だけをドラッグで変え、--bar-loupe-scaleの更新を通じて
+     * フォントサイズ・行高さ・セル等がCSS側で比例拡大縮小する（高さは内容に応じた自動のまま）。
+     */
+    function onLoupeResizePointerDown(event) {
+        if (event.button !== undefined && event.button !== 0) return;
+        event.preventDefault();
+        event.stopPropagation();
+        var handle = event.currentTarget;
+        var pointerId = event.pointerId;
+        var startX = event.clientX;
+        var startWidth = state.loupe.width;
+        try { handle.setPointerCapture(pointerId); } catch (_) { /* ignore */ }
+        document.body.classList.add('loupe-resizing');
+
+        function onMove(e) {
+            if (e.pointerId !== pointerId) return;
+            var newWidth = clampLoupeWidth(startWidth + (e.clientX - startX));
+            state.loupe.width = newWidth;
+            state.loupe.x = clampLoupeX(state.loupe.x, newWidth);
+            applyLoupeGeometry();
+        }
+        function onUp(e) {
+            if (e.pointerId !== pointerId) return;
+            try { handle.releasePointerCapture(pointerId); } catch (_) { /* ignore */ }
+            handle.removeEventListener('pointermove', onMove);
+            handle.removeEventListener('pointerup', onUp);
+            handle.removeEventListener('pointercancel', onUp);
+            document.body.classList.remove('loupe-resizing');
+            saveLoupeSettings();
+        }
+        handle.addEventListener('pointermove', onMove);
+        handle.addEventListener('pointerup', onUp);
+        handle.addEventListener('pointercancel', onUp);
+    }
+
+    function buildLoupeResizeHandle() {
+        var handle = document.createElement('div');
+        handle.className = 'slot-overlay-resize-handle';
+        handle.setAttribute('aria-hidden', 'true');
+        handle.addEventListener('pointerdown', onLoupeResizePointerDown);
+        return handle;
+    }
+
+    /**
+     * まとめて入力ポップオーバーがルーペ上側・右寄せで画面外へはみ出す場合、
+     * 下側・左寄せへ反転させる。
+     */
+    function positionBulkPopover() {
+        var popover = els.slotOverlay && els.slotOverlay.querySelector('.slot-overlay-bulk-popover');
+        if (!popover) return;
+        popover.classList.remove('is-flip-down', 'is-flip-left');
+        if (popover.getBoundingClientRect().top < 8) {
+            popover.classList.add('is-flip-down');
+        }
+        if (popover.getBoundingClientRect().left < 8) {
+            popover.classList.add('is-flip-left');
+        }
+    }
+
     function tokenizeBulkChords(text) {
         return String(text || '')
             .replace(/(^|\s)\/(?=\s|$)/g, ' ')
@@ -1268,12 +1520,29 @@
         renderSlotOverlayContent();
     }
 
-    function onDocumentKeydownForBulkPopover(event) {
-        if (!state.dockBulkOpen) return;
-        if (event.key === 'Escape') {
+    /**
+     * F1: Escapeの優先順位を整理する（既存挙動を壊さない範囲で）。
+     * 1. まとめて入力ポップオーバーが開いていれば、それを閉じる
+     * 2. ルーペ内の入力欄・ストロークセルにフォーカスがあれば、それを外す（セル編集解除）
+     * 3. それ以外は選択小節を解除してルーペを閉じる（既存のdeselectBar）
+     * ルーペ自体はフォーカストラップを持たない非モーダルなツールパレットとして扱う。
+     */
+    function onDocumentKeydownForLoupe(event) {
+        if (event.key !== 'Escape' || event.isComposing) return;
+        if (state.dockBulkOpen) {
             state.dockBulkOpen = false;
             renderSlotOverlayContent();
+            return;
         }
+        var active = document.activeElement;
+        var isEditingInLoupe = active && els.slotOverlay && els.slotOverlay.contains(active) &&
+            (active.tagName === 'INPUT' || (active.classList && active.classList.contains('dock-strum-cell')));
+        if (isEditingInLoupe) {
+            active.blur();
+            return;
+        }
+        if (!state.selectedBarNumber) return;
+        deselectBar();
     }
 
     /**
@@ -1297,6 +1566,11 @@
 
         var head = document.createElement('div');
         head.className = 'slot-overlay-head';
+        // F1: タイトルバーはドラッグ領域。button/input/select/textarea/a等の上では
+        // onLoupeHeaderPointerDown内のセレクタ判定でドラッグを開始しない
+        head.tabIndex = 0;
+        head.addEventListener('pointerdown', onLoupeHeaderPointerDown);
+        head.addEventListener('keydown', onLoupeHeaderKeydown);
 
         var headMain = document.createElement('div');
         headMain.className = 'slot-overlay-head-main';
@@ -1348,7 +1622,7 @@
         closeBtn.type = 'button';
         closeBtn.className = 'slot-overlay-close';
         closeBtn.textContent = '✕';
-        closeBtn.setAttribute('aria-label', '編集ドックを閉じる');
+        closeBtn.setAttribute('aria-label', '小節ルーペを閉じる');
         closeBtn.addEventListener('click', function (event) {
             event.stopPropagation();
             deselectBar();
@@ -1401,12 +1675,17 @@
 
         if (state.dockBulkOpen) {
             els.slotOverlay.appendChild(buildBulkInputPanel());
+            window.requestAnimationFrame(positionBulkPopover);
         }
+
+        // F1: 右下ハンドル（比例リサイズ）。狭い画面ではCSS側で非表示にする
+        els.slotOverlay.appendChild(buildLoupeResizeHandle());
 
         els.slotOverlay.classList.remove('hidden');
         els.slotOverlay.setAttribute('aria-hidden', 'false');
-        els.slotOverlay.setAttribute('aria-label', bar.barNumber + '小節目の編集ドック');
+        els.slotOverlay.setAttribute('aria-label', bar.barNumber + '小節目の編集');
         document.body.classList.add('dock-open');
+        applyLoupeGeometry();
     }
 
     function syncSheetSelection() {
@@ -1448,6 +1727,7 @@
             state.overlayFrame = null;
             updateSheetScale();
             syncSheetSelection();
+            reclampLoupeOnResize(); // F1: ウィンドウサイズ変更のたびにルーペの位置・幅も再クランプする
         });
     }
 
@@ -1621,6 +1901,14 @@
         fillKeySelect(els.originalKey);
         fillKeySelect(els.playKey);
 
+        // F1: フローティング小節ルーペの初期位置/幅（appSettingsに保存済みなら復元）と
+        // 非モーダルなツールパレットとしての静的a11y属性
+        initLoupeGeometry();
+        if (els.slotOverlay) {
+            els.slotOverlay.setAttribute('role', 'dialog');
+            els.slotOverlay.setAttribute('aria-modal', 'false');
+        }
+
         els.projectSelect.addEventListener('change', function () {
             var selectedId = els.projectSelect.value;
             if (state.project && selectedId === state.project.projectId) return;
@@ -1661,10 +1949,11 @@
         if (els.editorDrawer) els.editorDrawer.addEventListener('toggle', scheduleOverlayPosition);
         if (els.barGridDrawer) els.barGridDrawer.addEventListener('toggle', scheduleOverlayPosition);
 
-        // D3a: まとめて入力ポップオーバーの外側クリック / Escapeで閉じる（ドックは毎描画で
-        // 作り直すため、要素にではなくdocumentへ一度だけ登録する）
+        // D3a/F1: まとめて入力ポップオーバーの外側クリックで閉じる。Escapeは
+        // ポップオーバー→セル編集解除→ルーペを閉じる、の優先順位で処理する
+        // （ドックは毎描画で作り直すため、要素にではなくdocumentへ一度だけ登録する）
         document.addEventListener('click', onDocumentClickForBulkPopover);
-        document.addEventListener('keydown', onDocumentKeydownForBulkPopover);
+        document.addEventListener('keydown', onDocumentKeydownForLoupe);
 
         // ブラウザのタブ閉じ / リロード / URL移動に対する未保存ガード。
         // 画面内のTOP/戻る/モジュール移動は既存の中断確認（canLeave）が担当する。

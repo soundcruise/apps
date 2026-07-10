@@ -12,17 +12,20 @@
 
 ## 1. 現在の最新状態
 
-- 最新push済みcommit（cruise-studio以外を含む、このリポジトリ全体の最新）:
-  - full hash: `ac8acc961e1305340e0b52a229cf02228f79ec07`
-  - short hash: `ac8acc96`
-  - commit message: `譜面クルーズの小節編集UIを下部ドック化`
-- クルーズスタジオの最新push済みcommit:
+- 最新push済みcommit（cruise-studio以外を含む、このリポジトリ全体の最新。origin/main）:
   - full hash: `ac8acc961e1305340e0b52a229cf02228f79ec07`
   - short hash: `ac8acc96`
   - commit message: `譜面クルーズの小節編集UIを下部ドック化`
   - 内容: `v0.17.0 / UI再編 D2 MVP` までリモート反映済み
-- `main` と `origin/main` は同期済み。
-- クルーズスタジオ側の未commit差分は、`v0.18.0 / UI再編 D3a` 実装分のみを想定する。
+- ローカルcheckpoint（未push。origin/mainより1コミット先行）:
+  - full hash: `a3a1618f02f3d727ed0d32400cd76169c129bc08`
+  - short hash: `a3a1618f`
+  - commit message: `譜面クルーズに選択小節のタイムグリッド編集を追加`
+  - 内容: `v0.18.0 / UI再編 D3a` をローカルcommit済み・未push
+  - 運用方針: D3aは実機確認でUIの見た目・配置に追加改善が必要と判明したため、
+    origin/mainへは一旦pushせず、次のF1（小節ルーペ化）実装後にD3a＋F1をまとめてpushする
+- `main` は `origin/main` より1コミット（D3a checkpoint）先行している。
+- クルーズスタジオ側の未commit差分は、`v0.19.0 / F1 小節ルーペ化` 実装分のみを想定する。
 - rhythm-cruise 側の差分や未追跡ファイルが出ていても、この作業では触らない。
 
 ## 2. クルーズスタジオの目的
@@ -197,21 +200,14 @@
     印刷除外のまま。D1の `.sheet-editor-drawer` 除外ルールも維持）
   - データ構造・保存/復元/JSON/プレDTM/MIDI経路は無変更。`schemaVersion` は1のまま
   - 拍/裏拍/16分セル入力・`_proto/slot-editor.*` の移植・VexFlow/五線譜/MusicXMLはD2 MVPでは未着手
-
-## 5. 現在作業中のフェーズ
-
-### UI再編 D3a: 選択小節タイムグリッド・ドック（ストロークセル編集）
-
-- 予定バージョン: `v0.18.0`
-- 実装・検証済み。
-- commit / push はまだ未実施。
-- 背景: D2実機確認で、ドックが画面下半分近くを占有するただの大きなフォームになり、
-  拍・裏拍・16分の時間軸が見えず、まとめて入力が常時表示で邪魔になり、
-  「選択小節を拡大した感覚」がないという課題が判明した。Fable5の設計レビューで
-  「選択小節のX線写真」方針（紙面上の選択小節と同じ段順・同じ時間軸を保ったまま、
-  横方向へ拡大し各位置を編集できるタイムグリッド・ドックにする）が確定した
-  （`docs/DECISIONS.md` ADR-026）。
-- 主な内容:
+- `v0.18.0 / UI再編 D3a`: 選択小節タイムグリッド・ドック（ストロークセル編集）
+  （ローカルcheckpoint済み: `a3a1618f`。origin/mainへは未push。次のF1と合わせてpush予定）
+  - 背景: D2実機確認で、ドックが画面下半分近くを占有するただの大きなフォームになり、
+    拍・裏拍・16分の時間軸が見えず、まとめて入力が常時表示で邪魔になり、
+    「選択小節を拡大した感覚」がないという課題が判明した。Fable5の設計レビューで
+    「選択小節のX線写真」方針（紙面上の選択小節と同じ段順・同じ時間軸を保ったまま、
+    横方向へ拡大し各位置を編集できるタイムグリッド・ドックにする）が確定した
+    （`docs/DECISIONS.md` ADR-026）。
   - ドック全体を高さ約200〜220px（`max-height: 240px`）へコンパクト化。
     `body.dock-open` の `padding-bottom` も `56vh` → `260px` に変更
   - ヘッダーを1行に集約: 小節番号・セクション名・前へ/次へ・8分/16分セグメント切替・
@@ -261,6 +257,78 @@
   - 歌詞/ドレミのtick位置セル編集、拍単位コード入力、`_proto` のスロット入力そのものの
     移植、VexFlow/五線譜/MusicXMLはD3aでは未着手
 
+## 5. 現在作業中のフェーズ
+
+### F1: フローティング小節ルーペ化
+
+- 予定バージョン: `v0.19.0`
+- 実装・検証済み。
+- commit / push はまだ未実施。
+- 背景: D3a実機確認で、機能的には良いものの「黒い編集パネル・画面下固定・紙面と色/罫線/
+  フォントが異なる」ため「選択した小節そのものを拡大した表示」に見えないという課題が
+  判明した。今回はD3aのタイムグリッド編集機能（拍ルーラー・8分/16分・ストロークセル編集・
+  setBarStrumSlots()等）はそのまま維持し、表示方式・デザイン・位置・サイズだけを変更する
+  （`docs/DECISIONS.md` ADR-027）。
+- 主な内容:
+  - **紙面デザイン化**: `.slot-overlay`（ルーペ本体）を黒基調ドックから、A4紙面と同じ
+    アイボリー背景（`--paper-bg: #fdfbf5`）・墨色文字（`--paper-ink`）・
+    紙面フォントスタック（`--paper-font`）へ変更。外枠は選択小節と同じアンバー2px実線、
+    角丸9px。コード/歌詞/ドレミの文字色、ストローク段の濃淡、拍グリッドの線の強弱
+    （小節端＞拍頭＞8分＞16分）はすべて紙面の実値と一致させた
+  - **ペーパートークン**: `theme.css` の `:root` に `--paper-bg` / `--paper-ink` /
+    `--paper-muted` / `--paper-chord` / `--paper-lyrics` / `--paper-doremi*` /
+    `--paper-strum*` / `--paper-line-*` / `--paper-border*` / `--paper-font` を追加。
+    既存の `.sheet-page` 系ルールもこれらの変数を参照するようリファクタリングしたが、
+    値は完全に同一のため画面・印刷の見た目は変化しない（実機確認済み）
+  - **フローティング化**: `position: fixed` は維持しつつ `bottom: 0` / `translateX(-50%)` を
+    廃止し、`left` / `top` の px指定による自由配置へ変更。初期位置は水平中央・
+    垂直はビューポート52%（`viewportHeight * 0.52`）。既存の `body.dock-open`
+    `padding-bottom` は撤去（フローティング化により紙面下部の予備余白確保が不要になったため）
+  - **タイトルバードラッグ**: `.slot-overlay-head`（既存のヘッダー）自体をドラッグ領域にし、
+    Pointer Events（pointerdown/setPointerCapture/pointermove/pointerup）で実装。
+    button/input/select/textarea/a・ポップオーバー・リサイズハンドルの上ではドラッグを
+    開始しない（`event.target.closest()` で判定）。ドラッグ中は `body.loupe-dragging`
+    （user-select:none・cursor:grabbing）を付与し、終了時に位置をappSettingsへ保存する
+  - **右下ハンドルでの比例リサイズ**: `.slot-overlay-resize-handle` を新設し、
+    同じくPointer Eventsで幅だけを変更する。`--bar-loupe-scale`（=現在幅/960）を
+    ルート要素へ`style.setProperty`し、フォントサイズ・行高さ・セルサイズ等を
+    `calc(基準px * var(--bar-loupe-scale, 1))` で比例させた。ストロークセルの
+    クリック領域・フォントサイズには `max()` で最小フロアを設定し、16分表示でも
+    操作不能にならないようにした。高さは内容に応じた自動のまま（単独では変更不可）
+  - **クランプ処理**: 初期化（`initLoupeGeometry`）・ドラッグ・リサイズ・ウィンドウ
+    リサイズ（`reclampLoupeOnResize`）のすべてで、幅は
+    `min(1240, viewportWidth-32)`〜`680`、水平位置は左右最低120pxが画面内に残る範囲、
+    垂直位置は`8px`以上かつタイトルバーが画面内に残る範囲へクランプする
+  - **appSettings保存**: `cruiseStudio.appSettings` の `barLoupe` キー（`{x, y, width}`）へ
+    ドラッグ終了時・リサイズ終了時にのみ保存する（既存の
+    `storage.getAppSetting`/`setAppSetting` を再利用）。projectデータ・`schemaVersion` は
+    無変更。壊れた値・異常値を読み込んだ場合は初期値へフォールバックする
+  - **小節移動時の状態維持**: 前へ/次へ・Alt+←/→・紙面上の別小節クリックでも、
+    `state.loupe` はJS状態としてルート要素の再描画（`innerHTML=''`）をまたいで保持され、
+    `renderSlotOverlayContent()` の末尾で毎回 `applyLoupeGeometry()` を呼ぶことで
+    位置・幅・scaleが飛ばないことを実機確認済み
+  - **まとめて入力ポップオーバー**: D3aの方針（常設表示しない・ヘッダーのボタンから開く・
+    外クリック/Escapeで閉じる）を維持。ルーペの子要素なのでドラッグ・リサイズに自動で
+    追従する。画面外へはみ出す場合は `positionBulkPopover()` がルーペ上側→下側、
+    右寄せ→左寄せへ自動反転する（`is-flip-down` / `is-flip-left`）
+  - **狭い画面（680px未満）フォールバック**: 幅を `viewportWidth-28px` に強制し、
+    リサイズハンドルを非表示にする（`.slot-overlay--narrow`）。PCファーストのため
+    大規模なモバイル最適化は行わない
+  - **Escapeの優先順位整理**: ポップオーバーが開いていれば閉じる→ルーペ内の入力欄/
+    ストロークセルにフォーカスがあればblur（セル編集解除）→それ以外は選択解除して
+    ルーペを閉じる、の順に整理（`onDocumentKeydownForLoupe`）。フォーカストラップは
+    付けない非モーダルなツールパレットとして扱う（`role="dialog"` `aria-modal="false"`）
+  - キーボードによる移動代替として `Alt+Shift+矢印`（16pxずつ）をタイトルバーに実装
+  - D3aのタイムグリッド編集機能（拍ルーラー・8分/16分・ストロークセル編集・
+    基本ストローク継承/override/基本に戻す・コード/歌詞/ドレミ入力・前へ/次へ・
+    Alt+←/→・showStrum・グリッドON/OFF・保存/JSON/プレDTM/MIDI・印刷除外）は
+    すべて回帰なしで実機確認済み
+  - `song-model.js` の `setBarStrumSlots()` はD3aのまま変更していない
+  - `sheet-renderer.js` は変更していない（strumNeedsSixteenthの公開はD3a時点のまま）
+  - データ構造・保存/復元/JSON/プレDTM/MIDI経路は無変更。`schemaVersion` は1のまま
+  - 歌詞/ドレミのtick位置セル編集・`setBarLyricSlot`/`setBarMelodySlot`・
+    旧小節グリッドカードの撤去・bulk自動分解配置・拍単位コード入力はF1では未着手（F2以降）
+
 ### R1の記号ルール
 
 - `↓` = ダウンストローク
@@ -284,13 +352,14 @@
 
 ## 6. 次にやること
 
-1. D3a commit
-2. D3a push
-3. 実機確認（13〜14インチMacでのドック高さ・セル操作性・自動スクロールの目視確認）
-4. D3b: 歌詞・ドレミのtick位置セル編集（`_proto/slot-editor.*` のスロット入力UIを参考にする）
-5. D3c: まとめて入力の自動分解配置、旧・小節グリッドカード撤去、整合仕上げ
+1. F1実機確認（紙面デザインの一致・ドラッグ/リサイズの手触り・appSettings保存の確認）
+2. F1 commit
+3. D3a（`a3a1618f`）＋ F1 をまとめて push
+4. F2: 歌詞のtick位置セル編集（`setBarLyricSlot` 相当。`_proto/slot-editor.*` のモーラ分解を参考にする）
+5. F3: ドレミのtick位置セル編集（`setBarMelodySlot` 相当）
+6. F4: まとめて入力の自動分解配置、旧・小節グリッドカード撤去、整合仕上げ
    （9章「既知課題」の *** 印の項目を参照）
-6. 上記UI再編（D1〜D3）が落ち着いた後に本格記譜（VexFlow / 五線譜 / MusicXML）を検討
+7. 上記UI再編（D1〜D3a・F1〜F4）が落ち着いた後に本格記譜（VexFlow / 五線譜 / MusicXML）を検討
 
 ## 7. 重要な設計方針
 

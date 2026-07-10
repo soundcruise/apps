@@ -1,4 +1,4 @@
-/* クルーズスタジオ theme.css — v0.18.0
+/* クルーズスタジオ theme.css — v0.19.0
    リズムクルーズの DESIGN_SYSTEM.md（Clean Pro系）の考え方を継承しつつ、
    PCファーストに読み替えたテーマ。shared/style.css には依存しない（ADR-005）。
    class名・DOMはクルーズスタジオ用に新規設計している。 */
@@ -20,6 +20,30 @@
     --card-radius: 18px;
     --card-border: rgba(255, 209, 102, 0.16);
     --card-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+    /* ══════════ ペーパートークン（F1: 小節ルーペが紙面と同じ視覚言語を使うための共有変数。
+       docs/DECISIONS.md ADR-027） ══════════
+       値は既存の .sheet-page 系ルールの実値と同じ（見た目は変えない。共有するだけ）。 */
+    --paper-bg: #fdfbf5;
+    --paper-ink: #2a2620;
+    --paper-muted: #6a645c;
+    --paper-faint: #9a948c;
+    --paper-chord: #c0392b;
+    --paper-lyrics: #1e1a16;
+    --paper-doremi: #4a6fa5;
+    --paper-doremi-high: #d97706;
+    --paper-doremi-low: #8a94a6;
+    --paper-strum: #754a14;
+    --paper-strum-stroke: #6f3e08;
+    --paper-strum-mute: #8c2f1a;
+    --paper-strum-rest: rgba(122, 116, 108, 0.34);
+    --paper-strum-sustain: rgba(117, 74, 20, 0.62);
+    --paper-line-beat: rgba(122, 116, 108, 0.40);
+    --paper-line-eighth: rgba(122, 116, 108, 0.20);
+    --paper-line-sixteenth: rgba(122, 116, 108, 0.11);
+    --paper-border: #7a746c;
+    --paper-border-soft: rgba(122, 116, 108, 0.25);
+    --paper-font: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic', 'Outfit', sans-serif;
 }
 
 * {
@@ -865,11 +889,11 @@ body {
     width: 794px;              /* 210mm @96dpi */
     min-height: 1123px;        /* 297mm @96dpi */
     padding: 53px 57px;        /* ≒ 14mm 15mm */
-    background: #fdfbf5;
-    color: #2a2620;
+    background: var(--paper-bg);
+    color: var(--paper-ink);
     border-radius: 4px;
     box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
-    font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic', 'Outfit', sans-serif;
+    font-family: var(--paper-font);
 }
 
 .sheet-page + .sheet-page {
@@ -878,7 +902,7 @@ body {
 
 /* 紙面ヘッダー */
 .sheet-header {
-    border-bottom: 2px solid #2a2620;
+    border-bottom: 2px solid var(--paper-ink);
     padding-bottom: 10px;
     margin-bottom: 18px;
 }
@@ -912,12 +936,12 @@ body {
 
 .sheet-meta-label {
     font-weight: 700;
-    color: #6a645c;
+    color: var(--paper-muted);
 }
 
 .sheet-meta-value {
     font-weight: 700;
-    color: #2a2620;
+    color: var(--paper-ink);
 }
 
 /* セクション見出し */
@@ -926,7 +950,7 @@ body {
     font-size: 13px;
     font-weight: 800;
     letter-spacing: 0.06em;
-    color: #2a2620;
+    color: var(--paper-ink);
     border-left: 4px solid #c05621;
     padding-left: 8px;
     margin: 16px 0 6px;
@@ -936,7 +960,7 @@ body {
 .sheet-line {
     display: grid;
     gap: 0;
-    border-left: 1.5px solid #7a746c;
+    border-left: 1.5px solid var(--paper-border);
     margin-bottom: 2px;
 }
 
@@ -951,8 +975,8 @@ body {
     gap: 3px;
     min-height: 86px;
     padding: 4px 8px 8px;
-    border-right: 1.5px solid #7a746c;
-    border-bottom: 1px solid rgba(122, 116, 108, 0.25);
+    border-right: 1.5px solid var(--paper-border);
+    border-bottom: 1px solid var(--paper-border-soft);
     cursor: pointer;
     transition: background-color 0.12s ease, box-shadow 0.12s ease;
 }
@@ -990,15 +1014,15 @@ body {
 }
 
 .sheet-bar-grid > span.is-beat {
-    border-right-color: rgba(122, 116, 108, 0.40);
+    border-right-color: var(--paper-line-beat);
 }
 
 .sheet-bar-grid > span.is-8th {
-    border-right-color: rgba(122, 116, 108, 0.20);
+    border-right-color: var(--paper-line-eighth);
 }
 
 .sheet-bar-grid > span.is-16th {
-    border-right-color: rgba(122, 116, 108, 0.11);
+    border-right-color: var(--paper-line-sixteenth);
 }
 
 /* 段区切り横線: コード/ストローク/歌詞/ドレミの各段（.sheet-bar-row）の間に薄い横線を引く。
@@ -1022,7 +1046,7 @@ body {
     box-shadow: inset 0 0 0 1px rgba(122, 116, 108, 0.10);
     font-size: 12px;
     font-weight: 800;
-    color: #754a14;
+    color: var(--paper-strum);
     line-height: 1.25;
     min-height: 22px;
     font-variant-numeric: tabular-nums;
@@ -1048,21 +1072,21 @@ body {
 .sheet-bar-strum > span.is-stroke,
 .sheet-bar-strum > span.is-mute {
     background: rgba(255, 255, 255, 0.58);
-    color: #6f3e08;
+    color: var(--paper-strum-stroke);
     box-shadow: inset 0 -1px 0 rgba(122, 116, 108, 0.12);
 }
 
 /* 休符マス（・）は控えめにして、実際に弾く記号を目立たせる */
 .sheet-bar-strum > span.is-rest {
-    color: rgba(122, 116, 108, 0.34);
+    color: var(--paper-strum-rest);
 }
 
 .sheet-bar-strum > span.is-sustain {
-    color: rgba(117, 74, 20, 0.62);
+    color: var(--paper-strum-sustain);
 }
 
 .sheet-bar-strum > span.is-mute {
-    color: #8c2f1a;
+    color: var(--paper-strum-mute);
 }
 
 .sheet-line--compact .sheet-bar {
@@ -1076,14 +1100,14 @@ body {
 
 .sheet-bar-num {
     font-size: 9px;
-    color: #9a948c;
+    color: var(--paper-faint);
 }
 
 /* コードは教材コード譜らしく赤系で表示（参考PDFの紙面構造を踏襲） */
 .sheet-bar-chord {
     font-size: 17.5px;
     font-weight: 800;
-    color: #c0392b;
+    color: var(--paper-chord);
     line-height: 1.18;
     min-height: 1.25em;
     padding-bottom: 1px;
@@ -1093,7 +1117,7 @@ body {
 .sheet-bar-lyrics {
     font-size: 13.5px;
     font-weight: 600;
-    color: #1e1a16;
+    color: var(--paper-lyrics);
     line-height: 1.5;
     min-height: 1.5em;
     letter-spacing: 0.04em;
@@ -1112,15 +1136,15 @@ body {
 }
 
 .sheet-doremi-note {
-    color: #4a6fa5;
+    color: var(--paper-doremi);
 }
 
 .sheet-doremi-note.is-high {
-    color: #d97706;
+    color: var(--paper-doremi-high);
 }
 
 .sheet-doremi-note.is-low {
-    color: #8a94a6;
+    color: var(--paper-doremi-low);
 }
 
 /* 表示トグル（紙面に表示する段の選択） */
@@ -1160,54 +1184,58 @@ body {
     text-align: center;
 }
 
-/* ══════════ D3a: 選択小節タイムグリッド・ドック（旧D2フォーム型ドックを置き換え。
-   docs/DECISIONS.md ADR-025 / ADR-026） ══════════
-   Fable5レビュー「選択小節のX線写真」方針。小節クリック時のみ表示する、
-   画面下部固定・高さ約200〜220px（max-height 240px）のコンパクトなドック。
-   紙面と同じ段順（コード/ストローク/歌詞/ドレミ）を、選択小節と同じ時間軸のまま
-   横に拡大する。本格的にセル編集するのはストローク行のみ（D3aの実装対象）。
+/* ══════════ F1: フローティング小節ルーペ（旧D3aタイムグリッド・ドックを紙面デザイン化。
+   docs/DECISIONS.md ADR-025 / ADR-026 / ADR-027） ══════════
+   「選択小節そのものを拡大した、紙面の上に浮かぶもう一枚の紙」。
+   D3aのタイムグリッド編集（拍ルーラー・8分/16分・ストロークセル編集）はそのまま流用し、
+   表示方式だけを bottom固定の黒いドックから、x/y自由配置＋比例リサイズ可能な
+   紙面配色のフローティングパネルへ変更する。位置・幅はUI状態としてのみ扱い、
+   cruiseStudio.appSettings の barLoupe キーへ保存する（projectデータ・schemaVersionは無変更）。
    印刷では従来どおり非表示（print.css）。 */
 .slot-overlay {
     position: fixed;
-    left: 50%;
-    bottom: 0;
-    transform: translateX(-50%);
+    left: 0;
+    top: 0;
     z-index: 40;
-    width: 100%;
-    max-width: var(--studio-max-width);
-    max-height: 240px;
+    width: 960px;
+    max-height: calc(100vh - 16px);
     overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding: 10px 28px 14px;
-    border: 1px solid rgba(255, 159, 28, 0.4);
-    border-bottom: none;
-    border-radius: 16px 16px 0 0;
-    background: linear-gradient(180deg, rgba(37, 31, 24, 0.98), rgba(15, 12, 10, 0.99));
-    box-shadow: 0 -18px 44px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(10px);
-    color: var(--text-color);
+    padding: 8px 20px 16px;
+    border: 2px solid var(--primary-color);
+    border-radius: 9px;
+    background: var(--paper-bg);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.46);
+    color: var(--paper-ink);
+    font-family: var(--paper-font);
     pointer-events: auto;
 }
 
-/* ドック表示中、紙面下部がドックに隠れすぎないよう画面末尾に余白を確保する（body.dock-open）。
-   実際に選択小節を見せるのは主に自動スクロール（scrollSelectedBarIntoDockView）の役目で、
-   これはその保険（末尾までスクロールしても続きが見えるようにする）。 */
-body.dock-open #screen-sheet-cruise {
-    padding-bottom: 260px;
+/* ドラッグ・リサイズ中はテキスト選択を止め、カーソルを固定する */
+body.loupe-dragging {
+    user-select: none;
+    cursor: grabbing !important;
 }
 
-/* ヘッダー: 必ず1行に収める（狭い画面でもドックが急激に高くならないよう折り返しは避ける） */
+body.loupe-resizing {
+    user-select: none;
+    cursor: nwse-resize !important;
+}
+
+/* タイトルバー（ドラッグ領域）: 必ず1行に収める。button/input/select/textarea/a上では
+   ドラッグを開始しない（onLoupeHeaderPointerDownがイベント委譲元で判定する） */
 .slot-overlay-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 14px;
-    min-height: 34px;
+    min-height: calc(34px * var(--bar-loupe-scale, 1));
     padding-bottom: 6px;
-    border-bottom: 1px solid rgba(253, 246, 238, 0.1);
+    border-bottom: 1px solid var(--paper-border-soft);
     overflow-x: auto;
+    cursor: grab;
 }
 
 .slot-overlay-head-main {
@@ -1219,9 +1247,9 @@ body.dock-open #screen-sheet-cruise {
 }
 
 .slot-overlay-title {
-    font-size: 15px;
+    font-size: calc(15px * var(--bar-loupe-scale, 1));
     font-weight: 800;
-    color: var(--secondary-color);
+    color: var(--paper-ink);
     letter-spacing: 0.02em;
 }
 
@@ -1231,9 +1259,9 @@ body.dock-open #screen-sheet-cruise {
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.04em;
-    color: var(--secondary-color);
-    background: rgba(255, 209, 102, 0.1);
-    border: 1px solid rgba(255, 209, 102, 0.28);
+    color: #8a4a0a;
+    background: rgba(255, 159, 28, 0.12);
+    border: 1px solid rgba(255, 159, 28, 0.3);
     white-space: nowrap;
 }
 
@@ -1250,13 +1278,14 @@ body.dock-open #screen-sheet-cruise {
     gap: 4px;
 }
 
+/* ボタン群: 紙面上に置かれた薄枠＋墨文字のボタンに見えること（ダークツールバー風にしない） */
 .slot-overlay-nav-btn {
     min-width: 56px;
     padding: 5px 10px;
-    border: 1px solid rgba(253, 246, 238, 0.22);
+    border: 1px solid var(--paper-border-soft);
     border-radius: 8px;
-    background: rgba(0, 0, 0, 0.28);
-    color: var(--text-color);
+    background: #ffffff;
+    color: var(--paper-ink);
     font-family: inherit;
     font-size: 12px;
     font-weight: 700;
@@ -1270,14 +1299,14 @@ body.dock-open #screen-sheet-cruise {
 }
 
 .slot-overlay-nav-btn:not(:disabled):hover {
-    border-color: rgba(255, 159, 28, 0.6);
+    border-color: var(--primary-color);
     background: rgba(255, 159, 28, 0.1);
 }
 
-/* 8分/16分の解像度セグメント切替 */
+/* 8分/16分の解像度セグメント切替。選択中だけアンバー強調 */
 .slot-overlay-res-toggle {
     display: flex;
-    border: 1px solid rgba(253, 246, 238, 0.22);
+    border: 1px solid var(--paper-border-soft);
     border-radius: 8px;
     overflow: hidden;
 }
@@ -1285,9 +1314,9 @@ body.dock-open #screen-sheet-cruise {
 .slot-overlay-res-btn {
     padding: 5px 10px;
     border: none;
-    border-right: 1px solid rgba(253, 246, 238, 0.16);
-    background: rgba(0, 0, 0, 0.28);
-    color: var(--muted-color);
+    border-right: 1px solid var(--paper-border-soft);
+    background: #ffffff;
+    color: var(--paper-muted);
     font-family: inherit;
     font-size: 12px;
     font-weight: 700;
@@ -1310,10 +1339,10 @@ body.dock-open #screen-sheet-cruise {
 
 .slot-overlay-reset-btn {
     padding: 5px 10px;
-    border: 1px solid rgba(255, 209, 102, 0.3);
+    border: 1px solid rgba(255, 159, 28, 0.4);
     border-radius: 8px;
-    background: rgba(255, 209, 102, 0.08);
-    color: var(--secondary-color);
+    background: rgba(255, 159, 28, 0.08);
+    color: #8a4a0a;
     font-family: inherit;
     font-size: 12px;
     font-weight: 700;
@@ -1322,15 +1351,15 @@ body.dock-open #screen-sheet-cruise {
 }
 
 .slot-overlay-reset-btn:hover {
-    background: rgba(255, 209, 102, 0.16);
+    background: rgba(255, 159, 28, 0.16);
 }
 
 .slot-overlay-bulk-toggle {
     padding: 5px 10px;
-    border: 1px solid rgba(253, 246, 238, 0.22);
+    border: 1px solid var(--paper-border-soft);
     border-radius: 8px;
-    background: rgba(0, 0, 0, 0.28);
-    color: var(--text-color);
+    background: #ffffff;
+    color: var(--paper-ink);
     font-family: inherit;
     font-size: 12px;
     font-weight: 700;
@@ -1340,13 +1369,13 @@ body.dock-open #screen-sheet-cruise {
 
 .slot-overlay-bulk-toggle:hover,
 .slot-overlay-bulk-toggle[aria-expanded="true"] {
-    border-color: rgba(255, 159, 28, 0.6);
+    border-color: var(--primary-color);
     background: rgba(255, 159, 28, 0.1);
 }
 
 .slot-overlay-hint {
     font-size: 10.5px;
-    color: var(--muted-color);
+    color: var(--paper-muted);
     white-space: nowrap;
 }
 
@@ -1354,10 +1383,10 @@ body.dock-open #screen-sheet-cruise {
     width: 26px;
     height: 26px;
     padding: 0;
-    border: 1px solid rgba(253, 246, 238, 0.22);
+    border: 1px solid var(--paper-border-soft);
     border-radius: 8px;
-    background: transparent;
-    color: var(--muted-color);
+    background: #ffffff;
+    color: var(--paper-muted);
     font-family: inherit;
     font-size: 13px;
     font-weight: 700;
@@ -1367,7 +1396,7 @@ body.dock-open #screen-sheet-cruise {
 
 .slot-overlay-close:hover {
     color: var(--error-color);
-    border-color: rgba(255, 79, 110, 0.45);
+    border-color: var(--error-color);
     background: rgba(255, 79, 110, 0.08);
 }
 
@@ -1397,12 +1426,12 @@ body.dock-open #screen-sheet-cruise {
     padding-left: 2px;
     font-size: 9.5px;
     font-weight: 800;
-    color: rgba(253, 246, 238, 0.4);
+    color: var(--paper-faint);
     border-right: 1px solid transparent;
 }
 
 .slot-overlay-ruler-cell.is-beat-head {
-    color: var(--secondary-color);
+    color: #8a4a0a;
 }
 
 .slot-overlay-ruler-cell.is-offbeat-dot::after {
@@ -1413,29 +1442,29 @@ body.dock-open #screen-sheet-cruise {
     width: 3px;
     height: 3px;
     border-radius: 50%;
-    background: rgba(253, 246, 238, 0.3);
+    background: var(--paper-faint);
     transform: translateY(-50%);
 }
 
-/* 境界線の強弱: 小節端 ＞ 拍頭 ＞ 8分位置 ＞ 16分位置（紙面のタイミンググリッドと同じ階層） */
+/* 境界線の強弱: 小節端 ＞ 拍頭 ＞ 8分位置 ＞ 16分位置（紙面のタイミンググリッドと同じ階層・トークン） */
 .slot-overlay-ruler-cell.is-beat,
 .dock-strum-cell.is-beat {
-    border-right-color: rgba(253, 246, 238, 0.28);
+    border-right-color: var(--paper-line-beat);
 }
 
 .slot-overlay-ruler-cell.is-8th,
 .dock-strum-cell.is-8th {
-    border-right-color: rgba(253, 246, 238, 0.14);
+    border-right-color: var(--paper-line-eighth);
 }
 
 .slot-overlay-ruler-cell.is-16th,
 .dock-strum-cell.is-16th {
-    border-right-color: rgba(253, 246, 238, 0.07);
+    border-right-color: var(--paper-line-sixteenth);
 }
 
 .slot-overlay-ruler-cell.is-barend,
 .dock-strum-cell.is-barend {
-    border-right-color: rgba(255, 159, 28, 0.55);
+    border-right-color: rgba(255, 159, 28, 0.65);
 }
 
 /* タイムグリッド本文: コード/ストローク/歌詞/ドレミの4段 */
@@ -1443,6 +1472,7 @@ body.dock-open #screen-sheet-cruise {
     display: flex;
     flex-direction: column;
     gap: 3px;
+    overflow-x: auto;
 }
 
 .slot-overlay-row {
@@ -1458,7 +1488,7 @@ body.dock-open #screen-sheet-cruise {
     font-size: 10.5px;
     font-weight: 700;
     letter-spacing: 0.06em;
-    color: var(--muted-color);
+    color: var(--paper-muted);
     text-transform: uppercase;
 }
 
@@ -1466,16 +1496,20 @@ body.dock-open #screen-sheet-cruise {
     flex: 1;
     min-width: 0;
     border-radius: 8px;
-    border: 1px solid rgba(253, 246, 238, 0.14);
-    background: rgba(0, 0, 0, 0.24);
+    border: 1px solid var(--paper-border-soft);
+    background: #ffffff;
     display: flex;
     align-items: center;
 }
 
 .slot-overlay-row--chord .slot-overlay-row-body,
-.slot-overlay-row--strum .slot-overlay-row-body { min-height: 30px; }
+.slot-overlay-row--strum .slot-overlay-row-body {
+    min-height: max(26px, calc(30px * var(--bar-loupe-scale, 1)));
+}
 .slot-overlay-row--lyrics .slot-overlay-row-body,
-.slot-overlay-row--doremi .slot-overlay-row-body { min-height: 34px; }
+.slot-overlay-row--doremi .slot-overlay-row-body {
+    min-height: max(28px, calc(34px * var(--bar-loupe-scale, 1)));
+}
 
 .slot-overlay-input {
     width: 100%;
@@ -1483,21 +1517,34 @@ body.dock-open #screen-sheet-cruise {
     padding: 6px 12px;
     border: none;
     background: transparent;
-    color: var(--text-color);
+    color: var(--paper-ink);
     font-family: inherit;
-    font-size: 15px;
+    font-size: max(12px, calc(15px * var(--bar-loupe-scale, 1)));
     font-weight: 600;
     line-height: 1.3;
 }
 
+.slot-overlay-row--chord .slot-overlay-input {
+    color: var(--paper-chord);
+    font-weight: 800;
+}
+
+.slot-overlay-row--lyrics .slot-overlay-input {
+    color: var(--paper-lyrics);
+}
+
+.slot-overlay-row--doremi .slot-overlay-input {
+    color: var(--paper-doremi);
+}
+
 .slot-overlay-input::placeholder {
-    color: rgba(253, 246, 238, 0.32);
+    color: var(--paper-faint);
     font-weight: 500;
 }
 
 .slot-overlay-input:focus {
     outline: none;
-    box-shadow: inset 0 0 0 2px rgba(255, 159, 28, 0.6);
+    box-shadow: inset 0 0 0 2px rgba(255, 159, 28, 0.55);
 }
 
 .slot-overlay-input.is-invalid {
@@ -1508,18 +1555,18 @@ body.dock-open #screen-sheet-cruise {
 .slot-overlay-row-note {
     font-size: 10px;
     font-weight: 600;
-    color: var(--muted-color);
+    color: var(--paper-muted);
     letter-spacing: 0.02em;
     white-space: nowrap;
     padding: 0 10px 0 0;
 }
 
-.slot-overlay-row-note--info { color: var(--secondary-color); }
-.slot-overlay-row-note--inherit { color: var(--muted-color); }
-.slot-overlay-row-note--muted { color: rgba(253, 246, 238, 0.34); }
+.slot-overlay-row-note--info { color: #8a4a0a; }
+.slot-overlay-row-note--inherit { color: var(--paper-muted); }
+.slot-overlay-row-note--muted { color: var(--paper-faint); }
 .slot-overlay-row-note--warning { color: var(--error-color); }
 
-/* ストローク行: 本格セル編集（D3aの実装対象）。基本ストローク継承中はゴースト表示にする */
+/* ストローク行: 本格セル編集（D3a由来）。基本ストローク継承中はゴースト表示にする */
 .slot-overlay-row-body--strum {
     flex-direction: column;
     align-items: stretch;
@@ -1533,8 +1580,8 @@ body.dock-open #screen-sheet-cruise {
     min-width: 0;
     border-radius: 8px;
     overflow: hidden;
-    border: 1px solid rgba(253, 246, 238, 0.14);
-    background: rgba(0, 0, 0, 0.24);
+    border: 1px solid var(--paper-border-soft);
+    background: rgba(255, 248, 235, 0.72);
 }
 
 .dock-strum-grid.is-inherited {
@@ -1543,15 +1590,15 @@ body.dock-open #screen-sheet-cruise {
 }
 
 .dock-strum-cell {
-    min-width: 0;
-    min-height: 30px;
+    min-width: max(18px, calc(24px * var(--bar-loupe-scale, 1)));
+    min-height: max(26px, calc(30px * var(--bar-loupe-scale, 1)));
     padding: 0;
     border: none;
     border-right: 1px solid transparent;
     background: transparent;
-    color: var(--text-color);
+    color: var(--paper-strum);
     font-family: inherit;
-    font-size: 15px;
+    font-size: max(12px, calc(16px * var(--bar-loupe-scale, 1)));
     font-weight: 800;
     line-height: 1;
     cursor: pointer;
@@ -1565,48 +1612,85 @@ body.dock-open #screen-sheet-cruise {
 }
 
 .dock-strum-cell:hover {
-    background: rgba(255, 159, 28, 0.08);
+    background: rgba(255, 159, 28, 0.14);
 }
 
 .dock-strum-cell.is-rest {
-    color: rgba(253, 246, 238, 0.28);
+    color: var(--paper-strum-rest);
     font-weight: 600;
 }
 
 .dock-strum-cell.is-sustain {
-    color: rgba(255, 209, 102, 0.55);
+    color: var(--paper-strum-sustain);
     font-weight: 600;
 }
 
 .dock-strum-cell.is-down,
 .dock-strum-cell.is-up {
-    color: var(--secondary-color);
-    background: rgba(255, 209, 102, 0.07);
+    color: var(--paper-strum-stroke);
+    background: rgba(255, 255, 255, 0.6);
 }
 
 .dock-strum-cell.is-mute {
-    color: #ff8a7a;
-    background: rgba(255, 79, 110, 0.07);
+    color: var(--paper-strum-mute);
+    background: rgba(255, 255, 255, 0.6);
 }
 
-@media (max-width: 720px) {
-    .slot-overlay {
-        max-height: 280px;
+/* 右下ハンドル: 幅ドラッグで全体を比例拡大縮小する（--bar-loupe-scale をJSが更新） */
+.slot-overlay-resize-handle {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    width: 24px;
+    height: 24px;
+    border-radius: 0 0 7px 0;
+    cursor: nwse-resize;
+    background:
+        linear-gradient(135deg, transparent 0 40%, var(--paper-border) 40% 46%, transparent 46% 60%,
+            var(--paper-border) 60% 66%, transparent 66% 80%, var(--paper-border) 80% 86%, transparent 86%);
+    opacity: 0.7;
+}
+
+.slot-overlay-resize-handle:hover {
+    opacity: 1;
+}
+
+@media (max-width: 679px) {
+    .slot-overlay-resize-handle {
+        display: none;
     }
 }
 
-/* まとめて入力ポップオーバー: ドック上側にフロート表示。通常のドック高さ・幅を消費しない */
+/* JS（applyLoupeGeometry）が isNarrowViewport() のときに付けるクラス。
+   media queryと同じ条件の保険（幅を強制した直後の1フレームでも確実に隠す） */
+.slot-overlay--narrow .slot-overlay-resize-handle {
+    display: none;
+}
+
+/* まとめて入力ポップオーバー: ルーペ上側にフロート表示。通常のルーペ高さ・幅を消費しない。
+   is-flip-down / is-flip-left はJS（positionBulkPopover）が画面外はみ出し時に付与する */
 .slot-overlay-bulk-popover {
     position: absolute;
-    right: 28px;
+    right: 20px;
     bottom: calc(100% + 8px);
     width: 400px;
     max-width: calc(100vw - 56px);
     padding: 14px 16px;
-    border: 1px solid rgba(255, 159, 28, 0.4);
-    border-radius: 14px;
-    background: linear-gradient(180deg, rgba(37, 31, 24, 0.98), rgba(15, 12, 10, 0.99));
-    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    border: 2px solid var(--primary-color);
+    border-radius: 12px;
+    background: var(--paper-bg);
+    color: var(--paper-ink);
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
+}
+
+.slot-overlay-bulk-popover.is-flip-down {
+    bottom: auto;
+    top: calc(100% + 8px);
+}
+
+.slot-overlay-bulk-popover.is-flip-left {
+    right: auto;
+    left: 20px;
 }
 
 .slot-overlay-bulk-body {
@@ -1618,10 +1702,10 @@ body.dock-open #screen-sheet-cruise {
 .slot-overlay-bulk-kind,
 .slot-overlay-bulk-text {
     min-width: 0;
-    border: 1px solid rgba(253, 246, 238, 0.18);
+    border: 1px solid var(--paper-border-soft);
     border-radius: 8px;
-    background: rgba(0, 0, 0, 0.28);
-    color: var(--text-color);
+    background: #ffffff;
+    color: var(--paper-ink);
     font-family: inherit;
     font-size: 13px;
 }
@@ -1632,8 +1716,8 @@ body.dock-open #screen-sheet-cruise {
 }
 
 .slot-overlay-bulk-kind option {
-    background: var(--surface-raised);
-    color: var(--text-color);
+    background: #ffffff;
+    color: var(--paper-ink);
 }
 
 .slot-overlay-bulk-text {
@@ -1652,10 +1736,10 @@ body.dock-open #screen-sheet-cruise {
 .slot-overlay-bulk-apply,
 .slot-overlay-bulk-close {
     padding: 8px 16px;
-    border: 1px solid rgba(253, 246, 238, 0.22);
+    border: 1px solid var(--paper-border-soft);
     border-radius: 8px;
-    background: rgba(0, 0, 0, 0.24);
-    color: var(--text-color);
+    background: #ffffff;
+    color: var(--paper-ink);
     font-family: inherit;
     font-size: 12.5px;
     font-weight: 700;
@@ -1664,7 +1748,7 @@ body.dock-open #screen-sheet-cruise {
 
 .slot-overlay-bulk-apply:hover,
 .slot-overlay-bulk-close:hover {
-    border-color: rgba(255, 159, 28, 0.55);
+    border-color: var(--primary-color);
     background: rgba(255, 159, 28, 0.1);
 }
 
@@ -1679,12 +1763,12 @@ body.dock-open #screen-sheet-cruise {
 
 .slot-overlay-bulk-message.is-ok {
     background: rgba(46, 204, 113, 0.14);
-    color: #4fd888;
+    color: #1f6941;
 }
 
 .slot-overlay-bulk-message.is-warning {
     background: rgba(255, 159, 28, 0.16);
-    color: var(--secondary-color);
+    color: #8a4a0a;
 }
 
 /* ══════════ フッター ══════════ */
