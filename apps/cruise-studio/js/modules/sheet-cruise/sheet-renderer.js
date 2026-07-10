@@ -1,4 +1,4 @@
-/* クルーズスタジオ — sheet-renderer.js（v0.15.0）
+/* クルーズスタジオ — sheet-renderer.js（v0.18.0でstrumNeedsSixteenthを公開。それ以外は無変更）
    StudioProject → A4固定紙面DOM のレンダラー（ADR-016）。
    「譜面は曲データのビュー」（APP_CONCEPT.md 4章）の紙面実装。
 
@@ -302,6 +302,9 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetRenderer = {
         render: render,
-        resolveShowSettings: resolveShowSettings
+        resolveShowSettings: resolveShowSettings,
+        // D3a: 下部ドックのタイムグリッド解像度判定（8分/16分）が紙面と同じ基準を使うための公開。
+        // ロジック自体は無変更（紙面のストローク段描画とドックのセル表示解像度の両方から使う）
+        strumNeedsSixteenth: strumNeedsSixteenth
     };
 })();

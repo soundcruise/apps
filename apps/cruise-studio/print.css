@@ -1,4 +1,4 @@
-/* クルーズスタジオ print.css — v0.17.0
+/* クルーズスタジオ print.css — v0.18.0
    ブラウザ印刷（PDF保存）用。A4紙面（.sheet-page）だけを印刷対象にし、
    編集UI・ナビ・ツールバーは印刷しない（ADR-010 / ADR-016）。
    画面は 794×1123px（A4@96dpi）、印刷はここで 210mm/297mm のmm指定へ寄せる。
@@ -34,7 +34,7 @@
    S1bの編集レイヤー（.slot-overlay）と、紙面上の
    画面専用装飾（.sheet-bar の選択ハイライト等）をここでまとめて除外する */
 .slot-overlay,
-.slot-overlay-bulk,
+.slot-overlay-bulk-popover,
 .sheet-edit-overlay {
     display: none !important;
 }

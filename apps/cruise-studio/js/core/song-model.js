@@ -8,7 +8,7 @@
 
     var theory = window.CruiseStudio && window.CruiseStudio.theory;
 
-    var APP_VERSION = '0.17.0';
+    var APP_VERSION = '0.18.0';
     var SCHEMA_VERSION = 1;
     var TICKS_PER_BEAT = 480;
 
@@ -491,33 +491,42 @@
         return getBasicStrumSlots(project);
     }
 
-    function setBarStrumText(project, barNumber, text) {
+    /**
+     * 小節のストロークを slots 配列で直接設定する（D3aのセル編集が使う低レベルAPI）。
+     * 小節専用パターンID管理（allocate/衝突回避/未参照掃除）はここに共通化してあり、
+     * setBarStrumText() もこの関数の上に薄いパーサとして乗る。
+     * slots が空配列なら override を外し、基本ストロークへ継承を戻す。
+     * @param {Array<{tick:number, action:string, accent?:boolean, durationTicks?:number}>} slots
+     * @returns {{inherited: boolean, patternId: string|null}}
+     */
+    function setBarStrumSlots(project, barNumber, slots) {
         var bar = findBar(project, barNumber);
-        if (!bar) return { warnings: [], inherited: true, patternId: null };
+        if (!bar) return { inherited: true, patternId: null };
         if (!Array.isArray(project.strumPatterns)) project.strumPatterns = [];
 
         var previousId = bar.strumOverride;
-        var built = buildStrumSlotsFromText(project, text);
-        var normalized = theory.strumSlotsToString(built.slots, built.barTicks, built.beats);
+        var barTicks = getBarLengthTicks(project);
+        var beats = getBeats(project);
+        var cleanSlots = Array.isArray(slots) ? slots.filter(Boolean) : [];
 
-        if (built.tokens.length === 0) {
+        if (cleanSlots.length === 0) {
             bar.strumOverride = null;
             if (isManagedBarStrumId(previousId) && !isStrumPatternReferenced(project, previousId)) {
                 removeStrumPatternById(project, previousId);
             }
             cleanupUnusedBarStrumPatterns(project);
-            return { warnings: built.warnings, inherited: true, patternId: null };
+            return { inherited: true, patternId: null };
         }
 
         var patternId = isManagedBarStrumId(previousId) ? previousId : allocateBarStrumPatternId(project, bar);
         var pattern = findStrumPattern(project, patternId);
         if (!pattern) {
-            pattern = { id: patternId, name: '', lengthTicks: built.barTicks, slots: [] };
+            pattern = { id: patternId, name: '', lengthTicks: barTicks, slots: [] };
             project.strumPatterns.push(pattern);
         }
-        pattern.lengthTicks = built.barTicks;
-        pattern.slots = built.slots;
-        pattern.name = normalized || ('bar ' + bar.barNumber);
+        pattern.lengthTicks = barTicks;
+        pattern.slots = cleanSlots;
+        pattern.name = theory.strumSlotsToString(cleanSlots, barTicks, beats) || ('bar ' + bar.barNumber);
         bar.strumOverride = patternId;
 
         if (previousId && previousId !== patternId &&
@@ -525,7 +534,20 @@
             removeStrumPatternById(project, previousId);
         }
         cleanupUnusedBarStrumPatterns(project);
-        return { warnings: built.warnings, inherited: false, patternId: patternId };
+        return { inherited: false, patternId: patternId };
+    }
+
+    /**
+     * 基本ストロークを記号テキストで設定する（既存のR1入力欄用）。
+     * 文字列パース → slots生成 → setBarStrumSlots() の順に処理を委譲する。
+     * @returns {{warnings: string[]}}
+     */
+    function setBarStrumText(project, barNumber, text) {
+        var bar = findBar(project, barNumber);
+        if (!bar) return { warnings: [], inherited: true, patternId: null };
+        var built = buildStrumSlotsFromText(project, text);
+        var res = setBarStrumSlots(project, barNumber, built.slots);
+        return { warnings: built.warnings, inherited: res.inherited, patternId: res.patternId };
     }
 
     /**
@@ -860,6 +882,7 @@
         getBasicStrumSlots: getBasicStrumSlots,
         getBarStrumOverrideText: getBarStrumOverrideText,
         getBarEffectiveStrumSlots: getBarEffectiveStrumSlots,
+        setBarStrumSlots: setBarStrumSlots,
         setBarStrumText: setBarStrumText,
         validateProject: validateProject,
         migrateProject: migrateProject,

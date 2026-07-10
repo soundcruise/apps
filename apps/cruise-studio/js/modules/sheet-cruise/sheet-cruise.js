@@ -1,12 +1,15 @@
-/* クルーズスタジオ — sheet-cruise.js（Phase 2B / R2、UI再編D1/D2でレイアウトのみ改修）
+/* クルーズスタジオ — sheet-cruise.js（Phase 2B / R2、UI再編D1/D2/D3aでレイアウトのみ改修）
    譜面クルーズ画面: プロジェクト選択・曲情報フォーム・キー関係チェック・
    セクション管理・小節グリッド（1小節1コード入力）・簡易プレビュー・保存。
    歌詞・ドレミ入力とA4紙面プレビューは Phase 2C / Phase 3。
    D1（docs/DECISIONS.md ADR-025）: 曲情報・セクション・表示設定・小節グリッドは
    上部ドロワー（#sc-editor-drawer）へ移動。
    D2 MVP（同ADR-025）: 小節上の極小overlay（S1b〜R2）を画面下部の横長ドックへ移設。
-   入力欄の内部構造・保存ロジックは流用し、位置決めのみ変更した（座標追従は廃止し、
-   選択中だけ画面下に固定表示）。
+   D3a（同ADR-025）: 巨大な縦積みフォーム型ドックを、選択小節と同じ時間軸を持つ
+   コンパクトなタイムグリッド・ドックへ変更（「選択小節のX線写真」）。本格セル編集は
+   ストローク行のみ。コードは1小節1セル、歌詞・ドレミは見た目だけ時間軸へ揃え、
+   入力方式は現行の小節単位文字列入力のまま（tick位置セル分解はD3bで扱う）。
+   まとめて入力はヘッダーのボタンから開くポップオーバー化。
    保存/復元/JSON/プレDTM/MIDIの経路・データ構造は変更しない。
    グローバル名前空間 CruiseStudio.sheetCruise に登録する。 */
 (function () {
@@ -20,12 +23,13 @@
     // プレビューの1行あたり小節数は sheetSettings.barsPerLine（既定2）。
     // 歌詞もドレミもないセクション（前奏などのコードのみ）は2倍詰めで表示する。
 
-    var SLOT_OVERLAY_ROWS = [
-        { id: 'chord', label: 'コード' },
-        { id: 'strum', label: 'ストローク' },
-        { id: 'lyrics', label: '歌詞' },
-        { id: 'doremi', label: 'ドレミ' }
-    ];
+    // D3a: ドックの行順とラベル（コード/ストロークは特別扱い、歌詞/ドレミは通常の文字列入力）
+    var DOCK_ROW_ORDER = ['chord', 'strum', 'lyrics', 'doremi'];
+    var DOCK_ROW_LABELS = { chord: 'コード', strum: 'ストローク', lyrics: '歌詞', doremi: 'ドレミ' };
+
+    // D3a: ストロークセルのクリック循環順（空/restから開始）
+    var STRUM_CELL_CYCLE = ['down', 'up', 'mute', 'rest'];
+    var STRUM_GLYPHS = { down: '↓', up: '↑', mute: 'x', rest: '・', sustain: '〜' };
 
     var state = {
         project: null,   // 編集中の StudioProject
@@ -35,7 +39,10 @@
         overlayComposingRowId: null,
         overlayBulkComposing: false,
         overlayBulkMessage: null,
-        overlayWarnings: {}
+        overlayWarnings: {},
+        dockManualRes: {},     // D3a: barNumber → 16（ユーザーが一時的に選んだ16分表示。保存しない）
+        dockBulkOpen: false,   // D3a: まとめて入力ポップオーバーの開閉状態（UI一時状態）
+        lastAutoScrollBar: null // D3a: 自動スクロールを選択が変わった時だけ行うための直前値
     };
 
     var els = {};
@@ -511,33 +518,21 @@
 
     function getOverlayFieldValue(rowId, bar) {
         if (rowId === 'chord') return (bar.chords[0] && bar.chords[0].symbol) || '';
-        if (rowId === 'strum') return CS().model.getBarStrumOverrideText(state.project, bar.barNumber);
         if (rowId === 'lyrics') return CS().model.getBarLyricsText(bar);
         if (rowId === 'doremi') return CS().model.getBarDoremiText(bar);
         return '';
     }
 
-    function getOverlayPlaceholder(rowId, bar) {
+    function getOverlayPlaceholder(rowId) {
         if (rowId === 'chord') return 'コードを入力';
-        if (rowId === 'strum') {
-            var basic = CS().model.getBasicStrumText(state.project);
-            return basic ? ('基本: ' + basic) : '空欄ならストロークなし';
-        }
         if (rowId === 'lyrics') return '歌詞を入力';
         if (rowId === 'doremi') return 'ドレミを入力';
         return '';
     }
 
-    function getOverlayNote(rowId, bar) {
+    function getOverlayNote(rowId) {
         var warnings = state.overlayWarnings[rowId] || [];
         if (warnings.length > 0) return { text: warnings.join(' / '), tone: 'warning' };
-        if (rowId === 'strum') {
-            var override = CS().model.getBarStrumOverrideText(state.project, bar.barNumber);
-            var basic = CS().model.getBasicStrumText(state.project);
-            if (override) return { text: '小節別上書き中。空にすると基本ストロークへ戻ります', tone: 'info' };
-            if (basic) return { text: '基本ストロークを継承: ' + basic, tone: 'inherit' };
-            return { text: '空欄のままならこの小節のストローク段は表示しません', tone: 'muted' };
-        }
         return null;
     }
 
@@ -614,11 +609,6 @@
             validateChordInput(input);
             state.overlayWarnings[rowId] = input.classList.contains('is-invalid') ?
                 [input.title] : [];
-        } else if (rowId === 'strum') {
-            warnings = CS().model.setBarStrumText(state.project, bar.barNumber, input.value).warnings;
-            state.overlayWarnings[rowId] = warnings;
-            input.classList.toggle('is-invalid', warnings.length > 0);
-            input.title = warnings.join(' / ');
         } else if (rowId === 'lyrics') {
             CS().model.setBarLyricsText(state.project, bar.barNumber, input.value);
             state.overlayWarnings[rowId] = [];
@@ -650,7 +640,7 @@
         input.setAttribute('aria-label', bar.barNumber + '小節目の' + rowDef.label);
         if (rowDef.id === 'chord') {
             validateChordInput(input);
-        } else if (rowDef.id === 'strum' || rowDef.id === 'doremi') {
+        } else if (rowDef.id === 'doremi') {
             var warnings = state.overlayWarnings[rowDef.id] || [];
             input.classList.toggle('is-invalid', warnings.length > 0);
             input.title = warnings.join(' / ');
@@ -705,7 +695,14 @@
         if (!rowId || !els.slotOverlay) return;
         window.requestAnimationFrame(function () {
             var field = els.slotOverlay.querySelector('[data-overlay-field="' + rowId + '"]');
-            if (field) field.focus({ preventScroll: true });
+            if (!field) return;
+            if (rowId === 'strum') {
+                // strum行はinputではなくセルグリッド（.dock-strum-grid）。先頭セルへフォーカスする
+                var firstCell = field.querySelector('.dock-strum-cell');
+                if (firstCell) firstCell.focus({ preventScroll: true });
+                return;
+            }
+            field.focus({ preventScroll: true });
         });
     }
 
@@ -722,9 +719,16 @@
     function commitActiveOverlayInput(options) {
         if (!els.slotOverlay) return null;
         var active = document.activeElement;
-        if (!active || !active.dataset || !active.dataset.overlayField) return null;
-        applyOverlayFieldChange(active.dataset.overlayField, active, options || { skipRender: true });
-        return active.dataset.overlayField;
+        if (!active) return null;
+        if (active.dataset && active.dataset.overlayField) {
+            applyOverlayFieldChange(active.dataset.overlayField, active, options || { skipRender: true });
+            return active.dataset.overlayField;
+        }
+        // D3a: ストロークセルは編集のたびに即保存されているため、ここではフォーカス先だけ伝える
+        if (active.classList && active.classList.contains('dock-strum-cell')) {
+            return 'strum';
+        }
+        return null;
     }
 
     function buildOverlayNavButton(label, delta) {
@@ -745,6 +749,343 @@
             event.stopPropagation();
         });
         return button;
+    }
+
+    /* ══════════ D3a: 下部ドックのタイムグリッド（拍ルーラー・ストロークセル編集） ══════════
+       Fable5レビュー「選択小節のX線写真」方針。紙面と同じ段順（コード/ストローク/歌詞/ドレミ）を
+       選択小節の時間軸のまま横に拡大する。本格的にセル編集するのはストローク行のみ。
+       コードは1小節1コードの大きな1セル、歌詞・ドレミは見た目だけ時間軸に揃えた1つの入力欄
+       （tick位置セルへの分解はD3bで扱う）。 */
+
+    function getBeats(project) {
+        var ts = project && project.songInfo && project.songInfo.timeSignature;
+        return (ts && typeof ts.beats === 'number' && ts.beats > 0) ? ts.beats : 4;
+    }
+
+    /**
+     * 境界線（セル右端）の強弱class。紙面のタイミンググリッド（sheet-renderer.js内の
+     * buildTimingGridと同じ判定基準）に合わせる: 小節端 ＞ 拍頭 ＞ 8分位置 ＞ 16分位置。
+     */
+    function timelineBoundaryClass(boundary, res, slotsPerBeat) {
+        if (boundary >= res) return 'is-barend';
+        if (boundary % slotsPerBeat === 0) return 'is-beat';
+        if (res === 16) return (boundary % 2 === 0) ? 'is-8th' : 'is-16th';
+        return 'is-8th';
+    }
+
+    /**
+     * 小節のストローク表示解像度（8 or 16）。
+     * 「データから必要な解像度」（16分位置のslotsを含むか）と
+     * 「ユーザーが一時的に選んだ解像度」（state.dockManualRes。barNumberごとに保持。
+     * _proto/slot-editor.js の barResOverride と同じ思想でUI一時状態のみ）の大きい方を使う。
+     */
+    function getStrumGridResolution(bar) {
+        var slots = CS().model.getBarEffectiveStrumSlots(state.project, bar.barNumber);
+        var dataRes = (slots && CS().sheetRenderer.strumNeedsSixteenth(slots)) ? 16 : 8;
+        var manualRes = (state.dockManualRes[bar.barNumber] === 16) ? 16 : 8;
+        return Math.max(dataRes, manualRes);
+    }
+
+    function isStrumGridForcedSixteenth(bar) {
+        var slots = CS().model.getBarEffectiveStrumSlots(state.project, bar.barNumber);
+        return !!(slots && CS().sheetRenderer.strumNeedsSixteenth(slots));
+    }
+
+    /**
+     * 実効ストロークslots（override優先、無ければ基本継承）を、指定解像度のセル配列へ変換する。
+     * 各要素は 'rest' | 'down' | 'up' | 'mute' | 'sustain'（直前セルの伸ばし継続）。
+     */
+    function buildStrumGridActions(bar, res) {
+        var model = CS().model;
+        var barTicks = model.getBarLengthTicks(state.project);
+        var slotTicks = barTicks / res;
+        var slots = model.getBarEffectiveStrumSlots(state.project, bar.barNumber) || [];
+        var actions = [];
+        for (var i = 0; i < res; i++) actions.push('rest');
+        slots.forEach(function (ev) {
+            var idx = Math.round(ev.tick / slotTicks);
+            if (idx < 0 || idx >= res) return;
+            if (ev.action === 'down' || ev.action === 'up' || ev.action === 'mute') actions[idx] = ev.action;
+            var len = Math.max(1, Math.round((ev.durationTicks || slotTicks) / slotTicks));
+            for (var e = 1; e < len && idx + e < res; e++) {
+                if (actions[idx + e] === 'rest') actions[idx + e] = 'sustain';
+            }
+        });
+        return actions;
+    }
+
+    /**
+     * セル配列から保存用のslots配列を作る。連続する'sustain'は直前の実音セルの
+     * durationTicksを延長する（既存のテキスト入力パーサーと同じ「直前を伸ばす」思想）。
+     */
+    function buildStrumSlotsFromActions(res, actions) {
+        var barTicks = CS().model.getBarLengthTicks(state.project);
+        var slotTicks = barTicks / res;
+        var slots = [];
+        var i = 0;
+        while (i < res) {
+            var action = actions[i];
+            if (action === 'down' || action === 'up' || action === 'mute') {
+                var dur = slotTicks;
+                var j = i + 1;
+                while (j < res && actions[j] === 'sustain') { dur += slotTicks; j++; }
+                slots.push({ tick: i * slotTicks, action: action, accent: false, durationTicks: dur });
+                i = j;
+            } else {
+                i++;
+            }
+        }
+        return slots;
+    }
+
+    function nextStrumCellAction(current) {
+        var idx = STRUM_CELL_CYCLE.indexOf(current);
+        if (idx === -1) return 'down'; // rest / sustain / 未設定 は down から開始
+        return STRUM_CELL_CYCLE[(idx + 1) % STRUM_CELL_CYCLE.length];
+    }
+
+    function focusStrumCellAfterRender(index) {
+        window.requestAnimationFrame(function () {
+            if (!els.slotOverlay) return;
+            var cell = els.slotOverlay.querySelector('.dock-strum-cell[data-cell-index="' + index + '"]');
+            if (cell) cell.focus({ preventScroll: true });
+        });
+    }
+
+    function focusStrumCellByIndex(index) {
+        if (!els.slotOverlay) return;
+        var grid = els.slotOverlay.querySelector('.dock-strum-grid');
+        if (!grid) return;
+        var cells = grid.querySelectorAll('.dock-strum-cell');
+        if (cells.length === 0) return;
+        var clamped = Math.max(0, Math.min(cells.length - 1, index));
+        cells[clamped].focus({ preventScroll: true });
+    }
+
+    /**
+     * ストロークセル1つを変更して保存する。基本ストローク継承中（override未作成）の
+     * 小節は、現在の継承内容を丸ごとコピーしたうえで1セルだけ変えた形で
+     * setBarStrumSlots() に渡す＝これが「最初の編集で小節専用override化」になる。
+     */
+    function applyStrumCellAction(bar, res, index, action, focusIndex) {
+        var actions = buildStrumGridActions(bar, res);
+        if (index < 0 || index >= actions.length) return;
+        actions[index] = action;
+        var slots = buildStrumSlotsFromActions(res, actions);
+        CS().model.setBarStrumSlots(state.project, bar.barNumber, slots);
+        markDirty();
+        renderPreview();
+        focusStrumCellAfterRender(typeof focusIndex === 'number' ? focusIndex : index);
+    }
+
+    /**
+     * 「基本に戻す」。override を外して基本ストロークの継承へ戻す
+     * （setBarStrumSlotsに空配列を渡すと override=null になる既存挙動を利用）。
+     */
+    function resetBarStrumOverride(bar) {
+        CS().model.setBarStrumSlots(state.project, bar.barNumber, []);
+        markDirty();
+        renderPreview();
+    }
+
+    function onStrumCellKeydown(event, bar, res, index, currentAction) {
+        if (event.isComposing) return;
+        var key = event.key;
+
+        if (event.altKey && (key === 'ArrowLeft' || key === 'ArrowRight')) {
+            event.preventDefault();
+            moveSelectedBar(key === 'ArrowLeft' ? -1 : 1, { focusRowId: 'strum' });
+            return;
+        }
+        if (key === 'ArrowRight') {
+            event.preventDefault();
+            focusStrumCellByIndex(index + 1);
+            return;
+        }
+        if (key === 'ArrowLeft') {
+            event.preventDefault();
+            focusStrumCellByIndex(index - 1);
+            return;
+        }
+        if (key === 'd' || key === 'D') {
+            event.preventDefault();
+            applyStrumCellAction(bar, res, index, 'down');
+            return;
+        }
+        if (key === 'u' || key === 'U') {
+            event.preventDefault();
+            applyStrumCellAction(bar, res, index, 'up');
+            return;
+        }
+        if (key === 'x' || key === 'X') {
+            event.preventDefault();
+            applyStrumCellAction(bar, res, index, 'mute');
+            return;
+        }
+        if (key === ' ' || key === 'Spacebar') {
+            // ネイティブのbutton click（=セル循環）を誘発しないよう、rest確定はこちらで処理する
+            event.preventDefault();
+            applyStrumCellAction(bar, res, index, 'rest');
+            return;
+        }
+        if (key === 'Delete' || key === 'Backspace') {
+            event.preventDefault();
+            applyStrumCellAction(bar, res, index, 'rest');
+            return;
+        }
+        if (key === 'Enter') {
+            event.preventDefault();
+            applyStrumCellAction(bar, res, index, nextStrumCellAction(currentAction), index + 1);
+            return;
+        }
+        // Tab / Shift+Tab はブラウザ標準のフォーカス移動に任せる（セルはbuttonなので隣へ自然に移る）
+        event.stopPropagation();
+    }
+
+    function buildStrumGridRow(bar, res) {
+        var actions = buildStrumGridActions(bar, res);
+        var slotsPerBeat = res / getBeats(state.project);
+        var inherited = !bar.strumOverride; // 基本ストローク継承中（override未作成）はゴースト表示
+
+        var wrap = document.createElement('div');
+        wrap.className = 'dock-strum-grid' + (inherited ? ' is-inherited' : '');
+        wrap.dataset.overlayField = 'strum';
+        wrap.title = getStrumGridStatusText(bar);
+        wrap.style.gridTemplateColumns = 'repeat(' + res + ', 1fr)';
+
+        actions.forEach(function (action, index) {
+            var cell = document.createElement('button');
+            cell.type = 'button';
+            var boundary = index + 1;
+            cell.className = 'dock-strum-cell is-' + action + ' ' +
+                timelineBoundaryClass(boundary, res, slotsPerBeat);
+            cell.textContent = STRUM_GLYPHS[action] || '・';
+            cell.dataset.cellIndex = String(index);
+            cell.setAttribute('aria-label', bar.barNumber + '小節目 ストローク ' +
+                (index + 1) + 'マス目（' + (STRUM_GLYPHS[action] || '・') + '）');
+            cell.addEventListener('click', function (event) {
+                event.stopPropagation();
+                applyStrumCellAction(bar, res, index, nextStrumCellAction(action));
+            });
+            cell.addEventListener('mousedown', function (event) { event.stopPropagation(); });
+            cell.addEventListener('keydown', function (event) {
+                onStrumCellKeydown(event, bar, res, index, action);
+            });
+            wrap.appendChild(cell);
+        });
+        return wrap;
+    }
+
+    /**
+     * ストローク行の状態メモ（基本継承中 / override中 / 空）。
+     * 行の高さを消費しないよう、常時表示のテキストではなく title（ツールチップ）にする。
+     * ゴースト表示（.is-inherited）と「基本に戻す」ボタンの有無で視覚的にも状態が分かる。
+     */
+    function getStrumGridStatusText(bar) {
+        var basic = CS().model.getBasicStrumText(state.project);
+        if (bar.strumOverride) return '小節別に編集中（基本ストロークとは別内容）。「基本に戻す」で継承へ戻せます';
+        if (basic) return '基本ストロークを継承表示中。セルを編集すると小節専用になります';
+        return 'まだ何も入力されていません。セルをクリックまたはキーボードで入力できます';
+    }
+
+    function buildBeatRuler(bar, res) {
+        var beats = getBeats(state.project);
+        var slotsPerBeat = res / beats;
+
+        var ruler = document.createElement('div');
+        ruler.className = 'slot-overlay-ruler';
+
+        var spacer = document.createElement('span');
+        spacer.className = 'slot-overlay-ruler-label';
+        ruler.appendChild(spacer);
+
+        var track = document.createElement('div');
+        track.className = 'slot-overlay-ruler-track';
+        track.style.gridTemplateColumns = 'repeat(' + res + ', 1fr)';
+        for (var i = 0; i < res; i++) {
+            var cell = document.createElement('span');
+            var boundary = i + 1;
+            cell.className = 'slot-overlay-ruler-cell ' + timelineBoundaryClass(boundary, res, slotsPerBeat);
+            if (i % slotsPerBeat === 0) {
+                cell.classList.add('is-beat-head');
+                cell.textContent = String(Math.floor(i / slotsPerBeat) + 1);
+            } else if (res === 8 && slotsPerBeat === 2 && i % slotsPerBeat === 1) {
+                cell.classList.add('is-offbeat-dot');
+            }
+            track.appendChild(cell);
+        }
+        ruler.appendChild(track);
+        return ruler;
+    }
+
+    function buildResolutionToggle(bar) {
+        var res = getStrumGridResolution(bar);
+        var forced = isStrumGridForcedSixteenth(bar);
+
+        var wrap = document.createElement('div');
+        wrap.className = 'slot-overlay-res-toggle';
+
+        var btn8 = document.createElement('button');
+        btn8.type = 'button';
+        btn8.className = 'slot-overlay-res-btn';
+        btn8.textContent = '8分';
+        btn8.classList.toggle('is-active', res === 8);
+        btn8.disabled = forced;
+        btn8.title = forced ? 'ストロークに16分位置があるため8分表示にはできません' : '';
+        btn8.addEventListener('click', function (event) {
+            event.stopPropagation();
+            delete state.dockManualRes[bar.barNumber];
+            renderSlotOverlayContent();
+            positionSlotOverlay();
+        });
+
+        var btn16 = document.createElement('button');
+        btn16.type = 'button';
+        btn16.className = 'slot-overlay-res-btn';
+        btn16.textContent = '16分';
+        btn16.classList.toggle('is-active', res === 16);
+        btn16.addEventListener('click', function (event) {
+            event.stopPropagation();
+            state.dockManualRes[bar.barNumber] = 16;
+            renderSlotOverlayContent();
+            positionSlotOverlay();
+        });
+
+        [btn8, btn16].forEach(function (b) {
+            b.addEventListener('mousedown', function (event) { event.stopPropagation(); });
+        });
+
+        wrap.appendChild(btn8);
+        wrap.appendChild(btn16);
+        return wrap;
+    }
+
+    /* ══════════ D3a: 自動スクロール（選択小節がドック裏へ隠れないようにする） ══════════ */
+
+    function scrollSelectedBarIntoDockView(barNumber) {
+        var cell = getSheetBarByNumber(barNumber);
+        if (!cell || !els.slotOverlay || els.slotOverlay.classList.contains('hidden')) return;
+        var dockRect = els.slotOverlay.getBoundingClientRect();
+        var cellRect = cell.getBoundingClientRect();
+        var margin = 16;
+        if (cellRect.bottom > dockRect.top - margin) {
+            window.scrollBy({ top: cellRect.bottom - (dockRect.top - margin), behavior: 'smooth' });
+        } else if (cellRect.top < 0) {
+            window.scrollBy({ top: cellRect.top - margin, behavior: 'smooth' });
+        }
+    }
+
+    /**
+     * 選択小節が変わった時だけ自動スクロールする（入力中の再描画毎には行わない）。
+     */
+    function maybeAutoScrollToSelection() {
+        if (state.selectedBarNumber === state.lastAutoScrollBar) return;
+        state.lastAutoScrollBar = state.selectedBarNumber;
+        if (!state.selectedBarNumber) return;
+        var barNumber = state.selectedBarNumber;
+        window.requestAnimationFrame(function () {
+            scrollSelectedBarIntoDockView(barNumber);
+        });
     }
 
     function tokenizeBulkChords(text) {
@@ -810,14 +1151,16 @@
         renderPreview();
     }
 
+    /**
+     * D3a: 「まとめて入力」をヘッダーのボタンから開くポップオーバーにする
+     * （常設右カラムは廃止。ドックの通常高さ・幅は消費しない）。
+     * 中身（コード/歌詞/ドレミのまとめて入力）はD2までのロジックをそのまま再利用する。
+     */
     function buildBulkInputPanel() {
-        var panel = document.createElement('details');
-        panel.className = 'slot-overlay-bulk';
-        panel.open = !!state.overlayBulkMessage;
-
-        var summary = document.createElement('summary');
-        summary.textContent = 'まとめて入力';
-        panel.appendChild(summary);
+        var panel = document.createElement('div');
+        panel.className = 'slot-overlay-bulk-popover';
+        panel.setAttribute('role', 'dialog');
+        panel.setAttribute('aria-label', 'まとめて入力');
 
         var body = document.createElement('div');
         body.className = 'slot-overlay-bulk-body';
@@ -859,7 +1202,8 @@
         close.textContent = '閉じる';
         close.addEventListener('click', function (event) {
             event.stopPropagation();
-            panel.open = false;
+            state.dockBulkOpen = false;
+            renderSlotOverlayContent();
         });
 
         actions.appendChild(apply);
@@ -894,10 +1238,50 @@
         return panel;
     }
 
+    function buildBulkToggleButton() {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'slot-overlay-bulk-toggle';
+        btn.textContent = 'まとめて入力';
+        btn.setAttribute('aria-haspopup', 'true');
+        btn.setAttribute('aria-expanded', state.dockBulkOpen ? 'true' : 'false');
+        btn.addEventListener('click', function (event) {
+            event.stopPropagation();
+            state.dockBulkOpen = !state.dockBulkOpen;
+            renderSlotOverlayContent();
+        });
+        btn.addEventListener('mousedown', function (event) { event.stopPropagation(); });
+        return btn;
+    }
+
     /**
-     * D2: 画面下部の編集ドック本体を組み立てる。
-     * 内部の行構造（chord/strum/lyrics/doremi）・入力ロジックはS1b〜R2から流用し、
-     * ヘッダーに「何小節目を編集中か」「セクション名」「前へ/次へ」「閉じる」を追加した。
+     * D3a: まとめて入力ポップオーバーの外側クリック / Escapeで閉じる。
+     * init() で一度だけ登録するグローバルリスナー（ドックは毎描画で作り直されるため）。
+     */
+    function onDocumentClickForBulkPopover(event) {
+        if (!state.dockBulkOpen || !els.slotOverlay) return;
+        var popover = els.slotOverlay.querySelector('.slot-overlay-bulk-popover');
+        var toggleBtn = els.slotOverlay.querySelector('.slot-overlay-bulk-toggle');
+        if (popover && popover.contains(event.target)) return;
+        if (toggleBtn && toggleBtn.contains(event.target)) return;
+        state.dockBulkOpen = false;
+        renderSlotOverlayContent();
+    }
+
+    function onDocumentKeydownForBulkPopover(event) {
+        if (!state.dockBulkOpen) return;
+        if (event.key === 'Escape') {
+            state.dockBulkOpen = false;
+            renderSlotOverlayContent();
+        }
+    }
+
+    /**
+     * D3a: 画面下部の編集ドック本体を組み立てる（「選択小節のX線写真」）。
+     * 紙面と同じ段順（コード/ストローク/歌詞/ドレミ）を、選択小節と同じ時間軸のまま
+     * コンパクトなタイムグリッドとして表示する。本格セル編集はストローク行のみ。
+     * ヘッダーは1行に集約: 小節番号・セクション名・前へ/次へ・8分/16分・
+     * （override中のみ）基本に戻す・まとめて入力・Alt+←/→ヒント・閉じる。
      */
     function renderSlotOverlayContent() {
         if (!els.slotOverlay) return;
@@ -918,7 +1302,7 @@
         headMain.className = 'slot-overlay-head-main';
         var title = document.createElement('span');
         title.className = 'slot-overlay-title';
-        title.textContent = bar.barNumber + '小節目を編集中';
+        title.textContent = bar.barNumber + '小節目';
         headMain.appendChild(title);
         var sectionName = getBarSectionName(bar);
         if (sectionName) {
@@ -930,17 +1314,40 @@
 
         var headActions = document.createElement('div');
         headActions.className = 'slot-overlay-head-actions';
+
         var nav = document.createElement('div');
         nav.className = 'slot-overlay-nav';
         nav.appendChild(buildOverlayNavButton('← 前へ', -1));
         nav.appendChild(buildOverlayNavButton('次へ →', 1));
+        headActions.appendChild(nav);
+
+        headActions.appendChild(buildResolutionToggle(bar));
+
+        if (bar.strumOverride) {
+            var resetBtn = document.createElement('button');
+            resetBtn.type = 'button';
+            resetBtn.className = 'slot-overlay-reset-btn';
+            resetBtn.textContent = '基本に戻す';
+            resetBtn.title = 'ストロークの小節別上書きをやめて、基本ストロークの継承へ戻します';
+            resetBtn.addEventListener('click', function (event) {
+                event.stopPropagation();
+                resetBarStrumOverride(bar);
+            });
+            resetBtn.addEventListener('mousedown', function (event) { event.stopPropagation(); });
+            headActions.appendChild(resetBtn);
+        }
+
+        headActions.appendChild(buildBulkToggleButton());
+
         var hint = document.createElement('span');
         hint.className = 'slot-overlay-hint';
-        hint.textContent = 'Alt+←/→でも移動できます';
+        hint.textContent = 'Alt+←/→で移動';
+        headActions.appendChild(hint);
+
         var closeBtn = document.createElement('button');
         closeBtn.type = 'button';
         closeBtn.className = 'slot-overlay-close';
-        closeBtn.textContent = '✕ 閉じる';
+        closeBtn.textContent = '✕';
         closeBtn.setAttribute('aria-label', '編集ドックを閉じる');
         closeBtn.addEventListener('click', function (event) {
             event.stopPropagation();
@@ -949,45 +1356,53 @@
         closeBtn.addEventListener('mousedown', function (event) {
             event.stopPropagation();
         });
-        headActions.appendChild(nav);
-        headActions.appendChild(hint);
         headActions.appendChild(closeBtn);
 
         head.appendChild(headMain);
         head.appendChild(headActions);
+        els.slotOverlay.appendChild(head);
 
-        var rows = document.createElement('div');
-        rows.className = 'slot-overlay-rows';
-        SLOT_OVERLAY_ROWS.forEach(function (rowDef) {
+        // 拍ルーラー（コード/ストローク/歌詞/ドレミの共通時間軸）
+        var res = getStrumGridResolution(bar);
+        els.slotOverlay.appendChild(buildBeatRuler(bar, res));
+
+        // タイムグリッド本文: コード=1小節1セル / ストローク=本格セル編集 /
+        // 歌詞・ドレミ=時間軸に揃えた1つの入力欄（tick位置セル分解はD3b）
+        var grid = document.createElement('div');
+        grid.className = 'slot-overlay-grid';
+
+        DOCK_ROW_ORDER.forEach(function (rowId) {
+            var rowDef = { id: rowId, label: DOCK_ROW_LABELS[rowId] };
             var row = document.createElement('div');
-            row.className = 'slot-overlay-row slot-overlay-row--' + rowDef.id;
-            row.dataset.editorRow = rowDef.id;
+            row.className = 'slot-overlay-row slot-overlay-row--' + rowId;
 
             var rowLabel = document.createElement('span');
             rowLabel.className = 'slot-overlay-row-label';
             rowLabel.textContent = rowDef.label;
-
-            var rowBody = document.createElement('div');
-            rowBody.className = 'slot-overlay-row-body';
-            if (rowDef.id === 'chord' || rowDef.id === 'strum' ||
-                rowDef.id === 'lyrics' || rowDef.id === 'doremi') {
-                rowBody.appendChild(buildOverlayInput(rowDef, bar));
-                var note = buildOverlayNote(rowDef.id, bar);
-                if (note) rowBody.appendChild(note);
-            }
-
             row.appendChild(rowLabel);
-            row.appendChild(rowBody);
-            rows.appendChild(row);
+
+            if (rowId === 'strum') {
+                var strumWrap = document.createElement('div');
+                strumWrap.className = 'slot-overlay-row-body slot-overlay-row-body--strum';
+                strumWrap.appendChild(buildStrumGridRow(bar, res));
+                row.appendChild(strumWrap);
+            } else {
+                var rowBody = document.createElement('div');
+                rowBody.className = 'slot-overlay-row-body';
+                rowBody.appendChild(buildOverlayInput(rowDef, bar));
+                var note = buildOverlayNote(rowId, bar);
+                if (note) rowBody.appendChild(note);
+                row.appendChild(rowBody);
+            }
+            grid.appendChild(row);
         });
 
-        var body = document.createElement('div');
-        body.className = 'slot-overlay-body';
-        body.appendChild(rows);
-        body.appendChild(buildBulkInputPanel());
+        els.slotOverlay.appendChild(grid);
 
-        els.slotOverlay.appendChild(head);
-        els.slotOverlay.appendChild(body);
+        if (state.dockBulkOpen) {
+            els.slotOverlay.appendChild(buildBulkInputPanel());
+        }
+
         els.slotOverlay.classList.remove('hidden');
         els.slotOverlay.setAttribute('aria-hidden', 'false');
         els.slotOverlay.setAttribute('aria-label', bar.barNumber + '小節目の編集ドック');
@@ -1009,6 +1424,7 @@
         }
         renderSlotOverlayContent();
         positionSlotOverlay();
+        maybeAutoScrollToSelection();
     }
 
     /**
@@ -1244,6 +1660,11 @@
         // D1: ドロワー開閉でプレビュー領域の高さが変わり、overlay位置がズレうるため再計算する
         if (els.editorDrawer) els.editorDrawer.addEventListener('toggle', scheduleOverlayPosition);
         if (els.barGridDrawer) els.barGridDrawer.addEventListener('toggle', scheduleOverlayPosition);
+
+        // D3a: まとめて入力ポップオーバーの外側クリック / Escapeで閉じる（ドックは毎描画で
+        // 作り直すため、要素にではなくdocumentへ一度だけ登録する）
+        document.addEventListener('click', onDocumentClickForBulkPopover);
+        document.addEventListener('keydown', onDocumentKeydownForBulkPopover);
 
         // ブラウザのタブ閉じ / リロード / URL移動に対する未保存ガード。
         // 画面内のTOP/戻る/モジュール移動は既存の中断確認（canLeave）が担当する。

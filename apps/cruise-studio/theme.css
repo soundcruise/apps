@@ -1,4 +1,4 @@
-/* クルーズスタジオ theme.css — v0.17.0
+/* クルーズスタジオ theme.css — v0.18.0
    リズムクルーズの DESIGN_SYSTEM.md（Clean Pro系）の考え方を継承しつつ、
    PCファーストに読み替えたテーマ。shared/style.css には依存しない（ADR-005）。
    class名・DOMはクルーズスタジオ用に新規設計している。 */
@@ -1160,12 +1160,13 @@ body {
     text-align: center;
 }
 
-/* ══════════ D2 MVP: 画面下部の編集ドック（旧S1b〜R2の.slot-overlayを拡大移設。
-   docs/DECISIONS.md ADR-025） ══════════
-   小節クリック時のみ表示する、画面下部固定の横長ドック。内部の行構造・入力ロジックは
-   S1b〜R2から流用し、位置決めだけを「小節上の小箱」から「画面下部への固定表示」に変更した。
-   座標追従（小節ごとの再配置）は廃止し、常に画面下いっぱいに表示する。
-   D3でスロット型グリッド入力へ拡張する土台にする。印刷では従来どおり非表示（print.css）。 */
+/* ══════════ D3a: 選択小節タイムグリッド・ドック（旧D2フォーム型ドックを置き換え。
+   docs/DECISIONS.md ADR-025 / ADR-026） ══════════
+   Fable5レビュー「選択小節のX線写真」方針。小節クリック時のみ表示する、
+   画面下部固定・高さ約200〜220px（max-height 240px）のコンパクトなドック。
+   紙面と同じ段順（コード/ストローク/歌詞/ドレミ）を、選択小節と同じ時間軸のまま
+   横に拡大する。本格的にセル編集するのはストローク行のみ（D3aの実装対象）。
+   印刷では従来どおり非表示（print.css）。 */
 .slot-overlay {
     position: fixed;
     left: 50%;
@@ -1174,15 +1175,15 @@ body {
     z-index: 40;
     width: 100%;
     max-width: var(--studio-max-width);
-    max-height: 52vh;
+    max-height: 240px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    padding: 18px 32px 24px;
+    gap: 6px;
+    padding: 10px 28px 14px;
     border: 1px solid rgba(255, 159, 28, 0.4);
     border-bottom: none;
-    border-radius: 20px 20px 0 0;
+    border-radius: 16px 16px 0 0;
     background: linear-gradient(180deg, rgba(37, 31, 24, 0.98), rgba(15, 12, 10, 0.99));
     box-shadow: 0 -18px 44px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
     backdrop-filter: blur(10px);
@@ -1190,67 +1191,74 @@ body {
     pointer-events: auto;
 }
 
-/* ドック表示中、紙面下部がドックに隠れすぎないよう画面末尾に余白を確保する（body.dock-open） */
+/* ドック表示中、紙面下部がドックに隠れすぎないよう画面末尾に余白を確保する（body.dock-open）。
+   実際に選択小節を見せるのは主に自動スクロール（scrollSelectedBarIntoDockView）の役目で、
+   これはその保険（末尾までスクロールしても続きが見えるようにする）。 */
 body.dock-open #screen-sheet-cruise {
-    padding-bottom: 56vh;
+    padding-bottom: 260px;
 }
 
+/* ヘッダー: 必ず1行に収める（狭い画面でもドックが急激に高くならないよう折り返しは避ける） */
 .slot-overlay-head {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    gap: 20px;
-    flex-wrap: wrap;
-    padding-bottom: 14px;
+    gap: 14px;
+    min-height: 34px;
+    padding-bottom: 6px;
     border-bottom: 1px solid rgba(253, 246, 238, 0.1);
+    overflow-x: auto;
 }
 
 .slot-overlay-head-main {
     display: flex;
     align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
+    gap: 8px;
+    flex: 0 0 auto;
+    white-space: nowrap;
 }
 
 .slot-overlay-title {
-    font-size: 18px;
+    font-size: 15px;
     font-weight: 800;
     color: var(--secondary-color);
     letter-spacing: 0.02em;
 }
 
 .slot-overlay-section {
-    padding: 3px 12px;
+    padding: 2px 10px;
     border-radius: 999px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.04em;
     color: var(--secondary-color);
     background: rgba(255, 209, 102, 0.1);
     border: 1px solid rgba(255, 209, 102, 0.28);
+    white-space: nowrap;
 }
 
 .slot-overlay-head-actions {
     display: flex;
     align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
+    gap: 8px;
+    flex: 0 0 auto;
+    white-space: nowrap;
 }
 
 .slot-overlay-nav {
     display: flex;
-    gap: 6px;
+    gap: 4px;
 }
 
 .slot-overlay-nav-btn {
-    min-width: 74px;
-    padding: 8px 14px;
+    min-width: 56px;
+    padding: 5px 10px;
     border: 1px solid rgba(253, 246, 238, 0.22);
-    border-radius: 10px;
+    border-radius: 8px;
     background: rgba(0, 0, 0, 0.28);
     color: var(--text-color);
     font-family: inherit;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
     line-height: 1.3;
     cursor: pointer;
@@ -1266,21 +1274,94 @@ body.dock-open #screen-sheet-cruise {
     background: rgba(255, 159, 28, 0.1);
 }
 
+/* 8分/16分の解像度セグメント切替 */
+.slot-overlay-res-toggle {
+    display: flex;
+    border: 1px solid rgba(253, 246, 238, 0.22);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.slot-overlay-res-btn {
+    padding: 5px 10px;
+    border: none;
+    border-right: 1px solid rgba(253, 246, 238, 0.16);
+    background: rgba(0, 0, 0, 0.28);
+    color: var(--muted-color);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.slot-overlay-res-btn:last-child {
+    border-right: none;
+}
+
+.slot-overlay-res-btn.is-active {
+    color: #1a1206;
+    background: var(--secondary-color);
+}
+
+.slot-overlay-res-btn:disabled {
+    cursor: default;
+    opacity: 0.35;
+}
+
+.slot-overlay-reset-btn {
+    padding: 5px 10px;
+    border: 1px solid rgba(255, 209, 102, 0.3);
+    border-radius: 8px;
+    background: rgba(255, 209, 102, 0.08);
+    color: var(--secondary-color);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.slot-overlay-reset-btn:hover {
+    background: rgba(255, 209, 102, 0.16);
+}
+
+.slot-overlay-bulk-toggle {
+    padding: 5px 10px;
+    border: 1px solid rgba(253, 246, 238, 0.22);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.28);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.slot-overlay-bulk-toggle:hover,
+.slot-overlay-bulk-toggle[aria-expanded="true"] {
+    border-color: rgba(255, 159, 28, 0.6);
+    background: rgba(255, 159, 28, 0.1);
+}
+
 .slot-overlay-hint {
-    font-size: 11.5px;
+    font-size: 10.5px;
     color: var(--muted-color);
     white-space: nowrap;
 }
 
 .slot-overlay-close {
-    padding: 8px 16px;
+    width: 26px;
+    height: 26px;
+    padding: 0;
     border: 1px solid rgba(253, 246, 238, 0.22);
-    border-radius: 10px;
+    border-radius: 8px;
     background: transparent;
     color: var(--muted-color);
     font-family: inherit;
     font-size: 13px;
     font-weight: 700;
+    line-height: 1;
     cursor: pointer;
 }
 
@@ -1290,56 +1371,123 @@ body.dock-open #screen-sheet-cruise {
     background: rgba(255, 79, 110, 0.08);
 }
 
-/* 入力4行（左）＋まとめて入力（右）の2カラム。狭い画面では1カラムに畳む */
-.slot-overlay-body {
-    display: grid;
-    grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr);
-    gap: 20px;
-    align-items: start;
+/* 拍ルーラー: 行ラベル列幅のスペーサー＋時間軸トラック（ストローク行と列幅を揃える） */
+.slot-overlay-ruler {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    min-height: 16px;
 }
 
-.slot-overlay-rows {
+.slot-overlay-ruler-label {
+    flex: 0 0 62px;
+}
+
+.slot-overlay-ruler-track {
+    flex: 1;
+    display: grid;
+    min-width: 0;
+}
+
+.slot-overlay-ruler-cell {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding-left: 2px;
+    font-size: 9.5px;
+    font-weight: 800;
+    color: rgba(253, 246, 238, 0.4);
+    border-right: 1px solid transparent;
+}
+
+.slot-overlay-ruler-cell.is-beat-head {
+    color: var(--secondary-color);
+}
+
+.slot-overlay-ruler-cell.is-offbeat-dot::after {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 50%;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: rgba(253, 246, 238, 0.3);
+    transform: translateY(-50%);
+}
+
+/* 境界線の強弱: 小節端 ＞ 拍頭 ＞ 8分位置 ＞ 16分位置（紙面のタイミンググリッドと同じ階層） */
+.slot-overlay-ruler-cell.is-beat,
+.dock-strum-cell.is-beat {
+    border-right-color: rgba(253, 246, 238, 0.28);
+}
+
+.slot-overlay-ruler-cell.is-8th,
+.dock-strum-cell.is-8th {
+    border-right-color: rgba(253, 246, 238, 0.14);
+}
+
+.slot-overlay-ruler-cell.is-16th,
+.dock-strum-cell.is-16th {
+    border-right-color: rgba(253, 246, 238, 0.07);
+}
+
+.slot-overlay-ruler-cell.is-barend,
+.dock-strum-cell.is-barend {
+    border-right-color: rgba(255, 159, 28, 0.55);
+}
+
+/* タイムグリッド本文: コード/ストローク/歌詞/ドレミの4段 */
+.slot-overlay-grid {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 3px;
 }
 
 .slot-overlay-row {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
+    align-items: stretch;
+    gap: 8px;
 }
 
 .slot-overlay-row-label {
-    font-size: 12px;
+    flex: 0 0 62px;
+    display: flex;
+    align-items: center;
+    font-size: 10.5px;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
     color: var(--muted-color);
     text-transform: uppercase;
 }
 
 .slot-overlay-row-body {
-    border-radius: 10px;
+    flex: 1;
+    min-width: 0;
+    border-radius: 8px;
     border: 1px solid rgba(253, 246, 238, 0.14);
     background: rgba(0, 0, 0, 0.24);
     display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    overflow: hidden;
+    align-items: center;
 }
 
-/* D2: 入力欄を明らかに大きく（旧ミニoverlayは font-size 10.5px / padding 2px 6px だった） */
+.slot-overlay-row--chord .slot-overlay-row-body,
+.slot-overlay-row--strum .slot-overlay-row-body { min-height: 30px; }
+.slot-overlay-row--lyrics .slot-overlay-row-body,
+.slot-overlay-row--doremi .slot-overlay-row-body { min-height: 34px; }
+
 .slot-overlay-input {
     width: 100%;
     min-width: 0;
-    padding: 12px 14px;
+    padding: 6px 12px;
     border: none;
     background: transparent;
     color: var(--text-color);
     font-family: inherit;
-    font-size: 17px;
+    font-size: 15px;
     font-weight: 600;
-    line-height: 1.4;
+    line-height: 1.3;
 }
 
 .slot-overlay-input::placeholder {
@@ -1358,53 +1506,113 @@ body.dock-open #screen-sheet-cruise {
 }
 
 .slot-overlay-row-note {
-    width: 100%;
-    padding: 6px 14px 10px;
-    font-size: 11.5px;
+    font-size: 10px;
     font-weight: 600;
     color: var(--muted-color);
     letter-spacing: 0.02em;
+    white-space: nowrap;
+    padding: 0 10px 0 0;
 }
 
-.slot-overlay-row-note--info {
-    color: var(--secondary-color);
+.slot-overlay-row-note--info { color: var(--secondary-color); }
+.slot-overlay-row-note--inherit { color: var(--muted-color); }
+.slot-overlay-row-note--muted { color: rgba(253, 246, 238, 0.34); }
+.slot-overlay-row-note--warning { color: var(--error-color); }
+
+/* ストローク行: 本格セル編集（D3aの実装対象）。基本ストローク継承中はゴースト表示にする */
+.slot-overlay-row-body--strum {
+    flex-direction: column;
+    align-items: stretch;
+    background: transparent;
+    border: none;
+    gap: 2px;
 }
 
-.slot-overlay-row-note--inherit {
-    color: var(--muted-color);
+.dock-strum-grid {
+    display: grid;
+    min-width: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(253, 246, 238, 0.14);
+    background: rgba(0, 0, 0, 0.24);
 }
 
-.slot-overlay-row-note--muted {
-    color: rgba(253, 246, 238, 0.34);
+.dock-strum-grid.is-inherited {
+    opacity: 0.55;
+    border-style: dashed;
 }
 
-.slot-overlay-row-note--warning {
-    color: var(--error-color);
-}
-
-.slot-overlay-bulk {
-    align-self: stretch;
-    border: 1px solid rgba(253, 246, 238, 0.12);
-    border-radius: 12px;
-    background: rgba(0, 0, 0, 0.18);
-    padding: 2px 14px 12px;
-}
-
-.slot-overlay-bulk > summary {
-    cursor: pointer;
-    padding: 10px 2px;
-    color: var(--secondary-color);
-    font-size: 13px;
+.dock-strum-cell {
+    min-width: 0;
+    min-height: 30px;
+    padding: 0;
+    border: none;
+    border-right: 1px solid transparent;
+    background: transparent;
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 15px;
     font-weight: 800;
-    letter-spacing: 0.04em;
-    list-style-position: inside;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.dock-strum-cell:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px rgba(255, 159, 28, 0.7);
+    position: relative;
+    z-index: 1;
+}
+
+.dock-strum-cell:hover {
+    background: rgba(255, 159, 28, 0.08);
+}
+
+.dock-strum-cell.is-rest {
+    color: rgba(253, 246, 238, 0.28);
+    font-weight: 600;
+}
+
+.dock-strum-cell.is-sustain {
+    color: rgba(255, 209, 102, 0.55);
+    font-weight: 600;
+}
+
+.dock-strum-cell.is-down,
+.dock-strum-cell.is-up {
+    color: var(--secondary-color);
+    background: rgba(255, 209, 102, 0.07);
+}
+
+.dock-strum-cell.is-mute {
+    color: #ff8a7a;
+    background: rgba(255, 79, 110, 0.07);
+}
+
+@media (max-width: 720px) {
+    .slot-overlay {
+        max-height: 280px;
+    }
+}
+
+/* まとめて入力ポップオーバー: ドック上側にフロート表示。通常のドック高さ・幅を消費しない */
+.slot-overlay-bulk-popover {
+    position: absolute;
+    right: 28px;
+    bottom: calc(100% + 8px);
+    width: 400px;
+    max-width: calc(100vw - 56px);
+    padding: 14px 16px;
+    border: 1px solid rgba(255, 159, 28, 0.4);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(37, 31, 24, 0.98), rgba(15, 12, 10, 0.99));
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .slot-overlay-bulk-body {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    margin-top: 4px;
 }
 
 .slot-overlay-bulk-kind,
@@ -1477,17 +1685,6 @@ body.dock-open #screen-sheet-cruise {
 .slot-overlay-bulk-message.is-warning {
     background: rgba(255, 159, 28, 0.16);
     color: var(--secondary-color);
-}
-
-@media (max-width: 900px) {
-    .slot-overlay-body {
-        grid-template-columns: 1fr;
-    }
-
-    .slot-overlay {
-        padding: 16px 20px 20px;
-        max-height: 66vh;
-    }
 }
 
 /* ══════════ フッター ══════════ */
