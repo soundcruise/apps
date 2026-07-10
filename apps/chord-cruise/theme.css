@@ -21,6 +21,7 @@
 html[data-cc-fret-number-size="small"] { --cc-fret-number-size: 12px; }
 html[data-cc-fret-number-size="medium"] { --cc-fret-number-size: 14px; }
 html[data-cc-fret-number-size="large"] { --cc-fret-number-size: 16px; }
+html[data-cc-fret-number-size="xlarge"] { --cc-fret-number-size: 18px; }
 
 * {
     box-sizing: border-box;
@@ -568,10 +569,16 @@ body {
 
 .cc-fb-mute {
     position: absolute;
+    width: 30px;
+    height: 30px;
     transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: var(--cc-text-muted);
-    font-size: 1rem;
+    font-size: 1.85rem;
     font-weight: 700;
+    line-height: 1;
 }
 
 .cc-fb-host--monochrome .cc-fb-fret-number,
@@ -1037,15 +1044,22 @@ body {
 
 .cc-chordthumb-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 5px;
 }
 
+.cc-chordthumb-grid[data-library-columns="1"] { grid-template-columns: minmax(0, 1fr); gap: 10px; width: 100%; max-width: 620px; margin: 0 auto; }
+.cc-chordthumb-grid[data-library-columns="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%; max-width: 900px; margin: 0 auto; }
+.cc-chordthumb-grid[data-library-columns="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.cc-chordthumb-grid[data-library-columns="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+
 .cc-chordthumb-card {
     display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
     min-width: 0;
     min-height: 0;
-    padding: 2px;
+    padding: 5px;
     border: 1px solid var(--cc-border);
     border-radius: var(--cc-radius-md);
     background: linear-gradient(165deg, var(--cc-surface-raised), var(--cc-surface));
@@ -1057,6 +1071,24 @@ body {
     transition: transform 0.12s ease, border-color 0.15s ease;
     -webkit-tap-highlight-color: transparent;
 }
+
+.cc-chordthumb-name {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--cc-champagne);
+    font-size: 0.8rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.cc-chordthumb-grid[data-library-columns="1"] .cc-chordthumb-name { font-size: 1.15rem; }
+.cc-chordthumb-grid[data-library-columns="2"] .cc-chordthumb-name { font-size: 1rem; }
+.cc-chordthumb-grid[data-library-columns="3"] .cc-chordthumb-name { font-size: 0.9rem; }
 
 .cc-chordthumb-card:active {
     transform: scale(0.985);
@@ -1072,13 +1104,17 @@ body {
     justify-content: center;
     width: 100%;
     min-height: 0;
-    aspect-ratio: 0.82;
     padding: 1px;
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 10px;
     background: rgba(0, 0, 0, 0.2);
 }
+
+.cc-chordthumb-grid[data-library-columns="1"] .cc-chordthumb-board { height: 220px; max-width: 520px; }
+.cc-chordthumb-grid[data-library-columns="2"] .cc-chordthumb-board { height: clamp(180px, 25vw, 220px); }
+.cc-chordthumb-grid[data-library-columns="3"] .cc-chordthumb-board { height: clamp(128px, 20vw, 190px); }
+.cc-chordthumb-grid[data-library-columns="4"] .cc-chordthumb-board { height: clamp(88px, 15vw, 170px); }
 
 .cc-chordthumb-svg {
     display: block;
@@ -1102,6 +1138,30 @@ body {
 .cc-lib-exact-fb .cc-fb-stage {
     margin-left: auto;
     margin-right: auto;
+}
+
+.cc-lib-columns-control {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.cc-lib-columns-segment .cc-segment-btn {
+    padding: 6px 10px;
+    font-size: 0.76rem;
+}
+
+.cc-lib-diagram-title {
+    margin: 14px 0 7px;
+    overflow: hidden;
+    color: var(--cc-champagne);
+    font-size: clamp(1.25rem, 5vw, 1.7rem);
+    font-weight: 700;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .cc-lib-diagram-actions {
@@ -1443,6 +1503,10 @@ body.cc-settings-open {
     border: 1px solid var(--cc-border);
     border-radius: 12px;
     background: rgba(0, 0, 0, 0.28);
+}
+
+.cc-settings-choices--four {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .cc-settings-choice {

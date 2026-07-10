@@ -54,8 +54,24 @@
         return index === -1 ? null : index * FRET_W + FRET_W / 2;
     }
 
-    function stringY(stringNum) {
+    function stringY(stringNum, monochrome) {
+        if (monochrome) {
+            return TOP_Y + (stringNum - 1) * (STRING_AREA / 5);
+        }
         return TOP_Y + STRING_GAP / 2 + (stringNum - 1) * STRING_GAP;
+    }
+
+    function fretPosition(fret, frets) {
+        var exact = colCenter(fret, frets);
+        if (exact !== null) return exact;
+        var i;
+        for (i = 0; i < frets.length - 1; i++) {
+            if (fret > frets[i] && fret < frets[i + 1]) {
+                var ratio = (fret - frets[i]) / (frets[i + 1] - frets[i]);
+                return (i + 0.5 + ratio) * FRET_W;
+            }
+        }
+        return fret <= frets[0] ? FRET_W / 2 : (frets.length - 0.5) * FRET_W;
     }
 
     function buildDefs(uid, monochrome) {
@@ -121,47 +137,65 @@
         var svg = '<svg xmlns="http://www.w3.org/2000/svg" class="' + (svgClass || 'cc-fb-svg') + '" width="' + width + '" height="' + SVG_H + '" viewBox="0 0 ' + width + ' ' + SVG_H + '" aria-hidden="true">';
         svg += buildDefs(uid, monochrome);
 
-        // 開放弦列のうっすらした下地
-        if (hasOpenColumn) {
-            svg += '<rect x="0" y="' + TOP_Y + '" width="' + FRET_W + '" height="' + STRING_AREA + '" fill="' + (monochrome ? '#ffffff' : 'rgba(255,255,255,0.03)') + '" rx="4"/>';
+        if (monochrome) {
+            // 白黒図は全面を白にし、上下の装飾的なネック外周線を描画しない。
+            svg += '<rect class="cc-fb-mono-board" x="0" y="' + TOP_Y + '" width="' + width + '" height="' + STRING_AREA + '" fill="#ffffff"/>';
+        } else {
+            // 開放弦列のうっすらした下地
+            if (hasOpenColumn) {
+                svg += '<rect x="0" y="' + TOP_Y + '" width="' + FRET_W + '" height="' + STRING_AREA + '" fill="rgba(255,255,255,0.03)" rx="4"/>';
+            }
+
+            // 指板の木目＋上下の縁（カラー表示のみ）
+            svg += '<rect x="' + boardX + '" y="' + (TOP_Y + EDGE_H) + '" width="' + (width - boardX) + '" height="' + (STRING_AREA - EDGE_H * 2) + '" fill="url(#cc-wood-' + uid + ')"/>';
+            svg += '<rect x="' + boardX + '" y="' + TOP_Y + '" width="' + (width - boardX) + '" height="' + EDGE_H + '" fill="rgba(255,244,220,0.28)"/>';
+            svg += '<rect x="' + boardX + '" y="' + (BOARD_BOTTOM - EDGE_H) + '" width="' + (width - boardX) + '" height="' + EDGE_H + '" fill="rgba(8,6,4,0.92)"/>';
         }
 
-        // 指板の木目＋上下の縁
-        svg += '<rect x="' + boardX + '" y="' + (TOP_Y + EDGE_H) + '" width="' + (width - boardX) + '" height="' + (STRING_AREA - EDGE_H * 2) + '" fill="url(#cc-wood-' + uid + ')"/>';
-        svg += '<rect x="' + boardX + '" y="' + TOP_Y + '" width="' + (width - boardX) + '" height="' + EDGE_H + '" fill="' + (monochrome ? '#333333' : 'rgba(255,244,220,0.28)') + '"/>';
-        svg += '<rect x="' + boardX + '" y="' + (BOARD_BOTTOM - EDGE_H) + '" width="' + (width - boardX) + '" height="' + EDGE_H + '" fill="' + (monochrome ? '#333333' : 'rgba(8,6,4,0.92)') + '"/>';
-
         // 保存範囲などのハイライト（includesOpen のとき開放弦列も含める）
-        if (rangeHighlight && typeof rangeHighlight.minFret === 'number' && typeof rangeHighlight.maxFret === 'number') {
+        if (!monochrome && rangeHighlight && typeof rangeHighlight.minFret === 'number' && typeof rangeHighlight.maxFret === 'number') {
             frets.forEach(function (fret, index) {
                 var included = fret > 0 && fret >= rangeHighlight.minFret && fret <= rangeHighlight.maxFret;
                 if (!included) return;
-                svg += '<rect x="' + (index * FRET_W) + '" y="' + TOP_Y + '" width="' + FRET_W + '" height="' + STRING_AREA + '" fill="' + (monochrome ? 'rgba(0,0,0,0.04)' : 'rgba(212,175,55,0.14)') + '" stroke="' + (monochrome ? '#888888' : 'rgba(232,201,122,0.55)') + '" stroke-width="1.5" rx="6"/>';
+                svg += '<rect x="' + (index * FRET_W) + '" y="' + TOP_Y + '" width="' + FRET_W + '" height="' + STRING_AREA + '" fill="rgba(212,175,55,0.14)" stroke="rgba(232,201,122,0.55)" stroke-width="1.5" rx="6"/>';
             });
             if (hasOpenColumn && rangeHighlight.includesOpen) {
-                svg += '<rect x="2" y="' + TOP_Y + '" width="' + (FRET_W - 4) + '" height="' + STRING_AREA + '" fill="' + (monochrome ? '#ffffff' : 'rgba(212,175,55,0.10)') + '" stroke="' + (monochrome ? '#777777' : 'rgba(232,201,122,0.4)') + '" stroke-width="1.2" stroke-dasharray="5 4" rx="6"/>';
+                svg += '<rect x="2" y="' + TOP_Y + '" width="' + (FRET_W - 4) + '" height="' + STRING_AREA + '" fill="rgba(212,175,55,0.10)" stroke="rgba(232,201,122,0.4)" stroke-width="1.2" stroke-dasharray="5 4" rx="6"/>';
             }
         }
 
         // ポジションマーク（インレイ）
-        INLAY_SINGLE.forEach(function (f) {
-            var center = colCenter(f, frets);
-            if (center === null) return;
-            svg += '<circle cx="' + center + '" cy="' + (TOP_Y + STRING_AREA / 2) + '" r="5.5" fill="' + (monochrome ? '#aaaaaa' : 'rgba(235,220,190,0.5)') + '"/>';
-        });
-        INLAY_DOUBLE.forEach(function (f) {
-            var center = colCenter(f, frets);
-            if (center === null) return;
-            svg += '<circle cx="' + center + '" cy="' + (TOP_Y + STRING_AREA / 2 - 30) + '" r="5.5" fill="' + (monochrome ? '#aaaaaa' : 'rgba(235,220,190,0.5)') + '"/>';
-            svg += '<circle cx="' + center + '" cy="' + (TOP_Y + STRING_AREA / 2 + 30) + '" r="5.5" fill="' + (monochrome ? '#aaaaaa' : 'rgba(235,220,190,0.5)') + '"/>';
-        });
+        if (!monochrome) {
+            INLAY_SINGLE.forEach(function (f) {
+                var center = colCenter(f, frets);
+                if (center === null) return;
+                svg += '<circle class="cc-fb-position-mark" cx="' + center + '" cy="' + (TOP_Y + STRING_AREA / 2) + '" r="5.5" fill="rgba(235,220,190,0.5)"/>';
+            });
+            INLAY_DOUBLE.forEach(function (f) {
+                var center = colCenter(f, frets);
+                if (center === null) return;
+                svg += '<circle class="cc-fb-position-mark" cx="' + center + '" cy="' + (TOP_Y + STRING_AREA / 2 - 30) + '" r="5.5" fill="rgba(235,220,190,0.5)"/>';
+                svg += '<circle class="cc-fb-position-mark" cx="' + center + '" cy="' + (TOP_Y + STRING_AREA / 2 + 30) + '" r="5.5" fill="rgba(235,220,190,0.5)"/>';
+            });
+        }
 
         // フレットワイヤー（実フレット番号を表示列へ写像する）
-        frets.forEach(function (f, index) {
-            if (f === 0) return;
-            var wx = (index + 1) * FRET_W;
-            svg += '<rect x="' + (wx - 2) + '" y="' + TOP_Y + '" width="4" height="' + STRING_AREA + '" fill="url(#cc-fretwire-' + uid + ')" rx="1.5"/>';
-        });
+        if (monochrome) {
+            frets.forEach(function (f, index) {
+                if (f === 0 || index === frets.length - 1) return;
+                var wx = (index + 1) * FRET_W;
+                svg += '<rect class="cc-fb-mono-fret" x="' + (wx - 1) + '" y="' + TOP_Y + '" width="2" height="' + STRING_AREA + '" fill="#333333"/>';
+            });
+            // 切り出した図の左右境界。右端は最終フレット線と兼用し二重描画しない。
+            svg += '<rect class="cc-fb-mono-boundary" x="0" y="' + TOP_Y + '" width="2" height="' + STRING_AREA + '" fill="#333333"/>';
+            svg += '<rect class="cc-fb-mono-boundary" x="' + (width - 2) + '" y="' + TOP_Y + '" width="2" height="' + STRING_AREA + '" fill="#333333"/>';
+        } else {
+            frets.forEach(function (f, index) {
+                if (f === 0) return;
+                var wx = (index + 1) * FRET_W;
+                svg += '<rect x="' + (wx - 2) + '" y="' + TOP_Y + '" width="4" height="' + STRING_AREA + '" fill="url(#cc-fretwire-' + uid + ')" rx="1.5"/>';
+            });
+        }
 
         // ナット
         if (hasOpenColumn) {
@@ -171,7 +205,7 @@
         // 弦（1弦=上、6弦=下）
         var s;
         for (s = 1; s <= 6; s++) {
-            var y = stringY(s);
+            var y = stringY(s, monochrome);
             var color = monochrome ? '#333333' : (s <= 2 ? '#e8e8e8' : '#d6cdbb');
             svg += '<rect x="0" y="' + (y - STRING_WIDTHS[s - 1] / 2) + '" width="' + width + '" height="' + STRING_WIDTHS[s - 1] + '" fill="' + color + '" opacity="0.92"/>';
         }
@@ -203,6 +237,7 @@
     /** 画面・サムネイル・書き出しで共有する座標モデルを作る。 */
     function createModel(options) {
         var opts = options || {};
+        var monochrome = !!opts.monochrome;
         var frets = normalizeFrets(opts);
         var markers = [];
         var barres = [];
@@ -215,7 +250,7 @@
                 string: marker.string,
                 fret: marker.fret,
                 x: x,
-                y: stringY(marker.string),
+                y: stringY(marker.string, monochrome),
                 label: marker.label != null ? String(marker.label) : '',
                 role: marker.role || 'other',
                 dimmed: !!marker.dimmed,
@@ -228,8 +263,8 @@
             var topString = Math.min(barre.fromString, barre.toString);
             var bottomString = Math.max(barre.fromString, barre.toString);
             if (x === null || topString < 1 || bottomString > 6 || topString === bottomString) return;
-            var topY = stringY(topString);
-            var bottomY = stringY(bottomString);
+            var topY = stringY(topString, monochrome);
+            var bottomY = stringY(bottomString, monochrome);
             barres.push({
                 finger: barre.finger,
                 fret: barre.fret,
@@ -254,9 +289,9 @@
             markers: markers,
             barres: barres,
             mutedStrings: mutedStrings,
-            muteX: frets[0] === 0 ? colCenter(0, frets) : 12,
+            muteX: colCenter(frets[0], frets),
             rangeHighlight: opts.rangeHighlight || null,
-            monochrome: !!opts.monochrome,
+            monochrome: monochrome,
             highlight: resolveHighlightSettings(opts)
         };
     }
@@ -287,6 +322,10 @@
         model.barres.forEach(function (barre) {
             svg += '<rect x="' + (barre.x - 18) + '" y="' + barre.y + '" width="36" height="' + barre.height + '" rx="18" fill="' + (model.monochrome ? '#d8d8d8' : 'rgba(255,252,244,0.16)') + '" stroke="' + (model.monochrome ? '#111111' : 'rgba(255,255,255,0.38)') + '" stroke-width="1.5"/>';
         });
+        // ミュートは先頭表示列の中央へ置き、丸マーカーより先に描画する。
+        model.mutedStrings.forEach(function (stringNum) {
+            svg += '<text class="cc-fb-static-mute" x="' + model.muteX + '" y="' + (stringY(stringNum, model.monochrome) + 10) + '" text-anchor="middle" style="font-family:Arial,sans-serif;font-size:30px;font-weight:700;fill:' + (model.monochrome ? '#111111' : '#a5a19a') + '">×</text>';
+        });
         model.markers.forEach(function (marker) {
             var palette = markerPalette(marker.role, model.monochrome, marker.fret === 0);
             var fontSize = marker.label.length > 3 ? 9 : (marker.label.length > 2 ? 10 : 12);
@@ -295,9 +334,6 @@
                 '<circle cx="' + marker.x + '" cy="' + marker.y + '" r="15" fill="' + palette.fill + '" stroke="' + palette.stroke + '" stroke-width="' + palette.strokeWidth + '"/>' +
                 '<text x="' + marker.x + '" y="' + (marker.y + 4) + '" text-anchor="middle" style="font-family:Arial,sans-serif;font-size:' + fontSize + 'px;font-weight:700;fill:' + palette.text + '">' + escapeXml(marker.label) + '</text>' +
             '</g>';
-        });
-        model.mutedStrings.forEach(function (stringNum) {
-            svg += '<text x="' + model.muteX + '" y="' + (stringY(stringNum) + 6) + '" text-anchor="middle" style="font-family:Arial,sans-serif;font-size:18px;font-weight:700;fill:' + (model.monochrome ? '#111111' : '#a5a19a') + '">×</text>';
         });
         return svg;
     }
@@ -376,6 +412,15 @@
             markerLayer.appendChild(el);
         });
 
+        model.mutedStrings.forEach(function (s) {
+            var el = document.createElement('div');
+            el.className = 'cc-fb-mute';
+            el.style.left = model.muteX + 'px';
+            el.style.top = stringY(s, model.monochrome) + 'px';
+            el.textContent = '×';
+            markerLayer.appendChild(el);
+        });
+
         model.markers.forEach(function (m) {
             var el = document.createElement('div');
             var cls = 'cc-fb-marker cc-fb-marker--' + (m.role || 'other');
@@ -391,15 +436,6 @@
             markerLayer.appendChild(el);
         });
 
-        model.mutedStrings.forEach(function (s) {
-            var el = document.createElement('div');
-            el.className = 'cc-fb-mute';
-            el.style.left = model.muteX + 'px';
-            el.style.top = stringY(s) + 'px';
-            el.textContent = '✕';
-            markerLayer.appendChild(el);
-        });
-
         if (typeof opts.onSlotTap === 'function') {
             markerLayer.addEventListener('click', function (event) {
                 var marker = event.target.closest('.cc-fb-marker');
@@ -412,9 +448,24 @@
         if (typeof opts.preserveScroll === 'number' && opts.preserveScroll >= 0) {
             scroll.scrollLeft = opts.preserveScroll;
         } else if (typeof opts.scrollToFret === 'number') {
-            var scrollCenter = colCenter(opts.scrollToFret, model.frets);
-            if (scrollCenter !== null) scroll.scrollLeft = Math.max(0, scrollCenter - scroll.clientWidth / 2);
+            setScrollCenter(scroll, model.frets, opts.scrollToFret);
         }
+    }
+
+    function setScrollCenter(scroll, frets, fret) {
+        if (!scroll || !frets.length) return null;
+        var center = fretPosition(fret, frets);
+        var maxScroll = Math.max(0, scroll.scrollWidth - scroll.clientWidth);
+        var next = Math.min(maxScroll, Math.max(0, center - scroll.clientWidth / 2));
+        scroll.scrollLeft = next;
+        return next;
+    }
+
+    /** 描画後の実測幅を使い、指定フレットを可能な範囲で中央へ寄せる。 */
+    function centerOnFret(host, fret, options) {
+        var scroll = host ? host.querySelector('.cc-fb-scroll') : null;
+        if (!scroll) return null;
+        return setScrollCenter(scroll, normalizeFrets(options || {}), fret);
     }
 
     function getScrollLeft(host) {
@@ -429,6 +480,7 @@
         createModel: createModel,
         buildStaticSvg: buildStaticSvg,
         buildExportSvg: buildExportSvg,
+        centerOnFret: centerOnFret,
         getScrollLeft: getScrollLeft,
         FRET_W: FRET_W,
         POSITION_FRETS: POSITION_FRETS.slice()

@@ -21,6 +21,15 @@
         return 'フォーム';
     }
 
+    function normalizeLibraryColumns(value) {
+        return [1, 2, 3, 4].indexOf(value) !== -1 ? value : 4;
+    }
+
+    function currentLibraryColumns() {
+        var settings = window.ChordCruise.state && window.ChordCruise.state.settings;
+        return normalizeLibraryColumns(settings && settings.libraryColumns);
+    }
+
     function contentEl() {
         return document.getElementById('cc-lib-content');
     }
@@ -92,28 +101,45 @@
         }).length;
     }
 
-    function keyLabel(keyContext) {
-        if (!keyContext) return '';
-        var useFlats = theory().keyUsesFlats(keyContext.tonicPc, keyContext.mode);
-        var name = theory().noteName(keyContext.tonicPc, useFlats);
-        if (keyContext.mode === 'minor') name += 'm';
-        return name;
-    }
-
     function escapeHtml(text) {
         return String(text == null ? '' : text)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
-    function buildChordThumbnailGridHtml(chords) {
-        var html = '<div class="cc-chordthumb-grid" id="cc-chordthumb-grid">';
+    function buildChordThumbnailGridHtml(chords, requestedColumns) {
+        var columns = normalizeLibraryColumns(requestedColumns);
+        var html = '<div class="cc-chordthumb-grid" id="cc-chordthumb-grid" data-library-columns="' + columns + '">';
         chords.forEach(function (chord) {
+            var displayName = displayChordName(chord.chordName);
             html += '<button type="button" class="cc-chordthumb-card" data-chord-id="' + escapeHtml(chord.id) + '" aria-label="' + escapeHtml(displayChordName(chord.chordName)) + 'の指板を開く">' +
+                '<span class="cc-chordthumb-name" title="' + escapeHtml(displayName) + '">' + escapeHtml(displayName) + '</span>' +
                 '<span class="cc-chordthumb-board" data-chord-thumb="' + escapeHtml(chord.id) + '" aria-hidden="true"></span>' +
             '</button>';
         });
         return html + '</div>';
+    }
+
+    function buildLibraryColumnsControlHtml(columns) {
+        var html = '<div class="cc-lib-columns-control">' +
+            '<span class="cc-save-label">表示</span>' +
+            '<div class="cc-segment cc-lib-columns-segment" role="group" aria-label="コード一覧の列数">';
+        [1, 2, 3, 4].forEach(function (value) {
+            html += '<button type="button" class="cc-segment-btn' + (columns === value ? ' cc-segment-btn--active' : '') + '" data-library-columns-choice="' + value + '" aria-pressed="' + (columns === value ? 'true' : 'false') + '">' + value + '列</button>';
+        });
+        return html + '</div></div>';
+    }
+
+    function applyLibraryColumns(columns) {
+        var normalized = normalizeLibraryColumns(columns);
+        var grid = document.getElementById('cc-chordthumb-grid');
+        if (grid) grid.setAttribute('data-library-columns', String(normalized));
+        Array.prototype.forEach.call(contentEl().querySelectorAll('[data-library-columns-choice]'), function (button) {
+            var selected = parseInt(button.getAttribute('data-library-columns-choice'), 10) === normalized;
+            button.classList.toggle('cc-segment-btn--active', selected);
+            button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        });
+        return normalized;
     }
 
     // ---- ビュー: フォルダ一覧 ----
@@ -191,6 +217,7 @@
         var chords = entries.map(function (entry) {
             return storage().loadChord(entry.id);
         }).filter(function (chord) { return !!chord; });
+        var columns = currentLibraryColumns();
 
         var html = '<div class="cc-card cc-lib-folder-head">' +
             '<div class="cc-lib-folder-title-row">' +
@@ -207,14 +234,23 @@
                 '<button type="button" class="cc-btn cc-btn-primary cc-btn--small" id="cc-folder-rename-ok">変更</button>' +
                 '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-folder-rename-cancel">やめる</button>' +
             '</div>' +
+            buildLibraryColumnsControlHtml(columns) +
         '</div>';
 
         if (chords.length === 0) {
             html += '<div class="cc-card cc-placeholder-card"><p>このフォルダにはまだコードがありません。「コードを調べる」からCAGEDフォームを保存できます。</p></div>';
         } else {
-            html += buildChordThumbnailGridHtml(chords);
+            html += buildChordThumbnailGridHtml(chords, columns);
         }
         contentEl().innerHTML = html;
+
+        Array.prototype.forEach.call(contentEl().querySelectorAll('[data-library-columns-choice]'), function (button) {
+            button.addEventListener('click', function () {
+                var nextColumns = applyLibraryColumns(parseInt(button.getAttribute('data-library-columns-choice'), 10));
+                window.ChordCruise.state.settings.libraryColumns = nextColumns;
+                storage().saveSettings({ libraryColumns: nextColumns });
+            });
+        });
 
         if (chords.length) {
             renderListThumbnails(chords);
@@ -459,17 +495,10 @@
             return;
         }
         currentDetailChord = chord;
-        var rangeText = window.ChordCruise.caged.formatFretRange(chord.fretRange);
-        var key = keyLabel(chord.keyContext);
         var displayName = displayChordName(chord.chordName);
         var displayFormName = chordFormName(chord);
 
         var html = '<div class="cc-card">' +
-            '<div class="cc-detail-head">' +
-                '<span class="cc-detail-symbol" id="cc-lib-detail-name">' + escapeHtml(displayName) + '</span>' +
-                '<span class="cc-detail-roman">' + escapeHtml(displayFormName) + '・' + escapeHtml(rangeText) +
-                    (key ? '・Key: ' + escapeHtml(key) : '') + '</span>' +
-            '</div>' +
             '<div class="cc-fb-head">' +
                 '<span class="cc-save-label">表示</span>' +
                 '<div class="cc-segment" role="group" aria-label="表示切替">' +
@@ -479,6 +508,7 @@
                     '<button type="button" class="cc-segment-btn" id="cc-libmode-finger">運指</button>' +
                 '</div>' +
             '</div>' +
+            '<div class="cc-lib-diagram-title" id="cc-lib-detail-name">' + escapeHtml(displayName) + '</div>' +
             '<div id="cc-lib-fb" class="cc-fb-host cc-lib-exact-fb"></div>' +
             '<p class="cc-fb-hint">音をタップすると運指が切り替わり、自動で保存されます。</p>' +
             '<div class="cc-lib-diagram-actions">' +
@@ -635,6 +665,7 @@
         resetView: resetView,
         savedFrets: savedFrets,
         savedDiagramOptions: savedDiagramOptions,
-        buildChordThumbnailGridHtml: buildChordThumbnailGridHtml
+        buildChordThumbnailGridHtml: buildChordThumbnailGridHtml,
+        normalizeLibraryColumns: normalizeLibraryColumns
     };
 })();

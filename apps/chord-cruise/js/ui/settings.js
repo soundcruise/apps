@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    var VALID_SIZES = ['small', 'medium', 'large'];
+    var VALID_SIZES = ['small', 'medium', 'large', 'xlarge'];
     var VALID_HIGHLIGHT_MODES = ['all', 'position', 'custom'];
     var DEFAULT_HIGHLIGHTED_FRETS = [0, 3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
     var overlayEl = null;

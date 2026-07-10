@@ -177,7 +177,8 @@
         if (!draft) return;
         var host = document.getElementById('cc-save-fb');
         var fb = window.ChordCruise.ui.fretboard;
-        var prevScroll = fb.getScrollLeft(host);
+        var shouldAutoCenter = draft.autoCenterPending === true;
+        var prevScroll = shouldAutoCenter ? null : fb.getScrollLeft(host);
         var markers = draft.notes.map(function (note) {
             return {
                 string: note.string,
@@ -200,10 +201,7 @@
                 maxFret: draft.range.max,
                 includesOpen: draft.range.includesOpen
             },
-            scrollToFret: typeof prevScroll === 'number' && prevScroll > 0
-                ? null
-                : Math.round((draft.range.min + draft.range.max) / 2),
-            preserveScroll: typeof prevScroll === 'number' && prevScroll > 0 ? prevScroll : null,
+            preserveScroll: typeof prevScroll === 'number' ? prevScroll : null,
             onSlotTap: function (stringNum, fret) {
                 var note = null;
                 var i;
@@ -219,6 +217,23 @@
                 renderPreview();
             }
         });
+        if (shouldAutoCenter) {
+            var activeDraft = draft;
+            var centerFret = draft.range.includesOpen
+                ? 0
+                : (draft.range.min + draft.range.max) / 2;
+            draft.autoCenterPending = false;
+            var schedule = typeof window.requestAnimationFrame === 'function'
+                ? window.requestAnimationFrame
+                : function (callback) { return window.setTimeout(callback, 0); };
+            schedule(function () {
+                if (draft !== activeDraft) return;
+                fb.centerOnFret(host, centerFret, {
+                    startFret: draft.startFret,
+                    endFret: draft.endFret
+                });
+            });
+        }
     }
 
     function currentRangeForDisplay() {
@@ -409,7 +424,8 @@
                 includesOpen: form.fretRange.includesOpen
             },
             memo: '',
-            folderId: window.ChordCruise.storage.UNCATEGORIZED_ID
+            folderId: window.ChordCruise.storage.UNCATEGORIZED_ID,
+            autoCenterPending: true
         };
         showEditor();
     }
@@ -462,7 +478,8 @@
             formRange: { min: min, max: max, hasOpen: includesOpen },
             range: { min: min, max: max, includesOpen: includesOpen },
             memo: original.memo || '',
-            folderId: original.folderId || window.ChordCruise.storage.UNCATEGORIZED_ID
+            folderId: original.folderId || window.ChordCruise.storage.UNCATEGORIZED_ID,
+            autoCenterPending: true
         };
         showEditor();
     }

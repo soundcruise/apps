@@ -19,6 +19,7 @@
         fretNumberHighlightMode: 'all',
         highlightedFrets: DEFAULT_HIGHLIGHTED_FRETS,
         highFretMode: false,
+        libraryColumns: 4,
         librarySortMode: 'updatedDesc'
     };
 
@@ -38,8 +39,11 @@
 
     function normalizeSettings(settings) {
         var normalized = settings;
-        if (['small', 'medium', 'large'].indexOf(normalized.fretNumberSize) === -1) {
+        if (['small', 'medium', 'large', 'xlarge'].indexOf(normalized.fretNumberSize) === -1) {
             normalized.fretNumberSize = 'medium';
+        }
+        if ([1, 2, 3, 4].indexOf(normalized.libraryColumns) === -1) {
+            normalized.libraryColumns = 4;
         }
         if (['all', 'position', 'custom'].indexOf(normalized.fretNumberHighlightMode) === -1) {
             normalized.fretNumberHighlightMode = 'all';
