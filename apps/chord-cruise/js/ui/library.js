@@ -9,9 +9,11 @@
     var view = 'folders';           // 'folders' | 'list' | 'detail'
     var currentFolderId = null;
     var currentChordId = null;
+    var currentDetailChord = null;
 
     function storage() { return window.ChordCruise.storage; }
     function theory() { return window.ChordCruise.theory; }
+    function displayChordName(name) { return theory().displayChordName(name); }
 
     function contentEl() {
         return document.getElementById('cc-lib-content');
@@ -97,6 +99,7 @@
 
     function renderFolders() {
         view = 'folders';
+        currentDetailChord = null;
         var folders = storage().loadFolders().slice().sort(function (a, b) {
             return (a.order || 0) - (b.order || 0);
         });
@@ -149,6 +152,7 @@
 
     function renderList() {
         view = 'list';
+        currentDetailChord = null;
         var folder = folderById(currentFolderId);
         if (!folder) {
             renderFolders();
@@ -186,7 +190,7 @@
                 var key = keyLabel(entry.keyContext);
                 html += '<button type="button" class="cc-chordcard" data-chord-id="' + entry.id + '">' +
                     '<span class="cc-chordcard-main">' +
-                        '<span class="cc-chordcard-name">' + escapeHtml(entry.chordName) + '</span>' +
+                        '<span class="cc-chordcard-name">' + escapeHtml(displayChordName(entry.chordName)) + '</span>' +
                         '<span class="cc-chordcard-meta">' +
                             escapeHtml(entry.formName) + '・' + escapeHtml(rangeText) +
                             (key ? '・Key: ' + escapeHtml(key) + (entry.keyContext && entry.keyContext.degreeLabel ? ' (' + escapeHtml(entry.keyContext.degreeLabel) + ')' : '') : '') +
@@ -269,13 +273,36 @@
         return 'other';
     }
 
+    /** 保存コードだけを見て詳細指板の14列を決め、探索画面の設定は変更しない。 */
+    function detailFretWindow(chord) {
+        var frets = (chord.notes || []).map(function (note) { return note.fret; }).filter(function (fret) {
+            return typeof fret === 'number' && fret >= 0;
+        });
+        var min = frets.length ? Math.min.apply(null, frets) : 0;
+        var max = frets.length ? Math.max.apply(null, frets) : 13;
+        if (max - min > 13) {
+            return { start: min, end: max };
+        }
+        if ((chord.fretRange && chord.fretRange.includesOpen) || max <= 13) {
+            return { start: 0, end: 13 };
+        }
+        if (min >= 12) {
+            return { start: 12, end: 25 };
+        }
+        // 低音域と高音域をまたぐ保存フォームは、全ノートが入る14列へ寄せる。
+        var start = Math.max(0, Math.min(12, max - 13));
+        return { start: start, end: start + 13 };
+    }
+
     function renderDetailFretboard(chord) {
         var host = document.getElementById('cc-lib-fb');
         if (!host) return;
         var fb = window.ChordCruise.ui.fretboard;
         var prevScroll = fb.getScrollLeft(host);
+        var range = detailFretWindow(chord);
         fb.render(host, {
-            maxFret: 13,
+            startFret: range.start,
+            endFret: range.end,
             markers: chord.notes.map(function (note) {
                 return {
                     string: note.string,
@@ -325,12 +352,14 @@
             renderList();
             return;
         }
+        currentDetailChord = chord;
         var rangeText = window.ChordCruise.caged.formatFretRange(chord.fretRange);
         var key = keyLabel(chord.keyContext);
+        var displayName = displayChordName(chord.chordName);
 
         var html = '<div class="cc-card">' +
             '<div class="cc-detail-head">' +
-                '<span class="cc-detail-symbol" id="cc-lib-detail-name">' + escapeHtml(chord.chordName) + '</span>' +
+                '<span class="cc-detail-symbol" id="cc-lib-detail-name">' + escapeHtml(displayName) + '</span>' +
                 '<span class="cc-detail-roman">' + escapeHtml(chord.formName) + '・' + escapeHtml(rangeText) +
                     (key ? '・Key: ' + escapeHtml(key) : '') + '</span>' +
             '</div>' +
@@ -350,7 +379,7 @@
             '<h3 class="cc-card-heading">編集</h3>' +
             '<div class="cc-save-section">' +
                 '<label class="cc-field"><span class="cc-field-label">コード名</span>' +
-                    '<input type="text" id="cc-lib-chord-name" class="cc-input" maxlength="32" value="' + escapeHtml(chord.chordName) + '"></label>' +
+                    '<input type="text" id="cc-lib-chord-name" class="cc-input" maxlength="32" value="' + escapeHtml(displayName) + '"></label>' +
                 '<label class="cc-field"><span class="cc-field-label">フォーム名</span>' +
                     '<input type="text" id="cc-lib-form-name" class="cc-input" maxlength="32" value="' + escapeHtml(chord.formName) + '"></label>' +
                 '<label class="cc-field"><span class="cc-field-label">メモ</span>' +
@@ -383,7 +412,9 @@
 
         // 名前・メモ編集
         document.getElementById('cc-lib-save-edit').addEventListener('click', function () {
-            chord.chordName = document.getElementById('cc-lib-chord-name').value.trim() || chord.chordName;
+            chord.chordName = displayChordName(
+                document.getElementById('cc-lib-chord-name').value.trim() || chord.chordName
+            );
             chord.formName = document.getElementById('cc-lib-form-name').value.trim() || chord.formName;
             chord.memo = document.getElementById('cc-lib-memo').value.trim();
             storage().saveChord(chord);
@@ -411,7 +442,7 @@
 
         // 削除
         document.getElementById('cc-lib-delete').addEventListener('click', function () {
-            confirmDanger('「' + chord.chordName + '（' + chord.formName + '）」を削除しますか？この操作は取り消せません。', '削除する', function () {
+            confirmDanger('「' + displayChordName(chord.chordName) + '（' + chord.formName + '）」を削除しますか？この操作は取り消せません。', '削除する', function () {
                 storage().deleteChord(chord.id);
                 renderList();
             });
@@ -449,13 +480,21 @@
     /** TOPへ戻ったときは次回フォルダ一覧から */
     function resetView() {
         view = 'folders';
+        currentDetailChord = null;
     }
+
+    document.addEventListener('chordcruise:fretboard-settings-change', function () {
+        if (view === 'detail' && currentDetailChord) {
+            renderDetailFretboard(currentDetailChord);
+        }
+    });
 
     window.ChordCruise = window.ChordCruise || {};
     window.ChordCruise.ui = window.ChordCruise.ui || {};
     window.ChordCruise.ui.library = {
         render: render,
         back: back,
-        resetView: resetView
+        resetView: resetView,
+        detailFretWindow: detailFretWindow
     };
 })();

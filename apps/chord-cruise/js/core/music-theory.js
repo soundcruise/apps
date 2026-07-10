@@ -23,7 +23,7 @@
         'maj': { suffix: '', intervals: [0, 4, 7] },
         'm': { suffix: 'm', intervals: [0, 3, 7] },
         'dim': { suffix: 'dim', intervals: [0, 3, 6] },
-        'maj7': { suffix: 'maj7', intervals: [0, 4, 7, 11] },
+        'maj7': { suffix: 'M7', intervals: [0, 4, 7, 11] },
         '7': { suffix: '7', intervals: [0, 4, 7, 10] },
         'm7': { suffix: 'm7', intervals: [0, 3, 7, 10] },
         'm7b5': { suffix: 'm7♭5', intervals: [0, 3, 6, 10] }
@@ -36,14 +36,14 @@
             triadQualities: ['maj', 'm', 'm', 'maj', 'maj', 'm', 'dim'],
             seventhQualities: ['maj7', 'm7', 'm7', 'maj7', '7', 'm7', 'm7b5'],
             roman3: ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'],
-            roman7: ['Imaj7', 'iim7', 'iiim7', 'IVmaj7', 'V7', 'vim7', 'viim7♭5']
+            roman7: ['IM7', 'iim7', 'iiim7', 'IVM7', 'V7', 'vim7', 'viim7♭5']
         },
         minor: { // ナチュラルマイナー
             rootIntervals: [0, 2, 3, 5, 7, 8, 10],
             triadQualities: ['m', 'dim', 'maj', 'm', 'm', 'maj', 'maj'],
             seventhQualities: ['m7', 'm7b5', 'maj7', 'm7', 'm7', 'maj7', '7'],
             roman3: ['i', 'ii°', 'III', 'iv', 'v', 'VI', 'VII'],
-            roman7: ['im7', 'iim7♭5', 'IIImaj7', 'ivm7', 'vm7', 'VImaj7', 'VII7']
+            roman7: ['im7', 'iim7♭5', 'IIIM7', 'ivm7', 'vm7', 'VIM7', 'VII7']
         }
     };
 
@@ -80,6 +80,11 @@
 
     function chordSymbol(rootPc, qualityKey, useFlats) {
         return noteName(rootPc, useFlats) + QUALITIES[qualityKey].suffix;
+    }
+
+    /** 旧保存データを変更せず、ユーザー表示時だけ maj7 を M7 に正規化する。 */
+    function displayChordName(name) {
+        return String(name == null ? '' : name).replace(/maj7/gi, 'M7');
     }
 
     function getDiatonicChords(tonicPc, mode, toneMode) {
@@ -140,6 +145,7 @@
         noteName: noteName,
         solfegeName: solfegeName,
         chordSymbol: chordSymbol,
+        displayChordName: displayChordName,
         getDiatonicChords: getDiatonicChords,
         degreeLabels: degreeLabels
     };

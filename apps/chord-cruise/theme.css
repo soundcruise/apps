@@ -15,7 +15,12 @@
     --cc-radius-lg: 20px;
     --cc-radius-md: 14px;
     --cc-radius-pill: 999px;
+    --cc-fret-number-size: 14px;
 }
+
+html[data-cc-fret-number-size="small"] { --cc-fret-number-size: 12px; }
+html[data-cc-fret-number-size="medium"] { --cc-fret-number-size: 14px; }
+html[data-cc-fret-number-size="large"] { --cc-fret-number-size: 16px; }
 
 * {
     box-sizing: border-box;
@@ -69,6 +74,48 @@ body {
     font-size: 0.82rem;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
+}
+
+/* 右上の共通設定ボタン（リズムクルーズの固定ピル型をコードクルーズ向けに再構成） */
+.cc-settings-corner-btn {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top));
+    right: max(12px, env(safe-area-inset-right));
+    z-index: 200;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 15px;
+    border: 1px solid var(--cc-border-strong);
+    border-radius: var(--cc-radius-pill);
+    background: rgba(20, 19, 17, 0.88);
+    color: var(--cc-text);
+    font-family: inherit;
+    font-size: 0.84rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    white-space: nowrap;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: transform 0.12s ease, background 0.15s ease;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.cc-settings-gear {
+    display: inline-block;
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
+.cc-settings-corner-btn:active {
+    transform: scale(0.95);
+    background: rgba(212, 175, 55, 0.16);
+}
+
+.cc-settings-corner-btn--hidden {
+    display: none;
 }
 
 /* 画面切り替え */
@@ -470,6 +517,16 @@ body {
     display: block;
 }
 
+.cc-fb-fret-number {
+    font-size: var(--cc-fret-number-size);
+    fill: rgba(244, 241, 232, 0.42);
+    transition: fill 0.15s ease;
+}
+
+.cc-fb-fret-number--highlighted {
+    fill: rgba(240, 224, 184, 0.88);
+}
+
 .cc-fb-markers {
     position: absolute;
     inset: 0;
@@ -517,6 +574,73 @@ body {
     margin: 10px 2px 0;
     font-size: 0.8rem;
     color: var(--cc-text-muted);
+}
+
+.cc-high-fret-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--cc-border);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.cc-high-fret-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.cc-high-fret-label {
+    color: var(--cc-text);
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.cc-high-fret-note {
+    color: var(--cc-text-muted);
+    font-size: 0.72rem;
+    line-height: 1.45;
+}
+
+.cc-switch {
+    position: relative;
+    flex: 0 0 auto;
+    width: 50px;
+    height: 29px;
+    padding: 0;
+    border: 1px solid var(--cc-border-strong);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.cc-switch-knob {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 21px;
+    height: 21px;
+    border-radius: 50%;
+    background: var(--cc-text-muted);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+    transition: transform 0.16s ease, background 0.15s ease;
+}
+
+.cc-switch--on {
+    border-color: rgba(232, 201, 122, 0.75);
+    background: rgba(212, 175, 55, 0.32);
+}
+
+.cc-switch--on .cc-switch-knob {
+    transform: translateX(21px);
+    background: var(--cc-gold-bright);
 }
 
 .cc-segment-btn--disabled {
@@ -1006,6 +1130,225 @@ body {
 
 .cc-note-chip--link:active {
     transform: scale(0.94);
+}
+
+/* 設定画面 */
+body.cc-settings-open {
+    overflow: hidden;
+}
+
+.cc-settings-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    overflow-y: auto;
+    background:
+        radial-gradient(circle at 50% -10%, rgba(212, 175, 55, 0.10), transparent 45%),
+        rgba(11, 10, 9, 0.98);
+}
+
+.cc-settings-overlay--hidden {
+    display: none;
+}
+
+.cc-settings-panel {
+    width: 100%;
+    max-width: 600px;
+    min-height: 100dvh;
+    margin: 0 auto;
+    padding: max(18px, env(safe-area-inset-top)) 20px max(40px, env(safe-area-inset-bottom));
+}
+
+.cc-settings-head {
+    display: grid;
+    grid-template-columns: minmax(76px, auto) 1fr minmax(76px, auto);
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 24px;
+}
+
+.cc-settings-head h2 {
+    margin: 0;
+    text-align: center;
+    color: var(--cc-gold-bright);
+    font-size: 1.4rem;
+    font-weight: 800;
+}
+
+.cc-settings-head-spacer {
+    width: 76px;
+}
+
+.cc-settings-back-btn {
+    justify-self: start;
+    padding: 8px 14px;
+    border: 1px solid var(--cc-border-strong);
+    border-radius: var(--cc-radius-pill);
+    background: rgba(20, 19, 17, 0.88);
+    color: var(--cc-text);
+    font-family: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.cc-settings-back-btn:active {
+    transform: scale(0.95);
+    background: rgba(212, 175, 55, 0.16);
+}
+
+.cc-settings-card {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 24px 20px;
+    border: 1px solid var(--cc-border);
+    border-radius: 18px;
+    background: linear-gradient(180deg, var(--cc-surface-raised), var(--cc-surface));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 12px 26px rgba(0, 0, 0, 0.32);
+}
+
+.cc-settings-card h3 {
+    margin: 0;
+    color: var(--cc-champagne);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.cc-settings-item {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.cc-settings-item-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.cc-settings-item-label {
+    color: var(--cc-text);
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.cc-settings-note {
+    margin: 0;
+    color: var(--cc-text-muted);
+    font-size: 0.78rem;
+    line-height: 1.6;
+}
+
+.cc-settings-choices {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    padding: 4px;
+    border: 1px solid var(--cc-border);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.28);
+}
+
+.cc-settings-choice {
+    min-width: 0;
+    padding: 10px 8px;
+    border: none;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--cc-text-muted);
+    font-family: inherit;
+    font-size: 0.84rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.08s ease, color 0.15s ease, background 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.cc-settings-choice:active {
+    transform: scale(0.97);
+}
+
+.cc-settings-choice--active {
+    color: #171204;
+    background: linear-gradient(135deg, #b8963a, #e8c97a);
+    box-shadow: 0 2px 10px rgba(212, 175, 55, 0.24);
+}
+
+[data-fret-highlight-mode="position"] {
+    font-size: 0.76rem;
+}
+
+.cc-settings-custom-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.cc-settings-custom-wrap[hidden] {
+    display: none;
+}
+
+.cc-settings-custom-grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.cc-settings-fret-btn {
+    min-width: 0;
+    min-height: 40px;
+    padding: 7px 3px;
+    border: 1px solid var(--cc-border);
+    border-radius: 9px;
+    background: rgba(0, 0, 0, 0.24);
+    color: var(--cc-text-muted);
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.08s ease, color 0.15s ease, background 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.cc-settings-fret-btn:active {
+    transform: scale(0.94);
+}
+
+.cc-settings-fret-btn--active {
+    border-color: rgba(232, 201, 122, 0.7);
+    background: rgba(212, 175, 55, 0.22);
+    color: var(--cc-gold-bright);
+}
+
+@media (max-width: 420px) {
+    .cc-settings-panel {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .cc-settings-card {
+        padding: 20px 16px;
+    }
+
+    .cc-settings-head {
+        grid-template-columns: minmax(70px, auto) 1fr minmax(70px, auto);
+    }
+
+    .cc-settings-head-spacer {
+        width: 70px;
+    }
+
+    .cc-settings-custom-grid {
+        gap: 5px;
+    }
+
+    .cc-settings-fret-btn {
+        min-height: 38px;
+        font-size: 0.78rem;
+    }
 }
 
 /* バレー表示（同じ指で同フレットの複数弦を押さえる箇所の縦長カプセル） */

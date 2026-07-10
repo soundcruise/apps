@@ -83,6 +83,15 @@
                     '<button type="button" class="cc-caged-btn" data-shape="D">D型</button>' +
                 '</div>' +
                 '<div id="cc-fretboard-host" class="cc-fb-host"></div>' +
+                '<div class="cc-high-fret-row">' +
+                    '<span class="cc-high-fret-copy">' +
+                        '<span class="cc-high-fret-label">ハイフレット</span>' +
+                        '<span class="cc-high-fret-note">ONにすると12〜25フレットを表示します</span>' +
+                    '</span>' +
+                    '<button type="button" id="cc-high-fret-toggle" class="cc-switch" role="switch" aria-checked="false" aria-label="ハイフレット表示">' +
+                        '<span class="cc-switch-knob" aria-hidden="true"></span>' +
+                    '</button>' +
+                '</div>' +
                 '<p class="cc-fb-hint" id="cc-fb-hint"></p>' +
                 '<div class="cc-save-btn-row cc-save-btn-row--hidden" id="cc-save-btn-row">' +
                     '<button type="button" class="cc-btn cc-btn-primary cc-btn--block" id="cc-save-form-btn">このフォームを保存</button>' +
@@ -177,6 +186,8 @@
                 chord: chord,
                 form: form,
                 shape: getState().exploreShape,
+                startFret: fretWindow().start,
+                endFret: fretWindow().end,
                 useFlats: chordUseFlats(chord),
                 keyContext: chord.source === 'custom' ? null : {
                     tonicPc: settings.selectedKey,
@@ -202,6 +213,19 @@
             getState().exploreShape = shape;
             updateCagedButtons();
             renderFretboard();
+        });
+
+        document.getElementById('cc-high-fret-toggle').addEventListener('click', function () {
+            var enabled = !getSettings().highFretMode;
+            saveSetting({ highFretMode: enabled });
+            updateHighFretToggle();
+            renderFretboard();
+        });
+
+        document.addEventListener('chordcruise:fretboard-settings-change', function () {
+            if (document.getElementById('cc-fretboard-host')) {
+                renderFretboard();
+            }
         });
     }
 
@@ -280,6 +304,20 @@
         });
     }
 
+    function fretWindow() {
+        return getSettings().highFretMode
+            ? { start: 12, end: 25 }
+            : { start: 0, end: 13 };
+    }
+
+    function updateHighFretToggle() {
+        var toggle = document.getElementById('cc-high-fret-toggle');
+        if (!toggle) return;
+        var enabled = getSettings().highFretMode === true;
+        toggle.classList.toggle('cc-switch--on', enabled);
+        toggle.setAttribute('aria-checked', enabled ? 'true' : 'false');
+    }
+
     function roleForInterval(interval) {
         if (interval === 0) return 'root';
         if (interval === 3 || interval === 4) return 'third';
@@ -293,11 +331,12 @@
         var useFlats = chordUseFlats(chord);
         var mode = getSettings().fretboardDisplayMode;
         var markers = [];
+        var range = fretWindow();
         var s;
         var f;
         for (s = 1; s <= 6; s++) {
             var openPc = theory.OPEN_STRINGS[6 - s];
-            for (f = 0; f <= 13; f++) {
+            for (f = range.start; f <= range.end; f++) {
                 var pc = (openPc + f) % 12;
                 var idx = chord.notePcs.indexOf(pc);
                 if (idx === -1) {
@@ -357,7 +396,8 @@
         if (!shape || !chord) {
             return null;
         }
-        var form = window.ChordCruise.caged.getForm(shape, chord.qualityKey, chord.rootPc, 13);
+        var range = fretWindow();
+        var form = window.ChordCruise.caged.getForm(shape, chord.qualityKey, chord.rootPc, range.end, range.start);
         return form.available ? form : null;
     }
 
@@ -398,12 +438,13 @@
         }
         var chord = selectedChord();
         var activeShape = getState().exploreShape || '';
+        var range = fretWindow();
         Array.prototype.forEach.call(row.querySelectorAll('.cc-caged-btn'), function (btn) {
             var shape = btn.dataset.shape;
             btn.classList.toggle('cc-caged-btn--active', shape === activeShape);
             var na = false;
             if (shape && chord) {
-                na = !window.ChordCruise.caged.getForm(shape, chord.qualityKey, chord.rootPc, 13).available;
+                na = !window.ChordCruise.caged.getForm(shape, chord.qualityKey, chord.rootPc, range.end, range.start).available;
             }
             btn.classList.toggle('cc-caged-btn--na', na);
         });
@@ -426,11 +467,12 @@
         var rangeHighlight = null;
         var scrollToFret = null;
         var form = null;
+        var range = fretWindow();
 
         if (!chord) {
             hint = 'コードを選ぶと構成音が指板に表示されます。';
         } else if (shape) {
-            var result = caged.getForm(shape, chord.qualityKey, chord.rootPc, 13);
+            var result = caged.getForm(shape, chord.qualityKey, chord.rootPc, range.end, range.start);
             if (result.available) {
                 form = result;
                 markers = computeFormMarkers(chord, form);
@@ -450,7 +492,7 @@
                     : shape + '型の' + chord.symbol + 'は実用フォーム未収録のため、全体表示にしています。';
             } else {
                 markers = computeChordToneMarkers(chord);
-                hint = shape + '型の' + chord.symbol + 'は13フレットまでに収まらないため、全体表示にしています。';
+                hint = shape + '型の' + chord.symbol + 'は表示範囲' + range.start + '〜' + range.end + 'Fに収まらないため、全体表示にしています。';
             }
         } else {
             markers = computeChordToneMarkers(chord);
@@ -478,7 +520,8 @@
         }
 
         fb.render(host, {
-            maxFret: 13,
+            startFret: range.start,
+            endFret: range.end,
             markers: markers,
             barres: barres,
             mutedStrings: mutedStrings,
@@ -487,6 +530,7 @@
             preserveScroll: (form && scrollToFret !== null) ? null : (typeof prevScroll === 'number' ? prevScroll : null)
         });
         setFbHint(hint);
+        updateHighFretToggle();
         updateCagedButtons();
     }
 

@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="theme.css?v=0.9.1">
+<link rel="stylesheet" href="theme.css?v=0.11.0">
 </head>
 <body>
 <div id="cc-app" class="cc-app">
@@ -15,6 +15,9 @@
         <button type="button" id="cc-nav-back" class="cc-nav-btn">← 戻る</button>
         <button type="button" id="cc-nav-top" class="cc-nav-btn">🏠 TOP</button>
     </nav>
+    <button type="button" id="cc-settings-btn" class="cc-settings-corner-btn" aria-haspopup="dialog" aria-controls="cc-settings-overlay">
+        <span class="cc-settings-gear" aria-hidden="true">⚙️</span> 設定
+    </button>
     <main class="cc-main">
         <!-- TOP画面 -->
         <section id="cc-screen-home" class="cc-screen">
@@ -55,16 +58,55 @@
     </main>
     <footer class="cc-footer">Sound Cruise Series</footer>
 </div>
-<script src="js/core/storage.js?v=0.9.1"></script>
-<script src="js/core/music-theory.js?v=0.9.1"></script>
-<script src="js/core/caged-forms.js?v=0.9.1"></script>
-<script src="js/core/chord-model.js?v=0.9.1"></script>
-<script src="js/core/chord-info.js?v=0.9.1"></script>
-<script src="js/ui/fretboard.js?v=0.9.1"></script>
-<script src="js/ui/save-editor.js?v=0.9.1"></script>
-<script src="js/ui/chord-builder.js?v=0.9.1"></script>
-<script src="js/ui/library.js?v=0.9.1"></script>
-<script src="js/ui/explore.js?v=0.9.1"></script>
-<script src="js/app.js?v=0.9.1"></script>
+<div id="cc-settings-overlay" class="cc-settings-overlay cc-settings-overlay--hidden" role="dialog" aria-modal="true" aria-labelledby="cc-settings-title" aria-hidden="true">
+    <div class="cc-settings-panel">
+        <header class="cc-settings-head">
+            <button type="button" id="cc-settings-close" class="cc-settings-back-btn">← 戻る</button>
+            <h2 id="cc-settings-title">設定</h2>
+            <span class="cc-settings-head-spacer" aria-hidden="true"></span>
+        </header>
+        <section class="cc-settings-card" aria-labelledby="cc-settings-fretboard-title">
+            <h3 id="cc-settings-fretboard-title">指板の表示</h3>
+            <div class="cc-settings-item">
+                <div class="cc-settings-item-head">
+                    <span class="cc-settings-item-label">フレット番号の大きさ</span>
+                </div>
+                <p class="cc-settings-note">指板下部に表示するフレット番号の文字サイズを選べます。</p>
+                <div class="cc-settings-choices" role="group" aria-label="フレット番号の大きさ">
+                    <button type="button" class="cc-settings-choice" data-fret-number-size="small" aria-pressed="false">小</button>
+                    <button type="button" class="cc-settings-choice" data-fret-number-size="medium" aria-pressed="true">標準</button>
+                    <button type="button" class="cc-settings-choice" data-fret-number-size="large" aria-pressed="false">大</button>
+                </div>
+            </div>
+            <div class="cc-settings-item">
+                <div class="cc-settings-item-head">
+                    <span class="cc-settings-item-label">強調するフレット番号</span>
+                </div>
+                <p class="cc-settings-note">番号の明るさだけを変更します。指板上のポジションドットは常に実フレット位置で表示されます。</p>
+                <div class="cc-settings-choices" role="group" aria-label="強調するフレット番号">
+                    <button type="button" class="cc-settings-choice" data-fret-highlight-mode="all" aria-pressed="true">すべて</button>
+                    <button type="button" class="cc-settings-choice" data-fret-highlight-mode="position" aria-pressed="false">ポジションマーク</button>
+                    <button type="button" class="cc-settings-choice" data-fret-highlight-mode="custom" aria-pressed="false">カスタム</button>
+                </div>
+                <div id="cc-settings-custom-frets" class="cc-settings-custom-wrap" hidden>
+                    <p class="cc-settings-note">強調したい番号を複数選べます（0〜25F）。</p>
+                    <div id="cc-settings-custom-grid" class="cc-settings-custom-grid" role="group" aria-label="カスタムで強調するフレット番号"></div>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+<script src="js/core/storage.js?v=0.11.0"></script>
+<script src="js/core/music-theory.js?v=0.11.0"></script>
+<script src="js/core/caged-forms.js?v=0.11.0"></script>
+<script src="js/core/chord-model.js?v=0.11.0"></script>
+<script src="js/core/chord-info.js?v=0.11.0"></script>
+<script src="js/ui/fretboard.js?v=0.11.0"></script>
+<script src="js/ui/save-editor.js?v=0.11.0"></script>
+<script src="js/ui/chord-builder.js?v=0.11.0"></script>
+<script src="js/ui/library.js?v=0.11.0"></script>
+<script src="js/ui/explore.js?v=0.11.0"></script>
+<script src="js/ui/settings.js?v=0.11.0"></script>
+<script src="js/app.js?v=0.11.0"></script>
 </body>
 </html>

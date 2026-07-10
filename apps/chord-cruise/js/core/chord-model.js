@@ -72,7 +72,7 @@
             } else {
                 if (seventh === 9) name += '6';
                 else if (seventh === 10) name += '7';
-                else if (seventh === 11) name += 'maj7';
+                else if (seventh === 11) name += 'M7';
                 else if (seventh === null && fifth === null) name += '(power)';
                 else if (fifth === 6) name += '(♭5)';
             }
@@ -82,7 +82,7 @@
                 name += '5';
             } else {
                 if (seventh === 10) name += '7';
-                else if (seventh === 11) name += 'maj7';
+                else if (seventh === 11) name += 'M7';
                 name += '(omit3)';
             }
         }
@@ -148,7 +148,7 @@
             notePcs: notePcs,
             intervals: intervals,
             degreeLabelsList: degreeLabelsList,
-            symbol: (customName && customName.trim()) || generateName(spec),
+            symbol: theory.displayChordName((customName && customName.trim()) || generateName(spec)),
             qualityKey: qualityKey,
             useFlats: FLAT_ROOT_PCS.indexOf(spec.rootPc) !== -1,
             source: 'custom',

@@ -205,12 +205,13 @@
 
     /**
      * 指定の型・品質・ルート音で実フォームを求める。
-     * rootFret === 0（開放ポジション）では openFingers を優先適用する。
+     * 表示範囲が0Fを含み、フォーム内の最低フレットが0Fになる場合だけ
+     * openFingers を優先適用する。12F以降ではムーバブルフォーム用運指を使う。
      * @returns { available:true, shape, qualityKey, rootFret, notes:[{string,fret,interval,finger}],
      *            mutedStrings, fretRange:{min,max,includesOpen} }
      *          または { available:false, reason:'quality'|'position' }
      */
-    function getForm(shapeKey, qualityKey, rootPc, maxFret) {
+    function getForm(shapeKey, qualityKey, rootPc, maxFret, minFret) {
         var shape = FORMS[shapeKey];
         var theory = window.ChordCruise.theory;
         if (!shape || !shape.qualities[qualityKey]) {
@@ -219,6 +220,7 @@
         var def = shape.qualities[qualityKey];
         var openPc = theory.OPEN_STRINGS[6 - shape.rootString];
         var limit = typeof maxFret === 'number' ? maxFret : 13;
+        var lowerLimit = typeof minFret === 'number' ? minFret : 0;
 
         var minOffset = 0;
         var maxOffset = 0;
@@ -229,9 +231,9 @@
 
         var rootFret = null;
         var f;
-        for (f = 0; f <= limit; f++) {
+        for (f = Math.max(0, lowerLimit - minOffset); f <= limit; f++) {
             if ((openPc + f) % 12 !== ((rootPc % 12) + 12) % 12) continue;
-            if (f + minOffset < 0) continue;
+            if (f + minOffset < lowerLimit) continue;
             if (f + maxOffset > limit) continue;
             rootFret = f;
             break;
@@ -242,10 +244,10 @@
 
         // 開放ポジション（フォーム内の最低フレットが開放弦=0になる配置）では
         // 一般的な開放コード運指を優先する。E/A/D型は rootFret 0、C/G型は rootFret 3 が該当。
-        var isOpenPosition = (rootFret + minOffset === 0);
+        var isOpenPosition = (lowerLimit === 0 && rootFret + minOffset === 0);
         var fingerSource = (isOpenPosition && def.openFingers) ? def.openFingers : def.fingers;
 
-        var minFret = null;
+        var minFretUsed = null;
         var maxFretUsed = null;
         var includesOpen = false;
         var notes = def.slots.map(function (slot) {
@@ -253,7 +255,7 @@
             if (fret === 0) {
                 includesOpen = true;
             } else {
-                if (minFret === null || fret < minFret) minFret = fret;
+                if (minFretUsed === null || fret < minFretUsed) minFretUsed = fret;
                 if (maxFretUsed === null || fret > maxFretUsed) maxFretUsed = fret;
             }
             var finger = fret === 0 ? null : (fingerSource[slot.s] != null ? fingerSource[slot.s] : null);
@@ -265,10 +267,11 @@
             shape: shapeKey,
             qualityKey: qualityKey,
             rootFret: rootFret,
+            usedOpenFingers: !!(isOpenPosition && def.openFingers),
             notes: notes,
             mutedStrings: def.muted.slice(),
             fretRange: {
-                min: minFret === null ? 0 : minFret,
+                min: minFretUsed === null ? 0 : minFretUsed,
                 max: maxFretUsed === null ? 0 : maxFretUsed,
                 includesOpen: includesOpen
             }

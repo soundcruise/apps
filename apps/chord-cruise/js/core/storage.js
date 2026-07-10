@@ -8,14 +8,46 @@
     var KEY_CHORD_INDEX = PREFIX + 'chords.index';
     var CHORD_KEY_PREFIX = PREFIX + 'chord.';
     var UNCATEGORIZED_ID = 'folder_uncategorized';
+    var DEFAULT_HIGHLIGHTED_FRETS = [0, 3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
 
     var DEFAULT_SETTINGS = {
         selectedKey: 0,
         scaleType: 'major',
         chordToneMode: '3',
         fretboardDisplayMode: 'note',
+        fretNumberSize: 'medium',
+        fretNumberHighlightMode: 'all',
+        highlightedFrets: DEFAULT_HIGHLIGHTED_FRETS,
+        highFretMode: false,
         librarySortMode: 'updatedDesc'
     };
+
+    function normalizeHighlightedFrets(value) {
+        if (!Array.isArray(value)) {
+            return DEFAULT_HIGHLIGHTED_FRETS.slice();
+        }
+        var seen = {};
+        return value.filter(function (fret) {
+            if (typeof fret !== 'number' || Math.floor(fret) !== fret || fret < 0 || fret > 25 || seen[fret]) {
+                return false;
+            }
+            seen[fret] = true;
+            return true;
+        }).sort(function (a, b) { return a - b; });
+    }
+
+    function normalizeSettings(settings) {
+        var normalized = settings;
+        if (['small', 'medium', 'large'].indexOf(normalized.fretNumberSize) === -1) {
+            normalized.fretNumberSize = 'medium';
+        }
+        if (['all', 'position', 'custom'].indexOf(normalized.fretNumberHighlightMode) === -1) {
+            normalized.fretNumberHighlightMode = 'all';
+        }
+        normalized.highlightedFrets = normalizeHighlightedFrets(normalized.highlightedFrets);
+        normalized.highFretMode = normalized.highFretMode === true;
+        return normalized;
+    }
 
     function readJSON(key, fallback) {
         try {
@@ -60,7 +92,7 @@
                 }
             }
         }
-        return merged;
+        return normalizeSettings(merged);
     }
 
     function saveSettings(partial) {
@@ -79,7 +111,7 @@
                 }
             }
         }
-        writeJSON(KEY_SETTINGS, next);
+        writeJSON(KEY_SETTINGS, normalizeSettings(next));
     }
 
     // ---- フォルダ ----

@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    var CHORD_CRUISE_APP_VERSION = '0.9.1';
+    var CHORD_CRUISE_APP_VERSION = '0.11.0';
     window.CHORD_CRUISE_APP_VERSION = CHORD_CRUISE_APP_VERSION;
 
     var SCREENS = ['home', 'explore', 'library'];
@@ -91,6 +91,9 @@
     function init() {
         window.ChordCruise.storage.ensureSchemaVersion();
         window.ChordCruise.state.settings = window.ChordCruise.storage.loadSettings();
+        if (window.ChordCruise.ui && window.ChordCruise.ui.settings) {
+            window.ChordCruise.ui.settings.init();
+        }
         bindEvents();
         showScreen('home');
     }

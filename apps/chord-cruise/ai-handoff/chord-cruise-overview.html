@@ -239,9 +239,9 @@
             <h1>コードクルーズ 開発概要</h1>
             <p>キーから探して、指板で確かめて、自分のコード本棚へ ── 開発中のコード学習アプリ</p>
             <div class="ov-meta">
-                <span>現在のバージョン<b>0.9.1</b></span>
-                <span>最新commit<b>b3d00e22</b></span>
-                <span>最終更新日<b>2026年7月8日</b></span>
+                <span>現在のバージョン<b>0.11.0</b></span>
+                <span>最新commit<b>6b32c65e</b></span>
+                <span>最終更新日<b>2026年7月10日</b></span>
             </div>
         </header>
 
@@ -271,6 +271,11 @@
                     <h3>コード本棚</h3>
                     <p>保存したコードフォームをフォルダごとに整理・振り返り。</p>
                 </div>
+                <div class="ov-feature-card">
+                    <span class="icon">⚙️</span>
+                    <h3>表示設定</h3>
+                    <p>フレット番号の大きさ・強調方法を設定し、探索指板は0〜13F／12〜25Fを切り替え。</p>
+                </div>
             </div>
         </section>
 
@@ -286,7 +291,7 @@
             <div class="ov-card">
                 <ul>
                     <li>「コードを調べる」「コード本棚」画面は、HTML上に古い「次のSTEPで実装します」という文言が残っていますが、実際にはJSが画面を動的に構築するため、既にしっかり機能しています。</li>
-                    <li>指板の運指（フィンガリング）表示モードはボタンはあるものの、現状は無効化されており未実装です。</li>
+                    <li>運指表示はCAGEDフォーム選択時のみ有効です。ハイフレットではムーバブル運指を使用します。</li>
                     <li>保存データはブラウザの保存領域（localStorage）に保存されます。データ構造に関わる変更は、既存の保存データに影響しないよう慎重に扱う方針です。</li>
                 </ul>
                 <div class="ov-warn-box" style="margin-top: 14px;">
@@ -339,7 +344,7 @@
         </section>
 
         <div class="ov-footer">
-            コードクルーズ開発概要 ／ 最終更新日: 2026年7月8日 ／ 最新commit: b3d00e22<br>
+            コードクルーズ開発概要 ／ 最終更新日: 2026年7月10日 ／ 最新commit: 6b32c65e<br>
             詳細な開発者向け資料は <code>apps/chord-cruise/ai-handoff/CHORD_CRUISE_OVERVIEW.md</code> を参照してください。
         </div>
     </div>

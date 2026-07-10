@@ -85,6 +85,9 @@
         });
 
         document.getElementById('cc-save-confirm').addEventListener('click', save);
+        document.addEventListener('chordcruise:fretboard-settings-change', function () {
+            if (draft) renderPreview();
+        });
     }
 
     function stepRange(edge, delta) {
@@ -140,7 +143,8 @@
         // 保存範囲外（dimmed）のノートはバレー判定に含めない
         var barres = window.ChordCruise.caged.detectBarres(draft.notes.filter(noteIncluded));
         fb.render(host, {
-            maxFret: 13,
+            startFret: draft.startFret,
+            endFret: draft.endFret,
             markers: markers,
             barres: barres,
             mutedStrings: draft.mutedStrings,
@@ -217,7 +221,9 @@
             setError('保存範囲に音が1つもありません。範囲を見直してください。');
             return;
         }
-        var chordName = document.getElementById('cc-save-chord-name').value.trim() || draft.chordName;
+        var chordName = theory().displayChordName(
+            document.getElementById('cc-save-chord-name').value.trim() || draft.chordName
+        );
         var formName = document.getElementById('cc-save-form-name').value.trim() || draft.formName;
         var memo = document.getElementById('cc-save-memo').value.trim();
         var folderId = document.getElementById('cc-save-folder').value;
@@ -263,6 +269,12 @@
                 return { string: note.string, fret: note.fret, interval: note.interval, finger: note.finger };
             }),
             mutedStrings: form.mutedStrings.slice(),
+            startFret: typeof payload.startFret === 'number'
+                ? payload.startFret
+                : (form.fretRange.min >= 12 ? 12 : 0),
+            endFret: typeof payload.endFret === 'number'
+                ? payload.endFret
+                : (form.fretRange.min >= 12 ? 25 : 13),
             formRange: {
                 min: form.fretRange.min,
                 max: form.fretRange.max,
