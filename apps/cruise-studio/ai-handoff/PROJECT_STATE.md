@@ -12,20 +12,21 @@
 
 ## 1. 現在の最新状態
 
-- 最新push済みcommit（cruise-studio以外を含む、このリポジトリ全体の最新。origin/main）:
-  - full hash: `ac8acc961e1305340e0b52a229cf02228f79ec07`
-  - short hash: `ac8acc96`
-  - commit message: `譜面クルーズの小節編集UIを下部ドック化`
-  - 内容: `v0.17.0 / UI再編 D2 MVP` までリモート反映済み
-- ローカルcheckpoint（未push。origin/mainより1コミット先行）:
-  - full hash: `a3a1618f02f3d727ed0d32400cd76169c129bc08`
-  - short hash: `a3a1618f`
-  - commit message: `譜面クルーズに選択小節のタイムグリッド編集を追加`
-  - 内容: `v0.18.0 / UI再編 D3a` をローカルcommit済み・未push
-  - 運用方針: D3aは実機確認でUIの見た目・配置に追加改善が必要と判明したため、
-    origin/mainへは一旦pushせず、次のF1（小節ルーペ化）実装後にD3a＋F1をまとめてpushする
-- `main` は `origin/main` より1コミット（D3a checkpoint）先行している。
-- クルーズスタジオ側の未commit差分は、`v0.19.0 / F1 小節ルーペ化` 実装分のみを想定する。
+- 最新push済みcommit（cruise-studio以外を含む、このリポジトリ全体の最新。origin/main。
+  `main` と `origin/main` は一致しており、両者に差はない）:
+  - full hash: `6b32c65ea01c6eaed4981b0cc940987b31e94f49`
+  - short hash: `6b32c65e`
+  - commit message: `コードクルーズの減三和音表記を変更`（chord-cruise側の変更。cruise-studioは無関係）
+- cruise-studioの直近push済みcommit:
+  - `0906b8f4` 譜面クルーズの小節編集をフローティングルーペ化（`v0.19.0 / F1`）
+  - `a3a1618f` 譜面クルーズに選択小節のタイムグリッド編集を追加（`v0.18.0 / D3a`）
+  - D3a・F1とも既にpush済み（旧版の本ファイルには「D3aはローカルcheckpointで未push」
+    「F1はcommit/push未実施」という記述が残っていたが、これは古い状態の記述であり誤り。
+    実際には両方ともorigin/mainへ反映済み）。
+- クルーズスタジオ側の未commit差分は、`v0.20.0 / F2a 歌詞セル編集` 実装分のみを想定する
+  （下記5章を参照。commit/pushはまだ実施していない）。
+- chord-cruise側にも別途、このセッションとは無関係な未commit差分が存在することがある。
+  cruise-studio側の作業ではchord-cruiseには一切触れない。
 - rhythm-cruise 側の差分や未追跡ファイルが出ていても、この作業では触らない。
 
 ## 2. クルーズスタジオの目的
@@ -201,7 +202,7 @@
   - データ構造・保存/復元/JSON/プレDTM/MIDI経路は無変更。`schemaVersion` は1のまま
   - 拍/裏拍/16分セル入力・`_proto/slot-editor.*` の移植・VexFlow/五線譜/MusicXMLはD2 MVPでは未着手
 - `v0.18.0 / UI再編 D3a`: 選択小節タイムグリッド・ドック（ストロークセル編集）
-  （ローカルcheckpoint済み: `a3a1618f`。origin/mainへは未push。次のF1と合わせてpush予定）
+  （push済み: `a3a1618f`）
   - 背景: D2実機確認で、ドックが画面下半分近くを占有するただの大きなフォームになり、
     拍・裏拍・16分の時間軸が見えず、まとめて入力が常時表示で邪魔になり、
     「選択小節を拡大した感覚」がないという課題が判明した。Fable5の設計レビューで
@@ -257,14 +258,8 @@
   - 歌詞/ドレミのtick位置セル編集、拍単位コード入力、`_proto` のスロット入力そのものの
     移植、VexFlow/五線譜/MusicXMLはD3aでは未着手
 
-## 5. 現在作業中のフェーズ
-
-### F1: フローティング小節ルーペ化
-
-- 予定バージョン: `v0.19.0`
-- 実装・検証済み。
-- commit / push はまだ未実施。
-- 背景: D3a実機確認で、機能的には良いものの「黒い編集パネル・画面下固定・紙面と色/罫線/
+- `v0.19.0 / F1 フローティング小節ルーペ化`（push済み: `0906b8f4`）
+  - 背景: D3a実機確認で、機能的には良いものの「黒い編集パネル・画面下固定・紙面と色/罫線/
   フォントが異なる」ため「選択した小節そのものを拡大した表示」に見えないという課題が
   判明した。今回はD3aのタイムグリッド編集機能（拍ルーラー・8分/16分・ストロークセル編集・
   setBarStrumSlots()等）はそのまま維持し、表示方式・デザイン・位置・サイズだけを変更する
@@ -329,6 +324,91 @@
   - 歌詞/ドレミのtick位置セル編集・`setBarLyricSlot`/`setBarMelodySlot`・
     旧小節グリッドカードの撤去・bulk自動分解配置・拍単位コード入力はF1では未着手（F2以降）
 
+## 5. 現在作業中のフェーズ
+
+### F2a: 歌詞のtick位置セル編集（`docs/DECISIONS.md` ADR-028）
+
+- 予定バージョン: `v0.20.0`
+- 実装・検証済み。commit / push はまだ未実施。
+- 背景: D3a/F1のドックは歌詞をコード同様「小節1つに1つの文字列入力」のまま扱っていたため、
+  紙面のtick位置に応じた歌詞配置（1音節=1マス）ができなかった。今回はFable5の設計レビューで
+  確定したF2aスコープのみを実装し、貼り付け時の自動分割・既存全文の自動分割・小節をまたぐ
+  自動移動・ドレミのセル編集・まとめて配置の新方式はF2b/F3/F4へ送る。
+- 主な内容:
+  - **`song-model.js`**:
+    - `setBarLyricSlot(project, barNumber, slotTick, slotTicks, text)` を新設。
+      `bar.lyrics` の指定tick範囲（1セル分）だけを書き換える。`text` は前後の
+      半角/全角空白をtrimし、空文字・空白のみ・「・」はすべて削除入力として扱う
+      （`normalizeLyricSlotText`）。「ー」「〜」は通常の文字として保持し
+      `durationTicks` は持たせない。model層は `renderPreview`/`markDirty`/保存を
+      一切行わず、呼び出し側UIが担当する。`{ok, warnings}` を返す
+    - `getBarLyricSlots(project, barNumber, resolution)` を新設。`bar.lyrics` を
+      指定解像度（8 or 16）のセル配列 `{text, eventCount, isMulti}` として読み出す
+      純粋な読み取り関数（projectを変更しない）
+    - `barNeedsSixteenthResolution({strumSlots, lyrics, chords, melody})` を新設。
+      tick%240!==0（またはdurationTicks%240!==0）のイベントがあれば16分表示を要求する
+      共通判定関数。F3で `melody` 側の判定もここに統合できる設計。
+      `sheet-renderer.js` の `barNeedsSixteenth(bar, strumSlots)` はこの共通関数への
+      委譲へ置き換え、挙動は変えていない（chords/melody/lyrics/strumSlotsすべて考慮）
+    - `setBarLyricsText()` は削除せず維持（旧JSON互換・他の呼び出し元のため）が、
+      ルーペ・旧小節グリッド・まとめて入力からの新規呼び出し経路はすべて断った
+    - `APP_VERSION` を `0.20.0` へ更新
+  - **歌詞セルUI（`sheet-cruise.js`）**: ルーペの歌詞行を、ストローク行と同じ
+    共有時間軸のセル（8 or 16マス。`<input>` 要素。`.dock-lyrics-grid` /
+    `.dock-lyrics-cell`）へ置き換えた。1セル=1 `bar.lyrics` イベント。
+    - 単一文字・ひらがな・カタカナ・漢字・複数文字・貼り付けはすべて、そのセルの
+      `text` へそのまま保存する（F2a時点では自動分割・自動展開はしない）
+    - Enter: 確定して同一小節内の右セルへ（最終セルではその場）。Tab/Shift+Tab:
+      確定して右/左セルへ（`preventDefault`でネイティブTabを抑止）。
+      ArrowRight/ArrowLeft: 確定して隣セルへ（小節をまたがない）。
+      Alt+←/→: 確定して前後の小節へ移動（歌詞行フォーカスを維持）。
+      Backspace: セルが空なら左セルへ移動するだけ（左セルの内容は消さない）。
+      Delete: そのセルのイベントを削除。Space: IMEを妨げず通常入力として扱う。
+      Escapeはセル側で処理せず、既存のルーペEsc優先順位（ポップオーバー→
+      セル編集解除→ルーペを閉じる）へそのままbubbleさせる
+    - **IME 3層ガード**: (1) keydownで `isComposing`/`keyCode===229`/変換中セルなら
+      cell-move/commit処理をスキップ。(2) `compositionstart`/`compositionend`で
+      変換中フラグを管理し、変換中は `markDirty`/`renderPreview`/再描画をしない。
+      (3) `compositionend` 直後に `justComposed` フラグを立てて `setTimeout(...,0)` で
+      解除し、Safari等でIME確定のEnterが `isComposing=false` として届く場合でも
+      セル移動として誤動作させない（確定は `compositionend` 側で既に保存済み）
+    - **フォーカス復元**: `{row:'lyrics', cellIndex, selectionStart, selectionEnd}` を
+      キャプチャ/復元する仕組みを追加（D3aのストロークセル復元と同じ思想）。
+      Alt+矢印での小節移動時は、直前セルのcommitを `skipRender:true` で行い
+      （移動先の再描画と二重に走らせない）、さらに復元コールバックは
+      「commit時点で選択されていた小節番号」と現在の `state.selectedBarNumber` が
+      一致する場合だけ実行するガードを入れている（`scheduleOverlayPosition`経由の
+      同一小節の再描画では正常動作させつつ、小節移動をまたいだ古いコールバックが
+      別小節のセルへ誤って値を書き込むことを防止する）
+  - **8分/16分の強制**: 拍ルーラー・セル解像度の判定に、ストロークだけでなく
+    `bar.lyrics` も見るよう拡張（`barNeedsSixteenthResolution({strumSlots, lyrics})`）。
+    16分位置の歌詞がある場合は「8分」ボタンをdisabledにし、
+    titleに理由（ストローク由来/歌詞由来/両方）を出し分ける
+  - **紙面表示（`sheet-renderer.js`）**: 歌詞段に互換ルールを実装。
+    (A) `bar.lyrics` が `tick:0` の単一イベントのみ（または空）の場合は、
+    従来どおり全文を1つのspanで表示する（既存プロジェクトの見た目・
+    自動保存し直しをしない）。(B) それ以外は、小節の必要解像度（ルーペと同じ判定）に
+    応じた8/16分割のグリッドへ、各イベントをtick位置ごとに配置する
+    （`.sheet-bar-lyrics--timed`。画面・印刷/PDFとも同じDOMなので両方に反映される）
+  - **旧・小節グリッドカード**: 歌詞inputを `readOnly` 化（`disabled` ではない。
+    値は表示され続ける）。titleに「歌詞は小節ルーペのセルで編集します」を表示し、
+    フォーカスすると該当小節を選択してルーペを開く（歌詞セルへもフォーカスする）。
+    `setBarLyricsText()` を呼ぶ書き込み経路はここから完全に断った。コード・ドレミの
+    inputは従来どおり編集可能なまま維持
+  - **まとめて入力の歌詞は一時停止**: 「歌詞」を選択するとtextarea・適用ボタンが
+    disabledになり、「歌詞はセル編集に移行しました。まとめて配置は今後の対応予定です。」
+    を表示する。適用ハンドラ側でも `kind==='lyrics'` を早期returnで二重に防止した。
+    コード・ドレミのまとめて入力は従来どおり動作する
+  - D3a/F1の回帰（保存/復元/JSON往復/旧JSON互換/プレDTM/MIDI/印刷/
+    `schemaVersion`維持/ルーペ位置・幅保存/ドラッグ/リサイズ/ストロークセル編集/
+    基本に戻す/コード入力/ドレミ入力/前へ・次へ/Alt+←/→/showStrum/グリッドON-OFF/
+    まとめて入力のコード・ドレミ）はすべて実機確認済み
+  - `_proto` / `apps/shared` / `apps/chord-cruise` / service-worker / manifest /
+    PRO認証まわりには一切触れていない
+  - 貼り付けの自動展開・既存全文の自動分割・小節をまたぐ自動移動・ドレミのセル編集・
+    まとめて配置の新方式（「セルへ割り当て」ボタン等）・行間の上下矢印移動は
+    F2aでは未着手（F2b/F3で扱う）
+
 ### R1の記号ルール
 
 - `↓` = ダウンストローク
@@ -352,14 +432,16 @@
 
 ## 6. 次にやること
 
-1. F1実機確認（紙面デザインの一致・ドラッグ/リサイズの手触り・appSettings保存の確認）
-2. F1 commit
-3. D3a（`a3a1618f`）＋ F1 をまとめて push
-4. F2: 歌詞のtick位置セル編集（`setBarLyricSlot` 相当。`_proto/slot-editor.*` のモーラ分解を参考にする）
-5. F3: ドレミのtick位置セル編集（`setBarMelodySlot` 相当）
-6. F4: まとめて入力の自動分解配置、旧・小節グリッドカード撤去、整合仕上げ
-   （9章「既知課題」の *** 印の項目を参照）
-7. 上記UI再編（D1〜D3a・F1〜F4）が落ち着いた後に本格記譜（VexFlow / 五線譜 / MusicXML）を検討
+1. F2a実機確認（歌詞セルのIME入力・キー操作・8分/16分の強制・紙面のtick配置表示・
+   旧グリッドのreadonly化・まとめて入力の歌詞disabled化の確認）
+2. F2a commit
+3. F2a push
+4. F2b: 貼り付けの自動展開、既存全文の自動分割（明示操作のみ）、小節をまたぐ自動移動、
+   「セルへ割り当て」ボタン等の新しいまとめて配置方式、行間の上下矢印移動
+5. F3: ドレミのtick位置セル編集（`setBarMelodySlot` 相当。`barNeedsSixteenthResolution` に
+   `melody` を統合）
+6. F4: まとめて入力の自動分解配置の総仕上げ、整合仕上げ
+7. 上記UI再編（D1〜D3a・F1・F2a〜F4）が落ち着いた後に本格記譜（VexFlow / 五線譜 / MusicXML）を検討
 
 ## 7. 重要な設計方針
 
@@ -393,13 +475,15 @@
 
 ## 9. 既知課題
 
-- *** D3b/D3cで扱う重要課題: 旧・小節グリッドカード（`#sc-bar-grid`。曲情報ドロワー内の
-  「小節グリッド（一覧編集・任意）」）は、歌詞・ドレミを `setBarLyricsText()` /
-  `setBarDoremiText()` 経由で **小節単位の文字列** として書き込む。D3bで歌詞・ドレミを
-  tick位置セル編集化したあとも、この旧UIから編集すると全イベントが `tick:0` の
-  単一イベントへ潰れてしまい、セル編集で作ったtick位置情報を破壊する。D3bの実装時に
-  旧UIを読み取り専用にする／隠す／警告を出すなどの対応を検討すること。D3aでは
-  現状維持（削除しない・ロジック変更しない）。
+- [F2aで解決済み] 旧・小節グリッドカード（`#sc-bar-grid`）の歌詞inputが
+  `setBarLyricsText()` 経由でtick位置情報を `tick:0` の単一イベントへ潰してしまう問題は、
+  F2aで歌詞inputを `readOnly` 化し書き込み経路を断つことで解決した。ドレミ側は
+  まだ同じ経路（`setBarDoremiText()`）で書き込み可能なままのため、F3でドレミを
+  セル編集化する際は同様の対応（readonly化）が必要になる見込み。
+- *** F3で扱う課題: 旧・小節グリッドカードのドレミinputは、まだ `setBarDoremiText()`
+  経由で **小節単位の文字列** として書き込む。F3でドレミをtick位置セル編集化したら、
+  この旧UIから編集すると `bar.melody` のtick位置情報を破壊しうるため、F2aの歌詞input
+  と同様にreadonly化する対応を検討すること。
 - R1の実PDF確認は最終目視が必要。
 - 8分ストローク時にグリッドが16分になることがある可能性。
 - 正しい休符マーク・タイ曲線は未実装。

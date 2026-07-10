@@ -1,4 +1,4 @@
-/* クルーズスタジオ theme.css — v0.19.0
+/* クルーズスタジオ theme.css — v0.20.0
    リズムクルーズの DESIGN_SYSTEM.md（Clean Pro系）の考え方を継承しつつ、
    PCファーストに読み替えたテーマ。shared/style.css には依存しない（ADR-005）。
    class名・DOMはクルーズスタジオ用に新規設計している。 */
@@ -839,6 +839,12 @@ body {
     color: var(--text-color);
 }
 
+/* F2a: 歌詞は小節ルーペのセル編集へ移行したため、旧グリッドのこの欄は表示専用にする */
+.bar-lyrics-input[readonly] {
+    cursor: pointer;
+    opacity: 0.75;
+}
+
 .bar-doremi-input {
     font-size: 12px;
     color: #8ab2f5;
@@ -1121,6 +1127,20 @@ body {
     line-height: 1.5;
     min-height: 1.5em;
     letter-spacing: 0.04em;
+}
+
+/* 歌詞: tick配置表示（F2a / ADR-028）。8/16分割のグリッドへ各セルのテキストを置く。
+   長い文字は自セルの幅を超えても隣の空セルへ自然に見えるよう overflow は隠さない */
+.sheet-bar-lyrics--timed {
+    display: grid;
+    align-items: baseline;
+    column-gap: 1px;
+}
+
+.sheet-bar-lyrics--timed > span {
+    position: relative;
+    white-space: nowrap;
+    overflow: visible;
 }
 
 /* ドレミ: 下段。オクターブで色分け（中央=青 / 高い=オレンジ / 低い=グレー） */
@@ -1636,6 +1656,64 @@ body.loupe-resizing {
     background: rgba(255, 255, 255, 0.6);
 }
 
+/* 歌詞行: セル編集（F2a由来。docs/DECISIONS.md ADR-028）。1セル=1 bar.lyrics イベント。
+   空セルは透明にして「白紙の五線譜」らしさを保ち、内容ありセルだけ淡い紙色で見せる。 */
+.slot-overlay-row-body--lyrics {
+    background: transparent;
+    border: none;
+}
+
+.dock-lyrics-grid {
+    display: grid;
+    min-width: 0;
+    width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--paper-border-soft);
+    background: transparent;
+}
+
+.dock-lyrics-cell {
+    min-width: max(18px, calc(24px * var(--bar-loupe-scale, 1)));
+    min-height: max(28px, calc(34px * var(--bar-loupe-scale, 1)));
+    padding: 0 3px;
+    border: none;
+    border-right: 1px solid transparent;
+    background: transparent;
+    color: var(--paper-lyrics);
+    font-family: var(--paper-font);
+    font-size: max(11px, calc(13px * var(--bar-loupe-scale, 1)));
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dock-lyrics-cell.has-content {
+    background: rgba(255, 248, 235, 0.55);
+}
+
+.dock-lyrics-cell.is-multi {
+    box-shadow: inset 0 -2px 0 rgba(255, 159, 28, 0.5);
+}
+
+.dock-lyrics-cell:hover {
+    background: rgba(255, 159, 28, 0.08);
+}
+
+.dock-lyrics-cell.is-composing {
+    background: rgba(255, 209, 102, 0.28);
+}
+
+.dock-lyrics-cell:focus {
+    outline: none;
+    box-shadow: inset 0 0 0 2px rgba(255, 159, 28, 0.6);
+    position: relative;
+    z-index: 1;
+    background: rgba(255, 255, 255, 0.85);
+}
+
 /* 右下ハンドル: 幅ドラッグで全体を比例拡大縮小する（--bar-loupe-scale をJSが更新） */
 .slot-overlay-resize-handle {
     position: absolute;
@@ -1725,6 +1803,24 @@ body.loupe-resizing {
     padding: 10px 12px;
     line-height: 1.5;
     resize: vertical;
+}
+
+.slot-overlay-bulk-text:disabled,
+.slot-overlay-bulk-apply:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* F2a〜F4暫定: まとめて入力で「歌詞」を選んだ場合の案内（ADR-028） */
+.slot-overlay-bulk-lyrics-notice {
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(255, 159, 28, 0.1);
+    color: #8a4a0a;
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.5;
 }
 
 .slot-overlay-bulk-actions {

@@ -1,4 +1,6 @@
-/* クルーズスタジオ — sheet-renderer.js（v0.18.0でstrumNeedsSixteenthを公開。それ以外は無変更）
+/* クルーズスタジオ — sheet-renderer.js（v0.18.0でstrumNeedsSixteenthを公開。
+   F2a/ADR-028で歌詞のtick配置表示に対応し、barNeedsSixteenthはsong-model.jsの
+   共通関数（barNeedsSixteenthResolution）へ委譲するよう変更。それ以外は無変更）
    StudioProject → A4固定紙面DOM のレンダラー（ADR-016）。
    「譜面は曲データのビュー」（APP_CONCEPT.md 4章）の紙面実装。
 
@@ -100,23 +102,16 @@
      * 16分位置（120tick粒度）のイベントを含む小節か。
      * 含む場合、全体設定が8分でもその小節だけ16分グリッドで表示する
      * （分割状態はデータに持たず、tickから導出する方針）。
+     * 判定ロジック自体は song-model.js の barNeedsSixteenthResolution へ委譲する
+     * （F2a / ADR-028。strum/lyrics/歌詞セルの解像度判定と共有し、挙動は変えない）。
      */
     function barNeedsSixteenth(bar, strumSlots) {
-        var needs = false;
-        function check(ev) {
-            if (ev && typeof ev.tick === 'number' && ev.tick % 240 !== 0) needs = true;
-        }
-        (bar.lyrics || []).forEach(check);
-        (bar.chords || []).forEach(check);
-        (bar.melody || []).forEach(function (ev) {
-            check(ev);
-            if (ev && typeof ev.durationTicks === 'number' && ev.durationTicks % 240 !== 0) needs = true;
+        return CS().model.barNeedsSixteenthResolution({
+            lyrics: bar.lyrics,
+            chords: bar.chords,
+            melody: bar.melody,
+            strumSlots: strumSlots
         });
-        (strumSlots || []).forEach(function (ev) {
-            check(ev);
-            if (ev && typeof ev.durationTicks === 'number' && ev.durationTicks % 240 !== 0) needs = true;
-        });
-        return needs;
     }
 
     /**
@@ -199,6 +194,40 @@
         return row;
     }
 
+    /* ══════════ 歌詞段（F2a / ADR-028: tick配置対応） ══════════ */
+
+    /**
+     * 歌詞段のDOMを作る。互換仕様: tick:0の単一イベントだけの小節（または歌詞なし）は
+     * 従来どおり全文を1つのspanで表示する（既存プロジェクトの見た目・自動保存し直しをしない）。
+     * それ以外（複数イベント、またはtick!==0を含む）は、小節の必要解像度に合わせた
+     * 時間軸グリッドへ、各イベントのtick位置ごとに配置する。
+     */
+    function buildLyricsRow(bar, resolution, barTicksLen) {
+        var events = Array.isArray(bar.lyrics) ? bar.lyrics : [];
+        var isLegacySingleFull = events.length <= 1 && (events.length === 0 || events[0].tick === 0);
+        if (isLegacySingleFull) {
+            return el('span', 'sheet-bar-lyrics sheet-bar-row', CS().model.getBarLyricsText(bar));
+        }
+
+        var slotTicks = barTicksLen / resolution;
+        var cells = [];
+        for (var i = 0; i < resolution; i++) cells.push('');
+        events.slice().sort(function (a, b) { return a.tick - b.tick; }).forEach(function (ev) {
+            if (!ev || typeof ev.tick !== 'number') return;
+            var idx = Math.floor(ev.tick / slotTicks);
+            if (idx < 0) idx = 0;
+            if (idx >= resolution) idx = resolution - 1;
+            cells[idx] += ev.text || '';
+        });
+
+        var row = el('span', 'sheet-bar-lyrics sheet-bar-row sheet-bar-lyrics--timed');
+        row.style.gridTemplateColumns = 'repeat(' + resolution + ', 1fr)';
+        cells.forEach(function (text) {
+            row.appendChild(el('span', null, text));
+        });
+        return row;
+    }
+
     /* ══════════ 小節セル ══════════ */
 
     function buildBarCell(bar, show, hasVocal, beats, strum) {
@@ -210,10 +239,13 @@
         cell.setAttribute('role', 'button');
         cell.setAttribute('aria-label', bar.barNumber + '小節目を選択');
 
+        // タイミンググリッドの解像度。表示ON/OFFに関わらず、歌詞のtick配置にも同じ基準を使う
+        // （F2a / ADR-028: 見えないグリッド線であっても歌詞の列位置が基準からズレないように）
+        var timeRes = (show.gridResolution === 16 || barNeedsSixteenth(bar, strum && strum.slots) ||
+            (strum && strum.needs16)) ? 16 : 8;
+
         if (show.timingGrid) {
-            var res = (show.gridResolution === 16 || barNeedsSixteenth(bar, strum && strum.slots) ||
-                (strum && strum.needs16)) ? 16 : 8;
-            cell.appendChild(buildTimingGrid(beats, res));
+            cell.appendChild(buildTimingGrid(beats, timeRes));
         }
 
         cell.appendChild(el('span', 'sheet-bar-num', String(bar.barNumber)));
@@ -234,7 +266,7 @@
         }
 
         if (hasVocal && show.lyrics) {
-            cell.appendChild(el('span', 'sheet-bar-lyrics sheet-bar-row', model.getBarLyricsText(bar)));
+            cell.appendChild(buildLyricsRow(bar, timeRes, beats * model.TICKS_PER_BEAT));
         }
 
         if (hasVocal && show.doremi) {

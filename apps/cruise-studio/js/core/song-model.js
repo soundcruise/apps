@@ -8,7 +8,7 @@
 
     var theory = window.CruiseStudio && window.CruiseStudio.theory;
 
-    var APP_VERSION = '0.19.0';
+    var APP_VERSION = '0.20.0';
     var SCHEMA_VERSION = 1;
     var TICKS_PER_BEAT = 480;
 
@@ -240,6 +240,125 @@
         if (!bar) return;
         var t = String(text || '').trim();
         bar.lyrics = t ? [{ tick: 0, text: t }] : [];
+    }
+
+    /**
+     * 歌詞セルのtext正規化（F2a / ADR-028）。前後の半角・全角空白をtrimする。
+     * 空文字・空白のみ・「・」は削除入力として扱う（''を返す）。
+     * 伸ばし記号「ー」「〜」は通常の文字として扱う（durationTicksは持たせない）。
+     */
+    function normalizeLyricSlotText(text) {
+        var t = String(text === null || typeof text === 'undefined' ? '' : text);
+        t = t.replace(/^[\s　]+|[\s　]+$/g, '');
+        if (t === '' || t === '・') return '';
+        return t;
+    }
+
+    /**
+     * 小節の歌詞を、指定tick範囲（1セル分）単位で書き換える（F2a / ADR-028）。
+     * bar.lyrics は引き続き [{tick, text}] のフラットな配列のまま（durationTicksは持たない）。
+     * この関数はモデルの変更のみを行い、renderPreview・markDirty・保存は行わない
+     * （呼び出し側のUI層が担当する）。
+     * @param {number} slotTick セル開始tick（整数・0以上・小節長未満）
+     * @param {number} slotTicks セル幅tick（正数。slotTick+slotTicksは小節長以下）
+     * @param {string} text セルへ入力するテキスト（空・空白のみ・「・」は削除として扱う）
+     * @returns {{ok: boolean, warnings: string[]}}
+     */
+    function setBarLyricSlot(project, barNumber, slotTick, slotTicks, text) {
+        var warnings = [];
+        var bar = findBar(project, barNumber);
+        if (!bar) {
+            warnings.push('小節が見つかりません: ' + barNumber);
+            return { ok: false, warnings: warnings };
+        }
+
+        var barTicks = getBarLengthTicks(project);
+        if (typeof slotTick !== 'number' || !Number.isInteger(slotTick) || slotTick < 0 || slotTick >= barTicks) {
+            warnings.push('slotTick が不正です: ' + slotTick);
+            return { ok: false, warnings: warnings };
+        }
+        if (typeof slotTicks !== 'number' || !(slotTicks > 0) || slotTick + slotTicks > barTicks) {
+            warnings.push('slotTicks が不正です: ' + slotTicks);
+            return { ok: false, warnings: warnings };
+        }
+
+        if (!Array.isArray(bar.lyrics)) bar.lyrics = [];
+        var rangeStart = slotTick;
+        var rangeEnd = slotTick + slotTicks;
+        bar.lyrics = bar.lyrics.filter(function (ev) {
+            return !(ev && typeof ev.tick === 'number' && ev.tick >= rangeStart && ev.tick < rangeEnd);
+        });
+
+        var normalized = normalizeLyricSlotText(text);
+        if (normalized) {
+            bar.lyrics.push({ tick: slotTick, text: normalized });
+        }
+        bar.lyrics.sort(function (a, b) { return a.tick - b.tick; });
+
+        return { ok: true, warnings: warnings };
+    }
+
+    /**
+     * 小節の歌詞を、指定解像度のセル配列として読み出す（F2a / ADR-028。projectは変更しない）。
+     * 同一セルに複数イベントがある場合はtick順に連結し、eventCountを保持する
+     * （既存のtick:0単一イベントの全文データも、そのまま先頭セルへ表示される＝
+     * 自動分割はしない後方互換仕様）。
+     * @param {number} resolution 8 または 16
+     * @returns {Array<{text: string, eventCount: number, isMulti: boolean}>} 長さ=resolution
+     */
+    function getBarLyricSlots(project, barNumber, resolution) {
+        var res = (resolution === 16) ? 16 : 8;
+        var cells = [];
+        for (var i = 0; i < res; i++) cells.push({ text: '', eventCount: 0, isMulti: false });
+
+        var bar = findBar(project, barNumber);
+        if (!bar || !Array.isArray(bar.lyrics) || bar.lyrics.length === 0) return cells;
+
+        var barTicks = getBarLengthTicks(project);
+        var slotTicks = barTicks / res;
+        var sorted = bar.lyrics.slice().sort(function (a, b) { return a.tick - b.tick; });
+
+        sorted.forEach(function (ev) {
+            if (!ev || typeof ev.tick !== 'number') return;
+            var idx = Math.floor(ev.tick / slotTicks);
+            if (idx < 0) idx = 0;
+            if (idx >= res) idx = res - 1;
+            cells[idx].text += (ev.text || '');
+            cells[idx].eventCount += 1;
+        });
+        cells.forEach(function (c) { c.isMulti = c.eventCount > 1; });
+        return cells;
+    }
+
+    /**
+     * 小節が16分表示を必要とするか判定する共通関数（F2a / ADR-028）。
+     * tick%240!==0（またはdurationTicks%240!==0）のイベントが1つでもあれば16分表示を要求する。
+     * strumSlots・lyrics・chords・melody のいずれからも判定でき、
+     * sheet-renderer.jsのタイミンググリッド判定・小節ルーペの解像度判定の両方から
+     * 共有参照する（F3でbar.melodyのdurationTicksもここで判定できる設計）。
+     * @param {object} options
+     * @param {Array} [options.strumSlots]
+     * @param {Array} [options.lyrics]
+     * @param {Array} [options.chords]
+     * @param {Array} [options.melody]
+     * @returns {boolean}
+     */
+    function barNeedsSixteenthResolution(options) {
+        var opts = options || {};
+        function hasOffGrid(events, checkDuration) {
+            if (!Array.isArray(events)) return false;
+            return events.some(function (ev) {
+                if (!ev) return false;
+                if (typeof ev.tick === 'number' && ev.tick % 240 !== 0) return true;
+                if (checkDuration && typeof ev.durationTicks === 'number' && ev.durationTicks % 240 !== 0) return true;
+                return false;
+            });
+        }
+        if (hasOffGrid(opts.lyrics, false)) return true;
+        if (hasOffGrid(opts.chords, false)) return true;
+        if (hasOffGrid(opts.melody, true)) return true;
+        if (hasOffGrid(opts.strumSlots, true)) return true;
+        return false;
     }
 
     /**
@@ -874,6 +993,9 @@
         setBarChord: setBarChord,
         getBarLyricsText: getBarLyricsText,
         setBarLyricsText: setBarLyricsText,
+        setBarLyricSlot: setBarLyricSlot,
+        getBarLyricSlots: getBarLyricSlots,
+        barNeedsSixteenthResolution: barNeedsSixteenthResolution,
         getBarDoremiText: getBarDoremiText,
         setBarDoremiText: setBarDoremiText,
         CUSTOM_BASIC_STRUM_ID: CUSTOM_BASIC_STRUM_ID,
