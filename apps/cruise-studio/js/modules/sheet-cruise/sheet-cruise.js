@@ -1,10 +1,13 @@
-/* クルーズスタジオ — sheet-cruise.js（Phase 2B / R2、UI再編D1でレイアウトのみ改修）
+/* クルーズスタジオ — sheet-cruise.js（Phase 2B / R2、UI再編D1/D2でレイアウトのみ改修）
    譜面クルーズ画面: プロジェクト選択・曲情報フォーム・キー関係チェック・
    セクション管理・小節グリッド（1小節1コード入力）・簡易プレビュー・保存。
    歌詞・ドレミ入力とA4紙面プレビューは Phase 2C / Phase 3。
    D1（docs/DECISIONS.md ADR-025）: 曲情報・セクション・表示設定・小節グリッドは
-   上部ドロワー（#sc-editor-drawer）へ移動。保存/復元/JSON/プレDTM/MIDIの
-   経路・データ構造・overlay編集ロジックは変更しない。
+   上部ドロワー（#sc-editor-drawer）へ移動。
+   D2 MVP（同ADR-025）: 小節上の極小overlay（S1b〜R2）を画面下部の横長ドックへ移設。
+   入力欄の内部構造・保存ロジックは流用し、位置決めのみ変更した（座標追従は廃止し、
+   選択中だけ画面下に固定表示）。
+   保存/復元/JSON/プレDTM/MIDIの経路・データ構造は変更しない。
    グローバル名前空間 CruiseStudio.sheetCruise に登録する。 */
 (function () {
     'use strict';
@@ -485,6 +488,27 @@
         })[0] || null;
     }
 
+    /**
+     * D2: ドックヘッダーに表示するセクション名（分かる場合のみ）。
+     */
+    function getBarSectionName(bar) {
+        if (!bar || !state.project || !Array.isArray(state.project.sections)) return '';
+        var sec = state.project.sections.filter(function (s) { return s.id === bar.sectionId; })[0];
+        return sec ? sec.name : '';
+    }
+
+    /**
+     * D2: ドックの「閉じる」ボタン。選択解除してドックを閉じる
+     * （紙面の小節を再クリックすれば同じ小節がまた選択され、ドックも再表示される）。
+     */
+    function deselectBar() {
+        if (!state.selectedBarNumber) return;
+        state.selectedBarNumber = null;
+        state.overlayWarnings = {};
+        state.overlayBulkMessage = null;
+        syncSheetSelection();
+    }
+
     function getOverlayFieldValue(rowId, bar) {
         if (rowId === 'chord') return (bar.chords[0] && bar.chords[0].symbol) || '';
         if (rowId === 'strum') return CS().model.getBarStrumOverrideText(state.project, bar.barNumber);
@@ -870,6 +894,11 @@
         return panel;
     }
 
+    /**
+     * D2: 画面下部の編集ドック本体を組み立てる。
+     * 内部の行構造（chord/strum/lyrics/doremi）・入力ロジックはS1b〜R2から流用し、
+     * ヘッダーに「何小節目を編集中か」「セクション名」「前へ/次へ」「閉じる」を追加した。
+     */
     function renderSlotOverlayContent() {
         if (!els.slotOverlay) return;
         els.slotOverlay.innerHTML = '';
@@ -878,24 +907,54 @@
         if (!bar) {
             els.slotOverlay.classList.add('hidden');
             els.slotOverlay.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('dock-open');
             return;
         }
 
         var head = document.createElement('div');
         head.className = 'slot-overlay-head';
+
+        var headMain = document.createElement('div');
+        headMain.className = 'slot-overlay-head-main';
         var title = document.createElement('span');
         title.className = 'slot-overlay-title';
-        title.textContent = bar.barNumber + '小節';
-        var label = document.createElement('span');
-        label.className = 'slot-overlay-label';
-        label.textContent = 'この小節を編集';
+        title.textContent = bar.barNumber + '小節目を編集中';
+        headMain.appendChild(title);
+        var sectionName = getBarSectionName(bar);
+        if (sectionName) {
+            var sectionBadge = document.createElement('span');
+            sectionBadge.className = 'slot-overlay-section';
+            sectionBadge.textContent = sectionName;
+            headMain.appendChild(sectionBadge);
+        }
+
+        var headActions = document.createElement('div');
+        headActions.className = 'slot-overlay-head-actions';
         var nav = document.createElement('div');
         nav.className = 'slot-overlay-nav';
-        nav.appendChild(buildOverlayNavButton('前へ', -1));
-        nav.appendChild(buildOverlayNavButton('次へ', 1));
-        head.appendChild(title);
-        head.appendChild(label);
-        head.appendChild(nav);
+        nav.appendChild(buildOverlayNavButton('← 前へ', -1));
+        nav.appendChild(buildOverlayNavButton('次へ →', 1));
+        var hint = document.createElement('span');
+        hint.className = 'slot-overlay-hint';
+        hint.textContent = 'Alt+←/→でも移動できます';
+        var closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'slot-overlay-close';
+        closeBtn.textContent = '✕ 閉じる';
+        closeBtn.setAttribute('aria-label', '編集ドックを閉じる');
+        closeBtn.addEventListener('click', function (event) {
+            event.stopPropagation();
+            deselectBar();
+        });
+        closeBtn.addEventListener('mousedown', function (event) {
+            event.stopPropagation();
+        });
+        headActions.appendChild(nav);
+        headActions.appendChild(hint);
+        headActions.appendChild(closeBtn);
+
+        head.appendChild(headMain);
+        head.appendChild(headActions);
 
         var rows = document.createElement('div');
         rows.className = 'slot-overlay-rows';
@@ -922,12 +981,17 @@
             rows.appendChild(row);
         });
 
+        var body = document.createElement('div');
+        body.className = 'slot-overlay-body';
+        body.appendChild(rows);
+        body.appendChild(buildBulkInputPanel());
+
         els.slotOverlay.appendChild(head);
-        els.slotOverlay.appendChild(rows);
-        els.slotOverlay.appendChild(buildBulkInputPanel());
+        els.slotOverlay.appendChild(body);
         els.slotOverlay.classList.remove('hidden');
         els.slotOverlay.setAttribute('aria-hidden', 'false');
-        els.slotOverlay.setAttribute('aria-label', bar.barNumber + '小節目の編集レイヤー');
+        els.slotOverlay.setAttribute('aria-label', bar.barNumber + '小節目の編集ドック');
+        document.body.classList.add('dock-open');
     }
 
     function syncSheetSelection() {
@@ -947,27 +1011,19 @@
         positionSlotOverlay();
     }
 
+    /**
+     * D2: 下部ドックは画面下部に固定表示するため座標計算は不要（CSSのposition:fixedに任せる）。
+     * ただし、選択中の小節が紙面上から消えた場合（セクション削除・小節数変更等）は
+     * 安全側でドックを閉じる。
+     */
     function positionSlotOverlay() {
-        if (!els.preview || !els.slotOverlay || els.slotOverlay.classList.contains('hidden')) return;
+        if (!els.slotOverlay || els.slotOverlay.classList.contains('hidden')) return;
         var cell = getSheetBarByNumber(state.selectedBarNumber);
         if (!cell) {
             els.slotOverlay.classList.add('hidden');
             els.slotOverlay.setAttribute('aria-hidden', 'true');
-            return;
+            document.body.classList.remove('dock-open');
         }
-
-        var previewRect = els.preview.getBoundingClientRect();
-        var cellRect = cell.getBoundingClientRect();
-        var pad = 3;
-        var left = cellRect.left - previewRect.left - pad;
-        var top = cellRect.top - previewRect.top - pad;
-        var width = cellRect.width + pad * 2;
-        var height = Math.max(cellRect.height + pad * 2, 86);
-
-        els.slotOverlay.style.left = Math.round(left) + 'px';
-        els.slotOverlay.style.top = Math.round(top) + 'px';
-        els.slotOverlay.style.width = Math.round(width) + 'px';
-        els.slotOverlay.style.minHeight = Math.round(height) + 'px';
     }
 
     function scheduleOverlayPosition() {

@@ -1,4 +1,4 @@
-/* クルーズスタジオ theme.css — v0.16.0
+/* クルーズスタジオ theme.css — v0.17.0
    リズムクルーズの DESIGN_SYSTEM.md（Clean Pro系）の考え方を継承しつつ、
    PCファーストに読み替えたテーマ。shared/style.css には依存しない（ADR-005）。
    class名・DOMはクルーズスタジオ用に新規設計している。 */
@@ -1160,238 +1160,334 @@ body {
     text-align: center;
 }
 
-/* S1b-S1e/S1d: 紙面上の小節選択に重ねる編集overlay。
-   S1dでは小節移動とコード/歌詞/ドレミのまとめて入力を足す。 */
+/* ══════════ D2 MVP: 画面下部の編集ドック（旧S1b〜R2の.slot-overlayを拡大移設。
+   docs/DECISIONS.md ADR-025） ══════════
+   小節クリック時のみ表示する、画面下部固定の横長ドック。内部の行構造・入力ロジックは
+   S1b〜R2から流用し、位置決めだけを「小節上の小箱」から「画面下部への固定表示」に変更した。
+   座標追従（小節ごとの再配置）は廃止し、常に画面下いっぱいに表示する。
+   D3でスロット型グリッド入力へ拡張する土台にする。印刷では従来どおり非表示（print.css）。 */
 .slot-overlay {
-    position: absolute;
-    z-index: 5;
+    position: fixed;
+    left: 50%;
+    bottom: 0;
+    transform: translateX(-50%);
+    z-index: 40;
+    width: 100%;
+    max-width: var(--studio-max-width);
+    max-height: 52vh;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 5px;
-    padding: 7px;
-    border: 1px solid rgba(255, 159, 28, 0.78);
-    border-radius: 7px;
-    background: rgba(253, 251, 245, 0.84);
-    box-shadow: 0 8px 22px rgba(42, 38, 32, 0.16), inset 0 0 0 1px rgba(255, 255, 255, 0.65);
-    color: #2a2620;
+    gap: 16px;
+    padding: 18px 32px 24px;
+    border: 1px solid rgba(255, 159, 28, 0.4);
+    border-bottom: none;
+    border-radius: 20px 20px 0 0;
+    background: linear-gradient(180deg, rgba(37, 31, 24, 0.98), rgba(15, 12, 10, 0.99));
+    box-shadow: 0 -18px 44px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    color: var(--text-color);
     pointer-events: auto;
 }
 
+/* ドック表示中、紙面下部がドックに隠れすぎないよう画面末尾に余白を確保する（body.dock-open） */
+body.dock-open #screen-sheet-cruise {
+    padding-bottom: 56vh;
+}
+
 .slot-overlay-head {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(253, 246, 238, 0.1);
+}
+
+.slot-overlay-head-main {
+    display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 0 2px;
+    gap: 10px;
+    flex-wrap: wrap;
 }
 
 .slot-overlay-title {
-    font-size: 11px;
+    font-size: 18px;
     font-weight: 800;
-    color: #8a4a0a;
-    white-space: nowrap;
+    color: var(--secondary-color);
+    letter-spacing: 0.02em;
 }
 
-.slot-overlay-label {
-    font-size: 9.5px;
+.slot-overlay-section {
+    padding: 3px 12px;
+    border-radius: 999px;
+    font-size: 12px;
     font-weight: 700;
-    color: rgba(42, 38, 32, 0.58);
-    white-space: nowrap;
+    letter-spacing: 0.04em;
+    color: var(--secondary-color);
+    background: rgba(255, 209, 102, 0.1);
+    border: 1px solid rgba(255, 209, 102, 0.28);
+}
+
+.slot-overlay-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
 }
 
 .slot-overlay-nav {
     display: flex;
-    gap: 3px;
+    gap: 6px;
 }
 
-.slot-overlay-nav-btn,
-.slot-overlay-bulk-apply,
-.slot-overlay-bulk-close {
-    border: 1px solid rgba(122, 116, 108, 0.24);
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.7);
-    color: #2a2620;
+.slot-overlay-nav-btn {
+    min-width: 74px;
+    padding: 8px 14px;
+    border: 1px solid rgba(253, 246, 238, 0.22);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.28);
+    color: var(--text-color);
     font-family: inherit;
-    font-size: 9.5px;
-    font-weight: 800;
+    font-size: 13px;
+    font-weight: 700;
     line-height: 1.3;
     cursor: pointer;
 }
 
-.slot-overlay-nav-btn {
-    min-width: 32px;
-    padding: 2px 5px;
-}
-
 .slot-overlay-nav-btn:disabled {
     cursor: default;
-    opacity: 0.42;
+    opacity: 0.4;
 }
 
-.slot-overlay-nav-btn:not(:disabled):hover,
-.slot-overlay-bulk-apply:hover,
-.slot-overlay-bulk-close:hover {
-    border-color: rgba(255, 159, 28, 0.55);
-    background: rgba(255, 242, 219, 0.86);
+.slot-overlay-nav-btn:not(:disabled):hover {
+    border-color: rgba(255, 159, 28, 0.6);
+    background: rgba(255, 159, 28, 0.1);
+}
+
+.slot-overlay-hint {
+    font-size: 11.5px;
+    color: var(--muted-color);
+    white-space: nowrap;
+}
+
+.slot-overlay-close {
+    padding: 8px 16px;
+    border: 1px solid rgba(253, 246, 238, 0.22);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted-color);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.slot-overlay-close:hover {
+    color: var(--error-color);
+    border-color: rgba(255, 79, 110, 0.45);
+    background: rgba(255, 79, 110, 0.08);
+}
+
+/* 入力4行（左）＋まとめて入力（右）の2カラム。狭い画面では1カラムに畳む */
+.slot-overlay-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr);
+    gap: 20px;
+    align-items: start;
 }
 
 .slot-overlay-rows {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 12px;
 }
 
 .slot-overlay-row {
-    display: grid;
-    grid-template-columns: minmax(44px, auto) 1fr;
-    align-items: center;
-    gap: 5px;
-    min-height: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
 .slot-overlay-row-label {
-    font-size: 9.5px;
-    font-weight: 800;
-    color: rgba(42, 38, 32, 0.62);
-    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--muted-color);
+    text-transform: uppercase;
 }
 
 .slot-overlay-row-body {
-    min-height: 20px;
-    border-radius: 6px;
-    border: 1px dashed rgba(122, 116, 108, 0.24);
-    background: rgba(255, 255, 255, 0.34);
+    border-radius: 10px;
+    border: 1px solid rgba(253, 246, 238, 0.14);
+    background: rgba(0, 0, 0, 0.24);
     display: flex;
     flex-direction: column;
     align-items: stretch;
     overflow: hidden;
 }
 
+/* D2: 入力欄を明らかに大きく（旧ミニoverlayは font-size 10.5px / padding 2px 6px だった） */
 .slot-overlay-input {
     width: 100%;
     min-width: 0;
-    padding: 2px 6px;
+    padding: 12px 14px;
     border: none;
-    background: rgba(255, 255, 255, 0.9);
-    color: #2a2620;
+    background: transparent;
+    color: var(--text-color);
     font-family: inherit;
-    font-size: 10.5px;
-    line-height: 1.45;
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.4;
 }
 
 .slot-overlay-input::placeholder {
-    color: rgba(42, 38, 32, 0.38);
+    color: rgba(253, 246, 238, 0.32);
+    font-weight: 500;
 }
 
 .slot-overlay-input:focus {
     outline: none;
-    box-shadow: inset 0 0 0 1px rgba(255, 159, 28, 0.58);
+    box-shadow: inset 0 0 0 2px rgba(255, 159, 28, 0.6);
 }
 
 .slot-overlay-input.is-invalid {
     background: rgba(255, 79, 110, 0.08);
-    box-shadow: inset 0 0 0 1px rgba(255, 79, 110, 0.36);
+    box-shadow: inset 0 0 0 2px rgba(255, 79, 110, 0.5);
 }
 
 .slot-overlay-row-note {
     width: 100%;
-    padding: 2px 6px;
-    font-size: 9px;
-    font-weight: 700;
-    color: rgba(42, 38, 32, 0.44);
+    padding: 6px 14px 10px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--muted-color);
     letter-spacing: 0.02em;
 }
 
 .slot-overlay-row-note--info {
-    color: #8a4a0a;
+    color: var(--secondary-color);
 }
 
 .slot-overlay-row-note--inherit {
-    color: rgba(42, 38, 32, 0.58);
+    color: var(--muted-color);
 }
 
 .slot-overlay-row-note--muted {
-    color: rgba(42, 38, 32, 0.42);
+    color: rgba(253, 246, 238, 0.34);
 }
 
 .slot-overlay-row-note--warning {
-    color: #b44527;
+    color: var(--error-color);
 }
 
 .slot-overlay-bulk {
-    border-top: 1px solid rgba(122, 116, 108, 0.18);
-    padding-top: 4px;
+    align-self: stretch;
+    border: 1px solid rgba(253, 246, 238, 0.12);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.18);
+    padding: 2px 14px 12px;
 }
 
 .slot-overlay-bulk > summary {
     cursor: pointer;
-    padding: 1px 2px;
-    color: #8a4a0a;
-    font-size: 10px;
-    font-weight: 900;
+    padding: 10px 2px;
+    color: var(--secondary-color);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
     list-style-position: inside;
 }
 
 .slot-overlay-bulk-body {
-    display: grid;
-    grid-template-columns: minmax(64px, 0.45fr) 1fr;
-    gap: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     margin-top: 4px;
 }
 
 .slot-overlay-bulk-kind,
 .slot-overlay-bulk-text {
     min-width: 0;
-    border: 1px solid rgba(122, 116, 108, 0.24);
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.9);
-    color: #2a2620;
+    border: 1px solid rgba(253, 246, 238, 0.18);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.28);
+    color: var(--text-color);
     font-family: inherit;
-    font-size: 10px;
+    font-size: 13px;
 }
 
 .slot-overlay-bulk-kind {
-    padding: 3px 4px;
-    align-self: start;
+    padding: 8px 10px;
+    align-self: flex-start;
+}
+
+.slot-overlay-bulk-kind option {
+    background: var(--surface-raised);
+    color: var(--text-color);
 }
 
 .slot-overlay-bulk-text {
-    min-height: 46px;
-    padding: 4px 6px;
-    line-height: 1.35;
+    min-height: 96px;
+    padding: 10px 12px;
+    line-height: 1.5;
     resize: vertical;
 }
 
 .slot-overlay-bulk-actions {
-    grid-column: 1 / -1;
     display: flex;
     justify-content: flex-end;
-    gap: 4px;
+    gap: 8px;
 }
 
 .slot-overlay-bulk-apply,
 .slot-overlay-bulk-close {
-    padding: 3px 7px;
+    padding: 8px 16px;
+    border: 1px solid rgba(253, 246, 238, 0.22);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.24);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.slot-overlay-bulk-apply:hover,
+.slot-overlay-bulk-close:hover {
+    border-color: rgba(255, 159, 28, 0.55);
+    background: rgba(255, 159, 28, 0.1);
 }
 
 .slot-overlay-bulk-message {
-    grid-column: 1 / -1;
     margin: 0;
-    padding: 4px 6px;
-    border-radius: 6px;
-    font-size: 9.5px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 12px;
     font-weight: 700;
-    line-height: 1.35;
+    line-height: 1.4;
 }
 
 .slot-overlay-bulk-message.is-ok {
-    background: rgba(49, 151, 99, 0.14);
-    color: #1f6941;
+    background: rgba(46, 204, 113, 0.14);
+    color: #4fd888;
 }
 
 .slot-overlay-bulk-message.is-warning {
     background: rgba(255, 159, 28, 0.16);
-    color: #8a4a0a;
+    color: var(--secondary-color);
+}
+
+@media (max-width: 900px) {
+    .slot-overlay-body {
+        grid-template-columns: 1fr;
+    }
+
+    .slot-overlay {
+        padding: 16px 20px 20px;
+        max-height: 66vh;
+    }
 }
 
 /* ══════════ フッター ══════════ */

@@ -13,16 +13,16 @@
 ## 1. 現在の最新状態
 
 - 最新push済みcommit（cruise-studio以外を含む、このリポジトリ全体の最新）:
-  - full hash: `1454d34f6e892f14698f0c82a7f75989c87b344e`
-  - short hash: `1454d34f`
-  - commit message: `コードクルーズの運指とバレー表示を改善`（cruise-studioとは無関係）
+  - full hash: `19ea503eb38619aee0c20a41c3fccd6955755047`
+  - short hash: `19ea503e`
+  - commit message: `譜面クルーズの画面構成を譜面主役レイアウトに再編`
 - クルーズスタジオの最新push済みcommit:
-  - full hash: `a167f007d6f73e238315b2bf06788643eac66f3d`
-  - short hash: `a167f007`
-  - commit message: `譜面クルーズのコードとストローク段の表示を改善`
-  - 内容: `v0.15.0 / R3` までリモート反映済み
+  - full hash: `19ea503eb38619aee0c20a41c3fccd6955755047`
+  - short hash: `19ea503e`
+  - commit message: `譜面クルーズの画面構成を譜面主役レイアウトに再編`
+  - 内容: `v0.16.0 / UI再編 D1` までリモート反映済み
 - `main` と `origin/main` は同期済み。
-- クルーズスタジオ側の未commit差分は、`v0.16.0 / UI再編D1` 実装分のみを想定する。
+- クルーズスタジオ側の未commit差分は、`v0.17.0 / UI再編 D2 MVP` 実装分のみを想定する。
 - rhythm-cruise 側の差分や未追跡ファイルが出ていても、この作業では触らない。
 
 ## 2. クルーズスタジオの目的
@@ -151,19 +151,11 @@
   - タイミンググリッドON/OFFと共存
   - overlay編集、小節移動、まとめて入力、保存/復元、JSON、プレDTM、MIDI既存経路を維持
   - `schemaVersion` は1のまま
-
-## 5. 現在作業中のフェーズ
-
-### UI再編 D1: 譜面全幅化・曲情報等のドロワー化（レイアウトのみ）
-
-- 予定バージョン: `v0.16.0`
-- 実装・検証済み。
-- commit / push はまだ未実施。
-- 背景: 実機確認（クルーズスタジオ実機チェック）で、曲情報が常設で左カラムを占有し、
-  A4紙面が縮小表示されて編集しづらいことが判明した。Fable5による設計レビューの結果、
-  将来的には案A「下部ドック型スロットエディタ」を推奨方針とし、まず土台としてD1（譜面全幅化・
-  ドロワー化）を先行実装する方針とした（`docs/DECISIONS.md` ADR-025）。
-- 主な内容:
+- `v0.16.0 / UI再編 D1`: 譜面全幅化・曲情報等のドロワー化（push済み: `19ea503e`）
+  - 背景: 実機確認で、曲情報が常設で左カラムを占有し、A4紙面が縮小表示されて
+    編集しづらいことが判明した。Fable5による設計レビューの結果、将来的には案A
+    「下部ドック型スロットエディタ」を推奨方針とし、まず土台としてD1（譜面全幅化・
+    ドロワー化）を先行実装する方針とした（`docs/DECISIONS.md` ADR-025）
   - `.sheet-layout` を左右2ペイン（編集パネル+A4紙面）から1カラム構成に変更
   - 曲情報・セクション・表示設定・小節グリッド（旧一覧編集）を上部の折りたたみドロワー
     （`<details id="sc-editor-drawer">`）へ移動。既定は閉じた状態
@@ -174,11 +166,44 @@
     常に等倍（scale=1）表示になり、以前の2ペイン時（scale<1で縮小）より大きく見える
   - 紙面上の小節クリック選択・ミニoverlay編集（コード/ストローク/歌詞/ドレミ入力、
     Alt+←/→、前へ/次へ、まとめて入力）は暫定維持、ロジック変更なし
-  - print.css の非表示リストに `.sheet-editor-drawer` を追加（`.sheet-editor` も維持。
-    入れ子のため実質は元から印刷除外されていたが、明示的に追加して安全側に倒した）
+  - print.css の非表示リストに `.sheet-editor-drawer` を追加
   - データ構造・保存/復元/JSON/プレDTM/MIDI経路は無変更。`schemaVersion` は1のまま
   - VexFlow / 五線譜 / MusicXML / 下部ドック型スロットエディタ本体はD1では未着手
-    （D1〜D3の後、Phase 6で検討）
+
+## 5. 現在作業中のフェーズ
+
+### UI再編 D2 MVP: 極小overlayを画面下部の編集ドックへ移設
+
+- 予定バージョン: `v0.17.0`
+- 実装・検証済み。
+- commit / push はまだ未実施。
+- 背景: D1実機確認で、譜面が主役に見えるレイアウトにはなったが、小節クリック時に出る
+  `.slot-overlay`（S1b〜R2）が小節上に出る小さな箱のままで、入力欄が狭く操作しづらいままだった。
+  Fable5の設計レビューで推奨された案A「下部ドック型スロットエディタ」に沿って、
+  まずD2としてドックの器（画面下部固定・大きな入力欄）だけを先に作り、
+  拍/裏拍/16分セル入力（本格スロット入力）はD3へ送る（`docs/DECISIONS.md` ADR-025）。
+- 主な内容:
+  - `#sc-slot-overlay` のDOM位置を `#sc-preview` 内（紙面と一緒にスケールされる場所）から
+    `#screen-sheet-cruise` 直下（`.sheet-layout` の外）へ移動し、`position: fixed; bottom: 0;`
+    の画面下部ドックとして常に等倍サイズで表示する（紙面のスケール・スクロールに影響されない）
+  - 内部の行構造（chord/strum/lyrics/doremi）・入力ロジック・まとめて入力・小節移動
+    （`applyOverlayFieldChange` / `buildOverlayInput` / `buildBulkInputPanel` / `moveSelectedBar` 等）は
+    S1b〜R2からそのまま流用。保存先・検証ロジックは無変更
+  - ドックヘッダーに「〇小節目を編集中」表示、分かる場合はセクション名バッジ、
+    「← 前へ」「次へ →」、補助テキスト「Alt+←/→でも移動できます」、「✕ 閉じる」を追加
+  - 「閉じる」は選択解除（`deselectBar()`）として実装。紙面上の小節を再クリックすると
+    同じ小節が再選択され、ドックも再表示される
+  - 入力欄を明らかに拡大（旧: font-size 10.5px・padding 2px 6px → 新: font-size 17px・padding 12px 14px）
+  - ドック本文は「入力4行（左）＋まとめて入力（右）」の2カラム（900px未満は1カラムに畳む）
+  - ドック表示中は `body.dock-open` クラスを付け、`#screen-sheet-cruise` に
+    `padding-bottom: 56vh` を与えて紙面下部がドックに隠れすぎないようにする
+  - 座標追従用だった `positionSlotOverlay()` は、選択中の小節が紙面から消えた場合の
+    安全側クローズ処理のみへ簡素化（固定表示のため逐次のleft/top計算は不要）
+  - 選択ハイライト（`.sheet-bar.is-selected`）は既存のまま維持
+  - print.css は無変更で動作（`.slot-overlay` は既存の `display:none!important` ルールで
+    印刷除外のまま。D1の `.sheet-editor-drawer` 除外ルールも維持）
+  - データ構造・保存/復元/JSON/プレDTM/MIDI経路は無変更。`schemaVersion` は1のまま
+  - 拍/裏拍/16分セル入力・`_proto/slot-editor.*` の移植・VexFlow/五線譜/MusicXMLはD2 MVPでは未着手
 
 ### R1の記号ルール
 
@@ -203,11 +228,11 @@
 
 ## 6. 次にやること
 
-1. D1 commit
-2. D1 push
-3. D2: 下部ドック型スロットエディタMVP（案A。まずは最小の入力ドック骨格から）
-4. D3: ドックの拍/裏拍/16分セル入力へ拡張
-5. 上記UI再編（D1〜D3）が落ち着いた後に本格記譜（VexFlow / 五線譜 / MusicXML）を検討
+1. D2 commit
+2. D2 push
+3. D3: 下部ドックの拍/裏拍/16分セル入力へ拡張（`_proto/slot-editor.*` を参考にしつつ、
+   保存先は本番の `bar.chords` / `bar.strumOverride` 等の既存構造へ合流させる）
+4. 上記UI再編（D1〜D3）が落ち着いた後に本格記譜（VexFlow / 五線譜 / MusicXML）を検討
 
 ## 7. 重要な設計方針
 

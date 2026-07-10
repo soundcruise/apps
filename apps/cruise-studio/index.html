@@ -7,9 +7,9 @@
     <title>クルーズスタジオ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成（PCファースト。docs/DECISIONS.md ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.16.0">
+    <link rel="stylesheet" href="theme.css?v=0.17.0">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
-    <link rel="stylesheet" href="print.css?v=0.16.0" media="print">
+    <link rel="stylesheet" href="print.css?v=0.17.0" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -32,7 +32,7 @@
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
                 <p class="studio-subcopy">コード譜から、曲が動き出す。</p>
-                <span class="studio-version" id="studio-version">v0.16.0</span>
+                <span class="studio-version" id="studio-version">v0.17.0</span>
             </header>
 
             <section class="module-section">
@@ -240,12 +240,17 @@
                 <aside class="sheet-preview">
                     <div id="sc-preview" class="sheet-preview-viewport" aria-label="コード譜プレビュー">
                         <div id="sc-sheet-scale-box" class="sheet-scale-box"></div>
-                        <div id="sc-slot-overlay" class="slot-overlay hidden" aria-hidden="true"></div>
                     </div>
                     <p class="preview-note">A4紙面プレビューです。「印刷」からブラウザ印刷でそのままPDF保存できます（A4縦）。</p>
                 </aside>
 
             </div>
+
+            <!-- 画面下部の編集ドック（UI再編D2 MVP。docs/DECISIONS.md ADR-025）。
+                 小節選択時のみ表示。内部の行構造・入力ロジックは旧overlay（S1b〜R2）をそのまま流用し、
+                 位置決めだけを「小節上の小箱」から「画面下の横長ドック」へ変更した。
+                 D3でスロット型グリッド入力へ拡張する土台にする。印刷では従来どおり非表示。 -->
+            <div id="sc-slot-overlay" class="slot-overlay hidden" aria-hidden="true"></div>
 
         </section>
 
@@ -409,15 +414,15 @@
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/music-theory.js?v=0.16.0"></script>
-    <script src="js/core/song-model.js?v=0.16.0"></script>
-    <script src="js/core/storage.js?v=0.16.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.16.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.16.0"></script>
-    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.16.0"></script>
-    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.16.0"></script>
-    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.16.0"></script>
-    <script src="js/app.js?v=0.16.0"></script>
+    <script src="js/core/music-theory.js?v=0.17.0"></script>
+    <script src="js/core/song-model.js?v=0.17.0"></script>
+    <script src="js/core/storage.js?v=0.17.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.17.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.17.0"></script>
+    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.17.0"></script>
+    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.17.0"></script>
+    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.17.0"></script>
+    <script src="js/app.js?v=0.17.0"></script>
 </body>
 
 </html>
