@@ -7,7 +7,7 @@
     <title>リズムクルーズ</title>
 
     <!-- shared/ には依存せず theme.css 1枚で構成 -->
-    <link rel="stylesheet" href="theme.css?v=1.0.12">
+    <link rel="stylesheet" href="theme.css?v=1.1.0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -573,9 +573,11 @@
                     <div class="stage-set-seg" id="click-range-seg" role="group" aria-label="クリックを鳴らす範囲">
                         <button type="button" class="ss-seg is-active" data-clickrange="always" aria-pressed="true">ずっと鳴らす</button>
                         <button type="button" class="ss-seg" data-clickrange="firstBar" aria-pressed="false">最初の1小節だけ</button>
+                        <button type="button" class="ss-seg" data-clickrange="alternateBars" aria-pressed="false">1小節ごと</button>
                         <button type="button" class="ss-seg" data-clickrange="countOnly" aria-pressed="false">カウントのみ</button>
                     </div>
                 </div>
+                <p class="setting-note" style="margin:2px 0 0;">「1小節ごと」は、1小節ON／次の1小節OFFを繰り返します。</p>
                 <div class="stage-set-row click-beats-head-row">
                     <span class="stage-set-label">クリックする拍</span>
                 </div>
@@ -1567,7 +1569,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=1.0.12"></script>
+    <script src="script.js?v=1.1.0"></script>
 </body>
 
 </html>

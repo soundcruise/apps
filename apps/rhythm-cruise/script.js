@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '1.0.12';
+const RHYTHM_CRUISE_VERSION = '1.1.0';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -9644,13 +9644,14 @@ function engJudgeCount() {
 /* ── 再生制御 ───────────────────────────────────────────── */
 /* クリック設定（v0.9.147）：セル i の本編クリックを鳴らすか。クリック音だけに影響し、判定/譜面/スコア/プレビューには無関係。
    - i<0（カウントイン）はここでは扱わない（buildScheduleで標準フルカウントを常に鳴らす）。
-   - 鳴らす範囲：always＝全小節 / firstBar＝最初の1小節だけ / countOnly＝本編は鳴らさない。
+   - 鳴らす範囲：always＝全小節 / firstBar＝最初の1小節だけ / alternateBars＝奇数小節だけ / countOnly＝本編は鳴らさない。
    - クリックする拍：stageBeatSelected で 4拍ぜんぶ/1拍目/1・3拍/2・4拍 を絞る。 */
 function stageClickAudibleAt(i) {
     if (i < 0) return true;
     const mode = state.rcClickMode || 'always';
     if (mode === 'countOnly') return false;
     if (mode === 'firstBar' && i >= eng.cellsPerBar) return false;
+    if (mode === 'alternateBars' && Math.floor(i / eng.cellsPerBar) % 2 !== 0) return false;
     return stageBeatSelected(i);
 }
 
@@ -12570,7 +12571,7 @@ function closeResultHistoryDetail() {
    v0.9.148でクリック設定を右上「設定」内へ移動。鳴らす範囲・クリックする拍・裏拍の状態管理（クリック音の仕様自体は不変）。
    クリック設定の3項目は localStorage に保存（既定：ずっと鳴らす＋4拍ぜんぶ＋裏拍OFF）。くり返し練習は永続化しない（既定OFF）。 */
 const CLICK_SETTINGS_KEY = 'rhythmCruiseClickSettings:v1';
-const STAGE_CLICK_RANGES = ['always', 'firstBar', 'countOnly'];
+const STAGE_CLICK_RANGES = ['always', 'firstBar', 'alternateBars', 'countOnly'];
 const STAGE_CLICK_BEATS = ['all', 'beat1', 'beats13', 'beats24'];
 const STAGE_CLICK_DEFAULTS = { range: 'always', beats: 'all', offbeat: false };
 function loadStageClickSettings() {
