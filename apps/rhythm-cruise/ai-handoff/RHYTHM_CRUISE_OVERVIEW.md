@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/rhythm-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/rhythm-cruise/`
 - PRO版URL: `https://soundcruise.jp/apps/rhythm-cruise/pro_r4m8k7n2q9x/`
-- 現在のバージョン: `1.0.11`（`script.js` の `RHYTHM_CRUISE_VERSION`。2026年7月8日付でVer 1.0.0として正式リリース）
+- 現在のバージョン: `1.0.12`（`script.js` の `RHYTHM_CRUISE_VERSION`。2026年7月8日付でVer 1.0.0として正式リリース）
 - このドキュメント更新時点の最新commit（rhythm-cruise関連）:
   - message: `リズムクルーズを正式版1.0.0に更新`
   - hash: 本ドキュメント更新と同一commitでpushされるため、この記述時点では未確定（4章「リリース準備メモ」参照）
@@ -76,6 +76,7 @@
 - **Practice画面**（`screen-practice`）: スクロール譜面型のリズム判定本編。譜面プレビュー、進行状況、タップ/ストローク入力エリア、開始/停止、結果カードへ遷移。
 - **Practice小節数上限**: v1.0.10で安全な第一段階として、PRO版のPractice小節数上限を32→64へ拡張。200小節対応は録音レビュー・結果履歴・グラフ・VexFlow表示などの長尺モード設計が必要なため未対応。
 - **結果カード**: v1.0.11で「ズレ履歴」グラフに小節番号の補助表示を追加。Canvas上の表示専用で、判定・集計・録音レビュー・保存ロジックには影響しない。
+- **保存済みSTAGEの再編集**: v1.0.12で、保存済みSTAGEのPracticeから編集へ進む際、直前の別STAGEの編集ドラフトではなく現在のPractice対象IDを読み直すよう修正。編集画面からPracticeへ渡した同一IDの未保存ドラフトは従来どおり維持する。
 - **設定画面**（`screen-settings`）: タブ切り替えで以下4つ。
   - **マイク設定**（`settings-tab-mic`）: 補正テストの入口（`#settings-detail-btn`＝「補正テストを始める」＋隣に`?`ヘルプボタン）、保存済みプリセット、手動設定。
   - **タップ設定**（`settings-tab-tap`）: 画面タップ時の音ズレ補正。

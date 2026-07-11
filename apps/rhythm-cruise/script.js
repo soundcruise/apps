@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '1.0.11';
+const RHYTHM_CRUISE_VERSION = '1.0.12';
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -6269,11 +6269,12 @@ function testPlayFromEditor() {
 
 /* カスタムSTAGEのテスト再生／結果画面から、元の編集画面へ戻る（v0.9.124、v0.9.245改修）。
    再生・マイクを止め、一時設定(bpm/小節数)を復元してエンジンを通常STAGEへ戻してから編集画面を開く。
-   v0.9.245：自動保存廃止に伴い、proCustomEditDraft が残っていれば保存済みデータを再ロードせず
-   ドラフトをそのまま使う（「このリズムで練習する→」前のパターン変更を維持）。
+   v0.9.245：自動保存廃止に伴い、編集画面から来た同一IDの proCustomEditDraft は保存済みデータを再ロードせず
+   そのまま使う（「このリズムで練習する→」前のパターン変更を維持）。
    Practice中に変更した BPM/小節数/拡大率 は編集ドラフトへ反映する。 */
 function backToEditorFromTest() {
     const id = eng.editId;
+    const source = eng.testSource; // leaveCustomTestState() で消える前に、Practiceの開始元を退避する
     const tempBpm = state.bpm;    // テスト再生画面での一時BPM（leaveCustomTestStateで元STAGE値へ戻る前に退避）
     const tempBars = state.bars;  // テスト再生画面での一時小節数
     const tempZoom = rhythmVexZoomPrefs.stage; // テスト再生画面での一時拡大率
@@ -6284,8 +6285,13 @@ function backToEditorFromTest() {
     if (els.refreshBar) els.refreshBar.classList.remove('hidden');
     leaveCustomTestState();
     show('home');
-    if (proCustomEditDraft) {
-        // v0.9.245: ドラフトが残っていればそれを使う（保存済みデータは再ロードしない）
+    // v1.0.12: 編集画面から来た同一IDのドラフトだけを再利用する。
+    // 保存済みカード由来では、別STAGEの古いドラフトが残っていても現在のPractice対象をIDで読み直す。
+    const canReuseDraft = source === 'editor'
+        && proCustomEditDraft
+        && proCustomEditDraft.id === id;
+    if (canReuseDraft) {
+        // v0.9.245: 編集画面から渡した未保存ドラフトをそのまま維持する
         proCustomEditDraft.bpm = clampNum(Math.round(tempBpm), RHYTHM_CUSTOM_BPM_MIN, RHYTHM_CUSTOM_BPM_MAX, proCustomEditDraft.bpm);
         if (Number.isInteger(tempBars) && tempBars >= 1 && tempBars <= 128) proCustomEditDraft.bars = tempBars;
         proCustomEditDraft.zoom = clampRhythmVexZoom(tempZoom);
@@ -6295,6 +6301,7 @@ function backToEditorFromTest() {
         // （Practiceから戻っただけでは未保存扱いにしない。以後の実編集は従来どおり検知する）。
         refreshProCustomEditSnapshot();
     } else if (id && getSavedRhythmCustomStages().some((s) => s.id === id)) {
+        if (source === 'home') proCustomEditFrom = 'rhythm';
         openRhythmProCustomEditor(id);
         if (proCustomEditDraft) {
             proCustomEditDraft.bpm = clampNum(Math.round(tempBpm), RHYTHM_CUSTOM_BPM_MIN, RHYTHM_CUSTOM_BPM_MAX, proCustomEditDraft.bpm);
