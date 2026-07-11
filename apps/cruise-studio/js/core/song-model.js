@@ -8,7 +8,7 @@
 
     var theory = window.CruiseStudio && window.CruiseStudio.theory;
 
-    var APP_VERSION = '0.21.0';
+    var APP_VERSION = '0.21.1';
     var SCHEMA_VERSION = 1;
     var TICKS_PER_BEAT = 480;
 
@@ -328,6 +328,48 @@
         });
         cells.forEach(function (c) { c.isMulti = c.eventCount > 1; });
         return cells;
+    }
+
+    /**
+     * 小節の歌詞を、呼び出し側が指定した任意のtick範囲配列ごとに読み出す（G2a）。
+     * getBarLyricSlots() が解像度で均等分割した連番セルを返すのに対し、
+     * こちらは任意の [{slotTick, slotTicks}] を渡せる純粋な読み出し関数。
+     * G2b以降の拍別解像度混在（例: 8分セルの中に16分イベントが2個入る集約表示）に
+     * 備えた土台で、projectは変更しない。
+     * 各rangeは半開区間 [slotTick, slotTick + slotTicks) として扱い、その範囲内の
+     * lyricsイベントをtick昇順で連結する。不正なrange（slotTick/slotTicksが数値でない・
+     * slotTicksが正数でない等）は例外を投げず、そのrangeだけ空結果のまま返す。
+     * @param {Array<{slotTick: number, slotTicks: number}>} ranges
+     * @returns {Array<{text: string, eventCount: number, isMulti: boolean}>} rangesと同じ長さ
+     */
+    function getBarLyricSlotRanges(project, barNumber, ranges) {
+        var safeRanges = Array.isArray(ranges) ? ranges : [];
+        var results = safeRanges.map(function () {
+            return { text: '', eventCount: 0, isMulti: false };
+        });
+
+        var bar = findBar(project, barNumber);
+        if (!bar || !Array.isArray(bar.lyrics) || bar.lyrics.length === 0) return results;
+
+        var sorted = bar.lyrics.slice().sort(function (a, b) { return a.tick - b.tick; });
+
+        safeRanges.forEach(function (range, i) {
+            if (!range || typeof range.slotTick !== 'number' || typeof range.slotTicks !== 'number' ||
+                !(range.slotTicks > 0)) {
+                return; // 不正rangeはそのまま空の結果にする（例外を投げない）
+            }
+            var rangeStart = range.slotTick;
+            var rangeEnd = range.slotTick + range.slotTicks;
+            sorted.forEach(function (ev) {
+                if (!ev || typeof ev.tick !== 'number') return;
+                if (ev.tick >= rangeStart && ev.tick < rangeEnd) {
+                    results[i].text += (ev.text || '');
+                    results[i].eventCount += 1;
+                }
+            });
+        });
+        results.forEach(function (r) { r.isMulti = r.eventCount > 1; });
+        return results;
     }
 
     /**
@@ -995,6 +1037,7 @@
         setBarLyricsText: setBarLyricsText,
         setBarLyricSlot: setBarLyricSlot,
         getBarLyricSlots: getBarLyricSlots,
+        getBarLyricSlotRanges: getBarLyricSlotRanges,
         barNeedsSixteenthResolution: barNeedsSixteenthResolution,
         getBarDoremiText: getBarDoremiText,
         setBarDoremiText: setBarDoremiText,

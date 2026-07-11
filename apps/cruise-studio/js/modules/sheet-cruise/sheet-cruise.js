@@ -65,7 +65,7 @@
         dockManualRes: {},     // D3a: barNumber → 16（ユーザーが一時的に選んだ16分表示。保存しない）
         dockBulkOpen: false,   // D3a: まとめて入力ポップオーバーの開閉状態（UI一時状態）
         lastAutoScrollBar: null, // D3a: 自動スクロールを選択が変わった時だけ行うための直前値
-        lyricComposingIndex: null, // F2a: IME変換中の歌詞セルindex（同時に1つだけの想定）
+        lyricComposingTick: null,  // G2a: IME変換中の歌詞セルslotTick（同時に1つだけの想定。F2a時点はindexで管理していた）
         lyricJustComposed: false,  // F2a: compositionend直後のEnter誤爆ガード（Safari対策）
         loupe: { x: 0, y: 0, width: LOUPE_DEFAULT_WIDTH } // F1: ルーペの位置/幅。UI状態のみ（projectに保存しない）
     };
@@ -611,8 +611,11 @@
             (rowId === 'lyrics' ? 'bar-lyrics-input' : 'bar-doremi-input');
         var labelText = rowId === 'chord' ? 'コード' :
             (rowId === 'lyrics' ? '歌詞' : 'ドレミ');
+        // F2aで旧グリッドの歌詞inputのaria-labelへ「（読み取り専用。ルーペで編集）」を
+        // 追記した際、ここが完全一致セレクタのままだったため歌詞だけ同期が効かなくなっていた
+        // 既存不具合（G2aの検証中に発見）。前方一致にして両方に対応する。
         var input = els.barGrid && els.barGrid.querySelector(
-            '.' + className + '[aria-label="' + barNumber + '小節目の' + labelText + '"]'
+            '.' + className + '[aria-label^="' + barNumber + '小節目の' + labelText + '"]'
         );
         if (!input) return;
         input.value = value;
@@ -1092,19 +1095,98 @@
         return 'まだ何も入力されていません。セルをクリックまたはキーボードで入力できます';
     }
 
-    /* ══════════ F2a: 歌詞セル編集（docs/DECISIONS.md ADR-028） ══════════
+    /* ══════════ F2a/G2a: 歌詞セル編集（docs/DECISIONS.md ADR-028。tick中心化はG2a） ══════════
        歌詞行を、ストローク行と同じ時間軸のセル（8 or 16マス）に分解して編集する。
        1セル＝1 bar.lyrics イベント。既存のtick:0全文データは自動分割せず先頭セルへ
        そのまま表示する（後方互換）。入力欄は<input>（strumのようなbuttonではなく
        IME変換を受けるテキストフィールド）。IME中は commit / markDirty / 再描画をしない
        3層ガード（keydown isComposing・compositionstartのcomposing状態・
-       compositionend直後のjustComposedフラグ）でSafariのEnter誤爆にも対応する。 */
+       compositionend直後のjustComposedフラグ）でSafariのEnter誤爆にも対応する。
+       G2a: G2b（拍別8分/16分混在）に備え、セルの位置管理をセルindexからtick
+       （data-slot-tick / data-slot-ticks）中心へ移した。data-cell-indexは表示順・
+       aria-label・互換確認用として残すが、フォーカス復元・ナビゲーション・commit対象の
+       正はtickになる。G2aは全セルが一律解像度のため、ユーザーから見た移動順・
+       セル数・入力結果はF2a時点と完全に同じ（機能等価リファクタ）。
+       あわせて「無変更commit防止」を導入: 表示された初期値（input._initialValue）と
+       現在値が一致する場合は setBarLyricSlot・markDirty・renderPreview のいずれも
+       呼ばない（G2bで8分セルへ16分イベント2個を集約表示した際、編集せずblurしただけで
+       複数イベントが1イベントへ統合されてしまう事故を防ぐための前提整備）。 */
 
-    function captureLyricCellFocus(index, input) {
+    /**
+     * ルーペ内の歌詞セルをDOM順（=tick昇順）の配列として取得する。
+     */
+    function getOrderedLyricCells() {
+        if (!els.slotOverlay) return [];
+        var grid = els.slotOverlay.querySelector('.dock-lyrics-grid');
+        if (!grid) return [];
+        return Array.prototype.slice.call(grid.querySelectorAll('.dock-lyrics-cell'));
+    }
+
+    /**
+     * 指定tickに対応するセルを安全にフォールバックしながら探す。
+     * 1. slotTickが完全一致するセル
+     * 2. そのtickを含む範囲 [slotTick, slotTick+slotTicks) のセル
+     * 3. それも無ければ、直前（slotTickが最大でtick以下）のセル
+     * 4. 最終的に先頭セル
+     * G2aでは全セルが一律解像度のため常に1で見つかるが、G2b以降の解像度混在・
+     * 切替後にも使えるようこのフォールバック構造にしてある。
+     */
+    function findLyricCellByTick(cells, tick) {
+        if (!cells || cells.length === 0) return null;
+        for (var i = 0; i < cells.length; i++) {
+            if (Number(cells[i].dataset.slotTick) === tick) return cells[i];
+        }
+        for (var j = 0; j < cells.length; j++) {
+            var st = Number(cells[j].dataset.slotTick);
+            var sd = Number(cells[j].dataset.slotTicks);
+            if (tick >= st && tick < st + sd) return cells[j];
+        }
+        var best = null;
+        cells.forEach(function (c) {
+            var cst = Number(c.dataset.slotTick);
+            if (cst <= tick && (!best || cst > Number(best.dataset.slotTick))) best = c;
+        });
+        return best || cells[0];
+    }
+
+    /**
+     * currentSlotTickのセルから見て、direction（+1/-1）方向へ隣接するセルのtickを返す。
+     * 両端では同じtickを返す（クランプ）。G2aでは全セルが一律解像度で並んでいるため、
+     * 見た目の移動順はF2a時点のindex+1/-1と完全に同じになる。
+     */
+    function getAdjacentLyricCellTick(cells, currentSlotTick, direction) {
+        if (!cells || cells.length === 0) return currentSlotTick;
+        var idx = -1;
+        for (var i = 0; i < cells.length; i++) {
+            if (Number(cells[i].dataset.slotTick) === currentSlotTick) { idx = i; break; }
+        }
+        if (idx === -1) {
+            var fallback = findLyricCellByTick(cells, currentSlotTick);
+            idx = cells.indexOf(fallback);
+            if (idx === -1) idx = 0;
+        }
+        var targetIdx = Math.max(0, Math.min(cells.length - 1, idx + direction));
+        return Number(cells[targetIdx].dataset.slotTick);
+    }
+
+    function focusLyricCellByTick(tick) {
+        var cells = getOrderedLyricCells();
+        var cell = findLyricCellByTick(cells, tick);
+        if (!cell) return;
+        cell.focus({ preventScroll: true });
+        try {
+            var v = cell.value;
+            cell.setSelectionRange(v.length, v.length);
+        } catch (_) {
+            // テキスト入力以外に拡張された場合の保険。
+        }
+    }
+
+    function captureLyricCellFocus(slotTick, input) {
         var active = document.activeElement;
         if (!input || active !== input) return null;
         return {
-            index: index,
+            slotTick: slotTick,
             value: input.value,
             selectionStart: typeof input.selectionStart === 'number' ? input.selectionStart : null,
             selectionEnd: typeof input.selectionEnd === 'number' ? input.selectionEnd : null
@@ -1123,7 +1205,7 @@
     function restoreLyricCellFocus(snapshot, expectedBarNumber) {
         if (!snapshot || !els.slotOverlay) return;
         if (typeof expectedBarNumber === 'number' && state.selectedBarNumber !== expectedBarNumber) return;
-        var cell = els.slotOverlay.querySelector('.dock-lyrics-cell[data-cell-index="' + snapshot.index + '"]');
+        var cell = findLyricCellByTick(getOrderedLyricCells(), snapshot.slotTick);
         if (!cell) return;
         cell.focus({ preventScroll: true });
         if (cell.value !== snapshot.value) cell.value = snapshot.value;
@@ -1143,51 +1225,55 @@
         });
     }
 
-    function focusLyricCellByIndex(index) {
-        if (!els.slotOverlay) return;
-        var grid = els.slotOverlay.querySelector('.dock-lyrics-grid');
-        if (!grid) return;
-        var cells = grid.querySelectorAll('.dock-lyrics-cell');
-        if (cells.length === 0) return;
-        var clamped = Math.max(0, Math.min(cells.length - 1, index));
-        var target = cells[clamped];
-        target.focus({ preventScroll: true });
-        try {
-            var v = target.value;
-            target.setSelectionRange(v.length, v.length);
-        } catch (_) {
-            // テキスト入力以外に拡張された場合の保険。
-        }
-    }
-
     /**
-     * 歌詞セル1つを確定保存する。model層（setBarLyricSlot）はrenderPreview・markDirty・
+     * 歌詞セル1つを確定保存する。位置はinputEl.dataset.slotTick/slotTicksから読む
+     * （tick中心化。G2a）。model層（setBarLyricSlot）はrenderPreview・markDirty・
      * 保存を一切行わないため、ここでUI層としてそれらを担当する。
-     * focusIndex省略時（連続入力・IME確定など）は同じセルへカーソル位置ごと復元し、
+     *
+     * 無変更commit防止（G2a最重要要件）: inputEl.value が表示時点の初期値
+     * （inputEl._initialValue）と完全に同じ場合は、setBarLyricSlot・markDirty・
+     * renderPreviewのいずれも呼ばない。書き込みが成功した場合のみ_initialValueを
+     * 新しい値へ更新し、以後のblur等での二重commitを防ぐ。この比較はUI層の生の
+     * input.value同士で行い、setBarLyricSlot内部で行われるtrim等の正規化は比較の
+     * 前段では一切行わない（未編集なのに変更扱いになることを避けるため）。
+     *
+     * focusTick省略時（連続入力・IME確定など）は同じセルへカーソル位置ごと復元し、
      * 指定時（Enter/Tab/矢印などの明示的な移動）は移動先セルの末尾へフォーカスする。
+     * 無変更でfocusTickが指定された場合（例: 何も編集せずTabだけ押した）は、
+     * 書き込み・再描画をせずそのセルへ直接フォーカスするだけにとどめる。
      * options.skipRender: trueのときはmodelの更新のみ行い、render・フォーカス移動は
-     * 呼び出し側に任せる（Alt+矢印での小節移動の直前など、直後にもう一度別の
-     * 再描画が起きることが分かっている場合に、無駄な二重描画と古いフォーカス復元
-     * コールバックの混線を避けるために使う）。
+     * 呼び出し側に任せる（Alt+矢印での小節移動の直前など）。
      */
-    function commitLyricCell(bar, res, index, inputEl, focusIndex, options) {
+    function commitLyricCell(bar, inputEl, focusTick, options) {
+        var opts = options || {};
         var model = CS().model;
-        var barTicks = model.getBarLengthTicks(state.project);
-        var slotTicks = barTicks / res;
-        var slotTick = index * slotTicks;
-        model.setBarLyricSlot(state.project, bar.barNumber, slotTick, slotTicks, inputEl.value);
-        markDirty();
-        syncBarGridInput('lyrics', bar.barNumber, model.getBarLyricsText(bar), []);
+        var slotTick = Number(inputEl.dataset.slotTick);
+        var slotTicks = Number(inputEl.dataset.slotTicks);
+        var changed = inputEl.value !== inputEl._initialValue;
 
-        if (options && options.skipRender) return;
+        if (changed) {
+            model.setBarLyricSlot(state.project, bar.barNumber, slotTick, slotTicks, inputEl.value);
+            inputEl._initialValue = inputEl.value;
+            markDirty();
+            syncBarGridInput('lyrics', bar.barNumber, model.getBarLyricsText(bar), []);
+        }
 
-        var snapshot = captureLyricCellFocus(index, inputEl);
+        if (opts.skipRender) return;
+
+        if (!changed) {
+            if (typeof focusTick === 'number' && focusTick !== slotTick) {
+                focusLyricCellByTick(focusTick);
+            }
+            return;
+        }
+
+        var snapshot = captureLyricCellFocus(slotTick, inputEl);
         var expectedBarNumber = bar.barNumber;
         renderPreview();
-        if (typeof focusIndex === 'number' && focusIndex !== index) {
+        if (typeof focusTick === 'number' && focusTick !== slotTick) {
             window.requestAnimationFrame(function () {
                 if (state.selectedBarNumber !== expectedBarNumber) return;
-                focusLyricCellByIndex(focusIndex);
+                focusLyricCellByTick(focusTick);
             });
         } else if (snapshot) {
             restoreLyricCellFocusAfterRender(snapshot, expectedBarNumber);
@@ -1201,14 +1287,16 @@
      * Escapeはここでは何も処理せず、document側の共通Esc階層（ポップオーバー→
      * セル編集解除→ルーペを閉じる）へそのままbubbleさせる。
      */
-    function onLyricCellKeydown(event, bar, res, index) {
+    function onLyricCellKeydown(event, bar) {
         if (event.key === 'Escape') return; // 既存のEsc優先順位（onDocumentKeydownForLoupe）へ委ねる
         event.stopPropagation();
 
-        if (event.isComposing || event.keyCode === 229 || state.lyricComposingIndex === index) return;
+        var input = event.currentTarget;
+        var slotTick = Number(input.dataset.slotTick);
+
+        if (event.isComposing || event.keyCode === 229 || state.lyricComposingTick === slotTick) return;
 
         var key = event.key;
-        var input = event.currentTarget;
 
         if (state.lyricJustComposed && key === 'Enter') {
             // Safari等でIME確定のEnterがisComposing=falseとして届く場合の保険。
@@ -1220,35 +1308,41 @@
 
         if (event.altKey && (key === 'ArrowLeft' || key === 'ArrowRight')) {
             event.preventDefault();
-            commitLyricCell(bar, res, index, input, index, { skipRender: true });
+            commitLyricCell(bar, input, slotTick, { skipRender: true });
             moveSelectedBar(key === 'ArrowLeft' ? -1 : 1, { focusRowId: 'lyrics' });
             return;
         }
+
+        var cells = getOrderedLyricCells();
+
         if (key === 'Enter') {
             event.preventDefault();
-            commitLyricCell(bar, res, index, input, Math.min(res - 1, index + 1));
+            commitLyricCell(bar, input, getAdjacentLyricCellTick(cells, slotTick, 1));
             return;
         }
         if (key === 'Tab') {
             event.preventDefault();
-            var target = event.shiftKey ? Math.max(0, index - 1) : Math.min(res - 1, index + 1);
-            commitLyricCell(bar, res, index, input, target);
+            var dir = event.shiftKey ? -1 : 1;
+            commitLyricCell(bar, input, getAdjacentLyricCellTick(cells, slotTick, dir));
             return;
         }
         if (key === 'ArrowRight') {
             event.preventDefault();
-            commitLyricCell(bar, res, index, input, Math.min(res - 1, index + 1));
+            commitLyricCell(bar, input, getAdjacentLyricCellTick(cells, slotTick, 1));
             return;
         }
         if (key === 'ArrowLeft') {
             event.preventDefault();
-            commitLyricCell(bar, res, index, input, Math.max(0, index - 1));
+            commitLyricCell(bar, input, getAdjacentLyricCellTick(cells, slotTick, -1));
             return;
         }
         if (key === 'Backspace') {
-            if (input.value === '' && index > 0) {
-                event.preventDefault();
-                focusLyricCellByIndex(index - 1);
+            if (input.value === '') {
+                var prevTick = getAdjacentLyricCellTick(cells, slotTick, -1);
+                if (prevTick !== slotTick) {
+                    event.preventDefault();
+                    focusLyricCellByTick(prevTick);
+                }
             }
             // 空でなければ通常の文字削除に任せる
             return;
@@ -1256,7 +1350,7 @@
         if (key === 'Delete') {
             event.preventDefault();
             input.value = '';
-            commitLyricCell(bar, res, index, input, index);
+            commitLyricCell(bar, input, slotTick);
             return;
         }
         // Space・通常の文字入力キーはIMEを妨げないよう素通しする
@@ -1265,6 +1359,8 @@
     function buildLyricsGridRow(bar, res) {
         var model = CS().model;
         var cells = model.getBarLyricSlots(state.project, bar.barNumber, res);
+        var barTicks = model.getBarLengthTicks(state.project);
+        var slotTicksForRes = barTicks / res;
 
         var wrap = document.createElement('div');
         wrap.className = 'dock-lyrics-grid beat-groups';
@@ -1272,42 +1368,46 @@
 
         populateBeatGroups(wrap, res, function (index, slotsPerBeat) {
             var cellInfo = cells[index];
+            var slotTick = index * slotTicksForRes;
             var input = document.createElement('input');
             input.type = 'text';
             var boundary = index + 1;
             input.className = 'dock-lyrics-cell ' + timelineBoundaryClass(boundary, res, slotsPerBeat) +
                 (cellInfo.text ? ' has-content' : '') + (cellInfo.isMulti ? ' is-multi' : '');
             input.value = cellInfo.text;
-            input.dataset.cellIndex = String(index);
+            input._initialValue = cellInfo.text; // G2a: 無変更commit防止用の表示済み初期値
+            input.dataset.slotTick = String(slotTick);
+            input.dataset.slotTicks = String(slotTicksForRes);
+            input.dataset.cellIndex = String(index); // 表示順・aria-label・互換確認用（位置管理の正ではない）
             input.setAttribute('aria-label', bar.barNumber + '小節目 歌詞 ' + (index + 1) + 'マス目');
             if (cellInfo.text) input.title = cellInfo.text;
 
             input.addEventListener('compositionstart', function () {
-                state.lyricComposingIndex = index;
+                state.lyricComposingTick = slotTick;
                 input.classList.add('is-composing');
             });
             input.addEventListener('compositionend', function () {
                 input.classList.remove('is-composing');
-                state.lyricComposingIndex = null;
+                state.lyricComposingTick = null;
                 state.lyricJustComposed = true;
                 window.setTimeout(function () { state.lyricJustComposed = false; }, 0);
-                commitLyricCell(bar, res, index, input, index);
+                commitLyricCell(bar, input, slotTick);
             });
             input.addEventListener('input', function (event) {
-                if (event.isComposing || state.lyricComposingIndex === index) return;
-                commitLyricCell(bar, res, index, input, index);
+                if (event.isComposing || state.lyricComposingTick === slotTick) return;
+                commitLyricCell(bar, input, slotTick);
             });
             input.addEventListener('keydown', function (event) {
-                onLyricCellKeydown(event, bar, res, index);
+                onLyricCellKeydown(event, bar);
             });
             input.addEventListener('blur', function () {
-                if (state.lyricComposingIndex === index) return;
+                if (state.lyricComposingTick === slotTick) return;
                 window.setTimeout(function () {
                     // Tab/Enter/矢印等の明示操作が既にこのセルをcommitして再描画済みなら
                     // このinputはDOMから外れている（多重commit・再描画によるフォーカス
                     // 奪還を防ぐ）。
                     if (!input.isConnected) return;
-                    commitLyricCell(bar, res, index, input);
+                    commitLyricCell(bar, input);
                 }, 0);
             });
             input.addEventListener('click', function (event) { event.stopPropagation(); });
