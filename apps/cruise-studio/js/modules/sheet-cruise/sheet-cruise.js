@@ -67,6 +67,12 @@
         lastAutoScrollBar: null, // D3a: 自動スクロールを選択が変わった時だけ行うための直前値
         lyricComposingTick: null,  // G2a: IME変換中の歌詞セルslotTick（同時に1つだけの想定。F2a時点はindexで管理していた）
         lyricJustComposed: false,  // F2a: compositionend直後のEnter誤爆ガード（Safari対策）
+        // G2b: 歌詞の拍別ローカル解像度（UI一時状態。ADR-030）。bar objectをキーにした
+        // WeakMapなので、project/localStorage/appSettingsへは保存されず、JSON読込・
+        // 新規project・再読込では新しいbarオブジェクトになるため自然に消える。
+        // 小節削除等でbarオブジェクトが参照されなくなればGC対象にもなる。
+        // 値: WeakMap<bar, Map<beatIndex, 8|16>>（ローカル指定が無いbeatIndexはMapに存在しない＝自動）
+        lyricBeatRes: new WeakMap(),
         loupe: { x: 0, y: 0, width: LOUPE_DEFAULT_WIDTH } // F1: ルーペの位置/幅。UI状態のみ（projectに保存しない）
     };
 
@@ -860,43 +866,148 @@
     }
 
     /**
-     * ルーペ全体（コード/ストローク/歌詞/ドレミ）が共有する時間軸の必要解像度判定
-     * （F2a / ADR-028: song-model.jsの共通関数へ、ストロークslotsと歌詞bar.lyricsの
-     * 両方を渡す。F3でbar.melodyも同じ関数に足せる設計）。
+     * ルーペ全体（コード/ストローク/歌詞/ドレミの拍ルーラー等）が共有する時間軸の
+     * 必要解像度判定はストローク由来のみとする（G2b / ADR-030）。
+     * F2a〜G1時点では歌詞のtickも判定に含めていたが、G2bで歌詞行が拍別ローカル解像度を
+     * 持てるようになったため、歌詞データを理由に全体設定を16分へ強制することは廃止した
+     * （歌詞は「自動」のときヘッダーの全体設定へ追従するだけで、データ由来の自動昇格はしない）。
      */
-    function isBarDataForcedSixteenth(bar) {
+    function isStrumDataForcedSixteenth(bar) {
         var slots = CS().model.getBarEffectiveStrumSlots(state.project, bar.barNumber);
-        return CS().model.barNeedsSixteenthResolution({ strumSlots: slots, lyrics: bar.lyrics });
+        return CS().model.barNeedsSixteenthResolution({ strumSlots: slots });
     }
 
     /**
-     * 小節のストローク表示解像度（8 or 16）。
-     * 「データから必要な解像度」（16分位置のslots・歌詞イベントを含むか）と
+     * 小節の共有時間軸解像度（8 or 16）。拍ルーラー・ストロークセル・コード/ドレミ背面線・
+     * 歌詞の「自動」拍が使う。「データから必要な解像度」（ストローク由来のみ。G2b）と
      * 「ユーザーが一時的に選んだ解像度」（state.dockManualRes。barNumberごとに保持。
      * _proto/slot-editor.js の barResOverride と同じ思想でUI一時状態のみ）の大きい方を使う。
      */
     function getStrumGridResolution(bar) {
-        var dataRes = isBarDataForcedSixteenth(bar) ? 16 : 8;
+        var dataRes = isStrumDataForcedSixteenth(bar) ? 16 : 8;
         var manualRes = (state.dockManualRes[bar.barNumber] === 16) ? 16 : 8;
         return Math.max(dataRes, manualRes);
     }
 
     function isStrumGridForcedSixteenth(bar) {
-        return isBarDataForcedSixteenth(bar);
+        return isStrumDataForcedSixteenth(bar);
     }
 
     /**
-     * 8分ボタンをdisabledにする理由（ツールチップ文言）。ストローク由来・歌詞由来を
-     * 区別して案内する（F2a / ADR-028）。
+     * 8分ボタンをdisabledにする理由（ツールチップ文言）。G2b: 全体8分ロックは
+     * ストローク由来のみに限定した（歌詞由来のロックは廃止。歌詞は拍別ローカル指定または
+     * 全体設定への追従のみで、16分位置データによる自動昇格はしない）。
      */
     function getForcedSixteenthReason(bar) {
         var slots = CS().model.getBarEffectiveStrumSlots(state.project, bar.barNumber);
         var strumForced = !!(slots && CS().sheetRenderer.strumNeedsSixteenth(slots));
-        var lyricsForced = CS().model.barNeedsSixteenthResolution({ lyrics: bar.lyrics });
-        if (strumForced && lyricsForced) return 'ストロークと16分位置の歌詞があるため8分表示にはできません';
-        if (lyricsForced) return '16分位置の歌詞があるため8分表示にはできません';
         if (strumForced) return 'ストロークに16分位置があるため8分表示にはできません';
         return '';
+    }
+
+    /* ══════════ G2b: 歌詞の拍別ローカル解像度（docs/DECISIONS.md ADR-030） ══════════
+       実効解像度の優先順位は2段階だけ: 1) その拍のローカル指定（state.lyricBeatRes）
+       2) ヘッダーの全体8分/16分設定（getStrumGridResolution）。歌詞データのtickを
+       理由に自動的に16分へ昇格する処理は行わない（「自動」は必ず全体設定に追従する）。 */
+
+    function getLyricBeatLocalRes(bar, beatIndex) {
+        var map = state.lyricBeatRes.get(bar);
+        if (!map) return null;
+        var v = map.get(beatIndex);
+        return (v === 8 || v === 16) ? v : null;
+    }
+
+    /**
+     * res が null なら自動へ戻す（Mapからローカル指定を削除する）。
+     */
+    function setLyricBeatLocalRes(bar, beatIndex, res) {
+        var map = state.lyricBeatRes.get(bar);
+        if (res !== 8 && res !== 16) {
+            if (map) map.delete(beatIndex);
+            return;
+        }
+        if (!map) {
+            map = new Map();
+            state.lyricBeatRes.set(bar, map);
+        }
+        map.set(beatIndex, res);
+    }
+
+    /**
+     * 拍beatIndexの実効解像度。ローカル指定があればそれを、無ければ全体設定
+     * （globalRes）を返す。
+     */
+    function getLyricBeatEffectiveRes(bar, globalRes, beatIndex) {
+        var local = getLyricBeatLocalRes(bar, beatIndex);
+        return local || globalRes;
+    }
+
+    /**
+     * 拍別ローカル解像度ボタンのクリックサイクル。
+     * 全体が8分で自動状態: 自8 → 16 → 8 → 自8
+     * 全体が16分で自動状態: 自16 → 8 → 16 → 自16
+     * つまり自動からの最初のクリックは必ず全体設定と逆の解像度へ固定し、
+     * 見た目が必ず変化するようにする。ローカル固定同士を1往復した後、再度押すと自動へ戻る。
+     * @returns {8|16|null} 次の状態（nullは自動へ戻すことを意味する）
+     */
+    function nextLyricBeatResState(isAuto, local, globalRes) {
+        var opposite = (globalRes === 8) ? 16 : 8;
+        if (isAuto) return opposite;
+        if (local === opposite) return globalRes;
+        return null;
+    }
+
+    /**
+     * 拍内でのセル境界の強弱class（is-beat/is-8th/is-16th/is-barend）を、
+     * その拍「だけ」のローカル解像度基準で求める（G2b）。既存の timelineBoundaryClass は
+     * 小節全体で単一の解像度を前提にしたグローバルboundary番号を使うため、拍ごとに
+     * 解像度が異なりうる歌詞行では使えない。1拍分に閉じた同等ロジックとして実装する
+     * （全拍が同じ解像度のときは timelineBoundaryClass と完全に同じ結果になる）。
+     */
+    function lyricLocalBoundaryClass(slotIndexInBeat, slotsPerBeat, beatRes, isLastBeat) {
+        var boundaryWithinBeat = slotIndexInBeat + 1;
+        if (boundaryWithinBeat >= slotsPerBeat) {
+            return isLastBeat ? 'is-barend' : 'is-beat';
+        }
+        if (beatRes === 16) {
+            return (boundaryWithinBeat % 2 === 0) ? 'is-8th' : 'is-16th';
+        }
+        return 'is-8th';
+    }
+
+    /**
+     * ローカル拍ボタン・全体8分/16分ボタンの両方が使う、解像度変更前の安全処理（G2b）。
+     * 1) 現在フォーカス中の要素が歌詞セルで、かつIME変換中なら何もせず中止する
+     *    （{ok:false}を返す。呼び出し側は解像度状態を変更してはいけない）
+     * 2) 歌詞セルがアクティブなら、変更があるときだけG2aの無変更ガード経由で1回だけ
+     *    commitする（無変更なら書き込まない。renderPreviewはさせない= skipRender）
+     * 3) フォーカス復元用に、そのセルのtick・選択範囲・値をキャプチャして返す
+     * 呼び出し側は、続けて解像度状態を変更し、renderSlotOverlayContent()を1回だけ呼び、
+     * 戻り値のsnapshotをrestoreLyricCellFocusAfterRender()等でフォーカス復元に使う
+     * （G2aのtick中心フォールバック: 同tick→含む→直前→先頭をそのまま再利用する）。
+     */
+    function prepareLyricResolutionChange(bar) {
+        var active = document.activeElement;
+        var isLyricCell = !!(active && active.classList && active.classList.contains('dock-lyrics-cell'));
+        if (!isLyricCell) return { ok: true, snapshot: null };
+
+        var slotTick = Number(active.dataset.slotTick);
+        if (state.lyricComposingTick === slotTick) {
+            return { ok: false }; // IME変換中は切替を実行しない
+        }
+        var snapshot = captureLyricCellFocus(slotTick, active);
+        commitLyricCell(bar, active, slotTick, { skipRender: true });
+        return { ok: true, snapshot: snapshot };
+    }
+
+    /**
+     * prepareLyricResolutionChange()とセットで使う、再描画＋フォーカス復元の共通処理。
+     */
+    function finishLyricResolutionChange(bar, snapshot) {
+        var expectedBarNumber = bar.barNumber;
+        renderSlotOverlayContent();
+        positionSlotOverlay();
+        if (snapshot) restoreLyricCellFocusAfterRender(snapshot, expectedBarNumber);
     }
 
     /**
@@ -1356,65 +1467,191 @@
         // Space・通常の文字入力キーはIMEを妨げないよう素通しする
     }
 
-    function buildLyricsGridRow(bar, res) {
+    /**
+     * 歌詞セル1つ分の<input>を組み立てる（G2b: mixed resolution対応のため
+     * buildLyricsGridRowから切り出した）。IME 3層ガード・無変更commit防止・
+     * tick中心ナビゲーションはF2a/G2aのものをそのまま使う（挙動不変）。
+     * isMultiセル（8分セルに複数の16分イベントが集約表示されている等）は、
+     * titleへ全文と「編集確定すると統合される」旨の説明を付け加える。
+     */
+    function buildLyricCellInput(bar, slotTick, slotTicks, cellInfo, boundaryClass, ariaIndex) {
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'dock-lyrics-cell ' + boundaryClass +
+            (cellInfo.text ? ' has-content' : '') + (cellInfo.isMulti ? ' is-multi' : '');
+        input.value = cellInfo.text;
+        input._initialValue = cellInfo.text; // G2a: 無変更commit防止用の表示済み初期値
+        input.dataset.slotTick = String(slotTick);
+        input.dataset.slotTicks = String(slotTicks);
+        input.dataset.cellIndex = String(ariaIndex); // 表示順・aria-label・互換確認用（位置管理の正ではない）
+        input.setAttribute('aria-label', bar.barNumber + '小節目 歌詞 ' + (ariaIndex + 1) + 'マス目' +
+            (cellInfo.isMulti ? '（複数位置の歌詞が集約表示中）' : ''));
+        if (cellInfo.isMulti) {
+            input.title = cellInfo.text +
+                '\n複数位置の歌詞をまとめて表示中。編集して確定すると、このセルの範囲へ統合されます。';
+        } else if (cellInfo.text) {
+            input.title = cellInfo.text;
+        }
+
+        input.addEventListener('compositionstart', function () {
+            state.lyricComposingTick = slotTick;
+            input.classList.add('is-composing');
+        });
+        input.addEventListener('compositionend', function () {
+            input.classList.remove('is-composing');
+            state.lyricComposingTick = null;
+            state.lyricJustComposed = true;
+            window.setTimeout(function () { state.lyricJustComposed = false; }, 0);
+            commitLyricCell(bar, input, slotTick);
+        });
+        input.addEventListener('input', function (event) {
+            if (event.isComposing || state.lyricComposingTick === slotTick) return;
+            commitLyricCell(bar, input, slotTick);
+        });
+        input.addEventListener('keydown', function (event) {
+            onLyricCellKeydown(event, bar);
+        });
+        input.addEventListener('blur', function () {
+            if (state.lyricComposingTick === slotTick) return;
+            window.setTimeout(function () {
+                // Tab/Enter/矢印等の明示操作が既にこのセルをcommitして再描画済みなら
+                // このinputはDOMから外れている（多重commit・再描画によるフォーカス
+                // 奪還を防ぐ）。
+                if (!input.isConnected) return;
+                commitLyricCell(bar, input);
+            }, 0);
+        });
+        input.addEventListener('click', function (event) { event.stopPropagation(); });
+        input.addEventListener('mousedown', function (event) { event.stopPropagation(); });
+
+        return input;
+    }
+
+    /**
+     * 拍beatIndexの右下に置く、歌詞のローカル解像度切替ボタン（G2b）。
+     * 自動状態: 「自8」「自16」（全体設定に追従中）。ローカル固定: 「8」「16」。
+     * クリックサイクル・安全処理（IME中は無操作・編集中セルの保全）は
+     * nextLyricBeatResState() / prepareLyricResolutionChange() を参照。
+     */
+    function buildLyricBeatResButton(bar, beatIndex, globalRes) {
+        var local = getLyricBeatLocalRes(bar, beatIndex);
+        var isAuto = (local === null);
+        var effectiveRes = local || globalRes;
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'dock-lyrics-beat-res-btn' + (isAuto ? ' is-auto' : ' is-local');
+        // 実機確認後修正: 自動状態の表示（自8/自16）は変更せず、手動固定状態だけ
+        // 「手8」「手16」へ変更する（見た目・状態サイクル・内部値は無変更）。
+        btn.textContent = isAuto ? ('自' + globalRes) : ('手' + effectiveRes);
+
+        var stateText = isAuto ?
+            ('全体設定（' + globalRes + '分）へ自動追従中') :
+            ('手動で' + effectiveRes + '分に固定中');
+        var next = nextLyricBeatResState(isAuto, local, globalRes);
+        var nextText = (next === null) ?
+            'クリックで自動（全体設定に追従）へ戻します' :
+            ('クリックで手動' + next + '分固定にします');
+        var label = (beatIndex + 1) + '拍目の歌詞セル解像度: ' + stateText + '。' + nextText;
+        btn.title = label;
+        btn.setAttribute('aria-label', label);
+
+        btn.addEventListener('click', function (event) {
+            event.stopPropagation();
+            switchLyricBeatResolution(bar, beatIndex);
+        });
+        btn.addEventListener('mousedown', function (event) { event.stopPropagation(); });
+        // G2b: pointerdown preventDefaultで編集中セルの先行blurを止める
+        // （理由はbuildResolutionToggle()内の同種コメントを参照）。
+        btn.addEventListener('pointerdown', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        });
+
+        return btn;
+    }
+
+    /**
+     * 拍別ローカル解像度ボタンのクリック処理本体（G2b）。安全処理→状態変更→
+     * 1回だけ再描画→フォーカス復元、の順を厳守する。
+     */
+    function switchLyricBeatResolution(bar, beatIndex) {
+        var prep = prepareLyricResolutionChange(bar);
+        if (!prep.ok) return; // IME変換中は何もしない
+
+        var globalRes = getStrumGridResolution(bar);
+        var local = getLyricBeatLocalRes(bar, beatIndex);
+        var isAuto = (local === null);
+        var next = nextLyricBeatResState(isAuto, local, globalRes);
+        setLyricBeatLocalRes(bar, beatIndex, next);
+
+        finishLyricResolutionChange(bar, prep.snapshot);
+    }
+
+    /**
+     * 歌詞行のDOMを組み立てる（G2b: 拍ごとに異なる解像度が混在しうる）。
+     * 外側の拍グループ構造（拍の数だけ均等幅）はG1のpopulateBeatGroups()と同じ考え方だが、
+     * 拍内のスロット数が拍ごとに変わりうるため、専用のループで組み立てる。
+     * 各拍の実効解像度からセルrangeを一括生成し、getBarLyricSlotRanges()（G2a）で
+     * まとめて読み出す。8分セルの範囲に複数の16分イベントが入っていれば、tick順に
+     * 連結されたテキストとisMultiが返る（bar.lyrics自体は変更しない）。
+     * DOM順は必ずslotTick昇順（拍0の左端スロット→…→拍最後の右端スロット）。
+     */
+    function buildLyricsGridRow(bar, globalRes) {
         var model = CS().model;
-        var cells = model.getBarLyricSlots(state.project, bar.barNumber, res);
+        var beats = getBeats(state.project);
         var barTicks = model.getBarLengthTicks(state.project);
-        var slotTicksForRes = barTicks / res;
+        var beatTicks = barTicks / beats;
 
         var wrap = document.createElement('div');
         wrap.className = 'dock-lyrics-grid beat-groups';
         wrap.dataset.overlayField = 'lyrics';
 
-        populateBeatGroups(wrap, res, function (index, slotsPerBeat) {
-            var cellInfo = cells[index];
-            var slotTick = index * slotTicksForRes;
-            var input = document.createElement('input');
-            input.type = 'text';
-            var boundary = index + 1;
-            input.className = 'dock-lyrics-cell ' + timelineBoundaryClass(boundary, res, slotsPerBeat) +
-                (cellInfo.text ? ' has-content' : '') + (cellInfo.isMulti ? ' is-multi' : '');
-            input.value = cellInfo.text;
-            input._initialValue = cellInfo.text; // G2a: 無変更commit防止用の表示済み初期値
-            input.dataset.slotTick = String(slotTick);
-            input.dataset.slotTicks = String(slotTicksForRes);
-            input.dataset.cellIndex = String(index); // 表示順・aria-label・互換確認用（位置管理の正ではない）
-            input.setAttribute('aria-label', bar.barNumber + '小節目 歌詞 ' + (index + 1) + 'マス目');
-            if (cellInfo.text) input.title = cellInfo.text;
+        var beatResList = [];
+        var ranges = [];
+        var rangeMeta = [];
+        for (var b = 0; b < beats; b++) {
+            var beatRes = getLyricBeatEffectiveRes(bar, globalRes, b);
+            beatResList.push(beatRes);
+            var slotsPerBeat = beatRes / beats;
+            var slotTicksInBeat = beatTicks / slotsPerBeat;
+            for (var s = 0; s < slotsPerBeat; s++) {
+                ranges.push({ slotTick: b * beatTicks + s * slotTicksInBeat, slotTicks: slotTicksInBeat });
+                rangeMeta.push({ beatIndex: b, slotIndexInBeat: s, slotsPerBeat: slotsPerBeat, beatRes: beatRes });
+            }
+        }
+        var cellInfos = model.getBarLyricSlotRanges(state.project, bar.barNumber, ranges);
 
-            input.addEventListener('compositionstart', function () {
-                state.lyricComposingTick = slotTick;
-                input.classList.add('is-composing');
-            });
-            input.addEventListener('compositionend', function () {
-                input.classList.remove('is-composing');
-                state.lyricComposingTick = null;
-                state.lyricJustComposed = true;
-                window.setTimeout(function () { state.lyricJustComposed = false; }, 0);
-                commitLyricCell(bar, input, slotTick);
-            });
-            input.addEventListener('input', function (event) {
-                if (event.isComposing || state.lyricComposingTick === slotTick) return;
-                commitLyricCell(bar, input, slotTick);
-            });
-            input.addEventListener('keydown', function (event) {
-                onLyricCellKeydown(event, bar);
-            });
-            input.addEventListener('blur', function () {
-                if (state.lyricComposingTick === slotTick) return;
-                window.setTimeout(function () {
-                    // Tab/Enter/矢印等の明示操作が既にこのセルをcommitして再描画済みなら
-                    // このinputはDOMから外れている（多重commit・再描画によるフォーカス
-                    // 奪還を防ぐ）。
-                    if (!input.isConnected) return;
-                    commitLyricCell(bar, input);
-                }, 0);
-            });
-            input.addEventListener('click', function (event) { event.stopPropagation(); });
-            input.addEventListener('mousedown', function (event) { event.stopPropagation(); });
+        var cursor = 0;
+        var globalCellIndex = 0;
+        for (var bi = 0; bi < beats; bi++) {
+            var slotsPerBeatForBeat = beatResList[bi] / beats;
+            var isLastBeat = (bi === beats - 1);
 
-            return input;
-        });
+            var group = document.createElement('div');
+            group.className = 'beat-group dock-lyrics-beat-group';
+            group.dataset.beatIndex = String(bi);
+
+            var cellsWrap = document.createElement('div');
+            cellsWrap.className = 'dock-lyrics-beat-cells';
+            cellsWrap.style.gridTemplateColumns = 'repeat(' + slotsPerBeatForBeat + ', 1fr)';
+
+            for (var si = 0; si < slotsPerBeatForBeat; si++) {
+                var range = ranges[cursor];
+                var cellInfo = cellInfos[cursor];
+                var meta = rangeMeta[cursor];
+                cursor++;
+
+                var boundaryClass = lyricLocalBoundaryClass(meta.slotIndexInBeat, meta.slotsPerBeat, meta.beatRes, isLastBeat);
+                var input = buildLyricCellInput(bar, range.slotTick, range.slotTicks, cellInfo, boundaryClass, globalCellIndex);
+                globalCellIndex++;
+                cellsWrap.appendChild(input);
+            }
+
+            group.appendChild(cellsWrap);
+            group.appendChild(buildLyricBeatResButton(bar, bi, globalRes));
+            wrap.appendChild(group);
+        }
         return wrap;
     }
 
@@ -1460,9 +1697,11 @@
         btn8.title = forced ? getForcedSixteenthReason(bar) : '';
         btn8.addEventListener('click', function (event) {
             event.stopPropagation();
+            // G2b: 全体解像度ボタンも歌詞セルの編集中内容を保全してから切り替える
+            var prep = prepareLyricResolutionChange(bar);
+            if (!prep.ok) return;
             delete state.dockManualRes[bar.barNumber];
-            renderSlotOverlayContent();
-            positionSlotOverlay();
+            finishLyricResolutionChange(bar, prep.snapshot);
         });
 
         var btn16 = document.createElement('button');
@@ -1472,13 +1711,24 @@
         btn16.classList.toggle('is-active', res === 16);
         btn16.addEventListener('click', function (event) {
             event.stopPropagation();
+            var prep = prepareLyricResolutionChange(bar);
+            if (!prep.ok) return;
             state.dockManualRes[bar.barNumber] = 16;
-            renderSlotOverlayContent();
-            positionSlotOverlay();
+            finishLyricResolutionChange(bar, prep.snapshot);
         });
 
         [btn8, btn16].forEach(function (b) {
             b.addEventListener('mousedown', function (event) { event.stopPropagation(); });
+            // G2b: pointerdownでpreventDefaultし、ボタンへのネイティブフォーカス移動
+            // （＝編集中の歌詞セルの先行blur）を止める。これによりclickハンドラ内で
+            // document.activeElementがまだ編集中の歌詞セルのままとなり、
+            // prepareLyricResolutionChange()が正しく検出・commitできる
+            // （先にネイティブblurが起きると、その委譲commitがsetTimeoutの次tickになり、
+            // 同期的なrenderSlotOverlayContent()より後回しになって編集内容が消えるため）。
+            b.addEventListener('pointerdown', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            });
         });
 
         wrap.appendChild(btn8);

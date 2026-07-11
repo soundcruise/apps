@@ -1,4 +1,4 @@
-/* クルーズスタジオ theme.css — v0.21.0
+/* クルーズスタジオ theme.css — v0.22.0
    リズムクルーズの DESIGN_SYSTEM.md（Clean Pro系）の考え方を継承しつつ、
    PCファーストに読み替えたテーマ。shared/style.css には依存しない（ADR-005）。
    class名・DOMはクルーズスタジオ用に新規設計している。 */
@@ -1775,6 +1775,63 @@ body.loupe-resizing {
     position: relative;
     z-index: 1;
     background: rgba(255, 255, 255, 0.85);
+}
+
+/* G2b: 歌詞の拍別ローカル解像度（docs/DECISIONS.md ADR-030）。
+   .dock-lyrics-beat-group（拍グループ本体。G1のbeat-groupを拡張）は position:relative にし、
+   セル群（.dock-lyrics-beat-cells。拍ごとに列数が変わりうる）と、右下に重ねて表示する
+   切替ボタンの2つを子に持つ。ボタンはposition:absoluteで通常のグリッド配置から外れるため、
+   拍ごとにセル列数（8分=2列 / 16分=4列）が違っても他行の拍境界とはズレない。 */
+.dock-lyrics-beat-group {
+    position: relative;
+}
+
+.dock-lyrics-beat-cells {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+}
+
+.dock-lyrics-beat-res-btn {
+    /* 実機確認後修正: 歌詞セルへの重なりを減らすため、見た目・実クリック領域とも
+       明確に縮小した（transform:scale等でhit areaだけ元のまま残す手法は使わず、
+       box-modelそのものを縮めているので見た目とクリック領域は常に一致する）。 */
+    position: absolute;
+    right: 1px;
+    bottom: 1px;
+    z-index: 2;
+    min-width: 14px;
+    min-height: 11px;
+    padding: 0 1px;
+    border: 1px solid var(--paper-border-soft);
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.78);
+    color: var(--paper-muted);
+    font-family: inherit;
+    font-size: 6.5px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    cursor: pointer;
+    opacity: 0.65;
+}
+
+.dock-lyrics-beat-res-btn.is-local {
+    opacity: 1;
+    border-color: rgba(255, 159, 28, 0.65);
+    background: var(--secondary-color);
+    color: #1a1206;
+}
+
+.dock-lyrics-beat-res-btn:hover {
+    opacity: 1;
+    border-color: var(--primary-color);
+}
+
+.dock-lyrics-beat-res-btn:focus-visible {
+    outline: none;
+    opacity: 1;
+    box-shadow: 0 0 0 2px rgba(255, 159, 28, 0.5);
 }
 
 /* 右下ハンドル: 幅ドラッグで全体を比例拡大縮小する（--bar-loupe-scale をJSが更新） */
