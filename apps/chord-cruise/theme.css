@@ -738,6 +738,34 @@ body {
     opacity: 0.4;
 }
 
+.cc-caged-notice {
+    margin: -4px 0 12px;
+    padding: 10px 12px;
+    border: 1px solid rgba(232, 201, 122, 0.34);
+    border-radius: 10px;
+    background: rgba(212, 175, 55, 0.1);
+    color: #e9d8ad;
+    font-size: 0.82rem;
+    font-weight: 600;
+    line-height: 1.55;
+}
+
+.cc-caged-notice[hidden] {
+    display: none;
+}
+
+.cc-caged-notice--advanced::before {
+    content: "△ ";
+    color: var(--cc-gold-bright);
+}
+
+.cc-caged-notice--limited,
+.cc-caged-notice--unavailable {
+    border-color: rgba(190, 184, 168, 0.3);
+    background: rgba(190, 184, 168, 0.08);
+    color: rgba(244, 241, 232, 0.75);
+}
+
 /* 保存前編集モーダル */
 .cc-modal-overlay {
     position: fixed;

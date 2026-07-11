@@ -7,7 +7,8 @@
        openFingers は開放ポジション（rootFret === 0）専用の運指。開放コードでは
        バレー基準の運指が一般的な形と異なるため、こちらを優先適用する。
        開放弦（実フレット0）は描画時に運指なし扱いにする。
-       C型・G型のマイナー系は実用性が乏しいため意図的に未収録。 */
+       playability は standard / advanced / limited。warning はフォーム選択時だけ表示し、
+       保存コードには複製しない。 */
 
     var SHAPE_ORDER = ['C', 'A', 'G', 'E', 'D'];
 
@@ -127,6 +128,40 @@
                     muted: [],
                     fingers: { 6: 3, 5: 2, 4: 1, 3: 1, 2: 1, 1: 4 },
                     openFingers: { 6: 3, 5: 2, 1: 1 }
+                },
+                m: {
+                    /* 実用的なG型マイナーの低音側フォーム（例: Cm = 8-6-5-5-x-x） */
+                    slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: -2, iv: 3 }, { s: 4, o: -3, iv: 7 }, { s: 3, o: -3, iv: 0 }],
+                    muted: [2, 1],
+                    fingers: { 6: 4, 5: 2, 4: 1, 3: 1 },
+                    openFingers: { 6: 3, 5: 1 },
+                    playability: 'standard',
+                    warning: ''
+                },
+                m7: {
+                    /* 完全5度を省略した低音側フォーム（例: Cm7 = 8-6-8-5-x-x） */
+                    slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: -2, iv: 3 }, { s: 4, o: 0, iv: 10 }, { s: 3, o: -3, iv: 0 }],
+                    muted: [2, 1],
+                    fingers: { 6: 3, 5: 2, 4: 4, 3: 1 },
+                    openFingers: { 6: 3, 5: 1, 4: 4 },
+                    playability: 'limited',
+                    warning: '完全5度を省略した実用ボイシングです。'
+                },
+                m7b5: {
+                    /* 3弦ルートの高音側フォーム（例: Cm7♭5 = x-x-8-8-7-8） */
+                    slots: [{ s: 4, o: 0, iv: 10 }, { s: 3, o: 0, iv: 3 }, { s: 2, o: -1, iv: 6 }, { s: 1, o: 0, iv: 0 }],
+                    muted: [6, 5],
+                    fingers: { 4: 2, 3: 3, 2: 1, 1: 4 },
+                    playability: 'limited',
+                    warning: '低音2弦を省略した実用ボイシングです。'
+                },
+                dim: {
+                    /* 6弦と高音3弦で構成する実用フォーム（例: Cdim = 8-x-x-8-7-8） */
+                    slots: [{ s: 6, o: 0, iv: 0 }, { s: 3, o: 0, iv: 3 }, { s: 2, o: -1, iv: 6 }, { s: 1, o: 0, iv: 0 }],
+                    muted: [5, 4],
+                    fingers: { 6: 1, 3: 3, 2: 2, 1: 4 },
+                    playability: 'standard',
+                    warning: ''
                 }
             }
         },
@@ -150,6 +185,39 @@
                     slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -1, iv: 4 }, { s: 3, o: 0, iv: 10 }, { s: 2, o: -2, iv: 0 }],
                     muted: [6, 1],
                     fingers: { 5: 3, 4: 2, 3: 4, 2: 1 }
+                },
+                m: {
+                    /* 一般的な3音のC型マイナー（例: Dm = x-5-3-2-x-x） */
+                    slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -2, iv: 3 }, { s: 3, o: -3, iv: 7 }],
+                    muted: [6, 2, 1],
+                    fingers: { 5: 3, 4: 2, 3: 1 },
+                    openFingers: { 5: 2, 4: 1 },
+                    playability: 'standard',
+                    warning: ''
+                },
+                m7: {
+                    /* 完全5度を省略したC型m7（例: Cm7 = x-3-1-3-1-x） */
+                    slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -2, iv: 3 }, { s: 3, o: 0, iv: 10 }, { s: 2, o: -2, iv: 0 }],
+                    muted: [6, 1],
+                    fingers: { 5: 3, 4: 1, 3: 4, 2: 1 },
+                    playability: 'limited',
+                    warning: '完全5度を省略した実用ボイシングです。'
+                },
+                m7b5: {
+                    /* 人差し指の4〜2弦ミニバレーを使う完全形（例: Cm7♭5 = x-3-1-3-1-2） */
+                    slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -2, iv: 3 }, { s: 3, o: 0, iv: 10 }, { s: 2, o: -2, iv: 0 }, { s: 1, o: -1, iv: 6 }],
+                    muted: [6],
+                    fingers: { 5: 3, 4: 1, 3: 4, 2: 1, 1: 2 },
+                    playability: 'advanced',
+                    warning: 'ミニバレーを含む、押さえにくい上級者向けの形です。'
+                },
+                dim: {
+                    /* 4フレット幅の3音フォーム（例: Ddim = x-5-3-1-x-x） */
+                    slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -2, iv: 3 }, { s: 3, o: -4, iv: 6 }],
+                    muted: [6, 2, 1],
+                    fingers: { 5: 4, 4: 2, 3: 1 },
+                    playability: 'advanced',
+                    warning: '4フレット幅のストレッチを含む上級者向けの形です。'
                 }
             }
         },
@@ -215,7 +283,11 @@
         var shape = FORMS[shapeKey];
         var theory = window.ChordCruise.theory;
         if (!shape || !shape.qualities[qualityKey]) {
-            return { available: false, reason: 'quality' };
+            return {
+                available: false,
+                reason: 'quality',
+                message: shapeKey + '型では、この品質の実用フォームを登録していません。'
+            };
         }
         var def = shape.qualities[qualityKey];
         var openPc = theory.OPEN_STRINGS[6 - shape.rootString];
@@ -266,6 +338,8 @@
             available: true,
             shape: shapeKey,
             qualityKey: qualityKey,
+            playability: def.playability || 'standard',
+            warning: def.warning || '',
             rootFret: rootFret,
             usedOpenFingers: !!(isOpenPosition && def.openFingers),
             notes: notes,

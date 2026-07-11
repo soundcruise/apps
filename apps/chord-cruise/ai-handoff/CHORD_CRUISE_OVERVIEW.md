@@ -14,10 +14,10 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
-- 現在のバージョン: `0.14.2`（`index.html` の各`<script>`タグの `?v=`、および `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`）
+- 現在のバージョン: `0.15.0`（`index.html` の各`<script>`タグの `?v=`、および `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`）
 - 最新commit（chord-cruise関連、`git log --oneline -- apps/chord-cruise/` で確認）:
-  - hash: `c42189b7`
-  - message: `コード本棚の表示設定と指板図を改善`
+  - hash: `6c5b7a5d`
+  - message: `コード図のミュート記号サイズを調整`
 - 通常版/PRO版の構造: PRO版は存在しないため、`apps/chord-cruise/` 直下の `index.html` のみが唯一のエントリーポイント。他アプリのような `standard/` サブディレクトリも無い。
 - JS/CSSの共有関係:
   - `theme.css` はコードクルーズ専用の1ファイル（`apps/shared/` には依存していない）。
@@ -130,13 +130,13 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.14.2`）。
-- `?v=` によるキャッシュ管理: `index.html` 内の全13本の `<script src="...?v=0.14.2">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.14.2">` が同じバージョン文字列を共有している。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.15.0`）。
+- `?v=` によるキャッシュ管理: `index.html` 内の全13本の `<script src="...?v=0.15.0">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.15.0">` が同じバージョン文字列を共有している。
 - 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
 - service workerの更新: service worker自体が存在しないため不要。
 - **バージョン更新漏れしやすい箇所**: `index.html`内の13本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。
 
-コード本棚の詳細コード名を指板カード内へ移し、ミュート記号を約20px四方（線長24px・線幅3px）の交差線へ調整した。白黒の1弦マーカー／バレーがSVG上端で切れないよう共通描画座標へ7pxの安全域を追加し、パッチバージョンとして `0.14.2` へ更新した。保存コードとlocalStorageのschemaVersionは`1`のまま変更していない。
+C型・G型へ`m / m7 / m7♭5 / dim`の実用フォームを追加し、フォームごとの`standard / advanced / limited`評価と警告UIを実装した。既存フォーム、保存コード、localStorageのschemaVersionは変更せず、新機能として `0.15.0` へ更新した。
 
 ---
 

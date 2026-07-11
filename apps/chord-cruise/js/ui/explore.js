@@ -82,6 +82,7 @@
                     '<button type="button" class="cc-caged-btn" data-shape="E">E型</button>' +
                     '<button type="button" class="cc-caged-btn" data-shape="D">D型</button>' +
                 '</div>' +
+                '<div class="cc-caged-notice" id="cc-caged-notice" role="status" hidden></div>' +
                 '<div id="cc-fretboard-host" class="cc-fb-host"></div>' +
                 '<div class="cc-high-fret-row">' +
                     '<span class="cc-high-fret-copy">' +
@@ -236,6 +237,14 @@
         }
         hint.textContent = text || '';
         hint.style.display = text ? '' : 'none';
+    }
+
+    function setCagedNotice(type, text) {
+        var notice = document.getElementById('cc-caged-notice');
+        if (!notice) return;
+        notice.textContent = text || '';
+        notice.className = 'cc-caged-notice' + (type ? ' cc-caged-notice--' + type : '');
+        notice.hidden = !text;
     }
 
     function setMode(mode) {
@@ -468,6 +477,8 @@
         var scrollToFret = null;
         var form = null;
         var range = fretWindow();
+        var noticeType = '';
+        var noticeText = '';
 
         if (!chord) {
             hint = 'コードを選ぶと構成音が指板に表示されます。';
@@ -485,14 +496,24 @@
                 };
                 scrollToFret = Math.round((form.fretRange.min + form.fretRange.max) / 2);
                 hint = shape + '型 ' + chord.symbol + '（' + caged.formatFretRange(form.fretRange) + '）';
+                if (form.warning) {
+                    noticeType = form.playability;
+                    noticeText = form.warning;
+                }
             } else if (result.reason === 'quality') {
                 markers = computeChordToneMarkers(chord);
                 hint = (chord.source === 'custom' && !chord.qualityKey)
                     ? 'このコードは現在、全体表示のみ対応しています。'
                     : shape + '型の' + chord.symbol + 'は実用フォーム未収録のため、全体表示にしています。';
+                noticeType = 'unavailable';
+                noticeText = (chord.source === 'custom' && !chord.qualityKey)
+                    ? 'このコードは品質が辞書と完全一致しないため、型フォームを表示していません。'
+                    : (result.message || '一般的な運指では成立しないため、この型は表示していません。');
             } else {
                 markers = computeChordToneMarkers(chord);
                 hint = shape + '型の' + chord.symbol + 'は表示範囲' + range.start + '〜' + range.end + 'Fに収まらないため、全体表示にしています。';
+                noticeType = 'unavailable';
+                noticeText = 'このフォームは現在の表示範囲に収まらないため、全体表示にしています。';
             }
         } else {
             markers = computeChordToneMarkers(chord);
@@ -530,6 +551,7 @@
             preserveScroll: (form && scrollToFret !== null) ? null : (typeof prevScroll === 'number' ? prevScroll : null)
         });
         setFbHint(hint);
+        setCagedNotice(noticeType, noticeText);
         updateHighFretToggle();
         updateCagedButtons();
     }
