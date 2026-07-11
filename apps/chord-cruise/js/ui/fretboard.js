@@ -14,8 +14,8 @@
     var SVG_H = BOARD_BOTTOM + 5 + NUMBER_AREA_H;   // 241
     var EDGE_H = 3;             // ネック上下端の黒縁
     var MARKER_D = 30;          // マーカー直径
-    var MUTE_HALF = 13;         // ミュート線の中心から端まで（stroke込みで約30px四方）
-    var MUTE_STROKE = 4;
+    var MUTE_HALF = 8.5;        // ミュート線の中心から端まで（stroke込みで約20px四方）
+    var MUTE_STROKE = 3;
     var STRING_WIDTHS = [1.1, 1.3, 1.6, 2.0, 2.4, 2.8]; // 1弦→6弦
     var INLAY_SINGLE = [3, 5, 7, 9, 15, 17, 19, 21];
     var INLAY_DOUBLE = [12, 24];
