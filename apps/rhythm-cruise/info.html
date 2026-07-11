@@ -56,7 +56,7 @@
             var backLink = document.getElementById('rc-info-back-link');
             var homeLink = document.getElementById('rc-info-home-link');
             var defaultHome = './index.html';
-            var proHome = './pro_a9f4k7q2m8z/index.html';
+            var proHome = './pro_r4m8k7n2q9x/index.html';
             var editionHomeStorageKey = 'rhythmCruiseEditionHome';
             var currentUrl = new URL(window.location.href);
             var editionParam = currentUrl.searchParams.get('edition');
@@ -71,7 +71,7 @@
                     if (relativePath === '' || /^index\.html$/i.test(relativePath)) {
                         return new URL(defaultHome, window.location.href).href;
                     }
-                    if (/^pro_a9f4k7q2m8z\/(?:index\.html)?$/i.test(relativePath)) {
+                    if (/^pro_r4m8k7n2q9x\/(?:index\.html)?$/i.test(relativePath)) {
                         return new URL(proHome, window.location.href).href;
                     }
                     return '';
@@ -93,7 +93,7 @@
 
             function isProHomePath(homePath) {
                 var normalizedHome = normalizeEditionHome(homePath);
-                return normalizedHome ? /\/pro_a9f4k7q2m8z\/index\.html$/i.test(new URL(normalizedHome).pathname) : false;
+                return normalizedHome ? /\/pro_r4m8k7n2q9x\/index\.html$/i.test(new URL(normalizedHome).pathname) : false;
             }
 
             function resolveHomePath() {

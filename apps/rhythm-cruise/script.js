@@ -16,7 +16,7 @@ let audioContextDebugLastResumeAt = null;
 
 /* vendor/ など同梱アセットの基準URL。script.js 自身のURL（document.currentScript.src）から
    ディレクトリ部分を取り出すため、通常版（rhythm-cruise/ 直下）でも PRO版
-   （pro_a9f4k7q2m8z/ から ../script.js を参照）でも常に rhythm-cruise/ 直下を指す。
+   （pro_r4m8k7n2q9x/ から ../script.js を参照）でも常に rhythm-cruise/ 直下を指す。
    これで vendor/vexflow.js が PRO版で 404 にならず、譜面UIが旧Canvasへフォールバックしない（v0.9.244）。 */
 const RHYTHM_ASSET_BASE = (() => {
     try {

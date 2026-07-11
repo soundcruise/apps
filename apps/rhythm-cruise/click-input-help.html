@@ -99,14 +99,14 @@
             const back = document.getElementById('click-help-back');
             const isPro = new URLSearchParams(window.location.search).get('return') === 'pro';
             back.href = isPro
-                ? 'pro_a9f4k7q2m8z/index.html?resume=click-input'
+                ? 'pro_r4m8k7n2q9x/index.html?resume=click-input'
                 : 'index.html?resume=click-input';
             back.addEventListener('click', (event) => {
                 let cameFromApp = false;
                 try {
                     const referrer = new URL(document.referrer);
                     cameFromApp = referrer.origin === window.location.origin
-                        && /\/rhythm-cruise\/(?:pro_a9f4k7q2m8z\/)?index\.html$/.test(referrer.pathname);
+                        && /\/rhythm-cruise\/(?:pro_r4m8k7n2q9x\/)?index\.html$/.test(referrer.pathname);
                 } catch (_) { /* direct access */ }
                 if (cameFromApp && history.length > 1) {
                     event.preventDefault();
