@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/rhythm-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/rhythm-cruise/`
 - PRO版URL: `https://soundcruise.jp/apps/rhythm-cruise/pro_r4m8k7n2q9x/`
-- 現在のバージョン: `1.1.0`（`script.js` の `RHYTHM_CRUISE_VERSION`。2026年7月8日付でVer 1.0.0として正式リリース）
+- 現在のバージョン: `1.2.0`（`script.js` の `RHYTHM_CRUISE_VERSION`。2026年7月8日付でVer 1.0.0として正式リリース）
 - このドキュメント更新時点の最新commit（rhythm-cruise関連）:
   - message: `リズムクルーズを正式版1.0.0に更新`
   - hash: 本ドキュメント更新と同一commitでpushされるため、この記述時点では未確定（4章「リリース準備メモ」参照）
@@ -53,7 +53,7 @@
 | `pro_r4m8k7n2q9x/index.html` | PRO版のメインHTML。`index.html` とほぼ同一のDOM構造だが、`<html data-app-edition="Pro">` が付き、`../script.js` `../theme.css` を参照。`shared/pro-gate.css` `shared/pro-gate.js` を追加読み込みし、パスワード認証を行う。 |
 | `script.js` | アプリ全体のロジック（画面制御・Practice判定・マイク処理・録音レビュー・PROロック・設定保存など）を1ファイルに集約。通常版/PRO版で共有。 |
 | `theme.css` | 見た目全体を1ファイルで完結（`shared/`には依存しない設計）。通常版/PRO版で共有。 |
-| `info.html` | インフォメーション入口ページ。説明動画（準備中扱いを解除済み）・基本的な使い方・利用規約・プライバシーポリシーへのリンクを掲載。 |
+| `info.html` | インフォメーション入口ページ。説明動画、指板クルーズと同じURL・デザインの「YouTube Chトップ」導線、基本的な使い方・利用規約・プライバシーポリシーへのリンクを掲載。YouTubeリンクはいずれも既存の「YouTubeを開きます」確認カードを経由し、通常版／PRO版で共通。 |
 | `usage.html` | 「基本的な使い方」の説明ページ。アプリ概要・練習の流れ・タップ/ストロークモード・マイク設定・結果カードの見方などを解説。 |
 | `mic-correction-help.html` | 「補正テストのやり方」動画ヘルプページ。設定→マイク設定の`?`ボタンから開く。YouTube動画リンク（確認カード経由）を掲載。 |
 | `terms.html` | 利用規約ページ。リズムクルーズ専用（指板クルーズ・音感クルーズにはリンクしない、リズムクルーズ内で完結）。 |

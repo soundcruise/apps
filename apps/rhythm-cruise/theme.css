@@ -7285,11 +7285,43 @@ body[data-rc-theme="clean-pro"] #screen-home header h1 {
     transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
+/* info.html: 指板クルーズと同じコンパクトなYouTubeチャンネル導線 */
+.rc-info-links-bottom {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.rc-info-link-card--compact {
+    width: fit-content;
+    max-width: 170px;
+    padding: 12px 12px 12px 14px;
+    border-color: rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-color);
+    transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.rc-info-link-card--compact .rc-info-link-title {
+    padding-right: 0;
+    font-size: 0.88rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
 @media (hover: hover) {
     .rc-info-link-card:not(.rc-info-link-card--disabled):hover {
         transform: translateY(-1px);
         background: rgba(255, 255, 255, 0.07);
         border-color: rgba(222, 194, 122, 0.32);
+    }
+
+    .rc-info-link-card.rc-info-link-card--compact:hover {
+        transform: translateY(-2px);
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.28);
     }
 }
 
@@ -7501,6 +7533,15 @@ body[data-rc-theme="clean-pro"] #screen-home header h1 {
 
     .rc-info-link-title {
         font-size: 0.9rem;
+    }
+
+    .rc-info-link-card--compact {
+        max-width: 154px;
+        padding: 10px 10px 10px 12px;
+    }
+
+    .rc-info-link-card--compact .rc-info-link-title {
+        font-size: 0.82rem;
     }
 
     .rc-info-youtube-confirm {
