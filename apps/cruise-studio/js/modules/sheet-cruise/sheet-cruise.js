@@ -1392,6 +1392,32 @@
     }
 
     /**
+     * 歌詞行「小節全体の最終セル」でEnterが押された場合の処理（G4）。
+     * 現在のセルを1回だけ確定し（G2aの無変更ガード込み。Alt+←/→と全く同じ
+     * commitLyricCell(..., {skipRender:true})パターンを再利用するため、無変更なら
+     * setBarLyricSlot/markDirtyを呼ばない）、曲全体の正規順序で次小節へ移動する。
+     * 「正規順序」「セクション境界を越える」「1回だけ再描画」「移動先の先頭セルへの
+     * フォーカス・キャレット方針」は、既存のgetMoveTarget()/moveSelectedBar()
+     * （前へ/次へ・Alt+←/→が使うのと同じ関数）をそのまま再利用することで自動的に満たす。
+     * skipRender:trueのcommitLyricCellは新しいrAF/setTimeoutを一切予約しないため、
+     * 小節切替後に古いコールバックが誤って動く心配はない。ただ1つ残る非同期処理は
+     * 各セルのblurハンドラのsetTimeout(0)だが、実行時にinput.isConnectedを見て
+     * 既にDOMから外れていれば何もしないという既存の安全策（F2a以来）で十分に防げる
+     * （renderSlotOverlayContent()がinnerHTML='' で古いinputを破棄するため）。
+     * 次小節が存在しない場合（曲全体の最終小節）は、小節を移動せず現在のセルへ留まる。
+     * 新しい小節・セクションは作らず、moveSelectedBar()を呼ばないため不要な再描画もしない。
+     */
+    function commitLyricCellAndMoveToNextBar(bar, input, slotTick) {
+        commitLyricCell(bar, input, slotTick, { skipRender: true });
+        var target = getMoveTarget(1);
+        if (!target || target.barNumber === state.selectedBarNumber) {
+            setSaveStatus('最後の小節です。次の小節はありません。');
+            return;
+        }
+        moveSelectedBar(1, { focusRowId: 'lyrics' });
+    }
+
+    /**
      * 歌詞セルのkeydown。IME 3層ガードの1つ目（isComposing / keyCode 229 /
      * このセルが変換中フラグ中）と、compositionend直後のjustComposedガード（Safari対策で
      * IME確定のEnterがisComposing=falseで届く場合に、セル移動として誤動作させない）。
@@ -1428,7 +1454,14 @@
 
         if (key === 'Enter') {
             event.preventDefault();
-            commitLyricCell(bar, input, getAdjacentLyricCellTick(cells, slotTick, 1));
+            // G4: 小節全体の最終セル（DOM順=tick昇順で最後）でのEnterだけ次小節へ移動する。
+            // 各拍の最後ではなく、getOrderedLyricCells()が返す実際の最終DOM要素で判定する
+            // ため、mixed resolutionでもセル数・tickのハードコードは不要。
+            if (cells.length > 0 && cells[cells.length - 1] === input) {
+                commitLyricCellAndMoveToNextBar(bar, input, slotTick);
+            } else {
+                commitLyricCell(bar, input, getAdjacentLyricCellTick(cells, slotTick, 1));
+            }
             return;
         }
         if (key === 'Tab') {

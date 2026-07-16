@@ -19,11 +19,12 @@
   - cruise-studio側の最新push済みcommitが、リポジトリ全体でも最新とは限らない
     （他アプリの並行commitがその後に積まれるため）
 - cruise-studioの直近push済みcommit:
+  - `c9ab248f` 歌詞行に拍別8分・16分切替を追加（`v0.22.0 / G2b`）
   - `2f5922f2` 歌詞セルの位置管理をtick基準へ移行（`v0.21.1 / G2a`）
   - `08139d18` 小節ルーペの拍グリッド表示を統一（`v0.21.0 / G1`。表示修正2点を含む）
   - `4e27b8c0` 譜面クルーズに歌詞セル編集とtick配置表示を追加（`v0.20.0 / F2a`）
-  - D3a・F1・F2a・G1・G2aとも既にpush済み。
-- クルーズスタジオ側の未commit差分は、`v0.22.0 / G2b 歌詞行の拍別8分・16分切替`
+  - D3a・F1・F2a・G1・G2a・G2bとも既にpush済み。
+- クルーズスタジオ側の未commit差分は、`v0.22.1 / G4 歌詞行の最終セルEnterによる次小節移動`
   実装分のみを想定する（下記5章を参照。実装・検証済み、commit/pushはまだ実施していない）。
 - chord-cruise側にも別途、このセッションとは無関係な未commit差分が存在することがある。
   cruise-studio側の作業ではchord-cruiseには一切触れない。
@@ -350,68 +351,73 @@
     Alt+←/→の安全策は無変更。`syncBarGridInput()`のF2a由来の既存不具合（旧グリッド
     歌詞inputのaria-label完全一致セレクタがF2aの接尾辞追記で外れていた）も修正。
     詳細は`docs/DECISIONS.md`の関連記述を参照
+- `v0.22.0 / G2b 歌詞行の拍別8分・16分切替`（docs/DECISIONS.md ADR-030。push済み: `c9ab248f`）
+  - `state.lyricBeatRes`（`bar`オブジェクトをキーにしたWeakMap。project/localStorage/
+    appSettingsへ保存しない一時UI状態）で拍ごとのローカル解像度を保持し、実効解像度は
+    「ローカル指定 ＞ 全体設定」の2段階だけで決まる（歌詞データのtickによる自動16分
+    昇格はしない）。全体8分ボタンのdisabledロックをストローク由来のみへ限定
+    （`isStrumDataForcedSixteenth`）。拍グループ右下に自8/自16/手8/手16の3状態
+    切替ボタンを新設し、切替前後で編集中セルの内容を保全する共通安全処理
+    （`prepareLyricResolutionChange`/`finishLyricResolutionChange`）をローカル・
+    全体ボタン両方へ適用。8分セルに複数の16分イベントが入る場合は
+    `getBarLyricSlotRanges()`（G2a）でtick順に連結表示し、無変更commit防止（G2a）を
+    そのまま使うことで、実際に編集確定した場合だけ範囲を統合することを実機確認済み。
+    実機確認後の修正2点（手動固定ラベルを「手8/手16」へ変更、拍別ボタンのbox-model
+    ・実クリック領域を明確に縮小）を含む。詳細はADR-030を参照
 
 ## 5. 現在作業中のフェーズ
 
-### G2b: 歌詞行の拍別8分・16分切替（`docs/DECISIONS.md` ADR-030）
+### G4: 歌詞行の最終セルEnterによる次小節移動
 
-- 予定バージョン: `v0.22.0`
+- 予定バージョン: `v0.22.1`
 - 実装・検証済み。commit / push はまだ未実施。
-- 背景: G1で拍グループDOM、G2aでtick中心の位置管理・無変更commit防止を整備した。
-  G2bはその上に、歌詞行だけ拍ごとに独立して8分/16分表示を切り替えられる
-  mixed resolutionを実装する（例: 1拍目8分・2拍目16分・3拍目8分・4拍目16分）。
+- 背景: G1で拍グループDOM、G2aでtick中心の位置管理・無変更commit防止、G2bで拍別
+  mixed resolutionを整備した。G4はその上に、歌詞行「小節全体の最終セル」で
+  Enterを押した場合に、現在の入力を確定したうえで次小節の先頭歌詞セルへ移動する
+  限定機能を追加する（ユーザー確定要望F）。
 - 主な内容:
-  - **`state.lyricBeatRes`（`WeakMap<bar, Map<beatIndex, 8|16>>`）を新設**。
-    projectデータ・localStorage・appSettingsのいずれにも保存しない一時UI状態。
-    同一セッション内の小節移動では維持され、全体8分/16分を変更してもローカル指定は
-    維持される。JSON読込・新規project・再読込では`bar`オブジェクトが新しくなるため
-    自然に消える（GC可能）。詳細は`docs/DECISIONS.md` ADR-030を参照
-  - **実効解像度の優先順位は2段階**: 1) その拍のローカル指定
-    （`getLyricBeatLocalRes`） 2) ヘッダーの全体8分/16分設定
-    （`getStrumGridResolution`）。歌詞データのtickを理由に自動的に16分へ昇格する
-    処理は実装していない（「自動」は必ず全体設定へ追従するだけ）
-  - **全体8分ロックを歌詞由来とストローク由来で分離**: `isBarDataForcedSixteenth`を
-    ストロークのみを見る`isStrumDataForcedSixteenth`へ置き換えた。歌詞に16分位置
-    データがあるだけなら全体8分ボタンは押せるようになり（対応する8分セルへ
-    自動集約表示される）、ストロークに16分位置データがある場合は従来どおり
-    全体8分ボタンがdisabledのまま（`getForcedSixteenthReason`も歌詞判定を削除）
-  - **拍別ローカル解像度切替ボタン**（各拍グループ右下。`自8`/`自16`＝自動・全体設定へ
-    追従中、`8`/`16`＝ローカル固定）を新設。クリックサイクルは、自動状態からの
-    最初のクリックで必ず全体設定と逆の解像度へ固定され、もう一方のローカル固定を
-    経て再度押すと自動へ戻る3状態サイクル
-  - **解像度変更前の共通安全処理**（`prepareLyricResolutionChange`/
-    `finishLyricResolutionChange`）を新設し、拍別ボタン・全体8分/16分ボタンの
-    両方へ適用: IME変換中は無操作→アクティブな歌詞セルがあれば変更時のみ1回commit
-    （`skipRender:true`）→tick・選択範囲を保存→解像度状態を変更→1回だけ再描画→
-    G2aのtick中心フォールバック（同tick→含む→直前→先頭）でフォーカス復元。
-    ボタンは`pointerdown`で`preventDefault`し、編集中セルの先行blurによる
-    委譲commitの遅延（＝同期的な再描画に追い越されてのデータロス）を防ぐ
-  - **mixed resolutionのセル生成**: `buildLyricsGridRow()`を全面書き換え。拍ごとの
-    実効解像度からセルrange（`slotTick`/`slotTicks`）を一括生成し、
-    `getBarLyricSlotRanges()`（G2a）でまとめて読み出す。8分セルの範囲に複数の
-    16分イベントが入っていればtick順に連結され、`isMulti`が立つ（既存表現を再利用。
-    titleへ「複数位置の歌詞をまとめて表示中。編集して確定すると、このセルの範囲へ
-    統合されます。」を追記）。DOM順は常にslotTick昇順
-  - **集約セルの非破壊編集**: G2aの無変更commit防止をそのまま使うため、新たな判定
-    ロジックは追加していない。クリック・フォーカス・無変更blur・Enter/Tab移動だけでは
-    `setBarLyricSlot`を一切呼ばないことを実機で直接確認済み（`setBarLyricSlot`を
-    スパイしてcallCountで検証）。実際に編集して確定した場合のみ、その8分範囲内の
-    イベントが1つへ統合され、隣の8分セル・別拍のイベントは変更されない
-  - **拍内の境界線class**は新設の`lyricLocalBoundaryClass()`が1拍分に閉じたロジックで
-    計算する（既存の`timelineBoundaryClass()`は小節全体で単一解像度を前提にしており
-    拍ごとに解像度が異なる歌詞行では使えないため）。全拍が同じ解像度のときは
-    `timelineBoundaryClass()`と完全に同じ結果になることを確認済み。拍グループ自体は
-    引き続き均等幅（`flex:1 1 0`）のため、拍境界のx座標は他行と常に一致する
-  - `sheet-renderer.js` / `print.css` / `DATA_MODEL.md` / `song-model.js`（バージョン行のみ）は
-    変更していない（G2aの`getBarLyricSlotRanges()`をそのまま再利用したため、model層の
-    新規追加は不要だった）
-  - projectデータ構造・localStorage構造・`schemaVersion`は無変更。8/16/8/16・16/8/16/8・
-    全拍8分・全拍16分のmixed resolution、tick順のセル生成、拍境界の他行との整列、
-    IME・ナビゲーション・Alt+←/→の安全性、コード/ストローク/ドレミ/基本に戻す/
-    まとめて入力/bulk歌詞disabled/保存・再読込/JSON往復/紙面表示無変更はすべて
-    実機確認済み
-  - ストロークの拍別8分/16分・ストロークの「〜」候補追加・コード/ドレミのセル化・
-    紙面横4小節固定は今回未着手（G3・F3・別フェーズ）
+  - **最終セル判定**: `getOrderedLyricCells()`が返すDOM順（tick昇順）配列の
+    最後の要素が、現在Enterが押されたinput自身かどうかで判定する
+    （`cells[cells.length - 1] === input`）。セル数やtickの値をハードコードしないため、
+    全拍8分・全拍16分・8/16混在（mixed resolution）のいずれでも、実際に生成された
+    最後のDOMセルを正しく判定できる
+  - **次小節への移動**: 新設した`commitLyricCellAndMoveToNextBar(bar, input, slotTick)`が、
+    既存の`commitLyricCell(bar, input, slotTick, {skipRender:true})`→`getMoveTarget(1)`→
+    `moveSelectedBar(1, {focusRowId:'lyrics'})`という、Alt+←/→・前へ/次へと全く同じ
+    経路をそのまま再利用する。`state.project.bars`はセクション順に並び
+    `barNumber`が1から振り直されている（`normalizeBarOrder`）ため、この経路だけで
+    セクション境界を越えた正規順序移動が実現できる。独自の`barNumber + 1`加算は
+    行っていない
+  - **移動前commit**: `commitLyricCell(..., {skipRender:true})`はG2aの無変更commit防止を
+    そのまま適用するため、値が変わっていなければ`setBarLyricSlot`/`markDirty`を呼ばず、
+    変わっていれば1回だけ確定する。`skipRender:true`のため新たなrAF/setTimeoutを
+    一切予約しない
+  - **古いフォーカス処理の安全性**: 新規のtoken/世代番号は追加していない。
+    `commitLyricCell(..., {skipRender:true})`が非同期コールバックを一切予約しない
+    ことに加え、唯一残る非同期処理（各セルのblurハンドラの`setTimeout(0)`）は、
+    実行時に`input.isConnected`を見て既にDOMから外れていれば何もしないという
+    F2a以来の既存の安全策で十分に防げることを確認した（`renderSlotOverlayContent()`が
+    `innerHTML=''`で古いinputを破棄するため）。既存の`restoreLyricCellFocus()`が持つ
+    `expectedBarNumber`比較（F2a由来のAlt+矢印混入防止策）も、他の操作からの
+    古いrAFコールバックに対して引き続き有効に機能する
+  - **曲全体の最終小節**: `getMoveTarget(1)`が現在小節と同じ小節を返す（配列末尾で
+    クランプされる既存挙動）ことを利用し、新しい小節・セクションを作らず、
+    `moveSelectedBar()`を呼ばないため不要な再描画もしない。現在のセルに留まり、
+    `setSaveStatus('最後の小節です。次の小節はありません。')`で案内する
+  - **移動先の先頭セル・キャレット**: `moveSelectedBar(1, {focusRowId:'lyrics'})`→
+    `focusOverlayField('lyrics')`をそのまま使うため、Alt+→と全く同じ挙動
+    （移動先小節の最初の`.dock-lyrics-cell`へフォーカス）になる。独自のキャレット
+    制御は追加していない
+  - **最終セル以外のEnter・IME・Tab・矢印・Alt+←/→等**: 一切変更していない。
+    IME 3層ガード（`isComposing`/`keyCode 229`/`lyricComposingTick`/
+    `lyricJustComposed`）は最終セル判定より手前で既存のまま動作するため、
+    最終セルで日本語変換中の1回目Enterは確定のみ、2回目Enterで次小節へ移動する
+  - `song-model.js`はバージョン行のみ変更。`sheet-renderer.js` / `print.css` /
+    `DATA_MODEL.md` / `theme.css`は変更していない
+  - projectデータ構造・`schemaVersion`は無変更。全拍8分/16分・mixed resolution各パターン・
+    セクション境界越え・曲全体の最終小節・無変更ガード・二重commit防止・IME・
+    古いcallback安全性・既存操作（Tab/矢印/Delete/Alt+←→/前へ次へ/拍別解像度ボタン/
+    集約表示/ドラッグ/リサイズ/保存再読込/JSON往復/紙面表示/印刷）はすべて実機確認済み
 
 ### ユーザー確定要望（未実装・G1範囲外）
 
@@ -440,7 +446,8 @@
   今回一切触れていない
 - **F. 最終歌詞セルEnterでの次小節移動**: 小節の最終歌詞セル（4拍目の最後、
   小節全体の最終セル。各拍の最後ではない）でEnterを押した場合、次小節の
-  先頭歌詞セルへ移動する。次の小フェーズで実装予定。現時点では未着手・未実装
+  先頭歌詞セルへ移動する。**G4で実装済み**（`commitLyricCellAndMoveToNextBar`。
+  正規順序でセクション境界も越える。曲全体の最終小節では移動せず現在のセルに留まる）
 
 ### R1の記号ルール
 
@@ -465,10 +472,10 @@
 
 ## 6. 次にやること
 
-1. G2b実機確認（ユーザーによる目視確認。拍別ローカル解像度ボタンのサイクル・
-   mixed resolutionの見た目/整列・集約セルの非破壊編集・IME・Alt+←/→の安全性）
-2. G2b commit
-3. G2b push
+1. G4実機確認（ユーザーによる目視確認。最終セルEnterでの次小節移動・セクション境界越え・
+   曲全体の最終小節での案内表示・IME・既存Enter/Tab/矢印/Alt+←/→の回帰なし）
+2. G4 commit
+3. G4 push
 4. G3: ストロークの行別/拍別8分/16分切替（G2bの`prepareLyricResolutionChange`等の
    仕組みを再利用。ストロークは`bar.strumOverride`の単一slots配列構造のため、
    歌詞と同じ形でそのまま流用できるかは要検討）
