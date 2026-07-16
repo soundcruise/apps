@@ -1,4 +1,4 @@
-/* クルーズスタジオ theme.css — v0.22.0
+/* クルーズスタジオ theme.css — v0.22.3
    リズムクルーズの DESIGN_SYSTEM.md（Clean Pro系）の考え方を継承しつつ、
    PCファーストに読み替えたテーマ。shared/style.css には依存しない（ADR-005）。
    class名・DOMはクルーズスタジオ用に新規設計している。 */
@@ -980,7 +980,13 @@ body {
     flex-direction: column;
     gap: 3px;
     min-height: 86px;
-    padding: 4px 8px 8px;
+    /* v0.22.3: 横paddingを変数化し、.sheet-bar-lyrics--timedの負marginと共有する
+       （罫線グリッド.sheet-bar-gridはposition:absolute; inset:0;でボーダーボックス
+       全幅を等分するのに対し、歌詞グリッドは通常のflex子要素としてこのpaddingを
+       除いたコンテンツ幅を等分していたため、両者の母数が異なり小節後半ほど
+       歌詞が左へ線形にずれていた。詳細はROADMAP.md v0.22.3を参照）。 */
+    --sheet-bar-pad-x: 8px;
+    padding: 4px var(--sheet-bar-pad-x) 8px;
     border-right: 1.5px solid var(--paper-border);
     border-bottom: 1px solid var(--paper-border-soft);
     cursor: pointer;
@@ -1134,13 +1140,28 @@ body {
 .sheet-bar-lyrics--timed {
     display: grid;
     align-items: baseline;
-    column-gap: 1px;
+    /* v0.22.3: .sheet-barの横paddingを打ち消し、.sheet-bar-gridと同じボーダーボックス
+       全幅を等分する（--sheet-bar-pad-xを共有。.sheet-bar側のコメント参照）。
+       column-gapも0にする（.sheet-bar-gridはcolumn-gapを使わずborder-rightで線を
+       引いているため、gap分だけ歌詞側のセル幅が狭くならないようにする）。 */
+    margin-left: calc(-1 * var(--sheet-bar-pad-x));
+    margin-right: calc(-1 * var(--sheet-bar-pad-x));
+    column-gap: 0;
 }
 
 .sheet-bar-lyrics--timed > span {
     position: relative;
     white-space: nowrap;
     overflow: visible;
+    text-align: center;
+    /* v0.22.3: min-width:0がないと、grid item化されたspan（white-space:nowrap＋
+       overflow:visible）の自動最小サイズがテキスト全文の幅になり、そのセルの
+       repeat(N, 1fr)トラック自体が広がって以降のセルまで罫線グリッドとズレる
+       （CSS Gridのtrack sizingがitemの自動最小サイズを考慮するため）。実測で
+       確認済み（1〜4文字程度の短い歌詞では表面化しないが、小節の主要セルに
+       長い歌詞が入ると発生する）。overflow:visibleは維持し、はみ出し表示自体は
+       変えない。 */
+    min-width: 0;
 }
 
 /* ドレミ: 下段。オクターブで色分け（中央=青 / 高い=オレンジ / 低い=グレー） */
@@ -1795,14 +1816,27 @@ body.loupe-resizing {
 .dock-lyrics-beat-res-btn {
     /* 実機確認後修正: 歌詞セルへの重なりを減らすため、見た目・実クリック領域とも
        明確に縮小した（transform:scale等でhit areaだけ元のまま残す手法は使わず、
-       box-modelそのものを縮めているので見た目とクリック領域は常に一致する）。 */
+       box-modelそのものを縮めているので見た目とクリック領域は常に一致する）。
+       v0.22.3後修正: 表示テキストを「自8/自16/固8/固16」から「8/16」＋固定状態だけの
+       鍵アイコンへ変更するため、中身をinline-flexで中央配置する。
+       widthは固定値（min-widthではなく`width`）にした: 「アイコン+16」という
+       最も横幅を要する組み合わせでも16分セルへの重なりを最小限に抑えるため、
+       アイコンを4px・gapを1px・横paddingを0へさらに切り詰めたうえで16pxに固定し、
+       4状態（自動8/自動16/固定8/固定16）のいずれでもボタン幅が変化しないように
+       した（実測で自動8=14px・固定8=16.5px・固定16=21pxと状態ごとに幅が
+       変動してしまう問題を発見したための対応。高さ（11px）はアイコン追加前から
+       不変）。right/bottom/z-index・borderも不変。 */
     position: absolute;
     right: 1px;
     bottom: 1px;
     z-index: 2;
-    min-width: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    width: 16px;
     min-height: 11px;
-    padding: 0 1px;
+    padding: 0;
     border: 1px solid var(--paper-border-soft);
     border-radius: 3px;
     background: rgba(255, 255, 255, 0.78);
@@ -1821,6 +1855,21 @@ body.loupe-resizing {
     border-color: rgba(255, 159, 28, 0.65);
     background: var(--secondary-color);
     color: #1a1206;
+}
+
+/* v0.22.3後修正: 固定状態（is-local）だけに表示する、細いモノクロ線画の南京錠アイコン。
+   Unicode絵文字は使わず、currentColorで塗るCSS mask（SVGデータURI）で描画するため、
+   OS/ブラウザ間の見た目差やカラー絵文字化を避けられる。自動状態（is-auto）には
+   このルールが適用されないため、鍵は固定状態のときだけ表示される。 */
+.dock-lyrics-beat-res-btn.is-local::before {
+    content: "";
+    display: inline-block;
+    width: 4.5px;
+    height: 4.5px;
+    flex: 0 0 auto;
+    background-color: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2'/%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2'/%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 .dock-lyrics-beat-res-btn:hover {

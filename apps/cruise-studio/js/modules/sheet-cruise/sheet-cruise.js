@@ -1593,17 +1593,21 @@
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'dock-lyrics-beat-res-btn' + (isAuto ? ' is-auto' : ' is-local');
-        // 実機確認後修正: 自動状態の表示（自8/自16）は変更せず、手動固定状態だけ
-        // 「手8」「手16」へ変更する（見た目・状態サイクル・内部値は無変更）。
-        btn.textContent = isAuto ? ('自' + globalRes) : ('手' + effectiveRes);
+        // v0.22.3後修正: ユーザー最終決定により、表示テキストは常に有効解像度の数字
+        // だけ（自動「自8/自16」・固定「固8/固16」という接頭辞文字は廃止）にする。
+        // 固定状態は代わりにCSS側（.dock-lyrics-beat-res-btn.is-local::before）が
+        // currentColorのモノクロ線画アイコン（南京錠。Unicode絵文字は不使用）を
+        // 表示することで区別する。状態サイクル・内部値（WeakMapへ保持する8/16の数値）・
+        // 変数名・className（is-auto/is-local）は無変更。
+        btn.textContent = String(effectiveRes);
 
         var stateText = isAuto ?
-            ('全体設定（' + globalRes + '分）へ自動追従中') :
-            ('手動で' + effectiveRes + '分に固定中');
+            ('全体設定へ自動追従中（現在は' + globalRes + '分）') :
+            ('この拍だけ' + effectiveRes + '分に固定中。全体設定を変えても追従しません');
         var next = nextLyricBeatResState(isAuto, local, globalRes);
         var nextText = (next === null) ?
-            'クリックで自動（全体設定に追従）へ戻します' :
-            ('クリックで手動' + next + '分固定にします');
+            'クリックすると、自動追従へ戻します' :
+            ('クリックすると、この拍だけ' + next + '分に固定します');
         var label = (beatIndex + 1) + '拍目の歌詞セル解像度: ' + stateText + '。' + nextText;
         btn.title = label;
         btn.setAttribute('aria-label', label);
