@@ -1298,6 +1298,8 @@
         if (!input || active !== input) return null;
         return {
             slotTick: slotTick,
+            slotTicks: Number(input.dataset.slotTicks), // G4後修正: range幅。restoreLyricCellFocus()の
+            // value/selection復元をrange一致セルだけに限定するために保持する（ADR-030後修正参照）。
             value: input.value,
             selectionStart: typeof input.selectionStart === 'number' ? input.selectionStart : null,
             selectionEnd: typeof input.selectionEnd === 'number' ? input.selectionEnd : null
@@ -1312,6 +1314,20 @@
      * renderPreview()はscheduleOverlayPosition()経由で同じ小節のルーペをもう一度
      * 再描画することがあるため、判定は「再描画されたか」ではなく「選択小節が
      * 変わったか」で行う（同一小節の再描画は正常にフォーカス復元してよいため）。
+     *
+     * G4後修正（G2b由来の不具合対応）: フォーカス先の決定（findLyricCellByTick()の
+     * 同tick→含む範囲→直前→先頭フォールバック）と、value/selectionの復元は別条件で
+     * 判断する。フォーカス先はフォールバックしてよいが、value/selectionは
+     * 「切替前後でslotTick・slotTicksが完全に一致する、全く同じrangeのセルへ
+     * 戻す場合」だけに限定する。解像度切替（拍別ボタン・全体8分/16分ボタン）で
+     * セルのrangeが変わった場合、findLyricCellByTick()のフォールバックは
+     * 別range（集約セルや分解後セル）へ着地することがあり、そこへ切替前セルの
+     * 部分的なvalueを代入すると、再描画で正しくセットされたproject由来の値
+     * （集約後の連結文字列や分解後の個別文字列）を上書きしてしまう。この上書きは
+     * DOM表示だけでなく、以後のblur/Enter/Tab等でG2aの無変更commit防止
+     * （input._initialValueとの比較）を誤って通過させ、setBarLyricSlot()経由で
+     * projectデータの一部（例: 集約前の複数イベントの片方）を消してしまう危険がある。
+     * rangeが変わった場合は、再描画済みDOMの値（project由来）を正としてそのまま残す。
      */
     function restoreLyricCellFocus(snapshot, expectedBarNumber) {
         if (!snapshot || !els.slotOverlay) return;
@@ -1319,6 +1335,9 @@
         var cell = findLyricCellByTick(getOrderedLyricCells(), snapshot.slotTick);
         if (!cell) return;
         cell.focus({ preventScroll: true });
+        var sameRange = Number(cell.dataset.slotTick) === snapshot.slotTick &&
+            Number(cell.dataset.slotTicks) === snapshot.slotTicks;
+        if (!sameRange) return; // range不一致: フォーカスのみ行い、value/selectionはproject由来のまま残す
         if (cell.value !== snapshot.value) cell.value = snapshot.value;
         if (snapshot.selectionStart !== null && snapshot.selectionEnd !== null) {
             try {
