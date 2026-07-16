@@ -307,7 +307,8 @@
     function detailMarkerLabel(chord, note, requestedMode) {
         var mode = requestedMode || detailDisplayMode();
         if (mode === 'finger') {
-            return note.finger != null ? (FINGER_LABELS[note.finger] || '') : '';
+            if (note.finger != null) return FINGER_LABELS[note.finger] || '';
+            return note.fingeringWarning === true ? '⚠' : '';
         }
         var openPc = theory().OPEN_STRINGS[6 - note.string];
         var pc = (openPc + note.fret) % 12;
@@ -354,11 +355,12 @@
 
     function notesInSavedRange(chord, frets) {
         return (Array.isArray(chord.notes) ? chord.notes : []).filter(function (note) {
-            return note && frets.indexOf(note.fret) !== -1;
+            return note && note.pendingDelete !== true && frets.indexOf(note.fret) !== -1;
         });
     }
 
     function thumbnailMarkerLabel(chord, note) {
+        if (detailDisplayMode() === 'finger' && note.fingeringWarning === true && note.finger == null) return '⚠';
         if (note.finger != null) return String(note.finger);
         return theory().degreeLabels([note.interval])[0];
     }
@@ -379,6 +381,7 @@
                         ? thumbnailMarkerLabel(chord, note)
                         : detailMarkerLabel(chord, note, mode),
                     role: roleForInterval(note.interval),
+                    fingeringWarning: mode === 'finger' && note.fingeringWarning === true && note.finger == null,
                     tappable: !!opts.tappable
                 };
             }),
@@ -423,8 +426,16 @@
                 if (note.string === stringNum && note.fret === fret) target = note;
             });
             if (!target) return;
+            if (target.fingeringWarning === true && target.finger == null) {
+                target.finger = 'T';
+                target.fingeringWarning = false;
+                storage().saveChord(chord);
+                renderDetailFretboard(chord);
+                return;
+            }
             var pos = FINGER_CYCLE.indexOf(target.finger);
             target.finger = FINGER_CYCLE[(pos + 1) % FINGER_CYCLE.length];
+            if (target.finger != null) target.fingeringWarning = false;
             storage().saveChord(chord);
             renderDetailFretboard(chord);
         };
@@ -511,7 +522,7 @@
                 '</div>' +
             '</div>' +
             '<div class="cc-lib-diagram-card" id="cc-lib-diagram-card">' +
-                '<div class="cc-lib-diagram-title" id="cc-lib-detail-name">' + escapeHtml(displayName) + '</div>' +
+                '<div class="cc-lib-diagram-title cc-fretboard-chord-name" id="cc-lib-detail-name" title="' + escapeHtml(displayName) + '">' + escapeHtml(displayName) + '</div>' +
                 '<div id="cc-lib-fb" class="cc-fb-host cc-lib-exact-fb"></div>' +
             '</div>' +
             '<p class="cc-fb-hint">音をタップすると運指が切り替わり、自動で保存されます。</p>' +

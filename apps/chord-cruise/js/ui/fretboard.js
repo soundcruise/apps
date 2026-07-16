@@ -256,6 +256,8 @@
                 label: marker.label != null ? String(marker.label) : '',
                 role: marker.role || 'other',
                 dimmed: !!marker.dimmed,
+                pendingDelete: !!marker.pendingDelete,
+                fingeringWarning: !!marker.fingeringWarning,
                 tappable: !!marker.tappable
             });
         });
@@ -335,10 +337,13 @@
         });
         model.markers.forEach(function (marker) {
             var palette = markerPalette(marker.role, model.monochrome, marker.fret === 0);
-            var fontSize = marker.label.length > 3 ? 9 : (marker.label.length > 2 ? 10 : 12);
-            var opacity = marker.dimmed ? 0.32 : 1;
+            var fontSize = marker.fingeringWarning ? 15 : (marker.label.length > 3 ? 9 : (marker.label.length > 2 ? 10 : 12));
+            var opacity = marker.dimmed || marker.pendingDelete ? 0.32 : 1;
+            var dash = marker.pendingDelete ? ' stroke-dasharray="4 3"' : '';
+            var strokeWidth = marker.pendingDelete ? Math.max(2, palette.strokeWidth) : palette.strokeWidth;
+            var stroke = marker.pendingDelete ? palette.text : palette.stroke;
             svg += '<g opacity="' + opacity + '">' +
-                '<circle cx="' + marker.x + '" cy="' + marker.y + '" r="15" fill="' + palette.fill + '" stroke="' + palette.stroke + '" stroke-width="' + palette.strokeWidth + '"/>' +
+                '<circle cx="' + marker.x + '" cy="' + marker.y + '" r="15" fill="' + palette.fill + '" stroke="' + stroke + '" stroke-width="' + strokeWidth + '"' + dash + '/>' +
                 '<text x="' + marker.x + '" y="' + (marker.y + 4) + '" text-anchor="middle" style="font-family:Arial,sans-serif;font-size:' + fontSize + 'px;font-weight:700;fill:' + palette.text + '">' + escapeXml(marker.label) + '</text>' +
             '</g>';
         });
@@ -433,6 +438,8 @@
             var cls = 'cc-fb-marker cc-fb-marker--' + (m.role || 'other');
             if (m.fret === 0) cls += ' cc-fb-marker--open';
             if (m.dimmed) cls += ' cc-fb-marker--dimmed';
+            if (m.pendingDelete) cls += ' cc-fb-marker--pending-delete';
+            if (m.fingeringWarning) cls += ' cc-fb-marker--warning';
             if (m.tappable) cls += ' cc-fb-marker--tappable';
             el.className = cls;
             el.style.left = m.x + 'px';

@@ -27,6 +27,12 @@
         window.ChordCruise.storage.saveSettings(partial);
     }
 
+    var cagedNoticeExpanded = { fingering: false, range: false };
+    var cagedNoticeState = {
+        fingering: { type: '', text: '' },
+        range: { type: 'range', text: '' }
+    };
+
     function buildSkeleton(section) {
         var content = document.getElementById('cc-explore-content');
         if (content) {
@@ -76,13 +82,29 @@
                 '</div>' +
                 '<div class="cc-caged-row" id="cc-caged-row" role="group" aria-label="CAGEDフォーム切替">' +
                     '<button type="button" class="cc-caged-btn" data-shape="">全体</button>' +
-                    '<button type="button" class="cc-caged-btn" data-shape="C">C型</button>' +
-                    '<button type="button" class="cc-caged-btn" data-shape="A">A型</button>' +
-                    '<button type="button" class="cc-caged-btn" data-shape="G">G型</button>' +
-                    '<button type="button" class="cc-caged-btn" data-shape="E">E型</button>' +
-                    '<button type="button" class="cc-caged-btn" data-shape="D">D型</button>' +
+                    '<button type="button" class="cc-caged-btn" data-shape="C" aria-label="C型"><span class="cc-caged-btn-label">C型</span><span class="cc-caged-btn-root" aria-hidden="true">(5弦R)</span></button>' +
+                    '<button type="button" class="cc-caged-btn" data-shape="A" aria-label="A型"><span class="cc-caged-btn-label">A型</span><span class="cc-caged-btn-root" aria-hidden="true">(5弦R)</span></button>' +
+                    '<button type="button" class="cc-caged-btn" data-shape="G" aria-label="G型"><span class="cc-caged-btn-label">G型</span><span class="cc-caged-btn-root" aria-hidden="true">(6弦R)</span></button>' +
+                    '<button type="button" class="cc-caged-btn" data-shape="E" aria-label="E型"><span class="cc-caged-btn-label">E型</span><span class="cc-caged-btn-root" aria-hidden="true">(6弦R)</span></button>' +
+                    '<button type="button" class="cc-caged-btn" data-shape="D" aria-label="D型"><span class="cc-caged-btn-label">D型</span><span class="cc-caged-btn-root" aria-hidden="true">(4弦R)</span></button>' +
                 '</div>' +
-                '<div class="cc-caged-notice" id="cc-caged-notice" role="status" hidden></div>' +
+                '<div class="cc-caged-notices" id="cc-caged-notices">' +
+                    '<div class="cc-caged-notice" id="cc-caged-notice-fingering" hidden>' +
+                        '<button type="button" class="cc-caged-notice-toggle" id="cc-caged-notice-toggle-fingering" aria-expanded="false" aria-controls="cc-caged-notice-detail-fingering">' +
+                            '<span id="cc-caged-notice-label-fingering">⚠️ 運指</span>' +
+                            '<span class="cc-caged-notice-chevron" id="cc-caged-notice-chevron-fingering" aria-hidden="true">⌄</span>' +
+                        '</button>' +
+                        '<div class="cc-caged-notice-detail" id="cc-caged-notice-detail-fingering" role="status" hidden></div>' +
+                    '</div>' +
+                    '<div class="cc-caged-notice cc-caged-notice--range" id="cc-caged-notice-range" hidden>' +
+                        '<button type="button" class="cc-caged-notice-toggle" id="cc-caged-notice-toggle-range" aria-expanded="false" aria-controls="cc-caged-notice-detail-range">' +
+                            '<span>△ フォーム</span>' +
+                            '<span class="cc-caged-notice-chevron" id="cc-caged-notice-chevron-range" aria-hidden="true">⌄</span>' +
+                        '</button>' +
+                        '<div class="cc-caged-notice-detail" id="cc-caged-notice-detail-range" role="status" hidden></div>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="cc-fretboard-chord-name cc-explore-fretboard-name" id="cc-explore-fretboard-name" aria-live="polite" hidden></div>' +
                 '<div id="cc-fretboard-host" class="cc-fb-host"></div>' +
                 '<div class="cc-high-fret-row">' +
                     '<span class="cc-high-fret-copy">' +
@@ -105,6 +127,7 @@
 
     function bindEvents() {
         document.getElementById('cc-key-select').addEventListener('change', function (event) {
+            resetCagedNotice();
             saveSetting({ selectedKey: parseInt(event.target.value, 10) });
             renderChordGrid();
             renderFretboard();
@@ -134,6 +157,7 @@
             }
             getState().exploreCustomChord = null;
             getState().exploreSelectedChordIndex = parseInt(btn.dataset.index, 10);
+            resetCagedNotice();
             renderChordGrid();
             renderFretboard();
             renderDetail();
@@ -144,6 +168,7 @@
                 onApply: function (chord) {
                     getState().exploreCustomChord = chord;
                     getState().exploreSelectedChordIndex = null;
+                    resetCagedNotice();
                     renderChordGrid();
                     renderFretboard();
                     renderDetail();
@@ -212,12 +237,22 @@
                 return;
             }
             getState().exploreShape = shape;
+            resetCagedNotice();
             updateCagedButtons();
             renderFretboard();
         });
 
+        ['fingering', 'range'].forEach(function (kind) {
+            document.getElementById('cc-caged-notice-toggle-' + kind).addEventListener('click', function () {
+                if (!cagedNoticeState[kind].text) return;
+                cagedNoticeExpanded[kind] = !cagedNoticeExpanded[kind];
+                setCagedNotice(kind, cagedNoticeState[kind].type, cagedNoticeState[kind].text);
+            });
+        });
+
         document.getElementById('cc-high-fret-toggle').addEventListener('click', function () {
             var enabled = !getSettings().highFretMode;
+            resetCagedNotice();
             saveSetting({ highFretMode: enabled });
             updateHighFretToggle();
             renderFretboard();
@@ -239,18 +274,41 @@
         hint.style.display = text ? '' : 'none';
     }
 
-    function setCagedNotice(type, text) {
-        var notice = document.getElementById('cc-caged-notice');
+    function resetCagedNotice() {
+        cagedNoticeExpanded.fingering = false;
+        cagedNoticeExpanded.range = false;
+    }
+
+    function setCagedNotice(kind, type, text) {
+        var notice = document.getElementById('cc-caged-notice-' + kind);
         if (!notice) return;
-        notice.textContent = text || '';
+        var toggle = document.getElementById('cc-caged-notice-toggle-' + kind);
+        var detail = document.getElementById('cc-caged-notice-detail-' + kind);
+        var label = document.getElementById('cc-caged-notice-label-' + kind);
+        var chevron = document.getElementById('cc-caged-notice-chevron-' + kind);
+        cagedNoticeState[kind].type = type || '';
+        cagedNoticeState[kind].text = text || '';
+        if (!cagedNoticeState[kind].text) cagedNoticeExpanded[kind] = false;
         notice.className = 'cc-caged-notice' + (type ? ' cc-caged-notice--' + type : '');
-        notice.hidden = !text;
+        notice.hidden = !cagedNoticeState[kind].text;
+        if (!toggle || !detail || !chevron) return;
+        if (label) label.textContent = type === 'unavailable' ? '△ フォーム' : '⚠️ 運指';
+        toggle.setAttribute('aria-expanded', cagedNoticeExpanded[kind] ? 'true' : 'false');
+        chevron.textContent = cagedNoticeExpanded[kind] ? '⌃' : '⌄';
+        detail.textContent = cagedNoticeState[kind].text;
+        detail.hidden = !cagedNoticeExpanded[kind];
+    }
+
+    function setCagedNotices(fingeringType, fingeringText, rangeText) {
+        setCagedNotice('fingering', fingeringType, fingeringText);
+        setCagedNotice('range', 'range', rangeText);
     }
 
     function setMode(mode) {
         if (getSettings().scaleType === mode) {
             return;
         }
+        resetCagedNotice();
         saveSetting({ scaleType: mode });
         updateKeyOptions();
         updateSegments();
@@ -263,6 +321,7 @@
         if (getSettings().chordToneMode === toneMode) {
             return;
         }
+        resetCagedNotice();
         saveSetting({ chordToneMode: toneMode });
         updateSegments();
         renderChordGrid();
@@ -410,11 +469,12 @@
         return form.available ? form : null;
     }
 
-    function markerLabelFor(pc, interval, finger, useFlats) {
+    function markerLabelFor(pc, interval, finger, fingeringWarning, useFlats) {
         var theory = getTheory();
         var mode = getSettings().fretboardDisplayMode;
         if (mode === 'finger') {
-            return finger != null ? (FINGER_LABELS[finger] || '') : '';
+            if (finger != null) return FINGER_LABELS[finger] || '';
+            return fingeringWarning ? '⚠' : '';
         }
         if (mode === 'solfege') {
             return theory.solfegeName(pc, useFlats);
@@ -434,8 +494,9 @@
             return {
                 string: note.string,
                 fret: note.fret,
-                label: markerLabelFor(pc, note.interval, note.finger, useFlats),
-                role: roleForInterval(note.interval)
+                label: markerLabelFor(pc, note.interval, note.finger, note.fingeringWarning, useFlats),
+                role: roleForInterval(note.interval),
+                fingeringWarning: getSettings().fretboardDisplayMode === 'finger' && note.fingeringWarning === true
             };
         });
     }
@@ -479,6 +540,14 @@
         var range = fretWindow();
         var noticeType = '';
         var noticeText = '';
+        var rangeNoticeText = '';
+        var chordName = document.getElementById('cc-explore-fretboard-name');
+
+        if (chordName) {
+            chordName.textContent = chord ? chord.symbol : '';
+            chordName.title = chord ? chord.symbol : '';
+            chordName.hidden = !chord;
+        }
 
         if (!chord) {
             hint = 'コードを選ぶと構成音が指板に表示されます。';
@@ -499,6 +568,9 @@
                 if (form.warning) {
                     noticeType = form.playability;
                     noticeText = form.warning;
+                }
+                if (form.hasOutOfRangeNotes) {
+                    rangeNoticeText = 'このフォームには表示範囲外の音があるため、表示できる音だけを表示しています。';
                 }
             } else if (result.reason === 'quality') {
                 markers = computeChordToneMarkers(chord);
@@ -551,7 +623,7 @@
             preserveScroll: (form && scrollToFret !== null) ? null : (typeof prevScroll === 'number' ? prevScroll : null)
         });
         setFbHint(hint);
-        setCagedNotice(noticeType, noticeText);
+        setCagedNotices(noticeType, noticeText, rangeNoticeText);
         updateHighFretToggle();
         updateCagedButtons();
     }
@@ -650,6 +722,7 @@
                     chip.addEventListener('click', function () {
                         getState().exploreCustomChord = null;
                         getState().exploreSelectedChordIndex = degreeIndex;
+                        resetCagedNotice();
                         renderChordGrid();
                         renderFretboard();
                         renderDetail();

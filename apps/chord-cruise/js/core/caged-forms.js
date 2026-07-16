@@ -7,8 +7,9 @@
        openFingers は開放ポジション（rootFret === 0）専用の運指。開放コードでは
        バレー基準の運指が一般的な形と異なるため、こちらを優先適用する。
        開放弦（実フレット0）は描画時に運指なし扱いにする。
-       playability は standard / advanced / limited。warning はフォーム選択時だけ表示し、
-       保存コードには複製しない。 */
+       fingeringWarning はコード構成音として正しい一方、既存の実用運指へ同時に
+       組み込めない音を示す。finger とは分離してフォーム利用側へ複製する。
+       playability は standard / advanced / limited。warning はフォーム選択時だけ表示する。 */
 
     var SHAPE_ORDER = ['C', 'A', 'G', 'E', 'D'];
 
@@ -48,16 +49,22 @@
                     openFingers: { 5: 2 }
                 },
                 m7b5: {
-                    /* 6弦=中 4弦=薬 3弦=小 2弦=人（人差し指が最も低いフレット） */
-                    slots: [{ s: 6, o: 0, iv: 0 }, { s: 4, o: 0, iv: 10 }, { s: 3, o: 0, iv: 3 }, { s: 2, o: -1, iv: 6 }],
-                    muted: [5, 1],
-                    fingers: { 6: 2, 4: 3, 3: 4, 2: 1 }
+                    /* E型7thテンプレートをm7♭5へ変換し、従来の実用4音へ全弦を補う */
+                    slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: 1, iv: 6, fingeringWarning: true }, { s: 4, o: 0, iv: 10 }, { s: 3, o: 0, iv: 3 }, { s: 2, o: -1, iv: 6 }, { s: 1, o: 0, iv: 0, fingeringWarning: true }],
+                    muted: [],
+                    fingers: { 6: 2, 4: 3, 3: 4, 2: 1 },
+                    warningStrings: [5, 1],
+                    playability: 'advanced',
+                    warning: 'フォーム全体の構成音を表示しています。⚠️の音は一般的な運指では同時に押さえることが難しい位置です。保存前編集で指を指定するか、音を消去できます。'
                 },
                 dim: {
-                    slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: 1, iv: 6 }, { s: 3, o: 0, iv: 3 }],
-                    muted: [4, 2, 1],
+                    slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: 1, iv: 6 }, { s: 4, o: 2, iv: 0, fingeringWarning: true }, { s: 3, o: 0, iv: 3 }, { s: 2, o: -1, iv: 6, fingeringWarning: true }, { s: 1, o: 0, iv: 0, fingeringWarning: true }],
+                    muted: [],
                     fingers: { 6: 1, 5: 2, 3: 3 },
-                    openFingers: { 5: 1 }
+                    warningStrings: [4, 2, 1],
+                    openFingers: { 6: 1, 5: 2, 3: 3 },
+                    playability: 'advanced',
+                    warning: 'フォーム全体の構成音を表示しています。⚠️の音は一般的な運指では同時に押さえることが難しい位置です。保存前編集で指を指定するか、音を消去できます。'
                 }
             }
         },
@@ -95,16 +102,22 @@
                     openFingers: { 4: 2, 2: 1 }
                 },
                 m7b5: {
-                    slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: 1, iv: 6 }, { s: 3, o: 0, iv: 10 }, { s: 2, o: 1, iv: 3 }],
-                    muted: [6, 1],
+                    slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: 1, iv: 6 }, { s: 3, o: 0, iv: 10 }, { s: 2, o: 1, iv: 3 }, { s: 1, o: -1, iv: 6, fingeringWarning: true }],
+                    muted: [6],
                     fingers: { 5: 1, 4: 3, 3: 2, 2: 4 },
-                    openFingers: { 4: 1, 2: 2 }
+                    warningStrings: [1],
+                    openFingers: { 5: 1, 4: 3, 3: 1, 2: 4 },
+                    playability: 'advanced',
+                    warning: 'フォーム全体の構成音を表示しています。⚠️の音は一般的な運指では同時に押さえることが難しい位置です。保存前編集で指を指定するか、音を消去できます。'
                 },
                 dim: {
-                    slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: 1, iv: 6 }, { s: 3, o: 2, iv: 0 }, { s: 2, o: 1, iv: 3 }],
-                    muted: [6, 1],
+                    slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: 1, iv: 6 }, { s: 3, o: 2, iv: 0 }, { s: 2, o: 1, iv: 3 }, { s: 1, o: -1, iv: 6, fingeringWarning: true }],
+                    muted: [6],
                     fingers: { 5: 1, 4: 2, 3: 4, 2: 3 },
-                    openFingers: { 4: 1, 3: 3, 2: 2 }
+                    warningStrings: [1],
+                    openFingers: { 5: 1, 4: 2, 3: 4, 2: 3 },
+                    playability: 'advanced',
+                    warning: 'フォーム全体の構成音を表示しています。⚠️の音は一般的な運指では同時に押さえることが難しい位置です。保存前編集で指を指定するか、音を消去できます。'
                 }
             }
         },
@@ -130,38 +143,42 @@
                     openFingers: { 6: 3, 5: 2, 1: 1 }
                 },
                 m: {
-                    /* 実用的なG型マイナーの低音側フォーム（例: Cm = 8-6-5-5-x-x） */
-                    slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: -2, iv: 3 }, { s: 4, o: -3, iv: 7 }, { s: 3, o: -3, iv: 0 }],
-                    muted: [2, 1],
+                    /* 低音4弦を推奨運指とし、高音側もG型の構成音として表示（例: Cm = 8-6-5-5-4-8） */
+                    slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: -2, iv: 3 }, { s: 4, o: -3, iv: 7 }, { s: 3, o: -3, iv: 0 }, { s: 2, o: -4, iv: 3, fingeringWarning: true }, { s: 1, o: 0, iv: 0, fingeringWarning: true }],
+                    muted: [],
                     fingers: { 6: 4, 5: 2, 4: 1, 3: 1 },
-                    openFingers: { 6: 3, 5: 1 },
-                    playability: 'standard',
-                    warning: ''
+                    warningStrings: [2, 1],
+                    openFingers: { 6: 4, 5: 2, 4: 1, 3: 1 },
+                    playability: 'advanced',
+                    warning: 'フォーム全体の構成音を表示しています。⚠️の音は一般的な運指では同時に押さえることが難しい位置です。保存前編集で指を指定するか、音を消去できます。'
                 },
                 m7: {
-                    /* 完全5度を省略した低音側フォーム（例: Cm7 = 8-6-8-5-x-x） */
-                    slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: -2, iv: 3 }, { s: 4, o: 0, iv: 10 }, { s: 3, o: -3, iv: 0 }],
-                    muted: [2, 1],
-                    fingers: { 6: 3, 5: 2, 4: 4, 3: 1 },
-                    openFingers: { 6: 3, 5: 1, 4: 4 },
-                    playability: 'limited',
-                    warning: '完全5度を省略した実用ボイシングです。'
+                    /* G型7の弦役割を維持し、3・5・1・♭3・♭7へ置換（例: Dm7 = 10-8-7-7-6-8） */
+                    slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: -2, iv: 3 }, { s: 4, o: -3, iv: 7 }, { s: 3, o: -3, iv: 0 }, { s: 2, o: -4, iv: 3, fingeringWarning: true }, { s: 1, o: -2, iv: 10, fingeringWarning: true }],
+                    muted: [],
+                    fingers: { 6: 4, 5: 2, 4: 1, 3: 1 },
+                    warningStrings: [2, 1],
+                    openFingers: { 6: 4, 5: 2, 4: 1, 3: 1 },
+                    playability: 'advanced',
+                    warning: 'フォーム全体の構成音を表示しています。⚠️の音は一般的な運指では同時に押さえることが難しい位置です。保存前編集で指を指定するか、音を消去できます。'
                 },
                 m7b5: {
-                    /* 3弦ルートの高音側フォーム（例: Cm7♭5 = x-x-8-8-7-8） */
-                    slots: [{ s: 4, o: 0, iv: 10 }, { s: 3, o: 0, iv: 3 }, { s: 2, o: -1, iv: 6 }, { s: 1, o: 0, iv: 0 }],
-                    muted: [6, 5],
-                    fingers: { 4: 2, 3: 3, 2: 1, 1: 4 },
-                    playability: 'limited',
-                    warning: '低音2弦を省略した実用ボイシングです。'
+                    /* G型7の5度位置を♭5へ置換した完全形（例: Dm7♭5 = 10-8-6-7-6-8） */
+                    slots: [{ s: 6, o: 0, iv: 0, fingeringWarning: true }, { s: 5, o: -2, iv: 3, fingeringWarning: true }, { s: 4, o: -4, iv: 6 }, { s: 3, o: -3, iv: 0 }, { s: 2, o: -4, iv: 3 }, { s: 1, o: -2, iv: 10 }],
+                    muted: [],
+                    fingers: { 4: 1, 3: 2, 2: 1, 1: 4 },
+                    warningStrings: [6, 5],
+                    playability: 'advanced',
+                    warning: 'フォーム全体の構成音を表示しています。⚠️の音は一般的な運指では同時に押さえることが難しい位置です。保存前編集で指を指定するか、音を消去できます。'
                 },
                 dim: {
-                    /* 6弦と高音3弦で構成する実用フォーム（例: Cdim = 8-x-x-8-7-8） */
-                    slots: [{ s: 6, o: 0, iv: 0 }, { s: 3, o: 0, iv: 3 }, { s: 2, o: -1, iv: 6 }, { s: 1, o: 0, iv: 0 }],
-                    muted: [5, 4],
-                    fingers: { 6: 1, 3: 3, 2: 2, 1: 4 },
-                    playability: 'standard',
-                    warning: ''
+                    /* 最低ルートから小・中・人で押さえ、高音3弦を警告にする（例: Ddim = 10-8-6-7-6-10） */
+                    slots: [{ s: 6, o: 0, iv: 0, fingeringWarning: true }, { s: 5, o: -2, iv: 3, fingeringWarning: true }, { s: 4, o: -4, iv: 6 }, { s: 3, o: -3, iv: 0 }, { s: 2, o: -4, iv: 3 }, { s: 1, o: 0, iv: 0 }],
+                    muted: [],
+                    fingers: { 6: 4, 5: 2, 4: 1 },
+                    warningStrings: [3, 2, 1],
+                    playability: 'advanced',
+                    warning: 'フォーム全体の構成音を表示しています。⚠️の音は一般的な運指では同時に押さえることが難しい位置です。保存前編集で指を指定するか、音を消去できます。'
                 }
             }
         },
@@ -181,30 +198,35 @@
                     openFingers: { 5: 3, 4: 2 }
                 },
                 '7': {
-                    /* ムーバブルC型7は1弦をミュート（x-R-3-♭7-R-x。例: D7 = x-5-4-5-3-x） */
-                    slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -1, iv: 4 }, { s: 3, o: 0, iv: 10 }, { s: 2, o: -2, iv: 0 }],
-                    muted: [6, 1],
-                    fingers: { 5: 3, 4: 2, 3: 4, 2: 1 }
+                    /* 既存4音へ完全5度を補ったC型7thテンプレート（例: D7 = x-5-4-5-3-5） */
+                    slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -1, iv: 4 }, { s: 3, o: 0, iv: 10 }, { s: 2, o: -2, iv: 0 }, { s: 1, o: 0, iv: 7, fingeringWarning: true }],
+                    muted: [6],
+                    fingers: { 5: 3, 4: 2, 3: 4, 2: 1 },
+                    playability: 'limited',
+                    warningMode: 'fingering',
+                    warning: 'フォーム全体の構成音を表示しています。⚠️の音は一般的な運指では同時に押さえることが難しい位置です。保存前編集で指を指定するか、音を消去できます。'
                 },
                 m: {
-                    /* 一般的な3音のC型マイナー（例: Dm = x-5-3-2-x-x） */
-                    slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -2, iv: 3 }, { s: 3, o: -3, iv: 7 }],
-                    muted: [6, 2, 1],
-                    fingers: { 5: 3, 4: 2, 3: 1 },
-                    openFingers: { 5: 2, 4: 1 },
-                    playability: 'standard',
-                    warning: ''
+                    /* C型メジャーの高音3度位置も♭3へ置換（例: Dm = x-5-3-2-3-1） */
+                    slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -2, iv: 3 }, { s: 3, o: -3, iv: 7 }, { s: 2, o: -2, iv: 0, fingeringWarning: true }, { s: 1, o: -4, iv: 3, fingeringWarning: true }],
+                    muted: [6],
+                    fingers: { 5: 4, 4: 2, 3: 1 },
+                    warningStrings: [2, 1],
+                    openFingers: { 5: 4, 4: 2, 3: 1 },
+                    playability: 'limited',
+                    warning: 'フォーム全体の構成音を表示しています。⚠️の音は一般的な運指では同時に押さえることが難しい位置です。保存前編集で指を指定するか、音を消去できます。'
                 },
                 m7: {
-                    /* 完全5度を省略したC型m7（例: Cm7 = x-3-1-3-1-x） */
-                    slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -2, iv: 3 }, { s: 3, o: 0, iv: 10 }, { s: 2, o: -2, iv: 0 }],
-                    muted: [6, 1],
+                    /* C型7thテンプレートをm7へ変換（例: Dm7 = x-5-3-5-3-5） */
+                    slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -2, iv: 3 }, { s: 3, o: 0, iv: 10 }, { s: 2, o: -2, iv: 0 }, { s: 1, o: 0, iv: 7, fingeringWarning: true }],
+                    muted: [6],
                     fingers: { 5: 3, 4: 1, 3: 4, 2: 1 },
+                    warningStrings: [1],
                     playability: 'limited',
-                    warning: '完全5度を省略した実用ボイシングです。'
+                    warning: 'フォーム全体の構成音を表示しています。⚠️の音は一般的な運指では同時に押さえることが難しい位置です。保存前編集で指を指定するか、音を消去できます。'
                 },
                 m7b5: {
-                    /* 人差し指の4〜2弦ミニバレーを使う完全形（例: Cm7♭5 = x-3-1-3-1-2） */
+                    /* C型7thテンプレートをm7♭5へ変換（例: Dm7♭5 = x-5-3-5-3-4） */
                     slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -2, iv: 3 }, { s: 3, o: 0, iv: 10 }, { s: 2, o: -2, iv: 0 }, { s: 1, o: -1, iv: 6 }],
                     muted: [6],
                     fingers: { 5: 3, 4: 1, 3: 4, 2: 1, 1: 2 },
@@ -212,12 +234,13 @@
                     warning: 'ミニバレーを含む、押さえにくい上級者向けの形です。'
                 },
                 dim: {
-                    /* 4フレット幅の3音フォーム（例: Ddim = x-5-3-1-x-x） */
-                    slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -2, iv: 3 }, { s: 3, o: -4, iv: 6 }],
-                    muted: [6, 2, 1],
+                    /* C型メジャーの役割を1・♭3・♭5・1・♭3へ置換（例: Ddim = x-5-3-1-3-1） */
+                    slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -2, iv: 3 }, { s: 3, o: -4, iv: 6 }, { s: 2, o: -2, iv: 0, fingeringWarning: true }, { s: 1, o: -4, iv: 3, fingeringWarning: true }],
+                    muted: [6],
                     fingers: { 5: 4, 4: 2, 3: 1 },
+                    warningStrings: [2, 1],
                     playability: 'advanced',
-                    warning: '4フレット幅のストレッチを含む上級者向けの形です。'
+                    warning: 'フォーム全体の構成音を表示しています。⚠️の音は一般的な運指では同時に押さえることが難しい位置です。保存前編集で指を指定するか、音を消去できます。'
                 }
             }
         },
@@ -271,11 +294,56 @@
         }
     };
 
+    /* 品質ごとに独立した音配置を持たせず、maj / 7 の弦役割を変換して生成する。
+       o は基準intervalから目的intervalまでの半音差だけ移動するため、実音と
+       intervalが常に一致する。運指と警告は品質定義側に残して音配置と分離する。 */
+    var ROLE_TRANSFORMS = {
+        m: { 0: 0, 4: 3, 7: 7 },
+        dim: { 0: 0, 4: 3, 7: 6 },
+        m7: { 0: 0, 4: 3, 7: 7, 10: 10 },
+        m7b5: { 0: 0, 4: 3, 7: 6, 10: 10 }
+    };
+
+    function deriveSlots(templateSlots, transform, warningStrings) {
+        var warned = warningStrings || [];
+        return templateSlots.map(function (slot) {
+            var targetInterval = transform[slot.iv];
+            var next = {
+                s: slot.s,
+                o: slot.o + targetInterval - slot.iv,
+                iv: targetInterval
+            };
+            if (warned.indexOf(slot.s) !== -1) next.fingeringWarning = true;
+            return next;
+        });
+    }
+
+    function applyRoleTemplates() {
+        SHAPE_ORDER.forEach(function (shapeKey) {
+            var qualities = FORMS[shapeKey].qualities;
+            [['m', 'maj'], ['dim', 'maj'], ['m7', '7'], ['m7b5', '7']].forEach(function (pair) {
+                var qualityKey = pair[0];
+                var templateKey = pair[1];
+                var def = qualities[qualityKey];
+                var template = qualities[templateKey];
+                def.slots = deriveSlots(template.slots, ROLE_TRANSFORMS[qualityKey], def.warningStrings);
+                def.muted = template.muted.slice();
+                if (def.warningStrings && def.warningStrings.length && def.warning) {
+                    def.warningMode = 'fingering';
+                }
+            });
+        });
+    }
+
+    applyRoleTemplates();
+
     /**
      * 指定の型・品質・ルート音で実フォームを求める。
+     * 全音が表示範囲に収まる配置を優先し、無い場合は最も多くの音を表示できる
+     * 同型配置を選ぶ。範囲外の音は notes から除外し、フォーム自体は有効とする。
      * 表示範囲が0Fを含み、フォーム内の最低フレットが0Fになる場合だけ
      * openFingers を優先適用する。12F以降ではムーバブルフォーム用運指を使う。
-     * @returns { available:true, shape, qualityKey, rootFret, notes:[{string,fret,interval,finger}],
+     * @returns { available:true, shape, qualityKey, rootFret, notes:[{string,fret,interval,finger,fingeringWarning}],
      *            mutedStrings, fretRange:{min,max,includesOpen} }
      *          または { available:false, reason:'quality'|'position' }
      */
@@ -303,12 +371,36 @@
 
         var rootFret = null;
         var f;
+        // 既存挙動を維持するため、まず全音が範囲内に収まる配置を探す。
         for (f = Math.max(0, lowerLimit - minOffset); f <= limit; f++) {
             if ((openPc + f) % 12 !== ((rootPc % 12) + 12) % 12) continue;
             if (f + minOffset < lowerLimit) continue;
             if (f + maxOffset > limit) continue;
             rootFret = f;
             break;
+        }
+
+        // 完全形が無いときは、範囲内に最も多くの音を残せる配置を採用する。
+        // 同数ならルートが表示範囲内にある配置、さらに同条件なら低い配置を優先する。
+        if (rootFret === null) {
+            var bestCandidate = null;
+            var firstCandidate = Math.max(0, lowerLimit - maxOffset);
+            var lastCandidate = limit - minOffset;
+            for (f = firstCandidate; f <= lastCandidate; f++) {
+                if ((openPc + f) % 12 !== ((rootPc % 12) + 12) % 12) continue;
+                var visibleCount = def.slots.reduce(function (count, slot) {
+                    var slotFret = f + slot.o;
+                    return count + (slotFret >= lowerLimit && slotFret <= limit ? 1 : 0);
+                }, 0);
+                if (visibleCount === 0) continue;
+                var rootVisible = f >= lowerLimit && f <= limit;
+                if (!bestCandidate ||
+                        visibleCount > bestCandidate.visibleCount ||
+                        (visibleCount === bestCandidate.visibleCount && rootVisible && !bestCandidate.rootVisible)) {
+                    bestCandidate = { fret: f, visibleCount: visibleCount, rootVisible: rootVisible };
+                }
+            }
+            if (bestCandidate) rootFret = bestCandidate.fret;
         }
         if (rootFret === null) {
             return { available: false, reason: 'position' };
@@ -322,26 +414,45 @@
         var minFretUsed = null;
         var maxFretUsed = null;
         var includesOpen = false;
-        var notes = def.slots.map(function (slot) {
+        var allNotes = def.slots.map(function (slot) {
             var fret = rootFret + slot.o;
-            if (fret === 0) {
+            var finger = fret === 0 ? null : (fingerSource[slot.s] != null ? fingerSource[slot.s] : null);
+            return {
+                string: slot.s,
+                fret: fret,
+                interval: slot.iv,
+                finger: finger,
+                fingeringWarning: slot.fingeringWarning === true && finger === null && fret > 0
+            };
+        });
+        var notes = allNotes.filter(function (note) {
+            return note.fret >= lowerLimit && note.fret <= limit;
+        });
+        notes.forEach(function (note) {
+            if (note.fret === 0) {
                 includesOpen = true;
             } else {
-                if (minFretUsed === null || fret < minFretUsed) minFretUsed = fret;
-                if (maxFretUsed === null || fret > maxFretUsed) maxFretUsed = fret;
+                if (minFretUsed === null || note.fret < minFretUsed) minFretUsed = note.fret;
+                if (maxFretUsed === null || note.fret > maxFretUsed) maxFretUsed = note.fret;
             }
-            var finger = fret === 0 ? null : (fingerSource[slot.s] != null ? fingerSource[slot.s] : null);
-            return { string: slot.s, fret: fret, interval: slot.iv, finger: finger };
         });
+
+        var hasFingeringWarning = notes.some(function (note) {
+            return note.fingeringWarning === true;
+        });
+        var warning = def.warning || '';
+        if (def.warningMode === 'fingering' && !hasFingeringWarning) warning = '';
 
         return {
             available: true,
             shape: shapeKey,
             qualityKey: qualityKey,
             playability: def.playability || 'standard',
-            warning: def.warning || '',
+            warning: warning,
             rootFret: rootFret,
             usedOpenFingers: !!(isOpenPosition && def.openFingers),
+            hasOutOfRangeNotes: notes.length !== allNotes.length,
+            omittedNoteCount: allNotes.length - notes.length,
             notes: notes,
             mutedStrings: def.muted.slice(),
             fretRange: {
@@ -379,7 +490,7 @@
     function detectBarres(notes) {
         var groups = {};
         (notes || []).forEach(function (note) {
-            if (!note || typeof note.fret !== 'number' || note.fret <= 0) return;
+            if (!note || note.pendingDelete === true || typeof note.fret !== 'number' || note.fret <= 0) return;
             var finger = note.finger;
             if (finger === null || finger === undefined || finger === 'T') return;
             var key = finger + '@' + note.fret;

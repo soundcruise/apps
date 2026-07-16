@@ -5,7 +5,7 @@
        保存済みコードの編集では元データを複製して扱い、上書き／別名保存が
        確定するまで localStorage を変更しない。 */
 
-    var FINGER_CYCLE = [null, 'T', 1, 2, 3, 4];
+    var EDIT_CYCLE = [null, 'T', 1, 2, 3, 4, 'warning', 'delete'];
     var FINGER_LABELS = { T: '親', 1: '人', 2: '中', 3: '薬', 4: '小' };
     var DISPLAY_MODES = ['note', 'solfege', 'degree', 'finger'];
 
@@ -43,7 +43,7 @@
                     '</div>' +
                 '</div>' +
                 '<div id="cc-save-fb" class="cc-fb-host"></div>' +
-                '<p class="cc-fb-hint">音をタップすると運指が切り替わります（なし→親→人→中→薬→小）。</p>' +
+                '<p class="cc-fb-hint" id="cc-save-edit-hint"></p>' +
                 '<div class="cc-save-section">' +
                     '<div class="cc-save-row">' +
                         '<span class="cc-save-label">保存範囲</span>' +
@@ -143,14 +143,60 @@
         return note.fret >= draft.range.min && note.fret <= draft.range.max;
     }
 
+    function normalizeFinger(finger) {
+        return EDIT_CYCLE.indexOf(finger) >= 1 && EDIT_CYCLE.indexOf(finger) <= 5 ? finger : null;
+    }
+
+    function draftNote(note) {
+        var warning = !!(note && note.fingeringWarning === true && normalizeFinger(note.finger) === null);
+        return {
+            string: note.string,
+            fret: note.fret,
+            interval: note.interval,
+            finger: normalizeFinger(note.finger),
+            fingeringWarning: warning,
+            pendingDelete: false,
+            warningStartsCycle: warning
+        };
+    }
+
+    function noteEditState(note) {
+        if (note.pendingDelete) return 'delete';
+        if (note.fingeringWarning && note.finger === null) return 'warning';
+        return normalizeFinger(note.finger);
+    }
+
+    function applyEditState(note, state) {
+        note.pendingDelete = state === 'delete';
+        note.fingeringWarning = state === 'warning';
+        note.finger = EDIT_CYCLE.indexOf(state) >= 1 && EDIT_CYCLE.indexOf(state) <= 5 ? state : null;
+        note.warningStartsCycle = false;
+    }
+
+    function cycleNote(note) {
+        var current = noteEditState(note);
+        if (note.fret === 0) {
+            applyEditState(note, current === 'delete' ? null : 'delete');
+            return;
+        }
+        if (current === 'warning' && note.warningStartsCycle) {
+            applyEditState(note, 'T');
+            return;
+        }
+        var index = EDIT_CYCLE.indexOf(current);
+        applyEditState(note, EDIT_CYCLE[(index + 1) % EDIT_CYCLE.length]);
+    }
+
     function notePc(note) {
         var openPc = theory().OPEN_STRINGS[6 - note.string];
         return (openPc + note.fret) % 12;
     }
 
     function markerLabel(note) {
+        if (note.pendingDelete) return '消';
         if (draft.displayMode === 'finger') {
-            return note.finger != null ? (FINGER_LABELS[note.finger] || '') : '';
+            if (note.finger != null) return FINGER_LABELS[note.finger] || '';
+            return note.fingeringWarning ? '⚠' : '';
         }
         if (draft.displayMode === 'solfege') return theory().solfegeName(notePc(note), draft.useFlats);
         if (draft.displayMode === 'degree') return theory().degreeLabels([note.interval])[0];
@@ -186,10 +232,14 @@
                 label: markerLabel(note),
                 role: roleForInterval(note.interval),
                 dimmed: !noteIncluded(note),
+                pendingDelete: note.pendingDelete && noteIncluded(note),
+                fingeringWarning: draft.displayMode === 'finger' && note.fingeringWarning && !note.pendingDelete,
                 tappable: true
             };
         });
-        var barres = window.ChordCruise.caged.detectBarres(draft.notes.filter(noteIncluded));
+        var barres = window.ChordCruise.caged.detectBarres(draft.notes.filter(function (note) {
+            return noteIncluded(note) && !note.pendingDelete;
+        }));
         fb.render(host, {
             startFret: draft.startFret,
             endFret: draft.endFret,
@@ -212,8 +262,7 @@
                     }
                 }
                 if (!note || !noteIncluded(note)) return;
-                var pos = FINGER_CYCLE.indexOf(note.finger);
-                note.finger = FINGER_CYCLE[(pos + 1) % FINGER_CYCLE.length];
+                cycleNote(note);
                 renderPreview();
             }
         });
@@ -237,7 +286,9 @@
     }
 
     function currentRangeForDisplay() {
-        var frets = draft.notes.filter(noteIncluded).map(function (note) { return note.fret; });
+        var frets = draft.notes.filter(function (note) {
+            return noteIncluded(note) && !note.pendingDelete;
+        }).map(function (note) { return note.fret; });
         var fretted = frets.filter(function (fret) { return fret > 0; });
         return {
             min: fretted.length ? Math.min.apply(null, fretted) : 0,
@@ -307,11 +358,19 @@
     }
 
     function buildRecord(copyMode) {
-        var includedNotes = draft.notes.filter(noteIncluded).map(function (note) {
-            return { string: note.string, fret: note.fret, interval: note.interval, finger: note.finger };
+        var includedNotes = draft.notes.filter(function (note) {
+            return noteIncluded(note) && !note.pendingDelete;
+        }).map(function (note) {
+            return {
+                string: note.string,
+                fret: note.fret,
+                interval: note.interval,
+                finger: normalizeFinger(note.finger),
+                fingeringWarning: note.fingeringWarning === true && normalizeFinger(note.finger) === null
+            };
         });
         if (includedNotes.length === 0) {
-            setError('保存範囲に音が1つもありません。範囲を見直してください。');
+            setError('音が1つも残っていないため保存できません。消去状態または保存範囲を見直してください。');
             return null;
         }
 
@@ -326,6 +385,11 @@
         record.fretRange = currentRangeForDisplay();
         record.notes = includedNotes;
         record.mutedStrings = clone(draft.mutedStrings);
+        draft.notes.forEach(function (note) {
+            if (!noteIncluded(note) || !note.pendingDelete) return;
+            if (record.mutedStrings.indexOf(note.string) === -1) record.mutedStrings.push(note.string);
+        });
+        record.mutedStrings.sort(function (a, b) { return a - b; });
         record.memo = values.memo;
         record.folderId = values.folderId || window.ChordCruise.storage.UNCATEGORIZED_ID;
 
@@ -375,6 +439,9 @@
     function setModeUi(mode) {
         var editing = mode === 'edit';
         document.getElementById('cc-save-title').textContent = editing ? '保存コードを編集' : 'フォームを保存';
+        document.getElementById('cc-save-edit-hint').textContent = editing
+            ? '音をタップすると、運指・⚠️・消去を切り替えられます。上書き保存または別名で保存すると確定します。'
+            : '音をタップすると、運指・⚠️・消去を切り替えられます。変更は保存するまで確定しません。';
         document.getElementById('cc-save-confirm').style.display = editing ? 'none' : '';
         document.getElementById('cc-save-edit-actions').classList.toggle('cc-save-edit-actions--hidden', !editing);
     }
@@ -409,7 +476,7 @@
             rootPc: chord.rootPc,
             useFlats: !!payload.useFlats,
             displayMode: defaultDisplayMode(),
-            notes: clone(form.notes),
+            notes: form.notes.map(draftNote),
             mutedStrings: form.mutedStrings.slice(),
             startFret: typeof payload.startFret === 'number' ? payload.startFret : (form.fretRange.min >= 12 ? 12 : 0),
             endFret: typeof payload.endFret === 'number' ? payload.endFret : (form.fretRange.min >= 12 ? 25 : 13),
@@ -434,7 +501,9 @@
     function openExisting(payload) {
         ensureDom();
         var original = clone(payload.chord || {});
-        var notes = Array.isArray(original.notes) ? clone(original.notes) : [];
+        var notes = Array.isArray(original.notes) ? clone(original.notes).filter(function (note) {
+            return note && typeof note.string === 'number' && typeof note.fret === 'number';
+        }) : [];
         var range = original.fretRange || {};
         var fretted = notes.filter(function (note) { return note && note.fret > 0; }).map(function (note) { return note.fret; });
         var inferredMin = fretted.length ? Math.min.apply(null, fretted) : 0;
@@ -464,14 +533,7 @@
             rootPc: typeof original.rootPc === 'number' ? original.rootPc : null,
             useFlats: !!useFlats,
             displayMode: defaultDisplayMode(),
-            notes: notes.map(function (note) {
-                return {
-                    string: note.string,
-                    fret: note.fret,
-                    interval: note.interval,
-                    finger: note.finger == null ? null : note.finger
-                };
-            }),
+            notes: notes.map(draftNote),
             mutedStrings: Array.isArray(original.mutedStrings) ? original.mutedStrings.slice() : [],
             startFret: highFret ? 12 : 0,
             endFret: highFret ? 25 : 13,
