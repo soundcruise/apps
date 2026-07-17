@@ -52,6 +52,9 @@
     var LOUPE_NARROW_MARGIN = 28;
     var LOUPE_MOVE_STEP = 16;         // Alt+Shift+矢印キーでの移動量(px)
     var LOUPE_APP_SETTING_KEY = 'barLoupe';
+    var LOUPE_BOTTOM_MARGIN = 8;          // v0.22.4後修正: 動的max-height算出時の下端余白
+    var LOUPE_MIN_AVAILABLE_HEIGHT = 160; // 同: 上端がbottomMarginの分だけ下がっても、
+                                           // ヘッダー・拍ルーラー・最低1行程度は必ず触れる高さ
 
     var state = {
         project: null,   // 編集中の StudioProject
@@ -1859,12 +1862,52 @@
     }
 
     /**
-     * 垂直位置のクランプ。topは8px以上、下端はタイトルバー（閉じるボタン含む）が
-     * 必ず画面内に残る位置までに制限する。
+     * v0.22.4後修正: ルーペ上端の下限Y座標。画面上部に重なりうる固定/sticky UIの
+     * 実際の下端＋小余白を、固定値LOUPE_TOP_MARGINより優先して使う。
+     * - #app-nav（画面左上固定の「← 戻る」/「🏠 TOP」。position:fixed）
+     * - .sheet-toolbar（プロジェクト選択・新規・保存・印刷・JSON関連。
+     *   position:stickyでスクロール前は通常のフロー位置にあるが、画面幅の
+     *   ほぼ全体を占めるため、フローターの通常の配置とほぼ確実に水平方向で
+     *   重なる。スクロールしてstickyが固定化された状態（CSS上のtop値＋
+     *   要素自身の高さ）を安全側の下端として常に想定する。これによりスクロール
+     *   位置を監視するような複雑な仕組みを増やさずに済む
+     * いずれも実際に表示されている（getBoundingClientRect().height > 0）
+     * 要素だけを候補にし、最も下にある候補＋余白を採用する。非表示
+     * （display:none等）の要素はheightが0になるため自動的に候補から外れ、
+     * 既存のLOUPE_TOP_MARGINへフォールバックする。
+     */
+    function getLoupeMinTop() {
+        var candidates = [LOUPE_TOP_MARGIN];
+
+        var nav = document.getElementById('app-nav');
+        if (nav) {
+            var navRect = nav.getBoundingClientRect();
+            if (navRect.height > 0) {
+                candidates.push(Math.round(navRect.bottom) + 8);
+            }
+        }
+
+        var toolbar = document.querySelector('.sheet-toolbar');
+        if (toolbar) {
+            var toolbarRect = toolbar.getBoundingClientRect();
+            if (toolbarRect.height > 0) {
+                var stickyTop = parseFloat(getComputedStyle(toolbar).top);
+                if (!isFinite(stickyTop)) stickyTop = 0;
+                var stickyBottom = stickyTop + toolbarRect.height;
+                candidates.push(Math.round(stickyBottom) + 8);
+            }
+        }
+
+        return Math.max.apply(null, candidates);
+    }
+
+    /**
+     * 垂直位置のクランプ。topは#app-navの下端＋8px（非表示時はLOUPE_TOP_MARGIN）以上、
+     * 下端はタイトルバー（閉じるボタン含む）が必ず画面内に残る位置までに制限する。
      */
     function clampLoupeY(y) {
         var vh = window.innerHeight;
-        var minY = LOUPE_TOP_MARGIN;
+        var minY = getLoupeMinTop();
         var maxY = Math.max(minY, vh - LOUPE_HEADER_RESERVE);
         var v = (typeof y === 'number' && isFinite(y)) ? y : minY;
         return Math.round(Math.max(minY, Math.min(maxY, v)));
@@ -1915,9 +1958,30 @@
      */
     function applyLoupeGeometry() {
         if (!els.slotOverlay) return;
+        // v0.22.4後修正: initLoupeGeometry()はアプリ起動直後（まだTOP画面でapp-navが
+        // hidden化されている時点）に1度だけ呼ばれるため、その時点のclampLoupeYは
+        // #app-navの高さを0として計算してしまい、実際に譜面クルーズ画面でルーペが
+        // 開かれる頃にはタイトルバーがapp-navの裏へ入り込む不具合があった。
+        // DOMへ実際に反映するこの関数の入口でY座標を都度再クランプすることで、
+        // ルーペが表示されるたび（renderSlotOverlayContent経由）に、その時点の
+        // app-nav表示状態・viewportに合わせて必ず補正する。ドラッグ・リサイズの
+        // 呼び出し元は既にclampLoupeY済みの値を渡すため、ここでの再クランプは
+        // 冪等（値が変わらない）で、意図した位置を余分にリセットすることはない。
+        state.loupe.y = clampLoupeY(state.loupe.y);
         els.slotOverlay.style.left = state.loupe.x + 'px';
         els.slotOverlay.style.top = state.loupe.y + 'px';
         els.slotOverlay.style.width = state.loupe.width + 'px';
+        // v0.22.4後修正: 上端clamp強化（#app-nav・.sheet-toolbar考慮）でtopの下限が
+        // 上がったため、CSS側の固定`max-height: calc(100vh - 16px)`のままだと
+        // 下端がviewportを超えうる。実際のtopを引いた利用可能高さをinline styleで
+        // 都度設定し、CSSのmax-heightより優先させる（CSS側はJS無効時のフォールバック
+        // として残す）。最低LOUPE_MIN_AVAILABLE_HEIGHTは確保し、極端に低いviewportでも
+        // ヘッダー・拍ルーラー等の主要操作部には触れられるようにする。
+        var availableHeight = Math.max(
+            LOUPE_MIN_AVAILABLE_HEIGHT,
+            window.innerHeight - state.loupe.y - LOUPE_BOTTOM_MARGIN
+        );
+        els.slotOverlay.style.maxHeight = availableHeight + 'px';
         els.slotOverlay.style.setProperty('--bar-loupe-scale', String(state.loupe.width / LOUPE_BASE_WIDTH));
         els.slotOverlay.classList.toggle('slot-overlay--narrow', isNarrowViewport());
     }

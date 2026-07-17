@@ -1,4 +1,4 @@
-/* クルーズスタジオ theme.css — v0.22.3
+/* クルーズスタジオ theme.css — v0.22.4
    リズムクルーズの DESIGN_SYSTEM.md（Clean Pro系）の考え方を継承しつつ、
    PCファーストに読み替えたテーマ。shared/style.css には依存しない（ADR-005）。
    class名・DOMはクルーズスタジオ用に新規設計している。 */
@@ -1234,6 +1234,27 @@ body {
    cruiseStudio.appSettings の barLoupe キーへ保存する（projectデータ・schemaVersionは無変更）。
    印刷では従来どおり非表示（print.css）。 */
 .slot-overlay {
+    /* v0.22.4: フローター専用のデザイントークン（Codex GPT-5.6 Sol設計。A案
+       「ニュートラル・ミニマル」＋B案のスレートfocusを統合）。:root/紙面共通の
+       --primary-color・--paper-*は変更せず、フローター配下のこのブロックだけで
+       ローカルに再定義したトークンへ置き換える。高彩度オレンジは通常状態から外し、
+       ブロンズ（選択・固定専用）とスレート（focus専用）だけに用途を限定する。 */
+    --slot-surface: #f4f5f4;
+    /* v0.22.4後修正: 実機評価で「内部が見づらくなった」との指摘があり、
+       Fable計測で外側(#f4f5f4)と入力面(#fbfcfb)のコントラスト比が約1.06:1
+       （ほぼ無地）だったことを確認。外側の色は変えず、入力面だけ純白へ寄せて
+       区別をわずかに強めた（境界線・内側影と合わせて「一段」感を出す）。 */
+    --slot-input-surface: #ffffff;
+    --slot-text: #25292b;
+    --slot-muted: #62686b;
+    --slot-subtle: #687074;
+    --slot-border: #848c91;
+    --slot-divider: rgba(80, 88, 92, 0.22);
+    --slot-focus: rgba(74, 101, 126, 0.78);
+    --slot-active: #d5b06f;
+    --slot-fixed: #d9bf8b;
+    --slot-fixed-border: #9a754d;
+    --slot-shadow: 0 14px 34px rgba(0, 0, 0, 0.36);
     position: fixed;
     left: 0;
     top: 0;
@@ -1245,11 +1266,11 @@ body {
     flex-direction: column;
     gap: 6px;
     padding: 8px 20px 16px;
-    border: 2px solid var(--primary-color);
-    border-radius: 9px;
-    background: var(--paper-bg);
-    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.46);
-    color: var(--paper-ink);
+    border: 1px solid var(--slot-border);
+    border-radius: 8px;
+    background: var(--slot-surface);
+    box-shadow: var(--slot-shadow);
+    color: var(--slot-text);
     font-family: var(--paper-font);
     pointer-events: auto;
 }
@@ -1274,8 +1295,9 @@ body.loupe-resizing {
     gap: 14px;
     min-height: calc(34px * var(--bar-loupe-scale, 1));
     padding-bottom: 6px;
-    border-bottom: 1px solid var(--paper-border-soft);
+    border-bottom: 1px solid var(--slot-divider);
     overflow-x: auto;
+    overflow-y: hidden;
     cursor: grab;
 }
 
@@ -1290,19 +1312,21 @@ body.loupe-resizing {
 .slot-overlay-title {
     font-size: calc(15px * var(--bar-loupe-scale, 1));
     font-weight: 800;
-    color: var(--paper-ink);
+    color: var(--slot-text);
     letter-spacing: 0.02em;
 }
 
 .slot-overlay-section {
     padding: 2px 10px;
-    border-radius: 999px;
+    border-radius: 6px;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.04em;
-    color: #8a4a0a;
-    background: rgba(255, 159, 28, 0.12);
-    border: 1px solid rgba(255, 159, 28, 0.3);
+    /* v0.22.4後修正: Fable計測で背景(--slot-divider合成後)に対しコントラスト比
+       約3.33:1しかなかったため、--slot-textへ変更して読みやすくした。 */
+    color: var(--slot-text);
+    background: var(--slot-divider);
+    border: 1px solid var(--slot-border);
     white-space: nowrap;
 }
 
@@ -1310,23 +1334,30 @@ body.loupe-resizing {
     display: flex;
     align-items: center;
     gap: 8px;
-    flex: 0 0 auto;
+    /* 「基本に戻す」出現時に横幅超過→Safariの横スクロールバー出現→overflow-y:hiddenで
+       操作列が縦クリップされる不具合の対策。flex:0 0 autoのままだと自身の内容幅を
+       常に確保して.slot-overlay-headごとはみ出すため、1 1 autoで.slot-overlay-head内の
+       残り幅までは縮められるようにする。実際の縮小先は下のhintだけに集中させる
+       （他のボタン群にはflex-shrink:0を個別指定して主要操作は縮ませない）。 */
+    flex: 1 1 auto;
+    min-width: 0;
     white-space: nowrap;
 }
 
 .slot-overlay-nav {
     display: flex;
     gap: 4px;
+    flex-shrink: 0;
 }
 
 /* ボタン群: 紙面上に置かれた薄枠＋墨文字のボタンに見えること（ダークツールバー風にしない） */
 .slot-overlay-nav-btn {
     min-width: 56px;
     padding: 5px 10px;
-    border: 1px solid var(--paper-border-soft);
+    border: 1px solid var(--slot-border);
     border-radius: 8px;
-    background: #ffffff;
-    color: var(--paper-ink);
+    background: var(--slot-input-surface);
+    color: var(--slot-text);
     font-family: inherit;
     font-size: 12px;
     font-weight: 700;
@@ -1340,24 +1371,26 @@ body.loupe-resizing {
 }
 
 .slot-overlay-nav-btn:not(:disabled):hover {
-    border-color: var(--primary-color);
-    background: rgba(255, 159, 28, 0.1);
+    border-color: var(--slot-focus);
+    background: var(--slot-divider);
 }
 
-/* 8分/16分の解像度セグメント切替。選択中だけアンバー強調 */
+/* 8分/16分の解像度セグメント切替。選択中だけブロンズで強調（v0.22.4: 通常状態から
+   オレンジを外し、選択専用アクセントのvar(--slot-active)へ限定） */
 .slot-overlay-res-toggle {
     display: flex;
-    border: 1px solid var(--paper-border-soft);
+    border: 1px solid var(--slot-border);
     border-radius: 8px;
     overflow: hidden;
+    flex-shrink: 0;
 }
 
 .slot-overlay-res-btn {
     padding: 5px 10px;
     border: none;
-    border-right: 1px solid var(--paper-border-soft);
-    background: #ffffff;
-    color: var(--paper-muted);
+    border-right: 1px solid var(--slot-divider);
+    background: var(--slot-input-surface);
+    color: var(--slot-muted);
     font-family: inherit;
     font-size: 12px;
     font-weight: 700;
@@ -1369,8 +1402,8 @@ body.loupe-resizing {
 }
 
 .slot-overlay-res-btn.is-active {
-    color: #1a1206;
-    background: var(--secondary-color);
+    color: #2a1f0d;
+    background: var(--slot-active);
 }
 
 .slot-overlay-res-btn:disabled {
@@ -1380,59 +1413,70 @@ body.loupe-resizing {
 
 .slot-overlay-reset-btn {
     padding: 5px 10px;
-    border: 1px solid rgba(255, 159, 28, 0.4);
+    border: 1px solid var(--slot-border);
     border-radius: 8px;
-    background: rgba(255, 159, 28, 0.08);
-    color: #8a4a0a;
+    background: var(--slot-input-surface);
+    color: var(--slot-text);
     font-family: inherit;
     font-size: 12px;
     font-weight: 700;
     cursor: pointer;
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .slot-overlay-reset-btn:hover {
-    background: rgba(255, 159, 28, 0.16);
+    border-color: var(--slot-focus);
+    background: var(--slot-divider);
 }
 
 .slot-overlay-bulk-toggle {
     padding: 5px 10px;
-    border: 1px solid var(--paper-border-soft);
+    border: 1px solid var(--slot-border);
     border-radius: 8px;
-    background: #ffffff;
-    color: var(--paper-ink);
+    background: var(--slot-input-surface);
+    color: var(--slot-text);
     font-family: inherit;
     font-size: 12px;
     font-weight: 700;
     cursor: pointer;
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .slot-overlay-bulk-toggle:hover,
 .slot-overlay-bulk-toggle[aria-expanded="true"] {
-    border-color: var(--primary-color);
-    background: rgba(255, 159, 28, 0.1);
+    border-color: var(--slot-focus);
+    background: var(--slot-divider);
 }
 
 .slot-overlay-hint {
     font-size: 10.5px;
-    color: var(--paper-muted);
+    color: var(--slot-subtle);
     white-space: nowrap;
+    /* head-actions内で唯一縮小・省略を許す要素。「基本に戻す」出現時などに幅が
+       足りなくなった場合、主要な操作ボタン群を保ったままこの補助文言だけが
+       先に詰まる（ellipsis）ことで、.slot-overlay-headの横超過を防ぐ */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 1;
+    min-width: 0;
 }
 
 .slot-overlay-close {
     width: 26px;
     height: 26px;
     padding: 0;
-    border: 1px solid var(--paper-border-soft);
+    border: 1px solid var(--slot-border);
     border-radius: 8px;
-    background: #ffffff;
-    color: var(--paper-muted);
+    background: var(--slot-input-surface);
+    color: var(--slot-muted);
     font-family: inherit;
     font-size: 13px;
     font-weight: 700;
     line-height: 1;
     cursor: pointer;
+    flex-shrink: 0;
 }
 
 .slot-overlay-close:hover {
@@ -1488,12 +1532,12 @@ body.loupe-resizing {
     padding-left: 2px;
     font-size: 9.5px;
     font-weight: 800;
-    color: var(--paper-faint);
+    color: var(--slot-subtle);
     border-right: 1px solid transparent;
 }
 
 .slot-overlay-ruler-cell.is-beat-head {
-    color: #8a4a0a;
+    color: var(--slot-text);
 }
 
 .slot-overlay-ruler-cell.is-offbeat-dot::after {
@@ -1504,7 +1548,7 @@ body.loupe-resizing {
     width: 3px;
     height: 3px;
     border-radius: 50%;
-    background: var(--paper-faint);
+    background: var(--slot-subtle);
     transform: translateY(-50%);
 }
 
@@ -1533,7 +1577,9 @@ body.loupe-resizing {
 .slot-overlay-ruler-cell.is-barend,
 .dock-strum-cell.is-barend,
 .dock-lyrics-cell.is-barend {
-    border-right-color: rgba(255, 159, 28, 0.65);
+    /* v0.22.4: 小節端境界も通常状態のオレンジを外し、境界の強弱階層
+       （小節端＞拍頭＞8分＞16分）はそのままに、最も濃いニュートラルグレーで表す */
+    border-right-color: rgba(37, 41, 43, 0.55);
 }
 
 /* タイムグリッド本文: コード/ストローク/歌詞/ドレミの4段 */
@@ -1557,7 +1603,9 @@ body.loupe-resizing {
     font-size: 10.5px;
     font-weight: 700;
     letter-spacing: 0.06em;
-    color: var(--paper-muted);
+    /* v0.22.4後修正: コード/ストローク/歌詞/ドレミの見出し文字を、実機評価
+       「見やすさが落ちた」を受けてやや濃くした（--slot-subtle→--slot-muted）。 */
+    color: var(--slot-muted);
     text-transform: uppercase;
 }
 
@@ -1565,9 +1613,12 @@ body.loupe-resizing {
     position: relative;
     flex: 1;
     min-width: 0;
-    border-radius: 8px;
-    border: 1px solid var(--paper-border-soft);
-    background: #ffffff;
+    border-radius: 6px;
+    border: 1px solid var(--slot-border);
+    background: var(--slot-input-surface);
+    /* v0.22.4後修正: 外側面とほぼ同色になっていた入力面に、ごく薄い内側影で
+       「一段くぼんでいる」認識を足す（色相・彩度は変えず明度のみの調整）。 */
+    box-shadow: inset 0 1px 2px rgba(37, 41, 43, 0.06);
     display: flex;
     align-items: center;
 }
@@ -1589,7 +1640,7 @@ body.loupe-resizing {
     padding: 6px 12px;
     border: none;
     background: transparent;
-    color: var(--paper-ink);
+    color: var(--slot-text);
     font-family: inherit;
     font-size: max(12px, calc(15px * var(--bar-loupe-scale, 1)));
     font-weight: 600;
@@ -1610,13 +1661,13 @@ body.loupe-resizing {
 }
 
 .slot-overlay-input::placeholder {
-    color: var(--paper-faint);
+    color: var(--slot-subtle);
     font-weight: 500;
 }
 
 .slot-overlay-input:focus {
     outline: none;
-    box-shadow: inset 0 0 0 2px rgba(255, 159, 28, 0.55);
+    box-shadow: inset 0 0 0 2px var(--slot-focus);
 }
 
 .slot-overlay-input.is-invalid {
@@ -1629,15 +1680,15 @@ body.loupe-resizing {
     z-index: 1;
     font-size: 10px;
     font-weight: 600;
-    color: var(--paper-muted);
+    color: var(--slot-muted);
     letter-spacing: 0.02em;
     white-space: nowrap;
     padding: 0 10px 0 0;
 }
 
-.slot-overlay-row-note--info { color: #8a4a0a; }
-.slot-overlay-row-note--inherit { color: var(--paper-muted); }
-.slot-overlay-row-note--muted { color: var(--paper-faint); }
+.slot-overlay-row-note--info { color: var(--slot-fixed-border); }
+.slot-overlay-row-note--inherit { color: var(--slot-muted); }
+.slot-overlay-row-note--muted { color: var(--slot-subtle); }
 .slot-overlay-row-note--warning { color: var(--error-color); }
 
 /* コード/ドレミ行の背面線（G1 / ADR-029）。小節1入力のまま、拍/8分/16分の位置だけを
@@ -1685,8 +1736,9 @@ body.loupe-resizing {
     min-width: 0;
     border-radius: 8px;
     overflow: hidden;
-    border: 1px solid var(--paper-border-soft);
-    background: rgba(255, 248, 235, 0.72);
+    border: 1px solid var(--slot-border);
+    background: var(--slot-input-surface);
+    box-shadow: inset 0 1px 2px rgba(37, 41, 43, 0.06);
 }
 
 .dock-strum-grid.is-inherited {
@@ -1711,13 +1763,13 @@ body.loupe-resizing {
 
 .dock-strum-cell:focus-visible {
     outline: none;
-    box-shadow: inset 0 0 0 2px rgba(255, 159, 28, 0.7);
+    box-shadow: inset 0 0 0 2px var(--slot-focus);
     position: relative;
     z-index: 1;
 }
 
 .dock-strum-cell:hover {
-    background: rgba(255, 159, 28, 0.14);
+    background: var(--slot-divider);
 }
 
 .dock-strum-cell.is-rest {
@@ -1753,7 +1805,7 @@ body.loupe-resizing {
     width: 100%;
     border-radius: 8px;
     overflow: hidden;
-    border: 1px solid var(--paper-border-soft);
+    border: 1px solid var(--slot-border);
     background: transparent;
 }
 
@@ -1775,27 +1827,33 @@ body.loupe-resizing {
 }
 
 .dock-lyrics-cell.has-content {
-    background: rgba(255, 248, 235, 0.55);
+    background: var(--slot-divider);
 }
 
 .dock-lyrics-cell.is-multi {
-    box-shadow: inset 0 -2px 0 rgba(255, 159, 28, 0.5);
+    /* v0.22.4: 集約セルの下線マーカーは選択・固定用ブロンズと混同しないよう
+       ニュートラルな濃淡（--slot-mutedベース）で表す */
+    box-shadow: inset 0 -2px 0 rgba(98, 104, 107, 0.55);
 }
 
 .dock-lyrics-cell:hover {
-    background: rgba(255, 159, 28, 0.08);
+    /* v0.22.4後修正: has-content（内容ありセル）と同じ--slot-dividerのままだと
+       hoverしても変化が見えなかった（Fable指摘）ため、hover専用に一段濃い値へ。 */
+    background: rgba(80, 88, 92, 0.34);
 }
 
 .dock-lyrics-cell.is-composing {
-    background: rgba(255, 209, 102, 0.28);
+    /* v0.22.4後修正: alpha 0.12は背景との区別がほぼつかなかった（Fableコントラスト
+       計測1.18）ため0.30へ強め、IME変換中であることを視認しやすくした。 */
+    background: rgba(74, 101, 126, 0.30);
 }
 
 .dock-lyrics-cell:focus {
     outline: none;
-    box-shadow: inset 0 0 0 2px rgba(255, 159, 28, 0.6);
+    box-shadow: inset 0 0 0 2px var(--slot-focus);
     position: relative;
     z-index: 1;
-    background: rgba(255, 255, 255, 0.85);
+    background: var(--slot-input-surface);
 }
 
 /* G2b: 歌詞の拍別ローカル解像度（docs/DECISIONS.md ADR-030）。
@@ -1819,13 +1877,12 @@ body.loupe-resizing {
        box-modelそのものを縮めているので見た目とクリック領域は常に一致する）。
        v0.22.3後修正: 表示テキストを「自8/自16/固8/固16」から「8/16」＋固定状態だけの
        鍵アイコンへ変更するため、中身をinline-flexで中央配置する。
-       widthは固定値（min-widthではなく`width`）にした: 「アイコン+16」という
-       最も横幅を要する組み合わせでも16分セルへの重なりを最小限に抑えるため、
-       アイコンを4px・gapを1px・横paddingを0へさらに切り詰めたうえで16pxに固定し、
-       4状態（自動8/自動16/固定8/固定16）のいずれでもボタン幅が変化しないように
-       した（実測で自動8=14px・固定8=16.5px・固定16=21pxと状態ごとに幅が
-       変動してしまう問題を発見したための対応。高さ（11px）はアイコン追加前から
-       不変）。right/bottom/z-index・borderも不変。 */
+       v0.22.4後修正: ユーザー実機評価で鍵が小さすぎたため、Codex GPT-5.6 Sol設計に
+       従いアイコン6.5px・gap1.5pxへ拡大し、widthも19pxへ広げた（min-widthではなく
+       固定widthのため、4状態（自動8/自動16/固定8/固定16）のいずれでもボタン幅は
+       変化しない）。自動状態のopacity減光（0.65）も廃止し、色・背景の差だけで
+       自動/固定を表現する（自動拍ボタンの視認性低下を解消）。高さ（11px）・
+       right/bottom/z-index・border-radiusは不変。 */
     position: absolute;
     right: 1px;
     bottom: 1px;
@@ -1833,54 +1890,52 @@ body.loupe-resizing {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 1px;
-    width: 16px;
+    gap: 1.5px;
+    width: 19px;
     min-height: 11px;
     padding: 0;
-    border: 1px solid var(--paper-border-soft);
+    border: 1px solid var(--slot-border);
     border-radius: 3px;
-    background: rgba(255, 255, 255, 0.78);
-    color: var(--paper-muted);
+    background: var(--slot-input-surface);
+    color: var(--slot-muted);
     font-family: inherit;
     font-size: 6.5px;
     font-weight: 800;
     line-height: 1;
     letter-spacing: -0.02em;
     cursor: pointer;
-    opacity: 0.65;
 }
 
 .dock-lyrics-beat-res-btn.is-local {
-    opacity: 1;
-    border-color: rgba(255, 159, 28, 0.65);
-    background: var(--secondary-color);
-    color: #1a1206;
+    border-color: var(--slot-fixed-border);
+    background: var(--slot-fixed);
+    color: #2a1f0d;
 }
 
 /* v0.22.3後修正: 固定状態（is-local）だけに表示する、細いモノクロ線画の南京錠アイコン。
    Unicode絵文字は使わず、currentColorで塗るCSS mask（SVGデータURI）で描画するため、
    OS/ブラウザ間の見た目差やカラー絵文字化を避けられる。自動状態（is-auto）には
-   このルールが適用されないため、鍵は固定状態のときだけ表示される。 */
+   このルールが適用されないため、鍵は固定状態のときだけ表示される。
+   v0.22.4後修正: サイズを4.5px→6.5pxへ拡大し、stroke-widthも2.4→2.8へ微増して
+   縮小表示でも南京錠と認識しやすくした。 */
 .dock-lyrics-beat-res-btn.is-local::before {
     content: "";
     display: inline-block;
-    width: 4.5px;
-    height: 4.5px;
+    width: 6.5px;
+    height: 6.5px;
     flex: 0 0 auto;
     background-color: currentColor;
-    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2'/%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'/%3E%3C/svg%3E") center / contain no-repeat;
-    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2'/%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'/%3E%3C/svg%3E") center / contain no-repeat;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2'/%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2'/%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 .dock-lyrics-beat-res-btn:hover {
-    opacity: 1;
-    border-color: var(--primary-color);
+    border-color: var(--slot-focus);
 }
 
 .dock-lyrics-beat-res-btn:focus-visible {
     outline: none;
-    opacity: 1;
-    box-shadow: 0 0 0 2px rgba(255, 159, 28, 0.5);
+    box-shadow: 0 0 0 2px var(--slot-focus);
 }
 
 /* 右下ハンドル: 幅ドラッグで全体を比例拡大縮小する（--bar-loupe-scale をJSが更新） */
@@ -1923,11 +1978,11 @@ body.loupe-resizing {
     width: 400px;
     max-width: calc(100vw - 56px);
     padding: 14px 16px;
-    border: 2px solid var(--primary-color);
-    border-radius: 12px;
-    background: var(--paper-bg);
-    color: var(--paper-ink);
-    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--slot-border);
+    border-radius: 10px;
+    background: var(--slot-surface);
+    color: var(--slot-text);
+    box-shadow: var(--slot-shadow);
 }
 
 .slot-overlay-bulk-popover.is-flip-down {
@@ -1949,10 +2004,10 @@ body.loupe-resizing {
 .slot-overlay-bulk-kind,
 .slot-overlay-bulk-text {
     min-width: 0;
-    border: 1px solid var(--paper-border-soft);
+    border: 1px solid var(--slot-border);
     border-radius: 8px;
-    background: #ffffff;
-    color: var(--paper-ink);
+    background: var(--slot-input-surface);
+    color: var(--slot-text);
     font-family: inherit;
     font-size: 13px;
 }
@@ -1963,8 +2018,8 @@ body.loupe-resizing {
 }
 
 .slot-overlay-bulk-kind option {
-    background: #ffffff;
-    color: var(--paper-ink);
+    background: var(--slot-input-surface);
+    color: var(--slot-text);
 }
 
 .slot-overlay-bulk-text {
@@ -1985,8 +2040,9 @@ body.loupe-resizing {
     margin: 0;
     padding: 8px 10px;
     border-radius: 8px;
-    background: rgba(255, 159, 28, 0.1);
-    color: #8a4a0a;
+    background: var(--slot-divider);
+    /* v0.22.4後修正: Fable計測でコントラスト比約3.73:1だったため--slot-textへ変更 */
+    color: var(--slot-text);
     font-size: 11.5px;
     font-weight: 600;
     line-height: 1.5;
@@ -2001,10 +2057,10 @@ body.loupe-resizing {
 .slot-overlay-bulk-apply,
 .slot-overlay-bulk-close {
     padding: 8px 16px;
-    border: 1px solid var(--paper-border-soft);
+    border: 1px solid var(--slot-border);
     border-radius: 8px;
-    background: #ffffff;
-    color: var(--paper-ink);
+    background: var(--slot-input-surface);
+    color: var(--slot-text);
     font-family: inherit;
     font-size: 12.5px;
     font-weight: 700;
@@ -2013,8 +2069,8 @@ body.loupe-resizing {
 
 .slot-overlay-bulk-apply:hover,
 .slot-overlay-bulk-close:hover {
-    border-color: var(--primary-color);
-    background: rgba(255, 159, 28, 0.1);
+    border-color: var(--slot-focus);
+    background: var(--slot-divider);
 }
 
 .slot-overlay-bulk-message {
@@ -2032,8 +2088,8 @@ body.loupe-resizing {
 }
 
 .slot-overlay-bulk-message.is-warning {
-    background: rgba(255, 159, 28, 0.16);
-    color: #8a4a0a;
+    background: rgba(154, 117, 77, 0.16);
+    color: var(--slot-fixed-border);
 }
 
 /* ══════════ フッター ══════════ */

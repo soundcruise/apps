@@ -19,19 +19,19 @@
   - cruise-studio側の最新push済みcommitが、リポジトリ全体でも最新とは限らない
     （他アプリの並行commitがその後に積まれるため）
 - cruise-studioの直近push済みcommit:
+  - `3f387b18` 紙面歌詞位置と拍別固定表示を改善（`v0.22.3`）
   - `e64cf1ee` 歌詞解像度切替時のデータ破壊を防止（`v0.22.2`）
   - `b2772103` 歌詞最終セルのEnterで次小節へ移動（`v0.22.1 / G4`）
   - `c9ab248f` 歌詞行に拍別8分・16分切替を追加（`v0.22.0 / G2b`）
   - `2f5922f2` 歌詞セルの位置管理をtick基準へ移行（`v0.21.1 / G2a`）
   - `08139d18` 小節ルーペの拍グリッド表示を統一（`v0.21.0 / G1`。表示修正2点を含む）
   - `4e27b8c0` 譜面クルーズに歌詞セル編集とtick配置表示を追加（`v0.20.0 / F2a`）
-  - D3a・F1・F2a・G1・G2a・G2b・G4・v0.22.2とも既にpush済み。
-- クルーズスタジオ側の未commit差分は、`v0.22.3 紙面歌詞位置の修正＋拍別固定表示の
-  文言変更`実装分のみを想定する（下記5章を参照。実装・検証済み、commit/pushはまだ
+  - D3a・F1・F2a・G1・G2a・G2b・G4・v0.22.2・v0.22.3とも既にpush済み。
+- クルーズスタジオ側の未commit差分は、`v0.22.4 フローター入力UIのデザイントーン調整`
+  実装分のみを想定する（下記5章を参照。実装・検証済み、commit/pushはまだ
   実施していない）。
-- 2026-07-16時点、chord-cruise側の並行作業によりHEADが`02ebcb94`（コードクルーズの
-  CAGED表示と保存編集を拡張）まで進んでいるが、cruise-studioの安定点`e64cf1ee`は
-  その祖先であり影響しない。
+- chord-cruise側の並行作業によりHEADが進んでいることがあるが、cruise-studioの
+  安定点`3f387b18`はその祖先であり影響しない。
 - chord-cruise側にも別途、このセッションとは無関係な未commit差分が存在することがある。
   cruise-studio側の作業ではchord-cruiseには一切触れない。
 - rhythm-cruise 側の差分や未追跡ファイルが出ていても、この作業では触らない。
@@ -481,6 +481,202 @@
     枠線・背景・影・余白と合わせてまとめて評価・調整する。自動状態は数字のみ・
     固定状態だけ鍵を表示するという仕様自体、および内部ロジック（WeakMap・状態
     サイクル・IME処理等）は次フェーズでも変更しない前提とする
+- `v0.22.4 フローター入力UIのデザイントーン調整`（実装・検証済み。commit/push未実施）
+  - 背景: Codex GPT-5.6 Solが実コード・実DOM・computed style・ブラウザ上の一時CSS
+    プレビューを使って設計した改善案を実装した。A案「ニュートラル・ミニマル」を
+    基本に、B案のスレート系focus表現を統合。目標は洗練・大人っぽい・クール・
+    シンプル・静かで落ち着いた印象、ポップ感の低減。操作性・情報構造・入力機能・
+    自動/固定の内部状態は維持
+  - **新規CSSトークン**: `.slot-overlay`直下へ`--slot-surface`(#f4f5f4)・
+    `--slot-input-surface`(#ffffff。後述の見やすさ改善修正で#fbfcfbから変更)・
+    `--slot-text`(#25292b)・`--slot-muted`(#62686b)・
+    `--slot-subtle`(#687074)・`--slot-border`(#848c91)・
+    `--slot-divider`(rgba(80,88,92,.22))・`--slot-focus`(rgba(74,101,126,.78))・
+    `--slot-active`(#d5b06f)・`--slot-fixed`(#d9bf8b)・
+    `--slot-fixed-border`(#9a754d)・`--slot-shadow`(0 14px 34px rgba(0,0,0,.36))を
+    新設。`:root`・紙面共通トークン（`--primary-color`・`--paper-*`）は無変更
+  - **フローター外枠**: 背景#fdfbf5→`--slot-surface`、外枠`2px solid #ff9f1c`（高彩度
+    オレンジ）→`1px solid var(--slot-border)`（ニュートラルグレー）、角丸9px→8px、
+    影`0 18px 48px rgba(0,0,0,.46)`→`--slot-shadow`（弱め）
+  - **内部背景・入力面・区切り**: row-body・ストローク/歌詞グリッド・バルクpopover・
+    各種input/selectの背景を`--slot-input-surface`へ、枠線を`--slot-border`/
+    `--slot-divider`へ統一。暖色（`rgba(255,248,235,...)`等）の面積を除去
+  - **hover / focus / 選択・固定**: 通常hoverはオレンジをやめてニュートラル
+    （`--slot-divider`・`var(--slot-focus)`枠線）に統一。focus/focus-visibleは
+    スレート系`--slot-focus`へ統一（入力欄・ストローク/歌詞セル・拍別ボタン・
+    バルクボタン等）。8分/16分トグルの選択中（`is-active`）だけ低彩度ブロンズ
+    `--slot-active`。拍別固定状態（`is-local`）は`--slot-fixed`/
+    `--slot-fixed-border`。歌詞セルの`is-multi`下線・`is-composing`背景もオレンジ/
+    黄色からニュートラル/スレートへ
+  - **文字色・コントラスト**: `--paper-muted`/`--paper-faint`を参照していた補助文字・
+    拍ラベル・セクション見出し・ヒント文言等を`--slot-muted`/`--slot-subtle`へ
+    差し替え、拍別解像度ボタンの自動状態にかかっていた`opacity:0.65`（視認性低下の
+    原因）を廃止。コード・歌詞・ドレミの色分け（`--paper-chord`/`--paper-lyrics`/
+    `--paper-doremi`等。紙面と共通の意味付け）は無変更
+  - **小節端境界**: `.dock-strum-cell.is-barend`等のオレンジ罫線を、境界の強弱階層
+    （小節端＞拍頭＞8分＞16分）は維持したまま最も濃いニュートラルグレーへ
+  - **鍵アイコンのサイズ調整**: v0.22.3で「小さすぎる」と判断されたサイズを、
+    アイコン4.5px→6.5px・ボタン幅16px→19px・gap1px→1.5px・SVG stroke-width
+    2.4→2.8へ拡大。高さ11px・4状態（自動8/自動16/固定8/固定16）間でのボタン外形
+    寸法一致は維持。CSS mask方式・`currentColor`・`-webkit-mask`併記・Unicode
+    絵文字不使用・自動状態は数字のみ表示・状態サイクル・title/aria-label・
+    内部ロジックは無変更
+  - **v0.22.4後修正1: フローター内部の見やすさ改善**（実装・検証済み）: ユーザー
+    実機評価「内部が以前より見づらくなった」を受け、Fable計測（外側#f4f5f4と
+    入力面#fbfcfbのコントラスト比が約1.06:1でほぼ無地、セクションチップ3.33:1、
+    バルク注記3.73:1、IME変換中背景1.18:1、has-content歌詞セルのhover変化なし。
+    いずれもWCAG輝度式で再計算し実測値と一致を確認済み）を踏まえ、色相は変えず
+    明度・不透明度だけを調整した:
+    - `--slot-input-surface`を#fbfcfb→#ffffffへ
+    - `.slot-overlay-row-body`/`.dock-strum-grid`へ`box-shadow: inset 0 1px 2px
+      rgba(37,41,43,.06)`を追加し「一段くぼんでいる」認識を付与
+    - `.slot-overlay-row-label`（コード/ストローク/歌詞/ドレミ見出し）:
+      `--slot-subtle`→`--slot-muted`
+    - `.slot-overlay-section`（セクションチップ）・`.slot-overlay-bulk-lyrics-notice`
+      （バルク注記）: 文字色を`--slot-text`へ（コントラスト3.33/3.73→9.67:1へ改善）
+    - `.dock-lyrics-cell.is-composing`（IME変換中背景）: alpha 0.12→0.30
+    - `.dock-lyrics-cell:hover`: `--slot-divider`と同値で`has-content`セルでは
+      変化が見えなかったため`rgba(80,88,92,.34)`へ変更
+    - フローター外枠・影・角丸・ブロンズ（active/fixed）・スレートfocus・
+      鍵アイコン6.5px・拍別ボタン19px×11pxは無変更
+  - **v0.22.4後修正2: フローター上端が固定ヘッダー裏へ入る問題の修正**
+    （実装・検証済み）:
+    - 根本原因: `clampLoupeY()`の上端下限`LOUPE_TOP_MARGIN`（固定8px）が画面左上
+      固定の`#app-nav`（「← 戻る」/「🏠 TOP」。top:18px・高さ約39px・下端約57px）を
+      考慮していなかった。加えて`initLoupeGeometry()`はアプリ起動直後・まだTOP画面で
+      `#app-nav`が`hidden`化されている時点で1度だけ実行されるため、その時点の
+      `getLoupeMinTop()`相当の計算はapp-navの高さを0として行われ、実際に譜面クルーズ
+      画面でルーペが開かれる頃には既に無効なY座標が確定していた
+    - 修正: `sheet-cruise.js`へ`getLoupeMinTop()`を新設。`#app-nav`の
+      `getBoundingClientRect().bottom + 8`（非表示/未検出時は既存の
+      `LOUPE_TOP_MARGIN`にフォールバック）を返し、`clampLoupeY()`がこれを上端
+      下限として使うよう変更。加えて、実際にDOMへ座標を書き込む
+      `applyLoupeGeometry()`の入口で`state.loupe.y = clampLoupeY(state.loupe.y)`を
+      都度実行するようにし、ルーペが表示される瞬間（`renderSlotOverlayContent()`
+      経由）に毎回、現在の`#app-nav`・viewportに合わせて再クランプされるようにした
+      （ドラッグ・リサイズの呼び出し元は既にクランプ済みの値を渡すため冪等）
+    - 実機確認: 意図的に不正な保存値（`{x:0,y:8,width:680}`）をappSettingsへ注入し、
+      復元時に自動的にy=65（app-nav下端57px+8px）へ補正されること、大きく上方向へ
+      ドラッグしてもy=65より上へ行けないこと、ウィンドウ高さ500pxへ縮小・900pxへ
+      復元してもタイトルバーとapp-navの重なりが0のままであることを確認済み
+    - `appSettings.barLoupe`の`{x,y,width}`形式・localStorage key・`schemaVersion`は
+      無変更。ユーザーがドラッグした位置そのものはリセットせず、範囲外のときだけ
+      補正する既存の`clampLoupeY`の設計をそのまま踏襲
+  - **v0.22.4後修正3: 上部固定UI全体の再調査＋動的max-height**（実装・検証済み）:
+    - commit前の再確認で、`#app-nav`だけでは不十分と判明。`.sheet-toolbar`
+      （プロジェクト選択・新規・保存・印刷・JSON関連。`position:sticky; top:14px;`。
+      DOM上は`<div class="sheet-toolbar">`、IDなし）は画面幅のほぼ全体
+      （実測left:72.5〜right:1192.5、960px幅時）を占め、スクロールすると
+      `top:14px`で画面上部に固定される。sticky固定化された状態の下端（実測約80px）は
+      `#app-nav`の下端（57px）より低いことを確認した
+    - 修正: `getLoupeMinTop()`を拡張し、`.sheet-toolbar`が表示されている場合は
+      `getComputedStyle(toolbar).top`（CSSの固定位置。ハードコードせず動的取得）＋
+      `getBoundingClientRect().height`（sticky固定時の下端相当。スクロール位置に
+      よらず一定）を候補へ追加し、`#app-nav`の候補と合わせて最大値（＝最も下にある
+      もの）を採用するようにした。スクロール位置を監視するような仕組みは追加せず、
+      「将来スクロールされてsticky固定化された場合」を常に安全側として想定する
+      単純な方式を採用（過剰な衝突判定を避けるため）。修正後の上端下限は88px
+      （sticky-bottom80px+8px）
+    - `max-height`の追加修正: 上端下限が8px→88pxへ上がったことで、CSS側の固定
+      `max-height: calc(100vh - 16px)`のままでは下端がviewportを超えうると判明。
+      `applyLoupeGeometry()`で`window.innerHeight - state.loupe.y -
+      LOUPE_BOTTOM_MARGIN(8px)`を`el.style.maxHeight`として都度設定するよう変更
+      （新規定数`LOUPE_BOTTOM_MARGIN=8`・`LOUPE_MIN_AVAILABLE_HEIGHT=160`を追加。
+      極端に低いviewportでも最低160pxは確保し、ヘッダー・リサイズハンドル等の
+      主要操作部にアクセス不能にならないようにした）。CSSの`max-height`定義自体は
+      JS無効時のフォールバックとしてそのまま残置
+    - 実機確認: 通常幅960px・狭幅680pxいずれでもスクロール後の重なり0、高さ500pxで
+      `maxHeight:404px`（500-88-8）・下端がviewport内、高さ150pxの極端なケースでも
+      `maxHeight:160px`（フォールバック下限）でヘッダー等にアクセス可能なことを確認。
+      `document.elementFromPoint()`でタイトルバー中心点を検査し、フローターの
+      z-index（40）が`.sheet-toolbar`（15）より高く、スクロールされていない初期状態
+      （scrollY:0、`.sheet-toolbar`が通常フロー位置にある場合）でフローターの表示
+      範囲と重なっても、フローター自体（タイトルバー含む）は常に手前に表示され
+      隠れないことを確認した。この初期状態での重なりは「`.sheet-toolbar`の一部が
+      フローターの背後に一時的に隠れる」という逆方向の現象であり、フローターを
+      閉じれば解消する一時的な状態（v0.22.4以前から変わらない既存の重なり方）と
+      判断し、今回はスクロール監視等の追加対応はしていない
+    - **appSettings.barLoupeの検証時上書きについて**: 今回・前回の検証で意図的な
+      ドラッグ・位置注入・リサイズを繰り返したため、`appSettings.barLoupe`が
+      本来のユーザー設定ではなく検証操作の結果で上書きされていた
+      （直前値`{x:0,y:88,width:680}`）。今回のタスク開始時点のスナップショット
+      `{x:0,y:65,width:680}`へ復元した。ただし、この値自体も前回セッションの
+      検証操作に由来する可能性が高く、それ以前の「本来のユーザー設定」を示す
+      記録は会話ログ上に存在しないため、正確な原状回復はできていない
+      （実害はない値だが、事実として記録する）
+  - **v0.22.4後修正4: Safari実機でのフローターヘッダー横/縦スクロールバー同時発生の
+    修正**（実装・独立レビュー相当の数値検証・ユーザーSafari実機確認すべて完了）:
+    - 背景: ユーザーSafari実機から、ストローク編集後（「基本に戻す」ボタンが
+      ヘッダーへ追加された状態）に全体8分/16分を切り替えると、フローターのヘッダー
+      内へ横・縦スクロールバーが同時に出現し、上部が切れて見える不具合の報告が
+      あった。Chromeでは再現しにくく、原因調査のため`sheet-cruise.js`へ一時診断
+      コード（`window.__cruiseLoupeDebug`。`start()`/`stop()`/`clear()`/`get()`/`copy()`
+      によるイベントタイムライン記録に加え、`measureOverflow()`/`copyOverflow()`で
+      フローター本体・`.slot-overlay-head`・主要内部要素の寸法とcomputed overflowを
+      詳細採取できるAPI）を一時的に追加した。`prepareLyricResolutionChange`・
+      `finishLyricResolutionChange`・`applyLoupeGeometry`・`renderSlotOverlayContent`
+      への観測用ログ呼び出し、全体解像度ボタンのpointerdown/mousedown/focus/click
+      観測、`document`のfocusin/focusout・`window`/フローター自身のscrollイベント、
+      MutationObserverによるDOM再構築の観測を含み、いずれもfocus/preventScroll/
+      scroll位置/geometry適用/保存データには一切干渉しない読み取り専用の観測
+      コードだった
+    - ユーザーにSafari正常状態・不具合状態それぞれの`copyOverflow()`ログを取得して
+      もらい比較した結果、原因は2段階と判明した:
+      1. `.slot-overlay-head`のCSSに`overflow-x: auto`は指定されていたが
+         `overflow-y`は未指定で、CSS仕様上「片方が`auto`でもう片方が`visible`の
+         ままだと`visible`側も強制的に`auto`へ変換される」規則により、ヘッダーが
+         意図せず縦スクロールも可能な要素になっていた
+      2. ストローク編集で`bar.strumOverride`が立つと「基本に戻す」ボタン
+         （`.slot-overlay-reset-btn`。幅約82px）がヘッダー操作列へ追加され、
+         `.slot-overlay-head`のscrollWidthがclientWidth（680px幅時638px）を
+         約31〜34px超過。Safari実機の通常型（実領域を消費する）横スクロールバーが
+         ヘッダー高37pxのうち約15〜16pxを占有した結果、内部の操作列（高さ約30px）
+         を収めるための実効clientHeightが22pxまで減り、1.で強制された
+         `overflow-y:auto`と相まって操作列の上下がクリップされていた
+    - 修正は2段階。まず`.slot-overlay-head`へ`overflow-y: hidden;`を追加し、CSS
+      仕様上の強制`auto`化を断ち切って縦スクロールを恒久的に禁止（既存の
+      `overflow-x: auto`はそのまま維持）。しかしこの修正だけでは横超過そのものが
+      残るため、Chrome実測でも「基本に戻す」出現後に実際の横スクロールバー
+      （`offsetHeight-clientHeight`が16px）が発生することを確認し、根本原因である
+      横幅超過自体を解消する追加修正を行った。`.slot-overlay-head-actions`を
+      `flex: 0 0 auto`から`flex: 1 1 auto; min-width: 0;`へ変更してヘッダー内の
+      残り幅までは縮小できるようにしたうえで、主要操作ボタン群（`.slot-overlay-nav`・
+      `.slot-overlay-res-toggle`・`.slot-overlay-reset-btn`・`.slot-overlay-bulk-toggle`・
+      `.slot-overlay-close`）には個別に`flex-shrink: 0`を指定して縮小対象から除外し、
+      縮小先を補助文言`.slot-overlay-hint`（「Alt+←/→で移動」）1つだけに集中させた
+      （`overflow:hidden; text-overflow:ellipsis; flex-shrink:1; min-width:0;`）
+    - Chrome実測: 680px幅・ストローク編集後・全体8→16→8切替後のいずれでも
+      `head.scrollWidth === clientWidth`（638=638、超過0px）、
+      `offsetHeight-clientHeight`が16px→1px（borderのみ）、
+      `clientHeight === scrollHeight === 36px`（縦超過なし）を確認。960px幅では
+      補助文言は全文表示のまま変化なし（flex-shrinkは実際に幅不足時のみ作動）。
+      680px未満の狭幅（既存の`isNarrowViewport()`によるフローター幅クランプ）では
+      横スクロールが発生しうるが、これは今回のスコープ外の既存挙動であり、
+      縦クリップが発生しないことは確認済みで悪化させていない
+    - ユーザーSafari実機確認: Cmd+R再読み込み後・680px付近表示・ストローク編集後の
+      「基本に戻す」表示・全体8分/16分切替のいずれの条件でも、横スクロールバーが
+      出ない・ヘッダー上部が切れない・主要ボタンがすべて操作できる・補助文言の
+      省略表示は許容、という結果で1〜8すべてOKの実機承認を得た
+    - 一時診断コード完全削除: 原因特定・修正効果の確認に使った一時診断コード
+      （`LOUPE_DEBUG`ブロック全体、`window.__cruiseLoupeDebug`、
+      `measureOverflow()`/`copyOverflow()`、`prepareLyricResolutionChange`・
+      `finishLyricResolutionChange`・`applyLoupeGeometry`・`renderSlotOverlayContent`・
+      `buildResolutionToggle`・`init()`への観測用呼び出し、document/window/フローター
+      自身への観測用listener、MutationObserver）は、ユーザー実機承認後に
+      `sheet-cruise.js`から完全に削除済み。`grep -n "LOUPE_DEBUG\|cruiseLoupeDebug\|
+      loupeDebug\|measureOverflow\|copyOverflow" sheet-cruise.js`が0件であることを
+      確認済み。本来のfocus/render/geometry/解像度切替ロジック・既存の本番イベント
+      リスナーは削除前後で一切変更していない（削除後のファイル行数2785行が、
+      診断コード追加前の行数と完全一致することで裏付け済み）。本番差分には
+      診断APIを残さない
+  - 変更ファイルは`theme.css`・`sheet-cruise.js`（`getLoupeMinTop()`新設・拡張・
+    `clampLoupeY()`/`applyLoupeGeometry()`の修正、新規定数2つの追加。診断コードは
+    最終的に完全削除済み）・`index.html`のバージョン参照・`song-model.js`の
+    バージョン行。`theme.css`は上記に加え、後修正4のヘッダーSafari対策
+    （`.slot-overlay-head`の`overflow-y:hidden`、`.slot-overlay-head-actions`の
+    flex縮小許可、主要ボタン群の`flex-shrink:0`、`.slot-overlay-hint`のellipsis
+    縮小）を含む。DOM構造・入力ロジック・保存データ構造・`sheet-renderer.js`・
+    `print.css`・`schemaVersion`は一切変更していない
 
 ### ユーザー確定要望（未実装・G1範囲外）
 
@@ -535,16 +731,18 @@
 
 ## 6. 次にやること
 
-1. v0.22.3 commit
-2. v0.22.3 push
-3. 次タスク候補: フローター入力UIのデザイントーン調整（小節ルーペ全体を洗練された・
-   大人っぽい・クール・シンプルなトーンへ。維持するもの: 楽譜の白ベース、画面上部の
-   戻る/TOP/保存/印刷/JSON関連カードの基本デザイン、フローターの情報構造、現在の
-   入力機能、自動/固定の内部状態。検討対象: フローター外枠の強いオレンジ、内部の
-   暖色感、通常状態の罫線・背景、選択中/アクティブ状態だけに限定したアクセント色、
-   シャドウ、角丸、行間・余白、拍別解像度ボタン、鍵アイコンのサイズ・線幅・間隔・
-   ボタン幅、ダーク背景と白い楽譜の視覚バランス。実装前にCodex 5.6 Solで現状CSSと
-   画面を分析し、複数の安全な改善案を比較してから進める予定）
+1. v0.22.4実機確認（ユーザーによる目視確認。通常幅約960px・狭幅約680pxでの表示、
+   外枠オレンジ廃止・暖色面積減少・ポップ感低減・大人っぽさ/クールさ、hover/focus/
+   選択・固定状態の判別、鍵アイコンの明確さ、コントラスト、既存操作・G4・v0.22.2・
+   ドラッグ/リサイズ/バルク操作の回帰なし、印刷への影響なし。加えて後修正1
+   （入力面の見やすさ・コントラスト改善）と後修正2（フローター上端が固定ヘッダー
+   `#app-nav`の裏へ入らないこと。初回表示・ドラッグ・保存位置の復元・リロード・
+   ウィンドウ高さ変更後のいずれでも）の実機確認。**後修正4（Safariヘッダー横/縦
+   スクロールバー同時発生の修正）はユーザーSafari実機確認・一時診断コード削除まで
+   完了済み**。残るv0.22.4全体（デザイントーン調整本体・後修正1〜3）の実機確認が
+   未完了であれば、そちらを先に完了させる）
+2. v0.22.4 commit
+3. v0.22.4 push
 4. 次タスク候補: 長文歌詞セルの表示方針検討（4文字以上を1セルへ入れると隣接セル・
    隣接小節と重なりうる。候補案: あふれセルだけフォント縮小／ellipsis／クリップ／
    モーラ分割の入力案内強化。今回はどれも未実装）
@@ -596,6 +794,15 @@
 
 ## 9. 既知課題
 
+- v0.22.3実機検証で発見（未修正・次タスク候補）: ルーペ幅が狭小フォールバック
+  （680px未満のビューポートで強制される約280px幅）の状態で16分割の歌詞セルを
+  表示すると、`.dock-lyrics-cell`の意図的な`min-width: max(18px, calc(24px *
+  var(--bar-loupe-scale, 1)))`設計（最小タッチターゲット確保のため）により、
+  1拍4セル×18px=72pxが要求され、拍グループ（`.dock-lyrics-beat-cells`。
+  `min-width:0`は設定済みだが子セル自体のmin-widthが優先される）の幅を超えて
+  overflowする。通常のルーペ幅（980px前後）では問題なく、拍別解像度ボタンとの
+  重なりも最終セルのみ約9.4%に収まることを確認済み。`buildLyricsGridRow()`・
+  `.dock-lyrics-cell`は複数回のUI調整作業で変更禁止指定されてきたため未修正のまま。
 - [F2aで解決済み] 旧・小節グリッドカード（`#sc-bar-grid`）の歌詞inputが
   `setBarLyricsText()` 経由でtick位置情報を `tick:0` の単一イベントへ潰してしまう問題は、
   F2aで歌詞inputを `readOnly` 化し書き込み経路を断つことで解決した。ドレミ側は
