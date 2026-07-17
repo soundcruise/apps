@@ -154,16 +154,13 @@
             svg += '<rect x="' + boardX + '" y="' + (BOARD_BOTTOM - EDGE_H) + '" width="' + (width - boardX) + '" height="' + EDGE_H + '" fill="rgba(8,6,4,0.92)"/>';
         }
 
-        // 保存範囲などのハイライト（includesOpen のとき開放弦列も含める）
+        // 保存範囲などのハイライト。開放フォームでは0F〜formEndを連続範囲として扱う。
         if (!monochrome && rangeHighlight && typeof rangeHighlight.minFret === 'number' && typeof rangeHighlight.maxFret === 'number') {
             frets.forEach(function (fret, index) {
-                var included = fret > 0 && fret >= rangeHighlight.minFret && fret <= rangeHighlight.maxFret;
+                var included = fret >= rangeHighlight.minFret && fret <= rangeHighlight.maxFret;
                 if (!included) return;
                 svg += '<rect x="' + (index * FRET_W) + '" y="' + TOP_Y + '" width="' + FRET_W + '" height="' + STRING_AREA + '" fill="rgba(212,175,55,0.14)" stroke="rgba(232,201,122,0.55)" stroke-width="1.5" rx="6"/>';
             });
-            if (hasOpenColumn && rangeHighlight.includesOpen) {
-                svg += '<rect x="2" y="' + TOP_Y + '" width="' + (FRET_W - 4) + '" height="' + STRING_AREA + '" fill="rgba(212,175,55,0.10)" stroke="rgba(232,201,122,0.4)" stroke-width="1.2" stroke-dasharray="5 4" rx="6"/>';
-            }
         }
 
         // ポジションマーク（インレイ）
@@ -371,14 +368,18 @@
     function buildExportSvg(title, diagramOptions) {
         var options = diagramOptions || {};
         var model = createModel(options);
+        var nameSize = ['small', 'medium', 'large', 'xlarge'].indexOf(options.chordNameSize) !== -1
+            ? options.chordNameSize
+            : ((window.ChordCruise.state && window.ChordCruise.state.settings && window.ChordCruise.state.settings.chordNameSize) || 'medium');
+        var titleSize = { small: 18, medium: 22, large: 26, xlarge: 30 }[nameSize] || 22;
         var outerWidth = Math.max(260, model.width + 32);
-        var diagramY = 50;
+        var diagramY = titleSize + 28;
         var outerHeight = diagramY + SVG_H + 16;
         var diagramX = Math.round((outerWidth - model.width) / 2);
         var diagram = buildStaticSvg(options).replace('<svg ', '<svg x="' + diagramX + '" y="' + diagramY + '" ');
         var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + outerWidth + '" height="' + outerHeight + '" viewBox="0 0 ' + outerWidth + ' ' + outerHeight + '">' +
             '<rect width="100%" height="100%" fill="' + (options.monochrome ? '#ffffff' : '#141311') + '"/>' +
-            '<text x="' + diagramX + '" y="32" style="font-family:Arial,&quot;Hiragino Sans&quot;,sans-serif;font-size:25px;font-weight:700;fill:' + (options.monochrome ? '#111111' : '#f0e0b8') + '">' + escapeXml(title) + '</text>' +
+            '<text x="' + diagramX + '" y="' + (titleSize + 6) + '" style="font-family:Arial,&quot;Hiragino Sans&quot;,sans-serif;font-size:' + titleSize + 'px;font-weight:700;fill:' + (options.monochrome ? '#111111' : '#f0e0b8') + '">' + escapeXml(title) + '</text>' +
             diagram +
         '</svg>';
         return { svg: svg, width: outerWidth, height: outerHeight, scale: 2 };

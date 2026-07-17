@@ -16,12 +16,19 @@
     --cc-radius-md: 14px;
     --cc-radius-pill: 999px;
     --cc-fret-number-size: 14px;
+    --cc-chord-name-size: 22px;
+    --cc-chord-name-thumbnail-size: 0.95rem;
 }
 
 html[data-cc-fret-number-size="small"] { --cc-fret-number-size: 12px; }
 html[data-cc-fret-number-size="medium"] { --cc-fret-number-size: 14px; }
 html[data-cc-fret-number-size="large"] { --cc-fret-number-size: 16px; }
 html[data-cc-fret-number-size="xlarge"] { --cc-fret-number-size: 18px; }
+
+html[data-cc-chord-name-size="small"] { --cc-chord-name-size: 18px; --cc-chord-name-thumbnail-size: 0.8rem; }
+html[data-cc-chord-name-size="medium"] { --cc-chord-name-size: 22px; --cc-chord-name-thumbnail-size: 0.95rem; }
+html[data-cc-chord-name-size="large"] { --cc-chord-name-size: 26px; --cc-chord-name-thumbnail-size: 1.1rem; }
+html[data-cc-chord-name-size="xlarge"] { --cc-chord-name-size: 30px; --cc-chord-name-thumbnail-size: 1.25rem; }
 
 * {
     box-sizing: border-box;
@@ -363,6 +370,23 @@ body {
     font-weight: 700;
     color: var(--cc-champagne);
     letter-spacing: 0.04em;
+}
+
+.cc-diatonic-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.cc-diatonic-head .cc-card-heading {
+    margin: 0;
+}
+
+.cc-diatonic-tone-switch {
+    flex: 0 0 auto;
 }
 
 .cc-chord-grid {
@@ -769,6 +793,20 @@ body {
     font-weight: 700;
 }
 
+.cc-caged-btn--featured:not(.cc-caged-btn--active):not(.cc-caged-btn--na) {
+    border-color: rgba(232, 201, 122, 0.95);
+    box-shadow: 0 0 0 2px rgba(232, 201, 122, 0.2);
+    color: var(--cc-champagne);
+}
+
+.cc-caged-btn--featured.cc-caged-btn--recommended:not(.cc-caged-btn--active):not(.cc-caged-btn--na) {
+    border-style: dashed;
+}
+
+.cc-caged-btn--featured.cc-caged-btn--active:not(.cc-caged-btn--na) {
+    box-shadow: 0 0 0 2px var(--cc-surface), 0 0 0 4px rgba(232, 201, 122, 0.82);
+}
+
 .cc-caged-btn--na:not(.cc-caged-btn--active) {
     opacity: 0.4;
 }
@@ -1032,8 +1070,27 @@ body {
     font-size: 0.85rem;
 }
 
+.cc-save-folder-create {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+.cc-save-folder-error {
+    display: none;
+    margin: 2px 0 0;
+    color: var(--cc-danger);
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
 .cc-save-actions {
     margin-top: 16px;
+}
+
+.cc-save-bottom-cancel {
+    margin-top: 10px;
 }
 
 .cc-save-display-head {
@@ -1211,14 +1268,14 @@ body {
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--cc-champagne);
-    font-size: 0.8rem;
+    font-size: min(var(--cc-chord-name-thumbnail-size), 0.96rem);
     font-weight: 700;
     line-height: 1.25;
 }
 
-.cc-chordthumb-grid[data-library-columns="1"] .cc-chordthumb-name { font-size: 1.15rem; }
-.cc-chordthumb-grid[data-library-columns="2"] .cc-chordthumb-name { font-size: 1rem; }
-.cc-chordthumb-grid[data-library-columns="3"] .cc-chordthumb-name { font-size: 0.9rem; }
+.cc-chordthumb-grid[data-library-columns="1"] .cc-chordthumb-name { font-size: min(var(--cc-chord-name-thumbnail-size), 1.25rem); }
+.cc-chordthumb-grid[data-library-columns="2"] .cc-chordthumb-name { font-size: min(var(--cc-chord-name-thumbnail-size), 1.12rem); }
+.cc-chordthumb-grid[data-library-columns="3"] .cc-chordthumb-name { font-size: min(var(--cc-chord-name-thumbnail-size), 1.04rem); }
 
 .cc-chordthumb-card:active {
     transform: scale(0.985);
@@ -1298,7 +1355,7 @@ body {
     margin: 0 0 7px;
     overflow: hidden;
     color: var(--cc-champagne);
-    font-size: clamp(1.25rem, 5vw, 1.7rem);
+    font-size: var(--cc-chord-name-size);
     font-weight: 700;
     line-height: 1.2;
     text-align: center;
@@ -1308,6 +1365,10 @@ body {
 
 .cc-explore-fretboard-name {
     margin-top: -2px;
+}
+
+.cc-settings-preview-name {
+    margin-bottom: 5px;
 }
 
 .cc-lib-diagram-actions {
@@ -1615,6 +1676,51 @@ body.cc-settings-open {
     font-weight: 700;
 }
 
+.cc-settings-preview {
+    padding: 14px;
+    border: 1px solid var(--cc-border-strong);
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.22);
+    overflow: hidden;
+}
+
+.cc-settings-preview-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.cc-settings-preview h4 {
+    margin: 0;
+    color: var(--cc-champagne);
+    font-size: 0.92rem;
+}
+
+.cc-settings-preview-head span,
+.cc-settings-preview p {
+    color: var(--cc-text-muted);
+    font-size: 0.76rem;
+}
+
+.cc-settings-preview-modes {
+    margin: 10px 0 4px;
+}
+
+.cc-settings-preview-modes .cc-segment-btn {
+    padding: 6px 7px;
+    font-size: 0.74rem;
+}
+
+.cc-settings-preview p {
+    margin: 5px 0 10px;
+    line-height: 1.5;
+}
+
+.cc-settings-preview-board .cc-fb-scroll {
+    border-radius: 10px;
+}
+
 .cc-settings-item {
     display: flex;
     flex-direction: column;
@@ -1639,6 +1745,30 @@ body.cc-settings-open {
     color: var(--cc-text-muted);
     font-size: 0.78rem;
     line-height: 1.6;
+}
+
+.cc-settings-description-toggle {
+    align-self: flex-start;
+    min-height: 32px;
+    padding: 4px 0;
+    border: 0;
+    background: transparent;
+    color: var(--cc-gold-bright);
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.cc-settings-description-toggle:focus-visible {
+    outline: 2px solid var(--cc-gold-bright);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.cc-settings-description[hidden] {
+    display: none;
 }
 
 .cc-settings-choices {
@@ -1724,6 +1854,38 @@ body.cc-settings-open {
     border-color: rgba(232, 201, 122, 0.7);
     background: rgba(212, 175, 55, 0.22);
     color: var(--cc-gold-bright);
+}
+
+.cc-toast-host {
+    position: fixed;
+    z-index: 400;
+    left: 50%;
+    bottom: max(18px, calc(env(safe-area-inset-bottom) + 14px));
+    width: min(calc(100vw - 32px), 420px);
+    padding: 12px 16px;
+    border: 1px solid rgba(155, 218, 166, 0.5);
+    border-radius: 12px;
+    background: rgba(25, 58, 35, 0.96);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.38);
+    color: #edfff0;
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1.4;
+    opacity: 0;
+    pointer-events: none;
+    text-align: center;
+    transform: translateX(-50%) translateY(8px) scale(0.97);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.cc-toast-host--visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+}
+
+.cc-toast-host--error {
+    border-color: rgba(207, 90, 99, 0.58);
+    background: rgba(91, 32, 39, 0.96);
 }
 
 @media (max-width: 420px) {

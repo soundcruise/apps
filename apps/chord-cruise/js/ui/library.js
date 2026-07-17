@@ -541,7 +541,7 @@
         '<div class="cc-card">' +
             '<h3 class="cc-card-heading">編集</h3>' +
             '<div class="cc-save-section">' +
-                '<label class="cc-field"><span class="cc-field-label">コード名</span>' +
+                '<label class="cc-field"><span class="cc-field-label">名前</span>' +
                     '<input type="text" id="cc-lib-chord-name" class="cc-input" maxlength="32" value="' + escapeHtml(displayName) + '"></label>' +
                 '<label class="cc-field"><span class="cc-field-label">フォーム名</span>' +
                     '<input type="text" id="cc-lib-form-name" class="cc-input" maxlength="32" value="' + escapeHtml(displayFormName) + '"></label>' +

@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
-- 現在のバージョン: `0.16.0`（`index.html` の各`<script>`タグの `?v=`、および `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`）
+- 現在のバージョン: `0.17.0`（`index.html` の各`<script>`タグの `?v=`、および `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`）
 - 最新commit（chord-cruise関連、`git log --oneline -- apps/chord-cruise/` で確認）:
   - hash: `096f077d`
   - message: `コードクルーズにC型・G型のマイナー系フォームを追加`
@@ -130,13 +130,13 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.16.0`）。
-- `?v=` によるキャッシュ管理: `index.html` 内の全13本の `<script src="...?v=0.16.0">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.16.0">` が同じバージョン文字列を共有している。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.17.0`）。
+- `?v=` によるキャッシュ管理: `index.html` 内の全14本の `<script src="...?v=0.17.0">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.17.0">` が同じバージョン文字列を共有している。
 - 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
 - service workerの更新: service worker自体が存在しないため不要。
-- **バージョン更新漏れしやすい箇所**: `index.html`内の13本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。
+- **バージョン更新漏れしやすい箇所**: `index.html`内の14本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。
 
-全CAGED型の`m / m7 / m7♭5 / dim`は、`maj / 7`テンプレートから共通生成する。三和音系は`3→♭3`、dimではさらに`5→♭5`、7th系はdominant 7を基準に`3→♭3`、m7♭5ではさらに`5→♭5`とし、ルートと♭7は維持する。C型mの5弦ルートは小指（finger 4）。G型dimは低音側を6弦=小、5弦=中、4弦=人とし、高音側3弦を`fingeringWarning`にする。推奨運指が成立しない音は運指モードで`⚠️`を表示し、保存編集では指指定・警告・消去を循環できる。フォーム警告は初期状態で閉じた「⚠️ 運指」ボタンへまとめ、範囲外音を省略した場合は別の「△ フォーム」ボタンで知らせる。`pendingDelete`はdraftだけに保持し、確定時にnotesから除外する。既存保存データの欠損属性はfalse/null扱いとし、schemaVersionは1のまま、新機能として`0.16.0`へ更新した。
+全CAGED型の`m / m7 / m7♭5 / dim`は、`maj / 7`テンプレートから共通生成する。三和音系は`3→♭3`、dimではさらに`5→♭5`、7th系はdominant 7を基準に`3→♭3`、m7♭5ではさらに`5→♭5`とし、ルートと♭7は維持する。C型mの5弦ルートは小指（finger 4）。G型dimは低音側を6弦=小、5弦=中、4弦=人とし、高音側3弦を`fingeringWarning`にする。推奨運指が成立しない音は運指モードで`⚠️`を表示し、保存編集では指指定・警告・消去を循環できる。フォーム警告は初期状態で閉じた「⚠️ 運指」ボタンへまとめ、範囲外音を省略した場合は別の「△ フォーム」ボタンで知らせる。定番CAGEDの明示表とフォールバックスコアは`ai-handoff/COMMON_CAGED_FORMS.md`に記載する。`pendingDelete`はdraftだけに保持し、確定時にnotesから除外する。設定には`chordNameSize`（small / medium / large / xlarge、未設定・不正値はmedium）を追加し、下部共通トースト、保存フォーム内の新規フォルダ作成と直下キャンセルを実装した。既存保存コードのschemaVersionは1のまま、新機能として`0.17.0`へ更新した。
 
 ---
 

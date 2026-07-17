@@ -56,15 +56,15 @@
                         '<button type="button" class="cc-segment-btn" id="cc-mode-minor">マイナー</button>' +
                     '</div>' +
                 '</div>' +
-                '<div class="cc-control-row">' +
-                    '<div class="cc-segment" role="group" aria-label="和音数切替">' +
+            '</div>' +
+            '<div class="cc-card">' +
+                '<div class="cc-diatonic-head">' +
+                    '<h3 class="cc-card-heading">ダイアトニックコード</h3>' +
+                    '<div class="cc-segment cc-diatonic-tone-switch" role="group" aria-label="和音数切替">' +
                         '<button type="button" class="cc-segment-btn" id="cc-tone-3">3和音</button>' +
                         '<button type="button" class="cc-segment-btn" id="cc-tone-7">4和音</button>' +
                     '</div>' +
                 '</div>' +
-            '</div>' +
-            '<div class="cc-card">' +
-                '<h3 class="cc-card-heading">ダイアトニックコード</h3>' +
                 '<div class="cc-chord-grid" id="cc-chord-grid"></div>' +
                 '<div class="cc-custom-chord-row">' +
                     '<button type="button" class="cc-btn cc-btn-secondary cc-btn--block" id="cc-custom-chord-btn">＋ 任意コードを作る</button>' +
@@ -509,6 +509,9 @@
         var chord = selectedChord();
         var activeShape = getState().exploreShape || '';
         var range = fretWindow();
+        var featured = chord
+            ? window.ChordCruise.caged.getCommonForm(chord.qualityKey, chord.rootPc, range.end, range.start)
+            : null;
         Array.prototype.forEach.call(row.querySelectorAll('.cc-caged-btn'), function (btn) {
             var shape = btn.dataset.shape;
             btn.classList.toggle('cc-caged-btn--active', shape === activeShape);
@@ -517,6 +520,14 @@
                 na = !window.ChordCruise.caged.getForm(shape, chord.qualityKey, chord.rootPc, range.end, range.start).available;
             }
             btn.classList.toggle('cc-caged-btn--na', na);
+            var isFeatured = !!(shape && featured && featured.shape === shape && !na);
+            btn.classList.toggle('cc-caged-btn--featured', isFeatured);
+            btn.classList.toggle('cc-caged-btn--recommended', isFeatured && featured.source === 'recommended');
+            if (isFeatured) {
+                btn.title = shape + '型：' + featured.label;
+            } else {
+                btn.removeAttribute('title');
+            }
         });
     }
 
@@ -555,16 +566,20 @@
             var result = caged.getForm(shape, chord.qualityKey, chord.rootPc, range.end, range.start);
             if (result.available) {
                 form = result;
+                var displayRange = form.displayRange || form.fretRange;
                 markers = computeFormMarkers(chord, form);
                 barres = caged.detectBarres(form.notes);
                 mutedStrings = form.mutedStrings;
                 rangeHighlight = {
-                    minFret: form.fretRange.min,
-                    maxFret: form.fretRange.max,
-                    includesOpen: form.fretRange.includesOpen
+                    minFret: displayRange.min,
+                    maxFret: displayRange.max,
+                    includesOpen: displayRange.includesOpen
                 };
-                scrollToFret = Math.round((form.fretRange.min + form.fretRange.max) / 2);
-                hint = shape + '型 ' + chord.symbol + '（' + caged.formatFretRange(form.fretRange) + '）';
+                // 開放フォームだけは0F側を初期表示し、ムーバブルフォームは従来どおり中央寄せする。
+                scrollToFret = displayRange.includesOpen
+                    ? displayRange.viewportStart
+                    : Math.round((form.fretRange.min + form.fretRange.max) / 2);
+                hint = shape + '型 ' + chord.symbol + '（' + caged.formatFretRange(displayRange) + '）';
                 if (form.warning) {
                     noticeType = form.playability;
                     noticeText = form.warning;

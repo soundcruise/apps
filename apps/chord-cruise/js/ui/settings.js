@@ -13,6 +13,10 @@
         return VALID_SIZES.indexOf(value) !== -1 ? value : 'medium';
     }
 
+    function normalizeChordNameSize(value) {
+        return VALID_SIZES.indexOf(value) !== -1 ? value : 'medium';
+    }
+
     function normalizeHighlightMode(value) {
         return VALID_HIGHLIGHT_MODES.indexOf(value) !== -1 ? value : 'all';
     }
@@ -39,9 +43,26 @@
         return size;
     }
 
+    function applyChordNameSize(value) {
+        var size = normalizeChordNameSize(value);
+        document.documentElement.setAttribute('data-cc-chord-name-size', size);
+        return size;
+    }
+
     function updateControls() {
         if (!overlayEl) return;
         var settings = getSettings();
+        var activeChordNameSize = normalizeChordNameSize(settings.chordNameSize);
+        Array.prototype.forEach.call(overlayEl.querySelectorAll('[data-chord-name-size]'), function (btn) {
+            var selected = btn.getAttribute('data-chord-name-size') === activeChordNameSize;
+            btn.classList.toggle('cc-settings-choice--active', selected);
+            btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        });
+        Array.prototype.forEach.call(overlayEl.querySelectorAll('[data-preview-display-mode]'), function (btn) {
+            var selected = btn.getAttribute('data-preview-display-mode') === settings.fretboardDisplayMode;
+            btn.classList.toggle('cc-segment-btn--active', selected);
+            btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        });
         var active = normalizeSize(settings.fretNumberSize);
         Array.prototype.forEach.call(overlayEl.querySelectorAll('[data-fret-number-size]'), function (btn) {
             var selected = btn.getAttribute('data-fret-number-size') === active;
@@ -70,6 +91,23 @@
         getSettings().fretNumberSize = size;
         window.ChordCruise.storage.saveSettings({ fretNumberSize: size });
         updateControls();
+        notifyFretboardChange();
+    }
+
+    function setChordNameSize(value) {
+        var size = applyChordNameSize(value);
+        getSettings().chordNameSize = size;
+        window.ChordCruise.storage.saveSettings({ chordNameSize: size });
+        updateControls();
+        notifyFretboardChange();
+    }
+
+    function setPreviewDisplayMode(value) {
+        var mode = ['note', 'solfege', 'degree', 'finger'].indexOf(value) !== -1 ? value : 'note';
+        getSettings().fretboardDisplayMode = mode;
+        window.ChordCruise.storage.saveSettings({ fretboardDisplayMode: mode });
+        updateControls();
+        notifyFretboardChange();
     }
 
     function notifyFretboardChange() {
@@ -105,6 +143,16 @@
         notifyFretboardChange();
     }
 
+    function toggleDescription(button) {
+        var id = button.getAttribute('data-settings-description');
+        var detail = id ? document.getElementById('cc-settings-description-' + id) : null;
+        if (!detail) return;
+        var expanded = button.getAttribute('aria-expanded') === 'true';
+        detail.hidden = expanded;
+        button.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+        button.textContent = expanded ? '＋ 説明' : '− 説明';
+    }
+
     function buildCustomFretGrid() {
         var grid = document.getElementById('cc-settings-custom-grid');
         if (!grid || grid.children.length) return;
@@ -120,10 +168,65 @@
         }
     }
 
+    function previewLabel(note, chord, useFlats) {
+        var mode = getSettings().fretboardDisplayMode;
+        var theory = window.ChordCruise.theory;
+        var openPc = theory.OPEN_STRINGS[6 - note.string];
+        var pc = (openPc + note.fret) % 12;
+        if (mode === 'solfege') return theory.solfegeName(pc, useFlats);
+        if (mode === 'degree') return theory.degreeLabels([note.interval])[0];
+        if (mode === 'finger') {
+            if (note.finger === 'T') return '親';
+            if (note.finger != null) return { 1: '人', 2: '中', 3: '薬', 4: '小' }[note.finger] || '';
+            return note.fingeringWarning ? '⚠' : '';
+        }
+        return theory.noteName(pc, useFlats);
+    }
+
+    function previewRole(interval) {
+        if (interval === 0) return 'root';
+        if (interval === 3 || interval === 4) return 'third';
+        if (interval === 6 || interval === 7 || interval === 8) return 'fifth';
+        if (interval === 9 || interval === 10 || interval === 11) return 'seventh';
+        return 'other';
+    }
+
+    function renderPreview() {
+        var host = document.getElementById('cc-settings-fretboard-preview');
+        if (!host || !window.ChordCruise.caged || !window.ChordCruise.ui.fretboard) return;
+        var theory = window.ChordCruise.theory;
+        var chord = theory.getDiatonicChords(0, 'major', '3')[0];
+        var form = window.ChordCruise.caged.getForm('C', chord.qualityKey, chord.rootPc, 13, 0);
+        if (!form || !form.available) return;
+        var displayRange = form.displayRange || form.fretRange;
+        var useFlats = theory.keyUsesFlats(0, 'major');
+        window.ChordCruise.ui.fretboard.render(host, {
+            startFret: displayRange.viewportStart,
+            endFret: displayRange.viewportEnd,
+            markers: form.notes.map(function (note) {
+                return {
+                    string: note.string,
+                    fret: note.fret,
+                    label: previewLabel(note, chord, useFlats),
+                    role: previewRole(note.interval),
+                    fingeringWarning: getSettings().fretboardDisplayMode === 'finger' && note.fingeringWarning === true
+                };
+            }),
+            barres: window.ChordCruise.caged.detectBarres(form.notes),
+            mutedStrings: form.mutedStrings,
+            rangeHighlight: {
+                minFret: displayRange.min,
+                maxFret: displayRange.max,
+                includesOpen: displayRange.includesOpen
+            }
+        });
+    }
+
     function open() {
         if (!overlayEl) return;
         previousFocus = document.activeElement;
         updateControls();
+        renderPreview();
         overlayEl.classList.remove('cc-settings-overlay--hidden');
         overlayEl.setAttribute('aria-hidden', 'false');
         document.body.classList.add('cc-settings-open');
@@ -152,6 +255,8 @@
 
         var initialSize = applyFretNumberSize(getSettings().fretNumberSize);
         getSettings().fretNumberSize = initialSize;
+        var initialChordNameSize = applyChordNameSize(getSettings().chordNameSize);
+        getSettings().chordNameSize = initialChordNameSize;
         updateControls();
 
         if (openBtn) openBtn.addEventListener('click', open);
@@ -161,6 +266,16 @@
                 var choice = event.target.closest('[data-fret-number-size]');
                 if (choice) {
                     setFretNumberSize(choice.getAttribute('data-fret-number-size'));
+                    return;
+                }
+                var chordNameChoice = event.target.closest('[data-chord-name-size]');
+                if (chordNameChoice) {
+                    setChordNameSize(chordNameChoice.getAttribute('data-chord-name-size'));
+                    return;
+                }
+                var previewDisplayMode = event.target.closest('[data-preview-display-mode]');
+                if (previewDisplayMode) {
+                    setPreviewDisplayMode(previewDisplayMode.getAttribute('data-preview-display-mode'));
                     return;
                 }
                 var highlightMode = event.target.closest('[data-fret-highlight-mode]');
@@ -173,6 +288,11 @@
                     toggleHighlightedFret(customFret.getAttribute('data-highlight-fret'));
                     return;
                 }
+                var descriptionToggle = event.target.closest('[data-settings-description]');
+                if (descriptionToggle) {
+                    toggleDescription(descriptionToggle);
+                    return;
+                }
                 if (event.target === overlayEl) close();
             });
         }
@@ -182,6 +302,7 @@
                 close();
             }
         });
+        document.addEventListener('chordcruise:fretboard-settings-change', renderPreview);
     }
 
     window.ChordCruise = window.ChordCruise || {};
@@ -191,7 +312,10 @@
         open: open,
         close: close,
         applyFretNumberSize: applyFretNumberSize,
+        applyChordNameSize: applyChordNameSize,
         normalizeSize: normalizeSize,
+        normalizeChordNameSize: normalizeChordNameSize,
+        setPreviewDisplayMode: setPreviewDisplayMode,
         normalizeHighlightMode: normalizeHighlightMode,
         normalizeHighlightedFrets: normalizeHighlightedFrets
     };

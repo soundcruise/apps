@@ -28,7 +28,7 @@
                     '<h3 class="cc-modal-title">コードを作る</h3>' +
                     '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-builder-cancel">キャンセル</button>' +
                 '</div>' +
-                '<input type="text" id="cc-builder-name" class="cc-input cc-builder-name" maxlength="64" autocomplete="off" spellcheck="false" aria-label="コード名（タップして編集できます）">' +
+                '<input type="text" id="cc-builder-name" class="cc-input cc-builder-name" maxlength="64" autocomplete="off" spellcheck="false" aria-label="名前（タップして編集できます）">' +
                 '<div class="cc-builder-grid">' +
                     '<label class="cc-field cc-builder-field--wide"><span class="cc-field-label">ルート音</span>' +
                         '<select id="cc-builder-root" class="cc-select">' + rootOptions + '</select></label>' +

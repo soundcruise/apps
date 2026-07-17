@@ -12,6 +12,15 @@
        playability は standard / advanced / limited。warning はフォーム選択時だけ表示する。 */
 
     var SHAPE_ORDER = ['C', 'A', 'G', 'E', 'D'];
+    // 型として鳴らさない低音弦。品質ごとの辞書値とは分離し、全品質で一貫させる。
+    // 実際にその弦を使う特殊ボイシングが将来追加された場合は、notes 側を優先する。
+    var SHAPE_DEFAULT_MUTED_STRINGS = {
+        C: [6],
+        A: [6],
+        G: [],
+        E: [],
+        D: [6, 5]
+    };
 
     var FORMS = {
         E: {
@@ -337,6 +346,37 @@
 
     applyRoleTemplates();
 
+    /* 「定番フォーム」は、まず開放コード／標準ローコードとして広く定着している
+       組み合わせを明示表で固定する。表に無いルート／品質は、実用的なE型→A型を
+       優先し、両方が不適切なときだけ全型スコア比較へ進む。 */
+    var COMMON_FORM_OVERRIDES = {
+        maj: { 0: 'C', 2: 'D', 4: 'E', 5: 'E', 7: 'G', 9: 'A' },
+        m: { 2: 'D', 4: 'E', 9: 'A' },
+        '7': { 0: 'C', 2: 'D', 4: 'E', 7: 'G', 9: 'A' },
+        maj7: { 0: 'C', 2: 'D', 4: 'E', 7: 'G', 9: 'A' },
+        m7: { 2: 'D', 4: 'E', 9: 'A' }
+    };
+
+    // 「定番」とは断定しないが、運指上の実用性から優先したい既知ケース。
+    // Bm♭5（内部qualityKeyはdim）はA型をおすすめとして案内する。
+    var RECOMMENDED_FORM_OVERRIDES = {
+        dim: { 11: 'A' }
+    };
+
+    function resolvedMutedStrings(shapeKey, formMutedStrings, allNotes) {
+        var candidates = (SHAPE_DEFAULT_MUTED_STRINGS[shapeKey] || []).concat(formMutedStrings || []);
+        var usedStrings = {};
+        var seen = {};
+        (allNotes || []).forEach(function (note) {
+            usedStrings[note.string] = true;
+        });
+        return candidates.filter(function (stringNum) {
+            if (stringNum < 1 || stringNum > 6 || seen[stringNum] || usedStrings[stringNum]) return false;
+            seen[stringNum] = true;
+            return true;
+        }).sort(function (a, b) { return a - b; });
+    }
+
     /**
      * 指定の型・品質・ルート音で実フォームを求める。
      * 全音が表示範囲に収まる配置を優先し、無い場合は最も多くの音を表示できる
@@ -344,9 +384,62 @@
      * 表示範囲が0Fを含み、フォーム内の最低フレットが0Fになる場合だけ
      * openFingers を優先適用する。12F以降ではムーバブルフォーム用運指を使う。
      * @returns { available:true, shape, qualityKey, rootFret, notes:[{string,fret,interval,finger,fingeringWarning}],
-     *            mutedStrings, fretRange:{min,max,includesOpen} }
+     *            mutedStrings, fretRange:{min,max,includesOpen},
+     *            displayRange:{actualNoteFrets,includesOpen,formStart,formEnd,viewportStart,viewportEnd} }
      *          または { available:false, reason:'quality'|'position' }
      */
+    /**
+     * 表示中の実音から、フォームとして扱う連続フレット範囲を求める。
+     * 開放弦を含むフォームは、音のない中間フレットもフォーム内として
+     * 0F から表示する。fretRange は保存データ互換のため実際の押弦範囲を
+     * 保持し、この表示専用モデルとは分離する。
+     */
+    function getFormDisplayRange(notes, options) {
+        var opts = options || {};
+        var frets = [];
+        var seen = {};
+        (notes || []).forEach(function (note) {
+            if (!note || typeof note.fret !== 'number' || note.fret < 0 || seen[note.fret]) return;
+            seen[note.fret] = true;
+            frets.push(note.fret);
+        });
+        frets.sort(function (a, b) { return a - b; });
+
+        if (!frets.length) {
+            return {
+                actualNoteFrets: [],
+                includesOpen: false,
+                formStart: 0,
+                formEnd: 0,
+                viewportStart: 0,
+                viewportEnd: 0,
+                min: 0,
+                max: 0
+            };
+        }
+
+        var includesOpen = frets.indexOf(0) !== -1;
+        var formStart = includesOpen ? 0 : frets[0];
+        var formEnd = frets[frets.length - 1];
+        var limit = typeof opts.maxFret === 'number' ? opts.maxFret : formEnd;
+        var viewportStart = includesOpen ? 0 : formStart;
+        var viewportEnd = includesOpen
+            ? Math.min(limit, Math.max(formEnd + 1, 4))
+            : formEnd;
+
+        return {
+            actualNoteFrets: frets,
+            includesOpen: includesOpen,
+            formStart: formStart,
+            formEnd: formEnd,
+            viewportStart: viewportStart,
+            viewportEnd: viewportEnd,
+            // rangeHighlight / 保存UIで既存の min/max 形式としても利用できるようにする。
+            min: formStart,
+            max: formEnd
+        };
+    }
+
     function getForm(shapeKey, qualityKey, rootPc, maxFret, minFret) {
         var shape = FORMS[shapeKey];
         var theory = window.ChordCruise.theory;
@@ -442,6 +535,7 @@
         });
         var warning = def.warning || '';
         if (def.warningMode === 'fingering' && !hasFingeringWarning) warning = '';
+        var displayRange = getFormDisplayRange(notes, { maxFret: limit });
 
         return {
             available: true,
@@ -454,12 +548,145 @@
             hasOutOfRangeNotes: notes.length !== allNotes.length,
             omittedNoteCount: allNotes.length - notes.length,
             notes: notes,
-            mutedStrings: def.muted.slice(),
+            // 表示範囲外で一時的に省略された音をミュート扱いにしないため、
+            // visible notes ではなくフォーム全体の allNotes と照合する。
+            mutedStrings: resolvedMutedStrings(shapeKey, def.muted, allNotes),
             fretRange: {
                 min: minFretUsed === null ? 0 : minFretUsed,
                 max: maxFretUsed === null ? 0 : maxFretUsed,
                 includesOpen: includesOpen
+            },
+            displayRange: displayRange
+        };
+    }
+
+    function scoreCommonCandidate(shapeKey, form) {
+        var notes = form.notes || [];
+        var fretted = notes.filter(function (note) { return note.fret > 0; });
+        var minFret = fretted.length ? Math.min.apply(null, fretted.map(function (note) { return note.fret; })) : 0;
+        var maxFret = fretted.length ? Math.max.apply(null, fretted.map(function (note) { return note.fret; })) : minFret;
+        var warningCount = notes.filter(function (note) { return note.fingeringWarning === true; }).length;
+        var lowestNote = notes.slice().sort(function (a, b) {
+            return b.string - a.string || a.fret - b.fret;
+        })[0];
+        var bassRoot = !!lowestNote && lowestNote.interval === 0;
+        var bassRootFretted = bassRoot && lowestNote.fret > 0 && lowestNote.finger != null;
+        var playabilityPenalty = form.playability === 'limited' ? 36 : (form.playability === 'advanced' ? 14 : 0);
+        var barreCount = detectBarres(notes).length;
+        var score =
+            (form.omittedNoteCount || 0) * 90 +
+            warningCount * 24 +
+            playabilityPenalty +
+            minFret * 3 +
+            Math.max(0, maxFret - minFret) * 5 +
+            barreCount * 2 -
+            notes.length * 2 -
+            (bassRoot ? 10 : 0);
+        return {
+            score: score,
+            minFret: minFret,
+            span: Math.max(0, maxFret - minFret),
+            warningCount: warningCount,
+            omittedNoteCount: form.omittedNoteCount || 0,
+            bassRoot: bassRoot,
+            bassRootFretted: bassRootFretted,
+            barreCount: barreCount,
+            playability: form.playability || 'standard',
+            visibleNoteCount: notes.length
+        };
+    }
+
+    /* E/A型を優先できる最低限の安全条件。
+       省略・⚠️・ストレッチ・最低ルートの運指を先に落とすため、単なる型の存在だけで
+       不自然なフォームを選ばない。通常域では0〜5F、ハイフレットでは表示域の先頭から
+       5F以内を「ローポジション側」とみなす。 */
+    function isPracticalBarreCandidate(form, metrics, minFret, requireLowPosition) {
+        var lowPositionLimit = (typeof minFret === 'number' ? minFret : 0) + 5;
+        if (metrics.visibleNoteCount < 3 || metrics.omittedNoteCount >= 3) return false;
+        if (metrics.warningCount * 2 > metrics.visibleNoteCount) return false;
+        if (metrics.playability === 'limited' || metrics.span > 4) return false;
+        if (!metrics.bassRootFretted) return false;
+        if (requireLowPosition && metrics.minFret > lowPositionLimit) return false;
+        return !!form;
+    }
+
+    /**
+     * 表示中コードの定番／おすすめCAGEDフォームを1つ返す。
+     * 明示表は source='common'。表外は実用的なローE型→A型を source='recommended'で
+     * 優先し、両方不適切なときだけ純粋スコアのフォールバックを使う。
+     * 表示可能音が3音未満、または省略が3音以上の候補しか無い場合は強調しない。
+     */
+    function getCommonForm(qualityKey, rootPc, maxFret, minFret) {
+        if (typeof rootPc !== 'number' || !qualityKey) return null;
+        var normalizedRoot = ((rootPc % 12) + 12) % 12;
+        var candidates = SHAPE_ORDER.map(function (shapeKey) {
+            var form = getForm(shapeKey, qualityKey, normalizedRoot, maxFret, minFret);
+            if (!form.available || !form.notes || form.notes.length === 0) return null;
+            return {
+                shape: shapeKey,
+                form: form,
+                metrics: scoreCommonCandidate(shapeKey, form)
+            };
+        }).filter(Boolean);
+        if (!candidates.length) return null;
+
+        var overrideShape = COMMON_FORM_OVERRIDES[qualityKey] && COMMON_FORM_OVERRIDES[qualityKey][normalizedRoot];
+        if (overrideShape) {
+            var override = candidates.filter(function (candidate) { return candidate.shape === overrideShape; })[0];
+            if (override) {
+                return {
+                    shape: override.shape,
+                    source: 'common',
+                    label: '一般的なフォーム',
+                    metrics: override.metrics
+                };
             }
+        }
+
+        var recommendedShape = RECOMMENDED_FORM_OVERRIDES[qualityKey] && RECOMMENDED_FORM_OVERRIDES[qualityKey][normalizedRoot];
+        if (recommendedShape) {
+            var recommendedOverride = candidates.filter(function (candidate) { return candidate.shape === recommendedShape; })[0];
+            if (recommendedOverride && isPracticalBarreCandidate(recommendedOverride.form, recommendedOverride.metrics, minFret, false)) {
+                return {
+                    shape: recommendedOverride.shape,
+                    source: 'recommended',
+                    label: 'おすすめフォーム',
+                    metrics: recommendedOverride.metrics
+                };
+            }
+        }
+
+        var eCandidate = candidates.filter(function (candidate) { return candidate.shape === 'E'; })[0];
+        if (eCandidate && isPracticalBarreCandidate(eCandidate.form, eCandidate.metrics, minFret, true)) {
+            return {
+                shape: eCandidate.shape,
+                source: 'recommended',
+                label: 'おすすめフォーム',
+                metrics: eCandidate.metrics
+            };
+        }
+
+        var aCandidate = candidates.filter(function (candidate) { return candidate.shape === 'A'; })[0];
+        if (aCandidate && isPracticalBarreCandidate(aCandidate.form, aCandidate.metrics, minFret, false)) {
+            return {
+                shape: aCandidate.shape,
+                source: 'recommended',
+                label: 'おすすめフォーム',
+                metrics: aCandidate.metrics
+            };
+        }
+
+        candidates.sort(function (a, b) {
+            return a.metrics.score - b.metrics.score ||
+                SHAPE_ORDER.indexOf(a.shape) - SHAPE_ORDER.indexOf(b.shape);
+        });
+        var best = candidates[0];
+        if (best.metrics.visibleNoteCount < 3 || best.metrics.omittedNoteCount >= 3) return null;
+        return {
+            shape: best.shape,
+            source: 'recommended',
+            label: 'おすすめフォーム',
+            metrics: best.metrics
         };
     }
 
@@ -469,6 +696,10 @@
         var base;
         if (fretRange.max === 0 && fretRange.includesOpen) {
             return '開放のみ';
+        }
+        // 0F を範囲として扱う新しい表示モデルでは、開放弦を重複表記しない。
+        if (fretRange.includesOpen && fretRange.min === 0) {
+            return '0〜' + fretRange.max + 'F';
         }
         if (fretRange.min === fretRange.max) {
             base = fretRange.min + 'F';
@@ -547,8 +778,13 @@
     window.ChordCruise = window.ChordCruise || {};
     window.ChordCruise.caged = {
         SHAPE_ORDER: SHAPE_ORDER,
+        SHAPE_DEFAULT_MUTED_STRINGS: SHAPE_DEFAULT_MUTED_STRINGS,
         FORMS: FORMS,
+        COMMON_FORM_OVERRIDES: COMMON_FORM_OVERRIDES,
+        RECOMMENDED_FORM_OVERRIDES: RECOMMENDED_FORM_OVERRIDES,
         getForm: getForm,
+        getFormDisplayRange: getFormDisplayRange,
+        getCommonForm: getCommonForm,
         formatFretRange: formatFretRange,
         detectBarres: detectBarres
     };

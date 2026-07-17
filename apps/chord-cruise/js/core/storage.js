@@ -15,6 +15,7 @@
         scaleType: 'major',
         chordToneMode: '3',
         fretboardDisplayMode: 'note',
+        chordNameSize: 'medium',
         fretNumberSize: 'medium',
         fretNumberHighlightMode: 'all',
         highlightedFrets: DEFAULT_HIGHLIGHTED_FRETS,
@@ -39,6 +40,9 @@
 
     function normalizeSettings(settings) {
         var normalized = settings;
+        if (['small', 'medium', 'large', 'xlarge'].indexOf(normalized.chordNameSize) === -1) {
+            normalized.chordNameSize = 'medium';
+        }
         if (['small', 'medium', 'large', 'xlarge'].indexOf(normalized.fretNumberSize) === -1) {
             normalized.fretNumberSize = 'medium';
         }
@@ -68,8 +72,10 @@
     function writeJSON(key, value) {
         try {
             window.localStorage.setItem(key, JSON.stringify(value));
+            return true;
         } catch (err) {
             console.warn('[ChordCruise.storage] failed to write key: ' + key, err);
+            return false;
         }
     }
 
@@ -141,7 +147,7 @@
     }
 
     function saveFolders(folders) {
-        writeJSON(KEY_FOLDERS, folders);
+        return writeJSON(KEY_FOLDERS, folders);
     }
 
     function createFolder(name) {
@@ -159,8 +165,7 @@
             updatedAt: nowIso()
         };
         folders.push(folder);
-        saveFolders(folders);
-        return folder;
+        return saveFolders(folders) ? folder : null;
     }
 
     /** builtin フォルダは改名不可 */
@@ -215,7 +220,7 @@
     }
 
     function writeChordIndex(index) {
-        writeJSON(KEY_CHORD_INDEX, index);
+        return writeJSON(KEY_CHORD_INDEX, index);
     }
 
     function indexEntryOf(chord) {
@@ -244,13 +249,12 @@
         if (!record.folderId) {
             record.folderId = UNCATEGORIZED_ID;
         }
-        writeJSON(chordKey(record.id), record);
+        if (!writeJSON(chordKey(record.id), record)) return null;
         var index = loadChordIndex().filter(function (entry) {
             return entry.id !== record.id;
         });
         index.push(indexEntryOf(record));
-        writeChordIndex(index);
-        return record;
+        return writeChordIndex(index) ? record : null;
     }
 
     function loadChord(id) {
