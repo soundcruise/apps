@@ -14,14 +14,14 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
-- 現在のバージョン: `0.17.0`（`index.html` の各`<script>`タグの `?v=`、および `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`）
+- 現在のバージョン: `0.18.0`（`index.html` の各`<script>`タグの `?v=`、および `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`）
 - 最新commit（chord-cruise関連、`git log --oneline -- apps/chord-cruise/` で確認）:
-  - hash: `096f077d`
-  - message: `コードクルーズにC型・G型のマイナー系フォームを追加`
+  - hash: `49a9d702`
+  - message: `コードクルーズの設定・保存体験とフォーム表示を改善`
 - 通常版/PRO版の構造: PRO版は存在しないため、`apps/chord-cruise/` 直下の `index.html` のみが唯一のエントリーポイント。他アプリのような `standard/` サブディレクトリも無い。
 - JS/CSSの共有関係:
   - `theme.css` はコードクルーズ専用の1ファイル（`apps/shared/` には依存していない）。
-  - JSは1本の `script.js` ではなく、`js/core/*.js`（データ・ロジック層）と `js/ui/*.js`（画面描画層）に分割されたモジュール構成。`index.html` から13本のscriptタグで個別に読み込む（`window.ChordCruise` というグローバルオブジェクトに各モジュールが機能を生やす形）。
+  - JSは1本の `script.js` ではなく、`js/core/*.js`（データ・ロジック層）と `js/ui/*.js`（画面描画層）に分割されたモジュール構成。`index.html` から14本のscriptタグで個別に読み込む（`window.ChordCruise` というグローバルオブジェクトに各モジュールが機能を生やす形）。
 - service workerの扱い: **存在しない。** `apps/chord-cruise/` 配下に `service-worker.js` は無く、`index.html` にも `navigator.serviceWorker.register` の記述は無い。PWA化はされていない。
 - manifestの扱い: **存在しない。** `manifest.json` は無い。アイコンファイルも見当たらない。
 
@@ -46,7 +46,7 @@
 |---|---|
 | `index.html` | 唯一のHTMLエントリーポイント。ホーム/コードを調べる/コード本棚の3画面（`<section>`）をJSで切り替えるSPA構造。 |
 | `theme.css` | 見た目全体（`cc-` プレフィックスのクラス群）。他アプリの`theme.css`とは独立しており、`shared/`にも依存しない。 |
-| `js/core/storage.js` | `localStorage`永続化層。プレフィックス `chordCruise.`。設定・フォルダ一覧・コードインデックス・個別コードデータを管理。スキーマバージョン管理あり。 |
+| `js/core/storage.js` | `localStorage`永続化層。プレフィックス `chordCruise.`。設定・フォルダ一覧・コードインデックス・個別コードデータに加え、`chordCruise.libraryOrder`で本棚の順序IDを分離管理する。スキーマバージョン管理あり。 |
 | `js/core/music-theory.js` | 音楽理論の基礎データ（音名・キー・スケール等）。 |
 | `js/core/caged-forms.js` | CAGEDフォーム（移動可能フォーム）の辞書データ。弦番号・オフセット・度数で構成音位置を定義。 |
 | `js/core/chord-model.js` | 「任意コード作成」用のコードモデル（3度/5度/7度/テンション等の値体系）。 |
@@ -56,8 +56,8 @@
 | `js/ui/chord-builder.js` | 「任意コードを作る」モーダル。コード内コメントに「UI構成・操作感は音感クルーズPROの『コードを作る』と統一」と明記あり（＝他アプリとのUI設計の一貫性を意図した実装）。 |
 | `js/ui/save-editor.js` | フォームの保存前編集と保存コード編集の共通モーダル。保存範囲・表示モード・運指・警告・音の消去・名前・メモ・フォルダを編集し、保存コードは同一IDでの上書き／新規IDでの別名保存を選べる。保存コード編集の初回だけ押弦範囲を中央寄せする。 |
 | `js/ui/chord-export.js` | 保存コード指板のPNG書き出し。自己完結SVGを2倍Canvasへ描画し、download属性非対応時は新規タブ表示へフォールバックする。 |
-| `js/ui/library.js` | 「コード本棚」の3階層。フォルダ内を保存範囲だけの指板カードで表示し、詳細の白黒切替・PNG書き出し・編集を管理する。 |
-| `js/ui/settings.js` | 右上の共通設定ボタンと設定オーバーレイ。フレット番号サイズ、番号強調モード、0〜25Fのカスタム選択を保存し、指板だけへ即時反映する。 |
+| `js/ui/library.js` | 「コード本棚」の3階層。フォルダと保存コードの上下ボタン式並び替え、1〜4列の指板カード、詳細の白黒切替・PNG書き出し・編集を管理する。 |
+| `js/ui/settings.js` | 右上の共通設定ボタンと設定オーバーレイ。指板表示設定に加え、全主要画面と設定画面にあるVer表示／`_r=<timestamp>`付きページ更新を管理する。 |
 | `js/app.js` | エントリースクリプト。バージョン定数の保持、画面切り替え（`showScreen`）、共通ナビ（戻る/TOP）のイベント登録、初期化処理。 |
 
 **現時点で存在しないファイル**: PRO版HTML、`manifest.json`、`service-worker.js`、`info.html`、`terms.html`、`privacy.html`、単発ヘルプページ。
@@ -130,13 +130,13 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.17.0`）。
-- `?v=` によるキャッシュ管理: `index.html` 内の全14本の `<script src="...?v=0.17.0">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.17.0">` が同じバージョン文字列を共有している。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.18.0`）。
+- `?v=` によるキャッシュ管理: `index.html` 内の全14本の `<script src="...?v=0.18.0">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.18.0">` が同じバージョン文字列を共有している。
 - 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
 - service workerの更新: service worker自体が存在しないため不要。
 - **バージョン更新漏れしやすい箇所**: `index.html`内の14本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。
 
-全CAGED型の`m / m7 / m7♭5 / dim`は、`maj / 7`テンプレートから共通生成する。三和音系は`3→♭3`、dimではさらに`5→♭5`、7th系はdominant 7を基準に`3→♭3`、m7♭5ではさらに`5→♭5`とし、ルートと♭7は維持する。C型mの5弦ルートは小指（finger 4）。G型dimは低音側を6弦=小、5弦=中、4弦=人とし、高音側3弦を`fingeringWarning`にする。推奨運指が成立しない音は運指モードで`⚠️`を表示し、保存編集では指指定・警告・消去を循環できる。フォーム警告は初期状態で閉じた「⚠️ 運指」ボタンへまとめ、範囲外音を省略した場合は別の「△ フォーム」ボタンで知らせる。定番CAGEDの明示表とフォールバックスコアは`ai-handoff/COMMON_CAGED_FORMS.md`に記載する。`pendingDelete`はdraftだけに保持し、確定時にnotesから除外する。設定には`chordNameSize`（small / medium / large / xlarge、未設定・不正値はmedium）を追加し、下部共通トースト、保存フォーム内の新規フォルダ作成と直下キャンセルを実装した。既存保存コードのschemaVersionは1のまま、新機能として`0.17.0`へ更新した。
+全CAGED型の`m / m7 / m7♭5 / dim`は、`maj / 7`テンプレートから共通生成する。三和音系は`3→♭3`、dimではさらに`5→♭5`、7th系はdominant 7を基準に`3→♭3`、m7♭5ではさらに`5→♭5`とし、ルートと♭7は維持する。C型mの5弦ルートは小指（finger 4）。G型dimは低音側を6弦=小、5弦=中、4弦=人とし、高音側3弦を`fingeringWarning`にする。推奨運指が成立しない音は運指モードだけ`⚠️`となり、保存編集では指指定・警告・消去を循環できる。フォーム警告は初期状態で閉じた「⚠️ 運指」ボタンへまとめ、範囲外音を省略した場合は別の「△ フォーム」ボタンで知らせる。定番CAGEDの明示表とフォールバックスコアは`ai-handoff/COMMON_CAGED_FORMS.md`に記載する。`pendingDelete`はdraftだけに保持し、確定時にnotesから除外する。設定には`chordNameSize`（small / medium / large / xlarge、未設定・不正値はmedium）を追加した。`0.18.0`ではHOME／コードを調べる／コード本棚の共通下部バーと設定最下部にVer表示と`_r`付きページ更新を追加し、`chordCruise.libraryOrder`へフォルダ・保存コードの順序IDを分離保存する。コード並び替え中もサムネイル付きカードと現在の1〜4列を保ち、カード内の矢印で即時保存する。未分類は先頭固定、保存コードは新規・別名・移動先で先頭、上書きでは位置を維持する。既存保存コードのschemaVersionは1のまま維持する。
 
 ---
 

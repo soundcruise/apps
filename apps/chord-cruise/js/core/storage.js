@@ -6,8 +6,10 @@
     var KEY_SETTINGS = PREFIX + 'settings';
     var KEY_FOLDERS = PREFIX + 'folders';
     var KEY_CHORD_INDEX = PREFIX + 'chords.index';
+    var KEY_LIBRARY_ORDER = PREFIX + 'libraryOrder';
     var CHORD_KEY_PREFIX = PREFIX + 'chord.';
     var UNCATEGORIZED_ID = 'folder_uncategorized';
+    var LIBRARY_ORDER_VERSION = 1;
     var DEFAULT_HIGHLIGHTED_FRETS = [0, 3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
 
     var DEFAULT_SETTINGS = {
@@ -130,6 +132,30 @@
         return new Date().toISOString();
     }
 
+    function uniqueById(items) {
+        var seen = {};
+        return (Array.isArray(items) ? items : []).filter(function (item) {
+            if (!item || typeof item.id !== 'string' || !item.id || seen[item.id]) return false;
+            seen[item.id] = true;
+            return true;
+        });
+    }
+
+    function ensureUncategorizedFolder(folders) {
+        var hasUncategorized = folders.some(function (folder) {
+            return folder && folder.id === UNCATEGORIZED_ID;
+        });
+        if (hasUncategorized) return folders;
+        return [{
+            id: UNCATEGORIZED_ID,
+            name: '未分類',
+            builtin: true,
+            order: 0,
+            createdAt: nowIso(),
+            updatedAt: nowIso()
+        }].concat(folders);
+    }
+
     function loadFolders() {
         var folders = readJSON(KEY_FOLDERS, null);
         if (!Array.isArray(folders) || folders.length === 0) {
@@ -142,6 +168,9 @@
                 updatedAt: nowIso()
             }];
             writeJSON(KEY_FOLDERS, folders);
+        } else if (!folders.some(function (folder) { return folder && folder.id === UNCATEGORIZED_ID; })) {
+            folders = ensureUncategorizedFolder(folders);
+            writeJSON(KEY_FOLDERS, folders);
         }
         return folders;
     }
@@ -152,6 +181,8 @@
 
     function createFolder(name) {
         var folders = loadFolders();
+        var index = loadChordIndex();
+        var orderBefore = libraryOrderInfo(folders, index).order;
         var maxOrder = 0;
         folders.forEach(function (folder) {
             if ((folder.order || 0) > maxOrder) maxOrder = folder.order || 0;
@@ -165,7 +196,14 @@
             updatedAt: nowIso()
         };
         folders.push(folder);
-        return saveFolders(folders) ? folder : null;
+        if (!saveFolders(folders)) return null;
+        orderBefore.folderIds = orderBefore.folderIds.filter(function (id) { return id !== folder.id; });
+        orderBefore.folderIds.push(folder.id);
+        orderBefore.entryIdsByFolder[folder.id] = [];
+        if (!saveNormalizedLibraryOrder(orderBefore, folders, index)) {
+            console.warn('[ChordCruise.storage] folder created but library order could not be saved');
+        }
+        return folder;
     }
 
     /** builtin フォルダは改名不可 */
@@ -186,6 +224,8 @@
     /** builtin フォルダは削除不可。中のコードは未分類へ移動する。 */
     function deleteFolder(id) {
         var folders = loadFolders();
+        var indexBefore = loadChordIndex();
+        var orderBefore = libraryOrderInfo(folders, indexBefore).order;
         var target = null;
         folders.forEach(function (folder) {
             if (folder.id === id) target = folder;
@@ -193,7 +233,11 @@
         if (!target || target.builtin) {
             return false;
         }
-        loadChordIndex().forEach(function (entry) {
+        var movedIds = (orderBefore.entryIdsByFolder[id] || []).slice();
+        indexBefore.forEach(function (entry) {
+            if (entry.folderId === id && movedIds.indexOf(entry.id) === -1) movedIds.push(entry.id);
+        });
+        indexBefore.forEach(function (entry) {
             if (entry.folderId === id) {
                 var chord = loadChord(entry.id);
                 if (chord) {
@@ -202,9 +246,24 @@
                 }
             }
         });
-        saveFolders(folders.filter(function (folder) {
+        var nextFolders = folders.filter(function (folder) {
             return folder.id !== id;
-        }));
+        });
+        if (!saveFolders(nextFolders)) return false;
+        var nextIndex = loadChordIndex();
+        var nextOrder = libraryOrderInfo(nextFolders, nextIndex).order;
+        var movedLookup = {};
+        movedIds.forEach(function (entryId) { movedLookup[entryId] = true; });
+        nextOrder.folderIds = nextOrder.folderIds.filter(function (folderId) { return folderId !== id; });
+        delete nextOrder.entryIdsByFolder[id];
+        nextOrder.entryIdsByFolder[UNCATEGORIZED_ID] = movedIds.concat(
+            (nextOrder.entryIdsByFolder[UNCATEGORIZED_ID] || []).filter(function (entryId) {
+                return !movedLookup[entryId];
+            })
+        );
+        if (!saveNormalizedLibraryOrder(nextOrder, nextFolders, nextIndex)) {
+            console.warn('[ChordCruise.storage] folder deleted but library order could not be saved');
+        }
         return true;
     }
 
@@ -221,6 +280,168 @@
 
     function writeChordIndex(index) {
         return writeJSON(KEY_CHORD_INDEX, index);
+    }
+
+    // ---- コード本棚の並び順 ----
+
+    function legacyFolderIds(folders) {
+        return uniqueById(folders).map(function (folder, index) {
+            return { folder: folder, index: index };
+        }).sort(function (a, b) {
+            if (a.folder.id === UNCATEGORIZED_ID) return -1;
+            if (b.folder.id === UNCATEGORIZED_ID) return 1;
+            var aOrder = typeof a.folder.order === 'number' ? a.folder.order : 0;
+            var bOrder = typeof b.folder.order === 'number' ? b.folder.order : 0;
+            return aOrder - bOrder || a.index - b.index;
+        }).map(function (item) { return item.folder.id; });
+    }
+
+    function legacyEntryIds(index, folderId) {
+        return uniqueById(index).map(function (entry, position) {
+            return { entry: entry, position: position };
+        }).filter(function (item) {
+            return item.entry.folderId === folderId;
+        }).sort(function (a, b) {
+            var byUpdated = String(b.entry.updatedAt || '').localeCompare(String(a.entry.updatedAt || ''));
+            return byUpdated || a.position - b.position;
+        }).map(function (item) { return item.entry.id; });
+    }
+
+    function readLibraryOrderState() {
+        var raw;
+        try {
+            raw = window.localStorage.getItem(KEY_LIBRARY_ORDER);
+        } catch (err) {
+            return { exists: false, value: null, invalid: false };
+        }
+        if (raw === null || raw === undefined) return { exists: false, value: null, invalid: false };
+        try {
+            var parsed = JSON.parse(raw);
+            return {
+                exists: true,
+                value: parsed && typeof parsed === 'object' ? parsed : null,
+                invalid: !parsed || typeof parsed !== 'object'
+            };
+        } catch (err) {
+            return { exists: true, value: null, invalid: true };
+        }
+    }
+
+    function normalizeLibraryOrder(rawOrder, folders, index) {
+        var validFolders = uniqueById(folders);
+        var validEntries = uniqueById(index);
+        var folderLookup = {};
+        var entryLookup = {};
+        validFolders.forEach(function (folder) { folderLookup[folder.id] = folder; });
+        validEntries.forEach(function (entry) { entryLookup[entry.id] = entry; });
+
+        var rawFolderIds = rawOrder && Array.isArray(rawOrder.folderIds) ? rawOrder.folderIds : [];
+        var fallbackFolderIds = legacyFolderIds(validFolders);
+        var folderIds = [];
+        var seenFolders = {};
+        rawFolderIds.concat(fallbackFolderIds).forEach(function (id) {
+            if (typeof id !== 'string' || seenFolders[id] || !folderLookup[id]) return;
+            seenFolders[id] = true;
+            folderIds.push(id);
+        });
+        folderIds = folderIds.filter(function (id) { return id !== UNCATEGORIZED_ID; });
+        if (folderLookup[UNCATEGORIZED_ID]) folderIds.unshift(UNCATEGORIZED_ID);
+
+        var rawByFolder = rawOrder && rawOrder.entryIdsByFolder && typeof rawOrder.entryIdsByFolder === 'object'
+            ? rawOrder.entryIdsByFolder
+            : {};
+        var entryIdsByFolder = {};
+        folderIds.forEach(function (folderId) {
+            var rawIds = Array.isArray(rawByFolder[folderId]) ? rawByFolder[folderId] : [];
+            var fallbackIds = legacyEntryIds(validEntries, folderId);
+            var seenEntries = {};
+            entryIdsByFolder[folderId] = [];
+            rawIds.concat(fallbackIds).forEach(function (entryId) {
+                var entry = entryLookup[entryId];
+                if (!entry || seenEntries[entryId] || entry.folderId !== folderId) return;
+                seenEntries[entryId] = true;
+                entryIdsByFolder[folderId].push(entryId);
+            });
+        });
+        return {
+            version: LIBRARY_ORDER_VERSION,
+            folderIds: folderIds,
+            entryIdsByFolder: entryIdsByFolder
+        };
+    }
+
+    function sameLibraryOrder(a, b) {
+        try {
+            return JSON.stringify(a) === JSON.stringify(b);
+        } catch (err) {
+            return false;
+        }
+    }
+
+    function libraryOrderInfo(folders, index) {
+        var state = readLibraryOrderState();
+        var order = normalizeLibraryOrder(state.value, folders, index);
+        if (state.exists && (state.invalid || !sameLibraryOrder(state.value, order))) {
+            writeJSON(KEY_LIBRARY_ORDER, order);
+        }
+        return { order: order, exists: state.exists };
+    }
+
+    function saveNormalizedLibraryOrder(order, folders, index) {
+        return writeJSON(KEY_LIBRARY_ORDER, normalizeLibraryOrder(order, folders, index));
+    }
+
+    function loadLibraryOrder() {
+        return libraryOrderInfo(loadFolders(), loadChordIndex()).order;
+    }
+
+    function loadOrderedFolders() {
+        var folders = uniqueById(loadFolders());
+        var byId = {};
+        folders.forEach(function (folder) { byId[folder.id] = folder; });
+        return loadLibraryOrder().folderIds.map(function (id) { return byId[id]; }).filter(Boolean);
+    }
+
+    function loadOrderedChordIndex(folderId) {
+        var index = uniqueById(loadChordIndex());
+        var byId = {};
+        index.forEach(function (entry) { byId[entry.id] = entry; });
+        var ids = loadLibraryOrder().entryIdsByFolder[folderId] || [];
+        return ids.map(function (id) { return byId[id]; }).filter(function (entry) {
+            return entry && entry.folderId === folderId;
+        });
+    }
+
+    function moveFolder(id, delta) {
+        if (id === UNCATEGORIZED_ID || (delta !== -1 && delta !== 1)) return false;
+        var folders = loadFolders();
+        var index = loadChordIndex();
+        var order = libraryOrderInfo(folders, index).order;
+        var position = order.folderIds.indexOf(id);
+        var nextPosition = position + delta;
+        if (position < 1 || nextPosition < 1 || nextPosition >= order.folderIds.length) return false;
+        var next = normalizeLibraryOrder(order, folders, index);
+        var swap = next.folderIds[nextPosition];
+        next.folderIds[nextPosition] = id;
+        next.folderIds[position] = swap;
+        return writeJSON(KEY_LIBRARY_ORDER, next);
+    }
+
+    function moveChord(id, folderId, delta) {
+        if (delta !== -1 && delta !== 1) return false;
+        var folders = loadFolders();
+        var index = loadChordIndex();
+        var order = libraryOrderInfo(folders, index).order;
+        var ids = order.entryIdsByFolder[folderId] || [];
+        var position = ids.indexOf(id);
+        var nextPosition = position + delta;
+        if (position < 0 || nextPosition < 0 || nextPosition >= ids.length) return false;
+        var next = normalizeLibraryOrder(order, folders, index);
+        var nextIds = next.entryIdsByFolder[folderId];
+        var swap = nextIds[nextPosition];
+        nextIds[nextPosition] = id;
+        nextIds[position] = swap;
+        return writeJSON(KEY_LIBRARY_ORDER, next);
     }
 
     function indexEntryOf(chord) {
@@ -240,7 +461,15 @@
     /** 保存コードを保存する（新規は id / createdAt を採番）。indexも同期する。 */
     function saveChord(chord) {
         var record = chord;
-        if (!record.id) {
+        var indexBefore = loadChordIndex();
+        var folders = loadFolders();
+        var orderBefore = libraryOrderInfo(folders, indexBefore).order;
+        var previousEntry = null;
+        var isNew = !record.id;
+        indexBefore.forEach(function (entry) {
+            if (record.id && entry.id === record.id) previousEntry = entry;
+        });
+        if (isNew) {
             record.id = 'cc_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
             record.createdAt = nowIso();
         }
@@ -250,11 +479,32 @@
             record.folderId = UNCATEGORIZED_ID;
         }
         if (!writeJSON(chordKey(record.id), record)) return null;
-        var index = loadChordIndex().filter(function (entry) {
+        var index = indexBefore.filter(function (entry) {
             return entry.id !== record.id;
         });
         index.push(indexEntryOf(record));
-        return writeChordIndex(index) ? record : null;
+        if (!writeChordIndex(index)) return null;
+
+        var nextOrder = normalizeLibraryOrder(orderBefore, folders, index);
+        Object.keys(nextOrder.entryIdsByFolder).forEach(function (folderId) {
+            nextOrder.entryIdsByFolder[folderId] = nextOrder.entryIdsByFolder[folderId].filter(function (id) {
+                return id !== record.id;
+            });
+        });
+        var destination = nextOrder.entryIdsByFolder[record.folderId] || [];
+        if (!isNew && previousEntry && previousEntry.folderId === record.folderId) {
+            var previousIds = orderBefore.entryIdsByFolder[record.folderId] || [];
+            var previousPosition = previousIds.indexOf(record.id);
+            if (previousPosition < 0 || previousPosition > destination.length) previousPosition = destination.length;
+            destination.splice(previousPosition, 0, record.id);
+        } else {
+            destination.unshift(record.id);
+        }
+        nextOrder.entryIdsByFolder[record.folderId] = destination;
+        if (!saveNormalizedLibraryOrder(nextOrder, folders, index)) {
+            console.warn('[ChordCruise.storage] chord saved but library order could not be saved');
+        }
+        return record;
     }
 
     function loadChord(id) {
@@ -267,9 +517,18 @@
         } catch (err) {
             console.warn('[ChordCruise.storage] failed to remove chord: ' + id, err);
         }
-        writeChordIndex(loadChordIndex().filter(function (entry) {
+        var nextIndex = loadChordIndex().filter(function (entry) {
             return entry.id !== id;
-        }));
+        });
+        writeChordIndex(nextIndex);
+        var folders = loadFolders();
+        var order = libraryOrderInfo(folders, nextIndex).order;
+        Object.keys(order.entryIdsByFolder).forEach(function (folderId) {
+            order.entryIdsByFolder[folderId] = order.entryIdsByFolder[folderId].filter(function (entryId) {
+                return entryId !== id;
+            });
+        });
+        saveNormalizedLibraryOrder(order, folders, nextIndex);
     }
 
     window.ChordCruise = window.ChordCruise || {};
@@ -284,6 +543,11 @@
         renameFolder: renameFolder,
         deleteFolder: deleteFolder,
         loadChordIndex: loadChordIndex,
+        loadLibraryOrder: loadLibraryOrder,
+        loadOrderedFolders: loadOrderedFolders,
+        loadOrderedChordIndex: loadOrderedChordIndex,
+        moveFolder: moveFolder,
+        moveChord: moveChord,
         saveChord: saveChord,
         loadChord: loadChord,
         deleteChord: deleteChord

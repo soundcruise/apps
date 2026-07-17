@@ -264,6 +264,19 @@ body {
     margin-top: auto;
 }
 
+.cc-global-refresh-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 600px;
+    margin: 18px auto 0;
+    padding: 10px 4px 0;
+    border-top: 1px solid rgba(212, 175, 55, 0.12);
+    opacity: 0.8;
+}
+
 /* 汎用ボタン */
 .cc-btn {
     font-family: inherit;
@@ -1144,6 +1157,105 @@ body {
     margin-bottom: 14px;
 }
 
+.cc-lib-sort-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.cc-lib-sort-head .cc-card-heading {
+    margin-bottom: 0;
+}
+
+.cc-sort-mode-note {
+    margin: 0 0 10px;
+    color: var(--cc-text-muted);
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+.cc-sort-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.cc-sort-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-height: 58px;
+    padding: 9px 10px 9px 13px;
+    border: 1px solid var(--cc-border-strong);
+    border-radius: 12px;
+    background: rgba(212, 175, 55, 0.065);
+}
+
+.cc-sort-row-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.cc-sort-row-name {
+    overflow: hidden;
+    color: var(--cc-champagne);
+    font-size: 0.94rem;
+    font-weight: 700;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cc-sort-row-meta,
+.cc-sort-fixed-label {
+    color: var(--cc-text-muted);
+    font-size: 0.72rem;
+}
+
+.cc-sort-fixed-label {
+    padding: 6px 7px;
+    border: 1px solid var(--cc-border);
+    border-radius: 8px;
+    white-space: nowrap;
+}
+
+.cc-sort-row-actions {
+    display: flex;
+    gap: 7px;
+}
+
+.cc-sort-step-btn {
+    min-width: 64px;
+    min-height: 40px;
+    padding: 7px 8px;
+    border: 1px solid rgba(212, 175, 55, 0.44);
+    border-radius: 9px;
+    color: var(--cc-text);
+    background: rgba(0, 0, 0, 0.24);
+    font: inherit;
+    font-size: 0.76rem;
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.cc-sort-step-btn:disabled {
+    border-color: var(--cc-border);
+    color: var(--cc-text-faint);
+    cursor: not-allowed;
+    opacity: 0.42;
+}
+
+.cc-sort-step-btn:not(:disabled):active {
+    transform: scale(0.96);
+    background: rgba(212, 175, 55, 0.16);
+}
+
 .cc-folder-card,
 .cc-chordcard {
     font-family: inherit;
@@ -1283,6 +1395,71 @@ body {
 
 .cc-chordthumb-card:hover {
     border-color: var(--cc-border-strong);
+}
+
+.cc-chordthumb-card--sorting {
+    cursor: default;
+}
+
+.cc-chordthumb-card--sorting:active {
+    transform: none;
+}
+
+.cc-chordthumb-sort-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    width: 100%;
+    min-height: 30px;
+}
+
+.cc-chordthumb-sort-form {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--cc-text-muted);
+    font-size: 0.62rem;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cc-chordthumb-sort-buttons {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 3px;
+}
+
+.cc-chordthumb-sort-step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid rgba(212, 175, 55, 0.44);
+    border-radius: 8px;
+    color: var(--cc-text);
+    background: rgba(0, 0, 0, 0.24);
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.cc-chordthumb-sort-step:disabled {
+    border-color: var(--cc-border);
+    color: var(--cc-text-faint);
+    cursor: not-allowed;
+    opacity: 0.42;
+}
+
+.cc-chordthumb-sort-step:not(:disabled):active {
+    transform: scale(0.94);
+    background: rgba(212, 175, 55, 0.16);
 }
 
 .cc-chordthumb-board {
@@ -1669,6 +1846,55 @@ body.cc-settings-open {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 12px 26px rgba(0, 0, 0, 0.32);
 }
 
+.cc-settings-refresh-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 14px;
+    padding: 14px 4px 2px;
+    border-top: 1px solid rgba(212, 175, 55, 0.16);
+}
+
+.cc-app-version-display {
+    color: var(--cc-text-faint);
+    font-size: 0.72rem;
+    line-height: 1.3;
+    letter-spacing: 0.04em;
+    user-select: none;
+}
+
+.cc-refresh-btn {
+    min-height: 38px;
+    padding: 7px 14px;
+    border: 1px solid rgba(212, 175, 55, 0.48);
+    border-radius: 10px;
+    color: var(--cc-champagne);
+    background: rgba(212, 175, 55, 0.1);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.cc-refresh-btn:active {
+    transform: scale(0.97);
+    background: rgba(212, 175, 55, 0.18);
+}
+
+.cc-refresh-btn:disabled {
+    cursor: wait;
+    opacity: 0.62;
+}
+
+.cc-refresh-btn:focus-visible,
+.cc-sort-step-btn:focus-visible,
+.cc-chordthumb-sort-step:focus-visible {
+    outline: 2px solid var(--cc-gold-bright);
+    outline-offset: 2px;
+}
+
 .cc-settings-card h3 {
     margin: 0;
     color: var(--cc-champagne);
@@ -1896,6 +2122,16 @@ body.cc-settings-open {
 
     .cc-settings-card {
         padding: 20px 16px;
+    }
+
+    .cc-sort-row {
+        padding-left: 10px;
+    }
+
+    .cc-sort-step-btn {
+        min-width: 60px;
+        padding-left: 6px;
+        padding-right: 6px;
     }
 
     .cc-settings-head {

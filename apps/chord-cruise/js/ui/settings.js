@@ -8,6 +8,7 @@
     var openBtn = null;
     var closeBtn = null;
     var previousFocus = null;
+    var reloadInProgress = false;
 
     function normalizeSize(value) {
         return VALID_SIZES.indexOf(value) !== -1 ? value : 'medium';
@@ -35,6 +36,33 @@
 
     function getSettings() {
         return window.ChordCruise.state.settings;
+    }
+
+    function buildReloadUrl(href, timestamp) {
+        var url = new URL(href);
+        url.searchParams.set('_r', String(timestamp));
+        return url.toString();
+    }
+
+    function reloadAppWithCacheBust() {
+        if (reloadInProgress) return;
+        reloadInProgress = true;
+        Array.prototype.forEach.call(document.querySelectorAll('.cc-refresh-app'), function (button) {
+            button.disabled = true;
+            button.setAttribute('aria-busy', 'true');
+            button.textContent = '更新中…';
+        });
+        try {
+            window.location.replace(buildReloadUrl(window.location.href, Date.now()));
+        } catch (err) {
+            window.location.reload();
+        }
+    }
+
+    function applyVersionDisplay() {
+        Array.prototype.forEach.call(document.querySelectorAll('.cc-app-version-display'), function (display) {
+            display.textContent = 'Ver ' + (window.CHORD_CRUISE_APP_VERSION || '');
+        });
     }
 
     function applyFretNumberSize(value) {
@@ -252,6 +280,7 @@
         openBtn = document.getElementById('cc-settings-btn');
         closeBtn = document.getElementById('cc-settings-close');
         buildCustomFretGrid();
+        applyVersionDisplay();
 
         var initialSize = applyFretNumberSize(getSettings().fretNumberSize);
         getSettings().fretNumberSize = initialSize;
@@ -261,6 +290,9 @@
 
         if (openBtn) openBtn.addEventListener('click', open);
         if (closeBtn) closeBtn.addEventListener('click', close);
+        Array.prototype.forEach.call(document.querySelectorAll('.cc-refresh-app'), function (refreshBtn) {
+            refreshBtn.addEventListener('click', reloadAppWithCacheBust);
+        });
         if (overlayEl) {
             overlayEl.addEventListener('click', function (event) {
                 var choice = event.target.closest('[data-fret-number-size]');
@@ -317,6 +349,8 @@
         normalizeChordNameSize: normalizeChordNameSize,
         setPreviewDisplayMode: setPreviewDisplayMode,
         normalizeHighlightMode: normalizeHighlightMode,
-        normalizeHighlightedFrets: normalizeHighlightedFrets
+        normalizeHighlightedFrets: normalizeHighlightedFrets,
+        buildReloadUrl: buildReloadUrl,
+        reloadAppWithCacheBust: reloadAppWithCacheBust
     };
 })();

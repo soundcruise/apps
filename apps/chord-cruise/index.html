@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="theme.css?v=0.17.0">
+<link rel="stylesheet" href="theme.css?v=0.18.0">
 </head>
 <body>
 <div id="cc-app" class="cc-app">
@@ -56,6 +56,10 @@
             <div class="cc-card cc-placeholder-card"><p>この画面は後のSTEPで実装します。</p></div>
         </section>
     </main>
+    <div class="cc-global-refresh-bar" aria-label="バージョンとページの再読み込み">
+        <span class="cc-app-version-display"></span>
+        <button type="button" class="cc-refresh-btn cc-refresh-app">ページを更新</button>
+    </div>
     <footer class="cc-footer">Sound Cruise Series</footer>
 </div>
 <div id="cc-settings-overlay" class="cc-settings-overlay cc-settings-overlay--hidden" role="dialog" aria-modal="true" aria-labelledby="cc-settings-title" aria-hidden="true">
@@ -125,21 +129,25 @@
                 <div id="cc-settings-fretboard-preview" class="cc-fb-host cc-settings-preview-board" aria-label="Cコード C型の指板プレビュー"></div>
             </div>
         </section>
+        <div class="cc-settings-refresh-bar" aria-label="バージョンとページの再読み込み">
+            <span class="cc-app-version-display"></span>
+            <button type="button" class="cc-refresh-btn cc-refresh-app">ページを更新</button>
+        </div>
     </div>
 </div>
-<script src="js/core/storage.js?v=0.17.0"></script>
-<script src="js/core/music-theory.js?v=0.17.0"></script>
-<script src="js/core/caged-forms.js?v=0.17.0"></script>
-<script src="js/core/chord-model.js?v=0.17.0"></script>
-<script src="js/core/chord-info.js?v=0.17.0"></script>
-<script src="js/ui/fretboard.js?v=0.17.0"></script>
-<script src="js/ui/toast.js?v=0.17.0"></script>
-<script src="js/ui/save-editor.js?v=0.17.0"></script>
-<script src="js/ui/chord-builder.js?v=0.17.0"></script>
-<script src="js/ui/chord-export.js?v=0.17.0"></script>
-<script src="js/ui/library.js?v=0.17.0"></script>
-<script src="js/ui/explore.js?v=0.17.0"></script>
-<script src="js/ui/settings.js?v=0.17.0"></script>
-<script src="js/app.js?v=0.17.0"></script>
+<script src="js/core/storage.js?v=0.18.0"></script>
+<script src="js/core/music-theory.js?v=0.18.0"></script>
+<script src="js/core/caged-forms.js?v=0.18.0"></script>
+<script src="js/core/chord-model.js?v=0.18.0"></script>
+<script src="js/core/chord-info.js?v=0.18.0"></script>
+<script src="js/ui/fretboard.js?v=0.18.0"></script>
+<script src="js/ui/toast.js?v=0.18.0"></script>
+<script src="js/ui/save-editor.js?v=0.18.0"></script>
+<script src="js/ui/chord-builder.js?v=0.18.0"></script>
+<script src="js/ui/chord-export.js?v=0.18.0"></script>
+<script src="js/ui/library.js?v=0.18.0"></script>
+<script src="js/ui/explore.js?v=0.18.0"></script>
+<script src="js/ui/settings.js?v=0.18.0"></script>
+<script src="js/app.js?v=0.18.0"></script>
 </body>
 </html>

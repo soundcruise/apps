@@ -11,6 +11,9 @@
     var currentChordId = null;
     var currentDetailChord = null;
     var detailMonochrome = false;
+    var folderSortMode = false;
+    var entrySortMode = false;
+    var entrySortFolderId = null;
 
     function storage() { return window.ChordCruise.storage; }
     function theory() { return window.ChordCruise.theory; }
@@ -89,7 +92,7 @@
 
     function folderById(id) {
         var found = null;
-        storage().loadFolders().forEach(function (folder) {
+        storage().loadOrderedFolders().forEach(function (folder) {
             if (folder.id === id) found = folder;
         });
         return found;
@@ -107,15 +110,27 @@
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
-    function buildChordThumbnailGridHtml(chords, requestedColumns) {
+    function buildChordThumbnailGridHtml(chords, requestedColumns, sorting) {
         var columns = normalizeLibraryColumns(requestedColumns);
-        var html = '<div class="cc-chordthumb-grid" id="cc-chordthumb-grid" data-library-columns="' + columns + '">';
-        chords.forEach(function (chord) {
+        var html = '<div class="cc-chordthumb-grid' + (sorting ? ' cc-chordthumb-grid--sorting' : '') + '" id="cc-chordthumb-grid" data-library-columns="' + columns + '"' +
+            (sorting ? ' role="list" aria-label="保存コードの並び順"' : '') + '>';
+        chords.forEach(function (chord, index) {
             var displayName = displayChordName(chord.chordName);
-            html += '<button type="button" class="cc-chordthumb-card" data-chord-id="' + escapeHtml(chord.id) + '" aria-label="' + escapeHtml(displayChordName(chord.chordName)) + 'の指板を開く">' +
+            var cardStart = sorting
+                ? '<div class="cc-chordthumb-card cc-chordthumb-card--sorting" data-chord-id="' + escapeHtml(chord.id) + '" role="listitem" aria-label="' + escapeHtml(displayName) + 'の並び替え">'
+                : '<button type="button" class="cc-chordthumb-card" data-chord-id="' + escapeHtml(chord.id) + '" aria-label="' + escapeHtml(displayName) + 'の指板を開く">';
+            html += cardStart +
                 '<span class="cc-chordthumb-name" title="' + escapeHtml(displayName) + '">' + escapeHtml(displayName) + '</span>' +
                 '<span class="cc-chordthumb-board" data-chord-thumb="' + escapeHtml(chord.id) + '" aria-hidden="true"></span>' +
-            '</button>';
+                (sorting
+                    ? '<span class="cc-chordthumb-sort-actions">' +
+                        '<span class="cc-chordthumb-sort-form">' + escapeHtml(chordFormName(chord)) + '</span>' +
+                        '<span class="cc-chordthumb-sort-buttons">' +
+                            sortCardStepButtonHtml(chord.id, -1, index === 0, displayName + 'を上へ移動') +
+                            sortCardStepButtonHtml(chord.id, 1, index === chords.length - 1, displayName + 'を下へ移動') +
+                        '</span></span>' +
+                      '</div>'
+                    : '</button>');
         });
         return html + '</div>';
     }
@@ -128,6 +143,58 @@
             html += '<button type="button" class="cc-segment-btn' + (columns === value ? ' cc-segment-btn--active' : '') + '" data-library-columns-choice="' + value + '" aria-pressed="' + (columns === value ? 'true' : 'false') + '">' + value + '列</button>';
         });
         return html + '</div></div>';
+    }
+
+    function sortError() {
+        if (window.ChordCruise.ui.toast) {
+            window.ChordCruise.ui.toast.show('並び順を保存できませんでした', { type: 'error' });
+        }
+    }
+
+    function sortStepButtonHtml(kind, id, direction, disabled, label) {
+        return '<button type="button" class="cc-sort-step-btn" data-' + kind + '-sort-step="' + direction + '" data-sort-id="' +
+            escapeHtml(id) + '" aria-label="' + escapeHtml(label) + '"' + (disabled ? ' disabled' : '') + '>' +
+            (direction < 0 ? '↑ 上へ' : '↓ 下へ') + '</button>';
+    }
+
+    function sortCardStepButtonHtml(id, direction, disabled, label) {
+        return '<button type="button" class="cc-chordthumb-sort-step" data-entry-sort-step="' + direction + '" data-sort-id="' +
+            escapeHtml(id) + '" aria-label="' + escapeHtml(label) + '" title="' + escapeHtml(label) + '"' + (disabled ? ' disabled' : '') + '>' +
+            (direction < 0 ? '↑' : '↓') + '</button>';
+    }
+
+    function buildFolderSortRowsHtml(folders) {
+        var html = '<div class="cc-sort-list" role="list" aria-label="フォルダの並び順">';
+        folders.forEach(function (folder, index) {
+            var fixed = folder.id === storage().UNCATEGORIZED_ID;
+            html += '<div class="cc-sort-row" role="listitem">' +
+                '<span class="cc-sort-row-main"><span class="cc-sort-row-name">📁 ' + escapeHtml(folder.name) + '</span>' +
+                '<span class="cc-sort-row-meta">' + chordCountIn(folder.id) + '件</span></span>' +
+                (fixed
+                    ? '<span class="cc-sort-fixed-label">先頭固定</span>'
+                    : '<span class="cc-sort-row-actions">' +
+                        sortStepButtonHtml('folder', folder.id, -1, index <= 1, folder.name + 'を上へ移動') +
+                        sortStepButtonHtml('folder', folder.id, 1, index >= folders.length - 1, folder.name + 'を下へ移動') +
+                      '</span>') +
+            '</div>';
+        });
+        return html + '</div>';
+    }
+
+    function buildChordSortRowsHtml(chords) {
+        var html = '<div class="cc-sort-list" role="list" aria-label="保存コードの並び順">';
+        chords.forEach(function (chord, index) {
+            var name = displayChordName(chord.chordName);
+            html += '<div class="cc-sort-row" role="listitem">' +
+                '<span class="cc-sort-row-main"><span class="cc-sort-row-name">' + escapeHtml(name) + '</span>' +
+                '<span class="cc-sort-row-meta">' + escapeHtml(chordFormName(chord)) + '</span></span>' +
+                '<span class="cc-sort-row-actions">' +
+                    sortStepButtonHtml('entry', chord.id, -1, index === 0, name + 'を上へ移動') +
+                    sortStepButtonHtml('entry', chord.id, 1, index === chords.length - 1, name + 'を下へ移動') +
+                '</span>' +
+            '</div>';
+        });
+        return html + '</div>';
     }
 
     function applyLibraryColumns(columns) {
@@ -148,24 +215,31 @@
         view = 'folders';
         currentDetailChord = null;
         detailMonochrome = false;
+        entrySortMode = false;
+        entrySortFolderId = null;
         setContentLayout('folders');
-        var folders = storage().loadFolders().slice().sort(function (a, b) {
-            return (a.order || 0) - (b.order || 0);
-        });
+        var folders = storage().loadOrderedFolders();
         var html = '<div class="cc-card">' +
-            '<h3 class="cc-card-heading">フォルダ</h3>' +
-            '<div class="cc-folder-list">';
-        folders.forEach(function (folder) {
-            html += '<button type="button" class="cc-folder-card" data-folder-id="' + folder.id + '">' +
-                '<span class="cc-folder-card-icon">📁</span>' +
-                '<span class="cc-folder-card-body">' +
-                    '<span class="cc-folder-card-name">' + escapeHtml(folder.name) + '</span>' +
-                    '<span class="cc-folder-card-count">' + chordCountIn(folder.id) + '件</span>' +
-                '</span>' +
-                '<span class="cc-folder-card-chevron">›</span>' +
-            '</button>';
-        });
-        html += '</div>' +
+            '<div class="cc-lib-sort-head"><h3 class="cc-card-heading">フォルダ</h3>' +
+                '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-folder-sort-toggle" aria-pressed="' +
+                    (folderSortMode ? 'true' : 'false') + '">' + (folderSortMode ? '完了' : '並び替え') + '</button></div>';
+        if (folderSortMode) {
+            html += '<p class="cc-sort-mode-note">上下ボタンを押すたびに並び順を保存します。</p>' + buildFolderSortRowsHtml(folders);
+        } else {
+            html += '<div class="cc-folder-list">';
+            folders.forEach(function (folder) {
+                html += '<button type="button" class="cc-folder-card" data-folder-id="' + escapeHtml(folder.id) + '">' +
+                    '<span class="cc-folder-card-icon">📁</span>' +
+                    '<span class="cc-folder-card-body">' +
+                        '<span class="cc-folder-card-name">' + escapeHtml(folder.name) + '</span>' +
+                        '<span class="cc-folder-card-count">' + chordCountIn(folder.id) + '件</span>' +
+                    '</span>' +
+                    '<span class="cc-folder-card-chevron">›</span>' +
+                '</button>';
+            });
+            html += '</div>';
+        }
+        html += (folderSortMode ? '' :
             '<div class="cc-inline-create" id="cc-folder-create-area">' +
                 '<button type="button" class="cc-btn cc-btn-secondary cc-btn--block" id="cc-folder-create-btn">＋ フォルダを作成</button>' +
                 '<div class="cc-inline-input-row cc-inline-input-row--hidden" id="cc-folder-create-row">' +
@@ -173,9 +247,31 @@
                     '<button type="button" class="cc-btn cc-btn-primary cc-btn--small" id="cc-folder-create-ok">作成</button>' +
                     '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-folder-create-cancel">やめる</button>' +
                 '</div>' +
-            '</div>' +
+            '</div>') +
         '</div>';
         contentEl().innerHTML = html;
+
+        document.getElementById('cc-folder-sort-toggle').addEventListener('click', function () {
+            folderSortMode = !folderSortMode;
+            renderFolders();
+        });
+
+        if (folderSortMode) {
+            Array.prototype.forEach.call(contentEl().querySelectorAll('[data-folder-sort-step]'), function (button) {
+                button.addEventListener('click', function () {
+                    var moved = storage().moveFolder(
+                        button.getAttribute('data-sort-id'),
+                        parseInt(button.getAttribute('data-folder-sort-step'), 10)
+                    );
+                    if (!moved) {
+                        sortError();
+                        return;
+                    }
+                    renderFolders();
+                });
+            });
+            return;
+        }
 
         Array.prototype.forEach.call(contentEl().querySelectorAll('.cc-folder-card'), function (btn) {
             btn.addEventListener('click', function () {
@@ -203,17 +299,18 @@
         view = 'list';
         currentDetailChord = null;
         detailMonochrome = false;
+        folderSortMode = false;
         setContentLayout('list');
         var folder = folderById(currentFolderId);
         if (!folder) {
             renderFolders();
             return;
         }
-        var entries = storage().loadChordIndex().filter(function (entry) {
-            return entry.folderId === folder.id;
-        }).sort(function (a, b) {
-            return String(b.updatedAt).localeCompare(String(a.updatedAt));
-        });
+        if (entrySortFolderId !== folder.id) {
+            entrySortMode = false;
+            entrySortFolderId = null;
+        }
+        var entries = storage().loadOrderedChordIndex(folder.id);
         var chords = entries.map(function (entry) {
             return storage().loadChord(entry.id);
         }).filter(function (chord) { return !!chord; });
@@ -222,12 +319,17 @@
         var html = '<div class="cc-card cc-lib-folder-head">' +
             '<div class="cc-lib-folder-title-row">' +
                 '<h3 class="cc-card-heading">📁 ' + escapeHtml(folder.name) + '</h3>' +
-                (!folder.builtin
-                    ? '<div class="cc-lib-folder-actions">' +
+                '<div class="cc-lib-folder-actions">' +
+                    '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-entry-sort-toggle" aria-pressed="' +
+                        (entrySortMode ? 'true' : 'false') + '"' + (chords.length < 2 && !entrySortMode ? ' disabled' : '') + '>' +
+                        (entrySortMode ? '完了' : '並び替え') + '</button>' +
+                    (!entrySortMode && !folder.builtin
+                    ?
                         '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-folder-rename-btn">改名</button>' +
                         '<button type="button" class="cc-btn cc-btn-danger cc-btn--small" id="cc-folder-delete-btn">削除</button>' +
-                      '</div>'
+                    ''
                     : '') +
+                '</div>' +
             '</div>' +
             '<div class="cc-inline-input-row cc-inline-input-row--hidden" id="cc-folder-rename-row">' +
                 '<input type="text" class="cc-input" id="cc-folder-rename-input" maxlength="24">' +
@@ -235,14 +337,40 @@
                 '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-folder-rename-cancel">やめる</button>' +
             '</div>' +
             buildLibraryColumnsControlHtml(columns) +
+            (entrySortMode ? '<p class="cc-sort-mode-note">各カードの矢印を押すたびに並び順を保存します。</p>' : '') +
         '</div>';
 
         if (chords.length === 0) {
             html += '<div class="cc-card cc-placeholder-card"><p>このフォルダにはまだコードがありません。「コードを調べる」からCAGEDフォームを保存できます。</p></div>';
         } else {
-            html += buildChordThumbnailGridHtml(chords, columns);
+            html += buildChordThumbnailGridHtml(chords, columns, entrySortMode);
         }
         contentEl().innerHTML = html;
+
+        document.getElementById('cc-entry-sort-toggle').addEventListener('click', function () {
+            entrySortMode = !entrySortMode;
+            entrySortFolderId = entrySortMode ? folder.id : null;
+            renderList();
+        });
+
+        if (entrySortMode) {
+            renderListThumbnails(chords);
+            Array.prototype.forEach.call(contentEl().querySelectorAll('[data-entry-sort-step]'), function (button) {
+                button.addEventListener('click', function () {
+                    var moved = storage().moveChord(
+                        button.getAttribute('data-sort-id'),
+                        folder.id,
+                        parseInt(button.getAttribute('data-entry-sort-step'), 10)
+                    );
+                    if (!moved) {
+                        sortError();
+                        return;
+                    }
+                    renderList();
+                });
+            });
+            return;
+        }
 
         Array.prototype.forEach.call(contentEl().querySelectorAll('[data-library-columns-choice]'), function (button) {
             button.addEventListener('click', function () {
@@ -500,6 +628,8 @@
 
     function renderDetail() {
         view = 'detail';
+        entrySortMode = false;
+        entrySortFolderId = null;
         detailMonochrome = false;
         setContentLayout('detail');
         var chord = storage().loadChord(currentChordId);
@@ -608,9 +738,7 @@
 
         // フォルダ移動（即時反映）
         var moveSelect = document.getElementById('cc-lib-folder-move');
-        storage().loadFolders().slice().sort(function (a, b) {
-            return (a.order || 0) - (b.order || 0);
-        }).forEach(function (folder) {
+        storage().loadOrderedFolders().forEach(function (folder) {
             var option = document.createElement('option');
             option.value = folder.id;
             option.textContent = folder.name;
@@ -664,6 +792,9 @@
         view = 'folders';
         currentDetailChord = null;
         detailMonochrome = false;
+        folderSortMode = false;
+        entrySortMode = false;
+        entrySortFolderId = null;
     }
 
     document.addEventListener('chordcruise:fretboard-settings-change', function () {
@@ -681,6 +812,8 @@
         savedFrets: savedFrets,
         savedDiagramOptions: savedDiagramOptions,
         buildChordThumbnailGridHtml: buildChordThumbnailGridHtml,
+        buildFolderSortRowsHtml: buildFolderSortRowsHtml,
+        buildChordSortRowsHtml: buildChordSortRowsHtml,
         normalizeLibraryColumns: normalizeLibraryColumns
     };
 })();

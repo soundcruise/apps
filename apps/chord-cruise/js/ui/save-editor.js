@@ -326,9 +326,9 @@
 
     function renderFolders() {
         var select = document.getElementById('cc-save-folder');
-        var folders = window.ChordCruise.storage.loadFolders();
+        var folders = window.ChordCruise.storage.loadOrderedFolders();
         select.innerHTML = '';
-        folders.slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); }).forEach(function (folder) {
+        folders.forEach(function (folder) {
             var option = document.createElement('option');
             option.value = folder.id;
             option.textContent = folder.name;
