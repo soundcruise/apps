@@ -1309,6 +1309,719 @@ body {
     font-size: 1.3rem;
 }
 
+.cc-folder-card:focus-visible {
+    outline: 2px solid var(--cc-gold-bright);
+    outline-offset: 2px;
+}
+
+.cc-folder-card {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.cc-folder-card-icon {
+    position: relative;
+    display: block;
+    flex: 0 0 auto;
+}
+
+.cc-folder-card-body {
+    min-width: 0;
+}
+
+.cc-folder-card-name {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.cc-folder-card-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.cc-folder-card-state {
+    display: inline-flex;
+    align-items: center;
+    min-height: 20px;
+    padding: 2px 6px;
+    border: 1px solid var(--cc-border);
+    border-radius: var(--cc-radius-pill);
+    color: var(--cc-text-muted);
+    font-size: 0.62rem;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.cc-folder-card-state--empty {
+    border-style: dashed;
+}
+
+.cc-folder-card--sorting {
+    cursor: default;
+    transform: none;
+}
+
+.cc-folder-card--sorting:active {
+    transform: none;
+}
+
+/* A: 本棚に並ぶ背表紙 */
+.cc-folder-list--design-a {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 10px;
+}
+
+.cc-folder-list--design-a .cc-folder-card.is-builtin {
+    grid-column: 1 / -1;
+}
+
+.cc-folder-card--design-a {
+    position: relative;
+    grid-template-columns: 11px minmax(0, 1fr) auto;
+    align-items: stretch;
+    gap: 10px;
+    min-height: 92px;
+    padding: 13px 12px 13px 10px;
+    border-color: rgba(219, 181, 93, 0.34);
+    border-radius: 6px 12px 12px 6px;
+    background:
+        linear-gradient(90deg, rgba(212, 175, 55, 0.13), transparent 13px),
+        linear-gradient(145deg, #211a14, #12110f 72%);
+    box-shadow: inset -1px 0 rgba(255, 239, 188, 0.06), 0 6px 16px rgba(0, 0, 0, 0.22);
+}
+
+.cc-folder-card--design-a::after {
+    content: '';
+    position: absolute;
+    right: 8px;
+    bottom: 7px;
+    left: 8px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.34), transparent);
+}
+
+.cc-folder-card--design-a .cc-folder-card-icon {
+    width: 11px;
+    height: 100%;
+    min-height: 62px;
+    border: 1px solid rgba(232, 201, 122, 0.62);
+    border-radius: 4px;
+    background: linear-gradient(180deg, #caa441, #6f541e 50%, #c7a046);
+    box-shadow: inset 2px 0 rgba(255, 245, 208, 0.22);
+}
+
+.cc-folder-card--design-a .cc-folder-card-body {
+    justify-content: center;
+    gap: 8px;
+}
+
+.cc-folder-card--design-a .cc-folder-card-name {
+    display: -webkit-box;
+    font-family: Georgia, 'Times New Roman', 'Yu Mincho', serif;
+    font-size: 0.94rem;
+    line-height: 1.35;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.cc-folder-card--design-a.is-builtin {
+    border-color: rgba(232, 201, 122, 0.52);
+    background:
+        linear-gradient(90deg, rgba(212, 175, 55, 0.18), transparent 20px),
+        linear-gradient(145deg, #2b2116, #15120f 72%);
+}
+
+.cc-folder-card--design-a.is-empty {
+    border-style: dashed;
+    box-shadow: none;
+}
+
+.cc-sort-list.cc-folder-list--design-a {
+    display: grid;
+}
+
+.cc-folder-card--design-a.cc-folder-card--sorting {
+    grid-template-columns: 11px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    min-height: 132px;
+}
+
+.cc-folder-card--design-a.cc-folder-card--sorting .cc-sort-row-actions,
+.cc-folder-card--design-a.cc-folder-card--sorting .cc-sort-fixed-label {
+    grid-column: 1 / -1;
+}
+
+.cc-folder-card--design-a.cc-folder-card--sorting .cc-sort-row-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cc-folder-card--design-a.cc-folder-card--sorting .cc-sort-step-btn {
+    min-width: 0;
+}
+
+.cc-folder-card--sorting .cc-sort-row-actions {
+    align-self: center;
+}
+
+.cc-folder-card--sorting .cc-sort-fixed-label {
+    align-self: center;
+}
+
+@media (max-width: 420px) {
+    .cc-folder-card--design-a {
+        gap: 8px;
+        padding-right: 9px;
+    }
+
+    .cc-folder-card--sorting .cc-sort-step-btn {
+        width: 100%;
+        min-width: 0;
+    }
+}
+
+@media (max-width: 340px) {
+    .cc-folder-list--design-a {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .cc-folder-list--design-a .cc-folder-card.is-builtin {
+        grid-column: auto;
+    }
+}
+/* v0.19.0: ヴィンテージ楽譜集の本棚 */
+.cc-folder-list--shelf {
+    --cc-shelf-book-height: 184px;
+    --cc-shelf-column-gap: 5px;
+    --cc-shelf-row-gap: 7px;
+    display: block;
+    margin: 0 0 14px;
+    padding: 0 1px;
+}
+
+.cc-folder-list--shelf[data-folder-shelf-columns="2"] { --cc-folder-shelf-columns: 2; --cc-shelf-book-height: 222px; --cc-shelf-column-gap: 9px; --cc-shelf-row-gap: 8px; }
+.cc-folder-list--shelf[data-folder-shelf-columns="3"] { --cc-folder-shelf-columns: 3; --cc-shelf-book-height: 204px; --cc-shelf-column-gap: 7px; --cc-shelf-row-gap: 8px; }
+.cc-folder-list--shelf[data-folder-shelf-columns="4"] { --cc-folder-shelf-columns: 4; --cc-shelf-book-height: 184px; --cc-shelf-column-gap: 5px; --cc-shelf-row-gap: 7px; }
+.cc-folder-list--shelf[data-folder-shelf-columns="5"] { --cc-folder-shelf-columns: 5; --cc-shelf-book-height: 174px; --cc-shelf-column-gap: 4px; --cc-shelf-row-gap: 6px; }
+.cc-folder-list--shelf[data-folder-shelf-columns="6"] { --cc-folder-shelf-columns: 6; --cc-shelf-book-height: 166px; --cc-shelf-column-gap: 4px; --cc-shelf-row-gap: 6px; }
+
+.cc-folder-shelf-row {
+    display: grid;
+    grid-template-columns: repeat(var(--cc-folder-shelf-columns, 4), minmax(0, 1fr));
+    grid-template-rows: var(--cc-shelf-book-height) 9px;
+    column-gap: var(--cc-shelf-column-gap);
+    row-gap: 0;
+    margin: 0 0 var(--cc-shelf-row-gap);
+}
+
+.cc-folder-shelf-board {
+    position: relative;
+    z-index: 2;
+    grid-column: 1 / -1;
+    height: 9px;
+    margin-top: -1px;
+    border-top: 1px solid rgba(222, 176, 87, 0.55);
+    border-bottom: 3px solid rgba(11, 8, 6, 0.92);
+    background:
+        linear-gradient(to bottom, rgba(123, 78, 38, 0.82), rgba(51, 30, 17, 0.98) 50%, rgba(25, 15, 10, 0.96));
+    box-shadow: 0 4px 7px rgba(0, 0, 0, 0.42), inset 0 1px rgba(255, 224, 147, 0.16);
+    pointer-events: none;
+}
+
+.cc-folder-list--shelf.cc-folder-list--design-a .cc-folder-card.is-builtin {
+    grid-column: auto;
+}
+
+.cc-folder-list--shelf .cc-folder-card--design-a {
+    --cc-book-deep: #19130f;
+    --cc-book-main: #362417;
+    --cc-book-line: rgba(240, 209, 124, 0.54);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: stretch;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    gap: 0;
+    overflow: hidden;
+    padding: 10px 5px 9px;
+    border: 1px solid var(--cc-book-line);
+    border-radius: 7px 8px 6px 6px;
+    color: var(--cc-text);
+    background:
+        linear-gradient(90deg, rgba(255, 246, 211, 0.13), transparent 11%, transparent 87%, rgba(0, 0, 0, 0.38)),
+        linear-gradient(145deg, var(--cc-book-main), var(--cc-book-deep));
+    box-shadow:
+        inset 2px 0 rgba(255, 244, 205, 0.12),
+        inset -3px 0 rgba(0, 0, 0, 0.42),
+        2px 4px 8px rgba(0, 0, 0, 0.34);
+    transform: none;
+}
+
+.cc-folder-list--shelf .cc-folder-card--design-a::before,
+.cc-folder-list--shelf .cc-folder-card--design-a::after {
+    content: '';
+    position: absolute;
+    right: 4px;
+    left: 4px;
+    height: 5px;
+    border-top: 1px solid rgba(255, 238, 177, 0.48);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.38);
+    pointer-events: none;
+}
+
+.cc-folder-list--shelf .cc-folder-card--design-a::before { top: 6px; }
+.cc-folder-list--shelf .cc-folder-card--design-a::after { bottom: 6px; background: transparent; }
+
+.cc-folder-list--shelf .cc-folder-card--design-a .cc-folder-card-icon,
+.cc-folder-list--shelf .cc-folder-card--design-a .cc-folder-card-chevron {
+    display: none;
+}
+
+.cc-folder-list--shelf .cc-folder-card--design-a .cc-folder-card-body {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    min-width: 0;
+    min-height: 0;
+    gap: 5px;
+}
+
+.cc-folder-list--shelf .cc-folder-card--design-a .cc-folder-card-name {
+    display: block;
+    flex: 1;
+    min-width: 0;
+    max-width: 100%;
+    max-height: 128px;
+    overflow: hidden;
+    color: var(--cc-champagne);
+    font-family: Georgia, 'Times New Roman', 'Yu Mincho', 'Hiragino Mincho ProN', serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: start;
+    text-overflow: clip;
+    white-space: normal;
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    -webkit-box-orient: unset;
+    -webkit-line-clamp: unset;
+}
+
+.cc-folder-list--shelf .cc-folder-card--design-a .cc-spine-char {
+    display: inline-block;
+    text-orientation: upright;
+}
+
+.cc-folder-list--shelf .cc-folder-card--design-a .cc-spine-char--prolonged {
+    display: inline-block;
+    position: relative;
+    width: 1em;
+    height: 1em;
+    min-width: 1em;
+    min-height: 1em;
+    line-height: 1;
+}
+
+.cc-folder-list--shelf .cc-folder-card--design-a .cc-spine-char--prolonged::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0.1em;
+    height: 0.78em;
+    border-radius: 999px;
+    background: currentColor;
+    transform: translate(-50%, -50%);
+}
+
+.cc-folder-list--shelf .cc-folder-card--design-a .cc-folder-card-meta {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.cc-folder-list--shelf .cc-folder-card--design-a .cc-folder-card-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 18px;
+    padding: 2px 4px;
+    border: 1px solid rgba(240, 209, 124, 0.48);
+    border-radius: 4px;
+    color: var(--cc-champagne);
+    background: rgba(0, 0, 0, 0.28);
+    font-size: 0.62rem;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.cc-folder-list--shelf .cc-folder-card--design-a .cc-folder-card-state {
+    min-width: 0;
+    min-height: 0;
+    padding: 3px 1px;
+    border-color: rgba(240, 209, 124, 0.36);
+    border-radius: 3px;
+    color: rgba(240, 224, 184, 0.82);
+    font-size: 0.58rem;
+    line-height: 1.05;
+    text-align: center;
+    white-space: normal;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+}
+
+.cc-folder-list--shelf .cc-folder-card--design-a.is-builtin {
+    border-width: 2px;
+    border-color: rgba(240, 209, 124, 0.82);
+    box-shadow:
+        inset 0 0 0 2px rgba(212, 175, 55, 0.2),
+        inset 2px 0 rgba(255, 244, 205, 0.16),
+        inset -3px 0 rgba(0, 0, 0, 0.45),
+        2px 4px 8px rgba(0, 0, 0, 0.34);
+}
+
+.cc-folder-list--shelf .cc-folder-card--design-a.is-empty {
+    border-style: dashed;
+    opacity: 0.78;
+}
+
+/* ヴィンテージ楽譜集 */
+.cc-folder-card--book-a3 {
+    --cc-book-line: rgba(238, 221, 171, 0.46);
+    background:
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 5px),
+        linear-gradient(90deg, rgba(255, 250, 220, 0.1), transparent 12%, transparent 88%, rgba(0, 0, 0, 0.38)),
+        linear-gradient(145deg, var(--cc-book-main), var(--cc-book-deep)) !important;
+}
+
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-forest { --cc-book-main: #214238; --cc-book-deep: #10251f; }
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-burgundy { --cc-book-main: #562629; --cc-book-deep: #2a1114; }
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-navy { --cc-book-main: #22334b; --cc-book-deep: #101a29; }
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-umber { --cc-book-main: #4a321d; --cc-book-deep: #24170d; }
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-charcoal { --cc-book-main: #302d2a; --cc-book-deep: #171512; }
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-teal { --cc-book-main: #16424a; --cc-book-deep: #0c2429; }
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-violet { --cc-book-main: #413153; --cc-book-deep: #22182e; }
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-russet { --cc-book-main: #633521; --cc-book-deep: #32180f; }
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-leather { --cc-book-main: #452718; --cc-book-deep: #1c100b; }
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-black-leather { --cc-book-main: #302019; --cc-book-deep: #140e0b; }
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-wine { --cc-book-main: #371a1d; --cc-book-deep: #180b0e; }
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-black-gold { --cc-book-main: #292721; --cc-book-deep: #0e0e0d; --cc-book-line: rgba(225, 190, 95, 0.62); }
+
+.cc-folder-card--book-a3 .cc-folder-card-name {
+    color: #f2e3b7;
+}
+
+/* 並び替え中も背表紙を保ち、下部に前へ／後への操作を収める。 */
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-card--sorting {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    min-height: 0;
+    padding: 9px 4px 5px;
+}
+
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-card--sorting .cc-folder-card-body {
+    min-height: 0;
+}
+
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-card--sorting .cc-folder-card-name {
+    max-height: 96px;
+}
+
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-card--sorting .cc-sort-row-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2px;
+    width: 100%;
+    margin-top: 4px;
+}
+
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-card--sorting .cc-sort-step-btn {
+    min-width: 0;
+    min-height: 30px;
+    padding: 4px 1px;
+    border-radius: 5px;
+    font-size: 0.59rem;
+    line-height: 1.1;
+}
+
+/* 列数が増えるほど余白と装飾を抑え、背表紙の可読性を優先する。 */
+.cc-folder-list--shelf[data-folder-shelf-columns="2"] .cc-folder-card--design-a { padding: 12px 10px 10px; }
+.cc-folder-list--shelf[data-folder-shelf-columns="2"] .cc-folder-card--design-a .cc-folder-card-name { max-height: 154px; font-size: 1rem; }
+.cc-folder-list--shelf[data-folder-shelf-columns="2"] .cc-folder-card--design-a .cc-folder-card-count { font-size: 0.68rem; }
+.cc-folder-list--shelf[data-folder-shelf-columns="3"] .cc-folder-card--design-a .cc-folder-card-name { max-height: 140px; font-size: 0.91rem; }
+.cc-folder-list--shelf[data-folder-shelf-columns="5"] .cc-folder-card--design-a { padding-right: 3px; padding-left: 3px; }
+.cc-folder-list--shelf[data-folder-shelf-columns="5"] .cc-folder-card--design-a .cc-folder-card-name { max-height: 110px; font-size: 0.72rem; }
+.cc-folder-list--shelf[data-folder-shelf-columns="5"] .cc-folder-card--design-a::before,
+.cc-folder-list--shelf[data-folder-shelf-columns="5"] .cc-folder-card--design-a::after { right: 2px; left: 2px; }
+.cc-folder-list--shelf[data-folder-shelf-columns="6"] .cc-folder-card--design-a { padding: 8px 2px 7px; border-radius: 5px; }
+.cc-folder-list--shelf[data-folder-shelf-columns="6"] .cc-folder-card--design-a .cc-folder-card-name { max-height: 104px; font-size: 0.62rem; }
+.cc-folder-list--shelf[data-folder-shelf-columns="6"] .cc-folder-card--design-a .cc-folder-card-count { min-height: 16px; padding: 1px 2px; font-size: 0.52rem; }
+.cc-folder-list--shelf[data-folder-shelf-columns="6"] .cc-folder-card--design-a .cc-folder-card-state { padding: 2px 0; font-size: 0.49rem; }
+.cc-folder-list--shelf[data-folder-shelf-columns="6"] .cc-folder-card--design-a::before,
+.cc-folder-list--shelf[data-folder-shelf-columns="6"] .cc-folder-card--design-a::after { right: 1px; left: 1px; height: 3px; }
+.cc-folder-list--shelf[data-folder-shelf-columns="6"] .cc-folder-card--design-a.cc-folder-card--sorting .cc-sort-step-btn { min-height: 28px; font-size: 0.5rem; }
+
+@media (min-width: 700px) {
+    .cc-folder-list--shelf {
+        max-width: 600px;
+        margin-right: auto;
+        margin-left: auto;
+    }
+}
+
+@media (max-width: 420px) {
+    .cc-folder-shelf-columns {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
+
+/* 本棚の列数と、各背表紙の管理導線 */
+.cc-folder-shelf-columns {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0 0 12px;
+    padding: 8px 10px;
+    border: 1px solid rgba(228, 198, 124, 0.12);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.16);
+}
+
+.cc-folder-shelf-columns-label {
+    color: var(--cc-text-muted);
+    font-size: 0.73rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.cc-folder-shelf-columns-options {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(32px, 1fr));
+    gap: 4px;
+    width: min(100%, 212px);
+}
+
+.cc-folder-shelf-columns-btn {
+    min-height: 32px;
+    padding: 3px 5px;
+    border: 1px solid var(--cc-border);
+    border-radius: 7px;
+    color: var(--cc-text-muted);
+    background: rgba(255, 255, 255, 0.02);
+    font: inherit;
+    font-size: 0.7rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.cc-folder-shelf-columns-btn.is-selected {
+    border-color: rgba(212, 175, 55, 0.72);
+    color: var(--cc-champagne);
+    background: rgba(212, 175, 55, 0.13);
+}
+
+.cc-folder-shelf-columns-btn:focus-visible,
+.cc-folder-card-menu:focus-visible,
+.cc-folder-manage-action:focus-visible,
+.cc-folder-manage-cancel:focus-visible,
+.cc-folder-color-choice:focus-visible {
+    outline: 2px solid var(--cc-gold-bright);
+    outline-offset: 2px;
+}
+
+.cc-folder-card-wrap {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+}
+
+.cc-folder-card-wrap .cc-folder-card {
+    height: 100%;
+}
+
+.cc-folder-card-wrap .cc-folder-card-body {
+    padding-bottom: 29px;
+}
+
+.cc-folder-card-wrap .cc-folder-card.is-managing {
+    border-color: rgba(255, 231, 152, 0.96);
+    box-shadow: inset 0 0 0 2px rgba(212, 175, 55, 0.34), 0 0 0 2px rgba(212, 175, 55, 0.18), 2px 4px 8px rgba(0, 0, 0, 0.34);
+}
+
+.cc-folder-card-menu {
+    position: absolute;
+    right: 4px;
+    bottom: 8px;
+    z-index: 3;
+    display: grid;
+    width: 28px;
+    min-height: 28px;
+    padding: 0;
+    place-items: center;
+    border: 1px solid rgba(240, 209, 124, 0.42);
+    border-radius: 7px;
+    color: var(--cc-champagne);
+    background: rgba(0, 0, 0, 0.34);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.24);
+    font: 700 1.08rem/1 Georgia, serif;
+    cursor: pointer;
+}
+
+.cc-folder-card-menu:hover,
+.cc-folder-card-menu:active {
+    border-color: rgba(240, 209, 124, 0.82);
+    background: rgba(0, 0, 0, 0.52);
+}
+
+.cc-folder-list--shelf[data-folder-shelf-columns="5"] .cc-folder-card-menu,
+.cc-folder-list--shelf[data-folder-shelf-columns="6"] .cc-folder-card-menu {
+    right: 2px;
+    bottom: 4px;
+    width: 23px;
+    min-height: 23px;
+    border-radius: 5px;
+    font-size: 0.9rem;
+}
+
+.cc-folder-list--shelf[data-folder-shelf-columns="5"] .cc-folder-card-wrap .cc-folder-card-body,
+.cc-folder-list--shelf[data-folder-shelf-columns="6"] .cc-folder-card-wrap .cc-folder-card-body {
+    padding-bottom: 23px;
+}
+
+/* フォルダ管理は小画面で扱いやすい bottom sheet に限定する。 */
+.cc-folder-manage-overlay {
+    position: fixed;
+    z-index: 2200;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.58);
+}
+
+.cc-folder-manage-overlay--hidden {
+    display: none;
+}
+
+.cc-folder-manage-sheet {
+    width: min(100%, 520px);
+    max-height: min(82dvh, 680px);
+    overflow: auto;
+    padding: 10px 14px max(14px, env(safe-area-inset-bottom));
+    border: 1px solid rgba(228, 198, 124, 0.26);
+    border-radius: 18px 18px 13px 13px;
+    color: var(--cc-text);
+    background: linear-gradient(155deg, #24201a, #11100e 82%);
+    box-shadow: 0 -12px 38px rgba(0, 0, 0, 0.42);
+}
+
+.cc-folder-manage-grabber {
+    width: 36px;
+    height: 4px;
+    margin: 0 auto 12px;
+    border-radius: 99px;
+    background: rgba(240, 224, 184, 0.34);
+}
+
+.cc-folder-manage-heading h3 {
+    margin: 0;
+    color: var(--cc-champagne);
+    font-size: 1rem;
+}
+
+.cc-folder-manage-heading p {
+    margin: 4px 0 14px;
+    color: var(--cc-text-muted);
+    font-size: 0.75rem;
+}
+
+.cc-folder-manage-actions {
+    display: grid;
+    gap: 7px;
+}
+
+.cc-folder-manage-action,
+.cc-folder-manage-cancel {
+    width: 100%;
+    min-height: 48px;
+    border: 1px solid var(--cc-border);
+    border-radius: 10px;
+    color: var(--cc-text);
+    background: rgba(255, 255, 255, 0.035);
+    font: inherit;
+    font-size: 0.88rem;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+}
+
+.cc-folder-manage-action { padding: 10px 13px; }
+.cc-folder-manage-cancel { margin-top: 10px; text-align: center; }
+.cc-folder-manage-action--danger { border-color: rgba(204, 91, 78, 0.48); color: #f2b6aa; }
+.cc-folder-manage-label { display: block; margin: 0 0 5px; color: var(--cc-text-muted); font-size: 0.75rem; }
+.cc-folder-manage-confirm-actions { display: flex; gap: 8px; margin-top: 12px; }
+.cc-folder-manage-confirm-actions .cc-btn { flex: 1; }
+
+.cc-folder-color-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+}
+
+.cc-folder-color-choice {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    min-height: 40px;
+    padding: 6px 7px;
+    border: 1px solid var(--cc-border);
+    border-radius: 8px;
+    color: var(--cc-text-muted);
+    background: rgba(255, 255, 255, 0.025);
+    font: inherit;
+    font-size: 0.68rem;
+    cursor: pointer;
+}
+
+.cc-folder-color-choice.is-selected { border-color: rgba(240, 209, 124, 0.88); color: var(--cc-champagne); }
+.cc-folder-color-swatch { flex: 0 0 16px; width: 16px; height: 24px; border: 1px solid rgba(255, 244, 205, 0.46); border-radius: 3px; background: linear-gradient(145deg, var(--cc-book-main), var(--cc-book-deep)); }
+.cc-folder-color-choice.cc-folder-color-forest { --cc-book-main: #214238; --cc-book-deep: #10251f; }
+.cc-folder-color-choice.cc-folder-color-burgundy { --cc-book-main: #562629; --cc-book-deep: #2a1114; }
+.cc-folder-color-choice.cc-folder-color-navy { --cc-book-main: #22334b; --cc-book-deep: #101a29; }
+.cc-folder-color-choice.cc-folder-color-umber { --cc-book-main: #4a321d; --cc-book-deep: #24170d; }
+.cc-folder-color-choice.cc-folder-color-charcoal { --cc-book-main: #302d2a; --cc-book-deep: #171512; }
+.cc-folder-color-choice.cc-folder-color-teal { --cc-book-main: #16424a; --cc-book-deep: #0c2429; }
+.cc-folder-color-choice.cc-folder-color-violet { --cc-book-main: #413153; --cc-book-deep: #22182e; }
+.cc-folder-color-choice.cc-folder-color-russet { --cc-book-main: #633521; --cc-book-deep: #32180f; }
+.cc-folder-color-choice.cc-folder-color-leather { --cc-book-main: #452718; --cc-book-deep: #1c100b; }
+.cc-folder-color-choice.cc-folder-color-black-leather { --cc-book-main: #302019; --cc-book-deep: #140e0b; }
+.cc-folder-color-choice.cc-folder-color-wine { --cc-book-main: #371a1d; --cc-book-deep: #180b0e; }
+.cc-folder-color-choice.cc-folder-color-black-gold { --cc-book-main: #292721; --cc-book-deep: #0e0e0d; }
+.cc-folder-color-choice.cc-folder-color-forest, .cc-folder-color-choice.cc-folder-color-burgundy, .cc-folder-color-choice.cc-folder-color-navy, .cc-folder-color-choice.cc-folder-color-umber, .cc-folder-color-choice.cc-folder-color-charcoal, .cc-folder-color-choice.cc-folder-color-teal, .cc-folder-color-choice.cc-folder-color-violet, .cc-folder-color-choice.cc-folder-color-russet, .cc-folder-color-choice.cc-folder-color-leather, .cc-folder-color-choice.cc-folder-color-black-leather, .cc-folder-color-choice.cc-folder-color-wine, .cc-folder-color-choice.cc-folder-color-black-gold { color: var(--cc-text-muted); }
+
 .cc-chordcard-list {
     display: flex;
     flex-direction: column;

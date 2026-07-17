@@ -6,6 +6,8 @@ const vm = require('vm');
 const root = path.resolve(__dirname, '..');
 const storageSource = fs.readFileSync(path.join(root, 'js/core/storage.js'), 'utf8');
 const settingsSource = fs.readFileSync(path.join(root, 'js/ui/settings.js'), 'utf8');
+const librarySource = fs.readFileSync(path.join(root, 'js/ui/library.js'), 'utf8');
+const themeSource = fs.readFileSync(path.join(root, 'theme.css'), 'utf8');
 
 const P = 'chordCruise.';
 const ORDER_KEY = P + 'libraryOrder';
@@ -17,9 +19,10 @@ function json(value) {
     return JSON.stringify(value);
 }
 
-function makeLocalStorage(seed, failKeys) {
+function makeLocalStorage(seed, failKeys, failRemoveKeys) {
     const values = Object.assign({}, seed || {});
     const failures = new Set(failKeys || []);
+    const removeFailures = new Set(failRemoveKeys || []);
     return {
         getItem(key) {
             return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : null;
@@ -29,6 +32,7 @@ function makeLocalStorage(seed, failKeys) {
             values[key] = String(value);
         },
         removeItem(key) {
+            if (removeFailures.has(key)) throw new Error('quota');
             delete values[key];
         },
         snapshot() {
@@ -62,8 +66,8 @@ function baseData() {
     return seed;
 }
 
-function loadStorage(seed, failKeys) {
-    const localStorage = makeLocalStorage(seed, failKeys);
+function loadStorage(seed, failKeys, failRemoveKeys) {
+    const localStorage = makeLocalStorage(seed, failKeys, failRemoveKeys);
     const context = {
         window: { localStorage },
         console: { warn() {} },
@@ -184,19 +188,23 @@ function orderOf(env) {
     assert.strictEqual(order.entryIdsByFolder['folder-b'][0], 'a2', 'moved chord should be first in destination');
 })();
 
-(function deleteChordAndFolderCleanOrderMetadata() {
+(function deleteChordAndFolderFullyRemovesOwnedData() {
     const env = loadStorage(baseData());
     env.storage.moveChord('a1', 'folder-a', -1);
     env.storage.deleteChord('b1');
+    env.storage.setFolderColor('folder-a', 'wine');
     assert(!orderOf(env).entryIdsByFolder['folder-b'].includes('b1'));
 
     assert.strictEqual(env.storage.deleteFolder('folder-a'), true);
     const order = orderOf(env);
     assert(!order.folderIds.includes('folder-a'));
     assert.strictEqual(order.entryIdsByFolder['folder-a'], undefined);
-    assert.deepStrictEqual(order.entryIdsByFolder[UNCATEGORIZED].slice(0, 3), ['a1', 'a2', 'u1']);
-    assert.strictEqual(env.storage.loadChord('a1').folderId, UNCATEGORIZED);
-    assert.strictEqual(env.storage.loadChord('a2').folderId, UNCATEGORIZED);
+    assert.deepStrictEqual(order.entryIdsByFolder[UNCATEGORIZED], ['u1']);
+    assert.strictEqual(env.storage.loadChord('a1'), null);
+    assert.strictEqual(env.storage.loadChord('a2'), null);
+    assert.deepStrictEqual(ids(env.storage.loadChordIndex()), ['u1'], 'other folder entries remain after b1 was deleted');
+    assert(!env.storage.loadFolders().some((folder) => folder.id === 'folder-a'), 'folder metadata including color is removed');
+    assert.strictEqual(env.storage.deleteFolder(UNCATEGORIZED), false, 'uncategorized cannot be deleted');
 })();
 
 (function failedOrderWriteDoesNotChangePersistedOrderOrIndex() {
@@ -255,4 +263,98 @@ function orderOf(env) {
     assert.strictEqual(button.textContent, '更新中…');
 })();
 
-console.log('library-order: migration, ordering, persistence, failures, and reload URL OK');
+(function folderShelfColumnsStayIndependentFromCodeGridColumns() {
+    const env = loadStorage(baseData());
+    env.storage.saveSettings({ libraryColumns: 2, folderShelfColumns: 6 });
+    let settings = native(env.storage.loadSettings());
+    assert.strictEqual(settings.libraryColumns, 2);
+    assert.strictEqual(settings.folderShelfColumns, 6);
+    env.storage.saveSettings({ folderShelfColumns: 99 });
+    settings = native(env.storage.loadSettings());
+    assert.strictEqual(settings.folderShelfColumns, 4, 'invalid shelf columns fall back to 4');
+    assert.strictEqual(settings.libraryColumns, 2, 'code grid setting remains independent');
+})();
+
+(function folderColorsDefaultToBlackLeatherAndPersistOnlyWhenChosen() {
+    const env = loadStorage(baseData());
+    const source = env.storage.loadOrderedFolders().find((folder) => folder.id === 'folder-a');
+    const before = env.localStorage.getItem(FOLDERS_KEY);
+    const first = env.storage.folderColorKey(source);
+    const second = env.storage.folderColorKey(source);
+    assert.strictEqual(first, 'black-leather');
+    assert.strictEqual(second, 'black-leather', 'legacy folders default to black leather');
+    assert.strictEqual(env.localStorage.getItem(FOLDERS_KEY), before, 'reading a legacy color does not write');
+    assert.strictEqual(env.storage.setFolderColor('folder-a', 'wine'), true);
+    const changed = env.storage.loadOrderedFolders().find((folder) => folder.id === 'folder-a');
+    assert.strictEqual(changed.colorKey, 'wine');
+    assert.strictEqual(env.storage.folderColorKey(changed), 'wine');
+    assert.strictEqual(env.storage.setFolderColor('folder-a', '#ff0000'), false, 'raw colors are rejected');
+    assert.strictEqual(env.storage.setFolderColor(UNCATEGORIZED, 'navy'), true, 'uncategorized can be recolored');
+    const created = env.storage.createFolder('黒革の新規');
+    assert.strictEqual(created.colorKey, 'black-leather', 'new folders persist the default color');
+})();
+
+(function folderCopyDeepCopiesDataAndPreservesRelativeOrder() {
+    const env = loadStorage(baseData());
+    const copied = env.storage.copyFolder('folder-a');
+    assert(copied && copied.id && copied.id !== 'folder-a');
+    const order = orderOf(env);
+    const sourcePosition = order.folderIds.indexOf('folder-a');
+    assert.strictEqual(order.folderIds[sourcePosition + 1], copied.id, 'copy follows its original folder');
+    assert.deepStrictEqual(order.entryIdsByFolder[copied.id].length, 2);
+    assert.deepStrictEqual(ids(env.storage.loadOrderedChordIndex('folder-a')), ['a2', 'a1']);
+    const copiedEntries = env.storage.loadOrderedChordIndex(copied.id);
+    assert.deepStrictEqual(Array.from(copiedEntries, (entry) => entry.chordName), ['G', 'C'], 'code ordering is preserved');
+    copiedEntries.forEach((entry) => {
+        assert(!['a1', 'a2'].includes(entry.id), 'copied chord IDs are new');
+        const chord = env.storage.loadChord(entry.id);
+        assert.strictEqual(chord.folderId, copied.id);
+        assert.strictEqual(chord.schemaVersion, 1);
+    });
+    assert.strictEqual(copied.name, 'Aのコピー');
+    assert.strictEqual(copied.colorKey, 'black-leather', 'a colorless source copy inherits black leather');
+    assert.strictEqual(env.storage.setFolderColor('folder-a', 'navy'), true);
+    const coloredCopy = env.storage.copyFolder('folder-a');
+    assert.strictEqual(coloredCopy.colorKey, 'navy', 'an explicit source color is inherited');
+    const copiedAgain = env.storage.copyFolder('folder-a');
+    assert.strictEqual(copiedAgain.name, 'Aのコピー3');
+})();
+
+(function emptyFolderCopyAndWriteFailureLeaveConsistentData() {
+    const env = loadStorage(baseData());
+    const empty = env.storage.copyFolder('folder-empty');
+    assert(empty);
+    assert.deepStrictEqual(orderOf(env).entryIdsByFolder[empty.id], []);
+    const long = env.storage.createFolder('あいうえおかきくけこさしすせそたちつてとなにぬね');
+    const longCopy = env.storage.copyFolder(long.id);
+    assert(longCopy.name.length <= 24, 'copy names stay within the 24-character limit');
+
+    const seeded = baseData();
+    const before = Object.assign({}, seeded);
+    const failing = loadStorage(seeded, [INDEX_KEY]);
+    assert.strictEqual(failing.storage.copyFolder('folder-a'), null);
+    assert.deepStrictEqual(failing.localStorage.snapshot(), before, 'failed copy rolls back all newly written data');
+})();
+
+(function failedFolderDeleteLeavesDataAndOrderUntouched() {
+    const seed = baseData();
+    const before = Object.assign({}, seed);
+    const env = loadStorage(seed, [], [P + 'chord.a2']);
+    assert.strictEqual(env.storage.deleteFolder('folder-a'), false);
+    assert.deepStrictEqual(env.localStorage.snapshot(), before, 'failed delete rolls back code records, folders, index, and ordering');
+})();
+
+(function prolongedSoundMarkUsesDedicatedVisualRule() {
+    assert(librarySource.includes("character === 'ー'"), 'only U+30FC receives the special class');
+    assert(librarySource.includes('cc-spine-char--prolonged\" aria-hidden=\"true\"></span>'), 'the visual long-vowel mark has no glyph text');
+    assert(themeSource.includes('.cc-spine-char--prolonged::before'), 'the long-vowel mark is drawn by a pseudo-element');
+    assert(themeSource.includes('background: currentColor;'), 'the drawn line inherits the spine title color');
+    const markRule = themeSource.match(/\.cc-spine-char--prolonged\s*\{([\s\S]*?)\n\}/);
+    assert(markRule && !markRule[1].includes('rotate('), 'the mark itself no longer relies on rotation');
+    assert(markRule && markRule[1].includes('width: 1em;') && markRule[1].includes('height: 1em;'), 'the mark occupies the same square as a normal character');
+    assert(markRule && !markRule[1].includes('vertical-align:'), 'no extra cross-axis alignment shifts the mark');
+    const lineRule = themeSource.match(/\.cc-spine-char--prolonged::before\s*\{([\s\S]*?)\n\}/);
+    assert(lineRule && lineRule[1].includes('top: 50%;') && lineRule[1].includes('left: 50%;') && lineRule[1].includes('translate(-50%, -50%)'), 'the line is centered within its character box');
+})();
+
+console.log('library-order: migration, ordering, folder management persistence, failures, and reload URL OK');

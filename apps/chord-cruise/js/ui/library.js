@@ -14,6 +14,9 @@
     var folderSortMode = false;
     var entrySortMode = false;
     var entrySortFolderId = null;
+    var folderShelfColumns = 4;
+    var folderManageSheet = null;
+    var folderManageReturnFocus = null;
 
     function storage() { return window.ChordCruise.storage; }
     function theory() { return window.ChordCruise.theory; }
@@ -31,6 +34,12 @@
     function currentLibraryColumns() {
         var settings = window.ChordCruise.state && window.ChordCruise.state.settings;
         return normalizeLibraryColumns(settings && settings.libraryColumns);
+    }
+
+    function currentFolderShelfColumns() {
+        var settings = window.ChordCruise.state && window.ChordCruise.state.settings;
+        var value = settings && settings.folderShelfColumns;
+        return [2, 3, 4, 5, 6].indexOf(value) !== -1 ? value : 4;
     }
 
     function contentEl() {
@@ -98,10 +107,16 @@
         return found;
     }
 
-    function chordCountIn(folderId) {
-        return storage().loadChordIndex().filter(function (entry) {
-            return entry.folderId === folderId;
-        }).length;
+    function buildFolderCountMap() {
+        var counts = Object.create(null);
+        storage().loadChordIndex().forEach(function (entry) {
+            counts[entry.folderId] = (counts[entry.folderId] || 0) + 1;
+        });
+        return counts;
+    }
+
+    function chordCountIn(folderId, counts) {
+        return counts && counts[folderId] ? counts[folderId] : 0;
     }
 
     function escapeHtml(text) {
@@ -151,10 +166,10 @@
         }
     }
 
-    function sortStepButtonHtml(kind, id, direction, disabled, label) {
+    function sortStepButtonHtml(kind, id, direction, disabled, label, visibleLabel) {
         return '<button type="button" class="cc-sort-step-btn" data-' + kind + '-sort-step="' + direction + '" data-sort-id="' +
             escapeHtml(id) + '" aria-label="' + escapeHtml(label) + '"' + (disabled ? ' disabled' : '') + '>' +
-            (direction < 0 ? '↑ 上へ' : '↓ 下へ') + '</button>';
+            escapeHtml(visibleLabel || (direction < 0 ? '↑ 上へ' : '↓ 下へ')) + '</button>';
     }
 
     function sortCardStepButtonHtml(id, direction, disabled, label) {
@@ -163,23 +178,275 @@
             (direction < 0 ? '↑' : '↓') + '</button>';
     }
 
-    function buildFolderSortRowsHtml(folders) {
-        var html = '<div class="cc-sort-list" role="list" aria-label="フォルダの並び順">';
-        folders.forEach(function (folder, index) {
+    function folderModifierClasses(folder, count) {
+        return (folder.builtin ? ' is-builtin' : ' is-custom') + (count === 0 ? ' is-empty' : '') +
+            ' cc-folder-color-' + storage().folderColorKey(folder);
+    }
+
+    function folderListClasses(sorting) {
+        return 'cc-' + (sorting ? 'sort-list' : 'folder-list') + ' cc-folder-list--shelf cc-folder-list--shelf-a3';
+    }
+
+    function folderShelfAttributes() {
+        return ' data-folder-shelf-columns="' + folderShelfColumns + '"';
+    }
+
+    function spineTitleHtml(name) {
+        var html = '<span class="cc-folder-card-name" aria-hidden="true">';
+        Array.from(String(name || '')).forEach(function (character) {
+            html += character === 'ー'
+                ? '<span class="cc-spine-char cc-spine-char--prolonged" aria-hidden="true"></span>'
+                : '<span class="cc-spine-char">' + escapeHtml(character) + '</span>';
+        });
+        return html + '</span>';
+    }
+
+    function folderCardInnerHtml(folder, count, showChevron) {
+        return '<span class="cc-folder-card-icon" aria-hidden="true"></span>' +
+            '<span class="cc-folder-card-body">' +
+                spineTitleHtml(folder.name) +
+                '<span class="cc-folder-card-meta">' +
+                    '<span class="cc-folder-card-count">' + count + '件</span>' +
+                    (folder.builtin ? '<span class="cc-folder-card-state cc-folder-card-state--fixed">先頭固定</span>' : '') +
+                    (count === 0 ? '<span class="cc-folder-card-state cc-folder-card-state--empty">空</span>' : '') +
+                '</span>' +
+            '</span>' +
+            (showChevron ? '<span class="cc-folder-card-chevron" aria-hidden="true">›</span>' : '');
+    }
+
+    function folderAriaLabel(folder, count) {
+        return folder.name + '、' + count + '件' + (folder.builtin ? '、先頭固定' : '') + (count === 0 ? '、空のフォルダ' : '') + '、開く';
+    }
+
+    function buildFolderShelfColumnsHtml() {
+        var html = '<div class="cc-folder-shelf-columns"><span class="cc-folder-shelf-columns-label">本棚の列数</span><div class="cc-folder-shelf-columns-options" role="group" aria-label="本棚の列数">';
+        [2, 3, 4, 5, 6].forEach(function (columns) {
+            var selected = folderShelfColumns === columns;
+            html += '<button type="button" class="cc-folder-shelf-columns-btn' + (selected ? ' is-selected' : '') + '" data-folder-shelf-columns-choice="' + columns + '" aria-pressed="' + (selected ? 'true' : 'false') + '">' + columns + '</button>';
+        });
+        return html + '</div></div>';
+    }
+
+    function folderSortCardHtml(folder, index, count, total) {
             var fixed = folder.id === storage().UNCATEGORIZED_ID;
-            html += '<div class="cc-sort-row" role="listitem">' +
-                '<span class="cc-sort-row-main"><span class="cc-sort-row-name">📁 ' + escapeHtml(folder.name) + '</span>' +
-                '<span class="cc-sort-row-meta">' + chordCountIn(folder.id) + '件</span></span>' +
+            var previousLabel = folderShelfColumns >= 5 ? '←' : '← 前へ';
+            var nextLabel = folderShelfColumns >= 5 ? '→' : '後へ →';
+            return '<div class="cc-sort-row cc-folder-card cc-folder-card--sorting cc-folder-card--design-a cc-folder-card--book-a3 ' +
+                folderModifierClasses(folder, count) + '" role="listitem" aria-label="' + escapeHtml(folder.name + '、' + count + '件、並び替え') + '">' +
+                folderCardInnerHtml(folder, count, false) +
                 (fixed
-                    ? '<span class="cc-sort-fixed-label">先頭固定</span>'
+                    ? ''
                     : '<span class="cc-sort-row-actions">' +
-                        sortStepButtonHtml('folder', folder.id, -1, index <= 1, folder.name + 'を上へ移動') +
-                        sortStepButtonHtml('folder', folder.id, 1, index >= folders.length - 1, folder.name + 'を下へ移動') +
+                        sortStepButtonHtml('folder', folder.id, -1, index <= 1, folder.name + 'を前の位置へ移動', previousLabel) +
+                        sortStepButtonHtml('folder', folder.id, 1, index >= total - 1, folder.name + 'を後の位置へ移動', nextLabel) +
                       '</span>') +
             '</div>';
+    }
+
+    function folderCardHtml(folder, count) {
+        return '<div class="cc-folder-card-wrap">' +
+            '<button type="button" class="cc-folder-card cc-folder-card--design-a cc-folder-card--book-a3' +
+                folderModifierClasses(folder, count) + '" data-folder-id="' + escapeHtml(folder.id) + '" aria-label="' +
+                escapeHtml(folderAriaLabel(folder, count)) + '" title="' + escapeHtml(folder.name) + '">' +
+                folderCardInnerHtml(folder, count, true) +
+            '</button>' +
+            '<button type="button" class="cc-folder-card-menu" data-folder-manage-id="' + escapeHtml(folder.id) + '" aria-label="' + escapeHtml(folder.name) + 'を管理" title="フォルダを管理">…</button>' +
+        '</div>';
+    }
+
+    function buildFolderShelfRowsHtml(folders, countMap, sorting) {
+        var html = '';
+        for (var first = 0; first < folders.length; first += folderShelfColumns) {
+            var row = folders.slice(first, first + folderShelfColumns);
+            html += '<div class="cc-folder-shelf-row"' + folderShelfAttributes() + '>';
+            row.forEach(function (folder, rowIndex) {
+                var count = chordCountIn(folder.id, countMap);
+                html += sorting ? folderSortCardHtml(folder, first + rowIndex, count, folders.length) : folderCardHtml(folder, count);
+            });
+            html += '<div class="cc-folder-shelf-board" aria-hidden="true"></div></div>';
+        }
+        return html;
+    }
+
+    function buildFolderSortRowsHtml(folders, countMap) {
+        return '<div class="' + folderListClasses(true) + '"' + folderShelfAttributes() + ' role="list" aria-label="フォルダの並び順">' +
+            buildFolderShelfRowsHtml(folders, countMap, true) + '</div>';
+    }
+
+    var FOLDER_COLOR_OPTIONS = [
+        ['forest', '深緑'], ['burgundy', '深紅'], ['navy', '紺'], ['umber', '琥珀'],
+        ['charcoal', '炭'], ['teal', '青緑'], ['violet', '紫'], ['russet', '赤茶'],
+        ['leather', '革茶'], ['black-leather', '黒革'], ['wine', 'ワイン'], ['black-gold', '黒金']
+    ];
+
+    function toast(message, type) {
+        if (window.ChordCruise.ui.toast) {
+            window.ChordCruise.ui.toast.show(message, { type: type || 'success' });
+        }
+    }
+
+    function ensureFolderManageSheet() {
+        if (folderManageSheet) return folderManageSheet;
+        folderManageSheet = document.createElement('div');
+        folderManageSheet.className = 'cc-folder-manage-overlay cc-folder-manage-overlay--hidden';
+        folderManageSheet.addEventListener('click', function (event) {
+            if (event.target === folderManageSheet) closeFolderManageSheet(true);
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && folderManageSheet && !folderManageSheet.classList.contains('cc-folder-manage-overlay--hidden')) {
+                closeFolderManageSheet(true);
+            }
+        });
+        document.body.appendChild(folderManageSheet);
+        return folderManageSheet;
+    }
+
+    function setManagingFolderCard(id, active) {
+        var content = contentEl();
+        if (!content) return;
+        Array.prototype.forEach.call(content.querySelectorAll('[data-folder-id]'), function (card) {
+            if (card.getAttribute('data-folder-id') === id) card.classList.toggle('is-managing', active);
+        });
+    }
+
+    function closeFolderManageSheet(returnFocus) {
+        if (!folderManageSheet) return;
+        setManagingFolderCard(folderManageSheet.dataset.folderId, false);
+        folderManageSheet.classList.add('cc-folder-manage-overlay--hidden');
+        document.body.classList.remove('cc-folder-manage-open');
+        folderManageSheet.innerHTML = '';
+        if (returnFocus && folderManageReturnFocus && typeof folderManageReturnFocus.focus === 'function') {
+            folderManageReturnFocus.focus();
+        }
+        folderManageReturnFocus = null;
+    }
+
+    function folderManageColorChoicesHtml(folder) {
+        var selected = storage().folderColorKey(folder);
+        var html = '<div class="cc-folder-color-grid" role="group" aria-label="フォルダの色">';
+        FOLDER_COLOR_OPTIONS.forEach(function (option) {
+            var key = option[0];
+            var active = key === selected;
+            html += '<button type="button" class="cc-folder-color-choice cc-folder-color-' + key + (active ? ' is-selected' : '') + '" data-folder-color-key="' + key + '" aria-pressed="' + (active ? 'true' : 'false') + '">' +
+                '<span class="cc-folder-color-swatch" aria-hidden="true"></span><span>' + option[1] + '</span></button>';
         });
         return html + '</div>';
     }
+
+    function folderManageMenuHtml(folder, count) {
+        var buttons = '';
+        if (!folder.builtin) {
+            buttons += '<button type="button" class="cc-folder-manage-action" data-folder-manage-action="rename">フォルダ名を編集</button>' +
+                '<button type="button" class="cc-folder-manage-action" data-folder-manage-action="copy">フォルダをコピー</button>';
+        }
+        buttons += '<button type="button" class="cc-folder-manage-action" data-folder-manage-action="color">フォルダの色を変更</button>';
+        if (!folder.builtin) {
+            buttons += '<button type="button" class="cc-folder-manage-action cc-folder-manage-action--danger" data-folder-manage-action="delete">フォルダを削除</button>';
+        }
+        return '<div class="cc-folder-manage-sheet" role="dialog" aria-modal="true" aria-labelledby="cc-folder-manage-title">' +
+            '<div class="cc-folder-manage-grabber" aria-hidden="true"></div>' +
+            '<div class="cc-folder-manage-heading"><h3 id="cc-folder-manage-title">' + escapeHtml(folder.name) + '</h3><p>' + count + '件のコード</p></div>' +
+            '<div class="cc-folder-manage-actions">' + buttons + '</div>' +
+            '<button type="button" class="cc-folder-manage-cancel" data-folder-manage-action="close">キャンセル</button>' +
+        '</div>';
+    }
+
+    function folderManageRenameHtml(folder) {
+        return '<div class="cc-folder-manage-sheet" role="dialog" aria-modal="true" aria-labelledby="cc-folder-manage-title">' +
+            '<div class="cc-folder-manage-grabber" aria-hidden="true"></div>' +
+            '<div class="cc-folder-manage-heading"><h3 id="cc-folder-manage-title">フォルダ名を編集</h3></div>' +
+            '<label class="cc-folder-manage-label" for="cc-folder-manage-name">フォルダ名</label>' +
+            '<input class="cc-input" id="cc-folder-manage-name" maxlength="24" value="' + escapeHtml(folder.name) + '">' +
+            '<div class="cc-folder-manage-confirm-actions"><button type="button" class="cc-btn cc-btn-primary" data-folder-manage-action="rename-save">変更する</button><button type="button" class="cc-btn cc-btn-secondary" data-folder-manage-action="menu">戻る</button></div>' +
+        '</div>';
+    }
+
+    function folderManageColorHtml(folder) {
+        return '<div class="cc-folder-manage-sheet" role="dialog" aria-modal="true" aria-labelledby="cc-folder-manage-title">' +
+            '<div class="cc-folder-manage-grabber" aria-hidden="true"></div>' +
+            '<div class="cc-folder-manage-heading"><h3 id="cc-folder-manage-title">フォルダの色を変更</h3><p>本棚の背表紙の色を選びます。</p></div>' +
+            folderManageColorChoicesHtml(folder) +
+            '<button type="button" class="cc-folder-manage-cancel" data-folder-manage-action="menu">戻る</button>' +
+        '</div>';
+    }
+
+    function showFolderManagePane(folderId, pane) {
+        var folder = folderById(folderId);
+        if (!folder) {
+            closeFolderManageSheet(false);
+            return;
+        }
+        var count = chordCountIn(folder.id, buildFolderCountMap());
+        var sheet = ensureFolderManageSheet();
+        sheet.dataset.folderId = folder.id;
+        sheet.dataset.pane = pane || 'menu';
+        sheet.innerHTML = pane === 'rename' ? folderManageRenameHtml(folder) : pane === 'color' ? folderManageColorHtml(folder) : folderManageMenuHtml(folder, count);
+        bindFolderManageSheet();
+        var focusTarget = sheet.querySelector('input, button');
+        if (focusTarget) focusTarget.focus();
+    }
+
+    function openFolderManageSheet(folderId, trigger) {
+        folderManageReturnFocus = trigger || null;
+        var sheet = ensureFolderManageSheet();
+        setManagingFolderCard(folderId, true);
+        sheet.classList.remove('cc-folder-manage-overlay--hidden');
+        document.body.classList.add('cc-folder-manage-open');
+        showFolderManagePane(folderId, 'menu');
+    }
+
+    function bindFolderManageSheet() {
+        var sheet = folderManageSheet;
+        if (!sheet) return;
+        Array.prototype.forEach.call(sheet.querySelectorAll('[data-folder-manage-action]'), function (button) {
+            button.addEventListener('click', function () {
+                var id = sheet.dataset.folderId;
+                var folder = folderById(id);
+                var action = button.getAttribute('data-folder-manage-action');
+                if (action === 'close') return closeFolderManageSheet(true);
+                if (!folder) return closeFolderManageSheet(false);
+                if (action === 'menu' || action === 'rename' || action === 'color') return showFolderManagePane(id, action === 'menu' ? 'menu' : action);
+                if (action === 'rename-save') {
+                    var name = document.getElementById('cc-folder-manage-name').value.trim();
+                    if (!name || !storage().renameFolder(id, name)) return;
+                    closeFolderManageSheet(false);
+                    renderFolders();
+                    toast('フォルダ名を変更しました');
+                    return;
+                }
+                if (action === 'copy') {
+                    var copied = storage().copyFolder(id);
+                    if (!copied) return toast('フォルダをコピーできませんでした', 'error');
+                    closeFolderManageSheet(false);
+                    renderFolders();
+                    toast('フォルダをコピーしました');
+                    return;
+                }
+                if (action === 'delete') {
+                    var count = chordCountIn(id, buildFolderCountMap());
+                    closeFolderManageSheet(false);
+                    var deleteMessage = count > 0
+                        ? 'フォルダ「' + folder.name + '」を削除しますか？このフォルダと、中にある' + count + '件のコードを完全に削除します。この操作は元に戻せません。'
+                        : 'フォルダ「' + folder.name + '」を削除しますか？この空のフォルダを削除します。この操作は元に戻せません。';
+                    confirmDanger(deleteMessage, '完全に削除', function () {
+                        if (!storage().deleteFolder(id)) return toast('フォルダを削除できませんでした', 'error');
+                        renderFolders();
+                        toast(count > 0 ? 'フォルダとコードを完全に削除しました' : '空のフォルダを削除しました');
+                    });
+                }
+            });
+        });
+        Array.prototype.forEach.call(sheet.querySelectorAll('[data-folder-color-key]'), function (button) {
+            button.addEventListener('click', function () {
+                var id = sheet.dataset.folderId;
+                if (!storage().setFolderColor(id, button.getAttribute('data-folder-color-key'))) return toast('色を変更できませんでした', 'error');
+                closeFolderManageSheet(false);
+                renderFolders();
+                toast('フォルダの色を変更しました');
+            });
+        });
+    }
+
 
     function buildChordSortRowsHtml(chords) {
         var html = '<div class="cc-sort-list" role="list" aria-label="保存コードの並び順">';
@@ -218,28 +485,22 @@
         entrySortMode = false;
         entrySortFolderId = null;
         setContentLayout('folders');
+        folderShelfColumns = currentFolderShelfColumns();
         var folders = storage().loadOrderedFolders();
+        var countMap = buildFolderCountMap();
         var html = '<div class="cc-card">' +
             '<div class="cc-lib-sort-head"><h3 class="cc-card-heading">フォルダ</h3>' +
                 '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-folder-sort-toggle" aria-pressed="' +
-                    (folderSortMode ? 'true' : 'false') + '">' + (folderSortMode ? '完了' : '並び替え') + '</button></div>';
+                    (folderSortMode ? 'true' : 'false') + '">' + (folderSortMode ? '完了' : '並び替え') + '</button></div>' +
+            buildFolderShelfColumnsHtml() +
+            '<div id="cc-folder-shelf-panel" aria-label="フォルダ本棚">';
         if (folderSortMode) {
-            html += '<p class="cc-sort-mode-note">上下ボタンを押すたびに並び順を保存します。</p>' + buildFolderSortRowsHtml(folders);
+            html += '<p class="cc-sort-mode-note">移動ボタンを押すたびに並び順を保存します。</p>' + buildFolderSortRowsHtml(folders, countMap);
         } else {
-            html += '<div class="cc-folder-list">';
-            folders.forEach(function (folder) {
-                html += '<button type="button" class="cc-folder-card" data-folder-id="' + escapeHtml(folder.id) + '">' +
-                    '<span class="cc-folder-card-icon">📁</span>' +
-                    '<span class="cc-folder-card-body">' +
-                        '<span class="cc-folder-card-name">' + escapeHtml(folder.name) + '</span>' +
-                        '<span class="cc-folder-card-count">' + chordCountIn(folder.id) + '件</span>' +
-                    '</span>' +
-                    '<span class="cc-folder-card-chevron">›</span>' +
-                '</button>';
-            });
-            html += '</div>';
+            html += '<div class="' + folderListClasses(false) + '"' + folderShelfAttributes() + '>' +
+                buildFolderShelfRowsHtml(folders, countMap, false) + '</div>';
         }
-        html += (folderSortMode ? '' :
+        html += '</div>' + (folderSortMode ? '' :
             '<div class="cc-inline-create" id="cc-folder-create-area">' +
                 '<button type="button" class="cc-btn cc-btn-secondary cc-btn--block" id="cc-folder-create-btn">＋ フォルダを作成</button>' +
                 '<div class="cc-inline-input-row cc-inline-input-row--hidden" id="cc-folder-create-row">' +
@@ -254,6 +515,17 @@
         document.getElementById('cc-folder-sort-toggle').addEventListener('click', function () {
             folderSortMode = !folderSortMode;
             renderFolders();
+        });
+
+        Array.prototype.forEach.call(contentEl().querySelectorAll('[data-folder-shelf-columns-choice]'), function (button) {
+            button.addEventListener('click', function () {
+                var columns = parseInt(button.getAttribute('data-folder-shelf-columns-choice'), 10);
+                if ([2, 3, 4, 5, 6].indexOf(columns) === -1) return;
+                folderShelfColumns = columns;
+                window.ChordCruise.state.settings.folderShelfColumns = columns;
+                storage().saveSettings({ folderShelfColumns: columns });
+                renderFolders();
+            });
         });
 
         if (folderSortMode) {
@@ -273,10 +545,16 @@
             return;
         }
 
-        Array.prototype.forEach.call(contentEl().querySelectorAll('.cc-folder-card'), function (btn) {
+        Array.prototype.forEach.call(contentEl().querySelectorAll('.cc-folder-card[data-folder-id]'), function (btn) {
             btn.addEventListener('click', function () {
                 currentFolderId = btn.dataset.folderId;
                 renderList();
+            });
+        });
+        Array.prototype.forEach.call(contentEl().querySelectorAll('[data-folder-manage-id]'), function (button) {
+            button.addEventListener('click', function (event) {
+                event.stopPropagation();
+                openFolderManageSheet(button.getAttribute('data-folder-manage-id'), button);
             });
         });
         document.getElementById('cc-folder-create-btn').addEventListener('click', function () {
@@ -296,6 +574,7 @@
     // ---- ビュー: フォルダ内一覧 ----
 
     function renderList() {
+        closeFolderManageSheet(false);
         view = 'list';
         currentDetailChord = null;
         detailMonochrome = false;
@@ -323,18 +602,7 @@
                     '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-entry-sort-toggle" aria-pressed="' +
                         (entrySortMode ? 'true' : 'false') + '"' + (chords.length < 2 && !entrySortMode ? ' disabled' : '') + '>' +
                         (entrySortMode ? '完了' : '並び替え') + '</button>' +
-                    (!entrySortMode && !folder.builtin
-                    ?
-                        '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-folder-rename-btn">改名</button>' +
-                        '<button type="button" class="cc-btn cc-btn-danger cc-btn--small" id="cc-folder-delete-btn">削除</button>' +
-                    ''
-                    : '') +
                 '</div>' +
-            '</div>' +
-            '<div class="cc-inline-input-row cc-inline-input-row--hidden" id="cc-folder-rename-row">' +
-                '<input type="text" class="cc-input" id="cc-folder-rename-input" maxlength="24">' +
-                '<button type="button" class="cc-btn cc-btn-primary cc-btn--small" id="cc-folder-rename-ok">変更</button>' +
-                '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-folder-rename-cancel">やめる</button>' +
             '</div>' +
             buildLibraryColumnsControlHtml(columns) +
             (entrySortMode ? '<p class="cc-sort-mode-note">各カードの矢印を押すたびに並び順を保存します。</p>' : '') +
@@ -390,32 +658,6 @@
             });
         }
 
-        if (!folder.builtin) {
-            document.getElementById('cc-folder-rename-btn').addEventListener('click', function () {
-                var row = document.getElementById('cc-folder-rename-row');
-                row.classList.remove('cc-inline-input-row--hidden');
-                var input = document.getElementById('cc-folder-rename-input');
-                input.value = folder.name;
-                input.focus();
-            });
-            document.getElementById('cc-folder-rename-cancel').addEventListener('click', renderList);
-            document.getElementById('cc-folder-rename-ok').addEventListener('click', function () {
-                var name = document.getElementById('cc-folder-rename-input').value.trim();
-                if (!name) return;
-                storage().renameFolder(folder.id, name);
-                renderList();
-            });
-            document.getElementById('cc-folder-delete-btn').addEventListener('click', function () {
-                confirmDanger(
-                    'フォルダ「' + folder.name + '」を削除しますか？中のコードは「未分類」に移動します。',
-                    '削除する',
-                    function () {
-                        storage().deleteFolder(folder.id);
-                        renderFolders();
-                    }
-                );
-            });
-        }
     }
 
     // ---- ビュー: 保存コード詳細 ----

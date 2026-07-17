@@ -11,6 +11,7 @@
     var UNCATEGORIZED_ID = 'folder_uncategorized';
     var LIBRARY_ORDER_VERSION = 1;
     var DEFAULT_HIGHLIGHTED_FRETS = [0, 3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
+    var FOLDER_COLOR_KEYS = ['forest', 'burgundy', 'navy', 'umber', 'charcoal', 'teal', 'violet', 'russet', 'leather', 'black-leather', 'wine', 'black-gold'];
 
     var DEFAULT_SETTINGS = {
         selectedKey: 0,
@@ -23,6 +24,7 @@
         highlightedFrets: DEFAULT_HIGHLIGHTED_FRETS,
         highFretMode: false,
         libraryColumns: 4,
+        folderShelfColumns: 4,
         librarySortMode: 'updatedDesc'
     };
 
@@ -50,6 +52,9 @@
         }
         if ([1, 2, 3, 4].indexOf(normalized.libraryColumns) === -1) {
             normalized.libraryColumns = 4;
+        }
+        if ([2, 3, 4, 5, 6].indexOf(normalized.folderShelfColumns) === -1) {
+            normalized.folderShelfColumns = 4;
         }
         if (['all', 'position', 'custom'].indexOf(normalized.fretNumberHighlightMode) === -1) {
             normalized.fretNumberHighlightMode = 'all';
@@ -132,6 +137,18 @@
         return new Date().toISOString();
     }
 
+    function defaultFolderColorKey(id) {
+        return 'black-leather';
+    }
+
+    function validFolderColorKey(value) {
+        return FOLDER_COLOR_KEYS.indexOf(value) !== -1;
+    }
+
+    function folderColorKey(folder) {
+        return folder && validFolderColorKey(folder.colorKey) ? folder.colorKey : defaultFolderColorKey(folder && folder.id);
+    }
+
     function uniqueById(items) {
         var seen = {};
         return (Array.isArray(items) ? items : []).filter(function (item) {
@@ -191,6 +208,7 @@
             id: 'folder_' + Date.now() + '_' + Math.floor(Math.random() * 10000),
             name: name,
             builtin: false,
+            colorKey: defaultFolderColorKey(),
             order: maxOrder + 1,
             createdAt: nowIso(),
             updatedAt: nowIso()
@@ -221,7 +239,116 @@
         return changed;
     }
 
-    /** builtin フォルダは削除不可。中のコードは未分類へ移動する。 */
+    function setFolderColor(id, colorKey) {
+        if (!validFolderColorKey(colorKey)) return false;
+        var folders = loadFolders();
+        var changed = false;
+        folders.forEach(function (folder) {
+            if (folder.id === id) {
+                folder.colorKey = colorKey;
+                folder.updatedAt = nowIso();
+                changed = true;
+            }
+        });
+        return changed && saveFolders(folders);
+    }
+
+    function copyFolderName(name, folders) {
+        var names = {};
+        folders.forEach(function (folder) { names[folder.name] = true; });
+        var sequence = 1;
+        while (sequence < 1000) {
+            var suffix = 'のコピー' + (sequence === 1 ? '' : sequence);
+            var candidate = String(name || '').slice(0, Math.max(0, 24 - suffix.length)) + suffix;
+            if (!names[candidate]) return candidate;
+            sequence += 1;
+        }
+        return String(name || '').slice(0, 20) + 'のコピー';
+    }
+
+    function snapshotKeys(keys) {
+        var snapshot = {};
+        keys.forEach(function (key) { snapshot[key] = window.localStorage.getItem(key); });
+        return snapshot;
+    }
+
+    function restoreKeys(snapshot) {
+        Object.keys(snapshot).forEach(function (key) {
+            try {
+                if (snapshot[key] === null) window.localStorage.removeItem(key);
+                else window.localStorage.setItem(key, snapshot[key]);
+            } catch (err) {
+                console.warn('[ChordCruise.storage] failed to roll back key: ' + key, err);
+            }
+        });
+    }
+
+    /** フォルダと所属コードを順序ごと複製する。書き込み失敗時は可能な限り復元する。 */
+    function copyFolder(id) {
+        var folders = loadFolders();
+        var index = loadChordIndex();
+        var source = null;
+        folders.forEach(function (folder) { if (folder.id === id) source = folder; });
+        if (!source || source.builtin) return null;
+        var orderBefore = libraryOrderInfo(folders, index).order;
+        var sourceIds = (orderBefore.entryIdsByFolder[id] || []).slice();
+        var existingFolderIds = {};
+        var existingChordIds = {};
+        folders.forEach(function (folder) { existingFolderIds[folder.id] = true; });
+        index.forEach(function (entry) { existingChordIds[entry.id] = true; });
+        var stamp = Date.now();
+        var copyId = 'folder_' + stamp + '_copy';
+        var copyNumber = 1;
+        while (existingFolderIds[copyId]) copyId = 'folder_' + stamp + '_copy_' + (++copyNumber);
+        var copiedFolder = {
+            id: copyId,
+            name: copyFolderName(source.name, folders),
+            builtin: false,
+            order: source.order || 0,
+            colorKey: folderColorKey(source),
+            createdAt: nowIso(),
+            updatedAt: nowIso()
+        };
+        var copiedChords = [];
+        for (var position = 0; position < sourceIds.length; position += 1) {
+            var original = loadChord(sourceIds[position]);
+            if (!original) return null;
+            var clone = JSON.parse(JSON.stringify(original));
+            var cloneId = 'cc_' + stamp + '_copy_' + position;
+            var cloneNumber = 1;
+            while (existingChordIds[cloneId]) cloneId = 'cc_' + stamp + '_copy_' + position + '_' + (++cloneNumber);
+            existingChordIds[cloneId] = true;
+            clone.id = cloneId;
+            clone.folderId = copyId;
+            clone.createdAt = nowIso();
+            clone.updatedAt = nowIso();
+            clone.schemaVersion = 1;
+            copiedChords.push(clone);
+        }
+        var nextFolders = folders.concat([copiedFolder]);
+        var nextIndex = index.concat(copiedChords.map(indexEntryOf));
+        var nextOrder = normalizeLibraryOrder(orderBefore, nextFolders, nextIndex);
+        var sourcePosition = nextOrder.folderIds.indexOf(id);
+        nextOrder.folderIds = nextOrder.folderIds.filter(function (folderId) { return folderId !== copyId; });
+        nextOrder.folderIds.splice(sourcePosition + 1, 0, copyId);
+        nextOrder.entryIdsByFolder[copyId] = copiedChords.map(function (chord) { return chord.id; });
+        var keys = [KEY_FOLDERS, KEY_CHORD_INDEX, KEY_LIBRARY_ORDER].concat(copiedChords.map(function (chord) { return chordKey(chord.id); }));
+        var snapshot = snapshotKeys(keys);
+        try {
+            for (var copyIndex = 0; copyIndex < copiedChords.length; copyIndex += 1) {
+                if (!writeJSON(chordKey(copiedChords[copyIndex].id), copiedChords[copyIndex])) throw new Error('chord write failed');
+            }
+            if (!writeChordIndex(nextIndex)) throw new Error('index write failed');
+            if (!saveFolders(nextFolders)) throw new Error('folder write failed');
+            if (!writeJSON(KEY_LIBRARY_ORDER, normalizeLibraryOrder(nextOrder, nextFolders, nextIndex))) throw new Error('order write failed');
+            return copiedFolder;
+        } catch (err) {
+            restoreKeys(snapshot);
+            return null;
+        }
+    }
+
+    /** builtin フォルダは削除不可。通常フォルダは所属コードごと完全に削除する。 */
     function deleteFolder(id) {
         var folders = loadFolders();
         var indexBefore = loadChordIndex();
@@ -233,36 +360,27 @@
         if (!target || target.builtin) {
             return false;
         }
-        var movedIds = (orderBefore.entryIdsByFolder[id] || []).slice();
+        var deletedIds = (orderBefore.entryIdsByFolder[id] || []).slice();
         indexBefore.forEach(function (entry) {
-            if (entry.folderId === id && movedIds.indexOf(entry.id) === -1) movedIds.push(entry.id);
-        });
-        indexBefore.forEach(function (entry) {
-            if (entry.folderId === id) {
-                var chord = loadChord(entry.id);
-                if (chord) {
-                    chord.folderId = UNCATEGORIZED_ID;
-                    saveChord(chord);
-                }
-            }
+            if (entry.folderId === id && deletedIds.indexOf(entry.id) === -1) deletedIds.push(entry.id);
         });
         var nextFolders = folders.filter(function (folder) {
             return folder.id !== id;
         });
-        if (!saveFolders(nextFolders)) return false;
-        var nextIndex = loadChordIndex();
-        var nextOrder = libraryOrderInfo(nextFolders, nextIndex).order;
-        var movedLookup = {};
-        movedIds.forEach(function (entryId) { movedLookup[entryId] = true; });
+        var nextIndex = indexBefore.filter(function (entry) { return entry.folderId !== id; });
+        var nextOrder = normalizeLibraryOrder(orderBefore, nextFolders, nextIndex);
         nextOrder.folderIds = nextOrder.folderIds.filter(function (folderId) { return folderId !== id; });
         delete nextOrder.entryIdsByFolder[id];
-        nextOrder.entryIdsByFolder[UNCATEGORIZED_ID] = movedIds.concat(
-            (nextOrder.entryIdsByFolder[UNCATEGORIZED_ID] || []).filter(function (entryId) {
-                return !movedLookup[entryId];
-            })
-        );
-        if (!saveNormalizedLibraryOrder(nextOrder, nextFolders, nextIndex)) {
-            console.warn('[ChordCruise.storage] folder deleted but library order could not be saved');
+        var keys = [KEY_FOLDERS, KEY_CHORD_INDEX, KEY_LIBRARY_ORDER].concat(deletedIds.map(chordKey));
+        var snapshot = snapshotKeys(keys);
+        try {
+            if (!writeChordIndex(nextIndex)) throw new Error('index write failed');
+            if (!saveFolders(nextFolders)) throw new Error('folder write failed');
+            if (!writeJSON(KEY_LIBRARY_ORDER, normalizeLibraryOrder(nextOrder, nextFolders, nextIndex))) throw new Error('order write failed');
+            deletedIds.forEach(function (entryId) { window.localStorage.removeItem(chordKey(entryId)); });
+        } catch (err) {
+            restoreKeys(snapshot);
+            return false;
         }
         return true;
     }
@@ -541,6 +659,10 @@
         saveFolders: saveFolders,
         createFolder: createFolder,
         renameFolder: renameFolder,
+        copyFolder: copyFolder,
+        setFolderColor: setFolderColor,
+        folderColorKey: folderColorKey,
+        FOLDER_COLOR_KEYS: FOLDER_COLOR_KEYS.slice(),
         deleteFolder: deleteFolder,
         loadChordIndex: loadChordIndex,
         loadLibraryOrder: loadLibraryOrder,
