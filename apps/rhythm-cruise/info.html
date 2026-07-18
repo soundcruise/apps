@@ -9,6 +9,95 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* PRO版の入手方法ボタン（指板クルーズ info.html の .fret-info-pro-access-button を移植。
+           theme.css には追加せず、このページ内で完結させている） */
+        .rc-info-pro-access-button {
+            background: linear-gradient(135deg,
+                    #fff2ac 0%,
+                    #bf953f 25%,
+                    #fcf6ba 50%,
+                    #b38728 75%,
+                    #fbf5b7 100%);
+            background-size: 200% auto;
+            border-color: #d4af37 !important;
+            color: #1a1a1a !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.6) !important;
+            animation: rcInfoGoldSweep 4s ease-in-out infinite;
+        }
+
+        .rc-info-pro-access-button:hover {
+            border-color: #e8c547 !important;
+        }
+
+        .rc-info-pro-access-button .rc-info-link-title {
+            color: #1a1a1a !important;
+        }
+
+        @keyframes rcInfoGoldSweep {
+            0% {
+                background-position: 0% center;
+            }
+
+            50% {
+                background-position: 100% center;
+            }
+
+            100% {
+                background-position: 0% center;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .rc-info-pro-access-button {
+                animation: none;
+            }
+        }
+
+        /* New バッジ（apps/shared/style.css の .info-new-badge / .recommended-link-new-badge を
+           このページ専用に複製。shared/ への新規依存は追加しない） */
+        .rc-info-new-badge {
+            position: absolute;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 48px;
+            height: 26px;
+            padding: 0 10px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, rgba(255, 214, 94, 0.96), rgba(255, 242, 186, 0.96));
+            color: #1b1608;
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+            animation: rcInfoNewBadgeFloat 1.9s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        .rc-info-recommended-new-badge {
+            top: -10px;
+            right: 14px;
+        }
+
+        @keyframes rcInfoNewBadgeFloat {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-4px);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .rc-info-new-badge {
+                animation: none;
+            }
+        }
+    </style>
 </head>
 
 <body class="rc-info-page" data-rc-theme="clean-pro">
@@ -31,6 +120,10 @@
             <div class="rc-info-links-bottom">
                 <a class="rc-info-link-card rc-info-link-card--compact" href="https://www.youtube.com/channel/UC4ncQuk56I8SK6lJGZcGwJQ" target="_blank" rel="noopener noreferrer" data-youtube-confirm>
                     <span class="rc-info-link-title">YouTube Chトップ</span>
+                </a>
+                <a class="rc-info-link-card rc-info-link-card--compact rc-info-pro-access-button" id="standard-pro-access-link" href="./pro-access.html" style="display: none; position: relative;">
+                    <span class="rc-info-link-title">PRO版の入手方法</span>
+                    <span id="pro-access-new-badge" class="rc-info-new-badge rc-info-recommended-new-badge hidden" aria-hidden="true" style="top: -10px; right: 14px;">New</span>
                 </a>
             </div>
 
@@ -117,6 +210,45 @@
             document.getElementById('rc-info-usage-link').href = './usage.html?edition=' + encodeURIComponent(resolvedEdition);
             document.getElementById('terms-link').href = './terms.html?edition=' + encodeURIComponent(resolvedEdition);
             document.getElementById('privacy-link').href = './privacy.html?edition=' + encodeURIComponent(resolvedEdition);
+
+            // 「PRO版の入手方法」ボタンの表示専用に、通常版と確定できたときだけ 'standard' を返す
+            // フェイルクローズ判定。既存の resolvedEdition（判定不能時に standard へフォールバックする）
+            // とは独立させ、判定できない場合は '' を返してボタンを非表示にする。
+            // ※ resolveHomePath() 等の既存ロジック・戻り先処理はここでは一切変更しない。
+            function resolveProAccessDisplayEdition() {
+                // URLの明示的 edition を最優先。許可値は standard / pro のみ。
+                if (editionParam !== null) {
+                    if (editionParam === 'standard') return 'standard';
+                    if (editionParam === 'pro') return 'pro';
+                    return ''; // 不正値・空文字はフォールバックせず判定不能扱い
+                }
+                // edition 指定なし: referrer から版を確定できるか
+                var referrerHome = normalizeEditionHome(document.referrer);
+                if (referrerHome) return isProHomePath(referrerHome) ? 'pro' : 'standard';
+                // sessionStorage から版を確定できるか
+                var storedHome = getStoredEditionHome();
+                if (storedHome) return isProHomePath(storedHome) ? 'pro' : 'standard';
+                // 判定不能
+                return '';
+            }
+
+            var proAccessDisplayEdition = resolveProAccessDisplayEdition();
+            var standardProAccessLink = document.getElementById('standard-pro-access-link');
+            var proAccessNewBadge = document.getElementById('pro-access-new-badge');
+            if (standardProAccessLink && proAccessDisplayEdition === 'standard') {
+                standardProAccessLink.style.display = '';
+                if (proAccessNewBadge) {
+                    try {
+                        var proAccessNewKey = 'rhythmCruiseProAccessNewSeen';
+                        if (localStorage.getItem(proAccessNewKey) !== '1') {
+                            proAccessNewBadge.classList.remove('hidden');
+                            localStorage.setItem(proAccessNewKey, '1');
+                        }
+                    } catch (error) {
+                        proAccessNewBadge.classList.remove('hidden');
+                    }
+                }
+            }
 
             backLink.addEventListener('click', function (event) {
                 if (currentUrl.searchParams.get('from') === 'home') {

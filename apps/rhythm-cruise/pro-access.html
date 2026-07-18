@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PRO版の入手方法</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', system-ui, sans-serif;
+            background: #0a0a0c;
+            color: #fff;
+            overflow: auto;
+        }
+
+        .pro-access-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            box-sizing: border-box;
+            background: rgba(10, 10, 12, 0.97);
+            -webkit-backdrop-filter: blur(6px);
+            backdrop-filter: blur(6px);
+        }
+
+        .pro-access-panel {
+            width: 100%;
+            max-width: 420px;
+            padding: 32px 24px;
+            border-radius: 16px;
+            background: linear-gradient(165deg, rgba(40, 40, 44, 0.98), rgba(22, 22, 26, 0.99));
+            border: 1px solid rgba(255, 210, 90, 0.35);
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+            text-align: center;
+        }
+
+        .pro-access-panel h1 {
+            margin-bottom: 28px;
+            color: #fff !important;
+            background: none !important;
+            background-clip: unset !important;
+            -webkit-background-clip: unset !important;
+            -webkit-text-fill-color: unset !important;
+            filter: none !important;
+            animation: none !important;
+            font-size: 1.3rem;
+            font-weight: 700;
+            letter-spacing: normal !important;
+            text-transform: none !important;
+        }
+
+        .pro-access-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            text-align: left;
+        }
+
+        .pro-access-step {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        .pro-access-step-number {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            min-width: 40px;
+            height: 40px;
+            border: 1.5px solid rgba(255, 214, 94, 0.4);
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(255, 214, 94, 0.2), rgba(77, 150, 255, 0.15));
+            color: rgba(255, 229, 102, 0.92);
+            font-size: 1rem;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .pro-access-step-content {
+            flex: 1;
+            padding-top: 4px;
+        }
+
+        .pro-access-step-title {
+            margin-bottom: 8px;
+            color: #fff;
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .pro-access-step-note {
+            margin-bottom: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.78rem;
+        }
+
+        .pro-access-step-link {
+            display: inline-block;
+            padding: 10px 16px;
+            border-radius: 8px;
+            background: linear-gradient(90deg, #ffd25a 0%, #ffb900 100%);
+            color: #000;
+            font-size: 0.88rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .pro-access-step-link:hover {
+            background: linear-gradient(90deg, #ffe066 0%, #ffc100 100%);
+            box-shadow: 0 4px 16px rgba(255, 210, 90, 0.3);
+        }
+
+        .pro-access-back {
+            margin-top: 28px;
+            text-align: center;
+        }
+
+        .pro-access-back a {
+            color: rgba(255, 229, 102, 0.92);
+            font-size: 0.85rem;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+
+        .pro-access-back a:hover {
+            color: #ffeb99;
+        }
+
+        @media (max-width: 768px) {
+            .pro-access-container {
+                display: block;
+                min-height: auto;
+                padding-top: max(16px, env(safe-area-inset-top));
+                padding-bottom: max(16px, env(safe-area-inset-bottom));
+            }
+
+            .pro-access-panel {
+                margin: 20px auto;
+            }
+
+            .pro-access-panel h1 {
+                margin-bottom: 24px;
+                font-size: 1.15rem;
+            }
+
+            .pro-access-steps {
+                gap: 14px;
+            }
+
+            .pro-access-step-number {
+                width: 36px;
+                min-width: 36px;
+                height: 36px;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="pro-access-container">
+        <div class="pro-access-panel">
+            <h1>PRO版の入手方法</h1>
+
+            <div class="pro-access-steps">
+                <div class="pro-access-step">
+                    <div class="pro-access-step-number">1</div>
+                    <div class="pro-access-step-content">
+                        <div class="pro-access-step-title">メンバーシップ「フォルテ」への登録</div>
+                        <div class="pro-access-step-note">YouTube Chメンバーシップに下記ページから登録できます</div>
+                        <a class="pro-access-step-link" href="https://www.youtube.com/channel/UC4ncQuk56I8SK6lJGZcGwJQ/join" target="_blank" rel="noopener noreferrer">
+                            登録ページへ
+                        </a>
+                    </div>
+                </div>
+
+                <div class="pro-access-step">
+                    <div class="pro-access-step-number">2</div>
+                    <div class="pro-access-step-content">
+                        <div class="pro-access-step-title">リズムクルーズPRO版の入手</div>
+                        <div class="pro-access-step-note">YouTubeメンバー限定投稿からURLを入手してください</div>
+                        <a class="pro-access-step-link" href="https://youtu.be/kVD2EbN2IWk" target="_blank" rel="noopener noreferrer">
+                            限定投稿へ
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pro-access-back">
+                <a href="javascript:history.back()">← 戻る</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -187,8 +187,12 @@
 - **`terms.html` / `privacy.html`**: リズムクルーズ専用の内容。指板クルーズ・音感クルーズのページへはリンクしない設計（各アプリ内で完結）。
 - **お問い合わせ**: `mailto:soundcruise.inc@gmail.com` 固定。
 - **指板クルーズ方式をベースにしていること**: ボタンの見た目・配置思想（丸い`i`アイコン、ホームTOP直下1箇所、別ページ遷移でモーダルは使わない）は `apps/fretboard_cruise/info.html` を参考にしているが、class名は `rc-info-*` としてリズムクルーズ専用に独立させている（`shared/style.css` は使わない）。
-- **Newバッジや初回吹き出しは入れていないこと**: 指板クルーズ・音感クルーズにある「New」バッジや初回だけ出る吹き出し演出は、リズムクルーズには意図的に実装していない（今後入れる場合は要検討・要確認）。
-- **PRO案内はまだ入れていないこと**: `info.html` 内にPRO版の入手案内リンクは現状ない（指板クルーズ・音感クルーズにはあるが、リズムクルーズはまだ未実装）。
+- **「PRO版の入手方法」導線（追加済み）**: `.rc-info-links-bottom` の右側（左は既存「YouTube Chトップ」）に `#standard-pro-access-link` を追加。指板クルーズの `apps/fretboard_cruise/info.html` の `.fret-info-pro-access-button` / `#standard-pro-access-link` と同じ構造・デザイン・Newバッジ演出を移植し、class名のみ `rc-info-*` に置き換えている。
+  - 初期状態は `style="display:none"` のフェイルクローズ。既存の `resolvedEdition`（`resolveHomePath()` から算出）が `'standard'` のときだけ `style.display = ''` にする。`'pro'` および edition不明時は非表示のまま。
+  - Newバッジは `localStorage` キー `rhythmCruiseProAccessNewSeen`（指板クルーズの `fretboardCruiseProAccessNewSeen` に相当するリズムクルーズ専用キー）で初回のみ表示。
+  - ボタンCSS・Newバッジ用CSSは `theme.css` ではなく `info.html` のページローカル `<style>` 内に追加（`shared/style.css` の `.info-new-badge` 等を複製する形。`shared/`への新規依存は増やしていない）。
+  - 遷移先は新規ファイル `apps/rhythm-cruise/pro-access.html`（`apps/fretboard_cruise/pro-access.html` を移植。`shared/style.css` / `shared/pro-gate.css` は読み込まず自己完結）。手順2の文言のみ「リズムクルーズPRO版の入手」、「限定投稿へ」のリンク先のみ `https://youtu.be/kVD2EbN2IWk` に変更し、それ以外は指板クルーズ版と同一。
+  - PRO版 (`pro_r4m8k7n2q9x/index.html`) は変更していない。PRO版から `info.html` を開いた場合も `resolvedEdition === 'pro'` となり、このボタンは表示されない。
 
 ---
 
@@ -223,6 +227,7 @@
 - Service Workerは原則変更不要（キャッシュリストを持たないため）。ただし、キャッシュ関連の変更を疑う場合は必ず `service-worker.js` の中身を確認してから判断する。
 - `manifest.json` / `pro_r4m8k7n2q9x/manifest.json` の `?v=` は、アイコンやPWA設定自体を変更したときのみ更新対象（通常のUI/文言修正では触らない）。
 - `click-input-help.html` / `mic-restart-help.html` も `theme.css?v=` を最新版へ揃えている。今後バージョンを上げる時は、上記の静的ページと同じく更新漏れに注意する。
+- **例外（「PRO版の入手方法」導線追加時）**: `info.html` へのボタン追加は、共有 `theme.css` / `script.js` を一切変更せず、`info.html` のページローカル `<style>`/`<script>` と新規ファイル `pro-access.html` だけで完結させた。この回に限り、`RHYTHM_CRUISE_VERSION` および全HTMLの `?v=` は意図的に更新していない（PRO版 `pro_r4m8k7n2q9x/index.html` を一切変更しないことを優先したため）。今後、`theme.css` や `script.js` 自体を変更する回では、通常どおり本章の更新ルールに従うこと。
 
 ---
 
