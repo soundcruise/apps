@@ -132,14 +132,38 @@
         return POSITION_FRETS.indexOf(fret) !== -1;
     }
 
-    function buildBoardSvg(uid, frets, rangeHighlight, highlightMode, highlightedFrets, monochrome, staticStyles, svgClass) {
+    function normalizeStaticTextScale(value) {
+        var scale = Number(value);
+        return isFinite(scale) && scale >= 0.75 && scale <= 1.25 ? scale : 1;
+    }
+
+    function scaledStaticTextSize(baseSize, scale) {
+        return Math.round(baseSize * normalizeStaticTextScale(scale) * 100) / 100;
+    }
+
+    function buildBoardSvg(uid, frets, rangeHighlight, highlightMode, highlightedFrets, monochrome, staticStyles, svgClass, svgPadding, fretNumberScale) {
         var width = frets.length * FRET_W;
         var hasOpenColumn = frets[0] === 0;
         var boardX = hasOpenColumn ? FRET_W : 0;
-        var svg = '<svg xmlns="http://www.w3.org/2000/svg" class="' + (svgClass || 'cc-fb-svg') + '" width="' + width + '" height="' + SVG_H + '" viewBox="0 0 ' + width + ' ' + SVG_H + '" aria-hidden="true">';
+        var padding = svgPadding || {};
+        var paddingLeft = Math.max(0, Number(padding.left) || 0);
+        var paddingRight = Math.max(0, Number(padding.right) || 0);
+        var paddingTop = Math.max(0, Number(padding.top) || 0);
+        var paddingBottom = Math.max(0, Number(padding.bottom) || 0);
+        var viewX = -paddingLeft;
+        var viewY = -paddingTop;
+        var viewWidth = width + paddingLeft + paddingRight;
+        var viewHeight = SVG_H + paddingTop + paddingBottom;
+        var hasSvgPadding = paddingLeft || paddingRight || paddingTop || paddingBottom;
+        var svg = '<svg xmlns="http://www.w3.org/2000/svg" class="' + (svgClass || 'cc-fb-svg') + '" width="' + viewWidth + '" height="' + viewHeight + '" viewBox="' + viewX + ' ' + viewY + ' ' + viewWidth + ' ' + viewHeight + '"' +
+            (hasSvgPadding ? ' preserveAspectRatio="xMidYMid meet"' : '') + ' aria-hidden="true">';
         svg += buildDefs(uid, monochrome);
 
         if (monochrome) {
+            // 一覧サムネイルだけは、固定高カード内で外周を切らないよう白い安全余白もSVG内へ持たせる。
+            if (padding.fillMonochromeBackground) {
+                svg += '<rect class="cc-fb-mono-panel" x="' + viewX + '" y="' + viewY + '" width="' + viewWidth + '" height="' + viewHeight + '" fill="#ffffff"/>';
+            }
             // 白黒図は全面を白にし、上下の装飾的なネック外周線を描画しない。
             svg += '<rect class="cc-fb-mono-board" x="0" y="' + TOP_Y + '" width="' + width + '" height="' + STRING_AREA + '" fill="#ffffff"/>';
         } else {
@@ -211,10 +235,11 @@
 
         // フレット番号（背景帯は描画せず、周囲と同じ背景に文字だけを置く）
         var stripY = BOARD_BOTTOM + 5;
+        var staticFretNumberSize = scaledStaticTextSize(13, fretNumberScale);
         frets.forEach(function (f) {
             var highlighted = shouldHighlightFret(f, highlightMode, highlightedFrets);
             var staticStyle = staticStyles
-                ? ' style="font-family:Arial,sans-serif;font-size:13px;fill:' + (monochrome ? '#111111' : (highlighted ? '#f0e0b8' : '#9a978f')) + '"'
+                ? ' style="font-family:Arial,sans-serif;font-size:' + staticFretNumberSize + 'px;fill:' + (monochrome ? '#111111' : (highlighted ? '#f0e0b8' : '#9a978f')) + '"'
                 : '';
             svg += '<text class="cc-fb-fret-number' + (highlighted ? ' cc-fb-fret-number--highlighted' : '') + '" x="' + colCenter(f, frets) + '" y="' + (stripY + 22) + '" text-anchor="middle" font-weight="600"' + staticStyle + '>' + f + '</text>';
         });
@@ -318,8 +343,22 @@
         return { fill: '#555555', stroke: '#555555', text: '#eeeeee', strokeWidth: 0 };
     }
 
-    function buildStaticOverlay(model) {
+    function normalizeMarkerLabelSize(value) {
+        return ['small', 'medium', 'large', 'xlarge'].indexOf(value) !== -1 ? value : 'medium';
+    }
+
+    function markerLabelScaleForSize(value) {
+        return {
+            small: 0.85,
+            medium: 1,
+            large: 1.12,
+            xlarge: 1.25
+        }[normalizeMarkerLabelSize(value)];
+    }
+
+    function buildStaticOverlay(model, markerLabelScale) {
         var svg = '';
+        var labelScale = normalizeStaticTextScale(markerLabelScale);
         model.barres.forEach(function (barre) {
             svg += '<rect x="' + (barre.x - 18) + '" y="' + barre.y + '" width="36" height="' + barre.height + '" rx="18" fill="' + (model.monochrome ? '#d8d8d8' : 'rgba(255,252,244,0.16)') + '" stroke="' + (model.monochrome ? '#111111' : 'rgba(255,255,255,0.38)') + '" stroke-width="1.5"/>';
         });
@@ -334,7 +373,7 @@
         });
         model.markers.forEach(function (marker) {
             var palette = markerPalette(marker.role, model.monochrome, marker.fret === 0);
-            var fontSize = marker.fingeringWarning ? 15 : (marker.label.length > 3 ? 9 : (marker.label.length > 2 ? 10 : 12));
+            var fontSize = scaledStaticTextSize(marker.fingeringWarning ? 15 : (marker.label.length > 3 ? 9 : (marker.label.length > 2 ? 10 : 12)), labelScale);
             var opacity = marker.dimmed || marker.pendingDelete ? 0.32 : 1;
             var dash = marker.pendingDelete ? ' stroke-dasharray="4 3"' : '';
             var strokeWidth = marker.pendingDelete ? Math.max(2, palette.strokeWidth) : palette.strokeWidth;
@@ -360,9 +399,11 @@
             model.highlight.frets,
             model.monochrome,
             true,
-            opts.svgClass || 'cc-fb-svg cc-fb-static-svg'
+            opts.svgClass || 'cc-fb-svg cc-fb-static-svg',
+            opts.svgPadding,
+            opts.fretNumberScale
         );
-        return svg.replace('</svg>', buildStaticOverlay(model) + '</svg>');
+        return svg.replace('</svg>', buildStaticOverlay(model, opts.markerLabelScale) + '</svg>');
     }
 
     function buildExportSvg(title, diagramOptions) {
@@ -397,6 +438,7 @@
      *   rangeHighlight { minFret, maxFret, includesOpen } | null
      *   scrollToFret   このフレットが中央付近に来るよう初期スクロール（null で先頭）
      *   preserveScroll 再描画時に維持したい scrollLeft（null で無効）
+     *   markerLabelSize small / medium / large / xlarge。指定したHTML指板だけへ丸内文字サイズを適用
      *   onSlotTap      function(stringNum, fret) マーカータップ時（運指編集用）
      */
     function render(host, options) {
@@ -405,6 +447,11 @@
         var model = createModel(opts);
         var uid = ++uidCounter;
         if (host.classList) host.classList.toggle('cc-fb-host--monochrome', model.monochrome);
+        if (['small', 'medium', 'large', 'xlarge'].indexOf(opts.markerLabelSize) !== -1) {
+            host.setAttribute('data-cc-marker-label-size', normalizeMarkerLabelSize(opts.markerLabelSize));
+        } else {
+            host.removeAttribute('data-cc-marker-label-size');
+        }
 
         var html = '<div class="cc-fb-scroll">';
         html += '<div class="cc-fb-stage" style="width:' + model.width + 'px;height:' + SVG_H + 'px;">';
@@ -495,6 +542,7 @@
         createModel: createModel,
         buildStaticSvg: buildStaticSvg,
         buildExportSvg: buildExportSvg,
+        markerLabelScaleForSize: markerLabelScaleForSize,
         centerOnFret: centerOnFret,
         getScrollLeft: getScrollLeft,
         FRET_W: FRET_W,

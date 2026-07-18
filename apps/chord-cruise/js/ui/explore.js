@@ -635,7 +635,8 @@
             mutedStrings: mutedStrings,
             rangeHighlight: rangeHighlight,
             scrollToFret: scrollToFret,
-            preserveScroll: (form && scrollToFret !== null) ? null : (typeof prevScroll === 'number' ? prevScroll : null)
+            preserveScroll: (form && scrollToFret !== null) ? null : (typeof prevScroll === 'number' ? prevScroll : null),
+            markerLabelSize: getSettings().fretboardMarkerLabelSize
         });
         setFbHint(hint);
         setCagedNotices(noticeType, noticeText, rangeNoticeText);

@@ -122,7 +122,12 @@
     function exportPng(payload) {
         var fretboard = window.ChordCruise.ui.fretboard;
         var title = payload.chordName;
-        var exportSvg = fretboard.buildExportSvg(title, payload.diagramOptions);
+        var diagramOptions = Object.assign({}, payload.diagramOptions || {});
+        if (typeof diagramOptions.markerLabelScale !== 'number') {
+            var settings = window.ChordCruise.state && window.ChordCruise.state.settings;
+            diagramOptions.markerLabelScale = fretboard.markerLabelScaleForSize(settings && settings.fretboardMarkerLabelSize);
+        }
+        var exportSvg = fretboard.buildExportSvg(title, diagramOptions);
         var filename = filenameFor(payload);
         return svgToPng(exportSvg).then(function (result) {
             return downloadBlob(result.blob, filename).then(function (delivery) {

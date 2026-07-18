@@ -4,6 +4,15 @@
     var VALID_SIZES = ['small', 'medium', 'large', 'xlarge'];
     var VALID_HIGHLIGHT_MODES = ['all', 'position', 'custom'];
     var DEFAULT_HIGHLIGHTED_FRETS = [0, 3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
+    // この右上設定画面で実際に変更できる表示設定だけを対象にする。
+    var DISPLAY_SETTING_KEYS = [
+        'chordNameSize',
+        'fretNumberSize',
+        'fretboardMarkerLabelSize',
+        'fretNumberHighlightMode',
+        'highlightedFrets',
+        'fretboardDisplayMode'
+    ];
     var overlayEl = null;
     var openBtn = null;
     var closeBtn = null;
@@ -97,6 +106,12 @@
             btn.classList.toggle('cc-settings-choice--active', selected);
             btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
         });
+        var activeMarkerLabelSize = normalizeSize(settings.fretboardMarkerLabelSize);
+        Array.prototype.forEach.call(overlayEl.querySelectorAll('[data-fretboard-marker-label-size]'), function (btn) {
+            var selected = btn.getAttribute('data-fretboard-marker-label-size') === activeMarkerLabelSize;
+            btn.classList.toggle('cc-settings-choice--active', selected);
+            btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        });
         var activeMode = normalizeHighlightMode(settings.fretNumberHighlightMode);
         Array.prototype.forEach.call(overlayEl.querySelectorAll('[data-fret-highlight-mode]'), function (btn) {
             var selected = btn.getAttribute('data-fret-highlight-mode') === activeMode;
@@ -126,6 +141,14 @@
         var size = applyChordNameSize(value);
         getSettings().chordNameSize = size;
         window.ChordCruise.storage.saveSettings({ chordNameSize: size });
+        updateControls();
+        notifyFretboardChange();
+    }
+
+    function setFretboardMarkerLabelSize(value) {
+        var size = normalizeSize(value);
+        getSettings().fretboardMarkerLabelSize = size;
+        window.ChordCruise.storage.saveSettings({ fretboardMarkerLabelSize: size });
         updateControls();
         notifyFretboardChange();
     }
@@ -179,6 +202,52 @@
         detail.hidden = expanded;
         button.setAttribute('aria-expanded', expanded ? 'false' : 'true');
         button.textContent = expanded ? '＋ 説明' : '− 説明';
+    }
+
+    function setResetConfirmationVisible(visible) {
+        var panel = document.getElementById('cc-settings-reset-confirm');
+        var trigger = document.getElementById('cc-settings-reset-trigger');
+        if (!panel || !trigger) return false;
+        panel.hidden = !visible;
+        trigger.setAttribute('aria-expanded', visible ? 'true' : 'false');
+        return true;
+    }
+
+    function showResetResult(message, type) {
+        if (window.ChordCruise.ui.toast) {
+            window.ChordCruise.ui.toast.show(message, { type: type || 'success' });
+        }
+    }
+
+    function resetDisplaySettings() {
+        var storage = window.ChordCruise.storage;
+        var defaults = storage && storage.getSettingsDefaults ? storage.getSettingsDefaults() : null;
+        if (!defaults) {
+            showResetResult('表示設定を保存できませんでした', 'error');
+            return false;
+        }
+        var next = {};
+        DISPLAY_SETTING_KEYS.forEach(function (key) {
+            next[key] = Array.isArray(defaults[key]) ? defaults[key].slice() : defaults[key];
+        });
+
+        // 1回の部分保存で、右上設定の対象キー以外は保持する。
+        if (storage.saveSettings(next) !== true) {
+            showResetResult('表示設定を保存できませんでした', 'error');
+            return false;
+        }
+
+        DISPLAY_SETTING_KEYS.forEach(function (key) {
+            getSettings()[key] = Array.isArray(next[key]) ? next[key].slice() : next[key];
+        });
+        getSettings().fretNumberSize = applyFretNumberSize(getSettings().fretNumberSize);
+        getSettings().chordNameSize = applyChordNameSize(getSettings().chordNameSize);
+        getSettings().fretboardMarkerLabelSize = normalizeSize(getSettings().fretboardMarkerLabelSize);
+        updateControls();
+        setResetConfirmationVisible(false);
+        notifyFretboardChange();
+        showResetResult('表示設定をデフォルトに戻しました');
+        return true;
     }
 
     function buildCustomFretGrid() {
@@ -246,13 +315,15 @@
                 minFret: displayRange.min,
                 maxFret: displayRange.max,
                 includesOpen: displayRange.includesOpen
-            }
+            },
+            markerLabelSize: getSettings().fretboardMarkerLabelSize
         });
     }
 
     function open() {
         if (!overlayEl) return;
         previousFocus = document.activeElement;
+        setResetConfirmationVisible(false);
         updateControls();
         renderPreview();
         overlayEl.classList.remove('cc-settings-overlay--hidden');
@@ -264,6 +335,7 @@
 
     function close() {
         if (!overlayEl) return;
+        setResetConfirmationVisible(false);
         overlayEl.classList.add('cc-settings-overlay--hidden');
         overlayEl.setAttribute('aria-hidden', 'true');
         document.body.classList.remove('cc-settings-open');
@@ -286,6 +358,7 @@
         getSettings().fretNumberSize = initialSize;
         var initialChordNameSize = applyChordNameSize(getSettings().chordNameSize);
         getSettings().chordNameSize = initialChordNameSize;
+        getSettings().fretboardMarkerLabelSize = normalizeSize(getSettings().fretboardMarkerLabelSize);
         updateControls();
 
         if (openBtn) openBtn.addEventListener('click', open);
@@ -303,6 +376,11 @@
                 var chordNameChoice = event.target.closest('[data-chord-name-size]');
                 if (chordNameChoice) {
                     setChordNameSize(chordNameChoice.getAttribute('data-chord-name-size'));
+                    return;
+                }
+                var markerLabelChoice = event.target.closest('[data-fretboard-marker-label-size]');
+                if (markerLabelChoice) {
+                    setFretboardMarkerLabelSize(markerLabelChoice.getAttribute('data-fretboard-marker-label-size'));
                     return;
                 }
                 var previewDisplayMode = event.target.closest('[data-preview-display-mode]');
@@ -325,12 +403,36 @@
                     toggleDescription(descriptionToggle);
                     return;
                 }
+                if (event.target.closest('#cc-settings-reset-trigger')) {
+                    if (setResetConfirmationVisible(true)) {
+                        var cancelButton = document.querySelector('[data-settings-reset-cancel]');
+                        if (cancelButton) cancelButton.focus();
+                    }
+                    return;
+                }
+                if (event.target.closest('[data-settings-reset-cancel]')) {
+                    setResetConfirmationVisible(false);
+                    var resetTrigger = document.getElementById('cc-settings-reset-trigger');
+                    if (resetTrigger) resetTrigger.focus();
+                    return;
+                }
+                if (event.target.closest('[data-settings-reset-confirm]')) {
+                    resetDisplaySettings();
+                    return;
+                }
                 if (event.target === overlayEl) close();
             });
         }
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape' && overlayEl &&
                 !overlayEl.classList.contains('cc-settings-overlay--hidden')) {
+                var confirmation = document.getElementById('cc-settings-reset-confirm');
+                if (confirmation && !confirmation.hidden) {
+                    setResetConfirmationVisible(false);
+                    var resetTrigger = document.getElementById('cc-settings-reset-trigger');
+                    if (resetTrigger) resetTrigger.focus();
+                    return;
+                }
                 close();
             }
         });
@@ -350,6 +452,7 @@
         setPreviewDisplayMode: setPreviewDisplayMode,
         normalizeHighlightMode: normalizeHighlightMode,
         normalizeHighlightedFrets: normalizeHighlightedFrets,
+        resetDisplaySettings: resetDisplaySettings,
         buildReloadUrl: buildReloadUrl,
         reloadAppWithCacheBust: reloadAppWithCacheBust
     };

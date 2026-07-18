@@ -187,4 +187,67 @@ assert(!gStaticSvg.includes('stroke-dasharray'), 'normal open-form SVG must not 
 var gExportSvg = fretboard.buildExportSvg('G', gDiagramOptions).svg;
 assert(!gExportSvg.includes('stroke-dasharray'), 'open-form PNG source SVG must not use dashed range borders');
 
+// 固定高の本棚サムネイル用白黒SVGだけは、上下のマーカー外周とフレット番号を
+// 切らないためのviewBox安全余白を持つ。通常表示／PNGの座標系は変更しない。
+var gMonochromeThumbnailSvg = fretboard.buildStaticSvg(Object.assign({}, gDiagramOptions, {
+    monochrome: true,
+    svgPadding: { top: 14, right: 4, bottom: 18, left: 4, fillMonochromeBackground: true }
+}));
+assert(gMonochromeThumbnailSvg.includes('viewBox="-4 -14 268 273"'), 'monochrome thumbnail must include safe SVG margins');
+assert(gMonochromeThumbnailSvg.includes('class="cc-fb-mono-panel"'), 'monochrome thumbnail must keep its safety area white');
+var thumbnailEdgeModel = fretboard.createModel({
+    frets: [2, 3, 4, 5],
+    monochrome: true,
+    markers: [{ string: 1, fret: 2, label: '人' }, { string: 6, fret: 5, label: '小' }]
+});
+var safeViewTop = -14;
+var safeViewBottom = 259;
+assert(thumbnailEdgeModel.markers[0].y - 15 >= safeViewTop, 'top-string marker must remain inside the padded thumbnail viewBox');
+assert(thumbnailEdgeModel.markers[1].y + 15 <= safeViewBottom, 'bottom-string marker must remain inside the padded thumbnail viewBox');
+assert(202 + 5 + 22 <= safeViewBottom, 'fret-number area must remain inside the padded thumbnail viewBox');
+assert(gStaticSvg.includes('viewBox="0 0 260 241"') && !gStaticSvg.includes('cc-fb-mono-panel'), 'color SVG must retain its existing viewport and background');
+var gMonochromeExportSvg = fretboard.buildExportSvg('G', Object.assign({}, gDiagramOptions, { monochrome: true })).svg;
+assert(gMonochromeExportSvg.includes('viewBox="0 0 260 241"'), 'PNG source SVG must retain the normal viewport');
+
+// 一覧専用の文字倍率は静的SVGだけへ渡し、未指定時／PNGの既定値を変えない。
+var textScaleOptions = {
+    frets: [2, 3, 4, 5],
+    markers: [
+        { string: 1, fret: 2, label: 'C', role: 'root' },
+        { string: 2, fret: 3, label: '♭3', role: 'third' },
+        { string: 6, fret: 5, label: '⚠', role: 'other', fingeringWarning: true }
+    ]
+};
+var defaultTextScaleSvg = fretboard.buildStaticSvg(textScaleOptions);
+var largeTextScaleSvg = fretboard.buildStaticSvg(Object.assign({}, textScaleOptions, {
+    fretNumberScale: 1.12,
+    markerLabelScale: 1.12
+}));
+var smallTextScaleSvg = fretboard.buildStaticSvg(Object.assign({}, textScaleOptions, {
+    fretNumberScale: 0.85,
+    markerLabelScale: 0.85
+}));
+var xlargeTextScaleSvg = fretboard.buildStaticSvg(Object.assign({}, textScaleOptions, {
+    fretNumberScale: 1.25,
+    markerLabelScale: 1.25
+}));
+assert.strictEqual(fretboard.markerLabelScaleForSize('small'), 0.85, 'right-top small marker-label scale is stable');
+assert.strictEqual(fretboard.markerLabelScaleForSize('medium'), 1, 'right-top medium marker-label scale is stable');
+assert.strictEqual(fretboard.markerLabelScaleForSize('large'), 1.12, 'right-top large marker-label scale is stable');
+assert.strictEqual(fretboard.markerLabelScaleForSize('xlarge'), 1.25, 'right-top xlarge marker-label scale is stable');
+assert.strictEqual(fretboard.markerLabelScaleForSize('invalid'), 1, 'invalid marker-label size falls back to medium');
+assert(defaultTextScaleSvg.includes('font-size:13px'), 'static fret numbers remain 13px when no list scale is supplied');
+assert(largeTextScaleSvg.includes('font-size:14.56px'), 'large fret-number scale applies to the 13px baseline');
+assert(smallTextScaleSvg.includes('font-size:11.05px'), 'small fret-number scale applies to the 13px baseline');
+assert(xlargeTextScaleSvg.includes('font-size:16.25px'), 'xlarge fret-number scale applies to the 13px baseline');
+assert(largeTextScaleSvg.includes('font-size:13.44px'), 'large marker-label scale preserves the existing per-label baseline');
+assert(smallTextScaleSvg.includes('font-size:12.75px'), 'small warning-label scale preserves the warning baseline');
+assert(xlargeTextScaleSvg.includes('font-size:15px'), 'xlarge marker-label scale preserves the existing per-label baseline');
+assert(xlargeTextScaleSvg.includes('font-size:18.75px'), 'xlarge warning-label scale preserves the warning baseline');
+var unchangedPngTextScaleSvg = fretboard.buildExportSvg('G', textScaleOptions).svg;
+assert(unchangedPngTextScaleSvg.includes('font-size:13px'), 'PNG source keeps the unscaled static fret-number baseline');
+var xlargePngTextScaleSvg = fretboard.buildExportSvg('G', Object.assign({}, textScaleOptions, { markerLabelScale: 1.25 })).svg;
+assert(xlargePngTextScaleSvg.includes('font-size:15px'), 'PNG source applies the explicit marker-label scale');
+assert(xlargePngTextScaleSvg.includes('font-size:13px'), 'PNG source keeps fret-number size independent from marker-label scale');
+
 console.log('common-caged-forms: 12 roots x 7 qualities x 2 fret ranges OK');

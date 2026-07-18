@@ -20,11 +20,18 @@
         fretboardDisplayMode: 'note',
         chordNameSize: 'medium',
         fretNumberSize: 'medium',
+        fretboardMarkerLabelSize: 'medium',
         fretNumberHighlightMode: 'all',
         highlightedFrets: DEFAULT_HIGHLIGHTED_FRETS,
         highFretMode: false,
         libraryColumns: 4,
         folderShelfColumns: 4,
+        // コード本棚の一覧サムネイル専用。通常指板・詳細・PNGの表示設定とは分離する。
+        libraryCardDisplayMode: 'finger',
+        libraryCardMonochrome: false,
+        libraryCardChordNameSize: 'medium',
+        libraryCardFretNumberSize: 'medium',
+        libraryCardMarkerLabelSize: 'medium',
         librarySortMode: 'updatedDesc'
     };
 
@@ -50,18 +57,47 @@
         if (['small', 'medium', 'large', 'xlarge'].indexOf(normalized.fretNumberSize) === -1) {
             normalized.fretNumberSize = 'medium';
         }
+        if (['small', 'medium', 'large', 'xlarge'].indexOf(normalized.fretboardMarkerLabelSize) === -1) {
+            normalized.fretboardMarkerLabelSize = 'medium';
+        }
         if ([1, 2, 3, 4].indexOf(normalized.libraryColumns) === -1) {
             normalized.libraryColumns = 4;
         }
         if ([2, 3, 4, 5, 6].indexOf(normalized.folderShelfColumns) === -1) {
             normalized.folderShelfColumns = 4;
         }
+        if (['note', 'solfege', 'degree', 'finger'].indexOf(normalized.libraryCardDisplayMode) === -1) {
+            normalized.libraryCardDisplayMode = 'finger';
+        }
+        normalized.libraryCardMonochrome = normalized.libraryCardMonochrome === true;
+        ['libraryCardChordNameSize', 'libraryCardFretNumberSize', 'libraryCardMarkerLabelSize'].forEach(function (key) {
+            if (['small', 'medium', 'large', 'xlarge'].indexOf(normalized[key]) === -1) {
+                normalized[key] = 'medium';
+            }
+        });
         if (['all', 'position', 'custom'].indexOf(normalized.fretNumberHighlightMode) === -1) {
             normalized.fretNumberHighlightMode = 'all';
         }
         normalized.highlightedFrets = normalizeHighlightedFrets(normalized.highlightedFrets);
         normalized.highFretMode = normalized.highFretMode === true;
         return normalized;
+    }
+
+    /**
+     * 設定画面で「デフォルトに戻す」際にも使う正式な初期値。
+     * 配列を複製し、呼び出し側の編集が既定値定義へ波及しないようにする。
+     */
+    function getSettingsDefaults() {
+        var defaults = {};
+        var key;
+        for (key in DEFAULT_SETTINGS) {
+            if (Object.prototype.hasOwnProperty.call(DEFAULT_SETTINGS, key)) {
+                defaults[key] = Array.isArray(DEFAULT_SETTINGS[key])
+                    ? DEFAULT_SETTINGS[key].slice()
+                    : DEFAULT_SETTINGS[key];
+            }
+        }
+        return defaults;
     }
 
     function readJSON(key, fallback) {
@@ -128,7 +164,7 @@
                 }
             }
         }
-        writeJSON(KEY_SETTINGS, normalizeSettings(next));
+        return writeJSON(KEY_SETTINGS, normalizeSettings(next));
     }
 
     // ---- フォルダ ----
@@ -653,6 +689,7 @@
     window.ChordCruise.storage = {
         UNCATEGORIZED_ID: UNCATEGORIZED_ID,
         ensureSchemaVersion: ensureSchemaVersion,
+        getSettingsDefaults: getSettingsDefaults,
         loadSettings: loadSettings,
         saveSettings: saveSettings,
         loadFolders: loadFolders,

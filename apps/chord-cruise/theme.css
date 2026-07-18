@@ -583,7 +583,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.76rem;
+    font-size: var(--cc-fb-marker-label-size, 0.76rem);
     font-weight: 700;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
     line-height: 1;
@@ -608,7 +608,28 @@ body {
 }
 
 .cc-fb-marker--warning {
-    font-size: 0.9rem;
+    font-size: var(--cc-fb-marker-warning-size, 0.9rem);
+}
+
+/* 丸内文字サイズは、指定されたHTML指板ホストだけへ閉じ込める。 */
+.cc-fb-host[data-cc-marker-label-size="small"] {
+    --cc-fb-marker-label-size: 0.65rem;
+    --cc-fb-marker-warning-size: 0.77rem;
+}
+
+.cc-fb-host[data-cc-marker-label-size="medium"] {
+    --cc-fb-marker-label-size: 0.76rem;
+    --cc-fb-marker-warning-size: 0.9rem;
+}
+
+.cc-fb-host[data-cc-marker-label-size="large"] {
+    --cc-fb-marker-label-size: 0.85rem;
+    --cc-fb-marker-warning-size: 1.01rem;
+}
+
+.cc-fb-host[data-cc-marker-label-size="xlarge"] {
+    --cc-fb-marker-label-size: 0.95rem;
+    --cc-fb-marker-warning-size: 1.12rem;
 }
 
 .cc-fb-marker--tappable {
@@ -1845,7 +1866,10 @@ body {
 .cc-folder-card-menu:focus-visible,
 .cc-folder-manage-action:focus-visible,
 .cc-folder-manage-cancel:focus-visible,
-.cc-folder-color-choice:focus-visible {
+.cc-folder-color-choice:focus-visible,
+.cc-library-display-trigger:focus-visible,
+.cc-library-display-choice:focus-visible,
+.cc-library-display-tab:focus-visible {
     outline: 2px solid var(--cc-gold-bright);
     outline-offset: 2px;
 }
@@ -1984,6 +2008,106 @@ body {
 .cc-folder-manage-confirm-actions { display: flex; gap: 8px; margin-top: 12px; }
 .cc-folder-manage-confirm-actions .cc-btn { flex: 1; }
 
+.cc-library-display-open {
+    overflow: hidden;
+}
+
+.cc-library-display-sheet {
+    max-width: 460px;
+}
+
+.cc-library-display-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 14px;
+    border-bottom: 1px solid rgba(240, 224, 184, 0.2);
+    background: rgba(0, 0, 0, 0.08);
+}
+
+.cc-library-display-tab {
+    min-height: 44px;
+    padding: 8px 10px;
+    border: 0;
+    border-bottom: 3px solid transparent;
+    color: var(--cc-text-muted);
+    background: transparent;
+    font: inherit;
+    font-size: 0.86rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.cc-library-display-tab.is-selected {
+    border-bottom-color: var(--cc-gold-bright);
+    color: var(--cc-champagne);
+    background: transparent;
+    box-shadow: none;
+}
+
+.cc-library-display-panel[hidden] {
+    display: none;
+}
+
+.cc-library-display-section {
+    margin-top: 16px;
+}
+
+.cc-library-display-section h4 {
+    margin: 0 0 8px;
+    color: var(--cc-text-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.cc-library-display-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.cc-library-display-choice {
+    min-height: 46px;
+    padding: 8px 10px;
+    border: 1px solid var(--cc-border);
+    border-radius: 10px;
+    color: var(--cc-text-muted);
+    background: rgba(255, 255, 255, 0.035);
+    font: inherit;
+    font-size: 0.86rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.cc-library-display-choice.is-selected {
+    border-color: rgba(240, 209, 124, 0.88);
+    color: var(--cc-champagne);
+    background: rgba(212, 175, 55, 0.15);
+    box-shadow: inset 0 0 0 1px rgba(212, 175, 55, 0.16);
+}
+
+.cc-library-text-size-row {
+    margin-top: 12px;
+}
+
+.cc-library-text-size-row:first-child {
+    margin-top: 0;
+}
+
+.cc-library-text-size-row h5 {
+    margin: 0 0 7px;
+    color: var(--cc-text-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.cc-library-display-grid--four {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.cc-library-display-choice--size {
+    min-height: 44px;
+}
+
 .cc-folder-color-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2057,7 +2181,13 @@ body {
 .cc-chordthumb-grid {
     display: grid;
     gap: 5px;
+    --cc-library-card-chord-name-size: 0.92rem;
 }
+
+.cc-chordthumb-grid[data-library-chord-name-size="small"] { --cc-library-card-chord-name-size: 0.80rem; }
+.cc-chordthumb-grid[data-library-chord-name-size="medium"] { --cc-library-card-chord-name-size: 0.92rem; }
+.cc-chordthumb-grid[data-library-chord-name-size="large"] { --cc-library-card-chord-name-size: 1.05rem; }
+.cc-chordthumb-grid[data-library-chord-name-size="xlarge"] { --cc-library-card-chord-name-size: 1.20rem; }
 
 .cc-chordthumb-grid[data-library-columns="1"] { grid-template-columns: minmax(0, 1fr); gap: 10px; width: 100%; max-width: 620px; margin: 0 auto; }
 .cc-chordthumb-grid[data-library-columns="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%; max-width: 900px; margin: 0 auto; }
@@ -2093,14 +2223,18 @@ body {
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--cc-champagne);
-    font-size: min(var(--cc-chord-name-thumbnail-size), 0.96rem);
+    font-size: min(var(--cc-library-card-chord-name-size), 0.96rem);
     font-weight: 700;
     line-height: 1.25;
 }
 
-.cc-chordthumb-grid[data-library-columns="1"] .cc-chordthumb-name { font-size: min(var(--cc-chord-name-thumbnail-size), 1.25rem); }
-.cc-chordthumb-grid[data-library-columns="2"] .cc-chordthumb-name { font-size: min(var(--cc-chord-name-thumbnail-size), 1.12rem); }
-.cc-chordthumb-grid[data-library-columns="3"] .cc-chordthumb-name { font-size: min(var(--cc-chord-name-thumbnail-size), 1.04rem); }
+.cc-chordthumb-grid[data-library-columns="1"] .cc-chordthumb-name { font-size: min(var(--cc-library-card-chord-name-size), 1.25rem); }
+.cc-chordthumb-grid[data-library-columns="2"] .cc-chordthumb-name { font-size: min(var(--cc-library-card-chord-name-size), 1.12rem); }
+.cc-chordthumb-grid[data-library-columns="3"] .cc-chordthumb-name { font-size: min(var(--cc-library-card-chord-name-size), 1.04rem); }
+.cc-chordthumb-grid[data-library-columns="1"][data-library-chord-name-size="xlarge"] .cc-chordthumb-name { font-size: min(var(--cc-library-card-chord-name-size), 1.20rem); }
+.cc-chordthumb-grid[data-library-columns="2"][data-library-chord-name-size="xlarge"] .cc-chordthumb-name { font-size: min(var(--cc-library-card-chord-name-size), 1.16rem); }
+.cc-chordthumb-grid[data-library-columns="3"][data-library-chord-name-size="xlarge"] .cc-chordthumb-name { font-size: min(var(--cc-library-card-chord-name-size), 1.08rem); }
+.cc-chordthumb-grid[data-library-columns="4"][data-library-chord-name-size="xlarge"] .cc-chordthumb-name { font-size: min(var(--cc-library-card-chord-name-size), 1rem); }
 
 .cc-chordthumb-card:active {
     transform: scale(0.985);
@@ -2186,6 +2320,14 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 10px;
     background: rgba(0, 0, 0, 0.2);
+}
+
+/* 一覧の白黒図はSVG側の安全余白と合わせ、マーカーと番号をカード内へ収める。 */
+.cc-chordthumb-board--monochrome {
+    box-sizing: border-box;
+    padding: 4px;
+    border-color: #aaaaaa;
+    background: #ffffff;
 }
 
 .cc-chordthumb-grid[data-library-columns="1"] .cc-chordthumb-board { height: 220px; max-width: 520px; }
@@ -2357,6 +2499,32 @@ body {
 .cc-lib-folder-actions {
     display: flex;
     gap: 8px;
+    align-items: stretch;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.cc-library-display-trigger {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 1px;
+    min-height: 34px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    line-height: 1.05;
+}
+
+.cc-library-display-trigger small {
+    color: var(--cc-text-muted);
+    font-size: 0.62rem;
+    font-weight: 600;
+}
+
+.cc-library-display-trigger:disabled {
+    opacity: 0.48;
+    cursor: not-allowed;
 }
 
 /* 危険操作 */
@@ -2658,6 +2826,103 @@ body.cc-settings-open {
 
 .cc-settings-preview-board .cc-fb-scroll {
     border-radius: 10px;
+}
+
+.cc-settings-reset {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(212, 175, 55, 0.16);
+}
+
+.cc-settings-reset h4 {
+    margin: 0;
+    color: var(--cc-champagne);
+    font-size: 0.9rem;
+}
+
+.cc-settings-reset-trigger,
+.cc-settings-reset-cancel,
+.cc-settings-reset-confirm-btn {
+    min-height: 42px;
+    border-radius: 10px;
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 700;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.cc-settings-reset-trigger {
+    align-self: flex-start;
+    padding: 9px 13px;
+    border: 1px solid rgba(212, 175, 55, 0.42);
+    background: rgba(212, 175, 55, 0.08);
+    color: var(--cc-champagne);
+}
+
+.cc-settings-reset-confirm {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 13px;
+    border: 1px solid rgba(212, 175, 55, 0.32);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.24);
+}
+
+.cc-settings-reset-confirm[hidden] {
+    display: none;
+}
+
+.cc-settings-reset-confirm p {
+    margin: 0;
+    color: var(--cc-text-muted);
+    font-size: 0.78rem;
+    line-height: 1.55;
+}
+
+.cc-settings-reset-confirm p:first-child {
+    color: var(--cc-text);
+    font-weight: 700;
+}
+
+.cc-settings-reset-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.cc-settings-reset-cancel,
+.cc-settings-reset-confirm-btn {
+    padding: 8px 12px;
+}
+
+.cc-settings-reset-cancel {
+    border: 1px solid var(--cc-border);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--cc-text-muted);
+}
+
+.cc-settings-reset-confirm-btn {
+    border: 1px solid rgba(232, 201, 122, 0.7);
+    background: linear-gradient(135deg, #b8963a, #e8c97a);
+    color: #171204;
+}
+
+.cc-settings-reset-trigger:active,
+.cc-settings-reset-cancel:active,
+.cc-settings-reset-confirm-btn:active {
+    transform: scale(0.97);
+}
+
+.cc-settings-reset-trigger:focus-visible,
+.cc-settings-reset-cancel:focus-visible,
+.cc-settings-reset-confirm-btn:focus-visible {
+    outline: 2px solid var(--cc-gold-bright);
+    outline-offset: 2px;
 }
 
 .cc-settings-item {

@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
-- 現在のバージョン: `0.19.0`（`index.html` の各`<script>`タグの `?v=`、および `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`）
+- 現在のバージョン: `0.21.0`（Phase 1・Phase 2実装済み、未stage・未commit。`index.html` の各`<script>`タグの `?v=`、および `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`）
 - 最新commit（chord-cruise関連、`git log --oneline -- apps/chord-cruise/` で確認）:
   - hash: `49a9d702`
   - message: `コードクルーズの設定・保存体験とフォーム表示を改善`
@@ -56,7 +56,7 @@
 | `js/ui/chord-builder.js` | 「任意コードを作る」モーダル。コード内コメントに「UI構成・操作感は音感クルーズPROの『コードを作る』と統一」と明記あり（＝他アプリとのUI設計の一貫性を意図した実装）。 |
 | `js/ui/save-editor.js` | フォームの保存前編集と保存コード編集の共通モーダル。保存範囲・表示モード・運指・警告・音の消去・名前・メモ・フォルダを編集し、保存コードは同一IDでの上書き／新規IDでの別名保存を選べる。保存コード編集の初回だけ押弦範囲を中央寄せする。 |
 | `js/ui/chord-export.js` | 保存コード指板のPNG書き出し。自己完結SVGを2倍Canvasへ描画し、download属性非対応時は新規タブ表示へフォールバックする。 |
-| `js/ui/library.js` | 「コード本棚」の3階層。フォルダと保存コードの上下ボタン式並び替え、1〜4列の指板カード、詳細の白黒切替・PNG書き出し・編集を管理する。 |
+| `js/ui/library.js` | 「コード本棚」の3階層。フォルダと保存コードの上下ボタン式並び替え、1〜4列の指板カード、一覧専用の表示設定（CDE／ドレミ／度数／運指・カラー／白黒）、詳細の白黒切替・PNG書き出し・編集を管理する。 |
 | `js/ui/settings.js` | 右上の共通設定ボタンと設定オーバーレイ。指板表示設定に加え、全主要画面と設定画面にあるVer表示／`_r=<timestamp>`付きページ更新を管理する。 |
 | `js/app.js` | エントリースクリプト。バージョン定数の保持、画面切り替え（`showScreen`）、共通ナビ（戻る/TOP）のイベント登録、初期化処理。 |
 
@@ -105,7 +105,7 @@
 - **CAGEDフォーム表示**: `js/core/caged-forms.js` の辞書データに基づき、指定された実フレット範囲内でフォームを探索する。全音が収まる配置を優先し、完全形が無い場合も表示可能な音が1つ以上あれば範囲外音だけを省略して同じ型のまま表示する。12〜25Fでは通常フォームを+12Fへ移し、`openFingers` ではなくムーバブル運指を使う。全CAGED型で`maj`を三和音系、`7`を7th系の弦役割テンプレートとし、`m / dim / m7 / m7♭5`の実音・offset・intervalを共通変換で生成する。推奨運指を割り当てられない音は`fingeringWarning`で区別し、「⚠️ 運指」と範囲外音を知らせる「△ フォーム」は独立した折りたたみで表示する。
 - **押さえ方・運指・バレーコード表示の注意点**: 運指はCAGEDフォーム選択中のみ有効。警告音は運指モードだけ`⚠️`となり、他モードでは通常の音名・階名・度数を表示する。同じ指・同じ実フレットのノートからバレーを導出し、警告音と消去予定音は対象外。保存編集では`finger`、`fingeringWarning`、draft専用`pendingDelete`を分離し、確定時に消去予定音だけを除外する。
 - **コード本棚**: 保存したコードフォームをフォルダ単位で整理する。フォルダはヴィンテージ楽譜集の背表紙として2〜6列で並び、各行の直下に棚板を描く。列数はコードカードの1〜4列設定とは別に`folderShelfColumns`で保持する。表示名は一文字ずつの装飾用spanで縦組みにし、半角英数字は正立、長音記号「ー」は空の専用spanの擬似要素でCSS製の縦線として描く。文字グリフの回転には依存しない。ボタン本体の`aria-label`と`title`は元の横書き名を保つ。各フォルダ下部の「…」は管理専用で、名前変更・フォルダと全コードの深い複製・12色からの色選択・完全削除をbottom sheetで提供する。未分類は先頭固定で色変更のみできる。フォルダのコピーは新規IDと新規コードIDを採番し、元の直後・元のコード順で追加する。色はフォルダの任意`colorKey`だけに保存し、既定は`black-leather`。colorKeyなしの旧フォルダも黒革として表示し、読むだけでは保存データを書き換えない。フォルダ削除は所属コードの個別レコード、index、`libraryOrder`をまとめて完全削除し、書き込み失敗時はスナップショットを復元する。コード一覧ではコード名＋軽量SVG指板を1〜4列で表示する。詳細・一覧・書き出しは同じ保存範囲描画モデルを使う。
-- **表示設定**: `chordCruise.settings` に `fretNumberSize`、`fretNumberHighlightMode`、`highlightedFrets`、`highFretMode` を保存する。既存settingsへ既定値をマージし、schemaVersionは変更しない。
+- **表示設定**: `chordCruise.settings` に `fretNumberSize`、`fretNumberHighlightMode`、`highlightedFrets`、`highFretMode`、`fretboardMarkerLabelSize`（`small`／`medium`／`large`／`xlarge`、既定`medium`）を保存する。右上の「丸内文字の大きさ」はCDE／ドレミ／度数／運指／⚠へ共通適用し、Explore・本棚詳細・設定プレビュー・PNGだけに明示的に渡す。詳細では保存済み指板のオプション生成時にこの値を落とさず、指板hostへ渡す。保存前編集には渡さない。本棚一覧専用には`libraryCardDisplayMode`（既定`finger`）、`libraryCardMonochrome`（既定`false`）、`libraryCardChordNameSize`／`libraryCardFretNumberSize`／`libraryCardMarkerLabelSize`（各`small`／`medium`／`large`／`xlarge`、既定`medium`）を保存する。両系統は完全分離する。右上設定末尾の「すべてデフォルトに戻す」は確認後、`chordNameSize`、`fretNumberSize`、`fretboardMarkerLabelSize`、`fretNumberHighlightMode`、`highlightedFrets`、`fretboardDisplayMode`だけを`storage.getSettingsDefaults()`由来の既定値へ1回の部分保存で戻す。保存コード・フォルダ・一覧設定・順序・未知のsettings keyは保持し、全データ初期化や`localStorage.clear()`は使わない。表示設定bottom sheetは「表示」と「文字サイズ」のアクセシブルな2タブで、選択タブは金色下線、非選択はグレー文字として設定値ボタンと区別し、開くたびに表示タブから開始する。保存済みの弦・フレット・interval・fingerから軽量SVGだけを再描画し、特大は列数ごとに安全な倍率へクランプする。白黒一覧だけは固定高カードで上下の丸・フレット番号を切らないよう、SVGのviewBoxへ専用安全余白と白いパネル背景を渡す。既存settingsへ既定値をマージし、schemaVersionは変更しない。
 - **通常版/PRO版で差がある機能**: 無し（PRO版自体が存在しないため）。
 - **触る時に注意すべきロジック**:
   - `js/core/storage.js` の `localStorage` キー体系（`chordCruise.schemaVersion` 等）とスキーマバージョン管理。データ移行を伴う変更は要注意。
@@ -130,13 +130,13 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.19.0`）。
-- `?v=` によるキャッシュ管理: `index.html` 内の全14本の `<script src="...?v=0.19.0">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.19.0">` が同じバージョン文字列を共有している。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.21.0`、未commit）。
+- `?v=` によるキャッシュ管理: `index.html` 内の全14本の `<script src="...?v=0.21.0">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.21.0">` が同じバージョン文字列を共有している。
 - 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
 - service workerの更新: service worker自体が存在しないため不要。
 - **バージョン更新漏れしやすい箇所**: `index.html`内の14本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。
 
-全CAGED型の`m / m7 / m7♭5 / dim`は、`maj / 7`テンプレートから共通生成する。三和音系は`3→♭3`、dimではさらに`5→♭5`、7th系はdominant 7を基準に`3→♭3`、m7♭5ではさらに`5→♭5`とし、ルートと♭7は維持する。C型mの5弦ルートは小指（finger 4）。G型dimは低音側を6弦=小、5弦=中、4弦=人とし、高音側3弦を`fingeringWarning`にする。推奨運指が成立しない音は運指モードだけ`⚠️`となり、保存編集では指指定・警告・消去を循環できる。フォーム警告は初期状態で閉じた「⚠️ 運指」ボタンへまとめ、範囲外音を省略した場合は別の「△ フォーム」ボタンで知らせる。`0.19.0`では一時比較UIを撤去し、A3のヴィンテージ楽譜集デザインを正式採用した。フォルダ列数は`folderShelfColumns`（2〜6、不正値は4）へ保存し、コードカードの`libraryColumns`とは独立する。背表紙の英数字は正立し、長音記号は空の専用spanの`::before`が描く縦線で、文字グリフや`rotate()`には依存しない。JSで行ラッパーと棚板を生成する。背表紙下部の「…」は管理専用で、名前変更・元の直後へ追加する深いコピー・12色の`colorKey`選択・コード件数を明示した完全削除確認をbottom sheetで提供する。既定色は`black-leather`で、既存の色未設定フォルダも黒革として表示する。削除はフォルダ、所属コードの個別レコード、index、`libraryOrder`を原子的に削除し、未分類へ移動しない。既存保存コードのschemaVersionは1のまま維持する。
+全CAGED型の`m / m7 / m7♭5 / dim`は、`maj / 7`テンプレートから共通生成する。三和音系は`3→♭3`、dimではさらに`5→♭5`、7th系はdominant 7を基準に`3→♭3`、m7♭5ではさらに`5→♭5`とし、ルートと♭7は維持する。C型mの5弦ルートは小指（finger 4）。G型dimは低音側を6弦=小、5弦=中、4弦=人とし、高音側3弦を`fingeringWarning`にする。推奨運指が成立しない音は運指モードだけ`⚠️`となり、保存編集では指指定・警告・消去を循環できる。フォーム警告は初期状態で閉じた「⚠️ 運指」ボタンへまとめ、範囲外音を省略した場合は別の「△ フォーム」ボタンで知らせる。`0.19.0`では一時比較UIを撤去し、A3のヴィンテージ楽譜集デザインを正式採用した。フォルダ列数は`folderShelfColumns`（2〜6、不正値は4）へ保存し、コードカードの`libraryColumns`とは独立する。`0.21.0`ではフォルダ内のコード一覧へ「表示設定」bottom sheetを追加し、「表示」と「文字サイズ」のアクセシブルな2タブから、CDE／ドレミ／度数／運指、カラー／白黒、コード名／フレット番号／音名の小・中・大・特大を本棚全体の共通設定として即時適用する。選択タブは金色下線で設定値ボタンと区別する。右上設定の`fretboardMarkerLabelSize`は小／中／大／特大を、Explore・本棚詳細・設定プレビュー・PNGの丸内文字へ明示的に適用する。一覧と保存前編集には渡さず、一覧用の`libraryCardMarkerLabelSize`とも分離する。フレット番号・音名は静的SVGの既存文字数別縮小へ倍率を掛け、特大も1〜4列で安全にクランプする。白黒一覧だけは固定高カードでも上下の丸・フレット番号を切らない専用viewBox安全余白を渡す。並び替え中は設定操作を無効化する。背表紙の英数字は正立し、長音記号は空の専用spanの`::before`が描く縦線で、文字グリフや`rotate()`には依存しない。JSで行ラッパーと棚板を生成する。背表紙下部の「…」は管理専用で、名前変更・元の直後へ追加する深いコピー・12色の`colorKey`選択・コード件数を明示した完全削除確認をbottom sheetで提供する。既定色は`black-leather`で、既存の色未設定フォルダも黒革として表示する。削除はフォルダ、所属コードの個別レコード、index、`libraryOrder`を原子的に削除し、未分類へ移動しない。既存保存コードのschemaVersionは1のまま維持する。
 
 ---
 

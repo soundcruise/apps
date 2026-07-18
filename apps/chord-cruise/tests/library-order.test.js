@@ -5,9 +5,12 @@ const vm = require('vm');
 
 const root = path.resolve(__dirname, '..');
 const storageSource = fs.readFileSync(path.join(root, 'js/core/storage.js'), 'utf8');
+const theorySource = fs.readFileSync(path.join(root, 'js/core/music-theory.js'), 'utf8');
 const settingsSource = fs.readFileSync(path.join(root, 'js/ui/settings.js'), 'utf8');
 const librarySource = fs.readFileSync(path.join(root, 'js/ui/library.js'), 'utf8');
 const themeSource = fs.readFileSync(path.join(root, 'theme.css'), 'utf8');
+const indexSource = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const chordExportSource = fs.readFileSync(path.join(root, 'js/ui/chord-export.js'), 'utf8');
 
 const P = 'chordCruise.';
 const ORDER_KEY = P + 'libraryOrder';
@@ -79,6 +82,20 @@ function loadStorage(seed, failKeys, failRemoveKeys) {
     vm.createContext(context);
     vm.runInContext(storageSource, context, { filename: 'storage.js' });
     return { storage: context.window.ChordCruise.storage, localStorage, context };
+}
+
+function loadLibrary(seed) {
+    const env = loadStorage(seed);
+    env.context.document = {
+        addEventListener() {},
+        getElementById() { return null; },
+        querySelectorAll() { return []; }
+    };
+    env.context.window.ChordCruise.state = { settings: env.storage.loadSettings() };
+    env.context.window.ChordCruise.caged = { detectBarres() { return []; } };
+    vm.runInContext(theorySource, env.context, { filename: 'music-theory.js' });
+    vm.runInContext(librarySource, env.context, { filename: 'library.js' });
+    return env;
 }
 
 function ids(items) {
@@ -273,6 +290,191 @@ function orderOf(env) {
     settings = native(env.storage.loadSettings());
     assert.strictEqual(settings.folderShelfColumns, 4, 'invalid shelf columns fall back to 4');
     assert.strictEqual(settings.libraryColumns, 2, 'code grid setting remains independent');
+})();
+
+(function libraryCardDisplaySettingsNormalizeAndPreserveOtherSettings() {
+    const env = loadStorage(baseData());
+    let settings = native(env.storage.loadSettings());
+    assert.strictEqual(settings.libraryCardDisplayMode, 'finger');
+    assert.strictEqual(settings.libraryCardMonochrome, false);
+
+    ['note', 'solfege', 'degree', 'finger'].forEach((mode) => {
+        env.storage.saveSettings({ libraryCardDisplayMode: mode });
+        assert.strictEqual(env.storage.loadSettings().libraryCardDisplayMode, mode);
+    });
+    env.storage.saveSettings({ libraryCardMonochrome: true, libraryColumns: 2 });
+    settings = native(env.storage.loadSettings());
+    assert.strictEqual(settings.libraryCardMonochrome, true);
+    assert.strictEqual(settings.libraryColumns, 2, 'library display settings must not replace existing settings');
+
+    env.storage.saveSettings({ libraryCardDisplayMode: 'invalid', libraryCardMonochrome: 'true' });
+    settings = native(env.storage.loadSettings());
+    assert.strictEqual(settings.libraryCardDisplayMode, 'finger');
+    assert.strictEqual(settings.libraryCardMonochrome, false);
+    assert.strictEqual(settings.libraryColumns, 2);
+})();
+
+(function libraryCardTextSizeSettingsAreIndependentAndPersisted() {
+    const env = loadStorage(baseData());
+    let settings = native(env.storage.loadSettings());
+    ['libraryCardChordNameSize', 'libraryCardFretNumberSize', 'libraryCardMarkerLabelSize'].forEach((key) => {
+        assert.strictEqual(settings[key], 'medium', key + ' defaults to medium');
+    });
+
+    env.storage.saveSettings({
+        libraryCardChordNameSize: 'small',
+        libraryCardFretNumberSize: 'xlarge',
+        libraryCardMarkerLabelSize: 'xlarge',
+        chordNameSize: 'xlarge',
+        fretNumberSize: 'small',
+        fretboardMarkerLabelSize: 'large'
+    });
+    settings = native(env.storage.loadSettings());
+    assert.strictEqual(settings.libraryCardChordNameSize, 'small');
+    assert.strictEqual(settings.libraryCardFretNumberSize, 'xlarge');
+    assert.strictEqual(settings.libraryCardMarkerLabelSize, 'xlarge');
+    assert.strictEqual(settings.chordNameSize, 'xlarge', 'right-top chord-name setting stays independent');
+    assert.strictEqual(settings.fretNumberSize, 'small', 'right-top fret-number setting stays independent');
+    assert.strictEqual(settings.fretboardMarkerLabelSize, 'large', 'right-top marker-label setting stays independent');
+
+    const reloaded = loadStorage(env.localStorage.snapshot());
+    settings = native(reloaded.storage.loadSettings());
+    assert.strictEqual(settings.libraryCardChordNameSize, 'small');
+    assert.strictEqual(settings.libraryCardFretNumberSize, 'xlarge');
+    assert.strictEqual(settings.libraryCardMarkerLabelSize, 'xlarge');
+    assert.strictEqual(settings.fretboardMarkerLabelSize, 'large');
+
+    reloaded.storage.saveSettings({
+        libraryCardChordNameSize: 'invalid',
+        libraryCardFretNumberSize: 1,
+        libraryCardMarkerLabelSize: null,
+        fretboardMarkerLabelSize: 'invalid'
+    });
+    settings = native(reloaded.storage.loadSettings());
+    assert.strictEqual(settings.libraryCardChordNameSize, 'medium');
+    assert.strictEqual(settings.libraryCardFretNumberSize, 'medium');
+    assert.strictEqual(settings.libraryCardMarkerLabelSize, 'medium');
+    assert.strictEqual(settings.fretboardMarkerLabelSize, 'medium');
+})();
+
+(function rightTopDisplayResetUsesStorageDefaultsAndKeepsOtherSettings() {
+    const env = loadStorage(baseData());
+    env.storage.saveSettings({
+        chordNameSize: 'xlarge',
+        fretNumberSize: 'small',
+        fretboardMarkerLabelSize: 'large',
+        fretNumberHighlightMode: 'custom',
+        highlightedFrets: [1, 4, 9],
+        fretboardDisplayMode: 'degree',
+        libraryCardDisplayMode: 'solfege',
+        libraryCardMonochrome: true,
+        libraryCardChordNameSize: 'small',
+        libraryCardFretNumberSize: 'xlarge',
+        libraryCardMarkerLabelSize: 'large',
+        libraryColumns: 2,
+        folderShelfColumns: 6,
+        futureSetting: 'keep-me'
+    });
+
+    const defaults = native(env.storage.getSettingsDefaults());
+    assert.strictEqual(defaults.fretboardMarkerLabelSize, 'medium');
+    defaults.highlightedFrets.push(25);
+    assert(!env.storage.getSettingsDefaults().highlightedFrets.includes(25), 'settings defaults must return a cloned fret array');
+
+    const reset = {};
+    ['chordNameSize', 'fretNumberSize', 'fretboardMarkerLabelSize', 'fretNumberHighlightMode', 'highlightedFrets', 'fretboardDisplayMode'].forEach((key) => {
+        reset[key] = Array.isArray(defaults[key]) ? defaults[key].filter((fret) => fret !== 25) : defaults[key];
+    });
+    assert.strictEqual(env.storage.saveSettings(reset), true, 'display reset saves in one storage write');
+    const settings = native(env.storage.loadSettings());
+    assert.strictEqual(settings.chordNameSize, 'medium');
+    assert.strictEqual(settings.fretNumberSize, 'medium');
+    assert.strictEqual(settings.fretboardMarkerLabelSize, 'medium');
+    assert.strictEqual(settings.fretNumberHighlightMode, 'all');
+    assert.deepStrictEqual(settings.highlightedFrets, [0, 3, 5, 7, 9, 12, 15, 17, 19, 21, 24]);
+    assert.strictEqual(settings.fretboardDisplayMode, 'note');
+    assert.strictEqual(settings.libraryCardDisplayMode, 'solfege', 'library-only display setting remains untouched');
+    assert.strictEqual(settings.libraryCardMonochrome, true, 'library-only monochrome setting remains untouched');
+    assert.strictEqual(settings.libraryCardChordNameSize, 'small');
+    assert.strictEqual(settings.libraryCardFretNumberSize, 'xlarge');
+    assert.strictEqual(settings.libraryCardMarkerLabelSize, 'large');
+    assert.strictEqual(settings.libraryColumns, 2);
+    assert.strictEqual(settings.folderShelfColumns, 6);
+    assert.strictEqual(settings.futureSetting, 'keep-me', 'unknown settings are preserved');
+})();
+
+(function failedSettingsWriteReportsFailureWithoutReplacingStoredSettings() {
+    const seed = baseData();
+    seed[P + 'settings'] = json({ fretboardMarkerLabelSize: 'xlarge' });
+    const env = loadStorage(seed, [P + 'settings']);
+    assert.strictEqual(env.storage.saveSettings({ fretboardMarkerLabelSize: 'small' }), false);
+    assert.strictEqual(env.storage.loadSettings().fretboardMarkerLabelSize, 'xlarge');
+})();
+
+(function libraryCardTextScalesClampByColumnWithoutDisablingLarge() {
+    const env = loadLibrary(baseData());
+    const scale = env.context.window.ChordCruise.ui.library.libraryCardTextScale;
+    assert.strictEqual(scale('small', 1), 0.85);
+    assert.strictEqual(scale('medium', 4), 1);
+    assert.strictEqual(scale('large', 1), 1.12);
+    assert.strictEqual(scale('large', 2), 1.12);
+    assert.strictEqual(scale('large', 3), 1.09);
+    assert.strictEqual(scale('large', 4), 1.06);
+    assert.strictEqual(scale('xlarge', 1), 1.25);
+    assert.strictEqual(scale('xlarge', 2), 1.22);
+    assert.strictEqual(scale('xlarge', 3), 1.15);
+    assert.strictEqual(scale('xlarge', 4), 1.09);
+    assert(scale('large', 4) > scale('medium', 4), '4-column large must remain visibly larger than medium');
+    assert(scale('xlarge', 4) > scale('large', 4), '4-column xlarge must remain visibly larger than large');
+    assert(themeSource.includes('--cc-library-card-chord-name-size'), 'thumbnail title uses an independent CSS variable');
+    assert(!/\.cc-chordthumb-name\s*\{[\s\S]*?--cc-chord-name-thumbnail-size/.test(themeSource), 'thumbnail title must not read the global chord-name size variable');
+    assert(themeSource.includes('data-library-chord-name-size="xlarge"'), 'thumbnail title has a dedicated xlarge value');
+    assert(themeSource.includes('1.20rem') && themeSource.includes('1.16rem') && themeSource.includes('1.08rem') && themeSource.includes('1rem'), 'xlarge chord-name limits cover all four library columns');
+})();
+
+(function libraryDisplaySheetUsesAccessibleTabsInsteadOfTextSizeDisclosure() {
+    assert(librarySource.includes('role="tablist" aria-label="表示設定の分類"'), 'display sheet exposes a tablist');
+    assert(librarySource.includes('role="tabpanel"'), 'display sheet exposes tabpanels');
+    assert(librarySource.includes('aria-selected="'), 'tabs expose selected state');
+    assert(librarySource.includes('aria-controls="cc-library-display-panel-'), 'tabs identify their panels');
+    assert(librarySource.includes("event.key === 'ArrowLeft'") && librarySource.includes("event.key === 'ArrowRight'"), 'tabs support left and right arrow keys');
+    assert(librarySource.includes("event.key === 'Home'") && librarySource.includes("event.key === 'End'"), 'tabs support Home and End keys');
+    assert(!librarySource.includes('libraryTextSizeExpanded'), 'old text-size disclosure state is removed');
+    assert(!librarySource.includes('data-library-text-size-toggle'), 'old text-size disclosure control is removed');
+    assert(themeSource.includes('.cc-library-display-tab.is-selected') && themeSource.includes('border-bottom-color: var(--cc-gold-bright)'), 'selected tab uses a gold underline');
+    assert(indexSource.includes('data-fretboard-marker-label-size="xlarge"'), 'settings exposes the marker-label xlarge choice');
+    assert(indexSource.includes('丸内文字の大きさ'), 'settings uses the marker-label title');
+    assert(settingsSource.includes('fretboardMarkerLabelSize'), 'settings persists the independent marker-label key');
+    assert(chordExportSource.includes('markerLabelScale = fretboard.markerLabelScaleForSize'), 'PNG receives the explicit marker-label scale');
+    assert(librarySource.includes('markerLabelSize: opts.markerLabelSize'), 'detail marker-label size survives the saved-diagram options boundary');
+    assert(indexSource.includes('すべてデフォルトに戻す'), 'settings exposes the display-settings reset trigger');
+    assert(indexSource.includes('保存したコードやフォルダは削除されません。'), 'reset copy distinguishes settings from saved data');
+    assert(settingsSource.includes('DISPLAY_SETTING_KEYS'), 'reset has an explicit right-top settings scope');
+    assert(settingsSource.includes('storage.saveSettings(next) !== true'), 'reset leaves the current UI intact when persistence fails');
+    assert(!settingsSource.includes('localStorage.clear'), 'display reset never clears all local storage');
+})();
+
+(function listThumbnailsReuseDetailLabelsWithoutChangingSavedData() {
+    const env = loadLibrary(baseData());
+    const chord = {
+        chordName: 'D♭m7♭5',
+        fretRange: { min: 1, max: 4, includesOpen: true },
+        notes: [
+            { string: 5, fret: 4, interval: 0, finger: 'T' },
+            { string: 4, fret: 2, interval: 3, finger: 1 },
+            { string: 3, fret: 0, interval: 6, finger: null, fingeringWarning: true },
+            { string: 2, fret: 0, interval: 10, finger: null }
+        ],
+        mutedStrings: [6]
+    };
+    const before = JSON.stringify(chord);
+    const options = env.context.window.ChordCruise.ui.library.savedDiagramOptions;
+    assert.deepStrictEqual(native(options(chord, { thumbnail: true, mode: 'note' }).markers.map((marker) => marker.label)), ['D♭', 'E', 'G', 'B']);
+    assert.deepStrictEqual(native(options(chord, { thumbnail: true, mode: 'solfege' }).markers.map((marker) => marker.label)), ['レ♭', 'ミ', 'ソ', 'シ']);
+    assert.deepStrictEqual(native(options(chord, { thumbnail: true, mode: 'degree' }).markers.map((marker) => marker.label)), ['1', '♭3', '♭5', '♭7']);
+    assert.deepStrictEqual(native(options(chord, { thumbnail: true, mode: 'finger', monochrome: true }).markers.map((marker) => marker.label)), ['親', '人', '⚠', '']);
+    assert.strictEqual(options(chord, { thumbnail: true, mode: 'finger', monochrome: true }).monochrome, true);
+    assert.strictEqual(JSON.stringify(chord), before, 'thumbnail labels must not mutate saved chord data');
 })();
 
 (function folderColorsDefaultToBlackLeatherAndPersistOnlyWhenChosen() {

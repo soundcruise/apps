@@ -17,6 +17,11 @@
     var folderShelfColumns = 4;
     var folderManageSheet = null;
     var folderManageReturnFocus = null;
+    var libraryDisplaySheet = null;
+    var libraryDisplayReturnFocus = null;
+    // 表示設定シートだけの一時UI状態。保存設定には含めない。
+    var libraryDisplayActiveTab = 'display';
+    var currentListChords = [];
 
     function storage() { return window.ChordCruise.storage; }
     function theory() { return window.ChordCruise.theory; }
@@ -40,6 +45,50 @@
         var settings = window.ChordCruise.state && window.ChordCruise.state.settings;
         var value = settings && settings.folderShelfColumns;
         return [2, 3, 4, 5, 6].indexOf(value) !== -1 ? value : 4;
+    }
+
+    function libraryCardDisplayMode() {
+        var settings = window.ChordCruise.state && window.ChordCruise.state.settings;
+        var mode = settings && settings.libraryCardDisplayMode;
+        return ['note', 'solfege', 'degree', 'finger'].indexOf(mode) !== -1 ? mode : 'finger';
+    }
+
+    function libraryCardMonochrome() {
+        var settings = window.ChordCruise.state && window.ChordCruise.state.settings;
+        return !!(settings && settings.libraryCardMonochrome === true);
+    }
+
+    function libraryCardTextSize(key) {
+        var settings = window.ChordCruise.state && window.ChordCruise.state.settings;
+        var value = settings && settings[key];
+        return ['small', 'medium', 'large', 'xlarge'].indexOf(value) !== -1 ? value : 'medium';
+    }
+
+    function libraryCardTextScale(size, columns) {
+        var normalizedColumns = normalizeLibraryColumns(columns);
+        if (size === 'small') return 0.85;
+        if (size === 'xlarge') {
+            if (normalizedColumns === 4) return 1.09;
+            if (normalizedColumns === 3) return 1.15;
+            if (normalizedColumns === 2) return 1.22;
+            return 1.25;
+        }
+        if (size !== 'large') return 1;
+        if (normalizedColumns === 4) return 1.06;
+        if (normalizedColumns === 3) return 1.09;
+        return 1.12;
+    }
+
+    function libraryCardTextSizeLabel(size) {
+        return { small: '小', medium: '中', large: '大', xlarge: '特大' }[size] || '中';
+    }
+
+    function libraryDisplayModeLabel(mode) {
+        return { note: 'CDE', solfege: 'ドレミ', degree: '度数', finger: '運指' }[mode] || '運指';
+    }
+
+    function libraryDisplaySummary() {
+        return libraryDisplayModeLabel(libraryCardDisplayMode()) + '・' + (libraryCardMonochrome() ? '白黒' : 'カラー');
     }
 
     function contentEl() {
@@ -127,7 +176,7 @@
 
     function buildChordThumbnailGridHtml(chords, requestedColumns, sorting) {
         var columns = normalizeLibraryColumns(requestedColumns);
-        var html = '<div class="cc-chordthumb-grid' + (sorting ? ' cc-chordthumb-grid--sorting' : '') + '" id="cc-chordthumb-grid" data-library-columns="' + columns + '"' +
+        var html = '<div class="cc-chordthumb-grid' + (sorting ? ' cc-chordthumb-grid--sorting' : '') + '" id="cc-chordthumb-grid" data-library-columns="' + columns + '" data-library-chord-name-size="' + libraryCardTextSize('libraryCardChordNameSize') + '"' +
             (sorting ? ' role="list" aria-label="保存コードの並び順"' : '') + '>';
         chords.forEach(function (chord, index) {
             var displayName = displayChordName(chord.chordName);
@@ -158,6 +207,12 @@
             html += '<button type="button" class="cc-segment-btn' + (columns === value ? ' cc-segment-btn--active' : '') + '" data-library-columns-choice="' + value + '" aria-pressed="' + (columns === value ? 'true' : 'false') + '">' + value + '列</button>';
         });
         return html + '</div></div>';
+    }
+
+    function buildLibraryDisplaySettingsButtonHtml(disabled) {
+        return '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small cc-library-display-trigger" id="cc-library-display-trigger" aria-haspopup="dialog" aria-expanded="false"' +
+            (disabled ? ' disabled aria-disabled="true"' : '') + '>' +
+            '<span>表示設定</span><small id="cc-library-display-summary">' + escapeHtml(libraryDisplaySummary()) + '</small></button>';
     }
 
     function sortError() {
@@ -321,6 +376,226 @@
         folderManageReturnFocus = null;
     }
 
+    function ensureLibraryDisplaySheet() {
+        if (libraryDisplaySheet) return libraryDisplaySheet;
+        libraryDisplaySheet = document.createElement('div');
+        libraryDisplaySheet.className = 'cc-folder-manage-overlay cc-folder-manage-overlay--hidden cc-library-display-overlay';
+        libraryDisplaySheet.addEventListener('click', function (event) {
+            if (event.target === libraryDisplaySheet) closeLibraryDisplaySheet(true);
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && libraryDisplaySheet && !libraryDisplaySheet.classList.contains('cc-folder-manage-overlay--hidden')) {
+                closeLibraryDisplaySheet(true);
+            }
+        });
+        document.body.appendChild(libraryDisplaySheet);
+        return libraryDisplaySheet;
+    }
+
+    function closeLibraryDisplaySheet(returnFocus) {
+        if (!libraryDisplaySheet) return;
+        var currentTrigger = document.getElementById('cc-library-display-trigger');
+        if (currentTrigger) currentTrigger.setAttribute('aria-expanded', 'false');
+        libraryDisplaySheet.classList.add('cc-folder-manage-overlay--hidden');
+        libraryDisplaySheet.innerHTML = '';
+        document.body.classList.remove('cc-library-display-open');
+        libraryDisplayActiveTab = 'display';
+        var trigger = libraryDisplayReturnFocus;
+        libraryDisplayReturnFocus = null;
+        if (returnFocus && trigger && typeof trigger.focus === 'function') trigger.focus();
+    }
+
+    function libraryTextSizeChoicesHtml(key, label) {
+        var selectedSize = libraryCardTextSize(key);
+        var labelId = 'cc-library-' + key + '-label';
+        var html = '<div class="cc-library-text-size-row">' +
+            '<h5 id="' + labelId + '">' + label + '</h5>' +
+            '<div class="cc-library-display-grid cc-library-display-grid--four" role="radiogroup" aria-labelledby="' + labelId + '">';
+        ['small', 'medium', 'large', 'xlarge'].forEach(function (size) {
+            var selected = size === selectedSize;
+            html += '<button type="button" class="cc-library-display-choice cc-library-display-choice--size' + (selected ? ' is-selected' : '') + '" data-library-card-text-size-key="' + key + '" data-library-card-text-size="' + size + '" role="radio" aria-checked="' + (selected ? 'true' : 'false') + '">' + libraryCardTextSizeLabel(size) + '</button>';
+        });
+        return html + '</div></div>';
+    }
+
+    function normalizeLibraryDisplayTab(value) {
+        return value === 'text-size' ? 'text-size' : 'display';
+    }
+
+    function libraryDisplayTabsHtml(activeTab) {
+        var tabs = [
+            { value: 'display', label: '表示' },
+            { value: 'text-size', label: '文字サイズ' }
+        ];
+        var html = '<div class="cc-library-display-tabs" role="tablist" aria-label="表示設定の分類">';
+        tabs.forEach(function (tab) {
+            var selected = activeTab === tab.value;
+            html += '<button type="button" class="cc-library-display-tab' + (selected ? ' is-selected' : '') + '" id="cc-library-display-tab-' + tab.value + '" data-library-display-tab="' + tab.value + '" role="tab" aria-selected="' + (selected ? 'true' : 'false') + '" aria-controls="cc-library-display-panel-' + tab.value + '" tabindex="' + (selected ? '0' : '-1') + '">' + tab.label + '</button>';
+        });
+        return html + '</div>';
+    }
+
+    function libraryDisplayChoicesHtml() {
+        var mode = libraryCardDisplayMode();
+        var monochrome = libraryCardMonochrome();
+        var activeTab = normalizeLibraryDisplayTab(libraryDisplayActiveTab);
+        var html = '<div class="cc-folder-manage-sheet cc-library-display-sheet" role="dialog" aria-modal="true" aria-labelledby="cc-library-display-title">' +
+            '<div class="cc-folder-manage-grabber" aria-hidden="true"></div>' +
+            '<div class="cc-folder-manage-heading"><h3 id="cc-library-display-title" tabindex="-1">表示設定</h3><p>このフォルダ内のコード一覧にまとめて適用します。</p></div>' +
+            libraryDisplayTabsHtml(activeTab) +
+            '<div id="cc-library-display-panel-display" class="cc-library-display-panel" role="tabpanel" aria-labelledby="cc-library-display-tab-display"' + (activeTab === 'display' ? '' : ' hidden') + '>' +
+            '<section class="cc-library-display-section" aria-labelledby="cc-library-display-mode-label">' +
+                '<h4 id="cc-library-display-mode-label">丸の表示</h4>' +
+                '<div class="cc-library-display-grid" role="radiogroup" aria-labelledby="cc-library-display-mode-label">';
+        ['note', 'solfege', 'degree', 'finger'].forEach(function (value) {
+            var selected = value === mode;
+            html += '<button type="button" class="cc-library-display-choice' + (selected ? ' is-selected' : '') + '" data-library-card-display-mode="' + value + '" role="radio" aria-checked="' + (selected ? 'true' : 'false') + '">' + libraryDisplayModeLabel(value) + '</button>';
+        });
+        html += '</div></section>' +
+            '<section class="cc-library-display-section" aria-labelledby="cc-library-display-color-label">' +
+                '<h4 id="cc-library-display-color-label">配色</h4>' +
+                '<div class="cc-library-display-grid cc-library-display-grid--two" role="radiogroup" aria-labelledby="cc-library-display-color-label">' +
+                    '<button type="button" class="cc-library-display-choice' + (!monochrome ? ' is-selected' : '') + '" data-library-card-monochrome="false" role="radio" aria-checked="' + (!monochrome ? 'true' : 'false') + '">カラー</button>' +
+                    '<button type="button" class="cc-library-display-choice' + (monochrome ? ' is-selected' : '') + '" data-library-card-monochrome="true" role="radio" aria-checked="' + (monochrome ? 'true' : 'false') + '">白黒</button>' +
+                '</div>' +
+            '</section>' +
+            '</div>' +
+            '<div id="cc-library-display-panel-text-size" class="cc-library-display-panel" role="tabpanel" aria-labelledby="cc-library-display-tab-text-size"' + (activeTab === 'text-size' ? '' : ' hidden') + '>' +
+                '<section class="cc-library-display-section cc-library-display-section--text-size" aria-label="文字サイズ">' +
+                    libraryTextSizeChoicesHtml('libraryCardChordNameSize', 'コード名') +
+                    libraryTextSizeChoicesHtml('libraryCardFretNumberSize', 'フレット番号') +
+                    libraryTextSizeChoicesHtml('libraryCardMarkerLabelSize', '音名') +
+                '</section>' +
+            '</div>' +
+            '<button type="button" class="cc-folder-manage-cancel" data-library-display-action="close">完了</button>' +
+        '</div>';
+        return html;
+    }
+
+    function redrawLibraryDisplaySheet(focusTab) {
+        if (!libraryDisplaySheet) return;
+        libraryDisplaySheet.innerHTML = libraryDisplayChoicesHtml();
+        bindLibraryDisplaySheet();
+        if (focusTab) {
+            var tab = libraryDisplaySheet.querySelector('[data-library-display-tab="' + libraryDisplayActiveTab + '"]');
+            if (tab) tab.focus();
+        }
+    }
+
+    function updateLibraryDisplaySummary() {
+        var summary = document.getElementById('cc-library-display-summary');
+        if (summary) summary.textContent = libraryDisplaySummary();
+    }
+
+    function applyLibraryCardTextSizes() {
+        var grid = document.getElementById('cc-chordthumb-grid');
+        if (grid) grid.setAttribute('data-library-chord-name-size', libraryCardTextSize('libraryCardChordNameSize'));
+    }
+
+    function restoreListScroll(previousY) {
+        if (previousY !== null && typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(function () {
+                if (Math.abs(window.scrollY - previousY) > 1) window.scrollTo(0, previousY);
+            });
+        }
+    }
+
+    function refreshLibraryCardTextSizes() {
+        if (view !== 'list') return;
+        var previousY = typeof window.scrollY === 'number' ? window.scrollY : null;
+        applyLibraryCardTextSizes();
+        updateLibraryDisplaySummary();
+        restoreListScroll(previousY);
+    }
+
+    function refreshListThumbnails() {
+        if (view !== 'list') return;
+        var previousY = typeof window.scrollY === 'number' ? window.scrollY : null;
+        applyLibraryCardTextSizes();
+        renderListThumbnails(currentListChords, {
+            displayMode: libraryCardDisplayMode(),
+            monochrome: libraryCardMonochrome()
+        });
+        updateLibraryDisplaySummary();
+        restoreListScroll(previousY);
+    }
+
+    function bindLibraryDisplaySheet() {
+        if (!libraryDisplaySheet) return;
+        Array.prototype.forEach.call(libraryDisplaySheet.querySelectorAll('[data-library-display-tab]'), function (tab) {
+            tab.addEventListener('click', function () {
+                libraryDisplayActiveTab = normalizeLibraryDisplayTab(tab.getAttribute('data-library-display-tab'));
+                redrawLibraryDisplaySheet(true);
+            });
+            tab.addEventListener('keydown', function (event) {
+                var tabs = Array.prototype.slice.call(libraryDisplaySheet.querySelectorAll('[data-library-display-tab]'));
+                var index = tabs.indexOf(tab);
+                var nextIndex = index;
+                if (event.key === 'ArrowLeft') nextIndex = (index + tabs.length - 1) % tabs.length;
+                else if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
+                else if (event.key === 'Home') nextIndex = 0;
+                else if (event.key === 'End') nextIndex = tabs.length - 1;
+                else return;
+                event.preventDefault();
+                libraryDisplayActiveTab = normalizeLibraryDisplayTab(tabs[nextIndex].getAttribute('data-library-display-tab'));
+                redrawLibraryDisplaySheet(true);
+            });
+        });
+        Array.prototype.forEach.call(libraryDisplaySheet.querySelectorAll('[data-library-card-display-mode]'), function (button) {
+            button.addEventListener('click', function () {
+                var mode = button.getAttribute('data-library-card-display-mode');
+                if (['note', 'solfege', 'degree', 'finger'].indexOf(mode) === -1) return;
+                window.ChordCruise.state.settings.libraryCardDisplayMode = mode;
+                storage().saveSettings({ libraryCardDisplayMode: mode });
+                redrawLibraryDisplaySheet(false);
+                refreshListThumbnails();
+            });
+        });
+        Array.prototype.forEach.call(libraryDisplaySheet.querySelectorAll('[data-library-card-monochrome]'), function (button) {
+            button.addEventListener('click', function () {
+                var monochrome = button.getAttribute('data-library-card-monochrome') === 'true';
+                window.ChordCruise.state.settings.libraryCardMonochrome = monochrome;
+                storage().saveSettings({ libraryCardMonochrome: monochrome });
+                redrawLibraryDisplaySheet(false);
+                refreshListThumbnails();
+            });
+        });
+        Array.prototype.forEach.call(libraryDisplaySheet.querySelectorAll('[data-library-card-text-size]'), function (button) {
+            button.addEventListener('click', function () {
+                var key = button.getAttribute('data-library-card-text-size-key');
+                var size = button.getAttribute('data-library-card-text-size');
+                if (['libraryCardChordNameSize', 'libraryCardFretNumberSize', 'libraryCardMarkerLabelSize'].indexOf(key) === -1 ||
+                    ['small', 'medium', 'large', 'xlarge'].indexOf(size) === -1) return;
+                window.ChordCruise.state.settings[key] = size;
+                var partial = {};
+                partial[key] = size;
+                storage().saveSettings(partial);
+                redrawLibraryDisplaySheet(false);
+                if (key === 'libraryCardChordNameSize') {
+                    refreshLibraryCardTextSizes();
+                } else {
+                    refreshListThumbnails();
+                }
+            });
+        });
+        var closeButton = libraryDisplaySheet.querySelector('[data-library-display-action="close"]');
+        if (closeButton) closeButton.addEventListener('click', function () { closeLibraryDisplaySheet(true); });
+    }
+
+    function openLibraryDisplaySheet(trigger) {
+        if (entrySortMode) return;
+        libraryDisplayActiveTab = 'display';
+        libraryDisplayReturnFocus = trigger || null;
+        if (trigger) trigger.setAttribute('aria-expanded', 'true');
+        var sheet = ensureLibraryDisplaySheet();
+        sheet.innerHTML = libraryDisplayChoicesHtml();
+        sheet.classList.remove('cc-folder-manage-overlay--hidden');
+        document.body.classList.add('cc-library-display-open');
+        bindLibraryDisplaySheet();
+        var title = document.getElementById('cc-library-display-title');
+        if (title) title.focus();
+    }
+
     function folderManageColorChoicesHtml(folder) {
         var selected = storage().folderColorKey(folder);
         var html = '<div class="cc-folder-color-grid" role="group" aria-label="フォルダの色">';
@@ -479,8 +754,10 @@
     // ---- ビュー: フォルダ一覧 ----
 
     function renderFolders() {
+        closeLibraryDisplaySheet(false);
         view = 'folders';
         currentDetailChord = null;
+        currentListChords = [];
         detailMonochrome = false;
         entrySortMode = false;
         entrySortFolderId = null;
@@ -575,6 +852,7 @@
 
     function renderList() {
         closeFolderManageSheet(false);
+        closeLibraryDisplaySheet(false);
         view = 'list';
         currentDetailChord = null;
         detailMonochrome = false;
@@ -593,12 +871,14 @@
         var chords = entries.map(function (entry) {
             return storage().loadChord(entry.id);
         }).filter(function (chord) { return !!chord; });
+        currentListChords = chords;
         var columns = currentLibraryColumns();
 
         var html = '<div class="cc-card cc-lib-folder-head">' +
             '<div class="cc-lib-folder-title-row">' +
                 '<h3 class="cc-card-heading">📁 ' + escapeHtml(folder.name) + '</h3>' +
                 '<div class="cc-lib-folder-actions">' +
+                    buildLibraryDisplaySettingsButtonHtml(entrySortMode) +
                     '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-entry-sort-toggle" aria-pressed="' +
                         (entrySortMode ? 'true' : 'false') + '"' + (chords.length < 2 && !entrySortMode ? ' disabled' : '') + '>' +
                         (entrySortMode ? '完了' : '並び替え') + '</button>' +
@@ -616,10 +896,18 @@
         contentEl().innerHTML = html;
 
         document.getElementById('cc-entry-sort-toggle').addEventListener('click', function () {
+            closeLibraryDisplaySheet(false);
             entrySortMode = !entrySortMode;
             entrySortFolderId = entrySortMode ? folder.id : null;
             renderList();
         });
+
+        var displayTrigger = document.getElementById('cc-library-display-trigger');
+        if (displayTrigger && !entrySortMode) {
+            displayTrigger.addEventListener('click', function () {
+                openLibraryDisplaySheet(displayTrigger);
+            });
+        }
 
         if (entrySortMode) {
             renderListThumbnails(chords);
@@ -663,10 +951,10 @@
     // ---- ビュー: 保存コード詳細 ----
 
     function chordUseFlats(chord) {
-        if (chord.keyContext) {
+        if (chord && chord.keyContext && typeof chord.keyContext.tonicPc === 'number') {
             return theory().keyUsesFlats(chord.keyContext.tonicPc, chord.keyContext.mode);
         }
-        return false;
+        return /♭/.test(chord && chord.chordName ? chord.chordName : '');
     }
 
     function detailDisplayMode() {
@@ -729,12 +1017,6 @@
         });
     }
 
-    function thumbnailMarkerLabel(chord, note) {
-        if (detailDisplayMode() === 'finger' && note.fingeringWarning === true && note.finger == null) return '⚠';
-        if (note.finger != null) return String(note.finger);
-        return theory().degreeLabels([note.interval])[0];
-    }
-
     /** 詳細・一覧・書き出しが同じ保存範囲と座標データを使う。 */
     function savedDiagramOptions(chord, options) {
         var opts = options || {};
@@ -747,9 +1029,7 @@
                 return {
                     string: note.string,
                     fret: note.fret,
-                    label: opts.thumbnail
-                        ? thumbnailMarkerLabel(chord, note)
-                        : detailMarkerLabel(chord, note, mode),
+                    label: detailMarkerLabel(chord, note, mode),
                     role: roleForInterval(note.interval),
                     fingeringWarning: mode === 'finger' && note.fingeringWarning === true && note.finger == null,
                     tappable: !!opts.tappable
@@ -758,18 +1038,49 @@
             barres: window.ChordCruise.caged.detectBarres(notes),
             mutedStrings: Array.isArray(chord.mutedStrings) ? chord.mutedStrings : [],
             monochrome: !!opts.monochrome,
-            fretNumberHighlightMode: 'all'
+            fretNumberHighlightMode: 'all',
+            // 詳細画面だけが使うhost単位の設定。静的な一覧SVGには渡さない。
+            markerLabelSize: opts.markerLabelSize
         };
     }
 
-    function renderListThumbnails(chords) {
+    function renderListThumbnails(chords, options) {
+        var opts = options || {};
+        var grid = document.getElementById('cc-chordthumb-grid');
+        var columns = normalizeLibraryColumns(parseInt(grid && grid.getAttribute('data-library-columns'), 10));
+        var mode = ['note', 'solfege', 'degree', 'finger'].indexOf(opts.displayMode) !== -1
+            ? opts.displayMode
+            : libraryCardDisplayMode();
+        var monochrome = typeof opts.monochrome === 'boolean'
+            ? opts.monochrome
+            : libraryCardMonochrome();
+        var fretNumberScale = typeof opts.fretNumberScale === 'number'
+            ? opts.fretNumberScale
+            : libraryCardTextScale(libraryCardTextSize('libraryCardFretNumberSize'), columns);
+        var markerLabelScale = typeof opts.markerLabelScale === 'number'
+            ? opts.markerLabelScale
+            : libraryCardTextScale(libraryCardTextSize('libraryCardMarkerLabelSize'), columns);
         var byId = {};
         chords.forEach(function (chord) { byId[chord.id] = chord; });
         Array.prototype.forEach.call(contentEl().querySelectorAll('[data-chord-thumb]'), function (host) {
             var chord = byId[host.getAttribute('data-chord-thumb')];
             if (!chord) return;
-            var diagramOptions = savedDiagramOptions(chord, { thumbnail: true, monochrome: false });
+            var diagramOptions = savedDiagramOptions(chord, { thumbnail: true, mode: mode, monochrome: monochrome });
             diagramOptions.svgClass = 'cc-fb-svg cc-fb-static-svg cc-chordthumb-svg';
+            diagramOptions.fretNumberScale = fretNumberScale;
+            diagramOptions.markerLabelScale = markerLabelScale;
+            // 固定高の一覧カードだけは、上下のマーカー外周とフレット番号用にSVG内の安全余白を確保する。
+            // 画面の指板・詳細・PNGはこの指定を持たないため、従来の座標と寸法のままになる。
+            if (monochrome) {
+                diagramOptions.svgPadding = {
+                    top: 14,
+                    right: 4,
+                    bottom: 18,
+                    left: 4,
+                    fillMonochromeBackground: true
+                };
+            }
+            host.classList.toggle('cc-chordthumb-board--monochrome', monochrome);
             host.innerHTML = window.ChordCruise.ui.fretboard.buildStaticSvg(diagramOptions);
         });
     }
@@ -784,7 +1095,8 @@
         var diagramOptions = savedDiagramOptions(chord, {
             mode: detailDisplayMode(),
             monochrome: detailMonochrome,
-            tappable: true
+            tappable: true,
+            markerLabelSize: (window.ChordCruise.state && window.ChordCruise.state.settings && window.ChordCruise.state.settings.fretboardMarkerLabelSize) || 'medium'
         });
         diagramOptions.scrollToFret = chord.fretRange
             ? Math.round((chord.fretRange.min + chord.fretRange.max) / 2)
@@ -869,9 +1181,11 @@
     }
 
     function renderDetail() {
+        closeLibraryDisplaySheet(false);
         view = 'detail';
         entrySortMode = false;
         entrySortFolderId = null;
+        currentListChords = [];
         detailMonochrome = false;
         setContentLayout('detail');
         var chord = storage().loadChord(currentChordId);
@@ -1031,8 +1345,10 @@
 
     /** TOPへ戻ったときは次回フォルダ一覧から */
     function resetView() {
+        closeLibraryDisplaySheet(false);
         view = 'folders';
         currentDetailChord = null;
+        currentListChords = [];
         detailMonochrome = false;
         folderSortMode = false;
         entrySortMode = false;
@@ -1056,6 +1372,7 @@
         buildChordThumbnailGridHtml: buildChordThumbnailGridHtml,
         buildFolderSortRowsHtml: buildFolderSortRowsHtml,
         buildChordSortRowsHtml: buildChordSortRowsHtml,
-        normalizeLibraryColumns: normalizeLibraryColumns
+        normalizeLibraryColumns: normalizeLibraryColumns,
+        libraryCardTextScale: libraryCardTextScale
     };
 })();
