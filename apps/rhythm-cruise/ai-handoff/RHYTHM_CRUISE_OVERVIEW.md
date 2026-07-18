@@ -194,6 +194,7 @@
   - ボタンCSS・Newバッジ用CSSは `theme.css` ではなく `info.html` のページローカル `<style>` 内に追加（`shared/style.css` の `.info-new-badge` 等を複製する形。`shared/`への新規依存は増やしていない）。
   - 遷移先は新規ファイル `apps/rhythm-cruise/pro-access.html`（`apps/fretboard_cruise/pro-access.html` を移植。`shared/style.css` / `shared/pro-gate.css` は読み込まず自己完結）。手順2の文言のみ「リズムクルーズPRO版の入手」、「限定投稿へ」のリンク先のみ `https://youtu.be/kVD2EbN2IWk` に変更し、それ以外は指板クルーズ版と同一。
   - PRO版 (`pro_r4m8k7n2q9x/index.html`) は変更していない。PRO版から `info.html` を開いた場合も `resolvedEdition === 'pro'` となり、このボタンは表示されない。
+- **「⚠️ iPhoneをお使いの方」導線（追加済み）**: `pro-access.html` の手順1「メンバーシップ「フォルテ」への登録」内、「登録ページへ」の直後に、音感クルーズ（`apps/pitch-cruise/pro-access.html`）と同じiPhone向け案内リンクを追加。DOM・インラインstyle・文言・絵文字は音感クルーズ版と完全一致（class/id/data属性なし）。遷移先は新規ファイル `apps/rhythm-cruise/iphone-safari-guide.html`（音感クルーズの同名ファイルを、内容・デザイン・コピー機能はそのまま、`shared/style.css` / `shared/pro-gate.css` の読込だけ除去し自己完結化して複製）。掲載URLはSound Cruise共通のメンバーシップ登録URLのみで、アプリ固有文言・URLは含まないため文言の書き換えは行っていない。既存の「限定投稿へ」URL（`https://youtu.be/kVD2EbN2IWk`）・登録ページURL・戻る導線・PRO認証表示（「リズムクルーズ PRO」）には影響なし。`theme.css` / `script.js` / 両index.html / `info.html` は変更しておらず、アプリ本体バージョン（1.2.0）は据え置き。
 
 ---
 

@@ -57,7 +57,8 @@
 | `info.html` | インフォメーションページ。動画リンク・「【クルーズアプリ】シリーズ」導線・PRO版の入手方法（通常版のみ表示）・利用規約/プライバシー/お問い合わせを掲載。YouTube確認カードを実装。 |
 | `terms.html` | 利用規約ページ。ホームへ戻る導線あり（直近commitで追加）。 |
 | `privacy.html` | プライバシーポリシーページ。同上。 |
-| `pro-access.html` | 「PRO版の入手方法」ページ。 |
+| `pro-access.html` | 「PRO版の入手方法」ページ。手順1「メンバーシップ「フォルテ」への登録」内に、音感クルーズ（`apps/pitch-cruise/pro-access.html`）と同じ「⚠️ iPhoneをお使いの方」リンク（インラインstyle、`./iphone-safari-guide.html`へ同一タブ遷移）を追加済み。 |
+| `iphone-safari-guide.html` | 「iPhoneでの登録方法」案内ページ（新規）。音感クルーズの同名ファイルを無改変で複製。iPhoneのYouTubeアプリ経由だと課金が割高になる旨の警告と、メンバーシップ登録URLのコピー機能（`navigator.clipboard.writeText`、失敗時は`execCommand('copy')`フォールバック）を掲載。`pro-access.html`と同じく`../shared/style.css`・`../shared/pro-gate.css?v=5`を読み込む（機能的には未使用、既存`pro-access.html`との読込構成統一のため）。アプリ固有文言・URLは含まないため、指板クルーズ専用の書き換えは行っていない。 |
 | `apps.html` | 「アプリシリーズ」紹介ページ（クルーズシリーズの他アプリへの導線）。 |
 | `standard/manifest.json` / `pro_a9f4k7q2m8z/manifest.json` | 通常版/PRO版それぞれのPWAマニフェスト。 |
 | `standard/service-worker.js` / `pro_a9f4k7q2m8z/service-worker.js` | 通常版/PRO版それぞれのService Worker。ネットワーク優先・キャッシュ全削除方式。PRO版はPROゲート連携の`postMessage`を送る。 |

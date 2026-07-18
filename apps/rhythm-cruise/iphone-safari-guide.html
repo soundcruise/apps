@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>iPhone での登録方法</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', system-ui, sans-serif;
+            background: #0a0a0c;
+            color: #fff;
+            overflow: auto;
+        }
+
+        .iphone-guide-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            box-sizing: border-box;
+            background: rgba(10, 10, 12, 0.97);
+            -webkit-backdrop-filter: blur(6px);
+            backdrop-filter: blur(6px);
+        }
+
+        .iphone-guide-panel {
+            width: 100%;
+            max-width: 420px;
+            padding: 32px 24px;
+            border-radius: 16px;
+            background: linear-gradient(165deg, rgba(40, 40, 44, 0.98), rgba(22, 22, 26, 0.99));
+            border: 1px solid rgba(255, 210, 90, 0.35);
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+            text-align: center;
+        }
+
+        .iphone-guide-panel h1 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 28px;
+            color: #fff !important;
+            background: none !important;
+            -webkit-background-clip: unset !important;
+            background-clip: unset !important;
+            -webkit-text-fill-color: unset !important;
+            animation: none !important;
+            filter: none !important;
+            text-transform: none !important;
+            letter-spacing: normal !important;
+        }
+
+        .iphone-warning {
+            text-align: left;
+            margin-bottom: 24px;
+            padding: 0;
+            background: none;
+            border-left: none;
+            border-radius: 0;
+        }
+
+        .iphone-warning p {
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: rgba(255, 255, 255, 0.9);
+            margin: 0 0 8px 0;
+        }
+
+        .iphone-warning p:first-child {
+            color: rgba(255, 100, 100, 0.9);
+        }
+
+        .iphone-warning p:last-child {
+            margin-bottom: 0;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .url-section {
+            margin-top: 24px;
+            padding: 16px;
+            background: rgba(255, 214, 94, 0.1);
+            border-radius: 8px;
+            text-align: left;
+        }
+
+        .url-section-label {
+            font-size: 0.85rem;
+            color: rgba(255, 229, 102, 0.92);
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        .url-display {
+            font-size: 0.78rem;
+            color: rgba(255, 255, 255, 0.8);
+            word-break: break-all;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 6px;
+            margin-bottom: 12px;
+            font-family: monospace;
+            line-height: 1.4;
+        }
+
+        .copy-button {
+            display: inline-block;
+            width: 100%;
+            padding: 12px 16px;
+            background: linear-gradient(90deg, #ffd25a 0%, #ffb900 100%);
+            color: #000;
+            text-decoration: none;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .copy-button:hover {
+            background: linear-gradient(90deg, #ffe066 0%, #ffc100 100%);
+            box-shadow: 0 4px 16px rgba(255, 210, 90, 0.3);
+        }
+
+        .copy-feedback {
+            font-size: 0.8rem;
+            color: rgba(100, 200, 100, 0.9);
+            margin-top: 8px;
+            display: none;
+        }
+
+        .copy-feedback.show {
+            display: block;
+        }
+
+        .iphone-back {
+            margin-top: 28px;
+            text-align: center;
+        }
+
+        .iphone-back a {
+            font-size: 0.85rem;
+            color: rgba(255, 229, 102, 0.92);
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+
+        .iphone-back a:hover {
+            color: #ffeb99;
+        }
+
+        @media (max-width: 768px) {
+            .iphone-guide-container {
+                display: block;
+                padding-top: max(16px, env(safe-area-inset-top));
+                padding-bottom: max(16px, env(safe-area-inset-bottom));
+                min-height: auto;
+            }
+
+            .iphone-guide-panel {
+                margin: 20px auto;
+            }
+
+            .iphone-guide-panel h1 {
+                font-size: 1.15rem;
+                margin-bottom: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="iphone-guide-container">
+    <div class="iphone-guide-panel">
+        <h1>📱 iPhone での登録方法</h1>
+
+        <div class="iphone-warning">
+            <p>iPhoneのYouTubeアプリから登録すると料金が割高になる場合があります。</p>
+            <p style="margin-top: 12px;">Safari などのブラウザに、下記のURLを直接コピーしてください。</p>
+        </div>
+
+        <div class="url-section">
+            <span class="url-section-label">登録リンク：</span>
+            <div class="url-display">https://www.youtube.com/channel/UC4ncQuk56I8SK6lJGZcGwJQ/join</div>
+            <button class="copy-button" onclick="copyToClipboard()">
+                📋 URLをコピー
+            </button>
+            <div class="copy-feedback" id="copy-feedback">
+                ✓ コピーしました
+            </div>
+        </div>
+
+        <div class="iphone-back">
+            <a href="javascript:history.back()">← 戻る</a>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyToClipboard() {
+    const url = 'https://www.youtube.com/channel/UC4ncQuk56I8SK6lJGZcGwJQ/join';
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(function() {
+            showCopyFeedback();
+        }).catch(function(error) {
+            console.error('Failed to copy:', error);
+            fallbackCopy(url);
+        });
+    } else {
+        fallbackCopy(url);
+    }
+}
+
+function fallbackCopy(text) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+        document.execCommand('copy');
+        showCopyFeedback();
+    } catch (error) {
+        console.error('Fallback copy failed:', error);
+    }
+    document.body.removeChild(textarea);
+}
+
+function showCopyFeedback() {
+    const feedback = document.getElementById('copy-feedback');
+    feedback.classList.add('show');
+    setTimeout(function() {
+        feedback.classList.remove('show');
+    }, 2000);
+}
+</script>
+
+</body>
+</html>
