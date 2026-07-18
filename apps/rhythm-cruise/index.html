@@ -11,6 +11,35 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        .rc-standard-pro-access-link {
+            display: inline-block;
+            max-width: 100%;
+            padding: 6px 8px;
+            background: none;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+            overflow-wrap: anywhere;
+        }
+
+        .rc-standard-pro-access-link:focus-visible {
+            outline: 2px solid rgba(222, 194, 122, 0.72);
+            outline-offset: 2px;
+        }
+
+        .preview-loop-row > .rc-standard-pro-access-link {
+            margin-left: auto;
+        }
+
+        .rc-standard-pro-access-row {
+            display: flex;
+            justify-content: flex-end;
+            width: 100%;
+            min-width: 0;
+            margin-top: 2px;
+        }
+    </style>
 
     <link rel="manifest" href="manifest.json?v=2">
     <meta name="theme-color" content="#070b11">
@@ -195,6 +224,9 @@
                 </div>
 
                 <button type="button" class="rhythm-create-practice" id="rc-create-practice">このリズムで練習する→</button>
+                <div class="rc-standard-pro-access-row">
+                    <a href="./pro-access.html" class="result-mic-tune-link rc-standard-pro-access-link">PRO版を入手</a>
+                </div>
             </div>
 
             <!-- PROカスタムSTAGE一覧（v0.9.168）。保存済みSTAGEのPlay/編集/削除の導線。戻るは共通ナビ #app-nav。 -->
@@ -402,6 +434,7 @@
                         <span class="preview-loop-cap">くり返し練習</span>
                         <button type="button" class="ss-toggle" id="loop-toggle" aria-pressed="false" title="ONにすると、STOPするまで同じSTAGEを繰り返します（結果は履歴に保存しません）。">OFF</button>
                         <button type="button" class="loop-help-toggle" id="loop-help-toggle" aria-expanded="false" aria-controls="loop-help" aria-label="くり返し練習の説明を開く">＋</button>
+                        <a href="./pro-access.html" class="result-mic-tune-link rc-standard-pro-access-link">PRO版を入手</a>
                         <p class="loop-help-text hidden" id="loop-help">ONにすると、同じリズムをくり返して練習できます。結果は最後に完了した1周分、途中で止めた場合はそこまでを表示します。</p>
                     </div>
                 </div>
@@ -538,6 +571,9 @@
             <!-- 6c. リズム作成Practice中だけ表示（v0.9.201）。 -->
             <div class="stage-save-custom-wrap hidden" id="stage-save-custom-wrap">
                 <button type="button" class="stage-save-custom-btn" id="stage-save-custom-btn">練習STAGEとして保存</button>
+                <div class="rc-standard-pro-access-row">
+                    <a href="./pro-access.html" class="result-mic-tune-link rc-standard-pro-access-link">PRO版を入手</a>
+                </div>
             </div>
             <!-- 6d. 戻るテキストリンク（PROカスタム=←編集に戻る / リズム作成=←リズム作成に戻る）。v0.9.201。 -->
             <div class="practice-back-wrap hidden" id="practice-back-wrap">
