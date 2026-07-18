@@ -115,6 +115,9 @@
                 <a class="rc-info-link-card" href="https://youtu.be/m0a4IAK5N9E" target="_blank" rel="noopener noreferrer" data-youtube-confirm id="rc-info-video-link">
                     <span class="rc-info-link-title">【動画】正しい使い方と初期設定</span>
                 </a>
+                <a class="rc-info-link-card" href="https://youtu.be/kt5PQz2__kM" target="_blank" rel="noopener noreferrer" data-youtube-confirm id="rc-info-pro-video-link" style="display: none;">
+                    <span class="rc-info-link-title">【動画】Pro版の機能とおすすめの使い方</span>
+                </a>
             </div>
 
             <div class="rc-info-links-bottom">
@@ -233,8 +236,12 @@
             }
 
             var proAccessDisplayEdition = resolveProAccessDisplayEdition();
+            var proVideoLink = document.getElementById('rc-info-pro-video-link');
             var standardProAccessLink = document.getElementById('standard-pro-access-link');
             var proAccessNewBadge = document.getElementById('pro-access-new-badge');
+            if (proVideoLink && proAccessDisplayEdition === 'pro') {
+                proVideoLink.style.display = '';
+            }
             if (standardProAccessLink && proAccessDisplayEdition === 'standard') {
                 standardProAccessLink.style.display = '';
                 if (proAccessNewBadge) {
