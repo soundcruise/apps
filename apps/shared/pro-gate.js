@@ -8,7 +8,12 @@
     var CONFIG = (_g && typeof _g.passwordHash === 'string')
         ? {
             passwordHash: String(_g.passwordHash).trim().toLowerCase(),
-            gateVersion: String(_g.gateVersion || '1')
+            gateVersion: String(_g.gateVersion || '1'),
+            // 各Pro版HTMLが __SOUNDCRUISE_PRO_GATE__.appName で表示名を指定できる。
+            // 未指定時は従来どおり「指板クルーズ」にフォールバック（既存アプリの後方互換）。
+            appName: (_g && typeof _g.appName === 'string' && _g.appName.trim())
+                ? String(_g.appName).trim()
+                : '指板クルーズ'
         }
         : null;
 
@@ -148,7 +153,7 @@
         overlay.innerHTML =
             '<div class="pro-gate-box">' +
             '<div class="pro-gate-panel">' +
-            '<h2 id="pro-gate-title">指板クルーズ <span style="color:#ffe566;">PRO</span></h2>' +
+            '<h2 id="pro-gate-title">' + CONFIG.appName + ' <span style="color:#ffe566;">PRO</span></h2>' +
             '<p class="pro-gate-hint">会員向けのページです。<br>4桁のパスワードを入力(初回のみ)</p>' +
             '<input type="password" id="pro-gate-input" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" aria-describedby="pro-gate-error" />' +
             '<p id="pro-gate-error" aria-live="polite"></p>' +

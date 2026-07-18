@@ -98,7 +98,8 @@
       return document.documentElement?.dataset?.appEdition === 'Pro';
   }
   ```
-- PRO認証: PRO版HTMLのみ `shared/pro-gate.css` / `shared/pro-gate.js` を読み込み、`window.__SOUNDCRUISE_PRO_GATE__ = { passwordHash, gateVersion }` でパスワードゲートを構成。**この認証まわりは `shared/` に属するため、リズムクルーズ側から不用意に変更しない。**
+- PRO認証: PRO版HTMLのみ `shared/pro-gate.css` / `shared/pro-gate.js` を読み込み、`window.__SOUNDCRUISE_PRO_GATE__ = { passwordHash, gateVersion, appName }` でパスワードゲートを構成。**この認証まわりは `shared/` に属するため、リズムクルーズ側から不用意に変更しない。**
+  - **PRO認証画面の表示名（不具合修正済み）**: 以前は `shared/pro-gate.js` がゲート見出しを「指板クルーズ PRO」とハードコードしていたため、リズムクルーズPRO版でも「指板クルーズ PRO」と誤表示されていた。`shared/pro-gate.js` に汎用的な `appName` 設定を追加し（未指定時は後方互換で「指板クルーズ」にフォールバック）、リズムクルーズPRO版HTMLの `__SOUNDCRUISE_PRO_GATE__` に `appName: 'リズムクルーズ'` を渡すことで「リズムクルーズ PRO」と表示されるよう修正した。**認証判定・パスワードハッシュ・`gateVersion`・保存/セッションキー・遷移仕様はいずれも未変更**（表示名のみの修正）。`shared/pro-gate.js` を変更したため、リズムクルーズPRO版の `pro-gate.js?v=` は `18→19` に更新済み（指板クルーズ側はフォールバックで表示が変わらないため、その `?v=` は据え置き）。
 - PROロック対象（`script.js` 内 `RHYTHM_PRO_LOCK_MESSAGES` に定義。通常版でタップすると `window.alert` で案内）:
   - カスタムSTAGEの作成・保存・練習開始（`proCustomStage` / `proCustomStageStart` 等）
   - 作成したリズムの保存・練習開始・プリセット保存（`rhythmCreateSave` / `rhythmCreateStart` / `rhythmCreatePresetSave`）
