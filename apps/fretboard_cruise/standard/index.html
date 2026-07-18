@@ -60,6 +60,22 @@
             font-size: 0.9rem;
             color: rgba(255, 255, 255, 0.78);
         }
+
+        .standard-pro-access-inline-link {
+            display: inline;
+            color: inherit;
+            font: inherit;
+            font-weight: inherit;
+            line-height: inherit;
+            text-decoration: underline;
+            text-decoration-thickness: 1px;
+            text-underline-offset: 2px;
+        }
+
+        .standard-pro-access-inline-link:focus-visible {
+            outline: 2px solid rgba(255, 244, 176, 0.95);
+            outline-offset: 2px;
+        }
     </style>
 </head>
 <body>
@@ -85,6 +101,59 @@
 
     <script src="../script.js?v=2.8.3"></script>
     <script>
+        (function () {
+            var app = document.getElementById('app');
+            if (!app) return;
+
+            function linkProEditionText() {
+                app.querySelectorAll('.fretboard-edition-notice').forEach(function (notice) {
+                    var walker = document.createTreeWalker(notice, NodeFilter.SHOW_TEXT);
+                    var textNodes = [];
+                    var textNode;
+
+                    while ((textNode = walker.nextNode())) {
+                        if (textNode.parentElement.closest('a, script, style')) continue;
+                        if (textNode.nodeValue.indexOf('PRO版') !== -1) textNodes.push(textNode);
+                    }
+
+                    textNodes.forEach(function (node) {
+                        var fragment = document.createDocumentFragment();
+                        var text = node.nodeValue;
+                        var start = 0;
+                        var index;
+
+                        while ((index = text.indexOf('PRO版', start)) !== -1) {
+                            fragment.appendChild(document.createTextNode(text.slice(start, index)));
+
+                            var link = document.createElement('a');
+                            link.href = '../pro-access.html';
+                            link.className = 'standard-pro-access-inline-link';
+                            link.textContent = 'PRO版';
+                            fragment.appendChild(link);
+
+                            start = index + 'PRO版'.length;
+                        }
+
+                        fragment.appendChild(document.createTextNode(text.slice(start)));
+                        node.parentNode.replaceChild(fragment, node);
+                    });
+                });
+            }
+
+            linkProEditionText();
+
+            if (!window.MutationObserver) return;
+
+            var observer = new MutationObserver(function (mutations) {
+                var hasAddedNodes = mutations.some(function (mutation) {
+                    return mutation.type === 'childList' && mutation.addedNodes.length > 0;
+                });
+                if (hasAddedNodes) linkProEditionText();
+            });
+
+            observer.observe(app, { childList: true });
+        }());
+
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('service-worker.js').catch(err => {
