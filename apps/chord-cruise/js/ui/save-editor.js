@@ -231,6 +231,16 @@
         return theory().noteName(notePc(note), draft.useFlats);
     }
 
+    function fingeringAccessibleLabel(note) {
+        var position = note.fret === 0 ? '開放弦' : note.fret + 'フレット';
+        var state;
+        if (note.pendingDelete) state = '消去予定';
+        else if (note.fingeringWarning && note.finger == null) state = '運指警告';
+        else if (note.finger != null) state = (FINGER_LABELS[note.finger] || '') + '指';
+        else state = '運指未設定';
+        return note.string + '弦 ' + position + '、現在 ' + state + '。運指を変更';
+    }
+
     function roleForInterval(interval) {
         if (interval === 0) return 'root';
         if (interval === 3 || interval === 4) return 'third';
@@ -262,7 +272,8 @@
                 dimmed: !noteIncluded(note),
                 pendingDelete: note.pendingDelete && noteIncluded(note),
                 fingeringWarning: draft.displayMode === 'finger' && note.fingeringWarning && !note.pendingDelete,
-                tappable: true
+                tappable: noteIncluded(note),
+                ariaLabel: fingeringAccessibleLabel(note)
             };
         });
         var barres = window.ChordCruise.caged.detectBarres(draft.notes.filter(function (note) {

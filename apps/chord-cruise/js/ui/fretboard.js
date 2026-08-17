@@ -280,7 +280,8 @@
                 dimmed: !!marker.dimmed,
                 pendingDelete: !!marker.pendingDelete,
                 fingeringWarning: !!marker.fingeringWarning,
-                tappable: !!marker.tappable
+                tappable: !!marker.tappable,
+                ariaLabel: marker.ariaLabel != null ? String(marker.ariaLabel) : ''
             });
         });
 
@@ -495,14 +496,35 @@
             el.textContent = m.label != null ? m.label : '';
             el.dataset.string = String(m.string);
             el.dataset.fret = String(m.fret);
+            if (m.tappable && typeof opts.onSlotTap === 'function') {
+                el.setAttribute('role', 'button');
+                el.setAttribute('tabindex', '0');
+                el.setAttribute('aria-keyshortcuts', 'Enter Space');
+                el.setAttribute('aria-label', m.ariaLabel || markerActivationLabel(m));
+            }
             markerLayer.appendChild(el);
         });
 
         if (typeof opts.onSlotTap === 'function') {
+            function activateMarker(marker, fromKeyboard) {
+                var stringNum = parseInt(marker.dataset.string, 10);
+                var fret = parseInt(marker.dataset.fret, 10);
+                if (!isFinite(stringNum) || !isFinite(fret)) return;
+                opts.onSlotTap(stringNum, fret);
+                if (fromKeyboard) restoreMarkerFocus(host, stringNum, fret, marker);
+            }
+
             markerLayer.addEventListener('click', function (event) {
-                var marker = event.target.closest('.cc-fb-marker');
+                var marker = event.target.closest('.cc-fb-marker--tappable');
                 if (!marker) return;
-                opts.onSlotTap(parseInt(marker.dataset.string, 10), parseInt(marker.dataset.fret, 10));
+                activateMarker(marker, false);
+            });
+            markerLayer.addEventListener('keydown', function (event) {
+                if (!isMarkerActivationKey(event)) return;
+                var marker = event.target.closest('.cc-fb-marker--tappable');
+                if (!marker) return;
+                event.preventDefault();
+                activateMarker(marker, true);
             });
         }
 
@@ -512,6 +534,21 @@
         } else if (typeof opts.scrollToFret === 'number') {
             setScrollCenter(scroll, model.frets, opts.scrollToFret);
         }
+    }
+
+    function isMarkerActivationKey(event) {
+        return !!event && (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar');
+    }
+
+    function markerActivationLabel(marker) {
+        var position = marker.fret === 0 ? '開放弦' : marker.fret + 'フレット';
+        return marker.string + '弦 ' + position + '。運指を変更';
+    }
+
+    function restoreMarkerFocus(host, stringNum, fret, fallback) {
+        if (!host || typeof host.querySelector !== 'function') return;
+        var next = host.querySelector('.cc-fb-marker--tappable[data-string="' + stringNum + '"][data-fret="' + fret + '"]') || fallback;
+        if (next && typeof next.focus === 'function') next.focus();
     }
 
     function setScrollCenter(scroll, frets, fret) {
@@ -545,6 +582,7 @@
         markerLabelScaleForSize: markerLabelScaleForSize,
         centerOnFret: centerOnFret,
         getScrollLeft: getScrollLeft,
+        isMarkerActivationKey: isMarkerActivationKey,
         FRET_W: FRET_W,
         POSITION_FRETS: POSITION_FRETS.slice()
     };

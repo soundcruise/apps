@@ -1023,6 +1023,15 @@
         return theory().noteName(pc, chordUseFlats(chord));
     }
 
+    function detailFingeringAccessibleLabel(note) {
+        var position = note.fret === 0 ? '開放弦' : note.fret + 'フレット';
+        var state;
+        if (note.fingeringWarning === true && note.finger == null) state = '運指警告';
+        else if (note.finger != null) state = (FINGER_LABELS[note.finger] || '') + '指';
+        else state = '運指未設定';
+        return note.string + '弦 ' + position + '、現在 ' + state + '。運指を変更';
+    }
+
     function roleForInterval(interval) {
         if (interval === 0) return 'root';
         if (interval === 3 || interval === 4) return 'third';
@@ -1080,7 +1089,8 @@
                     label: detailMarkerLabel(chord, note, mode),
                     role: roleForInterval(note.interval),
                     fingeringWarning: mode === 'finger' && note.fingeringWarning === true && note.finger == null,
-                    tappable: !!opts.tappable
+                    tappable: !!opts.tappable,
+                    ariaLabel: opts.tappable ? detailFingeringAccessibleLabel(note) : ''
                 };
             }),
             barres: window.ChordCruise.caged.detectBarres(notes),

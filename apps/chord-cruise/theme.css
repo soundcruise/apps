@@ -636,6 +636,11 @@ body {
     cursor: pointer;
 }
 
+.cc-fb-marker--tappable:focus-visible {
+    outline: 3px solid var(--cc-gold-bright);
+    outline-offset: 3px;
+}
+
 .cc-fb-mute {
     position: absolute;
     width: 30px;
