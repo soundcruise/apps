@@ -239,8 +239,8 @@
             <h1>コードクルーズ 開発概要</h1>
             <p>キーから探して、指板で確かめて、自分のコード本棚へ ── 開発中のコード学習アプリ</p>
             <div class="ov-meta">
-                <span>現在のバージョン<b>0.21.3（モーダル操作性修正）</b></span>
-                <span>最新Chord Cruise commit<b>3bc4ded</b></span>
+                <span>現在のバージョン<b>0.21.4（確認ダイアログARIA修正）</b></span>
+                <span>最新Chord Cruise commit<b>23fd5fe</b></span>
                 <span>最終更新日<b>2026年8月17日</b></span>
             </div>
         </header>
@@ -302,7 +302,7 @@
                     <p><b>現状ステータス:</b> インフォメーションページ・利用規約・プライバシーポリシー・PWA化（マニフェスト/Service Worker）は、いずれも未実装です。</p>
                 </div>
                 <div class="ov-warn-box" style="margin-top: 14px;">
-                    <p><b>v0.21.3正式修正:</b> modal / bottom sheetは共通helperでTab・Shift+Tabを循環し、既存のEscape・backdrop・focus returnを維持します。右上表示設定の保存失敗時整合性修正も維持し、実機確認を完了しています。危険操作ARIA詳細と運指編集マーカーのキーボード対応は次工程です。</p>
+                    <p><b>v0.21.4正式修正:</b> コード削除・フォルダ削除・表示設定リセット確認へaria-labelledby / aria-describedbyを追加し、危険操作の説明をスクリーンリーダーへ関連付けています。modal / bottom sheetのfocus trap、Escape・backdrop・focus returnは維持し、実機確認を完了しています。</p>
                 </div>
             </div>
         </section>
@@ -337,7 +337,8 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr><td><code>0.21.3</code></td><td>modal / bottom sheetのfocus trapを追加（実機確認済み）</td></tr>
+                        <tr><td><code>23fd5fe</code></td><td>modal / bottom sheetのfocus trapを追加（v0.21.3、実機確認済み）</td></tr>
+                        <tr><td><code>0.21.4</code></td><td>危険操作確認のARIA関連付けを改善（実機確認済み）</td></tr>
                         <tr><td><code>3bc4ded</code></td><td>設定保存失敗時の表示不整合を修正（v0.21.2）</td></tr>
                         <tr><td><code>a7ad0e8</code></td><td>コード保存と削除の安全性を改善（v0.21.1）</td></tr>
                         <tr><td><code>ced7a1c</code></td><td>本棚表示設定を拡張（v0.21.0）</td></tr>

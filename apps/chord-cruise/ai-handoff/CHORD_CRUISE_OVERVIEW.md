@@ -14,13 +14,14 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
-- 現在のバージョン: `0.21.3`（modal / bottom sheetのキーボード操作改善を実機確認済み。`index.html` の各`<script>`タグの `?v=`、および `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`）
+- 現在のバージョン: `0.21.4`（危険操作確認のARIA改善を実機確認済み。`index.html` の各`<script>`タグの `?v=`、および `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`）
 - 最新commit（chord-cruise関連、`git log --oneline -- apps/chord-cruise/` で確認）:
-  - hash: `3bc4ded1062919965ae3785d88df7a6222e87c6c`
-  - message: `設定保存失敗時の表示不整合を修正`
+  - hash: `23fd5fe0fc933c626580647c33cc7043040da95e`
+  - message: `モーダルのキーボード操作を改善`
 - `0.21.1`の正式修正: `saveChord`／`deleteChord`の原子的保存、詳細画面の保存失敗処理、書き込み障害注入テスト。実機確認済み。
 - `0.21.2`の正式修正: 右上表示設定は候補値を先に`storage.saveSettings()`へ保存し、成功時だけ既存の共有`state.settings`へ反映して再描画する。失敗時はメモリ・UI・プレビューを変更せず、「設定を保存できませんでした」を表示する。本棚一覧専用設定は変更せず、実機確認済み。
-- `0.21.3`正式修正: modal / bottom sheet のTab・Shift+Tabを共通helperで循環させる。Escape・backdrop・既存の保存処理は維持し、閉じた後は有効なopenerへfocusを戻す。危険操作の説明文ARIA改善と運指編集マーカーのキーボード対応は次工程。
+- `0.21.3`正式修正: modal / bottom sheet のTab・Shift+Tabを共通helperで循環させる。Escape・backdrop・既存の保存処理は維持し、閉じた後は有効なopenerへfocusを戻す。
+- `0.21.4`正式修正: コード削除・フォルダ削除・表示設定リセット確認に`aria-labelledby` / `aria-describedby`を追加し、スクリーンリーダーへ対象と重要説明を関連付ける。`alertdialog` / `dialog`の使い分け、初期focus、focus trapは維持する。次候補は運指編集マーカーのキーボード対応。
 - 通常版/PRO版の構造: PRO版は存在しないため、`apps/chord-cruise/` 直下の `index.html` のみが唯一のエントリーポイント。他アプリのような `standard/` サブディレクトリも無い。
 - JS/CSSの共有関係:
   - `theme.css` はコードクルーズ専用の1ファイル（`apps/shared/` には依存していない）。
@@ -135,8 +136,8 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.21.3`）。modal / bottom sheetのキーボード操作改善でパッチバージョンを更新した。
-- `?v=` によるキャッシュ管理: `index.html` 内の全15本の `<script src="...?v=0.21.3">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.21.3">` が同じバージョン文字列を共有している。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.21.4`）。危険操作確認のARIA改善でパッチバージョンを更新した。
+- `?v=` によるキャッシュ管理: `index.html` 内の全15本の `<script src="...?v=0.21.4">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.21.4">` が同じバージョン文字列を共有している。
 - 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
 - service workerの更新: service worker自体が存在しないため不要。
 - **バージョン更新漏れしやすい箇所**: `index.html`内の15本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。
@@ -168,7 +169,8 @@
 
 `git log --oneline -- apps/chord-cruise/` で確認した実際の履歴（新しい順、主要分）。
 
-- `0.21.3` modal / bottom sheetのfocus trapを追加（実機確認済み）
+- `23fd5fe` modal / bottom sheetのfocus trapを追加（v0.21.3、実機確認済み）
+- `0.21.4` 危険操作確認のARIA関連付けを改善（実機確認済み）
 - `3bc4ded` 設定保存失敗時の表示不整合を修正（v0.21.2）
 - `a7ad0e8` コード保存と削除の安全性を改善（v0.21.1）
 - `ced7a1c` コードクルーズの本棚表示設定を拡張（v0.21.0）
@@ -193,7 +195,7 @@
 - `c0000a1b` コードクルーズにダイアトニックコード表示を追加
 - `c1f019a0` コードクルーズの初期画面を追加
 
-（v0.21.0は`ced7a1c`まで、v0.21.1の保存データ安全性修正は`a7ad0e8`まで正式反映済み。v0.21.2は右上表示設定の保存失敗時安全化、v0.21.3はmodal / bottom sheetのキーボード操作改善を反映するパッチリリース。）
+（v0.21.0は`ced7a1c`まで、v0.21.1の保存データ安全性修正は`a7ad0e8`まで正式反映済み。v0.21.2は右上表示設定の保存失敗時安全化、v0.21.3はmodal / bottom sheetのキーボード操作改善、v0.21.4は危険操作確認のARIA改善を反映するパッチリリース。）
 
 ---
 

@@ -2563,6 +2563,13 @@ body {
     font-size: 0.95rem;
 }
 
+.cc-confirm-title {
+    margin: 0 0 10px;
+    color: var(--cc-champagne);
+    font-size: 1rem;
+    line-height: 1.4;
+}
+
 .cc-confirm-actions {
     display: flex;
     gap: 10px;

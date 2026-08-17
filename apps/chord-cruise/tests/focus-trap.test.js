@@ -9,6 +9,7 @@ const settingsSource = fs.readFileSync(path.resolve(__dirname, '../js/ui/setting
 const librarySource = fs.readFileSync(path.resolve(__dirname, '../js/ui/library.js'), 'utf8');
 const saveEditorSource = fs.readFileSync(path.resolve(__dirname, '../js/ui/save-editor.js'), 'utf8');
 const chordBuilderSource = fs.readFileSync(path.resolve(__dirname, '../js/ui/chord-builder.js'), 'utf8');
+const libraryHtmlSource = librarySource;
 
 function createEnvironment() {
     const document = { activeElement: null };
@@ -140,12 +141,28 @@ function tabEvent(shiftKey) {
 })();
 
 (function dialogModulesUseTheSharedHelperWithoutRepeatedOpenListeners() {
-    assert(indexSource.indexOf('js/ui/focus-trap.js?v=0.21.3') !== -1, 'focus helper is loaded before the dialog modules');
+    assert(indexSource.indexOf('js/ui/focus-trap.js?v=0.21.4') !== -1, 'focus helper is loaded before the dialog modules');
     [settingsSource, librarySource, saveEditorSource, chordBuilderSource].forEach((moduleSource) => {
         assert(moduleSource.indexOf('focusTrap().trapFocus') !== -1, 'dialog module delegates Tab handling to the shared helper');
     });
     assert.strictEqual((librarySource.match(/folderManageSheet\.addEventListener\('keydown'/g) || []).length, 1);
     assert.strictEqual((librarySource.match(/libraryDisplaySheet\.addEventListener\('keydown'/g) || []).length, 1);
+})();
+
+(function dangerousDialogsExposeAccessibleNamesAndDescriptions() {
+    assert(libraryHtmlSource.indexOf('role="alertdialog" aria-modal="true" aria-labelledby="cc-confirm-title" aria-describedby="cc-confirm-description"') !== -1);
+    assert(libraryHtmlSource.indexOf('id="cc-confirm-title"') !== -1);
+    assert(libraryHtmlSource.indexOf('id="cc-confirm-description"') !== -1);
+    assert(libraryHtmlSource.indexOf("'フォルダを削除'") !== -1);
+    assert(libraryHtmlSource.indexOf("'コードを削除'") !== -1);
+    assert(indexSource.indexOf('aria-labelledby="cc-settings-reset-confirm-title"') !== -1);
+    assert(indexSource.indexOf('aria-describedby="cc-settings-reset-confirm-description"') !== -1);
+    assert(indexSource.indexOf('id="cc-settings-reset-confirm-title"') !== -1);
+    assert(indexSource.indexOf('id="cc-settings-reset-confirm-description"') !== -1);
+    assert.strictEqual((libraryHtmlSource.match(/id="cc-confirm-title"/g) || []).length, 1);
+    assert.strictEqual((libraryHtmlSource.match(/id="cc-confirm-description"/g) || []).length, 1);
+    assert.strictEqual((indexSource.match(/id="cc-settings-reset-confirm-title"/g) || []).length, 1);
+    assert.strictEqual((indexSource.match(/id="cc-settings-reset-confirm-description"/g) || []).length, 1);
 })();
 
 console.log('focus-trap: focusable filtering, Tab wrapping, empty dialogs, nested dialogs, and focus return OK');

@@ -131,13 +131,14 @@
         else if (returnFocus && opener && typeof opener.focus === 'function') opener.focus();
     }
 
-    function confirmDanger(message, okLabel, onOk, returnFocus) {
+    function confirmDanger(message, okLabel, onOk, returnFocus, title) {
         if (!confirmOverlay) {
             confirmOverlay = document.createElement('div');
             confirmOverlay.className = 'cc-modal-overlay cc-modal-overlay--hidden';
             confirmOverlay.innerHTML =
-                '<div class="cc-confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="cc-confirm-message">' +
-                    '<p class="cc-confirm-message" id="cc-confirm-message"></p>' +
+                '<div class="cc-confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="cc-confirm-title" aria-describedby="cc-confirm-description">' +
+                    '<h2 class="cc-confirm-title" id="cc-confirm-title"></h2>' +
+                    '<p class="cc-confirm-message" id="cc-confirm-description"></p>' +
                     '<div class="cc-confirm-actions">' +
                         '<button type="button" class="cc-btn cc-btn-danger" id="cc-confirm-ok"></button>' +
                         '<button type="button" class="cc-btn cc-btn-secondary" id="cc-confirm-cancel">キャンセル</button>' +
@@ -162,7 +163,8 @@
                 }
             });
         }
-        document.getElementById('cc-confirm-message').textContent = message;
+        document.getElementById('cc-confirm-title').textContent = title || '確認';
+        document.getElementById('cc-confirm-description').textContent = message;
         document.getElementById('cc-confirm-ok').textContent = okLabel;
         confirmHandler = onOk;
         confirmReturnFocus = returnFocus || document.activeElement;
@@ -753,7 +755,7 @@
                         }
                         renderFolders();
                         toast(count > 0 ? 'フォルダとコードを完全に削除しました' : '空のフォルダを削除しました');
-                    }, returnFocus);
+                    }, returnFocus, 'フォルダを削除');
                 }
             });
         });
@@ -1388,7 +1390,7 @@
                 }
                 renderList();
                 toast('コードを削除しました');
-            }, deleteButton);
+            }, deleteButton, 'コードを削除');
         });
     }
 
