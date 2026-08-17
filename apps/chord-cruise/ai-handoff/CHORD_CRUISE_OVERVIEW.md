@@ -14,10 +14,11 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
-- 現在のバージョン: `0.21.0`（Phase 1・Phase 2実装済み、未stage・未commit。`index.html` の各`<script>`タグの `?v=`、および `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`）
+- 現在のバージョン: `0.21.1`（保存安全性修正を実装・実機確認済み、今回commit・push対象。`index.html` の各`<script>`タグの `?v=`、および `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`）
 - 最新commit（chord-cruise関連、`git log --oneline -- apps/chord-cruise/` で確認）:
-  - hash: `49a9d702`
-  - message: `コードクルーズの設定・保存体験とフォーム表示を改善`
+  - hash: `ced7a1c92bc5290681db7facb0020263597eb36a`
+  - message: `コードクルーズの本棚表示設定を拡張`
+- 今回の`0.21.1`修正: `saveChord`／`deleteChord`の原子的保存、詳細画面の保存失敗処理、書き込み障害注入テスト。実機確認済み。
 - 通常版/PRO版の構造: PRO版は存在しないため、`apps/chord-cruise/` 直下の `index.html` のみが唯一のエントリーポイント。他アプリのような `standard/` サブディレクトリも無い。
 - JS/CSSの共有関係:
   - `theme.css` はコードクルーズ専用の1ファイル（`apps/shared/` には依存していない）。
@@ -46,7 +47,7 @@
 |---|---|
 | `index.html` | 唯一のHTMLエントリーポイント。ホーム/コードを調べる/コード本棚の3画面（`<section>`）をJSで切り替えるSPA構造。 |
 | `theme.css` | 見た目全体（`cc-` プレフィックスのクラス群）。他アプリの`theme.css`とは独立しており、`shared/`にも依存しない。 |
-| `js/core/storage.js` | `localStorage`永続化層。プレフィックス `chordCruise.`。設定・フォルダ一覧・コードインデックス・個別コードデータに加え、`chordCruise.libraryOrder`で本棚の順序IDを分離管理する。スキーマバージョン管理あり。 |
+| `js/core/storage.js` | `localStorage`永続化層。プレフィックス `chordCruise.`。設定・フォルダ一覧・コードインデックス・個別コードデータに加え、`chordCruise.libraryOrder`で本棚の順序IDを分離管理する。コード保存・削除は関連キーを事前スナップショットし、途中失敗時に可能な限り全キーを復元して成功扱いにしない。スキーマバージョン管理あり。 |
 | `js/core/music-theory.js` | 音楽理論の基礎データ（音名・キー・スケール等）。 |
 | `js/core/caged-forms.js` | CAGEDフォーム（移動可能フォーム）の辞書データ。弦番号・オフセット・度数で構成音位置を定義。 |
 | `js/core/chord-model.js` | 「任意コード作成」用のコードモデル（3度/5度/7度/テンション等の値体系）。 |
@@ -105,6 +106,7 @@
 - **CAGEDフォーム表示**: `js/core/caged-forms.js` の辞書データに基づき、指定された実フレット範囲内でフォームを探索する。全音が収まる配置を優先し、完全形が無い場合も表示可能な音が1つ以上あれば範囲外音だけを省略して同じ型のまま表示する。12〜25Fでは通常フォームを+12Fへ移し、`openFingers` ではなくムーバブル運指を使う。全CAGED型で`maj`を三和音系、`7`を7th系の弦役割テンプレートとし、`m / dim / m7 / m7♭5`の実音・offset・intervalを共通変換で生成する。推奨運指を割り当てられない音は`fingeringWarning`で区別し、「⚠️ 運指」と範囲外音を知らせる「△ フォーム」は独立した折りたたみで表示する。
 - **押さえ方・運指・バレーコード表示の注意点**: 運指はCAGEDフォーム選択中のみ有効。警告音は運指モードだけ`⚠️`となり、他モードでは通常の音名・階名・度数を表示する。同じ指・同じ実フレットのノートからバレーを導出し、警告音と消去予定音は対象外。保存編集では`finger`、`fingeringWarning`、draft専用`pendingDelete`を分離し、確定時に消去予定音だけを除外する。
 - **コード本棚**: 保存したコードフォームをフォルダ単位で整理する。フォルダはヴィンテージ楽譜集の背表紙として2〜6列で並び、各行の直下に棚板を描く。列数はコードカードの1〜4列設定とは別に`folderShelfColumns`で保持する。表示名は一文字ずつの装飾用spanで縦組みにし、半角英数字は正立、長音記号「ー」は空の専用spanの擬似要素でCSS製の縦線として描く。文字グリフの回転には依存しない。ボタン本体の`aria-label`と`title`は元の横書き名を保つ。各フォルダ下部の「…」は管理専用で、名前変更・フォルダと全コードの深い複製・12色からの色選択・完全削除をbottom sheetで提供する。未分類は先頭固定で色変更のみできる。フォルダのコピーは新規IDと新規コードIDを採番し、元の直後・元のコード順で追加する。色はフォルダの任意`colorKey`だけに保存し、既定は`black-leather`。colorKeyなしの旧フォルダも黒革として表示し、読むだけでは保存データを書き換えない。フォルダ削除は所属コードの個別レコード、index、`libraryOrder`をまとめて完全削除し、書き込み失敗時はスナップショットを復元する。コード一覧ではコード名＋軽量SVG指板を1〜4列で表示する。詳細・一覧・書き出しは同じ保存範囲描画モデルを使う。
+- **保存データの整合性**: 保存コードの新規保存・上書き・フォルダ移動・削除では、個別コード、`chordCruise.chords.index`、`chordCruise.libraryOrder`、必要時のフォルダ初期化状態を同一トランザクション相当として扱う。各書き込み前の生値を保存し、途中失敗時は全キーの復元を個別に試み、復元の一部に失敗しても残りを継続する。APIは保存失敗時`null`、削除失敗時`false`を返し、詳細画面は入力・表示・現在位置を成功前に確定せずエラートーストを出す。
 - **表示設定**: `chordCruise.settings` に `fretNumberSize`、`fretNumberHighlightMode`、`highlightedFrets`、`highFretMode`、`fretboardMarkerLabelSize`（`small`／`medium`／`large`／`xlarge`、既定`medium`）を保存する。右上の「丸内文字の大きさ」はCDE／ドレミ／度数／運指／⚠へ共通適用し、Explore・本棚詳細・設定プレビュー・PNGだけに明示的に渡す。詳細では保存済み指板のオプション生成時にこの値を落とさず、指板hostへ渡す。保存前編集には渡さない。本棚一覧専用には`libraryCardDisplayMode`（既定`finger`）、`libraryCardMonochrome`（既定`false`）、`libraryCardChordNameSize`／`libraryCardFretNumberSize`／`libraryCardMarkerLabelSize`（各`small`／`medium`／`large`／`xlarge`、既定`medium`）を保存する。両系統は完全分離する。右上設定末尾の「すべてデフォルトに戻す」は確認後、`chordNameSize`、`fretNumberSize`、`fretboardMarkerLabelSize`、`fretNumberHighlightMode`、`highlightedFrets`、`fretboardDisplayMode`だけを`storage.getSettingsDefaults()`由来の既定値へ1回の部分保存で戻す。保存コード・フォルダ・一覧設定・順序・未知のsettings keyは保持し、全データ初期化や`localStorage.clear()`は使わない。表示設定bottom sheetは「表示」と「文字サイズ」のアクセシブルな2タブで、選択タブは金色下線、非選択はグレー文字として設定値ボタンと区別し、開くたびに表示タブから開始する。保存済みの弦・フレット・interval・fingerから軽量SVGだけを再描画し、特大は列数ごとに安全な倍率へクランプする。白黒一覧だけは固定高カードで上下の丸・フレット番号を切らないよう、SVGのviewBoxへ専用安全余白と白いパネル背景を渡す。既存settingsへ既定値をマージし、schemaVersionは変更しない。
 - **通常版/PRO版で差がある機能**: 無し（PRO版自体が存在しないため）。
 - **触る時に注意すべきロジック**:
@@ -130,8 +132,8 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.21.0`、未commit）。
-- `?v=` によるキャッシュ管理: `index.html` 内の全14本の `<script src="...?v=0.21.0">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.21.0">` が同じバージョン文字列を共有している。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.21.1`）。今回の保存安全性修正でパッチバージョンを更新した。
+- `?v=` によるキャッシュ管理: `index.html` 内の全14本の `<script src="...?v=0.21.1">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.21.1">` が同じバージョン文字列を共有している。
 - 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
 - service workerの更新: service worker自体が存在しないため不要。
 - **バージョン更新漏れしやすい箇所**: `index.html`内の14本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。
@@ -161,8 +163,19 @@
 
 ## 10. 最近の主要commit履歴（chord-cruise関連）
 
-`git log --oneline -- apps/chord-cruise/` で確認した実際の履歴（新しい順、全件）。
+`git log --oneline -- apps/chord-cruise/` で確認した実際の履歴（新しい順、主要分）。
 
+- `ced7a1c` コードクルーズの本棚表示設定を拡張（v0.21.0）
+- `2e27acc` コードクルーズの本棚デザインとフォルダ管理を刷新（v0.19.0）
+- `109fcaf` コードクルーズに本棚の並び替えと更新UIを追加（v0.18.0）
+- `49a9d70` コードクルーズの設定・保存体験とフォーム表示を改善
+- `02ebcb9` コードクルーズのCAGED表示と保存編集を拡張
+- `096f077` コードクルーズにC型・G型のマイナー系フォームを追加
+- `6c5b7a5` コード図のミュート記号サイズを調整
+- `45c8494` コード本棚のコード図表示を調整
+- `c42189b` コード本棚の表示設定と指板図を改善
+- `0eb362d` コード本棚の一覧表示と編集・書き出しを改善
+- `8359157` コードクルーズの設定とハイフレット表示を拡張
 - `6b32c65e` コードクルーズの減三和音表記を変更
 - `1454d34f` コードクルーズの運指とバレー表示を改善
 - `b3d00e22` コードクルーズの説明表示と導線を整備
@@ -174,7 +187,7 @@
 - `c0000a1b` コードクルーズにダイアトニックコード表示を追加
 - `c1f019a0` コードクルーズの初期画面を追加
 
-（この一覧が現時点でのコードクルーズの全commit履歴。開発が段階的にSTEPを積み上げている最中のアプリであることが分かる。）
+（v0.21.0は`ced7a1c`まで正式反映済み。v0.21.1は保存データ安全性修正を反映するパッチリリース。）
 
 ---
 

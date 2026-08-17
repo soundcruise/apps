@@ -174,6 +174,10 @@
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
+    function cloneChordRecord(chord) {
+        return JSON.parse(JSON.stringify(chord));
+    }
+
     function buildChordThumbnailGridHtml(chords, requestedColumns, sorting) {
         var columns = normalizeLibraryColumns(requestedColumns);
         var html = '<div class="cc-chordthumb-grid' + (sorting ? ' cc-chordthumb-grid--sorting' : '') + '" id="cc-chordthumb-grid" data-library-columns="' + columns + '" data-library-chord-name-size="' + libraryCardTextSize('libraryCardChordNameSize') + '"' +
@@ -1103,23 +1107,28 @@
             : null;
         diagramOptions.preserveScroll = typeof prevScroll === 'number' && prevScroll > 0 ? prevScroll : null;
         diagramOptions.onSlotTap = function (stringNum, fret) {
+            var source = currentDetailChord && currentDetailChord.id === chord.id ? currentDetailChord : chord;
+            var candidate = cloneChordRecord(source);
             var target = null;
-            (chord.notes || []).forEach(function (note) {
+            (candidate.notes || []).forEach(function (note) {
                 if (note.string === stringNum && note.fret === fret) target = note;
             });
             if (!target) return;
             if (target.fingeringWarning === true && target.finger == null) {
                 target.finger = 'T';
                 target.fingeringWarning = false;
-                storage().saveChord(chord);
-                renderDetailFretboard(chord);
+            } else {
+                var pos = FINGER_CYCLE.indexOf(target.finger);
+                target.finger = FINGER_CYCLE[(pos + 1) % FINGER_CYCLE.length];
+                if (target.finger != null) target.fingeringWarning = false;
+            }
+            var saved = storage().saveChord(candidate);
+            if (!saved) {
+                toast('運指を保存できませんでした', 'error');
                 return;
             }
-            var pos = FINGER_CYCLE.indexOf(target.finger);
-            target.finger = FINGER_CYCLE[(pos + 1) % FINGER_CYCLE.length];
-            if (target.finger != null) target.fingeringWarning = false;
-            storage().saveChord(chord);
-            renderDetailFretboard(chord);
+            currentDetailChord = saved;
+            renderDetailFretboard(saved);
         };
         fb.render(host, diagramOptions);
     }
@@ -1253,7 +1262,7 @@
                 window.ChordCruise.storage.saveSettings({ fretboardDisplayMode: mode });
                 window.ChordCruise.state.settings.fretboardDisplayMode = mode;
                 updateLibModeSegments();
-                renderDetailFretboard(chord);
+                renderDetailFretboard(currentDetailChord || chord);
             });
         });
         updateLibModeSegments();
@@ -1263,14 +1272,14 @@
         document.getElementById('cc-lib-monochrome-toggle').addEventListener('click', function () {
             detailMonochrome = !detailMonochrome;
             updateMonochromeControl();
-            renderDetailFretboard(chord);
+            renderDetailFretboard(currentDetailChord || chord);
         });
         document.getElementById('cc-lib-export-btn').addEventListener('click', function () {
-            exportCurrentChord(chord);
+            exportCurrentChord(currentDetailChord || chord);
         });
         document.getElementById('cc-lib-edit-btn').addEventListener('click', function () {
             window.ChordCruise.ui.saveEditor.openExisting({
-                chord: chord,
+                chord: currentDetailChord || chord,
                 onSaved: function (record) {
                     currentChordId = record.id;
                     renderDetail();
@@ -1280,16 +1289,24 @@
 
         // 名前・メモ編集
         document.getElementById('cc-lib-save-edit').addEventListener('click', function () {
-            chord.chordName = displayChordName(
-                document.getElementById('cc-lib-chord-name').value.trim() || chord.chordName
+            var current = currentDetailChord || chord;
+            var candidate = cloneChordRecord(current);
+            candidate.chordName = displayChordName(
+                document.getElementById('cc-lib-chord-name').value.trim() || current.chordName
             );
-            chord.formName = document.getElementById('cc-lib-form-name').value.trim() || displayFormName;
-            chord.memo = document.getElementById('cc-lib-memo').value.trim();
-            storage().saveChord(chord);
-            document.getElementById('cc-lib-detail-name').textContent = chord.chordName;
+            candidate.formName = document.getElementById('cc-lib-form-name').value.trim() || chordFormName(current);
+            candidate.memo = document.getElementById('cc-lib-memo').value.trim();
+            var saved = storage().saveChord(candidate);
+            if (!saved) {
+                toast('変更を保存できませんでした', 'error');
+                return;
+            }
+            currentDetailChord = saved;
+            document.getElementById('cc-lib-detail-name').textContent = displayChordName(saved.chordName);
             var hint = document.getElementById('cc-lib-edit-hint');
             hint.style.display = '';
             setTimeout(function () { hint.style.display = 'none'; }, 1800);
+            toast('変更を保存しました');
         });
 
         // フォルダ移動（即時反映）
@@ -1302,15 +1319,31 @@
         });
         moveSelect.value = chord.folderId;
         moveSelect.addEventListener('change', function () {
-            chord.folderId = moveSelect.value;
-            storage().saveChord(chord);
+            var current = currentDetailChord || chord;
+            var previousFolderId = current.folderId;
+            var candidate = cloneChordRecord(current);
+            candidate.folderId = moveSelect.value;
+            var saved = storage().saveChord(candidate);
+            if (!saved) {
+                moveSelect.value = previousFolderId;
+                toast('フォルダを移動できませんでした', 'error');
+                return;
+            }
+            currentDetailChord = saved;
+            toast('フォルダを移動しました');
         });
 
         // 削除
         document.getElementById('cc-lib-delete').addEventListener('click', function () {
-            confirmDanger('「' + displayChordName(chord.chordName) + '（' + chordFormName(chord) + '）」を削除しますか？この操作は取り消せません。', '削除する', function () {
-                storage().deleteChord(chord.id);
+            var current = currentDetailChord || chord;
+            confirmDanger('「' + displayChordName(current.chordName) + '（' + chordFormName(current) + '）」を削除しますか？この操作は取り消せません。', '削除する', function () {
+                var current = currentDetailChord || chord;
+                if (!storage().deleteChord(current.id)) {
+                    toast('コードを削除できませんでした', 'error');
+                    return;
+                }
                 renderList();
+                toast('コードを削除しました');
             });
         });
     }

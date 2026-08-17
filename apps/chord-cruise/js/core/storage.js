@@ -309,14 +309,17 @@
     }
 
     function restoreKeys(snapshot) {
+        var restored = true;
         Object.keys(snapshot).forEach(function (key) {
             try {
                 if (snapshot[key] === null) window.localStorage.removeItem(key);
                 else window.localStorage.setItem(key, snapshot[key]);
             } catch (err) {
+                restored = false;
                 console.warn('[ChordCruise.storage] failed to roll back key: ' + key, err);
             }
         });
+        return restored;
     }
 
     /** フォルダと所属コードを順序ごと複製する。書き込み失敗時は可能な限り復元する。 */
@@ -612,12 +615,16 @@
         };
     }
 
-    /** 保存コードを保存する（新規は id / createdAt を採番）。indexも同期する。 */
+    /** 保存コードを保存する（新規は id / createdAt を採番）。関連キーを一括して同期する。 */
     function saveChord(chord) {
-        var record = chord;
+        if (!chord || typeof chord !== 'object') return null;
+        var record;
+        try {
+            record = JSON.parse(JSON.stringify(chord));
+        } catch (err) {
+            return null;
+        }
         var indexBefore = loadChordIndex();
-        var folders = loadFolders();
-        var orderBefore = libraryOrderInfo(folders, indexBefore).order;
         var previousEntry = null;
         var isNew = !record.id;
         indexBefore.forEach(function (entry) {
@@ -632,33 +639,43 @@
         if (!record.folderId) {
             record.folderId = UNCATEGORIZED_ID;
         }
-        if (!writeJSON(chordKey(record.id), record)) return null;
-        var index = indexBefore.filter(function (entry) {
-            return entry.id !== record.id;
-        });
-        index.push(indexEntryOf(record));
-        if (!writeChordIndex(index)) return null;
-
-        var nextOrder = normalizeLibraryOrder(orderBefore, folders, index);
-        Object.keys(nextOrder.entryIdsByFolder).forEach(function (folderId) {
-            nextOrder.entryIdsByFolder[folderId] = nextOrder.entryIdsByFolder[folderId].filter(function (id) {
-                return id !== record.id;
+        var snapshot = null;
+        try {
+            snapshot = snapshotKeys([chordKey(record.id), KEY_CHORD_INDEX, KEY_LIBRARY_ORDER, KEY_FOLDERS]);
+            var folders = loadFolders();
+            var orderBefore = libraryOrderInfo(folders, indexBefore).order;
+            if (!writeJSON(chordKey(record.id), record)) throw new Error('chord write failed');
+            var index = indexBefore.filter(function (entry) {
+                return entry.id !== record.id;
             });
-        });
-        var destination = nextOrder.entryIdsByFolder[record.folderId] || [];
-        if (!isNew && previousEntry && previousEntry.folderId === record.folderId) {
-            var previousIds = orderBefore.entryIdsByFolder[record.folderId] || [];
-            var previousPosition = previousIds.indexOf(record.id);
-            if (previousPosition < 0 || previousPosition > destination.length) previousPosition = destination.length;
-            destination.splice(previousPosition, 0, record.id);
-        } else {
-            destination.unshift(record.id);
+            index.push(indexEntryOf(record));
+            if (!writeChordIndex(index)) throw new Error('index write failed');
+
+            var nextOrder = normalizeLibraryOrder(orderBefore, folders, index);
+            Object.keys(nextOrder.entryIdsByFolder).forEach(function (folderId) {
+                nextOrder.entryIdsByFolder[folderId] = nextOrder.entryIdsByFolder[folderId].filter(function (id) {
+                    return id !== record.id;
+                });
+            });
+            var destination = nextOrder.entryIdsByFolder[record.folderId] || [];
+            if (!isNew && previousEntry && previousEntry.folderId === record.folderId) {
+                var previousIds = orderBefore.entryIdsByFolder[record.folderId] || [];
+                var previousPosition = previousIds.indexOf(record.id);
+                if (previousPosition < 0 || previousPosition > destination.length) previousPosition = destination.length;
+                destination.splice(previousPosition, 0, record.id);
+            } else {
+                destination.unshift(record.id);
+            }
+            nextOrder.entryIdsByFolder[record.folderId] = destination;
+            if (!saveNormalizedLibraryOrder(nextOrder, folders, index)) throw new Error('order write failed');
+            return record;
+        } catch (err) {
+            if (snapshot && !restoreKeys(snapshot)) {
+                console.warn('[ChordCruise.storage] chord save rollback was incomplete', err);
+            }
+            console.warn('[ChordCruise.storage] failed to save chord', err);
+            return null;
         }
-        nextOrder.entryIdsByFolder[record.folderId] = destination;
-        if (!saveNormalizedLibraryOrder(nextOrder, folders, index)) {
-            console.warn('[ChordCruise.storage] chord saved but library order could not be saved');
-        }
-        return record;
     }
 
     function loadChord(id) {
@@ -666,23 +683,42 @@
     }
 
     function deleteChord(id) {
+        if (!id) return false;
+        var recordKey = chordKey(id);
+        var indexBefore = loadChordIndex();
+        var snapshot = null;
         try {
-            window.localStorage.removeItem(chordKey(id));
-        } catch (err) {
-            console.warn('[ChordCruise.storage] failed to remove chord: ' + id, err);
-        }
-        var nextIndex = loadChordIndex().filter(function (entry) {
-            return entry.id !== id;
-        });
-        writeChordIndex(nextIndex);
-        var folders = loadFolders();
-        var order = libraryOrderInfo(folders, nextIndex).order;
-        Object.keys(order.entryIdsByFolder).forEach(function (folderId) {
-            order.entryIdsByFolder[folderId] = order.entryIdsByFolder[folderId].filter(function (entryId) {
-                return entryId !== id;
+            snapshot = snapshotKeys([recordKey, KEY_CHORD_INDEX, KEY_LIBRARY_ORDER, KEY_FOLDERS]);
+            var folders = loadFolders();
+            var orderBefore = libraryOrderInfo(folders, indexBefore).order;
+            var exists = snapshot[recordKey] !== null || indexBefore.some(function (entry) {
+                return entry.id === id;
             });
-        });
-        saveNormalizedLibraryOrder(order, folders, nextIndex);
+            Object.keys(orderBefore.entryIdsByFolder).forEach(function (folderId) {
+                if (orderBefore.entryIdsByFolder[folderId].indexOf(id) !== -1) exists = true;
+            });
+            if (!exists) return false;
+
+            window.localStorage.removeItem(recordKey);
+            var nextIndex = indexBefore.filter(function (entry) {
+                return entry.id !== id;
+            });
+            if (!writeChordIndex(nextIndex)) throw new Error('index write failed');
+            var nextOrder = normalizeLibraryOrder(orderBefore, folders, nextIndex);
+            Object.keys(nextOrder.entryIdsByFolder).forEach(function (folderId) {
+                nextOrder.entryIdsByFolder[folderId] = nextOrder.entryIdsByFolder[folderId].filter(function (entryId) {
+                    return entryId !== id;
+                });
+            });
+            if (!saveNormalizedLibraryOrder(nextOrder, folders, nextIndex)) throw new Error('order write failed');
+            return true;
+        } catch (err) {
+            if (snapshot && !restoreKeys(snapshot)) {
+                console.warn('[ChordCruise.storage] chord delete rollback was incomplete', err);
+            }
+            console.warn('[ChordCruise.storage] failed to delete chord: ' + id, err);
+            return false;
+        }
     }
 
     window.ChordCruise = window.ChordCruise || {};

@@ -22,20 +22,32 @@ function json(value) {
     return JSON.stringify(value);
 }
 
-function makeLocalStorage(seed, failKeys, failRemoveKeys) {
+function failureMatches(failures, key) {
+    if (failures.has(key)) return true;
+    return Array.from(failures).some((pattern) => pattern.endsWith('*') && key.startsWith(pattern.slice(0, -1)));
+}
+
+function makeLocalStorage(seed, failKeys, failRemoveKeys, failurePlan) {
     const values = Object.assign({}, seed || {});
     const failures = new Set(failKeys || []);
     const removeFailures = new Set(failRemoveKeys || []);
+    const calls = Object.create(null);
+    function plannedFailure(operation, key) {
+        const token = operation + ':' + key;
+        calls[token] = (calls[token] || 0) + 1;
+        const planned = failurePlan && failurePlan[token];
+        return Array.isArray(planned) && planned.includes(calls[token]);
+    }
     return {
         getItem(key) {
             return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : null;
         },
         setItem(key, value) {
-            if (failures.has(key)) throw new Error('quota');
+            if (failureMatches(failures, key) || plannedFailure('set', key)) throw new Error('quota');
             values[key] = String(value);
         },
         removeItem(key) {
-            if (removeFailures.has(key)) throw new Error('quota');
+            if (failureMatches(removeFailures, key) || plannedFailure('remove', key)) throw new Error('quota');
             delete values[key];
         },
         snapshot() {
@@ -69,8 +81,8 @@ function baseData() {
     return seed;
 }
 
-function loadStorage(seed, failKeys, failRemoveKeys) {
-    const localStorage = makeLocalStorage(seed, failKeys, failRemoveKeys);
+function loadStorage(seed, failKeys, failRemoveKeys, failurePlan) {
+    const localStorage = makeLocalStorage(seed, failKeys, failRemoveKeys, failurePlan);
     const context = {
         window: { localStorage },
         console: { warn() {} },
@@ -205,10 +217,126 @@ function orderOf(env) {
     assert.strictEqual(order.entryIdsByFolder['folder-b'][0], 'a2', 'moved chord should be first in destination');
 })();
 
+(function saveChordIsAtomicAtEveryWriteStage() {
+    const freshChord = { chordName: 'F', formName: 'E型', folderId: 'folder-a', notes: [] };
+
+    [
+        { name: 'record', failKeys: [P + 'chord.*'] },
+        { name: 'index', failKeys: [INDEX_KEY] },
+        { name: 'order', failKeys: [ORDER_KEY] }
+    ].forEach((scenario) => {
+        const seed = baseData();
+        const env = loadStorage(seed, scenario.failKeys);
+        const before = env.localStorage.snapshot();
+        const input = native(freshChord);
+        assert.strictEqual(env.storage.saveChord(input), null, scenario.name + ' write failure must be reported');
+        assert.deepStrictEqual(env.localStorage.snapshot(), before, scenario.name + ' write failure must restore every related key');
+        assert.strictEqual(input.id, undefined, 'failed save must not assign an ID to caller data');
+    });
+
+    const overwriteSeed = baseData();
+    overwriteSeed[ORDER_KEY] = json({
+        version: 1,
+        folderIds: [UNCATEGORIZED, 'folder-b', 'folder-a', 'folder-empty'],
+        entryIdsByFolder: {
+            [UNCATEGORIZED]: ['u1'],
+            'folder-b': ['b1'],
+            'folder-a': ['a2', 'a1'],
+            'folder-empty': []
+        }
+    });
+    ['index', 'order'].forEach((stage) => {
+        const env = loadStorage(overwriteSeed, [stage === 'index' ? INDEX_KEY : ORDER_KEY]);
+        const before = env.localStorage.snapshot();
+        const changed = env.storage.loadChord('a1');
+        changed.memo = 'must roll back';
+        assert.strictEqual(env.storage.saveChord(changed), null, 'overwrite ' + stage + ' failure must be reported');
+        assert.deepStrictEqual(env.localStorage.snapshot(), before, 'overwrite ' + stage + ' failure restores the original record and metadata');
+    });
+
+    const successEnv = loadStorage(baseData());
+    const successInput = native(freshChord);
+    const saved = successEnv.storage.saveChord(successInput);
+    assert(saved && saved.id, 'successful save returns the persisted record');
+    assert.strictEqual(successInput.id, undefined, 'successful save does not mutate caller data');
+    assert(successEnv.storage.loadChordIndex().some((entry) => entry.id === saved.id));
+    assert.strictEqual(orderOf(successEnv).entryIdsByFolder['folder-a'][0], saved.id);
+})();
+
+(function deleteChordIsAtomicAtEveryWriteStage() {
+    const seed = baseData();
+    seed[ORDER_KEY] = json({
+        version: 1,
+        folderIds: [UNCATEGORIZED, 'folder-b', 'folder-a', 'folder-empty'],
+        entryIdsByFolder: {
+            [UNCATEGORIZED]: ['u1'],
+            'folder-b': ['b1'],
+            'folder-a': ['a2', 'a1'],
+            'folder-empty': []
+        }
+    });
+    [
+        { name: 'record removal', failRemoveKeys: [P + 'chord.a1'] },
+        { name: 'index', failKeys: [INDEX_KEY] },
+        { name: 'order', failKeys: [ORDER_KEY] }
+    ].forEach((scenario) => {
+        const env = loadStorage(seed, scenario.failKeys, scenario.failRemoveKeys);
+        const before = env.localStorage.snapshot();
+        assert.strictEqual(env.storage.deleteChord('a1'), false, scenario.name + ' failure must be reported');
+        assert.deepStrictEqual(env.localStorage.snapshot(), before, scenario.name + ' failure must restore every related key');
+    });
+
+    const successEnv = loadStorage(seed);
+    assert.strictEqual(successEnv.storage.deleteChord('a1'), true);
+    assert.strictEqual(successEnv.storage.loadChord('a1'), null);
+    assert(!successEnv.storage.loadChordIndex().some((entry) => entry.id === 'a1'));
+    assert(!orderOf(successEnv).entryIdsByFolder['folder-a'].includes('a1'));
+    assert.strictEqual(successEnv.storage.deleteChord('missing'), false, 'deleting a missing chord is not reported as success');
+})();
+
+(function rollbackFailureStillReportsTheOriginalOperationAsFailure() {
+    const saveSeed = baseData();
+    saveSeed[ORDER_KEY] = json({
+        version: 1,
+        folderIds: [UNCATEGORIZED, 'folder-b', 'folder-a', 'folder-empty'],
+        entryIdsByFolder: {
+            [UNCATEGORIZED]: ['u1'], 'folder-b': ['b1'], 'folder-a': ['a2', 'a1'], 'folder-empty': []
+        }
+    });
+    const saveBefore = Object.assign({}, saveSeed);
+    const saveEnv = loadStorage(saveSeed, [], [], {
+        ['set:' + ORDER_KEY]: [1],
+        ['set:' + P + 'chord.a1']: [2]
+    });
+    const changed = saveEnv.storage.loadChord('a1');
+    changed.memo = 'partial rollback';
+    assert.strictEqual(saveEnv.storage.saveChord(changed), null, 'partial save rollback must never report success');
+    assert.strictEqual(saveEnv.localStorage.getItem(INDEX_KEY), saveBefore[INDEX_KEY], 'rollback continues after one restore failure');
+    assert.strictEqual(saveEnv.localStorage.getItem(ORDER_KEY), saveBefore[ORDER_KEY], 'later rollback keys are still restored');
+
+    const deleteEnv = loadStorage(saveSeed, [], [], {
+        ['set:' + ORDER_KEY]: [1],
+        ['set:' + P + 'chord.a1']: [1]
+    });
+    assert.strictEqual(deleteEnv.storage.deleteChord('a1'), false, 'partial delete rollback must never report success');
+    assert.strictEqual(deleteEnv.localStorage.getItem(INDEX_KEY), saveBefore[INDEX_KEY], 'delete rollback continues after record restore failure');
+    assert.strictEqual(deleteEnv.localStorage.getItem(ORDER_KEY), saveBefore[ORDER_KEY]);
+})();
+
+(function detailActionsOnlyUpdateUiAfterPersistenceSucceeds() {
+    assert(librarySource.includes("toast('運指を保存できませんでした', 'error')"), 'finger auto-save exposes storage failure');
+    assert(librarySource.includes("toast('変更を保存できませんでした', 'error')"), 'name and memo edit exposes storage failure');
+    assert(librarySource.includes("toast('フォルダを移動できませんでした', 'error')"), 'folder move exposes storage failure');
+    assert(librarySource.includes("toast('コードを削除できませんでした', 'error')"), 'delete exposes storage failure');
+    assert(librarySource.includes('moveSelect.value = previousFolderId;'), 'failed move restores the selected folder');
+    assert(librarySource.includes('if (!storage().deleteChord(current.id))'), 'detail remains open unless deletion succeeds');
+    assert(librarySource.includes('currentDetailChord && currentDetailChord.id === chord.id'), 'finger edits use the latest successfully persisted detail record');
+})();
+
 (function deleteChordAndFolderFullyRemovesOwnedData() {
     const env = loadStorage(baseData());
     env.storage.moveChord('a1', 'folder-a', -1);
-    env.storage.deleteChord('b1');
+    assert.strictEqual(env.storage.deleteChord('b1'), true);
     env.storage.setFolderColor('folder-a', 'wine');
     assert(!orderOf(env).entryIdsByFolder['folder-b'].includes('b1'));
 
