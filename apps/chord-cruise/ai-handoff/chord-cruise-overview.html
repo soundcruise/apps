@@ -239,7 +239,7 @@
             <h1>コードクルーズ 開発概要</h1>
             <p>キーから探して、指板で確かめて、自分のコード本棚へ ── 開発中のコード学習アプリ</p>
             <div class="ov-meta">
-                <span>現在のバージョン<b>0.21.7（ダイアトニックスケール生成基盤）</b></span>
+                <span>現在のバージョン<b>0.21.8（Roman表記全大文字化）</b></span>
                 <span>最新Chord Cruise commit<b>25063781</b></span>
                 <span>最終更新日<b>2026年8月17日</b></span>
             </div>
@@ -307,6 +307,9 @@
                 <div class="ov-warn-box" style="margin-top: 14px;">
                     <p><b>v0.21.7 Phase 1:</b> Major / Minorの固定ダイアトニック品質表を、Chord Cruise独自のscale定義と3度堆積による自動生成基盤へ載せ替えました。全12キーの3和音・4和音・Roman・コード名・quality・intervalはv0.21.6固定期待値336ケースと完全一致します。UI、CAGED、保存schema、音名表記は変更していません。ユーザー実機確認済みです。将来はDorian / Phrygian / Lydian / Mixolydian / Locrianを追加予定ですが、今回UIには追加していません。Roman全大文字化も別工程です。</p>
                 </div>
+                <div class="ov-warn-box" style="margin-top: 14px;">
+                    <p><b>v0.21.8 Roman表記統一:</b> Major / Minorの3和音・4和音で、Romanの度数部分だけを全大文字へ統一しました。M7 / m7 / 7 / m7♭5等のquality suffix、コード名、CAGED、音名表記、保存schemaは維持しています。新規保存のdegreeLabelは新表記になりますが、既存保存コードの画面表示では参照されないためmigrationは不要です。v0.21.7の確定commitは<code>3722534</code>です。次工程はPhase 2の教会旋法追加です。</p>
+                </div>
             </div>
         </section>
 
@@ -340,6 +343,7 @@
                         </tr>
                     </thead>
                     <tbody>
+                        <tr><td><code>0.21.8</code></td><td>Roman表記を大文字に統一（実機確認済み）</td></tr>
                         <tr><td><code>0.21.7</code></td><td>ダイアトニックスケール生成基盤を刷新（Phase 1、実機確認済み）</td></tr>
                         <tr><td><code>25063781</code></td><td>Explore下部詳細カードを非表示化（v0.21.6、実機確認済み）</td></tr>
                         <tr><td><code>ec602358</code></td><td>運指編集マーカーのキーボード操作に対応（v0.21.5、実機確認済み）</td></tr>

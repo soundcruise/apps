@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
-- 現在のバージョン: `0.21.7`（Phase 1: Major / Minorのダイアトニック定義をscale＋3度堆積生成へ移行。`index.html` の各`<script>`タグとCSS参照の `?v=`、および `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`）
+- 現在のバージョン: `0.21.8`（Roman度数部分を全大文字化。`index.html` の各`<script>`タグとCSS参照の `?v=`、および `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`）
 - 最新Chord Cruise commit（`git log --oneline -- apps/chord-cruise/` で確認）:
   - hash: `25063781da2fc41430fe0a9d6d43c32cfa3cf5c7`
   - message: `コード詳細カードを非表示化`
@@ -25,6 +25,7 @@
 - `0.21.5`正式修正: 保存前編集と本棚詳細の編集可能マーカーへ`role="button"`、`tabindex="0"`、簡潔な`aria-label`、`aria-keyshortcuts="Enter Space"`を付与する。Enter / Spaceは既存クリック処理を1回だけ実行し、再描画後は同じ論理マーカーへfocusを戻す。マウス／タッチ、focus trap、保存失敗安全化は維持し、実機確認済み。
 - `0.21.6`正式修正: Exploreのコード選択時に表示していた下部詳細カード（構成音・度数・役割・雰囲気・よく行くコード）を生成しない。`chord-info.js`の辞書とAPI、詳細行ビルダーは削除せず保持し、保存データ・任意コード・CAGED・指板表示には影響させない。実機確認済み。
 - **v0.21.7 Phase 1確定**: `music-theory.js`へChord Cruise独自の`SCALES.major / minor`を導入し、3和音はscale上の1・3・5、4和音は1・3・5・7を積んで既存`QUALITIES`へ完全一致で照合する。`DIATONIC.major / minor`の公開shape、全12キーのrootPc・コード名・interval・qualityKey・Roman、Major/Minorの2ボタン、CAGED、保存schema、note spellingは変更しない。v0.21.6固定期待値336ケースとの完全一致テストを追加し、ユーザー実機確認済み。将来候補はDorian / Phrygian / Lydian / Mixolydian / Locrian。Roman全大文字化は別工程で、今回は行わない。Pitch Cruiseは参照のみで変更・import・shared化しない。
+- **v0.21.8 Roman表記統一**: Major / Minorの3和音・4和音とも、Romanの度数部分だけを全大文字へ統一した。quality suffixの`M7` / `m7` / `7` / `m7♭5`、rootPc・interval・qualityKey・コード名・CAGED・note spelling・保存schemaは変更していない。新規保存の`keyContext.degreeLabel`は新Romanになるが、本棚等の既存保存コード表示で参照されないためmigration不要。旧保存データは書き換えない。v0.21.7の確定commitは`372253482239de82f0325664156ac44864c3aa7b`。Phase 2の教会旋法追加とは独立したパッチです。
 - 通常版/PRO版の構造: PRO版は存在しないため、`apps/chord-cruise/` 直下の `index.html` のみが唯一のエントリーポイント。他アプリのような `standard/` サブディレクトリも無い。
 - JS/CSSの共有関係:
   - `theme.css` はコードクルーズ専用の1ファイル（`apps/shared/` には依存していない）。
@@ -139,8 +140,8 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.21.7`）。Phase 1の内部scale生成基盤確定でパッチバージョンを更新した。
-- `?v=` によるキャッシュ管理: `index.html` 内の全15本の `<script src="...?v=0.21.7">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.21.7">` が同じバージョン文字列を共有している。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.21.8`）。Roman度数部分の全大文字化でパッチバージョンを更新した。
+- `?v=` によるキャッシュ管理: `index.html` 内の全15本の `<script src="...?v=0.21.8">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.21.8">` が同じバージョン文字列を共有している。
 - 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
 - service workerの更新: service worker自体が存在しないため不要。
 - **バージョン更新漏れしやすい箇所**: `index.html`内の15本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。
@@ -172,6 +173,7 @@
 
 `git log --oneline -- apps/chord-cruise/` で確認した実際の履歴（新しい順、主要分）。
 
+- `0.21.8` Roman度数部分を全大文字化（quality suffix・Roman以外の理論値不変、実機確認済み）
 - `0.21.7` Major / MinorのダイアトニックをSCALESと3度堆積から自動生成（v0.21.6固定336ケース一致、実機確認済み）
 - `0.21.6` Explore下部詳細カードを非表示化（構成音・度数・役割・雰囲気・よく行くコード、実機確認済み）
 - `ec60235` 運指編集マーカーのキーボード操作に対応（v0.21.5、実機確認済み）

@@ -31,8 +31,8 @@
 
     /*
      * 7音スケール定義。Phase 1では既存UIと保存値を完全互換にするため、
-     * 公開するIDは major / minor のまま維持する。Romanもv0.21.6の表示を
-     * 固定し、将来の全大文字化や新scale追加とは分離する。
+     * 公開するIDは major / minor のまま維持する。Romanはqualityを示さない
+     * 度数ラベルとして全大文字に統一し、将来のscale追加とも分離する。
      */
     var SCALES = {
         major: {
@@ -40,16 +40,16 @@
             label: 'メジャー',
             intervals: [0, 2, 4, 5, 7, 9, 11],
             degreeLabels: ['1', '2', '3', '4', '5', '6', '7'],
-            legacyRoman3: ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'],
-            legacyRoman7: ['IM7', 'iim7', 'iiim7', 'IVM7', 'V7', 'vim7', 'viim7♭5']
+            roman3: ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII°'],
+            roman7: ['IM7', 'IIm7', 'IIIm7', 'IVM7', 'V7', 'VIm7', 'VIIm7♭5']
         },
         minor: { // ナチュラルマイナー（エオリアン）
             id: 'minor',
             label: 'マイナー',
             intervals: [0, 2, 3, 5, 7, 8, 10],
             degreeLabels: ['1', '2', '♭3', '4', '5', '♭6', '♭7'],
-            legacyRoman3: ['i', 'ii°', 'III', 'iv', 'v', 'VI', 'VII'],
-            legacyRoman7: ['im7', 'iim7♭5', 'IIIM7', 'ivm7', 'vm7', 'VIM7', 'VII7']
+            roman3: ['I', 'II°', 'III', 'IV', 'V', 'VI', 'VII'],
+            roman7: ['Im7', 'IIm7♭5', 'IIIM7', 'IVm7', 'Vm7', 'VIM7', 'VII7']
         }
     };
 
@@ -117,8 +117,8 @@
             rootIntervals: scale.intervals.slice(),
             triadQualities: triadQualities,
             seventhQualities: seventhQualities,
-            roman3: scale.legacyRoman3.slice(),
-            roman7: scale.legacyRoman7.slice()
+            roman3: scale.roman3.slice(),
+            roman7: scale.roman7.slice()
         };
     }
 

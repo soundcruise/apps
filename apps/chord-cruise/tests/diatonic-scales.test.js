@@ -8,8 +8,9 @@ require('../js/core/music-theory.js');
 var theory = window.ChordCruise.theory;
 
 /*
- * v0.21.6 の固定 DIATONIC 表を、Phase 1 後の実装から独立した期待値として保持する。
- * 新しい scale generator や SCALES から期待値を生成してはいけない。
+ * v0.21.6 のroot／quality固定表と、v0.21.7後の全大文字Romanを、
+ * 実装から独立した期待値として保持する。新しいscale generatorやSCALESから
+ * 期待値を生成してはいけない。
  */
 var LEGACY_NOTES_SHARP = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
 var LEGACY_NOTES_FLAT = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
@@ -28,16 +29,22 @@ var LEGACY_DIATONIC = {
     major: {
         rootIntervals: [0, 2, 4, 5, 7, 9, 11],
         triadQualities: ['maj', 'm', 'm', 'maj', 'maj', 'm', 'dim'],
-        seventhQualities: ['maj7', 'm7', 'm7', 'maj7', '7', 'm7', 'm7b5'],
-        roman3: ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'],
-        roman7: ['IM7', 'iim7', 'iiim7', 'IVM7', 'V7', 'vim7', 'viim7♭5']
+        seventhQualities: ['maj7', 'm7', 'm7', 'maj7', '7', 'm7', 'm7b5']
     },
     minor: {
         rootIntervals: [0, 2, 3, 5, 7, 8, 10],
         triadQualities: ['m', 'dim', 'maj', 'm', 'm', 'maj', 'maj'],
-        seventhQualities: ['m7', 'm7b5', 'maj7', 'm7', 'm7', 'maj7', '7'],
-        roman3: ['i', 'ii°', 'III', 'iv', 'v', 'VI', 'VII'],
-        roman7: ['im7', 'iim7♭5', 'IIIM7', 'ivm7', 'vm7', 'VIM7', 'VII7']
+        seventhQualities: ['m7', 'm7b5', 'maj7', 'm7', 'm7', 'maj7', '7']
+    }
+};
+var UPPERCASE_ROMAN = {
+    major: {
+        roman3: ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII°'],
+        roman7: ['IM7', 'IIm7', 'IIIm7', 'IVM7', 'V7', 'VIm7', 'VIIm7♭5']
+    },
+    minor: {
+        roman3: ['I', 'II°', 'III', 'IV', 'V', 'VI', 'VII'],
+        roman7: ['Im7', 'IIm7♭5', 'IIIM7', 'IVm7', 'Vm7', 'VIM7', 'VII7']
     }
 };
 
@@ -50,8 +57,8 @@ assert.deepStrictEqual(theory.SCALES.minor.degreeLabels, ['1', '2', '♭3', '4',
     assert.deepStrictEqual(theory.DIATONIC[mode].rootIntervals, LEGACY_DIATONIC[mode].rootIntervals);
     assert.deepStrictEqual(theory.DIATONIC[mode].triadQualities, LEGACY_DIATONIC[mode].triadQualities);
     assert.deepStrictEqual(theory.DIATONIC[mode].seventhQualities, LEGACY_DIATONIC[mode].seventhQualities);
-    assert.deepStrictEqual(theory.DIATONIC[mode].roman3, LEGACY_DIATONIC[mode].roman3);
-    assert.deepStrictEqual(theory.DIATONIC[mode].roman7, LEGACY_DIATONIC[mode].roman7);
+    assert.deepStrictEqual(theory.DIATONIC[mode].roman3, UPPERCASE_ROMAN[mode].roman3);
+    assert.deepStrictEqual(theory.DIATONIC[mode].roman7, UPPERCASE_ROMAN[mode].roman7);
 });
 
 assert.deepStrictEqual(theory.stackScaleChordIntervals(theory.SCALES.major.intervals, 0, 3), [0, 4, 7]);
@@ -89,7 +96,7 @@ function legacyExpectedChord(tonicPc, mode, toneMode, degreeIndex) {
 
     return {
         index: degreeIndex,
-        roman: (toneMode === '7' ? def.roman7 : def.roman3)[degreeIndex],
+        roman: (toneMode === '7' ? UPPERCASE_ROMAN[mode].roman7 : UPPERCASE_ROMAN[mode].roman3)[degreeIndex],
         rootPc: rootPc,
         rootName: rootName,
         qualityKey: qualityKey,
@@ -128,4 +135,4 @@ var comparisonCount = 0;
 
 assert.strictEqual(comparisonCount, 336, 'must compare all 12 tonics × 2 modes × 2 chord sizes × 7 degrees');
 
-console.log('diatonic-scales: v0.21.6 legacy output matches ' + comparisonCount + ' fixed expectation cases');
+console.log('diatonic-scales: v0.21.7 root/quality output and uppercase Roman match ' + comparisonCount + ' fixed expectation cases');
