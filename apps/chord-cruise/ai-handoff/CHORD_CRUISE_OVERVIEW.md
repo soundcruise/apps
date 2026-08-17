@@ -14,15 +14,16 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
-- 現在のバージョン: `0.21.5`（運指編集マーカーのキーボード操作を実機確認済み。`index.html` の各`<script>`タグの `?v=`、および `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`）
-- v0.21.5 commit前の最新commit（chord-cruise関連、`git log --oneline -- apps/chord-cruise/` で確認）:
-  - hash: `f58af12c80cf4cb3e73d0a2273f1eed0385ab4a4`
-  - message: `削除確認ダイアログのARIAを改善`
+- 現在のバージョン: `0.21.6`（Exploreのコード選択時に下部詳細カードを非表示化。`index.html` の各`<script>`タグの `?v=`、および `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`）
+- 最新Chord Cruise commit（v0.21.6 commit前、`git log --oneline -- apps/chord-cruise/` で確認）:
+  - hash: `ec602358cb3ec094cde80f217e06665d22c29207`
+  - message: `運指編集のキーボード操作に対応`
 - `0.21.1`の正式修正: `saveChord`／`deleteChord`の原子的保存、詳細画面の保存失敗処理、書き込み障害注入テスト。実機確認済み。
 - `0.21.2`の正式修正: 右上表示設定は候補値を先に`storage.saveSettings()`へ保存し、成功時だけ既存の共有`state.settings`へ反映して再描画する。失敗時はメモリ・UI・プレビューを変更せず、「設定を保存できませんでした」を表示する。本棚一覧専用設定は変更せず、実機確認済み。
 - `0.21.3`正式修正: modal / bottom sheet のTab・Shift+Tabを共通helperで循環させる。Escape・backdrop・既存の保存処理は維持し、閉じた後は有効なopenerへfocusを戻す。
 - `0.21.4`正式修正: コード削除・フォルダ削除・表示設定リセット確認に`aria-labelledby` / `aria-describedby`を追加し、スクリーンリーダーへ対象と重要説明を関連付ける。`alertdialog` / `dialog`の使い分け、初期focus、focus trapは維持する。
 - `0.21.5`正式修正: 保存前編集と本棚詳細の編集可能マーカーへ`role="button"`、`tabindex="0"`、簡潔な`aria-label`、`aria-keyshortcuts="Enter Space"`を付与する。Enter / Spaceは既存クリック処理を1回だけ実行し、再描画後は同じ論理マーカーへfocusを戻す。マウス／タッチ、focus trap、保存失敗安全化は維持し、実機確認済み。
+- `0.21.6`正式修正: Exploreのコード選択時に表示していた下部詳細カード（構成音・度数・役割・雰囲気・よく行くコード）を生成しない。`chord-info.js`の辞書とAPI、詳細行ビルダーは削除せず保持し、保存データ・任意コード・CAGED・指板表示には影響させない。実機確認済み。
 - 通常版/PRO版の構造: PRO版は存在しないため、`apps/chord-cruise/` 直下の `index.html` のみが唯一のエントリーポイント。他アプリのような `standard/` サブディレクトリも無い。
 - JS/CSSの共有関係:
   - `theme.css` はコードクルーズ専用の1ファイル（`apps/shared/` には依存していない）。
@@ -137,8 +138,8 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.21.5`）。運指編集マーカーのキーボード操作対応でパッチバージョンを更新した。
-- `?v=` によるキャッシュ管理: `index.html` 内の全15本の `<script src="...?v=0.21.5">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.21.5">` が同じバージョン文字列を共有している。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.21.6`）。Explore下部詳細カード非表示化でパッチバージョンを更新した。
+- `?v=` によるキャッシュ管理: `index.html` 内の全15本の `<script src="...?v=0.21.6">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.21.6">` が同じバージョン文字列を共有している。
 - 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
 - service workerの更新: service worker自体が存在しないため不要。
 - **バージョン更新漏れしやすい箇所**: `index.html`内の15本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。
@@ -170,7 +171,8 @@
 
 `git log --oneline -- apps/chord-cruise/` で確認した実際の履歴（新しい順、主要分）。
 
-- `0.21.5` 運指編集マーカーのキーボード操作に対応（Enter / Space、focusable、aria-label、再描画後focus復帰、実機確認済み）
+- `0.21.6` Explore下部詳細カードを非表示化（構成音・度数・役割・雰囲気・よく行くコード、実機確認済み）
+- `ec60235` 運指編集マーカーのキーボード操作に対応（v0.21.5、実機確認済み）
 - `f58af12` 危険操作確認のARIA関連付けを改善（v0.21.4、実機確認済み）
 - `23fd5fe` modal / bottom sheetのfocus trapを追加（v0.21.3、実機確認済み）
 - `3bc4ded` 設定保存失敗時の表示不整合を修正（v0.21.2）
@@ -197,7 +199,7 @@
 - `c0000a1b` コードクルーズにダイアトニックコード表示を追加
 - `c1f019a0` コードクルーズの初期画面を追加
 
-（v0.21.0は`ced7a1c`まで、v0.21.1の保存データ安全性修正は`a7ad0e8`まで正式反映済み。v0.21.2は右上表示設定の保存失敗時安全化、v0.21.3はmodal / bottom sheetのキーボード操作改善、v0.21.4は危険操作確認のARIA改善、v0.21.5は運指編集マーカーのキーボード操作を反映するパッチリリース。）
+（v0.21.0は`ced7a1c`まで、v0.21.1の保存データ安全性修正は`a7ad0e8`まで正式反映済み。v0.21.2は右上表示設定の保存失敗時安全化、v0.21.3はmodal / bottom sheetのキーボード操作改善、v0.21.4は危険操作確認のARIA改善、v0.21.5は運指編集マーカーのキーボード操作、v0.21.6はExplore下部詳細カード非表示化を反映するパッチリリース。）
 
 ---
 

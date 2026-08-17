@@ -120,7 +120,7 @@
                     '<button type="button" class="cc-btn cc-btn-primary cc-btn--block" id="cc-save-form-btn">このフォームを保存</button>' +
                 '</div>' +
             '</div>' +
-            '<div class="cc-card" id="cc-chord-detail"></div>';
+            '';
         section.appendChild(content);
         bindEvents();
     }
@@ -675,6 +675,9 @@
 
     function renderDetail() {
         var detail = document.getElementById('cc-chord-detail');
+        if (!detail) {
+            return;
+        }
         var chord = selectedChord();
         detail.innerHTML = '';
 

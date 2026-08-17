@@ -239,8 +239,8 @@
             <h1>コードクルーズ 開発概要</h1>
             <p>キーから探して、指板で確かめて、自分のコード本棚へ ── 開発中のコード学習アプリ</p>
             <div class="ov-meta">
-                <span>現在のバージョン<b>0.21.5（運指編集キーボード対応）</b></span>
-                <span>v0.21.5 commit前の最新Chord Cruise commit<b>f58af12</b></span>
+                <span>現在のバージョン<b>0.21.6（Explore詳細カード非表示化）</b></span>
+                <span>v0.21.6 commit前の最新Chord Cruise commit<b>ec602358</b></span>
                 <span>最終更新日<b>2026年8月17日</b></span>
             </div>
         </header>
@@ -302,7 +302,7 @@
                     <p><b>現状ステータス:</b> インフォメーションページ・利用規約・プライバシーポリシー・PWA化（マニフェスト/Service Worker）は、いずれも未実装です。</p>
                 </div>
                 <div class="ov-warn-box" style="margin-top: 14px;">
-                    <p><b>v0.21.5正式修正:</b> 保存前編集と本棚詳細の編集可能な運指マーカーをTabで操作可能にし、Enter／Spaceで既存クリック処理を1回だけ実行します。再描画後は同じ論理マーカーへfocusを戻し、マウス／タッチ、focus trap、保存失敗安全化は維持します。実機確認済みです。</p>
+                    <p><b>v0.21.6正式修正:</b> Exploreのコード選択時に表示していた下部詳細カード（構成音・度数・役割・雰囲気・よく行くコード）を生成しないようにしました。関連辞書・API・詳細行ビルダーは保持し、コード名、ダイアトニック一覧、3/4和音切替、CAGED、指板、保存導線、任意コード導線は維持しています。実機確認済みです。</p>
                 </div>
             </div>
         </section>
@@ -337,7 +337,8 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr><td><code>0.21.5</code></td><td>運指編集マーカーのキーボード操作に対応（実機確認済み）</td></tr>
+                        <tr><td><code>0.21.6</code></td><td>Explore下部詳細カードを非表示化（実機確認済み）</td></tr>
+                        <tr><td><code>ec602358</code></td><td>運指編集マーカーのキーボード操作に対応（v0.21.5、実機確認済み）</td></tr>
                         <tr><td><code>f58af12</code></td><td>危険操作確認のARIA関連付けを改善（v0.21.4、実機確認済み）</td></tr>
                         <tr><td><code>23fd5fe</code></td><td>modal / bottom sheetのfocus trapを追加（v0.21.3、実機確認済み）</td></tr>
                         <tr><td><code>3bc4ded</code></td><td>設定保存失敗時の表示不整合を修正（v0.21.2）</td></tr>
@@ -368,7 +369,7 @@
         </section>
 
         <div class="ov-footer">
-            コードクルーズ開発概要 ／ 最終更新日: 2026年8月17日 ／ 最新Chord Cruise commit: 3bc4ded<br>
+            コードクルーズ開発概要 ／ 最終更新日: 2026年8月17日 ／ 最新Chord Cruise commit: ec602358<br>
             詳細な開発者向け資料は <code>apps/chord-cruise/ai-handoff/CHORD_CRUISE_OVERVIEW.md</code> を参照してください。
         </div>
     </div>
