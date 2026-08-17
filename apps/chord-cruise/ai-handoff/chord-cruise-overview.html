@@ -239,8 +239,8 @@
             <h1>コードクルーズ 開発概要</h1>
             <p>キーから探して、指板で確かめて、自分のコード本棚へ ── 開発中のコード学習アプリ</p>
             <div class="ov-meta">
-                <span>現在のバージョン<b>0.22.0（Phase 2Bの7scale selectorを正式反映）</b></span>
-                <span>最新Chord Cruise commit<b>9874b9ed</b></span>
+                <span>現在のバージョン<b>0.22.1（scale-aware spellingを正式化）</b></span>
+                <span>直前の正式Chord Cruise commit<b>a562888a</b></span>
                 <span>最終更新日<b>2026年8月18日</b></span>
             </div>
         </header>
@@ -314,7 +314,10 @@
                     <p><b>v0.21.9 Phase 2A:</b> Major / Ionian、Dorian、Phrygian、Lydian、Mixolydian、Minor / Aeolian、Locrianの7scaleを内部APIで扱えます。追加intervalはPitch Cruise参照値と一致し、既存7qualityと全大文字Romanだけで3和音・4和音を生成します。固定期待値1176ケースとMajor / Minor完全回帰336ケースを検証しました。</p>
                 </div>
                 <div class="ov-warn-box" style="margin-top: 14px;">
-                    <p><b>v0.22.0 Phase 2B:</b> ExploreのMajor / Minor 2ボタンを、現在のscale名selectorと7件のbottom sheetへ置換しました。順序はmajor、dorian、phrygian、lydian、mixolydian、minor、locrianに固定し、表示ラベルはSCALESを参照します。scaleTypeは7正式ID以外をmajorへ正規化し、保存成功後だけ画面へ反映します。sheetはradio ARIA、共通focus trap、Escape／backdrop／閉じるボタン、openerへのfocus returnへ対応します。1176理論ケース、Major/Minor 336回帰、実機確認を完了し、schema・CAGED・quality・note spellingは変更していません。</p>
+                    <p><b>v0.22.0 Phase 2B:</b> ExploreのMajor / Minor 2ボタンを、現在のscale名selectorと7件のbottom sheetへ置換しました。順序はmajor、dorian、phrygian、lydian、mixolydian、minor、locrianに固定し、表示ラベルはSCALESを参照します。scaleTypeは7正式ID以外をmajorへ正規化し、保存成功後だけ画面へ反映します。sheetはradio ARIA、共通focus trap、Escape／backdrop／閉じるボタン、openerへのfocus returnへ対応します。1176理論ケース、Major/Minor 336回帰、実機確認を完了し、正式commitは<code>a562888a</code>です。</p>
+                </div>
+                <div class="ov-warn-box" style="margin-top: 14px;">
+                    <p><b>v0.22.1 scale-aware note spelling:</b> 現行7scaleのダイアトニック音名を、トニックの文字とdegreeごとの文字順から理論的に生成します。E♯・B♯・C♭・F♭と、♯♯／♭♭方式のdouble accidentalに対応し、コード記号、Explore/CAGED、保存前編集、本棚、PNGのCDEラベルへ反映します。pitch class・interval・quality・Roman・CAGED座標／運指は不変です。任意コードとkey contextなしの表示は従来方式、保存済みタイトルは元文字列を維持します。schemaVersion 1のままmigrationはなく、Harmonic / Melodic Minor、新quality、新CAGEDは追加していません。84/84固定綴り、1176構造回帰とユーザー実機確認を完了しました。次工程はaug / mM7 / M7♯5 / dim7と対応CAGEDです。</p>
                 </div>
             </div>
         </section>
@@ -349,8 +352,9 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr><td><code>0.22.0</code></td><td>7種類のスケール選択UIと設定正規化を追加（Phase 2B、実機確認済み）</td></tr>
-                        <tr><td><code>0.21.9</code></td><td>Phase 2Aの教会旋法内部対応は正式反映済み。Phase 2Bの7scale selector・設定正規化は未commit</td></tr>
+                        <tr><td><code>0.22.1</code></td><td>現行7scaleのscale-aware note spellingを正式反映（84/84理論綴り・実機確認済み）</td></tr>
+                        <tr><td><code>a562888a</code></td><td>7種類のスケール選択UIと設定正規化を追加（v0.22.0 Phase 2B、実機確認済み）</td></tr>
+                        <tr><td><code>9c62cb7</code></td><td>Phase 2Aの教会旋法内部生成へ対応</td></tr>
                         <tr><td><code>0.21.8</code></td><td>Roman表記を大文字に統一（実機確認済み）</td></tr>
                         <tr><td><code>0.21.7</code></td><td>ダイアトニックスケール生成基盤を刷新（Phase 1、実機確認済み）</td></tr>
                         <tr><td><code>25063781</code></td><td>Explore下部詳細カードを非表示化（v0.21.6、実機確認済み）</td></tr>
@@ -385,7 +389,7 @@
         </section>
 
         <div class="ov-footer">
-            コードクルーズ開発概要 ／ 最終更新日: 2026年8月17日 ／ 最新Chord Cruise commit: 9874b9ed<br>
+            コードクルーズ開発概要 ／ 最終更新日: 2026年8月18日 ／ v0.22.1直前の正式commit: a562888a<br>
             詳細な開発者向け資料は <code>apps/chord-cruise/ai-handoff/CHORD_CRUISE_OVERVIEW.md</code> を参照してください。
         </div>
     </div>

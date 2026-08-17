@@ -10,14 +10,9 @@ var theory = window.ChordCruise.theory;
 var caged = window.ChordCruise.caged;
 
 /*
- * v0.21.8のMajor / Minor出力と、Phase 2Aで承認された教会旋法の理論値を、
- * 実装から独立した固定期待値として保持する。SCALES、DIATONIC、generatorから
- * 期待値を生成してはいけない。
+ * v0.22.0の音楽構造と、承認された教会旋法の理論値を、実装から独立した
+ * 固定期待値として保持する。spellingはscale-spelling.test.jsで別に固定する。
  */
-var LEGACY_NOTES_SHARP = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
-var LEGACY_NOTES_FLAT = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
-var LEGACY_FLAT_MAJOR_TONICS = [5, 10, 3, 8, 1];
-var LEGACY_FLAT_MINOR_TONICS = [2, 7, 0, 5, 10, 3];
 var EXPECTED_QUALITIES = {
     maj: { suffix: '', intervals: [0, 4, 7] },
     m: { suffix: 'm', intervals: [0, 3, 7] },
@@ -128,16 +123,6 @@ Object.keys(EXPECTED_QUALITIES).forEach(function (qualityKey) {
 });
 assert.strictEqual(theory.identifyQuality([0, 4, 8]), null, 'new qualities must not be introduced in Phase 2A');
 
-function legacyUsesFlats(tonicPc, mode) {
-    var tonics = mode === 'minor' ? LEGACY_FLAT_MINOR_TONICS : LEGACY_FLAT_MAJOR_TONICS;
-    return tonics.indexOf(tonicPc) !== -1;
-}
-
-function legacyNoteName(pc, useFlats) {
-    var names = useFlats ? LEGACY_NOTES_FLAT : LEGACY_NOTES_SHARP;
-    return names[((pc % 12) + 12) % 12];
-}
-
 function fixedExpectedChord(tonicPc, mode, toneMode, degreeIndex) {
     var def = EXPECTED_SCALES[mode];
     var qualityKey = toneMode === '7'
@@ -145,33 +130,15 @@ function fixedExpectedChord(tonicPc, mode, toneMode, degreeIndex) {
         : def.triadQualities[degreeIndex];
     var intervals = EXPECTED_QUALITIES[qualityKey].intervals.slice();
     var rootPc = (tonicPc + def.rootIntervals[degreeIndex]) % 12;
+    var notePcs = intervals.map(function (interval) {
+        return (rootPc + interval) % 12;
+    });
     return {
         roman: (toneMode === '7' ? def.roman7 : def.roman3)[degreeIndex],
         rootPc: rootPc,
         qualityKey: qualityKey,
-        intervals: intervals
-    };
-}
-
-function legacyExpectedChord(tonicPc, mode, toneMode, degreeIndex) {
-    var expected = fixedExpectedChord(tonicPc, mode, toneMode, degreeIndex);
-    var useFlats = legacyUsesFlats(tonicPc, mode);
-    var rootName = legacyNoteName(expected.rootPc, useFlats);
-    var symbol = toneMode !== '7' && expected.qualityKey === 'dim'
-        ? rootName + 'm♭5'
-        : rootName + EXPECTED_QUALITIES[expected.qualityKey].suffix;
-    var notePcs = expected.intervals.map(function (interval) {
-        return (expected.rootPc + interval) % 12;
-    });
-    return {
-        index: degreeIndex,
-        roman: expected.roman,
-        rootPc: expected.rootPc,
-        qualityKey: expected.qualityKey,
-        symbol: symbol,
-        intervals: expected.intervals,
-        notePcs: notePcs,
-        noteNames: notePcs.map(function (pc) { return legacyNoteName(pc, useFlats); })
+        intervals: intervals,
+        notePcs: notePcs
     };
 }
 
@@ -192,6 +159,7 @@ SCALE_IDS.forEach(function (mode) {
                 assert.strictEqual(chord.rootPc, expected.rootPc);
                 assert.strictEqual(chord.qualityKey, expected.qualityKey);
                 assert.deepStrictEqual(chord.intervals, expected.intervals);
+                assert.deepStrictEqual(chord.notePcs, expected.notePcs);
                 generatedQualityKeys[chord.qualityKey] = true;
                 comparisonCount += 1;
             });
@@ -206,19 +174,24 @@ assert.deepStrictEqual(
     'all seven scales must use exactly the existing seven qualities'
 );
 
-// Major / Minorはv0.21.8のコード名・note spelling・全返却shapeまで完全回帰する。
-var legacyRegressionCount = 0;
+// Major / Minorの音楽構造336件もspellingから独立して明示回帰する。
+var majorMinorStructureCount = 0;
 ['major', 'minor'].forEach(function (mode) {
     ['3', '7'].forEach(function (toneMode) {
         for (var tonicPc = 0; tonicPc < 12; tonicPc += 1) {
             theory.getDiatonicChords(tonicPc, mode, toneMode).forEach(function (chord, degreeIndex) {
-                assert.deepStrictEqual(chord, legacyExpectedChord(tonicPc, mode, toneMode, degreeIndex));
-                legacyRegressionCount += 1;
+                var expected = fixedExpectedChord(tonicPc, mode, toneMode, degreeIndex);
+                assert.strictEqual(chord.roman, expected.roman);
+                assert.strictEqual(chord.rootPc, expected.rootPc);
+                assert.strictEqual(chord.qualityKey, expected.qualityKey);
+                assert.deepStrictEqual(chord.intervals, expected.intervals);
+                assert.deepStrictEqual(chord.notePcs, expected.notePcs);
+                majorMinorStructureCount += 1;
             });
         }
     });
 });
-assert.strictEqual(legacyRegressionCount, 336, 'Major / Minor must retain all 336 v0.21.8 fixed outputs');
+assert.strictEqual(majorMinorStructureCount, 336, 'Major / Minor must retain all 336 v0.22.0 structures');
 
 // 生成されるqualityは全CAGED型の正式対応集合に含まれる。
 Object.keys(generatedQualityKeys).forEach(function (qualityKey) {
@@ -229,5 +202,5 @@ Object.keys(generatedQualityKeys).forEach(function (qualityKey) {
 
 console.log(
     'diatonic-scales: 7 scales match ' + comparisonCount +
-    ' fixed theory cases; Major/Minor retain ' + legacyRegressionCount + ' complete v0.21.8 outputs'
+    ' fixed structure cases; Major/Minor retain ' + majorMinorStructureCount + ' v0.22.0 structures'
 );

@@ -573,7 +573,7 @@
                 } else if (mode === 'degree') {
                     label = chordDegreeLabel(chord, idx);
                 } else {
-                    label = theory.noteName(pc, useFlats);
+                    label = chordNoteName(chord, idx, pc, useFlats);
                 }
                 markers.push({
                     string: s,
@@ -613,6 +613,14 @@
         return getTheory().degreeLabels([chord.intervals[noteIndex]])[0];
     }
 
+    /** ダイアトニックはscale spellingを使い、任意コードは従来の♭/♯判定を維持する。 */
+    function chordNoteName(chord, noteIndex, pc, useFlats) {
+        if (chord && chord.source !== 'custom' && chord.noteNames && chord.noteNames[noteIndex]) {
+            return chord.noteNames[noteIndex];
+        }
+        return getTheory().noteName(pc, useFlats);
+    }
+
     /** 選択中の型のフォーム。未選択・未対応時は null */
     function currentForm() {
         var shape = getState().exploreShape;
@@ -625,7 +633,7 @@
         return form.available ? form : null;
     }
 
-    function markerLabelFor(pc, interval, finger, fingeringWarning, useFlats) {
+    function markerLabelFor(chord, pc, interval, finger, fingeringWarning, useFlats) {
         var theory = getTheory();
         var mode = getSettings().fretboardDisplayMode;
         if (mode === 'finger') {
@@ -638,7 +646,8 @@
         if (mode === 'degree') {
             return theory.degreeLabels([interval])[0];
         }
-        return theory.noteName(pc, useFlats);
+        var noteIndex = chord.intervals.indexOf(interval);
+        return chordNoteName(chord, noteIndex, pc, useFlats);
     }
 
     function computeFormMarkers(chord, form) {
@@ -650,7 +659,7 @@
             return {
                 string: note.string,
                 fret: note.fret,
-                label: markerLabelFor(pc, note.interval, note.finger, note.fingeringWarning, useFlats),
+                label: markerLabelFor(chord, pc, note.interval, note.finger, note.fingeringWarning, useFlats),
                 role: roleForInterval(note.interval),
                 fingeringWarning: getSettings().fretboardDisplayMode === 'finger' && note.fingeringWarning === true
             };

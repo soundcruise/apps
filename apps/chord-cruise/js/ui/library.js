@@ -1010,7 +1010,7 @@
         return ['note', 'solfege', 'degree', 'finger'].indexOf(mode) !== -1 ? mode : 'note';
     }
 
-    function detailMarkerLabel(chord, note, requestedMode) {
+    function detailMarkerLabel(chord, note, requestedMode, spelledNoteNames) {
         var mode = requestedMode || detailDisplayMode();
         if (mode === 'finger') {
             if (note.finger != null) return FINGER_LABELS[note.finger] || '';
@@ -1020,6 +1020,10 @@
         var pc = (openPc + note.fret) % 12;
         if (mode === 'solfege') return theory().solfegeName(pc, chordUseFlats(chord));
         if (mode === 'degree') return theory().degreeLabels([note.interval])[0];
+        var noteIndex = Array.isArray(chord.intervals) ? chord.intervals.indexOf(note.interval) : -1;
+        if (spelledNoteNames && noteIndex !== -1 && spelledNoteNames[noteIndex]) {
+            return spelledNoteNames[noteIndex];
+        }
         return theory().noteName(pc, chordUseFlats(chord));
     }
 
@@ -1080,13 +1084,18 @@
         var frets = savedFrets(chord);
         var notes = notesInSavedRange(chord, frets);
         var mode = opts.mode || detailDisplayMode();
+        var spelledNoteNames = theory().diatonicNoteNamesForContext(
+            chord.keyContext,
+            chord.rootPc,
+            chord.intervals
+        );
         return {
             frets: frets,
             markers: notes.map(function (note) {
                 return {
                     string: note.string,
                     fret: note.fret,
-                    label: detailMarkerLabel(chord, note, mode),
+                    label: detailMarkerLabel(chord, note, mode, spelledNoteNames),
                     role: roleForInterval(note.interval),
                     fingeringWarning: mode === 'finger' && note.fingeringWarning === true && note.finger == null,
                     tappable: !!opts.tappable,

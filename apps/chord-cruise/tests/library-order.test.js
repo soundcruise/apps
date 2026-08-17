@@ -724,6 +724,52 @@ function orderOf(env) {
     assert.strictEqual(JSON.stringify(chord), before, 'thumbnail labels must not mutate saved chord data');
 })();
 
+(function savedDiatonicLabelsRebuildScaleSpellingWithoutChangingStoredTitles() {
+    const env = loadLibrary(baseData());
+    const options = env.context.window.ChordCruise.ui.library.savedDiagramOptions;
+    const sharpChord = {
+        chordName: 'Fm♭5',
+        keyContext: { tonicPc: 6, mode: 'major', degreeLabel: 'VII°' },
+        rootPc: 5,
+        intervals: [0, 3, 6],
+        fretRange: { min: 1, max: 6, includesOpen: false },
+        notes: [
+            { string: 6, fret: 1, interval: 0 },
+            { string: 4, fret: 6, interval: 3 },
+            { string: 3, fret: 4, interval: 6 }
+        ],
+        mutedStrings: []
+    };
+    const doubleFlatChord = {
+        chordName: 'G',
+        keyContext: { tonicPc: 1, mode: 'locrian', degreeLabel: 'V' },
+        rootPc: 7,
+        intervals: [0, 4, 7],
+        fretRange: { min: 0, max: 3, includesOpen: true },
+        notes: [
+            { string: 6, fret: 3, interval: 0 },
+            { string: 5, fret: 2, interval: 4 },
+            { string: 4, fret: 0, interval: 7 }
+        ],
+        mutedStrings: []
+    };
+    const sharpBefore = JSON.stringify(sharpChord);
+    const flatBefore = JSON.stringify(doubleFlatChord);
+
+    assert.deepStrictEqual(
+        native(options(sharpChord, { mode: 'note' }).markers.map((marker) => marker.label)),
+        ['E♯', 'G♯', 'B']
+    );
+    assert.deepStrictEqual(
+        native(options(doubleFlatChord, { mode: 'note' }).markers.map((marker) => marker.label)),
+        ['A♭♭', 'C♭', 'E♭♭']
+    );
+    assert.strictEqual(sharpChord.chordName, 'Fm♭5', 'legacy saved title remains the stored string');
+    assert.strictEqual(doubleFlatChord.chordName, 'G', 'saved title is never rewritten from marker spelling');
+    assert.strictEqual(JSON.stringify(sharpChord), sharpBefore, 'scale-aware marker rendering is read-only');
+    assert.strictEqual(JSON.stringify(doubleFlatChord), flatBefore, 'double-flat rendering is read-only');
+})();
+
 (function folderColorsDefaultToBlackLeatherAndPersistOnlyWhenChosen() {
     const env = loadStorage(baseData());
     const source = env.storage.loadOrderedFolders().find((folder) => folder.id === 'folder-a');

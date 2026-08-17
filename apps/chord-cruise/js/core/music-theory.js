@@ -4,6 +4,8 @@
     // 音名
     var NOTES_SHARP = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
     var NOTES_FLAT = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
+    var NOTE_LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+    var NATURAL_NOTE_PCS = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
     var OPEN_STRINGS = [4, 9, 2, 7, 11, 4]; // 6弦→1弦 (E A D G B E)。STEP 3で使用
 
     // ドレミ（固定ド）
@@ -38,6 +40,7 @@
         major: {
             id: 'major',
             label: 'メジャー / イオニアン',
+            tonicFamily: 'major',
             intervals: [0, 2, 4, 5, 7, 9, 11],
             degreeLabels: ['1', '2', '3', '4', '5', '6', '7'],
             roman3: ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII°'],
@@ -46,6 +49,7 @@
         dorian: {
             id: 'dorian',
             label: 'ドリアン',
+            tonicFamily: 'major',
             intervals: [0, 2, 3, 5, 7, 9, 10],
             degreeLabels: ['1', '2', '♭3', '4', '5', '6', '♭7'],
             roman3: ['I', 'II', 'III', 'IV', 'V', 'VI°', 'VII'],
@@ -54,6 +58,7 @@
         phrygian: {
             id: 'phrygian',
             label: 'フリジアン',
+            tonicFamily: 'major',
             intervals: [0, 1, 3, 5, 7, 8, 10],
             degreeLabels: ['1', '♭2', '♭3', '4', '5', '♭6', '♭7'],
             roman3: ['I', 'II', 'III', 'IV', 'V°', 'VI', 'VII'],
@@ -62,6 +67,7 @@
         lydian: {
             id: 'lydian',
             label: 'リディアン',
+            tonicFamily: 'major',
             intervals: [0, 2, 4, 6, 7, 9, 11],
             degreeLabels: ['1', '2', '3', '♯4', '5', '6', '7'],
             roman3: ['I', 'II', 'III', 'IV°', 'V', 'VI', 'VII'],
@@ -70,6 +76,7 @@
         mixolydian: {
             id: 'mixolydian',
             label: 'ミクソリディアン',
+            tonicFamily: 'major',
             intervals: [0, 2, 4, 5, 7, 9, 10],
             degreeLabels: ['1', '2', '3', '4', '5', '6', '♭7'],
             roman3: ['I', 'II', 'III°', 'IV', 'V', 'VI', 'VII'],
@@ -78,6 +85,7 @@
         minor: { // ナチュラルマイナー（エオリアン）
             id: 'minor',
             label: 'マイナー / エオリアン',
+            tonicFamily: 'minor',
             intervals: [0, 2, 3, 5, 7, 8, 10],
             degreeLabels: ['1', '2', '♭3', '4', '5', '♭6', '♭7'],
             roman3: ['I', 'II°', 'III', 'IV', 'V', 'VI', 'VII'],
@@ -86,6 +94,7 @@
         locrian: {
             id: 'locrian',
             label: 'ロクリアン',
+            tonicFamily: 'major',
             intervals: [0, 1, 3, 5, 6, 8, 10],
             degreeLabels: ['1', '♭2', '♭3', '4', '♭5', '♭6', '♭7'],
             roman3: ['I°', 'II', 'III', 'IV', 'V', 'VI', 'VII'],
@@ -199,6 +208,105 @@
         return names[((pc % 12) + 12) % 12];
     }
 
+    function normalizePc(pc) {
+        return ((pc % 12) + 12) % 12;
+    }
+
+    /** Unicodeの単一グリフへ依存せず、♯／♭を必要数だけ連ねる。 */
+    function formatAccidental(offset) {
+        var amount = Math.abs(offset);
+        var symbol = offset < 0 ? '♭' : '♯';
+        var result = '';
+        var i;
+        for (i = 0; i < amount; i++) result += symbol;
+        return result;
+    }
+
+    /** C♯、D♭、F♯♯のような理論音名をletter・accidental・pitch classへ分解する。 */
+    function parseSpelledNoteName(value) {
+        var match = /^([A-Ga-g])([♯♭#b]*)$/.exec(String(value == null ? '' : value).trim());
+        if (!match) return null;
+
+        var letter = match[1].toUpperCase();
+        var accidentalText = match[2];
+        var accidental = 0;
+        var i;
+        for (i = 0; i < accidentalText.length; i++) {
+            accidental += accidentalText[i] === '♯' || accidentalText[i] === '#' ? 1 : -1;
+        }
+        return {
+            letter: letter,
+            accidental: accidental,
+            pc: normalizePc(NATURAL_NOTE_PCS[letter] + accidental),
+            name: letter + formatAccidental(accidental)
+        };
+    }
+
+    /** 現在の12トニック選択体系をscaleのtonic familyへ明示的に対応させる。 */
+    function tonicNameFor(tonicPc, scaleId) {
+        var scale = SCALES[scaleId];
+        if (!scale) return null;
+        var names = scale.tonicFamily === 'minor' ? MINOR_KEY_OPTIONS : MAJOR_KEY_OPTIONS;
+        return names[normalizePc(tonicPc)];
+    }
+
+    function accidentalOffsetForPc(letter, pc) {
+        var offset = normalizePc(pc - NATURAL_NOTE_PCS[letter]);
+        return offset > 6 ? offset - 12 : offset;
+    }
+
+    /**
+     * トニックの文字を起点に各度で必ず次のletterへ進め、scaleのpitch classへ
+     * 合う臨時記号を決定する。未登録scaleはoptions.scaleを渡して純粋関数として検証できる。
+     */
+    function spellScaleNotes(options) {
+        options = options || {};
+        var scale = options.scale || SCALES[options.scaleId];
+        if (!scale || !Array.isArray(scale.intervals) || scale.intervals.length !== 7) {
+            throw new Error('Scale spelling requires a seven-note scale.');
+        }
+
+        if (typeof options.tonicPc !== 'number' || !isFinite(options.tonicPc) || Math.floor(options.tonicPc) !== options.tonicPc) {
+            throw new Error('Scale spelling requires an integer tonicPc.');
+        }
+        var tonicPc = normalizePc(options.tonicPc);
+        var tonicName = options.tonicName || tonicNameFor(tonicPc, options.scaleId || scale.id);
+        var parsedTonic = parseSpelledNoteName(tonicName);
+        if (!parsedTonic || parsedTonic.pc !== tonicPc) {
+            throw new Error('Scale spelling requires a tonic name matching tonicPc.');
+        }
+
+        var tonicLetterIndex = NOTE_LETTERS.indexOf(parsedTonic.letter);
+        return scale.intervals.map(function (interval, degreeIndex) {
+            var pc = normalizePc(tonicPc + interval);
+            var letter = NOTE_LETTERS[(tonicLetterIndex + degreeIndex) % NOTE_LETTERS.length];
+            var accidental = accidentalOffsetForPc(letter, pc);
+            return {
+                degreeIndex: degreeIndex,
+                degreeLabel: scale.degreeLabels ? scale.degreeLabels[degreeIndex] : null,
+                pc: pc,
+                letter: letter,
+                accidental: accidental,
+                name: letter + formatAccidental(accidental)
+            };
+        });
+    }
+
+    /** 保存schemaを増やさず、既存key contextとintervalsから表示用音名だけを再計算する。 */
+    function diatonicNoteNamesForContext(keyContext, rootPc, intervals) {
+        if (!keyContext || !SCALES[keyContext.mode] || !Array.isArray(intervals)) return null;
+        if (typeof keyContext.tonicPc !== 'number' || typeof rootPc !== 'number') return null;
+
+        var scaleNotes = spellScaleNotes({ tonicPc: keyContext.tonicPc, scaleId: keyContext.mode });
+        var namesByPc = {};
+        scaleNotes.forEach(function (scaleNote) {
+            namesByPc[scaleNote.pc] = scaleNote.name;
+        });
+        return intervals.map(function (interval) {
+            return namesByPc[normalizePc(rootPc + interval)] || null;
+        });
+    }
+
     function solfegeName(pc, useFlats) {
         var names = useFlats ? SOLFEGE_FLAT : SOLFEGE_SHARP;
         return names[((pc % 12) + 12) % 12];
@@ -215,29 +323,31 @@
 
     function getDiatonicChords(tonicPc, mode, toneMode) {
         var def = DIATONIC[mode];
-        var useFlats = keyUsesFlats(tonicPc, mode);
+        var scaleNotes = spellScaleNotes({ tonicPc: tonicPc, scaleId: mode });
         var qualities = toneMode === '7' ? def.seventhQualities : def.triadQualities;
         var romans = toneMode === '7' ? def.roman7 : def.roman3;
         var result = [];
         var i;
         for (i = 0; i < 7; i++) {
             var rootPc = (tonicPc + def.rootIntervals[i]) % 12;
+            var rootName = scaleNotes[i].name;
             var qualityKey = qualities[i];
             var intervals = QUALITIES[qualityKey].intervals.slice();
             // 減三和音の内部品質は dim のまま、ダイアトニック3和音の表示だけを m♭5 にする。
             var symbol = (toneMode !== '7' && qualityKey === 'dim')
-                ? noteName(rootPc, useFlats) + 'm♭5'
-                : chordSymbol(rootPc, qualityKey, useFlats);
+                ? rootName + 'm♭5'
+                : rootName + QUALITIES[qualityKey].suffix;
             var notePcs = intervals.map(function (interval) {
                 return (rootPc + interval) % 12;
             });
-            var noteNames = notePcs.map(function (pc) {
-                return noteName(pc, useFlats);
+            var noteNames = intervals.map(function (_interval, chordToneIndex) {
+                return scaleNotes[(i + chordToneIndex * 2) % scaleNotes.length].name;
             });
             result.push({
                 index: i,
                 roman: romans[i],
                 rootPc: rootPc,
+                rootName: rootName,
                 qualityKey: qualityKey,
                 symbol: symbol,
                 intervals: intervals,
@@ -272,6 +382,11 @@
         identifyQuality: identifyQuality,
         keyUsesFlats: keyUsesFlats,
         noteName: noteName,
+        formatAccidental: formatAccidental,
+        parseSpelledNoteName: parseSpelledNoteName,
+        tonicNameFor: tonicNameFor,
+        spellScaleNotes: spellScaleNotes,
+        diatonicNoteNamesForContext: diatonicNoteNamesForContext,
         solfegeName: solfegeName,
         chordSymbol: chordSymbol,
         displayChordName: displayChordName,

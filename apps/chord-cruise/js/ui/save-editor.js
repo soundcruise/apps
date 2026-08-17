@@ -220,7 +220,7 @@
         return (openPc + note.fret) % 12;
     }
 
-    function markerLabel(note) {
+    function markerLabel(note, spelledNoteNames) {
         if (note.pendingDelete) return '消';
         if (draft.displayMode === 'finger') {
             if (note.finger != null) return FINGER_LABELS[note.finger] || '';
@@ -228,6 +228,10 @@
         }
         if (draft.displayMode === 'solfege') return theory().solfegeName(notePc(note), draft.useFlats);
         if (draft.displayMode === 'degree') return theory().degreeLabels([note.interval])[0];
+        var noteIndex = draft.intervals.indexOf(note.interval);
+        if (spelledNoteNames && noteIndex !== -1 && spelledNoteNames[noteIndex]) {
+            return spelledNoteNames[noteIndex];
+        }
         return theory().noteName(notePc(note), draft.useFlats);
     }
 
@@ -263,11 +267,16 @@
         var fb = window.ChordCruise.ui.fretboard;
         var shouldAutoCenter = draft.autoCenterPending === true;
         var prevScroll = shouldAutoCenter ? null : fb.getScrollLeft(host);
+        var spelledNoteNames = theory().diatonicNoteNamesForContext(
+            draft.keyContext,
+            draft.rootPc,
+            draft.intervals
+        );
         var markers = draft.notes.map(function (note) {
             return {
                 string: note.string,
                 fret: note.fret,
-                label: markerLabel(note),
+                label: markerLabel(note, spelledNoteNames),
                 role: roleForInterval(note.interval),
                 dimmed: !noteIncluded(note),
                 pendingDelete: note.pendingDelete && noteIncluded(note),
