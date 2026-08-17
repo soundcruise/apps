@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
-- 現在のバージョン: `0.22.1`（現行7scaleのscale-aware note spellingを正式化。84/84固定綴りと実機確認済み）
+- 現在のバージョン: `0.22.2`（Phase Aの4新quality core理論基盤を正式化。既存UI非露出）
 - v0.22.1直前の正式Chord Cruise commit（`git log --oneline -- apps/chord-cruise/` で確認）:
   - hash: `a562888a078494d6deeb9900d2b15260bc35128e`
   - message: `7種類のスケール選択に対応`
@@ -29,6 +29,7 @@
 - **v0.21.9 Phase 2A確定**: `SCALES` / `DIATONIC` / `getDiatonicChords()`をMajor / Ionian、Dorian、Phrygian、Lydian、Mixolydian、Minor / Aeolian、Locrianの7scaleへ拡張した。追加5scaleのintervalはPitch Cruiseの参照値と一致し、3度堆積から既存7qualityだけで3和音・4和音を生成する。Romanの度数部分は全大文字、qualityはsuffixで示す。12 tonic × 7 scale × 2 chord size × 7 degree = 1176件を実装非依存の固定期待値で検証し、Major / Minorはv0.21.8のコード名・note spellingを含む336件の完全回帰を維持した。
 - **v0.22.0 Phase 2B確定**: ExploreのMajor / Minor 2ボタンを、現在のscale名を示すselectorと7件のbottom sheetへ置換した。順序は`major, dorian, phrygian, lydian, mixolydian, minor, locrian`に固定し、表示ラベルは`SCALES`をsource of truthとする。`storage.normalizeSettings()`はこの7 ID以外（未設定・`null`・不正値を含む）を`major`へ正規化するが、schemaVersionとmigrationは変更していない。選択時は`saveSettings()`成功後だけ共有`state.settings.scaleType`とExplore表示を更新し、失敗時は旧状態を保ってエラートーストを出す。sheetは既存focus trapでTab循環、Escape／backdrop／閉じるボタン、openerへのfocus return、radio ARIAを提供する。新scaleで保存する`keyContext.mode`は既存文字列フィールドへそのまま保存される。実機確認・1176理論ケース・Major/Minor 336回帰を完了し、正式commitは`a562888a078494d6deeb9900d2b15260bc35128e`。
 - **v0.22.1 scale-aware note spelling**: 現在正式対応している7scaleだけを対象に、トニックのletter、degreeごとのletter進行、pitch classから理論音名を導く純粋なspelling engineを追加した。`E♯` / `B♯` / `C♭` / `F♭`とdouble accidentalの`♯♯` / `♭♭`へ対応し、ダイアトニックのroot名・コード記号・構成音・Explore/CAGED・保存前編集・本棚・PNGのCDEラベルへ反映する。pitch class、scale/chord interval、quality、Roman、CAGED座標・運指・バレー・ミュートは変更しない。任意コードとkey contextなしの旧データは`noteName()` / `keyUsesFlats()`による従来表記を維持する。既存保存コードのタイトル文字列は書き換えず、key contextから再計算できるCDEマーカーだけを補正する。schemaVersionは1、migrationと`tonicName`保存追加はなし。Harmonic / Melodic Minor、新quality、新CAGEDは本番へ追加していない。84 scale-tonic固定fixture、588 root、1176 chord spelling、1176構造、Major/Minor 336構造回帰を自動検証し、375px／1280px、保存・再読込・本棚・PNG・consoleを含むユーザー実機確認も完了した。次工程は`aug / mM7 / M7♯5 / dim7`と対応CAGED。
+- **v0.22.2 Phase A正式化**: core `QUALITIES`を11品質へ拡張した。新canonical IDは`aug`（`aug` / Roman `aug` / `1 3 ♯5`）、`mMaj7`（`mM7` / `mM7` / `1 ♭3 5 7`）、`maj7sharp5`（`M7♯5` / `M7♯5` / `1 3 ♯5 7`）、`dim7`（`dim7` / `°7` / `1 ♭3 ♭5 ♭♭7`）。既存7品質にも`symbolSuffix`・`romanSuffix`・品質固有`degreeLabels`を明示し、互換用の既存`suffix`は維持する。`degreeLabelsForQuality()`は`dim7`の9半音だけを`♭♭7`として返し、一般の`degreeLabels()`は従来どおり`6`を返す。schemaVersion 1、migration、7scale、scale UI、任意コードUI表示／`qualityKey`、保存title、CAGED 35型は変更しない。`augM7`はinternal IDとして未使用のためaliasは未導入。次工程Phase BでCAGED 20型と任意コード正式照合を追加する。
 - 通常版/PRO版の構造: PRO版は存在しないため、`apps/chord-cruise/` 直下の `index.html` のみが唯一のエントリーポイント。他アプリのような `standard/` サブディレクトリも無い。
 - JS/CSSの共有関係:
   - `theme.css` はコードクルーズ専用の1ファイル（`apps/shared/` には依存していない）。

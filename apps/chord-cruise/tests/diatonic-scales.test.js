@@ -14,14 +14,19 @@ var caged = window.ChordCruise.caged;
  * 固定期待値として保持する。spellingはscale-spelling.test.jsで別に固定する。
  */
 var EXPECTED_QUALITIES = {
-    maj: { suffix: '', intervals: [0, 4, 7] },
-    m: { suffix: 'm', intervals: [0, 3, 7] },
-    dim: { suffix: 'dim', intervals: [0, 3, 6] },
-    maj7: { suffix: 'M7', intervals: [0, 4, 7, 11] },
-    '7': { suffix: '7', intervals: [0, 4, 7, 10] },
-    m7: { suffix: 'm7', intervals: [0, 3, 7, 10] },
-    m7b5: { suffix: 'm7♭5', intervals: [0, 3, 6, 10] }
+    maj: { suffix: '', symbolSuffix: '', romanSuffix: '', intervals: [0, 4, 7], degreeLabels: ['1', '3', '5'] },
+    m: { suffix: 'm', symbolSuffix: 'm', romanSuffix: 'm', intervals: [0, 3, 7], degreeLabels: ['1', '♭3', '5'] },
+    dim: { suffix: 'dim', symbolSuffix: 'dim', romanSuffix: '°', intervals: [0, 3, 6], degreeLabels: ['1', '♭3', '♭5'] },
+    maj7: { suffix: 'M7', symbolSuffix: 'M7', romanSuffix: 'M7', intervals: [0, 4, 7, 11], degreeLabels: ['1', '3', '5', '7'] },
+    '7': { suffix: '7', symbolSuffix: '7', romanSuffix: '7', intervals: [0, 4, 7, 10], degreeLabels: ['1', '3', '5', '♭7'] },
+    m7: { suffix: 'm7', symbolSuffix: 'm7', romanSuffix: 'm7', intervals: [0, 3, 7, 10], degreeLabels: ['1', '♭3', '5', '♭7'] },
+    m7b5: { suffix: 'm7♭5', symbolSuffix: 'm7♭5', romanSuffix: 'm7♭5', intervals: [0, 3, 6, 10], degreeLabels: ['1', '♭3', '♭5', '♭7'] },
+    aug: { suffix: 'aug', symbolSuffix: 'aug', romanSuffix: 'aug', intervals: [0, 4, 8], degreeLabels: ['1', '3', '♯5'] },
+    mMaj7: { suffix: 'mM7', symbolSuffix: 'mM7', romanSuffix: 'mM7', intervals: [0, 3, 7, 11], degreeLabels: ['1', '♭3', '5', '7'] },
+    maj7sharp5: { suffix: 'M7♯5', symbolSuffix: 'M7♯5', romanSuffix: 'M7♯5', intervals: [0, 4, 8, 11], degreeLabels: ['1', '3', '♯5', '7'] },
+    dim7: { suffix: 'dim7', symbolSuffix: 'dim7', romanSuffix: '°7', intervals: [0, 3, 6, 9], degreeLabels: ['1', '♭3', '♭5', '♭♭7'] }
 };
+var EXISTING_SCALE_QUALITY_KEYS = ['maj', 'm', 'dim', 'maj7', '7', 'm7', 'm7b5'];
 var SCALE_IDS = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'locrian'];
 var EXPECTED_SCALES = {
     major: {
@@ -91,7 +96,7 @@ var EXPECTED_SCALES = {
 
 assert.deepStrictEqual(Object.keys(theory.SCALES), SCALE_IDS, 'only the approved seven scale IDs are exposed internally');
 assert.deepStrictEqual(Object.keys(theory.DIATONIC), SCALE_IDS, 'DIATONIC must expose the same seven scale IDs');
-assert.deepStrictEqual(theory.QUALITIES, EXPECTED_QUALITIES, 'Phase 2A must not add or change chord qualities');
+assert.deepStrictEqual(theory.QUALITIES, EXPECTED_QUALITIES, 'Phase A must expose the fixed eleven-quality core metadata');
 
 SCALE_IDS.forEach(function (mode) {
     var expected = EXPECTED_SCALES[mode];
@@ -121,7 +126,7 @@ assert.deepStrictEqual(theory.stackScaleChordIntervals(EXPECTED_SCALES.locrian.r
 Object.keys(EXPECTED_QUALITIES).forEach(function (qualityKey) {
     assert.strictEqual(theory.identifyQuality(EXPECTED_QUALITIES[qualityKey].intervals), qualityKey);
 });
-assert.strictEqual(theory.identifyQuality([0, 4, 8]), null, 'new qualities must not be introduced in Phase 2A');
+assert.strictEqual(theory.identifyQuality([0, 4, 8]), 'aug');
 
 function fixedExpectedChord(tonicPc, mode, toneMode, degreeIndex) {
     var def = EXPECTED_SCALES[mode];
@@ -170,7 +175,7 @@ SCALE_IDS.forEach(function (mode) {
 assert.strictEqual(comparisonCount, 1176, 'must compare all 12 tonics × 7 scales × 2 chord sizes × 7 degrees');
 assert.deepStrictEqual(
     Object.keys(generatedQualityKeys).sort(),
-    Object.keys(EXPECTED_QUALITIES).sort(),
+    EXISTING_SCALE_QUALITY_KEYS.slice().sort(),
     'all seven scales must use exactly the existing seven qualities'
 );
 

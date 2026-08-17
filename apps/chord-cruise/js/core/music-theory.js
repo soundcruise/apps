@@ -22,13 +22,18 @@
 
     // コード品質（コードルートからの半音間隔）
     var QUALITIES = {
-        'maj': { suffix: '', intervals: [0, 4, 7] },
-        'm': { suffix: 'm', intervals: [0, 3, 7] },
-        'dim': { suffix: 'dim', intervals: [0, 3, 6] },
-        'maj7': { suffix: 'M7', intervals: [0, 4, 7, 11] },
-        '7': { suffix: '7', intervals: [0, 4, 7, 10] },
-        'm7': { suffix: 'm7', intervals: [0, 3, 7, 10] },
-        'm7b5': { suffix: 'm7♭5', intervals: [0, 3, 6, 10] }
+        // suffixは既存呼び出しとの互換用。新規利用ではsymbolSuffix / romanSuffixを明示する。
+        'maj': { suffix: '', symbolSuffix: '', romanSuffix: '', intervals: [0, 4, 7], degreeLabels: ['1', '3', '5'] },
+        'm': { suffix: 'm', symbolSuffix: 'm', romanSuffix: 'm', intervals: [0, 3, 7], degreeLabels: ['1', '♭3', '5'] },
+        'dim': { suffix: 'dim', symbolSuffix: 'dim', romanSuffix: '°', intervals: [0, 3, 6], degreeLabels: ['1', '♭3', '♭5'] },
+        'maj7': { suffix: 'M7', symbolSuffix: 'M7', romanSuffix: 'M7', intervals: [0, 4, 7, 11], degreeLabels: ['1', '3', '5', '7'] },
+        '7': { suffix: '7', symbolSuffix: '7', romanSuffix: '7', intervals: [0, 4, 7, 10], degreeLabels: ['1', '3', '5', '♭7'] },
+        'm7': { suffix: 'm7', symbolSuffix: 'm7', romanSuffix: 'm7', intervals: [0, 3, 7, 10], degreeLabels: ['1', '♭3', '5', '♭7'] },
+        'm7b5': { suffix: 'm7♭5', symbolSuffix: 'm7♭5', romanSuffix: 'm7♭5', intervals: [0, 3, 6, 10], degreeLabels: ['1', '♭3', '♭5', '♭7'] },
+        'aug': { suffix: 'aug', symbolSuffix: 'aug', romanSuffix: 'aug', intervals: [0, 4, 8], degreeLabels: ['1', '3', '♯5'] },
+        'mMaj7': { suffix: 'mM7', symbolSuffix: 'mM7', romanSuffix: 'mM7', intervals: [0, 3, 7, 11], degreeLabels: ['1', '♭3', '5', '7'] },
+        'maj7sharp5': { suffix: 'M7♯5', symbolSuffix: 'M7♯5', romanSuffix: 'M7♯5', intervals: [0, 4, 8, 11], degreeLabels: ['1', '3', '♯5', '7'] },
+        'dim7': { suffix: 'dim7', symbolSuffix: 'dim7', romanSuffix: '°7', intervals: [0, 3, 6, 9], degreeLabels: ['1', '♭3', '♭5', '♭♭7'] }
     };
 
     /*
@@ -313,7 +318,7 @@
     }
 
     function chordSymbol(rootPc, qualityKey, useFlats) {
-        return noteName(rootPc, useFlats) + QUALITIES[qualityKey].suffix;
+        return noteName(rootPc, useFlats) + QUALITIES[qualityKey].symbolSuffix;
     }
 
     /** 旧保存データを変更せず、ユーザー表示時だけ maj7 を M7 に正規化する。 */
@@ -336,7 +341,7 @@
             // 減三和音の内部品質は dim のまま、ダイアトニック3和音の表示だけを m♭5 にする。
             var symbol = (toneMode !== '7' && qualityKey === 'dim')
                 ? rootName + 'm♭5'
-                : rootName + QUALITIES[qualityKey].suffix;
+                : rootName + QUALITIES[qualityKey].symbolSuffix;
             var notePcs = intervals.map(function (interval) {
                 return (rootPc + interval) % 12;
             });
@@ -362,6 +367,19 @@
         return intervals.map(function (interval) {
             return DEGREE_LABELS[((interval % 12) + 12) % 12];
         });
+    }
+
+    /**
+     * canonical qualityが分かる場合だけ、品質固有の度数表記を返す。
+     * 例: dim7の9半音は一般的な「6」ではなく、構成上の「♭♭7」として扱う。
+     * 未知のinterval列は既存の半音基準表示へ安全にfallbackする。
+     */
+    function degreeLabelsForQuality(qualityKey, intervals) {
+        var quality = QUALITIES[qualityKey];
+        if (quality && sameIntervals(intervals, quality.intervals)) {
+            return quality.degreeLabels.slice();
+        }
+        return degreeLabels(intervals);
     }
 
     window.ChordCruise = window.ChordCruise || {};
@@ -391,6 +409,7 @@
         chordSymbol: chordSymbol,
         displayChordName: displayChordName,
         getDiatonicChords: getDiatonicChords,
-        degreeLabels: degreeLabels
+        degreeLabels: degreeLabels,
+        degreeLabelsForQuality: degreeLabelsForQuality
     };
 })();

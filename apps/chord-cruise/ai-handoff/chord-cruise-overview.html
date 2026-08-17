@@ -239,7 +239,7 @@
             <h1>コードクルーズ 開発概要</h1>
             <p>キーから探して、指板で確かめて、自分のコード本棚へ ── 開発中のコード学習アプリ</p>
             <div class="ov-meta">
-                <span>現在のバージョン<b>0.22.1（scale-aware spellingを正式化）</b></span>
+                <span>現在のバージョン<b>0.22.2（Phase Aの4新quality core理論基盤を正式化）</b></span>
                 <span>直前の正式Chord Cruise commit<b>a562888a</b></span>
                 <span>最終更新日<b>2026年8月18日</b></span>
             </div>
@@ -318,6 +318,9 @@
                 </div>
                 <div class="ov-warn-box" style="margin-top: 14px;">
                     <p><b>v0.22.1 scale-aware note spelling:</b> 現行7scaleのダイアトニック音名を、トニックの文字とdegreeごとの文字順から理論的に生成します。E♯・B♯・C♭・F♭と、♯♯／♭♭方式のdouble accidentalに対応し、コード記号、Explore/CAGED、保存前編集、本棚、PNGのCDEラベルへ反映します。pitch class・interval・quality・Roman・CAGED座標／運指は不変です。任意コードとkey contextなしの表示は従来方式、保存済みタイトルは元文字列を維持します。schemaVersion 1のままmigrationはなく、Harmonic / Melodic Minor、新quality、新CAGEDは追加していません。84/84固定綴り、1176構造回帰とユーザー実機確認を完了しました。次工程はaug / mM7 / M7♯5 / dim7と対応CAGEDです。</p>
+                </div>
+                <div class="ov-warn-box" style="margin-top: 14px;">
+                    <p><b>v0.22.2 Phase A正式化:</b> core <code>QUALITIES</code>を11品質へ拡張しました。新canonical IDは<code>aug</code>、<code>mMaj7</code>、<code>maj7sharp5</code>、<code>dim7</code>です。コード記号／Roman／品質固有degreeを分離し、<code>dim7</code>の9半音だけは<code>♭♭7</code>として扱います。7scale、scale UI、保存schema、任意コードUI表示と<code>qualityKey</code>、CAGED 35型は変更していません。<code>augM7</code>は現行internal IDでないためaliasは未導入です。次工程Phase BでCAGED 20型と任意コード正式照合を追加します。</p>
                 </div>
             </div>
         </section>
