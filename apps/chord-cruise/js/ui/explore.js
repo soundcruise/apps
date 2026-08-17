@@ -32,6 +32,33 @@
         fingering: { type: '', text: '' },
         range: { type: 'range', text: '' }
     };
+    // SCALES 自体をラベルの正式sourceとしつつ、UIの表示順は明示的に固定する。
+    var SCALE_SELECTION_ORDER = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'locrian'];
+    var scaleSheet = null;
+    var scaleSheetReturnFocus = null;
+
+    function focusTrap() {
+        return window.ChordCruise.ui && window.ChordCruise.ui.focusTrap;
+    }
+
+    function scaleDefinition(scaleType) {
+        var theory = getTheory();
+        return theory.SCALES[scaleType] || theory.SCALES.major;
+    }
+
+    function isSelectableScale(scaleType) {
+        return SCALE_SELECTION_ORDER.indexOf(scaleType) !== -1 && !!getTheory().SCALES[scaleType];
+    }
+
+    function scaleLabel(scaleType) {
+        return scaleDefinition(scaleType).label;
+    }
+
+    function showScaleSaveError() {
+        if (window.ChordCruise.ui.toast) {
+            window.ChordCruise.ui.toast.show('スケール設定を保存できませんでした', { type: 'error' });
+        }
+    }
 
     function buildSkeleton(section) {
         var content = document.getElementById('cc-explore-content');
@@ -51,10 +78,13 @@
                 '<div class="cc-control-row">' +
                     '<span class="cc-control-label">キー</span>' +
                     '<select id="cc-key-select" class="cc-select"></select>' +
-                    '<div class="cc-segment" role="group" aria-label="スケール切替">' +
-                        '<button type="button" class="cc-segment-btn" id="cc-mode-major">メジャー</button>' +
-                        '<button type="button" class="cc-segment-btn" id="cc-mode-minor">マイナー</button>' +
-                    '</div>' +
+                '</div>' +
+                '<div class="cc-control-row cc-scale-control-row">' +
+                    '<span class="cc-control-label">スケール</span>' +
+                    '<button type="button" class="cc-scale-selector" id="cc-scale-selector" aria-haspopup="dialog" aria-expanded="false" aria-controls="cc-scale-sheet">' +
+                        '<span class="cc-scale-selector-value" id="cc-scale-selector-value"></span>' +
+                        '<span class="cc-scale-selector-chevron" aria-hidden="true">⌄</span>' +
+                    '</button>' +
                 '</div>' +
             '</div>' +
             '<div class="cc-card">' +
@@ -134,12 +164,8 @@
             renderDetail();
         });
 
-        document.getElementById('cc-mode-major').addEventListener('click', function () {
-            setMode('major');
-        });
-
-        document.getElementById('cc-mode-minor').addEventListener('click', function () {
-            setMode('minor');
+        document.getElementById('cc-scale-selector').addEventListener('click', function (event) {
+            openScaleSheet(event.currentTarget);
         });
 
         document.getElementById('cc-tone-3').addEventListener('click', function () {
@@ -304,17 +330,136 @@
         setCagedNotice('range', 'range', rangeText);
     }
 
-    function setMode(mode) {
-        if (getSettings().scaleType === mode) {
-            return;
+    function commitScaleType(scaleType) {
+        var settings = getSettings();
+        if (!isSelectableScale(scaleType)) {
+            return false;
+        }
+        if (settings.scaleType === scaleType) {
+            return true;
+        }
+        // stateを先に変えない。localStorageへの保存が成功してから同じ値を反映する。
+        if (window.ChordCruise.storage.saveSettings({ scaleType: scaleType }) !== true) {
+            showScaleSaveError();
+            return false;
+        }
+        settings.scaleType = scaleType;
+        return true;
+    }
+
+    function setScaleType(scaleType) {
+        var changed = getSettings().scaleType !== scaleType;
+        if (!commitScaleType(scaleType)) {
+            return false;
+        }
+        if (!changed) {
+            return true;
         }
         resetCagedNotice();
-        saveSetting({ scaleType: mode });
         updateKeyOptions();
         updateSegments();
         renderChordGrid();
         renderFretboard();
         renderDetail();
+        return true;
+    }
+
+    function scaleSheetChoicesHtml() {
+        var selectedScale = getSettings().scaleType;
+        var html = '<div class="cc-folder-manage-sheet cc-scale-sheet" id="cc-scale-sheet" role="dialog" aria-modal="true" aria-labelledby="cc-scale-sheet-title">' +
+            '<div class="cc-folder-manage-grabber" aria-hidden="true"></div>' +
+            '<div class="cc-scale-sheet-heading">' +
+                '<h3 id="cc-scale-sheet-title">スケールを選択</h3>' +
+                '<button type="button" class="cc-scale-sheet-close" data-scale-sheet-action="close" aria-label="スケール選択を閉じる">閉じる</button>' +
+            '</div>' +
+            '<div class="cc-scale-sheet-options" role="radiogroup" aria-labelledby="cc-scale-sheet-title">';
+        SCALE_SELECTION_ORDER.forEach(function (scaleType) {
+            var selected = scaleType === selectedScale;
+            html += '<button type="button" class="cc-scale-sheet-choice' + (selected ? ' is-selected' : '') + '" data-scale-type="' + scaleType + '" role="radio" aria-checked="' + (selected ? 'true' : 'false') + '">' + scaleLabel(scaleType) + '</button>';
+        });
+        return html + '</div></div>';
+    }
+
+    function ensureScaleSheet() {
+        if (scaleSheet) {
+            return scaleSheet;
+        }
+        scaleSheet = document.createElement('div');
+        // 本棚の既存bottom sheet基盤・配色・focus trapの流儀に合わせる。
+        scaleSheet.className = 'cc-folder-manage-overlay cc-folder-manage-overlay--hidden cc-scale-sheet-overlay';
+        scaleSheet.addEventListener('click', function (event) {
+            if (event.target === scaleSheet) {
+                closeScaleSheet(true);
+            }
+        });
+        scaleSheet.addEventListener('keydown', function (event) {
+            var dialog = scaleSheet.querySelector('[role="dialog"]');
+            if (focusTrap()) {
+                focusTrap().trapFocus(dialog || scaleSheet, event);
+            }
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && scaleSheet && !scaleSheet.classList.contains('cc-folder-manage-overlay--hidden')) {
+                closeScaleSheet(true);
+            }
+        });
+        document.body.appendChild(scaleSheet);
+        return scaleSheet;
+    }
+
+    function closeScaleSheet(returnFocus) {
+        if (!scaleSheet) {
+            return;
+        }
+        var selector = document.getElementById('cc-scale-selector');
+        if (selector) {
+            selector.setAttribute('aria-expanded', 'false');
+        }
+        scaleSheet.classList.add('cc-folder-manage-overlay--hidden');
+        scaleSheet.innerHTML = '';
+        var opener = scaleSheetReturnFocus;
+        scaleSheetReturnFocus = null;
+        if (returnFocus && focusTrap()) {
+            focusTrap().restoreFocus(opener, selector);
+        } else if (returnFocus && opener && typeof opener.focus === 'function') {
+            opener.focus();
+        }
+    }
+
+    function bindScaleSheet() {
+        if (!scaleSheet) {
+            return;
+        }
+        Array.prototype.forEach.call(scaleSheet.querySelectorAll('[data-scale-type]'), function (button) {
+            button.addEventListener('click', function () {
+                if (setScaleType(button.getAttribute('data-scale-type'))) {
+                    closeScaleSheet(true);
+                }
+            });
+        });
+        var closeButton = scaleSheet.querySelector('[data-scale-sheet-action="close"]');
+        if (closeButton) {
+            closeButton.addEventListener('click', function () {
+                closeScaleSheet(true);
+            });
+        }
+    }
+
+    function openScaleSheet(trigger) {
+        var sheet = ensureScaleSheet();
+        scaleSheetReturnFocus = trigger || document.getElementById('cc-scale-selector');
+        if (scaleSheetReturnFocus) {
+            scaleSheetReturnFocus.setAttribute('aria-expanded', 'true');
+        }
+        sheet.innerHTML = scaleSheetChoicesHtml();
+        sheet.classList.remove('cc-folder-manage-overlay--hidden');
+        bindScaleSheet();
+        var selected = sheet.querySelector('[data-scale-type="' + getSettings().scaleType + '"]');
+        if (selected && typeof selected.focus === 'function') {
+            selected.focus();
+        } else if (focusTrap()) {
+            focusTrap().focusFirst(sheet.querySelector('[role="dialog"]') || sheet);
+        }
     }
 
     function setToneMode(toneMode) {
@@ -348,8 +493,6 @@
     function updateSegments() {
         var settings = getSettings();
         var pairs = [
-            ['cc-mode-major', settings.scaleType === 'major'],
-            ['cc-mode-minor', settings.scaleType === 'minor'],
             ['cc-tone-3', settings.chordToneMode === '3'],
             ['cc-tone-7', settings.chordToneMode === '7']
         ];
@@ -359,7 +502,20 @@
                 el.classList.toggle('cc-segment-btn--active', pair[1]);
             }
         });
+        updateScaleSelector();
         updateFbSegments();
+    }
+
+    function updateScaleSelector() {
+        var selector = document.getElementById('cc-scale-selector');
+        var value = document.getElementById('cc-scale-selector-value');
+        var label = scaleLabel(getSettings().scaleType);
+        if (value) {
+            value.textContent = label;
+        }
+        if (selector) {
+            selector.setAttribute('aria-label', 'スケール: ' + label);
+        }
     }
 
     function updateFbSegments() {
@@ -808,6 +964,8 @@
     }
 
     window.ChordCruise.ui.explore = {
-        render: render
+        render: render,
+        // 他画面からも同じ保存成功後反映の経路を利用できるようにする。
+        setScaleType: setScaleType
     };
 })();

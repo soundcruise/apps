@@ -347,6 +347,51 @@ body {
     cursor: pointer;
 }
 
+.cc-scale-control-row {
+    flex-wrap: nowrap;
+}
+
+.cc-scale-selector {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+    min-height: 44px;
+    padding: 10px 13px;
+    border: 1px solid var(--cc-border);
+    border-radius: 12px;
+    color: var(--cc-text);
+    background: var(--cc-surface);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.cc-scale-selector:hover,
+.cc-scale-selector[aria-expanded="true"] {
+    border-color: var(--cc-border-strong);
+    background: rgba(212, 175, 55, 0.09);
+}
+
+.cc-scale-selector-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cc-scale-selector-chevron {
+    flex: 0 0 auto;
+    color: var(--cc-gold-bright);
+    font-size: 1rem;
+    line-height: 1;
+}
+
 /* セグメント切替 */
 .cc-segment {
     display: inline-flex;
@@ -1874,7 +1919,10 @@ body {
 .cc-folder-color-choice:focus-visible,
 .cc-library-display-trigger:focus-visible,
 .cc-library-display-choice:focus-visible,
-.cc-library-display-tab:focus-visible {
+.cc-library-display-tab:focus-visible,
+.cc-scale-selector:focus-visible,
+.cc-scale-sheet-close:focus-visible,
+.cc-scale-sheet-choice:focus-visible {
     outline: 2px solid var(--cc-gold-bright);
     outline-offset: 2px;
 }
@@ -2019,6 +2067,81 @@ body {
 
 .cc-library-display-sheet {
     max-width: 460px;
+}
+
+.cc-scale-sheet {
+    max-width: 460px;
+}
+
+.cc-scale-sheet-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.cc-scale-sheet-heading h3 {
+    margin: 0;
+    color: var(--cc-champagne);
+    font-size: 1rem;
+}
+
+.cc-scale-sheet-close {
+    min-height: 36px;
+    padding: 6px 10px;
+    border: 1px solid var(--cc-border);
+    border-radius: 9px;
+    color: var(--cc-text-muted);
+    background: transparent;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.cc-scale-sheet-options {
+    display: grid;
+    gap: 7px;
+}
+
+.cc-scale-sheet-choice {
+    width: 100%;
+    min-height: 46px;
+    padding: 10px 13px;
+    border: 1px solid var(--cc-border);
+    border-radius: 10px;
+    color: var(--cc-text);
+    background: rgba(255, 255, 255, 0.035);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+}
+
+.cc-scale-sheet-choice::after {
+    content: "";
+    display: inline-block;
+    float: right;
+    width: 8px;
+    height: 8px;
+    margin-top: 4px;
+    border: 1px solid rgba(240, 224, 184, 0.42);
+    border-radius: 50%;
+}
+
+.cc-scale-sheet-choice.is-selected {
+    border-color: rgba(240, 209, 124, 0.88);
+    color: var(--cc-champagne);
+    background: rgba(212, 175, 55, 0.15);
+    box-shadow: inset 0 0 0 1px rgba(212, 175, 55, 0.16);
+}
+
+.cc-scale-sheet-choice.is-selected::after {
+    border-color: var(--cc-gold-bright);
+    background: var(--cc-gold-bright);
+    box-shadow: inset 0 0 0 2px #24201a;
 }
 
 .cc-library-display-tabs {

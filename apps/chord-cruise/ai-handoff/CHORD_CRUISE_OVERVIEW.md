@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
-- 現在のバージョン: `0.21.9`（Phase 2Aとして教会旋法5種を内部追加。UIはMajor / Minorの2択を維持）
+- 現在のバージョン: `0.22.0`（Phase 2Bの7scale selector UI・`scaleType`正規化を正式反映）
 - 最新Chord Cruise commit（`git log --oneline -- apps/chord-cruise/` で確認）:
   - hash: `9874b9ed80cfffa715b3dfe6f029d5d7515451fc`
   - message: `Roman表記を大文字に統一`
@@ -26,7 +26,8 @@
 - `0.21.6`正式修正: Exploreのコード選択時に表示していた下部詳細カード（構成音・度数・役割・雰囲気・よく行くコード）を生成しない。`chord-info.js`の辞書とAPI、詳細行ビルダーは削除せず保持し、保存データ・任意コード・CAGED・指板表示には影響させない。実機確認済み。
 - **v0.21.7 Phase 1確定**: `music-theory.js`へChord Cruise独自の`SCALES.major / minor`を導入し、3和音はscale上の1・3・5、4和音は1・3・5・7を積んで既存`QUALITIES`へ完全一致で照合する。`DIATONIC.major / minor`の公開shape、全12キーのrootPc・コード名・interval・qualityKey・Roman、Major/Minorの2ボタン、CAGED、保存schema、note spellingは変更しない。v0.21.6固定期待値336ケースとの完全一致テストを追加し、ユーザー実機確認済み。将来候補はDorian / Phrygian / Lydian / Mixolydian / Locrian。Roman全大文字化は別工程で、今回は行わない。Pitch Cruiseは参照のみで変更・import・shared化しない。
 - **v0.21.8 Roman表記統一**: Major / Minorの3和音・4和音とも、Romanの度数部分だけを全大文字へ統一した。quality suffixの`M7` / `m7` / `7` / `m7♭5`、rootPc・interval・qualityKey・コード名・CAGED・note spelling・保存schemaは変更していない。新規保存の`keyContext.degreeLabel`は新Romanになるが、本棚等の既存保存コード表示で参照されないためmigration不要。旧保存データは書き換えない。v0.21.7の確定commitは`372253482239de82f0325664156ac44864c3aa7b`。Phase 2の教会旋法追加とは独立したパッチです。
-- **v0.21.9 Phase 2A確定**: `SCALES` / `DIATONIC` / `getDiatonicChords()`をMajor / Ionian、Dorian、Phrygian、Lydian、Mixolydian、Minor / Aeolian、Locrianの7scaleへ拡張した。追加5scaleのintervalはPitch Cruiseの参照値と一致し、3度堆積から既存7qualityだけで3和音・4和音を生成する。Romanの度数部分は全大文字、qualityはsuffixで示す。12 tonic × 7 scale × 2 chord size × 7 degree = 1176件を実装非依存の固定期待値で検証し、Major / Minorはv0.21.8のコード名・note spellingを含む336件の完全回帰を維持した。UIはMajor / Minorの2ボタンのまま、storage・schema・migration・CAGED定義・note spelling・Pitch Cruise・sharedは変更していない。次工程Phase 2Bでscale selector UIとstorage正規化を設計し、note spelling改善は別工程とする。
+- **v0.21.9 Phase 2A確定**: `SCALES` / `DIATONIC` / `getDiatonicChords()`をMajor / Ionian、Dorian、Phrygian、Lydian、Mixolydian、Minor / Aeolian、Locrianの7scaleへ拡張した。追加5scaleのintervalはPitch Cruiseの参照値と一致し、3度堆積から既存7qualityだけで3和音・4和音を生成する。Romanの度数部分は全大文字、qualityはsuffixで示す。12 tonic × 7 scale × 2 chord size × 7 degree = 1176件を実装非依存の固定期待値で検証し、Major / Minorはv0.21.8のコード名・note spellingを含む336件の完全回帰を維持した。
+- **v0.22.0 Phase 2B確定**: ExploreのMajor / Minor 2ボタンを、現在のscale名を示すselectorと7件のbottom sheetへ置換した。順序は`major, dorian, phrygian, lydian, mixolydian, minor, locrian`に固定し、表示ラベルは`SCALES`をsource of truthとする。`storage.normalizeSettings()`はこの7 ID以外（未設定・`null`・不正値を含む）を`major`へ正規化するが、schemaVersionとmigrationは変更していない。選択時は`saveSettings()`成功後だけ共有`state.settings.scaleType`とExplore表示を更新し、失敗時は旧状態を保ってエラートーストを出す。sheetは既存focus trapでTab循環、Escape／backdrop／閉じるボタン、openerへのfocus return、radio ARIAを提供する。新scaleで保存する`keyContext.mode`は既存文字列フィールドへそのまま保存される。note spellingは`keyUsesFlats()`の既存二択フォールバックのままで、理論綴りの改善は別工程とする。実機確認・1176理論ケース・Major/Minor 336回帰を完了した。
 - 通常版/PRO版の構造: PRO版は存在しないため、`apps/chord-cruise/` 直下の `index.html` のみが唯一のエントリーポイント。他アプリのような `standard/` サブディレクトリも無い。
 - JS/CSSの共有関係:
   - `theme.css` はコードクルーズ専用の1ファイル（`apps/shared/` には依存していない）。
@@ -55,14 +56,14 @@
 |---|---|
 | `index.html` | 唯一のHTMLエントリーポイント。ホーム/コードを調べる/コード本棚の3画面（`<section>`）をJSで切り替えるSPA構造。 |
 | `theme.css` | 見た目全体（`cc-` プレフィックスのクラス群）。他アプリの`theme.css`とは独立しており、`shared/`にも依存しない。 |
-| `js/core/storage.js` | `localStorage`永続化層。プレフィックス `chordCruise.`。設定・フォルダ一覧・コードインデックス・個別コードデータに加え、`chordCruise.libraryOrder`で本棚の順序IDを分離管理する。コード保存・削除は関連キーを事前スナップショットし、途中失敗時に可能な限り全キーを復元して成功扱いにしない。スキーマバージョン管理あり。 |
-| `js/core/music-theory.js` | 音楽理論の基礎データ。Major / IonianからLocrianまでの`SCALES` 7種と、7音scaleの3度堆積・既存quality同定から`DIATONIC`を生成する。Phase 2A時点のUIと保存値はMajor / Minorだけを扱う。 |
+| `js/core/storage.js` | `localStorage`永続化層。プレフィックス `chordCruise.`。設定・フォルダ一覧・コードインデックス・個別コードデータに加え、`chordCruise.libraryOrder`で本棚の順序IDを分離管理する。コード保存・削除は関連キーを事前スナップショットし、途中失敗時に可能な限り全キーを復元して成功扱いにしない。`scaleType`は7正式IDだけを受け入れ、不正値は通常正規化で`major`へ戻す。schemaVersionは維持する。 |
+| `js/core/music-theory.js` | 音楽理論の基礎データ。Major / IonianからLocrianまでの`SCALES` 7種と、7音scaleの3度堆積・既存quality同定から`DIATONIC`を生成する。Explore UIのラベルsourceでもある。 |
 | `js/core/caged-forms.js` | CAGEDフォーム（移動可能フォーム）の辞書データ。弦番号・オフセット・度数で構成音位置を定義。 |
 | `js/core/chord-model.js` | 「任意コード作成」用のコードモデル（3度/5度/7度/テンション等の値体系）。 |
 | `js/core/chord-info.js` | コードの説明文辞書（ダイアトニック度数ごとの機能解説）。 |
 | `js/ui/fretboard.js` | コードクルーズ専用の指板描画。表示列・マーカー・バレーの共通座標モデルを作り、編集用DOM指板、軽量SVG、PNG元SVGへ展開する。 |
 | `js/ui/focus-trap.js` | dialog / bottom sheet専用の最小共通helper。hidden・disabled・`tabindex=-1`を除外し、Tab/Shift+Tab循環、focusable要素なし時のcontainer focus、validなopenerへのfocus returnを提供する。 |
-| `js/ui/explore.js` | 「コードを調べる」画面のロジック本体。キー/スケール、3和音/4和音、CAGED、指板表示モード、ハイフレット切替、コード詳細を担当。 |
+| `js/ui/explore.js` | 「コードを調べる」画面のロジック本体。キー/7scale selector、3和音/4和音、CAGED、指板表示モード、ハイフレット切替、コード詳細を担当。scale変更は保存成功後に反映する。 |
 | `js/ui/chord-builder.js` | 「任意コードを作る」モーダル。共通focus trapとopener focus returnを適用する。コード内コメントに「UI構成・操作感は音感クルーズPROの『コードを作る』と統一」と明記あり（＝他アプリとのUI設計の一貫性を意図した実装）。 |
 | `js/ui/save-editor.js` | フォームの保存前編集と保存コード編集の共通モーダル。Tab循環とopener focus returnを適用する。編集可能な運指マーカーはTabで到達でき、Enter / Spaceでクリックと同じ循環編集を行う。保存範囲・表示モード・運指・警告・音の消去・名前・メモ・フォルダを編集し、保存コードは同一IDでの上書き／新規IDでの別名保存を選べる。保存コード編集の初回だけ押弦範囲を中央寄せする。 |
 | `js/ui/chord-export.js` | 保存コード指板のPNG書き出し。自己完結SVGを2倍Canvasへ描画し、download属性非対応時は新規タブ表示へフォールバックする。 |
@@ -80,7 +81,7 @@
 
 - **ホーム画面**（`cc-screen-home`）: タイトル・タグライン＋2つのアクションカード「🔍 コードを調べる」「📚 コード本棚」。この画面のときだけ共通ナビ（`cc-nav`）が隠れる。
 - **コードを調べる画面**（`cc-screen-explore`）: `index.html` 上は「この画面は次のSTEPで実装します」というプレースホルダー文言が残っているが、**これは古いコメントで実際には`js/ui/explore.js`の`render()`がこのセクションのDOMを完全に上書きして動的に構築するため、実際には十分に実装済み**。中身は以下の通り:
-  - キー選択（セレクトボックス）、メジャー/マイナー切替、3和音/4和音（トライアド/セブンス）切替
+  - キー選択（セレクトボックス）、現在のscale名selectorから開く7scale bottom sheet、3和音/4和音（トライアド/セブンス）切替
   - ダイアトニックコードのグリッド表示＋「＋ 任意コードを作る」ボタン
   - 指板表示（CDE/ドレミ/度数/運指の4モード。運指はCAGEDフォーム選択中のみ有効）
   - CAGEDフォーム切替（全体/C型/A型/G型/E型/D型）
@@ -105,7 +106,7 @@
 ## 6. アプリ固有の主要機能
 
 - **コードを調べる**:
-  - キーとスケール（メジャー/マイナー）を選ぶと、そのキーのダイアトニックコード（3和音/4和音切替可）がグリッド表示される。
+  - キーとスケール（メジャー / ドリアン / フリジアン / リディアン / ミクソリディアン / マイナー / ロクリアン）を選ぶと、そのキーのダイアトニックコード（3和音/4和音切替可）がグリッド表示される。selectorは現在値を常時表示し、bottom sheetのradio選択・focus trap・Escape／backdrop／閉じるボタンへ対応する。
   - グリッドのコードをタップすると、指板上にCAGEDフォームベースで構成音が表示される。CAGED（C/A/G/E/D）の5フォーム＋「全体」表示を切替可能。
   - 指板の表示モードはCDE（音名）/ドレミ（ソルフェージュ）/度数/運指。運指はCAGEDフォーム選択時のみ有効。
   - ハイフレットOFFは0〜13F、ONは12〜25Fを同じ14列で表示する。音名・フォーム・保存データは列番号ではなく実フレット番号を使う。
@@ -141,8 +142,8 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.21.9`）。Phase 2Aの教会旋法内部対応でパッチバージョンを更新した。
-- `?v=` によるキャッシュ管理: `index.html` 内の全15本の `<script src="...?v=0.21.9">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.21.9">` が同じバージョン文字列を共有している。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.22.0`）。Phase 2Bの7scale selector UIを正式反映したためマイナーバージョンを更新した。
+- `?v=` によるキャッシュ管理: `index.html` 内の全15本の `<script src="...?v=0.22.0">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.22.0">` が同じバージョン文字列を共有している。
 - 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
 - service workerの更新: service worker自体が存在しないため不要。
 - **バージョン更新漏れしやすい箇所**: `index.html`内の15本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。
@@ -174,7 +175,7 @@
 
 `git log --oneline -- apps/chord-cruise/` で確認した実際の履歴（新しい順、主要分）。
 
-- `0.21.9` 教会旋法5種を内部理論基盤へ追加（7scale・固定期待値1176ケース、UIはMajor / Minorのみ）
+- `0.22.0` 7種類のスケール選択UIと設定正規化を正式反映（Phase 2B、固定期待値1176ケース・Major/Minor 336ケース回帰、実機確認済み）。
 - `0.21.8` Roman度数部分を全大文字化（quality suffix・Roman以外の理論値不変、実機確認済み）
 - `0.21.7` Major / MinorのダイアトニックをSCALESと3度堆積から自動生成（v0.21.6固定336ケース一致、実機確認済み）
 - `0.21.6` Explore下部詳細カードを非表示化（構成音・度数・役割・雰囲気・よく行くコード、実機確認済み）
@@ -205,7 +206,7 @@
 - `c0000a1b` コードクルーズにダイアトニックコード表示を追加
 - `c1f019a0` コードクルーズの初期画面を追加
 
-（v0.21.0は`ced7a1c`まで、v0.21.1の保存データ安全性修正は`a7ad0e8`まで正式反映済み。v0.21.2は右上表示設定の保存失敗時安全化、v0.21.3はmodal / bottom sheetのキーボード操作改善、v0.21.4は危険操作確認のARIA改善、v0.21.5は運指編集マーカーのキーボード操作、v0.21.6はExplore下部詳細カード非表示化、v0.21.7はダイアトニックスケール生成基盤、v0.21.8はRoman表記全大文字化を正式反映済み。Phase 2Aの教会旋法内部対応は未commit。）
+（v0.21.0は`ced7a1c`まで、v0.21.1の保存データ安全性修正は`a7ad0e8`まで正式反映済み。v0.21.2は右上表示設定の保存失敗時安全化、v0.21.3はmodal / bottom sheetのキーボード操作改善、v0.21.4は危険操作確認のARIA改善、v0.21.5は運指編集マーカーのキーボード操作、v0.21.6はExplore下部詳細カード非表示化、v0.21.7はダイアトニックスケール生成基盤、v0.21.8はRoman表記全大文字化、v0.21.9 Phase 2Aは教会旋法内部対応、v0.22.0 Phase 2Bは7scale selector UI・設定正規化を正式反映済み。）
 
 ---
 

@@ -12,6 +12,9 @@
     var LIBRARY_ORDER_VERSION = 1;
     var DEFAULT_HIGHLIGHTED_FRETS = [0, 3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
     var FOLDER_COLOR_KEYS = ['forest', 'burgundy', 'navy', 'umber', 'charcoal', 'teal', 'violet', 'russet', 'leather', 'black-leather', 'wine', 'black-gold'];
+    // Phase 2A で理論生成に対応した7種類だけを、保存設定でも正式値として扱う。
+    // Object.keys() の列挙順には依存せず、UI側もこの同じ並びを明示的に使う。
+    var VALID_SCALE_TYPES = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'locrian'];
 
     var DEFAULT_SETTINGS = {
         selectedKey: 0,
@@ -51,6 +54,9 @@
 
     function normalizeSettings(settings) {
         var normalized = settings;
+        if (VALID_SCALE_TYPES.indexOf(normalized.scaleType) === -1) {
+            normalized.scaleType = 'major';
+        }
         if (['small', 'medium', 'large', 'xlarge'].indexOf(normalized.chordNameSize) === -1) {
             normalized.chordNameSize = 'medium';
         }
@@ -724,8 +730,10 @@
     window.ChordCruise = window.ChordCruise || {};
     window.ChordCruise.storage = {
         UNCATEGORIZED_ID: UNCATEGORIZED_ID,
+        VALID_SCALE_TYPES: VALID_SCALE_TYPES.slice(),
         ensureSchemaVersion: ensureSchemaVersion,
         getSettingsDefaults: getSettingsDefaults,
+        normalizeSettings: normalizeSettings,
         loadSettings: loadSettings,
         saveSettings: saveSettings,
         loadFolders: loadFolders,
