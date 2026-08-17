@@ -29,22 +29,103 @@
         'm7b5': { suffix: 'm7♭5', intervals: [0, 3, 6, 10] }
     };
 
-    // ダイアトニック定義
-    var DIATONIC = {
+    /*
+     * 7音スケール定義。Phase 1では既存UIと保存値を完全互換にするため、
+     * 公開するIDは major / minor のまま維持する。Romanもv0.21.6の表示を
+     * 固定し、将来の全大文字化や新scale追加とは分離する。
+     */
+    var SCALES = {
         major: {
-            rootIntervals: [0, 2, 4, 5, 7, 9, 11],
-            triadQualities: ['maj', 'm', 'm', 'maj', 'maj', 'm', 'dim'],
-            seventhQualities: ['maj7', 'm7', 'm7', 'maj7', '7', 'm7', 'm7b5'],
-            roman3: ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'],
-            roman7: ['IM7', 'iim7', 'iiim7', 'IVM7', 'V7', 'vim7', 'viim7♭5']
+            id: 'major',
+            label: 'メジャー',
+            intervals: [0, 2, 4, 5, 7, 9, 11],
+            degreeLabels: ['1', '2', '3', '4', '5', '6', '7'],
+            legacyRoman3: ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'],
+            legacyRoman7: ['IM7', 'iim7', 'iiim7', 'IVM7', 'V7', 'vim7', 'viim7♭5']
         },
-        minor: { // ナチュラルマイナー
-            rootIntervals: [0, 2, 3, 5, 7, 8, 10],
-            triadQualities: ['m', 'dim', 'maj', 'm', 'm', 'maj', 'maj'],
-            seventhQualities: ['m7', 'm7b5', 'maj7', 'm7', 'm7', 'maj7', '7'],
-            roman3: ['i', 'ii°', 'III', 'iv', 'v', 'VI', 'VII'],
-            roman7: ['im7', 'iim7♭5', 'IIIM7', 'ivm7', 'vm7', 'VIM7', 'VII7']
+        minor: { // ナチュラルマイナー（エオリアン）
+            id: 'minor',
+            label: 'マイナー',
+            intervals: [0, 2, 3, 5, 7, 8, 10],
+            degreeLabels: ['1', '2', '♭3', '4', '5', '♭6', '♭7'],
+            legacyRoman3: ['i', 'ii°', 'III', 'iv', 'v', 'VI', 'VII'],
+            legacyRoman7: ['im7', 'iim7♭5', 'IIIM7', 'ivm7', 'vm7', 'VIM7', 'VII7']
         }
+    };
+
+    function sameIntervals(left, right) {
+        if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+            return false;
+        }
+        var i;
+        for (i = 0; i < left.length; i++) {
+            if (left[i] !== right[i]) return false;
+        }
+        return true;
+    }
+
+    /** 7音scaleのdegreeから1・3・5（・7）を積み、コードルート基準の半音間隔を返す。 */
+    function stackScaleChordIntervals(scaleIntervals, degreeIndex, noteCount) {
+        if (!Array.isArray(scaleIntervals) || scaleIntervals.length !== 7) {
+            throw new Error('Diatonic chord generation requires a seven-note scale.');
+        }
+        if (degreeIndex < 0 || degreeIndex >= scaleIntervals.length || Math.floor(degreeIndex) !== degreeIndex) {
+            throw new Error('Scale degree index is out of range.');
+        }
+        if (noteCount !== 3 && noteCount !== 4) {
+            throw new Error('Diatonic chord note count must be 3 or 4.');
+        }
+
+        var root = scaleIntervals[degreeIndex];
+        var result = [];
+        var chordToneIndex;
+        for (chordToneIndex = 0; chordToneIndex < noteCount; chordToneIndex++) {
+            var scaleIndex = degreeIndex + chordToneIndex * 2;
+            var octave = Math.floor(scaleIndex / scaleIntervals.length) * 12;
+            var absoluteInterval = scaleIntervals[scaleIndex % scaleIntervals.length] + octave;
+            result.push(absoluteInterval - root);
+        }
+        return result;
+    }
+
+    /** 生成intervalを既存QUALITIESと完全一致で照合する。未対応qualityはnull。 */
+    function identifyQuality(intervals) {
+        var qualityKey;
+        for (qualityKey in QUALITIES) {
+            if (Object.prototype.hasOwnProperty.call(QUALITIES, qualityKey) &&
+                sameIntervals(intervals, QUALITIES[qualityKey].intervals)) {
+                return qualityKey;
+            }
+        }
+        return null;
+    }
+
+    function buildDiatonicDefinition(scale) {
+        var triadQualities = [];
+        var seventhQualities = [];
+        var degreeIndex;
+        for (degreeIndex = 0; degreeIndex < scale.intervals.length; degreeIndex++) {
+            var triadQuality = identifyQuality(stackScaleChordIntervals(scale.intervals, degreeIndex, 3));
+            var seventhQuality = identifyQuality(stackScaleChordIntervals(scale.intervals, degreeIndex, 4));
+            if (!triadQuality || !seventhQuality) {
+                throw new Error('Unsupported diatonic quality in scale: ' + scale.id + ', degree: ' + degreeIndex);
+            }
+            triadQualities.push(triadQuality);
+            seventhQualities.push(seventhQuality);
+        }
+        return {
+            rootIntervals: scale.intervals.slice(),
+            triadQualities: triadQualities,
+            seventhQualities: seventhQualities,
+            roman3: scale.legacyRoman3.slice(),
+            roman7: scale.legacyRoman7.slice()
+        };
+    }
+
+    // 既存公開APIを維持しながら、quality配列はscale intervalsから自動生成する。
+    var DIATONIC = {
+        major: buildDiatonicDefinition(SCALES.major),
+        minor: buildDiatonicDefinition(SCALES.minor)
     };
 
     // コードルート基準の度数表示
@@ -140,7 +221,10 @@
         MAJOR_KEY_OPTIONS: MAJOR_KEY_OPTIONS,
         MINOR_KEY_OPTIONS: MINOR_KEY_OPTIONS,
         QUALITIES: QUALITIES,
+        SCALES: SCALES,
         DIATONIC: DIATONIC,
+        stackScaleChordIntervals: stackScaleChordIntervals,
+        identifyQuality: identifyQuality,
         keyUsesFlats: keyUsesFlats,
         noteName: noteName,
         solfegeName: solfegeName,
