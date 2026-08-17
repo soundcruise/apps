@@ -239,8 +239,8 @@
             <h1>コードクルーズ 開発概要</h1>
             <p>キーから探して、指板で確かめて、自分のコード本棚へ ── 開発中のコード学習アプリ</p>
             <div class="ov-meta">
-                <span>現在のバージョン<b>0.21.8（Roman表記全大文字化）</b></span>
-                <span>最新Chord Cruise commit<b>25063781</b></span>
+                <span>現在のバージョン<b>0.21.9（Phase 2A教会旋法内部対応）</b></span>
+                <span>最新Chord Cruise commit<b>9874b9ed</b></span>
                 <span>最終更新日<b>2026年8月17日</b></span>
             </div>
         </header>
@@ -310,6 +310,9 @@
                 <div class="ov-warn-box" style="margin-top: 14px;">
                     <p><b>v0.21.8 Roman表記統一:</b> Major / Minorの3和音・4和音で、Romanの度数部分だけを全大文字へ統一しました。M7 / m7 / 7 / m7♭5等のquality suffix、コード名、CAGED、音名表記、保存schemaは維持しています。新規保存のdegreeLabelは新表記になりますが、既存保存コードの画面表示では参照されないためmigrationは不要です。v0.21.7の確定commitは<code>3722534</code>です。次工程はPhase 2の教会旋法追加です。</p>
                 </div>
+                <div class="ov-warn-box" style="margin-top: 14px;">
+                    <p><b>v0.21.9 Phase 2A（内部理論のみ）:</b> Major / Ionian、Dorian、Phrygian、Lydian、Mixolydian、Minor / Aeolian、Locrianの7scaleを内部APIで扱えるようにしました。追加intervalはPitch Cruise参照値と一致し、既存7qualityと全大文字Romanだけで3和音・4和音を生成します。固定期待値1176ケースとMajor / Minor完全回帰336ケースを検証しました。画面は引き続きMajor / Minorの2択で、保存schema・音名表記・CAGED・Pitch Cruiseは変更していません。次工程Phase 2Bはscale selector UIとstorage正規化です。</p>
+                </div>
             </div>
         </section>
 
@@ -343,6 +346,7 @@
                         </tr>
                     </thead>
                     <tbody>
+                        <tr><td><code>0.21.9</code></td><td>教会旋法5種を内部理論基盤へ追加（Phase 2A、UIはMajor / Minorのみ）</td></tr>
                         <tr><td><code>0.21.8</code></td><td>Roman表記を大文字に統一（実機確認済み）</td></tr>
                         <tr><td><code>0.21.7</code></td><td>ダイアトニックスケール生成基盤を刷新（Phase 1、実機確認済み）</td></tr>
                         <tr><td><code>25063781</code></td><td>Explore下部詳細カードを非表示化（v0.21.6、実機確認済み）</td></tr>
@@ -377,7 +381,7 @@
         </section>
 
         <div class="ov-footer">
-            コードクルーズ開発概要 ／ 最終更新日: 2026年8月17日 ／ 最新Chord Cruise commit: 25063781<br>
+            コードクルーズ開発概要 ／ 最終更新日: 2026年8月17日 ／ 最新Chord Cruise commit: 9874b9ed<br>
             詳細な開発者向け資料は <code>apps/chord-cruise/ai-handoff/CHORD_CRUISE_OVERVIEW.md</code> を参照してください。
         </div>
     </div>

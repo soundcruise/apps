@@ -30,26 +30,66 @@
     };
 
     /*
-     * 7音スケール定義。Phase 1では既存UIと保存値を完全互換にするため、
-     * 公開するIDは major / minor のまま維持する。Romanはqualityを示さない
-     * 度数ラベルとして全大文字に統一し、将来のscale追加とも分離する。
+     * 7音スケール定義。Phase 2Aでは教会旋法7種を内部APIへ公開するが、
+     * UIと保存値は引き続き major / minor のみを扱う。Romanはqualityを
+     * suffixで示し、度数部分を全大文字に統一する。
      */
     var SCALES = {
         major: {
             id: 'major',
-            label: 'メジャー',
+            label: 'メジャー / イオニアン',
             intervals: [0, 2, 4, 5, 7, 9, 11],
             degreeLabels: ['1', '2', '3', '4', '5', '6', '7'],
             roman3: ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII°'],
             roman7: ['IM7', 'IIm7', 'IIIm7', 'IVM7', 'V7', 'VIm7', 'VIIm7♭5']
         },
+        dorian: {
+            id: 'dorian',
+            label: 'ドリアン',
+            intervals: [0, 2, 3, 5, 7, 9, 10],
+            degreeLabels: ['1', '2', '♭3', '4', '5', '6', '♭7'],
+            roman3: ['I', 'II', 'III', 'IV', 'V', 'VI°', 'VII'],
+            roman7: ['Im7', 'IIm7', 'IIIM7', 'IV7', 'Vm7', 'VIm7♭5', 'VIIM7']
+        },
+        phrygian: {
+            id: 'phrygian',
+            label: 'フリジアン',
+            intervals: [0, 1, 3, 5, 7, 8, 10],
+            degreeLabels: ['1', '♭2', '♭3', '4', '5', '♭6', '♭7'],
+            roman3: ['I', 'II', 'III', 'IV', 'V°', 'VI', 'VII'],
+            roman7: ['Im7', 'IIM7', 'III7', 'IVm7', 'Vm7♭5', 'VIM7', 'VIIm7']
+        },
+        lydian: {
+            id: 'lydian',
+            label: 'リディアン',
+            intervals: [0, 2, 4, 6, 7, 9, 11],
+            degreeLabels: ['1', '2', '3', '♯4', '5', '6', '7'],
+            roman3: ['I', 'II', 'III', 'IV°', 'V', 'VI', 'VII'],
+            roman7: ['IM7', 'II7', 'IIIm7', 'IVm7♭5', 'VM7', 'VIm7', 'VIIm7']
+        },
+        mixolydian: {
+            id: 'mixolydian',
+            label: 'ミクソリディアン',
+            intervals: [0, 2, 4, 5, 7, 9, 10],
+            degreeLabels: ['1', '2', '3', '4', '5', '6', '♭7'],
+            roman3: ['I', 'II', 'III°', 'IV', 'V', 'VI', 'VII'],
+            roman7: ['I7', 'IIm7', 'IIIm7♭5', 'IVM7', 'Vm7', 'VIm7', 'VIIM7']
+        },
         minor: { // ナチュラルマイナー（エオリアン）
             id: 'minor',
-            label: 'マイナー',
+            label: 'マイナー / エオリアン',
             intervals: [0, 2, 3, 5, 7, 8, 10],
             degreeLabels: ['1', '2', '♭3', '4', '5', '♭6', '♭7'],
             roman3: ['I', 'II°', 'III', 'IV', 'V', 'VI', 'VII'],
             roman7: ['Im7', 'IIm7♭5', 'IIIM7', 'IVm7', 'Vm7', 'VIM7', 'VII7']
+        },
+        locrian: {
+            id: 'locrian',
+            label: 'ロクリアン',
+            intervals: [0, 1, 3, 5, 6, 8, 10],
+            degreeLabels: ['1', '♭2', '♭3', '4', '♭5', '♭6', '♭7'],
+            roman3: ['I°', 'II', 'III', 'IV', 'V', 'VI', 'VII'],
+            roman7: ['Im7♭5', 'IIM7', 'IIIm7', 'IVm7', 'VM7', 'VI7', 'VIIm7']
         }
     };
 
@@ -125,7 +165,12 @@
     // 既存公開APIを維持しながら、quality配列はscale intervalsから自動生成する。
     var DIATONIC = {
         major: buildDiatonicDefinition(SCALES.major),
-        minor: buildDiatonicDefinition(SCALES.minor)
+        dorian: buildDiatonicDefinition(SCALES.dorian),
+        phrygian: buildDiatonicDefinition(SCALES.phrygian),
+        lydian: buildDiatonicDefinition(SCALES.lydian),
+        mixolydian: buildDiatonicDefinition(SCALES.mixolydian),
+        minor: buildDiatonicDefinition(SCALES.minor),
+        locrian: buildDiatonicDefinition(SCALES.locrian)
     };
 
     // コードルート基準の度数表示
