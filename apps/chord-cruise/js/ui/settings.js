@@ -47,6 +47,10 @@
         return window.ChordCruise.state.settings;
     }
 
+    function focusTrap() {
+        return window.ChordCruise.ui && window.ChordCruise.ui.focusTrap;
+    }
+
     function buildReloadUrl(href, timestamp) {
         var url = new URL(href);
         url.searchParams.set('_r', String(timestamp));
@@ -376,11 +380,9 @@
         overlayEl.setAttribute('aria-hidden', 'true');
         document.body.classList.remove('cc-settings-open');
         if (openBtn) openBtn.classList.remove('cc-settings-corner-btn--hidden');
-        if (previousFocus && typeof previousFocus.focus === 'function') {
-            previousFocus.focus();
-        } else if (openBtn) {
-            openBtn.focus();
-        }
+        if (focusTrap()) focusTrap().restoreFocus(previousFocus, openBtn);
+        else if (previousFocus && typeof previousFocus.focus === 'function') previousFocus.focus();
+        else if (openBtn) openBtn.focus();
     }
 
     function init() {
@@ -403,6 +405,11 @@
             refreshBtn.addEventListener('click', reloadAppWithCacheBust);
         });
         if (overlayEl) {
+            overlayEl.addEventListener('keydown', function (event) {
+                var confirmation = document.getElementById('cc-settings-reset-confirm');
+                var trapTarget = confirmation && !confirmation.hidden ? confirmation : overlayEl;
+                if (focusTrap()) focusTrap().trapFocus(trapTarget, event);
+            });
             overlayEl.addEventListener('click', function (event) {
                 var choice = event.target.closest('[data-fret-number-size]');
                 if (choice) {

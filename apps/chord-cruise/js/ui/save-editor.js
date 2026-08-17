@@ -14,9 +14,14 @@
     var initialSnapshot = null;
     var onSavedCallback = null;
     var saveInProgress = false;
+    var previousFocus = null;
 
     function theory() {
         return window.ChordCruise.theory;
+    }
+
+    function focusTrap() {
+        return window.ChordCruise.ui && window.ChordCruise.ui.focusTrap;
     }
 
     function clone(value) {
@@ -103,6 +108,10 @@
         document.getElementById('cc-save-cancel-bottom').addEventListener('click', cancelNewSave);
         overlayEl.addEventListener('click', function (event) {
             if (event.target === overlayEl) requestClose();
+        });
+        overlayEl.addEventListener('keydown', function (event) {
+            var dialog = overlayEl.querySelector('[role="dialog"]');
+            if (focusTrap()) focusTrap().trapFocus(dialog || overlayEl, event);
         });
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape' && draft) requestClose();
@@ -539,11 +548,14 @@
         overlayEl.classList.remove('cc-modal-overlay--hidden');
         renderPreview();
         initialSnapshot = snapshot();
+        var dialog = overlayEl.querySelector('[role="dialog"]');
+        if (focusTrap()) focusTrap().focusFirst(dialog || overlayEl);
     }
 
     /** 新規フォームの保存前編集を開く。 */
     function open(payload) {
         ensureDom();
+        previousFocus = document.activeElement;
         var chord = payload.chord;
         var form = payload.form;
         var displayRange = form.displayRange || form.fretRange;
@@ -584,6 +596,7 @@
     /** 保存済みコードを複製し、元データへ触れずに編集を開始する。 */
     function openExisting(payload) {
         ensureDom();
+        previousFocus = document.activeElement;
         var original = clone(payload.chord || {});
         var notes = Array.isArray(original.notes) ? clone(original.notes).filter(function (note) {
             return note && typeof note.string === 'number' && typeof note.fret === 'number';
@@ -632,12 +645,16 @@
     }
 
     function close() {
+        var returnFocus = previousFocus;
         resetFolderCreate();
         if (overlayEl) overlayEl.classList.add('cc-modal-overlay--hidden');
         draft = null;
         initialSnapshot = null;
         onSavedCallback = null;
         saveInProgress = false;
+        previousFocus = null;
+        if (focusTrap()) focusTrap().restoreFocus(returnFocus);
+        else if (returnFocus && typeof returnFocus.focus === 'function') returnFocus.focus();
     }
 
     window.ChordCruise = window.ChordCruise || {};

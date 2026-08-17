@@ -9,9 +9,14 @@
     var overlayEl = null;
     var nameUserEdited = false;
     var onApplyCallback = null;
+    var previousFocus = null;
 
     function model() {
         return window.ChordCruise.chordModel;
+    }
+
+    function focusTrap() {
+        return window.ChordCruise.ui && window.ChordCruise.ui.focusTrap;
     }
 
     function ensureDom() {
@@ -23,7 +28,7 @@
         overlayEl = document.createElement('div');
         overlayEl.className = 'cc-modal-overlay cc-modal-overlay--hidden';
         overlayEl.innerHTML =
-            '<div class="cc-modal" role="dialog" aria-label="コードを作る">' +
+            '<div class="cc-modal" role="dialog" aria-modal="true" aria-label="コードを作る">' +
                 '<div class="cc-modal-head">' +
                     '<h3 class="cc-modal-title">コードを作る</h3>' +
                     '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-builder-cancel">キャンセル</button>' +
@@ -76,6 +81,10 @@
         overlayEl.addEventListener('click', function (event) {
             if (event.target === overlayEl) close();
         });
+        overlayEl.addEventListener('keydown', function (event) {
+            var dialog = overlayEl.querySelector('[role="dialog"]');
+            if (focusTrap()) focusTrap().trapFocus(dialog || overlayEl, event);
+        });
 
         // 名前の手編集を検知（音感クルーズPROと同じ挙動: 手で触ったら自動更新しない）
         var nameInput = document.getElementById('cc-builder-name');
@@ -127,6 +136,7 @@
 
     function open(options) {
         ensureDom();
+        previousFocus = document.activeElement;
         onApplyCallback = options && options.onApply;
         // フォーム初期化
         document.getElementById('cc-builder-root').value = '0';
@@ -139,12 +149,18 @@
         nameUserEdited = false;
         refreshName();
         overlayEl.classList.remove('cc-modal-overlay--hidden');
+        var dialog = overlayEl.querySelector('[role="dialog"]');
+        if (focusTrap()) focusTrap().focusFirst(dialog || overlayEl);
     }
 
     function close() {
         if (overlayEl) {
             overlayEl.classList.add('cc-modal-overlay--hidden');
         }
+        var returnFocus = previousFocus;
+        previousFocus = null;
+        if (focusTrap()) focusTrap().restoreFocus(returnFocus);
+        else if (returnFocus && typeof returnFocus.focus === 'function') returnFocus.focus();
     }
 
     window.ChordCruise = window.ChordCruise || {};

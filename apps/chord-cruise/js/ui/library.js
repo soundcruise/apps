@@ -115,13 +115,28 @@
 
     var confirmOverlay = null;
     var confirmHandler = null;
+    var confirmReturnFocus = null;
 
-    function confirmDanger(message, okLabel, onOk) {
+    function focusTrap() {
+        return window.ChordCruise.ui && window.ChordCruise.ui.focusTrap;
+    }
+
+    function closeDangerConfirm(returnFocus) {
+        if (!confirmOverlay) return;
+        confirmOverlay.classList.add('cc-modal-overlay--hidden');
+        confirmHandler = null;
+        var opener = confirmReturnFocus;
+        confirmReturnFocus = null;
+        if (returnFocus && focusTrap()) focusTrap().restoreFocus(opener);
+        else if (returnFocus && opener && typeof opener.focus === 'function') opener.focus();
+    }
+
+    function confirmDanger(message, okLabel, onOk, returnFocus) {
         if (!confirmOverlay) {
             confirmOverlay = document.createElement('div');
             confirmOverlay.className = 'cc-modal-overlay cc-modal-overlay--hidden';
             confirmOverlay.innerHTML =
-                '<div class="cc-confirm-card" role="alertdialog">' +
+                '<div class="cc-confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="cc-confirm-message">' +
                     '<p class="cc-confirm-message" id="cc-confirm-message"></p>' +
                     '<div class="cc-confirm-actions">' +
                         '<button type="button" class="cc-btn cc-btn-danger" id="cc-confirm-ok"></button>' +
@@ -130,20 +145,30 @@
                 '</div>';
             document.body.appendChild(confirmOverlay);
             document.getElementById('cc-confirm-cancel').addEventListener('click', function () {
-                confirmOverlay.classList.add('cc-modal-overlay--hidden');
-                confirmHandler = null;
+                closeDangerConfirm(true);
             });
             document.getElementById('cc-confirm-ok').addEventListener('click', function () {
-                confirmOverlay.classList.add('cc-modal-overlay--hidden');
                 var handler = confirmHandler;
-                confirmHandler = null;
+                closeDangerConfirm(false);
                 if (handler) handler();
+            });
+            confirmOverlay.addEventListener('keydown', function (event) {
+                var dialog = confirmOverlay.querySelector('[role="alertdialog"]');
+                if (focusTrap()) focusTrap().trapFocus(dialog || confirmOverlay, event);
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && confirmOverlay && !confirmOverlay.classList.contains('cc-modal-overlay--hidden')) {
+                    closeDangerConfirm(true);
+                }
             });
         }
         document.getElementById('cc-confirm-message').textContent = message;
         document.getElementById('cc-confirm-ok').textContent = okLabel;
         confirmHandler = onOk;
+        confirmReturnFocus = returnFocus || document.activeElement;
         confirmOverlay.classList.remove('cc-modal-overlay--hidden');
+        var cancelButton = document.getElementById('cc-confirm-cancel');
+        if (cancelButton) cancelButton.focus();
     }
 
     // ---- 共通ヘルパー ----
@@ -351,6 +376,10 @@
         folderManageSheet.addEventListener('click', function (event) {
             if (event.target === folderManageSheet) closeFolderManageSheet(true);
         });
+        folderManageSheet.addEventListener('keydown', function (event) {
+            var dialog = folderManageSheet.querySelector('[role="dialog"]');
+            if (focusTrap()) focusTrap().trapFocus(dialog || folderManageSheet, event);
+        });
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape' && folderManageSheet && !folderManageSheet.classList.contains('cc-folder-manage-overlay--hidden')) {
                 closeFolderManageSheet(true);
@@ -374,9 +403,8 @@
         folderManageSheet.classList.add('cc-folder-manage-overlay--hidden');
         document.body.classList.remove('cc-folder-manage-open');
         folderManageSheet.innerHTML = '';
-        if (returnFocus && folderManageReturnFocus && typeof folderManageReturnFocus.focus === 'function') {
-            folderManageReturnFocus.focus();
-        }
+        if (returnFocus && focusTrap()) focusTrap().restoreFocus(folderManageReturnFocus);
+        else if (returnFocus && folderManageReturnFocus && typeof folderManageReturnFocus.focus === 'function') folderManageReturnFocus.focus();
         folderManageReturnFocus = null;
     }
 
@@ -386,6 +414,10 @@
         libraryDisplaySheet.className = 'cc-folder-manage-overlay cc-folder-manage-overlay--hidden cc-library-display-overlay';
         libraryDisplaySheet.addEventListener('click', function (event) {
             if (event.target === libraryDisplaySheet) closeLibraryDisplaySheet(true);
+        });
+        libraryDisplaySheet.addEventListener('keydown', function (event) {
+            var dialog = libraryDisplaySheet.querySelector('[role="dialog"]');
+            if (focusTrap()) focusTrap().trapFocus(dialog || libraryDisplaySheet, event);
         });
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape' && libraryDisplaySheet && !libraryDisplaySheet.classList.contains('cc-folder-manage-overlay--hidden')) {
@@ -406,7 +438,8 @@
         libraryDisplayActiveTab = 'display';
         var trigger = libraryDisplayReturnFocus;
         libraryDisplayReturnFocus = null;
-        if (returnFocus && trigger && typeof trigger.focus === 'function') trigger.focus();
+        if (returnFocus && focusTrap()) focusTrap().restoreFocus(trigger);
+        else if (returnFocus && trigger && typeof trigger.focus === 'function') trigger.focus();
     }
 
     function libraryTextSizeChoicesHtml(key, label) {
@@ -661,8 +694,12 @@
         sheet.dataset.pane = pane || 'menu';
         sheet.innerHTML = pane === 'rename' ? folderManageRenameHtml(folder) : pane === 'color' ? folderManageColorHtml(folder) : folderManageMenuHtml(folder, count);
         bindFolderManageSheet();
-        var focusTarget = sheet.querySelector('input, button');
-        if (focusTarget) focusTarget.focus();
+        var dialog = sheet.querySelector('[role="dialog"]');
+        if (focusTrap()) focusTrap().focusFirst(dialog || sheet);
+        else {
+            var focusTarget = sheet.querySelector('input, button');
+            if (focusTarget) focusTarget.focus();
+        }
     }
 
     function openFolderManageSheet(folderId, trigger) {
@@ -703,15 +740,20 @@
                 }
                 if (action === 'delete') {
                     var count = chordCountIn(id, buildFolderCountMap());
+                    var returnFocus = folderManageReturnFocus;
                     closeFolderManageSheet(false);
                     var deleteMessage = count > 0
                         ? 'フォルダ「' + folder.name + '」を削除しますか？このフォルダと、中にある' + count + '件のコードを完全に削除します。この操作は元に戻せません。'
                         : 'フォルダ「' + folder.name + '」を削除しますか？この空のフォルダを削除します。この操作は元に戻せません。';
                     confirmDanger(deleteMessage, '完全に削除', function () {
-                        if (!storage().deleteFolder(id)) return toast('フォルダを削除できませんでした', 'error');
+                        if (!storage().deleteFolder(id)) {
+                            toast('フォルダを削除できませんでした', 'error');
+                            if (focusTrap()) focusTrap().restoreFocus(returnFocus);
+                            return;
+                        }
                         renderFolders();
                         toast(count > 0 ? 'フォルダとコードを完全に削除しました' : '空のフォルダを削除しました');
-                    });
+                    }, returnFocus);
                 }
             });
         });
@@ -1336,15 +1378,17 @@
         // 削除
         document.getElementById('cc-lib-delete').addEventListener('click', function () {
             var current = currentDetailChord || chord;
+            var deleteButton = document.getElementById('cc-lib-delete');
             confirmDanger('「' + displayChordName(current.chordName) + '（' + chordFormName(current) + '）」を削除しますか？この操作は取り消せません。', '削除する', function () {
                 var current = currentDetailChord || chord;
                 if (!storage().deleteChord(current.id)) {
                     toast('コードを削除できませんでした', 'error');
+                    if (focusTrap()) focusTrap().restoreFocus(deleteButton);
                     return;
                 }
                 renderList();
                 toast('コードを削除しました');
-            });
+            }, deleteButton);
         });
     }
 
