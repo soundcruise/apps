@@ -144,8 +144,8 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.22.1`）。現行7scaleの理論音名表記改善をパッチ更新として正式化した。
-- `?v=` によるキャッシュ管理: `index.html` 内の全15本の `<script src="...?v=0.22.1">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.22.1">` が同じバージョン文字列を共有している。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.22.2`）。Phase Aの4新quality core理論基盤を正式化した。
+- `?v=` によるキャッシュ管理: `index.html` 内の全15本の `<script src="...?v=0.22.2">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.22.2">` が同じバージョン文字列を共有している。
 - 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
 - service workerの更新: service worker自体が存在しないため不要。
 - **バージョン更新漏れしやすい箇所**: `index.html`内の15本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。
