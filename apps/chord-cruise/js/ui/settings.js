@@ -129,36 +129,72 @@
         if (customWrap) customWrap.hidden = activeMode !== 'custom';
     }
 
+    function cloneSettings(settings) {
+        var clone = {};
+        var key;
+        for (key in settings) {
+            if (Object.prototype.hasOwnProperty.call(settings, key)) {
+                clone[key] = Array.isArray(settings[key]) ? settings[key].slice() : settings[key];
+            }
+        }
+        return clone;
+    }
+
+    function saveRightTopSettings(partial) {
+        var current = getSettings();
+        if (!current || !partial || typeof partial !== 'object') return false;
+        var next = cloneSettings(current);
+        var key;
+        for (key in partial) {
+            if (Object.prototype.hasOwnProperty.call(partial, key)) {
+                next[key] = Array.isArray(partial[key]) ? partial[key].slice() : partial[key];
+            }
+        }
+        if (window.ChordCruise.storage.saveSettings(next) !== true) {
+            updateControls();
+            showResetResult('設定を保存できませんでした', 'error');
+            return false;
+        }
+        for (key in next) {
+            if (Object.prototype.hasOwnProperty.call(next, key)) {
+                current[key] = Array.isArray(next[key]) ? next[key].slice() : next[key];
+            }
+        }
+        return true;
+    }
+
     function setFretNumberSize(value) {
-        var size = applyFretNumberSize(value);
-        getSettings().fretNumberSize = size;
-        window.ChordCruise.storage.saveSettings({ fretNumberSize: size });
+        var size = normalizeSize(value);
+        if (!saveRightTopSettings({ fretNumberSize: size })) return false;
+        applyFretNumberSize(size);
         updateControls();
         notifyFretboardChange();
+        return true;
     }
 
     function setChordNameSize(value) {
-        var size = applyChordNameSize(value);
-        getSettings().chordNameSize = size;
-        window.ChordCruise.storage.saveSettings({ chordNameSize: size });
+        var size = normalizeChordNameSize(value);
+        if (!saveRightTopSettings({ chordNameSize: size })) return false;
+        applyChordNameSize(size);
         updateControls();
         notifyFretboardChange();
+        return true;
     }
 
     function setFretboardMarkerLabelSize(value) {
         var size = normalizeSize(value);
-        getSettings().fretboardMarkerLabelSize = size;
-        window.ChordCruise.storage.saveSettings({ fretboardMarkerLabelSize: size });
+        if (!saveRightTopSettings({ fretboardMarkerLabelSize: size })) return false;
         updateControls();
         notifyFretboardChange();
+        return true;
     }
 
     function setPreviewDisplayMode(value) {
         var mode = ['note', 'solfege', 'degree', 'finger'].indexOf(value) !== -1 ? value : 'note';
-        getSettings().fretboardDisplayMode = mode;
-        window.ChordCruise.storage.saveSettings({ fretboardDisplayMode: mode });
+        if (!saveRightTopSettings({ fretboardDisplayMode: mode })) return false;
         updateControls();
         notifyFretboardChange();
+        return true;
     }
 
     function notifyFretboardChange() {
@@ -174,24 +210,24 @@
 
     function setHighlightMode(value) {
         var mode = normalizeHighlightMode(value);
-        getSettings().fretNumberHighlightMode = mode;
-        window.ChordCruise.storage.saveSettings({ fretNumberHighlightMode: mode });
+        if (!saveRightTopSettings({ fretNumberHighlightMode: mode })) return false;
         updateControls();
         notifyFretboardChange();
+        return true;
     }
 
     function toggleHighlightedFret(value) {
         var fret = parseInt(value, 10);
-        if (fret < 0 || fret > 25 || Math.floor(fret) !== fret) return;
+        if (fret < 0 || fret > 25 || Math.floor(fret) !== fret) return false;
         var selected = normalizeHighlightedFrets(getSettings().highlightedFrets);
         var index = selected.indexOf(fret);
         if (index === -1) selected.push(fret);
         else selected.splice(index, 1);
         selected.sort(function (a, b) { return a - b; });
-        getSettings().highlightedFrets = selected;
-        window.ChordCruise.storage.saveSettings({ highlightedFrets: selected });
+        if (!saveRightTopSettings({ highlightedFrets: selected })) return false;
         updateControls();
         notifyFretboardChange();
+        return true;
     }
 
     function toggleDescription(button) {

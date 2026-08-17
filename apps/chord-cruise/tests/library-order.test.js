@@ -110,6 +110,59 @@ function loadLibrary(seed) {
     return env;
 }
 
+function loadRightTopSettingsUi(seed, failKeys) {
+    const env = loadStorage(seed, failKeys);
+    const attributes = {};
+    const notices = [];
+    let settingsClickHandler = null;
+    let fretboardChangeCount = 0;
+    const overlay = {
+        addEventListener(type, handler) {
+            if (type === 'click') settingsClickHandler = handler;
+        },
+        querySelectorAll() { return []; },
+        classList: { add() {}, remove() {} },
+        setAttribute() {}
+    };
+    env.context.window.ChordCruise.state = { settings: env.storage.loadSettings() };
+    env.context.window.ChordCruise.ui = {
+        toast: { show(message, options) { notices.push({ message, options }); } }
+    };
+    env.context.window.CustomEvent = function (type) { this.type = type; };
+    env.context.document = {
+        activeElement: null,
+        body: { classList: { add() {}, remove() {} } },
+        documentElement: { setAttribute(name, value) { attributes[name] = value; } },
+        addEventListener() {},
+        dispatchEvent(event) {
+            if (event && event.type === 'chordcruise:fretboard-settings-change') fretboardChangeCount += 1;
+        },
+        getElementById(id) { return id === 'cc-settings-overlay' ? overlay : null; },
+        querySelectorAll() { return []; }
+    };
+    vm.runInContext(settingsSource, env.context, { filename: 'settings.js' });
+    const api = env.context.window.ChordCruise.ui.settings;
+    api.init();
+    return {
+        env,
+        api,
+        attributes,
+        notices,
+        fretboardChangeCount() { return fretboardChangeCount; },
+        choose(attribute, value) {
+            assert(settingsClickHandler, 'settings click handler is registered');
+            const choice = {
+                getAttribute(name) { return name === attribute ? String(value) : null; }
+            };
+            settingsClickHandler({
+                target: {
+                    closest(selector) { return selector === '[' + attribute + ']' ? choice : null; }
+                }
+            });
+        }
+    };
+}
+
 function ids(items) {
     return Array.from(items, (item) => item.id);
 }
@@ -537,6 +590,72 @@ function orderOf(env) {
     const env = loadStorage(seed, [P + 'settings']);
     assert.strictEqual(env.storage.saveSettings({ fretboardMarkerLabelSize: 'small' }), false);
     assert.strictEqual(env.storage.loadSettings().fretboardMarkerLabelSize, 'xlarge');
+})();
+
+(function rightTopSettingsCommitOnlyAfterSuccessfulPersistence() {
+    const seed = baseData();
+    seed[P + 'settings'] = json({
+        chordNameSize: 'small',
+        fretNumberSize: 'small',
+        fretboardMarkerLabelSize: 'small',
+        fretNumberHighlightMode: 'custom',
+        highlightedFrets: [1, 5],
+        fretboardDisplayMode: 'degree',
+        libraryCardDisplayMode: 'solfege',
+        futureSetting: 'keep-me'
+    });
+    const scenarios = [
+        ['data-chord-name-size', 'xlarge', 'chordNameSize'],
+        ['data-fret-number-size', 'xlarge', 'fretNumberSize'],
+        ['data-fretboard-marker-label-size', 'xlarge', 'fretboardMarkerLabelSize'],
+        ['data-preview-display-mode', 'finger', 'fretboardDisplayMode'],
+        ['data-fret-highlight-mode', 'all', 'fretNumberHighlightMode'],
+        ['data-highlight-fret', '9', 'highlightedFrets']
+    ];
+    scenarios.forEach(([attribute, value, changedKey]) => {
+        const ui = loadRightTopSettingsUi(seed, [P + 'settings']);
+        const beforeState = native(ui.env.context.window.ChordCruise.state.settings);
+        const beforeStored = ui.env.localStorage.getItem(P + 'settings');
+        ui.choose(attribute, value);
+        assert.deepStrictEqual(native(ui.env.context.window.ChordCruise.state.settings), beforeState, changedKey + ' stays in memory at its persisted value when saving fails');
+        assert.strictEqual(ui.env.localStorage.getItem(P + 'settings'), beforeStored, changedKey + ' storage remains unchanged when saving fails');
+        assert.strictEqual(ui.fretboardChangeCount(), 0, changedKey + ' does not redraw fretboards before persistence succeeds');
+        assert.strictEqual(ui.notices.at(-1).message, '設定を保存できませんでした');
+        assert.strictEqual(ui.notices.at(-1).options.type, 'error');
+    });
+
+    const successful = loadRightTopSettingsUi(seed);
+    successful.choose('data-chord-name-size', 'xlarge');
+    const saved = successful.env.storage.loadSettings();
+    assert.strictEqual(successful.env.context.window.ChordCruise.state.settings.chordNameSize, 'xlarge');
+    assert.strictEqual(saved.chordNameSize, 'xlarge');
+    assert.strictEqual(saved.futureSetting, 'keep-me', 'successful settings changes preserve unknown keys');
+    assert.strictEqual(saved.libraryCardDisplayMode, 'solfege', 'right-top settings leave library-only settings unchanged');
+    assert.strictEqual(successful.attributes['data-cc-chord-name-size'], 'xlarge');
+    assert.strictEqual(successful.fretboardChangeCount(), 1, 'successful persistence redraws dependent fretboards once');
+})();
+
+(function rightTopSettingsResetFailureKeepsMemoryAndStoredValues() {
+    const seed = baseData();
+    seed[P + 'settings'] = json({
+        chordNameSize: 'xlarge',
+        fretNumberSize: 'small',
+        fretboardMarkerLabelSize: 'large',
+        fretNumberHighlightMode: 'custom',
+        highlightedFrets: [1, 5],
+        fretboardDisplayMode: 'degree',
+        libraryCardDisplayMode: 'solfege',
+        futureSetting: 'keep-me'
+    });
+    const ui = loadRightTopSettingsUi(seed, [P + 'settings']);
+    const beforeState = native(ui.env.context.window.ChordCruise.state.settings);
+    const beforeStored = ui.env.localStorage.getItem(P + 'settings');
+    assert.strictEqual(ui.api.resetDisplaySettings(), false);
+    assert.deepStrictEqual(native(ui.env.context.window.ChordCruise.state.settings), beforeState);
+    assert.strictEqual(ui.env.localStorage.getItem(P + 'settings'), beforeStored);
+    assert.strictEqual(ui.fretboardChangeCount(), 0);
+    assert.strictEqual(ui.notices.at(-1).message, '表示設定を保存できませんでした');
+    assert.strictEqual(ui.notices.at(-1).options.type, 'error');
 })();
 
 (function libraryCardTextScalesClampByColumnWithoutDisablingLarge() {

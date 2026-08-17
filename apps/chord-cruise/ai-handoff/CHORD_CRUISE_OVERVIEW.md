@@ -14,11 +14,12 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
-- 現在のバージョン: `0.21.1`（保存安全性修正を実装・実機確認済み、今回commit・push対象。`index.html` の各`<script>`タグの `?v=`、および `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`）
+- 現在のバージョン: `0.21.2`（右上設定の保存失敗時整合性修正を実機確認済み。`index.html` の各`<script>`タグの `?v=`、および `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`）
 - 最新commit（chord-cruise関連、`git log --oneline -- apps/chord-cruise/` で確認）:
-  - hash: `ced7a1c92bc5290681db7facb0020263597eb36a`
-  - message: `コードクルーズの本棚表示設定を拡張`
-- 今回の`0.21.1`修正: `saveChord`／`deleteChord`の原子的保存、詳細画面の保存失敗処理、書き込み障害注入テスト。実機確認済み。
+  - hash: `a7ad0e8f7e3eae458039b2d051b2ea0f2bd116a9`
+  - message: `コード保存と削除の安全性を改善`
+- `0.21.1`の正式修正: `saveChord`／`deleteChord`の原子的保存、詳細画面の保存失敗処理、書き込み障害注入テスト。実機確認済み。
+- `0.21.2`の正式修正: 右上表示設定は候補値を先に`storage.saveSettings()`へ保存し、成功時だけ既存の共有`state.settings`へ反映して再描画する。失敗時はメモリ・UI・プレビューを変更せず、「設定を保存できませんでした」を表示する。本棚一覧専用設定は変更せず、実機確認済み。
 - 通常版/PRO版の構造: PRO版は存在しないため、`apps/chord-cruise/` 直下の `index.html` のみが唯一のエントリーポイント。他アプリのような `standard/` サブディレクトリも無い。
 - JS/CSSの共有関係:
   - `theme.css` はコードクルーズ専用の1ファイル（`apps/shared/` には依存していない）。
@@ -58,7 +59,7 @@
 | `js/ui/save-editor.js` | フォームの保存前編集と保存コード編集の共通モーダル。保存範囲・表示モード・運指・警告・音の消去・名前・メモ・フォルダを編集し、保存コードは同一IDでの上書き／新規IDでの別名保存を選べる。保存コード編集の初回だけ押弦範囲を中央寄せする。 |
 | `js/ui/chord-export.js` | 保存コード指板のPNG書き出し。自己完結SVGを2倍Canvasへ描画し、download属性非対応時は新規タブ表示へフォールバックする。 |
 | `js/ui/library.js` | 「コード本棚」の3階層。フォルダと保存コードの上下ボタン式並び替え、1〜4列の指板カード、一覧専用の表示設定（CDE／ドレミ／度数／運指・カラー／白黒）、詳細の白黒切替・PNG書き出し・編集を管理する。 |
-| `js/ui/settings.js` | 右上の共通設定ボタンと設定オーバーレイ。指板表示設定に加え、全主要画面と設定画面にあるVer表示／`_r=<timestamp>`付きページ更新を管理する。 |
+| `js/ui/settings.js` | 右上の共通設定ボタンと設定オーバーレイ。右上表示設定は保存成功後だけ共有状態・UI・再描画へ反映し、失敗時は旧表示を維持する。全主要画面と設定画面にあるVer表示／`_r=<timestamp>`付きページ更新も管理する。 |
 | `js/app.js` | エントリースクリプト。バージョン定数の保持、画面切り替え（`showScreen`）、共通ナビ（戻る/TOP）のイベント登録、初期化処理。 |
 
 **現時点で存在しないファイル**: PRO版HTML、`manifest.json`、`service-worker.js`、`info.html`、`terms.html`、`privacy.html`、単発ヘルプページ。
@@ -107,7 +108,7 @@
 - **押さえ方・運指・バレーコード表示の注意点**: 運指はCAGEDフォーム選択中のみ有効。警告音は運指モードだけ`⚠️`となり、他モードでは通常の音名・階名・度数を表示する。同じ指・同じ実フレットのノートからバレーを導出し、警告音と消去予定音は対象外。保存編集では`finger`、`fingeringWarning`、draft専用`pendingDelete`を分離し、確定時に消去予定音だけを除外する。
 - **コード本棚**: 保存したコードフォームをフォルダ単位で整理する。フォルダはヴィンテージ楽譜集の背表紙として2〜6列で並び、各行の直下に棚板を描く。列数はコードカードの1〜4列設定とは別に`folderShelfColumns`で保持する。表示名は一文字ずつの装飾用spanで縦組みにし、半角英数字は正立、長音記号「ー」は空の専用spanの擬似要素でCSS製の縦線として描く。文字グリフの回転には依存しない。ボタン本体の`aria-label`と`title`は元の横書き名を保つ。各フォルダ下部の「…」は管理専用で、名前変更・フォルダと全コードの深い複製・12色からの色選択・完全削除をbottom sheetで提供する。未分類は先頭固定で色変更のみできる。フォルダのコピーは新規IDと新規コードIDを採番し、元の直後・元のコード順で追加する。色はフォルダの任意`colorKey`だけに保存し、既定は`black-leather`。colorKeyなしの旧フォルダも黒革として表示し、読むだけでは保存データを書き換えない。フォルダ削除は所属コードの個別レコード、index、`libraryOrder`をまとめて完全削除し、書き込み失敗時はスナップショットを復元する。コード一覧ではコード名＋軽量SVG指板を1〜4列で表示する。詳細・一覧・書き出しは同じ保存範囲描画モデルを使う。
 - **保存データの整合性**: 保存コードの新規保存・上書き・フォルダ移動・削除では、個別コード、`chordCruise.chords.index`、`chordCruise.libraryOrder`、必要時のフォルダ初期化状態を同一トランザクション相当として扱う。各書き込み前の生値を保存し、途中失敗時は全キーの復元を個別に試み、復元の一部に失敗しても残りを継続する。APIは保存失敗時`null`、削除失敗時`false`を返し、詳細画面は入力・表示・現在位置を成功前に確定せずエラートーストを出す。
-- **表示設定**: `chordCruise.settings` に `fretNumberSize`、`fretNumberHighlightMode`、`highlightedFrets`、`highFretMode`、`fretboardMarkerLabelSize`（`small`／`medium`／`large`／`xlarge`、既定`medium`）を保存する。右上の「丸内文字の大きさ」はCDE／ドレミ／度数／運指／⚠へ共通適用し、Explore・本棚詳細・設定プレビュー・PNGだけに明示的に渡す。詳細では保存済み指板のオプション生成時にこの値を落とさず、指板hostへ渡す。保存前編集には渡さない。本棚一覧専用には`libraryCardDisplayMode`（既定`finger`）、`libraryCardMonochrome`（既定`false`）、`libraryCardChordNameSize`／`libraryCardFretNumberSize`／`libraryCardMarkerLabelSize`（各`small`／`medium`／`large`／`xlarge`、既定`medium`）を保存する。両系統は完全分離する。右上設定末尾の「すべてデフォルトに戻す」は確認後、`chordNameSize`、`fretNumberSize`、`fretboardMarkerLabelSize`、`fretNumberHighlightMode`、`highlightedFrets`、`fretboardDisplayMode`だけを`storage.getSettingsDefaults()`由来の既定値へ1回の部分保存で戻す。保存コード・フォルダ・一覧設定・順序・未知のsettings keyは保持し、全データ初期化や`localStorage.clear()`は使わない。表示設定bottom sheetは「表示」と「文字サイズ」のアクセシブルな2タブで、選択タブは金色下線、非選択はグレー文字として設定値ボタンと区別し、開くたびに表示タブから開始する。保存済みの弦・フレット・interval・fingerから軽量SVGだけを再描画し、特大は列数ごとに安全な倍率へクランプする。白黒一覧だけは固定高カードで上下の丸・フレット番号を切らないよう、SVGのviewBoxへ専用安全余白と白いパネル背景を渡す。既存settingsへ既定値をマージし、schemaVersionは変更しない。
+- **表示設定**: `chordCruise.settings` に `fretNumberSize`、`fretNumberHighlightMode`、`highlightedFrets`、`highFretMode`、`fretboardMarkerLabelSize`（`small`／`medium`／`large`／`xlarge`、既定`medium`）を保存する。右上の各変更は候補オブジェクトを保存してから、成功時だけ同じ共有`state.settings`オブジェクトへコピーし、DOM適用・操作部同期・`chordcruise:fretboard-settings-change`を行う。保存失敗時は共有状態・UI・プレビューを旧値のままにし、エラートーストのみ表示する。右上の「丸内文字の大きさ」はCDE／ドレミ／度数／運指／⚠へ共通適用し、Explore・本棚詳細・設定プレビュー・PNGだけに明示的に渡す。詳細では保存済み指板のオプション生成時にこの値を落とさず、指板hostへ渡す。保存前編集には渡さない。本棚一覧専用には`libraryCardDisplayMode`（既定`finger`）、`libraryCardMonochrome`（既定`false`）、`libraryCardChordNameSize`／`libraryCardFretNumberSize`／`libraryCardMarkerLabelSize`（各`small`／`medium`／`large`／`xlarge`、既定`medium`）を保存する。両系統は完全分離する。右上設定末尾の「すべてデフォルトに戻す」は確認後、`chordNameSize`、`fretNumberSize`、`fretboardMarkerLabelSize`、`fretNumberHighlightMode`、`highlightedFrets`、`fretboardDisplayMode`だけを`storage.getSettingsDefaults()`由来の既定値へ1回の部分保存で戻す。保存コード・フォルダ・一覧設定・順序・未知のsettings keyは保持し、全データ初期化や`localStorage.clear()`は使わない。表示設定bottom sheetは「表示」と「文字サイズ」のアクセシブルな2タブで、選択タブは金色下線、非選択はグレー文字として設定値ボタンと区別し、開くたびに表示タブから開始する。保存済みの弦・フレット・interval・fingerから軽量SVGだけを再描画し、特大は列数ごとに安全な倍率へクランプする。白黒一覧だけは固定高カードで上下の丸・フレット番号を切らないよう、SVGのviewBoxへ専用安全余白と白いパネル背景を渡す。既存settingsへ既定値をマージし、schemaVersionは変更しない。
 - **通常版/PRO版で差がある機能**: 無し（PRO版自体が存在しないため）。
 - **触る時に注意すべきロジック**:
   - `js/core/storage.js` の `localStorage` キー体系（`chordCruise.schemaVersion` 等）とスキーマバージョン管理。データ移行を伴う変更は要注意。
@@ -132,8 +133,8 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.21.1`）。今回の保存安全性修正でパッチバージョンを更新した。
-- `?v=` によるキャッシュ管理: `index.html` 内の全14本の `<script src="...?v=0.21.1">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.21.1">` が同じバージョン文字列を共有している。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.21.2`）。settings保存失敗時の整合性修正でパッチバージョンを更新した。
+- `?v=` によるキャッシュ管理: `index.html` 内の全14本の `<script src="...?v=0.21.2">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.21.2">` が同じバージョン文字列を共有している。
 - 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
 - service workerの更新: service worker自体が存在しないため不要。
 - **バージョン更新漏れしやすい箇所**: `index.html`内の14本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。
@@ -165,6 +166,8 @@
 
 `git log --oneline -- apps/chord-cruise/` で確認した実際の履歴（新しい順、主要分）。
 
+- 今回: 設定保存失敗時の表示不整合を修正（v0.21.2）
+- `a7ad0e8` コード保存と削除の安全性を改善（v0.21.1）
 - `ced7a1c` コードクルーズの本棚表示設定を拡張（v0.21.0）
 - `2e27acc` コードクルーズの本棚デザインとフォルダ管理を刷新（v0.19.0）
 - `109fcaf` コードクルーズに本棚の並び替えと更新UIを追加（v0.18.0）
@@ -187,7 +190,7 @@
 - `c0000a1b` コードクルーズにダイアトニックコード表示を追加
 - `c1f019a0` コードクルーズの初期画面を追加
 
-（v0.21.0は`ced7a1c`まで正式反映済み。v0.21.1は保存データ安全性修正を反映するパッチリリース。）
+（v0.21.0は`ced7a1c`まで、v0.21.1の保存データ安全性修正は`a7ad0e8`まで正式反映済み。v0.21.2は右上表示設定の保存失敗時安全化を反映するパッチリリース。）
 
 ---
 
