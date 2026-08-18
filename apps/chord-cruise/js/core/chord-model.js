@@ -19,25 +19,6 @@
         21: '13'
     };
 
-    var CORE_QUALITY_MATCH = [
-        { key: 'maj', intervals: [0, 4, 7] },
-        { key: 'm', intervals: [0, 3, 7] },
-        { key: 'dim', intervals: [0, 3, 6] },
-        { key: 'maj7', intervals: [0, 4, 7, 11] },
-        { key: '7', intervals: [0, 4, 7, 10] },
-        { key: 'm7', intervals: [0, 3, 7, 10] },
-        { key: 'm7b5', intervals: [0, 3, 6, 10] }
-    ];
-
-    function sameIntervals(a, b) {
-        if (a.length !== b.length) return false;
-        var i;
-        for (i = 0; i < a.length; i++) {
-            if (a[i] !== b[i]) return false;
-        }
-        return true;
-    }
-
     /**
      * コード名を自動生成する（音感クルーズPRO generateChordName 準拠、表記は本アプリ基準）。
      * @param {Object} spec { rootPc, third, fifth, seventh, tensions }
@@ -67,7 +48,7 @@
             // メジャー系
             if (fifth === 8) {
                 if (seventh === 10) name += 'aug7';
-                else if (seventh === 11) name += 'augM7';
+                else if (seventh === 11) name += 'M7♯5';
                 else name += 'aug';
             } else {
                 if (seventh === 9) name += '6';
@@ -111,27 +92,23 @@
         if (spec.fifth !== null) core.push(spec.fifth);
         if (spec.seventh !== null) core.push(spec.seventh);
 
-        var qualityKey = null;
-        if ((spec.tensions || []).length === 0) {
-            CORE_QUALITY_MATCH.forEach(function (candidate) {
-                if (sameIntervals(core, candidate.intervals)) {
-                    qualityKey = candidate.key;
-                }
-            });
-        }
+        var qualityKey = (spec.tensions || []).length === 0
+            ? theory.identifyQuality(core)
+            : null;
 
         var seenPcs = {};
         var notePcs = [];
         var intervals = [];
         var degreeLabelsList = [];
 
-        core.forEach(function (interval) {
+        var coreDegreeLabels = theory.degreeLabelsForQuality(qualityKey, core);
+        core.forEach(function (interval, coreIndex) {
             var pc = (spec.rootPc + interval) % 12;
             if (seenPcs[pc]) return;
             seenPcs[pc] = true;
             notePcs.push(pc);
             intervals.push(interval);
-            degreeLabelsList.push(theory.degreeLabels([interval])[0]);
+            degreeLabelsList.push(coreDegreeLabels[coreIndex]);
         });
 
         (spec.tensions || []).forEach(function (tension) {

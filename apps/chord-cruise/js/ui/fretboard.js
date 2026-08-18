@@ -489,6 +489,7 @@
             if (m.dimmed) cls += ' cc-fb-marker--dimmed';
             if (m.pendingDelete) cls += ' cc-fb-marker--pending-delete';
             if (m.fingeringWarning) cls += ' cc-fb-marker--warning';
+            if (!m.fingeringWarning && String(m.label == null ? '' : m.label).length > 2) cls += ' cc-fb-marker--long-label';
             if (m.tappable) cls += ' cc-fb-marker--tappable';
             el.className = cls;
             el.style.left = m.x + 'px';

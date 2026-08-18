@@ -656,6 +656,12 @@ body {
     font-size: var(--cc-fb-marker-warning-size, 0.9rem);
 }
 
+/* ♭♭7 など3文字以上の度数も30pxマーカー内へ収める。 */
+.cc-fb-marker--long-label {
+    font-size: calc(var(--cc-fb-marker-label-size, 0.76rem) * 0.84);
+    letter-spacing: -0.06em;
+}
+
 /* 丸内文字サイズは、指定されたHTML指板ホストだけへ閉じ込める。 */
 .cc-fb-host[data-cc-marker-label-size="small"] {
     --cc-fb-marker-label-size: 0.65rem;

@@ -724,6 +724,210 @@ function orderOf(env) {
     assert.strictEqual(JSON.stringify(chord), before, 'thumbnail labels must not mutate saved chord data');
 })();
 
+(function extendedQualitySaveLoadKeepsLegacyTitleAndUsesQualityAwareDegrees() {
+    const env = loadLibrary(baseData());
+    const legacy = env.storage.saveChord({
+        chordName: 'CaugM7',
+        formName: 'E型',
+        folderId: 'folder-a',
+        rootPc: 0,
+        intervals: [0, 4, 8, 11],
+        fretRange: { min: 1, max: 4, includesOpen: false },
+        notes: [
+            { string: 6, fret: 1, interval: 0, finger: 1 },
+            { string: 5, fret: 4, interval: 8, finger: 4 },
+            { string: 4, fret: 2, interval: 11, finger: 2 },
+            { string: 3, fret: 2, interval: 4, finger: 2 }
+        ],
+        mutedStrings: []
+    });
+    assert(legacy && legacy.id, 'extended-quality fixture saves with schema v1');
+
+    const reloaded = loadLibrary(env.localStorage.snapshot());
+    const stored = reloaded.storage.loadChord(legacy.id);
+    const options = reloaded.context.window.ChordCruise.ui.library.savedDiagramOptions;
+    assert.strictEqual(stored.schemaVersion, 1, 'extended quality does not require a schema change');
+    assert.strictEqual(stored.chordName, 'CaugM7', 'legacy saved title remains byte-for-byte unchanged');
+    assert.deepStrictEqual(
+        native(options(stored, { mode: 'degree' }).markers.map((marker) => marker.label)),
+        ['1', '♯5', '7', '3'],
+        'legacy augmented-major-seventh intervals use maj7sharp5 degree behavior'
+    );
+
+    const dim7 = {
+        chordName: 'Cdim7',
+        rootPc: 0,
+        intervals: [0, 3, 6, 9],
+        fretRange: { min: 1, max: 4, includesOpen: false },
+        notes: [
+            { string: 6, fret: 1, interval: 0 },
+            { string: 5, fret: 2, interval: 6 },
+            { string: 4, fret: 1, interval: 9 },
+            { string: 3, fret: 2, interval: 3 }
+        ],
+        mutedStrings: []
+    };
+    assert.deepStrictEqual(
+        native(options(dim7, { mode: 'degree' }).markers.map((marker) => marker.label)),
+        ['1', '♭5', '♭♭7', '♭3'],
+        'saved dim7 diagrams retain the double-flat seventh'
+    );
+})();
+
+(function augmentedFullFormSurvivesSaveLoadAndAllSavedDiagramModes() {
+    const env = loadLibrary(baseData());
+    const saved = env.storage.saveChord({
+        chordName: 'Caug',
+        formName: 'G型',
+        shape: 'G',
+        folderId: 'folder-a',
+        rootPc: 0,
+        intervals: [0, 4, 8],
+        fretRange: { min: 5, max: 8, includesOpen: false },
+        notes: [
+            { string: 6, fret: 8, interval: 0, finger: 4, fingeringWarning: false },
+            { string: 5, fret: 7, interval: 4, finger: 3, fingeringWarning: false },
+            { string: 4, fret: 6, interval: 8, finger: 2, fingeringWarning: false },
+            { string: 3, fret: 5, interval: 0, finger: 1, fingeringWarning: false },
+            { string: 2, fret: 5, interval: 4, finger: 1, fingeringWarning: false },
+            { string: 1, fret: 8, interval: 0, finger: null, fingeringWarning: true }
+        ],
+        mutedStrings: []
+    });
+    assert(saved && saved.id, 'full augmented form saves with schema v1');
+
+    const reloaded = loadLibrary(env.localStorage.snapshot());
+    const stored = reloaded.storage.loadChord(saved.id);
+    const options = reloaded.context.window.ChordCruise.ui.library.savedDiagramOptions;
+    assert.strictEqual(stored.schemaVersion, 1, 'aug FORM needs no schema migration');
+    assert.strictEqual(stored.notes.length, 6, 'all theoretical G-shape slots survive save/load');
+    assert.deepStrictEqual(native(stored.mutedStrings), [], 'fingering convenience does not create saved mutes');
+    assert.strictEqual(stored.notes[0].finger, 4, 'source-backed low root pinky survives save/load');
+    assert.strictEqual(stored.notes[5].finger, null, 'source-omitted first string keeps a null finger');
+    assert.strictEqual(stored.notes[5].fingeringWarning, true, 'source-omitted first string warning survives save/load');
+    assert.deepStrictEqual(native(options(stored, { mode: 'note' }).markers.map((marker) => marker.label)), ['C', 'E', 'G♯', 'C', 'E', 'C']);
+    assert.deepStrictEqual(native(options(stored, { mode: 'solfege' }).markers.map((marker) => marker.label)), ['ド', 'ミ', 'ソ♯', 'ド', 'ミ', 'ド']);
+    assert.deepStrictEqual(native(options(stored, { mode: 'degree' }).markers.map((marker) => marker.label)), ['1', '3', '♯5', '1', '3', '1']);
+    assert.deepStrictEqual(native(options(stored, { mode: 'finger' }).markers.map((marker) => marker.label)), ['小', '薬', '中', '人', '人', '⚠']);
+    assert(librarySource.includes('diagramOptions: diagramOptions'), 'PNG export receives the same saved diagram options');
+})();
+
+(function minorMajorSevenFullFormSurvivesSaveLoadAndAllSavedDiagramModes() {
+    const env = loadLibrary(baseData());
+    const saved = env.storage.saveChord({
+        chordName: 'CmM7',
+        formName: 'G型',
+        shape: 'G',
+        qualityKey: 'mMaj7',
+        folderId: 'folder-a',
+        rootPc: 0,
+        intervals: [0, 3, 7, 11],
+        fretRange: { min: 4, max: 8, includesOpen: false },
+        notes: [
+            { string: 6, fret: 8, interval: 0, finger: 4, fingeringWarning: false },
+            { string: 5, fret: 6, interval: 3, finger: 3, fingeringWarning: false },
+            { string: 4, fret: 5, interval: 7, finger: 2, fingeringWarning: false },
+            { string: 3, fret: 5, interval: 0, finger: null, fingeringWarning: true },
+            { string: 2, fret: 4, interval: 3, finger: null, fingeringWarning: true },
+            { string: 1, fret: 7, interval: 11, finger: null, fingeringWarning: true }
+        ],
+        mutedStrings: []
+    });
+    assert(saved && saved.id, 'full mMaj7 form saves with schema v1');
+
+    const reloaded = loadLibrary(env.localStorage.snapshot());
+    const stored = reloaded.storage.loadChord(saved.id);
+    const options = reloaded.context.window.ChordCruise.ui.library.savedDiagramOptions;
+    assert.strictEqual(stored.schemaVersion, 1, 'mMaj7 FORM needs no schema migration');
+    assert.strictEqual(stored.qualityKey, 'mMaj7');
+    assert.strictEqual(stored.notes.length, 6, 'all theoretical G-shape mMaj7 slots survive save/load');
+    assert.deepStrictEqual(native(stored.mutedStrings), [], 'mMaj7 source omissions do not create saved mutes');
+    assert.deepStrictEqual(native(stored.notes.slice(0, 3).map((note) => note.finger)), [4, 3, 2], 'source-backed low strings survive save/load');
+    assert.deepStrictEqual(native(stored.notes.slice(3).map((note) => note.finger)), [null, null, null], 'unsupported high strings keep null fingers');
+    assert(stored.notes.slice(3).every((note) => note.fingeringWarning === true), 'unsupported high-string warnings survive save/load');
+    assert.deepStrictEqual(native(options(stored, { mode: 'note' }).markers.map((marker) => marker.label)), ['C', 'D♯', 'G', 'C', 'D♯', 'B']);
+    assert.deepStrictEqual(native(options(stored, { mode: 'solfege' }).markers.map((marker) => marker.label)), ['ド', 'レ♯', 'ソ', 'ド', 'レ♯', 'シ']);
+    assert.deepStrictEqual(native(options(stored, { mode: 'degree' }).markers.map((marker) => marker.label)), ['1', '♭3', '5', '1', '♭3', '7']);
+    assert.deepStrictEqual(native(options(stored, { mode: 'finger' }).markers.map((marker) => marker.label)), ['小', '薬', '中', '⚠', '⚠', '⚠']);
+    assert(librarySource.includes('diagramOptions: diagramOptions'), 'mMaj7 PNG export receives the same saved diagram options');
+})();
+
+(function majorSevenSharpFiveFullFormSurvivesSaveLoadAndAllSavedDiagramModes() {
+    const env = loadLibrary(baseData());
+    const saved = env.storage.saveChord({
+        chordName: 'CM7♯5',
+        formName: 'G型',
+        shape: 'G',
+        qualityKey: 'maj7sharp5',
+        folderId: 'folder-a',
+        rootPc: 0,
+        intervals: [0, 4, 8, 11],
+        fretRange: { min: 5, max: 8, includesOpen: false },
+        notes: [
+            { string: 6, fret: 8, interval: 0, finger: 'T', fingeringWarning: false },
+            { string: 5, fret: 7, interval: 4, finger: 2, fingeringWarning: false },
+            { string: 4, fret: 6, interval: 8, finger: 1, fingeringWarning: false },
+            { string: 3, fret: 5, interval: 0, finger: null, fingeringWarning: true },
+            { string: 2, fret: 5, interval: 4, finger: null, fingeringWarning: true },
+            { string: 1, fret: 7, interval: 11, finger: 3, fingeringWarning: false }
+        ],
+        mutedStrings: []
+    });
+    assert(saved && saved.id, 'full M7♯5 form saves with schema v1');
+
+    const reloaded = loadLibrary(env.localStorage.snapshot());
+    const stored = reloaded.storage.loadChord(saved.id);
+    const options = reloaded.context.window.ChordCruise.ui.library.savedDiagramOptions;
+    assert.strictEqual(stored.schemaVersion, 1, 'M7♯5 FORM needs no schema migration');
+    assert.strictEqual(stored.qualityKey, 'maj7sharp5');
+    assert.strictEqual(stored.notes.length, 6, 'all theoretical G-shape M7♯5 slots survive save/load');
+    assert.deepStrictEqual(native(stored.mutedStrings), [], 'M7♯5 complete FORM creates no saved mutes');
+    assert.deepStrictEqual(native(stored.notes.map((note) => note.finger)), ['T', 2, 1, null, null, 3], 'user-verified M7♯5 fingers survive save/load');
+    assert.deepStrictEqual(native(stored.notes.map((note) => note.fingeringWarning)), [false, false, false, true, true, false], 'M7♯5 warning slots survive save/load');
+    assert.deepStrictEqual(native(options(stored, { mode: 'note' }).markers.map((marker) => marker.label)), ['C', 'E', 'G♯', 'C', 'E', 'B']);
+    assert.deepStrictEqual(native(options(stored, { mode: 'solfege' }).markers.map((marker) => marker.label)), ['ド', 'ミ', 'ソ♯', 'ド', 'ミ', 'シ']);
+    assert.deepStrictEqual(native(options(stored, { mode: 'degree' }).markers.map((marker) => marker.label)), ['1', '3', '♯5', '1', '3', '7']);
+    assert.deepStrictEqual(native(options(stored, { mode: 'finger' }).markers.map((marker) => marker.label)), ['親', '中', '人', '⚠', '⚠', '薬']);
+    assert(librarySource.includes('diagramOptions: diagramOptions'), 'M7♯5 PNG export receives the same saved diagram options');
+})();
+
+(function diminishedSevenFormSurvivesSaveLoadAndAllSavedDiagramModes() {
+    const env = loadLibrary(baseData());
+    const saved = env.storage.saveChord({
+        chordName: 'Cdim7',
+        formName: 'G型',
+        shape: 'G',
+        qualityKey: 'dim7',
+        folderId: 'folder-a',
+        rootPc: 0,
+        intervals: [0, 3, 6, 9],
+        fretRange: { min: 7, max: 8, includesOpen: false },
+        notes: [
+            { string: 6, fret: 8, interval: 0, finger: 'T', fingeringWarning: false },
+            { string: 4, fret: 7, interval: 9, finger: 1, fingeringWarning: false },
+            { string: 3, fret: 8, interval: 3, finger: 3, fingeringWarning: false },
+            { string: 2, fret: 7, interval: 6, finger: 2, fingeringWarning: false }
+        ],
+        mutedStrings: [5, 1]
+    });
+    assert(saved && saved.id, 'dim7 form saves with schema v1');
+
+    const reloaded = loadLibrary(env.localStorage.snapshot());
+    const stored = reloaded.storage.loadChord(saved.id);
+    const options = reloaded.context.window.ChordCruise.ui.library.savedDiagramOptions;
+    assert.strictEqual(stored.schemaVersion, 1, 'dim7 FORM needs no schema migration');
+    assert.strictEqual(stored.qualityKey, 'dim7');
+    assert.strictEqual(stored.notes.length, 4, 'all four dim7 chord tones survive save/load');
+    assert.deepStrictEqual(native(stored.mutedStrings), [5, 1], 'dim7 FORM mutes survive unchanged');
+    assert.deepStrictEqual(native(stored.notes.map((note) => note.finger)), ['T', 1, 3, 2], 'user-verified dim7 fingers survive save/load');
+    assert(stored.notes.every((note) => note.fingeringWarning === false), 'dim7 stays warning-free after save/load');
+    assert.deepStrictEqual(native(options(stored, { mode: 'note' }).markers.map((marker) => marker.label)), ['C', 'A', 'D♯', 'F♯']);
+    assert.deepStrictEqual(native(options(stored, { mode: 'solfege' }).markers.map((marker) => marker.label)), ['ド', 'ラ', 'レ♯', 'ファ♯']);
+    assert.deepStrictEqual(native(options(stored, { mode: 'degree' }).markers.map((marker) => marker.label)), ['1', '♭♭7', '♭3', '♭5']);
+    assert.deepStrictEqual(native(options(stored, { mode: 'finger' }).markers.map((marker) => marker.label)), ['親', '人', '薬', '中']);
+    assert(librarySource.includes('diagramOptions: diagramOptions'), 'dim7 PNG export receives the same saved diagram options');
+})();
+
 (function savedDiatonicLabelsRebuildScaleSpellingWithoutChangingStoredTitles() {
     const env = loadLibrary(baseData());
     const options = env.context.window.ChordCruise.ui.library.savedDiagramOptions;

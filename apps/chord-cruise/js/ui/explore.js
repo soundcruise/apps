@@ -610,7 +610,7 @@
         if (chord.degreeLabelsList) {
             return chord.degreeLabelsList[noteIndex];
         }
-        return getTheory().degreeLabels([chord.intervals[noteIndex]])[0];
+        return getTheory().degreeLabelsForQuality(chord.qualityKey, chord.intervals)[noteIndex];
     }
 
     /** ダイアトニックはscale spellingを使い、任意コードは従来の♭/♯判定を維持する。 */
@@ -644,7 +644,9 @@
             return theory.solfegeName(pc, useFlats);
         }
         if (mode === 'degree') {
-            return theory.degreeLabels([interval])[0];
+            var intervalIndex = chord.intervals.indexOf(interval);
+            var qualityLabels = theory.degreeLabelsForQuality(chord.qualityKey, chord.intervals);
+            return intervalIndex !== -1 ? qualityLabels[intervalIndex] : theory.degreeLabels([interval])[0];
         }
         var noteIndex = chord.intervals.indexOf(interval);
         return chordNoteName(chord, noteIndex, pc, useFlats);

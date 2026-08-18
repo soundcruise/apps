@@ -8,7 +8,8 @@ require('../js/core/caged-forms.js');
 
 var caged = window.ChordCruise.caged;
 var theory = window.ChordCruise.theory;
-var qualities = ['maj', 'm', '7', 'maj7', 'm7', 'm7b5', 'dim'];
+var legacyQualities = ['maj', 'm', '7', 'maj7', 'm7', 'm7b5', 'dim'];
+var qualities = legacyQualities.concat(['aug', 'mMaj7', 'maj7sharp5', 'dim7']);
 var shapes = ['C', 'A', 'G', 'E', 'D'];
 var ranges = [{ start: 0, end: 13 }, { start: 12, end: 25 }];
 var expectedOverrides = {
@@ -79,7 +80,7 @@ ranges.forEach(function (range) {
 
 Object.keys(expectedByRange).forEach(function (rangeKey) {
     var bounds = rangeKey.split('-').map(Number);
-    qualities.forEach(function (quality) {
+    legacyQualities.forEach(function (quality) {
         expectedByRange[rangeKey][quality].forEach(function (expected, rootPc) {
             var featured = caged.getCommonForm(quality, rootPc, bounds[1], bounds[0]);
             var actual = featured.shape + (featured.source === 'common' ? '*' : '');
@@ -250,4 +251,4 @@ var xlargePngTextScaleSvg = fretboard.buildExportSvg('G', Object.assign({}, text
 assert(xlargePngTextScaleSvg.includes('font-size:15px'), 'PNG source applies the explicit marker-label scale');
 assert(xlargePngTextScaleSvg.includes('font-size:13px'), 'PNG source keeps fret-number size independent from marker-label scale');
 
-console.log('common-caged-forms: 12 roots x 7 qualities x 2 fret ranges OK');
+console.log('common-caged-forms: 12 roots x 11 qualities x 2 fret ranges OK');

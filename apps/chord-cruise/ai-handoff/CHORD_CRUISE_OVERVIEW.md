@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
-- 現在のバージョン: `0.22.2`（Phase Aの4新quality core理論基盤を正式化。既存UI非露出）
+- 現在のバージョン: `0.22.3`（Phase B正式commit・push済み。dim7 G型の最終実機修正を反映）
 - v0.22.1直前の正式Chord Cruise commit（`git log --oneline -- apps/chord-cruise/` で確認）:
   - hash: `a562888a078494d6deeb9900d2b15260bc35128e`
   - message: `7種類のスケール選択に対応`
@@ -30,6 +30,50 @@
 - **v0.22.0 Phase 2B確定**: ExploreのMajor / Minor 2ボタンを、現在のscale名を示すselectorと7件のbottom sheetへ置換した。順序は`major, dorian, phrygian, lydian, mixolydian, minor, locrian`に固定し、表示ラベルは`SCALES`をsource of truthとする。`storage.normalizeSettings()`はこの7 ID以外（未設定・`null`・不正値を含む）を`major`へ正規化するが、schemaVersionとmigrationは変更していない。選択時は`saveSettings()`成功後だけ共有`state.settings.scaleType`とExplore表示を更新し、失敗時は旧状態を保ってエラートーストを出す。sheetは既存focus trapでTab循環、Escape／backdrop／閉じるボタン、openerへのfocus return、radio ARIAを提供する。新scaleで保存する`keyContext.mode`は既存文字列フィールドへそのまま保存される。実機確認・1176理論ケース・Major/Minor 336回帰を完了し、正式commitは`a562888a078494d6deeb9900d2b15260bc35128e`。
 - **v0.22.1 scale-aware note spelling**: 現在正式対応している7scaleだけを対象に、トニックのletter、degreeごとのletter進行、pitch classから理論音名を導く純粋なspelling engineを追加した。`E♯` / `B♯` / `C♭` / `F♭`とdouble accidentalの`♯♯` / `♭♭`へ対応し、ダイアトニックのroot名・コード記号・構成音・Explore/CAGED・保存前編集・本棚・PNGのCDEラベルへ反映する。pitch class、scale/chord interval、quality、Roman、CAGED座標・運指・バレー・ミュートは変更しない。任意コードとkey contextなしの旧データは`noteName()` / `keyUsesFlats()`による従来表記を維持する。既存保存コードのタイトル文字列は書き換えず、key contextから再計算できるCDEマーカーだけを補正する。schemaVersionは1、migrationと`tonicName`保存追加はなし。Harmonic / Melodic Minor、新quality、新CAGEDは本番へ追加していない。84 scale-tonic固定fixture、588 root、1176 chord spelling、1176構造、Major/Minor 336構造回帰を自動検証し、375px／1280px、保存・再読込・本棚・PNG・consoleを含むユーザー実機確認も完了した。次工程は`aug / mM7 / M7♯5 / dim7`と対応CAGED。
 - **v0.22.2 Phase A正式化**: core `QUALITIES`を11品質へ拡張した。新canonical IDは`aug`（`aug` / Roman `aug` / `1 3 ♯5`）、`mMaj7`（`mM7` / `mM7` / `1 ♭3 5 7`）、`maj7sharp5`（`M7♯5` / `M7♯5` / `1 3 ♯5 7`）、`dim7`（`dim7` / `°7` / `1 ♭3 ♭5 ♭♭7`）。既存7品質にも`symbolSuffix`・`romanSuffix`・品質固有`degreeLabels`を明示し、互換用の既存`suffix`は維持する。`degreeLabelsForQuality()`は`dim7`の9半音だけを`♭♭7`として返し、一般の`degreeLabels()`は従来どおり`6`を返す。schemaVersion 1、migration、7scale、scale UI、任意コードUI表示／`qualityKey`、保存title、CAGED 35型は変更しない。`augM7`はinternal IDとして未使用のためaliasは未導入。次工程Phase BでCAGED 20型と任意コード正式照合を追加する。
+- **v0.22.2 Phase B → v0.22.3正式化**: `aug / mMaj7 / maj7sharp5 / dim7`のC/A/G/E/D固定20フォームを実装し、CAGEDは11品質・55フォームになった。aug／mMaj7／M7♯5／dim7の全20型をユーザー実ギター確認済みとし、最後にdim7 G型を`8x787x`・`親・×・人・薬・中・×`へ修正した。FORMは全slot保持、運指未確定slotだけ`finger:null + fingeringWarning:true`、muteはFORM削除に使用しない。CDE／ドレミ／度数では全FORM音を表示する。schemaVersion 1、migrationなし、Harmonic / Melodic Minor未追加。Phase Bの正式commit・通常pushを完了した。
+- **aug source-backed FINGERING表**:
+
+  | 型 | 採用source shape（6→1弦） | 採用finger | source omission → Chord Cruise |
+  |---|---|---|---|
+  | C | `x3211x`（開放`x32110`） | 5弦4・4弦3・3弦1・2弦2、1弦開放はfingerなし | movable 1弦を⚠、FORMの1弦3度は保持 |
+  | A | `x3655x`（開放Aaug `x03221`） | 5弦1・4弦4・3弦2・2弦3、開放形1弦1 | Caug 1弦を⚠、FORMの1弦♯5は保持 |
+  | G | `87655x`（開放Gaug `321003`） | 6弦4・5弦3・4弦2・3〜2弦1、開放形は6弦3・5弦2・4弦1・1弦4 | Caug 1弦を⚠、FORMの1弦rootは保持 |
+  | E | `8-11-10-9-x-x`（開放Eaug `032110`） | 6弦1・5弦4・4弦3・3弦2、開放形は5弦4・4弦3・3弦1・2弦2 | Caug 2・1弦を⚠、FORMの♯5/rootは保持 |
+  | D | `xx10-13-13-12`（開放Daug `xx0332`） | 4弦1・3弦3・2弦4・1弦2、開放形は3弦2・2弦3・1弦1 | なし |
+
+- **aug運指の採用資料**: [EverythingMusic C Augmented](https://everythingmusic.com/learn/guitar/chords/c/augmented)はC/A/G/DのCAGED別diagramに指番号を明示、[EverythingMusic E Augmented](https://everythingmusic.com/learn/guitar/chords/e/augmented)は開放`032110`の指番号を明示、[FretJam Augmented Guitar Chords](https://www.fretjam.com/augmented-guitar-chords.html)はC/A/G/D等の開放diagramをfingering表示で明示、[Tabs4Acoustic Caug](https://www.tabs4acoustic.com/en/Caug-guitar-chord%2C918.html)は`8 11 10 9 x x`と`1 4 3 2`を本文で明示する。[Guitar Wiz Caug](https://guitarwiz.app/chords/c-augmented/)の`x32110`、[GtrLib Caug](https://gtrlib.com/chords/c-augmented)のsuggested-finger diagram、[JGuitar Caug](https://jguitar.com/chord?chord=Augmented&root=C)、[Gock Major Sharp Five](https://chords.gock.net/chords/major-sharp-five)はshape／音程の照合に使い、指番号を明示確認できないTABだけからfingerを補完していない。
+- **mMaj7 source-backed FINGERING表**:
+
+  | 型 | 理論FORM（CmM7、6→1弦） | 指番号入りsource shape | 採用finger | source非対応slot → Chord Cruise |
+  |---|---|---|---|---|
+  | C | `x15-13-12-12-11` | `x15-13-12-12-x` | 5弦4・4弦2・3〜2弦1 | 1弦♭3を⚠、FORMには保持 |
+  | A | `x35443` | `x35443` | 5弦1・4弦4・3弦2・2弦3・1弦1 | なし |
+  | G | `865547` | user-verified | 6弦4・5弦2・4弦1・1弦3 | 3〜2弦を⚠、FORMには保持 |
+  | E | `8-10-9-8-8-8` | `8-10-9-8-8-8` | 6弦1・5弦3・4弦2・3〜1弦1 | なし |
+  | D | `xx10-12-12-11` | `xx10-12-12-11` | 4弦1・3弦3・2弦4・1弦2 | なし |
+
+- **mMaj7運指の採用資料**: [GuitarLessons365 Minor/Major Seventh Chords CAGED Sequence PDF](https://www.guitarlessons365.com/scores/guitarchordmasterypt1/minMaj7Aug7min7b5CAGED.pdf)はCm(maj7)のC/A/G/E/D全5型についてTABと指番号を同じ図で明示するため、FINGERINGの唯一の採用sourceとした。[Guitar-chord.org m(Maj7)](https://www.guitar-chord.org/m-maj7.html)は`1-♭3-5-7`、Cmの`C-E♭-G-B`、開放／ムーバブルshapeを照合し、[Gock mMaj7](https://chords.gock.net/chords/minor-major-seventh)は`8x5547`・`8x988x`等の実用voicingを照合、[JGuitar Cmmaj7](https://jguitar.com/chordsearch/Cmmaj7)は複数voicingの存在確認に使用した。指番号を明示しないsourceからfingerは補完していない。
+- **M7♯5 user-verified FINGERING表**: 一般資料から補完した前案を実ギターで再確認し、ユーザーが成立すると確認した指だけを正式採用した。成立しなかった音はFORMから削除もmute化もせず、運指だけ⚠に戻した。
+
+  | 型 | 理論FORM（CM7♯5、6→1弦） | 実機確認後の運指 | barre / T / warning |
+  |---|---|---|---|
+  | C | `x32100` | `×・薬・中・人・open・open` | 開放はbarreなし / Tなし / 0 |
+  | A | `x36454` | `×・人・⚠・中・小・薬` | barreなし / Tなし / 4弦のみ⚠ |
+  | G | `876557` | `親・中・人・⚠・⚠・薬` | barreなし / 6弦のみT / 3〜2弦⚠ |
+  | E | `8-11-9-9-9-8` | `人・⚠・中・薬・小・人` | 8F人差し指barre / Tなし / 5弦のみ⚠ |
+  | D | `xx10-13-12-12` | `×・×・人・小・中・薬` | barreなし / Tなし / 0 |
+
+- **dim7 source-backed FINGERING表**: [All Guitar Chords Cdim7](https://www.all-guitar-chords.com/index.php/chords/index/c/dim7)の指番号付き`x3424x`・`8x787x`・`xx10-11-10-11`をA/G/D型に採用した。[Guitar-chord.org Cdim7](https://www.guitar-chord.org/cdim7.html)、[Gock Diminished Seventh](https://chords.gock.net/chords/diminished-seventh)、[Elgitar dim7](https://www.elgitar.com/dim7)で`1 ♭3 ♭5 ♭♭7`、対称性、`x3x242 / 8978xx`を相互照合した。5型は異なる弦セットの4音FORMとして保持し、対称性を理由に型名を重複排除しない。
+
+  | 型 | FORM（Cdim7、6→1弦） | 採用finger | barre / T / warning |
+  |---|---|---|---|
+  | C | `x3x242` | `×・中・×・人・小・人` | 3〜1弦2F人差し指（2弦4Fを上書き）/ Tなし / 0 |
+  | A | `x3424x` | `×・中・薬・人・小・×` | なし / Tなし / 0 |
+  | G | `8x787x` | `親・×・人・薬・中・×` | barreなし / 6弦8FのみT / 0 |
+  | E | `8978xx` | `中・小・人・薬・×・×` | なし / Tなし / 0 |
+  | D | `xx10-11-10-11` | `×・×・人・薬・中・小` | なし / Tなし / 0 |
+
+- **次工程**: Phase CとしてHarmonic Minor / Melodic Minorの内部追加を検討する。今回のv0.22.3ではscale selector、schemaVersion、保存migration、既存35型を変更していない。
 - 通常版/PRO版の構造: PRO版は存在しないため、`apps/chord-cruise/` 直下の `index.html` のみが唯一のエントリーポイント。他アプリのような `standard/` サブディレクトリも無い。
 - JS/CSSの共有関係:
   - `theme.css` はコードクルーズ専用の1ファイル（`apps/shared/` には依存していない）。
@@ -115,7 +159,7 @@
   - 「＋ 任意コードを作る」から、ダイアトニックにない任意のコード（テンション等含む）を組み立てられる（`chord-builder.js`）。
   - 表示中のフォームは「このフォームを保存」からコード本棚へ保存できる（`save-editor.js` の保存前編集モーダルを経由）。
   - メジャーセブンスのユーザー表示は `M7` に統一。内部品質キーは `maj7` のまま維持する。旧保存名の `maj7` は表示時だけ `M7` に正規化し、自動一括更新しない。
-- **CAGEDフォーム表示**: `js/core/caged-forms.js` の辞書データに基づき、指定された実フレット範囲内でフォームを探索する。全音が収まる配置を優先し、完全形が無い場合も表示可能な音が1つ以上あれば範囲外音だけを省略して同じ型のまま表示する。12〜25Fでは通常フォームを+12Fへ移し、`openFingers` ではなくムーバブル運指を使う。全CAGED型で`maj`を三和音系、`7`を7th系の弦役割テンプレートとし、`m / dim / m7 / m7♭5`の実音・offset・intervalを共通変換で生成する。推奨運指を割り当てられない音は`fingeringWarning`で区別し、「⚠️ 運指」と範囲外音を知らせる「△ フォーム」は独立した折りたたみで表示する。
+- **CAGEDフォーム表示**: `js/core/caged-forms.js` の辞書データに基づき、指定された実フレット範囲内でフォームを探索する。全音が収まる配置を優先し、完全形が無い場合も表示可能な音が1つ以上あれば範囲外音だけを省略して同じ型のまま表示する。12〜25Fでは通常フォームを+12Fへ移し、`openFingers` ではなくムーバブル運指を使う。既存7品質35フォームにPhase Bの`aug / mMaj7 / maj7sharp5 / dim7`固定20フォームを加え、11品質55フォームを扱う。新4品質20型はFORMの理論slotを運指都合で削除しない。M7♯5は26slot中、実機で推奨指を確定できなかった4slotだけwarning。dim7は各型4slot・全構成音・warning 0。既存`m / dim / m7 / m7♭5`の共通変換は不変。`detectBarres()`は連続弦に加え、間の弦を別指でより高いフレットに押さえる物理的な上書きバレーも検出する。推奨運指を割り当てられないslotだけはFORMに残したまま`fingeringWarning`で区別し、CDE／ドレミ／度数では通常表示、運指でのみ⚠表示とする。「⚠️ 運指」と範囲外音を知らせる「△ フォーム」は独立した折りたたみで表示する。
 - **押さえ方・運指・バレーコード表示の注意点**: 運指はCAGEDフォーム選択中のみ有効。警告音は運指モードだけ`⚠️`となり、他モードでは通常の音名・階名・度数を表示する。同じ指・同じ実フレットのノートからバレーを導出し、警告音と消去予定音は対象外。保存編集では`finger`、`fingeringWarning`、draft専用`pendingDelete`を分離し、確定時に消去予定音だけを除外する。
 - **コード本棚**: 保存したコードフォームをフォルダ単位で整理する。フォルダはヴィンテージ楽譜集の背表紙として2〜6列で並び、各行の直下に棚板を描く。列数はコードカードの1〜4列設定とは別に`folderShelfColumns`で保持する。表示名は一文字ずつの装飾用spanで縦組みにし、半角英数字は正立、長音記号「ー」は空の専用spanの擬似要素でCSS製の縦線として描く。文字グリフの回転には依存しない。ボタン本体の`aria-label`と`title`は元の横書き名を保つ。各フォルダ下部の「…」は管理専用で、名前変更・フォルダと全コードの深い複製・12色からの色選択・完全削除をbottom sheetで提供する。未分類は先頭固定で色変更のみできる。フォルダのコピーは新規IDと新規コードIDを採番し、元の直後・元のコード順で追加する。色はフォルダの任意`colorKey`だけに保存し、既定は`black-leather`。colorKeyなしの旧フォルダも黒革として表示し、読むだけでは保存データを書き換えない。フォルダ削除は所属コードの個別レコード、index、`libraryOrder`をまとめて完全削除し、書き込み失敗時はスナップショットを復元する。コード一覧ではコード名＋軽量SVG指板を1〜4列で表示する。詳細・一覧・書き出しは同じ保存範囲描画モデルを使う。
 - **保存データの整合性**: 保存コードの新規保存・上書き・フォルダ移動・削除では、個別コード、`chordCruise.chords.index`、`chordCruise.libraryOrder`、必要時のフォルダ初期化状態を同一トランザクション相当として扱う。各書き込み前の生値を保存し、途中失敗時は全キーの復元を個別に試み、復元の一部に失敗しても残りを継続する。APIは保存失敗時`null`、削除失敗時`false`を返し、詳細画面は入力・表示・現在位置を成功前に確定せずエラートーストを出す。
@@ -144,8 +188,8 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.22.2`）。Phase Aの4新quality core理論基盤を正式化した。
-- `?v=` によるキャッシュ管理: `index.html` 内の全15本の `<script src="...?v=0.22.2">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.22.2">` が同じバージョン文字列を共有している。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.22.3`）。
+- `?v=` によるキャッシュ管理: `index.html` 内の全15本の `<script src="...?v=0.22.3">` タグ、および `<link rel="stylesheet" href="theme.css?v=0.22.3">` が同じバージョン文字列を共有している。
 - 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
 - service workerの更新: service worker自体が存在しないため不要。
 - **バージョン更新漏れしやすい箇所**: `index.html`内の15本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。

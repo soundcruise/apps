@@ -227,7 +227,12 @@
             return note.fingeringWarning ? '⚠' : '';
         }
         if (draft.displayMode === 'solfege') return theory().solfegeName(notePc(note), draft.useFlats);
-        if (draft.displayMode === 'degree') return theory().degreeLabels([note.interval])[0];
+        if (draft.displayMode === 'degree') {
+            var qualityKey = theory().identifyQuality(draft.intervals);
+            var intervalIndex = draft.intervals.indexOf(note.interval);
+            var labels = theory().degreeLabelsForQuality(qualityKey, draft.intervals);
+            return intervalIndex !== -1 ? labels[intervalIndex] : theory().degreeLabels([note.interval])[0];
+        }
         var noteIndex = draft.intervals.indexOf(note.interval);
         if (spelledNoteNames && noteIndex !== -1 && spelledNoteNames[noteIndex]) {
             return spelledNoteNames[noteIndex];

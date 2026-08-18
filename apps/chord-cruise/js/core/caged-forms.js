@@ -303,6 +303,188 @@
         }
     };
 
+    var SOURCE_BACKED_AUG_WARNING = 'フォーム全体の構成音を表示しています。⚠️の音は参照した運指では同時に演奏しない位置です。保存前編集で指を指定するか、音を消去できます。';
+    var SOURCE_BACKED_MMAJ7_WARNING = 'フォーム全体の構成音を表示しています。⚠️の音は参照した運指では同時に演奏しない位置です。保存前編集で指を指定するか、音を消去できます。';
+    var USER_VERIFIED_MAJ7SHARP5_WARNING = 'フォーム全体の構成音を表示しています。⚠️の音は実ギター確認で推奨運指を確定できなかった位置です。保存前編集で指を指定するか、音を消去できます。';
+
+    /* Phase B: root弦と指板領域からC/A/G/E/Dへ分類した4qualityの固定定義。
+       FORM（型が持つ理論上の全弦配置）とFINGERING（推奨運指）を分離する。
+       aug / mMaj7 / maj7sharp5 / dim7は既存CAGED型の弦役割を維持し、押弦難度だけを理由にslotをmuteしない。
+       fingers / openFingers は明示運指付き教材を優先し、一般的voicingを完全FORMへ
+       拡張する場合は、同一指・同一フレット、バレー、スパン、指順を物理的に検証する。
+       それでも合理的な推奨運指を持てないFORM音だけをfingeringWarningとして残す。
+       M7♯5はユーザー実機結果、dim7は指番号付き資料と物理validationを採用する。 */
+    var EXTENDED_QUALITY_FORMS = {
+        C: {
+            aug: {
+                slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -1, iv: 4 }, { s: 3, o: -2, iv: 8 }, { s: 2, o: -2, iv: 0 }, { s: 1, o: -3, iv: 4, fingeringWarning: true }],
+                muted: [6],
+                fingers: { 5: 4, 4: 3, 3: 1, 2: 2 },
+                warningStrings: [1],
+                openFingers: { 5: 4, 4: 3, 3: 1, 2: 2 },
+                warningMode: 'fingering',
+                warning: SOURCE_BACKED_AUG_WARNING
+            },
+            mMaj7: {
+                slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -2, iv: 3 }, { s: 3, o: -3, iv: 7 }, { s: 2, o: -3, iv: 11 }, { s: 1, o: -4, iv: 3, fingeringWarning: true }],
+                muted: [6],
+                fingers: { 5: 4, 4: 2, 3: 1, 2: 1 },
+                warningStrings: [1],
+                openFingers: { 5: 4, 4: 2, 3: 1, 2: 1 },
+                playability: 'advanced',
+                warningMode: 'fingering',
+                warning: SOURCE_BACKED_MMAJ7_WARNING
+            },
+            maj7sharp5: {
+                slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -1, iv: 4 }, { s: 3, o: -2, iv: 8 }, { s: 2, o: -3, iv: 11 }, { s: 1, o: -3, iv: 4 }],
+                muted: [6],
+                fingers: { 5: 4, 4: 3, 3: 2, 2: 1, 1: 1 },
+                openFingers: { 5: 3, 4: 2, 3: 1 }
+            },
+            dim7: {
+                slots: [{ s: 5, o: 0, iv: 0 }, { s: 3, o: -1, iv: 9 }, { s: 2, o: 1, iv: 3 }, { s: 1, o: -1, iv: 6 }],
+                muted: [6, 4],
+                fingers: { 5: 2, 3: 1, 2: 4, 1: 1 },
+                openFingers: { 5: 1, 2: 2 }
+            }
+        },
+        A: {
+            aug: {
+                slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: 3, iv: 8 }, { s: 3, o: 2, iv: 0 }, { s: 2, o: 2, iv: 4 }, { s: 1, o: 1, iv: 8, fingeringWarning: true }],
+                muted: [6],
+                fingers: { 5: 1, 4: 4, 3: 2, 2: 3 },
+                warningStrings: [1],
+                openFingers: { 4: 4, 3: 2, 2: 3, 1: 1 },
+                warningMode: 'fingering',
+                warning: SOURCE_BACKED_AUG_WARNING
+            },
+            mMaj7: {
+                slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: 2, iv: 7 }, { s: 3, o: 1, iv: 11 }, { s: 2, o: 1, iv: 3 }, { s: 1, o: 0, iv: 7 }],
+                muted: [6],
+                fingers: { 5: 1, 4: 4, 3: 2, 2: 3, 1: 1 },
+                openFingers: { 5: 1, 4: 4, 3: 2, 2: 3, 1: 1 }
+            },
+            maj7sharp5: {
+                slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: 3, iv: 8, fingeringWarning: true }, { s: 3, o: 1, iv: 11 }, { s: 2, o: 2, iv: 4 }, { s: 1, o: 1, iv: 8 }],
+                muted: [6],
+                fingers: { 5: 1, 3: 2, 2: 4, 1: 3 },
+                warningStrings: [4],
+                openFingers: { 3: 2, 2: 4, 1: 3 },
+                warningMode: 'fingering',
+                warning: USER_VERIFIED_MAJ7SHARP5_WARNING
+            },
+            dim7: {
+                slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: 1, iv: 6 }, { s: 3, o: -1, iv: 9 }, { s: 2, o: 1, iv: 3 }],
+                muted: [6, 1],
+                fingers: { 5: 2, 4: 3, 3: 1, 2: 4 },
+                openFingers: { 5: 1, 4: 2, 2: 3 }
+            }
+        },
+        G: {
+            aug: {
+                slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: -1, iv: 4 }, { s: 4, o: -2, iv: 8 }, { s: 3, o: -3, iv: 0 }, { s: 2, o: -3, iv: 4 }, { s: 1, o: 0, iv: 0, fingeringWarning: true }],
+                muted: [],
+                fingers: { 6: 4, 5: 3, 4: 2, 3: 1, 2: 1 },
+                warningStrings: [1],
+                openFingers: { 6: 3, 5: 2, 4: 1, 1: 4 },
+                playability: 'advanced',
+                warningMode: 'fingering',
+                warning: SOURCE_BACKED_AUG_WARNING
+            },
+            mMaj7: {
+                slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: -2, iv: 3 }, { s: 4, o: -3, iv: 7 }, { s: 3, o: -3, iv: 0, fingeringWarning: true }, { s: 2, o: -4, iv: 3, fingeringWarning: true }, { s: 1, o: -1, iv: 11 }],
+                muted: [],
+                fingers: { 6: 4, 5: 2, 4: 1, 1: 3 },
+                warningStrings: [3, 2],
+                openFingers: { 6: 4, 5: 2, 4: 1, 1: 3 },
+                playability: 'advanced',
+                warningMode: 'fingering',
+                warning: SOURCE_BACKED_MMAJ7_WARNING
+            },
+            maj7sharp5: {
+                slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: -1, iv: 4 }, { s: 4, o: -2, iv: 8 }, { s: 3, o: -3, iv: 0, fingeringWarning: true }, { s: 2, o: -3, iv: 4, fingeringWarning: true }, { s: 1, o: -1, iv: 11 }],
+                muted: [],
+                fingers: { 6: 'T', 5: 2, 4: 1, 1: 3 },
+                warningStrings: [3, 2],
+                openFingers: { 6: 4, 5: 2, 4: 1, 1: 3 },
+                playability: 'advanced',
+                warningMode: 'fingering',
+                warning: USER_VERIFIED_MAJ7SHARP5_WARNING
+            },
+            dim7: {
+                slots: [{ s: 6, o: 0, iv: 0 }, { s: 4, o: -1, iv: 9 }, { s: 3, o: 0, iv: 3 }, { s: 2, o: -1, iv: 6 }],
+                muted: [5, 1],
+                fingers: { 6: 'T', 4: 1, 3: 3, 2: 2 },
+                openFingers: { 6: 1, 3: 2 }
+            }
+        },
+        E: {
+            aug: {
+                slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: 3, iv: 8 }, { s: 4, o: 2, iv: 0 }, { s: 3, o: 1, iv: 4 }, { s: 2, o: 1, iv: 8, fingeringWarning: true }, { s: 1, o: 0, iv: 0, fingeringWarning: true }],
+                muted: [],
+                fingers: { 6: 1, 5: 4, 4: 3, 3: 2 },
+                warningStrings: [2, 1],
+                openFingers: { 5: 4, 4: 3, 3: 1, 2: 2 },
+                playability: 'advanced',
+                warningMode: 'fingering',
+                warning: SOURCE_BACKED_AUG_WARNING
+            },
+            mMaj7: {
+                slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: 2, iv: 7 }, { s: 4, o: 1, iv: 11 }, { s: 3, o: 0, iv: 3 }, { s: 2, o: 0, iv: 7 }, { s: 1, o: 0, iv: 0 }],
+                muted: [],
+                fingers: { 6: 1, 5: 3, 4: 2, 3: 1, 2: 1, 1: 1 },
+                openFingers: { 6: 1, 5: 3, 4: 2, 3: 1, 2: 1, 1: 1 }
+            },
+            maj7sharp5: {
+                slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: 3, iv: 8, fingeringWarning: true }, { s: 4, o: 1, iv: 11 }, { s: 3, o: 1, iv: 4 }, { s: 2, o: 1, iv: 8 }, { s: 1, o: 0, iv: 0 }],
+                muted: [],
+                fingers: { 6: 1, 4: 2, 3: 3, 2: 4, 1: 1 },
+                warningStrings: [5],
+                openFingers: { 4: 2, 3: 3, 2: 4 },
+                warningMode: 'fingering',
+                warning: USER_VERIFIED_MAJ7SHARP5_WARNING
+            },
+            dim7: {
+                slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: 1, iv: 6 }, { s: 4, o: -1, iv: 9 }, { s: 3, o: 0, iv: 3 }],
+                muted: [2, 1],
+                fingers: { 6: 2, 5: 4, 4: 1, 3: 3 },
+                openFingers: { 6: 1, 5: 3, 3: 2 }
+            }
+        },
+        D: {
+            aug: {
+                slots: [{ s: 4, o: 0, iv: 0 }, { s: 3, o: 3, iv: 8 }, { s: 2, o: 3, iv: 0 }, { s: 1, o: 2, iv: 4 }],
+                muted: [6, 5],
+                fingers: { 4: 1, 3: 3, 2: 4, 1: 2 },
+                openFingers: { 3: 2, 2: 3, 1: 1 }
+            },
+            mMaj7: {
+                slots: [{ s: 4, o: 0, iv: 0 }, { s: 3, o: 2, iv: 7 }, { s: 2, o: 2, iv: 11 }, { s: 1, o: 1, iv: 3 }],
+                muted: [6, 5],
+                fingers: { 4: 1, 3: 3, 2: 4, 1: 2 },
+                openFingers: { 4: 1, 3: 3, 2: 4, 1: 2 }
+            },
+            maj7sharp5: {
+                slots: [{ s: 4, o: 0, iv: 0 }, { s: 3, o: 3, iv: 8 }, { s: 2, o: 2, iv: 11 }, { s: 1, o: 2, iv: 4 }],
+                muted: [6, 5],
+                fingers: { 4: 1, 3: 4, 2: 2, 1: 3 },
+                openFingers: { 3: 4, 2: 2, 1: 3 }
+            },
+            dim7: {
+                slots: [{ s: 4, o: 0, iv: 0 }, { s: 3, o: 1, iv: 6 }, { s: 2, o: 0, iv: 9 }, { s: 1, o: 1, iv: 3 }],
+                muted: [6, 5],
+                fingers: { 4: 1, 3: 3, 2: 2, 1: 4 },
+                openFingers: { 3: 1, 1: 2 }
+            }
+        }
+    };
+
+    SHAPE_ORDER.forEach(function (shapeKey) {
+        Object.keys(EXTENDED_QUALITY_FORMS[shapeKey]).forEach(function (qualityKey) {
+            FORMS[shapeKey].qualities[qualityKey] = EXTENDED_QUALITY_FORMS[shapeKey][qualityKey];
+        });
+    });
+
     /* 品質ごとに独立した音配置を持たせず、maj / 7 の弦役割を変換して生成する。
        o は基準intervalから目的intervalまでの半音差だけ移動するため、実音と
        intervalが常に一致する。運指と警告は品質定義側に残して音配置と分離する。 */
@@ -713,15 +895,18 @@
      * ノート列からバレー（同じ指で同フレットの複数弦を押さえる箇所）を検出する。
      * - 対象: fret > 0 かつ finger が null / undefined / 'T' でないノート
      * - 人差し指(1): 弦が非連続でも最低弦〜最高弦を1本のバレーとしてつなぐ
-     * - 中指〜小指(2〜4): 連続する弦のみミニバレーにする（非連続は個別マーカーのまま）
+     * - 中指〜小指(2〜4): 連続する弦をミニバレーにする。間の弦を別指で
+     *   より高いフレットに押さえる「上書き」も、1本の指が連続して届くためバレーとみなす。
      * 保存済みコードの notes からも導出できる（マイグレーション不要）。
      * @param {Array} notes [{string, fret, finger, ...}]
      * @returns {Array} [{ finger, fret, fromString, toString }]（fromString < toString）
      */
     function detectBarres(notes) {
         var groups = {};
+        var frettedByString = {};
         (notes || []).forEach(function (note) {
             if (!note || note.pendingDelete === true || typeof note.fret !== 'number' || note.fret <= 0) return;
+            frettedByString[note.string] = note;
             var finger = note.finger;
             if (finger === null || finger === undefined || finger === 'T') return;
             var key = finger + '@' + note.fret;
@@ -750,13 +935,18 @@
                 return;
             }
 
-            // 中指〜小指: 連続区間だけをミニバレーにする
+            // 中指〜小指: 連続区間、または途中をより高いフレットで上書きした区間を検出する
             var runStart = sorted[0];
             var prev = sorted[0];
             var i;
             for (i = 1; i <= sorted.length; i++) {
                 var current = sorted[i];
-                if (current === prev + 1) {
+                var gapIsCovered = typeof current === 'number';
+                var coveredString;
+                for (coveredString = prev + 1; gapIsCovered && coveredString < current; coveredString++) {
+                    gapIsCovered = !!frettedByString[coveredString] && frettedByString[coveredString].fret > group.fret;
+                }
+                if (current === prev + 1 || gapIsCovered) {
                     prev = current;
                     continue;
                 }

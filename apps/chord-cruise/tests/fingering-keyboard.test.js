@@ -5,6 +5,7 @@ const vm = require('vm');
 
 const root = path.resolve(__dirname, '..');
 const fretboardSource = fs.readFileSync(path.join(root, 'js/ui/fretboard.js'), 'utf8');
+const exploreSource = fs.readFileSync(path.join(root, 'js/ui/explore.js'), 'utf8');
 const saveEditorSource = fs.readFileSync(path.join(root, 'js/ui/save-editor.js'), 'utf8');
 const librarySource = fs.readFileSync(path.join(root, 'js/ui/library.js'), 'utf8');
 const themeSource = fs.readFileSync(path.join(root, 'theme.css'), 'utf8');
@@ -61,6 +62,32 @@ function loadFretboard() {
     assert(saveEditorSource.includes('運指を変更'));
     assert(librarySource.includes('運指を変更'));
     assert(themeSource.includes('.cc-fb-marker--tappable:focus-visible'));
+})();
+
+(function longDegreeLabelsHaveACompactHtmlMarkerStyle() {
+    assert(fretboardSource.includes("cls += ' cc-fb-marker--long-label'"));
+    assert(themeSource.includes('.cc-fb-marker--long-label'));
+    assert(themeSource.includes('calc(var(--cc-fb-marker-label-size, 0.76rem) * 0.84)'));
+})();
+
+(function fingeringWarningsOnlyReplaceLabelsInFingerMode() {
+    assert(exploreSource.includes("if (mode === 'finger')"));
+    assert(exploreSource.includes("return fingeringWarning ? '⚠' : ''"));
+    assert(exploreSource.includes("if (mode === 'solfege')"));
+    assert(exploreSource.includes("if (mode === 'degree')"));
+    assert(exploreSource.includes("fingeringWarning: getSettings().fretboardDisplayMode === 'finger' && note.fingeringWarning === true"));
+
+    assert(saveEditorSource.includes("if (draft.displayMode === 'finger')"));
+    assert(saveEditorSource.includes("return note.fingeringWarning ? '⚠' : ''"));
+    assert(saveEditorSource.includes("if (draft.displayMode === 'solfege')"));
+    assert(saveEditorSource.includes("if (draft.displayMode === 'degree')"));
+    assert(saveEditorSource.includes("fingeringWarning: draft.displayMode === 'finger' && note.fingeringWarning"));
+
+    assert(librarySource.includes("if (mode === 'finger')"));
+    assert(librarySource.includes("return note.fingeringWarning === true ? '⚠' : ''"));
+    assert(librarySource.includes("if (mode === 'solfege')"));
+    assert(librarySource.includes("if (mode === 'degree')"));
+    assert(librarySource.includes("fingeringWarning: mode === 'finger' && note.fingeringWarning === true && note.finger == null"));
 })();
 
 console.log('fingering-keyboard: keyboard activation, marker accessibility, and focus restoration wiring OK');

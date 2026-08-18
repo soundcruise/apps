@@ -1019,7 +1019,12 @@
         var openPc = theory().OPEN_STRINGS[6 - note.string];
         var pc = (openPc + note.fret) % 12;
         if (mode === 'solfege') return theory().solfegeName(pc, chordUseFlats(chord));
-        if (mode === 'degree') return theory().degreeLabels([note.interval])[0];
+        if (mode === 'degree') {
+            var qualityKey = theory().identifyQuality(chord.intervals);
+            var intervalIndex = Array.isArray(chord.intervals) ? chord.intervals.indexOf(note.interval) : -1;
+            var labels = theory().degreeLabelsForQuality(qualityKey, chord.intervals || []);
+            return intervalIndex !== -1 ? labels[intervalIndex] : theory().degreeLabels([note.interval])[0];
+        }
         var noteIndex = Array.isArray(chord.intervals) ? chord.intervals.indexOf(note.interval) : -1;
         if (spelledNoteNames && noteIndex !== -1 && spelledNoteNames[noteIndex]) {
             return spelledNoteNames[noteIndex];

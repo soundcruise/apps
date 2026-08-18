@@ -55,16 +55,20 @@ assert.strictEqual(theory.identifyQuality(seventhIntervals), 'dim7');
 assert.deepStrictEqual([0, 2, 4, 6].map(function (offset) { return names[(6 + offset) % 7]; }), ['F♯♯', 'A♯', 'C♯', 'E']);
 assert.deepStrictEqual(theory.degreeLabelsForQuality('dim7', seventhIntervals), ['1', '♭3', '♭5', '♭♭7']);
 
-// Phase A boundary: arbitrary-code display and qualityKey remain unchanged until Phase B CAGED support.
+// Phase B: arbitrary-code intervals share the canonical core quality IDs.
 [
-    [{ rootPc: 0, third: 4, fifth: 8, seventh: null, tensions: [] }, 'Caug'],
-    [{ rootPc: 0, third: 3, fifth: 7, seventh: 11, tensions: [] }, 'CmM7'],
-    [{ rootPc: 0, third: 4, fifth: 8, seventh: 11, tensions: [] }, 'CaugM7'],
-    [{ rootPc: 0, third: 3, fifth: 6, seventh: 9, tensions: [] }, 'Cdim7']
+    [{ rootPc: 0, third: 4, fifth: 8, seventh: null, tensions: [] }, 'Caug', 'aug'],
+    [{ rootPc: 0, third: 3, fifth: 7, seventh: 11, tensions: [] }, 'CmM7', 'mMaj7'],
+    [{ rootPc: 0, third: 4, fifth: 8, seventh: 11, tensions: [] }, 'CM7♯5', 'maj7sharp5'],
+    [{ rootPc: 0, third: 3, fifth: 6, seventh: 9, tensions: [] }, 'Cdim7', 'dim7']
 ].forEach(function (fixture) {
     var chord = chordModel.buildCustomChord(fixture[0], '');
     assert.strictEqual(chord.symbol, fixture[1]);
-    assert.strictEqual(chord.qualityKey, null);
+    assert.strictEqual(chord.qualityKey, fixture[2]);
 });
+assert.deepStrictEqual(
+    chordModel.buildCustomChord({ rootPc: 0, third: 3, fifth: 6, seventh: 9, tensions: [] }, '').degreeLabelsList,
+    ['1', '♭3', '♭5', '♭♭7']
+);
 
-console.log('extended-qualities: 4 canonical qualities, pure harmonic/melodic patterns, and Phase A UI boundary OK');
+console.log('extended-qualities: 4 canonical qualities, pure harmonic/melodic patterns, and Phase B arbitrary-code connection OK');
