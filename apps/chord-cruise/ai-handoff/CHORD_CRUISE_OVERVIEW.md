@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
-- 現在のバージョン: `0.22.9`（Phase F1 tension overlay基盤とコードネーム生成ルールを正式commit・push済み。ユーザー実機確認済み）
+- 現在のバージョン: `0.22.10`（Phase F2 tension保存・編集・本棚・SVG/PNG対応を正式commit・push済み。ユーザー実機確認済み）
 - v0.22.1直前の正式Chord Cruise commit（`git log --oneline -- apps/chord-cruise/` で確認）:
   - hash: `a562888a078494d6deeb9900d2b15260bc35128e`
   - message: `7種類のスケール選択に対応`
@@ -86,6 +86,8 @@
 - **Phase E2 delete復元（未commit）**: 通常の本棚一覧・詳細・SVG・PNGでは削除FORM noteと`bassFingerings.pendingDelete`のBass candidateを描画しない。FORM削除はoptional `deletedNotes` metadataへ保存し、本棚の「編集」でsave-editorを開くと`pendingDelete` markerとして復元する。Bass削除も同じく編集時だけ再生成・復元する。両方とも中央空欄、点線＋半透明、再タップ／Enter／Spaceで既存cycleへ戻せる。通常diagramを完成voicingとして固定せず、削除metadataは再編集のためだけに使う。schemaVersion 1・migrationなし。
 - **v0.22.8 Phase E2正式化**: `bassPc` optional slash保存、`bassFingerings`（`string`・`fret`・`finger`・`fingeringWarning`・`pendingDelete`）の候補別override、`deletedNotes`によるFORM削除の編集時復元を正式化した。通常本棚／詳細／SVG／PNGでは削除FORM/Bassを非表示、save-editorでは点線・半透明・中央空欄で再表示し、tap／Enter／Spaceでcycle・復活できる。C/E A型の保存rangeは4弦2F Eを含む2〜5F、Bass候補は保存FORMとrangeから再生成する。selected candidate・候補一覧・completed voicing・bassName・absolute pitchは保存しない。schemaVersion 1、migrationなし。ユーザー実機確認済み。Phase E2 main commitは`2d8bc5f00cd53b8b08076fa878223fe652dbfee0`。次工程はtension overlay。
 - **v0.22.9 Phase F1正式化**: 任意コードbuilderのテンション（`♭9 / 9 / ♯9 / 11 / ♯11 / ♭13 / 13`）をupper chordのCAGED qualityから分離し、FORMと既存運指を変更せずExploreの表示だけへ重ねる。upper coreは`coreIntervals`、テンションは`tensionIntervals`で保持し、`Cadd9`相当は`maj`、`Cmaj7(add9)`相当は`maj7`のFORMを引き続き選べる。表示名は7thなしの三和音をadd表記（`Cadd9` / `Cadd11` / `Cadd13` / `Cmadd9`）、7thを含むものを括弧表記（`CM7(9)` / `C7(9)` / `Cm7(9)` / `CM7(♯11)` / `C7(♭13)`）とし、三和音の9を`C9`とは表示しない。この変更はsymbol生成だけで、quality判定・intervals・CAGEDには影響しない。候補は現在の通常／ハイフレットrange内の1〜3弦全位置だけで、同じstring/fretのFORM音は重複描画せずtension枠を合成、overlay-onlyはfingerなし・warningなしとする。CDE／ドレミ／degreeではテンション名を表示し、運指は空欄。Bassの`--cc-gold-bright`外枠と区別して、テンションは既存`--cc-gold`のdark separator＋outer ringにする。保存ボタンはテンション付きの間disabledで、保存・本棚・PNG/SVG・schema・migrationは未対応のまま維持する。正式main HEADは`b79a86a573a835a1d792bf26a78710b990b3b550`。
+- **Phase F2 tension保存（未commit）**: CAGED対応のテンション付き任意コードを既存save-editorへ通し、optional `tensionPcs`（rootからのdegree順で正規化したpitch class配列）と`tensionFingerings`（`string`・`fret`・`pc`・`finger`・`fingeringWarning`・`pendingDelete`）だけをrecordへ保存する。selected candidate、候補一覧、absolute pitch、完成voicingは保存しない。保存range内の1〜3弦candidateは`rootPc + tensionPcs + fretRange`から再生成し、FORM同slotはFORM markerをsource of truthとしてoverrideを保存しない。初期の保存rangeはFORMを基準にし、Phase E2のBass candidateだけを近傍範囲として加える。テンションcandidateはoverlay表示対象だが、遠方候補のためにrangeを拡張しない。FORM外candidateはsave-editorと本棚詳細の運指modeで既存Bassと同じcycleを使い、warning／pending delete／restoreを扱う。通常本棚・SVG・PNGではpending-delete tensionを非表示、編集時だけ点線・半透明・空欄で復元する。複数テンションは`9 → 13`のようにdegree順で保持する。Bass overlay、slash、CAGED、schemaVersion 1、migration、version `0.22.9`は不変。実機ではCadd9のsave → reload → 本棚詳細でringとcandidate再生成を確認済み。正式化まではstage・commit・pushしない。
+- **v0.22.10 Phase F2正式化**: 前項のtension保存仕様を正式化した。`tensionPcs`と編集済み候補だけの`tensionFingerings`を保存し、複数テンションはdegree順で管理する。FORM・Bass・Tensionのpending-deleteは通常本棚／SVG／PNGで非表示、save-editorの編集時だけ点線・半透明・中央空欄・aria「消去予定」で復元する。保存rangeはFORM基準で、Phase E2のBass近傍候補だけを拡張し、Tension候補では拡張しない。Cadd9、CM7(9)、C7(9)、CM7(9,13)、Cadd9/Eのsave/reload、本棚、SVG/PNG、通常／ハイフレットを確認し、schemaVersion 1・migrationなしを維持する。正式commit後にHEADを追記する。
 - 通常版/PRO版の構造: PRO版は存在しないため、`apps/chord-cruise/` 直下の `index.html` のみが唯一のエントリーポイント。他アプリのような `standard/` サブディレクトリも無い。
 - JS/CSSの共有関係:
   - `theme.css` はコードクルーズ専用の1ファイル（`apps/shared/` には依存していない）。
@@ -200,8 +202,8 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.22.9`）。
-- `?v=` によるキャッシュ管理: `index.html` 内の全15本のscriptタグとstylesheet link（計16参照）が同じ `0.22.9` を共有している。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.22.10`）。
+- `?v=` によるキャッシュ管理: `index.html` 内の全15本のscriptタグとstylesheet link（計16参照）が同じ `0.22.10` を共有している。
 - 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
 - service workerの更新: service worker自体が存在しないため不要。
 - **バージョン更新漏れしやすい箇所**: `index.html`内の15本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。

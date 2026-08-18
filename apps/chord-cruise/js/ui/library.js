@@ -1056,10 +1056,27 @@
             : null;
     }
 
+    function savedTensionPcs(chord) {
+        var rootPc = chord && chord.rootPc;
+        var chordModel = window.ChordCruise.chordModel;
+        if (!chordModel || typeof chordModel.tensionIntervalsForPcs !== 'function' || typeof chordModel.tensionPcsForIntervals !== 'function') return [];
+        return chordModel.tensionPcsForIntervals(
+            rootPc,
+            chordModel.tensionIntervalsForPcs(rootPc, chord && chord.tensionPcs)
+        );
+    }
+
     function bassFingeringFor(chord, stringNum, fret) {
         var entries = chord && Array.isArray(chord.bassFingerings) ? chord.bassFingerings : [];
         return entries.filter(function (entry) {
             return entry && [4, 5, 6].indexOf(entry.string) !== -1 && entry.string === stringNum && typeof entry.fret === 'number' && Math.floor(entry.fret) === entry.fret && entry.fret === fret && FINGER_CYCLE.indexOf(entry.finger) !== -1;
+        })[0] || null;
+    }
+
+    function tensionFingeringFor(chord, stringNum, fret, pc) {
+        var entries = chord && Array.isArray(chord.tensionFingerings) ? chord.tensionFingerings : [];
+        return entries.filter(function (entry) {
+            return entry && [1, 2, 3].indexOf(entry.string) !== -1 && entry.string === stringNum && typeof entry.fret === 'number' && Math.floor(entry.fret) === entry.fret && entry.fret === fret && entry.pc === pc && FINGER_CYCLE.indexOf(entry.finger) !== -1;
         })[0] || null;
     }
 
@@ -1075,6 +1092,19 @@
         var entry = bassFingeringFor(chord, overlay.string, overlay.fret);
         var state = entry && entry.pendingDelete === true ? '消去予定' : (entry && entry.finger != null ? (FINGER_LABELS[entry.finger] || '') + '指' : (entry && entry.fingeringWarning ? '運指警告' : '未指定'));
         return overlay.string + '弦 ' + (overlay.fret === 0 ? '開放弦' : overlay.fret + 'フレット') + '、ベース候補、現在 ' + state + '。運指を変更';
+    }
+
+    function savedTensionFingeringLabel(chord, overlay) {
+        var entry = tensionFingeringFor(chord, overlay.string, overlay.fret, overlay.pc);
+        if (!entry || entry.pendingDelete === true) return '';
+        if (entry.finger != null) return FINGER_LABELS[entry.finger] || '';
+        return entry.fingeringWarning === true ? '⚠' : '';
+    }
+
+    function savedTensionAccessibleLabel(chord, overlay) {
+        var entry = tensionFingeringFor(chord, overlay.string, overlay.fret, overlay.pc);
+        var state = entry && entry.pendingDelete === true ? '消去予定' : (entry && entry.finger != null ? (FINGER_LABELS[entry.finger] || '') + '指' : (entry && entry.fingeringWarning ? '運指警告' : '未指定'));
+        return overlay.string + '弦 ' + (overlay.fret === 0 ? '開放弦' : overlay.fret + 'フレット') + '、テンション候補、現在 ' + state + '。運指を変更';
     }
 
     function bassMarkerLabel(chord, overlay, mode, spelledNoteNames) {
@@ -1119,6 +1149,43 @@
             };
             markers.push(marker);
             bySlot[key] = marker;
+        });
+        return markers;
+    }
+
+    function tensionMarkerLabel(chord, overlay, mode) {
+        if (mode === 'finger') return '';
+        if (mode === 'solfege') return theory().solfegeName(overlay.pc, chordUseFlats(chord));
+        if (mode === 'degree') return window.ChordCruise.chordModel.TENSION_LABELS[overlay.tension] || theory().degreeLabels([overlay.interval])[0];
+        return theory().noteName(overlay.pc, chordUseFlats(chord));
+    }
+
+    function mergeSavedTensionOverlay(chord, frets, markers, mode, editable) {
+        var tensionPcs = savedTensionPcs(chord);
+        if (!tensionPcs.length) return markers;
+        var min = Math.min.apply(null, frets);
+        var max = Math.max.apply(null, frets);
+        var overlays = window.ChordCruise.chordModel.tensionOverlayNotes({
+            rootPc: chord.rootPc,
+            tensionIntervals: window.ChordCruise.chordModel.tensionIntervalsForPcs(chord.rootPc, tensionPcs),
+            startFret: min, endFret: max
+        }).filter(function (note) { return frets.indexOf(note.fret) !== -1; });
+        var bySlot = {};
+        markers.forEach(function (marker) { bySlot[marker.string + ':' + marker.fret] = marker; });
+        overlays.forEach(function (overlay) {
+            var key = overlay.string + ':' + overlay.fret;
+            var tensionEntry = tensionFingeringFor(chord, overlay.string, overlay.fret, overlay.pc);
+            if (tensionEntry && tensionEntry.pendingDelete === true) return;
+            if (bySlot[key]) { bySlot[key].isTensionCandidate = true; return; }
+            markers.push({
+                string: overlay.string, fret: overlay.fret, pc: overlay.pc,
+                label: mode === 'finger' ? savedTensionFingeringLabel(chord, overlay) : tensionMarkerLabel(chord, overlay, mode),
+                role: roleForInterval(overlay.interval), isOverlay: true, overlayType: 'tension',
+                isTensionCandidate: true, finger: (tensionEntry || {}).finger || null,
+                fingeringWarning: !!((tensionEntry || {}).fingeringWarning), pendingDelete: false,
+                tappable: editable && mode === 'finger', ariaLabel: editable && mode === 'finger' ? savedTensionAccessibleLabel(chord, overlay) : ''
+            });
+            bySlot[key] = markers[markers.length - 1];
         });
         return markers;
     }
@@ -1180,6 +1247,7 @@
             };
         });
         markers = mergeSavedBassOverlay(chord, frets, markers, mode, spelledNoteNames, !!opts.tappable);
+        markers = mergeSavedTensionOverlay(chord, frets, markers, mode, !!opts.tappable);
         return {
             frets: frets,
             markers: markers,
@@ -1259,23 +1327,39 @@
             });
             if (!target) {
                 var overlay = diagramOptions.markers.filter(function (marker) {
-                    return marker.isOverlay && marker.isBassCandidate && marker.string === stringNum && marker.fret === fret;
+                    return marker.isOverlay && (marker.isBassCandidate || marker.isTensionCandidate) && marker.string === stringNum && marker.fret === fret;
                 })[0];
                 if (!overlay) return;
-                var existing = bassFingeringFor(candidate, stringNum, fret);
+                var existing = overlay.isBassCandidate
+                    ? bassFingeringFor(candidate, stringNum, fret)
+                    : tensionFingeringFor(candidate, stringNum, fret, overlay.pc);
                 var currentState = existing && existing.pendingDelete ? 'delete' : (existing && existing.fingeringWarning ? 'warning' : (existing ? existing.finger : null));
                 var nextState = BASS_FINGER_CYCLE[(BASS_FINGER_CYCLE.indexOf(currentState) + 1) % BASS_FINGER_CYCLE.length];
-                candidate.bassFingerings = (candidate.bassFingerings || []).filter(function (entry) {
-                    return !(entry && entry.string === stringNum && entry.fret === fret);
-                });
-                if (nextState !== null) {
-                    candidate.bassFingerings.push({
-                        string: stringNum, fret: fret,
-                        finger: nextState === 'warning' || nextState === 'delete' ? null : nextState,
-                        fingeringWarning: nextState === 'warning', pendingDelete: nextState === 'delete'
+                if (overlay.isBassCandidate) {
+                    candidate.bassFingerings = (candidate.bassFingerings || []).filter(function (entry) {
+                        return !(entry && entry.string === stringNum && entry.fret === fret);
                     });
+                    if (nextState !== null) {
+                        candidate.bassFingerings.push({
+                            string: stringNum, fret: fret,
+                            finger: nextState === 'warning' || nextState === 'delete' ? null : nextState,
+                            fingeringWarning: nextState === 'warning', pendingDelete: nextState === 'delete'
+                        });
+                    }
+                    if (!candidate.bassFingerings.length) delete candidate.bassFingerings;
+                } else {
+                    candidate.tensionFingerings = (candidate.tensionFingerings || []).filter(function (entry) {
+                        return !(entry && entry.string === stringNum && entry.fret === fret && entry.pc === overlay.pc);
+                    });
+                    if (nextState !== null) {
+                        candidate.tensionFingerings.push({
+                            string: stringNum, fret: fret, pc: overlay.pc,
+                            finger: nextState === 'warning' || nextState === 'delete' ? null : nextState,
+                            fingeringWarning: nextState === 'warning', pendingDelete: nextState === 'delete'
+                        });
+                    }
+                    if (!candidate.tensionFingerings.length) delete candidate.tensionFingerings;
                 }
-                if (!candidate.bassFingerings.length) delete candidate.bassFingerings;
             } else {
                 if (target.fingeringWarning === true && target.finger == null) {
                     target.finger = 'T';

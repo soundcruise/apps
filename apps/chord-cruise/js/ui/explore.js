@@ -887,7 +887,6 @@
             hint += getSettings().fretboardDisplayMode === 'finger'
                 ? ' 金枠は追加ベース音の候補です。運指は表示していません。押さえやすい位置を選び、その音より低い弦は鳴らさないでください。'
                 : ' 金枠の音を最低音として使います。選んだ音より低い弦は鳴らしません。';
-            hint += ' 分数コードの保存は今後対応予定です。';
         }
 
         if (chord && form && Array.isArray(chord.tensionIntervals) && chord.tensionIntervals.length) {
@@ -904,14 +903,12 @@
 
         var saveButton = document.getElementById('cc-save-form-btn');
         if (saveButton) {
-            // Phase F1はtensionの保存モデルをまだ導入しない。
-            var canSaveForm = !!form && !(chord && Array.isArray(chord.tensionIntervals) && chord.tensionIntervals.length);
+            // Phase F2: CAGED対応フォームならテンション候補もsemantic recordとして保存できる。
+            var canSaveForm = !!form;
             saveButton.disabled = !canSaveForm;
             saveButton.title = canSaveForm
                 ? '現在表示中のCAGEDフォームを保存前編集で確認します'
-                : (chord && Array.isArray(chord.tensionIntervals) && chord.tensionIntervals.length
-                    ? 'テンション付きコードの保存は今後対応予定です'
-                    : (chord ? 'CAGED型を選ぶと保存できます' : 'コードを選ぶと保存できます'));
+                : (chord ? 'CAGED型を選ぶと保存できます' : 'コードを選ぶと保存できます');
         }
 
         fb.render(host, {

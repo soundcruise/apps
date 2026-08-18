@@ -387,8 +387,13 @@
                 ? '<circle cx="' + marker.x + '" cy="' + marker.y + '" r="19" fill="none" stroke="#e8c97a" stroke-width="2"/>' +
                     '<circle cx="' + marker.x + '" cy="' + marker.y + '" r="17" fill="none" stroke="#0b0a09" stroke-width="2"/>'
                 : '';
+            var tensionOutline = marker.isTensionCandidate
+                ? '<circle cx="' + marker.x + '" cy="' + marker.y + '" r="19" fill="none" stroke="#d4af37" stroke-width="2"/>' +
+                    '<circle cx="' + marker.x + '" cy="' + marker.y + '" r="17" fill="none" stroke="#0b0a09" stroke-width="2"/>'
+                : '';
             svg += '<g opacity="' + opacity + '">' +
                 bassOutline +
+                tensionOutline +
                 '<circle cx="' + marker.x + '" cy="' + marker.y + '" r="15" fill="' + palette.fill + '" stroke="' + stroke + '" stroke-width="' + strokeWidth + '"' + dash + '/>' +
                 '<text x="' + marker.x + '" y="' + (marker.y + 4) + '" text-anchor="middle" style="font-family:Arial,sans-serif;font-size:' + fontSize + 'px;font-weight:700;fill:' + palette.text + '">' + escapeXml(marker.label) + '</text>' +
             '</g>';

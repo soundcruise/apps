@@ -84,11 +84,11 @@ assert(exploreSource.includes('mergeTensionOverlayMarkers'), 'CAGED display has 
 assert(exploreSource.includes('existingBySlot[key].isTensionCandidate = true'), 'a FORM slot is marked instead of duplicated');
 assert(exploreSource.includes("overlayType: overlay.type") && exploreSource.includes('isTensionCandidate: true'), 'overlay-only notes explicitly remain non-FORM candidates');
 assert(exploreSource.includes("mode === 'finger') return '';"), 'finger mode leaves tension candidate labels blank');
-assert(exploreSource.includes('テンション付きコードの保存は今後対応予定です'), 'save entry remains disabled until tension persistence is designed');
-assert(!storageSource.includes('tensionIntervals'), 'Phase F1 adds no saved tension model or migration field');
+assert(!exploreSource.includes('テンション付きコードの保存は今後対応予定です'), 'Phase F2 lets CAGED-compatible tension chords use the existing save entry');
+assert(!storageSource.includes('tensionIntervals'), 'the storage layer still has no migration or position-list field');
 
 assert(themeSource.includes('.cc-fb-marker--tension-candidate'), 'tension candidates receive their own visual class');
 assert(themeSource.includes('0 0 0 4px var(--cc-gold),'), 'tension uses the existing darker gold token, distinct from Bass bright gold');
 assert(themeSource.includes('.cc-fb-host--monochrome .cc-fb-marker--tension-candidate'));
 
-console.log('tension-overlay: upper-quality CAGED, 1–3 string candidates, merge state, blank fingering, and no persistence OK');
+console.log('tension-overlay: upper-quality CAGED, 1–3 string candidates, merge state, blank Explore fingering, and Phase F2 save entry OK');

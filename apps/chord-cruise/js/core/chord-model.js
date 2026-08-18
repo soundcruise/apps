@@ -19,6 +19,31 @@
         21: '13'
     };
 
+    function tensionIntervalsForPcs(rootPc, pcs) {
+        var normalizedRoot = typeof rootPc === 'number' ? ((rootPc % 12) + 12) % 12 : null;
+        var seen = {};
+        if (normalizedRoot === null || !Array.isArray(pcs)) return [];
+        return Object.keys(TENSION_LABELS).map(function (value) { return Number(value); }).filter(function (interval) {
+            var pc = (normalizedRoot + interval) % 12;
+            if (pcs.indexOf(pc) === -1 || seen[pc]) return false;
+            seen[pc] = true;
+            return true;
+        });
+    }
+
+    function tensionPcsForIntervals(rootPc, intervals) {
+        var normalizedRoot = typeof rootPc === 'number' ? ((rootPc % 12) + 12) % 12 : null;
+        var seen = {};
+        if (normalizedRoot === null || !Array.isArray(intervals)) return [];
+        return intervals.filter(function (interval) { return Object.prototype.hasOwnProperty.call(TENSION_LABELS, interval); }).sort(function (a, b) { return a - b; }).map(function (interval) {
+            return (normalizedRoot + interval) % 12;
+        }).filter(function (pc) {
+            if (seen[pc]) return false;
+            seen[pc] = true;
+            return true;
+        });
+    }
+
     /**
      * コード名を自動生成する（音感クルーズPRO generateChordName 準拠、表記は本アプリ基準）。
      * @param {Object} spec { rootPc, third, fifth, seventh, tensions, bassPc? }
@@ -256,6 +281,8 @@
     window.ChordCruise.chordModel = {
         CUSTOM_ROOT_NAMES: CUSTOM_ROOT_NAMES,
         TENSION_LABELS: TENSION_LABELS,
+        tensionIntervalsForPcs: tensionIntervalsForPcs,
+        tensionPcsForIntervals: tensionPcsForIntervals,
         generateName: generateName,
         bassCandidates: bassCandidates,
         bassOverlayNotes: bassOverlayNotes,

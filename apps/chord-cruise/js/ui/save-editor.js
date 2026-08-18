@@ -276,20 +276,21 @@
             includesOpen: displayRange.includesOpen
         };
         var bassPc = validBassPc(chord && chord.bassPc);
-        if (bassPc === null) return range;
-        var contextStart = Math.max(0, range.min - 1);
-        var contextEnd = range.max + 1;
-        var candidates = window.ChordCruise.chordModel.bassOverlayNotes({
-            bassPc: bassPc, rootPc: chord.rootPc, intervals: chord.intervals,
-            startFret: contextStart, endFret: contextEnd, targetStrings: [6, 5, 4]
-        });
-        candidates.forEach(function (candidate) {
-            if (candidate.fret === 0) range.includesOpen = true;
-            else {
-                range.min = Math.min(range.min, candidate.fret);
-                range.max = Math.max(range.max, candidate.fret);
-            }
-        });
+        if (bassPc !== null) {
+            var contextStart = Math.max(0, range.min - 1);
+            var contextEnd = range.max + 1;
+            var candidates = window.ChordCruise.chordModel.bassOverlayNotes({
+                bassPc: bassPc, rootPc: chord.rootPc, intervals: chord.intervals,
+                startFret: contextStart, endFret: contextEnd, targetStrings: [6, 5, 4]
+            });
+            candidates.forEach(function (candidate) {
+                if (candidate.fret === 0) range.includesOpen = true;
+                else {
+                    range.min = Math.min(range.min, candidate.fret);
+                    range.max = Math.max(range.max, candidate.fret);
+                }
+            });
+        }
         return range;
     }
 
@@ -326,6 +327,53 @@
         if (state !== null) {
             draft.bassFingerings.push({ string: stringNum, fret: fret, finger: entry.finger, fingeringWarning: entry.fingeringWarning === true && entry.finger === null, pendingDelete: entry.pendingDelete === true });
         }
+    }
+
+    function normalizeTensionPcs(rootPc, value) {
+        return window.ChordCruise.chordModel.tensionIntervalsForPcs(rootPc, value).map(function (interval) {
+            return (rootPc + interval) % 12;
+        });
+    }
+
+    function normalizeTensionFingerings(value, tensionPcs) {
+        if (!Array.isArray(value)) return [];
+        var seen = {};
+        return value.filter(function (entry) {
+            if (!entry || [1, 2, 3].indexOf(entry.string) === -1 || typeof entry.fret !== 'number' || entry.fret < 0 || Math.floor(entry.fret) !== entry.fret || tensionPcs.indexOf(entry.pc) === -1) return false;
+            if (EDIT_CYCLE.indexOf(entry.finger) === -1 || entry.finger === 'warning' || entry.finger === 'delete') return false;
+            var key = entry.string + ':' + entry.fret + ':' + entry.pc;
+            if (seen[key]) return false;
+            seen[key] = true;
+            return entry.finger !== null || entry.fingeringWarning === true || entry.pendingDelete === true;
+        }).map(function (entry) {
+            return { string: entry.string, fret: entry.fret, pc: entry.pc, finger: entry.finger, fingeringWarning: entry.fingeringWarning === true && entry.finger === null, pendingDelete: entry.pendingDelete === true };
+        });
+    }
+
+    function tensionFingeringFor(stringNum, fret, pc) {
+        return draft.tensionFingerings.filter(function (entry) { return entry.string === stringNum && entry.fret === fret && entry.pc === pc; })[0] || null;
+    }
+
+    function tensionFingeringAccessibleLabel(note) {
+        var entry = tensionFingeringFor(note.string, note.fret, note.pc);
+        var state = entry && entry.pendingDelete ? '消去予定' : (entry && entry.finger != null ? (FINGER_LABELS[entry.finger] || '') + '指' : (entry && entry.fingeringWarning ? '運指警告' : '未指定'));
+        return note.string + '弦 ' + (note.fret === 0 ? '開放弦' : note.fret + 'フレット') + '、テンション候補、現在 ' + state + '。運指を変更';
+    }
+
+    function cycleTensionFingering(stringNum, fret, pc) {
+        var entry = tensionFingeringFor(stringNum, fret, pc) || { string: stringNum, fret: fret, pc: pc, finger: null, fingeringWarning: false, pendingDelete: false, warningStartsCycle: false };
+        cycleNote(entry);
+        var state = noteEditState(entry);
+        draft.tensionFingerings = draft.tensionFingerings.filter(function (item) { return item.string !== stringNum || item.fret !== fret || item.pc !== pc; });
+        if (state !== null) {
+            draft.tensionFingerings.push({ string: stringNum, fret: fret, pc: pc, finger: entry.finger, fingeringWarning: entry.fingeringWarning === true && entry.finger === null, pendingDelete: entry.pendingDelete === true });
+        }
+    }
+
+    function tensionFingeringsForRecord() {
+        return draft.tensionFingerings.filter(function (entry) {
+            return !draft.notes.some(function (note) { return note.string === entry.string && note.fret === entry.fret; });
+        });
     }
 
     function bassOverlayLabel(note, spelledNoteNames) {
@@ -369,6 +417,40 @@
         return markers;
     }
 
+    function tensionOverlayLabel(note) {
+        if (draft.displayMode === 'finger') return '';
+        if (draft.displayMode === 'solfege') return theory().solfegeName(note.pc, draft.useFlats);
+        if (draft.displayMode === 'degree') return window.ChordCruise.chordModel.TENSION_LABELS[note.tension] || theory().degreeLabels([note.interval])[0];
+        return theory().noteName(note.pc, draft.useFlats);
+    }
+
+    function mergeTensionOverlay(markers) {
+        if (!draft.tensionPcs.length) return markers;
+        var tensionIntervals = window.ChordCruise.chordModel.tensionIntervalsForPcs(draft.rootPc, draft.tensionPcs);
+        var overlays = window.ChordCruise.chordModel.tensionOverlayNotes({
+            rootPc: draft.rootPc, tensionIntervals: tensionIntervals,
+            startFret: draft.startFret, endFret: draft.endFret
+        });
+        var bySlot = {};
+        markers.forEach(function (marker) { bySlot[marker.string + ':' + marker.fret] = marker; });
+        overlays.forEach(function (note) {
+            if (!noteIncluded(note)) return;
+            var key = note.string + ':' + note.fret;
+            if (bySlot[key]) { bySlot[key].isTensionCandidate = true; return; }
+            var entry = tensionFingeringFor(note.string, note.fret, note.pc) || {};
+            var marker = {
+                string: note.string, fret: note.fret, label: tensionOverlayLabel(note),
+                role: roleForInterval(note.interval), isOverlay: true, overlayType: 'tension', isTensionCandidate: true,
+                finger: entry.finger || null, fingeringWarning: !!entry.fingeringWarning,
+                pendingDelete: !!entry.pendingDelete, tappable: draft.displayMode === 'finger', ariaLabel: tensionFingeringAccessibleLabel(note)
+            };
+            if (draft.displayMode === 'finger') marker.label = marker.pendingDelete ? '' : (marker.finger != null ? (FINGER_LABELS[marker.finger] || '') : (marker.fingeringWarning ? '⚠' : ''));
+            markers.push(marker);
+            bySlot[key] = marker;
+        });
+        return markers;
+    }
+
     function updateDisplaySegments() {
         if (!draft) return;
         DISPLAY_MODES.forEach(function (mode) {
@@ -402,6 +484,7 @@
             };
         });
         markers = mergeBassOverlay(markers, spelledNoteNames);
+        markers = mergeTensionOverlay(markers);
         var barres = window.ChordCruise.caged.detectBarres(draft.notes.filter(function (note) {
             return noteIncluded(note) && !note.pendingDelete;
         }));
@@ -428,7 +511,16 @@
                 }
                 if (!note) {
                     if (draft.displayMode !== 'finger') return;
-                    cycleBassFingering(stringNum, fret);
+                    if (stringNum <= 3) {
+                        var tensionEntry = window.ChordCruise.chordModel.tensionOverlayNotes({
+                            rootPc: draft.rootPc,
+                            tensionIntervals: window.ChordCruise.chordModel.tensionIntervalsForPcs(draft.rootPc, draft.tensionPcs),
+                            startFret: fret, endFret: fret
+                        }).filter(function (candidate) { return candidate.string === stringNum; })[0];
+                        if (tensionEntry) cycleTensionFingering(stringNum, fret, tensionEntry.pc);
+                    } else {
+                        cycleBassFingering(stringNum, fret);
+                    }
                 } else {
                     if (!noteIncluded(note)) return;
                     cycleNote(note);
@@ -550,7 +642,9 @@
             range: clone(draft.range),
             notes: clone(draft.notes),
             mutedStrings: clone(draft.mutedStrings),
-            bassFingerings: clone(draft.bassFingerings)
+            bassFingerings: clone(draft.bassFingerings),
+            tensionPcs: clone(draft.tensionPcs),
+            tensionFingerings: clone(draft.tensionFingerings)
         };
     }
 
@@ -619,6 +713,11 @@
         else delete record.bassPc;
         if (draft.bassFingerings.length) record.bassFingerings = clone(draft.bassFingerings);
         else delete record.bassFingerings;
+        if (draft.tensionPcs.length) record.tensionPcs = clone(draft.tensionPcs);
+        else delete record.tensionPcs;
+        var tensionFingerings = tensionFingeringsForRecord();
+        if (tensionFingerings.length) record.tensionFingerings = clone(tensionFingerings);
+        else delete record.tensionFingerings;
         record.fretRange = currentRangeForDisplay();
         record.notes = includedNotes;
         if (deletedNotes.length) record.deletedNotes = deletedNotes;
@@ -725,6 +824,7 @@
         var form = payload.form;
         var displayRange = form.displayRange || form.fretRange;
         var saveRange = rangeWithBassCandidates(chord, displayRange);
+        var tensionPcs = window.ChordCruise.chordModel.tensionPcsForIntervals(chord.rootPc, chord.tensionIntervals || []);
         onSavedCallback = payload.onSaved || null;
         saveInProgress = false;
         draft = {
@@ -738,6 +838,8 @@
             rootPc: chord.rootPc,
             bassPc: validBassPc(chord.bassPc),
             bassFingerings: [],
+            tensionPcs: tensionPcs,
+            tensionFingerings: [],
             useFlats: !!payload.useFlats,
             displayMode: defaultDisplayMode(),
             notes: form.notes.map(draftNote),
@@ -804,6 +906,10 @@
             rootPc: typeof original.rootPc === 'number' ? original.rootPc : null,
             bassPc: validBassPc(original.bassPc),
             bassFingerings: normalizeBassFingerings(original.bassFingerings),
+            tensionPcs: normalizeTensionPcs(typeof original.rootPc === 'number' ? original.rootPc : null, original.tensionPcs),
+            tensionFingerings: normalizeTensionFingerings(original.tensionFingerings, normalizeTensionPcs(typeof original.rootPc === 'number' ? original.rootPc : null, original.tensionPcs)).filter(function (entry) {
+                return !editableNotes.some(function (note) { return note.string === entry.string && note.fret === entry.fret; });
+            }),
             useFlats: !!useFlats,
             displayMode: defaultDisplayMode(),
             notes: notes.map(draftNote).concat(deletedNotes.map(deletedDraftNote)),
