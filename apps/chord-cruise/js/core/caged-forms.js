@@ -479,10 +479,51 @@
         }
     };
 
+    /* Sus4 triad: Major CAGEDの3度slotだけを4度へ置換した固定FORM。
+       FORMは全slotを保持し、C/A/Eは資料確認済みの候補運指を入れる。
+       G/Dのmovable運指は実機確認前なので、推測せずfinger:null + warningで残す。 */
+    var SUS4_TRIAD_FORMS = {
+        C: {
+            slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: 0, iv: 5 }, { s: 3, o: -3, iv: 7, fingeringWarning: true }, { s: 2, o: -2, iv: 0 }, { s: 1, o: -2, iv: 5 }],
+            muted: [6],
+            fingers: { 5: 3, 4: 4, 2: 1, 1: 1 },
+            openFingers: { 5: 3, 4: 4, 2: 1, 1: 1 }
+        },
+        A: {
+            slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: 2, iv: 7 }, { s: 3, o: 2, iv: 0 }, { s: 2, o: 3, iv: 5 }, { s: 1, o: 0, iv: 7 }],
+            muted: [6],
+            fingers: { 5: 1, 4: 2, 3: 3, 2: 4, 1: 1 }
+        },
+        G: {
+            slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: 0, iv: 5 }, { s: 4, o: -3, iv: 7 }, { s: 3, o: -3, iv: 0, fingeringWarning: true }, { s: 2, o: -2, iv: 5, fingeringWarning: true }, { s: 1, o: 0, iv: 0, fingeringWarning: true }],
+            muted: [],
+            fingers: { 6: 3, 5: 4, 4: 1 },
+            playability: 'advanced',
+            warningMode: 'fingering',
+            warning: 'G型Sus4のFORM全音を表示しています。movable運指は実機確認前のため、⚠️の位置は候補として保持しています。'
+        },
+        E: {
+            slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: 2, iv: 7 }, { s: 4, o: 2, iv: 0 }, { s: 3, o: 2, iv: 5 }, { s: 2, o: 0, iv: 7 }, { s: 1, o: 0, iv: 0 }],
+            muted: [],
+            fingers: { 6: 1, 5: 2, 4: 3, 3: 4, 2: 1, 1: 1 },
+            openFingers: { 5: 2, 4: 3, 3: 4 }
+        },
+        D: {
+            slots: [{ s: 4, o: 0, iv: 0 }, { s: 3, o: 2, iv: 7 }, { s: 2, o: 3, iv: 0 }, { s: 1, o: 3, iv: 5 }],
+            muted: [6, 5],
+            fingers: { 4: 1, 3: 2, 2: 3, 1: 4 },
+            openFingers: { 3: 1, 2: 3, 1: 4 },
+            playability: 'advanced',
+            warningMode: 'fingering',
+            warning: 'D型Sus4のFORM全音を表示しています。movable運指は実機確認前のため、⚠️の位置は候補として保持しています。'
+        }
+    };
+
     SHAPE_ORDER.forEach(function (shapeKey) {
         Object.keys(EXTENDED_QUALITY_FORMS[shapeKey]).forEach(function (qualityKey) {
             FORMS[shapeKey].qualities[qualityKey] = EXTENDED_QUALITY_FORMS[shapeKey][qualityKey];
         });
+        FORMS[shapeKey].qualities.sus4 = SUS4_TRIAD_FORMS[shapeKey];
     });
 
     /* 品質ごとに独立した音配置を持たせず、maj / 7 の弦役割を変換して生成する。

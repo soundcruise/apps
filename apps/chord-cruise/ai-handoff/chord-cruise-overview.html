@@ -239,8 +239,8 @@
             <h1>コードクルーズ 開発概要</h1>
             <p>キーから探して、指板で確かめて、自分のコード本棚へ ── 開発中のコード学習アプリ</p>
             <div class="ov-meta">
-                <span>現在のバージョン<b>0.22.11（Phase E3 non-chord Bass対応を正式化）</b></span>
-                <span>正式Chord Cruise HEAD<b>65f7835</b></span>
+                <span>現在のバージョン<b>0.24.0（Sus4 triad CAGED対応と任意コード初期値改善を正式化）</b></span>
+                <span>正式Chord Cruise HEAD<b>f419cbc</b></span>
                 <span>最終更新日<b>2026年8月18日</b></span>
             </div>
         </header>
@@ -259,7 +259,7 @@
                 <div class="ov-feature-card">
                     <span class="icon">🔍</span>
                     <h3>コードを調べる</h3>
-                    <p>キー・スケールを選び、ダイアトニックコードを指板上でCAGEDフォーム表示。既存7品質35フォームと、Phase Bのaug／mM7／M7♯5／dim7固定20フォームを合わせた11品質55フォームを扱います。推奨運指が難しい音や表示範囲外で省略した音は個別の折りたたみから確認できます。</p>
+                    <p>キー・スケールを選び、ダイアトニックコードを指板上でCAGEDフォーム表示。正式11品質55フォームに加え、未commitのSus4固定5フォームを候補として扱います。推奨運指が難しい音や表示範囲外で省略した音は個別の折りたたみから確認できます。</p>
                 </div>
                 <div class="ov-feature-card">
                     <span class="icon">🎼</span>
@@ -340,6 +340,7 @@
                     <p><b>Phase F2 tension保存（未commit）:</b> CAGED対応のテンション付き任意コードを既存save-editorへ通し、optional <code>tensionPcs</code>（rootからのdegree順で正規化したpitch class配列）と<code>tensionFingerings</code>（<code>string</code>・<code>fret</code>・<code>pc</code>・<code>finger</code>・<code>fingeringWarning</code>・<code>pendingDelete</code>）だけをrecordへ保存します。selected candidate、候補一覧、absolute pitch、完成voicingは保存しません。保存range内の1〜3弦candidateは<code>rootPc + tensionPcs + fretRange</code>から再生成し、FORM同slotはFORM markerをsource of truthとしてoverrideを保存しません。初期保存rangeはFORMを基準にし、Phase E2のBass candidateだけを近傍範囲として加えます。テンションcandidateはoverlay表示対象ですが、遠方候補のためにrangeを拡張しません。FORM外candidateはsave-editorと本棚詳細の運指modeで既存Bassと同じcycleを使い、warning／pending delete／restoreを扱います。通常本棚・SVG・PNGではpending-delete tensionを非表示、編集時だけ点線・半透明・空欄で復元します。複数テンションは<code>9 → 13</code>のようにdegree順で保持します。Bass overlay、slash、CAGED、schemaVersion 1、migration、version <code>0.22.9</code>は不変です。実機ではCadd9のsave → reload → 本棚詳細でringとcandidate再生成を確認済み。正式化まではstage・commit・pushしません。</p>
                     <p><b>v0.22.10 Phase F2正式化:</b> 前項のtension保存仕様を正式化しました。<code>tensionPcs</code>と編集済み候補だけの<code>tensionFingerings</code>を保存し、複数テンションはdegree順で管理します。FORM・Bass・Tensionのpending-deleteは通常本棚／SVG／PNGで非表示、save-editorの編集時だけ点線・半透明・中央空欄・aria「消去予定」で復元します。保存rangeはFORM基準で、Phase E2のBass近傍候補だけを拡張し、Tension候補では拡張しません。Cadd9、CM7(9)、C7(9)、CM7(9,13)、Cadd9/Eのsave/reload、本棚、SVG/PNG、通常／ハイフレットを確認し、schemaVersion 1・migrationなしを維持します。正式main HEADは<code>6c6749911cbfb1eff8fa6ad6d543a89fc0292646</code>です。</p>
                     <p><b>v0.22.11 Phase E3正式化:</b> Bass selectorの通常状態を<code>通常</code>として明示し、root以外の全11 pitch classを「構成音」と「その他のベース音」に分けて選択可能にしました。構成音には3和音・7th・tensionを含め、rootは通常状態と同義のため除外しました。non-chord Bassも既存optional <code>bassPc</code>だけへ保存し、upper intervals・quality・CAGED FORM・schemaVersion 1・migrationは変更しません。<code>C/B♭</code>、<code>C/D</code>、<code>C/F</code>のsymbol、4〜6弦Bass ring、CDE／ドレミ／度数、save-editor、reload、本棚、SVG/PNGを既存E2経路で再生成します。Bass表記はA♯→B♭、D♯→E♭、G♯→A♭を優先し、rootやscaleの綴りには波及させません。保存rangeはFORM基準＋Bass近傍のみで、Tension候補では拡張しません。正式main HEADは<code>65f7835f0f83b205322ee96f359bacbe21066fbb</code>です。</p>
+                    <p><b>v0.24.0 Phase G2 Sus4 CAGED正式化:</b> <code>QUALITIES.sus4</code>（<code>1 4 5</code>）とC/A/G/E/Dの固定5FORMを正式化しました。FORMはC型<code>x33011</code>、A型<code>x35563</code>、G型<code>8-8-5-5-6-8</code>、E型<code>8-10-10-10-8-8</code>、D型<code>xx10-12-13-13</code>を全slot保持します。FINGERINGはC型の開放3弦を<code>openFingers</code>で扱い移動形の同slotを⚠、A型<code>× 人 中 薬 小 人</code>、G型<code>薬 小 人 ⚠ ⚠ ⚠</code>、E型既存候補、D型<code>× × 人 中 薬 小</code>としました。FORM音の削除・mute化・根拠のない親指Tは行いません。Sus4の4度は3度代替の構成音として黄色で表示し、Explore／保存前編集／本棚／SVG・PNGで同じroleを使います。任意コード作成は選択中ダイアトニックのcore selectorを初期値とし、未選択時・既存任意コード選択時はCメジャーから開始します。Bass／Tension／保存schema／migrationは不変です。</p>
                     <p><b>aug source-backed FINGERING:</b></p>
                     <ul>
                         <li>C型: source <code>x3211x</code>（開放Caug <code>x32110</code>）。5弦4・4弦3・3弦1・2弦2。ムーバブルFORMの1弦を⚠とし、FORMの3度は保持。</li>

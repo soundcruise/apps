@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
-- 現在のバージョン: `0.22.11`（Phase E3 non-chord Bass対応を正式化）
+- 現在のバージョン: `0.24.0`（Sus4 triad CAGED対応と任意コード初期値改善を正式化）
 - v0.22.1直前の正式Chord Cruise commit（`git log --oneline -- apps/chord-cruise/` で確認）:
   - hash: `a562888a078494d6deeb9900d2b15260bc35128e`
   - message: `7種類のスケール選択に対応`
@@ -89,6 +89,7 @@
 - **Phase F2 tension保存（未commit）**: CAGED対応のテンション付き任意コードを既存save-editorへ通し、optional `tensionPcs`（rootからのdegree順で正規化したpitch class配列）と`tensionFingerings`（`string`・`fret`・`pc`・`finger`・`fingeringWarning`・`pendingDelete`）だけをrecordへ保存する。selected candidate、候補一覧、absolute pitch、完成voicingは保存しない。保存range内の1〜3弦candidateは`rootPc + tensionPcs + fretRange`から再生成し、FORM同slotはFORM markerをsource of truthとしてoverrideを保存しない。初期の保存rangeはFORMを基準にし、Phase E2のBass candidateだけを近傍範囲として加える。テンションcandidateはoverlay表示対象だが、遠方候補のためにrangeを拡張しない。FORM外candidateはsave-editorと本棚詳細の運指modeで既存Bassと同じcycleを使い、warning／pending delete／restoreを扱う。通常本棚・SVG・PNGではpending-delete tensionを非表示、編集時だけ点線・半透明・空欄で復元する。複数テンションは`9 → 13`のようにdegree順で保持する。Bass overlay、slash、CAGED、schemaVersion 1、migration、version `0.22.9`は不変。実機ではCadd9のsave → reload → 本棚詳細でringとcandidate再生成を確認済み。正式化まではstage・commit・pushしない。
 - **v0.22.10 Phase F2正式化**: 前項のtension保存仕様を正式化した。`tensionPcs`と編集済み候補だけの`tensionFingerings`を保存し、複数テンションはdegree順で管理する。FORM・Bass・Tensionのpending-deleteは通常本棚／SVG／PNGで非表示、save-editorの編集時だけ点線・半透明・中央空欄・aria「消去予定」で復元する。保存rangeはFORM基準で、Phase E2のBass近傍候補だけを拡張し、Tension候補では拡張しない。Cadd9、CM7(9)、C7(9)、CM7(9,13)、Cadd9/Eのsave/reload、本棚、SVG/PNG、通常／ハイフレットを確認し、schemaVersion 1・migrationなしを維持する。正式main HEADは`6c6749911cbfb1eff8fa6ad6d543a89fc0292646`。
 - **v0.22.11 Phase E3正式化**: Bass selectorの通常状態を`通常`として明示し、root以外の全11 pitch classを「構成音」と「その他のベース音」に分けて選択可能にした。構成音には3和音・7th・tensionを含め、rootは通常状態と同義のため除外した。non-chord Bassも既存optional `bassPc`だけへ保存し、upper intervals・quality・CAGED FORM・schemaVersion 1・migrationは変更しない。`C/B♭`、`C/D`、`C/F`のsymbol、4〜6弦Bass ring、CDE／ドレミ／度数、save-editor、reload、本棚、SVG/PNGを既存E2経路で再生成する。Bass表記はA♯→B♭、D♯→E♭、G♯→A♭を優先し、rootやscaleの綴りには波及させない。保存rangeはFORM基準＋Bass近傍のみで、Tension候補では拡張しない。正式main HEADは`65f7835f0f83b205322ee96f359bacbe21066fbb`。
+- **v0.24.0 Phase G2 Sus4 CAGED正式化**: `QUALITIES.sus4`（`1 4 5`）とC/A/G/E/Dの固定5FORMを正式化した。任意コードの`third:5, fifth:7, seventh:null`は`qualityKey: 'sus4'`でCAGED表示できる。FORMはC型`x33011`、A型`x35563`、G型`8-8-5-5-6-8`、E型`8-10-10-10-8-8`、D型`xx10-12-13-13`を全slot保持する。FINGERINGはC型の開放3弦を`openFingers`で扱い移動形の同slotを⚠、A型`× 人 中 薬 小 人`、G型`薬 小 人 ⚠ ⚠ ⚠`、E型既存候補、D型`× × 人 中 薬 小`とした。FORM音の削除・mute化・根拠のない親指Tは行わない。Sus4の4度は3度代替の構成音として通常黄色で表示し、Explore／保存前編集／本棚／SVG・PNGで同じroleを使う。任意コード作成は選択中ダイアトニックのroot・3rd・5th・7thを初期値とし、未選択時・既存任意コード選択時はCメジャーから開始する（tension／bassは持ち込まない）。schemaVersion・migrationは不変。versionは`0.24.0`。
 - 通常版/PRO版の構造: PRO版は存在しないため、`apps/chord-cruise/` 直下の `index.html` のみが唯一のエントリーポイント。他アプリのような `standard/` サブディレクトリも無い。
 - JS/CSSの共有関係:
   - `theme.css` はコードクルーズ専用の1ファイル（`apps/shared/` には依存していない）。
@@ -174,7 +175,7 @@
   - 「＋ 任意コードを作る」から、ダイアトニックにない任意のコード（テンション等含む）を組み立てられる（`chord-builder.js`）。
   - 表示中のフォームは「このフォームを保存」からコード本棚へ保存できる（`save-editor.js` の保存前編集モーダルを経由）。
   - メジャーセブンスのユーザー表示は `M7` に統一。内部品質キーは `maj7` のまま維持する。旧保存名の `maj7` は表示時だけ `M7` に正規化し、自動一括更新しない。
-- **CAGEDフォーム表示**: `js/core/caged-forms.js` の辞書データに基づき、指定された実フレット範囲内でフォームを探索する。全音が収まる配置を優先し、完全形が無い場合も表示可能な音が1つ以上あれば範囲外音だけを省略して同じ型のまま表示する。12〜25Fでは通常フォームを+12Fへ移し、`openFingers` ではなくムーバブル運指を使う。既存7品質35フォームにPhase Bの`aug / mMaj7 / maj7sharp5 / dim7`固定20フォームを加え、11品質55フォームを扱う。新4品質20型はFORMの理論slotを運指都合で削除しない。M7♯5は26slot中、実機で推奨指を確定できなかった4slotだけwarning。dim7は各型4slot・全構成音・warning 0。既存`m / dim / m7 / m7♭5`の共通変換は不変。`detectBarres()`は連続弦に加え、間の弦を別指でより高いフレットに押さえる物理的な上書きバレーも検出する。推奨運指を割り当てられないslotだけはFORMに残したまま`fingeringWarning`で区別し、CDE／ドレミ／度数では通常表示、運指でのみ⚠表示とする。「⚠️ 運指」と範囲外音を知らせる「△ フォーム」は独立した折りたたみで表示する。
+- **CAGEDフォーム表示**: `js/core/caged-forms.js` の辞書データに基づき、指定された実フレット範囲内でフォームを探索する。全音が収まる配置を優先し、完全形が無い場合も表示可能な音が1つ以上あれば範囲外音だけを省略して同じ型のまま表示する。12〜25Fでは通常フォームを+12Fへ移し、`openFingers` ではなくムーバブル運指を使う。既存11品質55フォームに、未commitの`Sus4`固定5フォームを加えた12品質60フォームを候補として扱う。Sus4はC型の移動時3弦、G型の3〜1弦、D型の4〜3弦だけをFORMに残したまま⚠表示とする。既存`m / dim / m7 / m7♭5`の共通変換は不変。`detectBarres()`は連続弦に加え、間の弦を別指でより高いフレットに押さえる物理的な上書きバレーも検出する。推奨運指を割り当てられないslotだけはFORMに残したまま`fingeringWarning`で区別し、CDE／ドレミ／度数では通常表示、運指でのみ⚠表示とする。「⚠️ 運指」と範囲外音を知らせる「△ フォーム」は独立した折りたたみで表示する。
 - **押さえ方・運指・バレーコード表示の注意点**: 運指はCAGEDフォーム選択中のみ有効。警告音は運指モードだけ`⚠️`となり、他モードでは通常の音名・階名・度数を表示する。同じ指・同じ実フレットのノートからバレーを導出し、警告音と消去予定音は対象外。保存編集では`finger`、`fingeringWarning`、draft専用`pendingDelete`を分離し、確定時に消去予定音だけを除外する。
 - **コード本棚**: 保存したコードフォームをフォルダ単位で整理する。フォルダはヴィンテージ楽譜集の背表紙として2〜6列で並び、各行の直下に棚板を描く。列数はコードカードの1〜4列設定とは別に`folderShelfColumns`で保持する。表示名は一文字ずつの装飾用spanで縦組みにし、半角英数字は正立、長音記号「ー」は空の専用spanの擬似要素でCSS製の縦線として描く。文字グリフの回転には依存しない。ボタン本体の`aria-label`と`title`は元の横書き名を保つ。各フォルダ下部の「…」は管理専用で、名前変更・フォルダと全コードの深い複製・12色からの色選択・完全削除をbottom sheetで提供する。未分類は先頭固定で色変更のみできる。フォルダのコピーは新規IDと新規コードIDを採番し、元の直後・元のコード順で追加する。色はフォルダの任意`colorKey`だけに保存し、既定は`black-leather`。colorKeyなしの旧フォルダも黒革として表示し、読むだけでは保存データを書き換えない。フォルダ削除は所属コードの個別レコード、index、`libraryOrder`をまとめて完全削除し、書き込み失敗時はスナップショットを復元する。コード一覧ではコード名＋軽量SVG指板を1〜4列で表示する。詳細・一覧・書き出しは同じ保存範囲描画モデルを使う。
 - **保存データの整合性**: 保存コードの新規保存・上書き・フォルダ移動・削除では、個別コード、`chordCruise.chords.index`、`chordCruise.libraryOrder`、必要時のフォルダ初期化状態を同一トランザクション相当として扱う。各書き込み前の生値を保存し、途中失敗時は全キーの復元を個別に試み、復元の一部に失敗しても残りを継続する。APIは保存失敗時`null`、削除失敗時`false`を返し、詳細画面は入力・表示・現在位置を成功前に確定せずエラートーストを出す。
@@ -203,8 +204,8 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.22.11`）。
-- `?v=` によるキャッシュ管理: `index.html` 内の全15本のscriptタグとstylesheet link（計16参照）が同じ `0.22.11` を共有している。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.24.0`）。
+- `?v=` によるキャッシュ管理: `index.html` 内の全15本のscriptタグとstylesheet link（計16参照）が同じ `0.24.0` を共有している。
 - 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
 - service workerの更新: service worker自体が存在しないため不要。
 - **バージョン更新漏れしやすい箇所**: `index.html`内の15本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。

@@ -191,6 +191,7 @@
 
         document.getElementById('cc-custom-chord-btn').addEventListener('click', function () {
             window.ChordCruise.ui.chordBuilder.open({
+                initialSpec: window.ChordCruise.ui.chordBuilder.initialSpecForChord(selectedChord()),
                 onApply: function (chord) {
                     getState().exploreCustomChord = chord;
                     getState().exploreSelectedChordIndex = null;
@@ -546,7 +547,7 @@
 
     function roleForInterval(interval) {
         if (interval === 0) return 'root';
-        if (interval === 3 || interval === 4) return 'third';
+        if (interval === 3 || interval === 4 || interval === 5) return 'third';
         if (interval === 6 || interval === 7 || interval === 8) return 'fifth';
         if (interval === 9 || interval === 10 || interval === 11) return 'seventh';
         return 'other';

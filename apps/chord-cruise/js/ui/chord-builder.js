@@ -167,21 +167,61 @@
         document.getElementById('cc-builder-name').value = model().buildCustomChord(readSpec(), '').symbol;
     }
 
+    function defaultInitialSpec() {
+        return { rootPc: 0, third: 4, fifth: 7, seventh: null, tensions: [], bassPc: null };
+    }
+
+    function initialSpecForChord(chord) {
+        if (!chord || chord.source === 'custom' || typeof chord.rootPc !== 'number' || !Array.isArray(chord.intervals)) {
+            return defaultInitialSpec();
+        }
+        var intervals = chord.intervals;
+        function selectedInterval(candidates) {
+            for (var i = 0; i < candidates.length; i += 1) {
+                if (intervals.indexOf(candidates[i]) !== -1) return candidates[i];
+            }
+            return null;
+        }
+        return {
+            rootPc: chord.rootPc,
+            third: selectedInterval([4, 3, 5]),
+            fifth: selectedInterval([7, 6, 8]),
+            seventh: selectedInterval([10, 11, 9]),
+            tensions: [],
+            bassPc: null
+        };
+    }
+
+    function normalizeInitialSpec(spec) {
+        var fallback = defaultInitialSpec();
+        if (!spec || typeof spec.rootPc !== 'number') return fallback;
+        return {
+            rootPc: spec.rootPc,
+            third: [3, 4, 5, null].indexOf(spec.third) !== -1 ? spec.third : fallback.third,
+            fifth: [6, 7, 8, null].indexOf(spec.fifth) !== -1 ? spec.fifth : fallback.fifth,
+            seventh: [9, 10, 11, null].indexOf(spec.seventh) !== -1 ? spec.seventh : fallback.seventh,
+            tensions: Array.isArray(spec.tensions) ? spec.tensions.slice() : [],
+            bassPc: typeof spec.bassPc === 'number' ? spec.bassPc : null
+        };
+    }
+
     function open(options) {
         ensureDom();
         previousFocus = document.activeElement;
         onApplyCallback = options && options.onApply;
-        // フォーム初期化
-        document.getElementById('cc-builder-root').value = '0';
-        document.getElementById('cc-builder-third').value = '4';
-        document.getElementById('cc-builder-fifth').value = '7';
-        document.getElementById('cc-builder-seventh').value = 'null';
-        document.getElementById('cc-builder-bass').value = '';
+        var initialSpec = normalizeInitialSpec(options && options.initialSpec);
+        // 選択中のダイアトニックコードを初期値にし、未選択時は従来どおりCメジャーにする。
+        document.getElementById('cc-builder-root').value = String(initialSpec.rootPc);
+        document.getElementById('cc-builder-third').value = initialSpec.third === null ? 'null' : String(initialSpec.third);
+        document.getElementById('cc-builder-fifth').value = initialSpec.fifth === null ? 'null' : String(initialSpec.fifth);
+        document.getElementById('cc-builder-seventh').value = initialSpec.seventh === null ? 'null' : String(initialSpec.seventh);
         Array.prototype.forEach.call(overlayEl.querySelectorAll('.cc-tension-checkbox'), function (checkbox) {
-            checkbox.checked = false;
+            checkbox.checked = initialSpec.tensions.indexOf(parseInt(checkbox.value, 10)) !== -1;
         });
         nameUserEdited = false;
         refreshSpecControls();
+        document.getElementById('cc-builder-bass').value = initialSpec.bassPc === null ? '' : String(initialSpec.bassPc);
+        refreshName();
         overlayEl.classList.remove('cc-modal-overlay--hidden');
         var dialog = overlayEl.querySelector('[role="dialog"]');
         if (focusTrap()) focusTrap().focusFirst(dialog || overlayEl);
@@ -201,6 +241,7 @@
     window.ChordCruise.ui = window.ChordCruise.ui || {};
     window.ChordCruise.ui.chordBuilder = {
         open: open,
-        close: close
+        close: close,
+        initialSpecForChord: initialSpecForChord
     };
 })();
