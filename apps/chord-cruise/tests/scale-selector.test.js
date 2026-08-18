@@ -5,6 +5,7 @@ var fs = require('fs');
 var path = require('path');
 
 var SCALE_IDS = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'locrian'];
+var CORE_SCALE_IDS = SCALE_IDS.concat(['harmonic-minor', 'melodic-minor']);
 var SCALE_LABELS = {
     major: 'メジャー / イオニアン',
     dorian: 'ドリアン',
@@ -32,7 +33,7 @@ var theory = window.ChordCruise.theory;
 var storage = window.ChordCruise.storage;
 
 assert.deepStrictEqual(storage.VALID_SCALE_TYPES, SCALE_IDS, 'storage accepts exactly the approved seven scale IDs');
-assert.deepStrictEqual(Object.keys(theory.SCALES), SCALE_IDS, 'SCALES remains the sole source for the approved seven scales');
+assert.deepStrictEqual(Object.keys(theory.SCALES), CORE_SCALE_IDS, 'core exposes nine scales independently from the approved UI/storage seven');
 SCALE_IDS.forEach(function (scaleType) {
     assert.strictEqual(theory.SCALES[scaleType].label, SCALE_LABELS[scaleType], scaleType + ' label');
 });
@@ -46,6 +47,8 @@ function normalizedScaleType(value) {
 assert.strictEqual(normalizedScaleType(undefined), 'major', 'missing scaleType defaults to major');
 assert.strictEqual(normalizedScaleType(null), 'major', 'null scaleType defaults to major');
 assert.strictEqual(normalizedScaleType('banana'), 'major', 'invalid scaleType defaults to major');
+assert.strictEqual(normalizedScaleType('harmonic-minor'), 'major', 'internal-only Harmonic Minor cannot enter persisted UI settings');
+assert.strictEqual(normalizedScaleType('melodic-minor'), 'major', 'internal-only Melodic Minor cannot enter persisted UI settings');
 SCALE_IDS.forEach(function (scaleType) {
     assert.strictEqual(normalizedScaleType(scaleType), scaleType, scaleType + ' restores unchanged');
 });
@@ -163,6 +166,7 @@ assert(exploreSource.indexOf("event.key === 'Escape'") !== -1, 'Escape closes th
 assert(exploreSource.indexOf('focusTrap().trapFocus') !== -1, 'sheet delegates Tab behavior to the shared focus helper');
 assert(exploreSource.indexOf('focusTrap().restoreFocus') !== -1, 'sheet returns focus to its opener');
 assert(exploreSource.indexOf("mode: settings.scaleType") !== -1, 'newly saved forms retain the selected scale ID in keyContext.mode');
+assert(exploreSource.indexOf("SCALE_SELECTION_ORDER = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'locrian']") !== -1, 'selector retains the approved seven-scale order');
 assert.strictEqual((exploreSource.match(/cc-mode-major/g) || []).length, 0, 'legacy Major / Minor segment controls are removed');
 assert.strictEqual((exploreSource.match(/cc-mode-minor/g) || []).length, 0, 'legacy Major / Minor segment controls are removed');
 

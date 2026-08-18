@@ -324,6 +324,7 @@
                 </div>
                 <div class="ov-warn-box" style="margin-top: 14px;">
                     <p><b>v0.22.2 Phase B → v0.22.3正式化:</b> <code>aug / mMaj7 / maj7sharp5 / dim7</code>のC/A/G/E/D固定20フォームを実装し、CAGEDは11品質55フォームになりました。aug／mMaj7／M7♯5／dim7の全20型をユーザー実ギター確認済みとし、最後にdim7 G型を<code>8x787x</code>・<code>親・×・人・薬・中・×</code>へ修正しました。FORMは全slot保持、運指未確定slotだけ<code>finger:null + fingeringWarning:true</code>、muteはFORM削除に使用しません。schemaVersion 1、migrationなし、Harmonic / Melodic Minor未追加。Phase Bの正式commit・通常pushを完了しました。</p>
+                    <p><b>v0.22.4 Phase C正式化:</b> core APIへHarmonic Minorと、下降時もNatural Minorへ切り替えない上行固定のMelodic Minorを追加しました。両scaleの12 tonic・3和音・7th・Roman・11品質・理論音名を固定期待値で検証し、既存55 CAGEDフォームを変更せず利用できることを確認しています。G♯ Harmonic Minorは<code>G♯ A♯ B C♯ D♯ E F♯♯</code>、7thは<code>G♯mM7 / A♯m7♭5 / BM7♯5 / C♯m7 / D♯7 / EM7 / F♯♯dim7</code>です。selector、保存許可値、schema/migration、CAGED定義は不変で、画面・保存で選択できる正式7scaleも維持します。Phase Bの正式commitは<code>6cc72512</code>です。次工程はPhase Dの9scale UI公開検討です。</p>
                     <p><b>aug source-backed FINGERING:</b></p>
                     <ul>
                         <li>C型: source <code>x3211x</code>（開放Caug <code>x32110</code>）。5弦4・4弦3・3弦1・2弦2。ムーバブルFORMの1弦を⚠とし、FORMの3度は保持。</li>
@@ -358,7 +359,7 @@
                         <li>E型 <code>8978xx</code>: <code>中・小・人・薬・×・×</code>。barreなし。</li>
                         <li>D型 <code>xx10-11-10-11</code>: <code>×・×・人・薬・中・小</code>。barreなし。</li>
                     </ul>
-                    <p><code>detectBarres()</code>は連続弦に加え、間の弦を別指でより高いフレットに押さえる物理的な上書きbarreも検出します。次工程はdim7 5型のユーザー実ギター確認です。完了まではHarmonic / Melodic MinorやPhase Cへ進めません。</p>
+                    <p><code>detectBarres()</code>は連続弦に加え、間の弦を別指でより高いフレットに押さえる物理的な上書きbarreも検出します。Phase BとPhase Cの実装・検証・正式化は完了済みです。次工程は9scale UI公開を検討するPhase Dです。</p>
                 </div>
             </div>
         </section>
@@ -396,6 +397,7 @@
                         <tr><td><code>0.22.1</code></td><td>現行7scaleのscale-aware note spellingを正式反映（84/84理論綴り・実機確認済み）</td></tr>
                         <tr><td><code>0.22.2</code></td><td>Phase Aの4新quality（aug / mMaj7 / M7♯5 / dim7）core理論基盤を正式反映。UI・CAGED・保存schemaは不変</td></tr>
                         <tr><td><code>0.22.3</code></td><td>Phase BのCAGED固定20型、任意コード照合、品質別degree表示、dim7 G型の最終実機運指を正式化。通常push済み</td></tr>
+                        <tr><td><code>0.22.4</code></td><td>Phase CのHarmonic / Melodic Minor内部対応を正式化。core 9scale、1512構造、108綴りfixture。UI selector・保存schema・55 CAGED formは不変。通常push済み</td></tr>
                         <tr><td><code>a562888a</code></td><td>7種類のスケール選択UIと設定正規化を追加（v0.22.0 Phase 2B、実機確認済み）</td></tr>
                         <tr><td><code>9c62cb7</code></td><td>Phase 2Aの教会旋法内部生成へ対応</td></tr>
                         <tr><td><code>0.21.8</code></td><td>Roman表記を大文字に統一（実機確認済み）</td></tr>

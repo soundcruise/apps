@@ -37,9 +37,9 @@
     };
 
     /*
-     * 7音スケール定義。Phase 2Aでは教会旋法7種を内部APIへ公開するが、
-     * UIと保存値は引き続き major / minor のみを扱う。Romanはqualityを
-     * suffixで示し、度数部分を全大文字に統一する。
+     * 7音スケール定義。Phase Cではハーモニック／メロディックマイナーも
+     * core APIへ追加する。UIの選択肢と保存許可値は別の明示リストで管理する。
+     * Romanはqualityをsuffixで示し、度数部分を全大文字に統一する。
      */
     var SCALES = {
         major: {
@@ -104,6 +104,25 @@
             degreeLabels: ['1', '♭2', '♭3', '4', '♭5', '♭6', '♭7'],
             roman3: ['I°', 'II', 'III', 'IV', 'V', 'VI', 'VII'],
             roman7: ['Im7♭5', 'IIM7', 'IIIm7', 'IVm7', 'VM7', 'VI7', 'VIIm7']
+        },
+        'harmonic-minor': {
+            id: 'harmonic-minor',
+            label: 'ハーモニックマイナー',
+            tonicFamily: 'minor',
+            intervals: [0, 2, 3, 5, 7, 8, 11],
+            degreeLabels: ['1', '2', '♭3', '4', '5', '♭6', '7'],
+            roman3: ['Im', 'II°', 'IIIaug', 'IVm', 'V', 'VI', 'VII°'],
+            roman7: ['ImM7', 'IIm7♭5', 'IIIM7♯5', 'IVm7', 'V7', 'VIM7', 'VII°7']
+        },
+        'melodic-minor': {
+            id: 'melodic-minor',
+            label: 'メロディックマイナー',
+            tonicFamily: 'minor',
+            // 上行形のみを固定採用する。下降時にNatural Minorへ切り替えない。
+            intervals: [0, 2, 3, 5, 7, 9, 11],
+            degreeLabels: ['1', '2', '♭3', '4', '5', '6', '7'],
+            roman3: ['Im', 'IIm', 'IIIaug', 'IV', 'V', 'VI°', 'VII°'],
+            roman7: ['ImM7', 'IIm7', 'IIIM7♯5', 'IV7', 'V7', 'VIm7♭5', 'VIIm7♭5']
         }
     };
 
@@ -184,7 +203,9 @@
         lydian: buildDiatonicDefinition(SCALES.lydian),
         mixolydian: buildDiatonicDefinition(SCALES.mixolydian),
         minor: buildDiatonicDefinition(SCALES.minor),
-        locrian: buildDiatonicDefinition(SCALES.locrian)
+        locrian: buildDiatonicDefinition(SCALES.locrian),
+        'harmonic-minor': buildDiatonicDefinition(SCALES['harmonic-minor']),
+        'melodic-minor': buildDiatonicDefinition(SCALES['melodic-minor'])
     };
 
     // コードルート基準の度数表示
