@@ -8,6 +8,14 @@
     // 任意コードのルート表記（音感クルーズPROと同じ慣用ミックス表記）
     var CUSTOM_ROOT_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
     var FLAT_ROOT_PCS = [3, 8, 10]; // E♭, A♭, B♭ はフラット表記系
+    // Bassはコードルートやキーの綴りと独立して、A♯/D♯/G♯を慣用的な♭表記にする。
+    // F♯など既存のslash表記を変えないため、全てを♭へ機械変換はしない。
+    var BASS_NOTE_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
+    var BASS_FLAT_PCS = [3, 8, 10];
+    var BASS_DEGREE_LABELS = {
+        0: '1', 1: '♭9', 2: '9', 3: '♯9', 4: '3', 5: '11',
+        6: '♯11', 7: '5', 8: '♭13', 9: '13', 10: '♭7', 11: '7'
+    };
 
     var TENSION_LABELS = {
         13: '♭9',
@@ -115,10 +123,32 @@
         return ((bassPc % 12) + 12) % 12;
     }
 
-    /** upper chordの構成音から、root positionと同義のrootを除いたslash bass候補を返す。 */
-    function bassCandidates(spec) {
+    function normalizedRootPc(spec) {
         var rootPc = spec && spec.rootPc;
-        if (typeof rootPc !== 'number' || !isFinite(rootPc)) return [];
+        return typeof rootPc === 'number' && isFinite(rootPc)
+            ? ((rootPc % 12) + 12) % 12
+            : null;
+    }
+
+    /** slash bass専用の慣用表記。コード本体の綴りは変更しない。 */
+    function bassNoteName(pc) {
+        var normalized = typeof pc === 'number' && isFinite(pc) ? ((pc % 12) + 12) % 12 : null;
+        return normalized === null ? '' : BASS_NOTE_NAMES[normalized];
+    }
+
+    function bassUsesFlats(pc) {
+        var normalized = typeof pc === 'number' && isFinite(pc) ? ((pc % 12) + 12) % 12 : null;
+        return normalized !== null && BASS_FLAT_PCS.indexOf(normalized) !== -1;
+    }
+
+    function bassDegreeLabel(interval) {
+        return BASS_DEGREE_LABELS[((interval % 12) + 12) % 12];
+    }
+
+    /** upper chordとtensionの構成音から、root positionと同義のrootを除いたslash bass候補を返す。 */
+    function bassCandidates(spec) {
+        var rootPc = normalizedRootPc(spec);
+        if (rootPc === null) return [];
         var candidates = [];
         var seen = {};
         var intervals = [0];
@@ -130,10 +160,22 @@
         });
         intervals.forEach(function (interval) {
             var pc = ((rootPc + interval) % 12 + 12) % 12;
-            if (pc === ((rootPc % 12) + 12) % 12 || seen[pc]) return;
+            if (pc === rootPc || seen[pc]) return;
             seen[pc] = true;
             candidates.push(pc);
         });
+        return candidates;
+    }
+
+    /** 構成音以外で選択できるslash bass。rootは通常状態と同義なので含めない。 */
+    function nonChordBassCandidates(spec) {
+        var rootPc = normalizedRootPc(spec);
+        if (rootPc === null) return [];
+        var chordTones = bassCandidates(spec);
+        var candidates = [];
+        for (var pc = 0; pc < 12; pc++) {
+            if (pc !== rootPc && chordTones.indexOf(pc) === -1) candidates.push(pc);
+        }
         return candidates;
     }
 
@@ -215,7 +257,8 @@
     function buildCustomChord(spec, customName) {
         var theory = window.ChordCruise.theory;
         var bassPc = normalizedBassPc(spec);
-        var validBassPc = bassPc !== null && bassCandidates(spec).indexOf(bassPc) !== -1 ? bassPc : null;
+        // root bassは通常状態と同義。構成音外もbassPcだけでsemanticに扱う。
+        var validBassPc = bassPc !== null && bassPc !== normalizedRootPc(spec) ? bassPc : null;
         var core = [0];
         if (spec.third !== null) core.push(spec.third);
         if (spec.fifth !== null) core.push(spec.fifth);
@@ -251,7 +294,7 @@
         var upperName = (customName && customName.trim()) || generateName(spec);
         var symbol = theory.displayChordName(upperName);
         if (validBassPc !== null) {
-            symbol += '/' + theory.noteName(validBassPc, FLAT_ROOT_PCS.indexOf(spec.rootPc) !== -1);
+            symbol += '/' + bassNoteName(validBassPc);
         }
 
         return {
@@ -280,11 +323,16 @@
     window.ChordCruise = window.ChordCruise || {};
     window.ChordCruise.chordModel = {
         CUSTOM_ROOT_NAMES: CUSTOM_ROOT_NAMES,
+        BASS_NOTE_NAMES: BASS_NOTE_NAMES,
         TENSION_LABELS: TENSION_LABELS,
         tensionIntervalsForPcs: tensionIntervalsForPcs,
         tensionPcsForIntervals: tensionPcsForIntervals,
         generateName: generateName,
         bassCandidates: bassCandidates,
+        nonChordBassCandidates: nonChordBassCandidates,
+        bassNoteName: bassNoteName,
+        bassUsesFlats: bassUsesFlats,
+        bassDegreeLabel: bassDegreeLabel,
         bassOverlayNotes: bassOverlayNotes,
         tensionOverlayNotes: tensionOverlayNotes,
         buildCustomChord: buildCustomChord

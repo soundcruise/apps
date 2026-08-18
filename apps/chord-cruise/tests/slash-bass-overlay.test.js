@@ -36,7 +36,8 @@ assert.strictEqual(dm7OverC.degreeLabelsList[dm7OverC.intervals.indexOf(10)], '�
 assert.deepStrictEqual(model.bassCandidates(dm7OverC.spec), [5, 9, 0]);
 
 assert.strictEqual(custom(0, 4, 7, null, 0).bassPc, null, 'root bass falls back to normal root position');
-assert.strictEqual(custom(0, 4, 7, null, 10).bassPc, null, 'non-chord-tone bass is not publicly accepted in E1');
+assert.strictEqual(custom(0, 4, 7, null, 10).symbol, 'C/B♭', 'non-chord bass uses the Bass-specific flat spelling');
+assert.strictEqual(custom(0, 4, 7, null, 10).bassPc, 10, 'non-chord bass remains semantic bassPc without changing the upper chord');
 
 const normal = model.bassOverlayNotes({ bassPc: 4, rootPc: 0, intervals: [0, 4, 7], startFret: 0, endFret: 13 });
 assert.deepStrictEqual(normal.map((note) => [note.string, note.fret]), [[6, 0], [6, 12], [5, 7], [4, 2]], 'normal range returns every 4–6 string E candidate');

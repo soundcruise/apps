@@ -670,17 +670,17 @@
         });
     }
 
-    function bassOverlayMarkerLabel(chord, overlay, useFlats) {
+    function bassOverlayMarkerLabel(chord, overlay) {
         var theory = getTheory();
         var mode = getSettings().fretboardDisplayMode;
         if (mode === 'finger') return '';
-        if (mode === 'solfege') return theory.solfegeName(overlay.pc, useFlats);
+        if (mode === 'solfege') return theory.solfegeName(overlay.pc, window.ChordCruise.chordModel.bassUsesFlats(overlay.pc));
         if (mode === 'degree') {
             return overlay.chordToneIndex !== null
                 ? chordDegreeLabel(chord, overlay.chordToneIndex)
-                : theory.degreeLabels([overlay.interval])[0];
+                : window.ChordCruise.chordModel.bassDegreeLabel(overlay.interval);
         }
-        return chordNoteName(chord, overlay.chordToneIndex, overlay.pc, useFlats);
+        return window.ChordCruise.chordModel.bassNoteName(overlay.pc);
     }
 
     /**
@@ -701,7 +701,6 @@
         markers.forEach(function (marker) {
             existingBySlot[marker.string + ':' + marker.fret] = marker;
         });
-        var useFlats = chordUseFlats(chord);
         overlayNotes.forEach(function (overlay) {
             var key = overlay.string + ':' + overlay.fret;
             if (existingBySlot[key]) {
@@ -712,7 +711,7 @@
             var marker = {
                 string: overlay.string,
                 fret: overlay.fret,
-                label: bassOverlayMarkerLabel(chord, overlay, useFlats),
+                label: bassOverlayMarkerLabel(chord, overlay),
                 role: roleForInterval(overlay.interval),
                 isOverlay: true,
                 overlayType: overlay.type,

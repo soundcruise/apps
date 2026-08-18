@@ -59,7 +59,7 @@
                             '<option value="9">dim7 (6th)</option>' +
                         '</select></label>' +
                     '<label class="cc-field cc-builder-field--wide"><span class="cc-field-label">ベース音</span>' +
-                        '<select id="cc-builder-bass" class="cc-select" aria-label="分数コードのベース音"><option value="">なし</option></select></label>' +
+                        '<select id="cc-builder-bass" class="cc-select" aria-label="分数コードのベース音"><option value="">通常</option></select></label>' +
                     '<div class="cc-field cc-builder-field--wide">' +
                         '<span class="cc-field-label">テンション</span>' +
                         '<div class="cc-builder-tensions">' +
@@ -143,12 +143,18 @@
         var select = document.getElementById('cc-builder-bass');
         var spec = readUpperSpec();
         var previousValue = select.value;
-        var candidates = model().bassCandidates(spec);
-        var preview = model().buildCustomChord(spec, '');
-        select.innerHTML = '<option value="">なし</option>' + candidates.map(function (pc) {
-            return '<option value="' + pc + '">' + window.ChordCruise.theory.noteName(pc, preview.useFlats) + '</option>';
-        }).join('');
-        select.value = candidates.indexOf(parseInt(previousValue, 10)) !== -1 ? previousValue : '';
+        var chordTones = model().bassCandidates(spec);
+        var otherBassTones = model().nonChordBassCandidates(spec);
+        function optionsFor(pcs) {
+            return pcs.map(function (pc) {
+                return '<option value="' + pc + '">' + model().bassNoteName(pc) + '</option>';
+            }).join('');
+        }
+        select.innerHTML = '<option value="">通常</option>' +
+            '<optgroup label="構成音">' + optionsFor(chordTones) + '</optgroup>' +
+            '<optgroup label="その他のベース音">' + optionsFor(otherBassTones) + '</optgroup>';
+        var selectable = chordTones.concat(otherBassTones);
+        select.value = selectable.indexOf(parseInt(previousValue, 10)) !== -1 ? previousValue : '';
     }
 
     function refreshSpecControls() {

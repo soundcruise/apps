@@ -1109,16 +1109,13 @@
 
     function bassMarkerLabel(chord, overlay, mode, spelledNoteNames) {
         if (mode === 'finger') return '';
-        if (mode === 'solfege') return theory().solfegeName(overlay.pc, chordUseFlats(chord));
+        if (mode === 'solfege') return theory().solfegeName(overlay.pc, window.ChordCruise.chordModel.bassUsesFlats(overlay.pc));
         if (mode === 'degree') {
             var degreeIndex = (chord.intervals || []).indexOf(overlay.interval);
             var degreeLabels = theory().degreeLabelsForQuality(theory().identifyQuality(chord.intervals), chord.intervals || []);
-            return degreeIndex !== -1 ? degreeLabels[degreeIndex] : theory().degreeLabels([overlay.interval])[0];
+            return degreeIndex !== -1 ? degreeLabels[degreeIndex] : window.ChordCruise.chordModel.bassDegreeLabel(overlay.interval);
         }
-        var noteIndex = (chord.intervals || []).indexOf(overlay.interval);
-        return spelledNoteNames && noteIndex !== -1 && spelledNoteNames[noteIndex]
-            ? spelledNoteNames[noteIndex]
-            : theory().noteName(overlay.pc, chordUseFlats(chord));
+        return window.ChordCruise.chordModel.bassNoteName(overlay.pc);
     }
 
     function mergeSavedBassOverlay(chord, frets, markers, mode, spelledNoteNames, editable) {

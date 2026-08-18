@@ -378,16 +378,13 @@
 
     function bassOverlayLabel(note, spelledNoteNames) {
         if (draft.displayMode === 'finger') return '';
-        if (draft.displayMode === 'solfege') return theory().solfegeName(note.pc, draft.useFlats);
+        if (draft.displayMode === 'solfege') return theory().solfegeName(note.pc, window.ChordCruise.chordModel.bassUsesFlats(note.pc));
         if (draft.displayMode === 'degree') {
             var index = draft.intervals.indexOf(note.interval);
             var labels = theory().degreeLabelsForQuality(theory().identifyQuality(draft.intervals), draft.intervals);
-            return index !== -1 ? labels[index] : theory().degreeLabels([note.interval])[0];
+            return index !== -1 ? labels[index] : window.ChordCruise.chordModel.bassDegreeLabel(note.interval);
         }
-        var noteIndex = draft.intervals.indexOf(note.interval);
-        return spelledNoteNames && noteIndex !== -1 && spelledNoteNames[noteIndex]
-            ? spelledNoteNames[noteIndex]
-            : theory().noteName(note.pc, draft.useFlats);
+        return window.ChordCruise.chordModel.bassNoteName(note.pc);
     }
 
     function mergeBassOverlay(markers, spelledNoteNames) {
