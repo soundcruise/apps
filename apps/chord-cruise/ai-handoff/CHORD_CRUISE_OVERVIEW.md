@@ -15,6 +15,7 @@
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
 - 現在のバージョン: `0.24.0`（Sus4 triad CAGED対応と任意コード初期値改善を正式化）
+- 正式Chord Cruise HEAD: `469836c313782ec1e51b8636b8f680f08b8e4b90`
 - v0.22.1直前の正式Chord Cruise commit（`git log --oneline -- apps/chord-cruise/` で確認）:
   - hash: `a562888a078494d6deeb9900d2b15260bc35128e`
   - message: `7種類のスケール選択に対応`
