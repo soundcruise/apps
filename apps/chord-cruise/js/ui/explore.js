@@ -146,8 +146,8 @@
                     '</button>' +
                 '</div>' +
                 '<p class="cc-fb-hint" id="cc-fb-hint"></p>' +
-                '<div class="cc-save-btn-row cc-save-btn-row--hidden" id="cc-save-btn-row">' +
-                    '<button type="button" class="cc-btn cc-btn-primary cc-btn--block" id="cc-save-form-btn">このフォームを保存</button>' +
+                '<div class="cc-save-btn-row" id="cc-save-btn-row">' +
+                    '<button type="button" class="cc-btn cc-btn-primary cc-btn--block" id="cc-save-form-btn" disabled aria-describedby="cc-fb-hint">保存する</button>' +
                 '</div>' +
             '</div>' +
             '';
@@ -773,6 +773,9 @@
             }
         } else {
             markers = computeChordToneMarkers(chord);
+            if (chord) {
+                hint = 'CAGED型を選ぶと、現在表示中のフォームを保存できます。';
+            }
         }
 
         // 運指モードのままフォームが無くなった場合はCDE表示へ戻す
@@ -791,9 +794,13 @@
             fingerBtn.classList.toggle('cc-segment-btn--disabled', !form);
         }
 
-        var saveRow = document.getElementById('cc-save-btn-row');
-        if (saveRow) {
-            saveRow.classList.toggle('cc-save-btn-row--hidden', !form);
+        var saveButton = document.getElementById('cc-save-form-btn');
+        if (saveButton) {
+            var canSaveForm = !!form;
+            saveButton.disabled = !canSaveForm;
+            saveButton.title = canSaveForm
+                ? '現在表示中のCAGEDフォームを保存前編集で確認します'
+                : (chord ? 'CAGED型を選ぶと保存できます' : 'コードを選ぶと保存できます');
         }
 
         fb.render(host, {

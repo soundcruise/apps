@@ -239,7 +239,7 @@
             <h1>コードクルーズ 開発概要</h1>
             <p>キーから探して、指板で確かめて、自分のコード本棚へ ── 開発中のコード学習アプリ</p>
             <div class="ov-meta">
-                <span>現在のバージョン<b>0.22.5（Phase D正式commit・push済み）</b></span>
+                <span>現在のバージョン<b>0.22.6（保存ボタン復元・正式commit前）</b></span>
                 <span>正式Chord Cruise HEAD<b>b2081698</b></span>
                 <span>最終更新日<b>2026年8月18日</b></span>
             </div>
@@ -327,6 +327,7 @@
                     <p><b>v0.22.4 Phase C正式化:</b> core APIへHarmonic Minorと、下降時もNatural Minorへ切り替えない上行固定のMelodic Minorを追加しました。両scaleの12 tonic・3和音・7th・Roman・11品質・理論音名を固定期待値で検証し、既存55 CAGEDフォームを変更せず利用できることを確認しています。G♯ Harmonic Minorは<code>G♯ A♯ B C♯ D♯ E F♯♯</code>、7thは<code>G♯mM7 / A♯m7♭5 / BM7♯5 / C♯m7 / D♯7 / EM7 / F♯♯dim7</code>です。selector、保存許可値、schema/migration、CAGED定義は不変で、画面・保存で選択できる正式7scaleも維持します。Phase Bの正式commitは<code>6cc72512</code>です。次工程はPhase Dの9scale UI公開検討です。</p>
                     <p><b>v0.22.5 Phase D正式化:</b> selectorと保存許可値を、<code>major / dorian / phrygian / lydian / mixolydian / minor / harmonic-minor / melodic-minor / locrian</code>の正式9scaleへ公開しました。Natural Minorの直後にHarmonic / Melodic Minorを並べ、Locrianは最後です。SCALES由来label、minor系tonic、保存・reload、save失敗時のtransaction、schemaVersion 1／migrationなしを回帰確認しました。</p>
                     <p><b>v0.22.5 m7♭5運指正式化:</b> ユーザー実ギター確認に基づき、E型は<code>親・⚠️・中・薬・人・小</code>（5弦のFORM音は保持し運指だけ⚠️）、D型は<code>×・×・人・中・薬・小</code>（warningなし）へ更新しました。C/A/G型、FORM、mute、openFingers、schemaVersion、migrationは不変です。save/reload/library/PNG、全scale、55フォームの回帰を完了し、通常push済みです。</p>
+                    <p><b>v0.22.6 保存ボタン復元正式化:</b> 原因はv0.21.6の詳細カード削除ではなく、指板カード内の保存行がCAGED未選択時にhiddenとなり導線を発見できなかったことでした。下部詳細カードは復活させず、指板直後に<code>保存する</code>ボタンを常時表示し、コード未選択・CAGED未選択・CAGED非対応時はnative disabled、CAGED選択時だけ有効化しました。ダイアトニック、Harmonic Minor、任意コードCM7♯5を含む既存save-editor・saveChord・本棚transaction・rollback・reload経路を再利用し、schemaVersion 1・migrationなしを維持します。375px/1280px、通常/ハイフレット、横overflow、console warn/error 0を実機確認済みです。次はPhase E分数コード／slash・overlay検討です。</p>
                     <p><b>aug source-backed FINGERING:</b></p>
                     <ul>
                         <li>C型: source <code>x3211x</code>（開放Caug <code>x32110</code>）。5弦4・4弦3・3弦1・2弦2。ムーバブルFORMの1弦を⚠とし、FORMの3度は保持。</li>
