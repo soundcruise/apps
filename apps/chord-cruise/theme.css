@@ -449,7 +449,7 @@ body {
 
 .cc-chord-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
 }
 
@@ -458,6 +458,7 @@ body {
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     display: flex;
+    min-width: 0;
     flex-direction: column;
     align-items: center;
     gap: 3px;
@@ -656,6 +657,17 @@ body {
     font-size: var(--cc-fb-marker-warning-size, 0.9rem);
 }
 
+/* Phase E1: marker本体 → dark separator → gold outer ring の3層でbass候補を識別する。 */
+.cc-fb-marker--bass-candidate {
+    /* 2px separatorと2px ringを両立するため、外径は通常30pxより8pxだけ大きい38px。 */
+    /* box-shadowは先頭ほど前面に描画されるため、dark separatorをgold ringより先に置く。 */
+    box-shadow:
+        0 0 0 2px var(--cc-bg),
+        0 0 0 4px var(--cc-gold-bright),
+        0 2px 6px rgba(0, 0, 0, 0.45);
+    z-index: 1;
+}
+
 /* ♭♭7 など3文字以上の度数も30pxマーカー内へ収める。 */
 .cc-fb-marker--long-label {
     font-size: calc(var(--cc-fb-marker-label-size, 0.76rem) * 0.84);
@@ -737,6 +749,13 @@ body {
 .cc-fb-host--monochrome .cc-fb-marker--open {
     background: #ffffff;
     color: #111111;
+}
+
+.cc-fb-host--monochrome .cc-fb-marker--bass-candidate {
+    box-shadow:
+        0 0 0 2px var(--cc-bg),
+        0 0 0 4px var(--cc-gold-bright),
+        0 2px 5px rgba(0, 0, 0, 0.24);
 }
 
 .cc-fb-host--monochrome .cc-fb-marker--pending-delete {

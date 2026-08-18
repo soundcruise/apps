@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
-- 現在のバージョン: `0.22.6`（保存ボタン復元を正式commit・push済み。ユーザー実機確認済み）
+- 現在のバージョン: `0.22.7`（Phase E1 分数コードbass overlay基盤を正式commit・push済み。ユーザー実機確認済み）
 - v0.22.1直前の正式Chord Cruise commit（`git log --oneline -- apps/chord-cruise/` で確認）:
   - hash: `a562888a078494d6deeb9900d2b15260bc35128e`
   - message: `7種類のスケール選択に対応`
@@ -77,6 +77,9 @@
 - **v0.22.5 Phase D正式化**: selectorと`VALID_SCALE_TYPES`を、`major / dorian / phrygian / lydian / mixolydian / minor / harmonic-minor / melodic-minor / locrian`の正式9scaleへ公開した。minor直後にHarmonic / Melodic Minorをまとめ、Locrianは最後に固定する。labelは`SCALES`から取得し、新2scaleは`tonicFamily: 'minor'`で既存minor系12 tonic表記を使用する。保存・reload、save失敗時のtransaction、schemaVersion 1、migrationなしを回帰確認した。
 - **v0.22.5 m7♭5運指正式化**: ユーザー実機確認に基づき、C/A/G型・FORM・mute・openFingers・barre検出は維持し、E/D型のmovable fingeringだけを更新した。E型は6→1弦で`親・⚠️・中・薬・人・小`（5弦のみ`finger:null + fingeringWarning:true`）で、FORM音を削除・mute化しない。D型は`×・×・人・中・薬・小`でwarningなし。C/A/G型は変更していない。save/reload/library/PNGと全scale回帰を完了し、Phase Bの55フォーム、理論構造・spellingを維持した。正式commitは`b20816984dfbee9ce2f879ab9274b56c0ad6f40f`、通常push済み。
 - **v0.22.6 保存ボタン復元正式化**: 原因はv0.21.6の詳細カード削除ではなく、指板カード内の保存行がCAGED未選択時にhiddenとなり導線を発見できなかったことだった。下部詳細カードは復活させず、指板直後に`保存する`ボタンを常時表示し、コード未選択・CAGED未選択・CAGED非対応時はnative disabled、CAGED選択時だけ有効化した。ダイアトニック、Harmonic Minor、任意コードCM7♯5を含む既存save-editor・saveChord・本棚transaction・rollback・reload経路を再利用し、schemaVersion 1・migrationなしを維持する。375px/1280px、通常/ハイフレット、横overflow、console warn/error 0を実機確認済み。versionは`0.22.6`、次はPhase E分数コード／slash・overlay検討。
+- **Phase E1 分数コードbass overlay（未commit）**: 任意コードのupper chordへoptional `bassPc`を追加するが、`intervals`・`qualityKey`・`identifyQuality()`には混ぜない。UIは「ベース音」selectorで、upper chordの構成音（テンションを含む）からrootを除いた候補だけを公開し、構成変更で候補外になったbassは`null`へ戻す。symbolはupper symbolをsourceとして`C/E`、`Dm7/C`、`CM7♯5/G♯`のように表示する。既存CAGED FORM・finger・warning・barreは変更せず、bassPcありの場合だけ4〜6弦の全候補を`type: 'bass'` overlayとして金色二重枠で合成する。重複slotは既存markerへ金枠だけを付け、overlay-onlyはFORM音でなくfingerなし・warningなしとする。CDE／ドレミ／degree（upper root基準）は表示し、運指modeでは追加bassの文字を空欄にして案内を出す。全体指板とCAGED指板で同じgeneratorを使い、通常・ハイフレットrangeを再計算する。slash保存・本棚再構築・PNG・non-chord-tone bass・tension UIは未対応で、誤保存防止のためbassPcありの保存ボタンはdisabled。schemaVersion 1、migrationなし、APP_VERSION／`?v=`は`0.22.6`のまま。正式基準HEADは`d5b0a23c141667e9fc0d26be0911609673efa317`。次工程はPhase E2でslash保存／本棚／PNGを別監査し、その後E3以降で1〜2弦tension overlayを検討する。
+- **Phase E1 bass ring視認性調整（未commit）**: ユーザー実機で黄色い3度marker上のgold outlineが見えづらく、初回の1px separatorでは境界が足りないと判明した。local HTTPのresponse・runtime CSS rule・computed styleを照合し、cache／Service Workerではなく、先頭の4px gold `box-shadow`が後ろのdark shadowを覆う描画順が原因と確定した。bass candidate専用classは`marker本体 → --cc-bgの2px dark separator → --cc-gold-brightの2px outer ring`へ強化し、dark shadowを先頭（前面）へ置いた。通常30px markerに対し外径は38px（+8px、前案から+2px）で、色だけでなく外形と二重ringでBassを判別できる。merged markerとoverlay-only marker、カラーとmonochromeの双方で同じvisual languageを使い、FORM・finger・warning・barre・bassPc・候補生成・文言・保存disabledは不変。375pxの通常／ハイフレットでC/Eの黄色いE上にdark gapとgold ringを確認し、横overflowなし、CDE／ドレミ／度数／運指、console warn/error 0を確認済み。視認性についてはこの描画順修正後にユーザー再確認待ち。
+- **v0.22.7 Phase E1正式化**: `bassPc`、upper qualityとの分離、ベース音selector、root除外、4〜6弦candidate全表示、既存marker merge／overlay-only、CDE・ドレミ・degree対応、運指modeの追加bass空欄、slash保存disabledを正式化した。C/E、C/G、G/B、D/F♯、Am/C、Dm7/Cを確認し、CAGED FORM・運指・5型・全体指板generatorは不変。Bass visualは2px dark separator＋2px gold outer ring（外径38px）で、既存`--cc-bg`／`--cc-gold-bright`のみ使用。source／HTTP／runtime／computed一致を確認し、cache問題ではなく描画順が原因だった。ユーザー実機でC/Eの黄色い3度上の3層表示を確認済み。正式HEADはcommit後に追記する。次工程はPhase E2（slash保存・本棚・PNG）、将来E3以降で1〜2弦tension overlay。
 - 通常版/PRO版の構造: PRO版は存在しないため、`apps/chord-cruise/` 直下の `index.html` のみが唯一のエントリーポイント。他アプリのような `standard/` サブディレクトリも無い。
 - JS/CSSの共有関係:
   - `theme.css` はコードクルーズ専用の1ファイル（`apps/shared/` には依存していない）。
@@ -191,8 +194,8 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.22.6`）。
-- `?v=` によるキャッシュ管理: `index.html` 内の全15本のscriptタグとstylesheet link（計16参照）が同じ `0.22.6` を共有している。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.22.7`）。
+- `?v=` によるキャッシュ管理: `index.html` 内の全15本のscriptタグとstylesheet link（計16参照）が同じ `0.22.7` を共有している。
 - 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
 - service workerの更新: service worker自体が存在しないため不要。
 - **バージョン更新漏れしやすい箇所**: `index.html`内の15本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。

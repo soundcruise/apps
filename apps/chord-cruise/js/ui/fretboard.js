@@ -280,6 +280,9 @@
                 dimmed: !!marker.dimmed,
                 pendingDelete: !!marker.pendingDelete,
                 fingeringWarning: !!marker.fingeringWarning,
+                isOverlay: !!marker.isOverlay,
+                overlayType: marker.overlayType || '',
+                isBassCandidate: !!marker.isBassCandidate,
                 tappable: !!marker.tappable,
                 ariaLabel: marker.ariaLabel != null ? String(marker.ariaLabel) : ''
             });
@@ -379,7 +382,12 @@
             var dash = marker.pendingDelete ? ' stroke-dasharray="4 3"' : '';
             var strokeWidth = marker.pendingDelete ? Math.max(2, palette.strokeWidth) : palette.strokeWidth;
             var stroke = marker.pendingDelete ? palette.text : palette.stroke;
+            var bassOutline = marker.isBassCandidate
+                ? '<circle cx="' + marker.x + '" cy="' + marker.y + '" r="17" fill="none" stroke="#e8c97a" stroke-width="2"/>' +
+                    '<circle cx="' + marker.x + '" cy="' + marker.y + '" r="16" fill="none" stroke="#0b0a09" stroke-width="2"/>'
+                : '';
             svg += '<g opacity="' + opacity + '">' +
+                bassOutline +
                 '<circle cx="' + marker.x + '" cy="' + marker.y + '" r="15" fill="' + palette.fill + '" stroke="' + stroke + '" stroke-width="' + strokeWidth + '"' + dash + '/>' +
                 '<text x="' + marker.x + '" y="' + (marker.y + 4) + '" text-anchor="middle" style="font-family:Arial,sans-serif;font-size:' + fontSize + 'px;font-weight:700;fill:' + palette.text + '">' + escapeXml(marker.label) + '</text>' +
             '</g>';
@@ -489,6 +497,8 @@
             if (m.dimmed) cls += ' cc-fb-marker--dimmed';
             if (m.pendingDelete) cls += ' cc-fb-marker--pending-delete';
             if (m.fingeringWarning) cls += ' cc-fb-marker--warning';
+            if (m.isBassCandidate) cls += ' cc-fb-marker--bass-candidate';
+            if (m.isOverlay) cls += ' cc-fb-marker--overlay';
             if (!m.fingeringWarning && String(m.label == null ? '' : m.label).length > 2) cls += ' cc-fb-marker--long-label';
             if (m.tappable) cls += ' cc-fb-marker--tappable';
             el.className = cls;

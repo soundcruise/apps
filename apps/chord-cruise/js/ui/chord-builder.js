@@ -58,6 +58,8 @@
                             '<option value="11">M7</option>' +
                             '<option value="9">dim7 (6th)</option>' +
                         '</select></label>' +
+                    '<label class="cc-field cc-builder-field--wide"><span class="cc-field-label">ベース音</span>' +
+                        '<select id="cc-builder-bass" class="cc-select" aria-label="分数コードのベース音"><option value="">なし</option></select></label>' +
                     '<div class="cc-field cc-builder-field--wide">' +
                         '<span class="cc-field-label">テンション</span>' +
                         '<div class="cc-builder-tensions">' +
@@ -96,11 +98,12 @@
         });
 
         ['cc-builder-root', 'cc-builder-third', 'cc-builder-fifth', 'cc-builder-seventh'].forEach(function (id) {
-            document.getElementById(id).addEventListener('change', refreshName);
+            document.getElementById(id).addEventListener('change', refreshSpecControls);
         });
         Array.prototype.forEach.call(overlayEl.querySelectorAll('.cc-tension-checkbox'), function (checkbox) {
-            checkbox.addEventListener('change', refreshName);
+            checkbox.addEventListener('change', refreshSpecControls);
         });
+        document.getElementById('cc-builder-bass').addEventListener('change', refreshName);
 
         document.getElementById('cc-builder-apply').addEventListener('click', function () {
             var chord = model().buildCustomChord(readSpec(), nameUserEdited ? document.getElementById('cc-builder-name').value : '');
@@ -111,7 +114,7 @@
         });
     }
 
-    function readSpec() {
+    function readUpperSpec() {
         function readValue(id) {
             var value = document.getElementById(id).value;
             return value === 'null' ? null : parseInt(value, 10);
@@ -129,9 +132,33 @@
         };
     }
 
+    function readSpec() {
+        var spec = readUpperSpec();
+        var bassValue = document.getElementById('cc-builder-bass').value;
+        spec.bassPc = bassValue === '' ? null : parseInt(bassValue, 10);
+        return spec;
+    }
+
+    function refreshBassOptions() {
+        var select = document.getElementById('cc-builder-bass');
+        var spec = readUpperSpec();
+        var previousValue = select.value;
+        var candidates = model().bassCandidates(spec);
+        var preview = model().buildCustomChord(spec, '');
+        select.innerHTML = '<option value="">なし</option>' + candidates.map(function (pc) {
+            return '<option value="' + pc + '">' + window.ChordCruise.theory.noteName(pc, preview.useFlats) + '</option>';
+        }).join('');
+        select.value = candidates.indexOf(parseInt(previousValue, 10)) !== -1 ? previousValue : '';
+    }
+
+    function refreshSpecControls() {
+        refreshBassOptions();
+        refreshName();
+    }
+
     function refreshName() {
         if (nameUserEdited) return;
-        document.getElementById('cc-builder-name').value = model().generateName(readSpec());
+        document.getElementById('cc-builder-name').value = model().buildCustomChord(readSpec(), '').symbol;
     }
 
     function open(options) {
@@ -143,11 +170,12 @@
         document.getElementById('cc-builder-third').value = '4';
         document.getElementById('cc-builder-fifth').value = '7';
         document.getElementById('cc-builder-seventh').value = 'null';
+        document.getElementById('cc-builder-bass').value = '';
         Array.prototype.forEach.call(overlayEl.querySelectorAll('.cc-tension-checkbox'), function (checkbox) {
             checkbox.checked = false;
         });
         nameUserEdited = false;
-        refreshName();
+        refreshSpecControls();
         overlayEl.classList.remove('cc-modal-overlay--hidden');
         var dialog = overlayEl.querySelector('[role="dialog"]');
         if (focusTrap()) focusTrap().focusFirst(dialog || overlayEl);

@@ -230,7 +230,8 @@
         document.getElementById('cc-save-form-btn').addEventListener('click', function () {
             var chord = selectedChord();
             var form = currentForm();
-            if (!chord || !form) {
+            // Phase E1ではbassPcを保存recordへ入れないため、slashを通常コードとして保存しない。
+            if (!chord || !form || chord.bassPc != null) {
                 return;
             }
             var settings = getSettings();
@@ -670,6 +671,62 @@
         });
     }
 
+    function bassOverlayMarkerLabel(chord, overlay, useFlats) {
+        var theory = getTheory();
+        var mode = getSettings().fretboardDisplayMode;
+        if (mode === 'finger') return '';
+        if (mode === 'solfege') return theory.solfegeName(overlay.pc, useFlats);
+        if (mode === 'degree') {
+            return overlay.chordToneIndex !== null
+                ? chordDegreeLabel(chord, overlay.chordToneIndex)
+                : theory.degreeLabels([overlay.interval])[0];
+        }
+        return chordNoteName(chord, overlay.chordToneIndex, overlay.pc, useFlats);
+    }
+
+    /**
+     * FORM markerを変更せずbass overlayを重ねる。重複slotは既存markerに金枠フラグだけを付与する。
+     * 将来tension overlayも同じoverlayNotes配列をmergeできるよう、typeを保持する。
+     */
+    function mergeBassOverlayMarkers(chord, markers, range) {
+        if (!chord || chord.bassPc == null) return markers;
+        var overlayNotes = window.ChordCruise.chordModel.bassOverlayNotes({
+            bassPc: chord.bassPc,
+            rootPc: chord.rootPc,
+            intervals: chord.intervals,
+            startFret: range.start,
+            endFret: range.end,
+            targetStrings: [6, 5, 4]
+        });
+        var existingBySlot = {};
+        markers.forEach(function (marker) {
+            existingBySlot[marker.string + ':' + marker.fret] = marker;
+        });
+        var useFlats = chordUseFlats(chord);
+        overlayNotes.forEach(function (overlay) {
+            var key = overlay.string + ':' + overlay.fret;
+            if (existingBySlot[key]) {
+                existingBySlot[key].isBassCandidate = true;
+                existingBySlot[key].overlayType = overlay.type;
+                return;
+            }
+            var marker = {
+                string: overlay.string,
+                fret: overlay.fret,
+                label: bassOverlayMarkerLabel(chord, overlay, useFlats),
+                role: roleForInterval(overlay.interval),
+                isOverlay: true,
+                overlayType: overlay.type,
+                isBassCandidate: true,
+                finger: null,
+                fingeringWarning: false
+            };
+            markers.push(marker);
+            existingBySlot[key] = marker;
+        });
+        return markers;
+    }
+
     function updateCagedButtons() {
         var row = document.getElementById('cc-caged-row');
         if (!row) {
@@ -789,6 +846,14 @@
             }
         }
 
+        if (chord && chord.bassPc != null) {
+            markers = mergeBassOverlayMarkers(chord, markers, range);
+            hint += getSettings().fretboardDisplayMode === 'finger'
+                ? ' 金枠は追加ベース音の候補です。運指は表示していません。押さえやすい位置を選び、その音より低い弦は鳴らさないでください。'
+                : ' 金枠の音を最低音として使います。選んだ音より低い弦は鳴らしません。';
+            hint += ' 分数コードの保存は今後対応予定です。';
+        }
+
         var fingerBtn = document.getElementById('cc-fbmode-finger');
         if (fingerBtn) {
             fingerBtn.classList.toggle('cc-segment-btn--disabled', !form);
@@ -796,11 +861,13 @@
 
         var saveButton = document.getElementById('cc-save-form-btn');
         if (saveButton) {
-            var canSaveForm = !!form;
+            var canSaveForm = !!form && !(chord && chord.bassPc != null);
             saveButton.disabled = !canSaveForm;
             saveButton.title = canSaveForm
                 ? '現在表示中のCAGEDフォームを保存前編集で確認します'
-                : (chord ? 'CAGED型を選ぶと保存できます' : 'コードを選ぶと保存できます');
+                : (chord && chord.bassPc != null
+                    ? '分数コードの保存は今後対応予定です'
+                    : (chord ? 'CAGED型を選ぶと保存できます' : 'コードを選ぶと保存できます'));
         }
 
         fb.render(host, {
