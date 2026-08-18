@@ -141,7 +141,7 @@ function tabEvent(shiftKey) {
 })();
 
 (function dialogModulesUseTheSharedHelperWithoutRepeatedOpenListeners() {
-    assert(indexSource.indexOf('js/ui/focus-trap.js?v=0.22.11') !== -1, 'focus helper is loaded before the dialog modules');
+    assert(indexSource.indexOf('js/ui/focus-trap.js?v=0.23.0') !== -1, 'focus helper is loaded before the dialog modules');
     [settingsSource, librarySource, saveEditorSource, chordBuilderSource].forEach((moduleSource) => {
         assert(moduleSource.indexOf('focusTrap().trapFocus') !== -1, 'dialog module delegates Tab handling to the shared helper');
     });

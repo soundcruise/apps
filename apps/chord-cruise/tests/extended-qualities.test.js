@@ -5,9 +5,11 @@ var assert = require('assert');
 global.window = { ChordCruise: {} };
 require('../js/core/music-theory.js');
 require('../js/core/chord-model.js');
+require('../js/core/caged-forms.js');
 
 var theory = window.ChordCruise.theory;
 var chordModel = window.ChordCruise.chordModel;
+var caged = window.ChordCruise.caged;
 var EXTENDED = {
     aug: { intervals: [0, 4, 8], symbolSuffix: 'aug', romanSuffix: 'aug', degreeLabels: ['1', '3', '♯5'], symbol: 'Caug' },
     mMaj7: { intervals: [0, 3, 7, 11], symbolSuffix: 'mM7', romanSuffix: 'mM7', degreeLabels: ['1', '♭3', '5', '7'], symbol: 'CmM7' },
@@ -71,4 +73,18 @@ assert.deepStrictEqual(
     ['1', '♭3', '♭5', '♭♭7']
 );
 
-console.log('extended-qualities: 4 canonical qualities, pure harmonic/melodic patterns, and Phase B arbitrary-code connection OK');
+// Phase G1-A: C5 remains the power-chord spelling; only the no-5 display name changes.
+var c5 = chordModel.buildCustomChord({ rootPc: 0, third: null, fifth: 7, seventh: null, tensions: [] }, '');
+var cNo5 = chordModel.buildCustomChord({ rootPc: 0, third: 4, fifth: null, seventh: null, tensions: [] }, '');
+assert.strictEqual(c5.symbol, 'C5');
+assert.strictEqual(cNo5.symbol, 'C(no5)');
+assert.deepStrictEqual(c5.intervals, [0, 7]);
+assert.deepStrictEqual(cNo5.intervals, [0, 4]);
+assert.strictEqual(c5.qualityKey, null);
+assert.strictEqual(cNo5.qualityKey, null);
+assert.strictEqual(theory.identifyQuality(cNo5.intervals), null);
+['C', 'A', 'G', 'E', 'D'].forEach(function (shape) {
+    assert.strictEqual(caged.getForm(shape, cNo5.qualityKey, cNo5.rootPc, 13, 0).available, false, shape + ' C(no5) remains outside the existing CAGED quality set');
+});
+
+console.log('extended-qualities: canonical qualities, arbitrary-code connection, and Phase G1-A C5/C(no5) naming invariants OK');

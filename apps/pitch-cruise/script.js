@@ -1,5 +1,5 @@
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '2.11.1';
+const PITCH_TRAINER_APP_VERSION = '2.12.0';
 
 // ─── [DEV] デバッグフラグ ────────────────────────────────────────────────────
 // true にするとSTAGE選択画面のクリア回数が常に100と表示される（localStorageは変更しない）
@@ -2989,7 +2989,7 @@ class Game {
             } else {
                 if (seventh === "10") name += "7";
                 else if (seventh === "11") name += "M7";
-                else if (seventh === "null" && fifth === "null") name += "(power)";
+                else if (seventh === "null" && fifth === "null") name += "(no5)";
             }
         } else {
             // no 3rd

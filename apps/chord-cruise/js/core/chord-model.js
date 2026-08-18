@@ -87,7 +87,7 @@
                 if (seventh === 9) name += '6';
                 else if (seventh === 10) name += '7';
                 else if (seventh === 11) name += 'M7';
-                else if (seventh === null && fifth === null) name += '(power)';
+                else if (seventh === null && fifth === null) name += '(no5)';
                 else if (fifth === 6) name += '(♭5)';
             }
         } else {
