@@ -75,7 +75,7 @@
 
 - **v0.22.4 Phase C正式化**: core `SCALES` / `DIATONIC`へHarmonic Minorと、下降時もNatural Minorへ切り替えない上行固定のMelodic Minorを追加した。各12 tonic、3和音・7th・Roman・11品質・scale-aware spellingを固定期待値で検証し、両scaleで既存55 CAGEDフォームをそのまま利用できることを確認した。Harmonic MinorのG♯は`G♯ A♯ B C♯ D♯ E F♯♯`、7thは`G♯mM7 / A♯m7♭5 / BM7♯5 / C♯m7 / D♯7 / EM7 / F♯♯dim7`となる。UI selector、`VALID_SCALE_TYPES`、保存schema/migration、CAGED定義は変更せず、画面・保存で選べる正式7scaleを維持する。Phase Bの正式commitは`6cc72512a35863b05d5137aeb57b91bfeb2c61e6`。次工程はPhase Dの9scale UI公開検討。
 - **v0.22.5 Phase D正式化**: selectorと`VALID_SCALE_TYPES`を、`major / dorian / phrygian / lydian / mixolydian / minor / harmonic-minor / melodic-minor / locrian`の正式9scaleへ公開した。minor直後にHarmonic / Melodic Minorをまとめ、Locrianは最後に固定する。labelは`SCALES`から取得し、新2scaleは`tonicFamily: 'minor'`で既存minor系12 tonic表記を使用する。保存・reload、save失敗時のtransaction、schemaVersion 1、migrationなしを回帰確認した。
-- **v0.22.5 m7♭5運指正式化**: ユーザー実機確認に基づき、C/A/G型・FORM・mute・openFingers・barre検出は維持し、E/D型のmovable fingeringだけを更新した。E型は6→1弦で`親・⚠️・中・薬・人・小`（5弦のみ`finger:null + fingeringWarning:true`）で、FORM音を削除・mute化しない。D型は`×・×・人・中・薬・小`でwarningなし。C/A/G型は変更していない。save/reload/library/PNGと全scale回帰を完了し、Phase Bの55フォーム、理論構造・spellingを維持した。正式commitは本作業で作成・通常pushする。
+- **v0.22.5 m7♭5運指正式化**: ユーザー実機確認に基づき、C/A/G型・FORM・mute・openFingers・barre検出は維持し、E/D型のmovable fingeringだけを更新した。E型は6→1弦で`親・⚠️・中・薬・人・小`（5弦のみ`finger:null + fingeringWarning:true`）で、FORM音を削除・mute化しない。D型は`×・×・人・中・薬・小`でwarningなし。C/A/G型は変更していない。save/reload/library/PNGと全scale回帰を完了し、Phase Bの55フォーム、理論構造・spellingを維持した。正式commitは`b20816984dfbee9ce2f879ab9274b56c0ad6f40f`、通常push済み。
 - 通常版/PRO版の構造: PRO版は存在しないため、`apps/chord-cruise/` 直下の `index.html` のみが唯一のエントリーポイント。他アプリのような `standard/` サブディレクトリも無い。
 - JS/CSSの共有関係:
   - `theme.css` はコードクルーズ専用の1ファイル（`apps/shared/` には依存していない）。
