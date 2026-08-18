@@ -58,11 +58,11 @@
                     openFingers: { 5: 2 }
                 },
                 m7b5: {
-                    /* E型7thテンプレートをm7♭5へ変換し、従来の実用4音へ全弦を補う */
+                    /* E型7thテンプレートをm7♭5へ変換。5弦はFORMに保持し、実機確認済み運指では⚠️にする。 */
                     slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: 1, iv: 6, fingeringWarning: true }, { s: 4, o: 0, iv: 10 }, { s: 3, o: 0, iv: 3 }, { s: 2, o: -1, iv: 6 }, { s: 1, o: 0, iv: 0, fingeringWarning: true }],
                     muted: [],
-                    fingers: { 6: 2, 4: 3, 3: 4, 2: 1 },
-                    warningStrings: [5, 1],
+                    fingers: { 6: 'T', 4: 2, 3: 3, 2: 1, 1: 4 },
+                    warningStrings: [5],
                     playability: 'advanced',
                     warning: 'フォーム全体の構成音を表示しています。⚠️の音は一般的な運指では同時に押さえることが難しい位置です。保存前編集で指を指定するか、音を消去できます。'
                 },
@@ -290,7 +290,7 @@
                 m7b5: {
                     slots: [{ s: 4, o: 0, iv: 0 }, { s: 3, o: 1, iv: 6 }, { s: 2, o: 1, iv: 10 }, { s: 1, o: 1, iv: 3 }],
                     muted: [6, 5],
-                    fingers: { 4: 1, 3: 3, 2: 3, 1: 3 },
+                    fingers: { 4: 1, 3: 2, 2: 3, 1: 4 },
                     openFingers: { 3: 1, 2: 1, 1: 1 }
                 },
                 dim: {

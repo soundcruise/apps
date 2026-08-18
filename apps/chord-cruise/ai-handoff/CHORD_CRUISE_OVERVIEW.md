@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
-- 現在のバージョン: `0.22.4`（Phase C正式commit・通常push済み。Harmonic / Melodic Minorの内部対応を反映）
+- 現在のバージョン: `0.22.5`（Phase D正式commit・通常push済み。9scale UI公開とm7♭5 E/D型の実機確認済み運指を反映）
 - v0.22.1直前の正式Chord Cruise commit（`git log --oneline -- apps/chord-cruise/` で確認）:
   - hash: `a562888a078494d6deeb9900d2b15260bc35128e`
   - message: `7種類のスケール選択に対応`
@@ -74,6 +74,8 @@
   | D | `xx10-11-10-11` | `×・×・人・薬・中・小` | なし / Tなし / 0 |
 
 - **v0.22.4 Phase C正式化**: core `SCALES` / `DIATONIC`へHarmonic Minorと、下降時もNatural Minorへ切り替えない上行固定のMelodic Minorを追加した。各12 tonic、3和音・7th・Roman・11品質・scale-aware spellingを固定期待値で検証し、両scaleで既存55 CAGEDフォームをそのまま利用できることを確認した。Harmonic MinorのG♯は`G♯ A♯ B C♯ D♯ E F♯♯`、7thは`G♯mM7 / A♯m7♭5 / BM7♯5 / C♯m7 / D♯7 / EM7 / F♯♯dim7`となる。UI selector、`VALID_SCALE_TYPES`、保存schema/migration、CAGED定義は変更せず、画面・保存で選べる正式7scaleを維持する。Phase Bの正式commitは`6cc72512a35863b05d5137aeb57b91bfeb2c61e6`。次工程はPhase Dの9scale UI公開検討。
+- **v0.22.5 Phase D正式化**: selectorと`VALID_SCALE_TYPES`を、`major / dorian / phrygian / lydian / mixolydian / minor / harmonic-minor / melodic-minor / locrian`の正式9scaleへ公開した。minor直後にHarmonic / Melodic Minorをまとめ、Locrianは最後に固定する。labelは`SCALES`から取得し、新2scaleは`tonicFamily: 'minor'`で既存minor系12 tonic表記を使用する。保存・reload、save失敗時のtransaction、schemaVersion 1、migrationなしを回帰確認した。
+- **v0.22.5 m7♭5運指正式化**: ユーザー実機確認に基づき、C/A/G型・FORM・mute・openFingers・barre検出は維持し、E/D型のmovable fingeringだけを更新した。E型は6→1弦で`親・⚠️・中・薬・人・小`（5弦のみ`finger:null + fingeringWarning:true`）で、FORM音を削除・mute化しない。D型は`×・×・人・中・薬・小`でwarningなし。C/A/G型は変更していない。save/reload/library/PNGと全scale回帰を完了し、Phase Bの55フォーム、理論構造・spellingを維持した。正式commitは本作業で作成・通常pushする。
 - 通常版/PRO版の構造: PRO版は存在しないため、`apps/chord-cruise/` 直下の `index.html` のみが唯一のエントリーポイント。他アプリのような `standard/` サブディレクトリも無い。
 - JS/CSSの共有関係:
   - `theme.css` はコードクルーズ専用の1ファイル（`apps/shared/` には依存していない）。
@@ -102,8 +104,8 @@
 |---|---|
 | `index.html` | 唯一のHTMLエントリーポイント。ホーム/コードを調べる/コード本棚の3画面（`<section>`）をJSで切り替えるSPA構造。 |
 | `theme.css` | 見た目全体（`cc-` プレフィックスのクラス群）。他アプリの`theme.css`とは独立しており、`shared/`にも依存しない。 |
-| `js/core/storage.js` | `localStorage`永続化層。プレフィックス `chordCruise.`。設定・フォルダ一覧・コードインデックス・個別コードデータに加え、`chordCruise.libraryOrder`で本棚の順序IDを分離管理する。コード保存・削除は関連キーを事前スナップショットし、途中失敗時に可能な限り全キーを復元して成功扱いにしない。`scaleType`は7正式IDだけを受け入れ、不正値は通常正規化で`major`へ戻す。schemaVersionは維持する。 |
-| `js/core/music-theory.js` | 音楽理論の基礎データ。coreではMajor / IonianからLocrian、Harmonic Minor、Melodic Minorの`SCALES` 9種と、7音scaleの3度堆積・quality同定から`DIATONIC`を生成する。Explore UIの正式選択肢は別の明示7件リストであり、Phase C時点で新2scaleは内部API専用。 |
+| `js/core/storage.js` | `localStorage`永続化層。プレフィックス `chordCruise.`。設定・フォルダ一覧・コードインデックス・個別コードデータに加え、`chordCruise.libraryOrder`で本棚の順序IDを分離管理する。コード保存・削除は関連キーを事前スナップショットし、途中失敗時に可能な限り全キーを復元して成功扱いにしない。`scaleType`は正式9 IDを受け入れ、不正値は通常正規化で`major`へ戻す。schemaVersionは維持する。 |
+| `js/core/music-theory.js` | 音楽理論の基礎データ。coreではMajor / IonianからLocrian、Harmonic Minor、Melodic Minorの`SCALES` 9種と、7音scaleの3度堆積・quality同定から`DIATONIC`を生成する。Explore UIの9件表示順は別の明示リストで管理する。 |
 | `js/core/caged-forms.js` | CAGEDフォーム（移動可能フォーム）の辞書データ。弦番号・オフセット・度数で構成音位置を定義。 |
 | `js/core/chord-model.js` | 「任意コード作成」用のコードモデル（3度/5度/7度/テンション等の値体系）。 |
 | `js/core/chord-info.js` | コードの説明文辞書（ダイアトニック度数ごとの機能解説）。 |
@@ -188,8 +190,8 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.22.4`）。
-- `?v=` によるキャッシュ管理: `index.html` 内の全15本のscriptタグとstylesheet link（計16参照）が同じ `0.22.4` を共有している。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.22.5`）。
+- `?v=` によるキャッシュ管理: `index.html` 内の全15本のscriptタグとstylesheet link（計16参照）が同じ `0.22.5` を共有している。
 - 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
 - service workerの更新: service worker自体が存在しないため不要。
 - **バージョン更新漏れしやすい箇所**: `index.html`内の15本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。

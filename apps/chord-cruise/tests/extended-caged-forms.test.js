@@ -491,6 +491,54 @@ var barreCount = 0;
 assert.strictEqual(scenarioCount, 1320, '12 roots × 11 qualities × 2 ranges × 5 shapes');
 assert.strictEqual(extendedScenarioCount, 480, '12 roots × 4 qualities × 2 ranges × 5 shapes');
 assert(partialCount > 0, 'range-edge partial forms are exercised');
+
+// Phase D後のユーザー実機確認: m7♭5はE/D型だけ運指を更新する。
+// FORM slot・mute・C/A/G型・openFingersは変更せず、E型5弦だけ運指表示を⚠️にする。
+var M7B5_FIXED_DEFINITIONS = {
+    C: ['5:0/0/3', '4:-2/3/1', '3:0/10/4', '2:-2/0/1', '1:-1/6/2'],
+    A: ['5:0/0/1', '4:1/6/3', '3:0/10/2', '2:1/3/4', '1:-1/6/null!'],
+    G: ['6:0/0/null!', '5:-2/3/null!', '4:-4/6/1', '3:-3/0/2', '2:-4/3/1', '1:-2/10/4'],
+    E: ['6:0/0/T', '5:1/6/null!', '4:0/10/2', '3:0/3/3', '2:-1/6/1', '1:0/0/4'],
+    D: ['4:0/0/1', '3:1/6/2', '2:1/10/3', '1:1/3/4']
+};
+var M7B5_OPEN_FINGERS = {
+    C: undefined,
+    A: { 5: 1, 4: 3, 3: 1, 2: 4 },
+    G: undefined,
+    E: undefined,
+    D: { 3: 1, 2: 1, 1: 1 }
+};
+shapes.forEach(function (shape) {
+    var def = caged.FORMS[shape].qualities.m7b5;
+    assert.deepStrictEqual(slotSpec(def), M7B5_FIXED_DEFINITIONS[shape], shape + '/m7♭5 keeps the audited FORM/fingering split');
+    assert.deepStrictEqual(def.openFingers, M7B5_OPEN_FINGERS[shape], shape + '/m7♭5 open fingering is unchanged');
+});
+assert.deepStrictEqual(caged.FORMS.E.qualities.m7b5.warningStrings, [5], 'E/m7♭5 warns only the retained fifth-string FORM slot');
+assert.strictEqual(caged.FORMS.D.qualities.m7b5.warningStrings, undefined, 'D/m7♭5 has no warning slots');
+['E', 'D'].forEach(function (shape) {
+    for (var rootPc = 0; rootPc < 12; rootPc += 1) {
+        [[0, 13], [12, 25]].forEach(function (range) {
+            var form = caged.getForm(shape, 'm7b5', rootPc, range[1], range[0]);
+            assert.strictEqual(form.available, true, shape + '/m7♭5 root ' + rootPc + ' is available in its range');
+            assert.deepStrictEqual(
+                form.notes.map(function (note) { return note.interval; }).sort(function (a, b) { return a - b; }),
+                (shape === 'E' ? [0, 0, 3, 6, 6, 10] : [0, 3, 6, 10]),
+                shape + '/m7♭5 preserves visible FORM intervals'
+            );
+            var warnings = form.notes.filter(function (note) { return note.fingeringWarning; });
+            if (shape === 'E') {
+                assert.strictEqual(warnings.length, 1, 'E/m7♭5 has exactly one warning');
+                assert.strictEqual(warnings[0].string, 5, 'E/m7♭5 warning remains on fifth string');
+            } else {
+                assert.strictEqual(warnings.length, 0, 'D/m7♭5 remains warning-free');
+            }
+        });
+    }
+});
+var cM7b5E = caged.getForm('E', 'm7b5', 0, 13, 0);
+var cM7b5D = caged.getForm('D', 'm7b5', 0, 13, 0);
+assert.deepStrictEqual(caged.detectBarres(cM7b5E.notes), [], 'E/m7♭5 user fingering needs no barre');
+assert.deepStrictEqual(caged.detectBarres(cM7b5D.notes), [], 'D/m7♭5 user fingering needs no barre');
 assert(barreCount > 0, 'barres remain detected across all extended-quality scenarios');
 
 // 各固定フォームが0Fへ接する配置でopenFingersを使い、開放弦のfingerをnullにする。
@@ -630,6 +678,40 @@ var C_AUG_VIEW_FIXTURES = {
     }
 };
 var fingerLabels = { 1: '人', 2: '中', 3: '薬', 4: '小', T: '親' };
+
+var C_M7B5_VIEW_FIXTURES = {
+    E: {
+        cde: ['C', 'F♯', 'A♯', 'D♯', 'F♯', 'C'],
+        solfege: ['ド', 'ファ♯', 'ラ♯', 'レ♯', 'ファ♯', 'ド'],
+        degree: ['1', '♭5', '♭7', '♭3', '♭5', '1'],
+        finger: ['親', '⚠', '中', '薬', '人', '小']
+    },
+    D: {
+        cde: ['C', 'F♯', 'A♯', 'D♯'],
+        solfege: ['ド', 'ファ♯', 'ラ♯', 'レ♯'],
+        degree: ['1', '♭5', '♭7', '♭3'],
+        finger: ['人', '中', '薬', '小']
+    }
+};
+['E', 'D'].forEach(function (shape) {
+    var form = caged.getForm(shape, 'm7b5', 0, 13, 0);
+    var cde = form.notes.map(function (note) {
+        return theory.noteName((theory.OPEN_STRINGS[6 - note.string] + note.fret) % 12, false);
+    });
+    var solfege = form.notes.map(function (note) {
+        return theory.solfegeName((theory.OPEN_STRINGS[6 - note.string] + note.fret) % 12, false);
+    });
+    var degree = form.notes.map(function (note) {
+        return theory.degreeLabelsForQuality('m7b5', [0, 3, 6, 10])[[0, 3, 6, 10].indexOf(note.interval)];
+    });
+    var finger = form.notes.map(function (note) {
+        return note.fingeringWarning ? '⚠' : (fingerLabels[note.finger] || '');
+    });
+    assert.deepStrictEqual(cde, C_M7B5_VIEW_FIXTURES[shape].cde, shape + '/m7♭5 CDE retains every FORM sound');
+    assert.deepStrictEqual(solfege, C_M7B5_VIEW_FIXTURES[shape].solfege, shape + '/m7♭5 solfege retains every FORM sound');
+    assert.deepStrictEqual(degree, C_M7B5_VIEW_FIXTURES[shape].degree, shape + '/m7♭5 degree retains every FORM sound');
+    assert.deepStrictEqual(finger, C_M7B5_VIEW_FIXTURES[shape].finger, shape + '/m7♭5 fingering uses the user-verified result');
+});
 shapes.forEach(function (shape) {
     var form = caged.getForm(shape, 'aug', 0, 13, 0);
     var cde = form.notes.map(function (note) {

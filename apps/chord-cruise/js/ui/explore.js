@@ -33,7 +33,7 @@
         range: { type: 'range', text: '' }
     };
     // SCALES 自体をラベルの正式sourceとしつつ、UIの表示順は明示的に固定する。
-    var SCALE_SELECTION_ORDER = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'locrian'];
+    var SCALE_SELECTION_ORDER = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'harmonic-minor', 'melodic-minor', 'locrian'];
     var scaleSheet = null;
     var scaleSheetReturnFocus = null;
 
@@ -478,7 +478,9 @@
         var theory = getTheory();
         var settings = getSettings();
         var select = document.getElementById('cc-key-select');
-        var names = settings.scaleType === 'minor' ? theory.MINOR_KEY_OPTIONS : theory.MAJOR_KEY_OPTIONS;
+        var names = scaleDefinition(settings.scaleType).tonicFamily === 'minor'
+            ? theory.MINOR_KEY_OPTIONS
+            : theory.MAJOR_KEY_OPTIONS;
         select.innerHTML = '';
         var pc;
         for (pc = 0; pc < 12; pc++) {

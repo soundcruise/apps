@@ -12,9 +12,9 @@
     var LIBRARY_ORDER_VERSION = 1;
     var DEFAULT_HIGHLIGHTED_FRETS = [0, 3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
     var FOLDER_COLOR_KEYS = ['forest', 'burgundy', 'navy', 'umber', 'charcoal', 'teal', 'violet', 'russet', 'leather', 'black-leather', 'wine', 'black-gold'];
-    // Phase 2A で理論生成に対応した7種類だけを、保存設定でも正式値として扱う。
-    // Object.keys() の列挙順には依存せず、UI側もこの同じ並びを明示的に使う。
-    var VALID_SCALE_TYPES = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'locrian'];
+    // Phase Dで公開する9種類を、保存設定でも正式値として扱う。
+    // Object.keys() の列挙順には依存せず、UI側も同じ意図の並びを明示的に使う。
+    var VALID_SCALE_TYPES = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'harmonic-minor', 'melodic-minor', 'locrian'];
 
     var DEFAULT_SETTINGS = {
         selectedKey: 0,

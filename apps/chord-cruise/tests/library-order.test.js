@@ -974,6 +974,111 @@ function orderOf(env) {
     assert.strictEqual(JSON.stringify(doubleFlatChord), flatBefore, 'double-flat rendering is read-only');
 })();
 
+(function phaseDPublishedScalesSaveReloadAndRebuildLibraryLabels() {
+    const env = loadLibrary(baseData());
+    const harmonic = env.storage.saveChord({
+        chordName: 'F♯♯dim7',
+        formName: 'C型',
+        shape: 'C',
+        qualityKey: 'dim7',
+        folderId: 'folder-a',
+        keyContext: { tonicPc: 8, mode: 'harmonic-minor', degreeLabel: 'VII°7' },
+        rootPc: 7,
+        intervals: [0, 3, 6, 9],
+        fretRange: { min: 9, max: 12, includesOpen: false },
+        notes: [
+            { string: 5, fret: 9, interval: 0 },
+            { string: 4, fret: 11, interval: 3 },
+            { string: 3, fret: 9, interval: 9 },
+            { string: 2, fret: 11, interval: 6 }
+        ],
+        mutedStrings: [6, 1]
+    });
+    const melodic = env.storage.saveChord({
+        chordName: 'CM7♯5',
+        formName: 'E型',
+        shape: 'E',
+        qualityKey: 'maj7sharp5',
+        folderId: 'folder-a',
+        keyContext: { tonicPc: 9, mode: 'melodic-minor', degreeLabel: 'IIIM7♯5' },
+        rootPc: 0,
+        intervals: [0, 4, 8, 11],
+        fretRange: { min: 8, max: 11, includesOpen: false },
+        notes: [
+            { string: 6, fret: 8, interval: 0 },
+            { string: 5, fret: 11, interval: 8 },
+            { string: 4, fret: 9, interval: 11 },
+            { string: 3, fret: 9, interval: 4 }
+        ],
+        mutedStrings: [2, 1]
+    });
+    assert(harmonic && melodic, 'published-scale forms save with the existing schema');
+
+    const reloaded = loadLibrary(env.localStorage.snapshot());
+    const options = reloaded.context.window.ChordCruise.ui.library.savedDiagramOptions;
+    const storedHarmonic = reloaded.storage.loadChord(harmonic.id);
+    const storedMelodic = reloaded.storage.loadChord(melodic.id);
+    assert.strictEqual(storedHarmonic.schemaVersion, 1);
+    assert.strictEqual(storedMelodic.schemaVersion, 1);
+    assert.strictEqual(storedHarmonic.keyContext.mode, 'harmonic-minor');
+    assert.strictEqual(storedMelodic.keyContext.mode, 'melodic-minor');
+    assert.deepStrictEqual(
+        native(options(storedHarmonic, { mode: 'note' }).markers.map((marker) => marker.label)),
+        ['F♯♯', 'A♯', 'E', 'C♯']
+    );
+    assert.deepStrictEqual(
+        native(options(storedHarmonic, { mode: 'degree' }).markers.map((marker) => marker.label)),
+        ['1', '♭3', '♭♭7', '♭5']
+    );
+    assert.deepStrictEqual(
+        native(options(storedMelodic, { mode: 'note' }).markers.map((marker) => marker.label)),
+        ['C', 'G♯', 'B', 'E']
+    );
+    assert.deepStrictEqual(
+        native(options(storedMelodic, { mode: 'degree' }).markers.map((marker) => marker.label)),
+        ['1', '♯5', '7', '3']
+    );
+    assert(librarySource.includes('diagramOptions: diagramOptions'), 'published-scale PNG/SVG uses saved diagram options');
+})();
+
+(function m7b5UserVerifiedEAndDFingersSurviveSaveReloadAndExport() {
+    const env = loadLibrary(baseData());
+    const eShape = env.storage.saveChord({
+        chordName: 'Cm7♭5', formName: 'E型', shape: 'E', qualityKey: 'm7b5', folderId: 'folder-a',
+        rootPc: 0, intervals: [0, 3, 6, 10], fretRange: { min: 7, max: 9, includesOpen: false },
+        notes: [
+            { string: 6, fret: 8, interval: 0, finger: 'T', fingeringWarning: false },
+            { string: 5, fret: 9, interval: 6, finger: null, fingeringWarning: true },
+            { string: 4, fret: 8, interval: 10, finger: 2, fingeringWarning: false },
+            { string: 3, fret: 8, interval: 3, finger: 3, fingeringWarning: false },
+            { string: 2, fret: 7, interval: 6, finger: 1, fingeringWarning: false },
+            { string: 1, fret: 8, interval: 0, finger: 4, fingeringWarning: false }
+        ], mutedStrings: []
+    });
+    const dShape = env.storage.saveChord({
+        chordName: 'Cm7♭5', formName: 'D型', shape: 'D', qualityKey: 'm7b5', folderId: 'folder-a',
+        rootPc: 0, intervals: [0, 3, 6, 10], fretRange: { min: 10, max: 11, includesOpen: false },
+        notes: [
+            { string: 4, fret: 10, interval: 0, finger: 1, fingeringWarning: false },
+            { string: 3, fret: 11, interval: 6, finger: 2, fingeringWarning: false },
+            { string: 2, fret: 11, interval: 10, finger: 3, fingeringWarning: false },
+            { string: 1, fret: 11, interval: 3, finger: 4, fingeringWarning: false }
+        ], mutedStrings: [6, 5]
+    });
+    const reloaded = loadLibrary(env.localStorage.snapshot());
+    const options = reloaded.context.window.ChordCruise.ui.library.savedDiagramOptions;
+    const storedE = reloaded.storage.loadChord(eShape.id);
+    const storedD = reloaded.storage.loadChord(dShape.id);
+    assert.strictEqual(storedE.schemaVersion, 1);
+    assert.strictEqual(storedD.schemaVersion, 1);
+    assert.deepStrictEqual(native(storedE.notes.map((note) => [note.finger, note.fingeringWarning])), [['T', false], [null, true], [2, false], [3, false], [1, false], [4, false]]);
+    assert.deepStrictEqual(native(storedD.notes.map((note) => [note.finger, note.fingeringWarning])), [[1, false], [2, false], [3, false], [4, false]]);
+    assert.deepStrictEqual(native(options(storedE, { mode: 'finger' }).markers.map((marker) => marker.label)), ['親', '⚠', '中', '薬', '人', '小']);
+    assert.deepStrictEqual(native(options(storedD, { mode: 'finger' }).markers.map((marker) => marker.label)), ['人', '中', '薬', '小']);
+    assert.deepStrictEqual(native(options(storedE, { mode: 'degree' }).markers.map((marker) => marker.label)), ['1', '♭5', '♭7', '♭3', '♭5', '1']);
+    assert(librarySource.includes('diagramOptions: diagramOptions'), 'm7♭5 PNG/SVG uses the saved fingering markers');
+})();
+
 (function folderColorsDefaultToBlackLeatherAndPersistOnlyWhenChosen() {
     const env = loadStorage(baseData());
     const source = env.storage.loadOrderedFolders().find((folder) => folder.id === 'folder-a');

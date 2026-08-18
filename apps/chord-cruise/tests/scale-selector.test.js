@@ -4,8 +4,8 @@ var assert = require('assert');
 var fs = require('fs');
 var path = require('path');
 
-var SCALE_IDS = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'locrian'];
-var CORE_SCALE_IDS = SCALE_IDS.concat(['harmonic-minor', 'melodic-minor']);
+var SCALE_IDS = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'harmonic-minor', 'melodic-minor', 'locrian'];
+var CORE_SCALE_IDS = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'locrian', 'harmonic-minor', 'melodic-minor'];
 var SCALE_LABELS = {
     major: 'メジャー / イオニアン',
     dorian: 'ドリアン',
@@ -13,6 +13,8 @@ var SCALE_LABELS = {
     lydian: 'リディアン',
     mixolydian: 'ミクソリディアン',
     minor: 'マイナー / エオリアン',
+    'harmonic-minor': 'ハーモニックマイナー',
+    'melodic-minor': 'メロディックマイナー',
     locrian: 'ロクリアン'
 };
 
@@ -32,8 +34,8 @@ require('../js/core/storage.js');
 var theory = window.ChordCruise.theory;
 var storage = window.ChordCruise.storage;
 
-assert.deepStrictEqual(storage.VALID_SCALE_TYPES, SCALE_IDS, 'storage accepts exactly the approved seven scale IDs');
-assert.deepStrictEqual(Object.keys(theory.SCALES), CORE_SCALE_IDS, 'core exposes nine scales independently from the approved UI/storage seven');
+assert.deepStrictEqual(storage.VALID_SCALE_TYPES, SCALE_IDS, 'storage accepts the nine scales published by the selector');
+assert.deepStrictEqual(Object.keys(theory.SCALES), CORE_SCALE_IDS, 'core retains its independent nine-scale definition order');
 SCALE_IDS.forEach(function (scaleType) {
     assert.strictEqual(theory.SCALES[scaleType].label, SCALE_LABELS[scaleType], scaleType + ' label');
 });
@@ -47,8 +49,8 @@ function normalizedScaleType(value) {
 assert.strictEqual(normalizedScaleType(undefined), 'major', 'missing scaleType defaults to major');
 assert.strictEqual(normalizedScaleType(null), 'major', 'null scaleType defaults to major');
 assert.strictEqual(normalizedScaleType('banana'), 'major', 'invalid scaleType defaults to major');
-assert.strictEqual(normalizedScaleType('harmonic-minor'), 'major', 'internal-only Harmonic Minor cannot enter persisted UI settings');
-assert.strictEqual(normalizedScaleType('melodic-minor'), 'major', 'internal-only Melodic Minor cannot enter persisted UI settings');
+assert.strictEqual(normalizedScaleType('harmonic-minor'), 'harmonic-minor', 'Harmonic Minor is a persisted UI setting');
+assert.strictEqual(normalizedScaleType('melodic-minor'), 'melodic-minor', 'Melodic Minor is a persisted UI setting');
 SCALE_IDS.forEach(function (scaleType) {
     assert.strictEqual(normalizedScaleType(scaleType), scaleType, scaleType + ' restores unchanged');
 });
@@ -57,6 +59,12 @@ assert.strictEqual(storage.saveSettings({ scaleType: 'minor' }), true);
 assert.strictEqual(storage.loadSettings().scaleType, 'minor', 'legacy minor settings remain compatible');
 assert.strictEqual(storage.saveSettings({ scaleType: 'dorian' }), true);
 assert.strictEqual(storage.loadSettings().scaleType, 'dorian', 'new scale settings persist and restore');
+assert.strictEqual(storage.saveSettings({ scaleType: 'harmonic-minor', selectedKey: 8, chordToneMode: '7' }), true);
+assert.strictEqual(storage.loadSettings().scaleType, 'harmonic-minor', 'Harmonic Minor persists and reloads');
+assert.strictEqual(storage.loadSettings().selectedKey, 8, 'Harmonic Minor keeps the selected pitch class');
+assert.strictEqual(storage.loadSettings().chordToneMode, '7', 'Harmonic Minor keeps the selected chord size');
+assert.strictEqual(storage.saveSettings({ scaleType: 'melodic-minor' }), true);
+assert.strictEqual(storage.loadSettings().scaleType, 'melodic-minor', 'Melodic Minor persists and reloads');
 assert.strictEqual(storage.saveSettings({ scaleType: 'invalid-mode' }), true);
 assert.strictEqual(storage.loadSettings().scaleType, 'major', 'invalid persisted settings recover to major');
 
@@ -149,12 +157,25 @@ assert.strictEqual(window.ChordCruise.state.settings.chordToneMode, '7', 'changi
 assert.strictEqual(testDocument.elements['cc-scale-selector-value'].textContent, SCALE_LABELS.major, 'selector label updates after a successful commit');
 assert.strictEqual(testDocument.elements['cc-chord-grid'].children.length, 7, 'successful commit redraws the diatonic grid');
 
-var majorGridFirstSymbol = testDocument.elements['cc-chord-grid'].children[0].children[1].textContent;
+assert.strictEqual(explore.setScaleType('harmonic-minor'), true, 'Harmonic Minor commits after successful persistence');
+assert.strictEqual(savedScaleType, 'harmonic-minor');
+assert.strictEqual(window.ChordCruise.state.settings.scaleType, 'harmonic-minor');
+assert.strictEqual(window.ChordCruise.state.settings.selectedKey, 0, 'changing family preserves the selected pitch class');
+assert.strictEqual(window.ChordCruise.state.settings.chordToneMode, '7', 'Harmonic Minor preserves the selected chord size');
+assert.strictEqual(testDocument.elements['cc-scale-selector-value'].textContent, SCALE_LABELS['harmonic-minor']);
+assert.strictEqual(testDocument.elements['cc-key-select'].children[8].textContent, 'G♯', 'minor-family scales use minor tonic names');
+
+assert.strictEqual(explore.setScaleType('melodic-minor'), true, 'Melodic Minor commits after successful persistence');
+assert.strictEqual(savedScaleType, 'melodic-minor');
+assert.strictEqual(window.ChordCruise.state.settings.scaleType, 'melodic-minor');
+assert.strictEqual(testDocument.elements['cc-scale-selector-value'].textContent, SCALE_LABELS['melodic-minor']);
+
+var melodicGridFirstSymbol = testDocument.elements['cc-chord-grid'].children[0].children[1].textContent;
 shouldSave = false;
 assert.strictEqual(explore.setScaleType('dorian'), false, 'a failed persistence rejects the new scale');
-assert.strictEqual(window.ChordCruise.state.settings.scaleType, 'major', 'failed persistence keeps in-memory scale unchanged');
-assert.strictEqual(testDocument.elements['cc-scale-selector-value'].textContent, SCALE_LABELS.major, 'failed persistence keeps the existing selector label');
-assert.strictEqual(testDocument.elements['cc-chord-grid'].children[0].children[1].textContent, majorGridFirstSymbol, 'failed persistence keeps the rendered scale unchanged');
+assert.strictEqual(window.ChordCruise.state.settings.scaleType, 'melodic-minor', 'failed persistence keeps in-memory scale unchanged');
+assert.strictEqual(testDocument.elements['cc-scale-selector-value'].textContent, SCALE_LABELS['melodic-minor'], 'failed persistence keeps the existing selector label');
+assert.strictEqual(testDocument.elements['cc-chord-grid'].children[0].children[1].textContent, melodicGridFirstSymbol, 'failed persistence keeps the rendered scale unchanged');
 assert.strictEqual(toastMessage, 'スケール設定を保存できませんでした', 'failed persistence reports the existing-style error feedback');
 
 assert(exploreSource.indexOf('aria-haspopup="dialog"') !== -1, 'selector exposes dialog semantics');
@@ -166,9 +187,9 @@ assert(exploreSource.indexOf("event.key === 'Escape'") !== -1, 'Escape closes th
 assert(exploreSource.indexOf('focusTrap().trapFocus') !== -1, 'sheet delegates Tab behavior to the shared focus helper');
 assert(exploreSource.indexOf('focusTrap().restoreFocus') !== -1, 'sheet returns focus to its opener');
 assert(exploreSource.indexOf("mode: settings.scaleType") !== -1, 'newly saved forms retain the selected scale ID in keyContext.mode');
-assert(exploreSource.indexOf("SCALE_SELECTION_ORDER = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'locrian']") !== -1, 'selector retains the approved seven-scale order');
+assert(exploreSource.indexOf("SCALE_SELECTION_ORDER = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'harmonic-minor', 'melodic-minor', 'locrian']") !== -1, 'selector retains the approved nine-scale order');
 assert.strictEqual((exploreSource.match(/cc-mode-major/g) || []).length, 0, 'legacy Major / Minor segment controls are removed');
 assert.strictEqual((exploreSource.match(/cc-mode-minor/g) || []).length, 0, 'legacy Major / Minor segment controls are removed');
 
 global.document = previousDocument;
-console.log('scale-selector: storage normalization, persistence safety, seven scales, redraw, and sheet semantics OK');
+console.log('scale-selector: nine-scale storage, persistence safety, minor-family keys, redraw, and sheet semantics OK');
