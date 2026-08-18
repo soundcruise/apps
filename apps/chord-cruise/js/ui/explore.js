@@ -726,6 +726,43 @@
         return markers;
     }
 
+    function tensionOverlayMarkerLabel(overlay, useFlats) {
+        var theory = getTheory();
+        var mode = getSettings().fretboardDisplayMode;
+        if (mode === 'finger') return '';
+        if (mode === 'solfege') return theory.solfegeName(overlay.pc, useFlats);
+        if (mode === 'degree') return window.ChordCruise.chordModel.TENSION_LABELS[overlay.tension] || theory.degreeLabels([overlay.interval])[0];
+        return theory.noteName(overlay.pc, useFlats);
+    }
+
+    /** Bassと同じmerge規則で、1〜3弦だけのtension候補をFORMへ重ねる。 */
+    function mergeTensionOverlayMarkers(chord, markers, range) {
+        if (!chord || !Array.isArray(chord.tensionIntervals) || !chord.tensionIntervals.length) return markers;
+        var overlayNotes = window.ChordCruise.chordModel.tensionOverlayNotes({
+            rootPc: chord.rootPc, tensionIntervals: chord.tensionIntervals,
+            startFret: range.start, endFret: range.end
+        });
+        var existingBySlot = {};
+        markers.forEach(function (marker) { existingBySlot[marker.string + ':' + marker.fret] = marker; });
+        var useFlats = chordUseFlats(chord);
+        overlayNotes.forEach(function (overlay) {
+            var key = overlay.string + ':' + overlay.fret;
+            if (existingBySlot[key]) {
+                existingBySlot[key].isTensionCandidate = true;
+                return;
+            }
+            var marker = {
+                string: overlay.string, fret: overlay.fret,
+                label: tensionOverlayMarkerLabel(overlay, useFlats),
+                role: roleForInterval(overlay.interval), isOverlay: true, overlayType: overlay.type,
+                isTensionCandidate: true, finger: null, fingeringWarning: false
+            };
+            markers.push(marker);
+            existingBySlot[key] = marker;
+        });
+        return markers;
+    }
+
     function updateCagedButtons() {
         var row = document.getElementById('cc-caged-row');
         if (!row) {
@@ -853,6 +890,13 @@
             hint += ' 分数コードの保存は今後対応予定です。';
         }
 
+        if (chord && form && Array.isArray(chord.tensionIntervals) && chord.tensionIntervals.length) {
+            markers = mergeTensionOverlayMarkers(chord, markers, range);
+            hint += getSettings().fretboardDisplayMode === 'finger'
+                ? ' 濃金枠は追加テンション音の候補です。運指は表示していません。'
+                : ' 濃金枠は追加テンション音の候補です。';
+        }
+
         var fingerBtn = document.getElementById('cc-fbmode-finger');
         if (fingerBtn) {
             fingerBtn.classList.toggle('cc-segment-btn--disabled', !form);
@@ -860,11 +904,14 @@
 
         var saveButton = document.getElementById('cc-save-form-btn');
         if (saveButton) {
-            var canSaveForm = !!form;
+            // Phase F1はtensionの保存モデルをまだ導入しない。
+            var canSaveForm = !!form && !(chord && Array.isArray(chord.tensionIntervals) && chord.tensionIntervals.length);
             saveButton.disabled = !canSaveForm;
             saveButton.title = canSaveForm
                 ? '現在表示中のCAGEDフォームを保存前編集で確認します'
-                : (chord ? 'CAGED型を選ぶと保存できます' : 'コードを選ぶと保存できます');
+                : (chord && Array.isArray(chord.tensionIntervals) && chord.tensionIntervals.length
+                    ? 'テンション付きコードの保存は今後対応予定です'
+                    : (chord ? 'CAGED型を選ぶと保存できます' : 'コードを選ぶと保存できます'));
         }
 
         fb.render(host, {

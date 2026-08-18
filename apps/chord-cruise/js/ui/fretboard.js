@@ -283,6 +283,7 @@
                 isOverlay: !!marker.isOverlay,
                 overlayType: marker.overlayType || '',
                 isBassCandidate: !!marker.isBassCandidate,
+                isTensionCandidate: !!marker.isTensionCandidate,
                 tappable: !!marker.tappable,
                 ariaLabel: marker.ariaLabel != null ? String(marker.ariaLabel) : ''
             });
@@ -498,6 +499,7 @@
             if (m.pendingDelete) cls += ' cc-fb-marker--pending-delete';
             if (m.fingeringWarning) cls += ' cc-fb-marker--warning';
             if (m.isBassCandidate) cls += ' cc-fb-marker--bass-candidate';
+            if (m.isTensionCandidate) cls += ' cc-fb-marker--tension-candidate';
             if (m.isOverlay) cls += ' cc-fb-marker--overlay';
             if (!m.fingeringWarning && String(m.label == null ? '' : m.label).length > 2) cls += ' cc-fb-marker--long-label';
             if (m.tappable) cls += ' cc-fb-marker--tappable';

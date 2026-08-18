@@ -668,6 +668,15 @@ body {
     z-index: 1;
 }
 
+/* Phase F1: テンション候補も同じ3層構造だが、Bassのbright goldとは異なるgoldで区別する。 */
+.cc-fb-marker--tension-candidate {
+    box-shadow:
+        0 0 0 2px var(--cc-bg),
+        0 0 0 4px var(--cc-gold),
+        0 2px 6px rgba(0, 0, 0, 0.45);
+    z-index: 1;
+}
+
 /* ♭♭7 など3文字以上の度数も30pxマーカー内へ収める。 */
 .cc-fb-marker--long-label {
     font-size: calc(var(--cc-fb-marker-label-size, 0.76rem) * 0.84);
@@ -755,6 +764,13 @@ body {
     box-shadow:
         0 0 0 2px var(--cc-bg),
         0 0 0 4px var(--cc-gold-bright),
+        0 2px 5px rgba(0, 0, 0, 0.24);
+}
+
+.cc-fb-host--monochrome .cc-fb-marker--tension-candidate {
+    box-shadow:
+        0 0 0 2px var(--cc-bg),
+        0 0 0 4px var(--cc-gold),
         0 2px 5px rgba(0, 0, 0, 0.24);
 }
 

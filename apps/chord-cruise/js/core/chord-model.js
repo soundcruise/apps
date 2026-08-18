@@ -73,7 +73,10 @@
                 return TENSION_LABELS[t] || '';
             }).filter(function (t) { return t !== ''; });
             if (tNames.length > 0) {
-                name += '(' + tNames.join(',') + ')';
+                // 7thを含まない三和音の9/11/13は、7thを含むC9等と混同しないadd表記にする。
+                name += seventh === null
+                    ? 'add' + tNames.join(',')
+                    : '(' + tNames.join(',') + ')';
             }
         }
         return name;
@@ -149,6 +152,35 @@
         return notes;
     }
 
+    /** CAGED FORMへ追加する高音側tension候補。完成voicingや運指は決めない。 */
+    function tensionOverlayNotes(options) {
+        var opts = options || {};
+        var theory = window.ChordCruise.theory;
+        var rootPc = typeof opts.rootPc === 'number' ? ((opts.rootPc % 12) + 12) % 12 : null;
+        var tensions = Array.isArray(opts.tensionIntervals) ? opts.tensionIntervals : [];
+        var startFret = typeof opts.startFret === 'number' ? opts.startFret : 0;
+        var endFret = typeof opts.endFret === 'number' ? opts.endFret : -1;
+        var notes = [];
+        var fret;
+        if (rootPc === null || endFret < startFret) return notes;
+        [3, 2, 1].forEach(function (stringNum) {
+            var openPc = theory.OPEN_STRINGS[6 - stringNum];
+            for (fret = startFret; fret <= endFret; fret++) {
+                var pc = (openPc + fret) % 12;
+                var tension = tensions.filter(function (value) {
+                    return typeof value === 'number' && ((rootPc + value) % 12 + 12) % 12 === pc;
+                })[0];
+                if (tension === undefined) continue;
+                notes.push({
+                    type: 'tension', overlayType: 'tension', string: stringNum, fret: fret,
+                    pc: pc, interval: tension % 12, tension: tension,
+                    finger: null, fingeringWarning: false
+                });
+            }
+        });
+        return notes;
+    }
+
     /**
      * 任意コードを構築する。
      * @param {Object} spec { rootPc, third: 4|3|5|null, fifth: 7|6|8|null, seventh: 10|11|9|null, tensions: number[], bassPc?: number }
@@ -164,9 +196,8 @@
         if (spec.fifth !== null) core.push(spec.fifth);
         if (spec.seventh !== null) core.push(spec.seventh);
 
-        var qualityKey = (spec.tensions || []).length === 0
-            ? theory.identifyQuality(core)
-            : null;
+        // CAGEDとquality判定はupper chordだけをsourceにし、tensionはoverlayとして扱う。
+        var qualityKey = theory.identifyQuality(core);
 
         var seenPcs = {};
         var notePcs = [];
@@ -202,6 +233,8 @@
             rootPc: spec.rootPc,
             notePcs: notePcs,
             intervals: intervals,
+            coreIntervals: core.slice(),
+            tensionIntervals: (spec.tensions || []).slice(),
             degreeLabelsList: degreeLabelsList,
             symbol: symbol,
             qualityKey: qualityKey,
@@ -226,6 +259,7 @@
         generateName: generateName,
         bassCandidates: bassCandidates,
         bassOverlayNotes: bassOverlayNotes,
+        tensionOverlayNotes: tensionOverlayNotes,
         buildCustomChord: buildCustomChord
     };
 })();
