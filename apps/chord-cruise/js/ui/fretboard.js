@@ -383,8 +383,8 @@
             var strokeWidth = marker.pendingDelete ? Math.max(2, palette.strokeWidth) : palette.strokeWidth;
             var stroke = marker.pendingDelete ? palette.text : palette.stroke;
             var bassOutline = marker.isBassCandidate
-                ? '<circle cx="' + marker.x + '" cy="' + marker.y + '" r="17" fill="none" stroke="#e8c97a" stroke-width="2"/>' +
-                    '<circle cx="' + marker.x + '" cy="' + marker.y + '" r="16" fill="none" stroke="#0b0a09" stroke-width="2"/>'
+                ? '<circle cx="' + marker.x + '" cy="' + marker.y + '" r="19" fill="none" stroke="#e8c97a" stroke-width="2"/>' +
+                    '<circle cx="' + marker.x + '" cy="' + marker.y + '" r="17" fill="none" stroke="#0b0a09" stroke-width="2"/>'
                 : '';
             svg += '<g opacity="' + opacity + '">' +
                 bassOutline +

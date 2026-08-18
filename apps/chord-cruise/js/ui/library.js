@@ -4,6 +4,7 @@
     /* コード本棚。フォルダ一覧 → フォルダ内一覧 → 保存コード詳細 の3階層。 */
 
     var FINGER_CYCLE = [null, 'T', 1, 2, 3, 4];
+    var BASS_FINGER_CYCLE = [null, 'T', 1, 2, 3, 4, 'warning', 'delete'];
     var FINGER_LABELS = { T: '親', 1: '人', 2: '中', 3: '薬', 4: '小' };
 
     var view = 'folders';           // 'folders' | 'list' | 'detail'
@@ -1049,6 +1050,79 @@
         return 'other';
     }
 
+    function savedBassPc(chord) {
+        return chord && typeof chord.bassPc === 'number' && Math.floor(chord.bassPc) === chord.bassPc && chord.bassPc >= 0 && chord.bassPc <= 11
+            ? chord.bassPc
+            : null;
+    }
+
+    function bassFingeringFor(chord, stringNum, fret) {
+        var entries = chord && Array.isArray(chord.bassFingerings) ? chord.bassFingerings : [];
+        return entries.filter(function (entry) {
+            return entry && [4, 5, 6].indexOf(entry.string) !== -1 && entry.string === stringNum && typeof entry.fret === 'number' && Math.floor(entry.fret) === entry.fret && entry.fret === fret && FINGER_CYCLE.indexOf(entry.finger) !== -1;
+        })[0] || null;
+    }
+
+    function savedBassFingeringLabel(chord, overlay) {
+        var entry = bassFingeringFor(chord, overlay.string, overlay.fret);
+        if (!entry) return '';
+        if (entry.pendingDelete === true) return '';
+        if (entry.finger != null) return FINGER_LABELS[entry.finger] || '';
+        return entry.fingeringWarning === true ? '⚠' : '';
+    }
+
+    function savedBassAccessibleLabel(chord, overlay) {
+        var entry = bassFingeringFor(chord, overlay.string, overlay.fret);
+        var state = entry && entry.pendingDelete === true ? '消去予定' : (entry && entry.finger != null ? (FINGER_LABELS[entry.finger] || '') + '指' : (entry && entry.fingeringWarning ? '運指警告' : '未指定'));
+        return overlay.string + '弦 ' + (overlay.fret === 0 ? '開放弦' : overlay.fret + 'フレット') + '、ベース候補、現在 ' + state + '。運指を変更';
+    }
+
+    function bassMarkerLabel(chord, overlay, mode, spelledNoteNames) {
+        if (mode === 'finger') return '';
+        if (mode === 'solfege') return theory().solfegeName(overlay.pc, chordUseFlats(chord));
+        if (mode === 'degree') {
+            var degreeIndex = (chord.intervals || []).indexOf(overlay.interval);
+            var degreeLabels = theory().degreeLabelsForQuality(theory().identifyQuality(chord.intervals), chord.intervals || []);
+            return degreeIndex !== -1 ? degreeLabels[degreeIndex] : theory().degreeLabels([overlay.interval])[0];
+        }
+        var noteIndex = (chord.intervals || []).indexOf(overlay.interval);
+        return spelledNoteNames && noteIndex !== -1 && spelledNoteNames[noteIndex]
+            ? spelledNoteNames[noteIndex]
+            : theory().noteName(overlay.pc, chordUseFlats(chord));
+    }
+
+    function mergeSavedBassOverlay(chord, frets, markers, mode, spelledNoteNames, editable) {
+        var bassPc = savedBassPc(chord);
+        if (bassPc === null) return markers;
+        var min = Math.min.apply(null, frets);
+        var max = Math.max.apply(null, frets);
+        var overlays = window.ChordCruise.chordModel.bassOverlayNotes({
+            bassPc: bassPc, rootPc: chord.rootPc, intervals: chord.intervals || [],
+            startFret: min, endFret: max, targetStrings: [6, 5, 4]
+        }).filter(function (note) { return frets.indexOf(note.fret) !== -1; });
+        var bySlot = {};
+        markers.forEach(function (marker) { bySlot[marker.string + ':' + marker.fret] = marker; });
+        overlays.forEach(function (overlay) {
+            var key = overlay.string + ':' + overlay.fret;
+            var bassEntry = bassFingeringFor(chord, overlay.string, overlay.fret);
+            // 通常の本棚／SVG／PNGは保存済み削除候補を描画しない。編集画面だけが復元する。
+            if (bassEntry && bassEntry.pendingDelete === true) return;
+            if (bySlot[key]) { bySlot[key].isBassCandidate = true; return; }
+            var marker = {
+                string: overlay.string, fret: overlay.fret,
+                label: mode === 'finger' ? savedBassFingeringLabel(chord, overlay) : bassMarkerLabel(chord, overlay, mode, spelledNoteNames),
+                role: roleForInterval(overlay.interval), isOverlay: true, overlayType: 'bass',
+                isBassCandidate: true, finger: (bassEntry || {}).finger || null,
+                fingeringWarning: !!((bassEntry || {}).fingeringWarning),
+                pendingDelete: false,
+                tappable: editable && mode === 'finger', ariaLabel: editable && mode === 'finger' ? savedBassAccessibleLabel(chord, overlay) : ''
+            };
+            markers.push(marker);
+            bySlot[key] = marker;
+        });
+        return markers;
+    }
+
     /** 保存範囲だけから表示列を作る。開放列と離れた範囲も余計なフレットを挟まない。 */
     function savedFrets(chord) {
         var range = chord && chord.fretRange ? chord.fretRange : {};
@@ -1094,19 +1168,21 @@
             chord.rootPc,
             chord.intervals
         );
+        var markers = notes.map(function (note) {
+            return {
+                string: note.string,
+                fret: note.fret,
+                label: detailMarkerLabel(chord, note, mode, spelledNoteNames),
+                role: roleForInterval(note.interval),
+                fingeringWarning: mode === 'finger' && note.fingeringWarning === true && note.finger == null,
+                tappable: !!opts.tappable,
+                ariaLabel: opts.tappable ? detailFingeringAccessibleLabel(note) : ''
+            };
+        });
+        markers = mergeSavedBassOverlay(chord, frets, markers, mode, spelledNoteNames, !!opts.tappable);
         return {
             frets: frets,
-            markers: notes.map(function (note) {
-                return {
-                    string: note.string,
-                    fret: note.fret,
-                    label: detailMarkerLabel(chord, note, mode, spelledNoteNames),
-                    role: roleForInterval(note.interval),
-                    fingeringWarning: mode === 'finger' && note.fingeringWarning === true && note.finger == null,
-                    tappable: !!opts.tappable,
-                    ariaLabel: opts.tappable ? detailFingeringAccessibleLabel(note) : ''
-                };
-            }),
+            markers: markers,
             barres: window.ChordCruise.caged.detectBarres(notes),
             mutedStrings: Array.isArray(chord.mutedStrings) ? chord.mutedStrings : [],
             monochrome: !!opts.monochrome,
@@ -1181,14 +1257,34 @@
             (candidate.notes || []).forEach(function (note) {
                 if (note.string === stringNum && note.fret === fret) target = note;
             });
-            if (!target) return;
-            if (target.fingeringWarning === true && target.finger == null) {
-                target.finger = 'T';
-                target.fingeringWarning = false;
+            if (!target) {
+                var overlay = diagramOptions.markers.filter(function (marker) {
+                    return marker.isOverlay && marker.isBassCandidate && marker.string === stringNum && marker.fret === fret;
+                })[0];
+                if (!overlay) return;
+                var existing = bassFingeringFor(candidate, stringNum, fret);
+                var currentState = existing && existing.pendingDelete ? 'delete' : (existing && existing.fingeringWarning ? 'warning' : (existing ? existing.finger : null));
+                var nextState = BASS_FINGER_CYCLE[(BASS_FINGER_CYCLE.indexOf(currentState) + 1) % BASS_FINGER_CYCLE.length];
+                candidate.bassFingerings = (candidate.bassFingerings || []).filter(function (entry) {
+                    return !(entry && entry.string === stringNum && entry.fret === fret);
+                });
+                if (nextState !== null) {
+                    candidate.bassFingerings.push({
+                        string: stringNum, fret: fret,
+                        finger: nextState === 'warning' || nextState === 'delete' ? null : nextState,
+                        fingeringWarning: nextState === 'warning', pendingDelete: nextState === 'delete'
+                    });
+                }
+                if (!candidate.bassFingerings.length) delete candidate.bassFingerings;
             } else {
-                var pos = FINGER_CYCLE.indexOf(target.finger);
-                target.finger = FINGER_CYCLE[(pos + 1) % FINGER_CYCLE.length];
-                if (target.finger != null) target.fingeringWarning = false;
+                if (target.fingeringWarning === true && target.finger == null) {
+                    target.finger = 'T';
+                    target.fingeringWarning = false;
+                } else {
+                    var pos = FINGER_CYCLE.indexOf(target.finger);
+                    target.finger = FINGER_CYCLE[(pos + 1) % FINGER_CYCLE.length];
+                    if (target.finger != null) target.fingeringWarning = false;
+                }
             }
             var saved = storage().saveChord(candidate);
             if (!saved) {

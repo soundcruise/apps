@@ -188,6 +188,12 @@
         };
     }
 
+    function deletedDraftNote(note) {
+        var draftDeleted = draftNote(note);
+        draftDeleted.pendingDelete = true;
+        return draftDeleted;
+    }
+
     function noteEditState(note) {
         if (note.pendingDelete) return 'delete';
         if (note.fingeringWarning && note.finger === null) return 'warning';
@@ -221,7 +227,7 @@
     }
 
     function markerLabel(note, spelledNoteNames) {
-        if (note.pendingDelete) return '消';
+        if (note.pendingDelete) return '';
         if (draft.displayMode === 'finger') {
             if (note.finger != null) return FINGER_LABELS[note.finger] || '';
             return note.fingeringWarning ? '⚠' : '';
@@ -258,6 +264,111 @@
         return 'other';
     }
 
+    function validBassPc(value) {
+        return typeof value === 'number' && Math.floor(value) === value && value >= 0 && value <= 11 ? value : null;
+    }
+
+    /** フォーム近傍でExploreが提示するBass候補だけを保存範囲へ含める。遠方の同音は含めない。 */
+    function rangeWithBassCandidates(chord, displayRange) {
+        var range = {
+            min: displayRange.min,
+            max: displayRange.max,
+            includesOpen: displayRange.includesOpen
+        };
+        var bassPc = validBassPc(chord && chord.bassPc);
+        if (bassPc === null) return range;
+        var contextStart = Math.max(0, range.min - 1);
+        var contextEnd = range.max + 1;
+        var candidates = window.ChordCruise.chordModel.bassOverlayNotes({
+            bassPc: bassPc, rootPc: chord.rootPc, intervals: chord.intervals,
+            startFret: contextStart, endFret: contextEnd, targetStrings: [6, 5, 4]
+        });
+        candidates.forEach(function (candidate) {
+            if (candidate.fret === 0) range.includesOpen = true;
+            else {
+                range.min = Math.min(range.min, candidate.fret);
+                range.max = Math.max(range.max, candidate.fret);
+            }
+        });
+        return range;
+    }
+
+    function normalizeBassFingerings(value) {
+        if (!Array.isArray(value)) return [];
+        var seen = {};
+        return value.filter(function (entry) {
+            if (!entry || [4, 5, 6].indexOf(entry.string) === -1 || typeof entry.fret !== 'number' || entry.fret < 0 || Math.floor(entry.fret) !== entry.fret) return false;
+            if (EDIT_CYCLE.indexOf(entry.finger) === -1 || entry.finger === 'warning' || entry.finger === 'delete') return false;
+            var key = entry.string + ':' + entry.fret;
+            if (seen[key]) return false;
+            seen[key] = true;
+            return entry.finger !== null || entry.fingeringWarning === true || entry.pendingDelete === true;
+        }).map(function (entry) {
+            return { string: entry.string, fret: entry.fret, finger: entry.finger, fingeringWarning: entry.fingeringWarning === true && entry.finger === null, pendingDelete: entry.pendingDelete === true };
+        });
+    }
+
+    function bassFingeringFor(stringNum, fret) {
+        return draft.bassFingerings.filter(function (entry) { return entry.string === stringNum && entry.fret === fret; })[0] || null;
+    }
+
+    function bassFingeringAccessibleLabel(note) {
+        var entry = bassFingeringFor(note.string, note.fret);
+        var state = entry && entry.pendingDelete ? '消去予定' : (entry && entry.finger != null ? (FINGER_LABELS[entry.finger] || '') + '指' : (entry && entry.fingeringWarning ? '運指警告' : '未指定'));
+        return note.string + '弦 ' + (note.fret === 0 ? '開放弦' : note.fret + 'フレット') + '、ベース候補、現在 ' + state + '。運指を変更';
+    }
+
+    function cycleBassFingering(stringNum, fret) {
+        var entry = bassFingeringFor(stringNum, fret) || { string: stringNum, fret: fret, finger: null, fingeringWarning: false, pendingDelete: false, warningStartsCycle: false };
+        cycleNote(entry);
+        var state = noteEditState(entry);
+        draft.bassFingerings = draft.bassFingerings.filter(function (item) { return item.string !== stringNum || item.fret !== fret; });
+        if (state !== null) {
+            draft.bassFingerings.push({ string: stringNum, fret: fret, finger: entry.finger, fingeringWarning: entry.fingeringWarning === true && entry.finger === null, pendingDelete: entry.pendingDelete === true });
+        }
+    }
+
+    function bassOverlayLabel(note, spelledNoteNames) {
+        if (draft.displayMode === 'finger') return '';
+        if (draft.displayMode === 'solfege') return theory().solfegeName(note.pc, draft.useFlats);
+        if (draft.displayMode === 'degree') {
+            var index = draft.intervals.indexOf(note.interval);
+            var labels = theory().degreeLabelsForQuality(theory().identifyQuality(draft.intervals), draft.intervals);
+            return index !== -1 ? labels[index] : theory().degreeLabels([note.interval])[0];
+        }
+        var noteIndex = draft.intervals.indexOf(note.interval);
+        return spelledNoteNames && noteIndex !== -1 && spelledNoteNames[noteIndex]
+            ? spelledNoteNames[noteIndex]
+            : theory().noteName(note.pc, draft.useFlats);
+    }
+
+    function mergeBassOverlay(markers, spelledNoteNames) {
+        if (draft.bassPc === null) return markers;
+        var overlays = window.ChordCruise.chordModel.bassOverlayNotes({
+            bassPc: draft.bassPc, rootPc: draft.rootPc, intervals: draft.intervals,
+            startFret: draft.startFret, endFret: draft.endFret, targetStrings: [6, 5, 4]
+        });
+        var bySlot = {};
+        markers.forEach(function (marker) { bySlot[marker.string + ':' + marker.fret] = marker; });
+        overlays.forEach(function (note) {
+            if (!noteIncluded(note)) return;
+            var key = note.string + ':' + note.fret;
+            if (bySlot[key]) { bySlot[key].isBassCandidate = true; return; }
+            var marker = {
+                string: note.string, fret: note.fret, label: bassOverlayLabel(note, spelledNoteNames),
+                role: roleForInterval(note.interval), isOverlay: true, overlayType: 'bass',
+                isBassCandidate: true, finger: (bassFingeringFor(note.string, note.fret) || {}).finger || null,
+                fingeringWarning: !!((bassFingeringFor(note.string, note.fret) || {}).fingeringWarning),
+                pendingDelete: !!((bassFingeringFor(note.string, note.fret) || {}).pendingDelete),
+                tappable: draft.displayMode === 'finger', ariaLabel: bassFingeringAccessibleLabel(note)
+            };
+            if (draft.displayMode === 'finger') marker.label = marker.pendingDelete ? '' : (marker.finger != null ? (FINGER_LABELS[marker.finger] || '') : (marker.fingeringWarning ? '⚠' : ''));
+            markers.push(marker);
+            bySlot[key] = marker;
+        });
+        return markers;
+    }
+
     function updateDisplaySegments() {
         if (!draft) return;
         DISPLAY_MODES.forEach(function (mode) {
@@ -290,6 +401,7 @@
                 ariaLabel: fingeringAccessibleLabel(note)
             };
         });
+        markers = mergeBassOverlay(markers, spelledNoteNames);
         var barres = window.ChordCruise.caged.detectBarres(draft.notes.filter(function (note) {
             return noteIncluded(note) && !note.pendingDelete;
         }));
@@ -314,8 +426,13 @@
                         break;
                     }
                 }
-                if (!note || !noteIncluded(note)) return;
-                cycleNote(note);
+                if (!note) {
+                    if (draft.displayMode !== 'finger') return;
+                    cycleBassFingering(stringNum, fret);
+                } else {
+                    if (!noteIncluded(note)) return;
+                    cycleNote(note);
+                }
                 renderPreview();
             }
         });
@@ -432,7 +549,8 @@
             folderId: document.getElementById('cc-save-folder').value,
             range: clone(draft.range),
             notes: clone(draft.notes),
-            mutedStrings: clone(draft.mutedStrings)
+            mutedStrings: clone(draft.mutedStrings),
+            bassFingerings: clone(draft.bassFingerings)
         };
     }
 
@@ -478,6 +596,18 @@
         }
 
         var values = currentFieldValues();
+        var deletedNotes = draft.notes.filter(function (note) {
+            return noteIncluded(note) && note.pendingDelete;
+        }).map(function (note) {
+            return {
+                string: note.string,
+                fret: note.fret,
+                interval: note.interval,
+                finger: normalizeFinger(note.finger),
+                fingeringWarning: note.fingeringWarning === true && normalizeFinger(note.finger) === null,
+                pendingDelete: true
+            };
+        });
         var record = draft.original ? clone(draft.original) : {};
         record.chordName = theory().displayChordName(values.chordName || draft.chordName);
         record.formName = values.formName || draft.formName;
@@ -485,9 +615,19 @@
         record.keyContext = clone(draft.keyContext);
         record.intervals = clone(draft.intervals);
         record.rootPc = draft.rootPc;
+        if (draft.bassPc !== null) record.bassPc = draft.bassPc;
+        else delete record.bassPc;
+        if (draft.bassFingerings.length) record.bassFingerings = clone(draft.bassFingerings);
+        else delete record.bassFingerings;
         record.fretRange = currentRangeForDisplay();
         record.notes = includedNotes;
+        if (deletedNotes.length) record.deletedNotes = deletedNotes;
+        else delete record.deletedNotes;
         record.mutedStrings = clone(draft.mutedStrings);
+        draft.deletedNoteStrings.forEach(function (stringNum) {
+            var stillDeleted = deletedNotes.some(function (note) { return note.string === stringNum; });
+            if (!stillDeleted) record.mutedStrings = record.mutedStrings.filter(function (value) { return value !== stringNum; });
+        });
         draft.notes.forEach(function (note) {
             if (!noteIncluded(note) || !note.pendingDelete) return;
             if (record.mutedStrings.indexOf(note.string) === -1) record.mutedStrings.push(note.string);
@@ -584,6 +724,7 @@
         var chord = payload.chord;
         var form = payload.form;
         var displayRange = form.displayRange || form.fretRange;
+        var saveRange = rangeWithBassCandidates(chord, displayRange);
         onSavedCallback = payload.onSaved || null;
         saveInProgress = false;
         draft = {
@@ -595,21 +736,24 @@
             keyContext: clone(payload.keyContext || null),
             intervals: chord.intervals.slice(),
             rootPc: chord.rootPc,
+            bassPc: validBassPc(chord.bassPc),
+            bassFingerings: [],
             useFlats: !!payload.useFlats,
             displayMode: defaultDisplayMode(),
             notes: form.notes.map(draftNote),
             mutedStrings: form.mutedStrings.slice(),
+            deletedNoteStrings: [],
             startFret: typeof payload.startFret === 'number' ? payload.startFret : (form.fretRange.min >= 12 ? 12 : 0),
             endFret: typeof payload.endFret === 'number' ? payload.endFret : (form.fretRange.min >= 12 ? 25 : 13),
             formRange: {
-                min: displayRange.min,
-                max: displayRange.max,
-                hasOpen: displayRange.includesOpen
+                min: saveRange.min,
+                max: saveRange.max,
+                hasOpen: saveRange.includesOpen
             },
             range: {
-                min: displayRange.min,
-                max: displayRange.max,
-                includesOpen: displayRange.includesOpen
+                min: saveRange.min,
+                max: saveRange.max,
+                includesOpen: saveRange.includesOpen
             },
             memo: '',
             folderId: window.ChordCruise.storage.UNCATEGORIZED_ID,
@@ -626,8 +770,12 @@
         var notes = Array.isArray(original.notes) ? clone(original.notes).filter(function (note) {
             return note && typeof note.string === 'number' && typeof note.fret === 'number';
         }) : [];
+        var deletedNotes = Array.isArray(original.deletedNotes) ? clone(original.deletedNotes).filter(function (note) {
+            return note && note.pendingDelete === true && typeof note.string === 'number' && typeof note.fret === 'number' && !notes.some(function (active) { return active.string === note.string && active.fret === note.fret; });
+        }) : [];
+        var editableNotes = notes.concat(deletedNotes);
         var range = original.fretRange || {};
-        var fretted = notes.filter(function (note) { return note && note.fret > 0; }).map(function (note) { return note.fret; });
+        var fretted = editableNotes.filter(function (note) { return note && note.fret > 0; }).map(function (note) { return note.fret; });
         var inferredMin = fretted.length ? Math.min.apply(null, fretted) : 0;
         var inferredMax = fretted.length ? Math.max.apply(null, fretted) : inferredMin;
         var min = typeof range.min === 'number' ? range.min : inferredMin;
@@ -635,7 +783,7 @@
         if (max < min) max = min;
         var includesOpen = typeof range.includesOpen === 'boolean'
             ? range.includesOpen
-            : notes.some(function (note) { return note && note.fret === 0; });
+            : editableNotes.some(function (note) { return note && note.fret === 0; });
         var keyContext = original.keyContext || null;
         var useFlats = keyContext && typeof keyContext.tonicPc === 'number'
             ? theory().keyUsesFlats(keyContext.tonicPc, keyContext.mode)
@@ -654,10 +802,13 @@
             keyContext: clone(keyContext),
             intervals: Array.isArray(original.intervals) ? original.intervals.slice() : [],
             rootPc: typeof original.rootPc === 'number' ? original.rootPc : null,
+            bassPc: validBassPc(original.bassPc),
+            bassFingerings: normalizeBassFingerings(original.bassFingerings),
             useFlats: !!useFlats,
             displayMode: defaultDisplayMode(),
-            notes: notes.map(draftNote),
+            notes: notes.map(draftNote).concat(deletedNotes.map(deletedDraftNote)),
             mutedStrings: Array.isArray(original.mutedStrings) ? original.mutedStrings.slice() : [],
+            deletedNoteStrings: deletedNotes.map(function (note) { return note.string; }),
             startFret: highFret ? 12 : 0,
             endFret: highFret ? 25 : 13,
             formRange: { min: min, max: max, hasOpen: includesOpen },

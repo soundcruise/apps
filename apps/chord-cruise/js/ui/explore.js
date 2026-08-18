@@ -230,8 +230,7 @@
         document.getElementById('cc-save-form-btn').addEventListener('click', function () {
             var chord = selectedChord();
             var form = currentForm();
-            // Phase E1ではbassPcを保存recordへ入れないため、slashを通常コードとして保存しない。
-            if (!chord || !form || chord.bassPc != null) {
+            if (!chord || !form) {
                 return;
             }
             var settings = getSettings();
@@ -861,13 +860,11 @@
 
         var saveButton = document.getElementById('cc-save-form-btn');
         if (saveButton) {
-            var canSaveForm = !!form && !(chord && chord.bassPc != null);
+            var canSaveForm = !!form;
             saveButton.disabled = !canSaveForm;
             saveButton.title = canSaveForm
                 ? '現在表示中のCAGEDフォームを保存前編集で確認します'
-                : (chord && chord.bassPc != null
-                    ? '分数コードの保存は今後対応予定です'
-                    : (chord ? 'CAGED型を選ぶと保存できます' : 'コードを選ぶと保存できます'));
+                : (chord ? 'CAGED型を選ぶと保存できます' : 'コードを選ぶと保存できます');
         }
 
         fb.render(host, {

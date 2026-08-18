@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
-- 現在のバージョン: `0.22.7`（Phase E1 分数コードbass overlay基盤を正式commit・push済み。ユーザー実機確認済み）
+- 現在のバージョン: `0.22.8`（Phase E2 分数コードの保存・本棚・編集・PNG/SVG対応を正式commit・push済み。ユーザー実機確認済み）
 - v0.22.1直前の正式Chord Cruise commit（`git log --oneline -- apps/chord-cruise/` で確認）:
   - hash: `a562888a078494d6deeb9900d2b15260bc35128e`
   - message: `7種類のスケール選択に対応`
@@ -80,6 +80,11 @@
 - **Phase E1 分数コードbass overlay（未commit）**: 任意コードのupper chordへoptional `bassPc`を追加するが、`intervals`・`qualityKey`・`identifyQuality()`には混ぜない。UIは「ベース音」selectorで、upper chordの構成音（テンションを含む）からrootを除いた候補だけを公開し、構成変更で候補外になったbassは`null`へ戻す。symbolはupper symbolをsourceとして`C/E`、`Dm7/C`、`CM7♯5/G♯`のように表示する。既存CAGED FORM・finger・warning・barreは変更せず、bassPcありの場合だけ4〜6弦の全候補を`type: 'bass'` overlayとして金色二重枠で合成する。重複slotは既存markerへ金枠だけを付け、overlay-onlyはFORM音でなくfingerなし・warningなしとする。CDE／ドレミ／degree（upper root基準）は表示し、運指modeでは追加bassの文字を空欄にして案内を出す。全体指板とCAGED指板で同じgeneratorを使い、通常・ハイフレットrangeを再計算する。slash保存・本棚再構築・PNG・non-chord-tone bass・tension UIは未対応で、誤保存防止のためbassPcありの保存ボタンはdisabled。schemaVersion 1、migrationなし、APP_VERSION／`?v=`は`0.22.6`のまま。正式基準HEADは`d5b0a23c141667e9fc0d26be0911609673efa317`。次工程はPhase E2でslash保存／本棚／PNGを別監査し、その後E3以降で1〜2弦tension overlayを検討する。
 - **Phase E1 bass ring視認性調整（未commit）**: ユーザー実機で黄色い3度marker上のgold outlineが見えづらく、初回の1px separatorでは境界が足りないと判明した。local HTTPのresponse・runtime CSS rule・computed styleを照合し、cache／Service Workerではなく、先頭の4px gold `box-shadow`が後ろのdark shadowを覆う描画順が原因と確定した。bass candidate専用classは`marker本体 → --cc-bgの2px dark separator → --cc-gold-brightの2px outer ring`へ強化し、dark shadowを先頭（前面）へ置いた。通常30px markerに対し外径は38px（+8px、前案から+2px）で、色だけでなく外形と二重ringでBassを判別できる。merged markerとoverlay-only marker、カラーとmonochromeの双方で同じvisual languageを使い、FORM・finger・warning・barre・bassPc・候補生成・文言・保存disabledは不変。375pxの通常／ハイフレットでC/Eの黄色いE上にdark gapとgold ringを確認し、横overflowなし、CDE／ドレミ／度数／運指、console warn/error 0を確認済み。視認性についてはこの描画順修正後にユーザー再確認待ち。
 - **v0.22.7 Phase E1正式化**: `bassPc`、upper qualityとの分離、ベース音selector、root除外、4〜6弦candidate全表示、既存marker merge／overlay-only、CDE・ドレミ・degree対応、運指modeの追加bass空欄、slash保存disabledを正式化した。C/E、C/G、G/B、D/F♯、Am/C、Dm7/Cを確認し、CAGED FORM・運指・5型・全体指板generatorは不変。Bass visualは2px dark separator＋2px gold outer ring（外径38px）で、既存`--cc-bg`／`--cc-gold-bright`のみ使用。source／HTTP／runtime／computed一致を確認し、cache問題ではなく描画順が原因だった。ユーザー実機でC/Eの黄色い3度上の3層表示を確認済み。正式commitは`37a4967b39cd4b2279c98de1a29c1bc0b37913a0`。次工程はPhase E2（slash保存・本棚・PNG）、将来E3以降で1〜2弦tension overlay。
+- **Phase E2 slash保存（未commit）**: slash recordにはoptional `bassPc`だけを保存し、`bassName`、selected string/fret、absolute pitch、完成voicingは保存しない。保存後は保存FORM・表示range・`bassPc`からPhase E1の4〜6弦全candidateを再生成する。Explore→保存前編集→save/reload→本棚一覧・詳細→SVG/PNGを同じoverlay generatorで通し、重複slotはmerge、overlay-onlyはfinger/warningなし。`chordName`は保存時の表示titleを維持し、手編集titleをbassPcからcanonical renameしない。schemaVersion 1・migrationなし、旧recordはoverlayなしで互換。non-chord bassとtension overlayは未対応。v0.22.7のままユーザー実機確認後に正式化する。
+- **Phase E2 bass運指override（未commit）**: Explore通常表示は候補運指なしのまま維持する。保存前編集と本棚詳細の運指modeでは、overlay-only Bass candidateを既存finger cycleで編集できる。recordのoptional `bassFingerings`は`{string, fret, finger, fingeringWarning}`だけを保存し、candidate自体・selected candidate・完成voicingは保存しない。merged markerはFORM noteの既存fingerをそのまま使用し、overrideを重複保存しない。未指定へ戻るとoverrideを削除し、空ならfieldも省略する。再表示・SVG/PNGでは`bassPc`から候補を再生成してoverrideだけを重ねる。schemaVersion 1・migrationなし。
+- **Phase E2 delete／range調整（未commit）**: FORM noteとBass overlay-onlyの削除状態は文字`消`を表示せず、点線＋半透明＋中央空欄だけで示す（ariaは消去予定を伝える）。Bass overrideは既存`pendingDelete`名を使い、未指定（通常枠・通常opacity・空欄）と削除（点線・半透明・空欄）を区別する。slash保存前編集の初期rangeと上下限は、FORM rangeとフォーム近傍で提示するBass candidateのunionへ拡張する。C/E A型では従来3〜5Fだった範囲に4弦2F Eを加えて2〜5Fとし、遠方の同音候補は含めない。schemaVersion 1・version 0.22.7のまま。
+- **Phase E2 delete復元（未commit）**: 通常の本棚一覧・詳細・SVG・PNGでは削除FORM noteと`bassFingerings.pendingDelete`のBass candidateを描画しない。FORM削除はoptional `deletedNotes` metadataへ保存し、本棚の「編集」でsave-editorを開くと`pendingDelete` markerとして復元する。Bass削除も同じく編集時だけ再生成・復元する。両方とも中央空欄、点線＋半透明、再タップ／Enter／Spaceで既存cycleへ戻せる。通常diagramを完成voicingとして固定せず、削除metadataは再編集のためだけに使う。schemaVersion 1・migrationなし。
+- **v0.22.8 Phase E2正式化**: `bassPc` optional slash保存、`bassFingerings`（`string`・`fret`・`finger`・`fingeringWarning`・`pendingDelete`）の候補別override、`deletedNotes`によるFORM削除の編集時復元を正式化した。通常本棚／詳細／SVG／PNGでは削除FORM/Bassを非表示、save-editorでは点線・半透明・中央空欄で再表示し、tap／Enter／Spaceでcycle・復活できる。C/E A型の保存rangeは4弦2F Eを含む2〜5F、Bass候補は保存FORMとrangeから再生成する。selected candidate・候補一覧・completed voicing・bassName・absolute pitchは保存しない。schemaVersion 1、migrationなし。ユーザー実機確認済み。正式main commitはcommit後に追記する。次工程はtension overlay。
 - 通常版/PRO版の構造: PRO版は存在しないため、`apps/chord-cruise/` 直下の `index.html` のみが唯一のエントリーポイント。他アプリのような `standard/` サブディレクトリも無い。
 - JS/CSSの共有関係:
   - `theme.css` はコードクルーズ専用の1ファイル（`apps/shared/` には依存していない）。
@@ -194,8 +199,8 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.22.7`）。
-- `?v=` によるキャッシュ管理: `index.html` 内の全15本のscriptタグとstylesheet link（計16参照）が同じ `0.22.7` を共有している。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.22.8`）。
+- `?v=` によるキャッシュ管理: `index.html` 内の全15本のscriptタグとstylesheet link（計16参照）が同じ `0.22.8` を共有している。
 - 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
 - service workerの更新: service worker自体が存在しないため不要。
 - **バージョン更新漏れしやすい箇所**: `index.html`内の15本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。

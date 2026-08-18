@@ -62,8 +62,7 @@ assert(themeSource.includes('.cc-fb-host--monochrome .cc-fb-marker--bass-candida
 assert(exploreSource.includes('mergeBassOverlayMarkers'), 'CAGED and full fretboard share the bass overlay merge path');
 assert(exploreSource.includes('existingBySlot[key].isBassCandidate = true'), 'overlapping FORM notes are merged instead of duplicated');
 assert(exploreSource.includes('isOverlay: true') && exploreSource.includes("overlayType: overlay.type"), 'non-FORM candidates remain explicit overlay markers');
-assert(exploreSource.includes("chord.bassPc != null"), 'slash chords are guarded from the E1 save route');
-assert(exploreSource.includes('分数コードの保存は今後対応予定です'), 'disabled slash saving has an explicit user-facing explanation');
+assert(!exploreSource.includes('!chord || !form || chord.bassPc != null'), 'E2 lets a CAGED-compatible slash chord enter the existing save route');
 assert(exploreSource.includes('運指は表示していません'), 'finger mode explains that overlay candidates have no fingering');
 
-console.log('slash-bass-overlay: optional bassPc, symbols, 4–6 string overlays, merge flags, and E1 save guard OK');
+console.log('slash-bass-overlay: optional bassPc, symbols, 4–6 string overlays, merge flags, and E2 save entry OK');
