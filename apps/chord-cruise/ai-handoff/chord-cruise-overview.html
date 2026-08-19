@@ -239,7 +239,7 @@
             <h1>コードクルーズ 開発概要</h1>
             <p>キーから探して、指板で確かめて、自分のコード本棚へ ── 開発中のコード学習アプリ</p>
             <div class="ov-meta">
-                <span>現在のバージョン<b>0.28.0（7no5／m7no5 CAGED対応を正式化）</b></span>
+                <span>現在のバージョン<b>0.28.1（任意コード作成UX改善を正式化）</b></span>
                 <span>正式Chord Cruise HEAD<b>895118b</b></span>
                 <span>最終更新日<b>2026年8月18日</b></span>
             </div>
@@ -249,6 +249,8 @@
             <p><b>v0.27.0 Phase G4 7sus4 / M7sus4 CAGED正式化:</b> 既存7th／M7 FORMの3度だけを4度へ置換したC/A/G/E/D固定FORM、<code>fingeringStatus: 'undefined'</code>による運指未定義表示、既存の⚠️運指との分離を正式化しました。保存前編集で指を指定できます。保存schema・migrationは変更していません。実装commitは<code>b1bac3a</code>です。</p>
             <p><b>v0.27.1 Phase G5-A omit/no表記整理:</b> 3度なしコードの生成名を<code>(omit3)</code>から<code>(no3)</code>へ統一し、<code>C(no3)</code>・<code>C7(no3)</code>・<code>CM7(no3)</code>を追加しました。<code>C5</code>と<code>C(no5)</code>、intervals・qualityKey・CAGED・保存schemaは維持しています。実装commitは<code>7e5c215</code>です。</p>
             <p><b>v0.28.0 Phase G5-B 7(no5) / m7(no5) CAGED正式化:</b> 既存7th／m7 FORMから5度だけを除外したC/A/G/E/D固定FORMを正式化しました。root・3度／♭3・♭7は高音側を含めて保持し、推測運指は付けず<code>fingeringStatus: 'undefined'</code>で保存前編集を案内します。schema・migrationは変更していません。実装commitは<code>895118b</code>です。</p>
+            <p><b>Phase G5-C 任意コード作成UX候補（未commit）:</b> 現在表示中コードをsymbol文字列ではなく内部modelからbuilder selectorへ完全復元します。任意コードは<code>chord.spec</code>、その他は<code>qualityKey</code>とcore intervalsを順に使い、root／3度／5度／7度、tension、bassを引き継ぎます。新しい<code>リセット</code>はC Major（tension・bassなし）へ戻し、手編集名を解除して自動名へ復帰します。CAGED・quality・保存schema・migration・export・versionは不変です。</p>
+            <p><b>v0.28.1 Phase G5-C 任意コード作成UX正式化:</b> 現在表示中コードをsymbol解析せず内部modelからbuilder selectorへ完全復元し、root／3度／5度／7度、tension、bassを引き継ぎます。<code>リセット</code>はC Major（tension・bassなし）へ戻し、手編集名を解除して自動名へ復帰します。CAGED・quality・保存schema・migration・exportは不変です。</p>
         </header>
 
         <section>

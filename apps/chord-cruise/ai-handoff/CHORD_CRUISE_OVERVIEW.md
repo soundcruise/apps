@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
-- 現在のバージョン: `0.28.0`（7no5／m7no5 CAGED対応を正式化）
+- 現在のバージョン: `0.28.1`（Phase G5-C 任意コード作成UX改善を正式化）
 - 正式Chord Cruise HEAD: `895118baf7cd7ec39440c2a3c0615bb81d3e899d`
 - **v0.25.0 Phase G2-A C5 power5 CAGED正式化**: 任意コードの`third:null, fifth:7, seventh:null`を`qualityKey: 'power5'`（`1 / 5`、symbolは`C5`）として扱い、C/A/G/E/Dの固定FORMを追加した。全型でMajor FORMのinterval 4（3度）だけを除外し、root／5度は高音側を含め全slot保持する。`deletedNotes`／`pendingDelete`は使わず、3度を鳴らさない弦だけをmuteにする。運指はMajor由来の候補で、E型の高音1・5度は3弦を鳴らさないmovable運指が未確認のため`finger:null + fingeringWarning:true`とする。保存schema・migrationは不変。実機確認後に正式化した。
 - **Phase G2-B no5 CAGED候補（未commit）**: 任意コードの`third:4, fifth:null, seventh:null`を`qualityKey: 'no5'`（`1 / 3`、symbolは既存どおり`C(no5)`）として扱い、C/A/G/E/Dの固定FORMを追加した。全型でMajor FORMのinterval 7（5度）だけを除外し、root／3度は高音側を含め全slot保持する。`deletedNotes`／`pendingDelete`は使わず、5度を鳴らさない弦だけをmuteにする。運指はMajor由来の暫定候補で、E型の高音rootは5弦・2弦を鳴らさないmovable運指が実機確認前のため`finger:null + fingeringWarning:true`とする。保存schema・migration・versionは不変。実機確認後に正式化する。
@@ -23,6 +23,8 @@
 - **v0.27.0 Phase G4 7sus4 / M7sus4 CAGED正式化**: 上記2 qualityとC/A/G/E/D固定FORM、`fingeringStatus: 'undefined'`による運指未定義表示、既存⚠️運指との分離、保存schemaVersion 1・migrationなしを正式化した。APP_VERSIONと`index.html`の16件の`?v=`参照を`0.27.0`へ更新した。実装commitは`b1bac3a3b384892202efee331d89912592423d11`。
 - **v0.27.1 Phase G5-A omit/no表記整理**: `generateName()`の3度なし表記を`(omit3)`から`(no3)`へ統一し、`C(no3)`・`C7(no3)`・`CM7(no3)`を生成する。Power chordの`C5`と既存canonicalの`C(no5)`は維持し、intervals・qualityKey・CAGED・保存schema・migrationは変更していない。APP_VERSIONと`index.html`の16件の`?v=`参照を`0.27.1`へ更新した。実装commitは`7e5c2154f901ea4338caf485a1da83ae28e761bb`。
 - **v0.28.0 Phase G5-B 7(no5) / m7(no5) CAGED正式化**: `7no5`（`[0,4,10]`／`1 3 ♭7`／`C7(no5)`）と`m7no5`（`[0,3,10]`／`1 ♭3 ♭7`／`Cm7(no5)`）を追加し、既存7th／m7の5度slotだけを除外したC/A/G/E/D固定FORMを正式化した。root・3度／♭3・♭7の高音側slotを含む全残存FORM音を保持し、`deletedNotes`／`pendingDelete`は使わない。初期FINGERINGは推測せず`fingeringStatus: 'undefined'`とし、保存前編集で個別指定できる。schemaVersion 1・migrationなし。実装commitは`895118baf7cd7ec39440c2a3c0615bb81d3e899d`。
+- **Phase G5-C 任意コード作成UX候補（未commit）**: 「任意コードを作る」は現在表示中コードを内部modelからselector stateへ完全復元する。任意コードは`chord.spec`を最優先し、その他は`qualityKey`の`QUALITIES`定義、続いてcore intervalsから復元するため、symbol文字列は解析しない。root／3度／5度／7度に加え、tensionは`spec.tensions`→`tensionIntervals`→`tensionPcs`の順、bassは`bassPc`から復元し、root bassは通常状態へ正規化する。モーダルの「リセット」はC Major（tension・bassなし）へ戻し、手編集名を解除して自動名生成へ復帰する。CAGED・quality判定・保存schema・migration・export・versionは不変。
+- **v0.28.1 Phase G5-C 任意コード作成UX正式化**: 現在表示中コードをsymbol解析せず内部modelからbuilder selectorへ完全復元し、root／3度／5度／7度、tension、bassを引き継ぐ。モーダルの「リセット」はC Major（tension・bassなし）へ戻し、手編集名を解除して自動名へ復帰する。CAGED・quality・保存schema・migration・exportは不変。実装commitと正式HEADは下記Git履歴を参照する。
 - v0.22.1直前の正式Chord Cruise commit（`git log --oneline -- apps/chord-cruise/` で確認）:
   - hash: `a562888a078494d6deeb9900d2b15260bc35128e`
   - message: `7種類のスケール選択に対応`
@@ -212,8 +214,8 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.28.0`）。
-- `?v=` によるキャッシュ管理: `index.html` 内の全15本のscriptタグとstylesheet link（計16参照）が同じ `0.28.0` を共有している。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.28.1`）。
+- `?v=` によるキャッシュ管理: `index.html` 内の全15本のscriptタグとstylesheet link（計16参照）が同じ `0.28.1` を共有している。
 - 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
 - service workerの更新: service worker自体が存在しないため不要。
 - **バージョン更新漏れしやすい箇所**: `index.html`内の15本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。

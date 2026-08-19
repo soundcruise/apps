@@ -74,12 +74,16 @@
                     '</div>' +
                 '</div>' +
                 '<div class="cc-save-actions">' +
+                    '<button type="button" class="cc-btn cc-btn-secondary cc-btn--block" id="cc-builder-reset">リセット</button>' +
                     '<button type="button" class="cc-btn cc-btn-primary cc-btn--block" id="cc-builder-apply">指板に表示</button>' +
                 '</div>' +
             '</div>';
         document.body.appendChild(overlayEl);
 
         document.getElementById('cc-builder-cancel').addEventListener('click', close);
+        document.getElementById('cc-builder-reset').addEventListener('click', function () {
+            applyInitialSpec(defaultInitialSpec());
+        });
         overlayEl.addEventListener('click', function (event) {
             if (event.target === overlayEl) close();
         });
@@ -172,45 +176,79 @@
     }
 
     function initialSpecForChord(chord) {
-        if (!chord || chord.source === 'custom' || typeof chord.rootPc !== 'number' || !Array.isArray(chord.intervals)) {
+        if (!chord || typeof chord.rootPc !== 'number') {
             return defaultInitialSpec();
         }
-        var intervals = chord.intervals;
+
+        // 任意コードは selector の元データを保持しているため、表示名を解析せず
+        // spec を最優先して完全に復元する。
+        if (chord.source === 'custom' && chord.spec) {
+            return normalizeInitialSpec({
+                rootPc: chord.spec.rootPc,
+                third: chord.spec.third,
+                fifth: chord.spec.fifth,
+                seventh: chord.spec.seventh,
+                tensions: tensionIntervalsForChord(chord),
+                bassPc: chord.spec.bassPc
+            });
+        }
+
+        var intervals = intervalsForChord(chord);
+        if (!intervals) return defaultInitialSpec();
         function selectedInterval(candidates) {
             for (var i = 0; i < candidates.length; i += 1) {
                 if (intervals.indexOf(candidates[i]) !== -1) return candidates[i];
             }
             return null;
         }
-        return {
+        return normalizeInitialSpec({
             rootPc: chord.rootPc,
             third: selectedInterval([4, 3, 5]),
             fifth: selectedInterval([7, 6, 8]),
             seventh: selectedInterval([10, 11, 9]),
-            tensions: [],
-            bassPc: null
-        };
+            tensions: tensionIntervalsForChord(chord),
+            bassPc: chord.bassPc
+        });
+    }
+
+    function intervalsForChord(chord) {
+        var theory = window.ChordCruise.theory;
+        if (chord.qualityKey && theory && theory.QUALITIES && theory.QUALITIES[chord.qualityKey] &&
+                Array.isArray(theory.QUALITIES[chord.qualityKey].intervals)) {
+            return theory.QUALITIES[chord.qualityKey].intervals;
+        }
+        if (Array.isArray(chord.coreIntervals)) return chord.coreIntervals;
+        if (Array.isArray(chord.intervals)) return chord.intervals;
+        return null;
+    }
+
+    function tensionIntervalsForChord(chord) {
+        if (chord.spec && Array.isArray(chord.spec.tensions)) return chord.spec.tensions.slice();
+        if (Array.isArray(chord.tensionIntervals)) return chord.tensionIntervals.slice();
+        if (Array.isArray(chord.tensionPcs) && typeof chord.rootPc === 'number' &&
+                typeof model().tensionIntervalsForPcs === 'function') {
+            return model().tensionIntervalsForPcs(chord.rootPc, chord.tensionPcs);
+        }
+        return [];
     }
 
     function normalizeInitialSpec(spec) {
         var fallback = defaultInitialSpec();
         if (!spec || typeof spec.rootPc !== 'number') return fallback;
+        var rootPc = ((spec.rootPc % 12) + 12) % 12;
+        var bassPc = typeof spec.bassPc === 'number' ? ((spec.bassPc % 12) + 12) % 12 : null;
         return {
-            rootPc: spec.rootPc,
+            rootPc: rootPc,
             third: [3, 4, 5, null].indexOf(spec.third) !== -1 ? spec.third : fallback.third,
             fifth: [6, 7, 8, null].indexOf(spec.fifth) !== -1 ? spec.fifth : fallback.fifth,
             seventh: [9, 10, 11, null].indexOf(spec.seventh) !== -1 ? spec.seventh : fallback.seventh,
             tensions: Array.isArray(spec.tensions) ? spec.tensions.slice() : [],
-            bassPc: typeof spec.bassPc === 'number' ? spec.bassPc : null
+            bassPc: bassPc === rootPc ? null : bassPc
         };
     }
 
-    function open(options) {
-        ensureDom();
-        previousFocus = document.activeElement;
-        onApplyCallback = options && options.onApply;
-        var initialSpec = normalizeInitialSpec(options && options.initialSpec);
-        // 選択中のダイアトニックコードを初期値にし、未選択時は従来どおりCメジャーにする。
+    function applyInitialSpec(spec) {
+        var initialSpec = normalizeInitialSpec(spec);
         document.getElementById('cc-builder-root').value = String(initialSpec.rootPc);
         document.getElementById('cc-builder-third').value = initialSpec.third === null ? 'null' : String(initialSpec.third);
         document.getElementById('cc-builder-fifth').value = initialSpec.fifth === null ? 'null' : String(initialSpec.fifth);
@@ -222,6 +260,13 @@
         refreshSpecControls();
         document.getElementById('cc-builder-bass').value = initialSpec.bassPc === null ? '' : String(initialSpec.bassPc);
         refreshName();
+    }
+
+    function open(options) {
+        ensureDom();
+        previousFocus = document.activeElement;
+        onApplyCallback = options && options.onApply;
+        applyInitialSpec(options && options.initialSpec);
         overlayEl.classList.remove('cc-modal-overlay--hidden');
         var dialog = overlayEl.querySelector('[role="dialog"]');
         if (focusTrap()) focusTrap().focusFirst(dialog || overlayEl);
@@ -242,6 +287,7 @@
     window.ChordCruise.ui.chordBuilder = {
         open: open,
         close: close,
-        initialSpecForChord: initialSpecForChord
+        initialSpecForChord: initialSpecForChord,
+        defaultInitialSpec: defaultInitialSpec
     };
 })();
