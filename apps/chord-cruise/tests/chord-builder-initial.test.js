@@ -31,6 +31,8 @@ assert.deepStrictEqual(builder.initialSpecForChord({ rootPc: 0, intervals: [0, 4
     'selected CM7 restores its core selector values');
 assert.deepStrictEqual(builder.initialSpecForChord({ rootPc: 0, qualityKey: '6', intervals: [0, 4, 7, 9] }), expected(0, 4, 7, 9),
     'selected C6 restores its core selector values');
+assert.deepStrictEqual(builder.initialSpecForChord({ rootPc: 0, qualityKey: 'm6', intervals: [0, 3, 7, 9] }), expected(0, 3, 7, 9),
+    'selected Cm6 restores its core selector values');
 assert.deepStrictEqual(builder.initialSpecForChord({ rootPc: 0, intervals: [0, 3, 7, 10] }), expected(0, 3, 7, 10),
     'selected Cm7 restores its core selector values');
 

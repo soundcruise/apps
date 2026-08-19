@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
-- 現在のバージョン: `0.29.0`（Phase G6-A 6th CAGED追加表示を正式化）
+- 現在のバージョン: `0.30.0`（Phase G6-B + G6-Cを正式化）
 - 正式Chord Cruise HEAD: `7f10b5e3944f2dd005e92881e2835633a614bc1c`
 - **v0.25.0 Phase G2-A C5 power5 CAGED正式化**: 任意コードの`third:null, fifth:7, seventh:null`を`qualityKey: 'power5'`（`1 / 5`、symbolは`C5`）として扱い、C/A/G/E/Dの固定FORMを追加した。全型でMajor FORMのinterval 4（3度）だけを除外し、root／5度は高音側を含め全slot保持する。`deletedNotes`／`pendingDelete`は使わず、3度を鳴らさない弦だけをmuteにする。運指はMajor由来の候補で、E型の高音1・5度は3弦を鳴らさないmovable運指が未確認のため`finger:null + fingeringWarning:true`とする。保存schema・migrationは不変。実機確認後に正式化した。
 - **Phase G2-B no5 CAGED候補（未commit）**: 任意コードの`third:4, fifth:null, seventh:null`を`qualityKey: 'no5'`（`1 / 3`、symbolは既存どおり`C(no5)`）として扱い、C/A/G/E/Dの固定FORMを追加した。全型でMajor FORMのinterval 7（5度）だけを除外し、root／3度は高音側を含め全slot保持する。`deletedNotes`／`pendingDelete`は使わず、5度を鳴らさない弦だけをmuteにする。運指はMajor由来の暫定候補で、E型の高音rootは5弦・2弦を鳴らさないmovable運指が実機確認前のため`finger:null + fingeringWarning:true`とする。保存schema・migration・versionは不変。実機確認後に正式化する。
@@ -28,6 +28,11 @@
 - **Phase G5-D M7(no5) CAGED候補（未commit）**: `maj7no5` quality（`[0,4,11]`／`1 3 7`／`CM7(no5)`）を追加し、既存M7のinterval 7（5度）slotだけを除外したC/A/G/E/D固定FORMを候補として扱う。root・3度・7度と高音側slotは保持し、`deletedNotes`／`pendingDelete`は使わない。初期FINGERINGは推測せず`fingers: {}`と`fingeringStatus: 'undefined'`により、既存の⚠️運指と区別して保存前編集を案内する。schemaVersion 1・migration・versionは不変で、実機確認後に正式化する。
 - **v0.28.2 Phase G5-D M7(no5) CAGED正式化**: `maj7no5`（`[0,4,11]`／`1 3 7`／`CM7(no5)`）と、既存M7の5度slotだけを除外したC/A/G/E/D固定FORMを正式化した。root・3度・7度と高音側slotを保持し、初期FINGERINGは`fingeringStatus: 'undefined'`で保存前編集を案内する。schemaVersion 1・migrationなし。実装commit・正式HEADは`d98affb62babe7f568c5cda11ce351257df6b091`。
 - **v0.29.0 Phase G6-A 6th CAGED正式化**: `6` quality（`[0,4,7,9]`／`1 3 5 6`／`C6`）を追加し、専用6th FORMは持たず既存Major CAGEDの全marker・mute・rangeを基底として同じフォーム範囲内の1〜3弦へ6度（interval 9）markerを追加する。既存slotの削除・置換は行わず、6度はtension/13と分離した`role: 'sixth'`・degree `6`で扱う。保存前編集では追加markerを通常noteとして編集・保存し、初期FINGERINGは未定義、schemaVersion 1・migrationなし。実装commit・正式HEADは`7f10b5e3944f2dd005e92881e2835633a614bc1c`。
+- **v0.30.0 Phase G6-B + G6-C正式化（実装commit前）**: `m6` quality（`[0,3,7,9]`／`1 ♭3 5 6`）を既存Minor CAGED + `role: 'sixth'` overlayで扱う。あわせて`spellChordNotes()`を追加し、degree/keyContext優先の理論綴りをExplore、save-editor、CAGED marker、sixth/tension overlay、本棚、SVG/PNGへ統合した。保存recordの`rootPc`／`qualityKey`／`intervals`／`tensionPcs`から表示名を再構成し、`chordName`解析は行わない。schemaVersion 1、保存構造、migration、Bass経路は不変。正式HEADは実装commit後に追記する。
+- **Phase G6-B m6 CAGED候補（未commit）**: `m6` quality（`[0,3,7,9]`／`1 ♭3 5 6`／`Cm6`）を追加し、専用m6 FORMは持たず既存Minor CAGEDの全marker・mute・rangeを基底として同じフォーム範囲内の1〜3弦へ6度（interval 9）markerを追加する。root・♭3・5度は削除・置換せず、C6と共通の`role: 'sixth'`・degree `6`で扱う。保存前編集では追加markerを通常noteとして編集・保存し、初期FINGERINGは`fingeringStatus: 'undefined'`。schemaVersion 1・migration・versionは不変で、実機確認後に正式化する。
+- **Phase G6-C-1 / C-2 pitch spelling候補（未commit）**: `spellChordNotes()`はroot／quality／interval／degree／keyContextから任意コードの表示用音名を理論綴りで返し、既存の`noteName()`・sharp/flat配列は維持する。C-2ではExploreの任意コード全体表示とsave-editorプレビューのCDE／ドレミラベルへ適用し、`Cm`を`C E♭ G`／`ド ミ♭ ソ`、`C7`を`C E G B♭`／`ド ミ ソ シ♭`のように表示する。quality定義→degree→interval推定→既存表示へのfallbackを持つ。CAGED FORM markerの独立経路、sixth／tension／bass overlay、本棚、SVG/PNG、保存schema・migration・versionは今回変更しない。
+- **Phase G6-C-3 pitch spelling候補（未commit）**: CAGED FORM marker、6th overlay、tension overlayも`spellChordNotes()`結果からCDE／ドレミラベルを取得する。markerの座標・interval・degree・role・overlayTypeは不変で、C6／Cm6のinterval 9は`A`／`ラ`かつ`degree: 6`・`role: 'sixth'`のまま、C7(9)・Cadd9・C11・C13の追加音はそれぞれ`D`・`D`・`F`・`A`として表示する。bass overlay、本棚、SVG/PNG、schema・migration・versionは変更しない。
+- **Phase G6-C-4 pitch spelling候補（未commit）**: 本棚・保存コード詳細・静的SVG・PNG元SVGも、保存recordの`rootPc`／`qualityKey`／`intervals`／`tensionPcs`／`keyContext`から`spellChordNotes()`用のdegreeを復元して音名・ドレミを統一する。`chordName`は既存保存表示・PNGタイトルとして維持するが、音名綴りの解析には使わない。schemaVersion 1、intervals、qualityKey、notes、migrationは不変。Bass overlayの既存`bassPc`表示経路も維持する。
 - v0.22.1直前の正式Chord Cruise commit（`git log --oneline -- apps/chord-cruise/` で確認）:
   - hash: `a562888a078494d6deeb9900d2b15260bc35128e`
   - message: `7種類のスケール選択に対応`
@@ -217,8 +222,8 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.29.0`）。
-- `?v=` によるキャッシュ管理: `index.html` 内の全15本のscriptタグとstylesheet link（計16参照）が同じ `0.29.0` を共有している。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.30.0`）。
+- `?v=` によるキャッシュ管理: `index.html` 内の全15本のscriptタグとstylesheet link（計16参照）が同じ `0.30.0` を共有している。
 - 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
 - service workerの更新: service worker自体が存在しないため不要。
 - **バージョン更新漏れしやすい箇所**: `index.html`内の15本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。

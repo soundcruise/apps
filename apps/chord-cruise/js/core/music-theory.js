@@ -44,6 +44,8 @@
         // 既存m7 CAGEDの5度slotだけを除外する派生quality。
         'm7no5': { suffix: 'm7(no5)', symbolSuffix: 'm7(no5)', romanSuffix: 'm7(no5)', intervals: [0, 3, 10], degreeLabels: ['1', '♭3', '♭7'] },
         'm': { suffix: 'm', symbolSuffix: 'm', romanSuffix: 'm', intervals: [0, 3, 7], degreeLabels: ['1', '♭3', '5'] },
+        // Minor CAGEDの構成音を保ち、6度を追加する派生quality。
+        'm6': { suffix: 'm6', symbolSuffix: 'm6', romanSuffix: 'm6', intervals: [0, 3, 7, 9], degreeLabels: ['1', '♭3', '5', '6'] },
         'dim': { suffix: 'dim', symbolSuffix: 'dim', romanSuffix: '°', intervals: [0, 3, 6], degreeLabels: ['1', '♭3', '♭5'] },
         'maj7': { suffix: 'M7', symbolSuffix: 'M7', romanSuffix: 'M7', intervals: [0, 4, 7, 11], degreeLabels: ['1', '3', '5', '7'] },
         '7': { suffix: '7', symbolSuffix: '7', romanSuffix: '7', intervals: [0, 4, 7, 10], degreeLabels: ['1', '3', '5', '♭7'] },
@@ -352,6 +354,91 @@
         });
     }
 
+    function chordRootName(rootPc, rootName) {
+        var parsedRoot = parseSpelledNoteName(rootName);
+        if (parsedRoot && parsedRoot.pc === rootPc) return parsedRoot.name;
+
+        // 任意コードの既存root選択（C♯ / E♭ / F♯ / A♭ / B♭）と同じ慣用ミックス。
+        var useFlats = [3, 8, 10].indexOf(rootPc) !== -1;
+        return noteName(rootPc, useFlats);
+    }
+
+    function degreeNumber(degreeLabel) {
+        var match = /(\d+)/.exec(String(degreeLabel == null ? '' : degreeLabel));
+        return match ? Number(match[1]) : null;
+    }
+
+    /**
+     * コード構成音をrootの文字と度数に沿って綴る、表示用の純粋関数。
+     * keyContext内の音はscale spellingを優先し、非scale音はdegreeのletterと
+     * 実pitch classから臨時記号を決定する。既存noteName()の呼び出し経路は変更しない。
+     */
+    function spellChordNotes(options) {
+        options = options || {};
+        if (typeof options.rootPc !== 'number' || !isFinite(options.rootPc) || Math.floor(options.rootPc) !== options.rootPc) {
+            throw new Error('Chord spelling requires an integer rootPc.');
+        }
+
+        var rootPc = normalizePc(options.rootPc);
+        var quality = QUALITIES[options.qualityKey];
+        var intervals = Array.isArray(options.intervals)
+            ? options.intervals.slice()
+            : (quality ? quality.intervals.slice() : null);
+        var labels = Array.isArray(options.degreeLabels)
+            ? options.degreeLabels.slice()
+            : (quality && intervals && sameIntervals(intervals, quality.intervals)
+                ? quality.degreeLabels.slice()
+                : (intervals ? degreeLabels(intervals) : null));
+
+        if (!intervals || !labels || intervals.length !== labels.length) {
+            throw new Error('Chord spelling requires matching intervals and degreeLabels.');
+        }
+        intervals.forEach(function (interval) {
+            if (typeof interval !== 'number' || !isFinite(interval) || Math.floor(interval) !== interval) {
+                throw new Error('Chord spelling intervals must be integers.');
+            }
+        });
+
+        var contextNamesByPc = {};
+        var contextRootName = null;
+        var keyContext = options.keyContext;
+        if (keyContext && SCALES[keyContext.mode] &&
+            typeof keyContext.tonicPc === 'number' && isFinite(keyContext.tonicPc) &&
+            Math.floor(keyContext.tonicPc) === keyContext.tonicPc) {
+            spellScaleNotes({ tonicPc: keyContext.tonicPc, scaleId: keyContext.mode }).forEach(function (scaleNote) {
+                contextNamesByPc[scaleNote.pc] = scaleNote.name;
+                if (scaleNote.pc === rootPc) contextRootName = scaleNote.name;
+            });
+        }
+
+        var resolvedRootName = contextRootName || chordRootName(rootPc, options.rootName);
+        var parsedRoot = parseSpelledNoteName(resolvedRootName);
+        var rootLetterIndex = NOTE_LETTERS.indexOf(parsedRoot.letter);
+
+        return intervals.map(function (interval, index) {
+            var pc = normalizePc(rootPc + interval);
+            var number = degreeNumber(labels[index]);
+            if (!number || number < 1) {
+                throw new Error('Chord spelling requires numbered degree labels.');
+            }
+            var letter = NOTE_LETTERS[(rootLetterIndex + number - 1) % NOTE_LETTERS.length];
+            var contextualName = contextNamesByPc[pc];
+            var parsedContextName = parseSpelledNoteName(contextualName);
+
+            // 同じpitch classでもdegreeが要求するletterと異なる場合はコード構造を優先する。
+            if (parsedContextName && parsedContextName.letter === letter) return parsedContextName.name;
+            return letter + formatAccidental(accidentalOffsetForPc(letter, pc));
+        });
+    }
+
+    /** spellChordNotes()の結果を保ったまま、ドレミ表記だけへ変換する。 */
+    function solfegeNameForSpelling(name) {
+        var parsed = parseSpelledNoteName(name);
+        if (!parsed) return null;
+        var names = { C: 'ド', D: 'レ', E: 'ミ', F: 'ファ', G: 'ソ', A: 'ラ', B: 'シ' };
+        return names[parsed.letter] + formatAccidental(parsed.accidental);
+    }
+
     function solfegeName(pc, useFlats) {
         var names = useFlats ? SOLFEGE_FLAT : SOLFEGE_SHARP;
         return names[((pc % 12) + 12) % 12];
@@ -445,6 +532,8 @@
         tonicNameFor: tonicNameFor,
         spellScaleNotes: spellScaleNotes,
         diatonicNoteNamesForContext: diatonicNoteNamesForContext,
+        spellChordNotes: spellChordNotes,
+        solfegeNameForSpelling: solfegeNameForSpelling,
         solfegeName: solfegeName,
         chordSymbol: chordSymbol,
         displayChordName: displayChordName,

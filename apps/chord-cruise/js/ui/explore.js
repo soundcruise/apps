@@ -558,12 +558,13 @@
     }
 
     function roleForChordInterval(chord, interval) {
-        return chord && chord.qualityKey === '6' && interval === 9 ? 'sixth' : roleForInterval(interval);
+        return chord && (chord.qualityKey === '6' || chord.qualityKey === 'm6') && interval === 9 ? 'sixth' : roleForInterval(interval);
     }
 
     function computeChordToneMarkers(chord) {
         var theory = getTheory();
         var useFlats = chordUseFlats(chord);
+        var spelledNoteNames = customChordSpelledNoteNames(chord);
         var mode = getSettings().fretboardDisplayMode;
         var markers = [];
         var range = fretWindow();
@@ -580,11 +581,11 @@
                 var interval = chord.intervals[idx];
                 var label;
                 if (mode === 'solfege') {
-                    label = theory.solfegeName(pc, useFlats);
+                    label = chordSolfegeName(idx, pc, useFlats, spelledNoteNames);
                 } else if (mode === 'degree') {
                     label = chordDegreeLabel(chord, idx);
                 } else {
-                    label = chordNoteName(chord, idx, pc, useFlats);
+                    label = chordNoteName(chord, idx, pc, useFlats, spelledNoteNames);
                 }
                 markers.push({
                     string: s,
@@ -624,12 +625,48 @@
         return getTheory().degreeLabelsForQuality(chord.qualityKey, chord.intervals)[noteIndex];
     }
 
-    /** ダイアトニックはscale spellingを使い、任意コードは従来の♭/♯判定を維持する。 */
-    function chordNoteName(chord, noteIndex, pc, useFlats) {
+    /** CAGEDとoverlayを含む表示用音名を、root／degree基準で一度だけ計算する。 */
+    function chordSpelledNoteNames(chord) {
+        if (!chord) return null;
+        var settings = getSettings();
+        var keyContext = chord.source === 'custom' ? null : {
+            tonicPc: settings.selectedKey,
+            mode: settings.scaleType
+        };
+        var rootName = chord.source === 'custom'
+            ? window.ChordCruise.chordModel.CUSTOM_ROOT_NAMES[chord.rootPc]
+            : (chord.rootName || (chord.noteNames && chord.noteNames[0]));
+        try {
+            return getTheory().spellChordNotes({
+                rootPc: chord.rootPc,
+                rootName: rootName,
+                qualityKey: chord.qualityKey,
+                intervals: chord.intervals,
+                degreeLabels: chord.degreeLabelsList,
+                keyContext: keyContext
+            });
+        } catch (error) {
+            return null;
+        }
+    }
+
+    /** Phase G6-C-2の任意コード全体表示用互換入口。 */
+    function customChordSpelledNoteNames(chord) {
+        return chord && chord.source === 'custom' ? chordSpelledNoteNames(chord) : null;
+    }
+
+    /** ダイアトニックはscale spelling、任意コードはdegree-based spellingを使う。 */
+    function chordNoteName(chord, noteIndex, pc, useFlats, spelledNoteNames) {
+        if (spelledNoteNames && spelledNoteNames[noteIndex]) return spelledNoteNames[noteIndex];
         if (chord && chord.source !== 'custom' && chord.noteNames && chord.noteNames[noteIndex]) {
             return chord.noteNames[noteIndex];
         }
         return getTheory().noteName(pc, useFlats);
+    }
+
+    function chordSolfegeName(noteIndex, pc, useFlats, spelledNoteNames) {
+        var spelled = spelledNoteNames && spelledNoteNames[noteIndex];
+        return getTheory().solfegeNameForSpelling(spelled) || getTheory().solfegeName(pc, useFlats);
     }
 
     /** 選択中の型のフォーム。未選択・未対応時は null */
@@ -644,7 +681,7 @@
         return form.available ? form : null;
     }
 
-    function markerLabelFor(chord, pc, interval, finger, fingeringWarning, useFlats) {
+    function markerLabelFor(chord, pc, interval, finger, fingeringWarning, useFlats, spelledNoteNames) {
         var theory = getTheory();
         var mode = getSettings().fretboardDisplayMode;
         if (mode === 'finger') {
@@ -652,7 +689,7 @@
             return fingeringWarning ? '⚠' : '';
         }
         if (mode === 'solfege') {
-            return theory.solfegeName(pc, useFlats);
+            return chordSolfegeName(chord.intervals.indexOf(interval), pc, useFlats, spelledNoteNames);
         }
         if (mode === 'degree') {
             var intervalIndex = chord.intervals.indexOf(interval);
@@ -660,19 +697,20 @@
             return intervalIndex !== -1 ? qualityLabels[intervalIndex] : theory.degreeLabels([interval])[0];
         }
         var noteIndex = chord.intervals.indexOf(interval);
-        return chordNoteName(chord, noteIndex, pc, useFlats);
+        return chordNoteName(chord, noteIndex, pc, useFlats, spelledNoteNames);
     }
 
     function computeFormMarkers(chord, form) {
         var theory = getTheory();
         var useFlats = chordUseFlats(chord);
+        var spelledNoteNames = chordSpelledNoteNames(chord);
         return form.notes.map(function (note) {
             var openPc = theory.OPEN_STRINGS[6 - note.string];
             var pc = (openPc + note.fret) % 12;
             return {
                 string: note.string,
                 fret: note.fret,
-                label: markerLabelFor(chord, pc, note.interval, note.finger, note.fingeringWarning, useFlats),
+                label: markerLabelFor(chord, pc, note.interval, note.finger, note.fingeringWarning, useFlats, spelledNoteNames),
                 role: roleForChordInterval(chord, note.interval),
                 fingeringWarning: getSettings().fretboardDisplayMode === 'finger' && note.fingeringWarning === true
             };
@@ -734,13 +772,14 @@
         return markers;
     }
 
-    function tensionOverlayMarkerLabel(overlay, useFlats) {
+    function tensionOverlayMarkerLabel(chord, overlay, useFlats, spelledNoteNames) {
         var theory = getTheory();
         var mode = getSettings().fretboardDisplayMode;
         if (mode === 'finger') return '';
-        if (mode === 'solfege') return theory.solfegeName(overlay.pc, useFlats);
+        var noteIndex = chord.intervals.indexOf(overlay.interval);
+        if (mode === 'solfege') return chordSolfegeName(noteIndex, overlay.pc, useFlats, spelledNoteNames);
         if (mode === 'degree') return window.ChordCruise.chordModel.TENSION_LABELS[overlay.tension] || theory.degreeLabels([overlay.interval])[0];
-        return theory.noteName(overlay.pc, useFlats);
+        return chordNoteName(chord, noteIndex, overlay.pc, useFlats, spelledNoteNames);
     }
 
     /** Bassと同じmerge規則で、1〜3弦だけのtension候補をFORMへ重ねる。 */
@@ -753,6 +792,7 @@
         var existingBySlot = {};
         markers.forEach(function (marker) { existingBySlot[marker.string + ':' + marker.fret] = marker; });
         var useFlats = chordUseFlats(chord);
+        var spelledNoteNames = chordSpelledNoteNames(chord);
         overlayNotes.forEach(function (overlay) {
             var key = overlay.string + ':' + overlay.fret;
             if (existingBySlot[key]) {
@@ -761,7 +801,7 @@
             }
             var marker = {
                 string: overlay.string, fret: overlay.fret,
-                label: tensionOverlayMarkerLabel(overlay, useFlats),
+                label: tensionOverlayMarkerLabel(chord, overlay, useFlats, spelledNoteNames),
                 role: roleForInterval(overlay.interval), isOverlay: true, overlayType: overlay.type,
                 isTensionCandidate: true, finger: null, fingeringWarning: false
             };
@@ -771,26 +811,34 @@
         return markers;
     }
 
-    /** Major FORMを変更せず、同じフォーム範囲内の高音側へ6度候補を追加する。 */
+    /** Major / Minor FORMを変更せず、同じフォーム範囲内の高音側へ6度候補を追加する。 */
     function mergeSixthOverlayMarkers(chord, form, markers) {
-        if (!chord || chord.qualityKey !== '6' || !form) return markers;
+        if (!chord || (chord.qualityKey !== '6' && chord.qualityKey !== 'm6') || !form) return markers;
         var displayRange = form.displayRange || form.fretRange;
-        var overlayNotes = window.ChordCruise.chordModel.sixthOverlayNotes({
+        var overlayOptions = {
             rootPc: chord.rootPc,
             startFret: displayRange.min,
             endFret: displayRange.max,
             targetStrings: [3, 2, 1]
-        });
+        };
+        var overlayNotes = window.ChordCruise.chordModel.sixthOverlayNotes(overlayOptions);
+        // Minor C型の一部高ポジションでは1〜3弦に6度が無い。高音側候補を優先し、
+        // 不在時だけ同じFORM範囲内の5弦候補へfallbackする。C6の候補範囲は変えない。
+        if (chord.qualityKey === 'm6' && !overlayNotes.length) {
+            overlayOptions.targetStrings = [5];
+            overlayNotes = window.ChordCruise.chordModel.sixthOverlayNotes(overlayOptions);
+        }
         var existingBySlot = {};
         markers.forEach(function (marker) { existingBySlot[marker.string + ':' + marker.fret] = marker; });
         var useFlats = chordUseFlats(chord);
+        var spelledNoteNames = chordSpelledNoteNames(chord);
         overlayNotes.forEach(function (overlay) {
             var key = overlay.string + ':' + overlay.fret;
             if (existingBySlot[key]) return;
             var marker = {
                 string: overlay.string,
                 fret: overlay.fret,
-                label: markerLabelFor(chord, overlay.pc, 9, null, false, useFlats),
+                label: markerLabelFor(chord, overlay.pc, 9, null, false, useFlats, spelledNoteNames),
                 role: 'sixth',
                 isOverlay: true,
                 overlayType: 'sixth',
@@ -932,11 +980,12 @@
                 : ' 金枠の音を最低音として使います。選んだ音より低い弦は鳴らしません。';
         }
 
-        if (chord && form && chord.qualityKey === '6') {
+        if (chord && form && (chord.qualityKey === '6' || chord.qualityKey === 'm6')) {
             markers = mergeSixthOverlayMarkers(chord, form, markers);
+            var baseFormLabel = chord.qualityKey === 'm6' ? 'Minor' : 'Major';
             hint += getSettings().fretboardDisplayMode === 'finger'
-                ? ' 6度はMajor FORMへ追加する候補音です。運指は未定義です。'
-                : ' 6度はMajor FORMへ追加する構成音です。';
+                ? ' 6度は' + baseFormLabel + ' FORMへ追加する候補音です。運指は未定義です。'
+                : ' 6度は' + baseFormLabel + ' FORMへ追加する構成音です。';
         }
 
         if (chord && form && Array.isArray(chord.tensionIntervals) && chord.tensionIntervals.length) {
@@ -1039,8 +1088,9 @@
         detail.appendChild(head);
 
         var useFlats = chordUseFlats(chord);
-        var noteNames = chord.noteNames || chord.notePcs.map(function (pc) {
-            return getTheory().noteName(pc, useFlats);
+        var spelledNoteNames = customChordSpelledNoteNames(chord);
+        var noteNames = chord.noteNames || chord.notePcs.map(function (pc, idx) {
+            return chordNoteName(chord, idx, pc, useFlats, spelledNoteNames);
         });
         var degrees = chord.notePcs.map(function (pc, idx) {
             return chordDegreeLabel(chord, idx);

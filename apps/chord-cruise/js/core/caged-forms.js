@@ -883,8 +883,8 @@
 
     function getForm(shapeKey, qualityKey, rootPc, maxFret, minFret) {
         var shape = FORMS[shapeKey];
-        // 6thは専用FORMを持たず、Major FORMを基底に追加markerを重ねる。
-        var baseQualityKey = qualityKey === '6' ? 'maj' : qualityKey;
+        // 6thは専用FORMを持たず、Major / Minor FORMを基底に追加markerを重ねる。
+        var baseQualityKey = qualityKey === '6' ? 'maj' : (qualityKey === 'm6' ? 'm' : qualityKey);
         var theory = window.ChordCruise.theory;
         if (!shape || !shape.qualities[baseQualityKey]) {
             return {
@@ -894,7 +894,7 @@
             };
         }
         var def = shape.qualities[baseQualityKey];
-        var usesUndefinedFingering = qualityKey === '6';
+        var usesUndefinedFingering = qualityKey === '6' || qualityKey === 'm6';
         var openPc = theory.OPEN_STRINGS[6 - shape.rootString];
         var limit = typeof maxFret === 'number' ? maxFret : 13;
         var lowerLimit = typeof minFret === 'number' ? minFret : 0;

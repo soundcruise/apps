@@ -1006,6 +1006,53 @@
         return /♭/.test(chord && chord.chordName ? chord.chordName : '');
     }
 
+    /** 保存schemaを増やさず、semantic interval情報から表示用degreeを復元する。 */
+    function savedDegreeLabels(chord) {
+        var intervals = chord && Array.isArray(chord.intervals) ? chord.intervals.slice() : [];
+        var tensionIntervals = window.ChordCruise.chordModel.tensionIntervalsForPcs(
+            chord && chord.rootPc,
+            savedTensionPcs(chord)
+        );
+        var tensionLabelsByInterval = {};
+        tensionIntervals.forEach(function (interval) {
+            tensionLabelsByInterval[interval % 12] = window.ChordCruise.chordModel.TENSION_LABELS[interval] || theory().degreeLabels([interval % 12])[0];
+        });
+        var coreIntervals = intervals.filter(function (interval) {
+            return !Object.prototype.hasOwnProperty.call(tensionLabelsByInterval, interval);
+        });
+        var qualityKey = chord && chord.qualityKey;
+        if (!qualityKey || !theory().QUALITIES[qualityKey] ||
+            !theory().QUALITIES[qualityKey].intervals.every(function (interval, index) { return coreIntervals[index] === interval; }) ||
+            theory().QUALITIES[qualityKey].intervals.length !== coreIntervals.length) {
+            qualityKey = theory().identifyQuality(coreIntervals);
+        }
+        var coreLabels = theory().degreeLabelsForQuality(qualityKey, coreIntervals);
+        var coreIndex = 0;
+        return intervals.map(function (interval) {
+            if (Object.prototype.hasOwnProperty.call(tensionLabelsByInterval, interval)) {
+                return tensionLabelsByInterval[interval];
+            }
+            return coreLabels[coreIndex++];
+        });
+    }
+
+    /** chordNameを解析せず、保存recordの構造だけから表示用音名を再計算する。 */
+    function savedSpelledNoteNames(chord) {
+        if (!chord || typeof chord.rootPc !== 'number' || !Array.isArray(chord.intervals)) return null;
+        try {
+            return theory().spellChordNotes({
+                rootPc: chord.rootPc,
+                rootName: window.ChordCruise.chordModel.CUSTOM_ROOT_NAMES[chord.rootPc],
+                qualityKey: chord.qualityKey || theory().identifyQuality(chord.intervals),
+                intervals: chord.intervals,
+                degreeLabels: savedDegreeLabels(chord),
+                keyContext: chord.keyContext || null
+            });
+        } catch (error) {
+            return null;
+        }
+    }
+
     function detailDisplayMode() {
         var mode = window.ChordCruise.state.settings.fretboardDisplayMode;
         return ['note', 'solfege', 'degree', 'finger'].indexOf(mode) !== -1 ? mode : 'note';
@@ -1019,14 +1066,15 @@
         }
         var openPc = theory().OPEN_STRINGS[6 - note.string];
         var pc = (openPc + note.fret) % 12;
-        if (mode === 'solfege') return theory().solfegeName(pc, chordUseFlats(chord));
+        var noteIndex = Array.isArray(chord.intervals) ? chord.intervals.indexOf(note.interval) : -1;
+        var spelled = spelledNoteNames && spelledNoteNames[noteIndex];
+        if (mode === 'solfege') return theory().solfegeNameForSpelling(spelled) || theory().solfegeName(pc, chordUseFlats(chord));
         if (mode === 'degree') {
             var qualityKey = theory().identifyQuality(chord.intervals);
             var intervalIndex = Array.isArray(chord.intervals) ? chord.intervals.indexOf(note.interval) : -1;
             var labels = theory().degreeLabelsForQuality(qualityKey, chord.intervals || []);
             return intervalIndex !== -1 ? labels[intervalIndex] : theory().degreeLabels([note.interval])[0];
         }
-        var noteIndex = Array.isArray(chord.intervals) ? chord.intervals.indexOf(note.interval) : -1;
         if (spelledNoteNames && noteIndex !== -1 && spelledNoteNames[noteIndex]) {
             return spelledNoteNames[noteIndex];
         }
@@ -1052,7 +1100,9 @@
 
     function roleForChordInterval(chord, interval) {
         var qualityKey = chord && (chord.qualityKey || theory().identifyQuality(chord.intervals || []));
-        return qualityKey === '6' && interval === 9 ? 'sixth' : roleForInterval(interval);
+        if (qualityKey === '6' && interval === 9) return 'sixth';
+        if (qualityKey === 'm6' && interval === 9) return 'sixth';
+        return roleForInterval(interval);
     }
 
     function savedBassPc(chord) {
@@ -1155,14 +1205,17 @@
         return markers;
     }
 
-    function tensionMarkerLabel(chord, overlay, mode) {
+    function tensionMarkerLabel(chord, overlay, mode, spelledNoteNames) {
         if (mode === 'finger') return '';
-        if (mode === 'solfege') return theory().solfegeName(overlay.pc, chordUseFlats(chord));
+        var noteIndex = (chord.intervals || []).indexOf(overlay.interval);
+        var spelled = spelledNoteNames && spelledNoteNames[noteIndex];
+        if (mode === 'solfege') return theory().solfegeNameForSpelling(spelled) || theory().solfegeName(overlay.pc, chordUseFlats(chord));
         if (mode === 'degree') return window.ChordCruise.chordModel.TENSION_LABELS[overlay.tension] || theory().degreeLabels([overlay.interval])[0];
+        if (spelled) return spelled;
         return theory().noteName(overlay.pc, chordUseFlats(chord));
     }
 
-    function mergeSavedTensionOverlay(chord, frets, markers, mode, editable) {
+    function mergeSavedTensionOverlay(chord, frets, markers, mode, spelledNoteNames, editable) {
         var tensionPcs = savedTensionPcs(chord);
         if (!tensionPcs.length) return markers;
         var min = Math.min.apply(null, frets);
@@ -1181,7 +1234,7 @@
             if (bySlot[key]) { bySlot[key].isTensionCandidate = true; return; }
             markers.push({
                 string: overlay.string, fret: overlay.fret, pc: overlay.pc,
-                label: mode === 'finger' ? savedTensionFingeringLabel(chord, overlay) : tensionMarkerLabel(chord, overlay, mode),
+                label: mode === 'finger' ? savedTensionFingeringLabel(chord, overlay) : tensionMarkerLabel(chord, overlay, mode, spelledNoteNames),
                 role: roleForInterval(overlay.interval), isOverlay: true, overlayType: 'tension',
                 isTensionCandidate: true, finger: (tensionEntry || {}).finger || null,
                 fingeringWarning: !!((tensionEntry || {}).fingeringWarning), pendingDelete: false,
@@ -1232,7 +1285,7 @@
         var frets = savedFrets(chord);
         var notes = notesInSavedRange(chord, frets);
         var mode = opts.mode || detailDisplayMode();
-        var spelledNoteNames = theory().diatonicNoteNamesForContext(
+        var spelledNoteNames = savedSpelledNoteNames(chord) || theory().diatonicNoteNamesForContext(
             chord.keyContext,
             chord.rootPc,
             chord.intervals
@@ -1249,7 +1302,7 @@
             };
         });
         markers = mergeSavedBassOverlay(chord, frets, markers, mode, spelledNoteNames, !!opts.tappable);
-        markers = mergeSavedTensionOverlay(chord, frets, markers, mode, !!opts.tappable);
+        markers = mergeSavedTensionOverlay(chord, frets, markers, mode, spelledNoteNames, !!opts.tappable);
         return {
             frets: frets,
             markers: markers,

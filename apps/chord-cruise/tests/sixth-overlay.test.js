@@ -136,6 +136,6 @@ var librarySource = fs.readFileSync(path.join(__dirname, '../js/ui/library.js'),
 assert(exploreSource.indexOf('mergeSixthOverlayMarkers') !== -1, 'Explore merges the sixth overlay separately');
 assert(saveEditorSource.indexOf('notesWithSixthCandidates') !== -1, 'save-editor adds editable sixth notes without changing Major FORM');
 assert(saveEditorSource.indexOf("record.qualityKey = '6'") !== -1, 'save-editor persists qualityKey 6');
-assert(librarySource.indexOf("qualityKey === '6' && interval === 9 ? 'sixth'") !== -1, 'library/export preserves the sixth role');
+assert(librarySource.indexOf("qualityKey === '6' && interval === 9") !== -1, 'library/export preserves the C6 sixth role');
 
 console.log('sixth-overlay: C6 quality, unchanged Major CAGED markers, dedicated sixth role, 120 overlay scenarios, schema-1 save/reload/library, and SVG/PNG OK');

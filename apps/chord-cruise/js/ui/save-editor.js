@@ -232,7 +232,10 @@
             if (note.finger != null) return FINGER_LABELS[note.finger] || '';
             return note.fingeringWarning ? '⚠' : '';
         }
-        if (draft.displayMode === 'solfege') return theory().solfegeName(notePc(note), draft.useFlats);
+        if (draft.displayMode === 'solfege') {
+            var solfegeIndex = draft.intervals.indexOf(note.interval);
+            return theory().solfegeNameForSpelling(spelledNoteNames && spelledNoteNames[solfegeIndex]) || theory().solfegeName(notePc(note), draft.useFlats);
+        }
         if (draft.displayMode === 'degree') {
             var qualityKey = theory().identifyQuality(draft.intervals);
             var intervalIndex = draft.intervals.indexOf(note.interval);
@@ -265,7 +268,8 @@
     }
 
     function roleForDraftInterval(interval) {
-        return theory().identifyQuality(draft.intervals) === '6' && interval === 9 ? 'sixth' : roleForInterval(interval);
+        var qualityKey = theory().identifyQuality(draft.intervals);
+        return (qualityKey === '6' || qualityKey === 'm6') && interval === 9 ? 'sixth' : roleForInterval(interval);
     }
 
     function validBassPc(value) {
@@ -298,18 +302,24 @@
         return range;
     }
 
-    /** 6th保存前編集では、Major FORM notesを保ったまま6度候補を編集可能noteとして加える。 */
+    /** 6th保存前編集では、基底FORM notesを保ったまま6度候補を編集可能noteとして加える。 */
     function notesWithSixthCandidates(chord, form, displayRange) {
         var notes = form.notes.map(draftNote);
-        if (!chord || chord.qualityKey !== '6') return notes;
+        if (!chord || (chord.qualityKey !== '6' && chord.qualityKey !== 'm6')) return notes;
         var bySlot = {};
         notes.forEach(function (note) { bySlot[note.string + ':' + note.fret] = true; });
-        window.ChordCruise.chordModel.sixthOverlayNotes({
+        var overlayOptions = {
             rootPc: chord.rootPc,
             startFret: displayRange.min,
             endFret: displayRange.max,
             targetStrings: [3, 2, 1]
-        }).forEach(function (candidate) {
+        };
+        var sixthCandidates = window.ChordCruise.chordModel.sixthOverlayNotes(overlayOptions);
+        if (chord.qualityKey === 'm6' && !sixthCandidates.length) {
+            overlayOptions.targetStrings = [5];
+            sixthCandidates = window.ChordCruise.chordModel.sixthOverlayNotes(overlayOptions);
+        }
+        sixthCandidates.forEach(function (candidate) {
             var key = candidate.string + ':' + candidate.fret;
             if (bySlot[key]) return;
             notes.push(draftNote(candidate));
@@ -438,14 +448,17 @@
         return markers;
     }
 
-    function tensionOverlayLabel(note) {
+    function tensionOverlayLabel(note, spelledNoteNames) {
         if (draft.displayMode === 'finger') return '';
-        if (draft.displayMode === 'solfege') return theory().solfegeName(note.pc, draft.useFlats);
+        var noteIndex = draft.intervals.indexOf(note.interval);
+        var spelled = spelledNoteNames && spelledNoteNames[noteIndex];
+        if (draft.displayMode === 'solfege') return theory().solfegeNameForSpelling(spelled) || theory().solfegeName(note.pc, draft.useFlats);
         if (draft.displayMode === 'degree') return window.ChordCruise.chordModel.TENSION_LABELS[note.tension] || theory().degreeLabels([note.interval])[0];
+        if (spelled) return spelled;
         return theory().noteName(note.pc, draft.useFlats);
     }
 
-    function mergeTensionOverlay(markers) {
+    function mergeTensionOverlay(markers, spelledNoteNames) {
         if (!draft.tensionPcs.length) return markers;
         var tensionIntervals = window.ChordCruise.chordModel.tensionIntervalsForPcs(draft.rootPc, draft.tensionPcs);
         var overlays = window.ChordCruise.chordModel.tensionOverlayNotes({
@@ -460,7 +473,7 @@
             if (bySlot[key]) { bySlot[key].isTensionCandidate = true; return; }
             var entry = tensionFingeringFor(note.string, note.fret, note.pc) || {};
             var marker = {
-                string: note.string, fret: note.fret, label: tensionOverlayLabel(note),
+                string: note.string, fret: note.fret, label: tensionOverlayLabel(note, spelledNoteNames),
                 role: roleForInterval(note.interval), isOverlay: true, overlayType: 'tension', isTensionCandidate: true,
                 finger: entry.finger || null, fingeringWarning: !!entry.fingeringWarning,
                 pendingDelete: !!entry.pendingDelete, tappable: draft.displayMode === 'finger', ariaLabel: tensionFingeringAccessibleLabel(note)
@@ -486,11 +499,23 @@
         var fb = window.ChordCruise.ui.fretboard;
         var shouldAutoCenter = draft.autoCenterPending === true;
         var prevScroll = shouldAutoCenter ? null : fb.getScrollLeft(host);
-        var spelledNoteNames = theory().diatonicNoteNamesForContext(
-            draft.keyContext,
-            draft.rootPc,
-            draft.intervals
-        );
+        var spelledNoteNames;
+        try {
+            spelledNoteNames = theory().spellChordNotes({
+                rootPc: draft.rootPc,
+                rootName: window.ChordCruise.chordModel.CUSTOM_ROOT_NAMES[draft.rootPc],
+                qualityKey: draft.qualityKey,
+                intervals: draft.intervals,
+                degreeLabels: draft.degreeLabels,
+                keyContext: draft.keyContext
+            });
+        } catch (error) {
+            spelledNoteNames = theory().diatonicNoteNamesForContext(
+                draft.keyContext,
+                draft.rootPc,
+                draft.intervals
+            );
+        }
         var markers = draft.notes.map(function (note) {
             return {
                 string: note.string,
@@ -505,7 +530,7 @@
             };
         });
         markers = mergeBassOverlay(markers, spelledNoteNames);
-        markers = mergeTensionOverlay(markers);
+        markers = mergeTensionOverlay(markers, spelledNoteNames);
         var barres = window.ChordCruise.caged.detectBarres(draft.notes.filter(function (note) {
             return noteIncluded(note) && !note.pendingDelete;
         }));
@@ -729,7 +754,9 @@
         record.shape = draft.shape;
         record.keyContext = clone(draft.keyContext);
         record.intervals = clone(draft.intervals);
-        if (theory().identifyQuality(draft.intervals) === '6') record.qualityKey = '6';
+        var qualityKey = theory().identifyQuality(draft.intervals);
+        if (qualityKey === '6') record.qualityKey = '6';
+        else if (qualityKey === 'm6') record.qualityKey = 'm6';
         record.rootPc = draft.rootPc;
         if (draft.bassPc !== null) record.bassPc = draft.bassPc;
         else delete record.bassPc;
@@ -857,6 +884,10 @@
             shape: payload.shape,
             keyContext: clone(payload.keyContext || null),
             intervals: chord.intervals.slice(),
+            qualityKey: chord.qualityKey || null,
+            degreeLabels: Array.isArray(chord.degreeLabelsList)
+                ? chord.degreeLabelsList.slice()
+                : theory().degreeLabelsForQuality(chord.qualityKey, chord.intervals),
             rootPc: chord.rootPc,
             bassPc: validBassPc(chord.bassPc),
             bassFingerings: [],
@@ -925,6 +956,10 @@
             shape: shape,
             keyContext: clone(keyContext),
             intervals: Array.isArray(original.intervals) ? original.intervals.slice() : [],
+            qualityKey: original.qualityKey || theory().identifyQuality(Array.isArray(original.intervals) ? original.intervals : []),
+            degreeLabels: Array.isArray(original.degreeLabelsList)
+                ? original.degreeLabelsList.slice()
+                : theory().degreeLabelsForQuality(original.qualityKey || theory().identifyQuality(Array.isArray(original.intervals) ? original.intervals : []), Array.isArray(original.intervals) ? original.intervals : []),
             rootPc: typeof original.rootPc === 'number' ? original.rootPc : null,
             bassPc: validBassPc(original.bassPc),
             bassFingerings: normalizeBassFingerings(original.bassFingerings),
