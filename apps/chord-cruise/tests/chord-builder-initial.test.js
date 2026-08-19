@@ -38,6 +38,8 @@ assert.deepStrictEqual(builder.initialSpecForChord({ rootPc: 0, qualityKey: 'no5
     'C(no5) is restored from its quality definition');
 assert.deepStrictEqual(builder.initialSpecForChord({ rootPc: 0, qualityKey: '7no5', intervals: [0, 4, 10] }), expected(0, 4, null, 10),
     'C7(no5) is restored from its quality definition');
+assert.deepStrictEqual(builder.initialSpecForChord({ rootPc: 0, qualityKey: 'maj7no5', intervals: [0, 4, 11] }), expected(0, 4, null, 11),
+    'CM7(no5) is restored from its quality definition');
 assert.deepStrictEqual(builder.initialSpecForChord({ rootPc: 0, qualityKey: 'm7no5', intervals: [0, 3, 10] }), expected(0, 3, null, 10),
     'Cm7(no5) is restored from its quality definition');
 assert.deepStrictEqual(builder.initialSpecForChord({ rootPc: 0, qualityKey: '7sus4', intervals: [0, 5, 7, 10] }), expected(0, 5, 7, 10),

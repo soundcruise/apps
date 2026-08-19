@@ -37,6 +37,8 @@
         'no5': { suffix: '(no5)', symbolSuffix: '(no5)', romanSuffix: '(no5)', intervals: [0, 4], degreeLabels: ['1', '3'] },
         // 既存7th CAGEDの5度slotだけを除外する派生quality。
         '7no5': { suffix: '7(no5)', symbolSuffix: '7(no5)', romanSuffix: '7(no5)', intervals: [0, 4, 10], degreeLabels: ['1', '3', '♭7'] },
+        // 既存M7 CAGEDの5度slotだけを除外する派生quality。
+        'maj7no5': { suffix: 'M7(no5)', symbolSuffix: 'M7(no5)', romanSuffix: 'M7(no5)', intervals: [0, 4, 11], degreeLabels: ['1', '3', '7'] },
         // 既存m7 CAGEDの5度slotだけを除外する派生quality。
         'm7no5': { suffix: 'm7(no5)', symbolSuffix: 'm7(no5)', romanSuffix: 'm7(no5)', intervals: [0, 3, 10], degreeLabels: ['1', '♭3', '♭7'] },
         'm': { suffix: 'm', symbolSuffix: 'm', romanSuffix: 'm', intervals: [0, 3, 7], degreeLabels: ['1', '♭3', '5'] },
