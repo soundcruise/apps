@@ -319,7 +319,11 @@
         notice.className = 'cc-caged-notice' + (type ? ' cc-caged-notice--' + type : '');
         notice.hidden = !cagedNoticeState[kind].text;
         if (!toggle || !detail || !chevron) return;
-        if (label) label.textContent = type === 'unavailable' ? '△ フォーム' : '⚠️ 運指';
+        if (label) {
+            label.textContent = type === 'unavailable'
+                ? '△ フォーム'
+                : (type === 'undefined' ? '運指未定義' : '⚠️ 運指');
+        }
         toggle.setAttribute('aria-expanded', cagedNoticeExpanded[kind] ? 'true' : 'false');
         chevron.textContent = cagedNoticeExpanded[kind] ? '⌃' : '⌄';
         detail.textContent = cagedNoticeState[kind].text;
@@ -842,7 +846,10 @@
                     ? displayRange.viewportStart
                     : Math.round((form.fretRange.min + form.fretRange.max) / 2);
                 hint = shape + '型 ' + chord.symbol + '（' + caged.formatFretRange(displayRange) + '）';
-                if (form.warning) {
+                if (form.fingeringStatus === 'undefined') {
+                    noticeType = 'undefined';
+                    noticeText = '運指は未定義です。保存で編集できます。';
+                } else if (form.warning) {
                     noticeType = form.playability;
                     noticeText = form.warning;
                 }

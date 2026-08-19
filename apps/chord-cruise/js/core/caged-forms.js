@@ -597,6 +597,63 @@
         }
     };
 
+    /* 7sus4 / M7sus4: 既存7th / M7 CAGEDの3度（iv:4）だけを4度（iv:5）へ置換した固定派生FORM。
+       実用コード教材ではなく、CAGED上の構成音変化を確認するために全FORM音を保持する。
+       初期FINGERINGは未確定のため、推測fingerを設定しない。⚠️運指とは分離し、
+       UIは fingeringStatus: 'undefined' を見て保存前編集への案内を出す。 */
+    var SEVENTH_SUS4_FORMS = {
+        C: {
+            '7sus4': {
+                slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: 0, iv: 5 }, { s: 3, o: 0, iv: 10 }, { s: 2, o: -2, iv: 0 }, { s: 1, o: 0, iv: 7 }],
+                muted: [6], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+            },
+            'M7sus4': {
+                slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: 0, iv: 5 }, { s: 3, o: -3, iv: 7 }, { s: 2, o: -3, iv: 11 }, { s: 1, o: -2, iv: 5 }],
+                muted: [6], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+            }
+        },
+        A: {
+            '7sus4': {
+                slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: 2, iv: 7 }, { s: 3, o: 0, iv: 10 }, { s: 2, o: 3, iv: 5 }, { s: 1, o: 0, iv: 7 }],
+                muted: [6], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+            },
+            'M7sus4': {
+                slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: 2, iv: 7 }, { s: 3, o: 1, iv: 11 }, { s: 2, o: 3, iv: 5 }, { s: 1, o: 0, iv: 7 }],
+                muted: [6], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+            }
+        },
+        G: {
+            '7sus4': {
+                slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: 0, iv: 5 }, { s: 4, o: -3, iv: 7 }, { s: 3, o: -3, iv: 0 }, { s: 2, o: -2, iv: 5 }, { s: 1, o: -2, iv: 10 }],
+                muted: [], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+            },
+            'M7sus4': {
+                slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: 0, iv: 5 }, { s: 4, o: -3, iv: 7 }, { s: 3, o: -3, iv: 0 }, { s: 2, o: -2, iv: 5 }, { s: 1, o: -1, iv: 11 }],
+                muted: [], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+            }
+        },
+        E: {
+            '7sus4': {
+                slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: 2, iv: 7 }, { s: 4, o: 0, iv: 10 }, { s: 3, o: 2, iv: 5 }, { s: 2, o: 0, iv: 7 }, { s: 1, o: 0, iv: 0 }],
+                muted: [], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+            },
+            'M7sus4': {
+                slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: 2, iv: 7 }, { s: 4, o: 1, iv: 11 }, { s: 3, o: 2, iv: 5 }, { s: 2, o: 0, iv: 7 }, { s: 1, o: 0, iv: 0 }],
+                muted: [], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+            }
+        },
+        D: {
+            '7sus4': {
+                slots: [{ s: 4, o: 0, iv: 0 }, { s: 3, o: 2, iv: 7 }, { s: 2, o: 1, iv: 10 }, { s: 1, o: 3, iv: 5 }],
+                muted: [6, 5], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+            },
+            'M7sus4': {
+                slots: [{ s: 4, o: 0, iv: 0 }, { s: 3, o: 2, iv: 7 }, { s: 2, o: 2, iv: 11 }, { s: 1, o: 3, iv: 5 }],
+                muted: [6, 5], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+            }
+        }
+    };
+
     SHAPE_ORDER.forEach(function (shapeKey) {
         Object.keys(EXTENDED_QUALITY_FORMS[shapeKey]).forEach(function (qualityKey) {
             FORMS[shapeKey].qualities[qualityKey] = EXTENDED_QUALITY_FORMS[shapeKey][qualityKey];
@@ -604,6 +661,8 @@
         FORMS[shapeKey].qualities.sus4 = SUS4_TRIAD_FORMS[shapeKey];
         FORMS[shapeKey].qualities.power5 = POWER5_FORMS[shapeKey];
         FORMS[shapeKey].qualities.no5 = NO5_FORMS[shapeKey];
+        FORMS[shapeKey].qualities['7sus4'] = SEVENTH_SUS4_FORMS[shapeKey]['7sus4'];
+        FORMS[shapeKey].qualities.M7sus4 = SEVENTH_SUS4_FORMS[shapeKey].M7sus4;
     });
 
     /* 品質ごとに独立した音配置を持たせず、maj / 7 の弦役割を変換して生成する。
@@ -845,6 +904,7 @@
             shape: shapeKey,
             qualityKey: qualityKey,
             playability: def.playability || 'standard',
+            fingeringStatus: def.fingeringStatus || 'defined',
             warning: warning,
             rootFret: rootFret,
             usedOpenFingers: !!(isOpenPosition && def.openFingers),
