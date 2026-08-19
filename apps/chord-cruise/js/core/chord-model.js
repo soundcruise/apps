@@ -68,6 +68,7 @@
             if (fifth === 6 && seventh === 9) name += 'dim7';
             else if (fifth === 6 && seventh === 10) name += 'm7♭5';
             else if (fifth === 6) name += 'dim';
+            else if (fifth === null && seventh === 10) name += 'm7(no5)';
             else if (seventh === 9) name += 'm6';
             else if (seventh === 10) name += 'm7';
             else if (seventh === 11) name += 'mM7';
@@ -84,7 +85,9 @@
                 else if (seventh === 11) name += 'M7♯5';
                 else name += 'aug';
             } else {
-                if (seventh === 9) name += '6';
+                if (fifth === null && seventh === 10) name += '7(no5)';
+                else if (fifth === null && seventh === 11) name += 'M7(no5)';
+                else if (seventh === 9) name += '6';
                 else if (seventh === 10) name += '7';
                 else if (seventh === 11) name += 'M7';
                 else if (seventh === null && fifth === null) name += '(no5)';

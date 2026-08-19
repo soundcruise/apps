@@ -654,6 +654,62 @@
         }
     };
 
+    /* 7(no5) / m7(no5): 既存7th / m7 CAGEDの5度（iv:7）だけを除外した固定派生FORM。
+       実用コード教材ではなく、CAGED上でroot・3度／♭3・♭7の配置を確認するために全残存slotを保持する。
+       初期FINGERINGは推測せず、fingeringStatus: 'undefined' で既存の⚠️運指と区別する。 */
+    var SEVENTH_NO5_FORMS = {
+        C: {
+            '7no5': {
+                slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -1, iv: 4 }, { s: 3, o: 0, iv: 10 }, { s: 2, o: -2, iv: 0 }],
+                muted: [6, 1], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+            },
+            'm7no5': {
+                slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -2, iv: 3 }, { s: 3, o: 0, iv: 10 }, { s: 2, o: -2, iv: 0 }],
+                muted: [6, 1], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+            }
+        },
+        A: {
+            '7no5': {
+                slots: [{ s: 5, o: 0, iv: 0 }, { s: 3, o: 0, iv: 10 }, { s: 2, o: 2, iv: 4 }],
+                muted: [6, 4, 1], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+            },
+            'm7no5': {
+                slots: [{ s: 5, o: 0, iv: 0 }, { s: 3, o: 0, iv: 10 }, { s: 2, o: 1, iv: 3 }],
+                muted: [6, 4, 1], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+            }
+        },
+        G: {
+            '7no5': {
+                slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: -1, iv: 4 }, { s: 3, o: -3, iv: 0 }, { s: 2, o: -3, iv: 4 }, { s: 1, o: -2, iv: 10 }],
+                muted: [4], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+            },
+            'm7no5': {
+                slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: -2, iv: 3 }, { s: 3, o: -3, iv: 0 }, { s: 2, o: -4, iv: 3 }, { s: 1, o: -2, iv: 10 }],
+                muted: [4], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+            }
+        },
+        E: {
+            '7no5': {
+                slots: [{ s: 6, o: 0, iv: 0 }, { s: 4, o: 0, iv: 10 }, { s: 3, o: 1, iv: 4 }, { s: 1, o: 0, iv: 0 }],
+                muted: [5, 2], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+            },
+            'm7no5': {
+                slots: [{ s: 6, o: 0, iv: 0 }, { s: 4, o: 0, iv: 10 }, { s: 3, o: 0, iv: 3 }, { s: 1, o: 0, iv: 0 }],
+                muted: [5, 2], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+            }
+        },
+        D: {
+            '7no5': {
+                slots: [{ s: 4, o: 0, iv: 0 }, { s: 2, o: 1, iv: 10 }, { s: 1, o: 2, iv: 4 }],
+                muted: [6, 5, 3], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+            },
+            'm7no5': {
+                slots: [{ s: 4, o: 0, iv: 0 }, { s: 2, o: 1, iv: 10 }, { s: 1, o: 1, iv: 3 }],
+                muted: [6, 5, 3], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+            }
+        }
+    };
+
     SHAPE_ORDER.forEach(function (shapeKey) {
         Object.keys(EXTENDED_QUALITY_FORMS[shapeKey]).forEach(function (qualityKey) {
             FORMS[shapeKey].qualities[qualityKey] = EXTENDED_QUALITY_FORMS[shapeKey][qualityKey];
@@ -663,6 +719,8 @@
         FORMS[shapeKey].qualities.no5 = NO5_FORMS[shapeKey];
         FORMS[shapeKey].qualities['7sus4'] = SEVENTH_SUS4_FORMS[shapeKey]['7sus4'];
         FORMS[shapeKey].qualities.M7sus4 = SEVENTH_SUS4_FORMS[shapeKey].M7sus4;
+        FORMS[shapeKey].qualities['7no5'] = SEVENTH_NO5_FORMS[shapeKey]['7no5'];
+        FORMS[shapeKey].qualities.m7no5 = SEVENTH_NO5_FORMS[shapeKey].m7no5;
     });
 
     /* 品質ごとに独立した音配置を持たせず、maj / 7 の弦役割を変換して生成する。
