@@ -24,6 +24,20 @@
         return window.ChordCruise.ui && window.ChordCruise.ui.focusTrap;
     }
 
+    function storageErrorMessage(fallback) {
+        var storage = window.ChordCruise.storage;
+        var code = storage && typeof storage.getLastError === 'function' ? storage.getLastError() : null;
+        if (code === 'standard-folder-limit') return 'Standard版ではフォルダは3個まで保存できます。';
+        if (code === 'standard-folder-chord-limit') return 'Standard版では1フォルダ10個まで保存できます。';
+        return fallback;
+    }
+
+    function canSaveCustomChord() {
+        var featureAccess = window.ChordCruise && window.ChordCruise.featureAccess;
+        return !!(featureAccess && typeof featureAccess.hasFeature === 'function' &&
+            featureAccess.hasFeature('customChordSave'));
+    }
+
     function clone(value) {
         if (value === undefined) return undefined;
         return JSON.parse(JSON.stringify(value));
@@ -93,6 +107,10 @@
                         '<textarea id="cc-save-memo" class="cc-input cc-textarea" rows="2" maxlength="200"></textarea></label>' +
                 '</div>' +
                 '<p class="cc-save-error" id="cc-save-error"></p>' +
+                '<div class="cc-save-section" id="cc-save-pro-notice" hidden>' +
+                    '<p class="cc-fb-hint">作成したコードを保存するにはPro版が必要です。</p>' +
+                    '<a class="cc-btn cc-btn-primary cc-btn--block" href="pro_k7m4q9v2x8/" target="_blank" rel="noopener">Pro版を開く</a>' +
+                '</div>' +
                 '<div class="cc-save-actions">' +
                     '<button type="button" class="cc-btn cc-btn-primary cc-btn--block" id="cc-save-confirm">保存する</button>' +
                     '<button type="button" class="cc-btn cc-btn-secondary cc-btn--block cc-save-bottom-cancel" id="cc-save-cancel-bottom">キャンセル</button>' +
@@ -681,7 +699,7 @@
         }
         var folder = window.ChordCruise.storage.createFolder(name);
         if (!folder) {
-            setFolderError('フォルダを作成できませんでした。');
+            setFolderError(storageErrorMessage('フォルダを作成できませんでした。'));
             return;
         }
         draft.folderId = folder.id;
@@ -696,6 +714,11 @@
         var element = document.getElementById('cc-save-error');
         element.textContent = text || '';
         element.style.display = text ? '' : 'none';
+    }
+
+    function setCustomSaveProNotice(visible) {
+        var element = document.getElementById('cc-save-pro-notice');
+        if (element) element.hidden = !visible;
     }
 
     function currentFieldValues() {
@@ -815,12 +838,22 @@
 
     function finishSave(record, mode) {
         if (saveInProgress) return;
+        setError('');
+        setCustomSaveProNotice(false);
+        if (draft.source === 'custom' && !canSaveCustomChord()) {
+            setCustomSaveProNotice(true);
+            return;
+        }
         saveInProgress = true;
         var callback = onSavedCallback;
-        var saved = window.ChordCruise.storage.saveChord(record);
+        var saved = window.ChordCruise.storage.saveChord(record, { source: draft.source });
         if (!saved) {
             saveInProgress = false;
-            setError('保存に失敗しました。ブラウザの保存領域を確認してください。');
+            if (window.ChordCruise.storage.getLastError() === 'custom-chord-save-pro-required') {
+                setCustomSaveProNotice(true);
+                return;
+            }
+            setError(storageErrorMessage('保存に失敗しました。ブラウザの保存領域を確認してください。'));
             return;
         }
         close();
@@ -875,6 +908,7 @@
         document.getElementById('cc-save-memo').value = draft.memo;
         renderFolders();
         resetFolderCreate();
+        setCustomSaveProNotice(false);
         setModeUi(draft.mode);
         updateDisplaySegments();
         renderRange();
@@ -898,6 +932,7 @@
         saveInProgress = false;
         draft = {
             mode: 'new',
+            source: chord.source === 'custom' ? 'custom' : 'diatonic',
             original: null,
             chordName: chord.symbol,
             formName: payload.shape + '型',
@@ -970,6 +1005,7 @@
         saveInProgress = false;
         draft = {
             mode: 'edit',
+            source: original.keyContext ? 'diatonic' : 'custom',
             original: original,
             chordName: theory().displayChordName(original.chordName || ''),
             formName: original.formName || (shape ? shape + '型' : 'フォーム'),

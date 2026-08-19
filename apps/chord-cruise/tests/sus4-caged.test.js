@@ -24,7 +24,7 @@ var expected = {
 
 assert.deepStrictEqual(theory.QUALITIES.sus4, {
     suffix: 'sus4', symbolSuffix: 'sus4', romanSuffix: 'sus4', intervals: [0, 5, 7], degreeLabels: ['1', '4', '5'],
-    family: 'sus', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null }
+    family: 'sus', modifier: 'none', complexity: 'basic', caged: { supported: true, mode: 'fixed', baseQuality: null }
 });
 assert.strictEqual(theory.identifyQuality([0, 5, 7]), 'sus4');
 assert.deepStrictEqual(theory.degreeLabelsForQuality('sus4', [0, 5, 7]), ['1', '4', '5']);

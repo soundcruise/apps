@@ -29,7 +29,7 @@ function slotFixture(def) {
 
 assert.deepStrictEqual(theory.QUALITIES.no5, {
     suffix: '(no5)', symbolSuffix: '(no5)', romanSuffix: '(no5)', intervals: [0, 4], degreeLabels: ['1', '3'],
-    family: 'major', modifier: 'no', caged: { supported: true, mode: 'fixed', baseQuality: null }
+    family: 'major', modifier: 'no', complexity: 'intermediate', caged: { supported: true, mode: 'fixed', baseQuality: null }
 });
 assert.strictEqual(theory.identifyQuality([0, 4]), 'no5');
 assert.deepStrictEqual(theory.degreeLabelsForQuality('no5', [0, 4]), ['1', '3']);

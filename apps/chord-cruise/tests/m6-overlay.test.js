@@ -20,7 +20,7 @@ var intervals = [0, 3, 7, 9];
 assert.deepStrictEqual(theory.QUALITIES.m6, {
     suffix: 'm6', symbolSuffix: 'm6', romanSuffix: 'm6',
     intervals: intervals, degreeLabels: ['1', '♭3', '5', '6'],
-    family: 'minor', modifier: 'sixth', caged: { supported: true, mode: 'overlay', baseQuality: 'm' }
+    family: 'minor', modifier: 'sixth', complexity: 'intermediate', caged: { supported: true, mode: 'overlay', baseQuality: 'm' }
 }, 'm6 quality metadata');
 assert.strictEqual(theory.identifyQuality(intervals), 'm6', 'm6 quality recognition');
 

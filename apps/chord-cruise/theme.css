@@ -1083,6 +1083,10 @@ body {
     gap: 12px;
 }
 
+.cc-save-section[hidden] {
+    display: none;
+}
+
 .cc-save-row {
     display: flex;
     align-items: center;

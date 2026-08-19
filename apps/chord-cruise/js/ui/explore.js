@@ -146,9 +146,13 @@
                     '</button>' +
                 '</div>' +
                 '<p class="cc-fb-hint" id="cc-fb-hint"></p>' +
+                '<div id="cc-caged-pro-link" hidden>' +
+                    '<a class="cc-btn cc-btn-secondary cc-btn--block" href="pro_k7m4q9v2x8/" target="_blank" rel="noopener">Pro版を開く</a>' +
+                '</div>' +
                 '<div class="cc-save-btn-row" id="cc-save-btn-row">' +
                     '<button type="button" class="cc-btn cc-btn-primary cc-btn--block" id="cc-save-form-btn" disabled aria-describedby="cc-fb-hint">保存する</button>' +
                 '</div>' +
+                '<div class="cc-save-section" id="cc-quality-analysis" hidden></div>' +
             '</div>' +
             '';
         section.appendChild(content);
@@ -299,6 +303,11 @@
         }
         hint.textContent = text || '';
         hint.style.display = text ? '' : 'none';
+    }
+
+    function setCagedProLink(visible) {
+        var link = document.getElementById('cc-caged-pro-link');
+        if (link) link.hidden = !visible;
     }
 
     function resetCagedNotice() {
@@ -608,6 +617,50 @@
         return (selectedIndex === null || selectedIndex === undefined) ? null : getChords()[selectedIndex];
     }
 
+    var QUALITY_FAMILY_LABELS = {
+        major: 'メジャー', minor: 'マイナー', dominant: 'ドミナント', diminished: 'ディミニッシュ',
+        augmented: 'オーギュメント', sus: 'サス', power: 'パワー'
+    };
+    var QUALITY_MODIFIER_LABELS = {
+        none: 'なし', sixth: '6th追加', no: '構成音省略', altered: '変化音'
+    };
+
+    /** advanced qualityの詳細分析だけをFeature Accessで切り替える。 */
+    function renderQualityAnalysis(chord) {
+        var host = document.getElementById('cc-quality-analysis');
+        if (!host) return;
+        host.innerHTML = '';
+        host.hidden = true;
+        var quality = chord && chord.qualityKey && getTheory().QUALITIES[chord.qualityKey];
+        if (!quality || quality.complexity !== 'advanced') return;
+
+        host.hidden = false;
+        var heading = document.createElement('h4');
+        heading.className = 'cc-card-heading';
+        heading.textContent = 'コード分析';
+        host.appendChild(heading);
+
+        var featureAccess = window.ChordCruise.featureAccess;
+        if (!featureAccess || !featureAccess.canAccessQuality(chord.qualityKey)) {
+            var message = document.createElement('p');
+            message.className = 'cc-fb-hint';
+            message.textContent = 'このコードの詳細分析はPro版で利用できます。';
+            host.appendChild(message);
+            var link = document.createElement('a');
+            link.className = 'cc-btn cc-btn-primary cc-btn--block';
+            link.href = 'pro_k7m4q9v2x8/';
+            link.target = '_blank';
+            link.rel = 'noopener';
+            link.textContent = 'Pro版を開く';
+            host.appendChild(link);
+            return;
+        }
+
+        host.appendChild(buildDetailTextRow('分類', QUALITY_FAMILY_LABELS[quality.family] || quality.family));
+        host.appendChild(buildDetailTextRow('構成変化', QUALITY_MODIFIER_LABELS[quality.modifier] || quality.modifier));
+        host.appendChild(buildDetailTextRow('複雑度', 'Advanced'));
+    }
+
     /** 表示中コードの♭/♯表記（任意コードはコード固有、ダイアトニックはキー基準） */
     function chordUseFlats(chord) {
         if (chord && chord.source === 'custom') {
@@ -887,7 +940,10 @@
         var chord = selectedChord();
         var activeShape = getState().exploreShape || '';
         var range = fretWindow();
+        var featureAccess = window.ChordCruise.featureAccess;
+        var cagedBlocked = !!(chord && featureAccess && !featureAccess.canAccessCaged(chord.qualityKey));
         var featured = chord
+            && !cagedBlocked
             ? window.ChordCruise.caged.getCommonForm(chord.qualityKey, chord.rootPc, range.end, range.start)
             : null;
         Array.prototype.forEach.call(row.querySelectorAll('.cc-caged-btn'), function (btn) {
@@ -895,15 +951,18 @@
             btn.classList.toggle('cc-caged-btn--active', shape === activeShape);
             var na = false;
             if (shape && chord) {
-                na = !window.ChordCruise.caged.getForm(shape, chord.qualityKey, chord.rootPc, range.end, range.start).available;
+                na = !cagedBlocked && !window.ChordCruise.caged.getForm(shape, chord.qualityKey, chord.rootPc, range.end, range.start).available;
             }
             btn.classList.toggle('cc-caged-btn--na', na);
+            if (shape && cagedBlocked) {
+                btn.title = 'このコードのCAGEDフォームはPro版で利用できます。';
+            }
             var isFeatured = !!(shape && featured && featured.shape === shape && !na);
             btn.classList.toggle('cc-caged-btn--featured', isFeatured);
             btn.classList.toggle('cc-caged-btn--recommended', isFeatured && featured.source === 'recommended');
             if (isFeatured) {
                 btn.title = shape + '型：' + featured.label;
-            } else {
+            } else if (!cagedBlocked) {
                 btn.removeAttribute('title');
             }
         });
@@ -930,6 +989,7 @@
         var noticeType = '';
         var noticeText = '';
         var rangeNoticeText = '';
+        var cagedProRequired = false;
         var chordName = document.getElementById('cc-explore-fretboard-name');
 
         if (chordName) {
@@ -940,6 +1000,10 @@
 
         if (!chord) {
             hint = 'コードを選ぶと構成音が指板に表示されます。';
+        } else if (shape && window.ChordCruise.featureAccess && !window.ChordCruise.featureAccess.canAccessCaged(chord.qualityKey)) {
+            markers = computeChordToneMarkers(chord);
+            hint = 'このコードのCAGEDフォームはPro版で利用できます。';
+            cagedProRequired = true;
         } else if (shape) {
             var result = caged.getForm(shape, chord.qualityKey, chord.rootPc, range.end, range.start);
             if (result.available) {
@@ -1050,9 +1114,11 @@
             markerLabelSize: getSettings().fretboardMarkerLabelSize
         });
         setFbHint(hint);
+        setCagedProLink(cagedProRequired);
         setCagedNotices(noticeType, noticeText, rangeNoticeText);
         updateHighFretToggle();
         updateCagedButtons();
+        renderQualityAnalysis(chord);
     }
 
     function getChords() {

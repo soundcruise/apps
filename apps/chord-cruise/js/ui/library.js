@@ -26,11 +26,45 @@
 
     function storage() { return window.ChordCruise.storage; }
     function theory() { return window.ChordCruise.theory; }
+    function featureAccess() { return window.ChordCruise.featureAccess; }
     function displayChordName(name) { return theory().displayChordName(name); }
+    function storageErrorMessage(fallback) {
+        var code = typeof storage().getLastError === 'function' ? storage().getLastError() : null;
+        if (code === 'standard-folder-limit') return 'Standard版ではフォルダは3個まで保存できます。';
+        if (code === 'standard-folder-chord-limit') return 'Standard版では1フォルダ10個まで保存できます。';
+        return fallback;
+    }
     function chordFormName(chord) {
         if (chord && chord.formName) return chord.formName;
         if (chord && chord.shape) return chord.shape + '型';
         return 'フォーム';
+    }
+
+    var QUALITY_FAMILY_LABELS = {
+        major: 'メジャー', minor: 'マイナー', dominant: 'ドミナント', diminished: 'ディミニッシュ',
+        augmented: 'オーギュメント', sus: 'サス', power: 'パワー'
+    };
+    var QUALITY_MODIFIER_LABELS = {
+        none: 'なし', sixth: '6th追加', no: '構成音省略', altered: '変化音'
+    };
+
+    function qualityAnalysisHtml(chord) {
+        var qualityKey = chord && (chord.qualityKey || theory().identifyQuality(chord.intervals || []));
+        var quality = qualityKey && theory().QUALITIES[qualityKey];
+        if (!quality || quality.complexity !== 'advanced') return '';
+        if (!featureAccess() || !featureAccess().canAccessQuality(qualityKey)) {
+            return '<div class="cc-save-section" id="cc-lib-quality-analysis">' +
+                '<h4 class="cc-card-heading">コード分析</h4>' +
+                '<p class="cc-fb-hint">このコードの詳細分析はPro版で利用できます。</p>' +
+                '<a class="cc-btn cc-btn-primary cc-btn--block" href="pro_k7m4q9v2x8/" target="_blank" rel="noopener">Pro版を開く</a>' +
+            '</div>';
+        }
+        return '<div class="cc-save-section" id="cc-lib-quality-analysis">' +
+            '<h4 class="cc-card-heading">コード分析</h4>' +
+            '<div class="cc-detail-row"><span class="cc-detail-label">分類</span><span class="cc-detail-text">' + escapeHtml(QUALITY_FAMILY_LABELS[quality.family] || quality.family) + '</span></div>' +
+            '<div class="cc-detail-row"><span class="cc-detail-label">構成変化</span><span class="cc-detail-text">' + escapeHtml(QUALITY_MODIFIER_LABELS[quality.modifier] || quality.modifier) + '</span></div>' +
+            '<div class="cc-detail-row"><span class="cc-detail-label">複雑度</span><span class="cc-detail-text">Advanced</span></div>' +
+        '</div>';
     }
 
     function normalizeLibraryColumns(value) {
@@ -735,7 +769,7 @@
                 }
                 if (action === 'copy') {
                     var copied = storage().copyFolder(id);
-                    if (!copied) return toast('フォルダをコピーできませんでした', 'error');
+                    if (!copied) return toast(storageErrorMessage('フォルダをコピーできませんでした'), 'error');
                     closeFolderManageSheet(false);
                     renderFolders();
                     toast('フォルダをコピーしました');
@@ -892,7 +926,10 @@
         document.getElementById('cc-folder-create-ok').addEventListener('click', function () {
             var name = document.getElementById('cc-folder-create-input').value.trim();
             if (!name) return;
-            storage().createFolder(name);
+            if (!storage().createFolder(name)) {
+                toast(storageErrorMessage('フォルダを作成できませんでした'), 'error');
+                return;
+            }
             renderFolders();
         });
     }
@@ -1556,6 +1593,7 @@
                 '<button type="button" class="cc-btn cc-btn-secondary cc-lib-edit-btn" id="cc-lib-edit-btn">編集</button>' +
             '</div>' +
             '<p class="cc-lib-export-status" id="cc-lib-export-status" style="display:none;"></p>' +
+            qualityAnalysisHtml(chord) +
         '</div>' +
         '<div class="cc-card">' +
             '<h3 class="cc-card-heading">編集</h3>' +
@@ -1622,7 +1660,7 @@
             candidate.memo = document.getElementById('cc-lib-memo').value.trim();
             var saved = storage().saveChord(candidate);
             if (!saved) {
-                toast('変更を保存できませんでした', 'error');
+                toast(storageErrorMessage('変更を保存できませんでした'), 'error');
                 return;
             }
             currentDetailChord = saved;
@@ -1650,7 +1688,7 @@
             var saved = storage().saveChord(candidate);
             if (!saved) {
                 moveSelect.value = previousFolderId;
-                toast('フォルダを移動できませんでした', 'error');
+                toast(storageErrorMessage('フォルダを移動できませんでした'), 'error');
                 return;
             }
             currentDetailChord = saved;

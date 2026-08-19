@@ -10,11 +10,54 @@
     var CHORD_KEY_PREFIX = PREFIX + 'chord.';
     var UNCATEGORIZED_ID = 'folder_uncategorized';
     var LIBRARY_ORDER_VERSION = 1;
+    var STANDARD_MAX_CUSTOM_FOLDERS = 3;
+    var STANDARD_MAX_CHORDS_PER_FOLDER = 10;
+    var lastError = null;
     var DEFAULT_HIGHLIGHTED_FRETS = [0, 3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
     var FOLDER_COLOR_KEYS = ['forest', 'burgundy', 'navy', 'umber', 'charcoal', 'teal', 'violet', 'russet', 'leather', 'black-leather', 'wine', 'black-gold'];
     // Phase Dで公開する9種類を、保存設定でも正式値として扱う。
     // Object.keys() の列挙順には依存せず、UI側も同じ意図の並びを明示的に使う。
     var VALID_SCALE_TYPES = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'harmonic-minor', 'melodic-minor', 'locrian'];
+
+    function setLastError(code) {
+        lastError = code || null;
+    }
+
+    function getLastError() {
+        return lastError;
+    }
+
+    function hasFeature(featureName) {
+        var featureAccess = window.ChordCruise && window.ChordCruise.featureAccess;
+        if (featureAccess && typeof featureAccess.hasFeature === 'function') {
+            return featureAccess.hasFeature(featureName);
+        }
+        // API未接続時も安全側のStandard制限を適用する。
+        return false;
+    }
+
+    function hasUnlimitedLibraryAccess() {
+        return hasFeature('unlimitedLibrary');
+    }
+
+    function customFolderCount(folders) {
+        return folders.filter(function (folder) { return folder && !folder.builtin; }).length;
+    }
+
+    function chordCountInFolder(index, folderId, excludedId) {
+        return index.filter(function (entry) {
+            return entry && entry.folderId === folderId && entry.id !== excludedId;
+        }).length;
+    }
+
+    function getLibraryLimits() {
+        var unlimited = hasUnlimitedLibraryAccess();
+        return {
+            unlimited: unlimited,
+            maxCustomFolders: unlimited ? null : STANDARD_MAX_CUSTOM_FOLDERS,
+            maxChordsPerFolder: unlimited ? null : STANDARD_MAX_CHORDS_PER_FOLDER
+        };
+    }
 
     var DEFAULT_SETTINGS = {
         selectedKey: 0,
@@ -239,7 +282,12 @@
     }
 
     function createFolder(name) {
+        setLastError(null);
         var folders = loadFolders();
+        if (!hasUnlimitedLibraryAccess() && customFolderCount(folders) >= STANDARD_MAX_CUSTOM_FOLDERS) {
+            setLastError('standard-folder-limit');
+            return null;
+        }
         var index = loadChordIndex();
         var orderBefore = libraryOrderInfo(folders, index).order;
         var maxOrder = 0;
@@ -256,7 +304,10 @@
             updatedAt: nowIso()
         };
         folders.push(folder);
-        if (!saveFolders(folders)) return null;
+        if (!saveFolders(folders)) {
+            setLastError('storage-write-failed');
+            return null;
+        }
         orderBefore.folderIds = orderBefore.folderIds.filter(function (id) { return id !== folder.id; });
         orderBefore.folderIds.push(folder.id);
         orderBefore.entryIdsByFolder[folder.id] = [];
@@ -330,13 +381,22 @@
 
     /** フォルダと所属コードを順序ごと複製する。書き込み失敗時は可能な限り復元する。 */
     function copyFolder(id) {
+        setLastError(null);
         var folders = loadFolders();
         var index = loadChordIndex();
         var source = null;
         folders.forEach(function (folder) { if (folder.id === id) source = folder; });
         if (!source || source.builtin) return null;
+        if (!hasUnlimitedLibraryAccess() && customFolderCount(folders) >= STANDARD_MAX_CUSTOM_FOLDERS) {
+            setLastError('standard-folder-limit');
+            return null;
+        }
         var orderBefore = libraryOrderInfo(folders, index).order;
         var sourceIds = (orderBefore.entryIdsByFolder[id] || []).slice();
+        if (!hasUnlimitedLibraryAccess() && sourceIds.length > STANDARD_MAX_CHORDS_PER_FOLDER) {
+            setLastError('standard-folder-chord-limit');
+            return null;
+        }
         var existingFolderIds = {};
         var existingChordIds = {};
         folders.forEach(function (folder) { existingFolderIds[folder.id] = true; });
@@ -389,6 +449,7 @@
             return copiedFolder;
         } catch (err) {
             restoreKeys(snapshot);
+            setLastError('storage-write-failed');
             return null;
         }
     }
@@ -621,9 +682,17 @@
         };
     }
 
-    /** 保存コードを保存する（新規は id / createdAt を採番）。関連キーを一括して同期する。 */
-    function saveChord(chord) {
+    /**
+     * 保存コードを保存する（新規は id / createdAt を採番）。関連キーを一括して同期する。
+     * options.source は保存recordへ含めない一時的な保存元コンテキスト。
+     */
+    function saveChord(chord, options) {
+        setLastError(null);
         if (!chord || typeof chord !== 'object') return null;
+        if (options && options.source === 'custom' && !hasFeature('customChordSave')) {
+            setLastError('custom-chord-save-pro-required');
+            return null;
+        }
         var record;
         try {
             record = JSON.parse(JSON.stringify(chord));
@@ -644,6 +713,12 @@
         record.updatedAt = nowIso();
         if (!record.folderId) {
             record.folderId = UNCATEGORIZED_ID;
+        }
+        var addsToDestination = isNew || !previousEntry || previousEntry.folderId !== record.folderId;
+        if (!hasUnlimitedLibraryAccess() && addsToDestination &&
+            chordCountInFolder(indexBefore, record.folderId, record.id) >= STANDARD_MAX_CHORDS_PER_FOLDER) {
+            setLastError('standard-folder-chord-limit');
+            return null;
         }
         var snapshot = null;
         try {
@@ -680,6 +755,7 @@
                 console.warn('[ChordCruise.storage] chord save rollback was incomplete', err);
             }
             console.warn('[ChordCruise.storage] failed to save chord', err);
+            setLastError('storage-write-failed');
             return null;
         }
     }
@@ -736,6 +812,8 @@
         normalizeSettings: normalizeSettings,
         loadSettings: loadSettings,
         saveSettings: saveSettings,
+        getLastError: getLastError,
+        getLibraryLimits: getLibraryLimits,
         loadFolders: loadFolders,
         saveFolders: saveFolders,
         createFolder: createFolder,

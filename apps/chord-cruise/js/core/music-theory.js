@@ -64,39 +64,40 @@
     };
 
     // qualityの理論情報を壊さず、将来の一覧・CAGED対応表示のための最小metadataを付与する。
-    // editionは通常版／Pro版の仕様確定まで追加しない。
+    // complexityは学習・表示上の複雑さであり、editionやPro権限は含めない。
     var QUALITY_METADATA = {
-        maj: { family: 'major', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        '6': { family: 'major', modifier: 'sixth', caged: { supported: true, mode: 'overlay', baseQuality: 'maj' } },
-        sus4: { family: 'sus', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        '7sus4': { family: 'sus', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        M7sus4: { family: 'sus', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        power5: { family: 'power', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        no5: { family: 'major', modifier: 'no', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        '7no3': { family: 'dominant', modifier: 'no', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        maj7no3: { family: 'major', modifier: 'no', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        '7no5': { family: 'dominant', modifier: 'no', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        maj7no5: { family: 'major', modifier: 'no', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        m7no5: { family: 'minor', modifier: 'no', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        m: { family: 'minor', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        m6: { family: 'minor', modifier: 'sixth', caged: { supported: true, mode: 'overlay', baseQuality: 'm' } },
-        dim: { family: 'diminished', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        maj7: { family: 'major', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        '7': { family: 'dominant', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        '7b5': { family: 'dominant', modifier: 'altered', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        maj7b5: { family: 'major', modifier: 'altered', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        m7: { family: 'minor', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        m7b5: { family: 'minor', modifier: 'altered', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        aug: { family: 'augmented', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        mMaj7: { family: 'minor', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        maj7sharp5: { family: 'augmented', modifier: 'altered', caged: { supported: true, mode: 'fixed', baseQuality: null } },
-        dim7: { family: 'diminished', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } }
+        maj: { family: 'major', modifier: 'none', complexity: 'basic', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        '6': { family: 'major', modifier: 'sixth', complexity: 'intermediate', caged: { supported: true, mode: 'overlay', baseQuality: 'maj' } },
+        sus4: { family: 'sus', modifier: 'none', complexity: 'basic', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        '7sus4': { family: 'sus', modifier: 'none', complexity: 'intermediate', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        M7sus4: { family: 'sus', modifier: 'none', complexity: 'intermediate', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        power5: { family: 'power', modifier: 'none', complexity: 'basic', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        no5: { family: 'major', modifier: 'no', complexity: 'intermediate', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        '7no3': { family: 'dominant', modifier: 'no', complexity: 'advanced', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        maj7no3: { family: 'major', modifier: 'no', complexity: 'advanced', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        '7no5': { family: 'dominant', modifier: 'no', complexity: 'intermediate', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        maj7no5: { family: 'major', modifier: 'no', complexity: 'intermediate', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        m7no5: { family: 'minor', modifier: 'no', complexity: 'intermediate', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        m: { family: 'minor', modifier: 'none', complexity: 'basic', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        m6: { family: 'minor', modifier: 'sixth', complexity: 'intermediate', caged: { supported: true, mode: 'overlay', baseQuality: 'm' } },
+        dim: { family: 'diminished', modifier: 'none', complexity: 'intermediate', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        maj7: { family: 'major', modifier: 'none', complexity: 'basic', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        '7': { family: 'dominant', modifier: 'none', complexity: 'basic', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        '7b5': { family: 'dominant', modifier: 'altered', complexity: 'advanced', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        maj7b5: { family: 'major', modifier: 'altered', complexity: 'advanced', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        m7: { family: 'minor', modifier: 'none', complexity: 'basic', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        m7b5: { family: 'minor', modifier: 'altered', complexity: 'intermediate', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        aug: { family: 'augmented', modifier: 'none', complexity: 'advanced', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        mMaj7: { family: 'minor', modifier: 'none', complexity: 'advanced', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        maj7sharp5: { family: 'augmented', modifier: 'altered', complexity: 'advanced', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        dim7: { family: 'diminished', modifier: 'none', complexity: 'advanced', caged: { supported: true, mode: 'fixed', baseQuality: null } }
     };
 
     Object.keys(QUALITIES).forEach(function (qualityKey) {
         var metadata = QUALITY_METADATA[qualityKey];
         QUALITIES[qualityKey].family = metadata.family;
         QUALITIES[qualityKey].modifier = metadata.modifier;
+        QUALITIES[qualityKey].complexity = metadata.complexity;
         QUALITIES[qualityKey].caged = {
             supported: metadata.caged.supported,
             mode: metadata.caged.mode,
@@ -598,6 +599,17 @@
         return degreeLabels(intervals);
     }
 
+    /** 登録qualityの学習・表示上の複雑さを返す。未知qualityはnull。 */
+    function getQualityComplexity(qualityKey) {
+        var quality = QUALITIES[qualityKey];
+        return quality && typeof quality.complexity === 'string' ? quality.complexity : null;
+    }
+
+    /** Pro権限とは独立して、qualityがadvanced分類かだけを返す。 */
+    function isAdvancedQuality(qualityKey) {
+        return getQualityComplexity(qualityKey) === 'advanced';
+    }
+
     window.ChordCruise = window.ChordCruise || {};
     window.ChordCruise.theory = {
         NOTES_SHARP: NOTES_SHARP,
@@ -629,6 +641,8 @@
         displayChordName: displayChordName,
         getDiatonicChords: getDiatonicChords,
         degreeLabels: degreeLabels,
-        degreeLabelsForQuality: degreeLabelsForQuality
+        degreeLabelsForQuality: degreeLabelsForQuality,
+        getQualityComplexity: getQualityComplexity,
+        isAdvancedQuality: isAdvancedQuality
     };
 })();

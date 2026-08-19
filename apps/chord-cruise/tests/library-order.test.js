@@ -84,7 +84,14 @@ function baseData() {
 function loadStorage(seed, failKeys, failRemoveKeys, failurePlan) {
     const localStorage = makeLocalStorage(seed, failKeys, failRemoveKeys, failurePlan);
     const context = {
-        window: { localStorage },
+        window: {
+            localStorage,
+            ChordCruise: {
+                featureAccess: {
+                    hasFeature(featureName) { return featureName === 'unlimitedLibrary'; }
+                }
+            }
+        },
         console: { warn() {} },
         URL,
         Date,
@@ -378,8 +385,8 @@ function orderOf(env) {
 
 (function detailActionsOnlyUpdateUiAfterPersistenceSucceeds() {
     assert(librarySource.includes("toast('運指を保存できませんでした', 'error')"), 'finger auto-save exposes storage failure');
-    assert(librarySource.includes("toast('変更を保存できませんでした', 'error')"), 'name and memo edit exposes storage failure');
-    assert(librarySource.includes("toast('フォルダを移動できませんでした', 'error')"), 'folder move exposes storage failure');
+    assert(librarySource.includes("toast(storageErrorMessage('変更を保存できませんでした'), 'error')"), 'name and memo edit exposes the specific storage failure');
+    assert(librarySource.includes("toast(storageErrorMessage('フォルダを移動できませんでした'), 'error')"), 'folder move exposes the specific storage failure');
     assert(librarySource.includes("toast('コードを削除できませんでした', 'error')"), 'delete exposes storage failure');
     assert(librarySource.includes('moveSelect.value = previousFolderId;'), 'failed move restores the selected folder');
     assert(librarySource.includes('if (!storage().deleteChord(current.id))'), 'detail remains open unless deletion succeeds');
