@@ -240,8 +240,8 @@
             <p>キーから探して、指板で確かめて、自分のコード本棚へ ── 開発中のコード学習アプリ</p>
             <div class="ov-meta">
                 <span>現在のバージョン<b>0.29.0（6th CAGED追加表示を正式化）</b></span>
-                <span>正式Chord Cruise HEAD<b>895118b</b></span>
-                <span>最終更新日<b>2026年8月18日</b></span>
+                <span>正式Chord Cruise HEAD<b>7f10b5e</b></span>
+                <span>最終更新日<b>2026年8月19日</b></span>
             </div>
             <p><b>v0.25.0 Phase G2-A:</b> Power5（C5）を既存Major CAGEDから3度だけ除外した派生FORMとして正式化しました。root／5度は高音側を含めて保持し、保存schema・migrationは変更していません。</p>
             <p><b>Phase G2-B（未commit）:</b> no5（C(no5)）を既存Major CAGEDから5度だけ除外した派生FORMとして候補追加しました。root／3度は高音側を含めて保持し、E型高音rootのmovable運指だけは実機確認前のため⚠️で表示します。保存schema・migration・versionは変更していません。</p>
@@ -253,7 +253,7 @@
             <p><b>v0.28.1 Phase G5-C 任意コード作成UX正式化:</b> 現在表示中コードをsymbol解析せず内部modelからbuilder selectorへ完全復元し、root／3度／5度／7度、tension、bassを引き継ぎます。<code>リセット</code>はC Major（tension・bassなし）へ戻し、手編集名を解除して自動名へ復帰します。CAGED・quality・保存schema・migration・exportは不変です。実装commit・正式HEADは<code>24e124d319bcbbae5d257c5344d518c7ea431b29</code>です。</p>
             <p><b>Phase G5-D M7(no5) CAGED候補（未commit）:</b> <code>maj7no5</code>（<code>1 3 7</code>）を追加し、既存M7 FORMの5度slotだけを除外したC/A/G/E/D固定FORMを候補として扱います。root・3度・7度と高音側slotを保持し、初期運指は<code>fingeringStatus: 'undefined'</code>で保存前編集を案内します。schema・migration・versionは不変です。</p>
             <p><b>v0.28.2 Phase G5-D M7(no5) CAGED正式化:</b> <code>maj7no5</code>（<code>[0,4,11]</code>／<code>1 3 7</code>／<code>CM7(no5)</code>）と、既存M7の5度slotだけを除外したC/A/G/E/D固定FORMを正式化しました。root・3度・7度と高音側slotを保持し、初期運指は<code>fingeringStatus: 'undefined'</code>で保存前編集を案内します。schemaVersion 1・migrationなしです。実装commit・正式HEADは<code>d98affb62babe7f568c5cda11ce351257df6b091</code>です。</p>
-            <p><b>v0.29.0 Phase G6-A 6th CAGED正式化（未commit）:</b> <code>6</code> quality（<code>[0,4,7,9]</code>／<code>1 3 5 6</code>／<code>C6</code>）を追加し、専用6th FORMは持ちません。既存Major CAGEDの全marker・mute・rangeを基底として同じフォーム範囲内の1〜3弦へ6度（interval 9）markerを追加し、既存slotは削除・置換しません。6度はtension/13と分離した<code>role: 'sixth'</code>・degree <code>6</code>で扱い、保存前編集では通常noteとして編集・保存します。初期運指は未定義、schemaVersion 1・migrationなしです。正式HEADはcommit後に追記します。</p>
+            <p><b>v0.29.0 Phase G6-A 6th CAGED正式化:</b> <code>6</code> quality（<code>[0,4,7,9]</code>／<code>1 3 5 6</code>／<code>C6</code>）を追加し、専用6th FORMは持ちません。既存Major CAGEDの全marker・mute・rangeを基底として同じフォーム範囲内の1〜3弦へ6度（interval 9）markerを追加し、既存slotは削除・置換しません。6度はtension/13と分離した<code>role: 'sixth'</code>・degree <code>6</code>で扱い、保存前編集では通常noteとして編集・保存します。初期運指は未定義、schemaVersion 1・migrationなしです。実装commit・正式HEADは<code>7f10b5e3944f2dd005e92881e2835633a614bc1c</code>です。</p>
         </header>
 
         <section>
