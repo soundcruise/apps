@@ -558,12 +558,52 @@
         }
     };
 
+    /* No5: Major CAGEDの5度（iv:7）だけを除外した固定派生FORM。
+       低音側だけへ縮約せず、既存Major上のroot/3度slotを全て保持する。
+       mutedは5度slotの弦を鳴らさないためだけに使い、ユーザー編集の削除状態とは混同しない。
+       E型の高音rootは、5弦・2弦を鳴らさず保持するmovable運指を未確定として⚠️にする。 */
+    var NO5_FORMS = {
+        C: {
+            slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -1, iv: 4 }, { s: 2, o: -2, iv: 0 }, { s: 1, o: -3, iv: 4 }],
+            muted: [6, 3],
+            fingers: { 5: 4, 4: 3, 2: 2, 1: 1 },
+            openFingers: { 5: 3, 4: 2, 2: 1 }
+        },
+        A: {
+            slots: [{ s: 5, o: 0, iv: 0 }, { s: 3, o: 2, iv: 0 }, { s: 2, o: 2, iv: 4 }],
+            muted: [6, 4, 1],
+            fingers: { 5: 1, 3: 3, 2: 4 },
+            openFingers: { 3: 2, 2: 3 }
+        },
+        G: {
+            slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: -1, iv: 4 }, { s: 3, o: -3, iv: 0 }, { s: 2, o: -3, iv: 4 }, { s: 1, o: 0, iv: 0 }],
+            muted: [4],
+            fingers: { 6: 3, 5: 2, 3: 1, 2: 1, 1: 4 }
+        },
+        E: {
+            slots: [{ s: 6, o: 0, iv: 0 }, { s: 4, o: 2, iv: 0 }, { s: 3, o: 1, iv: 4 }, { s: 1, o: 0, iv: 0, fingeringWarning: true }],
+            muted: [5, 2],
+            fingers: { 6: 1, 4: 3, 3: 2 },
+            openFingers: { 4: 3, 3: 1 },
+            playability: 'advanced',
+            warningMode: 'fingering',
+            warning: 'E型no5はMajor E型の5度だけを除外し、高音側rootもFORMに保持しています。5弦・2弦を鳴らさないmovable運指は実機確認前のため、⚠️で表示します。'
+        },
+        D: {
+            slots: [{ s: 4, o: 0, iv: 0 }, { s: 2, o: 3, iv: 0 }, { s: 1, o: 2, iv: 4 }],
+            muted: [6, 5, 3],
+            fingers: { 4: 1, 2: 4, 1: 3 },
+            openFingers: { 2: 3, 1: 2 }
+        }
+    };
+
     SHAPE_ORDER.forEach(function (shapeKey) {
         Object.keys(EXTENDED_QUALITY_FORMS[shapeKey]).forEach(function (qualityKey) {
             FORMS[shapeKey].qualities[qualityKey] = EXTENDED_QUALITY_FORMS[shapeKey][qualityKey];
         });
         FORMS[shapeKey].qualities.sus4 = SUS4_TRIAD_FORMS[shapeKey];
         FORMS[shapeKey].qualities.power5 = POWER5_FORMS[shapeKey];
+        FORMS[shapeKey].qualities.no5 = NO5_FORMS[shapeKey];
     });
 
     /* 品質ごとに独立した音配置を持たせず、maj / 7 の弦役割を変換して生成する。
