@@ -15,11 +15,12 @@
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
 - 現在のバージョン: `0.27.0`（7sus4／M7sus4 CAGED対応を正式化）
-- 正式Chord Cruise HEAD: `45df5ea02e4af3166b1900e786ffcb7395d602ef`
+- 正式Chord Cruise HEAD: `b1bac3a3b384892202efee331d89912592423d11`
 - **v0.25.0 Phase G2-A C5 power5 CAGED正式化**: 任意コードの`third:null, fifth:7, seventh:null`を`qualityKey: 'power5'`（`1 / 5`、symbolは`C5`）として扱い、C/A/G/E/Dの固定FORMを追加した。全型でMajor FORMのinterval 4（3度）だけを除外し、root／5度は高音側を含め全slot保持する。`deletedNotes`／`pendingDelete`は使わず、3度を鳴らさない弦だけをmuteにする。運指はMajor由来の候補で、E型の高音1・5度は3弦を鳴らさないmovable運指が未確認のため`finger:null + fingeringWarning:true`とする。保存schema・migrationは不変。実機確認後に正式化した。
 - **Phase G2-B no5 CAGED候補（未commit）**: 任意コードの`third:4, fifth:null, seventh:null`を`qualityKey: 'no5'`（`1 / 3`、symbolは既存どおり`C(no5)`）として扱い、C/A/G/E/Dの固定FORMを追加した。全型でMajor FORMのinterval 7（5度）だけを除外し、root／3度は高音側を含め全slot保持する。`deletedNotes`／`pendingDelete`は使わず、5度を鳴らさない弦だけをmuteにする。運指はMajor由来の暫定候補で、E型の高音rootは5弦・2弦を鳴らさないmovable運指が実機確認前のため`finger:null + fingeringWarning:true`とする。保存schema・migration・versionは不変。実機確認後に正式化する。
 - **v0.26.0 Phase G3-A no5 CAGED正式化**: `no5` quality（`[0,4]`、degree `1 / 3`、symbol `C(no5)`）と、Major CAGEDの5度slotだけを除外したC/A/G/E/D固定5FORMを正式化した。root／3度と高音側slotは保持し、`deletedNotes`／`pendingDelete`は使わず、除外弦だけをmuteにする。暫定FINGERINGはC`×・薬・中・×・人・open`、A`×・人・×・薬・小・×`、G`薬・中・×・人・人・小`、E`人・×・薬・中・×・⚠`、D`×・×・人・×・小・薬`。schemaVersion 1・migrationは不変。正式HEADは`45df5ea02e4af3166b1900e786ffcb7395d602ef`。
 - **7sus4 / M7sus4 CAGED候補（未commit）**: `7sus4`（`[0,5,7,10]`／`1 4 5 ♭7`）と`M7sus4`（`[0,5,7,11]`／`1 4 5 7`）を追加し、既存7th／M7の3度slotだけを4度へ置換したC/A/G/E/D固定FORMを候補として扱う。Sus4 FORMへ7thをruntime合成せず、qualityごとのslot・mute・warningを独立させる。初期FINGERINGは推測せず`finger:null`のまま、FORM定義の`fingeringStatus: 'undefined'`で「運指未定義」と既存の`⚠️運指`を区別する。FORM全音をCDE／ドレミ／度数へ保持し、保存前編集で個別に指を指定できる。保存schema・migration・versionは不変で、実機確認後に運指を決定する。
+- **v0.27.0 Phase G4 7sus4 / M7sus4 CAGED正式化**: 上記2 qualityとC/A/G/E/D固定FORM、`fingeringStatus: 'undefined'`による運指未定義表示、既存⚠️運指との分離、保存schemaVersion 1・migrationなしを正式化した。APP_VERSIONと`index.html`の16件の`?v=`参照を`0.27.0`へ更新した。実装commitは`b1bac3a3b384892202efee331d89912592423d11`。
 - v0.22.1直前の正式Chord Cruise commit（`git log --oneline -- apps/chord-cruise/` で確認）:
   - hash: `a562888a078494d6deeb9900d2b15260bc35128e`
   - message: `7種類のスケール選択に対応`
