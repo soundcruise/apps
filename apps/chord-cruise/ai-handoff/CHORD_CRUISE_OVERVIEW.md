@@ -15,7 +15,7 @@
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
 - 現在のバージョン: `0.25.0`（C5 power5 CAGED派生表示を正式化）
-- 正式Chord Cruise HEAD: `469836c313782ec1e51b8636b8f680f08b8e4b90`
+- 正式Chord Cruise HEAD: `49754150efcdea537a4f207183bcbad5e1cd516a`
 - **v0.25.0 Phase G2-A C5 power5 CAGED正式化**: 任意コードの`third:null, fifth:7, seventh:null`を`qualityKey: 'power5'`（`1 / 5`、symbolは`C5`）として扱い、C/A/G/E/Dの固定FORMを追加した。全型でMajor FORMのinterval 4（3度）だけを除外し、root／5度は高音側を含め全slot保持する。`deletedNotes`／`pendingDelete`は使わず、3度を鳴らさない弦だけをmuteにする。運指はMajor由来の候補で、E型の高音1・5度は3弦を鳴らさないmovable運指が未確認のため`finger:null + fingeringWarning:true`とする。保存schema・migrationは不変。実機確認後に正式化した。
 - v0.22.1直前の正式Chord Cruise commit（`git log --oneline -- apps/chord-cruise/` で確認）:
   - hash: `a562888a078494d6deeb9900d2b15260bc35128e`
