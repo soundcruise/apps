@@ -280,7 +280,7 @@ function requiredIntervals(qualityKey) {
 
 var fixtureCount = 0;
 shapes.forEach(function (shape) {
-    assert.strictEqual(Object.keys(caged.FORMS[shape].qualities).length, 12, shape + ' supports the eleven existing qualities plus sus4');
+    assert.strictEqual(Object.keys(caged.FORMS[shape].qualities).length, 13, shape + ' supports the existing qualities plus sus4 and power5');
     qualities.forEach(function (quality) {
         var def = caged.FORMS[shape].qualities[quality];
         assert.deepStrictEqual(slotSpec(def), FIXTURES[shape][quality], shape + '/' + quality + ' fixed slots');

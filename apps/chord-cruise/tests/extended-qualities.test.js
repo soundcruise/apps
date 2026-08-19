@@ -80,10 +80,12 @@ assert.strictEqual(c5.symbol, 'C5');
 assert.strictEqual(cNo5.symbol, 'C(no5)');
 assert.deepStrictEqual(c5.intervals, [0, 7]);
 assert.deepStrictEqual(cNo5.intervals, [0, 4]);
-assert.strictEqual(c5.qualityKey, null);
+assert.strictEqual(c5.qualityKey, 'power5');
 assert.strictEqual(cNo5.qualityKey, null);
+assert.strictEqual(theory.identifyQuality(c5.intervals), 'power5');
 assert.strictEqual(theory.identifyQuality(cNo5.intervals), null);
 ['C', 'A', 'G', 'E', 'D'].forEach(function (shape) {
+    assert.strictEqual(caged.getForm(shape, c5.qualityKey, c5.rootPc, 13, 0).available, true, shape + ' C5 enters the CAGED quality set');
     assert.strictEqual(caged.getForm(shape, cNo5.qualityKey, cNo5.rootPc, 13, 0).available, false, shape + ' C(no5) remains outside the existing CAGED quality set');
 });
 

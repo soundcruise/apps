@@ -25,6 +25,9 @@
         // suffixは既存呼び出しとの互換用。新規利用ではsymbolSuffix / romanSuffixを明示する。
         'maj': { suffix: '', symbolSuffix: '', romanSuffix: '', intervals: [0, 4, 7], degreeLabels: ['1', '3', '5'] },
         'sus4': { suffix: 'sus4', symbolSuffix: 'sus4', romanSuffix: 'sus4', intervals: [0, 5, 7], degreeLabels: ['1', '4', '5'] },
+        // Major CAGEDの3度slotだけを除外する派生quality。一般的な省略Power chordではなく、
+        // 既存CAGED上で1・5度の配置を確認するために使う。
+        'power5': { suffix: '5', symbolSuffix: '5', romanSuffix: '5', intervals: [0, 7], degreeLabels: ['1', '5'] },
         'm': { suffix: 'm', symbolSuffix: 'm', romanSuffix: 'm', intervals: [0, 3, 7], degreeLabels: ['1', '♭3', '5'] },
         'dim': { suffix: 'dim', symbolSuffix: 'dim', romanSuffix: '°', intervals: [0, 3, 6], degreeLabels: ['1', '♭3', '♭5'] },
         'maj7': { suffix: 'M7', symbolSuffix: 'M7', romanSuffix: 'M7', intervals: [0, 4, 7, 11], degreeLabels: ['1', '3', '5', '7'] },

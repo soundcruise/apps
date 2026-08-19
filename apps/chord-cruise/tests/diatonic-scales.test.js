@@ -16,6 +16,7 @@ var caged = window.ChordCruise.caged;
 var EXPECTED_QUALITIES = {
     maj: { suffix: '', symbolSuffix: '', romanSuffix: '', intervals: [0, 4, 7], degreeLabels: ['1', '3', '5'] },
     sus4: { suffix: 'sus4', symbolSuffix: 'sus4', romanSuffix: 'sus4', intervals: [0, 5, 7], degreeLabels: ['1', '4', '5'] },
+    power5: { suffix: '5', symbolSuffix: '5', romanSuffix: '5', intervals: [0, 7], degreeLabels: ['1', '5'] },
     m: { suffix: 'm', symbolSuffix: 'm', romanSuffix: 'm', intervals: [0, 3, 7], degreeLabels: ['1', '♭3', '5'] },
     dim: { suffix: 'dim', symbolSuffix: 'dim', romanSuffix: '°', intervals: [0, 3, 6], degreeLabels: ['1', '♭3', '♭5'] },
     maj7: { suffix: 'M7', symbolSuffix: 'M7', romanSuffix: 'M7', intervals: [0, 4, 7, 11], degreeLabels: ['1', '3', '5', '7'] },
@@ -115,7 +116,7 @@ var EXPECTED_SCALES = {
 
 assert.deepStrictEqual(Object.keys(theory.SCALES), SCALE_IDS, 'core exposes the fixed nine-scale definition');
 assert.deepStrictEqual(Object.keys(theory.DIATONIC), SCALE_IDS, 'DIATONIC must expose the same nine scale IDs');
-assert.deepStrictEqual(theory.QUALITIES, EXPECTED_QUALITIES, 'core exposes the fixed twelve-quality metadata including sus4');
+assert.deepStrictEqual(theory.QUALITIES, EXPECTED_QUALITIES, 'core exposes the fixed thirteen-quality metadata including sus4 and power5');
 
 SCALE_IDS.forEach(function (mode) {
     var expected = EXPECTED_SCALES[mode];
@@ -194,7 +195,7 @@ SCALE_IDS.forEach(function (mode) {
 assert.strictEqual(comparisonCount, 1512, 'must compare all 12 tonics × 9 scales × 2 chord sizes × 7 degrees');
 assert.deepStrictEqual(
     Object.keys(generatedQualityKeys).sort(),
-    Object.keys(EXPECTED_QUALITIES).filter(function (qualityKey) { return qualityKey !== 'sus4'; }).sort(),
+    Object.keys(EXPECTED_QUALITIES).filter(function (qualityKey) { return qualityKey !== 'sus4' && qualityKey !== 'power5'; }).sort(),
     'nine core scales must retain their eleven diatonic qualities'
 );
 
