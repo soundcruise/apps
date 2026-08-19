@@ -26,7 +26,7 @@
 - **Phase G5-C 任意コード作成UX候補（未commit）**: 「任意コードを作る」は現在表示中コードを内部modelからselector stateへ完全復元する。任意コードは`chord.spec`を最優先し、その他は`qualityKey`の`QUALITIES`定義、続いてcore intervalsから復元するため、symbol文字列は解析しない。root／3度／5度／7度に加え、tensionは`spec.tensions`→`tensionIntervals`→`tensionPcs`の順、bassは`bassPc`から復元し、root bassは通常状態へ正規化する。モーダルの「リセット」はC Major（tension・bassなし）へ戻し、手編集名を解除して自動名生成へ復帰する。CAGED・quality判定・保存schema・migration・export・versionは不変。
 - **v0.28.1 Phase G5-C 任意コード作成UX正式化**: 現在表示中コードをsymbol解析せず内部modelからbuilder selectorへ完全復元し、root／3度／5度／7度、tension、bassを引き継ぐ。モーダルの「リセット」はC Major（tension・bassなし）へ戻し、手編集名を解除して自動名へ復帰する。CAGED・quality・保存schema・migration・exportは不変。実装commit・正式HEADは`24e124d319bcbbae5d257c5344d518c7ea431b29`。
 - **Phase G5-D M7(no5) CAGED候補（未commit）**: `maj7no5` quality（`[0,4,11]`／`1 3 7`／`CM7(no5)`）を追加し、既存M7のinterval 7（5度）slotだけを除外したC/A/G/E/D固定FORMを候補として扱う。root・3度・7度と高音側slotは保持し、`deletedNotes`／`pendingDelete`は使わない。初期FINGERINGは推測せず`fingers: {}`と`fingeringStatus: 'undefined'`により、既存の⚠️運指と区別して保存前編集を案内する。schemaVersion 1・migration・versionは不変で、実機確認後に正式化する。
-- **v0.28.2 Phase G5-D M7(no5) CAGED正式化**: `maj7no5`（`[0,4,11]`／`1 3 7`／`CM7(no5)`）と、既存M7の5度slotだけを除外したC/A/G/E/D固定FORMを正式化した。root・3度・7度と高音側slotを保持し、初期FINGERINGは`fingeringStatus: 'undefined'`で保存前編集を案内する。schemaVersion 1・migrationなし。実装commitと正式HEADは下記Git履歴を参照する。
+- **v0.28.2 Phase G5-D M7(no5) CAGED正式化**: `maj7no5`（`[0,4,11]`／`1 3 7`／`CM7(no5)`）と、既存M7の5度slotだけを除外したC/A/G/E/D固定FORMを正式化した。root・3度・7度と高音側slotを保持し、初期FINGERINGは`fingeringStatus: 'undefined'`で保存前編集を案内する。schemaVersion 1・migrationなし。実装commit・正式HEADは`d98affb62babe7f568c5cda11ce351257df6b091`。
 - v0.22.1直前の正式Chord Cruise commit（`git log --oneline -- apps/chord-cruise/` で確認）:
   - hash: `a562888a078494d6deeb9900d2b15260bc35128e`
   - message: `7種類のスケール選択に対応`
