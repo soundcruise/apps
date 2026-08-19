@@ -280,7 +280,7 @@ function requiredIntervals(qualityKey) {
 
 var fixtureCount = 0;
 shapes.forEach(function (shape) {
-    assert.strictEqual(Object.keys(caged.FORMS[shape].qualities).length, 19, shape + ' keeps fixed FORM definitions separate from the sixth overlay quality');
+    assert.strictEqual(Object.keys(caged.FORMS[shape].qualities).length, 20, shape + ' keeps fixed FORM definitions separate from the sixth overlay quality');
     qualities.forEach(function (quality) {
         var def = caged.FORMS[shape].qualities[quality];
         assert.deepStrictEqual(slotSpec(def), FIXTURES[shape][quality], shape + '/' + quality + ' fixed slots');

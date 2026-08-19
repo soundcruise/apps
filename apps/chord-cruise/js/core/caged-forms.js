@@ -730,6 +730,32 @@
         }
     };
 
+    /* 7♭5: 既存7th CAGEDの完全5度（iv:7）を♭5（iv:6）へ置換した固定派生FORM。
+       altered fifthは追加tensionではなくコードcoreの構成音として扱う。root・3度・♭7と
+       高音側slotを保持し、初期FINGERINGは推測せず未定義状態にする。 */
+    var SEVENTH_B5_FORMS = {
+        C: {
+            slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -1, iv: 4 }, { s: 3, o: 0, iv: 10 }, { s: 2, o: -2, iv: 0 }, { s: 1, o: -1, iv: 6 }],
+            muted: [6], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+        },
+        A: {
+            slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: 1, iv: 6 }, { s: 3, o: 0, iv: 10 }, { s: 2, o: 2, iv: 4 }, { s: 1, o: -1, iv: 6 }],
+            muted: [6], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+        },
+        G: {
+            slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: -1, iv: 4 }, { s: 4, o: -4, iv: 6 }, { s: 3, o: -3, iv: 0 }, { s: 2, o: -3, iv: 4 }, { s: 1, o: -2, iv: 10 }],
+            muted: [], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+        },
+        E: {
+            slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: 1, iv: 6 }, { s: 4, o: 0, iv: 10 }, { s: 3, o: 1, iv: 4 }, { s: 2, o: -1, iv: 6 }, { s: 1, o: 0, iv: 0 }],
+            muted: [], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+        },
+        D: {
+            slots: [{ s: 4, o: 0, iv: 0 }, { s: 3, o: 1, iv: 6 }, { s: 2, o: 1, iv: 10 }, { s: 1, o: 2, iv: 4 }],
+            muted: [6, 5], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+        }
+    };
+
     SHAPE_ORDER.forEach(function (shapeKey) {
         Object.keys(EXTENDED_QUALITY_FORMS[shapeKey]).forEach(function (qualityKey) {
             FORMS[shapeKey].qualities[qualityKey] = EXTENDED_QUALITY_FORMS[shapeKey][qualityKey];
@@ -742,6 +768,7 @@
         FORMS[shapeKey].qualities['7no5'] = SEVENTH_NO5_FORMS[shapeKey]['7no5'];
         FORMS[shapeKey].qualities.maj7no5 = SEVENTH_NO5_FORMS[shapeKey].maj7no5;
         FORMS[shapeKey].qualities.m7no5 = SEVENTH_NO5_FORMS[shapeKey].m7no5;
+        FORMS[shapeKey].qualities['7b5'] = SEVENTH_B5_FORMS[shapeKey];
     });
 
     /* 品質ごとに独立した音配置を持たせず、maj / 7 の弦役割を変換して生成する。

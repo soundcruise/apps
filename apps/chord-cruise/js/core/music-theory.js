@@ -49,6 +49,7 @@
         'dim': { suffix: 'dim', symbolSuffix: 'dim', romanSuffix: '°', intervals: [0, 3, 6], degreeLabels: ['1', '♭3', '♭5'] },
         'maj7': { suffix: 'M7', symbolSuffix: 'M7', romanSuffix: 'M7', intervals: [0, 4, 7, 11], degreeLabels: ['1', '3', '5', '7'] },
         '7': { suffix: '7', symbolSuffix: '7', romanSuffix: '7', intervals: [0, 4, 7, 10], degreeLabels: ['1', '3', '5', '♭7'] },
+        '7b5': { suffix: '7♭5', symbolSuffix: '7♭5', romanSuffix: '7♭5', intervals: [0, 4, 6, 10], degreeLabels: ['1', '3', '♭5', '♭7'] },
         'm7': { suffix: 'm7', symbolSuffix: 'm7', romanSuffix: 'm7', intervals: [0, 3, 7, 10], degreeLabels: ['1', '♭3', '5', '♭7'] },
         'm7b5': { suffix: 'm7♭5', symbolSuffix: 'm7♭5', romanSuffix: 'm7♭5', intervals: [0, 3, 6, 10], degreeLabels: ['1', '♭3', '♭5', '♭7'] },
         'aug': { suffix: 'aug', symbolSuffix: 'aug', romanSuffix: 'aug', intervals: [0, 4, 8], degreeLabels: ['1', '3', '♯5'] },
