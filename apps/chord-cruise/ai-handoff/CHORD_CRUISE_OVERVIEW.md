@@ -15,10 +15,10 @@
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: **現時点でPRO版は存在しない。** `standard/` `pro_xxxxx/` のようなディレクトリ分割、`data-app-edition` 属性、PRO認証関連コードは一切見つからなかった。
 - 現在のバージョン: `0.26.0`（C(no5) CAGED派生表示を正式化）
-- 正式Chord Cruise HEAD: `49754150efcdea537a4f207183bcbad5e1cd516a`
+- 正式Chord Cruise HEAD: `45df5ea02e4af3166b1900e786ffcb7395d602ef`
 - **v0.25.0 Phase G2-A C5 power5 CAGED正式化**: 任意コードの`third:null, fifth:7, seventh:null`を`qualityKey: 'power5'`（`1 / 5`、symbolは`C5`）として扱い、C/A/G/E/Dの固定FORMを追加した。全型でMajor FORMのinterval 4（3度）だけを除外し、root／5度は高音側を含め全slot保持する。`deletedNotes`／`pendingDelete`は使わず、3度を鳴らさない弦だけをmuteにする。運指はMajor由来の候補で、E型の高音1・5度は3弦を鳴らさないmovable運指が未確認のため`finger:null + fingeringWarning:true`とする。保存schema・migrationは不変。実機確認後に正式化した。
 - **Phase G2-B no5 CAGED候補（未commit）**: 任意コードの`third:4, fifth:null, seventh:null`を`qualityKey: 'no5'`（`1 / 3`、symbolは既存どおり`C(no5)`）として扱い、C/A/G/E/Dの固定FORMを追加した。全型でMajor FORMのinterval 7（5度）だけを除外し、root／3度は高音側を含め全slot保持する。`deletedNotes`／`pendingDelete`は使わず、5度を鳴らさない弦だけをmuteにする。運指はMajor由来の暫定候補で、E型の高音rootは5弦・2弦を鳴らさないmovable運指が実機確認前のため`finger:null + fingeringWarning:true`とする。保存schema・migration・versionは不変。実機確認後に正式化する。
-- **v0.26.0 Phase G3-A no5 CAGED正式化**: `no5` quality（`[0,4]`、degree `1 / 3`、symbol `C(no5)`）と、Major CAGEDの5度slotだけを除外したC/A/G/E/D固定5FORMを正式化した。root／3度と高音側slotは保持し、`deletedNotes`／`pendingDelete`は使わず、除外弦だけをmuteにする。暫定FINGERINGはC`×・薬・中・×・人・open`、A`×・人・×・薬・小・×`、G`薬・中・×・人・人・小`、E`人・×・薬・中・×・⚠`、D`×・×・人・×・小・薬`。schemaVersion 1・migrationは不変。正式HEADはdocs commit後に追記する。
+- **v0.26.0 Phase G3-A no5 CAGED正式化**: `no5` quality（`[0,4]`、degree `1 / 3`、symbol `C(no5)`）と、Major CAGEDの5度slotだけを除外したC/A/G/E/D固定5FORMを正式化した。root／3度と高音側slotは保持し、`deletedNotes`／`pendingDelete`は使わず、除外弦だけをmuteにする。暫定FINGERINGはC`×・薬・中・×・人・open`、A`×・人・×・薬・小・×`、G`薬・中・×・人・人・小`、E`人・×・薬・中・×・⚠`、D`×・×・人・×・小・薬`。schemaVersion 1・migrationは不変。正式HEADは`45df5ea02e4af3166b1900e786ffcb7395d602ef`。
 - v0.22.1直前の正式Chord Cruise commit（`git log --oneline -- apps/chord-cruise/` で確認）:
   - hash: `a562888a078494d6deeb9900d2b15260bc35128e`
   - message: `7種類のスケール選択に対応`
