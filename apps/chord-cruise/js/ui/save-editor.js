@@ -410,15 +410,35 @@
         });
     }
 
+    function bassSpelledNoteName(note) {
+        var index = draft.intervals.indexOf(note.interval);
+        var degreeLabel = index !== -1
+            ? draft.degreeLabels[index]
+            : window.ChordCruise.chordModel.bassDegreeLabel(note.interval);
+        try {
+            return theory().spellBassNote({
+                rootPc: draft.rootPc,
+                rootName: window.ChordCruise.chordModel.CUSTOM_ROOT_NAMES[draft.rootPc],
+                bassPc: note.pc,
+                bassInterval: note.interval,
+                bassDegreeLabel: degreeLabel,
+                keyContext: draft.keyContext
+            });
+        } catch (error) {
+            return window.ChordCruise.chordModel.bassNoteName(note.pc);
+        }
+    }
+
     function bassOverlayLabel(note, spelledNoteNames) {
         if (draft.displayMode === 'finger') return '';
-        if (draft.displayMode === 'solfege') return theory().solfegeName(note.pc, window.ChordCruise.chordModel.bassUsesFlats(note.pc));
+        var spelled = bassSpelledNoteName(note);
+        if (draft.displayMode === 'solfege') return theory().solfegeNameForSpelling(spelled) || theory().solfegeName(note.pc, window.ChordCruise.chordModel.bassUsesFlats(note.pc));
         if (draft.displayMode === 'degree') {
             var index = draft.intervals.indexOf(note.interval);
             var labels = theory().degreeLabelsForQuality(theory().identifyQuality(draft.intervals), draft.intervals);
             return index !== -1 ? labels[index] : window.ChordCruise.chordModel.bassDegreeLabel(note.interval);
         }
-        return window.ChordCruise.chordModel.bassNoteName(note.pc);
+        return spelled;
     }
 
     function mergeBassOverlay(markers, spelledNoteNames) {

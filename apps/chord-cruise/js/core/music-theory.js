@@ -431,6 +431,48 @@
         });
     }
 
+    /**
+     * slash Bassをupper chordとは別roleのまま理論綴りする。
+     * bassIntervalはrootからの音程で、bassPcとの一致を必ず検証する。
+     */
+    function spellBassNote(options) {
+        options = options || {};
+        if (typeof options.rootPc !== 'number' || !isFinite(options.rootPc) || Math.floor(options.rootPc) !== options.rootPc ||
+            typeof options.bassPc !== 'number' || !isFinite(options.bassPc) || Math.floor(options.bassPc) !== options.bassPc) {
+            throw new Error('Bass spelling requires integer rootPc and bassPc.');
+        }
+
+        var rootPc = normalizePc(options.rootPc);
+        var bassPc = normalizePc(options.bassPc);
+        var inferredInterval = normalizePc(bassPc - rootPc);
+        var bassInterval = options.bassInterval === undefined || options.bassInterval === null
+            ? inferredInterval
+            : options.bassInterval;
+        if (typeof bassInterval !== 'number' || !isFinite(bassInterval) || Math.floor(bassInterval) !== bassInterval ||
+            normalizePc(bassInterval) !== inferredInterval) {
+            throw new Error('Bass spelling requires bassInterval to match bassPc.');
+        }
+
+        var inferredDegrees = {
+            0: '1', 1: '♭9', 2: '9', 3: '♯9', 4: '3', 5: '11',
+            6: '♯11', 7: '5', 8: '♭13', 9: '13', 10: '♭7', 11: '7'
+        };
+        var degreeLabel = options.bassDegreeLabel == null
+            ? inferredDegrees[inferredInterval]
+            : options.bassDegreeLabel;
+        if (!degreeNumber(degreeLabel)) {
+            throw new Error('Bass spelling requires a numbered bassDegreeLabel.');
+        }
+
+        return spellChordNotes({
+            rootPc: rootPc,
+            rootName: options.rootName,
+            intervals: [bassInterval],
+            degreeLabels: [degreeLabel],
+            keyContext: options.keyContext || null
+        })[0];
+    }
+
     /** spellChordNotes()の結果を保ったまま、ドレミ表記だけへ変換する。 */
     function solfegeNameForSpelling(name) {
         var parsed = parseSpelledNoteName(name);
@@ -533,6 +575,7 @@
         spellScaleNotes: spellScaleNotes,
         diatonicNoteNamesForContext: diatonicNoteNamesForContext,
         spellChordNotes: spellChordNotes,
+        spellBassNote: spellBassNote,
         solfegeNameForSpelling: solfegeNameForSpelling,
         solfegeName: solfegeName,
         chordSymbol: chordSymbol,

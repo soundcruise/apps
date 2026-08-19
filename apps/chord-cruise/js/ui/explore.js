@@ -717,17 +717,45 @@
         });
     }
 
+    function bassSpelledNoteName(chord, overlay) {
+        var theory = getTheory();
+        var settings = getSettings();
+        var degreeLabel = overlay.chordToneIndex !== null
+            ? chordDegreeLabel(chord, overlay.chordToneIndex)
+            : window.ChordCruise.chordModel.bassDegreeLabel(overlay.interval);
+        var keyContext = chord.source === 'custom' ? null : {
+            tonicPc: settings.selectedKey,
+            mode: settings.scaleType
+        };
+        var rootName = chord.source === 'custom'
+            ? window.ChordCruise.chordModel.CUSTOM_ROOT_NAMES[chord.rootPc]
+            : (chord.rootName || (chord.noteNames && chord.noteNames[0]));
+        try {
+            return theory.spellBassNote({
+                rootPc: chord.rootPc,
+                rootName: rootName,
+                bassPc: overlay.pc,
+                bassInterval: overlay.interval,
+                bassDegreeLabel: degreeLabel,
+                keyContext: keyContext
+            });
+        } catch (error) {
+            return window.ChordCruise.chordModel.bassNoteName(overlay.pc);
+        }
+    }
+
     function bassOverlayMarkerLabel(chord, overlay) {
         var theory = getTheory();
         var mode = getSettings().fretboardDisplayMode;
         if (mode === 'finger') return '';
-        if (mode === 'solfege') return theory.solfegeName(overlay.pc, window.ChordCruise.chordModel.bassUsesFlats(overlay.pc));
+        var spelled = bassSpelledNoteName(chord, overlay);
+        if (mode === 'solfege') return theory.solfegeNameForSpelling(spelled) || theory.solfegeName(overlay.pc, window.ChordCruise.chordModel.bassUsesFlats(overlay.pc));
         if (mode === 'degree') {
             return overlay.chordToneIndex !== null
                 ? chordDegreeLabel(chord, overlay.chordToneIndex)
                 : window.ChordCruise.chordModel.bassDegreeLabel(overlay.interval);
         }
-        return window.ChordCruise.chordModel.bassNoteName(overlay.pc);
+        return spelled;
     }
 
     /**

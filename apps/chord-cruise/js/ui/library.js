@@ -1162,15 +1162,36 @@
         return overlay.string + '弦 ' + (overlay.fret === 0 ? '開放弦' : overlay.fret + 'フレット') + '、テンション候補、現在 ' + state + '。運指を変更';
     }
 
+    function savedBassSpelledNoteName(chord, overlay) {
+        var degreeIndex = (chord.intervals || []).indexOf(overlay.interval);
+        var degreeLabels = savedDegreeLabels(chord);
+        var degreeLabel = degreeIndex !== -1
+            ? degreeLabels[degreeIndex]
+            : window.ChordCruise.chordModel.bassDegreeLabel(overlay.interval);
+        try {
+            return theory().spellBassNote({
+                rootPc: chord.rootPc,
+                rootName: window.ChordCruise.chordModel.CUSTOM_ROOT_NAMES[chord.rootPc],
+                bassPc: overlay.pc,
+                bassInterval: overlay.interval,
+                bassDegreeLabel: degreeLabel,
+                keyContext: chord.keyContext || null
+            });
+        } catch (error) {
+            return window.ChordCruise.chordModel.bassNoteName(overlay.pc);
+        }
+    }
+
     function bassMarkerLabel(chord, overlay, mode, spelledNoteNames) {
         if (mode === 'finger') return '';
-        if (mode === 'solfege') return theory().solfegeName(overlay.pc, window.ChordCruise.chordModel.bassUsesFlats(overlay.pc));
+        var spelled = savedBassSpelledNoteName(chord, overlay);
+        if (mode === 'solfege') return theory().solfegeNameForSpelling(spelled) || theory().solfegeName(overlay.pc, window.ChordCruise.chordModel.bassUsesFlats(overlay.pc));
         if (mode === 'degree') {
             var degreeIndex = (chord.intervals || []).indexOf(overlay.interval);
             var degreeLabels = theory().degreeLabelsForQuality(theory().identifyQuality(chord.intervals), chord.intervals || []);
             return degreeIndex !== -1 ? degreeLabels[degreeIndex] : window.ChordCruise.chordModel.bassDegreeLabel(overlay.interval);
         }
-        return window.ChordCruise.chordModel.bassNoteName(overlay.pc);
+        return spelled;
     }
 
     function mergeSavedBassOverlay(chord, frets, markers, mode, spelledNoteNames, editable) {
