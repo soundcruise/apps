@@ -240,7 +240,7 @@
             <p>キーから探して、指板で確かめて、自分のコード本棚へ ── 開発中のコード学習アプリ</p>
             <div class="ov-meta">
                 <span>現在のバージョン<b>0.28.0（7no5／m7no5 CAGED対応を正式化）</b></span>
-                <span>正式Chord Cruise HEAD<b>7e5c215</b></span>
+                <span>正式Chord Cruise HEAD<b>895118b</b></span>
                 <span>最終更新日<b>2026年8月18日</b></span>
             </div>
             <p><b>v0.25.0 Phase G2-A:</b> Power5（C5）を既存Major CAGEDから3度だけ除外した派生FORMとして正式化しました。root／5度は高音側を含めて保持し、保存schema・migrationは変更していません。</p>
@@ -248,7 +248,7 @@
             <p><b>v0.26.0 Phase G3-A:</b> no5（C(no5)）を既存Major CAGEDから5度だけ除外した派生FORMとして正式化しました。root／3度と高音側slotを保持し、E型高音rootは実機確認前のため⚠️で表示します。保存schema・migrationは変更していません。</p>
             <p><b>v0.27.0 Phase G4 7sus4 / M7sus4 CAGED正式化:</b> 既存7th／M7 FORMの3度だけを4度へ置換したC/A/G/E/D固定FORM、<code>fingeringStatus: 'undefined'</code>による運指未定義表示、既存の⚠️運指との分離を正式化しました。保存前編集で指を指定できます。保存schema・migrationは変更していません。実装commitは<code>b1bac3a</code>です。</p>
             <p><b>v0.27.1 Phase G5-A omit/no表記整理:</b> 3度なしコードの生成名を<code>(omit3)</code>から<code>(no3)</code>へ統一し、<code>C(no3)</code>・<code>C7(no3)</code>・<code>CM7(no3)</code>を追加しました。<code>C5</code>と<code>C(no5)</code>、intervals・qualityKey・CAGED・保存schemaは維持しています。実装commitは<code>7e5c215</code>です。</p>
-            <p><b>7(no5) / m7(no5) CAGED候補（未commit）:</b> 既存7th／m7 FORMから5度だけを除外したC/A/G/E/D固定FORMを追加しました。root・3度／♭3・♭7は高音側を含めて保持し、推測運指は付けず<code>fingeringStatus: 'undefined'</code>で保存前編集を案内します。schema・migration・versionは変更していません。</p>
+            <p><b>v0.28.0 Phase G5-B 7(no5) / m7(no5) CAGED正式化:</b> 既存7th／m7 FORMから5度だけを除外したC/A/G/E/D固定FORMを正式化しました。root・3度／♭3・♭7は高音側を含めて保持し、推測運指は付けず<code>fingeringStatus: 'undefined'</code>で保存前編集を案内します。schema・migrationは変更していません。実装commitは<code>895118b</code>です。</p>
         </header>
 
         <section>
@@ -457,7 +457,7 @@
         </section>
 
         <div class="ov-footer">
-            コードクルーズ開発概要 ／ 最終更新日: 2026年8月19日 ／ 正式Chord Cruise HEAD: 7e5c215<br>
+            コードクルーズ開発概要 ／ 最終更新日: 2026年8月19日 ／ 正式Chord Cruise HEAD: 895118b<br>
             詳細な開発者向け資料は <code>apps/chord-cruise/ai-handoff/CHORD_CRUISE_OVERVIEW.md</code> を参照してください。
         </div>
     </div>
