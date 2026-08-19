@@ -251,6 +251,32 @@
         return notes;
     }
 
+    /** Major CAGEDへ追加する6度候補。tension/13とは分離し、interval 9をdegree 6として返す。 */
+    function sixthOverlayNotes(options) {
+        var opts = options || {};
+        var theory = window.ChordCruise.theory;
+        var rootPc = typeof opts.rootPc === 'number' ? ((opts.rootPc % 12) + 12) % 12 : null;
+        var startFret = typeof opts.startFret === 'number' ? opts.startFret : 0;
+        var endFret = typeof opts.endFret === 'number' ? opts.endFret : -1;
+        var targetStrings = Array.isArray(opts.targetStrings) ? opts.targetStrings : [3, 2, 1];
+        var sixthPc = rootPc === null ? null : (rootPc + 9) % 12;
+        var notes = [];
+        if (rootPc === null || endFret < startFret) return notes;
+        targetStrings.forEach(function (stringNum) {
+            if ([1, 2, 3, 4, 5, 6].indexOf(stringNum) === -1) return;
+            var openPc = theory.OPEN_STRINGS[6 - stringNum];
+            for (var fret = startFret; fret <= endFret; fret++) {
+                if ((openPc + fret) % 12 !== sixthPc) continue;
+                notes.push({
+                    type: 'sixth', overlayType: 'sixth', string: stringNum, fret: fret,
+                    pc: sixthPc, interval: 9, degreeLabel: '6',
+                    finger: null, fingeringWarning: false
+                });
+            }
+        });
+        return notes;
+    }
+
     /**
      * 任意コードを構築する。
      * @param {Object} spec { rootPc, third: 4|3|5|null, fifth: 7|6|8|null, seventh: 10|11|9|null, tensions: number[], bassPc?: number }
@@ -338,6 +364,7 @@
         bassDegreeLabel: bassDegreeLabel,
         bassOverlayNotes: bassOverlayNotes,
         tensionOverlayNotes: tensionOverlayNotes,
+        sixthOverlayNotes: sixthOverlayNotes,
         buildCustomChord: buildCustomChord
     };
 })();

@@ -557,6 +557,10 @@
         return 'other';
     }
 
+    function roleForChordInterval(chord, interval) {
+        return chord && chord.qualityKey === '6' && interval === 9 ? 'sixth' : roleForInterval(interval);
+    }
+
     function computeChordToneMarkers(chord) {
         var theory = getTheory();
         var useFlats = chordUseFlats(chord);
@@ -586,7 +590,7 @@
                     string: s,
                     fret: f,
                     label: label,
-                    role: roleForInterval(interval)
+                    role: roleForChordInterval(chord, interval)
                 });
             }
         }
@@ -669,7 +673,7 @@
                 string: note.string,
                 fret: note.fret,
                 label: markerLabelFor(chord, pc, note.interval, note.finger, note.fingeringWarning, useFlats),
-                role: roleForInterval(note.interval),
+                role: roleForChordInterval(chord, note.interval),
                 fingeringWarning: getSettings().fretboardDisplayMode === 'finger' && note.fingeringWarning === true
             };
         });
@@ -760,6 +764,38 @@
                 label: tensionOverlayMarkerLabel(overlay, useFlats),
                 role: roleForInterval(overlay.interval), isOverlay: true, overlayType: overlay.type,
                 isTensionCandidate: true, finger: null, fingeringWarning: false
+            };
+            markers.push(marker);
+            existingBySlot[key] = marker;
+        });
+        return markers;
+    }
+
+    /** Major FORMを変更せず、同じフォーム範囲内の高音側へ6度候補を追加する。 */
+    function mergeSixthOverlayMarkers(chord, form, markers) {
+        if (!chord || chord.qualityKey !== '6' || !form) return markers;
+        var displayRange = form.displayRange || form.fretRange;
+        var overlayNotes = window.ChordCruise.chordModel.sixthOverlayNotes({
+            rootPc: chord.rootPc,
+            startFret: displayRange.min,
+            endFret: displayRange.max,
+            targetStrings: [3, 2, 1]
+        });
+        var existingBySlot = {};
+        markers.forEach(function (marker) { existingBySlot[marker.string + ':' + marker.fret] = marker; });
+        var useFlats = chordUseFlats(chord);
+        overlayNotes.forEach(function (overlay) {
+            var key = overlay.string + ':' + overlay.fret;
+            if (existingBySlot[key]) return;
+            var marker = {
+                string: overlay.string,
+                fret: overlay.fret,
+                label: markerLabelFor(chord, overlay.pc, 9, null, false, useFlats),
+                role: 'sixth',
+                isOverlay: true,
+                overlayType: 'sixth',
+                finger: null,
+                fingeringWarning: false
             };
             markers.push(marker);
             existingBySlot[key] = marker;
@@ -894,6 +930,13 @@
             hint += getSettings().fretboardDisplayMode === 'finger'
                 ? ' 金枠は追加ベース音の候補です。運指は表示していません。押さえやすい位置を選び、その音より低い弦は鳴らさないでください。'
                 : ' 金枠の音を最低音として使います。選んだ音より低い弦は鳴らしません。';
+        }
+
+        if (chord && form && chord.qualityKey === '6') {
+            markers = mergeSixthOverlayMarkers(chord, form, markers);
+            hint += getSettings().fretboardDisplayMode === 'finger'
+                ? ' 6度はMajor FORMへ追加する候補音です。運指は未定義です。'
+                : ' 6度はMajor FORMへ追加する構成音です。';
         }
 
         if (chord && form && Array.isArray(chord.tensionIntervals) && chord.tensionIntervals.length) {

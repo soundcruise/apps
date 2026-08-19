@@ -344,6 +344,7 @@
         if (role === 'root') return { fill: '#ff4f6e', stroke: '#ff4f6e', text: '#ffffff', strokeWidth: 0 };
         if (role === 'third') return { fill: '#ffd93d', stroke: '#ffd93d', text: '#141311', strokeWidth: 0 };
         if (role === 'fifth') return { fill: '#4f9cf9', stroke: '#4f9cf9', text: '#ffffff', strokeWidth: 0 };
+        if (role === 'sixth') return { fill: '#b58cff', stroke: '#b58cff', text: '#141311', strokeWidth: 0 };
         if (role === 'seventh') return { fill: '#ffffff', stroke: '#ffffff', text: '#141311', strokeWidth: 0 };
         return { fill: '#555555', stroke: '#555555', text: '#eeeeee', strokeWidth: 0 };
     }

@@ -24,6 +24,8 @@
     var QUALITIES = {
         // suffixは既存呼び出しとの互換用。新規利用ではsymbolSuffix / romanSuffixを明示する。
         'maj': { suffix: '', symbolSuffix: '', romanSuffix: '', intervals: [0, 4, 7], degreeLabels: ['1', '3', '5'] },
+        // Major CAGEDの構成音を保ち、6度を追加する派生quality。
+        '6': { suffix: '6', symbolSuffix: '6', romanSuffix: '6', intervals: [0, 4, 7, 9], degreeLabels: ['1', '3', '5', '6'] },
         'sus4': { suffix: 'sus4', symbolSuffix: 'sus4', romanSuffix: 'sus4', intervals: [0, 5, 7], degreeLabels: ['1', '4', '5'] },
         // 既存7th CAGEDの3度slotを4度へ置換する派生quality。
         '7sus4': { suffix: '7sus4', symbolSuffix: '7sus4', romanSuffix: '7sus4', intervals: [0, 5, 7, 10], degreeLabels: ['1', '4', '5', '♭7'] },

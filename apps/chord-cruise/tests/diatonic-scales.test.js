@@ -15,6 +15,7 @@ var caged = window.ChordCruise.caged;
  */
 var EXPECTED_QUALITIES = {
     maj: { suffix: '', symbolSuffix: '', romanSuffix: '', intervals: [0, 4, 7], degreeLabels: ['1', '3', '5'] },
+    '6': { suffix: '6', symbolSuffix: '6', romanSuffix: '6', intervals: [0, 4, 7, 9], degreeLabels: ['1', '3', '5', '6'] },
     sus4: { suffix: 'sus4', symbolSuffix: 'sus4', romanSuffix: 'sus4', intervals: [0, 5, 7], degreeLabels: ['1', '4', '5'] },
     '7sus4': { suffix: '7sus4', symbolSuffix: '7sus4', romanSuffix: '7sus4', intervals: [0, 5, 7, 10], degreeLabels: ['1', '4', '5', '♭7'] },
     M7sus4: { suffix: 'M7sus4', symbolSuffix: 'M7sus4', romanSuffix: 'M7sus4', intervals: [0, 5, 7, 11], degreeLabels: ['1', '4', '5', '7'] },
@@ -122,7 +123,7 @@ var EXPECTED_SCALES = {
 
 assert.deepStrictEqual(Object.keys(theory.SCALES), SCALE_IDS, 'core exposes the fixed nine-scale definition');
 assert.deepStrictEqual(Object.keys(theory.DIATONIC), SCALE_IDS, 'DIATONIC must expose the same nine scale IDs');
-assert.deepStrictEqual(theory.QUALITIES, EXPECTED_QUALITIES, 'core exposes the fixed nineteen-quality metadata including seventh no5 derivatives');
+assert.deepStrictEqual(theory.QUALITIES, EXPECTED_QUALITIES, 'core exposes the fixed twenty-quality metadata including sixth and seventh no5 derivatives');
 
 SCALE_IDS.forEach(function (mode) {
     var expected = EXPECTED_SCALES[mode];
@@ -201,7 +202,7 @@ SCALE_IDS.forEach(function (mode) {
 assert.strictEqual(comparisonCount, 1512, 'must compare all 12 tonics × 9 scales × 2 chord sizes × 7 degrees');
 assert.deepStrictEqual(
     Object.keys(generatedQualityKeys).sort(),
-    Object.keys(EXPECTED_QUALITIES).filter(function (qualityKey) { return qualityKey !== 'sus4' && qualityKey !== '7sus4' && qualityKey !== 'M7sus4' && qualityKey !== 'power5' && qualityKey !== 'no5' && qualityKey !== '7no5' && qualityKey !== 'maj7no5' && qualityKey !== 'm7no5'; }).sort(),
+    Object.keys(EXPECTED_QUALITIES).filter(function (qualityKey) { return qualityKey !== '6' && qualityKey !== 'sus4' && qualityKey !== '7sus4' && qualityKey !== 'M7sus4' && qualityKey !== 'power5' && qualityKey !== 'no5' && qualityKey !== '7no5' && qualityKey !== 'maj7no5' && qualityKey !== 'm7no5'; }).sort(),
     'nine core scales must retain their eleven diatonic qualities'
 );
 

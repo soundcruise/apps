@@ -1050,6 +1050,11 @@
         return 'other';
     }
 
+    function roleForChordInterval(chord, interval) {
+        var qualityKey = chord && (chord.qualityKey || theory().identifyQuality(chord.intervals || []));
+        return qualityKey === '6' && interval === 9 ? 'sixth' : roleForInterval(interval);
+    }
+
     function savedBassPc(chord) {
         return chord && typeof chord.bassPc === 'number' && Math.floor(chord.bassPc) === chord.bassPc && chord.bassPc >= 0 && chord.bassPc <= 11
             ? chord.bassPc
@@ -1237,7 +1242,7 @@
                 string: note.string,
                 fret: note.fret,
                 label: detailMarkerLabel(chord, note, mode, spelledNoteNames),
-                role: roleForInterval(note.interval),
+                role: roleForChordInterval(chord, note.interval),
                 fingeringWarning: mode === 'finger' && note.fingeringWarning === true && note.finger == null,
                 tappable: !!opts.tappable,
                 ariaLabel: opts.tappable ? detailFingeringAccessibleLabel(note) : ''

@@ -883,15 +883,18 @@
 
     function getForm(shapeKey, qualityKey, rootPc, maxFret, minFret) {
         var shape = FORMS[shapeKey];
+        // 6thは専用FORMを持たず、Major FORMを基底に追加markerを重ねる。
+        var baseQualityKey = qualityKey === '6' ? 'maj' : qualityKey;
         var theory = window.ChordCruise.theory;
-        if (!shape || !shape.qualities[qualityKey]) {
+        if (!shape || !shape.qualities[baseQualityKey]) {
             return {
                 available: false,
                 reason: 'quality',
                 message: shapeKey + '型では、この品質の実用フォームを登録していません。'
             };
         }
-        var def = shape.qualities[qualityKey];
+        var def = shape.qualities[baseQualityKey];
+        var usesUndefinedFingering = qualityKey === '6';
         var openPc = theory.OPEN_STRINGS[6 - shape.rootString];
         var limit = typeof maxFret === 'number' ? maxFret : 13;
         var lowerLimit = typeof minFret === 'number' ? minFret : 0;
@@ -943,7 +946,9 @@
         // 開放ポジション（フォーム内の最低フレットが開放弦=0になる配置）では
         // 一般的な開放コード運指を優先する。E/A/D型は rootFret 0、C/G型は rootFret 3 が該当。
         var isOpenPosition = (lowerLimit === 0 && rootFret + minOffset === 0);
-        var fingerSource = (isOpenPosition && def.openFingers) ? def.openFingers : def.fingers;
+        var fingerSource = usesUndefinedFingering
+            ? {}
+            : ((isOpenPosition && def.openFingers) ? def.openFingers : def.fingers);
 
         var minFretUsed = null;
         var maxFretUsed = null;
@@ -983,7 +988,7 @@
             shape: shapeKey,
             qualityKey: qualityKey,
             playability: def.playability || 'standard',
-            fingeringStatus: def.fingeringStatus || 'defined',
+            fingeringStatus: usesUndefinedFingering ? 'undefined' : (def.fingeringStatus || 'defined'),
             warning: warning,
             rootFret: rootFret,
             usedOpenFingers: !!(isOpenPosition && def.openFingers),

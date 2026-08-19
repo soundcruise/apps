@@ -559,6 +559,7 @@ body {
     --cc-fb-root: #ff4f6e;
     --cc-fb-third: #ffd93d;
     --cc-fb-fifth: #4f9cf9;
+    --cc-fb-sixth: #b58cff;
     --cc-fb-seventh: #ffffff;
     --cc-fb-other: #555555;
 }
@@ -639,6 +640,7 @@ body {
 .cc-fb-marker--root { background: var(--cc-fb-root); color: #fff; }
 .cc-fb-marker--third { background: var(--cc-fb-third); color: #141311; }
 .cc-fb-marker--fifth { background: var(--cc-fb-fifth); color: #fff; }
+.cc-fb-marker--sixth { background: var(--cc-fb-sixth); color: #141311; }
 .cc-fb-marker--seventh { background: var(--cc-fb-seventh); color: #141311; }
 .cc-fb-marker--other { background: var(--cc-fb-other); color: #ddd; }
 

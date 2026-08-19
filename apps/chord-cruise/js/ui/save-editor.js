@@ -264,6 +264,10 @@
         return 'other';
     }
 
+    function roleForDraftInterval(interval) {
+        return theory().identifyQuality(draft.intervals) === '6' && interval === 9 ? 'sixth' : roleForInterval(interval);
+    }
+
     function validBassPc(value) {
         return typeof value === 'number' && Math.floor(value) === value && value >= 0 && value <= 11 ? value : null;
     }
@@ -292,6 +296,26 @@
             });
         }
         return range;
+    }
+
+    /** 6th保存前編集では、Major FORM notesを保ったまま6度候補を編集可能noteとして加える。 */
+    function notesWithSixthCandidates(chord, form, displayRange) {
+        var notes = form.notes.map(draftNote);
+        if (!chord || chord.qualityKey !== '6') return notes;
+        var bySlot = {};
+        notes.forEach(function (note) { bySlot[note.string + ':' + note.fret] = true; });
+        window.ChordCruise.chordModel.sixthOverlayNotes({
+            rootPc: chord.rootPc,
+            startFret: displayRange.min,
+            endFret: displayRange.max,
+            targetStrings: [3, 2, 1]
+        }).forEach(function (candidate) {
+            var key = candidate.string + ':' + candidate.fret;
+            if (bySlot[key]) return;
+            notes.push(draftNote(candidate));
+            bySlot[key] = true;
+        });
+        return notes;
     }
 
     function normalizeBassFingerings(value) {
@@ -472,7 +496,7 @@
                 string: note.string,
                 fret: note.fret,
                 label: markerLabel(note, spelledNoteNames),
-                role: roleForInterval(note.interval),
+                role: roleForDraftInterval(note.interval),
                 dimmed: !noteIncluded(note),
                 pendingDelete: note.pendingDelete && noteIncluded(note),
                 fingeringWarning: draft.displayMode === 'finger' && note.fingeringWarning && !note.pendingDelete,
@@ -705,6 +729,7 @@
         record.shape = draft.shape;
         record.keyContext = clone(draft.keyContext);
         record.intervals = clone(draft.intervals);
+        if (theory().identifyQuality(draft.intervals) === '6') record.qualityKey = '6';
         record.rootPc = draft.rootPc;
         if (draft.bassPc !== null) record.bassPc = draft.bassPc;
         else delete record.bassPc;
@@ -839,7 +864,7 @@
             tensionFingerings: [],
             useFlats: !!payload.useFlats,
             displayMode: defaultDisplayMode(),
-            notes: form.notes.map(draftNote),
+            notes: notesWithSixthCandidates(chord, form, displayRange),
             mutedStrings: form.mutedStrings.slice(),
             deletedNoteStrings: [],
             startFret: typeof payload.startFret === 'number' ? payload.startFret : (form.fretRange.min >= 12 ? 12 : 0),
