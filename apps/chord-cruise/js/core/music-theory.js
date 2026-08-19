@@ -37,6 +37,10 @@
         // Major CAGEDの5度slotだけを除外する派生quality。一般的な省略voicingではなく、
         // 既存CAGED上で1・3度の配置を確認するために使う。
         'no5': { suffix: '(no5)', symbolSuffix: '(no5)', romanSuffix: '(no5)', intervals: [0, 4], degreeLabels: ['1', '3'] },
+        // 既存7th CAGEDの3度slotだけを除外する派生quality。
+        '7no3': { suffix: '7(no3)', symbolSuffix: '7(no3)', romanSuffix: '7(no3)', intervals: [0, 7, 10], degreeLabels: ['1', '5', '♭7'] },
+        // 既存M7 CAGEDの3度slotだけを除外する派生quality。
+        'maj7no3': { suffix: 'M7(no3)', symbolSuffix: 'M7(no3)', romanSuffix: 'M7(no3)', intervals: [0, 7, 11], degreeLabels: ['1', '5', '7'] },
         // 既存7th CAGEDの5度slotだけを除外する派生quality。
         '7no5': { suffix: '7(no5)', symbolSuffix: '7(no5)', romanSuffix: '7(no5)', intervals: [0, 4, 10], degreeLabels: ['1', '3', '♭7'] },
         // 既存M7 CAGEDの5度slotだけを除外する派生quality。
@@ -50,6 +54,7 @@
         'maj7': { suffix: 'M7', symbolSuffix: 'M7', romanSuffix: 'M7', intervals: [0, 4, 7, 11], degreeLabels: ['1', '3', '5', '7'] },
         '7': { suffix: '7', symbolSuffix: '7', romanSuffix: '7', intervals: [0, 4, 7, 10], degreeLabels: ['1', '3', '5', '♭7'] },
         '7b5': { suffix: '7♭5', symbolSuffix: '7♭5', romanSuffix: '7♭5', intervals: [0, 4, 6, 10], degreeLabels: ['1', '3', '♭5', '♭7'] },
+        'maj7b5': { suffix: 'M7♭5', symbolSuffix: 'M7♭5', romanSuffix: 'M7♭5', intervals: [0, 4, 6, 11], degreeLabels: ['1', '3', '♭5', '7'] },
         'm7': { suffix: 'm7', symbolSuffix: 'm7', romanSuffix: 'm7', intervals: [0, 3, 7, 10], degreeLabels: ['1', '♭3', '5', '♭7'] },
         'm7b5': { suffix: 'm7♭5', symbolSuffix: 'm7♭5', romanSuffix: 'm7♭5', intervals: [0, 3, 6, 10], degreeLabels: ['1', '♭3', '♭5', '♭7'] },
         'aug': { suffix: 'aug', symbolSuffix: 'aug', romanSuffix: 'aug', intervals: [0, 4, 8], degreeLabels: ['1', '3', '♯5'] },

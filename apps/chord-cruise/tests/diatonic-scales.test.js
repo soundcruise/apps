@@ -21,6 +21,8 @@ var EXPECTED_QUALITIES = {
     M7sus4: { suffix: 'M7sus4', symbolSuffix: 'M7sus4', romanSuffix: 'M7sus4', intervals: [0, 5, 7, 11], degreeLabels: ['1', '4', '5', '7'] },
     power5: { suffix: '5', symbolSuffix: '5', romanSuffix: '5', intervals: [0, 7], degreeLabels: ['1', '5'] },
     no5: { suffix: '(no5)', symbolSuffix: '(no5)', romanSuffix: '(no5)', intervals: [0, 4], degreeLabels: ['1', '3'] },
+    '7no3': { suffix: '7(no3)', symbolSuffix: '7(no3)', romanSuffix: '7(no3)', intervals: [0, 7, 10], degreeLabels: ['1', '5', '♭7'] },
+    maj7no3: { suffix: 'M7(no3)', symbolSuffix: 'M7(no3)', romanSuffix: 'M7(no3)', intervals: [0, 7, 11], degreeLabels: ['1', '5', '7'] },
     '7no5': { suffix: '7(no5)', symbolSuffix: '7(no5)', romanSuffix: '7(no5)', intervals: [0, 4, 10], degreeLabels: ['1', '3', '♭7'] },
     maj7no5: { suffix: 'M7(no5)', symbolSuffix: 'M7(no5)', romanSuffix: 'M7(no5)', intervals: [0, 4, 11], degreeLabels: ['1', '3', '7'] },
     m7no5: { suffix: 'm7(no5)', symbolSuffix: 'm7(no5)', romanSuffix: 'm7(no5)', intervals: [0, 3, 10], degreeLabels: ['1', '♭3', '♭7'] },
@@ -30,6 +32,7 @@ var EXPECTED_QUALITIES = {
     maj7: { suffix: 'M7', symbolSuffix: 'M7', romanSuffix: 'M7', intervals: [0, 4, 7, 11], degreeLabels: ['1', '3', '5', '7'] },
     '7': { suffix: '7', symbolSuffix: '7', romanSuffix: '7', intervals: [0, 4, 7, 10], degreeLabels: ['1', '3', '5', '♭7'] },
     '7b5': { suffix: '7♭5', symbolSuffix: '7♭5', romanSuffix: '7♭5', intervals: [0, 4, 6, 10], degreeLabels: ['1', '3', '♭5', '♭7'] },
+    'maj7b5': { suffix: 'M7♭5', symbolSuffix: 'M7♭5', romanSuffix: 'M7♭5', intervals: [0, 4, 6, 11], degreeLabels: ['1', '3', '♭5', '7'] },
     m7: { suffix: 'm7', symbolSuffix: 'm7', romanSuffix: 'm7', intervals: [0, 3, 7, 10], degreeLabels: ['1', '♭3', '5', '♭7'] },
     m7b5: { suffix: 'm7♭5', symbolSuffix: 'm7♭5', romanSuffix: 'm7♭5', intervals: [0, 3, 6, 10], degreeLabels: ['1', '♭3', '♭5', '♭7'] },
     aug: { suffix: 'aug', symbolSuffix: 'aug', romanSuffix: 'aug', intervals: [0, 4, 8], degreeLabels: ['1', '3', '♯5'] },
@@ -125,7 +128,7 @@ var EXPECTED_SCALES = {
 
 assert.deepStrictEqual(Object.keys(theory.SCALES), SCALE_IDS, 'core exposes the fixed nine-scale definition');
 assert.deepStrictEqual(Object.keys(theory.DIATONIC), SCALE_IDS, 'DIATONIC must expose the same nine scale IDs');
-assert.deepStrictEqual(theory.QUALITIES, EXPECTED_QUALITIES, 'core exposes the fixed twenty-two-quality metadata including Major and Minor sixth overlays');
+assert.deepStrictEqual(theory.QUALITIES, EXPECTED_QUALITIES, 'core exposes the fixed twenty-five-quality metadata including Major and Minor sixth overlays');
 
 SCALE_IDS.forEach(function (mode) {
     var expected = EXPECTED_SCALES[mode];
@@ -204,7 +207,7 @@ SCALE_IDS.forEach(function (mode) {
 assert.strictEqual(comparisonCount, 1512, 'must compare all 12 tonics × 9 scales × 2 chord sizes × 7 degrees');
 assert.deepStrictEqual(
     Object.keys(generatedQualityKeys).sort(),
-    Object.keys(EXPECTED_QUALITIES).filter(function (qualityKey) { return qualityKey !== '6' && qualityKey !== 'm6' && qualityKey !== 'sus4' && qualityKey !== '7sus4' && qualityKey !== 'M7sus4' && qualityKey !== 'power5' && qualityKey !== 'no5' && qualityKey !== '7no5' && qualityKey !== 'maj7no5' && qualityKey !== 'm7no5' && qualityKey !== '7b5'; }).sort(),
+    Object.keys(EXPECTED_QUALITIES).filter(function (qualityKey) { return qualityKey !== '6' && qualityKey !== 'm6' && qualityKey !== 'sus4' && qualityKey !== '7sus4' && qualityKey !== 'M7sus4' && qualityKey !== 'power5' && qualityKey !== 'no5' && qualityKey !== '7no3' && qualityKey !== 'maj7no3' && qualityKey !== '7no5' && qualityKey !== 'maj7no5' && qualityKey !== 'm7no5' && qualityKey !== '7b5' && qualityKey !== 'maj7b5'; }).sort(),
     'nine core scales must retain their eleven diatonic qualities'
 );
 

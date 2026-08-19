@@ -92,13 +92,15 @@ assert.deepStrictEqual(cM7No3.intervals, [0, 7, 11]);
 assert.strictEqual(c5.qualityKey, 'power5');
 assert.strictEqual(cNo5.qualityKey, 'no5');
 assert.strictEqual(cNo3.qualityKey, null);
-assert.strictEqual(c7No3.qualityKey, null);
-assert.strictEqual(cM7No3.qualityKey, null);
+assert.strictEqual(c7No3.qualityKey, '7no3');
+assert.strictEqual(cM7No3.qualityKey, 'maj7no3');
 assert.strictEqual(theory.identifyQuality(c5.intervals), 'power5');
 assert.strictEqual(theory.identifyQuality(cNo5.intervals), 'no5');
 ['C', 'A', 'G', 'E', 'D'].forEach(function (shape) {
     assert.strictEqual(caged.getForm(shape, c5.qualityKey, c5.rootPc, 13, 0).available, true, shape + ' C5 enters the CAGED quality set');
     assert.strictEqual(caged.getForm(shape, cNo5.qualityKey, cNo5.rootPc, 13, 0).available, true, shape + ' C(no5) enters the CAGED quality set');
+    assert.strictEqual(caged.getForm(shape, c7No3.qualityKey, c7No3.rootPc, 13, 0).available, true, shape + ' C7(no3) enters the CAGED quality set');
+    assert.strictEqual(caged.getForm(shape, cM7No3.qualityKey, cM7No3.rootPc, 13, 0).available, true, shape + ' CM7(no3) enters the CAGED quality set');
 });
 
 console.log('extended-qualities: canonical qualities, arbitrary-code connection, and C5/C(no5) naming invariants OK');

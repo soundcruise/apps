@@ -730,6 +730,56 @@
         }
     };
 
+    /* 7(no3): 既存7th CAGEDの3度（iv:4）だけを除外した固定派生FORM。
+       root・5度・♭7と高音側slotを保持し、初期FINGERINGは推測せず未定義状態にする。 */
+    var SEVENTH_NO3_FORMS = {
+        C: {
+            slots: [{ s: 5, o: 0, iv: 0 }, { s: 3, o: 0, iv: 10 }, { s: 2, o: -2, iv: 0 }, { s: 1, o: 0, iv: 7 }],
+            muted: [6, 4], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+        },
+        A: {
+            slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: 2, iv: 7 }, { s: 3, o: 0, iv: 10 }, { s: 1, o: 0, iv: 7 }],
+            muted: [6, 2], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+        },
+        G: {
+            slots: [{ s: 6, o: 0, iv: 0 }, { s: 4, o: -3, iv: 7 }, { s: 3, o: -3, iv: 0 }, { s: 1, o: -2, iv: 10 }],
+            muted: [5, 2], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+        },
+        E: {
+            slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: 2, iv: 7 }, { s: 4, o: 0, iv: 10 }, { s: 2, o: 0, iv: 7 }, { s: 1, o: 0, iv: 0 }],
+            muted: [3], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+        },
+        D: {
+            slots: [{ s: 4, o: 0, iv: 0 }, { s: 3, o: 2, iv: 7 }, { s: 2, o: 1, iv: 10 }],
+            muted: [6, 5, 1], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+        }
+    };
+
+    /* M7(no3): 既存M7 CAGEDの3度（iv:4）だけを除外した固定派生FORM。
+       root・5度・7度と高音側slotを保持し、初期FINGERINGは推測せず未定義状態にする。 */
+    var MAJ7_NO3_FORMS = {
+        C: {
+            slots: [{ s: 5, o: 0, iv: 0 }, { s: 3, o: -3, iv: 7 }, { s: 2, o: -3, iv: 11 }],
+            muted: [6, 4, 1], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+        },
+        A: {
+            slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: 2, iv: 7 }, { s: 3, o: 1, iv: 11 }, { s: 1, o: 0, iv: 7 }],
+            muted: [6, 2], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+        },
+        G: {
+            slots: [{ s: 6, o: 0, iv: 0 }, { s: 4, o: -3, iv: 7 }, { s: 3, o: -3, iv: 0 }, { s: 1, o: -1, iv: 11 }],
+            muted: [5, 2], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+        },
+        E: {
+            slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: 2, iv: 7 }, { s: 4, o: 1, iv: 11 }, { s: 2, o: 0, iv: 7 }, { s: 1, o: 0, iv: 0 }],
+            muted: [3], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+        },
+        D: {
+            slots: [{ s: 4, o: 0, iv: 0 }, { s: 3, o: 2, iv: 7 }, { s: 2, o: 2, iv: 11 }],
+            muted: [6, 5, 1], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+        }
+    };
+
     /* 7♭5: 既存7th CAGEDの完全5度（iv:7）を♭5（iv:6）へ置換した固定派生FORM。
        altered fifthは追加tensionではなくコードcoreの構成音として扱う。root・3度・♭7と
        高音側slotを保持し、初期FINGERINGは推測せず未定義状態にする。 */
@@ -756,6 +806,33 @@
         }
     };
 
+    /* M7♭5: 既存M7 CAGEDの完全5度（iv:7）を♭5（iv:6）へ置換した固定派生FORM。
+       altered fifthは追加tensionではなくコードcoreの構成音として扱う。root・3度・7度と
+       高音側slotを保持し、初期FINGERINGは推測せず未定義状態にする。 */
+    var MAJ7_B5_FORMS = {
+        C: {
+            /* 開放G（5度）を半音下げると負フレットになるため、同じ3弦の♭5を1オクターブ上へ置く。 */
+            slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: -1, iv: 4 }, { s: 3, o: 8, iv: 6 }, { s: 2, o: -3, iv: 11 }, { s: 1, o: -3, iv: 4 }],
+            muted: [6], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+        },
+        A: {
+            slots: [{ s: 5, o: 0, iv: 0 }, { s: 4, o: 1, iv: 6 }, { s: 3, o: 1, iv: 11 }, { s: 2, o: 2, iv: 4 }, { s: 1, o: -1, iv: 6 }],
+            muted: [6], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+        },
+        G: {
+            slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: -1, iv: 4 }, { s: 4, o: -4, iv: 6 }, { s: 3, o: -3, iv: 0 }, { s: 2, o: -3, iv: 4 }, { s: 1, o: -1, iv: 11 }],
+            muted: [], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+        },
+        E: {
+            slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: 1, iv: 6 }, { s: 4, o: 1, iv: 11 }, { s: 3, o: 1, iv: 4 }, { s: 2, o: -1, iv: 6 }, { s: 1, o: 0, iv: 0 }],
+            muted: [], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+        },
+        D: {
+            slots: [{ s: 4, o: 0, iv: 0 }, { s: 3, o: 1, iv: 6 }, { s: 2, o: 2, iv: 11 }, { s: 1, o: 2, iv: 4 }],
+            muted: [6, 5], fingers: {}, fingeringStatus: 'undefined', playability: 'advanced'
+        }
+    };
+
     SHAPE_ORDER.forEach(function (shapeKey) {
         Object.keys(EXTENDED_QUALITY_FORMS[shapeKey]).forEach(function (qualityKey) {
             FORMS[shapeKey].qualities[qualityKey] = EXTENDED_QUALITY_FORMS[shapeKey][qualityKey];
@@ -765,10 +842,13 @@
         FORMS[shapeKey].qualities.no5 = NO5_FORMS[shapeKey];
         FORMS[shapeKey].qualities['7sus4'] = SEVENTH_SUS4_FORMS[shapeKey]['7sus4'];
         FORMS[shapeKey].qualities.M7sus4 = SEVENTH_SUS4_FORMS[shapeKey].M7sus4;
+        FORMS[shapeKey].qualities['7no3'] = SEVENTH_NO3_FORMS[shapeKey];
+        FORMS[shapeKey].qualities.maj7no3 = MAJ7_NO3_FORMS[shapeKey];
         FORMS[shapeKey].qualities['7no5'] = SEVENTH_NO5_FORMS[shapeKey]['7no5'];
         FORMS[shapeKey].qualities.maj7no5 = SEVENTH_NO5_FORMS[shapeKey].maj7no5;
         FORMS[shapeKey].qualities.m7no5 = SEVENTH_NO5_FORMS[shapeKey].m7no5;
         FORMS[shapeKey].qualities['7b5'] = SEVENTH_B5_FORMS[shapeKey];
+        FORMS[shapeKey].qualities.maj7b5 = MAJ7_B5_FORMS[shapeKey];
     });
 
     /* 品質ごとに独立した音配置を持たせず、maj / 7 の弦役割を変換して生成する。
