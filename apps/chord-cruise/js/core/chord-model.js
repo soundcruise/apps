@@ -97,7 +97,7 @@
             } else {
                 if (seventh === 10) name += '7';
                 else if (seventh === 11) name += 'M7';
-                name += '(omit3)';
+                name += '(no3)';
             }
         }
 

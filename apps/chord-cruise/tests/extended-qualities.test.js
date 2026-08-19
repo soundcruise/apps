@@ -76,12 +76,24 @@ assert.deepStrictEqual(
 // Phase G1-A: C5 remains the power-chord spelling; only the no-5 display name changes.
 var c5 = chordModel.buildCustomChord({ rootPc: 0, third: null, fifth: 7, seventh: null, tensions: [] }, '');
 var cNo5 = chordModel.buildCustomChord({ rootPc: 0, third: 4, fifth: null, seventh: null, tensions: [] }, '');
+var cNo3 = chordModel.buildCustomChord({ rootPc: 0, third: null, fifth: null, seventh: null, tensions: [] }, '');
+var c7No3 = chordModel.buildCustomChord({ rootPc: 0, third: null, fifth: 7, seventh: 10, tensions: [] }, '');
+var cM7No3 = chordModel.buildCustomChord({ rootPc: 0, third: null, fifth: 7, seventh: 11, tensions: [] }, '');
 assert.strictEqual(c5.symbol, 'C5');
 assert.strictEqual(cNo5.symbol, 'C(no5)');
+assert.strictEqual(cNo3.symbol, 'C(no3)');
+assert.strictEqual(c7No3.symbol, 'C7(no3)');
+assert.strictEqual(cM7No3.symbol, 'CM7(no3)');
 assert.deepStrictEqual(c5.intervals, [0, 7]);
 assert.deepStrictEqual(cNo5.intervals, [0, 4]);
+assert.deepStrictEqual(cNo3.intervals, [0]);
+assert.deepStrictEqual(c7No3.intervals, [0, 7, 10]);
+assert.deepStrictEqual(cM7No3.intervals, [0, 7, 11]);
 assert.strictEqual(c5.qualityKey, 'power5');
 assert.strictEqual(cNo5.qualityKey, 'no5');
+assert.strictEqual(cNo3.qualityKey, null);
+assert.strictEqual(c7No3.qualityKey, null);
+assert.strictEqual(cM7No3.qualityKey, null);
 assert.strictEqual(theory.identifyQuality(c5.intervals), 'power5');
 assert.strictEqual(theory.identifyQuality(cNo5.intervals), 'no5');
 ['C', 'A', 'G', 'E', 'D'].forEach(function (shape) {
