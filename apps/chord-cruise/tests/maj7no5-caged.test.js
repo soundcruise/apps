@@ -24,7 +24,8 @@ var fixture = {
 
 assert.deepStrictEqual(theory.QUALITIES.maj7no5, {
     suffix: 'M7(no5)', symbolSuffix: 'M7(no5)', romanSuffix: 'M7(no5)',
-    intervals: fixture.intervals, degreeLabels: fixture.degreeLabels
+    intervals: fixture.intervals, degreeLabels: fixture.degreeLabels,
+    family: 'major', modifier: 'no', caged: { supported: true, mode: 'fixed', baseQuality: null }
 }, 'maj7no5 quality metadata');
 assert.strictEqual(theory.identifyQuality(fixture.intervals), 'maj7no5', 'maj7no5 recognition');
 assert.strictEqual(theory.chordSymbol(0, 'maj7no5', false), fixture.symbol, 'maj7no5 C symbol');

@@ -63,6 +63,47 @@
         'dim7': { suffix: 'dim7', symbolSuffix: 'dim7', romanSuffix: '°7', intervals: [0, 3, 6, 9], degreeLabels: ['1', '♭3', '♭5', '♭♭7'] }
     };
 
+    // qualityの理論情報を壊さず、将来の一覧・CAGED対応表示のための最小metadataを付与する。
+    // editionは通常版／Pro版の仕様確定まで追加しない。
+    var QUALITY_METADATA = {
+        maj: { family: 'major', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        '6': { family: 'major', modifier: 'sixth', caged: { supported: true, mode: 'overlay', baseQuality: 'maj' } },
+        sus4: { family: 'sus', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        '7sus4': { family: 'sus', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        M7sus4: { family: 'sus', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        power5: { family: 'power', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        no5: { family: 'major', modifier: 'no', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        '7no3': { family: 'dominant', modifier: 'no', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        maj7no3: { family: 'major', modifier: 'no', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        '7no5': { family: 'dominant', modifier: 'no', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        maj7no5: { family: 'major', modifier: 'no', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        m7no5: { family: 'minor', modifier: 'no', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        m: { family: 'minor', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        m6: { family: 'minor', modifier: 'sixth', caged: { supported: true, mode: 'overlay', baseQuality: 'm' } },
+        dim: { family: 'diminished', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        maj7: { family: 'major', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        '7': { family: 'dominant', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        '7b5': { family: 'dominant', modifier: 'altered', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        maj7b5: { family: 'major', modifier: 'altered', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        m7: { family: 'minor', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        m7b5: { family: 'minor', modifier: 'altered', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        aug: { family: 'augmented', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        mMaj7: { family: 'minor', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        maj7sharp5: { family: 'augmented', modifier: 'altered', caged: { supported: true, mode: 'fixed', baseQuality: null } },
+        dim7: { family: 'diminished', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null } }
+    };
+
+    Object.keys(QUALITIES).forEach(function (qualityKey) {
+        var metadata = QUALITY_METADATA[qualityKey];
+        QUALITIES[qualityKey].family = metadata.family;
+        QUALITIES[qualityKey].modifier = metadata.modifier;
+        QUALITIES[qualityKey].caged = {
+            supported: metadata.caged.supported,
+            mode: metadata.caged.mode,
+            baseQuality: metadata.caged.baseQuality
+        };
+    });
+
     /*
      * 7音スケール定義。Phase Cではハーモニック／メロディックマイナーも
      * core APIへ追加する。UIの選択肢と保存許可値は別の明示リストで管理する。

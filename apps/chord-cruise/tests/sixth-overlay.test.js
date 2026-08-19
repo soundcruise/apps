@@ -19,7 +19,8 @@ var intervals = [0, 4, 7, 9];
 
 assert.deepStrictEqual(theory.QUALITIES['6'], {
     suffix: '6', symbolSuffix: '6', romanSuffix: '6',
-    intervals: intervals, degreeLabels: ['1', '3', '5', '6']
+    intervals: intervals, degreeLabels: ['1', '3', '5', '6'],
+    family: 'major', modifier: 'sixth', caged: { supported: true, mode: 'overlay', baseQuality: 'maj' }
 }, '6 quality metadata');
 assert.strictEqual(theory.identifyQuality(intervals), '6', '6 quality recognition');
 

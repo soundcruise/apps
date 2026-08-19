@@ -28,7 +28,8 @@ function slotFixture(def) {
 }
 
 assert.deepStrictEqual(theory.QUALITIES.power5, {
-    suffix: '5', symbolSuffix: '5', romanSuffix: '5', intervals: [0, 7], degreeLabels: ['1', '5']
+    suffix: '5', symbolSuffix: '5', romanSuffix: '5', intervals: [0, 7], degreeLabels: ['1', '5'],
+    family: 'power', modifier: 'none', caged: { supported: true, mode: 'fixed', baseQuality: null }
 });
 assert.strictEqual(theory.identifyQuality([0, 7]), 'power5');
 assert.deepStrictEqual(theory.degreeLabelsForQuality('power5', [0, 7]), ['1', '5']);

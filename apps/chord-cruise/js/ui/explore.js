@@ -975,7 +975,7 @@
                     : shape + '型の' + chord.symbol + 'は実用フォーム未収録のため、全体表示にしています。';
                 noticeType = 'unavailable';
                 noticeText = (chord.source === 'custom' && !chord.qualityKey)
-                    ? 'このコードは品質が辞書と完全一致しないため、型フォームを表示していません。'
+                    ? 'このコードはCAGEDフォーム未対応のため、型フォームを表示していません。'
                     : (result.message || '一般的な運指では成立しないため、この型は表示していません。');
             } else {
                 markers = computeChordToneMarkers(chord);

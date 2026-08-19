@@ -128,7 +128,18 @@ var EXPECTED_SCALES = {
 
 assert.deepStrictEqual(Object.keys(theory.SCALES), SCALE_IDS, 'core exposes the fixed nine-scale definition');
 assert.deepStrictEqual(Object.keys(theory.DIATONIC), SCALE_IDS, 'DIATONIC must expose the same nine scale IDs');
-assert.deepStrictEqual(theory.QUALITIES, EXPECTED_QUALITIES, 'core exposes the fixed twenty-five-quality metadata including Major and Minor sixth overlays');
+var qualityTheory = {};
+Object.keys(theory.QUALITIES).forEach(function (qualityKey) {
+    var quality = theory.QUALITIES[qualityKey];
+    qualityTheory[qualityKey] = {
+        suffix: quality.suffix,
+        symbolSuffix: quality.symbolSuffix,
+        romanSuffix: quality.romanSuffix,
+        intervals: quality.intervals,
+        degreeLabels: quality.degreeLabels
+    };
+});
+assert.deepStrictEqual(qualityTheory, EXPECTED_QUALITIES, 'core retains the fixed twenty-five theoretical-quality fields including Major and Minor sixth overlays');
 
 SCALE_IDS.forEach(function (mode) {
     var expected = EXPECTED_SCALES[mode];
