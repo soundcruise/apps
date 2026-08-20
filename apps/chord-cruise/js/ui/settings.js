@@ -78,6 +78,54 @@
         });
     }
 
+    /** 設定画面末尾に、Standard/Proの状態と入手導線を小さく表示する。 */
+    function renderProSection() {
+        if (!document || typeof document.querySelector !== 'function') return;
+        var refreshBar = document.querySelector('.cc-settings-refresh-bar');
+        if (!refreshBar || document.getElementById('cc-settings-pro-section')) return;
+        var featureAccess = window.ChordCruise.featureAccess;
+        var isPro = !!(featureAccess && typeof featureAccess.isProEdition === 'function' && featureAccess.isProEdition());
+        var section = document.createElement('section');
+        section.id = 'cc-settings-pro-section';
+        section.className = 'cc-settings-reset cc-settings-pro-section';
+        section.setAttribute('aria-labelledby', 'cc-settings-pro-title');
+        section.innerHTML = isPro
+            ? '<h4 id="cc-settings-pro-title">Pro版</h4><p class="cc-settings-note">Pro版を利用中</p><button type="button" class="cc-settings-reset-trigger" id="cc-settings-pro-gate-reset">認証をリセット</button>'
+            : '<h4 id="cc-settings-pro-title">Pro版</h4><p class="cc-settings-note">Standard版を利用中です。</p><a class="cc-settings-reset-trigger cc-settings-pro-link" href="./pro-access.html">Pro版はこちら</a>';
+        refreshBar.parentNode.insertBefore(section, refreshBar);
+    }
+
+    function renderDataDeleteSection() {
+        if (!document || typeof document.querySelector !== 'function') return;
+        var refreshBar = document.querySelector('.cc-settings-refresh-bar');
+        if (!refreshBar || document.getElementById('cc-settings-data-delete-section')) return;
+        var section = document.createElement('section');
+        section.id = 'cc-settings-data-delete-section';
+        section.className = 'cc-settings-reset cc-settings-danger-section';
+        section.setAttribute('aria-labelledby', 'cc-settings-data-delete-title');
+        section.innerHTML = '<h4 id="cc-settings-data-delete-title">全てのデータを削除</h4>' +
+            '<p class="cc-settings-note">保存したコード、フォルダ、設定を初期状態に戻します。</p>' +
+            '<button type="button" class="cc-settings-reset-trigger cc-settings-danger-trigger" id="cc-settings-data-delete">全てのデータを削除</button>';
+        refreshBar.parentNode.insertBefore(section, refreshBar);
+    }
+
+    function resetProAuthentication() {
+        if (typeof window.__soundCruiseClearGate === 'function') {
+            window.__soundCruiseClearGate();
+        }
+        window.location.reload();
+    }
+
+    function deleteAllAppData() {
+        if (!window.confirm('保存したコード・設定をすべて削除して初期状態に戻します。')) return;
+        var storage = window.ChordCruise.storage;
+        if (!storage || typeof storage.clearChordCruiseData !== 'function' || storage.clearChordCruiseData() !== true) {
+            showResetResult('データを削除できませんでした', 'error');
+            return;
+        }
+        window.location.reload();
+    }
+
     function applyFretNumberSize(value) {
         var size = normalizeSize(value);
         document.documentElement.setAttribute('data-cc-fret-number-size', size);
@@ -390,6 +438,8 @@
         openBtn = document.getElementById('cc-settings-btn');
         closeBtn = document.getElementById('cc-settings-close');
         buildCustomFretGrid();
+        renderProSection();
+        renderDataDeleteSection();
         applyVersionDisplay();
 
         var initialSize = applyFretNumberSize(getSettings().fretNumberSize);
@@ -461,6 +511,14 @@
                 }
                 if (event.target.closest('[data-settings-reset-confirm]')) {
                     resetDisplaySettings();
+                    return;
+                }
+                if (event.target.closest('#cc-settings-pro-gate-reset')) {
+                    resetProAuthentication();
+                    return;
+                }
+                if (event.target.closest('#cc-settings-data-delete')) {
+                    deleteAllAppData();
                     return;
                 }
                 if (event.target === overlayEl) close();

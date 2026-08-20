@@ -78,7 +78,9 @@
         libraryCardChordNameSize: 'medium',
         libraryCardFretNumberSize: 'medium',
         libraryCardMarkerLabelSize: 'medium',
-        librarySortMode: 'updatedDesc'
+        librarySortMode: 'updatedDesc',
+        // 新規保存画面だけで使うUI設定。保存コードのrecordには含めない。
+        lastSaveFolderId: UNCATEGORIZED_ID
     };
 
     function normalizeHighlightedFrets(value) {
@@ -129,6 +131,9 @@
         }
         normalized.highlightedFrets = normalizeHighlightedFrets(normalized.highlightedFrets);
         normalized.highFretMode = normalized.highFretMode === true;
+        if (typeof normalized.lastSaveFolderId !== 'string' || !normalized.lastSaveFolderId) {
+            normalized.lastSaveFolderId = UNCATEGORIZED_ID;
+        }
         return normalized;
     }
 
@@ -214,6 +219,30 @@
             }
         }
         return writeJSON(KEY_SETTINGS, normalizeSettings(next));
+    }
+
+    /** Chord Cruise自身が管理するlocalStorageキーだけを削除する。 */
+    function clearChordCruiseData() {
+        var snapshot = [];
+        var index;
+        try {
+            for (index = 0; index < window.localStorage.length; index += 1) {
+                var key = window.localStorage.key(index);
+                if (typeof key === 'string' && key.indexOf(PREFIX) === 0) {
+                    snapshot.push({ key: key, value: window.localStorage.getItem(key) });
+                }
+            }
+            snapshot.forEach(function (entry) {
+                window.localStorage.removeItem(entry.key);
+            });
+            return true;
+        } catch (err) {
+            snapshot.forEach(function (entry) {
+                try { window.localStorage.setItem(entry.key, entry.value); } catch (restoreError) {}
+            });
+            console.warn('[ChordCruise.storage] failed to clear app data', err);
+            return false;
+        }
     }
 
     // ---- フォルダ ----
@@ -812,6 +841,7 @@
         normalizeSettings: normalizeSettings,
         loadSettings: loadSettings,
         saveSettings: saveSettings,
+        clearChordCruiseData: clearChordCruiseData,
         getLastError: getLastError,
         getLibraryLimits: getLibraryLimits,
         loadFolders: loadFolders,

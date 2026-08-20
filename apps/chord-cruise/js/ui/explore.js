@@ -147,7 +147,7 @@
                 '</div>' +
                 '<p class="cc-fb-hint" id="cc-fb-hint"></p>' +
                 '<div id="cc-caged-pro-link" hidden>' +
-                    '<a class="cc-btn cc-btn-secondary cc-btn--block" href="pro_k7m4q9v2x8/" target="_blank" rel="noopener">Pro版を開く</a>' +
+                    '<a class="cc-btn cc-btn-secondary cc-btn--block" href="pro-access.html" target="_blank" rel="noopener">Pro版の入手方法</a>' +
                 '</div>' +
                 '<div class="cc-save-btn-row" id="cc-save-btn-row">' +
                     '<button type="button" class="cc-btn cc-btn-primary cc-btn--block" id="cc-save-form-btn" disabled aria-describedby="cc-fb-hint">保存する</button>' +
@@ -648,10 +648,10 @@
             host.appendChild(message);
             var link = document.createElement('a');
             link.className = 'cc-btn cc-btn-primary cc-btn--block';
-            link.href = 'pro_k7m4q9v2x8/';
+            link.href = 'pro-access.html';
             link.target = '_blank';
             link.rel = 'noopener';
-            link.textContent = 'Pro版を開く';
+            link.textContent = 'Pro版の入手方法';
             host.appendChild(link);
             return;
         }
@@ -715,6 +715,21 @@
             return chord.noteNames[noteIndex];
         }
         return getTheory().noteName(pc, useFlats);
+    }
+
+    /** 表示範囲外となったFORM slotを、現在のコード綴りでユーザー向けに説明する。 */
+    function outOfRangeNoticeText(chord, outOfRangeNotes, range) {
+        if (!Array.isArray(outOfRangeNotes) || !outOfRangeNotes.length) return '';
+        var useFlats = chordUseFlats(chord);
+        var spelledNoteNames = chordSpelledNoteNames(chord);
+        return outOfRangeNotes.map(function (note) {
+            var noteIndex = chord.intervals.indexOf(note.interval);
+            var noteName = chordNoteName(chord, noteIndex, note.note, useFlats, spelledNoteNames);
+            var reason = note.fret > range.end
+                ? '表示範囲' + range.end + 'Fを超えるため非表示'
+                : '表示範囲' + range.start + 'Fより低いため非表示';
+            return note.string + '弦' + note.fret + 'フレットの' + noteName + '音（' + reason + '）';
+        }).join('\n');
     }
 
     function chordSolfegeName(noteIndex, pc, useFlats, spelledNoteNames) {
@@ -1030,7 +1045,7 @@
                     noticeText = form.warning;
                 }
                 if (form.hasOutOfRangeNotes) {
-                    rangeNoticeText = 'このフォームには表示範囲外の音があるため、表示できる音だけを表示しています。';
+                    rangeNoticeText = outOfRangeNoticeText(chord, form.outOfRangeNotes, range);
                 }
             } else if (result.reason === 'quality') {
                 markers = computeChordToneMarkers(chord);

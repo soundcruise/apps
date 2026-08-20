@@ -1074,6 +1074,16 @@
         var notes = allNotes.filter(function (note) {
             return note.fret >= lowerLimit && note.fret <= limit;
         });
+        var outOfRangeNotes = allNotes.filter(function (note) {
+            return note.fret < lowerLimit || note.fret > limit;
+        }).map(function (note) {
+            return {
+                string: note.string,
+                fret: note.fret,
+                note: ((rootPc + note.interval) % 12 + 12) % 12,
+                interval: note.interval
+            };
+        });
         notes.forEach(function (note) {
             if (note.fret === 0) {
                 includesOpen = true;
@@ -1099,8 +1109,9 @@
             warning: warning,
             rootFret: rootFret,
             usedOpenFingers: !!(isOpenPosition && def.openFingers),
-            hasOutOfRangeNotes: notes.length !== allNotes.length,
-            omittedNoteCount: allNotes.length - notes.length,
+            hasOutOfRangeNotes: outOfRangeNotes.length > 0,
+            omittedNoteCount: outOfRangeNotes.length,
+            outOfRangeNotes: outOfRangeNotes,
             notes: notes,
             // 表示範囲外で一時的に省略された音をミュート扱いにしないため、
             // visible notes ではなくフォーム全体の allNotes と照合する。

@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../theme.css?v=0.35.0">
+<link rel="stylesheet" href="../theme.css?v=0.36.0">
 <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
 </head>
 <body>
@@ -28,32 +28,48 @@
         <span class="cc-settings-gear" aria-hidden="true">⚙️</span> 設定
     </button>
     <main class="cc-main">
-        <!-- TOP画面 -->
-        <section id="cc-screen-home" class="cc-screen">
-            <header class="cc-home-header">
-                <h1 class="cc-home-title">コードクルーズ</h1>
-                <p class="cc-home-subtitle">CHORD CRUISE</p>
-                <p class="cc-home-tagline">キーから探して、指板で確かめて、自分のコード本棚へ。</p>
-            </header>
-            <div class="cc-home-actions">
-                <button type="button" class="cc-action-card" id="cc-go-explore">
-                    <span class="cc-action-card-icon">🔍</span>
-                    <span class="cc-action-card-body">
-                        <span class="cc-action-card-label">コードを調べる</span>
-                        <span class="cc-action-card-sub">キーからコードを探して、指板上で構成音やフォームを確認します。</span>
-                    </span>
-                    <span class="cc-action-card-chevron">›</span>
-                </button>
-                <button type="button" class="cc-action-card" id="cc-go-library">
-                    <span class="cc-action-card-icon">📚</span>
-                    <span class="cc-action-card-body">
-                        <span class="cc-action-card-label">コード本棚</span>
-                        <span class="cc-action-card-sub">保存したコードフォームをフォルダごとに整理します。</span>
-                    </span>
-                    <span class="cc-action-card-chevron">›</span>
-                </button>
-            </div>
-        </section>
+            <!-- TOP画面 -->
+            <section id="cc-screen-home" class="cc-screen">
+                <header class="cc-home-header">
+                    <h1 class="cc-home-title cc-home-title--pro">
+                        <span class="cc-home-title-text">コードクルーズ</span>
+                        <span class="cc-pro-badge">PRO</span>
+                    </h1>
+                </header>
+                <div class="cc-home-actions">
+                    <button type="button" class="cc-action-card" id="cc-go-explore">
+                        <span class="cc-action-card-icon" aria-hidden="true">
+                            <svg viewBox="0 0 64 64" focusable="false">
+                                <path d="M16 12v28M24 12v28M32 12v28M40 12v28M48 12v28" />
+                                <path d="M12 18h40M12 28h40M12 38h29" />
+                                <circle cx="24" cy="28" r="3.5" />
+                                <circle cx="40" cy="18" r="3.5" />
+                                <circle cx="32" cy="38" r="3.5" />
+                                <circle cx="46" cy="44" r="8" />
+                                <path d="m52 50 6 6" />
+                            </svg>
+                        </span>
+                        <span class="cc-action-card-body">
+                            <span class="cc-action-card-label">コードを調べる</span>
+                            <span class="cc-action-card-sub">コードの構成音とフォームを確かめる</span>
+                        </span>
+                    </button>
+                    <button type="button" class="cc-action-card" id="cc-go-library">
+                        <span class="cc-action-card-icon" aria-hidden="true">
+                            <svg viewBox="0 0 64 64" focusable="false">
+                                <path d="M14 14h23c4.5 0 8 3.5 8 8v30H22c-4.5 0-8-3.5-8-8V14Z" />
+                                <path d="M45 22h5c2.2 0 4 1.8 4 4v26H31c-4.5 0-8-3.5-8-8" />
+                                <path d="M23 24h14M23 32h14M23 40h9" />
+                                <circle cx="47" cy="42" r="4" />
+                            </svg>
+                        </span>
+                        <span class="cc-action-card-body">
+                            <span class="cc-action-card-label">コード本棚</span>
+                            <span class="cc-action-card-sub">保存したコードフォームを整理する</span>
+                        </span>
+                    </button>
+                </div>
+            </section>
         <!-- コードを調べる（STEP 2以降で実装） -->
         <section id="cc-screen-explore" class="cc-screen cc-screen--hidden">
             <header class="cc-page-header"><h2 class="cc-page-title">🔍 コードを調べる</h2></header>
@@ -170,21 +186,21 @@
         </div>
     </div>
 </div>
-<script src="../js/core/feature-access.js?v=0.35.0"></script>
-<script src="../js/core/storage.js?v=0.35.0"></script>
-<script src="../js/core/music-theory.js?v=0.35.0"></script>
-<script src="../js/core/caged-forms.js?v=0.35.0"></script>
-<script src="../js/core/chord-model.js?v=0.35.0"></script>
-<script src="../js/core/chord-info.js?v=0.35.0"></script>
-<script src="../js/ui/fretboard.js?v=0.35.0"></script>
-<script src="../js/ui/toast.js?v=0.35.0"></script>
-<script src="../js/ui/focus-trap.js?v=0.35.0"></script>
-<script src="../js/ui/save-editor.js?v=0.35.0"></script>
-<script src="../js/ui/chord-builder.js?v=0.35.0"></script>
-<script src="../js/ui/chord-export.js?v=0.35.0"></script>
-<script src="../js/ui/library.js?v=0.35.0"></script>
-<script src="../js/ui/explore.js?v=0.35.0"></script>
-<script src="../js/ui/settings.js?v=0.35.0"></script>
-<script src="../js/app.js?v=0.35.0"></script>
+<script src="../js/core/feature-access.js?v=0.36.0"></script>
+<script src="../js/core/storage.js?v=0.36.0"></script>
+<script src="../js/core/music-theory.js?v=0.36.0"></script>
+<script src="../js/core/caged-forms.js?v=0.36.0"></script>
+<script src="../js/core/chord-model.js?v=0.36.0"></script>
+<script src="../js/core/chord-info.js?v=0.36.0"></script>
+<script src="../js/ui/fretboard.js?v=0.36.0"></script>
+<script src="../js/ui/toast.js?v=0.36.0"></script>
+<script src="../js/ui/focus-trap.js?v=0.36.0"></script>
+<script src="../js/ui/save-editor.js?v=0.36.0"></script>
+<script src="../js/ui/chord-builder.js?v=0.36.0"></script>
+<script src="../js/ui/chord-export.js?v=0.36.0"></script>
+<script src="../js/ui/library.js?v=0.36.0"></script>
+<script src="../js/ui/explore.js?v=0.36.0"></script>
+<script src="../js/ui/settings.js?v=0.36.0"></script>
+<script src="../js/app.js?v=0.36.0"></script>
 </body>
 </html>

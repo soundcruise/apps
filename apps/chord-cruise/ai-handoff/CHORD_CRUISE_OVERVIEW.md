@@ -14,8 +14,19 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/`（要確認: 本番公開状況は本ドキュメント作成時点で未確認。ディレクトリ構成から推測した一般的なURL）
 - PRO版URL: `https://soundcruise.jp/apps/chord-cruise/pro_k7m4q9v2x8/`（`data-app-edition="Pro"`、`apps/shared/pro-gate.js`／`pro-gate.css`を利用）
-- 現在のバージョン: `0.35.0`（Phase P7 Chord Cruise Pro基盤と機能制限を正式化）
-- 正式Chord Cruise HEAD: `ecd4ad09b760e766791b6a4150a6297ab540b744`
+- 現在のバージョン: `0.36.0`（Phase P7 Chord Cruise Pro基盤と機能制限を正式化）
+- 正式Chord Cruise HEAD: `3455175d26ab03bc893e2c63b5a3ec99e6d7d2f4`
+
+## 現在のPro構成（v0.36.0）
+
+- Standard入口: `apps/chord-cruise/index.html`
+- Pro入口: `apps/chord-cruise/pro_k7m4q9v2x8/index.html`（`data-app-edition="Pro"`）
+- Pro基盤: `apps/chord-cruise/js/core/feature-access.js`、`apps/shared/pro-gate.js`、`apps/shared/pro-gate.css`
+- Feature Access: `customChordSave`、`unlimitedLibrary`、`advancedQuality`、`advancedCaged`
+- 保存制限: Standardはフォルダ最大3個・1フォルダ最大10コード、Proは無制限
+- Pro導線: StandardのPro案内 → `pro-access.html` → Pro入口 → shared gate
+- 設定表示: Standardは「Pro版はこちら」、Proは「Pro版を利用中」
+- 保存互換: `schemaVersion: 1`、`qualityKey`、`intervals`、`bassPc`を維持し、edition情報は保存しない
 - **v0.25.0 Phase G2-A C5 power5 CAGED正式化**: 任意コードの`third:null, fifth:7, seventh:null`を`qualityKey: 'power5'`（`1 / 5`、symbolは`C5`）として扱い、C/A/G/E/Dの固定FORMを追加した。全型でMajor FORMのinterval 4（3度）だけを除外し、root／5度は高音側を含め全slot保持する。`deletedNotes`／`pendingDelete`は使わず、3度を鳴らさない弦だけをmuteにする。運指はMajor由来の候補で、E型の高音1・5度は3弦を鳴らさないmovable運指が未確認のため`finger:null + fingeringWarning:true`とする。保存schema・migrationは不変。実機確認後に正式化した。
 - **Phase G2-B no5 CAGED候補（未commit）**: 任意コードの`third:4, fifth:null, seventh:null`を`qualityKey: 'no5'`（`1 / 3`、symbolは既存どおり`C(no5)`）として扱い、C/A/G/E/Dの固定FORMを追加した。全型でMajor FORMのinterval 7（5度）だけを除外し、root／3度は高音側を含め全slot保持する。`deletedNotes`／`pendingDelete`は使わず、5度を鳴らさない弦だけをmuteにする。運指はMajor由来の暫定候補で、E型の高音rootは5弦・2弦を鳴らさないmovable運指が実機確認前のため`finger:null + fingeringWarning:true`とする。保存schema・migration・versionは不変。実機確認後に正式化する。
 - **v0.26.0 Phase G3-A no5 CAGED正式化**: `no5` quality（`[0,4]`、degree `1 / 3`、symbol `C(no5)`）と、Major CAGEDの5度slotだけを除外したC/A/G/E/D固定5FORMを正式化した。root／3度と高音側slotは保持し、`deletedNotes`／`pendingDelete`は使わず、除外弦だけをmuteにする。暫定FINGERINGはC`×・薬・中・×・人・open`、A`×・人・×・薬・小・×`、G`薬・中・×・人・人・小`、E`人・×・薬・中・×・⚠`、D`×・×・人・×・小・薬`。schemaVersion 1・migrationは不変。正式HEADは`45df5ea02e4af3166b1900e786ffcb7395d602ef`。
@@ -119,7 +130,7 @@
 - **v0.22.10 Phase F2正式化**: 前項のtension保存仕様を正式化した。`tensionPcs`と編集済み候補だけの`tensionFingerings`を保存し、複数テンションはdegree順で管理する。FORM・Bass・Tensionのpending-deleteは通常本棚／SVG／PNGで非表示、save-editorの編集時だけ点線・半透明・中央空欄・aria「消去予定」で復元する。保存rangeはFORM基準で、Phase E2のBass近傍候補だけを拡張し、Tension候補では拡張しない。Cadd9、CM7(9)、C7(9)、CM7(9,13)、Cadd9/Eのsave/reload、本棚、SVG/PNG、通常／ハイフレットを確認し、schemaVersion 1・migrationなしを維持する。正式main HEADは`6c6749911cbfb1eff8fa6ad6d543a89fc0292646`。
 - **v0.22.11 Phase E3正式化**: Bass selectorの通常状態を`通常`として明示し、root以外の全11 pitch classを「構成音」と「その他のベース音」に分けて選択可能にした。構成音には3和音・7th・tensionを含め、rootは通常状態と同義のため除外した。non-chord Bassも既存optional `bassPc`だけへ保存し、upper intervals・quality・CAGED FORM・schemaVersion 1・migrationは変更しない。`C/B♭`、`C/D`、`C/F`のsymbol、4〜6弦Bass ring、CDE／ドレミ／度数、save-editor、reload、本棚、SVG/PNGを既存E2経路で再生成する。Bass表記はA♯→B♭、D♯→E♭、G♯→A♭を優先し、rootやscaleの綴りには波及させない。保存rangeはFORM基準＋Bass近傍のみで、Tension候補では拡張しない。正式main HEADは`65f7835f0f83b205322ee96f359bacbe21066fbb`。
 - **v0.24.0 Phase G2 Sus4 CAGED正式化**: `QUALITIES.sus4`（`1 4 5`）とC/A/G/E/Dの固定5FORMを正式化した。任意コードの`third:5, fifth:7, seventh:null`は`qualityKey: 'sus4'`でCAGED表示できる。FORMはC型`x33011`、A型`x35563`、G型`8-8-5-5-6-8`、E型`8-10-10-10-8-8`、D型`xx10-12-13-13`を全slot保持する。FINGERINGはC型の開放3弦を`openFingers`で扱い移動形の同slotを⚠、A型`× 人 中 薬 小 人`、G型`薬 小 人 ⚠ ⚠ ⚠`、E型既存候補、D型`× × 人 中 薬 小`とした。FORM音の削除・mute化・根拠のない親指Tは行わない。Sus4の4度は3度代替の構成音として通常黄色で表示し、Explore／保存前編集／本棚／SVG・PNGで同じroleを使う。任意コード作成は選択中ダイアトニックのroot・3rd・5th・7thを初期値とし、未選択時・既存任意コード選択時はCメジャーから開始する（tension／bassは持ち込まない）。schemaVersion・migrationは不変。versionは`0.24.0`。
-- 通常版/PRO版の構造: PRO版は存在しないため、`apps/chord-cruise/` 直下の `index.html` のみが唯一のエントリーポイント。他アプリのような `standard/` サブディレクトリも無い。
+- 通常版/PRO版の構造: Standardは`apps/chord-cruise/index.html`、Proは`apps/chord-cruise/pro_k7m4q9v2x8/index.html`を入口とする。core／UI／theme.cssは共有し、Pro入口だけがedition属性とshared gateを追加で読み込む。
 - JS/CSSの共有関係:
   - `theme.css` はコードクルーズ専用の1ファイル（`apps/shared/` には依存していない）。
   - JSは1本の `script.js` ではなく、`js/core/*.js`（データ・ロジック層）と `js/ui/*.js`（画面描画層）に分割されたモジュール構成。`index.html` から15本のscriptタグで個別に読み込む（`window.ChordCruise` というグローバルオブジェクトに各モジュールが機能を生やす形）。
@@ -162,7 +173,7 @@
 | `js/ui/settings.js` | 右上の共通設定ボタンと設定オーバーレイ。設定本体とデフォルト確認のTab循環を適用する。右上表示設定は保存成功後だけ共有状態・UI・再描画へ反映し、失敗時は旧表示を維持する。全主要画面と設定画面にあるVer表示／`_r=<timestamp>`付きページ更新も管理する。 |
 | `js/app.js` | エントリースクリプト。バージョン定数の保持、画面切り替え（`showScreen`）、共通ナビ（戻る/TOP）のイベント登録、初期化処理。 |
 
-**現時点で存在しないファイル**: PRO版HTML、`manifest.json`、`service-worker.js`、`info.html`、`terms.html`、`privacy.html`、単発ヘルプページ。
+**現時点で存在しないファイル**: `manifest.json`、`service-worker.js`、`info.html`、`terms.html`、`privacy.html`、単発ヘルプページ。
 
 ---
 
@@ -179,18 +190,19 @@
   - 「このフォームを保存」ボタン、コード詳細情報表示
 - **コード本棚画面**（`cc-screen-library`）: `js/ui/library.js`が「フォルダ一覧 → 指板サムネイル一覧 → 保存コード詳細」の3階層を動的に描画する。フォルダ一覧はヴィンテージ楽譜集風の縦書き背表紙を2〜6列で表示し、`folderShelfColumns`へ独立して保存する。英数字は一文字ずつ正立させ、長音記号「ー」だけは縦棒として描画する。各行の直下には個別の棚板を置く。各背表紙下部の「…」から名前変更・複製・色変更・完全削除を操作できる。コード一覧はコード名と保存範囲だけの指板を1〜4列で表示し、`libraryColumns`へ保存する。詳細は指板直上へコード名だけを表示し、一時的な白黒表示、PNG書き出し、保存コード編集に対応する。
 - **設定画面**: 全画面共通の右上設定ボタンからオーバーレイで開く。「指板の表示」カードでフレット番号サイズと、すべて/ポジションマーク/カスタムの番号強調を選択できる。
-- **PRO導線**: 現時点で存在しない。
+- **PRO導線**: Standardの保存・高度quality・高度CAGEDの案内から`pro-access.html`へ進み、Pro入口`pro_k7m4q9v2x8/index.html`でshared gateを通過する。設定画面にもStandard向け「Pro版はこちら」またはPro向け「Pro版を利用中」を表示する。
 
 ---
 
 ## 5. 通常版 / PRO版の違い
 
-**PRO版は現時点で存在しない。** 調査の結果、以下を確認済み:
-- `isProEdition`・`data-app-edition`・`PRO版`といった文字列は `apps/chord-cruise/` 配下のどこにも見つからなかった。
-- ディレクトリ構成にも `standard/` `pro_xxxxx/` のような分割は無い。
-- 認証・パスワードゲート関連のコードも見当たらない。
-
-このため、本章の他項目（PROロック対象・PRO認証の扱い等）は**該当なし**。将来PRO版を追加する場合は、他アプリ（指板クルーズ・音感クルーズ・リズムクルーズ）の実装パターン（`data-app-edition="Pro"` 属性＋`isProEdition()`関数、または`shared/pro-gate.js`によるパスワードゲート）を参考にできるが、その際は必ずユーザーに設計方針を確認してから進めること。
+StandardとProは同じcore／UI／保存schemaを共有し、入口とFeature Accessで利用範囲を分ける。
+- Standard入口は`apps/chord-cruise/index.html`、Pro入口は`apps/chord-cruise/pro_k7m4q9v2x8/index.html`。
+- Pro入口は`data-app-edition="Pro"`、`feature-access.js`、`apps/shared/pro-gate.js`／`pro-gate.css`を利用する。
+- Standardは任意コードの作成・構成音確認・通常指板表示を利用できるが、任意コード保存は`customChordSave`でPro案内となる。
+- Standardの保存上限はフォルダ3個・1フォルダ10コード。Proは`unlimitedLibrary`により無制限。
+- 高度qualityの詳細分析は`advancedQuality`、高度qualityのCAGEDフォームは`advancedCaged`でPro制御する。CAGED未対応や運指未定義の文言とは分離する。
+- 保存recordはStandard/Proで共通で、`schemaVersion: 1`、`qualityKey`、`intervals`、`bassPc`を維持し、edition情報を保存しない。
 
 ---
 
@@ -209,7 +221,7 @@
 - **コード本棚**: 保存したコードフォームをフォルダ単位で整理する。フォルダはヴィンテージ楽譜集の背表紙として2〜6列で並び、各行の直下に棚板を描く。列数はコードカードの1〜4列設定とは別に`folderShelfColumns`で保持する。表示名は一文字ずつの装飾用spanで縦組みにし、半角英数字は正立、長音記号「ー」は空の専用spanの擬似要素でCSS製の縦線として描く。文字グリフの回転には依存しない。ボタン本体の`aria-label`と`title`は元の横書き名を保つ。各フォルダ下部の「…」は管理専用で、名前変更・フォルダと全コードの深い複製・12色からの色選択・完全削除をbottom sheetで提供する。未分類は先頭固定で色変更のみできる。フォルダのコピーは新規IDと新規コードIDを採番し、元の直後・元のコード順で追加する。色はフォルダの任意`colorKey`だけに保存し、既定は`black-leather`。colorKeyなしの旧フォルダも黒革として表示し、読むだけでは保存データを書き換えない。フォルダ削除は所属コードの個別レコード、index、`libraryOrder`をまとめて完全削除し、書き込み失敗時はスナップショットを復元する。コード一覧ではコード名＋軽量SVG指板を1〜4列で表示する。詳細・一覧・書き出しは同じ保存範囲描画モデルを使う。
 - **保存データの整合性**: 保存コードの新規保存・上書き・フォルダ移動・削除では、個別コード、`chordCruise.chords.index`、`chordCruise.libraryOrder`、必要時のフォルダ初期化状態を同一トランザクション相当として扱う。各書き込み前の生値を保存し、途中失敗時は全キーの復元を個別に試み、復元の一部に失敗しても残りを継続する。APIは保存失敗時`null`、削除失敗時`false`を返し、詳細画面は入力・表示・現在位置を成功前に確定せずエラートーストを出す。
 - **表示設定**: `chordCruise.settings` に `fretNumberSize`、`fretNumberHighlightMode`、`highlightedFrets`、`highFretMode`、`fretboardMarkerLabelSize`（`small`／`medium`／`large`／`xlarge`、既定`medium`）を保存する。右上の各変更は候補オブジェクトを保存してから、成功時だけ同じ共有`state.settings`オブジェクトへコピーし、DOM適用・操作部同期・`chordcruise:fretboard-settings-change`を行う。保存失敗時は共有状態・UI・プレビューを旧値のままにし、エラートーストのみ表示する。右上の「丸内文字の大きさ」はCDE／ドレミ／度数／運指／⚠へ共通適用し、Explore・本棚詳細・設定プレビュー・PNGだけに明示的に渡す。詳細では保存済み指板のオプション生成時にこの値を落とさず、指板hostへ渡す。保存前編集には渡さない。本棚一覧専用には`libraryCardDisplayMode`（既定`finger`）、`libraryCardMonochrome`（既定`false`）、`libraryCardChordNameSize`／`libraryCardFretNumberSize`／`libraryCardMarkerLabelSize`（各`small`／`medium`／`large`／`xlarge`、既定`medium`）を保存する。両系統は完全分離する。右上設定末尾の「すべてデフォルトに戻す」は確認後、`chordNameSize`、`fretNumberSize`、`fretboardMarkerLabelSize`、`fretNumberHighlightMode`、`highlightedFrets`、`fretboardDisplayMode`だけを`storage.getSettingsDefaults()`由来の既定値へ1回の部分保存で戻す。保存コード・フォルダ・一覧設定・順序・未知のsettings keyは保持し、全データ初期化や`localStorage.clear()`は使わない。表示設定bottom sheetは「表示」と「文字サイズ」のアクセシブルな2タブで、選択タブは金色下線、非選択はグレー文字として設定値ボタンと区別し、開くたびに表示タブから開始する。保存済みの弦・フレット・interval・fingerから軽量SVGだけを再描画し、特大は列数ごとに安全な倍率へクランプする。白黒一覧だけは固定高カードで上下の丸・フレット番号を切らないよう、SVGのviewBoxへ専用安全余白と白いパネル背景を渡す。既存settingsへ既定値をマージし、schemaVersionは変更しない。
-- **通常版/PRO版で差がある機能**: 無し（PRO版自体が存在しないため）。
+- **通常版/PRO版で差がある機能**: `customChordSave`、`unlimitedLibrary`、`advancedQuality`、`advancedCaged`。作成・確認・通常指板表示はStandardにも残す。
 - **触る時に注意すべきロジック**:
   - `js/core/storage.js` の `localStorage` キー体系（`chordCruise.schemaVersion` 等）とスキーマバージョン管理。データ移行を伴う変更は要注意。
   - `js/ui/explore.js` の `renderFretboard()` / `computeFormMarkers()` は、選択中のコード・CAGEDフォーム・表示モードの組み合わせで表示内容が変わる複雑なロジックのため、変更前に一連の関数呼び出し順序を確認すること。
@@ -233,9 +245,10 @@
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.32.0`）。
-- `?v=` によるキャッシュ管理: `index.html` 内の全15本のscriptタグとstylesheet link（計16参照）が同じ `0.32.0` を共有している。
-- 通常版/PRO版で更新箇所が分かれているか: PRO版が存在しないため該当なし。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.36.0`）。
+- `?v=` によるキャッシュ管理: Standard `index.html` とPro `pro_k7m4q9v2x8/index.html` のscript／stylesheet参照を、更新時にそれぞれ確認する。
+- shared gateを変更する場合は、Pro HTMLの`pro-gate.js`／`pro-gate.css`参照も更新対象に含める。今回のP8-5ではversionとコード参照を変更しない。
+- 通常版/PRO版で更新箇所が分かれているか: core／UIは共有し、入口HTMLとPro gate参照だけが分かれる。version更新時はStandard/Pro双方のHTML参照を確認する。
 - service workerの更新: service worker自体が存在しないため不要。
 - **バージョン更新漏れしやすい箇所**: `index.html`内の15本のscriptタグすべてに同一の`?v=`が付いているため、1本でも更新し忘れるとキャッシュ不整合が起きる可能性がある。バージョンを上げる際は、`grep -n "?v=" index.html` で全箇所を確認してから一括更新すること。
 
@@ -323,7 +336,7 @@
 | `index.html`内14本のscriptタグの`?v=`更新漏れ | バージョンを上げる際は`grep -n "?v=" index.html`で全箇所を確認する。 |
 | `index.html`内の「次のSTEPで実装します」という古いプレースホルダー文言を鵜呑みにして「未実装」と誤認する | 実際は `js/ui/explore.js` / `js/ui/library.js` の `render()` が画面を動的に上書きするため、まずJS側の実装状況を確認してから判断する。 |
 | `js/core/storage.js`のスキーマを不用意に変更し、既存ユーザーの保存データ（フォルダ・保存コード）を壊す | スキーマバージョン管理の仕組みを理解してから変更する。互換性のない変更は移行処理を検討する。 |
-| PRO版が存在しないのに、他アプリのPRO実装を前提にコードを書いてしまう | 本ドキュメント5章の通り、PRO版は現状無い。追加提案の前にユーザーに確認する。 |
+| Standard/Proの入口やgate参照を片方だけ更新してしまう | 本ドキュメント5章の構成（Standard `index.html`／Pro `pro_k7m4q9v2x8/index.html`）とFeature Accessを確認し、変更対象を個別指定する。 |
 
 ---
 
@@ -335,6 +348,6 @@
 4. 今回の作業対象ファイルを明確にする（本ファイルの「主要ファイル構成」を参照）
 5. 未追跡ファイルが対象外であることを再確認
 6. 本番バージョンを確認（公開URLが確定していれば `curl` で `?v=` の値を確認）
-7. PRO版は存在しないため、相対パス分岐の考慮は不要（将来PRO版が追加された場合はこの前提を見直す）
+7. Standard/Proの相対パス、`data-app-edition`、shared gate参照を確認する
 8. 変更後は、ホーム/コードを調べる/コード本棚の3画面でクリック確認・コンソールエラー確認を行う
 9. 変更内容に応じて、`apps/chord-cruise/ai-handoff/` 配下の本ファイルと `chord-cruise-overview.html` の更新要否を判断する

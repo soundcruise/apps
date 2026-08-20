@@ -239,8 +239,8 @@
             <h1>コードクルーズ 開発概要</h1>
             <p>キーから探して、指板で確かめて、自分のコード本棚へ ── 開発中のコード学習アプリ</p>
             <div class="ov-meta">
-                <span>現在のバージョン<b>0.35.0（Chord Cruise Pro基盤と機能制限を正式化）</b></span>
-                <span>正式Chord Cruise HEAD<b>ecd4ad0</b></span>
+                <span>現在のバージョン<b>0.36.0（Chord Cruise Pro基盤と機能制限を正式化）</b></span>
+                <span>正式Chord Cruise HEAD<b>3455175d</b></span>
                 <span>最終更新日<b>2026年8月20日</b></span>
             </div>
             <p><b>v0.25.0 Phase G2-A:</b> Power5（C5）を既存Major CAGEDから3度だけ除外した派生FORMとして正式化しました。root／5度は高音側を含めて保持し、保存schema・migrationは変更していません。</p>
@@ -309,7 +309,11 @@
         <section>
             <h2><span class="num">3</span>通常版 / PRO版の概要</h2>
             <div class="ov-card">
-                <p><strong>現時点でPRO版は存在しません。</strong> すべての機能は単一バージョンで提供されており、認証やアクセス制限もありません。</p>
+                <p><strong>Standard:</strong> <code>apps/chord-cruise/index.html</code>から起動します。任意コードの作成・構成音確認・通常指板表示を利用できます。</p>
+                <p><strong>Pro:</strong> <code>apps/chord-cruise/pro_k7m4q9v2x8/index.html</code>から起動し、<code>data-app-edition="Pro"</code>とshared Pro gateを利用します。</p>
+                <p><strong>Pro基盤:</strong> <code>feature-access.js</code>、<code>apps/shared/pro-gate.js</code>、<code>apps/shared/pro-gate.css</code>。Featureは<code>customChordSave</code>、<code>unlimitedLibrary</code>、<code>advancedQuality</code>、<code>advancedCaged</code>です。</p>
+                <p><strong>保存制限:</strong> Standardはフォルダ3個・1フォルダ10コードまで、Proは無制限です。StandardのPro案内は<code>pro-access.html</code>を経由してPro入口へ進みます。</p>
+                <p><strong>設定表示:</strong> Standardは「Pro版はこちら」、Proは「Pro版を利用中」です。保存データは<code>schemaVersion: 1</code>を維持し、edition情報を保存しません。</p>
             </div>
         </section>
 
@@ -478,7 +482,7 @@
         </section>
 
         <div class="ov-footer">
-            コードクルーズ開発概要 ／ 最終更新日: 2026年8月19日 ／ 正式Chord Cruise HEAD: 895118b<br>
+            コードクルーズ開発概要 ／ 最終更新日: 2026年8月20日 ／ 正式Chord Cruise HEAD: 3455175d<br>
             詳細な開発者向け資料は <code>apps/chord-cruise/ai-handoff/CHORD_CRUISE_OVERVIEW.md</code> を参照してください。
         </div>
     </div>

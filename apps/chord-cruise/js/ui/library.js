@@ -34,6 +34,11 @@
         if (code === 'standard-folder-chord-limit') return 'Standard版では1フォルダ10個まで保存できます。';
         return fallback;
     }
+    function showFolderLimitProLink() {
+        var link = document.getElementById('cc-folder-pro-link');
+        var code = typeof storage().getLastError === 'function' ? storage().getLastError() : null;
+        if (link) link.hidden = code !== 'standard-folder-limit' && code !== 'standard-folder-chord-limit';
+    }
     function chordFormName(chord) {
         if (chord && chord.formName) return chord.formName;
         if (chord && chord.shape) return chord.shape + '型';
@@ -56,7 +61,7 @@
             return '<div class="cc-save-section" id="cc-lib-quality-analysis">' +
                 '<h4 class="cc-card-heading">コード分析</h4>' +
                 '<p class="cc-fb-hint">このコードの詳細分析はPro版で利用できます。</p>' +
-                '<a class="cc-btn cc-btn-primary cc-btn--block" href="pro_k7m4q9v2x8/" target="_blank" rel="noopener">Pro版を開く</a>' +
+                '<a class="cc-btn cc-btn-primary cc-btn--block" href="pro-access.html" target="_blank" rel="noopener">Pro版の入手方法</a>' +
             '</div>';
         }
         return '<div class="cc-save-section" id="cc-lib-quality-analysis">' +
@@ -868,6 +873,7 @@
                     '<button type="button" class="cc-btn cc-btn-primary cc-btn--small" id="cc-folder-create-ok">作成</button>' +
                     '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-folder-create-cancel">やめる</button>' +
                 '</div>' +
+                '<a class="cc-save-folder-pro-link" id="cc-folder-pro-link" href="pro-access.html" target="_blank" rel="noopener" hidden>Pro版の入手方法</a>' +
             '</div>') +
         '</div>';
         contentEl().innerHTML = html;
@@ -928,6 +934,7 @@
             if (!name) return;
             if (!storage().createFolder(name)) {
                 toast(storageErrorMessage('フォルダを作成できませんでした'), 'error');
+                showFolderLimitProLink();
                 return;
             }
             renderFolders();

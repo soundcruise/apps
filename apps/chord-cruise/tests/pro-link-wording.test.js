@@ -11,8 +11,8 @@ var saveEditorSource = fs.readFileSync(path.join(root, 'js/ui/save-editor.js'), 
 var standardHtml = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 var proHtml = fs.readFileSync(path.join(root, 'pro_k7m4q9v2x8/index.html'), 'utf8');
 
-var proPath = 'pro_k7m4q9v2x8/';
-var proLabel = 'Pro版を開く';
+var proAccessPath = 'pro-access.html';
+var proAccessLabel = 'Pro版の入手方法';
 var proWording = [
     '作成したコードを保存するにはPro版が必要です。',
     'このコードの詳細分析はPro版で利用できます。',
@@ -21,10 +21,10 @@ var proWording = [
     'Standard版では1フォルダ10個まで保存できます。'
 ];
 
-assert(exploreSource.includes('href="' + proPath + '"'), 'advancedCaged points to the existing Pro URL');
-assert(exploreSource.includes(proLabel), 'advancedCaged uses the shared Pro link label');
-assert(librarySource.includes('href="' + proPath + '"'), 'advancedQuality keeps the existing Pro URL');
-assert(saveEditorSource.includes('href="' + proPath + '"'), 'customChordSave keeps the existing Pro URL');
+assert(exploreSource.includes('href="' + proAccessPath + '"'), 'advancedCaged points to the Pro access page');
+assert(exploreSource.includes(proAccessLabel), 'advancedCaged uses the shared Pro access label');
+assert(librarySource.includes('href="' + proAccessPath + '"'), 'advancedQuality points to the Pro access page');
+assert(saveEditorSource.includes('href="' + proAccessPath + '"'), 'customChordSave points to the Pro access page');
 proWording.forEach(function (text) {
     assert(
         exploreSource.includes(text) || librarySource.includes(text) || saveEditorSource.includes(text),
@@ -36,4 +36,4 @@ assert(proHtml.includes('<html lang="ja" data-app-edition="Pro">'), 'Pro entry r
 assert(exploreSource.includes('setCagedProLink(cagedProRequired)'), 'CAGED Pro link is shown only for the gated state');
 assert(!exploreSource.includes('PRO版を開く'), 'app-level wording does not introduce PRO版 spelling');
 
-console.log('pro-link-wording: advancedCaged Pro URL, existing gates, wording, and Standard/Pro entry compatibility OK');
+console.log('pro-link-wording: advancedCaged Pro access page, existing gates, wording, and Standard/Pro entry compatibility OK');

@@ -98,6 +98,7 @@
                             '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-save-folder-create-cancel">キャンセル</button>' +
                         '</div>' +
                         '<p class="cc-save-folder-error" id="cc-save-folder-error" role="status"></p>' +
+                        '<a class="cc-save-folder-pro-link" id="cc-save-folder-pro-link" href="pro-access.html" target="_blank" rel="noopener" hidden>Pro版の入手方法</a>' +
                     '</div>' +
                     '<label class="cc-field"><span class="cc-field-label">名前</span>' +
                         '<input type="text" id="cc-save-chord-name" class="cc-input" maxlength="32"></label>' +
@@ -107,10 +108,17 @@
                         '<textarea id="cc-save-memo" class="cc-input cc-textarea" rows="2" maxlength="200"></textarea></label>' +
                 '</div>' +
                 '<p class="cc-save-error" id="cc-save-error"></p>' +
+                '<a class="cc-save-folder-pro-link" id="cc-save-limit-pro-link" href="pro-access.html" target="_blank" rel="noopener" hidden>Pro版の入手方法</a>' +
                 '<div class="cc-save-section" id="cc-save-pro-notice" hidden>' +
                     '<p class="cc-fb-hint">作成したコードを保存するにはPro版が必要です。</p>' +
-                    '<a class="cc-btn cc-btn-primary cc-btn--block" href="pro_k7m4q9v2x8/" target="_blank" rel="noopener">Pro版を開く</a>' +
+                    '<a class="cc-btn cc-btn-primary cc-btn--block" href="pro-access.html" target="_blank" rel="noopener">Pro版の入手方法</a>' +
                 '</div>' +
+                '<section class="cc-save-limit-summary" id="cc-save-limit-summary" aria-labelledby="cc-save-limit-title" hidden>' +
+                    '<strong id="cc-save-limit-title">保存上限</strong>' +
+                    '<span id="cc-save-folder-limit-count"></span>' +
+                    '<span id="cc-save-chord-limit-count"></span>' +
+                    '<a href="pro-access.html" target="_blank" rel="noopener">Pro版の入手方法</a>' +
+                '</section>' +
                 '<div class="cc-save-actions">' +
                     '<button type="button" class="cc-btn cc-btn-primary cc-btn--block" id="cc-save-confirm">保存する</button>' +
                     '<button type="button" class="cc-btn cc-btn-secondary cc-btn--block cc-save-bottom-cancel" id="cc-save-cancel-bottom">キャンセル</button>' +
@@ -159,6 +167,11 @@
         document.getElementById('cc-save-confirm').addEventListener('click', saveNew);
         document.getElementById('cc-save-overwrite').addEventListener('click', saveOverwrite);
         document.getElementById('cc-save-copy').addEventListener('click', saveCopy);
+        document.getElementById('cc-save-folder').addEventListener('change', function (event) {
+            if (!draft) return;
+            draft.folderId = event.target.value;
+            renderSaveLimitSummary();
+        });
         document.getElementById('cc-save-folder-create-toggle').addEventListener('click', function () {
             document.getElementById('cc-save-folder-create-toggle').style.display = 'none';
             document.getElementById('cc-save-folder-create-row').classList.remove('cc-inline-input-row--hidden');
@@ -663,13 +676,60 @@
         });
         var exists = folders.some(function (folder) { return folder.id === draft.folderId; });
         select.value = exists ? draft.folderId : window.ChordCruise.storage.UNCATEGORIZED_ID;
+        draft.folderId = select.value;
+        renderSaveLimitSummary();
+    }
+
+    /** Standard版の保存画面だけに、現在のフォルダ・コード保存上限を表示する。 */
+    function renderSaveLimitSummary() {
+        var host = document.getElementById('cc-save-limit-summary');
+        var storage = window.ChordCruise.storage;
+        if (!host || !draft || !storage || typeof storage.getLibraryLimits !== 'function') return;
+        var limits = storage.getLibraryLimits();
+        if (limits.unlimited) {
+            host.hidden = true;
+            return;
+        }
+        var folders = storage.loadFolders();
+        var folderId = document.getElementById('cc-save-folder').value || draft.folderId;
+        var chords = storage.loadChordIndex();
+        var customFolderCount = folders.filter(function (folder) { return folder && !folder.builtin; }).length;
+        var chordCount = chords.filter(function (entry) { return entry && entry.folderId === folderId; }).length;
+        document.getElementById('cc-save-folder-limit-count').textContent =
+            'フォルダ：' + customFolderCount + ' / ' + limits.maxCustomFolders;
+        document.getElementById('cc-save-chord-limit-count').textContent =
+            'このフォルダ：' + chordCount + ' / ' + limits.maxChordsPerFolder;
+        host.hidden = false;
+    }
+
+    function preferredSaveFolderId() {
+        var settings = window.ChordCruise.state && window.ChordCruise.state.settings;
+        var preferred = settings && settings.lastSaveFolderId;
+        var folders = window.ChordCruise.storage.loadOrderedFolders();
+        return folders.some(function (folder) { return folder.id === preferred; })
+            ? preferred
+            : window.ChordCruise.storage.UNCATEGORIZED_ID;
+    }
+
+    function rememberSaveFolder(folderId) {
+        if (!folderId) return;
+        if (window.ChordCruise.storage.saveSettings({ lastSaveFolderId: folderId }) === true &&
+            window.ChordCruise.state && window.ChordCruise.state.settings) {
+            window.ChordCruise.state.settings.lastSaveFolderId = folderId;
+        }
     }
 
     function setFolderError(text) {
         var element = document.getElementById('cc-save-folder-error');
+        var proLink = document.getElementById('cc-save-folder-pro-link');
         if (!element) return;
         element.textContent = text || '';
         element.style.display = text ? 'block' : 'none';
+        if (proLink) {
+            var code = window.ChordCruise.storage && window.ChordCruise.storage.getLastError
+                ? window.ChordCruise.storage.getLastError() : null;
+            proLink.hidden = !text || code !== 'standard-folder-limit';
+        }
     }
 
     function resetFolderCreate() {
@@ -712,8 +772,14 @@
 
     function setError(text) {
         var element = document.getElementById('cc-save-error');
+        var proLink = document.getElementById('cc-save-limit-pro-link');
         element.textContent = text || '';
         element.style.display = text ? '' : 'none';
+        if (proLink) {
+            var code = window.ChordCruise.storage && window.ChordCruise.storage.getLastError
+                ? window.ChordCruise.storage.getLastError() : null;
+            proLink.hidden = !text || code !== 'standard-folder-chord-limit';
+        }
     }
 
     function setCustomSaveProNotice(visible) {
@@ -856,6 +922,7 @@
             setError(storageErrorMessage('保存に失敗しました。ブラウザの保存領域を確認してください。'));
             return;
         }
+        rememberSaveFolder(saved.folderId);
         close();
         if (window.ChordCruise.ui.toast) {
             window.ChordCruise.ui.toast.show('保存しました', { type: 'success' });
@@ -966,7 +1033,7 @@
                 includesOpen: saveRange.includesOpen
             },
             memo: '',
-            folderId: window.ChordCruise.storage.UNCATEGORIZED_ID,
+            folderId: preferredSaveFolderId(),
             autoCenterPending: true
         };
         showEditor();
