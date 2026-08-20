@@ -869,6 +869,12 @@ body {
     min-width: 0;
 }
 
+.cc-high-fret-label-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+}
+
 .cc-high-fret-label {
     color: var(--cc-text);
     font-size: 0.9rem;
@@ -879,6 +885,42 @@ body {
     color: var(--cc-text-muted);
     font-size: 0.72rem;
     line-height: 1.45;
+}
+
+.cc-high-fret-note[hidden] {
+    display: none;
+}
+
+.cc-high-fret-help-toggle {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid rgba(212, 175, 55, 0.45);
+    border-radius: 50%;
+    background: rgba(212, 175, 55, 0.08);
+    color: var(--cc-gold-bright);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 800;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.cc-high-fret-help-toggle:hover,
+.cc-high-fret-help-toggle[aria-expanded="true"] {
+    border-color: var(--cc-gold);
+    background: rgba(212, 175, 55, 0.18);
+}
+
+.cc-high-fret-help-toggle:active {
+    transform: scale(0.94);
+}
+
+.cc-high-fret-help-toggle:focus-visible {
+    outline: 2px solid var(--cc-gold-bright);
+    outline-offset: 2px;
 }
 
 .cc-switch {

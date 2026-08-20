@@ -138,8 +138,11 @@
                 '<div id="cc-fretboard-host" class="cc-fb-host"></div>' +
                 '<div class="cc-high-fret-row">' +
                     '<span class="cc-high-fret-copy">' +
-                        '<span class="cc-high-fret-label">ハイフレット</span>' +
-                        '<span class="cc-high-fret-note">ONにすると12〜25フレットを表示します</span>' +
+                        '<span class="cc-high-fret-label-row">' +
+                            '<span class="cc-high-fret-label">ハイフレット</span>' +
+                            '<button type="button" id="cc-high-fret-help-toggle" class="cc-high-fret-help-toggle" aria-expanded="false" aria-controls="cc-high-fret-note" aria-label="ハイフレット表示の説明">?</button>' +
+                        '</span>' +
+                        '<span class="cc-high-fret-note" id="cc-high-fret-note" hidden>ONにすると12〜25フレットを表示します</span>' +
                     '</span>' +
                     '<button type="button" id="cc-high-fret-toggle" class="cc-switch" role="switch" aria-checked="false" aria-label="ハイフレット表示">' +
                         '<span class="cc-switch-knob" aria-hidden="true"></span>' +
@@ -287,6 +290,14 @@
             saveSetting({ highFretMode: enabled });
             updateHighFretToggle();
             renderFretboard();
+        });
+
+        document.getElementById('cc-high-fret-help-toggle').addEventListener('click', function (event) {
+            var help = document.getElementById('cc-high-fret-note');
+            var toggle = event.currentTarget;
+            var expanded = toggle.getAttribute('aria-expanded') !== 'true';
+            help.hidden = !expanded;
+            toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
         });
 
         document.addEventListener('chordcruise:fretboard-settings-change', function () {
@@ -1014,7 +1025,7 @@
         }
 
         if (!chord) {
-            hint = 'コードを選ぶと構成音が指板に表示されます。';
+            hint = '';
         } else if (shape && window.ChordCruise.featureAccess && !window.ChordCruise.featureAccess.canAccessCaged(chord.qualityKey)) {
             markers = computeChordToneMarkers(chord);
             hint = 'このコードのCAGEDフォームはPro版で利用できます。';

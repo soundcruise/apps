@@ -19,8 +19,8 @@ assert(/^pro_[a-z0-9]+$/.test(path.basename(proDirectory)), 'Pro directory uses 
 assert(standardHtml.includes('<html lang="ja">'), 'Standard entry remains edition-neutral');
 assert(!standardHtml.includes('data-app-edition="Pro"'), 'Standard entry is unchanged by the Pro entry');
 assert(proHtml.includes('<html lang="ja" data-app-edition="Pro">'), 'Pro entry declares the Pro edition');
-assert(proHtml.includes('<link rel="stylesheet" href="../theme.css?v=0.36.1">'), 'Pro entry resolves the shared Chord Cruise theme from its parent directory');
-assert(proHtml.includes('<script src="../js/core/feature-access.js?v=0.36.1"></script>'), 'Pro entry loads feature access before application code');
+assert(proHtml.includes('<link rel="stylesheet" href="../theme.css?v=0.36.2">'), 'Pro entry resolves the shared Chord Cruise theme from its parent directory');
+assert(proHtml.includes('<script src="../js/core/feature-access.js?v=0.36.2"></script>'), 'Pro entry loads feature access before application code');
 
 standardScripts.forEach(function (standardSrc) {
     var proSrc = '../' + standardSrc;
