@@ -12,21 +12,23 @@
 
 - アプリ名: リズムクルーズ（Rhythm Cruise）
 - ディレクトリ: `apps/rhythm-cruise/`
-- 通常版URL: `https://soundcruise.jp/apps/rhythm-cruise/`
+- 通常版PWA URL: `https://soundcruise.jp/apps/rhythm-cruise/standard/`
+- 旧通常版URL（互換入口）: `https://soundcruise.jp/apps/rhythm-cruise/`
 - PRO版URL: `https://soundcruise.jp/apps/rhythm-cruise/pro_r4m8k7n2q9x/`
-- 現在のバージョン: `1.2.0`（`script.js` の `RHYTHM_CRUISE_VERSION`。2026年7月8日付でVer 1.0.0として正式リリース）
+- 現在のバージョン: `1.3.0`（`script.js` の `RHYTHM_CRUISE_VERSION`。PWAのStandard / PRO兄弟ディレクトリ構造へ移行済み）
 - このドキュメント更新時点の最新commit（rhythm-cruise関連）:
   - message: `リズムクルーズを正式版1.0.0に更新`
   - hash: 本ドキュメント更新と同一commitでpushされるため、この記述時点では未確定（4章「リリース準備メモ」参照）
   - ※ リポジトリ全体のHEAD/`origin/main`は、`apps/cruise-studio/`など他アプリの作業により、これより進んでいる場合があります。作業開始時は必ず `git log --oneline -- apps/rhythm-cruise/` でこのアプリ単位の最新commitを確認してください。
 - 通常版 / PRO版の構造:
-  - 通常版: `apps/rhythm-cruise/index.html`（ルート直下）
+  - 通常版: `apps/rhythm-cruise/standard/index.html`（Standard専用ディレクトリ）
+  - 旧通常版URLの互換入口: `apps/rhythm-cruise/index.html`。PWA manifestを公開せず、旧root scopeのService Workerだけを解除して`standard/`へ遷移する。
   - PRO版: `apps/rhythm-cruise/pro_r4m8k7n2q9x/index.html`（サブディレクトリ）
   - PRO版のパスは意図的にランダムな英数字ディレクトリ名（`pro_r4m8k7n2q9x`）になっており、簡易的なアクセス制限として機能しています。ディレクトリ名は変更しないでください。
-- `script.js` は通常版・PRO版で完全に同じファイルを共有しています（PRO版は `../script.js` を参照）。編集は1箇所（ルートの `script.js`）のみで、両版に影響します。
-- `theme.css` も同様に共有しています（PRO版は `../theme.css` を参照）。
+- `script.js` は通常版・PRO版で完全に同じファイルを共有しています（両方とも `../script.js` を参照）。編集は1箇所（ルートの `script.js`）のみで、両版に影響します。
+- `theme.css` も同様に共有しています（両方とも `../theme.css` を参照）。
 - Service Workerの扱い:
-  - `apps/rhythm-cruise/service-worker.js` は**通常版のみ**が登録します（`index.html` 内の `navigator.serviceWorker.register('./service-worker.js', { scope: './' })`）。
+  - `apps/rhythm-cruise/service-worker.js` は**通常版のみ**が登録します（`standard/index.html` 内の `navigator.serviceWorker.register('../service-worker.js', { scope: './' })`）。rootにWorker本体を残しつつ、登録scopeは`standard/`に限定するため、PRO URLを制御しません。
   - **PRO版はService Workerを登録していません。**
   - `service-worker.js` はキャッシュリストを持たず、常にネットワーク優先でfetchする実装です（`fetch` イベントで `fetch().catch(() => caches.match())`）。そのため、通常の機能追加・修正では基本的に触る必要がありません。
 
@@ -49,7 +51,8 @@
 
 | ファイル | 役割 |
 |---|---|
-| `index.html` | 通常版のメインHTML。ホーム/Practice/設定の3画面をSPA的にJSで切り替える。`script.js` と `theme.css` をルート相対で読み込む。 |
+| `index.html` | 旧通常版URLの互換入口。root scopeのService Workerだけを解除後、`standard/`へ遷移する。manifestを参照しないため、新規PWAとして登録されない。 |
+| `standard/index.html` | 通常版のメインHTML。ホーム/Practice/設定の3画面をSPA的にJSで切り替える。`../script.js` と `../theme.css` を参照し、`standard/`だけをscopeにしてService Workerを登録する。 |
 | `pro_r4m8k7n2q9x/index.html` | PRO版のメインHTML。`index.html` とほぼ同一のDOM構造だが、`<html data-app-edition="Pro">` が付き、`../script.js` `../theme.css` を参照。`shared/pro-gate.css` `shared/pro-gate.js` を追加読み込みし、パスワード認証を行う。 |
 | `script.js` | アプリ全体のロジック（画面制御・Practice判定・マイク処理・録音レビュー・PROロック・設定保存など）を1ファイルに集約。通常版/PRO版で共有。 |
 | `theme.css` | 見た目全体を1ファイルで完結（`shared/`には依存しない設計）。通常版/PRO版で共有。 |
@@ -60,9 +63,9 @@
 | `privacy.html` | プライバシーポリシーページ。同上、リズムクルーズ専用。 |
 | `click-input-help.html` | 「マイク位置がわからない場合」の単発ヘルプページ。有線/Bluetoothイヤホン・スマホ本体マイクの位置説明図（SVG）付き。`script.js` の `resume=click-input` パラメータと連動し、戻ると元の設定状態に復元される仕組みがある（やや複雑。触る場合は要調査）。 |
 | `mic-restart-help.html` | 「マイクが反応していない場合」の単発ヘルプページ。アプリの完全終了手順（iPhone/Android）を説明。`theme.css?v=` は最新版に更新済み。 |
-| `service-worker.js` | 通常版のみが登録するService Worker。キャッシュリストなし、常にネットワーク優先。 |
-| `manifest.json` | 通常版PWAマニフェスト。name: 「リズムクルーズ」、theme_color: `#ff9f1c`。 |
-| `pro_r4m8k7n2q9x/manifest.json` | PRO版PWAマニフェスト。name: 「リズムクルーズ PRO」、内容はほぼ同一。 |
+| `service-worker.js` | 通常版のみが登録するService Worker。rootに配置するが、`standard/index.html`から`standard/` scopeで登録する。キャッシュリストなし、常にネットワーク優先。 |
+| `standard/manifest.json` | 通常版PWAマニフェスト。明示的なid `/apps/rhythm-cruise/standard/` と`./` scopeを持つ。 |
+| `pro_r4m8k7n2q9x/manifest.json` | PRO版PWAマニフェスト。明示的なid `/apps/rhythm-cruise/pro_r4m8k7n2q9x/` と`./` scopeを持つ。表示名は「リズムクルーズ」。 |
 
 ---
 
@@ -218,16 +221,16 @@
 機能追加・修正・文言変更など、何かを変更したら以下を必ず更新する（文言だけの変更でもキャッシュ整合性のため必須）。
 
 - `script.js` 内の `RHYTHM_CRUISE_VERSION`
-- 通常版 `index.html` の `script.js?v=`
+- 通常版 `standard/index.html` の `script.js?v=`
 - PRO版 `pro_r4m8k7n2q9x/index.html` の `script.js?v=`
-- 通常版 `index.html` の `theme.css?v=`
+- 通常版 `standard/index.html` の `theme.css?v=`
 - PRO版 `pro_r4m8k7n2q9x/index.html` の `theme.css?v=`
 - `info.html` / `usage.html` / `terms.html` / `privacy.html` / `mic-correction-help.html` の `theme.css?v=`（これらのページは`theme.css`を参照しているため、CSSを変えていなくてもバージョン表記は揃える運用にしている）
 
 補足:
 - CSSを一切変えていない回でも、上記ファイル群の `?v=` は新バージョンに揃えるのが、これまでの運用実績（過去のcommit参照）。
 - Service Workerは原則変更不要（キャッシュリストを持たないため）。ただし、キャッシュ関連の変更を疑う場合は必ず `service-worker.js` の中身を確認してから判断する。
-- `manifest.json` / `pro_r4m8k7n2q9x/manifest.json` の `?v=` は、アイコンやPWA設定自体を変更したときのみ更新対象（通常のUI/文言修正では触らない）。
+- `standard/manifest.json` / `pro_r4m8k7n2q9x/manifest.json` の `?v=` は、アイコンやPWA設定自体を変更したときのみ更新対象（通常のUI/文言修正では触らない）。
 - `click-input-help.html` / `mic-restart-help.html` も `theme.css?v=` を最新版へ揃えている。今後バージョンを上げる時は、上記の静的ページと同じく更新漏れに注意する。
 - **例外（「PRO版の入手方法」導線追加時）**: `info.html` へのボタン追加は、共有 `theme.css` / `script.js` を一切変更せず、`info.html` のページローカル `<style>`/`<script>` と新規ファイル `pro-access.html` だけで完結させた。この回に限り、`RHYTHM_CRUISE_VERSION` および全HTMLの `?v=` は意図的に更新していない（PRO版 `pro_r4m8k7n2q9x/index.html` を一切変更しないことを優先したため）。今後、`theme.css` や `script.js` 自体を変更する回では、通常どおり本章の更新ルールに従うこと。
 

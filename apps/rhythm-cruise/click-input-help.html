@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>マイク位置がわからない場合 | リズムクルーズ</title>
-    <link rel="stylesheet" href="theme.css?v=1.2.0">
+    <link rel="stylesheet" href="theme.css?v=1.3.0">
     <meta name="theme-color" content="#070b11">
     <style>
         .click-help-page { align-items: stretch; gap: 18px; }
@@ -100,13 +100,13 @@
             const isPro = new URLSearchParams(window.location.search).get('return') === 'pro';
             back.href = isPro
                 ? 'pro_r4m8k7n2q9x/index.html?resume=click-input'
-                : 'index.html?resume=click-input';
+                : 'standard/index.html?resume=click-input';
             back.addEventListener('click', (event) => {
                 let cameFromApp = false;
                 try {
                     const referrer = new URL(document.referrer);
                     cameFromApp = referrer.origin === window.location.origin
-                        && /\/rhythm-cruise\/(?:pro_r4m8k7n2q9x\/)?index\.html$/.test(referrer.pathname);
+                        && /\/rhythm-cruise\/(?:standard\/|pro_r4m8k7n2q9x\/)?index\.html$/.test(referrer.pathname);
                 } catch (_) { /* direct access */ }
                 if (cameFromApp && history.length > 1) {
                     event.preventDefault();

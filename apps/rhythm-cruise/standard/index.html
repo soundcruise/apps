@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja" data-app-edition="Pro">
+<html lang="ja">
 
 <head>
     <meta charset="UTF-8">
@@ -11,25 +11,53 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        .rc-standard-pro-access-link {
+            display: inline-block;
+            max-width: 100%;
+            padding: 6px 8px;
+            background: none;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+            overflow-wrap: anywhere;
+        }
 
-    <link rel="manifest" href="manifest.json?v=4">
+        .rc-standard-pro-access-link:focus-visible {
+            outline: 2px solid rgba(222, 194, 122, 0.72);
+            outline-offset: 2px;
+        }
+
+        .preview-loop-row > .rc-standard-pro-access-link {
+            margin-left: auto;
+        }
+
+        .rc-standard-pro-access-row {
+            display: flex;
+            justify-content: flex-end;
+            width: 100%;
+            min-width: 0;
+            margin-top: 2px;
+        }
+    </style>
+
+    <link rel="manifest" href="manifest.json?v=2">
     <meta name="theme-color" content="#070b11">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="リズムクルーズ">
-    <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png?v=2">
-    <link rel="icon" type="image/png" href="favicon.png?v=2">
+    <link rel="apple-touch-icon" sizes="180x180" href="../icon-180.png?v=2">
+    <link rel="icon" type="image/png" href="../favicon.png?v=2">
 
-    <!-- Pro版のみ追加 -->
-    <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('../service-worker.js', { scope: './' })
+                .then(() => console.log('Rhythm Cruise SW registered'))
+                .catch(() => { });
+        }
+    </script>
 </head>
 
 <body data-rc-theme="clean-pro">
-    <script>
-        window.__SOUNDCRUISE_PRO_GATE__ = { passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18', gateVersion: 8, appName: 'リズムクルーズ' };
-    </script>
-    <script src="../../shared/pro-gate.js?v=19"></script>
-
     <!-- 全画面共通ナビ（戻る / TOP）。ホーム以外で表示 -->
     <div id="app-nav" class="app-nav hidden" aria-label="ナビゲーション">
         <button type="button" id="nav-back-btn" class="nav-btn">← 戻る</button>
@@ -44,10 +72,7 @@
         <!-- ══════════ ホーム画面 ══════════ -->
         <section id="screen-home" class="screen">
             <header>
-                <h1 class="home-title pro-home-title">
-                    <span class="pro-home-title-text">リズムクルーズ</span>
-                    <span class="pro-badge">PRO</span>
-                </h1>
+                <h1>リズムクルーズ</h1>
             </header>
 
             <!-- ホームTOP：リズム練への導線だけを置く（v0.9.117） -->
@@ -63,7 +88,7 @@
                     <span class="rc-category-card-sub">リズムパターンを作って再生できます</span>
                 </button>
                 <div class="rc-info-home-slot">
-                    <a class="nav-btn rc-info-home-btn" href="../info.html?from=home&edition=pro" aria-label="インフォメーション" title="インフォメーション">i</a>
+                    <a class="nav-btn rc-info-home-btn" href="../info.html?from=home&edition=standard" aria-label="インフォメーション" title="インフォメーション">i</a>
                 </div>
             </div>
 
@@ -199,6 +224,9 @@
                 </div>
 
                 <button type="button" class="rhythm-create-practice" id="rc-create-practice">このリズムで練習する→</button>
+                <div class="rc-standard-pro-access-row">
+                    <a href="../pro-access.html" class="result-mic-tune-link rc-standard-pro-access-link">PRO版を入手</a>
+                </div>
             </div>
 
             <!-- PROカスタムSTAGE一覧（v0.9.168）。保存済みSTAGEのPlay/編集/削除の導線。戻るは共通ナビ #app-nav。 -->
@@ -406,6 +434,7 @@
                         <span class="preview-loop-cap">くり返し練習</span>
                         <button type="button" class="ss-toggle" id="loop-toggle" aria-pressed="false" title="ONにすると、STOPするまで同じSTAGEを繰り返します（結果は履歴に保存しません）。">OFF</button>
                         <button type="button" class="loop-help-toggle" id="loop-help-toggle" aria-expanded="false" aria-controls="loop-help" aria-label="くり返し練習の説明を開く">＋</button>
+                        <a href="../pro-access.html" class="result-mic-tune-link rc-standard-pro-access-link">PRO版を入手</a>
                         <p class="loop-help-text hidden" id="loop-help">ONにすると、同じリズムをくり返して練習できます。結果は最後に完了した1周分、途中で止めた場合はそこまでを表示します。</p>
                     </div>
                 </div>
@@ -542,6 +571,9 @@
             <!-- 6c. リズム作成Practice中だけ表示（v0.9.201）。 -->
             <div class="stage-save-custom-wrap hidden" id="stage-save-custom-wrap">
                 <button type="button" class="stage-save-custom-btn" id="stage-save-custom-btn">練習STAGEとして保存</button>
+                <div class="rc-standard-pro-access-row">
+                    <a href="../pro-access.html" class="result-mic-tune-link rc-standard-pro-access-link">PRO版を入手</a>
+                </div>
             </div>
             <!-- 6d. 戻るテキストリンク（PROカスタム=←編集に戻る / リズム作成=←リズム作成に戻る）。v0.9.201。 -->
             <div class="practice-back-wrap hidden" id="practice-back-wrap">
@@ -671,7 +703,9 @@
                 <button type="button" class="btn-mini" id="tap-manual-back" style="width:100%;margin-top:10px;padding:11px;">キャンセル</button>
             </div>
 
-            <!-- 画面タップ設定：音ズレ補正テスト（タップ実測型・v0.9.98）。 -->
+            <!-- 画面タップ設定：音ズレ補正テスト（タップ実測型・v0.9.98）。
+                 STAGE1風の流れる音符に合わせ、イヤホンのクリック音と同じタイミングでタップして平均ズレを測る。
+                 マイク設定タブの「丸が流れる目視合わせ」とは別物（こちらは実測型）。 -->
             <div class="settings-card hidden" id="tap-cal-card">
                 <div class="cal-head">音ズレ補正テスト</div>
                 <p class="do-now">イヤホンのクリック音に合わせて、画面をタップ</p>
@@ -680,15 +714,18 @@
                     <summary>詳しい説明</summary>
                     <p class="setting-note">流れてくる音符がJUSTラインに近づく頃、イヤホンからクリック音が聞こえます。その音に合わせて下の「ここをタップ」を8回タップしてください。タップのズレを測って、ちょうど良い補正値に自動で合わせます。</p>
                 </details>
+                <!-- テスト専用BPM（イヤホン音ズレの画面補正テストと同じ 20〜160／20刻み／初期100） -->
                 <div class="hp-bpm-row" style="display:flex;align-items:center;justify-content:center;gap:14px;margin:6px 0 4px;">
                     <span class="setting-label" style="margin:0;">BPM</span>
                     <button type="button" class="btn-mini hp-bpm-btn" id="tap-cal-bpm-minus" aria-label="BPMを下げる">−</button>
                     <b id="tap-cal-bpm-val" style="min-width:3ch;text-align:center;font-size:1.15rem;">80</b>
                     <button type="button" class="btn-mini hp-bpm-btn" id="tap-cal-bpm-plus" aria-label="BPMを上げる">＋</button>
                 </div>
+                <!-- STAGE1風の流れる音符＋JUSTライン＋タップマーカー（専用キャンバス） -->
                 <div class="test-lane-wrap hidden" id="tap-cal-lane-wrap" style="margin:14px 0;">
                     <canvas id="tap-cal-lane-canvas"></canvas>
                 </div>
+                <!-- 補正テスト中の大きなタップエリア（レーン全体の代わりにここをタップ） -->
                 <button type="button" class="tap-cal-pad hidden" id="tap-cal-pad">ここをタップ</button>
                 <p class="test-phase" id="tap-cal-phase"></p>
                 <button class="btn-mic cal-run-btn test-start-btn" id="tap-cal-btn">音ズレ補正テストを開始</button>
@@ -697,26 +734,31 @@
                 <button type="button" class="btn-mini" id="tap-cal-back" style="width:100%;margin-top:10px;padding:11px;">画面タップ設定へ戻る</button>
             </div>
 
-            <!-- マイク設定の入口（v0.9.102） -->
+            <!-- マイク設定の入口（v0.9.102）：[詳細テスト]＝主導線／[保存済みプリセット][現在の設定を見る]＝サブ導線。
+                 「簡易設定」は廃止し、標準設定は「保存済みプリセット」に集約した。 -->
             <div class="settings-card" id="settings-chooser">
                 <div class="cal-head">マイク設定</div>
                 <p class="cal-status hidden" id="chooser-applied-msg" style="margin-top:0;color:#6ed28c;font-weight:700;"></p>
+                <!-- 主導線：補正テスト -->
                 <div class="rc-mic-help-row">
                     <button type="button" class="settings-top-main" id="settings-detail-btn">補正テストを始める</button>
-                    <a class="rc-mic-help-link" href="../mic-correction-help.html?from=settings&edition=pro" id="mic-help-link" aria-label="補正テストのやり方ヘルプ" title="補正テストのやり方ヘルプ">
+                    <a class="rc-mic-help-link" href="../mic-correction-help.html?from=settings&edition=standard" id="mic-help-link" aria-label="補正テストのやり方ヘルプ" title="補正テストのやり方ヘルプ">
                         <span class="rc-mic-help-icon">?</span>
                     </a>
                 </div>
                 <p class="setting-note" style="margin-top:6px;">リズム判定に使うマイク設定を、順番に確認します。</p>
+                <!-- サブ導線：保存済みプリセット（押すと専用ページへ移動・v0.9.104） -->
                 <button type="button" class="btn-mini settings-top-preset" id="preset-toggle-btn" style="width:100%;margin-top:10px;">保存済みプリセット</button>
+                <!-- サブ導線：現在の設定を手動で変更（確認＋手動調整への入口・v0.12.55） -->
                 <button type="button" class="btn-mini settings-top-sub" id="settings-view-current" style="width:100%;margin-top:10px;">現在の設定を手動で変更</button>
+                <!-- 説明は折りたたみ（必要な人だけ開く） -->
                 <details class="card-help" style="margin-top:12px;">
                     <summary>詳しい説明</summary>
                     <p class="setting-note" style="margin-top:8px;">保存済みプリセットは、すぐ試せる基本設定です。端末・イヤホン・音量によって反応や音ズレは変わるため、まずは「補正テストを始める」で現在の環境に合わせて調整してください。調整した設定は保存して、次回からプリセットとして使えます。</p>
                 </details>
             </div>
 
-            <!-- マイク設定：保存済みプリセット（v0.9.104） -->
+            <!-- マイク設定：保存済みプリセット（v0.9.104。画面タップ設定と同じページ遷移型）。 -->
             <div class="settings-card hidden" id="mic-preset-card">
                 <div class="cal-head">保存済みプリセット</div>
                 <p class="setting-note" style="margin-top:0;">選ぶとその設定を適用して、TOPへ戻ります。</p>
@@ -724,7 +766,7 @@
                 <button type="button" class="btn-mini" id="mic-preset-back" style="width:100%;margin-top:12px;padding:11px;">マイク設定TOP</button>
             </div>
 
-            <!-- 簡易設定 -->
+            <!-- 簡易設定：使う環境を選ぶだけで標準プリセットを適用する -->
             <div class="settings-card hidden" id="settings-simple-card">
                 <div class="cal-head">簡易設定</div>
                 <div id="simple-choices">
@@ -738,10 +780,12 @@
                     <button type="button" class="simple-choice" data-preset="builtin_bt" data-label="Bluetoothイヤホン">
                         <span class="simple-choice-title">Bluetoothイヤホン</span>
                     </button>
+                    <!-- 保存済みプリセット（ユーザー保存分）を選択肢として表示。JSで描画（v0.9.89） -->
                     <div id="simple-preset-choices" style="display:none;"></div>
                 </div>
                 <div id="simple-result" class="hidden">
                     <p class="cal-status" id="simple-result-msg" style="margin-top:0;color:#6ed28c;font-weight:700;"></p>
+                    <!-- 主導線＝確認テストを行う／サブ＝このまま完了（横並び・狭ければ縦積み） -->
                     <div class="chooser-row" style="margin-top:8px;">
                         <button type="button" class="chooser-btn chooser-main" id="simple-practice-btn">最終確認テストを行う</button>
                         <button type="button" class="chooser-btn chooser-sub" id="simple-done-btn">このまま完了</button>
@@ -750,24 +794,28 @@
                 </div>
             </div>
 
-            <!-- 現在の設定を手動で変更（確認＋手動調整への導線つき・v0.12.55） -->
+            <!-- 現在の設定を手動で変更：一覧（確認）＋手動調整への導線つき・v0.12.55 -->
             <div class="settings-card hidden" id="settings-summary-card">
                 <div class="cal-head">現在の設定を手動で変更</div>
                 <p class="setting-note">現在の設定を確認し、必要な場合は下の「手動で調整する」から変更できます。</p>
                 <div class="cal-result" id="settings-summary-list" style="display:block;"></div>
+                <!-- 主導線：手動で調整する（一番目立たせる） -->
                 <button type="button" class="btn-primary" id="settings-summary-manual" style="width:100%;margin-top:14px;">手動で調整する</button>
+                <!-- サブ導線：上書き保存（ユーザープリセット由来で変更があるときだけ表示・v0.9.152） -->
                 <button type="button" class="btn-mini mic-overwrite-btn hidden" id="settings-summary-overwrite" style="width:100%;margin-top:10px;padding:11px;border-radius:10px;font-weight:700;">上書き保存</button>
+                <!-- サブ導線：この設定を保存（別名で保存・控えめ／未保存時は強調） -->
                 <button type="button" class="btn-mini" id="settings-summary-save" style="width:100%;margin-top:10px;padding:11px;border:1px solid rgba(255,255,255,0.22);border-radius:10px;background:rgba(255,255,255,0.04);font-weight:700;">この設定を保存</button>
+                <!-- 戻る導線：キャンセル（機能は従来どおりマイク設定TOPへ戻る。デザインは画面タップ設定のキャンセルに合わせる・v0.9.108） -->
                 <button type="button" class="btn-mini" id="settings-summary-back" style="width:100%;margin-top:10px;padding:11px;">キャンセル</button>
             </div>
 
-            <!-- ステップ式：現在地 -->
+            <!-- ステップ式：現在地（ステップ X / N ＋ドット）。JSで描画 -->
             <div id="settings-steps-progress" style="display:none;"></div>
 
-            <!-- ステップ式：完了した項目の要約 -->
+            <!-- ステップ式：完了した項目の要約（タップで選び直し）。JSで描画 -->
             <div id="settings-steps-summary" style="display:none;"></div>
 
-            <!-- 端末選択（v0.11.56） -->
+            <!-- 端末選択（v0.11.56：補正テストウィザードの最初のステップ。UIモード選択のみ） -->
             <div class="settings-card platform-type-card" id="platform-type-card">
                 <div class="cal-head">端末</div>
                 <p class="do-now">端末を選んでください</p>
@@ -780,7 +828,7 @@
                 </div>
             </div>
 
-            <!-- 入力タイプ -->
+            <!-- 入力タイプ（通常マイク / イヤホン接続）。テストや補正方式の切替土台 -->
             <div class="settings-card input-type-card" id="input-type-card">
                 <div class="cal-head">入力タイプ</div>
                 <p class="setting-note hidden" id="wizard-flow-platform-note" style="margin-top:0;"></p>
@@ -796,7 +844,7 @@
                 </details>
             </div>
 
-            <!-- イヤホンの種類 -->
+            <!-- イヤホンの種類（入力タイプ=イヤホン接続 のときだけ独立ステップとして表示。v0.9.89） -->
             <div class="settings-card hidden" id="hp-type-card">
                 <div class="cal-head">イヤホンの種類</div>
                 <p class="do-now">使っているイヤホンを選んでください</p>
@@ -827,7 +875,7 @@
                 <p class="setting-note stroke-mode-note hidden" id="stroke-mode-note">コードを鳴らしてストロークする練習用です。マイク反応テストで、コードの余韻を無視して弾き始めを拾う設定を作ります。</p>
             </div>
 
-            <!-- 2. マイク反応テスト -->
+            <!-- 2. マイク反応テスト（自動フロー） -->
             <div class="settings-card test-card" id="test-card">
                 <div class="cal-head-row">
                     <div class="cal-head" id="test-card-head">マイク反応テスト</div>
@@ -847,6 +895,7 @@
                     <button class="btn-mic test-run-btn test-start-btn rc-mic-action-primary" id="mic-test-btn">マイク反応テストを開始</button>
                     <span class="test-mic-state hidden" id="test-mic-state">マイク ON</span>
                 </div>
+                <!-- マイクを開始できなかったとき（許可ダイアログが出ない/拒否など）の案内と再試行（v0.9.160） -->
                 <div class="mic-perm-help hidden" id="mic-perm-help" role="alert">
                     <p class="mph-text" id="mic-perm-help-text">マイクを開始できませんでした。ブラウザのマイク許可を確認してから、もう一度お試しください。</p>
                     <button type="button" class="btn-mic test-start-btn rc-mic-action-secondary" id="mic-perm-retry">もう一度マイクをONにする</button>
@@ -855,17 +904,13 @@
                         <p class="setting-note">スマホ本体やブラウザの設定で、このページのマイク許可が「許可」になっているか確認してください。Safariの場合は、アドレスバー左側の設定、またはスマホ本体の設定アプリ内のSafariから、マイクの許可を確認できます。許可が「確認（その都度きく）」のときは、ページを一度再読み込みしてから、もう一度お試しください。</p>
                     </details>
                 </div>
-                <div class="test-live hidden" id="test-live">
-                    <div class="mic-meter test-meter">
-                        <div class="mic-meter-fill" id="test-level"></div>
-                        <div class="mic-threshold" id="test-threshold"></div>
-                    </div>
-                </div>
+                <!-- ストロークテストの流れる譜面（↓↑が右から左へ流れる） -->
                 <div class="test-lane-wrap hidden" id="test-lane-wrap">
                     <canvas id="test-lane-canvas"></canvas>
                 </div>
                 <p class="test-phase" id="test-phase"></p>
                 <p class="test-result" id="test-result"></p>
+                <!-- クリック音/周囲の音が大きいときの案内＋同じマイク設定での再テスト導線（v0.12.66） -->
                 <div class="earphone-leak hidden" id="earphone-leak">
                     <p class="test-reco-msg warn" id="earphone-leak-msg"></p>
                     <button type="button" class="btn-mic test-start-btn rc-mic-action-primary" id="earphone-leak-switch">もう一度マイク反応テストを行う</button>
@@ -889,6 +934,8 @@
                         <div class="bt-mic-diagnostic-body" id="bt-mic-diagnostic-body"></div>
                     </details>
                 </div>
+
+                <!-- テスト結果の確認（実施済み後に表示・後から見返せる） -->
                 <details class="settings-detail test-result-detail hidden" id="test-result-detail">
                     <summary>詳細を見る</summary>
                     <p class="setting-note" style="margin-top:8px;">このテストは、クリック音には反応せず、ストローク音だけに反応するかを自動で確認し、その結果からおすすめのマイク感度・クリック音量・二重反応防止を計算しています。</p>
@@ -917,7 +964,7 @@
                 </details>
             </div>
 
-            <!-- 3. 音ズレ・遅延テスト（通常マイク） -->
+            <!-- 3. マイクの遅れ補正 -->
             <div class="settings-card cal-card" id="cal-card">
                 <div class="cal-head-row">
                     <div class="cal-head" id="cal-head">音ズレ・遅延テスト</div>
@@ -925,28 +972,30 @@
                 </div>
                 <!-- v0.11.58：Android選択時のウィザード内 Android式遅延測定（本体マイク） -->
                 <div class="hidden" id="wizard-android-cal-block">
-                    <p class="setting-note" style="margin-top:0;"><b>Android向け 音ズレ・遅延テスト</b></p>
-                    <p class="setting-note">この端末のクリック音がマイクに届くまでの遅れを測定します。測定後、Android本体マイク補正として保存できます。</p>
+                    <p class="do-now">テストを開始し、終わるまで静かに待ちます。</p>
+                    <p class="setting-note">クリック音をスマホのマイクで確認し、入力遅延を測ります。</p>
                     <div style="display:flex;justify-content:flex-end;margin:6px 0 8px;">
                         <button type="button" class="btn-mini rc-mic-action-secondary" id="wizard-android-cal-volume-test" style="margin:0;padding:7px 12px;">音量テスト</button>
                     </div>
                     <details class="card-help">
                         <summary>測定できない場合</summary>
+                        <p class="setting-note">静かな場所で測定してください。スマホ本体の音量を上げ、マイクをふさがずにもう一度テストしてください。</p>
                         <p class="setting-note">測定前に「音量テスト」を押すと、テスト音をループ再生しながら音量の反応を確認できます。「安定して測定できています」と出る位置で、本測定を開始してください。</p>
                         <p class="setting-note">音量テスト中に本測定を開始すると、音量テストは自動で停止します。</p>
+                        <p class="setting-note">それでも測れない場合は、イヤホンを使うか、別の入力方法で試してください。</p>
                     </details>
                     <p class="setting-note hidden" id="wizard-android-nondevice-note-cal">実際のAndroid端末で使う補正です。iPhoneでは通常の補正テストを使ってください。</p>
-                    <button type="button" class="btn-mic test-start-btn rc-mic-action-primary" id="wizard-android-run-builtin" style="width:100%;">Android本体マイクの遅延を測定</button>
+                    <button type="button" class="btn-mic test-start-btn rc-mic-action-primary" id="wizard-android-run-builtin" style="width:100%;">テスト開始</button>
                     <div class="android-latency-live hidden" id="wizard-android-live-builtin">
                         <canvas id="wizard-android-wave-builtin"></canvas>
                         <p class="cal-level-state" id="wizard-android-level-state-builtin" aria-live="polite">音を確認中…</p>
                     </div>
                     <p class="cal-status" id="wizard-android-status-builtin"></p>
                     <div class="cal-result hidden" id="wizard-android-result-builtin" style="white-space:pre-line;"></div>
-                    <button type="button" class="btn-mic rc-mic-action-primary hidden" id="wizard-android-save-builtin" style="width:100%;margin-top:8px;">Android本体マイク補正として保存</button>
+                    <button type="button" class="btn-primary rc-mic-action-primary hidden" id="wizard-android-save-builtin" style="width:100%;margin-top:8px;">マイク反応テストへ進む</button>
                     <p class="cal-status hidden" id="wizard-android-save-builtin-status"></p>
-                    <p class="setting-note" id="wizard-android-proceed-hint-builtin">測定・保存後、マイク反応テストへ進んでください。</p>
-                    <button type="button" class="btn-primary hidden" id="wizard-android-proceed-builtin" style="width:100%;margin-top:8px;">保存してマイク反応テストへ進む</button>
+                    <p class="setting-note" id="wizard-android-proceed-hint-builtin">測定できたら、マイク反応テストへ進めます。</p>
+                    <button type="button" class="btn-primary hidden" id="wizard-android-proceed-builtin" style="width:100%;margin-top:8px;">マイク反応テストへ進む</button>
                 </div>
                 <div id="wizard-ios-cal-ui">
                 <p class="do-now">まず、クリック音とマイク入力のズレを測ります。終わるまで待ってください</p>
@@ -985,7 +1034,10 @@
                         <span class="dev-log-copy-status" id="cal-dev-log-status" aria-live="polite"></span>
                     </div>
                 </details>
+                <!-- 補正は必須ではない。実践テストへ進む導線（押したら補正系完了扱い） -->
                 <button type="button" class="btn-mini rc-mic-action-secondary" id="cal-skip-btn" style="width:100%;margin-top:10px;">補正せずに進む</button>
+
+                <!-- 遅れ補正の結果確認（実施済み後に表示・後から見返せる） -->
                 <details class="settings-detail test-result-detail hidden" id="cal-result-detail">
                     <summary>詳細を見る</summary>
                     <p class="setting-note">クリック音をマイクで拾った遅れを測定し、その分だけ判定位置を前に補正しています。</p>
@@ -1002,7 +1054,7 @@
                 </div><!-- /#wizard-ios-cal-ui -->
             </div>
 
-            <!-- 4. イヤホン音ズレの画面補正 -->
+            <!-- 4. イヤホン音ズレの画面補正（イヤホン種類=Bluetooth のときだけ表示。UI/保存のみ・STAGE判定には未反映） -->
             <div class="settings-card cal-card hidden" id="hp-cal-card">
                 <div class="cal-head-row">
                     <div class="cal-head">イヤホン音ズレの画面補正</div>
@@ -1014,8 +1066,10 @@
                     <p class="setting-note">前の音ズレ・遅延テストで、イヤホンから出た音がマイクに届くまでのズレを測りました。この画面では、その結果をもとに、音と画面表示が合って見えるように確認します。ここで調整するのは見た目の補正で、ストローク判定そのもののタイミングとは別です。</p>
                     <p class="setting-note">テストを開始すると、右から丸が流れてきて、イヤホンからクリック音が鳴ります。クリック音が丸より遅れて聞こえる場合は右へ、早く聞こえる場合は左へ動かします。0ms＝補正なしです。</p>
                 </details>
+                <!-- v0.9.111：説明を読んだ直後に押せるよう説明文の直下に置く。v0.9.112：BPM調整を横に並べる（狭い画面では折り返す） -->
                 <div class="hp-start-row" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px;">
                     <button class="btn-mic cal-run-btn test-start-btn rc-mic-action-primary" id="hp-cal-btn" style="margin:0;flex:1;min-width:160px;">補正テスト開始</button>
+                    <!-- テスト専用BPM（v0.9.92）。STAGE/最終確認テストのテンポには影響しない -->
                     <div class="hp-bpm-row" style="display:flex;align-items:center;gap:10px;">
                         <span class="setting-label" style="margin:0;">BPM</span>
                         <button type="button" class="btn-mini hp-bpm-btn" id="hp-bpm-minus" aria-label="BPMを下げる">−</button>
@@ -1023,10 +1077,14 @@
                         <button type="button" class="btn-mini hp-bpm-btn" id="hp-bpm-plus" aria-label="BPMを上げる">＋</button>
                     </div>
                 </div>
+                <!-- v0.9.117：補正テスト開始を押すまで隠す段階表示。開始で表示し、レーン/スライダー/進む/再テストをまとめて出す。 -->
                 <div id="hp-cal-staged" class="hidden">
+                <!-- STAGE風の流れるレーン（v0.9.91）：右→左へ4拍の丸が流れ、丸の中心線がJUSTラインに
+                     重なる瞬間にクリック音が鳴る。音と丸が同時に感じられるようにスライダーで調整する。 -->
                 <div class="test-lane-wrap hidden" id="hp-cal-lane-wrap" style="margin:14px 0;">
                     <canvas id="hp-cal-lane-canvas"></canvas>
                 </div>
+                <!-- v0.9.110：スライダーを音符レーンのすぐ下に移動（視覚的に分かりやすく）。DOM順の変更のみで補正ロジックは不変。 -->
                 <div class="setting-row" style="margin-top:6px;">
                     <div class="setting-label">現在の補正 <b id="hp-offset-val">0ms</b></div>
                     <input type="range" id="hp-offset" min="-200" max="400" step="5" value="0">
@@ -1042,24 +1100,28 @@
                     <button type="button" class="btn-mini btn-reset" id="hp-zero">補正なしに戻す</button>
                     <button type="button" class="btn-mini btn-reset" id="hp-std">Bluetoothイヤホン標準</button>
                 </div>
+                <!-- 4小節で自動停止したあとの案内（v0.9.109→v0.9.110で4小節）。普段は隠し、自動停止時だけ表示する -->
                 <p class="setting-note hidden" id="hp-cal-auto-msg" style="margin-top:14px;padding:10px 12px;border:1px solid rgba(255,159,28,0.35);border-radius:10px;background:rgba(255,159,28,0.08);text-align:center;">テストが終わりました。このタイミングでよければ、下の「この設定で進む」を押してください。</p>
+                <!-- 「ここは終わった」と分かる導線（v0.9.111：再テストと横並び）。進む＝補正系完了扱いで実践テストへ -->
                 <div class="hp-proceed-row" style="display:flex;gap:8px;margin-top:12px;align-items:stretch;">
                     <button type="button" class="btn-primary rc-mic-action-primary" id="hp-proceed-btn" style="flex:1;margin:0;">この設定で進む</button>
                     <button type="button" class="btn-mini rc-mic-action-secondary" id="hp-retest-btn" style="flex:none;margin:0;padding:0 16px;white-space:nowrap;">再テスト</button>
                 </div>
                 </div><!-- /#hp-cal-staged -->
+                <!-- 画面タップ設定タブから使う場合の導線（v0.9.95）：保存してアプリTOPへ戻る（テストへは進まない） -->
                 <button type="button" class="btn-primary rc-mic-action-primary hidden" id="hp-tap-use-btn" style="width:100%;margin-top:12px;">この画面補正設定で使う</button>
+                <!-- 画面タップ設定タブから：現在のタップ補正値をプリセットとして保存（v0.9.97） -->
                 <button type="button" class="btn-mini hidden" id="hp-tap-save-btn" style="width:100%;margin-top:10px;padding:11px;border:1px solid rgba(255,255,255,0.22);border-radius:10px;background:rgba(255,255,255,0.04);font-weight:700;">この設定を保存</button>
             </div>
 
-            <!-- 補正系（有線イヤホン時の案内） -->
+            <!-- 補正系（有線イヤホン時の案内）。有線は補正カードを出さず、補正なし（0ms）が基本の旨だけ伝える -->
             <div class="settings-card" id="correction-wired-note">
                 <div class="cal-head">補正</div>
                 <p class="setting-note">有線イヤホンの「イヤホン音ズレの画面補正」は、0ms（補正なし）が基本です。違和感がある場合だけ、最後の「手動設定」で調整できます。</p>
                 <button type="button" class="btn-primary rc-mic-action-primary" id="wired-proceed-btn" style="width:100%;margin-top:8px;">この設定で進む</button>
             </div>
 
-            <!-- 6. 音ズレ・遅延テスト（イヤホン接続時） -->
+            <!-- 6. 音ズレ・遅延テスト（イヤホン接続時。イヤホンから出た音をマイクへ入力し判定遅れを測る。有線にもv0.9.152で対応） v0.9.80 -->
             <div class="settings-card cal-card" id="bt-cal-card">
                 <div class="cal-head-row">
                     <div class="cal-head" id="bt-cal-head">音ズレ・遅延テスト</div>
@@ -1103,11 +1165,12 @@
                     <p class="setting-note" id="bt-cal-guide">イヤホンから出た音が、マイクに届くまでのズレを測ります。</p>
                     <p class="setting-note">イヤホンの種類によって、遅延の大きさやテストの要否は変わります。</p>
                 </details>
-                <p class="setting-note" style="margin-top:8px;"><a href="../click-input-help.html?return=pro" style="color:var(--secondary-color);font-weight:700;">マイク位置がわからない場合</a></p>
+                <p class="setting-note" style="margin-top:8px;"><a href="../click-input-help.html?return=standard" style="color:var(--secondary-color);font-weight:700;">マイク位置がわからない場合</a></p>
                 <div class="bt-cal-handclap-row hidden" id="bt-cal-handclap-row">
                     <button type="button" class="btn-mini rc-mic-action-secondary" id="bt-cal-handclap-btn">手拍子で測る</button>
                 </div>
                 <p class="setting-note hidden" id="bt-cal-stale-note" style="margin-top:8px;font-size:0.78rem;"></p>
+                <!-- 流れる👏＋判定ライン＋反応ライン＋入力波形（最終確認テストと同じ考え方・v0.9.81） -->
                 <div class="test-lane-wrap hidden" id="bt-cal-lane-wrap">
                     <canvas id="bt-cal-lane-canvas"></canvas>
                 </div>
@@ -1125,6 +1188,7 @@
                 <p class="cal-status" id="bt-cal-status"></p>
                 <div class="cal-result hidden" id="bt-cal-result"></div>
                 <section class="settings-detail mic-test-dev-log hidden" id="android-hp-audio-probe" style="margin-top:14px;padding:12px;"><h3 style="margin:0 0 6px;font-size:1rem;">Android音声調査</h3><p class="setting-note">イヤホンから出る音が実際にどの入力へ入るかを調べます。補正値・保存値・判定には使いません。</p><label class="setting-note">入力制約<select id="android-hp-probe-constraints" style="width:100%;margin:4px 0 8px;"><option value="current">現行（全処理OFF）</option><option value="minimal">最小（audio:true）</option><option value="aec-off">echoCancellation:false</option><option value="aec-on">echoCancellation:true</option><option value="sparse">最少指定（noise/AGC OFF）</option></select></label><label class="setting-note">テスト音の長さ<select id="android-hp-probe-duration" style="width:100%;margin:4px 0 8px;"><option value="50">50ms</option><option value="100" selected>100ms</option><option value="20">20ms</option><option value="150">150ms</option></select></label><button type="button" class="btn-mic test-start-btn rc-mic-action-primary" id="android-hp-probe-run">イヤホン音がマイクに入るか調べる</button><button type="button" class="btn-mini rc-mic-action-secondary" id="android-hp-probe-voice" style="width:100%;margin-top:8px;">声・タップ比較を記録（8秒）</button><p class="cal-status" id="android-hp-probe-status"></p><textarea class="mic-test-dev-log-text" id="android-hp-probe-log" rows="14" readonly aria-label="Androidイヤホン音入力調査ログ"></textarea><div class="dev-log-copy-row"><button type="button" class="dev-log-copy-btn" id="android-hp-probe-copy">開発ログをコピー</button><span class="dev-log-copy-status" id="android-hp-probe-copy-status" aria-live="polite"></span></div></section>
+                <!-- 参考：イヤホン自己収音テスト。ロジックは保持し、通常導線からは非表示。 -->
                 <div id="hp-ad-tools" hidden>
                 <hr style="border:none;border-top:1px solid rgba(255,255,255,0.1);margin:14px 0 10px;">
                 <button id="hp-ad-btn" style="width:100%;padding:9px 0;font-size:0.85em;background:rgba(255,255,255,0.07);color:#bbb;border:1px solid rgba(255,255,255,0.18);border-radius:6px;cursor:pointer;">🔬 参考: イヤホン音の自動検出テスト</button>
@@ -1135,7 +1199,7 @@
                 </div><!-- /#wizard-ios-bt-ui -->
             </div>
 
-            <!-- 7. 最終確認テスト -->
+            <!-- 7. 最終確認テスト（基本設定後の確認。入力タイプに関係なく表示。確認・表示のみ／補正は未適用） -->
             <div class="settings-card cal-card" id="pt-card">
                 <div class="cal-head-row">
                     <div class="cal-head">最終確認テスト</div>
@@ -1147,9 +1211,11 @@
                     <p class="setting-note">ここまでの設定で、実際の練習画面に近い状態で判定できるか確認します。クリック音だけでは反応しにくく、ストロークでGOODが多く出るかを見ます。</p>
                     <p class="setting-note" id="pt-note">入力状態に合わせた設定で、実際に問題なく判定されるか確認します。</p>
                 </details>
+                <!-- STAGE1風の流れる音符＋判定ライン＋音量波形 -->
                 <div class="test-lane-wrap hidden" id="pt-lane-wrap">
                     <canvas id="pt-lane-canvas"></canvas>
                 </div>
+                <!-- 終了後の見返し用レーン（横スクロールで1〜8拍を見返せる・v0.9.74） -->
                 <div class="pt-review hidden" id="pt-review">
                     <p class="pt-review-hint">左右にスクロールして、音符と波形のズレを見返せます。</p>
                     <div class="pt-review-scroll" id="pt-review-scroll">
@@ -1161,6 +1227,7 @@
                     </div>
                 </div>
                 <button class="btn-mic cal-run-btn test-start-btn rc-mic-action-primary" id="pt-btn">最終確認テストを開始</button>
+                <!-- Bluetoothイヤホンで波形がラインに届かないとき用：反応テストをやり直して感度を測り直す（v0.9.160） -->
                 <button type="button" class="btn-mic results-retest-btn test-start-btn rc-mic-action-secondary hidden" id="pt-retest-mic-btn">マイク反応テストをやり直す</button>
                 <p class="cal-status" id="pt-status"></p>
                 <div class="cal-result hidden" id="pt-result"></div>
@@ -1173,7 +1240,7 @@
                 </details>
             </div>
 
-            <!-- 6. 手動設定 -->
+            <!-- 6. 手動設定はこちら（折りたたみ） -->
             <div class="settings-card" id="manual-card">
                 <details class="settings-detail" id="manual-detail">
                     <summary>現在の設定を手動で変更</summary>
@@ -1247,6 +1314,7 @@
                                 <p class="setting-note setting-note-body hidden">二重反応が出る時は長めに、細かいリズムが拾いにくい時は短めにします。</p>
                             </div>
                         </div>
+                        <!-- イヤホン音ズレの画面補正（入力タイプ=イヤホン接続 のとき表示）。v0.9.52ではUI/保存のみ・STAGE判定には未反映 -->
                         <div class="setting-row hidden" id="set-hp-offset-row">
                             <div class="setting-label">イヤホン音ズレの画面補正 <b id="set-hp-offset-val">0ms</b></div>
                             <input type="range" id="set-hp-offset" min="-200" max="400" step="5" value="0">
@@ -1277,25 +1345,31 @@
                     </details>
                 </details>
 
+                <!-- 手動設定カード下部の操作エリア（v0.9.88：主導線「この設定を使う」＋控えめなサブ導線3つ） -->
                 <div class="manual-actions">
+                    <!-- 未保存の案内（数字を変更した／テストで新しい設定が適用された等のときに表示・v0.9.152） -->
                     <p class="mic-save-hint hidden" id="manual-save-hint">変更があります。この設定を保存できます。</p>
+                    <!-- 主導線：この設定を現在設定として使い、マイク設定TOPへ戻る -->
                     <button type="button" class="btn-primary manual-action-primary rc-mic-action-primary" id="manual-use-btn">この設定を使う</button>
+                    <!-- サブ導線：最終確認テストを実施する -->
                     <button type="button" class="manual-action-sub rc-mic-action-primary" id="manual-practice-btn">最終確認テストを実施する</button>
+                    <!-- サブ導線：上書き保存（ユーザープリセット由来で変更があるときだけ表示・v0.9.152） -->
                     <button type="button" class="manual-action-sub mic-overwrite-btn hidden" id="manual-overwrite-trigger">上書き保存</button>
+                    <!-- サブ導線：この設定を保存（別名で保存・共通の保存モーダルを開く／未保存時は強調） -->
                     <button type="button" class="manual-action-sub" id="manual-preset-trigger">この設定を保存</button>
+                    <!-- サブ導線：変更を破棄してマイク設定TOPへ戻る（キャンセル・v0.9.89） -->
                     <button type="button" class="manual-action-sub" id="manual-top-btn">キャンセル</button>
                 </div>
             </div>
 
             <p class="setting-note warn hidden" id="settings-done-hint" style="text-align:center;">最終確認テストまで完了してください。</p>
+            <!-- v0.9.104：下部の「完了」は削除（ヘッダーの「← 戻る」で設定を閉じられるため）。
+                 サブ画面からマイク設定TOPへ戻る導線だけ残す。 -->
             <div class="settings-actions" id="settings-actions">
                 <button class="btn-mini" id="settings-top-btn">マイク設定TOP</button>
             </div>
             <div class="settings-actions" id="settings-reset-all-wrap" style="margin-top:14px;">
                 <button type="button" class="btn-mini btn-reset" id="settings-reset-all-btn" style="width:100%;padding:11px;">全てを初期化する</button>
-            </div>
-            <div class="pro-gate-settings-note">
-                <button type="button" id="pro-gate-reset" class="btn-mini btn-reset">入室の記録を消す（次回パスワード入力）</button>
             </div>
         </section>
 
@@ -1307,13 +1381,22 @@
 
     </div>
 
-    <!-- 結果モーダル -->
+    <!-- 結果モーダル（body直下：画面のtransformに影響されずビューポート基準で全面表示）
+         構成：スコア → ズレ確認レーン(メイン) → 一言コメント → 詳細(内訳・ズレ履歴) → 閉じる/もう一度 -->
     <div class="results-overlay hidden" id="results-overlay">
         <div class="results-card" id="results-card">
             <div class="results-title">RESULT</div>
+
+            <!-- 0. 過去結果の見出し（履歴から開いたときだけ表示・v0.9.146）。日時/STAGE名/BPM/小節数/内訳。 -->
             <div class="results-history-head hidden" id="r-history-head" aria-hidden="true"></div>
+
+            <!-- 1. スコア -->
             <div class="score-big"><b id="r-score">0</b><span>点</span></div>
+
+            <!-- 2. 一言コメント -->
             <p class="tendency" id="r-comment"></p>
+
+            <!-- 3. ズレ確認レーン（メイン・全32拍を流れる譜面で振り返り） -->
             <details class="results-guide" id="results-guide">
                 <summary class="results-guide-summary">結果の見方</summary>
                 <div class="results-guide-body">
@@ -1328,10 +1411,14 @@
                 </div>
             </details>
             <div class="review-wrap" id="review-wrap">
+                <!-- 固定音符はVexFlow層（編集/プレビュー/Play画面と同じデザイン）。判定符頭・矢印・文字はCanvas側で前面に描く（v0.9.140） -->
                 <div class="review-flow-score-layer hidden" id="review-flow-score-layer" aria-hidden="true"></div>
                 <canvas id="review-canvas"></canvas>
+                <!-- v0.10.38：録音再生中のJUSTライン（静止結果Canvasの上に重ねる・Practice本番とは別） -->
                 <canvas id="review-playhead-canvas" class="review-playhead-canvas hidden" aria-hidden="true"></canvas>
             </div>
+
+            <!-- 4. 今回のPractice録音。過去履歴には保存せず、結果カードを離れたら破棄（v0.10.25）。 -->
             <details class="results-recording hidden" id="results-recording">
                 <summary class="results-recording-summary">録音を聴く</summary>
                 <div class="results-recording-body">
@@ -1368,7 +1455,11 @@
                 </details>
                 </div>
             </details>
+
+            <!-- クリック音拾いの可能性（ストロークでズレが一点集中したとき）-->
             <p class="results-warn hidden" id="results-warn">⚠️ クリック音をマイクが拾っている可能性があります。スピーカー使用時はクリック音量をさらに下げるか、イヤホン使用がおすすめです。</p>
+
+            <!-- 二重反応の注意。カード全体をタップすると対策を表示（v0.10.24）。 -->
             <details class="results-double-notice hidden" id="results-double-notice">
                 <summary class="results-double-summary" id="results-double-msg">二重反応が出ています。▼</summary>
                 <div class="results-double-detail" id="results-double-detail">
@@ -1376,6 +1467,8 @@
                     <button type="button" class="btn-mic results-retest-btn" id="results-retest-btn">マイク反応テストをやり直す</button>
                 </div>
             </details>
+
+            <!-- 5. 結果の詳細（内訳・ズレ履歴グラフ）：常時表示（v0.10.24） -->
             <section class="results-detail" id="results-detail" aria-labelledby="results-detail-title">
                 <h3 class="results-detail-title" id="results-detail-title">結果の詳細</h3>
                 <div class="results-detail-body">
@@ -1383,6 +1476,7 @@
                     <p class="result-breakdown hidden" id="results-miss-info"></p>
                     <p class="result-breakdown hidden" id="results-chord-dev"></p>
                     <p class="result-breakdown hidden" id="results-chord-speed-warning"></p>
+                    <!-- ズレ履歴（先・v0.9.150）：まずタイミングのズレ傾向を見る。長い小節数は4小節基準で横スクロール。 -->
                     <div class="graph-wrap">
                         <div class="graph-head">
                             <span>ズレ履歴</span>
@@ -1392,6 +1486,7 @@
                             <canvas id="graph-canvas"></canvas>
                         </div>
                     </div>
+                    <!-- ストローク音量（各拍ピーク）＋反応ライン（後・補助情報・v0.9.150） -->
                     <div class="graph-wrap results-mic-wrap hidden" id="results-mic-wrap">
                         <div class="graph-head">
                             <span>ストローク音量</span>
@@ -1401,11 +1496,13 @@
                             <canvas id="results-mic-canvas"></canvas>
                         </div>
                     </div>
+                    <!-- ズレ傾向を見たあと、マイクの手動設定（現在の設定を見る）へ直接行ける控えめなリンク（v0.9.107） -->
                     <p class="result-mic-tune-row">
                         <button type="button" class="result-mic-tune-link" id="results-mic-tune">マイクの手動設定を開く</button>
                     </p>
                 </div>
             </section>
+
             <details class="results-detail results-dev-log is-quiet" id="miss-cause-details">
                 <summary class="results-detail-summary">開発用ログ</summary>
                 <div class="results-detail-body">
@@ -1421,6 +1518,9 @@
                     <p class="result-breakdown result-miss-debug hidden" id="results-chord-debug"></p>
                 </div>
             </details>
+
+
+            <!-- 6. 閉じる / もう一度（カスタムテスト時は「編集に戻る」も表示・v0.9.124） -->
             <div class="results-actions">
                 <button class="btn-ghost" id="r-close-btn">閉じる</button>
                 <button class="btn-ghost hidden" id="r-edit-back-btn">編集に戻る</button>
@@ -1429,7 +1529,7 @@
         </div>
     </div>
 
-    <!-- 過去の結果カード一覧 -->
+    <!-- 過去の結果カード一覧（v0.9.146）。「過去の結果を見る」から開く。1件選ぶと結果カードを履歴モードで再表示する。 -->
     <div class="history-overlay hidden" id="history-overlay">
         <div class="history-card" id="history-card">
             <div class="history-head-row">
@@ -1444,7 +1544,7 @@
         </div>
     </div>
 
-    <!-- プリセット保存モーダル -->
+    <!-- プリセット保存モーダル（body直下・全ての「この設定を保存」から共通で開く） v0.9.80 -->
     <div class="preset-modal-overlay hidden" id="preset-modal">
         <div class="preset-modal-card">
             <div class="preset-modal-title">この設定を保存</div>
@@ -1461,7 +1561,9 @@
     </div>
 
     <!-- リズム作成プリセット名／PROカスタムSTAGE保存モーダル（共通）。
-         v0.9.246：screen-home内にあるとPractice画面から開いても描画されない不具合になるためトップレベルへ移動。 -->
+         v0.9.246：screen-home の内側にあるとPractice画面（screen-home が display:none）から
+         開いても描画されず「保存が反応しない／戻ると保存画面が出る」不具合になるため、
+         他の保存モーダルと同じく screen-home 外（トップレベル）へ移動した。 -->
     <div class="rhythm-create-preset-modal hidden" id="rc-create-preset-modal" role="dialog" aria-modal="true" aria-labelledby="rc-create-preset-modal-title">
         <div class="rhythm-create-preset-modal-card">
             <div class="rhythm-create-preset-modal-title" id="rc-create-preset-modal-title">プリセット名</div>
@@ -1474,7 +1576,7 @@
         </div>
     </div>
 
-    <!-- 練習STAGEとして保存モーダル（v0.9.201） -->
+    <!-- 練習STAGEとして保存モーダル（v0.9.201）。screen-home外に置くことでPractice中も表示可能。 -->
     <div class="rhythm-create-preset-modal hidden" id="rc-stage-save-modal" role="dialog" aria-modal="true" aria-labelledby="rc-stage-save-modal-title">
         <div class="rhythm-create-preset-modal-card">
             <div class="rhythm-create-preset-modal-title" id="rc-stage-save-modal-title">練習STAGEとして保存</div>
@@ -1487,10 +1589,10 @@
         </div>
     </div>
 
-    <!-- 軽いフィードバック用トースト -->
+    <!-- 軽いフィードバック用トースト（JSONコピー等・v0.9.119） -->
     <div class="rc-toast hidden" id="rc-toast" role="status" aria-live="polite"></div>
 
-    <!-- JSON手動コピー用モーダル -->
+    <!-- JSON手動コピー用モーダル（自動コピー失敗時のフォールバック・v0.9.120） -->
     <div class="rc-json-overlay hidden" id="rc-json-modal">
         <div class="rc-json-card">
             <div class="rc-json-title">カスタムSTAGEのJSON</div>

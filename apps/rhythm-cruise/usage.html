@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>リズムクルーズ | 基本的な使い方</title>
-    <link rel="stylesheet" href="./theme.css?v=1.2.0">
+    <link rel="stylesheet" href="./theme.css?v=1.3.0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -64,7 +64,7 @@
         (function () {
             var homeLink = document.getElementById('rc-usage-home-link');
             var infoLink = document.getElementById('rc-usage-info-link');
-            var defaultHome = './index.html';
+            var defaultHome = './standard/index.html';
             var proHome = './pro_r4m8k7n2q9x/index.html';
             var editionHomeStorageKey = 'rhythmCruiseEditionHome';
             var currentUrl = new URL(window.location.href);
@@ -77,7 +77,7 @@
                     var basePath = new URL('./', window.location.href).pathname;
                     if (url.origin !== window.location.origin || url.pathname.indexOf(basePath) !== 0) return '';
                     var relativePath = url.pathname.slice(basePath.length);
-                    if (relativePath === '' || /^index\.html$/i.test(relativePath)) {
+                    if (relativePath === '' || /^index\.html$/i.test(relativePath) || /^standard\/(?:index\.html)?$/i.test(relativePath)) {
                         return new URL(defaultHome, window.location.href).href;
                     }
                     if (/^pro_r4m8k7n2q9x\/(?:index\.html)?$/i.test(relativePath)) {
