@@ -1,0 +1,26 @@
+{
+  "id": "./",
+  "name": "コードクルーズ",
+  "short_name": "コードクルーズ",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#071112",
+  "theme_color": "#071112",
+  "description": "キー、構成音、指板、CAGEDフォームからギターコードを理解するアプリ。",
+  "icons": [
+    {
+      "src": "icons/chord-cruise-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/chord-cruise-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
