@@ -4,7 +4,7 @@ const path = require('path');
 const vm = require('vm');
 
 const source = fs.readFileSync(path.resolve(__dirname, '../js/ui/focus-trap.js'), 'utf8');
-const indexSource = fs.readFileSync(path.resolve(__dirname, '../index.html'), 'utf8');
+const indexSource = fs.readFileSync(path.resolve(__dirname, '../standard/index.html'), 'utf8');
 const settingsSource = fs.readFileSync(path.resolve(__dirname, '../js/ui/settings.js'), 'utf8');
 const librarySource = fs.readFileSync(path.resolve(__dirname, '../js/ui/library.js'), 'utf8');
 const saveEditorSource = fs.readFileSync(path.resolve(__dirname, '../js/ui/save-editor.js'), 'utf8');
@@ -141,7 +141,7 @@ function tabEvent(shiftKey) {
 })();
 
 (function dialogModulesUseTheSharedHelperWithoutRepeatedOpenListeners() {
-    assert(indexSource.indexOf('js/ui/focus-trap.js?v=0.36.4') !== -1, 'focus helper is loaded before the dialog modules');
+    assert(indexSource.indexOf('../js/ui/focus-trap.js?v=0.37.0') !== -1, 'focus helper is loaded before the dialog modules');
     [settingsSource, librarySource, saveEditorSource, chordBuilderSource].forEach((moduleSource) => {
         assert(moduleSource.indexOf('focusTrap().trapFocus') !== -1, 'dialog module delegates Tab handling to the shared helper');
     });

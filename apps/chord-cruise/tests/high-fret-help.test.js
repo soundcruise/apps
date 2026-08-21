@@ -5,9 +5,10 @@ var fs = require('fs');
 var path = require('path');
 
 var root = path.join(__dirname, '..');
+var standardDirectory = path.join(root, 'standard');
 var exploreSource = fs.readFileSync(path.join(root, 'js/ui/explore.js'), 'utf8');
 var themeSource = fs.readFileSync(path.join(root, 'theme.css'), 'utf8');
-var standardHtml = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+var standardHtml = fs.readFileSync(path.join(standardDirectory, 'index.html'), 'utf8');
 var proHtml = fs.readFileSync(path.join(root, 'pro_k7m4q9v2x8', 'index.html'), 'utf8');
 
 assert(exploreSource.includes('id="cc-high-fret-help-toggle"'), 'High-fret help uses a dedicated button');

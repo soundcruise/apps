@@ -98,7 +98,7 @@
                             '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-save-folder-create-cancel">キャンセル</button>' +
                         '</div>' +
                         '<p class="cc-save-folder-error" id="cc-save-folder-error" role="status"></p>' +
-                        '<a class="cc-save-folder-pro-link" id="cc-save-folder-pro-link" href="pro-access.html" target="_blank" rel="noopener" hidden>Pro版の入手方法</a>' +
+                        '<a class="cc-save-folder-pro-link" id="cc-save-folder-pro-link" href="../pro-access.html" target="_blank" rel="noopener" hidden>Pro版の入手方法</a>' +
                     '</div>' +
                     '<label class="cc-field"><span class="cc-field-label">名前</span>' +
                         '<input type="text" id="cc-save-chord-name" class="cc-input" maxlength="32"></label>' +
@@ -108,16 +108,16 @@
                         '<textarea id="cc-save-memo" class="cc-input cc-textarea" rows="2" maxlength="200"></textarea></label>' +
                 '</div>' +
                 '<p class="cc-save-error" id="cc-save-error"></p>' +
-                '<a class="cc-save-folder-pro-link" id="cc-save-limit-pro-link" href="pro-access.html" target="_blank" rel="noopener" hidden>Pro版の入手方法</a>' +
+                '<a class="cc-save-folder-pro-link" id="cc-save-limit-pro-link" href="../pro-access.html" target="_blank" rel="noopener" hidden>Pro版の入手方法</a>' +
                 '<div class="cc-save-section" id="cc-save-pro-notice" hidden>' +
                     '<p class="cc-fb-hint">作成したコードを保存するにはPro版が必要です。</p>' +
-                    '<a class="cc-btn cc-btn-primary cc-btn--block" href="pro-access.html" target="_blank" rel="noopener">Pro版の入手方法</a>' +
+                    '<a class="cc-btn cc-btn-primary cc-btn--block" href="../pro-access.html" target="_blank" rel="noopener">Pro版の入手方法</a>' +
                 '</div>' +
                 '<section class="cc-save-limit-summary" id="cc-save-limit-summary" aria-labelledby="cc-save-limit-title" hidden>' +
                     '<strong id="cc-save-limit-title">保存上限</strong>' +
                     '<span id="cc-save-folder-limit-count"></span>' +
                     '<span id="cc-save-chord-limit-count"></span>' +
-                    '<a href="pro-access.html" target="_blank" rel="noopener">Pro版の入手方法</a>' +
+                    '<a href="../pro-access.html" target="_blank" rel="noopener">Pro版の入手方法</a>' +
                 '</section>' +
                 '<div class="cc-save-actions">' +
                     '<button type="button" class="cc-btn cc-btn-primary cc-btn--block" id="cc-save-confirm">保存する</button>' +

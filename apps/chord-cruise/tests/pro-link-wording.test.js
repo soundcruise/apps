@@ -5,13 +5,14 @@ var fs = require('fs');
 var path = require('path');
 
 var root = path.join(__dirname, '..');
+var standardDirectory = path.join(root, 'standard');
 var exploreSource = fs.readFileSync(path.join(root, 'js/ui/explore.js'), 'utf8');
 var librarySource = fs.readFileSync(path.join(root, 'js/ui/library.js'), 'utf8');
 var saveEditorSource = fs.readFileSync(path.join(root, 'js/ui/save-editor.js'), 'utf8');
-var standardHtml = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+var standardHtml = fs.readFileSync(path.join(standardDirectory, 'index.html'), 'utf8');
 var proHtml = fs.readFileSync(path.join(root, 'pro_k7m4q9v2x8/index.html'), 'utf8');
 
-var proAccessPath = 'pro-access.html';
+var proAccessPath = '../pro-access.html';
 var proAccessLabel = 'Pro版の入手方法';
 var proWording = [
     '作成したコードを保存するにはPro版が必要です。',

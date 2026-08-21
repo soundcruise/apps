@@ -8,7 +8,7 @@ var TextEncoder = require('util').TextEncoder;
 
 var chordRoot = path.join(__dirname, '..');
 var repositoryApps = path.join(chordRoot, '..');
-var standardHtml = fs.readFileSync(path.join(chordRoot, 'index.html'), 'utf8');
+var standardHtml = fs.readFileSync(path.join(chordRoot, 'standard/index.html'), 'utf8');
 var proHtml = fs.readFileSync(path.join(chordRoot, 'pro_k7m4q9v2x8/index.html'), 'utf8');
 var sharedGatePath = path.join(repositoryApps, 'shared/pro-gate.js');
 var sharedGateCssPath = path.join(repositoryApps, 'shared/pro-gate.css');

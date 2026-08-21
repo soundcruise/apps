@@ -61,7 +61,7 @@
             return '<div class="cc-save-section" id="cc-lib-quality-analysis">' +
                 '<h4 class="cc-card-heading">コード分析</h4>' +
                 '<p class="cc-fb-hint">このコードの詳細分析はPro版で利用できます。</p>' +
-                '<a class="cc-btn cc-btn-primary cc-btn--block" href="pro-access.html" target="_blank" rel="noopener">Pro版の入手方法</a>' +
+                '<a class="cc-btn cc-btn-primary cc-btn--block" href="../pro-access.html" target="_blank" rel="noopener">Pro版の入手方法</a>' +
             '</div>';
         }
         return '<div class="cc-save-section" id="cc-lib-quality-analysis">' +
@@ -873,7 +873,7 @@
                     '<button type="button" class="cc-btn cc-btn-primary cc-btn--small" id="cc-folder-create-ok">作成</button>' +
                     '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-folder-create-cancel">やめる</button>' +
                 '</div>' +
-                '<a class="cc-save-folder-pro-link" id="cc-folder-pro-link" href="pro-access.html" target="_blank" rel="noopener" hidden>Pro版の入手方法</a>' +
+                '<a class="cc-save-folder-pro-link" id="cc-folder-pro-link" href="../pro-access.html" target="_blank" rel="noopener" hidden>Pro版の入手方法</a>' +
             '</div>') +
         '</div>';
         contentEl().innerHTML = html;

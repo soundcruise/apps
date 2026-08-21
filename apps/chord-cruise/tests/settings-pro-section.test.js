@@ -5,14 +5,15 @@ var fs = require('fs');
 var path = require('path');
 
 var root = path.join(__dirname, '..');
+var standardDirectory = path.join(root, 'standard');
 var settingsSource = fs.readFileSync(path.join(root, 'js/ui/settings.js'), 'utf8');
-var standardHtml = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+var standardHtml = fs.readFileSync(path.join(standardDirectory, 'index.html'), 'utf8');
 var proHtml = fs.readFileSync(path.join(root, 'pro_k7m4q9v2x8/index.html'), 'utf8');
 
 assert(settingsSource.includes('renderProSection'), 'settings owns the small Pro section rendering');
 assert(settingsSource.includes('featureAccess.isProEdition'), 'settings uses the existing edition API');
 assert(settingsSource.includes('Pro版はこちら'), 'Standard has a Pro feature link label');
-assert(settingsSource.includes('href="./pro-access.html"'), 'Standard settings link uses the access page');
+assert(settingsSource.includes('href="../pro-access.html"'), 'Standard settings link uses the root access page');
 assert(settingsSource.includes('Pro版を利用中'), 'Pro settings show the active edition');
 assert(settingsSource.includes('cc-settings-refresh-bar'), 'Pro section is placed before the version refresh bar');
 assert(settingsSource.includes('cc-settings-reset'), 'Pro section reuses the existing settings visual treatment');

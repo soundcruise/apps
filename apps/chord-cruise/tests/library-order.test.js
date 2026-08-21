@@ -9,7 +9,7 @@ const theorySource = fs.readFileSync(path.join(root, 'js/core/music-theory.js'),
 const settingsSource = fs.readFileSync(path.join(root, 'js/ui/settings.js'), 'utf8');
 const librarySource = fs.readFileSync(path.join(root, 'js/ui/library.js'), 'utf8');
 const themeSource = fs.readFileSync(path.join(root, 'theme.css'), 'utf8');
-const indexSource = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const indexSource = fs.readFileSync(path.join(root, 'standard/index.html'), 'utf8');
 const chordExportSource = fs.readFileSync(path.join(root, 'js/ui/chord-export.js'), 'utf8');
 
 const P = 'chordCruise.';

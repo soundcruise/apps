@@ -150,7 +150,7 @@
                 '</div>' +
                 '<p class="cc-fb-hint" id="cc-fb-hint"></p>' +
                 '<div id="cc-caged-pro-link" hidden>' +
-                    '<a class="cc-btn cc-btn-secondary cc-btn--block" href="pro-access.html" target="_blank" rel="noopener">Pro版の入手方法</a>' +
+                    '<a class="cc-btn cc-btn-secondary cc-btn--block" href="../pro-access.html" target="_blank" rel="noopener">Pro版の入手方法</a>' +
                 '</div>' +
                 '<div class="cc-save-btn-row" id="cc-save-btn-row">' +
                     '<button type="button" class="cc-btn cc-btn-primary cc-btn--block" id="cc-save-form-btn" disabled aria-describedby="cc-fb-hint">保存する</button>' +
@@ -659,7 +659,7 @@
             host.appendChild(message);
             var link = document.createElement('a');
             link.className = 'cc-btn cc-btn-primary cc-btn--block';
-            link.href = 'pro-access.html';
+            link.href = '../pro-access.html';
             link.target = '_blank';
             link.rel = 'noopener';
             link.textContent = 'Pro版の入手方法';

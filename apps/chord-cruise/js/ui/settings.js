@@ -91,7 +91,7 @@
         section.setAttribute('aria-labelledby', 'cc-settings-pro-title');
         section.innerHTML = isPro
             ? '<h4 id="cc-settings-pro-title">Pro版</h4><p class="cc-settings-note">Pro版を利用中</p><button type="button" class="cc-settings-reset-trigger" id="cc-settings-pro-gate-reset">認証をリセット</button>'
-            : '<h4 id="cc-settings-pro-title">Pro版</h4><p class="cc-settings-note">Standard版を利用中です。</p><a class="cc-settings-reset-trigger cc-settings-pro-link" href="./pro-access.html">Pro版はこちら</a>';
+            : '<h4 id="cc-settings-pro-title">Pro版</h4><p class="cc-settings-note">Standard版を利用中です。</p><a class="cc-settings-reset-trigger cc-settings-pro-link" href="../pro-access.html">Pro版はこちら</a>';
         refreshBar.parentNode.insertBefore(section, refreshBar);
     }
 
