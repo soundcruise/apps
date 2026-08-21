@@ -1,7 +1,7 @@
 {
-  "id": "./",
-  "name": "コードクルーズ Pro",
-  "short_name": "コードクルーズ Pro",
+  "id": "/apps/chord-cruise/pro_k7m4q9v2x8/",
+  "name": "コードクルーズ",
+  "short_name": "コードクルーズ",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -14,13 +14,25 @@
       "src": "../icons/chord-cruise-pro-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "../icons/chord-cruise-pro-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "../icons/chord-cruise-pro-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "../icons/chord-cruise-pro-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
