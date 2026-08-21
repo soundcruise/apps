@@ -54,6 +54,18 @@ function loadStorage() {
     assert.strictEqual(Object.prototype.hasOwnProperty.call(saved, 'lastSaveFolderId'), false, 'record does not receive UI settings');
 }());
 
+(function settingsRetainCagedFormLockOutsideRecords() {
+    var env = loadStorage();
+    var storage = env.storage;
+    assert.strictEqual(storage.loadSettings().cagedFormLocked, false, 'CAGED form lock defaults to off');
+    assert.strictEqual(storage.saveSettings({ cagedFormLocked: true }), true, 'CAGED form lock persists through settings');
+    assert.strictEqual(storage.loadSettings().cagedFormLocked, true, 'CAGED form lock reloads from settings');
+
+    var saved = storage.saveChord({ chordName: 'C', formName: 'C型', shape: 'C', folderId: storage.UNCATEGORIZED_ID, notes: [], mutedStrings: [] });
+    assert(saved, 'record saves through the existing path after settings change');
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(saved, 'cagedFormLocked'), false, 'record does not receive CAGED lock settings');
+}());
+
 (function clearsOnlyChordCruiseKeys() {
     var env = loadStorage();
     env.localStorage.setItem('chordCruise.settings', '{}');
@@ -72,6 +84,8 @@ assert(saveEditorSource.includes('rememberSaveFolder(saved.folderId)'), 'only su
 assert(settingsSource.includes('window.__soundCruiseClearGate'), 'Pro settings use the shared gate reset API');
 assert(settingsSource.includes('cc-settings-data-delete'), 'settings provide the app-data delete action');
 assert(settingsSource.includes('保存したコード・設定をすべて削除して初期状態に戻します。'), 'settings explain the destructive action');
+assert(settingsSource.includes('function setCagedFormLocked(value)'), 'settings expose the CAGED form lock updater');
+assert(settingsSource.includes('saveRightTopSettings({ cagedFormLocked: locked })'), 'settings save the CAGED form lock through the existing settings path');
 assert(!settingsSource.includes('localStorage.clear'), 'settings never clear all application storage');
 
-console.log('settings-data-management: Pro auth reset, remembered save folder, and Chord Cruise-only data deletion OK');
+console.log('settings-data-management: Pro auth reset, remembered save folder, persisted CAGED lock, and Chord Cruise-only data deletion OK');

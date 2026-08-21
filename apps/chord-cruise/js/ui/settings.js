@@ -11,7 +11,8 @@
         'fretboardMarkerLabelSize',
         'fretNumberHighlightMode',
         'highlightedFrets',
-        'fretboardDisplayMode'
+        'fretboardDisplayMode',
+        'cagedFormLocked'
     ];
     var overlayEl = null;
     var openBtn = null;
@@ -152,6 +153,12 @@
             btn.classList.toggle('cc-segment-btn--active', selected);
             btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
         });
+        var cagedLockToggle = document.getElementById('cc-settings-caged-lock-toggle');
+        if (cagedLockToggle) {
+            var cagedLocked = settings.cagedFormLocked === true;
+            cagedLockToggle.classList.toggle('cc-switch--on', cagedLocked);
+            cagedLockToggle.setAttribute('aria-checked', cagedLocked ? 'true' : 'false');
+        }
         var active = normalizeSize(settings.fretNumberSize);
         Array.prototype.forEach.call(overlayEl.querySelectorAll('[data-fret-number-size]'), function (btn) {
             var selected = btn.getAttribute('data-fret-number-size') === active;
@@ -247,6 +254,23 @@
         updateControls();
         notifyFretboardChange();
         return true;
+    }
+
+    function setCagedFormLocked(value) {
+        var locked = value === true;
+        if (!saveRightTopSettings({ cagedFormLocked: locked })) return false;
+        updateControls();
+        notifyFretboardChange();
+        return true;
+    }
+
+    function toggleCagedLockDescription() {
+        var detail = document.getElementById('cc-settings-caged-lock-note');
+        var toggle = document.getElementById('cc-settings-caged-lock-help-toggle');
+        if (!detail || !toggle) return;
+        var expanded = toggle.getAttribute('aria-expanded') !== 'true';
+        detail.hidden = !expanded;
+        toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
     }
 
     function notifyFretboardChange() {
@@ -481,6 +505,14 @@
                     setPreviewDisplayMode(previewDisplayMode.getAttribute('data-preview-display-mode'));
                     return;
                 }
+                if (event.target.closest('#cc-settings-caged-lock-toggle')) {
+                    setCagedFormLocked(getSettings().cagedFormLocked !== true);
+                    return;
+                }
+                if (event.target.closest('#cc-settings-caged-lock-help-toggle')) {
+                    toggleCagedLockDescription();
+                    return;
+                }
                 var highlightMode = event.target.closest('[data-fret-highlight-mode]');
                 if (highlightMode) {
                     setHighlightMode(highlightMode.getAttribute('data-fret-highlight-mode'));
@@ -551,6 +583,7 @@
         normalizeSize: normalizeSize,
         normalizeChordNameSize: normalizeChordNameSize,
         setPreviewDisplayMode: setPreviewDisplayMode,
+        setCagedFormLocked: setCagedFormLocked,
         normalizeHighlightMode: normalizeHighlightMode,
         normalizeHighlightedFrets: normalizeHighlightedFrets,
         resetDisplaySettings: resetDisplaySettings,

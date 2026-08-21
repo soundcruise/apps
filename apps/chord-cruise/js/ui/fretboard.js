@@ -454,6 +454,8 @@
      *   rangeHighlight { minFret, maxFret, includesOpen } | null
      *   scrollToFret   このフレットが中央付近に来るよう初期スクロール（null で先頭）
      *   preserveScroll 再描画時に維持したい scrollLeft（null で無効）
+     *   animateScroll  scrollToFretへ滑らかに移動するか
+     *   initialScroll  アニメーション開始位置のscrollLeft
      *   markerLabelSize small / medium / large / xlarge。指定したHTML指板だけへ丸内文字サイズを適用
      *   onSlotTap      function(stringNum, fret) マーカータップ時（運指編集用）
      */
@@ -551,7 +553,10 @@
         if (typeof opts.preserveScroll === 'number' && opts.preserveScroll >= 0) {
             scroll.scrollLeft = opts.preserveScroll;
         } else if (typeof opts.scrollToFret === 'number') {
-            setScrollCenter(scroll, model.frets, opts.scrollToFret);
+            setScrollCenter(scroll, model.frets, opts.scrollToFret, {
+                animate: opts.animateScroll === true,
+                initialScroll: opts.initialScroll
+            });
         }
     }
 
@@ -570,11 +575,28 @@
         if (next && typeof next.focus === 'function') next.focus();
     }
 
-    function setScrollCenter(scroll, frets, fret) {
+    function setScrollCenter(scroll, frets, fret, options) {
         if (!scroll || !frets.length) return null;
         var center = fretPosition(fret, frets);
         var maxScroll = Math.max(0, scroll.scrollWidth - scroll.clientWidth);
         var next = Math.min(maxScroll, Math.max(0, center - scroll.clientWidth / 2));
+        var opts = options || {};
+        if (opts.animate === true && typeof opts.initialScroll === 'number') {
+            scroll.scrollLeft = opts.initialScroll;
+            var move = function () {
+                if (typeof scroll.scrollTo === 'function') {
+                    scroll.scrollTo({ left: next, behavior: 'smooth' });
+                } else {
+                    scroll.scrollLeft = next;
+                }
+            };
+            if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+                window.requestAnimationFrame(move);
+            } else {
+                setTimeout(move, 0);
+            }
+            return next;
+        }
         scroll.scrollLeft = next;
         return next;
     }

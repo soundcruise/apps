@@ -1036,32 +1036,47 @@ body {
 
 .cc-caged-notices {
     margin: -4px 0 12px;
-    display: grid;
-    gap: 8px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.cc-caged-notices[hidden] {
+    display: none;
 }
 
 .cc-caged-notice {
     margin: 0;
+    display: flex;
+    flex: 0 0 auto;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    max-width: 100%;
 }
 
 .cc-caged-notice[hidden] {
     display: none;
 }
 
+.cc-caged-notice--expanded {
+    flex: 1 0 100%;
+}
+
 .cc-caged-notice-toggle {
-    width: 100%;
-    min-height: 42px;
+    width: auto;
+    min-height: 32px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding: 9px 12px;
+    gap: 6px;
+    padding: 5px 9px;
     border: 1px solid rgba(232, 201, 122, 0.34);
-    border-radius: 10px;
+    border-radius: var(--cc-radius-pill);
     background: rgba(212, 175, 55, 0.1);
     color: #e9d8ad;
     font: inherit;
-    font-size: 0.82rem;
+    font-size: 0.76rem;
     font-weight: 700;
     text-align: left;
     cursor: pointer;
@@ -1080,6 +1095,8 @@ body {
 }
 
 .cc-caged-notice-detail {
+    flex: 1 0 100%;
+    width: 100%;
     margin-top: 6px;
     padding: 10px 12px;
     border: 1px solid rgba(232, 201, 122, 0.22);
@@ -3268,6 +3285,43 @@ body.cc-settings-open {
     color: var(--cc-text);
     font-size: 0.95rem;
     font-weight: 700;
+}
+
+.cc-settings-inline-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.cc-settings-help-toggle {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid rgba(232, 201, 122, 0.32);
+    border-radius: 50%;
+    background: rgba(212, 175, 55, 0.08);
+    color: var(--cc-gold-bright);
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.cc-settings-help-toggle:hover,
+.cc-settings-help-toggle[aria-expanded="true"] {
+    border-color: var(--cc-gold);
+    background: rgba(212, 175, 55, 0.18);
+}
+
+.cc-settings-help-toggle:active {
+    transform: scale(0.94);
+}
+
+.cc-settings-help-toggle:focus-visible {
+    outline: 2px solid var(--cc-gold-bright);
+    outline-offset: 2px;
 }
 
 .cc-settings-note {

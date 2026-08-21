@@ -69,8 +69,8 @@
                 dim: {
                     slots: [{ s: 6, o: 0, iv: 0 }, { s: 5, o: 1, iv: 6 }, { s: 4, o: 2, iv: 0, fingeringWarning: true }, { s: 3, o: 0, iv: 3 }, { s: 2, o: -1, iv: 6, fingeringWarning: true }, { s: 1, o: 0, iv: 0, fingeringWarning: true }],
                     muted: [],
-                    fingers: { 6: 1, 5: 2, 3: 3 },
-                    warningStrings: [4, 2, 1],
+                    fingers: { 6: 'T', 3: 2, 2: 1, 1: 3 },
+                    warningStrings: [5, 4],
                     openFingers: { 6: 1, 5: 2, 3: 3 },
                     playability: 'advanced',
                     warning: 'フォーム全体の構成音を表示しています。⚠️の音は一般的な運指では同時に押さえることが難しい位置です。保存前編集で指を指定するか、音を消去できます。'

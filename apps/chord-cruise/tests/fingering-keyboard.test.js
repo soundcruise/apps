@@ -75,7 +75,7 @@ function loadFretboard() {
     assert(exploreSource.includes("return fingeringWarning ? '⚠' : ''"));
     assert(exploreSource.includes("if (mode === 'solfege')"));
     assert(exploreSource.includes("if (mode === 'degree')"));
-    assert(exploreSource.includes("fingeringWarning: getSettings().fretboardDisplayMode === 'finger' && note.fingeringWarning === true"));
+    assert(exploreSource.includes("fingeringWarning: exploreDisplayMode() === 'finger' && note.fingeringWarning === true"));
 
     assert(saveEditorSource.includes("if (draft.displayMode === 'finger')"));
     assert(saveEditorSource.includes("return note.fingeringWarning ? '⚠' : ''"));

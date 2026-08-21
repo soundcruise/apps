@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../theme.css?v=0.37.0">
+<link rel="stylesheet" href="../theme.css?v=0.37.1">
 <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
 </head>
 <body>
@@ -161,15 +161,25 @@
                     <span>C・C型</span>
                 </div>
                 <div class="cc-segment cc-settings-preview-modes" role="group" aria-label="プレビューの音名表示">
+                    <button type="button" class="cc-segment-btn" data-preview-display-mode="finger">運指</button>
                     <button type="button" class="cc-segment-btn" data-preview-display-mode="note">CDE</button>
                     <button type="button" class="cc-segment-btn" data-preview-display-mode="solfege">ドレミ</button>
                     <button type="button" class="cc-segment-btn" data-preview-display-mode="degree">度数</button>
-                    <button type="button" class="cc-segment-btn" data-preview-display-mode="finger">運指</button>
                 </div>
                 <button type="button" class="cc-settings-description-toggle" data-settings-description="preview" aria-expanded="false" aria-controls="cc-settings-description-preview">＋ 説明</button>
                 <p class="cc-settings-note cc-settings-description" id="cc-settings-description-preview" hidden>表示設定の変更がここに反映されます。</p>
                 <div class="cc-fretboard-chord-name cc-settings-preview-name" aria-hidden="true">C</div>
                 <div id="cc-settings-fretboard-preview" class="cc-fb-host cc-settings-preview-board" aria-label="Cコード C型の指板プレビュー"></div>
+            </div>
+            <div class="cc-settings-item">
+                <div class="cc-settings-item-head">
+                    <span class="cc-settings-item-label">CAGEDフォーム固定</span>
+                    <span class="cc-settings-inline-actions">
+                        <button type="button" class="cc-settings-help-toggle" id="cc-settings-caged-lock-help-toggle" aria-expanded="false" aria-controls="cc-settings-caged-lock-note" aria-label="CAGEDフォーム固定の説明">?</button>
+                        <button type="button" class="cc-switch" id="cc-settings-caged-lock-toggle" role="switch" aria-checked="false" aria-label="CAGEDフォームを固定"><span class="cc-switch-knob" aria-hidden="true"></span></button>
+                    </span>
+                </div>
+                <p class="cc-settings-note" id="cc-settings-caged-lock-note" hidden>ONにすると、コードを変更しても選択したCAGEDフォームを維持します。OFFではおすすめフォームへ自動変更します。</p>
             </div>
             <section class="cc-settings-reset" aria-labelledby="cc-settings-reset-title">
                 <h4 id="cc-settings-reset-title">表示設定をリセット</h4>
@@ -191,21 +201,21 @@
         </div>
     </div>
 </div>
-<script src="../js/core/feature-access.js?v=0.37.0"></script>
-<script src="../js/core/storage.js?v=0.37.0"></script>
-<script src="../js/core/music-theory.js?v=0.37.0"></script>
-<script src="../js/core/caged-forms.js?v=0.37.0"></script>
-<script src="../js/core/chord-model.js?v=0.37.0"></script>
-<script src="../js/core/chord-info.js?v=0.37.0"></script>
-<script src="../js/ui/fretboard.js?v=0.37.0"></script>
-<script src="../js/ui/toast.js?v=0.37.0"></script>
-<script src="../js/ui/focus-trap.js?v=0.37.0"></script>
-<script src="../js/ui/save-editor.js?v=0.37.0"></script>
-<script src="../js/ui/chord-builder.js?v=0.37.0"></script>
-<script src="../js/ui/chord-export.js?v=0.37.0"></script>
-<script src="../js/ui/library.js?v=0.37.0"></script>
-<script src="../js/ui/explore.js?v=0.37.0"></script>
-<script src="../js/ui/settings.js?v=0.37.0"></script>
-<script src="../js/app.js?v=0.37.0"></script>
+<script src="../js/core/feature-access.js?v=0.37.1"></script>
+<script src="../js/core/storage.js?v=0.37.1"></script>
+<script src="../js/core/music-theory.js?v=0.37.1"></script>
+<script src="../js/core/caged-forms.js?v=0.37.1"></script>
+<script src="../js/core/chord-model.js?v=0.37.1"></script>
+<script src="../js/core/chord-info.js?v=0.37.1"></script>
+<script src="../js/ui/fretboard.js?v=0.37.1"></script>
+<script src="../js/ui/toast.js?v=0.37.1"></script>
+<script src="../js/ui/focus-trap.js?v=0.37.1"></script>
+<script src="../js/ui/save-editor.js?v=0.37.1"></script>
+<script src="../js/ui/chord-builder.js?v=0.37.1"></script>
+<script src="../js/ui/chord-export.js?v=0.37.1"></script>
+<script src="../js/ui/library.js?v=0.37.1"></script>
+<script src="../js/ui/explore.js?v=0.37.1"></script>
+<script src="../js/ui/settings.js?v=0.37.1"></script>
+<script src="../js/app.js?v=0.37.1"></script>
 </body>
 </html>

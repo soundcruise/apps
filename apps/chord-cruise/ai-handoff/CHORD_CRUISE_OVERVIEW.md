@@ -14,10 +14,10 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/standard/`（旧URLの`https://soundcruise.jp/apps/chord-cruise/`は互換入口としてStandardへ遷移）
 - PRO版URL: `https://soundcruise.jp/apps/chord-cruise/pro_k7m4q9v2x8/`（`data-app-edition="Pro"`、`apps/shared/pro-gate.js`／`pro-gate.css`を利用）
-- 現在のバージョン: `0.37.0`（PWA構造改善）
+- 現在のバージョン: `0.37.1`（指板UX改善）
 - 正式Chord Cruise HEAD: `3455175d26ab03bc893e2c63b5a3ec99e6d7d2f4`
 
-## 現在のPro構成（v0.37.0）
+## 現在のPro構成（v0.37.1）
 
 - Standard入口: `apps/chord-cruise/standard/index.html`
 - 旧Standard入口: `apps/chord-cruise/index.html`（互換入口。PWA manifestを持たず`standard/`へ遷移）
@@ -249,7 +249,7 @@ StandardとProは同じcore／UI／保存schemaを共有し、入口とFeature A
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.37.0`）。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.37.1`）。
 - `?v=` によるキャッシュ管理: Standard `standard/index.html` とPro `pro_k7m4q9v2x8/index.html` のscript／stylesheet参照を、更新時にそれぞれ確認する。
 - shared gateを変更する場合は、Pro HTMLの`pro-gate.js`／`pro-gate.css`参照も更新対象に含める。今回のP8-5ではversionとコード参照を変更しない。
 - 通常版/PRO版で更新箇所が分かれているか: core／UIは共有し、入口HTMLとPro gate参照だけが分かれる。version更新時はStandard/Pro双方のHTML参照を確認する。

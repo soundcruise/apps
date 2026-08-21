@@ -80,7 +80,7 @@ function chord(name) {
     assert.deepStrictEqual(JSON.parse(JSON.stringify(standard.storage.loadChord(saved.id))), JSON.parse(JSON.stringify(saved)), 'Standard can read an existing custom record unchanged');
 }());
 
-assert(standardHtml.includes('<script src="../js/core/feature-access.js?v=0.37.0"></script>'), 'Standard loads feature access');
+assert(standardHtml.includes('<script src="../js/core/feature-access.js?v=0.37.1"></script>'), 'Standard loads feature access');
 assert(standardHtml.indexOf('js/core/feature-access.js') < standardHtml.indexOf('js/core/storage.js'), 'Standard loads feature access before storage');
 assert(proHtml.indexOf('../js/core/feature-access.js') < proHtml.indexOf('../js/core/storage.js'), 'Pro loads feature access before storage');
 assert(saveEditorSource.includes("source: chord.source === 'custom' ? 'custom' : 'diatonic'"), 'save editor keeps a transient source for new saves');

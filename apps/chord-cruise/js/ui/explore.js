@@ -104,10 +104,10 @@
                 '<div class="cc-fb-head">' +
                     '<h3 class="cc-card-heading">指板</h3>' +
                     '<div class="cc-segment" role="group" aria-label="指板表示切替">' +
+                        '<button type="button" class="cc-segment-btn cc-segment-btn--disabled" id="cc-fbmode-finger">運指</button>' +
                         '<button type="button" class="cc-segment-btn" id="cc-fbmode-note">CDE</button>' +
                         '<button type="button" class="cc-segment-btn" id="cc-fbmode-solfege">ドレミ</button>' +
                         '<button type="button" class="cc-segment-btn" id="cc-fbmode-degree">度数</button>' +
-                        '<button type="button" class="cc-segment-btn cc-segment-btn--disabled" id="cc-fbmode-finger">運指</button>' +
                     '</div>' +
                 '</div>' +
                 '<div class="cc-caged-row" id="cc-caged-row" role="group" aria-label="CAGEDフォーム切替">' +
@@ -118,7 +118,7 @@
                     '<button type="button" class="cc-caged-btn" data-shape="E" aria-label="E型"><span class="cc-caged-btn-label">E型</span><span class="cc-caged-btn-root" aria-hidden="true">(6弦R)</span></button>' +
                     '<button type="button" class="cc-caged-btn" data-shape="D" aria-label="D型"><span class="cc-caged-btn-label">D型</span><span class="cc-caged-btn-root" aria-hidden="true">(4弦R)</span></button>' +
                 '</div>' +
-                '<div class="cc-caged-notices" id="cc-caged-notices">' +
+                '<div class="cc-caged-notices" id="cc-caged-notices" hidden>' +
                     '<div class="cc-caged-notice" id="cc-caged-notice-fingering" hidden>' +
                         '<button type="button" class="cc-caged-notice-toggle" id="cc-caged-notice-toggle-fingering" aria-expanded="false" aria-controls="cc-caged-notice-detail-fingering">' +
                             '<span id="cc-caged-notice-label-fingering">⚠️ 運指</span>' +
@@ -190,6 +190,7 @@
             }
             getState().exploreCustomChord = null;
             getState().exploreSelectedChordIndex = parseInt(btn.dataset.index, 10);
+            selectRecommendedFretboardPresentation();
             resetCagedNotice();
             renderChordGrid();
             renderFretboard();
@@ -202,6 +203,7 @@
                 onApply: function (chord) {
                     getState().exploreCustomChord = chord;
                     getState().exploreSelectedChordIndex = null;
+                    selectRecommendedFretboardPresentation();
                     resetCagedNotice();
                     renderChordGrid();
                     renderFretboard();
@@ -212,9 +214,11 @@
 
         ['note', 'solfege', 'degree'].forEach(function (mode) {
             document.getElementById('cc-fbmode-' + mode).addEventListener('click', function () {
-                if (getSettings().fretboardDisplayMode === mode) {
+                if (exploreDisplayMode() === mode) {
                     return;
                 }
+                getState().exploreFretboardDisplayMode = null;
+                getState().exploreFretboardPresentationInitialized = true;
                 saveSetting({ fretboardDisplayMode: mode });
                 updateFbSegments();
                 renderFretboard();
@@ -227,9 +231,11 @@
                 setFbHint('運指表示はCAGEDフォームを選んだときに使えます。');
                 return;
             }
-            if (getSettings().fretboardDisplayMode === 'finger') {
+            if (exploreDisplayMode() === 'finger') {
                 return;
             }
+            getState().exploreFretboardDisplayMode = null;
+            getState().exploreFretboardPresentationInitialized = true;
             saveSetting({ fretboardDisplayMode: 'finger' });
             updateFbSegments();
             renderFretboard();
@@ -271,6 +277,7 @@
                 return;
             }
             getState().exploreShape = shape;
+            getState().exploreAnimateFretboardScroll = !!shape;
             resetCagedNotice();
             updateCagedButtons();
             renderFretboard();
@@ -336,7 +343,9 @@
         cagedNoticeState[kind].type = type || '';
         cagedNoticeState[kind].text = text || '';
         if (!cagedNoticeState[kind].text) cagedNoticeExpanded[kind] = false;
-        notice.className = 'cc-caged-notice' + (type ? ' cc-caged-notice--' + type : '');
+        notice.className = 'cc-caged-notice'
+            + (type ? ' cc-caged-notice--' + type : '')
+            + (cagedNoticeExpanded[kind] ? ' cc-caged-notice--expanded' : '');
         notice.hidden = !cagedNoticeState[kind].text;
         if (!toggle || !detail || !chevron) return;
         if (label) {
@@ -353,6 +362,10 @@
     function setCagedNotices(fingeringType, fingeringText, rangeText) {
         setCagedNotice('fingering', fingeringType, fingeringText);
         setCagedNotice('range', 'range', rangeText);
+        var notices = document.getElementById('cc-caged-notices');
+        if (notices) {
+            notices.hidden = !(fingeringText || rangeText);
+        }
     }
 
     function commitScaleType(scaleType) {
@@ -546,7 +559,7 @@
     }
 
     function updateFbSegments() {
-        var mode = getSettings().fretboardDisplayMode;
+        var mode = exploreDisplayMode();
         ['note', 'solfege', 'degree', 'finger'].forEach(function (m) {
             var el = document.getElementById('cc-fbmode-' + m);
             if (el) {
@@ -559,6 +572,44 @@
         return getSettings().highFretMode
             ? { start: 12, end: 25 }
             : { start: 0, end: 13 };
+    }
+
+    /**
+     * コード選択直後だけに使う非永続の表示モード。
+     * ユーザーがセグメントを操作した後はsettingsの選択へ戻る。
+     */
+    function exploreDisplayMode() {
+        var temporary = getState().exploreFretboardDisplayMode;
+        return ['note', 'solfege', 'degree', 'finger'].indexOf(temporary) !== -1
+            ? temporary
+            : getSettings().fretboardDisplayMode;
+    }
+
+    /**
+     * 選択コードのfeatured formを最初に表示する。最初のコード選択だけは
+     * 運指表示にし、以後は現在の表示モードを維持する。CAGEDが使えない場合は
+     * 既存の全体/CDE表示へフォールバックし、設定値は保存しない。
+     */
+    function selectRecommendedFretboardPresentation() {
+        var state = getState();
+        var chord = selectedChord();
+        var range = fretWindow();
+        var featureAccess = window.ChordCruise.featureAccess;
+        var cagedBlocked = !!(chord && featureAccess && !featureAccess.canAccessCaged(chord.qualityKey));
+        var featured = chord && !cagedBlocked
+            ? window.ChordCruise.caged.getCommonForm(chord.qualityKey, chord.rootPc, range.end, range.start)
+            : null;
+        var displayMode = state.exploreFretboardPresentationInitialized === true
+            ? exploreDisplayMode()
+            : 'finger';
+
+        var lockedShape = getSettings().cagedFormLocked === true ? state.exploreShape : null;
+        state.exploreShape = lockedShape || (featured ? featured.shape : null);
+        // コードを切り替えた場合も、最終的に選ばれたフォーム位置へ移動する。
+        state.exploreAnimateFretboardScroll = !!state.exploreShape;
+        state.exploreFretboardDisplayMode = featured ? displayMode : 'note';
+        state.exploreFretboardPresentationInitialized = true;
+        updateFbSegments();
     }
 
     function updateHighFretToggle() {
@@ -585,7 +636,7 @@
         var theory = getTheory();
         var useFlats = chordUseFlats(chord);
         var spelledNoteNames = customChordSpelledNoteNames(chord);
-        var mode = getSettings().fretboardDisplayMode;
+        var mode = exploreDisplayMode();
         var markers = [];
         var range = fretWindow();
         var s;
@@ -762,7 +813,7 @@
 
     function markerLabelFor(chord, pc, interval, finger, fingeringWarning, useFlats, spelledNoteNames) {
         var theory = getTheory();
-        var mode = getSettings().fretboardDisplayMode;
+        var mode = exploreDisplayMode();
         if (mode === 'finger') {
             if (finger != null) return FINGER_LABELS[finger] || '';
             return fingeringWarning ? '⚠' : '';
@@ -791,7 +842,7 @@
                 fret: note.fret,
                 label: markerLabelFor(chord, pc, note.interval, note.finger, note.fingeringWarning, useFlats, spelledNoteNames),
                 role: roleForChordInterval(chord, note.interval),
-                fingeringWarning: getSettings().fretboardDisplayMode === 'finger' && note.fingeringWarning === true
+                fingeringWarning: exploreDisplayMode() === 'finger' && note.fingeringWarning === true
             };
         });
     }
@@ -825,7 +876,7 @@
 
     function bassOverlayMarkerLabel(chord, overlay) {
         var theory = getTheory();
-        var mode = getSettings().fretboardDisplayMode;
+        var mode = exploreDisplayMode();
         if (mode === 'finger') return '';
         var spelled = bassSpelledNoteName(chord, overlay);
         if (mode === 'solfege') return theory.solfegeNameForSpelling(spelled) || theory.solfegeName(overlay.pc, window.ChordCruise.chordModel.bassUsesFlats(overlay.pc));
@@ -881,7 +932,7 @@
 
     function tensionOverlayMarkerLabel(chord, overlay, useFlats, spelledNoteNames) {
         var theory = getTheory();
-        var mode = getSettings().fretboardDisplayMode;
+        var mode = exploreDisplayMode();
         if (mode === 'finger') return '';
         var noteIndex = chord.intervals.indexOf(overlay.interval);
         if (mode === 'solfege') return chordSolfegeName(noteIndex, overlay.pc, useFlats, spelledNoteNames);
@@ -972,6 +1023,21 @@
             && !cagedBlocked
             ? window.ChordCruise.caged.getCommonForm(chord.qualityKey, chord.rootPc, range.end, range.start)
             : null;
+        var buttonsByShape = {};
+        Array.prototype.forEach.call(row.querySelectorAll('.cc-caged-btn'), function (btn) {
+            buttonsByShape[btn.dataset.shape] = btn;
+        });
+        var shapeOrder = window.ChordCruise.caged.SHAPE_ORDER;
+        var cagedLocked = getSettings().cagedFormLocked === true;
+        var orderingShape = featured ? featured.shape : null;
+        var featuredIndex = orderingShape ? shapeOrder.indexOf(orderingShape) : -1;
+        var circularShapeOrder = cagedLocked || featuredIndex === -1
+            ? shapeOrder.slice()
+            : shapeOrder.slice(featuredIndex).concat(shapeOrder.slice(0, featuredIndex));
+        var orderedShapes = [''].concat(circularShapeOrder);
+        orderedShapes.forEach(function (shape) {
+            if (buttonsByShape[shape]) row.appendChild(buttonsByShape[shape]);
+        });
         Array.prototype.forEach.call(row.querySelectorAll('.cc-caged-btn'), function (btn) {
             var shape = btn.dataset.shape;
             btn.classList.toggle('cc-caged-btn--active', shape === activeShape);
@@ -1016,7 +1082,9 @@
         var noticeText = '';
         var rangeNoticeText = '';
         var cagedProRequired = false;
+        var animateFretboardScroll = getState().exploreAnimateFretboardScroll === true;
         var chordName = document.getElementById('cc-explore-fretboard-name');
+        getState().exploreAnimateFretboardScroll = false;
 
         if (chordName) {
             chordName.textContent = chord ? chord.symbol : '';
@@ -1081,8 +1149,8 @@
         }
 
         // 運指モードのままフォームが無くなった場合はCDE表示へ戻す
-        if (getSettings().fretboardDisplayMode === 'finger' && !form) {
-            saveSetting({ fretboardDisplayMode: 'note' });
+        if (exploreDisplayMode() === 'finger' && !form) {
+            getState().exploreFretboardDisplayMode = 'note';
             updateFbSegments();
             if (chord && !shape) {
                 markers = computeChordToneMarkers(chord);
@@ -1093,7 +1161,7 @@
 
         if (chord && chord.bassPc != null) {
             markers = mergeBassOverlayMarkers(chord, markers, range);
-            hint += getSettings().fretboardDisplayMode === 'finger'
+            hint += exploreDisplayMode() === 'finger'
                 ? ' 金枠は追加ベース音の候補です。運指は表示していません。押さえやすい位置を選び、その音より低い弦は鳴らさないでください。'
                 : ' 金枠の音を最低音として使います。選んだ音より低い弦は鳴らしません。';
         }
@@ -1101,14 +1169,14 @@
         if (chord && form && (chord.qualityKey === '6' || chord.qualityKey === 'm6')) {
             markers = mergeSixthOverlayMarkers(chord, form, markers);
             var baseFormLabel = chord.qualityKey === 'm6' ? 'Minor' : 'Major';
-            hint += getSettings().fretboardDisplayMode === 'finger'
+            hint += exploreDisplayMode() === 'finger'
                 ? ' 6度は' + baseFormLabel + ' FORMへ追加する候補音です。運指は未定義です。'
                 : ' 6度は' + baseFormLabel + ' FORMへ追加する構成音です。';
         }
 
         if (chord && form && Array.isArray(chord.tensionIntervals) && chord.tensionIntervals.length) {
             markers = mergeTensionOverlayMarkers(chord, markers, range);
-            hint += getSettings().fretboardDisplayMode === 'finger'
+            hint += exploreDisplayMode() === 'finger'
                 ? ' 濃金枠は追加テンション音の候補です。運指は表示していません。'
                 : ' 濃金枠は追加テンション音の候補です。';
         }
@@ -1137,6 +1205,8 @@
             rangeHighlight: rangeHighlight,
             scrollToFret: scrollToFret,
             preserveScroll: (form && scrollToFret !== null) ? null : (typeof prevScroll === 'number' ? prevScroll : null),
+            animateScroll: animateFretboardScroll && !!form && scrollToFret !== null,
+            initialScroll: animateFretboardScroll ? prevScroll : null,
             markerLabelSize: getSettings().fretboardMarkerLabelSize
         });
         setFbHint(hint);
@@ -1245,6 +1315,7 @@
                     chip.addEventListener('click', function () {
                         getState().exploreCustomChord = null;
                         getState().exploreSelectedChordIndex = degreeIndex;
+                        selectRecommendedFretboardPresentation();
                         resetCagedNotice();
                         renderChordGrid();
                         renderFretboard();
