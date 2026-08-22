@@ -15,20 +15,21 @@
     --cc-radius-lg: 20px;
     --cc-radius-md: 14px;
     --cc-radius-pill: 999px;
-    --cc-fret-number-size: 14px;
-    --cc-chord-name-size: 22px;
-    --cc-chord-name-thumbnail-size: 0.95rem;
+    --cc-fret-number-size: 16px;
+    --cc-chord-name-size: 34px;
 }
 
-html[data-cc-fret-number-size="small"] { --cc-fret-number-size: 12px; }
-html[data-cc-fret-number-size="medium"] { --cc-fret-number-size: 14px; }
-html[data-cc-fret-number-size="large"] { --cc-fret-number-size: 16px; }
-html[data-cc-fret-number-size="xlarge"] { --cc-fret-number-size: 18px; }
+html[data-cc-fret-number-size="xsmall"] { --cc-fret-number-size: 12px; }
+html[data-cc-fret-number-size="small"] { --cc-fret-number-size: 14px; }
+html[data-cc-fret-number-size="medium"] { --cc-fret-number-size: 16px; }
+html[data-cc-fret-number-size="large"] { --cc-fret-number-size: 18px; }
+html[data-cc-fret-number-size="xlarge"] { --cc-fret-number-size: 20px; }
 
-html[data-cc-chord-name-size="small"] { --cc-chord-name-size: 18px; --cc-chord-name-thumbnail-size: 0.8rem; }
-html[data-cc-chord-name-size="medium"] { --cc-chord-name-size: 22px; --cc-chord-name-thumbnail-size: 0.95rem; }
-html[data-cc-chord-name-size="large"] { --cc-chord-name-size: 26px; --cc-chord-name-thumbnail-size: 1.1rem; }
-html[data-cc-chord-name-size="xlarge"] { --cc-chord-name-size: 30px; --cc-chord-name-thumbnail-size: 1.25rem; }
+html[data-cc-chord-name-size="xsmall"] { --cc-chord-name-size: 26px; }
+html[data-cc-chord-name-size="small"] { --cc-chord-name-size: 30px; }
+html[data-cc-chord-name-size="medium"] { --cc-chord-name-size: 34px; }
+html[data-cc-chord-name-size="large"] { --cc-chord-name-size: 38px; }
+html[data-cc-chord-name-size="xlarge"] { --cc-chord-name-size: 42px; }
 
 * {
     box-sizing: border-box;
@@ -740,25 +741,44 @@ body {
     letter-spacing: -0.06em;
 }
 
+/* 変化記号付き音名・度数だけを丸の中心から横方向へ圧縮する。 */
+.cc-fb-marker-label {
+    display: block;
+    transform-origin: center;
+}
+
+.cc-fb-marker--wide-label .cc-fb-marker-label {
+    transform: scaleX(0.84);
+}
+
+.cc-fb-marker--extra-wide-label .cc-fb-marker-label {
+    transform: scaleX(0.78);
+}
+
 /* 丸内文字サイズは、指定されたHTML指板ホストだけへ閉じ込める。 */
+.cc-fb-host[data-cc-marker-label-size="xsmall"] {
+    --cc-fb-marker-label-size: 10.4px;
+    --cc-fb-marker-warning-size: 10.4px;
+}
+
 .cc-fb-host[data-cc-marker-label-size="small"] {
-    --cc-fb-marker-label-size: 0.65rem;
-    --cc-fb-marker-warning-size: 0.77rem;
+    --cc-fb-marker-label-size: 12.2px;
+    --cc-fb-marker-warning-size: 12.2px;
 }
 
 .cc-fb-host[data-cc-marker-label-size="medium"] {
-    --cc-fb-marker-label-size: 0.76rem;
-    --cc-fb-marker-warning-size: 0.9rem;
+    --cc-fb-marker-label-size: 13.6px;
+    --cc-fb-marker-warning-size: 13.6px;
 }
 
 .cc-fb-host[data-cc-marker-label-size="large"] {
-    --cc-fb-marker-label-size: 0.85rem;
-    --cc-fb-marker-warning-size: 1.01rem;
+    --cc-fb-marker-label-size: 15.2px;
+    --cc-fb-marker-warning-size: 15.2px;
 }
 
 .cc-fb-host[data-cc-marker-label-size="xlarge"] {
-    --cc-fb-marker-label-size: 0.95rem;
-    --cc-fb-marker-warning-size: 1.12rem;
+    --cc-fb-marker-label-size: 16.8px;
+    --cc-fb-marker-warning-size: 16.8px;
 }
 
 .cc-fb-marker--tappable {
@@ -3368,6 +3388,10 @@ body.cc-settings-open {
 
 .cc-settings-choices--four {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.cc-settings-choices--five {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .cc-settings-choice {

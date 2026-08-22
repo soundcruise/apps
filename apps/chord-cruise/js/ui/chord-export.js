@@ -127,6 +127,14 @@
             var settings = window.ChordCruise.state && window.ChordCruise.state.settings;
             diagramOptions.markerLabelScale = fretboard.markerLabelScaleForSize(settings && settings.fretboardMarkerLabelSize);
         }
+        if (typeof diagramOptions.markerLabelFontSize !== 'number' && typeof fretboard.markerLabelFontSizeForSize === 'function') {
+            var markerSettings = window.ChordCruise.state && window.ChordCruise.state.settings;
+            diagramOptions.markerLabelFontSize = fretboard.markerLabelFontSizeForSize(markerSettings && markerSettings.fretboardMarkerLabelSize);
+        }
+        if (typeof diagramOptions.fretNumberScale !== 'number' && typeof fretboard.fretNumberScaleForSize === 'function') {
+            var currentSettings = window.ChordCruise.state && window.ChordCruise.state.settings;
+            diagramOptions.fretNumberScale = fretboard.fretNumberScaleForSize(currentSettings && currentSettings.fretNumberSize);
+        }
         var exportSvg = fretboard.buildExportSvg(title, diagramOptions);
         var filename = filenameFor(payload);
         return svgToPng(exportSvg).then(function (result) {

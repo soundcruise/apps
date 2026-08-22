@@ -1388,6 +1388,12 @@
         };
     }
 
+    function hasFirstFretBarre(diagramOptions) {
+        return Array.isArray(diagramOptions && diagramOptions.barres) && diagramOptions.barres.some(function (barre) {
+            return barre && barre.fret === 1;
+        });
+    }
+
     function renderListThumbnails(chords, options) {
         var opts = options || {};
         var grid = document.getElementById('cc-chordthumb-grid');
@@ -1413,20 +1419,25 @@
             diagramOptions.svgClass = 'cc-fb-svg cc-fb-static-svg cc-chordthumb-svg';
             diagramOptions.fretNumberScale = fretNumberScale;
             diagramOptions.markerLabelScale = markerLabelScale;
+            var hasOpenColumn = diagramOptions.frets[0] === 0;
+            var needsFretNumberOffset = hasOpenColumn || hasFirstFretBarre(diagramOptions);
             // 固定高の一覧カードだけは、上下のマーカー外周とフレット番号用にSVG内の安全余白を確保する。
             // 画面の指板・詳細・PNGはこの指定を持たないため、従来の座標と寸法のままになる。
-            if (monochrome) {
+            if (monochrome && hasOpenColumn) {
                 // 本棚の白黒サムネイルだけは、開放弦列を0フレット枠にせずナットとして見せる。
                 diagramOptions.openStringNutOnly = true;
-                diagramOptions.compactOpenStringColumn = true;
+                diagramOptions.monochromeViewportLeftCrop = 12;
                 diagramOptions.svgPadding = {
                     top: 14,
-                    right: 4,
+                    // 開放弦記号の左余白（約21px）と3F右側余白を揃える。
+                    // 記号・ナット・フレットの座標自体は変えない。
+                    right: 22,
                     bottom: 18,
                     left: 4,
                     fillMonochromeBackground: true
                 };
             }
+            diagramOptions.monochromeFretNumberYOffset = monochrome && needsFretNumberOffset ? 5 : 0;
             host.classList.toggle('cc-chordthumb-board--monochrome', monochrome);
             host.innerHTML = window.ChordCruise.ui.fretboard.buildStaticSvg(diagramOptions);
         });
@@ -1445,9 +1456,13 @@
             tappable: true,
             markerLabelSize: (window.ChordCruise.state && window.ChordCruise.state.settings && window.ChordCruise.state.settings.fretboardMarkerLabelSize) || 'medium'
         });
-        // 本棚詳細の白黒ONでも、開放弦列は0フレット枠ではなくナットとして表示する。
-        diagramOptions.openStringNutOnly = detailMonochrome;
-        diagramOptions.compactOpenStringColumn = detailMonochrome;
+        // 本棚詳細の白黒ONかつ開放弦フォームだけは、開放弦列を0フレット枠ではなくナットとして表示する。
+        var detailHasOpenColumn = diagramOptions.frets[0] === 0;
+        var detailNeedsFretNumberOffset = detailHasOpenColumn || hasFirstFretBarre(diagramOptions);
+        diagramOptions.openStringNutOnly = detailMonochrome && detailHasOpenColumn;
+        diagramOptions.monochromeViewportLeftCrop = detailMonochrome && detailHasOpenColumn ? 12 : 0;
+        diagramOptions.monochromeFretNumberYOffset = detailMonochrome && detailNeedsFretNumberOffset ? 5 : 0;
+        diagramOptions.monochromeRightPadding = detailMonochrome && detailHasOpenColumn ? 18 : 0;
         diagramOptions.scrollToFret = chord.fretRange
             ? Math.round((chord.fretRange.min + chord.fretRange.max) / 2)
             : null;
@@ -1551,9 +1566,16 @@
             mode: detailDisplayMode(),
             monochrome: detailMonochrome
         });
-        // 白黒書き出しも本棚プレビューと同じく、開放弦列を0フレット枠ではなく
-        // ナットとして扱う。カラー書き出しの既存表示は維持する。
-        diagramOptions.openStringNutOnly = detailMonochrome;
+        // 白黒かつ開放弦フォームの書き出しも本棚プレビューと同じく、開放弦列を
+        // 0フレット枠ではなくナットとして扱う。カラーと0Fなしフォームは従来どおり。
+        var exportHasOpenColumn = diagramOptions.frets[0] === 0;
+        var exportNeedsFretNumberOffset = exportHasOpenColumn || hasFirstFretBarre(diagramOptions);
+        diagramOptions.openStringNutOnly = detailMonochrome && exportHasOpenColumn;
+        diagramOptions.monochromeViewportLeftCrop = detailMonochrome && exportHasOpenColumn ? 12 : 0;
+        diagramOptions.monochromeFretNumberYOffset = detailMonochrome && exportNeedsFretNumberOffset ? 5 : 0;
+        if (detailMonochrome && exportHasOpenColumn) {
+            diagramOptions.svgPadding = { right: 18 };
+        }
         return window.ChordCruise.ui.chordExport.exportPng({
             chordName: displayChordName(chord.chordName),
             formName: chordFormName(chord),

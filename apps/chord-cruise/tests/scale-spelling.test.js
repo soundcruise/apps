@@ -1,6 +1,7 @@
 'use strict';
 
 var assert = require('assert');
+var fs = require('fs');
 
 global.window = { ChordCruise: {} };
 require('../js/core/music-theory.js');
@@ -285,7 +286,43 @@ var exportSvg = fretboard.buildExportSvg('F♯♯M7', {
 });
 assert(markerSvg.indexOf('𝄪') === -1 && markerSvg.indexOf('𝄫') === -1, 'no supplementary accidental glyphs');
 assert(markerSvg.indexOf('font-size:10px') !== -1, 'three-character accidental labels use the compact SVG size');
-assert(exportSvg.indexOf('font-size:12.5px') !== -1, 'xlarge export sizing remains bounded for three-character labels');
+assert(exportSvg.indexOf('font-size:14px') !== -1, 'xlarge export sizing remains bounded for three-character labels');
+
+var wideLabelMarkers = [
+    { string: 1, fret: 1, interval: 0, role: 'root', label: 'ド#' },
+    { string: 2, fret: 2, interval: 1, role: 'third', label: 'ファ' },
+    { string: 3, fret: 3, interval: 2, role: 'fifth', label: 'ファ#' },
+    { string: 4, fret: 4, interval: 3, role: 'seventh', label: 'ソ#' },
+    { string: 5, fret: 5, interval: 4, role: 'third', label: '♯11' },
+    { string: 6, fret: 6, interval: 5, role: 'other', label: '♭13' },
+    { string: 6, fret: 7, interval: 6, role: 'other', label: '親' },
+    { string: 6, fret: 8, interval: 7, role: 'other', label: '⚠', fingeringWarning: true }
+];
+var wideLabelSvg = fretboard.buildStaticSvg({ frets: [1, 2, 3, 4, 5, 6, 7, 8], markers: wideLabelMarkers });
+var wideLabelExportSvg = fretboard.buildExportSvg('C', {
+    frets: [1, 2, 3, 4, 5, 6, 7, 8],
+    markers: wideLabelMarkers,
+    markerLabelFontSize: fretboard.markerLabelFontSizeForSize('xlarge')
+}).svg;
+function hasHorizontalCompression(svg, label, scale) {
+    var expectedScale = scale == null ? 0.84 : scale;
+    return new RegExp('<text[^>]*transform="[^"]*scale\\(' + expectedScale.toFixed(2).replace('.', '\\.') + ' 1\\)[^"]*"[^>]*>' + label + '</text>').test(svg);
+}
+['ド#', 'ファ', 'ソ#', '♯11', '♭13'].forEach(function (label) {
+    assert(hasHorizontalCompression(wideLabelSvg, label), label + ' static SVG is horizontally compressed');
+    assert(hasHorizontalCompression(wideLabelExportSvg, label), label + ' PNG source SVG is horizontally compressed');
+});
+assert(hasHorizontalCompression(wideLabelSvg, 'ファ#', 0.78), 'ファ# static SVG uses the stronger horizontal compression');
+assert(hasHorizontalCompression(wideLabelExportSvg, 'ファ#', 0.78), 'ファ# PNG source SVG uses the stronger horizontal compression');
+['ド#', 'ファ', 'ソ#', '♯11', '♭13'].forEach(function (label) {
+    assert(!hasHorizontalCompression(wideLabelSvg, label, 0.78), label + ' keeps the common horizontal compression');
+});
+assert(!hasHorizontalCompression(wideLabelSvg, '親'), 'fingering label is not horizontally compressed');
+assert(!hasHorizontalCompression(wideLabelSvg, '⚠'), 'fingering warning is not horizontally compressed');
+var fretboardSource = fs.readFileSync(__dirname + '/../js/ui/fretboard.js', 'utf8');
+var themeSource = fs.readFileSync(__dirname + '/../theme.css', 'utf8');
+assert(fretboardSource.indexOf('cc-fb-marker--extra-wide-label') !== -1, 'HTML markers receive the ファ#-only class');
+assert(themeSource.indexOf('.cc-fb-marker--extra-wide-label .cc-fb-marker-label') !== -1 && themeSource.indexOf('scaleX(0.78)') !== -1, 'HTML label uses the stronger center-based scale');
 
 console.log(
     'scale-spelling: ' + scaleFixtureCount + ' fixed scales, ' + rootFixtureCount +

@@ -206,21 +206,27 @@ assert(gMonochromeThumbnailSvg.includes('class="cc-fb-mono-boundary" x="0"') && 
 var gMonochromeLibraryThumbnailSvg = fretboard.buildStaticSvg(Object.assign({}, gDiagramOptions, {
     monochrome: true,
     openStringNutOnly: true,
-    compactOpenStringColumn: true,
-    svgPadding: { top: 14, right: 4, bottom: 18, left: 4, fillMonochromeBackground: true }
+    monochromeViewportLeftCrop: 12,
+    monochromeFretNumberYOffset: 5,
+    svgPadding: { top: 14, right: 22, bottom: 18, left: 4, fillMonochromeBackground: true }
 }));
 assert(!gMonochromeLibraryThumbnailSvg.includes('class="cc-fb-mono-boundary" x="0"'), 'open-string library thumbnail must not draw a left 0F boundary');
 assert(!gMonochromeLibraryThumbnailSvg.includes('>0</text>'), 'open-string library thumbnail must not label the nut as 0F');
 assert(!/<rect x="0" y="[^"]+" width="260" height="[^"]+" fill="#333333" opacity="0\.92"\/>/.test(gMonochromeLibraryThumbnailSvg), 'open-string library thumbnail must not draw strings through the 0F column');
-assert(/<rect x="58" y="[^"]+" width="191" height="[^"]+" fill="#333333" opacity="0\.92"\/>/.test(gMonochromeLibraryThumbnailSvg), 'compact open-string thumbnail must retain strings from the first fret onward');
-assert(gMonochromeLibraryThumbnailSvg.includes('x="50" y="21.45" width="8" height="181.95"'), 'compact open-string thumbnail nut must align with the outer string edges');
-assert(gMonochromeLibraryThumbnailSvg.includes('class="cc-fb-mono-fret" x="118"'), 'compact open-string thumbnail must retain the 1F wire spacing');
-assert(gMonochromeLibraryThumbnailSvg.includes('cx="32.5"'), 'compact open-string thumbnail must keep the open-string marker position');
+assert(/<rect x="69" y="[^"]+" width="191" height="[^"]+" fill="#333333" opacity="0\.92"\/>/.test(gMonochromeLibraryThumbnailSvg), 'open-string thumbnail must retain the natural nut-to-1F string span');
+assert(gMonochromeLibraryThumbnailSvg.includes('x="61" y="21.45" width="8" height="181.95"'), 'open-string thumbnail must retain the natural marker-to-nut distance');
+assert(gMonochromeLibraryThumbnailSvg.includes('class="cc-fb-mono-fret" x="129"'), 'open-string thumbnail must retain the natural 1F wire position');
+assert(gMonochromeLibraryThumbnailSvg.includes('cx="32.5"'), 'open-string thumbnail must keep the open-string marker position');
+assert(gMonochromeLibraryThumbnailSvg.includes('viewBox="8 -14 274 273"'), 'white-black library thumbnail must crop only the outer left viewport space');
+assert(gMonochromeLibraryThumbnailSvg.includes('>1</text>') && gMonochromeLibraryThumbnailSvg.includes('y="234"'), 'white-black library thumbnail must lower fret numbers without moving markers');
 assert(gMonochromeLibraryThumbnailSvg.includes('>1</text>'), 'open-string library thumbnail must retain 1F labels');
 assert(librarySource.includes('diagramOptions.openStringNutOnly = true;'), 'library list thumbnails request nut-only open-string rendering in monochrome');
-assert(librarySource.includes('diagramOptions.compactOpenStringColumn = true;'), 'library list thumbnails compact only the monochrome open-string column');
-assert(librarySource.includes('diagramOptions.openStringNutOnly = detailMonochrome;'), 'library detail white-black toggle requests nut-only open-string rendering');
-assert(librarySource.includes('diagramOptions.compactOpenStringColumn = detailMonochrome;'), 'library detail compacts only the white-black open-string column');
+assert(!librarySource.includes('diagramOptions.compactOpenStringColumn = true;'), 'library list must not compact the internal open-string column');
+assert(librarySource.includes('diagramOptions.monochromeViewportLeftCrop = 12;'), 'library list uses a white-black-only left viewport crop');
+assert(librarySource.includes('if (monochrome && hasOpenColumn)'), 'library list applies the white-black open-string layout only when a 0F column exists');
+assert(librarySource.includes('diagramOptions.openStringNutOnly = detailMonochrome && detailHasOpenColumn;'), 'library detail requests nut-only rendering only for white-black open-string forms');
+assert(!librarySource.includes('diagramOptions.compactOpenStringColumn = detailMonochrome'), 'library detail must not compact the internal open-string column');
+assert(librarySource.includes('diagramOptions.monochromeRightPadding = detailMonochrome && detailHasOpenColumn ? 18 : 0;'), 'library detail uses only white-black open-string outer right padding');
 assert(fretboardSource.includes('opts.openStringNutOnly === true'), 'dynamic fretboard rendering forwards the nut-only option');
 var thumbnailEdgeModel = fretboard.createModel({
     frets: [2, 3, 4, 5],
@@ -233,17 +239,40 @@ assert(thumbnailEdgeModel.markers[0].y - 15 >= safeViewTop, 'top-string marker m
 assert(thumbnailEdgeModel.markers[1].y + 15 <= safeViewBottom, 'bottom-string marker must remain inside the padded thumbnail viewBox');
 assert(202 + 5 + 22 <= safeViewBottom, 'fret-number area must remain inside the padded thumbnail viewBox');
 assert(gStaticSvg.includes('viewBox="0 0 260 241"') && !gStaticSvg.includes('cc-fb-mono-panel'), 'color SVG must retain its existing viewport and background');
+assert(gStaticSvg.includes('y="229"'), 'color SVG must retain its existing fret-number position');
+var gMonochromeNoOpenSvg = fretboard.buildStaticSvg({
+    frets: [1, 2, 3, 4],
+    monochrome: true,
+    markers: [{ string: 6, fret: 2, label: '人', role: 'third' }]
+});
+assert(gMonochromeNoOpenSvg.includes('viewBox="0 0 260 241"'), 'white-black forms without 0F must retain their existing viewport');
+assert(gMonochromeNoOpenSvg.includes('y="229"'), 'white-black forms without 0F must retain the default fret-number position unless a first-fret barre needs clearance');
+assert(librarySource.includes('hasFirstFretBarre(diagramOptions)'), 'only a first-fret barre may opt into the white-black fret-number clearance without a 0F column');
 var gMonochromeExportSvg = fretboard.buildExportSvg('G', Object.assign({}, gDiagramOptions, { monochrome: true })).svg;
 assert(gMonochromeExportSvg.includes('viewBox="0 0 260 241"'), 'PNG source SVG must retain the normal viewport');
 assert(gMonochromeExportSvg.includes('class="cc-fb-mono-boundary" x="0"') && gMonochromeExportSvg.includes('>0</text>'), 'PNG source must retain its existing 0F rendering');
-assert(gExportSvg.includes('<text x="146" y="28" text-anchor="middle"'), 'exported chord name must be centered with the fretboard');
+assert(gExportSvg.includes('<text x="146" y="40" text-anchor="middle"'), 'default exported chord name must be centered with the fretboard');
+{
+    var chordNameTitleSizes = { xsmall: 26, small: 30, medium: 34, large: 38, xlarge: 42 };
+    Object.keys(chordNameTitleSizes).forEach(function (size) {
+        var titleSize = chordNameTitleSizes[size];
+        var sizeSvg = fretboard.buildExportSvg('G', Object.assign({}, gDiagramOptions, { chordNameSize: size })).svg;
+        assert(sizeSvg.includes('y="' + (titleSize + 6) + '" text-anchor="middle"'), size + ' exported chord name stays centered');
+        assert(sizeSvg.includes('font-size:' + titleSize + 'px'), size + ' exported chord name uses its configured title size');
+    });
+}
 var gMonochromeLibraryExportSvg = fretboard.buildExportSvg('G', Object.assign({}, gDiagramOptions, {
     monochrome: true,
-    openStringNutOnly: true
+    openStringNutOnly: true,
+    monochromeViewportLeftCrop: 12,
+    monochromeFretNumberYOffset: 5,
+    svgPadding: { right: 18 }
 })).svg;
 assert(!gMonochromeLibraryExportSvg.includes('class="cc-fb-mono-boundary" x="0"'), 'white-black export must omit the 0F boundary like the library preview');
 assert(!gMonochromeLibraryExportSvg.includes('>0</text>'), 'white-black export must omit the 0F label like the library preview');
-assert(gMonochromeLibraryExportSvg.includes('x="61" y="21.45" width="8" height="181.95"'), 'white-black export nut must align with outer string edges');
+assert(gMonochromeLibraryExportSvg.includes('x="61" y="21.45" width="8" height="181.95"'), 'white-black export must retain the natural marker-to-nut distance');
+assert(gMonochromeLibraryExportSvg.includes('class="cc-fb-mono-fret" x="129"'), 'white-black export must retain natural 1F spacing');
+assert(gMonochromeLibraryExportSvg.includes('y="234"'), 'white-black export must retain the white-black-only fret-number offset');
 
 // 一覧専用の文字倍率は静的SVGだけへ渡し、未指定時／PNGの既定値を変えない。
 var textScaleOptions = {
@@ -267,11 +296,18 @@ var xlargeTextScaleSvg = fretboard.buildStaticSvg(Object.assign({}, textScaleOpt
     fretNumberScale: 1.25,
     markerLabelScale: 1.25
 }));
-assert.strictEqual(fretboard.markerLabelScaleForSize('small'), 0.85, 'right-top small marker-label scale is stable');
-assert.strictEqual(fretboard.markerLabelScaleForSize('medium'), 1, 'right-top medium marker-label scale is stable');
-assert.strictEqual(fretboard.markerLabelScaleForSize('large'), 1.12, 'right-top large marker-label scale is stable');
-assert.strictEqual(fretboard.markerLabelScaleForSize('xlarge'), 1.25, 'right-top xlarge marker-label scale is stable');
-assert.strictEqual(fretboard.markerLabelScaleForSize('invalid'), 1, 'invalid marker-label size falls back to medium');
+assert.strictEqual(fretboard.markerLabelScaleForSize('xsmall'), 10.4 / 12, 'right-top xsmall marker-label scale is stable');
+assert.strictEqual(fretboard.markerLabelScaleForSize('small'), 12.2 / 12, 'right-top small marker-label scale is stable');
+assert.strictEqual(fretboard.markerLabelScaleForSize('medium'), 13.6 / 12, 'right-top medium marker-label scale is stable');
+assert.strictEqual(fretboard.markerLabelScaleForSize('large'), 15.2 / 12, 'right-top large marker-label scale is stable');
+assert.strictEqual(fretboard.markerLabelScaleForSize('xlarge'), 16.8 / 12, 'right-top xlarge marker-label scale is stable');
+assert.strictEqual(fretboard.markerLabelScaleForSize('invalid'), 13.6 / 12, 'invalid marker-label size falls back to medium');
+assert.strictEqual(fretboard.markerLabelFontSizeForSize('xsmall'), 10.4, 'xsmall PNG marker-label size is stable');
+assert.strictEqual(fretboard.markerLabelFontSizeForSize('medium'), 13.6, 'medium PNG marker-label size is stable');
+assert.strictEqual(fretboard.markerLabelFontSizeForSize('xlarge'), 16.8, 'xlarge PNG marker-label size is stable');
+assert.strictEqual(fretboard.fretNumberScaleForSize('xsmall'), 12 / 13, 'xsmall PNG fret-number scale is stable');
+assert.strictEqual(fretboard.fretNumberScaleForSize('medium'), 16 / 13, 'medium PNG fret-number scale is stable');
+assert.strictEqual(fretboard.fretNumberScaleForSize('xlarge'), 20 / 13, 'xlarge PNG fret-number scale is stable');
 assert(defaultTextScaleSvg.includes('font-size:13px'), 'static fret numbers remain 13px when no list scale is supplied');
 assert(largeTextScaleSvg.includes('font-size:14.56px'), 'large fret-number scale applies to the 13px baseline');
 assert(smallTextScaleSvg.includes('font-size:11.05px'), 'small fret-number scale applies to the 13px baseline');
@@ -285,5 +321,13 @@ assert(unchangedPngTextScaleSvg.includes('font-size:13px'), 'PNG source keeps th
 var xlargePngTextScaleSvg = fretboard.buildExportSvg('G', Object.assign({}, textScaleOptions, { markerLabelScale: 1.25 })).svg;
 assert(xlargePngTextScaleSvg.includes('font-size:15px'), 'PNG source applies the explicit marker-label scale');
 assert(xlargePngTextScaleSvg.includes('font-size:13px'), 'PNG source keeps fret-number size independent from marker-label scale');
+var fiveStagePngSvg = fretboard.buildExportSvg('C', Object.assign({}, textScaleOptions, {
+    chordNameSize: 'xlarge',
+    fretNumberScale: fretboard.fretNumberScaleForSize('xlarge'),
+    markerLabelFontSize: fretboard.markerLabelFontSizeForSize('xlarge')
+})).svg;
+assert(fiveStagePngSvg.includes('font-size:42px'), 'xlarge PNG chord name uses 42px');
+assert(fiveStagePngSvg.includes('font-size:20px'), 'xlarge PNG fret numbers use 20px');
+assert(fiveStagePngSvg.includes('font-size:16.8px'), 'xlarge PNG marker labels use 16.8px');
 
 console.log('common-caged-forms: 12 roots x 11 qualities x 2 fret ranges OK');

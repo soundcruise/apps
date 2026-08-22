@@ -103,13 +103,13 @@
         if (VALID_SCALE_TYPES.indexOf(normalized.scaleType) === -1) {
             normalized.scaleType = 'major';
         }
-        if (['small', 'medium', 'large', 'xlarge'].indexOf(normalized.chordNameSize) === -1) {
+        if (['xsmall', 'small', 'medium', 'large', 'xlarge'].indexOf(normalized.chordNameSize) === -1) {
             normalized.chordNameSize = 'medium';
         }
-        if (['small', 'medium', 'large', 'xlarge'].indexOf(normalized.fretNumberSize) === -1) {
+        if (['xsmall', 'small', 'medium', 'large', 'xlarge'].indexOf(normalized.fretNumberSize) === -1) {
             normalized.fretNumberSize = 'medium';
         }
-        if (['small', 'medium', 'large', 'xlarge'].indexOf(normalized.fretboardMarkerLabelSize) === -1) {
+        if (['xsmall', 'small', 'medium', 'large', 'xlarge'].indexOf(normalized.fretboardMarkerLabelSize) === -1) {
             normalized.fretboardMarkerLabelSize = 'medium';
         }
         if ([1, 2, 3, 4].indexOf(normalized.libraryColumns) === -1) {

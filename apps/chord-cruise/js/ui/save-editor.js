@@ -669,6 +669,7 @@
                 maxFret: draft.range.max,
                 includesOpen: draft.range.includesOpen
             },
+            markerLabelSize: window.ChordCruise.state && window.ChordCruise.state.settings && window.ChordCruise.state.settings.fretboardMarkerLabelSize,
             preserveScroll: typeof prevScroll === 'number' ? prevScroll : null,
             onSlotTap: function (stringNum, fret) {
                 var note = null;
