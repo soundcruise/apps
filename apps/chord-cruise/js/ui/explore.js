@@ -149,9 +149,10 @@
                     '</button>' +
                 '</div>' +
                 '<p class="cc-fb-hint" id="cc-fb-hint"></p>' +
-                '<div id="cc-caged-pro-link" hidden>' +
-                    '<a class="cc-btn cc-btn-secondary cc-btn--block" href="../pro-access.html" target="_blank" rel="noopener">Pro版の入手方法</a>' +
-                '</div>' +
+                (isProEdition() ? '' :
+                    '<div id="cc-caged-pro-link" hidden>' +
+                        '<a class="cc-btn cc-btn-secondary cc-btn--block" href="../pro-access.html" target="_blank" rel="noopener">Pro版の入手方法</a>' +
+                    '</div>') +
                 '<div class="cc-save-btn-row" id="cc-save-btn-row">' +
                     '<button type="button" class="cc-btn cc-btn-primary cc-btn--block" id="cc-save-form-btn" disabled aria-describedby="cc-fb-hint">保存する</button>' +
                 '</div>' +
@@ -323,9 +324,14 @@
         hint.style.display = text ? '' : 'none';
     }
 
+    function isProEdition() {
+        var featureAccess = window.ChordCruise && window.ChordCruise.featureAccess;
+        return !!(featureAccess && typeof featureAccess.isProEdition === 'function' && featureAccess.isProEdition());
+    }
+
     function setCagedProLink(visible) {
         var link = document.getElementById('cc-caged-pro-link');
-        if (link) link.hidden = !visible;
+        if (link) link.hidden = !visible || isProEdition();
     }
 
     function resetCagedNotice() {
@@ -703,7 +709,7 @@
         host.appendChild(heading);
 
         var featureAccess = window.ChordCruise.featureAccess;
-        if (!featureAccess || !featureAccess.canAccessQuality(chord.qualityKey)) {
+        if (!isProEdition() && (!featureAccess || !featureAccess.canAccessQuality(chord.qualityKey))) {
             var message = document.createElement('p');
             message.className = 'cc-fb-hint';
             message.textContent = 'このコードの詳細分析はPro版で利用できます。';

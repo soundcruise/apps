@@ -696,6 +696,7 @@ body {
 .cc-fb-marker--fifth { background: var(--cc-fb-fifth); color: #fff; }
 .cc-fb-marker--sixth { background: var(--cc-fb-sixth); color: #141311; }
 .cc-fb-marker--seventh { background: var(--cc-fb-seventh); color: #141311; }
+.cc-fb-marker--non-chord { background: #ffffff; color: #141311; }
 .cc-fb-marker--other { background: var(--cc-fb-other); color: #ddd; }
 
 .cc-fb-marker--dimmed {

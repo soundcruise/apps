@@ -6,6 +6,9 @@
        既存アプリのコードには依存しない。 */
 
     var FRET_W = 65;            // 1フレット列の幅（指板クルーズと同値）
+    // 本棚の白黒図だけ、開放弦列をフレット枠ではなくナット左の記号領域として詰める幅。
+    // 0Fマーカーの中心(32.5px)は維持し、1F以降は通常の65px間隔を保つ。
+    var COMPACT_OPEN_COL_W = 54;
     var TOP_Y = 22;             // ネック上端（白黒マーカー／バレーのstroke用に上端7pxを確保）
     var STRING_GAP = 30;        // 弦間隔
     var STRING_AREA = 180;      // 弦域の高さ
@@ -56,6 +59,29 @@
         return index === -1 ? null : index * FRET_W + FRET_W / 2;
     }
 
+    function createFretLayout(frets, compactOpenStringColumn) {
+        var hasOpenColumn = frets[0] === 0;
+        var compact = !!compactOpenStringColumn && hasOpenColumn;
+        var openColumnWidth = compact ? COMPACT_OPEN_COL_W : FRET_W;
+        function startForIndex(index) {
+            return index === 0 ? 0 : openColumnWidth + (index - 1) * FRET_W;
+        }
+        return {
+            compact: compact,
+            openColumnWidth: openColumnWidth,
+            width: hasOpenColumn ? openColumnWidth + (frets.length - 1) * FRET_W : frets.length * FRET_W,
+            startForIndex: startForIndex,
+            centerForIndex: function (index) {
+                // 開放弦の○／×は、既存の視認位置を維持してナットだけを近づける。
+                return index === 0 && compact ? FRET_W / 2 : startForIndex(index) + (index === 0 ? openColumnWidth : FRET_W) / 2;
+            },
+            centerForFret: function (fret) {
+                var index = fretIndex(fret, frets);
+                return index === -1 ? null : this.centerForIndex(index);
+            }
+        };
+    }
+
     function stringY(stringNum, monochrome) {
         if (monochrome) {
             return TOP_Y + (stringNum - 1) * (STRING_AREA / 5);
@@ -63,17 +89,18 @@
         return TOP_Y + STRING_GAP / 2 + (stringNum - 1) * STRING_GAP;
     }
 
-    function fretPosition(fret, frets) {
-        var exact = colCenter(fret, frets);
+    function fretPosition(fret, frets, compactOpenStringColumn) {
+        var layout = createFretLayout(frets, compactOpenStringColumn);
+        var exact = layout.centerForFret(fret);
         if (exact !== null) return exact;
         var i;
         for (i = 0; i < frets.length - 1; i++) {
             if (fret > frets[i] && fret < frets[i + 1]) {
                 var ratio = (fret - frets[i]) / (frets[i + 1] - frets[i]);
-                return (i + 0.5 + ratio) * FRET_W;
+                return layout.centerForIndex(i) + ratio * (layout.centerForIndex(i + 1) - layout.centerForIndex(i));
             }
         }
-        return fret <= frets[0] ? FRET_W / 2 : (frets.length - 0.5) * FRET_W;
+        return fret <= frets[0] ? layout.centerForIndex(0) : layout.centerForIndex(frets.length - 1);
     }
 
     function buildDefs(uid, monochrome) {
@@ -141,10 +168,12 @@
         return Math.round(baseSize * normalizeStaticTextScale(scale) * 100) / 100;
     }
 
-    function buildBoardSvg(uid, frets, rangeHighlight, highlightMode, highlightedFrets, monochrome, staticStyles, svgClass, svgPadding, fretNumberScale) {
-        var width = frets.length * FRET_W;
+    function buildBoardSvg(uid, frets, rangeHighlight, highlightMode, highlightedFrets, monochrome, staticStyles, svgClass, svgPadding, fretNumberScale, openStringNutOnly, compactOpenStringColumn) {
+        var layout = createFretLayout(frets, monochrome && compactOpenStringColumn);
+        var width = layout.width;
         var hasOpenColumn = frets[0] === 0;
-        var boardX = hasOpenColumn ? FRET_W : 0;
+        var hideOpenStringGrid = monochrome && openStringNutOnly && hasOpenColumn;
+        var boardX = hasOpenColumn ? layout.openColumnWidth : 0;
         var padding = svgPadding || {};
         var paddingLeft = Math.max(0, Number(padding.left) || 0);
         var paddingRight = Math.max(0, Number(padding.right) || 0);
@@ -183,19 +212,19 @@
             frets.forEach(function (fret, index) {
                 var included = fret >= rangeHighlight.minFret && fret <= rangeHighlight.maxFret;
                 if (!included) return;
-                svg += '<rect x="' + (index * FRET_W) + '" y="' + TOP_Y + '" width="' + FRET_W + '" height="' + STRING_AREA + '" fill="rgba(212,175,55,0.14)" stroke="rgba(232,201,122,0.55)" stroke-width="1.5" rx="6"/>';
+                svg += '<rect x="' + layout.startForIndex(index) + '" y="' + TOP_Y + '" width="' + (index === 0 && hasOpenColumn ? layout.openColumnWidth : FRET_W) + '" height="' + STRING_AREA + '" fill="rgba(212,175,55,0.14)" stroke="rgba(232,201,122,0.55)" stroke-width="1.5" rx="6"/>';
             });
         }
 
         // ポジションマーク（インレイ）
         if (!monochrome) {
             INLAY_SINGLE.forEach(function (f) {
-                var center = colCenter(f, frets);
+                var center = layout.centerForFret(f);
                 if (center === null) return;
                 svg += '<circle class="cc-fb-position-mark" cx="' + center + '" cy="' + (TOP_Y + STRING_AREA / 2) + '" r="5.5" fill="rgba(235,220,190,0.5)"/>';
             });
             INLAY_DOUBLE.forEach(function (f) {
-                var center = colCenter(f, frets);
+                var center = layout.centerForFret(f);
                 if (center === null) return;
                 svg += '<circle class="cc-fb-position-mark" cx="' + center + '" cy="' + (TOP_Y + STRING_AREA / 2 - 30) + '" r="5.5" fill="rgba(235,220,190,0.5)"/>';
                 svg += '<circle class="cc-fb-position-mark" cx="' + center + '" cy="' + (TOP_Y + STRING_AREA / 2 + 30) + '" r="5.5" fill="rgba(235,220,190,0.5)"/>';
@@ -206,42 +235,55 @@
         if (monochrome) {
             frets.forEach(function (f, index) {
                 if (f === 0 || index === frets.length - 1) return;
-                var wx = (index + 1) * FRET_W;
+                var wx = layout.startForIndex(index) + (index === 0 && hasOpenColumn ? layout.openColumnWidth : FRET_W);
                 svg += '<rect class="cc-fb-mono-fret" x="' + (wx - 1) + '" y="' + TOP_Y + '" width="2" height="' + STRING_AREA + '" fill="#333333"/>';
             });
-            // 切り出した図の左右境界。右端は最終フレット線と兼用し二重描画しない。
-            svg += '<rect class="cc-fb-mono-boundary" x="0" y="' + TOP_Y + '" width="2" height="' + STRING_AREA + '" fill="#333333"/>';
+            // 切り出した図の左右境界。開放弦を含む本棚の白黒表示では、
+            // 左端をフレット枠にせずナットだけを表示する。
+            if (!hideOpenStringGrid) {
+                svg += '<rect class="cc-fb-mono-boundary" x="0" y="' + TOP_Y + '" width="2" height="' + STRING_AREA + '" fill="#333333"/>';
+            }
             svg += '<rect class="cc-fb-mono-boundary" x="' + (width - 2) + '" y="' + TOP_Y + '" width="2" height="' + STRING_AREA + '" fill="#333333"/>';
         } else {
             frets.forEach(function (f, index) {
                 if (f === 0) return;
-                var wx = (index + 1) * FRET_W;
+                var wx = layout.startForIndex(index) + (index === 0 && hasOpenColumn ? layout.openColumnWidth : FRET_W);
                 svg += '<rect x="' + (wx - 2) + '" y="' + TOP_Y + '" width="4" height="' + STRING_AREA + '" fill="url(#cc-fretwire-' + uid + ')" rx="1.5"/>';
             });
         }
 
         // ナット
         if (hasOpenColumn) {
-            svg += '<rect x="' + (FRET_W - 4) + '" y="' + TOP_Y + '" width="8" height="' + STRING_AREA + '" fill="url(#cc-nut-' + uid + ')" rx="2"/>';
+            // 白黒コード図ではナットの端を最外弦の端まで揃え、弦の外周と
+            // 途切れなく見えるようにする。カラー指板の既存寸法は変えない。
+            var nutY = monochrome ? TOP_Y - STRING_WIDTHS[0] / 2 : TOP_Y;
+            var nutHeight = monochrome
+                ? STRING_AREA + STRING_WIDTHS[0] / 2 + STRING_WIDTHS[5] / 2
+                : STRING_AREA;
+            nutY = Math.round(nutY * 100) / 100;
+            nutHeight = Math.round(nutHeight * 100) / 100;
+            svg += '<rect x="' + (layout.openColumnWidth - 4) + '" y="' + nutY + '" width="8" height="' + nutHeight + '" fill="url(#cc-nut-' + uid + ')" rx="2"/>';
         }
 
-        // 弦（1弦=上、6弦=下）
+        // 弦（1弦=上、6弦=下）。本棚白黒の開放弦列は、ナット左側へ弦を引かない。
+        var stringStartX = hideOpenStringGrid ? layout.openColumnWidth + 4 : 0;
         var s;
         for (s = 1; s <= 6; s++) {
             var y = stringY(s, monochrome);
             var color = monochrome ? '#333333' : (s <= 2 ? '#e8e8e8' : '#d6cdbb');
-            svg += '<rect x="0" y="' + (y - STRING_WIDTHS[s - 1] / 2) + '" width="' + width + '" height="' + STRING_WIDTHS[s - 1] + '" fill="' + color + '" opacity="0.92"/>';
+            svg += '<rect x="' + stringStartX + '" y="' + (y - STRING_WIDTHS[s - 1] / 2) + '" width="' + (width - stringStartX) + '" height="' + STRING_WIDTHS[s - 1] + '" fill="' + color + '" opacity="0.92"/>';
         }
 
         // フレット番号（背景帯は描画せず、周囲と同じ背景に文字だけを置く）
         var stripY = BOARD_BOTTOM + 5;
         var staticFretNumberSize = scaledStaticTextSize(13, fretNumberScale);
         frets.forEach(function (f) {
+            if (hideOpenStringGrid && f === 0) return;
             var highlighted = shouldHighlightFret(f, highlightMode, highlightedFrets);
             var staticStyle = staticStyles
                 ? ' style="font-family:Arial,sans-serif;font-size:' + staticFretNumberSize + 'px;fill:' + (monochrome ? '#111111' : (highlighted ? '#f0e0b8' : '#9a978f')) + '"'
                 : '';
-            svg += '<text class="cc-fb-fret-number' + (highlighted ? ' cc-fb-fret-number--highlighted' : '') + '" x="' + colCenter(f, frets) + '" y="' + (stripY + 22) + '" text-anchor="middle" font-weight="600"' + staticStyle + '>' + f + '</text>';
+            svg += '<text class="cc-fb-fret-number' + (highlighted ? ' cc-fb-fret-number--highlighted' : '') + '" x="' + layout.centerForFret(f) + '" y="' + (stripY + 22) + '" text-anchor="middle" font-weight="600"' + staticStyle + '>' + f + '</text>';
         });
 
         svg += '</svg>';
@@ -263,12 +305,13 @@
         var opts = options || {};
         var monochrome = !!opts.monochrome;
         var frets = normalizeFrets(opts);
+        var layout = createFretLayout(frets, monochrome && opts.compactOpenStringColumn === true);
         var markers = [];
         var barres = [];
         var mutedStrings = [];
 
         (opts.markers || []).forEach(function (marker) {
-            var x = colCenter(marker.fret, frets);
+            var x = layout.centerForFret(marker.fret);
             if (x === null || marker.string < 1 || marker.string > 6) return;
             markers.push({
                 string: marker.string,
@@ -290,7 +333,7 @@
         });
 
         (opts.barres || []).forEach(function (barre) {
-            var x = colCenter(barre.fret, frets);
+            var x = layout.centerForFret(barre.fret);
             var topString = Math.min(barre.fromString, barre.toString);
             var bottomString = Math.max(barre.fromString, barre.toString);
             if (x === null || topString < 1 || bottomString > 6 || topString === bottomString) return;
@@ -314,13 +357,13 @@
 
         return {
             frets: frets,
-            width: frets.length * FRET_W,
+            width: layout.width,
             height: SVG_H,
             hasOpenColumn: frets[0] === 0,
             markers: markers,
             barres: barres,
             mutedStrings: mutedStrings,
-            muteX: colCenter(frets[0], frets),
+            muteX: layout.centerForFret(frets[0]),
             rangeHighlight: opts.rangeHighlight || null,
             monochrome: monochrome,
             highlight: resolveHighlightSettings(opts)
@@ -346,6 +389,7 @@
         if (role === 'fifth') return { fill: '#4f9cf9', stroke: '#4f9cf9', text: '#ffffff', strokeWidth: 0 };
         if (role === 'sixth') return { fill: '#b58cff', stroke: '#b58cff', text: '#141311', strokeWidth: 0 };
         if (role === 'seventh') return { fill: '#ffffff', stroke: '#ffffff', text: '#141311', strokeWidth: 0 };
+        if (role === 'non-chord') return { fill: '#ffffff', stroke: '#ffffff', text: '#141311', strokeWidth: 0 };
         return { fill: '#555555', stroke: '#555555', text: '#eeeeee', strokeWidth: 0 };
     }
 
@@ -417,7 +461,9 @@
             true,
             opts.svgClass || 'cc-fb-svg cc-fb-static-svg',
             opts.svgPadding,
-            opts.fretNumberScale
+            opts.fretNumberScale,
+            opts.openStringNutOnly === true,
+            opts.compactOpenStringColumn === true
         );
         return svg.replace('</svg>', buildStaticOverlay(model, opts.markerLabelScale) + '</svg>');
     }
@@ -436,7 +482,7 @@
         var diagram = buildStaticSvg(options).replace('<svg ', '<svg x="' + diagramX + '" y="' + diagramY + '" ');
         var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + outerWidth + '" height="' + outerHeight + '" viewBox="0 0 ' + outerWidth + ' ' + outerHeight + '">' +
             '<rect width="100%" height="100%" fill="' + (options.monochrome ? '#ffffff' : '#141311') + '"/>' +
-            '<text x="' + diagramX + '" y="' + (titleSize + 6) + '" style="font-family:Arial,&quot;Hiragino Sans&quot;,sans-serif;font-size:' + titleSize + 'px;font-weight:700;fill:' + (options.monochrome ? '#111111' : '#f0e0b8') + '">' + escapeXml(title) + '</text>' +
+            '<text x="' + (outerWidth / 2) + '" y="' + (titleSize + 6) + '" text-anchor="middle" style="font-family:Arial,&quot;Hiragino Sans&quot;,sans-serif;font-size:' + titleSize + 'px;font-weight:700;fill:' + (options.monochrome ? '#111111' : '#f0e0b8') + '">' + escapeXml(title) + '</text>' +
             diagram +
         '</svg>';
         return { svg: svg, width: outerWidth, height: outerHeight, scale: 2 };
@@ -457,7 +503,10 @@
      *   animateScroll  scrollToFretへ滑らかに移動するか
      *   initialScroll  アニメーション開始位置のscrollLeft
      *   markerLabelSize small / medium / large / xlarge。指定したHTML指板だけへ丸内文字サイズを適用
+     *   openStringNutOnly 白黒表示で開放弦列を0フレット枠にせずナットとして表示
+     *   compactOpenStringColumn 本棚白黒の開放弦記号領域だけを詰める
      *   onSlotTap      function(stringNum, fret) マーカータップ時（運指編集用）
+     *   onEmptySlotTap function(stringNum, fret) 空スロットタップ時（フォーム編集用）
      */
     function render(host, options) {
         if (!host) return;
@@ -473,12 +522,13 @@
 
         var html = '<div class="cc-fb-scroll">';
         html += '<div class="cc-fb-stage" style="width:' + model.width + 'px;height:' + SVG_H + 'px;">';
-        html += buildBoardSvg(uid, model.frets, model.rangeHighlight, model.highlight.mode, model.highlight.frets, model.monochrome, false);
+        html += buildBoardSvg(uid, model.frets, model.rangeHighlight, model.highlight.mode, model.highlight.frets, model.monochrome, false, null, null, null, opts.openStringNutOnly === true, opts.compactOpenStringColumn === true);
         html += '<div class="cc-fb-markers"></div>';
         html += '</div></div>';
         host.innerHTML = html;
 
         var markerLayer = host.querySelector('.cc-fb-markers');
+        var stage = host.querySelector('.cc-fb-stage');
 
         // バレーはマーカーより先に描画し、丸マーカーをカプセルの上に重ねる
         model.barres.forEach(function (barre) {
@@ -526,19 +576,26 @@
             markerLayer.appendChild(el);
         });
 
-        if (typeof opts.onSlotTap === 'function') {
+        if (typeof opts.onSlotTap === 'function' || typeof opts.onEmptySlotTap === 'function') {
             function activateMarker(marker, fromKeyboard) {
                 var stringNum = parseInt(marker.dataset.string, 10);
                 var fret = parseInt(marker.dataset.fret, 10);
                 if (!isFinite(stringNum) || !isFinite(fret)) return;
-                opts.onSlotTap(stringNum, fret);
+                if (typeof opts.onSlotTap === 'function') opts.onSlotTap(stringNum, fret);
                 if (fromKeyboard) restoreMarkerFocus(host, stringNum, fret, marker);
             }
 
             markerLayer.addEventListener('click', function (event) {
                 var marker = event.target.closest('.cc-fb-marker--tappable');
-                if (!marker) return;
-                activateMarker(marker, false);
+                if (marker) {
+                    activateMarker(marker, false);
+                    return;
+                }
+                // 非操作マーカーやバレー／ミュートを空スロットとして扱わない。
+                if (event.target.closest('.cc-fb-marker, .cc-fb-barre, .cc-fb-mute')) return;
+                if (typeof opts.onEmptySlotTap !== 'function') return;
+                var slot = slotAtPointer(event, stage, model, opts.compactOpenStringColumn === true);
+                if (slot) opts.onEmptySlotTap(slot.string, slot.fret);
             });
             markerLayer.addEventListener('keydown', function (event) {
                 if (!isMarkerActivationKey(event)) return;
@@ -555,9 +612,46 @@
         } else if (typeof opts.scrollToFret === 'number') {
             setScrollCenter(scroll, model.frets, opts.scrollToFret, {
                 animate: opts.animateScroll === true,
-                initialScroll: opts.initialScroll
+                initialScroll: opts.initialScroll,
+                compactOpenStringColumn: opts.compactOpenStringColumn === true
             });
         }
+    }
+
+    // HTML指板上の座標を、現在描画している弦と実フレット番号へ変換する。
+    // 空スロット編集だけがこの情報を利用し、既存マーカーの操作には影響しない。
+    function slotAtPointer(event, stage, model, compactOpenStringColumn) {
+        if (!event || !stage || !model || !Array.isArray(model.frets)) return null;
+        var rect = stage.getBoundingClientRect();
+        var x = event.clientX - rect.left;
+        var y = event.clientY - rect.top;
+        var layout = createFretLayout(model.frets, model.monochrome && compactOpenStringColumn);
+        var fret = null;
+        var index;
+        for (index = 0; index < model.frets.length; index++) {
+            var start = layout.startForIndex(index);
+            var width = index === 0 && model.frets[0] === 0 ? layout.openColumnWidth : FRET_W;
+            if (x >= start && x <= start + width) {
+                fret = model.frets[index];
+                break;
+            }
+        }
+        if (fret === null) return null;
+
+        var nearestString = null;
+        var nearestDistance = Infinity;
+        var stringNum;
+        for (stringNum = 1; stringNum <= 6; stringNum++) {
+            var distance = Math.abs(y - stringY(stringNum, model.monochrome));
+            if (distance < nearestDistance) {
+                nearestString = stringNum;
+                nearestDistance = distance;
+            }
+        }
+        // 弦間の余白やフレット番号領域をタップしても音を追加しない。
+        var maxDistance = model.monochrome ? 18 : STRING_GAP / 2;
+        if (nearestDistance > maxDistance) return null;
+        return { string: nearestString, fret: fret };
     }
 
     function isMarkerActivationKey(event) {
@@ -577,10 +671,10 @@
 
     function setScrollCenter(scroll, frets, fret, options) {
         if (!scroll || !frets.length) return null;
-        var center = fretPosition(fret, frets);
+        var opts = options || {};
+        var center = fretPosition(fret, frets, opts.compactOpenStringColumn === true);
         var maxScroll = Math.max(0, scroll.scrollWidth - scroll.clientWidth);
         var next = Math.min(maxScroll, Math.max(0, center - scroll.clientWidth / 2));
-        var opts = options || {};
         if (opts.animate === true && typeof opts.initialScroll === 'number') {
             scroll.scrollLeft = opts.initialScroll;
             var move = function () {

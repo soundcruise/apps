@@ -27,6 +27,10 @@
     function storage() { return window.ChordCruise.storage; }
     function theory() { return window.ChordCruise.theory; }
     function featureAccess() { return window.ChordCruise.featureAccess; }
+    function isProEdition() {
+        var access = featureAccess();
+        return !!(access && typeof access.isProEdition === 'function' && access.isProEdition());
+    }
     function displayChordName(name) { return theory().displayChordName(name); }
     function storageErrorMessage(fallback) {
         var code = typeof storage().getLastError === 'function' ? storage().getLastError() : null;
@@ -37,7 +41,7 @@
     function showFolderLimitProLink() {
         var link = document.getElementById('cc-folder-pro-link');
         var code = typeof storage().getLastError === 'function' ? storage().getLastError() : null;
-        if (link) link.hidden = code !== 'standard-folder-limit' && code !== 'standard-folder-chord-limit';
+        if (link) link.hidden = isProEdition() || (code !== 'standard-folder-limit' && code !== 'standard-folder-chord-limit');
     }
     function chordFormName(chord) {
         if (chord && chord.formName) return chord.formName;
@@ -57,7 +61,7 @@
         var qualityKey = chord && (chord.qualityKey || theory().identifyQuality(chord.intervals || []));
         var quality = qualityKey && theory().QUALITIES[qualityKey];
         if (!quality || quality.complexity !== 'advanced') return '';
-        if (!featureAccess() || !featureAccess().canAccessQuality(qualityKey)) {
+        if (!isProEdition() && (!featureAccess() || !featureAccess().canAccessQuality(qualityKey))) {
             return '<div class="cc-save-section" id="cc-lib-quality-analysis">' +
                 '<h4 class="cc-card-heading">コード分析</h4>' +
                 '<p class="cc-fb-hint">このコードの詳細分析はPro版で利用できます。</p>' +
@@ -526,7 +530,7 @@
             '<section class="cc-library-display-section" aria-labelledby="cc-library-display-mode-label">' +
                 '<h4 id="cc-library-display-mode-label">丸の表示</h4>' +
                 '<div class="cc-library-display-grid" role="radiogroup" aria-labelledby="cc-library-display-mode-label">';
-        ['note', 'solfege', 'degree', 'finger'].forEach(function (value) {
+        ['finger', 'note', 'solfege', 'degree'].forEach(function (value) {
             var selected = value === mode;
             html += '<button type="button" class="cc-library-display-choice' + (selected ? ' is-selected' : '') + '" data-library-card-display-mode="' + value + '" role="radio" aria-checked="' + (selected ? 'true' : 'false') + '">' + libraryDisplayModeLabel(value) + '</button>';
         });
@@ -873,7 +877,8 @@
                     '<button type="button" class="cc-btn cc-btn-primary cc-btn--small" id="cc-folder-create-ok">作成</button>' +
                     '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-folder-create-cancel">やめる</button>' +
                 '</div>' +
-                '<a class="cc-save-folder-pro-link" id="cc-folder-pro-link" href="../pro-access.html" target="_blank" rel="noopener" hidden>Pro版の入手方法</a>' +
+                (isProEdition() ? '' :
+                    '<a class="cc-save-folder-pro-link" id="cc-folder-pro-link" href="../pro-access.html" target="_blank" rel="noopener" hidden>Pro版の入手方法</a>') +
             '</div>') +
         '</div>';
         contentEl().innerHTML = html;
@@ -1143,6 +1148,9 @@
     }
 
     function roleForChordInterval(chord, interval) {
+        // 保存recordのintervalsは元コードの構成音を保持する。notesだけにある音は
+        // 編集で追加された非構成音として、schemaを増やさず表示専用roleへ分ける。
+        if (chord && Array.isArray(chord.intervals) && chord.intervals.indexOf(interval) === -1) return 'non-chord';
         var qualityKey = chord && (chord.qualityKey || theory().identifyQuality(chord.intervals || []));
         if (qualityKey === '6' && interval === 9) return 'sixth';
         if (qualityKey === 'm6' && interval === 9) return 'sixth';
@@ -1408,6 +1416,9 @@
             // 固定高の一覧カードだけは、上下のマーカー外周とフレット番号用にSVG内の安全余白を確保する。
             // 画面の指板・詳細・PNGはこの指定を持たないため、従来の座標と寸法のままになる。
             if (monochrome) {
+                // 本棚の白黒サムネイルだけは、開放弦列を0フレット枠にせずナットとして見せる。
+                diagramOptions.openStringNutOnly = true;
+                diagramOptions.compactOpenStringColumn = true;
                 diagramOptions.svgPadding = {
                     top: 14,
                     right: 4,
@@ -1434,6 +1445,9 @@
             tappable: true,
             markerLabelSize: (window.ChordCruise.state && window.ChordCruise.state.settings && window.ChordCruise.state.settings.fretboardMarkerLabelSize) || 'medium'
         });
+        // 本棚詳細の白黒ONでも、開放弦列は0フレット枠ではなくナットとして表示する。
+        diagramOptions.openStringNutOnly = detailMonochrome;
+        diagramOptions.compactOpenStringColumn = detailMonochrome;
         diagramOptions.scrollToFret = chord.fretRange
             ? Math.round((chord.fretRange.min + chord.fretRange.max) / 2)
             : null;
@@ -1537,6 +1551,9 @@
             mode: detailDisplayMode(),
             monochrome: detailMonochrome
         });
+        // 白黒書き出しも本棚プレビューと同じく、開放弦列を0フレット枠ではなく
+        // ナットとして扱う。カラー書き出しの既存表示は維持する。
+        diagramOptions.openStringNutOnly = detailMonochrome;
         return window.ChordCruise.ui.chordExport.exportPng({
             chordName: displayChordName(chord.chordName),
             formName: chordFormName(chord),
@@ -1578,10 +1595,10 @@
             '<div class="cc-fb-head">' +
                 '<span class="cc-save-label">表示</span>' +
                 '<div class="cc-segment" role="group" aria-label="表示切替">' +
+                    '<button type="button" class="cc-segment-btn" id="cc-libmode-finger">運指</button>' +
                     '<button type="button" class="cc-segment-btn" id="cc-libmode-note">CDE</button>' +
                     '<button type="button" class="cc-segment-btn" id="cc-libmode-solfege">ドレミ</button>' +
                     '<button type="button" class="cc-segment-btn" id="cc-libmode-degree">度数</button>' +
-                    '<button type="button" class="cc-segment-btn" id="cc-libmode-finger">運指</button>' +
                 '</div>' +
             '</div>' +
             '<div class="cc-lib-diagram-card" id="cc-lib-diagram-card">' +

@@ -1,6 +1,12 @@
 'use strict';
 
 var assert = require('assert');
+var fs = require('fs');
+var path = require('path');
+
+var appRoot = path.join(__dirname, '..');
+var librarySource = fs.readFileSync(path.join(appRoot, 'js/ui/library.js'), 'utf8');
+var fretboardSource = fs.readFileSync(path.join(appRoot, 'js/ui/fretboard.js'), 'utf8');
 
 global.window = { ChordCruise: {} };
 require('../js/core/music-theory.js');
@@ -196,6 +202,26 @@ var gMonochromeThumbnailSvg = fretboard.buildStaticSvg(Object.assign({}, gDiagra
 }));
 assert(gMonochromeThumbnailSvg.includes('viewBox="-4 -14 268 273"'), 'monochrome thumbnail must include safe SVG margins');
 assert(gMonochromeThumbnailSvg.includes('class="cc-fb-mono-panel"'), 'monochrome thumbnail must keep its safety area white');
+assert(gMonochromeThumbnailSvg.includes('class="cc-fb-mono-boundary" x="0"') && gMonochromeThumbnailSvg.includes('>0</text>'), 'non-library monochrome SVG must retain its existing 0F rendering');
+var gMonochromeLibraryThumbnailSvg = fretboard.buildStaticSvg(Object.assign({}, gDiagramOptions, {
+    monochrome: true,
+    openStringNutOnly: true,
+    compactOpenStringColumn: true,
+    svgPadding: { top: 14, right: 4, bottom: 18, left: 4, fillMonochromeBackground: true }
+}));
+assert(!gMonochromeLibraryThumbnailSvg.includes('class="cc-fb-mono-boundary" x="0"'), 'open-string library thumbnail must not draw a left 0F boundary');
+assert(!gMonochromeLibraryThumbnailSvg.includes('>0</text>'), 'open-string library thumbnail must not label the nut as 0F');
+assert(!/<rect x="0" y="[^"]+" width="260" height="[^"]+" fill="#333333" opacity="0\.92"\/>/.test(gMonochromeLibraryThumbnailSvg), 'open-string library thumbnail must not draw strings through the 0F column');
+assert(/<rect x="58" y="[^"]+" width="191" height="[^"]+" fill="#333333" opacity="0\.92"\/>/.test(gMonochromeLibraryThumbnailSvg), 'compact open-string thumbnail must retain strings from the first fret onward');
+assert(gMonochromeLibraryThumbnailSvg.includes('x="50" y="21.45" width="8" height="181.95"'), 'compact open-string thumbnail nut must align with the outer string edges');
+assert(gMonochromeLibraryThumbnailSvg.includes('class="cc-fb-mono-fret" x="118"'), 'compact open-string thumbnail must retain the 1F wire spacing');
+assert(gMonochromeLibraryThumbnailSvg.includes('cx="32.5"'), 'compact open-string thumbnail must keep the open-string marker position');
+assert(gMonochromeLibraryThumbnailSvg.includes('>1</text>'), 'open-string library thumbnail must retain 1F labels');
+assert(librarySource.includes('diagramOptions.openStringNutOnly = true;'), 'library list thumbnails request nut-only open-string rendering in monochrome');
+assert(librarySource.includes('diagramOptions.compactOpenStringColumn = true;'), 'library list thumbnails compact only the monochrome open-string column');
+assert(librarySource.includes('diagramOptions.openStringNutOnly = detailMonochrome;'), 'library detail white-black toggle requests nut-only open-string rendering');
+assert(librarySource.includes('diagramOptions.compactOpenStringColumn = detailMonochrome;'), 'library detail compacts only the white-black open-string column');
+assert(fretboardSource.includes('opts.openStringNutOnly === true'), 'dynamic fretboard rendering forwards the nut-only option');
 var thumbnailEdgeModel = fretboard.createModel({
     frets: [2, 3, 4, 5],
     monochrome: true,
@@ -209,6 +235,15 @@ assert(202 + 5 + 22 <= safeViewBottom, 'fret-number area must remain inside the 
 assert(gStaticSvg.includes('viewBox="0 0 260 241"') && !gStaticSvg.includes('cc-fb-mono-panel'), 'color SVG must retain its existing viewport and background');
 var gMonochromeExportSvg = fretboard.buildExportSvg('G', Object.assign({}, gDiagramOptions, { monochrome: true })).svg;
 assert(gMonochromeExportSvg.includes('viewBox="0 0 260 241"'), 'PNG source SVG must retain the normal viewport');
+assert(gMonochromeExportSvg.includes('class="cc-fb-mono-boundary" x="0"') && gMonochromeExportSvg.includes('>0</text>'), 'PNG source must retain its existing 0F rendering');
+assert(gExportSvg.includes('<text x="146" y="28" text-anchor="middle"'), 'exported chord name must be centered with the fretboard');
+var gMonochromeLibraryExportSvg = fretboard.buildExportSvg('G', Object.assign({}, gDiagramOptions, {
+    monochrome: true,
+    openStringNutOnly: true
+})).svg;
+assert(!gMonochromeLibraryExportSvg.includes('class="cc-fb-mono-boundary" x="0"'), 'white-black export must omit the 0F boundary like the library preview');
+assert(!gMonochromeLibraryExportSvg.includes('>0</text>'), 'white-black export must omit the 0F label like the library preview');
+assert(gMonochromeLibraryExportSvg.includes('x="61" y="21.45" width="8" height="181.95"'), 'white-black export nut must align with outer string edges');
 
 // 一覧専用の文字倍率は静的SVGだけへ渡し、未指定時／PNGの既定値を変えない。
 var textScaleOptions = {

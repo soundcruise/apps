@@ -6,8 +6,9 @@
        確定するまで localStorage を変更しない。 */
 
     var EDIT_CYCLE = [null, 'T', 1, 2, 3, 4, 'warning', 'delete'];
+    var ADDED_NOTE_CYCLE = ['T', 1, 2, 3, 4];
     var FINGER_LABELS = { T: '親', 1: '人', 2: '中', 3: '薬', 4: '小' };
-    var DISPLAY_MODES = ['note', 'solfege', 'degree', 'finger'];
+    var DISPLAY_MODES = ['finger', 'note', 'solfege', 'degree'];
 
     var overlayEl = null;
     var draft = null;
@@ -38,6 +39,11 @@
             featureAccess.hasFeature('customChordSave'));
     }
 
+    function isProEdition() {
+        var featureAccess = window.ChordCruise && window.ChordCruise.featureAccess;
+        return !!(featureAccess && typeof featureAccess.isProEdition === 'function' && featureAccess.isProEdition());
+    }
+
     function clone(value) {
         if (value === undefined) return undefined;
         return JSON.parse(JSON.stringify(value));
@@ -56,10 +62,10 @@
                 '<div class="cc-fb-head cc-save-display-head">' +
                     '<span class="cc-save-label">表示</span>' +
                     '<div class="cc-segment" role="group" aria-label="表示切替">' +
+                        '<button type="button" class="cc-segment-btn" id="cc-savemode-finger">運指</button>' +
                         '<button type="button" class="cc-segment-btn" id="cc-savemode-note">CDE</button>' +
                         '<button type="button" class="cc-segment-btn" id="cc-savemode-solfege">ドレミ</button>' +
                         '<button type="button" class="cc-segment-btn" id="cc-savemode-degree">度数</button>' +
-                        '<button type="button" class="cc-segment-btn" id="cc-savemode-finger">運指</button>' +
                     '</div>' +
                 '</div>' +
                 '<div id="cc-save-fb" class="cc-fb-host"></div>' +
@@ -98,7 +104,8 @@
                             '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-save-folder-create-cancel">キャンセル</button>' +
                         '</div>' +
                         '<p class="cc-save-folder-error" id="cc-save-folder-error" role="status"></p>' +
-                        '<a class="cc-save-folder-pro-link" id="cc-save-folder-pro-link" href="../pro-access.html" target="_blank" rel="noopener" hidden>Pro版の入手方法</a>' +
+                        (isProEdition() ? '' :
+                            '<a class="cc-save-folder-pro-link" id="cc-save-folder-pro-link" href="../pro-access.html" target="_blank" rel="noopener" hidden>Pro版の入手方法</a>') +
                     '</div>' +
                     '<label class="cc-field"><span class="cc-field-label">名前</span>' +
                         '<input type="text" id="cc-save-chord-name" class="cc-input" maxlength="32"></label>' +
@@ -108,16 +115,17 @@
                         '<textarea id="cc-save-memo" class="cc-input cc-textarea" rows="2" maxlength="200"></textarea></label>' +
                 '</div>' +
                 '<p class="cc-save-error" id="cc-save-error"></p>' +
-                '<a class="cc-save-folder-pro-link" id="cc-save-limit-pro-link" href="../pro-access.html" target="_blank" rel="noopener" hidden>Pro版の入手方法</a>' +
-                '<div class="cc-save-section" id="cc-save-pro-notice" hidden>' +
-                    '<p class="cc-fb-hint">作成したコードを保存するにはPro版が必要です。</p>' +
-                    '<a class="cc-btn cc-btn-primary cc-btn--block" href="../pro-access.html" target="_blank" rel="noopener">Pro版の入手方法</a>' +
-                '</div>' +
+                (isProEdition() ? '' :
+                    '<a class="cc-save-folder-pro-link" id="cc-save-limit-pro-link" href="../pro-access.html" target="_blank" rel="noopener" hidden>Pro版の入手方法</a>' +
+                    '<div class="cc-save-section" id="cc-save-pro-notice" hidden>' +
+                        '<p class="cc-fb-hint">作成したコードを保存するにはPro版が必要です。</p>' +
+                        '<a class="cc-btn cc-btn-primary cc-btn--block" href="../pro-access.html" target="_blank" rel="noopener">Pro版の入手方法</a>' +
+                    '</div>') +
                 '<section class="cc-save-limit-summary" id="cc-save-limit-summary" aria-labelledby="cc-save-limit-title" hidden>' +
                     '<strong id="cc-save-limit-title">保存上限</strong>' +
                     '<span id="cc-save-folder-limit-count"></span>' +
                     '<span id="cc-save-chord-limit-count"></span>' +
-                    '<a href="../pro-access.html" target="_blank" rel="noopener">Pro版の入手方法</a>' +
+                    (isProEdition() ? '' : '<a href="../pro-access.html" target="_blank" rel="noopener">Pro版の入手方法</a>') +
                 '</section>' +
                 '<div class="cc-save-actions">' +
                     '<button type="button" class="cc-btn cc-btn-primary cc-btn--block" id="cc-save-confirm">保存する</button>' +
@@ -187,7 +195,8 @@
     function stepRange(edge, delta) {
         if (!draft) return;
         var r = draft.range;
-        var limit = draft.formRange;
+        // 初期範囲はFORMの実音から決めるが、手動調整は現在の表示域で自由に行える。
+        var limit = { min: draft.startFret, max: draft.endFret };
         if (edge === 'min') {
             r.min = Math.min(Math.max(r.min + delta, limit.min), r.max);
         } else {
@@ -257,6 +266,57 @@
         return (openPc + note.fret) % 12;
     }
 
+    // 空スロットに追加した音は、既存recordのnotes要素と同じ形で保持する。
+    // コード名・quality・intervals自体はPhase1では変更しない。
+    function addDraftNoteAtSlot(stringNum, fret) {
+        if (!draft || stringNum < 1 || stringNum > 6 || fret < 0 || !isFinite(fret)) return false;
+        if (draft.notes.some(function (note) { return note.string === stringNum && note.fret === fret; })) return false;
+        if (typeof draft.rootPc !== 'number') return false;
+
+        var mutedBeforeAdd = draft.mutedStrings.indexOf(stringNum) !== -1;
+        var interval = (theory().OPEN_STRINGS[6 - stringNum] + fret - draft.rootPc + 12) % 12;
+        draft.notes.push({
+            string: stringNum,
+            fret: fret,
+            interval: interval,
+            finger: 'T',
+            fingeringWarning: false,
+            pendingDelete: false,
+            warningStartsCycle: false,
+            addedInEditor: true,
+            restoreMuteOnRemove: mutedBeforeAdd
+        });
+        draft.mutedStrings = draft.mutedStrings.filter(function (value) { return value !== stringNum; });
+        if (fret === 0) {
+            draft.range.includesOpen = true;
+            draft.formRange.hasOpen = true;
+        } else {
+            draft.range.min = Math.min(draft.range.min, fret);
+            draft.range.max = Math.max(draft.range.max, fret);
+        }
+        return true;
+    }
+
+    function cycleAddedDraftNote(note) {
+        var index = ADDED_NOTE_CYCLE.indexOf(normalizeFinger(note.finger));
+        if (index === -1) {
+            note.finger = ADDED_NOTE_CYCLE[0];
+            note.fingeringWarning = false;
+            note.pendingDelete = false;
+            return;
+        }
+        if (index < ADDED_NOTE_CYCLE.length - 1) {
+            note.finger = ADDED_NOTE_CYCLE[index + 1];
+            return;
+        }
+        var noteIndex = draft.notes.indexOf(note);
+        if (noteIndex !== -1) draft.notes.splice(noteIndex, 1);
+        if (note.restoreMuteOnRemove && draft.mutedStrings.indexOf(note.string) === -1) {
+            draft.mutedStrings.push(note.string);
+            draft.mutedStrings.sort(function (a, b) { return a - b; });
+        }
+    }
+
     function markerLabel(note, spelledNoteNames) {
         if (note.pendingDelete) return '';
         if (draft.displayMode === 'finger') {
@@ -299,6 +359,9 @@
     }
 
     function roleForDraftInterval(interval) {
+        // Phase2: フォーム編集で追加した、元コード構成外の音は保存形式を増やさず
+        // 既存の構成intervalとの差分から表示専用roleを復元する。
+        if (draft.intervals.indexOf(interval) === -1) return 'non-chord';
         var qualityKey = theory().identifyQuality(draft.intervals);
         return (qualityKey === '6' || qualityKey === 'm6') && interval === 9 ? 'sixth' : roleForInterval(interval);
     }
@@ -331,6 +394,16 @@
             });
         }
         return range;
+    }
+
+    /** 開放弦を含む自動保存範囲は、コード図として読める最低3フレットまで確保する。 */
+    function minimumOpenSaveRange(range) {
+        if (!range || !range.includesOpen) return range;
+        return {
+            min: range.min,
+            max: Math.max(range.max, 3),
+            includesOpen: true
+        };
     }
 
     /** 6th保存前編集では、基底FORM notesを保ったまま6度候補を編集可能noteとして加える。 */
@@ -620,9 +693,16 @@
                     }
                 } else {
                     if (!noteIncluded(note)) return;
-                    cycleNote(note);
+                    if (note.addedInEditor) cycleAddedDraftNote(note);
+                    else cycleNote(note);
                 }
                 renderPreview();
+                renderRange();
+            },
+            onEmptySlotTap: function (stringNum, fret) {
+                if (!addDraftNoteAtSlot(stringNum, fret)) return;
+                renderPreview();
+                renderRange();
             }
         });
         if (shouldAutoCenter) {
@@ -686,6 +766,10 @@
         var storage = window.ChordCruise.storage;
         if (!host || !draft || !storage || typeof storage.getLibraryLimits !== 'function') return;
         var limits = storage.getLibraryLimits();
+        if (isProEdition()) {
+            host.hidden = true;
+            return;
+        }
         if (limits.unlimited) {
             host.hidden = true;
             return;
@@ -728,7 +812,7 @@
         if (proLink) {
             var code = window.ChordCruise.storage && window.ChordCruise.storage.getLastError
                 ? window.ChordCruise.storage.getLastError() : null;
-            proLink.hidden = !text || code !== 'standard-folder-limit';
+            proLink.hidden = isProEdition() || !text || code !== 'standard-folder-limit';
         }
     }
 
@@ -778,13 +862,13 @@
         if (proLink) {
             var code = window.ChordCruise.storage && window.ChordCruise.storage.getLastError
                 ? window.ChordCruise.storage.getLastError() : null;
-            proLink.hidden = !text || code !== 'standard-folder-chord-limit';
+            proLink.hidden = isProEdition() || !text || code !== 'standard-folder-chord-limit';
         }
     }
 
     function setCustomSaveProNotice(visible) {
         var element = document.getElementById('cc-save-pro-notice');
-        if (element) element.hidden = !visible;
+        if (element) element.hidden = !visible || isProEdition();
     }
 
     function currentFieldValues() {
@@ -962,8 +1046,8 @@
         var editing = mode === 'edit';
         document.getElementById('cc-save-title').textContent = editing ? '保存コードを編集' : 'フォームを保存';
         document.getElementById('cc-save-edit-hint').textContent = editing
-            ? '音をタップすると、運指・⚠️・消去を切り替えられます。上書き保存または別名で保存すると確定します。'
-            : '音をタップすると、運指・⚠️・消去を切り替えられます。変更は保存するまで確定しません。';
+            ? '音のない場所をタップすると追加できます。既存の音はタップすると運指・⚠️・消去を切り替えられます。上書き保存または別名で保存すると確定します。'
+            : '音のない場所をタップすると追加できます。既存の音はタップすると運指・⚠️・消去を切り替えられます。変更は保存するまで確定しません。';
         document.getElementById('cc-save-confirm').style.display = editing ? 'none' : '';
         document.getElementById('cc-save-cancel-bottom').style.display = editing ? 'none' : '';
         document.getElementById('cc-save-edit-actions').classList.toggle('cc-save-edit-actions--hidden', !editing);
@@ -993,7 +1077,7 @@
         var chord = payload.chord;
         var form = payload.form;
         var displayRange = form.displayRange || form.fretRange;
-        var saveRange = rangeWithBassCandidates(chord, displayRange);
+        var saveRange = minimumOpenSaveRange(rangeWithBassCandidates(chord, displayRange));
         var tensionPcs = window.ChordCruise.chordModel.tensionPcsForIntervals(chord.rootPc, chord.tensionIntervals || []);
         onSavedCallback = payload.onSaved || null;
         saveInProgress = false;
