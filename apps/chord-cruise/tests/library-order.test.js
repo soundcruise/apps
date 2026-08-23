@@ -502,11 +502,11 @@ function orderOf(env) {
     assert.strictEqual(settings.libraryColumns, 2);
 })();
 
-(function libraryCardTextSizeSettingsAreIndependentAndPersisted() {
+(function libraryCardTextSizeSettingsAreRemovedInFavorOfGlobalSettings() {
     const env = loadStorage(baseData());
     let settings = native(env.storage.loadSettings());
     ['libraryCardChordNameSize', 'libraryCardFretNumberSize', 'libraryCardMarkerLabelSize'].forEach((key) => {
-        assert.strictEqual(settings[key], 'medium', key + ' defaults to medium');
+        assert.strictEqual(settings[key], undefined, key + ' is not a library-only setting');
     });
 
     env.storage.saveSettings({
@@ -518,18 +518,18 @@ function orderOf(env) {
         fretboardMarkerLabelSize: 'large'
     });
     settings = native(env.storage.loadSettings());
-    assert.strictEqual(settings.libraryCardChordNameSize, 'small');
-    assert.strictEqual(settings.libraryCardFretNumberSize, 'xlarge');
-    assert.strictEqual(settings.libraryCardMarkerLabelSize, 'xlarge');
-    assert.strictEqual(settings.chordNameSize, 'xlarge', 'right-top chord-name setting stays independent');
-    assert.strictEqual(settings.fretNumberSize, 'small', 'right-top fret-number setting stays independent');
-    assert.strictEqual(settings.fretboardMarkerLabelSize, 'large', 'right-top marker-label setting stays independent');
+    assert.strictEqual(settings.libraryCardChordNameSize, undefined);
+    assert.strictEqual(settings.libraryCardFretNumberSize, undefined);
+    assert.strictEqual(settings.libraryCardMarkerLabelSize, undefined);
+    assert.strictEqual(settings.chordNameSize, 'xlarge');
+    assert.strictEqual(settings.fretNumberSize, 'small');
+    assert.strictEqual(settings.fretboardMarkerLabelSize, 'large');
 
     const reloaded = loadStorage(env.localStorage.snapshot());
     settings = native(reloaded.storage.loadSettings());
-    assert.strictEqual(settings.libraryCardChordNameSize, 'small');
-    assert.strictEqual(settings.libraryCardFretNumberSize, 'xlarge');
-    assert.strictEqual(settings.libraryCardMarkerLabelSize, 'xlarge');
+    assert.strictEqual(settings.libraryCardChordNameSize, undefined);
+    assert.strictEqual(settings.libraryCardFretNumberSize, undefined);
+    assert.strictEqual(settings.libraryCardMarkerLabelSize, undefined);
     assert.strictEqual(settings.fretboardMarkerLabelSize, 'large');
 
     reloaded.storage.saveSettings({
@@ -539,9 +539,9 @@ function orderOf(env) {
         fretboardMarkerLabelSize: 'invalid'
     });
     settings = native(reloaded.storage.loadSettings());
-    assert.strictEqual(settings.libraryCardChordNameSize, 'medium');
-    assert.strictEqual(settings.libraryCardFretNumberSize, 'medium');
-    assert.strictEqual(settings.libraryCardMarkerLabelSize, 'medium');
+    assert.strictEqual(settings.libraryCardChordNameSize, undefined);
+    assert.strictEqual(settings.libraryCardFretNumberSize, undefined);
+    assert.strictEqual(settings.libraryCardMarkerLabelSize, undefined);
     assert.strictEqual(settings.fretboardMarkerLabelSize, 'medium');
 })();
 
@@ -556,9 +556,6 @@ function orderOf(env) {
         fretboardDisplayMode: 'degree',
         libraryCardDisplayMode: 'solfege',
         libraryCardMonochrome: true,
-        libraryCardChordNameSize: 'small',
-        libraryCardFretNumberSize: 'xlarge',
-        libraryCardMarkerLabelSize: 'large',
         libraryColumns: 2,
         folderShelfColumns: 6,
         futureSetting: 'keep-me'
@@ -583,9 +580,6 @@ function orderOf(env) {
     assert.strictEqual(settings.fretboardDisplayMode, 'note');
     assert.strictEqual(settings.libraryCardDisplayMode, 'solfege', 'library-only display setting remains untouched');
     assert.strictEqual(settings.libraryCardMonochrome, true, 'library-only monochrome setting remains untouched');
-    assert.strictEqual(settings.libraryCardChordNameSize, 'small');
-    assert.strictEqual(settings.libraryCardFretNumberSize, 'xlarge');
-    assert.strictEqual(settings.libraryCardMarkerLabelSize, 'large');
     assert.strictEqual(settings.libraryColumns, 2);
     assert.strictEqual(settings.folderShelfColumns, 6);
     assert.strictEqual(settings.futureSetting, 'keep-me', 'unknown settings are preserved');
@@ -665,9 +659,10 @@ function orderOf(env) {
     assert.strictEqual(ui.notices.at(-1).options.type, 'error');
 })();
 
-(function libraryCardTextScalesClampByColumnWithoutDisablingLarge() {
+(function libraryCardsUseGlobalDisplaySizesAndClampByColumn() {
     const env = loadLibrary(baseData());
     const scale = env.context.window.ChordCruise.ui.library.libraryCardTextScale;
+    assert.strictEqual(scale('xsmall', 1), 0.76);
     assert.strictEqual(scale('small', 1), 0.85);
     assert.strictEqual(scale('medium', 4), 1);
     assert.strictEqual(scale('large', 1), 1.12);
@@ -680,22 +675,23 @@ function orderOf(env) {
     assert.strictEqual(scale('xlarge', 4), 1.09);
     assert(scale('large', 4) > scale('medium', 4), '4-column large must remain visibly larger than medium');
     assert(scale('xlarge', 4) > scale('large', 4), '4-column xlarge must remain visibly larger than large');
-    assert(themeSource.includes('--cc-library-card-chord-name-size'), 'thumbnail title uses an independent CSS variable');
-    assert(!/\.cc-chordthumb-name\s*\{[\s\S]*?--cc-chord-name-thumbnail-size/.test(themeSource), 'thumbnail title must not read the global chord-name size variable');
-    assert(themeSource.includes('data-library-chord-name-size="xlarge"'), 'thumbnail title has a dedicated xlarge value');
+    assert(librarySource.includes("globalDisplaySize('chordNameSize')"), 'thumbnail title reads the global chord-name setting');
+    assert(librarySource.includes("globalDisplaySize('fretNumberSize')"), 'thumbnail fret numbers read the global fret-number setting');
+    assert(librarySource.includes("globalDisplaySize('fretboardMarkerLabelSize')"), 'thumbnail marker labels read the global marker setting');
+    assert(themeSource.includes('data-library-chord-name-size="xsmall"'), 'thumbnail title supports global xsmall');
+    assert(themeSource.includes('data-library-chord-name-size="xlarge"'), 'thumbnail title supports global xlarge');
     assert(themeSource.includes('1.20rem') && themeSource.includes('1.16rem') && themeSource.includes('1.08rem') && themeSource.includes('1rem'), 'xlarge chord-name limits cover all four library columns');
 })();
 
-(function libraryDisplaySheetUsesAccessibleTabsInsteadOfTextSizeDisclosure() {
-    assert(librarySource.includes('role="tablist" aria-label="表示設定の分類"'), 'display sheet exposes a tablist');
-    assert(librarySource.includes('role="tabpanel"'), 'display sheet exposes tabpanels');
-    assert(librarySource.includes('aria-selected="'), 'tabs expose selected state');
-    assert(librarySource.includes('aria-controls="cc-library-display-panel-'), 'tabs identify their panels');
-    assert(librarySource.includes("event.key === 'ArrowLeft'") && librarySource.includes("event.key === 'ArrowRight'"), 'tabs support left and right arrow keys');
-    assert(librarySource.includes("event.key === 'Home'") && librarySource.includes("event.key === 'End'"), 'tabs support Home and End keys');
-    assert(!librarySource.includes('libraryTextSizeExpanded'), 'old text-size disclosure state is removed');
-    assert(!librarySource.includes('data-library-text-size-toggle'), 'old text-size disclosure control is removed');
-    assert(themeSource.includes('.cc-library-display-tab.is-selected') && themeSource.includes('border-bottom-color: var(--cc-gold-bright)'), 'selected tab uses a gold underline');
+(function libraryDisplayControlsAreInlineAndUseExploreStyleSegments() {
+    assert(librarySource.includes('buildLibraryCardDisplayControlsHtml'), 'list builds its display controls inline');
+    assert(librarySource.includes('cc-lib-list-mode-segment'), 'list mode controls reuse the segment design');
+    assert(librarySource.includes('id="cc-library-card-monochrome-toggle"'), 'list exposes a monochrome switch');
+    assert(librarySource.includes('role="switch"'), 'monochrome control has switch semantics');
+    assert(!librarySource.includes('ensureLibraryDisplaySheet'), 'display settings sheet is removed');
+    assert(!librarySource.includes('cc-library-display-trigger'), 'old display settings trigger is removed');
+    assert(themeSource.includes('.cc-lib-list-display-controls'), 'inline list display controls have dedicated layout styles');
+    assert(librarySource.includes("else if (view === 'list')") && librarySource.includes('refreshListThumbnails();'), 'right-top display setting changes redraw an open library list');
     assert(indexSource.includes('data-fretboard-marker-label-size="xlarge"'), 'settings exposes the marker-label xlarge choice');
     assert(indexSource.includes('丸内文字の大きさ'), 'settings uses the marker-label title');
     assert(settingsSource.includes('fretboardMarkerLabelSize'), 'settings persists the independent marker-label key');
@@ -706,6 +702,15 @@ function orderOf(env) {
     assert(settingsSource.includes('DISPLAY_SETTING_KEYS'), 'reset has an explicit right-top settings scope');
     assert(settingsSource.includes('storage.saveSettings(next) !== true'), 'reset leaves the current UI intact when persistence fails');
     assert(!settingsSource.includes('localStorage.clear'), 'display reset never clears all local storage');
+})();
+
+(function openingDetailUsesTheCurrentListDisplayWithoutMergingSettings() {
+    assert(librarySource.includes('function openDetailFromList(chordId)'), 'list has a dedicated detail-entry path');
+    assert(librarySource.includes('detailDisplayModeOverride = libraryCardDisplayMode();'), 'detail starts with the selected list display mode');
+    assert(librarySource.includes('detailMonochrome = libraryCardMonochrome();'), 'detail starts with the selected list monochrome state');
+    assert(librarySource.includes('renderDetail(true);'), 'only the list-entry path preserves those initial values');
+    assert(librarySource.includes('detailDisplayModeOverride = mode;'), 'a detail-mode change replaces only the detail override');
+    assert(librarySource.includes('detailDisplayModeOverride = null;'), 'returning to the list clears the one-time detail override');
 })();
 
 (function listThumbnailsReuseDetailLabelsWithoutChangingSavedData() {

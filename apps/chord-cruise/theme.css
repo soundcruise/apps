@@ -2136,9 +2136,6 @@ body {
 .cc-folder-manage-action:focus-visible,
 .cc-folder-manage-cancel:focus-visible,
 .cc-folder-color-choice:focus-visible,
-.cc-library-display-trigger:focus-visible,
-.cc-library-display-choice:focus-visible,
-.cc-library-display-tab:focus-visible,
 .cc-scale-selector:focus-visible,
 .cc-scale-sheet-close:focus-visible,
 .cc-scale-sheet-choice:focus-visible {
@@ -2280,14 +2277,6 @@ body {
 .cc-folder-manage-confirm-actions { display: flex; gap: 8px; margin-top: 12px; }
 .cc-folder-manage-confirm-actions .cc-btn { flex: 1; }
 
-.cc-library-display-open {
-    overflow: hidden;
-}
-
-.cc-library-display-sheet {
-    max-width: 460px;
-}
-
 .cc-scale-sheet {
     max-width: 460px;
 }
@@ -2361,98 +2350,6 @@ body {
     border-color: var(--cc-gold-bright);
     background: var(--cc-gold-bright);
     box-shadow: inset 0 0 0 2px #24201a;
-}
-
-.cc-library-display-tabs {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    margin-top: 14px;
-    border-bottom: 1px solid rgba(240, 224, 184, 0.2);
-    background: rgba(0, 0, 0, 0.08);
-}
-
-.cc-library-display-tab {
-    min-height: 44px;
-    padding: 8px 10px;
-    border: 0;
-    border-bottom: 3px solid transparent;
-    color: var(--cc-text-muted);
-    background: transparent;
-    font: inherit;
-    font-size: 0.86rem;
-    font-weight: 700;
-    cursor: pointer;
-}
-
-.cc-library-display-tab.is-selected {
-    border-bottom-color: var(--cc-gold-bright);
-    color: var(--cc-champagne);
-    background: transparent;
-    box-shadow: none;
-}
-
-.cc-library-display-panel[hidden] {
-    display: none;
-}
-
-.cc-library-display-section {
-    margin-top: 16px;
-}
-
-.cc-library-display-section h4 {
-    margin: 0 0 8px;
-    color: var(--cc-text-muted);
-    font-size: 0.78rem;
-    font-weight: 700;
-}
-
-.cc-library-display-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-}
-
-.cc-library-display-choice {
-    min-height: 46px;
-    padding: 8px 10px;
-    border: 1px solid var(--cc-border);
-    border-radius: 10px;
-    color: var(--cc-text-muted);
-    background: rgba(255, 255, 255, 0.035);
-    font: inherit;
-    font-size: 0.86rem;
-    font-weight: 700;
-    cursor: pointer;
-}
-
-.cc-library-display-choice.is-selected {
-    border-color: rgba(240, 209, 124, 0.88);
-    color: var(--cc-champagne);
-    background: rgba(212, 175, 55, 0.15);
-    box-shadow: inset 0 0 0 1px rgba(212, 175, 55, 0.16);
-}
-
-.cc-library-text-size-row {
-    margin-top: 12px;
-}
-
-.cc-library-text-size-row:first-child {
-    margin-top: 0;
-}
-
-.cc-library-text-size-row h5 {
-    margin: 0 0 7px;
-    color: var(--cc-text-muted);
-    font-size: 0.75rem;
-    font-weight: 700;
-}
-
-.cc-library-display-grid--four {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.cc-library-display-choice--size {
-    min-height: 44px;
 }
 
 .cc-folder-color-grid {
@@ -2531,6 +2428,7 @@ body {
     --cc-library-card-chord-name-size: 0.92rem;
 }
 
+.cc-chordthumb-grid[data-library-chord-name-size="xsmall"] { --cc-library-card-chord-name-size: 0.72rem; }
 .cc-chordthumb-grid[data-library-chord-name-size="small"] { --cc-library-card-chord-name-size: 0.80rem; }
 .cc-chordthumb-grid[data-library-chord-name-size="medium"] { --cc-library-card-chord-name-size: 0.92rem; }
 .cc-chordthumb-grid[data-library-chord-name-size="large"] { --cc-library-card-chord-name-size: 1.05rem; }
@@ -2730,6 +2628,42 @@ body {
     font-size: 0.76rem;
 }
 
+.cc-lib-list-display-controls {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(240, 224, 184, 0.14);
+}
+
+.cc-lib-list-display-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.cc-lib-list-mode-segment {
+    flex: 1;
+    justify-content: stretch;
+}
+
+.cc-lib-list-mode-segment .cc-segment-btn {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 5px;
+    font-size: 0.76rem;
+}
+
+.cc-lib-list-display-row .cc-save-label {
+    flex: 0 0 auto;
+}
+
+.cc-lib-list-display-row .cc-save-label strong {
+    margin-left: 4px;
+    color: var(--cc-champagne);
+}
+
 .cc-fretboard-chord-name {
     margin: 0 0 7px;
     overflow: hidden;
@@ -2849,29 +2783,6 @@ body {
     align-items: stretch;
     flex-wrap: wrap;
     justify-content: flex-end;
-}
-
-.cc-library-display-trigger {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: center;
-    gap: 1px;
-    min-height: 34px;
-    padding-top: 4px;
-    padding-bottom: 4px;
-    line-height: 1.05;
-}
-
-.cc-library-display-trigger small {
-    color: var(--cc-text-muted);
-    font-size: 0.62rem;
-    font-weight: 600;
-}
-
-.cc-library-display-trigger:disabled {
-    opacity: 0.48;
-    cursor: not-allowed;
 }
 
 /* 危険操作 */

@@ -12,16 +12,14 @@
     var currentChordId = null;
     var currentDetailChord = null;
     var detailMonochrome = false;
+    // 一覧から詳細を開いた瞬間だけ一覧の表示モードを引き継ぐ。一覧・右上設定は変更しない。
+    var detailDisplayModeOverride = null;
     var folderSortMode = false;
     var entrySortMode = false;
     var entrySortFolderId = null;
     var folderShelfColumns = 4;
     var folderManageSheet = null;
     var folderManageReturnFocus = null;
-    var libraryDisplaySheet = null;
-    var libraryDisplayReturnFocus = null;
-    // 表示設定シートだけの一時UI状態。保存設定には含めない。
-    var libraryDisplayActiveTab = 'display';
     var currentListChords = [];
 
     function storage() { return window.ChordCruise.storage; }
@@ -102,14 +100,15 @@
         return !!(settings && settings.libraryCardMonochrome === true);
     }
 
-    function libraryCardTextSize(key) {
+    function globalDisplaySize(key) {
         var settings = window.ChordCruise.state && window.ChordCruise.state.settings;
         var value = settings && settings[key];
-        return ['small', 'medium', 'large', 'xlarge'].indexOf(value) !== -1 ? value : 'medium';
+        return ['xsmall', 'small', 'medium', 'large', 'xlarge'].indexOf(value) !== -1 ? value : 'medium';
     }
 
     function libraryCardTextScale(size, columns) {
         var normalizedColumns = normalizeLibraryColumns(columns);
+        if (size === 'xsmall') return 0.76;
         if (size === 'small') return 0.85;
         if (size === 'xlarge') {
             if (normalizedColumns === 4) return 1.09;
@@ -123,16 +122,8 @@
         return 1.12;
     }
 
-    function libraryCardTextSizeLabel(size) {
-        return { small: '小', medium: '中', large: '大', xlarge: '特大' }[size] || '中';
-    }
-
     function libraryDisplayModeLabel(mode) {
         return { note: 'CDE', solfege: 'ドレミ', degree: '度数', finger: '運指' }[mode] || '運指';
-    }
-
-    function libraryDisplaySummary() {
-        return libraryDisplayModeLabel(libraryCardDisplayMode()) + '・' + (libraryCardMonochrome() ? '白黒' : 'カラー');
     }
 
     function contentEl() {
@@ -251,7 +242,7 @@
 
     function buildChordThumbnailGridHtml(chords, requestedColumns, sorting) {
         var columns = normalizeLibraryColumns(requestedColumns);
-        var html = '<div class="cc-chordthumb-grid' + (sorting ? ' cc-chordthumb-grid--sorting' : '') + '" id="cc-chordthumb-grid" data-library-columns="' + columns + '" data-library-chord-name-size="' + libraryCardTextSize('libraryCardChordNameSize') + '"' +
+        var html = '<div class="cc-chordthumb-grid' + (sorting ? ' cc-chordthumb-grid--sorting' : '') + '" id="cc-chordthumb-grid" data-library-columns="' + columns + '" data-library-chord-name-size="' + globalDisplaySize('chordNameSize') + '"' +
             (sorting ? ' role="list" aria-label="保存コードの並び順"' : '') + '>';
         chords.forEach(function (chord, index) {
             var displayName = displayChordName(chord.chordName);
@@ -284,10 +275,24 @@
         return html + '</div></div>';
     }
 
-    function buildLibraryDisplaySettingsButtonHtml(disabled) {
-        return '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small cc-library-display-trigger" id="cc-library-display-trigger" aria-haspopup="dialog" aria-expanded="false"' +
-            (disabled ? ' disabled aria-disabled="true"' : '') + '>' +
-            '<span>表示設定</span><small id="cc-library-display-summary">' + escapeHtml(libraryDisplaySummary()) + '</small></button>';
+    function buildLibraryCardDisplayControlsHtml() {
+        var mode = libraryCardDisplayMode();
+        var monochrome = libraryCardMonochrome();
+        var html = '<div class="cc-lib-list-display-controls" aria-label="コード一覧の表示設定">' +
+            '<div class="cc-lib-list-display-row">' +
+                '<span class="cc-save-label">丸の表示</span>' +
+                '<div class="cc-segment cc-lib-list-mode-segment" role="group" aria-label="コード一覧の丸の表示">';
+        ['finger', 'note', 'solfege', 'degree'].forEach(function (value) {
+            var selected = value === mode;
+            html += '<button type="button" class="cc-segment-btn' + (selected ? ' cc-segment-btn--active' : '') + '" data-library-card-display-mode="' + value + '" aria-pressed="' + (selected ? 'true' : 'false') + '">' + libraryDisplayModeLabel(value) + '</button>';
+        });
+        return html + '</div></div>' +
+            '<div class="cc-lib-list-display-row">' +
+                '<span class="cc-save-label">白黒 <strong id="cc-library-card-monochrome-state">' + (monochrome ? 'ON' : 'OFF') + '</strong></span>' +
+                '<button type="button" class="cc-switch' + (monochrome ? ' cc-switch--on' : '') + '" id="cc-library-card-monochrome-toggle" role="switch" aria-checked="' + (monochrome ? 'true' : 'false') + '" aria-label="コード一覧を白黒で表示">' +
+                    '<span class="cc-switch-knob" aria-hidden="true"></span>' +
+                '</button>' +
+            '</div></div>';
     }
 
     function sortError() {
@@ -454,125 +459,9 @@
         folderManageReturnFocus = null;
     }
 
-    function ensureLibraryDisplaySheet() {
-        if (libraryDisplaySheet) return libraryDisplaySheet;
-        libraryDisplaySheet = document.createElement('div');
-        libraryDisplaySheet.className = 'cc-folder-manage-overlay cc-folder-manage-overlay--hidden cc-library-display-overlay';
-        libraryDisplaySheet.addEventListener('click', function (event) {
-            if (event.target === libraryDisplaySheet) closeLibraryDisplaySheet(true);
-        });
-        libraryDisplaySheet.addEventListener('keydown', function (event) {
-            var dialog = libraryDisplaySheet.querySelector('[role="dialog"]');
-            if (focusTrap()) focusTrap().trapFocus(dialog || libraryDisplaySheet, event);
-        });
-        document.addEventListener('keydown', function (event) {
-            if (event.key === 'Escape' && libraryDisplaySheet && !libraryDisplaySheet.classList.contains('cc-folder-manage-overlay--hidden')) {
-                closeLibraryDisplaySheet(true);
-            }
-        });
-        document.body.appendChild(libraryDisplaySheet);
-        return libraryDisplaySheet;
-    }
-
-    function closeLibraryDisplaySheet(returnFocus) {
-        if (!libraryDisplaySheet) return;
-        var currentTrigger = document.getElementById('cc-library-display-trigger');
-        if (currentTrigger) currentTrigger.setAttribute('aria-expanded', 'false');
-        libraryDisplaySheet.classList.add('cc-folder-manage-overlay--hidden');
-        libraryDisplaySheet.innerHTML = '';
-        document.body.classList.remove('cc-library-display-open');
-        libraryDisplayActiveTab = 'display';
-        var trigger = libraryDisplayReturnFocus;
-        libraryDisplayReturnFocus = null;
-        if (returnFocus && focusTrap()) focusTrap().restoreFocus(trigger);
-        else if (returnFocus && trigger && typeof trigger.focus === 'function') trigger.focus();
-    }
-
-    function libraryTextSizeChoicesHtml(key, label) {
-        var selectedSize = libraryCardTextSize(key);
-        var labelId = 'cc-library-' + key + '-label';
-        var html = '<div class="cc-library-text-size-row">' +
-            '<h5 id="' + labelId + '">' + label + '</h5>' +
-            '<div class="cc-library-display-grid cc-library-display-grid--four" role="radiogroup" aria-labelledby="' + labelId + '">';
-        ['small', 'medium', 'large', 'xlarge'].forEach(function (size) {
-            var selected = size === selectedSize;
-            html += '<button type="button" class="cc-library-display-choice cc-library-display-choice--size' + (selected ? ' is-selected' : '') + '" data-library-card-text-size-key="' + key + '" data-library-card-text-size="' + size + '" role="radio" aria-checked="' + (selected ? 'true' : 'false') + '">' + libraryCardTextSizeLabel(size) + '</button>';
-        });
-        return html + '</div></div>';
-    }
-
-    function normalizeLibraryDisplayTab(value) {
-        return value === 'text-size' ? 'text-size' : 'display';
-    }
-
-    function libraryDisplayTabsHtml(activeTab) {
-        var tabs = [
-            { value: 'display', label: '表示' },
-            { value: 'text-size', label: '文字サイズ' }
-        ];
-        var html = '<div class="cc-library-display-tabs" role="tablist" aria-label="表示設定の分類">';
-        tabs.forEach(function (tab) {
-            var selected = activeTab === tab.value;
-            html += '<button type="button" class="cc-library-display-tab' + (selected ? ' is-selected' : '') + '" id="cc-library-display-tab-' + tab.value + '" data-library-display-tab="' + tab.value + '" role="tab" aria-selected="' + (selected ? 'true' : 'false') + '" aria-controls="cc-library-display-panel-' + tab.value + '" tabindex="' + (selected ? '0' : '-1') + '">' + tab.label + '</button>';
-        });
-        return html + '</div>';
-    }
-
-    function libraryDisplayChoicesHtml() {
-        var mode = libraryCardDisplayMode();
-        var monochrome = libraryCardMonochrome();
-        var activeTab = normalizeLibraryDisplayTab(libraryDisplayActiveTab);
-        var html = '<div class="cc-folder-manage-sheet cc-library-display-sheet" role="dialog" aria-modal="true" aria-labelledby="cc-library-display-title">' +
-            '<div class="cc-folder-manage-grabber" aria-hidden="true"></div>' +
-            '<div class="cc-folder-manage-heading"><h3 id="cc-library-display-title" tabindex="-1">表示設定</h3><p>このフォルダ内のコード一覧にまとめて適用します。</p></div>' +
-            libraryDisplayTabsHtml(activeTab) +
-            '<div id="cc-library-display-panel-display" class="cc-library-display-panel" role="tabpanel" aria-labelledby="cc-library-display-tab-display"' + (activeTab === 'display' ? '' : ' hidden') + '>' +
-            '<section class="cc-library-display-section" aria-labelledby="cc-library-display-mode-label">' +
-                '<h4 id="cc-library-display-mode-label">丸の表示</h4>' +
-                '<div class="cc-library-display-grid" role="radiogroup" aria-labelledby="cc-library-display-mode-label">';
-        ['finger', 'note', 'solfege', 'degree'].forEach(function (value) {
-            var selected = value === mode;
-            html += '<button type="button" class="cc-library-display-choice' + (selected ? ' is-selected' : '') + '" data-library-card-display-mode="' + value + '" role="radio" aria-checked="' + (selected ? 'true' : 'false') + '">' + libraryDisplayModeLabel(value) + '</button>';
-        });
-        html += '</div></section>' +
-            '<section class="cc-library-display-section" aria-labelledby="cc-library-display-color-label">' +
-                '<h4 id="cc-library-display-color-label">配色</h4>' +
-                '<div class="cc-library-display-grid cc-library-display-grid--two" role="radiogroup" aria-labelledby="cc-library-display-color-label">' +
-                    '<button type="button" class="cc-library-display-choice' + (!monochrome ? ' is-selected' : '') + '" data-library-card-monochrome="false" role="radio" aria-checked="' + (!monochrome ? 'true' : 'false') + '">カラー</button>' +
-                    '<button type="button" class="cc-library-display-choice' + (monochrome ? ' is-selected' : '') + '" data-library-card-monochrome="true" role="radio" aria-checked="' + (monochrome ? 'true' : 'false') + '">白黒</button>' +
-                '</div>' +
-            '</section>' +
-            '</div>' +
-            '<div id="cc-library-display-panel-text-size" class="cc-library-display-panel" role="tabpanel" aria-labelledby="cc-library-display-tab-text-size"' + (activeTab === 'text-size' ? '' : ' hidden') + '>' +
-                '<section class="cc-library-display-section cc-library-display-section--text-size" aria-label="文字サイズ">' +
-                    libraryTextSizeChoicesHtml('libraryCardChordNameSize', 'コード名') +
-                    libraryTextSizeChoicesHtml('libraryCardFretNumberSize', 'フレット番号') +
-                    libraryTextSizeChoicesHtml('libraryCardMarkerLabelSize', '音名') +
-                '</section>' +
-            '</div>' +
-            '<button type="button" class="cc-folder-manage-cancel" data-library-display-action="close">完了</button>' +
-        '</div>';
-        return html;
-    }
-
-    function redrawLibraryDisplaySheet(focusTab) {
-        if (!libraryDisplaySheet) return;
-        libraryDisplaySheet.innerHTML = libraryDisplayChoicesHtml();
-        bindLibraryDisplaySheet();
-        if (focusTab) {
-            var tab = libraryDisplaySheet.querySelector('[data-library-display-tab="' + libraryDisplayActiveTab + '"]');
-            if (tab) tab.focus();
-        }
-    }
-
-    function updateLibraryDisplaySummary() {
-        var summary = document.getElementById('cc-library-display-summary');
-        if (summary) summary.textContent = libraryDisplaySummary();
-    }
-
     function applyLibraryCardTextSizes() {
         var grid = document.getElementById('cc-chordthumb-grid');
-        if (grid) grid.setAttribute('data-library-chord-name-size', libraryCardTextSize('libraryCardChordNameSize'));
+        if (grid) grid.setAttribute('data-library-chord-name-size', globalDisplaySize('chordNameSize'));
     }
 
     function restoreListScroll(previousY) {
@@ -583,14 +472,6 @@
         }
     }
 
-    function refreshLibraryCardTextSizes() {
-        if (view !== 'list') return;
-        var previousY = typeof window.scrollY === 'number' ? window.scrollY : null;
-        applyLibraryCardTextSizes();
-        updateLibraryDisplaySummary();
-        restoreListScroll(previousY);
-    }
-
     function refreshListThumbnails() {
         if (view !== 'list') return;
         var previousY = typeof window.scrollY === 'number' ? window.scrollY : null;
@@ -599,84 +480,44 @@
             displayMode: libraryCardDisplayMode(),
             monochrome: libraryCardMonochrome()
         });
-        updateLibraryDisplaySummary();
+        updateLibraryCardDisplayControls();
         restoreListScroll(previousY);
     }
 
-    function bindLibraryDisplaySheet() {
-        if (!libraryDisplaySheet) return;
-        Array.prototype.forEach.call(libraryDisplaySheet.querySelectorAll('[data-library-display-tab]'), function (tab) {
-            tab.addEventListener('click', function () {
-                libraryDisplayActiveTab = normalizeLibraryDisplayTab(tab.getAttribute('data-library-display-tab'));
-                redrawLibraryDisplaySheet(true);
-            });
-            tab.addEventListener('keydown', function (event) {
-                var tabs = Array.prototype.slice.call(libraryDisplaySheet.querySelectorAll('[data-library-display-tab]'));
-                var index = tabs.indexOf(tab);
-                var nextIndex = index;
-                if (event.key === 'ArrowLeft') nextIndex = (index + tabs.length - 1) % tabs.length;
-                else if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
-                else if (event.key === 'Home') nextIndex = 0;
-                else if (event.key === 'End') nextIndex = tabs.length - 1;
-                else return;
-                event.preventDefault();
-                libraryDisplayActiveTab = normalizeLibraryDisplayTab(tabs[nextIndex].getAttribute('data-library-display-tab'));
-                redrawLibraryDisplaySheet(true);
-            });
+    function updateLibraryCardDisplayControls() {
+        var mode = libraryCardDisplayMode();
+        var monochrome = libraryCardMonochrome();
+        Array.prototype.forEach.call(contentEl().querySelectorAll('[data-library-card-display-mode]'), function (button) {
+            var selected = button.getAttribute('data-library-card-display-mode') === mode;
+            button.classList.toggle('cc-segment-btn--active', selected);
+            button.setAttribute('aria-pressed', selected ? 'true' : 'false');
         });
-        Array.prototype.forEach.call(libraryDisplaySheet.querySelectorAll('[data-library-card-display-mode]'), function (button) {
+        var toggle = document.getElementById('cc-library-card-monochrome-toggle');
+        if (toggle) {
+            toggle.classList.toggle('cc-switch--on', monochrome);
+            toggle.setAttribute('aria-checked', monochrome ? 'true' : 'false');
+        }
+        var state = document.getElementById('cc-library-card-monochrome-state');
+        if (state) state.textContent = monochrome ? 'ON' : 'OFF';
+    }
+
+    function bindLibraryCardDisplayControls() {
+        Array.prototype.forEach.call(contentEl().querySelectorAll('[data-library-card-display-mode]'), function (button) {
             button.addEventListener('click', function () {
                 var mode = button.getAttribute('data-library-card-display-mode');
                 if (['note', 'solfege', 'degree', 'finger'].indexOf(mode) === -1) return;
                 window.ChordCruise.state.settings.libraryCardDisplayMode = mode;
                 storage().saveSettings({ libraryCardDisplayMode: mode });
-                redrawLibraryDisplaySheet(false);
                 refreshListThumbnails();
             });
         });
-        Array.prototype.forEach.call(libraryDisplaySheet.querySelectorAll('[data-library-card-monochrome]'), function (button) {
-            button.addEventListener('click', function () {
-                var monochrome = button.getAttribute('data-library-card-monochrome') === 'true';
-                window.ChordCruise.state.settings.libraryCardMonochrome = monochrome;
-                storage().saveSettings({ libraryCardMonochrome: monochrome });
-                redrawLibraryDisplaySheet(false);
-                refreshListThumbnails();
-            });
+        var toggle = document.getElementById('cc-library-card-monochrome-toggle');
+        if (toggle) toggle.addEventListener('click', function () {
+            var monochrome = !libraryCardMonochrome();
+            window.ChordCruise.state.settings.libraryCardMonochrome = monochrome;
+            storage().saveSettings({ libraryCardMonochrome: monochrome });
+            refreshListThumbnails();
         });
-        Array.prototype.forEach.call(libraryDisplaySheet.querySelectorAll('[data-library-card-text-size]'), function (button) {
-            button.addEventListener('click', function () {
-                var key = button.getAttribute('data-library-card-text-size-key');
-                var size = button.getAttribute('data-library-card-text-size');
-                if (['libraryCardChordNameSize', 'libraryCardFretNumberSize', 'libraryCardMarkerLabelSize'].indexOf(key) === -1 ||
-                    ['small', 'medium', 'large', 'xlarge'].indexOf(size) === -1) return;
-                window.ChordCruise.state.settings[key] = size;
-                var partial = {};
-                partial[key] = size;
-                storage().saveSettings(partial);
-                redrawLibraryDisplaySheet(false);
-                if (key === 'libraryCardChordNameSize') {
-                    refreshLibraryCardTextSizes();
-                } else {
-                    refreshListThumbnails();
-                }
-            });
-        });
-        var closeButton = libraryDisplaySheet.querySelector('[data-library-display-action="close"]');
-        if (closeButton) closeButton.addEventListener('click', function () { closeLibraryDisplaySheet(true); });
-    }
-
-    function openLibraryDisplaySheet(trigger) {
-        if (entrySortMode) return;
-        libraryDisplayActiveTab = 'display';
-        libraryDisplayReturnFocus = trigger || null;
-        if (trigger) trigger.setAttribute('aria-expanded', 'true');
-        var sheet = ensureLibraryDisplaySheet();
-        sheet.innerHTML = libraryDisplayChoicesHtml();
-        sheet.classList.remove('cc-folder-manage-overlay--hidden');
-        document.body.classList.add('cc-library-display-open');
-        bindLibraryDisplaySheet();
-        var title = document.getElementById('cc-library-display-title');
-        if (title) title.focus();
     }
 
     function folderManageColorChoicesHtml(folder) {
@@ -846,11 +687,11 @@
     // ---- ビュー: フォルダ一覧 ----
 
     function renderFolders() {
-        closeLibraryDisplaySheet(false);
         view = 'folders';
         currentDetailChord = null;
         currentListChords = [];
         detailMonochrome = false;
+        detailDisplayModeOverride = null;
         entrySortMode = false;
         entrySortFolderId = null;
         setContentLayout('folders');
@@ -950,10 +791,10 @@
 
     function renderList() {
         closeFolderManageSheet(false);
-        closeLibraryDisplaySheet(false);
         view = 'list';
         currentDetailChord = null;
         detailMonochrome = false;
+        detailDisplayModeOverride = null;
         folderSortMode = false;
         setContentLayout('list');
         var folder = folderById(currentFolderId);
@@ -976,13 +817,13 @@
             '<div class="cc-lib-folder-title-row">' +
                 '<h3 class="cc-card-heading">📁 ' + escapeHtml(folder.name) + '</h3>' +
                 '<div class="cc-lib-folder-actions">' +
-                    buildLibraryDisplaySettingsButtonHtml(entrySortMode) +
                     '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-entry-sort-toggle" aria-pressed="' +
                         (entrySortMode ? 'true' : 'false') + '"' + (chords.length < 2 && !entrySortMode ? ' disabled' : '') + '>' +
                         (entrySortMode ? '完了' : '並び替え') + '</button>' +
                 '</div>' +
             '</div>' +
             buildLibraryColumnsControlHtml(columns) +
+            (entrySortMode ? '' : buildLibraryCardDisplayControlsHtml()) +
             (entrySortMode ? '<p class="cc-sort-mode-note">各カードの矢印を押すたびに並び順を保存します。</p>' : '') +
         '</div>';
 
@@ -994,18 +835,10 @@
         contentEl().innerHTML = html;
 
         document.getElementById('cc-entry-sort-toggle').addEventListener('click', function () {
-            closeLibraryDisplaySheet(false);
             entrySortMode = !entrySortMode;
             entrySortFolderId = entrySortMode ? folder.id : null;
             renderList();
         });
-
-        var displayTrigger = document.getElementById('cc-library-display-trigger');
-        if (displayTrigger && !entrySortMode) {
-            displayTrigger.addEventListener('click', function () {
-                openLibraryDisplaySheet(displayTrigger);
-            });
-        }
 
         if (entrySortMode) {
             renderListThumbnails(chords);
@@ -1033,14 +866,14 @@
                 storage().saveSettings({ libraryColumns: nextColumns });
             });
         });
+        bindLibraryCardDisplayControls();
 
         if (chords.length) {
             renderListThumbnails(chords);
             document.getElementById('cc-chordthumb-grid').addEventListener('click', function (event) {
                 var card = event.target.closest('.cc-chordthumb-card');
                 if (!card) return;
-                currentChordId = card.dataset.chordId;
-                renderDetail();
+                openDetailFromList(card.dataset.chordId);
             });
         }
 
@@ -1103,6 +936,9 @@
     }
 
     function detailDisplayMode() {
+        if (['note', 'solfege', 'degree', 'finger'].indexOf(detailDisplayModeOverride) !== -1) {
+            return detailDisplayModeOverride;
+        }
         var mode = window.ChordCruise.state.settings.fretboardDisplayMode;
         return ['note', 'solfege', 'degree', 'finger'].indexOf(mode) !== -1 ? mode : 'note';
     }
@@ -1394,6 +1230,14 @@
         });
     }
 
+    // 白黒一覧では最下弦の丸マーカーが番号帯へ最も近づく。Bass overlayなどの
+    // 二重リングもmarkersへ統合済みなので、見た目の種別ではなく表示マーカーで判定する。
+    function hasSixthStringMarker(diagramOptions) {
+        return Array.isArray(diagramOptions && diagramOptions.markers) && diagramOptions.markers.some(function (marker) {
+            return marker && marker.string === 6;
+        });
+    }
+
     function renderListThumbnails(chords, options) {
         var opts = options || {};
         var grid = document.getElementById('cc-chordthumb-grid');
@@ -1406,10 +1250,10 @@
             : libraryCardMonochrome();
         var fretNumberScale = typeof opts.fretNumberScale === 'number'
             ? opts.fretNumberScale
-            : libraryCardTextScale(libraryCardTextSize('libraryCardFretNumberSize'), columns);
+            : libraryCardTextScale(globalDisplaySize('fretNumberSize'), columns);
         var markerLabelScale = typeof opts.markerLabelScale === 'number'
             ? opts.markerLabelScale
-            : libraryCardTextScale(libraryCardTextSize('libraryCardMarkerLabelSize'), columns);
+            : libraryCardTextScale(globalDisplaySize('fretboardMarkerLabelSize'), columns);
         var byId = {};
         chords.forEach(function (chord) { byId[chord.id] = chord; });
         Array.prototype.forEach.call(contentEl().querySelectorAll('[data-chord-thumb]'), function (host) {
@@ -1420,7 +1264,7 @@
             diagramOptions.fretNumberScale = fretNumberScale;
             diagramOptions.markerLabelScale = markerLabelScale;
             var hasOpenColumn = diagramOptions.frets[0] === 0;
-            var needsFretNumberOffset = hasOpenColumn || hasFirstFretBarre(diagramOptions);
+            var needsFretNumberOffset = hasOpenColumn || hasFirstFretBarre(diagramOptions) || hasSixthStringMarker(diagramOptions);
             // 固定高の一覧カードだけは、上下のマーカー外周とフレット番号用にSVG内の安全余白を確保する。
             // 画面の指板・詳細・PNGはこの指定を持たないため、従来の座標と寸法のままになる。
             if (monochrome && hasOpenColumn) {
@@ -1458,7 +1302,7 @@
         });
         // 本棚詳細の白黒ONかつ開放弦フォームだけは、開放弦列を0フレット枠ではなくナットとして表示する。
         var detailHasOpenColumn = diagramOptions.frets[0] === 0;
-        var detailNeedsFretNumberOffset = detailHasOpenColumn || hasFirstFretBarre(diagramOptions);
+        var detailNeedsFretNumberOffset = detailHasOpenColumn || hasFirstFretBarre(diagramOptions) || hasSixthStringMarker(diagramOptions);
         diagramOptions.openStringNutOnly = detailMonochrome && detailHasOpenColumn;
         diagramOptions.monochromeViewportLeftCrop = detailMonochrome && detailHasOpenColumn ? 12 : 0;
         diagramOptions.monochromeFretNumberYOffset = detailMonochrome && detailNeedsFretNumberOffset ? 5 : 0;
@@ -1569,7 +1413,7 @@
         // 白黒かつ開放弦フォームの書き出しも本棚プレビューと同じく、開放弦列を
         // 0フレット枠ではなくナットとして扱う。カラーと0Fなしフォームは従来どおり。
         var exportHasOpenColumn = diagramOptions.frets[0] === 0;
-        var exportNeedsFretNumberOffset = exportHasOpenColumn || hasFirstFretBarre(diagramOptions);
+        var exportNeedsFretNumberOffset = exportHasOpenColumn || hasFirstFretBarre(diagramOptions) || hasSixthStringMarker(diagramOptions);
         diagramOptions.openStringNutOnly = detailMonochrome && exportHasOpenColumn;
         diagramOptions.monochromeViewportLeftCrop = detailMonochrome && exportHasOpenColumn ? 12 : 0;
         diagramOptions.monochromeFretNumberYOffset = detailMonochrome && exportNeedsFretNumberOffset ? 5 : 0;
@@ -1596,13 +1440,22 @@
         });
     }
 
-    function renderDetail() {
-        closeLibraryDisplaySheet(false);
+    function openDetailFromList(chordId) {
+        currentChordId = chordId;
+        detailDisplayModeOverride = libraryCardDisplayMode();
+        detailMonochrome = libraryCardMonochrome();
+        renderDetail(true);
+    }
+
+    function renderDetail(preserveInitialDisplay) {
         view = 'detail';
         entrySortMode = false;
         entrySortFolderId = null;
         currentListChords = [];
-        detailMonochrome = false;
+        if (!preserveInitialDisplay) {
+            detailDisplayModeOverride = null;
+            detailMonochrome = false;
+        }
         setContentLayout('detail');
         var chord = storage().loadChord(currentChordId);
         if (!chord) {
@@ -1667,6 +1520,7 @@
         // 表示切替
         ['note', 'solfege', 'degree', 'finger'].forEach(function (mode) {
             document.getElementById('cc-libmode-' + mode).addEventListener('click', function () {
+                detailDisplayModeOverride = mode;
                 window.ChordCruise.storage.saveSettings({ fretboardDisplayMode: mode });
                 window.ChordCruise.state.settings.fretboardDisplayMode = mode;
                 updateLibModeSegments();
@@ -1788,11 +1642,11 @@
 
     /** TOPへ戻ったときは次回フォルダ一覧から */
     function resetView() {
-        closeLibraryDisplaySheet(false);
         view = 'folders';
         currentDetailChord = null;
         currentListChords = [];
         detailMonochrome = false;
+        detailDisplayModeOverride = null;
         folderSortMode = false;
         entrySortMode = false;
         entrySortFolderId = null;
@@ -1801,6 +1655,8 @@
     document.addEventListener('chordcruise:fretboard-settings-change', function () {
         if (view === 'detail' && currentDetailChord) {
             renderDetailFretboard(currentDetailChord);
+        } else if (view === 'list') {
+            refreshListThumbnails();
         }
     });
 

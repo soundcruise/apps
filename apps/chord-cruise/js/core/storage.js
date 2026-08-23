@@ -76,9 +76,6 @@
         // コード本棚の一覧サムネイル専用。通常指板・詳細・PNGの表示設定とは分離する。
         libraryCardDisplayMode: 'finger',
         libraryCardMonochrome: false,
-        libraryCardChordNameSize: 'medium',
-        libraryCardFretNumberSize: 'medium',
-        libraryCardMarkerLabelSize: 'medium',
         librarySortMode: 'updatedDesc',
         // 新規保存画面だけで使うUI設定。保存コードのrecordには含めない。
         lastSaveFolderId: UNCATEGORIZED_ID
@@ -122,11 +119,9 @@
             normalized.libraryCardDisplayMode = 'finger';
         }
         normalized.libraryCardMonochrome = normalized.libraryCardMonochrome === true;
-        ['libraryCardChordNameSize', 'libraryCardFretNumberSize', 'libraryCardMarkerLabelSize'].forEach(function (key) {
-            if (['small', 'medium', 'large', 'xlarge'].indexOf(normalized[key]) === -1) {
-                normalized[key] = 'medium';
-            }
-        });
+        delete normalized.libraryCardChordNameSize;
+        delete normalized.libraryCardFretNumberSize;
+        delete normalized.libraryCardMarkerLabelSize;
         if (['all', 'position', 'custom'].indexOf(normalized.fretNumberHighlightMode) === -1) {
             normalized.fretNumberHighlightMode = 'all';
         }

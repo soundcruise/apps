@@ -141,12 +141,12 @@ function tabEvent(shiftKey) {
 })();
 
 (function dialogModulesUseTheSharedHelperWithoutRepeatedOpenListeners() {
-    assert(indexSource.indexOf('../js/ui/focus-trap.js?v=0.37.3') !== -1, 'focus helper is loaded before the dialog modules');
+    assert(indexSource.indexOf('../js/ui/focus-trap.js?v=0.37.4') !== -1, 'focus helper is loaded before the dialog modules');
     [settingsSource, librarySource, saveEditorSource, chordBuilderSource].forEach((moduleSource) => {
         assert(moduleSource.indexOf('focusTrap().trapFocus') !== -1, 'dialog module delegates Tab handling to the shared helper');
     });
     assert.strictEqual((librarySource.match(/folderManageSheet\.addEventListener\('keydown'/g) || []).length, 1);
-    assert.strictEqual((librarySource.match(/libraryDisplaySheet\.addEventListener\('keydown'/g) || []).length, 1);
+    assert.strictEqual((librarySource.match(/libraryDisplaySheet\.addEventListener\('keydown'/g) || []).length, 0, 'list display controls are inline and no longer create a dialog');
 })();
 
 (function dangerousDialogsExposeAccessibleNamesAndDescriptions() {

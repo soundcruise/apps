@@ -38,17 +38,15 @@ const settings = createStorage({
     'chordCruise.settings': JSON.stringify({
         chordNameSize: 'xsmall',
         fretNumberSize: 'xsmall',
-        fretboardMarkerLabelSize: 'xsmall',
-        libraryCardChordNameSize: 'xlarge',
-        libraryCardMarkerLabelSize: 'large'
+        fretboardMarkerLabelSize: 'xsmall'
     })
 }).loadSettings();
 
 assert.strictEqual(settings.chordNameSize, 'xsmall');
 assert.strictEqual(settings.fretNumberSize, 'xsmall');
 assert.strictEqual(settings.fretboardMarkerLabelSize, 'xsmall');
-assert.strictEqual(settings.libraryCardChordNameSize, 'xlarge', 'library card title setting remains independent');
-assert.strictEqual(settings.libraryCardMarkerLabelSize, 'large', 'library card marker setting remains independent');
+assert.strictEqual(settings.libraryCardChordNameSize, undefined, 'library no longer keeps an independent title-size setting');
+assert.strictEqual(settings.libraryCardMarkerLabelSize, undefined, 'library no longer keeps an independent marker-size setting');
 
 const legacy = createStorage({
     'chordCruise.settings': JSON.stringify({
@@ -80,4 +78,4 @@ assert(fretboardSource.includes('fretNumberScaleForSize'));
 assert(chordExportSource.includes('diagramOptions.fretNumberScale = fretboard.fretNumberScaleForSize'));
 assert(chordExportSource.includes('diagramOptions.markerLabelFontSize = fretboard.markerLabelFontSizeForSize'));
 
-console.log('display-size-settings: five independent global display-size settings and legacy values OK');
+console.log('display-size-settings: five global display-size settings and legacy values OK');

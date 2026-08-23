@@ -247,7 +247,17 @@ var gMonochromeNoOpenSvg = fretboard.buildStaticSvg({
 });
 assert(gMonochromeNoOpenSvg.includes('viewBox="0 0 260 241"'), 'white-black forms without 0F must retain their existing viewport');
 assert(gMonochromeNoOpenSvg.includes('y="229"'), 'white-black forms without 0F must retain the default fret-number position unless a first-fret barre needs clearance');
-assert(librarySource.includes('hasFirstFretBarre(diagramOptions)'), 'only a first-fret barre may opt into the white-black fret-number clearance without a 0F column');
+assert(librarySource.includes('function hasSixthStringMarker(diagramOptions)'), 'library list identifies every visible sixth-string marker for white-black number clearance');
+assert(librarySource.includes('hasOpenColumn || hasFirstFretBarre(diagramOptions) || hasSixthStringMarker(diagramOptions)'), 'white-black thumbnail number clearance covers open strings, first-fret barres, and sixth-string markers');
+assert(librarySource.includes('detailHasOpenColumn || hasFirstFretBarre(diagramOptions) || hasSixthStringMarker(diagramOptions)'), 'white-black detail uses the same sixth-string marker clearance');
+assert(librarySource.includes('exportHasOpenColumn || hasFirstFretBarre(diagramOptions) || hasSixthStringMarker(diagramOptions)'), 'white-black PNG export uses the same sixth-string marker clearance');
+var cDimBassMonochromeSvg = fretboard.buildStaticSvg({
+    frets: [2, 3, 4],
+    monochrome: true,
+    monochromeFretNumberYOffset: 5,
+    markers: [{ string: 6, fret: 2, label: '♭5', role: 'fifth', isOverlay: true, isBassCandidate: true }]
+});
+assert(cDimBassMonochromeSvg.includes('#e8c97a') && cDimBassMonochromeSvg.includes('y="234"'), 'sixth-string Bass overlay clears the fret-number row in white-black SVG');
 var gMonochromeExportSvg = fretboard.buildExportSvg('G', Object.assign({}, gDiagramOptions, { monochrome: true })).svg;
 assert(gMonochromeExportSvg.includes('viewBox="0 0 260 241"'), 'PNG source SVG must retain the normal viewport');
 assert(gMonochromeExportSvg.includes('class="cc-fb-mono-boundary" x="0"') && gMonochromeExportSvg.includes('>0</text>'), 'PNG source must retain its existing 0F rendering');
