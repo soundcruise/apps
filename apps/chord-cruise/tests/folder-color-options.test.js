@@ -24,8 +24,8 @@ var root = path.join(__dirname, '..');
 var librarySource = fs.readFileSync(path.join(root, 'js/ui/library.js'), 'utf8');
 var themeSource = fs.readFileSync(path.join(root, 'theme.css'), 'utf8');
 var storage = window.ChordCruise.storage;
-var keys = ['red', 'orange', 'yellow', 'green', 'blue', 'pink'];
-var folder = storage.createFolder('ポップカラー');
+var keys = ['pastel-pink', 'pastel-blue', 'pastel-purple', 'pastel-green', 'pastel-yellow', 'pastel-orange'];
+var folder = storage.createFolder('パステルカラー');
 
 keys.forEach(function (key) {
     assert(storage.FOLDER_COLOR_KEYS.indexOf(key) !== -1, key + ' is an allowed stored folder color');
@@ -36,4 +36,10 @@ keys.forEach(function (key) {
     assert(themeSource.includes('.cc-folder-color-' + key), key + ' has a shelf and picker CSS color rule');
 });
 
-console.log('folder-color-options: six pop book colors validate, persist, and have picker/shelf styling OK');
+['クラシック', 'パステル'].forEach(function (label) {
+    assert(librarySource.includes("label: '" + label + "'"), label + ' category is present in the picker');
+});
+assert(librarySource.includes('cc-folder-color-categories'), 'picker groups color choices by category');
+assert(themeSource.includes('.cc-folder-color-category-title'), 'category titles have dedicated picker styling');
+
+console.log('folder-color-options: pastel book colors validate, persist, and render in classic/pastel picker categories OK');

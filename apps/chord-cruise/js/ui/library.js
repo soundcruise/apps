@@ -404,12 +404,24 @@
             buildFolderShelfRowsHtml(folders, countMap, true) + '</div>';
     }
 
-    var FOLDER_COLOR_OPTIONS = [
-        ['forest', '深緑'], ['burgundy', '深紅'], ['navy', '紺'], ['umber', '琥珀'],
-        ['charcoal', '炭'], ['teal', '青緑'], ['violet', '紫'], ['russet', '赤茶'],
-        ['leather', '革茶'], ['black-leather', '黒革'], ['wine', 'ワイン'], ['black-gold', '黒金'],
-        ['red', '赤'], ['orange', 'オレンジ'], ['yellow', '黄'],
-        ['green', '緑'], ['blue', '青'], ['pink', 'ピンク']
+    var FOLDER_COLOR_CATEGORIES = [
+        {
+            label: 'クラシック',
+            options: [
+                ['forest', '深緑'], ['burgundy', '深紅'], ['navy', '紺'], ['umber', '琥珀'],
+                ['charcoal', '炭'], ['teal', '青緑'], ['violet', '紫'], ['russet', '赤茶'],
+                ['leather', '革茶'], ['black-leather', '黒革'], ['wine', 'ワイン'], ['black-gold', '黒金'],
+                ['red', '赤'], ['orange', 'オレンジ'], ['yellow', '黄'],
+                ['green', '緑'], ['blue', '青'], ['pink', 'ピンク']
+            ]
+        },
+        {
+            label: 'パステル',
+            options: [
+                ['pastel-pink', 'パステルピンク'], ['pastel-blue', 'パステルブルー'], ['pastel-purple', 'パステルパープル'],
+                ['pastel-green', 'パステルグリーン'], ['pastel-yellow', 'パステルイエロー'], ['pastel-orange', 'パステルオレンジ']
+            ]
+        }
     ];
 
     function toast(message, type) {
@@ -520,12 +532,18 @@
 
     function folderManageColorChoicesHtml(folder) {
         var selected = storage().folderColorKey(folder);
-        var html = '<div class="cc-folder-color-grid" role="group" aria-label="フォルダの色">';
-        FOLDER_COLOR_OPTIONS.forEach(function (option) {
-            var key = option[0];
-            var active = key === selected;
-            html += '<button type="button" class="cc-folder-color-choice cc-folder-color-' + key + (active ? ' is-selected' : '') + '" data-folder-color-key="' + key + '" aria-pressed="' + (active ? 'true' : 'false') + '">' +
-                '<span class="cc-folder-color-swatch" aria-hidden="true"></span><span>' + option[1] + '</span></button>';
+        var html = '<div class="cc-folder-color-categories">';
+        FOLDER_COLOR_CATEGORIES.forEach(function (category) {
+            html += '<section class="cc-folder-color-category" aria-label="' + category.label + 'カラー">' +
+                '<h4 class="cc-folder-color-category-title">' + category.label + '</h4>' +
+                '<div class="cc-folder-color-grid" role="group" aria-label="' + category.label + 'カラー">';
+            category.options.forEach(function (option) {
+                var key = option[0];
+                var active = key === selected;
+                html += '<button type="button" class="cc-folder-color-choice cc-folder-color-' + key + (active ? ' is-selected' : '') + '" data-folder-color-key="' + key + '" aria-pressed="' + (active ? 'true' : 'false') + '">' +
+                    '<span class="cc-folder-color-swatch" aria-hidden="true"></span><span>' + option[1] + '</span></button>';
+            });
+            html += '</div></section>';
         });
         return html + '</div>';
     }

@@ -14,7 +14,7 @@
     var STANDARD_MAX_CHORDS_PER_FOLDER = 10;
     var lastError = null;
     var DEFAULT_HIGHLIGHTED_FRETS = [0, 3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
-    var FOLDER_COLOR_KEYS = ['forest', 'burgundy', 'navy', 'umber', 'charcoal', 'teal', 'violet', 'russet', 'leather', 'black-leather', 'wine', 'black-gold', 'red', 'orange', 'yellow', 'green', 'blue', 'pink'];
+    var FOLDER_COLOR_KEYS = ['forest', 'burgundy', 'navy', 'umber', 'charcoal', 'teal', 'violet', 'russet', 'leather', 'black-leather', 'wine', 'black-gold', 'red', 'orange', 'yellow', 'green', 'blue', 'pink', 'pastel-pink', 'pastel-blue', 'pastel-purple', 'pastel-green', 'pastel-yellow', 'pastel-orange'];
     // Phase Dで公開する9種類を、保存設定でも正式値として扱う。
     // Object.keys() の列挙順には依存せず、UI側も同じ意図の並びを明示的に使う。
     var VALID_SCALE_TYPES = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'harmonic-minor', 'melodic-minor', 'locrian'];

@@ -2021,6 +2021,12 @@ body {
 .cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-green { --cc-book-main: #28724e; --cc-book-deep: #133b2a; }
 .cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-blue { --cc-book-main: #2c6099; --cc-book-deep: #163258; }
 .cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-pink { --cc-book-main: #943a68; --cc-book-deep: #4c1c37; }
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-pastel-pink { --cc-book-main: #b86e8d; --cc-book-deep: #65394d; }
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-pastel-blue { --cc-book-main: #618caf; --cc-book-deep: #304b67; }
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-pastel-purple { --cc-book-main: #8a70a8; --cc-book-deep: #49395d; }
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-pastel-green { --cc-book-main: #6d9c84; --cc-book-deep: #365a4a; }
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-pastel-yellow { --cc-book-main: #aa9457; --cc-book-deep: #5b4d28; }
+.cc-folder-list--shelf .cc-folder-card--design-a.cc-folder-color-pastel-orange { --cc-book-main: #b77d5e; --cc-book-deep: #65402e; }
 
 .cc-folder-card--book-a3 .cc-folder-card-name {
     color: #f2e3b7;
@@ -2358,6 +2364,24 @@ body {
     box-shadow: inset 0 0 0 2px #24201a;
 }
 
+.cc-folder-color-categories {
+    display: grid;
+    gap: 15px;
+}
+
+.cc-folder-color-category {
+    display: grid;
+    gap: 7px;
+}
+
+.cc-folder-color-category-title {
+    margin: 0;
+    color: var(--cc-champagne);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+}
+
 .cc-folder-color-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2400,7 +2424,13 @@ body {
 .cc-folder-color-choice.cc-folder-color-green { --cc-book-main: #28724e; --cc-book-deep: #133b2a; }
 .cc-folder-color-choice.cc-folder-color-blue { --cc-book-main: #2c6099; --cc-book-deep: #163258; }
 .cc-folder-color-choice.cc-folder-color-pink { --cc-book-main: #943a68; --cc-book-deep: #4c1c37; }
-.cc-folder-color-choice.cc-folder-color-forest, .cc-folder-color-choice.cc-folder-color-burgundy, .cc-folder-color-choice.cc-folder-color-navy, .cc-folder-color-choice.cc-folder-color-umber, .cc-folder-color-choice.cc-folder-color-charcoal, .cc-folder-color-choice.cc-folder-color-teal, .cc-folder-color-choice.cc-folder-color-violet, .cc-folder-color-choice.cc-folder-color-russet, .cc-folder-color-choice.cc-folder-color-leather, .cc-folder-color-choice.cc-folder-color-black-leather, .cc-folder-color-choice.cc-folder-color-wine, .cc-folder-color-choice.cc-folder-color-black-gold, .cc-folder-color-choice.cc-folder-color-red, .cc-folder-color-choice.cc-folder-color-orange, .cc-folder-color-choice.cc-folder-color-yellow, .cc-folder-color-choice.cc-folder-color-green, .cc-folder-color-choice.cc-folder-color-blue, .cc-folder-color-choice.cc-folder-color-pink { color: var(--cc-text-muted); }
+.cc-folder-color-choice.cc-folder-color-pastel-pink { --cc-book-main: #b86e8d; --cc-book-deep: #65394d; }
+.cc-folder-color-choice.cc-folder-color-pastel-blue { --cc-book-main: #618caf; --cc-book-deep: #304b67; }
+.cc-folder-color-choice.cc-folder-color-pastel-purple { --cc-book-main: #8a70a8; --cc-book-deep: #49395d; }
+.cc-folder-color-choice.cc-folder-color-pastel-green { --cc-book-main: #6d9c84; --cc-book-deep: #365a4a; }
+.cc-folder-color-choice.cc-folder-color-pastel-yellow { --cc-book-main: #aa9457; --cc-book-deep: #5b4d28; }
+.cc-folder-color-choice.cc-folder-color-pastel-orange { --cc-book-main: #b77d5e; --cc-book-deep: #65402e; }
+.cc-folder-color-choice.cc-folder-color-forest, .cc-folder-color-choice.cc-folder-color-burgundy, .cc-folder-color-choice.cc-folder-color-navy, .cc-folder-color-choice.cc-folder-color-umber, .cc-folder-color-choice.cc-folder-color-charcoal, .cc-folder-color-choice.cc-folder-color-teal, .cc-folder-color-choice.cc-folder-color-violet, .cc-folder-color-choice.cc-folder-color-russet, .cc-folder-color-choice.cc-folder-color-leather, .cc-folder-color-choice.cc-folder-color-black-leather, .cc-folder-color-choice.cc-folder-color-wine, .cc-folder-color-choice.cc-folder-color-black-gold, .cc-folder-color-choice.cc-folder-color-red, .cc-folder-color-choice.cc-folder-color-orange, .cc-folder-color-choice.cc-folder-color-yellow, .cc-folder-color-choice.cc-folder-color-green, .cc-folder-color-choice.cc-folder-color-blue, .cc-folder-color-choice.cc-folder-color-pink, .cc-folder-color-choice.cc-folder-color-pastel-pink, .cc-folder-color-choice.cc-folder-color-pastel-blue, .cc-folder-color-choice.cc-folder-color-pastel-purple, .cc-folder-color-choice.cc-folder-color-pastel-green, .cc-folder-color-choice.cc-folder-color-pastel-yellow, .cc-folder-color-choice.cc-folder-color-pastel-orange { color: var(--cc-text-muted); }
 
 .cc-chordcard-list {
     display: flex;
