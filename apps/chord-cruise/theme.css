@@ -3503,14 +3503,13 @@ body.cc-settings-open {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 104px;
-    padding: 7px 20px;
+    padding: 4px 15px;
     border: 1.5px solid #d4af37;
     border-radius: 6px;
     background: linear-gradient(135deg, #fff2ac 0%, #bf953f 25%, #fcf6ba 50%, #b38728 75%, #fbf5b7 100%);
     background-size: 200% auto;
     color: #1a1a1a;
-    font-size: 0.92rem;
+    font-size: 0.85rem;
     font-weight: 800;
     letter-spacing: 0.24em;
     line-height: 1;
@@ -3532,8 +3531,7 @@ body.cc-settings-open {
     }
 
     .cc-pro-badge {
-        min-width: 126px;
-        padding: 8px 24px;
+        padding: 6px 20px;
         font-size: 1rem;
         letter-spacing: 0.28em;
     }
