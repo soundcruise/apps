@@ -158,12 +158,20 @@
                 '</div>' +
                 '<div class="cc-save-section" id="cc-quality-analysis" hidden></div>' +
             '</div>' +
+            '<div class="cc-explore-home-row">' +
+                '<button type="button" class="cc-btn cc-btn-secondary cc-btn--block" id="cc-explore-home-btn">トップに戻る</button>' +
+            '</div>' +
             '';
         section.appendChild(content);
         bindEvents();
     }
 
     function bindEvents() {
+        document.getElementById('cc-explore-home-btn').addEventListener('click', function () {
+            // app.jsが管理する既存のTOP復帰経路をそのまま使う。
+            document.getElementById('cc-nav-top').click();
+        });
+
         document.getElementById('cc-key-select').addEventListener('change', function (event) {
             resetCagedNotice();
             saveSetting({ selectedKey: parseInt(event.target.value, 10) });

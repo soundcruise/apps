@@ -314,7 +314,7 @@
     }
 
     function folderModifierClasses(folder, count) {
-        return (folder.builtin ? ' is-builtin' : ' is-custom') + (count === 0 ? ' is-empty' : '') +
+        return ' is-custom' + (count === 0 ? ' is-empty' : '') +
             ' cc-folder-color-' + storage().folderColorKey(folder);
     }
 
@@ -342,7 +342,6 @@
                 spineTitleHtml(folder.name) +
                 '<span class="cc-folder-card-meta">' +
                     '<span class="cc-folder-card-count">' + count + '件</span>' +
-                    (folder.builtin ? '<span class="cc-folder-card-state cc-folder-card-state--fixed">先頭固定</span>' : '') +
                     (count === 0 ? '<span class="cc-folder-card-state cc-folder-card-state--empty">空</span>' : '') +
                 '</span>' +
             '</span>' +
@@ -350,7 +349,7 @@
     }
 
     function folderAriaLabel(folder, count) {
-        return folder.name + '、' + count + '件' + (folder.builtin ? '、先頭固定' : '') + (count === 0 ? '、空のフォルダ' : '') + '、開く';
+        return folder.name + '、' + count + '件' + (count === 0 ? '、空のフォルダ' : '') + '、開く';
     }
 
     function buildFolderShelfColumnsHtml() {
@@ -363,18 +362,15 @@
     }
 
     function folderSortCardHtml(folder, index, count, total) {
-            var fixed = folder.id === storage().UNCATEGORIZED_ID;
             var previousLabel = folderShelfColumns >= 5 ? '←' : '← 前へ';
             var nextLabel = folderShelfColumns >= 5 ? '→' : '後へ →';
             return '<div class="cc-sort-row cc-folder-card cc-folder-card--sorting cc-folder-card--design-a cc-folder-card--book-a3 ' +
                 folderModifierClasses(folder, count) + '" role="listitem" aria-label="' + escapeHtml(folder.name + '、' + count + '件、並び替え') + '">' +
                 folderCardInnerHtml(folder, count, false) +
-                (fixed
-                    ? ''
-                    : '<span class="cc-sort-row-actions">' +
-                        sortStepButtonHtml('folder', folder.id, -1, index <= 1, folder.name + 'を前の位置へ移動', previousLabel) +
-                        sortStepButtonHtml('folder', folder.id, 1, index >= total - 1, folder.name + 'を後の位置へ移動', nextLabel) +
-                      '</span>') +
+                '<span class="cc-sort-row-actions">' +
+                    sortStepButtonHtml('folder', folder.id, -1, index <= 0, folder.name + 'を前の位置へ移動', previousLabel) +
+                    sortStepButtonHtml('folder', folder.id, 1, index >= total - 1, folder.name + 'を後の位置へ移動', nextLabel) +
+                '</span>' +
             '</div>';
     }
 
@@ -411,7 +407,9 @@
     var FOLDER_COLOR_OPTIONS = [
         ['forest', '深緑'], ['burgundy', '深紅'], ['navy', '紺'], ['umber', '琥珀'],
         ['charcoal', '炭'], ['teal', '青緑'], ['violet', '紫'], ['russet', '赤茶'],
-        ['leather', '革茶'], ['black-leather', '黒革'], ['wine', 'ワイン'], ['black-gold', '黒金']
+        ['leather', '革茶'], ['black-leather', '黒革'], ['wine', 'ワイン'], ['black-gold', '黒金'],
+        ['red', '赤'], ['orange', 'オレンジ'], ['yellow', '黄'],
+        ['green', '緑'], ['blue', '青'], ['pink', 'ピンク']
     ];
 
     function toast(message, type) {
@@ -534,14 +532,10 @@
 
     function folderManageMenuHtml(folder, count) {
         var buttons = '';
-        if (!folder.builtin) {
-            buttons += '<button type="button" class="cc-folder-manage-action" data-folder-manage-action="rename">フォルダ名を編集</button>' +
-                '<button type="button" class="cc-folder-manage-action" data-folder-manage-action="copy">フォルダをコピー</button>';
-        }
+        buttons += '<button type="button" class="cc-folder-manage-action" data-folder-manage-action="rename">フォルダ名を編集</button>' +
+            '<button type="button" class="cc-folder-manage-action" data-folder-manage-action="copy">フォルダをコピー</button>';
         buttons += '<button type="button" class="cc-folder-manage-action" data-folder-manage-action="color">フォルダの色を変更</button>';
-        if (!folder.builtin) {
-            buttons += '<button type="button" class="cc-folder-manage-action cc-folder-manage-action--danger" data-folder-manage-action="delete">フォルダを削除</button>';
-        }
+        buttons += '<button type="button" class="cc-folder-manage-action cc-folder-manage-action--danger" data-folder-manage-action="delete">フォルダを削除</button>';
         return '<div class="cc-folder-manage-sheet" role="dialog" aria-modal="true" aria-labelledby="cc-folder-manage-title">' +
             '<div class="cc-folder-manage-grabber" aria-hidden="true"></div>' +
             '<div class="cc-folder-manage-heading"><h3 id="cc-folder-manage-title">' + escapeHtml(folder.name) + '</h3><p>' + count + '件のコード</p></div>' +

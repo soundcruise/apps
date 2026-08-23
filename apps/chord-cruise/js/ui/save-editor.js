@@ -756,9 +756,15 @@
             select.appendChild(option);
         });
         var exists = folders.some(function (folder) { return folder.id === draft.folderId; });
-        select.value = exists ? draft.folderId : window.ChordCruise.storage.UNCATEGORIZED_ID;
-        draft.folderId = select.value;
+        select.disabled = folders.length === 0;
+        select.value = exists ? draft.folderId : (folders[0] ? folders[0].id : '');
+        draft.folderId = select.value || '';
+        ['cc-save-confirm', 'cc-save-overwrite', 'cc-save-copy'].forEach(function (id) {
+            var button = document.getElementById(id);
+            if (button) button.disabled = folders.length === 0;
+        });
         renderSaveLimitSummary();
+        setFolderError(folders.length === 0 ? '保存するにはフォルダを作成してください。' : '');
     }
 
     /** Standard版の保存画面だけに、現在のフォルダ・コード保存上限を表示する。 */
@@ -778,10 +784,10 @@
         var folders = storage.loadFolders();
         var folderId = document.getElementById('cc-save-folder').value || draft.folderId;
         var chords = storage.loadChordIndex();
-        var customFolderCount = folders.filter(function (folder) { return folder && !folder.builtin; }).length;
+        var folderCount = folders.filter(function (folder) { return folder && folder.id; }).length;
         var chordCount = chords.filter(function (entry) { return entry && entry.folderId === folderId; }).length;
         document.getElementById('cc-save-folder-limit-count').textContent =
-            'フォルダ：' + customFolderCount + ' / ' + limits.maxCustomFolders;
+            'フォルダ：' + folderCount + ' / ' + limits.maxCustomFolders;
         document.getElementById('cc-save-chord-limit-count').textContent =
             'このフォルダ：' + chordCount + ' / ' + limits.maxChordsPerFolder;
         host.hidden = false;
@@ -793,7 +799,7 @@
         var folders = window.ChordCruise.storage.loadOrderedFolders();
         return folders.some(function (folder) { return folder.id === preferred; })
             ? preferred
-            : window.ChordCruise.storage.UNCATEGORIZED_ID;
+            : (folders[0] ? folders[0].id : '');
     }
 
     function rememberSaveFolder(folderId) {
@@ -976,7 +982,7 @@
         });
         record.mutedStrings.sort(function (a, b) { return a - b; });
         record.memo = values.memo;
-        record.folderId = values.folderId || window.ChordCruise.storage.UNCATEGORIZED_ID;
+        record.folderId = values.folderId || '';
 
         if (copyMode === 'copy') {
             delete record.id;
@@ -991,6 +997,10 @@
         if (saveInProgress) return;
         setError('');
         setCustomSaveProNotice(false);
+        if (!record.folderId) {
+            setFolderError('保存するにはフォルダを作成してください。');
+            return;
+        }
         if (draft.source === 'custom' && !canSaveCustomChord()) {
             setCustomSaveProNotice(true);
             return;
@@ -1002,6 +1012,10 @@
             saveInProgress = false;
             if (window.ChordCruise.storage.getLastError() === 'custom-chord-save-pro-required') {
                 setCustomSaveProNotice(true);
+                return;
+            }
+            if (window.ChordCruise.storage.getLastError() === 'folder-required') {
+                setFolderError('保存するにはフォルダを作成してください。');
                 return;
             }
             setError(storageErrorMessage('保存に失敗しました。ブラウザの保存領域を確認してください。'));
@@ -1058,8 +1072,8 @@
         document.getElementById('cc-save-chord-name').value = draft.chordName;
         document.getElementById('cc-save-form-name').value = draft.formName;
         document.getElementById('cc-save-memo').value = draft.memo;
-        renderFolders();
         resetFolderCreate();
+        renderFolders();
         setCustomSaveProNotice(false);
         setModeUi(draft.mode);
         updateDisplaySegments();
@@ -1185,7 +1199,7 @@
             formRange: { min: min, max: max, hasOpen: includesOpen },
             range: { min: min, max: max, includesOpen: includesOpen },
             memo: original.memo || '',
-            folderId: original.folderId || window.ChordCruise.storage.UNCATEGORIZED_ID,
+            folderId: original.folderId || preferredSaveFolderId(),
             autoCenterPending: true
         };
         showEditor();

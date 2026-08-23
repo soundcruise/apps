@@ -56,15 +56,20 @@ function chord(name) {
 
 (function standardBlocksOnlyCustomSaveAtStorageBoundary() {
     var cruise = loadEdition(null);
+    var folderId = cruise.storage.loadFolders()[0].id;
     assert.strictEqual(cruise.featureAccess.hasFeature('customChordCreate'), true, 'Standard may create a custom chord');
     assert.strictEqual(cruise.featureAccess.hasFeature('customChordFretboardView'), true, 'Standard may inspect its fretboard');
     assert.strictEqual(cruise.featureAccess.hasFeature('customChordSave'), false, 'Standard custom save is a separate disabled feature');
 
-    assert.strictEqual(cruise.storage.saveChord(chord('Custom C'), { source: 'custom' }), null, 'Standard storage rejects a custom save');
+    var custom = chord('Custom C');
+    custom.folderId = folderId;
+    assert.strictEqual(cruise.storage.saveChord(custom, { source: 'custom' }), null, 'Standard storage rejects a custom save');
     assert.strictEqual(cruise.storage.getLastError(), 'custom-chord-save-pro-required', 'custom save rejection has a stable error code');
     assert.strictEqual(cruise.storage.loadChordIndex().length, 0, 'rejection does not create a record or index entry');
 
-    var ordinary = cruise.storage.saveChord(chord('Diatonic C'), { source: 'diatonic' });
+    var ordinaryInput = chord('Diatonic C');
+    ordinaryInput.folderId = folderId;
+    var ordinary = cruise.storage.saveChord(ordinaryInput, { source: 'diatonic' });
     assert(ordinary, 'Standard ordinary chord save remains available within its library limit');
     assert.strictEqual(Object.prototype.hasOwnProperty.call(ordinary, 'source'), false, 'transient source is not added to schemaVersion 1 records');
     assert.strictEqual(ordinary.schemaVersion, 1, 'record schema remains version 1');
@@ -73,14 +78,16 @@ function chord(name) {
 (function proAllowsCustomSaveAndStandardCanReadExistingData() {
     var sharedStorage = createLocalStorage();
     var pro = loadEdition('Pro', sharedStorage);
-    var saved = pro.storage.saveChord(chord('Pro Custom C'), { source: 'custom' });
+    var input = chord('Pro Custom C');
+    input.folderId = pro.storage.loadFolders()[0].id;
+    var saved = pro.storage.saveChord(input, { source: 'custom' });
     assert(saved, 'Pro storage accepts a custom save');
 
     var standard = loadEdition(null, sharedStorage);
     assert.deepStrictEqual(JSON.parse(JSON.stringify(standard.storage.loadChord(saved.id))), JSON.parse(JSON.stringify(saved)), 'Standard can read an existing custom record unchanged');
 }());
 
-assert(standardHtml.includes('<script src="../js/core/feature-access.js?v=0.37.4"></script>'), 'Standard loads feature access');
+assert(standardHtml.includes('<script src="../js/core/feature-access.js?v=0.37.5"></script>'), 'Standard loads feature access');
 assert(standardHtml.indexOf('js/core/feature-access.js') < standardHtml.indexOf('js/core/storage.js'), 'Standard loads feature access before storage');
 assert(proHtml.indexOf('../js/core/feature-access.js') < proHtml.indexOf('../js/core/storage.js'), 'Pro loads feature access before storage');
 assert(saveEditorSource.includes("source: chord.source === 'custom' ? 'custom' : 'diatonic'"), 'save editor keeps a transient source for new saves');

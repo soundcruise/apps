@@ -44,7 +44,7 @@ function loadStorage() {
 (function settingsRetainLastSaveFolderOutsideRecords() {
     var env = loadStorage();
     var storage = env.storage;
-    assert.strictEqual(storage.loadSettings().lastSaveFolderId, storage.UNCATEGORIZED_ID, 'default save folder is uncategorized');
+    assert.strictEqual(storage.loadSettings().lastSaveFolderId, '', 'default save folder is unset until an existing folder is selected');
     assert.strictEqual(storage.saveSettings({ lastSaveFolderId: 'folder_last' }), true, 'last save folder persists through settings');
     assert.strictEqual(storage.loadSettings().lastSaveFolderId, 'folder_last', 'last save folder reloads from settings');
 

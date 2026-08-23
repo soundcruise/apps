@@ -58,7 +58,7 @@ function makeLocalStorage(seed, failKeys, failRemoveKeys, failurePlan) {
 
 function baseData() {
     const folders = [
-        { id: UNCATEGORIZED, name: '未分類', builtin: true, order: 0 },
+        { id: UNCATEGORIZED, name: '未分類', builtin: false, order: 0 },
         { id: 'folder-a', name: 'A', builtin: false, order: 2 },
         { id: 'folder-b', name: 'B', builtin: false, order: 1 },
         { id: 'folder-empty', name: '空', builtin: false, order: 3 }
@@ -189,12 +189,14 @@ function orderOf(env) {
     assert.strictEqual(env.localStorage.getItem(ORDER_KEY), null, 'read-only legacy migration should stay in memory');
 })();
 
-(function folderMovesPersistAndKeepUncategorizedFirst() {
+(function folderMovesTreatUncategorizedAsNormal() {
     const env = loadStorage(baseData());
     assert.strictEqual(env.storage.moveFolder('folder-a', -1), true);
     assert.deepStrictEqual(orderOf(env).folderIds, [UNCATEGORIZED, 'folder-a', 'folder-b', 'folder-empty']);
-    assert.strictEqual(env.storage.moveFolder(UNCATEGORIZED, 1), false);
-    assert.strictEqual(env.storage.moveFolder('folder-a', -1), false);
+    assert.strictEqual(env.storage.moveFolder(UNCATEGORIZED, 1), true);
+    assert.deepStrictEqual(orderOf(env).folderIds, ['folder-a', UNCATEGORIZED, 'folder-b', 'folder-empty']);
+    assert.strictEqual(env.storage.moveFolder(UNCATEGORIZED, -1), true);
+    assert.strictEqual(env.storage.moveFolder(UNCATEGORIZED, -1), false);
     assert.strictEqual(env.storage.moveFolder('folder-empty', 1), false);
 })();
 
@@ -223,7 +225,7 @@ function orderOf(env) {
     });
     const env = loadStorage(seed);
     const normalized = native(env.storage.loadLibraryOrder());
-    assert.deepStrictEqual(normalized.folderIds, [UNCATEGORIZED, 'folder-a', 'folder-b', 'folder-empty']);
+    assert.deepStrictEqual(normalized.folderIds, ['folder-a', UNCATEGORIZED, 'folder-b', 'folder-empty']);
     assert.deepStrictEqual(normalized.entryIdsByFolder['folder-a'], ['a1', 'a2']);
     assert.deepStrictEqual(normalized.entryIdsByFolder['folder-b'], ['b1']);
     assert.deepStrictEqual(native(env.storage.loadLibraryOrder()), normalized, 'normalization must be idempotent');
@@ -409,7 +411,8 @@ function orderOf(env) {
     assert.strictEqual(env.storage.loadChord('a2'), null);
     assert.deepStrictEqual(ids(env.storage.loadChordIndex()), ['u1'], 'other folder entries remain after b1 was deleted');
     assert(!env.storage.loadFolders().some((folder) => folder.id === 'folder-a'), 'folder metadata including color is removed');
-    assert.strictEqual(env.storage.deleteFolder(UNCATEGORIZED), false, 'uncategorized cannot be deleted');
+    assert.strictEqual(env.storage.deleteFolder(UNCATEGORIZED), true, 'uncategorized is deletable like every other folder');
+    assert.strictEqual(env.storage.loadChord('u1'), null, 'deleting uncategorized also removes its owned records');
 })();
 
 (function failedOrderWriteDoesNotChangePersistedOrderOrIndex() {

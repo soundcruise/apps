@@ -344,6 +344,17 @@
             });
         });
 
+        // 同じ弦の押弦音と0F表示（開放弦／ミュート）は同時に成立しない。
+        // 保存データは補正せず、全描画経路で共有するモデルだけを正規化する。
+        // 消去予定の音は鳴らす音ではないため、0F表示を抑制しない。
+        var frettedStrings = {};
+        markers.forEach(function (marker) {
+            if (marker.fret > 0 && !marker.pendingDelete) frettedStrings[marker.string] = true;
+        });
+        markers = markers.filter(function (marker) {
+            return !(marker.fret === 0 && frettedStrings[marker.string]);
+        });
+
         (opts.barres || []).forEach(function (barre) {
             var x = layout.centerForFret(barre.fret);
             var topString = Math.min(barre.fromString, barre.toString);
@@ -363,7 +374,7 @@
         });
 
         (opts.mutedStrings || []).forEach(function (stringNum) {
-            if (stringNum < 1 || stringNum > 6 || mutedStrings.indexOf(stringNum) !== -1) return;
+            if (stringNum < 1 || stringNum > 6 || frettedStrings[stringNum] || mutedStrings.indexOf(stringNum) !== -1) return;
             mutedStrings.push(stringNum);
         });
 

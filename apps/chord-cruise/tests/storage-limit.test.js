@@ -58,13 +58,17 @@ function chord(folderId, index) {
         maxChordsPerFolder: 10
     }, 'Standard exposes the candidate limits');
 
+    var initialFolder = storage.loadFolders()[0];
+    assert(initialFolder && initialFolder.id === storage.UNCATEGORIZED_ID, 'new users start with an uncategorized folder');
+    assert.strictEqual(initialFolder.builtin, false, 'the initial uncategorized folder is a normal folder');
+
     var folders = [];
-    for (var folderIndex = 1; folderIndex <= 3; folderIndex += 1) {
+    for (var folderIndex = 1; folderIndex <= 2; folderIndex += 1) {
         folders.push(storage.createFolder('Folder ' + folderIndex));
-        assert(folders[folderIndex - 1], 'Standard creates custom folder ' + folderIndex);
+        assert(folders[folderIndex - 1], 'Standard creates folder ' + folderIndex);
     }
-    assert.strictEqual(storage.loadFolders().length, 4, 'the builtin uncategorized folder is not counted against three custom folders');
-    assert.strictEqual(storage.createFolder('Folder 4'), null, 'Standard rejects the fourth custom folder');
+    assert.strictEqual(storage.loadFolders().length, 3, 'uncategorized is included in the Standard three-folder limit');
+    assert.strictEqual(storage.createFolder('Folder 3'), null, 'Standard rejects a fourth total folder');
     assert.strictEqual(storage.getLastError(), 'standard-folder-limit', 'folder rejection exposes a stable error code');
     assert.strictEqual(storage.copyFolder(folders[0].id), null, 'Standard also rejects folder copy at the folder limit');
     assert.strictEqual(storage.getLastError(), 'standard-folder-limit', 'folder copy reports the same folder limit');
@@ -84,6 +88,38 @@ function chord(folderId, index) {
     anotherFolderChord.folderId = folders[0].id;
     assert.strictEqual(storage.saveChord(anotherFolderChord), null, 'Standard cannot move an existing chord into a full folder');
     assert.strictEqual(storage.loadChord(anotherFolderChord.id).folderId, folders[1].id, 'rejected move preserves the existing record');
+}());
+
+(function uncategorizedCanBeRemovedWithoutRegeneration() {
+    var env = loadEdition(null);
+    var storage = env.storage;
+    var uncategorized = storage.loadFolders()[0];
+    assert.strictEqual(storage.renameFolder(uncategorized.id, '最初のフォルダ'), true, 'uncategorized can be renamed');
+    assert.strictEqual(storage.setFolderColor(uncategorized.id, 'blue'), true, 'uncategorized can be recolored');
+    var copied = storage.copyFolder(uncategorized.id);
+    assert(copied, 'uncategorized can be copied');
+    assert.strictEqual(storage.moveFolder(copied.id, -1), true, 'uncategorized participates in normal folder ordering');
+    assert.strictEqual(storage.deleteFolder(copied.id), true, 'a copied folder can be removed normally');
+    assert.strictEqual(storage.deleteFolder(uncategorized.id), true, 'uncategorized can be deleted');
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(storage.loadFolders())), [], 'an explicit empty folder list remains empty');
+    assert.strictEqual(storage.saveChord(chord(uncategorized.id, 1)), null, 'saving into a deleted folder is rejected');
+    assert.strictEqual(storage.getLastError(), 'folder-required', 'missing save destinations expose a stable error code');
+    var created = storage.createFolder('保存先');
+    assert(created, 'a new folder can be created from the empty state');
+    assert(storage.saveChord(chord(created.id, 1)), 'saving succeeds after a destination is created');
+}());
+
+(function legacyBuiltinUncategorizedIsNormalizedOnce() {
+    var env = loadEdition(null);
+    env.localStorage.setItem('chordCruise.folders', JSON.stringify([{
+        id: env.storage.UNCATEGORIZED_ID,
+        name: '未分類',
+        builtin: true,
+        order: 0
+    }]));
+    var folder = env.storage.loadFolders()[0];
+    assert.strictEqual(folder.builtin, false, 'legacy builtin uncategorized folders become normal folders');
+    assert.strictEqual(JSON.parse(env.localStorage.getItem('chordCruise.folders'))[0].builtin, false, 'normalization persists once');
 }());
 
 (function proHasNoCandidateLimits() {
@@ -111,4 +147,4 @@ assert(saveEditorSource.includes('Standard版では1フォルダ10個まで保�
 assert(librarySource.includes('Standard版ではフォルダは3個まで保存できます。'), 'library explains the Standard folder limit');
 assert(librarySource.includes('Standard版では1フォルダ10個まで保存できます。'), 'library explains the Standard chord limit');
 
-console.log('storage-limit: Standard 3 custom folders / 10 chords per folder, safe overwrite, rejected move, and Pro unlimited access OK');
+console.log('storage-limit: Standard 3 total folders / 10 chords per folder, empty-state safety, and Pro unlimited access OK');

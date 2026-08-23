@@ -120,6 +120,7 @@ var saved = context.window.ChordCruise.storage.saveChord({
     chordName: 'C',
     formName: '編集フォーム',
     shape: 'C',
+    folderId: context.window.ChordCruise.storage.loadFolders()[0].id,
     notes: [persistedNote],
     mutedStrings: []
 });

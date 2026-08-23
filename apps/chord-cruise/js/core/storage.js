@@ -14,7 +14,7 @@
     var STANDARD_MAX_CHORDS_PER_FOLDER = 10;
     var lastError = null;
     var DEFAULT_HIGHLIGHTED_FRETS = [0, 3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
-    var FOLDER_COLOR_KEYS = ['forest', 'burgundy', 'navy', 'umber', 'charcoal', 'teal', 'violet', 'russet', 'leather', 'black-leather', 'wine', 'black-gold'];
+    var FOLDER_COLOR_KEYS = ['forest', 'burgundy', 'navy', 'umber', 'charcoal', 'teal', 'violet', 'russet', 'leather', 'black-leather', 'wine', 'black-gold', 'red', 'orange', 'yellow', 'green', 'blue', 'pink'];
     // Phase Dで公開する9種類を、保存設定でも正式値として扱う。
     // Object.keys() の列挙順には依存せず、UI側も同じ意図の並びを明示的に使う。
     var VALID_SCALE_TYPES = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'harmonic-minor', 'melodic-minor', 'locrian'];
@@ -40,8 +40,8 @@
         return hasFeature('unlimitedLibrary');
     }
 
-    function customFolderCount(folders) {
-        return folders.filter(function (folder) { return folder && !folder.builtin; }).length;
+    function folderCount(folders) {
+        return folders.filter(function (folder) { return folder && folder.id; }).length;
     }
 
     function chordCountInFolder(index, folderId, excludedId) {
@@ -78,7 +78,7 @@
         libraryCardMonochrome: false,
         librarySortMode: 'updatedDesc',
         // 新規保存画面だけで使うUI設定。保存コードのrecordには含めない。
-        lastSaveFolderId: UNCATEGORIZED_ID
+        lastSaveFolderId: ''
     };
 
     function normalizeHighlightedFrets(value) {
@@ -128,8 +128,8 @@
         normalized.highlightedFrets = normalizeHighlightedFrets(normalized.highlightedFrets);
         normalized.highFretMode = normalized.highFretMode === true;
         normalized.cagedFormLocked = normalized.cagedFormLocked === true;
-        if (typeof normalized.lastSaveFolderId !== 'string' || !normalized.lastSaveFolderId) {
-            normalized.lastSaveFolderId = UNCATEGORIZED_ID;
+        if (typeof normalized.lastSaveFolderId !== 'string') {
+            normalized.lastSaveFolderId = '';
         }
         return normalized;
     }
@@ -269,38 +269,45 @@
         });
     }
 
-    function ensureUncategorizedFolder(folders) {
-        var hasUncategorized = folders.some(function (folder) {
-            return folder && folder.id === UNCATEGORIZED_ID;
-        });
-        if (hasUncategorized) return folders;
-        return [{
+    function initialUncategorizedFolder() {
+        return {
             id: UNCATEGORIZED_ID,
             name: '未分類',
-            builtin: true,
+            builtin: false,
+            colorKey: defaultFolderColorKey(),
             order: 0,
             createdAt: nowIso(),
             updatedAt: nowIso()
-        }].concat(folders);
+        };
+    }
+
+    /**
+     * 旧版の未分類フォルダだけを、通常フォルダとして一度だけ正規化する。
+     * 空配列はユーザーが全フォルダを削除した有効な状態なので補充しない。
+     */
+    function normalizeUncategorizedFolder(folders) {
+        var changed = false;
+        var normalized = folders.map(function (folder) {
+            if (!folder || folder.id !== UNCATEGORIZED_ID || folder.builtin !== true) return folder;
+            var next = {};
+            Object.keys(folder).forEach(function (key) { next[key] = folder[key]; });
+            next.builtin = false;
+            changed = true;
+            return next;
+        });
+        return { folders: normalized, changed: changed };
     }
 
     function loadFolders() {
         var folders = readJSON(KEY_FOLDERS, null);
-        if (!Array.isArray(folders) || folders.length === 0) {
-            folders = [{
-                id: UNCATEGORIZED_ID,
-                name: '未分類',
-                builtin: true,
-                order: 0,
-                createdAt: nowIso(),
-                updatedAt: nowIso()
-            }];
+        if (!Array.isArray(folders)) {
+            folders = [initialUncategorizedFolder()];
             writeJSON(KEY_FOLDERS, folders);
-        } else if (!folders.some(function (folder) { return folder && folder.id === UNCATEGORIZED_ID; })) {
-            folders = ensureUncategorizedFolder(folders);
-            writeJSON(KEY_FOLDERS, folders);
+            return folders;
         }
-        return folders;
+        var normalized = normalizeUncategorizedFolder(folders);
+        if (normalized.changed) writeJSON(KEY_FOLDERS, normalized.folders);
+        return normalized.folders;
     }
 
     function saveFolders(folders) {
@@ -310,7 +317,7 @@
     function createFolder(name) {
         setLastError(null);
         var folders = loadFolders();
-        if (!hasUnlimitedLibraryAccess() && customFolderCount(folders) >= STANDARD_MAX_CUSTOM_FOLDERS) {
+        if (!hasUnlimitedLibraryAccess() && folderCount(folders) >= STANDARD_MAX_CUSTOM_FOLDERS) {
             setLastError('standard-folder-limit');
             return null;
         }
@@ -343,12 +350,11 @@
         return folder;
     }
 
-    /** builtin フォルダは改名不可 */
     function renameFolder(id, name) {
         var folders = loadFolders();
         var changed = false;
         folders.forEach(function (folder) {
-            if (folder.id === id && !folder.builtin) {
+            if (folder.id === id) {
                 folder.name = name;
                 folder.updatedAt = nowIso();
                 changed = true;
@@ -412,8 +418,8 @@
         var index = loadChordIndex();
         var source = null;
         folders.forEach(function (folder) { if (folder.id === id) source = folder; });
-        if (!source || source.builtin) return null;
-        if (!hasUnlimitedLibraryAccess() && customFolderCount(folders) >= STANDARD_MAX_CUSTOM_FOLDERS) {
+        if (!source) return null;
+        if (!hasUnlimitedLibraryAccess() && folderCount(folders) >= STANDARD_MAX_CUSTOM_FOLDERS) {
             setLastError('standard-folder-limit');
             return null;
         }
@@ -480,7 +486,7 @@
         }
     }
 
-    /** builtin フォルダは削除不可。通常フォルダは所属コードごと完全に削除する。 */
+    /** フォルダは所属コードごと完全に削除する。 */
     function deleteFolder(id) {
         var folders = loadFolders();
         var indexBefore = loadChordIndex();
@@ -489,7 +495,7 @@
         folders.forEach(function (folder) {
             if (folder.id === id) target = folder;
         });
-        if (!target || target.builtin) {
+        if (!target) {
             return false;
         }
         var deletedIds = (orderBefore.entryIdsByFolder[id] || []).slice();
@@ -538,8 +544,6 @@
         return uniqueById(folders).map(function (folder, index) {
             return { folder: folder, index: index };
         }).sort(function (a, b) {
-            if (a.folder.id === UNCATEGORIZED_ID) return -1;
-            if (b.folder.id === UNCATEGORIZED_ID) return 1;
             var aOrder = typeof a.folder.order === 'number' ? a.folder.order : 0;
             var bOrder = typeof b.folder.order === 'number' ? b.folder.order : 0;
             return aOrder - bOrder || a.index - b.index;
@@ -594,9 +598,6 @@
             seenFolders[id] = true;
             folderIds.push(id);
         });
-        folderIds = folderIds.filter(function (id) { return id !== UNCATEGORIZED_ID; });
-        if (folderLookup[UNCATEGORIZED_ID]) folderIds.unshift(UNCATEGORIZED_ID);
-
         var rawByFolder = rawOrder && rawOrder.entryIdsByFolder && typeof rawOrder.entryIdsByFolder === 'object'
             ? rawOrder.entryIdsByFolder
             : {};
@@ -663,13 +664,13 @@
     }
 
     function moveFolder(id, delta) {
-        if (id === UNCATEGORIZED_ID || (delta !== -1 && delta !== 1)) return false;
+        if (delta !== -1 && delta !== 1) return false;
         var folders = loadFolders();
         var index = loadChordIndex();
         var order = libraryOrderInfo(folders, index).order;
         var position = order.folderIds.indexOf(id);
         var nextPosition = position + delta;
-        if (position < 1 || nextPosition < 1 || nextPosition >= order.folderIds.length) return false;
+        if (position < 0 || nextPosition < 0 || nextPosition >= order.folderIds.length) return false;
         var next = normalizeLibraryOrder(order, folders, index);
         var swap = next.folderIds[nextPosition];
         next.folderIds[nextPosition] = id;
@@ -737,8 +738,10 @@
         }
         record.schemaVersion = 1;
         record.updatedAt = nowIso();
-        if (!record.folderId) {
-            record.folderId = UNCATEGORIZED_ID;
+        var folders = loadFolders();
+        if (!record.folderId || !folders.some(function (folder) { return folder && folder.id === record.folderId; })) {
+            setLastError('folder-required');
+            return null;
         }
         var addsToDestination = isNew || !previousEntry || previousEntry.folderId !== record.folderId;
         if (!hasUnlimitedLibraryAccess() && addsToDestination &&
@@ -749,7 +752,6 @@
         var snapshot = null;
         try {
             snapshot = snapshotKeys([chordKey(record.id), KEY_CHORD_INDEX, KEY_LIBRARY_ORDER, KEY_FOLDERS]);
-            var folders = loadFolders();
             var orderBefore = libraryOrderInfo(folders, indexBefore).order;
             if (!writeJSON(chordKey(record.id), record)) throw new Error('chord write failed');
             var index = indexBefore.filter(function (entry) {
