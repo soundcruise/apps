@@ -408,11 +408,17 @@
         {
             label: 'クラシック',
             options: [
-                ['forest', '深緑'], ['burgundy', '深紅'], ['navy', '紺'], ['umber', '琥珀'],
-                ['charcoal', '炭'], ['teal', '青緑'], ['violet', '紫'], ['russet', '赤茶'],
-                ['leather', '革茶'], ['black-leather', '黒革'], ['wine', 'ワイン'], ['black-gold', '黒金'],
+                ['black-leather', '黒革'], ['leather', '革茶'], ['black-gold', '黒金'],
+                ['umber', '琥珀'], ['burgundy', '深紅'], ['wine', 'ワイン'],
+                ['navy', '紺'], ['forest', '深緑'], ['charcoal', '炭']
+            ]
+        },
+        {
+            label: 'スタンダード',
+            options: [
                 ['red', '赤'], ['orange', 'オレンジ'], ['yellow', '黄'],
-                ['green', '緑'], ['blue', '青'], ['pink', 'ピンク']
+                ['green', '緑'], ['blue', '青'], ['pink', 'ピンク'],
+                ['teal', '青緑'], ['violet', '紫'], ['russet', '赤茶']
             ]
         },
         {

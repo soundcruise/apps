@@ -24,7 +24,34 @@ var root = path.join(__dirname, '..');
 var librarySource = fs.readFileSync(path.join(root, 'js/ui/library.js'), 'utf8');
 var themeSource = fs.readFileSync(path.join(root, 'theme.css'), 'utf8');
 var storage = window.ChordCruise.storage;
-var keys = ['pastel-pink', 'pastel-blue', 'pastel-purple', 'pastel-green', 'pastel-yellow', 'pastel-orange'];
+var categories = [
+    {
+        label: 'クラシック',
+        keys: [
+            'black-leather', 'leather', 'black-gold',
+            'umber', 'burgundy', 'wine',
+            'navy', 'forest', 'charcoal'
+        ]
+    },
+    {
+        label: 'スタンダード',
+        keys: [
+            'red', 'orange', 'yellow',
+            'green', 'blue', 'pink',
+            'teal', 'violet', 'russet'
+        ]
+    },
+    {
+        label: 'パステル',
+        keys: [
+            'pastel-pink', 'pastel-blue', 'pastel-purple',
+            'pastel-green', 'pastel-yellow', 'pastel-orange'
+        ]
+    }
+];
+var keys = categories.reduce(function (all, category) {
+    return all.concat(category.keys);
+}, []);
 var folder = storage.createFolder('パステルカラー');
 
 keys.forEach(function (key) {
@@ -36,10 +63,22 @@ keys.forEach(function (key) {
     assert(themeSource.includes('.cc-folder-color-' + key), key + ' has a shelf and picker CSS color rule');
 });
 
-['クラシック', 'パステル'].forEach(function (label) {
-    assert(librarySource.includes("label: '" + label + "'"), label + ' category is present in the picker');
+categories.forEach(function (category, index) {
+    var categoryStart = librarySource.indexOf("label: '" + category.label + "'");
+    var nextCategoryStart = index + 1 < categories.length
+        ? librarySource.indexOf("label: '" + categories[index + 1].label + "'")
+        : librarySource.indexOf('];', categoryStart);
+    assert(categoryStart !== -1, category.label + ' category is present in the picker');
+    assert(nextCategoryStart > categoryStart, category.label + ' category source range exists');
+    category.keys.forEach(function (key) {
+        var keyPosition = librarySource.indexOf("['" + key + "', '", categoryStart);
+        assert(
+            keyPosition > categoryStart && keyPosition < nextCategoryStart,
+            key + ' belongs to the ' + category.label + ' category'
+        );
+    });
 });
 assert(librarySource.includes('cc-folder-color-categories'), 'picker groups color choices by category');
 assert(themeSource.includes('.cc-folder-color-category-title'), 'category titles have dedicated picker styling');
 
-console.log('folder-color-options: pastel book colors validate, persist, and render in classic/pastel picker categories OK');
+console.log('folder-color-options: all book colors validate, persist, and render in classic/standard/pastel picker categories OK');
