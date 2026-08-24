@@ -1243,6 +1243,12 @@
         return roleForInterval(interval);
     }
 
+    function roleForBassOverlay(overlay) {
+        if (!overlay || overlay.chordToneIndex === null) return 'non-chord';
+        var role = roleForInterval(overlay.interval);
+        return role === 'third' || role === 'fifth' ? role : 'non-chord';
+    }
+
     function savedBassPc(chord) {
         return chord && typeof chord.bassPc === 'number' && Math.floor(chord.bassPc) === chord.bassPc && chord.bassPc >= 0 && chord.bassPc <= 11
             ? chord.bassPc
@@ -1352,7 +1358,7 @@
             var marker = {
                 string: overlay.string, fret: overlay.fret,
                 label: mode === 'finger' ? savedBassFingeringLabel(chord, overlay) : bassMarkerLabel(chord, overlay, mode, spelledNoteNames),
-                role: roleForInterval(overlay.interval), isOverlay: true, overlayType: 'bass',
+                role: roleForBassOverlay(overlay), isOverlay: true, overlayType: 'bass',
                 isBassCandidate: true, finger: (bassEntry || {}).finger || null,
                 fingeringWarning: !!((bassEntry || {}).fingeringWarning),
                 pendingDelete: false,

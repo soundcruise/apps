@@ -647,6 +647,12 @@
         return chord && (chord.qualityKey === '6' || chord.qualityKey === 'm6') && interval === 9 ? 'sixth' : roleForInterval(interval);
     }
 
+    function roleForBassOverlay(overlay) {
+        if (!overlay || overlay.chordToneIndex === null) return 'non-chord';
+        var role = roleForInterval(overlay.interval);
+        return role === 'third' || role === 'fifth' ? role : 'non-chord';
+    }
+
     function computeChordToneMarkers(chord) {
         var theory = getTheory();
         var useFlats = chordUseFlats(chord);
@@ -932,7 +938,7 @@
                 string: overlay.string,
                 fret: overlay.fret,
                 label: bassOverlayMarkerLabel(chord, overlay),
-                role: roleForInterval(overlay.interval),
+                role: roleForBassOverlay(overlay),
                 isOverlay: true,
                 overlayType: overlay.type,
                 isBassCandidate: true,
@@ -1222,6 +1228,7 @@
             preserveScroll: (form && scrollToFret !== null) ? null : (typeof prevScroll === 'number' ? prevScroll : null),
             animateScroll: animateFretboardScroll && !!form && scrollToFret !== null,
             initialScroll: animateFretboardScroll ? prevScroll : null,
+            preserveOpenBassCandidates: true,
             markerLabelSize: getSettings().fretboardMarkerLabelSize
         });
         setFbHint(hint);

@@ -72,9 +72,16 @@ assert.deepStrictEqual(builder.initialSpecForChord({
 assert.deepStrictEqual(builder.defaultInitialSpec(), expected(0, 4, 7, null),
     'reset target is the original C major default');
 
-var builderSource = require('fs').readFileSync(require('path').join(__dirname, '../js/ui/chord-builder.js'), 'utf8');
+var fs = require('fs');
+var path = require('path');
+var builderSource = fs.readFileSync(path.join(__dirname, '../js/ui/chord-builder.js'), 'utf8');
+var themeSource = fs.readFileSync(path.join(__dirname, '../theme.css'), 'utf8');
 assert.ok(builderSource.indexOf('id="cc-builder-reset"') !== -1,
     'the builder renders a reset button');
+assert.ok(builderSource.indexOf('cc-save-actions cc-builder-actions') !== -1,
+    'the builder action row has a dedicated spacing class');
+assert.ok(/\.cc-builder-actions\s*\{[\s\S]*?gap:\s*10px;[\s\S]*?\}/.test(themeSource),
+    'the builder-only action row adds spacing without changing shared save actions');
 assert.ok(builderSource.indexOf('applyInitialSpec(defaultInitialSpec())') !== -1,
     'reset reuses the default initial state and clears hand-edited naming through the shared initializer');
 

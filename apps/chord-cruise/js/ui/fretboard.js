@@ -348,11 +348,16 @@
         // 保存データは補正せず、全描画経路で共有するモデルだけを正規化する。
         // 消去予定の音は鳴らす音ではないため、0F表示を抑制しない。
         var frettedStrings = {};
+        var openConflictStrings = {};
         markers.forEach(function (marker) {
-            if (marker.fret > 0 && !marker.pendingDelete) frettedStrings[marker.string] = true;
+            if (marker.fret <= 0 || marker.pendingDelete) return;
+            frettedStrings[marker.string] = true;
+            var alternativeBassOverlay = opts.preserveOpenBassCandidates === true && marker.isOverlay && marker.isBassCandidate;
+            if (!alternativeBassOverlay) openConflictStrings[marker.string] = true;
         });
         markers = markers.filter(function (marker) {
-            return !(marker.fret === 0 && frettedStrings[marker.string]);
+            var preserveOpenBassCandidate = opts.preserveOpenBassCandidates === true && marker.isBassCandidate;
+            return !(marker.fret === 0 && openConflictStrings[marker.string] && !preserveOpenBassCandidate);
         });
 
         (opts.barres || []).forEach(function (barre) {
@@ -578,6 +583,7 @@
      *   animateScroll  scrollToFretへ滑らかに移動するか
      *   initialScroll  アニメーション開始位置のscrollLeft
      *   markerLabelSize xsmall / small / medium / large / xlarge。指定したHTML指板だけへ丸内文字サイズを適用
+     *   preserveOpenBassCandidates Exploreの候補表示で、同じ弦の別候補が押弦でも0F Bass候補を保持
      *   openStringNutOnly 白黒表示で開放弦列を0フレット枠にせずナットとして表示
      *   monochromeViewportLeftCrop 白黒本棚の左側キャンバスを切り詰める量（内部座標は不変）
      *   onSlotTap      function(stringNum, fret) マーカータップ時（運指編集用）

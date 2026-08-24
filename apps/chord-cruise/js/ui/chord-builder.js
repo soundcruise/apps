@@ -73,7 +73,7 @@
                         '</div>' +
                     '</div>' +
                 '</div>' +
-                '<div class="cc-save-actions">' +
+                '<div class="cc-save-actions cc-builder-actions">' +
                     '<button type="button" class="cc-btn cc-btn-secondary cc-btn--block" id="cc-builder-reset">リセット</button>' +
                     '<button type="button" class="cc-btn cc-btn-primary cc-btn--block" id="cc-builder-apply">指板に表示</button>' +
                 '</div>' +

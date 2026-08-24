@@ -47,6 +47,23 @@ var openAndFretted = fretboard.createModel({
 });
 assert.deepStrictEqual(openAndFretted.markers.map(function (item) { return [item.string, item.fret]; }), [[6, 3]], 'a same-string open marker is hidden when a fretted marker exists');
 
+var ordinaryOpenWithExploreOption = fretboard.createModel({
+    frets: [0, 1, 2, 3],
+    markers: [marker(6, 0, 'open'), marker(6, 3, 'G')],
+    preserveOpenBassCandidates: true
+});
+assert.deepStrictEqual(ordinaryOpenWithExploreOption.markers.map(function (item) { return [item.string, item.fret]; }), [[6, 3]], 'the Explore option preserves Bass candidates only, not ordinary conflicting open notes');
+
+var mergedFormBassWithOpen = fretboard.createModel({
+    frets: [0, 1, 2, 3, 4, 5, 6, 7],
+    markers: [
+        marker(5, 0, 'A'),
+        marker(5, 7, 'E', { isBassCandidate: true })
+    ],
+    preserveOpenBassCandidates: true
+});
+assert.deepStrictEqual(mergedFormBassWithOpen.markers.map(function (item) { return [item.string, item.fret]; }), [[5, 7]], 'a Bass flag merged onto an actual FORM note still suppresses a conflicting ordinary open note');
+
 var pendingDelete = fretboard.createModel({
     frets: [0, 1, 2, 3],
     markers: [marker(6, 0, 'open'), marker(6, 3, 'G', { pendingDelete: true })],

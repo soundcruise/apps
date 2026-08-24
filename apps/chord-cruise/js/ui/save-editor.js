@@ -386,6 +386,12 @@
         return (qualityKey === '6' || qualityKey === 'm6') && interval === 9 ? 'sixth' : roleForInterval(interval);
     }
 
+    function roleForBassOverlay(overlay) {
+        if (!overlay || overlay.chordToneIndex === null) return 'non-chord';
+        var role = roleForInterval(overlay.interval);
+        return role === 'third' || role === 'fifth' ? role : 'non-chord';
+    }
+
     function validBassPc(value) {
         return typeof value === 'number' && Math.floor(value) === value && value >= 0 && value <= 11 ? value : null;
     }
@@ -579,7 +585,7 @@
             if (bySlot[key]) { bySlot[key].isBassCandidate = true; return; }
             var marker = {
                 string: note.string, fret: note.fret, label: bassOverlayLabel(note, spelledNoteNames),
-                role: roleForInterval(note.interval), isOverlay: true, overlayType: 'bass',
+                role: roleForBassOverlay(note), isOverlay: true, overlayType: 'bass',
                 isBassCandidate: true, finger: (bassFingeringFor(note.string, note.fret) || {}).finger || null,
                 fingeringWarning: !!((bassFingeringFor(note.string, note.fret) || {}).fingeringWarning),
                 pendingDelete: !!((bassFingeringFor(note.string, note.fret) || {}).pendingDelete),

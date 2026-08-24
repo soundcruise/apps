@@ -18,6 +18,9 @@ assert(builderSource.includes('nonChordBassCandidates'), 'Bass selector fills ev
 assert(exploreSource.includes('bassDegreeLabel(overlay.interval)'), 'Explore gives non-chord bass its slash degree');
 assert(saveEditorSource.includes('bassNoteName(note.pc)'), 'save editor keeps Bass-specific spelling');
 assert(librarySource.includes('bassNoteName(overlay.pc)'), 'library and export keep Bass-specific spelling');
+assert(exploreSource.includes('role: roleForBassOverlay(overlay)'), 'Explore uses the Bass-specific color role');
+assert(saveEditorSource.includes('role: roleForBassOverlay(note)'), 'save editor uses the Bass-specific color role');
+assert(librarySource.includes('role: roleForBassOverlay(overlay)'), 'library, detail, SVG, and PNG use the Bass-specific color role');
 assert(storageSource.includes('record.schemaVersion = 1'), 'non-chord bass retains schemaVersion 1 without migration');
 
 global.window = { ChordCruise: { state: { settings: { fretboardDisplayMode: 'note' } } } };
@@ -75,5 +78,38 @@ const dMarker = savedD.markers.find((marker) => marker.isBassCandidate && marker
 assert(bbMarker && bbMarker.label === 'B♭', 'library rebuilds non-chord Bass with flat CDE spelling');
 assert(dMarker && dMarker.label === '9', 'library rebuilds non-chord Bass with its slash degree');
 assert(window.ChordCruise.ui.fretboard.buildStaticSvg(savedBb).includes('#e8c97a'), 'SVG/PNG shared renderer retains the Bass ring');
+
+function firstOverlay(options) {
+    return options.markers.find((marker) => marker.isBassCandidate && marker.isOverlay);
+}
+
+const emOverA = savedDiagramOptions({
+    chordName: 'Em/A', rootPc: 4, bassPc: 9, intervals: [0, 3, 7],
+    fretRange: { min: 0, max: 6, includesOpen: true },
+    notes: [
+        { string: 6, fret: 0, interval: 0, finger: null },
+        { string: 5, fret: 2, interval: 7, finger: 2 },
+        { string: 4, fret: 2, interval: 0, finger: 3 },
+        { string: 3, fret: 0, interval: 3, finger: null },
+        { string: 2, fret: 0, interval: 7, finger: null },
+        { string: 1, fret: 0, interval: 0, finger: null }
+    ], mutedStrings: []
+}, { mode: 'note' });
+assert.strictEqual(firstOverlay(emOverA).role, 'non-chord', 'Em/A renders non-chord A as white instead of the interval-5 yellow role');
+
+const cOverFSharp = savedDiagramOptions(Object.assign({ chordName: 'C/F♯', bassPc: 6 }, savedBase), { mode: 'note' });
+assert.strictEqual(firstOverlay(cOverFSharp).role, 'non-chord', 'C/F# renders non-chord F# as white instead of the interval-6 blue role');
+
+const cOverEColor = savedDiagramOptions(Object.assign({ chordName: 'C/E', bassPc: 4 }, savedBase), { mode: 'note' });
+assert.strictEqual(firstOverlay(cOverEColor).role, 'third', 'C/E keeps chord-tone E yellow');
+assert(cOverEColor.markers.some((marker) => marker.string === 4 && marker.fret === 2 && marker.isBassCandidate && marker.role === 'third'), 'an overlapping C/E marker keeps its original third color');
+
+const cOverGColor = savedDiagramOptions(Object.assign({ chordName: 'C/G', bassPc: 7 }, savedBase), { mode: 'note' });
+assert.strictEqual(firstOverlay(cOverGColor).role, 'fifth', 'C/G keeps chord-tone G blue');
+
+const cAdd9OverD = savedDiagramOptions(Object.assign({}, savedBase, { chordName: 'Cadd9/D', bassPc: 2, intervals: [0, 4, 7, 2] }), { mode: 'note' });
+assert.strictEqual(firstOverlay(cAdd9OverD).role, 'non-chord', 'Bass candidates other than the third and fifth use the white role even when the pitch belongs to a tension');
+const emOverASvg = window.ChordCruise.ui.fretboard.buildStaticSvg(emOverA);
+assert(emOverASvg.includes('fill="#ffffff"') && emOverASvg.includes('#e8c97a'), 'SVG/PNG renders the white Bass fill and gold outline together');
 
 console.log('non-chord-bass: selector groups, non-chord symbols, degree labels, save/library/export compatibility OK');

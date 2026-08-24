@@ -3031,6 +3031,11 @@ body {
     gap: 8px;
 }
 
+.cc-builder-actions {
+    display: grid;
+    gap: 10px;
+}
+
 .cc-tension-label {
     display: inline-flex;
     align-items: center;

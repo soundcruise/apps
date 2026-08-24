@@ -56,6 +56,46 @@ assert.strictEqual(rendered.markers[0].isBassCandidate, true);
 assert(fretboard.buildStaticSvg({ startFret: 0, endFret: 2, markers: rendered.markers }).includes('#e8c97a'), 'static model preserves the double gold bass outline');
 assert(fretboard.buildStaticSvg({ startFret: 0, endFret: 2, markers: [{ string: 4, fret: 2, label: 'E', role: 'third' }] }).indexOf('#e8c97a') === -1, 'ordinary non-bass markers never receive the bass ring');
 
+const cOverECandidates = normal.map((note) => ({
+    string: note.string,
+    fret: note.fret,
+    label: 'E',
+    role: 'third',
+    isOverlay: true,
+    overlayType: 'bass',
+    isBassCandidate: true
+}));
+const defaultConflictModel = fretboard.createModel({ startFret: 0, endFret: 13, markers: cOverECandidates });
+assert.strictEqual(defaultConflictModel.markers.some((marker) => marker.string === 6 && marker.fret === 0), false, 'default same-string normalization remains unchanged');
+const exploreCandidateModel = fretboard.createModel({
+    startFret: 0,
+    endFret: 13,
+    markers: cOverECandidates,
+    preserveOpenBassCandidates: true
+});
+assert.deepStrictEqual(exploreCandidateModel.markers.filter((marker) => marker.isBassCandidate).map((marker) => [marker.string, marker.fret]), [[6, 0], [6, 12], [5, 7], [4, 2]], 'Explore preserves every C/E Bass candidate including 6th-string open E');
+const cOverGCandidates = model.bassOverlayNotes({ bassPc: 7, rootPc: 0, intervals: [0, 4, 7], startFret: 0, endFret: 13 });
+assert.deepStrictEqual(cOverGCandidates.map((note) => [note.string, note.fret]), [[6, 3], [5, 10], [4, 5]], 'C/G keeps its existing 4–6 string Bass candidates');
+
+const aMinorOverECandidates = [
+    { string: 5, fret: 0, label: 'A', role: 'root' },
+    { string: 1, fret: 0, label: 'E', role: 'fifth' },
+    { string: 6, fret: 0, label: 'E', role: 'fifth', isOverlay: true, overlayType: 'bass', isBassCandidate: true },
+    { string: 6, fret: 12, label: 'E', role: 'fifth', isOverlay: true, overlayType: 'bass', isBassCandidate: true },
+    { string: 5, fret: 7, label: 'E', role: 'fifth', isOverlay: true, overlayType: 'bass', isBassCandidate: true }
+];
+const aMinorOverEModel = fretboard.createModel({
+    startFret: 0,
+    endFret: 13,
+    markers: aMinorOverECandidates,
+    mutedStrings: [6],
+    preserveOpenBassCandidates: true
+});
+assert(aMinorOverEModel.markers.some((marker) => marker.string === 6 && marker.fret === 0 && marker.isBassCandidate), 'Am/E preserves the 6th-string open E Bass candidate');
+assert(aMinorOverEModel.markers.some((marker) => marker.string === 5 && marker.fret === 0 && !marker.isBassCandidate), 'Am/E preserves the ordinary 5th-string open A beside the 5th-string 7F Bass alternative');
+assert(aMinorOverEModel.markers.some((marker) => marker.string === 5 && marker.fret === 7 && marker.isBassCandidate), 'Am/E keeps the 5th-string 7F E Bass candidate');
+assert.deepStrictEqual(aMinorOverEModel.mutedStrings, [], 'visible Bass candidates continue to suppress the obsolete same-string mute mark');
+
 assert(themeSource.includes('0 0 0 2px var(--cc-bg),\n        0 0 0 4px var(--cc-gold-bright)'), 'bass CSS paints the 2px dark separator in front of the independent 2px gold outer ring');
 assert(themeSource.includes('外径は通常30pxより8pxだけ大きい38px'), 'bass ring exterior remains intentionally bounded for the mobile grid');
 assert(themeSource.includes('.cc-fb-host--monochrome .cc-fb-marker--bass-candidate'), 'monochrome keeps the same ring-shaped bass distinction');
@@ -63,6 +103,7 @@ assert(themeSource.includes('.cc-fb-host--monochrome .cc-fb-marker--bass-candida
 assert(exploreSource.includes('mergeBassOverlayMarkers'), 'CAGED and full fretboard share the bass overlay merge path');
 assert(exploreSource.includes('existingBySlot[key].isBassCandidate = true'), 'overlapping FORM notes are merged instead of duplicated');
 assert(exploreSource.includes('isOverlay: true') && exploreSource.includes("overlayType: overlay.type"), 'non-FORM candidates remain explicit overlay markers');
+assert(exploreSource.includes('preserveOpenBassCandidates: true'), 'Explore alone opts into preserving an open Bass candidate beside alternative fretted candidates');
 assert(!exploreSource.includes('!chord || !form || chord.bassPc != null'), 'E2 lets a CAGED-compatible slash chord enter the existing save route');
 assert(!exploreSource.includes('分数コードの保存は今後対応予定です'), 'CAGED-compatible slash chords no longer show the obsolete save-disabled hint');
 assert(exploreSource.includes('運指は表示していません'), 'finger mode explains that overlay candidates have no fingering');
