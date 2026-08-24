@@ -1048,7 +1048,7 @@
         var circularShapeOrder = cagedLocked || featuredIndex === -1
             ? shapeOrder.slice()
             : shapeOrder.slice(featuredIndex).concat(shapeOrder.slice(0, featuredIndex));
-        var orderedShapes = [''].concat(circularShapeOrder);
+        var orderedShapes = circularShapeOrder.concat(['']);
         orderedShapes.forEach(function (shape) {
             if (buttonsByShape[shape]) row.appendChild(buttonsByShape[shape]);
         });

@@ -37,7 +37,7 @@ assert(helperSource.includes('updateFbSegments();'), 'automatic presentation syn
 assert.strictEqual((exploreSource.match(/selectRecommendedFretboardPresentation\(\);/g) || []).length, 3, 'all three code-selection routes use the common helper');
 assert(exploreSource.includes('var cagedLocked = getSettings().cagedFormLocked === true;'), 'CAGED tab order reads the persisted lock setting');
 assert(exploreSource.includes('var circularShapeOrder = cagedLocked || featuredIndex === -1'), 'locked mode keeps the normal CAGED order while unlocked mode remains circular');
-assert(exploreSource.includes("var orderedShapes = [''].concat(circularShapeOrder);"), 'All remains before the circular CAGED order');
+assert(exploreSource.includes("var orderedShapes = circularShapeOrder.concat(['']);"), 'All remains after the circular CAGED order');
 assert(exploreSource.includes('getState().exploreFretboardDisplayMode = null;\n                getState().exploreFretboardPresentationInitialized = true;\n                saveSetting({ fretboardDisplayMode: mode });'), 'manual mode selection clears only the temporary Explore override before saving the user setting');
 assert(exploreSource.includes("getState().exploreFretboardDisplayMode = 'note';"), 'unavailable forms fall back without mutating stored settings');
 assert(exploreSource.includes('getState().exploreAnimateFretboardScroll = !!shape;'), 'a selected CAGED form requests a fretboard scroll animation');
@@ -52,6 +52,14 @@ function circularOrder(featuredShape) {
     return order.slice(index).concat(order.slice(0, index));
 }
 
+function tabOrder(featuredShape, locked) {
+    var shapes = locked ? caged.SHAPE_ORDER.slice() : circularOrder(featuredShape);
+    return shapes.concat(['']);
+}
+
+assert.deepStrictEqual(tabOrder('C', false), ['C', 'A', 'G', 'E', 'D', ''], 'C keeps its circular shape order and places All last');
+assert.deepStrictEqual(tabOrder('G', false), ['G', 'E', 'D', 'C', 'A', ''], 'G keeps its circular shape order and places All last');
+assert.deepStrictEqual(tabOrder('C', true), ['C', 'A', 'G', 'E', 'D', ''], 'locked mode keeps fixed CAGED order and places All last');
 assert.deepStrictEqual(circularOrder('D'), ['D', 'C', 'A', 'G', 'E'], 'D featured order wraps through CAGED');
 assert.deepStrictEqual(circularOrder('E'), ['E', 'D', 'C', 'A', 'G'], 'E featured order wraps through CAGED');
 assert.deepStrictEqual(circularOrder('A'), ['A', 'G', 'E', 'D', 'C'], 'A featured order wraps through CAGED');

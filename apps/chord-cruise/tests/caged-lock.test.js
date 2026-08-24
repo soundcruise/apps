@@ -33,6 +33,7 @@ assert(exploreSource.includes("state.exploreShape = lockedShape || (featured ? f
 assert(exploreSource.includes('state.exploreAnimateFretboardScroll = !!state.exploreShape;'), 'code changes request a scroll to the final selected form');
 assert(exploreSource.includes('var cagedLocked = getSettings().cagedFormLocked === true;'), 'tab order reads the persisted CAGED lock setting');
 assert(exploreSource.includes('var circularShapeOrder = cagedLocked || featuredIndex === -1'), 'locked mode keeps the fixed CAGED order while unlocked mode remains circular');
+assert(exploreSource.includes("var orderedShapes = circularShapeOrder.concat(['']);"), 'locked and unlocked modes both place All after the CAGED tabs');
 assert(storageSource.includes('cagedFormLocked: false'), 'the settings default keeps CAGED lock off');
 assert(storageSource.includes('normalized.cagedFormLocked = normalized.cagedFormLocked === true;'), 'stored lock values are normalized safely');
 assert(settingsSource.includes('function setCagedFormLocked(value)'), 'settings owns the CAGED lock update API');
