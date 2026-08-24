@@ -64,7 +64,7 @@
         scaleType: 'major',
         chordToneMode: '3',
         fretboardDisplayMode: 'note',
-        cagedFormLocked: false,
+        cagedTabAutoChange: true,
         chordNameSize: 'medium',
         fretNumberSize: 'medium',
         fretboardMarkerLabelSize: 'medium',
@@ -127,7 +127,8 @@
         }
         normalized.highlightedFrets = normalizeHighlightedFrets(normalized.highlightedFrets);
         normalized.highFretMode = normalized.highFretMode === true;
-        normalized.cagedFormLocked = normalized.cagedFormLocked === true;
+        normalized.cagedTabAutoChange = normalized.cagedTabAutoChange === true;
+        delete normalized.cagedFormLocked;
         if (typeof normalized.lastSaveFolderId !== 'string') {
             normalized.lastSaveFolderId = '';
         }

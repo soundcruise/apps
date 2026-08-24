@@ -12,7 +12,7 @@
         'fretNumberHighlightMode',
         'highlightedFrets',
         'fretboardDisplayMode',
-        'cagedFormLocked'
+        'cagedTabAutoChange'
     ];
     var overlayEl = null;
     var openBtn = null;
@@ -153,11 +153,11 @@
             btn.classList.toggle('cc-segment-btn--active', selected);
             btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
         });
-        var cagedLockToggle = document.getElementById('cc-settings-caged-lock-toggle');
-        if (cagedLockToggle) {
-            var cagedLocked = settings.cagedFormLocked === true;
-            cagedLockToggle.classList.toggle('cc-switch--on', cagedLocked);
-            cagedLockToggle.setAttribute('aria-checked', cagedLocked ? 'true' : 'false');
+        var cagedAutoChangeToggle = document.getElementById('cc-settings-caged-auto-change-toggle');
+        if (cagedAutoChangeToggle) {
+            var cagedTabAutoChange = settings.cagedTabAutoChange === true;
+            cagedAutoChangeToggle.classList.toggle('cc-switch--on', cagedTabAutoChange);
+            cagedAutoChangeToggle.setAttribute('aria-checked', cagedTabAutoChange ? 'true' : 'false');
         }
         var active = normalizeSize(settings.fretNumberSize);
         Array.prototype.forEach.call(overlayEl.querySelectorAll('[data-fret-number-size]'), function (btn) {
@@ -256,17 +256,17 @@
         return true;
     }
 
-    function setCagedFormLocked(value) {
-        var locked = value === true;
-        if (!saveRightTopSettings({ cagedFormLocked: locked })) return false;
+    function setCagedTabAutoChange(value) {
+        var enabled = value === true;
+        if (!saveRightTopSettings({ cagedTabAutoChange: enabled })) return false;
         updateControls();
         notifyFretboardChange();
         return true;
     }
 
-    function toggleCagedLockDescription() {
-        var detail = document.getElementById('cc-settings-caged-lock-note');
-        var toggle = document.getElementById('cc-settings-caged-lock-help-toggle');
+    function toggleCagedAutoChangeDescription() {
+        var detail = document.getElementById('cc-settings-caged-auto-change-note');
+        var toggle = document.getElementById('cc-settings-caged-auto-change-help-toggle');
         if (!detail || !toggle) return;
         var expanded = toggle.getAttribute('aria-expanded') !== 'true';
         detail.hidden = !expanded;
@@ -505,12 +505,12 @@
                     setPreviewDisplayMode(previewDisplayMode.getAttribute('data-preview-display-mode'));
                     return;
                 }
-                if (event.target.closest('#cc-settings-caged-lock-toggle')) {
-                    setCagedFormLocked(getSettings().cagedFormLocked !== true);
+                if (event.target.closest('#cc-settings-caged-auto-change-toggle')) {
+                    setCagedTabAutoChange(getSettings().cagedTabAutoChange !== true);
                     return;
                 }
-                if (event.target.closest('#cc-settings-caged-lock-help-toggle')) {
-                    toggleCagedLockDescription();
+                if (event.target.closest('#cc-settings-caged-auto-change-help-toggle')) {
+                    toggleCagedAutoChangeDescription();
                     return;
                 }
                 var highlightMode = event.target.closest('[data-fret-highlight-mode]');
@@ -583,7 +583,7 @@
         normalizeSize: normalizeSize,
         normalizeChordNameSize: normalizeChordNameSize,
         setPreviewDisplayMode: setPreviewDisplayMode,
-        setCagedFormLocked: setCagedFormLocked,
+        setCagedTabAutoChange: setCagedTabAutoChange,
         normalizeHighlightMode: normalizeHighlightMode,
         normalizeHighlightedFrets: normalizeHighlightedFrets,
         resetDisplaySettings: resetDisplaySettings,

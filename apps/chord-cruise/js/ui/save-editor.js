@@ -317,6 +317,26 @@
         }
     }
 
+    // 保存前プレビューも、確定時のrecordと同じミュート状態を表示する。
+    // draft自体は変更しないため、保存前の編集内容だけを描画に反映できる。
+    function previewMutedStrings() {
+        var mutedStrings = Array.isArray(draft.mutedStrings) ? draft.mutedStrings.slice() : [];
+        var deletedNoteStrings = Array.isArray(draft.deletedNoteStrings) ? draft.deletedNoteStrings : [];
+        deletedNoteStrings.forEach(function (stringNum) {
+            var stillDeleted = draft.notes.some(function (note) {
+                return noteIncluded(note) && note.pendingDelete && note.string === stringNum;
+            });
+            if (!stillDeleted) {
+                mutedStrings = mutedStrings.filter(function (value) { return value !== stringNum; });
+            }
+        });
+        draft.notes.forEach(function (note) {
+            if (!noteIncluded(note) || !note.pendingDelete || mutedStrings.indexOf(note.string) !== -1) return;
+            mutedStrings.push(note.string);
+        });
+        return mutedStrings.sort(function (a, b) { return a - b; });
+    }
+
     function markerLabel(note, spelledNoteNames) {
         if (note.pendingDelete) return '';
         if (draft.displayMode === 'finger') {
@@ -663,7 +683,7 @@
             endFret: draft.endFret,
             markers: markers,
             barres: barres,
-            mutedStrings: draft.mutedStrings,
+            mutedStrings: previewMutedStrings(),
             rangeHighlight: {
                 minFret: draft.range.min,
                 maxFret: draft.range.max,
@@ -1057,6 +1077,10 @@
         return DISPLAY_MODES.indexOf(mode) !== -1 ? mode : 'note';
     }
 
+    function initialDisplayMode(value) {
+        return DISPLAY_MODES.indexOf(value) !== -1 ? value : defaultDisplayMode();
+    }
+
     function setModeUi(mode) {
         var editing = mode === 'edit';
         document.getElementById('cc-save-title').textContent = editing ? '保存コードを編集' : 'フォームを保存';
@@ -1115,7 +1139,7 @@
             tensionPcs: tensionPcs,
             tensionFingerings: [],
             useFlats: !!payload.useFlats,
-            displayMode: defaultDisplayMode(),
+            displayMode: initialDisplayMode(payload.displayMode),
             notes: notesWithSixthCandidates(chord, form, displayRange),
             mutedStrings: form.mutedStrings.slice(),
             deletedNoteStrings: [],

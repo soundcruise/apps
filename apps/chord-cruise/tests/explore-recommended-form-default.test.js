@@ -23,8 +23,8 @@ assert.strictEqual(caged.getCommonForm(null, 0, 13, 0), null, 'CAGED-unsupported
 
 assert(exploreSource.includes('function selectRecommendedFretboardPresentation()'), 'Explore has one selection-entry helper');
 assert(exploreSource.includes('window.ChordCruise.caged.getCommonForm(chord.qualityKey, chord.rootPc, range.end, range.start)'), 'helper reuses the existing featured-form resolver');
-assert(exploreSource.includes("var lockedShape = getSettings().cagedFormLocked === true ? state.exploreShape : null;"), 'the persisted CAGED lock keeps the selected shape');
-assert(exploreSource.includes("state.exploreShape = lockedShape || (featured ? featured.shape : null);"), 'featured forms become active unless the persisted CAGED lock keeps the selected shape');
+assert(exploreSource.includes("var lockedShape = getSettings().cagedTabAutoChange !== true ? state.exploreShape : null;"), 'turning automatic CAGED tab changes off keeps the selected shape');
+assert(exploreSource.includes("state.exploreShape = lockedShape || (featured ? featured.shape : null);"), 'featured forms become active unless automatic CAGED tab changes are turned off');
 assert(exploreSource.includes("var displayMode = state.exploreFretboardPresentationInitialized === true"), 'only the initial code selection chooses the temporary finger display');
 assert(exploreSource.includes("state.exploreFretboardDisplayMode = featured ? displayMode : 'note';"), 'later selections preserve the current display mode while unavailable forms fall back to CDE');
 assert(exploreSource.includes('state.exploreFretboardPresentationInitialized = true;'), 'Explore records that an initial presentation has been chosen without using storage');
@@ -35,8 +35,8 @@ var helperSource = exploreSource.slice(
 assert.strictEqual(helperSource.includes('saveSetting('), false, 'automatic presentation does not persist a user display-mode setting');
 assert(helperSource.includes('updateFbSegments();'), 'automatic presentation synchronizes the active display-mode tab');
 assert.strictEqual((exploreSource.match(/selectRecommendedFretboardPresentation\(\);/g) || []).length, 3, 'all three code-selection routes use the common helper');
-assert(exploreSource.includes('var cagedLocked = getSettings().cagedFormLocked === true;'), 'CAGED tab order reads the persisted lock setting');
-assert(exploreSource.includes('var circularShapeOrder = cagedLocked || featuredIndex === -1'), 'locked mode keeps the normal CAGED order while unlocked mode remains circular');
+assert(exploreSource.includes('var cagedTabAutoChange = getSettings().cagedTabAutoChange === true;'), 'CAGED tab order reads the persisted automatic-change setting');
+assert(exploreSource.includes('var circularShapeOrder = !cagedTabAutoChange || featuredIndex === -1'), 'fixed mode keeps the normal CAGED order while automatic mode remains circular');
 assert(exploreSource.includes("var orderedShapes = circularShapeOrder.concat(['']);"), 'All remains after the circular CAGED order');
 assert(exploreSource.includes('getState().exploreFretboardDisplayMode = null;\n                getState().exploreFretboardPresentationInitialized = true;\n                saveSetting({ fretboardDisplayMode: mode });'), 'manual mode selection clears only the temporary Explore override before saving the user setting');
 assert(exploreSource.includes("getState().exploreFretboardDisplayMode = 'note';"), 'unavailable forms fall back without mutating stored settings');

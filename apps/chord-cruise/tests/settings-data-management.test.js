@@ -54,16 +54,19 @@ function loadStorage() {
     assert.strictEqual(Object.prototype.hasOwnProperty.call(saved, 'lastSaveFolderId'), false, 'record does not receive UI settings');
 }());
 
-(function settingsRetainCagedFormLockOutsideRecords() {
+(function settingsRetainAutomaticCagedTabChangesOutsideRecords() {
     var env = loadStorage();
     var storage = env.storage;
-    assert.strictEqual(storage.loadSettings().cagedFormLocked, false, 'CAGED form lock defaults to off');
-    assert.strictEqual(storage.saveSettings({ cagedFormLocked: true }), true, 'CAGED form lock persists through settings');
-    assert.strictEqual(storage.loadSettings().cagedFormLocked, true, 'CAGED form lock reloads from settings');
+    assert.strictEqual(storage.loadSettings().cagedTabAutoChange, true, 'automatic CAGED tab changes default to on');
+    env.localStorage.setItem('chordCruise.settings', JSON.stringify({ cagedFormLocked: true }));
+    assert.strictEqual(storage.saveSettings({ cagedTabAutoChange: true }), true, 'the replacement setting saves through the existing settings path');
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(JSON.parse(env.localStorage.getItem('chordCruise.settings')), 'cagedFormLocked'), false, 'the retired CAGED lock setting is removed on the next settings save');
+    assert.strictEqual(storage.saveSettings({ cagedTabAutoChange: false }), true, 'turning automatic CAGED tab changes off persists through settings');
+    assert.strictEqual(storage.loadSettings().cagedTabAutoChange, false, 'automatic CAGED tab changes reload from settings');
 
     var saved = storage.saveChord({ chordName: 'C', formName: 'C型', shape: 'C', folderId: storage.UNCATEGORIZED_ID, notes: [], mutedStrings: [] });
     assert(saved, 'record saves through the existing path after settings change');
-    assert.strictEqual(Object.prototype.hasOwnProperty.call(saved, 'cagedFormLocked'), false, 'record does not receive CAGED lock settings');
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(saved, 'cagedTabAutoChange'), false, 'record does not receive automatic CAGED tab settings');
 }());
 
 (function clearsOnlyChordCruiseKeys() {
@@ -84,8 +87,8 @@ assert(saveEditorSource.includes('rememberSaveFolder(saved.folderId)'), 'only su
 assert(settingsSource.includes('window.__soundCruiseClearGate'), 'Pro settings use the shared gate reset API');
 assert(settingsSource.includes('cc-settings-data-delete'), 'settings provide the app-data delete action');
 assert(settingsSource.includes('保存したコード・設定をすべて削除して初期状態に戻します。'), 'settings explain the destructive action');
-assert(settingsSource.includes('function setCagedFormLocked(value)'), 'settings expose the CAGED form lock updater');
-assert(settingsSource.includes('saveRightTopSettings({ cagedFormLocked: locked })'), 'settings save the CAGED form lock through the existing settings path');
+assert(settingsSource.includes('function setCagedTabAutoChange(value)'), 'settings expose the automatic CAGED tab updater');
+assert(settingsSource.includes('saveRightTopSettings({ cagedTabAutoChange: enabled })'), 'settings save automatic CAGED tab changes through the existing settings path');
 assert(!settingsSource.includes('localStorage.clear'), 'settings never clear all application storage');
 
-console.log('settings-data-management: Pro auth reset, remembered save folder, persisted CAGED lock, and Chord Cruise-only data deletion OK');
+console.log('settings-data-management: Pro auth reset, remembered save folder, persisted automatic CAGED tab setting, and Chord Cruise-only data deletion OK');

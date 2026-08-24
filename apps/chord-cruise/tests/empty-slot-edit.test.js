@@ -19,7 +19,7 @@ function createHelpers(draft) {
         'var ADDED_NOTE_CYCLE = [\'T\', 1, 2, 3, 4];\n' +
         'var theory = function () { return context.theory; };\n' +
         helperSource + '\n' +
-        'return { addDraftNoteAtSlot: addDraftNoteAtSlot, cycleAddedDraftNote: cycleAddedDraftNote, cycleNote: cycleNote };'
+        'return { addDraftNoteAtSlot: addDraftNoteAtSlot, cycleAddedDraftNote: cycleAddedDraftNote, cycleNote: cycleNote, previewMutedStrings: previewMutedStrings };'
     )({
         draft: draft,
         theory: { OPEN_STRINGS: [4, 9, 2, 7, 11, 4] }
@@ -75,6 +75,28 @@ var existingHelpers = createHelpers(existingDraft);
 existingHelpers.cycleNote(existingDraft.notes[0]);
 assert.strictEqual(existingDraft.notes.length, 1, 'existing notes retain the existing warning/delete editing path');
 assert.strictEqual(existingDraft.notes[0].fingeringWarning, true, 'existing note cycle still reaches its warning state');
+
+var pendingDeleteDraft = createDraft();
+pendingDeleteDraft.deletedNoteStrings = [];
+pendingDeleteDraft.notes.push({ string: 6, fret: 3, interval: 0, finger: 3, fingeringWarning: false, pendingDelete: true });
+var pendingDeleteHelpers = createHelpers(pendingDeleteDraft);
+assert.deepStrictEqual(pendingDeleteHelpers.previewMutedStrings(), [6], 'a pending-delete fretted note shows its string as muted before saving');
+global.window = { ChordCruise: {} };
+require('../js/ui/fretboard.js');
+var pendingDeletePreviewModel = window.ChordCruise.ui.fretboard.createModel({
+    startFret: 0,
+    endFret: 3,
+    markers: [{ string: 6, fret: 3, label: 'G', role: 'root', pendingDelete: true }],
+    mutedStrings: pendingDeleteHelpers.previewMutedStrings()
+});
+assert.deepStrictEqual(pendingDeletePreviewModel.mutedStrings, [6], 'the shared preview renderer keeps the pending-delete string mute visible');
+
+var restoredDeleteDraft = createDraft();
+restoredDeleteDraft.mutedStrings = [6];
+restoredDeleteDraft.deletedNoteStrings = [6];
+restoredDeleteDraft.notes.push({ string: 6, fret: 3, interval: 0, finger: 3, fingeringWarning: false, pendingDelete: false });
+var restoredDeleteHelpers = createHelpers(restoredDeleteDraft);
+assert.deepStrictEqual(restoredDeleteHelpers.previewMutedStrings(), [], 'restoring a previously deleted note removes its preview-only mute');
 
 assert.ok(fretboardSource.indexOf('onEmptySlotTap') !== -1, 'the fretboard renderer exposes an empty-slot callback');
 assert.ok(fretboardSource.indexOf('function slotAtPointer') !== -1, 'empty taps resolve to displayed string/fret coordinates');

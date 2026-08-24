@@ -263,6 +263,7 @@
                 shape: getState().exploreShape,
                 startFret: fretWindow().start,
                 endFret: fretWindow().end,
+                displayMode: exploreDisplayMode(),
                 useFlats: chordUseFlats(chord),
                 keyContext: chord.source === 'custom' ? null : {
                     tonicPc: settings.selectedKey,
@@ -617,7 +618,7 @@
             ? exploreDisplayMode()
             : 'finger';
 
-        var lockedShape = getSettings().cagedFormLocked === true ? state.exploreShape : null;
+        var lockedShape = getSettings().cagedTabAutoChange !== true ? state.exploreShape : null;
         state.exploreShape = lockedShape || (featured ? featured.shape : null);
         // コードを切り替えた場合も、最終的に選ばれたフォーム位置へ移動する。
         state.exploreAnimateFretboardScroll = !!state.exploreShape;
@@ -1042,10 +1043,10 @@
             buttonsByShape[btn.dataset.shape] = btn;
         });
         var shapeOrder = window.ChordCruise.caged.SHAPE_ORDER;
-        var cagedLocked = getSettings().cagedFormLocked === true;
+        var cagedTabAutoChange = getSettings().cagedTabAutoChange === true;
         var orderingShape = featured ? featured.shape : null;
         var featuredIndex = orderingShape ? shapeOrder.indexOf(orderingShape) : -1;
-        var circularShapeOrder = cagedLocked || featuredIndex === -1
+        var circularShapeOrder = !cagedTabAutoChange || featuredIndex === -1
             ? shapeOrder.slice()
             : shapeOrder.slice(featuredIndex).concat(shapeOrder.slice(0, featuredIndex));
         var orderedShapes = circularShapeOrder.concat(['']);
