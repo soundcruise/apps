@@ -683,7 +683,8 @@ function orderOf(env) {
     assert(librarySource.includes("globalDisplaySize('fretboardMarkerLabelSize')"), 'thumbnail marker labels read the global marker setting');
     assert(themeSource.includes('data-library-chord-name-size="xsmall"'), 'thumbnail title supports global xsmall');
     assert(themeSource.includes('data-library-chord-name-size="xlarge"'), 'thumbnail title supports global xlarge');
-    assert(themeSource.includes('1.20rem') && themeSource.includes('1.16rem') && themeSource.includes('1.08rem') && themeSource.includes('1rem'), 'xlarge chord-name limits cover all four library columns');
+    assert(themeSource.includes('--cc-library-column-name-scale: 1.48') && themeSource.includes('--cc-library-column-name-scale: 1.24') && themeSource.includes('--cc-library-column-name-scale: 1.12') && themeSource.includes('--cc-library-column-name-scale: 0.87'), 'library chord names use the four column-specific scales');
+    assert(themeSource.includes('calc(var(--cc-library-card-chord-name-size) * var(--cc-library-column-name-scale))'), 'column scaling affects only the library chord-name size');
 })();
 
 (function libraryDisplayControlsAreInlineAndUseExploreStyleSegments() {

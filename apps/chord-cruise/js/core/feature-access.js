@@ -38,7 +38,7 @@
     }
 
     /**
-     * 現在の機能権限を返す。保存系と高度分析・高度CAGEDだけを
+     * 現在の機能権限を返す。保存系・高度分析・高度CAGED・書き出しだけを
      * edition別にし、作成・構成音確認・通常指板表示はStandardでも許可する。
      */
     function getFeatureAccess() {
@@ -50,6 +50,7 @@
         access.unlimitedLibrary = isProEdition();
         access.advancedQuality = isProEdition();
         access.advancedCaged = isProEdition();
+        access.advancedExport = isProEdition();
         return access;
     }
 

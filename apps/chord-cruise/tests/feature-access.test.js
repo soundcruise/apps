@@ -29,7 +29,7 @@ assert.strictEqual(featureAccess.isProEdition(), false, 'an edition attribute is
 var standardAccess = featureAccess.getFeatureAccess();
 assert.deepStrictEqual(Object.keys(standardAccess), expectedFeatures, 'feature access exposes the agreed candidate features');
 expectedFeatures.forEach(function (featureName) {
-    var expected = featureName !== 'unlimitedLibrary' && featureName !== 'customChordSave' && featureName !== 'advancedQuality' && featureName !== 'advancedCaged';
+    var expected = featureName !== 'unlimitedLibrary' && featureName !== 'customChordSave' && featureName !== 'advancedQuality' && featureName !== 'advancedCaged' && featureName !== 'advancedExport';
     assert.strictEqual(standardAccess[featureName], expected, featureName + ' has the Standard P4-2 access value');
     assert.strictEqual(featureAccess.hasFeature(featureName), expected, featureName + ' uses the Standard P4-2 access value');
 });
@@ -44,4 +44,4 @@ expectedFeatures.forEach(function (featureName) {
 });
 assert.notStrictEqual(proAccess, standardAccess, 'callers cannot mutate the next feature access result');
 
-console.log('feature-access: Standard library/custom-save/advanced-quality/advanced-CAGED limits and Pro all-enabled feature access OK');
+console.log('feature-access: Standard library/custom-save/advanced-quality/advanced-CAGED/export limits and Pro all-enabled feature access OK');

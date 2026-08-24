@@ -149,10 +149,25 @@
         });
     }
 
+    /** DOM撮影を使わず、呼び出し側が組み立てた自己完結SVGを既存PNG経路で保存する。 */
+    function exportSvgPng(exportSvg, filename) {
+        return svgToPng(exportSvg).then(function (result) {
+            return downloadBlob(result.blob, filename).then(function (delivery) {
+                return {
+                    filename: filename,
+                    width: result.width,
+                    height: result.height,
+                    method: delivery.method
+                };
+            });
+        });
+    }
+
     window.ChordCruise = window.ChordCruise || {};
     window.ChordCruise.ui = window.ChordCruise.ui || {};
     window.ChordCruise.ui.chordExport = {
         exportPng: exportPng,
+        exportSvgPng: exportSvgPng,
         filenameFor: filenameFor,
         safePart: safePart,
         rangeToken: rangeToken

@@ -27,6 +27,10 @@
     function storage() { return window.ChordCruise.storage; }
     function theory() { return window.ChordCruise.theory; }
     function featureAccess() { return window.ChordCruise.featureAccess; }
+    function canExport() {
+        var access = featureAccess();
+        return !!(access && typeof access.hasFeature === 'function' && access.hasFeature('advancedExport'));
+    }
     function isProEdition() {
         var access = featureAccess();
         return !!(access && typeof access.isProEdition === 'function' && access.isProEdition());
@@ -148,7 +152,7 @@
         section.appendChild(content);
     }
 
-    // ---- 確認モーダル（危険操作用） ----
+    // ---- 共通確認モーダル（削除・書き出し） ----
 
     var confirmOverlay = null;
     var confirmHandler = null;
@@ -168,7 +172,7 @@
         else if (returnFocus && opener && typeof opener.focus === 'function') opener.focus();
     }
 
-    function confirmDanger(message, okLabel, onOk, returnFocus, title) {
+    function confirmDanger(message, okLabel, onOk, returnFocus, title, options) {
         if (!confirmOverlay) {
             confirmOverlay = document.createElement('div');
             confirmOverlay.className = 'cc-modal-overlay cc-modal-overlay--hidden';
@@ -202,12 +206,18 @@
         }
         document.getElementById('cc-confirm-title').textContent = title || '確認';
         document.getElementById('cc-confirm-description').textContent = message;
-        document.getElementById('cc-confirm-ok').textContent = okLabel;
+        var okButton = document.getElementById('cc-confirm-ok');
+        okButton.textContent = okLabel;
+        okButton.className = 'cc-btn ' + (options && options.danger === false ? 'cc-btn-primary' : 'cc-btn-danger');
         confirmHandler = onOk;
         confirmReturnFocus = returnFocus || document.activeElement;
         confirmOverlay.classList.remove('cc-modal-overlay--hidden');
         var cancelButton = document.getElementById('cc-confirm-cancel');
         if (cancelButton) cancelButton.focus();
+    }
+
+    function confirmExport(returnFocus, onOk) {
+        confirmDanger('書き出しを実行しますか？', '書き出し', onOk, returnFocus, '書き出しの確認', { danger: false });
     }
 
     // ---- 共通ヘルパー ----
@@ -294,12 +304,27 @@
             html += '<button type="button" class="cc-segment-btn' + (selected ? ' cc-segment-btn--active' : '') + '" data-library-card-display-mode="' + value + '" aria-pressed="' + (selected ? 'true' : 'false') + '">' + libraryDisplayModeLabel(value) + '</button>';
         });
         return html + '</div></div>' +
-            '<div class="cc-lib-list-display-row">' +
-                '<span class="cc-save-label">白黒 <strong id="cc-library-card-monochrome-state">' + (monochrome ? 'ON' : 'OFF') + '</strong></span>' +
-                '<button type="button" class="cc-switch' + (monochrome ? ' cc-switch--on' : '') + '" id="cc-library-card-monochrome-toggle" role="switch" aria-checked="' + (monochrome ? 'true' : 'false') + '" aria-label="コード一覧を白黒で表示">' +
-                    '<span class="cc-switch-knob" aria-hidden="true"></span>' +
-                '</button>' +
-            '</div></div>';
+            '<div class="cc-lib-list-display-row cc-lib-list-monochrome-row">' +
+                '<div class="cc-lib-monochrome-control">' +
+                    '<span class="cc-save-label">白黒 <strong id="cc-library-card-monochrome-state">' + (monochrome ? 'ON' : 'OFF') + '</strong></span>' +
+                    '<button type="button" class="cc-switch' + (monochrome ? ' cc-switch--on' : '') + '" id="cc-library-card-monochrome-toggle" role="switch" aria-checked="' + (monochrome ? 'true' : 'false') + '" aria-label="コード一覧を白黒で表示">' +
+                        '<span class="cc-switch-knob" aria-hidden="true"></span>' +
+                    '</button>' +
+                '</div>' +
+                (canExport()
+                    ? '<button type="button" class="cc-btn cc-btn-secondary cc-export-icon-btn" id="cc-library-folder-export-btn" aria-label="フォルダ一覧を書き出す" title="書き出し">' + downloadIconSvg() + '</button>'
+                    : '') +
+            '</div>' +
+            (canExport()
+                ? '<p class="cc-lib-export-status cc-lib-list-export-status" id="cc-library-folder-export-status" style="display:none;"></p>'
+                : '') +
+            '</div>';
+    }
+
+    function downloadIconSvg() {
+        return '<svg class="cc-download-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+            '<path d="M12 3v11m0 0 4-4m-4 4-4-4M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+        '</svg>';
     }
 
     function sortError() {
@@ -1061,6 +1086,15 @@
             });
         });
         bindLibraryCardDisplayControls();
+        var folderExportButton = document.getElementById('cc-library-folder-export-btn');
+        if (folderExportButton) {
+            folderExportButton.disabled = chords.length === 0;
+            folderExportButton.addEventListener('click', function () {
+                confirmExport(folderExportButton, function () {
+                    exportCurrentFolder(folder, currentListChords);
+                });
+            });
+        }
 
         if (chords.length) {
             renderListThumbnails(chords);
@@ -1439,6 +1473,39 @@
         });
     }
 
+    /** 一覧表示とフォルダPNGが同じ表示条件・安全余白を使う。 */
+    function listDiagramOptions(chord, options) {
+        var opts = options || {};
+        var columns = normalizeLibraryColumns(opts.columns);
+        var mode = ['note', 'solfege', 'degree', 'finger'].indexOf(opts.displayMode) !== -1
+            ? opts.displayMode
+            : libraryCardDisplayMode();
+        var monochrome = typeof opts.monochrome === 'boolean' ? opts.monochrome : libraryCardMonochrome();
+        var diagramOptions = savedDiagramOptions(chord, { thumbnail: true, mode: mode, monochrome: monochrome });
+        diagramOptions.svgClass = 'cc-fb-svg cc-fb-static-svg cc-chordthumb-svg';
+        diagramOptions.fretNumberScale = typeof opts.fretNumberScale === 'number'
+            ? opts.fretNumberScale
+            : libraryCardTextScale(globalDisplaySize('fretNumberSize'), columns);
+        diagramOptions.markerLabelScale = typeof opts.markerLabelScale === 'number'
+            ? opts.markerLabelScale
+            : libraryCardTextScale(globalDisplaySize('fretboardMarkerLabelSize'), columns);
+        var hasOpenColumn = diagramOptions.frets[0] === 0;
+        var needsFretNumberOffset = hasOpenColumn || hasFirstFretBarre(diagramOptions) || hasSixthStringMarker(diagramOptions);
+        if (monochrome && hasOpenColumn) {
+            diagramOptions.openStringNutOnly = true;
+            diagramOptions.monochromeViewportLeftCrop = 12;
+            diagramOptions.svgPadding = {
+                top: 14,
+                right: 22,
+                bottom: 18,
+                left: 4,
+                fillMonochromeBackground: true
+            };
+        }
+        diagramOptions.monochromeFretNumberYOffset = monochrome && needsFretNumberOffset ? 5 : 0;
+        return diagramOptions;
+    }
+
     function renderListThumbnails(chords, options) {
         var opts = options || {};
         var grid = document.getElementById('cc-chordthumb-grid');
@@ -1449,42 +1516,113 @@
         var monochrome = typeof opts.monochrome === 'boolean'
             ? opts.monochrome
             : libraryCardMonochrome();
-        var fretNumberScale = typeof opts.fretNumberScale === 'number'
-            ? opts.fretNumberScale
-            : libraryCardTextScale(globalDisplaySize('fretNumberSize'), columns);
-        var markerLabelScale = typeof opts.markerLabelScale === 'number'
-            ? opts.markerLabelScale
-            : libraryCardTextScale(globalDisplaySize('fretboardMarkerLabelSize'), columns);
         var byId = {};
         chords.forEach(function (chord) { byId[chord.id] = chord; });
         Array.prototype.forEach.call(contentEl().querySelectorAll('[data-chord-thumb]'), function (host) {
             var chord = byId[host.getAttribute('data-chord-thumb')];
             if (!chord) return;
-            var diagramOptions = savedDiagramOptions(chord, { thumbnail: true, mode: mode, monochrome: monochrome });
-            diagramOptions.svgClass = 'cc-fb-svg cc-fb-static-svg cc-chordthumb-svg';
-            diagramOptions.fretNumberScale = fretNumberScale;
-            diagramOptions.markerLabelScale = markerLabelScale;
-            var hasOpenColumn = diagramOptions.frets[0] === 0;
-            var needsFretNumberOffset = hasOpenColumn || hasFirstFretBarre(diagramOptions) || hasSixthStringMarker(diagramOptions);
-            // 固定高の一覧カードだけは、上下のマーカー外周とフレット番号用にSVG内の安全余白を確保する。
-            // 画面の指板・詳細・PNGはこの指定を持たないため、従来の座標と寸法のままになる。
-            if (monochrome && hasOpenColumn) {
-                // 本棚の白黒サムネイルだけは、開放弦列を0フレット枠にせずナットとして見せる。
-                diagramOptions.openStringNutOnly = true;
-                diagramOptions.monochromeViewportLeftCrop = 12;
-                diagramOptions.svgPadding = {
-                    top: 14,
-                    // 開放弦記号の左余白（約21px）と3F右側余白を揃える。
-                    // 記号・ナット・フレットの座標自体は変えない。
-                    right: 22,
-                    bottom: 18,
-                    left: 4,
-                    fillMonochromeBackground: true
-                };
-            }
-            diagramOptions.monochromeFretNumberYOffset = monochrome && needsFretNumberOffset ? 5 : 0;
+            var diagramOptions = listDiagramOptions(chord, {
+                columns: columns,
+                displayMode: mode,
+                monochrome: monochrome,
+                fretNumberScale: opts.fretNumberScale,
+                markerLabelScale: opts.markerLabelScale
+            });
             host.classList.toggle('cc-chordthumb-board--monochrome', monochrome);
+            var card = host.closest('.cc-chordthumb-card');
+            if (card) card.classList.toggle('cc-chordthumb-card--monochrome', monochrome);
             host.innerHTML = window.ChordCruise.ui.fretboard.buildStaticSvg(diagramOptions);
+        });
+    }
+
+    function folderExportCardSize(columns) {
+        return {
+            width: { 1: 520, 2: 420, 3: 320, 4: 260 }[columns],
+            height: { 1: 290, 2: 270, 3: 225, 4: 190 }[columns]
+        };
+    }
+
+    function folderExportTitleSize(size, columns) {
+        var value = { xsmall: 16, small: 18, medium: 20, large: 22, xlarge: 28 }[size] || 20;
+        var scale = { 1: 1.48, 2: 1.24, 3: 1.12, 4: 0.87 }[normalizeLibraryColumns(columns)];
+        return Math.round(value * scale);
+    }
+
+    function positionNestedSvg(svg, x, y, width, height) {
+        return String(svg)
+            .replace(/\swidth="[^"]*"/, ' width="' + width + '"')
+            .replace(/\sheight="[^"]*"/, ' height="' + height + '"')
+            .replace(/\spreserveAspectRatio="[^"]*"/, '')
+            .replace('<svg ', '<svg x="' + x + '" y="' + y + '" preserveAspectRatio="xMidYMid meet" ');
+    }
+
+    function buildFolderExportSvg(folder, chords) {
+        var columns = currentLibraryColumns();
+        var mode = libraryCardDisplayMode();
+        var monochrome = libraryCardMonochrome();
+        var size = folderExportCardSize(columns);
+        var gap = 12;
+        var outerPadding = 24;
+        var headingHeight = 54;
+        var rowCount = Math.max(1, Math.ceil(chords.length / columns));
+        var width = outerPadding * 2 + size.width * columns + gap * (columns - 1);
+        var height = outerPadding * 2 + headingHeight + size.height * rowCount + gap * (rowCount - 1);
+        var darkBackground = '#0b0a09';
+        var cardBackground = monochrome ? '#ffffff' : '#191713';
+        var cardStroke = monochrome ? '#9a9a9a' : '#65552f';
+        var titleColor = monochrome ? '#111111' : '#f0e0b8';
+        var nameSize = folderExportTitleSize(globalDisplaySize('chordNameSize'), columns);
+        var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '">' +
+            '<rect width="100%" height="100%" fill="' + (monochrome ? '#ffffff' : darkBackground) + '"/>' +
+            '<text x="' + (width / 2) + '" y="' + (outerPadding + 27) + '" text-anchor="middle" style="font-family:Arial,&quot;Hiragino Sans&quot;,sans-serif;font-size:26px;font-weight:700;fill:' + titleColor + '">' + escapeHtml(folder.name) + '</text>';
+        chords.forEach(function (chord, index) {
+            var column = index % columns;
+            var row = Math.floor(index / columns);
+            var x = outerPadding + column * (size.width + gap);
+            var y = outerPadding + headingHeight + row * (size.height + gap);
+            var diagramOptions = listDiagramOptions(chord, {
+                columns: columns,
+                displayMode: mode,
+                monochrome: monochrome
+            });
+            var cardSvg = window.ChordCruise.ui.fretboard.buildStaticSvg(diagramOptions);
+            svg += '<rect x="' + x + '" y="' + y + '" width="' + size.width + '" height="' + size.height + '" rx="10" fill="' + cardBackground + '" stroke="' + cardStroke + '"/>' +
+                (monochrome ? '<rect x="' + (x + 6) + '" y="' + (y + 6) + '" width="' + (size.width - 12) + '" height="' + (nameSize + 12) + '" rx="5" fill="#ffffff"/>' : '') +
+                '<text x="' + (x + size.width / 2) + '" y="' + (y + nameSize + 8) + '" text-anchor="middle" style="font-family:Arial,&quot;Hiragino Sans&quot;,sans-serif;font-size:' + nameSize + 'px;font-weight:700;fill:' + titleColor + '">' + escapeHtml(displayChordName(chord.chordName)) + '</text>' +
+                positionNestedSvg(cardSvg, x + 8, y + nameSize + 17, size.width - 16, size.height - nameSize - 25);
+        });
+        svg += '</svg>';
+        // Proは保存数が無制限のため、長い1列一覧でもCanvas上限を超えにくい倍率へ抑える。
+        return { svg: svg, width: width, height: height, scale: Math.min(2, 16000 / width, 16000 / height) };
+    }
+
+    function setFolderExportStatus(text, isError) {
+        var status = document.getElementById('cc-library-folder-export-status');
+        if (!status) return;
+        status.textContent = text || '';
+        status.classList.toggle('cc-lib-export-status--error', !!isError);
+        status.style.display = text ? '' : 'none';
+    }
+
+    function exportCurrentFolder(folder, chords) {
+        var button = document.getElementById('cc-library-folder-export-btn');
+        if (!button || button.disabled || !canExport() || !chords.length) return Promise.resolve(null);
+        button.disabled = true;
+        button.setAttribute('aria-busy', 'true');
+        setFolderExportStatus('', false);
+        var exportSvg = buildFolderExportSvg(folder, chords);
+        var filename = window.ChordCruise.ui.chordExport.safePart(folder.name) + '_コード本棚.png';
+        return window.ChordCruise.ui.chordExport.exportSvgPng(exportSvg, filename).then(function (result) {
+            var suffix = result.method === 'new-tab' ? '（新しいタブに表示）' : '';
+            setFolderExportStatus(result.filename + ' を作成しました ' + result.width + '×' + result.height + 'px' + suffix, false);
+            return result;
+        }).catch(function (err) {
+            setFolderExportStatus(err && err.message ? err.message : 'PNGを書き出せませんでした。', true);
+            return null;
+        }).then(function (result) {
+            button.disabled = false;
+            button.removeAttribute('aria-busy');
+            return result;
         });
     }
 
@@ -1602,9 +1740,9 @@
 
     function exportCurrentChord(chord) {
         var button = document.getElementById('cc-lib-export-btn');
-        if (!button || button.disabled) return Promise.resolve(null);
+        if (!button || button.disabled || !canExport()) return Promise.resolve(null);
         button.disabled = true;
-        button.textContent = '書き出し中…';
+        button.setAttribute('aria-busy', 'true');
         setExportStatus('', false);
         var rangeText = window.ChordCruise.caged.formatFretRange(chord.fretRange);
         var diagramOptions = savedDiagramOptions(chord, {
@@ -1636,7 +1774,7 @@
             return null;
         }).then(function (result) {
             button.disabled = false;
-            button.textContent = '書き出し';
+            button.removeAttribute('aria-busy');
             return result;
         });
     }
@@ -1666,6 +1804,12 @@
         currentDetailChord = chord;
         var displayName = displayChordName(chord.chordName);
         var displayFormName = chordFormName(chord);
+        var detailExportHtml = canExport()
+            ? '<button type="button" class="cc-btn cc-btn-secondary cc-export-icon-btn cc-lib-export-btn" id="cc-lib-export-btn" aria-label="コードを書き出す" title="書き出し">' + downloadIconSvg() + '</button>'
+            : '';
+        var detailExportStatusHtml = canExport()
+            ? '<p class="cc-lib-export-status" id="cc-lib-export-status" style="display:none;"></p>'
+            : '';
 
         var html = '<div class="cc-card">' +
             '<div class="cc-fb-head">' +
@@ -1689,10 +1833,10 @@
                         '<span class="cc-switch-knob" aria-hidden="true"></span>' +
                     '</button>' +
                 '</div>' +
-                '<button type="button" class="cc-btn cc-btn-secondary cc-lib-export-btn" id="cc-lib-export-btn">書き出し</button>' +
                 '<button type="button" class="cc-btn cc-btn-secondary cc-lib-edit-btn" id="cc-lib-edit-btn">編集</button>' +
+                detailExportHtml +
             '</div>' +
-            '<p class="cc-lib-export-status" id="cc-lib-export-status" style="display:none;"></p>' +
+            detailExportStatusHtml +
             qualityAnalysisHtml(chord) +
         '</div>' +
         '<div class="cc-card">' +
@@ -1737,8 +1881,11 @@
             updateMonochromeControl();
             renderDetailFretboard(currentDetailChord || chord);
         });
-        document.getElementById('cc-lib-export-btn').addEventListener('click', function () {
-            exportCurrentChord(currentDetailChord || chord);
+        var detailExportButton = document.getElementById('cc-lib-export-btn');
+        if (detailExportButton) detailExportButton.addEventListener('click', function () {
+            confirmExport(detailExportButton, function () {
+                exportCurrentChord(currentDetailChord || chord);
+            });
         });
         document.getElementById('cc-lib-edit-btn').addEventListener('click', function () {
             window.ChordCruise.ui.saveEditor.openExisting({
