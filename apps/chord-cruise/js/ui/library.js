@@ -20,6 +20,8 @@
     var folderShelfColumns = 4;
     var folderManageSheet = null;
     var folderManageReturnFocus = null;
+    var chordManageSheet = null;
+    var chordManageReturnFocus = null;
     var currentListChords = [];
 
     function storage() { return window.ChordCruise.storage; }
@@ -249,7 +251,7 @@
             var cardStart = sorting
                 ? '<div class="cc-chordthumb-card cc-chordthumb-card--sorting" data-chord-id="' + escapeHtml(chord.id) + '" role="listitem" aria-label="' + escapeHtml(displayName) + 'の並び替え">'
                 : '<button type="button" class="cc-chordthumb-card" data-chord-id="' + escapeHtml(chord.id) + '" aria-label="' + escapeHtml(displayName) + 'の指板を開く">';
-            html += cardStart +
+            var cardHtml = cardStart +
                 '<span class="cc-chordthumb-name" title="' + escapeHtml(displayName) + '">' + escapeHtml(displayName) + '</span>' +
                 '<span class="cc-chordthumb-board" data-chord-thumb="' + escapeHtml(chord.id) + '" aria-hidden="true"></span>' +
                 (sorting
@@ -261,6 +263,11 @@
                         '</span></span>' +
                       '</div>'
                     : '</button>');
+            html += sorting
+                ? cardHtml
+                : '<div class="cc-chord-card-wrap">' + cardHtml +
+                    '<button type="button" class="cc-chord-card-menu" data-chord-manage-id="' + escapeHtml(chord.id) + '" aria-label="' + escapeHtml(displayName) + 'を管理" title="コードを管理">…</button>' +
+                  '</div>';
         });
         return html + '</div>';
     }
@@ -473,6 +480,174 @@
         if (returnFocus && focusTrap()) focusTrap().restoreFocus(folderManageReturnFocus);
         else if (returnFocus && folderManageReturnFocus && typeof folderManageReturnFocus.focus === 'function') folderManageReturnFocus.focus();
         folderManageReturnFocus = null;
+    }
+
+    function ensureChordManageSheet() {
+        if (chordManageSheet) return chordManageSheet;
+        chordManageSheet = document.createElement('div');
+        chordManageSheet.className = 'cc-folder-manage-overlay cc-folder-manage-overlay--hidden';
+        chordManageSheet.addEventListener('click', function (event) {
+            if (event.target === chordManageSheet) closeChordManageSheet(true);
+        });
+        chordManageSheet.addEventListener('keydown', function (event) {
+            var dialog = chordManageSheet.querySelector('[role="dialog"]');
+            if (focusTrap()) focusTrap().trapFocus(dialog || chordManageSheet, event);
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && chordManageSheet && !chordManageSheet.classList.contains('cc-folder-manage-overlay--hidden')) {
+                closeChordManageSheet(true);
+            }
+        });
+        document.body.appendChild(chordManageSheet);
+        return chordManageSheet;
+    }
+
+    function setManagingChordCard(id, active) {
+        var content = contentEl();
+        if (!content) return;
+        Array.prototype.forEach.call(content.querySelectorAll('[data-chord-id]'), function (card) {
+            if (card.getAttribute('data-chord-id') === id) card.classList.toggle('is-managing', active);
+        });
+    }
+
+    function closeChordManageSheet(returnFocus) {
+        if (!chordManageSheet) return;
+        setManagingChordCard(chordManageSheet.dataset.chordId, false);
+        chordManageSheet.classList.add('cc-folder-manage-overlay--hidden');
+        document.body.classList.remove('cc-folder-manage-open');
+        chordManageSheet.innerHTML = '';
+        if (returnFocus && focusTrap()) focusTrap().restoreFocus(chordManageReturnFocus);
+        else if (returnFocus && chordManageReturnFocus && typeof chordManageReturnFocus.focus === 'function') chordManageReturnFocus.focus();
+        chordManageReturnFocus = null;
+    }
+
+    function chordManageMenuHtml(chord) {
+        var otherFolders = storage().loadOrderedFolders().filter(function (folder) {
+            return folder.id !== chord.folderId;
+        });
+        var copyElsewhereDisabled = otherFolders.length === 0 ? ' disabled' : '';
+        var displayName = displayChordName(chord.chordName);
+        return '<div class="cc-folder-manage-sheet" role="dialog" aria-modal="true" aria-labelledby="cc-chord-manage-title">' +
+            '<div class="cc-folder-manage-grabber" aria-hidden="true"></div>' +
+            '<div class="cc-folder-manage-heading"><h3 id="cc-chord-manage-title">' + escapeHtml(displayName) + '</h3><p>' + escapeHtml(chordFormName(chord)) + '</p></div>' +
+            '<div class="cc-folder-manage-actions">' +
+                '<button type="button" class="cc-folder-manage-action" data-chord-manage-action="view">コードを見る</button>' +
+                '<button type="button" class="cc-folder-manage-action" data-chord-manage-action="edit">編集</button>' +
+                '<button type="button" class="cc-folder-manage-action" data-chord-manage-action="copy">複製</button>' +
+                '<button type="button" class="cc-folder-manage-action" data-chord-manage-action="copy-folder"' + copyElsewhereDisabled + '>別のフォルダに複製</button>' +
+                '<button type="button" class="cc-folder-manage-action cc-folder-manage-action--danger" data-chord-manage-action="delete">削除</button>' +
+            '</div>' +
+            '<button type="button" class="cc-folder-manage-cancel" data-chord-manage-action="close">キャンセル</button>' +
+        '</div>';
+    }
+
+    function chordManageCopyFolderHtml(chord) {
+        var displayName = displayChordName(chord.chordName);
+        var targets = storage().loadOrderedFolders().filter(function (folder) {
+            return folder.id !== chord.folderId;
+        });
+        var choices = targets.length
+            ? targets.map(function (folder) {
+                return '<button type="button" class="cc-folder-manage-action" data-chord-manage-action="copy-to-folder" data-target-folder-id="' + escapeHtml(folder.id) + '">' + escapeHtml(folder.name) + '</button>';
+            }).join('')
+            : '<p class="cc-fb-hint">複製先になる別のフォルダがありません。</p>';
+        return '<div class="cc-folder-manage-sheet" role="dialog" aria-modal="true" aria-labelledby="cc-chord-manage-title">' +
+            '<div class="cc-folder-manage-grabber" aria-hidden="true"></div>' +
+            '<div class="cc-folder-manage-heading"><h3 id="cc-chord-manage-title">別のフォルダに複製</h3><p>' + escapeHtml(displayName) + 'の複製先を選択</p></div>' +
+            '<div class="cc-folder-manage-actions">' + choices + '</div>' +
+            '<button type="button" class="cc-folder-manage-cancel" data-chord-manage-action="menu">戻る</button>' +
+        '</div>';
+    }
+
+    function chordCopyRecord(chord, folderId) {
+        var copy = cloneChordRecord(chord);
+        delete copy.id;
+        delete copy.createdAt;
+        delete copy.updatedAt;
+        delete copy.schemaVersion;
+        copy.folderId = folderId || chord.folderId;
+        return copy;
+    }
+
+    function saveChordCopy(chord, folderId) {
+        return storage().saveChord(chordCopyRecord(chord, folderId));
+    }
+
+    function showChordManagePane(chordId, pane) {
+        var chord = storage().loadChord(chordId);
+        if (!chord) {
+            closeChordManageSheet(false);
+            return;
+        }
+        var sheet = ensureChordManageSheet();
+        sheet.dataset.chordId = chord.id;
+        sheet.dataset.pane = pane || 'menu';
+        sheet.innerHTML = pane === 'copy-folder' ? chordManageCopyFolderHtml(chord) : chordManageMenuHtml(chord);
+        bindChordManageSheet();
+        var dialog = sheet.querySelector('[role="dialog"]');
+        if (focusTrap()) focusTrap().focusFirst(dialog || sheet);
+        else {
+            var focusTarget = sheet.querySelector('button');
+            if (focusTarget) focusTarget.focus();
+        }
+    }
+
+    function openChordManageSheet(chordId, trigger) {
+        chordManageReturnFocus = trigger || null;
+        var sheet = ensureChordManageSheet();
+        setManagingChordCard(chordId, true);
+        sheet.classList.remove('cc-folder-manage-overlay--hidden');
+        document.body.classList.add('cc-folder-manage-open');
+        showChordManagePane(chordId, 'menu');
+    }
+
+    function bindChordManageSheet() {
+        if (!chordManageSheet) return;
+        Array.prototype.forEach.call(chordManageSheet.querySelectorAll('[data-chord-manage-action]'), function (button) {
+            button.addEventListener('click', function () {
+                var chordId = chordManageSheet.dataset.chordId;
+                var chord = storage().loadChord(chordId);
+                var action = button.getAttribute('data-chord-manage-action');
+                if (action === 'close') return closeChordManageSheet(true);
+                if (!chord) return closeChordManageSheet(false);
+                if (action === 'menu' || action === 'copy-folder') return showChordManagePane(chordId, action === 'menu' ? 'menu' : 'copy-folder');
+                if (action === 'view') {
+                    closeChordManageSheet(false);
+                    openDetailFromList(chordId);
+                    return;
+                }
+                if (action === 'edit') {
+                    closeChordManageSheet(false);
+                    window.ChordCruise.ui.saveEditor.openExisting({
+                        chord: chord,
+                        onSaved: function () { renderList(); }
+                    });
+                    return;
+                }
+                if (action === 'copy' || action === 'copy-to-folder') {
+                    var targetFolderId = action === 'copy-to-folder' ? button.getAttribute('data-target-folder-id') : chord.folderId;
+                    var copied = saveChordCopy(chord, targetFolderId);
+                    if (!copied) return toast(storageErrorMessage('コードを複製できませんでした'), 'error');
+                    closeChordManageSheet(false);
+                    renderList();
+                    toast(action === 'copy' ? 'コードを複製しました' : '別のフォルダにコードを複製しました');
+                    return;
+                }
+                if (action === 'delete') {
+                    var returnFocus = chordManageReturnFocus;
+                    closeChordManageSheet(false);
+                    confirmDanger('「' + displayChordName(chord.chordName) + '（' + chordFormName(chord) + '）」を削除しますか？この操作は取り消せません。', '削除する', function () {
+                        if (!storage().deleteChord(chord.id)) {
+                            toast('コードを削除できませんでした', 'error');
+                            if (focusTrap()) focusTrap().restoreFocus(returnFocus);
+                            return;
+                        }
+                        renderList();
+                        toast('コードを削除しました');
+                    }, returnFocus, 'コードを削除');
+                }
+            });
+        });
     }
 
     function applyLibraryCardTextSizes() {
@@ -809,6 +984,7 @@
 
     function renderList() {
         closeFolderManageSheet(false);
+        closeChordManageSheet(false);
         view = 'list';
         currentDetailChord = null;
         detailMonochrome = false;
@@ -889,6 +1065,13 @@
         if (chords.length) {
             renderListThumbnails(chords);
             document.getElementById('cc-chordthumb-grid').addEventListener('click', function (event) {
+                var menu = event.target.closest('[data-chord-manage-id]');
+                if (menu) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    openChordManageSheet(menu.getAttribute('data-chord-manage-id'), menu);
+                    return;
+                }
                 var card = event.target.closest('.cc-chordthumb-card');
                 if (!card) return;
                 openDetailFromList(card.dataset.chordId);
